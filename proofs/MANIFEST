@@ -1,0 +1,11 @@
+# This MANIFEST
+MANIFEST
+
+# Dev
+Makefile
+Makefile.common
+src/*.v
+
+# Build scripts
+scripts/install-sh
+scripts/distribution.py
