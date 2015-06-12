@@ -31,7 +31,7 @@ Proof. by move=> x; rewrite /tonatr; case: seq_tnthP. Qed.
 End GenFin.
 
 (* -------------------------------------------------------------------- *)
-Parameter w64 : Type.
+Parameter w64 : eqType.
 
 Parameter addc : w64 -> w64 -> bool -> (bool * w64).
 Parameter mulc : w64 -> w64 -> (w64 * w64).
@@ -117,6 +117,12 @@ Definition set_reg ps r w :=
   {| s_flags := ps.(s_flags);
      s_regs  := ps.(s_regs)[@ r <- w] |}.
 
+Definition get_ir ps ir :=
+  match ir with
+  | Imm w => w
+  | Reg r => get_reg ps r
+  end.
+
 (* -------------------------------------------------------------------- *)
 Notation "''C_' T" := (rstate -> option (rstate * T))
   (at level 8, T at level 2, format "''C_' T").
@@ -172,10 +178,7 @@ Definition mwriteR (r : reg) w :=
 
 (* -------------------------------------------------------------------- *)
 Definition mreadir ir :=
-  match ir with
-  | Imm w => mreturn w
-  | Reg r => mreadR r
-  end.
+  mlet state := mread in mreturn (get_ir state ir).
 
 (* -------------------------------------------------------------------- *)
 Definition exec_ADD ir r cf :=
@@ -225,3 +228,32 @@ Fixpoint steps (s : seq instr) :=
     mlet _ := step i in steps s
   else
     mreturn tt.
+
+(* -------------------------------------------------------------------- *)
+Definition peq (rs : seq (reg * w64)) (fs : seq (flagid * option bool)) :=
+  fun s1 s2 =>
+    [/\ forall r, r \notin [seq x.1 | x <- rs] ->
+          get_reg s1 r = get_reg s2 r
+      , forall f, f \notin [seq x.1 | x <- fs] ->
+          get_flag s1 f = get_flag s2 f
+      , all [pred rs | get_reg  s2 rs.1 == rs.2] rs
+      & all [pred fs | get_flag s2 fs.1 == fs.2] fs].
+
+(* -------------------------------------------------------------------- *)
+Lemma get_set_reg s r r' w:
+    get_reg (set_reg s r w) r'
+  = if r' == r then w else get_reg s r'.
+Proof. by rewrite /set_reg /get_reg ffunE. Qed.
+
+Lemma peq_setreg r w s: peq [:: (r, w)] [::] s (set_reg s r w).
+Proof.
+split=> //=; do? (apply/andP; split)=> //.
++ by move=> r'; rewrite mem_seq1 get_set_reg => /negbTE->.
++ by rewrite get_set_reg eqxx.
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma MOV_P ir r s s' :
+     mexec (step (MOV ir r)) s = Some s'
+  -> peq [:: (r, get_ir s ir)] [::] s s'.
+Proof. by case=> <-; apply/peq_setreg. Qed.
