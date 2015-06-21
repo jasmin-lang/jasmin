@@ -1,0 +1,29 @@
+param n;  /* n = limbs - 1 */
+
+x[0] = load xp, 0;
+y[0] = load yp, 0;
+cf? x[0] += y[0]
+for i in  0 .. n {
+  x[i] = load xp, i;
+  y[i] = load yp, i;
+  if i = 0 {
+   cf? x[0] += y[0];
+  } else {
+    cf? x[i] += y[i] + cf;   
+
+add0 = 0;      /* add0  = 0 + cf */
+add38 = 38;    /* add0 *= 38 */
+add38 = 0 if !cf;
+
+for i in  0 .. n {
+  if i = 0 {
+   cf? x[0] += add38;     /* x[0] += add0 */
+  } else {
+    cf? x[i] += add0 + cf;   /* x[i] += 0 + cf */
+
+add0 = add38 if carry    /* add0 = 0 + cf ; add0 *= 38 */
+x.[0] += add0
+
+for j in 0..n {
+  store xp, j, x[j];
+}

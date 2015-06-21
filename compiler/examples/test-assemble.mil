@@ -1,0 +1,3 @@
+/* this code can be directly assembled */
+%rdi += %rsi;
+%rax = %rdi;

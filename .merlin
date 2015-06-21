@@ -1,0 +1,13 @@
+S src/Asm
+S src/IL
+S src/Tests
+S src/Main
+S src/Util
+
+B _build/src/Asm
+B _build/src/IL
+B _build/src/Tests
+B _build/src/Main
+B _build/src/Util
+
+PKG num uint core mparser ctypes.foreign ounit
