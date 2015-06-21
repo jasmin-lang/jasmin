@@ -381,3 +381,10 @@ let apply_transform trafo st =
     | Asm(_) -> assert false
   in
   List.fold_left trafo ~init:st ~f:app_trafo
+
+let apply_transform_asm strafo st =
+  let (trafo,mlang) = parse_trafo strafo in
+  let st = apply_transform trafo st in
+  match mlang with
+  | None     -> `IL st
+  | Some X64 -> `Asm_X64 (to_asm_x64 st |> wrap_asm_function)

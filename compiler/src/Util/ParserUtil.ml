@@ -53,3 +53,11 @@ let error_string file (line_start,start_pos,end_pos,line,msg) =
   (F.sprintf "%s:%i:%i %i:%i error: %s\n" file line_start start_pos line_start end_pos msg)
   ^(F.sprintf "%s\n" line)
   ^(F.sprintf "%s%s\n" (String.make start_pos ' ') "^")
+
+let parse ~parse file s =
+  begin match parse s with
+  | `ParseOk pres -> pres
+  | `ParseError(pinfo) ->
+    let s = error_string file pinfo in
+    failwith s
+  end

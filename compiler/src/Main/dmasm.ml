@@ -19,25 +19,19 @@ let parse_and_process ~parse ~ftype ~process file =
     eprintf "%s%!" s
   end
 
-let process_compiled_asm print_result out_file file st =
-  let asm_code = ILC.to_asm_x64 st |> ILC.wrap_asm_function in
-  let asm_string = fsprintf "%a" Asm_X64.pp_instrs asm_code in
-  if print_result then (
-    F.printf "%s%!" asm_string
-  ) else (
-    F.printf "Processed file %s@\n%!" file
-  );
-  if out_file<>"" then (
-    Out_channel.write_all out_file ~data:asm_string;
-  )
-
 let process_mil trafo print_result out_file file st =
-  let (trafo,mlang) = ILC.parse_trafo trafo in
-  let st = ILC.apply_transform trafo st in
-  match mlang with
-  | Some ILC.X64 ->
-    process_compiled_asm print_result out_file file st
-  | None ->
+  match ILC.apply_transform_asm trafo st with
+  | `Asm_X64 asm_code ->
+    let asm_string = fsprintf "%a" Asm_X64.pp_instrs asm_code in
+    if print_result then (
+      F.printf "%s%!" asm_string
+    ) else (
+      F.printf "Processed file %s@\n%!" file
+    );
+    if out_file<>"" then (
+      Out_channel.write_all out_file ~data:asm_string
+    )
+  | `IL st ->
     if print_result
     then F.eprintf "%a@\n%!" IL_Lang.pp_stmt st
     else F.eprintf "Processed file %s@\n%!" file
