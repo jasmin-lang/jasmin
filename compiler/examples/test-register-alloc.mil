@@ -1,0 +1,9 @@
+x = %rdi;
+y = %rsi;
+rsp = %rsp;
+rsp &= 31;
+rsp += 64;
+rsp += %rsp;
+*(rsp) = x;
+*(rsp) += y;
+%rax = *(rsp);

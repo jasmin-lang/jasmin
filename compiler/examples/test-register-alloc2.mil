@@ -1,0 +1,6 @@
+for i in 0..n {
+  x[i] = %rsi;
+  y[i] = %rsi;
+  z[i] = x[i] + y[i];
+}
+%rax = z[n];
