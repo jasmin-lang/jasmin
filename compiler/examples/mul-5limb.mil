@@ -1,0 +1,76 @@
+/* need shifts, logical and, xor ( "<<=", ">>=", "&=", "^=") */ 
+ 
+
+for i in 0 .. n {
+ x[i] = *( xp + i*8);
+ y[i] = *( yp + i*8);
+}
+
+/* multiplication part */
+
+for i in 0 .. n {
+  for j in 0 .. n {
+    if i + j < n + 1 {
+      (h,l) = x[i] * y[j];
+      if i = 0 {
+        r[i + j] = l;
+	m[i + j] = h;
+      } else { 
+        cf? r[i + j] += l;
+	m[i + j] += h + cf;
+	}
+    } else {
+      (h,l) = x[i] * 19;
+      (h,l) = l * y[j];
+      cf? r[ i + j - n - 1] += l;
+      m[ i + j - n - 1] += h + cf;
+      }
+  }
+} 
+
+
+/* reduction part */
+/* mask = 2^51 - 1 */	
+				
+for i in 0 ..n {
+  if i = 0 {
+    m[0] <<= 13;
+    mult = r[0];
+    r[0] &= mask;
+    mult >>= 51;
+    m[0] ^= mult;
+  } else {
+    m[i] <<= 13;
+    mult = r[i]
+    r[i] &= mask;
+    r[i] += m[i - 1];
+    mul >>= 51;
+    m[i] ^=mult;
+    }
+}
+
+(h, l) = m[n] * 19;
+r[0] += l;
+
+for i in 0 .. n {
+  if i = 0 {
+    mult = r[0];
+    mult >>= 51;
+    mult += r[1];
+  } else {
+    r[i] = mult;
+    mult >>= 51;
+    r[i - 1] &= mask;
+    if i <> n { 
+    mult += r[i + 1];   
+    } else {
+      ( h, l) =  mul * 19;
+      r[0] += mult
+      r[n] &= mask;
+      }
+    }
+}
+
+for i in 0 .. n {
+  *( rp + i*8 ) -= r[i];
+}
