@@ -13,13 +13,14 @@ open Core
 %token LBRACK RBRACK LCBRACE RCBRACE LPAREN RPAREN
 %token EQ
 %token INEQ
-%token PLUSEQ MINUSEQ
+%token PLUSEQ MINUSEQ BANDEQ
 %token LEQ
 %token LESS
 %token GREATER
 %token GEQ
 
 %token STAR
+%token BAND
 %token MINUS
 %token PLUS
 %token LAND
@@ -37,7 +38,7 @@ open Core
 %token FALSE
 
 %token <string> ID 
-%token <Util.u64>  NAT
+%token <int64>  INT
 
 %left LAND
 %nonassoc EXCL
@@ -70,7 +71,7 @@ open Core
 
 iexpr :
 | s=ID  { IVar(s) }
-| i=NAT { IConst(i) }
+| i=INT { IConst(i) }
 | i1=iexpr o=ibinop i2=iexpr { IBinOp(o,i1,i2) }
 
 icond :
@@ -94,17 +95,19 @@ indvar :
 
 %inline mem:
 | STAR LPAREN iv=indvar mi=offset? RPAREN
-    { (iv,Std.Option.value ~default:(IConst U64.zero) mi) }
+    { (iv,Std.Option.value ~default:(IConst Int64.zero) mi) }
 
 (* -------------------------------------------------------------------- *)
 (* Operators and assignments *)
 
 offset:
-|  PLUS i=iexpr { i }
+| PLUS i=iexpr { i }
+| MINUS i=iexpr { IBinOp(IMinus,IConst(Int64.zero),i) }
+
 
 src :
 | iv=indvar { Svar(iv) }
-| i=NAT { Simm(i) }
+| i=INT { Simm(i) }
 | m = mem { Smem(fst m, snd m) }
 
 dest :
@@ -118,11 +121,13 @@ cfin:
 binop:
 | PLUS  { `Plus }
 | MINUS { `Minus }
+| BAND  { `BAnd }
 | STAR  { `Mult }
 
 %inline opeq:
 | PLUSEQ  { Add }
 | MINUSEQ { Sub }
+| BANDEQ  { BAnd }
 
 (* -------------------------------------------------------------------- *)
 (* instructions *)
@@ -143,6 +148,7 @@ base_instr :
         | `Mult  -> Mul(None,d,s1,s2)
         | `Plus  -> BinOpCf(Add,IgnoreCarry,d,s1,s2,IgnoreCarry)
         | `Minus -> BinOpCf(Sub,IgnoreCarry,d,s1,s2,IgnoreCarry)
+        | `BAnd  -> BinOpCf(BAnd,IgnoreCarry,d,s1,s2,IgnoreCarry)
         end
       | `Right(s) -> Assgn(d,s)
     }

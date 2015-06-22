@@ -1,7 +1,6 @@
 {
   open Asm_Parser
   open Asm_X64
-  open Util
 
   exception Error of string
 
@@ -53,7 +52,7 @@ rule lex = parse
   | ","     { COMMA }
   | "$"     { DOLLAR }
 
-  | ['0'-'9']['0'-'9']* as s { NAT(U64.of_string(s)) }
+  | ['0'-'9']['0'-'9']* as s { NAT(Int64.of_string(s)) }
 
 and comment = parse
   | newline     { () }

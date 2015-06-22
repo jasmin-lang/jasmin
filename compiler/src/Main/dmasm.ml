@@ -79,15 +79,33 @@ let spec =
   empty
   +> flag "-t" (optional_with_default "" string)
       ~doc:"transformations perform the given transformations"
-  +> flag "-p" no_arg ~doc:"print result"
+  +> flag "-p" no_arg ~doc:" print result"
   +> flag "-o" (optional_with_default "" file)
       ~doc:"output_file output to given file"
   +> anon ("filename" %: regular_file)
 
 let command =
   Command.basic
-    ~summary:"Process the given file."
-    ~readme:(fun () -> "The dmasm tool transforms the given (.mil|.s) file.")
+    ~summary:"Compiler from MIL to assembly."
+    ~readme:(fun () ->
+      String.concat ~sep:"\n"
+       [ "The dmasm tool transforms the given (.mil|.s) file.";
+         "";
+         "Transformations are given as comma-separated lists of";
+         "transformation passes from the following list:";
+         "";
+         "  expand[p1=i1,...,pk=ik]:";
+         "    expand macros with given mapping from parameters to integers";
+         "  ssa:";
+         "    rename variables to obtain static single assignment form";
+         "  register_alloc:";
+         "    allocate registers";
+         "  asm(X86-64):";
+         "    compile to assembly";
+         "";
+         " Example: 'expand[n=5],ssa,register_alloc,asm(X86-64)'"
+       ]
+       )
     spec
     (fun trafo print_result out_file filename () ->
        dmasm trafo print_result out_file filename)

@@ -1,4 +1,4 @@
-true: bin_annot
+true: bin_annot, debug
 
 <src> or <src/PrimeField> or <src/Generator>: include
 <src/Asm> or <src/Util> or <src/IL>: include

@@ -37,7 +37,7 @@ test-dmasm-assemble: dmasm
 	./dmasm.native -p -t "asm[x86-64]" examples/test-assemble.mil
 
 test-dmasm-reg: dmasm
-	./dmasm.native -p -t "expand[]" examples/test-ssa.mil
+	./dmasm.native -p -t "register_alloc" examples/test-register-alloc.mil
 
 run_tests:
 	$(OCAMLBUILD) $(OCAMLBUILDFLAGS) src/Main/run_tests.native

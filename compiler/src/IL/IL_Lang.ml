@@ -24,7 +24,7 @@ type ibinop =
 type iexpr =
   | IVar   of string
   | IBinOp of ibinop * iexpr * iexpr
-  | IConst of u64 (* just to be consistent *)
+  | IConst of int64
   with sexp, compare
 
 type icondop =
@@ -54,7 +54,7 @@ type indvar =
 
 type src =
   | Svar of indvar          (* Svar(s): variables *)
-  | Simm of u64             (* Simm(i): $i *)
+  | Simm of int64           (* Simm(i): $i *)
   | Smem of indvar * iexpr  (* Smem(i,r): i(%r) *)
   with sexp, compare
 
@@ -66,6 +66,7 @@ type dest =
 type binop =
   | Add
   | Sub
+  | BAnd
   with sexp, compare
 
 type base_instr =
@@ -144,7 +145,7 @@ let rec pp_iexpr fmt ie =
   | IBinOp(op,ie1,ie2) ->
     F.fprintf fmt "%a %s %a" pp_iexpr ie1 (ibinop_to_string op) pp_iexpr ie2
   | IConst(u) ->
-    pp_string fmt (U64.to_string u)
+    pp_string fmt (Int64.to_string u)
 
 let icondop_to_string = function
   | CEq      -> "="
@@ -171,14 +172,15 @@ let pp_indvar fmt iv =
 
 let pp_src fmt = function
   | Svar(iv)    -> pp_indvar fmt iv
-  | Simm(u)     -> pp_string fmt (U64.to_string u)
+  | Simm(u)     -> pp_string fmt (Int64.to_string u)
   | Smem(iv,ie) -> F.fprintf fmt "*(%a + %a)" pp_indvar iv pp_iexpr ie
 
 let pp_dest fmt d = pp_src fmt (dest_to_src d)
 
 let binop_to_string = function
-  | Add -> "+"
-  | Sub -> "-"
+  | Add  -> "+"
+  | Sub  -> "-"
+  | BAnd -> "&"
 
 let pp_base_instr fmt = function
   | Comment(s) ->

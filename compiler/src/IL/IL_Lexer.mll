@@ -1,6 +1,5 @@
 {
   open IL_Parser
-  open Util
 
   exception Error of string
 
@@ -28,6 +27,7 @@ rule lex = parse
   | "!="    { INEQ }
   | "+="    { PLUSEQ }
   | "-="    { MINUSEQ }
+  | "&="    { BANDEQ }
   | "<="    { LEQ }
   | "<"     { LESS }
   | ">="    { GEQ }
@@ -39,6 +39,7 @@ rule lex = parse
   | "-"     { MINUS }
   | "*"     { STAR }
   | "+"     { PLUS }
+  | "&"     { BAND }
   | "&&"    { LAND }
   | ";"     { SEMICOLON }
   | "?"     { QUESTION }
@@ -51,7 +52,7 @@ rule lex = parse
   | "if"    { IF }
   | "else"  { ELSE }
 
-  | ['0'-'9']+ as s { NAT(U64.of_string s) }
+  | ('-'? ['0'-'9']+) as s { INT(Int64.of_string s) }
   | ['a'-'z' 'A'-'Z' '_' '0'-'9']* as s
     { ID s }
 

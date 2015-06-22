@@ -48,11 +48,15 @@ let eval_ibinop io =
 let eval_iexpr ivar_map ie =
   let rec go = function
     | IVar(s) ->
-      Option.value_exn (Map.find ivar_map s)
+      begin match Map.find ivar_map s with
+      | Some x -> x
+      | None ->
+        failwith ("expand: parameter "^s^" undefined")
+      end
     | IBinOp(o,ie1,ie2) ->
       (eval_ibinop o) (go ie1) (go ie2)
     | IConst(c) ->
-      U64.to_big_int c
+      Big_int.big_int_of_int64 c
   in
   go ie
 
@@ -77,7 +81,7 @@ let eval_icond ivar_map ic =
   go ic
 
 let inst_iexpr ivar_map ie =
-  IConst (U64.of_big_int (eval_iexpr ivar_map ie))
+  IConst (Big_int.int64_of_big_int (eval_iexpr ivar_map ie))
 
 let inst_var ivar_map = function
   | Nvar(v,ies) ->
@@ -152,9 +156,9 @@ let macro_expand ivar_map st =
 
 let transform_ssa bis =
   let var_index = Nvar.Table.create () in
-  let get_index v = Option.value ~default:U64.zero (Hashtbl.find var_index v) in
+  let get_index v = Option.value ~default:Int64.zero (Hashtbl.find var_index v) in
   let incr_index v =
-    let i = U64.succ (get_index v) in
+    let i = Int64.succ (get_index v) in
     Hashtbl.set var_index ~key:v ~data:i;
     i
   in
@@ -199,29 +203,91 @@ let transform_ssa bis =
 (* ------------------------------------------------------------------------ *)
 (* Register allocation *)
 
-let register_allocate (_usable_regs : String.Set.t) bis =
+let register_allocate (usable_regs : rname list) bis =
 
-  (* the lifetime of a named variable v is (i,j) if
-     v is written in position i and last read in position j
-     (note: we assume SSA => v only written once *)
-  let _nvar_lifetimes =
-    Nvar.Map.empty
+  let free_regs = ref usable_regs in
+  let reg_map = ref Nvar.Map.empty in
+  let find_reg nv = Map.find_exn !reg_map nv in
+  let get_free_reg nv =
+    match !free_regs with
+    | []      -> failwith "register_allocate: ran out of registers"
+    | r::rest ->
+      free_regs := rest;
+      reg_map := Map.add !reg_map ~key:nv ~data: r;
+      r
   in
 
-  (* list of positions that write a fixed register *)
-  let _register_writes =
-    String.Map.empty
-  in    
-
-  (* positions that read a fixed register *)
-  let _register_reads =
-    String.Map.empty
+  let reuse_reg ~old_nv ~new_nv =
+    let r = find_reg old_nv in
+    reg_map := Map.add (Map.remove !reg_map old_nv) ~key:new_nv ~data:r;
+    r
   in
 
-  let go _nvar_map bis =
-    bis
+  let src_use_reg = function
+    | (Svar(Reg(_)) | Smem(Reg(_),_) | Simm(_)) as d -> d
+    | Svar(Nvar(nv))   -> Svar(Reg(find_reg nv))
+    | Smem(Nvar(nv),o) -> Smem(Reg(find_reg nv),o)
   in
-  go Nvar.Map.empty bis
+
+  let dest_alloc_reg = function
+    | (Dvar(Reg(_)) | Dmem(Reg(_),_)) as d -> d
+    | Dvar(Nvar(nv))   -> let r = get_free_reg nv in Dvar(Reg(r))
+      (* this is a write to memory, not to the register *)
+    | Dmem(Nvar(nv),o) -> let r = find_reg nv in Dmem(Reg(r),o)
+  in
+
+  let rec go = function
+    | [] -> []
+    | bi::bis ->
+      F.printf "before: %a\n%!" pp_base_instr bi;
+      let bi =
+        match bi with
+        (* Note: we update sources before destinations *)
+        | Comment(_) -> bi
+
+        | Assgn(d,s) ->
+          let s = src_use_reg s in
+          let d = dest_alloc_reg d in
+          Assgn(d,s)
+
+        | Mul(mdh,dl,s1,s2) ->
+          let s1 = src_use_reg s1 in
+          let s2 = src_use_reg s2 in
+          let mdh = Option.map ~f:dest_alloc_reg mdh in
+          let dl = dest_alloc_reg dl in
+          Mul(mdh,dl,s1,s2)
+
+        | BinOpCf(bo,cout,d,s1,s2,cin) ->
+          let s2 = src_use_reg s2 in
+          let (d,s1) =
+            match d,s1 with
+
+            | Dvar(Reg(dr)), Svar(Reg(sr)) ->
+              assert (dr = sr);
+              d,s1
+
+            | Dvar(Nvar(dv)), Svar(Nvar(sv)) ->
+              let r = reuse_reg ~old_nv:sv ~new_nv:dv in
+              Dvar(Reg(r)),Svar(Reg(r))
+
+            | Dmem(Reg(dr),die), Smem(Reg(sr),sie) ->
+              assert (dr = sr && die = sie);
+              d,s1
+
+            | Dmem(Nvar(dv),die), Smem(Nvar(sv),sie) ->
+              assert (die = sie);
+              let r = reuse_reg ~old_nv:sv ~new_nv:dv in
+              Dmem(Reg(r),die),Smem(Reg(r),sie)
+
+            | _ -> assert false
+          in
+          BinOpCf(bo,cout,d,s1,s2,cin)
+      in
+      F.printf "after:  %a\n%!" pp_base_instr bi;
+      bi::(go bis)   
+  in
+  F.printf "\nregister alloc:\n%!";
+  go bis
 
 (* ------------------------------------------------------------------------ *)
 (* Translation to assembly  *)
@@ -237,12 +303,22 @@ let to_asm_x64 st =
   let is_imm_src = function Simm _ -> true | _ -> false in
   let is_reg_dest = function Dvar(Reg(_)) -> true | _ -> false in
   let trans_src = function
-    | Svar(Reg(r))  -> X64.Sreg(X64.reg_of_string r)
-    | Simm(i)  -> X64.Simm(i)
+    | Svar(Reg(r))    -> X64.Sreg(X64.reg_of_string r)
+    | Simm(i)         -> X64.Simm(i)
+    | Smem(Reg(r),ie) ->
+      begin match ie with
+      | IConst(i) -> X64.Smem(X64.reg_of_string r,i)
+      | _ -> assert false
+      end
     | _ -> failwith "not implemented yet"
   in
   let trans_dest = function
     | Dvar(Reg(r)) -> X64.Dreg(X64.reg_of_string r)
+    | Dmem(Reg(r),ie) ->
+      begin match ie with
+      | IConst(i) -> X64.Dmem(X64.reg_of_string r,i)
+      | _ -> assert false
+      end
     | _ -> failwith "not implemented yet"
   in
   let rec go = function
@@ -297,6 +373,11 @@ let to_asm_x64 st =
                 X64.( Binop(Add,trans_src s2,trans_dest d) )
               | Add, UseCarry(_) ->
                 X64.( Binop(Adc,trans_src s2,trans_dest d) )
+
+              | BAnd, IgnoreCarry ->
+                X64.( Binop(And,trans_src s2,trans_dest d) )
+              | BAnd, UseCarry(_) -> assert false
+
               | Sub, IgnoreCarry ->
                 X64.( Binop(Sub,trans_src s2,trans_dest d) )
               | Sub, UseCarry(_) ->
@@ -376,7 +457,7 @@ let apply_transform trafo st =
       |> base_instrs_to_stmt
     | RegisterAlloc ->
          stmt_to_base_instrs st
-      |> register_allocate (String.Set.of_list ["r8"; "r9"; "r10"; "r11"; "r12"])
+      |> register_allocate ["r8"; "r9"; "r10"; "r11"; "r12"]
       |> base_instrs_to_stmt
     | Asm(_) -> assert false
   in

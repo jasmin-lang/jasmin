@@ -23,10 +23,10 @@ module type VAL = sig
 end
 
 module V64 = struct
-  type qword = u64
-  type address = u64
-  let qword_to_string = U64.to_string
-  let address_to_string = U64.to_string
+  type qword = int64
+  type address = int64
+  let qword_to_string = Int64.to_string
+  let address_to_string = Int64.to_string
 end
 
 
@@ -45,6 +45,7 @@ module Make_Instr(V : VAL) = struct
   type binop =
     | Add          (* addition:ignore carry flag *)
     | Adc          (* addition use    carry flag *)
+    | And          (* bitwise and                *)
     | Sub          (* subtraction: ignore carry flag *)
     | Sbb          (* subtraction: use    carry flag *)
     | Mov          (* move *)
@@ -59,7 +60,7 @@ module Make_Instr(V : VAL) = struct
     | IMul         (* multiplication *)
 
 
-  type offset = Util.u64
+  type offset = int64
     
   type src =
     | Sreg of reg          (* Sreg(r): use register *)
@@ -119,7 +120,7 @@ module Make_Instr(V : VAL) = struct
     | "rbp" -> RBP
     | "rsp" -> RSP
     | "r8"  -> R8
-    | "%r9" -> R9
+    | "r9" -> R9
     | "r10" -> R10
     | "r11" -> R11
     | "r12" -> R12
@@ -132,6 +133,7 @@ module Make_Instr(V : VAL) = struct
   let binop_to_string = function
     | Add  -> "add"
     | Adc  -> "adc"
+    | And  -> "and"
     | Sub  -> "sub"
     | Sbb  -> "sbb"
     | Mov  -> "mov"
@@ -151,7 +153,7 @@ module Make_Instr(V : VAL) = struct
   let pp_src fmt = function
     | Sreg(r)     -> pp_string fmt (reg_to_string r)
     | Simm(i)     -> F.fprintf fmt "$%s" (V.qword_to_string i)
-    | Smem(reg,i) -> F.fprintf fmt "%s(%s)" (U64.to_string i) (reg_to_string reg)
+    | Smem(reg,i) -> F.fprintf fmt "%s(%s)" (Int64.to_string i) (reg_to_string reg)
 
   let pp_dest fmt d = pp_src fmt (dest_to_src d)
 

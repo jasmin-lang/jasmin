@@ -22,7 +22,7 @@ open Asm_X64
 
 %token COMMA DOLLAR
 
-%token <Util.u64>  NAT
+%token <int64>  NAT
 
 %type <Asm_X64.instr> instr
 %type <Asm_X64.instr list> instrs
