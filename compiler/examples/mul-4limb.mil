@@ -5,7 +5,7 @@
 x[0] = *(xp);
 for j in 0..n {
   y[j] = *(yp + j*8);
-  h l = x[0] * y[j];
+  (h,l) = x[0] * y[j];
 
   if j = 0 {
     r[0] = l;
@@ -21,7 +21,7 @@ for i in 1..n {
   x[i] = *(xp + i*8);
   for j in 0..n {
     y[j] = *(yp + j*8);
-    h l = x[i]*y[j];
+    (h,l) = x[i]*y[j];
     cf? r[i+j] += l;
     if j = 0 {
       hprev = 0;
@@ -41,7 +41,7 @@ for i in 1..n {
 }
 
 for i in 0..n {
-  h l = r[n + i + 1] * 38;
+  (h,l) = r[n + i + 1] * 38;
   cf? r[i] += l;
   if i = 0 {
     hprev = 0;
@@ -54,7 +54,7 @@ for i in 0..n {
   }
 }
 
-h l = hprev * 38;
+(h,l) = hprev * 38;
 cf? r[0] += l;
 cf? r[1] += h + cf;
 
@@ -65,7 +65,7 @@ for i in 2..n {
 zero = 0;
 zero += 0 + cf;
 
-h l = zero * 38;
+(h,l) = zero * 38;
 r0 += l;
 
 for j in 0..n {
