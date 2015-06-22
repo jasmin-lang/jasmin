@@ -30,8 +30,8 @@ while true do
 
     diff_hash.each do |df|
       if df[0].end_with?("md")
-        puts "Detected change in #{df[0]}, running make"
-        system("make")
+        puts "Detected change in #{df[0]}, running make doc"
+        system("make doc")
       else
         puts "Detected change in #{df[0]}, refreshing"
         %x{osascript<<ENDGAME
