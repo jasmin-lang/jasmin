@@ -1,12 +1,8 @@
-param n;  /* n = limbs - 1 */
-
-x[0] = load xp, 0;
-y[0] = load yp, 0;
-cf? x[0] -= y[0]
+  /* n = limbs - 1 */
 
 for i in  0 .. n {
-  x[i] = load xp, i;
-  y[i] = load yp, i;
+  x[i] = *(xp + i*8);
+  y[i] = *(yp + i*8);
   if i = 0 {
    cf? x[0] -= y[0];
   } else {
@@ -14,21 +10,21 @@ for i in  0 .. n {
     }
 }   
 
-sub0 = 0; vv/* sub0 = 0 + cf */
-sub38 = 38; */ sub0 *= 38 */
-sub38 = 0 if !cf;
+sub0 = 0; 
+sub38 = 38; 
+sub38 = 0; /* if !cf;FIXME */
 
 for i in  0 .. n {
   if i = 0 {
    cf? x[0] -= sub38;
   } else {
-    cf? x[i] -= sub0 + cf;
+    cf? x[i] -= sub0 - cf;
     }
 } 
 
-sub0 = sub38 if carry   /* sub0 = 0 + cf ; sub0 *= 38 */
-x.[0] -= sub0
+sub0 = sub38; /* if cf;FIXME  */
+x[0] -= sub0;
 
 for j in 0..n {
-  store xp, j, x[j];
+  *(xp + j*8) -= x[j];
 }
