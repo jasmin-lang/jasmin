@@ -3,6 +3,42 @@ open Util
 
 module F = Format
 
+(* ------------------------------------------------------------------------ *)
+(* Compile time expressions *)
+
+type cvar = string with sexp, compare
+
+type cbinop =
+  | Cplus
+  | Cmult
+  | Cminus
+  with sexp, compare
+
+type cexpr =
+  | Cvar   of string
+  | Cbinop of cbinop * cexpr * cexpr
+  | Cconst of int64
+  with sexp, compare
+
+type ccondop =
+  | Ceq
+  | Cineq
+  | Cless
+  | Cleq
+  | Cgreater
+  | Cgeq
+  with sexp, compare
+
+type ccond =
+  | Ctrue
+  | Cnot  of ccond
+  | Cand  of ccond * ccond
+  | Ccond of ccondop * cexpr * cexpr
+  with sexp, compare
+
+(* ------------------------------------------------------------------------ *)
+(* Operands and constructs for intermediate language *)
+
 type var = string with sexp, compare
 
 type cf_info =
@@ -10,57 +46,24 @@ type cf_info =
   | UseCarry of var
   with sexp, compare
 
-(* ------------------------------------------------------------------------ *)
-(* Operands and constructs for intermediate language *)
-
-type ivar = string with sexp, compare
-
-type ibinop =
-  | IPlus
-  | IMult
-  | IMinus
-  with sexp, compare
-
-type iexpr =
-  | IVar   of string
-  | IBinOp of ibinop * iexpr * iexpr
-  | IConst of int64
-  with sexp, compare
-
-type icondop =
-  | CEq
-  | CInEq
-  | CLess
-  | CLeq
-  | CGreater
-  | CGeq
-  with sexp, compare
-
-type icond =
-  | ITrue
-  | INot  of icond
-  | IAnd  of icond * icond
-  | ICond of icondop * iexpr * iexpr
-  with sexp, compare
-
 type rname = string with sexp, compare
 
-type nvar = var * iexpr list with sexp, compare
+type vreg = var * cexpr list with sexp, compare
 
-type indvar =
-  | Nvar of nvar
-  | Reg of rname
+type reg =
+  | Vreg of vreg   (* virtual register (infinite set), can be renamed *)
+  | Mreg of rname  (* machine register, fixed *)
   with sexp, compare
 
 type src =
-  | Svar of indvar          (* Svar(s): variables *)
-  | Simm of int64           (* Simm(i): $i *)
-  | Smem of indvar * iexpr  (* Smem(i,r): i(%r) *)
+  | Svar of reg           (* Svar(s): variables *)
+  | Simm of int64         (* Simm(i): $i *)
+  | Smem of reg * cexpr  (* Smem(i,r): i(%r) *)
   with sexp, compare
 
 type dest =
-  | Dvar of indvar          (* Dvar(s): variables *)
-  | Dmem of indvar * iexpr  (* Dmem(i,r): i(%r) *)
+  | Dvar of reg           (* Dvar(s): variables *)
+  | Dmem of reg * cexpr  (* Dmem(i,r): i(%r) *)
   with sexp, compare
 
 type binop =
@@ -88,10 +91,10 @@ type base_instr =
 type instr =
   | BInstr of base_instr
 
-  | If of icond * stmt * stmt
+  | If of ccond * stmt * stmt
     (* If(c1,i1,i2): if c1 { i1 } else i2 *)
 
-  | For of ivar * iexpr * iexpr * stmt
+  | For of cvar * cexpr * cexpr * stmt
     (* For(v,lower,upper,i): for v in lower..upper { i } *)
 
 and stmt = instr list
@@ -101,16 +104,16 @@ and stmt = instr list
 (* Utility functions and modules *)
 
 let dest_to_src = function
-  | Dvar(iv)    -> Svar(iv)
-  | Dmem(iv,ie) -> Smem(iv,ie)
+  | Dvar(cv)    -> Svar(cv)
+  | Dmem(cv,ce) -> Smem(cv,ce)
 
 let equal_cf_info    x y = compare_cf_info    x y = 0
-let equal_ibinop     x y = compare_ibinop     x y = 0
-let equal_iexpr      x y = compare_iexpr      x y = 0
-let equal_icondop    x y = compare_icondop    x y = 0
-let equal_icond      x y = compare_icond      x y = 0
-let equal_nvar       x y = compare_nvar       x y = 0
-let equal_indvar     x y = compare_indvar     x y = 0
+let equal_cbinop     x y = compare_cbinop     x y = 0
+let equal_cexpr      x y = compare_cexpr      x y = 0
+let equal_ccondop    x y = compare_ccondop    x y = 0
+let equal_ccond      x y = compare_ccond      x y = 0
+let equal_vreg       x y = compare_vreg       x y = 0
+let equal_name       x y = compare_reg        x y = 0
 let equal_rname      x y = compare_rname      x y = 0
 let equal_src        x y = compare_src        x y = 0
 let equal_dest       x y = compare_dest       x y = 0
@@ -119,10 +122,10 @@ let equal_base_instr x y = compare_base_instr x y = 0
 let equal_instr      x y = compare_instr      x y = 0
 let equal_stmt       x y = compare_stmt       x y = 0
 
-module Nvar = struct
+module Vreg = struct
   module T = struct
-    type t = nvar with sexp
-    let compare = compare_nvar
+    type t = vreg with sexp
+    let compare = compare_vreg
     let hash v = Hashtbl.hash v
   end
   include T
@@ -134,46 +137,46 @@ end
 (* Pretty printing *)
 
 let ibinop_to_string = function
-  | IPlus  -> "+"
-  | IMult  -> "*"
-  | IMinus -> "-"
+  | Cplus  -> "+"
+  | Cmult  -> "*"
+  | Cminus -> "-"
 
-let rec pp_iexpr fmt ie =
-  match ie with
-  | IVar(s) ->
+let rec pp_cexpr fmt ce =
+  match ce with
+  | Cvar(s) ->
     pp_string fmt s
-  | IBinOp(op,ie1,ie2) ->
-    F.fprintf fmt "%a %s %a" pp_iexpr ie1 (ibinop_to_string op) pp_iexpr ie2
-  | IConst(u) ->
+  | Cbinop(op,ie1,ie2) ->
+    F.fprintf fmt "%a %s %a" pp_cexpr ie1 (ibinop_to_string op) pp_cexpr ie2
+  | Cconst(u) ->
     pp_string fmt (Int64.to_string u)
 
 let icondop_to_string = function
-  | CEq      -> "="
-  | CInEq    -> "!="
-  | CLess    -> "<"
-  | CLeq     -> "<="
-  | CGreater -> ">"
-  | CGeq     -> ">="
+  | Ceq      -> "="
+  | Cineq    -> "!="
+  | Cless    -> "<"
+  | Cleq     -> "<="
+  | Cgreater -> ">"
+  | Cgeq     -> ">="
 
 let rec pp_icond fmt = function
-  | ITrue            -> pp_string fmt "true"
-  | INot(ic)         -> F.fprintf fmt"!(%a)" pp_icond ic
-  | IAnd(c1,c2)      -> F.fprintf fmt"(%a && %a)" pp_icond c1 pp_icond c2
-  | ICond(o,ie1,ie2) -> F.fprintf fmt"(%a %s %a)" pp_iexpr ie1 (icondop_to_string o) pp_iexpr ie2
+  | Ctrue            -> pp_string fmt "true"
+  | Cnot(ic)         -> F.fprintf fmt"!(%a)" pp_icond ic
+  | Cand(c1,c2)      -> F.fprintf fmt"(%a && %a)" pp_icond c1 pp_icond c2
+  | Ccond(o,ie1,ie2) -> F.fprintf fmt"(%a %s %a)" pp_cexpr ie1 (icondop_to_string o) pp_cexpr ie2
 
 let pp_indvar fmt iv =
   match iv with
-  | Nvar(iv,ies) ->
+  | Vreg(iv,ies) ->
     begin match ies with
     | []   -> F.fprintf fmt "%s" iv
-    | _::_ -> F.fprintf fmt "%s[%a]" iv (pp_list "," pp_iexpr) ies
+    | _::_ -> F.fprintf fmt "%s[%a]" iv (pp_list "," pp_cexpr) ies
     end
-  | Reg(s) -> F.fprintf fmt "%%%s" s
+  | Mreg(s) -> F.fprintf fmt "%%%s" s
 
 let pp_src fmt = function
   | Svar(iv)    -> pp_indvar fmt iv
   | Simm(u)     -> pp_string fmt (Int64.to_string u)
-  | Smem(iv,ie) -> F.fprintf fmt "*(%a + %a)" pp_indvar iv pp_iexpr ie
+  | Smem(iv,ie) -> F.fprintf fmt "*(%a + %a)" pp_indvar iv pp_cexpr ie
 
 let pp_dest fmt d = pp_src fmt (dest_to_src d)
 
@@ -210,7 +213,7 @@ let rec pp_instr fmt = function
       pp_icond c pp_stmt i1 pp_stmt i2
   | For(iv,ie1,ie2,i) ->
     F.fprintf fmt "for %s in %a..%a {@\n  @[<v 0>%a@]@\n}"
-      iv pp_iexpr ie1 pp_iexpr ie2 pp_stmt i
+      iv pp_cexpr ie1 pp_cexpr ie2 pp_stmt i
 
 and pp_stmt fmt is =
   F.fprintf fmt "@[<v 0>%a@]" (pp_list "@\n" pp_instr) is

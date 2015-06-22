@@ -94,8 +94,8 @@ let t_reg3 =
 (* Test suite *)
 
 let tests =
-  [ (* "assemble and run" >:: test_assemble_run;
-    "allocate registers, assemble and run" >:: t_reg1; *)
-    (* "allocate registers, assemble and run" >:: t_reg2; *)
-    "allocate registers, assemble and run" >:: t_reg3
+  [ "assemble and run" >:: test_assemble_run;
+    "allocate registers, assemble and run" >:: t_reg1;
+    (* "allocate registers, assemble and run" >:: t_reg2;
+       "allocate registers, assemble and run" >:: t_reg3 *)
   ]

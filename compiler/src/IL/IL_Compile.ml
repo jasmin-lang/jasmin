@@ -16,90 +16,90 @@ type transform =
 (* ------------------------------------------------------------------------ *)
 (* Interpreting index expressions and conditions *)
 
-let ivars_iexpr ie =
+let cvars_cexpr ie =
   let rec go = function
-    | IVar(s) ->
+    | Cvar(s) ->
       String.Set.singleton s
-    | IBinOp(_,ie1,ie2) ->
-      Set.union (go ie1) (go ie2)
-    | IConst _ -> String.Set.empty
+    | Cbinop(_,ce1,ce2) ->
+      Set.union (go ce1) (go ce2)
+    | Cconst _ -> String.Set.empty
   in
   go ie
 
-let ivars_icond ic =
+let cvars_ccond cc =
   let rec go = function
-    | ITrue -> String.Set.empty
-    | INot(ic) -> go ic
-    | IAnd (ic1,ic2) ->
+    | Ctrue -> String.Set.empty
+    | Cnot(ic) -> go ic
+    | Cand (ic1,ic2) ->
       Set.union (go ic1) (go ic2)
-    | ICond(_,ie1,ie2) ->
-      Set.union (ivars_iexpr ie1) (ivars_iexpr ie2)
+    | Ccond(_,ce1,ce2) ->
+      Set.union (cvars_cexpr ce1) (cvars_cexpr ce2)
   in
-  go ic
+  go cc
 
-let eval_ibinop io =
+let eval_cbinop co =
   let open Big_int_Infix in
-  match io with
-  | IPlus  -> (+!)
-  | IMult  -> ( *!)
-  | IMinus -> (-!)
+  match co with
+  | Cplus  -> (+!)
+  | Cmult  -> ( *!)
+  | Cminus -> (-!)
 
 
-let eval_iexpr ivar_map ie =
+let eval_cexpr cvar_map ce =
   let rec go = function
-    | IVar(s) ->
-      begin match Map.find ivar_map s with
+    | Cvar(s) ->
+      begin match Map.find cvar_map s with
       | Some x -> x
       | None ->
-        failwith ("expand: parameter "^s^" undefined")
+        failwith ("eval_cexpr: parameter "^s^" undefined")
       end
-    | IBinOp(o,ie1,ie2) ->
-      (eval_ibinop o) (go ie1) (go ie2)
-    | IConst(c) ->
+    | Cbinop(o,ie1,ie2) ->
+      (eval_cbinop o) (go ie1) (go ie2)
+    | Cconst(c) ->
       Big_int.big_int_of_int64 c
   in
-  go ie
+  go ce
 
-let eval_icondop ico =
+let eval_ccondop cco =
   let open Big_int_Infix in
-  match ico with
-  | CEq      -> (===)
-  | CInEq    -> fun x y -> not (x === y)
-  | CLess    -> (<!)
-  | CGreater -> fun x y -> y <! x
-  | CLeq     -> fun x y -> x <! y || x === y
-  | CGeq     -> fun x y -> y <! x || x === y
+  match cco with
+  | Ceq      -> (===)
+  | Cineq    -> fun x y -> not (x === y)
+  | Cless    -> (<!)
+  | Cgreater -> fun x y -> y <! x
+  | Cleq     -> fun x y -> x <! y || x === y
+  | Cgeq     -> fun x y -> y <! x || x === y
 
-let eval_icond ivar_map ic =
+let eval_ccond cvar_map cc =
   let rec go = function
-    | ITrue              -> true
-    | INot(ic)           -> not (go ic)
-    | IAnd(ic1,ic2)      -> (go ic1) && (go ic2)
-    | ICond(ico,ie1,ie2) ->
-      eval_icondop ico (eval_iexpr ivar_map ie1) (eval_iexpr ivar_map ie2)
+    | Ctrue              -> true
+    | Cnot(ic)           -> not (go ic)
+    | Cand(cc1,cc2)      -> (go cc1) && (go cc2)
+    | Ccond(cco,ce1,ce2) ->
+      eval_ccondop cco (eval_cexpr cvar_map ce1) (eval_cexpr cvar_map ce2)
   in
-  go ic
+  go cc
 
-let inst_iexpr ivar_map ie =
-  IConst (Big_int.int64_of_big_int (eval_iexpr ivar_map ie))
+let inst_cexpr cvar_map ce =
+  Cconst (Big_int.int64_of_big_int (eval_cexpr cvar_map ce))
 
-let inst_var ivar_map = function
-  | Nvar(v,ies) ->
-    Nvar(v,List.map ~f:(inst_iexpr ivar_map) ies)
-  | Reg(_) as r -> r
+let inst_var cvar_map = function
+  | Vreg(v,ies) ->
+    Vreg(v,List.map ~f:(inst_cexpr cvar_map) ies)
+  | Mreg(_) as r -> r
 
-let inst_src ivar_map = function
-  | Svar(v)       -> Svar(inst_var ivar_map v)
-  | Smem(v,ie)    -> Smem(inst_var ivar_map v, inst_iexpr ivar_map ie)
+let inst_src cvar_map = function
+  | Svar(v)       -> Svar(inst_var cvar_map v)
+  | Smem(v,ie)    -> Smem(inst_var cvar_map v, inst_cexpr cvar_map ie)
   | Simm(_) as im -> im
 
-let inst_dest ivar_map = function
-  | Dvar(v)       -> Dvar(inst_var ivar_map v)
-  | Dmem(v,ie)    -> Dmem(inst_var ivar_map v, inst_iexpr ivar_map ie)
+let inst_dest cvar_map = function
+  | Dvar(v)       -> Dvar(inst_var cvar_map v)
+  | Dmem(v,ie)    -> Dmem(inst_var cvar_map v, inst_cexpr cvar_map ie)
 
-let inst_base_instr ivar_map bi =
-  let inst_d = inst_dest ivar_map in
-  let inst_s = inst_src ivar_map in
+let inst_base_instr cvar_map bi =
+  let inst_d = inst_dest cvar_map in
+  let inst_s = inst_src cvar_map in
   match bi with
   | Assgn(d,s) ->
     Assgn(inst_d d,inst_s s)
@@ -112,7 +112,7 @@ let inst_base_instr ivar_map bi =
 (* ------------------------------------------------------------------------ *)
 (* Macro expansion: loop unrolling, if, ...  *)
 
-let macro_expand ivar_map st =
+let macro_expand cvar_map st =
   let spaces indent =
     String.make indent ' '
   in
@@ -123,15 +123,15 @@ let macro_expand ivar_map st =
       | BInstr(binstr) ->
         (inst_base_instr ivm binstr)::(go indent ivm instrs)
       | If(ic,st1,st2) ->
-        let cond = eval_icond ivm ic in
+        let cond = eval_ccond ivm ic in
         let st = if cond then st1 else st2 in
         let comment s =
           Comment (fsprintf "%s%s %s %a" (spaces indent) s (if cond then "if" else "else") pp_icond ic)
         in
         (comment "START: ")::(go (indent + 2) ivm st)@[comment "END: "]@(go indent ivm instrs)
       | For(iv,lb_ie,ub_ie,st) ->
-        let lb = eval_iexpr ivm lb_ie in
-        let ub = eval_iexpr ivm ub_ie in
+        let lb = eval_cexpr ivm lb_ie in
+        let ub = eval_cexpr ivm ub_ie in
         let open Big_int_Infix in
         assert (lb <! ub || lb === ub);
         let v = ref lb in
@@ -144,18 +144,18 @@ let macro_expand ivar_map st =
           v := !v +! Big_int.unit_big_int
         done;
         let comment s =
-          Comment (fsprintf "%s%s for %s in %a..%a" s (spaces indent) iv pp_iexpr lb_ie pp_iexpr ub_ie)
+          Comment (fsprintf "%s%s for %s in %a..%a" s (spaces indent) iv pp_cexpr lb_ie pp_cexpr ub_ie)
         in
         (comment "START:")::!sts@[(comment "END:")]@(go indent ivm instrs)
       end
   in
-  go 0 ivar_map st
+  go 0 cvar_map st
 
 (* ------------------------------------------------------------------------ *)
 (* Single assignment  *)
 
 let transform_ssa bis =
-  let var_index = Nvar.Table.create () in
+  let var_index = Vreg.Table.create () in
   let get_index v = Option.value ~default:Int64.zero (Hashtbl.find var_index v) in
   let incr_index v =
     let i = Int64.succ (get_index v) in
@@ -163,15 +163,15 @@ let transform_ssa bis =
     i
   in
   let update_src = function
-    | (Simm(_) | Svar(Reg(_)) | Smem(Reg(_),_)) as s -> s
-    | Svar(Nvar(v,ies)) -> Svar(Nvar(v, ies@[IConst (get_index (v,ies))]))
-    | Smem(Nvar(v,ies),ie) -> Smem(Nvar(v,ies@[IConst (get_index (v,ies))]), ie)
+    | (Simm(_) | Svar(Mreg(_)) | Smem(Mreg(_),_)) as s -> s
+    | Svar(Vreg(v,ies)) -> Svar(Vreg(v, ies@[Cconst (get_index (v,ies))]))
+    | Smem(Vreg(v,ies),ie) -> Smem(Vreg(v,ies@[Cconst (get_index (v,ies))]), ie)
   in
   let update_dest = function
-    | (Dvar(Reg(_)) | Dmem(Reg(_),_)) as s -> s
-    | Dvar(Nvar(v,ies)) -> Dvar(Nvar(v, ies@[IConst (incr_index (v,ies))]))
-    | Dmem(Nvar(v,ies),ie) -> (* write to address of variable, but not variable itself *)
-      Dmem(Nvar(v,ies@[IConst (get_index (v,ies))]), ie)
+    | (Dvar(Mreg(_)) | Dmem(Mreg(_),_)) as s -> s
+    | Dvar(Vreg(v,ies)) -> Dvar(Vreg(v, ies@[Cconst (incr_index (v,ies))]))
+    | Dmem(Vreg(v,ies),ie) -> (* write to address of variable, but not variable itself *)
+      Dmem(Vreg(v,ies@[Cconst (get_index (v,ies))]), ie)
   in
   let rec go = function
     | [] -> []
@@ -206,7 +206,7 @@ let transform_ssa bis =
 let register_allocate (usable_regs : rname list) bis =
 
   let free_regs = ref usable_regs in
-  let reg_map = ref Nvar.Map.empty in
+  let reg_map = ref Vreg.Map.empty in
   let find_reg nv = Map.find_exn !reg_map nv in
   let get_free_reg nv =
     match !free_regs with
@@ -224,16 +224,16 @@ let register_allocate (usable_regs : rname list) bis =
   in
 
   let src_use_reg = function
-    | (Svar(Reg(_)) | Smem(Reg(_),_) | Simm(_)) as d -> d
-    | Svar(Nvar(nv))   -> Svar(Reg(find_reg nv))
-    | Smem(Nvar(nv),o) -> Smem(Reg(find_reg nv),o)
+    | (Svar(Mreg(_)) | Smem(Mreg(_),_) | Simm(_)) as d -> d
+    | Svar(Vreg(nv))   -> Svar(Mreg(find_reg nv))
+    | Smem(Vreg(nv),o) -> Smem(Mreg(find_reg nv),o)
   in
 
   let dest_alloc_reg = function
-    | (Dvar(Reg(_)) | Dmem(Reg(_),_)) as d -> d
-    | Dvar(Nvar(nv))   -> let r = get_free_reg nv in Dvar(Reg(r))
+    | (Dvar(Mreg(_)) | Dmem(Mreg(_),_)) as d -> d
+    | Dvar(Vreg(nv))   -> let r = get_free_reg nv in Dvar(Mreg(r))
       (* this is a write to memory, not to the register *)
-    | Dmem(Nvar(nv),o) -> let r = find_reg nv in Dmem(Reg(r),o)
+    | Dmem(Vreg(nv),o) -> let r = find_reg nv in Dmem(Mreg(r),o)
   in
 
   let rec go = function
@@ -262,22 +262,22 @@ let register_allocate (usable_regs : rname list) bis =
           let (d,s1) =
             match d,s1 with
 
-            | Dvar(Reg(dr)), Svar(Reg(sr)) ->
+            | Dvar(Mreg(dr)), Svar(Mreg(sr)) ->
               assert (dr = sr);
               d,s1
 
-            | Dvar(Nvar(dv)), Svar(Nvar(sv)) ->
+            | Dvar(Vreg(dv)), Svar(Vreg(sv)) ->
               let r = reuse_reg ~old_nv:sv ~new_nv:dv in
-              Dvar(Reg(r)),Svar(Reg(r))
+              Dvar(Mreg(r)),Svar(Mreg(r))
 
-            | Dmem(Reg(dr),die), Smem(Reg(sr),sie) ->
+            | Dmem(Mreg(dr),die), Smem(Mreg(sr),sie) ->
               assert (dr = sr && die = sie);
               d,s1
 
-            | Dmem(Nvar(dv),die), Smem(Nvar(sv),sie) ->
+            | Dmem(Vreg(dv),die), Smem(Vreg(sv),sie) ->
               assert (die = sie);
               let r = reuse_reg ~old_nv:sv ~new_nv:dv in
-              Dmem(Reg(r),die),Smem(Reg(r),sie)
+              Dmem(Mreg(r),die),Smem(Mreg(r),sie)
 
             | _ -> assert false
           in
@@ -301,22 +301,22 @@ let base_instrs_to_stmt bis =
 
 let to_asm_x64 st =
   let is_imm_src = function Simm _ -> true | _ -> false in
-  let is_reg_dest = function Dvar(Reg(_)) -> true | _ -> false in
+  let is_reg_dest = function Dvar(Mreg(_)) -> true | _ -> false in
   let trans_src = function
-    | Svar(Reg(r))    -> X64.Sreg(X64.reg_of_string r)
+    | Svar(Mreg(r))    -> X64.Sreg(X64.reg_of_string r)
     | Simm(i)         -> X64.Simm(i)
-    | Smem(Reg(r),ie) ->
+    | Smem(Mreg(r),ie) ->
       begin match ie with
-      | IConst(i) -> X64.Smem(X64.reg_of_string r,i)
+      | Cconst(i) -> X64.Smem(X64.reg_of_string r,i)
       | _ -> assert false
       end
     | _ -> failwith "not implemented yet"
   in
   let trans_dest = function
-    | Dvar(Reg(r)) -> X64.Dreg(X64.reg_of_string r)
-    | Dmem(Reg(r),ie) ->
+    | Dvar(Mreg(r)) -> X64.Dreg(X64.reg_of_string r)
+    | Dmem(Mreg(r),ie) ->
       begin match ie with
-      | IConst(i) -> X64.Dmem(X64.reg_of_string r,i)
+      | Cconst(i) -> X64.Dmem(X64.reg_of_string r,i)
       | _ -> assert false
       end
     | _ -> failwith "not implemented yet"
@@ -338,9 +338,9 @@ let to_asm_x64 st =
 
 
         | Mul(Some dh,dl,s1,s2) ->
-          if not (equal_dest dh (Dvar(Reg "rdx"))) then
+          if not (equal_dest dh (Dvar(Mreg "rdx"))) then
             failwith "to_asm_x64: mulq high result must be %rdx";
-          if not (equal_dest dl (Dvar (Reg "rax"))) then
+          if not (equal_dest dl (Dvar (Mreg "rax"))) then
             failwith "to_asm_x64: mulq low result must be %rax";
           if not (equal_src (dest_to_src dl) s1) then
             failwith "to_asm_x64: mulq low result must be equal to source 1";

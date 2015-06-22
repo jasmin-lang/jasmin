@@ -1,7 +1,6 @@
 %{
 
 open IL_Lang
-open Util
 open Core
 %}
 
@@ -56,66 +55,67 @@ open Core
 (* Index expressions and conditions *)
 
 
-%inline ibinop :
-| PLUS    { IPlus }
-| STAR    { IMult }
-| MINUS   { IMinus }
+%inline cbinop :
+| PLUS    { Cplus }
+| STAR    { Cmult }
+| MINUS   { Cminus }
 
-%inline icondop :
-| EQ      { CEq }
-| INEQ    { CInEq }
-| LESS    { CLess }
-| LEQ     { CLeq }
-| GREATER { CGreater }
-| GEQ     { CGeq }
+%inline ccondop :
+| EQ      { Ceq }
+| INEQ    { Cineq }
+| LESS    { Cless }
+| LEQ     { Cleq }
+| GREATER { Cgreater }
+| GEQ     { Cgeq }
 
-iexpr :
-| s=ID  { IVar(s) }
-| i=INT { IConst(i) }
-| i1=iexpr o=ibinop i2=iexpr { IBinOp(o,i1,i2) }
+cexpr :
+| s=ID  { Cvar(s) }
+| i=INT { Cconst(i) }
+| e1=cexpr o=cbinop e2=cexpr { Cbinop(o,e1,e2) }
 
-icond :
-| TRUE         { ITrue }
-| FALSE        { INot(ITrue) }
-| EXCL i=icond { INot(i) }
-| i1=icond LAND i2=icond { IAnd(i1,i2) }
-| i1=iexpr o=icondop i2=iexpr
-  { ICond(o,i1,i2) }
+ccond :
+| TRUE         { Ctrue }
+| FALSE        { Cnot(Ctrue) }
+| EXCL c=ccond { Cnot(c) }
+| c1=ccond LAND c2=ccond { Cand(c1,c2) }
+| c1=cexpr o=ccondop c2=cexpr
+  { Ccond(o,c1,c2) }
 
-%inline var :
-| s=ID                        { Nvar(s,[]) }
-| s=ID LBRACK ie=iexpr RBRACK { Nvar(s,[ie]) }
+%inline vreg :
+| s=ID                        { Vreg(s,[]) }
+| s=ID LBRACK ce=cexpr RBRACK { Vreg(s,[ce]) }
+  (* FIXME: support multi-dimensional arrays *)
 
-%inline reg :
-| PERCENT r = ID { Reg(r) }
+%inline mreg :
+| PERCENT r = ID { Mreg(r) }
 
-indvar :
-| r = reg { r }
-| v= var { v }
+reg :
+| r = mreg { r }
+| v = vreg { v }
 
 %inline mem:
-| STAR LPAREN iv=indvar mi=offset? RPAREN
-    { (iv,Std.Option.value ~default:(IConst Int64.zero) mi) }
+| STAR LPAREN r=reg mi=offset? RPAREN
+    { (r,Std.Option.value ~default:(Cconst Int64.zero) mi) }
 
 (* -------------------------------------------------------------------- *)
 (* Operators and assignments *)
 
 offset:
-| PLUS i=iexpr { i }
-| MINUS i=iexpr { IBinOp(IMinus,IConst(Int64.zero),i) }
+| PLUS e=cexpr { e }
+| MINUS e=cexpr { Cbinop(Cminus,Cconst(Int64.zero),e) }
 
 
 src :
-| iv=indvar { Svar(iv) }
+| r=reg { Svar(r) }
 | i=INT { Simm(i) }
 | m = mem { Smem(fst m, snd m) }
 
 dest :
-| iv = indvar { Dvar(iv) }
+| r = reg { Dvar(r) }
 | m = mem { Dmem(fst m, snd m) }
 
 cfin:
-| PLUS cf_in=ID { (Add,cf_in) }
+| PLUS  cf_in=ID { (Add,cf_in) }
 | MINUS cf_in=ID { (Sub,cf_in) }
 
 binop:
@@ -177,14 +177,14 @@ base_instr :
 instr :
 | ir = base_instr SEMICOLON { BInstr(ir) }
 
-| IF c=icond
+| IF c=ccond
     i1s = block
     ELSE i2s = block
     { If(c,i1s,i2s) }
 
-| FOR iv=ID IN ie1=iexpr DOTDOT ie2=iexpr
+| FOR cv=ID IN ce1=cexpr DOTDOT ce2=cexpr
     is = block
-    { For(iv,ie1,ie2,is) }
+    { For(cv,ce1,ce2,is) }
 
 block :
 | LCBRACE stmt = instr* RCBRACE { stmt }
