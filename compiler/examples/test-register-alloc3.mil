@@ -1,5 +1,6 @@
 x = %rdi;
 y = %rsi;
-(z,y) = y * x;
-%rax = y;
-%rdx = z;
+(z,w) = y * x;
+v = z + w;
+%rax = v;
+%rdx = *(w);

@@ -19,6 +19,14 @@ let il_to_asm_string trafos il_string =
   in
   fsprintf "%a" Asm_X64.pp_instrs asm_code
 
+let il_to_il_string trafos il_string =
+  let st = PU.parse ~parse:ILP.stmt "<none>" il_string in
+  let st = match ILC.apply_transform_asm trafos st with
+    | `IL st      -> st
+    | `Asm_X64 _ -> assert false
+  in
+  fsprintf "%a" ILL.pp_stmt st
+
 let create_library asm_string =
   let fn_s = Filename.temp_file "code" ".s" in
   let fn_o = Filename.temp_file "code" ".o" in
@@ -77,25 +85,32 @@ let test_reg_assemble_run trafo il_string () =
       raise e
 
 let t_reg1 =
-  test_reg_assemble_run "expand[],ssa,register_alloc,"
+  test_reg_assemble_run "expand[],ssa,register_allocate,"
     (In_channel.read_all "examples/test-register-alloc.mil")
 
 let t_reg2 =
-  test_reg_assemble_run "expand[n=5],ssa,register_alloc,"
+  test_reg_assemble_run "expand[n=5],ssa,register_allocate,"
     (In_channel.read_all "examples/test-register-alloc2.mil")
 
+let t_reg3 () =
+  let trafo = "ssa,equal_dest_src" in
+  let il_string = In_channel.read_all "examples/test-register-alloc3.mil" in
+  let il_code = il_to_il_string trafo il_string in
+  print_endline il_code
 
-let t_reg3 =
-  test_reg_assemble_run "expand[],ssa,register_alloc,"
+let t_reg4 =
+  test_reg_assemble_run "expand[n=5],ssa,register_allocate,"
     (In_channel.read_all "examples/test-register-alloc3.mil")
+
 
 
 (* --------------------------------------------------------------------- *)
 (* Test suite *)
 
 let tests =
-  [ "assemble and run" >:: test_assemble_run;
+  [ (* "assemble and run" >:: test_assemble_run;
     "allocate registers, assemble and run" >:: t_reg1;
-    (* "allocate registers, assemble and run" >:: t_reg2;
-       "allocate registers, assemble and run" >:: t_reg3 *)
+    "allocate registers, assemble and run" >:: t_reg2; 
+    "allocate registers, assemble and run" >:: t_reg3; *)
+    "allocate registers, assemble and run" >:: t_reg4
   ]

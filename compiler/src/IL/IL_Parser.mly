@@ -82,8 +82,8 @@ ccond :
   { Ccond(o,c1,c2) }
 
 %inline vreg :
-| s=ID                        { Vreg(s,[]) }
-| s=ID LBRACK ce=cexpr RBRACK { Vreg(s,[ce]) }
+| s=ID                        { Preg(s,[]) }
+| s=ID LBRACK ce=cexpr RBRACK { Preg(s,[ce]) }
   (* FIXME: support multi-dimensional arrays *)
 
 %inline mreg :
@@ -106,17 +106,17 @@ offset:
 
 
 src :
-| r=reg { Svar(r) }
+| r=reg { Sreg(r) }
 | i=INT { Simm(i) }
 | m = mem { Smem(fst m, snd m) }
 
 dest :
-| r = reg { Dvar(r) }
+| r = reg { Dreg(r) }
 | m = mem { Dmem(fst m, snd m) }
 
 cfin:
-| PLUS  cf_in=ID { (Add,cf_in) }
-| MINUS cf_in=ID { (Sub,cf_in) }
+| PLUS  cf_in=reg { (Add,cf_in) }
+| MINUS cf_in=reg { (Sub,cf_in) }
 
 binop:
 | PLUS  { `Plus }
@@ -133,7 +133,7 @@ binop:
 (* instructions *)
 
 %inline cfout:
-| cf_out=ID QUESTION { cf_out }
+| r_cf_out=reg QUESTION { r_cf_out }
 
 assgn_rhs:
 | s=src { `Right(s) }
@@ -145,34 +145,34 @@ base_instr :
     { match rhs with
       | `Left(op,s1,s2) ->
         begin match op with
-        | `Mult  -> Mul(None,d,s1,s2)
-        | `Plus  -> BinOpCf(Add,IgnoreCarry,d,s1,s2,IgnoreCarry)
-        | `Minus -> BinOpCf(Sub,IgnoreCarry,d,s1,s2,IgnoreCarry)
-        | `BAnd  -> BinOpCf(BAnd,IgnoreCarry,d,s1,s2,IgnoreCarry)
+        | `Mult  -> App(IMul,[d],[s1;s2])
+        | `Plus  -> App(Add,[d],[s1;s2])
+        | `Minus -> App(Sub,[d],[s1;s2])
+        | `BAnd  -> App(BAnd,[d],[s1;s2])
         end
-      | `Right(s) -> Assgn(d,s)
+      | `Right(s) -> App(Assgn,[d],[s])
     }
 
 | cf_out=cfout d=dest oeq=opeq s=src cf_in=cfin?
     { let cin =
         match cf_in with
-        | None -> IgnoreCarry
-        | Some(op,s) when op = oeq -> UseCarry(s)
+        | None -> []
+        | Some(op,r) when op = oeq -> [Sreg(r)]
         | Some _ -> failwith "cannot combine `+=` with `-` or `-=` with `+`"
       in
-      BinOpCf(oeq,UseCarry(cf_out),d,dest_to_src d,s,cin) }
+      App(oeq,[Dreg(cf_out); d],[dest_to_src d;s]@cin) }
 
 | d=dest oeq=opeq s=src cf_in=cfin?
     { let cin =
         match cf_in with
-        | None -> IgnoreCarry
-        | Some(op,s) when op = oeq -> UseCarry(s)
+        | None -> []
+        | Some(op,r) when op = oeq -> [Sreg(r)]
         | Some _ -> failwith "cannot combine `+=` with `-` or `-=` with `+`"
       in
-      BinOpCf(oeq,IgnoreCarry,d,dest_to_src d,s,cin) }
+      App(oeq,[d],[dest_to_src d;s]@cin) }
 
 | LPAREN h=dest COMMA l=dest RPAREN EQ s1=src STAR s2=src
-    { Mul(Some h,l,s1,s2) }
+    { App(UMul,[h;l],[s1;s2]) }
 
 instr :
 | ir = base_instr SEMICOLON { BInstr(ir) }

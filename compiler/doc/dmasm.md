@@ -29,7 +29,7 @@ A *register* is one of:
 * A *machine register* denoted by a string.
   These are fixed and cannot be renamed.
   (Syntax: `%rax`, ...)
-* A virtual register denoted by a string and a list
+* A pseudo-register denoted by a string and a list
   of compile-time expressions.
   (Syntax: `x[i]`, `x[i,j]`, ...)
 
@@ -118,8 +118,8 @@ We also need a mapping $\psi$ from the free registers to values
   of the given types.
 
 __Note__: free registers are either machine registers used for passing
-  argument when IL code is called from C or another language
-  or virtual registers because we reason about code fragments
+  arguments when IL code is called from C or another language
+  or pseudo-registers because we reason about code fragments
 
 ## Mapping to X86-64 assembly
 

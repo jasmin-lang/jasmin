@@ -10,7 +10,9 @@ type asm_lang = X64
 type transform =
   | MacroExpand of (string * Big_int.big_int) list
   | SSA
+  | EqualDestSrc
   | RegisterAlloc
+  | RegisterLiveness
   | Asm of asm_lang
 
 (* ------------------------------------------------------------------------ *)
@@ -84,30 +86,25 @@ let inst_cexpr cvar_map ce =
   Cconst (Big_int.int64_of_big_int (eval_cexpr cvar_map ce))
 
 let inst_var cvar_map = function
-  | Vreg(v,ies) ->
-    Vreg(v,List.map ~f:(inst_cexpr cvar_map) ies)
+  | Preg(v,ies) ->
+    Preg(v,List.map ~f:(inst_cexpr cvar_map) ies)
   | Mreg(_) as r -> r
 
 let inst_src cvar_map = function
-  | Svar(v)       -> Svar(inst_var cvar_map v)
+  | Sreg(v)       -> Sreg(inst_var cvar_map v)
   | Smem(v,ie)    -> Smem(inst_var cvar_map v, inst_cexpr cvar_map ie)
   | Simm(_) as im -> im
 
 let inst_dest cvar_map = function
-  | Dvar(v)       -> Dvar(inst_var cvar_map v)
+  | Dreg(v)       -> Dreg(inst_var cvar_map v)
   | Dmem(v,ie)    -> Dmem(inst_var cvar_map v, inst_cexpr cvar_map ie)
 
 let inst_base_instr cvar_map bi =
   let inst_d = inst_dest cvar_map in
   let inst_s = inst_src cvar_map in
   match bi with
-  | Assgn(d,s) ->
-    Assgn(inst_d d,inst_s s)
-  | Mul(mdh,dl,s1,s2) ->
-    Mul(Option.map ~f:inst_d mdh,inst_d dl,inst_s s1,inst_s s2)
-  | BinOpCf(bop,cf_out,d1,s1,s2,cfin) ->
-    BinOpCf(bop,cf_out,inst_d d1,inst_s s1,inst_s s2,cfin)
-  | Comment(_) -> bi
+  | App(o,ds,ss) -> App(o,List.map ~f:inst_d ds,List.map ~f:inst_s ss)
+  | Comment(_)   -> bi
 
 (* ------------------------------------------------------------------------ *)
 (* Macro expansion: loop unrolling, if, ...  *)
@@ -155,7 +152,7 @@ let macro_expand cvar_map st =
 (* Single assignment  *)
 
 let transform_ssa bis =
-  let var_index = Vreg.Table.create () in
+  let var_index = Preg.Table.create () in
   let get_index v = Option.value ~default:Int64.zero (Hashtbl.find var_index v) in
   let incr_index v =
     let i = Int64.succ (get_index v) in
@@ -163,15 +160,15 @@ let transform_ssa bis =
     i
   in
   let update_src = function
-    | (Simm(_) | Svar(Mreg(_)) | Smem(Mreg(_),_)) as s -> s
-    | Svar(Vreg(v,ies)) -> Svar(Vreg(v, ies@[Cconst (get_index (v,ies))]))
-    | Smem(Vreg(v,ies),ie) -> Smem(Vreg(v,ies@[Cconst (get_index (v,ies))]), ie)
+    | (Simm(_) | Sreg(Mreg(_)) | Smem(Mreg(_),_)) as s -> s
+    | Sreg(Preg(v,ies)) -> Sreg(Preg(v, ies@[Cconst (get_index (v,ies))]))
+    | Smem(Preg(v,ies),ie) -> Smem(Preg(v,ies@[Cconst (get_index (v,ies))]), ie)
   in
   let update_dest = function
-    | (Dvar(Mreg(_)) | Dmem(Mreg(_),_)) as s -> s
-    | Dvar(Vreg(v,ies)) -> Dvar(Vreg(v, ies@[Cconst (incr_index (v,ies))]))
-    | Dmem(Vreg(v,ies),ie) -> (* write to address of variable, but not variable itself *)
-      Dmem(Vreg(v,ies@[Cconst (get_index (v,ies))]), ie)
+    | (Dreg(Mreg(_)) | Dmem(Mreg(_),_)) as s -> s
+    | Dreg(Preg(v,ies)) -> Dreg(Preg(v, ies@[Cconst (incr_index (v,ies))]))
+    | Dmem(Preg(v,ies),ie) -> (* write to address of variable, but not variable itself *)
+      Dmem(Preg(v,ies@[Cconst (get_index (v,ies))]), ie)
   in
   let rec go = function
     | [] -> []
@@ -180,33 +177,120 @@ let transform_ssa bis =
         match bi with
         (* Note: sources must be updated before destinations *)
         | Comment(_) -> bi
-        | Assgn(d,s) ->
-          let s = update_src s in
-          let d = update_dest d in
-          Assgn(d,s)
-        | Mul(mdh,dl,s1,s2) ->
-          let s1  = update_src s1 in
-          let s2  = update_src s2 in
-          let mdh = Option.map ~f:update_dest mdh in
-          let dl  = update_dest dl in
-          Mul(mdh,dl,s1,s2)
-        | BinOpCf(bo,cout,d,s1,s2,cin) ->
-          let s1 = update_src s1 in
-          let s2 = update_src s2 in
-          let d  = update_dest d in
-          BinOpCf(bo,cout,d,s1,s2,cin)
+        | App(o,ds,ss) ->
+          let ss = List.map ~f:update_src ss in
+          let ds = List.map ~f:update_dest ds in
+          App(o,ds,ss)
       in
       bi::(go bis)
   in
   go bis
 
 (* ------------------------------------------------------------------------ *)
+(* Ensure that operand equality for addition and multiplication satisfied *)
+
+let transform_equal_dest_src bis =
+  let renaming = Preg.Table.create () in
+  let dom_renaming = ref Reg.Set.empty in
+
+  let get_reg pr =
+    match Hashtbl.find renaming pr with
+    | None   -> Preg(pr)
+    | Some r -> r
+  in
+  let rename_src = function
+    | (Simm(_) | Smem(Mreg(_),_) | Sreg(Mreg(_)) ) as i -> i
+    | Smem(Preg(r),o) ->
+      if Set.mem !dom_renaming (Preg(r)) then failwith "variable used in renaming still live";
+      Smem(get_reg r,o)
+    | Sreg(Preg(r)) ->
+      if Set.mem !dom_renaming (Preg(r)) then failwith "variable used in renaming still live";
+      Sreg(get_reg r)
+  in
+
+  let add_renaming s d =
+    match s,d with
+    | Simm(_), _         -> failwith "source with equality constraint wrt. destination cannot be immediate"
+    | Smem(_,_), _       -> failwith "source with equality constraint wrt. destination cannot be memory"
+    | Sreg(_), Dmem(_,_) -> failwith "cannot rename memory"
+    | Sreg(Mreg(sr)), Dreg(Mreg(dr)) ->
+      if sr = dr then d else failwith "cannot rename machine register used for dest"
+    | Sreg(sr), Dreg(Preg(dr)) ->
+      ignore (Hashtbl.add renaming ~key:dr ~data:sr);
+      dom_renaming := Set.add !dom_renaming sr;
+      Dreg(sr)
+    | Sreg(_), Dreg(_) -> assert false
+  in
+
+  let rec go = function
+    | [] -> []
+    | bi::bis ->
+      let bi =
+        match bi with
+        (* Note: sources must be updated before destinations *)
+        | Comment(_) -> bi
+
+        | App(UMul,[d1;d2],[s1;s2]) ->
+          let s1 = rename_src s1 in
+          let s2 = rename_src s2 in
+          let d2 = add_renaming s1 d2 in
+          App(UMul,[d1;d2],[s1;s2])
+
+        | App(Add,(([_;d] | [d]) as ds),s1::s2::cin) ->
+          let s1 = rename_src s1 in
+          let s2 = rename_src s2 in
+          let d  = add_renaming s1 d in
+          let md1 = List.rev ds |> (fun l -> List.drop l 1) |> List.rev in
+          App(Add,md1@[d],[s1;s2]@cin)
+
+        | App(o,ds,ss) ->
+          (* SSA should ensure that v in dom(renaming) never overshadowed later *)
+          let ss = List.map ~f:rename_src ss in
+          App(o,ds,ss)
+      in
+      bi::(go bis)
+  in
+  go bis
+
+(* ------------------------------------------------------------------------ *)
+(* Register liveness *)
+
+let register_liveness bis =
+  let adapt_dest live = function
+    | Dreg(r)   -> Set.remove live r
+    | Dmem(r,_) -> Set.add live r
+  in
+  let adapt_src live = function
+    | Sreg(r) | Smem(r,_) -> Set.add live r
+    | Simm(_) -> live
+  in
+  let rec go live0 left right =
+    match left, right with
+    | [],_ -> right
+    | li::lis,ris ->
+      begin match li with
+      | App(_,ds,ss) ->
+        let live = List.fold ~f:adapt_src ~init:live0 ss in
+        let live = List.fold ~f:adapt_dest ~init:live ds in
+        go live lis ((li, live)::ris)
+      | _ ->
+        let live = live0 in
+        go live lis ((li, live)::ris)
+      end
+  in
+  go (Reg.Set.of_list[Mreg "rax"; Mreg "rdx"]) (List.rev bis) []
+
+let transform_register_liveness bis = 
+  List.concat_map (register_liveness bis)
+    ~f:(fun (i,live) -> [i; Comment (fsprintf "live: %a" (pp_list "," pp_reg) (Set.to_list live))])
+
+(* ------------------------------------------------------------------------ *)
 (* Register allocation *)
 
-let register_allocate (usable_regs : rname list) bis =
+let register_allocate (usable_regs : name list) bis =
 
   let free_regs = ref usable_regs in
-  let reg_map = ref Vreg.Map.empty in
+  let reg_map = ref Preg.Map.empty in
   let find_reg nv = Map.find_exn !reg_map nv in
   let get_free_reg nv =
     match !free_regs with
@@ -217,23 +301,25 @@ let register_allocate (usable_regs : rname list) bis =
       r
   in
 
+  (*
   let reuse_reg ~old_nv ~new_nv =
     let r = find_reg old_nv in
     reg_map := Map.add (Map.remove !reg_map old_nv) ~key:new_nv ~data:r;
     r
   in
+  *)
 
   let src_use_reg = function
-    | (Svar(Mreg(_)) | Smem(Mreg(_),_) | Simm(_)) as d -> d
-    | Svar(Vreg(nv))   -> Svar(Mreg(find_reg nv))
-    | Smem(Vreg(nv),o) -> Smem(Mreg(find_reg nv),o)
+    | (Sreg(Mreg(_)) | Smem(Mreg(_),_) | Simm(_)) as d -> d
+    | Sreg(Preg(nv))   -> Sreg(Mreg(find_reg nv))
+    | Smem(Preg(nv),o) -> Smem(Mreg(find_reg nv),o)
   in
 
   let dest_alloc_reg = function
-    | (Dvar(Mreg(_)) | Dmem(Mreg(_),_)) as d -> d
-    | Dvar(Vreg(nv))   -> let r = get_free_reg nv in Dvar(Mreg(r))
+    | (Dreg(Mreg(_)) | Dmem(Mreg(_),_)) as d -> d
+    | Dreg(Preg(nv))   -> let r = get_free_reg nv in Dreg(Mreg(r))
       (* this is a write to memory, not to the register *)
-    | Dmem(Vreg(nv),o) -> let r = find_reg nv in Dmem(Mreg(r),o)
+    | Dmem(Preg(nv),o) -> let r = find_reg nv in Dmem(Mreg(r),o)
   in
 
   let rec go = function
@@ -245,43 +331,11 @@ let register_allocate (usable_regs : rname list) bis =
         (* Note: we update sources before destinations *)
         | Comment(_) -> bi
 
-        | Assgn(d,s) ->
-          let s = src_use_reg s in
-          let d = dest_alloc_reg d in
-          Assgn(d,s)
+        | App(o,ds,ss) ->
+          let ss = List.map ~f:src_use_reg ss in
+          let ds = List.map ~f:dest_alloc_reg ds in
+          App(o,ds,ss)
 
-        | Mul(mdh,dl,s1,s2) ->
-          let s1 = src_use_reg s1 in
-          let s2 = src_use_reg s2 in
-          let mdh = Option.map ~f:dest_alloc_reg mdh in
-          let dl = dest_alloc_reg dl in
-          Mul(mdh,dl,s1,s2)
-
-        | BinOpCf(bo,cout,d,s1,s2,cin) ->
-          let s2 = src_use_reg s2 in
-          let (d,s1) =
-            match d,s1 with
-
-            | Dvar(Mreg(dr)), Svar(Mreg(sr)) ->
-              assert (dr = sr);
-              d,s1
-
-            | Dvar(Vreg(dv)), Svar(Vreg(sv)) ->
-              let r = reuse_reg ~old_nv:sv ~new_nv:dv in
-              Dvar(Mreg(r)),Svar(Mreg(r))
-
-            | Dmem(Mreg(dr),die), Smem(Mreg(sr),sie) ->
-              assert (dr = sr && die = sie);
-              d,s1
-
-            | Dmem(Vreg(dv),die), Smem(Vreg(sv),sie) ->
-              assert (die = sie);
-              let r = reuse_reg ~old_nv:sv ~new_nv:dv in
-              Dmem(Mreg(r),die),Smem(Mreg(r),sie)
-
-            | _ -> assert false
-          in
-          BinOpCf(bo,cout,d,s1,s2,cin)
       in
       F.printf "after:  %a\n%!" pp_base_instr bi;
       bi::(go bis)   
@@ -301,9 +355,9 @@ let base_instrs_to_stmt bis =
 
 let to_asm_x64 st =
   let is_imm_src = function Simm _ -> true | _ -> false in
-  let is_reg_dest = function Dvar(Mreg(_)) -> true | _ -> false in
+  let is_reg_dest = function Dreg(Mreg(_)) -> true | _ -> false in
   let trans_src = function
-    | Svar(Mreg(r))    -> X64.Sreg(X64.reg_of_string r)
+    | Sreg(Mreg(r))    -> X64.Sreg(X64.reg_of_string r)
     | Simm(i)         -> X64.Simm(i)
     | Smem(Mreg(r),ie) ->
       begin match ie with
@@ -313,7 +367,7 @@ let to_asm_x64 st =
     | _ -> failwith "not implemented yet"
   in
   let trans_dest = function
-    | Dvar(Mreg(r)) -> X64.Dreg(X64.reg_of_string r)
+    | Dreg(Mreg(r)) -> X64.Dreg(X64.reg_of_string r)
     | Dmem(Mreg(r),ie) ->
       begin match ie with
       | Cconst(i) -> X64.Dmem(X64.reg_of_string r,i)
@@ -331,27 +385,24 @@ let to_asm_x64 st =
         | Comment(s) ->
           [X64.Comment(s)]
 
-
-        | Assgn(d,s) ->
+        | App(Assgn,[d],[s]) ->
           let instr = X64.( Binop(Mov,trans_src s,trans_dest d) ) in
           [c;instr]
 
 
-        | Mul(Some dh,dl,s1,s2) ->
-          if not (equal_dest dh (Dvar(Mreg "rdx"))) then
+        | App(UMul,[dh;dl],[s1;s2]) ->
+          if not (equal_dest dh (Dreg(Mreg "rdx"))) then
             failwith "to_asm_x64: mulq high result must be %rdx";
-          if not (equal_dest dl (Dvar (Mreg "rax"))) then
+          if not (equal_dest dl (Dreg (Mreg "rax"))) then
             failwith "to_asm_x64: mulq low result must be %rax";
-          if not (equal_src (dest_to_src dl) s1) then
-            failwith "to_asm_x64: mulq low result must be equal to source 1";
-          if is_imm_src s1 then
-            failwith "to_asm_x64: mulq source 1 cannot be immediate";
+          if not (equal_src (Sreg (Mreg "rax")) s1) then
+            failwith "to_asm_x64: mulq source 1 must be %rax";
 
           let instr = X64.( Unop(Mul,trans_src s2) ) in
           [c;instr]
 
 
-        | Mul(None,dl,s1,s2) ->
+        | App(IMul,[dl],[s1;s2]) ->
           if is_imm_src s2 then
             failwith "to_asm_x64: imul source 1 cannot be immediate";
           if not (is_imm_src s2) then
@@ -363,27 +414,29 @@ let to_asm_x64 st =
           [c;instr]
 
 
-        | BinOpCf(op,_,d,s1,s2,cout) ->
+        | App(op,([_;d] | [d]),s1::s2::cout) ->
           if not (equal_src (dest_to_src d) s1) then
             failwith "to_asm_x64: addition/subtraction with dest<>src1";
 
           let instr =
               match op,cout with
-              | Add, IgnoreCarry ->
+              | Add, [] ->
                 X64.( Binop(Add,trans_src s2,trans_dest d) )
-              | Add, UseCarry(_) ->
+              | Add, [_] ->
                 X64.( Binop(Adc,trans_src s2,trans_dest d) )
 
-              | BAnd, IgnoreCarry ->
+              | BAnd, [] ->
                 X64.( Binop(And,trans_src s2,trans_dest d) )
-              | BAnd, UseCarry(_) -> assert false
+              | BAnd, [_] -> assert false
 
-              | Sub, IgnoreCarry ->
+              | Sub, [] ->
                 X64.( Binop(Sub,trans_src s2,trans_dest d) )
-              | Sub, UseCarry(_) ->
+              | Sub, [_] ->
                 X64.( Binop(Sbb,trans_src s2,trans_dest d) )
+              | _ -> assert false
           in
           [c;instr]
+        | _ -> assert false
       in
       bi@(go bis)
   in
@@ -423,7 +476,9 @@ let ptrafo =
   in
   choice
     [ string "ssa" >>$ SSA
-    ; string "register_alloc" >>$  RegisterAlloc
+    ; string "equal_dest_src" >>$ EqualDestSrc
+    ; string "register_allocate" >>$  RegisterAlloc
+    ; string "register_liveness" >>$  RegisterLiveness
     ; string "asm" >> char '[' >> asm_lang >>= (fun l -> char ']' >>$ (Asm(l)))
     ; string "expand" >> mappings >>= fun m -> return (MacroExpand(m)) ]
       
@@ -454,6 +509,14 @@ let apply_transform trafo st =
     | SSA ->
          stmt_to_base_instrs st
       |> transform_ssa
+      |> base_instrs_to_stmt
+    | RegisterLiveness ->
+         stmt_to_base_instrs st
+      |> transform_register_liveness
+      |> base_instrs_to_stmt
+    | EqualDestSrc ->
+         stmt_to_base_instrs st
+      |> transform_equal_dest_src
       |> base_instrs_to_stmt
     | RegisterAlloc ->
          stmt_to_base_instrs st
