@@ -96,6 +96,10 @@ let sexp_of_u64 u = sexp_of_string (U64.to_string u)
 
 let pp_string fmt s = F.fprintf fmt "%s" s
 
+let pp_pair sep ppa ppb fmt (a,b) = F.fprintf fmt "%a%s%a" ppa a sep ppb b
+
+let pp_int fmt i = F.fprintf fmt "%i" i
+
 let rec pp_list sep pp_elt f l =
   match l with
   | [] -> ()
@@ -115,3 +119,5 @@ let fsprintf fmt =
       F.pp_print_flush fbuf ();
       (Buffer.contents buf))
     fbuf fmt
+
+let linit l = List.rev l |> List.tl_exn |> List.rev
