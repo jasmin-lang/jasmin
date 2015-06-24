@@ -81,18 +81,61 @@ module Make_Instr(V : VAL) = struct
     | Global of string  (* .globl test ... *)
     | Comment of string
 
+type afun = {
+  af_name : string;
+  af_args : reg list;   (* arguments expected in these registers *)
+  af_body : instr list;
+  af_ret  : reg list;   (* return values available in these registers *)
+}
+
   (* ------------------------------------------------------------------------ *)
   (* Utility functions *)
 
   let dest_to_src = function
     | Dreg(r)   -> Sreg(r)
     | Dmem(r,o) -> Smem(r,o)
-  
+
+  let reg_of_int = function
+    | 0  -> RAX (* return 1 *)
+    | 1  -> RDX (* return 2/ arg 4 *)
+    | 2  -> RDI (* arg 1 *)
+    | 3  -> RSI (* arg 2 *)
+    | 4  -> RCX (* arg 4 *)
+    | 5  -> R8  (* arg 5 *)
+    | 6  -> R9  (* arg 6 *)
+    | 7  -> RBP 
+    | 8  -> R10
+    | 9  -> R11
+    | 10 -> R12
+    | 11 -> R13
+    | 12 -> R14
+    | 13 -> R15
+    | _  -> failwith "invalid register index for X86-64"
+
+  let int_of_reg = function
+    | RAX -> 0 (* return 1 *)
+    | RDX -> 1 (* return 2/ arg 4 *)
+    | RDI -> 2(* arg 1 *)
+    | RSI -> 3 (* arg 2 *)
+    | RCX -> 4 (* arg 3 *)
+    | R8  -> 5 (* arg 4 *)
+    | R9  -> 6 (* arg 5 *)
+    (* end argument *)
+    | RBP -> 7
+    | R10 -> 8
+    | R11 -> 9
+    | R12 -> 10
+    | R13 -> 11
+    | R14 -> 12
+    | R15 -> 13
+    | _   -> failwith "invalid register index for X86-64"
+
+  let arg_regs = [ RDI; RSI; RDX; RCX; R8; R9 ]
 
   (* ------------------------------------------------------------------------ *)
   (* Pretty printing *)
 
-  let reg_to_string = function
+  let string_of_reg = function
     | RAX -> "%rax"
     | RBX -> "%rbx"
     | RCX -> "%rcx"
@@ -127,8 +170,9 @@ module Make_Instr(V : VAL) = struct
     | "r13" -> R13
     | "r14" -> R14
     | "r15" -> R15
-    | s     ->
-      failwith ("string_of_reg: unknown register "^s)
+    | s     -> failwith ("string_of_reg: unknown register "^s)
+
+  let pp_reg fmt r = F.fprintf fmt "%s" (string_of_reg r)
 
   let binop_to_string = function
     | Add  -> "add"
@@ -145,15 +189,13 @@ module Make_Instr(V : VAL) = struct
     | Push -> "pushq"
     | Pop  -> "popq"
 
-
   let triop_to_string = function
     | IMul -> "imul"
 
-
   let pp_src fmt = function
-    | Sreg(r)     -> pp_string fmt (reg_to_string r)
+    | Sreg(r)     -> pp_string fmt (string_of_reg r)
     | Simm(i)     -> F.fprintf fmt "$%s" (V.qword_to_string i)
-    | Smem(reg,i) -> F.fprintf fmt "%s(%s)" (Int64.to_string i) (reg_to_string reg)
+    | Smem(reg,i) -> F.fprintf fmt "%s(%s)" (Int64.to_string i) (string_of_reg reg)
 
   let pp_dest fmt d = pp_src fmt (dest_to_src d)
 
@@ -177,6 +219,16 @@ module Make_Instr(V : VAL) = struct
 
   let pp_instrs fmt is =
     F.fprintf fmt "%a\n" (pp_list "\n" pp_instr) is
+
+  let pp_return fmt names =
+    F.fprintf fmt "return %a" (pp_list "," pp_reg) names
+
+  let pp_afun fmt af =
+    F.fprintf fmt "@[<v 0>extern %s(%a) {@\n  @[<v 0>%a@\n%a@]@\n}@]"
+      af.af_name
+      (pp_list "," pp_reg) af.af_args
+      pp_instrs af.af_body
+      pp_return af.af_ret
   
 end
 

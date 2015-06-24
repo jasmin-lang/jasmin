@@ -20,7 +20,7 @@ let parse_and_process ~parse ~ftype ~process file =
   end
 
 let process_mil trafo print_result out_file file st =
-  match ILC.apply_transform_asm trafo st with
+  match ILT.apply_transform_asm trafo st with
   | `Asm_X64 asm_code ->
     let asm_string = fsprintf "%a" Asm_X64.pp_instrs asm_code in
     if print_result then (

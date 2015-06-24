@@ -34,7 +34,6 @@ rule lex = parse
   | ">"     { GREATER }
   | ".."    { DOTDOT }
   | ","     { COMMA }
-  | "%"     { PERCENT }
 
   | "-"     { MINUS }
   | "*"     { STAR }
@@ -47,10 +46,13 @@ rule lex = parse
   | "true"  { TRUE }
   | "false" { FALSE }
 
-  | "for"   { FOR }
-  | "in"    { IN }
-  | "if"    { IF }
-  | "else"  { ELSE }
+  | "for"    { FOR }
+  | "in"     { IN }
+  | "if"     { IF }
+  | "else"   { ELSE }
+  | "extern" { EXTERN }
+  | "fn"     { FN }
+  | "return" { RETURN }
 
   | ('-'? ['0'-'9']+) as s { INT(Int64.of_string s) }
   | ['a'-'z' 'A'-'Z' '_' '0'-'9']* as s

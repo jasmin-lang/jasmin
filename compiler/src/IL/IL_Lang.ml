@@ -43,20 +43,15 @@ type name = string with sexp, compare
 
 type preg = name * cexpr list with sexp, compare
 
-type reg =
-  | Preg of preg  (* pseudo register (infinite set), can be renamed *)
-  | Mreg of name  (* machine register, fixed *)
-  with sexp, compare
-
 type src =
-  | Sreg of reg          (* Sreg(r): register r *)
+  | Sreg of preg         (* Sreg(r): register r *)
   | Simm of int64        (* Simm(i): $i *)
-  | Smem of reg * cexpr  (* Smem(i,r): i(%r) *)
+  | Smem of preg * cexpr  (* Smem(i,r): i(%r) *)
   with sexp, compare
 
 type dest =
-  | Dreg of reg          (* Dreg(r): register r *)
-  | Dmem of reg * cexpr  (* Dmem(i,r): i(%r) *)
+  | Dreg of preg         (* Dreg(r): register r *)
+  | Dmem of preg * cexpr  (* Dmem(i,r): i(%r) *)
   with sexp, compare
 
 type op =
@@ -87,6 +82,14 @@ type instr =
 and stmt = instr list
   with sexp, compare
 
+(* extern function that is callable from C *)
+type efun = {
+  ef_name : string;
+  ef_args : preg list; (* pseudo registers given as arguments *)
+  ef_body : stmt;
+  ef_ret  : preg list  (* pseudo registers as return values *)
+} with sexp, compare
+
 (* ------------------------------------------------------------------------ *)
 (* Utility functions and modules *)
 
@@ -99,29 +102,39 @@ let equal_cexpr      x y = compare_cexpr      x y = 0
 let equal_ccondop    x y = compare_ccondop    x y = 0
 let equal_ccond      x y = compare_ccond      x y = 0
 let equal_preg       x y = compare_preg       x y = 0
-let equal_name       x y = compare_reg        x y = 0
 let equal_src        x y = compare_src        x y = 0
 let equal_dest       x y = compare_dest       x y = 0
 let equal_op         x y = compare_op         x y = 0
 let equal_base_instr x y = compare_base_instr x y = 0
 let equal_instr      x y = compare_instr      x y = 0
 let equal_stmt       x y = compare_stmt       x y = 0
+let equal_efun       x y = compare_efun       x y = 0
+
+let stmt_to_base_instrs st =
+  List.map st
+    ~f:(function BInstr(i) -> i | _ -> failwith "expected macro-expanded statement, got for/if.")
+
+let base_instrs_to_stmt bis =
+  List.map ~f:(fun i -> BInstr(i)) bis
+
+let is_src_imm  = function Simm _ -> true | _ -> false
+let is_dest_reg  = function Dreg _ -> true | _ -> false
+
+let rec cvars_cexpr = function
+  | Cvar(s)           -> String.Set.singleton s
+  | Cbinop(_,ce1,ce2) -> Set.union (cvars_cexpr ce1) (cvars_cexpr ce2)
+  | Cconst _          -> String.Set.empty
+
+let rec cvars_ccond = function
+  | Ctrue            -> String.Set.empty
+  | Cnot(ic)         -> cvars_ccond ic
+  | Cand (ic1,ic2)   -> Set.union (cvars_ccond ic1) (cvars_ccond ic2)
+  | Ccond(_,ce1,ce2) -> Set.union (cvars_cexpr ce1) (cvars_cexpr ce2)
 
 module Preg = struct
   module T = struct
     type t = preg with sexp
     let compare = compare_preg
-    let hash v = Hashtbl.hash v
-  end
-  include T
-  include Comparable.Make(T)
-  include Hashable.Make(T)
-end
-
-module Reg = struct
-  module T = struct
-    type t = reg with sexp
-    let compare = compare_reg
     let hash v = Hashtbl.hash v
   end
   include T
@@ -160,19 +173,15 @@ let rec pp_icond fmt = function
   | Cand(c1,c2)      -> F.fprintf fmt"(%a && %a)" pp_icond c1 pp_icond c2
   | Ccond(o,ie1,ie2) -> F.fprintf fmt"(%a %s %a)" pp_cexpr ie1 (icondop_to_string o) pp_cexpr ie2
 
-let pp_reg fmt iv =
-  match iv with
-  | Preg(iv,ies) ->
-    begin match ies with
-    | []   -> F.fprintf fmt "%s" iv
-    | _::_ -> F.fprintf fmt "%s[%a]" iv (pp_list "," pp_cexpr) ies
-    end
-  | Mreg(s) -> F.fprintf fmt "%%%s" s
+let pp_preg fmt  (r,ies)=
+  match ies with
+  | []   -> F.fprintf fmt "%s" r
+  | _::_ -> F.fprintf fmt "%s[%a]" r (pp_list "," pp_cexpr) ies
 
 let pp_src fmt = function
-  | Sreg(iv)    -> pp_reg fmt iv
+  | Sreg(pr)    -> pp_preg fmt pr
   | Simm(u)     -> pp_string fmt (Int64.to_string u)
-  | Smem(iv,ie) -> F.fprintf fmt "*(%a + %a)" pp_reg iv pp_cexpr ie
+  | Smem(iv,ie) -> F.fprintf fmt "*(%a + %a)" pp_preg iv pp_cexpr ie
 
 let pp_dest fmt d = pp_src fmt (dest_to_src d)
 
@@ -187,25 +196,12 @@ let op_to_string = function
 let pp_base_instr fmt = function
   | Comment(s) ->
     F.fprintf fmt "/* %s */" s
+
+  | App(Assgn,ds,ss) ->
+    F.fprintf fmt "%a = %a;" (pp_list ", " pp_dest) ds (pp_list ", " pp_src) ss
+
   | App(o,ds,ss) ->
     F.fprintf fmt "%a = %s %a;" (pp_list ", " pp_dest) ds (op_to_string o) (pp_list ", " pp_src) ss
-(*
-  | Mul(Some d1,d2,s1,s2) ->
-    F.fprintf fmt "(%a, %a) = %a * %a;" pp_dest d1 pp_dest d2 pp_src s1 pp_src s2
-  | Mul(None,d2,s1,s2) ->
-    F.fprintf fmt "%a = %a * %a;" pp_dest d2 pp_src s1 pp_src s2
-  | BinOpCf(bo,cf_out,d1,s1,s2,cf_in) when equal_src (dest_to_src d1) s1 ->
-    F.fprintf fmt "%s%a %s= %a%s;"
-      (match cf_out with IgnoreCarry -> "" | UseCarry s -> s^"? ")
-      pp_dest d1 (binop_to_string bo) pp_src s2
-      (match cf_in with IgnoreCarry -> "" | UseCarry s -> " + "^s)
-  | BinOpCf(bo,cf_out,d1,s1,s2,cf_in) ->
-    F.fprintf fmt "%s%a = %a %s %a%s;"
-      (match cf_out with IgnoreCarry -> "" | UseCarry s -> s^"? ")
-      pp_dest d1 pp_src s1
-      (binop_to_string bo) pp_src s2
-      (match cf_in with IgnoreCarry -> "" | UseCarry s -> " + "^s)
-*)
 
 let rec pp_instr fmt = function
   | BInstr(i) -> pp_base_instr fmt i
@@ -218,3 +214,20 @@ let rec pp_instr fmt = function
 
 and pp_stmt fmt is =
   F.fprintf fmt "@[<v 0>%a@]" (pp_list "@\n" pp_instr) is
+
+let pp_return fmt names =
+  F.fprintf fmt "return %a" (pp_list "," pp_preg) names
+
+let pp_efun fmt ef =
+  F.fprintf fmt "@[<v 0>extern %s(%a) {@\n  @[<v 0>%a@\n%a@]@\n}@]"
+    ef.ef_name
+    (pp_list "," pp_preg) ef.ef_args
+    pp_stmt ef.ef_body
+    pp_return ef.ef_ret
+
+let shorten_efun n efun =
+  if List.length efun.ef_body <= n then efun
+  else
+    { efun with
+      ef_body = List.take efun.ef_body n;
+      ef_ret = [] }
