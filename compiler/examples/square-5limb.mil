@@ -1,4 +1,4 @@
-/* need shifts, logical and, xor ( "<<=", ">>=", "&=", "^=") FIXME*/ 
+
 
 for i in 0 .. n {
   x[i] = *(xp + i*8);
@@ -32,11 +32,11 @@ for i in 0 .. n {
 	  }
     } else { 
       if i = j {
-        ( h,l) = x[i] * 19;
+        x[i] = x[i] * 19;
       } else { 
-        ( h,l) = x[i] * 38;
+        x[i] = x[i] * 38;
 	}
-        (h,l) = l *x[j];
+        (h,l) = x[i] *x[j];
 	cf? r[i + j - n - 1] += l;
 	m[i + j - n - 1] += h + cf;
       }
@@ -55,15 +55,15 @@ for i in 0 ..n {
     m[0] ^= mult;
   } else {
     m[i] <<= 13;
-    mult = r[i]
+    mult = r[i];
     r[i] &= mask;
     r[i] += m[i - 1];
-    mul >>= 51;
+    mult >>= 51;
     m[i] ^=mult;
     }
 }
 
-(h, l) = m[n] * 19;
+m[n] = m[n] * 19;
 r[0] += l;
 
 for i in 0 .. n {
@@ -75,12 +75,13 @@ for i in 0 .. n {
     r[i] = mult;
     mult >>= 51;
     r[i - 1] &= mask;
-    if i <> n { 
-    mult += r[i + 1];   
+    if i = n { 
+      mult  =  mult * 19;
+      r[0] += mult;
+      r[n] &= mask;  
     } else {
-      ( h, l) =  mul * 19;
-      r[0] += mult
-      r[n] &= mask;
+      mult += r[i + 1];
+    
       }
     }
 }

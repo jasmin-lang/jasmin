@@ -83,18 +83,17 @@ for i in 0 ..n {
       hprev += h + cf;
       }
 }
-(h, l) = hprev * 38 ;
-cf? r[0] += l;
-cf? r[1] += h + cf;
-for i in 2 .. n {
+hprev = hprev * 38 ;
+cf? r[0] += hprev;
+for i in 1 .. n {
   cf? r[i] += 0 + cf;
 }
 
 zero = 0;
 zero = 0 + cf;
 
-(h, l) = zero * 38 ;
-r0 += l;
+zero = zero * 38 ;
+r0 += zero;
 
 for j in 0..n {
   *(rp + j*8) -= r[j];
