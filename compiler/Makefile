@@ -39,6 +39,9 @@ test-dmasm-assemble: dmasm
 test-dmasm-reg: dmasm
 	./dmasm.native -p -t "register_alloc" examples/test-register-alloc.mil
 
+test-dmasm-mul:
+	./dmasm.native -p -t "expand[n=3],ssa,register_allocate[15],asm[x86-64]" examples/mul-4limb.mil
+
 run_tests:
 	$(OCAMLBUILD) $(OCAMLBUILDFLAGS) src/Main/run_tests.native
 

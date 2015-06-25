@@ -409,8 +409,8 @@ let to_asm_x64 efun =
     | Cbinop(_) -> failwith "to_asm_x64: cannot translate non-constant c-expressions"
   in
   let trans_src = function
-    | Sreg(r)          -> X64.Sreg(mreg_of_preg r)
-    | Simm(i)          -> X64.Simm(i)
+    | Sreg(r)    -> X64.Sreg(mreg_of_preg r)
+    | Simm(i)    -> X64.Simm(i)
     | Smem(r,ie) -> X64.Smem(mreg_of_preg r,trans_cexpr ie)
   in
   let trans_dest = function
@@ -427,11 +427,10 @@ let to_asm_x64 efun =
     | App(Assgn,[d],[s]) ->
       [c; X64.( Binop(Mov,trans_src s,trans_dest d) )]
 
-
     | App(UMul,[dh;dl],[s1;s2]) ->
       ensure_dest_mreg dh X64.RDX "to_asm_x64: mulq high result must be %rdx";
       ensure_dest_mreg dl X64.RAX "to_asm_x64: mulq low result must be %rax";
-      ensure_src_mreg  s1 X64.RAX "to_asm_x64: mulq source 1 result must be %rax";
+      ensure_src_mreg  s1 X64.RAX "to_asm_x64: mulq source 1 must be %rax";
 
       let instr = X64.( Unop(Mul,trans_src s2) ) in
       [c;instr]
