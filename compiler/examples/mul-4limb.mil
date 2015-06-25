@@ -1,73 +1,74 @@
-/* macro intermediate language, syntax is somewhat rust-inspired */
+extern fn mul(zp, xp, yp0 /* rdx */) {
 
-/* param n; // n = limbs - 1 */
-
-x[0] = *(xp);
-for j in 0..n {
-  y[j] = *(yp + j*8);
-  (h,l) = x[0] * y[j];
-
-  if j = 0 {
-    r[0] = l;
-    r[1] = h;
-  } else {
-    cf? r[j] += l;
-    r[j+1] = 0;
-    r[j+1] += h + cf;
-  }
-}
-
-for i in 1..n {
-  x[i] = *(xp + i*8);
+  yp = yp0;
+  
+  x[0] = *(xp);
   for j in 0..n {
     y[j] = *(yp + j*8);
-    (h,l) = x[i]*y[j];
-    cf? r[i+j] += l;
+    h, l = y[j] * x[0];
+
     if j = 0 {
+      z[0] = l;
+      z[1] = h;
+    } else {
+      cf? z[j] += l;
+      z[j + 1] = 0;
+      z[j + 1] += h + cf;
+    }
+  }
+
+  for i in 1..n {
+    x[i] = *(xp + i*8);
+    for j in 0..n {
+      y[j] = *(yp + j*8);
+      h, l =  y[j] * x[i];
+      cf? z[i+j] += l;
+      if j = 0 {
+        hprev = 0;
+        hprev += h + cf;
+      } else {
+        h += 0 + cf;
+        cf? z[i+j] += hprev;
+        if 1 <= j && j < n {
+          hprev = 0;
+          hprev += h + cf;
+        } else { /* j = n */
+          z[i + j + 1] = 0;
+          cf? z[i + j + 1] += h + cf;
+        }
+      }
+    }
+  }
+  c38 = 38;
+  for i in 0..n {  
+    h, l = z[n + i + 1] * c38;
+    cf? z[i] += l;
+    if i = 0 {
       hprev = 0;
       hprev += h + cf;
     } else {
       h += 0 + cf;
-      cf? r[i+j] += hprev;
-      if 1 <= j && j < n {
-        hprev = 0;
-        hprev += h + cf;
-      } else { /* j = n */
-        r[i + j + 1] = 0;
-        cf? r[i + j + 1] += h + cf;
-      }
+      cf? z[i] += hprev;
+      hprev = 0;
+      hprev += h + cf;
     }
   }
-}
 
-for i in 0..n {
-  (h,l) = r[n + i + 1] * 38;
-  cf? r[i] += l;
-  if i = 0 {
-    hprev = 0;
-    hprev += h + cf;
-  } else {
-    h += 0 + cf;
-    cf? r[i] += hprev;
-    hprev = 0;
-    hprev += h + cf;
+  l = hprev * 38;
+  cf? z[0] += l;
+  cf? z[1] += h + cf;
+
+  for i in 2..n {
+    cf? z[i] += 0 + cf;
   }
-}
 
-(h,l) = hprev * 38;
-cf? r[0] += l;
-cf? r[1] += h + cf;
+  zero = 0;
+  zero += 0 + cf;
 
-for i in 2..n {
-  cf? r[i] += 0 + cf;
-}
+  l = zero * 38;
+  z[0] += l;
 
-zero = 0;
-zero += 0 + cf;
-
-(h,l) = zero * 38;
-r0 += l;
-
-for j in 0..n {
-  *(rp + j*8) -= r[j];
+  for j in 0..n {
+    *(zp + j*8) = z[j];
+  }
 }

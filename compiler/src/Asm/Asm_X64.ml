@@ -49,7 +49,7 @@ module Make_Instr(V : VAL) = struct
     | Sub          (* subtraction: ignore carry flag *)
     | Sbb          (* subtraction: use    carry flag *)
     | Mov          (* move *)
-    | CMov of cond (* conditional move *)
+    | Cmov of cond (* conditional move *)
 
   type unop =
     | Mul          (* multiplication *)
@@ -103,13 +103,13 @@ type afun = {
     | 4  -> RCX (* arg 4 *)
     | 5  -> R8  (* arg 5 *)
     | 6  -> R9  (* arg 6 *)
-    | 7  -> RBP 
-    | 8  -> R10
-    | 9  -> R11
-    | 10 -> R12
-    | 11 -> R13
-    | 12 -> R14
-    | 13 -> R15
+    | 7  -> R10
+    | 8  -> R11
+    | 9 -> R12
+    | 10 -> R13
+    | 11 -> R14
+    | 12 -> R15
+    (* | 7  -> RBP  *)
     | _  -> failwith "invalid register index for X86-64"
 
   let int_of_reg = function
@@ -121,13 +121,13 @@ type afun = {
     | R8  -> 5 (* arg 4 *)
     | R9  -> 6 (* arg 5 *)
     (* end argument *)
-    | RBP -> 7
-    | R10 -> 8
-    | R11 -> 9
-    | R12 -> 10
-    | R13 -> 11
-    | R14 -> 12
-    | R15 -> 13
+    | R10 -> 7
+    | R11 -> 8
+    | R12 -> 9
+    | R13 -> 10
+    | R14 -> 11
+    | R15 -> 12
+    (* | RBP -> 7 *)
     | _   -> failwith "invalid register index for X86-64"
 
   let arg_regs = [ RDI; RSI; RDX; RCX; R8; R9 ]
@@ -163,7 +163,7 @@ type afun = {
     | "rbp" -> RBP
     | "rsp" -> RSP
     | "r8"  -> R8
-    | "r9" -> R9
+    | "r9"  -> R9
     | "r10" -> R10
     | "r11" -> R11
     | "r12" -> R12
@@ -175,14 +175,14 @@ type afun = {
   let pp_reg fmt r = F.fprintf fmt "%s" (string_of_reg r)
 
   let binop_to_string = function
-    | Add  -> "add"
-    | Adc  -> "adc"
-    | And  -> "and"
-    | Sub  -> "sub"
-    | Sbb  -> "sbb"
-    | Mov  -> "mov"
-    | CMov(CfSet(true)) -> "cmovb"
-    | CMov(CfSet(false)) -> "cmovnb"
+    | Add  -> "addq"
+    | Adc  -> "adcq"
+    | And  -> "andq"
+    | Sub  -> "subq"
+    | Sbb  -> "sbbq"
+    | Mov  -> "movq"
+    | Cmov(CfSet(true)) -> "cmovc"
+    | Cmov(CfSet(false)) -> "cmovae"
 
   let unop_to_string = function
     | Mul  -> "mulq"

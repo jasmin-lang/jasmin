@@ -121,7 +121,7 @@ binop:
 | PLUS  { `Plus }
 | MINUS { `Minus }
 | BAND  { `BAnd }
-| STAR  { `Mult }
+| STAR  { `Mul }
 
 %inline opeq:
 | PLUSEQ  { Add }
@@ -135,21 +135,23 @@ binop:
 | r_cf_out=preg QUESTION { r_cf_out }
 
 assgn_rhs:
-| s=src { `Right(s) }
-| s1=src op=binop s2=src { `Left(op,s1,s2) }
+| s=src { `Assgn(s) }
+| s=src IF e = EXCL? cf = ID { `Cmov(s,Sreg(cf,[]),CfSet(e=None)) }
+| s1=src op=binop s2=src { `Bop(op,s1,s2) }
 
 
 base_instr :
 | d=dest EQ rhs = assgn_rhs
     { match rhs with
-      | `Left(op,s1,s2) ->
+      | `Bop(op,s1,s2) ->
         begin match op with
-        | `Mult  -> App(IMul,[d],[s1;s2])
+        | `Mul   -> App(IMul,[d],[s1;s2])
         | `Plus  -> App(Add,[d],[s1;s2])
         | `Minus -> App(Sub,[d],[s1;s2])
         | `BAnd  -> App(BAnd,[d],[s1;s2])
         end
-      | `Right(s) -> App(Assgn,[d],[s])
+      | `Assgn(s) -> App(Assgn,[d],[s])
+      | `Cmov(s,f,cmf) -> App(Cmov(cmf),[d],[dest_to_src d;s;f])
     }
 
 | cf_out=cfout d=dest oeq=opeq s=src cf_in=cfin?

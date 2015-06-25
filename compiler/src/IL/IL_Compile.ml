@@ -272,7 +272,10 @@ let register_allocate nregs efun0 =
         free_regs_remove ri;
         ri
       ) else (
-        failwith "required register (e.g., %rax/%rdx) already in use"
+        failwith
+          (fsprintf "required register %s already in use: %a"
+             (X64.string_of_reg (X64.reg_of_int ri))
+             (pp_list "," pp_int) (Set.to_list !free_regs))
       )
     | None ->
       begin match Set.max_elt !free_regs with
@@ -309,26 +312,42 @@ let register_allocate nregs efun0 =
   in
   
   let alloc {li_bi = bi; li_read_after_rhs = read_after_rhs} =
-    match bi with
-    | Comment(_) -> bi
-
+    (* F.printf "reg_alloc: %a\n" pp_base_instr bi; *)
+    let bi =
+      match bi with
+      | Comment(_) -> bi
+        
       (* enforce dst = src1 and do not allocate registers for carry flag *)
-    | App(Add,(([_;Dreg(d)] | [Dreg(d)]) as ds),(Sreg(s1)::s2::cfin)) ->
-      let r1 = Hashtbl.find_exn reg_map s1 in
-      let s1 = trans_src (Sreg s1) in
-      let s2 = trans_src s2        in
-      free_dead_regs read_after_rhs;
-      Hashtbl.set fixed_pregs ~key:d  ~data:r1;
-      let d = trans_dest (Dreg d) in
-      App(Add,(linit ds)@[d],s1::s2::cfin)
+      | App(Add,(([_;Dreg(d)] | [Dreg(d)]) as ds),(Sreg(s1)::s2::cfin)) ->
+        let r1 = Hashtbl.find_exn reg_map s1 in
+        let s1 = trans_src (Sreg s1) in
+        let s2 = trans_src s2        in
+        free_dead_regs read_after_rhs;
+        Hashtbl.set fixed_pregs ~key:d  ~data:r1;
+        let d = trans_dest (Dreg d) in
+        App(Add,(linit ds)@[d],s1::s2::cfin)
 
-    | App(Add,_,_) -> assert false
+      | App(Add,_,_) -> assert false
+        
+      | App(Cmov(_) as o,[Dreg(d)],[Sreg(s1);s2;cfin]) ->
+        let r1 = Hashtbl.find_exn reg_map s1 in
+        let s1 = trans_src (Sreg(s1)) in
+        let s2 = trans_src s2        in
+        free_dead_regs read_after_rhs;
+        Hashtbl.set fixed_pregs ~key:d  ~data:r1;
+        let d = trans_dest (Dreg d) in
+        App(o,[d],[s1;s2;cfin])
 
-    | App(o,ds,ss) ->
-      let ss = List.map ~f:trans_src ss in
-      free_dead_regs read_after_rhs;
-      let ds = List.map ~f:trans_dest ds in
-      App(o,ds,ss)
+      | App(Cmov(_),_,_) -> assert false
+
+      | App(o,ds,ss) ->
+        let ss = List.map ~f:trans_src ss in
+        free_dead_regs read_after_rhs;
+        let ds = List.map ~f:trans_dest ds in
+        App(o,ds,ss)
+    in
+    (* F.printf "reg_alloc_done: %a\n" pp_base_instr bi; *)
+    bi
   in
 
   let args = List.map efun0.ef_args ~f:(fun pr -> int_to_preg (pick_free pr)) in
@@ -350,7 +369,6 @@ let to_asm_x64 efun =
   let mreg_of_preg pr =
     let fail () = failwith "asm_x64: expected register of the form %i" in
     let s = match pr with (s,[]) -> s | _ -> fail () in
-    let open X64 in
     let i =
       try
         begin match String.split s ~on:'%' with
@@ -360,26 +378,7 @@ let to_asm_x64 efun =
       with
       | Failure "int_of_string" -> fail ()
     in
-    (* the last 6 registers can be directly used for receiving arguments
-       1: %rdi	2: %rsi	3: %rdx	4: %rcx	5: %r8	6: %r9 *)
-    match i with
-    | 0  -> RAX (* return 1 *)
-    | 1  -> RDX (* return 2/ arg 4 *)
-    | 2  -> RDI (* arg 1 *)
-    | 3  -> RSI (* arg 2 *)
-    | 4  -> RCX (* arg 3 *)
-    | 5  -> R8  (* arg 4 *)
-    | 6  -> R9  (* arg 5 *)
-    (* end argument *)
-    | 7  -> RBP 
-    | 8  -> R10
-    | 9  -> R11
-    | 10 -> R12
-    | 11 -> R13
-    | 12 -> R14
-    | 13 -> R15
-    | _  -> failwith "invalid register index for X86-64"
-        (* do not use RSP *)
+    X64.reg_of_int i
   in
   let ensure_dest_mreg d mr msg =
     match d with
@@ -419,23 +418,28 @@ let to_asm_x64 efun =
 
     | App(UMul,[dh;dl],[s1;s2]) ->
       ensure_dest_mreg dh X64.RDX "to_asm_x64: mulq high result must be %rdx";
-      ensure_dest_mreg dl X64.RAX "to_asm_x64: mulq low result must be %rdx";
+      ensure_dest_mreg dl X64.RAX "to_asm_x64: mulq low result must be %rax";
       ensure_src_mreg  s1 X64.RAX "to_asm_x64: mulq source 1 result must be %rax";
 
       let instr = X64.( Unop(Mul,trans_src s2) ) in
       [c;instr]
 
     | App(IMul,[dl],[s1;s2]) ->
-      ensure (is_src_imm s1)  "to_asm_x64: imul source 1 cannot be immediate";
+      ensure (not (is_src_imm s1))  "to_asm_x64: imul source 1 cannot be immediate";
       ensure (is_src_imm s2)  "to_asm_x64: imul source 2 must be immediate";
       ensure (is_dest_reg dl) "to_asm_x64: imul dest must be register";
-      [c; X64.( Triop(IMul,trans_src s1,trans_src s2,trans_dest dl) )]
+      [c; X64.( Triop(IMul,trans_src s2,trans_src s1,trans_dest dl) )]
 
-    | App(op,([_;d] | [d]),s1::s2::cout) ->
+    | App(Cmov(CfSet(b)),[d],[s1;s2;_cin]) ->
+      ensure (equal_src (dest_to_src d) s1) "to_asm_x64: cmov with dest<>src1";
+      let instr = X64.( Binop(Cmov(CfSet(b)),trans_src s2,trans_dest d) ) in
+      [c; instr]
+
+    | App(op,([_;d] | [d]),s1::s2::cin) ->
       ensure (equal_src (dest_to_src d) s1) "to_asm_x64: add/sub with dest<>src1";
 
       let instr =
-        match op,cout with
+        match op,cin with
         | Add, []   -> X64.( Binop(Add,trans_src s2,trans_dest d) )
         | Add, [_]  -> X64.( Binop(Adc,trans_src s2,trans_dest d) )
         | BAnd, []  -> X64.( Binop(And,trans_src s2,trans_dest d) )

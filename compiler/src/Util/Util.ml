@@ -30,50 +30,52 @@ let pph digit_size fmt i =
   F.fprintf fmt "%s" (go ~i:i ~digits:0)
 
 module Big_int_Infix = struct
+  include Big_int
   let (+!)  = add_big_int
   let ( *!) = mult_big_int
   let (-!)  = sub_big_int
   let (^!)  = power_int_positive_int
   let (&!)  x i = extract_big_int x i (i + 1)
   let (>>!) x i = shift_right_big_int x i
-  let (<<!) x i = shift_left_big_int x i
+  let (<!<) x i = shift_left_big_int x i
   let (===) = eq_big_int
   let (<!)  = lt_big_int
 end
 
 module U64 = struct
-  include Uint64
-  let mask_low  = Uint64.of_string "0xffffffff"
-  let mask_high = Uint64.of_string "0xffffffff00000000"
+  open Unsigned
+  include Unsigned.UInt64
+  let mask_low  = UInt64.of_string "0xffffffff"
+  let mask_high = UInt64.of_string "0xffffffff00000000"
 
   (* FIXME: check this *)
   let add_carry x y cf_in =
-    let x = if cf_in then Uint64.succ x else x in
-    if x = Uint64.zero && cf_in then (
+    let x = if cf_in then UInt64.succ x else x in
+    if x = UInt64.zero && cf_in then (
       (y,true)
     ) else (
-      let c = Uint64.add x y in
-      let cf = Uint64.compare c y < 0 in
+      let c = UInt64.add x y in
+      let cf = UInt64.compare c y < 0 in
       (c,cf)
     )
   
   (* FIXME: check this too *)
   let mul x y =
-    let low u = Uint64.logand mask_low u in
-    let high u = Uint64.shift_right (Uint64.logand mask_high u) 32 in
+    let low u = UInt64.logand mask_low u in
+    let high u = UInt64.shift_right (UInt64.logand mask_high u) 32 in
     let x_low  = low x in
     let y_low  = low y in
     let x_high = high x in
     let y_high = high y in
     
-    let z0  = Uint64.mul x_low y_low in
-    let z2  = Uint64.mul x_high y_high in
+    let z0  = UInt64.mul x_low y_low in
+    let z2  = UInt64.mul x_high y_high in
 
-    let z11 = Uint64.mul x_low y_high in
-    let z12 = Uint64.mul x_high y_low in
-    let z11_low  = Uint64.shift_left (low  z11) 32 in
+    let z11 = UInt64.mul x_low y_high in
+    let z12 = UInt64.mul x_high y_low in
+    let z11_low  = UInt64.shift_left (low  z11) 32 in
     let z11_high = high z11 in
-    let z12_low  = Uint64.shift_left (low  z12) 32 in
+    let z12_low  = UInt64.shift_left (low  z12) 32 in
     let z12_high = high z12 in
     
     let (u,cf)  = add_carry z0 z11_low false in
@@ -84,8 +86,9 @@ module U64 = struct
     assert (not cf);
     (w,u)
 
-  let to_big_int x = big_int_of_string (Uint64.to_string x)
-  let of_big_int x = Uint64.of_string (string_of_big_int x)
+  let to_big_int x = big_int_of_string (UInt64.to_string x)
+  let of_big_int x = UInt64.of_string (string_of_big_int x)
+  
 end
 
 type u64 = U64.t
@@ -121,3 +124,21 @@ let fsprintf fmt =
     fbuf fmt
 
 let linit l = List.rev l |> List.tl_exn |> List.rev
+
+module Limb4 = struct
+  let of_big_int i =
+    let open Big_int_Infix in
+    assert (i <! (2^!256));
+    (U64.of_big_int (extract_big_int i 0 64),
+     U64.of_big_int (extract_big_int i 64 64),
+     U64.of_big_int (extract_big_int i 128 64),
+     U64.of_big_int (extract_big_int i 192 64))
+
+  let to_big_int (x0,x1,x2,x3) =
+    Big_int_Infix.(
+      (U64.to_big_int x0)
+      +! ((U64.to_big_int x1) <!< 64)
+      +! ((U64.to_big_int x2) <!< 128)
+      +! ((U64.to_big_int x3) <!< 192)
+    )
+end

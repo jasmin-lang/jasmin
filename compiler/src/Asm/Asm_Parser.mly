@@ -57,7 +57,7 @@ reg :
 | ADC  { Adc }
 | SUB  { Sub }
 | SBB  { Sbb }
-| c = CMOV { CMov c }
+| c = CMOV { Cmov c }
 
 %inline unop:
 | MUL  { Mul }

@@ -12,17 +12,20 @@ let parse_and_process ~parse ~ftype ~process file =
   let s = In_channel.read_all file in
   eprintf "Parsing %s as %s\n\n%!" file ftype;
   begin match parse s with
-  | `ParseOk pres ->
-    process pres
+  | `ParseOk [] ->
+    failwith "No function definitions"
+  | `ParseOk res ->
+    process res
   | `ParseError(pinfo) ->
     let s = ParserUtil.error_string file pinfo in
     eprintf "%s%!" s
   end
 
-let process_mil trafo print_result out_file file st =
-  match ILT.apply_transform_asm trafo st with
-  | `Asm_X64 asm_code ->
-    let asm_string = fsprintf "%a" Asm_X64.pp_instrs asm_code in
+let process_mil trafo print_result out_file file efuns =
+  let efun = List.hd_exn efuns in
+  match ILT.apply_transform_asm trafo efun with
+  | `Asm_X64 afun ->
+    let asm_string = fsprintf "%a" Asm_X64.pp_afun afun in
     if print_result then (
       F.printf "%s%!" asm_string
     ) else (
@@ -31,16 +34,16 @@ let process_mil trafo print_result out_file file st =
     if out_file<>"" then (
       Out_channel.write_all out_file ~data:asm_string
     )
-  | `IL st ->
+  | `IL efun ->
     if print_result
-    then F.eprintf "%a@\n%!" IL_Lang.pp_stmt st
+    then F.eprintf "%a@\n%!" IL_Lang.pp_efun efun
     else F.eprintf "Processed file %s@\n%!" file
 
 let dmasm trafo print_result out_file file =
   match Filename.split_extension file with
   | _, Some "mil" ->
     parse_and_process
-      ~parse:ILP.stmt
+      ~parse:ILP.efuns
       ~ftype:"MIL"
       ~process:(process_mil trafo print_result out_file file)
       file
@@ -52,9 +55,9 @@ let dmasm trafo print_result out_file file =
     parse_and_process
       ~parse:AP.instrs
       ~ftype:"assembly file (AT&T syntax)"
-      ~process:(fun st ->
+      ~process:(fun ainstrs ->
         if print_result then
-          F.eprintf "%a%!" Asm_X64.pp_instrs st
+          F.eprintf "%a%!" Asm_X64.pp_instrs ainstrs
         else
           F.eprintf "File %s parsed successfully.\n\n%!" file)
       file

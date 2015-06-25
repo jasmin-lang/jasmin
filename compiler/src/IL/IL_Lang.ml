@@ -54,6 +54,10 @@ type dest =
   | Dmem of preg * cexpr  (* Dmem(i,r): i(%r) *)
   with sexp, compare
 
+type cmov_flag =
+  | CfSet of bool
+  with sexp, compare
+
 type op =
   | Assgn
   | UMul
@@ -61,6 +65,7 @@ type op =
   | Add
   | Sub
   | BAnd
+  | Cmov of cmov_flag
   with sexp, compare
 
 type base_instr =
@@ -104,6 +109,7 @@ let equal_ccond      x y = compare_ccond      x y = 0
 let equal_preg       x y = compare_preg       x y = 0
 let equal_src        x y = compare_src        x y = 0
 let equal_dest       x y = compare_dest       x y = 0
+let equal_cmov_flag  x y = compare_cmov_flag  x y = 0
 let equal_op         x y = compare_op         x y = 0
 let equal_base_instr x y = compare_base_instr x y = 0
 let equal_instr      x y = compare_instr      x y = 0
@@ -192,6 +198,8 @@ let op_to_string = function
   | UMul  -> "umul"
   | IMul  -> "imul"
   | Assgn -> ""
+  | Cmov(CfSet(true))  -> "cmov_if_carry"
+  | Cmov(CfSet(false)) -> "cmov_if_not_carry"
 
 let pp_base_instr fmt = function
   | Comment(s) ->
