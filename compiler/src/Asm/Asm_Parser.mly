@@ -16,6 +16,8 @@ open Asm_X64
 %token ADD ADC
 %token SUB SBB
 %token <Asm_X64.cond> CMOV
+%token SHR SHL
+%token AND XOR
 
 %token RAX_ RBX_ RCX_ RDX_ RDI_ RSI_ RBP_ RSP_
 %token R8_ R9_ R10_ R11_ R12_ R13_ R14_ R15_
@@ -57,7 +59,11 @@ reg :
 | ADC  { Adc }
 | SUB  { Sub }
 | SBB  { Sbb }
-| c = CMOV { CMov c }
+| c = CMOV { Cmov c }
+| SHR  { Shr }
+| SHL  { Shl }
+| AND  { And }
+| XOR  { Xor }
 
 %inline unop:
 | MUL  { Mul }

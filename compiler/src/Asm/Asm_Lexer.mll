@@ -27,6 +27,10 @@ rule lex = parse
   | "sbb"    { SBB }
   | "cmovb"  { CMOV(CfSet(true)) }
   | "cmovnb" { CMOV(CfSet(false)) }
+  | "shr"    { SHR }
+  | "shl"    { SHL }
+  | "and"    { AND }
+  | "xor"    { XOR }
 
 
   | "("      { LPAREN }

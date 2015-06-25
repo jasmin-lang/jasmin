@@ -17,6 +17,7 @@ open Core
 %token LESS
 %token GREATER
 %token GEQ
+%token SHREQ SHLEQ XOREQ
 
 %token STAR
 %token BAND
@@ -26,8 +27,10 @@ open Core
 %token SEMICOLON
 %token QUESTION
 %token EXCL DOTDOT COMMA
-(* %token COMMA *)
-%token PERCENT
+(* %token PERCENT *)
+%token SHR
+%token SHL
+%token XOR
 
 %token FOR
 %token IN
@@ -35,6 +38,9 @@ open Core
 %token ELSE
 %token TRUE
 %token FALSE
+%token EXTERN
+%token FN
+%token RETURN
 
 %token <string> ID 
 %token <int64>  INT
@@ -44,16 +50,18 @@ open Core
 %left MINUS PLUS
 %left STAR
 
+%type <IL_Lang.efun list> efuns
 
-%type <IL_Lang.stmt> stmt
-
-%start stmt
+%start efuns
 
 %%
 
 (* -------------------------------------------------------------------- *)
 (* Index expressions and conditions *)
 
+%inline tuple(X):
+| LPAREN l = separated_list(COMMA,X) RPAREN { l }
+| l = separated_list(COMMA,X) { l }
 
 %inline cbinop :
 | PLUS    { Cplus }
@@ -78,23 +86,18 @@ ccond :
 | FALSE        { Cnot(Ctrue) }
 | EXCL c=ccond { Cnot(c) }
 | c1=ccond LAND c2=ccond { Cand(c1,c2) }
+| LPAREN c = ccond RPAREN { c }
 | c1=cexpr o=ccondop c2=cexpr
   { Ccond(o,c1,c2) }
 
-%inline vreg :
-| s=ID                        { Preg(s,[]) }
-| s=ID LBRACK ce=cexpr RBRACK { Preg(s,[ce]) }
+%inline preg :
+| s=ID                        { (s,[]) }
+| s=ID LBRACK ce=cexpr RBRACK { (s,[ce]) }
   (* FIXME: support multi-dimensional arrays *)
 
-%inline mreg :
-| PERCENT r = ID { Mreg(r) }
-
-reg :
-| r = mreg { r }
-| v = vreg { v }
 
 %inline mem:
-| STAR LPAREN r=reg mi=offset? RPAREN
+| STAR LPAREN r=preg mi=offset? RPAREN
     { (r,Std.Option.value ~default:(Cconst Int64.zero) mi) }
 
 (* -------------------------------------------------------------------- *)
@@ -106,51 +109,62 @@ offset:
 
 
 src :
-| r=reg { Sreg(r) }
+| r=preg { Sreg(r) }
 | i=INT { Simm(i) }
 | m = mem { Smem(fst m, snd m) }
 
 dest :
-| r = reg { Dreg(r) }
+| r = preg { Dreg(r) }
 | m = mem { Dmem(fst m, snd m) }
 
 cfin:
-| PLUS  cf_in=reg { (Add,cf_in) }
-| MINUS cf_in=reg { (Sub,cf_in) }
+| PLUS  cf_in=preg { (Add,cf_in) }
+| MINUS cf_in=preg { (Sub,cf_in) }
 
 binop:
 | PLUS  { `Plus }
 | MINUS { `Minus }
 | BAND  { `BAnd }
-| STAR  { `Mult }
+| STAR  { `Mul }
+| SHR   { `Shr }
+| SHL   { `Shl }
+| XOR   { `Xor } 
 
 %inline opeq:
 | PLUSEQ  { Add }
 | MINUSEQ { Sub }
 | BANDEQ  { BAnd }
+| SHREQ   { Shr }
+| SHLEQ   { Shl }
+| XOREQ   { Xor } 
 
 (* -------------------------------------------------------------------- *)
 (* instructions *)
 
 %inline cfout:
-| r_cf_out=reg QUESTION { r_cf_out }
+| r_cf_out=preg QUESTION { r_cf_out }
 
 assgn_rhs:
-| s=src { `Right(s) }
-| s1=src op=binop s2=src { `Left(op,s1,s2) }
+| s=src { `Assgn(s) }
+| s=src IF e = EXCL? cf = ID { `Cmov(s,Sreg(cf,[]),CfSet(e=None)) }
+| s1=src op=binop s2=src { `Bop(op,s1,s2) }
 
 
 base_instr :
 | d=dest EQ rhs = assgn_rhs
     { match rhs with
-      | `Left(op,s1,s2) ->
+      | `Bop(op,s1,s2) ->
         begin match op with
-        | `Mult  -> App(IMul,[d],[s1;s2])
+        | `Mul   -> App(IMul,[d],[s1;s2])
         | `Plus  -> App(Add,[d],[s1;s2])
         | `Minus -> App(Sub,[d],[s1;s2])
         | `BAnd  -> App(BAnd,[d],[s1;s2])
+	| `Shr   -> App(Shr,[d],[s1;s2])
+	| `Shl   -> App(Shl,[d],[s1;s2])
+	| `Xor   -> App(Xor,[d],[s1;s2])
         end
-      | `Right(s) -> App(Assgn,[d],[s])
+      | `Assgn(s) -> App(Assgn,[d],[s])
+      | `Cmov(s,f,cmf) -> App(Cmov(cmf),[d],[dest_to_src d;s;f])
     }
 
 | cf_out=cfout d=dest oeq=opeq s=src cf_in=cfin?
@@ -171,8 +185,8 @@ base_instr :
       in
       App(oeq,[d],[dest_to_src d;s]@cin) }
 
-| LPAREN h=dest COMMA l=dest RPAREN EQ s1=src STAR s2=src
-    { App(UMul,[h;l],[s1;s2]) }
+| ds = tuple(dest) EQ s1=src STAR s2=src
+    { App(UMul,ds,[s1;s2]) }
 
 instr :
 | ir = base_instr SEMICOLON { BInstr(ir) }
@@ -190,4 +204,20 @@ block :
 | LCBRACE stmt = instr* RCBRACE { stmt }
 
 stmt :
-| stmt = instr* EOF { stmt }
+| stmt = instr* { stmt }
+
+return :
+| RETURN ret = tuple(preg) SEMICOLON { ret }
+
+efun :
+| EXTERN FN name = ID LPAREN args = separated_list(COMMA,preg) RPAREN
+  LCBRACE
+    s = stmt
+    r = return?
+  RCBRACE
+  { { ef_name = name; ef_args = args; ef_body = s;
+      ef_ret = Option.value ~default:[] r } }
+    
+
+efuns :
+| efs = efun+ EOF { efs }

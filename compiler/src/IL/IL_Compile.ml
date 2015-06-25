@@ -5,72 +5,35 @@ open IL_Lang
 module X64 = Asm_X64
 module MP  = MParser
 
-type asm_lang = X64
-
-type transform =
-  | MacroExpand of (string * Big_int.big_int) list
-  | SSA
-  | EqualDestSrc
-  | RegisterAlloc
-  | RegisterLiveness
-  | Asm of asm_lang
-
 (* ------------------------------------------------------------------------ *)
-(* Interpreting index expressions and conditions *)
+(* Interpreting compile-time expressions and conditions *)
 
-let cvars_cexpr ie =
-  let rec go = function
-    | Cvar(s) ->
-      String.Set.singleton s
-    | Cbinop(_,ce1,ce2) ->
-      Set.union (go ce1) (go ce2)
-    | Cconst _ -> String.Set.empty
-  in
-  go ie
-
-let cvars_ccond cc =
-  let rec go = function
-    | Ctrue -> String.Set.empty
-    | Cnot(ic) -> go ic
-    | Cand (ic1,ic2) ->
-      Set.union (go ic1) (go ic2)
-    | Ccond(_,ce1,ce2) ->
-      Set.union (cvars_cexpr ce1) (cvars_cexpr ce2)
-  in
-  go cc
-
-let eval_cbinop co =
-  let open Big_int_Infix in
-  match co with
-  | Cplus  -> (+!)
-  | Cmult  -> ( *!)
-  | Cminus -> (-!)
+let eval_cbinop = function
+  | Cplus  -> Big_int_Infix.(+!)
+  | Cmult  -> Big_int_Infix.( *!)
+  | Cminus -> Big_int_Infix.(-!)
 
 
 let eval_cexpr cvar_map ce =
   let rec go = function
+    | Cbinop(o,ie1,ie2) -> eval_cbinop o (go ie1) (go ie2)
+    | Cconst(c)         -> Big_int.big_int_of_int64 c
     | Cvar(s) ->
       begin match Map.find cvar_map s with
       | Some x -> x
-      | None ->
-        failwith ("eval_cexpr: parameter "^s^" undefined")
+      | None   -> failwith ("eval_cexpr: parameter "^s^" undefined")
       end
-    | Cbinop(o,ie1,ie2) ->
-      (eval_cbinop o) (go ie1) (go ie2)
-    | Cconst(c) ->
-      Big_int.big_int_of_int64 c
   in
   go ce
 
-let eval_ccondop cco =
-  let open Big_int_Infix in
-  match cco with
+let eval_ccondop = Big_int_Infix.(function
   | Ceq      -> (===)
   | Cineq    -> fun x y -> not (x === y)
   | Cless    -> (<!)
   | Cgreater -> fun x y -> y <! x
   | Cleq     -> fun x y -> x <! y || x === y
   | Cgeq     -> fun x y -> y <! x || x === y
+)
 
 let eval_ccond cvar_map cc =
   let rec go = function
@@ -85,19 +48,17 @@ let eval_ccond cvar_map cc =
 let inst_cexpr cvar_map ce =
   Cconst (Big_int.int64_of_big_int (eval_cexpr cvar_map ce))
 
-let inst_var cvar_map = function
-  | Preg(v,ies) ->
-    Preg(v,List.map ~f:(inst_cexpr cvar_map) ies)
-  | Mreg(_) as r -> r
+let inst_reg cvar_map (r,ies) =
+  (r,List.map ~f:(inst_cexpr cvar_map) ies)
 
 let inst_src cvar_map = function
-  | Sreg(v)       -> Sreg(inst_var cvar_map v)
-  | Smem(v,ie)    -> Smem(inst_var cvar_map v, inst_cexpr cvar_map ie)
+  | Sreg(r)       -> Sreg(inst_reg cvar_map r)
+  | Smem(r,ie)    -> Smem(inst_reg cvar_map r, inst_cexpr cvar_map ie)
   | Simm(_) as im -> im
 
 let inst_dest cvar_map = function
-  | Dreg(v)       -> Dreg(inst_var cvar_map v)
-  | Dmem(v,ie)    -> Dmem(inst_var cvar_map v, inst_cexpr cvar_map ie)
+  | Dreg(v)       -> Dreg(inst_reg cvar_map v)
+  | Dmem(v,ie)    -> Dmem(inst_reg cvar_map v, inst_cexpr cvar_map ie)
 
 let inst_base_instr cvar_map bi =
   let inst_d = inst_dest cvar_map in
@@ -110,343 +71,404 @@ let inst_base_instr cvar_map bi =
 (* Macro expansion: loop unrolling, if, ...  *)
 
 let macro_expand cvar_map st =
-  let spaces indent =
-    String.make indent ' '
+  let spaces indent = String.make indent ' ' in
+  let s_of_cond c = if c then "if" else "else" in
+  let s_of_bi = Big_int.string_of_big_int in
+  let comment_if s indent cond ic =
+    fsprintf "%s%s %s %a" (spaces indent) s (s_of_cond cond) pp_icond ic
   in
-  let rec go indent ivm = function
-    | [] -> []
-    | instr::instrs ->
-      begin match instr with
-      | BInstr(binstr) ->
-        (inst_base_instr ivm binstr)::(go indent ivm instrs)
-      | If(ic,st1,st2) ->
-        let cond = eval_ccond ivm ic in
-        let st = if cond then st1 else st2 in
-        let comment s =
-          Comment (fsprintf "%s%s %s %a" (spaces indent) s (if cond then "if" else "else") pp_icond ic)
-        in
-        (comment "START: ")::(go (indent + 2) ivm st)@[comment "END: "]@(go indent ivm instrs)
-      | For(iv,lb_ie,ub_ie,st) ->
-        let lb = eval_cexpr ivm lb_ie in
-        let ub = eval_cexpr ivm ub_ie in
-        let open Big_int_Infix in
-        assert (lb <! ub || lb === ub);
-        let v = ref lb in
-        let sts = ref [] in
-        while (not (ub <! !v)) do
-          let comment =
-            Comment (fsprintf "%s%s = %s" (spaces (indent+2)) iv (Big_int.string_of_big_int !v))
-          in
-          sts := !sts @ [comment] @ go (indent + 2) (Map.add ivm ~key:iv ~data:(!v)) st;
-          v := !v +! Big_int.unit_big_int
-        done;
-        let comment s =
-          Comment (fsprintf "%s%s for %s in %a..%a" s (spaces indent) iv pp_cexpr lb_ie pp_cexpr ub_ie)
-        in
-        (comment "START:")::!sts@[(comment "END:")]@(go indent ivm instrs)
-      end
+  let comment_while s indent iv lb_ie ub_ie =
+    fsprintf "%s%s for %s in %a..%a" s (spaces indent) iv pp_cexpr lb_ie pp_cexpr ub_ie
   in
-  go 0 cvar_map st
+
+  let rec expand indent ivm = function
+    | BInstr(binstr) -> [inst_base_instr ivm binstr]
+
+    | If(ic,st1,st2) ->
+      let cond = eval_ccond ivm ic in
+      let st = if cond then st1 else st2 in
+      (Comment (comment_if "START: " indent cond ic))
+      :: (List.concat_map ~f:(expand (indent + 2) ivm) st)
+      @ [Comment (comment_if "END: " indent cond ic)]
+
+    | For(iv,lb_ie,ub_ie,st) ->
+      let open Big_int_Infix in
+      let lb  = eval_cexpr ivm lb_ie in
+      let ub  = eval_cexpr ivm ub_ie in
+      let v   = ref lb in
+      let bis = ref [] in
+      assert (lb <! ub || lb === ub);
+      while (not (ub <! !v)) do
+        let body =
+          List.concat_map ~f:(expand (indent + 2) (Map.add ivm ~key:iv ~data:!v)) st;
+        in
+        bis := !bis
+               @ [Comment (fsprintf "%s%s = %s" (spaces (indent+2)) iv (s_of_bi !v))]
+               @ body;
+        v := !v +! Big_int.unit_big_int
+      done;
+      (Comment (comment_while "START:" indent iv lb_ie ub_ie))
+      :: !bis
+      @  [(Comment (comment_while "END:" indent iv lb_ie ub_ie))]
+  in
+  List.concat_map ~f:(expand 0 cvar_map) st
 
 (* ------------------------------------------------------------------------ *)
 (* Single assignment  *)
 
-let transform_ssa bis =
-  let var_index = Preg.Table.create () in
-  let get_index v = Option.value ~default:Int64.zero (Hashtbl.find var_index v) in
-  let incr_index v =
-    let i = Int64.succ (get_index v) in
-    Hashtbl.set var_index ~key:v ~data:i;
-    i
+let transform_ssa efun =
+  let bis = stmt_to_base_instrs efun.ef_body in
+  let counter = ref (Int64.of_int (-1)) in
+  let var_map = Preg.Table.create () in
+  let get_index pr =
+    ("r", [Cconst (Hashtbl.find_exn var_map pr)])
+  in
+  let new_index pr =
+    counter := Int64.succ !counter;    
+    Hashtbl.set var_map ~key:pr ~data:!counter;
+    ("r", [Cconst !counter])
   in
   let update_src = function
-    | (Simm(_) | Sreg(Mreg(_)) | Smem(Mreg(_),_)) as s -> s
-    | Sreg(Preg(v,ies)) -> Sreg(Preg(v, ies@[Cconst (get_index (v,ies))]))
-    | Smem(Preg(v,ies),ie) -> Smem(Preg(v,ies@[Cconst (get_index (v,ies))]), ie)
+    | Simm(_) as s -> s
+    | Sreg(pr)     -> Sreg(get_index pr)
+    | Smem(pr,ie)  -> Smem(get_index pr,ie)
   in
   let update_dest = function
-    | (Dreg(Mreg(_)) | Dmem(Mreg(_),_)) as s -> s
-    | Dreg(Preg(v,ies)) -> Dreg(Preg(v, ies@[Cconst (incr_index (v,ies))]))
-    | Dmem(Preg(v,ies),ie) -> (* write to address of variable, but not variable itself *)
-      Dmem(Preg(v,ies@[Cconst (get_index (v,ies))]), ie)
+    | Dreg(pr)    -> Dreg(new_index pr)
+    | Dmem(pr,ie) -> Dmem(get_index pr,ie)
   in
-  let rec go = function
-    | [] -> []
-    | bi::bis ->
-      let bi =
-        match bi with
-        (* Note: sources must be updated before destinations *)
-        | Comment(_) -> bi
-        | App(o,ds,ss) ->
-          let ss = List.map ~f:update_src ss in
-          let ds = List.map ~f:update_dest ds in
-          App(o,ds,ss)
-      in
-      bi::(go bis)
+  let rename = function
+    | Comment(_) as bi -> bi
+    | App(o,ds,ss) -> (* Note: sources must be updated before destinations *)
+      let ss = List.map ~f:update_src ss in
+      let ds = List.map ~f:update_dest ds in
+      App(o,ds,ss)
   in
-  go bis
+  (* perform in the right order *)
+  let args = List.map ~f:(fun pr -> new_index pr) efun.ef_args in
+  let bis = List.map ~f:rename bis in
+  let rets = List.map ~f:(fun pr -> get_index pr) efun.ef_ret in
+  { efun with ef_args = args; ef_body = base_instrs_to_stmt bis; ef_ret = rets; }
 
 (* ------------------------------------------------------------------------ *)
-(* Ensure that operand equality for addition and multiplication satisfied *)
+(* Validate transformation (assuming that transform_ssa correct) *)
 
-let transform_equal_dest_src bis =
-  let renaming = Preg.Table.create () in
-  let dom_renaming = ref Reg.Set.empty in
-
-  let get_reg pr =
-    match Hashtbl.find renaming pr with
-    | None   -> Preg(pr)
-    | Some r -> r
-  in
-  let rename_src = function
-    | (Simm(_) | Smem(Mreg(_),_) | Sreg(Mreg(_)) ) as i -> i
-    | Smem(Preg(r),o) ->
-      if Set.mem !dom_renaming (Preg(r)) then failwith "variable used in renaming still live";
-      Smem(get_reg r,o)
-    | Sreg(Preg(r)) ->
-      if Set.mem !dom_renaming (Preg(r)) then failwith "variable used in renaming still live";
-      Sreg(get_reg r)
-  in
-
-  let add_renaming s d =
-    match s,d with
-    | Simm(_), _         -> failwith "source with equality constraint wrt. destination cannot be immediate"
-    | Smem(_,_), _       -> failwith "source with equality constraint wrt. destination cannot be memory"
-    | Sreg(_), Dmem(_,_) -> failwith "cannot rename memory"
-    | Sreg(Mreg(sr)), Dreg(Mreg(dr)) ->
-      if sr = dr then d else failwith "cannot rename machine register used for dest"
-    | Sreg(sr), Dreg(Preg(dr)) ->
-      ignore (Hashtbl.add renaming ~key:dr ~data:sr);
-      dom_renaming := Set.add !dom_renaming sr;
-      Dreg(sr)
-    | Sreg(_), Dreg(_) -> assert false
-  in
-
-  let rec go = function
-    | [] -> []
-    | bi::bis ->
-      let bi =
-        match bi with
-        (* Note: sources must be updated before destinations *)
-        | Comment(_) -> bi
-
-        | App(UMul,[d1;d2],[s1;s2]) ->
-          let s1 = rename_src s1 in
-          let s2 = rename_src s2 in
-          let d2 = add_renaming s1 d2 in
-          App(UMul,[d1;d2],[s1;s2])
-
-        | App(Add,(([_;d] | [d]) as ds),s1::s2::cin) ->
-          let s1 = rename_src s1 in
-          let s2 = rename_src s2 in
-          let d  = add_renaming s1 d in
-          let md1 = List.rev ds |> (fun l -> List.drop l 1) |> List.rev in
-          App(Add,md1@[d],[s1;s2]@cin)
-
-        | App(o,ds,ss) ->
-          (* SSA should ensure that v in dom(renaming) never overshadowed later *)
-          let ss = List.map ~f:rename_src ss in
-          App(o,ds,ss)
-      in
-      bi::(go bis)
-  in
-  go bis
+let validate_transform efun0 efun = 
+  if not (equal_efun (transform_ssa efun0) (transform_ssa efun)) then (
+    (* shrink counter-example *)
+    for i = 1 to List.length efun0.ef_body do
+      let efun0 = shorten_efun i efun0 in
+      let efun  = shorten_efun i efun in
+      let tefun0 = transform_ssa efun0 in
+      let tefun  = transform_ssa efun in
+      if not (equal_efun tefun tefun0) then (
+        Out_channel.write_all "/tmp/before" ~data:(fsprintf "%a" pp_efun efun0);
+        Out_channel.write_all "/tmp/after" ~data:(fsprintf "%a" pp_efun efun);
+        Out_channel.write_all "/tmp/before_ssa" ~data:(fsprintf "%a" pp_efun tefun0);
+        Out_channel.write_all "/tmp/after_ssa" ~data:(fsprintf "%a" pp_efun tefun);
+        failwith "failure: see /tmp/before and /tmp/after for invalid renaming"
+      )
+    done;
+    assert false
+  )
 
 (* ------------------------------------------------------------------------ *)
 (* Register liveness *)
 
-let register_liveness bis =
-  let adapt_dest live = function
-    | Dreg(r)   -> Set.remove live r
-    | Dmem(r,_) -> Set.add live r
+type live_info = {
+  li_bi : base_instr;
+  li_read_after_rhs : Preg.Set.t; (* the set of register that might be read after
+                                     the RHS of bi has been evaluated *)
+}
+
+(* returns a list of tuples (bi, V) denoting that the instructions
+   bi;... depend on the registers V *)
+let register_liveness efun =
+  let bis = stmt_to_base_instrs efun.ef_body in
+  let analz_dest read = function
+    | Dreg(r)   -> Set.remove read r
+    | Dmem(r,_) -> Set.add    read r
   in
-  let adapt_src live = function
-    | Sreg(r) | Smem(r,_) -> Set.add live r
-    | Simm(_) -> live
+  let analz_src read = function
+    | Sreg(r) | Smem(r,_) -> Set.add read r
+    | Simm(_) -> read
   in
-  let rec go live0 left right =
+  let rec go read left right =
     match left, right with
     | [],_ -> right
     | li::lis,ris ->
       begin match li with
       | App(_,ds,ss) ->
-        let live = List.fold ~f:adapt_src ~init:live0 ss in
-        let live = List.fold ~f:adapt_dest ~init:live ds in
-        go live lis ((li, live)::ris)
+        (* first remove variables that are written *)
+        let read_after_lhs = List.fold ~f:analz_dest ~init:read ds in
+        (* then add variables that are read *)
+        let read = List.fold ~f:analz_src  ~init:read_after_lhs ss in
+        go read lis ({ li_bi = li; li_read_after_rhs = read_after_lhs}::ris)
       | _ ->
-        let live = live0 in
-        go live lis ((li, live)::ris)
+        go read lis ({ li_bi = li; li_read_after_rhs = read }::ris)
       end
   in
-  go (Reg.Set.of_list[Mreg "rax"; Mreg "rdx"]) (List.rev bis) []
-
-let transform_register_liveness bis = 
-  List.concat_map (register_liveness bis)
-    ~f:(fun (i,live) -> [i; Comment (fsprintf "live: %a" (pp_list "," pp_reg) (Set.to_list live))])
+  go (Preg.Set.of_list efun.ef_ret) (List.rev bis) []
 
 (* ------------------------------------------------------------------------ *)
 (* Register allocation *)
 
-let register_allocate (usable_regs : name list) bis =
+(* FIXME: State preconditions precisely. *)
+let register_allocate nregs efun0 =
 
-  let free_regs = ref usable_regs in
-  let reg_map = ref Preg.Map.empty in
-  let find_reg nv = Map.find_exn !reg_map nv in
-  let get_free_reg nv =
-    match !free_regs with
-    | []      -> failwith "register_allocate: ran out of registers"
-    | r::rest ->
-      free_regs := rest;
-      reg_map := Map.add !reg_map ~key:nv ~data: r;
-      r
+  (* List of free registers in decreasing order, this simplifies "saving up" %rax (0)
+     and %rdx (0) until they are really required. *)
+  let free_regs = ref (Int.Set.of_list (List.init nregs ~f:(fun i -> i))) in
+  let free_regs_add i =
+    assert (not (Set.mem !free_regs i));
+    free_regs := Set.add !free_regs i
+  in
+  let free_regs_remove i =
+    assert (Set.mem !free_regs i);
+    free_regs := Set.remove !free_regs i
+  in
+  
+  (* mapping from pseudo registers to integers 0 .. nreg -1 denoting machine registers *)
+  let reg_map = Preg.Table.create () in
+  let int_to_preg i = fsprintf "%%%i" i,[] in
+  let get_reg pr = int_to_preg (Hashtbl.find_exn reg_map pr) in
+
+  (* track pseudo-registers that required a fixed register *)
+  let fixed_pregs = Preg.Table.create () in
+  let () =
+
+    (* register %rax and %rdx for mul *)
+    List.iter (stmt_to_base_instrs efun0.ef_body)
+      ~f:(function
+           | App(UMul,[Dreg(h);Dreg(l)],[Sreg(s1);Sreg(_)]) ->
+             Hashtbl.set fixed_pregs ~key:l  ~data:(X64.(int_of_reg RAX));
+             Hashtbl.set fixed_pregs ~key:s1 ~data:(X64.(int_of_reg RAX));
+             Hashtbl.set fixed_pregs ~key:h  ~data:(X64.(int_of_reg RDX))
+           | _ -> ()
+      );
+
+    (* directly use the ABI argument registers for arguments *)
+    let arg_len = List.length efun0.ef_args in
+    let arg_regs = List.take (List.map ~f:X64.int_of_reg X64.arg_regs) arg_len in
+    if List.length arg_regs < arg_len then
+      failwith (Printf.sprintf "register_alloc: at most %i arguments supported" (List.length arg_regs));
+    List.iter (List.zip_exn efun0.ef_args arg_regs)
+      ~f:(fun (arg,arg_reg) -> Hashtbl.set fixed_pregs ~key:arg ~data:arg_reg);
+
+    (* directly use the ABI return registers for return values *)
+    let ret_len = List.length efun0.ef_ret in
+    let ret_regs = List.take (List.map ~f:X64.int_of_reg X64.[RAX; RDX]) ret_len in
+    if List.length ret_regs < ret_len then
+      failwith (Printf.sprintf "register_alloc: at most %i arguments supported" (List.length ret_regs));
+    List.iter (List.zip_exn efun0.ef_ret ret_regs)
+      ~f:(fun (ret,ret_reg) -> Hashtbl.set fixed_pregs ~key:ret ~data:ret_reg)
   in
 
-  (*
-  let reuse_reg ~old_nv ~new_nv =
-    let r = find_reg old_nv in
-    reg_map := Map.add (Map.remove !reg_map old_nv) ~key:new_nv ~data:r;
-    r
+  let pick_free pr =
+    match Hashtbl.find fixed_pregs pr with
+    | Some ri ->
+      if Set.mem !free_regs ri then (
+        Hashtbl.set reg_map ~key:pr ~data:ri;
+        free_regs_remove ri;
+        ri
+      ) else (
+        failwith
+          (fsprintf "required register %s already in use: %a"
+             (X64.string_of_reg (X64.reg_of_int ri))
+             (pp_list "," pp_int) (Set.to_list !free_regs))
+      )
+    | None ->
+      begin match Set.max_elt !free_regs with
+      | None -> failwith "no registers left"
+      | Some i ->
+        Hashtbl.set reg_map ~key:pr ~data:i;
+        free_regs_remove i;
+        i
+      end
   in
-  *)
-
-  let src_use_reg = function
-    | (Sreg(Mreg(_)) | Smem(Mreg(_),_) | Simm(_)) as d -> d
-    | Sreg(Preg(nv))   -> Sreg(Mreg(find_reg nv))
-    | Smem(Preg(nv),o) -> Smem(Mreg(find_reg nv),o)
+  let trans_src = function
+    | Simm(_) as i -> i
+    | Sreg(pr)     -> Sreg(get_reg pr)
+    | Smem(pr,o)   -> Smem(get_reg pr,o)
+  in
+  let trans_dest d =
+    let get pr =
+      match Hashtbl.find reg_map pr with
+      | None    -> int_to_preg (pick_free pr)
+      | Some i  -> int_to_preg i
+    in
+    match d with
+      | Dreg(pr)   -> Dreg(get pr)
+      | Dmem(pr,o) -> Dmem(get pr,o)
   in
 
-  let dest_alloc_reg = function
-    | (Dreg(Mreg(_)) | Dmem(Mreg(_),_)) as d -> d
-    | Dreg(Preg(nv))   -> let r = get_free_reg nv in Dreg(Mreg(r))
-      (* this is a write to memory, not to the register *)
-    | Dmem(Preg(nv),o) -> let r = find_reg nv in Dmem(Mreg(r),o)
+  let free_dead_regs read_after_rhs =
+    let remove_dead pr i =
+      if not (Set.mem read_after_rhs pr)
+      then ( free_regs_add i; false )
+      else true
+    in
+    Hashtbl.filteri_inplace reg_map ~f:remove_dead
+  in
+  
+  let alloc {li_bi = bi; li_read_after_rhs = read_after_rhs} =
+    (* F.printf "reg_alloc: %a\n" pp_base_instr bi; *)
+    let bi =
+      match bi with
+      | Comment(_) -> bi
+        
+      (* enforce dst = src1 and do not allocate registers for carry flag *)
+      | App(Add,(([_;Dreg(d)] | [Dreg(d)]) as ds),(Sreg(s1)::s2::cfin)) ->
+        let r1 = Hashtbl.find_exn reg_map s1 in
+        let s1 = trans_src (Sreg s1) in
+        let s2 = trans_src s2        in
+        free_dead_regs read_after_rhs;
+        Hashtbl.set fixed_pregs ~key:d  ~data:r1;
+        let d = trans_dest (Dreg d) in
+        App(Add,(linit ds)@[d],s1::s2::cfin)
+
+      | App(Add,_,_) -> assert false
+        
+      | App(Cmov(_) as o,[Dreg(d)],[Sreg(s1);s2;cfin]) ->
+        let r1 = Hashtbl.find_exn reg_map s1 in
+        let s1 = trans_src (Sreg(s1)) in
+        let s2 = trans_src s2        in
+        free_dead_regs read_after_rhs;
+        Hashtbl.set fixed_pregs ~key:d  ~data:r1;
+        let d = trans_dest (Dreg d) in
+        App(o,[d],[s1;s2;cfin])
+
+      | App(Cmov(_),_,_) -> assert false
+
+      | App(o,ds,ss) ->
+        let ss = List.map ~f:trans_src ss in
+        free_dead_regs read_after_rhs;
+        let ds = List.map ~f:trans_dest ds in
+        App(o,ds,ss)
+    in
+    (* F.printf "reg_alloc_done: %a\n" pp_base_instr bi; *)
+    bi
   in
 
-  let rec go = function
-    | [] -> []
-    | bi::bis ->
-      F.printf "before: %a\n%!" pp_base_instr bi;
-      let bi =
-        match bi with
-        (* Note: we update sources before destinations *)
-        | Comment(_) -> bi
-
-        | App(o,ds,ss) ->
-          let ss = List.map ~f:src_use_reg ss in
-          let ds = List.map ~f:dest_alloc_reg ds in
-          App(o,ds,ss)
-
-      in
-      F.printf "after:  %a\n%!" pp_base_instr bi;
-      bi::(go bis)   
+  let args = List.map efun0.ef_args ~f:(fun pr -> int_to_preg (pick_free pr)) in
+  let bis = List.map ~f:alloc (register_liveness efun0) in
+  let efun =
+    { efun0 with
+      ef_args = args;
+      ef_body = base_instrs_to_stmt bis;
+      ef_ret  = List.map ~f:(fun pr -> get_reg pr) efun0.ef_ret;
+    }
   in
-  F.printf "\nregister alloc:\n%!";
-  go bis
+  validate_transform efun0 efun;
+  efun
 
 (* ------------------------------------------------------------------------ *)
 (* Translation to assembly  *)
 
-let stmt_to_base_instrs st =
-  List.map st
-    ~f:(function BInstr(i) -> i | _ -> assert false)
-
-let base_instrs_to_stmt bis =
-  List.map ~f:(fun i -> BInstr(i)) bis
-
-let to_asm_x64 st =
-  let is_imm_src = function Simm _ -> true | _ -> false in
-  let is_reg_dest = function Dreg(Mreg(_)) -> true | _ -> false in
+let to_asm_x64 efun =
+  let mreg_of_preg pr =
+    let fail () = failwith "asm_x64: expected register of the form %i" in
+    let s = match pr with (s,[]) -> s | _ -> fail () in
+    let i =
+      try
+        begin match String.split s ~on:'%' with
+        | ""::[s] -> int_of_string s
+        | _       -> fail ()
+        end
+      with
+      | Failure "int_of_string" -> fail ()
+    in
+    X64.reg_of_int i
+  in
+  let ensure_dest_mreg d mr msg =
+    match d with
+    | Dreg(pr) when mreg_of_preg pr = mr -> ()
+    | _                                  -> failwith msg
+  in
+  let ensure_src_mreg s mr msg =
+    match s with
+    | Sreg(pr) when mreg_of_preg pr = mr -> ()
+    | _                                  -> failwith msg
+  in
+  let ensure c msg = if not c then failwith msg in
+  let trans_cexpr = function
+    | Cconst(i) -> i
+    | Cvar(_)
+    | Cbinop(_) -> failwith "to_asm_x64: cannot translate non-constant c-expressions"
+  in
   let trans_src = function
-    | Sreg(Mreg(r))    -> X64.Sreg(X64.reg_of_string r)
-    | Simm(i)         -> X64.Simm(i)
-    | Smem(Mreg(r),ie) ->
-      begin match ie with
-      | Cconst(i) -> X64.Smem(X64.reg_of_string r,i)
-      | _ -> assert false
-      end
-    | _ -> failwith "not implemented yet"
+    | Sreg(r)          -> X64.Sreg(mreg_of_preg r)
+    | Simm(i)          -> X64.Simm(i)
+    | Smem(r,ie) -> X64.Smem(mreg_of_preg r,trans_cexpr ie)
   in
   let trans_dest = function
-    | Dreg(Mreg(r)) -> X64.Dreg(X64.reg_of_string r)
-    | Dmem(Mreg(r),ie) ->
-      begin match ie with
-      | Cconst(i) -> X64.Dmem(X64.reg_of_string r,i)
-      | _ -> assert false
-      end
-    | _ -> failwith "not implemented yet"
+    | Dreg(r)    -> X64.Dreg(mreg_of_preg r)
+    | Dmem(r,ie) -> X64.Dmem(mreg_of_preg r,trans_cexpr ie)
   in
-  let rec go = function
-    | [] -> []
-    | bi::bis ->
-      let bi =
-        let c = X64.Comment (fsprintf "mil: %a" pp_base_instr bi) in
-        match bi with
+  let trans bi =
+    let c = X64.Comment (fsprintf "mil: %a" pp_base_instr bi) in
+    match bi with
 
-        | Comment(s) ->
-          [X64.Comment(s)]
+    | Comment(s) ->
+      [X64.Comment(s)]
 
-        | App(Assgn,[d],[s]) ->
-          let instr = X64.( Binop(Mov,trans_src s,trans_dest d) ) in
-          [c;instr]
+    | App(Assgn,[d],[s]) ->
+      [c; X64.( Binop(Mov,trans_src s,trans_dest d) )]
 
 
-        | App(UMul,[dh;dl],[s1;s2]) ->
-          if not (equal_dest dh (Dreg(Mreg "rdx"))) then
-            failwith "to_asm_x64: mulq high result must be %rdx";
-          if not (equal_dest dl (Dreg (Mreg "rax"))) then
-            failwith "to_asm_x64: mulq low result must be %rax";
-          if not (equal_src (Sreg (Mreg "rax")) s1) then
-            failwith "to_asm_x64: mulq source 1 must be %rax";
+    | App(UMul,[dh;dl],[s1;s2]) ->
+      ensure_dest_mreg dh X64.RDX "to_asm_x64: mulq high result must be %rdx";
+      ensure_dest_mreg dl X64.RAX "to_asm_x64: mulq low result must be %rax";
+      ensure_src_mreg  s1 X64.RAX "to_asm_x64: mulq source 1 result must be %rax";
 
-          let instr = X64.( Unop(Mul,trans_src s2) ) in
-          [c;instr]
+      let instr = X64.( Unop(Mul,trans_src s2) ) in
+      [c;instr]
 
+    | App(IMul,[dl],[s1;s2]) ->
+      ensure (not (is_src_imm s1))  "to_asm_x64: imul source 1 cannot be immediate";
+      ensure (is_src_imm s2)  "to_asm_x64: imul source 2 must be immediate";
+      ensure (is_dest_reg dl) "to_asm_x64: imul dest must be register";
+      [c; X64.( Triop(IMul,trans_src s2,trans_src s1,trans_dest dl) )]
 
-        | App(IMul,[dl],[s1;s2]) ->
-          if is_imm_src s2 then
-            failwith "to_asm_x64: imul source 1 cannot be immediate";
-          if not (is_imm_src s2) then
-            failwith "to_asm_x64: imul source 2 must be immediate";
-          if not (is_reg_dest dl) then
-            failwith "to_asm_x64: imul dest must be register";
+    | App(Cmov(CfSet(b)),[d],[s1;s2;_cin]) ->
+      ensure (equal_src (dest_to_src d) s1) "to_asm_x64: cmov with dest<>src1";
+      let instr = X64.( Binop(Cmov(CfSet(b)),trans_src s2,trans_dest d) ) in
+      [c; instr]
 
-          let instr = X64.( Triop(IMul,trans_src s1,trans_src s2,trans_dest dl) ) in
-          [c;instr]
+    | App(op,([_;d] | [d]),s1::s2::cin) ->
+      ensure (equal_src (dest_to_src d) s1) "to_asm_x64: add/sub with dest<>src1";
 
-
-        | App(op,([_;d] | [d]),s1::s2::cout) ->
-          if not (equal_src (dest_to_src d) s1) then
-            failwith "to_asm_x64: addition/subtraction with dest<>src1";
-
-          let instr =
-              match op,cout with
-              | Add, [] ->
-                X64.( Binop(Add,trans_src s2,trans_dest d) )
-              | Add, [_] ->
-                X64.( Binop(Adc,trans_src s2,trans_dest d) )
-
-              | BAnd, [] ->
-                X64.( Binop(And,trans_src s2,trans_dest d) )
-              | BAnd, [_] -> assert false
-
-              | Sub, [] ->
-                X64.( Binop(Sub,trans_src s2,trans_dest d) )
-              | Sub, [_] ->
-                X64.( Binop(Sbb,trans_src s2,trans_dest d) )
-              | _ -> assert false
-          in
-          [c;instr]
-        | _ -> assert false
+      let instr =
+        match op,cin with
+        | Add, []   -> X64.( Binop(Add,trans_src s2,trans_dest d) )
+        | Add, [_]  -> X64.( Binop(Adc,trans_src s2,trans_dest d) )
+        | BAnd, []  -> X64.( Binop(And,trans_src s2,trans_dest d) )
+        | BAnd, [_] -> assert false
+        | Sub, []   -> X64.( Binop(Sub,trans_src s2,trans_dest d) )
+        | Sub, [_]  -> X64.( Binop(Sbb,trans_src s2,trans_dest d) )
+        | _         -> assert false
       in
-      bi@(go bis)
+      [c; instr]
+    | _ -> assert false
   in
-  go (stmt_to_base_instrs st)
+  let asm_code = List.concat_map ~f:trans (stmt_to_base_instrs efun.ef_body) in
+  X64.(
+    { af_name = efun.ef_name;
+      af_body = asm_code;
+      af_args = List.map ~f:mreg_of_preg efun.ef_args;
+      af_ret = List.map ~f:mreg_of_preg efun.ef_ret;
+    }
+  )
 
-let wrap_asm_function is =
+(* ------------------------------------------------------------------------ *)
+(* Calling convention for "extern" functions  *)
+
+let wrap_asm_function afun =
+  let name = "_"^afun.X64.af_name in
   let prefix =
     X64.([ Section "text";
-           Global "_test";
-           Label "_test";
+           Global name;
+           Label name;
            Unop(Push,Sreg RBP);
            Binop(Mov,Sreg RSP,Dreg RBP) ])
   in
@@ -454,81 +476,4 @@ let wrap_asm_function is =
     X64.([ Unop(Pop,Sreg RBP);
            Ret ])
   in
-  prefix @ is @ suffix
-
-(* ------------------------------------------------------------------------ *)
-(* Apply transformations in sequence.  *)
-
-let ptrafo =
-  let open MP in
-  let mapping =
-    many1 letter >>= fun s ->
-    char '=' >>
-    many1 digit >>= fun i ->
-    return (String.of_char_list s,Big_int.big_int_of_string (String.of_char_list i))
-  in
-  let mappings =
-    char '[' >> sep_by mapping (char ',') >>= fun l ->
-    char ']' >>$ l
-  in
-  let asm_lang =
-    choice [ string "x86-64" >>$ X64 ]
-  in
-  choice
-    [ string "ssa" >>$ SSA
-    ; string "equal_dest_src" >>$ EqualDestSrc
-    ; string "register_allocate" >>$  RegisterAlloc
-    ; string "register_liveness" >>$  RegisterLiveness
-    ; string "asm" >> char '[' >> asm_lang >>= (fun l -> char ']' >>$ (Asm(l)))
-    ; string "expand" >> mappings >>= fun m -> return (MacroExpand(m)) ]
-      
-
-let parse_trafo s =
-  let open MP in
-  match parse_string (sep_by ptrafo (char ',') >>= fun x -> eof >>$ x) s () with
-  | Success t ->
-    begin match List.rev t with
-    | Asm(l)::rest ->
-      if List.exists ~f:(function Asm(_) -> true | _ -> false) rest then (
-        eprintf "asm[_] transformation must be last transformation";
-        exit 1
-      );
-      (List.rev rest,Some l)
-    | _ -> (t,None)
-    end
-  | Failed(s,_) ->
-    eprintf "parsing transformation string failed: %s.\n%!" s;
-    exit 1
-
-let apply_transform trafo st =
-  let app_trafo st t =
-    match t with
-    | MacroExpand(m) ->
-         macro_expand (String.Map.of_alist_exn m) st
-      |> base_instrs_to_stmt
-    | SSA ->
-         stmt_to_base_instrs st
-      |> transform_ssa
-      |> base_instrs_to_stmt
-    | RegisterLiveness ->
-         stmt_to_base_instrs st
-      |> transform_register_liveness
-      |> base_instrs_to_stmt
-    | EqualDestSrc ->
-         stmt_to_base_instrs st
-      |> transform_equal_dest_src
-      |> base_instrs_to_stmt
-    | RegisterAlloc ->
-         stmt_to_base_instrs st
-      |> register_allocate ["r8"; "r9"; "r10"; "r11"; "r12"]
-      |> base_instrs_to_stmt
-    | Asm(_) -> assert false
-  in
-  List.fold_left trafo ~init:st ~f:app_trafo
-
-let apply_transform_asm strafo st =
-  let (trafo,mlang) = parse_trafo strafo in
-  let st = apply_transform trafo st in
-  match mlang with
-  | None     -> `IL st
-  | Some X64 -> `Asm_X64 (to_asm_x64 st |> wrap_asm_function)
+  prefix @ afun.X64.af_body @ suffix

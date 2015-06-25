@@ -4,6 +4,6 @@ true: bin_annot, debug
 <src/Asm> or <src/Util> or <src/IL>: include
 <src/Test>: include
 
-<src/**/*>: package(uint), package(core), thread, package(num)
+<src/**/*>: package(core), thread, package(num)
 <src/**/*>: package(mparser),package(ctypes.foreign)
 <src/**/*>: syntax(camlp4o), package(ounit)

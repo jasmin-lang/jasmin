@@ -1,3 +1,5 @@
+extern fn sub(zp, xp, yp) {
+
 for i in 0 .. n {
   r[i] = *( xp + i*8);
 }
@@ -16,4 +18,5 @@ for i in 0 .. n {
 
 for i in 0 ..n {
   *(rp + i*8) -= r[i];
+}
 }

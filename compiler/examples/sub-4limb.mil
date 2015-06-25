@@ -1,30 +1,33 @@
-  /* n = limbs - 1 */
 
-for i in  0 .. n {
-  x[i] = *(xp + i*8);
-  y[i] = *(yp + i*8);
-  if i = 0 {
-   cf? x[0] -= y[0];
-  } else {
-    cf? x[i] -= y[i] - cf;   
-    }
-}   
+extern fn sub(zp, xp, yp ) {
 
-sub0 = 0; 
-sub38 = 38; 
-sub38 = 0; /* if !cf;FIXME */
+  for i in  0 .. n {
+    x[i] = *(xp + i*8);
+    y[i] = *(yp + i*8);
+    if i = 0 {
+      cf? x[0] -= y[0];
+    } else {
+      cf? x[i] -= y[i] - cf;   
+      }
+   }   
 
-for i in  0 .. n {
-  if i = 0 {
-   cf? x[0] -= sub38;
-  } else {
-    cf? x[i] -= sub0 - cf;
-    }
-} 
+  sub0 = 0; 
+  sub38 = 38; 
+  sub38 = 0 if !cf;
 
-sub0 = sub38; /* if cf;FIXME  */
-x[0] -= sub0;
+  for i in  0 .. n {
+    if i = 0 {
+      cf? x[0] -= sub38;
+    } else {
+      cf? x[i] -= sub0 - cf;
+      }
+  } 
 
-for j in 0..n {
-  *(xp + j*8) -= x[j];
+  sub0 = sub38 if cf;
+  x[0] -= sub0;
+
+  for j in 0..n {
+    *(xp + j*8) = x[j];
+  }
+ 
 }

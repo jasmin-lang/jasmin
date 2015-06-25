@@ -10,4 +10,4 @@ B _build/src/Tests
 B _build/src/Main
 B _build/src/Util
 
-PKG num uint core mparser ctypes.foreign ounit
+PKG num core mparser ctypes.foreign ounit
