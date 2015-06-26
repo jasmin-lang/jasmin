@@ -1,22 +1,25 @@
 extern fn sub(zp, xp, yp) {
 
-for i in 0 .. n {
-  r[i] = *( xp + i*8);
-}
+  for i in 0 .. n {
+    r[i] = *( xp + i*8);
+  }
 
 /* 2*p = c_2P0 + c_2P1234 * 2^51 + c_2P1234 * 2^102 + c_2P1234 * 2^153 + c_2P1234 * 2^204 */
+  c_2P0 = 0; /* call constant FIXME*/
+  c_2P1234 = 0; /* FIXME */
+  
+  r[0] += c_2P0;
+  for i in 0 .. n {
+    r[i] += c_2P1234;
+  }
 
-r[0] += c_2P0;
-for i in 0 .. n {
-  r[i] += c_2P1234;
+  for i in 0 .. n {
+    y[i] = * (yp + i*8);
+    r[i] -= y[i];
+  }
+
+  for i in 0 ..n {
+    *(zp + i*8) = r[i];
+  }
 }
 
-for i in 0 .. n {
-  y[i] = * (yp + i*8);
-  r[i] -= y[i];
-}
-
-for i in 0 ..n {
-  *(rp + i*8) -= r[i];
-}
-}

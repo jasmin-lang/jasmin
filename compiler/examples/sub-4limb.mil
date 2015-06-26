@@ -27,7 +27,7 @@ extern fn sub(zp, xp, yp ) {
   x[0] -= sub0;
 
   for j in 0..n {
-    *(xp + j*8) = x[j];
+    *(zp + j*8) = x[j];
   }
  
 }

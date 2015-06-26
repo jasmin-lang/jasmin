@@ -8,7 +8,7 @@ extern fn square(zp, xp) {
 
   for i in 1 .. n {
     for j in 0 .. n - i {
-      (h, l) = x[i + j] * x[j];
+      h, l = x[i + j] * x[j];
       if i = 1 {
         r[2*j + i] = l;
         r[2*j + i + 1] = h;
@@ -39,21 +39,22 @@ extern fn square(zp, xp) {
 
   r[2*n + 1] += r[2*n + 1] + cf;
 
+
 /* multiplication of the same limbs */      
   for i in 0 .. n {
-    (h, l) = x[i] * x[i];
+    h, l = x[i] * x[i];
     if i = 0 {
       r[0] = l;
-      s[1] = h;
+      r[2*n + 2] = h;
     } else { 
       if i < n - 1 {
-        s[i + 1] = l;
-        s[i + 2] = h;
+        r[2*n + 1 + i + 1] = l;
+        r[2*n + 1 + i + 2] = h;
       } else { 
         if i = n - 1 { 
-          cf? r[1] += s[1];
+          cf? r[1] += r[2*n + 2];
 	  for j in 1 .. n {
-	    cf? r[j] += s[j] + cf;
+	    cf? r[j] += r[2*n + 1 + j] + cf;
 	   }
 	  cf? r[n + 1] += l + cf;
 	  cf? r[n + 2] += h + cf;
@@ -70,9 +71,10 @@ extern fn square(zp, xp) {
      } 
   }
 
+
 /*reduction (same as in the multiplication file )*/
   for i in 0 ..n { 
-    (h, l) = r[n + i + 1] * 38;
+    h, l = r[n + i + 1] * 38;
     cf? r[i] += l; 
       if i = 0 {
         hprev = 0;
@@ -84,7 +86,7 @@ extern fn square(zp, xp) {
         hprev += h + cf;
         }
   }
-  hprev = hprev * 38 ;
+  l = hprev * 38 ;
   cf? r[0] += hprev;
   for i in 1 .. n {
     cf? r[i] += 0 + cf;
@@ -93,11 +95,11 @@ extern fn square(zp, xp) {
   zero = 0;
   zero = 0 + cf;
 
-  zero = zero * 38 ;
-  r0 += zero;
+  l = zero * 38 ;
+  r[0] += zero;
 
   for j in 0..n {
-    *(rp + j*8) -= r[j];
+    *(zp + j*8) -= r[j];
   }
       
 }

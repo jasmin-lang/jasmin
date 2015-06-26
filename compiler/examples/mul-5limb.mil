@@ -17,14 +17,15 @@ extern fn mul(zp, xp, yp0 /* rdx */) {
           r[i + j] = l;
 	  m[i + j] = h;
         } else { 
-          cf? r[i + j] += l;
-	  m[i + j] += h + cf;
+          /*cf? r[i + j] += l; */
+	  /*m[i + j] += h + cf;*/
 	  }
       } else {
         x[i] = x[i] * 19;
 	(h,l) = x[i] * y[j];
 	cf? r[ i + j - n - 1] += l;
 	m[ i + j - n - 1] += h + cf;
+     
         }
     }
   } 
@@ -32,6 +33,7 @@ extern fn mul(zp, xp, yp0 /* rdx */) {
 
 /* reduction part */
 /* mask = 2^51 - 1 */	
+  mask = 0; /* call constants FIXME */
 				
   for i in 0 ..n {
     if i = 0 {
@@ -73,6 +75,6 @@ extern fn mul(zp, xp, yp0 /* rdx */) {
   }
 
   for i in 0 .. n {
-    *( rp + i*8 ) = r[i];
+    *( zp + i*8 ) = r[i];
   }
 }

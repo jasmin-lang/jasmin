@@ -122,6 +122,7 @@ let transform_ssa efun =
   let var_map = Preg.Table.create () in
   let get_index pr =
     ("r", [Cconst (Hashtbl.find_exn var_map pr)])
+    
   in
   let new_index pr =
     counter := Int64.succ !counter;    
@@ -328,7 +329,18 @@ let register_allocate nregs efun0 =
         App(Add,(linit ds)@[d],s1::s2::cfin)
 
       | App(Add,_,_) -> assert false
-        
+      
+      | App(Sub,(([_;Dreg(d)] | [Dreg(d)]) as ds),(Sreg(s1)::s2::cfin)) ->
+        let r1 = Hashtbl.find_exn reg_map s1 in
+        let s1 = trans_src (Sreg s1) in
+        let s2 = trans_src s2        in
+        free_dead_regs read_after_rhs;
+        Hashtbl.set fixed_pregs ~key:d  ~data:r1;
+        let d = trans_dest (Dreg d) in
+        App(Sub,(linit ds)@[d],s1::s2::cfin)
+
+      | App(Sub,_,_) -> assert false
+  
       | App(Cmov(_) as o,[Dreg(d)],[Sreg(s1);s2;cfin]) ->
         let r1 = Hashtbl.find_exn reg_map s1 in
         let s1 = trans_src (Sreg(s1)) in
@@ -435,6 +447,25 @@ let to_asm_x64 efun =
       let instr = X64.( Binop(Cmov(CfSet(b)),trans_src s2,trans_dest d) ) in
       [c; instr]
 
+
+
+    | App(Shr,[d],[s1;s2]) ->
+      ensure (equal_src (dest_to_src d) s1) "to_asm_x64:shr with dest<>src1";
+      ensure (is_src_imm s2)  "to_asm_x64: shr source 2 must be immediate";
+      let instr = X64.( Binop(Shr,trans_src s2,trans_dest d) )  in 
+      [c;instr]
+
+    | App(Shl,[d],[s1;s2]) ->
+      ensure (equal_src (dest_to_src d) s1) "to_asm_x64: shl with dest<>src1";
+      ensure (is_src_imm s2)  "to_asm_x64: shr source 2 must be immediate";
+      let instr = X64.( Binop(Shl,trans_src s2,trans_dest d) )  in 
+      [c;instr]
+
+    | App(Xor,[d],[s1;s2]) ->
+      ensure (equal_src (dest_to_src d) s1) "to_asm_x64: add/sub with dest<>src1";
+      let instr = X64.( Binop(Xor,trans_src s2,trans_dest d) )  in 
+      [c;instr]
+
     | App(op,([_;d] | [d]),s1::s2::cin) ->
       ensure (equal_src (dest_to_src d) s1) "to_asm_x64: add/sub with dest<>src1";
 
@@ -449,6 +480,7 @@ let to_asm_x64 efun =
         | _         -> assert false
       in
       [c; instr]
+
     | _ -> assert false
   in
   let asm_code = List.concat_map ~f:trans (stmt_to_base_instrs efun.ef_body) in

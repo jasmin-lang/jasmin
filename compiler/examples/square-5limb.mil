@@ -9,12 +9,12 @@ extern fn square(zp, xp ) {
       if i + j < n + 1 {
         if  i = 0 {
           if j = 0 {
-	    (h,l) = x[0] * y[0];
+	    (h,l) = x[0] * x[0];
 	    r[0] = l;
 	    m[0] = h;
 	  } else { 
 	    x[0] <<= 1; 
-	    ( h, l ) = x[0] * y[j];
+	    ( h, l ) = x[0] * x[j];
 	    r[j] = l;
 	    m[j] = h;
 	    }
@@ -31,7 +31,7 @@ extern fn square(zp, xp ) {
 	      }
 	    }
       } else { 
-        if i = j {
+       	if i = j {
           x[i] = x[i] * 19;
         } else { 
           x[i] = x[i] * 38;
@@ -41,10 +41,13 @@ extern fn square(zp, xp ) {
 	  m[i + j - n - 1] += h + cf;
         }
     }
-  }     
+  }
+     
 	
 /* reduction part */
 /* mask = 2^51 - 1 */	
+   
+  mask = 0; /*FIXME */
 				
   for i in 0 ..n {
     if i = 0 {
@@ -87,6 +90,6 @@ extern fn square(zp, xp ) {
   }
 
   for i in 0 .. n {
-    *( rp + i*8 ) = r[i];
+    *( zp + i*8 ) = r[i];
   }
 }
