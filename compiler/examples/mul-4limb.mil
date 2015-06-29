@@ -21,7 +21,7 @@ extern fn mul(zp, xp, yp0 /* rdx */) {
     x[i] = *(xp + i*8);
     for j in 0..n {
       y[j] = *(yp + j*8);
-      h, l =  y[j] * x[i];
+      h, l = y[j] * x[i];
       cf? z[i+j] += l;
       if j = 0 {
         hprev = 0;
@@ -39,9 +39,11 @@ extern fn mul(zp, xp, yp0 /* rdx */) {
       }
     }
   }
+
   c38 = 38;
   for i in 0..n {  
-    h, l = z[n + i + 1] * c38;
+    rax = z[n + i + 1]; /* FIXME: do we really need this? */
+    h, l = rax * c38;
     cf? z[i] += l;
     if i = 0 {
       hprev = 0;

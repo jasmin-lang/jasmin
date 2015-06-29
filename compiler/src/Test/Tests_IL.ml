@@ -197,11 +197,11 @@ let t_mul_4limb xval yval () =
 (* --------------------------------------------------------------------- *)
 (* Test suite *)
 let tests =
-  let open Big_int in
+  (* let open Big_int in *)
   [ (* "assemble and run" >:: test_assemble_run;
     "allocate registers, assemble and run" >:: t_reg1;
     "allocate registers, assemble and run" >:: t_reg2;  *)
-
+    (*
     "add 4-limb: 1 + 1" >::
       t_add_4limb (big_int_of_int 1) (big_int_of_int 1);
     "add 4-limb: p + p" >:: t_add_4limb pval pval;
@@ -211,6 +211,7 @@ let tests =
     "add 4-limb" >::
       t_add_4limb Big_int_Infix.((2^! 256) -! (big_int_of_int 1))
                   Big_int_Infix.((2^! 256) -! (big_int_of_int 1));
+    *)
     (*
     "mul 4-limb: 1 + 1" >::
       t_mul_4limb (big_int_of_int 1) (big_int_of_int 1);
@@ -219,10 +220,10 @@ let tests =
       t_mul_4limb Big_int_Infix.((2^! 256) -! (big_int_of_int 1))
                   Big_int_Infix.(big_int_of_int 1);
     *)
-    (*
+
     "mul 4-limb" >::
       t_mul_4limb Big_int_Infix.((2^! 256) -! (big_int_of_int 1))
                   Big_int_Infix.((2^! 256) -! (big_int_of_int 1));
-    *)
+    
     (* "allocate registers, assemble and run" >:: t_reg4 *)
   ]

@@ -212,6 +212,70 @@ let register_liveness efun =
   go (Preg.Set.of_list efun.ef_ret) (List.rev bis) []
 
 (* ------------------------------------------------------------------------ *)
+(* Collect equality constraints from +=, -=, ... *)
+
+let eq_constrs bis =
+  let eq_classes    = Int.Table.create  () in
+  let class_map     = Preg.Table.create () in
+  let fixed_classes = Int.Table.create  () in
+  let last_index = ref (-1) in
+  
+  let new_class pr =
+    incr last_index;
+    let ci = !last_index in
+    Hashtbl.add_exn class_map  ~key:pr ~data:ci;
+    Hashtbl.add_exn eq_classes ~key:ci ~data:(Preg.Set.singleton pr);
+    ci
+  in
+  let add_to_class pr_old pr_new =
+    let ci = Hashtbl.find_exn class_map pr_old in
+    Hashtbl.add_exn class_map ~key:pr_new ~data:ci;
+    Hashtbl.change eq_classes ci
+      (function
+        | None   -> assert false
+        | Some s -> Some (Set.add s pr_new));
+    ci
+  in
+  let fix_class i reg =
+    match Hashtbl.find fixed_classes i with
+    | None ->
+      Hashtbl.set fixed_classes ~key:i ~data:reg
+    | Some reg' when reg = reg' -> ()
+    | Some reg' ->
+      failwith (fsprintf "conflicting requirements: %s vs %s"
+                  (X64.string_of_reg reg') (X64.string_of_reg reg))
+  in
+
+  let dregs_of_ds ds =
+    List.map ~f:(function Dreg(r) -> Some(r) | _ -> None) ds
+    |> List.filter_opt
+  in
+            
+  List.iter bis
+    ~f:(function
+          (* FIXME: deal with CMOV *)
+          | Comment _ -> ()
+
+          | App((Add|Sub), ([_;Dreg(d)] | [Dreg(d)]), Sreg(s)::_) ->
+            (* ignore flags *)
+            ignore (add_to_class s d)
+
+          | App(UMul, [Dreg(d1);Dreg(d2)], (Sreg(s1)::_)) ->
+            let i1 = new_class d1 in
+            let i2 = add_to_class s1 d2 in
+            fix_class i1 X64.RDX;
+            fix_class i2 X64.RAX;
+
+          | App((Add|Sub|UMul), _, _) ->
+            assert false
+
+          | App(_, ds, _) ->
+            let dregs = dregs_of_ds ds in
+            List.iter ~f:(fun d -> ignore (new_class d)) dregs
+    );
+  (eq_classes, fixed_classes, class_map)
+
+(* ------------------------------------------------------------------------ *)
 (* Register allocation *)
 
 (* FIXME: State preconditions precisely. *)
@@ -237,15 +301,16 @@ let register_allocate nregs efun0 =
   (* track pseudo-registers that required a fixed register *)
   let fixed_pregs = Preg.Table.create () in
   let () =
-
+    let (eq_classes, fixed_classes, _class_map) =
+      eq_constrs (stmt_to_base_instrs efun0.ef_body)
+    in
     (* register %rax and %rdx for mul *)
-    List.iter (stmt_to_base_instrs efun0.ef_body)
-      ~f:(function
-           | App(UMul,[Dreg(h);Dreg(l)],[Sreg(s1);Sreg(_)]) ->
-             Hashtbl.set fixed_pregs ~key:l  ~data:(X64.(int_of_reg RAX));
-             Hashtbl.set fixed_pregs ~key:s1 ~data:(X64.(int_of_reg RAX));
-             Hashtbl.set fixed_pregs ~key:h  ~data:(X64.(int_of_reg RDX))
-           | _ -> ()
+    Hashtbl.iter fixed_classes
+      ~f:(fun ~key:i ~data:reg ->
+            let pregs = Hashtbl.find_exn eq_classes i in
+            F.printf "## using %s for %a\n" (X64.string_of_reg reg) (pp_list "," pp_preg) (Set.to_list pregs);
+            Set.iter pregs ~f:(fun preg ->
+              Hashtbl.set fixed_pregs ~key:preg  ~data:(X64.(int_of_reg reg)))
       );
 
     (* directly use the ABI argument registers for arguments *)
@@ -313,7 +378,7 @@ let register_allocate nregs efun0 =
   in
   
   let alloc {li_bi = bi; li_read_after_rhs = read_after_rhs} =
-    (* F.printf "reg_alloc: %a\n" pp_base_instr bi; *)
+    F.printf "reg_alloc: %a\n" pp_base_instr bi;
     let bi =
       match bi with
       | Comment(_) -> bi
@@ -358,7 +423,7 @@ let register_allocate nregs efun0 =
         let ds = List.map ~f:trans_dest ds in
         App(o,ds,ss)
     in
-    (* F.printf "reg_alloc_done: %a\n" pp_base_instr bi; *)
+    F.printf "reg_alloc_done: %a\n" pp_base_instr bi;
     bi
   in
 
@@ -470,12 +535,12 @@ let to_asm_x64 efun =
 
       let instr =
         match op,cin with
-        | Add, []   -> X64.( Binop(Add,trans_src s2,trans_dest d) )
-        | Add, [_]  -> X64.( Binop(Adc,trans_src s2,trans_dest d) )
+        | Add,  []  -> X64.( Binop(Add,trans_src s2,trans_dest d) )
+        | Add,  [_] -> X64.( Binop(Adc,trans_src s2,trans_dest d) )
         | BAnd, []  -> X64.( Binop(And,trans_src s2,trans_dest d) )
         | BAnd, [_] -> assert false
-        | Sub, []   -> X64.( Binop(Sub,trans_src s2,trans_dest d) )
-        | Sub, [_]  -> X64.( Binop(Sbb,trans_src s2,trans_dest d) )
+        | Sub,  []  -> X64.( Binop(Sub,trans_src s2,trans_dest d) )
+        | Sub,  [_] -> X64.( Binop(Sbb,trans_src s2,trans_dest d) )
         | _         -> assert false
       in
       [c; instr]
