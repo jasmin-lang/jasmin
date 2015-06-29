@@ -1,6 +1,7 @@
 open Core.Std
 open Util
 open IL_Lang
+open IL_Utils
 
 module X64 = Asm_X64
 module MP  = MParser
@@ -122,7 +123,6 @@ let transform_ssa efun =
   let var_map = Preg.Table.create () in
   let get_index pr =
     ("r", [Cconst (Hashtbl.find_exn var_map pr)])
-    
   in
   let new_index pr =
     counter := Int64.succ !counter;    
@@ -378,7 +378,7 @@ let register_allocate nregs efun0 =
   in
   
   let alloc {li_bi = bi; li_read_after_rhs = read_after_rhs} =
-    F.printf "reg_alloc: %a\n" pp_base_instr bi;
+    (* F.printf "reg_alloc: %a\n" pp_base_instr bi; *)
     let bi =
       match bi with
       | Comment(_) -> bi
@@ -394,18 +394,7 @@ let register_allocate nregs efun0 =
         App(Add,(linit ds)@[d],s1::s2::cfin)
 
       | App(Add,_,_) -> assert false
-      
-      | App(Sub,(([_;Dreg(d)] | [Dreg(d)]) as ds),(Sreg(s1)::s2::cfin)) ->
-        let r1 = Hashtbl.find_exn reg_map s1 in
-        let s1 = trans_src (Sreg s1) in
-        let s2 = trans_src s2        in
-        free_dead_regs read_after_rhs;
-        Hashtbl.set fixed_pregs ~key:d  ~data:r1;
-        let d = trans_dest (Dreg d) in
-        App(Sub,(linit ds)@[d],s1::s2::cfin)
-
-      | App(Sub,_,_) -> assert false
-  
+        
       | App(Cmov(_) as o,[Dreg(d)],[Sreg(s1);s2;cfin]) ->
         let r1 = Hashtbl.find_exn reg_map s1 in
         let s1 = trans_src (Sreg(s1)) in
@@ -423,7 +412,7 @@ let register_allocate nregs efun0 =
         let ds = List.map ~f:trans_dest ds in
         App(o,ds,ss)
     in
-    F.printf "reg_alloc_done: %a\n" pp_base_instr bi;
+    (* F.printf "reg_alloc_done: %a\n" pp_base_instr bi; *)
     bi
   in
 
@@ -544,7 +533,6 @@ let to_asm_x64 efun =
         | _         -> assert false
       in
       [c; instr]
-
     | _ -> assert false
   in
   let asm_code = List.concat_map ~f:trans (stmt_to_base_instrs efun.ef_body) in

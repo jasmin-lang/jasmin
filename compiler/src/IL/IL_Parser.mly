@@ -1,5 +1,4 @@
 %{
-
 open IL_Lang
 open Core
 %}

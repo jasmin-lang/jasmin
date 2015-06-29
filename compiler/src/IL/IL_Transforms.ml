@@ -1,6 +1,7 @@
 open Core.Std
 open Util
 open IL_Lang
+open IL_Utils
 open IL_Compile
 
 (* ------------------------------------------------------------------------ *)

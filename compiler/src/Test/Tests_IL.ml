@@ -21,7 +21,7 @@ let il_to_asm_string trafos il_string =
     | `IL _      -> assert false
     | `Asm_X64 a -> ILC.wrap_asm_function a
   in
-  F.printf "%a" Asm_X64.pp_instrs acode;
+  (* F.printf "%a" Asm_X64.pp_instrs acode; *)
   fsprintf "%a" Asm_X64.pp_instrs acode
 
 let il_to_il_string trafos il_string =
@@ -34,7 +34,7 @@ let il_to_il_string trafos il_string =
     | `IL st     -> st
     | `Asm_X64 _ -> assert false
   in
-  fsprintf ">> test result:@\n%a" ILL.pp_efun efun
+  fsprintf ">> test result:@\n%a" ILU.pp_efun efun
 
 let create_library asm_string =
   let fn_s   = Filename.temp_file "code" ".s" in
@@ -48,29 +48,6 @@ let create_library asm_string =
   Sys.remove fn_o;
   let lib = Dl.(dlopen ~filename:fn_lib ~flags:[RTLD_NOW]) in
   (lib, fn_lib)
-
-(* --------------------------------------------------------------------- *)
-(* Simple test for checking that compiled code is callable *)
-
-let add_il = String.concat ~sep:"\n"
-  [ "%rdi += %rsi;";
-    "%rax = %rdi;"
-  ]
-
-let test_assemble_run () =
-  let asm_code = il_to_asm_string "" add_il in
-  let (lib,fn_lib) = create_library asm_code in
-  let test =
-    CF.foreign "test" C.(uint64_t @-> uint64_t @-> returning uint64_t) ~from:lib
-  in
-  let module U = Unsigned.UInt64 in
-  let a = U.of_int 3 in
-  let b = U.of_int 8 in
-  let res = test a b in
-  (* F.printf ">> a=%s, b=%s, result=%s\n%!"
-       (U.to_string a) (U.to_string b) (U.to_string res); *)
-  Sys.remove fn_lib;
-  assert_equal ~msg:"result returned by add_il" res (U.of_int 11)
 
 (* --------------------------------------------------------------------- *)
 (* Tests for register allocation *)
@@ -97,14 +74,6 @@ let test_reg_assemble_run trafo il_string () =
     e ->
       F.printf "unknown error: %s,\n%s" (Exn.to_string e) (Exn.backtrace ());
       raise e
-
-let t_reg1 =
-  test_reg_assemble_run "expand[],ssa,register_allocate,"
-    (In_channel.read_all "examples/test-register-alloc.mil")
-
-let t_reg2 =
-  test_reg_assemble_run "expand[n=5],ssa,register_allocate,"
-    (In_channel.read_all "examples/test-register-alloc2.mil")
 
 let usable_regs = String.concat ~sep:","
   [ "rdi"; "rsi"; "rdx"; "rcx"; "r8"; "r9"; "rax"
@@ -197,12 +166,8 @@ let t_mul_4limb xval yval () =
 (* --------------------------------------------------------------------- *)
 (* Test suite *)
 let tests =
-  (* let open Big_int in *)
-  [ (* "assemble and run" >:: test_assemble_run;
-    "allocate registers, assemble and run" >:: t_reg1;
-    "allocate registers, assemble and run" >:: t_reg2;  *)
-    (*
-    "add 4-limb: 1 + 1" >::
+  let open Big_int in
+  [ "add 4-limb: 1 + 1" >::
       t_add_4limb (big_int_of_int 1) (big_int_of_int 1);
     "add 4-limb: p + p" >:: t_add_4limb pval pval;
     "add 4-limb: CF = 1, x = 0" >::
@@ -211,17 +176,13 @@ let tests =
     "add 4-limb" >::
       t_add_4limb Big_int_Infix.((2^! 256) -! (big_int_of_int 1))
                   Big_int_Infix.((2^! 256) -! (big_int_of_int 1));
-    *)
-    (*
-    "mul 4-limb: 1 + 1" >::
+    "mul 4-limb: 1 * 1" >::
       t_mul_4limb (big_int_of_int 1) (big_int_of_int 1);
-    "mul 4-limb: p + p" >:: t_add_4limb pval pval;
+    "mul 4-limb: p * p" >:: t_add_4limb pval pval;
     "mul 4-limb: CF = 1, x = 0" >::
       t_mul_4limb Big_int_Infix.((2^! 256) -! (big_int_of_int 1))
                   Big_int_Infix.(big_int_of_int 1);
-    *)
-
-    "mul 4-limb" >::
+    "mul 4-limb: max * max" >::
       t_mul_4limb Big_int_Infix.((2^! 256) -! (big_int_of_int 1))
                   Big_int_Infix.((2^! 256) -! (big_int_of_int 1));
     
