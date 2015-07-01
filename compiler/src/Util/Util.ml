@@ -103,6 +103,11 @@ let pp_pair sep ppa ppb fmt (a,b) = F.fprintf fmt "%a%s%a" ppa a sep ppb b
 
 let pp_int fmt i = F.fprintf fmt "%i" i
 
+let pp_uint64 fmt i = F.fprintf fmt "%s" (U64.to_string i)
+
+let pp_int64 fmt i = F.fprintf fmt "%s" (Int64.to_string i)
+
+
 let rec pp_list sep pp_elt f l =
   match l with
   | [] -> ()

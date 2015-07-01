@@ -99,17 +99,20 @@ let t_reg4 =
 
 let pval = Big_int_Infix.((2 ^! 255) -! (big_int_of_int 19))
 
-let t_add_4limb xval yval () =
+let t_arithm_4limb file fun_name desc expected xval yval () =
   let trafo =
     "expand[n=3],"
-    ^"ssa,"
+    ^"ssa,strip_comments,"
     ^"register_allocate[15]," in
-  let il_string = In_channel.read_all "examples/add-4limb.mil" in
+  let il_string = In_channel.read_all file in
   let asm_code = il_to_asm_string trafo il_string in
   let (lib,fn_lib) = create_library asm_code in
   let open Ctypes in
   let module U64 = Unsigned.UInt64 in
-  let add = CF.(foreign ~from:lib "add" (ptr uint64_t @-> ptr uint64_t @-> ptr uint64_t @-> (returning void))) in
+  let add =
+    CF.(foreign ~from:lib fun_name
+          (ptr uint64_t @-> ptr uint64_t @-> ptr uint64_t @-> (returning void)))
+  in
   let z = CArray.make uint64_t ~initial:(U64.of_int 0) 4 in
   let x = CArray.make uint64_t ~initial:(U64.of_int 0) 4 in
   let y = CArray.make uint64_t ~initial:(U64.of_int 0) 4 in
@@ -122,69 +125,111 @@ let t_add_4limb xval yval () =
   let get a i = CArray.get a i in
   let (z0,z1,z2,z3) = (get z 0, get z 1, get z 2, get z 3) in
   let zval = Limb4.to_big_int (z0,z1,z2,z3) in
+  (*
   F.printf "z=[%s,%s,%s,%s] = %s\nx=%a\ny=%a\np=%a\nz=%a\n%!"
-    (U64.to_string z0) (U64.to_string z1) (U64.to_string z2) (U64.to_string z3) (Big_int.string_of_big_int zval)
+    (U64.to_string z0) (U64.to_string z1) (U64.to_string z2) (U64.to_string z3)
+    (Big_int.string_of_big_int zval)
     (pph 16) xval (pph 16) yval (pph 16) pval (pph 16) zval;
+  *)
   Sys.remove fn_lib;
   assert_equal ~printer:Big_int.string_of_big_int ~cmp:Big_int.eq_big_int
-    ~msg:"add 4-limb"
-    Big_int_Infix.(mod_big_int (xval +! yval) pval)
+    ~msg:desc
+    Big_int_Infix.(mod_big_int expected pval)
     Big_int_Infix.(mod_big_int zval pval)
 
+let t_add_4limb xval yval () =
+  t_arithm_4limb
+    "examples/add-4limb.mil"
+    "add"
+    "add-4-limb"
+    Big_int_Infix.(xval +! yval)
+    xval
+    yval
+    ()
+
 let t_mul_4limb xval yval () =
+  t_arithm_4limb
+    "examples/mul-4limb.mil"
+    "mul"
+    "mul-4-limb"
+    Big_int_Infix.(xval *! yval)
+    xval yval ()
+
+let t_sub_4limb xval yval () =
+  t_arithm_4limb
+    "examples/sub-4limb.mil"
+    "sub"
+    "sub-4-limb"
+    Big_int_Infix.(xval -! yval)
+    xval yval ()
+
+let t_square_4limb xval () =
   let trafo =
     "expand[n=3],"
-    ^"ssa,strip_comments,print[ssa],"
+    ^"ssa,strip_comments,"
     ^"register_allocate[15]," in
-  let il_string = In_channel.read_all "examples/mul-4limb.mil" in
+  let il_string = In_channel.read_all "examples/square-4limb.mil" in
   let asm_code = il_to_asm_string trafo il_string in
   let (lib,fn_lib) = create_library asm_code in
   let open Ctypes in
   let module U64 = Unsigned.UInt64 in
-  let add = CF.(foreign ~from:lib "mul" (ptr uint64_t @-> ptr uint64_t @-> ptr uint64_t @-> (returning void))) in
+  let add =
+    CF.(foreign ~from:lib "square"
+          (ptr uint64_t @-> ptr uint64_t @-> (returning void)))
+  in
   let z = CArray.make uint64_t ~initial:(U64.of_int 0) 4 in
   let x = CArray.make uint64_t ~initial:(U64.of_int 0) 4 in
-  let y = CArray.make uint64_t ~initial:(U64.of_int 0) 4 in
   let (x0,x1,x2,x3) = Limb4.of_big_int xval in
-  let (y0,y1,y2,y3) = Limb4.of_big_int yval in
   CArray.set x 0 x0; CArray.set x 1 x1; CArray.set x 2 x2; CArray.set x 3 x3;
-  CArray.set y 0 y0; CArray.set y 1 y1; CArray.set y 2 y2; CArray.set y 3 y3;
-  let () = add (CArray.start z) (CArray.start x) (CArray.start y) in
+  let () = add (CArray.start z) (CArray.start x) in
   
   let get a i = CArray.get a i in
   let (z0,z1,z2,z3) = (get z 0, get z 1, get z 2, get z 3) in
   let zval = Limb4.to_big_int (z0,z1,z2,z3) in
+  (*
   F.printf "z=[%s,%s,%s,%s] = %s\nx=%a\ny=%a\np=%a\nz=%a\n%!"
-    (U64.to_string z0) (U64.to_string z1) (U64.to_string z2) (U64.to_string z3) (Big_int.string_of_big_int zval)
+    (U64.to_string z0) (U64.to_string z1) (U64.to_string z2) (U64.to_string z3)
+    (Big_int.string_of_big_int zval)
     (pph 16) xval (pph 16) yval (pph 16) pval (pph 16) zval;
+  *)
   Sys.remove fn_lib;
   assert_equal ~printer:Big_int.string_of_big_int ~cmp:Big_int.eq_big_int
-    ~msg:"mul 4-limb"
-    Big_int_Infix.(mod_big_int (xval *! yval) pval)
+    ~msg:"square-4-limb"
+    Big_int_Infix.(mod_big_int (xval *! xval) pval)
     Big_int_Infix.(mod_big_int zval pval)
 
 (* --------------------------------------------------------------------- *)
 (* Test suite *)
 let tests =
   let open Big_int in
-  [ "add 4-limb: 1 + 1" >::
-      t_add_4limb (big_int_of_int 1) (big_int_of_int 1);
+  let m = Big_int_Infix.((2^! 256) -! (big_int_of_int 1)) in
+  let one = big_int_of_int 1 in
+  [ (* addition *)
+    "add 4-limb: 1 + 1" >:: t_add_4limb one one;
     "add 4-limb: p + p" >:: t_add_4limb pval pval;
-    "add 4-limb: CF = 1, x = 0" >::
-      t_add_4limb Big_int_Infix.((2^! 256) -! (big_int_of_int 1))
-                  Big_int_Infix.(big_int_of_int 1);
-    "add 4-limb" >::
-      t_add_4limb Big_int_Infix.((2^! 256) -! (big_int_of_int 1))
-                  Big_int_Infix.((2^! 256) -! (big_int_of_int 1));
-    "mul 4-limb: 1 * 1" >::
-      t_mul_4limb (big_int_of_int 1) (big_int_of_int 1);
-    "mul 4-limb: p * p" >:: t_add_4limb pval pval;
-    "mul 4-limb: CF = 1, x = 0" >::
-      t_mul_4limb Big_int_Infix.((2^! 256) -! (big_int_of_int 1))
-                  Big_int_Infix.(big_int_of_int 1);
-    "mul 4-limb: max * max" >::
-      t_mul_4limb Big_int_Infix.((2^! 256) -! (big_int_of_int 1))
-                  Big_int_Infix.((2^! 256) -! (big_int_of_int 1));
-    
-    (* "allocate registers, assemble and run" >:: t_reg4 *)
+    "add 4-limb: m + 1" >:: t_add_4limb m one;
+    "add 4-limb: m + p" >:: t_add_4limb m pval;
+    "add 4-limb: m + m" >:: t_add_4limb m m;
+
+    (* multiplication *)
+    "mul 4-limb: 1 * 1" >:: t_mul_4limb one one;
+    "mul 4-limb: p * p" >:: t_mul_4limb pval pval;
+    "mul 4-limb: m * 1" >:: t_mul_4limb m one;
+    "mul 4-limb: m * p" >:: t_mul_4limb m pval;
+    "mul 4-limb: m + m" >:: t_mul_4limb m m;
+
+    (* subtraction *)
+    "sub 4-limb: 1 - 1" >:: t_sub_4limb one one;
+    "sub 4-limb: p - p" >:: t_sub_4limb pval pval;
+    "sub 4-limb: m - 1" >:: t_sub_4limb m one;
+    "sub 4-limb: m - 1" >:: t_sub_4limb one m;
+    "sub 4-limb: m - p" >:: t_sub_4limb m pval;
+    "sub 4-limb: p - m" >:: t_sub_4limb pval m;
+    "sub 4-limb: m - m" >:: t_sub_4limb m m;
+
+    (* squaring *)
+    (* subtraction *)
+    "square 4-limb: 1" >:: t_square_4limb one;
+    "square 4-limb: p" >:: t_square_4limb pval;
+    "square 4-limb: m" >:: t_square_4limb m;
   ]

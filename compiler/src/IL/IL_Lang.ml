@@ -1,4 +1,5 @@
 open Core.Std
+open Util
 
 module F = Format
 
@@ -57,6 +58,11 @@ type cmov_flag =
   | CfSet of bool
   with sexp, compare
 
+type dir =
+  | Left
+  | Right
+  with sexp, compare
+
 type op =
   | Assgn
   | UMul
@@ -64,10 +70,9 @@ type op =
   | Add
   | Sub
   | BAnd
-  | Cmov of cmov_flag
-  | Shr
-  | Shl
   | Xor
+  | Cmov of cmov_flag
+  | Shift of dir
   with sexp, compare
 
 type base_instr =
@@ -149,3 +154,38 @@ module Preg = struct
   include Comparable.Make(T)
   include Hashable.Make(T)
 end
+
+module Dest = struct
+  module T = struct
+    type t = dest with sexp
+    let compare = compare_dest
+    let hash v = Hashtbl.hash v
+  end
+  include T
+  include Comparable.Make(T)
+  include Hashable.Make(T)
+end
+
+let interp
+  (write : dest -> 'st -> u64 -> 'st)
+  (read  : dest -> 'st -> u64)
+  (st : 'st)
+  = function
+  | Comment _ -> st
+
+  | App(Assgn,[d],[s]) -> st
+
+  | App(UMul,[h;l],[x;ye]) -> st
+  | App(IMul,[z],[x;y])    -> st
+
+  | App(Add,[cf_out;z],[x;y;cf_in]) -> st
+  | App(Sub,[cf_out;z],[x;y;cf_in]) -> st
+
+  | App(BAnd,[d],[s1;s2]) -> st
+  | App(Xor,[d],[s1;s2]) -> st
+
+  | App(Cmov(cmf),[d],[s1;s2;cf_in])  -> st
+  | App(Shift(dir),[cf_out;z],[x;cn]) -> st
+
+  | _ -> assert false
+

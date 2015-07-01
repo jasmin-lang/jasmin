@@ -16,7 +16,7 @@ OCAMLBUILDFLAGS= $(CFLAGS) $(COREFLAGS) $(FINDLIBFLAGS) $(MENHIRFLAGS)
 .PHONY: all dmasm clean doc test-dmasm-assemble test-dmasm-reg \
   run_tests run-run_tests
 
-all: dmasm
+all: dmasm run-run_tests
 
 dmasm:
 	$(OCAMLBUILD) $(OCAMLBUILDFLAGS) src/Main/dmasm.native

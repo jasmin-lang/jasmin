@@ -51,10 +51,10 @@ let op_to_string = function
   | BAnd  -> "band"
   | UMul  -> "umul"
   | IMul  -> "imul"
-  | Shr   -> "shr"
-  | Shl   -> "shr"
   | Xor   -> "xor"
   | Assgn -> ""
+  | Shift(Right) -> "shr"
+  | Shift(Left)  -> "shl"
   | Cmov(CfSet(true))  -> "cmov_if_carry"
   | Cmov(CfSet(false)) -> "cmov_if_not_carry"
 

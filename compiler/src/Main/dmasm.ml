@@ -36,7 +36,7 @@ let process_mil trafo print_result out_file file efuns =
     )
   | `IL efun ->
     if print_result
-    then F.eprintf "%a@\n%!" IL_Lang.pp_efun efun
+    then F.eprintf "%a@\n%!" ILU.pp_efun efun
     else F.eprintf "Processed file %s@\n%!" file
 
 let dmasm trafo print_result out_file file =

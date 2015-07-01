@@ -93,7 +93,7 @@ let apply_transform trafo efun0 =
     | SSA              -> transform_ssa efun
     | StripComments    -> conv_trans strip_comments efun
     | Print(name)      -> F.printf ">> %s:@\n%a@\n@\n" name pp_efun efun; efun
-    | RegisterAlloc(n) -> register_allocate (min 13 n) efun
+    | RegisterAlloc(n) -> register_allocate (min 15 n) efun
     | RegisterLiveness -> transform_register_liveness efun
     | MacroExpand(m) ->
       { efun with

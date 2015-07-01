@@ -133,8 +133,8 @@ binop:
 | PLUSEQ  { Add }
 | MINUSEQ { Sub }
 | BANDEQ  { BAnd }
-| SHREQ   { Shr }
-| SHLEQ   { Shl }
+| SHREQ   { Shift(Right) }
+| SHLEQ   { Shift(Left) }
 | XOREQ   { Xor } 
 
 (* -------------------------------------------------------------------- *)
@@ -158,8 +158,8 @@ base_instr :
         | `Plus  -> App(Add,[d],[s1;s2])
         | `Minus -> App(Sub,[d],[s1;s2])
         | `BAnd  -> App(BAnd,[d],[s1;s2])
-	| `Shr   -> App(Shr,[d],[s1;s2])
-	| `Shl   -> App(Shl,[d],[s1;s2])
+	| `Shr   -> App(Shift(Right),[d],[s1;s2])
+	| `Shl   -> App(Shift(Left),[d],[s1;s2])
 	| `Xor   -> App(Xor,[d],[s1;s2])
         end
       | `Assgn(s) -> App(Assgn,[d],[s])

@@ -100,37 +100,39 @@ type afun = {
 
   let reg_of_int = function
     | 0  -> RAX (* return 1 *)
-    | 1  -> RDX (* return 2/ arg 4 *)
+    | 1  -> RDX (* return 2/ arg 3 *)
     | 2  -> RDI (* arg 1 *)
     | 3  -> RSI (* arg 2 *)
     | 4  -> RCX (* arg 4 *)
     | 5  -> R8  (* arg 5 *)
     | 6  -> R9  (* arg 6 *)
-    | 7  -> R10
-    | 8  -> R11
-    | 9 -> R12
-    | 10 -> R13
-    | 11 -> R14
-    | 12 -> R15
-    (* | 7  -> RBP  *)
+    | 7  -> RBP
+    | 8  -> R10
+    | 9  -> R11
+    | 10 -> R12
+    | 11 -> R13
+    | 12 -> R14
+    | 13 -> R15
+    | 14 -> RBX
     | _  -> failwith "invalid register index for X86-64"
 
   let int_of_reg = function
     | RAX -> 0 (* return 1 *)
-    | RDX -> 1 (* return 2/ arg 4 *)
-    | RDI -> 2(* arg 1 *)
+    | RDX -> 1 (* return 2/ arg 3 *)
+    | RDI -> 2 (* arg 1 *)
     | RSI -> 3 (* arg 2 *)
-    | RCX -> 4 (* arg 3 *)
-    | R8  -> 5 (* arg 4 *)
-    | R9  -> 6 (* arg 5 *)
+    | RCX -> 4 (* arg 4 *)
+    | R8  -> 5 (* arg 5 *)
+    | R9  -> 6 (* arg 6 *)
     (* end argument *)
-    | R10 -> 7
-    | R11 -> 8
-    | R12 -> 9
-    | R13 -> 10
-    | R14 -> 11
-    | R15 -> 12
-    (* | RBP -> 7 *)
+    | RBP -> 7
+    | R10 -> 8
+    | R11 -> 9
+    | R12 -> 10
+    | R13 -> 11
+    | R14 -> 12
+    | R15 -> 13
+    | RBX -> 14
     | _   -> failwith "invalid register index for X86-64"
 
   let arg_regs = [ RDI; RSI; RDX; RCX; R8; R9 ]

@@ -122,7 +122,11 @@ let transform_ssa efun =
   let counter = ref (Int64.of_int (-1)) in
   let var_map = Preg.Table.create () in
   let get_index pr =
-    ("r", [Cconst (Hashtbl.find_exn var_map pr)])
+    match Hashtbl.find var_map pr with
+    | Some r -> ("r", [Cconst r])
+    | None   -> failwith (fsprintf "transform_ssa: %a undefined\n%a"
+                            pp_preg pr (pp_list "," (pp_pair "," pp_preg pp_int64))
+                                          (Hashtbl.to_alist var_map))
   in
   let new_index pr =
     counter := Int64.succ !counter;    
@@ -141,13 +145,14 @@ let transform_ssa efun =
   let rename = function
     | Comment(_) as bi -> bi
     | App(o,ds,ss) -> (* Note: sources must be updated before destinations *)
+      (* F.printf ">> %a\n" pp_base_instr bi; *)
       let ss = List.map ~f:update_src ss in
       let ds = List.map ~f:update_dest ds in
       App(o,ds,ss)
   in
   (* perform in the right order *)
   let args = List.map ~f:(fun pr -> new_index pr) efun.ef_args in
-  let bis = List.map ~f:rename bis in
+  let bis  = List.map ~f:rename bis in
   let rets = List.map ~f:(fun pr -> get_index pr) efun.ef_ret in
   { efun with ef_args = args; ef_body = base_instrs_to_stmt bis; ef_ret = rets; }
 
@@ -266,8 +271,9 @@ let eq_constrs bis =
             fix_class i1 X64.RDX;
             fix_class i2 X64.RAX;
 
-          | App((Add|Sub|UMul), _, _) ->
-            assert false
+          | App((Add|Sub|UMul), _, _) as bi ->
+            failwith (fsprintf "eq_constrs: unexpected instruction %a\n"
+                        pp_base_instr bi)
 
           | App(_, ds, _) ->
             let dregs = dregs_of_ds ds in
@@ -308,7 +314,8 @@ let register_allocate nregs efun0 =
     Hashtbl.iter fixed_classes
       ~f:(fun ~key:i ~data:reg ->
             let pregs = Hashtbl.find_exn eq_classes i in
-            F.printf "## using %s for %a\n" (X64.string_of_reg reg) (pp_list "," pp_preg) (Set.to_list pregs);
+            (* F.printf "## using %s for %a\n" (X64.string_of_reg reg) (pp_list "," pp_preg)
+                (Set.to_list pregs); *)
             Set.iter pregs ~f:(fun preg ->
               Hashtbl.set fixed_pregs ~key:preg  ~data:(X64.(int_of_reg reg)))
       );
@@ -339,9 +346,12 @@ let register_allocate nregs efun0 =
         ri
       ) else (
         failwith
-          (fsprintf "required register %s already in use: %a"
+          (fsprintf "required register %s for %a already in use\n free registers: %a\nmap: %a"
              (X64.string_of_reg (X64.reg_of_int ri))
-             (pp_list "," pp_int) (Set.to_list !free_regs))
+             pp_preg pr
+             (pp_list "," pp_int) (Set.to_list !free_regs)
+             (pp_list "," (pp_pair "->" pp_preg pp_int))
+             (Hashtbl.to_alist reg_map))
       )
     | None ->
       begin match Set.max_elt !free_regs with
@@ -378,20 +388,20 @@ let register_allocate nregs efun0 =
   in
   
   let alloc {li_bi = bi; li_read_after_rhs = read_after_rhs} =
-    (* F.printf "reg_alloc: %a\n" pp_base_instr bi; *)
+    F.printf "reg_alloc: %a\n" pp_base_instr bi;
     let bi =
       match bi with
       | Comment(_) -> bi
         
       (* enforce dst = src1 and do not allocate registers for carry flag *)
-      | App(Add,(([_;Dreg(d)] | [Dreg(d)]) as ds),(Sreg(s1)::s2::cfin)) ->
+      | App((Add|Sub) as o,(([_;Dreg(d)] | [Dreg(d)]) as ds),(Sreg(s1)::s2::cfin)) ->
         let r1 = Hashtbl.find_exn reg_map s1 in
         let s1 = trans_src (Sreg s1) in
         let s2 = trans_src s2        in
         free_dead_regs read_after_rhs;
         Hashtbl.set fixed_pregs ~key:d  ~data:r1;
         let d = trans_dest (Dreg d) in
-        App(Add,(linit ds)@[d],s1::s2::cfin)
+        App(o,(linit ds)@[d],s1::s2::cfin)
 
       | App(Add,_,_) -> assert false
         
@@ -412,7 +422,7 @@ let register_allocate nregs efun0 =
         let ds = List.map ~f:trans_dest ds in
         App(o,ds,ss)
     in
-    (* F.printf "reg_alloc_done: %a\n" pp_base_instr bi; *)
+    F.printf "reg_alloc_done: %a\n" pp_base_instr bi;
     bi
   in
 
@@ -433,7 +443,7 @@ let register_allocate nregs efun0 =
 
 let to_asm_x64 efun =
   let mreg_of_preg pr =
-    let fail () = failwith "asm_x64: expected register of the form %i" in
+    let fail () = failwith "to_asm_x64: expected register of the form %i" in
     let s = match pr with (s,[]) -> s | _ -> fail () in
     let i =
       try
@@ -456,11 +466,12 @@ let to_asm_x64 efun =
     | Sreg(pr) when mreg_of_preg pr = mr -> ()
     | _                                  -> failwith msg
   in
-  let ensure c msg = if not c then failwith msg in
+  let ensure c msg = if not c then failwith ("to_asm_x64: "^msg) in
   let trans_cexpr = function
     | Cconst(i) -> i
     | Cvar(_)
-    | Cbinop(_) -> failwith "to_asm_x64: cannot translate non-constant c-expressions"
+    | Cbinop(_) ->
+      failwith "to_asm_x64: cannot translate non-constant c-expressions"
   in
   let trans_src = function
     | Sreg(r)    -> X64.Sreg(mreg_of_preg r)
@@ -482,45 +493,40 @@ let to_asm_x64 efun =
       [c; X64.( Binop(Mov,trans_src s,trans_dest d) )]
 
     | App(UMul,[dh;dl],[s1;s2]) ->
-      ensure_dest_mreg dh X64.RDX "to_asm_x64: mulq high result must be %rdx";
-      ensure_dest_mreg dl X64.RAX "to_asm_x64: mulq low result must be %rax";
-      ensure_src_mreg  s1 X64.RAX "to_asm_x64: mulq source 1 must be %rax";
+      ensure_dest_mreg dh X64.RDX "mulq high result must be %rdx";
+      ensure_dest_mreg dl X64.RAX "mulq low result must be %rax";
+      ensure_src_mreg  s1 X64.RAX "mulq source 1 must be %rax";
 
       let instr = X64.( Unop(Mul,trans_src s2) ) in
       [c;instr]
 
     | App(IMul,[dl],[s1;s2]) ->
-      ensure (not (is_src_imm s1))  "to_asm_x64: imul source 1 cannot be immediate";
-      ensure (is_src_imm s2)  "to_asm_x64: imul source 2 must be immediate";
-      ensure (is_dest_reg dl) "to_asm_x64: imul dest must be register";
+      ensure (not (is_src_imm s1))  "imul source 1 cannot be immediate";
+      ensure (is_src_imm s2)  "imul source 2 must be immediate";
+      ensure (is_dest_reg dl) "imul dest must be register";
       [c; X64.( Triop(IMul,trans_src s2,trans_src s1,trans_dest dl) )]
 
     | App(Cmov(CfSet(b)),[d],[s1;s2;_cin]) ->
-      ensure (equal_src (dest_to_src d) s1) "to_asm_x64: cmov with dest<>src1";
+      ensure (equal_src (dest_to_src d) s1) "cmov with dest<>src1";
       let instr = X64.( Binop(Cmov(CfSet(b)),trans_src s2,trans_dest d) ) in
       [c; instr]
 
 
 
-    | App(Shr,[d],[s1;s2]) ->
-      ensure (equal_src (dest_to_src d) s1) "to_asm_x64:shr with dest<>src1";
-      ensure (is_src_imm s2)  "to_asm_x64: shr source 2 must be immediate";
-      let instr = X64.( Binop(Shr,trans_src s2,trans_dest d) )  in 
-      [c;instr]
-
-    | App(Shl,[d],[s1;s2]) ->
-      ensure (equal_src (dest_to_src d) s1) "to_asm_x64: shl with dest<>src1";
-      ensure (is_src_imm s2)  "to_asm_x64: shr source 2 must be immediate";
-      let instr = X64.( Binop(Shl,trans_src s2,trans_dest d) )  in 
+    | App(Shift(dir),[d],[s1;s2]) ->
+      ensure (equal_src (dest_to_src d) s1) "shift with dest<>src1";
+      ensure (is_src_imm s2)  "shift source 2 must be immediate";
+      let op = match dir with Right -> X64.Shr | Left -> X64.Shl in
+      let instr = X64.( Binop(op,trans_src s2,trans_dest d) )  in 
       [c;instr]
 
     | App(Xor,[d],[s1;s2]) ->
-      ensure (equal_src (dest_to_src d) s1) "to_asm_x64: add/sub with dest<>src1";
+      ensure (equal_src (dest_to_src d) s1) "add/sub with dest<>src1";
       let instr = X64.( Binop(Xor,trans_src s2,trans_dest d) )  in 
       [c;instr]
 
     | App(op,([_;d] | [d]),s1::s2::cin) ->
-      ensure (equal_src (dest_to_src d) s1) "to_asm_x64: add/sub with dest<>src1";
+      ensure (equal_src (dest_to_src d) s1) "add/sub with dest<>src1";
 
       let instr =
         match op,cin with
@@ -535,7 +541,9 @@ let to_asm_x64 efun =
       [c; instr]
     | _ -> assert false
   in
-  let asm_code = List.concat_map ~f:trans (stmt_to_base_instrs efun.ef_body) in
+  let asm_code =
+    List.concat_map ~f:trans (stmt_to_base_instrs efun.ef_body)
+  in
   X64.(
     { af_name = efun.ef_name;
       af_body = asm_code;

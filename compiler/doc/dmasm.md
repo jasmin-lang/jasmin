@@ -36,7 +36,7 @@ A *register* is one of:
 To be consistent with assembly terminology, we call
  L-values sources and R-values destinations.
 
-An destination/L-Value is one of:
+A destination/L-Value is one of:
 
 * A *register*.
 * A *memory location* denoted by by a register and
@@ -162,7 +162,6 @@ SBB          page 1442
 SUB          page 1490
 MULQ         page 1083
 IMUL         page 883
-
 
 ### MOV
 

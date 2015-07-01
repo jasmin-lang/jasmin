@@ -1,14 +1,13 @@
-  /* n = limbs - 1, n >= 3 */
 extern fn square(zp, xp) {
   
-/* multiplication of distinct limbs */
   for i in 0 .. n {
     x[i] = *(xp + i*8);
   }
 
   for i in 1 .. n {
     for j in 0 .. n - i {
-      h, l = x[i + j] * x[j];
+      rax = x[i + j];
+      h, l =  rax * x[j];
       if i = 1 {
         r[2*j + i] = l;
         r[2*j + i + 1] = h;
@@ -24,14 +23,14 @@ extern fn square(zp, xp) {
 	      r[2*n + 1] += 0 + cf;
 	    } else { 
 	      cf? r[k] += 0 + cf;
-	      }	  
+	    }	  
 	  }
-	  }
-        }
+	}
+      }
     }
   }	  
 
-/* add the duplicated */
+  /* add the duplicated */
   r[1] += r[1];	  
   for i in 2 .. 2*n {
     cf? r[i] += r[i] + cf;   	
@@ -40,66 +39,69 @@ extern fn square(zp, xp) {
   r[2*n + 1] += r[2*n + 1] + cf;
 
 
-/* multiplication of the same limbs */      
+  /* multiplication of the same limbs */      
   for i in 0 .. n {
-    h, l = x[i] * x[i];
+    rax = x[i];
+    h, l = rax * rax;
     if i = 0 {
-      r[0] = l;
       r[2*n + 2] = h;
-    } else { 
-      if i < n - 1 {
-        r[2*n + 1 + i + 1] = l;
+      r[0] = l;
+    } else {
+      if (i < n - 1) {
         r[2*n + 1 + i + 2] = h;
+        r[2*n + 1 + i + 1] = l;
       } else { 
-        if i = n - 1 { 
+        if (i = n - 1) { 
           cf? r[1] += r[2*n + 2];
 	  for j in 1 .. n {
 	    cf? r[j] += r[2*n + 1 + j] + cf;
-	   }
+	  }
 	  cf? r[n + 1] += l + cf;
 	  cf? r[n + 2] += h + cf;
-
+          
 	  for j in n + 3 .. 2*n {
 	    cf? r[j] += 0 + cf;
-	   }
-	   r[2*n + 1] += 0 + cf;
-         } else { 
-           cf? r[2*n] += l;	
-	   cf? r[2*n + 1] += h + cf;
-	   }
-       }
-     } 
+	  }
+	  r[2*n + 1] += 0 + cf;
+        } else { 
+          cf? r[2*n] += l;	
+	  cf? r[2*n + 1] += h + cf;
+	}
+      }
+    } 
   }
+  
 
-
-/*reduction (same as in the multiplication file )*/
+  /*reduction (same as in the multiplication file )*/
   for i in 0 ..n { 
-    h, l = r[n + i + 1] * 38;
+    rax = r[n + i + 1];
+    h, l = rax * 38;
     cf? r[i] += l; 
-      if i = 0 {
-        hprev = 0;
-        hprev += h + cf;
-      } else  {
-        h += 0 + cf;
-        cf? r[i] += hprev; 
-        hprev = 0;
-        hprev += h + cf;
-        }
+    if i = 0 {
+      hprev = 0;
+      hprev += h + cf;
+    } else  {
+      h += 0 + cf;
+      cf? r[i] += hprev; 
+      hprev = 0;
+      hprev += h + cf;
+    }
   }
+
   l = hprev * 38 ;
   cf? r[0] += hprev;
+
   for i in 1 .. n {
     cf? r[i] += 0 + cf;
   }
 
   zero = 0;
-  zero = 0 + cf;
+  zero += 0 + cf;
 
   l = zero * 38 ;
   r[0] += zero;
 
   for j in 0..n {
-    *(zp + j*8) -= r[j];
-  }
-      
+    *(zp + j*8) = r[j];
+  }    
 }

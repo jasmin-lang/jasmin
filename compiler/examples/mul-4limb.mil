@@ -58,9 +58,8 @@ extern fn mul(zp, xp, yp0 /* rdx */) {
 
   l = hprev * 38;
   cf? z[0] += l;
-  cf? z[1] += h + cf;
 
-  for i in 2..n {
+  for i in 1..n {
     cf? z[i] += 0 + cf;
   }
 
@@ -70,7 +69,7 @@ extern fn mul(zp, xp, yp0 /* rdx */) {
   l = zero * 38;
   z[0] += l;
 
-  for j in 0..n {
-    *(zp + j*8) = z[j];
+  for i in 0..n {
+    *(zp + i*8) = z[i];
   }
 }
