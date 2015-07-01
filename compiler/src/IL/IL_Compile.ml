@@ -555,17 +555,26 @@ let to_asm_x64 efun =
 (* ------------------------------------------------------------------------ *)
 (* Calling convention for "extern" functions  *)
 
+let push_pop_stck op reg = 
+   X64.( Unop(op,reg))
+
+let push_pop_call_reg op  =
+  let call_reg = X64.([X64.Sreg R11;Sreg R12;Sreg R13; Sreg R14; Sreg R15;Sreg RBX; Sreg RBP ])in
+  List.map ~f:(push_pop_stck op) call_reg
+
 let wrap_asm_function afun =
   let name = "_"^afun.X64.af_name in
   let prefix =
     X64.([ Section "text";
            Global name;
            Label name;
-           Unop(Push,Sreg RBP);
-           Binop(Mov,Sreg RSP,Dreg RBP) ])
+           Binop(Mov,Sreg RSP,Dreg R11);
+	   Binop(And,Simm (Int64.of_int 31),Dreg R11);
+	   Binop(Sub,Sreg R11,Dreg RSP)
+    ]) @ (push_pop_call_reg X64.Push )
   in
   let suffix =
-    X64.([ Unop(Pop,Sreg RBP);
+   (List.rev (push_pop_call_reg X64.Pop )) @ X64.([  Binop(Add,Sreg R11,Dreg RSP);
            Ret ])
   in
-  prefix @ afun.X64.af_body @ suffix
+   prefix @ afun.X64.af_body @ suffix
