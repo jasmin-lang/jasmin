@@ -27,6 +27,7 @@ type transform =
   | MacroExpand of (string * Big_int.big_int) list
   | SSA
   | Print of string
+  | Save of string
   | RegisterAlloc of int
   | RegisterLiveness
   | StripComments
@@ -57,6 +58,7 @@ let ptrafo =
   choice
     [ string "ssa" >>$ SSA
     ; (string "print" >> char '[' >> pname >>= (fun name -> char ']' >>$ (Print(name))))
+    ; (string "save" >> char '[' >> pname >>= (fun name -> char ']' >>$ (Save(name))))
     ; string "register_liveness" >>$ RegisterLiveness
     ; string "strip_comments" >>$  StripComments
     ; (string "register_allocate" >> register_num >>= fun l ->
@@ -93,6 +95,8 @@ let apply_transform trafo efun0 =
     | SSA              -> transform_ssa efun
     | StripComments    -> conv_trans strip_comments efun
     | Print(name)      -> F.printf ">> %s:@\n%a@\n@\n" name pp_efun efun; efun
+    | Save(fname)      ->
+      Out_channel.write_all fname ~data:(fsprintf "%a" pp_efun efun); efun
     | RegisterAlloc(n) -> register_allocate (min 15 n) efun
     | RegisterLiveness -> transform_register_liveness efun
     | MacroExpand(m) ->
