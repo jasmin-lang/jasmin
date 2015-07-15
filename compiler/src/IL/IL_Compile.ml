@@ -162,7 +162,7 @@ let transform_ssa efun =
 let validate_transform efun0 efun = 
   if not (equal_efun (transform_ssa efun0) (transform_ssa efun)) then (
     (* shrink counter-example *)
-    for i = 1 to List.length efun0.ef_body do
+   for i = 1 to List.length efun0.ef_body do
       let efun0 = shorten_efun i efun0 in
       let efun  = shorten_efun i efun in
       let tefun0 = transform_ssa efun0 in
@@ -207,6 +207,7 @@ let register_liveness efun =
       | App(_,ds,ss) ->
         (* first remove variables that are written *)
         let read_after_lhs = List.fold ~f:analz_dest ~init:read ds in
+	 
         (* then add variables that are read *)
         let read = List.fold ~f:analz_src  ~init:read_after_lhs ss in
         go read lis ({ li_bi = li; li_read_after_rhs = read_after_lhs}::ris)
@@ -286,7 +287,7 @@ let eq_constrs bis =
 
 (* FIXME: State preconditions precisely. *)
 let register_allocate nregs efun0 =
-
+  let module E = struct exception PickExc of string end in
   (* List of free registers in decreasing order, this simplifies "saving up" %rax (0)
      and %rdx (0) until they are really required. *)
   let free_regs = ref (Int.Set.of_list (List.init nregs ~f:(fun i -> i))) in
@@ -345,17 +346,18 @@ let register_allocate nregs efun0 =
         free_regs_remove ri;
         ri
       ) else (
-        failwith
-          (fsprintf "required register %s for %a already in use\n free registers: %a\nmap: %a"
+
+        raise( E.PickExc "required register already in use"
+          (*"required register %s for %a already in use\n free registers: %a\nmap: %a"
              (X64.string_of_reg (X64.reg_of_int ri))
              pp_preg pr
              (pp_list "," pp_int) (Set.to_list !free_regs)
              (pp_list "," (pp_pair "->" pp_preg pp_int))
-             (Hashtbl.to_alist reg_map))
+             (Hashtbl.to_alist reg_map)*))
       )
     | None ->
       begin match Set.max_elt !free_regs with
-      | None -> failwith "no registers left"
+      | None -> raise (E.PickExc "no registers left")
       | Some i ->
         Hashtbl.set reg_map ~key:pr ~data:i;
         free_regs_remove i;
@@ -386,48 +388,64 @@ let register_allocate nregs efun0 =
     in
     Hashtbl.filteri_inplace reg_map ~f:remove_dead
   in
-  
-  let alloc {li_bi = bi; li_read_after_rhs = read_after_rhs} =
-    F.printf "reg_alloc: %a\n" pp_base_instr bi;
-    let bi =
-      match bi with
-      | Comment(_) -> bi
+  let test = ref true 
+  in
+  let rec alloc left right =
+    match right with
+    | [] -> List.rev left
+    | {li_bi = bi; li_read_after_rhs = read_after_rhs}::right ->
+      F.printf "reg_alloc: %a\n" pp_base_instr bi;
+        let bi =
+	  if !test then 
+	    (
+	      try
+	 
+	    begin match bi with
+	    | Comment(_) -> bi
         
-      (* enforce dst = src1 and do not allocate registers for carry flag *)
-      | App((Add|Sub) as o,(([_;Dreg(d)] | [Dreg(d)]) as ds),(Sreg(s1)::s2::cfin)) ->
-        let r1 = Hashtbl.find_exn reg_map s1 in
-        let s1 = trans_src (Sreg s1) in
-        let s2 = trans_src s2        in
-        free_dead_regs read_after_rhs;
-        Hashtbl.set fixed_pregs ~key:d  ~data:r1;
-        let d = trans_dest (Dreg d) in
-        App(o,(linit ds)@[d],s1::s2::cfin)
+	    (* enforce dst = src1 and do not allocate registers for carry flag *)
+	    | App((Add|Sub) as o,(([_;Dreg(d)] | [Dreg(d)]) as ds),(Sreg(s1)::s2::cfin)) ->
+              let r1 = Hashtbl.find_exn reg_map s1 in
+              let s1 = trans_src (Sreg s1) in
+              let s2 = trans_src s2        in
+              free_dead_regs read_after_rhs;
+              Hashtbl.set fixed_pregs ~key:d  ~data:r1;
+              let d = trans_dest (Dreg d) in
+              App(o,(linit ds)@[d],s1::s2::cfin)
 
-      | App(Add,_,_) -> assert false
+	  | App(Add,_,_) -> assert false
         
-      | App(Cmov(_) as o,[Dreg(d)],[Sreg(s1);s2;cfin]) ->
-        let r1 = Hashtbl.find_exn reg_map s1 in
-        let s1 = trans_src (Sreg(s1)) in
-        let s2 = trans_src s2        in
-        free_dead_regs read_after_rhs;
-        Hashtbl.set fixed_pregs ~key:d  ~data:r1;
-        let d = trans_dest (Dreg d) in
-        App(o,[d],[s1;s2;cfin])
+	  | App(Cmov(_) as o,[Dreg(d)],[Sreg(s1);s2;cfin]) ->
+             let r1 = Hashtbl.find_exn reg_map s1 in
+             let s1 = trans_src (Sreg(s1)) in
+             let s2 = trans_src s2        in
+             free_dead_regs read_after_rhs;
+             Hashtbl.set fixed_pregs ~key:d  ~data:r1;
+             let d = trans_dest (Dreg d) in
+             App(o,[d],[s1;s2;cfin])
 
-      | App(Cmov(_),_,_) -> assert false
+	  | App(Cmov(_),_,_) -> assert false
 
-      | App(o,ds,ss) ->
-        let ss = List.map ~f:trans_src ss in
-        free_dead_regs read_after_rhs;
-        let ds = List.map ~f:trans_dest ds in
-        App(o,ds,ss)
-    in
-    F.printf "reg_alloc_done: %a\n" pp_base_instr bi;
-    bi
+	  | App(o,ds,ss) ->
+             let ss = List.map ~f:trans_src ss in
+             free_dead_regs read_after_rhs;
+             let ds = List.map ~f:trans_dest ds in
+             App(o,ds,ss)
+	    end
+	  with
+	    E.PickExc _ -> test := false;
+			   (* F.printf "error message" *)
+			   bi
+	    )
+	    else bi
+				    
+	in
+	F.printf "reg_alloc_done: %a\n" pp_base_instr bi;
+	alloc (bi::left) right
   in
 
   let args = List.map efun0.ef_args ~f:(fun pr -> int_to_preg (pick_free pr)) in
-  let bis = List.map ~f:alloc (register_liveness efun0) in
+  let bis = alloc [] (register_liveness efun0) in
   let efun =
     { efun0 with
       ef_args = args;
@@ -435,7 +453,7 @@ let register_allocate nregs efun0 =
       ef_ret  = List.map ~f:(fun pr -> get_reg pr) efun0.ef_ret;
     }
   in
-  validate_transform efun0 efun;
+  (*validate_transform efun0 efun;*)
   efun
 
 (* ------------------------------------------------------------------------ *)
@@ -510,8 +528,6 @@ let to_asm_x64 efun =
       ensure (equal_src (dest_to_src d) s1) "cmov with dest<>src1";
       let instr = X64.( Binop(Cmov(CfSet(b)),trans_src s2,trans_dest d) ) in
       [c; instr]
-
-
 
     | App(Shift(dir),[d],[s1;s2]) ->
       ensure (equal_src (dest_to_src d) s1) "shift with dest<>src1";
