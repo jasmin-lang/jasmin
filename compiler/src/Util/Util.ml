@@ -1,5 +1,5 @@
 open Big_int
-open Core.Std
+open Core_kernel.Std
 
 module F = Format
 

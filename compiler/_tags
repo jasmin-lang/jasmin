@@ -6,4 +6,4 @@ true: bin_annot, debug
 
 <src/**/*>: package(core), thread, package(num)
 <src/**/*>: package(mparser),package(ctypes.foreign)
-<src/**/*>: syntax(camlp4o), package(ounit)
+<src/**/*>: syntax(camlp4o), package(oUnit)

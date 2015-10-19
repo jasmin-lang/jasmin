@@ -1,4 +1,4 @@
-open Core.Std
+open Core_kernel.Std
 open OUnit
 open IL
 open Util
