@@ -110,8 +110,14 @@ let t_arithm_4limb file fun_name desc expected xval yval () =
   let open Ctypes in
   let module U64 = Unsigned.UInt64 in
   let add =
-    CF.(foreign ~from:lib fun_name
-          (ptr uint64_t @-> ptr uint64_t @-> ptr uint64_t @-> (returning void)))
+    try
+      CF.(foreign ~from:lib fun_name
+            (ptr uint64_t @-> ptr uint64_t @-> ptr uint64_t @-> (returning void)))
+    with
+      _ -> (* try with prepended underscore, for Linux *)
+        CF.(foreign ~from:lib ("_"^fun_name)
+              (ptr uint64_t @-> ptr uint64_t @-> ptr uint64_t @-> (returning void)))
+      
   in
   let z = CArray.make uint64_t ~initial:(U64.of_int 0) 4 in
   let x = CArray.make uint64_t ~initial:(U64.of_int 0) 4 in
