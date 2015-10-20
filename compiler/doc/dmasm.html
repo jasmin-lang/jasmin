@@ -1,0 +1,252 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <title></title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <link rel="stylesheet" href="css/style.css" type="text/css" />
+  <script src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script>
+</head>
+<body>
+<div id="TOC">
+<ul>
+<li><a href="#dmasm">DMASM</a><ul>
+<li><a href="#dmasm-intermediate-language-abstract-syntax">DMASM intermediate language: Abstract syntax</a></li>
+<li><a href="#dmasm-intermediate-language-type-system">DMASM intermediate language: Type system</a></li>
+<li><a href="#dmasm-intermediate-language-semantics">DMASM intermediate language: Semantics</a></li>
+<li><a href="#mapping-to-x86-64-assembly">Mapping to X86-64 assembly</a></li>
+</ul></li>
+<li><a href="#notes-on-x86-64-instructions">Notes on X86-64 Instructions</a></li>
+<li><a href="#references">References</a></li>
+</ul>
+</div>
+<div style="display:none">
+<p><span class="math display">\[\newcommand{\ZZ}{\mathbb{Z}}
+\newcommand{\sem}[1]{[\![ #1 ]\!]}
+\]</span></p>
+</div>
+<h1 id="dmasm">DMASM</h1>
+<p>The input language should have a straightforward translation to assembly code for the given architecture. After expanding all compile-time constructs, the mapping from DMASM instructions to assembly instructions should be one-to-one.</p>
+<h2 id="dmasm-intermediate-language-abstract-syntax">DMASM intermediate language: Abstract syntax</h2>
+<p>The data types for the IL can be found in <code>IL/IL_Lang.ml</code>. There are <em>compile-time</em> values and <em>run-time</em> values.</p>
+<h3 id="compile-time-expressions">Compile time expressions</h3>
+<ul>
+<li><span class="math inline">\(cvar\)</span>: Compile time variables. (Syntax: <code>n</code>, <code>x</code>, ...)</li>
+<li><span class="math inline">\(cexp\)</span>: Compile time expressions are built from variables, integer constants, and <span class="math inline">\(+, *, -\)</span>. They are used as indices offset and indices. (Syntax: <code>n + i * 8 - 1</code>, ...)</li>
+<li><span class="math inline">\(ccond\)</span>: Compile time conditionals are built from compile expressions <span class="math inline">\(e_1, e_2\)</span> by applying <span class="math inline">\(\bowtie \in \{&lt;,&gt;,\leq,\geq,=,\neq\}\)</span> and <span class="math inline">\(true, \neg, \land\)</span>. (Syntax: <code>n &lt;= 8 &amp;&amp; m &lt;&gt; 0</code>, ...)</li>
+</ul>
+<h3 id="registers-sources-and-destinations">Registers, Sources, and Destinations</h3>
+<p>A <em>register</em> is denoted by a string and a list of compile-time expressions. (Syntax: <code>x[i]</code>, <code>x[i,j]</code>, ...)</p>
+<p><strong>Note</strong>: These are pseudo-registers that are lowered to machine registers during compilation.</p>
+<p>To be consistent with assembly terminology, we call L-values sources and R-values destinations.</p>
+<p>A destination/L-Value is one of:</p>
+<ul>
+<li>A <em>register</em>.</li>
+<li>A <em>memory location</em> denoted by by a register and an offset given as a compile time expression. (Syntax: <code>*(xp + 8)</code>, <code>*(%rax + 8)</code>)</li>
+</ul>
+<p><strong>Note</strong>: the offset is interpreted in bytes and the syntax is inherited from qhasm. We could enforce that the offset is divisible by <span class="math inline">\(8\)</span> and work with offsets interpreted as quad-words (64 bit) internally.</p>
+<p>An R/source-Value is one of:</p>
+<ul>
+<li>A <em>register</em>.</li>
+<li>A <em>memory location</em> denoted by by a register and an offset given as a compile time expression. (Syntax: <code>*(xp + 8)</code>, <code>*(%rax + 8)</code>)</li>
+<li>An immediate value.</li>
+</ul>
+<h3 id="base-instructions-if-and-for">Base instructions, If, and For</h3>
+<p>Base instructions:</p>
+<ul>
+<li><p><span class="math inline">\(Move(dest,src)\)</span>: Assign value from source to destination.</p></li>
+<li><p><span class="math inline">\(App(op,[dest],[src])\)</span>: Apply <span class="math inline">\(op\)</span> to sources and store result in destinations.</p></li>
+</ul>
+<p>Instruction:</p>
+<ul>
+<li><p><span class="math inline">\(BInstr(bi)\)</span> apply base instruction</p></li>
+<li><p><span class="math inline">\(If(ccond,stmt_1,stmt_2)\)</span>: If (compile-time) condition <span class="math inline">\(ccond\)</span> evaluates to <span class="math inline">\(true\)</span>, execute <span class="math inline">\(stmt_1\)</span>, otherwise, execute <span class="math inline">\(stmt_2\)</span>.</p></li>
+<li><p><span class="math inline">\(For(cvar,ce_{from},ce_{to},stmt)\)</span>: Execute <span class="math inline">\(stmt\)</span> for <span class="math inline">\(cvar\)</span> ranging from <span class="math inline">\(ce_{from}\)</span> to <span class="math inline">\(ce_{to}\)</span>.</p></li>
+</ul>
+<p>A statement is a list of instructions.</p>
+<h3 id="operators-and-types">Operators and types</h3>
+<dl>
+<dt><span class="math inline">\(mul : u64 \times u64 \to u64 \times u64\)</span></dt>
+<dd>unsigned multiplication with full result
+</dd>
+<dt><span class="math inline">\(imul : u64 \times u64 \to u64\)</span>:</dt>
+<dd>Truncated signed multiplication.
+</dd>
+<dt><span class="math inline">\(add : u64 \times u64 \times bool \to u64 \times bool\)</span></dt>
+<dd>addition with carry flag (use constant <span class="math inline">\(0/false\)</span> for <span class="math inline">\(ADD\)</span> instruction)
+</dd>
+<dt><span class="math inline">\(sub : u64 \times u64 \times bool \to u64 \times bool\)</span></dt>
+<dd>subtraction with carry flag (use constant <span class="math inline">\(0/false\)</span> for <span class="math inline">\(SUB\)</span> instruction)
+</dd>
+<dt>shiftleft, bitwise-and, cmov</dt>
+<dd>to be defined
+</dd>
+</dl>
+<h2 id="dmasm-intermediate-language-type-system">DMASM intermediate language: Type system</h2>
+<p>Assign types to registers.</p>
+<p>We probably need:</p>
+<ul>
+<li>base type: <span class="math inline">\(bool\)</span>, <span class="math inline">\(u64\)</span>, ...</li>
+<li>array of base type values of size <span class="math inline">\(cexpr\)</span></li>
+</ul>
+<p>The type system should ensure memory safety.</p>
+<h2 id="dmasm-intermediate-language-semantics">DMASM intermediate language: Semantics</h2>
+<p>To interpret an IL program, we first require a mapping <span class="math inline">\(\phi\)</span> from free compile-time variables to integers.</p>
+<p><strong>Note</strong>: the only binder for <span class="math inline">\(cvar\)</span>s is <span class="math inline">\(For\)</span>.</p>
+<p>We also need a mapping <span class="math inline">\(\psi\)</span> from the free registers to values of the given types.</p>
+<h2 id="mapping-to-x86-64-assembly">Mapping to X86-64 assembly</h2>
+<p>We use <code>x.r</code> to denote the register assigned to the variable <code>x</code> for the given occurence.</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left">DMASM</th>
+<th align="left">X86-64</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Assignments:</td>
+<td align="left"></td>
+</tr>
+<tr class="even">
+<td align="left"><code>x = y</code></td>
+<td align="left"><code>mov %y.r, %x.r</code></td>
+</tr>
+<tr class="odd">
+<td align="left"><code>*(x + i) = y</code></td>
+<td align="left"><code>mov %y.r, i(%x.r)</code></td>
+</tr>
+<tr class="even">
+<td align="left"><code>y = *(x + i)</code></td>
+<td align="left"><code>mov i(%x.r), %y.r</code></td>
+</tr>
+<tr class="odd">
+<td align="left">Multiplication:</td>
+<td align="left"></td>
+</tr>
+<tr class="even">
+<td align="left"><code>(h,l) = x * y</code></td>
+<td align="left"><code>mulq %y.r</code> and <code>h.r = rdx</code>, <code>l.r = x.r = rax</code></td>
+</tr>
+<tr class="odd">
+<td align="left">Addition:</td>
+<td align="left"></td>
+</tr>
+<tr class="even">
+<td align="left"><code>cf? z += x + cf</code></td>
+<td align="left"><code>adc %x.r, %z.r</code> and <code>cf</code> defined</td>
+</tr>
+<tr class="odd">
+<td align="left"><code>z += x + cf</code></td>
+<td align="left">equivalent to previous</td>
+</tr>
+<tr class="even">
+<td align="left"><code>z = z + x + cf</code></td>
+<td align="left">equivalent to previous</td>
+</tr>
+<tr class="odd">
+<td align="left"><code>cf? z += x</code></td>
+<td align="left"><code>add %x.r, %z.r</code></td>
+</tr>
+<tr class="even">
+<td align="left"><code>z += x</code></td>
+<td align="left">equivalent to previous</td>
+</tr>
+<tr class="odd">
+<td align="left"><code>z = z + x</code></td>
+<td align="left">equivalent to previous</td>
+</tr>
+<tr class="even">
+<td align="left">Subtraction:</td>
+<td align="left"></td>
+</tr>
+<tr class="odd">
+<td align="left"><code>cf? z -= x - cf</code></td>
+<td align="left"><code>sbb %x.r, %z.r</code> and <code>cf</code> defined</td>
+</tr>
+<tr class="even">
+<td align="left"><code>z -= x - cf</code></td>
+<td align="left">equivalent to previous</td>
+</tr>
+<tr class="odd">
+<td align="left"><code>z = z - x - cf</code></td>
+<td align="left">equivalent to previous</td>
+</tr>
+<tr class="even">
+<td align="left"><code>cf? z -= x</code></td>
+<td align="left"><code>sub %x.r, %z.r</code></td>
+</tr>
+<tr class="odd">
+<td align="left"><code>z -= x</code></td>
+<td align="left">equivalent to previous</td>
+</tr>
+<tr class="even">
+<td align="left"><code>z = z + x</code></td>
+<td align="left">equivalent to previous</td>
+</tr>
+</tbody>
+</table>
+<h1 id="notes-on-x86-64-instructions">Notes on X86-64 Instructions</h1>
+<table>
+<thead>
+<tr class="header">
+<th align="left">Instruction</th>
+<th align="left">References in [1]</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">MOV</td>
+<td align="left">page 1001</td>
+</tr>
+<tr class="even">
+<td align="left">ADC</td>
+<td align="left">page 514</td>
+</tr>
+<tr class="odd">
+<td align="left">ADD</td>
+<td align="left">page 519</td>
+</tr>
+<tr class="even">
+<td align="left">SBB</td>
+<td align="left">page 1442</td>
+</tr>
+<tr class="odd">
+<td align="left">SUB</td>
+<td align="left">page 1490</td>
+</tr>
+<tr class="even">
+<td align="left">MULQ</td>
+<td align="left">page 1083</td>
+</tr>
+<tr class="odd">
+<td align="left">IMUL</td>
+<td align="left">page 883</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mov">MOV</h3>
+<p>Memory to memory seems to be allowed.</p>
+<h3 id="adcadd-and-sbbsub">ADC/ADD and SBB/SUB</h3>
+<p>At most one of source/destination can be memory location.</p>
+<h3 id="mulq">MULQ</h3>
+<p>Performs an unsigned multiplication. In 64 bit mode, source1 is RAX, source2 is either a register or a memory location, dest is RDX:RAX.</p>
+<h3 id="imul">IMUL</h3>
+<p>Performs a signed multiplication. There are three different modes:</p>
+<dl>
+<dt>One operands</dt>
+<dd><p>Like MULQ, but with unsigned multiplication. Result in RDX:RAX.</p>
+</dd>
+<dt>Two operands</dt>
+<dd><p>Multiply destination (register) with source (register/memory/immediate) and store (truncated) result in destination.</p>
+</dd>
+<dt>Three operands</dt>
+<dd><p>Multiply source1 (register/mem) with source2 (inmediate) and store (truncated) result in destination (register).</p>
+</dd>
+</dl>
+<h1 id="references">References</h1>
+<p>[1] Intel 64 and IA-32 Architectures Software Developer’s Manual Combined Volumes: 1, 2A, 2B, 2C, 3A, 3B and 3C</p>
+</body>
+</html>

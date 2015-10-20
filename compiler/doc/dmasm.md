@@ -24,14 +24,12 @@ There are *compile-time* values and *run-time* values.
 ### Registers, Sources, and Destinations
 
 
-A *register* is one of:
-
-* A *machine register* denoted by a string.
-  These are fixed and cannot be renamed.
-  (Syntax: `%rax`, ...)
-* A pseudo-register denoted by a string and a list
+A *register* is denoted by a string and a list
   of compile-time expressions.
   (Syntax: `x[i]`, `x[i,j]`, ...)
+
+__Note__: These are pseudo-registers that are lowered to machine
+registers during compilation.
 
 To be consistent with assembly terminology, we call
  L-values sources and R-values destinations.
@@ -69,6 +67,7 @@ Base instructions:
 Instruction:
 
 * $BInstr(bi)$
+  apply base instruction
 
 * $If(ccond,stmt_1,stmt_2)$: If (compile-time) condition $ccond$
   evaluates to $true$, execute $stmt_1$, otherwise, execute $stmt_2$.
@@ -90,10 +89,10 @@ $add : u64 \times u64 \times bool \to u64 \times bool$
 : addition with carry flag (use constant $0/false$ for $ADD$ instruction)
 
 $sub : u64 \times u64 \times bool \to u64 \times bool$
-: subtraction with carry flag (use constant $0/false$ for $ADD$ instruction)
+: subtraction with carry flag (use constant $0/false$ for $SUB$ instruction)
 
 shiftleft, bitwise-and, cmov
-: to be definedd
+: to be defined
 
 
 ## DMASM intermediate language: Type system
@@ -117,10 +116,6 @@ __Note__: the only binder for $cvar$s is $For$.
 We also need a mapping $\psi$ from the free registers to values
   of the given types.
 
-__Note__: free registers are either machine registers used for passing
-  arguments when IL code is called from C or another language
-  or pseudo-registers because we reason about code fragments
-
 ## Mapping to X86-64 assembly
 
 We use `x.r` to denote the register assigned to the variable
@@ -139,8 +134,8 @@ Addition:
 `z += x + cf`      equivalent to previous
 `z = z + x + cf`   equivalent to previous
 `cf? z += x`       `add %x.r, %z.r`
-`z += x`      equivalent to previous
-`z = z + x`   equivalent to previous
+`z += x`           equivalent to previous
+`z = z + x`        equivalent to previous
 Subtraction:
 `cf? z -= x - cf`  `sbb %x.r, %z.r` and `cf` defined
 `z -= x - cf`      equivalent to previous
