@@ -1,7 +1,7 @@
 # -*- Makefile -*-
 
 # --------------------------------------------------------------------
-NAME     := SsrArithmetica
+NAME     := Arithmetica
 SUBDIRS  :=
 INCFLAGS := -R src $(NAME)
 COQFILES := src/arithmetica.v
@@ -16,7 +16,7 @@ install:
 
 # --------------------------------------------------------------------
 this-clean::
-	rm -f *.glob *.d *.vo
+	rm -f src/*.glob src/*.d src/*.vo
 
 this-distclean::
 	rm -f $(shell find . -name '*~')
@@ -25,7 +25,7 @@ this-distclean::
 .PHONY: count dist
 
 # --------------------------------------------------------------------
-DISTDIR = multinomials-ssr
+DISTDIR = arithmetica.v
 TAROPT  = --posix --owner=0 --group=0
 
 dist:
