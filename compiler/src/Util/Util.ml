@@ -1,8 +1,14 @@
+(* * Utility functions (mostly for testing) *)
+
+
+(* ** Imports and abbreviations *)
 open Big_int
 open Core_kernel.Std
 
 module F = Format
 
+(* ** Arithmetic
+ * ------------------------------------------------------------------------ *)
 
 (* only for testing, this is biased *)
 let sample_bigint_insecure p =
@@ -16,18 +22,6 @@ let sample_bigint_insecure p =
         ~res:(add_big_int (shift_left_big_int (big_int_of_int i) pos) res)
     )
   in mod_big_int (go ~pos:0 ~rem:p ~res:(big_int_of_int 0)) p
-
-(* pretty printing as in hex notation with blocks containing i bytes *)
-let pph digit_size fmt i =
-  let pp_digit i = F.sprintf "%x" i in
-  let rec go ~i ~digits =
-    if (eq_big_int (big_int_of_int 0) i) then "" else (
-      (go ~i:(shift_right_big_int i 4) ~digits:(digits + 1))
-      ^(pp_digit (int_of_big_int (extract_big_int i 0 4)))
-      ^(if digits mod digit_size = 0 then "|" else "")
-    )
-  in
-  F.fprintf fmt "%s" (go ~i:i ~digits:0)
 
 module Big_int_Infix = struct
   include Big_int
@@ -58,7 +52,7 @@ module U64 = struct
       let cf = UInt64.compare c y < 0 in
       (c,cf)
     )
-  
+
   (* FIXME: check this too *)
   let mul x y =
     let low u = UInt64.logand mask_low u in
@@ -88,7 +82,18 @@ module U64 = struct
 
   let to_big_int x = big_int_of_string (UInt64.to_string x)
   let of_big_int x = UInt64.of_string (string_of_big_int x)
-  
+  let is_zero x = compare (of_int 0) x = 0
+  let is_one x = compare (of_int 1) x = 0
+  (* let equal x y = compare x y = 0 *)
+  module T = struct
+    type t = Unsigned.UInt64.t
+    let t_of_sexp s = of_string (string_of_sexp s)
+    let sexp_of_t x = sexp_of_string (to_string x)
+    let compare = compare
+    let hash v = Hashtbl.hash v
+  end
+  include Comparable.Make(T)
+  include Hashable.Make(T)
 end
 
 type u64 = U64.t
@@ -96,6 +101,39 @@ type u64 = U64.t
 let compare_u64 = U64.compare
 let u64_of_sexp s = U64.of_string (string_of_sexp s)
 let sexp_of_u64 u = sexp_of_string (U64.to_string u)
+
+module Limb4 = struct
+  let of_big_int i =
+    let open Big_int_Infix in
+    assert (i <! (2^!256));
+    (U64.of_big_int (extract_big_int i 0 64),
+     U64.of_big_int (extract_big_int i 64 64),
+     U64.of_big_int (extract_big_int i 128 64),
+     U64.of_big_int (extract_big_int i 192 64))
+
+  let to_big_int (x0,x1,x2,x3) =
+    Big_int_Infix.(
+      (U64.to_big_int x0)
+      +! ((U64.to_big_int x1) <!< 64)
+      +! ((U64.to_big_int x2) <!< 128)
+      +! ((U64.to_big_int x3) <!< 192)
+    )
+end
+
+(* ** Pretty-printing
+ * ------------------------------------------------------------------------ *)
+
+(* pretty printing as in hex notation with blocks containing i bytes *)
+let pph digit_size fmt i =
+  let pp_digit i = F.sprintf "%x" i in
+  let rec go ~i ~digits =
+    if (eq_big_int (big_int_of_int 0) i) then "" else (
+      (go ~i:(shift_right_big_int i 4) ~digits:(digits + 1))
+      ^(pp_digit (int_of_big_int (extract_big_int i 0 4)))
+      ^(if digits mod digit_size = 0 then "|" else "")
+    )
+  in
+  F.fprintf fmt "%s" (go ~i:i ~digits:0)
 
 let pp_string fmt s = F.fprintf fmt "%s" s
 
@@ -107,6 +145,9 @@ let pp_uint64 fmt i = F.fprintf fmt "%s" (U64.to_string i)
 
 let pp_int64 fmt i = F.fprintf fmt "%s" (Int64.to_string i)
 
+let pp_bool fmt b = F.fprintf fmt "%s" (if b then "true" else "false")
+
+let pp_big_int fmt bi = F.fprintf fmt "%s" (Big_int.string_of_big_int bi)
 
 let rec pp_list sep pp_elt f l =
   match l with
@@ -129,21 +170,3 @@ let fsprintf fmt =
     fbuf fmt
 
 let linit l = List.rev l |> List.tl_exn |> List.rev
-
-module Limb4 = struct
-  let of_big_int i =
-    let open Big_int_Infix in
-    assert (i <! (2^!256));
-    (U64.of_big_int (extract_big_int i 0 64),
-     U64.of_big_int (extract_big_int i 64 64),
-     U64.of_big_int (extract_big_int i 128 64),
-     U64.of_big_int (extract_big_int i 192 64))
-
-  let to_big_int (x0,x1,x2,x3) =
-    Big_int_Infix.(
-      (U64.to_big_int x0)
-      +! ((U64.to_big_int x1) <!< 64)
-      +! ((U64.to_big_int x2) <!< 128)
-      +! ((U64.to_big_int x3) <!< 192)
-    )
-end

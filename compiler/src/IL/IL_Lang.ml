@@ -1,10 +1,12 @@
+(* * Intermediate language IL *)
+
+(* ** Imports and abbreviations *)
 open Core_kernel.Std
-open Util
 
 module F = Format
 
-(* ------------------------------------------------------------------------ *)
-(* Compile time expressions *)
+(* ** Compile time expressionsx
+ * ------------------------------------------------------------------------ *)
 
 type cvar = string with sexp, compare
 
@@ -36,8 +38,8 @@ type ccond =
   | Ccond of ccondop * cexpr * cexpr
   with sexp, compare
 
-(* ------------------------------------------------------------------------ *)
-(* Operands and constructs for intermediate language *)
+(* ** Operands and constructs for intermediate language
+ * ------------------------------------------------------------------------ *)
 
 type name = string with sexp, compare
 
@@ -46,12 +48,12 @@ type preg = name * cexpr list with sexp, compare
 type src =
   | Sreg of preg         (* Sreg(r): register r *)
   | Simm of int64        (* Simm(i): $i *)
-  | Smem of preg * cexpr  (* Smem(i,r): i(%r) *)
+  | Smem of preg * cexpr (* Smem(i,r): i(%r) *)
   with sexp, compare
 
 type dest =
   | Dreg of preg         (* Dreg(r): register r *)
-  | Dmem of preg * cexpr  (* Dmem(i,r): i(%r) *)
+  | Dmem of preg * cexpr (* Dmem(i,r): i(%r) *)
   with sexp, compare
 
 type cmov_flag =
@@ -102,8 +104,8 @@ type efun = {
   ef_ret  : preg list  (* pseudo registers as return values *)
 } with sexp, compare
 
-(* ------------------------------------------------------------------------ *)
-(* Utility functions and modules *)
+(* ** Utility functions and modules
+ * ------------------------------------------------------------------------ *)
 
 let dest_to_src = function
   | Dreg(cv)    -> Sreg(cv)
@@ -125,13 +127,15 @@ let equal_efun       x y = compare_efun       x y = 0
 
 let stmt_to_base_instrs st =
   List.map st
-    ~f:(function BInstr(i) -> i | _ -> failwith "expected macro-expanded statement, got for/if.")
+    ~f:(function
+          | BInstr(i) -> i
+          | _ -> failwith "expected macro-expanded statement, got for/if.")
 
 let base_instrs_to_stmt bis =
   List.map ~f:(fun i -> BInstr(i)) bis
 
 let is_src_imm  = function Simm _ -> true | _ -> false
-let is_dest_reg  = function Dreg _ -> true | _ -> false
+let is_dest_reg = function Dreg _ -> true | _ -> false
 
 let rec cvars_cexpr = function
   | Cvar(s)           -> String.Set.singleton s
@@ -165,27 +169,3 @@ module Dest = struct
   include Comparable.Make(T)
   include Hashable.Make(T)
 end
-
-let interp
-  (write : dest -> 'st -> u64 -> 'st)
-  (read  : dest -> 'st -> u64)
-  (st : 'st)
-  = function
-  | Comment _ -> st
-
-  | App(Assgn,[d],[s]) -> st
-
-  | App(UMul,[h;l],[x;ye]) -> st
-  | App(IMul,[z],[x;y])    -> st
-
-  | App(Add,[cf_out;z],[x;y;cf_in]) -> st
-  | App(Sub,[cf_out;z],[x;y;cf_in]) -> st
-
-  | App(BAnd,[d],[s1;s2]) -> st
-  | App(Xor,[d],[s1;s2]) -> st
-
-  | App(Cmov(cmf),[d],[s1;s2;cf_in])  -> st
-  | App(Shift(dir),[cf_out;z],[x;cn]) -> st
-
-  | _ -> assert false
-

@@ -1,4 +1,4 @@
-(* Minimal X86-64 for crypto
+(* * Minimal X86-64 for crypto
 
 See http://ref.x86asm.net/coder64-abc.html for a quick overview.
 
@@ -9,11 +9,8 @@ open Util
 module F = Format
 
 
-(* ======================================================================== *)
-(* X86-64 instruction set. *)
-
-(* ------------------------------------------------------------------------ *)
-(* We parameterize our semantics by the values. *)
+(* ** We parameterize our semantics by the values.
+ * ------------------------------------------------------------------------ *)
 
 module type VAL = sig
   type qword
@@ -29,11 +26,13 @@ module V64 = struct
   let address_to_string = Int64.to_string
 end
 
+(* ** Instructions are a functor
+ * ------------------------------------------------------------------------ *)
 
 module Make_Instr(V : VAL) = struct
 
-  (* ------------------------------------------------------------------------ *)
-  (* Registers and instructions *)
+(* *** Registers and instructions
+ * ------------------------------------------------------------------------ *)
 
   type reg =
     | RAX | RBX | RCX | RDX | RDI | RSI | RBP | RSP
@@ -91,8 +90,8 @@ type afun = {
   af_ret  : reg list;   (* return values available in these registers *)
 }
 
-  (* ------------------------------------------------------------------------ *)
-  (* Utility functions *)
+(* *** Utility functions
+ * ------------------------------------------------------------------------ *)
 
   let dest_to_src = function
     | Dreg(r)   -> Sreg(r)
@@ -137,8 +136,8 @@ type afun = {
 
   let arg_regs = [ RDI; RSI; RDX; RCX; R8; R9 ]
 
-  (* ------------------------------------------------------------------------ *)
-  (* Pretty printing *)
+(* *** Pretty printing
+ * ------------------------------------------------------------------------ *)
 
   let string_of_reg = function
     | RAX -> "%rax"
@@ -239,6 +238,9 @@ type afun = {
       pp_return af.af_ret
   
 end
+
+(* ** Instruction module (functor application)
+ * ------------------------------------------------------------------------ *)
 
 module Instr = Make_Instr(V64)
 

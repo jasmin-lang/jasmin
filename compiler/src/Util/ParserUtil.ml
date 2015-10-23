@@ -1,3 +1,5 @@
+(* * Utility functions for parsing *)
+
 open Core_kernel.Std
 module S = String
 module F = Format

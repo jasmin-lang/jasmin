@@ -1,3 +1,6 @@
+(* * Compilation and source-to-source transformations on IL *)
+
+(* ** Imports and abbreviations *)
 open Core_kernel.Std
 open Util
 open IL_Lang
@@ -6,8 +9,8 @@ open IL_Utils
 module X64 = Asm_X64
 module MP  = MParser
 
-(* ------------------------------------------------------------------------ *)
-(* Interpreting compile-time expressions and conditions *)
+(* ** Interpreting compile-time expressions and conditions
+ * ------------------------------------------------------------------------ *)
 
 let eval_cbinop = function
   | Cplus  -> Big_int_Infix.(+!)
@@ -68,8 +71,8 @@ let inst_base_instr cvar_map bi =
   | App(o,ds,ss) -> App(o,List.map ~f:inst_d ds,List.map ~f:inst_s ss)
   | Comment(_)   -> bi
 
-(* ------------------------------------------------------------------------ *)
-(* Macro expansion: loop unrolling, if, ...  *)
+(* ** Macro expansion: loop unrolling, if, ...
+ * ------------------------------------------------------------------------ *)
 
 let macro_expand cvar_map st =
   let spaces indent = String.make indent ' ' in
@@ -114,8 +117,8 @@ let macro_expand cvar_map st =
   in
   List.concat_map ~f:(expand 0 cvar_map) st
 
-(* ------------------------------------------------------------------------ *)
-(* Single assignment  *)
+(* ** Single assignment
+ * ------------------------------------------------------------------------ *)
 
 let transform_ssa efun =
   let bis = stmt_to_base_instrs efun.ef_body in
@@ -129,7 +132,7 @@ let transform_ssa efun =
                                           (Hashtbl.to_alist var_map))
   in
   let new_index pr =
-    counter := Int64.succ !counter;    
+    counter := Int64.succ !counter;
     Hashtbl.set var_map ~key:pr ~data:!counter;
     ("r", [Cconst !counter])
   in
@@ -156,10 +159,10 @@ let transform_ssa efun =
   let rets = List.map ~f:(fun pr -> get_index pr) efun.ef_ret in
   { efun with ef_args = args; ef_body = base_instrs_to_stmt bis; ef_ret = rets; }
 
-(* ------------------------------------------------------------------------ *)
-(* Validate transformation (assuming that transform_ssa correct) *)
+(* ** Validate transformation (assuming that transform_ssa correct)
+ * ------------------------------------------------------------------------ *)
 
-let validate_transform efun0 efun = 
+let validate_transform efun0 efun =
   if not (equal_efun (transform_ssa efun0) (transform_ssa efun)) then (
     (* shrink counter-example *)
    for i = 1 to List.length efun0.ef_body do
@@ -178,8 +181,8 @@ let validate_transform efun0 efun =
     assert false
   )
 
-(* ------------------------------------------------------------------------ *)
-(* Register liveness *)
+(* ** Register liveness
+ * ------------------------------------------------------------------------ *)
 
 type live_info = {
   li_bi : base_instr;
@@ -207,7 +210,7 @@ let register_liveness efun =
       | App(_,ds,ss) ->
         (* first remove variables that are written *)
         let read_after_lhs = List.fold ~f:analz_dest ~init:read ds in
-	 
+
         (* then add variables that are read *)
         let read = List.fold ~f:analz_src  ~init:read_after_lhs ss in
         go read lis ({ li_bi = li; li_read_after_rhs = read_after_lhs}::ris)
@@ -217,15 +220,15 @@ let register_liveness efun =
   in
   go (Preg.Set.of_list efun.ef_ret) (List.rev bis) []
 
-(* ------------------------------------------------------------------------ *)
-(* Collect equality constraints from +=, -=, ... *)
+(* ** Collect equality constraints from +=, -=, ...
+ * ------------------------------------------------------------------------ *)
 
 let eq_constrs bis =
   let eq_classes    = Int.Table.create  () in
   let class_map     = Preg.Table.create () in
   let fixed_classes = Int.Table.create  () in
   let last_index = ref (-1) in
-  
+
   let new_class pr =
     incr last_index;
     let ci = !last_index in
@@ -256,7 +259,7 @@ let eq_constrs bis =
     List.map ~f:(function Dreg(r) -> Some(r) | _ -> None) ds
     |> List.filter_opt
   in
-            
+
   List.iter bis
     ~f:(function
           (* FIXME: deal with CMOV *)
@@ -282,8 +285,8 @@ let eq_constrs bis =
     );
   (eq_classes, fixed_classes, class_map)
 
-(* ------------------------------------------------------------------------ *)
-(* Register allocation *)
+(* ** Register allocation
+ * ------------------------------------------------------------------------ *)
 
 (* FIXME: State preconditions precisely. *)
 let register_allocate nregs efun0 =
@@ -299,7 +302,7 @@ let register_allocate nregs efun0 =
     assert (Set.mem !free_regs i);
     free_regs := Set.remove !free_regs i
   in
-  
+
   (* mapping from pseudo registers to integers 0 .. nreg -1 denoting machine registers *)
   let reg_map = Preg.Table.create () in
   let int_to_preg i = fsprintf "%%%i" i,[] in
@@ -325,7 +328,7 @@ let register_allocate nregs efun0 =
     let arg_len = List.length efun0.ef_args in
     let arg_regs = List.take (List.map ~f:X64.int_of_reg X64.arg_regs) arg_len in
     if List.length arg_regs < arg_len then
-      failwith (Printf.sprintf "register_alloc: at most %i arguments supported" (List.length arg_regs));
+      failwith (fsprintf "register_alloc: at most %i arguments supported" (List.length arg_regs));
     List.iter (List.zip_exn efun0.ef_args arg_regs)
       ~f:(fun (arg,arg_reg) -> Hashtbl.set fixed_pregs ~key:arg ~data:arg_reg);
 
@@ -333,7 +336,7 @@ let register_allocate nregs efun0 =
     let ret_len = List.length efun0.ef_ret in
     let ret_regs = List.take (List.map ~f:X64.int_of_reg X64.[RAX; RDX]) ret_len in
     if List.length ret_regs < ret_len then
-      failwith (Printf.sprintf "register_alloc: at most %i arguments supported" (List.length ret_regs));
+      failwith (fsprintf "register_alloc: at most %i arguments supported" (List.length ret_regs));
     List.iter (List.zip_exn efun0.ef_ret ret_regs)
       ~f:(fun (ret,ret_reg) -> Hashtbl.set fixed_pregs ~key:ret ~data:ret_reg)
   in
@@ -388,7 +391,7 @@ let register_allocate nregs efun0 =
     in
     Hashtbl.filteri_inplace reg_map ~f:remove_dead
   in
-  let test = ref true 
+  let test = ref true
   in
   let rec alloc left right =
     match right with
@@ -396,15 +399,15 @@ let register_allocate nregs efun0 =
     | {li_bi = bi; li_read_after_rhs = read_after_rhs}::right ->
       F.printf "reg_alloc: %a\n" pp_base_instr bi;
         let bi =
-	  if !test then 
-	    (
-	      try
-	 
-	    begin match bi with
-	    | Comment(_) -> bi
-        
-	    (* enforce dst = src1 and do not allocate registers for carry flag *)
-	    | App((Add|Sub) as o,(([_;Dreg(d)] | [Dreg(d)]) as ds),(Sreg(s1)::s2::cfin)) ->
+          if !test then
+            (
+              try
+
+            begin match bi with
+            | Comment(_) -> bi
+
+            (* enforce dst = src1 and do not allocate registers for carry flag *)
+            | App((Add|Sub) as o,(([_;Dreg(d)] | [Dreg(d)]) as ds),(Sreg(s1)::s2::cfin)) ->
               let r1 = Hashtbl.find_exn reg_map s1 in
               let s1 = trans_src (Sreg s1) in
               let s2 = trans_src s2        in
@@ -413,9 +416,9 @@ let register_allocate nregs efun0 =
               let d = trans_dest (Dreg d) in
               App(o,(linit ds)@[d],s1::s2::cfin)
 
-	  | App(Add,_,_) -> assert false
-        
-	  | App(Cmov(_) as o,[Dreg(d)],[Sreg(s1);s2;cfin]) ->
+          | App(Add,_,_) -> assert false
+
+          | App(Cmov(_) as o,[Dreg(d)],[Sreg(s1);s2;cfin]) ->
              let r1 = Hashtbl.find_exn reg_map s1 in
              let s1 = trans_src (Sreg(s1)) in
              let s2 = trans_src s2        in
@@ -424,24 +427,24 @@ let register_allocate nregs efun0 =
              let d = trans_dest (Dreg d) in
              App(o,[d],[s1;s2;cfin])
 
-	  | App(Cmov(_),_,_) -> assert false
+          | App(Cmov(_),_,_) -> assert false
 
-	  | App(o,ds,ss) ->
+          | App(o,ds,ss) ->
              let ss = List.map ~f:trans_src ss in
              free_dead_regs read_after_rhs;
              let ds = List.map ~f:trans_dest ds in
              App(o,ds,ss)
-	    end
-	  with
-	    E.PickExc _ -> test := false;
-			   (* F.printf "error message" *)
-			   bi
-	    )
-	    else bi
-				    
-	in
-	F.printf "reg_alloc_done: %a\n" pp_base_instr bi;
-	alloc (bi::left) right
+            end
+          with
+            E.PickExc _ -> test := false;
+                           (* F.printf "error message" *)
+                           bi
+            )
+            else bi
+
+        in
+        F.printf "reg_alloc_done: %a\n" pp_base_instr bi;
+        alloc (bi::left) right
   in
 
   let args = List.map efun0.ef_args ~f:(fun pr -> int_to_preg (pick_free pr)) in
@@ -456,12 +459,15 @@ let register_allocate nregs efun0 =
   (*validate_transform efun0 efun;*)
   efun
 
-(* ------------------------------------------------------------------------ *)
-(* Translation to assembly  *)
+(* ** Translation to assembly
+ * ------------------------------------------------------------------------ *)
 
 let to_asm_x64 efun =
   let mreg_of_preg pr =
-    let fail () = failwith "to_asm_x64: expected register of the form %i" in
+    let fail () =
+      failwith
+        (fsprintf "to_asm_x64: expected register of the form %%i, got %a" pp_preg pr)
+    in
     let s = match pr with (s,[]) -> s | _ -> fail () in
     let i =
       try
@@ -533,12 +539,12 @@ let to_asm_x64 efun =
       ensure (equal_src (dest_to_src d) s1) "shift with dest<>src1";
       ensure (is_src_imm s2)  "shift source 2 must be immediate";
       let op = match dir with Right -> X64.Shr | Left -> X64.Shl in
-      let instr = X64.( Binop(op,trans_src s2,trans_dest d) )  in 
+      let instr = X64.( Binop(op,trans_src s2,trans_dest d) )  in
       [c;instr]
 
     | App(Xor,[d],[s1;s2]) ->
       ensure (equal_src (dest_to_src d) s1) "add/sub with dest<>src1";
-      let instr = X64.( Binop(Xor,trans_src s2,trans_dest d) )  in 
+      let instr = X64.( Binop(Xor,trans_src s2,trans_dest d) )  in
       [c;instr]
 
     | App(op,([_;d] | [d]),s1::s2::cin) ->
@@ -568,15 +574,21 @@ let to_asm_x64 efun =
     }
   )
 
-(* ------------------------------------------------------------------------ *)
-(* Calling convention for "extern" functions  *)
-
-let push_pop_stck op reg = 
-   X64.( Unop(op,reg))
+(* ** Calling convention for "extern" functions
+ * ------------------------------------------------------------------------ *)
 
 let push_pop_call_reg op  =
-  let call_reg = X64.([X64.Sreg R11;Sreg R12;Sreg R13; Sreg R14; Sreg R15;Sreg RBX; Sreg RBP ])in
-  List.map ~f:(push_pop_stck op) call_reg
+  let call_reg =
+    X64.([ X64.Sreg R11;
+           Sreg R12;
+           Sreg R13;
+           Sreg R14;
+           Sreg R15;
+           Sreg RBX;
+           Sreg RBP
+         ])
+  in
+  List.map ~f:(fun reg -> X64.Unop(op,reg)) call_reg
 
 let wrap_asm_function afun =
   let name = "_"^afun.X64.af_name in
@@ -585,12 +597,12 @@ let wrap_asm_function afun =
            Global name;
            Label name;
            Binop(Mov,Sreg RSP,Dreg R11);
-	   Binop(And,Simm (Int64.of_int 31),Dreg R11);
-	   Binop(Sub,Sreg R11,Dreg RSP)
+           Binop(And,Simm (Int64.of_int 31),Dreg R11);
+           Binop(Sub,Sreg R11,Dreg RSP)
     ]) @ (push_pop_call_reg X64.Push )
   in
   let suffix =
-   (List.rev (push_pop_call_reg X64.Pop )) @ X64.([  Binop(Add,Sreg R11,Dreg RSP);
-           Ret ])
+      (List.rev (push_pop_call_reg X64.Pop ))
+    @ X64.([ Binop(Add,Sreg R11,Dreg RSP); Ret ])
   in
-   prefix @ afun.X64.af_body @ suffix
+  prefix @ afun.X64.af_body @ suffix

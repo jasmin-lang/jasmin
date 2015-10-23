@@ -1,3 +1,5 @@
+(* * Parsing functions for assembly *)
+
 open Core_kernel.Std
 
 module S = String
@@ -9,7 +11,6 @@ let convert_error f =
     (fun sbuf ->
       try  f sbuf
       with Asm_Parser.Error -> raise PU.ParserError)
-
 
 let instr = convert_error (Asm_Parser.instr Asm_Lexer.lex)
 

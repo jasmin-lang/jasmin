@@ -158,9 +158,9 @@ base_instr :
         | `Plus  -> App(Add,[d],[s1;s2])
         | `Minus -> App(Sub,[d],[s1;s2])
         | `BAnd  -> App(BAnd,[d],[s1;s2])
-	| `Shr   -> App(Shift(Right),[d],[s1;s2])
-	| `Shl   -> App(Shift(Left),[d],[s1;s2])
-	| `Xor   -> App(Xor,[d],[s1;s2])
+        | `Shr   -> App(Shift(Right),[d],[s1;s2])
+        | `Shl   -> App(Shift(Left),[d],[s1;s2])
+        | `Xor   -> App(Xor,[d],[s1;s2])
         end
       | `Assgn(s) -> App(Assgn,[d],[s])
       | `Cmov(s,f,cmf) -> App(Cmov(cmf),[d],[dest_to_src d;s;f])
@@ -173,7 +173,7 @@ base_instr :
         | Some(op,r) when op = oeq -> [Sreg(r)]
         | Some _ -> failwith "cannot combine `+=` with `-` or `-=` with `+`"
       in
-      App(oeq,[Dreg(cf_out); d],[dest_to_src d;s]@cin) }
+      App(oeq,[ Dreg(cf_out); d],[dest_to_src d;s]@cin) }
 
 | d=dest oeq=opeq s=src cf_in=cfin?
     { let cin =

@@ -1,9 +1,11 @@
+(* * Utility functions for intermediate language *)
+
 open Core_kernel.Std
 open IL_Lang
 open Util
 
-(* ------------------------------------------------------------------------ *)
-(* Pretty printing *)
+(* ** Pretty printing
+ * ------------------------------------------------------------------------ *)
 
 let ibinop_to_string = function
   | Cplus  -> "+"

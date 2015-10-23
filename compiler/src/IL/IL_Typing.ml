@@ -1,3 +1,5 @@
+(* * Typing and well-formedness of IL *)
+
 (*
 
 We should perform the following checks:

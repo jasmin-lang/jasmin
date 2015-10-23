@@ -1,7 +1,7 @@
 extern fn mul(zp, xp, yp0 /* rdx */) {
 
   yp = yp0;
-  
+
   for i in 0 .. n {
     x[i] = *( xp + i*8);
     y[i] = *( yp + i*8);
@@ -15,26 +15,25 @@ extern fn mul(zp, xp, yp0 /* rdx */) {
         (h,l) = x[i] * y[j];
         if i = 0 {
           r[i + j] = l;
-	  m[i + j] = h;
-        } else { 
-          /*cf? r[i + j] += l; */
-	  /*m[i + j] += h + cf;*/
-	  }
+          m[i + j] = h;
+        } else {
+          /* cf? r[i + j] += l;  */
+          /* m[i + j] += h + cf; */
+        }
       } else {
         x[i] = x[i] * 19;
-	(h,l) = x[i] * y[j];
-	cf? r[ i + j - n - 1] += l;
-	m[ i + j - n - 1] += h + cf;
-     
+        (h,l) = x[i] * y[j];
+        cf? r[ i + j - n - 1] += l;
+        m[ i + j - n - 1] += h + cf;
+
         }
     }
-  } 
+  }
 
 
 /* reduction part */
-/* mask = 2^51 - 1 */	
+/* mask = 2^51 - 1 */
   mask = 0; /* call constants FIXME */
-				
   for i in 0 ..n {
     if i = 0 {
       m[0] <<= 13;
@@ -64,14 +63,14 @@ extern fn mul(zp, xp, yp0 /* rdx */) {
       r[i] = mult;
       mult >>= 51;
       r[i - 1] &= mask;
-      if i = n { 
+      if i = n {
         mult =  mult * 19;
-	r[0] += mult;
-	r[n] &= mask;  
+        r[0] += mult;
+        r[n] &= mask;
       } else {
         mult += r[i + 1];
-        }
       }
+    }
   }
 
   for i in 0 .. n {

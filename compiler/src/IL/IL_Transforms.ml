@@ -1,11 +1,14 @@
+(* * Apply transformations to IL *)
+
+(* ** Imports *)
 open Core_kernel.Std
 open Util
 open IL_Lang
 open IL_Utils
 open IL_Compile
 
-(* ------------------------------------------------------------------------ *)
-(* Apply transformations in sequence. *)
+(* ** Apply transformations in sequence.
+ * ------------------------------------------------------------------------ *)
 
 (* wrapper for liveness analysis that puts live sets into comments *)
 let transform_register_liveness efunc =
@@ -19,7 +22,6 @@ let transform_register_liveness efunc =
 
 let strip_comments bis = 
   List.filter ~f:(function Comment(_) -> false | _ -> true) bis
-
 
 type asm_lang = X64
 
