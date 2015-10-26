@@ -63,34 +63,6 @@ let get_fun lib fun_name ty =
 (* * Tests for register allocation
  * --------------------------------------------------------------------- *)
 
-let add_il3 = In_channel.read_all "examples/test/register-alloc2.mil"
-
-let test_reg_assemble_run trafo il_string () =
-  try
-    let asm_code = il_to_asm_string trafo il_string in
-    print_endline asm_code;
-    let (lib,fn_lib) = create_library asm_code in
-    let test =
-      CF.foreign "test" C.(uint64_t @-> uint64_t @-> returning uint64_t) ~from:lib
-    in
-    let module U = Unsigned.UInt64 in
-    let a = U.of_int 3 in
-    let b = U.of_int 8 in
-    let res = test a b in
-    (* F.printf ">> a=%s, b=%s, result=%s\n%!"
-         (U.to_string a) (U.to_string b) (U.to_string res); *)
-    Sys.remove fn_lib;
-    assert_equal ~msg:"result returned by add_il" res (U.of_int 11)
-  with
-    e ->
-      F.printf "unknown error: %s,\n%s" (Exn.to_string e) (Exn.backtrace ());
-      raise e
-
-let usable_regs = String.concat ~sep:","
-  [ "rdi"; "rsi"; "rdx"; "rcx"; "r8"; "r9"; "rax"
-  ; "r10"; "r11"; "r12"; "r13"; "r14"; "r15"
-    (* no rbx and rsp *) ]
-
 let t_reg3 () =
   let trafo =
     "print[orig],expand[n=4],print[expand],"
@@ -98,15 +70,10 @@ let t_reg3 () =
     ^"equal_dest_src,print[equal_dest_src],strip_comments,"
     ^"register_liveness,print[liveness],strip_comments,"
     ^"register_allocate[15]"
-   (* ^"register_allocate["^usable_regs^"]" *)
   in
   let il_string = In_channel.read_all "examples/add-4limb.mil" in
   let il_code = il_to_il_string trafo il_string in  
   print_endline il_code
-
-let t_reg4 =
-  test_reg_assemble_run "expand[n=5],ssa,register_allocate,"
-    (In_channel.read_all "examples/test/register-alloc3.mil")
 
 (* * Tests for arithmetic functions: 4 limbs via ASM
  * --------------------------------------------------------------------- *)
@@ -339,5 +306,5 @@ let tests =
       "square 4-limb: m" >:: t_square_4limb t_unop m;
     ]
   in
-  (* (tests "(via asm)"     t_via_asm_4limb_binop t_via_asm_4limb_unop) @ *)
+  (tests "(via asm)"     t_via_asm_4limb_binop t_via_asm_4limb_unop) @
   (tests "(interpreter)" t_interp_4limb_binop t_interp_4limb_unop)

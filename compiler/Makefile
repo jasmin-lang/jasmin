@@ -42,14 +42,12 @@ doc:
 ###########################################################################
 # Targets for development and testing
 
-test-dmasm-assemble: dmasm
-	./dmasm.native -p -t "asm[x86-64]" examples/test-assemble.mil
 
 test-dmasm-reg: dmasm
-	./dmasm.native -p -t "register_alloc" examples/test-register-alloc.mil
+	./dmasm.native -p -t "register_allocate[10]" examples/test/register-alloc.mil
 
-test-dmasm-mul:
-	./dmasm.native -p -t "expand[n=3],ssa,register_allocate[15],asm[x86-64]" examples/mul-4limb.mil
+test-dmasm-square: dmasm
+	./dmasm.native -p -t "expand[n=3],ssa,register_allocate[15]" examples/25519-4limb/square.mil
 
 run_tests:
 	test -d _build/c_src || mkdir -p _build/c_src
