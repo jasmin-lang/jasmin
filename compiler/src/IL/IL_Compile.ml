@@ -371,8 +371,8 @@ let register_allocate nregs efun0 =
       | Some i  -> int_to_preg i
     in
     match d with
-      | Dreg(pr)   -> Dreg(get pr)
-      | Dmem(pr,o) -> Dmem(get pr,o)
+    | Dreg(pr)   -> Dreg(get pr)
+    | Dmem(pr,o) -> Dmem(get pr,o)
   in
 
   let free_dead_regs read_after_rhs =

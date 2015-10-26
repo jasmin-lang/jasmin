@@ -82,7 +82,7 @@ extern fn square(zp, xp) {
   /* reduction from 8 limbs to 4 limbs (identical to mul.mil) */
   c38 = 38;
   for i in 0..n {
-    rax = z[n + i + 1]; /* FIXME: do we really need this? */
+    rax = z[n + i + 1];
     h, l = rax * c38;
     cf? z[i] += l;
     if i = 0 {
