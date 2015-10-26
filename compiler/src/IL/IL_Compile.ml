@@ -3,6 +3,7 @@
 (* ** Imports and abbreviations *)
 open Core_kernel.Std
 open Util
+open Arith
 open IL_Lang
 open IL_Utils
 
@@ -397,12 +398,12 @@ let register_allocate nregs efun0 =
     match right with
     | [] -> List.rev left
     | {li_bi = bi; li_read_after_rhs = read_after_rhs}::right ->
-      F.printf "reg_alloc: %a\n" pp_base_instr bi;
-        let bi =
-          if !test then
-            (
-              try
-
+      (* F.printf "reg_alloc: %a\n" pp_base_instr bi; *)
+      let bi =
+        if !test then
+          (
+            try
+              
             begin match bi with
             | Comment(_) -> bi
 
@@ -443,7 +444,7 @@ let register_allocate nregs efun0 =
             else bi
 
         in
-        F.printf "reg_alloc_done: %a\n" pp_base_instr bi;
+        (* F.printf "reg_alloc_done: %a\n" pp_base_instr bi; *)
         alloc (bi::left) right
   in
 

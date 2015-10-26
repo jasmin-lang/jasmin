@@ -1,8 +1,7 @@
 true: bin_annot, debug
 
-<src> or <src/PrimeField> or <src/Generator>: include
-<src/Asm> or <src/Util> or <src/IL>: include
-<src/Test>: include
+<src>     or <c_src>    or <src/Test>: include
+<src/Asm> or <src/Util> or <src/IL>  : include
 
 <src/**/*>: package(core), thread, package(num)
 <src/**/*>: package(mparser),package(ctypes.foreign)

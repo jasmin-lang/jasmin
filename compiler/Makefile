@@ -8,6 +8,15 @@ COREFLAGS=-pkg core \
     -tag short_paths \
     -cflags -strict-sequence
 
+
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+  CLIBFLAGS=-lflags -cclib,-Xlinker,-cclib,--no-as-needed,-cclib,-Lc_src,-cclib,-larith,-cclib,-Xlinker,-cclib,-rpath,-cclib,`pwd`/_build/c_src
+endif
+ifeq ($(UNAME_S),Darwin)
+  CLIBFLAGS=-lflags -cclib,-Lc_src,-cclib,-larith
+endif
+
 OCAMLBUILDFLAGS= $(CFLAGS) $(COREFLAGS) $(FINDLIBFLAGS) $(MENHIRFLAGS)
 
 ###########################################################################
@@ -16,7 +25,7 @@ OCAMLBUILDFLAGS= $(CFLAGS) $(COREFLAGS) $(FINDLIBFLAGS) $(MENHIRFLAGS)
 .PHONY: all dmasm clean doc test-dmasm-assemble test-dmasm-reg \
   run_tests run-run_tests
 
-all: dmasm run-run_tests
+all: run-run_tests test-arith
 
 dmasm:
 	$(OCAMLBUILD) $(OCAMLBUILDFLAGS) src/Main/dmasm.native
@@ -43,10 +52,18 @@ test-dmasm-mul:
 	./dmasm.native -p -t "expand[n=3],ssa,register_allocate[15],asm[x86-64]" examples/mul-4limb.mil
 
 run_tests:
-	$(OCAMLBUILD) $(OCAMLBUILDFLAGS) src/Main/run_tests.native
+	test -d _build/c_src || mkdir -p _build/c_src
+	gcc -fPIC -c c_src/arith.c -o _build/c_src/arith.o
+	ar rc _build/c_src/libarith.a _build/c_src/arith.o
+	gcc -shared -o _build/c_src/libarith.so _build/c_src/arith.o
+	$(OCAMLBUILD) $(OCAMLBUILDFLAGS) $(CLIBFLAGS) src/Main/run_tests.native
 
 run-run_tests: run_tests
 	./run_tests.native
+
+test-arith:
+	gcc -DTEST c_src/arith.c -o t_arith
+	./t_arith
 
 %.inferred.mli:
 	ocamlbuild $(OCAMLBUILDFLAGS) src/$@ && cat _build/src/$@

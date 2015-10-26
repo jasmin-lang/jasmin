@@ -3,12 +3,16 @@
 (* ** Imports and abbreviations *)
 open Core_kernel.Std
 open Util
+open Arith
 open IL_Lang
 open IL_Compile
 open IL_Utils
 
 (* ** Interpreter
  * ------------------------------------------------------------------------ *)
+
+let is_Simm = function Simm _ -> true | _ -> false
+let is_Comment = function Comment _ -> true | _ -> false
 
 type mstate =
   { mregs  : u64 Preg.Map.t
@@ -80,8 +84,6 @@ let write_flag ms d b =
   | Dmem(_,_) ->
     failwith "cannot give memory, flag (in register) expected"
 
-let is_Comment = function Comment _ -> true | _ -> false
-
 let interp_base_instr (ms : mstate) binstr =
   let go = function
 
@@ -92,11 +94,11 @@ let interp_base_instr (ms : mstate) binstr =
     | App(UMul,[h;l],[x;y]) ->
       let x = read_src ms x in
       let y = read_src ms y in
-      let (zh,zl) = U64.mul x y in
+      let (zh,zl) = U64.umul x y in
       let ms = write_dest ms l zl in
       write_dest ms h zh
 
-    | App(Add,dest,x::y::cf_in_list) ->
+    | App(((Add | Sub) as op),dest,x::y::cf_in_list) ->
       let cf = match cf_in_list with
         | [cf_in] -> read_flag ms cf_in
         | []      -> false
@@ -104,7 +106,12 @@ let interp_base_instr (ms : mstate) binstr =
       in
       let x = read_src ms x in
       let y = read_src ms y in
-      let (zo,cfo) = U64.add_carry x y cf in
+      let (zo,cfo) =
+        match op with
+        | Add -> U64.add_carry x y cf
+        | Sub -> U64.sub_carry x y cf
+        | _ -> assert false
+      in
       let (mcf_out, z) = match dest with
         | [cf_out; z] -> (Some cf_out, z)
         | [z]         -> (None,z)
@@ -123,12 +130,12 @@ let interp_base_instr (ms : mstate) binstr =
       let res = if cf = cf_is_set then s2 else s1 in
       write_dest ms d res
 
-    | App(IMul,[_z],  [_x;_y])  ->
-      failwith "not implemented"
+    | App(IMul,[z], [x;y])  ->
+      assert (is_Simm y);
+      let x = read_src ms x in
+      let y = read_src ms y in
+      write_dest ms z (fst (U64.imul_trunc x y))
     
-    | App(Sub,[_cf_out;_z],[_x;_y;_cf_in]) ->
-      failwith "not implemented"
-
     | App(BAnd,[_d],[_s1;_s2]) ->
       failwith "not implemented"
 
@@ -147,7 +154,7 @@ let interp_base_instr (ms : mstate) binstr =
     | App(IMul,([] | _::_::_),  _)                           -> assert false
     | App(IMul,_, ([] | [_] | _::_::_::_))                   -> assert false
     | App((Add | Sub),([] | [_] | _::_::_::_),_)             -> assert false
-    | App((Add | Sub),_,([] | [_] | [_; _] | _::_::_::_::_)) -> assert false
+    | App((Add | Sub),_,([] | [_] )) -> assert false
     | App((BAnd | Xor),([] | _::_::_),_)                     -> assert false
     | App((BAnd | Xor),_,([] | [_] | _::_::_::_))            -> assert false
     | App(Cmov _,([] | _::_::_),_)                           -> assert false
@@ -157,9 +164,9 @@ let interp_base_instr (ms : mstate) binstr =
   in
   if not (is_Comment binstr) then (
     (* F.printf "####################################\n"; 
-       F.printf "executing: %a\n" pp_base_instr binstr; *)
+    F.printf "executing: %a\n" pp_base_instr binstr; *)
     let ms = go binstr in
-  (* print_mstate ms; *)
+    (* print_mstate ms; *)
     ms
   ) else (
     ms

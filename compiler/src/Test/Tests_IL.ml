@@ -4,6 +4,7 @@
 open Core_kernel.Std
 open OUnit
 open IL
+open Arith
 open Util
 
 module F  = Format
@@ -261,8 +262,6 @@ let t_interp_4limb_unop file _fun_name desc expected xval () =
     Big_int_Infix.(mod_big_int expected pval)
     Big_int_Infix.(mod_big_int zval pval)  
 
-
-
 (* * Generic tests 4 limbs
  * --------------------------------------------------------------------- *)
 
@@ -296,8 +295,8 @@ let t_sub_4limb t_asm_or_interp xval yval () =
 let t_square_4limb t_asm_or_interp xval () =
   t_asm_or_interp
     "examples/25519-4limb/square.mil"
-    "sub"
-    "sub-4-limb"
+    "square"
+    "square-4-limb"
     Big_int_Infix.(xval *! xval)
     xval ()
 
@@ -322,7 +321,7 @@ let tests =
       "mul 4-limb: p * p "^s >:: t_mul_4limb t_binop pval pval;
       "mul 4-limb: m * 1 "^s >:: t_mul_4limb t_binop m one;
       "mul 4-limb: m * p "^s >:: t_mul_4limb t_binop m pval;
-      "mul 4-limb: m + m "^s >:: t_mul_4limb t_binop m m;
+      "mul 4-limb: m * m "^s >:: t_mul_4limb t_binop m m;
 
       (* subtraction *)
       "sub 4-limb: 1 - 1 "^s >:: t_sub_4limb t_binop one one;
@@ -332,12 +331,13 @@ let tests =
       "sub 4-limb: m - p "^s >:: t_sub_4limb t_binop m pval;
       "sub 4-limb: p - m "^s >:: t_sub_4limb t_binop pval m;
       "sub 4-limb: m - m "^s >:: t_sub_4limb t_binop m m;
-
+      
       (* squaring *)
       "square 4-limb: 1" >:: t_square_4limb t_unop one;
       "square 4-limb: p" >:: t_square_4limb t_unop pval;
+      "square 4-limb: p" >:: t_square_4limb t_unop (Big_int.pred_big_int pval);
       "square 4-limb: m" >:: t_square_4limb t_unop m;
     ]
   in
-  (tests "(via asm)"     t_via_asm_4limb_binop t_via_asm_4limb_unop) @
+  (* (tests "(via asm)"     t_via_asm_4limb_binop t_via_asm_4limb_unop) @ *)
   (tests "(interpreter)" t_interp_4limb_binop t_interp_4limb_unop)

@@ -79,6 +79,7 @@ cexpr :
 | s=ID  { Cvar(s) }
 | i=INT { Cconst(i) }
 | e1=cexpr o=cbinop e2=cexpr { Cbinop(o,e1,e2) }
+| LPAREN e1=cexpr RPAREN { e1 }
 
 ccond :
 | TRUE         { Ctrue }
