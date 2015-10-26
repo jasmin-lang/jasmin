@@ -1,6 +1,11 @@
+/* For now, this code is specialized to n = 3 in some places.
+   I did not completely specialize it since it might be easier
+   to generalize the current version. */
 extern fn square(zp, xp) {
 
   z[7] = 0;
+
+  /* sum up products x_i*x_j where j = i + 1 */
   for i in 0..(n - 1) {
     rax = *(xp + (i + 1)*8);
     rdx, rax = rax * *(xp + i*8);
@@ -8,6 +13,7 @@ extern fn square(zp, xp) {
     z[2*i + 2] = rdx;
   }
 
+  /* sum up products x_i*x_j where j = i + 2 */
   for i in 0..(n - 2) {
     rax = *(xp + (i + 2)*8);
     rdx, rax = rax * *(xp + i*8);
@@ -16,6 +22,7 @@ extern fn square(zp, xp) {
         z[2*i + 4] += 0   + cf;        
   }
 
+  /* sum up products x_i*x_j where j = i + 3 */
   for i in 0..(n - 3) {
     rax = *(xp + (i + 3)*8);
     rdx, rax = rax * *(xp + i*8);
@@ -25,6 +32,9 @@ extern fn square(zp, xp) {
         z[2*i + 6] += 0   + cf;        
   }
 
+  /* set z[1..2n+1] = 2*z[1..2n+1] since
+     we have summed all x_i*x_j with i<>j
+     so far and these occur twice */
   for i in 1..(2*n + 1) {
     if (i = 1) {
       cf? z[i] += z[i];
@@ -33,31 +43,41 @@ extern fn square(zp, xp) {
     }
   }
 
-  for i in 0..n {
+  /* compute x_i*x_i for i=0..2 and store in
+     z[0]|t[1]|t[2]|t[3]|rax|rdx  */
+  for i in 0..2 {
     rax = *(xp + i*8);
     rdx, rax = rax * *(xp + i*8);
-    t[2*i] = rax;
-    t[2*i + 1] = rdx;
-  }
-  
-  for i in 0..n {
-    rax = *(xp + i*8);
-    rdx, rax = rax * *(xp + i*8);
-    if (i = 0) {
-      z[0] = rax;
-    } else {
-      t[2*i] = rax;
+    if (i != 2) {
+      if (i = 0) {
+        z[0] = rax;
+      } else {
+        t[2*i] = rax;
+      }
+      t[2*i + 1] = rdx;
     }
-    t[2*i + 1] = rdx;
   }
 
-  for i in 1..(2*n + 1) {
+  for i in 0..3 {
     if (i = 0) {
-      cf? z[i] += t[i];
-    } else { 
-      cf? z[i] += t[i] + cf;
+      /* z[0] already set */
+      cf? z[1] += t[1];
+    } else if (i < 2) {
+      cf? z[2*i]     += t[2*i]     + cf;
+      cf? z[2*i + 1] += t[2*i + 1] + cf;
+    } else if (i = 2) {
+      cf? z[2*i]     += rax + cf;
+      cf? z[2*i + 1] += rdx + cf;
+    } else { /* i > 2 */
+      cf? z[2*i]     += 0 + cf;
+      cf? z[2*i + 1] += 0 + cf;
     }
   }
+
+  rax = *(xp + 3*8);
+  rdx, rax = rax * *(xp + 3*8);
+  cf? z[6] += rax;
+  z[7] += rdx + cf;
   
   /* reduction from 8 limbs to 4 limbs (identical to mul.mil) */
   c38 = 38;
