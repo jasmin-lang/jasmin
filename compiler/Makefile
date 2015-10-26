@@ -25,7 +25,9 @@ OCAMLBUILDFLAGS= $(CFLAGS) $(COREFLAGS) $(FINDLIBFLAGS) $(MENHIRFLAGS)
 .PHONY: all dmasm clean doc test-dmasm-assemble test-dmasm-reg \
   run_tests run-run_tests
 
-all: run-run_tests test-arith
+all: dmasm
+
+unit-tests: run-run_tests test-arith
 
 dmasm:
 	$(OCAMLBUILD) $(OCAMLBUILDFLAGS) src/Main/dmasm.native
@@ -47,7 +49,7 @@ test-dmasm-reg: dmasm
 	./dmasm.native -p -t "register_allocate[10]" examples/test/register-alloc.mil
 
 test-dmasm-square: dmasm
-	./dmasm.native -p -t "expand[n=3],ssa,register_allocate[15]" examples/25519-4limb/square.mil
+	./dmasm.native -p -t "expand[n=3],ssa,register_allocate[15],strip_comments,asm[x86-64]" examples/25519-4limb/square.mil
 
 run_tests:
 	test -d _build/c_src || mkdir -p _build/c_src
