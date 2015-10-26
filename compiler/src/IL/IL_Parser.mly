@@ -35,6 +35,7 @@ open Core_kernel
 %token IN
 %token IF
 %token ELSE
+%token ELIF
 %token TRUE
 %token FALSE
 %token EXTERN
@@ -188,13 +189,28 @@ base_instr :
 | ds = tuple(dest) EQ s1=src STAR s2=src
     { App(UMul,ds,[s1;s2]) }
 
+celse_if :
+| ELIF c=ccond is=block
+  { (c,is) }
+
+celse :
+| ELSE is = block
+  { is }
+
 instr :
 | ir = base_instr SEMICOLON { BInstr(ir) }
 
 | IF c=ccond
     i1s = block
-    ELSE i2s = block
-    { If(c,i1s,i2s) }
+    ies  = celse_if*
+    mi2s = celse?
+  { let ielse =
+      Std.List.fold
+        ~init:(Option.value ~default:[] mi2s)
+        ~f:(fun celse (c,bi) -> [If(c,bi,celse)])
+        (List.rev ies)
+    in
+    If(c,i1s,ielse) }
 
 | FOR cv=ID IN ce1=cexpr DOTDOT ce2=cexpr
     is = block

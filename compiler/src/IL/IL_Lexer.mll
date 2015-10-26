@@ -56,6 +56,7 @@ rule lex = parse
   | "in"     { IN }
   | "if"     { IF }
   | "else"   { ELSE }
+  | "else" blank+ "if" { ELIF }
   | "extern" { EXTERN }
   | "fn"     { FN }
   | "return" { RETURN }
