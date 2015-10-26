@@ -40,8 +40,9 @@ extern fn mul(zp, xp, yp0 /* rdx */) {
     }
   }
 
+  /* reduction from 8 limbs to 4 limbs */
   c38 = 38;
-  for i in 0..n {  
+  for i in 0..n {
     rax = z[n + i + 1]; /* FIXME: do we really need this? */
     h, l = rax * c38;
     cf? z[i] += l;

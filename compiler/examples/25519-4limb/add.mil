@@ -10,11 +10,11 @@ extern fn add(zp, xp, yp) {
       cf? x[i] += y[i] + cf;
     }
   }
-  
+
   add0 = 0;
   add1 = 38;
   add1 = add0 if !cf;
-  
+
   for i in  0..n {
     if (i = 0) {
       cf? x[0] += add1;
@@ -25,9 +25,8 @@ extern fn add(zp, xp, yp) {
 
   add0 = add1 if cf;
   x[0] += add0;
-  
+
   for i in 0..n {
     *(zp + i*8) = x[i];
   }
-
 }
