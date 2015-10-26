@@ -18,7 +18,6 @@ let eval_cbinop = function
   | Cmult  -> Big_int_Infix.( *!)
   | Cminus -> Big_int_Infix.(-!)
 
-
 let eval_cexpr cvar_map ce =
   let rec go = function
     | Cbinop(o,ie1,ie2) -> eval_cbinop o (go ie1) (go ie2)
@@ -92,29 +91,22 @@ let macro_expand cvar_map st =
     | If(ic,st1,st2) ->
       let cond = eval_ccond ivm ic in
       let st = if cond then st1 else st2 in
-      (Comment (comment_if "START: " indent cond ic))
-      :: (List.concat_map ~f:(expand (indent + 2) ivm) st)
-      @ [Comment (comment_if "END: " indent cond ic)]
+        [Comment (comment_if "START: " indent cond ic)]
+      @ (List.concat_map ~f:(expand (indent + 2) ivm) st)
+      @ [Comment (comment_if "END:   " indent cond ic)]
 
     | For(iv,lb_ie,ub_ie,st) ->
       let open Big_int_Infix in
       let lb  = eval_cexpr ivm lb_ie in
       let ub  = eval_cexpr ivm ub_ie in
-      let v   = ref lb in
-      let bis = ref [] in
       assert (lb <! ub || lb === ub);
-      while (not (ub <! !v)) do
-        let body =
-          List.concat_map ~f:(expand (indent + 2) (Map.add ivm ~key:iv ~data:!v)) st;
-        in
-        bis := !bis
-               @ [Comment (fsprintf "%s%s = %s" (spaces (indent+2)) iv (s_of_bi !v))]
-               @ body;
-        v := !v +! Big_int.unit_big_int
-      done;
-      (Comment (comment_while "START:" indent iv lb_ie ub_ie))
-      :: !bis
-      @  [(Comment (comment_while "END:" indent iv lb_ie ub_ie))]
+      let body_for_v v =
+          [Comment (fsprintf "%s%s = %s" (spaces (indent+2)) iv (s_of_bi v))]
+        @ (List.concat_map ~f:(expand (indent + 2) (Map.add ivm ~key:iv ~data:v)) st)
+      in
+        [Comment (comment_while "START:" indent iv lb_ie ub_ie)]
+      @ List.concat_map (list_from_to ~first:lb ~last:ub) ~f:body_for_v
+      @ [Comment (comment_while "END:" indent iv lb_ie ub_ie)]
   in
   List.concat_map ~f:(expand 0 cvar_map) st
 
@@ -128,9 +120,10 @@ let transform_ssa efun =
   let get_index pr =
     match Hashtbl.find var_map pr with
     | Some r -> ("r", [Cconst r])
-    | None   -> failwith (fsprintf "transform_ssa: %a undefined\n%a"
-                            pp_preg pr (pp_list "," (pp_pair "," pp_preg pp_int64))
-                                          (Hashtbl.to_alist var_map))
+    | None   ->
+      let pp_alist = pp_list "," (pp_pair "," pp_preg pp_int64) in
+      failwith (fsprintf "transform_ssa: %a undefined\n%a"
+                  pp_preg pr pp_alist (Hashtbl.to_alist var_map))
   in
   let new_index pr =
     counter := Int64.succ !counter;
@@ -167,8 +160,8 @@ let validate_transform efun0 efun =
   if not (equal_efun (transform_ssa efun0) (transform_ssa efun)) then (
     (* shrink counter-example *)
    for i = 1 to List.length efun0.ef_body do
-      let efun0 = shorten_efun i efun0 in
-      let efun  = shorten_efun i efun in
+      let efun0  = shorten_efun i efun0 in
+      let efun   = shorten_efun i efun in
       let tefun0 = transform_ssa efun0 in
       let tefun  = transform_ssa efun in
       if not (equal_efun tefun tefun0) then (
@@ -187,7 +180,7 @@ let validate_transform efun0 efun =
 
 type live_info = {
   li_bi : base_instr;
-  li_read_after_rhs : Preg.Set.t; (* the set of register that might be read after
+  li_read_after_rhs : Preg.Set.t; (* the set of registers that might be read after
                                      the RHS of bi has been evaluated *)
 }
 
@@ -215,7 +208,7 @@ let register_liveness efun =
         (* then add variables that are read *)
         let read = List.fold ~f:analz_src  ~init:read_after_lhs ss in
         go read lis ({ li_bi = li; li_read_after_rhs = read_after_lhs}::ris)
-      | _ ->
+      | Comment _ ->
         go read lis ({ li_bi = li; li_read_after_rhs = read }::ris)
       end
   in
@@ -255,45 +248,40 @@ let eq_constrs bis =
       failwith (fsprintf "conflicting requirements: %s vs %s"
                   (X64.string_of_reg reg') (X64.string_of_reg reg))
   in
+  let handle_bi = function
+   | Comment _ -> ()
 
-  let dregs_of_ds ds =
-    List.map ~f:(function Dreg(r) -> Some(r) | _ -> None) ds
-    |> List.filter_opt
+   | App((Add|Sub), ([_;Dreg(d)] | [Dreg(d)]), Sreg(s)::_) ->
+     (* ignore flags *)
+     ignore (add_to_class s d)
+ 
+   | App(UMul, [Dreg(d1);Dreg(d2)], (Sreg(s1)::_)) ->
+     let i1 = new_class d1 in
+     let i2 = add_to_class s1 d2 in
+     fix_class i1 X64.RDX;
+     fix_class i2 X64.RAX;
+
+   | App(Cmov _, [Dreg(d)],[Sreg(s1);_s2;_cin]) ->
+     ignore (add_to_class s1 d)
+
+   | App((Add|Sub|UMul|Cmov _), _, _) as bi ->
+     failwith (fsprintf "eq_constrs: unexpected instruction %a\n" pp_base_instr bi)
+
+   | App(_, ds, _) ->
+     let dregs = List.filter_map ~f:(function Dreg(r) -> Some(r) | _ -> None) ds in
+     List.iter ~f:(fun d -> ignore (new_class d)) dregs
   in
-
-  List.iter bis
-    ~f:(function
-          (* FIXME: deal with CMOV *)
-          | Comment _ -> ()
-
-          | App((Add|Sub), ([_;Dreg(d)] | [Dreg(d)]), Sreg(s)::_) ->
-            (* ignore flags *)
-            ignore (add_to_class s d)
-
-          | App(UMul, [Dreg(d1);Dreg(d2)], (Sreg(s1)::_)) ->
-            let i1 = new_class d1 in
-            let i2 = add_to_class s1 d2 in
-            fix_class i1 X64.RDX;
-            fix_class i2 X64.RAX;
-
-          | App((Add|Sub|UMul), _, _) as bi ->
-            failwith (fsprintf "eq_constrs: unexpected instruction %a\n"
-                        pp_base_instr bi)
-
-          | App(_, ds, _) ->
-            let dregs = dregs_of_ds ds in
-            List.iter ~f:(fun d -> ignore (new_class d)) dregs
-    );
+  List.iter bis ~f:handle_bi;
   (eq_classes, fixed_classes, class_map)
 
 (* ** Register allocation
  * ------------------------------------------------------------------------ *)
 
-(* FIXME: State preconditions precisely. *)
+(* PRE: We assume the code is in SSA. *)
 let register_allocate nregs efun0 =
   let module E = struct exception PickExc of string end in
-  (* List of free registers in decreasing order, this simplifies "saving up" %rax (0)
-     and %rdx (0) until they are really required. *)
+
+  (* Set of free registers: 0 .. nregs -1 *)
   let free_regs = ref (Int.Set.of_list (List.init nregs ~f:(fun i -> i))) in
   let free_regs_add i =
     assert (not (Set.mem !free_regs i));
@@ -309,7 +297,7 @@ let register_allocate nregs efun0 =
   let int_to_preg i = fsprintf "%%%i" i,[] in
   let get_reg pr = int_to_preg (Hashtbl.find_exn reg_map pr) in
 
-  (* track pseudo-registers that required a fixed register *)
+  (* track pseudo-registers that require a fixed register *)
   let fixed_pregs = Preg.Table.create () in
   let () =
     let (eq_classes, fixed_classes, _class_map) =
@@ -350,14 +338,17 @@ let register_allocate nregs efun0 =
         free_regs_remove ri;
         ri
       ) else (
-
-        raise( E.PickExc "required register already in use"
-          (*"required register %s for %a already in use\n free registers: %a\nmap: %a"
-             (X64.string_of_reg (X64.reg_of_int ri))
-             pp_preg pr
-             (pp_list "," pp_int) (Set.to_list !free_regs)
-             (pp_list "," (pp_pair "->" pp_preg pp_int))
-             (Hashtbl.to_alist reg_map)*))
+        let err =
+          fsprintf
+            "required register %s (%s) for %a already in use\nfree registers: [%a]\nmap: %a"
+            (X64.string_of_reg (X64.reg_of_int ri))
+            (fst (int_to_preg ri))
+            pp_preg pr
+            (pp_list "," pp_int) (Set.to_list !free_regs)
+            (pp_list "," (pp_pair "->" pp_preg pp_int))
+            (Hashtbl.to_alist reg_map)
+        in
+        raise (E.PickExc err)
       )
     | None ->
       begin match Set.max_elt !free_regs with
@@ -392,30 +383,25 @@ let register_allocate nregs efun0 =
     in
     Hashtbl.filteri_inplace reg_map ~f:remove_dead
   in
-  let test = ref true
-  in
   let rec alloc left right =
     match right with
     | [] -> List.rev left
     | {li_bi = bi; li_read_after_rhs = read_after_rhs}::right ->
       (* F.printf "reg_alloc: %a\n" pp_base_instr bi; *)
       let bi =
-        if !test then
-          (
-            try
-              
-            begin match bi with
-            | Comment(_) -> bi
+        try
+          begin match bi with
+          | Comment(_) -> bi
 
-            (* enforce dst = src1 and do not allocate registers for carry flag *)
-            | App((Add|Sub) as o,(([_;Dreg(d)] | [Dreg(d)]) as ds),(Sreg(s1)::s2::cfin)) ->
-              let r1 = Hashtbl.find_exn reg_map s1 in
-              let s1 = trans_src (Sreg s1) in
-              let s2 = trans_src s2        in
-              free_dead_regs read_after_rhs;
-              Hashtbl.set fixed_pregs ~key:d  ~data:r1;
-              let d = trans_dest (Dreg d) in
-              App(o,(linit ds)@[d],s1::s2::cfin)
+          (* enforce dst = src1 and do not allocate registers for carry flag *)
+          | App((Add|Sub) as o,(([_;Dreg(d)] | [Dreg(d)]) as ds),(Sreg(s1)::s2::cfin)) ->
+            let r1 = Hashtbl.find_exn reg_map s1 in
+            let s1 = trans_src (Sreg s1) in
+            let s2 = trans_src s2        in
+            free_dead_regs read_after_rhs;
+            Hashtbl.set fixed_pregs ~key:d  ~data:r1;
+            let d = trans_dest (Dreg d) in
+            App(o,(linit ds)@[d],s1::s2::cfin)
 
           | App(Add,_,_) -> assert false
 
@@ -435,17 +421,18 @@ let register_allocate nregs efun0 =
              free_dead_regs read_after_rhs;
              let ds = List.map ~f:trans_dest ds in
              App(o,ds,ss)
-            end
-          with
-            E.PickExc _ -> test := false;
-                           (* F.printf "error message" *)
-                           bi
-            )
-            else bi
-
-        in
-        (* F.printf "reg_alloc_done: %a\n" pp_base_instr bi; *)
-        alloc (bi::left) right
+          end
+        with
+          E.PickExc s ->
+            F.printf "\nRegister allocation failed:\n%s\n" s;
+            F.printf "\nhandled:\n%a\n" (pp_list "\n" pp_base_instr) (List.rev left);
+            F.printf "\nfailed for:\n%a\n" pp_base_instr bi;
+            F.printf "\nremaining:\n%a\n%!"
+              (pp_list "\n" pp_base_instr) (List.map ~f:(fun li -> li.li_bi) right);
+            raise (E.PickExc s)
+      in
+      (* F.printf "reg_alloc_done: %a\n" pp_base_instr bi; *)
+      alloc (bi::left) right
   in
 
   let args = List.map efun0.ef_args ~f:(fun pr -> int_to_preg (pick_free pr)) in
