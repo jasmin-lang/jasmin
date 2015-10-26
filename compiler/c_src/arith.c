@@ -92,6 +92,7 @@ void imul_trunc(u64 *cf_out, u64 *l_out, u64 x_in, u64 y_in) {
     :   [x]  "+r" (x_in)
       , [cf] "+r" (cf_temp)
     :   [y]  "r"  (y_in)
+    : "%rdx", "%rax"
   );
   *l_out  = x_in;
   *cf_out = cf_temp;
