@@ -1,2 +1,0 @@
-x = rdi + %rsi;
-%rax = x;
