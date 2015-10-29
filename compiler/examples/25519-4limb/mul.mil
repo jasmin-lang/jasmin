@@ -4,7 +4,7 @@ extern fn mul(zp, xp, yp0 /* rdx */) {
   
   x[0] = *(xp);
   for j in 0..n {
-    y[j] = *(yp + j*8);
+    y[j] = *yp[j];
     h, l = y[j] * x[0];
 
     if j = 0 {
@@ -18,9 +18,9 @@ extern fn mul(zp, xp, yp0 /* rdx */) {
   }
 
   for i in 1..n {
-    x[i] = *(xp + i*8);
+    x[i] = *xp[i];
     for j in 0..n {
-      y[j] = *(yp + j*8);
+      y[j] = *yp[j];
       h, l = y[j] * x[i];
       cf? z[i+j] += l;
       if j = 0 {
@@ -71,6 +71,6 @@ extern fn mul(zp, xp, yp0 /* rdx */) {
   z[0] += l;
 
   for i in 0..n {
-    *(zp + i*8) = z[i];
+    *zp[i] = z[i];
   }
 }

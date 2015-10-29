@@ -1,9 +1,9 @@
 extern fn add(zp, xp, yp) {
 
   /* n = limbs - 1 */
-  for i in  0..n {
-    x[i] = *(xp + i*8);
-    y[i] = *(yp + i*8);
+  for i in 0..n {
+    x[i] = *xp[i];
+    y[i] = *yp[i];
     if (i = 0) {
       cf? x[0] += y[0];
     } else {
@@ -27,6 +27,6 @@ extern fn add(zp, xp, yp) {
   x[0] += add0;
 
   for i in 0..n {
-    *(zp + i*8) = x[i];
+    *zp[i] = x[i];
   }
 }

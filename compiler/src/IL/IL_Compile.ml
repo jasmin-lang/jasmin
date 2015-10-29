@@ -537,7 +537,6 @@ let to_asm_x64 efun =
 
     | App(op,([_;d] | [d]),s1::s2::cin) ->
       ensure (equal_src (dest_to_src d) s1) "add/sub with dest<>src1";
-
       let instr =
         match op,cin with
         | Add,  []  -> X64.( Binop(Add,trans_src s2,trans_dest d) )
@@ -549,6 +548,7 @@ let to_asm_x64 efun =
         | _         -> assert false
       in
       [c; instr]
+
     | _ -> assert false
   in
   let asm_code =

@@ -1,8 +1,8 @@
 extern fn sub(zp, xp, yp ) {
 
   for i in  0..n {
-    x[i] = *(xp + i*8);
-    y[i] = *(yp + i*8);
+    x[i] = *xp[i];
+    y[i] = *yp[i];
     if i = 0 {
       cf? x[0] -= y[0];
     } else {
@@ -26,7 +26,6 @@ extern fn sub(zp, xp, yp ) {
   x[0] -= sub0;
 
   for j in 0..n {
-    *(zp + j*8) = x[j];
+    *zp[j] = x[j];
   }
-
 }

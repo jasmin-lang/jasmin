@@ -5,7 +5,7 @@ open Core_kernel.Std
 
 module F = Format
 
-(* ** Compile time expressionsx
+(* ** Compile time expressions
  * ------------------------------------------------------------------------ *)
 
 type cvar = string with sexp, compare

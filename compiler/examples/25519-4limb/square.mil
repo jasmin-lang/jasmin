@@ -7,16 +7,16 @@ extern fn square(zp, xp) {
 
   /* sum up products x_i*x_j where j = i + 1 */
   for i in 0..(n - 1) {
-    rax = *(xp + (i + 1)*8);
-    rdx, rax = rax * *(xp + i*8);
+    rax = *xp[i + 1];
+    rdx, rax = rax * *xp[i];
     z[2*i + 1] = rax;
     z[2*i + 2] = rdx;
   }
 
   /* sum up products x_i*x_j where j = i + 2 */
   for i in 0..(n - 2) {
-    rax = *(xp + (i + 2)*8);
-    rdx, rax = rax * *(xp + i*8);
+    rax = *xp[i + 2];
+    rdx, rax = rax * *xp[i];
     cf? z[2*i + 2] += rax;
     cf? z[2*i + 3] += rdx + cf;
         z[2*i + 4] += 0   + cf;        
@@ -24,8 +24,8 @@ extern fn square(zp, xp) {
 
   /* sum up products x_i*x_j where j = i + 3 */
   for i in 0..(n - 3) {
-    rax = *(xp + (i + 3)*8);
-    rdx, rax = rax * *(xp + i*8);
+    rax = *xp[i + 3];
+    rdx, rax = rax * *xp[i];
     cf? z[2*i + 3] += rax;
     cf? z[2*i + 4] += rdx + cf;
     cf? z[2*i + 5] += 0   + cf;
@@ -46,8 +46,8 @@ extern fn square(zp, xp) {
   /* compute x_i*x_i for i=0..2 and store in
      z[0]|t[1]|t[2]|t[3]|rax|rdx  */
   for i in 0..2 {
-    rax = *(xp + i*8);
-    rdx, rax = rax * *(xp + i*8);
+    rax = *xp[i];
+    rdx, rax = rax * *xp[i];
     if (i != 2) {
       if (i = 0) {
         z[0] = rax;
@@ -74,8 +74,8 @@ extern fn square(zp, xp) {
     }
   }
 
-  rax = *(xp + 3*8);
-  rdx, rax = rax * *(xp + 3*8);
+  rax = *xp[3];
+  rdx, rax = rax * *xp[3];
   cf? z[6] += rax;
   z[7] += rdx + cf;
   
@@ -110,6 +110,6 @@ extern fn square(zp, xp) {
   z[0] += l;
 
   for i in 0..n {
-    *(zp + i*8) = z[i];
+    *zp[i] = z[i];
   }
 }

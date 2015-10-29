@@ -100,6 +100,8 @@ ccond :
 %inline mem:
 | STAR LPAREN r=preg mi=offset? RPAREN
     { (r,Std.Option.value ~default:(Cconst Int64.zero) mi) }
+| STAR r=preg LBRACK i=cexpr RBRACK
+    { (r,Cbinop(Cmult,i,Cconst (Int64.of_int 8))) }
 
 (* -------------------------------------------------------------------- *)
 (* Operators and assignments *)
@@ -107,7 +109,6 @@ ccond :
 offset:
 | PLUS e=cexpr { e }
 | MINUS e=cexpr { Cbinop(Cminus,Cconst(Int64.zero),e) }
-
 
 src :
 | r=preg { Sreg(r) }
@@ -149,7 +150,6 @@ assgn_rhs:
 | s=src { `Assgn(s) }
 | s=src IF e = EXCL? cf = ID { `Cmov(s,Sreg(cf,[]),CfSet(e=None)) }
 | s1=src op=binop s2=src { `Bop(op,s1,s2) }
-
 
 base_instr :
 | d=dest EQ rhs = assgn_rhs
