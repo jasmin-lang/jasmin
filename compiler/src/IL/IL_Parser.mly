@@ -17,6 +17,11 @@ open Core_kernel
 %token GREATER
 %token GEQ
 %token SHREQ SHLEQ XOREQ
+%token COLON
+
+%token T_I64
+%token T_U64
+%token T_BOOL
 
 %token STAR
 %token BAND
@@ -50,7 +55,7 @@ open Core_kernel
 %left MINUS PLUS
 %left STAR
 
-%type <IL_Lang.efun list> efuns
+%type <IL_Lang.efun_ut list> efuns
 
 %start efuns
 
@@ -92,10 +97,11 @@ ccond :
   { Ccond(o,c1,c2) }
 
 %inline preg :
-| s=ID                        { (s,[]) }
-| s=ID LBRACK ce=cexpr RBRACK { (s,[ce]) }
+| s=ID                        
+    { { pr_name = s; pr_index = []; pr_aux = () } }
+| s=ID LBRACK ce=cexpr RBRACK
+    { { pr_name = s; pr_index = [ce]; pr_aux = () } }
   (* FIXME: support multi-dimensional arrays *)
-
 
 %inline mem:
 | STAR LPAREN r=preg mi=offset? RPAREN
@@ -148,7 +154,8 @@ binop:
 
 assgn_rhs:
 | s=src { `Assgn(s) }
-| s=src IF e = EXCL? cf = ID { `Cmov(s,Sreg(cf,[]),CfSet(e=None)) }
+| s=src IF e = EXCL? cf = preg
+  { `Cmov(s,Sreg(cf),CfSet(e=None)) }
 | s1=src op=binop s2=src { `Bop(op,s1,s2) }
 
 base_instr :
@@ -225,14 +232,41 @@ stmt :
 return :
 | RETURN ret = tuple(preg) SEMICOLON { ret }
 
+typ :
+| STAR t = typ
+  { Ptr(t) }
+| T_U64
+  { U64 }
+| T_I64
+  { I64 }
+| T_BOOL
+  { Bool }
+
+typed_var :
+| v = ID COLON t = typ
+  { (v,t) }
+
+typed_preg :
+| v = preg COLON t = typ
+  { (v,t) }
+
+params :
+| LESS tvars = separated_list(COMMA,typed_var) GREATER
+  { tvars }
+
 efun :
-| EXTERN FN name = ID LPAREN args = separated_list(COMMA,preg) RPAREN
+| EXTERN FN name = ID
+    ps = params?
+    LPAREN args = separated_list(COMMA,typed_preg) RPAREN
   LCBRACE
     s = stmt
     r = return?
   RCBRACE
-  { { ef_name = name; ef_args = args; ef_body = s;
-      ef_ret = Option.value ~default:[] r } }
+  { { ef_name   = name;
+      ef_params = Option.value ~default:[] ps;
+      ef_args   = Std.List.map ~f:(fun (pr,t) -> { pr with pr_aux = t }) args;
+      ef_body   = s;
+      ef_ret    = Option.value ~default:[] r } }
     
 
 efuns :

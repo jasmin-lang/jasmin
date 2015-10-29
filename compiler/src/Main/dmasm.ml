@@ -21,7 +21,8 @@ let parse_and_process ~parse ~ftype ~process file =
     eprintf "%s%!" s
   end
 
-let process_mil trafo print_result out_file file efuns =
+let process_mil trafo print_result out_file file efuns_ut =
+  let efuns = ILTy.efuns_type efuns_ut in
   let efun = List.hd_exn efuns in
   match ILT.apply_transform_asm trafo efun with
   | `Asm_X64 afun ->

@@ -52,17 +52,17 @@ let eval_ccond cvar_map cc =
 let inst_cexpr cvar_map ce =
   Cconst (Big_int.int64_of_big_int (eval_cexpr cvar_map ce))
 
-let inst_reg cvar_map (r,ies) =
-  (r,List.map ~f:(inst_cexpr cvar_map) ies)
+let inst_preg cvar_map preg =
+  { preg with pr_index = List.map ~f:(inst_cexpr cvar_map) preg.pr_index }
 
 let inst_src cvar_map = function
-  | Sreg(r)       -> Sreg(inst_reg cvar_map r)
-  | Smem(r,ie)    -> Smem(inst_reg cvar_map r, inst_cexpr cvar_map ie)
+  | Sreg(r)       -> Sreg(inst_preg cvar_map r)
+  | Smem(r,ie)    -> Smem(inst_preg cvar_map r, inst_cexpr cvar_map ie)
   | Simm(_) as im -> im
 
 let inst_dest cvar_map = function
-  | Dreg(v)       -> Dreg(inst_reg cvar_map v)
-  | Dmem(v,ie)    -> Dmem(inst_reg cvar_map v, inst_cexpr cvar_map ie)
+  | Dreg(v)       -> Dreg(inst_preg cvar_map v)
+  | Dmem(v,ie)    -> Dmem(inst_preg cvar_map v, inst_cexpr cvar_map ie)
 
 let inst_base_instr cvar_map bi =
   let inst_d = inst_dest cvar_map in
@@ -119,7 +119,7 @@ let transform_ssa efun =
   let var_map = Preg.Table.create () in
   let get_index pr =
     match Hashtbl.find var_map pr with
-    | Some r -> ("r", [Cconst r])
+    | Some r -> { pr with pr_name = "r"; pr_index = [Cconst r] }
     | None   ->
       let pp_alist = pp_list "," (pp_pair "," pp_preg pp_int64) in
       failwith (fsprintf "transform_ssa: %a undefined\n%a"
@@ -128,7 +128,7 @@ let transform_ssa efun =
   let new_index pr =
     counter := Int64.succ !counter;
     Hashtbl.set var_map ~key:pr ~data:!counter;
-    ("r", [Cconst !counter])
+    { pr with pr_name = "r"; pr_index = [Cconst !counter] }
   in
   let update_src = function
     | Simm(_) as s -> s
@@ -292,9 +292,9 @@ let register_allocate nregs efun0 =
     free_regs := Set.remove !free_regs i
   in
 
-  (* mapping from pseudo registers to integers 0 .. nreg -1 denoting machine registers *)
+  (* mapping from pseudo registers to integers 0 .. nreg-1 denoting machine registers *)
   let reg_map = Preg.Table.create () in
-  let int_to_preg i = fsprintf "%%%i" i,[] in
+  let int_to_preg i = { pr_name = fsprintf "%%%i" i; pr_index = []; pr_aux = U64 } in
   let get_reg pr = int_to_preg (Hashtbl.find_exn reg_map pr) in
 
   (* track pseudo-registers that require a fixed register *)
@@ -342,7 +342,7 @@ let register_allocate nregs efun0 =
           fsprintf
             "required register %s (%s) for %a already in use\nfree registers: [%a]\nmap: %a"
             (X64.string_of_reg (X64.reg_of_int ri))
-            (fst (int_to_preg ri))
+            ((int_to_preg ri).pr_name)
             pp_preg pr
             (pp_list "," pp_int) (Set.to_list !free_regs)
             (pp_list "," (pp_pair "->" pp_preg pp_int))
@@ -456,7 +456,7 @@ let to_asm_x64 efun =
       failwith
         (fsprintf "to_asm_x64: expected register of the form %%i, got %a" pp_preg pr)
     in
-    let s = match pr with (s,[]) -> s | _ -> fail () in
+    let s = if pr.pr_index<>[] then fail () else pr.pr_name in
     let i =
       try
         begin match String.split s ~on:'%' with

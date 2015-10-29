@@ -1,8 +1,9 @@
-extern fn mul(zp, xp, yp0 /* rdx */) {
-
+extern fn mul<n : i64>(
+  zp : *u64, xp : *u64, yp0 : *u64 /* rdx */
+) {
   yp = yp0;
   
-  x[0] = *(xp);
+  x[0] = *xp[0];
   for j in 0..n {
     y[j] = *yp[j];
     h, l = y[j] * x[0];

@@ -35,7 +35,7 @@ let rec pp_icond fmt = function
   | Cand(c1,c2)      -> F.fprintf fmt"(%a && %a)" pp_icond c1 pp_icond c2
   | Ccond(o,ie1,ie2) -> F.fprintf fmt"(%a %s %a)" pp_cexpr ie1 (icondop_to_string o) pp_cexpr ie2
 
-let pp_preg fmt  (r,ies)=
+let pp_preg fmt  { pr_name= r; pr_index = ies } =
   match ies with
   | []   -> F.fprintf fmt "%s" r
   | _::_ -> F.fprintf fmt "%s[%a]" r (pp_list "," pp_cexpr) ies

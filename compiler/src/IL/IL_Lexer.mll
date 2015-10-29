@@ -22,6 +22,11 @@ rule lex = parse
   | "("     { LPAREN }
   | ")"     { RPAREN }
 
+  | ":"     { COLON }
+
+  | "u64"   { T_U64 }
+  | "i64"   { T_I64 }
+  | "bool"  { T_BOOL }
 
   | "="     { EQ }
   | "!="    { INEQ }

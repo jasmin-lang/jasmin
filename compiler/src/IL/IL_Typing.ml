@@ -12,4 +12,8 @@ We should perform the following checks:
 5. ensure that src1 and dest equal for X64
 *)
 
-let check_stmt (st : IL_Lang.stmt) = true
+let efuns_type (_efun : IL_Lang.efun_ut list) : IL_Lang.efun list =
+  failwith "undefined"
+
+let efun_type (_efun : IL_Lang.efun_ut) : IL_Lang.efun =
+  failwith "undefined"

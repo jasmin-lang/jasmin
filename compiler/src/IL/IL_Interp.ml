@@ -7,6 +7,7 @@ open Arith
 open IL_Lang
 open IL_Compile
 open IL_Utils
+open IL_Typing
 
 (* ** Interpreter
  * ------------------------------------------------------------------------ *)
@@ -190,7 +191,8 @@ let interp_stmt
 
 let interp_string mem args string =
   let open ParserUtil in
-  let efun = List.hd_exn (parse ~parse:IL_Parse.efuns "" string) in
+  let efun_ut = List.hd_exn (parse ~parse:IL_Parse.efuns "" string) in
+  let efun = efun_type efun_ut in
   let stmt = efun.ef_body in
 
   let arg_regs = efun.ef_args in
