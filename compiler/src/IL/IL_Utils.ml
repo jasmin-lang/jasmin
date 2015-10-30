@@ -2,6 +2,7 @@
 
 open Core_kernel.Std
 open IL_Lang
+open Arith
 open Util
 
 (* ** Pretty printing
@@ -19,7 +20,7 @@ let rec pp_cexpr fmt ce =
   | Cbinop(op,ie1,ie2) ->
     F.fprintf fmt "%a %s %a" pp_cexpr ie1 (ibinop_to_string op) pp_cexpr ie2
   | Cconst(u) ->
-    pp_string fmt (Int64.to_string u)
+    pp_string fmt (U64.to_string u)
 
 let icondop_to_string = function
   | Ceq      -> "="
@@ -42,7 +43,7 @@ let pp_preg fmt  { pr_name= r; pr_index = ies } =
 
 let pp_src fmt = function
   | Sreg(pr)    -> pp_preg fmt pr
-  | Simm(u)     -> pp_string fmt (Int64.to_string u)
+  | Simm(u)     -> pp_string fmt (U64.to_string u)
   | Smem(iv,ie) -> F.fprintf fmt "*(%a + %a)" pp_preg iv pp_cexpr ie
 
 let pp_dest fmt d = pp_src fmt (dest_to_src d)
@@ -57,8 +58,8 @@ let op_to_string = function
   | Assgn -> ""
   | Shift(Right) -> "shr"
   | Shift(Left)  -> "shl"
-  | Cmov(CfSet(true))  -> "cmov_if_carry"
-  | Cmov(CfSet(false)) -> "cmov_if_not_carry"
+  | CMov(CfSet(true))  -> "cmov_if_carry"
+  | CMov(CfSet(false)) -> "cmov_if_not_carry"
 
 let pp_base_instr fmt = function
   | Comment(s) ->
@@ -91,6 +92,13 @@ let pp_efun fmt ef =
     (pp_list "," pp_preg) ef.ef_args
     pp_stmt ef.ef_body
     pp_return ef.ef_ret
+
+let pp_ty fmt ty =
+  match ty with
+  | Array(ces) -> F.fprintf fmt "u64[%a]" (pp_list "," pp_cexpr) ces
+  | Ivals(ces) -> F.fprintf fmt "u64<%a>" (pp_list "," pp_cexpr) ces
+  | Bool       -> F.fprintf fmt "bool"
+  | U64        -> F.fprintf fmt "u64"
 
 let shorten_efun n efun =
   if List.length efun.ef_body <= n then efun

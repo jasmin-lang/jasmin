@@ -30,7 +30,6 @@ let print_mstate ms =
     (U64.Map.to_alist ms.mmem)
 
 let get_addr addr_r offset =
-  let offset = U64.of_int64 offset in
   let c8 = U64.of_int 8 in
   (* we only allow aligned reads/writes *)
   assert (U64.is_zero (U64.rem offset c8));
@@ -38,12 +37,12 @@ let get_addr addr_r offset =
 
 let rec read_src ms s =
   match s with
-  | Simm i -> U64.of_int64 i
+  | Simm i -> i
   | Sreg r ->
     begin match Map.find ms.mregs r with
     | Some x -> x
     | None   -> 
-      failwith (fsprintf "cannot read register %a" pp_preg r)
+      failwith (fsprintf "cannot read register %a:%a" pp_preg r pp_ty r.pr_aux)
     end
   | Smem(r,Cconst i) ->
     let addr_r = read_src ms (Sreg r) in
@@ -88,35 +87,25 @@ let write_flag ms d b =
 let interp_base_instr (ms : mstate) binstr =
   let go = function
 
-    | App(Assgn,[d],[s]) ->
+    | A_Assgn(d,s) ->
       let x = read_src ms s in
       write_dest ms d x
 
-    | App(UMul,[h;l],[x;y]) ->
+    | A_UMul((h,l),(x,y)) ->
       let x = read_src ms x in
       let y = read_src ms y in
       let (zh,zl) = U64.umul x y in
       let ms = write_dest ms l zl in
       write_dest ms h zh
 
-    | App(((Add | Sub) as op),dest,x::y::cf_in_list) ->
-      let cf = match cf_in_list with
-        | [cf_in] -> read_flag ms cf_in
-        | []      -> false
-        | _       -> assert false
-      in
+    | A_Carry(cop,(mcf_out,z),(x,y,mcf_in)) ->
+      let cf = Option.value_map mcf_in ~default:false ~f:(fun cf -> read_flag ms cf) in
       let x = read_src ms x in
       let y = read_src ms y in
       let (zo,cfo) =
-        match op with
-        | Add -> U64.add_carry x y cf
-        | Sub -> U64.sub_carry x y cf
-        | _ -> assert false
-      in
-      let (mcf_out, z) = match dest with
-        | [cf_out; z] -> (Some cf_out, z)
-        | [z]         -> (None,z)
-        | _           -> assert false
+        match cop with
+        | O_Add -> U64.add_carry x y cf
+        | O_Sub -> U64.sub_carry x y cf
       in
       let ms = write_dest ms z zo in
       begin match mcf_out with
@@ -124,75 +113,50 @@ let interp_base_instr (ms : mstate) binstr =
       | None        -> ms
       end
 
-    | App(Cmov(CfSet cf_is_set),[d],[s1;s2;cf_in])  ->
+    | A_CMov(CfSet cf_is_set,d,(s1,s2,cf_in))  ->
       let s1 = read_src ms s1 in
       let s2 = read_src ms s2 in
       let cf = read_flag ms cf_in in
       let res = if cf = cf_is_set then s2 else s1 in
       write_dest ms d res
 
-    | App(IMul,[z], [x;y])  ->
+    | A_IMul(z,(x,y)) ->
       assert (is_Simm y);
       let x = read_src ms x in
       let y = read_src ms y in
       write_dest ms z (fst (U64.imul_trunc x y))
     
-    | App(BAnd,[_d],[_s1;_s2]) ->
+    | A_Logic(_lop,_d,(_s1,_s2)) ->
       failwith "not implemented"
 
-    | App(Xor, [_d],[_s1;_s2]) ->
+    | A_Shift(_dir,(_mcf_out,_z),(_x,_cn)) ->
       failwith "not implemented"
 
-    | App(Shift(_dir),[_cf_out;_z],[_x;_cn]) ->
-      failwith "not implemented"
-
-    (* handled separately *)
-    | Comment _ -> assert false
-
-    (* wrong arity *)
-    | App(Assgn,([] | _::_::_),_)                            -> assert false
-    | App(Assgn,_,([] | _::_::_))                            -> assert false
-    | App(IMul,([] | _::_::_),  _)                           -> assert false
-    | App(IMul,_, ([] | [_] | _::_::_::_))                   -> assert false
-    | App((Add | Sub),([] | [_] | _::_::_::_),_)             -> assert false
-    | App((Add | Sub),_,([] | [_] )) -> assert false
-    | App((BAnd | Xor),([] | _::_::_),_)                     -> assert false
-    | App((BAnd | Xor),_,([] | [_] | _::_::_::_))            -> assert false
-    | App(Cmov _,([] | _::_::_),_)                           -> assert false
-    | App(Cmov _,_,([] | [_] | [_;_]| _::_::_::_::_))        -> assert false
-    | App((UMul | Shift _),_,([] | [_] | _::_::_::_))        -> assert false
-    | App((UMul | Shift _),([] | [_] | _::_::_::_),_)        -> assert false
   in
   if not (is_Comment binstr) then (
     (* F.printf "####################################\n"; 
     F.printf "executing: %a\n" pp_base_instr binstr; *)
-    let ms = go binstr in
+    let aview = match binstr with App(o,d,s) -> app_view (o,d,s) | Comment _ -> assert false in
+    let ms = go aview in
     (* print_mstate ms; *)
     ms
   ) else (
     ms
   )
 
-let interp_base_instrs
-  (ms0 : mstate)
-  (instrs : base_instr list)
-  =
+let interp_base_instrs (ms0 : mstate) (instrs : base_instr list) =
   List.fold instrs
     ~f:(fun ms i -> interp_base_instr ms i)
     ~init:ms0
 
-let interp_stmt
-  (ms : mstate)
-  cvar_map
-  stmt
-  =
+let interp_stmt (ms : mstate) cvar_map stmt =
   let instrs = macro_expand cvar_map stmt in
   interp_base_instrs ms instrs  
 
 let interp_string mem args string =
   let open ParserUtil in
   let efun_ut = List.hd_exn (parse ~parse:IL_Parse.efuns "" string) in
-  let efun = efun_type efun_ut in
+  let efun = type_efun efun_ut (String.Table.create ()) in
   let stmt = efun.ef_body in
 
   let arg_regs = efun.ef_args in

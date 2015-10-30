@@ -1,6 +1,10 @@
 %{
 open IL_Lang
 open Core_kernel
+open Arith
+
+type instr_decl = Ins of instr_ut | Decl of (preg_ut * ty) list
+
 %}
 
 /*======================================================================*/
@@ -19,7 +23,6 @@ open Core_kernel
 %token SHREQ SHLEQ XOREQ
 %token COLON
 
-%token T_I64
 %token T_U64
 %token T_BOOL
 
@@ -35,6 +38,8 @@ open Core_kernel
 %token SHR
 %token SHL
 %token XOR
+
+%token REG
 
 %token FOR
 %token IN
@@ -83,7 +88,7 @@ open Core_kernel
 
 cexpr :
 | s=ID  { Cvar(s) }
-| i=INT { Cconst(i) }
+| i=INT { Cconst(U64.of_int64 i) }
 | e1=cexpr o=cbinop e2=cexpr { Cbinop(o,e1,e2) }
 | LPAREN e1=cexpr RPAREN { e1 }
 
@@ -99,26 +104,19 @@ ccond :
 %inline preg :
 | s=ID                        
     { { pr_name = s; pr_index = []; pr_aux = () } }
-| s=ID LBRACK ce=cexpr RBRACK
-    { { pr_name = s; pr_index = [ce]; pr_aux = () } }
-  (* FIXME: support multi-dimensional arrays *)
+| s=ID LESS ces=separated_list(COMMA,cexpr) GREATER
+    { { pr_name = s; pr_index = ces; pr_aux = () } }
 
 %inline mem:
-| STAR LPAREN r=preg mi=offset? RPAREN
-    { (r,Std.Option.value ~default:(Cconst Int64.zero) mi) }
-| STAR r=preg LBRACK i=cexpr RBRACK
-    { (r,Cbinop(Cmult,i,Cconst (Int64.of_int 8))) }
+| r=preg LBRACK i=cexpr RBRACK
+    { (r,Cbinop(Cmult,i,Cconst (U64.of_int 8))) }
 
 (* -------------------------------------------------------------------- *)
 (* Operators and assignments *)
 
-offset:
-| PLUS e=cexpr { e }
-| MINUS e=cexpr { Cbinop(Cminus,Cconst(Int64.zero),e) }
-
 src :
 | r=preg { Sreg(r) }
-| i=INT { Simm(i) }
+| i=INT { Simm(U64.of_int64 i) }
 | m = mem { Smem(fst m, snd m) }
 
 dest :
@@ -172,7 +170,7 @@ base_instr :
         | `Xor   -> App(Xor,[d],[s1;s2])
         end
       | `Assgn(s) -> App(Assgn,[d],[s])
-      | `Cmov(s,f,cmf) -> App(Cmov(cmf),[d],[dest_to_src d;s;f])
+      | `Cmov(s,f,cmf) -> App(CMov(cmf),[d],[dest_to_src d;s;f])
     }
 
 | cf_out=cfout d=dest oeq=opeq s=src cf_in=cfin?
@@ -205,7 +203,11 @@ celse :
   { is }
 
 instr :
-| ir = base_instr SEMICOLON { BInstr(ir) }
+| ir = base_instr SEMICOLON
+  { Ins(BInstr(ir)) }
+
+| d = decl SEMICOLON
+  { Decl(d) }
 
 | IF c=ccond
     i1s = block
@@ -217,14 +219,15 @@ instr :
         ~f:(fun celse (c,bi) -> [If(c,bi,celse)])
         (List.rev ies)
     in
-    If(c,i1s,ielse) }
+    Ins(If(c,i1s,ielse)) }
 
 | FOR cv=ID IN ce1=cexpr DOTDOT ce2=cexpr
     is = block
-    { For(cv,ce1,ce2,is) }
+    { Ins(For(cv,ce1,ce2,is)) }
 
 block :
-| LCBRACE stmt = instr* RCBRACE { stmt }
+| LCBRACE stmt = instr* RCBRACE
+  { Std.List.map ~f:(function Ins(i) -> i | Decl(_) -> assert false) stmt }
 
 stmt :
 | stmt = instr* { stmt }
@@ -233,39 +236,48 @@ return :
 | RETURN ret = tuple(preg) SEMICOLON { ret }
 
 typ :
-| STAR t = typ
-  { Ptr(t) }
 | T_U64
   { U64 }
-| T_I64
-  { I64 }
 | T_BOOL
   { Bool }
+| T_U64 LBRACK ces = separated_list(COMMA,cexpr) RBRACK
+  { Array(ces) }
+| T_U64 LESS ces = separated_list(COMMA,cexpr) GREATER
+  { Ivals(ces) }
 
 typed_var :
 | v = ID COLON t = typ
   { (v,t) }
 
 typed_preg :
-| v = preg COLON t = typ
-  { (v,t) }
+| vs = separated_nonempty_list(COMMA,preg) COLON t = typ
+  { Std.List.map ~f:(fun v -> (v,t)) vs }
 
 params :
 | LESS tvars = separated_list(COMMA,typed_var) GREATER
   { tvars }
 
+decl :
+| REG trs = typed_preg
+  { trs }
+
 efun :
-| EXTERN FN name = ID
+| ext = EXTERN? FN name = ID
     ps = params?
     LPAREN args = separated_list(COMMA,typed_preg) RPAREN
   LCBRACE
     s = stmt
     r = return?
   RCBRACE
-  { { ef_name   = name;
+  { let ds = Std.List.filter_map ~f:(function Decl(ds) -> Some ds | _ -> None) s in
+    let is = Std.List.filter_map ~f:(function Ins(i) -> Some i | _ -> None) s in
+    {
+      ef_name   = name;
+      ef_extern = ext<>None;
       ef_params = Option.value ~default:[] ps;
-      ef_args   = Std.List.map ~f:(fun (pr,t) -> { pr with pr_aux = t }) args;
-      ef_body   = s;
+      ef_args   = Std.List.map ~f:(fun (pr,t) -> { pr with pr_aux = t }) (List.concat args);
+      ef_decls  = Std.List.map ~f:(fun (pr,t) -> { pr with pr_aux = t }) (List.concat ds);
+      ef_body   = is;
       ef_ret    = Option.value ~default:[] r } }
     
 

@@ -25,7 +25,6 @@ rule lex = parse
   | ":"     { COLON }
 
   | "u64"   { T_U64 }
-  | "i64"   { T_I64 }
   | "bool"  { T_BOOL }
 
   | "="     { EQ }
@@ -56,6 +55,8 @@ rule lex = parse
   | ">>"    { SHR }
   | "<<"    { SHL }
   | "^"     { XOR }
+
+  | "reg"    { REG }
 
   | "for"    { FOR }
   | "in"     { IN }

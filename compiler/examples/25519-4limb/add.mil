@@ -1,13 +1,15 @@
-extern fn add(zp, xp, yp) {
+/* The implementation is parameterized by "n = limbs - 1". */
+extern fn add<n : u64>(zp, xp, yp : u64[n]) {
 
-  /* n = limbs - 1 */
+  reg x, y, z : u64<n>;
+
   for i in 0..n {
-    x[i] = *xp[i];
-    y[i] = *yp[i];
+    x<i> = xp[i];
+    y<i> = yp[i];
     if (i = 0) {
-      cf? x[0] += y[0];
+      cf? x<0> += y<0>;
     } else {
-      cf? x[i] += y[i] + cf;
+      cf? x<i> += y<i> + cf;
     }
   }
 
@@ -17,16 +19,16 @@ extern fn add(zp, xp, yp) {
 
   for i in  0..n {
     if (i = 0) {
-      cf? x[0] += add1;
+      cf? x<0> += add1;
     } else {
-      cf? x[i] += add0 + cf;
+      cf? x<i> += add0 + cf;
     }
   }
 
   add0 = add1 if cf;
-  x[0] += add0;
+  x<0> += add0;
 
   for i in 0..n {
-    *zp[i] = x[i];
+    zp[i] = x<i>;
   }
 }

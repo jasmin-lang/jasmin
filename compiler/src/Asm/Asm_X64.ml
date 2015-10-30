@@ -5,6 +5,7 @@ See http://ref.x86asm.net/coder64-abc.html for a quick overview.
 *)
 
 open Util
+open Arith
 
 module F = Format
 
@@ -20,10 +21,10 @@ module type VAL = sig
 end
 
 module V64 = struct
-  type qword = int64
-  type address = int64
-  let qword_to_string = Int64.to_string
-  let address_to_string = Int64.to_string
+  type qword = u64
+  type address = u64
+  let qword_to_string = U64.to_string
+  let address_to_string = U64.to_string
 end
 
 (* ** Instructions are a functor
@@ -62,7 +63,7 @@ module Make_Instr(V : VAL) = struct
     | IMul         (* multiplication *)
 
 
-  type offset = int64
+  type offset = u64
     
   type src =
     | Sreg of reg          (* Sreg(r): use register *)
@@ -202,7 +203,7 @@ type afun = {
   let pp_src fmt = function
     | Sreg(r)     -> pp_string fmt (string_of_reg r)
     | Simm(i)     -> F.fprintf fmt "$%s" (V.qword_to_string i)
-    | Smem(reg,i) -> F.fprintf fmt "%s(%s)" (Int64.to_string i) (string_of_reg reg)
+    | Smem(reg,i) -> F.fprintf fmt "%s(%s)" (U64.to_string i) (string_of_reg reg)
 
   let pp_dest fmt d = pp_src fmt (dest_to_src d)
 

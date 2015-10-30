@@ -21,7 +21,7 @@ let eval_cbinop = function
 let eval_cexpr cvar_map ce =
   let rec go = function
     | Cbinop(o,ie1,ie2) -> eval_cbinop o (go ie1) (go ie2)
-    | Cconst(c)         -> Big_int.big_int_of_int64 c
+    | Cconst(c)         -> U64.to_big_int c
     | Cvar(s) ->
       begin match Map.find cvar_map s with
       | Some x -> x
@@ -50,7 +50,7 @@ let eval_ccond cvar_map cc =
   go cc
 
 let inst_cexpr cvar_map ce =
-  Cconst (Big_int.int64_of_big_int (eval_cexpr cvar_map ce))
+  Cconst (U64.of_big_int (eval_cexpr cvar_map ce))
 
 let inst_preg cvar_map preg =
   { preg with pr_index = List.map ~f:(inst_cexpr cvar_map) preg.pr_index }
@@ -115,20 +115,21 @@ let macro_expand cvar_map st =
 
 let transform_ssa efun =
   let bis = stmt_to_base_instrs efun.ef_body in
-  let counter = ref (Int64.of_int (-1)) in
+  let counter = ref (U64.of_int 0) in
   let var_map = Preg.Table.create () in
   let get_index pr =
     match Hashtbl.find var_map pr with
     | Some r -> { pr with pr_name = "r"; pr_index = [Cconst r] }
     | None   ->
-      let pp_alist = pp_list "," (pp_pair "," pp_preg pp_int64) in
+      let pp_alist = pp_list "," (pp_pair "," pp_preg pp_uint64) in
       failwith (fsprintf "transform_ssa: %a undefined\n%a"
                   pp_preg pr pp_alist (Hashtbl.to_alist var_map))
   in
   let new_index pr =
-    counter := Int64.succ !counter;
-    Hashtbl.set var_map ~key:pr ~data:!counter;
-    { pr with pr_name = "r"; pr_index = [Cconst !counter] }
+    let c = !counter in
+    counter := U64.succ !counter;
+    Hashtbl.set var_map ~key:pr ~data:c;
+    { pr with pr_name = "r"; pr_index = [Cconst c] }
   in
   let update_src = function
     | Simm(_) as s -> s
@@ -261,10 +262,10 @@ let eq_constrs bis =
      fix_class i1 X64.RDX;
      fix_class i2 X64.RAX;
 
-   | App(Cmov _, [Dreg(d)],[Sreg(s1);_s2;_cin]) ->
+   | App(CMov _, [Dreg(d)],[Sreg(s1);_s2;_cin]) ->
      ignore (add_to_class s1 d)
 
-   | App((Add|Sub|UMul|Cmov _), _, _) as bi ->
+   | App((Add|Sub|UMul|CMov _), _, _) as bi ->
      failwith (fsprintf "eq_constrs: unexpected instruction %a\n" pp_base_instr bi)
 
    | App(_, ds, _) ->
@@ -405,7 +406,7 @@ let register_allocate nregs efun0 =
 
           | App(Add,_,_) -> assert false
 
-          | App(Cmov(_) as o,[Dreg(d)],[Sreg(s1);s2;cfin]) ->
+          | App(CMov(_) as o,[Dreg(d)],[Sreg(s1);s2;cfin]) ->
              let r1 = Hashtbl.find_exn reg_map s1 in
              let s1 = trans_src (Sreg(s1)) in
              let s2 = trans_src s2        in
@@ -414,7 +415,7 @@ let register_allocate nregs efun0 =
              let d = trans_dest (Dreg d) in
              App(o,[d],[s1;s2;cfin])
 
-          | App(Cmov(_),_,_) -> assert false
+          | App(CMov(_),_,_) -> assert false
 
           | App(o,ds,ss) ->
              let ss = List.map ~f:trans_src ss in
@@ -518,7 +519,7 @@ let to_asm_x64 efun =
       ensure (is_dest_reg dl) "imul dest must be register";
       [c; X64.( Triop(IMul,trans_src s2,trans_src s1,trans_dest dl) )]
 
-    | App(Cmov(CfSet(b)),[d],[s1;s2;_cin]) ->
+    | App(CMov(CfSet(b)),[d],[s1;s2;_cin]) ->
       ensure (equal_src (dest_to_src d) s1) "cmov with dest<>src1";
       let instr = X64.( Binop(Cmov(CfSet(b)),trans_src s2,trans_dest d) ) in
       [c; instr]
@@ -558,7 +559,7 @@ let to_asm_x64 efun =
     { af_name = efun.ef_name;
       af_body = asm_code;
       af_args = List.map ~f:mreg_of_preg efun.ef_args;
-      af_ret = List.map ~f:mreg_of_preg efun.ef_ret;
+      af_ret  = List.map ~f:mreg_of_preg efun.ef_ret;
     }
   )
 
@@ -585,7 +586,7 @@ let wrap_asm_function afun =
            Global name;
            Label name;
            Binop(Mov,Sreg RSP,Dreg R11);
-           Binop(And,Simm (Int64.of_int 31),Dreg R11);
+           Binop(And,Simm (U64.of_int 31),Dreg R11);
            Binop(Sub,Sreg R11,Dreg RSP)
     ]) @ (push_pop_call_reg X64.Push )
   in

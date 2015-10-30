@@ -1,6 +1,7 @@
 %{
 
 open Asm_X64
+open Arith
 
 %}
 
@@ -72,12 +73,12 @@ reg :
 | IMUL { IMul }
 
 src:
-| n=NAT LPAREN r=reg RPAREN { Smem(r,n) }
+| n=NAT LPAREN r=reg RPAREN { Smem(r,U64.of_int64 n) }
 | r=reg                     { Sreg(r) }
-| DOLLAR n=NAT              { Simm(n) }
+| DOLLAR n=NAT              { Simm(U64.of_int64 n) }
 
 dest:
-| n=NAT LPAREN r=reg RPAREN { Dmem(r,n) }
+| n=NAT LPAREN r=reg RPAREN { Dmem(r,U64.of_int64 n) }
 | r=reg                     { Dreg(r) }
 
 instr:

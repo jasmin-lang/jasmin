@@ -2,6 +2,7 @@
 
 (* ** Imports and abbreviations *)
 open Core_kernel.Std
+open Arith
 
 module F = Format
 
@@ -19,7 +20,7 @@ type cbinop =
 type cexpr =
   | Cvar   of string
   | Cbinop of cbinop * cexpr * cexpr
-  | Cconst of int64
+  | Cconst of u64
   with sexp, compare
 
 type ccondop =
@@ -44,10 +45,8 @@ type ccond =
 type ty =
   | Bool
   | U64
-  | I64
-  | Ptr   of ty
-  | Array of ty * cexpr
-    (* Array(ty,ce): ce gives the number of elements in the array *)
+  | Array of cexpr list (* Array(ces): ces gives the dimensions of the array *)
+  | Ivals of cexpr list (* Ivals(ces): ces gives dimensions of indexed values *)
   with sexp, compare
 
 type cmov_flag =
@@ -67,104 +66,199 @@ type op =
   | Sub
   | BAnd
   | Xor
-  | Cmov of cmov_flag
+  | CMov of cmov_flag
   | Shift of dir
   with sexp, compare
 
 type name = string with sexp, compare
  
-type 'a preg_gen =
+type 'a preg_g =
   { pr_name  : name
   ; pr_index : cexpr list
   ; pr_aux   : 'a  (* auxiliary information, e.g., type *)
   } with sexp, compare
 
-type 'a src_gen =
-  | Sreg of 'a preg_gen         (* Sreg(r): register r *)
-  | Simm of int64               (* Simm(i): $i *)
-  | Smem of 'a preg_gen * cexpr (* Smem(i,r): i(%r) *)
+type 'a src_g =
+  | Sreg of 'a preg_g         (* Sreg(r): register r *)
+  | Simm of u64               (* Simm(i): $i *)
+  | Smem of 'a preg_g * cexpr (* Smem(r,i): i(%r) *)
   with sexp, compare
 
-type 'a dest_gen =
-  | Dreg of 'a preg_gen         (* Dreg(r): register r *)
-  | Dmem of 'a preg_gen * cexpr (* Dmem(i,r): i(%r) *)
+type 'a dest_g =
+  | Dreg of 'a preg_g         (* Dreg(r): register r *)
+  | Dmem of 'a preg_g * cexpr (* Dmem(r,i): i(%r) *)
   with sexp, compare
 
-type 'a base_instr_gen =
+type 'a base_instr_g =
   | Comment of string
 
-  | App of op * ('a dest_gen) list * ('a src_gen) list
+  | App of op * ('a dest_g) list * ('a src_g) list
 
   with sexp, compare
 
-type 'a instr_gen =
-  | BInstr of 'a base_instr_gen
+type 'a instr_g =
+  | BInstr of 'a base_instr_g
 
-  | If of ccond * 'a stmt_gen * 'a stmt_gen
+  | If of ccond * 'a stmt_g * 'a stmt_g
     (* If(c1,i1,i2): if c1 { i1 } else i2 *)
 
-  | For of cvar * cexpr * cexpr * 'a stmt_gen
+  | For of cvar * cexpr * cexpr * 'a stmt_g
     (* For(v,lower,upper,i): for v in lower..upper { i } *)
 
-and 'a stmt_gen = ('a instr_gen) list
+and 'a stmt_g = ('a instr_g) list
   with sexp, compare
 
 (* extern function that is callable from C *)
-type 'a efun_gen = {
-  ef_name : string;
+type 'a efun_g = {
+  ef_name   : string;
+  ef_extern : bool;               (* use standard C calling conventions *)
   ef_params : (string * ty) list;
-  ef_args : (ty preg_gen) list; (* pseudo registers given as arguments *)
-  ef_body : 'a stmt_gen;
-  ef_ret  : ('a preg_gen) list  (* pseudo registers as return values *)
+  ef_args   : (ty preg_g) list;   (* pseudo registers given as arguments *)
+  ef_decls  : (ty preg_g) list;   (* pseudo register/stack declarations *)
+  ef_body   : 'a stmt_g;
+  ef_ret    : ('a preg_g) list    (* pseudo registers as return values *)
 } with sexp, compare
 
 (* ** Type abbreviations for untyped variants
  * ------------------------------------------------------------------------ *)
 
-type preg_ut = unit preg_gen
+type preg_ut = unit preg_g
   with sexp, compare
 
-type src_ut = unit src_gen
+type src_ut = unit src_g
   with sexp, compare
 
-type dest_ut = unit dest_gen
+type dest_ut = unit dest_g
   with sexp, compare
 
-type base_instr_ut = unit base_instr_gen
+type base_instr_ut = unit base_instr_g
   with sexp, compare
 
-type instr_ut = unit instr_gen
+type instr_ut = unit instr_g
   with sexp, compare
 
-type stmt_ut = unit stmt_gen
+type stmt_ut = unit stmt_g
   with sexp, compare
 
-type efun_ut = unit efun_gen
+type efun_ut = unit efun_g
   with sexp, compare
 
-(* ** Type abbreviations for untyped variants
+(* ** Type abbreviations for typed variants
  * ------------------------------------------------------------------------ *)
 
-type preg = ty preg_gen
+type preg = ty preg_g
   with sexp, compare
 
-type src = ty src_gen
+type src = ty src_g
   with sexp, compare
 
-type dest = ty dest_gen
+type dest = ty dest_g
   with sexp, compare
 
-type base_instr = ty base_instr_gen
+type base_instr = ty base_instr_g
   with sexp, compare
 
-type instr = ty instr_gen
+type instr = ty instr_g
   with sexp, compare
 
-type stmt = ty stmt_gen
+type stmt = ty stmt_g
   with sexp, compare
 
-type efun = ty efun_gen
+type efun = ty efun_g
   with sexp, compare
+
+(* ** Typed view for applications
+ * ------------------------------------------------------------------------ *)
+
+type carry_op = O_Add | O_Sub
+  with sexp, compare
+
+let carry_op_to_op = function O_Add -> Add | O_Sub -> Sub
+
+type logic_op = O_And | O_Xor
+  with sexp, compare
+
+let logic_op_to_op = function O_And -> BAnd | O_Xor -> Xor
+
+type 'a app_view_g =
+  | A_Assgn of             'a dest_g                        * 'a src_g
+  | A_UMul  of             ('a dest_g * 'a dest_g)          * ('a src_g * 'a src_g)
+  | A_IMul  of             'a dest_g                        * ('a src_g * 'a src_g)
+  | A_Carry of carry_op  * (('a dest_g) option * 'a dest_g) * ('a src_g * 'a src_g * ('a src_g) option)
+  | A_Logic of logic_op  * 'a dest_g                        * ('a src_g * 'a src_g)
+  | A_CMov  of cmov_flag * 'a dest_g                        * ('a src_g * 'a src_g * 'a src_g)
+  | A_Shift of dir       * (('a dest_g) option * 'a dest_g) * ('a src_g * 'a src_g)
+  with sexp, compare
+
+let app_view app =
+  match app with
+  | (Assgn,[d],[s]) -> A_Assgn(d,s)
+
+  | (UMul,[h;l],[x;y]) -> A_UMul((h,l),(x,y))
+  
+  | (CMov(cf),[d],[s1;s2;cf_in]) -> A_CMov(cf,d,(s1,s2,cf_in))
+  
+  | (IMul,[z], [x;y]) -> A_IMul(z,(x,y))
+  
+  | (((Add | Sub) as op),dest,x::y::cf_in_list) ->
+    let cop = match op with Add -> O_Add | Sub -> O_Sub | _ -> assert false in 
+    let cf_out,d =
+      match dest with
+      | [d]    -> None, d
+      | [cf;d] -> Some cf, d
+      | _      -> assert false
+    in
+    let cf_in =
+      match cf_in_list with
+      | [] -> None
+      | [cf_in] -> Some cf_in
+      | _ -> assert false
+    in
+    A_Carry(cop,(cf_out,d),(x,y,cf_in))
+    
+  | ((BAnd|Xor) as lop,[d],[s1;s2]) ->
+    let lop = match lop with BAnd -> O_And | Xor -> O_Xor | _ -> assert false in
+    A_Logic(lop,d,(s1,s2))
+
+  | (Shift(dir),dest,[x;cn]) ->
+    let cf_out,d =
+      match dest with
+      | [d]    -> None, d
+      | [cf;d] -> Some cf, d
+      | _      -> assert false
+    in    
+    A_Shift(dir,(cf_out,d), (x,cn))
+
+  (* wrong arity *)
+  | (Assgn,([] | _::_::_),_)                     -> assert false
+  | (Assgn,_,([] | _::_::_))                     -> assert false
+  | (IMul,([] | _::_::_),  _)                    -> assert false
+  | (IMul,_, ([] | [_] | _::_::_::_))            -> assert false
+  | ((Add | Sub),([] | [_] | _::_::_::_),_)      -> assert false
+  | ((Add | Sub),_,([] | [_] ))                  -> assert false
+  | ((BAnd | Xor),([] | _::_::_),_)              -> assert false
+  | ((BAnd | Xor),_,([] | [_] | _::_::_::_))     -> assert false
+  | (CMov _,([] | _::_::_),_)                    -> assert false
+  | (CMov _,_,([] | [_] | [_;_]| _::_::_::_::_)) -> assert false
+  | ((UMul | Shift _),_,([] | [_] | _::_::_::_)) -> assert false
+  | (UMul,([] | [_] | _::_::_::_),_)             -> assert false
+
+let app_view_to_app = function
+
+    | A_Assgn(d,s)                    -> App(Assgn,[d],[s])
+
+    | A_UMul((h,l),(x,y))             -> App(UMul,[h;l],[x;y])
+
+    | A_IMul(z,(x,y))                 -> App(IMul,[z],[x;y])
+
+    | A_CMov(cf,d,(s1,s2,cf_in))      -> App(CMov(cf),[d],[s1;s2;cf_in])
+    
+    | A_Logic(lop,d,(s1,s2))          -> App(logic_op_to_op lop,[d],[s1;s2])
+
+    | A_Shift(dir,(mcf_out,z),(x,cn)) -> App(Shift(dir),Option.to_list mcf_out@[z], [x;cn])
+
+    | A_Carry(cop,(mcf_out,z),(x,y,mcf_in)) ->
+      App(carry_op_to_op cop, Option.to_list mcf_out @ [z], x::y::(Option.to_list mcf_in))
 
 (* ** Utility functions and modules
  * ------------------------------------------------------------------------ *)
@@ -179,6 +273,7 @@ let equal_ccondop    x y = compare_ccondop    x y = 0
 let equal_ccond      x y = compare_ccond      x y = 0
 let equal_cmov_flag  x y = compare_cmov_flag  x y = 0
 let equal_op         x y = compare_op         x y = 0
+let equal_ty         x y = compare_ty         x y = 0
 
 let equal_preg       x y = compare_preg       x y = 0
 let equal_src        x y = compare_src        x y = 0

@@ -18,7 +18,7 @@ module CF = Foreign
 let il_to_asm_string trafos il_string =
   let efuns = PU.parse ~parse:ILP.efuns "<none>" il_string in
   let efun = match efuns with
-    | [f] -> ILTy.efun_type f
+    | [f] -> ILTy.type_efun f (String.Table.create ())
     | _ -> assert false
   in
   let acode = match ILT.apply_transform_asm (trafos^"asm[x86-64]") efun with
@@ -31,7 +31,7 @@ let il_to_asm_string trafos il_string =
 let il_to_il_string trafos il_string =
   let efuns = PU.parse ~parse:ILP.efuns "<none>" il_string in
   let efun = match efuns with
-    | [f] -> ILTy.efun_type f
+    | [f] -> ILTy.type_efun f (String.Table.create ())
     | _ -> assert false
   in
   let efun = match ILT.apply_transform_asm trafos efun with
@@ -180,9 +180,9 @@ let t_interp_4limb_binop file _fun_name desc expected xval yval () =
   let open ILL in
   let open ILI in
   let ms = interp_string mem args inp in
-  let offset i = Cconst (Int64.of_int i) in
+  let offset i = Cconst (U64.of_int i) in
   let mem i =
-    Smem({ pr_name = "zp"; pr_index = []; pr_aux = Ptr(U64)},offset i)
+    Smem({ pr_name = "zp"; pr_index = []; pr_aux = Array([Cvar "n"])},offset i)
   in
   let z0 = read_src ms (mem 0) in
   let z1 = read_src ms (mem 8) in
@@ -214,9 +214,9 @@ let t_interp_4limb_unop file _fun_name desc expected xval () =
   let open ILL in
   let open ILI in
   let ms = interp_string mem args inp in
-  let offset i = Cconst (Int64.of_int i) in
+  let offset i = Cconst (U64.of_int i) in
   let mem i =
-    Smem({ pr_name = "zp"; pr_index = []; pr_aux = Ptr(U64)},offset i)
+    Smem({ pr_name = "zp"; pr_index = []; pr_aux = Array([Cvar("n")])},offset i)
   in
   let z0 = read_src ms (mem 0) in
   let z1 = read_src ms (mem 8) in
@@ -276,29 +276,24 @@ let t_square_4limb t_asm_or_interp xval () =
 
 let tests =
   let open Big_int in
-  let _m = Big_int_Infix.((2^! 256) -! (big_int_of_int 1)) in
+  let m = Big_int_Infix.((2^! 256) -! (big_int_of_int 1)) in
   let one = big_int_of_int 1 in
-  let tests s t_binop _t_unop =
+  let tests s t_binop t_unop =
     [ (* addition *)
-      (*
       "add 4-limb: 1 + 1 "^s >:: t_add_4limb t_binop one one;
       "add 4-limb: p + p "^s >:: t_add_4limb t_binop pval pval;
       "add 4-limb: m + 1 "^s >:: t_add_4limb t_binop m one;
       "add 4-limb: m + p "^s >:: t_add_4limb t_binop m pval;
       "add 4-limb: m + m "^s >:: t_add_4limb t_binop m m;
-      *)
       
       (* multiplication *)
       "mul 4-limb: 1 * 1 "^s >:: t_mul_4limb t_binop one one;
-      (*
       "mul 4-limb: p * p "^s >:: t_mul_4limb t_binop pval pval;
       "mul 4-limb: m * 1 "^s >:: t_mul_4limb t_binop m one;
       "mul 4-limb: m * p "^s >:: t_mul_4limb t_binop m pval;
       "mul 4-limb: m * m "^s >:: t_mul_4limb t_binop m m;
-      *)
 
       (* subtraction *)
-      (*
       "sub 4-limb: 1 - 1 "^s >:: t_sub_4limb t_binop one one;
       "sub 4-limb: p - p "^s >:: t_sub_4limb t_binop pval pval;
       "sub 4-limb: m - 1 "^s >:: t_sub_4limb t_binop m one;
@@ -306,15 +301,12 @@ let tests =
       "sub 4-limb: m - p "^s >:: t_sub_4limb t_binop m pval;
       "sub 4-limb: p - m "^s >:: t_sub_4limb t_binop pval m;
       "sub 4-limb: m - m "^s >:: t_sub_4limb t_binop m m;
-      *)
       
       (* squaring *)
-      (*
       "square 4-limb: 1" >:: t_square_4limb t_unop one;
       "square 4-limb: p" >:: t_square_4limb t_unop pval;
       "square 4-limb: p" >:: t_square_4limb t_unop (Big_int.pred_big_int pval);
       "square 4-limb: m" >:: t_square_4limb t_unop m;
-      *)
     ]
   in
   (tests "(via asm)"     t_via_asm_4limb_binop t_via_asm_4limb_unop) @

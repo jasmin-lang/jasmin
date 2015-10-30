@@ -1,12 +1,14 @@
-extern fn sub(zp, xp, yp ) {
+extern fn sub<n : u64>(zp, xp, yp : u64[n]) {
+  
+  reg x, y, z : u64<n>; 
 
   for i in  0..n {
-    x[i] = *xp[i];
-    y[i] = *yp[i];
+    x<i> = xp[i];
+    y<i> = yp[i];
     if i = 0 {
-      cf? x[0] -= y[0];
+      cf? x<0> -= y<0>;
     } else {
-      cf? x[i] -= y[i] - cf;
+      cf? x<i> -= y<i> - cf;
     }
   }
 
@@ -16,16 +18,16 @@ extern fn sub(zp, xp, yp ) {
 
   for i in  0..n {
     if i = 0 {
-      cf? x[0] -= sub1;
+      cf? x<0> -= sub1;
     } else {
-      cf? x[i] -= sub0 - cf;
+      cf? x<i> -= sub0 - cf;
     }
   }
 
   sub0 = sub1 if cf;
-  x[0] -= sub0;
+  x<0> -= sub0;
 
   for j in 0..n {
-    *zp[j] = x[j];
+    zp[j] = x<j>;
   }
 }

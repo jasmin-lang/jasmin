@@ -1,41 +1,42 @@
-extern fn mul<n : i64>(
-  zp : *u64, xp : *u64, yp0 : *u64 /* rdx */
-) {
+extern fn mul<n : u64>(zp, xp, yp0 : u64[n] /* rdx */) {
+
+  reg x, y, z : u64<n>;
+
   yp = yp0;
   
-  x[0] = *xp[0];
+  x<0> = xp[0];
   for j in 0..n {
-    y[j] = *yp[j];
-    h, l = y[j] * x[0];
+    y<j> = yp[j];
+    h, l = y<j> * x<0>;
 
     if j = 0 {
-      z[0] = l;
-      z[1] = h;
+      z<0> = l;
+      z<1> = h;
     } else {
-      cf? z[j] += l;
-      z[j + 1] = 0;
-      z[j + 1] += h + cf;
+      cf? z<j> += l;
+      z<j + 1> = 0;
+      z<j + 1> += h + cf;
     }
   }
 
   for i in 1..n {
-    x[i] = *xp[i];
+    x<i> = xp[i];
     for j in 0..n {
-      y[j] = *yp[j];
-      h, l = y[j] * x[i];
-      cf? z[i+j] += l;
+      y<j> = yp[j];
+      h, l = y<j> * x<i>;
+      cf? z<i+j> += l;
       if j = 0 {
         hprev = 0;
         hprev += h + cf;
       } else {
         h += 0 + cf;
-        cf? z[i+j] += hprev;
+        cf? z<i+j> += hprev;
         if 1 <= j && j < n {
           hprev = 0;
           hprev += h + cf;
         } else { /* j = n */
-          z[i + j + 1] = 0;
-          cf? z[i + j + 1] += h + cf;
+          z<i + j + 1> = 0;
+          cf? z<i + j + 1> += h + cf;
         }
       }
     }
@@ -44,34 +45,34 @@ extern fn mul<n : i64>(
   /* reduction from 8 limbs to 4 limbs */
   c38 = 38;
   for i in 0..n {
-    rax = z[n + i + 1];
+    rax = z<n + i + 1>;
     h, l = rax * c38;
-    cf? z[i] += l;
+    cf? z<i> += l;
     if i = 0 {
       hprev = 0;
       hprev += h + cf;
     } else {
       h += 0 + cf;
-      cf? z[i] += hprev;
+      cf? z<i> += hprev;
       hprev = 0;
       hprev += h + cf;
     }
   }
 
   l = hprev * 38;
-  cf? z[0] += l;
+  cf? z<0> += l;
 
   for i in 1..n {
-    cf? z[i] += 0 + cf;
+    cf? z<i> += 0 + cf;
   }
 
   zero = 0;
   zero += 0 + cf;
 
   l = zero * 38;
-  z[0] += l;
+  z<0> += l;
 
   for i in 0..n {
-    *zp[i] = z[i];
+    zp[i] = z<i>;
   }
 }
