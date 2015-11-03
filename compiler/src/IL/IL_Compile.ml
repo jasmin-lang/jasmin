@@ -6,70 +6,10 @@ open Util
 open Arith
 open IL_Lang
 open IL_Utils
+open IL_Interp
 
 module X64 = Asm_X64
 module MP  = MParser
-
-(* ** Interpreting compile-time expressions and conditions
- * ------------------------------------------------------------------------ *)
-
-let eval_cbinop = function
-  | Cplus  -> Big_int_Infix.(+!)
-  | Cmult  -> Big_int_Infix.( *!)
-  | Cminus -> Big_int_Infix.(-!)
-
-let eval_cexpr cvar_map ce =
-  let rec go = function
-    | Cbinop(o,ie1,ie2) -> eval_cbinop o (go ie1) (go ie2)
-    | Cconst(c)         -> U64.to_big_int c
-    | Cvar(s) ->
-      begin match Map.find cvar_map s with
-      | Some x -> x
-      | None   -> failwith ("eval_cexpr: parameter "^s^" undefined")
-      end
-  in
-  go ce
-
-let eval_ccondop = Big_int_Infix.(function
-  | Ceq      -> (===)
-  | Cineq    -> fun x y -> not (x === y)
-  | Cless    -> (<!)
-  | Cgreater -> fun x y -> y <! x
-  | Cleq     -> fun x y -> x <! y || x === y
-  | Cgeq     -> fun x y -> y <! x || x === y
-)
-
-let eval_ccond cvar_map cc =
-  let rec go = function
-    | Ctrue              -> true
-    | Cnot(ic)           -> not (go ic)
-    | Cand(cc1,cc2)      -> (go cc1) && (go cc2)
-    | Ccond(cco,ce1,ce2) ->
-      eval_ccondop cco (eval_cexpr cvar_map ce1) (eval_cexpr cvar_map ce2)
-  in
-  go cc
-
-let inst_cexpr cvar_map ce =
-  Cconst (U64.of_big_int (eval_cexpr cvar_map ce))
-
-let inst_preg cvar_map preg =
-  { preg with pr_index = List.map ~f:(inst_cexpr cvar_map) preg.pr_index }
-
-let inst_src cvar_map = function
-  | Sreg(r)       -> Sreg(inst_preg cvar_map r)
-  | Smem(r,ie)    -> Smem(inst_preg cvar_map r, inst_cexpr cvar_map ie)
-  | Simm(_) as im -> im
-
-let inst_dest cvar_map = function
-  | Dreg(v)       -> Dreg(inst_preg cvar_map v)
-  | Dmem(v,ie)    -> Dmem(inst_preg cvar_map v, inst_cexpr cvar_map ie)
-
-let inst_base_instr cvar_map bi =
-  let inst_d = inst_dest cvar_map in
-  let inst_s = inst_src cvar_map in
-  match bi with
-  | App(o,ds,ss) -> App(o,List.map ~f:inst_d ds,List.map ~f:inst_s ss)
-  | Comment(_)   -> bi
 
 (* ** Macro expansion: loop unrolling, if, ...
  * ------------------------------------------------------------------------ *)
@@ -96,16 +36,16 @@ let macro_expand cvar_map st =
       @ [Comment (comment_if "END:   " indent cond ic)]
 
     | For(iv,lb_ie,ub_ie,st) ->
-      let open Big_int_Infix in
       let lb  = eval_cexpr ivm lb_ie in
       let ub  = eval_cexpr ivm ub_ie in
-      assert (lb <! ub || lb === ub);
+      assert (U64.compare lb ub <= 0);
       let body_for_v v =
           [Comment (fsprintf "%s%s = %s" (spaces (indent+2)) iv (s_of_bi v))]
-        @ (List.concat_map ~f:(expand (indent + 2) (Map.add ivm ~key:iv ~data:v)) st)
+        @ (List.concat_map ~f:(expand (indent + 2) (Map.add ivm ~key:iv ~data:(U64.of_big_int v))) st)
       in
         [Comment (comment_while "START:" indent iv lb_ie ub_ie)]
-      @ List.concat_map (list_from_to ~first:lb ~last:ub) ~f:body_for_v
+      @ List.concat_map
+          (list_from_to ~first:(U64.to_big_int lb) ~last:(U64.to_big_int ub)) ~f:body_for_v
       @ [Comment (comment_while "END:" indent iv lb_ie ub_ie)]
   in
   List.concat_map ~f:(expand 0 cvar_map) st

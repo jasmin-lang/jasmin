@@ -6,6 +6,7 @@ open Util
 open IL_Lang
 open IL_Utils
 open IL_Compile
+open Arith
 
 (* ** Apply transformations in sequence.
  * ------------------------------------------------------------------------ *)
@@ -26,7 +27,7 @@ let strip_comments bis =
 type asm_lang = X64
 
 type transform =
-  | MacroExpand of (string * Big_int.big_int) list
+  | MacroExpand of (string * u64) list
   | SSA
   | Print of string
   | Save of string
@@ -41,7 +42,7 @@ let ptrafo =
     many1 letter >>= fun s ->
     char '=' >>
     many1 digit >>= fun i ->
-    return (String.of_char_list s,Big_int.big_int_of_string (String.of_char_list i))
+    return (String.of_char_list s,U64.of_string (String.of_char_list i))
   in
   let register_num =
     char '[' >> MParser.many1 digit >>= fun x -> 

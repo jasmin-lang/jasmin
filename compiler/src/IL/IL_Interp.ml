@@ -5,9 +5,68 @@ open Core_kernel.Std
 open Util
 open Arith
 open IL_Lang
-open IL_Compile
 open IL_Utils
 open IL_Typing
+
+(* ** Interpreting compile-time expressions and conditions
+ * ------------------------------------------------------------------------ *)
+
+let eval_cbinop = function
+  | Cplus  -> U64.add
+  | Cmult  -> U64.mul
+  | Cminus -> U64.sub
+
+let eval_cexpr cvar_map ce =
+  let rec go = function
+    | Cbinop(o,ie1,ie2) -> eval_cbinop o (go ie1) (go ie2)
+    | Cconst(c)         -> c
+    | Cvar(s) ->
+      begin match Map.find cvar_map s with
+      | Some x -> x
+      | None   -> failwith ("eval_cexpr: parameter "^s^" undefined")
+      end
+  in
+  go ce
+
+let eval_ccondop = function
+  | Ceq      -> U64.equal
+  | Cineq    -> fun x y -> not (U64.equal x y)
+  | Cless    -> fun x y -> U64.compare x y < 0
+  | Cgreater -> fun x y -> U64.compare x y > 0
+  | Cleq     -> fun x y -> U64.compare x y <= 0
+  | Cgeq     -> fun x y -> U64.compare x y >= 0
+
+let eval_ccond cvar_map cc =
+  let rec go = function
+    | Ctrue              -> true
+    | Cnot(ic)           -> not (go ic)
+    | Cand(cc1,cc2)      -> (go cc1) && (go cc2)
+    | Ccond(cco,ce1,ce2) ->
+      eval_ccondop cco (eval_cexpr cvar_map ce1) (eval_cexpr cvar_map ce2)
+  in
+  go cc
+
+let inst_cexpr cvar_map ce =
+  Cconst (eval_cexpr cvar_map ce)
+
+let inst_preg cvar_map preg =
+  { preg with pr_index = List.map ~f:(inst_cexpr cvar_map) preg.pr_index }
+
+let inst_src cvar_map = function
+  | Sreg(r)       -> Sreg(inst_preg cvar_map r)
+  | Smem(r,ie)    -> Smem(inst_preg cvar_map r, inst_cexpr cvar_map ie)
+  | Simm(_) as im -> im
+
+let inst_dest cvar_map = function
+  | Dreg(v)       -> Dreg(inst_preg cvar_map v)
+  | Dmem(v,ie)    -> Dmem(inst_preg cvar_map v, inst_cexpr cvar_map ie)
+
+let inst_base_instr cvar_map bi =
+  let inst_d = inst_dest cvar_map in
+  let inst_s = inst_src cvar_map in
+  match bi with
+  | App(o,ds,ss) -> App(o,List.map ~f:inst_d ds,List.map ~f:inst_s ss)
+  | Comment(_)   -> bi
 
 (* ** Interpreter
  * ------------------------------------------------------------------------ *)
@@ -16,9 +75,10 @@ let is_Simm = function Simm _ -> true | _ -> false
 let is_Comment = function Comment _ -> true | _ -> false
 
 type mstate =
-  { mregs  : u64 Preg.Map.t
+  { mcvars : u64  String.Map.t
+  ; mregs  : u64  Preg.Map.t
   ; mflags : bool Preg.Map.t
-  ; mmem   : u64 U64.Map.t
+  ; mmem   : u64  U64.Map.t
   }
 
 let print_mstate ms =
@@ -99,7 +159,9 @@ let interp_base_instr (ms : mstate) binstr =
       write_dest ms h zh
 
     | A_Carry(cop,(mcf_out,z),(x,y,mcf_in)) ->
-      let cf = Option.value_map mcf_in ~default:false ~f:(fun cf -> read_flag ms cf) in
+      let cf =
+        Option.value_map mcf_in ~default:false ~f:(fun cf -> read_flag ms cf)
+      in
       let x = read_src ms x in
       let y = read_src ms y in
       let (zo,cfo) =
@@ -136,7 +198,11 @@ let interp_base_instr (ms : mstate) binstr =
   if not (is_Comment binstr) then (
     (* F.printf "####################################\n"; 
     F.printf "executing: %a\n" pp_base_instr binstr; *)
-    let aview = match binstr with App(o,d,s) -> app_view (o,d,s) | Comment _ -> assert false in
+    let aview =
+      match binstr with
+      | App(o,d,s) -> app_view (o,d,s)
+      | Comment _ -> assert false
+    in
     let ms = go aview in
     (* print_mstate ms; *)
     ms
@@ -144,16 +210,36 @@ let interp_base_instr (ms : mstate) binstr =
     ms
   )
 
-let interp_base_instrs (ms0 : mstate) (instrs : base_instr list) =
-  List.fold instrs
-    ~f:(fun ms i -> interp_base_instr ms i)
+let rec interp_instr ms0 instr =
+  match instr with
+  | BInstr(bi) ->
+    let bi = inst_base_instr ms0.mcvars bi in
+    interp_base_instr ms0 bi
+  | If(ccond,stmt1,stmt2) ->
+    if eval_ccond ms0.mcvars ccond then
+      interp_stmt ms0 stmt1
+    else
+      interp_stmt ms0 stmt2
+  | For(cv,clb,cub,stmt) ->
+    let lb = eval_cexpr ms0.mcvars clb in
+    let ub = eval_cexpr ms0.mcvars cub in
+    let old_val = Map.find ms0.mcvars cv in
+    let i  = ref lb in
+    let ms = ref ms0 in
+    while U64.compare !i ub <= 0 do
+       ms := { !ms with mcvars = Map.add !ms.mcvars ~key:cv ~data:!i };
+       ms := interp_stmt !ms stmt;
+       i := U64.succ !i
+    done;
+    { !ms with
+      mcvars = Map.change !ms.mcvars cv (fun _ -> old_val) }
+
+and interp_stmt (ms0 : mstate) stmt =
+  List.fold stmt
+    ~f:(fun ms i -> interp_instr ms i)
     ~init:ms0
 
-let interp_stmt (ms : mstate) cvar_map stmt =
-  let instrs = macro_expand cvar_map stmt in
-  interp_base_instrs ms instrs  
-
-let interp_string mem args string =
+let interp_string mem cvar_map args string =
   let open ParserUtil in
   let efun_ut = List.hd_exn (parse ~parse:IL_Parse.efuns "" string) in
   let efun = type_efun efun_ut (String.Table.create ()) in
@@ -165,8 +251,7 @@ let interp_string mem args string =
       (List.zip_exn arg_regs args)
   in
   let flags = Preg.Map.of_alist_exn [] in
-  let ms = {mregs = regs; mflags = flags; mmem = mem } in
+  let ms = {mregs = regs; mcvars = cvar_map; mflags = flags; mmem = mem; } in
  
-  let cvar_map = String.Map.of_alist_exn [("n", Big_int.big_int_of_int 3)] in
   (* print_mstate ms; *)
-  interp_stmt ms cvar_map stmt
+  interp_stmt ms stmt

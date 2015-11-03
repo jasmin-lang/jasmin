@@ -179,7 +179,8 @@ let t_interp_4limb_binop file _fun_name desc expected xval yval () =
   let inp = In_channel.read_all file in
   let open ILL in
   let open ILI in
-  let ms = interp_string mem args inp in
+  let cvar_map = String.Map.of_alist_exn [("n",U64.of_int 3)] in
+  let ms = interp_string mem cvar_map args inp in
   let offset i = Cconst (U64.of_int i) in
   let mem i =
     Smem({ pr_name = "zp"; pr_index = []; pr_aux = Array([Cvar "n"])},offset i)
@@ -213,7 +214,8 @@ let t_interp_4limb_unop file _fun_name desc expected xval () =
   let inp = In_channel.read_all file in
   let open ILL in
   let open ILI in
-  let ms = interp_string mem args inp in
+  let cvar_map = String.Map.of_alist_exn [("n",U64.of_int 3)] in
+  let ms = interp_string mem cvar_map args inp in
   let offset i = Cconst (U64.of_int i) in
   let mem i =
     Smem({ pr_name = "zp"; pr_index = []; pr_aux = Array([Cvar("n")])},offset i)
