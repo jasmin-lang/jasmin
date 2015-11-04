@@ -1,10 +1,9 @@
 /* The implementation is parameterized by "n = limbs - 1". */
-extern fn add<n : u64>(zp, xp, yp : u64[n]) {
+fn add<n : u64>(x : u64<n>, yp : u64[n]) {
 
-  reg x, y : u64<n>;
+  reg y : u64<n>;
 
   for i in 0..n {
-    x<i> = xp[i];
     y<i> = yp[i];
     if (i = 0) {
       cf? x<0> += y<0>;
@@ -28,7 +27,12 @@ extern fn add<n : u64>(zp, xp, yp : u64[n]) {
   add0 = add1 if cf;
   x<0> += add0;
 
-  for i in 0..n {
-    zp[i] = x<i>;
-  }
+  return x<0..n>;
+}
+
+extern fn add_call<n : u64>(zp, xp, yp : u64[n]) {
+  reg x : u64<n>;
+  for i in 0..n { x<i> = xp[i]; }
+  x<0..n> =@ add(x<0..n>,yp);
+  for i in 0..n { zp[i] = x<i>; }
 }

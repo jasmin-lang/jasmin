@@ -22,6 +22,7 @@ type instr_decl = Ins of instr_ut | Decl of (preg_ut * ty) list
 %token GEQ
 %token SHREQ SHLEQ XOREQ
 %token COLON
+%token EQCALL
 
 %token T_U64
 %token T_BOOL
@@ -101,11 +102,17 @@ ccond :
 | c1=cexpr o=ccondop c2=cexpr
   { Ccond(o,c1,c2) }
 
+pr_index :
+| ces=separated_list(COMMA,cexpr)
+    { Index(ces) }
+| c1 = cexpr DOTDOT c2 = cexpr
+    { Range(c1,c2) }
+
 %inline preg :
 | s=ID                        
-    { { pr_name = s; pr_index = []; pr_aux = () } }
-| s=ID LESS ces=separated_list(COMMA,cexpr) GREATER
-    { { pr_name = s; pr_index = ces; pr_aux = () } }
+    { { pr_name = s; pr_index = Index []; pr_aux = () } }
+| s=ID LESS pi = pr_index GREATER
+    { { pr_name = s; pr_index = pi; pr_aux = () } }
 
 %inline mem:
 | r=preg LBRACK i=cexpr RBRACK
@@ -157,6 +164,7 @@ assgn_rhs:
 | s1=src op=binop s2=src { `Bop(op,s1,s2) }
 
 base_instr :
+
 | d=dest EQ rhs = assgn_rhs
     { match rhs with
       | `Bop(op,s1,s2) ->
@@ -224,6 +232,9 @@ instr :
 | FOR cv=ID IN ce1=cexpr DOTDOT ce2=cexpr
     is = block
     { Ins(For(cv,ce1,ce2,is)) }
+
+| d = dest EQCALL fname = ID args = tuple(src) SEMICOLON
+  { Ins(Call(fname,[d], args)) }
 
 block :
 | LCBRACE stmt = instr* RCBRACE

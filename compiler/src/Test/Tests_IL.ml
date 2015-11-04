@@ -158,7 +158,7 @@ let t_via_asm_4limb_unop file fun_name desc expected xval () =
 (* * Tests for arithmetic functions: 4 limbs interpreted
  * --------------------------------------------------------------------- *)
 
-let t_interp_4limb_binop file _fun_name desc expected xval yval () =
+let t_interp_4limb_binop file fun_name desc expected xval yval () =
   let (x0,x1,x2,x3) = Limb4.of_big_int xval in
   let (y0,y1,y2,y3) = Limb4.of_big_int yval in
   let mem =
@@ -180,10 +180,10 @@ let t_interp_4limb_binop file _fun_name desc expected xval yval () =
   let open ILL in
   let open ILI in
   let cvar_map = String.Map.of_alist_exn [("n",U64.of_int 3)] in
-  let ms = interp_string mem cvar_map args inp in
+  let ms = interp_string mem cvar_map args fun_name inp in
   let offset i = Cconst (U64.of_int i) in
   let mem i =
-    Smem({ pr_name = "zp"; pr_index = []; pr_aux = Array([Cvar "n"])},offset i)
+    Smem(mk_preg_array "zp" "n",offset i)
   in
   let z0 = read_src ms (mem 0) in
   let z1 = read_src ms (mem 8) in
@@ -199,7 +199,7 @@ let t_interp_4limb_binop file _fun_name desc expected xval yval () =
     Big_int_Infix.(mod_big_int expected pval)
     Big_int_Infix.(mod_big_int zval pval)  
 
-let t_interp_4limb_unop file _fun_name desc expected xval () =
+let t_interp_4limb_unop file fun_name desc expected xval () =
   let (x0,x1,x2,x3) = Limb4.of_big_int xval in
   let mem =
     U64.Map.of_alist_exn
@@ -215,10 +215,10 @@ let t_interp_4limb_unop file _fun_name desc expected xval () =
   let open ILL in
   let open ILI in
   let cvar_map = String.Map.of_alist_exn [("n",U64.of_int 3)] in
-  let ms = interp_string mem cvar_map args inp in
+  let ms = interp_string mem cvar_map args fun_name inp in
   let offset i = Cconst (U64.of_int i) in
   let mem i =
-    Smem({ pr_name = "zp"; pr_index = []; pr_aux = Array([Cvar("n")])},offset i)
+    Smem(mk_preg_array "zp" "n",offset i)
   in
   let z0 = read_src ms (mem 0) in
   let z1 = read_src ms (mem 8) in
@@ -272,6 +272,13 @@ let t_square_4limb t_asm_or_interp xval () =
     Big_int_Infix.(xval *! xval)
     xval ()
 
+let t_add_call_4limb t_asm_or_interp xval yval () =
+  t_asm_or_interp
+    "examples/test/add_call.mil"
+    "add_call"
+    "add_call-4-limb"
+    Big_int_Infix.(xval +! yval)
+    xval yval ()
 
 (* * Test suite
  * --------------------------------------------------------------------- *)
@@ -281,7 +288,7 @@ let tests =
   let m = Big_int_Infix.((2^! 256) -! (big_int_of_int 1)) in
   let one = big_int_of_int 1 in
   let tests s t_binop t_unop =
-    [ (* addition *)
+    [(* addition *)
       "add 4-limb: 1 + 1 "^s >:: t_add_4limb t_binop one one;
       "add 4-limb: p + p "^s >:: t_add_4limb t_binop pval pval;
       "add 4-limb: m + 1 "^s >:: t_add_4limb t_binop m one;
@@ -309,7 +316,17 @@ let tests =
       "square 4-limb: p" >:: t_square_4limb t_unop pval;
       "square 4-limb: p" >:: t_square_4limb t_unop (Big_int.pred_big_int pval);
       "square 4-limb: m" >:: t_square_4limb t_unop m;
-    ]
+    ] @
+    if s = "(interpreter)" then
+      [
+        (* addition *)
+        "add call 4-limb: 1 + 1 "^s >:: t_add_call_4limb t_binop one one;
+        "add call 4-limb: p + p "^s >:: t_add_call_4limb t_binop pval pval;
+        "add call 4-limb: m + 1 "^s >:: t_add_call_4limb t_binop m one;
+        "add call 4-limb: m + p "^s >:: t_add_call_4limb t_binop m pval;
+        "add call 4-limb: m + m "^s >:: t_add_call_4limb t_binop m m;
+      ]
+    else []
   in
   (tests "(via asm)"     t_via_asm_4limb_binop t_via_asm_4limb_unop) @
   (tests "(interpreter)" t_interp_4limb_binop t_interp_4limb_unop)

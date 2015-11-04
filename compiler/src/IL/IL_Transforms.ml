@@ -102,12 +102,8 @@ let apply_transform trafo efun0 =
       Out_channel.write_all fname ~data:(fsprintf "%a" pp_efun efun); efun
     | RegisterAlloc(n) -> register_allocate (min 15 n) efun
     | RegisterLiveness -> transform_register_liveness efun
-    | MacroExpand(m) ->
-      { efun with
-        ef_body =
-          macro_expand (String.Map.of_alist_exn m) efun.ef_body |> base_instrs_to_stmt
-      }
-    | Asm(_) -> assert false
+    | MacroExpand(m)   -> macro_expand_efun (String.Map.of_alist_exn m) efun
+    | Asm(_)           -> assert false
   in
   List.fold_left trafo ~init:efun0 ~f:app_trafo
 

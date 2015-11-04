@@ -71,10 +71,15 @@ type op =
   with sexp, compare
 
 type name = string with sexp, compare
- 
+
+type index =
+  | Index of cexpr list
+  | Range of cexpr * cexpr
+  with sexp, compare
+
 type 'a preg_g =
   { pr_name  : name
-  ; pr_index : cexpr list
+  ; pr_index : index
   ; pr_aux   : 'a  (* auxiliary information, e.g., type *)
   } with sexp, compare
 
@@ -104,6 +109,8 @@ type 'a instr_g =
 
   | For of cvar * cexpr * cexpr * 'a stmt_g
     (* For(v,lower,upper,i): for v in lower..upper { i } *)
+
+  | Call of string * 'a dest_g list * 'a src_g list
 
 and 'a stmt_g = ('a instr_g) list
   with sexp, compare
@@ -166,6 +173,31 @@ type stmt = ty stmt_g
 
 type efun = ty efun_g
   with sexp, compare
+
+let mk_preg_array name dim =
+  { pr_name = name; pr_index = Index []; pr_aux = Array([Cvar(dim)])}
+
+let mk_preg_u64 name =
+  { pr_name = name; pr_index = Index []; pr_aux = U64 }
+
+let mk_preg_index_u64 name i ty =
+  { pr_name = name; pr_index = Index [Cconst i]; pr_aux = ty }
+  
+let pr_is_indexed pr =
+  match pr.pr_index with
+  | Index []     -> false
+  | Index (_::_) -> true
+  | Range _      -> assert false
+
+let pr_index_length pr =
+  match pr.pr_index with
+  | Index ies -> List.length ies
+  | Range _   -> assert false
+
+let pr_is_range pr =
+  match pr.pr_index with
+  | Range _ -> true
+  | Index _ -> false
 
 (* ** Typed view for applications
  * ------------------------------------------------------------------------ *)

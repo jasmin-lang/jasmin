@@ -14,7 +14,7 @@ module MP  = MParser
 (* ** Macro expansion: loop unrolling, if, ...
  * ------------------------------------------------------------------------ *)
 
-let macro_expand cvar_map st =
+let macro_expand_stmt cvar_map stmt =
   let spaces indent = String.make indent ' ' in
   let s_of_cond c = if c then "if" else "else" in
   let s_of_bi = Big_int.string_of_big_int in
@@ -24,31 +24,43 @@ let macro_expand cvar_map st =
   let comment_while s indent iv lb_ie ub_ie =
     fsprintf "%s%s for %s in %a..%a" s (spaces indent) iv pp_cexpr lb_ie pp_cexpr ub_ie
   in
+  let bicom c = BInstr(Comment(c)) in
 
   let rec expand indent ivm = function
-    | BInstr(binstr) -> [inst_base_instr ivm binstr]
+    | Call(_,_,_) as c -> [c]
+
+    | BInstr(binstr) -> [BInstr(inst_base_instr ivm binstr)]
 
     | If(ic,st1,st2) ->
       let cond = eval_ccond ivm ic in
       let st = if cond then st1 else st2 in
-        [Comment (comment_if "START: " indent cond ic)]
-      @ (List.concat_map ~f:(expand (indent + 2) ivm) st)
-      @ [Comment (comment_if "END:   " indent cond ic)]
+        [bicom (comment_if "START: " indent cond ic)]
+      @ (List.concat_map
+           ~f:(fun bi -> (expand (indent + 2) ivm bi)) st)
+      @ [bicom (comment_if "END:   " indent cond ic)]
 
-    | For(iv,lb_ie,ub_ie,st) ->
+    | For(iv,lb_ie,ub_ie,stmt) ->
       let lb  = eval_cexpr ivm lb_ie in
       let ub  = eval_cexpr ivm ub_ie in
       assert (U64.compare lb ub <= 0);
       let body_for_v v =
-          [Comment (fsprintf "%s%s = %s" (spaces (indent+2)) iv (s_of_bi v))]
-        @ (List.concat_map ~f:(expand (indent + 2) (Map.add ivm ~key:iv ~data:(U64.of_big_int v))) st)
+          [bicom (fsprintf "%s%s = %s" (spaces (indent+2)) iv (s_of_bi v))]
+        @ (List.concat_map ~f:(expand (indent + 2) (Map.add ivm ~key:iv ~data:(U64.of_big_int v))) stmt)
       in
-        [Comment (comment_while "START:" indent iv lb_ie ub_ie)]
+        [bicom (comment_while "START:" indent iv lb_ie ub_ie)]
       @ List.concat_map
           (list_from_to ~first:(U64.to_big_int lb) ~last:(U64.to_big_int ub)) ~f:body_for_v
-      @ [Comment (comment_while "END:" indent iv lb_ie ub_ie)]
+      @ [bicom (comment_while "END:" indent iv lb_ie ub_ie)]
   in
-  List.concat_map ~f:(expand 0 cvar_map) st
+  List.concat_map ~f:(expand 0 cvar_map) stmt
+
+let macro_expand_efun cvar_map efun =
+  { efun with
+    ef_args = List.concat_map ~f:(expand_arg cvar_map) efun.ef_args;
+    ef_ret  = List.concat_map ~f:(expand_range cvar_map) efun.ef_ret;
+    ef_body =
+      macro_expand_stmt cvar_map efun.ef_body
+  }
 
 (* ** Single assignment
  * ------------------------------------------------------------------------ *)
@@ -58,18 +70,14 @@ let transform_ssa efun =
   let counter = ref (U64.of_int 0) in
   let var_map = Preg.Table.create () in
   let get_index pr =
-    match Hashtbl.find var_map pr with
-    | Some r -> { pr with pr_name = "r"; pr_index = [Cconst r] }
-    | None   ->
-      let pp_alist = pp_list "," (pp_pair "," pp_preg pp_uint64) in
-      failwith (fsprintf "transform_ssa: %a undefined\n%a"
-                  pp_preg pr pp_alist (Hashtbl.to_alist var_map))
+    let r = hashtbl_find_exn var_map pp_preg pr in
+    mk_preg_index_u64 "r" r pr.pr_aux
   in
   let new_index pr =
     let c = !counter in
     counter := U64.succ !counter;
     Hashtbl.set var_map ~key:pr ~data:c;
-    { pr with pr_name = "r"; pr_index = [Cconst c] }
+    mk_preg_index_u64 "r" c pr.pr_aux
   in
   let update_src = function
     | Simm(_) as s -> s
@@ -158,7 +166,7 @@ let register_liveness efun =
 (* ** Collect equality constraints from +=, -=, ...
  * ------------------------------------------------------------------------ *)
 
-let eq_constrs bis =
+let eq_constrs bis regs =
   let eq_classes    = Int.Table.create  () in
   let class_map     = Preg.Table.create () in
   let fixed_classes = Int.Table.create  () in
@@ -172,7 +180,14 @@ let eq_constrs bis =
     ci
   in
   let add_to_class pr_old pr_new =
-    let ci = Hashtbl.find_exn class_map pr_old in
+    let ci = match Hashtbl.find class_map pr_old with
+      | Some c -> c
+      | None ->
+        failwith (fsprintf "eq_constrs_: %a undefined\n%a"
+                    pp_preg pr_old
+                    (pp_list "," pp_preg)
+                    (Hashtbl.keys class_map))
+    in
     Hashtbl.add_exn class_map ~key:pr_new ~data:ci;
     Hashtbl.change eq_classes ci
       (function
@@ -212,6 +227,7 @@ let eq_constrs bis =
      let dregs = List.filter_map ~f:(function Dreg(r) -> Some(r) | _ -> None) ds in
      List.iter ~f:(fun d -> ignore (new_class d)) dregs
   in
+  List.iter regs ~f:(fun pr -> ignore (new_class pr));
   List.iter bis ~f:handle_bi;
   (eq_classes, fixed_classes, class_map)
 
@@ -235,42 +251,11 @@ let register_allocate nregs efun0 =
 
   (* mapping from pseudo registers to integers 0 .. nreg-1 denoting machine registers *)
   let reg_map = Preg.Table.create () in
-  let int_to_preg i = { pr_name = fsprintf "%%%i" i; pr_index = []; pr_aux = U64 } in
-  let get_reg pr = int_to_preg (Hashtbl.find_exn reg_map pr) in
+  let int_to_preg i = mk_preg_u64 (fsprintf "%%%i" i) in
+  let get_reg pr = int_to_preg (hashtbl_find_exn reg_map pp_preg_ty pr) in
 
   (* track pseudo-registers that require a fixed register *)
   let fixed_pregs = Preg.Table.create () in
-  let () =
-    let (eq_classes, fixed_classes, _class_map) =
-      eq_constrs (stmt_to_base_instrs efun0.ef_body)
-    in
-    (* register %rax and %rdx for mul *)
-    Hashtbl.iter fixed_classes
-      ~f:(fun ~key:i ~data:reg ->
-            let pregs = Hashtbl.find_exn eq_classes i in
-            (* F.printf "## using %s for %a\n" (X64.string_of_reg reg) (pp_list "," pp_preg)
-                (Set.to_list pregs); *)
-            Set.iter pregs ~f:(fun preg ->
-              Hashtbl.set fixed_pregs ~key:preg  ~data:(X64.(int_of_reg reg)))
-      );
-
-    (* directly use the ABI argument registers for arguments *)
-    let arg_len = List.length efun0.ef_args in
-    let arg_regs = List.take (List.map ~f:X64.int_of_reg X64.arg_regs) arg_len in
-    if List.length arg_regs < arg_len then
-      failwith (fsprintf "register_alloc: at most %i arguments supported" (List.length arg_regs));
-    List.iter (List.zip_exn efun0.ef_args arg_regs)
-      ~f:(fun (arg,arg_reg) -> Hashtbl.set fixed_pregs ~key:arg ~data:arg_reg);
-
-    (* directly use the ABI return registers for return values *)
-    let ret_len = List.length efun0.ef_ret in
-    let ret_regs = List.take (List.map ~f:X64.int_of_reg X64.[RAX; RDX]) ret_len in
-    if List.length ret_regs < ret_len then
-      failwith (fsprintf "register_alloc: at most %i arguments supported" (List.length ret_regs));
-    List.iter (List.zip_exn efun0.ef_ret ret_regs)
-      ~f:(fun (ret,ret_reg) -> Hashtbl.set fixed_pregs ~key:ret ~data:ret_reg)
-  in
-
   let pick_free pr =
     match Hashtbl.find fixed_pregs pr with
     | Some ri ->
@@ -308,8 +293,8 @@ let register_allocate nregs efun0 =
   let trans_dest d =
     let get pr =
       match Hashtbl.find reg_map pr with
-      | None    -> int_to_preg (pick_free pr)
-      | Some i  -> int_to_preg i
+      | None   -> int_to_preg (pick_free pr)
+      | Some i -> int_to_preg i
     in
     match d with
     | Dreg(pr)   -> Dreg(get pr)
@@ -336,7 +321,7 @@ let register_allocate nregs efun0 =
 
           (* enforce dst = src1 and do not allocate registers for carry flag *)
           | App((Add|Sub) as o,(([_;Dreg(d)] | [Dreg(d)]) as ds),(Sreg(s1)::s2::cfin)) ->
-            let r1 = Hashtbl.find_exn reg_map s1 in
+            let r1 = hashtbl_find_exn reg_map pp_preg_ty s1 in
             let s1 = trans_src (Sreg s1) in
             let s2 = trans_src s2        in
             free_dead_regs read_after_rhs;
@@ -347,7 +332,7 @@ let register_allocate nregs efun0 =
           | App(Add,_,_) -> assert false
 
           | App(CMov(_) as o,[Dreg(d)],[Sreg(s1);s2;cfin]) ->
-             let r1 = Hashtbl.find_exn reg_map s1 in
+             let r1 = hashtbl_find_exn reg_map pp_preg_ty s1 in
              let s1 = trans_src (Sreg(s1)) in
              let s2 = trans_src s2        in
              free_dead_regs read_after_rhs;
@@ -376,6 +361,42 @@ let register_allocate nregs efun0 =
       alloc (bi::left) right
   in
 
+  let () =
+    let (eq_classes, fixed_classes, _class_map) =
+      eq_constrs (stmt_to_base_instrs efun0.ef_body) efun0.ef_args
+    in
+    (* register %rax and %rdx for mul *)
+    Hashtbl.iter fixed_classes
+      ~f:(fun ~key:i ~data:reg ->
+            let pregs = hashtbl_find_exn eq_classes pp_int i in
+            (* F.printf "## using %s for %a\n" (X64.string_of_reg reg) (pp_list "," pp_preg)
+                (Set.to_list pregs); *)
+            Set.iter pregs ~f:(fun preg ->
+              Hashtbl.set fixed_pregs ~key:preg  ~data:(X64.(int_of_reg reg)))
+      );
+
+    if efun0.ef_extern then (
+      (* directly use the ABI argument registers for arguments *)
+      let arg_len = List.length efun0.ef_args in
+      let arg_regs = List.take (List.map ~f:X64.int_of_reg X64.arg_regs) arg_len in
+      let arg_max = List.length X64.arg_regs in
+      if List.length arg_regs < arg_len then
+        failwith (fsprintf "register_alloc: at most %i arguments supported" arg_max);
+      List.iter (List.zip_exn efun0.ef_args arg_regs)
+        ~f:(fun (arg,arg_reg) -> Hashtbl.set fixed_pregs ~key:arg ~data:arg_reg);
+
+      (* directly use the ABI return registers for return values *)
+      let ret_extern_regs = List.map ~f:X64.int_of_reg X64.[RAX; RDX] in
+      let ret_len = List.length efun0.ef_ret in
+      let ret_regs = List.take ret_extern_regs ret_len in
+      let ret_max = List.length ret_extern_regs in
+      if List.length ret_regs < ret_len then
+        failwith (fsprintf "register_alloc: at most %i arguments supported" ret_max);
+      List.iter (List.zip_exn efun0.ef_ret ret_regs)
+        ~f:(fun (ret,ret_reg) -> Hashtbl.set fixed_pregs ~key:ret ~data:ret_reg)
+    )
+  in
+
   let args = List.map efun0.ef_args ~f:(fun pr -> int_to_preg (pick_free pr)) in
   let bis = alloc [] (register_liveness efun0) in
   let efun =
@@ -395,9 +416,9 @@ let to_asm_x64 efun =
   let mreg_of_preg pr =
     let fail () =
       failwith
-        (fsprintf "to_asm_x64: expected register of the form %%i, got %a" pp_preg pr)
+        (fsprintf "to_asm_x64: expected register of the form %%i, got %a" pp_preg_ty pr)
     in
-    let s = if pr.pr_index<>[] then fail () else pr.pr_name in
+    let s = if pr_is_indexed pr then fail () else pr.pr_name in
     let i =
       try
         begin match String.split s ~on:'%' with

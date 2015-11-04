@@ -20,19 +20,37 @@ type fun_env = efun String.Table.t
 
 type type_env = ty String.Table.t
 
-let type_efun (efun : IL_Lang.efun_ut) (_fun_env : fun_env) : IL_Lang.efun =
+let type_efun (efun : IL_Lang.efun_ut) (fun_env : fun_env) : IL_Lang.efun =
   let ty_env =  String.Table.create () in
   List.iter
     ~f:(fun pr ->
-          assert (pr.pr_index = []);
+          assert (not (pr_is_indexed pr));
           Hashtbl.set ty_env ~key:pr.pr_name ~data:pr.pr_aux)
     (efun.ef_args @ efun.ef_decls);
-  let type_pr t pr = { pr with pr_aux = t } in
+  let pr_set_type t pr = { pr with pr_aux = t } in
   let pr_to_string pr = fsprintf "%a" pp_preg pr in
   let assert_equal_ty s ety gty =
     if not (equal_ty ety gty) then
       failwith (fsprintf "wrong type for %s, expected %a, got %a." s pp_ty ety pp_ty gty)
   in
+  let type_preg pr =
+    let name_ty = Hashtbl.find_exn ty_env pr.pr_name in
+    
+    let ty =
+      match name_ty with
+      | Ivals(_ces) when pr_is_range pr ->
+        name_ty
+      | Ivals(ces) ->
+        assert (List.length ces = pr_index_length pr);
+        U64
+      | Array(_ces) ->
+        assert (not (pr_is_indexed pr));
+        name_ty
+      | (Bool | U64) -> 
+        name_ty
+    in
+    ty, pr_set_type ty pr
+  in 
   let type_src ?exp s =
     let assert_type pr t =
       match exp with
@@ -46,20 +64,9 @@ let type_efun (efun : IL_Lang.efun_ut) (_fun_env : fun_env) : IL_Lang.efun =
       U64, Simm(i)
 
     | Sreg(pr) ->
-      let name_ty = Hashtbl.find_exn ty_env pr.pr_name in
-      let ty =
-        match name_ty with
-        | Ivals(ces) ->
-          assert (List.length ces = List.length pr.pr_index);
-          U64
-        | Array(_ces) ->
-          assert (pr.pr_index = []);
-          name_ty
-        | (Bool | U64) -> 
-          name_ty
-      in
+      let ty, pr = type_preg pr in
       assert_type (fsprintf "%a" pp_preg pr) ty;
-      ty, Sreg(type_pr ty pr)
+      ty, Sreg(pr)
 
     | Smem(pr,offset) ->
       let name_ty = Hashtbl.find_exn ty_env pr.pr_name in
@@ -72,27 +79,29 @@ let type_efun (efun : IL_Lang.efun_ut) (_fun_env : fun_env) : IL_Lang.efun =
         | (Bool | U64) -> assert false
       in
       assert_type (pr_to_string pr) ty;
-      ty, Smem(type_pr name_ty pr,offset)
+      ty, Smem(pr_set_type name_ty pr,offset)
   in
   let type_dst t d =
     match d with
 
-    | Dreg(pr) when pr.pr_index=[] ->
+    | Dreg(pr) when not (pr_is_indexed pr) ->
       Hashtbl.set ty_env ~key:pr.pr_name ~data:t;
-      Dreg(type_pr t pr)
+      Dreg(pr_set_type t pr)
 
     | Dreg(pr) ->
       let name_ty = Hashtbl.find_exn ty_env pr.pr_name in
       let ty =
         match name_ty with
+        | Ivals(_ces) when pr_is_range pr ->
+          name_ty
         | Ivals(ces) ->
-          assert (List.length ces = List.length pr.pr_index);
+          assert (List.length ces = pr_index_length pr);
           U64
         | Array(_ces) -> assert false
         | (Bool | U64) -> assert false
       in
       assert_equal_ty (pr_to_string pr) t ty;
-      Dreg(type_pr t pr)
+      Dreg(pr_set_type t pr)
 
     | Dmem(pr,offset) ->
       let name_ty = Hashtbl.find_exn ty_env pr.pr_name in
@@ -105,7 +114,7 @@ let type_efun (efun : IL_Lang.efun_ut) (_fun_env : fun_env) : IL_Lang.efun =
         | (Bool | U64) -> assert false
       in
       assert_equal_ty (pr_to_string pr) t ty;
-      Dmem(type_pr name_ty pr,offset)
+      Dmem(pr_set_type name_ty pr,offset)
   in
   let type_app = function
 
@@ -164,9 +173,31 @@ let type_efun (efun : IL_Lang.efun_ut) (_fun_env : fun_env) : IL_Lang.efun =
     | For(v,lb,ub,stmt) ->
       let stmt = stmt_type stmt in
       For(v,lb,ub,stmt)
+
+    | Call(fname,ds,args) ->
+      let cfun = Hashtbl.find_exn fun_env fname in
+      let args =
+        List.map2_exn
+          ~f:(fun (a : src_ut) (cpr : preg) ->
+              match a with
+              | Sreg(pr) ->
+                Sreg({ pr with pr_aux = cpr.pr_aux })
+              | _ -> assert false)
+          args cfun.ef_args
+      in
+      let ds =
+        List.map2_exn
+          ~f:(fun (a : dest_ut) (cpr : preg) ->
+              match a with
+              | Dreg(pr) ->
+                Dreg({ pr with pr_aux = cpr.pr_aux })
+              | _ -> assert false)
+          ds cfun.ef_ret
+      in
+      Call(fname,ds,args)
       
   and stmt_type stmt = List.map ~f:type_instr stmt in
-  assert (efun.ef_ret = []);
+  let ef_ret = List.map ~f:(fun pr -> snd (type_preg pr)) efun.ef_ret in
   let body = stmt_type efun.ef_body in
   { ef_name   = efun.ef_name;
     ef_extern = efun.ef_extern;
@@ -174,8 +205,13 @@ let type_efun (efun : IL_Lang.efun_ut) (_fun_env : fun_env) : IL_Lang.efun =
     ef_args   = efun.ef_args;
     ef_decls  = efun.ef_decls;
     ef_body   = body;
-    ef_ret    = [] (* FIXME *)
+    ef_ret    = ef_ret
   }
 
 let type_efuns (efuns : IL_Lang.efun_ut list) : IL_Lang.efun list =
-  List.map ~f:(fun ef -> type_efun ef (String.Table.create ())) efuns
+  let smap = String.Table.create () in
+  List.map efuns
+    ~f:(fun ef ->
+          let efun = type_efun ef smap in
+          Hashtbl.add_exn smap ~key:efun.ef_name ~data:efun;
+          efun)

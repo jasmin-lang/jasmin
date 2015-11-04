@@ -38,8 +38,9 @@ let rec pp_icond fmt = function
 
 let pp_preg fmt  { pr_name= r; pr_index = ies } =
   match ies with
-  | []   -> F.fprintf fmt "%s" r
-  | _::_ -> F.fprintf fmt "%s[%a]" r (pp_list "," pp_cexpr) ies
+  | Index []     -> F.fprintf fmt "%s" r
+  | Index ies    -> F.fprintf fmt "%s[%a]" r (pp_list "," pp_cexpr) ies
+  | Range(lb,ub) -> F.fprintf fmt "%s<%a..%a>" r pp_cexpr lb pp_cexpr ub
 
 let pp_src fmt = function
   | Sreg(pr)    -> pp_preg fmt pr
@@ -79,6 +80,8 @@ let rec pp_instr fmt = function
   | For(iv,ie1,ie2,i) ->
     F.fprintf fmt "for %s in %a..%a {@\n  @[<v 0>%a@]@\n}"
       iv pp_cexpr ie1 pp_cexpr ie2 pp_stmt i
+  | Call(_name,_dest,_args) ->
+    F.fprintf fmt "call"
 
 and pp_stmt fmt is =
   F.fprintf fmt "@[<v 0>%a@]" (pp_list "@\n" pp_instr) is
@@ -87,7 +90,8 @@ let pp_return fmt names =
   F.fprintf fmt "return %a" (pp_list "," pp_preg) names
 
 let pp_efun fmt ef =
-  F.fprintf fmt "@[<v 0>extern %s(%a) {@\n  @[<v 0>%a@\n%a@]@\n}@]"
+  F.fprintf fmt "@[<v 0>%s%s(%a) {@\n  @[<v 0>%a@\n%a@]@\n}@]"
+    (if ef.ef_extern then "extern " else "")
     ef.ef_name
     (pp_list "," pp_preg) ef.ef_args
     pp_stmt ef.ef_body
@@ -106,3 +110,21 @@ let shorten_efun n efun =
     { efun with
       ef_body = List.take efun.ef_body n;
       ef_ret = [] }
+
+let pp_preg_ty fmt pr =
+  F.fprintf fmt "%a:%a" pp_preg pr pp_ty pr.pr_aux
+
+let map_find_exn m pp pr =
+  match Map.find m pr with
+  | Some x -> x
+  | None ->
+    failwith (fsprintf "map_find_preg %a failed, not in domain:\n%a"
+                  pp pr (pp_list "," pp) (Map.keys m))
+
+let hashtbl_find_exn m pp pr =
+  match Hashtbl.find m pr with
+  | Some x -> x
+  | None ->
+    failwith (fsprintf "map_find_preg %a failed, not in domain:\n%a"
+                  pp pr (pp_list "," pp) (Hashtbl.keys m))
+ 

@@ -28,6 +28,7 @@ rule lex = parse
   | "bool"  { T_BOOL }
 
   | "="     { EQ }
+  | "=@"    { EQCALL }
   | "!="    { INEQ }
   | "+="    { PLUSEQ }
   | "-="    { MINUSEQ }
