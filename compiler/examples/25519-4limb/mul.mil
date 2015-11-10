@@ -1,6 +1,10 @@
 extern fn mul<n : u64>(zp, xp, yp0 : u64[n] /* rdx */) {
 
-  reg x, y, z : u64<n>;
+  reg yp   : u64[n];
+  reg z    : u64<2*n>;
+  reg x, y : u64<n>;
+  reg h, l, hprev, c38, rax, zero : u64;
+  reg cf : bool;
 
   yp = yp0;
   
@@ -14,8 +18,8 @@ extern fn mul<n : u64>(zp, xp, yp0 : u64[n] /* rdx */) {
       z<1> = h;
     } else {
       cf? z<j> += l;
-      z<j + 1> = 0;
-      z<j + 1> += h + cf;
+      z<j+1> = 0;
+      z<j+1> += h + cf;
     }
   }
 
@@ -31,12 +35,12 @@ extern fn mul<n : u64>(zp, xp, yp0 : u64[n] /* rdx */) {
       } else {
         h += 0 + cf;
         cf? z<i+j> += hprev;
-        if 1 <= j && j < n {
+        if 1 <= j && j < n - 1 {
           hprev = 0;
           hprev += h + cf;
-        } else { /* j = n */
-          z<i + j + 1> = 0;
-          cf? z<i + j + 1> += h + cf;
+        } else { /* j = n - 1 */
+          z<i+j+1> = 0;
+          cf? z<i+j+1> += h + cf;
         }
       }
     }
@@ -45,7 +49,7 @@ extern fn mul<n : u64>(zp, xp, yp0 : u64[n] /* rdx */) {
   /* reduction from 8 limbs to 4 limbs */
   c38 = 38;
   for i in 0..n {
-    rax = z<n + i + 1>;
+    rax = z<n + i>;
     h, l = rax * c38;
     cf? z<i> += l;
     if i = 0 {

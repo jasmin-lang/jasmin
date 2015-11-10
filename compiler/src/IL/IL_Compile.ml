@@ -6,15 +6,54 @@ open Util
 open Arith
 open IL_Lang
 open IL_Utils
-open IL_Interp
+(* open IL_Interp *)
 
 module X64 = Asm_X64
 module MP  = MParser
 
 (* ** Macro expansion: loop unrolling, if, ...
  * ------------------------------------------------------------------------ *)
+(*
+let inst_cexpr cvar_map ce =
+  Cconst (eval_cexpr cvar_map ce)
 
-let macro_expand_stmt cvar_map stmt =
+let inst_preg cvar_map preg =
+  let inst_indexes = function
+    | Index(ies) -> Index (List.map ~f:(inst_cexpr cvar_map) ies)
+    | Range _ -> assert false
+  in
+  { preg with pr_index = inst_indexes preg.pr_index }
+
+let inst_src cvar_map = function
+  | Sreg(r)       -> Sreg(inst_preg cvar_map r)
+  | Smem(r,ie)    -> Smem(inst_preg cvar_map r, inst_cexpr cvar_map ie)
+  | Simm(_) as im -> im
+
+let inst_dest cvar_map = function
+  | Dreg(v)       -> Dreg(inst_preg cvar_map v)
+  | Dmem(v,ie)    -> Dmem(inst_preg cvar_map v, inst_cexpr cvar_map ie)
+
+let inst_base_instr cvar_map bi =
+  let inst_d = inst_dest cvar_map in
+  let inst_s = inst_src cvar_map in
+  match bi with
+  | App(o,ds,ss) -> App(o,List.map ~f:inst_d ds,List.map ~f:inst_s ss)
+  | Comment(_)   -> bi
+
+let expand_range cvar_map pr =
+  match pr.pr_index with
+  | Range(lb,ub) ->
+    let lb = eval_cexpr cvar_map lb |> U64.to_big_int in
+    let ub = eval_cexpr cvar_map ub |> U64.to_big_int in
+    List.map
+      ~f:(fun i ->
+          mk_preg_index_u64 pr.pr_name (U64.of_big_int i) U64)
+      (list_from_to ~first:lb ~last:ub)
+  | _ -> [pr]
+*)
+
+let macro_expand_stmt _cvar_map _stmt =
+  failwith "undefined" (*
   let spaces indent = String.make indent ' ' in
   let s_of_cond c = if c then "if" else "else" in
   let s_of_bi = Big_int.string_of_big_int in
@@ -53,19 +92,25 @@ let macro_expand_stmt cvar_map stmt =
       @ [bicom (comment_while "END:" indent iv lb_ie ub_ie)]
   in
   List.concat_map ~f:(expand 0 cvar_map) stmt
+*)
 
-let macro_expand_efun cvar_map efun =
+let macro_expand_efun _cvar_map _efun =
+  failwith "undefined"
+  (*
   { efun with
     ef_args = List.concat_map ~f:(expand_arg cvar_map) efun.ef_args;
     ef_ret  = List.concat_map ~f:(expand_range cvar_map) efun.ef_ret;
     ef_body =
       macro_expand_stmt cvar_map efun.ef_body
   }
+  *)
 
 (* ** Single assignment
  * ------------------------------------------------------------------------ *)
 
-let transform_ssa efun =
+let transform_ssa _efun =
+  failwith "undefined"
+  (*
   let bis = stmt_to_base_instrs efun.ef_body in
   let counter = ref (U64.of_int 0) in
   let var_map = Preg.Table.create () in
@@ -101,6 +146,7 @@ let transform_ssa efun =
   let bis  = List.map ~f:rename bis in
   let rets = List.map ~f:(fun pr -> get_index pr) efun.ef_ret in
   { efun with ef_args = args; ef_body = base_instrs_to_stmt bis; ef_ret = rets; }
+  *)
 
 (* ** Validate transformation (assuming that transform_ssa correct)
  * ------------------------------------------------------------------------ *)
@@ -135,7 +181,9 @@ type live_info = {
 
 (* returns a list of tuples (bi, V) denoting that the instructions
    bi;... depend on the registers V *)
-let register_liveness efun =
+let register_liveness _efun =
+  failwith "undefined"
+  (*
   let bis = stmt_to_base_instrs efun.ef_body in
   let analz_dest read = function
     | Dreg(r)   -> Set.remove read r
@@ -162,11 +210,14 @@ let register_liveness efun =
       end
   in
   go (Preg.Set.of_list efun.ef_ret) (List.rev bis) []
+  *)
 
 (* ** Collect equality constraints from +=, -=, ...
  * ------------------------------------------------------------------------ *)
 
-let eq_constrs bis regs =
+let eq_constrs _bis _regs =
+  failwith "undefined"
+  (*
   let eq_classes    = Int.Table.create  () in
   let class_map     = Preg.Table.create () in
   let fixed_classes = Int.Table.create  () in
@@ -230,12 +281,15 @@ let eq_constrs bis regs =
   List.iter regs ~f:(fun pr -> ignore (new_class pr));
   List.iter bis ~f:handle_bi;
   (eq_classes, fixed_classes, class_map)
+  *)
 
 (* ** Register allocation
  * ------------------------------------------------------------------------ *)
 
 (* PRE: We assume the code is in SSA. *)
-let register_allocate nregs efun0 =
+let register_allocate _nregs _efun0 =
+  failwith "undefined"
+  (*
   let module E = struct exception PickExc of string end in
 
   (* Set of free registers: 0 .. nregs -1 *)
@@ -363,7 +417,7 @@ let register_allocate nregs efun0 =
 
   let () =
     let (eq_classes, fixed_classes, _class_map) =
-      eq_constrs (stmt_to_base_instrs efun0.ef_body) efun0.ef_args
+      eq_constrs (stmt_to_base_instrs efun0.ef_body) (failwith "efun0.ef_args")
     in
     (* register %rax and %rdx for mul *)
     Hashtbl.iter fixed_classes
@@ -382,8 +436,9 @@ let register_allocate nregs efun0 =
       let arg_max = List.length X64.arg_regs in
       if List.length arg_regs < arg_len then
         failwith (fsprintf "register_alloc: at most %i arguments supported" arg_max);
-      List.iter (List.zip_exn efun0.ef_args arg_regs)
+      (* List.iter (List.zip_exn efun0.ef_args arg_regs)
         ~f:(fun (arg,arg_reg) -> Hashtbl.set fixed_pregs ~key:arg ~data:arg_reg);
+      *)
 
       (* directly use the ABI return registers for return values *)
       let ret_extern_regs = List.map ~f:X64.int_of_reg X64.[RAX; RDX] in
@@ -396,7 +451,6 @@ let register_allocate nregs efun0 =
         ~f:(fun (ret,ret_reg) -> Hashtbl.set fixed_pregs ~key:ret ~data:ret_reg)
     )
   in
-
   let args = List.map efun0.ef_args ~f:(fun pr -> int_to_preg (pick_free pr)) in
   let bis = alloc [] (register_liveness efun0) in
   let efun =
@@ -408,11 +462,14 @@ let register_allocate nregs efun0 =
   in
   (*validate_transform efun0 efun;*)
   efun
+  *)
 
 (* ** Translation to assembly
  * ------------------------------------------------------------------------ *)
 
-let to_asm_x64 efun =
+let to_asm_x64 _efun =
+  failwith "undefined"
+  (*
   let mreg_of_preg pr =
     let fail () =
       failwith
@@ -519,10 +576,11 @@ let to_asm_x64 efun =
   X64.(
     { af_name = efun.ef_name;
       af_body = asm_code;
-      af_args = List.map ~f:mreg_of_preg efun.ef_args;
-      af_ret  = List.map ~f:mreg_of_preg efun.ef_ret;
+      af_args = failwith "List.map ~f:mreg_of_preg efun.ef_args";
+      af_ret  = failwith "List.map ~f:mreg_of_preg efun.ef_ret";
     }
   )
+  *)
 
 (* ** Calling convention for "extern" functions
  * ------------------------------------------------------------------------ *)

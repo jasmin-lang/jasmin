@@ -1,8 +1,10 @@
 /* The implementation is parameterized by "n = limbs - 1". */
-fn add<n : u64>(x : u64<n>, yp : u64[n]) {
+fn add<n : u64>(x : u64<n>, yp : u64[n]) : u64<n> {
 
   reg y : u64<n>;
-
+  reg add0, add1 : u64;
+  flag cf : bool;
+  
   for i in 0..n {
     y<i> = yp[i];
     if (i = 0) {
@@ -27,12 +29,18 @@ fn add<n : u64>(x : u64<n>, yp : u64[n]) {
   add0 = add1 if cf;
   x<0> += add0;
 
-  return x<0..n>;
+  return x<..>;
 }
 
 extern fn add_call<n : u64>(zp, xp, yp : u64[n]) {
+
   reg x : u64<n>;
-  for i in 0..n { x<i> = xp[i]; }
-  x<0..n> =@ add(x<0..n>,yp);
-  for i in 0..n { zp[i] = x<i>; }
+  reg t1p, t2p : u64[n];
+ 
+  x<..>   = xp[..];
+  x<..>   =@ add(x<..>,yp);
+  t1p[..] = x<..>;
+  t2p[..] = t1p[..];
+  t1p[..] = xp[..];
+  zp[..]  = t2p[..];
 }

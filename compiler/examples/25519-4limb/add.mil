@@ -1,7 +1,9 @@
 /* The implementation is parameterized by "n = limbs - 1". */
 extern fn add<n : u64>(zp, xp, yp : u64[n]) {
 
-  reg x, y : u64<n>;
+  reg  x, y : u64<n>;
+  reg add0, add1 : u64;
+  flag cf : bool;
 
   for i in 0..n {
     x<i> = xp[i];

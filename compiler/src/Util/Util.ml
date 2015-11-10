@@ -1,6 +1,5 @@
 (* * Utility functions (mostly for testing) *)
 
-
 (* ** Imports and abbreviations *)
 open Core_kernel.Std
 
@@ -34,12 +33,9 @@ let fsprintf fmt =
 
 let linit l = List.rev l |> List.tl_exn |> List.rev
 
-let list_from_to ~first ~last =
-  let rec go i acc =
-    if Big_int.lt_big_int i first then acc
-    else go (Big_int.pred_big_int i) (i::acc)
-  in
-  go last []
-
 let equal_pair equal_a equal_b (a1,b1) (a2, b2) =
   equal_a a1 a2 && equal_b b1 b2
+
+let equal_list equal_elem xs ys =
+  List.length xs = List.length ys &&
+  List.for_all2_exn ~f:equal_elem xs ys

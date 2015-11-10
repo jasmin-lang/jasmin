@@ -1,6 +1,8 @@
 extern fn sub<n : u64>(zp, xp, yp : u64[n]) {
   
-  reg x, y, z : u64<n>; 
+  reg x, y : u64<n>;
+  reg sub0, sub1 : u64;
+  flag cf : bool;
 
   for i in  0..n {
     x<i> = xp[i];

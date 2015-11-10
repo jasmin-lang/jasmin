@@ -123,6 +123,16 @@ module Limb4 = struct
     )
 end
 
+(* list containing [first..last) excluding last *)
+let list_from_to ~first ~last =
+  let rec go i acc =
+    if U64.compare i last < 0 then
+      go (U64.succ i) (i::acc)
+    else
+      List.rev acc
+  in
+  go first []
+
 (* ** Pretty-printing
  * ------------------------------------------------------------------------ *)
 

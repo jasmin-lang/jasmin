@@ -1,217 +1,188 @@
-(* * Typing and well-formedness of IL *)
+(* * Typing of IL *)
 
+(* ** Imports *)
 open IL_Lang
 open IL_Utils
 open Util
 open Core_kernel.Std
 
-(*
-We should perform the following checks:
-1. All variables that are read must be defined.
-2. For carry flags, every arithmetic operation 
-   makes previously written carry-flag variables
-   undefined.
-3. ...
-4. ensure that LHS "h l = ..." in mul distinct
-5. ensure that src1 and dest equal for X64
-*)
+module P = ParserUtil
 
-type fun_env = efun String.Table.t
+(* ** Check type information and propagate to pregs
+ * ------------------------------------------------------------------------ *)
 
-type type_env = ty String.Table.t
+(* *** Compute types of registers taking (array) indexes into account
+ * ------------------------------------------------------------------------ *)
 
-let type_efun (efun : IL_Lang.efun_ut) (fun_env : fun_env) : IL_Lang.efun =
-  let ty_env =  String.Table.create () in
-  List.iter
-    ~f:(fun pr ->
-          assert (not (pr_is_indexed pr));
-          Hashtbl.set ty_env ~key:pr.pr_name ~data:pr.pr_aux)
-    (efun.ef_args @ efun.ef_decls);
-  let pr_set_type t pr = { pr with pr_aux = t } in
-  let pr_to_string pr = fsprintf "%a" pp_preg pr in
-  let assert_equal_ty s ety gty =
-    if not (equal_ty ety gty) then
-      failwith (fsprintf "wrong type for %s, expected %a, got %a." s pp_ty ety pp_ty gty)
-  in
-  let type_preg pr =
-    let name_ty = Hashtbl.find_exn ty_env pr.pr_name in
-    
-    let ty =
-      match name_ty with
-      | Ivals(_ces) when pr_is_range pr ->
-        name_ty
-      | Ivals(ces) ->
-        assert (List.length ces = pr_index_length pr);
-        U64
-      | Array(_ces) ->
-        assert (not (pr_is_indexed pr));
-        name_ty
-      | (Bool | U64) -> 
-        name_ty
+let ty_env_of_efun efun = String.Map.of_alist_exn (efun.ef_args @ efun.ef_decls)
+
+(** [type_pr_app_g pr ty] takes a pseudo-register pr<ies> and the
+    type of pr and returns the type of pr<ies>. *)
+let type_pr_app pr ty =
+  match ty with
+  | Bool ->
+    if pr.pr_idxs<>[] then preg_error pr ("register has type bool, invalid usage");
+    Bool
+  | U64(tidxs,dims) ->
+    let new_tidxs =
+      list_map2_exn tidxs pr.pr_idxs
+        ~f:(fun tidx idx -> match idx with Get _ -> None | All -> Some tidx)
+        ~err:(fun l_exp l_got ->
+            preg_error pr
+              (fsprintf "indexed register %s must be fully applied (got %i, expected %i)"
+                 pr.pr_name l_got l_exp))
+      |> List.filter_opt 
     in
-    ty, pr_set_type ty pr
-  in 
-  let type_src ?exp s =
-    let assert_type pr t =
-      match exp with
-      | None    -> ()
-      | Some t' -> assert_equal_ty pr t' t
+    U64(new_tidxs,dims)
+
+let type_pr ty_env pr =
+  type_pr_app pr (map_find_exn ~err:(preg_error pr) ty_env pp_string pr.pr_name)
+
+let typecheck_pr ty_env pr ty_exp =
+  let ty = type_pr ty_env pr in
+  if not (equal_ty ty ty_exp) then
+    preg_error pr (fsprintf "type mismatch (got %a, expected %a)" pp_ty ty pp_ty ty_exp)
+
+let type_dest ty_env {d_pr; d_aidxs} =
+  match type_pr ty_env d_pr with
+  | Bool ->
+    if d_aidxs<>[] then
+      preg_error d_pr ("register has type bool, invalid usage");
+    Bool
+
+  | U64(_,dims) as ty when List.length d_aidxs > List.length dims ->
+    preg_error d_pr (fsprintf "too many array indexes given, has type %a" pp_ty ty)
+
+  | U64(tidxs,dims) as ty ->
+    let l_aidxs = List.length d_aidxs in
+    let dims_indexed   = List.take dims l_aidxs in
+    let dims_noexpand = List.drop dims l_aidxs in
+    let dims_expand =
+      list_map2_exn dims_indexed d_aidxs
+        ~f:(fun tdim id -> match id with Get(_) -> None | All -> Some tdim)
+        ~err:(fun l_exp l_got -> 
+                preg_error d_pr
+                (fsprintf "indexed register %a:%a must be fully applied (got %i, expected %i)"
+                   pp_preg d_pr pp_ty ty l_got l_exp))
+        |> List.filter_opt
     in
-    match s with
+    U64(tidxs@dims_expand,dims_noexpand)
 
-    | Simm(i)  ->
-      assert_type "immediate" U64;
-      U64, Simm(i)
+let type_src ty_env s =
+  match s with
+  | Imm(_) -> U64([],[])
+  | Src(d) -> type_dest ty_env d
 
-    | Sreg(pr) ->
-      let ty, pr = type_preg pr in
-      assert_type (fsprintf "%a" pp_preg pr) ty;
-      ty, Sreg(pr)
+(* *** Check types for assignments, destinations, and sources
+ * ------------------------------------------------------------------------ *)
 
-    | Smem(pr,offset) ->
-      let name_ty = Hashtbl.find_exn ty_env pr.pr_name in
-      let ty =
-        match name_ty with
-        | Ivals(_ces) -> failwith (fsprintf "got destination %a for array" pp_src s)
-        | Array(ces) ->
-          assert (List.length ces = List.length [offset]);
-          U64
-        | (Bool | U64) -> assert false
-      in
-      assert_type (pr_to_string pr) ty;
-      ty, Smem(pr_set_type name_ty pr,offset)
-  in
-  let type_dst t d =
-    match d with
+type base_type = T_U64 | T_Bool
 
-    | Dreg(pr) when not (pr_is_indexed pr) ->
-      Hashtbl.set ty_env ~key:pr.pr_name ~data:t;
-      Dreg(pr_set_type t pr)
+let typecheck_assgn ty_env d s =
+  let ty_s = type_src  ty_env s in
+  let ty_d = type_dest ty_env d in 
+  match ty_s, ty_d with
+  | U64(tidxs_s,dims_s), U64(tidxs_d,dims_d)
+    when equal_ty (U64(tidxs_s@dims_s,[])) (U64(tidxs_d@dims_d,[])) ->
+    ()
+  | Bool, Bool ->
+    preg_error d.d_pr (fsprintf "incompatible types for assignment %a (cannot assign flags)"
+                         pp_instr (Binstr(Assgn(d,s))));
+  | U64(tidxs_s,[]), U64(tidxs_d,[_s]) (* FIXME: generalize, assign address to array type *)
+    when equal_ty (U64(tidxs_s,[])) (U64(tidxs_d,[])) ->
+    ()
+  | _ -> 
+    if not (equal_ty ty_s ty_d) then
+      preg_error d.d_pr (fsprintf "incompatible types for assignment %a (lhs %a, rhs %a)"
+                           pp_instr (Binstr(Assgn(d,s))) pp_ty ty_d pp_ty ty_s);
+    ()
 
-    | Dreg(pr) ->
-      let name_ty = Hashtbl.find_exn ty_env pr.pr_name in
-      let ty =
-        match name_ty with
-        | Ivals(_ces) when pr_is_range pr ->
-          name_ty
-        | Ivals(ces) ->
-          assert (List.length ces = pr_index_length pr);
-          U64
-        | Array(_ces) -> assert false
-        | (Bool | U64) -> assert false
-      in
-      assert_equal_ty (pr_to_string pr) t ty;
-      Dreg(pr_set_type t pr)
+let type_dest_eq ty_env {d_pr;d_aidxs} t =
+  match map_find_exn ~err:(preg_error d_pr) ty_env pp_string d_pr.pr_name with
+  | Bool     when t=T_U64  -> failwith "got bool, expected u64"
+  | Bool                   -> ()
+  | U64(_,_) when t=T_Bool -> failwith "got u64<_>[_], expected bool"
+  | U64(iidxs,aidxs) as ty ->
+    if (   List.length d_pr.pr_idxs<>List.length iidxs
+        || List.length d_aidxs<>List.length aidxs) then
+      preg_error d_pr (fsprintf "expected type u64, register name of type %a not fully applied"
+                         pp_ty ty)
 
-    | Dmem(pr,offset) ->
-      let name_ty = Hashtbl.find_exn ty_env pr.pr_name in
-      let ty =
-        match name_ty with
-        | Ivals(_ces) -> failwith (fsprintf "got destination %a for array" pp_dest d)
-        | Array(ces) ->
-          assert (List.length ces = List.length [offset]);
-          U64
-        | (Bool | U64) -> assert false
-      in
-      assert_equal_ty (pr_to_string pr) t ty;
-      Dmem(pr_set_type name_ty pr,offset)
-  in
-  let type_app = function
+let type_src_eq ty_env src t =
+  match src, t with
+  | Imm _,  T_Bool -> failwith "got u64, expected bool"
+  | Imm _,  T_U64  -> ()
+  | Src(d), t      -> type_dest_eq ty_env d t
 
-    | A_Assgn(d,s) ->
-      let s_t, s = type_src s in
-      let d      = type_dst s_t d in
-      app_view_to_app (A_Assgn(d,s))
+(* *** Check types for ops, instructions, statements, and functions
+ * ------------------------------------------------------------------------ *)
 
-    | A_UMul((h,l),(x,y)) ->
-      let _, x = type_src ~exp:U64 x in
-      let _, y = type_src ~exp:U64 y in
-      let h = type_dst U64 h in
-      let l = type_dst U64 l in
-      app_view_to_app (A_UMul((h,l),(x,y)))
+let typecheck_op ty_env op z x y =
+  let type_src_eq  = type_src_eq  ty_env in
+  let type_dest_eq = type_dest_eq ty_env in
+  match op with
+  
+  | UMul(h) ->
+    type_src_eq  x T_U64;
+    type_src_eq  y T_U64;
+    type_dest_eq z T_U64;
+    type_dest_eq h T_U64
 
-    | A_Carry(cop,(mcf_out,z),(x,y,mcf_in)) ->
-      let _,x = type_src ~exp:U64 x in
-      let _,y = type_src ~exp:U64 y in
-      let mcf_in =  Option.map ~f:(fun s -> snd (type_src ~exp:Bool s)) mcf_in in
-      let mcf_out = Option.map ~f:(type_dst Bool) mcf_out in
-      let z = type_dst U64 z in
-      app_view_to_app (A_Carry(cop,(mcf_out,z),(x,y,mcf_in)))
+  | Carry(_,mcf_out,mcf_in) ->
+    type_src_eq  x T_U64;
+    type_src_eq  y T_U64;
+    type_dest_eq z T_U64;
+    Option.iter ~f:(fun s -> type_src_eq  s T_Bool) mcf_in;
+    Option.iter ~f:(fun d -> type_dest_eq d T_Bool) mcf_out
 
-    | A_CMov(cf,z,(x,y,cf_in))  ->
-      let _,x = type_src ~exp:U64 x in
-      let _,y = type_src ~exp:U64 y in
-      let _,cf_in = type_src ~exp:Bool cf_in in
-      let z = type_dst U64 z in
-      app_view_to_app (A_CMov(cf,z,(x,y,cf_in)))
+  | CMov(_,cf_in) ->
+    type_src_eq  x     T_U64;
+    type_src_eq  y     T_U64;
+    type_src_eq  cf_in T_Bool;
+    type_dest_eq z     T_U64
       
-    | A_IMul(z,(x,y)) ->
-      let _,x = type_src ~exp:U64 x in
-      let _,y = type_src ~exp:U64 y in
-      let z = type_dst U64 z in
-      app_view_to_app (A_IMul(z,(x,y)))
+  | ThreeOp(_) ->
+    type_src_eq  x T_U64;
+    type_src_eq  y T_U64;
+    type_dest_eq z T_U64
     
-    | A_Logic(_lop,_d,(_s1,_s2)) ->
-      failwith "not implemented"
+  | Shift(_dir,mcf_out) ->
+    type_src_eq  x T_U64;
+    type_src_eq  y T_U64;
+    type_dest_eq z T_U64;
+    Option.iter ~f:(fun s -> type_dest_eq  s T_Bool) mcf_out
 
-    | A_Shift(_dir,(_mcf_out,_z),(_x,_cn)) ->
-      failwith "not implemented"
-
-  in
-  let rec type_instr instr =
-    match instr with
-
-    | BInstr(Comment c) -> BInstr(Comment c)
-
-    | BInstr(App(o,dests,srcs)) -> BInstr(type_app (app_view (o,dests,srcs)))
-
-    | If(ccond,stmt1,stmt2) ->
-      let stmt1 = stmt_type stmt1 in
-      let stmt2 = stmt_type stmt2 in
-      If(ccond,stmt1,stmt2)
-    
-    | For(v,lb,ub,stmt) ->
-      let stmt = stmt_type stmt in
-      For(v,lb,ub,stmt)
-
-    | Call(fname,ds,args) ->
-      let cfun = Hashtbl.find_exn fun_env fname in
-      let args =
-        List.map2_exn
-          ~f:(fun (a : src_ut) (cpr : preg) ->
-              match a with
-              | Sreg(pr) ->
-                Sreg({ pr with pr_aux = cpr.pr_aux })
-              | _ -> assert false)
-          args cfun.ef_args
-      in
-      let ds =
-        List.map2_exn
-          ~f:(fun (a : dest_ut) (cpr : preg) ->
-              match a with
-              | Dreg(pr) ->
-                Dreg({ pr with pr_aux = cpr.pr_aux })
-              | _ -> assert false)
-          ds cfun.ef_ret
-      in
-      Call(fname,ds,args)
+let rec typecheck_instr fun_env ty_env instr =
+  let typecheck_stmt = typecheck_stmt fun_env ty_env in
+  let typecheck_op = typecheck_op ty_env in
+  let typecheck_assgn = typecheck_assgn ty_env in
+  match instr with
+  | Binstr(Comment _)        -> ()
+  | Binstr(Op(op,d,(s1,s2))) -> typecheck_op op d s1 s2
+  | Binstr(Assgn(d,s))       -> typecheck_assgn d s
+  | If(_,stmt1,stmt2)        -> typecheck_stmt stmt1; typecheck_stmt stmt2
+  | For(_,_,_,stmt)          -> typecheck_stmt stmt
+  | Call(fname,rets,args)    ->
+    let cfun = map_find_exn fun_env pp_string fname in
+    let typecheck_pr pr (_,ty_exp) = typecheck_pr ty_env pr ty_exp in
+    list_iter2_exn args cfun.ef_args ~f:typecheck_pr
+      ~err:(fun n_g n_e ->
+              failwith (fsprintf "arguments have wrong length (got %i, expected %i)" n_g n_e));
+    list_iter2_exn rets cfun.ef_ret ~f:typecheck_pr
+      ~err:(fun n_g n_e ->
+              failwith (fsprintf "l-values have wrong length (got %i, expected %i)" n_g n_e))
       
-  and stmt_type stmt = List.map ~f:type_instr stmt in
-  let ef_ret = List.map ~f:(fun pr -> snd (type_preg pr)) efun.ef_ret in
-  let body = stmt_type efun.ef_body in
-  { ef_name   = efun.ef_name;
-    ef_extern = efun.ef_extern;
-    ef_params = efun.ef_params;
-    ef_args   = efun.ef_args;
-    ef_decls  = efun.ef_decls;
-    ef_body   = body;
-    ef_ret    = ef_ret
-  }
+and typecheck_stmt fun_env ty_env stmt =
+  List.iter ~f:(typecheck_instr fun_env ty_env) stmt
 
-let type_efuns (efuns : IL_Lang.efun_ut list) : IL_Lang.efun list =
-  let smap = String.Table.create () in
-  List.map efuns
-    ~f:(fun ef ->
-          let efun = type_efun ef smap in
-          Hashtbl.add_exn smap ~key:efun.ef_name ~data:efun;
-          efun)
+let typecheck_ret ty_env ret =
+  List.iter ret ~f:(fun (pr,ty) -> typecheck_pr ty_env pr ty)
+
+let typecheck_efun fun_env efun =
+  let ty_env = ty_env_of_efun efun in
+  typecheck_stmt fun_env ty_env efun.ef_body;
+  typecheck_ret ty_env efun.ef_ret
+
+let typecheck_efuns efuns =
+  let smap = String.Map.of_alist_exn (List.map efuns ~f:(fun ef -> (ef.ef_name, ef))) in
+  List.iter efuns ~f:(typecheck_efun smap)

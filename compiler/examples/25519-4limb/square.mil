@@ -3,9 +3,10 @@
    to generalize the current version. */
 extern fn square<n : u64>(zp, xp : u64[n]) {
 
-
-  reg z : u64<n>;
+  reg z : u64<2*n>;
   reg t : u64<3>;
+  reg rax, rdx, c38, h, l, hprev, zero : u64;
+  reg cf : bool;
 
   z<7> = 0;
 
@@ -39,7 +40,7 @@ extern fn square<n : u64>(zp, xp : u64[n]) {
   /* set z<1..2n+1> = 2*z<1..2n+1> since
      we have summed all x_i*x_j with i<>j
      so far and these occur twice */
-  for i in 1..(2*n + 1) {
+  for i in 1..(2*n) {
     if (i = 1) {
       cf? z<i> += z<i>;
     } else {
@@ -86,7 +87,7 @@ extern fn square<n : u64>(zp, xp : u64[n]) {
   /* reduction from 8 limbs to 4 limbs (identical to mul.mil) */
   c38 = 38;
   for i in 0..n {
-    rax = z<n + i + 1>;
+    rax = z<n+i>;
     h, l = rax * c38;
     cf? z<i> += l;
     if i = 0 {

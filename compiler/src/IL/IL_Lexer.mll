@@ -58,6 +58,7 @@ rule lex = parse
   | "^"     { XOR }
 
   | "reg"    { REG }
+  | "flag"   { FLAG }
 
   | "for"    { FOR }
   | "in"     { IN }

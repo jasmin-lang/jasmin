@@ -18,7 +18,7 @@ module CF = Foreign
 let il_to_asm_string trafos il_string =
   let efuns = PU.parse ~parse:ILP.efuns "<none>" il_string in
   let efun = match efuns with
-    | [f] -> ILTy.type_efun f (String.Table.create ())
+    | [f] -> ILTy.typecheck_efun String.Map.empty f; f
     | _ -> assert false
   in
   let acode = match ILT.apply_transform_asm (trafos^"asm[x86-64]") efun with
@@ -31,7 +31,7 @@ let il_to_asm_string trafos il_string =
 let il_to_il_string trafos il_string =
   let efuns = PU.parse ~parse:ILP.efuns "<none>" il_string in
   let efun = match efuns with
-    | [f] -> ILTy.type_efun f (String.Table.create ())
+    | [f] -> ILTy.typecheck_efun String.Map.empty f; f
     | _ -> assert false
   in
   let efun = match ILT.apply_transform_asm trafos efun with
@@ -179,16 +179,16 @@ let t_interp_4limb_binop file fun_name desc expected xval yval () =
   let inp = In_channel.read_all file in
   let open ILL in
   let open ILI in
-  let cvar_map = String.Map.of_alist_exn [("n",U64.of_int 3)] in
-  let ms = interp_string mem cvar_map args fun_name inp in
-  let offset i = Cconst (U64.of_int i) in
+  let cvar_map = String.Map.of_alist_exn [("n",U64.of_int 4)] in
+  let ms = interp_string file mem cvar_map args fun_name inp in
+  let offset i = Pconst (U64.of_int i) in
   let mem i =
-    Smem(mk_preg_array "zp" "n",offset i)
+    Src({ d_pr = mk_preg_array "zp"; d_aidxs = [offset i]})
   in
   let z0 = read_src ms (mem 0) in
-  let z1 = read_src ms (mem 8) in
-  let z2 = read_src ms (mem 16) in
-  let z3 = read_src ms (mem 24) in
+  let z1 = read_src ms (mem 1) in
+  let z2 = read_src ms (mem 2) in
+  let z3 = read_src ms (mem 3) in
   let zval = Limb4.to_big_int (z0,z1,z2,z3) in
   (*
   F.printf "got: %a = (%a, %a, %a, %a)\n"
@@ -214,16 +214,16 @@ let t_interp_4limb_unop file fun_name desc expected xval () =
   let inp = In_channel.read_all file in
   let open ILL in
   let open ILI in
-  let cvar_map = String.Map.of_alist_exn [("n",U64.of_int 3)] in
-  let ms = interp_string mem cvar_map args fun_name inp in
-  let offset i = Cconst (U64.of_int i) in
+  let cvar_map = String.Map.of_alist_exn [("n",U64.of_int 4)] in
+  let ms = interp_string file mem cvar_map args fun_name inp in
+  let offset i = Pconst (U64.of_int i) in
   let mem i =
-    Smem(mk_preg_array "zp" "n",offset i)
+    Src({d_pr = mk_preg_array "zp"; d_aidxs = [offset i]})
   in
   let z0 = read_src ms (mem 0) in
-  let z1 = read_src ms (mem 8) in
-  let z2 = read_src ms (mem 16) in
-  let z3 = read_src ms (mem 24) in
+  let z1 = read_src ms (mem 1) in
+  let z2 = read_src ms (mem 2) in
+  let z3 = read_src ms (mem 3) in
   let zval = Limb4.to_big_int (z0,z1,z2,z3) in
   (*
   F.printf "got: %a = (%a, %a, %a, %a)\n"
@@ -280,6 +280,65 @@ let t_add_call_4limb t_asm_or_interp xval yval () =
     Big_int_Infix.(xval +! yval)
     xval yval ()
 
+let t_interp_4limb_ladder file fun_name desc expected w0 w1 w2 w3 () =
+  let (w0_0,w0_1,w0_2,w0_3) = Limb4.of_big_int w0 in
+  let (w1_0,w1_1,w1_2,w1_3) = Limb4.of_big_int w1 in
+  let (w2_0,w2_1,w2_2,w2_3) = Limb4.of_big_int w2 in
+  let (w3_0,w3_1,w3_2,w3_3) = Limb4.of_big_int w3 in
+  let mem =
+    U64.Map.of_alist_exn
+      [ (* workp1 *)
+        (U64.of_int (0*8), w0_0)
+      ; (U64.of_int (1*8), w0_1)
+      ; (U64.of_int (2*8), w0_2)
+      ; (U64.of_int (3*8), w0_3)
+      (* workp2 *)
+      ; (U64.of_int (32 + 0*8), w1_0)
+      ; (U64.of_int (32 + 1*8), w1_1)
+      ; (U64.of_int (32 + 2*8), w1_2)
+      ; (U64.of_int (32 + 3*8), w1_3)
+      (* workp3 *)
+      ; (U64.of_int (64 + 0*8), w2_0)
+      ; (U64.of_int (64 + 1*8), w2_1)
+      ; (U64.of_int (64 + 2*8), w2_2)
+      ; (U64.of_int (64 + 3*8), w2_3)
+      (* workp4 *)
+      ; (U64.of_int (96 + 0*8), w3_0)
+      ; (U64.of_int (96 + 1*8), w3_1)
+      ; (U64.of_int (96 + 2*8), w3_2)
+      ; (U64.of_int (96 + 3*8), w3_3)
+      ]
+  in
+  let args = [ U64.of_int 0; U64.of_int 32; U64.of_int 64; U64.of_int 96 ] in
+  let inp = In_channel.read_all file in
+  let open ILL in
+  let open ILI in
+  let cvar_map = String.Map.of_alist_exn [("n",U64.of_int 4)] in
+  let ms = interp_string file mem cvar_map args fun_name inp in
+  let offset i = Pconst (U64.of_int i) in
+  let mem p i = Src({d_pr = mk_preg_array p; d_aidxs = [offset i]}) in
+  let ws =
+    List.map
+      ~f:(fun p -> 
+            let w0 = read_src ms (mem p 0) in
+            let w1 = read_src ms (mem p 1) in
+            let w2 = read_src ms (mem p 2) in
+            let w3 = read_src ms (mem p 3) in
+            Big_int.mod_big_int (Limb4.to_big_int (w0,w1,w2,w3)) pval)
+      ["workp0"; "workp1"; "workp2"; "workp3" ]
+  in
+  (*
+  F.printf "got: %a = (%a, %a, %a, %a)\n"
+    pp_big_int zval pp_uint64 z0 pp_uint64 z1 pp_uint64 z2 pp_uint64 z3;
+  *)
+  assert_equal
+    ~printer:(fun xs ->
+                fsprintf "%a" (pp_list "," pp_string) (List.map ~f:Big_int.string_of_big_int xs))
+    ~cmp:(equal_list Big_int.eq_big_int)
+    ~msg:desc
+    (List.map ~f:(fun i -> Big_int.mod_big_int i pval) expected)
+    ws
+
 (* * Test suite
  * --------------------------------------------------------------------- *)
 
@@ -288,7 +347,7 @@ let tests =
   let m = Big_int_Infix.((2^! 256) -! (big_int_of_int 1)) in
   let one = big_int_of_int 1 in
   let tests s t_binop t_unop =
-    [(* addition *)
+    [ (* addition *)
       "add 4-limb: 1 + 1 "^s >:: t_add_4limb t_binop one one;
       "add 4-limb: p + p "^s >:: t_add_4limb t_binop pval pval;
       "add 4-limb: m + 1 "^s >:: t_add_4limb t_binop m one;
@@ -328,5 +387,20 @@ let tests =
       ]
     else []
   in
-  (tests "(via asm)"     t_via_asm_4limb_binop t_via_asm_4limb_unop) @
+  let t_ladder =
+    t_interp_4limb_ladder
+      "examples/25519-4limb/ladderstep.mil"
+      "ladderstep"
+      "ladderstep-4-limb"
+  in
+  let bzero = Big_int.zero_big_int in
+  let bone = Big_int.unit_big_int in
+  let btest0 = Big_int_Infix.(pval -! Big_int.big_int_of_int 42)  in
+  let btest1 = Big_int_Infix.(pval -! Big_int.big_int_of_int 9999)  in
+  let btest2 = Big_int_Infix.(pval -! Big_int.big_int_of_int 555)  in
+  let btest3 = Big_int_Infix.(pval -! Big_int.big_int_of_int 77777)  in
+  (* (tests "(via asm)"     t_via_asm_4limb_binop t_via_asm_4limb_unop) @ *)
   (tests "(interpreter)" t_interp_4limb_binop t_interp_4limb_unop)
+  @
+  [ "ladderstep: 1 (interpreter)" >::
+    t_ladder [ bzero; bone; bzero; bzero] btest0 btest1 btest2 btest3 ]
