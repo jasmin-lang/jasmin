@@ -2,51 +2,29 @@
 open IL_Lang
 open Core_kernel
 open Arith
+open IL_Utils
 
 module P = ParserUtil
 module L = Lexing
 
-type instr_decl = Ins of instr | Decl of (string * ty) list
-
-let fix_indexes (idxs,(cstart,cend)) =
-  Std.List.filter_map idxs
-    ~f:(function
-          | Get i -> Some i
-          | All -> let scnum = cstart.Lexing.pos_cnum + 1 in
-                   let ecnum = cend.Lexing.pos_cnum + 1 in
-                   let err = "range not allowed here" in
-                   raise (ParserUtil.UParserError(scnum,ecnum,err)))
-
-let pr_e_of_pr (pr,(cstart,cend)) =
-  { pr with pr_idxs = fix_indexes (pr.pr_idxs,(cstart,cend)) }
-
-let dest_e_of_dest (d,(cstart,cend))  =
-  let pr = pr_e_of_pr (d.d_pr,(cstart,cend)) in
-  { d_pr = pr; d_aidxs = fix_indexes (d.d_aidxs,(cstart,cend)) }
-
-let src_e_of_src (s,(cstart,cend)) =
-  match s with
-  | Imm(i) -> Imm(i)
-  | Src(d) -> Src(dest_e_of_dest (d,(cstart,cend)))
-
 %}
 
 /*======================================================================*/
-/* Tokens */
+/* * Tokens */
 
 %token EOF
 
 %token LBRACK RBRACK LCBRACE RCBRACE LPAREN RPAREN
 %token EQ
 %token INEQ
-%token PLUSEQ MINUSEQ BANDEQ
+%token PLUSEQ MINUSEQ BANDEQ MULEQ
 %token LEQ
 %token LESS
 %token GREATER
 %token GEQ
 %token SHREQ SHLEQ XOREQ
 %token COLON
-%token EQCALL
+%token LARROW
 
 %token T_U64
 %token T_BOOL
@@ -57,9 +35,7 @@ let src_e_of_src (s,(cstart,cend)) =
 %token PLUS
 %token LAND
 %token SEMICOLON
-%token QUESTION
 %token EXCL DOTDOT COMMA
-(* %token PERCENT *)
 %token SHR
 %token SHL
 %token XOR
@@ -79,7 +55,7 @@ let src_e_of_src (s,(cstart,cend)) =
 %token RETURN
 
 %token <string> ID 
-%token <int64>  INT
+%token <string> INT
 
 %left LAND
 %nonassoc EXCL
@@ -93,17 +69,38 @@ let src_e_of_src (s,(cstart,cend)) =
 %%
 
 (* -------------------------------------------------------------------- *)
-(* Utility productions *)
+(* * Utility productions *)
 
 %inline loc(X):
 | x=X { (x, ($startpos,$endpos) ) }
 
-(* -------------------------------------------------------------------- *)
-(* Index expressions and conditions *)
-
 %inline tuple(X):
-| LPAREN l = separated_list(COMMA,X) RPAREN { l }
-| l = separated_list(COMMA,X) { l }
+| LPAREN l=separated_list(COMMA,X) RPAREN { l }
+| l=separated_list(COMMA,X)               { l }
+
+%inline tuple_nonempty(X):
+| LPAREN l=separated_nonempty_list(COMMA,X) RPAREN { l }
+| l=separated_nonempty_list(COMMA,X)               { l }
+
+%inline delim_tuple(S,X,E):
+| l = delimited(S,separated_list(COMMA,X),E) { l }
+
+%inline paren_tuple(X):
+| l = delim_tuple(LPAREN,X,RPAREN) { l }
+
+%inline angle_tuple(X):
+| l = delim_tuple(LESS,X,GREATER) { l }
+
+%inline bracket_tuple(X):
+| l = delim_tuple(LBRACK,X,RBRACK) { l }
+
+terminated_list(S,X):
+| x=X S xs=terminated_list(S,X)
+  { x::xs }
+| { [] }
+
+(* -------------------------------------------------------------------- *)
+(* * Index expressions and conditions *)
 
 %inline pbinop :
 | PLUS    { Pplus }
@@ -120,7 +117,7 @@ let src_e_of_src (s,(cstart,cend)) =
 
 pexpr :
 | s=ID                       { Pvar(s) }
-| i=INT                      { Pconst(U64.of_int64 i) }
+| i=INT                      { Pconst(U64.of_string i) }
 | e1=pexpr o=pbinop e2=pexpr { Pbinop(o,e1,e2) }
 | LPAREN e1=pexpr RPAREN     { e1 }
 
@@ -132,255 +129,158 @@ pcond :
 | LPAREN c = pcond RPAREN     { c }
 | c1=pexpr o=pcondop c2=pexpr { Pcond(o,c1,c2) }
 
-pr_index :
-| ce = pexpr
-  { Get(ce) }
-| DOTDOT
-  { All }
+(* -------------------------------------------------------------------- *)
+(* * Sources and destinations *)
 
-%inline preg_nl :
-| s=ID
-    { { pr_name = s; pr_idxs = []; pr_loc = P.dummy_loc } }
-| s=ID LESS pis = separated_list(COMMA,pr_index) GREATER
-    { { pr_name = s; pr_idxs = pis; pr_loc = P.dummy_loc } }
+pr_index :
+| ce=pexpr                 { Get(ce) }
+| lb=pexpr DOTDOT ub=pexpr { All(lb,ub) }
+
+%inline preg_noloc :
+| s=ID idxs=angle_tuple(pr_index)?
+    { { pr_name = s; pr_idxs = get_opt [] idxs; pr_loc = P.dummy_loc } }
 
 %inline preg :
-| lpr = loc(preg_nl)
+| lpr=loc(preg_noloc)
     { let (pr,loc) = lpr in
-      let loc =P.loc_of_lexing_loc loc in
+      let loc = P.loc_of_lexing_loc loc in
       { pr with pr_loc = loc} }
 
-%inline array_indexes :
-| LBRACK pis = separated_list(COMMA,pr_index) RBRACK
-    { pis }
-
-
-(* -------------------------------------------------------------------- *)
-(* Operators and assignments *)
+dest :
+| r=preg arr=bracket_tuple(pr_index)?
+    { { d_pr = r; d_aidxs = get_opt [] arr} }
 
 src :
-| r=preg arr=array_indexes?
-    { Src({d_pr = r; d_aidxs = Option.value ~default:[] arr}) }
-| i=INT
-    { Imm(U64.of_int64 i) }
-
-dest :
-| r=preg arr=array_indexes?
-    { { d_pr = r; d_aidxs = Option.value ~default:[] arr} }
-
-cfin:
-| PLUS  cf_in=loc(preg) { (`Add,cf_in) }
-| MINUS cf_in=loc(preg) { (`Sub,cf_in) }
-
-binop:
-| PLUS  { `Plus }
-| MINUS { `Minus }
-| BAND  { `BAnd }
-| SHR   { `Shift(Right) }
-| SHL   { `Shift(Left) }
-| XOR   { `Xor } 
-
-%inline opeq:
-| PLUSEQ  { `Add }
-| MINUSEQ { `Sub }
-| BANDEQ  { `And }
-| SHREQ   { `Shift(Right) }
-| SHLEQ   { `Shift(Left) }
-| XOREQ   { `Xor } 
+| d=dest { Src(d) }
+| i=INT  { Imm(U64.of_string i) }
 
 (* -------------------------------------------------------------------- *)
-(* instructions *)
+(* * Operators and assignments *)
 
-%inline cfout:
-| r_cf_out=preg QUESTION { { d_pr = r_cf_out; d_aidxs = [] } }
+binop:
+| PLUS  { `Add }
+| MINUS { `Sub }
+| SHR   { `Shift(Right) }
+| SHL   { `Shift(Left) }
+| BAND  { `And }
+| XOR   { `Xor }
+| STAR  { `Mul }
+
+opeq:
+| PLUSEQ  { `Add }
+| MINUSEQ { `Sub }
+| SHREQ   { `Shift(Right) }
+| SHLEQ   { `Shift(Left) }
+| BANDEQ  { `And }
+| XOREQ   { `Xor } 
+| MULEQ   { `Mul }
+
+(* -------------------------------------------------------------------- *)
+(* * Instructions *)
 
 %inline assgn_rhs:
-| s=loc(src) { `Assgn(s) }
-| s=loc(src) IF e = EXCL? cf = loc(preg)
-  { `Cmov(s,(Src({d_pr = fst cf; d_aidxs = []}),snd cf),CfSet(e=None)) }
-| s1=loc(src) op=binop s2=loc(src) { `Bop(op,s1,s2) }
+| s=src
+    { `Assgn(s) }
 
-base_instr :
+| s=src IF e=EXCL? cf=preg
+    { `Cmov(s,Src({d_pr = cf; d_aidxs = []}),CfSet(e=None)) }
 
-| d=loc(dest) EQ rhs = assgn_rhs
-    { match rhs with
-      | `Bop(op,s1,s2) ->
-        let d = dest_e_of_dest d in
-        let s1 = src_e_of_src s1 in
-        let s2 = src_e_of_src s2 in
-        begin match op with
-        | `Mul        -> Op(ThreeOp(O_IMul),d,(s1,s2))
-        | `Plus       -> Op(Carry(O_Add,None,None),d,(s1,s2))
-        | `Minus      -> Op(Carry(O_Sub,None,None),d,(s1,s2))
-        | `BAnd       -> Op(ThreeOp(O_And),d,(s1,s2))
-        | `Xor        -> Op(ThreeOp(O_Xor),d,(s1,s2))
-        | `Shift(dir) -> Op(Shift(dir,None),d,(s1,s2))
-        end
-      | `Assgn(s) -> Assgn(fst d,fst s)
-      | `Cmov(s,f,cmf) ->
-        let d = dest_e_of_dest d in 
-        let f = src_e_of_src f in 
-        let s = src_e_of_src s in
-        Op(CMov(cmf,f),d,(dest_to_src d,s))
-    }
+| s1=src op=binop s2=src
+    { `BinOp(op,s1,s2) }
 
-| cf_out=loc(cfout) d=loc(dest) oeq=opeq s=loc(src) cf_in=cfin?
-    { let d = dest_e_of_dest d in
-      let s = src_e_of_src s in
-      let cf_out = dest_e_of_dest cf_out in
-      let cin =
-        match cf_in with
-        | None -> None
-        | Some(op,r) when op = oeq ->
-          Some (Src({d_pr = pr_e_of_pr r; d_aidxs = []}))
-        | Some _ -> failwith "cannot combine `+=` with `-` or `-=` with `+`"
-      in
-      match oeq with
-      | `Add -> Op(Carry(O_Add,Some cf_out,cin),d,(dest_to_src d,s))
-      | `Sub -> Op(Carry(O_Sub,Some cf_out,cin),d,(dest_to_src d,s))
-      | `Shift(_) when cin<>None -> failwith "Shift does not take carry flag"
-      | `Shift(dir) -> Op(Shift(dir,Some cf_out),d,(dest_to_src d,s))
-      | `And -> failwith "And does not return carry flag"
-      | `Xor -> failwith "Xor does not return carry flag" }
- 
-| d=loc(dest) oeq=opeq s=loc(src) cf_in=cfin?
-    { let d = dest_e_of_dest d in
-      let s = src_e_of_src s in
-      let cin =
-        match cf_in with
-        | None -> None
-        | Some(op,r) when op = oeq ->
-          Some(Src({d_pr = pr_e_of_pr r; d_aidxs = []}))
-        | Some _ -> failwith "cannot combine `+=` with `-` or `-=` with `+`"
-      in
-      match oeq with
-      | `Add -> Op(Carry(O_Add,None,cin),d,(dest_to_src d,s))
-      | `Sub -> Op(Carry(O_Sub,None,cin),d,(dest_to_src d,s))
-      | `Shift(_) when cin<>None -> failwith "Shift does not take carry flag"
-      | `Shift(dir) -> Op(Shift(dir,None),d,(dest_to_src d,s))
-      | `And -> failwith "And does not take carry flag"
-      | `Xor -> failwith "Xor does not take carry flag" }
-    
-| d1 = loc(dest) EQ s1=loc(src) STAR s2=loc(src)
-    { let d1 = dest_e_of_dest d1 in
-      let s1 = src_e_of_src s1 in
-      let s2 = src_e_of_src s2 in 
-      Op(ThreeOp(O_IMul),d1,(s1,s2)) }
+| s1=src op1=binop s2=src op2=binop s3=src
+    { `TernaryOp(op1,op2,s1,s2,s3) }
 
-| d1 = loc(dest) COMMA d2 = loc(dest) EQ s1=loc(src) STAR s2=loc(src)
-    { let d1 = dest_e_of_dest d1 in
-      let d2 = dest_e_of_dest d2 in
-      let s1 = src_e_of_src s1 in
-      let s2 = src_e_of_src s2 in
-      Op(UMul(d1),d2,(s1,s2)) }
+| fname=ID args=tuple(src)
+    { `Call(fname, args) }
 
-celse_if :
-| ELIF c=pcond is=block
-  { (c,is) }
 
-celse :
-| ELSE is = block
-  { is }
+%inline opeq_rhs:
+| s = src
+    { fun op d -> `BinOp(op,Src(d),s) }
+
+| s2=src op2=binop s3=src
+    { fun op1 d -> `TernaryOp(op1,op2,Src(d),s2,s3) }
+
 
 instr :
-| ir = base_instr SEMICOLON
-  { Ins(Binstr(ir)) }
+| ds=tuple_nonempty(dest) EQ rhs=loc(assgn_rhs) SEMICOLON
+    { mk_instr ds rhs }
+ 
+| ds=tuple_nonempty(dest) op=opeq rhs_loc=loc(opeq_rhs) SEMICOLON
+    { let (rhs_fun,loc) = rhs_loc in
+      let rhs = rhs_fun op (Std.List.last_exn ds) in
+      mk_instr ds (rhs,loc) }
 
-| d = decl SEMICOLON
-  { Decl(d) }
+| fname=ID args=tuple(src) SEMICOLON
+    { Call(fname, [], args) }
 
-| IF c=pcond
-    i1s = block
-    ies  = celse_if*
-    mi2s = celse?
-  { let ielse =
-      Std.List.fold
-        ~init:(Option.value ~default:[] mi2s)
-        ~f:(fun celse (c,bi) -> [If(c,bi,celse)])
-        (List.rev ies)
-    in
-    Ins(If(c,i1s,ielse)) }
+| IF c=pcond i1s=block ies=celse_if* mi2s=celse?
+    { mk_if c i1s mi2s ies }
 
-| FOR cv=ID IN ce1=pexpr DOTDOT ce2=pexpr
-    is = block
-    { Ins(For(cv,ce1,ce2,is)) }
+| FOR cv=ID IN ce1=pexpr DOTDOT ce2=pexpr is=block
+    { For(cv,ce1,ce2,is) }
 
-| d = preg EQCALL fname = ID args = tuple(preg) SEMICOLON
-  { Ins(Call(fname,[d], args)) }
+
+celse_if :
+| ELIF c=pcond is=block { (c,is) }
+
+celse :
+| ELSE is=block { is }
 
 block :
-| LCBRACE stmt = instr* RCBRACE
-  { Std.List.map ~f:(function Ins(i) -> i | Decl(_) -> assert false) stmt }
+| LCBRACE stmt=instr* RCBRACE { stmt }
 
 stmt :
-| stmt = instr* { stmt }
+| stmt=instr* { stmt }
+
+(* -------------------------------------------------------------------- *)
+(* * Function definitions *)
 
 return :
-| RETURN ret = tuple(preg) SEMICOLON { ret }
+| RETURN ret=tuple(preg) SEMICOLON { ret }
 
 typ_indexed :
-| LESS dims = separated_list(COMMA,pexpr) GREATER
-  { dims }
+| LESS dims=separated_list(COMMA,pexpr) GREATER { dims }
 
 typ_array :
-| LBRACK dims = separated_list(COMMA,pexpr) RBRACK
-  { dims }
+| LBRACK dims=separated_list(COMMA,pexpr) RBRACK { dims }
 
 typ :
-| T_U64 ies = typ_indexed? dims=typ_array? 
-  { U64(Option.value ~default:[] ies,Option.value ~default:[] dims) }
+| T_U64 ies=typ_indexed? dims=typ_array? 
+    { U64(get_opt [] ies, get_opt [] dims) }
 | T_BOOL
-  { Bool }
-
-typed_var :
-| v = ID COLON t = typ
-  { (v,t) }
+    { Bool }
 
 typed_vars :
-| vs = separated_nonempty_list(COMMA,ID) COLON t = typ
-  { Std.List.map ~f:(fun v -> (v,t)) vs }
+| vs=separated_nonempty_list(COMMA,ID) COLON t=typ
+    { Std.List.map ~f:(fun v -> (v,t)) vs }
 
-params :
-| LESS tvars = separated_list(COMMA,typed_var) GREATER
-  { tvars }
+%inline decl_type:
+| REG  { () }
+| FLAG { () }
 
 decl :
-| REG trs = typed_vars
-  { trs }
-| FLAG trs = typed_vars
-  { trs }
+| _d=decl_type trs=typed_vars  { trs }
 
 ret_ty :
-| COLON tys = separated_list(STAR,typ) { tys }
+| LARROW tys=separated_list(STAR,typ) { tys }
+
+decls :
+| ds=terminated_list(SEMICOLON,decl)
+    { ds }
 
 efun :
-| ext = EXTERN? FN name = ID
-    ps = params?
-    LPAREN args = separated_list(COMMA,typed_vars) RPAREN rty = ret_ty ?
+| ext=EXTERN? FN name=ID
+    ps   = angle_tuple(typed_vars)?
+    args = paren_tuple(typed_vars)
+    rty  = ret_ty?
   LCBRACE
-    s = stmt
-    r = return?
+    ds   = decls
+    stmt = stmt
+    ret  = return?
   RCBRACE
-  { let ds = Std.List.filter_map ~f:(function Decl(ds) -> Some ds | _ -> None) s in
-    let is = Std.List.filter_map ~f:(function Ins(i) -> Some i | _ -> None) s in
-    let rtys = Option.value ~default:[] rty in
-    let rets = Option.value ~default:[] r in
-    if Std.List.length rets <> Std.List.length rtys then (
-      let c_start = $startpos.Lexing.pos_cnum + 1 in
-      let c_end = $endpos.Lexing.pos_cnum + 1 in
-      let err = "mismatch between return type and return statement" in
-      raise (ParserUtil.UParserError(c_start,c_end,err))
-    );
-    let rets = Std.List.zip_exn rets rtys in
-    {
-      ef_name   = name;
-      ef_extern = ext<>None;
-      ef_params = Option.value ~default:[] ps;
-      ef_args   = List.concat args;
-      ef_decls  = List.concat ds;
-      ef_body   = is;
-      ef_ret    = rets }
-   }
+    { mk_efun $startpos $endpos rty ret name ext  ps args ds stmt }
 
 efuns :
-| efs = efun+ EOF { efs }
+| efs=efun+ EOF { efs }

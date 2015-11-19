@@ -65,7 +65,8 @@ let wrap_error f s =
 
 let error_string file (line_start,start_pos,len,line,msg) =
   let len = max 1 (len - 1) in
-  (F.sprintf "%s:%i:%i %i:%i error: %s\n" file line_start start_pos line_start (start_pos+len) msg)
+  let start_pos = start_pos -1 in
+  (F.sprintf "%s:%i:%i: %i:%i error: %s\n" file line_start start_pos line_start (start_pos+len) msg)
   ^(F.sprintf "%s\n" line)
   ^(F.sprintf "%s%s\n" (String.make start_pos ' ') (String.make len '^'))
 

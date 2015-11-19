@@ -107,9 +107,9 @@ let apply_transform trafo efun0 =
   in
   List.fold_left trafo ~init:efun0 ~f:app_trafo
 
-let apply_transform_asm strafo efun =
+let apply_transform_asm strafo efuns =
   let (trafo,mlang) = parse_trafo strafo in
-  let efun = apply_transform trafo efun in
+  let efuns = List.map ~f:(apply_transform trafo) efuns in
   match mlang with
-  | None     -> `IL efun
-  | Some X64 -> `Asm_X64 (to_asm_x64 efun)
+  | None     -> `IL efuns
+  | Some X64 -> `Asm_X64 (List.map ~f:to_asm_x64 efuns)

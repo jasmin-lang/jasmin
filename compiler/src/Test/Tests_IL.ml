@@ -183,7 +183,7 @@ let t_interp_4limb_binop file fun_name desc expected xval yval () =
   let ms = interp_string file mem cvar_map args fun_name inp in
   let offset i = Pconst (U64.of_int i) in
   let mem i =
-    Src({ d_pr = mk_preg_array "zp"; d_aidxs = [offset i]})
+    Src({ d_pr = mk_preg_name "zp"; d_aidxs = [offset i]})
   in
   let z0 = read_src ms (mem 0) in
   let z1 = read_src ms (mem 1) in
@@ -218,7 +218,7 @@ let t_interp_4limb_unop file fun_name desc expected xval () =
   let ms = interp_string file mem cvar_map args fun_name inp in
   let offset i = Pconst (U64.of_int i) in
   let mem i =
-    Src({d_pr = mk_preg_array "zp"; d_aidxs = [offset i]})
+    Src({d_pr = mk_preg_name "zp"; d_aidxs = [offset i]})
   in
   let z0 = read_src ms (mem 0) in
   let z1 = read_src ms (mem 1) in
@@ -280,14 +280,15 @@ let t_add_call_4limb t_asm_or_interp xval yval () =
     Big_int_Infix.(xval +! yval)
     xval yval ()
 
-let t_interp_4limb_ladder file fun_name desc expected w0 w1 w2 w3 () =
+let t_interp_4limb_ladder file fun_name desc expected m w0 w1 w2 w3 w4 () =
   let (w0_0,w0_1,w0_2,w0_3) = Limb4.of_big_int w0 in
   let (w1_0,w1_1,w1_2,w1_3) = Limb4.of_big_int w1 in
   let (w2_0,w2_1,w2_2,w2_3) = Limb4.of_big_int w2 in
   let (w3_0,w3_1,w3_2,w3_3) = Limb4.of_big_int w3 in
+  let (w4_0,w4_1,w4_2,w4_3) = Limb4.of_big_int w4 in
   let mem =
     U64.Map.of_alist_exn
-      [ (* workp1 *)
+      [ (* workp0 *)
         (U64.of_int (0*8), w0_0)
       ; (U64.of_int (1*8), w0_1)
       ; (U64.of_int (2*8), w0_2)
@@ -307,25 +308,32 @@ let t_interp_4limb_ladder file fun_name desc expected w0 w1 w2 w3 () =
       ; (U64.of_int (96 + 1*8), w3_1)
       ; (U64.of_int (96 + 2*8), w3_2)
       ; (U64.of_int (96 + 3*8), w3_3)
+      (* workp4 *)
+      ; (U64.of_int (128 + 0*8), w4_0)
+      ; (U64.of_int (128 + 1*8), w4_1)
+      ; (U64.of_int (128 + 2*8), w4_2)
+      ; (U64.of_int (128 + 3*8), w4_3)
       ]
   in
-  let args = [ U64.of_int 0; U64.of_int 32; U64.of_int 64; U64.of_int 96 ] in
+  let args = [ U64.of_int 0 ] in
   let inp = In_channel.read_all file in
   let open ILL in
   let open ILI in
-  let cvar_map = String.Map.of_alist_exn [("n",U64.of_int 4)] in
+  let cvar_map =
+    String.Map.of_alist_exn [("n",U64.of_int 4); ("m",U64.of_int m)]
+  in
   let ms = interp_string file mem cvar_map args fun_name inp in
   let offset i = Pconst (U64.of_int i) in
-  let mem p i = Src({d_pr = mk_preg_array p; d_aidxs = [offset i]}) in
+  let mem p xs = Src({d_pr = mk_preg_name p; d_aidxs = List.map ~f:offset xs}) in
   let ws =
     List.map
-      ~f:(fun p -> 
-            let w0 = read_src ms (mem p 0) in
-            let w1 = read_src ms (mem p 1) in
-            let w2 = read_src ms (mem p 2) in
-            let w3 = read_src ms (mem p 3) in
+      ~f:(fun p ->
+            let w0 = read_src ms (mem "workp" [p;0]) in
+            let w1 = read_src ms (mem "workp" [p;1]) in
+            let w2 = read_src ms (mem "workp" [p;2]) in
+            let w3 = read_src ms (mem "workp" [p;3]) in
             Big_int.mod_big_int (Limb4.to_big_int (w0,w1,w2,w3)) pval)
-      ["workp0"; "workp1"; "workp2"; "workp3" ]
+      [ 0; 1; 2; 3; 4 ]
   in
   (*
   F.printf "got: %a = (%a, %a, %a, %a)\n"
@@ -333,11 +341,50 @@ let t_interp_4limb_ladder file fun_name desc expected w0 w1 w2 w3 () =
   *)
   assert_equal
     ~printer:(fun xs ->
-                fsprintf "%a" (pp_list "," pp_string) (List.map ~f:Big_int.string_of_big_int xs))
-    ~cmp:(equal_list Big_int.eq_big_int)
+                fsprintf "%a" (pp_list "\n" pp_string) (List.map ~f:Big_int.string_of_big_int xs))
+    ~cmp:(equal_list (fun x y -> Big_int_Infix.(x === y)))
     ~msg:desc
-    (List.map ~f:(fun i -> Big_int.mod_big_int i pval) expected)
+    (List.map ~f:(fun i -> Big_int_Infix.(mod_big_int i pval))
+       expected)
     ws
+
+let ladderstep x1 x2 z2 x3 z3 =
+  let (+&)   x y = Big_int_Infix.(mod_big_int (x +! y) pval) in
+  let (-&)   x y = Big_int_Infix.(mod_big_int (x -! y) pval) in
+  let ( *& ) x y = Big_int_Infix.(mod_big_int (x *! y) pval) in
+  let c121666 = Big_int.big_int_of_string "121666" in
+  let t1 = x2 +& z2 in
+  let t2 = x2 -& z2 in
+  let t7 = t2 *& t2 in
+  let t6 = t1 *& t1 in
+  let t5 = t6 -& t7 in
+  let t3 = x3 +& z3 in
+  let t4 = x3 -& z3 in
+  let t9 = t3 *& t2 in
+  let t8 = t4 *& t1 in
+  let x3 = t8 +& t9 in
+  let z3 = t8 -& t9 in
+  let x3 = x3 *& x3 in
+  let z3 = z3 *& z3 in
+  let z3 = z3 *& x1 in
+  let x2 = t6 *& t7 in
+  let z2 = c121666 *& t5 in
+  let z2 = z2 +& t7 in
+  let z2 = z2 *& t5 in
+  [x1;x2;z2;x3;z3]
+
+let ladderstep_n n =
+  let rec go i x1 x2 z2 x3 z3 =
+    if i < n then (
+      match ladderstep x1 x2 z2 x3 z3 with
+      | [x1;x2;z2;x3;z3] -> go (i + 1) x1 x2 z2 x3 z3
+      | _ -> assert false
+    ) else (
+      [x1;x2;z2;x3;z3]
+    )
+  in
+  go 0
+    
 
 (* * Test suite
  * --------------------------------------------------------------------- *)
@@ -346,29 +393,29 @@ let tests =
   let open Big_int in
   let m = Big_int_Infix.((2^! 256) -! (big_int_of_int 1)) in
   let one = big_int_of_int 1 in
-  let tests s t_binop t_unop =
+  let tests s _t_binop t_unop =
     [ (* addition *)
-      "add 4-limb: 1 + 1 "^s >:: t_add_4limb t_binop one one;
-      "add 4-limb: p + p "^s >:: t_add_4limb t_binop pval pval;
-      "add 4-limb: m + 1 "^s >:: t_add_4limb t_binop m one;
-      "add 4-limb: m + p "^s >:: t_add_4limb t_binop m pval;
-      "add 4-limb: m + m "^s >:: t_add_4limb t_binop m m;
+      (* "add 4-limb: 1 + 1 "^s >:: t_add_4limb t_binop one one; *)
+      (* "add 4-limb: p + p "^s >:: t_add_4limb t_binop pval pval; *)
+      (* "add 4-limb: m + 1 "^s >:: t_add_4limb t_binop m one; *)
+      (* "add 4-limb: m + p "^s >:: t_add_4limb t_binop m pval; *)
+      (* "add 4-limb: m + m "^s >:: t_add_4limb t_binop m m; *)
       
-      (* multiplication *)
-      "mul 4-limb: 1 * 1 "^s >:: t_mul_4limb t_binop one one;
-      "mul 4-limb: p * p "^s >:: t_mul_4limb t_binop pval pval;
-      "mul 4-limb: m * 1 "^s >:: t_mul_4limb t_binop m one;
-      "mul 4-limb: m * p "^s >:: t_mul_4limb t_binop m pval;
-      "mul 4-limb: m * m "^s >:: t_mul_4limb t_binop m m;
+      (* (\* multiplication *\) *)
+      (* "mul 4-limb: 1 * 1 "^s >:: t_mul_4limb t_binop one one; *)
+      (* "mul 4-limb: p * p "^s >:: t_mul_4limb t_binop pval pval; *)
+      (* "mul 4-limb: m * 1 "^s >:: t_mul_4limb t_binop m one; *)
+      (* "mul 4-limb: m * p "^s >:: t_mul_4limb t_binop m pval; *)
+      (* "mul 4-limb: m * m "^s >:: t_mul_4limb t_binop m m; *)
 
-      (* subtraction *)
-      "sub 4-limb: 1 - 1 "^s >:: t_sub_4limb t_binop one one;
-      "sub 4-limb: p - p "^s >:: t_sub_4limb t_binop pval pval;
-      "sub 4-limb: m - 1 "^s >:: t_sub_4limb t_binop m one;
-      "sub 4-limb: m - 1 "^s >:: t_sub_4limb t_binop one m;
-      "sub 4-limb: m - p "^s >:: t_sub_4limb t_binop m pval;
-      "sub 4-limb: p - m "^s >:: t_sub_4limb t_binop pval m;
-      "sub 4-limb: m - m "^s >:: t_sub_4limb t_binop m m;
+      (* (\* subtraction *\) *)
+      (* "sub 4-limb: 1 - 1 "^s >:: t_sub_4limb t_binop one one; *)
+      (* "sub 4-limb: p - p "^s >:: t_sub_4limb t_binop pval pval; *)
+      (* "sub 4-limb: m - 1 "^s >:: t_sub_4limb t_binop m one; *)
+      (* "sub 4-limb: m - 1 "^s >:: t_sub_4limb t_binop one m; *)
+      (* "sub 4-limb: m - p "^s >:: t_sub_4limb t_binop m pval; *)
+      (* "sub 4-limb: p - m "^s >:: t_sub_4limb t_binop pval m; *)
+      (* "sub 4-limb: m - m "^s >:: t_sub_4limb t_binop m m; *)
       
       (* squaring *)
       "square 4-limb: 1" >:: t_square_4limb t_unop one;
@@ -379,28 +426,38 @@ let tests =
     if s = "(interpreter)" then
       [
         (* addition *)
-        "add call 4-limb: 1 + 1 "^s >:: t_add_call_4limb t_binop one one;
-        "add call 4-limb: p + p "^s >:: t_add_call_4limb t_binop pval pval;
-        "add call 4-limb: m + 1 "^s >:: t_add_call_4limb t_binop m one;
-        "add call 4-limb: m + p "^s >:: t_add_call_4limb t_binop m pval;
-        "add call 4-limb: m + m "^s >:: t_add_call_4limb t_binop m m;
+        (* "add call 4-limb: 1 + 1 "^s >:: t_add_call_4limb t_binop one one; *)
+        (* "add call 4-limb: p + p "^s >:: t_add_call_4limb t_binop pval pval; *)
+        (* "add call 4-limb: m + 1 "^s >:: t_add_call_4limb t_binop m one; *)
+        (* "add call 4-limb: m + p "^s >:: t_add_call_4limb t_binop m pval; *)
+        (* "add call 4-limb: m + m "^s >:: t_add_call_4limb t_binop m m; *)
       ]
     else []
   in
-  let t_ladder =
+  let _t_ladder =
     t_interp_4limb_ladder
       "examples/25519-4limb/ladderstep.mil"
-      "ladderstep"
-      "ladderstep-4-limb"
+      "ladderstep128"
+      "ladderstep128-4-limb"
   in
-  let bzero = Big_int.zero_big_int in
-  let bone = Big_int.unit_big_int in
-  let btest0 = Big_int_Infix.(pval -! Big_int.big_int_of_int 42)  in
-  let btest1 = Big_int_Infix.(pval -! Big_int.big_int_of_int 9999)  in
-  let btest2 = Big_int_Infix.(pval -! Big_int.big_int_of_int 555)  in
-  let btest3 = Big_int_Infix.(pval -! Big_int.big_int_of_int 77777)  in
-  (* (tests "(via asm)"     t_via_asm_4limb_binop t_via_asm_4limb_unop) @ *)
+  let _t0 = Big_int.big_int_of_int 42 in
+  let _t1 = Big_int.big_int_of_int 9999  in
+  let _t2 = Big_int.big_int_of_int 555 in
+  let _t3 = Big_int.big_int_of_int 77777 in
+  let _t4 = Big_int.big_int_of_int 666666 in
+  (* (tests "(via asm)"     t_via_asm_4limb_binop t_via_asm_4limb_unop) @ *)  
   (tests "(interpreter)" t_interp_4limb_binop t_interp_4limb_unop)
-  @
-  [ "ladderstep: 1 (interpreter)" >::
-    t_ladder [ bzero; bone; bzero; bzero] btest0 btest1 btest2 btest3 ]
+  (* @  *)
+  (* [ "ladderstep: 1 (interpreter)" >:: *)
+  (*   fun () -> *)
+  (*     try *)
+  (*       let m = 2 in *)
+  (*       t_ladder (ladderstep_n m t0 t1 t2 t3 t4) m t0 t1 t2 t3 t4 () *)
+  (*     with  *)
+  (*     | OUnitTest.OUnit_failure _ as e -> raise e *)
+  (*     | e -> *)
+  (*       failwith *)
+  (*         (F.sprintf "Unexpected error in ladderstep: 1 test: %s,\n%s" *)
+  (*            (Exn.to_string e) *)
+  (*            (Exn.backtrace ()))  *)
+  (* ] *)

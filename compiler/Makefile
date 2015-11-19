@@ -49,21 +49,34 @@ test-dmasm-reg: dmasm
 	./dmasm.native -p -t "register_allocate[10]" examples/test/register-alloc.mil
 
 test-dmasm-square: dmasm
-	./dmasm.native -p -t "expand[n=3],ssa,register_allocate[15],strip_comments,asm[x86-64]" examples/25519-4limb/square.mil
+	./dmasm.native -p -t "expand[n=4],ssa,register_allocate[15],strip_comments,asm[x86-64]" examples/test/add_call.mil
 
 test-dmasm-add-call: dmasm
 	./dmasm.native -p -t "expand[n=3],ssa,strip_comments,register_allocate[15],asm[x86-64]" examples/test/add_call.mil
-	#./dmasm.native -p -t "expand[n=3],ssa,register_allocate[15],strip_comments,asm[x86-64]" examples/test/add_call.mil
+
+test-dmasm-ladderstep: dmasm
+	./dmasm.native -p -t "" examples/25519-4limb/square.mil
+
+test-dmasm-parser: dmasm
+	./dmasm.native -p -t "" tests/parser/ok/t_01.mil
 
 run_tests:
 	test -d _build/c_src || mkdir -p _build/c_src
-	gcc -fPIC -c c_src/arith.c -o _build/c_src/arith.o
-	ar rc _build/c_src/libarith.a _build/c_src/arith.o
-	gcc -shared -o _build/c_src/libarith.so _build/c_src/arith.o
+	gcc -shared -o _build/c_src/libarith.so \
+	  c_src/arith.c
+	gcc -o _build/c_src/mont_amd64_64 \
+	  c_src/arith.c \
+	  c_src/mont_amd64_64.c \
+	  c_src/ladderstep_amd64_64_consts.s \
+	  c_src/ladderstep_amd64_64.s \
+	  c_src/work_cswap_amd64_64.s
 	$(OCAMLBUILD) $(OCAMLBUILDFLAGS) $(CLIBFLAGS) src/Main/run_tests.native
 
 run-run_tests: run_tests
 	./run_tests.native
+
+tests: dmasm
+	./scripts/run_tests.sh
 
 test-arith:
 	gcc -DTEST c_src/arith.c -o t_arith

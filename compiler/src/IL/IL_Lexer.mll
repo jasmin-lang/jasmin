@@ -13,6 +13,7 @@ let newline = '\n'
 rule lex = parse
   | blank+  { lex lexbuf }
   | "/*"    { comment lexbuf; lex lexbuf }
+  | "//"    { line_comment lexbuf; lex lexbuf }
   | eof     { EOF }
 
   | "["     { LBRACK }
@@ -22,15 +23,17 @@ rule lex = parse
   | "("     { LPAREN }
   | ")"     { RPAREN }
 
+  | "->"    { LARROW }
+
   | ":"     { COLON }
 
   | "u64"   { T_U64 }
   | "bool"  { T_BOOL }
 
   | "="     { EQ }
-  | "=@"    { EQCALL }
   | "!="    { INEQ }
   | "+="    { PLUSEQ }
+  | "*="    { MULEQ }
   | "-="    { MINUSEQ }
   | "&="    { BANDEQ }
   | "<="    { LEQ }
@@ -49,7 +52,6 @@ rule lex = parse
   | "&"     { BAND }
   | "&&"    { LAND }
   | ";"     { SEMICOLON }
-  | "?"     { QUESTION }
   | "!"     { EXCL }
   | "true"  { TRUE }
   | "false" { FALSE }
@@ -69,7 +71,9 @@ rule lex = parse
   | "fn"     { FN }
   | "return" { RETURN }
 
-  | ('-'? ['0'-'9']+) as s { INT(Int64.of_string s) }
+  | ('-'? ['0'-'9']+) as s { INT(s) }
+  | ("0x" ['0'-'9' 'a'-'f' '_']+) as s { INT(s) }
+
   | ['a'-'z' 'A'-'Z' '_' '0'-'9']* as s
     { ID s }
 
@@ -79,3 +83,7 @@ and comment = parse
   | newline     { Lexing.new_line lexbuf; comment lexbuf }
   | eof         { unterminated_comment () }
   | _           { comment lexbuf }
+
+and line_comment = parse
+  | newline { () }
+  | _       { line_comment lexbuf }

@@ -1,0 +1,9 @@
+/* No ranges for binop/ternary op */
+fn foo() {
+  reg x : u64<n>;
+
+  x<..> += x<..>;
+/*
+ERROR: x<..> += x<..>;
+*/
+}

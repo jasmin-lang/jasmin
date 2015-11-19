@@ -95,17 +95,19 @@ let print_mstate ms =
 let setup_stack ms efun =
   let u8 = (U64.of_int 8) in
   List.concat_map efun.ef_decls
-    ~f:(fun (s,ty) -> match ty with
-        | U64(_,[pe]) ->
-          let t = eval_pexpr ms.mcvars pe in
-          List.map (expand_arg ms.mcvars (s,ty)) ~f:(fun iname -> (iname,t))
+    ~f:(fun (s,ty) ->
+        match ty with
+        | U64(_,adims) when adims<>[] ->
+          let adims = List.map ~f:(eval_pexpr ms.mcvars) adims in
+          List.map (expand_arg ms.mcvars (s,ty))
+            ~f:(fun iname -> (iname,u64_prod_list adims))
         | _ -> [])
   |> List.fold ~init:ms
-    ~f:(fun ms (iname,d) ->
-        { ms with
-          mstack_last = U64.add ms.mstack_last (U64.mul d u8);
-          mregs = Map.add ms.mregs ~key:iname ~data:ms.mstack_last
-        }) 
+       ~f:(fun ms (iname,d) ->
+             { ms with
+               mstack_last = U64.add ms.mstack_last (U64.mul d u8);
+               mregs = Map.add ms.mregs ~key:iname ~data:ms.mstack_last
+             })
 
 let expand_dest ms d =
   match type_dest ms.mdecls d with
@@ -122,12 +124,12 @@ let expand_dest ms d =
         go iidxs_o aidxs_o (pe::iidxs) aidxs idx_list
       | [],(Get pe)::aidxs_o,_ ->
         go iidxs_o aidxs_o iidxs (pe::aidxs) idx_list
-      | All::iidxs_o,_,i::idx_list ->
+      | All(_,_)::iidxs_o,_,i::idx_list ->
         go iidxs_o aidxs_o (Pconst(i)::iidxs) aidxs idx_list
-      | [],All::aidxs_o,i::idx_list ->
+      | [],All(_,_)::aidxs_o,i::idx_list ->
         go iidxs_o aidxs_o iidxs (Pconst(i)::aidxs) idx_list
-      | [],All::_,[]
-      | All::_,_,[]
+      | [],All(_,_)::_,[]
+      | All(_,_)::_,_,[]
       | [],[],_::_ ->
         assert false
     in
@@ -150,9 +152,9 @@ let expand_pr ms pr =
         { pr with pr_idxs = List.rev iidxs}
       | (Get pe)::iidxs_o,_ ->
         go iidxs_o (pe::iidxs) idx_list
-      | All::iidxs_o,i::idx_list ->
+      | All(_,_)::iidxs_o,i::idx_list ->
         go iidxs_o (Pconst(i)::iidxs) idx_list
-      | All::_,[]
+      | All(_,_)::_,[]
       | [],_::_ ->
         assert false
     in
@@ -165,6 +167,38 @@ let get_addr addr_r offset =
 let indexed_name_of_preg cvar_map (pr : preg_e) =
   (pr.pr_name, List.map pr.pr_idxs ~f:(eval_pexpr cvar_map))
 
+let get_offset ms pr aidxs =
+  match map_find_exn ms.mdecls pp_string pr.pr_name with
+  | U64(_,adims) ->
+    (* F.printf "aidxs: %a, adims: %a\n" *)
+    (*   (pp_list "," pp_pexpr) aidxs (pp_list "," pp_pexpr) adims; *)
+    assert (List.length aidxs <= List.length adims);
+    let len_idxs = List.length aidxs in    
+    let adims = List.map ~f:(eval_pexpr ms.mcvars) adims in
+    let aidxs =
+      List.map ~f:(eval_pexpr ms.mcvars) aidxs
+      @ List.map ~f:(fun _ -> U64.zero) (List.drop adims len_idxs)
+    in
+    (* F.printf "aidxs: %a, adims: %a\n" *)
+    (*   (pp_list "," pp_uint64) aidxs (pp_list "," pp_uint64) adims; *)
+    let weights =
+      List.fold (List.rev adims)
+        ~init:([],U64.of_int 1)
+        ~f:(fun (l,prod) n -> (prod::l,U64.mul prod n))
+      |> fst
+    in
+    let summands =
+      list_map2_exn ~f:(fun a b -> U64.mul a b) aidxs weights
+        ~err:(fun l_exp l_got -> 
+                failwith (fsprintf "expected %i, got %i in array access"
+                            l_got l_exp))
+    in 
+    let offs = u64_sum_list summands in
+    (* F.printf "offset: %a\n" pp_uint64 offs; *)
+    offs
+      
+  | _ -> assert false
+ 
 let rec read_src ms (s : src_e) =
   match s with
 
@@ -175,17 +209,15 @@ let rec read_src ms (s : src_e) =
     (* F.printf "read_reg: %a\n%!" pp_indexed_name iname; *)
     map_find_exn ms.mregs pp_indexed_name iname
 
-  | Src({d_pr; d_aidxs=[ce]}) ->
+  | Src({d_pr; d_aidxs=ces}) ->
     let addr_r = read_src ms (Src({d_pr; d_aidxs=[]})) in
-    let offs = eval_pexpr ms.mcvars ce in
+    let offs = get_offset ms d_pr ces in
     let addr = get_addr addr_r offs in
-    (* F.printf "read_mem: %a from %a\n%!" pp_uint64 addr pp_src_e s; *)
-    map_find_exn ms.mmem pp_uint64 addr
+    let v = map_find_exn ms.mmem pp_uint64 addr in
+    (* F.printf "read_mem: %a from %a = %a\n%!" pp_uint64 addr pp_src_e s pp_uint64 v; *)
+    v
 
-  | Src({d_aidxs=_::_::_}) ->
-    failwith "array access for multiple dimensions not supported yet" 
-
-let write_dest ms {d_pr; d_aidxs} x =
+let write_dest ms ({d_pr; d_aidxs} as _d) x =
   match d_aidxs with
 
   | [] ->
@@ -193,15 +225,12 @@ let write_dest ms {d_pr; d_aidxs} x =
     (* F.printf "write_reg: %a -> %a\n" pp_indexed_name iname pp_uint64 x; *)
     { ms with mregs = Map.add ms.mregs ~key:iname ~data:x }
 
-  | [ce] ->
+  | ces ->
     let addr_r = read_src ms (Src{d_pr;d_aidxs=[]}) in
-    let offs = eval_pexpr ms.mcvars ce in
+    let offs = get_offset ms d_pr ces in
     let addr = get_addr addr_r offs in
     (* F.printf "write_mem: %a -> %a via %a\n%!" pp_uint64 addr pp_uint64 x pp_dest_e d; *)
     { ms with mmem = Map.add ms.mmem ~key:addr ~data:x }
-
-  | _::_::_ ->
-    failwith "array access for multiple dimensions not supported yet" 
 
 let read_flag ms s =
   match s with
@@ -216,7 +245,7 @@ let write_flag ms {d_pr;d_aidxs} b =
 
 let interp_op (ms : mstate) z x y = function
 
-  | UMul(h) ->
+  | Umul(h) ->
     let x = read_src ms x in
     let y = read_src ms y in
     let (zh,zl) = U64.umul x y in
@@ -247,7 +276,7 @@ let interp_op (ms : mstate) z x y = function
     let res = if cf = cf_is_set then s2 else s1 in
     write_dest ms z res
 
-  | ThreeOp(O_IMul) ->
+  | ThreeOp(O_Imul) ->
     assert (is_Simm y);
     let x = read_src ms x in
     let y = read_src ms y in
@@ -306,9 +335,21 @@ let rec interp_instr ms0 efun_map instr =
   | Call(fname,rets,args) ->
     let efun      = map_find_exn efun_map pp_string fname in
     let efun_args = List.concat_map efun.ef_args ~f:(expand_arg ms0.mcvars) in
+    let expand_dest d =
+      let aidxs =
+        List.filter_map d.d_aidxs
+          ~f:(function Get i -> Some i | All(_,_) -> assert false)
+      in
+      List.map (expand_pr ms0 d.d_pr)
+        ~f:(fun pr -> { d_pr = pr; d_aidxs = aidxs })
+    in
+    let expand_src s = match s with
+      | Imm(_) -> assert false
+      | Src(d) -> expand_dest d
+    in
     
-    let given_rets = List.concat_map rets ~f:(expand_pr ms0) in
-    let given_args = List.concat_map args ~f:(expand_pr ms0) in
+    let given_rets = List.concat_map rets ~f:expand_dest in
+    let given_args = List.concat_map args ~f:expand_src in
     
     let mregs_o = ms0.mregs in
     let mflags_o = ms0.mflags in
@@ -316,11 +357,22 @@ let rec interp_instr ms0 efun_map instr =
     let mstack_last_o = ms0.mstack_last in
 
     let iname_of_preg = indexed_name_of_preg in
+    let get_arg ({d_pr; d_aidxs} as d) =
+      match d_aidxs with
+      | [] -> read_src ms0 (Src(d))
+      | ces ->
+        let addr_r = read_src ms0 (Src({d_pr; d_aidxs=[]})) in
+        let offs = get_offset ms0 d_pr ces in
+        let addr = get_addr addr_r offs in
+        addr
+    in
     let arg_alist =
-      List.map2_exn given_args efun_args
-        ~f:(fun pr efun_arg ->
+      list_map2_exn given_args efun_args
+        ~f:(fun dest efun_arg ->
                 (efun_arg,
-                 map_find_exn mregs_o pp_indexed_name (iname_of_preg ms0.mcvars pr)))
+                 get_arg dest))
+       ~err:(fun l_exp l_got -> 
+               failwith (fsprintf "expected %i, got %i in arg list" l_got l_exp))
     in
     let ms =
       { ms0 with
@@ -329,15 +381,22 @@ let rec interp_instr ms0 efun_map instr =
         mregs  = IndexedName.Map.of_alist_exn arg_alist;
       }
     in
-    let efun_rets = List.concat_map efun.ef_ret ~f:(fun (pr,_) -> expand_pr ms pr) in
+    let efun_rets =
+      List.concat_map efun.ef_ret ~f:(fun (pr,_) -> expand_pr ms pr)
+    in
     let ms = setup_stack ms efun in
     let ms = interp_stmt ms efun_map efun.ef_body in
     let mregs =
-      List.fold2_exn given_rets efun_rets
-        ~f:(fun acc pr efun_pr ->
-              Map.add acc ~key:(iname_of_preg ms.mcvars pr)
-                ~data:(map_find_exn ms.mregs pp_indexed_name (iname_of_preg ms.mcvars efun_pr)))
-        ~init:mregs_o
+      try
+        List.fold2_exn given_rets efun_rets
+          ~f:(fun acc dest efun_pr ->
+                assert (dest.d_aidxs=[]);
+                Map.add acc ~key:(iname_of_preg ms.mcvars dest.d_pr)
+                  ~data:(map_find_exn ms.mregs pp_indexed_name
+                         (iname_of_preg ms.mcvars efun_pr)))
+          ~init:mregs_o
+      with Invalid_argument _ ->
+        failwith "return value mismatch"
     in
     { ms with
       mdecls = mdecls_o;
@@ -360,6 +419,8 @@ let interp_string fname mem cvar_map args ef_name string =
   let stmt = efun.ef_body in
 
   let arg_regs = List.concat_map ~f:(expand_arg cvar_map) efun.ef_args in
+  if List.length arg_regs <> List.length args then
+    failwith "interp_string: wrong number of arguments given";
   let regs = IndexedName.Map.of_alist_exn (List.zip_exn arg_regs args) in
   let flags = String.Map.of_alist_exn [] in
   let decls = ty_env_of_efun efun in

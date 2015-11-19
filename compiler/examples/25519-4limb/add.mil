@@ -1,4 +1,4 @@
-/* The implementation is parameterized by "n = limbs - 1". */
+/* The implementation is parameterized by "n = number of limbs". */
 extern fn add<n : u64>(zp, xp, yp : u64[n]) {
 
   reg  x, y : u64<n>;

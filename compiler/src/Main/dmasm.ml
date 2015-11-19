@@ -21,12 +21,11 @@ let parse_and_process ~parse ~ftype ~process file =
     eprintf "%s%!" s
   end
 
-let process_mil trafo print_result out_file file efuns_ut =
-  let efuns = ILTy.type_efuns efuns_ut in
-  let efun = List.hd_exn efuns in
-  match ILT.apply_transform_asm trafo efun with
-  | `Asm_X64 afun ->
-    let asm_string = fsprintf "%a" Asm_X64.pp_afun afun in
+let process_mil trafo print_result out_file file efuns =
+  ILTy.typecheck_efuns efuns;
+  match ILT.apply_transform_asm trafo efuns with
+  | `Asm_X64 afuns ->
+    let asm_string = fsprintf "%a" (pp_list "@\n@\n" Asm_X64.pp_afun) afuns in
     if print_result then (
       F.printf "%s%!" asm_string
     ) else (
@@ -35,9 +34,9 @@ let process_mil trafo print_result out_file file efuns_ut =
     if out_file<>"" then (
       Out_channel.write_all out_file ~data:asm_string
     )
-  | `IL efun ->
+  | `IL efuns ->
     if print_result
-    then F.eprintf "%a@\n%!" ILU.pp_efun efun
+    then F.eprintf "%a@\n%!" (pp_list "@\n@\n" ILU.pp_efun) efuns
     else F.eprintf "Processed file %s@\n%!" file
 
 let dmasm trafo print_result out_file file =

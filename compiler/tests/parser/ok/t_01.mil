@@ -1,0 +1,26 @@
+/* This test should succeed and test/showcase all features of the parser. */
+fn foo<>() -> u64 {
+
+  reg x, h, l : u64;
+  flag cf : bool;
+
+  x = 0xffff_ffff_ffff;
+  cf, x += 0xffff_ffff_ffff;
+  cf, x += 11 + cf;
+  cf, x = x + 11 + cf;
+  h, l = x * 10;
+
+  return h;
+}
+
+fn void_fun() {
+  reg w : u64;
+}
+
+extern fn bar<n1, n2 : u64, n3 : u64>(x, y : u64<n1,n2>[n3,n4], z : u64) -> u64<n2*2> {
+  reg u : u64<n2*2>;
+
+  u<0> = foo();
+  void_fun();
+  return u<0..n2*2>;
+}
