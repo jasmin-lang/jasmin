@@ -133,6 +133,17 @@ let list_from_to ~first ~last =
   in
   go first []
 
+let u64_prod_list xs =
+  List.fold xs
+    ~init:(U64.of_int 1)
+    ~f:(fun a b -> U64.mul a b)
+
+
+let u64_sum_list xs =
+  List.fold xs
+    ~init:(U64.of_int 0)
+    ~f:(fun a b -> U64.add a b)
+
 (* ** Pretty-printing
  * ------------------------------------------------------------------------ *)
 

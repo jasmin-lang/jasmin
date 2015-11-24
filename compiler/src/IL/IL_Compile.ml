@@ -2,10 +2,10 @@
 
 (* ** Imports and abbreviations *)
 open Core_kernel.Std
-open Util
+(* open Util *)
 open Arith
 open IL_Lang
-open IL_Utils
+(* open IL_Utils *)
 (* open IL_Interp *)
 
 module X64 = Asm_X64
@@ -151,10 +151,12 @@ let transform_ssa _efun =
 (* ** Validate transformation (assuming that transform_ssa correct)
  * ------------------------------------------------------------------------ *)
 
-let validate_transform efun0 efun =
+let validate_transform _efun0 _edef0 _efun _edef =
+  failwith "undefined"
+(*
   if not (equal_efun (transform_ssa efun0) (transform_ssa efun)) then (
     (* shrink counter-example *)
-   for i = 1 to List.length efun0.ef_body do
+   for i = 1 to List.length edef.ef_body do
       let efun0  = shorten_efun i efun0 in
       let efun   = shorten_efun i efun in
       let tefun0 = transform_ssa efun0 in
@@ -169,6 +171,7 @@ let validate_transform efun0 efun =
     done;
     assert false
   )
+*)
 
 (* ** Register liveness
  * ------------------------------------------------------------------------ *)

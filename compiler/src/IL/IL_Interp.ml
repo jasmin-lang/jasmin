@@ -92,9 +92,9 @@ let print_mstate ms =
   F.printf "decls: %a\n" (pp_list ", " (pp_pair " -> " pp_string pp_ty))
     (String.Map.to_alist ms.mdecls)
 
-let setup_stack ms efun =
+let setup_stack ms edef =
   let u8 = (U64.of_int 8) in
-  List.concat_map efun.ef_decls
+  List.concat_map edef.ed_decls
     ~f:(fun (s,ty) ->
         match ty with
         | U64(_,adims) when adims<>[] ->
@@ -333,7 +333,11 @@ let rec interp_instr ms0 efun_map instr =
       mcvars = Map.change !ms.mcvars cv (fun _ -> old_val) }
 
   | Call(fname,rets,args) ->
-    let efun      = map_find_exn efun_map pp_string fname in
+    let efun = map_find_exn efun_map pp_string fname in
+    let edef = match efun.ef_def with
+      | Some ed -> ed
+      | None    -> failwith "Calling undefined function (only declared)"
+    in
     let efun_args = List.concat_map efun.ef_args ~f:(expand_arg ms0.mcvars) in
     let expand_dest d =
       let aidxs =
@@ -376,16 +380,16 @@ let rec interp_instr ms0 efun_map instr =
     in
     let ms =
       { ms0 with
-        mdecls = ty_env_of_efun efun;
+        mdecls = ty_env_of_efun efun edef;
         mflags = String.Map.empty;
         mregs  = IndexedName.Map.of_alist_exn arg_alist;
       }
     in
     let efun_rets =
-      List.concat_map efun.ef_ret ~f:(fun (pr,_) -> expand_pr ms pr)
+      List.concat_map edef.ed_ret ~f:(fun pr -> expand_pr ms pr)
     in
-    let ms = setup_stack ms efun in
-    let ms = interp_stmt ms efun_map efun.ef_body in
+    let ms = setup_stack ms edef in
+    let ms = interp_stmt ms efun_map edef.ed_body in
     let mregs =
       try
         List.fold2_exn given_rets efun_rets
@@ -416,14 +420,15 @@ let interp_string fname mem cvar_map args ef_name string =
   typecheck_efuns efuns;
   let efun_map = String.Map.of_alist_exn (List.map ~f:(fun ef -> (ef.ef_name,ef)) efuns) in
   let efun = map_find_exn efun_map pp_string ef_name in
-  let stmt = efun.ef_body in
+  let edef = Option.value_exn efun.ef_def in
+  let stmt = edef.ed_body in
 
   let arg_regs = List.concat_map ~f:(expand_arg cvar_map) efun.ef_args in
   if List.length arg_regs <> List.length args then
     failwith "interp_string: wrong number of arguments given";
   let regs = IndexedName.Map.of_alist_exn (List.zip_exn arg_regs args) in
   let flags = String.Map.of_alist_exn [] in
-  let decls = ty_env_of_efun efun in
+  let decls = ty_env_of_efun efun edef in
   let ms =
     { mregs = regs;
       mcvars = cvar_map;
@@ -433,7 +438,7 @@ let interp_string fname mem cvar_map args ef_name string =
       mstack_last = U64.of_int 100000;
     }
   in
-  let ms = setup_stack ms efun in
+  let ms = setup_stack ms edef in
  
   (* print_mstate ms; *)
   interp_stmt ms efun_map stmt

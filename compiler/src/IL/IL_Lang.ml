@@ -153,14 +153,19 @@ type 'i instr_g =
 and 'i stmt_g = ('i instr_g) list
   with sexp, compare
 
+type 'i efun_def_g = {
+  ed_decls  : (string * ty) list;   (* pseudo register/flag/stack declarations *)
+  ed_body   : ('i stmt_g);          (* body of function (None for declared function) *)
+  ed_ret    : 'i preg_g  list       (* pseudo registers as return values *)
+} with sexp, compare
+
 type 'i efun_g = {
   ef_name   : string;
-  ef_extern : bool;                 (* use standard C calling conventions *)
-  ef_params : (string * ty) list;   (* function parameters *)
-  ef_args   : (string * ty) list;   (* pseudo registers given as arguments *)
-  ef_decls  : (string * ty) list;   (* pseudo register/flag/stack declarations *)
-  ef_body   : 'i stmt_g;            (* body of the function *)
-  ef_ret    : ('i preg_g * ty) list (* pseudo registers as return values *)
+  ef_extern : bool;                   (* use standard C calling conventions *)
+  ef_params : (string * ty) list;     (* function parameters *)
+  ef_args   : (string * ty) list;     (* pseudo registers given as arguments *)
+  ef_def    : ('i efun_def_g) option; (* definition unless function just declared *)
+  ef_ret_ty : ty            list;     (* pseudo registers as return values *)
 } with sexp, compare
 
 (* ** Type abbreviations with ranges
@@ -172,6 +177,7 @@ type dest       = get_or_all dest_g       with sexp, compare
 type base_instr = get_or_all base_instr_g with sexp, compare
 type instr      = get_or_all instr_g      with sexp, compare
 type stmt       = get_or_all stmt_g       with sexp, compare
+type efun_def   = get_or_all efun_def_g   with sexp, compare
 type efun       = get_or_all efun_g       with sexp, compare
 
 (* ** Type abbreviations: without ranges (after expanding all ranges)
@@ -181,6 +187,7 @@ type base_instr_e = pexpr base_instr_g with sexp, compare
 type instr_e      = pexpr instr_g      with sexp, compare
 type stmt_e       = pexpr stmt_g       with sexp, compare
 type efun_e       = pexpr efun_g       with sexp, compare
+type efun_def_e   = pexpr efun_def_g   with sexp, compare
 
 (* ** Define Map, Hashtables, and Sets
  * ------------------------------------------------------------------------ *)

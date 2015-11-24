@@ -5,7 +5,7 @@ open IL_Lang
 open Arith
 open Util
 
-(* ** Utility functions
+(* ** Equality functions, indicator functions, variable collection
  * ------------------------------------------------------------------------ *)
 
 let dest_to_src d = Src(d)
@@ -48,7 +48,7 @@ let rec pvars_ccond = function
   | Pand (ic1,ic2)   -> Set.union (pvars_ccond ic1) (pvars_ccond ic2)
   | Pcond(_,ce1,ce2) -> Set.union (pvars_pexpr ce1) (pvars_pexpr ce2)
 
-(* ** Utility functions for pregs
+(* ** Constructor functions for pregs
  * ------------------------------------------------------------------------ *)
 
 let mk_preg_name name =
@@ -193,7 +193,7 @@ and pp_stmt_g pp_index fmt is =
 let pp_return_g pp_index fmt names =
   match names with
   | [] -> pp_string fmt ""
-  | _  -> F.fprintf fmt "return %a;" (pp_list "," (pp_preg_g pp_index)) names
+  | _  -> F.fprintf fmt "return %a;@]@\n" (pp_list "," (pp_preg_g pp_index)) names
 
 let pp_ty fmt ty =
   match ty with
@@ -208,16 +208,35 @@ let pp_ty fmt ty =
          match dims with
          | [] -> F.fprintf fmt ""
          | _  -> F.fprintf fmt "[%a]" (pp_list "," pp_pexpr) dims) dims
-      
+
+let pp_decl fmt (name,ty) =
+  F.fprintf fmt "%s %s : %a;@\n"
+    (match ty with
+     | Bool -> "flag"
+     | _    -> "reg")
+    name
+    pp_ty ty
+
+let pp_efun_def_g pp_index fmt ed =
+  F.fprintf fmt  "{@\n  @[<v 0>%a%a%a@]}"
+    (pp_list "" pp_decl)
+    ed.ed_decls
+    (pp_stmt_g pp_index)
+    ed.ed_body
+    (pp_return_g pp_index)
+    ed.ed_ret
+
 let pp_efun_g pp_index fmt ef =
-  F.fprintf fmt "@[<v 0>fn %s%s(%a) %s {@\n  @[<v 0>%a%a@]@\n}@]"
+  F.fprintf fmt "@[<v 0>fn %s%s(%a) %s%a@]"
     (if ef.ef_extern then "extern " else "")
     ef.ef_name
     (pp_list "," (pp_pair ":" pp_string pp_ty)) ef.ef_args
-    (if ef.ef_ret=[] then ""
-     else fsprintf "-> %a" (pp_list "*" pp_ty) (List.map ~f:snd ef.ef_ret))
-    (pp_stmt_g pp_index) ef.ef_body
-    (pp_return_g pp_index) (List.map ~f:fst ef.ef_ret)
+    (if ef.ef_ret_ty=[] then ""
+     else fsprintf "-> %a" (pp_list "*" pp_ty) ef.ef_ret_ty)
+    (fun fmt ef_def -> match ef_def with
+     | None    -> pp_string fmt ";"
+     | Some ed -> pp_efun_def_g pp_index fmt ed)
+    ef.ef_def
 
 let pp_indexed_name fmt (s,idxs) =
   F.fprintf fmt "%s<%a>" s (pp_list "," pp_uint64) idxs
@@ -247,53 +266,18 @@ let preg_error pr s =
   failwith (fsprintf "%a: %s" P.pp_loc pr.pr_loc s)
 
 let shorten_efun n efun =
-  if List.length efun.ef_body <= n then efun
+  let efun_def = Option.value_exn efun.ef_def in
+  if List.length efun_def.ed_body <= n then efun
   else
     { efun with
-      ef_body = List.take efun.ef_body n;
-      ef_ret = [] }
-
-let map_find_exn ?(err=failwith) m pp pr =
-  match Map.find m pr with
-  | Some x -> x
-  | None ->
-    let bt = try raise Not_found with _ -> Backtrace.get () in
-    err (fsprintf "map_find_exn %a failed, not in domain:\n%a\n%s"
-           pp pr (pp_list "," pp) (Map.keys m)
-           (Backtrace.to_string bt))
-
-let list_map2_exn ~err ~f xs ys =
-  try List.map2_exn ~f xs ys
-  with Invalid_argument _ -> 
-    err (List.length xs) (List.length ys)
-
-let list_iter2_exn ~err ~f xs ys =
-  try List.iter2_exn ~f xs ys
-  with Invalid_argument _ -> 
-    err (List.length xs) (List.length ys)
-
-let hashtbl_find_exn ?(err=failwith) m pp pr =
-  match Hashtbl.find m pr with
-  | Some x -> x
-  | None ->
-    err (fsprintf "map_find_preg %a failed, not in domain:\n%a"
-           pp pr (pp_list "," pp) (Hashtbl.keys m))
-
-let u64_prod_list xs =
-  List.fold xs
-    ~init:(U64.of_int 1)
-    ~f:(fun a b -> U64.mul a b)
-
-
-let u64_sum_list xs =
-  List.fold xs
-    ~init:(U64.of_int 0)
-    ~f:(fun a b -> U64.add a b)
+      ef_def = Some
+        { efun_def with
+          ed_body = List.take efun_def.ed_body n;
+          ed_ret  = [] };
+      ef_ret_ty = [] }
 
 (* ** Utility functions for parser
  * ------------------------------------------------------------------------ *)
-
-let get_opt def o = Option.value ~default:def o
 
 let fix_indexes (cstart,cend) idxs =
   List.filter_map idxs
@@ -317,27 +301,36 @@ let src_e_of_src pos s =
   | Imm(i) -> Imm(i)
   | Src(d) -> Src(dest_e_of_dest pos d)
 
-let failpos _pos msg =
+let failpos _pos msg = (* FIXME: use position in error message here *)
   failwith msg
 
-let mk_efun startpos endpos rty r name ext ps args decls stmt : efun =
+let mk_efun_def decls stmt rets =
+  let rets = Option.value ~default:[] rets in
+  { ed_ret = rets;
+    ed_decls  = List.concat decls;
+    ed_body   = get_opt [] stmt;
+  }
+
+let mk_efun startpos endpos rty name ext ps args def : efun =
   let rtys = Option.value ~default:[] rty in
-  let rets = Option.value ~default:[] r in
-  if List.length rets <> List.length rtys then (
-    let c_start = startpos.Lexing.pos_cnum + 1 in
-    let c_end   = endpos.Lexing.pos_cnum + 1 in
-    let err = "mismatch between return type and return statement" in
-    raise (ParserUtil.UParserError(c_start,c_end,err))
-  );
-  let rets = List.zip_exn rets rtys in
+  let () =
+    match def with
+    | None   -> ()
+    | Some d -> 
+      if List.length d.ed_ret <> List.length rtys then (
+        let c_start = startpos.Lexing.pos_cnum + 1 in
+        let c_end   = endpos.Lexing.pos_cnum + 1 in
+        let err = "mismatch between return type and return statement" in
+        raise (ParserUtil.UParserError(c_start,c_end,err))
+      );
+  in
   {
     ef_name   = name;
     ef_extern = ext<>None;
     ef_params = List.concat (get_opt [] ps);
     ef_args   = List.concat args;
-    ef_decls  = List.concat decls;
-    ef_body   = stmt;
-    ef_ret    = rets }
+    ef_def    = def;
+    ef_ret_ty = rtys }
 
 let mk_if c i1s mi2s ies = 
   let ielse =

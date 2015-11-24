@@ -15,7 +15,8 @@ module P = ParserUtil
 (* *** Compute types of registers taking (array) indexes into account
  * ------------------------------------------------------------------------ *)
 
-let ty_env_of_efun efun = String.Map.of_alist_exn (efun.ef_args @ efun.ef_decls)
+let ty_env_of_efun efun (edef : efun_def) =
+  String.Map.of_alist_exn (efun.ef_args @ edef.ed_decls)
 
 let get_dim (_dim : pexpr) idx =
   match idx with  (* FIXME: check [lb..ub] <= [0..dim]? *)
@@ -76,9 +77,7 @@ let type_dest ty_env {d_pr; d_aidxs} =
     let dims_indexed  = List.take adims l_aidxs in
     let dims_noexpand = List.drop adims l_aidxs in
     let dims_expand =
-      list_map2_exn dims_indexed d_aidxs
-        ~f:(fun tdim id -> match id with Get(_) -> None | All(_lb,_ub) -> Some tdim)
-        (* FIXME *)
+      list_map2_exn dims_indexed d_aidxs ~f:get_dim
         ~err:(fun l_exp l_got -> 
                 preg_error d_pr
                 (fsprintf "indexed register %a:%a must be fully applied (got %i, expected %i)"
@@ -100,7 +99,7 @@ let type_src ty_env s =
   | Imm(_) -> U64([],[])
   | Src(d) -> type_dest ty_env d
 
-(** Same as [type_dest] except that it assert that type is equal to [ty_exp] *)
+(** Same as [type_dest] except that it asserts that type is equal to [ty_exp] *)
 let typecheck_src ty_env s ty_exp =
   match s with
   | Imm(_) -> if not (equal_ty ty_exp (U64([],[]))) then assert false
@@ -203,24 +202,27 @@ let rec typecheck_instr fun_env ty_env instr =
   | Call(fname,rets,args)    ->
     let cfun = map_find_exn fun_env pp_string fname in
     let typecheck_src s (_,ty_exp) = typecheck_src ty_env s ty_exp in
-    let typecheck_dest d (_,ty_exp) = typecheck_dest ty_env d ty_exp in
+    let typecheck_dest d ty_exp = typecheck_dest ty_env d ty_exp in
     list_iter2_exn args cfun.ef_args ~f:typecheck_src
       ~err:(fun n_g n_e ->
               failwith (fsprintf "arguments have wrong length (got %i, expected %i)" n_g n_e));
-    list_iter2_exn rets cfun.ef_ret ~f:typecheck_dest
+    list_iter2_exn rets cfun.ef_ret_ty ~f:typecheck_dest
       ~err:(fun n_g n_e ->
               failwith (fsprintf "l-values have wrong length (got %i, expected %i)" n_g n_e))
       
 and typecheck_stmt fun_env ty_env stmt =
   List.iter ~f:(typecheck_instr fun_env ty_env) stmt
 
-let typecheck_ret ty_env ret =
-  List.iter ret ~f:(fun (pr,ty) -> typecheck_pr ty_env pr ty)
+let typecheck_ret ty_env ret_ty ret =
+  List.iter2_exn ret_ty ret ~f:(fun ty pr -> typecheck_pr ty_env pr ty)
 
 let typecheck_efun fun_env efun =
-  let ty_env = ty_env_of_efun efun in
-  typecheck_stmt fun_env ty_env efun.ef_body;
-  typecheck_ret ty_env efun.ef_ret
+  match efun.ef_def with
+  | None -> ()
+  | Some edef ->
+    let ty_env = ty_env_of_efun efun edef in
+    typecheck_stmt fun_env ty_env edef.ed_body;
+    typecheck_ret ty_env efun.ef_ret_ty edef.ed_ret
 
 let typecheck_efuns efuns =
   let smap = String.Map.of_alist_exn (List.map efuns ~f:(fun ef -> (ef.ef_name, ef))) in

@@ -12,7 +12,9 @@ open Arith
  * ------------------------------------------------------------------------ *)
 
 (* wrapper for liveness analysis that puts live sets into comments *)
-let transform_register_liveness efunc =
+let transform_register_liveness _efunc =
+  failwith "undefined"
+  (*
   let bis =
     List.concat_map (register_liveness efunc)
       ~f:(fun {li_bi = i; li_read_after_rhs = read} ->
@@ -20,6 +22,7 @@ let transform_register_liveness efunc =
   in
   { efunc with
     ef_body = base_instrs_to_stmt bis }
+  *)
 
 let strip_comments bis = 
   List.filter ~f:(function Comment(_) -> false | _ -> true) bis
@@ -88,9 +91,11 @@ let parse_trafo s =
 
 let apply_transform trafo efun0 =
   let conv_trans f efun =
+    let edef = Option.value_exn efun.ef_def in
     { efun with
-      ef_body = 
-        stmt_to_base_instrs efun.ef_body |> f |> base_instrs_to_stmt
+      ef_def = Some
+          { edef with
+            ed_body = stmt_to_base_instrs edef.ed_body |> f |> base_instrs_to_stmt}
     }
   in
   let app_trafo efun t =

@@ -13,6 +13,8 @@ fn foo<>() -> u64 {
   return h;
 }
 
+fn fun_decl_only(x : u64) -> u64;
+
 fn void_fun() {
   reg w : u64;
 }

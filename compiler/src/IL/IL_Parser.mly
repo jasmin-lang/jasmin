@@ -2,6 +2,7 @@
 open IL_Lang
 open Core_kernel
 open Arith
+open Util
 open IL_Utils
 
 module P = ParserUtil
@@ -270,17 +271,23 @@ decls :
 | ds=terminated_list(SEMICOLON,decl)
     { ds }
 
+%inline efun_body :
+| LCBRACE
+    ds   = decls
+    stmt = stmt?
+    ret  = return?
+  RCBRACE
+  { Some(mk_efun_def ds stmt ret) }
+| SEMICOLON
+  { None }
+
 efun :
 | ext=EXTERN? FN name=ID
     ps   = angle_tuple(typed_vars)?
     args = paren_tuple(typed_vars)
     rty  = ret_ty?
-  LCBRACE
-    ds   = decls
-    stmt = stmt
-    ret  = return?
-  RCBRACE
-    { mk_efun $startpos $endpos rty ret name ext  ps args ds stmt }
+    def  = efun_body
+    { mk_efun $startpos $endpos rty name ext ps args def }
 
 efuns :
 | efs=efun+ EOF { efs }
