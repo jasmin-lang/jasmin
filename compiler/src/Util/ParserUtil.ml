@@ -65,18 +65,16 @@ let wrap_error f s =
 
 let error_string file (line_start,start_pos,len,line,msg) =
   let len = max 1 (len - 1) in
-  let start_pos = start_pos -1 in
-  (F.sprintf "%s:%i:%i: %i:%i error: %s\n" file line_start start_pos line_start (start_pos+len) msg)
+  let start_pos = max start_pos 0 in
+  let spos = max (start_pos + 1) 0 in
+  (F.sprintf "%s:%i:%i: %i:%i error: %s\n" file line_start spos line_start (spos+len) msg)
   ^(F.sprintf "%s\n" line)
   ^(F.sprintf "%s%s\n" (String.make start_pos ' ') (String.make len '^'))
 
 let parse ~parse file s =
-  begin match parse s with
-  | `ParseOk pres -> pres
-  | `ParseError(pinfo) ->
-    let s = error_string file pinfo in
-    failwith s
-  end
+  match parse s with
+  | `ParseOk pres      -> pres
+  | `ParseError(pinfo) -> failwith (error_string file pinfo)
 
 (* ** Positions
  * ------------------------------------------------------------------------ *)
@@ -109,7 +107,9 @@ let loc_of_lexing_loc (spos,epos) =
     loc_end   = pos_of_lexing_pos epos;
   }
 
-let dummy_loc = loc_of_lexing_loc (L.dummy_pos, L.dummy_pos)
+let dummy_loc =
+  { loc_start = dummy_pos;
+    loc_end   = { dummy_pos with pos_cnum = dummy_pos.pos_cnum + 1 } }
 
 let pp_pos fmt p =
   F.fprintf fmt "%s:%i:%i" p.pos_fname p.pos_lnum p.pos_cnum

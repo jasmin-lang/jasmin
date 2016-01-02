@@ -1,6 +1,8 @@
-/* The implementation is parameterized by "n = limbs - 1". */
+param n     : u64; /* the number of limbs */
+param rem_p : u64; /* 2^n*64 mod p        */
+param m     : u64; /* FIXME */
 
-fn add<n : u64>(x : u64<n>, yp : u64[n]) -> u64<n> {
+fn add(x : u64<n>, yp : u64[n]) -> u64<n> {
 
   reg y : u64<n>;
   reg add0, add1 : u64;
@@ -8,22 +10,19 @@ fn add<n : u64>(x : u64<n>, yp : u64[n]) -> u64<n> {
 
   for i in 0..n {
     y<i> = yp[i];
-    if (i = 0) {
-      cf? x<0> += y<0>;
-    } else {
-      cf? x<i> += y<i> + cf;
-    }
+    if (i = 0) { cf, x<0> += y<0>; }
+    else       { cf, x<i> += y<i> + cf; }
   }
 
   add0 = 0;
-  add1 = 38;
+  add1 = rem_p;
   add1 = add0 if !cf;
 
   for i in  0..n {
     if (i = 0) {
-      cf? x<0> += add1;
+      cf, x<0> += add1;
     } else {
-      cf? x<i> += add0 + cf;
+      cf, x<i> += add0 + cf;
     }
   }
 
@@ -33,7 +32,7 @@ fn add<n : u64>(x : u64<n>, yp : u64[n]) -> u64<n> {
   return x<..>;
 }
 
-fn sub<n : u64>(x : u64<n>, yp : u64[n]) -> u64<n> {
+fn sub(x : u64<n>, yp : u64[n]) -> u64<n> {
   
   reg y : u64<n>; 
   reg sub0, sub1 : u64;
@@ -42,21 +41,21 @@ fn sub<n : u64>(x : u64<n>, yp : u64[n]) -> u64<n> {
   for i in  0..n {
     y<i> = yp[i];
     if i = 0 {
-      cf? x<0> -= y<0>;
+      cf, x<0> -= y<0>;
     } else {
-      cf? x<i> -= y<i> - cf;
+      cf, x<i> -= y<i> - cf;
     }
   }
 
   sub0  = 0;
-  sub1 = 38;
+  sub1 = rem_p;
   sub1 = sub0 if !cf;
 
   for i in  0..n {
     if i = 0 {
-      cf? x<0> -= sub1;
+      cf, x<0> -= sub1;
     } else {
-      cf? x<i> -= sub0 - cf;
+      cf, x<i> -= sub0 - cf;
     }
   }
 
@@ -66,11 +65,48 @@ fn sub<n : u64>(x : u64<n>, yp : u64[n]) -> u64<n> {
   return x<..>;
 }
 
-extern fn square<n : u64>(xp : u64[n]) -> u64<n> {
+/* reduction from 8 limbs to 4 limbs */
+fn reduce(z : u64<n*2>) -> u64<n*2> {
+  reg crem_p, rax, l, h, hprev, zero : u64;
+  reg cf : bool;
 
-  reg z : u64<n>;
+  crem_p = rem_p;
+  for i in 0..n {
+    rax = z<n + i>;
+    h, l = rax * crem_p;
+    cf, z<i> += l;
+    if i = 0 {
+      hprev = 0;
+      hprev += h + cf;
+    } else {
+      h += 0 + cf;
+      cf, z<i> += hprev;
+      hprev = 0;
+      hprev += h + cf;
+    }
+  }
+
+  l = hprev * rem_p;
+  cf, z<0> += l;
+
+  for i in 1..n {
+    cf, z<i> += 0 + cf;
+  }
+
+  zero = 0;
+  zero += 0 + cf;
+
+  l = zero * rem_p;
+  z<0> += l;
+
+  return z<..>;
+}
+
+fn square(xp : u64[n]) -> u64<n> {
+
+  reg z : u64<n*2>;
   reg t : u64<3>;
-  reg rax, rdx, c38, h, l, hprev, zero : u64;
+  reg rax, rdx, crem_p, h, l, hprev, zero : u64;
   reg cf : bool;
 
   z<7> = 0;
@@ -87,8 +123,8 @@ extern fn square<n : u64>(xp : u64[n]) -> u64<n> {
   for i in 0..(n - 2) {
     rax = xp[i + 2];
     rdx, rax = rax * xp[i];
-    cf? z<2*i + 2> += rax;
-    cf? z<2*i + 3> += rdx + cf;
+    cf, z<2*i + 2> += rax;
+    cf, z<2*i + 3> += rdx + cf;
         z<2*i + 4> += 0   + cf;        
   }
 
@@ -96,9 +132,9 @@ extern fn square<n : u64>(xp : u64[n]) -> u64<n> {
   for i in 0..(n - 3) {
     rax = xp[i + 3];
     rdx, rax = rax * xp[i];
-    cf? z<2*i + 3> += rax;
-    cf? z<2*i + 4> += rdx + cf;
-    cf? z<2*i + 5> += 0   + cf;
+    cf, z<2*i + 3> += rax;
+    cf, z<2*i + 4> += rdx + cf;
+    cf, z<2*i + 5> += 0   + cf;
         z<2*i + 6> += 0   + cf;        
   }
 
@@ -107,9 +143,9 @@ extern fn square<n : u64>(xp : u64[n]) -> u64<n> {
      so far and these occur twice */
   for i in 1..(2*n) {
     if (i = 1) {
-      cf? z<i> += z<i>;
+      cf, z<i> += z<i>;
     } else {
-      cf? z<i> += z<i> + cf;
+      cf, z<i> += z<i> + cf;
     }
   }
 
@@ -131,63 +167,35 @@ extern fn square<n : u64>(xp : u64[n]) -> u64<n> {
   for i in 0..3 {
     if (i = 0) {
       /* z<0> already set */
-      cf? z<1> += t<1>;
+      cf, z<1> += t<1>;
     } else if (i < 2) {
-      cf? z<2*i>     += t<2*i>     + cf;
-      cf? z<2*i + 1> += t<2*i + 1> + cf;
+      cf, z<2*i>     += t<2*i>     + cf;
+      cf, z<2*i + 1> += t<2*i + 1> + cf;
     } else if (i = 2) {
-      cf? z<2*i>     += rax + cf;
-      cf? z<2*i + 1> += rdx + cf;
+      cf, z<2*i>     += rax + cf;
+      cf, z<2*i + 1> += rdx + cf;
     } else { /* i > 2 */
-      cf? z<2*i>     += 0 + cf;
-      cf? z<2*i + 1> += 0 + cf;
+      cf, z<2*i>     += 0 + cf;
+      cf, z<2*i + 1> += 0 + cf;
     }
   }
 
   rax = xp[3];
   rdx, rax = rax * xp[3];
-  cf? z<6> += rax;
+  cf, z<6> += rax;
       z<7> += rdx + cf;
-  
-  /* reduction from 8 limbs to 4 limbs (identical to mul.mil) */
-  c38 = 38;
-  for i in 0..n {
-    rax = z<n + i>;
-    h, l = rax * c38;
-    cf? z<i> += l;
-    if i = 0 {
-      hprev = 0;
-      hprev += h + cf;
-    } else {
-      h += 0 + cf;
-      cf? z<i> += hprev;
-      hprev = 0;
-      hprev += h + cf;
-    }
-  }
 
-  l = hprev * 38;
-  cf? z<0> += l;
+  z<..> = reduce(z<..>);
 
-  for i in 1..n {
-    cf? z<i> += 0 + cf;
-  }
-
-  zero = 0;
-  zero += 0 + cf;
-
-  l = zero * 38;
-  z<0> += l;
-
-  return z<..>;
+  return z<0..n>;
 }
 
-extern fn mul<n : u64>(xp, yp0 : u64[n] /* rdx */) -> u64<n> {
+fn mul(xp, yp0 : u64[n] /* rdx */) -> u64<n> {
 
   reg yp   : u64[n];
-  reg z    : u64<2*n>;
+  reg z    : u64<n*2>;
   reg x, y : u64<n>; 
-  reg h, l, hprev, c38, rax, zero : u64;
+  reg h, l, hprev, crem_p, rax, zero : u64;
   reg cf : bool;
 
   yp = yp0;
@@ -201,7 +209,7 @@ extern fn mul<n : u64>(xp, yp0 : u64[n] /* rdx */) -> u64<n> {
       z<0> = l;
       z<1> = h;
     } else {
-      cf? z<j> += l;
+      cf, z<j> += l;
       z<j + 1> = 0;
       z<j + 1> += h + cf;
     }
@@ -212,62 +220,31 @@ extern fn mul<n : u64>(xp, yp0 : u64[n] /* rdx */) -> u64<n> {
     for j in 0..n {
       y<j> = yp[j];
       h, l = y<j> * x<i>;
-      cf? z<i+j> += l;
+      cf, z<i+j> += l;
       if j = 0 {
         hprev = 0;
         hprev += h + cf;
       } else {
         h += 0 + cf;
-        cf? z<i+j> += hprev;
+        cf, z<i+j> += hprev;
         if 1 <= j && j < n - 1 {
           hprev = 0;
           hprev += h + cf;
         } else { /* j = n */
           z<i + j + 1> = 0;
-          cf? z<i + j + 1> += h + cf;
+          cf, z<i + j + 1> += h + cf;
         }
       }
     }
   }
 
-  /* reduction from 8 limbs to 4 limbs */
-  c38 = 38;
-  for i in 0..n {
-    rax = z<n + i>;
-    h, l = rax * c38;
-    cf? z<i> += l;
-    if i = 0 {
-      hprev = 0;
-      hprev += h + cf;
-    } else {
-      h += 0 + cf;
-      cf? z<i> += hprev;
-      hprev = 0;
-      hprev += h + cf;
-    }
-  }
-
-  l = hprev * 38;
-  cf? z<0> += l;
-
-  for i in 1..n {
-    cf? z<i> += 0 + cf;
-  }
-
-  zero = 0;
-  zero += 0 + cf;
-
-  l = zero * 38;
-  z<0> += l;
-
-  for i in 0..n {
-    x<i> = z<i>;  /* FIXME: add support for z<0..n> range */
-  }
-
+  z<..> = reduce(z<..>);
+  
+  x<..> = z<0..n>;
   return x<..>;
 }
 
-fn ladderstep<n : u64>(workp : u64[5,n]) {
+fn ladderstep(workp : u64[5,n]) {
   reg t1, t2, t3, t4, t5, t6, t7, t8, t9 : u64<n>;
   reg t1_p, t2_p, t3_p, t4_p, t5_p, t6_p, t7_p, t8_p, t9_p : u64[n];
   reg w1, w2, w3, w4, w5, w6, w7 : u64<n>;
@@ -281,49 +258,50 @@ fn ladderstep<n : u64>(workp : u64[5,n]) {
 
   t1<..>       = workp[1,..];
   t2<..>       = t1<..>;
-  t1<..>      := add(t1<..>,workp[2]);   /* t1 = x2 + z2 */
-  t2<..>      := sub(t2<..>,workp[2]);   /* t2 = x2 - z2 */
+  t1<..>       = add(t1<..>,workp[2]);   /* t1 = x2 + z2 */
+  t2<..>       = sub(t2<..>,workp[2]);   /* t2 = x2 - z2 */
   t1_p[..]     = t1<..>;
   t2_p[..]     = t2<..>;
-  t7<..>      := square(t2_p);           /* t7 = t2^2 */
+  t7<..>       = square(t2_p);           /* t7 = t2^2 */
   t7_p[..]     = t7<..>;
-  t6<..>      := square(t1_p);           /* t6 = t1^2 */
+  t6<..>       = square(t1_p);           /* t6 = t1^2 */
   t6_p[..]     = t6<..>;
   t5<..>       = t6<..>;
-  t5<..>      := sub(t5<..>, t7_p);      /* t5 = t6 - t7 */
+  t5<..>       = sub(t5<..>, t7_p);      /* t5 = t6 - t7 */
   t5_p[..]     = t5<..>;
   t6<..>       = workp[3,..];
   t7<..>       = t6<..>;
-  t6<..>      := add(t6<..>, workp[4]);  /* t3 = x3 + z3 */
-  t7<..>      := sub(t7<..>, workp[4]);  /* t4 = x3 - z3 */
+  t6<..>       = add(t6<..>, workp[4]);  /* t3 = x3 + z3 */
+  t7<..>       = sub(t7<..>, workp[4]);  /* t4 = x3 - z3 */
   t3_p[..]     = t6<..>;
   t4_p[..]     = t7<..>;
-  t9<..>      := mul(t3_p, t2_p);        /* t9 = t3 * t2 */
+  t9<..>       = mul(t3_p, t2_p);        /* t9 = t3 * t2 */
   t9_p[..]     = t9<..>;
-  t8<..>      := mul(t4_p, t1_p);        /* t8 = t4 * t1 */
+  t8<..>       = mul(t4_p, t1_p);        /* t8 = t4 * t1 */
   w1<..>       = t8<..>;
-  t8<..>      := add(t8<..>, t9_p);      /* x3 = t8 + t9 */
-  w1<..>      := sub(w1<..>, t9_p);      /* z3 = t8 - t9 */
+  t8<..>       = add(t8<..>, t9_p);      /* x3 = t8 + t9 */
+  w1<..>       = sub(w1<..>, t9_p);      /* z3 = t8 - t9 */
   workp[3,..]  = t8<..>;
   workp[4,..]  = w1<..>;
-  w2<..>      := square(workp[3]);       /* x3 = x3^2 */
+  w2<..>       = square(workp[3]);       /* x3 = x3^2 */
   workp[3,..]  = w2<..>;
-  w3<..>      := square(workp[4]);       /* z3 = z3^2 */
+  w3<..>       = square(workp[4]);       /* z3 = z3^2 */
   workp[4,..]  = w3<..>;
-  w4<..>      := mul(workp[4],workp[0]); /* z3 = z3 * x1 */
+  w4<..>       = mul(workp[4],workp[0]); /* z3 = z3 * x1 */
   workp[4,..]  = w4<..>;
-  w5<..>      := mul(t6_p, t7_p);        /* x2 = t6 * t7 */
+  w5<..>       = mul(t6_p, t7_p);        /* x2 = t6 * t7 */
   workp[1,..]  = w5<..>;
-  /* FIXME: specialize mult */
-  w6<..>      := mul(t5_p, c121666_p);   /* z2 = c * t5 */
-  w6<..>      := add(w6<..>, t7_p);      /* z2 = z2 + t7 */
+                                         /* FIXME: specialize */
+  w6<..>       = mul(t5_p, c121666_p);   /* z2 = c * t5 */
+  w6<..>       = add(w6<..>, t7_p);      /* z2 = z2 + t7 */
   workp[2,..]  = w6<..>;                              
-  w7<..>      := mul(workp[2], t5_p);    /* z2 = z2 * t5 */
+  w7<..>       = mul(workp[2], t5_p);    /* z2 = z2 * t5 */
   workp[2,..]  = w7<..>;
 }
 
-extern fn ladderstep128<n : u64,m : u64>(workp : u64[5,n]) {
+extern fn ladder(workp : u64[5,n]) {
   for i in 0..m {
+     // cond. swap
     ladderstep(workp);
   }
 }

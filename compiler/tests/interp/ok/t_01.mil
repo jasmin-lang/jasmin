@@ -1,0 +1,24 @@
+param n : u64;
+
+fn print(x : u64<n>);
+
+fn bar(u : u64<2>) -> u64<2> {
+  u<0> = 15 + u<0>;
+  u<1> = 17 + u<1>;
+  return u<..>;
+}
+
+fn test_fun(y : u64[n]) {
+  reg x : u64<n,n>[n];
+  reg z : u64<n>;
+
+  y[1] = 99;
+  for i in 0..n {
+    x<i,i>[i] = y[i] + y[i];
+  }
+
+  z<1..(n - 1)> = y[1..(n - 1)];
+
+  z<..2> = bar(z<..2>);
+  // print(x<0..n>);
+}

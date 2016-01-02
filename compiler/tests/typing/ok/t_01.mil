@@ -1,6 +1,5 @@
 /* This test should succeed and test/showcase all features of the parser. */
-param n  : u64;
-param n2 : u64;
+param n1,n2,n3,n4  : u64;
 
 fn foo() -> u64 {
 

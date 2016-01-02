@@ -5,6 +5,11 @@ open Core_kernel.Std
 
 module F = Format
 
+let pp_opt snone pp_some fmt o =
+  match o with
+  | None   -> F.fprintf fmt "%s" snone
+  | Some x -> pp_some fmt x
+
 let pp_bool fmt b = F.fprintf fmt "%s" (if b then "true" else "false")
 
 let pp_string fmt s = F.fprintf fmt "%s" s
@@ -18,6 +23,15 @@ let rec pp_list sep pp_elt f l =
   | e::l -> F.fprintf f "%a%(%)%a" pp_elt e sep (pp_list sep pp_elt) l
 
 (* FIXME: add "tacerror" like function *)
+let failwith_ fmt =
+  let buf  = Buffer.create 127 in
+  let fbuf = F.formatter_of_buffer buf in
+  F.kfprintf
+    (fun _ ->
+      F.pp_print_flush fbuf ();
+      let s = Buffer.contents buf in
+      failwith s)
+    fbuf fmt
 
 let fsprintf fmt =
   let buf  = Buffer.create 127 in
@@ -41,6 +55,18 @@ let get_opt def o = Option.value ~default:def o
 
 (* ** Exceptional functions with more error reporting
  * ------------------------------------------------------------------------ *)
+
+let cartesian_product_list xs =
+  let rec go rem acc =
+    match rem with
+    | x::xs ->
+      let acc =
+        List.map (List.cartesian_product x acc) ~f:(fun (u,v) -> u::v)
+      in
+      go xs acc
+    | [] -> acc
+  in
+  go xs [[]]
 
 let map_find_exn ?(err=failwith) m pp pr =
   match Map.find m pr with

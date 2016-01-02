@@ -1,0 +1,17 @@
+param n : u64;
+
+fn foo() -> u64 {
+  reg u : u64;
+  u = 0;
+  return u;
+}
+
+extern fn bar() -> u64<n*2> {
+  reg u : u64<n*2>;
+
+  u<0..1> = foo();
+  return u<0..n*2>;
+/*
+ERROR: type mismatch for u<0..1> (got u64<1>, expected u64)
+*/
+}

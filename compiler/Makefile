@@ -1,5 +1,5 @@
 OCAMLBUILD=ocamlbuild
-MENHIRFLAGS=-use-menhir -menhir "menhir -v"
+MENHIRFLAGS=-use-menhir -menhir "menhir -v --explain"
 FINDLIBFLAGS=-use-ocamlfind -classic-display
 CFLAGS=-cflags "-w +a-e-9-45-44"
 COREFLAGS=-pkg core \
@@ -23,9 +23,9 @@ OCAMLBUILDFLAGS= $(CFLAGS) $(COREFLAGS) $(FINDLIBFLAGS) $(MENHIRFLAGS)
 # main targets
 
 .PHONY: all dmasm clean doc test-dmasm-assemble test-dmasm-reg \
-  run_tests run-run_tests
+  run_tests run-run_tests tests
 
-all: dmasm unit-tests
+all: dmasm test-dmasm-interp
 
 unit-tests: run-run_tests test-arith
 
@@ -44,7 +44,6 @@ doc:
 ###########################################################################
 # Targets for development and testing
 
-
 test-dmasm-reg: dmasm
 	./dmasm.native -p -t "register_allocate[10]" examples/test/register-alloc.mil
 
@@ -55,10 +54,16 @@ test-dmasm-add-call: dmasm
 	./dmasm.native -p -t "expand[n=3],ssa,strip_comments,register_allocate[15],asm[x86-64]" examples/test/add_call.mil
 
 test-dmasm-ladderstep: dmasm
-	./dmasm.native -p -t "" examples/25519-4limb/square.mil
+	./dmasm.native -p -t "typecheck" examples/25519-4limb/ladderstep.mil
+
+test-dmasm-typing: dmasm
+	./dmasm.native -p -t "typecheck" tests/typing/must_fail/t_01.mil
 
 test-dmasm-parser: dmasm
-	./dmasm.native -p -t "" tests/parser/ok/t_01.mil
+	./dmasm.native -p -t "typecheck" tests/parser/ok/t_01.mil
+
+test-dmasm-interp: dmasm
+	./dmasm.native -p -t "interp[test_fun][n=4][][[2,3,4,5]]" tests/interp/ok/t_01.mil
 
 run_tests:
 	test -d _build/c_src || mkdir -p _build/c_src

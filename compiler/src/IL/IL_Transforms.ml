@@ -2,7 +2,7 @@
 
 (* ** Imports *)
 open Core_kernel.Std
-open Util
+(* open Util *)
 open IL_Lang
 open IL_Utils
 open IL_Compile
@@ -30,47 +30,71 @@ let strip_comments bis =
 type asm_lang = X64
 
 type transform =
-  | MacroExpand of (string * u64) list
+  | MacroExpand of u64 String.Map.t
   | SSA
+  | Type
   | Print of string
   | Save of string
   | RegisterAlloc of int
   | RegisterLiveness
   | StripComments
   | Asm of asm_lang
+  | Interp of string * u64 String.Map.t * u64 U64.Map.t * value list
+    (* Interp(pmap,mmap,alist,fun):
+         interpret call of function fun() with parameters pmap, memory mmap,
+         argument list alist *)
 
 let ptrafo =
   let open MP in
-  let mapping =
-    many1 letter >>= fun s ->
-    char '=' >>
-    many1 digit >>= fun i ->
-    return (String.of_char_list s,U64.of_string (String.of_char_list i))
+  let ident = many1 (MParser.none_of "]=") >>= fun l -> return (String.of_char_list l) in
+  let asm_lang = choice [ string "x86-64" >>$ X64 ] in
+  let enclosed p pstart pend = pstart >> p >>= fun x -> pend >>$ x in
+  let bracketed p = enclosed p (char '[') (char ']') in
+  (* let braced p = enclosed p (char '{') (char '}') in *)
+  let u64 = many1 digit >>= fun s -> return (U64.of_string (String.of_char_list s)) in
+  let int = many1 digit >>= fun s -> return (int_of_string (String.of_char_list s)) in
+  let rec value () =
+    choice
+      [ (u64 >>= fun u -> return (Vu64 u))
+      ; (char '[' >>= fun _ ->
+        (sep_by (value ()) (char ',')) >>= fun vs ->
+        char ']' >>= fun _ ->
+        let vs = U64.Map.of_alist_exn (List.mapi vs ~f:(fun i v -> (U64.of_int i, v))) in
+        return (Varr(vs))) ]
   in
-  let register_num =
-    char '[' >> MParser.many1 digit >>= fun x -> 
-    char ']' >>$ (int_of_string (String.of_char_list x))
+  let pmapping =
+    ident >>= fun s -> char '=' >> u64 >>= fun u -> return (s,u)
   in
-  let mappings =
-    char '[' >> sep_by mapping (char ',') >>= fun l ->
-    char ']' >>$ l
+  let mmapping =
+    u64 >>= fun s -> char '=' >> u64 >>= fun u -> return (s,u)
   in
-  let asm_lang =
-    choice [ string "x86-64" >>$ X64 ]
+  let register_num = bracketed int in
+  let mappings p mc =
+    bracketed (sep_by p (char ',') >>= fun l -> return (mc l))
   in
-  let pname =
-    many1 (MParser.none_of "]") >>= fun l -> return (String.of_char_list l)
+  let fname = bracketed ident in
+  let args = bracketed (sep_by (value ()) (char ',')) in
+  let pmap = mappings pmapping String.Map.of_alist_exn in
+  let mmap = mappings mmapping U64.Map.of_alist_exn in
+  let interp_args =
+    fname >>= fun fn ->
+    pmap  >>= fun mparam ->
+    mmap  >>= fun mmem ->
+    args  >>= fun args -> return (fn,mparam,mmem,args)
   in
   choice
     [ string "ssa" >>$ SSA
-    ; (string "print" >> char '[' >> pname >>= (fun name -> char ']' >>$ (Print(name))))
-    ; (string "save" >> char '[' >> pname >>= (fun name -> char ']' >>$ (Save(name))))
+    ; string "typecheck" >>$ Type
+    ; (string "print" >> (bracketed (ident >>= fun name -> return (Print(name)))))
+    ; (string "save"  >> (bracketed (ident >>= fun name -> return (Save(name)))))
     ; string "register_liveness" >>$ RegisterLiveness
     ; string "strip_comments" >>$  StripComments
     ; (string "register_allocate" >> register_num >>= fun l ->
        return (RegisterAlloc(l)))
     ; string "asm" >> char '[' >> asm_lang >>= (fun l -> char ']' >>$ (Asm(l)))
-    ; string "expand" >> mappings >>= fun m -> return (MacroExpand(m)) ]
+    ; (string "expand" >> pmap >>= fun m -> return (MacroExpand(m)))
+    ; string "interp" >> interp_args >>=
+        fun (fn,mp,mm,args) -> return (Interp(fn,mp,mm,args)) ]
 
 let parse_trafo s =
   let open MP in
@@ -89,32 +113,43 @@ let parse_trafo s =
     eprintf "parsing transformation string failed: %s.\n%!" s;
     exit 1
 
-let apply_transform trafo efun0 =
-  let conv_trans f efun =
-    let edef = Option.value_exn efun.ef_def in
-    { efun with
-      ef_def = Some
-          { edef with
-            ed_body = stmt_to_base_instrs edef.ed_body |> f |> base_instrs_to_stmt}
+let apply_transform trafo (modul0 : modul) =
+  let _conv_trans f func =
+    let fdef = Option.value_exn func.f_def in
+    { func with
+      f_def = Some
+          { fdef with
+            fd_body = stmt_to_base_instrs fdef.fd_body |> f |> base_instrs_to_stmt}
     }
   in
-  let app_trafo efun t =
+  let app_trafo modul t =
     match t with
-    | SSA              -> transform_ssa efun
-    | StripComments    -> conv_trans strip_comments efun
-    | Print(name)      -> F.printf ">> %s:@\n%a@\n@\n" name pp_efun efun; efun
-    | Save(fname)      ->
-      Out_channel.write_all fname ~data:(fsprintf "%a" pp_efun efun); efun
-    | RegisterAlloc(n) -> register_allocate (min 15 n) efun
-    | RegisterLiveness -> transform_register_liveness efun
-    | MacroExpand(m)   -> macro_expand_efun (String.Map.of_alist_exn m) efun
+    | SSA              -> assert false
+      (* transform_ssa efun *)
+    | StripComments    -> assert false
+      (* conv_trans strip_comments efun *)
+    | Print(_name)      -> assert false
+      (* F.printf ">> %s:@\n%a@\n@\n" name pp_efun efun; efun *)
+    | Save(_fname)      -> assert false
+      (* Out_channel.write_all fname ~data:(fsprintf "%a" pp_efun efun); efun *)
+    | RegisterAlloc(_n) -> assert false
+      (* register_allocate (min 15 n) efun *)
+    | RegisterLiveness -> assert false
+      (* transform_register_liveness efun *)
+    | MacroExpand(_m)   -> assert false
+      (* macro_expand_efun (String.Map.of_alist_exn m) efun *)
     | Asm(_)           -> assert false
+    | Type ->
+      IL_Typing.typecheck_modul modul;
+      modul
+    | Interp(fn,pmap,mmap,args) ->
+      IL_Interp.interp_modul modul pmap mmap args fn 
   in
-  List.fold_left trafo ~init:efun0 ~f:app_trafo
+  List.fold_left trafo ~init:modul0 ~f:app_trafo
 
-let apply_transform_asm strafo efuns =
+let apply_transform_asm strafo modul =
   let (trafo,mlang) = parse_trafo strafo in
-  let efuns = List.map ~f:(apply_transform trafo) efuns in
+  let modul = apply_transform trafo modul in
   match mlang with
-  | None     -> `IL efuns
-  | Some X64 -> `Asm_X64 (List.map ~f:to_asm_x64 efuns)
+  | None     -> `IL modul
+  | Some X64 -> assert false (* `Asm_X64 (List.map ~f:to_asm_x64 modul) *)

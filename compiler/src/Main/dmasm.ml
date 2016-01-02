@@ -4,6 +4,7 @@ open Util
 
 module F  = Format
 module AP = Asm_Parse
+module P  = ParserUtil
 
 (* --------------------------------------------------------------------- *)
 (* Command implementations *)
@@ -11,19 +12,24 @@ module AP = Asm_Parse
 let parse_and_process ~parse ~ftype ~process file =
   let s = In_channel.read_all file in
   eprintf "Parsing %s as %s\n\n%!" file ftype;
-  begin match parse s with
-  | `ParseOk [] ->
-    failwith "No function definitions"
-  | `ParseOk res ->
-    process res
-  | `ParseError(pinfo) ->
-    let s = ParserUtil.error_string file pinfo in
-    eprintf "%s%!" s
-  end
+  match parse s with
+  | `ParseOk res       -> process s res
+  | `ParseError(pinfo) -> eprintf "%s%!" (ParserUtil.error_string file pinfo)
 
-let process_mil trafo print_result out_file file efuns =
-  ILTy.typecheck_efuns efuns;
-  match ILT.apply_transform_asm trafo efuns with
+let process_mil trafo print_result out_file file s modul =
+  let res =
+    try ILT.apply_transform_asm trafo modul
+    with
+      | ILTy.TypeError(loc,msg) ->
+        let start_pos = loc.P.loc_start.P.pos_cnum in
+        let end_pos   = loc.P.loc_end.P.pos_cnum in
+        let (line_pos,lstart_pos,line) = P.charpos_to_linepos s start_pos in
+        let len = min (end_pos - start_pos) (String.length line - lstart_pos) in
+        let pinfo = (line_pos,lstart_pos,len,line,msg) in
+        eprintf "%s%!" (ParserUtil.error_string file pinfo);
+        exit 1
+  in
+  match res with
   | `Asm_X64 afuns ->
     let asm_string = fsprintf "%a" (pp_list "@\n@\n" Asm_X64.pp_afun) afuns in
     if print_result then (
@@ -34,16 +40,16 @@ let process_mil trafo print_result out_file file efuns =
     if out_file<>"" then (
       Out_channel.write_all out_file ~data:asm_string
     )
-  | `IL efuns ->
+  | `IL modul ->
     if print_result
-    then F.eprintf "%a@\n%!" (pp_list "@\n@\n" ILU.pp_efun) efuns
+    then F.eprintf "%a@\n%!" ILU.pp_modul modul
     else F.eprintf "Processed file %s@\n%!" file
 
 let dmasm trafo print_result out_file file =
   match Filename.split_extension file with
   | _, Some "mil" ->
     parse_and_process
-      ~parse:ILP.efuns
+      ~parse:ILP.modul
       ~ftype:"MIL"
       ~process:(process_mil trafo print_result out_file file)
       file
@@ -55,7 +61,7 @@ let dmasm trafo print_result out_file file =
     parse_and_process
       ~parse:AP.instrs
       ~ftype:"assembly file (AT&T syntax)"
-      ~process:(fun ainstrs ->
+      ~process:(fun _s ainstrs ->
         if print_result then
           F.eprintf "%a%!" Asm_X64.pp_instrs ainstrs
         else

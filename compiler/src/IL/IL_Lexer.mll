@@ -58,9 +58,11 @@ rule lex = parse
   | ">>"    { SHR }
   | "<<"    { SHL }
   | "^"     { XOR }
+  | "$"     { DOLLAR }
 
   | "reg"    { REG }
   | "flag"   { FLAG }
+  | "param"  { PARAM }
 
   | "for"    { FOR }
   | "in"     { IN }

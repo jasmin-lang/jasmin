@@ -2,20 +2,25 @@
 
 DMASM=./dmasm.native
 
+# set -x
+
 function ok_tests() {
+  WILDCARD=$1
+  TRANS=$2
+  
   echo 
   echo "*******************************************************************"
-  echo "Running examples and ok tests!"
+  echo "Running ok tests for $WILDCARD!"
   echo
 
   FAILED=""
   OK=""
   for file in \
-              tests/parser/ok/*.mil \
+              $WILDCARD \
               ; do \
     printf "File $file: \n"
     before=$(date +%s)
-    if ! $DMASM $file 2>&1 | \
+    if ! $DMASM -t "$TRANS" $file 2>&1 | \
          grep --colour=always -i \
            -e 'Processed File'; then
       FAILED="$FAILED\n  $file"
@@ -32,6 +37,8 @@ function ok_tests() {
 }
 
 function fail_tests() {
+  WILDCARD=$1
+  TRANS=$2
   echo
   echo
   echo "*******************************************************************"
@@ -40,10 +47,10 @@ function fail_tests() {
 
   FAILED=""
   OK=""
-  for file in tests/parser/must_fail/*.mil; do
+  for file in $WILDCARD; do
     ERR=`grep ERROR $file | sed 's/ERROR: //'`
     printf "Testing $file, expecting error ''$ERR''\n"  
-    if ! $DMASM $file 2>&1 | \
+    if ! $DMASM -t "$TRANS" $file 2>&1 | \
          grep -F "$ERR"; then
       FAILED="$FAILED\n  $file"
     else
@@ -54,5 +61,21 @@ function fail_tests() {
   printf "\nOK:$OK\n"
 }
 
-ok_tests
-fail_tests
+function run_tests() {
+  BASEDIR=$1
+  TRANS=$2
+  echo "###################################################################"
+  echo "Running tests in $BASEDIR"
+ 
+  ok_tests   "$BASEDIR/ok/*.mil"        "$TRANS"
+  fail_tests "$BASEDIR/must_fail/*.mil" "$TRANS"
+}
+
+#run_tests "tests/parser" ""
+run_tests "tests/typing" "typecheck"
+
+#echo "###################################################################"
+#echo "Running tests for examples/25519-4limb/ladderstep.mil"
+ 
+#ok_tests   "examples/25519-4limb/ladderstep.mil" "typecheck"
+#ok_tests   "examples/25519-4limb/ladderstep.mil" "typecheck"

@@ -26,6 +26,7 @@ module L = Lexing
 %token SHREQ SHLEQ XOREQ
 %token COLON
 %token LARROW
+%token DOLLAR
 
 %token T_U64
 %token T_BOOL
@@ -41,8 +42,7 @@ module L = Lexing
 %token SHL
 %token XOR
 
-%token REG
-%token FLAG
+%token REG FLAG PARAM
 
 %token FOR
 %token IN
@@ -63,9 +63,9 @@ module L = Lexing
 %left MINUS PLUS
 %left STAR
 
-%type <IL_Lang.efun list> efuns
+%type <IL_Lang.modul> modul
 
-%start efuns
+%start modul
 
 %%
 
@@ -135,7 +135,9 @@ pcond :
 
 pr_index :
 | ce=pexpr                 { Get(ce) }
-| lb=pexpr DOTDOT ub=pexpr { All(lb,ub) }
+| lb=pexpr DOTDOT ub=pexpr { All(Some lb,Some ub) }
+| DOTDOT                   { All(None,None) }
+| DOTDOT ub=pexpr          { All(None,Some ub) }
 
 %inline preg_noloc :
 | s=ID idxs=angle_tuple(pr_index)?
@@ -152,8 +154,9 @@ dest :
     { { d_pr = r; d_aidxs = get_opt [] arr} }
 
 src :
-| d=dest { Src(d) }
-| i=INT  { Imm(U64.of_string i) }
+| d=dest       { Src(d) }
+| DOLLAR i=ID  { Imm(Pvar(i)) }
+| i=INT        { Imm(Pconst(U64.of_string i)) }
 
 (* -------------------------------------------------------------------- *)
 (* * Operators and assignments *)
@@ -214,7 +217,7 @@ instr :
       mk_instr ds (rhs,loc) }
 
 | fname=ID args=tuple(src) SEMICOLON
-    { Call(fname, [], args) }
+    { Binstr(Call(fname, [], args)) }
 
 | IF c=pcond i1s=block ies=celse_if* mi2s=celse?
     { mk_if c i1s mi2s ies }
@@ -271,23 +274,28 @@ decls :
 | ds=terminated_list(SEMICOLON,decl)
     { ds }
 
-%inline efun_body :
+%inline func_body :
 | LCBRACE
     ds   = decls
     stmt = stmt?
     ret  = return?
   RCBRACE
-  { Some(mk_efun_def ds stmt ret) }
+  { Some(mk_fundef ds stmt ret) }
 | SEMICOLON
   { None }
 
-efun :
+func :
 | ext=EXTERN? FN name=ID
-    ps   = angle_tuple(typed_vars)?
     args = paren_tuple(typed_vars)
     rty  = ret_ty?
-    def  = efun_body
-    { mk_efun $startpos $endpos rty name ext ps args def }
+    def  = func_body
+    { mk_func $startpos $endpos rty name ext args def }
 
-efuns :
-| efs=efun+ EOF { efs }
+param_or_func :
+| f=func                        { Dfun(f) }
+| PARAM ps=typed_vars SEMICOLON { Dparams(ps) }
+
+
+modul :
+| pfs=param_or_func+ EOF
+  { mk_modul pfs }

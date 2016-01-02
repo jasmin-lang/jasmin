@@ -13,235 +13,176 @@ module P = ParserUtil
 (* ** Interpreting compile-time expressions and conditions
  * ------------------------------------------------------------------------ *)
 
+type pmap = u64 String.Map.t
+
 let eval_pbinop = function
   | Pplus  -> U64.add
   | Pmult  -> U64.mul
   | Pminus -> U64.sub
 
-let eval_pexpr cvar_map ce =
+let eval_pexpr pmap ce =
   let rec go = function
     | Pbinop(o,ie1,ie2) -> eval_pbinop o (go ie1) (go ie2)
     | Pconst(c)         -> c
     | Pvar(s) ->
-      begin match Map.find cvar_map s with
+      begin match Map.find pmap s with
       | Some x -> x
       | None   -> failwith ("eval_cexpr: parameter "^s^" undefined")
       end
   in
   go ce
 
-let eval_pcondop = function
-  | Peq      -> U64.equal
-  | Pineq    -> fun x y -> not (U64.equal x y)
-  | Pless    -> fun x y -> U64.compare x y < 0
-  | Pgreater -> fun x y -> U64.compare x y > 0
-  | Pleq     -> fun x y -> U64.compare x y <= 0
-  | Pgeq     -> fun x y -> U64.compare x y >= 0
+let eval_pcondop pc  = fun x y ->
+  match pc with
+  | Peq      -> U64.equal x y
+  | Pineq    -> not (U64.equal x y)
+  | Pless    -> U64.compare x y < 0
+  | Pgreater -> U64.compare x y > 0
+  | Pleq     -> U64.compare x y <= 0
+  | Pgeq     -> U64.compare x y >= 0
 
-let eval_ccond cvar_map cc =
+let eval_pcond pmap cc =
   let rec go = function
     | Ptrue              -> true
     | Pnot(ic)           -> not (go ic)
     | Pand(cc1,cc2)      -> (go cc1) && (go cc2)
     | Pcond(cco,ce1,ce2) ->
-      eval_pcondop cco (eval_pexpr cvar_map ce1) (eval_pexpr cvar_map ce2)
+      eval_pcondop cco (eval_pexpr pmap ce1) (eval_pexpr pmap ce2)
   in
   go cc
-
-let bounded_idx_lists bound_list =
-  let go (idx_lists : u64 list list) (bound : u64) : u64 list list =
-    List.concat_map idx_lists
-      ~f:(fun is ->
-          let indexes = list_from_to ~first:U64.zero ~last:bound in
-          List.map indexes ~f:(fun i -> is@[i]))
-  in
-  List.fold ~f:go ~init:[[]] bound_list
  
-let expand_arg cvar_map (s,ty) =
-  match ty with
-  | Bool -> failwith "Boolean arguments not allowed"
-  | U64(idims,_adims) ->
-    let idx_bounds = List.map ~f:(eval_pexpr cvar_map) idims in
-    let idx_lists = bounded_idx_lists idx_bounds in
-    List.map idx_lists ~f:(fun idx_list -> (s,idx_list))
-
 (* ** Interpreter
  * ------------------------------------------------------------------------ *)
 
-let is_Simm = function Imm _ -> true | _ -> false
+(* *** Expansion of ranges
+ * ------------------------------------------------------------------------ *)
+
+let expand_get_or_all pmap dim idx =
+  match idx with
+  | Get pe -> [pe]
+  | All(lb_o,ub_o) ->
+    let zero = Pconst U64.zero in
+    let lb = get_opt zero lb_o |> eval_pexpr pmap in
+    let ub = get_opt dim ub_o |> eval_pexpr pmap in
+    List.map (list_from_to ~first:lb ~last:ub) ~f:(fun c -> Pconst c)
+
+let expand_dest (pmap : pmap) (tenv : tenv) d =
+  match map_find_exn tenv pp_string d.d_pr.pr_name with
+  | Bool -> failwith "Boolean arguments not allowed"
+  | U64(pr_dims,arr_dims) ->
+    let n_pd = List.length pr_dims in
+    let n_pi = List.length d.d_pr.pr_idxs in
+    let n_ad = List.length arr_dims in
+    let n_ai = List.length d.d_aidxs in
+    if n_pd <> n_pi then
+      failwith_ "register indexes not fully applied (dim %i, args %i" n_pd n_pi;
+    if n_ad <> n_ai then
+      failwith_ "array indexes not fully applied (dim %i, args %i" n_ad n_ai;
+    let dims = pr_dims@arr_dims in
+    let idxs = d.d_pr.pr_idxs@d.d_aidxs in
+    begin match idxs with
+    | [] -> [{ d_aidxs = []; d_pr = { d.d_pr with pr_idxs = [] } }]
+    | _::_ ->
+      list_map2_exn ~f:(expand_get_or_all pmap) dims idxs
+        ~err:(fun l_exp l_got ->
+                failwith_ "expected %i, got %i in expand_dest" l_got l_exp)
+      |> cartesian_product_list
+      |> List.map ~f:(fun idxs -> { d_aidxs = []; d_pr = { d.d_pr with pr_idxs = idxs } })
+    end
+
+let expand_src (pmap : pmap) (tenv : tenv) = function
+  | Imm(_) as s -> [s]
+  | Src(d)      -> List.map (expand_dest pmap tenv d) ~f:(fun d -> Src(d))
+
+(* *** Interpreter state
+ * ------------------------------------------------------------------------ *)
 
 type mstate =
-  { mcvars      : u64  String.Map.t
-  ; mregs       : u64  IndexedName.Map.t
-  ; mflags      : bool String.Map.t
-  ; mmem        : u64  U64.Map.t
-  ; mdecls      : ty   String.Map.t
-  ; mstack_last : u64
+  { m_pmap      : u64   String.Map.t (* parameter variables *)
+  ; m_lmap      : value String.Map.t (* (function) local variables *)
+  ; m_fmap      : bool  String.Map.t (* flags *)
+  ; m_mmap      : u64   U64.Map.t    (* memory *)
+  ; m_tenv      : ty    String.Map.t (* declarations *)
   }
 
 let print_mstate ms =
   F.printf "cvars: %a\n" (pp_list ", " (pp_pair " -> " pp_string pp_uint64))
-    (String.Map.to_alist ms.mcvars);
-  F.printf "regs: %a\n" (pp_list ", " (pp_pair " -> " pp_indexed_name pp_uint64))
-    (IndexedName.Map.to_alist ms.mregs);
+    (String.Map.to_alist ms.m_pmap);
+  F.printf "regs: %a\n" (pp_list ", " (pp_pair " -> " pp_string pp_value))
+    (String.Map.to_alist ms.m_lmap);
   F.printf "flags: %a\n" (pp_list ", " (pp_pair " -> " pp_string pp_bool))
-    (String.Map.to_alist ms.mflags);
+    (String.Map.to_alist ms.m_fmap);
   F.printf "mem: %a\n" (pp_list ", " (pp_pair " -> " pp_uint64 pp_uint64))
-    (U64.Map.to_alist ms.mmem);
-  F.printf "stack_last: %a\n" pp_uint64 ms.mstack_last;
+    (U64.Map.to_alist ms.m_mmap);
   F.printf "decls: %a\n" (pp_list ", " (pp_pair " -> " pp_string pp_ty))
-    (String.Map.to_alist ms.mdecls)
+    (String.Map.to_alist ms.m_tenv)
 
-let setup_stack ms edef =
-  let u8 = (U64.of_int 8) in
-  List.concat_map edef.ed_decls
-    ~f:(fun (s,ty) ->
-        match ty with
-        | U64(_,adims) when adims<>[] ->
-          let adims = List.map ~f:(eval_pexpr ms.mcvars) adims in
-          List.map (expand_arg ms.mcvars (s,ty))
-            ~f:(fun iname -> (iname,u64_prod_list adims))
-        | _ -> [])
-  |> List.fold ~init:ms
-       ~f:(fun ms (iname,d) ->
-             { ms with
-               mstack_last = U64.add ms.mstack_last (U64.mul d u8);
-               mregs = Map.add ms.mregs ~key:iname ~data:ms.mstack_last
-             })
+let read_lvar ms s idxs0 =
+  let rec go v idxs =
+    match v, idxs with
+    | Vu64(u), [] -> u
+    | Varr(vs),i::idxs ->
+      go (map_find_exn vs pp_uint64 i) idxs
+    | Vu64(u), _::_ ->
+      failwith_ "read_lvar: expected array, got u64 in %s[%a]" s (pp_list "," pp_uint64) idxs0
+    | Varr(vs),[] ->
+      failwith_ "read_lvar: expected u64, got array (not fully applied) in %s[%a]"
+        s (pp_list "," pp_uint64) idxs0
+  in
+  let v = map_find_exn ms.m_lmap pp_string s in
+  go v idxs0
 
-let expand_dest ms d =
-  match type_dest ms.mdecls d with
-  | Bool -> failwith "Boolean arguments not allowed"
-  | U64(dims_expand,_dims_remaining) ->
-    let eval = eval_pexpr ms.mcvars in
-    let idx_bounds = List.map ~f:eval dims_expand in
-    let idx_lists = bounded_idx_lists idx_bounds in
-    let rec go iidxs_o aidxs_o iidxs aidxs idx_list =
-      match iidxs_o, aidxs_o, idx_list with
-      | [],[],[] ->
-        { d_pr = { d.d_pr with pr_idxs = List.rev iidxs}; d_aidxs = List.rev aidxs}
-      | (Get pe)::iidxs_o,_,_ ->
-        go iidxs_o aidxs_o (pe::iidxs) aidxs idx_list
-      | [],(Get pe)::aidxs_o,_ ->
-        go iidxs_o aidxs_o iidxs (pe::aidxs) idx_list
-      | All(_,_)::iidxs_o,_,i::idx_list ->
-        go iidxs_o aidxs_o (Pconst(i)::iidxs) aidxs idx_list
-      | [],All(_,_)::aidxs_o,i::idx_list ->
-        go iidxs_o aidxs_o iidxs (Pconst(i)::aidxs) idx_list
-      | [],All(_,_)::_,[]
-      | All(_,_)::_,_,[]
-      | [],[],_::_ ->
-        assert false
-    in
-    List.map idx_lists ~f:(go d.d_pr.pr_idxs d.d_aidxs [] [])
-
-let expand_src ms = function
-  | Imm(_) as s -> [s]
-  | Src(d)      -> List.map (expand_dest ms d) ~f:(fun d -> Src(d))
-
-let expand_pr ms pr =
-  match type_pr ms.mdecls pr with
-  | Bool -> failwith "Boolean arguments not allowed"
-  | U64(dims_expand,_dims_remaining) ->
-    let eval = eval_pexpr ms.mcvars in
-    let idx_bounds = List.map ~f:eval dims_expand in
-    let idx_lists = bounded_idx_lists idx_bounds in
-    let rec go iidxs_o iidxs idx_list =
-      match iidxs_o, idx_list with
-      | [],[] ->
-        { pr with pr_idxs = List.rev iidxs}
-      | (Get pe)::iidxs_o,_ ->
-        go iidxs_o (pe::iidxs) idx_list
-      | All(_,_)::iidxs_o,i::idx_list ->
-        go iidxs_o (Pconst(i)::iidxs) idx_list
-      | All(_,_)::_,[]
-      | [],_::_ ->
-        assert false
-    in
-    List.map idx_lists ~f:(go pr.pr_idxs [])
-
-let get_addr addr_r offset =
-  let c8 = U64.of_int 8 in
-  U64.add addr_r (U64.mul c8 offset)
-
-let indexed_name_of_preg cvar_map (pr : preg_e) =
-  (pr.pr_name, List.map pr.pr_idxs ~f:(eval_pexpr cvar_map))
-
-let get_offset ms pr aidxs =
-  match map_find_exn ms.mdecls pp_string pr.pr_name with
-  | U64(_,adims) ->
-    (* F.printf "aidxs: %a, adims: %a\n" *)
-    (*   (pp_list "," pp_pexpr) aidxs (pp_list "," pp_pexpr) adims; *)
-    assert (List.length aidxs <= List.length adims);
-    let len_idxs = List.length aidxs in    
-    let adims = List.map ~f:(eval_pexpr ms.mcvars) adims in
-    let aidxs =
-      List.map ~f:(eval_pexpr ms.mcvars) aidxs
-      @ List.map ~f:(fun _ -> U64.zero) (List.drop adims len_idxs)
-    in
-    (* F.printf "aidxs: %a, adims: %a\n" *)
-    (*   (pp_list "," pp_uint64) aidxs (pp_list "," pp_uint64) adims; *)
-    let weights =
-      List.fold (List.rev adims)
-        ~init:([],U64.of_int 1)
-        ~f:(fun (l,prod) n -> (prod::l,U64.mul prod n))
-      |> fst
-    in
-    let summands =
-      list_map2_exn ~f:(fun a b -> U64.mul a b) aidxs weights
-        ~err:(fun l_exp l_got -> 
-                failwith (fsprintf "expected %i, got %i in array access"
-                            l_got l_exp))
-    in 
-    let offs = u64_sum_list summands in
-    (* F.printf "offset: %a\n" pp_uint64 offs; *)
-    offs
-      
-  | _ -> assert false
- 
-let rec read_src ms (s : src_e) =
+let read_src ms (s : src_e) =
   match s with
-
-  | Imm i -> i
-
-  | Src({d_pr; d_aidxs=[]}) ->
-    let iname = indexed_name_of_preg ms.mcvars d_pr in
-    (* F.printf "read_reg: %a\n%!" pp_indexed_name iname; *)
-    map_find_exn ms.mregs pp_indexed_name iname
-
+  | Imm pe -> eval_pexpr ms.m_pmap pe
   | Src({d_pr; d_aidxs=ces}) ->
-    let addr_r = read_src ms (Src({d_pr; d_aidxs=[]})) in
-    let offs = get_offset ms d_pr ces in
-    let addr = get_addr addr_r offs in
-    let v = map_find_exn ms.mmem pp_uint64 addr in
-    (* F.printf "read_mem: %a from %a = %a\n%!" pp_uint64 addr pp_src_e s pp_uint64 v; *)
-    v
+    let idxs = List.map (d_pr.pr_idxs@ces) ~f:(eval_pexpr ms.m_pmap) in
+    read_lvar ms d_pr.pr_name idxs
 
-let write_dest ms ({d_pr; d_aidxs} as _d) x =
-  match d_aidxs with
+let write_lvar v s idxs0 x =
+  let rec go v idxs =
+    match v, idxs with
+    | None,          [] -> Vu64(x)
+    | None,          i::idxs ->
+      let v' = go None idxs in
+      Varr(U64.Map.singleton i v')
+    | Some(Vu64(u)), [] -> Vu64(x)
+    | Some(Varr(vs)),i::idxs ->
+      let v = Map.find vs i in
+      let v' = go v idxs in
+      Varr(Map.add vs ~key:i ~data:v')
+    | Some(Vu64(u)), _::_ ->
+      failwith_ "write_lvar: expected array, got u64 in %s[%a]" s (pp_list "," pp_uint64) idxs0
+    | Some(Varr(vs)),[] ->
+      failwith_ "write_lvar: expected u64, got array (not fully applied) in %s[%a]"
+        s (pp_list "," pp_uint64) idxs0
+  in
+  go v idxs0
 
-  | [] ->
-    let iname = indexed_name_of_preg ms.mcvars d_pr in
-    (* F.printf "write_reg: %a -> %a\n" pp_indexed_name iname pp_uint64 x; *)
-    { ms with mregs = Map.add ms.mregs ~key:iname ~data:x }
-
-  | ces ->
-    let addr_r = read_src ms (Src{d_pr;d_aidxs=[]}) in
-    let offs = get_offset ms d_pr ces in
-    let addr = get_addr addr_r offs in
-    (* F.printf "write_mem: %a -> %a via %a\n%!" pp_uint64 addr pp_uint64 x pp_dest_e d; *)
-    { ms with mmem = Map.add ms.mmem ~key:addr ~data:x }
+let write_dest ms {d_pr; d_aidxs} x =
+  let s    = d_pr.pr_name in
+  let v    = Map.find ms.m_lmap s in
+  let idxs = List.map (d_pr.pr_idxs@d_aidxs) ~f:(eval_pexpr ms.m_pmap) in
+  (* F.printf ">>>: %a\n%!" pp_value v; *)
+  let v'   = write_lvar v s idxs x in
+  (* F.printf ">>>: %a\n%!" pp_value v'; *)
+  { ms with m_lmap = Map.add ms.m_lmap ~key:s ~data:v' }
 
 let read_flag ms s =
   match s with
-  | Src{d_pr;d_aidxs=[]} -> map_find_exn ms.mflags pp_string d_pr.pr_name
+  | Src{d_pr;d_aidxs=[]} -> map_find_exn ms.m_fmap pp_string d_pr.pr_name
   | Src{d_aidxs=_::_}    -> failwith "cannot give array element, flag (in register) expected" 
   | Imm _                -> failwith "cannot give immediate, flag (in register) expected" 
 
 let write_flag ms {d_pr;d_aidxs} b =
   match d_aidxs with
-  | []   -> { ms with mflags = Map.add ms.mflags ~key:d_pr.pr_name ~data:b }
+  | []   -> { ms with m_fmap = Map.add ms.m_fmap ~key:d_pr.pr_name ~data:b }
   | _::_ -> failwith "cannot give array element, flag (in register) expected" 
+
+(* *** Interpret operation
+ * ------------------------------------------------------------------------ *)
+
+let is_Simm = function Imm _ -> true | _ -> false
 
 let interp_op (ms : mstate) z x y = function
 
@@ -288,6 +229,9 @@ let interp_op (ms : mstate) z x y = function
   | Shift(_dir,_mcf_out) ->
     failwith "not implemented"
 
+(* *** Interpret instruction
+ * ------------------------------------------------------------------------ *)
+
 let rec interp_instr ms0 efun_map instr =
   match instr with
 
@@ -295,50 +239,52 @@ let rec interp_instr ms0 efun_map instr =
     ms0
 
   | Binstr(Assgn(d,s)) ->
-    let ss = expand_src  ms0 s in
-    let ds = expand_dest ms0 d in
-    let xs = List.map ~f:(read_src ms0) ss in
-    let xs_ds =
-      try List.zip_exn xs ds
+    let ss = expand_src  ms0.m_pmap ms0.m_tenv s in
+    let ds = expand_dest ms0.m_pmap ms0.m_tenv d in
+    F.printf ">>>: %a\n%!" (pp_list "," pp_dest_e) ds;
+    let ss_ds =
+      try List.zip_exn ss ds
       with Invalid_argument _ ->
-        failwith (fsprintf "assignment %a failed, lhs and rhs have different dimensions"
-                    pp_instr instr)
+        failwith (fsprintf
+                    "assignment %a failed, lhs and rhs have different dimensions (%a = %a)"
+                    pp_instr instr (pp_list "," pp_src_e) ss (pp_list "," pp_dest_e) ds)
     in
-    List.fold xs_ds
+    List.fold ss_ds
       ~init:ms0
-      ~f:(fun ms (x,d) -> write_dest ms d x)
-
+      ~f:(fun ms (s,d) -> write_dest ms d (read_src ms s))
 
   | Binstr(Op(o,d,(s1,s2))) ->
     interp_op ms0 d s1 s2 o
 
   | If(ccond,stmt1,stmt2) ->
-    if eval_ccond ms0.mcvars ccond then
+    if eval_pcond ms0.m_pmap ccond then
       interp_stmt ms0 efun_map stmt1
     else
       interp_stmt ms0 efun_map stmt2
 
   | For(cv,clb,cub,stmt) ->
-    let lb = eval_pexpr ms0.mcvars clb in
-    let ub = eval_pexpr ms0.mcvars cub in
+    let lb = eval_pexpr ms0.m_pmap clb in
+    let ub = eval_pexpr ms0.m_pmap cub in
     assert (U64.compare lb ub < 0);
     assert (U64.compare ub (U64.of_int Int.max_value) < 0); 
-    let old_val = Map.find ms0.mcvars cv in
+    let old_val = Map.find ms0.m_pmap cv in
     let ms = ref ms0 in
     for i = U64.to_int lb to U64.to_int ub - 1 do
-      ms := { !ms with mcvars = Map.add !ms.mcvars ~key:cv ~data:(U64.of_int i) };
+      ms := { !ms with m_pmap = Map.add !ms.m_pmap ~key:cv ~data:(U64.of_int i) };
       ms := interp_stmt !ms efun_map stmt;
     done;
     { !ms with
-      mcvars = Map.change !ms.mcvars cv (fun _ -> old_val) }
+      m_pmap = Map.change !ms.m_pmap cv (fun _ -> old_val) }
 
-  | Call(fname,rets,args) ->
-    let efun = map_find_exn efun_map pp_string fname in
-    let edef = match efun.ef_def with
+  | Binstr(Call(fname,rets,args)) ->
+    failwith "call unsupported at the moment"
+    (*
+    let func = map_find_exn efun_map pp_string fname in
+    let fdef = match func.f_def with
       | Some ed -> ed
       | None    -> failwith "Calling undefined function (only declared)"
     in
-    let efun_args = List.concat_map efun.ef_args ~f:(expand_arg ms0.mcvars) in
+    let efun_args = List.concat_map efun.f_args ~f:(expand_arg ms0.mpvars) in
     let expand_dest d =
       let aidxs =
         List.filter_map d.d_aidxs
@@ -355,7 +301,7 @@ let rec interp_instr ms0 efun_map instr =
     let given_rets = List.concat_map rets ~f:expand_dest in
     let given_args = List.concat_map args ~f:expand_src in
     
-    let mregs_o = ms0.mregs in
+    let mregs_o = ms0.mlvars in
     let mflags_o = ms0.mflags in
     let mdecls_o = ms0.mdecls in
     let mstack_last_o = ms0.mstack_last in
@@ -380,17 +326,18 @@ let rec interp_instr ms0 efun_map instr =
     in
     let ms =
       { ms0 with
-        mdecls = ty_env_of_efun efun edef;
+        mdecls = tenv_of_func efun edef;
         mflags = String.Map.empty;
-        mregs  = IndexedName.Map.of_alist_exn arg_alist;
+        mregs  = assert false (* IndexedName.Map.of_alist_exn arg_alist; *)
       }
     in
     let efun_rets =
-      List.concat_map edef.ed_ret ~f:(fun pr -> expand_pr ms pr)
+      List.concat_map fdef.fd_ret ~f:(fun pr -> expand_pr ms pr)
     in
-    let ms = setup_stack ms edef in
-    let ms = interp_stmt ms efun_map edef.ed_body in
+    (* let ms = setup_stack ms edef in *)
+    let ms = interp_stmt ms efun_map fdef.fd_body in
     let mregs =
+      assert false (*
       try
         List.fold2_exn given_rets efun_rets
           ~f:(fun acc dest efun_pr ->
@@ -401,44 +348,57 @@ let rec interp_instr ms0 efun_map instr =
           ~init:mregs_o
       with Invalid_argument _ ->
         failwith "return value mismatch"
+      *)
     in
     { ms with
-      mdecls = mdecls_o;
-      mflags = mflags_o;
-      mregs  = mregs;
-      mstack_last = mstack_last_o;
+      m_tenv  = m_tenv_o;
+      m_fmap  = m_fmap_o;
+      m_lmap  = m_lmap_o;
     }
+    *)
 
 and interp_stmt (ms0 : mstate) efun_map stmt =
   List.fold stmt
     ~f:(fun ms i -> interp_instr ms efun_map i)
     ~init:ms0
 
-let interp_string fname mem cvar_map args ef_name string =
-  let open ParserUtil in
-  let efuns = parse ~parse:IL_Parse.efuns fname string in
-  typecheck_efuns efuns;
-  let efun_map = String.Map.of_alist_exn (List.map ~f:(fun ef -> (ef.ef_name,ef)) efuns) in
-  let efun = map_find_exn efun_map pp_string ef_name in
-  let edef = Option.value_exn efun.ef_def in
-  let stmt = edef.ed_body in
+(* *** Interpret function (in module)
+ * ------------------------------------------------------------------------ *)
 
-  let arg_regs = List.concat_map ~f:(expand_arg cvar_map) efun.ef_args in
-  if List.length arg_regs <> List.length args then
-    failwith "interp_string: wrong number of arguments given";
-  let regs = IndexedName.Map.of_alist_exn (List.zip_exn arg_regs args) in
-  let flags = String.Map.of_alist_exn [] in
-  let decls = ty_env_of_efun efun edef in
+let interp_modul
+  (modul : modul) (pmap : u64 String.Map.t) (mmap : u64 U64.Map.t)
+  (args : value list) (fname : string)
+  =
+  typecheck_modul modul;
+  let func_map =
+    String.Map.of_alist_exn (List.map ~f:(fun f -> (f.f_name,f)) modul.m_funcs)
+  in
+  let func = map_find_exn func_map pp_string fname in
+  let fdef = Option.value_exn func.f_def in
+  let stmt = fdef.fd_body in
+
+  let f_args = func.f_args in
+  if List.length f_args <> List.length args then
+    failwith_ "interp_string: wrong number of arguments given (got %i, exp. %i)"
+      (List.length args) (List.length f_args);
+  (* FIXME: typecheck that given arguments are ok *)
+  (* FIXME: typecheck parameters *)
+  let lmap = String.Map.of_alist_exn (List.zip_exn (List.map f_args ~f:fst) args) in
+  let fmap = String.Map.of_alist_exn [] in
+  let tenv = tenv_of_func func fdef in
   let ms =
-    { mregs = regs;
-      mcvars = cvar_map;
-      mflags = flags;
-      mmem = mem;
-      mdecls = decls;
-      mstack_last = U64.of_int 100000;
+    { m_lmap = lmap;
+      m_pmap = pmap;
+      m_fmap = fmap;
+      m_mmap = mmap;
+      m_tenv = tenv;
     }
   in
-  let ms = setup_stack ms edef in
+  (* let ms = setup_stack ms edef in *)
  
-  (* print_mstate ms; *)
-  interp_stmt ms efun_map stmt
+  print_mstate ms;
+  let ms = interp_stmt ms func_map stmt in
+  print_endline "###################";
+  print_mstate ms;
+  print_endline "###################";
+  modul
