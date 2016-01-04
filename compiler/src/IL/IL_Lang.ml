@@ -177,11 +177,17 @@ type 'i fundef_g = {
   fd_ret    : 'i preg_g     list  (* pseudo registers as return values *)
 } with sexp, compare
 
+type 'i fundef_or_py =
+  | Undef
+  | Def of 'i fundef_g
+  | Py of string
+  with sexp, compare
+
 type 'i func_g = {
   f_name      : string;               (* function name *)
   f_call_conv : call_conv;            (* callable or internal function *)
   f_args      : (string * ty) list;   (* function arguments *)
-  f_def       : ('i fundef_g) option; (* definition unless function just declared *)
+  f_def       : 'i fundef_or_py;      (* definition unless function just declared *)
   f_ret_ty    : ty            list;   (* return type *)
 } with sexp, compare
 

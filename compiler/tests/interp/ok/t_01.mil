@@ -1,6 +1,10 @@
 param n : u64;
 
-fn print(x : u64<n>);
+fn print(x : u64<n>) = python print_u64_arr;
+
+fn rand_arr(s : u64) -> u64<n> = python rand_25519;
+
+fn assert_equal(x : u64<n>, y : u64<n>) = python assert_equal;
 
 fn bar(u : u64<2>) -> u64<2> {
   u<0> = 15 + u<0>;
@@ -12,13 +16,12 @@ fn test_fun(y : u64[n]) {
   reg x : u64<n,n>[n];
   reg z : u64<n>;
 
-  y[1] = 99;
-  for i in 0..n {
-    x<i,i>[i] = y[i] + y[i];
-  }
-
-  z<1..(n - 1)> = y[1..(n - 1)];
-
+  z<..> = rand_arr(1);
+  x<0,0>[..] = z<..>;
+  
+  print(z<..>);
+  // z<0> = 1;
+  assert_equal(z<..>,x<0,0>[..]);
   z<..2> = bar(z<..2>);
   // print(x<0..n>);
 }

@@ -27,8 +27,8 @@ type env = {
   e_tenv : tenv;
 }
 
-let tenv_of_func func (fdef : fundef) =
-  String.Map.of_alist_exn (func.f_args @ fdef.fd_decls)
+let tenv_of_func func decls =
+  String.Map.of_alist_exn (func.f_args @ decls)
 
 let type_error pr s =
  raise (TypeError (pr.pr_loc,s))
@@ -243,10 +243,10 @@ let typecheck_ret (env : env) ret_ty ret =
 (** typecheck the given function *)
 let typecheck_func (penv : penv) (fenv : fenv) func =
   match func.f_def with
-  | None      -> ()
-  | Some fdef ->
+  | Undef | Py _ -> ()
+  | Def fdef ->
     let tenv = String.Map.of_alist_exn
-                 (  (Map.to_alist (tenv_of_func func fdef))
+                 (  (Map.to_alist (tenv_of_func func fdef.fd_decls))
                   @ (Map.to_alist penv))
     in
     let env  = { e_penv = penv; e_fenv = fenv; e_tenv = tenv } in

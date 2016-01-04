@@ -53,6 +53,7 @@ module L = Lexing
 %token FALSE
 %token EXTERN
 %token FN
+%token PYTHON
 %token RETURN
 
 %token <string> ID 
@@ -280,9 +281,11 @@ decls :
     stmt = stmt?
     ret  = return?
   RCBRACE
-  { Some(mk_fundef ds stmt ret) }
+  { Def(mk_fundef ds stmt ret) }
 | SEMICOLON
-  { None }
+  { Undef }
+| EQ PYTHON s=ID SEMICOLON
+  { Py(s) }
 
 func :
 | ext=EXTERN? FN name=ID

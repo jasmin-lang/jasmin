@@ -71,6 +71,7 @@ rule lex = parse
   | "else" blank+ "if" { ELIF }
   | "extern" { EXTERN }
   | "fn"     { FN }
+  | "python" { PYTHON }
   | "return" { RETURN }
 
   | ('-'? ['0'-'9']+) as s { INT(s) }

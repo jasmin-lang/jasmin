@@ -1,4 +1,4 @@
-;;; dmasm-mode.el --- A major emacs mode for editing Rust source code -*-lexical-binding: t-*-
+;;; dmasm-mode.el --- A major emacs mode for editing DMASM source code -*-lexical-binding: t-*-
 
 ;; Derived from Rust mode (see below):
 ;; Version: 0.2.0
@@ -142,18 +142,18 @@
     table))
 
 (defgroup dmasm-mode nil
-  "Support for Rust code."
+  "Support for DMASM code."
   :link '(url-link "http://www.rust-lang.org/")
   :group 'languages)
 
-(defcustom rust-indent-offset 4
-  "Indent Rust code by this number of spaces."
+(defcustom rust-indent-offset 2
+  "Indent DMASM code by this number of spaces."
   :type 'integer
   :group 'dmasm-mode
   :safe #'integerp)
 
 (defcustom rust-indent-method-chain nil
-  "Indent Rust method chains, aligned by the '.' operators"
+  "Indent DMASM method chains, aligned by the '.' operators"
   :type 'boolean
   :group 'dmasm-mode
   :safe #'booleanp)
@@ -1198,12 +1198,12 @@ This is written mainly to be used as `end-of-defun-function' for Rust."
     (goto-char (point-max))))
 
 ;; For compatibility with Emacs < 24, derive conditionally
-(defalias 'rust-parent-mode
+(defalias 'dmasm-parent-mode
   (if (fboundp 'prog-mode) 'prog-mode 'fundamental-mode))
 
 ;;;###autoload
-(define-derived-mode dmasm-mode rust-parent-mode "Rust"
-  "Major mode for Rust code."
+(define-derived-mode dmasm-mode dmasm-parent-mode "DMASM"
+  "Major mode for DMASM code."
   :group 'dmasm-mode
   :syntax-table dmasm-mode-syntax-table
 

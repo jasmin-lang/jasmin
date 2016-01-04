@@ -138,7 +138,9 @@ let pvars_func pvars_g func =
   String.Set.union_list
     [ String.Set.union_list
         (List.map func.f_args ~f:(fun (_,ty) -> pvars_ty ty))
-    ; pvars_opt (pvars_fundef pvars_g) func.f_def
+    ; (match func.f_def with
+       | Def fdef -> pvars_fundef pvars_g fdef 
+       | _ -> String.Set.empty)
     ; String.Set.union_list
         (List.map func.f_ret_ty ~f:pvars_ty)
     ]
@@ -331,8 +333,9 @@ let pp_func_g pp_index fmt f =
     (if f.f_ret_ty=[] then ""
      else fsprintf " -> %a" (pp_list "*" pp_ty) f.f_ret_ty)
     (fun fmt ef_def -> match ef_def with
-     | None    -> pp_string fmt ";"
-     | Some ed -> pp_fundef_g pp_index fmt ed)
+     | Undef  -> pp_string fmt ";"
+     | Def ed -> pp_fundef_g pp_index fmt ed
+     | Py s   -> F.fprintf fmt " = python %s" s)
     f.f_def
 
 let pp_modul_g pp_index fmt modul =
@@ -346,6 +349,13 @@ let rec pp_value fmt = function
     pp_uint64 fmt u
   | Varr(vs) ->
     F.fprintf fmt "[%a]" (pp_list "," (pp_pair "->" pp_uint64 pp_value)) (Map.to_alist vs)
+
+
+let rec pp_value_py fmt = function
+  | Vu64 u   ->
+    pp_uint64 fmt u
+  | Varr(vs) ->
+    F.fprintf fmt "[%a]" (pp_list "," pp_value_py) (List.map ~f:snd (Map.to_alist vs))
 
 (* ** Specialized pretty printing functions
  * ------------------------------------------------------------------------ *)
@@ -374,7 +384,8 @@ let pp_modul_e fmt = pp_modul_g pp_pexpr      fmt
 let preg_error pr s =
   failwith (fsprintf "%a: %s" P.pp_loc pr.pr_loc s)
 
-let shorten_func n func =
+let shorten_func _n _func =
+  assert false (*
   let fdef = Option.value_exn func.f_def in
   if List.length fdef.fd_body <= n then func
   else
@@ -384,6 +395,28 @@ let shorten_func n func =
           fd_body = List.take fdef.fd_body n;
           fd_ret  = [] };
       f_ret_ty = [] }
+  *)
+
+let parse_value s =
+  let open MParser in
+  let u64 =
+    many1 digit >>= fun s ->
+    optional (char 'L') >>
+    return (U64.of_string (String.of_char_list s))
+  in
+  let rec value () =
+    choice
+      [ (u64 >>= fun u -> return (Vu64 u))
+      ; (char '[' >>= fun _ ->
+        (sep_by (value ()) (char ',' >> optional (char ' '))) >>= fun vs ->
+        char ']' >>= fun _ ->
+        let vs = U64.Map.of_alist_exn (List.mapi vs ~f:(fun i v -> (U64.of_int i, v))) in
+        return (Varr(vs))) ]
+  in
+  match parse_string (value () >>= fun x -> eof >>$ x) s () with
+  | Success t   -> t
+  | Failed(s,_) ->
+    failwith_ "parse_value: failed for %s" s
 
 (* ** Utility functions for parser
  * ------------------------------------------------------------------------ *)
@@ -432,12 +465,12 @@ let mk_fundef decls stmt rets =
     fd_body   = get_opt [] stmt;
   }
 
-let mk_func startpos endpos rty name ext args def : func =
+let mk_func startpos endpos rty name ext args (def : get_or_range fundef_or_py) : func =
   let rtys = Option.value ~default:[] rty in
   let () =
     match def with
-    | None   -> ()
-    | Some d -> 
+    | Undef | Py _ -> ()
+    | Def d -> 
       if List.length d.fd_ret <> List.length rtys then (
         let c_start = startpos.Lexing.pos_cnum + 1 in
         let c_end   = endpos.Lexing.pos_cnum + 1 in

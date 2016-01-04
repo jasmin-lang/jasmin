@@ -69,7 +69,7 @@ let error_string file (line_start,start_pos,len,line,msg) =
   let spos = max (start_pos + 1) 0 in
   (F.sprintf "%s:%i:%i: %i:%i error: %s\n" file line_start spos line_start (spos+len) msg)
   ^(F.sprintf "%s\n" line)
-  ^(F.sprintf "%s%s\n" (String.make start_pos ' ') (String.make len '^'))
+  ^(F.sprintf "%s%s\n" (String.make start_pos ' ') (String.make (len + 1) '^'))
 
 let parse ~parse file s =
   match parse s with

@@ -77,10 +77,11 @@ let ptrafo =
   let pmap = mappings pmapping String.Map.of_alist_exn in
   let mmap = mappings mmapping U64.Map.of_alist_exn in
   let interp_args =
-    fname >>= fun fn ->
     pmap  >>= fun mparam ->
     mmap  >>= fun mmem ->
-    args  >>= fun args -> return (fn,mparam,mmem,args)
+    fname >>= fun fn ->
+    args  >>= fun args ->   
+    return (fn,mparam,mmem,args)
   in
   choice
     [ string "ssa" >>$ SSA
@@ -115,9 +116,12 @@ let parse_trafo s =
 
 let apply_transform trafo (modul0 : modul) =
   let _conv_trans f func =
-    let fdef = Option.value_exn func.f_def in
+    let fdef = match func.f_def with
+      | Def d -> d
+      | Undef | Py _ -> failwith "cannot transform undefined function"
+    in
     { func with
-      f_def = Some
+      f_def = Def
           { fdef with
             fd_body = stmt_to_base_instrs fdef.fd_body |> f |> base_instrs_to_stmt}
     }

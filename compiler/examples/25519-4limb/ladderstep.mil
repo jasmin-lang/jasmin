@@ -1,6 +1,10 @@
+// * Implementation of montgomery ladder for curve25519
+
 param n     : u64; /* the number of limbs */
 param rem_p : u64; /* 2^n*64 mod p        */
-param m     : u64; /* FIXME */
+
+// ** addition
+// ************************************************************************
 
 fn add(x : u64<n>, yp : u64[n]) -> u64<n> {
 
@@ -15,7 +19,7 @@ fn add(x : u64<n>, yp : u64[n]) -> u64<n> {
   }
 
   add0 = 0;
-  add1 = rem_p;
+  add1 = $rem_p;
   add1 = add0 if !cf;
 
   for i in  0..n {
@@ -31,6 +35,9 @@ fn add(x : u64<n>, yp : u64[n]) -> u64<n> {
 
   return x<..>;
 }
+
+// ** subtraction
+// ************************************************************************
 
 fn sub(x : u64<n>, yp : u64[n]) -> u64<n> {
   
@@ -48,7 +55,7 @@ fn sub(x : u64<n>, yp : u64[n]) -> u64<n> {
   }
 
   sub0  = 0;
-  sub1 = rem_p;
+  sub1 = $rem_p;
   sub1 = sub0 if !cf;
 
   for i in  0..n {
@@ -65,12 +72,14 @@ fn sub(x : u64<n>, yp : u64[n]) -> u64<n> {
   return x<..>;
 }
 
-/* reduction from 8 limbs to 4 limbs */
+// ** reduction from 8 limbs to 4 limbs
+// ************************************************************************
+
 fn reduce(z : u64<n*2>) -> u64<n*2> {
   reg crem_p, rax, l, h, hprev, zero : u64;
   reg cf : bool;
 
-  crem_p = rem_p;
+  crem_p = $rem_p;
   for i in 0..n {
     rax = z<n + i>;
     h, l = rax * crem_p;
@@ -86,7 +95,7 @@ fn reduce(z : u64<n*2>) -> u64<n*2> {
     }
   }
 
-  l = hprev * rem_p;
+  l = hprev * $rem_p;
   cf, z<0> += l;
 
   for i in 1..n {
@@ -96,11 +105,71 @@ fn reduce(z : u64<n*2>) -> u64<n*2> {
   zero = 0;
   zero += 0 + cf;
 
-  l = zero * rem_p;
+  l = zero * $rem_p;
   z<0> += l;
 
   return z<..>;
 }
+
+// ** multiplication
+// ************************************************************************
+
+fn mul(xp, yp0 : u64[n] /* rdx */) -> u64<n> {
+
+  reg yp   : u64[n];
+  reg z    : u64<n*2>;
+  reg x, y : u64<n>; 
+  reg h, l, hprev, crem_p, rax, zero : u64;
+  reg cf : bool;
+
+  yp = yp0;
+  
+  x<0> = xp[0];
+  for j in 0..n {
+    y<j> = yp[j];
+    h, l = y<j> * x<0>;
+
+    if j = 0 {
+      z<0> = l;
+      z<1> = h;
+    } else {
+      cf, z<j> += l;
+      z<j + 1> = 0;
+      z<j + 1> += h + cf;
+    }
+  }
+
+  for i in 1..n {
+    x<i> = xp[i];
+    for j in 0..n {
+      y<j> = yp[j];
+      h, l = y<j> * x<i>;
+      cf, z<i+j> += l;
+      if j = 0 {
+        hprev = 0;
+        hprev += h + cf;
+      } else {
+        h += 0 + cf;
+        cf, z<i+j> += hprev;
+        if 1 <= j && j < n - 1 {
+          hprev = 0;
+          hprev += h + cf;
+        } else { /* j = n */
+          z<i + j + 1> = 0;
+          cf, z<i + j + 1> += h + cf;
+        }
+      }
+    }
+  }
+
+  z<..> = reduce(z<..>);
+  
+  x<..> = z<0..n>;
+  return x<..>;
+}
+
+// ** squaring
+// ************************************************************************
 
 fn square(xp : u64[n]) -> u64<n> {
 
@@ -190,67 +259,15 @@ fn square(xp : u64[n]) -> u64<n> {
   return z<0..n>;
 }
 
-fn mul(xp, yp0 : u64[n] /* rdx */) -> u64<n> {
+// ** ladderstep
+// ************************************************************************
 
-  reg yp   : u64[n];
-  reg z    : u64<n*2>;
-  reg x, y : u64<n>; 
-  reg h, l, hprev, crem_p, rax, zero : u64;
-  reg cf : bool;
-
-  yp = yp0;
-  
-  x<0> = xp[0];
-  for j in 0..n {
-    y<j> = yp[j];
-    h, l = y<j> * x<0>;
-
-    if j = 0 {
-      z<0> = l;
-      z<1> = h;
-    } else {
-      cf, z<j> += l;
-      z<j + 1> = 0;
-      z<j + 1> += h + cf;
-    }
-  }
-
-  for i in 1..n {
-    x<i> = xp[i];
-    for j in 0..n {
-      y<j> = yp[j];
-      h, l = y<j> * x<i>;
-      cf, z<i+j> += l;
-      if j = 0 {
-        hprev = 0;
-        hprev += h + cf;
-      } else {
-        h += 0 + cf;
-        cf, z<i+j> += hprev;
-        if 1 <= j && j < n - 1 {
-          hprev = 0;
-          hprev += h + cf;
-        } else { /* j = n */
-          z<i + j + 1> = 0;
-          cf, z<i + j + 1> += h + cf;
-        }
-      }
-    }
-  }
-
-  z<..> = reduce(z<..>);
-  
-  x<..> = z<0..n>;
-  return x<..>;
-}
-
-fn ladderstep(workp : u64[5,n]) {
+fn ladderstep(workp : u64[5,n]) -> u64[5,n] {
   reg t1, t2, t3, t4, t5, t6, t7, t8, t9 : u64<n>;
   reg t1_p, t2_p, t3_p, t4_p, t5_p, t6_p, t7_p, t8_p, t9_p : u64[n];
   reg w1, w2, w3, w4, w5, w6, w7 : u64<n>;
   reg c121666_p : u64[n];
 
-  c121666_p = 1000;
   c121666_p[0] = 121666;
   c121666_p[1] = 0;
   c121666_p[2] = 0;
@@ -297,11 +314,105 @@ fn ladderstep(workp : u64[5,n]) {
   workp[2,..]  = w6<..>;                              
   w7<..>       = mul(workp[2], t5_p);    /* z2 = z2 * t5 */
   workp[2,..]  = w7<..>;
+  
+  return workp[..,..];
 }
 
-extern fn ladder(workp : u64[5,n]) {
-  for i in 0..m {
-     // cond. swap
-    ladderstep(workp);
+// ** tests
+// ************************************************************************
+
+fn rand_arr(s : u64) -> u64<n> = python rand;
+fn assert_equal(x, y : u64<n>) = python assert_equal;
+fn print_arr(x : u64<n>) = python print_u64_arr;
+fn print_u64(x : u64) = python print_u64;
+fn print_newline() = python print_newline;
+fn assert_equal_add(x, y, z : u64<n>) = python assert_equal_add;
+fn assert_equal_sub(x, y, z : u64<n>) = python assert_equal_sub;
+fn assert_equal_mul(x, y : u64[n], z : u64<n>) = python assert_equal_mul;
+
+fn test_add() {
+  reg x, y_tmp, z : u64<n>;
+  reg y : u64[n];
+  reg u : u64;
+  for i in 0..255 {
+    u = $i;
+    print_u64(u);
+    x<..> = rand_arr(u);
+    u += 1;
+    y_tmp<..> = rand_arr(u);
+    y[..] = y_tmp<..>;
+    z<..> = add(x<..>,y);
+    assert_equal_add(x<..>,y[..],z<..>);
+ } 
+}
+
+fn test_sub() {
+  reg x, y_tmp, z : u64<n>;
+  reg y : u64[n];
+  reg u : u64;
+  for i in 0..255 {
+    u = $i;
+    print_u64(u);
+    x<..> = rand_arr(u);
+    u += 1;
+    y_tmp<..> = rand_arr(u);
+    y[..] = y_tmp<..>;
+    z<..> = sub(x<..>,y);
+    assert_equal_sub(x<..>,y[..],z<..>);
+ } 
+}
+
+fn test_mul() {
+  reg x_tmp, y_tmp, z : u64<n>;
+  reg x, y : u64[n];
+  reg u : u64;
+  for i in 0..255 {
+    u = $i;
+    print_u64(u);
+    x_tmp<..> = rand_arr(u);
+    u += 1;
+    y_tmp<..> = rand_arr(u);
+    x[..] = x_tmp<..>;
+    y[..] = y_tmp<..>;
+    z<..> = mul(x,y);
+    assert_equal_mul(x,y,z<..>);
+ } 
+}
+
+fn test_square() {
+  reg x_tmp, y_tmp, z : u64<n>;
+  reg x, y : u64[n];
+  reg u : u64;
+  for i in 0..255 {
+    u = $i;
+    print_u64(u);
+    x_tmp<..> = rand_arr(u);
+    x[..] = x_tmp<..>;
+    z<..> = mul(x,x);
+    assert_equal_mul(x,x,z<..>);
+ } 
+}
+
+fn test_ladderstep() {
+  reg x : u64<n>;
+  reg u : u64;
+  reg workp : u64[5,n];
+  for i in 0..5 {
+    u = $i;
+    x<..> = rand_arr(u);
+    workp[i,..] = x<..>;
   }
+  
+}
+
+fn test() {
+  //test_add();
+  print_newline();
+  //test_sub();
+  print_newline();
+  //test_mul();
+  print_newline();
+  //test_square();
+  print_newline();
+  test_ladderstep();
 }
