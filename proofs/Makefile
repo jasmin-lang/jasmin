@@ -3,7 +3,7 @@
 # --------------------------------------------------------------------
 NAME     := Arithmetica
 SUBDIRS  :=
-INCFLAGS := -R src $(NAME)
+INCFLAGS := -R src $(NAME) -R src/3rdparty $(NAME)
 COQFILES := \
 	src/3rdparty/ssrring.v \
 	src/3rdparty/finmap.v \
