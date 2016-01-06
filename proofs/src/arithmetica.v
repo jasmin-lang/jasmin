@@ -1,6 +1,6 @@
 (* -------------------------------------------------------------------- *)
-Require Import ssreflect ssrfun ssrbool eqtype ssrnat.
-Require Import div seq choice fintype ssralg ssrint zmodp finmap.
+Require Import ssreflect ssrfun ssrbool eqtype ssrnat choice fintype.
+Require Import div seq ssralg ssrint zmodp finmap ssrring.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -9,6 +9,10 @@ Unset Printing Implicit Defensive.
 Import GRing.Theory.
 
 Open Local Scope ring_scope.
+
+(* -------------------------------------------------------------------- *)
+Goal forall x : int, 1 + 1 = 1 + (x - 1 - x + 2).
+Proof. by move=> x; ssring. Qed.
 
 (* -------------------------------------------------------------------- *)
 Definition u64 := nosimpl 'I_(2 ^ 64).
