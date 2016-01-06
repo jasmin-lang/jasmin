@@ -131,7 +131,7 @@ Ltac reify xt xe :=
   end.
 
 (* -------------------------------------------------------------------- *)
-Class freify (F : fieldType) (a : F) (t : FExpr Z) (e : seq F).
+Class freify (F : Type) (a : F) (t : FExpr Z) (e : seq F).
 
 Instance freify_zero (F : fieldType) e : @freify F 0 0%F e.
 Instance freify_one  (F : fieldType) e : @freify F 1 1%F e.
@@ -140,7 +140,7 @@ Instance freify_natconst (F : fieldType) n e
   : @freify F n%:R ((n : Z)%:S)%F e.
 
 Instance freify_intconst n e
-  : reify (Posz n) ((n : Z)%:S)%F e.
+  : @freify int (Posz n) ((n : Z)%:S)%F e.
 
 Instance freify_add (F : fieldType) a1 a2 t1 t2 e
   {_: @freify F a1 t1 e}
