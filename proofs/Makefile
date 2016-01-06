@@ -4,7 +4,10 @@
 NAME     := Arithmetica
 SUBDIRS  :=
 INCFLAGS := -R src $(NAME)
-COQFILES := src/3rdparty/finmap.v src/arithmetica.v
+COQFILES := \
+	src/3rdparty/ssrring.v \
+	src/3rdparty/finmap.v \
+	src/arithmetica.v
 
 include Makefile.common
 
