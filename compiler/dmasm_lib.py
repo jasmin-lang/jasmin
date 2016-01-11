@@ -146,46 +146,6 @@ def monty(x1, x2, z2, x3, z3):
   print("monty result:\n%s\n"%(str((x2,z2,x3,z3))), file=sys.stderr)
   return (x2,z2,x3,z3)
 
-def monty_test():
-  t1       = x2 + z2
-  t2       = x2 - z2
-  t7       = t2 * t2;
-  t7_p[..]     = t7[..];
-  t6[..]       = square(t1[..]);
-  t6_p[..]     = t6[..];
-  t5[..]       = t6[..];
-  t5[..]       = sub(t5[..], t7[..]);
-  t5_p[..]     = t5[..];
-  t6[..]       = x3;
-  t7[..]       = t6[..];
-  t6[..]       = add(t6[..], z3);
-  t7[..]       = sub(t7[..], z3);
-  t3_p[..]     = t6[..];
-  t4_p[..]     = t7[..];
-  t9[..]       = mul(t3_p, t2);
-  t9_p[..]     = t9[..];
-  t8[..]       = mul(t4_p, t1);
-  w1[..]       = t8[..];
-  t8[..]       = add(t8[..], t9_p);
-  w1[..]       = sub(w1[..], t9_p);
-  x3           = t8[..];
-  z3           = w1[..];
-  w2[..]       = square(x3);
-  x3           = w2[..];
-  w3[..]       = square(z3);
-  z3           = w3[..];
-  w4[..]       = mul(z3,x1);
-  z3           = w4[..];
-  w5[..]       = mul(t6_p, t7_p);
-  x2           = w5[..];
-  w6[..]       = mul(t5_p, c121666_p);   /* FIXME: specialize */
-  w6[..]       = add(w6[..], t7_p);
-  x2           = w6[..];
-  w7[..]       = mul(z2, t5_p);
-  z2           = w7[..];
-
-
-
 def assert_equal_ladderstep(x1,x2,z2,x3,z3,x2_r,z2_r,x3_r,z3_r,params):
   x1 = to_big_int(x1)
   x2 = to_big_int(x2)

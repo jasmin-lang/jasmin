@@ -192,8 +192,13 @@ let write_flag ms d b =
 (* *** Interact with python interpreter
  * ------------------------------------------------------------------------ *)
 
-let py_cmd = "/home/beschmi/bin/sage -python -i"
-  (* FIXME: get from SAGE_PYTHON environment variable *)
+let sage_dir =
+  try
+    Sys.getenv "SAGE_DIR"
+  with Not_found ->
+    failwith "Set environment variable SAGE_DIR to sage directory (containing bin/sage)"
+
+let py_cmd = sage_dir^"/bin/sage -python -i"
 
 let start_py () =
   let (c_in, c_out) = Unix.open_process py_cmd in

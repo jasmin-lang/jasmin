@@ -25,7 +25,7 @@ OCAMLBUILDFLAGS= $(CFLAGS) $(COREFLAGS) $(FINDLIBFLAGS) $(MENHIRFLAGS)
 .PHONY: all dmasm clean doc test-dmasm-assemble test-dmasm-reg \
   run_tests run-run_tests tests
 
-all: dmasm test-dmasm-ladderstep
+all: dmasm
 
 unit-tests: run-run_tests test-arith
 
