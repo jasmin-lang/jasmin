@@ -23,6 +23,7 @@ function ok_tests() {
     if ! $DMASM -t "$TRANS" $file 2>&1 | \
          grep --colour=always -i \
            -e 'Processed File'; then
+      echo "FAILED: rerun with ``$DMASM -t "$TRANS" $file''"
       FAILED="$FAILED\n  $file"
     else
       OK="$OK\n  $file"
@@ -52,6 +53,7 @@ function fail_tests() {
     printf "Testing $file, expecting error ''$ERR''\n"  
     if ! $DMASM -t "$TRANS" $file 2>&1 | \
          grep -F "$ERR"; then
+      echo "FAILED: rerun with ``$DMASM -t "$TRANS" $file''"
       FAILED="$FAILED\n  $file"
     else
       OK="$OK\n  $file"
@@ -64,6 +66,7 @@ function fail_tests() {
 function run_tests() {
   BASEDIR=$1
   TRANS=$2
+  echo ""
   echo "###################################################################"
   echo "Running tests in $BASEDIR"
  
@@ -71,7 +74,7 @@ function run_tests() {
   fail_tests "$BASEDIR/must_fail/*.mil" "$TRANS"
 }
 
-#run_tests "tests/parser" ""
+run_tests "tests/parser" ""
 run_tests "tests/typing" "typecheck"
 
 #echo "###################################################################"

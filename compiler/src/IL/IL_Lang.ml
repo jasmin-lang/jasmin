@@ -67,9 +67,11 @@ All types are parameterized by 'i. We use 'i = get_or_range if indices can be
 ranges 'lb..ub' and 'i = cexpr if this is not possible. *)
 (* *** Code *)
 
+type storage = Reg | Array with sexp, compare
+
 type ty =
   | Bool
-  | U64 of pexpr list * pexpr list
+  | U64 of (pexpr * storage) option
     (* U64(ies,dims): indexed by ies, array of dimensions dims *) 
   with sexp, compare
 
@@ -78,20 +80,10 @@ type get_or_range =
   | All of pexpr option * pexpr option
   with sexp, compare
 
-type 'i preg_g = {
-  pr_name : name;    (* r<idxs> has name r and indexes idxs *)
-  pr_idxs : 'i list; (*   e.g., r<i,..> denotes range r<i,0>,..,r<i,n> *)
-  pr_loc  : P.loc;   (* location where pseudo-register occurs *)
-} with sexp, compare
-
 type 'i dest_g = {
-  d_pr    : 'i preg_g; (* destination pr[aidxs] has preg pr and *)
-  d_aidxs : 'i list    (* array indexes aidxs
-    if aidxs=[],  then it stands for the pseudo register pr
-    if aidxs<>[], then it stands for the memory address in pr with
-      the offset defined by aidxs. As before, ranges are unfolded
-      to tuples of destinations.
-    We also allow partial applications of multidimensional arrays. *)
+  d_name : name;      (* r<idxs> has name r and indexes idxs *)
+  d_oidx : 'i option; (*   e.g., r<i,..> denotes range r<i,0>,..,r<i,n> *)
+  d_loc  : P.loc;     (* location where pseudo-register occurs *)
 } with sexp, compare
 
 type 'i src_g =
@@ -100,7 +92,6 @@ type 'i src_g =
   with sexp, compare
 
 (* Type abbreviations without ranges *)
-type preg_e = pexpr preg_g with sexp, compare
 type src_e  = pexpr src_g  with sexp, compare
 type dest_e = pexpr dest_g with sexp, compare
 
@@ -174,7 +165,7 @@ type call_conv =
 type 'i fundef_g = {
   fd_decls  : (string * ty) list; (* pseudo register/flag/stack declarations *)
   fd_body   : ('i stmt_g);        (* body of function *)
-  fd_ret    : 'i preg_g     list  (* pseudo registers as return values *)
+  fd_ret    : 'i dest_g     list  (* pseudo registers as return values *)
 } with sexp, compare
 
 type 'i fundef_or_py =
@@ -201,13 +192,12 @@ type 'i modul_g = {
 
 type value =
   | Vu64 of u64
-  | Varr of value U64.Map.t
+  | Varr of u64 U64.Map.t
   with sexp, compare
 
 (* ** Type abbreviations with ranges
  * ------------------------------------------------------------------------ *)
 
-type preg       = get_or_range preg_g       with sexp, compare
 type src        = get_or_range src_g        with sexp, compare
 type dest       = get_or_range dest_g       with sexp, compare
 type base_instr = get_or_range base_instr_g with sexp, compare
@@ -230,32 +220,10 @@ type modul_e      = pexpr modul_g      with sexp, compare
 (* ** Define Map, Hashtables, and Sets
  * ------------------------------------------------------------------------ *)
 
-module Preg_e = struct
-  module T = struct
-    type t = preg_e with sexp
-    let compare = compare_preg_e
-    let hash v = Hashtbl.hash v
-  end
-  include T
-  include Comparable.Make(T)
-  include Hashable.Make(T)
-end
-
 module Dest_e = struct
   module T = struct
     type t = dest_e with sexp
     let compare = compare_dest_e
-    let hash v = Hashtbl.hash v
-  end
-  include T
-  include Comparable.Make(T)
-  include Hashable.Make(T)
-end
-
-module Preg = struct
-  module T = struct
-    type t = preg with sexp
-    let compare = compare_preg
     let hash v = Hashtbl.hash v
   end
   include T

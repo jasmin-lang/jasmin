@@ -18,7 +18,6 @@ let equal_cmov_flag  x y = compare_cmov_flag  x y = 0
 let equal_op         x y = compare_op         x y = 0
 let equal_ty         x y = compare_ty         x y = 0
 
-let equal_preg       x y = compare_preg       x y = 0
 let equal_src        x y = compare_src        x y = 0
 let equal_dest       x y = compare_dest       x y = 0
 let equal_base_instr x y = compare_base_instr x y = 0
@@ -53,12 +52,15 @@ let rec pvars_pcond = function
   | Pand (ic1,ic2)   -> Set.union (pvars_pcond ic1) (pvars_pcond ic2)
   | Pcond(_,ce1,ce2) -> Set.union (pvars_pexpr ce1) (pvars_pexpr ce2)
 
-let pvars_ty = function
-  | Bool           -> String.Set.empty
-  | U64(pes1,pes2) -> String.Set.union_list (List.map (pes1@pes2) ~f:pvars_pexpr)
+let pvars_dim dim =
+  pvars_pexpr (fst dim)
 
 let pvars_opt f =
   Option.value_map ~default:String.Set.empty ~f:f
+
+let pvars_ty = function
+  | Bool     -> String.Set.empty
+  | U64(dim) -> pvars_opt pvars_dim dim
 
 let pvars_get_or_range = function
   | Get(pe)          -> pvars_pexpr pe
@@ -66,13 +68,8 @@ let pvars_get_or_range = function
     let to_set = pvars_opt pvars_pexpr in
     Set.union (to_set pe1_o) (to_set pe2_o)
 
-let pvars_preg_g pvars_g pr =
-  String.Set.union_list (List.map pr.pr_idxs ~f:pvars_g)
-
-let pvars_dest_g pvars_g d =
-  String.Set.union
-    (pvars_preg_g pvars_g d.d_pr)
-    (String.Set.union_list (List.map d.d_aidxs ~f:pvars_g))
+let pvars_dest_g pvars_g pr =
+  pvars_opt pvars_g pr.d_oidx
 
 let pvars_src_g pvars_g = function
   | Imm _ -> String.Set.empty
@@ -131,7 +128,7 @@ let pvars_fundef pvars_g fd =
         (List.map fd.fd_decls ~f:(fun (_,ty) -> pvars_ty ty))
     ; pvars_stmt_g pvars_g fd.fd_body
     ; String.Set.union_list
-        (List.map fd.fd_ret ~f:(pvars_preg_g pvars_g))
+        (List.map fd.fd_ret ~f:(pvars_dest_g pvars_g))
     ]
 
 let pvars_func pvars_g func =
@@ -152,11 +149,11 @@ let pvars_modul pvars_g modul =
 (* ** Constructor functions for pregs
  * ------------------------------------------------------------------------ *)
 
-let mk_preg_name name =
-  { pr_name = name; pr_idxs = []; pr_loc = P.dummy_loc }
+let mk_dest_name name =
+  { d_name = name; d_oidx = None; d_loc = P.dummy_loc }
 
 let mk_preg_index name i =
-  { pr_name = name; pr_idxs = [Get (Pconst i)]; pr_loc = P.dummy_loc }
+  { d_name = name; d_oidx = Some (Get (Pconst i)); d_loc = P.dummy_loc }
 
 (* ** Pretty printing
  * ------------------------------------------------------------------------ *)
@@ -199,15 +196,10 @@ let pp_get_or_all fmt = function
   | Get i      -> pp_pexpr fmt i
   | All(lb,ub) -> F.fprintf fmt "%a..%a" (pp_opt "" pp_pexpr) lb (pp_opt "" pp_pexpr) ub
 
-let pp_preg_g pp_index fmt {pr_name=r; pr_idxs=ies} =
-  match ies with
-  | []  -> F.fprintf fmt "%s" r
-  | ies -> F.fprintf fmt "%s<%a>" r (pp_list "," pp_index) ies
-
-let pp_dest_g pp_index fmt d =
-  if d.d_aidxs = []
-  then pp_preg_g pp_index fmt d.d_pr
-  else F.fprintf fmt "%a[%a]" (pp_preg_g pp_index) d.d_pr (pp_list "," pp_index) d.d_aidxs
+let pp_dest_g pp_index fmt {d_name=r; d_oidx=oidx} =
+  match oidx with
+  | None      -> F.fprintf fmt "%s" r
+  | Some(idx) -> F.fprintf fmt "%s[%a]" r pp_index idx
 
 let pp_src_g pp_index fmt = function
   | Src(d)  -> pp_dest_g pp_index fmt d
@@ -216,16 +208,14 @@ let pp_src_g pp_index fmt = function
 let pp_ty fmt ty =
   match ty with
   | Bool            -> F.fprintf fmt "bool"
-  | U64(idxs,dims)  ->
-    F.fprintf fmt "u64%a%a"
-      (fun fmt idxs ->
-         match idxs with
-         | [] -> F.fprintf fmt ""
-         | _  -> F.fprintf fmt "<%a>" (pp_list "," pp_pexpr) idxs) idxs
-      (fun fmt dims ->
-         match dims with
-         | [] -> F.fprintf fmt ""
-         | _  -> F.fprintf fmt "[%a]" (pp_list "," pp_pexpr) dims) dims
+  | U64(dim)  ->
+    F.fprintf fmt "u64%a"
+      (fun fmt dim ->
+         match dim with
+         | None            -> F.fprintf fmt ""
+         | Some(dim,Reg)   -> F.fprintf fmt "<%a>" pp_pexpr dim
+         | Some(dim,Array) -> F.fprintf fmt "[%a]" pp_pexpr dim)
+      dim
 
 let string_of_carry_op = function O_Add -> "+" | O_Sub -> "-"
 
@@ -305,7 +295,7 @@ and pp_stmt_g pp_index fmt is =
 let pp_return_g pp_index fmt names =
   match names with
   | [] -> pp_string fmt ""
-  | _  -> F.fprintf fmt "@\nreturn %a;" (pp_list "," (pp_preg_g pp_index)) names
+  | _  -> F.fprintf fmt "@\nreturn %a;" (pp_list "," (pp_dest_g pp_index)) names
 
 let pp_decl fmt (name,ty) =
   F.fprintf fmt "%s %s : %a;"
@@ -344,24 +334,21 @@ let pp_modul_g pp_index fmt modul =
 let pp_indexed_name fmt (s,idxs) =
   F.fprintf fmt "%s<%a>" s (pp_list "," pp_uint64) idxs
 
-let rec pp_value fmt = function
+let pp_value fmt = function
   | Vu64 u   ->
     pp_uint64 fmt u
   | Varr(vs) ->
-    F.fprintf fmt "[%a]" (pp_list "," (pp_pair "->" pp_uint64 pp_value)) (Map.to_alist vs)
+    F.fprintf fmt "[%a]" (pp_list "," (pp_pair "->" pp_uint64 pp_uint64)) (Map.to_alist vs)
 
 
-let rec pp_value_py fmt = function
+let pp_value_py fmt = function
   | Vu64 u   ->
     pp_uint64 fmt u
   | Varr(vs) ->
-    F.fprintf fmt "[%a]" (pp_list "," pp_value_py) (List.map ~f:snd (Map.to_alist vs))
+    F.fprintf fmt "[%a]" (pp_list "," pp_uint64) (List.map ~f:snd (Map.to_alist vs))
 
 (* ** Specialized pretty printing functions
  * ------------------------------------------------------------------------ *)
-
-let pp_preg   fmt = pp_preg_g pp_get_or_all fmt
-let pp_preg_e fmt = pp_preg_g pp_pexpr      fmt
 
 let pp_func   fmt = pp_func_g pp_get_or_all fmt
 let pp_func_e fmt = pp_func_g pp_pexpr      fmt
@@ -382,7 +369,7 @@ let pp_modul_e fmt = pp_modul_g pp_pexpr      fmt
  * ------------------------------------------------------------------------ *)
 
 let preg_error pr s =
-  failwith (fsprintf "%a: %s" P.pp_loc pr.pr_loc s)
+  failwith (fsprintf "%a: %s" P.pp_loc pr.d_loc s)
 
 let shorten_func _n _func =
   assert false (*
@@ -404,16 +391,16 @@ let parse_value s =
     optional (char 'L') >>
     return (U64.of_string (String.of_char_list s))
   in
-  let rec value () =
+  let value =
     choice
       [ (u64 >>= fun u -> return (Vu64 u))
       ; (char '[' >>= fun _ ->
-        (sep_by (value ()) (char ',' >> optional (char ' '))) >>= fun vs ->
+        (sep_by u64 (char ',' >> optional (char ' '))) >>= fun vs ->
         char ']' >>= fun _ ->
         let vs = U64.Map.of_alist_exn (List.mapi vs ~f:(fun i v -> (U64.of_int i, v))) in
         return (Varr(vs))) ]
   in
-  match parse_string (value () >>= fun x -> eof >>$ x) s () with
+  match parse_string (value >>= fun x -> eof >>$ x) s () with
   | Success t   -> t
   | Failed(s,_) ->
     failwith_ "parse_value: failed for %s" s
@@ -433,22 +420,18 @@ let mk_modul pfs =
   in
   { m_funcs = funcs; m_params = params }
 
-let fix_indexes (cstart,cend) idxs =
-  List.filter_map idxs
+let fix_indexes (cstart,cend) oidx =
+  Option.map oidx
     ~f:(function
-          | Get i -> Some i
+          | Get i    -> i
           | All(_,_) ->
             let scnum = cstart.Lexing.pos_cnum + 1 in
             let ecnum = cend.Lexing.pos_cnum + 1 in
             let err = "range not allowed here" in
             raise (ParserUtil.UParserError(scnum,ecnum,err)))
 
-let pr_e_of_pr pos pr =
-  { pr with pr_idxs = fix_indexes pos pr.pr_idxs }
-
-let dest_e_of_dest pos d  =
-  let pr = pr_e_of_pr pos d.d_pr in
-  { d_pr = pr; d_aidxs = fix_indexes pos d.d_aidxs }
+let dest_e_of_dest pos d =
+  { d with d_oidx = fix_indexes pos d.d_oidx }
 
 let src_e_of_src pos s =
   match s with

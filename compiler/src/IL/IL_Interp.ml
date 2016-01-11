@@ -67,31 +67,21 @@ let expand_get_or_all pmap dim idx =
     List.map (list_from_to ~first:lb ~last:ub) ~f:(fun c -> Pconst c)
 
 let expand_dest (pmap : pmap) (tenv : tenv) d =
-  match map_find_exn tenv pp_string d.d_pr.pr_name with
+  match map_find_exn tenv pp_string d.d_name with
   | Bool -> failwith "Boolean arguments not allowed"
-  | U64(pr_dims,arr_dims) ->
-    let aidxs =
-      if d.d_aidxs <> [] then d.d_aidxs
-      else List.map ~f:(fun _ -> All(None,None)) arr_dims
-    in
-    let n_pd = List.length pr_dims in
-    let n_pi = List.length d.d_pr.pr_idxs in
-    let n_ad = List.length arr_dims in
-    let n_ai = List.length aidxs in
-    if n_pd <> n_pi then
-      failwith_ "register indexes not fully applied (dim %i, args %i" n_pd n_pi;
-    if n_ad <> n_ai then
-      failwith_ "array indexes not fully applied (dim %i, args %i" n_ad n_ai;
-    let dims = pr_dims@arr_dims in
-    let idxs = d.d_pr.pr_idxs@aidxs in
-    begin match idxs with
-    | [] -> [{ d_aidxs = []; d_pr = { d.d_pr with pr_idxs = [] } }]
-    | _::_ ->
-      list_map2_exn ~f:(expand_get_or_all pmap) dims idxs
-        ~err:(fun l_exp l_got ->
-                failwith_ "expected %i, got %i in expand_dest" l_got l_exp)
-      |> cartesian_product_list
-      |> List.map ~f:(fun idxs -> { d_aidxs = []; d_pr = { d.d_pr with pr_idxs = idxs } })
+  | U64(odim) ->
+    begin match odim, d.d_oidx with
+    | None           , None      -> [{d with d_oidx=None}]
+    | Some (_,_),   Some(Get(i)) -> [{d with d_oidx=Some(i)}]
+    | Some (dim,_), None ->
+      List.map ~f:(fun pe -> { d with d_oidx=Some(pe) })
+        (expand_get_or_all pmap dim (All(None,None)))
+    | Some (dim,_), Some(idx)    -> 
+      List.map ~f:(fun pe -> { d with d_oidx=Some(pe) })
+        (expand_get_or_all pmap dim idx)
+    | None,         Some _       ->
+      type_error d
+        (fsprintf "cannot perform array indexing on scalar %s" d.d_name)
     end
 
 let expand_src (pmap : pmap) (tenv : tenv) = function
@@ -101,12 +91,13 @@ let expand_src (pmap : pmap) (tenv : tenv) = function
 let dest_of_arg (name,ty) =
   match ty with
   | Bool -> assert false
-  | U64(idims,adims) ->
-    let pr =
-      { (mk_preg_name name) with
-        pr_idxs = List.map idims ~f:(fun _ -> All(None,None)) }
+  | U64(odim) ->
+    let oidx =
+      match odim with
+      | None      -> None
+      | Some(_,_) -> Some (All(None,None))
     in
-    { d_pr = pr; d_aidxs = List.map adims ~f:(fun _ -> All(None,None)) }
+    { d_name = name; d_oidx = oidx; d_loc = P.dummy_loc }
 
 (* *** Interpreter state
  * ------------------------------------------------------------------------ *)
@@ -138,58 +129,49 @@ let print_mstate ms =
   F.printf "decls: %a\n%!" (pp_list ", " (pp_pair " -> " pp_string pp_ty))
     (String.Map.to_alist ms.m_tenv)
 
-let read_lvar lmap s idxs0 =
-  let rec go v idxs =
-    match v, idxs with
-    | Vu64(u), [] -> u
-    | Varr(vs),i::idxs ->
-      go (map_find_exn vs pp_uint64 i) idxs
-    | Vu64(_), _::_ ->
-      failwith_ "read_lvar: expected array, got u64 in %s[%a]"
-        s (pp_list "," pp_uint64) idxs0
-    | Varr(_),[] ->
-      failwith_ "read_lvar: expected u64, got array (not fully applied) in %s[%a]"
-        s (pp_list "," pp_uint64) idxs0
-  in
+let read_lvar lmap s oidx =
   let v = map_find_exn lmap pp_string s in
-  go v idxs0
+  match v, oidx with
+  | Vu64(u), None -> u
+  | Varr(vs),Some i ->
+    map_find_exn vs pp_uint64 i
+  | Vu64(_), _ ->
+    failwith_ "read_lvar: expected array, got u64 in %s[%a]"
+      s (pp_opt "," pp_uint64) oidx
+  | Varr(_),_ ->
+    failwith_ "read_lvar: expected u64, got array (not fully applied) in %s[%a]"
+      s (pp_opt "_" pp_uint64) oidx
 
 let read_src_ pmap lmap (s : src_e) =
   match s with
   | Imm pe -> eval_pexpr pmap pe
-  | Src({d_pr; d_aidxs=ces}) ->
-    let idxs = List.map (d_pr.pr_idxs@ces) ~f:(eval_pexpr pmap) in
-    read_lvar lmap d_pr.pr_name idxs
+  | Src(d) ->
+    let oidx = Option.map (d.d_oidx) ~f:(eval_pexpr pmap) in
+    read_lvar lmap d.d_name oidx
 
 let read_src ms = read_src_ ms.m_pmap ms.m_lmap
 
-let write_lvar v s idxs0 x =
-  let rec go v idxs =
-    match v, idxs with
-    | None,          [] -> Vu64(x)
-    | None,          i::idxs ->
-      let v' = go None idxs in
-      Varr(U64.Map.singleton i v')
-    | Some(Vu64(_)), [] -> Vu64(x)
-    | Some(Varr(vs)),i::idxs ->
-      let v = Map.find vs i in
-      let v' = go v idxs in
-      Varr(Map.add vs ~key:i ~data:v')
-    | Some(Vu64(_)), _::_ ->
-      failwith_ "write_lvar: expected array, got u64 in %s[%a]"
-        s (pp_list "," pp_uint64) idxs0
-    | Some(Varr(_)),[] ->
-      failwith_ "write_lvar: expected u64, got array (not fully applied) in %s[%a]"
-        s (pp_list "," pp_uint64) idxs0
-  in
-  go v idxs0
+let write_lvar v s oidx x =
+  match v, oidx with
+  | None, None -> Vu64(x)
+  | Some(Vu64(_)), None -> Vu64(x)
+  | None, Some(i) ->
+    Varr(U64.Map.singleton i x)
+  | Some(Varr(vs)),Some(i) ->
+    Varr(Map.add vs ~key:i ~data:x)
+  | Some(Vu64(_)), Some(_) ->
+    failwith_ "write_lvar: expected array, got u64 in %s[%a]"
+      s (pp_opt "_" pp_uint64) oidx
+  | Some(Varr(_)),None ->
+    failwith_ "write_lvar: expected u64, got array (not fully applied) in %s[%a]"
+      s (pp_opt "_" pp_uint64) oidx
 
-let write_dest_ pmap lmap {d_pr; d_aidxs} x =
-  let s    = d_pr.pr_name in
+let write_dest_ pmap lmap d x =
+  let s    = d.d_name in
   let v    = Map.find lmap s in
-  let idxs = List.map (d_pr.pr_idxs@d_aidxs) ~f:(eval_pexpr pmap) in
+  let oidx = Option.map d.d_oidx ~f:(eval_pexpr pmap) in
   (* F.printf "###: %a\n%!" pp_value v; *)
-  let v'   = write_lvar v s idxs x in
+  let v'   = write_lvar v s oidx x in
   (* F.printf "###: %a\n%!" pp_value v'; *)
   Map.add lmap ~key:s ~data:v'
 
@@ -198,14 +180,14 @@ let write_dest ms d x =
 
 let read_flag ms s =
   match s with
-  | Src{d_pr;d_aidxs=[]} -> map_find_exn ms.m_fmap pp_string d_pr.pr_name
-  | Src{d_aidxs=_::_}    -> failwith "expected flag, got array access" 
-  | Imm _                -> failwith "expected flag, got immediate"
+  | Src{d_name; d_oidx=None} -> map_find_exn ms.m_fmap pp_string d_name
+  | Src{d_oidx=Some(_)}      -> failwith "expected flag, got array access" 
+  | Imm _                    -> failwith "expected flag, got immediate"
 
-let write_flag ms {d_pr;d_aidxs} b =
-  match d_aidxs with
-  | []   -> { ms with m_fmap = Map.add ms.m_fmap ~key:d_pr.pr_name ~data:b }
-  | _::_ -> failwith "cannot give array element, flag (in register) expected" 
+let write_flag ms d b =
+  match d.d_oidx with
+  | None    -> { ms with m_fmap = Map.add ms.m_fmap ~key:d.d_name ~data:b }
+  | Some(_) -> failwith "cannot give array element, flag (in register) expected"
 
 (* *** Interact with python interpreter
  * ------------------------------------------------------------------------ *)
@@ -395,19 +377,17 @@ and interp_call_python ms func py_code call_rets call_args =
         (pp_list "," pp_string) (s_args@[s_params]))
   in
   let rets = parse_value res in
-  let rec flatten v =
+  let flatten v =
     match  v with
     | Varr(m) ->
-      List.sort ~cmp:(fun a b -> compare (fst a) (fst b)) (Map.to_alist m)
-      |> List.concat_map ~f:(fun i_v -> flatten (snd i_v))
+      List.map ~f:snd (List.sort ~cmp:(fun a b -> compare (fst a) (fst b)) (Map.to_alist m))
     | Vu64 u -> [u]
   in
   (** store result *)
   let ds = List.concat_map call_rets ~f:(fun d -> expand_dest pmap tenv_caller d) in
   let ss_ds =
     try List.zip_exn (flatten rets) ds
-    with Invalid_argument _ ->
-      assert false
+    with Invalid_argument _ -> assert false
   in
   let lmap_caller =
     List.fold ss_ds
@@ -418,7 +398,7 @@ and interp_call_python ms func py_code call_rets call_args =
 
 and interp_call_native ms efun_map func fdef call_rets call_args =
   let decl_args = List.map func.f_args ~f:dest_of_arg in
-  let decl_rets = List.map fdef.fd_ret ~f:(fun pr -> Src {d_pr = pr; d_aidxs = []}) in
+  let decl_rets = List.map fdef.fd_ret ~f:(fun d -> Src d) in
   (** setup mstate for called function *)
   let pmap = ms.m_pmap in
   let tenv_caller = ms.m_tenv in

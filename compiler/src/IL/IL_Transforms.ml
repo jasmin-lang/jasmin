@@ -53,11 +53,11 @@ let ptrafo =
   (* let braced p = enclosed p (char '{') (char '}') in *)
   let u64 = many1 digit >>= fun s -> return (U64.of_string (String.of_char_list s)) in
   let int = many1 digit >>= fun s -> return (int_of_string (String.of_char_list s)) in
-  let rec value () =
+  let value () =
     choice
       [ (u64 >>= fun u -> return (Vu64 u))
       ; (char '[' >>= fun _ ->
-        (sep_by (value ()) (char ',')) >>= fun vs ->
+        (sep_by u64 (char ',')) >>= fun vs ->
         char ']' >>= fun _ ->
         let vs = U64.Map.of_alist_exn (List.mapi vs ~f:(fun i v -> (U64.of_int i, v))) in
         return (Varr(vs))) ]

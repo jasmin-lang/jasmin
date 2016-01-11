@@ -2,7 +2,6 @@
 open IL_Lang
 open Core_kernel
 open Arith
-open Util
 open IL_Utils
 
 module P = ParserUtil
@@ -134,29 +133,28 @@ pcond :
 (* -------------------------------------------------------------------- *)
 (* * Sources and destinations *)
 
-pr_index :
+dest_index :
 | ce=pexpr                 { Get(ce) }
 | lb=pexpr DOTDOT ub=pexpr { All(Some lb,Some ub) }
 | DOTDOT                   { All(None,None) }
 | DOTDOT ub=pexpr          { All(None,Some ub) }
 
-%inline preg_noloc :
-| s=ID idxs=angle_tuple(pr_index)?
-    { { pr_name = s; pr_idxs = get_opt [] idxs; pr_loc = P.dummy_loc } }
+%inline dest_get:
+| LBRACK idx = dest_index RBRACK { idx }
 
-%inline preg :
-| lpr=loc(preg_noloc)
-    { let (pr,loc) = lpr in
+%inline dest_noloc :
+| s=ID idx = dest_get?
+    { { d_name = s; d_oidx = idx; d_loc = P.dummy_loc } }
+
+%inline dest :
+| ld=loc(dest_noloc)
+    { let (d,loc) = ld in
       let loc = P.loc_of_lexing_loc loc in
-      { pr with pr_loc = loc} }
-
-dest :
-| r=preg arr=bracket_tuple(pr_index)?
-    { { d_pr = r; d_aidxs = get_opt [] arr} }
+      { d with d_loc = loc} }
 
 src :
-| d=dest       { Src(d) }
-| DOLLAR i=ID  { Imm(Pvar(i)) }
+| d=dest       { Src(d)                       }
+| DOLLAR i=ID  { Imm(Pvar(i))                 }
 | i=INT        { Imm(Pconst(U64.of_string i)) }
 
 (* -------------------------------------------------------------------- *)
@@ -187,8 +185,8 @@ opeq:
 | s=src
     { `Assgn(s) }
 
-| s=src IF e=EXCL? cf=preg
-    { `Cmov(s,Src({d_pr = cf; d_aidxs = []}),CfSet(e=None)) }
+| s=src IF e=EXCL? cf=dest
+    { `Cmov(s,Src(cf),CfSet(e=None)) }
 
 | s1=src op=binop s2=src
     { `BinOp(op,s1,s2) }
@@ -243,19 +241,16 @@ stmt :
 (* * Function definitions *)
 
 return :
-| RETURN ret=tuple(preg) SEMICOLON { ret }
+| RETURN ret=tuple(dest) SEMICOLON { ret }
 
-typ_indexed :
-| LESS dims=separated_list(COMMA,pexpr) GREATER { dims }
+typ_dim :
+| LESS dim=pexpr GREATER  { (dim,Reg)   }
+| LBRACK dim=pexpr RBRACK { (dim,Array) }
 
-typ_array :
-| LBRACK dims=separated_list(COMMA,pexpr) RBRACK { dims }
 
 typ :
-| T_U64 ies=typ_indexed? dims=typ_array? 
-    { U64(get_opt [] ies, get_opt [] dims) }
-| T_BOOL
-    { Bool }
+| T_U64  odim=typ_dim? { U64(odim) }
+| T_BOOL               { Bool      }
 
 typed_vars :
 | vs=separated_nonempty_list(COMMA,ID) COLON t=typ
@@ -297,7 +292,6 @@ func :
 param_or_func :
 | f=func                        { Dfun(f) }
 | PARAM ps=typed_vars SEMICOLON { Dparams(ps) }
-
 
 modul :
 | pfs=param_or_func+ EOF

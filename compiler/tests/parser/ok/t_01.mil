@@ -22,10 +22,10 @@ fn void_fun() {
   reg w : u64;
 }
 
-extern fn bar(x, y : u64<n1,n2>[n3,n4], z : u64) -> u64<n2*2> {
+extern fn bar(x, y : u64<n1*n2>, z : u64[n3*n4], z : u64) -> u64<n2*2> {
   reg u : u64<n2*2>;
 
-  u<0> = foo();
+  u[0] = foo();
   void_fun();
-  return u<0..n2*2>;
+  return u[0..n2*2];
 }

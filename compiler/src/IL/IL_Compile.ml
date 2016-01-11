@@ -178,7 +178,7 @@ let validate_transform _efun0 _edef0 _efun _edef =
 
 type live_info = {
   li_bi : base_instr;
-  li_read_after_rhs : Preg.Set.t; (* the set of registers that might be read after
+  li_read_after_rhs : Dest.Set.t; (* the set of registers that might be read after
                                      the RHS of bi has been evaluated *)
 }
 

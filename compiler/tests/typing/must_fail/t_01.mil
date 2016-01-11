@@ -10,7 +10,7 @@ extern fn bar() -> u64<n*2> {
   reg u : u64<n*2>;
 
   // u<0..1> = foo();
-  return u<0..n*2>;
+  return u[0..n*2];
 /*
 ERROR: parameter n undefined
 */

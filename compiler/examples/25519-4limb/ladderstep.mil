@@ -1,7 +1,7 @@
 // * Implementation of montgomery ladder for curve25519
 
 param n     : u64; /* the number of limbs */
-param rem_p : u64; /* 2^n*64 mod p        */
+param rem_p : u64; /* 2^(n*64) mod p        */
 
 // ** addition
 // ************************************************************************
@@ -13,9 +13,9 @@ fn add(x : u64<n>, yp : u64[n]) -> u64<n> {
   flag cf : bool;
 
   for i in 0..n {
-    y<i> = yp[i];
-    if (i = 0) { cf, x<0> += y<0>; }
-    else       { cf, x<i> += y<i> + cf; }
+    y[i] = yp[i];
+    if (i = 0) { cf, x[0] += y[0]; }
+    else       { cf, x[i] += y[i] + cf; }
   }
 
   add0 = 0;
@@ -24,33 +24,33 @@ fn add(x : u64<n>, yp : u64[n]) -> u64<n> {
 
   for i in  0..n {
     if (i = 0) {
-      cf, x<0> += add1;
+      cf, x[0] += add1;
     } else {
-      cf, x<i> += add0 + cf;
+      cf, x[i] += add0 + cf;
     }
   }
 
   add0 = add1 if cf;
-  x<0> += add0;
+  x[0] += add0;
 
-  return x<..>;
+  return x[..];
 }
 
 // ** subtraction
 // ************************************************************************
 
 fn sub(x : u64<n>, yp : u64[n]) -> u64<n> {
-  
-  reg y : u64<n>; 
+
+  reg y : u64<n>;
   reg sub0, sub1 : u64;
   flag cf : bool;
 
   for i in  0..n {
-    y<i> = yp[i];
+    y[i] = yp[i];
     if i = 0 {
-      cf, x<0> -= y<0>;
+      cf, x[0] -= y[0];
     } else {
-      cf, x<i> -= y<i> - cf;
+      cf, x[i] -= y[i] - cf;
     }
   }
 
@@ -60,16 +60,16 @@ fn sub(x : u64<n>, yp : u64[n]) -> u64<n> {
 
   for i in  0..n {
     if i = 0 {
-      cf, x<0> -= sub1;
+      cf, x[0] -= sub1;
     } else {
-      cf, x<i> -= sub0 - cf;
+      cf, x[i] -= sub0 - cf;
     }
   }
 
   sub0 = sub1 if cf;
-  x<0> -= sub0;
+  x[0] -= sub0;
 
-  return x<..>;
+  return x[..];
 }
 
 // ** reduction from 8 limbs to 4 limbs
@@ -81,34 +81,34 @@ fn reduce(z : u64<n*2>) -> u64<n*2> {
 
   crem_p = $rem_p;
   for i in 0..n {
-    rax = z<n + i>;
+    rax = z[n + i];
     h, l = rax * crem_p;
-    cf, z<i> += l;
+    cf, z[i] += l;
     if i = 0 {
       hprev = 0;
       hprev += h + cf;
     } else {
       h += 0 + cf;
-      cf, z<i> += hprev;
+      cf, z[i] += hprev;
       hprev = 0;
       hprev += h + cf;
     }
   }
 
   l = hprev * $rem_p;
-  cf, z<0> += l;
+  cf, z[0] += l;
 
   for i in 1..n {
-    cf, z<i> += 0 + cf;
+    cf, z[i] += 0 + cf;
   }
 
   zero = 0;
   zero += 0 + cf;
 
   l = zero * $rem_p;
-  z<0> += l;
+  z[0] += l;
 
-  return z<..>;
+  return z[..];
 }
 
 // ** multiplication
@@ -118,54 +118,54 @@ fn mul(xp, yp0 : u64[n] /* rdx */) -> u64<n> {
 
   reg yp   : u64[n];
   reg z    : u64<n*2>;
-  reg x, y : u64<n>; 
+  reg x, y : u64<n>;
   reg h, l, hprev, crem_p, rax, zero : u64;
   reg cf : bool;
 
   yp = yp0;
-  
-  x<0> = xp[0];
+
+  x[0] = xp[0];
   for j in 0..n {
-    y<j> = yp[j];
-    h, l = y<j> * x<0>;
+    y[j] = yp[j];
+    h, l = y[j] * x[0];
 
     if j = 0 {
-      z<0> = l;
-      z<1> = h;
+      z[0] = l;
+      z[1] = h;
     } else {
-      cf, z<j> += l;
-      z<j + 1> = 0;
-      z<j + 1> += h + cf;
+      cf, z[j] += l;
+      z[j + 1] = 0;
+      z[j + 1] += h + cf;
     }
   }
 
   for i in 1..n {
-    x<i> = xp[i];
+    x[i] = xp[i];
     for j in 0..n {
-      y<j> = yp[j];
-      h, l = y<j> * x<i>;
-      cf, z<i+j> += l;
+      y[j] = yp[j];
+      h, l = y[j] * x[i];
+      cf, z[i+j] += l;
       if j = 0 {
         hprev = 0;
         hprev += h + cf;
       } else {
         h += 0 + cf;
-        cf, z<i+j> += hprev;
+        cf, z[i+j] += hprev;
         if 1 <= j && j < n - 1 {
           hprev = 0;
           hprev += h + cf;
         } else { /* j = n */
-          z<i + j + 1> = 0;
-          cf, z<i + j + 1> += h + cf;
+          z[i + j + 1] = 0;
+          cf, z[i + j + 1] += h + cf;
         }
       }
     }
   }
 
-  z<..> = reduce(z<..>);
-  
-  x<..> = z<0..n>;
-  return x<..>;
+  z[..] = reduce(z[..]);
+
+  x[..] = z[0..n];
+  return x[..];
 }
 
 // ** squaring
@@ -178,33 +178,33 @@ fn square(xp : u64[n]) -> u64<n> {
   reg rax, rdx, crem_p, h, l, hprev, zero : u64;
   reg cf : bool;
 
-  z<7> = 0;
+  z[7] = 0;
 
   /* sum up products x_i*x_j where j = i + 1 */
   for i in 0..(n - 1) {
     rax = xp[i + 1];
     rdx, rax = rax * xp[i];
-    z<2*i + 1> = rax;
-    z<2*i + 2> = rdx;
+    z[2*i + 1] = rax;
+    z[2*i + 2] = rdx;
   }
 
   /* sum up products x_i*x_j where j = i + 2 */
   for i in 0..(n - 2) {
     rax = xp[i + 2];
     rdx, rax = rax * xp[i];
-    cf, z<2*i + 2> += rax;
-    cf, z<2*i + 3> += rdx + cf;
-        z<2*i + 4> += 0   + cf;        
+    cf, z[2*i + 2] += rax;
+    cf, z[2*i + 3] += rdx + cf;
+        z[2*i + 4] += 0   + cf;
   }
 
   /* sum up products x_i*x_j where j = i + 3 */
   for i in 0..(n - 3) {
     rax = xp[i + 3];
     rdx, rax = rax * xp[i];
-    cf, z<2*i + 3> += rax;
-    cf, z<2*i + 4> += rdx + cf;
-    cf, z<2*i + 5> += 0   + cf;
-        z<2*i + 6> += 0   + cf;        
+    cf, z[2*i + 3] += rax;
+    cf, z[2*i + 4] += rdx + cf;
+    cf, z[2*i + 5] += 0   + cf;
+        z[2*i + 6] += 0   + cf;
   }
 
   /* set z<1..2n+1> = 2*z<1..2n+1> since
@@ -212,9 +212,9 @@ fn square(xp : u64[n]) -> u64<n> {
      so far and these occur twice */
   for i in 1..(2*n) {
     if (i = 1) {
-      cf, z<i> += z<i>;
+      cf, z[i] += z[i];
     } else {
-      cf, z<i> += z<i> + cf;
+      cf, z[i] += z[i] + cf;
     }
   }
 
@@ -225,44 +225,44 @@ fn square(xp : u64[n]) -> u64<n> {
     rdx, rax = rax * xp[i];
     if (i != 2) {
       if (i = 0) {
-        z<0> = rax;
+        z[0] = rax;
       } else {
-        t<2*i> = rax;
+        t[2*i] = rax;
       }
-      t<2*i + 1> = rdx;
+      t[2*i + 1] = rdx;
     }
   }
 
   for i in 0..3 {
     if (i = 0) {
       /* z<0> already set */
-      cf, z<1> += t<1>;
+      cf, z[1] += t[1];
     } else if (i < 2) {
-      cf, z<2*i>     += t<2*i>     + cf;
-      cf, z<2*i + 1> += t<2*i + 1> + cf;
+      cf, z[2*i]     += t[2*i]     + cf;
+      cf, z[2*i + 1] += t[2*i + 1] + cf;
     } else if (i = 2) {
-      cf, z<2*i>     += rax + cf;
-      cf, z<2*i + 1> += rdx + cf;
+      cf, z[2*i]     += rax + cf;
+      cf, z[2*i + 1] += rdx + cf;
     } else { /* i > 2 */
-      cf, z<2*i>     += 0 + cf;
-      cf, z<2*i + 1> += 0 + cf;
+      cf, z[2*i]     += 0 + cf;
+      cf, z[2*i + 1] += 0 + cf;
     }
   }
 
   rax = xp[3];
   rdx, rax = rax * xp[3];
-  cf, z<6> += rax;
-      z<7> += rdx + cf;
+  cf, z[6] += rax;
+      z[7] += rdx + cf;
 
-  z<..> = reduce(z<..>);
+  z[..] = reduce(z[..]);
 
-  return z<0..n>;
+  return z[0..n];
 }
 
 // ** ladderstep
 // ************************************************************************
 
-fn ladderstep(workp : u64[5,n]) -> u64[5,n] {
+fn ladderstep(x1, x2, z2, x3, z3 : u64[n]) -> u64<n> * u64<n> * u64<n> * u64<n> {
   reg t1, t2, t3, t4, t5, t6, t7, t8, t9 : u64<n>;
   reg t1_p, t2_p, t3_p, t4_p, t5_p, t6_p, t7_p, t8_p, t9_p : u64[n];
   reg w1, w2, w3, w4, w5, w6, w7 : u64<n>;
@@ -272,50 +272,50 @@ fn ladderstep(workp : u64[5,n]) -> u64[5,n] {
   c121666_p[1] = 0;
   c121666_p[2] = 0;
   c121666_p[3] = 0;
-
-  t1<..>       = workp[1,..];
-  t2<..>       = t1<..>;
-  t1<..>       = add(t1<..>,workp[2]);   /* t1 = x2 + z2 */
-  t2<..>       = sub(t2<..>,workp[2]);   /* t2 = x2 - z2 */
-  t1_p[..]     = t1<..>;
-  t2_p[..]     = t2<..>;
-  t7<..>       = square(t2_p);           /* t7 = t2^2 */
-  t7_p[..]     = t7<..>;
-  t6<..>       = square(t1_p);           /* t6 = t1^2 */
-  t6_p[..]     = t6<..>;
-  t5<..>       = t6<..>;
-  t5<..>       = sub(t5<..>, t7_p);      /* t5 = t6 - t7 */
-  t5_p[..]     = t5<..>;
-  t6<..>       = workp[3,..];
-  t7<..>       = t6<..>;
-  t6<..>       = add(t6<..>, workp[4]);  /* t3 = x3 + z3 */
-  t7<..>       = sub(t7<..>, workp[4]);  /* t4 = x3 - z3 */
-  t3_p[..]     = t6<..>;
-  t4_p[..]     = t7<..>;
-  t9<..>       = mul(t3_p, t2_p);        /* t9 = t3 * t2 */
-  t9_p[..]     = t9<..>;
-  t8<..>       = mul(t4_p, t1_p);        /* t8 = t4 * t1 */
-  w1<..>       = t8<..>;
-  t8<..>       = add(t8<..>, t9_p);      /* x3 = t8 + t9 */
-  w1<..>       = sub(w1<..>, t9_p);      /* z3 = t8 - t9 */
-  workp[3,..]  = t8<..>;
-  workp[4,..]  = w1<..>;
-  w2<..>       = square(workp[3]);       /* x3 = x3^2 */
-  workp[3,..]  = w2<..>;
-  w3<..>       = square(workp[4]);       /* z3 = z3^2 */
-  workp[4,..]  = w3<..>;
-  w4<..>       = mul(workp[4],workp[0]); /* z3 = z3 * x1 */
-  workp[4,..]  = w4<..>;
-  w5<..>       = mul(t6_p, t7_p);        /* x2 = t6 * t7 */
-  workp[1,..]  = w5<..>;
-                                         /* FIXME: specialize */
-  w6<..>       = mul(t5_p, c121666_p);   /* z2 = c * t5 */
-  w6<..>       = add(w6<..>, t7_p);      /* z2 = z2 + t7 */
-  workp[2,..]  = w6<..>;                              
-  w7<..>       = mul(workp[2], t5_p);    /* z2 = z2 * t5 */
-  workp[2,..]  = w7<..>;
   
-  return workp[..,..];
+  // workp mapping: 0 -> x1, 1 -> x2, 2 -> x2, 3 -> x3, 4 -> z3
+  t1[..]       = x2[..];
+  t2[..]       = t1[..];
+  t1[..]       = add(t1[..],z2[..]);
+  t2[..]       = sub(t2[..],z2[..]);
+  t1_p[..]     = t1[..];
+  t2_p[..]     = t2[..];
+  t7[..]       = square(t2[..]);
+  t7_p[..]     = t7[..];
+  t6[..]       = square(t1[..]);
+  t6_p[..]     = t6[..];
+  t5[..]       = t6[..];
+  t5[..]       = sub(t5[..], t7[..]);
+  t5_p[..]     = t5[..];
+  t6[..]       = x3;
+  t7[..]       = t6[..];
+  t6[..]       = add(t6[..], z3);
+  t7[..]       = sub(t7[..], z3);
+  t3_p[..]     = t6[..];
+  t4_p[..]     = t7[..];
+  t9[..]       = mul(t3_p, t2_p);
+  t9_p[..]     = t9[..];
+  t8[..]       = mul(t4_p, t1_p);
+  w1[..]       = t8[..];
+  t8[..]       = add(t8[..], t9_p);
+  w1[..]       = sub(w1[..], t9_p);
+  x3           = t8[..];
+  z3           = w1[..];
+  w2[..]       = square(x3);
+  x3           = w2[..];
+  w3[..]       = square(z3);
+  z3           = w3[..];
+  w4[..]       = mul(z3,x1);
+  z3           = w4[..];
+  w5[..]       = mul(t6_p, t7_p);
+  x2           = w5[..];
+  w6[..]       = mul(t5_p, c121666_p);   /* FIXME: specialize */
+  w6[..]       = add(w6[..], t7_p);
+  x2           = w6[..];
+  w7[..]       = mul(z2, t5_p);
+  z2           = w7[..];
+
+  return x2[..], z2[..], x3[..], z3[..];
 }
 
 // ** tests
@@ -329,6 +329,8 @@ fn print_newline() = python print_newline;
 fn assert_equal_add(x, y, z : u64<n>) = python assert_equal_add;
 fn assert_equal_sub(x, y, z : u64<n>) = python assert_equal_sub;
 fn assert_equal_mul(x, y : u64[n], z : u64<n>) = python assert_equal_mul;
+fn assert_equal_ladderstep(x1, x2, z2, x3, z3, x2_r, z2_r, x3_r, z3_r : u64<n>)
+  = python assert_equal_ladderstep;
 
 fn test_add() {
   reg x, y_tmp, z : u64<n>;
@@ -337,13 +339,13 @@ fn test_add() {
   for i in 0..255 {
     u = $i;
     print_u64(u);
-    x<..> = rand_arr(u);
+    x[..] = rand_arr(u);
     u += 1;
-    y_tmp<..> = rand_arr(u);
-    y[..] = y_tmp<..>;
-    z<..> = add(x<..>,y);
-    assert_equal_add(x<..>,y[..],z<..>);
- } 
+    y_tmp[..] = rand_arr(u);
+    y[..] = y_tmp[..];
+    z[..] = add(x[..],y[..]);
+    assert_equal_add(x[..],y[..],z[..]);
+ }
 }
 
 fn test_sub() {
@@ -353,13 +355,13 @@ fn test_sub() {
   for i in 0..255 {
     u = $i;
     print_u64(u);
-    x<..> = rand_arr(u);
+    x[..] = rand_arr(u);
     u += 1;
-    y_tmp<..> = rand_arr(u);
-    y[..] = y_tmp<..>;
-    z<..> = sub(x<..>,y);
-    assert_equal_sub(x<..>,y[..],z<..>);
- } 
+    y_tmp[..] = rand_arr(u);
+    y[..] = y_tmp[..];
+    z[..] = sub(x[..],y);
+    assert_equal_sub(x[..],y[..],z[..]);
+ }
 }
 
 fn test_mul() {
@@ -369,14 +371,14 @@ fn test_mul() {
   for i in 0..255 {
     u = $i;
     print_u64(u);
-    x_tmp<..> = rand_arr(u);
+    x_tmp[..] = rand_arr(u);
     u += 1;
-    y_tmp<..> = rand_arr(u);
-    x[..] = x_tmp<..>;
-    y[..] = y_tmp<..>;
-    z<..> = mul(x,y);
-    assert_equal_mul(x,y,z<..>);
- } 
+    y_tmp[..] = rand_arr(u);
+    x[..] = x_tmp[..];
+    y[..] = y_tmp[..];
+    z[..] = mul(x,y);
+    assert_equal_mul(x,y,z[..]);
+ }
 }
 
 fn test_square() {
@@ -386,33 +388,43 @@ fn test_square() {
   for i in 0..255 {
     u = $i;
     print_u64(u);
-    x_tmp<..> = rand_arr(u);
-    x[..] = x_tmp<..>;
-    z<..> = mul(x,x);
-    assert_equal_mul(x,x,z<..>);
- } 
+    x_tmp[..] = rand_arr(u);
+    x[..] = x_tmp[..];
+    z[..] = mul(x,x);
+    assert_equal_mul(x,x,z[..]);
+ }
 }
 
 fn test_ladderstep() {
-  reg x : u64<n>;
   reg u : u64;
-  reg workp : u64[5,n];
-  for i in 0..5 {
+  reg x1, x2, z2, x3, z3 : u64<n>;
+  reg x2_r, z2_r, x3_r, z3_r : u64<n>;
+  for i in 0..255 {
     u = $i;
-    x<..> = rand_arr(u);
-    workp[i,..] = x<..>;
+    x1[..] = rand_arr(u); u += 1;
+    x2[..] = rand_arr(u); u += 1;
+    z2[..] = rand_arr(u); u += 1;
+    x3[..] = rand_arr(u); u += 1;
+    z3[..] = rand_arr(u); u += 1;
+
+    x2_r[..], z2_r[..], x3_r[..], z3_r[..]
+      = ladderstep(x1, x2, z2, x3, z3);
+    assert_equal_ladderstep(x1,x2,z2,x3,z3,x2_r,z2_r,x3_r,z3_r);
   }
-  
 }
 
 fn test() {
   //test_add();
-  print_newline();
+  //print_newline();
   //test_sub();
-  print_newline();
+  //print_newline();
   //test_mul();
-  print_newline();
+  //print_newline();
   //test_square();
-  print_newline();
+  //print_newline();
   test_ladderstep();
+  //reg u : u64<n>;
+  //u[..] = rand_arr(0);
+  //print_arr(u);
+
 }
