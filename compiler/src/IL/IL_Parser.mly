@@ -41,7 +41,7 @@ module L = Lexing
 %token SHL
 %token XOR
 
-%token REG FLAG PARAM
+%token REG FLAG PARAM STACK
 
 %token FOR
 %token IN
@@ -257,8 +257,9 @@ typed_vars :
     { Std.List.map ~f:(fun v -> (v,t)) vs }
 
 %inline decl_type:
-| REG  { () }
-| FLAG { () }
+| REG   { REG   }
+| STACK { STACK }
+| FLAG  { FLAG  }
 
 decl :
 | _d=decl_type trs=typed_vars  { trs }

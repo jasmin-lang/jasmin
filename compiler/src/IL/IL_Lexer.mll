@@ -61,6 +61,7 @@ rule lex = parse
   | "$"     { DOLLAR }
 
   | "reg"    { REG }
+  | "stack"  { STACK }
   | "flag"   { FLAG }
   | "param"  { PARAM }
 

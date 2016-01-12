@@ -67,11 +67,9 @@ All types are parameterized by 'i. We use 'i = get_or_range if indices can be
 ranges 'lb..ub' and 'i = cexpr if this is not possible. *)
 (* *** Code *)
 
-type storage = Reg | Array with sexp, compare
-
 type ty =
   | Bool
-  | U64 of (pexpr * storage) option
+  | U64 of pexpr option
     (* U64(ies,dims): indexed by ies, array of dimensions dims *) 
   with sexp, compare
 
@@ -162,10 +160,16 @@ type call_conv =
   | Custom
   with sexp, compare
 
+type storage =
+  | Flag
+  | Stack
+  | Reg
+  with sexp, compare
+
 type 'i fundef_g = {
-  fd_decls  : (string * ty) list; (* pseudo register/flag/stack declarations *)
-  fd_body   : ('i stmt_g);        (* body of function *)
-  fd_ret    : 'i dest_g     list  (* pseudo registers as return values *)
+  fd_decls  : (string * ty * storage) list; (* pseudo register/flag/stack declarations *)
+  fd_body   : ('i stmt_g);                  (* body of function *)
+  fd_ret    : 'i dest_g     list            (* pseudo registers as return values *)
 } with sexp, compare
 
 type 'i fundef_or_py =
@@ -184,7 +188,7 @@ type 'i func_g = {
 
 type 'i modul_g = {
   m_params : (string * ty) list;        (* module parameters *)
-  m_funcs  : ('i func_g)   list;        (* module functions *)
+  m_funcs  : ('i func_g)   list;        (* module functions  *)
 } with sexp, compare
 
 (* ** Values

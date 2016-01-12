@@ -53,7 +53,7 @@ let rec pvars_pcond = function
   | Pcond(_,ce1,ce2) -> Set.union (pvars_pexpr ce1) (pvars_pexpr ce2)
 
 let pvars_dim dim =
-  pvars_pexpr (fst dim)
+  pvars_pexpr dim
 
 let pvars_opt f =
   Option.value_map ~default:String.Set.empty ~f:f
@@ -125,7 +125,7 @@ and pvars_stmt_g pvars_g stmt =
 let pvars_fundef pvars_g fd =
   String.Set.union_list
     [ String.Set.union_list
-        (List.map fd.fd_decls ~f:(fun (_,ty) -> pvars_ty ty))
+        (List.map fd.fd_decls ~f:(fun ty -> pvars_ty ty))
     ; pvars_stmt_g pvars_g fd.fd_body
     ; String.Set.union_list
         (List.map fd.fd_ret ~f:(pvars_dest_g pvars_g))
