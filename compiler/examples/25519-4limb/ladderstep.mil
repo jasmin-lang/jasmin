@@ -405,6 +405,32 @@ fn ladderstep_tracing(
          l16[..], l17[..], l18[..];
 }
 
+// ** montgomery ladder
+// ************************************************************************
+
+fn mladder(xr, zr : u64[n], sp : u64[n]) {
+  stack s1, s2 : u64;
+  stack prevbit, bit, swap : u64;
+
+  prev_bit = 0;
+
+  for i in 0..4 {
+    for j in 0..64 {
+      s = load sp (i*8);
+      bit = s >> j;
+      bit = bit & 1;
+      swap = bit ^ prevbit;
+      prevbit = bit;
+    }
+  }
+}
+
+// ** scalar multiplication
+// ************************************************************************
+
+extern fn scalarmult(rp /* result */, sp /* secret scalar */, pp /* point */ : u64) {
+}
+
 // ** tests
 // ************************************************************************
 
