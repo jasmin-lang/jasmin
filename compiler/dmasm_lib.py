@@ -173,11 +173,11 @@ def ladderstep(x1, x2, z2, x3, z3):
   #print("monty result:\n%s\n"%(str((x2,z2,x3,z3))), file=sys.stderr)
   return (x2,z2,x3,z3)
 
-def mladder(xr,zr,sp):
-  x1 = xp
+def mladder(xr,sp):
+  x1 = xr
   x2 = 1
   z2 = 0
-  x3 = xp
+  x3 = xr
   z3 = 1
   for j in range(0,256):
     i = 255 - j
@@ -188,40 +188,63 @@ def mladder(xr,zr,sp):
       (x2,z2,x3,z3) = ladderstep(x1,x2,z2,x3,z3)
   return (x2,z2)
 
-def mladder_opt(xr,zr,sp):
-  x1 = xp
+def mladder_opt(xr,sp):
+  x1 = xr
   x2 = 1
   z2 = 0
-  x3 = xp
+  x3 = xr
   z3 = 1
+  prevbit = 0
   for j in range(0,256):
     i = 255 - j
     bit = (sp>>i)&1
-    if bit:
-      (x3,z3,x2,z2) = ladderstep(x1,x3,z3,x2,z2)
-    else:
-      (x2,z2,x3,z3) = ladderstep(x1,x2,z2,x3,z3)
+    swap = (prevbit != bit)
+    # print("py: %i %i %i"%(i,bit,swap),file=sys.stderr)
+    prevbit = bit
+    if swap:
+      (x3,z3,x2,z2) = (x2,z2,x3,z3)
+    (x2,z2,x3,z3) = ladderstep(x1,x2,z2,x3,z3)
+  if prevbit:
+    (x3,z3,x2,z2) = (x2,z2,x3,z3)
   return (x2,z2)
-
-def test_mladder():
-  for s in range(0,255):
-    random.seed(s)
-    xr = random.getrandbits(512) % p
-
-def assert_equal_mladder(xr,zr,sp,xr_r,zr_r,param):
-  return []
-    
-
-def assert_equal_test(c,params):
-  c = to_big_int(c)
-  assert(c == 47172631526548581395056365918773001275216341294900259085443495545076823360125)
-  return []
 
 def check_equal(s,a,b):
   a = a % p
   b = b % p
   # print("\n%s:\n%s ==\n%s\n"%(s,str(a),str(b)), file=sys.stderr)
   assert(a == b)
+
+def test_mladder():
+  for s in range(0,999):
+    random.seed(s)
+    xr = random.getrandbits(512) % p
+    random.seed(s+1)
+    sp = random.getrandbits(512) % p
+    (xr_1, zr_1) = mladder(xr,sp)
+    (xr_2, zr_2) = mladder_opt(xr,sp)
+    check_equal("xr",xr_1,xr_2)
+    check_equal("zr",zr_1,zr_2)
+
+def assert_equal_mladder(xr,zr,sp,xr_r,zr_r,param):
+  xr = to_big_int(xr)
+  sp = from_digits(two64,sp)
+  (xr_s,zr_s) = mladder_opt(xr,sp)
+  xr_r = to_big_int(xr_r)
+  zr_r = to_big_int(zr_r)
+  check_equal("xr",xr_r,xr_s)
+  check_equal("zr",zr_r,zr_s)
+  return []
+
+def assert_equal_arr(x,y,params):
+  #print('>>> assert_equal_arr: x=%s'%(str(x)), file=sys.stderr)
+  #print('>>> assert_equal_arr: y=%s'%(str(y)), file=sys.stderr)
+  assert(x == y)
+  return []
+
+def assert_equal_test(c,params):
+  c = to_big_int(c)
+  assert(c == 47172631526548581395056365918773001275216341294900259085443495545076823360125)
+  return []
 
 def assert_equal_ladderstep_tracing(x1,x2,z2,x3,z3
   ,l1,l2,l3,l4,l5,l6,l7,l8,l9,l10,l11,l12,l13,l14,l15,l16,l17,l18, params):

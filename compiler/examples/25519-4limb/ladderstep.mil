@@ -1,7 +1,7 @@
 // * Implementation of montgomery ladder for curve25519
 
 param n     : u64; /* the number of limbs */
-param rem_p : u64; /* 2^(n*64) mod p        */
+param rem_p : u64; /* 2^(n*64) mod p      */
 
 // ** addition
 // ************************************************************************
@@ -409,15 +409,25 @@ fn ladderstep_tracing(
          l16, l17, l18;
 }
 
-// ** cswap
+// ** cswap (FIXME: compare with OpenSSL, this is a translation from C)
 // ************************************************************************
 
 fn cswap(stack x2p, z2p, x3p, z3p : u64[n], stack swap : u64)
     -> stack u64[n] * stack u64[n] * stack u64[n] * stack u64[n] {
-  reg tmp : u64[n];
+  reg tmp, mask : u64;
+  mask = swap * 0xffffffffffffffff;
 
-  for i in 0..n { }
-  for i in 0..n { }
+  for i in 0..n {
+    tmp = x2p[i] ^ x3p[i];
+    tmp = tmp & mask;
+    x2p[i] = x2p[i] ^ tmp;
+    x3p[i] = x3p[i] ^ tmp;
+
+    tmp = z2p[i] ^ z3p[i];
+    tmp = tmp & mask;
+    z2p[i] = z2p[i] ^ tmp;
+    z3p[i] = z3p[i] ^ tmp;
+  }
   return x2p, z2p, x3p, z3p;
 }
 
@@ -430,9 +440,10 @@ fn mladder(stack xr, zr, sp : u64[n]) -> stack u64[n] * stack u64[n] {
   stack prevbit, bit, swap : u64;
   stack x1,x2,z2,x3,z3 : u64[n];
   
-  print_arr(xr); print_newline();
-  print_arr(zr); print_newline();
-  print_arr(sp); print_newline();
+  //print_arr(xr); print_newline();
+  //print_arr(zr); print_newline();
+  //print_arr(sp); print_newline();
+  //print_newline();
 
   prevbit = 0;
 
@@ -443,24 +454,24 @@ fn mladder(stack xr, zr, sp : u64[n]) -> stack u64[n] * stack u64[n] {
   z3[0] = 1; z3[1] = 0; z3[2] = 0; z3[3] = 0;
   
   for i in 0..4 {
-    print_u64($(3 -i)); print_u64(sp[3 - i]);
-    print_newline();
-    print_newline();
+    //print_u64($(3 -i)); print_u64(sp[3 - i]);
+    //print_newline();
+    //print_newline();
     s = sp[3 - i];
     for j in 0..64 {
-      print_u64($(63 - j));
+      //print_u64($(64*(3 - i) + 63 - j));
       bit = s >> $(63 - j);
       bit = bit & 1;
       swap = bit ^ prevbit;
-      print_u64(bit);
-      print_u64(swap);
-      print_newline();
+      //print_u64(bit);
+      //print_u64(swap);
+      //print_newline();
       prevbit = bit;
       x2,z2,x3,z3 = cswap(x2,z2,x3,z3,swap);
       x2,z2,x3,z3 = ladderstep(x1,x2,z2,x3,z3);
     }
-    print_newline();
-    print_newline();
+    //print_newline();
+    //print_newline();
   }
   x2,z2,x3,z3 = cswap(x2,z2,x3,z3,prevbit);
   return x2, z2;
@@ -484,6 +495,7 @@ fn print_newline() = python print_newline;
 fn assert_equal_add(stack x,y,z : u64[n]) = python assert_equal_add;
 fn assert_equal_sub(stack x,y,z : u64[n]) = python assert_equal_sub;
 fn assert_equal_mul(stack x,y,z : u64[n]) = python assert_equal_mul;
+fn assert_equal_arr(stack x,y : u64[n]) = python assert_equal_arr;
 fn assert_equal_ladderstep(stack x1,x2,z2,x3,z3,x2_r,z2_r,x3_r,z3_r : u64[n])
   = python assert_equal_ladderstep;
 fn assert_equal_ladderstep_tracing(stack x1,x2,z2,x3,z3
@@ -539,7 +551,7 @@ fn test_mul() {
     y = y_tmp;
     z = mul(x,y);
     assert_equal_mul(x,y,z);
- }
+  }
 }
 
 fn test_square() {
@@ -557,13 +569,12 @@ fn test_square() {
   }
 }
 
-
 fn test_ladderstep() {
   reg u : u64;
   reg x1, x2, z2, x3, z3 : u64[n];
   reg x2_r, z2_r, x3_r, z3_r : u64[n];
 
-  for i in 0..999 {
+  for i in 0..1 {
     u = $i;
     print_u64(u);
     x1 = rand_arr(u); u += 1;
@@ -572,8 +583,7 @@ fn test_ladderstep() {
     x3 = rand_arr(u); u += 1;
     z3 = rand_arr(u); u += 1;
 
-    x2_r, z2_r, x3_r, z3_r
-      = ladderstep(x1, x2, z2, x3, z3);
+    x2_r, z2_r, x3_r, z3_r = ladderstep(x1, x2, z2, x3, z3);
     assert_equal_ladderstep(x1,x2,z2,x3,z3,x2_r,z2_r,x3_r,z3_r);
   }
 }
@@ -600,6 +610,38 @@ fn test_ladderstep_tracing() {
   }
 }
 
+fn test_swap() {
+  stack x2r, z2r, x3r, z3r : u64[n];
+  stack x2r_a, z2r_a, x3r_a, z3r_a : u64[n];
+  stack x2r_b, z2r_b, x3r_b, z3r_b : u64[n];
+  stack u : u64;
+  stack zero : u64;
+  stack one  : u64;
+
+  zero = 0;
+  one = 1;
+  for i in 0..999 {
+    u = $i;
+    print_u64(u);
+    x2r = rand_arr(u); u += 1;
+    z2r = rand_arr(u); u += 1;
+    x3r = rand_arr(u); u += 1;
+    z3r = rand_arr(u); u += 1;
+    x2r_a, z2r_a, x3r_a, z3r_a = cswap(x2r,z2r,x3r,z3r,zero);
+    x2r_b, z2r_b, x3r_b, z3r_b = cswap(x2r,z2r,x3r,z3r,one);
+
+    assert_equal_arr(x2r, x2r_a);
+    assert_equal_arr(z2r, z2r_a);
+    assert_equal_arr(x3r, x3r_a);
+    assert_equal_arr(z3r, z3r_a);
+
+    assert_equal_arr(x2r, x3r_b);
+    assert_equal_arr(z2r, z3r_b);
+    assert_equal_arr(x3r, x2r_b);
+    assert_equal_arr(z3r, z2r_b);
+  }
+}
+
 fn test_mladder() {
   stack xr, zr : u64[n];
   stack xr_r, zr_r : u64[n];
@@ -609,8 +651,8 @@ fn test_mladder() {
   sp[1] = 0;
   sp[2] = 0x5555555555555555;
   sp[3] = 0xfffffffffffffffe;
-  print_arr(sp); print_newline();
-  for i in 0..1 {
+  //print_arr(sp); print_newline();
+  for i in 0..999 {
     u = $i;
     print_u64(u);
     xr = rand_arr(u); u += 1;
@@ -618,7 +660,6 @@ fn test_mladder() {
     xr_r, zr_r = mladder(xr,zr,sp);
     assert_equal_mladder(xr,zr,sp,xr_r,zr_r);
   }
-  
 }
 
 fn test() {
@@ -633,6 +674,8 @@ fn test() {
   test_ladderstep_tracing();
   print_newline();
   test_ladderstep();
+  print_newline();
+  test_swap();
   print_newline();
   test_mladder();
 }
