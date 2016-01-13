@@ -62,89 +62,71 @@ let pvars_ty = function
   | Bool     -> String.Set.empty
   | U64(dim) -> pvars_opt pvars_dim dim
 
-let pvars_get_or_range = function
-  | Get(pe)          -> pvars_pexpr pe
-  | All(pe1_o,pe2_o) ->
-    let to_set = pvars_opt pvars_pexpr in
-    Set.union (to_set pe1_o) (to_set pe2_o)
+let pvars_dest pr =
+  pvars_opt pvars_pexpr pr.d_oidx
 
-let pvars_dest_g pvars_g pr =
-  pvars_opt pvars_g pr.d_oidx
-
-let pvars_src_g pvars_g = function
+let pvars_src = function
   | Imm _ -> String.Set.empty
-  | Src d -> pvars_dest_g pvars_g d
-
-let pvars_dest_e = pvars_dest_g pvars_pexpr
-let pvars_dest = pvars_dest_g pvars_get_or_range
-
-let pvars_src_e = pvars_src_g pvars_pexpr
-let pvars_src = pvars_src_g pvars_get_or_range
+  | Src d -> pvars_dest d
 
 let pvars_op = function
   | ThreeOp(_)       -> String.Set.empty
-  | Umul(d1)         -> pvars_dest_e d1
-  | CMov(_,s)        -> pvars_src_e s
-  | Shift(_,d1o)     -> pvars_opt pvars_dest_e d1o
+  | Umul(d1)         -> pvars_dest d1
+  | CMov(_,s)        -> pvars_src s
+  | Shift(_,d1o)     -> pvars_opt pvars_dest d1o
   | Carry(_,d1o,s1o) ->
     String.Set.union_list
-      [ pvars_opt pvars_dest_e d1o
-      ; pvars_opt pvars_src_e s1o
+      [ pvars_opt pvars_dest d1o
+      ; pvars_opt pvars_src s1o
       ]
 
-let pvars_base_instr_g pvars_g = function
+let pvars_base_instr = function
   | Comment(_) ->
     String.Set.empty
   | Assgn(d,s) ->
-    String.Set.union (pvars_dest_g pvars_g d) (pvars_src_g pvars_g s)
+    String.Set.union (pvars_dest d) (pvars_src s)
   | Op(o,d,(s1,s2)) ->
     String.Set.union_list
-      [pvars_op o; pvars_dest_e d; pvars_src_e s1; pvars_src_e s2]
+      [pvars_op o; pvars_dest d; pvars_src s1; pvars_src s2]
   | Call(_,ds,ss) ->
     String.Set.union_list
-     ( (List.map ds ~f:(pvars_dest_g pvars_g))
-      @(List.map ss ~f:(pvars_src_g pvars_g)))
+     ( (List.map ds ~f:pvars_dest)
+      @(List.map ss ~f:pvars_src))
     
-let rec pvars_instr_g pvars_g = function
-  | Binstr(bi) -> pvars_base_instr_g pvars_g bi
+let rec pvars_instr = function
+  | Binstr(bi) -> pvars_base_instr bi
   | If(cond,s1,s2) ->
     String.Set.union_list
-      [pvars_pcond cond; pvars_stmt_g pvars_g s1; pvars_stmt_g pvars_g s2]
+      [pvars_pcond cond; pvars_stmt s1; pvars_stmt s2]
   | For(pv,pe1,pe2,stmt) ->
     Set.diff
       (String.Set.union_list
          [ pvars_pexpr pe1
          ; pvars_pexpr pe2
-         ; pvars_stmt_g pvars_g stmt ])
+         ; pvars_stmt stmt ])
       (String.Set.singleton pv)
 
-and pvars_stmt_g pvars_g stmt =
+and pvars_stmt stmt =
   String.Set.union_list
-    (List.map stmt ~f:(pvars_instr_g pvars_g))
+    (List.map stmt ~f:pvars_instr)
 
-let pvars_fundef pvars_g fd =
+let pvars_fundef fd =
   String.Set.union_list
-    [ String.Set.union_list
-        (List.map fd.fd_decls ~f:(fun ty -> pvars_ty ty))
-    ; pvars_stmt_g pvars_g fd.fd_body
-    ; String.Set.union_list
-        (List.map fd.fd_ret ~f:(pvars_dest_g pvars_g))
+    [ String.Set.union_list (List.map fd.fd_decls ~f:(fun (_,_,ty) -> pvars_ty ty))
+    ; pvars_stmt fd.fd_body
     ]
 
-let pvars_func pvars_g func =
+let pvars_func func =
   String.Set.union_list
-    [ String.Set.union_list
-        (List.map func.f_args ~f:(fun (_,ty) -> pvars_ty ty))
+    [ String.Set.union_list (List.map func.f_args ~f:(fun (_,_,ty) -> pvars_ty ty))
     ; (match func.f_def with
-       | Def fdef -> pvars_fundef pvars_g fdef 
-       | _ -> String.Set.empty)
-    ; String.Set.union_list
-        (List.map func.f_ret_ty ~f:pvars_ty)
+       | Def fdef -> pvars_fundef fdef 
+       | _        -> String.Set.empty)
+    ; String.Set.union_list (List.map func.f_ret_ty ~f:(fun (_,ty) -> pvars_ty ty))
     ]
 
-let pvars_modul pvars_g modul =
-  String.Set.union_list
-    (List.map modul.m_funcs ~f:(pvars_func pvars_g))
+let pvars_modul modul =
+  String.Set.union_list (List.map modul.m_funcs ~f:pvars_func)
 
 (* ** Constructor functions for pregs
  * ------------------------------------------------------------------------ *)
@@ -153,7 +135,7 @@ let mk_dest_name name =
   { d_name = name; d_oidx = None; d_loc = P.dummy_loc }
 
 let mk_preg_index name i =
-  { d_name = name; d_oidx = Some (Get (Pconst i)); d_loc = P.dummy_loc }
+  { d_name = name; d_oidx = Some (Pconst i); d_loc = P.dummy_loc }
 
 (* ** Pretty printing
  * ------------------------------------------------------------------------ *)
@@ -192,17 +174,13 @@ let rec pp_pcond fmt = function
   | Pand(c1,c2)      -> F.fprintf fmt"(%a && %a)" pp_pcond c1 pp_pcond c2
   | Pcond(o,ie1,ie2) -> F.fprintf fmt"(%a %s %a)" pp_pexpr ie1 (pcondop_to_string o) pp_pexpr ie2
 
-let pp_get_or_all fmt = function
-  | Get i      -> pp_pexpr fmt i
-  | All(lb,ub) -> F.fprintf fmt "%a..%a" (pp_opt "" pp_pexpr) lb (pp_opt "" pp_pexpr) ub
-
-let pp_dest_g pp_index fmt {d_name=r; d_oidx=oidx} =
+let pp_dest fmt {d_name=r; d_oidx=oidx} =
   match oidx with
   | None      -> F.fprintf fmt "%s" r
-  | Some(idx) -> F.fprintf fmt "%s[%a]" r pp_index idx
+  | Some(idx) -> F.fprintf fmt "%s[%a]" r pp_pexpr idx
 
-let pp_src_g pp_index fmt = function
-  | Src(d)  -> pp_dest_g pp_index fmt d
+let pp_src fmt = function
+  | Src(d)  -> pp_dest fmt d
   | Imm(pe) -> pp_pexpr fmt pe
 
 let pp_ty fmt ty =
@@ -212,60 +190,55 @@ let pp_ty fmt ty =
     F.fprintf fmt "u64%a"
       (fun fmt dim ->
          match dim with
-         | None            -> F.fprintf fmt ""
-         | Some(dim,Reg)   -> F.fprintf fmt "<%a>" pp_pexpr dim
-         | Some(dim,Array) -> F.fprintf fmt "[%a]" pp_pexpr dim)
+         | None      -> F.fprintf fmt ""
+         | Some(dim) -> F.fprintf fmt "[%a]" pp_pexpr dim)
       dim
 
 let string_of_carry_op = function O_Add -> "+" | O_Sub -> "-"
 
 let pp_op fmt (o,d,s1,s2) =
-  let pp_dest_e = pp_dest_g pp_pexpr in
-  let pp_src_e = pp_src_g pp_pexpr in
   match o with
   | Umul(d1) ->
-    F.fprintf fmt "%a, %a = %a * %a" pp_dest_e d1 pp_dest_e d pp_src_e s1 pp_src_e s2
+    F.fprintf fmt "%a, %a = %a * %a" pp_dest d1 pp_dest d pp_src s1 pp_src s2
   | ThreeOp(O_Imul) ->
-    F.fprintf fmt "%a = %a * %a" pp_dest_e d pp_src_e s1 pp_src_e s2
+    F.fprintf fmt "%a = %a * %a" pp_dest d pp_src s1 pp_src s2
   | ThreeOp(O_And) ->
-    F.fprintf fmt "%a = %a & %a" pp_dest_e d pp_src_e s1 pp_src_e s2
+    F.fprintf fmt "%a = %a & %a" pp_dest d pp_src s1 pp_src s2
   | ThreeOp(O_Xor) ->
-    F.fprintf fmt "%a = %a ^ %a" pp_dest_e d pp_src_e s1 pp_src_e s2
+    F.fprintf fmt "%a = %a ^ %a" pp_dest d pp_src s1 pp_src s2
   | Carry(cfo,od1,os3) ->
     let so = string_of_carry_op cfo in
     F.fprintf fmt "%a%a = %a %s %a%a"
       (fun fmt od ->
          match od with
-         | Some d -> F.fprintf fmt "%a, " pp_dest_e d 
+         | Some d -> F.fprintf fmt "%a, " pp_dest d 
          | None   -> pp_string fmt "")
       od1
-      pp_dest_e d
-      pp_src_e s1
+      pp_dest d
+      pp_src s1
       so
-      pp_src_e s2
+      pp_src s2
       (fun fmt os ->
          match os with
-         | Some s -> F.fprintf fmt " %s %a" so pp_src_e s
+         | Some s -> F.fprintf fmt " %s %a" so pp_src s
          | None   -> pp_string fmt "")
       os3
   | CMov(CfSet(is_set),s3) ->
     F.fprintf fmt "%a = %a if %s%a else %a"
-      pp_dest_e d pp_src_e s2 (if is_set then "" else "!") pp_src_e s3 pp_src_e s1
+      pp_dest d pp_src s2 (if is_set then "" else "!") pp_src s3 pp_src s1
   | Shift(dir,od1) ->
     F.fprintf fmt "%a%a = %a %s %a"
       (fun fmt od ->
          match od with
-         | Some d -> F.fprintf fmt "%a" pp_dest_e d 
+         | Some d -> F.fprintf fmt "%a" pp_dest d
          | None   -> pp_string fmt "")
       od1
-      pp_dest_e d
-      pp_src_e s1
+      pp_dest d
+      pp_src s1
       (match dir with Left -> "<<" | Right -> ">>")
-      pp_src_e s2
+      pp_src s2
 
-let pp_base_instr_g pp_index fmt bi =
-  let pp_dest = pp_dest_g pp_index in
-  let pp_src = pp_src_g pp_index in
+let pp_base_instr fmt bi =
   match bi with
   | Comment(s)      -> F.fprintf fmt "/* %s */" s
   | Assgn(d1,s1)    -> F.fprintf fmt "%a = %a;" pp_dest d1 pp_src s1
@@ -278,10 +251,9 @@ let pp_base_instr_g pp_index fmt bi =
       name
       (pp_list "," pp_src) args
 
-let rec pp_instr_g pp_index fmt bi =
-  let pp_stmt = pp_stmt_g pp_index in
+let rec pp_instr fmt bi =
   match bi with
-  | Binstr(i) -> pp_base_instr_g pp_index fmt i
+  | Binstr(i) -> pp_base_instr fmt i
   | If(c,i1,i2) ->
     F.fprintf fmt "if %a {@\n  @[<hv 0>%a@]@\n} else {@\n  @[<v 0>%a@]@\n}"
       pp_pcond c pp_stmt i1 pp_stmt i2
@@ -289,50 +261,61 @@ let rec pp_instr_g pp_index fmt bi =
     F.fprintf fmt "for %s in %a..%a {@\n  @[<v 0>%a@]@\n}"
       iv pp_pexpr ie1 pp_pexpr ie2 pp_stmt i
 
-and pp_stmt_g pp_index fmt is =
-  F.fprintf fmt "%a" (pp_list "@\n" (pp_instr_g pp_index)) is
+and pp_stmt fmt is =
+  F.fprintf fmt "%a" (pp_list "@\n" pp_instr) is
 
-let pp_return_g pp_index fmt names =
+let pp_return fmt names =
   match names with
   | [] -> pp_string fmt ""
-  | _  -> F.fprintf fmt "@\nreturn %a;" (pp_list "," (pp_dest_g pp_index)) names
+  | _  -> F.fprintf fmt "@\nreturn %a;" (pp_list "," pp_string) names
 
-let pp_decl fmt (name,ty) =
+let string_of_storage = function
+  | Stack -> "stack"
+  | Reg   -> "reg"
+  | Flag  -> "flag" 
+
+let pp_decl fmt (stor,name,ty) =
   F.fprintf fmt "%s %s : %a;"
-    (match ty with
-     | Bool -> "flag"
-     | _    -> "reg")
+    (string_of_storage stor)
     name
     pp_ty ty
 
-let pp_fundef_g pp_index fmt fd =
+let pp_fundef fmt fd =
   F.fprintf fmt  " {@\n  @[<v 0>%a%a%a@]@\n}"
     (pp_list "@\n" pp_decl) fd.fd_decls
-    (pp_stmt_g pp_index)    fd.fd_body
-    (pp_return_g pp_index)  fd.fd_ret
+    pp_stmt    fd.fd_body
+    pp_return  fd.fd_ret
 
 let call_conv_to_string = function
   | Extern -> "extern "
   | _      -> ""
 
-let pp_func_g pp_index fmt f =
+let pp_decl fmt (sto,name,ty) =
+  F.fprintf fmt "%s %s : %a" (string_of_storage sto) name pp_ty ty
+
+let pp_ret fmt (sto,ty) =
+  F.fprintf fmt "%s %a" (string_of_storage sto) pp_ty ty
+
+let pp_func fmt f =
   F.fprintf fmt "@[<v 0>fn %s%s(%a)%s%a@]"
             (call_conv_to_string f.f_call_conv)
     f.f_name
-    (pp_list "," (pp_pair ":" pp_string pp_ty)) f.f_args
+    (pp_list "," pp_decl) f.f_args
     (if f.f_ret_ty=[] then ""
-     else fsprintf " -> %a" (pp_list "*" pp_ty) f.f_ret_ty)
+     else fsprintf " -> %a" (pp_list "*" pp_ret) f.f_ret_ty)
     (fun fmt ef_def -> match ef_def with
      | Undef  -> pp_string fmt ";"
-     | Def ed -> pp_fundef_g pp_index fmt ed
+     | Def ed -> pp_fundef fmt ed
      | Py s   -> F.fprintf fmt " = python %s" s)
     f.f_def
 
-let pp_modul_g pp_index fmt modul =
-  pp_list "@\n@\n" (pp_func_g pp_index) fmt modul.m_funcs
+let pp_modul fmt modul =
+  pp_list "@\n@\n" pp_func fmt modul.m_funcs
 
+(*
 let pp_indexed_name fmt (s,idxs) =
   F.fprintf fmt "%s<%a>" s (pp_list "," pp_uint64) idxs
+ *)
 
 let pp_value fmt = function
   | Vu64 u   ->
@@ -346,24 +329,6 @@ let pp_value_py fmt = function
     pp_uint64 fmt u
   | Varr(vs) ->
     F.fprintf fmt "[%a]" (pp_list "," pp_uint64) (List.map ~f:snd (Map.to_alist vs))
-
-(* ** Specialized pretty printing functions
- * ------------------------------------------------------------------------ *)
-
-let pp_func   fmt = pp_func_g pp_get_or_all fmt
-let pp_func_e fmt = pp_func_g pp_pexpr      fmt
-
-let pp_src   fmt = pp_src_g pp_get_or_all fmt
-let pp_src_e fmt = pp_src_g pp_pexpr      fmt
-
-let pp_dest   fmt = pp_dest_g pp_get_or_all fmt
-let pp_dest_e fmt = pp_dest_g pp_pexpr      fmt
-
-let pp_instr   fmt = pp_instr_g pp_get_or_all fmt
-let pp_instr_e fmt = pp_instr_g pp_pexpr      fmt
-
-let pp_modul   fmt = pp_modul_g pp_get_or_all fmt
-let pp_modul_e fmt = pp_modul_g pp_pexpr      fmt
 
 (* ** Utility functions
  * ------------------------------------------------------------------------ *)
@@ -420,6 +385,7 @@ let mk_modul pfs =
   in
   { m_funcs = funcs; m_params = params }
 
+(*
 let fix_indexes (cstart,cend) oidx =
   Option.map oidx
     ~f:(function
@@ -429,14 +395,19 @@ let fix_indexes (cstart,cend) oidx =
             let ecnum = cend.Lexing.pos_cnum + 1 in
             let err = "range not allowed here" in
             raise (ParserUtil.UParserError(scnum,ecnum,err)))
+*)
 
+(*
 let dest_e_of_dest pos d =
   { d with d_oidx = fix_indexes pos d.d_oidx }
+*)
 
+(*
 let src_e_of_src pos s =
   match s with
   | Imm(i) -> Imm(i)
   | Src(d) -> Src(dest_e_of_dest pos d)
+ *)
 
 let failpos _pos msg = (* FIXME: use position in error message here *)
   failwith msg
@@ -448,7 +419,7 @@ let mk_fundef decls stmt rets =
     fd_body   = get_opt [] stmt;
   }
 
-let mk_func startpos endpos rty name ext args (def : get_or_range fundef_or_py) : func =
+let mk_func startpos endpos rty name ext args (def : fundef_or_py) : func =
   let rtys = Option.value ~default:[] rty in
   let () =
     match def with
@@ -477,19 +448,16 @@ let mk_if c i1s mi2s ies =
   in
   If(c,i1s,ielse)
 
-let mk_ternop pos (dests : get_or_range dest_g list) op op2 s1 s2 s3 =
+let mk_ternop pos (dests : dest list) op op2 s1 s2 s3 =
   let fail = failpos pos in
   if op<>op2 then fail "operators must be equal";
   let d, dests = match List.rev dests with
-    | d::others -> dest_e_of_dest pos d, List.rev others
+    | d::others -> d, List.rev others
     | []        -> fail "impossible"
   in
-  let s1 = src_e_of_src pos s1 in
-  let s2 = src_e_of_src pos s2 in
-  let s3 = Option.map ~f:(src_e_of_src pos) s3 in
   let get_one_dest s dests = match dests with
     | []   -> None
-    | [d1] -> Some (dest_e_of_dest pos d1)
+    | [d1] -> Some d1
     | _    -> fail ("invalid args for "^s)
   in
   match op with
@@ -510,20 +478,18 @@ let mk_ternop pos (dests : get_or_range dest_g list) op op2 s1 s2 s3 =
   | `Mul ->
     begin match dests with
     | []   -> Op(ThreeOp(O_Imul),d,(s1,s2))
-    | [d1] -> Op(Umul(dest_e_of_dest pos d1),d,(s1,s2))
+    | [d1] -> Op(Umul(d1),d,(s1,s2))
     | _    -> fail "invalid args for mult"
     end
 
-let mk_cmov pos (dests : get_or_range dest_g list) s cf flg =
-  let s = src_e_of_src pos s in
-  let cf = src_e_of_src pos cf in
+let mk_cmov pos (dests : dest list) s cf flg =
   let d = match dests with
     | [d] -> d
     | _   -> failpos pos "invalid destination for and/xor"
   in
-  Op(CMov(flg,cf),dest_e_of_dest pos d,(Src(dest_e_of_dest pos d),s))
+  Op(CMov(flg,cf),d,(Src(d),s))
 
-let mk_instr (dests : get_or_range dest_g list) (rhs,pos) : instr =
+let mk_instr (dests : dest list) (rhs,pos) : instr =
   match dests, rhs with
   | _,   `Call(fname,args)          -> Binstr(Call(fname,dests,args))
   | [d], `Assgn(src)                -> Binstr(Assgn(d,src))

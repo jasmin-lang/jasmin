@@ -40,9 +40,9 @@ def from_digits(radix,digits):
   return res
 
 def print_u64_arr(x,params):
-  #print('>>> print_u64_arr: x=%s'%(str(x)), file=sys.stderr)
+  print('>>> print_u64_arr: x=%s'%(str(x)), file=sys.stderr)
   y = from_digits(2**64,x) % p
-  print('>>> print_u64_arr: x=%s'%(str(y)), file=sys.stderr)
+  #print('>>> print_u64_arr: x=%s'%(str(y)), file=sys.stderr)
   #print('>>> print_u64_arr: n=%s'%(str(params['n'])), file=sys.stderr)
   return []
 
@@ -123,7 +123,7 @@ def fmonty( x, z            # Q
 
 
 # translated from Verify25519 paper (Algorithm 2)
-def monty_tracing(x1, x2, z2, x3, z3):
+def ladderstep_tracing(x1, x2, z2, x3, z3):
   #print("monty input:\n%s\n"%(str((x1,x2,z2,x3,z3))), file=sys.stderr)
   t1 = (x2 + z2)     % p; l1  = t1
   t2 = (x2 - z2)     % p; l2  = t2
@@ -148,7 +148,7 @@ def monty_tracing(x1, x2, z2, x3, z3):
   #print("monty result:\n%s\n"%(str((x2,z2,x3,z3))), file=sys.stderr)
   return (l1,l2,l3,l4,l5,l6,l7,l8,l9,l10,l11,l12,l13,l14,l15,l16,l17,l18)
 
-def monty(x1, x2, z2, x3, z3):
+def ladderstep(x1, x2, z2, x3, z3):
   #print("monty input:\n%s\n"%(str((x1,x2,z2,x3,z3))), file=sys.stderr)
   t1 = (x2 + z2)     % p
   t2 = (x2 - z2)     % p
@@ -173,23 +173,50 @@ def monty(x1, x2, z2, x3, z3):
   #print("monty result:\n%s\n"%(str((x2,z2,x3,z3))), file=sys.stderr)
   return (x2,z2,x3,z3)
 
-def mul_py(x,y,params):
-  a = from_digits(two64,x)
-  b = from_digits(two64,y)
-  c = (a*b) % p
-  z = to_digits(two64,4,c)
-  print_u64_arr(x,params)
-  print_u64_arr(y,params)
-  print_u64_arr(z,params)
-  print('>>> monty a=%s'%(str(a)), file=sys.stderr)
-  print('>>> monty b=%s'%(str(b)), file=sys.stderr)
-  print('>>> monty c=%s'%(str(c)), file=sys.stderr)
-  return z
+def mladder(xr,zr,sp):
+  x1 = xp
+  x2 = 1
+  z2 = 0
+  x3 = xp
+  z3 = 1
+  for j in range(0,256):
+    i = 255 - j
+    bit = (sp>>i)&1
+    if bit:
+      (x3,z3,x2,z2) = ladderstep(x1,x3,z3,x2,z2)
+    else:
+      (x2,z2,x3,z3) = ladderstep(x1,x2,z2,x3,z3)
+  return (x2,z2)
+
+def mladder_opt(xr,zr,sp):
+  x1 = xp
+  x2 = 1
+  z2 = 0
+  x3 = xp
+  z3 = 1
+  for j in range(0,256):
+    i = 255 - j
+    bit = (sp>>i)&1
+    if bit:
+      (x3,z3,x2,z2) = ladderstep(x1,x3,z3,x2,z2)
+    else:
+      (x2,z2,x3,z3) = ladderstep(x1,x2,z2,x3,z3)
+  return (x2,z2)
+
+def test_mladder():
+  for s in range(0,255):
+    random.seed(s)
+    xr = random.getrandbits(512) % p
+
+def assert_equal_mladder(xr,zr,sp,xr_r,zr_r,param):
+  return []
+    
 
 def assert_equal_test(c,params):
   c = to_big_int(c)
   assert(c == 47172631526548581395056365918773001275216341294900259085443495545076823360125)
   return []
+
 def check_equal(s,a,b):
   a = a % p
   b = b % p
@@ -223,7 +250,7 @@ def assert_equal_ladderstep_tracing(x1,x2,z2,x3,z3
   l17 = to_big_int(l17)
   l18 = to_big_int(l18)
 
-  (s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15,s16,s17,s18) = monty_tracing(x1,x2,z2,x3,z3)
+  (s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15,s16,s17,s18) = ladderstep_tracing(x1,x2,z2,x3,z3)
   check_equal("1",s1,l1)
   check_equal("2",s2,l2)
   check_equal("3",s3,l3)
@@ -251,7 +278,7 @@ def assert_equal_ladderstep(x1,x2,z2,x3,z3,x2_r,z2_r,x3_r,z3_r,params):
   x3 = to_big_int(x3)
   z3 = to_big_int(z3)
 
-  (x2_p,z2_p,x3_p,z3_p) = monty(x1,x2,z2,x3,z3)
+  (x2_p,z2_p,x3_p,z3_p) = ladderstep(x1,x2,z2,x3,z3)
 
   x2_r = to_big_int(x2_r)
   z2_r = to_big_int(z2_r)
@@ -268,13 +295,7 @@ def assert_equal_ladderstep(x1,x2,z2,x3,z3,x2_r,z2_r,x3_r,z3_r,params):
 ###########################################################################
 
 if __name__ == "__main__":
-  rand_25519(1)
-
-  # test from_digits
-  random.seed(1)
-  n = random.getrandbits(512) % p25519
-  res = to_digits(two64,4,n)
-  assert (from_digits(two64,res) == n)
+  test_mladder()
 
   
   

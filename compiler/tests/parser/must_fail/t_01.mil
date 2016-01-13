@@ -1,9 +1,9 @@
 /* No ranges for binop/ternary op */
 fn foo() {
-  reg x : u64<n>;
+  reg x : u64[n];
 
-  x<..> += x<..>;
+  x[0], x[0], x[0] += x[0];
 /*
-ERROR: x<..> += x<..>;
+ERROR: invalid args for add
 */
 }

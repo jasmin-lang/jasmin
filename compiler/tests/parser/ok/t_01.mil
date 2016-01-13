@@ -2,7 +2,7 @@
 param n  : u64;
 param n2 : u64;
 
-fn foo() -> u64 {
+fn foo() -> stack u64 {
 
   reg x, h, l : u64;
   flag cf : bool;
@@ -16,16 +16,17 @@ fn foo() -> u64 {
   return h;
 }
 
-fn fun_decl_only(x : u64) -> u64;
+fn fun_decl_only(stack x : u64) -> stack u64;
 
 fn void_fun() {
   reg w : u64;
 }
 
-extern fn bar(x, y : u64<n1*n2>, z : u64[n3*n4], z : u64) -> u64<n2*2> {
-  reg u : u64<n2*2>;
+extern fn bar(stack x, y : u64[n1*n2], reg z : u64[n3*n4], stack w : u64)
+    -> stack u64[n2*2] {
+  reg u : u64[n2*2];
 
   u[0] = foo();
   void_fun();
-  return u[0..n2*2];
+  return u;
 }

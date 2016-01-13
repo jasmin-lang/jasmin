@@ -54,51 +54,6 @@ let eval_pcond pmap cc =
 (* ** Interpreter
  * ------------------------------------------------------------------------ *)
 
-(* *** Expansion of ranges
- * ------------------------------------------------------------------------ *)
-
-let expand_get_or_all pmap dim idx =
-  match idx with
-  | Get pe -> [pe]
-  | All(lb_o,ub_o) ->
-    let zero = Pconst U64.zero in
-    let lb = get_opt zero lb_o |> eval_pexpr pmap in
-    let ub = get_opt dim ub_o |> eval_pexpr pmap in
-    List.map (list_from_to ~first:lb ~last:ub) ~f:(fun c -> Pconst c)
-
-let expand_dest (pmap : pmap) (tenv : tenv) d =
-  match map_find_exn tenv pp_string d.d_name with
-  | Bool -> failwith "Boolean arguments not allowed"
-  | U64(odim) ->
-    begin match odim, d.d_oidx with
-    | None           , None      -> [{d with d_oidx=None}]
-    | Some (_,_),   Some(Get(i)) -> [{d with d_oidx=Some(i)}]
-    | Some (dim,_), None ->
-      List.map ~f:(fun pe -> { d with d_oidx=Some(pe) })
-        (expand_get_or_all pmap dim (All(None,None)))
-    | Some (dim,_), Some(idx)    -> 
-      List.map ~f:(fun pe -> { d with d_oidx=Some(pe) })
-        (expand_get_or_all pmap dim idx)
-    | None,         Some _       ->
-      type_error d
-        (fsprintf "cannot perform array indexing on scalar %s" d.d_name)
-    end
-
-let expand_src (pmap : pmap) (tenv : tenv) = function
-  | Imm(_) as s -> [s]
-  | Src(d)      -> List.map (expand_dest pmap tenv d) ~f:(fun d -> Src(d))
-
-let dest_of_arg (name,ty) =
-  match ty with
-  | Bool -> assert false
-  | U64(odim) ->
-    let oidx =
-      match odim with
-      | None      -> None
-      | Some(_,_) -> Some (All(None,None))
-    in
-    { d_name = name; d_oidx = oidx; d_loc = P.dummy_loc }
-
 (* *** Interpreter state
  * ------------------------------------------------------------------------ *)
 
@@ -132,51 +87,55 @@ let print_mstate ms =
 let read_lvar lmap s oidx =
   let v = map_find_exn lmap pp_string s in
   match v, oidx with
-  | Vu64(u), None -> u
+  | Vu64(u), None -> Vu64(u)
   | Varr(vs),Some i ->
-    map_find_exn vs pp_uint64 i
+    Vu64(map_find_exn vs pp_uint64 i)
+  | Varr(vs),None -> Varr(vs)
   | Vu64(_), _ ->
     failwith_ "read_lvar: expected array, got u64 in %s[%a]"
       s (pp_opt "," pp_uint64) oidx
-  | Varr(_),_ ->
-    failwith_ "read_lvar: expected u64, got array (not fully applied) in %s[%a]"
-      s (pp_opt "_" pp_uint64) oidx
 
-let read_src_ pmap lmap (s : src_e) =
+let read_src_val pmap lmap (s : src) =
   match s with
-  | Imm pe -> eval_pexpr pmap pe
+  | Imm pe -> Vu64(eval_pexpr pmap pe)
   | Src(d) ->
     let oidx = Option.map (d.d_oidx) ~f:(eval_pexpr pmap) in
     read_lvar lmap d.d_name oidx
 
+let read_src_ pmap lmap (s : src) =
+  match read_src_val pmap lmap s with
+  | Vu64(u) -> u
+  | Varr(_) ->
+    failwith_ "read_src: expected u64, got array for %a"
+      pp_src s
+
 let read_src ms = read_src_ ms.m_pmap ms.m_lmap
 
-let write_lvar v s oidx x =
-  match v, oidx with
-  | None, None -> Vu64(x)
-  | Some(Vu64(_)), None -> Vu64(x)
-  | None, Some(i) ->
-    Varr(U64.Map.singleton i x)
-  | Some(Varr(vs)),Some(i) ->
-    Varr(Map.add vs ~key:i ~data:x)
-  | Some(Vu64(_)), Some(_) ->
+let write_lvar ov s oidx v =
+  match ov, oidx, v with
+  | _,             None   , _       -> v
+  | None,          Some(i), Vu64(u) -> Varr(U64.Map.singleton i u)
+  | Some(Varr(vs)),Some(i), Vu64(u) -> Varr(Map.add vs ~key:i ~data:u)
+  | _,             Some(_), Varr(_) ->
+    failwith_ "write_lvar: cannot write array to %s[%a]"
+      s (pp_opt "_" pp_uint64) oidx
+  | Some(Vu64(_)), Some(_), _ ->
     failwith_ "write_lvar: expected array, got u64 in %s[%a]"
       s (pp_opt "_" pp_uint64) oidx
-  | Some(Varr(_)),None ->
-    failwith_ "write_lvar: expected u64, got array (not fully applied) in %s[%a]"
-      s (pp_opt "_" pp_uint64) oidx
 
-let write_dest_ pmap lmap d x =
+let write_dest_ pmap lmap d v =
   let s    = d.d_name in
-  let v    = Map.find lmap s in
+  let ov   = Map.find lmap s in
   let oidx = Option.map d.d_oidx ~f:(eval_pexpr pmap) in
   (* F.printf "###: %a\n%!" pp_value v; *)
-  let v'   = write_lvar v s oidx x in
+  let nv   = write_lvar ov s oidx v in
   (* F.printf "###: %a\n%!" pp_value v'; *)
-  Map.add lmap ~key:s ~data:v'
+  Map.add lmap ~key:s ~data:nv
 
 let write_dest ms d x =
   { ms with m_lmap = write_dest_ ms.m_pmap ms.m_lmap d x }
+
+let write_dest_u64 ms d u = write_dest ms d (Vu64(u))
 
 let read_flag ms s =
   match s with
@@ -245,8 +204,8 @@ let interp_op (ms : mstate) z x y = function
     let x = read_src ms x in
     let y = read_src ms y in
     let (zh,zl) = U64.umul x y in
-    let ms = write_dest ms z zl in
-    write_dest ms h zh
+    let ms = write_dest_u64 ms z zl in
+    write_dest_u64 ms h zh
 
   | Carry(cop,mcf_out,mcf_in) ->
     let cf =
@@ -259,7 +218,7 @@ let interp_op (ms : mstate) z x y = function
       | O_Add -> U64.add_carry x y cf
       | O_Sub -> U64.sub_carry x y cf
     in
-    let ms = write_dest ms z zo in
+    let ms = write_dest_u64 ms z zo in
     begin match mcf_out with
     | Some cf_out -> write_flag ms cf_out cfo
     | None        -> ms
@@ -270,40 +229,52 @@ let interp_op (ms : mstate) z x y = function
     let s2 = read_src ms y in
     let cf = read_flag ms cf_in in
     let res = if cf = cf_is_set then s2 else s1 in
-    write_dest ms z res
+    write_dest_u64 ms z res
 
   | ThreeOp(O_Imul) ->
     if not (is_Simm y) then
-      failwith_ "expected immediate value for %a in IMul" pp_src_e y;
+      failwith_ "expected immediate value for %a in IMul" pp_src y;
     let x = read_src ms x in
     let y = read_src ms y in
-    write_dest ms z (fst (U64.imul_trunc x y))
+    write_dest_u64 ms z (fst (U64.imul_trunc x y))
     
-  | ThreeOp(O_And|O_Xor) ->
-    failwith "not implemented"
+  | ThreeOp(O_And) ->
+    let x = read_src ms x in
+    let y = read_src ms y in
+    write_dest_u64 ms z (U64.logand x y)
 
-  | Shift(_dir,_mcf_out) ->
-    failwith "not implemented"
+  | ThreeOp(O_Xor) ->
+    let x = read_src ms x in
+    let y = read_src ms y in
+    write_dest_u64 ms z (U64.logxor x y)
+
+  | Shift(dir,None) ->
+    if not (is_Simm y) then
+      failwith_ "expected immediate value for %a in Shift" pp_src y;
+    let x = read_src ms x in
+    let y = read_src ms y in
+    let op = match dir with Left -> U64.shift_left | Right -> U64.shift_right in
+    write_dest_u64 ms z (op x (U64.to_int y))
+
+  | Shift(_dir,Some(_)) ->
+    failwith "not implemented yet"
+
 
 (* *** Interpret instruction
  * ------------------------------------------------------------------------ *)
 
-let interp_assign pmap ~lhs ~rhs ds0 ss0 =
-  let (tenv_lhs,lmap_lhs) = lhs in
-  let (tenv_rhs,lmap_rhs) = rhs in
-  let ss = List.concat_map ss0 ~f:(fun s -> expand_src  pmap tenv_rhs s) in
-  let ds = List.concat_map ds0 ~f:(fun d -> expand_dest pmap tenv_lhs d) in
+let interp_assign pmap ~lmap_lhs ~lmap_rhs ds ss =
   let ss_ds =
     try List.zip_exn ss ds
     with Invalid_argument _ ->
       failwith_
         "assignment %a = %a failed, lhs and rhs have different dimensions (%a = %a)"
-        (pp_list "," pp_dest) ds0 (pp_list "," pp_src) ss0 (pp_list "," pp_src_e)
-        ss (pp_list "," pp_dest_e) ds
+        (pp_list "," pp_dest) ds (pp_list "," pp_src) ss (pp_list "," pp_src)
+        ss (pp_list "," pp_dest) ds
   in
   List.fold ss_ds
     ~init:lmap_lhs
-    ~f:(fun lmap (s,d) -> write_dest_ pmap lmap d (read_src_ pmap lmap_rhs s))
+    ~f:(fun lmap (s,d) -> write_dest_ pmap lmap d (read_src_val pmap lmap_rhs s))
 
 let rec interp_instr ms0 efun_map instr =
   match instr with
@@ -313,9 +284,7 @@ let rec interp_instr ms0 efun_map instr =
 
   | Binstr(Assgn(d,s)) ->
     let lmap =
-      interp_assign ms0.m_pmap
-        ~lhs:(ms0.m_tenv,ms0.m_lmap) ~rhs:(ms0.m_tenv,ms0.m_lmap)
-        [d] [s]
+      interp_assign ms0.m_pmap ~lmap_lhs:ms0.m_lmap ~lmap_rhs:ms0.m_lmap [d] [s]
     in
     { ms0 with m_lmap = lmap }
 
@@ -354,16 +323,14 @@ and interp_call ms efun_map fname call_rets call_args =
   | Undef      -> failwith "Calling undefined function (only declared)"
 
 and interp_call_python ms func py_code call_rets call_args =
-  let decl_args = List.map func.f_args ~f:dest_of_arg in
+  let decl_args = List.map func.f_args ~f:(fun (_,n,_) -> mk_dest_name n) in
   (** compute lmap for callee *)
   let pmap = ms.m_pmap in
-  let tenv_caller = ms.m_tenv in
   let lmap_caller = ms.m_lmap in
-  let tenv_callee = tenv_of_func func [] in
   let lmap_callee = String.Map.empty in
   let lmap_callee =
     interp_assign pmap
-      ~lhs:(tenv_callee,lmap_callee) ~rhs:(tenv_caller,lmap_caller)
+      ~lmap_lhs:lmap_callee ~lmap_rhs:lmap_caller
       decl_args call_args
   in
   (** execute function body *)
@@ -374,7 +341,7 @@ and interp_call_python ms func py_code call_rets call_args =
   in
   let s_args =
     List.map func.f_args
-      ~f:(fun (s,_) -> fsprintf "%a" pp_value_py (Map.find_exn lmap_callee s))
+      ~f:(fun (_,s,_) -> fsprintf "%a" pp_value_py (Map.find_exn lmap_callee s))
   in    
   let (res,ms) =
     eval_py ms
@@ -382,17 +349,11 @@ and interp_call_python ms func py_code call_rets call_args =
         (pp_list "," pp_string) (s_args@[s_params]))
   in
   let rets = parse_value res in
-  let flatten v =
-    match  v with
-    | Varr(m) ->
-      List.map ~f:snd (List.sort ~cmp:(fun a b -> compare (fst a) (fst b)) (Map.to_alist m))
-    | Vu64 u -> [u]
-  in
   (** store result *)
-  let ds = List.concat_map call_rets ~f:(fun d -> expand_dest pmap tenv_caller d) in
-  let ss_ds =
-    try List.zip_exn (flatten rets) ds
-    with Invalid_argument _ -> assert false
+  let ss_ds = match call_rets with
+    | [ds] -> [ (rets,ds) ]
+    | []   -> []
+    | _    -> assert false
   in
   let lmap_caller =
     List.fold ss_ds
@@ -402,8 +363,8 @@ and interp_call_python ms func py_code call_rets call_args =
   { ms with m_lmap = lmap_caller; }
 
 and interp_call_native ms efun_map func fdef call_rets call_args =
-  let decl_args = List.map func.f_args ~f:dest_of_arg in
-  let decl_rets = List.map fdef.fd_ret ~f:(fun d -> Src d) in
+  let decl_args = List.map func.f_args ~f:(fun (_,name,_) -> mk_dest_name name) in
+  let decl_rets = List.map fdef.fd_ret ~f:(fun n -> Src(mk_dest_name n)) in
   (** setup mstate for called function *)
   let pmap = ms.m_pmap in
   let tenv_caller = ms.m_tenv in
@@ -414,7 +375,7 @@ and interp_call_native ms efun_map func fdef call_rets call_args =
   let fmap_callee = String.Map.empty in
   let lmap_callee =
     interp_assign pmap
-      ~lhs:(tenv_callee,lmap_callee) ~rhs:(tenv_caller,lmap_caller)
+      ~lmap_lhs:lmap_callee ~lmap_rhs:lmap_caller
       decl_args call_args
   in
   let ms = (* keep pmap and mmap *)
@@ -426,7 +387,7 @@ and interp_call_native ms efun_map func fdef call_rets call_args =
   let lmap_callee = ms.m_lmap in
   let lmap_caller =
     interp_assign pmap
-      ~lhs:(tenv_caller,lmap_caller) ~rhs:(tenv_callee,lmap_callee)
+      ~lmap_lhs:lmap_caller ~lmap_rhs:lmap_callee
       call_rets decl_rets
   in
   { ms with m_lmap = lmap_caller; m_fmap = fmap_caller; m_tenv = tenv_caller }
@@ -458,7 +419,10 @@ let interp_modul
     failwith_ "interp_string: wrong number of arguments given (got %i, exp. %i)"
       (List.length args) (List.length f_args);
   (* FIXME: typecheck arguments and parameters *)
-  let lmap = String.Map.of_alist_exn (List.zip_exn (List.map f_args ~f:fst) args) in
+  let lmap =
+    String.Map.of_alist_exn
+      (List.zip_exn (List.map f_args ~f:(fun (_,n,_) -> n)) args)
+  in
   let fmap = String.Map.of_alist_exn [] in
   let tenv = tenv_of_func func fdef.fd_decls in
   let pst =

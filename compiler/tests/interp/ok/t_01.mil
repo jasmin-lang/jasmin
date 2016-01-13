@@ -1,27 +1,31 @@
 param n : u64;
 
-fn print(x : u64<n>) = python print_u64_arr;
+fn print(stack x : u64[n]) = python print_u64_arr;
 
-fn rand_arr(s : u64) -> u64<n> = python rand_25519;
+fn rand_arr(stack s : u64) -> stack u64[n] = python rand;
 
-fn assert_equal(x : u64<n>, y : u64<n>) = python assert_equal;
+fn assert_equal(stack x, y : u64[n]) = python assert_equal;
 
-fn bar(u : u64<2>) -> u64<2> {
-  u<0> = 15 + u<0>;
-  u<1> = 17 + u<1>;
-  return u<..>;
+
+fn bar(stack u : u64[2]) -> stack u64[2] {
+  u[0] = 15 + u[0];
+  u[1] = 17 + u[1];
+  return u;
 }
 
-fn test_fun(y : u64[n]) {
-  reg x : u64<n,n>[n];
-  reg z : u64<n>;
+fn test_fun(stack y : u64[n]) {
+  reg x : u64[n];
+  reg z : u64[n];
+  reg w : u64[2];
 
-  z<..> = rand_arr(1);
-  x<0,0>[..] = z<..>;
+  z = rand_arr(1);
+  //x = z;
   
-  print(z<..>);
-  // z<0> = 1;
-  assert_equal(z<..>,x<0,0>[..]);
-  z<..2> = bar(z<..2>);
-  // print(x<0..n>);
+  //print(z);
+  //z<0> = 1;
+  //assert_equal(z,x);
+  //w[0] = z[0];
+  //w[1] = z[1];
+  //w = bar(w);
+  //print(x<0..n>);
 }

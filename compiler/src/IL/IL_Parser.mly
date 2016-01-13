@@ -132,15 +132,16 @@ pcond :
 
 (* -------------------------------------------------------------------- *)
 (* * Sources and destinations *)
-
+(*
 dest_index :
 | ce=pexpr                 { Get(ce) }
 | lb=pexpr DOTDOT ub=pexpr { All(Some lb,Some ub) }
 | DOTDOT                   { All(None,None) }
 | DOTDOT ub=pexpr          { All(None,Some ub) }
+*)
 
 %inline dest_get:
-| LBRACK idx = dest_index RBRACK { idx }
+| LBRACK idx = pexpr RBRACK { idx }
 
 %inline dest_noloc :
 | s=ID idx = dest_get?
@@ -153,9 +154,10 @@ dest_index :
       { d with d_loc = loc} }
 
 src :
-| d=dest       { Src(d)                       }
-| DOLLAR i=ID  { Imm(Pvar(i))                 }
-| i=INT        { Imm(Pconst(U64.of_string i)) }
+| d=dest                       { Src(d)                       }
+| DOLLAR i=ID                  { Imm(Pvar(i))                 }
+| DOLLAR LPAREN i=pexpr RPAREN { Imm(i)                       }
+| i=INT                        { Imm(Pconst(U64.of_string i)) }
 
 (* -------------------------------------------------------------------- *)
 (* * Operators and assignments *)
@@ -241,12 +243,10 @@ stmt :
 (* * Function definitions *)
 
 return :
-| RETURN ret=tuple(dest) SEMICOLON { ret }
+| RETURN ret=tuple(ID) SEMICOLON { ret }
 
 typ_dim :
-| LESS dim=pexpr GREATER  { (dim,Reg)   }
-| LBRACK dim=pexpr RBRACK { (dim,Array) }
-
+| LBRACK dim=pexpr RBRACK { (dim) }
 
 typ :
 | T_U64  odim=typ_dim? { U64(odim) }
@@ -256,20 +256,22 @@ typed_vars :
 | vs=separated_nonempty_list(COMMA,ID) COLON t=typ
     { Std.List.map ~f:(fun v -> (v,t)) vs }
 
-%inline decl_type:
-| REG   { REG   }
-| STACK { STACK }
-| FLAG  { FLAG  }
+%inline storage:
+| REG   { Reg   }
+| STACK { Stack }
+| FLAG  { Flag  }
 
 decl :
-| _d=decl_type trs=typed_vars  { trs }
+| sto=storage trs=typed_vars  { Std.List.map ~f:(fun (n,t) -> (sto,n,t)) trs }
+
+stor_typ :
+| sto=storage ty=typ { (sto,ty) }
 
 ret_ty :
-| LARROW tys=separated_list(STAR,typ) { tys }
+| LARROW tys=separated_list(STAR,stor_typ) { tys }
 
 decls :
-| ds=terminated_list(SEMICOLON,decl)
-    { ds }
+| ds=terminated_list(SEMICOLON,decl) { ds }
 
 %inline func_body :
 | LCBRACE
@@ -285,7 +287,7 @@ decls :
 
 func :
 | ext=EXTERN? FN name=ID
-    args = paren_tuple(typed_vars)
+    args = paren_tuple(decl)
     rty  = ret_ty?
     def  = func_body
     { mk_func $startpos $endpos rty name ext args def }

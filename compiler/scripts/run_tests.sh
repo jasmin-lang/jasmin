@@ -76,6 +76,7 @@ function run_tests() {
 
 run_tests "tests/parser" ""
 run_tests "tests/typing" "typecheck"
+run_tests "tests/interp" "interp[n=4][][test_fun][[2,3,4,5]]"
 
 #echo "###################################################################"
 #echo "Running tests for examples/25519-4limb/ladderstep.mil"

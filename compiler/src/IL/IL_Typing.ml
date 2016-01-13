@@ -28,7 +28,7 @@ type env = {
 }
 
 let tenv_of_func func decls =
-  String.Map.of_alist_exn (func.f_args @ decls)
+  String.Map.of_alist_exn (List.map ~f:(fun (_,m,t) -> (m,t)) (func.f_args@decls))
 
 let type_error d s =
  raise (TypeError (d.d_loc,s))
@@ -38,10 +38,10 @@ let type_error d s =
 
 let equiv_ty ty1 ty2 =
   match ty1, ty2 with
-  | Bool, Bool                       -> true
-  | U64(None)      , U64(None)       -> true
-  | U64(Some(d1,_)), U64(Some(d2,_)) -> equal_pexpr d1 d2
-  | _,               _               -> false
+  | Bool, Bool                   -> true
+  | U64(None)      , U64(None)   -> true
+  | U64(Some(d1)), U64(Some(d2)) -> equal_pexpr d1 d2
+  | _,               _           -> false
 
 let get_dim (dim : pexpr) (lb_o,ub_o) =
   let zero = Pconst U64.zero in
@@ -62,10 +62,9 @@ let type_dest_app d ty =
     Bool
   | U64(odim) as ty ->
     begin match odim, d.d_oidx with
-    | _              , None             -> ty
-    | Some (dim,stor), Some(All(lb,ub)) -> U64(Some(get_dim dim (lb,ub),stor))
-    | Some (_,_),      Some(Get(_))     -> U64(None)
-    | None      ,      Some _           ->
+    | _       , None    -> ty
+    | Some (_), Some(_) -> U64(None)
+    | None    , Some _  ->
       type_error d
         (fsprintf "cannot perform array indexing on scalar %s" d.d_name)
     end
@@ -184,8 +183,8 @@ let rec typecheck_instr (env : env) instr =
   | If(_,stmt1,stmt2)             -> tc_stmt stmt1; tc_stmt stmt2
   | Binstr(Call(fname,rets,args)) ->
     let cfun = map_find_exn env.e_fenv pp_string fname in
-    let tc_src s (_,ty_expected) = typecheck_src env s ty_expected in
-    let tc_dest d ty_expected = typecheck_dest env.e_tenv d ty_expected in
+    let tc_src s (_,_,ty_expected) = typecheck_src env s ty_expected in
+    let tc_dest d (_,ty_expected) = typecheck_dest env.e_tenv d ty_expected in
     list_iter2_exn args cfun.f_args ~f:tc_src
       ~err:(fun n_g n_e ->
               failwith_ "wrong number of arguments (got %i, exp. %i)" n_g n_e);
@@ -201,7 +200,8 @@ and typecheck_stmt (env : env) stmt =
 
 (** typecheck return value *)
 let typecheck_ret (env : env) ret_ty ret =
-  List.iter2_exn ret ret_ty ~f:(typecheck_dest env.e_tenv)
+  List.iter2_exn ret ret_ty
+    ~f:(fun name ty -> typecheck_dest env.e_tenv (mk_dest_name name) ty)
 
 (** typecheck the given function *)
 let typecheck_func (penv : penv) (fenv : fenv) func =
@@ -214,14 +214,14 @@ let typecheck_func (penv : penv) (fenv : fenv) func =
     in
     let env  = { e_penv = penv; e_fenv = fenv; e_tenv = tenv } in
     typecheck_stmt env fdef.fd_body;
-    typecheck_ret env func.f_ret_ty fdef.fd_ret
+    typecheck_ret env (List.map ~f:snd func.f_ret_ty) fdef.fd_ret
 
 (** typecheck all functions in module *)
 let typecheck_modul modul =
   let funcs = modul.m_funcs in
   let fenv = String.Map.of_alist_exn (List.map funcs ~f:(fun func -> (func.f_name, func))) in
   let penv = String.Map.of_alist_exn modul.m_params in
-  let pvars = pvars_modul pvars_get_or_range modul in
+  let pvars = pvars_modul modul in
   Set.iter pvars
     ~f:(fun pv -> if not (Map.mem penv pv) then
                     raise (TypeError(P.dummy_loc,fsprintf "parameter %s undefined" pv))); 
