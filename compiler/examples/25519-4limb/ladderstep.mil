@@ -6,14 +6,14 @@ param rem_p : u64; /* 2^(n*64) mod p      */
 // ** addition
 // ************************************************************************
 
-fn add(reg x : u64[n], stack yp : u64[n]) -> reg u64[n] {
+fn add(reg x : u64[n], stack ya : u64[n]) -> reg u64[n] {
 
   reg  y : u64[n];
   reg  add0, add1 : u64;
   flag cf : bool;
 
   for i in 0..n {
-    y[i] = yp[i];
+    y[i] = ya[i];
     if (i = 0) { cf, x[0] += y[0]; }
     else       { cf, x[i] += y[i] + cf; }
   }
@@ -39,14 +39,14 @@ fn add(reg x : u64[n], stack yp : u64[n]) -> reg u64[n] {
 // ** subtraction
 // ************************************************************************
 
-fn sub(reg x : u64[n], stack yp : u64[n]) -> reg u64[n] {
+fn sub(reg x : u64[n], stack ya : u64[n]) -> reg u64[n] {
 
   reg  y : u64[n];
   reg  sub0, sub1 : u64;
   flag cf : bool;
 
   for i in  0..n {
-    y[i] = yp[i];
+    y[i] = ya[i];
     if i = 0 {
       cf, x[0] -= y[0];
     } else {
@@ -114,7 +114,7 @@ fn reduce(reg z : u64[n*2]) -> reg u64[n*2] {
 // ** multiplication
 // ************************************************************************
 
-fn mul(stack xp, yp : u64[n]) -> reg u64[n] {
+fn mul(stack xa, ya : u64[n]) -> reg u64[n] {
 
   reg z    : u64[n*2];
   reg r    : u64[n];
@@ -123,9 +123,9 @@ fn mul(stack xp, yp : u64[n]) -> reg u64[n] {
   reg cf : bool;
 
 
-  x[0] = xp[0];
+  x[0] = xa[0];
   for j in 0..n {
-    y[j] = yp[j];
+    y[j] = ya[j];
     h, l = y[j] * x[0];
 
     if j = 0 {
@@ -139,9 +139,9 @@ fn mul(stack xp, yp : u64[n]) -> reg u64[n] {
   }
 
   for i in 1..n {
-    x[i] = xp[i];
+    x[i] = xa[i];
     for j in 0..n {
-      y[j] = yp[j];
+      y[j] = ya[j];
       h, l = y[j] * x[i];
       cf, z[i+j] += l;
       if j = 0 {
@@ -170,7 +170,7 @@ fn mul(stack xp, yp : u64[n]) -> reg u64[n] {
 // ** squaring
 // ************************************************************************
 
-fn square(stack xp : u64[n]) -> reg u64[n] {
+fn square(stack xa : u64[n]) -> reg u64[n] {
 
   reg z : u64[n*2];
   reg r : u64[n];
@@ -183,32 +183,32 @@ fn square(stack xp : u64[n]) -> reg u64[n] {
   /*   2*x01 + 2*x02 + 2*x03 + 2*x12 + 2*x13 + 2*x23
      + x00 + x11 + x22 + x33 */
   
-  rax = xp[1];
-  rdx, rax = rax * xp[0];
+  rax = xa[1];
+  rdx, rax = rax * xa[0];
   z[1] = rax;
   z[2] = rdx;
 
-  rax = xp[2];
-  rdx, rax = rax * xp[1];
+  rax = xa[2];
+  rdx, rax = rax * xa[1];
   z[3] = rax;
   z[4] = rdx;
 
-  rax = xp[3];
-  rdx, rax = rax * xp[2];
+  rax = xa[3];
+  rdx, rax = rax * xa[2];
   z[5] = rax;
   z[6] = rdx;
 
   /*   [2*]x01 + 2*x02 + 2*x03 + [2*]x12 + 2*x13 + [2*]x23
      + x00 + x11 + x22 + x33 */
 
-  rax = xp[2];
-  rdx, rax = rax * xp[0];
+  rax = xa[2];
+  rdx, rax = rax * xa[0];
   cf, z[2] += rax;
   cf, z[3] += rdx + cf;
       z[4] += 0   + cf;
 
-  rax = xp[3];
-  rdx, rax = rax * xp[1];
+  rax = xa[3];
+  rdx, rax = rax * xa[1];
   cf, z[4] += rax;
   cf, z[5] += rdx + cf;
       z[6] += 0   + cf;
@@ -216,8 +216,8 @@ fn square(stack xp : u64[n]) -> reg u64[n] {
   /*   [2*]x01 + [2*]x02 + 2*x03 + [2*]x12 + [2*]x13 + [2*]x23
      + x00 + x11 + x22 + x33 */
 
-  rax = xp[3];
-  rdx, rax = rax * xp[0];
+  rax = xa[3];
+  rdx, rax = rax * xa[0];
   cf, z[3] += rax;
   cf, z[4] += rdx + cf;
   cf, z[5] += 0   + cf;
@@ -239,23 +239,23 @@ fn square(stack xp : u64[n]) -> reg u64[n] {
 
   /* x00 + x11 + x22 + x33 */
 
-  rax = xp[0];
-  rdx, rax = rax * xp[0];
+  rax = xa[0];
+  rdx, rax = rax * xa[0];
   z[0] = rax;
   t[1] = rdx;
 
-  rax = xp[1];
-  rdx, rax = rax * xp[1];
+  rax = xa[1];
+  rdx, rax = rax * xa[1];
   t[2] = rax;
   t[3] = rdx;
 
-  rax = xp[2];
-  rdx, rax = rax * xp[2];
+  rax = xa[2];
+  rdx, rax = rax * xa[2];
   t[4] = rax;
   t[5] = rdx;
 
-  rax = xp[3];
-  rdx, rax = rax * xp[3];
+  rax = xa[3];
+  rdx, rax = rax * xa[3];
 
   cf, z[1] += t[1];
   cf, z[2] += t[2] + cf;
@@ -265,8 +265,8 @@ fn square(stack xp : u64[n]) -> reg u64[n] {
   cf, z[6] += 0 + cf;
       z[7] += 0 + cf;
 
-  rax = xp[3];
-  rdx, rax = rax * xp[3];
+  rax = xa[3];
+  rdx, rax = rax * xa[3];
   cf, z[6] += rax;
       z[7] += rdx + cf;
 
@@ -435,7 +435,7 @@ fn cswap(stack x2p, z2p, x3p, z3p : u64[n], stack swap : u64)
 // ** montgomery ladder
 // ************************************************************************
 
-fn mladder(stack xr, zr, sp : u64[n]) -> stack u64[n] * stack u64[n] {
+fn mladder(stack xr, sp : u64[n]) -> stack u64[n] * stack u64[n] {
   stack s : u64;
   stack prevbit, bit, swap : u64;
   stack x1,x2,z2,x3,z3 : u64[n];
@@ -477,10 +477,58 @@ fn mladder(stack xr, zr, sp : u64[n]) -> stack u64[n] * stack u64[n] {
   return x2, z2;
 }
 
+// ** inversion
+// ************************************************************************
+
+/*
+fn invert(stack xa : u64[n]) -> stack u64[n] = {
+  return xa;
+}
+*/
+
+// ** packing
+// ************************************************************************
+
+/*
+fn pack(stack xa : u64[n]) -> stack u64[n] = {
+  return xa;
+}
+*/
+
+// ** unpacking
+// ************************************************************************
+
+/*
+fn unpack(reg xa : u64[n]) -> reg u64[n] = {
+  return xa;
+}
+*/
+
 // ** scalar multiplication
 // ************************************************************************
+
 /*
-extern fn scalarmult(rp /* result */, sp /* secret scalar */, pp /* point */ : u64) {
+extern fn scalarmult( reg rp : u64 /* address to store result  */
+                    , reg sp : u64 /* address of secret scalar */
+                    , reg pp : u64 /* address of point         */) {
+  stack ea, ta, za, r : u64[n];
+  reg   r : u64[n];
+
+  // copy values into arrays
+  //for i in 0..n { ea[i] = load sp $(8*i); }
+  //for i in 0..n { ta[i] = load pp $(8*i); }
+
+  // work on arrays
+  ta, za = mladder(ta,za,ea);
+  za = invert(za);
+  r = mul(ta,za);
+  r = pack(r);
+
+  // copy values into memory
+  //for i in 0..n { ea[i] = load sp $(8*i); }
+  //for i in 0..n { ta[i] = load pp $(8*i); }
+
+
 }
 */
 
@@ -501,7 +549,7 @@ fn assert_equal_ladderstep(stack x1,x2,z2,x3,z3,x2_r,z2_r,x3_r,z3_r : u64[n])
 fn assert_equal_ladderstep_tracing(stack x1,x2,z2,x3,z3
      ,l1,l2,l3,l4,l5,l6,l7,l8,l9,l10,l11,l12,l13,l14,l15,l16,l17,l18 : u64[n])
   = python assert_equal_ladderstep_tracing;
-fn assert_equal_mladder(stack xr, zr, sp, xr_r, zr_r : u64[n]) = python assert_equal_mladder;
+fn assert_equal_mladder(stack xr, sp, xr_r, zr_r : u64[n]) = python assert_equal_mladder;
 
 fn test_add() {
   reg x, y_tmp, z : u64[n];
@@ -643,7 +691,7 @@ fn test_swap() {
 }
 
 fn test_mladder() {
-  stack xr, zr : u64[n];
+  stack xr : u64[n];
   stack xr_r, zr_r : u64[n];
   stack sp     : u64[n];
   stack u : u64;
@@ -652,13 +700,12 @@ fn test_mladder() {
   sp[2] = 0x5555555555555555;
   sp[3] = 0xfffffffffffffffe;
   //print_arr(sp); print_newline();
-  for i in 0..999 {
+  for i in 0..99 {
     u = $i;
     print_u64(u);
     xr = rand_arr(u); u += 1;
-    zr = rand_arr(u); u += 1;
-    xr_r, zr_r = mladder(xr,zr,sp);
-    assert_equal_mladder(xr,zr,sp,xr_r,zr_r);
+    xr_r, zr_r = mladder(xr,sp);
+    assert_equal_mladder(xr,sp,xr_r,zr_r);
   }
 }
 
@@ -678,4 +725,5 @@ fn test() {
   test_swap();
   print_newline();
   test_mladder();
+  print_newline();
 }

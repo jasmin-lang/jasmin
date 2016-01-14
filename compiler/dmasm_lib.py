@@ -225,7 +225,7 @@ def test_mladder():
     check_equal("xr",xr_1,xr_2)
     check_equal("zr",zr_1,zr_2)
 
-def assert_equal_mladder(xr,zr,sp,xr_r,zr_r,param):
+def assert_equal_mladder(xr,sp,xr_r,zr_r,param):
   xr = to_big_int(xr)
   sp = from_digits(two64,sp)
   (xr_s,zr_s) = mladder_opt(xr,sp)
