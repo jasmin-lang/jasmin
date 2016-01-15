@@ -157,7 +157,8 @@ let sage_dir =
   with Not_found ->
     failwith "Set environment variable SAGE_DIR to sage directory (containing bin/sage)"
 
-let py_cmd = sage_dir^"/bin/sage -python -i"
+(* let py_cmd = sage_dir^"/bin/sage -python -i" *)
+let py_cmd = "/usr/bin/python -i"
 
 let start_py () =
   let (c_in, c_out) = Unix.open_process py_cmd in
