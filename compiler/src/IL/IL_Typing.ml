@@ -181,6 +181,12 @@ let rec typecheck_instr (env : env) instr =
   | Binstr(Op(op,d,(s1,s2)))      -> tc_op op d s1 s2
   | Binstr(Assgn(d,s))            -> tc_assgn d s
   | If(_,stmt1,stmt2)             -> tc_stmt stmt1; tc_stmt stmt2
+  | Binstr(Load(d,s,pe))          ->
+    type_src_eq  env s T_U64;
+    type_dest_eq env d T_U64
+  | Binstr(Store(s1,pe,s2))       ->
+    type_src_eq env s1 T_U64;
+    type_src_eq env s2 T_U64
   | Binstr(Call(fname,rets,args)) ->
     let cfun = map_find_exn env.e_fenv pp_string fname in
     let tc_src s (_,_,ty_expected) = typecheck_src env s ty_expected in

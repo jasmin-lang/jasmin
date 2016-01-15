@@ -45,6 +45,7 @@ rule lex = parse
   | ">>="   { SHREQ }
   | "<<="   { SHLEQ }
   | "^="    { XOREQ }
+  | "|="    { OREQ  }
 
   | "-"     { MINUS }
   | "*"     { STAR }
@@ -58,12 +59,14 @@ rule lex = parse
   | ">>"    { SHR }
   | "<<"    { SHL }
   | "^"     { XOR }
+  | "|"     { OR }
   | "$"     { DOLLAR }
 
   | "reg"    { REG }
   | "stack"  { STACK }
   | "flag"   { FLAG }
   | "param"  { PARAM }
+  | "MEM"     { MEM }
 
   | "for"    { FOR }
   | "in"     { IN }
@@ -78,7 +81,7 @@ rule lex = parse
   | ('-'? ['0'-'9']+) as s { INT(s) }
   | ("0x" ['0'-'9' 'a'-'f' '_']+) as s { INT(s) }
 
-  | ['a'-'z' 'A'-'Z' '_' '0'-'9']* as s
+  | ['a'-'z']['a'-'z' 'A'-'Z' '_' '0'-'9']* as s
     { ID s }
 
 and comment = parse

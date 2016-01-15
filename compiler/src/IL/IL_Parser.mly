@@ -22,7 +22,7 @@ module L = Lexing
 %token LESS
 %token GREATER
 %token GEQ
-%token SHREQ SHLEQ XOREQ
+%token SHREQ SHLEQ XOREQ OREQ
 %token COLON
 %token LARROW
 %token DOLLAR
@@ -37,9 +37,7 @@ module L = Lexing
 %token LAND
 %token SEMICOLON
 %token EXCL DOTDOT COMMA
-%token SHR
-%token SHL
-%token XOR
+%token SHR SHL XOR OR
 
 %token REG FLAG PARAM STACK
 
@@ -54,6 +52,8 @@ module L = Lexing
 %token FN
 %token PYTHON
 %token RETURN
+
+%token MEM
 
 %token <string> ID 
 %token <string> INT
@@ -170,6 +170,7 @@ binop:
 | BAND  { `And }
 | XOR   { `Xor }
 | STAR  { `Mul }
+| OR    { `Or }
 
 opeq:
 | PLUSEQ  { `Add }
@@ -178,6 +179,7 @@ opeq:
 | SHLEQ   { `Shift(Left) }
 | BANDEQ  { `And }
 | XOREQ   { `Xor } 
+| OREQ    { `Or } 
 | MULEQ   { `Mul }
 
 (* -------------------------------------------------------------------- *)
@@ -199,19 +201,21 @@ opeq:
 | fname=ID args=tuple(src)
     { `Call(fname, args) }
 
+| MEM LBRACK ptr = src PLUS pe = pexpr RBRACK
+    { `Load(ptr,pe) }
 
 %inline opeq_rhs:
-| s = src
-    { fun op d -> `BinOp(op,Src(d),s) }
-
-| s2=src op2=binop s3=src
-    { fun op1 d -> `TernaryOp(op1,op2,Src(d),s2,s3) }
+| s = src                 { fun op d -> `BinOp(op,Src(d),s) }
+| s2=src op2=binop s3=src { fun op1 d -> `TernaryOp(op1,op2,Src(d),s2,s3) }
 
 
 instr :
 | ds=tuple_nonempty(dest) EQ rhs=loc(assgn_rhs) SEMICOLON
     { mk_instr ds rhs }
- 
+
+| MEM LBRACK ptr = src PLUS pe = pexpr RBRACK EQ s = src SEMICOLON
+    { Binstr(mk_store ptr pe s) }
+
 | ds=tuple_nonempty(dest) op=opeq rhs_loc=loc(opeq_rhs) SEMICOLON
     { let (rhs_fun,loc) = rhs_loc in
       let rhs = rhs_fun op (Std.List.last_exn ds) in

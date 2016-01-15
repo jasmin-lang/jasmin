@@ -95,7 +95,8 @@ type cmov_flag = CfSet of bool with sexp, compare
 
 type dir      = Left   | Right         with sexp, compare
 type carry_op = O_Add  | O_Sub         with sexp, compare
-type three_op = O_Imul | O_And | O_Xor with sexp, compare
+type three_op = O_Imul | O_And | O_Xor | O_Or
+  with sexp, compare
 
 type op =
   | ThreeOp of three_op
@@ -122,8 +123,14 @@ type base_instr =
     (* Op(o,d,(s1,s2)): d = o s1 s2
        o can contain additional dests and srcs *)
 
-  | Call of string * dest list * src list
+  | Call of name * dest list * src list
     (* Call(fname,rets,args): rets = fname(args) *)
+
+  | Load of dest * src * pexpr
+    (* Load(d,src,pe): d = MEM[src + pe] *)
+
+  | Store of src * pexpr * src
+    (* Store(src1,pe,src2): MEM[src1 + pe] = src2 *) 
 
   | Comment of string
     (* Comment(s): /* s */ *)

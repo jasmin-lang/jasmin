@@ -238,15 +238,20 @@ let interp_op (ms : mstate) z x y = function
     let y = read_src ms y in
     write_dest_u64 ms z (fst (U64.imul_trunc x y))
     
-  | ThreeOp(O_And) ->
+  | ThreeOp(O_Xor | O_And | O_Or as o) ->
     let x = read_src ms x in
     let y = read_src ms y in
-    write_dest_u64 ms z (U64.logand x y)
-
-  | ThreeOp(O_Xor) ->
-    let x = read_src ms x in
-    let y = read_src ms y in
-    write_dest_u64 ms z (U64.logxor x y)
+    let f_op =
+      match o with
+      | O_Xor -> U64.logxor
+      | O_And -> U64.logand
+      | O_Or  ->
+        (* F.printf "\n## %a or %a = %a\n%!" pp_uint64 x pp_uint64 y pp_uint64
+          (U64.logor x y); *)
+        U64.logor
+      | _     -> failwith "impossible"
+    in
+    write_dest_u64 ms z (f_op x y)
 
   | Shift(dir,None) ->
     if not (is_Simm y) then
@@ -277,6 +282,8 @@ let interp_assign pmap ~lmap_lhs ~lmap_rhs ds ss =
     ~f:(fun lmap (s,d) -> write_dest_ pmap lmap d (read_src_val pmap lmap_rhs s))
 
 let rec interp_instr ms0 efun_map instr =
+  (* F.printf "\ninstr: %a\n%!" pp_instr instr;
+     print_mstate ms0; *)
   match instr with
 
   | Binstr(Comment(_)) ->
@@ -287,6 +294,19 @@ let rec interp_instr ms0 efun_map instr =
       interp_assign ms0.m_pmap ~lmap_lhs:ms0.m_lmap ~lmap_rhs:ms0.m_lmap [d] [s]
     in
     { ms0 with m_lmap = lmap }
+
+  | Binstr(Load(d,s,pe)) ->
+    let ptr = read_src ms0 s in
+    let c = eval_pexpr ms0.m_pmap pe in
+    let v = map_find_exn ms0.m_mmap pp_uint64 (U64.add c ptr) in
+    write_dest ms0 d (Vu64 v)
+
+  | Binstr(Store(s1,pe,s2)) ->
+    let v = read_src ms0 s2 in
+    let ptr = read_src ms0 s1 in
+    let c = eval_pexpr ms0.m_pmap pe in
+    { ms0 with
+      m_mmap = Map.add ms0.m_mmap ~key:(U64.add ptr c) ~data:v }
 
   | Binstr(Op(o,d,(s1,s2))) ->
     interp_op ms0 d s1 s2 o

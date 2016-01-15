@@ -83,6 +83,12 @@ let pvars_op = function
 let pvars_base_instr = function
   | Comment(_) ->
     String.Set.empty
+  | Load(d,s,pe) ->
+    String.Set.union (pvars_pexpr pe)
+      (String.Set.union (pvars_dest d) (pvars_src s))
+  | Store(s1,pe,s2) ->
+    String.Set.union (pvars_pexpr pe)
+      (String.Set.union (pvars_src s1) (pvars_src s2))
   | Assgn(d,s) ->
     String.Set.union (pvars_dest d) (pvars_src s)
   | Op(o,d,(s1,s2)) ->
@@ -196,16 +202,20 @@ let pp_ty fmt ty =
 
 let string_of_carry_op = function O_Add -> "+" | O_Sub -> "-"
 
+let pp_three_op fmt o = 
+  pp_string fmt
+    (match o with
+     | O_Imul -> "*"
+     | O_And  -> "&"
+     | O_Xor  -> "^"
+     | O_Or   -> "|")
+
 let pp_op fmt (o,d,s1,s2) =
   match o with
   | Umul(d1) ->
     F.fprintf fmt "%a, %a = %a * %a" pp_dest d1 pp_dest d pp_src s1 pp_src s2
-  | ThreeOp(O_Imul) ->
-    F.fprintf fmt "%a = %a * %a" pp_dest d pp_src s1 pp_src s2
-  | ThreeOp(O_And) ->
-    F.fprintf fmt "%a = %a & %a" pp_dest d pp_src s1 pp_src s2
-  | ThreeOp(O_Xor) ->
-    F.fprintf fmt "%a = %a ^ %a" pp_dest d pp_src s1 pp_src s2
+  | ThreeOp(o) ->
+    F.fprintf fmt "%a = %a %a %a" pp_dest d pp_src s1 pp_three_op o pp_src s2
   | Carry(cfo,od1,os3) ->
     let so = string_of_carry_op cfo in
     F.fprintf fmt "%a%a = %a %s %a%a"
@@ -241,6 +251,8 @@ let pp_op fmt (o,d,s1,s2) =
 let pp_base_instr fmt bi =
   match bi with
   | Comment(s)      -> F.fprintf fmt "/* %s */" s
+  | Load(d,s,pe)    -> F.fprintf fmt "%a = MEM[%a + %a];" pp_dest d pp_src s pp_pexpr pe
+  | Store(s1,pe,s2) -> F.fprintf fmt "MEM[%a + %a] = %a;" pp_src s1 pp_pexpr pe pp_src s2
   | Assgn(d1,s1)    -> F.fprintf fmt "%a = %a;" pp_dest d1 pp_src s1
   | Op(o,d,(s1,s2)) -> F.fprintf fmt "%a;" pp_op (o,d,s1,s2)
   | Call(name,[],args) ->
@@ -448,6 +460,8 @@ let mk_if c i1s mi2s ies =
   in
   If(c,i1s,ielse)
 
+let mk_store ptr pe src = Store(ptr,pe,src)
+
 let mk_ternop pos (dests : dest list) op op2 s1 s2 s3 =
   let fail = failpos pos in
   if op<>op2 then fail "operators must be equal";
@@ -466,9 +480,9 @@ let mk_ternop pos (dests : dest list) op op2 s1 s2 s3 =
     let d1 = get_one_dest "add/sub" dests in
     Op(Carry(op,d1,s3),d,(s1,s2))
 
-  | (`And | `Xor) as op  ->
+  | (`And | `Xor | `Or) as op  ->
     if dests<>[] then fail "invalid destination for and/xor";
-    let op = match op with `And -> O_And | `Xor -> O_Xor in
+    let op = match op with `And -> O_And | `Xor -> O_Xor | `Or -> O_Or in
     Op(ThreeOp(op),d,(s1,s2))
 
   | `Shift(dir) ->
@@ -493,7 +507,9 @@ let mk_instr (dests : dest list) (rhs,pos) : instr =
   match dests, rhs with
   | _,   `Call(fname,args)          -> Binstr(Call(fname,dests,args))
   | [d], `Assgn(src)                -> Binstr(Assgn(d,src))
+  | [d], `Load(src,pe)              -> Binstr(Load(d,src,pe))
   | _,   `BinOp(o,s1,s2)            -> Binstr(mk_ternop pos dests o  o  s1 s2 None)
   | _,   `TernaryOp(o1,o2,s1,s2,s3) -> Binstr(mk_ternop pos dests o1 o2 s1 s2 (Some s3))
   | _,   `Cmov(s,cf,flg)            -> Binstr(mk_cmov pos dests s cf flg)
+  | _,   `Load(_,_)                 -> failpos pos "load expects exactly one destination"
   | _,   `Assgn(_)                  -> failpos pos "assignment expects exactly one destination"
