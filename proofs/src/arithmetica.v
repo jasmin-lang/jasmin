@@ -68,6 +68,9 @@ Inductive stmt : Type :=
   | SStore  of sexpr & sexpr.
 
 (* -------------------------------------------------------------------- *)
+Definition stype_eqMixin := comparableClass (@LEM stype).
+Canonical  stype_eqType  := Eval hnf in EqType stype stype_eqMixin.
+
 Definition sexpr_eqMixin := comparableClass (@LEM sexpr).
 Canonical  sexpr_eqType  := Eval hnf in EqType sexpr sexpr_eqMixin.
 
@@ -99,12 +102,30 @@ Inductive bvalue : Type :=
   | VU64   of word
   | VArray of array.
 
+Definition bv2t (bv : bvalue) : stype :=
+  match bv with
+  | VBool  _ => TBool
+  | VU64   _ => TU64
+  | VArray _ => TArray 0
+  end.
+
 Notation value := (seq bvalue).
 
 Definition lmem := ident -> option bvalue.
 Definition gmem := word -> word.
 
 Notation mem := (gmem * lmem)%type.
+
+(* -------------------------------------------------------------------- *)
+Definition upd (xv : ident * bvalue) (m : lmem) : option lmem :=
+  if m xv.1 is Some v then
+     if bv2t xv.2 == bv2t v then
+       Some (fun y => Some (if y == xv.1 then xv.2 else v))
+     else None
+  else None.
+
+Definition gupd (sd : word * word) (g : gmem) : gmem :=
+  fun i => if i == sd.1 then sd.2 else g i.
 
 (* -------------------------------------------------------------------- *)
 Definition value_of_ctt (c : sctt) : bvalue :=
@@ -147,21 +168,6 @@ Fixpoint esem (m : lmem) (e : sexpr) : option value :=
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition upd (xv : ident * bvalue) (m : lmem) :=
-  match xv.2, m xv.1 with
-  | VBool _, Some (VBool _) =>
-      Some (fun y => if xv.1 == y then Some xv.2 else m y)
-
-  | VU64 _, Some (VU64 _) =>
-      Some (fun y => if xv.1 == y then Some xv.2 else m y)
-
-  | VArray _, Some (VArray _) =>
-      Some (fun y => if xv.1 == y then Some xv.2 else m y)
-
-  | _, _ => None
-  end.
-
-(* -------------------------------------------------------------------- *)
 Inductive sem : mem -> stmt -> mem -> Prop :=
 | ESkip m : sem m SSkip m
 
@@ -173,15 +179,44 @@ Inductive sem : mem -> stmt -> mem -> Prop :=
     -> size ids = size vs
     -> Some m'  = foldr (fun xv m => obind (upd xv) m) (Some m) (zip ids vs)
     -> sem (g, m) (SAssign ids e) (g, m')
-.
 
-(*
-  | SSkip
-  | SSeq    of stmt & stmt
-  | SAssign of seq ident & sexpr
-  | SCall   of seq ident & ident & seq sexpr
-  | SIf     of sexpr & stmt & stmt
-  | SFor    of ident & (sexpr * sexpr) & stmt
-  | SLoad   of ident & sexpr
-  | SStore  of sexpr & sexpr.
-*)
+| EIfTrue g g' m m' c s1 s2 :
+      esem m c = Some [:: VBool true]
+    -> sem (g, m) s1 (g', m')
+    -> sem (g, m) (SIf c s1 s2) (g', m')
+
+| EIfFalse g g' m m' c s1 s2 :
+      esem m c = Some [:: VBool false]
+    -> sem (g, m) s2 (g', m')
+    -> sem (g, m) (SIf c s1 s2) (g', m')
+
+| EFor g g' m m' x e1 e2 i1 i2 s :
+    (* FIXME: `x` decl. should be added to the memory *)
+
+    let ids := [seq x%:R | x <- iota (w2n i1) (w2n i2 - w2n i1)] in
+      esem m e1 = Some [:: VU64 i1]
+    -> esem m e2 = Some [:: VU64 i2]
+    -> sem_for x ids (g, m) s (g', m')
+    -> sem (g, m) (SFor x (e1, e2) s) (g', m')
+
+| ELoad (g : gmem) (m m' : lmem) x e i :
+      esem m e = Some [:: VU64 i]
+    -> Some m' = upd (x, VU64 (g i)) m
+    -> sem (g, m) (SLoad x e) (g, m')
+
+| EStore (g : gmem) (m : lmem) (s d : sexpr) si di :
+     esem m s = Some [:: VU64 si]
+   -> esem m d = Some [:: VU64 di]
+   -> sem (g, m) (SStore s d) (gupd (si, di) g, m)
+
+with sem_for : ident -> seq word -> mem -> stmt -> mem -> Prop :=
+| EForDone g m s x :
+   sem_for x [::] (g, m) s (g, m)
+
+| EForOne m1 m2 m3 s x i r :
+     let xs := SSeq (SAssign [:: x] (ECtt (CU64 i))) s in
+
+     sem m1 s m2
+   -> sem_for x r m2 xs m3
+   -> sem_for x (i::r) m1 s m3
+.
