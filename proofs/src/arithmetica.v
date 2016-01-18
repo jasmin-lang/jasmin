@@ -28,11 +28,9 @@ Definition obind2 {A B : Type} (f : B -> option B) (v : option (A * B)) :=
   else None.
 
 (* -------------------------------------------------------------------- *)
-(* Definition word := nosimpl 'I_(2^64). FIXME: abstract this *)
-Parameter word : ringType.
+Definition word := nosimpl 'Z_(2^64).
 
-Parameter w2n : word -> nat.
-Parameter wsz : nat.
+Definition w2n (w : word) := (w : nat).
 
 (* -------------------------------------------------------------------- *)
 Module Type IArray.
@@ -177,7 +175,7 @@ Definition eapp (o : sop) (vs : seq bvalue) : option value :=
 
   | OAddCarry, [:: VU64 x; VU64 y; VBool c] =>
       let n : nat := (w2n x + w2n y + c)%N in
-      Some [:: VBool (n < 2^wsz); (VU64 n%:R)]
+      Some [:: VBool (n < 2^64); (VU64 n%:R)]
 
   | _, _ => None
   end.
