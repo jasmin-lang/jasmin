@@ -11,128 +11,177 @@ Import GRing.Theory.
 Open Local Scope ring_scope.
 
 (* -------------------------------------------------------------------- *)
-Goal forall x : int, 1 + 1 = 1 + (x - 1 - x + 2).
-Proof. by move=> x; ssring. Qed.
+Parameter ident : countType.
 
 (* -------------------------------------------------------------------- *)
-Definition u64 := nosimpl 'I_(2 ^ 64).
+Axiom LEM : forall {T : Type}, forall (x y : T), {x=y}+{x<>y}.
 
 (* -------------------------------------------------------------------- *)
-Parameter name : countType.
+(* Definition word := nosimpl 'I_(2^64). FIXME: abstract this *)
+Parameter word : ringType.
 
-Notation pvar := name (only parsing).
-
-Inductive pop_u64 :=
-  Pplus | Pmult | Pminus.
-
-Inductive pop_bool :=
-  Peq | Pineq | Plt | Pleq | Pgt | Pgeq.
-
-Inductive pexpr :=
-| Pvar   of name
-| Pbinop of pop_u64 & pexpr & pexpr
-| Pconst of u64.
-
-Inductive pcond :=
-| Ptrue
-| Pnot  of pcond
-| Pand  of pcond & pcond
-| Pcond of pop_bool & pexpr & pexpr.
+Parameter w2n : word -> nat.
+Parameter wsz : nat.
 
 (* -------------------------------------------------------------------- *)
-Inductive ty :=
-| Bool
-| U64 of seq pexpr & seq pexpr.
+Module Type IArray.
+Parameter T : Type.
 
-Inductive get_or_range :=
-| Get of pexpr
-| All of option pexpr & option pexpr.
-
-Record preg_g T := { pr_name : name; pr_idxs : seq T }.
-Record dest_g T := { d_pr : preg_g T; d_aidxs : seq T }.
-
-Inductive src_g T :=
-| Imm of pexpr
-| Src of dest_g T.
-
-Notation preg_e := (preg_g pexpr).
-Notation src_e  := (src_g  pexpr).
-Notation dest_e := (dest_g pexpr).
+Parameter get : T -> word -> option word.
+Parameter set : T -> word -> word -> option T.
+End IArray.
 
 (* -------------------------------------------------------------------- *)
-Inductive cmov_flag := CfSet of bool.
-Inductive dir       := Left   | Right.
-Inductive carry_op  := O_Add  | O_Sub.
-Inductive three_op  := O_Imul | O_And | O_Xor.
+Module Array : IArray.
+Definition T := (word -> word).
 
-Inductive op :=
-| ThreeOp of three_op
-| Umul    of dest_e
-| Carry   of carry_op & option dest_e & option src_e
-| CMov    of cmov_flag & src_e
-| Shift   of dir & option dest_e.
+Definition get (a : T) (w : word) := Some (a w).
 
-(* -------------------------------------------------------------------- *)
-Section Stmt.
-Variable T : Type.
+Definition set (a : T) (w x : word) :=
+  Some (fun w' => if w == w' then x else a w).
+End Array.
 
-Inductive base_instr_g :=
-| Assgn of dest_g T & src_g T
-| Op    of op & dest_e & (src_e * src_e)
-| Call  of name & seq (dest_g T) & seq (src_g T).
-
-Inductive instr_g :=
-| Binstr of base_instr_g
-| If     of pcond & seq instr_g * seq instr_g
-| For    of pvar  & pexpr * pexpr * seq instr_g.
-End Stmt.
-
-Notation stmt_g T := (seq (instr_g T)).
+Notation array := Array.T.
 
 (* -------------------------------------------------------------------- *)
-Inductive call_conv := Extern | Custom.
+Inductive stype : Type := TBool | TU64 | TArray of nat.
 
-Record fundef_g T := {
-  fd_decls  : seq (name * ty);
-  fd_body   : stmt_g T;
-  fd_ret    : seq (preg_g T)
-}.
+Inductive sop :=
+  OGet | OSet | OAdd | OAddCarry.
 
-Record func_g T := {
-  f_name      : name;
-  f_call_conv : call_conv;
-  f_args      : seq (name * ty);
-  f_def       : option (fundef_g T);
-  f_ret_ty    : seq ty
-}.
+Inductive sctt :=
+  CBool of bool | CU64 of word.
 
-Record modul_g T := {
-  m_params : seq (name * ty);
-  m_funcs  : seq (func_g T)
-}.
+Inductive sexpr : Type :=
+  | ECtt of sctt
+  | EVar of ident
+  | EApp of sop & seq sexpr.
 
-(* ------------------------------------------------------------------------ *)
-Inductive value :=
-| Vu64 of u64
-| Varr of (u64 -> option value).
+Inductive stmt : Type :=
+  | SSkip
+  | SSeq    of stmt & stmt
+  | SAssign of seq ident & sexpr
+  | SCall   of seq ident & ident & seq sexpr
+  | SIf     of sexpr & stmt & stmt
+  | SFor    of ident & (sexpr * sexpr) & stmt
+  | SLoad   of ident & sexpr
+  | SStore  of sexpr & sexpr.
 
 (* -------------------------------------------------------------------- *)
-Notation preg       := (preg_g       get_or_range).
-Notation src        := (src_g        get_or_range).
-Notation dest       := (dest_g       get_or_range).
-Notation base_instr := (base_instr_g get_or_range).
-Notation instr      := (instr_g      get_or_range).
-Notation stmt       := (stmt_g       get_or_range).
-Notation fundef     := (fundef_g     get_or_range).
-Notation func       := (func_g       get_or_range).
-Notation modul      := (modul_g      get_or_range).
+Definition sexpr_eqMixin := comparableClass (@LEM sexpr).
+Canonical  sexpr_eqType  := Eval hnf in EqType sexpr sexpr_eqMixin.
 
 (* -------------------------------------------------------------------- *)
-Notation base_instr_e := (base_instr_g pexpr).
-Notation instr_e      := (instr_g      pexpr).
-Notation stmt_e       := (stmt_g       pexpr).
-Notation func_e       := (func_g       pexpr).
-Notation fun_def_e    := (fundef_g     pexpr).
-Notation modul_e      := (modul_g      pexpr).
+Section SExpr.
+  Variable P : sexpr -> Prop.
 
+  Hypothesis PVar :
+    forall x, P (EVar x).
 
+  Hypothesis PApp :
+    forall o es, (forall e, e \in es -> P e) -> P (EApp o es).
+
+  Lemma sexpr_ind' : forall e, P e.
+  Proof using PVar PApp. admit. Qed.
+End SExpr.
+
+(* -------------------------------------------------------------------- *)
+Definition etype (t : stype) : Type :=
+  match t with
+  | TBool    => bool
+  | TU64     => word
+  | TArray n => (int -> word)
+  end.
+
+(* -------------------------------------------------------------------- *)
+Inductive bvalue : Type :=
+  | VBool  of bool
+  | VU64   of word
+  | VArray of array.
+
+Notation value := (seq bvalue).
+
+Definition lmem := ident -> option bvalue.
+Definition gmem := word -> word.
+
+Notation mem := (gmem * lmem)%type.
+
+(* -------------------------------------------------------------------- *)
+Definition value_of_ctt (c : sctt) : bvalue :=
+   match c with
+   | CBool b => VBool b
+   | CU64  w => VU64  w
+   end.
+
+Definition b2v (v : bvalue) : value := [:: v].
+
+Definition v2b (v : value) :=
+  if v is [:: b] then Some b else None.
+
+Definition eapp (o : sop) (vs : seq bvalue) : option value :=
+  match o, vs with
+  | OGet, [:: VArray a; VU64 i] =>
+      omap (b2v \o VU64) (Array.get a i)
+
+  | OSet, [:: VArray a; VU64 i; VU64 v] =>
+      omap (b2v \o VArray) (Array.set a i v)
+
+  | OAdd, [:: VU64 x; VU64 y] =>
+      Some [:: VU64 (x + y : word)]
+
+  | OAddCarry, [:: VU64 x; VU64 y; VBool c] =>
+      let n : nat := (w2n x + w2n y + c)%N in
+      Some [:: VBool (n < 2^wsz); (VU64 n%:R)]
+
+  | _, _ => None
+  end.
+
+Fixpoint esem (m : lmem) (e : sexpr) : option value :=
+  match e with
+  | ECtt c => Some [:: value_of_ctt c]
+  | EVar x => omap b2v (m x)
+
+  | EApp o es =>
+      let vs := pmap v2b (pmap (esem m) es) in
+      if size vs < size es then None else eapp o vs
+  end.
+
+(* -------------------------------------------------------------------- *)
+Definition upd (xv : ident * bvalue) (m : lmem) :=
+  match xv.2, m xv.1 with
+  | VBool _, Some (VBool _) =>
+      Some (fun y => if xv.1 == y then Some xv.2 else m y)
+
+  | VU64 _, Some (VU64 _) =>
+      Some (fun y => if xv.1 == y then Some xv.2 else m y)
+
+  | VArray _, Some (VArray _) =>
+      Some (fun y => if xv.1 == y then Some xv.2 else m y)
+
+  | _, _ => None
+  end.
+
+(* -------------------------------------------------------------------- *)
+Inductive sem : mem -> stmt -> mem -> Prop :=
+| ESkip m : sem m SSkip m
+
+| ESeq m2 m1 m3 s1 s2 :
+    sem m1 s1 m2 -> sem m2 s2 m3 -> sem m1 (SSeq s1 s2) m3
+
+| EAssign (g : gmem) (m m' : lmem) (ids : seq ident) (e : sexpr) (vs : value) :
+      esem m e = Some vs
+    -> size ids = size vs
+    -> Some m'  = foldr (fun xv m => obind (upd xv) m) (Some m) (zip ids vs)
+    -> sem (g, m) (SAssign ids e) (g, m')
+.
+
+(*
+  | SSkip
+  | SSeq    of stmt & stmt
+  | SAssign of seq ident & sexpr
+  | SCall   of seq ident & ident & seq sexpr
+  | SIf     of sexpr & stmt & stmt
+  | SFor    of ident & (sexpr * sexpr) & stmt
+  | SLoad   of ident & sexpr
+  | SStore  of sexpr & sexpr.
+*)
