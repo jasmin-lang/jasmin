@@ -41,7 +41,7 @@ module L = Lexing
 
 %token REG FLAG PARAM STACK
 
-%token FOR
+%token FOR FORCOLON
 %token IN
 %token IF
 %token ELSE
@@ -185,9 +185,11 @@ opeq:
 (* -------------------------------------------------------------------- *)
 (* * Instructions *)
 
-%inline assgn_rhs:
-| s=src
-    { `Assgn(s) }
+%inline assgn_rhs_eq:
+| s=src { `Assgn(s,Eq) }
+
+%inline assgn_rhs_mv:
+| s=src { `Assgn(s,Mv) }
 
 | s=src IF e=EXCL? cf=dest
     { `Cmov(s,Src(cf),CfSet(e=None)) }
@@ -210,7 +212,10 @@ opeq:
 
 
 instr :
-| ds=tuple_nonempty(dest) EQ rhs=loc(assgn_rhs) SEMICOLON
+| ds=tuple_nonempty(dest) EQ rhs=loc(assgn_rhs_mv) SEMICOLON
+    { mk_instr ds rhs }
+
+| ds=tuple_nonempty(dest) COLON EQ rhs=loc(assgn_rhs_eq) SEMICOLON
     { mk_instr ds rhs }
 
 | MEM LBRACK ptr = src PLUS pe = pexpr RBRACK EQ s = src SEMICOLON
@@ -228,8 +233,10 @@ instr :
     { mk_if c i1s mi2s ies }
 
 | FOR cv=ID IN ce1=pexpr DOTDOT ce2=pexpr is=block
-    { For(cv,ce1,ce2,is) }
+    { For(Unfold,cv,ce1,ce2,is) }
 
+| FORCOLON cv=ID IN ce1=pexpr DOTDOT ce2=pexpr is=block
+    { For(Loop,cv,ce1,ce2,is) }
 
 celse_if :
 | ELIF c=pcond is=block { (c,is) }

@@ -255,8 +255,8 @@ let interp_op (ms : mstate) z x y = function
     write_dest_u64 ms z (f_op x y)
 
   | Shift(dir,None) ->
-    if not (is_Simm y) then
-      failwith_ "expected immediate value for %a in Shift" pp_src y;
+    (* if not (is_Simm y) then
+         failwith_ "expected immediate value for %a in Shift" pp_src y; *)
     let x = read_src ms x in
     let y = read_src ms y in
     let op = match dir with Left -> U64.shift_left | Right -> U64.shift_right in
@@ -290,10 +290,8 @@ let rec interp_instr ms0 efun_map instr =
   | Binstr(Comment(_)) ->
     ms0
 
-  | Binstr(Assgn(d,s)) ->
-    let lmap =
-      interp_assign ms0.m_pmap ~lmap_lhs:ms0.m_lmap ~lmap_rhs:ms0.m_lmap [d] [s]
-    in
+  | Binstr(Assgn(d,s,_)) ->
+    let lmap = interp_assign ms0.m_pmap ~lmap_lhs:ms0.m_lmap ~lmap_rhs:ms0.m_lmap [d] [s] in
     { ms0 with m_lmap = lmap }
 
   | Binstr(Load(d,s,pe)) ->
@@ -318,16 +316,36 @@ let rec interp_instr ms0 efun_map instr =
     else
       interp_stmt ms0 efun_map stmt2
 
-  | For(cv,clb,cub,stmt) ->
+  | For(t,cv,clb,cub,stmt) ->
     let lb = eval_pexpr ms0.m_pmap clb in
     let ub = eval_pexpr ms0.m_pmap cub in
-    assert (U64.compare lb ub < 0);
-    assert (U64.compare ub (U64.of_int Int.max_value) < 0); 
+    let (initial, test, change) =
+      if U64.compare lb ub < 0
+      then (
+        (lb, (fun i -> U64.compare i ub < 0), U64.succ)
+      ) else ( (* 64 .. 0 -> 63,62,..,0 *)
+        assert (U64.compare U64.zero lb < 0);
+        (U64.pred lb, (fun i -> U64.compare i ub >= 0 && U64.compare i lb <= 0 )
+        , U64.pred)
+      )
+    in
+    let update ms i =
+      if t = Unfold then
+        { ms with m_pmap = Map.add ms.m_pmap ~key:cv ~data:i }
+      else
+        { ms with m_lmap = Map.add ms.m_lmap ~key:cv ~data:(Vu64 i) }
+    in
     let old_val = Map.find ms0.m_pmap cv in
     let ms = ref ms0 in
-    for i = U64.to_int lb to U64.to_int ub - 1 do
-      ms := { !ms with m_pmap = Map.add !ms.m_pmap ~key:cv ~data:(U64.of_int i) };
+    let i = ref initial in
+    while test !i do
+      if t <> Unfold && false then (
+        F.printf "\nfor%s %a in %a..%a\n%!"
+          (if t = Unfold then "" else ":")
+          pp_uint64 !i pp_uint64 lb pp_uint64 ub);
+      ms := update !ms !i;
       ms := interp_stmt !ms efun_map stmt;
+      i := change !i;
     done;
     { !ms with
       m_pmap = Map.change !ms.m_pmap cv (fun _ -> old_val) }

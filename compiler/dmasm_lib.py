@@ -618,8 +618,13 @@ def mladder_opt(xr,sp):
 def check_equal(s,a,b):
   a = a % p
   b = b % p
-  print("\n%s:\n%s ==\n%s\n"%(s,str(a),str(b)), file=sys.stderr)
-  assert(a == b)
+  #print("\n%s:\n%s ==\n%s\n"%(s,str(a),str(b)), file=sys.stderr)
+  if not (a == b):
+    print("\n%s:\n%s !=\n%s"%(s,str(to_digits(two64,4,a))
+                               ,str(to_digits(two64,4,b)))
+         , file=sys.stderr)
+    print("failed", file=sys.stderr)
+    
 
 def test_mladder():
   for s in range(0,999):
@@ -635,7 +640,7 @@ def test_mladder():
 def assert_equal_mladder(xr,sp,xr_r,zr_r,param):
   xr = to_big_int(xr)
   sp = from_digits(two64,sp)
-  (xr_s,zr_s) = mladder_opt(xr,sp)
+  (xr_s,zr_s) = mladder(xr,sp)
   xr_r = to_big_int(xr_r)
   zr_r = to_big_int(zr_r)
   check_equal("xr",xr_r,xr_s)
@@ -721,28 +726,72 @@ def assert_equal_ladderstep(x1,x2,z2,x3,z3,x2_r,z2_r,x3_r,z3_r,params):
   check_equal("z3",z3_r,z3_p)
   return []
 
-def scalarmult(p,s):
+def mod_p(x,params):
+  x = to_big_int(x)
+  return to_digits(two64,4,x)
+
+def assert_equal_inv(x,y,params):
+  x = to_big_int(x)
+  y = to_big_int(y)
+  assert(1 == (x*y) % p)
+  return []
+
+def scalarmult(u,s):
   sb = encodeLittleEndian(s)
   s  = decodeScalar25519(sb)
-  print("s: %s\n"%(str(to_digits(two64,4,s))), file=sys.stderr)
-  pb = encodeLittleEndian(p)
-  p  = decodeUCoordinate(pb)
-  
-  print("s: %s\n"%(str(s)), file=sys.stderr)
-  print("p: %s\n"%(str(p)), file=sys.stderr)
-  
-  x, z = mladder(p,s)
+  ub = encodeLittleEndian(u)
+  u  = decodeUCoordinate(ub)
+
+  x, z = mladder(u,s)
+  w = pow(z, p-2, p)
+  assert (1 == ((w*z) %p))
   # divide by z
-  r = (x * pow(z, p-2, p)) % p
+  r = (x * w) % p
   # already packed and freezed
   return (r % p)
 
-def assert_equal_scalarmult(r,p,s,params):
-  p = from_digits(two64,p)
+def assert_equal_scalarmult(r,u,s,params):
+  u = from_digits(two64,u)
   s = from_digits(two64,s)
   r = from_digits(two64,r)
-  r_r = scalarmult(p,s)
+  r_r = scalarmult(u,s)
   check_equal("r=r_r",r,r_r)
+  return []
+
+def scalarmult_tracing(u,s):
+  sb = encodeLittleEndian(s)
+  s  = decodeScalar25519(sb);  l1 = s
+  ub = encodeLittleEndian(u)
+  u  = decodeUCoordinate(ub);  l2 = u
+
+
+  x, z = mladder(u,s);         l3 = x; l4 = z
+  w = pow(z, p-2, p);          l5 = w
+  assert (1 == ((w*z) % p))
+  # divide by z
+  r = (x * w) % p;             l6 = r
+  # already packed and freezed
+  return l1,l2,l3,l4,l5,l6,(r % p)
+
+def assert_equal_scalarmult_tracing(r,u,s,l1,l2,l3,l4,l5,l6,params):
+  u = from_digits(two64,u)
+  s = from_digits(two64,s)
+  r = from_digits(two64,r)
+  l1 = from_digits(two64,l1)
+  l2 = from_digits(two64,l2)
+  l3 = from_digits(two64,l3)
+  l4 = from_digits(two64,l4)
+  l5 = from_digits(two64,l5)
+  l6 = from_digits(two64,l6)
+  r1,r2,r3,r4,r5,r6,r_r = scalarmult_tracing(u,s)
+  check_equal("l1",r1,l1)
+  check_equal("l2",r2,l2)
+  check_equal("l3",r3,l3)
+  check_equal("l4",r4,l4)
+  check_equal("l5",r5,l5)
+  check_equal("l6",r6,l6)
+  check_equal("r=r_r",r,r_r)
+  return []
 
 def assert_equal_scalarmult_ref(r,p,s,params):
   p = from_digits(two64,p)

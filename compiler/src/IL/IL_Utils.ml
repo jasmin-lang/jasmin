@@ -38,7 +38,7 @@ let base_instrs_to_stmt bis =
 
 let is_src_imm  = function Imm _ -> true | _ -> false
 
-(* ** Collect pvars
+(* ** Collect parameter vars
  * ------------------------------------------------------------------------ *)
 
 let rec pvars_pexpr = function
@@ -89,7 +89,7 @@ let pvars_base_instr = function
   | Store(s1,pe,s2) ->
     String.Set.union (pvars_pexpr pe)
       (String.Set.union (pvars_src s1) (pvars_src s2))
-  | Assgn(d,s) ->
+  | Assgn(d,s,_) ->
     String.Set.union (pvars_dest d) (pvars_src s)
   | Op(o,d,(s1,s2)) ->
     String.Set.union_list
@@ -104,7 +104,7 @@ let rec pvars_instr = function
   | If(cond,s1,s2) ->
     String.Set.union_list
       [pvars_pcond cond; pvars_stmt s1; pvars_stmt s2]
-  | For(pv,pe1,pe2,stmt) ->
+  | For(_,pv,pe1,pe2,stmt) ->
     Set.diff
       (String.Set.union_list
          [ pvars_pexpr pe1
@@ -133,6 +133,112 @@ let pvars_func func =
 
 let pvars_modul modul =
   String.Set.union_list (List.map modul.m_funcs ~f:pvars_func)
+
+(* ** Collect program variables
+ * ------------------------------------------------------------------------ *)
+
+let vars_opt f =
+  Option.value_map ~default:String.Set.empty ~f:f
+
+let vars_dest d =
+  String.Set.singleton d.d_name
+
+let vars_src = function
+  | Imm _ -> String.Set.empty
+  | Src d -> vars_dest d
+
+let vars_op = function
+  | ThreeOp(_)       -> String.Set.empty
+  | Umul(d1)         -> vars_dest d1
+  | CMov(_,s)        -> vars_src s
+  | Shift(_,d1o)     -> vars_opt vars_dest d1o
+  | Carry(_,d1o,s1o) ->
+    String.Set.union_list
+      [ vars_opt vars_dest d1o
+      ; vars_opt vars_src s1o
+      ]
+
+let vars_base_instr = function
+  | Comment(_)      -> String.Set.empty
+  | Load(d,s,_)     -> String.Set.union (pvars_dest d) (pvars_src s)
+  | Store(s1,_,s2)  -> String.Set.union (pvars_src s1) (pvars_src s2)
+  | Assgn(d,s,_)    -> String.Set.union (pvars_dest d) (pvars_src s)
+  | Op(o,d,(s1,s2)) ->
+    String.Set.union_list
+      [vars_op o; vars_dest d; vars_src s1; vars_src s2]
+  | Call(_,ds,ss) ->
+    String.Set.union_list
+      ( (List.map ds ~f:vars_dest)
+       @(List.map ss ~f:vars_src))
+    
+let rec vars_instr = function
+  | Binstr(bi)        -> vars_base_instr bi
+  | If(_,s1,s2)       -> String.Set.union (vars_stmt s1) (vars_stmt s2)
+  | For(_,_,_,_,stmt) -> vars_stmt stmt
+
+and vars_stmt stmt =
+  String.Set.union_list (List.map stmt ~f:vars_instr)
+
+let vars_fundef fd =
+  String.Set.union
+    (String.Set.of_list (List.map fd.fd_decls ~f:(fun (_,s,_) -> s)))
+    (vars_stmt fd.fd_body)
+
+let vars_func func =
+  String.Set.union
+    (String.Set.of_list (List.map func.f_args ~f:(fun (_,s,_) -> s)))
+    ((match func.f_def with
+      | Def fdef -> vars_fundef fdef 
+      | _        -> String.Set.empty))
+
+let vars_modul modul =
+  String.Set.union_list (List.map modul.m_funcs ~f:vars_func)
+
+(* ** Rename program variables
+ * ------------------------------------------------------------------------ *)
+
+let rename_opt f =
+  Option.map ~f:f
+
+let rename_dest f d =
+  { d with d_name = f d.d_name }
+
+let rename_src f = function
+  | Imm _ as i -> i 
+  | Src d      -> Src (rename_dest f d)
+
+let rename_op f op = 
+  let rnd = rename_dest f in
+  let rns = rename_src f in
+  match op with
+  | ThreeOp(_)         -> op
+  | Umul(d1)           -> Umul(rnd d1)
+  | CMov(cond,s)       -> CMov(cond,rns s)
+  | Shift(dir,d1o)     -> Shift(dir,rename_opt rnd d1o)
+  | Carry(cop,d1o,s1o) -> Carry(cop,rename_opt rnd d1o, rename_opt rns s1o)
+
+let rename_base_instr f bi =
+  let rnd = rename_dest f in
+  let rns = rename_src f in
+  let rno = rename_op f in
+  match bi with 
+  | Comment(_) as c -> c
+  | Load(d,s,pe)    -> Load(rnd d,rns s,pe)
+  | Store(s1,pe,s2) -> Store(rns s1,pe,rns s2)
+  | Assgn(d,s,at)   -> Assgn(rnd d,rns s,at)
+  | Op(o,d,(s1,s2)) -> Op(rno o,rnd d,(rns s1,rns s2))
+  | Call(fn,ds,ss)  -> Call(fn,List.map ~f:rnd ds,List.map ~f:rns ss) 
+    
+let rec rename_instr f = function
+  | Binstr(bi)       -> Binstr(rename_base_instr f bi)
+  | If(c,s1,s2)      -> If(c,rename_stmt f s1, rename_stmt f s2)
+  | For(t,v,lb,ub,s) -> For(t,v,lb,ub,rename_stmt f s)
+
+and rename_stmt f stmt =
+  List.map stmt ~f:(rename_instr f)
+
+let rename_decls f decls =
+  List.map ~f:(fun (sto,n,ty) -> (sto,f n,ty)) decls
 
 (* ** Constructor functions for pregs
  * ------------------------------------------------------------------------ *)
@@ -253,7 +359,8 @@ let pp_base_instr fmt bi =
   | Comment(s)      -> F.fprintf fmt "/* %s */" s
   | Load(d,s,pe)    -> F.fprintf fmt "%a = MEM[%a + %a];" pp_dest d pp_src s pp_pexpr pe
   | Store(s1,pe,s2) -> F.fprintf fmt "MEM[%a + %a] = %a;" pp_src s1 pp_pexpr pe pp_src s2
-  | Assgn(d1,s1)    -> F.fprintf fmt "%a = %a;" pp_dest d1 pp_src s1
+  | Assgn(d1,s1,Mv) -> F.fprintf fmt "%a = %a;" pp_dest d1 pp_src s1
+  | Assgn(d1,s1,Eq) -> F.fprintf fmt "%a := %a;" pp_dest d1 pp_src s1
   | Op(o,d,(s1,s2)) -> F.fprintf fmt "%a;" pp_op (o,d,s1,s2)
   | Call(name,[],args) ->
     F.fprintf fmt "%s(%a);" name (pp_list "," pp_src) args
@@ -267,11 +374,11 @@ let rec pp_instr fmt bi =
   match bi with
   | Binstr(i) -> pp_base_instr fmt i
   | If(c,i1,i2) ->
-    F.fprintf fmt "if %a {@\n  @[<hv 0>%a@]@\n} else {@\n  @[<v 0>%a@]@\n}"
+    F.fprintf fmt "if %a {@\n  @[<v 0>%a@]@\n} else {@\n  @[<v 0>%a@]@\n}"
       pp_pcond c pp_stmt i1 pp_stmt i2
-  | For(iv,ie1,ie2,i) ->
-    F.fprintf fmt "for %s in %a..%a {@\n  @[<v 0>%a@]@\n}"
-      iv pp_pexpr ie1 pp_pexpr ie2 pp_stmt i
+  | For(t,iv,ie1,ie2,i) ->
+    F.fprintf fmt "for%s %s in %a..%a {@\n  @[<v 0>%a@]@\n}"
+      (if t=Loop then ":" else "") iv pp_pexpr ie1 pp_pexpr ie2 pp_stmt i
 
 and pp_stmt fmt is =
   F.fprintf fmt "%a" (pp_list "@\n" pp_instr) is
@@ -293,8 +400,11 @@ let pp_decl fmt (stor,name,ty) =
     pp_ty ty
 
 let pp_fundef fmt fd =
-  F.fprintf fmt  " {@\n  @[<v 0>%a%a%a@]@\n}"
+  F.fprintf fmt  " {@\n  @[<v 0>%a%a%a%a@]@\n}"
     (pp_list "@\n" pp_decl) fd.fd_decls
+    (fun fmt xs -> match xs with
+     | [] -> F.fprintf fmt ""
+     | _ -> F.fprintf fmt "@\n") fd.fd_decls
     pp_stmt    fd.fd_body
     pp_return  fd.fd_ret
 
@@ -310,7 +420,7 @@ let pp_ret fmt (sto,ty) =
 
 let pp_func fmt f =
   F.fprintf fmt "@[<v 0>fn %s%s(%a)%s%a@]"
-            (call_conv_to_string f.f_call_conv)
+    (call_conv_to_string f.f_call_conv)
     f.f_name
     (pp_list "," pp_decl) f.f_args
     (if f.f_ret_ty=[] then ""
@@ -506,7 +616,7 @@ let mk_cmov pos (dests : dest list) s cf flg =
 let mk_instr (dests : dest list) (rhs,pos) : instr =
   match dests, rhs with
   | _,   `Call(fname,args)          -> Binstr(Call(fname,dests,args))
-  | [d], `Assgn(src)                -> Binstr(Assgn(d,src))
+  | [d], `Assgn(src,aty)            -> Binstr(Assgn(d,src,aty))
   | [d], `Load(src,pe)              -> Binstr(Load(d,src,pe))
   | _,   `BinOp(o,s1,s2)            -> Binstr(mk_ternop pos dests o  o  s1 s2 None)
   | _,   `TernaryOp(o1,o2,s1,s2,s3) -> Binstr(mk_ternop pos dests o1 o2 s1 s2 (Some s3))

@@ -438,6 +438,7 @@ fn cswap(stack x2p, z2p, x3p, z3p : u64[4], stack swap : u64)
 
 fn mladder(stack xr, sp : u64[4]) -> stack u64[4] * stack u64[4] {
   stack s : u64;
+  stack j : u64;
   stack prevbit, bit, swap : u64;
   stack x1,x2,z2,x3,z3 : u64[4];
   
@@ -450,8 +451,8 @@ fn mladder(stack xr, sp : u64[4]) -> stack u64[4] * stack u64[4] {
   
   for i in 0..4 {
     s = sp[3 - i];
-    for j in 0..64 {
-      bit = s >> $(63 - j);
+    for: j in 64..0 { 
+      bit = s >> j;  // assign j to CL register
       bit = bit & 1;
       swap = bit ^ prevbit;
       prevbit = bit;
@@ -486,29 +487,29 @@ fn invert(stack xa : u64[4]) -> stack u64[4] {
   stack ra, z2, t, z9, x, z11, z2_5_0, z2_10_0, z2_20_0, z2_50_0 : u64[4];
   stack z2_100_0 : u64[4];
 
-  z2 = squarea(xa);                           /* 2 */
-  t = squarea(z2);                            /* 4 */
-  t = squarea(t);                             /* 8 */
-  z9 = mula(t,xa);                            /* 9 */
-  z11 = mula(z9,z2);                          /* 11 */
-  t = squarea(z11);                           /* 22 */
-  z2_5_0 = mula(t,z9);                        /* 2^5 - 2^0 = 31 */
+  z2 = squarea(xa);                   /* 2 */
+  t = squarea(z2);                    /* 4 */
+  t = squarea(t);                     /* 8 */
+  z9 = mula(t,xa);                    /* 9 */
+  z11 = mula(z9,z2);                  /* 11 */
+  t = squarea(z11);                   /* 22 */
+  z2_5_0 = mula(t,z9);                /* 2^5 - 2^0 = 31 */
 
-  t = squarea(z2_5_0);                        /* 2^6 - 2^1 */ 
-  for i in 1..5 { t = squarea(t); }           /* 2^20 - 2^10 */
-  z2_10_0 = mula(t,z2_5_0);                  /* 2^10 - 2^0 */
+  t = squarea(z2_5_0);                /* 2^6 - 2^1 */ 
+  for i in 1..5 { t = squarea(t); }   /* 2^20 - 2^10 */
+  z2_10_0 = mula(t,z2_5_0);           /* 2^10 - 2^0 */
 
-  t = squarea(z2_10_0);                      /* 2^11 - 2^1 */
+  t = squarea(z2_10_0);               /* 2^11 - 2^1 */
   for i in 1..10 { t = squarea(t); }  /* 2^20 - 2^10 */ 
-  z2_20_0 = mula(t,z2_10_0);                  /* 2^20 - 2^0 */ 
+  z2_20_0 = mula(t,z2_10_0);          /* 2^20 - 2^0 */ 
 
-  t = squarea(z2_20_0);                       /* 2^21 - 2^1 */
+  t = squarea(z2_20_0);               /* 2^21 - 2^1 */
   for i in 1..20 { t = squarea(t); }  /* 2^40 - 2^20 */
-  t = mula(t,z2_20_0);                        /* 2^40 - 2^0 */
+  t = mula(t,z2_20_0);                /* 2^40 - 2^0 */
 
-  t = squarea(t);                             /* 2^41 - 2^1 */
+  t = squarea(t);                     /* 2^41 - 2^1 */
   for i in 1..10 { t = squarea(t); }  /* 2^50 - 2^10 */
-  z2_50_0 = mula(t,z2_10_0);                  /* 2^50 - 2^0 */
+  z2_50_0 = mula(t,z2_10_0);          /* 2^50 - 2^0 */
 
   t = squarea(z2_50_0);                       /* 2^51 - 2^1 */
   for i in 1..50 { t = squarea(t); }  /* 2^100 - 2^50 */
@@ -534,7 +535,6 @@ fn invert(stack xa : u64[4]) -> stack u64[4] {
   return ra;
 }
 
-
 // ** unpack_point
 // ************************************************************************
 
@@ -546,7 +546,7 @@ fn unpack_point(reg xp : u64) -> stack u64[4] {
   xa[1] = MEM[xp + 1*8];
   xa[2] = MEM[xp + 2*8];
   x3    = MEM[xp + 3*8];
-  x3    = x3 & 0x7fffffffffffffff;
+  x3    = x3 & 9223372036854775807; // 0x7fffffffffffffff;
   xa[3] = x3;
 
   return xa;
@@ -560,12 +560,12 @@ fn unpack_secret(reg sp : u64) -> stack u64[4] {
   reg   si : u64;
 
   si    = MEM[sp + 0*8];
-  si    = si & 0xfffffffffffffffff8;
+  si    = si & 4722366482869645213688; // 0xfffffffffffffffff8;
   sa[0] = si;
   sa[1] = MEM[sp + 1*8];
   sa[2] = MEM[sp + 2*8];
   si    = MEM[sp + 3*8];
-  si    = si & 0x7fffffffffffffffff;
+  si    = si & 9223372036854775807; // 0x7fffffffffffffffff;
   si    = si | 4611686018427387904; // FIXME: why does 0x400...0 not work
   sa[3] = si;
   return sa;
@@ -627,16 +627,35 @@ fn pack(reg rp : u64, stack xa : u64[4]) {
 extern fn scalarmult( reg rp : u64 /* address to store result  */
                     , reg sp : u64 /* address of secret scalar */
                     , reg pp : u64 /* address of point         */) {
-  stack sa, xa, za : u64[4];
+  stack sa, xa, za, zia : u64[4];
   reg   r : u64[4];
 
   sa = unpack_secret(sp);
-  print_arr(sa); print_newline();
   xa = unpack_point(pp);
   xa, za = mladder(xa,sa);
-  za = invert(za);
-  r = mul(xa,za);
+  zia = invert(za);
+  r = mul(xa,zia);
   pack(rp,r);
+}
+
+fn scalarmult_tracing(
+      reg rp : u64 /* address to store result  */
+    , reg sp : u64 /* address of secret scalar */
+    , reg pp : u64 /* address of point         */)
+  -> stack u64[4] * stack u64[4] * stack u64[4] *
+     stack u64[4] * stack u64[4] * stack u64[4]
+{
+  stack sa, xa, za, zia : u64[4];
+  stack l1,l2,l3,l4,l5,l6 : u64[4];
+  reg   r : u64[4];
+
+  sa = unpack_secret(sp);       l1 = sa;
+  xa = unpack_point(pp);        l2 = xa;
+  xa, za = mladder(xa,sa);      l3 = xa; l4 = za;
+  zia = invert(za);             l5 = zia;
+  r = mul(xa,zia);              l6 =r;
+  pack(rp,r);
+  return l1,l2,l3,l4,l5,l6;
 }
 
 // * tests
@@ -659,6 +678,10 @@ fn assert_equal_ladderstep_tracing(stack x1,x2,z2,x3,z3
   = python assert_equal_ladderstep_tracing;
 fn assert_equal_mladder(stack xr, sp, xr_r, zr_r : u64[4]) = python assert_equal_mladder;
 fn assert_equal_scalarmult(stack r, p, s : u64[4]) = python assert_equal_scalarmult;
+fn assert_equal_scalarmult_tracing(stack r,p,s,l1,l2,l3,l4,l5,l6 : u64[4])
+  = python assert_equal_scalarmult_tracing;
+fn assert_equal_inv(stack x, y : u64[4]) = python assert_equal_inv;
+fn mod_p(stack s : u64[4]) -> stack u64[4] = python mod_p;
 
 fn test_add() {
   reg x, y_tmp, z : u64[4];
@@ -731,7 +754,7 @@ fn test_ladderstep() {
   reg x1, x2, z2, x3, z3 : u64[4];
   reg x2_r, z2_r, x3_r, z3_r : u64[4];
 
-  for i in 0..1 {
+  for i in 0..999 {
     u = $i;
     print_u64(u);
     x1 = rand_arr(u); u += 1;
@@ -809,7 +832,6 @@ fn test_mladder() {
   sp[1] = 0;
   sp[2] = 0x5555555555555555;
   sp[3] = 0xfffffffffffffffe;
-  //print_arr(sp); print_newline();
   for i in 0..99 {
     u = $i;
     print_u64(u);
@@ -823,14 +845,15 @@ fn test_scalarmult() {
   stack pa, sa, ra : u64[4];
   reg rp, sp,pp : u64;
   stack u : u64;
+  stack l1,l2,l3,l4,l5,l6 : u64[4];
 
   rp = 0;
   sp = $(4*8); // 4*64bit = 4*8byte
   pp = $(8*8);
   
-  for i in 0..1 {
+  for i in 0..99 {
     u = $i;
-    print_u64(u); print_newline();
+    print_u64(u);
     pa = rand_point(u); u += 1;
     MEM[pp + 0*8] = pa[0];
     MEM[pp + 1*8] = pa[1];
@@ -843,20 +866,18 @@ fn test_scalarmult() {
     MEM[sp + 3*8] = sa[3];
     
     scalarmult(rp,sp,pp);
+    //l1,l2,l3,l4,l5,l6 = scalarmult_tracing(rp,sp,pp);
     ra[0] = MEM[rp + 0*8];
     ra[1] = MEM[rp + 1*8];
     ra[2] = MEM[rp + 2*8];
     ra[3] = MEM[rp + 3*8];
 
     assert_equal_scalarmult(ra,pa,sa);
+    //assert_equal_scalarmult_tracing(ra,pa,sa,l1,l2,l3,l4,l5,l6);
   }
 }
 
-fn test() {
-  test_scalarmult();
-}
-
-fn test_() {
+fn test_full() {
   test_add();
   print_newline();
   test_sub();
@@ -872,5 +893,16 @@ fn test_() {
   test_swap();
   print_newline();
   test_mladder();
+  print_newline();
+  test_scalarmult();
+  print_newline();
+}
+
+fn test_fast() {
+  test_mladder();
+}
+
+fn test() {
+  test_full();
   print_newline();
 }

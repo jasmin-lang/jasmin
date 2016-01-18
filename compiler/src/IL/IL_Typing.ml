@@ -103,14 +103,14 @@ let typecheck_assgn (env : env) d s =
   | U64(odim1), U64(odim2) ->
     if not (is_some odim1 = is_some odim2) then
       type_error d (fsprintf "incompatible types for assignment %a (lhs %a, rhs %a)"
-                           pp_instr (Binstr(Assgn(d,s))) pp_ty ty_d pp_ty ty_s)
+                           pp_instr (Binstr(Assgn(d,s,Mv))) pp_ty ty_d pp_ty ty_s)
 
   | Bool, Bool ->
     type_error d (fsprintf "incompatible types for assignment %a (cannot assign flags)"
-                    pp_instr (Binstr(Assgn(d,s))))
+                    pp_instr (Binstr(Assgn(d,s,Mv))))
   | _, _ ->
     type_error d (fsprintf "incompatible types for assignment %a (lhs %a, rhs %a)"
-                    pp_instr (Binstr(Assgn(d,s))) pp_ty ty_d pp_ty ty_s)
+                    pp_instr (Binstr(Assgn(d,s,Mv))) pp_ty ty_d pp_ty ty_s)
     
    
 
@@ -179,14 +179,10 @@ let rec typecheck_instr (env : env) instr =
   match instr with
   | Binstr(Comment _)             -> ()
   | Binstr(Op(op,d,(s1,s2)))      -> tc_op op d s1 s2
-  | Binstr(Assgn(d,s))            -> tc_assgn d s
+  | Binstr(Assgn(d,s,_))          -> tc_assgn d s
   | If(_,stmt1,stmt2)             -> tc_stmt stmt1; tc_stmt stmt2
-  | Binstr(Load(d,s,pe))          ->
-    type_src_eq  env s T_U64;
-    type_dest_eq env d T_U64
-  | Binstr(Store(s1,pe,s2))       ->
-    type_src_eq env s1 T_U64;
-    type_src_eq env s2 T_U64
+  | Binstr(Load(d,s,_pe))         -> type_src_eq  env s T_U64; type_dest_eq env d T_U64
+  | Binstr(Store(s1,_pe,s2))      -> type_src_eq env s1 T_U64; type_src_eq env s2 T_U64
   | Binstr(Call(fname,rets,args)) ->
     let cfun = map_find_exn env.e_fenv pp_string fname in
     let tc_src s (_,_,ty_expected) = typecheck_src env s ty_expected in
@@ -197,7 +193,7 @@ let rec typecheck_instr (env : env) instr =
     list_iter2_exn rets cfun.f_ret_ty ~f:tc_dest
       ~err:(fun n_g n_e ->
               failwith_ "wrong number of l-values (got %i, exp. %i)" n_g n_e)
-  | For(pv,_,_,stmt)              ->
+  | For(_,pv,_,_,stmt)            ->
     let env = { env with e_penv = Map.add env.e_penv ~key:pv ~data:(U64(None)) } in
     typecheck_stmt env stmt
       

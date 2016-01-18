@@ -16,11 +16,8 @@ can be partially evaluated and the following constructs can be eliminated:
 - for loops 'for i in lb..ub { ... }' can be unfolded
 - if-then-else 'if ce { i1 } else { i2 }' can be replaced by i1/i2 after
   evaluating 'ce'
-- indexes: pseudo-registers 'r<e>' and array accesses 'r[e]' indexed with
-  expressions 'e' over parameters can be indexed by u64 values
-- ranges 'r<lb..ub>' of pseudo-registers and array access 'r[l..u]' in function
-  calls and assignments can be expanded to 'r<lb>,..,r<ub>' / 'r[lb],..,r[ub]'
-  after evaluating the expressions 'lb' and 'ub'
+- indexes: array accesses 'r[e]' indexed with expressions 'e' over parameters
+  can be indexed by u64 values
 *)
 (* *** Code *)
 
@@ -63,8 +60,7 @@ We define:
 - pseudo-registers that hold values and addresses
 - sources (r-values)
 - destinations (l-values)
-All types are parameterized by 'i. We use 'i = get_or_range if indices can be
-ranges 'lb..ub' and 'i = cexpr if this is not possible. *)
+*)
 (* *** Code *)
 
 type ty =
@@ -87,8 +83,8 @@ type src =
 (* ** Operands and constructs for intermediate language
  * ------------------------------------------------------------------------ *)
 (* *** Summary
-The language supports the fixed operations given in 'op_g' (and function calls).
-The operations do not support ranges. *)
+The language supports the fixed operations given in 'op' (and function calls).
+*)
 (* *** Code *)
 
 type cmov_flag = CfSet of bool with sexp, compare
@@ -114,9 +110,19 @@ type op =
 - statements (list of instructions) *)
 (* *** Code *)
 
+type assgn_type =
+  | Mv (* compile to move *)
+  | Eq (* use as equality constraint in reg-alloc and compile to no-op *)
+  with sexp, compare
+
+type for_type =
+  | Unfold
+  | Loop
+  with sexp, compare
+
 type base_instr =
   
-  | Assgn of dest * src
+  | Assgn of dest * src * assgn_type
     (* Assgn(d,s): d = s *)
 
   | Op of op * dest * (src * src)
@@ -144,7 +150,7 @@ type instr =
   | If of pcond * stmt * stmt
     (* If(c1,i1,i2): if c1 { i1 } else i2 *)
 
-  | For of pvar * pexpr * pexpr * stmt
+  | For of for_type * pvar * pexpr * pexpr * stmt
     (* For(v,lower,upper,i): for v in lower..upper { i } *)
 
 and stmt = instr list

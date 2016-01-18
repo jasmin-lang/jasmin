@@ -93,3 +93,9 @@ let hashtbl_find_exn ?(err=failwith) m pp pr =
   | None ->
     err (fsprintf "map_find_preg %a failed, not in domain:\n%a"
            pp pr (pp_list "," pp) (Hashtbl.keys m))
+
+let find_min f =
+  let rec go i =
+    if f i then i else go (succ i)
+  in
+  go 0

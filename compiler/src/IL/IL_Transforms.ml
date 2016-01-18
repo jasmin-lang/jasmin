@@ -2,7 +2,7 @@
 
 (* ** Imports *)
 open Core_kernel.Std
-(* open Util *)
+open Util
 open IL_Lang
 open IL_Utils
 open IL_Compile
@@ -30,12 +30,13 @@ let strip_comments bis =
 type asm_lang = X64
 
 type transform =
-  | MacroExpand of u64 String.Map.t
+  | MacroExpand of string * u64 String.Map.t
   | SSA
   | Type
   | Print of string
   | Save of string
   | RegisterAlloc of int
+  | Inline of string
   | RegisterLiveness
   | StripComments
   | Asm of asm_lang
@@ -68,6 +69,7 @@ let ptrafo =
   let mmapping =
     u64 >>= fun s -> char '=' >> u64 >>= fun u -> return (s,u)
   in
+  let inline_args = bracketed ident in
   let register_num = bracketed int in
   let mappings p mc =
     bracketed (sep_by p (char ',') >>= fun l -> return (mc l))
@@ -93,7 +95,9 @@ let ptrafo =
     ; (string "register_allocate" >> register_num >>= fun l ->
        return (RegisterAlloc(l)))
     ; string "asm" >> char '[' >> asm_lang >>= (fun l -> char ']' >>$ (Asm(l)))
-    ; (string "expand" >> pmap >>= fun m -> return (MacroExpand(m)))
+    ; (string "expand" >> bracketed ident >>= fun fname ->
+       pmap >>= fun m -> return (MacroExpand(fname,m)))
+    ; (string "inline" >> inline_args >>= fun fname -> return (Inline(fname)))
     ; string "interp" >> interp_args >>=
         fun (fn,mp,mm,args) -> return (Interp(fn,mp,mm,args)) ]
 
@@ -128,21 +132,24 @@ let apply_transform trafo (modul0 : modul) =
   in
   let app_trafo modul t =
     match t with
+    | Inline(fname) ->
+      F.printf "inlining all calls in function %a" pp_string fname;
+      inline_calls_modul modul fname
     | SSA              -> assert false
       (* transform_ssa efun *)
     | StripComments    -> assert false
       (* conv_trans strip_comments efun *)
-    | Print(_name)      -> assert false
-      (* F.printf ">> %s:@\n%a@\n@\n" name pp_efun efun; efun *)
-    | Save(_fname)      -> assert false
-      (* Out_channel.write_all fname ~data:(fsprintf "%a" pp_efun efun); efun *)
+    | Print(name) ->
+      F.printf ">> %s:@\n%a@\n@\n" name pp_modul modul; modul
+    | Save(fname)      ->
+      Out_channel.write_all fname ~data:(fsprintf "%a" pp_modul modul); modul
     | RegisterAlloc(_n) -> assert false
       (* register_allocate (min 15 n) efun *)
     | RegisterLiveness -> assert false
       (* transform_register_liveness efun *)
-    | MacroExpand(_m)   -> assert false
-      (* macro_expand_efun (String.Map.of_alist_exn m) efun *)
-    | Asm(_)           -> assert false
+    | MacroExpand(fname,m) ->
+      macro_expand_modul m modul fname
+    | Asm(_) -> assert false
     | Type ->
       IL_Typing.typecheck_modul modul;
       modul
