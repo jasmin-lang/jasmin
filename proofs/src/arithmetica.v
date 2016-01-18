@@ -17,6 +17,17 @@ Parameter ident : countType.
 Axiom LEM : forall {T : Type}, forall (x y : T), {x=y}+{x<>y}.
 
 (* -------------------------------------------------------------------- *)
+Definition obind1 {A B : Type} (f : A -> option A) (v : option (A * B)) :=
+  if v is Some (x, y) then
+    if f x is Some x then Some (x, y) else None
+  else None.
+
+Definition obind2 {A B : Type} (f : B -> option B) (v : option (A * B)) :=
+  if v is Some (x, y) then
+    if f y is Some y then Some (x, y) else None
+  else None.
+
+(* -------------------------------------------------------------------- *)
 (* Definition word := nosimpl 'I_(2^64). FIXME: abstract this *)
 Parameter word : ringType.
 
@@ -117,6 +128,16 @@ Definition gmem := word -> word.
 Notation mem := (gmem * lmem)%type.
 
 (* -------------------------------------------------------------------- *)
+Definition asbool (v : value) :=
+  if v is [:: VBool b] then Some b else None.
+
+Definition asword (v : value) :=
+  if v is [:: VU64 w] then Some w else None.
+
+Definition asarray (v : value) :=
+  if v is [:: VArray a] then Some a else None.
+
+(* -------------------------------------------------------------------- *)
 Definition upd (xv : ident * bvalue) (m : lmem) : option lmem :=
   if m xv.1 is Some v then
      if bv2t xv.2 == bv2t v then
@@ -126,6 +147,10 @@ Definition upd (xv : ident * bvalue) (m : lmem) : option lmem :=
 
 Definition gupd (sd : word * word) (g : gmem) : gmem :=
   fun i => if i == sd.1 then sd.2 else g i.
+
+(* -------------------------------------------------------------------- *)
+Definition upds idvs (m : lmem) :=
+  foldr (fun xv m => obind (upd xv) m) (Some m) idvs.
 
 (* -------------------------------------------------------------------- *)
 Definition value_of_ctt (c : sctt) : bvalue :=
@@ -220,3 +245,66 @@ with sem_for : ident -> seq word -> mem -> stmt -> mem -> Prop :=
    -> sem_for x r m2 xs m3
    -> sem_for x (i::r) m1 s m3
 .
+
+(* -------------------------------------------------------------------- *)
+Fixpoint csem_n (n : nat) (s : stmt) {struct n} :=
+  let fix csem_r (s : stmt) {struct s} := fun (gm : mem) =>
+    match s return option mem with
+    | SSkip =>
+        Some gm
+  
+    | SSeq s1 s2 =>
+        obind (csem_r s2) (csem_r s1 gm)
+  
+    | SAssign ids e =>
+        if esem gm.2 e is Some vs then
+          if size ids == size vs then
+            obind2 (upds (zip ids vs)) (Some gm)
+          else None
+        else None
+  
+    | SIf e s1 s2 =>
+        obind
+          (fun b => csem_r (if b then s1 else s2) gm)
+          (obind asbool (esem gm.2 e))
+  
+    | SLoad x e =>
+        obind
+          (fun i => obind2 (upd (x, VU64 (gm.1 i))) (Some gm))
+          (obind asword (esem gm.2 e))
+  
+    | SStore s d =>
+        let s := obind asword (esem gm.2 s) in
+        let d := obind asword (esem gm.2 d) in
+  
+        omap
+          (fun sd => (gupd sd gm.1, gm.2))
+          (if (s, d) is (Some s, Some d) then Some (s, d) else None)
+  
+    | SFor x (e1, e2) s =>
+        (* FIXME: push `x` into the memory first *)
+        let fix fsem (r : seq word) gm :=
+          if r is i :: r then
+            let gm := obind2 (upd (x, VU64 i)) (Some gm) in
+            let gm := obind  (csem_r s) gm in
+            let gm := obind  (fsem r) gm in
+            gm
+          else Some gm in
+  
+        match esem gm.2 e1, esem gm.2 e2 with
+        | Some [:: VU64 i1], Some [:: VU64 i2] =>
+            let: (i1, i2) := (w2n i1, w2n i2) in
+            let: rg := [seq x%:R | x <- iota i1 (i2 - i1)] in
+            fsem rg gm
+        | _, _ => None
+        end
+  
+    | (SCall ids f args) as s =>
+        if n is p.+1 then csem_n p s gm else None
+    end
+
+  in csem_r s.
+
+(* -------------------------------------------------------------------- *)
+Definition csem (gm : mem) (s : stmt) (gm' : mem) :=
+  exists n, csem_n n s gm = Some gm'.
