@@ -495,7 +495,7 @@ function or trait.  When nil, where will be aligned with fn or trait."
     "self" "static" "struct" "super"
     "true" "trait" "type"
     "use"
-    "param" "flag" "reg" "stack"
+    "param" "flag" "reg" "stack" "inline"
     "virtual"
     "where" "while"))
 

@@ -23,8 +23,6 @@ can be partially evaluated and the following constructs can be eliminated:
 
 type name = string with sexp, compare
 
-type pvar = name with sexp, compare
-
 type pop_u64 =
   | Pplus
   | Pmult
@@ -32,7 +30,8 @@ type pop_u64 =
   with sexp, compare
 
 type pexpr =
-  | Pvar   of name
+  | Pparam of name (* global parameter (constant) *)
+  | Pvar   of name (* function local variable *) 
   | Pbinop of pop_u64 * pexpr * pexpr
   | Pconst of u64
   with sexp, compare
@@ -110,6 +109,11 @@ type op =
 - statements (list of instructions) *)
 (* *** Code *)
 
+type 'a located = {
+  l_val : 'a;
+  l_loc : P.loc;
+} with sexp, compare
+
 type assgn_type =
   | Mv (* compile to move *)
   | Eq (* use as equality constraint in reg-alloc and compile to no-op *)
@@ -150,10 +154,10 @@ type instr =
   | If of pcond * stmt * stmt
     (* If(c1,i1,i2): if c1 { i1 } else i2 *)
 
-  | For of for_type * pvar * pexpr * pexpr * stmt
+  | For of for_type * name * pexpr * pexpr * stmt
     (* For(v,lower,upper,i): for v in lower..upper { i } *)
 
-and stmt = instr list
+and stmt = (instr located) list
   with sexp, compare
 
 (* ** Function definitions, declarations, and modules
@@ -166,6 +170,7 @@ type call_conv =
 
 type storage =
   | Flag
+  | Inline
   | Stack
   | Reg
   with sexp, compare

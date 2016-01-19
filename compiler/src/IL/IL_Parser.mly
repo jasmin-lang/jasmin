@@ -39,7 +39,7 @@ module L = Lexing
 %token EXCL DOTDOT COMMA
 %token SHR SHL XOR OR
 
-%token REG FLAG PARAM STACK
+%token REG FLAG PARAM STACK INLINE
 
 %token FOR FORCOLON
 %token IN
@@ -132,13 +132,6 @@ pcond :
 
 (* -------------------------------------------------------------------- *)
 (* * Sources and destinations *)
-(*
-dest_index :
-| ce=pexpr                 { Get(ce) }
-| lb=pexpr DOTDOT ub=pexpr { All(Some lb,Some ub) }
-| DOTDOT                   { All(None,None) }
-| DOTDOT ub=pexpr          { All(None,Some ub) }
-*)
 
 %inline dest_get:
 | LBRACK idx = pexpr RBRACK { idx }
@@ -155,7 +148,7 @@ dest_index :
 
 src :
 | d=dest                       { Src(d)                       }
-| DOLLAR i=ID                  { Imm(Pvar(i))                 }
+| DOLLAR i=ID                  { Imm(Pparam(i))               }
 | DOLLAR LPAREN i=pexpr RPAREN { Imm(i)                       }
 | i=INT                        { Imm(Pconst(U64.of_string i)) }
 
@@ -244,11 +237,16 @@ celse_if :
 celse :
 | ELSE is=block { is }
 
+linstr :
+| li = loc(instr)
+  { match li with
+    | (instr,loc) -> { l_val = instr; l_loc = ParserUtil.loc_of_lexing_loc loc } }
+
 block :
-| LCBRACE stmt=instr* RCBRACE { stmt }
+| LCBRACE stmt=linstr* RCBRACE { stmt }
 
 stmt :
-| stmt=instr* { stmt }
+| stmt=linstr* { stmt }
 
 (* -------------------------------------------------------------------- *)
 (* * Function definitions *)
@@ -268,9 +266,10 @@ typed_vars :
     { Std.List.map ~f:(fun v -> (v,t)) vs }
 
 %inline storage:
-| REG   { Reg   }
-| STACK { Stack }
-| FLAG  { Flag  }
+| REG    { Reg   }
+| STACK  { Stack }
+| FLAG   { Flag  }
+| INLINE { Inline  }
 
 decl :
 | sto=storage trs=typed_vars  { Std.List.map ~f:(fun (n,t) -> (sto,n,t)) trs }

@@ -64,9 +64,10 @@ rule lex = parse
 
   | "reg"    { REG }
   | "stack"  { STACK }
+  | "inline" { INLINE }
   | "flag"   { FLAG }
   | "param"  { PARAM }
-  | "MEM"     { MEM }
+  | "MEM"    { MEM }
 
   | "for"    { FOR }
   | "for:"   { FORCOLON }

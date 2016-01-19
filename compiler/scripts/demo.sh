@@ -6,7 +6,7 @@
 #  examples/25519-4limb/ladderstep.mil
 
 ./dmasm.native -t \
-  "interp[rem_p=38][][test][]" \
+  "inline[scalarmult],expand[scalarmult][rem_p=38],save[/tmp/unfold.mil][scalarmult],interp[rem_p=38][][test][]" \
   examples/25519-4limb/ladderstep.mil
 
 # ,expand[scalarmult][rem_p=38]

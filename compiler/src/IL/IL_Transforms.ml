@@ -24,7 +24,7 @@ let transform_register_liveness _efunc =
     ef_body = base_instrs_to_stmt bis }
   *)
 
-let strip_comments bis = 
+let strip_comments bis =
   List.filter ~f:(function Comment(_) -> false | _ -> true) bis
 
 type asm_lang = X64
@@ -33,10 +33,10 @@ type transform =
   | MacroExpand of string * u64 String.Map.t
   | SSA
   | Type
-  | Print of string
-  | Save of string
+  | Print of string * string option
+  | Save of string * string option
   | RegisterAlloc of int
-  | Inline of string
+  | InlineCalls of string
   | RegisterLiveness
   | StripComments
   | Asm of asm_lang
@@ -82,14 +82,16 @@ let ptrafo =
     pmap  >>= fun mparam ->
     mmap  >>= fun mmem ->
     fname >>= fun fn ->
-    args  >>= fun args ->   
+    args  >>= fun args ->
     return (fn,mparam,mmem,args)
   in
   choice
     [ string "ssa" >>$ SSA
     ; string "typecheck" >>$ Type
-    ; (string "print" >> (bracketed (ident >>= fun name -> return (Print(name)))))
-    ; (string "save"  >> (bracketed (ident >>= fun name -> return (Save(name)))))
+    ; (string "print" >> (bracketed ident) >>= fun name ->
+       option (bracketed ident) >>= fun fname -> return (Print(name,fname)))
+    ; (string "save"  >> (bracketed ident) >>= fun name ->
+       option (bracketed ident) >>= fun fname -> return (Save(name,fname)))
     ; string "register_liveness" >>$ RegisterLiveness
     ; string "strip_comments" >>$  StripComments
     ; (string "register_allocate" >> register_num >>= fun l ->
@@ -97,7 +99,7 @@ let ptrafo =
     ; string "asm" >> char '[' >> asm_lang >>= (fun l -> char ']' >>$ (Asm(l)))
     ; (string "expand" >> bracketed ident >>= fun fname ->
        pmap >>= fun m -> return (MacroExpand(fname,m)))
-    ; (string "inline" >> inline_args >>= fun fname -> return (Inline(fname)))
+    ; (string "inline" >> inline_args >>= fun fname -> return (InlineCalls(fname)))
     ; string "interp" >> interp_args >>=
         fun (fn,mp,mm,args) -> return (Interp(fn,mp,mm,args)) ]
 
@@ -119,7 +121,8 @@ let parse_trafo s =
     exit 1
 
 let apply_transform trafo (modul0 : modul) =
-  let _conv_trans f func =
+  let _conv_trans _f _func =
+    assert false (*
     let fdef = match func.f_def with
       | Def d -> d
       | Undef | Py _ -> failwith "cannot transform undefined function"
@@ -129,20 +132,30 @@ let apply_transform trafo (modul0 : modul) =
           { fdef with
             fd_body = stmt_to_base_instrs fdef.fd_body |> f |> base_instrs_to_stmt}
     }
+    *)
+  in
+  let filter_fn modul ofname =
+    match ofname with
+    | Some fn -> { modul with
+                   m_funcs =
+                     List.filter modul.m_funcs ~f:(fun f -> f.f_name = fn) }
+    | None -> modul
   in
   let app_trafo modul t =
     match t with
-    | Inline(fname) ->
+    | InlineCalls(fname) ->
       F.printf "inlining all calls in function %a" pp_string fname;
       inline_calls_modul modul fname
-    | SSA              -> assert false
+    | SSA -> assert false
       (* transform_ssa efun *)
-    | StripComments    -> assert false
+    | StripComments -> assert false
       (* conv_trans strip_comments efun *)
-    | Print(name) ->
-      F.printf ">> %s:@\n%a@\n@\n" name pp_modul modul; modul
-    | Save(fname)      ->
-      Out_channel.write_all fname ~data:(fsprintf "%a" pp_modul modul); modul
+    | Print(name,ofname) ->
+      let modul_ = filter_fn modul ofname in
+      F.printf ">> %s:@\n%a@\n@\n" name pp_modul modul_; modul
+    | Save(fname,ofname) ->
+      let modul_ = filter_fn modul ofname in
+      Out_channel.write_all fname ~data:(fsprintf "%a" pp_modul modul_); modul
     | RegisterAlloc(_n) -> assert false
       (* register_allocate (min 15 n) efun *)
     | RegisterLiveness -> assert false
@@ -154,7 +167,7 @@ let apply_transform trafo (modul0 : modul) =
       IL_Typing.typecheck_modul modul;
       modul
     | Interp(fn,pmap,mmap,args) ->
-      IL_Interp.interp_modul modul pmap mmap args fn 
+      IL_Interp.interp_modul modul pmap mmap args fn
   in
   List.fold_left trafo ~init:modul0 ~f:app_trafo
 

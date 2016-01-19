@@ -20,19 +20,34 @@ let eval_pbinop = function
   | Pmult  -> U64.mul
   | Pminus -> U64.sub
 
-let eval_pexpr pmap ce =
+let eval_pexpr pmap lmap ce =
   let rec go = function
-    | Pbinop(o,ie1,ie2) -> eval_pbinop o (go ie1) (go ie2)
-    | Pconst(c)         -> c
-    | Pvar(s) ->
+    | Pbinop(o,ie1,ie2) ->
+      begin match go ie1, go ie2 with
+      | Ok(x1), Ok(x2) ->
+        Ok(eval_pbinop o x1 x2)
+      | Error(s), _
+      | _, Error(s) ->
+        Error(s)
+      end
+    | Pconst(c) -> Ok c
+    | Pparam(s) ->
       begin match Map.find pmap s with
-      | Some x -> x
-      | None   -> failwith ("eval_cexpr: parameter "^s^" undefined")
+      | Some (x) -> Ok x
+      | None     -> failwith_ "eval_pexpr: parameter %s undefined" s
+      end
+    | Pvar(s) ->
+      begin match Map.find lmap s with
+      | Some (Vu64 x) -> Ok x
+      | Some (_) ->
+        Error (fsprintf "eval_pexpr: variable %s of wrong type" s)
+      | None ->
+        Error (fsprintf "eval_pexpr: variable %s undefined" s)
       end
   in
   go ce
 
-let eval_pcondop pc  = fun x y ->
+let eval_pcondop pc = fun x y ->
   match pc with
   | Peq      -> U64.equal x y
   | Pineq    -> not (U64.equal x y)
@@ -41,16 +56,37 @@ let eval_pcondop pc  = fun x y ->
   | Pleq     -> U64.compare x y <= 0
   | Pgeq     -> U64.compare x y >= 0
 
-let eval_pcond pmap cc =
+let eval_pcond pmap lmap cc =
   let rec go = function
-    | Ptrue              -> true
-    | Pnot(ic)           -> not (go ic)
-    | Pand(cc1,cc2)      -> (go cc1) && (go cc2)
+    | Ptrue              -> Ok(true)
+    | Pnot(ic)           ->
+      begin match go ic with
+      | Ok(c)    -> Ok (not c)
+      | Error(s) -> Error(s)
+      end
+    | Pand(cc1,cc2)      ->
+      begin match go cc1, go cc2 with
+      | Ok(c1),Ok(c2) -> Ok(c1 && c2)
+      | Error(s), _
+      | _, Error(s) ->
+        Error(s)
+      end
     | Pcond(cco,ce1,ce2) ->
-      eval_pcondop cco (eval_pexpr pmap ce1) (eval_pexpr pmap ce2)
+      begin match eval_pexpr pmap lmap ce1, eval_pexpr pmap lmap ce2 with
+      | Ok(x1),Ok(x2) -> Ok(eval_pcondop cco x1 x2)
+      | Error(s), _
+      | _, Error(s) ->
+        Error(s)
+      end
   in
   go cc
- 
+
+let eval_pexpr_exn pmap lmap ce = 
+  eval_pexpr pmap lmap ce |> Result.ok_or_failwith
+
+let eval_pcond_exn pmap lmap cc = 
+  eval_pcond pmap lmap cc |> Result.ok_or_failwith
+
 (* ** Interpreter
  * ------------------------------------------------------------------------ *)
 
@@ -97,9 +133,9 @@ let read_lvar lmap s oidx =
 
 let read_src_val pmap lmap (s : src) =
   match s with
-  | Imm pe -> Vu64(eval_pexpr pmap pe)
+  | Imm pe -> Vu64(eval_pexpr_exn pmap lmap pe)
   | Src(d) ->
-    let oidx = Option.map (d.d_oidx) ~f:(eval_pexpr pmap) in
+    let oidx = Option.map (d.d_oidx) ~f:(eval_pexpr_exn pmap lmap) in
     read_lvar lmap d.d_name oidx
 
 let read_src_ pmap lmap (s : src) =
@@ -126,7 +162,7 @@ let write_lvar ov s oidx v =
 let write_dest_ pmap lmap d v =
   let s    = d.d_name in
   let ov   = Map.find lmap s in
-  let oidx = Option.map d.d_oidx ~f:(eval_pexpr pmap) in
+  let oidx = Option.map d.d_oidx ~f:(eval_pexpr_exn pmap lmap) in
   (* F.printf "###: %a\n%!" pp_value v; *)
   let nv   = write_lvar ov s oidx v in
   (* F.printf "###: %a\n%!" pp_value v'; *)
@@ -282,28 +318,29 @@ let interp_assign pmap ~lmap_lhs ~lmap_rhs ds ss =
     ~init:lmap_lhs
     ~f:(fun lmap (s,d) -> write_dest_ pmap lmap d (read_src_val pmap lmap_rhs s))
 
-let rec interp_instr ms0 efun_map instr =
+let rec interp_instr ms0 efun_map linstr =
   (* F.printf "\ninstr: %a\n%!" pp_instr instr;
      print_mstate ms0; *)
-  match instr with
+  let pmap = ms0.m_pmap in
+  match linstr.l_val with
 
   | Binstr(Comment(_)) ->
     ms0
 
   | Binstr(Assgn(d,s,_)) ->
-    let lmap = interp_assign ms0.m_pmap ~lmap_lhs:ms0.m_lmap ~lmap_rhs:ms0.m_lmap [d] [s] in
+    let lmap = interp_assign pmap ~lmap_lhs:ms0.m_lmap ~lmap_rhs:ms0.m_lmap [d] [s] in
     { ms0 with m_lmap = lmap }
 
   | Binstr(Load(d,s,pe)) ->
     let ptr = read_src ms0 s in
-    let c = eval_pexpr ms0.m_pmap pe in
+    let c = eval_pexpr_exn pmap ms0.m_lmap pe in
     let v = map_find_exn ms0.m_mmap pp_uint64 (U64.add c ptr) in
     write_dest ms0 d (Vu64 v)
 
   | Binstr(Store(s1,pe,s2)) ->
     let v = read_src ms0 s2 in
     let ptr = read_src ms0 s1 in
-    let c = eval_pexpr ms0.m_pmap pe in
+    let c = eval_pexpr_exn pmap ms0.m_lmap pe in
     { ms0 with
       m_mmap = Map.add ms0.m_mmap ~key:(U64.add ptr c) ~data:v }
 
@@ -311,14 +348,14 @@ let rec interp_instr ms0 efun_map instr =
     interp_op ms0 d s1 s2 o
 
   | If(ccond,stmt1,stmt2) ->
-    if eval_pcond ms0.m_pmap ccond then
+    if eval_pcond_exn pmap ms0.m_lmap ccond then
       interp_stmt ms0 efun_map stmt1
     else
       interp_stmt ms0 efun_map stmt2
 
   | For(t,cv,clb,cub,stmt) ->
-    let lb = eval_pexpr ms0.m_pmap clb in
-    let ub = eval_pexpr ms0.m_pmap cub in
+    let lb = eval_pexpr_exn pmap ms0.m_lmap clb in
+    let ub = eval_pexpr_exn pmap ms0.m_lmap cub in
     let (initial, test, change) =
       if U64.compare lb ub < 0
       then (
@@ -330,25 +367,22 @@ let rec interp_instr ms0 efun_map instr =
       )
     in
     let update ms i =
-      if t = Unfold then
-        { ms with m_pmap = Map.add ms.m_pmap ~key:cv ~data:i }
-      else
-        { ms with m_lmap = Map.add ms.m_lmap ~key:cv ~data:(Vu64 i) }
+      { ms with m_lmap = Map.add ms.m_lmap ~key:cv ~data:(Vu64 i) }
     in
-    let old_val = Map.find ms0.m_pmap cv in
+    let old_val = Map.find ms0.m_lmap cv in
     let ms = ref ms0 in
     let i = ref initial in
     while test !i do
-      if t <> Unfold && false then (
-        F.printf "\nfor%s %a in %a..%a\n%!"
+      if false then (
+        F.printf "\nfor%s %s=%a in %a..%a\n%!"
           (if t = Unfold then "" else ":")
-          pp_uint64 !i pp_uint64 lb pp_uint64 ub);
+          cv pp_uint64 !i pp_uint64 lb pp_uint64 ub);
       ms := update !ms !i;
       ms := interp_stmt !ms efun_map stmt;
       i := change !i;
     done;
     { !ms with
-      m_pmap = Map.change !ms.m_pmap cv (fun _ -> old_val) }
+      m_lmap = Map.change !ms.m_lmap cv (fun _ -> old_val) }
 
   | Binstr(Call(fname,rets,args)) ->
     interp_call ms0 efun_map fname rets args
@@ -410,7 +444,10 @@ and interp_call_native ms efun_map func fdef call_rets call_args =
   let lmap_caller = ms.m_lmap in
   let fmap_caller = ms.m_fmap in
   let tenv_callee = tenv_of_func func fdef.fd_decls in
-  let lmap_callee = String.Map.empty in
+  let lmap_callee = String.Map.empty
+    (* String.Map.of_alist_exn
+       (List.map ~f:(fun (n,v) -> (n,Vu64 v)) (Map.to_alist pmap)) *)
+  in
   let fmap_callee = String.Map.empty in
   let lmap_callee =
     interp_assign pmap

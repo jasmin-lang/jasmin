@@ -11,13 +11,64 @@ open IL_Interp
 module X64 = Asm_X64
 module MP  = MParser
 
+(* ** Partially evaluate expressions
+ * ------------------------------------------------------------------------ *)
+
+let peval_pexpr pmap lmap ce =
+  let rec go = function
+    | Pbinop(o,e1,e2) ->
+      begin match go e1, go e2 with
+      | Pconst c1, Pconst c2 ->
+        Pconst(eval_pbinop o c1 c2)
+      | e1,e2 -> Pbinop(o,e1,e2)
+      end
+    | Pconst(_) as e -> e
+    | Pparam(s) as e ->
+      begin match Map.find pmap s with
+      | Some(x) -> Pconst(x)
+      | None    -> e
+      end
+    | Pvar(s) as e ->
+      begin match Map.find lmap s with
+      | Some (Vu64 x) -> Pconst(x)
+      | Some(_)       -> failwith_ "peval_pexpr: variable %s of wrong type" s
+      | None          -> e
+      end
+  in
+  go ce
+
+let peval_pcond pmap lmap cc =
+  let rec go = function
+    | Ptrue              -> Ptrue
+    | Pnot(ic)           ->
+      begin match go ic with
+      | Ptrue   -> Pnot(Ptrue)
+      | Pnot(c) -> c
+      | c       -> Pnot(c)
+      end
+    | Pand(cc1,cc2)      ->
+      begin match go cc1, go cc2 with
+      | Ptrue,      Ptrue       -> Ptrue
+      | Pnot(Ptrue),_     
+      | _          ,Pnot(Ptrue) -> Pnot(Ptrue)
+      | c1, c2                  -> Pand(c1,c2)
+      end
+    | Pcond(cco,ce1,ce2) ->
+      begin match peval_pexpr pmap lmap ce1, peval_pexpr pmap lmap ce2 with
+      | Pconst(c1), Pconst(c2) ->
+        if eval_pcondop cco c1 c2 then Ptrue else Pnot(Ptrue)
+      | e1,         e2         -> Pcond(cco,e1,e2)
+      end
+  in
+  go cc
+
 (* ** Inline function calls
  * ------------------------------------------------------------------------ *)
 
-let rec inline_call func_map suffix c decls fname ds ss =
+let rec inline_call func_map suffix c loc decls fname ds ss =
   let ssuffix = "_"^string_of_int !c^(String.make (suffix + 1) '_') in
   let func = map_find_exn func_map pp_string fname in
-  let fdef = match func.f_def with 
+  let fdef = match func.f_def with
     | Def d -> d
     | Undef | Py _ -> failwith_ "cannot inline calls in undefined function %s" fname
   in
@@ -27,34 +78,40 @@ let rec inline_call func_map suffix c decls fname ds ss =
   decls := !decls@arg_decls@(rename_decls (fun s -> s^ssuffix) fdef.fd_decls);
   let stmt = rename_stmt (fun s -> s^ssuffix) fdef.fd_body in
   let stmt = inline_calls_stmt func_map suffix c decls stmt in
-  (List.map2_exn ~f:(fun d s -> Binstr(Assgn(d,s,Eq))) arg_ds ss)
+  (List.map2_exn ~f:(fun d s -> mk_base_instr loc (Assgn(d,s,Eq))) arg_ds ss)
   @ stmt
-  @ (List.map2_exn ~f:(fun d s -> Binstr(Assgn(d,s,Eq))) ds ret_ss)
+  @ (List.map2_exn ~f:(fun d s -> mk_base_instr loc (Assgn(d,s,Eq))) ds ret_ss)
 
-and inline_calls_base_instr func_map (suffix : int) c decls bi =
+and inline_calls_base_instr func_map (suffix : int) c loc decls bi =
   match bi with
   | Call(fn,ds,ss) ->
     incr c;
-    inline_call func_map suffix c decls fn ds ss
-  | bi -> [Binstr(bi)]
+    [ { l_val = Binstr(Comment(fsprintf "Start Call: %a" pp_base_instr bi)); l_loc = loc} ]
+    @ inline_call func_map suffix c loc decls fn ds ss
+    @ [ { l_val = Binstr(Comment(fsprintf "End Call: %a" pp_base_instr bi)); l_loc = loc} ]
 
-and inline_calls_instr func_map (suffix : int) c decls i =
+  | bi -> [ { l_val = Binstr(bi); l_loc = loc} ]
+
+and inline_calls_instr func_map (suffix : int) c decls (li : instr located) =
   let ilc_s = inline_calls_stmt func_map suffix c decls in
-  match i with
-  | If(c,s1,s2)      -> [If(c,ilc_s s1, ilc_s s2)]
-  | For(t,c,lb,ub,s) -> [For(t,c,lb,ub,ilc_s s)]
-  | Binstr(bi)       -> inline_calls_base_instr func_map suffix c decls bi
-  
-and inline_calls_stmt func_map (suffix : int) c decls s =
-  List.concat_map ~f:(inline_calls_instr func_map suffix c decls ) s
+  let instrs =
+    match li.l_val with
+    | If(c,s1,s2)      -> [{ li with l_val = If(c,ilc_s s1, ilc_s s2)}]
+    | For(t,c,lb,ub,s) -> [{ li with l_val = For(t,c,lb,ub,ilc_s s)}]
+    | Binstr(bi)       -> inline_calls_base_instr func_map suffix c li.l_loc decls bi
+  in
+  instrs
+
+and inline_calls_stmt func_map (suffix : int) c decls (s : stmt) : stmt =
+  List.concat_map ~f:(inline_calls_instr func_map suffix c decls) s
 
 let inline_calls_fun func_map (fname : string) =
   let func = map_find_exn func_map pp_string fname in
-  let fdef = match func.f_def with 
+  let fdef = match func.f_def with
     | Def d -> d
     | Undef | Py _ -> failwith_ "cannot inline calls in undefined function %s" fname
   in
-  let used_vars = vars_func func in
+  let used_vars = pvars_func func in
   let suffix =
     find_min (fun i ->
       Set.exists used_vars
@@ -77,24 +134,24 @@ let inline_calls_modul (modul : modul) (fname : string) : modul =
 (* ** Macro expansion: loop unrolling, if, ...
  * ------------------------------------------------------------------------ *)
 
-let inst_pexpr pvar_map pe =
-  Pconst (eval_pexpr pvar_map pe)
+let inst_pexpr pmap lmap pe =
+  peval_pexpr pmap lmap pe
 
-let inst_ty pvar_map ty =
+let inst_ty pmap ty =
   match ty with
   | Bool     -> Bool
-  | U64(ope) -> U64(Option.map ope ~f:(inst_pexpr pvar_map))
+  | U64(ope) -> U64(Option.map ope ~f:(inst_pexpr pmap String.Map.empty))
 
-let inst_dest pvar_map d =
-  { d with d_oidx = Option.map d.d_oidx ~f:(inst_pexpr pvar_map) }
+let inst_dest pmap lmap d =
+  { d with d_oidx = Option.map d.d_oidx ~f:(inst_pexpr pmap lmap) }
 
-let inst_src pvar_map = function
-  | Src(d)  -> Src(inst_dest pvar_map d)
-  | Imm(pe) -> Imm(inst_pexpr pvar_map pe)
+let inst_src pmap lmap = function
+  | Src(d)  -> Src(inst_dest pmap lmap d)
+  | Imm(pe) -> Imm(inst_pexpr pmap lmap pe)
 
-let inst_op pvar_map op =
-  let inst_d = inst_dest pvar_map in
-  let inst_s = inst_src pvar_map in
+let inst_op pmap lmap op =
+  let inst_d = inst_dest pmap lmap in
+  let inst_s = inst_src  pmap lmap in
   match op with
   | ThreeOp(op)       -> ThreeOp(op)
   | Umul(d)           -> Umul(inst_d d)
@@ -102,20 +159,19 @@ let inst_op pvar_map op =
   | CMov(cmf,s1)      -> CMov(cmf,inst_s s1)
   | Shift(d,d1o)      -> Shift(d,Option.map d1o ~f:inst_d)
 
-
-let inst_base_instr pvar_map bi =
-  let inst_p = inst_pexpr pvar_map in
-  let inst_d = inst_dest pvar_map in
-  let inst_s = inst_src pvar_map in
+let inst_base_instr pmap lmap bi =
+  let inst_p = inst_pexpr pmap lmap in
+  let inst_d = inst_dest  pmap lmap in
+  let inst_s = inst_src   pmap lmap in
   match bi with
-  | Op(o,d,(s1,s2)) -> Op(inst_op pvar_map o,inst_d d,(inst_s s1,inst_s s2))
+  | Op(o,d,(s1,s2)) -> Op(inst_op pmap lmap o,inst_d d,(inst_s s1,inst_s s2))
   | Assgn(d,s,t)    -> Assgn(inst_d d,inst_s s,t)
   | Load(d,s,pe)    -> Load(inst_d d,inst_s s,inst_p pe)
   | Store(s1,pe,s2) -> Store(inst_s s1,inst_p pe,inst_s s2)
   | Comment(_)      -> bi
   | Call(_)         -> failwith "inline calls before macro expansion"
 
-let macro_expand_stmt pvar_map stmt =
+let macro_expand_stmt pmap stmt =
   let spaces indent = String.make indent ' ' in
   let s_of_cond c = if c then "if" else "else" in
   let comment_if s indent cond ic =
@@ -124,49 +180,51 @@ let macro_expand_stmt pvar_map stmt =
   let comment_while s indent iv lb_ie ub_ie =
     fsprintf "%s%s for %s in %a..%a" s (spaces indent) iv pp_pexpr lb_ie pp_pexpr ub_ie
   in
-  let bicom c = Binstr(Comment(c)) in
+  let bicom loc c = mk_base_instr loc (Comment(c)) in
 
-  let rec expand indent ivm = function
+  let rec expand indent lmap li =
+    let loc = li.l_loc in
+    match li.l_val with
 
-    | Binstr(binstr) -> [Binstr(inst_base_instr ivm binstr)]
+    | Binstr(binstr) -> [mk_base_instr loc (inst_base_instr pmap lmap binstr)]
 
     | If(ic,st1,st2) ->
-      let cond = eval_pcond ivm ic in
+      (* F.printf "\n%s %a\n%!" (spaces indent) pp_pcond ic; *)
+      let cond = eval_pcond_exn pmap lmap ic in
       let st = if cond then st1 else st2 in
-        [bicom (comment_if "START: " indent cond ic)]
-      @ (List.concat_map
-           ~f:(fun bi -> (expand (indent + 2) ivm bi)) st)
-      @ [bicom (comment_if "END:   " indent cond ic)]
+        [bicom loc (comment_if "START: " indent cond ic)]
+      @ (List.concat_map ~f:(fun bi -> (expand (indent + 2) lmap bi)) st)
+      @ [bicom loc (comment_if "END:   " indent cond ic)]
 
     | For(Loop,iv,lb_ie,ub_ie,stmt) ->
-      [For(Loop,iv,lb_ie,ub_ie,List.concat_map stmt ~f:(expand (indent + 2) pvar_map))]
-
+      let stmt = List.concat_map stmt ~f:(expand (indent + 2) lmap) in
+      [{ li with l_val = For(Loop,iv,lb_ie,ub_ie,stmt) }]
+        
     | For(Unfold,iv,lb_ie,ub_ie,stmt) ->
-      let lb  = eval_pexpr ivm lb_ie in
-      let ub  = eval_pexpr ivm ub_ie in
-      F.printf "%s %a .. %a\n%!" (spaces indent) pp_uint64 lb pp_uint64 ub;
+      (* F.printf "\n%s %a .. %a\n%!" (spaces indent) pp_pexpr lb_ie pp_pexpr ub_ie;  *)
+      let lb  = eval_pexpr_exn pmap lmap lb_ie in
+      let ub  = eval_pexpr_exn pmap lmap ub_ie in
       assert (U64.compare lb ub <= 0);
       let body_for_v v =
-          [bicom (fsprintf "%s%s = %s" (spaces (indent+2)) iv (U64.to_string v))]
-        @ (List.concat_map stmt
-             ~f:(expand (indent + 2) (Map.add ivm ~key:iv ~data:v)))
+          [bicom loc (fsprintf "%s%s = %s" (spaces (indent+2)) iv (U64.to_string v))]
+        @ (List.concat_map stmt ~f:(expand (indent + 2) (Map.add lmap ~key:iv ~data:(Vu64 v))))
       in
-        [bicom (comment_while "START:" indent iv lb_ie ub_ie)]
+        [bicom loc (comment_while "START:" indent iv lb_ie ub_ie)]
       @ List.concat_map (list_from_to ~first:lb ~last:ub) ~f:body_for_v
-      @ [bicom (comment_while "END:" indent iv lb_ie ub_ie)]
+      @ [bicom loc (comment_while "END:" indent iv lb_ie ub_ie)]
   in
-  List.concat_map ~f:(expand 0 pvar_map) stmt
+  List.concat_map ~f:(expand 0 String.Map.empty) stmt
 
-let macro_expand_fundef pvar_map fdef =
-  { fd_decls = List.map fdef.fd_decls ~f:(fun (s,n,ty) -> (s,n,inst_ty pvar_map ty))
-  ; fd_body  = macro_expand_stmt pvar_map fdef.fd_body
+let macro_expand_fundef pmap fdef =
+  { fd_decls = List.map fdef.fd_decls ~f:(fun (s,n,ty) -> (s,n,inst_ty pmap ty))
+  ; fd_body  = macro_expand_stmt pmap fdef.fd_body
   ; fd_ret   = fdef.fd_ret
   }
 
-let macro_expand_func pvar_map func =
-  let inst_t = inst_ty pvar_map in
+let macro_expand_func pmap func =
+  let inst_t = inst_ty pmap in
   let fdef = match func.f_def with
-    | Def fd -> Def(macro_expand_fundef pvar_map fd)
+    | Def fd -> Def(macro_expand_fundef pmap fd)
     | Undef  -> Undef
     | Py(s)  -> Py(s)
   in
@@ -346,7 +404,7 @@ let eq_constrs _bis _regs =
    | App((Add|Sub), ([_;Dreg(d)] | [Dreg(d)]), Sreg(s)::_) ->
      (* ignore flags *)
      ignore (add_to_class s d)
- 
+
    | App(UMul, [Dreg(d1);Dreg(d2)], (Sreg(s1)::_)) ->
      let i1 = new_class d1 in
      let i2 = add_to_class s1 d2 in
