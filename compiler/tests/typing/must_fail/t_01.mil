@@ -2,6 +2,7 @@ param n2 : u64;
 
 fn foo() -> stack u64 {
   reg u : u64;
+  reg w : u64[n];
   u = 0;
   return u;
 }
@@ -9,7 +10,6 @@ fn foo() -> stack u64 {
 extern fn bar() -> stack u64[n*2] {
   reg u : u64[n*2];
 
-  // u<0..1> = foo();
   return u;
 /*
 ERROR: parameter n undefined

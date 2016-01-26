@@ -6,6 +6,7 @@ open Arith
 
 module F = Format
 module P = ParserUtil
+module L = ParserUtil.Lexing
 
 (* ** Compile time expressions
  * ------------------------------------------------------------------------ *)
@@ -71,7 +72,7 @@ type ty =
 type dest = {
   d_name : name;         (* r<idxs> has name r and indexes idxs *)
   d_oidx : pexpr option; (*   e.g., r<i,..> denotes range r<i,0>,..,r<i,n> *)
-  d_loc  : P.loc;        (* location where pseudo-register occurs *)
+  d_loc  : L.loc;      (* position where pseudo-register occurs *)
 } with sexp, compare
 
 type src =
@@ -88,10 +89,9 @@ The language supports the fixed operations given in 'op' (and function calls).
 
 type cmov_flag = CfSet of bool with sexp, compare
 
-type dir      = Left   | Right         with sexp, compare
-type carry_op = O_Add  | O_Sub         with sexp, compare
-type three_op = O_Imul | O_And | O_Xor | O_Or
-  with sexp, compare
+type dir      = Left   | Right                with sexp, compare
+type carry_op = O_Add  | O_Sub                with sexp, compare
+type three_op = O_Imul | O_And | O_Xor | O_Or with sexp, compare
 
 type op =
   | ThreeOp of three_op
@@ -109,10 +109,6 @@ type op =
 - statements (list of instructions) *)
 (* *** Code *)
 
-type 'a located = {
-  l_val : 'a;
-  l_loc : P.loc;
-} with sexp, compare
 
 type assgn_type =
   | Mv (* compile to move *)
@@ -157,7 +153,7 @@ type instr =
   | For of for_type * name * pexpr * pexpr * stmt
     (* For(v,lower,upper,i): for v in lower..upper { i } *)
 
-and stmt = (instr located) list
+and stmt = (instr L.located) list
   with sexp, compare
 
 (* ** Function definitions, declarations, and modules

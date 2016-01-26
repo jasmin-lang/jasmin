@@ -322,7 +322,7 @@ let rec interp_instr ms0 efun_map linstr =
   (* F.printf "\ninstr: %a\n%!" pp_instr instr;
      print_mstate ms0; *)
   let pmap = ms0.m_pmap in
-  match linstr.l_val with
+  match linstr.L.l_val with
 
   | Binstr(Comment(_)) ->
     ms0

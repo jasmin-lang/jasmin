@@ -5,6 +5,8 @@ open IL_Lang
 open Arith
 open Util
 
+module L = ParserUtil.Lexing
+
 (* ** Equality functions and indicator functions
  * ------------------------------------------------------------------------ *)
 
@@ -98,7 +100,7 @@ let params_base_instr = function
       @(List.map ss ~f:params_src))
 
 let rec params_instr linstr =
-  match linstr.l_val with
+  match linstr.L.l_val with
   | Binstr(bi) -> params_base_instr bi
   | If(cond,s1,s2) ->
     String.Set.union_list [params_pcond cond; params_stmt s1; params_stmt s2]
@@ -111,23 +113,26 @@ let rec params_instr linstr =
 and params_stmt stmt =
   String.Set.union_list (List.map stmt ~f:params_instr)
 
-let params_fundef fd =
-  String.Set.union_list
-    [ String.Set.union_list (List.map fd.fd_decls ~f:(fun (_,_,ty) -> params_ty ty))
-    ; params_stmt fd.fd_body
-    ]
+let params_fundef_g decl_only fd =
+  String.Set.union
+    (String.Set.union_list (List.map fd.fd_decls ~f:(fun (_,_,ty) -> params_ty ty)))
+    (if decl_only then String.Set.empty else params_stmt fd.fd_body)
 
-let params_func func =
+let params_func_g decl_only func =
   String.Set.union_list
     [ String.Set.union_list (List.map func.f_args ~f:(fun (_,_,ty) -> params_ty ty))
     ; (match func.f_def with
-       | Def fdef -> params_fundef fdef
+       | Def fdef -> params_fundef_g decl_only fdef
        | _        -> String.Set.empty)
     ; String.Set.union_list (List.map func.f_ret_ty ~f:(fun (_,ty) -> params_ty ty))
     ]
 
-let params_modul modul =
-  String.Set.union_list (List.map modul.m_funcs ~f:params_func)
+let params_modul_g decl_only modul =
+  String.Set.union_list (List.map modul.m_funcs ~f:(params_func_g decl_only))
+
+let params_modul = params_modul_g false
+
+let params_modul_decl = params_modul_g true
 
 (* ** Collect program variables
  * ------------------------------------------------------------------------ *)
@@ -175,7 +180,7 @@ let pvars_base_instr = function
     String.Set.union_list (List.map ds ~f:pvars_dest @ List.map ss ~f:pvars_src)
 
 let rec pvars_instr linstr =
-  match linstr.l_val with
+  match linstr.L.l_val with
   | Binstr(bi)        -> pvars_base_instr bi
   | If(c,s1,s2)       -> String.Set.union_list [pvars_stmt s1; pvars_stmt s2; pvars_pcond c]
   | For(_,n,lb,ub,stmt) ->
@@ -261,12 +266,12 @@ let rec rename_instr f linstr =
   let rnb = rename_base_instr f in
   let rns = rename_stmt f in
   let instr =
-    match linstr.l_val with
+    match linstr.L.l_val with
     | Binstr(bi)       -> Binstr(rnb bi)
     | If(c,s1,s2)      -> If(rnc c,rns s1, rns s2)
     | For(t,v,lb,ub,s) -> For(t,f v,rne lb,rne ub,rns s)
   in
-  { linstr with l_val = instr }
+  { linstr with L.l_val = instr }
 
 and rename_stmt f stmt =
   List.map stmt ~f:(rename_instr f)
@@ -274,14 +279,13 @@ and rename_stmt f stmt =
 let rename_decls f decls =
   List.map ~f:(fun (sto,n,ty) -> (sto,f n,ty)) decls
 
-(* ** Constructor functions for pregs
+(* ** Constructor functions for destinations and located base instructions
  * ------------------------------------------------------------------------ *)
 
 let mk_dest_name name =
-  { d_name = name; d_oidx = None; d_loc = P.dummy_loc }
+  { d_name = name; d_oidx = None; d_loc = L.dummy_loc }
 
-let mk_preg_index name i =
-  { d_name = name; d_oidx = Some (Pconst i); d_loc = P.dummy_loc }
+let mk_base_instr loc bi = { L.l_loc = loc; L.l_val = Binstr(bi) }
 
 (* ** Pretty printing
  * ------------------------------------------------------------------------ *)
@@ -407,7 +411,7 @@ let pp_base_instr fmt bi =
       (pp_list "," pp_src) args
 
 let rec pp_instr fmt li =
-  match li.l_val with
+  match li.L.l_val with
   | Binstr(i) -> pp_base_instr fmt i
   | If(c,i1,i2) ->
     F.fprintf fmt "if %a {@\n  @[<v 0>%a@]@\n} else {@\n  @[<v 0>%a@]@\n}"
@@ -492,23 +496,8 @@ let pp_value_py fmt = function
 (* ** Utility functions
  * ------------------------------------------------------------------------ *)
 
-
-
-let preg_error pr s =
-  failwith (fsprintf "%a: %s" P.pp_loc pr.d_loc s)
-
-let shorten_func _n _func =
-  assert false (*
-  let fdef = Option.value_exn func.f_def in
-  if List.length fdef.fd_body <= n then func
-  else
-    { func with
-      f_def = Some
-        { fdef with
-          fd_body = List.take fdef.fd_body n;
-          fd_ret  = [] };
-      f_ret_ty = [] }
-  *)
+let dest_error d s =
+  failwith (fsprintf "%a: %s" L.pp_loc d.d_loc s)
 
 let parse_value s =
   let open MParser in
@@ -531,149 +520,9 @@ let parse_value s =
   | Failed(s,_) ->
     failwith_ "parse_value: failed for %s" s
 
-(* ** Utility functions for parser
+(* ** Exceptions
  * ------------------------------------------------------------------------ *)
 
-type decl = Dfun of func | Dparams of (string * ty) list
+exception TypeError of L.loc * string
 
-let mk_modul pfs =
-  let params =
-    List.filter_map ~f:(function Dparams(ps) -> Some ps | _ -> None) pfs
-    |> List.concat
-  in
-  let funcs =
-    List.filter_map ~f:(function Dfun(func) -> Some func | _ -> None) pfs
-  in
-  { m_funcs = funcs; m_params = params }
-
-(*
-let fix_indexes (cstart,cend) oidx =
-  Option.map oidx
-    ~f:(function
-          | Get i    -> i
-          | All(_,_) ->
-            let scnum = cstart.Lexing.pos_cnum + 1 in
-            let ecnum = cend.Lexing.pos_cnum + 1 in
-            let err = "range not allowed here" in
-            raise (ParserUtil.UParserError(scnum,ecnum,err)))
-*)
-
-(*
-let dest_e_of_dest pos d =
-  { d with d_oidx = fix_indexes pos d.d_oidx }
-*)
-
-(*
-let src_e_of_src pos s =
-  match s with
-  | Imm(i) -> Imm(i)
-  | Src(d) -> Src(dest_e_of_dest pos d)
- *)
-
-let abortwith_ fmt =
-  let buf  = Buffer.create 127 in
-  let fbuf = F.formatter_of_buffer buf in
-  F.kfprintf
-    (fun _ ->
-      F.pp_print_flush fbuf ();
-      let s = Buffer.contents buf in
-      prerr_endline s;
-      exit (-1)
-    )
-    fbuf fmt
-
-
-let failpos _pos msg = (* FIXME: use position in error message here *)
-  failwith msg
-
-let mk_fundef decls stmt rets =
-  let rets = Option.value ~default:[] rets in
-  { fd_ret = rets;
-    fd_decls  = List.concat decls;
-    fd_body   = get_opt [] stmt;
-  }
-
-let mk_func startpos endpos rty name ext args (def : fundef_or_py) : func =
-  let rtys = Option.value ~default:[] rty in
-  let () =
-    match def with
-    | Undef | Py _ -> ()
-    | Def d ->
-      if List.length d.fd_ret <> List.length rtys then (
-        let c_start = startpos.Lexing.pos_cnum + 1 in
-        let c_end   = endpos.Lexing.pos_cnum + 1 in
-        let err = "mismatch between return type and return statement" in
-        raise (ParserUtil.UParserError(c_start,c_end,err))
-      );
-  in
-  {
-    f_name      = name;
-    f_call_conv = if ext=None then Custom else Extern;
-    f_args      = List.concat args;
-    f_def       = def;
-    f_ret_ty    = rtys }
-
-let mk_base_instr loc bi = { l_loc = loc; l_val=Binstr(bi) }
-
-let mk_if c i1s (mi2s : ((instr located) list) option) (ies : (pcond * instr located list) list) =
-  let ielse : instr located list =
-    List.fold
-      ~init:(get_opt [] mi2s)
-      ~f:(fun celse (c,li) -> [{ l_val = If(c,li,celse); l_loc = P.dummy_loc} ])
-      (List.rev ies)
-  in
-  If(c,i1s,ielse)
-
-let mk_store ptr pe src = Store(ptr,pe,src)
-
-let mk_ternop pos (dests : dest list) op op2 s1 s2 s3 =
-  let fail = failpos pos in
-  if op<>op2 then fail "operators must be equal";
-  let d, dests = match List.rev dests with
-    | d::others -> d, List.rev others
-    | []        -> fail "impossible"
-  in
-  let get_one_dest s dests = match dests with
-    | []   -> None
-    | [d1] -> Some d1
-    | _    -> fail ("invalid args for "^s)
-  in
-  match op with
-  | (`Add | `Sub) as op ->
-    let op = match op with `Add -> O_Add | `Sub -> O_Sub in
-    let d1 = get_one_dest "add/sub" dests in
-    Op(Carry(op,d1,s3),d,(s1,s2))
-
-  | (`And | `Xor | `Or) as op  ->
-    if dests<>[] then fail "invalid destination for and/xor";
-    let op = match op with `And -> O_And | `Xor -> O_Xor | `Or -> O_Or in
-    Op(ThreeOp(op),d,(s1,s2))
-
-  | `Shift(dir) ->
-    let d1 = get_one_dest "shift" dests in
-    Op(Shift(dir,d1),d,(s1,s2))
-
-  | `Mul ->
-    begin match dests with
-    | []   -> Op(ThreeOp(O_Imul),d,(s1,s2))
-    | [d1] -> Op(Umul(d1),d,(s1,s2))
-    | _    -> fail "invalid args for mult"
-    end
-
-let mk_cmov pos (dests : dest list) s cf flg =
-  let d = match dests with
-    | [d] -> d
-    | _   -> failpos pos "invalid destination for and/xor"
-  in
-  Op(CMov(flg,cf),d,(Src(d),s))
-
-let mk_instr (dests : dest list) (rhs,pos) : instr =
-  match dests, rhs with
-  | _,   `Call(fname,args)          -> Binstr(Call(fname,dests,args))
-  | [d], `Assgn(src,aty)            -> Binstr(Assgn(d,src,aty))
-  | [d], `Load(src,pe)              -> Binstr(Load(d,src,pe))
-  | _,   `BinOp(o,s1,s2)            -> Binstr(mk_ternop pos dests o  o  s1 s2 None)
-  | _,   `TernaryOp(o1,o2,s1,s2,s3) -> Binstr(mk_ternop pos dests o1 o2 s1 s2 (Some s3))
-  | _,   `Cmov(s,cf,flg)            -> Binstr(mk_cmov pos dests s cf flg)
-  | _,   `Load(_,_)                 -> failpos pos "load expects exactly one destination"
-  | _,   `Assgn(_)                  -> failpos pos "assignment expects exactly one destination"
+let failtype loc s = raise (TypeError(loc,s))

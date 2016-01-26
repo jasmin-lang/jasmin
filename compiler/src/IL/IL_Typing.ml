@@ -8,14 +8,13 @@ open Arith
 open Core_kernel.Std
 
 module P = ParserUtil
+module L = ParserUtil.Lexing
 
 (* ** Check type information and propagate to pregs
  * ------------------------------------------------------------------------ *)
 
 (* *** Typing environment
  * ------------------------------------------------------------------------ *)
-
-exception TypeError of P.loc * string
 
 type penv = ty   String.Map.t
 type fenv = func String.Map.t
@@ -30,8 +29,17 @@ type env = {
 let tenv_of_func func decls =
   String.Map.of_alist_exn (List.map ~f:(fun (_,m,t) -> (m,t)) (func.f_args@decls))
 
-let type_error d s =
- raise (TypeError (d.d_loc,s))
+let type_error_ d fmt =
+  let buf  = Buffer.create 127 in
+  let fbuf = F.formatter_of_buffer buf in
+  F.kfprintf
+    (fun _ ->
+      F.pp_print_flush fbuf ();
+      let s = Buffer.contents buf in
+      failtype d.d_loc s)
+    fbuf fmt
+
+let type_error d s = failtype d.d_loc s
 
 (* *** Compute types of registers taking (array) indexes into account
  * ------------------------------------------------------------------------ *)
@@ -58,15 +66,14 @@ let type_dest_app d ty =
   match ty with
   | Bool ->
     if Option.is_some d.d_oidx then
-      type_error d "register has type bool, invalid usage";
+      type_error_ d "register has type bool, invalid usage";
     Bool
   | U64(odim) as ty ->
     begin match odim, d.d_oidx with
     | _       , None    -> ty
     | Some (_), Some(_) -> U64(None)
     | None    , Some _  ->
-      type_error d
-        (fsprintf "cannot perform array indexing on scalar %s" d.d_name)
+      type_error_ d "cannot perform array indexing on scalar %s" d.d_name
     end
 
 (** Same as [type_dest_app] except that it looks up the type from [tenv] *)
@@ -77,7 +84,7 @@ let type_dest (tenv : tenv) d =
 let typecheck_dest (tenv : tenv) d ty_exp =
   let ty = type_dest tenv d in
   if not (equiv_ty ty ty_exp) then
-    type_error d (fsprintf "type mismatch (got %a, expected %a)" pp_ty ty pp_ty ty_exp)
+    type_error_ d "type mismatch (got %a, expected %a)" pp_ty ty pp_ty ty_exp
 
 (** Takes source and computes its type (see [type_dest]) *)
 let type_src (env : env) = function
@@ -96,22 +103,22 @@ let typecheck_src (env : env) s ty_exp =
 type base_type = T_U64 | T_Bool
 
 (** Ensures that the source and destination for assignments are compatible *)
-let typecheck_assgn (env : env) d s loc =
-  let mk_bi bi = { l_loc = loc; l_val=Binstr(bi) } in
+let typecheck_assgn (env : env) d s pos =
+  let mk_bi bi = L.{ l_loc = pos; l_val = Binstr(bi) } in
   let ty_s = type_src  env s in
   let ty_d = type_dest env.e_tenv d in
   match ty_s, ty_d with
   | U64(odim1), U64(odim2) ->
     if not (is_some odim1 = is_some odim2) then
-      type_error d (fsprintf "incompatible types for assignment %a (lhs %a, rhs %a)"
-                           pp_instr (mk_bi (Assgn(d,s,Mv))) pp_ty ty_d pp_ty ty_s)
+      type_error_ d "incompatible types for assignment %a (lhs %a, rhs %a)"
+        pp_instr (mk_bi (Assgn(d,s,Mv))) pp_ty ty_d pp_ty ty_s
 
   | Bool, Bool ->
-    type_error d (fsprintf "incompatible types for assignment %a (cannot assign flags)"
-                    pp_instr (mk_bi (Assgn(d,s,Mv))))
+    type_error_ d "incompatible types for assignment %a (cannot assign flags)"
+      pp_instr (mk_bi (Assgn(d,s,Mv)))
   | _, _ ->
-    type_error d (fsprintf "incompatible types for assignment %a (lhs %a, rhs %a)"
-                    pp_instr (mk_bi (Assgn(d,s,Mv))) pp_ty ty_d pp_ty ty_s)
+    type_error_ d "incompatible types for assignment %a (lhs %a, rhs %a)"
+      pp_instr (mk_bi (Assgn(d,s,Mv))) pp_ty ty_d pp_ty ty_s
 
 
 
@@ -177,10 +184,10 @@ let rec typecheck_instr (env : env) linstr =
   let tc_stmt  = typecheck_stmt  env in
   let tc_op    = typecheck_op    env in
   let tc_assgn = typecheck_assgn env in
-  match linstr.l_val with
+  match linstr.L.l_val with
   | Binstr(Comment _)             -> ()
   | Binstr(Op(op,d,(s1,s2)))      -> tc_op op d s1 s2
-  | Binstr(Assgn(d,s,_))          -> tc_assgn d s linstr.l_loc
+  | Binstr(Assgn(d,s,_))          -> tc_assgn d s linstr.L.l_loc
   | If(_,stmt1,stmt2)             -> tc_stmt stmt1; tc_stmt stmt2
   | Binstr(Load(d,s,_pe))         -> type_src_eq  env s T_U64; type_dest_eq env d T_U64
   | Binstr(Store(s1,_pe,s2))      -> type_src_eq env s1 T_U64; type_src_eq env s2 T_U64
@@ -195,7 +202,7 @@ let rec typecheck_instr (env : env) linstr =
       ~err:(fun n_g n_e ->
               failwith_ "wrong number of l-values (got %i, exp. %i)" n_g n_e)
   | For(_,pv,_,_,stmt) ->
-    type_dest_eq env { d_loc = linstr.l_loc; d_name = pv; d_oidx = None} T_U64;
+    type_dest_eq env { d_loc = linstr.L.l_loc; d_name = pv; d_oidx = None} T_U64;
     typecheck_stmt env stmt
 
 and typecheck_stmt (env : env) stmt =
@@ -222,10 +229,14 @@ let typecheck_func (penv : penv) (fenv : fenv) func =
 (** typecheck all functions in module *)
 let typecheck_modul modul =
   let funcs = modul.m_funcs in
-  let fenv = String.Map.of_alist_exn (List.map funcs ~f:(fun func -> (func.f_name, func))) in
+  let fenv = String.Map.of_alist_exn (List.map funcs ~f:(fun f -> (f.f_name, f))) in
   let penv = String.Map.of_alist_exn modul.m_params in
-  let params = params_modul modul in
-  Set.iter params
+  let params_decl = params_modul modul in
+  F.printf "params_decl: %a\n%!" (pp_list "," pp_string) (Set.to_list params_decl);
+  F.printf "modul: %a\n%!" pp_modul modul;
+  F.printf "params_modul: %a\n%!" (pp_list "," pp_string)
+    (List.map ~f:fst modul.m_params);
+  Set.iter params_decl
     ~f:(fun pv -> if not (Map.mem penv pv) then
-                    raise (TypeError(P.dummy_loc,fsprintf "parameter %s undefined" pv)));
+                    failtype L.dummy_loc (fsprintf "parameter %s undefined" pv));
   List.iter funcs ~f:(typecheck_func penv fenv)

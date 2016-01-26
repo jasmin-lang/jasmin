@@ -1,9 +1,12 @@
-(* * Utility functions (mostly for testing) *)
+(* * Utility functions *)
 
 (* ** Imports and abbreviations *)
 open Core_kernel.Std
 
 module F = Format
+
+(* ** Pretty printing
+ * ------------------------------------------------------------------------ *)
 
 let pp_opt snone pp_some fmt o =
   match o with
@@ -22,7 +25,6 @@ let rec pp_list sep pp_elt f l =
   | [e] -> pp_elt f e
   | e::l -> F.fprintf f "%a%(%)%a" pp_elt e sep (pp_list sep pp_elt) l
 
-(* FIXME: add "tacerror" like function *)
 let failwith_ fmt =
   let buf  = Buffer.create 127 in
   let fbuf = F.formatter_of_buffer buf in
@@ -42,6 +44,9 @@ let fsprintf fmt =
       (Buffer.contents buf))
     fbuf fmt
 
+(* ** Misc. functions
+ * ------------------------------------------------------------------------ *)
+
 let linit l = List.rev l |> List.tl_exn |> List.rev
 
 let equal_pair equal_a equal_b (a1,b1) (a2, b2) =
@@ -52,9 +57,6 @@ let equal_list equal_elem xs ys =
   List.for_all2_exn ~f:equal_elem xs ys
 
 let get_opt def o = Option.value ~default:def o
-
-(* ** Exceptional functions with more error reporting
- * ------------------------------------------------------------------------ *)
 
 let cartesian_product_list xs =
   let rec go rem acc =
@@ -67,6 +69,15 @@ let cartesian_product_list xs =
     | [] -> acc
   in
   go xs [[]]
+
+let find_min f =
+  let rec go i =
+    if f i then i else go (succ i)
+  in
+  go 0
+
+(* ** Exceptional functions with more error reporting
+ * ------------------------------------------------------------------------ *)
 
 let map_find_exn ?(err=failwith) m pp pr =
   match Map.find m pr with
@@ -93,9 +104,3 @@ let hashtbl_find_exn ?(err=failwith) m pp pr =
   | None ->
     err (fsprintf "map_find_preg %a failed, not in domain:\n%a"
            pp pr (pp_list "," pp) (Hashtbl.keys m))
-
-let find_min f =
-  let rec go i =
-    if f i then i else go (succ i)
-  in
-  go 0

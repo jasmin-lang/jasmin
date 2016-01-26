@@ -10,13 +10,51 @@ module L = Lexing
 (* ** Error handling
  * ------------------------------------------------------------------------ *)
 
+module Lexing =
+  struct
+    include Lexing
+    let compare_position _p1 _p2 = failwith "Lexing.compare undefined"
+    let position_of_sexp _p = failwith "Lexing.compare undefined"
+    let sexp_of_position _p = failwith "Lexing.compare undefined"
+    let pp_pos fmt p =
+      F.fprintf fmt "%s:%i:%i" p.pos_fname p.pos_lnum p.pos_cnum
+
+    type loc = { loc_start : position; loc_end : position }
+      with sexp, compare
+    let pp_loc fmt l = (* FIXME: also print end of range *)
+      F.fprintf fmt "%s:%i:%i" l.loc_start.pos_fname l.loc_start.pos_lnum l.loc_start.pos_cnum
+    let mk_loc (ps,pe) = { loc_start = ps; loc_end = pe }
+    let dummy_loc = mk_loc (dummy_pos,dummy_pos)
+    type 'a located = {
+      l_val : 'a;
+      l_loc : loc
+    } with sexp, compare
+
+  end
+
+(* ** Error handling
+ * ------------------------------------------------------------------------ *)
+
+(* our custom parse error *)
+exception ParseError of Lexing.loc * string
+
+let failparse loc s = raise (ParseError(loc,s))
+
 (* Use this in your lexer *)
 exception LexerError of string
 
 (* Replace menhir ParserError error using this error *)
 exception ParserError
 
-exception UParserError of int * int * string
+let lexbuf_from_string name s = 
+  let lexbuf = Lexing.from_string s in
+  lexbuf.Lexing.lex_curr_p <- {
+      Lexing.pos_fname = name;
+      Lexing.pos_lnum  = 1;
+      Lexing.pos_bol   = 0;
+      Lexing.pos_cnum  = 0
+    };
+  lexbuf
 
 let charpos_to_linepos s cp =
   let module E = struct exception Found of int * int * string end in
@@ -36,8 +74,9 @@ let charpos_to_linepos s cp =
   with
     E.Found(l,cp,s) -> (l,cp,s)
 
-let wrap_error f s =
-  let sbuf = Lexing.from_string s in
+let wrap_error f fname s =
+  let open Lexing in
+  let sbuf = lexbuf_from_string fname s in
   try
     `ParseOk (f sbuf)
   with
@@ -53,7 +92,9 @@ let wrap_error f s =
     let (line_pos,lstart_pos,line) = charpos_to_linepos s start_pos in
     let len = min (end_pos - start_pos) (String.length line - lstart_pos) in
     `ParseError (line_pos,lstart_pos,len,line,"parse error")
-  | UParserError(start_pos,end_pos,err) -> 
+  | ParseError(loc,err) ->
+    let start_pos = loc.loc_start.L.pos_cnum in
+    let end_pos   = loc.loc_end.L.pos_cnum in    
     let (line_pos,lstart_pos,line) = charpos_to_linepos s start_pos in
     let len = min (end_pos - start_pos) (String.length line - lstart_pos) in
     `ParseError (line_pos,lstart_pos,len,line,err)
@@ -76,42 +117,15 @@ let parse ~parse file s =
   | `ParseOk pres      -> pres
   | `ParseError(pinfo) -> failwith (error_string file pinfo)
 
-(* ** Positions
- * ------------------------------------------------------------------------ *)
-
-(* FIXME: type duplicated since deriving expects compare/sexp in Lexing module *)
-
-type pos = {
-  pos_fname : string;
-  pos_lnum : int;
-  pos_cnum : int;
-  pos_bol : int
-} with compare, sexp
-
-let pos_of_lexing_pos (p : L.position) =
-  { pos_fname = p.L.pos_fname;
-    pos_lnum  = p.L.pos_lnum;
-    pos_cnum  = p.L.pos_cnum;
-    pos_bol   = p.L.pos_bol;
-  }
-
-let dummy_pos = pos_of_lexing_pos L.dummy_pos
-
-type loc = {
-  loc_start : pos;
-  loc_end   : pos;
-} with compare, sexp
-
-let loc_of_lexing_loc (spos,epos) =
-  { loc_start = pos_of_lexing_pos spos;
-    loc_end   = pos_of_lexing_pos epos;
-  }
-
-let dummy_loc =
-  { loc_start = dummy_pos;
-    loc_end   = { dummy_pos with pos_cnum = dummy_pos.pos_cnum + 1 } }
-
-let pp_pos fmt p =
-  F.fprintf fmt "%s:%i:%i" p.pos_fname p.pos_lnum p.pos_cnum
-
-let pp_loc fmt l = pp_pos fmt l.loc_start
+let failloc loc s msg =
+  let open Lexing in
+  let start_pos = loc.loc_start.L.pos_cnum in
+  let end_pos   = loc.loc_end.L.pos_cnum in
+  let (line_pos,lstart_pos,line) = charpos_to_linepos s start_pos in
+  let len = min (end_pos - start_pos) (String.length line - lstart_pos) in
+  let pinfo = (line_pos,lstart_pos,len,line,msg) in
+  let fname = loc.loc_start.L.pos_fname in
+  eprintf "%s%!" (error_string fname pinfo);
+  (* let msg = fsprintf "%a: %s" L.pp_loc loc msg in *)
+  (* prerr_endline msg; *)
+  exit (-1)

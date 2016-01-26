@@ -2,10 +2,10 @@
 open IL_Lang
 open Core_kernel
 open Arith
-open IL_Utils
+open IL_ParseUtils
 
 module P = ParserUtil
-module L = Lexing
+module L = ParserUtil.Lexing
 
 %}
 
@@ -138,13 +138,12 @@ pcond :
 
 %inline dest_noloc :
 | s=ID idx = dest_get?
-    { { d_name = s; d_oidx = idx; d_loc = P.dummy_loc } }
+    { { d_name = s; d_oidx = idx; d_loc = L.dummy_loc } }
 
 %inline dest :
 | ld=loc(dest_noloc)
     { let (d,loc) = ld in
-      let loc = P.loc_of_lexing_loc loc in
-      { d with d_loc = loc} }
+      { d with d_loc = L.mk_loc loc } }
 
 src :
 | d=dest                       { Src(d)                       }
@@ -191,7 +190,7 @@ opeq:
     { `BinOp(op,s1,s2) }
 
 | s1=src op1=binop s2=src op2=binop s3=src
-    { `TernaryOp(op1,op2,s1,s2,s3) }
+    { `TernOp(op1,op2,s1,s2,s3) }
 
 | fname=ID args=tuple(src)
     { `Call(fname, args) }
@@ -201,23 +200,22 @@ opeq:
 
 %inline opeq_rhs:
 | s = src                 { fun op d -> `BinOp(op,Src(d),s) }
-| s2=src op2=binop s3=src { fun op1 d -> `TernaryOp(op1,op2,Src(d),s2,s3) }
+| s2=src op2=binop s3=src { fun op1 d -> `TernOp(op1,op2,Src(d),s2,s3) }
 
 
 instr :
-| ds=tuple_nonempty(dest) EQ rhs=loc(assgn_rhs_mv) SEMICOLON
-    { mk_instr ds rhs }
+| ds=tuple_nonempty(dest) EQ rhs=assgn_rhs_mv SEMICOLON
+    { mk_instr ds rhs (L.mk_loc ($startpos,$endpos)) }
 
-| ds=tuple_nonempty(dest) COLON EQ rhs=loc(assgn_rhs_eq) SEMICOLON
-    { mk_instr ds rhs }
+| ds=tuple_nonempty(dest) COLON EQ rhs=assgn_rhs_eq SEMICOLON
+    { mk_instr ds rhs (L.mk_loc ($startpos,$endpos)) }
 
 | MEM LBRACK ptr = src PLUS pe = pexpr RBRACK EQ s = src SEMICOLON
     { Binstr(mk_store ptr pe s) }
 
-| ds=tuple_nonempty(dest) op=opeq rhs_loc=loc(opeq_rhs) SEMICOLON
-    { let (rhs_fun,loc) = rhs_loc in
-      let rhs = rhs_fun op (Std.List.last_exn ds) in
-      mk_instr ds (rhs,loc) }
+| ds=tuple_nonempty(dest) op=opeq rhs=opeq_rhs SEMICOLON
+    { let rhs = rhs op (Std.List.last_exn ds) in
+      mk_instr ds rhs (L.mk_loc ($startpos,$endpos)) }
 
 | fname=ID args=tuple(src) SEMICOLON
     { Binstr(Call(fname, [], args)) }
@@ -240,7 +238,7 @@ celse :
 linstr :
 | li = loc(instr)
   { match li with
-    | (instr,loc) -> { l_val = instr; l_loc = ParserUtil.loc_of_lexing_loc loc } }
+    | (instr,loc) -> L.{ l_val = instr; l_loc = mk_loc loc } }
 
 block :
 | LCBRACE stmt=linstr* RCBRACE { stmt }
@@ -300,7 +298,7 @@ func :
     args = paren_tuple(decl)
     rty  = ret_ty?
     def  = func_body
-    { mk_func $startpos $endpos rty name ext args def }
+    { mk_func (L.mk_loc ($startpos,$endpos)) rty name ext args def }
 
 param_or_func :
 | f=func                        { Dfun(f) }

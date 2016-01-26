@@ -86,19 +86,19 @@ and inline_calls_base_instr func_map (suffix : int) c loc decls bi =
   match bi with
   | Call(fn,ds,ss) ->
     incr c;
-    [ { l_val = Binstr(Comment(fsprintf "Start Call: %a" pp_base_instr bi)); l_loc = loc} ]
+    [ L.{ l_val = Binstr(Comment(fsprintf "Start Call: %a" pp_base_instr bi)); l_loc = loc} ]
     @ inline_call func_map suffix c loc decls fn ds ss
-    @ [ { l_val = Binstr(Comment(fsprintf "End Call: %a" pp_base_instr bi)); l_loc = loc} ]
+    @ [ L.{ l_val = Binstr(Comment(fsprintf "End Call: %a" pp_base_instr bi)); l_loc = loc} ]
 
-  | bi -> [ { l_val = Binstr(bi); l_loc = loc} ]
+  | bi -> [ L.{ l_val = Binstr(bi); l_loc = loc} ]
 
-and inline_calls_instr func_map (suffix : int) c decls (li : instr located) =
+and inline_calls_instr func_map (suffix : int) c decls (li : instr L.located) =
   let ilc_s = inline_calls_stmt func_map suffix c decls in
   let instrs =
-    match li.l_val with
-    | If(c,s1,s2)      -> [{ li with l_val = If(c,ilc_s s1, ilc_s s2)}]
-    | For(t,c,lb,ub,s) -> [{ li with l_val = For(t,c,lb,ub,ilc_s s)}]
-    | Binstr(bi)       -> inline_calls_base_instr func_map suffix c li.l_loc decls bi
+    match li.L.l_val with
+    | If(c,s1,s2)      -> [{ li with L.l_val = If(c,ilc_s s1, ilc_s s2)}]
+    | For(t,c,lb,ub,s) -> [{ li with L.l_val = For(t,c,lb,ub,ilc_s s)}]
+    | Binstr(bi)       -> inline_calls_base_instr func_map suffix c li.L.l_loc decls bi
   in
   instrs
 
@@ -183,8 +183,8 @@ let macro_expand_stmt pmap stmt =
   let bicom loc c = mk_base_instr loc (Comment(c)) in
 
   let rec expand indent lmap li =
-    let loc = li.l_loc in
-    match li.l_val with
+    let loc = li.L.l_loc in
+    match li.L.l_val with
 
     | Binstr(binstr) -> [mk_base_instr loc (inst_base_instr pmap lmap binstr)]
 
@@ -198,7 +198,7 @@ let macro_expand_stmt pmap stmt =
 
     | For(Loop,iv,lb_ie,ub_ie,stmt) ->
       let stmt = List.concat_map stmt ~f:(expand (indent + 2) lmap) in
-      [{ li with l_val = For(Loop,iv,lb_ie,ub_ie,stmt) }]
+      [ L.{ li with l_val = For(Loop,iv,lb_ie,ub_ie,stmt) } ]
         
     | For(Unfold,iv,lb_ie,ub_ie,stmt) ->
       (* F.printf "\n%s %a .. %a\n%!" (spaces indent) pp_pexpr lb_ie pp_pexpr ub_ie;  *)

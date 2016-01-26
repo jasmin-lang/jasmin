@@ -1,10 +1,12 @@
 open Core.Std
 open IL
+open IL_Utils
 open Util
 
 module F  = Format
 module AP = Asm_Parse
 module P  = ParserUtil
+module L  = ParserUtil.Lexing
 
 (* --------------------------------------------------------------------- *)
 (* Command implementations *)
@@ -12,7 +14,7 @@ module P  = ParserUtil
 let parse_and_process ~parse ~ftype ~process file =
   let s = In_channel.read_all file in
   eprintf "Parsing %s as %s\n\n%!" file ftype;
-  match parse s with
+  match parse file s with
   | `ParseOk res       -> process s res
   | `ParseError(pinfo) -> eprintf "%s%!" (ParserUtil.error_string file pinfo)
 
@@ -20,14 +22,8 @@ let process_mil trafo print_result out_file file s modul =
   let res =
     try ILT.apply_transform_asm trafo modul
     with
-      | ILTy.TypeError(loc,msg) ->
-        let start_pos = loc.P.loc_start.P.pos_cnum in
-        let end_pos   = loc.P.loc_end.P.pos_cnum in
-        let (line_pos,lstart_pos,line) = P.charpos_to_linepos s start_pos in
-        let len = min (end_pos - start_pos) (String.length line - lstart_pos) in
-        let pinfo = (line_pos,lstart_pos,len,line,msg) in
-        eprintf "%s%!" (ParserUtil.error_string file pinfo);
-        exit 1
+      | TypeError(loc,msg)  -> P.failloc loc s msg
+      | P.ParseError(loc,msg) -> P.failloc loc s msg
   in
   match res with
   | `Asm_X64 afuns ->
