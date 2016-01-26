@@ -520,26 +520,26 @@ fn invert(stack xa : u64[4]) -> stack u64[4] {
   for i in 1..10 { t = squarea(t); }  /* 2^50 - 2^10 */
   z2_50_0 = mula(t,z2_10_0);          /* 2^50 - 2^0 */
 
-  t = squarea(z2_50_0);                       /* 2^51 - 2^1 */
+  t = squarea(z2_50_0);               /* 2^51 - 2^1 */
   for i in 1..50 { t = squarea(t); }  /* 2^100 - 2^50 */
-  z2_100_0 = mula(t,z2_50_0);                 /* 2^100 - 2^0 */
+  z2_100_0 = mula(t,z2_50_0);         /* 2^100 - 2^0 */
 
-  t= squarea(z2_100_0);                       /* 2^101 - 2^1 */
+  t= squarea(z2_100_0);               /* 2^101 - 2^1 */
   for i in 1..100 { t = squarea(t); } /* 2^200 - 2^100 */
-  t = mula(t,z2_100_0);                       /* 2^200 - 2^0 */
+  t = mula(t,z2_100_0);               /* 2^200 - 2^0 */
 
-  t = squarea(t);                             /* 2^201 - 2^1 */
+  t = squarea(t);                     /* 2^201 - 2^1 */
   for i in 1..50 { t = squarea(t); }  /* 2^250 - 2^50 */
-  t = mula(t,z2_50_0);                        /* 2^250 - 2^0 */
+  t = mula(t,z2_50_0);                /* 2^250 - 2^0 */
 
-  t = squarea(t);                             /* 2^251 - 2^1 */
-  t = squarea(t);                             /* 2^252 - 2^2 */
-  t = squarea(t);                             /* 2^253 - 2^3 */
+  t = squarea(t);                     /* 2^251 - 2^1 */
+  t = squarea(t);                     /* 2^252 - 2^2 */
+  t = squarea(t);                     /* 2^253 - 2^3 */
 
-  t = squarea(t);                             /* 2^254 - 2^4 */
+  t = squarea(t);                     /* 2^254 - 2^4 */
 
-  t = squarea(t);                             /* 2^255 - 2^5 */
-  ra = mula(t,z11);                            /* 2^255 - 21 */
+  t = squarea(t);                     /* 2^255 - 2^5 */
+  ra = mula(t,z11);                   /* 2^255 - 21 */
 
   return ra;
 }
