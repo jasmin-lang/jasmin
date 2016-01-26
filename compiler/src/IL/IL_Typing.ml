@@ -46,10 +46,10 @@ let type_error d s = failtype d.d_loc s
 
 let equiv_ty ty1 ty2 =
   match ty1, ty2 with
-  | Bool, Bool                   -> true
-  | U64(None)      , U64(None)   -> true
-  | U64(Some(d1)), U64(Some(d2)) -> equal_pexpr d1 d2
-  | _,               _           -> false
+  | Bool,    Bool    -> true
+  | U64    , U64     -> true
+  | Arr(d1), Arr(d2) -> equal_dexpr d1 d2
+  | _,       _       -> false
 
 let get_dim (dim : pexpr) (lb_o,ub_o) =
   let zero = Pconst U64.zero in
@@ -64,16 +64,14 @@ let get_dim (dim : pexpr) (lb_o,ub_o) =
     Example: for pr<3,0..n> with pr : u64<5,n>[n], the result is u64<n>[n] *)
 let type_dest_app d ty =
   match ty with
-  | Bool ->
+  | Bool | U64 ->
     if Option.is_some d.d_oidx then
-      type_error_ d "register has type bool, invalid usage";
-    Bool
-  | U64(odim) as ty ->
-    begin match odim, d.d_oidx with
-    | _       , None    -> ty
-    | Some (_), Some(_) -> U64(None)
-    | None    , Some _  ->
-      type_error_ d "cannot perform array indexing on scalar %s" d.d_name
+      type_error_ d "register has type %a, cannot access array element" pp_ty ty;
+    ty
+  | Arr(_dim) as ty ->
+    begin match d.d_oidx with
+    | None    -> ty
+    | Some(_) -> U64
     end
 
 (** Same as [type_dest_app] except that it looks up the type from [tenv] *)
@@ -88,57 +86,44 @@ let typecheck_dest (tenv : tenv) d ty_exp =
 
 (** Takes source and computes its type (see [type_dest]) *)
 let type_src (env : env) = function
-  | Imm(_) -> U64(None)
+  | Imm(_) -> U64
   | Src(d) -> type_dest env.e_tenv d
 
 (** Same as [type_dest] except that it asserts that type is equal to [ty_exp] *)
 let typecheck_src (env : env) s ty_exp =
   match s with
-  | Imm(_) -> if not (equal_ty ty_exp (U64(None))) then assert false
+  | Imm(_) -> if not (equal_ty ty_exp (U64)) then assert false
   | Src(d) -> typecheck_dest env.e_tenv d ty_exp
 
 (* *** Check types for assignments, destinations, and sources
  * ------------------------------------------------------------------------ *)
 
-type base_type = T_U64 | T_Bool
-
 (** Ensures that the source and destination for assignments are compatible *)
 let typecheck_assgn (env : env) d s pos =
-  let mk_bi bi = L.{ l_loc = pos; l_val = Binstr(bi) } in
   let ty_s = type_src  env s in
   let ty_d = type_dest env.e_tenv d in
-  match ty_s, ty_d with
-  | U64(odim1), U64(odim2) ->
-    if not (is_some odim1 = is_some odim2) then
-      type_error_ d "incompatible types for assignment %a (lhs %a, rhs %a)"
-        pp_instr (mk_bi (Assgn(d,s,Mv))) pp_ty ty_d pp_ty ty_s
+  if not (equiv_ty ty_s ty_d) then (
+    failtype_ pos "incompatible types for assignment: lhs %, rhs %a)"
+      pp_ty ty_d pp_ty ty_s
+  ) (* FIXME: disallow flag assignments here? *)
 
-  | Bool, Bool ->
-    type_error_ d "incompatible types for assignment %a (cannot assign flags)"
-      pp_instr (mk_bi (Assgn(d,s,Mv)))
-  | _, _ ->
-    type_error_ d "incompatible types for assignment %a (lhs %a, rhs %a)"
-      pp_instr (mk_bi (Assgn(d,s,Mv))) pp_ty ty_d pp_ty ty_s
-
-
-
+(*
 (** Checks that the base type of the given destination [t] is equal to [t] *)
-let type_dest_eq (env : env) d (t : base_type) =
-  match map_find_exn ~err:(type_error d) env.e_tenv pp_string d.d_name with
-  | Bool   when t=T_U64  -> failwith "got bool, expected u64"
-  | Bool                 -> ()
-  | U64(_) when t=T_Bool -> failwith "got u64<_>/[_], expected bool"
-  | U64(odim) as ty ->
-    if (Option.is_some odim <> Option.is_some d.d_oidx) then
-      type_error d (fsprintf "expected type u64, register name of type %a not fully applied"
-                      pp_ty ty)
+let type_dest_eq (env : env) d ty_exp =
+  let ty = map_find_exn ~err:(type_error d) env.e_tenv pp_string d.d_name in
+  if not (equiv_ty ty ty_exp) then (
+    type_error_ d "incompatible types, expected %a, got %a)"
+      pp_ty ty_exp pp_ty ty
+  )
+*)
 
 (** Checks that the base type of the given source is equal to [t] *)
-let type_src_eq (env : env) src (t : base_type) =
-  match src, t with
-  | Imm _,  T_Bool -> failwith "got u64, expected bool"
-  | Imm _,  T_U64  -> ()
-  | Src(d), t      -> type_dest_eq env d t
+let type_src_eq (env : env) src ty_exp =
+  match src, ty_exp with
+  | Imm _,  Bool   -> failwith "got u64, expected bool"
+  | Imm _,  U64    -> ()
+  | Imm _,  Arr(_) -> failwith "got u64, expected u64[..]"
+  | Src(d), t      -> typecheck_dest env.e_tenv d t
 
 (* *** Check types for ops, instructions, statements, and functions
  * ------------------------------------------------------------------------ *)
@@ -146,63 +131,64 @@ let type_src_eq (env : env) src (t : base_type) =
 (** typecheck operators *)
 let typecheck_op (env : env) op z x y =
   let type_src_eq  = type_src_eq  env in
-  let type_dest_eq = type_dest_eq env in
+  let type_dest_eq = typecheck_dest env.e_tenv in
   match op with
 
   | Umul(h) ->
-    type_src_eq  x T_U64;
-    type_src_eq  y T_U64;
-    type_dest_eq z T_U64;
-    type_dest_eq h T_U64
+    type_src_eq  x U64;
+    type_src_eq  y U64;
+    type_dest_eq z U64;
+    type_dest_eq h U64
 
   | Carry(_,mcf_out,mcf_in) ->
-    type_src_eq  x T_U64;
-    type_src_eq  y T_U64;
-    type_dest_eq z T_U64;
-    Option.iter ~f:(fun s -> type_src_eq  s T_Bool) mcf_in;
-    Option.iter ~f:(fun d -> type_dest_eq d T_Bool) mcf_out
+    type_src_eq  x U64;
+    type_src_eq  y U64;
+    type_dest_eq z U64;
+    Option.iter ~f:(fun s -> type_src_eq  s Bool) mcf_in;
+    Option.iter ~f:(fun d -> type_dest_eq d Bool) mcf_out
 
   | CMov(_,cf_in) ->
-    type_src_eq  x     T_U64;
-    type_src_eq  y     T_U64;
-    type_src_eq  cf_in T_Bool;
-    type_dest_eq z     T_U64
+    type_src_eq  x     U64;
+    type_src_eq  y     U64;
+    type_src_eq  cf_in Bool;
+    type_dest_eq z     U64
 
   | ThreeOp(_) ->
-    type_src_eq  x T_U64;
-    type_src_eq  y T_U64;
-    type_dest_eq z T_U64
+    type_src_eq  x U64;
+    type_src_eq  y U64;
+    type_dest_eq z U64
 
   | Shift(_dir,mcf_out) ->
-    type_src_eq  x T_U64;
-    type_src_eq  y T_U64;
-    type_dest_eq z T_U64;
-    Option.iter ~f:(fun s -> type_dest_eq s T_Bool) mcf_out
+    type_src_eq  x U64;
+    type_src_eq  y U64;
+    type_dest_eq z U64;
+    Option.iter ~f:(fun s -> type_dest_eq s Bool) mcf_out
 
 (** typecheck instructions and statements *)
 let rec typecheck_instr (env : env) linstr =
   let tc_stmt  = typecheck_stmt  env in
   let tc_op    = typecheck_op    env in
   let tc_assgn = typecheck_assgn env in
+  let loc = linstr.L.l_loc in
   match linstr.L.l_val with
   | Binstr(Comment _)             -> ()
   | Binstr(Op(op,d,(s1,s2)))      -> tc_op op d s1 s2
-  | Binstr(Assgn(d,s,_))          -> tc_assgn d s linstr.L.l_loc
+  | Binstr(Assgn(d,s,_))          -> tc_assgn d s loc
   | If(_,stmt1,stmt2)             -> tc_stmt stmt1; tc_stmt stmt2
-  | Binstr(Load(d,s,_pe))         -> type_src_eq  env s T_U64; type_dest_eq env d T_U64
-  | Binstr(Store(s1,_pe,s2))      -> type_src_eq env s1 T_U64; type_src_eq env s2 T_U64
+  | Binstr(Load(d,s,_pe))         -> type_src_eq  env s U64; typecheck_dest env.e_tenv d U64
+  | Binstr(Store(s1,_pe,s2))      -> type_src_eq env s1 U64; type_src_eq env s2 U64
   | Binstr(Call(fname,rets,args)) ->
     let cfun = map_find_exn env.e_fenv pp_string fname in
     let tc_src s (_,_,ty_expected) = typecheck_src env s ty_expected in
     let tc_dest d (_,ty_expected) = typecheck_dest env.e_tenv d ty_expected in
     list_iter2_exn args cfun.f_args ~f:tc_src
       ~err:(fun n_g n_e ->
-              failwith_ "wrong number of arguments (got %i, exp. %i)" n_g n_e);
+              failtype_ loc "wrong number of arguments (got %i, exp. %i)" n_g n_e);
     list_iter2_exn rets cfun.f_ret_ty ~f:tc_dest
       ~err:(fun n_g n_e ->
-              failwith_ "wrong number of l-values (got %i, exp. %i)" n_g n_e)
+              failtype_ loc "wrong number of l-values (got %i, exp. %i)" n_g n_e)
   | For(_,pv,_,_,stmt) ->
-    type_dest_eq env { d_loc = linstr.L.l_loc; d_name = pv; d_oidx = None} T_U64;
+    typecheck_dest env.e_tenv { d_loc = loc; d_name = pv; d_oidx = None} U64;
     typecheck_stmt env stmt
 
 and typecheck_stmt (env : env) stmt =
@@ -232,11 +218,7 @@ let typecheck_modul modul =
   let fenv = String.Map.of_alist_exn (List.map funcs ~f:(fun f -> (f.f_name, f))) in
   let penv = String.Map.of_alist_exn modul.m_params in
   let params_decl = params_modul modul in
-  F.printf "params_decl: %a\n%!" (pp_list "," pp_string) (Set.to_list params_decl);
-  F.printf "modul: %a\n%!" pp_modul modul;
-  F.printf "params_modul: %a\n%!" (pp_list "," pp_string)
-    (List.map ~f:fst modul.m_params);
   Set.iter params_decl
     ~f:(fun pv -> if not (Map.mem penv pv) then
-                    failtype L.dummy_loc (fsprintf "parameter %s undefined" pv));
+                    failtype_ L.dummy_loc "parameter %s not declared" pv);
   List.iter funcs ~f:(typecheck_func penv fenv)

@@ -31,12 +31,12 @@ let eval_pexpr pmap lmap ce =
         Error(s)
       end
     | Pconst(c) -> Ok c
-    | Pparam(s) ->
+    | Patom(Pparam(s)) ->
       begin match Map.find pmap s with
       | Some (x) -> Ok x
       | None     -> failwith_ "eval_pexpr: parameter %s undefined" s
       end
-    | Pvar(s) ->
+    | Patom(Pvar(s)) ->
       begin match Map.find lmap s with
       | Some (Vu64 x) -> Ok x
       | Some (_) ->

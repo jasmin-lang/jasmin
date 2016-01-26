@@ -14,6 +14,7 @@ let dest_to_src d = Src(d)
 
 let equal_pop_u64    x y = compare_pop_u64    x y = 0
 let equal_pexpr      x y = compare_pexpr      x y = 0
+let equal_dexpr      x y = compare_dexpr      x y = 0
 let equal_pop_bool   x y = compare_pop_bool   x y = 0
 let equal_pcond      x y = compare_pcond      x y = 0
 let equal_cmov_flag  x y = compare_cmov_flag  x y = 0
@@ -43,11 +44,20 @@ let is_src_imm  = function Imm _ -> true | _ -> false
 (* ** Collect parameter vars
  * ------------------------------------------------------------------------ *)
 
-let rec params_pexpr = function
+let params_patom = function
   | Pparam(s)         -> String.Set.singleton s
   | Pvar(_)           -> String.Set.empty
+
+let rec params_pexpr_g params_atom pe =
+  let params_pexpr = params_pexpr_g params_atom in
+  match pe with
+  | Patom(a)          -> params_atom a
   | Pbinop(_,ce1,ce2) -> Set.union (params_pexpr ce1) (params_pexpr ce2)
   | Pconst _          -> String.Set.empty
+
+let params_pexpr = params_pexpr_g params_patom
+
+let params_dexpr = params_pexpr_g String.Set.singleton
 
 let rec params_pcond = function
   | Ptrue            -> String.Set.empty
@@ -59,8 +69,8 @@ let params_opt f =
   Option.value_map ~default:String.Set.empty ~f:f
 
 let params_ty = function
-  | Bool     -> String.Set.empty
-  | U64(dim) -> params_opt params_pexpr dim
+  | Bool | U64 -> String.Set.empty
+  | Arr(dim)   -> params_dexpr dim
 
 let params_dest pr =
   params_opt params_pexpr pr.d_oidx
@@ -113,35 +123,40 @@ let rec params_instr linstr =
 and params_stmt stmt =
   String.Set.union_list (List.map stmt ~f:params_instr)
 
-let params_fundef_g decl_only fd =
+let params_fundef fd =
   String.Set.union
     (String.Set.union_list (List.map fd.fd_decls ~f:(fun (_,_,ty) -> params_ty ty)))
-    (if decl_only then String.Set.empty else params_stmt fd.fd_body)
+    (params_stmt fd.fd_body)
 
-let params_func_g decl_only func =
+let params_func func =
   String.Set.union_list
     [ String.Set.union_list (List.map func.f_args ~f:(fun (_,_,ty) -> params_ty ty))
     ; (match func.f_def with
-       | Def fdef -> params_fundef_g decl_only fdef
+       | Def fdef -> params_fundef fdef
        | _        -> String.Set.empty)
     ; String.Set.union_list (List.map func.f_ret_ty ~f:(fun (_,ty) -> params_ty ty))
     ]
 
-let params_modul_g decl_only modul =
-  String.Set.union_list (List.map modul.m_funcs ~f:(params_func_g decl_only))
-
-let params_modul = params_modul_g false
-
-let params_modul_decl = params_modul_g true
+let params_modul modul =
+  String.Set.union_list (List.map modul.m_funcs ~f:params_func)
 
 (* ** Collect program variables
  * ------------------------------------------------------------------------ *)
 
-let rec pvars_pexpr = function
-  | Pparam(_)         -> String.Set.empty
-  | Pvar(s)           -> String.Set.singleton s
+let pvars_patom = function
+  | Pparam(_) -> String.Set.empty
+  | Pvar(s)   -> String.Set.singleton s
+
+let rec pvars_pexpr_g pvars_atom pe =
+  let pvars_pexpr = pvars_pexpr_g pvars_atom in
+  match pe with
+  | Patom(a)          -> pvars_patom a
   | Pbinop(_,ce1,ce2) -> Set.union (pvars_pexpr ce1) (pvars_pexpr ce2)
   | Pconst _          -> String.Set.empty
+
+let pvars_pexpr = pvars_pexpr_g pvars_patom
+
+let pvars_dexpr de = pvars_pexpr_g String.Set.singleton de
 
 let rec pvars_pcond = function
   | Ptrue            -> String.Set.empty
@@ -211,12 +226,21 @@ let pvars_modul modul =
 (* ** Rename program variables
  * ------------------------------------------------------------------------ *)
 
-let rec rename_pexpr f pe =
+let rename_patom f pa =
+  match pa with
+ | Pvar(v)   -> Pvar(f v)
+ | Pparam(_) -> pa
+
+let rec rename_pexpr_g rename_atom f pe =
+  let rename_pexpr = rename_pexpr_g rename_atom in
   match pe with
-  | Pvar(s)           -> Pvar(f s)
+  | Patom(a)          -> Patom(rename_patom f a)
   | Pbinop(o,pe1,pe2) -> Pbinop(o,rename_pexpr f pe1,rename_pexpr f pe2)
-  | Pparam(_)
   | Pconst _          -> pe
+
+let rename_pexpr = rename_pexpr_g rename_patom
+
+let rename_dexpr = rename_pexpr_g (fun f -> f)
 
 let rec rename_pcond f = function
   | Ptrue          -> Ptrue 
@@ -301,16 +325,24 @@ let pbinop_to_string = function
   | Pmult  -> "*"
   | Pminus -> "-"
 
-let rec pp_pexpr fmt ce =
+let pp_patom fmt pa =
+  match pa with
+  | Pparam(s) -> F.fprintf fmt "$%s" s
+  | Pvar(s)   -> pp_string fmt s
+
+let rec pp_pexpr_g pp_atom fmt ce =
+  let pp_pexpr = pp_pexpr_g pp_atom in
   match ce with
-  | Pparam(s) ->
-    F.fprintf fmt "$%s" s
-  | Pvar(s) ->
-    pp_string fmt s
+  | Patom(pa) ->
+    pp_atom fmt pa
   | Pbinop(op,ie1,ie2) ->
     F.fprintf fmt "%a %s %a" pp_pexpr ie1 (pbinop_to_string op) pp_pexpr ie2
   | Pconst(u) ->
     pp_string fmt (U64.to_string u)
+
+let pp_pexpr = pp_pexpr_g pp_patom
+
+let pp_dexpr = pp_pexpr_g pp_string
 
 let pcondop_to_string = function
   | Peq      -> "="
@@ -337,14 +369,9 @@ let pp_src fmt = function
 
 let pp_ty fmt ty =
   match ty with
-  | Bool            -> F.fprintf fmt "bool"
-  | U64(dim)  ->
-    F.fprintf fmt "u64%a"
-      (fun fmt dim ->
-         match dim with
-         | None      -> F.fprintf fmt ""
-         | Some(dim) -> F.fprintf fmt "[%a]" pp_pexpr dim)
-      dim
+  | Bool     -> F.fprintf fmt "bool"
+  | U64      -> F.fprintf fmt "u64"
+  | Arr(dim) -> F.fprintf fmt "u64[%a]" pp_dexpr dim
 
 let string_of_carry_op = function O_Add -> "+" | O_Sub -> "-"
 
@@ -475,17 +502,11 @@ let pp_func fmt f =
 let pp_modul fmt modul =
   pp_list "@\n@\n" pp_func fmt modul.m_funcs
 
-(*
-let pp_indexed_name fmt (s,idxs) =
-  F.fprintf fmt "%s<%a>" s (pp_list "," pp_uint64) idxs
- *)
-
 let pp_value fmt = function
   | Vu64 u   ->
     pp_uint64 fmt u
   | Varr(vs) ->
     F.fprintf fmt "[%a]" (pp_list "," (pp_pair "->" pp_uint64 pp_uint64)) (Map.to_alist vs)
-
 
 let pp_value_py fmt = function
   | Vu64 u   ->
@@ -495,9 +516,6 @@ let pp_value_py fmt = function
 
 (* ** Utility functions
  * ------------------------------------------------------------------------ *)
-
-let dest_error d s =
-  failwith (fsprintf "%a: %s" L.pp_loc d.d_loc s)
 
 let parse_value s =
   let open MParser in
@@ -517,8 +535,7 @@ let parse_value s =
   in
   match parse_string (value >>= fun x -> eof >>$ x) s () with
   | Success t   -> t
-  | Failed(s,_) ->
-    failwith_ "parse_value: failed for %s" s
+  | Failed(s,_) -> failwith_ "parse_value: failed for %s" s
 
 (* ** Exceptions
  * ------------------------------------------------------------------------ *)
@@ -526,3 +543,14 @@ let parse_value s =
 exception TypeError of L.loc * string
 
 let failtype loc s = raise (TypeError(loc,s))
+
+let failtype_ loc fmt =
+  let buf  = Buffer.create 127 in
+  let fbuf = F.formatter_of_buffer buf in
+  F.kfprintf
+    (fun _ ->
+      F.pp_print_flush fbuf ();
+      let s = Buffer.contents buf in
+      failtype loc s)
+    fbuf fmt
+

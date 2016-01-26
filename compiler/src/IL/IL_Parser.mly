@@ -116,18 +116,25 @@ terminated_list(S,X):
 | GREATER { Pgreater }
 | GEQ     { Pgeq }
 
-pexpr :
-| s=ID                       { Pvar(s) }
+dexpr :
+| s=ID                       { Patom(s)                }
 | i=INT                      { Pconst(U64.of_string i) }
-| e1=pexpr o=pbinop e2=pexpr { Pbinop(o,e1,e2) }
-| LPAREN e1=pexpr RPAREN     { e1 }
+| e1=dexpr o=pbinop e2=dexpr { Pbinop(o,e1,e2)         }
+| LPAREN e1=dexpr RPAREN     { e1                      }
+
+pexpr :
+| s=ID                       { Patom(Pvar(s))          }
+| DOLLAR s=ID                { Patom(Pparam(s))        }
+| i=INT                      { Pconst(U64.of_string i) }
+| e1=pexpr o=pbinop e2=pexpr { Pbinop(o,e1,e2)         }
+| LPAREN e1=pexpr RPAREN     { e1                      }
 
 pcond :
-| TRUE                        { Ptrue }
-| FALSE                       { Pnot(Ptrue) }
-| EXCL c=pcond                { Pnot(c) }
-| c1=pcond LAND c2=pcond      { Pand(c1,c2) }
-| LPAREN c = pcond RPAREN     { c }
+| TRUE                        { Ptrue          }
+| FALSE                       { Pnot(Ptrue)    }
+| EXCL c=pcond                { Pnot(c)        }
+| c1=pcond LAND c2=pcond      { Pand(c1,c2)    }
+| LPAREN c = pcond RPAREN     { c              }
 | c1=pexpr o=pcondop c2=pexpr { Pcond(o,c1,c2) }
 
 (* -------------------------------------------------------------------- *)
@@ -147,7 +154,7 @@ pcond :
 
 src :
 | d=dest                       { Src(d)                       }
-| DOLLAR i=ID                  { Imm(Pparam(i))               }
+| DOLLAR i=ID                  { Imm(Patom(Pparam(i)))        }
 | DOLLAR LPAREN i=pexpr RPAREN { Imm(i)                       }
 | i=INT                        { Imm(Pconst(U64.of_string i)) }
 
@@ -253,10 +260,10 @@ return :
 | RETURN ret=tuple(ID) SEMICOLON { ret }
 
 typ_dim :
-| LBRACK dim=pexpr RBRACK { (dim) }
+| LBRACK dim=dexpr RBRACK { (dim) }
 
 typ :
-| T_U64  odim=typ_dim? { U64(odim) }
+| T_U64  odim=typ_dim? { match odim with None -> U64 | Some d -> Arr(d) }
 | T_BOOL               { Bool      }
 
 typed_vars :

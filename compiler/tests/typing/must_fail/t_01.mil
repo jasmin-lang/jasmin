@@ -12,6 +12,6 @@ extern fn bar() -> stack u64[n*2] {
 
   return u;
 /*
-ERROR: parameter n undefined
+ERROR: parameter n not declared
 */
 }

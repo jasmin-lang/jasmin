@@ -14,7 +14,22 @@ module MP  = MParser
 (* ** Partially evaluate expressions
  * ------------------------------------------------------------------------ *)
 
-let peval_pexpr pmap lmap ce =
+let peval_param pmap _ p =
+  match Map.find pmap p with
+  | Some(x) -> Pconst(x)
+  | None    -> failwith_ "peval_patom: parameter %s undefined" p
+
+let peval_patom pmap lmap pa =
+  match pa with
+  | Pparam(p) -> peval_param pmap lmap p
+  | Pvar(s) as v ->
+    begin match Map.find lmap s with
+    | Some (Vu64 x) -> Pconst(x)
+    | Some(_)       -> failwith_ "peval_pexpr: variable %s of wrong type" s
+    | None          -> Patom(v)
+    end
+
+let peval_pexpr_g peval_atom pmap lmap ce =
   let rec go = function
     | Pbinop(o,e1,e2) ->
       begin match go e1, go e2 with
@@ -22,20 +37,14 @@ let peval_pexpr pmap lmap ce =
         Pconst(eval_pbinop o c1 c2)
       | e1,e2 -> Pbinop(o,e1,e2)
       end
+    | Patom(a) -> peval_atom pmap lmap a 
     | Pconst(_) as e -> e
-    | Pparam(s) as e ->
-      begin match Map.find pmap s with
-      | Some(x) -> Pconst(x)
-      | None    -> e
-      end
-    | Pvar(s) as e ->
-      begin match Map.find lmap s with
-      | Some (Vu64 x) -> Pconst(x)
-      | Some(_)       -> failwith_ "peval_pexpr: variable %s of wrong type" s
-      | None          -> e
-      end
   in
   go ce
+
+let peval_pexpr pmap lmap = peval_pexpr_g peval_patom pmap lmap
+
+let peval_dexpr pmap lmap = peval_pexpr_g peval_param pmap lmap
 
 let peval_pcond pmap lmap cc =
   let rec go = function
@@ -134,13 +143,17 @@ let inline_calls_modul (modul : modul) (fname : string) : modul =
 (* ** Macro expansion: loop unrolling, if, ...
  * ------------------------------------------------------------------------ *)
 
+let inst_dexpr pmap lmap pe =
+  peval_dexpr pmap lmap pe
+
 let inst_pexpr pmap lmap pe =
   peval_pexpr pmap lmap pe
 
 let inst_ty pmap ty =
   match ty with
   | Bool     -> Bool
-  | U64(ope) -> U64(Option.map ope ~f:(inst_pexpr pmap String.Map.empty))
+  | U64      -> U64
+  | Arr(dim) -> Arr(inst_dexpr pmap String.Map.empty dim)
 
 let inst_dest pmap lmap d =
   { d with d_oidx = Option.map d.d_oidx ~f:(inst_pexpr pmap lmap) }

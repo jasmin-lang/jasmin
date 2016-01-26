@@ -30,12 +30,22 @@ type pop_u64 =
   | Pminus
   with sexp, compare
 
-type pexpr =
+type patom =
   | Pparam of name (* global parameter (constant) *)
   | Pvar   of name (* function local variable *) 
-  | Pbinop of pop_u64 * pexpr * pexpr
+  with sexp, compare
+
+type 'a pexpr_g =
+  | Patom of 'a
+  | Pbinop of pop_u64 * 'a pexpr_g * 'a pexpr_g
   | Pconst of u64
   with sexp, compare
+
+(* dimension expression in types *)
+type dexpr = name pexpr_g with sexp, compare
+
+(* parameter expression used in indexes and if-condition *)
+type pexpr = patom pexpr_g with sexp, compare
 
 type pop_bool =
   | Peq
@@ -65,18 +75,18 @@ We define:
 
 type ty =
   | Bool
-  | U64 of pexpr option
-    (* U64(ies,dims): indexed by ies, array of dimensions dims *) 
+  | U64
+  | Arr of dexpr
   with sexp, compare
 
 type dest = {
-  d_name : name;         (* r<idxs> has name r and indexes idxs *)
-  d_oidx : pexpr option; (*   e.g., r<i,..> denotes range r<i,0>,..,r<i,n> *)
-  d_loc  : L.loc;      (* position where pseudo-register occurs *)
+  d_name : name;         (* r[i] has name r and (optional) index i, *)
+  d_oidx : pexpr option; (* i denotes index for array get           *)
+  d_loc  : L.loc;        (* location where pseudo-register occurs   *)
 } with sexp, compare
 
 type src =
-  | Imm of pexpr (* Simm(i): immediate value i *)
+  | Imm of pexpr (* Simm(i): immediate value i            *)
   | Src of dest  (* Sreg(d): where d destination register *)
   with sexp, compare
 

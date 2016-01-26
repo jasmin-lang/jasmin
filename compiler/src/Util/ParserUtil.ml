@@ -126,6 +126,4 @@ let failloc loc s msg =
   let pinfo = (line_pos,lstart_pos,len,line,msg) in
   let fname = loc.loc_start.L.pos_fname in
   eprintf "%s%!" (error_string fname pinfo);
-  (* let msg = fsprintf "%a: %s" L.pp_loc loc msg in *)
-  (* prerr_endline msg; *)
   exit (-1)
