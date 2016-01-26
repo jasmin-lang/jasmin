@@ -1,0 +1,17 @@
+param n : u64;
+
+fn foo() -> stack u64 {
+  reg u : u64;
+  reg w : u64[n];
+  u = 0;
+  return u;
+}
+
+extern fn bar() {
+  reg u : u64[n*2];
+
+  u, u = foo();
+/*
+ERROR: wrong number of l-values (got 2, exp. 1)
+*/
+}

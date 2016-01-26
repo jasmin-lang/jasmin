@@ -31,6 +31,8 @@ type asm_lang = X64
 
 type transform =
   | MacroExpand of string * u64 String.Map.t
+  | ArrayAssignExpand of string
+  | ArrayExpand of string
   | SSA
   | Type
   | Print of string * string option
@@ -88,6 +90,10 @@ let ptrafo =
   choice
     [ string "ssa" >>$ SSA
     ; string "typecheck" >>$ Type
+    ; (string "array_assign_expand" >> (bracketed ident) >>= fun fn ->
+       return (ArrayAssignExpand fn))
+    ; (string "array_expand" >> (bracketed ident) >>= fun fn ->
+       return (ArrayExpand fn))
     ; (string "print" >> (bracketed ident) >>= fun name ->
        option (bracketed ident) >>= fun fname -> return (Print(name,fname)))
     ; (string "save"  >> (bracketed ident) >>= fun name ->
@@ -146,6 +152,10 @@ let apply_transform trafo (modul0 : modul) =
     | InlineCalls(fname) ->
       F.printf "inlining all calls in function %a" pp_string fname;
       inline_calls_modul modul fname
+    | ArrayExpand(fname) ->
+      array_expand_modul modul fname
+    | ArrayAssignExpand(fname) ->
+      array_assign_expand_modul modul fname
     | SSA -> assert false
       (* transform_ssa efun *)
     | StripComments -> assert false

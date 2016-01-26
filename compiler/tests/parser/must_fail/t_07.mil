@@ -1,0 +1,8 @@
+fn foo() {
+  reg x, y : u64[n];
+
+  x[0], y[0] = MEM[x[0] + 8];
+/*
+ERROR: load expects exactly one destination
+*/
+}

@@ -53,7 +53,7 @@ test-dmasm-square: dmasm
 test-dmasm-add-call: dmasm
 	./dmasm.native -p -t "expand[n=3],ssa,strip_comments,register_allocate[15],asm[x86-64]" examples/test/add_call.mil
 
-test-dmasm-ladderstep: dmasm
+demo: dmasm
 	./scripts/demo.sh
 
 test-dmasm-typing: dmasm

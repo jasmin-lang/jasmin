@@ -1,0 +1,10 @@
+fn foo() {
+  reg x, y : u64[n];
+
+  x[0], y[0] += x[0];
+
+  return x;
+/*
+ERROR: mismatch between return type and return statement
+*/
+}

@@ -440,6 +440,9 @@ let pp_base_instr fmt bi =
 let rec pp_instr fmt li =
   match li.L.l_val with
   | Binstr(i) -> pp_base_instr fmt i
+  | If(c,i1,[]) ->
+    F.fprintf fmt "if %a {@\n  @[<v 0>%a@]@\n}"
+      pp_pcond c pp_stmt i1
   | If(c,i1,i2) ->
     F.fprintf fmt "if %a {@\n  @[<v 0>%a@]@\n} else {@\n  @[<v 0>%a@]@\n}"
       pp_pcond c pp_stmt i1 pp_stmt i2
@@ -492,7 +495,7 @@ let pp_func fmt f =
     f.f_name
     (pp_list "," pp_decl) f.f_args
     (if f.f_ret_ty=[] then ""
-     else fsprintf " -> %a" (pp_list "*" pp_ret) f.f_ret_ty)
+     else fsprintf " -> %a" (pp_list " * " pp_ret) f.f_ret_ty)
     (fun fmt ef_def -> match ef_def with
      | Undef  -> pp_string fmt ";"
      | Def ed -> pp_fundef fmt ed

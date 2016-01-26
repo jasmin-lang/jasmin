@@ -11,7 +11,7 @@ open IL_Interp
 module X64 = Asm_X64
 module MP  = MParser
 
-(* ** Partially evaluate expressions
+(* ** Partially evaluate dimension and parameter-expressions
  * ------------------------------------------------------------------------ *)
 
 let peval_param pmap _ p =
@@ -73,6 +73,14 @@ let peval_pcond pmap lmap cc =
 
 (* ** Inline function calls
  * ------------------------------------------------------------------------ *)
+(* *** Summary
+Inline function call C[x = f(a);]
+1. define f' as f renamed away from context C
+2. return C[f'.arg := a; f'.body; x := f'.ret] where := is an assignemt
+   that will be compiled away and used as an equality-constraint
+   in the stack-slot/register allocation.
+*)
+(* *** Code *)
 
 let rec inline_call func_map suffix c loc decls fname ds ss =
   let ssuffix = "_"^string_of_int !c^(String.make (suffix + 1) '_') in
@@ -95,9 +103,9 @@ and inline_calls_base_instr func_map (suffix : int) c loc decls bi =
   match bi with
   | Call(fn,ds,ss) ->
     incr c;
-    [ L.{ l_val = Binstr(Comment(fsprintf "Start Call: %a" pp_base_instr bi)); l_loc = loc} ]
+    [ L.{ l_val = Binstr(Comment(fsprintf "START Call: %a" pp_base_instr bi)); l_loc = loc} ]
     @ inline_call func_map suffix c loc decls fn ds ss
-    @ [ L.{ l_val = Binstr(Comment(fsprintf "End Call: %a" pp_base_instr bi)); l_loc = loc} ]
+    @ [ L.{ l_val = Binstr(Comment(fsprintf "END Call: %a" pp_base_instr bi)); l_loc = loc} ]
 
   | bi -> [ L.{ l_val = Binstr(bi); l_loc = loc} ]
 
@@ -142,6 +150,14 @@ let inline_calls_modul (modul : modul) (fname : string) : modul =
 
 (* ** Macro expansion: loop unrolling, if, ...
  * ------------------------------------------------------------------------ *)
+(* *** Summary
+Given values for parameters, perform the following unfolding:
+1. evaluate pexpr/dexpr in dimensions and ranges
+2. unfold loops and if-then-else
+3. evaluate pexpr in indexing
+Assumes that there are no function calls in the macro-expanded function.
+*)
+(* *** Code *)
 
 let inst_dexpr pmap lmap pe =
   peval_dexpr pmap lmap pe
@@ -205,9 +221,11 @@ let macro_expand_stmt pmap stmt =
       (* F.printf "\n%s %a\n%!" (spaces indent) pp_pcond ic; *)
       let cond = eval_pcond_exn pmap lmap ic in
       let st = if cond then st1 else st2 in
-        [bicom loc (comment_if "START: " indent cond ic)]
-      @ (List.concat_map ~f:(fun bi -> (expand (indent + 2) lmap bi)) st)
-      @ [bicom loc (comment_if "END:   " indent cond ic)]
+      if st=[] then [] else (
+          [bicom loc (comment_if "START: " indent cond ic)]
+        @ (List.concat_map ~f:(fun bi -> (expand (indent + 2) lmap bi)) st)
+        @ [bicom loc (comment_if "END:   " indent cond ic)]
+      )
 
     | For(Loop,iv,lb_ie,ub_ie,stmt) ->
       let stmt = List.concat_map stmt ~f:(expand (indent + 2) lmap) in
@@ -252,11 +270,86 @@ let macro_expand_modul pvar_map modul fname =
   List.iter modul.m_params
     ~f:(fun (n,_) -> if not (Map.mem pvar_map n)
                      then failwith_ "parameter %s not given for expand" n);
-  { m_params = [];
+  { m_params = modul.m_params; (* params might be still required in other functions *)
     m_funcs  = List.map modul.m_funcs
                  ~f:(fun func -> if func.f_name = fname
                                  then macro_expand_func pvar_map func
                                  else func) }
+(* ** Expand array assignments *)
+(* *** Summary
+Replace array assignments 'a = b;' where a, b : u64[n] by
+'a[0] = b[0]; ...; a[n-1] = b[n-1];'
+FIXME: Would it be easier to replace this by 'for' and perform the
+       step before macro-expansion? 
+*)
+(* *** Code *)
+
+let array_assign_expand_stmt tenv stmt =
+  let rec expand li =
+    let _loc = li.L.l_loc in
+    match li.L.l_val with
+    | Binstr(Op(_,_,_))
+    | Binstr(Comment(_))
+    | Binstr(Load(_,_,_))
+    | Binstr(Store(_,_,_))
+    | Binstr(Assgn(_,Imm(_),_)) -> [li]
+
+    | If(_,_,_)
+    | Binstr(Call(_))
+    | For(Unfold,_,_,_,_) -> failwith "FIXERROR"
+
+    | Binstr(Assgn(d,Src(s),t)) ->
+      let td = map_find_exn tenv pp_string d.d_name in
+      let ts = map_find_exn tenv pp_string s.d_name in
+      begin match d.d_oidx, s.d_oidx, td, ts with
+      | None, None, Arr(Pconst(ub1)), Arr(Pconst(ub2)) ->
+        assert (U64.equal ub1 ub2);
+        let mk_assgn i =
+          let d = {d with d_oidx = Some(Pconst i)} in
+          let s = Src({s with d_oidx = Some(Pconst i)}) in
+          {li with L.l_val = Binstr(Assgn(d,s,t)) }
+        in
+        List.map ~f:mk_assgn (list_from_to ~first:U64.zero ~last:ub1)
+      | _ -> [li]
+      end 
+
+    | For(Loop,iv,lb_ie,ub_ie,stmt) ->
+      let stmt = List.concat_map stmt ~f:expand in
+      [ L.{ li with l_val = For(Loop,iv,lb_ie,ub_ie,stmt) } ]
+  in
+  List.concat_map ~f:expand stmt
+
+let array_assign_expand_fundef fdef =
+  let tenv =
+    String.Map.of_alist_exn (List.map ~f:(fun (_,m,t) -> (m,t)) fdef.fd_decls)
+  in
+  { fdef with fd_body  = array_assign_expand_stmt tenv fdef.fd_body }
+
+(* FIXME: we assume this is an extern function, hence all arguments and
+          return must have type u64 *)
+let array_assign_expand_func func =
+  let fdef = match func.f_def with
+    | Def fd -> Def(array_assign_expand_fundef fd)
+    | Undef  -> failwith "FIXERROR"
+    | Py(_)  -> failwith "FIXERROR"
+  in
+  { func with f_def = fdef }
+
+let array_assign_expand_modul modul fname =
+  let f_fun f = if f.f_name = fname then array_assign_expand_func f else f in
+  { modul with m_funcs = List.map modul.m_funcs ~f:f_fun }
+
+(* ** Expand arrays *)
+(* *** Summary
+Replace register arrays by individual registers. For stack arrays,
+do the same unless there are array gets with non-constant indexes.
+Assumes that there no function calls in the macro-expanded function
+and that all inline-loops and ifs have been expanded.
+*)
+(* *** Code *)
+
+let array_expand_modul modul _fname =
+  modul
 
 (* ** Single assignment
  * ------------------------------------------------------------------------ *)

@@ -77,9 +77,10 @@ function run_tests() {
   fail_tests "$BASEDIR/must_fail/*.mil" "$TRANS"
 }
 
-run_tests "tests/parser" ""
-run_tests "tests/typing" "typecheck"
-run_tests "tests/interp" "interp[n=4][][test_fun][[2,3,4,5]]"
+run_tests "tests/parser"   ""
+run_tests "tests/typing"   "typecheck"
+run_tests "tests/interp"   "interp[n=4][][test_fun][[2,3,4,5]]"
+run_tests "tests/compiler" "inline[bar],expand[bar][n=2],save[/tmp/a.mil],interp[][][test][]"
 
 (test -z "$ALL_FAILED" && printf "\nNo failures!\n\n") || printf "\nSome tests failed!\n\n"
 

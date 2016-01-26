@@ -220,5 +220,6 @@ let typecheck_modul modul =
   let params_decl = params_modul modul in
   Set.iter params_decl
     ~f:(fun pv -> if not (Map.mem penv pv) then
-                    failtype_ L.dummy_loc "parameter %s not declared" pv);
+                    failtype_ L.dummy_loc "parameter %s not declared (env: %a)"
+                      pv (pp_list "," pp_string) (List.map ~f:fst modul.m_params));
   List.iter funcs ~f:(typecheck_func penv fenv)
