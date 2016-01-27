@@ -6,6 +6,9 @@ open Arith
 open Util
 
 module L = ParserUtil.Lexing
+module DS = Dest.Set
+module SS = String.Set
+
 
 (* ** Equality functions and indicator functions
  * ------------------------------------------------------------------------ *)
@@ -45,67 +48,67 @@ let is_src_imm  = function Imm _ -> true | _ -> false
  * ------------------------------------------------------------------------ *)
 
 let params_patom = function
-  | Pparam(s)         -> String.Set.singleton s
-  | Pvar(_)           -> String.Set.empty
+  | Pparam(s)         -> SS.singleton s
+  | Pvar(_)           -> SS.empty
 
 let rec params_pexpr_g params_atom pe =
   let params_pexpr = params_pexpr_g params_atom in
   match pe with
   | Patom(a)          -> params_atom a
   | Pbinop(_,ce1,ce2) -> Set.union (params_pexpr ce1) (params_pexpr ce2)
-  | Pconst _          -> String.Set.empty
+  | Pconst _          -> SS.empty
 
 let params_pexpr = params_pexpr_g params_patom
 
-let params_dexpr = params_pexpr_g String.Set.singleton
+let params_dexpr = params_pexpr_g SS.singleton
 
 let rec params_pcond = function
-  | Ptrue            -> String.Set.empty
+  | Ptrue            -> SS.empty
   | Pnot(ic)         -> params_pcond ic
   | Pand (ic1,ic2)   -> Set.union (params_pcond ic1) (params_pcond ic2)
   | Pcond(_,ce1,ce2) -> Set.union (params_pexpr ce1) (params_pexpr ce2)
 
 let params_opt f =
-  Option.value_map ~default:String.Set.empty ~f:f
+  Option.value_map ~default:SS.empty ~f:f
 
 let params_ty = function
-  | Bool | U64 -> String.Set.empty
+  | Bool | U64 -> SS.empty
   | Arr(dim)   -> params_dexpr dim
 
 let params_dest pr =
   params_opt params_pexpr pr.d_oidx
 
 let params_src = function
-  | Imm _ -> String.Set.empty
+  | Imm _ -> SS.empty
   | Src d -> params_dest d
 
 let params_op = function
-  | ThreeOp(_)       -> String.Set.empty
+  | ThreeOp(_)       -> SS.empty
   | Umul(d1)         -> params_dest d1
   | CMov(_,s)        -> params_src s
   | Shift(_,d1o)     -> params_opt params_dest d1o
   | Carry(_,d1o,s1o) ->
-    String.Set.union_list
+    SS.union_list
       [ params_opt params_dest d1o
       ; params_opt params_src s1o
       ]
 
 let params_base_instr = function
   | Comment(_) ->
-    String.Set.empty
+    SS.empty
   | Load(d,s,pe) ->
-    String.Set.union (params_pexpr pe)
-      (String.Set.union (params_dest d) (params_src s))
+    SS.union (params_pexpr pe)
+      (SS.union (params_dest d) (params_src s))
   | Store(s1,pe,s2) ->
-    String.Set.union (params_pexpr pe)
-      (String.Set.union (params_src s1) (params_src s2))
+    SS.union (params_pexpr pe)
+      (SS.union (params_src s1) (params_src s2))
   | Assgn(d,s,_) ->
-    String.Set.union (params_dest d) (params_src s)
+    SS.union (params_dest d) (params_src s)
   | Op(o,d,(s1,s2)) ->
-    String.Set.union_list
+    SS.union_list
       [params_op o; params_dest d; params_src s1; params_src s2]
   | Call(_,ds,ss) ->
-    String.Set.union_list
+    SS.union_list
      ( (List.map ds ~f:params_dest)
       @(List.map ss ~f:params_src))
 
@@ -113,123 +116,168 @@ let rec params_instr linstr =
   match linstr.L.l_val with
   | Binstr(bi) -> params_base_instr bi
   | If(cond,s1,s2) ->
-    String.Set.union_list [params_pcond cond; params_stmt s1; params_stmt s2]
+    SS.union_list [params_pcond cond; params_stmt s1; params_stmt s2]
   | For(_,_,pe1,pe2,stmt) ->
-    (String.Set.union_list
-       [ params_pexpr pe1
-       ; params_pexpr pe2
-       ; params_stmt stmt ])
+    SS.union_list
+      [ params_pexpr pe1
+      ; params_pexpr pe2
+      ; params_stmt stmt ]
 
 and params_stmt stmt =
-  String.Set.union_list (List.map stmt ~f:params_instr)
+  SS.union_list (List.map stmt ~f:params_instr)
 
 let params_fundef fd =
-  String.Set.union
-    (String.Set.union_list (List.map fd.fd_decls ~f:(fun (_,_,ty) -> params_ty ty)))
+  SS.union
+    (SS.union_list (List.map fd.fd_decls ~f:(fun (_,_,ty) -> params_ty ty)))
     (params_stmt fd.fd_body)
 
 let params_func func =
-  String.Set.union_list
-    [ String.Set.union_list (List.map func.f_args ~f:(fun (_,_,ty) -> params_ty ty))
+  SS.union_list
+    [ SS.union_list (List.map func.f_args ~f:(fun (_,_,ty) -> params_ty ty))
     ; (match func.f_def with
        | Def fdef -> params_fundef fdef
-       | _        -> String.Set.empty)
-    ; String.Set.union_list (List.map func.f_ret_ty ~f:(fun (_,ty) -> params_ty ty))
+       | _        -> SS.empty)
+    ; SS.union_list (List.map func.f_ret_ty ~f:(fun (_,ty) -> params_ty ty))
     ]
 
 let params_modul modul =
-  String.Set.union_list (List.map modul.m_funcs ~f:params_func)
+  SS.union_list (List.map modul.m_funcs ~f:params_func)
 
 (* ** Collect program variables
  * ------------------------------------------------------------------------ *)
 
 let pvars_patom = function
-  | Pparam(_) -> String.Set.empty
-  | Pvar(s)   -> String.Set.singleton s
+  | Pparam(_) -> SS.empty
+  | Pvar(s)   -> SS.singleton s
 
 let rec pvars_pexpr_g pvars_atom pe =
   let pvars_pexpr = pvars_pexpr_g pvars_atom in
   match pe with
   | Patom(a)          -> pvars_patom a
   | Pbinop(_,ce1,ce2) -> Set.union (pvars_pexpr ce1) (pvars_pexpr ce2)
-  | Pconst _          -> String.Set.empty
+  | Pconst _          -> SS.empty
 
 let pvars_pexpr = pvars_pexpr_g pvars_patom
 
-let pvars_dexpr de = pvars_pexpr_g String.Set.singleton de
+let pvars_dexpr de = pvars_pexpr_g SS.singleton de
 
 let rec pvars_pcond = function
-  | Ptrue            -> String.Set.empty
+  | Ptrue            -> SS.empty
   | Pnot(ic)         -> pvars_pcond ic
   | Pand (ic1,ic2)   -> Set.union (pvars_pcond ic1) (pvars_pcond ic2)
   | Pcond(_,ce1,ce2) -> Set.union (pvars_pexpr ce1) (pvars_pexpr ce2)
 
 let pvars_opt f =
-  Option.value_map ~default:String.Set.empty ~f:f
+  Option.value_map ~default:SS.empty ~f:f
 
 let pvars_dest d =
-  String.Set.union
-    (String.Set.singleton d.d_name)
+  SS.union
+    (SS.singleton d.d_name)
     (pvars_opt pvars_pexpr d.d_oidx)
 
 let pvars_src = function
-  | Imm _ -> String.Set.empty
+  | Imm _ -> SS.empty
   | Src d -> pvars_dest d
 
 let pvars_op = function
-  | ThreeOp(_)       -> String.Set.empty
+  | ThreeOp(_)       -> SS.empty
   | Umul(d1)         -> pvars_dest d1
   | CMov(_,s)        -> pvars_src s
   | Shift(_,d1o)     -> pvars_opt pvars_dest d1o
-  | Carry(_,d1o,s1o) ->
-    String.Set.union (pvars_opt pvars_dest d1o) (pvars_opt pvars_src s1o)
+  | Carry(_,d1o,s1o) -> SS.union (pvars_opt pvars_dest d1o) (pvars_opt pvars_src s1o)
 
 let pvars_base_instr = function
-  | Comment(_)      -> String.Set.empty
-  | Load(d,s,pe)    -> String.Set.union_list [pvars_dest d; pvars_src s; pvars_pexpr pe]
-  | Store(s1,pe,s2) -> String.Set.union_list [pvars_src s1; pvars_src s2; pvars_pexpr pe]
-  | Assgn(d,s,_)    -> String.Set.union (pvars_dest d) (pvars_src s)
-  | Op(o,d,(s1,s2)) ->
-    String.Set.union_list [pvars_op o; pvars_dest d; pvars_src s1; pvars_src s2]
-  | Call(_,ds,ss) ->
-    String.Set.union_list (List.map ds ~f:pvars_dest @ List.map ss ~f:pvars_src)
+  | Comment(_)      -> SS.empty
+  | Load(d,s,pe)    -> SS.union_list [pvars_dest d; pvars_src s; pvars_pexpr pe]
+  | Store(s1,pe,s2) -> SS.union_list [pvars_src s1; pvars_src s2; pvars_pexpr pe]
+  | Assgn(d,s,_)    -> SS.union (pvars_dest d) (pvars_src s)
+  | Op(o,d,(s1,s2)) -> SS.union_list [pvars_op o; pvars_dest d; pvars_src s1; pvars_src s2]
+  | Call(_,ds,ss)   -> SS.union_list (List.map ds ~f:pvars_dest @ List.map ss ~f:pvars_src)
 
 let rec pvars_instr linstr =
   match linstr.L.l_val with
   | Binstr(bi)        -> pvars_base_instr bi
-  | If(c,s1,s2)       -> String.Set.union_list [pvars_stmt s1; pvars_stmt s2; pvars_pcond c]
+  | If(c,s1,s2)       -> SS.union_list [pvars_stmt s1; pvars_stmt s2; pvars_pcond c]
   | For(_,n,lb,ub,stmt) ->
-    String.Set.union_list
+    SS.union_list
       [ pvars_stmt stmt
-      ; String.Set.singleton n
+      ; SS.singleton n
       ; pvars_pexpr lb
       ; pvars_pexpr ub ]
 
 and pvars_stmt stmt =
-  String.Set.union_list (List.map stmt ~f:pvars_instr)
+  SS.union_list (List.map stmt ~f:pvars_instr)
 
 let pvars_fundef fd =
-  String.Set.union
-    (String.Set.of_list (List.map fd.fd_decls ~f:(fun (_,s,_) -> s)))
+  SS.union
+    (SS.of_list (List.map fd.fd_decls ~f:(fun (_,s,_) -> s)))
     (pvars_stmt fd.fd_body)
 
 let pvars_func func =
-  String.Set.union
-    (String.Set.of_list (List.map func.f_args ~f:(fun (_,s,_) -> s)))
+  SS.union
+    (SS.of_list (List.map func.f_args ~f:(fun (_,s,_) -> s)))
     ((match func.f_def with
       | Def fdef -> pvars_fundef fdef
-      | _        -> String.Set.empty))
+      | _        -> SS.empty))
 
 let pvars_modul modul =
-  String.Set.union_list (List.map modul.m_funcs ~f:pvars_func)
+  SS.union_list (List.map modul.m_funcs ~f:pvars_func)
+
+(* ** Collect destination variables
+ * ------------------------------------------------------------------------ *)
+
+let dests_opt f =
+  Option.value_map ~default:DS.empty ~f:f
+
+let dests_dest d =
+  DS.singleton d
+
+let dests_src = function
+  | Imm _ -> DS.empty
+  | Src d -> dests_dest d
+
+let dests_op = function
+  | ThreeOp(_)       -> DS.empty
+  | Umul(d1)         -> dests_dest d1
+  | CMov(_,s)        -> dests_src s
+  | Shift(_,d1o)     -> dests_opt dests_dest d1o
+  | Carry(_,d1o,s1o) -> DS.union (dests_opt dests_dest d1o) (dests_opt dests_src s1o)
+
+let dests_base_instr = function
+  | Comment(_)      -> DS.empty
+  | Load(d,s,_)     -> DS.union (dests_dest d) (dests_src s)
+  | Store(s1,_,s2)  -> DS.union (dests_src s1) (dests_src s2)
+  | Assgn(d,s,_)    -> DS.union (dests_dest d) (dests_src s)
+  | Op(o,d,(s1,s2)) -> DS.union_list [dests_op o; dests_dest d; dests_src s1; dests_src s2]
+  | Call(_,ds,ss)   -> DS.union_list (List.map ds ~f:dests_dest @ List.map ss ~f:dests_src)
+
+let rec dests_instr linstr =
+  match linstr.L.l_val with
+  | Binstr(bi)            -> dests_base_instr bi
+  | If(_,s1,s2)           -> DS.union (dests_stmt s1) (dests_stmt s2)
+  | For(_,_,_lb,_ub,stmt) -> dests_stmt stmt
+
+and dests_stmt stmt =
+  DS.union_list (List.map stmt ~f:dests_instr)
+
+let dests_fundef fd =
+  dests_stmt fd.fd_body
+
+let dests_func func =
+  match func.f_def with
+  | Def fdef -> dests_fundef fdef
+  | _        -> DS.empty
+
+let dests_modul modul =
+  DS.union_list (List.map modul.m_funcs ~f:dests_func)
 
 (* ** Rename program variables
  * ------------------------------------------------------------------------ *)
 
 let rename_patom f pa =
   match pa with
- | Pvar(v)   -> Pvar(f v)
- | Pparam(_) -> pa
+  | Pvar(v)   -> Pvar(f v)
+  | Pparam(_) -> pa
 
 let rec rename_pexpr_g rename_atom f pe =
   let rename_pexpr = rename_pexpr_g rename_atom in
@@ -243,7 +291,7 @@ let rename_pexpr = rename_pexpr_g rename_patom
 let rename_dexpr = rename_pexpr_g (fun f -> f)
 
 let rec rename_pcond f = function
-  | Ptrue          -> Ptrue 
+  | Ptrue          -> Ptrue
   | Pnot(c)        -> Pnot(rename_pcond f c)
   | Pand (c1,c2)   -> Pand(rename_pcond f c1,rename_pcond f c2)
   | Pcond(o,e1,e2) -> Pcond(o,rename_pexpr f e1,rename_pexpr f e2)
@@ -301,6 +349,59 @@ and rename_stmt f stmt =
   List.map stmt ~f:(rename_instr f)
 
 let rename_decls f decls =
+  List.map ~f:(fun (sto,n,ty) -> (sto,f n,ty)) decls
+
+(* ** Rename destinations
+ * ------------------------------------------------------------------------ *)
+
+let drename_opt f =
+  Option.map ~f:f
+
+let drename_dest f d =
+  let name, oidx = f d.d_name d.d_oidx in
+  { d with d_name = name; d_oidx = oidx }
+
+let drename_src f = function
+  | Imm _ as i -> i
+  | Src d      -> Src (drename_dest f d)
+
+let drename_op f op =
+  let rnd = drename_dest f in
+  let rns = drename_src f in
+  match op with
+  | ThreeOp(_)         -> op
+  | Umul(d1)           -> Umul(rnd d1)
+  | CMov(cond,s)       -> CMov(cond,rns s)
+  | Shift(dir,d1o)     -> Shift(dir,drename_opt rnd d1o)
+  | Carry(cop,d1o,s1o) -> Carry(cop,drename_opt rnd d1o, drename_opt rns s1o)
+
+let drename_base_instr f bi =
+  let rnd = drename_dest f in
+  let rns = drename_src f in
+  let rno = drename_op f in
+  match bi with
+  | Comment(_) as c -> c
+  | Load(d,s,pe)    -> Load(rnd d,rns s,pe)
+  | Store(s1,pe,s2) -> Store(rns s1,pe,rns s2)
+  | Assgn(d,s,at)   -> Assgn(rnd d,rns s,at)
+  | Op(o,d,(s1,s2)) -> Op(rno o,rnd d,(rns s1,rns s2))
+  | Call(fn,ds,ss)  -> Call(fn,List.map ~f:rnd ds,List.map ~f:rns ss)
+
+let rec drename_instr f linstr =
+  let rnb = drename_base_instr f in
+  let rns = drename_stmt f in
+  let instr =
+    match linstr.L.l_val with
+    | Binstr(bi)       -> Binstr(rnb bi)
+    | If(c,s1,s2)      -> If(c,rns s1, rns s2)
+    | For(t,v,lb,ub,s) -> For(t,v,lb,ub,rns s) (* FIXME: also rename v? *)
+  in
+  { linstr with L.l_val = instr }
+
+and drename_stmt f stmt =
+  List.map stmt ~f:(drename_instr f)
+
+let drename_decls f decls =
   List.map ~f:(fun (sto,n,ty) -> (sto,f n,ty)) decls
 
 (* ** Constructor functions for destinations and located base instructions
@@ -556,4 +657,3 @@ let failtype_ loc fmt =
       let s = Buffer.contents buf in
       failtype loc s)
     fbuf fmt
-

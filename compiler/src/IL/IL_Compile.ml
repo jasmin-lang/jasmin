@@ -37,7 +37,7 @@ let peval_pexpr_g peval_atom pmap lmap ce =
         Pconst(eval_pbinop o c1 c2)
       | e1,e2 -> Pbinop(o,e1,e2)
       end
-    | Patom(a) -> peval_atom pmap lmap a 
+    | Patom(a) -> peval_atom pmap lmap a
     | Pconst(_) as e -> e
   in
   go ce
@@ -58,7 +58,7 @@ let peval_pcond pmap lmap cc =
     | Pand(cc1,cc2)      ->
       begin match go cc1, go cc2 with
       | Ptrue,      Ptrue       -> Ptrue
-      | Pnot(Ptrue),_     
+      | Pnot(Ptrue),_
       | _          ,Pnot(Ptrue) -> Pnot(Ptrue)
       | c1, c2                  -> Pand(c1,c2)
       end
@@ -230,7 +230,7 @@ let macro_expand_stmt pmap stmt =
     | For(Loop,iv,lb_ie,ub_ie,stmt) ->
       let stmt = List.concat_map stmt ~f:(expand (indent + 2) lmap) in
       [ L.{ li with l_val = For(Loop,iv,lb_ie,ub_ie,stmt) } ]
-        
+
     | For(Unfold,iv,lb_ie,ub_ie,stmt) ->
       (* F.printf "\n%s %a .. %a\n%!" (spaces indent) pp_pexpr lb_ie pp_pexpr ub_ie;  *)
       let lb  = eval_pexpr_exn pmap lmap lb_ie in
@@ -280,7 +280,7 @@ let macro_expand_modul pvar_map modul fname =
 Replace array assignments 'a = b;' where a, b : u64[n] by
 'a[0] = b[0]; ...; a[n-1] = b[n-1];'
 FIXME: Would it be easier to replace this by 'for' and perform the
-       step before macro-expansion? 
+       step before macro-expansion?
 *)
 (* *** Code *)
 
@@ -307,11 +307,11 @@ let array_assign_expand_stmt tenv stmt =
         let mk_assgn i =
           let d = {d with d_oidx = Some(Pconst i)} in
           let s = Src({s with d_oidx = Some(Pconst i)}) in
-          {li with L.l_val = Binstr(Assgn(d,s,t)) }
+          { li with L.l_val = Binstr(Assgn(d,s,t)) }
         in
         List.map ~f:mk_assgn (list_from_to ~first:U64.zero ~last:ub1)
       | _ -> [li]
-      end 
+      end
 
     | For(Loop,iv,lb_ie,ub_ie,stmt) ->
       let stmt = List.concat_map stmt ~f:expand in
@@ -325,8 +325,6 @@ let array_assign_expand_fundef fdef =
   in
   { fdef with fd_body  = array_assign_expand_stmt tenv fdef.fd_body }
 
-(* FIXME: we assume this is an extern function, hence all arguments and
-          return must have type u64 *)
 let array_assign_expand_func func =
   let fdef = match func.f_def with
     | Def fd -> Def(array_assign_expand_fundef fd)
@@ -348,8 +346,49 @@ and that all inline-loops and ifs have been expanded.
 *)
 (* *** Code *)
 
-let array_expand_modul modul _fname =
-  modul
+let rename_var name u fresh_suffix =
+  fsprintf "%s_%a_%s" name pp_uint64 u fresh_suffix
+
+let array_expand_stmt _tenv unique_suffix stmt =
+  let ren name oidx =
+    match oidx with
+    | None            -> name, oidx
+    | Some(Pconst(u)) -> rename_var name u unique_suffix, None
+    | Some(_)         -> failwith "fixerror"
+  in
+  drename_stmt ren stmt
+
+let array_expand_fundef fdef =
+  let tenv =
+    String.Map.of_alist_exn (List.map ~f:(fun (_,m,t) -> (m,t)) fdef.fd_decls)
+  in
+  let fresh_suffix = "__arr" in (* FIXME: use dests_fundef to choose something that is fresh *)
+  let update_decl ((s,n,t) as d) =
+    match t with
+    | U64 | Bool -> [d]
+    | Arr(Pconst(ub)) ->
+      List.map ~f:(fun i -> (s,rename_var n i fresh_suffix,U64))
+        (list_from_to ~first:U64.zero ~last:ub)
+    | Arr(_) -> failwith "FIXERROR"
+  in
+  { fdef with
+    fd_body = array_expand_stmt tenv fresh_suffix fdef.fd_body;
+    fd_decls = List.concat_map ~f:update_decl fdef.fd_decls
+  }
+
+(* FIXME: we assume this is an extern function, hence all arguments and
+          return must have type u64 *)
+let array_expand_func func =
+  let fdef = match func.f_def with
+    | Def fd -> Def(array_expand_fundef fd)
+    | Undef  -> failwith "FIXERROR"
+    | Py(_)  -> failwith "FIXERROR"
+  in
+  { func with f_def = fdef }
+
+let array_expand_modul modul fname =
+  let f_fun f = if f.f_name = fname then array_expand_func f else f in
+  { modul with m_funcs = List.map modul.m_funcs ~f:f_fun }
 
 (* ** Single assignment
  * ------------------------------------------------------------------------ *)
