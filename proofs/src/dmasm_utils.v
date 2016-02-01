@@ -88,7 +88,7 @@ Proof. move=> []. done. Qed.
  * -------------------------------------------------------------------- *)
 
 Definition eq_on (K : choiceType) V (s : {fset K}) (m1 m2 : {fmap K -> V}) :=
-  m1.[& s] = m2.[& s].
+  m1.[& s] = m2.[& s]. (* FIXME: maybe this should be just a notation? *)
 
 Notation "m1 = m2 [& s ]" := (eq_on s m1 m2) (at level 70, m2 at next level,
   format "'[hv ' m1  '/' =  m2  '/' [&  s ] ']'").
@@ -142,11 +142,7 @@ Proof. by move=> Heq_on; apply: (eq_on_get_in Heq_on); rewrite in_fset1. Qed.
 Lemma eq_on_setf_same (s : {fset K}) (m1 m2 : {fmap K -> V}) k v:
   m1 = m2 [& s] ->
   m1.[k <- v] = m2.[k <- v] [& s].
-Proof.
-rewrite /eq_on !restrictf_set /= => Heq.
-case (k \in s); last done.
-admit.
-Qed.
+Proof. by rewrite /eq_on !restrictf_set /= => ->. Qed.
 
 End EqOn.
 

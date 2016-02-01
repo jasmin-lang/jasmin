@@ -158,40 +158,64 @@ rewrite (IH Hsub2_) (@eq_on_read_src_eq src lm1 lm2 _) => //=.
 by apply: (eq_on_fsubset Hsub1_).
 Qed.
 
-Lemma eq_on_write_loc_eq lm1 lm2 loc sval:
-  lm1 = lm2 [& id_occ_loc loc] ->
-  write_loc lm1 loc sval = write_loc lm2 loc sval [&& id_occ_loc loc].
+Lemma eq_on_write_loc_eq lm1 lm2 loc sval ids:
+  id_occ_loc loc `<=` ids ->
+  lm1 = lm2 [& ids] ->
+  write_loc lm1 loc sval = write_loc lm2 loc sval [&& ids].
 Proof.
 case loc => /=; case => pe; last first.
-rewrite /id_occ_loc /= /write_loc => Heq.
+rewrite /id_occ_loc /= /write_loc => Hsub Heq.
 + by apply eq_on_setf_same.
 rewrite /id_occ_loc /write_loc => id.
-case sval => //= w Heq. move: (eq_on_U Heq) => [Heq1 Heq2].
+case sval => //= w Hsub Heq.
+move: (Hsub). rewrite /= fsubUset; move/andP => [] Hsub1 Hsub2.
 (* FIXME: move: (eq_on_read_loc_eq Heq) hangs here *)
 have ->:   read_loc lm1 {| l_oidx := Some pe; l_id := id |}
          = read_loc lm2 {| l_oidx := Some pe; l_id := id |} => /=.
-+ by apply: eq_on_read_loc_eq.
++ apply: eq_on_read_loc_eq; rewrite /id_occ_loc //=.
+  by apply: (eq_on_fsubset Hsub).
 case (read_loc _ _) => //=; last first.
++ rewrite (@eq_on_eval_pexpr_eq pe lm1 lm2) => //=.
+  + case (eval_pexpr _ _) => //= w2.
+    by apply: eq_on_setf_same.
+  by apply: (eq_on_fsubset Hsub2).  
+case => //= a.
 + rewrite (@eq_on_eval_pexpr_eq pe lm1 lm2) => //=.
   case (eval_pexpr _ _) => //= w2.
   by apply: eq_on_setf_same.
-case => //= a.
-rewrite (@eq_on_eval_pexpr_eq pe lm1 lm2) => //=.
-case (eval_pexpr _ _) => //= w2.
-by apply: eq_on_setf_same.
+by apply: (eq_on_fsubset Hsub2).
 Qed.
 
-Lemma eq_on_write_locs_eq locs sval ids:
-  forall lm1 lm2,
+Lemma eq_on_obind (om1 om2 : lmap -> option lmap) (lm1 lm2 : lmap) ids:
+  lm1 = lm2 [& ids] ->
+  om1 lm1 = om1 lm2 [&& ids] ->
+  (forall lm1_ lm2_,
+    lm1_ = lm2_ [& ids] ->
+    om2 lm1_ = om2 lm2_ [&&ids]) ->
+  (om1 lm1 >>= fun lm1_ => om2 lm1_) = (om1 lm2 >>= fun lm2_ => om2 lm2_) [&& ids].
+Proof.
+move=> Heq Hom1_eq Hom2_eq.
+by move: Hom1_eq; case (om1 lm2); case (om1 lm1) => //=.
+Qed.
+
+Lemma eq_on_write_locs_eq locs ids:
+  forall lm1 lm2 svals,
     unions_seq [seq id_occ_loc i | i <- locs] `<=` ids -> 
     lm1 = lm2 [& ids] ->
-    write_locs lm1 locs sval = write_locs lm2 locs sval [&& ids].
+    write_locs lm1 locs svals = write_locs lm2 locs svals [&& ids].
 Proof.
 elim: locs => //=.
-+ by case sval => //=.
-move=> loc locs IH lm1 lm2 Hsub Heq.
-case sval => //= sv svs.
-admit.
++ by move=> lm1 lm2 svals; case svals => //=.
+move=> loc locs IH lm1 lm2 svals Hsub Heq.
+move: Hsub. rewrite /= fsubUset; move/andP => [] Hsub1 Hsub2.
+case svals => //= sv svs.
+apply:
+  (@eq_on_obind
+     (fun lm => write_loc lm loc sv) (fun lm => write_locs lm locs svs)
+     lm1 lm2 ids Heq).
++ by apply: eq_on_write_loc_eq.
+move=> lm1_ lm2_ Heq_.
+by apply: (@IH lm1_ lm2_ svs Hsub2 Heq_).
 Qed.
 
 Lemma eq_on_eval_instr_eq (i : instr):
