@@ -1,7 +1,7 @@
 (* * Utility definition for dmasm *)
 
 (* ** Imports and settings *)
-Require Import ssreflect ssrfun ssrnat ssrbool seq choice finmap.
+Require Import ssreflect ssrfun ssrnat ssrbool seq choice eqtype finmap.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -152,3 +152,49 @@ Definition oeq_on (K : choiceType) V (s : {fset K}) (m1 m2 : option {fmap K -> V
 Notation "m1 = m2 [&& s ]" := (oeq_on s m1 m2) (at level 70, m2 at next level,
   format "'[hv ' m1  '/' =  m2  '/' [&&  s ] ']'").
 
+Section OeqOn.
+
+Variable K : choiceType.
+Variable V : Type.
+
+Lemma oeq_on_obind (om1 om2 : {fmap K -> V} -> option {fmap K -> V})
+    (m1 m2 : {fmap K -> V}) ks:
+  m1 = m2 [& ks] ->
+  om1 m1 = om1 m2 [&& ks] ->
+  (forall m1_ m2_,
+    m1_ = m2_ [& ks] ->
+    om2 m1_ = om2 m2_ [&& ks]) ->
+  (om1 m1 >>= fun m1_ => om2 m1_) = (om1 m2 >>= fun m2_ => om2 m2_) [&& ks].
+Proof.
+move=> Heq Hom1_eq Hom2_eq.
+by move: Hom1_eq; case (om1 m2); case (om1 m1) => //=.
+Qed.
+
+Lemma oeq_on_ofold (aT : eqType) (step : aT -> {fmap K -> V} -> option {fmap K -> V})
+    ks (ws : seq aT):
+  forall (m1 m2 : {fmap K -> V}),
+    m1 = m2 [& ks] ->
+    (forall (m1_ m2_ : {fmap K -> V}) (w : aT),
+      w \in ws ->
+      m1_ = m2_ [& ks] ->
+      step w m1_ = step w m2_ [&& ks]) ->
+    foldM step m1 ws = foldM step m2 ws [&& ks].
+Proof.
+elim: ws => //= w ws IH m1 m2 Heq Hinv.
+apply:
+  (@oeq_on_obind
+     (fun m => step w m) (fun m => foldM step m ws)
+     m1 m2 ks Heq).
++ by apply Hinv => //=; apply mem_head.
+move=> m1_ m2_ Heq_.
+apply: (IH m1_ m2_ Heq_).
+move=> m1__ m2__ w__ Hin__ Heq__.
+apply: Hinv => //=.
+by rewrite in_cons; apply /orP; right.
+Qed.
+
+Lemma oeq_on_refl (m : option {fmap K -> V}) (ks : {fset K}):
+  m = m [&& ks].
+Proof. by rewrite /oeq_on /oeq; case m. Qed.
+
+End OeqOn.

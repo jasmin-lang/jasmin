@@ -309,7 +309,7 @@ Inductive instr :=
 | Assgn : seq loc -> op -> seq src -> instr 
 | If    : pcond -> instr -> instr -> instr
 | For   : ident -> pexpr -> pexpr -> instr -> instr
-| Call  : (seq ident *  seq src * instr) (* function def: (args, body, ret) *)
+| Call  : seq ident ->  seq src -> instr (* function def: (args, body, ret) *)
           -> seq ident
           -> seq src
           -> instr.
@@ -341,8 +341,7 @@ Fixpoint eval_instr (lm : lmap) (i : instr) : option lmap :=
       eval_pexpr lm ub_pe >>= fun ub =>
       foldM step lm (map (fun n => n2w n) (list_from_to (w2n lb) (w2n ub)))
 
-  | Call fd drets args =>
-      let: (fargs,frets,fbody) := fd in
+  | Call fargs frets fbody drets args =>
       (* read values for given args *)
       mapM (read_src lm) args >>= fun args =>
       (* write given args as formal args into fresh stack frame *)
@@ -352,6 +351,6 @@ Fixpoint eval_instr (lm : lmap) (i : instr) : option lmap :=
       (* read return values *)
       mapM (read_src lm_call) frets >>= fun rets =>
       (* store return values into dret *)
-      write_locs fmap0 (map (mkLoc None) drets) rets
+      write_locs lm (map (mkLoc None) drets) rets
 
   end.
