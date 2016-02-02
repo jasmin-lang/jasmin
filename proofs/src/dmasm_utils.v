@@ -2,6 +2,7 @@
 
 (* ** Imports and settings *)
 Require Import ssreflect ssrfun ssrnat ssrbool seq choice eqtype finmap.
+Require Import strings.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -20,24 +21,58 @@ Axiom LEM : forall {T : Type}, forall (x y : T), {x=y}+{x<>y}.
 
 Definition admit {T: Type} : T.  Admitted.
 
-(* ** Option monad
+(* ** Result monad
  * -------------------------------------------------------------------- *)
 
-Notation "m >>= f" := (obind f m) (at level 25, left associativity).
+Inductive result (A : Type) : Type :=
+| Ok of A
+| Error of string.
 
-Fixpoint mapM aT bT (f : aT -> option bT) (xs : seq aT) : option (seq bT) :=
+Arguments Error {A} s.
+
+Module Result.
+
+Definition apply aT rT (f : aT -> rT) x u := if u is Ok y then f y else x.
+
+Definition default T := apply (fun x : T => x).
+
+Definition bind aT rT (f : aT -> result rT) g :=
+  match g with
+  | Ok x    => f x
+  | Error s => Error s
+  end.
+
+Definition map aT rT (f : aT -> rT) := bind (fun x => Ok (f x)).
+
+End Result.
+
+Definition o2r aT (es : string) (o : option aT) :=
+  match o with
+  | None   => Error es
+  | Some x => Ok x
+  end.
+
+Notation rapp  := Result.apply.
+Notation rdflt := Result.default.
+Notation rbind := Result.bind.
+Notation rmap  := Result.map.
+Notation ok    := (@Ok _) (only parsing).
+
+Notation "m >>= f" := (rbind f m) (at level 25, left associativity).
+
+Fixpoint mapM aT bT (f : aT -> result bT) (xs : seq aT) : result (seq bT) :=
   match xs with
   | [::] =>
-      Some [::]
+      Ok [::]
   | [:: x & xs] =>
       f x >>= fun y =>
       mapM f xs >>= fun ys =>
-      Some [:: y & ys]
+      Ok [:: y & ys]
   end.
 
-Fixpoint foldM aT bT (f : aT -> bT -> option bT) (acc : bT) (l : seq aT) :=
+Fixpoint foldM aT bT (f : aT -> bT -> result bT) (acc : bT) (l : seq aT) :=
   match l with
-  | [::]         => Some acc
+  | [::]         => Ok acc
   | [:: a & la ] => f a acc >>= fun acc => foldM f acc la
   end.
 
@@ -70,6 +105,12 @@ Fixpoint unions_seq (K : choiceType) (ss : seq {fset K}) : {fset K} :=
 Definition unions (K : choiceType) (ss : {fset {fset K}}) : {fset K} :=
   unions_seq (fset_keys ss).
 
+Lemma unions_set_map_fset1 (aT : choiceType) (vs : seq aT):
+  unions_seq (map fset1 vs) = seq_fset vs.
+Proof.
+elim: vs; last by move=> v vs; rewrite /= fset_cons => ->.
+by rewrite /=; apply/fsetP => x; rewrite in_seq_fsetE in_fset0 in_nil.
+Qed.
 
 Definition oeq aT (f : aT -> aT -> Prop) (o1 o2 : option aT) :=
   match o1, o2 with
@@ -78,11 +119,12 @@ Definition oeq aT (f : aT -> aT -> Prop) (o1 o2 : option aT) :=
   | _ ,      _       => false
   end.
 
-(*
-Lemma SomeEqK aT (a b : aT):
-  Some a = Some b -> a = b.
-Proof. move=> []. done. Qed.
-*)
+Definition req aT (f : aT -> aT -> Prop) (o1 o2 : result aT) :=
+  match o1, o2 with
+  | Ok x1,   Ok x2   => f x1 x2
+  | Error _, Error _ => true
+  | _ ,      _       => false
+  end.
 
 (* ** Fmap equality on subset of keys
  * -------------------------------------------------------------------- *)
@@ -146,18 +188,18 @@ Proof. by rewrite /eq_on !restrictf_set /= => ->. Qed.
 
 End EqOn.
 
-Definition oeq_on (K : choiceType) V (s : {fset K}) (m1 m2 : option {fmap K -> V}) :=
-  oeq (eq_on s) m1 m2.
+Definition req_on (K : choiceType) V (s : {fset K}) (m1 m2 : result {fmap K -> V}) :=
+  req (eq_on s) m1 m2.
 
-Notation "m1 = m2 [&& s ]" := (oeq_on s m1 m2) (at level 70, m2 at next level,
+Notation "m1 = m2 [&& s ]" := (req_on s m1 m2) (at level 70, m2 at next level,
   format "'[hv ' m1  '/' =  m2  '/' [&&  s ] ']'").
 
-Section OeqOn.
+Section ReqOn.
 
 Variable K : choiceType.
 Variable V : Type.
 
-Lemma oeq_on_obind (om1 om2 : {fmap K -> V} -> option {fmap K -> V})
+Lemma req_on_rbind (om1 om2 : {fmap K -> V} -> result {fmap K -> V})
     (m1 m2 : {fmap K -> V}) ks:
   m1 = m2 [& ks] ->
   om1 m1 = om1 m2 [&& ks] ->
@@ -170,7 +212,7 @@ move=> Heq Hom1_eq Hom2_eq.
 by move: Hom1_eq; case (om1 m2); case (om1 m1) => //=.
 Qed.
 
-Lemma oeq_on_ofold (aT : eqType) (step : aT -> {fmap K -> V} -> option {fmap K -> V})
+Lemma req_on_ofold (aT : eqType) (step : aT -> {fmap K -> V} -> result {fmap K -> V})
     ks (ws : seq aT):
   forall (m1 m2 : {fmap K -> V}),
     m1 = m2 [& ks] ->
@@ -182,7 +224,7 @@ Lemma oeq_on_ofold (aT : eqType) (step : aT -> {fmap K -> V} -> option {fmap K -
 Proof.
 elim: ws => //= w ws IH m1 m2 Heq Hinv.
 apply:
-  (@oeq_on_obind
+  (@req_on_rbind
      (fun m => step w m) (fun m => foldM step m ws)
      m1 m2 ks Heq).
 + by apply Hinv => //=; apply mem_head.
@@ -193,8 +235,8 @@ apply: Hinv => //=.
 by rewrite in_cons; apply /orP; right.
 Qed.
 
-Lemma oeq_on_refl (m : option {fmap K -> V}) (ks : {fset K}):
+Lemma req_on_refl (m : result {fmap K -> V}) (ks : {fset K}):
   m = m [&& ks].
-Proof. by rewrite /oeq_on /oeq; case m. Qed.
+Proof. by rewrite /req_on /req; case m. Qed.
 
-End OeqOn.
+End ReqOn.

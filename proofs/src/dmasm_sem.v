@@ -11,6 +11,7 @@ Unset Printing Implicit Defensive.
 
 Import GRing.Theory.
 
+Open Scope string_scope.
 Open Local Scope ring_scope.
 
 (* ** Types for idents and values
@@ -42,7 +43,7 @@ Canonical  stype_eqType  := Eval hnf in EqType stype stype_eqMixin.
 (* ** Arrays
  * -------------------------------------------------------------------- *)
 
-Local Open Scope fmap.
+Open Local Scope fmap.
 
 Definition arr := {fmap word -> word}.
 
@@ -73,20 +74,20 @@ Definition type_of_stype (t : stype) : Type :=
 
 Definition get_vword (v : sval) :=
   match v with
-  | Vword w => Some w
-  | _       => None
+  | Vword w => Ok w
+  | _       => Error "CastError"
   end.
 
 Definition get_varr (v : sval) :=
   match v with
-  | Varr a => Some a
-  | _      => None
+  | Varr a => Ok a
+  | _      => Error "CastError"
   end.
 
 Definition get_vbool (v : sval) :=
   match v with
-  | Vbool b => Some b
-  | _       => None
+  | Vbool b => Ok b
+  | _       => Error "CastError"
   end.
 
 (* ** Function-local variable map
@@ -116,12 +117,12 @@ Inductive pexpr :=
 
 Fixpoint eval_pexpr (lm : lmap) pe :=
   match pe with
-  | Pvar id          => obind get_vword lm.[? id]
-  | Pconst w         => Some w
+  | Pvar id          => rbind get_vword (o2r "IdUndef" lm.[? id])
+  | Pconst w         => Ok w
   | Pbinop pw pe1 pe2 =>
       eval_pexpr lm pe1 >>= fun w1 =>
       eval_pexpr lm pe2 >>= fun w2 =>
-      Some ((eval_pop_word pw) w1 w2)
+      Ok ((eval_pop_word pw) w1 w2)
   end.
 
 Inductive pop_bool :=
@@ -151,18 +152,18 @@ Inductive pcond :=
 Fixpoint eval_pcond lm pc :=
   match pc with
   | Ptrue    =>
-      Some true
+      Ok true
   | Pnot pc  =>
       eval_pcond lm pc >>= fun b =>
-      Some (~~ b)
+      Ok (~~ b)
   | Pand pc1 pc2 =>
       eval_pcond lm pc1 >>= fun b1 =>
       eval_pcond lm pc2 >>= fun b2 =>
-      Some (b1 && b2)
+      Ok (b1 && b2)
   | Pcond po pe1 pe2 =>
       eval_pexpr lm pe1 >>= fun w1 =>
       eval_pexpr lm pe2 >>= fun w2 =>
-      Some ((eval_pop_bool po) w1 w2)
+      Ok ((eval_pop_bool po) w1 w2)
   end.
 
 (* ** Operators
@@ -198,26 +199,26 @@ Definition add_cf (w1 w2 : word) : bool :=
 Definition add (w1 w2 : word) : bool * word :=
   (add_cf w1 w2, add_w w1 w2).
 
-Definition eval_op op (args : seq sval) : option (seq sval) :=
+Definition eval_op op (args : seq sval) : result (seq sval) :=
   match op, args with
   | Move, _ =>
-      Some args
+      Ok args
   | Addc c, [:: Vword w1; Vword w2; Vbool cf ] =>
       let (cf,w) := addc w1 w2 cf in
       let cf := if c then [:: Vbool cf ] else [::] in
-      Some (cf ++ [:: Vword w ])
+      Ok (cf ++ [:: Vword w ])%list
   | Addc _, _ =>
-      None
+      Error "ResultArgError: Addc"
   | Add c,  [:: Vword w1; Vword w2 ] =>
       let (cf,w) := add w1 w2 in
       let cf := if c then [:: Vbool cf ] else [::] in
-      Some (cf ++ [:: Vword w ])
+      Ok (cf ++ [:: Vword w ])%list
   | Add _, _ =>
-      None
+      Error "ResultArgError: Add"
   | Cmov_eq_to f, [:: Vword w1; Vword w2; Vbool b ] =>
-      Some [:: Vword (if (b == f) then w1 else w2) ]
+      Ok [:: Vword (if (b == f) then w1 else w2) ]
   | Cmov_eq_to _, _ =>
-      None
+      Error "ResultArgError: Cmov"
   end.
 
 (* ** Locations and sources
@@ -238,67 +239,95 @@ Inductive src : Type :=
 (* ** Reading local variables
  * -------------------------------------------------------------------- *)
 
-Definition read_oidx lm (oidx : option pexpr) (v : sval) : option sval :=
+Definition read_oidx lm (oidx : option pexpr) (v : sval) : result sval :=
   match oidx, v with
-  | None   ,_        => Some v
-  | Some(_),Vword(_) => None
-  | Some(_),Vbool(_) => None
+  | None   ,_        => Ok v
+  | Some(_),Vword(_) => Error "IdBadType: expected arr, got word"
+  | Some(_),Vbool(_) => Error "IdBadType: expected arr, got bool"
   | Some(pe),Varr(a)  =>
       eval_pexpr lm pe >>= fun w =>
-      omap Vword a.[? w]
+      rmap Vword (o2r "IdxUndef" a.[? w])
   end.
 
-Definition read_loc (lm : lmap) (l : loc) : option sval :=
-  lm.[? l.(l_id)] >>= fun v =>
-                        read_oidx lm l.(l_oidx) v.
+Definition read_loc (lm : lmap) (l : loc) : result sval :=
+  o2r "IdxUndef" (lm.[? l.(l_id)]) >>= fun v =>
+  read_oidx lm l.(l_oidx) v.
 
-Definition read_src (lm : lmap) (s : src) : option sval :=
+Definition read_src (lm : lmap) (s : src) : result sval :=
   match s with
-  | Imm pe => eval_pexpr lm pe >>= fun w => Some (Vword w)
+  | Imm pe => eval_pexpr lm pe >>= fun w => Ok (Vword w)
   | Loc d  => read_loc lm d
-  end.
-
-Definition read_ty ty (s : src) (lm : lmap) : option (type_of_stype ty) :=
-  match read_src lm s, ty with
-  | Some (Vword w), Tword => Some w
-  | Some (Varr a),  Tarr  => Some a
-  | _            ,_       => None
   end.
 
 (* ** Writing local variables
  * -------------------------------------------------------------------- *)
 
-Definition write_loc (lm : lmap) (l : loc) (v : sval) : option lmap :=
+Definition write_loc (lm : lmap) (l : loc) (v : sval) : result lmap :=
   match l.(l_oidx), v with
   | None, _ =>
-      Some lm.[ l.(l_id) <- v]
+      Ok lm.[ l.(l_id) <- v]
   | Some pe, Vword w =>
       let ao :=
         match read_loc lm l with
-        | Some (Varr a)  => Some a
-        | Some (Vword _) => None (* no strong update *)
-        | Some (Vbool _) => None
-        | None           => Some fmap0
+        | Ok (Varr a)  => Ok a
+        | Ok (Vword _) => Error "write_loc: expected arr, location holds word"
+        | Ok (Vbool _) => Error "write_loc: expected arr, location holds bool"
+        | Error s      => Ok fmap0
         end
       in
       ao >>= fun a =>
       eval_pexpr lm pe >>= fun wi =>
-      Some lm.[ l.(l_id) <- Varr a.[ wi <- w] ]
+      Ok lm.[ l.(l_id) <- Varr a.[ wi <- w] ]
   | Some _, Varr _ =>
-      None
+      Error "write_loc: cannot write arr into array"
   | Some _, Vbool _ =>
-      None
+      Error "write_loc: cannot write bool into array"
   end.
 
-Fixpoint write_locs (lm : lmap) (ds : seq loc) (vs : seq sval) : option lmap :=
+Fixpoint write_locs (lm : lmap) (ds : seq loc) (vs : seq sval) : result lmap :=
   match ds, vs with
-  | [::], [::] => Some lm
-  | [::], _    => None
-  | _,    [::] => None
+  | [::], [::] => Ok lm
+  | [::], _    => Error "write_locs: impossible"
+  | _,    [::] => Error "write_locs: impossible"
   | [:: d & ds], [:: v & vs] =>
       write_loc lm d v >>= fun lm =>
       write_locs lm ds vs
   end.
+
+(* ** Memory
+ * -------------------------------------------------------------------- *)
+
+(* *** QHASM memory move
+Read from mem:
+r = *(uint64 * ) (s + n)
+  where sources int64 s, immediate n
+        result  int64 r
+  ASM: movq n(s),r
+
+r = *( int64 * ) (s + t * 8)
+  where sources int64 s, int64 t
+        result int64 r
+  ASM: movq (s,t,8),r
+
+r = *( int64 * ) (s + n + t * 8)
+  where sources: int64 s, int64 t, immediate n
+        result:  int64 r
+  ASM: movq n(s,t,8),r
+
+Write to mem:
+*( int64 * ) (s + t) = r
+  where src int64 r, int64 s, int64 t
+  ASM: movq r,(s,t)
+*)
+(* *** Definitions *)
+
+Record addr := mkAddr {
+  a_s : ident;
+  a_n : pexpr;        (* just use Pconst 0 if not required *)
+  a_t : option ident
+}.
+
+Definition gmap := {fmap word -> word}.
 
 (* ** Instructions
  * -------------------------------------------------------------------- *)
@@ -306,7 +335,9 @@ Fixpoint write_locs (lm : lmap) (ds : seq loc) (vs : seq sval) : option lmap :=
 Inductive instr :=
 | Skip
 | Seq   : instr -> instr -> instr
-| Assgn : seq loc -> op -> seq src -> instr 
+| Assgn : seq loc -> op -> seq src -> instr
+| Load  : loc -> addr -> instr
+| Store : addr -> src -> instr
 | If    : pcond -> instr -> instr -> instr
 | For   : ident -> pexpr -> pexpr -> instr -> instr
 | Call  : seq ident ->  seq src -> instr (* function def: (args, body, ret) *)
@@ -314,10 +345,10 @@ Inductive instr :=
           -> seq src
           -> instr.
 
-Fixpoint eval_instr (lm : lmap) (i : instr) : option lmap :=
+Fixpoint eval_instr (lm : lmap) (i : instr) : result lmap :=
   match i with
   | Skip =>
-      Some lm
+      Ok lm
 
   | Seq i1 i2 =>
       eval_instr lm i1 >>= fun lm =>
@@ -352,5 +383,11 @@ Fixpoint eval_instr (lm : lmap) (i : instr) : option lmap :=
       mapM (read_src lm_call) frets >>= fun rets =>
       (* store return values into dret *)
       write_locs lm (map (mkLoc None) drets) rets
+
+  | Load loc addr =>
+      Ok lm
+
+  | Store addr src =>
+      Ok lm
 
   end.

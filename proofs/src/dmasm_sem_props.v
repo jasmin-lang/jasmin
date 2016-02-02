@@ -91,6 +91,8 @@ Fixpoint id_occ_instr i : {fset ident} :=
           id
        |` id_occ_pexpr lb `|` id_occ_pexpr ub
       `|` id_occ_instr i
+  | Load l addr => fset0
+  | Store add s => fset0 
   end.
 
 (* ** Irrelevant local variables for eval_instr
@@ -159,7 +161,7 @@ rewrite (IH Hsub2_) (@eq_on_read_src_eq src lm1 lm2 _) => //=.
 by apply: (eq_on_fsubset Hsub1_).
 Qed.
 
-Lemma oeq_on_write_loc_eq lm1 lm2 loc sval ids:
+Lemma req_on_write_loc_eq lm1 lm2 loc sval ids:
   id_occ_loc loc `<=` ids ->
   lm1 = lm2 [& ids] ->
   write_loc lm1 loc sval = write_loc lm2 loc sval [&& ids].
@@ -176,10 +178,10 @@ have ->:   read_loc lm1 {| l_oidx := Some pe; l_id := id |}
 + apply: eq_on_read_loc_eq; rewrite /id_occ_loc //=.
   by apply: (eq_on_fsubset Hsub).
 case (read_loc _ _) => //=; last first.
-+ rewrite (@eq_on_eval_pexpr_eq pe lm1 lm2) => //=.
++ rewrite (@eq_on_eval_pexpr_eq pe lm1 lm2) => //=. move=> s.
   + case (eval_pexpr _ _) => //= w2.
     by apply: eq_on_setf_same.
-  by apply: (eq_on_fsubset Hsub2).  
+  by apply: (eq_on_fsubset Hsub2).
 case => //= a.
 + rewrite (@eq_on_eval_pexpr_eq pe lm1 lm2) => //=.
   case (eval_pexpr _ _) => //= w2.
@@ -187,7 +189,7 @@ case => //= a.
 by apply: (eq_on_fsubset Hsub2).
 Qed.
 
-Lemma oeq_on_write_locs_eq locs ids:
+Lemma req_on_write_locs_eq locs ids:
   forall lm1 lm2 svals,
     unions_seq [seq id_occ_loc i | i <- locs] `<=` ids -> 
     lm1 = lm2 [& ids] ->
@@ -199,22 +201,15 @@ move=> loc locs IH lm1 lm2 svals Hsub Heq.
 move: Hsub. rewrite /= fsubUset; move/andP => [] Hsub1 Hsub2.
 case svals => //= sv svs.
 apply:
-  (@oeq_on_obind _ _
+  (@req_on_rbind _ _
      (fun lm => write_loc lm loc sv) (fun lm => write_locs lm locs svs)
      lm1 lm2 ids Heq).
-+ by apply: oeq_on_write_loc_eq.
++ by apply: req_on_write_loc_eq.
 move=> lm1_ lm2_ Heq_.
 by apply: (@IH lm1_ lm2_ svs Hsub2 Heq_).
 Qed.
 
-Lemma unions_set_map_fset1 (aT : choiceType) (vs : seq aT):
-  unions_seq (map fset1 vs) = seq_fset vs.
-Proof.
-elim: vs; last by move=> v vs; rewrite /= fset_cons => ->.
-by rewrite /=; apply/fsetP => x; rewrite in_seq_fsetE in_fset0 in_nil.
-Qed.
-
-Lemma oeq_on_eval_instr_eq (i : instr):
+Lemma req_on_eval_instr_eq (i : instr):
   forall (lm1 lm2 : lmap) (ids : {fset ident}) ,
     id_occ_instr i `<=` ids ->
     lm1 = lm2 [&ids]->
@@ -226,7 +221,7 @@ move: i; elim/instr_ind.
   (* Seq *)
 + move=> i1 Hi1 i2 Hi2 lm1 lm2 ids.
   rewrite /= fsubUset => Hsub Heq. move/andP: Hsub => [Hsub1 Hsub2].
-  apply: (@oeq_on_obind _ _ (fun lm => eval_instr lm i1) (fun lm => eval_instr lm i2)
+  apply: (@req_on_rbind _ _ (fun lm => eval_instr lm i1) (fun lm => eval_instr lm i2)
              lm1 lm2 ids) => //=.
   + by apply: Hi1.
   + by move=> lm1_ lm2_; apply: Hi2.
@@ -236,7 +231,11 @@ move: i; elim/instr_ind.
   rewrite (@eq_on_mapM_read_src_eq srcs lm1 lm2 ids Heq Hsub2).
   case (mapM _ _) => //= loc.
   case (eval_op op loc) => //= svals.
-  by apply: oeq_on_write_locs_eq.
+  by apply: req_on_write_locs_eq.
+  (* Load *)
++ done.
+  (* Store *)
++ done. 
   (* If *)
 + move=> pc i1 Hi1 i2 Hi2 lm1 lm2 ids.
   rewrite /= !fsubUset. move/andP => []. move/andP => [] Hsub1 Hsub2 Hsub3 Heq.
@@ -257,7 +256,7 @@ move: i; elim/instr_ind.
   + by apply: (eq_on_fsubset Hsub3).
   case (eval_pexpr lm2 _) => //= w2.
   set ws := [seq n2w n | n <- list_from_to (w2n w1) (w2n w2)].
-  apply: (@oeq_on_ofold _ _ _
+  apply: (@req_on_ofold _ _ _
              (fun j lm => eval_instr lm.[id <- Vword j] instr) ids ws lm1 lm2 Heq).
   move=> lm1_ lm2_ w_ Hin HeqOn.
   apply IH; first done.
@@ -271,7 +270,7 @@ move: i; elim/instr_ind.
   case (write_locs _ _ _) => //= lm_call.
   case (eval_instr _ _) => //= lm_call_.
   case (mapM _ _) => //= svals_.
-  apply: oeq_on_write_locs_eq => //=.
+  apply: req_on_write_locs_eq => //=.
   rewrite -map_comp.
   have Hfeq: id_occ_loc \o mkLoc None =1 (fun x => [fset x]).
   + by move=> x; rewrite /comp /id_occ_loc /= fsetU0.
@@ -320,4 +319,6 @@ Fixpoint loc_occ_instr i :=
           [fset mkLoc None id]
       `|` loc_occ_pexpr lb `|` loc_occ_pexpr ub
       `|` loc_occ_instr i
+  | Load l addr => fset0
+  | Store add s => fset0
   end.
