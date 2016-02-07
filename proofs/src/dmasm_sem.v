@@ -12,276 +12,131 @@ Unset Printing Implicit Defensive.
 Import GRing.Theory.
 
 Open Scope string_scope.
-Open Local Scope ring_scope.
+Local Open Scope ring_scope.
+Local Open Scope fset.
+Local Open Scope fmap.
 
 (* ** Types for idents and values
  * -------------------------------------------------------------------- *)
 
-Definition ident := string.
+Section Sem.
 
-Parameter wsize : nat.
+Variable word : Set.
 
-Definition bword := (2^wsize)%N.
+Inductive ident :=
+| Id of string.
 
-Definition word := 'Z_bword.
+(* *** Canonical structures *)
 
-Definition n2w (n : nat) : word := n%:R.
+Definition word_eqMixin := comparableClass (@LEM word).
+Canonical  word_eqType  := Eval hnf in EqType word word_eqMixin.
 
-Definition w2n (w : word) : nat := w%N.
+Canonical  word_choiceType  := ChoiceType word admit.
+
+Definition ident_eqMixin := comparableClass (@LEM ident).
+Canonical  ident_eqType  := Eval hnf in EqType ident ident_eqMixin.
+
+Canonical  ident_choiceType  := ChoiceType ident admit.
+
+(* ** Maps
+ * -------------------------------------------------------------------- *)
+
+Inductive map (k v : Type) :=
+| Map : (k -> option v) -> map k v.
+
+Definition mempty k v : map k v := Map (fun _ => None).
+
+Definition mget k v (m : map k v) (x : k) :=
+  match m with Map f => f x end.
+
+Definition mset k v (m : map k v) (x : k) (y : v) : map k v :=
+  admit.
 
 (* ** Source language types
  * -------------------------------------------------------------------- *)
 
-Inductive stype :=
-| Tword : stype
-| Tarr  : stype
-| Tbool : stype.
+(* more expressive than required, but leads to simpler definitions *)
+Inductive stype : Set :=
+| sword : stype
+| sbool : stype
+| sarr  : stype -> stype.
 
 Definition stype_eqMixin := comparableClass (@LEM stype).
 Canonical  stype_eqType  := Eval hnf in EqType stype stype_eqMixin.
 
-(* ** Arrays
- * -------------------------------------------------------------------- *)
-
-Open Local Scope fmap.
-
-Definition arr := {fmap word -> word}.
-
-(* ** Source language values
- * -------------------------------------------------------------------- *)
-
-Inductive sval := 
-| Varr  : arr  -> sval
-| Vbool : bool -> sval
-| Vword : word -> sval.
-
-Definition sval_eqMixin := comparableClass (@LEM sval).
-Canonical  sval_eqType  := Eval hnf in EqType sval sval_eqMixin.
-
-Definition stype_of_sval (v : sval) :=
-  match v with
-  | Varr  _ => Tarr
-  | Vword _ => Tword
-  | Vbool _ => Tbool
-  end.
-
-Definition type_of_stype (t : stype) : Type :=
+Fixpoint type_of_stype (t : stype) : Type :=
   match t with
-  | Tarr  => arr
-  | Tword => word
-  | Tbool => bool
+  | sword   => word
+  | sbool   => bool
+  | sarr st => @map word (type_of_stype st)
   end.
 
-Definition get_vword (v : sval) :=
-  match v with
-  | Vword w => Ok w
-  | _       => Error "CastError"
-  end.
-
-Definition get_varr (v : sval) :=
-  match v with
-  | Varr a => Ok a
-  | _      => Error "CastError"
-  end.
-
-Definition get_vbool (v : sval) :=
-  match v with
-  | Vbool b => Ok b
-  | _       => Error "CastError"
-  end.
+Definition arr (st : stype) := map (type_of_stype st).
 
 (* ** Function-local variable map
  * -------------------------------------------------------------------- *)
 
-Definition lmap := {fmap ident -> sval}.
+Inductive var (st : stype) : Type :=
+| Var : ident -> var st.
 
-(* ** Parameter expressions and conditions
- * -------------------------------------------------------------------- *)
+Definition vname st (v : var st) :=
+  let: Var s := v in s.
 
-Inductive pop_word :=
-| Padd
-| Pmul
-| Psub.
+Definition lmap := forall st, {fmap ident -> type_of_stype st}.
 
-Definition eval_pop_word (o : pop_word) : (word -> word -> word) :=
-  match o with
-  | Padd => fun x y => x + y
-  | Psub => fun x y => x - y
-  | Pmul => fun x y => x * y
-  end.
+Variable pexpr : stype -> Set.
 
-Inductive pexpr :=
-| Pvar   : ident -> pexpr
-| Pbinop : pop_word -> pexpr -> pexpr -> pexpr
-| Pconst : word -> pexpr.
-
-Fixpoint eval_pexpr (lm : lmap) pe :=
-  match pe with
-  | Pvar id          => rbind get_vword (o2r "IdUndef" lm.[? id])
-  | Pconst w         => Ok w
-  | Pbinop pw pe1 pe2 =>
-      eval_pexpr lm pe1 >>= fun w1 =>
-      eval_pexpr lm pe2 >>= fun w2 =>
-      Ok ((eval_pop_word pw) w1 w2)
-  end.
-
-Inductive pop_bool :=
-| Peq
-| Pineq
-| Pless
-| Pleq
-| Pgreater
-| Pgeq.
-
-Definition eval_pop_bool (o : pop_bool) : (word -> word -> bool) :=
-  match o with
-  | Peq      => fun w1 w2 => w1 == w2
-  | Pineq    => fun w1 w2 => w1 != w2
-  | Pless    => fun w1 w2 => w1 < w2
-  | Pleq     => fun w1 w2 => w1 <= w2
-  | Pgreater => fun w1 w2 => w1 > w2
-  | Pgeq     => fun w1 w2 => w1 >= w2
-  end.
-
-Inductive pcond :=
-| Ptrue
-| Pnot  : pcond -> pcond
-| Pand  : pcond -> pcond -> pcond
-| Pcond : pop_bool -> pexpr -> pexpr -> pcond.
-
-Fixpoint eval_pcond lm pc :=
-  match pc with
-  | Ptrue    =>
-      Ok true
-  | Pnot pc  =>
-      eval_pcond lm pc >>= fun b =>
-      Ok (~~ b)
-  | Pand pc1 pc2 =>
-      eval_pcond lm pc1 >>= fun b1 =>
-      eval_pcond lm pc2 >>= fun b2 =>
-      Ok (b1 && b2)
-  | Pcond po pe1 pe2 =>
-      eval_pexpr lm pe1 >>= fun w1 =>
-      eval_pexpr lm pe2 >>= fun w2 =>
-      Ok ((eval_pop_bool po) w1 w2)
-  end.
-
-(* ** Operators
- * -------------------------------------------------------------------- *)
-
-Inductive op :=
-| Move : op
-| Add  : bool -> op (* Add true => return carry *)
-| Addc : bool -> op (* Addc true => return carry *)
-| Cmov_eq_to : bool -> op.
-
-Definition op_eqMixin := comparableClass (@LEM op).
-Canonical  op_eqType  := Eval hnf in EqType op op_eqMixin.
-
-Definition addc_n (w1 w2 : word) (cf : bool) :=
-  w1%N + w2%N + cf%:R.
-
-Definition addc_w (w1 w2 : word) (cf : bool) : word :=
-  nosimpl (addc_n w1 w2 cf).
-
-Definition addc_cf (w1 w2 : word) (cf : bool) : bool :=
-  nosimpl (addc_n w1 w2 cf < bword).
-
-Definition addc (w1 w2 : word) (cf : bool) : bool * word :=
-  (addc_cf w1 w2 cf, addc_w w1 w2 cf).
-
-Definition add_w (w1 w2 : word) : word :=
-  nosimpl (addc_w w1 w2 false).
-
-Definition add_cf (w1 w2 : word) : bool :=
-  nosimpl (addc_cf w1 w2 false).
-
-Definition add (w1 w2 : word) : bool * word :=
-  (add_cf w1 w2, add_w w1 w2).
-
-Definition eval_op op (args : seq sval) : result (seq sval) :=
-  match op, args with
-  | Move, _ =>
-      Ok args
-  | Addc c, [:: Vword w1; Vword w2; Vbool cf ] =>
-      let (cf,w) := addc w1 w2 cf in
-      let cf := if c then [:: Vbool cf ] else [::] in
-      Ok (cf ++ [:: Vword w ])%list
-  | Addc _, _ =>
-      Error "ResultArgError: Addc"
-  | Add c,  [:: Vword w1; Vword w2 ] =>
-      let (cf,w) := add w1 w2 in
-      let cf := if c then [:: Vbool cf ] else [::] in
-      Ok (cf ++ [:: Vword w ])%list
-  | Add _, _ =>
-      Error "ResultArgError: Add"
-  | Cmov_eq_to f, [:: Vword w1; Vword w2; Vbool b ] =>
-      Ok [:: Vword (if (b == f) then w1 else w2) ]
-  | Cmov_eq_to _, _ =>
-      Error "ResultArgError: Cmov"
-  end.
+Definition eval_pexpr st (lm : lmap) (pe : pexpr st) : result (type_of_stype st) :=
+  admit.
 
 (* ** Locations and sources
  * -------------------------------------------------------------------- *)
 
-Record loc := mkLoc {
-  l_oidx : option pexpr;
-  l_id   : ident
-}.
+Inductive loc (st : stype) :=
+| Lvar : var st -> loc st
+| Aget : var (sarr st) -> pexpr sword -> loc st.
 
-Definition loc_eqMixin := comparableClass (@LEM loc).
-Canonical  loc_eqType  := Eval hnf in EqType loc loc_eqMixin.
-
-Inductive src : Type :=
-| Imm : pexpr -> src
-| Loc : loc  -> src.
+Inductive src (st : stype) : Type :=
+| Imm : pexpr st -> src st
+| Loc : loc st   -> src st.
 
 (* ** Reading local variables
  * -------------------------------------------------------------------- *)
 
-Definition read_oidx lm (oidx : option pexpr) (v : sval) : result sval :=
-  match oidx, v with
-  | None   ,_        => Ok v
-  | Some(_),Vword(_) => Error "IdBadType: expected arr, got word"
-  | Some(_),Vbool(_) => Error "IdBadType: expected arr, got bool"
-  | Some(pe),Varr(a)  =>
+Definition read_loc st (lm : lmap) (l : loc st) : result (type_of_stype st) :=
+  match l with
+  | Lvar (Var vid) =>
+      o2r "IdUndef" ((lm st).[? vid])
+  | Aget (Var vid) pe =>
+      o2r "IdUndef" ((lm (sarr st)).[? vid]) >>= fun a =>
       eval_pexpr lm pe >>= fun w =>
-      rmap Vword (o2r "IdxUndef" a.[? w])
+      o2r "IdxUndef" (mget a w)
   end.
 
-Definition read_loc (lm : lmap) (l : loc) : result sval :=
-  o2r "IdxUndef" (lm.[? l.(l_id)]) >>= fun v =>
-  read_oidx lm l.(l_oidx) v.
-
-Definition read_src (lm : lmap) (s : src) : result sval :=
+Definition read_src st (lm : lmap) (s : src st) : result (type_of_stype st) :=
   match s with
-  | Imm pe => eval_pexpr lm pe >>= fun w => Ok (Vword w)
+  | Imm pe => eval_pexpr lm pe >>= fun w => Ok w
   | Loc d  => read_loc lm d
   end.
 
+Parameter st : stype.
+Parameter st' : stype.
+
+Check (LEM st st').
+
 (* ** Writing local variables
  * -------------------------------------------------------------------- *)
+Print sumbool.
 
-Definition write_loc (lm : lmap) (l : loc) (v : sval) : result lmap :=
-  match l.(l_oidx), v with
-  | None, _ =>
-      Ok lm.[ l.(l_id) <- v]
-  | Some pe, Vword w =>
-      let ao :=
-        match read_loc lm l with
-        | Ok (Varr a)  => Ok a
-        | Ok (Vword _) => Error "write_loc: expected arr, location holds word"
-        | Ok (Vbool _) => Error "write_loc: expected arr, location holds bool"
-        | Error s      => Ok fmap0
-        end
-      in
-      ao >>= fun a =>
-      eval_pexpr lm pe >>= fun wi =>
-      Ok lm.[ l.(l_id) <- Varr a.[ wi <- w] ]
-  | Some _, Varr _ =>
-      Error "write_loc: cannot write arr into array"
-  | Some _, Vbool _ =>
-      Error "write_loc: cannot write bool into array"
+Definition write_loc st (lm : lmap) (l : loc st) (v : type_of_stype st) : lmap :=
+  match l with
+  | Lvar (Var vid) =>
+    fun st' =>
+      match LEM st st' with
+      | left p => admit (lm st).[vid <- v]
+      | right p => lm st'
+      end
+  | Aget (Var vid) pe => lm
   end.
 
 Fixpoint write_locs (lm : lmap) (ds : seq loc) (vs : seq sval) : result lmap :=
@@ -293,41 +148,6 @@ Fixpoint write_locs (lm : lmap) (ds : seq loc) (vs : seq sval) : result lmap :=
       write_loc lm d v >>= fun lm =>
       write_locs lm ds vs
   end.
-
-(* ** Memory
- * -------------------------------------------------------------------- *)
-
-(* *** QHASM memory move
-Read from mem:
-r = *(uint64 * ) (s + n)
-  where sources int64 s, immediate n
-        result  int64 r
-  ASM: movq n(s),r
-
-r = *( int64 * ) (s + t * 8)
-  where sources int64 s, int64 t
-        result int64 r
-  ASM: movq (s,t,8),r
-
-r = *( int64 * ) (s + n + t * 8)
-  where sources: int64 s, int64 t, immediate n
-        result:  int64 r
-  ASM: movq n(s,t,8),r
-
-Write to mem:
-*( int64 * ) (s + t) = r
-  where src int64 r, int64 s, int64 t
-  ASM: movq r,(s,t)
-*)
-(* *** Definitions *)
-
-Record addr := mkAddr {
-  a_s : ident;
-  a_n : pexpr;        (* just use Pconst 0 if not required *)
-  a_t : option ident
-}.
-
-Definition gmap := {fmap word -> word}.
 
 (* ** Instructions
  * -------------------------------------------------------------------- *)
@@ -391,3 +211,38 @@ Fixpoint eval_instr (lm : lmap) (i : instr) : result lmap :=
       Ok lm
 
   end.
+
+
+(* ** Memory
+ * -------------------------------------------------------------------- *)
+(* *** QHASM memory move
+Read from mem:
+r = *(uint64 * ) (s + n)
+  where sources int64 s, immediate n
+        result  int64 r
+  ASM: movq n(s),r
+
+r = *( int64 * ) (s + t * 8)
+  where sources int64 s, int64 t
+        result int64 r
+  ASM: movq (s,t,8),r
+
+r = *( int64 * ) (s + n + t * 8)
+  where sources: int64 s, int64 t, immediate n
+        result:  int64 r
+  ASM: movq n(s,t,8),r
+
+Write to mem:
+*( int64 * ) (s + t) = r
+  where src int64 r, int64 s, int64 t
+  ASM: movq r,(s,t)
+*)
+(* *** Definitions *)
+
+Record addr := mkAddr {
+  a_s : ident;
+  a_n : pexpr;        (* just use Pconst 0 if not required *)
+  a_t : option ident
+}.
+
+Definition gmap := {fmap word -> word}.
