@@ -230,9 +230,20 @@ Definition sem_bcmd (es : estate) (bc : bcmd) : result estate :=
       Ok (Estate m es.(evm))
   end.
 
+Definition wrange d n1 n2 :=
+  let idxs := iota n1 (n2 - n1) in
+  match d with
+  | UpTo   => idxs
+  | DownTo => [seq (n1 + (n2 - n - 1))%nat | n <- idxs ]
+  end.
+
 Definition sem_range (vm : vmap) (r : range) :=
   let: (d,pe1,pe2) := r in
-  Ok (map n2w (iota 0 10)). (* FIXME *)
+  sem_pexpr vm pe1 >>= fun w1 =>
+  sem_pexpr vm pe2 >>= fun w2 =>
+  let n1 := w2n w1 in
+  let n2 := w2n w2 in
+  Ok [seq n2w n | n <- wrange d n1 n2].
 
 Inductive sem : estate -> cmd -> estate -> Prop :=
 | Eskip s :
