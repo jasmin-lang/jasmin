@@ -24,32 +24,32 @@ Definition admit {T: Type} : T.  Admitted.
 (* ** Result monad
  * -------------------------------------------------------------------- *)
 
-Inductive result (A : Type) : Type :=
+Inductive result (E : Type) (A : Type) : Type :=
 | Ok of A
-| Error of string.
+| Error of E.
 
-Arguments Error {A} s.
+Arguments Error {E} {A} s.
 
 Module Result.
 
-Definition apply aT rT (f : aT -> rT) x u := if u is Ok y then f y else x.
+Definition apply eT aT rT (f : aT -> rT) (x : rT) (u : result eT aT) :=
+  if u is Ok y then f y else x.
 
-Definition default T := apply (fun x : T => x).
-
-Definition bind aT rT (f : aT -> result rT) g :=
+Definition bind eT aT rT (f : aT -> result eT rT) g :=
   match g with
   | Ok x    => f x
   | Error s => Error s
   end.
 
-Definition map aT rT (f : aT -> rT) := bind (fun x => Ok (f x)).
+Definition map eT aT rT (f : aT -> rT) := bind (fun x => Ok eT (f x)).
+Definition default eT aT := @apply eT aT aT (fun x => x).
 
 End Result.
 
-Definition o2r aT (es : string) (o : option aT) :=
+Definition o2r eT aT (e : eT) (o : option aT) :=
   match o with
-  | None   => Error es
-  | Some x => Ok x
+  | None   => Error e
+  | Some x => Ok eT x
   end.
 
 Notation rapp  := Result.apply.
@@ -60,19 +60,19 @@ Notation ok    := (@Ok _) (only parsing).
 
 Notation "m >>= f" := (rbind f m) (at level 25, left associativity).
 
-Fixpoint mapM aT bT (f : aT -> result bT) (xs : seq aT) : result (seq bT) :=
+Fixpoint mapM eT aT bT (f : aT -> result eT bT) (xs : seq aT) : result eT (seq bT) :=
   match xs with
   | [::] =>
-      Ok [::]
+      Ok eT [::]
   | [:: x & xs] =>
       f x >>= fun y =>
       mapM f xs >>= fun ys =>
-      Ok [:: y & ys]
+      Ok eT [:: y & ys]
   end.
 
-Fixpoint foldM aT bT (f : aT -> bT -> result bT) (acc : bT) (l : seq aT) :=
+Fixpoint foldM eT aT bT (f : aT -> bT -> result eT bT) (acc : bT) (l : seq aT) :=
   match l with
-  | [::]         => Ok acc
+  | [::]         => Ok eT acc
   | [:: a & la ] => f a acc >>= fun acc => foldM f acc la
   end.
 
@@ -119,11 +119,11 @@ Definition oeq aT (f : aT -> aT -> Prop) (o1 o2 : option aT) :=
   | _ ,      _       => false
   end.
 
-Definition req aT (f : aT -> aT -> Prop) (o1 o2 : result aT) :=
+Definition req eT aT (f : aT -> aT -> Prop) (o1 o2 : result eT aT) :=
   match o1, o2 with
-  | Ok x1,   Ok x2   => f x1 x2
+  | Ok x1,   Ok x2 => f x1 x2
   | Error _, Error _ => true
-  | _ ,      _       => false
+  | _ ,       _      => false
   end.
 
 (* ** Fmap equality on subset of keys
@@ -188,7 +188,7 @@ Proof. by rewrite /eq_on !restrictf_set /= => ->. Qed.
 
 End EqOn.
 
-Definition req_on (K : choiceType) V (s : {fset K}) (m1 m2 : result {fmap K -> V}) :=
+Definition req_on eT (K : choiceType) V (s : {fset K}) (m1 m2 : result eT {fmap K -> V}) :=
   req (eq_on s) m1 m2.
 
 Notation "m1 = m2 [&& s ]" := (req_on s m1 m2) (at level 70, m2 at next level,
@@ -199,7 +199,7 @@ Section ReqOn.
 Variable K : choiceType.
 Variable V : Type.
 
-Lemma req_on_rbind (om1 om2 : {fmap K -> V} -> result {fmap K -> V})
+Lemma req_on_rbind eT (om1 om2 : {fmap K -> V} -> result eT {fmap K -> V})
     (m1 m2 : {fmap K -> V}) ks:
   m1 = m2 [& ks] ->
   om1 m1 = om1 m2 [&& ks] ->
@@ -212,7 +212,7 @@ move=> Heq Hom1_eq Hom2_eq.
 by move: Hom1_eq; case (om1 m2); case (om1 m1) => //=.
 Qed.
 
-Lemma req_on_ofold (aT : eqType) (step : aT -> {fmap K -> V} -> result {fmap K -> V})
+Lemma req_on_ofold eT (aT : eqType) (step : aT -> {fmap K -> V} -> result eT {fmap K -> V})
     ks (ws : seq aT):
   forall (m1 m2 : {fmap K -> V}),
     m1 = m2 [& ks] ->
@@ -224,7 +224,7 @@ Lemma req_on_ofold (aT : eqType) (step : aT -> {fmap K -> V} -> result {fmap K -
 Proof.
 elim: ws => //= w ws IH m1 m2 Heq Hinv.
 apply:
-  (@req_on_rbind
+  (@req_on_rbind eT 
      (fun m => step w m) (fun m => foldM step m ws)
      m1 m2 ks Heq).
 + by apply Hinv => //=; apply mem_head.
@@ -235,7 +235,7 @@ apply: Hinv => //=.
 by rewrite in_cons; apply /orP; right.
 Qed.
 
-Lemma req_on_refl (m : result {fmap K -> V}) (ks : {fset K}):
+Lemma req_on_refl eT (m : result eT {fmap K -> V}) (ks : {fset K}):
   m = m [&& ks].
 Proof. by rewrite /req_on /req; case m. Qed.
 

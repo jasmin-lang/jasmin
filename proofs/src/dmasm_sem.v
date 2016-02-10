@@ -16,8 +16,6 @@ Local Open Scope ring_scope.
 Local Open Scope fset.
 Local Open Scope fmap.
 
-Section Sem.
-
 (* ** Types for idents and values
  * -------------------------------------------------------------------- *)
 
@@ -27,7 +25,8 @@ Definition word := 'Z_(2^wsize).
 Definition w2n (w : word) : nat := w.
 Definition n2w (n : nat) : word :=  n%:R.
 
-Lemma codeK_word : cancel w2n n2w. Proof. rewrite /cancel /w2n /n2w => x. by rewrite natr_Zp. Qed.
+Lemma codeK_word : cancel w2n n2w.
+Proof. rewrite /cancel /w2n /n2w => x. by rewrite natr_Zp. Qed.
 Definition word_eqMixin     := comparableClass (@LEM word).
 Canonical  word_eqType      := Eval hnf in EqType word word_eqMixin.
 Definition word_choiceMixin := CanChoiceMixin codeK_word.
@@ -51,15 +50,23 @@ Inductive stype : Set :=
 | sprod : stype -> stype -> stype
 | sarr  : forall (n : nat), stype -> stype.
 
-Inductive var (st : stype) : Type :=
-| Var : ident -> var st.
+Notation "st1 ** st2" := (sprod st1 st2) (at level 40, left associativity).
 
 Inductive sop : stype -> stype -> Set :=
-| Move : forall st, sop st st
-| Fst  : forall st1 st2, sop (sprod st1 st2) st1
-| Snd  : forall st1 st2, sop (sprod st1 st2) st2
-| Add  : sop (sprod sword sword)               (sprod sbool sword)
-| Addc : sop (sprod sword (sprod sword sbool)) (sprod sbool sword).
+(* bools *)
+| Oand  : sop (sbool ** sbool) sbool
+| Onot  : sop sbool sbool
+(* pairs *)
+| Ofst  : forall st1 st2, sop (st1 ** st2) st1
+| Osnd  : forall st1 st2, sop (st1 ** st2) st2
+(* words *)
+| Oadd  : sop (sword ** sword)          (sbool ** sword)
+| Oaddc : sop (sword ** sword ** sbool) (sbool ** sword)
+| Oeq   : sop (sword ** sword) sbool
+| Olt   : sop (sword ** sword) sbool
+(* arrays *)
+| Oset  : forall n, sop (sarr n sword ** sword ** sword) (sarr n sword)
+| Oget  : forall n, sop (sarr n sword ** sword)          sword.
 
 Fixpoint st2ty (t : stype) : Type :=
   match t with
@@ -69,23 +76,23 @@ Fixpoint st2ty (t : stype) : Type :=
   | sarr n st     => (n.+1).-tuple (st2ty st) (* do not allow zero-dim arrays *)
   end.
 
-Inductive pexpr (st : stype) :=
-| Pvar   : var st -> pexpr st
-| Pconst : st2ty st -> pexpr st
-| Papp   : forall starg : stype, sop starg st -> pexpr starg -> pexpr st.
+Inductive var : stype -> Set :=
+| Var (st : stype) of ident : var st.
 
-Inductive loc (st : stype) :=
-| Lvar : var st -> loc st
-| Aget : forall n : nat, var (sarr n st) -> pexpr sword -> loc st.
+Inductive pexpr : stype -> Type :=
+| Pvar   : forall st, var st -> pexpr st
+| Pconst : forall st, st2ty st -> pexpr st
+| Ppair  : forall st1 st2, pexpr st1 -> pexpr st2 -> pexpr (st1 ** st2)
+| Papp   : forall starg stres: stype, sop starg stres -> pexpr starg -> pexpr stres.
 
-Inductive src (st : stype) : Type :=
-| Imm : pexpr st -> src st
-| Loc : loc   st -> src st.
+Inductive rval : stype -> Set :=
+| Rvar  : forall st, var st -> rval st
+| Rpair : forall st1 st2, rval st1 -> rval st2 -> rval (st1 ** st2).
 
 Inductive bcmd :=
-| Assgn : forall starg stres, loc stres -> sop starg stres -> src starg -> bcmd
-| Load  : loc sword -> pexpr sword -> bcmd
-| Store : pexpr sword -> src sword -> bcmd.
+| Assgn : forall st, rval st -> pexpr st -> bcmd
+| Load  : rval sword -> pexpr sword -> bcmd
+| Store : pexpr sword -> pexpr sword -> bcmd.
 
 Inductive dir := UpTo | DownTo.
 
@@ -98,29 +105,35 @@ Inductive cmd :=
 | Sif    : pexpr sbool -> cmd -> cmd -> cmd
 | Sfor   : var sword -> range -> cmd -> cmd
 | Scall  : forall starg stres,
-             var starg -> src stres -> cmd (* function def: (args, ret, body) *)
-             -> var stres
-             -> src starg
+             rval starg -> pexpr stres -> cmd (* function def: (args, ret, body) *)
+             -> rval  stres
+             -> pexpr starg
              -> cmd.
 
-(* ** Check if we really need this
+(* ** Equality and choice
  * -------------------------------------------------------------------- *)
 
-(*
-Definition stype_eqMixin := comparableClass (@LEM stype).
-Canonical  stype_eqType  := Eval hnf in EqType stype stype_eqMixin.
-*)
+Definition eq_stype (st1 st2 : stype) : {st1 = st2} + {st1<>st2}.
+Proof. do! (decide equality). Qed.
 
-(* ** Variables and typed finite maps
+Parameter st2n : stype -> nat.
+Parameter n2st : nat -> stype.
+Lemma codeK_stype : cancel st2n n2st. Admitted.
+Definition stype_eqMixin     := comparableClass (@LEM stype).
+Canonical  stype_eqType      := Eval hnf in EqType stype stype_eqMixin.
+Definition stype_choiceMixin := CanChoiceMixin codeK_stype.
+Canonical  stype_choiceType  := ChoiceType stype stype_choiceMixin.
+
+(* ** Variable map
  * -------------------------------------------------------------------- *)
 
 Definition vname st (v : var st) :=
-  let: Var s := v in s.
+  let: Var _ s := v in s.
 
 Definition vmap := forall (st : stype), {fmap ident -> st2ty st}.
 Definition vmap_set st (tm : vmap) k (v : st2ty st) :=
   fun st' =>
-     match LEM st st' with
+     match eq_stype st st' with
      | left p_eq =>
          eq_rect st
            (fun st => {fmap ident -> st2ty st})
@@ -134,49 +147,73 @@ Definition vmap0 : vmap := fun st => fmap0.
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
-Definition sem_pexpr st (vm : vmap) (pe : pexpr st) : result (st2ty st) :=
-  admit.
+Inductive error := ErrOob | ErrVarUndef | ErrAddrUndef | ErrAddrInvalid.
 
-(* ** Reading local variables
- * -------------------------------------------------------------------- *)
+Definition exec t := result error t.
+Definition ok := Ok error. 
 
-Definition read_loc st (vm : vmap) (l : loc st) : result (st2ty st) :=
-  match l with
-  | Lvar (Var vid) =>
-      o2r "IdUndef" ((vm st).[? vid])
-  | Aget n (Var vid) pe =>
-      o2r "IdUndef" ((vm (sarr n st)).[? vid]) >>= fun (a : (n.+1).-tuple (st2ty st)) =>
-      sem_pexpr vm pe >>= fun w =>
-      let nw := w2n w in
-      if nw > n
-      then Error "OutOfBounds"
-      else Ok (tnth a (@inZp n nw))
+Definition sem_sop st1 st2 (sop : sop st1 st2) : st2ty st1 -> exec (st2ty st2) :=
+  match sop with
+  | Oand       => fun (xy : bool * bool) => let (x,y) := xy in ok (x && y)
+  | Onot       => fun b => ok (~~ b)
+  | Ofst t1 t2 => fun (xy : (st2ty t1 * st2ty t2)) => ok (fst xy)
+  | Osnd t1 t2 => fun (xy : (st2ty t1 * st2ty t2)) => ok (snd xy)
+  | Oadd       => fun (xy : word * word) =>
+                    let n := (fst xy + snd xy)%N in
+                    ok (n >= 2^wsize,n%:R)
+  | Oaddc      => fun (xy : word * word * bool) =>
+                    let: (x,y,b) := xy in
+                    let n := (x + y + b%N)%N in
+                    ok (n >= 2^wsize,(w2n x + w2n y)%:R)
+  | Oeq        => fun (xy : word * word) => let (x,y) := xy in ok (x == y)
+  | Olt        => fun (xy : word * word) => let (x,y) := xy in ok (x < y)
+  | Oget n     => fun (ai : (n.+1).-tuple word * word) =>
+                    let (a,wi) := ai in
+                    let i := w2n wi in
+                    if i > n
+                    then Error ErrOob
+                    else ok (tnth a (@inZp n i))
+  | Oset n     => fun (ai : (n.+1).-tuple word * word * word) =>
+                    let: (a,wi,v) := ai in
+                    let i := w2n wi in
+                    if i > n
+                    then Error ErrOob
+                    else
+                      ok [tuple (if j == inZp i then v else tnth a j) | j < n.+1]
   end.
 
-Definition read_src st (vm : vmap) (s : src st) : result (st2ty st) :=
-  match s with
-  | Imm pe => sem_pexpr vm pe >>= fun w => Ok w
-  | Loc d  => read_loc vm d
+Fixpoint sem_pexpr st (vm : vmap) (pe : pexpr st) : exec (st2ty st) :=
+  match pe with
+  | Pvar st v => o2r ErrVarUndef ((vm st).[? vname v])
+  | Pconst st c => ok c
+  | Papp sta str so pe =>
+      sem_pexpr vm pe >>= fun v =>
+      (sem_sop so) v
+  | Ppair st1 st2 pe1 pe2 =>
+      sem_pexpr vm pe1 >>= fun v1 =>
+      sem_pexpr vm pe2 >>= fun v2 =>
+      ok (v1,v2)
   end.
 
 (* ** Writing local variables
  * -------------------------------------------------------------------- *)
 
-Definition write_loc st (vm : vmap) (l : loc st) (v : st2ty st)
-    : result vmap :=
+Fixpoint write_rval st (vm : vmap) (l : rval st) (v : st2ty st) : vmap :=
   match l with
-  | Lvar (Var vid) => Ok (vmap_set vm vid v)
-  | Aget n (Var vid) pe =>
-      sem_pexpr vm pe >>= fun w =>
-      o2r "IdUndef" (vm (sarr n st)).[? vid] >>= fun a =>
-      let nw := w2n w in
-      if nw > n
-      then Error "OutOfBounds"
-      else (
-        let a' := [tuple (if i == inZp nw then v else tnth a i) | i < n.+1] in
-        Ok (@vmap_set (sarr n st) vm vid a')
-      )
-  end.
+  | Rvar st (Var _ vid) =>
+      fun _ => vmap_set vm vid v
+  | Rpair t1 t2 rv1 rv2 =>
+      fun eq : t1 ** t2 = st =>
+        let cast : st2ty st -> st2ty t1 * st2ty t2 :=
+          eq_rect
+            (t1 ** t2)
+            (fun st : stype => st2ty st -> st2ty t1 * st2ty t2)
+            id st eq
+        in
+        let (v1,v2) := cast v in
+        let vm := write_rval vm rv1 v1 in
+        write_rval vm rv2 v2
+  end (erefl st).
 
 (* ** Memory
  * -------------------------------------------------------------------- *)
@@ -185,49 +222,87 @@ Definition mem := {fmap word -> word}.
 
 Variable valid_addr : word -> bool.
 
-Definition read_mem (m : mem) (p : word) : result word :=
-  if valid_addr p then (
-    o2r "read_mem: address undefined" (m.[? p])
-  ) else (
-    Error "read_mem: invalid address"
-  ).
+Definition read_mem (m : mem) (p : word) : exec word :=
+  if valid_addr p
+  then o2r ErrAddrUndef (m.[? p])
+  else Error ErrAddrInvalid.
 
-Definition write_mem (m : mem) (p w : word) : result mem :=
-  if valid_addr p then (
-    Ok (m.[p <- w])
-  ) else (
-    Error "read_mem: invalid address"
-  ).
+Definition write_mem (m : mem) (p w : word) : exec mem :=
+  if valid_addr p
+  then ok (m.[p <- w])
+  else Error ErrAddrInvalid.
+
+(* ** Variable occurences
+ * -------------------------------------------------------------------- *)
+
+Fixpoint vars_pexpr st (pe : pexpr st) :=
+  match pe with
+  | Pvar   _ (Var st vn)  => [fset (st,vn)]
+  | Pconst st _           => fset0
+  | Papp sta ste _ pe     => vars_pexpr pe
+  | Ppair st1 st2 pe1 pe2 => vars_pexpr pe1 `|` vars_pexpr pe2
+  end.
+
+Fixpoint vars_rval st (rv : rval st) :=
+  match rv with
+  | Rvar   st (Var _ vn)   => [fset (st,vn)]
+  | Rpair  st1 st2 rv1 rv2 => vars_rval rv1 `|` vars_rval rv2
+  end.
+
+Definition vars_bcmd (bc : bcmd) :=
+  match bc with
+  | Assgn st rv pe       => vars_rval  rv      `|` vars_pexpr pe
+  | Load rv pe_addr      => vars_rval  rv      `|` vars_pexpr pe_addr
+  | Store pe_addr pe_val => vars_pexpr pe_addr `|` vars_pexpr pe_val
+  end.
+
+Definition vars_range (r : range) :=
+  let: (_,pe1,pe2) := r in
+  vars_pexpr pe1 `|` vars_pexpr pe2.
+
+Fixpoint vars_cmd (rec : bool) (c : cmd) :=
+  match c with
+  | Sskip => fset0
+  | Sbcmd bc =>
+      vars_bcmd bc
+  | Sseq c1 c2 =>
+      vars_cmd rec c1 `|` vars_cmd rec c2
+  | Sif pe c1 c2 =>
+      vars_pexpr pe `|` vars_cmd rec c1 `|` vars_cmd rec c2
+  | Sfor (Var st vn) rng c =>
+      (st,vn) |` vars_range rng `|` vars_cmd rec c
+  | Scall starg stres rv_farg pe_ret c_body rv_res pe_arg =>
+      (if rec
+       then vars_rval rv_farg `|` vars_pexpr pe_ret `|` vars_cmd rec c_body
+       else fset0)
+      `|` vars_rval rv_res `|` vars_pexpr pe_arg
+  end.
 
 (* ** Instructions
  * -------------------------------------------------------------------- *)
-
-Definition sem_sop (sarg sret : stype) : st2ty sarg -> st2ty sret := admit.
 
 Record estate := Estate {
   emem : mem;
   evm  : vmap
 }.
 
-Definition sem_bcmd (es : estate) (bc : bcmd) : result estate :=
+Definition sem_bcmd (es : estate) (bc : bcmd) : exec estate :=
   match bc with
-  | Assgn starg stres d op s =>
-      read_src es.(evm) s >>= fun args =>
-      let: res := sem_sop stres args in
-      write_loc es.(evm) d res >>= fun vm =>
-      Ok (Estate es.(emem) vm)
-
-  | Load loc pe_addr =>
+  | Assgn st rv pe =>
+      sem_pexpr es.(evm) pe >>= fun v =>
+      let vm := write_rval es.(evm) rv v in
+      ok (Estate es.(emem) vm)
+  | Load rv pe_addr =>
       sem_pexpr es.(evm) pe_addr >>= fun p =>
       read_mem es.(emem) p >>= fun w =>
-      write_loc es.(evm) loc w >>= fun vm =>
-      Ok (Estate es.(emem) vm)
+      let vm := write_rval es.(evm) rv w in
+      ok (Estate es.(emem) vm)
 
-  | Store pe_addr src =>
+  | Store pe_addr pe_val =>
       sem_pexpr es.(evm) pe_addr >>= fun p =>
-      read_src es.(evm) src >>= fun w =>
+      sem_pexpr es.(evm) pe_val  >>= fun w =>
       write_mem es.(emem) p w >>= fun m =>
-      Ok (Estate m es.(evm))
+      ok (Estate m es.(evm))
   end.
 
 Definition wrange d n1 n2 :=
@@ -243,7 +318,7 @@ Definition sem_range (vm : vmap) (r : range) :=
   sem_pexpr vm pe2 >>= fun w2 =>
   let n1 := w2n w1 in
   let n2 := w2n w2 in
-  Ok [seq n2w n | n <- wrange d n1 n2].
+  ok [seq n2w n | n <- wrange d n1 n2].
 
 Inductive sem : estate -> cmd -> estate -> Prop :=
 | Eskip s :
@@ -253,29 +328,31 @@ Inductive sem : estate -> cmd -> estate -> Prop :=
     sem s1 c1 s2 -> sem s2 c2 s3 -> sem s1 (Sseq c1 c2) s3
 
 | Ebcmd s1 s2 c:
-    sem_bcmd s1 c = Ok s2 -> sem s1 (Sbcmd c) s2
+    sem_bcmd s1 c = ok s2 -> sem s1 (Sbcmd c) s2
 
 | EifTrue s1 s2 (pe : pexpr sbool) c1 c2 :
-    sem_pexpr s1.(evm) pe = Ok true ->
+    sem_pexpr s1.(evm) pe = ok true ->
     sem s1 c1 s2 ->
     sem s1 (Sif pe c1 c2) s2
 
 | EifFalse s1 s2 (pe : pexpr sbool) c1 c2 :
-    sem_pexpr s1.(evm) pe = Ok false ->
+    sem_pexpr s1.(evm) pe = ok false ->
     sem s1 c2 s2 ->
     sem s1 (Sif pe c1 c2) s2
 
-| Ecall m1 m2 vm1 vmc1 vmc2 vm2 starg stres farg fres fbody dres sarg arg res :
-    read_src vmc1 sarg = Ok arg -> (* FIXME: we should also enforce that vmc1 *)
-    sem (Estate m1 vmc1) fbody (Estate m2 vmc2) ->  (* defined on occ fbody   *)
-    read_src vmc2 fres = Ok res ->
-    write_loc vm1 (Lvar dres) res = Ok vm2 ->
+| Ecall m1 m2 vm1 vmc1 vmc2 starg stres farg fres fbody rv_res pe_arg arg res :
+    sem_pexpr vm1 pe_arg = ok arg ->
+    (forall st vn, (st,vn) \in vars_cmd false fbody -> vn \in domf (vm1 st)) -> 
+    let vmc1 := write_rval vmc1 farg arg in
+    sem (Estate m1 vmc1) fbody (Estate m2 vmc2) ->
+    sem_pexpr vmc2 fres = ok res ->
+    let vm2 := write_rval vm1 rv_res res in
     sem (Estate m1 vm1)
-        (@Scall starg stres farg fres fbody dres sarg)
+        (@Scall starg stres farg fres fbody rv_res pe_arg)
         (Estate m2 vm2)
 
 | EforDone s1 s2 iv rng c ws :
-    sem_range s1.(evm) rng = Ok ws ->
+    sem_range s1.(evm) rng = ok ws ->
     sem_for iv ws s1 c s2 ->
     sem s1 (Sfor iv rng c) s2
 
@@ -285,9 +362,7 @@ with sem_for : var sword -> seq word -> estate -> cmd -> estate -> Prop :=
     sem_for iv [::] s c s
 
 | EForOne s1 s2 s3 c w ws iv :
-    let ac := Sseq (Sbcmd (Assgn (Lvar iv) (Move sword) (Imm (Pconst w)))) c in
+    let ac := Sseq (Sbcmd (Assgn (Rvar iv) (Pconst w))) c in
     sem                s1 ac s2 ->
     sem_for iv (ws)    s2 c  s3 ->
     sem_for iv (w::ws) s1 c  s3.
-
-End Sem.
