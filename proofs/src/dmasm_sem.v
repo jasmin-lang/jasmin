@@ -110,6 +110,10 @@ Inductive cmd :=
              -> pexpr starg
              -> cmd.
 
+Definition assgn st (rv : rval st) pe := Sbcmd (Assgn rv pe).
+Definition load rv pe := Sbcmd (Load rv pe).
+Definition store pe1 pe2 := Sbcmd (Store pe1 pe2).
+
 (* ** Equality and choice
  * -------------------------------------------------------------------- *)
 
@@ -131,16 +135,16 @@ Definition vname st (v : var st) :=
   let: Var _ s := v in s.
 
 Definition vmap := forall (st : stype), {fmap ident -> st2ty st}.
-Definition vmap_set st (tm : vmap) k (v : st2ty st) :=
+Definition vmap_set st (vm : vmap) k (v : st2ty st) : vmap :=
   fun st' =>
      match eq_stype st st' with
      | left p_eq =>
          eq_rect st
            (fun st => {fmap ident -> st2ty st})
-           (tm st).[k <- v]
+           (vm st).[k <- v]
            st'
            p_eq
-     | right _ => tm st'
+     | right _ => vm st'
      end.
 Definition vmap0 : vmap := fun st => fmap0.
 
@@ -198,22 +202,14 @@ Fixpoint sem_pexpr st (vm : vmap) (pe : pexpr st) : exec (st2ty st) :=
 (* ** Writing local variables
  * -------------------------------------------------------------------- *)
 
-Fixpoint write_rval st (vm : vmap) (l : rval st) (v : st2ty st) : vmap :=
-  match l with
-  | Rvar st (Var _ vid) =>
-      fun _ => vmap_set vm vid v
-  | Rpair t1 t2 rv1 rv2 =>
-      fun eq : t1 ** t2 = st =>
-        let cast : st2ty st -> st2ty t1 * st2ty t2 :=
-          eq_rect
-            (t1 ** t2)
-            (fun st : stype => st2ty st -> st2ty t1 * st2ty t2)
-            id st eq
-        in
-        let (v1,v2) := cast v in
-        let vm := write_rval vm rv1 v1 in
-        write_rval vm rv2 v2
-  end (erefl st).
+Fixpoint write_rval {st} (vm : vmap) (l : rval st) (v : st2ty st) : vmap :=
+  (match l in rval st_ return (st2ty st_ -> vmap) with
+  | Rvar st (Var _ vid) => fun _ => vmap_set vm vid v
+  | Rpair t1 t2 rv1 rv2 => fun (v : (st2ty t1 * st2ty t2)) =>
+      let (v1,v2) := v in
+      let vm := write_rval vm rv1 v1 in
+      write_rval vm rv2 v2
+   end) v.
 
 (* ** Memory
  * -------------------------------------------------------------------- *)
@@ -245,8 +241,8 @@ Fixpoint vars_pexpr st (pe : pexpr st) :=
 
 Fixpoint vars_rval st (rv : rval st) :=
   match rv with
-  | Rvar   st (Var _ vn)   => [fset (st,vn)]
-  | Rpair  st1 st2 rv1 rv2 => vars_rval rv1 `|` vars_rval rv2
+  | Rvar  st (Var _ vn)   => [fset (st,vn)]
+  | Rpair st1 st2 rv1 rv2 => vars_rval rv1 `|` vars_rval rv2
   end.
 
 Definition vars_bcmd (bc : bcmd) :=
