@@ -8,10 +8,10 @@ COQFILES := \
 	src/3rdparty/ssrring.v \
 	src/3rdparty/finmap.v \
 	src/strings.v \
+	src/arithmetica.v \
 	src/dmasm_utils.v \
 	src/dmasm_sem.v \
 	src/dmasm_sem_props.v \
-	src/arithmetica.v
 
 include Makefile.common
 
