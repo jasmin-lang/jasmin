@@ -33,7 +33,7 @@ Definition word_choiceMixin := CanChoiceMixin codeK_word.
 Canonical  word_choiceType  := ChoiceType word word_choiceMixin.
 
 Inductive ident := Id of string.
-Definition iname i := match i with Id s => s end.
+Definition iname i := let: Id s := i in s.
 Lemma codeK_ident : cancel iname Id. Proof. by rewrite /cancel; case => //. Qed.
 Definition ident_eqMixin     := comparableClass (@LEM ident).
 Canonical  ident_eqType      := Eval hnf in EqType ident ident_eqMixin.
@@ -99,20 +99,20 @@ Inductive dir := UpTo | DownTo.
 Definition range := (dir * pexpr sword * pexpr sword)%type.
 
 Inductive cmd :=
-| Sskip  : cmd
-| Sbcmd  : bcmd -> cmd
-| Sseq   : cmd -> cmd -> cmd
-| Sif    : pexpr sbool -> cmd -> cmd -> cmd
-| Sfor   : var sword -> range -> cmd -> cmd
-| Scall  : forall starg stres,
+| Cskip  : cmd
+| Cbcmd  : bcmd -> cmd
+| Cseq   : cmd -> cmd -> cmd
+| Cif    : pexpr sbool -> cmd -> cmd -> cmd
+| Cfor   : var sword -> range -> cmd -> cmd
+| Ccall  : forall starg stres,
              rval starg -> pexpr stres -> cmd (* function def: (args, ret, body) *)
              -> rval  stres
              -> pexpr starg
              -> cmd.
 
-Definition assgn st (rv : rval st) pe := Sbcmd (Assgn rv pe).
-Definition load rv pe := Sbcmd (Load rv pe).
-Definition store pe1 pe2 := Sbcmd (Store pe1 pe2).
+Definition assgn st (rv : rval st) pe := Cbcmd (Assgn rv pe).
+Definition load rv pe := Cbcmd (Load rv pe).
+Definition store pe1 pe2 := Cbcmd (Store pe1 pe2).
 
 (* ** Equality and choice
  * -------------------------------------------------------------------- *)
@@ -128,11 +128,24 @@ Canonical  stype_eqType      := Eval hnf in EqType stype stype_eqMixin.
 Definition stype_choiceMixin := CanChoiceMixin codeK_stype.
 Canonical  stype_choiceType  := ChoiceType stype stype_choiceMixin.
 
-(* ** Variable map
+(* ** More on variables 
  * -------------------------------------------------------------------- *)
 
 Definition vname st (v : var st) :=
   let: Var _ s := v in s.
+
+Record tvar := Tvar { tv_stype : stype; tv_ident : ident }.
+
+Definition tvar2pair tv := (tv.(tv_stype), tv.(tv_ident)).
+Definition pair2tvar p := Tvar (fst p) (snd p).
+Lemma codeK_tvar : cancel tvar2pair pair2tvar. Proof. by rewrite /cancel; case => //. Qed.
+Definition tvar_eqMixin     := comparableClass (@LEM tvar).
+Canonical  tvar_eqType      := Eval hnf in EqType tvar tvar_eqMixin.
+Definition tvar_choiceMixin := CanChoiceMixin codeK_tvar.
+Canonical  tvar_choiceType  := ChoiceType tvar tvar_choiceMixin.
+
+(* ** Variable map
+ * -------------------------------------------------------------------- *)
 
 Definition vmap := forall (st : stype), {fmap ident -> st2ty st}.
 Definition vmap_set st (vm : vmap) k (v : st2ty st) : vmap :=
@@ -233,7 +246,7 @@ Definition write_mem (m : mem) (p w : word) : exec mem :=
 
 Fixpoint vars_pexpr st (pe : pexpr st) :=
   match pe with
-  | Pvar   _ (Var st vn)  => [fset (st,vn)]
+  | Pvar   _ (Var st vn)  => [fset (Tvar st vn)]
   | Pconst st _           => fset0
   | Papp sta ste _ pe     => vars_pexpr pe
   | Ppair st1 st2 pe1 pe2 => vars_pexpr pe1 `|` vars_pexpr pe2
@@ -241,7 +254,7 @@ Fixpoint vars_pexpr st (pe : pexpr st) :=
 
 Fixpoint vars_rval st (rv : rval st) :=
   match rv with
-  | Rvar  st (Var _ vn)   => [fset (st,vn)]
+  | Rvar  st (Var _ vn)   => [fset (Tvar st vn)]
   | Rpair st1 st2 rv1 rv2 => vars_rval rv1 `|` vars_rval rv2
   end.
 
@@ -258,16 +271,16 @@ Definition vars_range (r : range) :=
 
 Fixpoint vars_cmd (rec : bool) (c : cmd) :=
   match c with
-  | Sskip => fset0
-  | Sbcmd bc =>
+  | Cskip => fset0
+  | Cbcmd bc =>
       vars_bcmd bc
-  | Sseq c1 c2 =>
+  | Cseq c1 c2 =>
       vars_cmd rec c1 `|` vars_cmd rec c2
-  | Sif pe c1 c2 =>
+  | Cif pe c1 c2 =>
       vars_pexpr pe `|` vars_cmd rec c1 `|` vars_cmd rec c2
-  | Sfor (Var st vn) rng c =>
-      (st,vn) |` vars_range rng `|` vars_cmd rec c
-  | Scall starg stres rv_farg pe_ret c_body rv_res pe_arg =>
+  | Cfor (Var st vn) rng c =>
+      (Tvar st vn) |` vars_range rng `|` vars_cmd rec c
+  | Ccall starg stres rv_farg pe_ret c_body rv_res pe_arg =>
       (if rec
        then vars_rval rv_farg `|` vars_pexpr pe_ret `|` vars_cmd rec c_body
        else fset0)
@@ -318,39 +331,39 @@ Definition sem_range (vm : vmap) (r : range) :=
 
 Inductive sem : estate -> cmd -> estate -> Prop :=
 | Eskip s :
-    sem s Sskip s
+    sem s Cskip s
 
 | Eseq s1 s2 s3 c1 c2 :
-    sem s1 c1 s2 -> sem s2 c2 s3 -> sem s1 (Sseq c1 c2) s3
+    sem s1 c1 s2 -> sem s2 c2 s3 -> sem s1 (Cseq c1 c2) s3
 
 | Ebcmd s1 s2 c:
-    sem_bcmd s1 c = ok s2 -> sem s1 (Sbcmd c) s2
+    sem_bcmd s1 c = ok s2 -> sem s1 (Cbcmd c) s2
 
 | EifTrue s1 s2 (pe : pexpr sbool) c1 c2 :
     sem_pexpr s1.(evm) pe = ok true ->
     sem s1 c1 s2 ->
-    sem s1 (Sif pe c1 c2) s2
+    sem s1 (Cif pe c1 c2) s2
 
 | EifFalse s1 s2 (pe : pexpr sbool) c1 c2 :
     sem_pexpr s1.(evm) pe = ok false ->
     sem s1 c2 s2 ->
-    sem s1 (Sif pe c1 c2) s2
+    sem s1 (Cif pe c1 c2) s2
 
 | Ecall m1 m2 vm1 vmc1 vmc2 starg stres farg fres fbody rv_res pe_arg arg res :
     sem_pexpr vm1 pe_arg = ok arg ->
-    (forall st vn, (st,vn) \in vars_cmd false fbody -> vn \in domf (vm1 st)) -> 
+    (forall st vn, Tvar st vn \in vars_cmd false fbody -> vn \in domf (vm1 st)) -> 
     let vmc1 := write_rval vmc1 farg arg in
     sem (Estate m1 vmc1) fbody (Estate m2 vmc2) ->
     sem_pexpr vmc2 fres = ok res ->
     let vm2 := write_rval vm1 rv_res res in
     sem (Estate m1 vm1)
-        (@Scall starg stres farg fres fbody rv_res pe_arg)
+        (@Ccall starg stres farg fres fbody rv_res pe_arg)
         (Estate m2 vm2)
 
 | EforDone s1 s2 iv rng c ws :
     sem_range s1.(evm) rng = ok ws ->
     sem_for iv ws s1 c s2 ->
-    sem s1 (Sfor iv rng c) s2
+    sem s1 (Cfor iv rng c) s2
 
 with sem_for : var sword -> seq word -> estate -> cmd -> estate -> Prop :=
 
@@ -358,7 +371,7 @@ with sem_for : var sword -> seq word -> estate -> cmd -> estate -> Prop :=
     sem_for iv [::] s c s
 
 | EForOne s1 s2 s3 c w ws iv :
-    let ac := Sseq (Sbcmd (Assgn (Rvar iv) (Pconst w))) c in
+    let ac := Cseq (Cbcmd (Assgn (Rvar iv) (Pconst w))) c in
     sem                s1 ac s2 ->
     sem_for iv (ws)    s2 c  s3 ->
     sem_for iv (w::ws) s1 c  s3.

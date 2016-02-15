@@ -15,310 +15,122 @@ Local Open Scope ring_scope.
 Local Open Scope fmap.
 Local Open Scope fset.
 
-(* ** Set up canonical instances for loc so we can use fset
+(* ** Variable renaming
  * -------------------------------------------------------------------- *)
 
-Definition code_pexpr (l : pexpr) : nat := admit.
-Definition decode_pexpr (l : nat) : pexpr := admit.
+Notation renaming := (ident -> ident).
 
-Lemma codeK_pexpr : cancel code_pexpr decode_pexpr.
-Admitted.
+Definition rn_var st (pi : renaming) (v : var st) :=
+  let: Var _ n := v in Var st (pi n).
 
-Definition pexpr_eqMixin := comparableClass (@LEM pexpr).
-Canonical  pexpr_eqType  := Eval hnf in EqType pexpr pexpr_eqMixin.
-
-Definition pexpr_choiceMixin := CanChoiceMixin codeK_pexpr.
-Canonical  pexpr_choiceType  := ChoiceType pexpr pexpr_choiceMixin.
-
-Fixpoint code_loc (l : loc) : option pexpr * ident :=
-  (l.(l_oidx), l.(l_id)).
-
-Fixpoint decode_loc (s : option pexpr * ident) : loc :=
-  let: (oi, id) := s in mkLoc oi id.
-
-Lemma codeK_loc : cancel code_loc decode_loc.
-Proof. by elim=> //= a s ->. Qed.
-
-Definition loc_choiceMixin := CanChoiceMixin codeK_loc.
-Canonical  loc_choiceType  := ChoiceType loc loc_choiceMixin.
-
-(* ** Occurences of idents
- * -------------------------------------------------------------------- *)
-
-Fixpoint id_occ_pexpr pe :=
+Fixpoint rn_pexpr st (pi : renaming) (pe : pexpr st) :=
   match pe with
-  | Pvar id          => [fset id]
-  | Pbinop _ pe1 pe2 => id_occ_pexpr pe1 `|` id_occ_pexpr pe2
-  | Pconst _         => fset0
+  | Pvar   st v           => Pvar (rn_var pi v)
+  | Pconst st c           => Pconst c
+  | Papp sta ste op pe    => Papp op (rn_pexpr pi pe)
+  | Ppair st1 st2 pe1 pe2 => Ppair (rn_pexpr pi pe1) (rn_pexpr pi pe2)
   end.
 
-Definition id_occ_oidx (op : option pexpr) :=
-  match op with
-  | None => fset0
-  | Some pe => id_occ_pexpr pe
+Fixpoint rn_rval st (pi : renaming) (rv : rval st) :=
+  match rv with
+  | Rvar  st v            => Rvar (rn_var pi v)
+  | Rpair st1 st2 rv1 rv2 => Rpair (rn_rval pi rv1) (rn_rval pi rv2)
   end.
 
-Definition id_occ_loc (l : loc) :=
-  l.(l_id) |` id_occ_oidx l.(l_oidx).
-
-Definition id_occ_src (s : src) :=
-  match s with
-  | Imm pe => id_occ_pexpr pe
-  | Loc(l) => id_occ_loc l
+Definition rn_bcmd (pi : renaming) (bc : bcmd) :=
+  match bc with
+  | Assgn st rv pe       => Assgn (rn_rval pi rv) (rn_pexpr pi pe)
+  | Load rv pe_addr      => Load (rn_rval pi rv) (rn_pexpr pi pe_addr)
+  | Store pe_addr pe_val => Store (rn_pexpr pi pe_addr) (rn_pexpr pi pe_val)
   end.
 
-Fixpoint id_occ_pcond (pc : pcond) :=
-  match pc with
-  | Ptrue           => fset0
-  | Pnot pc         => id_occ_pcond pc
-  | Pand pc1 pc2    => id_occ_pcond pc1 `|` id_occ_pcond pc2
-  | Pcond _ pe1 pe2 => id_occ_pexpr pe1 `|` id_occ_pexpr pe2
+Definition rn_range (pi : renaming) (r : range) :=
+  let: (dir,pe1,pe2) := r in (dir,rn_pexpr pi pe1,rn_pexpr pi pe2).
+
+Fixpoint rn_cmd (pi : renaming) (c : cmd) :=
+  match c with
+  | Cskip        => Cskip
+  | Cbcmd bc     => Cbcmd (rn_bcmd pi bc)
+  | Cseq c1 c2   => Cseq (rn_cmd pi c1) (rn_cmd pi c2)
+  | Cif pe c1 c2 => Cif (rn_pexpr pi pe) (rn_cmd pi c1) (rn_cmd pi c2)
+  | Cfor v rng c => Cfor (rn_var pi v) (rn_range pi rng) (rn_cmd pi c)
+  | Ccall starg stres rv_farg pe_ret c_body rv_res pe_arg =>
+      Ccall (rn_rval pi rv_farg) (rn_pexpr pi pe_ret)
+        (rn_cmd pi c_body) (rn_rval pi rv_res) (rn_pexpr pi pe_arg)
   end.
 
-Fixpoint id_occ_instr i : {fset ident} :=
-  match i with
-  | Skip =>
-      fset0
-  | Seq i1 i2 =>
-      id_occ_instr i1 `|` id_occ_instr i2
-  | Assgn ds _ ss =>
-      unions_seq (map id_occ_loc ds) `|` unions_seq (map id_occ_src ss)
-  | Call fargs frets fbody drets args => (* ignore fd here *)
-      seq_fset drets `|` unions_seq (map id_occ_src args)
-  | If pc i1 i2 =>
-      id_occ_pcond pc `|` id_occ_instr i1 `|` id_occ_instr i2
-  | For id lb ub i =>
-          id
-       |` id_occ_pexpr lb `|` id_occ_pexpr ub
-      `|` id_occ_instr i
-  | Load l addr => fset0
-  | Store add s => fset0 
-  end.
-
-(* ** Irrelevant local variables for eval_instr
+(* ** Variable substitution
  * -------------------------------------------------------------------- *)
 
-Lemma eq_on_eval_pexpr_eq pe lm1 lm2:
-  lm1 = lm2 [& id_occ_pexpr pe] ->
-  eval_pexpr lm1 pe = eval_pexpr lm2 pe.
-Proof.
-elim: pe.
-+ by rewrite /= => i Heq; rewrite (eq_on_get_fset1 Heq).
-+ move=> pop pe1 H1 pe2 H2.
-  rewrite /= => Heq. move: (eq_on_U Heq) => [Heq1  Heq2].
-  by rewrite (H1 Heq1) (H2 Heq2); case (eval_pexpr _ _).
-+ done.
-Qed.
+Notation subst := (forall st, var st -> pexpr st).
 
-Lemma eq_on_eval_pcond_eq pc lm1 lm2:
-  lm1 = lm2 [& id_occ_pcond pc] ->
-  eval_pcond lm1 pc = eval_pcond lm2 pc.
-Proof.
-elim: pc.
-+ done.
-+ by move=> pc => //=; move=> H1 Heq; rewrite (H1 Heq).
-+ move=> pc1 H1 pc2 H2 => //=. move=> Heq.
-  by rewrite (H1 (eq_on_Ul Heq)) (H2 (eq_on_Ur Heq)).
-+ rewrite /= => pob p1 p2 Heq.
-  move: (eq_on_U Heq) => [Heq1 Heq2].
-  by rewrite (eq_on_eval_pexpr_eq Heq1) (eq_on_eval_pexpr_eq Heq2).
-Qed.
-
-Lemma eq_on_read_oidx_eq oi lm1 lm2:
-  lm1 = lm2 [& id_occ_oidx oi]->
-  read_oidx lm1 oi = read_oidx lm2 oi.
-Proof.
-rewrite /=; case oi => //=; move=> p Heq.
-by rewrite /read_oidx (eq_on_eval_pexpr_eq Heq).
-Qed.
-  
-Lemma eq_on_read_loc_eq l lm1 lm2:
-  lm1 = lm2 [& id_occ_loc l] ->
-  read_loc lm1 l = read_loc lm2 l.
-Proof.
-case l => /= ope lid; rewrite /id_occ_loc /read_loc //= => Heq.
-move: (eq_on_U Heq) => [Heq1 Heq2].
-by rewrite (eq_on_get_fset1 Heq1) (eq_on_read_oidx_eq Heq2).
-Qed.
-
-Lemma eq_on_read_src_eq src lm1 lm2:
-  lm1 = lm2 [& id_occ_src src] ->
-  read_src lm1 src = read_src lm2 src.
-Proof.
-case src => /= pe Heq.
-+ by rewrite (eq_on_eval_pexpr_eq Heq).
-+ by rewrite (eq_on_read_loc_eq Heq).
-Qed.
-
-Lemma eq_on_mapM_read_src_eq srcs lm1 lm2 ids:
-  lm1 = lm2 [& ids] ->
-  unions_seq [seq id_occ_src i | i <- srcs] `<=` ids ->
-  mapM (read_src lm1) srcs = mapM (read_src lm2) srcs.
-Proof.
-move=> HeqOn; elim: srcs => // src srcs IH.
-rewrite /= fsubUset; move/andP => [] Hsub1_ Hsub2_.
-rewrite (IH Hsub2_) (@eq_on_read_src_eq src lm1 lm2 _) => //=.
-by apply: (eq_on_fsubset Hsub1_).
-Qed.
-
-Lemma req_on_write_loc_eq lm1 lm2 loc sval ids:
-  id_occ_loc loc `<=` ids ->
-  lm1 = lm2 [& ids] ->
-  write_loc lm1 loc sval = write_loc lm2 loc sval [&& ids].
-Proof.
-case loc => /=; case => pe; last first.
-rewrite /id_occ_loc /= /write_loc => Hsub Heq.
-+ by apply eq_on_setf_same.
-rewrite /id_occ_loc /write_loc => id.
-case sval => //= w Hsub Heq.
-move: (Hsub). rewrite /= fsubUset; move/andP => [] Hsub1 Hsub2.
-(* FIXME: move: (eq_on_read_loc_eq Heq) hangs here *)
-have ->:   read_loc lm1 {| l_oidx := Some pe; l_id := id |}
-         = read_loc lm2 {| l_oidx := Some pe; l_id := id |} => /=.
-+ apply: eq_on_read_loc_eq; rewrite /id_occ_loc //=.
-  by apply: (eq_on_fsubset Hsub).
-case (read_loc _ _) => //=; last first.
-+ rewrite (@eq_on_eval_pexpr_eq pe lm1 lm2) => //=. move=> s.
-  + case (eval_pexpr _ _) => //= w2.
-    by apply: eq_on_setf_same.
-  by apply: (eq_on_fsubset Hsub2).
-case => //= a.
-+ rewrite (@eq_on_eval_pexpr_eq pe lm1 lm2) => //=.
-  case (eval_pexpr _ _) => //= w2.
-  by apply: eq_on_setf_same.
-by apply: (eq_on_fsubset Hsub2).
-Qed.
-
-Lemma req_on_write_locs_eq locs ids:
-  forall lm1 lm2 svals,
-    unions_seq [seq id_occ_loc i | i <- locs] `<=` ids -> 
-    lm1 = lm2 [& ids] ->
-    write_locs lm1 locs svals = write_locs lm2 locs svals [&& ids].
-Proof.
-elim: locs => //=.
-+ by move=> lm1 lm2 svals; case svals => //=.
-move=> loc locs IH lm1 lm2 svals Hsub Heq.
-move: Hsub. rewrite /= fsubUset; move/andP => [] Hsub1 Hsub2.
-case svals => //= sv svs.
-apply:
-  (@req_on_rbind _ _
-     (fun lm => write_loc lm loc sv) (fun lm => write_locs lm locs svs)
-     lm1 lm2 ids Heq).
-+ by apply: req_on_write_loc_eq.
-move=> lm1_ lm2_ Heq_.
-by apply: (@IH lm1_ lm2_ svs Hsub2 Heq_).
-Qed.
-
-Lemma req_on_eval_instr_eq (i : instr):
-  forall (lm1 lm2 : lmap) (ids : {fset ident}) ,
-    id_occ_instr i `<=` ids ->
-    lm1 = lm2 [&ids]->
-    eval_instr lm1 i = eval_instr lm2 i [&& ids].
-Proof.
-move: i; elim/instr_ind.
-  (* Skip *)
-+ by move=> lm1 lm2; rewrite /= /eq_on; move=> ids Hsub ->.
-  (* Seq *)
-+ move=> i1 Hi1 i2 Hi2 lm1 lm2 ids.
-  rewrite /= fsubUset => Hsub Heq. move/andP: Hsub => [Hsub1 Hsub2].
-  apply: (@req_on_rbind _ _ (fun lm => eval_instr lm i1) (fun lm => eval_instr lm i2)
-             lm1 lm2 ids) => //=.
-  + by apply: Hi1.
-  + by move=> lm1_ lm2_; apply: Hi2.
-  (* Assgn *)
-+ move=> dlocs op srcs lm1 lm2 ids => /=.
-  rewrite fsubUset; move/andP => [Hsub1 Hsub2] Heq.
-  rewrite (@eq_on_mapM_read_src_eq srcs lm1 lm2 ids Heq Hsub2).
-  case (mapM _ _) => //= loc.
-  case (eval_op op loc) => //= svals.
-  by apply: req_on_write_locs_eq.
-  (* Load *)
-+ done.
-  (* Store *)
-+ done. 
-  (* If *)
-+ move=> pc i1 Hi1 i2 Hi2 lm1 lm2 ids.
-  rewrite /= !fsubUset. move/andP => []. move/andP => [] Hsub1 Hsub2 Hsub3 Heq.
-  have ->: eval_pcond lm1 pc = eval_pcond lm2 pc.
-  + apply: eq_on_eval_pcond_eq.
-    by apply: (eq_on_fsubset Hsub1).
-  case (eval_pcond lm2 pc) => /= ; last done.
-  by move=> b; case b; [apply Hi1 | apply Hi2].
-  (* For *)
-+ move=> id pe1 pe2 instr IH lm1 lm2 ids Hsub Heq.
-  move: (Hsub); rewrite /= !fsubUset.
-  move/andP => [Hsub123 Hsub4]. move/andP: Hsub123 => [Hsub12 Hsub3].
-  move/andP: Hsub12 => [Hsub1 Hsub2].
-  rewrite (@eq_on_eval_pexpr_eq pe1 lm1 lm2); last first.
-  + by apply: (eq_on_fsubset Hsub2).
-  case (eval_pexpr lm2 _) => //= w1.
-  rewrite (@eq_on_eval_pexpr_eq pe2 lm1 lm2); last first.
-  + by apply: (eq_on_fsubset Hsub3).
-  case (eval_pexpr lm2 _) => //= w2.
-  set ws := [seq n2w n | n <- list_from_to (w2n w1) (w2n w2)].
-  apply: (@req_on_ofold _ _ _
-             (fun j lm => eval_instr lm.[id <- Vword j] instr) ids ws lm1 lm2 Heq).
-  move=> lm1_ lm2_ w_ Hin HeqOn.
-  apply IH; first done.
-  by rewrite /eq_on !restrictf_set HeqOn.
-  (* Call *)
-+ move=> f_rets f_args f_body IH rets args lm1 lm2 ids.
-  rewrite /= => Hsub Heq. move: (Hsub); rewrite /= !fsubUset.
-  move/andP => [Hsub1 Hsub2].
-  rewrite (@eq_on_mapM_read_src_eq args lm1 lm2 ids Heq Hsub2).
-  case (mapM _ _) => //= svals.
-  case (write_locs _ _ _) => //= lm_call.
-  case (eval_instr _ _) => //= lm_call_.
-  case (mapM _ _) => //= svals_.
-  apply: req_on_write_locs_eq => //=.
-  rewrite -map_comp.
-  have Hfeq: id_occ_loc \o mkLoc None =1 (fun x => [fset x]).
-  + by move=> x; rewrite /comp /id_occ_loc /= fsetU0.
-  have ->: map (id_occ_loc \o mkLoc None) rets = map fset1 rets.
-  + by rewrite -eq_in_map; case => //; rewrite /comp /id_occ_loc /= fsetU0.
-  by rewrite unions_set_map_fset1.
-Qed.
-
-(* ** Occurences of locations (FIXME: unclear this is what we'll need)
- * -------------------------------------------------------------------- *)
-
-Fixpoint loc_occ_pexpr pe :=
+Fixpoint subst_pexpr st (s : subst) (pe : pexpr st) :=
   match pe with
-  | Pvar id          => [fset mkLoc None id]
-  | Pbinop _ pe1 pe2 => loc_occ_pexpr pe1 `|` loc_occ_pexpr pe2
-  | Pconst _         => fset0
+  | Pvar   st v           => s st v
+  | Pconst st c           => Pconst c
+  | Papp sta ste op pe    => Papp op (subst_pexpr s pe)
+  | Ppair st1 st2 pe1 pe2 => Ppair (subst_pexpr s pe1) (subst_pexpr s pe2)
   end.
 
-Definition loc_occ_src (s : src) :=
-  match s with
-  | Imm pe => loc_occ_pexpr pe
-  | Loc(l) => [fset l]
+Definition subst_bcmd (s : subst) (bc : bcmd) :=
+  match bc with
+  | Assgn st rv pe       => Assgn rv (subst_pexpr s pe)
+  | Load rv pe_addr      => Load rv (subst_pexpr s pe_addr)
+  | Store pe_addr pe_val => Store (subst_pexpr s pe_addr) (subst_pexpr s pe_val)
   end.
 
-Fixpoint loc_occ_pcond (pc : pcond) :=
-  match pc with
-  | Ptrue           => fset0
-  | Pnot pc         => loc_occ_pcond pc
-  | Pand pc1 pc2    => loc_occ_pcond pc1 `|` loc_occ_pcond pc2
-  | Pcond _ pe1 pe2 => loc_occ_pexpr pe1 `|` loc_occ_pexpr pe2
+Definition subst_range (s : subst) (r : range) :=
+  let: (dir,pe1,pe2) := r in (dir,subst_pexpr s pe1,subst_pexpr s pe2).
+
+Fixpoint subst_cmd (s : subst) (c : cmd) :=
+  match c with
+  | Cskip        => Cskip
+  | Cbcmd bc     => Cbcmd (subst_bcmd s bc)
+  | Cseq c1 c2   => Cseq (subst_cmd s c1) (subst_cmd s c2)
+  | Cif pe c1 c2 => Cif (subst_pexpr s pe) (subst_cmd s c1) (subst_cmd s c2)
+  | Cfor v rng c => Cfor v (subst_range s rng) (subst_cmd s c)
+  | Ccall _ _ rv_farg pe_ret c_body rv_res pe_arg =>
+      Ccall rv_farg (subst_pexpr s pe_ret)
+        (subst_cmd s c_body) rv_res (subst_pexpr s pe_arg)
   end.
 
-Fixpoint loc_occ_instr i :=
-  match i with
-  | Skip =>
-      fset0
-  | Seq i1 i2 =>
-      loc_occ_instr i1 `|` loc_occ_instr i2
-  | Assgn ds _ ss =>
-      seq_fset ds `|` unions_seq (map loc_occ_src ss)
-  | Call fargs frets fbody drets args => (* ignore fd here *)
-      seq_fset (map (mkLoc None) drets) `|` unions_seq (map loc_occ_src args)
-  | If pc i1 i2 =>
-      loc_occ_pcond pc `|` loc_occ_instr i1 `|` loc_occ_instr i2
-  | For id lb ub i =>
-          [fset mkLoc None id]
-      `|` loc_occ_pexpr lb `|` loc_occ_pexpr ub
-      `|` loc_occ_instr i
-  | Load l addr => fset0
-  | Store add s => fset0
+(* ** Inlining calls
+ * -------------------------------------------------------------------- *)
+
+(* Assumes that variables in different scopes all disjoint *)
+Fixpoint inline_calls (pos : seq nat) (p : seq nat -> bool) (c : cmd) : cmd :=
+  match c with
+  | Cskip =>
+      Cskip
+  | Cbcmd bc =>
+      Cbcmd bc
+  | Cseq c1 c2 =>
+      Cseq (inline_calls (0%N :: pos) p c1) (inline_calls (1%N :: pos) p c2)
+  | Cif pe c1 c2 =>
+      Cif pe (inline_calls (0%N :: pos) p c1) (inline_calls (1%N :: pos) p c2)
+  | Cfor v rng c =>
+      Cfor v rng (inline_calls (0%N :: pos) p c)
+  | Ccall starg stres rv_farg pe_ret c_body rv_res pe_arg =>
+      let c_body := inline_calls (0%N :: pos) p c_body in
+      if p pos
+      then Cseq (assgn rv_farg pe_arg) (Cseq c_body (assgn rv_res pe_ret))
+      else Ccall rv_farg pe_ret c_body rv_res pe_arg
   end.
+
+(* ** Useful definitions and basic properties
+ * -------------------------------------------------------------------- *)
+
+Notation assn := (estate -> Prop).
+
+Definition post (c : cmd) (Pre: assn) : assn :=
+  fun est' => exists est, Pre est /\ sem est c est'.
+
+Notation "c <^> sts" := (post c sts) (at level 40, left associativity).
+
+Parameter rn_pred : renaming -> assn -> assn.
+
+Lemma rn_commutes (pi : renaming) (sts : assn) (c : cmd):
+  bijective pi ->
+    (rn_cmd pi c) <^> (rn_pred pi sts)
+  = rn_pred pi (c <^> sts).
+Proof. admit. Qed.
