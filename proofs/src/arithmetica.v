@@ -1,6 +1,7 @@
 (* -------------------------------------------------------------------- *)
-Require Import ssreflect ssrfun ssrbool eqtype ssrnat choice fintype.
-Require Import div seq ssralg ssrint zmodp finmap ssrring.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssrnat choice fintype.
+From mathcomp Require Import div seq ssralg ssrint zmodp.
+Require Import finmap.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -97,7 +98,7 @@ Section SExpr.
     forall o es, (forall e, e \in es -> P e) -> P (EApp o es).
 
   Lemma sexpr_ind' : forall e, P e.
-  Proof using PVar PApp. admit. Qed.
+  Proof using PVar PApp. Admitted.
 End SExpr.
 
 (* -------------------------------------------------------------------- *)

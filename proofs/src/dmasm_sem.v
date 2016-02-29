@@ -1,9 +1,9 @@
 (* * Syntax and semantics of the dmasm source language *)
 
 (* ** Imports and settings *)
-Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
-Require Import choice fintype eqtype div seq finmap strings zmodp.
-Require Import dmasm_utils.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
+From mathcomp Require Import choice fintype eqtype div seq zmodp.
+Require Import finmap strings dmasm_utils.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

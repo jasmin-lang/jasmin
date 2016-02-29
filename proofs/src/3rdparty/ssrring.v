@@ -5,8 +5,8 @@
  * -------------------------------------------------------------------- *)
 
 (* -------------------------------------------------------------------- *)
-Require Import ssreflect eqtype ssrbool ssrnat ssrfun seq choice.
-Require Import bigop ssralg ssrint.
+From mathcomp Require Import ssreflect eqtype ssrbool ssrnat ssrfun seq choice.
+From mathcomp Require Import bigop ssralg ssrint.
 
 Import GRing.Theory.
 

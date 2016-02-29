@@ -1,9 +1,9 @@
 (* * Prove properties about semantics of dmasm input language *)
 
 (* ** Imports and settings *)
-Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
-Require Import choice fintype eqtype div seq finmap strings zmodp.
-Require Import dmasm_utils dmasm_sem.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
+From mathcomp Require Import choice fintype eqtype div seq zmodp.
+Require Import finmap strings  dmasm_utils dmasm_sem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -133,4 +133,4 @@ Lemma rn_commutes (pi : renaming) (sts : assn) (c : cmd):
   bijective pi ->
     (rn_cmd pi c) <^> (rn_pred pi sts)
   = rn_pred pi (c <^> sts).
-Proof. admit. Qed.
+Proof. admit. Admitted.

@@ -1,7 +1,8 @@
 (* * Utility definition for dmasm *)
 
 (* ** Imports and settings *)
-Require Import ssreflect ssrfun ssrnat ssrbool seq choice eqtype finmap.
+From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool seq choice eqtype.
+Require Import finmap.
 Require Import strings.
 
 Set Implicit Arguments.
