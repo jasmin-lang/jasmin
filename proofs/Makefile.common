@@ -13,7 +13,7 @@ all: config build
 # --------------------------------------------------------------------
 Makefile.coq: Makefile
 	coq_makefile $(INCFLAGS) $(COQFILES) -o Makefile.coq
-	+$(COQMAKE) depend
+	-+$(COQMAKE) depend
 
 # --------------------------------------------------------------------
 config: sub-config this-config Makefile.coq

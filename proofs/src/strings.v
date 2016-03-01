@@ -1,5 +1,5 @@
 (* -------------------------------------------------------------------- *)
-Require Import ssreflect eqtype ssrbool choice ssrfun seq.
+From mathcomp Require Import ssreflect eqtype ssrbool choice ssrfun seq.
 Require Export String.
 
 Set Implicit Arguments.
