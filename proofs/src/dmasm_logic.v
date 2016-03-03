@@ -104,12 +104,14 @@ Definition ewrite_rval {st} (vm:vsubst) (l:rval st) (v:pexpr st) :=
 Definition wp_asgn {t1 t2} (rv:rval t1) (e:pexpr t1) (pe: pexpr t2) := 
   subst_pexpr (tosubst (ewrite_rval vsubst_id rv e)) pe.
 
-Definition spred (t:stype) := ((sst2ty t -> Prop) * pexpr t)%type.
+Record spred := Spred { 
+   sp_t : stype;
+   sp_P : sst2ty sp_t -> Prop;
+   sp_e : pexpr sp_t;
+}.
 
-Definition s2h {t} (p:spred t) : hpred := 
-  fun s =>
-    let (P,e) := p in
-    P (ssem_pexpr s.(sevm) e).
+Definition s2h (p:spred)  := 
+  fun (s:sestate) => sp_P (ssem_pexpr s.(sevm) p.(sp_e)).
 
 Definition map_ssem_pe vm := 
   map (fun ts:g_tosubst pexpr => let (t,id,e) := ts in ToSubst id (ssem_pexpr vm e)).
@@ -130,9 +132,11 @@ Proof.
   by rewrite (lock (_ .[_ <- _])) /= -lock fnd_set eq_sym => /eqP /negPf ->. 
 Qed.
 
-Lemma svmap_set_neq_t {t1 t2} id x (v:sst2ty t1) vm: t1 <> t2 ->
+Lemma svmap_set_neq_t {t1 t2} id x (v:sst2ty t1) vm: t2 <> t1 ->
     (svmap_set vm id v t2).[?x] = (vm t2).[?x].
-Proof. by rewrite /svmap_set;case: eq_stype. Qed.
+Proof.
+  by move=> /nesym;rewrite /svmap_set;case: eq_stype. 
+Qed.
 
 Lemma vsubst_add_neq {t1 t2} s id (v:var t1) (e:pexpr t2):
    id <> vname v -> 
@@ -171,16 +175,50 @@ Proof.
   case: (id =P vname v)=> [-> | ?].
   + case (eq_stype tv t) => [eq | neq].
     + by subst tv;rewrite vsubst_add_eq svmap_set_eq.
-    rewrite vsubst_add_neq_t // Hrec svmap_set_neq_t //.
-    by move=> Heq;apply neq;rewrite Heq.
+    by rewrite vsubst_add_neq_t // Hrec svmap_set_neq_t.
   by rewrite svmap_set_neq // vsubst_add_neq // Hrec.
 Qed.
 
 Lemma hoare_asgn {t1 t2} (rv:rval t1) (e:pexpr t1) (P:sst2ty t2 -> Prop) (pe: pexpr t2):
-  hoare (s2h (P, wp_asgn rv e pe)) (Cbcmd (Assgn rv e)) (s2h (P,pe)).
+  hoare (s2h (Spred P (wp_asgn rv e pe))) (Cbcmd (Assgn rv e)) (s2h (Spred P pe)).
 Proof.
   move=> s1_ s2_;set c := Cbcmd _=> s.
   case: _ {-1}_ _ / s (erefl c) => // s1 s2 ? H [] ?; subst=> {c s1_ s2_}.
   case: H=> <- {s2}; rewrite /wp_asgn /s2h /=.
   by rewrite /swrite_rval /ewrite_rval (swrite_subst_map [::]) ssem_subst_map.
 Qed.
+
+Definition is_skip (c:cmd) :=
+  match c with
+  | Cskip => true
+  | _     => false
+  end.
+
+Fixpoint wp (c:cmd) (P:spred) : cmd * spred := 
+ match c with
+ | Cskip => (c, P)
+
+ | Cbcmd(Assgn st rv pe) => (Cskip, Spred (@sp_P P) (wp_asgn rv pe P.(sp_e)))
+
+ | Cseq c1 c2 => 
+   let (c2_, P2) := wp c2 P in
+   if is_skip c2_ then wp c1 P2
+   else (Cseq c1 c2_, P2)
+
+ | Cif e c1 c2 =>
+   let (c1_, P1) := wp c1 P in
+   let (c2_, P2) := wp c2 P in
+   if is_skip c1_ && is_skip c2_ then 
+     let (t1,P1,e1) := P1 in
+     let (t2,P2,e2) := P2 in
+     (Cskip, @Spred (sbool**(t1**t2)) 
+                    (fun (v:bool * (sst2ty t1 * sst2ty t2)) =>
+                       let: (b,(e1,e2)) := v in
+                       if b then P1 e1 else P2 e2)
+                    (Ppair e (Ppair e1 e2)))
+   else (Cseq c1 c2_, P2)
+   
+ | _     => (c, P)
+ end.
+
+
