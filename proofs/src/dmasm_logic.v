@@ -20,10 +20,10 @@ Local Open Scope list_scope.
 (* ** Hoare Logic                                                             *)
 (* -------------------------------------------------------------------------- *)
 
-Definition hpred := Sestate -> Prop.
+Definition hpred := sestate -> Prop.
 
 Definition hoare (Pre:hpred) (c:cmd) (Post:hpred) := 
-  forall (s s':Sestate),  Ssem s c s' -> Pre s -> Post s'.
+  forall (s s':sestate),  ssem s c s' -> Pre s -> Post s'.
 
 (* -------------------------------------------------------------------------- *)
 (* ** Core Rules                                                              *)
@@ -37,7 +37,7 @@ Proof.
 Qed.
 
 Lemma hoare_bcmd (P:hpred) bc: 
-  hoare (fun s1 =>  forall s2,  Ssem_bcmd s1 bc = ok s2 -> P s2) (Cbcmd bc) P.
+  hoare (fun s1 =>  forall s2,  ssem_bcmd s1 bc = ok s2 -> P s2) (Cbcmd bc) P.
 Proof.
   move=> ??;set c := Cbcmd _ => s.
   case: _ {-1}_ _ / s (erefl c) => // ??? e [] ?;subst=> H.
@@ -53,8 +53,8 @@ Proof.
 Qed.
 
 Lemma hoare_if P Q (e: pexpr sbool) c1 c2 : 
-  hoare (fun s => P s /\ Ssem_pexpr s.(sevm) e) c1 Q ->
-  hoare (fun s => P s /\ ~~Ssem_pexpr s.(sevm) e) c2 Q ->
+  hoare (fun s => P s /\ ssem_pexpr s.(sevm) e) c1 Q ->
+  hoare (fun s => P s /\ ~~ssem_pexpr s.(sevm) e) c2 Q ->
   hoare P (Cif e c1 c2) Q.
 Proof.
   move=> H1 H2 ??;set c := Cif _ _ _ => s.
@@ -77,44 +77,72 @@ Definition tosubst (s:vsubst) : subst := s.
 Notation efst e := (Papp (Ofst _ _) e).
 Notation esnd e := (Papp (Osnd _ _) e).
 
-Fixpoint subst_asgn {t}  (s:vsubst) (l:rval t) : pexpr t -> vsubst := 
-  match l in rval t_ return pexpr t_ -> vsubst with 
-  | Rvar t (Var _ vid) => fun (e:pexpr t) => vsubst_add s vid e
-  | Rpair t1 t2 rv1 rv2 => fun (e:pexpr (t1 ** t2)) =>
-    let s := subst_asgn s rv1 (efst e) in
-    subst_asgn s rv2 (esnd e)
-  end.
+Definition ewrite_subst := @g_write_subst pexpr (fun t1 t2 e => efst e) (fun t1 t2 e => esnd e).
+
+Definition ewrite_vsubst := 
+  foldl (fun vm (ts:g_tosubst pexpr) => 
+          let (t,id,v) := ts in
+          vsubst_add vm id v).
+
+Definition ewrite_rval {st} (vm:vsubst) (l:rval st) (v:pexpr st) :=
+   ewrite_vsubst vm (ewrite_subst l v [::]).
 
 Definition wp_asgn {t1 t2} (rv:rval t1) (e:pexpr t1) (pe: pexpr t2) := 
-  subst_pexpr (tosubst (subst_asgn vsubst_id rv e)) pe.
+  subst_pexpr (tosubst (ewrite_rval vsubst_id rv e)) pe.
 
-Definition spred (t:stype) := ((Sst2ty t -> Prop) * pexpr t)%type.
+Definition spred (t:stype) := ((sst2ty t -> Prop) * pexpr t)%type.
 
 Definition s2h {t} (p:spred t) : hpred := 
   fun s =>
     let (P,e) := p in
-    P (Ssem_pexpr s.(sevm) e).
+    P (ssem_pexpr s.(sevm) e).
 
-Print Swrite_rval.
+Definition map_ssem_pe vm := 
+  map (fun ts:g_tosubst pexpr => let (t,id,e) := ts in ToSubst id (ssem_pexpr vm e)).
 
-Swrite_rval -> subst_for_vm.
-
-Lemma subst_asgn_correct {t1 t2} (rv : rval t1) (e : pexpr t1) (pe : pexpr t2) vm s vm':
-   Ssem_pexpr vm (subst_pexpr (tosubst (subst_asgn vsubst_id rv e)) pe) = 
-   Ssem_pexpr (Swrite_rval vm rv (Ssem_pexpr vm e)) pe.
+Lemma swrite_subst_map l vm {t} (rv:rval t) (e:pexpr t) :
+  swrite_subst rv (ssem_pexpr vm e) (map_ssem_pe vm l) = 
+  map_ssem_pe vm (ewrite_subst rv e l).
 Proof.
- elim: rv e => {t1} [ ???| ??? Hr1 ? Hr2 e].
-admit.
+  elim: rv e l=> {t} [ ? []???| ?? r1 Hr1 r2 Hr2 e] l //=.
+  by rewrite -Hr2 -Hr1. 
+Qed.
 
-Print Swrite_rval.
+Lemma ssem_subst_map {t2} (pe:pexpr t2) vm l :
+   ssem_pexpr vm (subst_pexpr (tosubst (ewrite_vsubst vsubst_id l)) pe) =
+   ssem_pexpr (swrite_vmap vm (map_ssem_pe vm l)) pe.
+Proof.
+  elim: pe => //= [? v| ?? p1 Hp1 p2 Hp2| ??? p Hp].
+  + rewrite /tosubst;elim: l => [ | [t id e] l Hrec] /=.
+    + admit.
+ 
 
-
-Lemma hoare_asgn {t1 t2} (rv:rval t1) (e:pexpr t1) (P:Sst2ty t2 -> Prop) (pe: pexpr t2):
+Lemma hoare_asgn {t1 t2} (rv:rval t1) (e:pexpr t1) (P:sst2ty t2 -> Prop) (pe: pexpr t2):
   hoare (s2h (P, wp_asgn rv e pe)) (Cbcmd (Assgn rv e)) (s2h (P,pe)).
 Proof.
   move=> s1_ s2_;set c := Cbcmd _=> s.
   case: _ {-1}_ _ / s (erefl c) => // s1 s2 ? H [] ?; subst=> {c s1_ s2_}.
   case: H=> <- {s2}; rewrite /wp_asgn /s2h /=.
+  rewrite /swrite_rval /ewrite_rval (swrite_subst_map [::]).
+  set v1 := (x in P x -> _);set v2 := (x in _ -> P x).
+  rewrite (_: v1 = v2) // /v1 /v2=> {v1 v2 P}.
+  move:(sevm s1) (ewrite_subst rv e [::]) => vm l {e rv t1 s1}.
+  elim: pe => //= [? v| ?? p1 Hp1 p2 Hp2| ??? p Hp].
+  + rewrite /tosubst;elim: l => [ | [t id e] l Hrec] /=.
+    + admit.
+    
+  + by rewrite Hp1 Hp2.
+  by rewrite Hp.
+Qed.
+ 
+forall (vm vm1 : svmap) vsubst1 (l: seq (g_tosubst pexpr)),
+  (forall pe,  (ssem_pexpr vm  
+  (ssem_pexpr vm
+     (subst_pexpr (tosubst (ewrite_vsubst vsubst1 l)) pe)) =
+  (ssem_pexpr (swrite_vmap vm1 (map_ssem_pe vm l)) pe)
+
+  rewrite ewrite
+  
 
 
 

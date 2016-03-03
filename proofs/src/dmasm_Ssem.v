@@ -88,7 +88,7 @@ Fixpoint ssem_pexpr {st} (vm : svmap) (pe : pexpr st) : sst2ty st :=
 Definition swrite_subst := @g_write_subst sst2ty (fun t1 t2 =>  fst) (fun t1 t2 => snd).
 
 Definition swrite_vmap := 
-  foldl (fun vm (ts:g_tosubst sst2ty) => 
+  foldr (fun (ts:g_tosubst sst2ty) vm => 
           let (t,id,v) := ts in
            svmap_set vm id v).
 
@@ -146,7 +146,7 @@ Inductive ssem : sestate -> cmd -> sestate -> Prop :=
     ssem s1 (Cif pe c1 c2) s2
 
 | SEifFalse s1 s2 (pe : pexpr sbool) c1 c2 :
-    ssem_pexpr s1.(sevm) pe ->
+    ~~ssem_pexpr s1.(sevm) pe ->
     ssem s1 c2 s2 ->
     ssem s1 (Cif pe c1 c2) s2
 

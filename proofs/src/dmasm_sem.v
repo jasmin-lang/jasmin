@@ -247,7 +247,7 @@ End WRITE.
 Definition write_subst := @g_write_subst st2ty (fun t1 t2 =>  fst) (fun t1 t2 => snd).
 
 Definition write_vmap := 
-  foldl (fun vm (ts:g_tosubst st2ty) => 
+  foldr (fun (ts:g_tosubst st2ty) vm => 
           let (t,id,v) := ts in
            vmap_set vm id v).
 
