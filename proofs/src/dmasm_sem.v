@@ -81,7 +81,7 @@ Inductive var : stype -> Set :=
 
 Inductive pexpr : stype -> Type :=
 | Pvar   : forall st, var st -> pexpr st
-| Pconst : forall st, st2ty st -> pexpr st
+| Pconst : st2ty sword -> pexpr sword
 | Ppair  : forall st1 st2, pexpr st1 -> pexpr st2 -> pexpr (st1 ** st2)
 | Papp   : forall starg stres: stype, sop starg stres -> pexpr starg -> pexpr stres.
 
@@ -147,19 +147,25 @@ Canonical  tvar_choiceType  := ChoiceType tvar tvar_choiceMixin.
 (* ** Variable map
  * -------------------------------------------------------------------- *)
 
-Definition vmap := forall (st : stype), {fmap ident -> st2ty st}.
-Definition vmap_set st (vm : vmap) k (v : st2ty st) : vmap :=
+Definition g_vmap (to:stype -> Type) := forall (st : stype), {fmap ident -> to st}.
+
+Definition g_vmap_set (to:stype -> Type) st (vm : g_vmap to) k (v : to st) : g_vmap to :=
   fun st' =>
      match eq_stype st st' with
      | left p_eq =>
          eq_rect st
-           (fun st => {fmap ident -> st2ty st})
+           (fun st => {fmap ident -> to st})
            (vm st).[k <- v]
            st'
            p_eq
      | right _ => vm st'
      end.
-Definition vmap0 : vmap := fun st => fmap0.
+
+Definition g_vmap0 to : g_vmap to:= fun st => fmap0.
+
+Notation vmap     := (g_vmap st2ty).
+Notation vmap_set := (@g_vmap_set st2ty _).
+Notation vmap0    := (@g_vmap0 st2ty).
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
@@ -202,7 +208,7 @@ Definition sem_sop st1 st2 (sop : sop st1 st2) : st2ty st1 -> exec (st2ty st2) :
 Fixpoint sem_pexpr st (vm : vmap) (pe : pexpr st) : exec (st2ty st) :=
   match pe with
   | Pvar st v => o2r ErrVarUndef ((vm st).[? vname v])
-  | Pconst st c => ok c
+  | Pconst c => ok c
   | Papp sta str so pe =>
       sem_pexpr vm pe >>= fun v =>
       (sem_sop so) v
@@ -215,15 +221,39 @@ Fixpoint sem_pexpr st (vm : vmap) (pe : pexpr st) : exec (st2ty st) :=
 (* ** Writing local variables
  * -------------------------------------------------------------------- *)
 
-Fixpoint write_rval {st} (vm : vmap) (l : rval st) (v : st2ty st) : vmap :=
-  (match l in rval st_ return (st2ty st_ -> vmap) with
-  | Rvar st (Var _ vid) => fun _ => vmap_set vm vid v
-  | Rpair t1 t2 rv1 rv2 => fun (v : (st2ty t1 * st2ty t2)) =>
-      let (v1,v2) := v in
-      let vm := write_rval vm rv1 v1 in
-      write_rval vm rv2 v2
-   end) v.
+Section WRITE.
 
+  Variable to : stype -> Type.
+ 
+  Record g_tosubst  := ToSubst {
+    ts_t  : stype;
+    ts_id : ident;
+    ts_to : to ts_t;
+  }.
+
+  Variable fst : forall {t1 t2:stype}, to (t1 ** t2) -> to t1.
+  Variable snd : forall {t1 t2:stype}, to (t1 ** t2) -> to t2.
+
+  Fixpoint g_write_subst {st} (l:rval st) : to st -> list g_tosubst -> list g_tosubst := 
+    match l in rval st_ return to st_ -> list g_tosubst -> list g_tosubst with
+    | Rvar st (Var _ vid) => fun v s =>  
+      (ToSubst vid v) :: s
+    | Rpair t1 t2 rv1 rv2 => fun v s => 
+      g_write_subst rv2 (snd v) (g_write_subst rv1 (fst v) s)
+    end.
+
+End WRITE.
+
+Definition write_subst := @g_write_subst st2ty (fun t1 t2 =>  fst) (fun t1 t2 => snd).
+
+Definition write_vmap := 
+  foldl (fun vm (ts:g_tosubst st2ty) => 
+          let (t,id,v) := ts in
+           vmap_set vm id v).
+
+Definition write_rval {st} (vm:vmap) (l:rval st) (v:st2ty st) :=
+   write_vmap vm (write_subst l v [::]).
+  
 (* ** Memory
  * -------------------------------------------------------------------- *)
 
@@ -247,7 +277,7 @@ Definition write_mem (m : mem) (p w : word) : exec mem :=
 Fixpoint vars_pexpr st (pe : pexpr st) :=
   match pe with
   | Pvar   _ (Var st vn)  => [fset (Tvar st vn)]
-  | Pconst st _           => fset0
+  | Pconst _           => fset0
   | Papp sta ste _ pe     => vars_pexpr pe
   | Ppair st1 st2 pe1 pe2 => vars_pexpr pe1 `|` vars_pexpr pe2
   end.
@@ -318,7 +348,7 @@ Definition wrange d n1 n2 :=
   let idxs := iota n1 (n2 - n1) in
   match d with
   | UpTo   => idxs
-  | DownTo => [seq (n1 + (n2 - n - 1))%nat | n <- idxs ]
+  | DownTo => rev idxs (* [seq (n1 + (n2 - n - 1))%nat | n <- idxs ] *)
   end.
 
 Definition sem_range (vm : vmap) (r : range) :=

@@ -26,7 +26,7 @@ Definition rn_var st (pi : renaming) (v : var st) :=
 Fixpoint rn_pexpr st (pi : renaming) (pe : pexpr st) :=
   match pe with
   | Pvar   st v           => Pvar (rn_var pi v)
-  | Pconst st c           => Pconst c
+  | Pconst    c           => Pconst c
   | Papp sta ste op pe    => Papp op (rn_pexpr pi pe)
   | Ppair st1 st2 pe1 pe2 => Ppair (rn_pexpr pi pe1) (rn_pexpr pi pe2)
   end.
@@ -67,7 +67,7 @@ Notation subst := (forall st, var st -> pexpr st).
 Fixpoint subst_pexpr st (s : subst) (pe : pexpr st) :=
   match pe with
   | Pvar   st v           => s st v
-  | Pconst st c           => Pconst c
+  | Pconst    c           => Pconst c
   | Papp sta ste op pe    => Papp op (subst_pexpr s pe)
   | Ppair st1 st2 pe1 pe2 => Ppair (subst_pexpr s pe1) (subst_pexpr s pe2)
   end.
