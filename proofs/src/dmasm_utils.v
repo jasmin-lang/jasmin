@@ -77,6 +77,9 @@ Fixpoint foldM eT aT bT (f : aT -> bT -> result eT bT) (acc : bT) (l : seq aT) :
   | [:: a & la ] => f a acc >>= fun acc => foldM f acc la
   end.
 
+Definition isOk e a (r : result e a) :=
+  if r is Ok _ then true else false.
+
 (* ** Misc functions
  * -------------------------------------------------------------------- *)
 
