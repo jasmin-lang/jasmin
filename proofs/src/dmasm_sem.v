@@ -258,11 +258,11 @@ Section WRITE.
 
 End WRITE.
 
-Definition write_subst := @g_write_subst st2ty (fun t1 t2 =>  fst) (fun t1 t2 => snd).
+Definition write_subst := @g_write_subst st2ty (fun t1 t2 => fst) (fun t1 t2 => snd).
 
 Definition write_vmap := 
   foldr (fun (ts:g_tosubst st2ty) vm => 
-          let (t,id,v) := ts in
+           let (t,id,v) := ts in
            vmap_set vm id v).
 
 Definition write_rval {st} (vm:vmap) (l:rval st) (v:st2ty st) :=
@@ -330,6 +330,9 @@ Fixpoint vars_cmd (rec : bool) (c : cmd) :=
        else fset0)
       `|` vars_rval rv_res `|` vars_pexpr pe_arg
   end.
+
+Definition vars_fdef starg stres (rv : rval starg) (pe : pexpr stres) (c : cmd) :=
+  vars_rval rv `|` vars_pexpr pe `|` vars_cmd NoRecurse c.
 
 (* ** Instructions
  * -------------------------------------------------------------------- *)
