@@ -313,7 +313,9 @@ Definition vars_range (r : range) :=
   let: (_,pe1,pe2) := r in
   vars_pexpr pe1 `|` vars_pexpr pe2.
 
-Fixpoint vars_cmd (rec : bool) (c : cmd) :=
+Inductive recurse := Recurse | NoRecurse.
+
+Fixpoint vars_cmd (rec : recurse) (c : cmd) :=
   match c with
   | Cskip => fset0
   | Cbcmd bc =>
@@ -325,7 +327,7 @@ Fixpoint vars_cmd (rec : bool) (c : cmd) :=
   | Cfor (Var st vn) rng c =>
       (Tvar st vn) |` vars_range rng `|` vars_cmd rec c
   | Ccall starg stres rv_farg pe_ret c_body rv_res pe_arg =>
-      (if rec
+      (if rec is Recurse
        then vars_rval rv_farg `|` vars_pexpr pe_ret `|` vars_cmd rec c_body
        else fset0)
       `|` vars_rval rv_res `|` vars_pexpr pe_arg
@@ -396,13 +398,15 @@ Inductive sem : estate -> cmd -> estate -> Prop :=
     sem s1 c2 s2 ->
     sem s1 (Cif pe c1 c2) s2
 
-| Ecall m1 m2 vm1 vmc1 vmc2 starg stres farg fres fbody rv_res pe_arg arg res :
-    sem_pexpr vm1 pe_arg = ok arg ->
-    (forall st vn, Tvar st vn \in vars_cmd false fbody -> vn \in domf (vm1 st)) -> 
-    let vmc1 := write_rval vmc1 farg arg in
+| Ecall {m1 m2 vm1} vmc1 {vmc2 starg stres farg fres fbody rv_res pe_arg} :
+    isOk (@sem_pexpr starg vm1 pe_arg) ->
+    let arg := rdflt_ (@sem_pexpr starg vm1 pe_arg) in
+    (* forall st vn, Tvar st vn \in vars_fdef farg fres fbody -> vn \in domf (vm1 st)) ->  *)
+    let vmc1 := @write_rval starg vmc1 farg arg in
     sem (Estate m1 vmc1) fbody (Estate m2 vmc2) ->
-    sem_pexpr vmc2 fres = ok res ->
-    let vm2 := write_rval vm1 rv_res res in
+    isOk (@sem_pexpr stres vmc2 fres) ->
+    let res := rdflt_ (@sem_pexpr stres vmc2 fres) in
+    let vm2 := @write_rval stres vm1 rv_res res in
     sem (Estate m1 vm1)
         (@Ccall starg stres farg fres fbody rv_res pe_arg)
         (Estate m2 vm2)
