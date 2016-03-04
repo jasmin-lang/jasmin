@@ -132,23 +132,24 @@ Definition ssem_range (vm : svmap) (r : range) :=
 
 Inductive ssem : sestate -> cmd -> sestate -> Prop :=
 | SEskip s :
-    ssem s Cskip s
+    ssem s [::] s
 
-| SEseq s1 s2 s3 c1 c2 :
-    ssem s1 c1 s2 -> ssem s2 c2 s3 -> ssem s1 (Cseq c1 c2) s3
+| SEseq s1 s2 s3 i c :
+    ssem_i s1 i s2 -> ssem s2 c s3 -> ssem s1 (i::c) s3
 
+with ssem_i : sestate -> instr -> sestate -> Prop :=
 | SEbcmd s1 s2 c:
-    ssem_bcmd s1 c = ok s2 -> ssem s1 (Cbcmd c) s2
+    ssem_bcmd s1 c = ok s2 -> ssem_i s1 (Cbcmd c) s2
 
 | SEifTrue s1 s2 (pe : pexpr sbool) c1 c2 :
     ssem_pexpr s1.(sevm) pe ->
     ssem s1 c1 s2 ->
-    ssem s1 (Cif pe c1 c2) s2
+    ssem_i s1 (Cif pe c1 c2) s2
 
 | SEifFalse s1 s2 (pe : pexpr sbool) c1 c2 :
     ~~ssem_pexpr s1.(sevm) pe ->
     ssem s1 c2 s2 ->
-    ssem s1 (Cif pe c1 c2) s2
+    ssem_i s1 (Cif pe c1 c2) s2
 
 | SEcall m1 m2 vm1 vmc1 vmc2 starg stres farg fres fbody rv_res pe_arg :
     let arg := ssem_pexpr vm1 pe_arg in 
@@ -157,14 +158,14 @@ Inductive ssem : sestate -> cmd -> sestate -> Prop :=
     ssem (SEstate m1 vmc1) fbody (SEstate m2 vmc2) ->
     let res := ssem_pexpr vmc2 fres in
     let vm2 := swrite_rval vm1 rv_res res in
-    ssem (SEstate m1 vm1)
-        (@Ccall starg stres farg fres fbody rv_res pe_arg)
+    ssem_i (SEstate m1 vm1)
+        (@Ccall starg stres rv_res (FunDef farg fbody fres) pe_arg)
         (SEstate m2 vm2)
 
 | SEforDone s1 s2 iv rng c ws :
     ssem_range s1.(sevm) rng = ok ws ->
     ssem_for iv ws s1 c s2 ->
-    ssem s1 (Cfor iv rng c) s2
+    ssem_i s1 (Cfor iv rng c) s2
 
 with ssem_for : var sword -> seq word -> sestate -> cmd -> sestate -> Prop :=
 
@@ -172,7 +173,7 @@ with ssem_for : var sword -> seq word -> sestate -> cmd -> sestate -> Prop :=
     ssem_for iv [::] s c s
 
 | SEForOne s1 s2 s3 c w ws iv :
-    let ac := Cseq (Cbcmd (Assgn (Rvar iv) (Pconst w))) c in
+    let ac := Cbcmd (Assgn (Rvar iv) (Pconst w)) :: c in
     ssem                s1 ac s2 ->
     ssem_for iv (ws)    s2 c  s3 ->
     ssem_for iv (w::ws) s1 c  s3.

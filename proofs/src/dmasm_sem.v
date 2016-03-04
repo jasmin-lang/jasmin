@@ -76,8 +76,9 @@ Fixpoint st2ty (t : stype) : Type :=
   | sarr n st     => (n.+1).-tuple (st2ty st) (* do not allow zero-dim arrays *)
   end.
 
-Inductive var : stype -> Set :=
-| Var (st : stype) of ident : var st.
+Record var (st:stype) : Set := Var {
+  vname : ident
+}.
 
 Inductive pexpr : stype -> Type :=
 | Pvar   : forall st, var st -> pexpr st
@@ -98,17 +99,64 @@ Inductive dir := UpTo | DownTo.
 
 Definition range := (dir * pexpr sword * pexpr sword)%type.
 
-Inductive cmd :=
-| Cskip  : cmd
-| Cbcmd  : bcmd -> cmd
-| Cseq   : cmd -> cmd -> cmd
-| Cif    : pexpr sbool -> cmd -> cmd -> cmd
-| Cfor   : var sword -> range -> cmd -> cmd
-| Ccall  : forall starg stres,
-             rval starg -> pexpr stres -> cmd (* function def: (args, ret, body) *)
-             -> rval  stres
-             -> pexpr starg
-             -> cmd.
+Inductive instr := 
+| Cbcmd  : bcmd -> instr
+| Cif    : pexpr sbool -> seq instr -> seq instr -> instr
+| Cfor   : var sword -> range -> seq instr -> instr
+| Ccall  : forall starg stres, 
+             rval  stres ->
+             fundef starg stres ->
+             pexpr starg ->
+             instr
+
+with fundef : stype -> stype -> Type  := 
+| FunDef : forall starg stres, rval starg -> seq instr -> pexpr stres -> fundef starg stres.
+
+Notation cmd := (seq instr).
+
+Section IND.
+  Variable Pi : instr -> Type.
+  Variable Pc : cmd -> Type.
+  Variable Pf : forall ta tr, fundef ta tr -> Type.
+
+  Hypothesis Hskip : Pc [::].
+  Hypothesis Hseq  : forall i c,  Pi i -> Pc c -> Pc (i::c).
+  Hypothesis Hbcmd : forall bc,  Pi (Cbcmd bc).
+  Hypothesis Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (Cif e c1 c2).
+  Hypothesis Hfor  : forall i rn c, Pc c -> Pi (Cfor i rn c).
+  Hypothesis Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
+  Hypothesis Hfunc : forall ta tr (x:rval ta) c (re:pexpr tr), Pc c -> Pf (FunDef x c re).
+
+  Fixpoint instr_rect' (i:instr) : Pi i := 
+    match i return Pi i with
+    | Cbcmd bc => Hbcmd bc
+    | Cif b c1 c2 =>
+      Hif b
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect' i) Hc) c1)
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect' i) Hc) c2)
+    | Cfor i rn c =>
+      Hfor i rn 
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect' i) Hc) c)
+    | Ccall ta tr x f a =>
+      Hcall x a (func_rect f)
+    end
+  with func_rect {ta tr} (f:fundef ta tr) : Pf f := 
+    match f with
+    | FunDef ta tr x c re => 
+      Hfunc x re
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect' i) Hc) c)
+    end.
+
+  Definition cmd_rect c := 
+    list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect' i) Hc) c.
+
+End IND.
+
+Definition cmd_ind (P:cmd -> Prop) (Pf:forall ta tr, fundef ta tr -> Prop) := 
+  @cmd_rect (fun i => P [::i]) P Pf.
+
+Definition func_ind (P:cmd -> Prop) (Pf:forall ta tr, fundef ta tr -> Prop) := 
+  @func_rect (fun i => P [::i]) P Pf.
 
 Definition assgn st (rv : rval st) pe := Cbcmd (Assgn rv pe).
 Definition load rv pe := Cbcmd (Load rv pe).
@@ -117,14 +165,28 @@ Definition store pe1 pe2 := Cbcmd (Store pe1 pe2).
 (* ** Equality and choice
  * -------------------------------------------------------------------- *)
 
+Scheme Equality for stype. 
+(* Definition stype_beq : stype -> stype -> bool *)
+
+
 Definition eq_stype (st1 st2 : stype) : {st1 = st2} + {st1<>st2}.
-Proof. do! (decide equality). Qed.
+Proof. apply stype_eq_dec. Qed.
 
 Parameter st2n : stype -> nat.
 Parameter n2st : nat -> stype.
-Lemma codeK_stype : cancel st2n n2st. Admitted.
-Definition stype_eqMixin     := comparableClass (@LEM stype).
+Lemma codeK_stype : cancel st2n n2st. 
+Admitted.
+
+Lemma steq_axiom : Equality.axiom stype_beq. 
+Proof. 
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_stype_dec_bl.
+  by apply: internal_stype_dec_lb.
+Qed.
+
+Definition stype_eqMixin     := Equality.Mixin steq_axiom.
 Canonical  stype_eqType      := Eval hnf in EqType stype stype_eqMixin.
+
 Definition stype_choiceMixin := CanChoiceMixin codeK_stype.
 Canonical  stype_choiceType  := ChoiceType stype stype_choiceMixin.
 
@@ -144,9 +206,6 @@ Definition rdflt_ (st : stype) e (r : result e (st2ty st)) : st2ty st :=
 
 (* ** More on variables 
  * -------------------------------------------------------------------- *)
-
-Definition vname st (v : var st) :=
-  let: Var _ s := v in s.
 
 Record tvar := Tvar { tv_stype : stype; tv_ident : ident }.
 
@@ -250,7 +309,7 @@ Section WRITE.
 
   Fixpoint g_write_subst {st} (l:rval st) : to st -> list g_tosubst -> list g_tosubst := 
     match l in rval st_ return to st_ -> list g_tosubst -> list g_tosubst with
-    | Rvar st (Var _ vid) => fun v s =>  
+    | Rvar st (Var vid) => fun v s =>  
       (ToSubst vid v) :: s
     | Rpair t1 t2 rv1 rv2 => fun v s => 
       g_write_subst rv2 (snd v) (g_write_subst rv1 (fst v) s)
@@ -290,7 +349,7 @@ Definition write_mem (m : mem) (p w : word) : exec mem :=
 
 Fixpoint vars_pexpr st (pe : pexpr st) :=
   match pe with
-  | Pvar   _ (Var st vn)  => [fset (Tvar st vn)]
+  | Pvar   _ (Var vn)  => [fset (Tvar st vn)]
   | Pconst _           => fset0
   | Papp sta ste _ pe     => vars_pexpr pe
   | Ppair st1 st2 pe1 pe2 => vars_pexpr pe1 `|` vars_pexpr pe2
@@ -298,7 +357,7 @@ Fixpoint vars_pexpr st (pe : pexpr st) :=
 
 Fixpoint vars_rval st (rv : rval st) :=
   match rv with
-  | Rvar  st (Var _ vn)   => [fset (Tvar st vn)]
+  | Rvar  st (Var vn)   => [fset (Tvar st vn)]
   | Rpair st1 st2 rv1 rv2 => vars_rval rv1 `|` vars_rval rv2
   end.
 
@@ -315,23 +374,19 @@ Definition vars_range (r : range) :=
 
 Inductive recurse := Recurse | NoRecurse.
 
-Fixpoint vars_cmd (rec : recurse) (c : cmd) :=
-  match c with
-  | Cskip => fset0
-  | Cbcmd bc =>
-      vars_bcmd bc
-  | Cseq c1 c2 =>
-      vars_cmd rec c1 `|` vars_cmd rec c2
-  | Cif pe c1 c2 =>
-      vars_pexpr pe `|` vars_cmd rec c1 `|` vars_cmd rec c2
-  | Cfor (Var st vn) rng c =>
-      (Tvar st vn) |` vars_range rng `|` vars_cmd rec c
-  | Ccall starg stres rv_farg pe_ret c_body rv_res pe_arg =>
-      (if rec is Recurse
-       then vars_rval rv_farg `|` vars_pexpr pe_ret `|` vars_cmd rec c_body
-       else fset0)
-      `|` vars_rval rv_res `|` vars_pexpr pe_arg
-  end.
+Definition vars_cmd (rec: recurse) (c:cmd) := 
+  Eval lazy beta delta [cmd_rect instr_rect' list_rect] in
+  @cmd_rect (fun _ =>  {fset tvar}) (fun _ =>  {fset tvar}) (fun _ _ _ =>  {fset tvar})
+    fset0
+    (fun _ _ s1 s2 =>  s1 `|` s2)
+    vars_bcmd
+    (fun e _ _ s1 s2 => vars_pexpr e `|` s1 `|` s2)
+    (fun i rn _ s  =>  Tvar sword i.(vname) |` vars_range rn `|` s)
+    (fun _ _ x f a s =>  
+       (if rec is Recurse then s (* Warning : without "Eval lazy ..." the vars of f are always computed *)
+        else fset0) `|` vars_rval x `|` vars_pexpr a)
+    (fun _ _ x _ re s => vars_rval x `|` vars_pexpr re `|` s) 
+    c.
 
 Definition vars_fdef starg stres (rv : rval starg) (pe : pexpr stres) (c : cmd) :=
   vars_rval rv `|` vars_pexpr pe `|` vars_cmd NoRecurse c.
@@ -380,23 +435,23 @@ Definition sem_range (vm : vmap) (r : range) :=
 
 Inductive sem : estate -> cmd -> estate -> Prop :=
 | Eskip s :
-    sem s Cskip s
+    sem s [::] s
 
-| Eseq s1 s2 s3 c1 c2 :
-    sem s1 c1 s2 -> sem s2 c2 s3 -> sem s1 (Cseq c1 c2) s3
+| Eseq s1 s2 s3 i c :
+    sem s1 [::i] s2 -> sem s2 c s3 -> sem s1 (i:: c) s3
 
 | Ebcmd s1 s2 c:
-    sem_bcmd s1 c = ok s2 -> sem s1 (Cbcmd c) s2
+    sem_bcmd s1 c = ok s2 -> sem s1 [:: Cbcmd c] s2
 
 | EifTrue s1 s2 (pe : pexpr sbool) c1 c2 :
     sem_pexpr s1.(evm) pe = ok true ->
     sem s1 c1 s2 ->
-    sem s1 (Cif pe c1 c2) s2
+    sem s1 [:: Cif pe c1 c2] s2
 
 | EifFalse s1 s2 (pe : pexpr sbool) c1 c2 :
     sem_pexpr s1.(evm) pe = ok false ->
     sem s1 c2 s2 ->
-    sem s1 (Cif pe c1 c2) s2
+    sem s1 [:: Cif pe c1 c2] s2
 
 | Ecall {m1 m2 vm1} vmc1 {vmc2 starg stres farg fres fbody rv_res pe_arg} :
     isOk (@sem_pexpr starg vm1 pe_arg) ->
@@ -408,13 +463,13 @@ Inductive sem : estate -> cmd -> estate -> Prop :=
     let res := rdflt_ (@sem_pexpr stres vmc2 fres) in
     let vm2 := @write_rval stres vm1 rv_res res in
     sem (Estate m1 vm1)
-        (@Ccall starg stres farg fres fbody rv_res pe_arg)
+        [:: @Ccall starg stres rv_res (FunDef farg fbody fres) pe_arg]
         (Estate m2 vm2)
 
 | EforDone s1 s2 iv rng c ws :
     sem_range s1.(evm) rng = ok ws ->
     sem_for iv ws s1 c s2 ->
-    sem s1 (Cfor iv rng c) s2
+    sem s1 [:: Cfor iv rng c] s2
 
 with sem_for : var sword -> seq word -> estate -> cmd -> estate -> Prop :=
 
@@ -422,7 +477,7 @@ with sem_for : var sword -> seq word -> estate -> cmd -> estate -> Prop :=
     sem_for iv [::] s c s
 
 | EForOne s1 s2 s3 c w ws iv :
-    let ac := Cseq (Cbcmd (Assgn (Rvar iv) (Pconst w))) c in
+    let ac := Cbcmd (Assgn (Rvar iv) (Pconst w)) :: c in
     sem                s1 ac s2 ->
     sem_for iv (ws)    s2 c  s3 ->
     sem_for iv (w::ws) s1 c  s3.

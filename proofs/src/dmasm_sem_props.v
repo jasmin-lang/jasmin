@@ -23,7 +23,7 @@ Local Open Scope fset.
 Notation renaming := (ident -> ident).
 
 Definition rn_var st (pi : renaming) (v : var st) :=
-  let: Var _ n := v in Var st (pi n).
+  Var st (pi v.(vname)).
 
 Fixpoint rn_pexpr st (pi : renaming) (pe : pexpr st) :=
   match pe with
@@ -49,21 +49,18 @@ Definition rn_bcmd (pi : renaming) (bc : bcmd) :=
 Definition rn_range (pi : renaming) (r : range) :=
   let: (dir,pe1,pe2) := r in (dir,rn_pexpr pi pe1,rn_pexpr pi pe2).
 
-Fixpoint rn_cmd (rec : recurse) (pi : renaming) (c : cmd) :=
-  match c with
-  | Cskip        => Cskip
-  | Cbcmd bc     => Cbcmd (rn_bcmd pi bc)
-  | Cseq c1 c2   => Cseq (rn_cmd rec pi c1) (rn_cmd rec pi c2)
-  | Cif pe c1 c2 => Cif (rn_pexpr pi pe) (rn_cmd rec pi c1) (rn_cmd rec pi c2)
-  | Cfor v rng c => Cfor (rn_var pi v) (rn_range pi rng) (rn_cmd rec pi c)
-  | Ccall starg stres rv_farg pe_ret c_body rv_res pe_arg =>
-      let: (rv_farg,pe_ret,c_body) :=
-        if rec is NoRecurse then (rv_farg,pe_ret,c_body)
-        else (rn_rval pi rv_farg, rn_pexpr pi pe_ret, rn_cmd rec pi c_body)
-      in
-      Ccall rv_farg pe_ret c_body
-        (rn_rval pi rv_res) (rn_pexpr pi pe_arg)
-  end.
+Definition rn_cmd (rec : recurse) (pi:renaming) := 
+  Eval lazy beta delta [cmd_rect instr_rect' list_rect] in
+  @cmd_rect (fun _ => instr) (fun _ => cmd) (fun ta tr _ => fundef ta tr)
+  [::]
+  (fun _ _ i c => i::c)
+  (fun bc => Cbcmd (rn_bcmd pi bc))
+  (fun e _ _ c1 c2 => Cif (rn_pexpr pi e) c1 c2)
+  (fun i rn _ c => Cfor (rn_var pi i) (rn_range pi rn) c)
+  (fun _ _ x _ a f =>  Ccall  (rn_rval pi x) f (rn_pexpr pi a))
+  (fun _ _ x c_ re c => 
+     if rec is NoRecurse then FunDef (rn_rval pi x) c (rn_pexpr pi re) 
+     else FunDef x c_ re).
 
 Definition rn_fdef starg stres (pi : renaming) (rv : rval starg) (pe : pexpr stres) (c : cmd) :=
   (rn_rval pi rv, rn_pexpr pi pe, rn_cmd NoRecurse pi c).
@@ -111,7 +108,7 @@ Definition rn_vmap (pi : renaming) (vm : vmap) : vmap :=
 
 Lemma rn_vmap_get {st} pi (vm : vmap) (v : var st):
   (vm st).[? (vname v)] = ((rn_vmap pi vm) st).[? vname (rn_var pi v)].
-Proof. by case v; rewrite /= => st_ id_; rewrite (rn_fmap_get pi). Qed.
+Proof. by case v; rewrite /= => id_; rewrite (rn_fmap_get pi). Qed.
 
 (* ** Ecall reminder
  * -------------------------------------------------------------------- *)
@@ -166,6 +163,7 @@ Lemma rn_sem_equiv pi m1 m2 vm1 vm2 c:
       {| emem := m2; evm := rn_vmap pi vm2 |}.
 Proof. Admitted.
 
+(*
 Lemma rn_call_equiv starg stres (s1 s2 : estate) pi farg fres fbody rv_res pe_arg:
   bijective pi ->
   sem s1 (@Ccall starg stres farg fres fbody rv_res pe_arg) s2 ->
@@ -215,19 +213,20 @@ Definition subst_bcmd (s : subst) (bc : bcmd) :=
 Definition subst_range (s : subst) (r : range) :=
   let: (dir,pe1,pe2) := r in (dir,subst_pexpr s pe1,subst_pexpr s pe2).
 
-Fixpoint subst_cmd (s : subst) (c : cmd) :=
-  match c with
-  | Cskip        => Cskip
-  | Cbcmd bc     => Cbcmd (subst_bcmd s bc)
-  | Cseq c1 c2   => Cseq (subst_cmd s c1) (subst_cmd s c2)
-  | Cif pe c1 c2 => Cif (subst_pexpr s pe) (subst_cmd s c1) (subst_cmd s c2)
-  | Cfor v rng c => Cfor v (subst_range s rng) (subst_cmd s c)
-  | Ccall _ _ rv_farg pe_ret c_body rv_res pe_arg =>
-      Ccall rv_farg (subst_pexpr s pe_ret)
-        (subst_cmd s c_body) rv_res (subst_pexpr s pe_arg)
-  end.
+(* Bene: Does it make sence ? *)
+Definition subst_cmd (s : subst) (c : cmd) :=
+  Eval lazy beta delta [cmd_rect instr_rect' list_rect] in
+  @cmd_rect (fun _ => instr) (fun _ => cmd) (fun ta tr _ => fundef ta tr)
+  [::]
+  (fun _ _ i c => i::c)
+  (fun bc => Cbcmd (subst_bcmd s bc))
+  (fun e _ _ c1 c2 => Cif (subst_pexpr s e) c1 c2)
+  (fun i rn _ c => Cfor i (subst_range s rn) c)
+  (fun _ _ x _ a f =>  Ccall  x f (subst_pexpr s a))
+  (fun _ _ x _ re c => FunDef x c (subst_pexpr s re)).
 
 (* Assumes that variables in different scopes all disjoint *)
+(*
 Fixpoint inline_calls (pos : seq nat) (p : seq nat -> bool) (c : cmd) : cmd :=
   match c with
   | Cskip =>
@@ -246,6 +245,7 @@ Fixpoint inline_calls (pos : seq nat) (p : seq nat -> bool) (c : cmd) : cmd :=
       then Cseq (assgn rv_farg pe_arg) (Cseq c_body (assgn rv_res pe_ret))
       else Ccall rv_farg pe_ret c_body rv_res pe_arg
   end.
+*)
 
 (* ** Definitions: {phi} c {psi} <=> (c <^> phi) <= psi
  * -------------------------------------------------------------------- *)
@@ -266,3 +266,4 @@ Lemma rn_commutes (pi : renaming) (sts : assn) (c : cmd):
 Proof.
 move=> Hbij.
 Admitted.
+*)
