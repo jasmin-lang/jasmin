@@ -10,8 +10,8 @@ COQFILES := \
 	src/arithmetica.v \
 	src/dmasm_utils.v \
 	src/dmasm_sem.v \
-	src/dmasm_sem_props.v \
 	src/dmasm_Ssem.v \
+	src/dmasm_sem_props.v \
 	src/dmasm_logic.v \
 
 include Makefile.common

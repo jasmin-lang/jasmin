@@ -152,7 +152,7 @@ Inductive ssem : sestate -> cmd -> sestate -> Prop :=
 
 | SEcall m1 m2 vm1 vmc1 vmc2 starg stres farg fres fbody rv_res pe_arg :
     let arg := ssem_pexpr vm1 pe_arg in 
-    (forall st vn, Tvar st vn \in vars_cmd false fbody -> vn \in domf (vm1 st)) -> 
+    (forall st vn, Tvar st vn \in vars_cmd NoRecurse fbody -> vn \in domf (vm1 st)) -> 
     let vmc1 := swrite_rval vmc1 farg arg in
     ssem (SEstate m1 vmc1) fbody (SEstate m2 vmc2) ->
     let res := ssem_pexpr vmc2 fres in

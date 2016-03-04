@@ -149,9 +149,12 @@ Lemma rn_write_rval_eq pi vm {st} (rv : rval st) (v : st2ty st):
     (@write_rval st (rn_vmap pi vm) (rn_rval pi rv) v)
   = (@rn_vmap pi (@write_rval st vm rv v)).
 Proof.
-apply vmap_ext; rewrite /eq_vmap => st2.
+have vmap_ext: forall (vm1 vm2 : vmap),
+                 (forall st k, (vm1 st).[? k] = (vm2 st).[? k]) -> vm1 = vm2.
+  admit.
+apply vmap_ext => st2 id2.
 induction rv.
-+ rewrite /write_rval.
++ rewrite /write_rval. admit.
 + admit.
 Admitted.
 
