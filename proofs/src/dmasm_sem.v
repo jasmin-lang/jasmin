@@ -128,6 +128,20 @@ Canonical  stype_eqType      := Eval hnf in EqType stype stype_eqMixin.
 Definition stype_choiceMixin := CanChoiceMixin codeK_stype.
 Canonical  stype_choiceType  := ChoiceType stype stype_choiceMixin.
 
+(* ** Default values
+ * -------------------------------------------------------------------- *)
+
+Fixpoint dflt (st : stype) : st2ty st :=
+  match st with
+  | sword         => n2w 0
+  | sbool         => false
+  | sprod st1 st2 => (dflt st1, dflt st2)
+  | sarr n    st  => [tuple (dflt st) | i < n.+1]
+  end.
+
+Definition rdflt_ (st : stype) e (r : result e (st2ty st)) : st2ty st :=
+  rdflt (dflt st) r.
+
 (* ** More on variables 
  * -------------------------------------------------------------------- *)
 
