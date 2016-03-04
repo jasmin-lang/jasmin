@@ -16,6 +16,7 @@ Local Open Scope ring_scope.
 Local Open Scope fset.
 Local Open Scope fmap.
 Local Open Scope seq_scope.
+Local Open Scope svmap_scope.
 
 Lemma ssem_iV s i s' : ssem s [::i] s' -> ssem_i s i s'.
 Proof.
@@ -159,17 +160,17 @@ Proof.
 Qed.
 
 Lemma svmap_set_neq {t1 t2} id x (v:sst2ty t1) vm: id <> x ->
-    (svmap_set vm id v t2).[?x] = (vm t2).[?x].
+    vm.[id <- v].[t2,x] = vm.[t2,x].
 Proof.
-  rewrite /svmap_set;case: eq_stype => //= a.
+  rewrite /svmap_set /svmap_get /=; case: eq_stype => //= a.
   move: v; case: _ / a=> v.
-  by rewrite (lock (_ .[_ <- _])) /= -lock fnd_set eq_sym => /eqP /negPf ->. 
+  by rewrite /= => /eqP /negPf ->.
 Qed.
 
 Lemma svmap_set_neq_t {t1 t2} id x (v:sst2ty t1) vm: t2 <> t1 ->
-    (svmap_set vm id v t2).[?x] = (vm t2).[?x].
+    vm.[id <- v].[t2,x] = vm.[t2,x].
 Proof.
-  by move=> /nesym;rewrite /svmap_set;case: eq_stype. 
+  by rewrite /svmap_set /svmap_get /= => /nesym; case: eq_stype.
 Qed.
 
 Lemma vsubst_add_neq {t1 t2} s id (v:var t1) (e:pexpr t2):
@@ -186,7 +187,7 @@ Proof.
   rewrite /tosubst/vsubst_add; case: (_ == _) => //.
   by case eq_stype => // e0 neq;subst.
 Qed.
-  
+
 Lemma vsubst_add_eq {t} (e : pexpr t) s (v : var t) : 
   tosubst (vsubst_add s (vname v) e) v = e. 
 Proof.
@@ -194,10 +195,10 @@ Proof.
   by rewrite ((eq_irrelevance a) (erefl t)).
 Qed.
 
-Lemma svmap_set_eq {t} vm id (v:sst2ty t): (svmap_set vm id v t).[? id] = Some v.
+Lemma svmap_set_eq {t} vm id (v:sst2ty t): vm.[id <- v].[t,id] = v.
 Proof.
-  rewrite /svmap_set; case: eq_stype => //= a. 
-  by rewrite ((eq_irrelevance a) (erefl t))  (lock (_ .[_ <- _])) /= -lock fnd_set eq_refl.
+  rewrite /svmap_set /svmap_get /=; case: eq_stype => //= a. 
+  by rewrite ((eq_irrelevance a) (erefl t))  /= eq_refl.
 Qed.
 
 Lemma ssem_subst_map {t2} (pe:pexpr t2) vm l :
@@ -212,7 +213,6 @@ Proof.
     by rewrite vsubst_add_neq_t // Hrec svmap_set_neq_t.
   by rewrite svmap_set_neq // vsubst_add_neq // Hrec.
 Qed.
-
 
 Lemma hoare_asgn {t1 t2} (rv:rval t1) (e:pexpr t1) (P:sst2ty t2 -> Prop) (pe: pexpr t2):
   hoare (s2h (Spred P (wp_asgn rv e pe))) [:: Cbcmd (Assgn rv e)] (s2h (Spred P pe)).

@@ -65,6 +65,7 @@ Definition rn_cmd (rec : recurse) (pi:renaming) :=
 Definition rn_fdef starg stres (pi : renaming) (rv : rval starg) (pe : pexpr stres) (c : cmd) :=
   (rn_rval pi rv, rn_pexpr pi pe, rn_cmd NoRecurse pi c).
 
+(*
 Fixpoint rn_fmap_aux st (pi : renaming) (f_in : {fmap ident -> st2ty st}) (ks : seq ident) :=
   match ks with
   | [::]        => fmap0
@@ -110,6 +111,8 @@ Lemma rn_vmap_get {st} pi (vm : vmap) (v : var st):
   (vm st).[? (vname v)] = ((rn_vmap pi vm) st).[? vname (rn_var pi v)].
 Proof. by case v; rewrite /= => id_; rewrite (rn_fmap_get pi). Qed.
 
+*)
+
 (* ** Ecall reminder
  * -------------------------------------------------------------------- *)
 
@@ -130,6 +133,7 @@ Proof. by case v; rewrite /= => id_; rewrite (rn_fmap_get pi). Qed.
 (* ** Renaming function bodies
  * -------------------------------------------------------------------- *)
 
+(*
 Lemma rn_pexpr_eq st (pi : renaming) (vm : vmap) (pe : pexpr st):
   sem_pexpr vm pe = sem_pexpr (rn_vmap pi vm) (rn_pexpr pi pe).
 Proof.
@@ -189,6 +193,9 @@ apply (Ecall (vmc1:=rn_vmap pi vmc1)).
   by apply rn_sem_equiv.
 + by rewrite -WW.
 Qed.
+*)
+
+*)
 
 (* ** Variable substitution
  * -------------------------------------------------------------------- *)
@@ -247,6 +254,7 @@ Fixpoint inline_calls (pos : seq nat) (p : seq nat -> bool) (c : cmd) : cmd :=
   end.
 *)
 
+(*
 (* ** Definitions: {phi} c {psi} <=> (c <^> phi) <= psi
  * -------------------------------------------------------------------- *)
 

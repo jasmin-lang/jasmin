@@ -109,7 +109,7 @@ Inductive instr :=
              pexpr starg ->
              instr
 
-with fundef : stype -> stype -> Type  := 
+with fundef : stype -> stype -> Type := 
 | FunDef : forall starg stres, rval starg -> seq instr -> pexpr stres -> fundef starg stres.
 
 Notation cmd := (seq instr).
@@ -193,16 +193,16 @@ Canonical  stype_choiceType  := ChoiceType stype stype_choiceMixin.
 (* ** Default values
  * -------------------------------------------------------------------- *)
 
-Fixpoint dflt (st : stype) : st2ty st :=
+Fixpoint dflt_val (st : stype) : st2ty st :=
   match st with
   | sword         => n2w 0
   | sbool         => false
-  | sprod st1 st2 => (dflt st1, dflt st2)
-  | sarr n    st  => [tuple (dflt st) | i < n.+1]
+  | sprod st1 st2 => (dflt_val st1, dflt_val st2)
+  | sarr n    st  => [tuple (dflt_val st) | i < n.+1]
   end.
 
 Definition rdflt_ (st : stype) e (r : result e (st2ty st)) : st2ty st :=
-  rdflt (dflt st) r.
+  rdflt (dflt_val st) r.
 
 (* ** More on variables 
  * -------------------------------------------------------------------- *)
@@ -220,30 +220,45 @@ Canonical  tvar_choiceType  := ChoiceType tvar tvar_choiceMixin.
 (* ** Variable map
  * -------------------------------------------------------------------- *)
 
-Definition g_vmap (to:stype -> Type) := forall (st : stype), {fmap ident -> to st}.
+Record g_vmap (to : stype -> Type) := Vmap {
+  vm_map : forall (st : stype), ident -> to st
+}.
 
 Definition g_vmap_set (to:stype -> Type) st (vm : g_vmap to) k (v : to st) : g_vmap to :=
-  fun st' =>
-     match eq_stype st st' with
-     | left p_eq =>
-         eq_rect st
-           (fun st => {fmap ident -> to st})
-           (vm st).[k <- v]
-           st'
-           p_eq
-     | right _ => vm st'
-     end.
+  Vmap
+    (fun st' =>
+       match eq_stype st st' with
+       | left p_eq =>
+           eq_rect st
+             (fun st => ident -> to st)
+             (fun k' => if k == k' then v else vm.(vm_map) st k')
+             st'
+             p_eq
+       | right _ => vm.(vm_map) st'
+       end).
 
-Definition g_vmap0 to : g_vmap to:= fun st => fmap0.
+Definition g_vmap0 to (dval : forall (st:stype), to st) : g_vmap to := 
+  Vmap (fun st _ => dval st).
+
+Definition g_vmap_get to (vm : g_vmap to) st k :=
+  vm.(vm_map) st k.
 
 Notation vmap     := (g_vmap st2ty).
 Notation vmap_set := (@g_vmap_set st2ty _).
-Notation vmap0    := (@g_vmap0 st2ty).
+Notation vmap_get := (@g_vmap_get st2ty).
+Notation vmap0    := (@g_vmap0 st2ty dflt_val).
+
+Delimit Scope vmap_scope with vmap.
+Local Open Scope vmap_scope.
+Reserved Notation "x .[ k1 , k2 ]" (at level 2, k1 at level 200, k2 at level 200,
+  format "x .[ k1 , k2 ]").
+Notation "vm .[ st , id ]" := (vmap_get vm st id) : vmap_scope.
+Notation "vm .[ k  <- v ]" := (vmap_set vm k v) : vmap_scope.
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
-Inductive error := ErrOob | ErrVarUndef | ErrAddrUndef | ErrAddrInvalid.
+Inductive error := ErrOob | ErrAddrUndef | ErrAddrInvalid.
 
 Definition exec t := result error t.
 Definition ok := Ok error. 
@@ -280,7 +295,7 @@ Definition sem_sop st1 st2 (sop : sop st1 st2) : st2ty st1 -> exec (st2ty st2) :
 
 Fixpoint sem_pexpr st (vm : vmap) (pe : pexpr st) : exec (st2ty st) :=
   match pe with
-  | Pvar st v => o2r ErrVarUndef ((vm st).[? vname v])
+  | Pvar st v => ok (vm.[ st,vname v ])
   | Pconst c => ok c
   | Papp sta str so pe =>
       sem_pexpr vm pe >>= fun v =>
@@ -341,7 +356,7 @@ Definition read_mem (m : mem) (p : word) : exec word :=
 
 Definition write_mem (m : mem) (p w : word) : exec mem :=
   if valid_addr p
-  then ok (m.[p <- w])
+  then ok (m.[p <- w]%fmap)
   else Error ErrAddrInvalid.
 
 (* ** Variable occurences
@@ -456,7 +471,6 @@ Inductive sem : estate -> cmd -> estate -> Prop :=
 | Ecall {m1 m2 vm1} vmc1 {vmc2 starg stres farg fres fbody rv_res pe_arg} :
     isOk (@sem_pexpr starg vm1 pe_arg) ->
     let arg := rdflt_ (@sem_pexpr starg vm1 pe_arg) in
-    (* forall st vn, Tvar st vn \in vars_fdef farg fres fbody -> vn \in domf (vm1 st)) ->  *)
     let vmc1 := @write_rval starg vmc1 farg arg in
     sem (Estate m1 vmc1) fbody (Estate m2 vmc2) ->
     isOk (@sem_pexpr stres vmc2 fres) ->
