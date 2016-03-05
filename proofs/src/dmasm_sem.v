@@ -453,20 +453,22 @@ Inductive sem : estate -> cmd -> estate -> Prop :=
     sem s [::] s
 
 | Eseq s1 s2 s3 i c :
-    sem s1 [::i] s2 -> sem s2 c s3 -> sem s1 (i:: c) s3
+    sem_i s1 i s2 -> sem s2 c s3 -> sem s1 (i:: c) s3
+
+with sem_i : estate -> instr -> estate -> Prop :=
 
 | Ebcmd s1 s2 c:
-    sem_bcmd s1 c = ok s2 -> sem s1 [:: Cbcmd c] s2
+    sem_bcmd s1 c = ok s2 -> sem_i s1 (Cbcmd c) s2
 
 | EifTrue s1 s2 (pe : pexpr sbool) c1 c2 :
     sem_pexpr s1.(evm) pe = ok true ->
     sem s1 c1 s2 ->
-    sem s1 [:: Cif pe c1 c2] s2
+    sem_i s1 (Cif pe c1 c2) s2
 
 | EifFalse s1 s2 (pe : pexpr sbool) c1 c2 :
     sem_pexpr s1.(evm) pe = ok false ->
     sem s1 c2 s2 ->
-    sem s1 [:: Cif pe c1 c2] s2
+    sem_i s1 (Cif pe c1 c2) s2
 
 | Ecall {m1 m2 vm1} vmc1 {vmc2 starg stres farg fres fbody rv_res pe_arg} :
     isOk (@sem_pexpr starg vm1 pe_arg) ->
@@ -476,14 +478,14 @@ Inductive sem : estate -> cmd -> estate -> Prop :=
     isOk (@sem_pexpr stres vmc2 fres) ->
     let res := rdflt_ (@sem_pexpr stres vmc2 fres) in
     let vm2 := @write_rval stres vm1 rv_res res in
-    sem (Estate m1 vm1)
-        [:: @Ccall starg stres rv_res (FunDef farg fbody fres) pe_arg]
+    sem_i (Estate m1 vm1)
+        (@Ccall starg stres rv_res (FunDef farg fbody fres) pe_arg)
         (Estate m2 vm2)
 
 | EforDone s1 s2 iv rng c ws :
     sem_range s1.(evm) rng = ok ws ->
     sem_for iv ws s1 c s2 ->
-    sem s1 [:: Cfor iv rng c] s2
+    sem_i s1 (Cfor iv rng c) s2
 
 with sem_for : var sword -> seq word -> estate -> cmd -> estate -> Prop :=
 
