@@ -1,7 +1,8 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import ssreflect eqtype ssrbool choice ssrfun seq.
 Require Export String.
-Require Import ZArith.
+Require Import ZArith FMapPositive dmasm_utils.
+
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -60,84 +61,59 @@ Canonical  string_countType  := CountType string string_countMixin.
 
 (* -------------------------------------------------------------------- *)
 
-(* Map from string *)
-
-Definition cons_bit b n := 
-  if b then xO n else xI n.
-
-Definition ascii_toN c n := 
+Definition a2P_app c n := 
   match c with
   | Ascii.Ascii b1 b2 b3 b4 b5 b6 b7 b8 =>
-    cons_bit b1 (cons_bit b2 (cons_bit b3 (cons_bit b4
-      (cons_bit b5 (cons_bit b6 (cons_bit b7 (cons_bit b8 n)))))))
+    b2P_app b1 (b2P_app b2 (b2P_app b3 (b2P_app b4
+      (b2P_app b5 (b2P_app b6 (b2P_app b7 (b2P_app b8 n)))))))
   end.
 
-Fixpoint stoN_aux s n:= 
+Definition a2P c := a2P_app c xH.
+
+Lemma a2P_appP c n : a2P_app c n = append (a2P c) n.
+Proof. by case: c=> * => /=;rewrite !b2P_appP -!appendA. Qed.
+
+Lemma log_a2P c : log_inf (a2P c) = 8%Z.
+Proof. by case: c=> * /=;rewrite !log_b2P_app. Qed.
+
+Lemma a2P_app_inj c1 c2 n1 n2 : a2P_app c1 n1 = a2P_app c2 n2 -> c1 = c2 /\ n1 = n2.
+Proof. 
+  case: c1 => ???? ????; case: c2 => ???? ???? /=.
+  by do !(move=> /b2P_app_inj [] ->).
+Qed.
+
+Fixpoint s2P_app s n:= 
   match s with
   | EmptyString => n
-  | String c s => stoN_aux s (ascii_toN c n)
+  | String c s => s2P_app s (a2P_app c n)
   end.
 
-Definition stoN s := stoN_aux s xH.
+Definition s2P s := s2P_app s xH.
 
-Lemma cons_bit_lt b p : (log_inf p < log_inf (cons_bit b p))%Z.
+Lemma s2P_appP s n : s2P_app s n = append (s2P s) n.
+Proof. 
+  elim: s n => [ | c s Hs] n //=.
+  by rewrite /s2P /= !Hs /= a2P_appP -!appendA. 
+Qed.
+  
+Lemma s2P_app_inj s1 s2 n1 n2: 
+  log_inf n1 = log_inf n2 ->
+  s2P_app s1 n1 = s2P_app s2 n2 -> s1 = s2 /\ n1 = n2.
 Proof.
-  case:b=> /=; apply Z.lt_succ_diag_r.
+  elim: s1 s2 n1 n2 => [ | c1 s1 Hs1] [ | c2 s2] //= n1 n2 Hlog.
+  + move=> Heq;move:Hlog;rewrite Heq.
+    rewrite s2P_appP a2P_appP !log_app log_a2P=> ?.
+    by have ?:= log_inf_correct1 (s2P s2);omega.
+  + move=> Heq;move:Hlog;rewrite -Heq.
+    rewrite s2P_appP a2P_appP !log_app log_a2P=> ?.
+    by have ?:= log_inf_correct1 (s2P s1);omega.
+  move=> /Hs1 [].
+  + by rewrite !a2P_appP !log_app !log_a2P Hlog.
+  by move=> -> /a2P_app_inj [] -> ->.
 Qed.
 
-Lemma ascii_toN_lt c p: (log_inf p < log_inf (ascii_toN c p))%Z.
-Proof.
-  case: c => ???????? /=.
-  have H : forall b p1, (log_inf p < log_inf p1 -> log_inf p < log_inf (cons_bit b p1))%Z.
-  + move=> b p1 H;apply: (Z.lt_trans _ (log_inf p1))=>//;apply cons_bit_lt.
-  do 7!apply H; apply cons_bit_lt.
-Qed.
-
-Lemma stoN_aux_le s p: (log_inf p <= log_inf (stoN_aux s p))%Z.
-Proof.
-  elim: s p=> [ | c s Hs] p /=;first by apply Z.le_refl.
-  apply: Z.le_trans (Hs (ascii_toN c p)).
-  apply Z.lt_le_incl;apply ascii_toN_lt.
-Qed.
-
-Lemma stoN_neq s c p1 p2: log_inf p1 = log_inf p2 -> p1 <> stoN_aux s (ascii_toN c p2).
-Proof.
-  move=> Hlog Heq. apply (Z.lt_irrefl (log_inf p1));rewrite {2}Heq.
-  apply (Z.lt_le_trans _ (log_inf (ascii_toN c p2))).
-  + by rewrite Hlog; apply ascii_toN_lt.
-  apply stoN_aux_le.  
-Qed.
-
-Lemma log_ascii c p : log_inf (ascii_toN c p) = (8 + log_inf p)%Z.
-Proof.
-  case: c => *;rewrite /ascii_toN.
-  have H: forall b p, log_inf (cons_bit b p) = Z.succ (log_inf p).
-  + by move=> [] p1;rewrite /cons_bit //.
-  rewrite !H;omega.
-Qed.
-
-Lemma ascii_toN_inj c1 p1 c2 p2: ascii_toN c1 p1 = ascii_toN c2 p2 -> c1 = c2 /\ p1 = p2.
-Proof.
-  move: c1 c2=> [] ???????? [] ???????? /=.
-  have H : forall b p b' p',  cons_bit b p = cons_bit b' p' -> b = b' /\ p = p'.
-  + by move=> [] ? [] ? => //= -[].
-  by do !move=> /H [] ->.
-Qed.
-
-Lemma stoN_inj : injective stoN.
-Proof.
-  move=> s1 s2;rewrite /stoN.
-  have H: forall p1 p2, log_inf p1 = log_inf p2 -> 
-         stoN_aux s1 p1 = stoN_aux s2 p2 -> s1 = s2 /\ p1 = p2.
-  + elim: s1 s2=> [ | c1 s1 Hs1] [ | c2 s2] //= p1 p2.
-    + by move=> /(@stoN_neq s2 c2).
-    + by move=> /esym /(@stoN_neq s1 c1) ? /esym.
-    move=> Heq /Hs1 /=;rewrite !log_ascii Z.add_cancel_l => -[] // ->.
-    by move=> /ascii_toN_inj []-> ->.
-  by move=> /H [].  
-Qed.
-
-Require Import FMapPositive.
+Lemma s2P_inj : injective s2P.
+Proof. by move=> s1 s2;rewrite /s2P => /s2P_app_inj []. Qed.
 
 Module Ms.
 
@@ -145,9 +121,9 @@ Module Ms.
 
   Definition empty {T} : t T := PositiveMap.empty T.
 
-  Definition get {T} (m: t T) (s:string) := PositiveMap.find (stoN s) m. 
+  Definition get {T} (m: t T) (s:string) := PositiveMap.find (s2P s) m. 
 
-  Definition set {T} (m: t T) (s:string) (t:T) := PositiveMap.add (stoN s) t m.
+  Definition set {T} (m: t T) (s:string) (t:T) := PositiveMap.add (s2P s) t m.
 
   Delimit Scope smap_scope with ms.
   Local Open Scope smap_scope.
@@ -160,7 +136,7 @@ Module Ms.
   Lemma setP {T} m x y (v:T) : m.[x <- v].[y] = if x == y then Some v else m.[y].
   Proof.
     case eqP=> [-> | Hdiff];first by apply PositiveMap.gss.
-    by apply PositiveMap.gso=> /stoN_inj /esym.
+    by apply PositiveMap.gso=> /s2P_inj /esym.
   Qed.
 
   Lemma setP_eq {T} m x (v:T) : m.[x <- v].[x] = Some v.
