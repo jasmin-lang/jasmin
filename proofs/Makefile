@@ -13,6 +13,7 @@ COQFILES := \
 	src/dmasm_Ssem.v \
 	src/dmasm_sem_props.v \
 	src/dmasm_logic.v \
+	src/dmasm_type.v
 
 include Makefile.common
 
