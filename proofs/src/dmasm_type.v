@@ -109,29 +109,26 @@ Definition st2P st := st2P_app st xH.
 Lemma st2P_appP st p : st2P_app st p = append (st2P st) p.
 Proof.
   elim: st p=> [ | | t1 Ht1 t2 Ht2 | k t Ht] p //=.
-  + by rewrite !Ht1 !Ht2 -!appendA.
-  by rewrite !Ht !n2P_appP -!appendA.
+  + by rewrite !(Ht1, Ht2) -!appendA.
+  + by rewrite !(Ht, n2P_appP) -!appendA.
 Qed.
 
-Lemma st2PK n st p: plog (st2P_app st p) <= n -> P2st_aux (st2P_app st p) n = Some (st, p).
+Lemma st2PK n st p:
+  plog (st2P_app st p) <= n -> P2st_aux (st2P_app st p) n = Some (st, p).
 Proof.
-  elim: n st p => [ [] // | n Hn]; case => [ | | t1 t2 | k t] //= p;
-    rewrite (ltn_add2l 1)=> Hlt.
-  + rewrite ?Hn //.
-    move: Hlt;rewrite st2P_appP plog_app => /leP Hlt. 
-    + apply admit. (* apply: (introT leP). omega. *)
-    apply admit.
-  + rewrite n2PK Hn //.
-    move: Hlt;rewrite n2P_appP plog_app.
-    apply admit.
+  elim: n st p => [[]//|n ih] [| |t1 t2|k t] //= p ltn.
+  + rewrite !ih 1?ltnW //; move: ltn; rewrite ltnS.
+    by rewrite !st2P_appP !plog_app; apply/leq_ltn_trans/leq_addl.
+  + rewrite n2PK ih //; move: ltn; rewrite ltnS n2P_appP plog_app.
+    by move/ltnW/(leq_trans _); apply; apply/leq_addl.
 Qed.
 
 Lemma st2P_inj : injective st2P.
 Proof. 
-  move=> t1 t2;rewrite /st2P=> Heq.
+  rewrite /st2P => t1 t2 heq.
   have := @st2PK (plog (st2P_app t1 xH)) t1 xH (leqnn _).
   have := @st2PK (plog (st2P_app t2 xH)) t2 xH (leqnn _).
-  by rewrite Heq=> -> [] ->.
+  by rewrite heq=> -> [] ->.
 Qed.
 
 (*
