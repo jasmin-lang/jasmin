@@ -28,34 +28,41 @@ Notation "st1 ** st2" := (sprod st1 st2) (at level 40, left associativity).
 
 Fixpoint n2P_app (n:nat) p := 
   match n with 
-  | 0 => p
-  | S n => n2P_app n (xI p)
+  | 0 => xI p
+  | S n => xO (n2P_app n p)
   end.
 
-Definition n2P (n:nat) := n2P_app n xH.
+Definition n2P n := n2P_app n xH.
+
+Fixpoint P2n (p:positive) := 
+  match p with
+  | xO p => 
+    match P2n p with
+    | Some (n, p) => Some (S n, p)
+    | None => None
+    end
+  | xI p => Some (0%nat, p)
+  | xH   => None
+  end.
 
 Lemma n2P_appP n p : n2P_app n p = append (n2P n) p.
 Proof.
-  elim: n p => [ | n Hn] p //=;rewrite !Hn.
-  by rewrite /n2P /= 2!Hn -!appendA.
+  by elim: n p => //= n Hn p;rewrite !Hn -appendA.
 Qed.
 
-Lemma log_n2P n : log_inf (n2P n) = Z_of_nat n.
-Proof. 
-  elim:n => [ | n Hn] //=.
-  rewrite /n2P /= n2P_appP log_app Zpos_P_of_succ_nat /=;omega.
-Qed.
+Lemma n2PK n p: P2n (n2P_app n p) = Some (n, p).
+Proof. by elim: n => [ | n Hn] //=;rewrite Hn. Qed.
 
-Lemma n2P_app_inj n1 n2 p1 p2 : 
-  log_inf p1 = log_inf p2 -> 
-  n2P_app n1 p1 = n2P_app n2 p2 -> 
-  n1 = n2 /\ p1 = p2.
+Fixpoint plog p : nat := 
+  match p with
+  | xH => 0
+  | xO p => S (plog p)
+  | xI p => S (plog p)
+  end.
+
+Lemma plog_app p1 p2 : plog (append p1 p2) = (plog p1 + plog p2)%nat.
 Proof.
-  elim: n1 n2 p1 p2=> [ | n1 Hn1] [ | n2] p1 p2 //= Heq.
-  + by move=> Hp;move:Heq;rewrite Hp n2P_appP log_app log_n2P /= => ?; omega.
-  + by move=> Hp;move:Heq;rewrite-Hp n2P_appP log_app log_n2P /= => ?; omega.
-  move=> /Hn1 [];first by rewrite /= Heq.
-  by move=> [->] [].
+  by elim: p1 => [p1 Hp1 | p1 Hp1 | ] //=;rewrite Hp1 addSn.
 Qed.
 
 Fixpoint st2P_app (st:stype) p := 
@@ -66,41 +73,123 @@ Fixpoint st2P_app (st:stype) p :=
   | sarr  n  t  => xI (xI (n2P_app n (st2P_app t p)))
   end.
 
-(* C'est vraiment de la merde cette condition de garde. Ca passe sans pb avec des sizes*)
-(*
-Fixpoint P2st (p:positive) := 
-  match p with
-  | xO (xO p) => Some (sword, p)
-  | xO (xI p) => Some (sbool, p)
-  | xI (xO p) => 
-    match P2st p with
-    | Some (t1, p') => 
-      match P2st p' with
-      | Some (t2, p') => Some (t1 ** t2, p')
+Fixpoint P2st_aux (p:positive) (log:nat) := 
+  match p, log with
+  | xO (xO p2), _ => 
+    Some (sword, p2)
+
+  | xO (xI p2), _ => 
+    Some (sbool, p2)
+
+  | xI (xO p'), S log => 
+    match P2st_aux p' log with
+    | Some (t1, p1') => 
+      match P2st_aux p1' log with
+      | Some (t2, p2') => Some (t1 ** t2, p2')
       | None => None
       end
     | None => None
     end
-  | _ => None
-  end. *)
 
+  | xI (xI p'), S log =>
+     match P2n p' with 
+     | Some (n', p1') =>
+       match P2st_aux p1' log with
+       | Some (st, p2') => Some (sarr n' st, p2') 
+       | _ => None
+       end 
+     | _ => None
+     end
+
+  | _, _ => None
+  end. 
 
 Definition st2P st := st2P_app st xH.
 
-Lemma st2P_appP st p: st2P_app st p = append (st2P st) p.
+Lemma st2P_appP st p : st2P_app st p = append (st2P st) p.
 Proof.
-  elim: st p=> [ | | t1 Ht1 t2 Ht2 | n t1 Ht] p //=.
+  elim: st p=> [ | | t1 Ht1 t2 Ht2 | k t Ht] p //=.
   + by rewrite !Ht1 !Ht2 -!appendA.
   by rewrite !Ht !n2P_appP -!appendA.
 Qed.
 
-Lemma st2P_app_inj st1 st2 p1 p2 : 
-  log_inf p1 = log_inf p2 -> 
-  st2P_app st1 p1 = st2P_app st2 p2 -> 
-  st1 = st2 /\ p1 = p2.
+Lemma st2PK n st p: plog (st2P_app st p) <= n -> P2st_aux (st2P_app st p) n = Some (st, p).
 Proof.
-  elim: st1 st2 p1 p2 => [ | | t1 Ht1 t2 Ht2 | n t1 Ht] 
-    [ | | t1' t2' | n' t'] //= p1 p2 Hlog [] //.
-  + have {Ht2} ? := Ht2 _ _ _ Hlog.
+  elim: n st p => [ [] // | n Hn]; case => [ | | t1 t2 | k t] //= p;
+    rewrite (ltn_add2l 1)=> Hlt.
+  + rewrite ?Hn //.
+    move: Hlt;rewrite st2P_appP plog_app => /leP Hlt. 
+    + apply admit. (* apply: (introT leP). omega. *)
+    apply admit.
+  + rewrite n2PK Hn //.
+    move: Hlt;rewrite n2P_appP plog_app.
+    apply admit.
+Qed.
+
+Lemma st2P_inj : injective st2P.
+Proof. 
+  move=> t1 t2;rewrite /st2P=> Heq.
+  have := @st2PK (plog (st2P_app t1 xH)) t1 xH (leqnn _).
+  have := @st2PK (plog (st2P_app t2 xH)) t2 xH (leqnn _).
+  by rewrite Heq=> -> [] ->.
+Qed.
+
+(*
+
+Lemma P2n_lt p1 p2 n : P2n p1 = Some (n, p2) -> plog p2 < plog p1.
+Proof.
+  elim:p1 n p2=> [ p1 Hp1 | p1 Hp1 | ] p2 n //=.
+  + by move=> [] _ ->;apply ltnSn.
+  case: P2n Hp1 => [ [n' p'] H [] _ <-| //]. 
+  apply: (@ltn_trans (plog p1));first by apply: (H _).
+  by apply ltnSn.
+Qed.
+
+Require Import Recdef.
+ 
+Lemma elt_SS n : n < S (S n).
+Proof. by apply: (@ltn_trans (S n));apply: ltnSn. Qed.
+
+Definition ex_log p1 p2 (H:plog p1 < (plog p2).+2) : {p1 | plog p1 < (plog p2).+2 } :=
+  exist (fun p => plog p < (plog p2).+2) p1 H. 
+
+Function P2st (p:positive){measure (plog p)} : 
+   option (stype * {p1 | plog p1 < plog p}) := 
+  match p as p0 return option (stype * {p1 | plog p1 < plog p0}) with
+  | xO (xO p2) => 
+    Some (sword, ex_log (elt_SS (plog p2))) 
+
+  | xO (xI p2) => 
+    Some (sbool, ex_log (elt_SS (plog p2))) 
+
+  | xI (xO p') => 
+    match P2st p' with
+    | Some (t1, exist p1' Hlt1) => 
+      match P2st p1' with
+      | Some (t2, exist p2' Hlt2) => 
+        Some (t1 ** t2, ex_log (ltn_trans (ltn_trans Hlt2 Hlt1) (elt_SS (plog p'))))
+      | None => None
+      end
+    | None => None
+    end
+
+  | xI (xI p') =>
+     match P2n p' as o return (forall p2 n, o = Some (n, p2) -> plog p2 < plog p') ->
+                               option (stype * {p2 | plog p2 < (plog p').+2}) with
+    | Some (n', p1') =>
+      fun (H: forall p2 n, Some(n',p1') = Some (n,p2) -> plog p2 < plog p') =>
+        match P2st p1' with
+        | Some (st, exist p2' Hlt2) =>
+          let Hlt1 := H p1' n' (erefl (Some(n',p1'))) in
+          Some (sarr n' st, ex_log (ltn_trans (ltn_trans Hlt2 Hlt1) (elt_SS (plog p'))))
+        | _ => None
+        end 
+    | _ => fun _ => None
+    end (@P2n_lt p')
+
+  | _ => None
+  end. 
+
+*)
 
 
