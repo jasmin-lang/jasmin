@@ -16,6 +16,54 @@ Local Open Scope ring_scope.
 Local Open Scope fun_scope.
 Local Open Scope fmap.
 Local Open Scope fset.
+Local Open Scope vmap.
+
+(* ** Variable occurences
+ * -------------------------------------------------------------------- *)
+
+Fixpoint vars_pexpr st (pe : pexpr st) :=
+  match pe with
+  | Pvar   _ (Var vn)  => [fset (Tvar st vn)]
+  | Pconst _           => fset0
+  | Papp sta ste _ pe     => vars_pexpr pe
+  | Ppair st1 st2 pe1 pe2 => vars_pexpr pe1 `|` vars_pexpr pe2
+  end.
+
+Fixpoint vars_rval st (rv : rval st) :=
+  match rv with
+  | Rvar  st (Var vn)   => [fset (Tvar st vn)]
+  | Rpair st1 st2 rv1 rv2 => vars_rval rv1 `|` vars_rval rv2
+  end.
+
+Definition vars_bcmd (bc : bcmd) :=
+  match bc with
+  | Assgn st rv pe       => vars_rval  rv      `|` vars_pexpr pe
+  | Load rv pe_addr      => vars_rval  rv      `|` vars_pexpr pe_addr
+  | Store pe_addr pe_val => vars_pexpr pe_addr `|` vars_pexpr pe_val
+  end.
+
+Definition vars_range (r : range) :=
+  let: (_,pe1,pe2) := r in
+  vars_pexpr pe1 `|` vars_pexpr pe2.
+
+Inductive recurse := Recurse | NoRecurse.
+
+Definition vars_cmd (rec: recurse) (c:cmd) := 
+  Eval lazy beta delta [cmd_rect instr_rect' list_rect] in
+  @cmd_rect (fun _ =>  {fset tvar}) (fun _ =>  {fset tvar}) (fun _ _ _ =>  {fset tvar})
+    fset0
+    (fun _ _ s1 s2 =>  s1 `|` s2)
+    vars_bcmd
+    (fun e _ _ s1 s2 => vars_pexpr e `|` s1 `|` s2)
+    (fun i rn _ s  =>  Tvar sword i.(vname) |` vars_range rn `|` s)
+    (fun _ _ x f a s =>  
+       (if rec is Recurse then s (* Warning : without "Eval lazy ..." the vars of f are always computed *)
+        else fset0) `|` vars_rval x `|` vars_pexpr a)
+    (fun _ _ x _ re s => vars_rval x `|` vars_pexpr re `|` s) 
+    c.
+
+Definition vars_fdef starg stres (rv : rval starg) (pe : pexpr stres) (c : cmd) :=
+  vars_rval rv `|` vars_pexpr pe `|` vars_cmd NoRecurse c.
 
 (* ** Variable renaming
  * -------------------------------------------------------------------- *)
@@ -49,153 +97,232 @@ Definition rn_bcmd (pi : renaming) (bc : bcmd) :=
 Definition rn_range (pi : renaming) (r : range) :=
   let: (dir,pe1,pe2) := r in (dir,rn_pexpr pi pe1,rn_pexpr pi pe2).
 
-Definition rn_cmd (rec : recurse) (pi:renaming) := 
-  Eval lazy beta delta [cmd_rect instr_rect' list_rect] in
-  @cmd_rect (fun _ => instr) (fun _ => cmd) (fun ta tr _ => fundef ta tr)
-  [::]
-  (fun _ _ i c => i::c)
-  (fun bc => Cbcmd (rn_bcmd pi bc))
-  (fun e _ _ c1 c2 => Cif (rn_pexpr pi e) c1 c2)
-  (fun i rn _ c => Cfor (rn_var pi i) (rn_range pi rn) c)
-  (fun _ _ x _ a f =>  Ccall  (rn_rval pi x) f (rn_pexpr pi a))
-  (fun _ _ x c_ re c => 
-     if rec is NoRecurse then FunDef (rn_rval pi x) c (rn_pexpr pi re) 
-     else FunDef x c_ re).
+Fixpoint rn_instr (rec : recurse) (pi : renaming) i :=
+  match i with
+  | Cbcmd  bc => Cbcmd (rn_bcmd pi bc)
+  | Cif pe c1 c2 =>
+    Cif (rn_pexpr pi pe)
+        [seq rn_instr rec pi i | i <- c1]
+        [seq rn_instr rec pi i | i <- c2]
+  | Cfor v rng c =>
+    Cfor (rn_var pi v) (rn_range pi rng) [seq rn_instr rec pi i | i <- c]
+  | Ccall sta str rv fd a =>
+    let: fd :=
+      if rec is Recurse then rn_fdef rec pi fd else fd
+    in
+    Ccall (rn_rval pi rv) fd (rn_pexpr pi a)
+  end
 
-Definition rn_fdef starg stres (pi : renaming) (rv : rval starg) (pe : pexpr stres) (c : cmd) :=
-  (rn_rval pi rv, rn_pexpr pi pe, rn_cmd NoRecurse pi c).
-
-(*
-Fixpoint rn_fmap_aux st (pi : renaming) (f_in : {fmap ident -> st2ty st}) (ks : seq ident) :=
-  match ks with
-  | [::]        => fmap0
-  | [:: k & ks] =>
-    (rn_fmap_aux pi f_in ks) +
-    fmap0.[ pi k <- odflt (dflt st) f_in.[? k ]]
+with rn_fdef sta str (rec : recurse) (pi : renaming) (fd : fundef sta str) :=
+  match fd with
+  | FunDef _ _ fr fb fa =>
+    FunDef (rn_rval pi fr) [seq rn_instr rec pi i | i <- fb] (rn_pexpr pi fa)
   end.
 
-Definition rn_fmap st (pi : renaming) (f : {fmap ident -> st2ty st}) : {fmap ident -> st2ty st} :=
-  rn_fmap_aux pi f (fset_keys (domf f)).
-
-Lemma rn_fmap_dom st (pi : renaming) (fm : {fmap ident -> st2ty st}):
-  domf (rn_fmap pi fm) = seq_fset [seq pi i | i <- fset_keys (domf fm)].
-Proof.
-apply /fsetP; rewrite /eq_mem => x.
-rewrite in_seq_fsetE /rn_fmap.
-have ->: forall xs,
-             (x \in domf (rn_fmap_aux pi fm xs))
-           = (x \in [seq pi i | i <- xs]) => //.
-move=> xs. elim xs.
-+ by rewrite //= in_fset0 in_nil. 
-+ move=> k ks Hind.
-  rewrite //= in_cons in_fsetU in_fset1U in_fset0.
-  move: (LEM x (pi k)). elim => [Heq | Hineq].
-  + rewrite Heq //=.
-    have ->: pi k == pi k = true. admit.
-    by rewrite !(Bool.orb_true_l,Bool.orb_true_r).
-  + have Hf: x == pi k = false. admit.
-    rewrite Hf !(Bool.orb_false_l,Bool.orb_false_r) in_fsetD in_fset1U Hf in_fset0
-            !(Bool.orb_false_l,Bool.orb_false_r) //=.
-Admitted.
-
-Lemma rn_fmap_get st (pi : renaming) (fm : {fmap ident -> st2ty st}) i:
-  fm.[? i] = (rn_fmap pi fm).[? pi i].
-Proof.
-rewrite /rn_fmap.
-Admitted.
+Definition rn_cmd (rec : recurse) (pi : renaming) c :=
+  [seq rn_instr rec pi i | i <- c].
 
 Definition rn_vmap (pi : renaming) (vm : vmap) : vmap :=
-  fun st => rn_fmap pi (vm st).
+  Vmap (fun st id => vm.(vm_map) st (pi id)).
 
-Lemma rn_vmap_get {st} pi (vm : vmap) (v : var st):
-  (vm st).[? (vname v)] = ((rn_vmap pi vm) st).[? vname (rn_var pi v)].
-Proof. by case v; rewrite /= => id_; rewrite (rn_fmap_get pi). Qed.
+Lemma rn_vmap_get {st} pi pi_inv (vm : vmap) (v : var st):
+  cancel pi_inv pi ->
+  vm.[st, vname v] = (rn_vmap pi vm).[st, pi_inv (vname v)].
+Proof. by move => Hcan; case v => id; rewrite /vmap_get //= Hcan. Qed.
 
-*)
+Definition rn_tosubst pi (ts : g_tosubst st2ty) :=
+  @ToSubst st2ty ts.(ts_t) (pi ts.(ts_id)) ts.(ts_to).
 
-(* ** Ecall reminder
+Definition rn_estate pi s :=
+  {| emem := s.(emem); evm := rn_vmap pi s.(evm) |}.
+
+(* ** Commuting renamings
  * -------------------------------------------------------------------- *)
 
-(* Ecall
-     {m1}     : initial memory
-     {m2}     : final memory
-     {vm1}    : initial vmap
-     {vmc1}   : vmap before call
-     {vmc2}   : vmap after call
-     {starg}  : type of function arg
-     {stres}  : type of function result
-     {farg}   : formal argument
-     {fres}   : formal result
-     {fbody}  : function body
-     rv_res   : rval for assigning result
-     {pe_arg} : given result *)
-
-(* ** Renaming function bodies
- * -------------------------------------------------------------------- *)
-
-(*
-Lemma rn_pexpr_eq st (pi : renaming) (vm : vmap) (pe : pexpr st):
-  sem_pexpr vm pe = sem_pexpr (rn_vmap pi vm) (rn_pexpr pi pe).
+Lemma rn_pexpr_eq st (pi pi_inv : renaming) (vm : vmap) (pe : pexpr st):
+  cancel pi_inv pi ->
+  sem_pexpr vm pe = sem_pexpr (rn_vmap pi vm) (rn_pexpr pi_inv pe).
 Proof.
-elim pe.
-+ by move=> st1 v; rewrite //= (rn_vmap_get pi).
-+ by rewrite //=.
-+ move => st1 st2 pe1 Heq1 pe2 Heq2.
-  by rewrite //= -Heq1 -Heq2.
-+ move=> sta str sop pe1 Heq.
-  by rewrite //= Heq.
+  move => Hcan; elim pe => //.
+  + by move=> st1 v; rewrite //= (rn_vmap_get vm _ Hcan).
+  + by move => st1 st2 pe1 Heq1 pe2 Heq2; rewrite //= -Heq1 -Heq2.
+  + by move=> sta str sop pe1 Heq; rewrite //= Heq.
 Qed.
 
-Lemma rn_write_rval_eq pi vm {st} (rv : rval st) (v : st2ty st):
-    (@write_rval st (rn_vmap pi vm) (rn_rval pi rv) v)
-  = (@rn_vmap pi (@write_rval st vm rv v)).
+Lemma rn_range_eq (pi pi_inv : renaming) (vm : vmap) (rng : range):
+  cancel pi_inv pi ->
+  sem_range vm rng = sem_range (rn_vmap pi vm) (rn_range pi_inv rng).
 Proof.
-have vmap_ext: forall (vm1 vm2 : vmap),
-                 (forall st k, (vm1 st).[? k] = (vm2 st).[? k]) -> vm1 = vm2.
-  admit.
-apply vmap_ext => st2 id2.
-induction rv.
-+ rewrite /write_rval. admit.
-+ admit.
-Admitted.
+  move => Hcan. case rng => rng1; case rng1 => dir pe1 pe2.
+  rewrite /sem_range /=.
+  by do 2 rewrite -(rn_pexpr_eq _ _ Hcan).
+Qed.
 
-Lemma rn_sem_equiv pi m1 m2 vm1 vm2 c:
-  bijective pi ->
+Lemma rn_vmap_set_get st pi pi_inv vm vn (v : st2ty st) st' id:
+  cancel pi_inv pi ->
+  cancel pi     pi_inv ->
+  ((rn_vmap pi vm).[pi_inv vn <- v]).[st',id] = (rn_vmap pi vm.[vn <- v]).[st',id].
+Proof.
+  move=> Hcan1 Hcan2.
+  rewrite /rn_vmap /vmap_get //=; case: (eq_stype st st'); [ move=> Heq | done ].
+  rewrite /eq_rect //=. case Heq.
+  rewrite -(bij_eq (_ : bijective pi)); first by rewrite Hcan1.
+  by apply /Bijective.
+Qed.
+
+Lemma write_subst_rn_val st pi (rv : rval st) (v : st2ty st):
+  forall substs,
+    write_subst (rn_rval pi rv) v [seq rn_tosubst pi ts | ts <- substs ]
+  = [seq rn_tosubst pi ts | ts <- write_subst rv v substs].
+Proof.
+  induction rv => substs.
+  + by case v0 => vn0 //.
+  + by rewrite /= IHrv1 IHrv2.
+Qed.    
+
+Lemma write_subst_rn_val_nil st pi (rv : rval st) (v : st2ty st):
+    write_subst (rn_rval pi rv) v [::]
+  = [seq rn_tosubst pi ts | ts <- write_subst rv v [::] ].
+Proof. by rewrite (write_subst_rn_val pi _ _ [::]). Qed.
+
+Lemma rn_write_vmap_eq pi pi_inv vm substs:
+  cancel pi_inv pi ->
+  cancel pi     pi_inv ->
+    write_vmap (rn_vmap pi vm) [seq rn_tosubst pi_inv ts | ts <- substs ]
+  = rn_vmap pi (write_vmap vm substs).
+Proof.
+  move=> Hcan1 Hcan2.
+  elim substs; first done.
+  move=> sub subs Hind; case sub => ts_t ts_id ts_v //=.
+  rewrite Hind.
+  apply vmap_ext; rewrite /vmap_ext_eq /vmap_get => st2 id2 //=.
+  case (eq_stype ts_t st2); [  move=> Heq | done].
+  rewrite /eq_rect //=; case Heq.
+  rewrite -(bij_eq (_ : bijective pi)); first by rewrite Hcan1.
+  by apply /Bijective.
+Qed.
+
+Lemma rn_write_rval_eq pi pi_inv vm {st} (rv : rval st) (v : st2ty st):
+  cancel pi_inv pi ->
+  cancel pi     pi_inv ->
+    write_rval (rn_vmap pi vm) (rn_rval pi_inv rv) v
+  = rn_vmap pi (write_rval vm rv v).
+Proof.
+  move=> Hcan1 Hcan2.
+  apply vmap_ext; rewrite /vmap_ext_eq => st2 id2 //=.
+  rewrite /write_rval write_subst_rn_val_nil.
+  by rewrite (rn_write_vmap_eq _ _ Hcan1 Hcan2).
+Qed.
+
+(* ** Commuting renamings
+ * -------------------------------------------------------------------- *)
+
+Lemma rn_sem_bcmd_equiv pi pi_inv m1 vm1 bc:
+  cancel pi_inv pi ->
+  cancel pi     pi_inv ->
+    (sem_bcmd {| emem := m1; evm := rn_vmap pi vm1 |} (rn_bcmd pi_inv bc))
+  = rmap (fun es => {| emem := es.(emem); evm := rn_vmap pi es.(evm) |})
+         (sem_bcmd {| emem := m1; evm := vm1 |} bc).
+Proof.
+  move=> Hcan1 Hcan2.
+  case bc => //=.
+  + move=> st r pe.
+    rewrite -(rn_pexpr_eq _ _ Hcan1).
+    case (sem_pexpr vm1 pe) => st2 //=.
+    by rewrite rn_write_rval_eq.
+  + move=> rv pe.
+    rewrite -(rn_pexpr_eq _ _ Hcan1).
+    case (sem_pexpr vm1 pe) => st2 //=.
+    case (read_mem m1 st2) => w //=.
+    by rewrite rn_write_rval_eq.
+  + move => w1 w2.
+    rewrite -(rn_pexpr_eq _ _ Hcan1).
+    rewrite -(rn_pexpr_eq _ _ Hcan1).
+    case (sem_pexpr vm1 w1) => st2 //=.
+    case (sem_pexpr vm1 w2) => st3 //=.
+    by case (write_mem m1 st2 st3) => //=.
+Qed.
+
+Lemma rn_sem_equiv_aux pi pi_inv s1 s2 c:
+  cancel pi_inv pi ->
+  cancel pi     pi_inv ->
+  sem s1 c s2 ->
+  sem (rn_estate pi s1) (rn_cmd NoRecurse pi_inv c) (rn_estate pi s2).
+Proof.
+  move=> Hcan1 Hcan2.
+  generalize s1 c s2.
+  apply (@sem_Ind _
+           (fun s1 i s2 => sem_i (rn_estate pi s1) (rn_instr NoRecurse pi_inv i) (rn_estate pi s2))
+           (fun v ws s1 c s2 =>
+              sem_for
+                (rn_var pi_inv v) ws (rn_estate pi s1) (rn_cmd NoRecurse pi_inv c)
+                (rn_estate pi s2))).
+  + by move=> s; constructor.
+  + move=> s3 s4 s5 ii cc Hsi Hsi_rn Hsc Hsc_rn.
+    by apply (Eseq (s2:=rn_estate pi s4)) => //.
+  + move=> s3 s4 bc Hbc; apply Ebcmd.
+    rewrite (rn_sem_bcmd_equiv _ _ _ Hcan1 Hcan2) /=.
+    by move: Hbc; case s3 => m3 vm3 //= -> //.
+  + move=> s3 s4 pe cond c1 c2 Hpe Hif Hif_rn => //=.
+    apply (Eif (cond:=cond)).
+    + by rewrite -(rn_pexpr_eq _ _ Hcan1) /=.
+    + by move: Hif_rn; case cond => //=.
+  + move=> m1 m2 vm1 vmc1 vmc2 sta str fa fr fb rv_res pe_arg.
+    move=> Hok_arg arg vmc Hbody Hbody_rn Hok_fres res vm2.
+    rewrite /rn_estate /vm2 /=.
+    rewrite -(rn_write_rval_eq _ _ _ Hcan1 Hcan2).
+    apply (Ecall (vmc1:=vmc1)) => //.
+    + by rewrite -(rn_pexpr_eq _ _ Hcan1).
+    + rewrite /vmc /arg /rn_estate /= in Hbody.
+      by rewrite -(rn_pexpr_eq _ _ Hcan1).
+  + move=> s3 s4 iv rng c_for ws Hsrng Hsc_for Hs_for.
+    rewrite /=.
+    apply (EFor (ws:=ws)); last done.
+    by rewrite -(rn_range_eq _ _ Hcan1).
+  + by move=> s3 c_for iv; constructor.
+  + move=> s3 s4 s5 c_for w ws iv ac Hsac Hsac_rn Hsfor Hsfor_rn.
+    by apply (EForOne (s2:=(rn_estate pi s4))).
+Qed.
+
+Lemma rn_sem_equiv pi pi_inv m1 m2 vm1 vm2 c:
+  cancel pi_inv pi ->
+  cancel pi     pi_inv ->
   sem {| emem := m1; evm := vm1 |} c {| emem := m2; evm := vm2 |} ->
   sem {| emem := m1; evm := rn_vmap pi vm1 |}
-      (rn_cmd NoRecurse pi c)
+      (rn_cmd NoRecurse pi_inv c)
       {| emem := m2; evm := rn_vmap pi vm2 |}.
-Proof. Admitted.
-
-(*
-Lemma rn_call_equiv starg stres (s1 s2 : estate) pi farg fres fbody rv_res pe_arg:
-  bijective pi ->
-  sem s1 (@Ccall starg stres farg fres fbody rv_res pe_arg) s2 ->
-  let:  (farg,fres,fbody) := rn_fdef pi farg fres fbody in
-  sem s1 (@Ccall starg stres farg fres fbody rv_res pe_arg) s2.
 Proof.
-move=> Hbij Hs //=.
-inversion Hs. 
-clear pe_arg0 H starg0 H5 fbody0 fres0 H0 Hs H3 s2.
-rewrite /vm2 /res0.
-apply (inj_pair2_eq_dec _ LEM) in H1.
-apply (inj_pair2_eq_dec _ LEM) in H4.
-apply (inj_pair2_eq_dec _ LEM) in H6.
-apply (inj_pair2_eq_dec _ LEM) in H7.
-rewrite -H6.
-move : (rn_pexpr_eq pi vmc2 fres1) => WW.
-rewrite -H1 -H4 -H7 WW. clear H1 H2 H4 H6.
-rewrite /vmc0 in H9.
-apply (Ecall (vmc1:=rn_vmap pi vmc1)).
-+ done.
-+ rewrite (rn_write_rval_eq pi vmc1).
-  rewrite -/arg0.  
-  by apply rn_sem_equiv.
-+ by rewrite -WW.
+  move=> Hcan1 Hcan2.
+  by apply (rn_sem_equiv_aux Hcan1 Hcan2
+              (s1:={| emem := m1; evm := vm1 |}) (s2:={| emem := m2; evm := vm2 |}) (c:=c)).
 Qed.
-*)
 
-*)
+Lemma rn_call_equiv starg stres (s1 s2 : estate) pi pi_inv (fd : fundef starg stres) rv_res pe_arg:
+  cancel pi_inv pi ->
+  cancel pi     pi_inv ->
+  sem s1 [:: @Ccall starg stres rv_res fd                  pe_arg] s2 ->
+  sem s1 [:: @Ccall starg stres rv_res (rn_fdef NoRecurse pi_inv fd) pe_arg] s2.
+Proof.
+  move=> Hcan1 Hcan2.
+  destruct fd => /= Hsem.
+  apply (Eseq (s2:=s2)); last apply Eskip.
+  inversion Hsem.
+  inversion H4.
+  rewrite H7 in H2. clear Hsem H4 H H0 H5 H7 H1 H3 s0 s3 s4.
+  inversion H2.
+  rewrite /vm2 /res0.
+  apply (inj_pair2_eq_dec _ LEM) in H1.
+  apply (inj_pair2_eq_dec _ LEM) in H7.
+  apply (inj_pair2_eq_dec _ LEM) in H9.
+  apply (inj_pair2_eq_dec _ LEM) in H10.
+  rewrite -H1 -H7 -H8 -H9 -H10.
+  move : (@rn_pexpr_eq stres pi pi_inv vmc2 fres0 Hcan1) => WW.
+  rewrite WW.
+  apply (Ecall (vmc1:=rn_vmap pi vmc1)) => //.
+  + rewrite (rn_write_rval_eq _ _ _ Hcan1 Hcan2).
+    by apply (rn_sem_equiv Hcan1 Hcan2); rewrite /vmc0 /arg0 -H8 in H12.
+  + by rewrite -WW.
+Qed.
 
 (* ** Variable substitution
  * -------------------------------------------------------------------- *)
@@ -221,8 +348,9 @@ Definition subst_range (s : subst) (r : range) :=
   let: (dir,pe1,pe2) := r in (dir,subst_pexpr s pe1,subst_pexpr s pe2).
 
 (* Bene: Does it make sence ? *)
+(*
 Definition subst_cmd (s : subst) (c : cmd) :=
-  Eval lazy beta delta [cmd_rect instr_rect' list_rect] in
+  Eval lazy beta delta [cmd_rect instr_rect1 list_rect] in
   @cmd_rect (fun _ => instr) (fun _ => cmd) (fun ta tr _ => fundef ta tr)
   [::]
   (fun _ _ i c => i::c)
@@ -231,6 +359,7 @@ Definition subst_cmd (s : subst) (c : cmd) :=
   (fun i rn _ c => Cfor i (subst_range s rn) c)
   (fun _ _ x _ a f =>  Ccall  x f (subst_pexpr s a))
   (fun _ _ x _ re c => FunDef x c (subst_pexpr s re)).
+*)
 
 (* Assumes that variables in different scopes all disjoint *)
 (*

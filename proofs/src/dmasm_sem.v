@@ -257,6 +257,10 @@ Reserved Notation "x .[ k1 , k2 ]" (at level 2, k1 at level 200, k2 at level 200
   format "x .[ k1 , k2 ]").
 Notation "vm .[ st , id ]" := (vmap_get vm st id) : vmap_scope.
 Notation "vm .[ k  <- v ]" := (vmap_set vm k v) : vmap_scope.
+Notation "vm1 =v vm2" := (vmap_ext_eq vm1 vm2) (at level 70, no associativity) : vmap_scope.
+
+(* There are probably many better ways to do this ... *)
+Axiom vmap_ext: forall (vm1 vm2 : vmap), vm1 =v vm2 -> vm1 = vm2.
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
@@ -362,53 +366,6 @@ Definition write_mem (m : mem) (p w : word) : exec mem :=
   then ok (m.[p <- w]%fmap)
   else Error ErrAddrInvalid.
 
-(* ** Variable occurences
- * -------------------------------------------------------------------- *)
-
-Fixpoint vars_pexpr st (pe : pexpr st) :=
-  match pe with
-  | Pvar   _ (Var vn)  => [fset (Tvar st vn)]
-  | Pconst _           => fset0
-  | Papp sta ste _ pe     => vars_pexpr pe
-  | Ppair st1 st2 pe1 pe2 => vars_pexpr pe1 `|` vars_pexpr pe2
-  end.
-
-Fixpoint vars_rval st (rv : rval st) :=
-  match rv with
-  | Rvar  st (Var vn)   => [fset (Tvar st vn)]
-  | Rpair st1 st2 rv1 rv2 => vars_rval rv1 `|` vars_rval rv2
-  end.
-
-Definition vars_bcmd (bc : bcmd) :=
-  match bc with
-  | Assgn st rv pe       => vars_rval  rv      `|` vars_pexpr pe
-  | Load rv pe_addr      => vars_rval  rv      `|` vars_pexpr pe_addr
-  | Store pe_addr pe_val => vars_pexpr pe_addr `|` vars_pexpr pe_val
-  end.
-
-Definition vars_range (r : range) :=
-  let: (_,pe1,pe2) := r in
-  vars_pexpr pe1 `|` vars_pexpr pe2.
-
-Inductive recurse := Recurse | NoRecurse.
-
-Definition vars_cmd (rec: recurse) (c:cmd) := 
-  Eval lazy beta delta [cmd_rect instr_rect' list_rect] in
-  @cmd_rect (fun _ =>  {fset tvar}) (fun _ =>  {fset tvar}) (fun _ _ _ =>  {fset tvar})
-    fset0
-    (fun _ _ s1 s2 =>  s1 `|` s2)
-    vars_bcmd
-    (fun e _ _ s1 s2 => vars_pexpr e `|` s1 `|` s2)
-    (fun i rn _ s  =>  Tvar sword i.(vname) |` vars_range rn `|` s)
-    (fun _ _ x f a s =>  
-       (if rec is Recurse then s (* Warning : without "Eval lazy ..." the vars of f are always computed *)
-        else fset0) `|` vars_rval x `|` vars_pexpr a)
-    (fun _ _ x _ re s => vars_rval x `|` vars_pexpr re `|` s) 
-    c.
-
-Definition vars_fdef starg stres (rv : rval starg) (pe : pexpr stres) (c : cmd) :=
-  vars_rval rv `|` vars_pexpr pe `|` vars_cmd NoRecurse c.
-
 (* ** Instructions
  * -------------------------------------------------------------------- *)
 
@@ -480,7 +437,7 @@ with sem_i : estate -> instr -> estate -> Prop :=
         (@Ccall starg stres rv_res (FunDef farg fbody fres) pe_arg)
         (Estate m2 vm2)
 
-| EforDone s1 s2 iv rng c ws :
+| EFor s1 s2 iv rng c ws :
     sem_range s1.(evm) rng = ok ws ->
     sem_for iv ws s1 c s2 ->
     sem_i s1 (Cfor iv rng c) s2
@@ -495,3 +452,7 @@ with sem_for : var sword -> seq word -> estate -> cmd -> estate -> Prop :=
     sem                s1 ac s2 ->
     sem_for iv (ws)    s2 c  s3 ->
     sem_for iv (w::ws) s1 c  s3.
+
+Scheme sem_Ind := Minimality for sem Sort Prop
+with sem_i_Ind := Minimality for sem_i Sort Prop
+with sem_for_Ind := Minimality for sem_for Sort Prop.
