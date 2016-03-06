@@ -244,41 +244,4 @@ Proof. by rewrite /req_on /req; case m. Qed.
 
 End ReqOn.
 
-(* -------------------------------------------------------------------------- *)
-Lemma appendA : associative append.
-Proof. by elim => //= p Hp y z;rewrite Hp. Qed.
-
-Lemma log_app n p : log_inf (append n p) = (log_inf n + log_inf p)%Z.
-Proof. elim: n => /= [ n -> | n -> | ];omega. Qed.
-
-Lemma append_inj n1 n2 p1 p2: log_inf p1 = log_inf p2 -> 
-  append n1 p1 = append n2 p2 -> n1 = n2 /\ p1 = p2.
-Proof.
-  elim: n1 n2 p1 p2 => [ n1 Hn1 | n1 Hn1 | ] [ n2 | n2 | ] //= p1 p2. 
-  + by move=> Hl [] /(@Hn1 _ _ _ Hl) []-> ->.
-  + move=> Heq Hp2;move: Heq;rewrite -Hp2 /= log_app => ?.
-    have ?:= log_inf_correct1 n1;omega.
-  + by move=> Hl [] /(@Hn1 _ _ _ Hl) []-> ->.
-  + move=> Heq Hp2;move: Heq;rewrite -Hp2 /= log_app => ?.
-    have ?:= log_inf_correct1 n1;omega.
-  + move=> Heq Hp2;move: Heq;rewrite Hp2 /= log_app => ?.
-    have ?:= log_inf_correct1 n2;omega.
-  move=> Heq Hp2;move: Heq;rewrite Hp2 /= log_app => ?.
-  have ?:= log_inf_correct1 n2;omega.
-Qed.
-
-Definition b2P b := 
-  if b then 2%positive else 3%positive.
-
-Definition b2P_app b n := 
-  if b then xO n else xI n.
-
-Lemma b2P_appP b n : b2P_app b n = append (b2P b) n.
-Proof. by case:b. Qed.
-
-Lemma log_b2P_app b n : log_inf (b2P_app b n) = Z.succ (log_inf n).
-Proof. by case: b. Qed.
-
-Lemma b2P_app_inj b1 b2 n1 n2 : b2P_app b1 n1 = b2P_app b2 n2 -> b1 = b2 /\ n1 = n2.
-Proof. by case: b1 b2 => -[] //= []. Qed.
 

@@ -6,14 +6,16 @@ SUBDIRS  :=
 INCFLAGS := -R src $(NAME) -R src/3rdparty $(NAME)
 COQFILES := \
 	src/3rdparty/finmap.v \
+	src/pos_map.v \
 	src/strings.v \
-	src/arithmetica.v \
 	src/dmasm_utils.v \
+	src/arithmetica.v \
+	src/dmasm_type.v \
 	src/dmasm_sem.v \
 	src/dmasm_Ssem.v \
 	src/dmasm_sem_props.v \
 	src/dmasm_logic.v \
-	src/dmasm_type.v
+
 
 include Makefile.common
 

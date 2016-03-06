@@ -1,8 +1,6 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import ssreflect eqtype ssrbool choice ssrfun seq.
-Require Export String.
-Require Import ZArith FMapPositive dmasm_utils.
-
+Require Export String ZArith pos_map.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -70,7 +68,7 @@ Definition a2P_app c n :=
 
 Definition a2P c := a2P_app c xH.
 
-Lemma a2P_appP c n : a2P_app c n = append (a2P c) n.
+Lemma a2P_appP c n : a2P_app c n = FMapPositive.append (a2P c) n.
 Proof. by case: c=> * => /=;rewrite !b2P_appP -!appendA. Qed.
 
 Lemma log_a2P c : log_inf (a2P c) = 8%Z.
@@ -90,7 +88,7 @@ Fixpoint s2P_app s n:=
 
 Definition s2P s := s2P_app s xH.
 
-Lemma s2P_appP s n : s2P_app s n = append (s2P s) n.
+Lemma s2P_appP s n : s2P_app s n = FMapPositive.append (s2P s) n.
 Proof. 
   elim: s n => [ | c s Hs] n //=.
   by rewrite /s2P /= !Hs /= a2P_appP -!appendA. 
@@ -115,34 +113,14 @@ Qed.
 Lemma s2P_inj : injective s2P.
 Proof. by move=> s1 s2;rewrite /s2P => /s2P_app_inj []. Qed.
 
-Module Ms.
+Module InjString.
 
-  Definition t (T:Type) := PositiveMap.t T.
+  Definition t := [eqType of string].
 
-  Definition empty {T} : t T := PositiveMap.empty T.
+  Definition t2P := s2P.
+ 
+  Definition t2P_inj := s2P_inj.
 
-  Definition get {T} (m: t T) (s:string) := PositiveMap.find (s2P s) m. 
+End InjString.
 
-  Definition set {T} (m: t T) (s:string) (t:T) := PositiveMap.add (s2P s) t m.
-
-  Delimit Scope smap_scope with ms.
-  Local Open Scope smap_scope.
-  Notation "m .[ s ]" := (get m s): smap_scope.
-  Reserved Notation "x .[ k <- v ]"
-     (at level 2, k at level 200, v at level 200, format "x .[ k  <-  v ]").
-
-  Notation "x .[ k <- v ]" := (set x k v) : smap_scope.
-  
-  Lemma setP {T} m x y (v:T) : m.[x <- v].[y] = if x == y then Some v else m.[y].
-  Proof.
-    case eqP=> [-> | Hdiff];first by apply PositiveMap.gss.
-    by apply PositiveMap.gso=> /s2P_inj /esym.
-  Qed.
-
-  Lemma setP_eq {T} m x (v:T) : m.[x <- v].[x] = Some v.
-  Proof. by rewrite setP eq_refl. Qed.
-
-  Lemma setP_neq {T} m x y (v:T) : x <> y -> m.[x <- v].[y] = m.[y].
-  Proof. by rewrite setP=> /eqP /negPf ->. Qed.
-
-End Ms.
+Module Ms := Mmake InjString.
