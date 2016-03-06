@@ -244,9 +244,12 @@ Definition g_vmap_get to (vm : g_vmap to) st k :=
   vm.(vm_map) st k.
 
 Notation vmap     := (g_vmap st2ty).
-Notation vmap_set := (@g_vmap_set st2ty _).
-Notation vmap_get := (@g_vmap_get st2ty).
 Notation vmap0    := (@g_vmap0 st2ty dflt_val).
+Definition vmap_set {st} vm id v := nosimpl (@g_vmap_set st2ty st vm id v).
+Definition vmap_get vm st id := nosimpl (@g_vmap_get st2ty vm st id).
+
+Definition vmap_ext_eq (vm1 vm2 : vmap) :=
+  forall st k, vmap_get vm1 st k = vmap_get vm2 st k.
 
 Delimit Scope vmap_scope with vmap.
 Local Open Scope vmap_scope.
@@ -337,10 +340,10 @@ Definition write_subst := @g_write_subst st2ty (fun t1 t2 => fst) (fun t1 t2 => 
 Definition write_vmap := 
   foldr (fun (ts:g_tosubst st2ty) vm => 
            let (t,id,v) := ts in
-           vmap_set vm id v).
+           vm.[id <- v]).
 
 Definition write_rval {st} (vm:vmap) (l:rval st) (v:st2ty st) :=
-   write_vmap vm (write_subst l v [::]).
+  write_vmap vm (write_subst l v [::]).
   
 (* ** Memory
  * -------------------------------------------------------------------- *)
@@ -453,21 +456,16 @@ Inductive sem : estate -> cmd -> estate -> Prop :=
     sem s [::] s
 
 | Eseq s1 s2 s3 i c :
-    sem_i s1 i s2 -> sem s2 c s3 -> sem s1 (i:: c) s3
+    sem_i s1 i s2 -> sem s2 c s3 -> sem s1 (i::c) s3
 
 with sem_i : estate -> instr -> estate -> Prop :=
 
 | Ebcmd s1 s2 c:
     sem_bcmd s1 c = ok s2 -> sem_i s1 (Cbcmd c) s2
 
-| EifTrue s1 s2 (pe : pexpr sbool) c1 c2 :
-    sem_pexpr s1.(evm) pe = ok true ->
-    sem s1 c1 s2 ->
-    sem_i s1 (Cif pe c1 c2) s2
-
-| EifFalse s1 s2 (pe : pexpr sbool) c1 c2 :
-    sem_pexpr s1.(evm) pe = ok false ->
-    sem s1 c2 s2 ->
+| Eif s1 s2 (pe : pexpr sbool) cond c1 c2 :
+    sem_pexpr s1.(evm) pe = ok cond ->
+    sem s1 (if cond then c1 else c2) s2 ->
     sem_i s1 (Cif pe c1 c2) s2
 
 | Ecall {m1 m2 vm1} vmc1 {vmc2 starg stres farg fres fbody rv_res pe_arg} :
