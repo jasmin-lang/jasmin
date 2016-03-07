@@ -3,7 +3,8 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple finfun.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import finmap strings dmasm_utils dmasm_type dmasm_sem dmasm_sem_props dmasm_Ssem.
+Require Import dmasm_utils dmasm_type dmasm_var dmasm_sem 
+               dmasm_sem_props dmasm_Ssem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -13,10 +14,7 @@ Import GRing.Theory.
 
 Open Scope string_scope.
 Local Open Scope ring_scope.
-Local Open Scope fset.
-Local Open Scope fmap.
 Local Open Scope seq_scope.
-Local Open Scope svmap_scope.
 
 Lemma ssem_iV s i s' : ssem s [::i] s' -> ssem_i s i s'.
 Proof.
@@ -102,36 +100,26 @@ Qed.
 (* ** Weakest Precondition                                                    *)
 (* -------------------------------------------------------------------------- *)
 
-Definition vsubst := subst.
+Definition vsubst := Mv.t pexpr.
 
-Definition vsubst_id : vsubst := 
-  fun t x => Pvar x.
+Definition vsubst_id : vsubst := Mv.empty (fun x => Pvar x).
 
-Definition vsubst_add {t} s id e : vsubst := 
-  fun t' x =>
-     let xid := vname x in
-     if xid == id then
-       match eq_stype t t' with
-       | left p_eq =>
-         eq_rect t (fun t => pexpr t) e t' p_eq
-       | right _ => s t' x
-       end
-     else s t' x.
+Definition vsubst_add (s:vsubst) x e : vsubst := (s.[x <- e])%mv.
 
-Definition tosubst (s:vsubst) : subst := s.
+Definition tosubst (s:vsubst) : subst := Mv.get s.
 
-Lemma tosubst_id {t} (x: var t) : tosubst vsubst_id x = Pvar x.
-Proof. by []. Qed.
+Lemma tosubst_id (x:var) : tosubst vsubst_id x = Pvar x.
+Proof. by rewrite /tosubst /vsubst_id Mv.get0. Qed.
 
+(* TODO: move this *)
 Notation efst e := (Papp (Ofst _ _) e).
 Notation esnd e := (Papp (Osnd _ _) e).
 
-Definition ewrite_subst := @g_write_subst pexpr (fun t1 t2 e => efst e) (fun t1 t2 e => esnd e).
+Definition ewrite_subst :=
+  @g_write_subst pexpr (fun t1 t2 e => efst e) (fun t1 t2 e => esnd e).
 
 Definition ewrite_vsubst := 
-  foldr (fun (ts:g_tosubst pexpr) vm => 
-          let (t,id,v) := ts in
-          vsubst_add vm id v).
+  foldr (fun (ts:g_tosubst pexpr) vm => @vsubst_add vm ts.(ts_v) ts.(ts_to)).
 
 Definition ewrite_rval {st} (vm:vsubst) (l:rval st) (v:pexpr st) :=
    ewrite_vsubst vm (ewrite_subst l v [::]).
@@ -149,69 +137,50 @@ Definition s2h (p:spred)  :=
   fun (s:sestate) => sp_P (ssem_pexpr s.(sevm) p.(sp_e)).
 
 Definition map_ssem_pe vm := 
-  map (fun ts:g_tosubst pexpr => let (t,id,e) := ts in ToSubst id (ssem_pexpr vm e)).
+  map (fun ts:g_tosubst pexpr => {|ts_to := ssem_pexpr vm ts.(ts_to) |}).
 
 Lemma swrite_subst_map l vm {t} (rv:rval t) (e:pexpr t) :
   swrite_subst rv (ssem_pexpr vm e) (map_ssem_pe vm l) = 
   map_ssem_pe vm (ewrite_subst rv e l).
 Proof.
-  elim: rv e l=> {t} [ ?[]??| ?? r1 Hr1 r2 Hr2 e] l //=.
+  elim: rv e l=> {t} [ | ?? r1 Hr1 r2 Hr2 e] l //=.
   by rewrite -Hr2 -Hr1. 
 Qed.
 
-Lemma svmap_set_neq {t1 t2} id x (v:sst2ty t1) vm: id <> x ->
-    vm.[id <- v].[t2,x] = vm.[t2,x].
+Lemma svmap_set_neq id x (v:sst2ty id.(vtype)) vm: id != x ->
+    (vm.[id <- v].[x] = vm.[x])%svmap.
 Proof.
-  rewrite /svmap_set /svmap_get /=; case: eq_stype => //= a.
-  move: v; case: _ / a=> v.
-  by rewrite /= => /eqP /negPf ->.
+  by rewrite /svmap_set /svmap_get /=; case: eqP.
 Qed.
 
-Lemma svmap_set_neq_t {t1 t2} id x (v:sst2ty t1) vm: t2 <> t1 ->
-    vm.[id <- v].[t2,x] = vm.[t2,x].
+Lemma vsubst_add_neq s id (v:var) (e:pexpr id.(vtype)):
+   id != v -> 
+   tosubst (@vsubst_add s id e) v = tosubst s v. 
 Proof.
-  by rewrite /svmap_set /svmap_get /= => /nesym; case: eq_stype.
+  rewrite /tosubst/vsubst_add;apply: Mv.setP_neq.
 Qed.
 
-Lemma vsubst_add_neq {t1 t2} s id (v:var t1) (e:pexpr t2):
-   id <> vname v -> 
-   tosubst (vsubst_add s id e) v = tosubst s v. 
+Lemma vsubst_add_eq v (s:vsubst) (e : pexpr v.(vtype)): 
+  tosubst (@vsubst_add s v e) v = e. 
 Proof.
-  by rewrite /tosubst/vsubst_add eq_sym => /eqP /negPf ->.
+  rewrite /tosubst/vsubst_add;apply: Mv.setP_eq.
 Qed.
 
-Lemma vsubst_add_neq_t {t1 t2} s id (v:var t1) (e:pexpr t2):
-   t1 <> t2 -> 
-   tosubst (vsubst_add s id e) v = tosubst s v. 
+Lemma svmap_set_eq vm id (v:sst2ty id.(vtype)): (vm.[id <- v].[id])%svmap = v.
 Proof.
-  rewrite /tosubst/vsubst_add; case: (_ == _) => //.
-  by case eq_stype => // e0 neq;subst.
-Qed.
-
-Lemma vsubst_add_eq {t} (e : pexpr t) s (v : var t) : 
-  tosubst (vsubst_add s (vname v) e) v = e. 
-Proof.
-  rewrite /tosubst/vsubst_add eq_refl;case: eq_stype => //= a.
-  by rewrite ((eq_irrelevance a) (erefl t)).
-Qed.
-
-Lemma svmap_set_eq {t} vm id (v:sst2ty t): vm.[id <- v].[t,id] = v.
-Proof.
-  rewrite /svmap_set /svmap_get /=; case: eq_stype => //= a. 
-  by rewrite ((eq_irrelevance a) (erefl t))  /= eq_refl.
+  rewrite /svmap_set /svmap_get /=;case: eqP=>// a.
+  by rewrite ((eq_irrelevance a) (erefl id)).
 Qed.
 
 Lemma ssem_subst_map {t2} (pe:pexpr t2) vm l :
    ssem_pexpr vm (subst_pexpr (tosubst (ewrite_vsubst vsubst_id l)) pe) =
    ssem_pexpr (swrite_vmap vm (map_ssem_pe vm l)) pe.
 Proof.
-  elim: pe => //= [tv v| ?? p1 Hp1 p2 Hp2| ??? p Hp];rewrite ?Hp1 ?Hp2 ?Hp //.
-  elim: l => [ | [t id e] l Hrec] //=.
-  case: (id =P vname v)=> [-> | ?].
-  + case (eq_stype tv t) => [eq | neq].
-    + by subst tv;rewrite vsubst_add_eq svmap_set_eq.
-    by rewrite vsubst_add_neq_t // Hrec svmap_set_neq_t.
-  by rewrite svmap_set_neq // vsubst_add_neq // Hrec.
+  elim: pe => //= [ | ?? p1 Hp1 p2 Hp2| ??? p Hp];rewrite ?Hp1 ?Hp2 ?Hp //.
+  elim: l => [ | [id e] l Hrec] x //=;first by rewrite tosubst_id //. 
+  case: (boolP (id == x))=> [/eqP <-| ?].
+  + by rewrite vsubst_add_eq svmap_set_eq.
+  rewrite svmap_set_neq // vsubst_add_neq // Hrec.
 Qed.
 
 Lemma hoare_asgn {t1 t2} (rv:rval t1) (e:pexpr t1) (P:sst2ty t2 -> Prop) (pe: pexpr t2):
