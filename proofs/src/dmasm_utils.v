@@ -107,7 +107,7 @@ Fixpoint unions_seq (K : choiceType) (ss : seq {fset K}) : {fset K} :=
 
 Definition unions (K : choiceType) (ss : {fset {fset K}}) : {fset K} :=
   unions_seq (fset_keys ss).
-b
+
 Lemma seq_fset0 (aT : choiceType):  @seq_fset aT [::] = fset0.
 Proof. by apply/fsetP => x; rewrite in_seq_fsetE in_fset0 in_nil. Qed.
 
