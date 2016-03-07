@@ -401,7 +401,7 @@ Proof.
   + by rewrite -WW.
 Qed.
 
-(* ** Framing for command execution
+(* ** Upper bound on variables that are changed
  * -------------------------------------------------------------------- *)
 
 Lemma eq_except_sub vm1 vm2 s1 s2:
@@ -433,12 +433,44 @@ Proof.
   by rewrite /vmap_set /vmap_get /=;case: eqP.
 Qed.
 
+(*
+Lemma vmap_set_neq_t id x (v : st2ty id.(vtype)) vm: x <> id ->
+    vm.[id <- v].[x] = vm.[x].
+Proof.
+  by rewrite /vmap_set /vmap_get /= => /nesym; case: eq_stype.
+Qed.
+*)
+
+Lemma vmap_set_get_eq id (v : st2ty id.(vtype)) vm:
+    vm.[id <- v].[id] = v.
+Proof.
+  rewrite /vmap_set /vmap_get /=.
+  case: eqP; [ move=> Heq | done].
+  by rewrite (eq_irrelevance Heq (erefl)).
+Qed.
+
 Lemma eq_except_set vm id (v : st2ty id.(vtype)) :
   vm = vm.[id <- v] [\ [fset id]].
 Proof.
   rewrite /vmap_eq_except => id2;case: (id =P id2)=> [<- | ?].
   + by rewrite fset11.
   by rewrite vmap_set_neq.
+Qed.
+
+Lemma eq_except_set_imp vm1 vm2 s id (v : st2ty id.(vtype)) :
+  vm1 = vm2 [\ s] ->
+  vm1.[id <- v] = vm2.[id <- v] [\ s].
+Proof.
+  rewrite /vmap_eq_except.
+  move=> Heq k1 Hnotin.
+  case_eq (id == k1).
+  + move=> /eqP Heq2. move: Hnotin; rewrite -Heq2.
+    by rewrite !vmap_set_get_eq.
+  + rewrite -Bool.negb_true_iff.
+    move=> Hneq. rewrite !vmap_set_neq => //.
+    + by apply Heq.
+    + by apply/eqP.
+    + by apply/eqP.
 Qed.
 
 Lemma write_vmap_eq_except_aux vm substs:
@@ -488,12 +520,23 @@ Proof.
   by apply write_vmap_eq_except_aux.
 Qed.
 
+Lemma write_vmap_eq_except_imp vm1 vm2 s substs:
+  vm1 = vm2 [\s ] ->
+  write_vmap vm1 substs = write_vmap vm2 substs [\ s].
+Proof.
+  generalize vm1 vm2. elim substs => //.
+  move=> sub subs Hind vm3 vm4 Heq.
+  rewrite /=; case sub => st_ id_ v_.
+  by apply eq_except_set_imp; apply Hind.
+Qed.
+
+
 Lemma write_rval_eq_except_imp st vm1 vm2 (rv : rval st) (v : st2ty st) s:
   vm1 = vm2 [\s ] ->
   write_rval vm1 rv v = write_rval vm2 rv v [\ s].
 Proof.
-  rewrite /write_rval. admit.
-Admitted.
+  by rewrite /write_rval; apply write_vmap_eq_except_imp.
+Qed.
 
 Lemma sem_bcmd_eq_except s1 s2 bc:
   sem_bcmd s1 bc = ok s2 ->
@@ -552,11 +595,16 @@ Proof.
     apply fsubset_refl.
 Qed.
 
+
+(* ** Equivalent state leads to equivalent state
+ * -------------------------------------------------------------------- *)
+
 Lemma sem_ids_unchanged (s1 s1' s2 s2': estate) c:
-  s1.(emem) = s1'.(emem) /\ s1.(evm)  = s1'.(evm) [&& read_cmd c] ->
+  s1.(emem) = s1'.(emem) /\ s1.(evm) = s1'.(evm) [&& read_cmd c] ->
   sem s1  c s2 ->
-  sem s1' c s2' ->
-  s2.(emem) = s2'.(emem) /\ s2.(evm) = s2'.(evm)  [&& write_cmd c].
+  exists s2', 
+    sem s1' c s2' ->
+    s2.(emem) = s2'.(emem) /\ s2.(evm) = s2'.(evm)  [&& write_cmd c].
 Proof.
 Admitted.
 
@@ -628,7 +676,8 @@ Proof.
   have WW: evm s2 = write_rval (evm s1) rv_res (rdflt_ (sem_pexpr (evm s2_1) p))
              [\ids_rval r `|` write_cmd l]. 
     move: H2 => /=. case (sem_pexpr (evm s2_1) p) => v //=. case. case s2 => m2 vm2 /=.
-    case => HH <-.  by apply write_rval_eq_except_imp.
+    case => HH <-. rewrite /write_rval.
+    by apply write_vmap_eq_except_imp.
   apply WW.
 Qed.
 
