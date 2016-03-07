@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import finmap strings dmasm_utils dmasm_type.
+Require Import finmap strings dmasm_utils dmasm_type dmasm_var.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -16,7 +16,7 @@ Local Open Scope ring_scope.
 Local Open Scope fset.
 Local Open Scope fmap.
 
-(* ** Types for idents and values
+(* ** Types for values
  * -------------------------------------------------------------------- *)
 
 Definition wsize : nat := nosimpl 64.
@@ -31,14 +31,6 @@ Definition word_eqMixin     := comparableClass (@LEM word).
 Canonical  word_eqType      := Eval hnf in EqType word word_eqMixin.
 Definition word_choiceMixin := CanChoiceMixin codeK_word.
 Canonical  word_choiceType  := ChoiceType word word_choiceMixin.
-
-Inductive ident := Id of string.
-Definition iname i := let: Id s := i in s.
-Lemma codeK_ident : cancel iname Id. Proof. by rewrite /cancel; case => //. Qed.
-Definition ident_eqMixin     := comparableClass (@LEM ident).
-Canonical  ident_eqType      := Eval hnf in EqType ident ident_eqMixin.
-Definition ident_choiceMixin := CanChoiceMixin codeK_ident.
-Canonical  ident_choiceType  := ChoiceType ident ident_choiceMixin.
 
 (* ** Syntax
  * -------------------------------------------------------------------- *)
@@ -59,26 +51,14 @@ Inductive sop : stype -> stype -> Set :=
 | Oset  : forall n, sop (sarr n sword ** sword ** sword) (sarr n sword)
 | Oget  : forall n, sop (sarr n sword ** sword)          sword.
 
-Fixpoint st2ty (t : stype) : Type :=
-  match t with
-  | sword         => word
-  | sbool         => bool
-  | sprod st1 st2 => ((st2ty st1) * (st2ty st2))%type
-  | sarr n st     => (n.+1).-tuple (st2ty st) (* do not allow zero-dim arrays *)
-  end.
-
-Record var (st:stype) : Set := Var {
-  vname : ident
-}.
-
 Inductive pexpr : stype -> Type :=
-| Pvar   : forall st, var st -> pexpr st
-| Pconst : st2ty sword -> pexpr sword
+| Pvar   : forall x:var, pexpr x.(vtype)
+| Pconst : word -> pexpr sword
 | Ppair  : forall st1 st2, pexpr st1 -> pexpr st2 -> pexpr (st1 ** st2)
 | Papp   : forall starg stres: stype, sop starg stres -> pexpr starg -> pexpr stres.
 
 Inductive rval : stype -> Set :=
-| Rvar  : forall st, var st -> rval st
+| Rvar  : forall (x:var), rval x.(vtype)
 | Rpair : forall st1 st2, rval st1 -> rval st2 -> rval (st1 ** st2).
 
 Inductive bcmd :=
@@ -93,7 +73,7 @@ Definition range := (dir * pexpr sword * pexpr sword)%type.
 Inductive instr := 
 | Cbcmd  : bcmd -> instr
 | Cif    : pexpr sbool -> seq instr -> seq instr -> instr
-| Cfor   : var sword -> range -> seq instr -> instr
+| Cfor   : rval sword -> range -> seq instr -> instr
 | Ccall  : forall starg stres, 
              rval  stres ->
              fundef starg stres ->
@@ -162,6 +142,18 @@ Definition assgn st (rv : rval st) pe := Cbcmd (Assgn rv pe).
 Definition load rv pe := Cbcmd (Load rv pe).
 Definition store pe1 pe2 := Cbcmd (Store pe1 pe2).
 
+
+(* ** Interpretation of types
+ * -------------------------------------------------------------------- *)
+
+Fixpoint st2ty (t : stype) : Type :=
+  match t with
+  | sword         => word
+  | sbool         => bool
+  | sprod st1 st2 => ((st2ty st1) * (st2ty st2))%type
+  | sarr n st     => (n.+1).-tuple (st2ty st) (* do not allow zero-dim arrays *)
+  end.
+
 (* ** Default values
  * -------------------------------------------------------------------- *)
 
@@ -176,59 +168,40 @@ Fixpoint dflt_val (st : stype) : st2ty st :=
 Definition rdflt_ (st : stype) e (r : result e (st2ty st)) : st2ty st :=
   rdflt (dflt_val st) r.
 
-(* ** More on variables 
- * -------------------------------------------------------------------- *)
-
-Record tvar := Tvar { tv_stype : stype; tv_ident : ident }.
-
-Definition tvar2pair tv := (tv.(tv_stype), tv.(tv_ident)).
-Definition pair2tvar p := Tvar (fst p) (snd p).
-Lemma codeK_tvar : cancel tvar2pair pair2tvar. Proof. by rewrite /cancel; case => //. Qed.
-Definition tvar_eqMixin     := comparableClass (@LEM tvar).
-Canonical  tvar_eqType      := Eval hnf in EqType tvar tvar_eqMixin.
-Definition tvar_choiceMixin := CanChoiceMixin codeK_tvar.
-Canonical  tvar_choiceType  := ChoiceType tvar tvar_choiceMixin.
-
 (* ** Variable map
  * -------------------------------------------------------------------- *)
 
 Record g_vmap (to : stype -> Type) := Vmap {
-  vm_map : forall (st : stype), ident -> to st
+  vm_map : forall x, to x.(vtype)
 }.
 
-Definition g_vmap_set (to:stype -> Type) st (vm : g_vmap to) k (v : to st) : g_vmap to :=
+Definition g_vmap_set (to:stype -> Type) (vm : g_vmap to) x (v : to x.(vtype)) : g_vmap to :=
   Vmap
-    (fun st' =>
-       match eq_stype st st' with
-       | left p_eq =>
-           eq_rect st
-             (fun st => ident -> to st)
-             (fun k' => if k == k' then v else vm.(vm_map) st k')
-             st'
-             p_eq
-       | right _ => vm.(vm_map) st'
+    (fun y =>
+       match (x =P y) with
+       | ReflectT eq => 
+         eq_rect x (fun x => to x.(vtype)) v y eq
+       | _           => vm.(vm_map) y
        end).
 
-Definition g_vmap0 to (dval : forall (st:stype), to st) : g_vmap to := 
-  Vmap (fun st _ => dval st).
+Definition g_vmap0 to (dval : forall x, to x.(vtype)) : g_vmap to := 
+  Vmap (fun x => dval x).
 
-Definition g_vmap_get to (vm : g_vmap to) st k :=
-  vm.(vm_map) st k.
+Definition g_vmap_get to (vm : g_vmap to) x :=
+  vm.(vm_map) x.
 
 Notation vmap     := (g_vmap st2ty).
 Notation vmap0    := (@g_vmap0 st2ty dflt_val).
-Definition vmap_set {st} vm id v := nosimpl (@g_vmap_set st2ty st vm id v).
-Definition vmap_get vm st id := nosimpl (@g_vmap_get st2ty vm st id).
+Definition vmap_set  vm x v := nosimpl (@g_vmap_set st2ty vm x v).
+Definition vmap_get vm x := nosimpl (@g_vmap_get st2ty vm x).
 
 Definition vmap_ext_eq (vm1 vm2 : vmap) :=
-  forall st k, vmap_get vm1 st k = vmap_get vm2 st k.
+  forall x, vmap_get vm1 x = vmap_get vm2 x.
 
 Delimit Scope vmap_scope with vmap.
 Local Open Scope vmap_scope.
-Reserved Notation "x .[ k1 , k2 ]" (at level 2, k1 at level 200, k2 at level 200,
-  format "x .[ k1 , k2 ]").
-Notation "vm .[ st , id ]" := (vmap_get vm st id) : vmap_scope.
-Notation "vm .[ k  <- v ]" := (vmap_set vm k v) : vmap_scope.
+Notation "vm .[ id ]" := (vmap_get vm id) : vmap_scope.
+Notation "vm .[ k  <- v ]" := (@vmap_set vm k v) : vmap_scope.
 Notation "vm1 =v vm2" := (vmap_ext_eq vm1 vm2) (at level 70, no associativity) : vmap_scope.
 
 (* There are probably many better ways to do this ... *)
@@ -271,7 +244,7 @@ Definition sem_sop st1 st2 (sop : sop st1 st2) : st2ty st1 -> exec (st2ty st2) :
 
 Fixpoint sem_pexpr st (vm : vmap) (pe : pexpr st) : exec (st2ty st) :=
   match pe with
-  | Pvar st v => ok (vm.[ st,vname v ])
+  | Pvar v => ok (vm.[ v ])
   | Pconst c => ok c
   | Papp sta str so pe =>
       sem_pexpr vm pe >>= fun v =>
@@ -290,9 +263,8 @@ Section WRITE.
   Variable to : stype -> Type.
  
   Record g_tosubst  := ToSubst {
-    ts_t  : stype;
-    ts_id : ident;
-    ts_to : to ts_t;
+    ts_v  : var;
+    ts_to : to ts_v.(vtype);
   }.
 
   Variable fst : forall {t1 t2:stype}, to (t1 ** t2) -> to t1.
@@ -300,8 +272,7 @@ Section WRITE.
 
   Fixpoint g_write_subst {st} (l:rval st) : to st -> list g_tosubst -> list g_tosubst := 
     match l in rval st_ return to st_ -> list g_tosubst -> list g_tosubst with
-    | Rvar st (Var vid) => fun v s =>  
-      (ToSubst vid v) :: s
+    | Rvar x => fun v s =>  (@ToSubst x v) :: s
     | Rpair t1 t2 rv1 rv2 => fun v s => 
       g_write_subst rv2 (snd v) (g_write_subst rv1 (fst v) s)
     end.
@@ -311,9 +282,7 @@ End WRITE.
 Definition write_subst := @g_write_subst st2ty (fun t1 t2 => fst) (fun t1 t2 => snd).
 
 Definition write_vmap := 
-  foldr (fun (ts:g_tosubst st2ty) vm => 
-           let (t,id,v) := ts in
-           vm.[id <- v]).
+  foldr (fun (ts:g_tosubst st2ty) vm => vm.[ts.(ts_v) <- ts.(ts_to)]).
 
 Definition write_rval {st} (vm:vmap) (l:rval st) (v:st2ty st) :=
   write_vmap vm (write_subst l v [::]).
@@ -410,13 +379,13 @@ with sem_i : estate -> instr -> estate -> Prop :=
     sem_for iv ws s1 c s2 ->
     sem_i s1 (Cfor iv rng c) s2
 
-with sem_for : var sword -> seq word -> estate -> cmd -> estate -> Prop :=
+with sem_for : rval sword -> seq word -> estate -> cmd -> estate -> Prop :=
 
 | EForDone s c iv :
     sem_for iv [::] s c s
 
 | EForOne s1 s2 s3 c w ws iv :
-    let ac := Cbcmd (Assgn (Rvar iv) (Pconst w)) :: c in
+    let ac := Cbcmd (Assgn iv (Pconst w)) :: c in
     sem                s1 ac s2 ->
     sem_for iv (ws)    s2 c  s3 ->
     sem_for iv (w::ws) s1 c  s3.

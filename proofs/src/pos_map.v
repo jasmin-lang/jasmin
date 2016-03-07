@@ -72,6 +72,9 @@ Module Mmake (K:InjPos).
      (at level 2, k at level 200, v at level 200, format "x .[ k  <-  v ]").
 
   Notation "x .[ k <- v ]" := (set x k v) : map_scope.
+
+  Lemma get0 P x : (empty P).[x] = None.
+  Proof. by rewrite /empty /get PositiveMap.gempty. Qed.
   
   Lemma setP {T} m x y (v:T) : m.[x <- v].[y] = if x == y then Some v else m.[y].
   Proof.
@@ -82,8 +85,8 @@ Module Mmake (K:InjPos).
   Lemma setP_eq {T} m x (v:T) : m.[x <- v].[x] = Some v.
   Proof. by rewrite setP eq_refl. Qed.
 
-  Lemma setP_neq {T} m x y (v:T) : x <> y -> m.[x <- v].[y] = m.[y].
-  Proof. by rewrite setP=> /eqP /negPf ->. Qed.
+  Lemma setP_neq {T} m x y (v:T) : x != y -> m.[x <- v].[y] = m.[y].
+  Proof. by rewrite setP => /negPf ->. Qed.
 
 End Mmake.
 
@@ -136,6 +139,9 @@ Module DMmake (K:DInjPos).
 
   Notation "x .[ k <- v ]" := (@set _ x k v) : dmap_scope.
   
+  Lemma get0 P x : (empty P).[x] = None.
+  Proof. by rewrite /empty /get PositiveMap.gempty. Qed.
+
   Lemma setP {P} (m: t P) x y (v:P x) :
     m.[x <- v].[y] = 
     match K.eq_dec x y with
@@ -151,15 +157,17 @@ Module DMmake (K:DInjPos).
     by move=> /K.t2P_inj /esym ?;apply Hneq.
   Qed.
 
-  Lemma setP_eq {T} m x (v:T) : m.[x <- v].[x] = Some v.
+  Lemma setP_eq {P} (m: t P) x (v:P x) : m.[x <- v].[x] = Some v.
   Proof. 
     rewrite setP;case: (K.eq_dec x x) (@K.eq_dec_r x x) => [eq _ | [] ].
     + by rewrite (eq_irrelevance eq (erefl x)).
     by move=> H;elim (H I).
   Qed.
 
-  Lemma setP_neq {T} m x y (v:T) : x <> y -> m.[x <- v].[y] = m.[y].
-  Proof. by rewrite setP;case: K.eq_dec. Qed.
+  Lemma setP_neq {P} (m: t P) x y (v:P x) : x != y -> m.[x <- v].[y] = m.[y].
+  Proof. 
+    by rewrite setP;case: K.eq_dec=> // a /negP neq;elim neq;rewrite a.
+  Qed.
 
 End DMmake.
 

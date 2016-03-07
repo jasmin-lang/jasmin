@@ -11,6 +11,7 @@ COQFILES := \
 	src/dmasm_utils.v \
 	src/arithmetica.v \
 	src/dmasm_type.v \
+	src/dmasm_var.v \
 	src/dmasm_sem.v \
 	src/dmasm_Ssem.v \
 	src/dmasm_sem_props.v \

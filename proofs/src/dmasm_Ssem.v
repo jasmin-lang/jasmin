@@ -43,14 +43,14 @@ Fixpoint sdflt_val st :  sst2ty st :=
  * -------------------------------------------------------------------- *)
 
 Notation svmap     := (g_vmap sst2ty).
-Definition svmap_set {st} vm id v := nosimpl (@g_vmap_set sst2ty st vm id v).
-Definition svmap_get vm st id := nosimpl (@g_vmap_get sst2ty vm st id).
+Definition svmap_set vm id v := nosimpl (@g_vmap_set sst2ty vm id v).
+Definition svmap_get vm id := nosimpl (@g_vmap_get sst2ty vm id).
 Notation svmap0    := (@g_vmap0 sst2ty sdflt_val).
 
 Delimit Scope svmap_scope with svmap.
 Local Open Scope svmap_scope.
-Notation "vm .[ st , id ]" := (svmap_get vm st id) : svmap_scope.
-Notation "vm .[ k  <- v ]" := (svmap_set vm k v) : svmap_scope.
+Notation "vm .[ id ]" := (svmap_get vm id) : svmap_scope.
+Notation "vm .[ k  <- v ]" := (@svmap_set vm k v) : svmap_scope.
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
@@ -78,7 +78,7 @@ Definition ssem_sop st1 st2 (sop : sop st1 st2) : sst2ty st1 -> sst2ty st2 :=
 
 Fixpoint ssem_pexpr {st} (vm : svmap) (pe : pexpr st) : sst2ty st :=
   match pe with
-  | Pvar st v => vm.[st,vname v]
+  | Pvar v => vm.[v]
   | Pconst c  => c
   | Papp sta str so pe =>
       ssem_sop so (ssem_pexpr vm pe)
@@ -92,9 +92,7 @@ Fixpoint ssem_pexpr {st} (vm : svmap) (pe : pexpr st) : sst2ty st :=
 Definition swrite_subst := @g_write_subst sst2ty (fun t1 t2 =>  fst) (fun t1 t2 => snd).
 
 Definition swrite_vmap :=
-  foldr (fun (ts:g_tosubst sst2ty) vm =>
-          let (t,id,v) := ts in
-          vm.[id <- v]).
+  foldr (fun (ts:g_tosubst sst2ty) vm => vm.[ts.(ts_v) <- ts.(ts_to)]).
 
 Definition swrite_rval {st} (vm:svmap) (l:rval st) (v:sst2ty st) :=
    swrite_vmap vm (swrite_subst l v [::]).
@@ -170,13 +168,13 @@ with ssem_i : sestate -> instr -> sestate -> Prop :=
     ssem_for iv ws s1 c s2 ->
     ssem_i s1 (Cfor iv rng c) s2
 
-with ssem_for : var sword -> seq word -> sestate -> cmd -> sestate -> Prop :=
+with ssem_for : rval sword -> seq word -> sestate -> cmd -> sestate -> Prop :=
 
 | SEForDone s c iv :
     ssem_for iv [::] s c s
 
 | SEForOne s1 s2 s3 c w ws iv :
-    let ac := Cbcmd (Assgn (Rvar iv) (Pconst w)) :: c in
+    let ac := Cbcmd (Assgn iv (Pconst w)) :: c in
     ssem                s1 ac s2 ->
     ssem_for iv (ws)    s2 c  s3 ->
     ssem_for iv (w::ws) s1 c  s3.
