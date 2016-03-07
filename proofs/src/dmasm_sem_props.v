@@ -14,9 +14,9 @@ Import GRing.Theory.
 
 Local Open Scope ring_scope.
 Local Open Scope fun_scope.
-Local Open Scope fmap.
-Local Open Scope fset.
 Local Open Scope vmap.
+Local Open Scope fset.
+Local Open Scope seq_scope.
 
 (* ** Equivalence relations on vmaps
  * -------------------------------------------------------------------- *)
@@ -412,8 +412,12 @@ Proof.
   move=> Hsub.
   rewrite /vmap_eq_except => Heq st i Hnot.
   apply Heq.
-  admit.
-Admitted.
+  Locate "\notin".
+  rewrite /fsubset in Hsub.
+  move: Hsub => /eqP <-.
+  rewrite in_fsetI. apply/nandP.
+  by right.
+Qed.
 
 Lemma eq_except_trans vm1 vm2 vm3 s:
   vm1 = vm2 [\ s ] ->
@@ -421,13 +425,92 @@ Lemma eq_except_trans vm1 vm2 vm3 s:
   vm1 = vm3 [\ s ].
 Proof.
   (do 3 rewrite /vmap_eq_except) => W1 W2 st k Hnotin.
-  rewrite W1 => //.
-  by rewrite W2 => //.  
+  by rewrite W1 => //; rewrite W2.  
+Qed.
+
+Lemma vmap_set_neq {t1 t2} id x (v : st2ty t1) vm: id <> x ->
+    vm.[id <- v].[t2,x] = vm.[t2,x].
+Proof.
+  rewrite /vmap_set /vmap_get /=; case: eq_stype => //= a.
+  move: v; case: _ / a=> v.
+  by rewrite /= => /eqP /negPf ->.
+Qed.
+
+Lemma vmap_set_neq_t {t1 t2} id x (v : st2ty t1) vm: t2 <> t1 ->
+    vm.[id <- v].[t2,x] = vm.[t2,x].
+Proof.
+  by rewrite /vmap_set /vmap_get /= => /nesym; case: eq_stype.
+Qed.
+
+Lemma eq_except_set st vm id (v : st2ty st) :
+  vm = vm.[id <- v] [\ [fset id]].
+Proof.
+  rewrite /vmap_eq_except => st2 id2 Hnotin.
+  case_eq (id == id2).
+  + by move=> /eqP Heq; move: Hnotin; rewrite Heq fset11.
+  + rewrite -Bool.negb_true_iff.
+    move=> Hneq. rewrite (vmap_set_neq) => //.
+    by apply/eqP.
+Qed.
+
+Lemma write_vmap_eq_except_aux vm substs:
+  vm = write_vmap vm substs [\ seq_fset [seq ts.(ts_id) | ts <- substs ]].
+Proof.
+  elim substs => //.
+  move=> s ss //=.
+  destruct s => /=.
+  rewrite fset_cons.
+  set ws := (ts_id |` _).
+  move=> H1.
+  apply (@eq_except_sub _ _ _ ws) in H1; last by apply fsubsetUr.
+  have W:  write_vmap vm ss = (write_vmap vm ss).[ts_id <- ts_to] [\ws].
+    apply (@eq_except_sub _ _ [fset ts_id]); first by apply fsubsetUl.
+    apply eq_except_set.    
+  by apply (eq_except_trans H1 W).
+Qed.
+
+Lemma write_subst_arg st (rv : rval st) (v : st2ty st) (l : seq (g_tosubst st2ty)):
+  write_subst rv v l = (write_subst rv v [::]) ++ l.
+Proof.
+  generalize l.
+  induction rv => /=.
+  + by case v0 => vn; move => ls //.
+  + move => ls. rewrite IHrv1 IHrv2.
+    by rewrite (IHrv2 _ (write_subst rv1 v.1 [::])) catA.
+Qed.
+
+Lemma seq_fset_cat (aT : choiceType) (l1 : seq aT) (l2 : seq aT):
+  seq_fset (l1 ++ l2) = seq_fset l1 `|` seq_fset l2.
+Proof.
+  elim l1.
+  + by rewrite cat0s (_ : seq_fset [::] = fset0) !(fset0U,seq_fset0).
+  + move=> x xs.
+    rewrite cat_cons /= !fset_cons; move=> ->.
+    by rewrite fsetUA.
+Qed.
+
+Lemma ids_rval_write_substs st (rv : rval st) (v : st2ty st):
+  ids_rval rv = seq_fset [seq ts.(ts_id) | ts <- write_subst rv v [::] ].
+Proof.
+  induction rv.
+  + by case v0 => vn; rewrite /=.
+  + rewrite /= write_subst_arg map_cat seq_fset_cat.
+    by rewrite (IHrv1 v.1) (IHrv2 v.2) fsetUC.
 Qed.
 
 Lemma write_rval_eq_except st vm (rv : rval st) (v : st2ty st):
   vm = write_rval vm rv v [\ids_rval rv].
-Proof. Admitted.
+Proof.
+  rewrite /write_rval (ids_rval_write_substs rv v).
+  by apply write_vmap_eq_except_aux.
+Qed.
+
+Lemma write_rval_eq_except_imp st vm1 vm2 (rv : rval st) (v : st2ty st) s:
+  vm1 = vm2 [\s ] ->
+  write_rval vm1 rv v = write_rval vm2 rv v [\ s].
+Proof.
+  rewrite /write_rval. admit.
+Admitted.
 
 Lemma sem_bcmd_eq_except s1 s2 bc:
   sem_bcmd s1 bc = ok s2 ->
@@ -510,6 +593,10 @@ Definition inline_call i :=
   | Ccall sta str rv_res fd pe_arg => Some (inlined_call rv_res fd pe_arg)
   end.
 
+Lemma eq_except_sym vm1 vm2 s:
+  vm1 = vm2 [\ s] -> vm2 = vm1 [\ s].
+Proof. rewrite /vmap_eq_except => Heq st id Hnotin. rewrite Heq; done. Qed.
+
 Lemma inline_call_simul sta str (s1 s2 : estate) (fd : fundef sta str) rv_res pe_arg:
   sem s1 (inlined_call rv_res fd pe_arg) s2 ->
   exists s2',
@@ -525,20 +612,41 @@ Proof.
   inversion H2 => {H2}. clear H4 H H0 s4 s0 c.
   inversion H3 => {H3}. clear H4 H H0 s4 s0 c.
   rewrite /write_fdef /=.
-  pose s2' := ({| emem := s2.(emem); evm := write_rval s1.(evm) rv_res
-                                              (rdflt_ (sem_pexpr s2_1.(evm) p))|}).
+  pose s2' := ({| emem := s2.(emem);
+                  evm := write_rval s1.(evm) rv_res (rdflt_ (sem_pexpr s2_1.(evm) p)) |}).
   exists s2'.
   split.
   + apply (Eseq (s2:= s2')); last by apply Eskip.
-    rewrite /s2'. case s1 => m1 vm1.
-    apply (Ecall (vmc0:=vm1)).
-    + admit.
-    + admit.
-    + admit.
+    rewrite /s2'. move: H1. case s1 => m1 vm1 H1.
+    have Hok: isOk (sem_pexpr vm1 pe_arg).
+    + by move: H1; rewrite /sem_bcmd /=; case (sem_pexpr vm1 pe_arg).
+    have Hok2: isOk (sem_pexpr (evm s2_1) p).
+    + by move: H2; rewrite /sem_bcmd /=; case (sem_pexpr (evm s2_1) p). 
+    apply (Ecall (vmc0:=vm1)) => //.
+    move: H1 Hok => /=. case (sem_pexpr vm1 pe_arg) => v //= Heq Ht {Ht}.
+    move: Heq; case => Heq. rewrite -Heq in Hsl.
+    move: H2 Hok2 => /=. case (sem_pexpr (evm s2_1) p) => v2 //= Heq2 Ht {Ht}.
+    move: Heq2; case. case s2 => m2 vm2; case => Heq3.
+    rewrite /= -Heq3 /=.
+    have ->: {| emem := emem s2_1; evm := evm s2_1 |} = s2_1. case s2_1; done.
+    done. 
   split => //.
   rewrite /=.
-  admit.
-Admitted.
+  have W: evm s2_1 = evm s1 [\ids_rval r `|` write_cmd l].
+    have Q1: evm s1 = evm s3 [\ids_rval r `|` write_cmd l].
+      apply (@eq_except_sub _ _ (ids_rval r)). apply fsubsetUl.
+      by apply (sem_bcmd_eq_except H1).
+    have Q2: evm s3 = evm s2_1 [\ids_rval r `|` write_cmd l].
+      apply (@eq_except_sub _ _ (write_cmd l)). apply fsubsetUr.
+      by apply (sem_eq_except Hsl).
+    apply eq_except_sym.
+    by apply (eq_except_trans Q1 Q2).
+  have WW: evm s2 = write_rval (evm s1) rv_res (rdflt_ (sem_pexpr (evm s2_1) p))
+             [\ids_rval r `|` write_cmd l]. 
+    move: H2 => /=. case (sem_pexpr (evm s2_1) p) => v //=. case. case s2 => m2 vm2 /=.
+    case => HH <-.  by apply write_rval_eq_except_imp.
+  apply WW.
+Qed.
 
 (* ** Modify command at given position
  * -------------------------------------------------------------------- *)
@@ -635,26 +743,4 @@ Definition subst_cmd (s : subst) (c : cmd) :=
   (fun i rn _ c => Cfor i (subst_range s rn) c)
   (fun _ _ x _ a f =>  Ccall  x f (subst_pexpr s a))
   (fun _ _ x _ re c => FunDef x c (subst_pexpr s re)).
-*)
-
-(*
-(* ** Definitions: {phi} c {psi} <=> (c <^> phi) <= psi
- * -------------------------------------------------------------------- *)
-
-Notation assn := (estate -> Prop).
-
-Definition post (c : cmd) (Pre: assn) : assn :=
-  fun est' => exists est, Pre est /\ sem est c est'.
-
-Notation "c <^> sts" := (post c sts) (at level 40, left associativity).
-
-Parameter rn_pred : renaming -> assn -> assn.
-
-Lemma rn_commutes (pi : renaming) (sts : assn) (c : cmd):
-  bijective pi ->
-    (rn_cmd NoRecurse pi c) <^> (rn_pred pi sts)
-  = rn_pred pi (c <^> sts).
-Proof.
-move=> Hbij.
-Admitted.
 *)

@@ -107,12 +107,15 @@ Fixpoint unions_seq (K : choiceType) (ss : seq {fset K}) : {fset K} :=
 
 Definition unions (K : choiceType) (ss : {fset {fset K}}) : {fset K} :=
   unions_seq (fset_keys ss).
+b
+Lemma seq_fset0 (aT : choiceType):  @seq_fset aT [::] = fset0.
+Proof. by apply/fsetP => x; rewrite in_seq_fsetE in_fset0 in_nil. Qed.
 
 Lemma unions_set_map_fset1 (aT : choiceType) (vs : seq aT):
   unions_seq (map fset1 vs) = seq_fset vs.
 Proof.
 elim: vs; last by move=> v vs; rewrite /= fset_cons => ->.
-by rewrite /=; apply/fsetP => x; rewrite in_seq_fsetE in_fset0 in_nil.
+by rewrite /= seq_fset0.
 Qed.
 
 Definition oeq aT (f : aT -> aT -> Prop) (o1 o2 : option aT) :=
@@ -243,5 +246,3 @@ Lemma req_on_refl eT (m : result eT {fmap K -> V}) (ks : {fset K}):
 Proof. by rewrite /req_on /req; case m. Qed.
 
 End ReqOn.
-
-
