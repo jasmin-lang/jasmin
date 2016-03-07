@@ -286,10 +286,10 @@ Definition sem_sop st1 st2 (sop : sop st1 st2) : st2ty st1 -> exec (st2ty st2) :
   | Ofst t1 t2 => fun (xy : (st2ty t1 * st2ty t2)) => ok xy.1
   | Osnd t1 t2 => fun (xy : (st2ty t1 * st2ty t2)) => ok xy.2
   | Oadd       => fun (xy : word * word) =>
-                    let n := (w2n xy.1 + w2n xy.2)%nat in
+                    let n := (xy.1 + xy.2)%nat in
                     ok (n >= 2^wsize,n%:R)
   | Oaddc      => fun (xy_b : word * word * bool) =>
-                    let n := (w2n xy_b.1.1 + w2n xy_b.1.2 + xy_b.2%N)%nat in
+                    let n := (xy_b.1.1 + xy_b.1.2 + xy_b.2%N)%nat in
                     ok (n >= 2^wsize,n%:R)
   | Oeq        => fun (xy : word * word) => ok (xy.1 == xy.2)
   | Olt        => fun (xy : word * word) => ok (xy.1 < xy.2)

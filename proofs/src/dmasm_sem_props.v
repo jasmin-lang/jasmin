@@ -561,9 +561,9 @@ Fixpoint map_pos_instr (p : pos) (f : instr -> option cmd) (i : instr) {struct p
       [:: Ccall rv_res fd pe_arg] (* p cannot point into function body *)
     | Cif pe c1 c2 =>
       match j with
-      | 0%N => [:: Cif pe (map_pos_cmd p f c1) c2]
-      | 1%N => [:: Cif pe c1 (map_pos_cmd p f c2)]
-      | _   => [:: Cif pe c1 c2]
+      | 0%nat => [:: Cif pe (map_pos_cmd p f c1) c2]
+      | 1%nat => [:: Cif pe c1 (map_pos_cmd p f c2)]
+      | _     => [:: Cif pe c1 c2]
       end
     end
   end

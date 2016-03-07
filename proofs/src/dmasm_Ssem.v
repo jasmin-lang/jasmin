@@ -64,10 +64,10 @@ Definition ssem_sop st1 st2 (sop : sop st1 st2) : sst2ty st1 -> sst2ty st2 :=
   | Ofst t1 t2 => fst
   | Osnd t1 t2 => snd
   | Oadd       =>
-    fun x => let n := (x.1 + x.2)%N in (n >= 2^wsize,n%:R)
+    fun x => let n := (x.1 + x.2)%nat in (n >= 2^wsize,n%:R)
   | Oaddc      =>
     fun x => let: (x,y,b) := x in
-             let n := (x + y + b%N)%N in
+             let n := (x + y + b%N)%nat in
              (n >= 2^wsize,(w2n x + w2n y)%:R)
   | Oeq        => fun x => x.1 == x.2
   | Olt        => fun x => x.1 < x.2
