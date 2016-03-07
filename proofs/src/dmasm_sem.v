@@ -114,6 +114,15 @@ with fundef : stype -> stype -> Type :=
 
 Notation cmd := (seq instr).
 
+Definition fd_arg sta str (fd : fundef sta str) : rval sta :=
+  match fd with FunDef _ _ fa _ _ => fa end.
+
+Definition fd_body sta str (fd : fundef sta str) : cmd :=
+  match fd with FunDef _ _ _ fb _ => fb end.
+
+Definition fd_res sta str (fd : fundef sta str) : pexpr str :=
+  match fd with FunDef _ _ _ _ fr => fr end.
+
 Section IND.
   Variable Pi : instr -> Type.
   Variable Pc : cmd -> Type.
@@ -425,17 +434,16 @@ with sem_i : estate -> instr -> estate -> Prop :=
     sem s1 (if cond then c1 else c2) s2 ->
     sem_i s1 (Cif pe c1 c2) s2
 
-| Ecall {m1 m2 vm1} vmc1 {vmc2 starg stres farg fres fbody rv_res pe_arg} :
+| Ecall m1 m2 vm1 vmc0 vmc2 starg stres farg fres fbody rv_res pe_arg :
     isOk (@sem_pexpr starg vm1 pe_arg) ->
     let arg := rdflt_ (@sem_pexpr starg vm1 pe_arg) in
-    let vmc1 := @write_rval starg vmc1 farg arg in
-    sem (Estate m1 vmc1) fbody (Estate m2 vmc2) ->
+    let vmc1 := @write_rval starg vmc0 farg arg in
+    sem (Estate m1 vmc1) fbody (Estate m2 vmc2)->
     isOk (@sem_pexpr stres vmc2 fres) ->
-    let res := rdflt_ (@sem_pexpr stres vmc2 fres) in
-    let vm2 := @write_rval stres vm1 rv_res res in
     sem_i (Estate m1 vm1)
-        (@Ccall starg stres rv_res (FunDef farg fbody fres) pe_arg)
-        (Estate m2 vm2)
+          (@Ccall starg stres rv_res (FunDef farg fbody fres) pe_arg)
+          (Estate m2
+             (@write_rval stres vm1 rv_res (rdflt_ (@sem_pexpr stres vmc2 fres))))
 
 | EFor s1 s2 iv rng c ws :
     sem_range s1.(evm) rng = ok ws ->
@@ -456,3 +464,20 @@ with sem_for : var sword -> seq word -> estate -> cmd -> estate -> Prop :=
 Scheme sem_Ind := Minimality for sem Sort Prop
 with sem_i_Ind := Minimality for sem_i Sort Prop
 with sem_for_Ind := Minimality for sem_for Sort Prop.
+
+Lemma sem_inv_app l1 l2 s1 s2:
+  sem s1 (l1 ++ l2) s2 ->
+  exists s3,
+    sem s1 l1 s3 /\ sem s3 l2 s2.
+Proof.
+  generalize s1.
+  elim l1.
+  + move=> s1_. rewrite /= => H.
+    by exists s1_; split; first by constructor.
+  + move=> inst c Hi s1_ Hs.
+    rewrite cat_cons in Hs.
+    inversion Hs => {Hs}.
+    move: (Hi _ H4). elim => s5. case => Hs1 Hs2.
+    exists s5. split => //.
+    by apply (Eseq (s2:=s3)).
+Qed.
