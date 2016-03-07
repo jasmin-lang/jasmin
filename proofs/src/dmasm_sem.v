@@ -280,33 +280,30 @@ Definition exec t := result error t.
 Definition ok := Ok error. 
 
 Definition sem_sop st1 st2 (sop : sop st1 st2) : st2ty st1 -> exec (st2ty st2) :=
-  match sop with
-  | Oand       => fun (xy : bool * bool) => let (x,y) := xy in ok (x && y)
+  match sop in sop st1 st2 return st2ty st1 -> exec (st2ty st2) with
+  | Oand       => fun (xy : bool * bool) => ok (xy.1 && xy.2)
   | Onot       => fun b => ok (~~ b)
-  | Ofst t1 t2 => fun (xy : (st2ty t1 * st2ty t2)) => ok (fst xy)
-  | Osnd t1 t2 => fun (xy : (st2ty t1 * st2ty t2)) => ok (snd xy)
+  | Ofst t1 t2 => fun (xy : (st2ty t1 * st2ty t2)) => ok xy.1
+  | Osnd t1 t2 => fun (xy : (st2ty t1 * st2ty t2)) => ok xy.2
   | Oadd       => fun (xy : word * word) =>
-                    let n := (fst xy + snd xy)%N in
+                    let n := (w2n xy.1 + w2n xy.2)%nat in
                     ok (n >= 2^wsize,n%:R)
-  | Oaddc      => fun (xy : word * word * bool) =>
-                    let: (x,y,b) := xy in
-                    let n := (x + y + b%N)%N in
-                    ok (n >= 2^wsize,(w2n x + w2n y)%:R)
-  | Oeq        => fun (xy : word * word) => let (x,y) := xy in ok (x == y)
-  | Olt        => fun (xy : word * word) => let (x,y) := xy in ok (x < y)
+  | Oaddc      => fun (xy_b : word * word * bool) =>
+                    let n := (w2n xy_b.1.1 + w2n xy_b.1.2 + xy_b.2%N)%nat in
+                    ok (n >= 2^wsize,n%:R)
+  | Oeq        => fun (xy : word * word) => ok (xy.1 == xy.2)
+  | Olt        => fun (xy : word * word) => ok (xy.1 < xy.2)
   | Oget n     => fun (ai : (n.+1).-tuple word * word) =>
-                    let (a,wi) := ai in
-                    let i := w2n wi in
+                    let i := w2n ai.2 in
                     if i > n
                     then Error ErrOob
-                    else ok (tnth a (@inZp n i))
-  | Oset n     => fun (ai : (n.+1).-tuple word * word * word) =>
-                    let: (a,wi,v) := ai in
-                    let i := w2n wi in
+                    else ok (tnth ai.1 (@inZp n i))
+  | Oset n     => fun (a_i_v : (n.+1).-tuple word * word * word) =>
+                    let i := w2n a_i_v.1.2 in
                     if i > n
                     then Error ErrOob
                     else
-                      ok [tuple (if j == inZp i then v else tnth a j) | j < n.+1]
+                      ok [tuple (if j == inZp i then a_i_v.2 else tnth a_i_v.1.1 j) | j < n.+1]
   end.
 
 Fixpoint sem_pexpr st (vm : vmap) (pe : pexpr st) : exec (st2ty st) :=
