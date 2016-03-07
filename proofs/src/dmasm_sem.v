@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import finmap strings dmasm_utils.
+Require Import finmap strings dmasm_utils dmasm_type.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -42,15 +42,6 @@ Canonical  ident_choiceType  := ChoiceType ident ident_choiceMixin.
 
 (* ** Syntax
  * -------------------------------------------------------------------- *)
-
-(* more expressive than required, but leads to simpler definitions *)
-Inductive stype : Set :=
-| sword : stype
-| sbool : stype
-| sprod : stype -> stype -> stype
-| sarr  : forall (n : nat), stype -> stype.
-
-Notation "st1 ** st2" := (sprod st1 st2) (at level 40, left associativity).
 
 Inductive sop : stype -> stype -> Set :=
 (* bools *)
@@ -171,34 +162,6 @@ Definition assgn st (rv : rval st) pe := Cbcmd (Assgn rv pe).
 Definition load rv pe := Cbcmd (Load rv pe).
 Definition store pe1 pe2 := Cbcmd (Store pe1 pe2).
 
-(* ** Equality and choice
- * -------------------------------------------------------------------- *)
-
-Scheme Equality for stype. 
-(* Definition stype_beq : stype -> stype -> bool *)
-
-
-Definition eq_stype (st1 st2 : stype) : {st1 = st2} + {st1<>st2}.
-Proof. apply stype_eq_dec. Qed.
-
-Parameter st2n : stype -> nat.
-Parameter n2st : nat -> stype.
-Lemma codeK_stype : cancel st2n n2st. 
-Admitted.
-
-Lemma steq_axiom : Equality.axiom stype_beq. 
-Proof. 
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_stype_dec_bl.
-  by apply: internal_stype_dec_lb.
-Qed.
-
-Definition stype_eqMixin     := Equality.Mixin steq_axiom.
-Canonical  stype_eqType      := Eval hnf in EqType stype stype_eqMixin.
-
-Definition stype_choiceMixin := CanChoiceMixin codeK_stype.
-Canonical  stype_choiceType  := ChoiceType stype stype_choiceMixin.
-
 (* ** Default values
  * -------------------------------------------------------------------- *)
 
@@ -289,7 +252,7 @@ Definition sem_sop st1 st2 (sop : sop st1 st2) : st2ty st1 -> exec (st2ty st2) :
                     let n := (xy.1 + xy.2)%nat in
                     ok (n >= 2^wsize,n%:R)
   | Oaddc      => fun (xy_b : word * word * bool) =>
-                    let n := (xy_b.1.1 + xy_b.1.2 + xy_b.2%N)%nat in
+                    let n := (xy_b.1.1 + xy_b.1.2 + xy_b.2)%nat in
                     ok (n >= 2^wsize,n%:R)
   | Oeq        => fun (xy : word * word) => ok (xy.1 == xy.2)
   | Olt        => fun (xy : word * word) => ok (xy.1 < xy.2)

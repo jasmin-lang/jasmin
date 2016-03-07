@@ -44,6 +44,14 @@ Qed.
 Definition stype_eqMixin     := Equality.Mixin steq_axiom.
 Canonical  stype_eqType      := Eval hnf in EqType stype stype_eqMixin.
 
+Parameter st2n : stype -> nat.
+Parameter n2st : nat -> stype.
+Lemma codeK_stype : cancel st2n n2st. 
+Admitted.
+
+Definition stype_choiceMixin := CanChoiceMixin codeK_stype.
+Canonical  stype_choiceType  := ChoiceType stype stype_choiceMixin.
+
 (* -------------------------------------------------------------------- *)
 Fixpoint n2P_app (n:nat) p := 
   match n with 

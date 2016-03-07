@@ -4,7 +4,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import Coq.Logic.Eqdep_dec.
-Require Import finmap strings  dmasm_utils dmasm_sem.
+Require Import finmap strings  dmasm_utils dmasm_type dmasm_sem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

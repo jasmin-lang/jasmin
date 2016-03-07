@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import finmap strings dmasm_utils dmasm_sem.
+Require Import finmap strings dmasm_utils dmasm_type dmasm_sem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -13,8 +13,6 @@ Import GRing.Theory.
 
 Open Scope string_scope.
 Local Open Scope ring_scope.
-Local Open Scope fset.
-Local Open Scope fmap.
 
 (* ** Type interpretation
  * -------------------------------------------------------------------- *)
@@ -66,9 +64,9 @@ Definition ssem_sop st1 st2 (sop : sop st1 st2) : sst2ty st1 -> sst2ty st2 :=
   | Oadd       =>
     fun x => let n := (x.1 + x.2)%nat in (n >= 2^wsize,n%:R)
   | Oaddc      =>
-    fun x => let: (x,y,b) := x in
-             let n := (x + y + b%N)%nat in
-             (n >= 2^wsize,(w2n x + w2n y)%:R)
+    fun x => 
+             let n := (x.1.1 + x.1.2 + x.2)%nat in 
+             (n >= 2^wsize,n%:R)
   | Oeq        => fun x => x.1 == x.2
   | Olt        => fun x => x.1 < x.2
   | Oget n     => fun x =>  let a := x.1 in let i := w2n x.2 in aget a i

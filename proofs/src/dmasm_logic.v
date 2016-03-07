@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple finfun.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import finmap strings dmasm_utils dmasm_sem dmasm_sem_props dmasm_Ssem.
+Require Import finmap strings dmasm_utils dmasm_type dmasm_sem dmasm_sem_props dmasm_Ssem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

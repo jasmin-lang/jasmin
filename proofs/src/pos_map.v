@@ -1,5 +1,6 @@
-From mathcomp Require Import ssreflect eqtype ssrbool choice ssrfun seq.
 Require Import ZArith FMapPositive.
+From mathcomp Require Import ssreflect eqtype ssrbool choice ssrfun seq.
+
 
 Set Implicit Arguments.
 Unset Strict Implicit.
