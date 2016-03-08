@@ -346,6 +346,14 @@ Definition sem_range (vm : vmap) (r : range) :=
   let n2 := w2n w2 in
   ok [seq n2w n | n <- wrange d n1 n2].
 
+Record call := Call {
+  c_sta : stype;
+  c_str : stype;
+  c_res : rval c_str;
+  c_fd  : fundef c_sta c_str;
+  c_arg : pexpr c_sta;
+}.
+
 Inductive sem : estate -> cmd -> estate -> Prop :=
 | Eskip s :
     sem s [::] s
@@ -363,16 +371,12 @@ with sem_i : estate -> instr -> estate -> Prop :=
     sem s1 (if cond then c1 else c2) s2 ->
     sem_i s1 (Cif pe c1 c2) s2
 
-| Ecall m1 m2 vm1 vmc0 vmc2 starg stres farg fres fbody rv_res pe_arg :
-    isOk (@sem_pexpr starg vm1 pe_arg) ->
-    let arg := rdflt_ (@sem_pexpr starg vm1 pe_arg) in
-    let vmc1 := @write_rval starg vmc0 farg arg in
-    sem (Estate m1 vmc1) fbody (Estate m2 vmc2)->
-    isOk (@sem_pexpr stres vmc2 fres) ->
-    sem_i (Estate m1 vm1)
-          (@Ccall starg stres rv_res (FunDef farg fbody fres) pe_arg)
-          (Estate m2
-             (@write_rval stres vm1 rv_res (rdflt_ (@sem_pexpr stres vmc2 fres))))
+| Ecall s1 s2 vmc sta str (res : rval str) (fd : fundef sta str) (arg : pexpr sta) :
+    (forall vmc,
+       exists s2, (* to enforce determinism, remove the exists *)
+         sem_call s1 (Call res fd arg) s2 vmc) ->
+    sem_call s1 (Call res fd arg) s2 vmc ->
+    sem_i s1 (Ccall res fd arg) s2
 
 | EFor s1 s2 iv rng c ws :
     sem_range s1.(evm) rng = ok ws ->
@@ -388,7 +392,20 @@ with sem_for : rval sword -> seq word -> estate -> cmd -> estate -> Prop :=
     let ac := Cbcmd (Assgn iv (Pconst w)) :: c in
     sem                s1 ac s2 ->
     sem_for iv (ws)    s2 c  s3 ->
-    sem_for iv (w::ws) s1 c  s3.
+    sem_for iv (w::ws) s1 c  s3
+
+with sem_call : estate -> call -> estate -> vmap -> Prop :=
+| EcallRun m1 m2 vm1 vmc0 vmc2 sta str (rv_res : rval str) fd (pe_arg : pexpr sta) :
+    isOk (sem_pexpr vm1 pe_arg) ->
+    let arg := rdflt_ (sem_pexpr vm1 pe_arg) in
+    let vmc1 := write_rval vmc0 fd.(fd_arg) arg in
+    sem (Estate m1 vmc1) fd.(fd_body) (Estate m2 vmc2) ->
+    isOk (sem_pexpr vmc2 fd.(fd_res)) ->       
+    sem_call (Estate m1 vm1)
+             (Call rv_res fd pe_arg)
+             (Estate m2
+               (write_rval vm1 rv_res (rdflt_ (sem_pexpr vmc2 fd.(fd_res)))))
+             vmc0.
 
 Scheme sem_Ind := Minimality for sem Sort Prop
 with sem_i_Ind := Minimality for sem_i Sort Prop
