@@ -16,11 +16,6 @@ Local Open Scope fmap.
 
 Axiom LEM : forall {T : Type}, forall (x y : T), {x=y}+{x<>y}.
 
-(* ** Admit
- * -------------------------------------------------------------------- *)
-
-Definition admit {T: Type} : T.  Admitted.
-
 (* ** Result monad
  * -------------------------------------------------------------------- *)
 
