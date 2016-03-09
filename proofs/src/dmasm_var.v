@@ -21,7 +21,7 @@ Definition ident := string.
 
 Module Mid := Ms.
 
-(* ** Dependent Type for variables 
+(* ** Type for variables 
  * -------------------------------------------------------------------- *)
 
 Record var := Var { vtype : stype; vname : ident }.
@@ -34,16 +34,54 @@ Canonical  var_eqType      := Eval hnf in EqType var var_eqMixin.
 Definition var_choiceMixin := CanChoiceMixin codeK_var.
 Canonical  var_choiceType  := ChoiceType var var_choiceMixin.
 
-(* ** Variable map
+(* ** Right values
  * -------------------------------------------------------------------- *)
 
-Module Mv.
+Inductive rval : stype -> Set :=
+| Rvar  : forall (x:var), rval x.(vtype)
+| Rpair : forall st1 st2, rval st1 -> rval st2 -> rval (st1 ** st2).
+
+(* ** Module type for variables map 
+ * -------------------------------------------------------------------- *)
+
+Module Type Vmap.
+
+  Parameter t : (stype -> Type) -> Type.
+
+  Parameter empty : forall to, (forall x, to x.(vtype)) -> t to.
+
+  Parameter get : forall {to}, t to -> forall (x:var), to x.(vtype).
+  
+  Parameter set : forall {to}, t to -> forall (x:var), to x.(vtype) -> t to.
+
+  Parameter get0 : 
+    forall {to} (dft: forall x, to x.(vtype)) (x:var), 
+      get (empty dft) x = dft x.
+
+  Parameter setP_eq :
+    forall {to} (m:t to) (x:var) (v:to x.(vtype)), 
+      get (@set to m x v) x = v.
+
+  Parameter setP_neq : 
+    forall {to} (m:t to) x y (v:to x.(vtype)), 
+      x != y -> get (@set to m x v) y = get m y.
+
+End Vmap.
+
+
+(* ** Variables map, to be used when computation is needed
+ * -------------------------------------------------------------------- *)
+
+
+Module Mv <: Vmap.
 
   Import DMst Mid.
-  Record t (to:stype -> Type) := MkT {
+  Record rt_ (to:stype -> Type) := MkT {
     dft : forall x,to x.(vtype);
     map : DMst.t (fun ty => Ms.t (to ty));
   }.
+
+  Definition t := rt_.
 
   Definition empty {to} (dft : forall x, to x.(vtype)) : t to := {|
      dft := dft;
@@ -96,3 +134,84 @@ Reserved Notation "x .[ k <- v ]"
 
 Notation "vm .[ x  <- v ]" := (@Mv.set _ vm x v) : mvar_scope.
 
+(* ** Variables function: to be not used if computation is needed, 
+ *                       but extentianality is permited 
+ * -------------------------------------------------------------------- *)
+
+Module Fv <: Vmap.
+  Record rt_ (to : stype -> Type) := Vmap {
+    map : forall x, to x.(vtype)
+  }.
+
+  Definition t := rt_.
+
+  Definition empty {to} dval : t to := {| map := dval |}.
+
+  Definition get {to} (vm : t to) x := nosimpl (vm.(map) x).
+
+  Definition set {to:stype -> Type} (vm : t to) x (v : to x.(vtype)) : t to :=
+    nosimpl ( 
+    Vmap (fun y =>
+      match (x =P y) with
+      | ReflectT eq => eq_rect x (fun x => to x.(vtype)) v y eq
+      | _           => vm.(map) y
+      end)).
+
+  Lemma get0 to dval x: @get to (empty dval) x = dval x.
+  Proof. done. Qed.
+    
+
+  Lemma setP_eq to (vm:t to) x (v:to x.(vtype)) : 
+    get (@set _ vm x v) x = v.
+  Proof.
+    rewrite /get /set /=;case: eqP => // p.
+    by rewrite (eq_irrelevance p (erefl x)).
+  Qed.
+
+  Lemma setP_neq to (vm:t to) x y (v:to x.(vtype)) : 
+    x != y ->
+    get (@set _ vm x v) y = get vm y.
+  Proof. by rewrite /get /set /=;case: eqP. Qed.
+
+  Definition ext_eq  {to} (vm1 vm2 : t to) :=
+    forall x, get vm1 x = get vm2 x.
+
+  Axiom map_ext: forall to (vm1 vm2 : t to), ext_eq vm1 vm2 -> vm1 = vm2.
+
+End Fv.
+
+Delimit Scope vmap_scope with vmap.
+Notation "vm .[ id ]" := (Fv.get vm id) : vmap_scope.
+Notation "vm .[ k  <- v ]" := (@Fv.set _ vm k v) : vmap_scope.
+Notation "vm1 =v vm2" := (Fv.ext_eq vm1 vm2) (at level 70, no associativity) : vmap_scope.
+
+Module Type WrInp.
+
+  Parameter to : stype -> Type.
+  Parameter fst : forall {t1 t2:stype}, to (t1 ** t2) -> to t1.
+  Parameter snd : forall {t1 t2:stype}, to (t1 ** t2) -> to t2.
+  
+End WrInp.
+
+Module WRmake (M:Vmap) (T:WrInp).
+  Import M T.
+
+  Record tosubst := ToSubst {
+    ts_v  : var;
+    ts_to : to ts_v.(vtype);
+  }.
+
+  Fixpoint write_subst {t} (l:rval t) : to t -> list tosubst -> list tosubst := 
+    match l in rval t_ return to t_ -> list tosubst -> list tosubst with
+    | Rvar x => fun v s =>  (@ToSubst x v) :: s
+    | Rpair t1 t2 rv1 rv2 => fun v s => 
+      write_subst rv2 (snd v) (write_subst rv1 (fst v) s)
+    end.
+
+  Definition write_vmap := 
+     foldr (fun (ts:tosubst) vm => @M.set _ vm ts.(ts_v) ts.(ts_to)).
+
+  Definition write_rval {t} (vm:M.t to) (l:rval t) (v:to t) :=
+     write_vmap vm (write_subst l v [::]).
+
+End WRmake.

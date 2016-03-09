@@ -13,8 +13,6 @@ Import GRing.Theory.
 
 Open Scope string_scope.
 Local Open Scope ring_scope.
-Local Open Scope fset.
-Local Open Scope fmap.
 
 (* ** Types for values
  * -------------------------------------------------------------------- *)
@@ -57,9 +55,6 @@ Inductive pexpr : stype -> Type :=
 | Ppair  : forall st1 st2, pexpr st1 -> pexpr st2 -> pexpr (st1 ** st2)
 | Papp   : forall starg stres: stype, sop starg stres -> pexpr starg -> pexpr stres.
 
-Inductive rval : stype -> Set :=
-| Rvar  : forall (x:var), rval x.(vtype)
-| Rpair : forall st1 st2, rval st1 -> rval st2 -> rval (st1 ** st2).
 
 Inductive bcmd :=
 | Assgn : forall st, rval st -> pexpr st -> bcmd
@@ -171,41 +166,16 @@ Definition rdflt_ (st : stype) e (r : result e (st2ty st)) : st2ty st :=
 (* ** Variable map
  * -------------------------------------------------------------------- *)
 
-Record g_vmap (to : stype -> Type) := Vmap {
-  vm_map : forall x, to x.(vtype)
-}.
+Notation vmap     := (Fv.t st2ty).
+Notation vmap0    := (@Fv.empty st2ty dflt_val).
 
-Definition g_vmap_set (to:stype -> Type) (vm : g_vmap to) x (v : to x.(vtype)) : g_vmap to :=
-  Vmap
-    (fun y =>
-       match (x =P y) with
-       | ReflectT eq => 
-         eq_rect x (fun x => to x.(vtype)) v y eq
-       | _           => vm.(vm_map) y
-       end).
+Module WrInp.
+  Definition to := st2ty.
+  Definition fst {t1 t2:stype} (v:to (t1 ** t2)): to t1 := v.1.
+  Definition snd {t1 t2:stype} (v:to (t1 ** t2)): to t2 := v.2.
+End WrInp.
 
-Definition g_vmap0 to (dval : forall x, to x.(vtype)) : g_vmap to := 
-  Vmap (fun x => dval x).
-
-Definition g_vmap_get to (vm : g_vmap to) x :=
-  vm.(vm_map) x.
-
-Notation vmap     := (g_vmap st2ty).
-Notation vmap0    := (@g_vmap0 st2ty dflt_val).
-Definition vmap_set  vm x v := nosimpl (@g_vmap_set st2ty vm x v).
-Definition vmap_get vm x := nosimpl (@g_vmap_get st2ty vm x).
-
-Definition vmap_ext_eq (vm1 vm2 : vmap) :=
-  forall x, vmap_get vm1 x = vmap_get vm2 x.
-
-Delimit Scope vmap_scope with vmap.
-Local Open Scope vmap_scope.
-Notation "vm .[ id ]" := (vmap_get vm id) : vmap_scope.
-Notation "vm .[ k  <- v ]" := (@vmap_set vm k v) : vmap_scope.
-Notation "vm1 =v vm2" := (vmap_ext_eq vm1 vm2) (at level 70, no associativity) : vmap_scope.
-
-(* There are probably many better ways to do this ... *)
-Axiom vmap_ext: forall (vm1 vm2 : vmap), vm1 =v vm2 -> vm1 = vm2.
+Module W := WRmake Fv WrInp.
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
@@ -244,7 +214,7 @@ Definition sem_sop st1 st2 (sop : sop st1 st2) : st2ty st1 -> exec (st2ty st2) :
 
 Fixpoint sem_pexpr st (vm : vmap) (pe : pexpr st) : exec (st2ty st) :=
   match pe with
-  | Pvar v => ok (vm.[ v ])
+  | Pvar v => ok (vm.[ v ]%vmap)
   | Pconst c => ok c
   | Papp sta str so pe =>
       sem_pexpr vm pe >>= fun v =>
@@ -255,38 +225,6 @@ Fixpoint sem_pexpr st (vm : vmap) (pe : pexpr st) : exec (st2ty st) :=
       ok (v1,v2)
   end.
 
-(* ** Writing local variables
- * -------------------------------------------------------------------- *)
-
-Section WRITE.
-
-  Variable to : stype -> Type.
- 
-  Record g_tosubst  := ToSubst {
-    ts_v  : var;
-    ts_to : to ts_v.(vtype);
-  }.
-
-  Variable fst : forall {t1 t2:stype}, to (t1 ** t2) -> to t1.
-  Variable snd : forall {t1 t2:stype}, to (t1 ** t2) -> to t2.
-
-  Fixpoint g_write_subst {st} (l:rval st) : to st -> list g_tosubst -> list g_tosubst := 
-    match l in rval st_ return to st_ -> list g_tosubst -> list g_tosubst with
-    | Rvar x => fun v s =>  (@ToSubst x v) :: s
-    | Rpair t1 t2 rv1 rv2 => fun v s => 
-      g_write_subst rv2 (snd v) (g_write_subst rv1 (fst v) s)
-    end.
-
-End WRITE.
-
-Definition write_subst := @g_write_subst st2ty (fun t1 t2 => fst) (fun t1 t2 => snd).
-
-Definition write_vmap := 
-  foldr (fun (ts:g_tosubst st2ty) vm => vm.[ts.(ts_v) <- ts.(ts_to)]).
-
-Definition write_rval {st} (vm:vmap) (l:rval st) (v:st2ty st) :=
-  write_vmap vm (write_subst l v [::]).
-  
 (* ** Memory
  * -------------------------------------------------------------------- *)
 
@@ -296,7 +234,7 @@ Variable valid_addr : word -> bool.
 
 Definition read_mem (m : mem) (p : word) : exec word :=
   if valid_addr p
-  then o2r ErrAddrUndef (m.[? p])
+  then o2r ErrAddrUndef (m.[? p]%fmap)
   else Error ErrAddrInvalid.
 
 Definition write_mem (m : mem) (p w : word) : exec mem :=
@@ -316,12 +254,12 @@ Definition sem_bcmd (es : estate) (bc : bcmd) : exec estate :=
   match bc with
   | Assgn st rv pe =>
       sem_pexpr es.(evm) pe >>= fun v =>
-      let vm := write_rval es.(evm) rv v in
+      let vm := W.write_rval es.(evm) rv v in
       ok (Estate es.(emem) vm)
   | Load rv pe_addr =>
       sem_pexpr es.(evm) pe_addr >>= fun p =>
       read_mem es.(emem) p >>= fun w =>
-      let vm := write_rval es.(evm) rv w in
+      let vm := W.write_rval es.(evm) rv w in
       ok (Estate es.(emem) vm)
 
   | Store pe_addr pe_val =>
@@ -398,13 +336,13 @@ with sem_call : estate -> call -> estate -> vmap -> Prop :=
 | EcallRun m1 m2 vm1 vmc0 vmc2 sta str (rv_res : rval str) fd (pe_arg : pexpr sta) :
     isOk (sem_pexpr vm1 pe_arg) ->
     let arg := rdflt_ (sem_pexpr vm1 pe_arg) in
-    let vmc1 := write_rval vmc0 fd.(fd_arg) arg in
+    let vmc1 := W.write_rval vmc0 fd.(fd_arg) arg in
     sem (Estate m1 vmc1) fd.(fd_body) (Estate m2 vmc2) ->
     isOk (sem_pexpr vmc2 fd.(fd_res)) ->       
     sem_call (Estate m1 vm1)
              (Call rv_res fd pe_arg)
              (Estate m2
-               (write_rval vm1 rv_res (rdflt_ (sem_pexpr vmc2 fd.(fd_res)))))
+               (W.write_rval vm1 rv_res (rdflt_ (sem_pexpr vmc2 fd.(fd_res)))))
              vmc0.
 
 Scheme sem_Ind := Minimality for sem Sort Prop

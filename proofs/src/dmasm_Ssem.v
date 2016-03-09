@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import finmap strings dmasm_utils dmasm_type dmasm_sem.
+Require Import finmap strings dmasm_utils dmasm_type dmasm_var dmasm_sem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -42,15 +42,17 @@ Fixpoint sdflt_val st :  sst2ty st :=
 (* ** Variable map
  * -------------------------------------------------------------------- *)
 
-Notation svmap     := (g_vmap sst2ty).
-Definition svmap_set vm id v := nosimpl (@g_vmap_set sst2ty vm id v).
-Definition svmap_get vm id := nosimpl (@g_vmap_get sst2ty vm id).
-Notation svmap0    := (@g_vmap0 sst2ty sdflt_val).
 
-Delimit Scope svmap_scope with svmap.
-Local Open Scope svmap_scope.
-Notation "vm .[ id ]" := (svmap_get vm id) : svmap_scope.
-Notation "vm .[ k  <- v ]" := (@svmap_set vm k v) : svmap_scope.
+Notation svmap     := (Fv.t sst2ty).
+Notation svmap0    := (@Fv.empty sst2ty sdflt_val).
+
+Module WrInp.
+  Definition to := sst2ty.
+  Definition fst {t1 t2:stype} (v:to (t1 ** t2)): to t1 := v.1.
+  Definition snd {t1 t2:stype} (v:to (t1 ** t2)): to t2 := v.2.
+End WrInp.
+
+Module W := WRmake Fv WrInp.
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
@@ -78,24 +80,13 @@ Definition ssem_sop st1 st2 (sop : sop st1 st2) : sst2ty st1 -> sst2ty st2 :=
 
 Fixpoint ssem_pexpr {st} (vm : svmap) (pe : pexpr st) : sst2ty st :=
   match pe with
-  | Pvar v => vm.[v]
+  | Pvar v => vm.[v]%vmap
   | Pconst c  => c
   | Papp sta str so pe =>
       ssem_sop so (ssem_pexpr vm pe)
   | Ppair st1 st2 pe1 pe2 =>
       (ssem_pexpr vm pe1, ssem_pexpr vm pe2)
   end.
-
-(* ** Writing local variables
- * -------------------------------------------------------------------- *)
-
-Definition swrite_subst := @g_write_subst sst2ty (fun t1 t2 =>  fst) (fun t1 t2 => snd).
-
-Definition swrite_vmap :=
-  foldr (fun (ts:g_tosubst sst2ty) vm => vm.[ts.(ts_v) <- ts.(ts_to)]).
-
-Definition swrite_rval {st} (vm:svmap) (l:rval st) (v:sst2ty st) :=
-   swrite_vmap vm (swrite_subst l v [::]).
 
 (* ** Instructions
  * -------------------------------------------------------------------- *)
@@ -109,12 +100,12 @@ Definition ssem_bcmd (es : sestate) (bc : bcmd) : exec sestate :=
   match bc with
   | Assgn st rv pe =>
       let v := ssem_pexpr es.(sevm) pe in
-      let vm := swrite_rval es.(sevm) rv v in
+      let vm := W.write_rval es.(sevm) rv v in
       ok (SEstate es.(semem) vm)
   | Load rv pe_addr =>
       let p := ssem_pexpr es.(sevm) pe_addr in
       read_mem es.(semem) p >>= fun w =>
-      let vm := swrite_rval es.(sevm) rv w in
+      let vm := W.write_rval es.(sevm) rv w in
       ok (SEstate es.(semem) vm)
 
   | Store pe_addr pe_val =>
@@ -155,10 +146,10 @@ with ssem_i : sestate -> instr -> sestate -> Prop :=
 
 | SEcall m1 m2 vm1 vmc1 vmc2 starg stres farg fres fbody rv_res pe_arg :
     let arg := ssem_pexpr vm1 pe_arg in
-    let vmc1 := swrite_rval vmc1 farg arg in
+    let vmc1 := W.write_rval vmc1 farg arg in
     ssem (SEstate m1 vmc1) fbody (SEstate m2 vmc2) ->
     let res := ssem_pexpr vmc2 fres in
-    let vm2 := swrite_rval vm1 rv_res res in
+    let vm2 := W.write_rval vm1 rv_res res in
     ssem_i (SEstate m1 vm1)
         (@Ccall starg stres rv_res (FunDef farg fbody fres) pe_arg)
         (SEstate m2 vm2)

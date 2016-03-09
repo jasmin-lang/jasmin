@@ -102,32 +102,29 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
-(* ** Weakest Precondition                                                    *)
+(* ** Substitution of variable by expressions                                 *)
 (* -------------------------------------------------------------------------- *)
+
+Module WrInpE.
+  Definition to := pexpr.
+  Definition fst t1 t2 (e:pexpr (t1 ** t2)) := (Papp (Ofst _ _) e).
+  Definition snd t1 t2 (e:pexpr (t1 ** t2)) := (Papp (Osnd _ _) e).
+End WrInpE.
+
+Module E := WRmake Mv WrInpE.
 
 Definition vsubst := Mv.t pexpr.
 
 Definition vsubst_id : vsubst := Mv.empty (fun x => Pvar x).
-
-Definition vsubst_add (s:vsubst) x e : vsubst := (s.[x <- e])%mv.
 
 Definition tosubst (s:vsubst) : subst := Mv.get s.
 
 Lemma tosubst_id (x:var) : tosubst vsubst_id x = Pvar x.
 Proof. by rewrite /tosubst /vsubst_id Mv.get0. Qed.
 
-(* TODO: move this *)
-Notation efst e := (Papp (Ofst _ _) e).
-Notation esnd e := (Papp (Osnd _ _) e).
-
-Definition ewrite_subst :=
-  @g_write_subst pexpr (fun t1 t2 e => efst e) (fun t1 t2 e => esnd e).
-
-Definition ewrite_vsubst := 
-  foldr (fun (ts:g_tosubst pexpr) vm => @vsubst_add vm ts.(ts_v) ts.(ts_to)).
-
-Definition ewrite_rval {st} (vm:vsubst) (l:rval st) (v:pexpr st) :=
-   ewrite_vsubst vm (ewrite_subst l v [::]).
+(* -------------------------------------------------------------------------- *)
+(* ** Weakest Precondition                                                    *)
+(* -------------------------------------------------------------------------- *)
 
 Inductive wppred (t:stype) : stype -> Type :=
   | WPbase : wppred t t
@@ -152,55 +149,30 @@ Definition s2h t (P:sst2ty t -> Prop) (p:spred t) :=
   fun (s:sestate) => eval_wppred P p.(sp_P) (ssem_pexpr s.(sevm) p.(sp_e)).
 
 Definition map_ssem_pe vm := 
-  map (fun ts:g_tosubst pexpr => {|ts_to := ssem_pexpr vm ts.(ts_to) |}).
+  map (fun ts:E.tosubst => {|W.ts_to := ssem_pexpr vm ts.(E.ts_to) |}).
 
-Lemma swrite_subst_map l vm {t} (rv:rval t) (e:pexpr t) :
-  swrite_subst rv (ssem_pexpr vm e) (map_ssem_pe vm l) = 
-  map_ssem_pe vm (ewrite_subst rv e l).
+Lemma write_subst_map l vm {t} (rv:rval t) (e:pexpr t) :
+  W.write_subst rv (ssem_pexpr vm e) (map_ssem_pe vm l) = 
+  map_ssem_pe vm (E.write_subst rv e l).
 Proof.
   elim: rv e l=> {t} [ | ?? r1 Hr1 r2 Hr2 e] l //=.
   by rewrite -Hr2 -Hr1. 
 Qed.
 
-Lemma svmap_set_neq id x (v:sst2ty id.(vtype)) vm: id != x ->
-    (vm.[id <- v].[x] = vm.[x])%svmap.
-Proof.
-  by rewrite /svmap_set /svmap_get /=; case: eqP.
-Qed.
-
-Lemma vsubst_add_neq s id (v:var) (e:pexpr id.(vtype)):
-   id != v -> 
-   tosubst (@vsubst_add s id e) v = tosubst s v. 
-Proof.
-  rewrite /tosubst/vsubst_add;apply: Mv.setP_neq.
-Qed.
-
-Lemma vsubst_add_eq v (s:vsubst) (e : pexpr v.(vtype)): 
-  tosubst (@vsubst_add s v e) v = e. 
-Proof.
-  rewrite /tosubst/vsubst_add;apply: Mv.setP_eq.
-Qed.
-
-Lemma svmap_set_eq vm id (v:sst2ty id.(vtype)): (vm.[id <- v].[id])%svmap = v.
-Proof.
-  rewrite /svmap_set /svmap_get /=;case: eqP=>// a.
-  by rewrite ((eq_irrelevance a) (erefl id)).
-Qed.
-
 Lemma ssem_subst_map {t2} (pe:pexpr t2) vm l :
-   ssem_pexpr vm (subst_pexpr (tosubst (ewrite_vsubst vsubst_id l)) pe) =
-   ssem_pexpr (swrite_vmap vm (map_ssem_pe vm l)) pe.
+   ssem_pexpr vm (subst_pexpr (tosubst (E.write_vmap vsubst_id l)) pe) =
+   ssem_pexpr (W.write_vmap vm (map_ssem_pe vm l)) pe.
 Proof.
   elim: pe => //= [ | ?? p1 Hp1 p2 Hp2| ??? p Hp];rewrite ?Hp1 ?Hp2 ?Hp //.
   elim: l => [ | [id e] l Hrec] x //=;first by rewrite tosubst_id //. 
-  case: (boolP (id == x))=> [/eqP <-| ?].
-  + by rewrite vsubst_add_eq svmap_set_eq.
-  rewrite svmap_set_neq // vsubst_add_neq // Hrec.
+  rewrite /tosubst;case: (boolP (id == x))=> [/eqP <-| ?].
+  + by rewrite Fv.setP_eq Mv.setP_eq.
+  by rewrite Fv.setP_neq // Mv.setP_neq. 
 Qed.
 
 Definition wp_asgn {t1 t2} (rv:rval t1) (e:pexpr t1) (p: spred t2) := 
   {| sp_t := p.(sp_t); sp_P := p.(sp_P);
-     sp_e := subst_pexpr (tosubst (ewrite_rval vsubst_id rv e)) p.(sp_e); |}.
+     sp_e := subst_pexpr (tosubst (E.write_rval vsubst_id rv e)) p.(sp_e); |}.
 
 Lemma hoare_asgn {t1 t2} (rv:rval t1) (e:pexpr t1) (P:sst2ty t2 -> Prop) (p: spred t2):
   hoare (s2h P (wp_asgn rv e p)) [:: Cbcmd (Assgn rv e)] (s2h P p).
@@ -208,7 +180,7 @@ Proof.
   move=> s1_ s2_;set c := Cbcmd _=> /ssem_iV s.
   case: _ {-1}_ _ / s (erefl c) => // s1 s2 ? H [] ?; subst=> {c s1_ s2_}.
   case: H=> <- {s2}; rewrite /wp_asgn /s2h /=.
-  by rewrite /swrite_rval /ewrite_rval (swrite_subst_map [::]) ssem_subst_map.
+  by rewrite /W.write_rval /E.write_rval (write_subst_map [::]) ssem_subst_map.
 Qed.
 
 (* TODO move this *)
@@ -371,7 +343,8 @@ Definition c :=
 
 
 
-Lemma c_ok : hoare (fun _ => True) c (fun s =>  s.(sevm).[x]%svmap = w0 /\ s.(sevm).[y]%svmap = w1).
+Lemma c_ok : 
+  hoare (fun _ => True) c (fun s =>  s.(sevm).[x]%vmap = w0 /\ s.(sevm).[y]%vmap = w1).
 Proof.
   set P := (fun (v:sst2ty (sword ** sword)) => v.1 = w0 /\ v.2 = w1).
   set p := {| sp_t := sword ** sword;
