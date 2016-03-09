@@ -26,11 +26,24 @@ Module Mid := Ms.
 
 Record var := Var { vtype : stype; vname : ident }.
 
+Definition var_beq (v1 v2:var) :=
+  let (t1,n1) := v1 in
+  let (t2,n2) := v2 in
+  (t1 == t2) && (n1 == n2).
+
+Lemma var_eqP : Equality.axiom var_beq. 
+Proof. 
+  move=> [t1 n1] [t2 n2];apply:(iffP idP) => /= [/andP[]/eqP->/eqP->| []->->] //.
+  by rewrite !eq_refl.
+Qed.
+
+Definition var_eqMixin := EqMixin var_eqP.
+Canonical  var_eqType  := EqType var var_eqMixin.
+
 Definition var2pair v := (v.(vtype), v.(vname)).
 Definition pair2var p := Var (fst p) (snd p).
+
 Lemma codeK_var : cancel var2pair pair2var. Proof. by rewrite /cancel; case => //. Qed.
-Definition var_eqMixin     := comparableClass (@LEM var).
-Canonical  var_eqType      := Eval hnf in EqType var var_eqMixin.
 Definition var_choiceMixin := CanChoiceMixin codeK_var.
 Canonical  var_choiceType  := ChoiceType var var_choiceMixin.
 

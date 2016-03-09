@@ -17,16 +17,49 @@ Local Open Scope ring_scope.
 (* ** Types for values
  * -------------------------------------------------------------------- *)
 
-Definition wsize : nat := nosimpl 64.
+Module Type SIZE.
+  Parameter wsize : nat.
+  Axiom wsizeE : wsize = 64.
+  
+  Parameter wbase : nat.
+  Axiom wbaseE : wbase = (2^wsize)%nat.
+  
+End SIZE. 
 
-Definition word := 'Z_(2^wsize).
+Module Size : SIZE.
+  Definition wsize := 64.
+  Lemma wsizeE  : wsize = 64. 
+  Proof. done. Qed.
+
+  Definition  wbase := (2 ^ wsize)%nat.
+  Lemma wbaseE : wbase = (2^wsize)%nat.
+  Proof. done. Qed.
+
+End Size.
+Export Size.
+
+Definition word := 'Z_(wbase).
 Definition w2n (w : word) : nat := w.
 Definition n2w (n : nat) : word :=  n%:R.
 
+Definition word_beq (w1 w2:word) := 
+  match w1, w2 with
+  | Ordinal n1 _, Ordinal n2 _ => n1 == n2
+  end.
+
+Lemma word_eqP : Equality.axiom word_beq. 
+Proof. 
+  move=> [n1 eq1] [n2 eq2];apply:(iffP idP) => /= [/eqP ?| [] ?];subst.
+  + by f_equal; apply eq_irrelevance.
+  by apply eq_refl.
+Qed.
+
+Definition word_eqMixin     := EqMixin word_eqP. 
+Canonical  word_eqType      := Eval hnf in EqType word word_eqMixin.
+
 Lemma codeK_word : cancel w2n n2w.
 Proof. rewrite /cancel /w2n /n2w => x. by rewrite natr_Zp. Qed.
-Definition word_eqMixin     := comparableClass (@LEM word).
-Canonical  word_eqType      := Eval hnf in EqType word word_eqMixin.
+
 Definition word_choiceMixin := CanChoiceMixin codeK_word.
 Canonical  word_choiceType  := ChoiceType word word_choiceMixin.
 
