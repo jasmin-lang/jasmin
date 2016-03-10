@@ -1,6 +1,7 @@
 (* * Syntax and semantics of the dmasm source language *)
 
 (* ** Imports and settings *)
+Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple finfun.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import dmasm_utils dmasm_type dmasm_var dmasm_sem 
@@ -122,7 +123,7 @@ Fixpoint eqb_sop t1 t2 t1' t2' (o:sop t1 t2) (o':sop t1' t2') :=
   
 Inductive spexpr : stype -> Type :=
 | Evar   : forall x:var, spexpr x.(vtype)
-| Econst : nat -> spexpr sword
+| Econst : N -> spexpr sword
 | Epair  : forall st1 st2, spexpr st1 -> spexpr st2 -> spexpr (st1 ** st2)
 | Eapp   : forall starg stres: stype, sop starg stres -> spexpr starg -> spexpr stres
 | Eif    : forall t, spexpr sbool -> spexpr t -> spexpr t -> spexpr t.
@@ -198,8 +199,7 @@ Definition map_ssem_pe vm :=
 
 Lemma sem_p2sp vm t (e:pexpr t) : ssem_spexpr vm (p2sp e) =  ssem_pexpr vm e.
 Proof.
-  elim: e => //=[ w | ?? e1 He1 e2 He2 | ?? op e He1];rewrite ?He1 ?He2 //.
-  by rewrite /n2w natr_Zp.
+  elim: e => //=[ ?? e1 He1 e2 He2 | ?? op e He1];rewrite ?He1 ?He2 //.
 Qed.
 
 Lemma p2sp_fst t1 t2 (e:pexpr (t1 ** t2)): 
@@ -471,16 +471,16 @@ Ltac wp_core P p :=
 
 Coercion Pvar : var >-> pexpr.
 Coercion Rvar : var >-> rval.
-Coercion Pconst : word >-> pexpr.
+Coercion Pconst : N >-> pexpr.
 Coercion Evar : var >-> spexpr.
-Coercion Econst : nat >-> spexpr.
+Coercion Econst : N >-> spexpr.
 
 Definition x := {| vtype := sword; vname := "x" |}.
 Definition y := {| vtype := sword; vname := "y" |}.
 Definition z := {| vtype := sword; vname := "z" |}.
 
-Definition w0 : word := 0.
-Definition w1 : word := 1.
+Definition w0 : N := 0.
+Definition w1 : N := 1.
 
 Definition c := 
   [:: assgn x w0;
@@ -488,18 +488,18 @@ Definition c :=
       Cif (Papp Oeq (Ppair x w1)) [::assgn z x] [::assgn z y] ].
 
 Lemma c_ok : 
-  hoare (fun _ => True) c (fun s =>  s.(sevm).[x]%vmap = w0 /\ s.(sevm).[y]%vmap = w1).
+  hoare (fun _ => True) c (fun s =>  s.(sevm).[x]%vmap = n2w w0 /\ s.(sevm).[y]%vmap = n2w w1).
 Proof.
-  set P := (fun (v:sst2ty (sword ** sword)) => v.1 = w0 /\ v.2 = w1).
+  set P := (fun (v:sst2ty (sword ** sword)) => v.1 = n2w w0 /\ v.2 = n2w w1).
   set p := Epair x y.
   wp_core P p.
   by skip.
 Qed.
 
 Lemma c_ok1 : 
-  hoare (fun _ => True) c (fun s =>  s.(sevm).[x]%vmap = w0 /\ s.(sevm).[z]%vmap = w1).
+  hoare (fun _ => True) c (fun s =>  s.(sevm).[x]%vmap = n2w w0 /\ s.(sevm).[z]%vmap = n2w w1).
 Proof.
-  set P := (fun (v:sst2ty (sword ** sword)) => v.1 = w0 /\ v.2 = w1).
+  set P := (fun (v:sst2ty (sword ** sword)) => v.1 = n2w w0 /\ v.2 = n2w w1).
   set p := Epair x z.
   wp_core P p.
 (* TODO: add a step of simplification in the wp *)

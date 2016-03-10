@@ -81,7 +81,7 @@ Definition ssem_sop st1 st2 (sop : sop st1 st2) : sst2ty st1 -> sst2ty st2 :=
 Fixpoint ssem_pexpr {st} (vm : svmap) (pe : pexpr st) : sst2ty st :=
   match pe with
   | Pvar v => vm.[v]%vmap
-  | Pconst c  => c
+  | Pconst c  => n2w c
   | Papp sta str so pe =>
       ssem_sop so (ssem_pexpr vm pe)
   | Ppair st1 st2 pe1 pe2 =>
@@ -165,7 +165,7 @@ with ssem_for : rval sword -> seq word -> sestate -> cmd -> sestate -> Prop :=
     ssem_for iv [::] s c s
 
 | SEForOne s1 s2 s3 c w ws iv :
-    let ac := Cbcmd (Assgn iv (Pconst w)) :: c in
+    let ac := Cbcmd (Assgn iv (Pconst (N.of_nat (w2n w)))) :: c in
     ssem                s1 ac s2 ->
     ssem_for iv (ws)    s2 c  s3 ->
     ssem_for iv (w::ws) s1 c  s3.

@@ -1,6 +1,7 @@
 (* * Syntax and semantics of the dmasm source language *)
 
 (* ** Imports and settings *)
+Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import finmap strings dmasm_utils dmasm_type dmasm_var.
@@ -84,10 +85,9 @@ Inductive sop : stype -> stype -> Set :=
 
 Inductive pexpr : stype -> Type :=
 | Pvar   : forall x:var, pexpr x.(vtype)
-| Pconst : word -> pexpr sword
+| Pconst : N -> pexpr sword
 | Ppair  : forall st1 st2, pexpr st1 -> pexpr st2 -> pexpr (st1 ** st2)
 | Papp   : forall starg stres: stype, sop starg stres -> pexpr starg -> pexpr stres.
-
 
 Inductive bcmd :=
 | Assgn : forall st, rval st -> pexpr st -> bcmd
@@ -248,7 +248,7 @@ Definition sem_sop st1 st2 (sop : sop st1 st2) : st2ty st1 -> exec (st2ty st2) :
 Fixpoint sem_pexpr st (vm : vmap) (pe : pexpr st) : exec (st2ty st) :=
   match pe with
   | Pvar v => ok (vm.[ v ]%vmap)
-  | Pconst c => ok c
+  | Pconst c => ok (n2w c)
   | Papp sta str so pe =>
       sem_pexpr vm pe >>= fun v =>
       (sem_sop so) v
@@ -325,6 +325,7 @@ Record call := Call {
   c_arg : pexpr c_sta;
 }.
 
+
 Inductive sem : estate -> cmd -> estate -> Prop :=
 | Eskip s :
     sem s [::] s
@@ -360,7 +361,7 @@ with sem_for : rval sword -> seq word -> estate -> cmd -> estate -> Prop :=
     sem_for iv [::] s c s
 
 | EForOne s1 s2 s3 c w ws iv :
-    let ac := Cbcmd (Assgn iv (Pconst w)) :: c in
+    let ac := Cbcmd (Assgn iv (Pconst (N.of_nat (w2n w)))) :: c in
     sem                s1 ac s2 ->
     sem_for iv (ws)    s2 c  s3 ->
     sem_for iv (w::ws) s1 c  s3
@@ -387,14 +388,10 @@ Lemma sem_inv_app l1 l2 s1 s2:
   exists s3,
     sem s1 l1 s3 /\ sem s3 l2 s2.
 Proof.
-  generalize s1.
-  elim l1.
-  + move=> s1_. rewrite /= => H.
-    by exists s1_; split; first by constructor.
-  + move=> inst c Hi s1_ Hs.
-    rewrite cat_cons in Hs.
-    inversion Hs => {Hs}.
-    move: (Hi _ H4). elim => s5. case => Hs1 Hs2.
-    exists s5. split => //.
-    by apply (Eseq (s2:=s3)).
+  elim: l1 s1 => [ | i c Hi] s1_.
+  + by exists s1_; split=>//; constructor.
+  rewrite cat_cons=>Hs;inversion_clear Hs.
+  case: (Hi _ H0)=> {H0 Hi} s1 [Hs1 Hs2].
+  exists s1;split => //.
+  by eapply Eseq;eauto.
 Qed.
