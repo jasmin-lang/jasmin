@@ -57,35 +57,52 @@ Module W := WRmake Fv WrInp.
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
-Definition ssem_sop st1 st2 (sop : sop st1 st2) : sst2ty st1 -> sst2ty st2 :=
-  match sop in sop st1_ st2_ return sst2ty st1_ -> sst2ty st2_ with
-  | Oand       => fun x => x.1 && x.2
+Definition ssem_sop1 st1 str (sop : sop1 st1 str) : sst2ty st1 -> sst2ty str :=
+  match sop in sop1 st1 str return sst2ty st1 -> sst2ty str with
   | Onot       => negb
-  | Ofst t1 t2 => fst
-  | Osnd t1 t2 => snd
-  | Oadd       =>
-    fun x => let n := (x.1 + x.2)%nat in (n >= 2^wsize,n%:R)
-  | Oaddc      =>
-    fun x => 
-             let n := (x.1.1 + x.1.2 + x.2)%nat in 
-             (n >= 2^wsize,n%:R)
-  | Oeq        => fun x => x.1 == x.2
-  | Olt        => fun x => x.1 < x.2
-  | Oget n     => fun x =>  let a := x.1 in let i := w2n x.2 in aget a i
-  | Oset n     =>
-    fun x => let: (a,wi,v) := x in
-             let i := w2n wi in
-             aset a i v
+  | Ofst t1 t2 => fst 
+  | Osnd t1 t2 => snd 
   end.
 
-Fixpoint ssem_pexpr {st} (vm : svmap) (pe : pexpr st) : sst2ty st :=
+Definition ssem_sop2 st1 st2 str (sop : sop2 st1 st2 str) :=
+  match sop in sop2 st1 st2 str return 
+        sst2ty st1 -> sst2ty st2 -> sst2ty str with
+  | Oand       => andb
+  | Oor        => orb
+  | Oadd       => fun (x y:word) =>
+                    let n := (x + y)%nat in
+                    (n >= 2^wsize,n%:R)
+  | Oeq        => fun (x y : word) => x == y
+  | Olt        => fun (x y : word) => x < y
+  | Oget n     => fun a (i:word) => aget a (w2n i)
+  | Opair t1 t2 => fun x y => (x,y)
+  end.
+
+Definition ssem_sop3 st1 st2 st3 str (sop : sop3 st1 st2 st3 str) :=
+  match sop in sop3 st1 st2 st3 str return 
+        sst2ty st1 -> sst2ty st2 -> sst2ty st3 -> sst2ty str with
+  | Oset n     => fun a i v => aset a (w2n i) v
+  | Oaddc      => fun (x y: word) (b: bool) =>
+                    let n := (x + y + b)%nat in
+                    (n >= 2^wsize,n%:R)
+  end.
+
+Fixpoint ssem_pexpr st (vm : svmap) (pe : pexpr st) : sst2ty st :=
   match pe with
-  | Pvar v => vm.[v]%vmap
-  | Pconst c  => n2w c
-  | Papp sta str so pe =>
-      ssem_sop so (ssem_pexpr vm pe)
-  | Ppair st1 st2 pe1 pe2 =>
-      (ssem_pexpr vm pe1, ssem_pexpr vm pe2)
+  | Pvar v => vm.[ v ]%vmap
+  | Pconst c => n2w c
+  | Papp1 st1 str o pe1 =>
+      let v1 := ssem_pexpr vm pe1 in
+      ssem_sop1 o v1
+  | Papp2 st1 st2 str o pe1 pe2 =>
+      let v1 := ssem_pexpr vm pe1 in 
+      let v2 := ssem_pexpr vm pe2 in
+      ssem_sop2 o v1 v2
+  | Papp3 st1 st2 st3 str o pe1 pe2 pe3 =>
+      let v1 := ssem_pexpr vm pe1 in
+      let v2 := ssem_pexpr vm pe2 in
+      let v3 := ssem_pexpr vm pe3 in
+      ssem_sop3 o v1 v2 v3
   end.
 
 (* ** Instructions

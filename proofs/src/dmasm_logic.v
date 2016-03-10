@@ -1,7 +1,7 @@
 (* * Syntax and semantics of the dmasm source language *)
 
 (* ** Imports and settings *)
-Require Import ZArith.
+Require Import JMeq ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple finfun.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import dmasm_utils dmasm_type dmasm_var dmasm_sem 
@@ -106,83 +106,244 @@ Qed.
 (* ** Substitution of variable by expressions                                 *)
 (* -------------------------------------------------------------------------- *)
 
-Fixpoint eqb_sop t1 t2 t1' t2' (o:sop t1 t2) (o':sop t1' t2') := 
+Definition eqb_sop1 {t1 tr t1' tr'} (o:sop1 t1 tr) (o':sop1 t1' tr') := 
   match o, o' with
-  | Oand , Oand  => true  
-  | Onot , Onot  => true
+  | Onot    , Onot     => true
   | Ofst _ _, Ofst _ _ => true
   | Osnd _ _, Osnd _ _ => true
-  | Oadd , Oadd  => true
-  | Oaddc, Oaddc => true
-  | Oeq  , Oeq   => true
-  | Olt  , Olt   => true
-  | Oset _, Oset _ => true
-  | Oget _, Oget _ => true
-  | _    , _     => false
+  | _       , _        => false
   end.
+
+Definition eqb_sop2 {t1 t2 tr t1' t2' tr'} (o:sop2 t1 t2 tr) (o':sop2 t1' t2' tr') := 
+  match o, o' with
+| Oand     , Oand      => true
+| Oor      , Oor       => true
+| Oadd     , Oadd      => true
+| Oeq      , Oeq       => true
+| Olt      , Olt       => true
+| Oget _   , Oget _    => true
+| Opair _ _, Opair _ _ => true
+| _        , _         => false
+end.
+
+Definition eqb_sop3 {t1 t2 t3 tr t1' t2' t3' tr'} 
+           (o:sop3 t1 t2 t3 tr) (o':sop3 t1' t2' t3' tr') := 
+  match o, o' with
+ | Oaddc , Oaddc  => true
+ | Oset _, Oset _ => true
+ | _     , _      => false
+ end.
   
 Inductive spexpr : stype -> Type :=
 | Evar   : forall x:var, spexpr x.(vtype)
 | Econst : N -> spexpr sword
-| Epair  : forall st1 st2, spexpr st1 -> spexpr st2 -> spexpr (st1 ** st2)
-| Eapp   : forall starg stres: stype, sop starg stres -> spexpr starg -> spexpr stres
-| Eif    : forall t, spexpr sbool -> spexpr t -> spexpr t -> spexpr t.
+| Ebool  : bool -> spexpr sbool
+| Eapp1  : forall t1 tr: stype, 
+  sop1 t1 tr -> spexpr t1 -> spexpr tr
+| Eapp2  : forall t1 t2 tr: stype, 
+  sop2 t1 t2 tr -> spexpr t1 -> spexpr t2 -> spexpr tr
+| Eapp3  : forall t1 t2 t3 tr: stype,
+  sop3 t1 t2 t3 tr -> spexpr t1 -> spexpr t2 -> spexpr t3 -> spexpr tr
+| Eif    : forall t: stype, 
+  spexpr sbool -> spexpr t -> spexpr t -> spexpr t.
+
+(* FIXME : Econst : can be c mod base == c' mod base *)
 
 Fixpoint eqb_spexpr {t} {t'} (e:spexpr t) (e':spexpr t') := 
   match e, e' with
   | Evar x  , Evar x'   => x == x'
   | Econst c, Econst c' => c == c'
-  | Epair t1 t2 e1 e2, Epair t1' t2' e1' e2' => 
-    eqb_spexpr e1 e1' && eqb_spexpr e2 e2'
-  | Eapp t1 t2 o e, Eapp t1' t2' o' e' => 
-    eqb_sop o o' && eqb_spexpr e e'
-  | Eif t b e1 e2, Eif t' b' e1' e2' =>
+  | Ebool  b, Ebool  b' => b == b'
+  | Eapp1 _ _ o e1, Eapp1 _ _ o' e1' => 
+    eqb_sop1 o o' && eqb_spexpr e1 e1'
+  | Eapp2 _ _ _ o e1 e2, Eapp2 _ _ _ o' e1' e2' => 
+    eqb_sop2 o o' && eqb_spexpr e1 e1' && eqb_spexpr e2 e2'
+  | Eapp3 _ _ _ _ o e1 e2 e3, Eapp3 _ _ _ _ o' e1' e2' e3' => 
+    eqb_sop3 o o' && eqb_spexpr e1 e1' && eqb_spexpr e2 e2' && eqb_spexpr e3 e3'
+  | Eif _ b e1 e2, Eif _ b' e1' e2' =>
     eqb_spexpr b b' && eqb_spexpr e1 e1' && eqb_spexpr e2 e2'
   | _, _ => false
   end.
 
-Fixpoint ssem_spexpr {st} (vm : svmap) (pe : spexpr st) : sst2ty st :=
+Fixpoint ssem_spexpr st (vm : svmap) (pe : spexpr st) : sst2ty st :=
   match pe with
-  | Evar v => vm.[v]%vmap
-  | Econst c  => n2w c
-  | Eapp sta str so pe =>
-      ssem_sop so (ssem_spexpr vm pe)
-  | Epair st1 st2 pe1 pe2 =>
-      (ssem_spexpr vm pe1, ssem_spexpr vm pe2)
-  | Eif t b e1 e2 =>
+  | Evar v   => vm.[ v ]%vmap
+  | Econst c => n2w c
+  | Ebool  b => b
+  | Eapp1 _ _ o pe1 =>
+      let v1 := ssem_spexpr vm pe1 in
+      ssem_sop1 o v1
+  | Eapp2 _ _ _ o pe1 pe2 =>
+      let v1 := ssem_spexpr vm pe1 in 
+      let v2 := ssem_spexpr vm pe2 in
+      ssem_sop2 o v1 v2
+  | Eapp3 _ _ _ _ o pe1 pe2 pe3 =>
+      let v1 := ssem_spexpr vm pe1 in
+      let v2 := ssem_spexpr vm pe2 in
+      let v3 := ssem_spexpr vm pe3 in
+      ssem_sop3 o v1 v2 v3
+  | Eif _ b e1 e2 =>
     if ssem_spexpr vm b then ssem_spexpr vm e1
     else ssem_spexpr vm e2
   end.
 
 Fixpoint p2sp {t} (e:pexpr t) : spexpr t :=
   match e with
-  | Pvar x   => Evar x
-  | Pconst w => Econst w
-  | Ppair _ _ e1 e2 => Epair (p2sp e1) (p2sp e2)
-  | Papp _ _ op e => Eapp op (p2sp e)
+  | Pvar          x           => Evar x
+  | Pconst        w           => Econst w
+  | Papp1 _ _     op e1       => Eapp1 op (p2sp e1)
+  | Papp2 _ _ _   op e1 e2    => Eapp2 op (p2sp e1) (p2sp e2)
+  | Papp3 _ _ _ _ op e1 e2 e3 => Eapp3 op (p2sp e1) (p2sp e2) (p2sp e3)
   end.
 
 Definition vsubst := Mv.t spexpr.
 
 Definition vsubst_id : vsubst := Mv.empty (fun x => Evar x).
 
+Definition destr_pair t1 t2 (p:spexpr (t1 ** t2)) : option (spexpr t1 * spexpr t2).
+case H: _ / p => [ ? | ? | ? | ???? | ??? o e1 e2| ???????? | ????].
++ exact None. + exact None. + exact None. + exact None.
+(case:o H e1 e2 => [||||||??[]<-<- e1 e2];last by exact (Some (e1,e2)))=> *;
+ exact None.
++ exact None. + exact None.
+Defined.
+
+Definition mk_not (e:spexpr sbool) : spexpr sbool := 
+  match e with
+  | Ebool b => Ebool (negb b)
+  | _       => Eapp1 Onot e
+  end.
+ 
+Definition mk_fst t1 t2 (p:spexpr (t1 ** t2)) : spexpr t1 :=
+  match destr_pair p with
+  | Some (p1,p2) => p1
+  | _            => Eapp1 (Ofst _ _) p
+  end.
+
+Definition mk_snd t1 t2 (p:spexpr (t1 ** t2)) : spexpr t2 :=
+  match destr_pair p with
+  | Some (p1,p2) => p2
+  | _            => Eapp1 (Osnd _ _) p
+  end.
+
+Definition mk_op1 t1 tr (op:sop1 t1 tr): spexpr t1 -> spexpr tr := 
+  match op in sop1 t1 tr return spexpr t1 -> spexpr tr with
+  | Onot     => mk_not 
+  | Ofst _ _ => @mk_fst _ _ 
+  | Osnd _ _ => @mk_snd _ _
+  end.
+
+Definition mk_and (e1 e2:spexpr sbool) : spexpr sbool := 
+  match e1, e2 with
+  | Ebool b, _ => if b then e2 else Ebool false
+  | _, Ebool b => if b then e1 else Ebool false
+  | _, _       => Eapp2 Oand e1 e2 
+  end.
+
+Definition mk_or (e1 e2:spexpr sbool) : spexpr sbool := 
+  match e1, e2 with
+  | Ebool b, _ => if b then Ebool true else e2
+  | _, Ebool b => if b then Ebool true else e1
+  | _, _       => Eapp2 Oor e1 e2 
+  end.
+
+Notation unknown := (@Error unit bool tt).
+Notation known   := (Ok unit).
+
+Fixpoint eval_eq {t} {t'} (e:spexpr t) (e':spexpr t') : result unit bool := 
+  match e, e' with
+  | Evar x  , Evar x'   => if x == x' then known true else unknown
+  | Econst c, Econst c' => known (c == c') (* FIXME *)
+  | Ebool  b, Ebool  b' => known (b == b')
+  | Eapp1 _ _ o e1, Eapp1 _ _ o' e1' => 
+    if eqb_sop1 o o' then
+      eval_eq e1 e1' >>= (fun b =>
+      if b then known true else unknown)                          
+    else unknown
+  | Eapp2 _ _ _ o e1 e2, Eapp2 _ _ _ o' e1' e2' => 
+    if eqb_sop2 o o' then 
+      eval_eq e1 e1' >>= (fun b =>
+        if b then 
+          eval_eq e2 e2' >>= (fun b =>
+          if b then known true else unknown)
+        else unknown)                          
+    else unknown
+  | Eapp3 _ _ _ _ o e1 e2 e3, Eapp3 _ _ _ _ o' e1' e2' e3' => 
+    if eqb_sop3 o o' then 
+      eval_eq e1 e1' >>= (fun b =>
+      if b then 
+        eval_eq e2 e2' >>= (fun b =>
+        if b then 
+          eval_eq e3 e3' >>= (fun b =>
+          if b then known true else unknown)  
+        else unknown)
+      else unknown)                          
+    else unknown
+  | Eif _ b e1 e2, Eif _ b' e1' e2' =>
+    eval_eq b b' >>= (fun b =>
+    if b then 
+      eval_eq e1 e1' >>= (fun b =>
+      if b then 
+        eval_eq e2 e2' >>= (fun b =>
+        if b then known true else unknown)  
+      else unknown)
+    else 
+      eval_eq e1 e2' >>= (fun b =>
+      if b then 
+        eval_eq e2 e1' >>= (fun b =>
+        if b then known true else unknown)  
+      else unknown))
+  | _, _ => unknown
+  end.
+ 
+Definition mk_eq (e1 e2:spexpr sword) : spexpr sbool := 
+  match eval_eq e1 e2 with
+  | Ok b => Ebool b
+  | Error _ => Eapp2 Oeq e1 e2 
+  end.
+
+(* FIXME: add other simplifications *)
+Definition mk_op2 t1 t2 tr (op:sop2 t1 t2 tr): spexpr t1 -> spexpr t2 -> spexpr tr := 
+  match op in sop2 t1 t2 tr return spexpr t1 -> spexpr t2 -> spexpr tr with
+  | Oand  => mk_and 
+  | Oor   => mk_or 
+  | Oeq   => mk_eq 
+  | o     => Eapp2 o
+  end.
+
+(* FIXME: add simplifications *)
+Definition mk_op3 t1 t2 t3 tr (op:sop3 t1 t2 t3 tr):
+  spexpr t1 -> spexpr t2 -> spexpr t3 -> spexpr tr :=
+  Eapp3 op. 
+
+Definition mk_if t (b:spexpr sbool) (e1 e2 : spexpr t) := 
+  match b with
+  | Ebool b => if b then e1 else e2
+  | _       => Eif b e1 e2
+  end.
+
 Fixpoint subst_spexpr st (s : vsubst) (pe : spexpr st) :=
   match pe in spexpr st_ return spexpr st_ with
-  | Evar      v           => s.[v]%mv
-  | Econst    c           => Econst c
-  | Eapp sta ste op pe    => Eapp op (subst_spexpr s pe)
-  | Epair st1 st2 pe1 pe2 => Epair (subst_spexpr s pe1) (subst_spexpr s pe2)
-  | Eif _ b pe1 pe2       => Eif (subst_spexpr s b) (subst_spexpr s pe1) (subst_spexpr s pe2)
+  | Evar          v              => s.[v]%mv
+  | Econst        c              => Econst c
+  | Ebool         b              => Ebool  b
+  | Eapp1 _ _     op pe1         =>
+    mk_op1 op (subst_spexpr s pe1)
+  | Eapp2 _ _ _   op pe1 pe2     => 
+    mk_op2 op (subst_spexpr s pe1) (subst_spexpr s pe2)
+  | Eapp3 _ _ _ _ op pe1 pe2 pe3 => 
+    mk_op3 op (subst_spexpr s pe1) (subst_spexpr s pe2) (subst_spexpr s pe3)
+  | Eif _ b pe1 pe2       => 
+    mk_if (subst_spexpr s b) (subst_spexpr s pe1) (subst_spexpr s pe2)
   end.
 
 Module WrInpE.
   Definition to := spexpr.
-  Definition fst t1 t2 (e:spexpr (t1 ** t2)) := (Eapp (Ofst _ _) e).
-  Definition snd t1 t2 (e:spexpr (t1 ** t2)) := (Eapp (Osnd _ _) e).
+  Definition fst t1 t2 (e:spexpr (t1 ** t2)) := (Eapp1 (Ofst _ _) e).
+  Definition snd t1 t2 (e:spexpr (t1 ** t2)) := (Eapp1 (Osnd _ _) e).
 End WrInpE.
 
 Module E := WRmake Mv WrInpE.
-
 
 (* -------------------------------------------------------------------------- *)
 (* ** Weakest Precondition                                                    *)
@@ -199,15 +360,16 @@ Definition map_ssem_pe vm :=
 
 Lemma sem_p2sp vm t (e:pexpr t) : ssem_spexpr vm (p2sp e) =  ssem_pexpr vm e.
 Proof.
-  elim: e => //=[ ?? e1 He1 e2 He2 | ?? op e He1];rewrite ?He1 ?He2 //.
+  by elim: e => //= [ ???? He1 | ????? He1 ? He2 | ?????? He1 ? He2 ? He3];
+      rewrite ?He1 ?He2 ?He3.
 Qed.
 
 Lemma p2sp_fst t1 t2 (e:pexpr (t1 ** t2)): 
-   (WrInpE.fst (p2sp e)) = p2sp (Papp (Ofst _ _) e).
+   (WrInpE.fst (p2sp e)) = p2sp (Papp1 (Ofst _ _) e).
 Proof. by done. Qed.
 
 Lemma p2sp_snd t1 t2 (e:pexpr (t1 ** t2)): 
-   (WrInpE.snd (p2sp e)) = p2sp (Papp (Osnd _ _) e).
+   (WrInpE.snd (p2sp e)) = p2sp (Papp1 (Osnd _ _) e).
 Proof. by done. Qed.
 
 Lemma write_subst_map l vm {t} (rv:rval t) (e:pexpr t) :
@@ -223,12 +385,14 @@ Lemma ssem_subst_map {t2} (pe:spexpr t2) vm l :
    ssem_spexpr vm (subst_spexpr (E.write_vmap vsubst_id l) pe) =
    ssem_spexpr (W.write_vmap vm (map_ssem_pe vm l)) pe.
 Proof.
-  elim: pe => //= [|?? p1 Hp1 p2 Hp2|??? p Hp|? p Hp p1 Hp1 p2 Hp2];rewrite ?Hp1 ?Hp2 ?Hp //.
+  elim: pe => //= [| ???? He1 | ????? He1 ? He2 
+                   | ?????? He1 ? He2 ? He3 | ?? He1 ? He2 ? He3];
+    rewrite ?He1 ?He2 ?He3 //.
   elim: l => [ | [id e] l Hrec] x //=;first by rewrite /vsubst_id Mv.get0.
   case: (boolP (id == x))=> [/eqP <-| ?].
   + by rewrite Fv.setP_eq Mv.setP_eq.
   by rewrite Fv.setP_neq // Mv.setP_neq. 
-Qed.
+Admitted. 
 
 Definition wp_asgn {t1 t2} (rv:rval t1) (e:pexpr t1) (p: spred t2) := 
   subst_spexpr (E.write_rval vsubst_id rv (p2sp e)) p.
@@ -261,25 +425,35 @@ Definition wp_bcmd t bc (p:spred t) :=
   | Store _ _ => ([::Cbcmd bc], p)
   end.
 
-Definition split_pair t1 t2 (p:spexpr (t1 ** t2)) : option (spexpr t1 * spexpr t2).
-case H: _ / p => [?| ?|?? p1 p2| ????|????].
-+ exact None. + exact None.
-move:H => [] -> ->;exact (Some (p1,p2)).
-+ exact None. + exact None.
-Defined.
+Lemma destr_pairP t1 t2 (p:spexpr (t1 ** t2)) p1 p2:
+   destr_pair p = Some (p1, p2) -> p = Eapp2 (Opair _ _) p1 p2.
+Proof.
+  move=>Heq;apply JMeq_eq.
+  have {Heq}: JMeq (destr_pair p) (Some (p1, p2)) by rewrite Heq.
+  rewrite /destr_pair. 
+  move:p (erefl (t1 ** t2)). 
+  set t12 := (X in forall (p:spexpr X) (e : _ = X), _ -> @JMeq (spexpr X) _ _ _) => p.
+  case : t12 / p => // 
+     [[]/= ?? <-| ???? _ | t1' t2' tr' o e1 e2 | ???????? _| ???? _];
+     try by move=> Heq; have:= JMeq_eq Heq.
+  case: o e1 e2 => //= [ e1 e2 [] ??|t t' e1 e2];subst.
+  + by move=> e;have := JMeq_eq e.
+  move=> e;case: (e)=> ??;subst t t'.
+  rewrite (eq_irrelevance e (erefl (t1 ** t2))) /= /eq_rect_r /=.
+  move=> Heq;have [-> ->] //:= JMeq_eq Heq.
+  (*  Enrico have [] -> -> // := JMeq_eq Heq. *)
+Qed.
 
-Fixpoint merge_if (b:spexpr sbool) {t } (p:spexpr t) (p':spexpr t): spexpr t := 
-  match p in spexpr t_ return spexpr t_ ->  spexpr t_ with 
-  | Epair t1 t2 p1 p2 => fun p' =>  
-    match split_pair p' with
-    | Some (p1', p2') => Epair (merge_if b p1 p1') (merge_if b p2 p2')
-    | None            => 
-      let p := Epair p1 p2 in 
-      if eqb_spexpr p p' then p else Eif b p p'
+Fixpoint merge_if (b:spexpr sbool) {t} : spexpr t -> spexpr t ->  spexpr t   := 
+  match t as t_  return spexpr t_ -> spexpr t_ ->  spexpr t_ with
+  | sprod t1 t2 => fun p p' => 
+    match destr_pair p, destr_pair p' with
+    | Some(p1,p2), Some(p1', p2') => 
+      Eapp2 (Opair _ _) (merge_if b p1 p1') (merge_if b p2 p2')
+    | _, _ => if eqb_spexpr p p' then p else Eif b p p'
     end
-  | p => fun p' =>
-    if eqb_spexpr p p' then p else Eif b p p'
-  end p'.
+  | _ => fun p p' => if eqb_spexpr p p' then p else Eif b p p'
+  end.
              
 Definition wp t := 
   Eval lazy beta delta [cmd_rect instr_rect' list_rect] in
@@ -326,15 +500,15 @@ Proof.
   by case: (wp c1 P) => ??; case: (wp c2 P) => ??.
 Qed.
 
-Require Import JMeq.
-
-Lemma eqb_sopP t1 t2 t1' t2' (o:sop t1 t2) (o':sop t1' t2') : 
+(*Lemma eqb_sopP t1 t2 t1' t2' (o:sop t1 t2) (o':sop t1' t2') : 
    t1 = t1' -> eqb_sop o o' -> t2 = t2' /\ JMeq o o'.
 Proof.
   (destruct o;destruct o')=> // [ []-> ->| []-> ->|[]-> |[]-> ] //.
-Qed.
+Qed. *)
 
 Lemma eqb_spexprJM t t' (p:spexpr t) (p':spexpr t') : eqb_spexpr p p' -> t = t' /\ JMeq p p' .
+Admitted.
+(*
 Proof.
   elim: p t' p' => [x | w| t1 t2 p1 Hp1 p2 Hp2|t1 t2 o p Hp | t1 p Hp p1 Hp1 p2 Hp2] /= t'
     [x'| w'| t1' t2' p1' p2'|t1' t2' o' p' | t1' p' p1' p2' ] //.
@@ -347,7 +521,7 @@ Proof.
     by rewrite (JMeq_eq Heq2).    
   move=> /andP [] /andP [] /Hp []_ Heq /Hp1 []? Heq1 /Hp2 []? Heq2;subst.
   by rewrite (JMeq_eq Heq1) (JMeq_eq Heq2).
-Qed.
+Qed. *)
 
 Lemma eqb_spexprP t  (p p':spexpr t) : eqb_spexpr p p' -> p = p'.
 Proof. move=> /eqb_spexprJM [] _;apply JMeq_eq. Qed.
@@ -356,7 +530,7 @@ Lemma merge_if_aux1 s e t P (p1 p2: spexpr t):
   s2h P (Eif (p2sp e) p1 p2) s ->
   s2h P (if ssem_pexpr (sevm s) e then p1 else p2) s.
 Proof.
-  by rewrite /s2h /= sem_p2sp;case:ssem_pexpr.
+  by rewrite /s2h /= sem_p2sp;case: (ssem_pexpr _ _).
 Qed.
   
 Lemma merge_if_aux s e t P (p1 p2: spexpr t): 
@@ -364,24 +538,8 @@ Lemma merge_if_aux s e t P (p1 p2: spexpr t):
   s2h P (if ssem_pexpr (sevm s) e then p1 else p2) s.
 Proof.
   case H: (eqb_spexpr p1 p2).
-  + by move: H=> /eqb_spexprP ->;case:ssem_pexpr.
+  + by move: H=> /eqb_spexprP ->;case:(ssem_pexpr _ _).
   apply: merge_if_aux1.
-Qed.
-
-Lemma split_pairP t1 t2 (p:spexpr (t1 ** t2)) p1 p2:
-   split_pair p = Some (p1, p2) -> p = Epair p1 p2.
-Proof.
-  move=>Heq;apply JMeq_eq.
-  have {Heq}: JMeq (split_pair p) (Some (p1, p2)) by rewrite Heq.
-  rewrite /split_pair. 
-  move:p (erefl (t1 ** t2)). 
-  set t12 := (X in forall (p:spexpr X) (e : _ = X), _ -> @JMeq (spexpr X) _ _ _) => p.
-  case : t12 / p => // [[]/= ?? <-| t1' t2'??| ???? _| ???? _];
-     try by move=> Heq; have:= JMeq_eq Heq.
-  move=> e;case: (e)=> ??;subst t1' t2'.
-  rewrite (eq_irrelevance e (erefl (t1 ** t2))) /= /eq_rect_r /=.
-  move=> Heq;have [-> ->] //:= JMeq_eq Heq.
-  (*  Enrico have [] -> -> // := JMeq_eq Heq. *)
 Qed.
 
 Lemma pair_if t1 t2 (b:bool) (a1 b1:t1) (a2 b2:t2) :
@@ -392,16 +550,19 @@ Lemma merge_ifP s e t P (p p': spexpr t):
    s2h P (merge_if (p2sp e) p p') s -> 
    s2h P (if  ssem_pexpr (sevm s) e then p else p') s.
 Proof.
+(*
   elim: p p' P => [[tx nx] | w| ?? p1 Hp1 p2 Hp2 /=|?? o p _ | ? p _ p1 _ p2 _] p' P;
     try apply: merge_if_aux.
-  case Heq: split_pair=>[ [p1' p2'] | ];try apply: merge_if_aux.
-  have {Heq} -> := split_pairP Heq. (* Enrico: have -> {Heq} := split_pairP Heq. *)
+  case Heq: destr_pair=>[ [p1' p2'] | ];try apply: merge_if_aux.
+  have {Heq} -> := destr_pairP Heq. (* Enrico: have -> {Heq} := destr_pairP Heq. *)
   rewrite /s2h /= fun_if /= pair_if -!fun_if=> HP.
   apply: (@Hp1 p1' 
      (fun v => P (v,  ssem_spexpr (sevm s) (if ssem_pexpr (sevm s) e then p2 else p2')))) => /=.
   by apply: (@Hp2 p2' 
      (fun v => P (ssem_spexpr (sevm s) (merge_if (p2sp e) p1 p1'), v))).
 Qed.
+*)
+Admitted.
 
 Lemma wp_tl c t (P:sst2ty t -> Prop) (p:spred t) : exists tl, 
    c = (wp c p).1 ++ tl /\
@@ -439,6 +600,8 @@ Proof.
   move=> H1;elim: (wp_tl c P p)=> tl [{2}->];apply: hoare_seq H1.
 Qed.
 
+
+  
 
 (* -------------------------------------------------------------------------- *)
 (* ** Tactics                                                                 *)
@@ -485,25 +648,30 @@ Definition w1 : N := 1.
 Definition c := 
   [:: assgn x w0;
       assgn y w1;
-      Cif (Papp Oeq (Ppair x w1)) [::assgn z x] [::assgn z y] ].
+      Cif (Papp2 Oeq x w1) [::assgn z x] [::assgn z y] ].
 
 Lemma c_ok : 
   hoare (fun _ => True) c (fun s =>  s.(sevm).[x]%vmap = n2w w0 /\ s.(sevm).[y]%vmap = n2w w1).
 Proof.
   set P := (fun (v:sst2ty (sword ** sword)) => v.1 = n2w w0 /\ v.2 = n2w w1).
-  set p := Epair x y.
+  set p := Eapp2 (Opair _ _) x y.
   wp_core P p.
   by skip.
 Qed.
 
+Definition c' := 
+  [:: assgn x w0;
+      assgn y w1;
+      Cif (Papp2 Oeq x x) [::assgn z x] [::assgn z y] ].
+
 Lemma c_ok1 : 
-  hoare (fun _ => True) c (fun s =>  s.(sevm).[x]%vmap = n2w w0 /\ s.(sevm).[z]%vmap = n2w w1).
+  hoare (fun _ => True) c' (fun s =>  s.(sevm).[x]%vmap = n2w w0 /\ s.(sevm).[z]%vmap = n2w w0).
 Proof.
-  set P := (fun (v:sst2ty (sword ** sword)) => v.1 = n2w w0 /\ v.2 = n2w w1).
-  set p := Epair x z.
+  set P := (fun (v:sst2ty (sword ** sword)) => v.1 = n2w w0 /\ v.2 = n2w w0).
+  set p := Eapp2 (Opair _ _) x z.
   wp_core P p.
-(* TODO: add a step of simplification in the wp *)
   by skip.
 Qed.
+
 
   

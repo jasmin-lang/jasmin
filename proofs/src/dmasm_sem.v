@@ -67,27 +67,46 @@ Canonical  word_choiceType  := ChoiceType word word_choiceMixin.
 (* ** Syntax
  * -------------------------------------------------------------------- *)
 
-Inductive sop : stype -> stype -> Set :=
+Inductive sop1 : stype -> stype -> Set := 
 (* bools *)
-| Oand  : sop (sbool ** sbool) sbool
-| Onot  : sop sbool sbool
-(* pairs *)
-| Ofst  : forall st1 st2, sop (st1 ** st2) st1
-| Osnd  : forall st1 st2, sop (st1 ** st2) st2
+| Onot  : sop1 sbool sbool
 (* words *)
-| Oadd  : sop (sword ** sword)          (sbool ** sword)
-| Oaddc : sop (sword ** sword ** sbool) (sbool ** sword)
-| Oeq   : sop (sword ** sword) sbool
-| Olt   : sop (sword ** sword) sbool
+(*| Olnot : sop1 sword sword *)
+(* pairs *)
+| Ofst  : forall st1 st2, sop1 (st1 ** st2) st1
+| Osnd  : forall st1 st2, sop1 (st1 ** st2) st2.
+
+Inductive sop2 : stype -> stype -> stype -> Set :=
+(* bools *)
+| Oand  : sop2 sbool sbool sbool
+| Oor   : sop2 sbool sbool sbool
+(* words *)
+| Oadd  : sop2 sword sword (sbool ** sword)
+(*| Oxor  : sop2 sword sword sword
+| Oland : sop2 sword sword sword
+| Olor  : sop2 sword sword sword *)
+| Oeq   : sop2 sword sword sbool
+| Olt   : sop2 sword sword sbool
 (* arrays *)
-| Oset  : forall n, sop (sarr n sword ** sword ** sword) (sarr n sword)
-| Oget  : forall n, sop (sarr n sword ** sword)          sword.
+| Oget  : forall n, sop2 (sarr n sword) sword sword
+(* pairs *)
+| Opair : forall st1 st2, sop2 st1 st2 (st1 ** st2).
+
+Inductive sop3 : stype -> stype -> stype -> stype -> Set :=
+(* words *)
+| Oaddc : sop3 sword sword sbool (sbool ** sword)
+(* arrays *)
+| Oset  : forall n, sop3 (sarr n sword) sword sword (sarr n sword).
 
 Inductive pexpr : stype -> Type :=
 | Pvar   : forall x:var, pexpr x.(vtype)
 | Pconst : N -> pexpr sword
-| Ppair  : forall st1 st2, pexpr st1 -> pexpr st2 -> pexpr (st1 ** st2)
-| Papp   : forall starg stres: stype, sop starg stres -> pexpr starg -> pexpr stres.
+| Papp1  : forall st1 stres: stype, 
+  sop1 st1 stres -> pexpr st1 -> pexpr stres
+| Papp2  : forall st1 st2 stres: stype, 
+  sop2 st1 st2 stres -> pexpr st1 -> pexpr st2 -> pexpr stres
+| Papp3  : forall st1 st2 st3 stres: stype, 
+  sop3 st1 st2 st3 stres -> pexpr st1 -> pexpr st2 -> pexpr st3 -> pexpr stres.
 
 Inductive bcmd :=
 | Assgn : forall st, rval st -> pexpr st -> bcmd
@@ -218,44 +237,59 @@ Inductive error := ErrOob | ErrAddrUndef | ErrAddrInvalid.
 Definition exec t := result error t.
 Definition ok := Ok error. 
 
-Definition sem_sop st1 st2 (sop : sop st1 st2) : st2ty st1 -> exec (st2ty st2) :=
-  match sop in sop st1 st2 return st2ty st1 -> exec (st2ty st2) with
-  | Oand       => fun (xy : bool * bool) => ok (xy.1 && xy.2)
-  | Onot       => fun b => ok (~~ b)
+Definition sem_sop1 st1 str (sop : sop1 st1 str) : st2ty st1 -> exec (st2ty str) :=
+  match sop in sop1 st1 str return st2ty st1 -> exec (st2ty str) with
+  | Onot       => fun b => ok(~~ b)
   | Ofst t1 t2 => fun (xy : (st2ty t1 * st2ty t2)) => ok xy.1
   | Osnd t1 t2 => fun (xy : (st2ty t1 * st2ty t2)) => ok xy.2
-  | Oadd       => fun (xy : word * word) =>
-                    let n := (xy.1 + xy.2)%nat in
+  end.
+
+Definition sem_sop2 st1 st2 str (sop : sop2 st1 st2 str) :=
+  match sop in sop2 st1 st2 str return 
+        st2ty st1 -> st2ty st2 -> exec (st2ty str) with
+  | Oand       => fun x y => ok (x && y)
+  | Oor       => fun x y => ok (x || y)
+  | Oadd       => fun (x y:word) =>
+                    let n := (x + y)%nat in
                     ok (n >= 2^wsize,n%:R)
-  | Oaddc      => fun (xy_b : word * word * bool) =>
-                    let n := (xy_b.1.1 + xy_b.1.2 + xy_b.2)%nat in
-                    ok (n >= 2^wsize,n%:R)
-  | Oeq        => fun (xy : word * word) => ok (xy.1 == xy.2)
-  | Olt        => fun (xy : word * word) => ok (xy.1 < xy.2)
-  | Oget n     => fun (ai : (n.+1).-tuple word * word) =>
-                    let i := w2n ai.2 in
+  | Oeq        => fun (x y : word) => ok (x == y)
+  | Olt        => fun (x y : word) => ok (x < y)
+  | Oget n     => fun (a : (n.+1).-tuple word) (i:word) =>
                     if i > n
                     then Error ErrOob
-                    else ok (tnth ai.1 (@inZp n i))
-  | Oset n     => fun (a_i_v : (n.+1).-tuple word * word * word) =>
-                    let i := w2n a_i_v.1.2 in
+                    else ok (tnth a (@inZp n i))
+  | Opair t1 t2 => fun x y => ok (x,y)
+  end.
+
+Definition sem_sop3 st1 st2 st3 str (sop : sop3 st1 st2 st3 str) :=
+  match sop in sop3 st1 st2 st3 str return 
+        st2ty st1 -> st2ty st2 -> st2ty st3 -> exec (st2ty str) with
+  | Oset n     => fun (a: (n.+1).-tuple word) (i v: word) =>
                     if i > n
                     then Error ErrOob
                     else
-                      ok [tuple (if j == inZp i then a_i_v.2 else tnth a_i_v.1.1 j) | j < n.+1]
+                      ok [tuple (if j == inZp i then v else tnth a j) | j < n.+1]
+  | Oaddc      => fun (x y: word) (b: bool) =>
+                    let n := (x + y + b)%nat in
+                    ok (n >= 2^wsize,n%:R)
   end.
 
 Fixpoint sem_pexpr st (vm : vmap) (pe : pexpr st) : exec (st2ty st) :=
   match pe with
   | Pvar v => ok (vm.[ v ]%vmap)
   | Pconst c => ok (n2w c)
-  | Papp sta str so pe =>
-      sem_pexpr vm pe >>= fun v =>
-      (sem_sop so) v
-  | Ppair st1 st2 pe1 pe2 =>
+  | Papp1 st1 str o pe1 =>
+      sem_pexpr vm pe1 >>= fun v1 =>
+      sem_sop1 o v1
+  | Papp2 st1 st2 str o pe1 pe2 =>
       sem_pexpr vm pe1 >>= fun v1 =>
       sem_pexpr vm pe2 >>= fun v2 =>
-      ok (v1,v2)
+      sem_sop2 o v1 v2
+  | Papp3 st1 st2 st3 str o pe1 pe2 pe3 =>
+      sem_pexpr vm pe1 >>= fun v1 =>
+      sem_pexpr vm pe2 >>= fun v2 =>
+      sem_pexpr vm pe3 >>= fun v3 =>
+      sem_sop3 o v1 v2 v3
   end.
 
 (* ** Memory

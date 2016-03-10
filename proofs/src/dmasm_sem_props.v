@@ -57,10 +57,11 @@ Qed.
 
 Fixpoint ids_pexpr st (pe : pexpr st) :=
   match pe with
-  | Pvar   x              => [fset x]
-  | Pconst _              => fset0
-  | Papp sta ste _ pe     => ids_pexpr pe
-  | Ppair st1 st2 pe1 pe2 => ids_pexpr pe1 `|` ids_pexpr pe2
+  | Pvar   x                    => [fset x]
+  | Pconst _                    => fset0
+  | Papp1 _ _ _ pe              => ids_pexpr pe
+  | Papp2 _ _ _ _ pe1 pe2       => ids_pexpr pe1 `|` ids_pexpr pe2
+  | Papp3 _ _ _ _ _ pe1 pe2 pe3 => ids_pexpr pe1 `|` ids_pexpr pe2 `|` ids_pexpr pe3
   end.
 
 Fixpoint ids_rval st (rv : rval st) :=
@@ -153,10 +154,12 @@ Definition rn_var (pi : renaming) (v : var) :=
 
 Fixpoint rn_pexpr st (pi : renaming) (pe : pexpr st) :=
   match pe in pexpr st0 return pexpr st0 with
-  | Pvar      v           => Pvar (rn_var pi v)
-  | Pconst    c           => Pconst c
-  | Papp sta ste op pe    => Papp op (rn_pexpr pi pe)
-  | Ppair st1 st2 pe1 pe2 => Ppair (rn_pexpr pi pe1) (rn_pexpr pi pe2)
+  | Pvar          v              => Pvar (rn_var pi v)
+  | Pconst        c              => Pconst c
+  | Papp1 _ _     op pe1         => Papp1 op (rn_pexpr pi pe1)
+  | Papp2 _ _ _   op pe1 pe2     => Papp2 op (rn_pexpr pi pe1) (rn_pexpr pi pe2)
+  | Papp3 _ _ _ _ op pe1 pe2 pe3 => 
+    Papp3 op (rn_pexpr pi pe1) (rn_pexpr pi pe2) (rn_pexpr pi pe3)
   end.
 
 Fixpoint rn_rval st (pi : renaming) (rv : rval st) : rval st :=
@@ -220,7 +223,7 @@ Lemma rn_pexpr_eq st (pi pi_inv : renaming) (vm : vmap) (pe : pexpr st):
   cancel pi_inv pi ->
   sem_pexpr vm pe = sem_pexpr (rn_vmap pi vm) (rn_pexpr pi_inv pe).
 Proof.
-  move => Hcan; elim pe => //= [[t id] | ??? <- ? <- | ???? ->] //.
+  move => Hcan; elim pe => //= [[t id] | ????<-| ?????<-?<-|??????<-?<-?<- ] //.
   by rewrite rn_vmap_get /rn_var /= Hcan. 
 Qed.
 
@@ -705,10 +708,12 @@ Notation subst := (forall (x:var), pexpr x.(vtype)).
 
 Fixpoint subst_pexpr st (s : subst) (pe : pexpr st) :=
   match pe in pexpr st_ return pexpr st_ with
-  | Pvar      v           => s  v
-  | Pconst    c           => Pconst c
-  | Papp sta ste op pe    => Papp op (subst_pexpr s pe)
-  | Ppair st1 st2 pe1 pe2 => Ppair (subst_pexpr s pe1) (subst_pexpr s pe2)
+  | Pvar          v              => s  v
+  | Pconst        c              => Pconst c
+  | Papp1 _ _     op pe1         => Papp1 op (subst_pexpr s pe1)
+  | Papp2 _ _ _   op pe1 pe2     => Papp2 op (subst_pexpr s pe1) (subst_pexpr s pe2)
+  | Papp3 _ _ _ _ op pe1 pe2 pe3 => 
+    Papp3 op (subst_pexpr s pe1) (subst_pexpr s pe2) (subst_pexpr s pe3)
   end.
 
 Definition subst_bcmd (s : subst) (bc : bcmd) :=
