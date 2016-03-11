@@ -109,10 +109,58 @@ Proof.
   by apply: Hq;apply: Hf s Hpf.
 Qed.
 
+Lemma hoare_call_seq ta tr Pf Qf x (f:fundef ta tr) e (P Q:hpred) c: 
+  hoaref Pf f Qf ->
+  hoare P c 
+    (fun s => 
+       Pf s.(semem) (ssem_pexpr s.(sevm) e) /\
+       forall m' (v:sst2ty tr), 
+         Qf m' v ->
+         Q {|semem := m'; sevm :=  W.write_rval s.(sevm) x v |}) ->
+  hoare P (rcons c (Ccall x f e)) Q.
+Proof.
+  by rewrite -cats1=> Hf Hc;apply: (hoare_seq Hc);apply hoare_call.
+Qed.
+
+Fixpoint rval2spe {t} (rv:rval t) : pexpr t := 
+  match rv with
+  | Rvar          x => x
+  | Rpair _ _ r1 r2 => Papp2 (Opair _ _) (rval2spe r1) (rval2spe r2)
+  end.
+
+Fixpoint rval2seq {t} (rv:rval t) : seq var := 
+  match rv with
+  | Rvar          x => [::x]
+  | Rpair _ _ r1 r2 => rval2seq r1 ++  rval2seq r2
+  end.
+
+Lemma hoare_fun ta tr (Pf:fpred ta) (Qf:fpred tr) (f:fundef ta tr):
+  uniq (rval2seq f.(fd_arg)) ->
+  hoare (fun s => Pf s.(semem) (ssem_pexpr s.(sevm) (rval2spe f.(fd_arg))))
+        f.(fd_body) 
+        (fun s => Qf s.(semem) (ssem_pexpr s.(sevm) f.(fd_res))) ->
+  hoaref Pf f Qf.
+Proof.
+  move=> Hu Hb s1 s2 va vr H.
+  inversion H=>{H};subst;move: H4 H9=> [] ? [] ?;do 2!subst.
+  have <-: ssem_pexpr (sevm es) (rval2spe (fd_arg f)) = va;
+    last by apply: Hb H7.
+  rewrite /es/=/W.write_rval;move: (fd_arg f) Hu;clear=> a.
+  elim: a va [::]=> [x va | ?? r1 Hr1 r2 Hr2 [va1 va2]] l /=.
+  + by rewrite Fv.setP_eq.     
+  rewrite cat_uniq => /andP [] Hu1 /andP [] Hn1 Hu2.
+  rewrite Hr2 //;f_equal;rewrite -{2}(Hr1 va1 l) //.  
+  move: {Hr1 Hr2 Hu1 Hu2 l} (W.write_subst r1 va1 l) Hn1.
+  elim:r2 va2=> [x va2 | ?? r21 Hr1 r22 Hr2 [va21 va22]] l /=.
+  + rewrite orbF;elim: r1 => [x1 | ?? r11 Hr1 r12 Hr2] /=.
+    + by rewrite mem_seq1 => ?;rewrite Fv.setP_neq.
+    by rewrite mem_cat => /norP [] /Hr1 -> /Hr2 ->. 
+  by rewrite has_cat=> /norP [] /Hr1 H1 /Hr2 ->;apply: H1.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 (* ** Weakest Precondition                                                    *)
 (* -------------------------------------------------------------------------- *)
-
 
 Definition spred (t:stype) := spexpr t.
   
@@ -221,9 +269,6 @@ Lemma hoare_wp t P Q c (p:spred t) :
 Proof.
   move=> H1;elim: (wp_tl c P p)=> tl [{2}->];apply: hoare_seq H1.
 Qed.
-
-
-  
 
 (* -------------------------------------------------------------------------- *)
 (* ** Tactics                                                                 *)
