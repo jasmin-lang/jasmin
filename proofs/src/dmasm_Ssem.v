@@ -157,20 +157,23 @@ with ssem_i : sestate -> instr -> sestate -> Prop :=
     ssem s1 c2 s2 ->
     ssem_i s1 (Cif pe c1 c2) s2
 
-| SEcall m1 m2 vm1 vmc1 vmc2 starg stres farg fres fbody rv_res pe_arg :
-    let arg := ssem_pexpr vm1 pe_arg in
-    let vmc1 := W.write_rval vmc1 farg arg in
-    ssem (SEstate m1 vmc1) fbody (SEstate m2 vmc2) ->
-    let res := ssem_pexpr vmc2 fres in
-    let vm2 := W.write_rval vm1 rv_res res in
-    ssem_i (SEstate m1 vm1)
-        (@Ccall starg stres rv_res (FunDef farg fbody fres) pe_arg)
-        (SEstate m2 vm2)
+| SEcall es m ta tr x (f:fundef ta tr) a vr:
+    let va := ssem_pexpr es.(sevm) a in
+    ssem_fun f es.(semem) va m vr ->
+    let vm2 := W.write_rval es.(sevm) x vr in 
+    ssem_i es (Ccall x f a) (SEstate m vm2)
 
 | SEforDone s1 s2 iv rng c ws :
     ssem_range s1.(sevm) rng = ok ws ->
     ssem_for iv ws s1 c s2 ->
     ssem_i s1 (Cfor iv rng c) s2
+
+with ssem_fun : forall ta tr (f:fundef ta tr) (m:mem) (va:sst2ty ta), mem -> sst2ty tr -> Prop :=
+| SEfun : forall ta tr (f:fundef ta tr) (m:mem) (va:sst2ty ta) vm es',
+    let es := {| semem := m; sevm := W.write_rval vm f.(fd_arg) va |} in
+    ssem es f.(fd_body) es' ->
+    let rv := ssem_pexpr es'.(sevm) f.(fd_res) in
+    ssem_fun f m va es'.(semem) rv
 
 with ssem_for : rval sword -> seq word -> sestate -> cmd -> sestate -> Prop :=
 
@@ -182,7 +185,6 @@ with ssem_for : rval sword -> seq word -> sestate -> cmd -> sestate -> Prop :=
     ssem                s1 ac s2 ->
     ssem_for iv (ws)    s2 c  s3 ->
     ssem_for iv (w::ws) s1 c  s3.
-
 
 Lemma ssem_iV s i s' : ssem s [::i] s' -> ssem_i s i s'.
 Proof.

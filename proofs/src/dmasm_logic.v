@@ -26,6 +26,11 @@ Definition hpred := sestate -> Prop.
 Definition hoare (Pre:hpred) (c:cmd) (Post:hpred) := 
   forall (s s':sestate),  ssem s c s' -> Pre s -> Post s'.
 
+Definition fpred (t:stype) := mem -> sst2ty t -> Prop.
+
+Definition hoaref ta tr (Pre:fpred ta) (f:fundef ta tr) (Post:fpred tr) := 
+  forall (m m':mem) va vr, ssem_fun f m va m' vr -> Pre m va -> Post m' vr.
+
 (* -------------------------------------------------------------------------- *)
 (* ** Core Rules                                                              *)
 (* -------------------------------------------------------------------------- *)
@@ -85,6 +90,23 @@ Proof.
   case: _ {-1}_ _ / s (erefl c) => // ?????? s [] ??? Hp;subst.
   + by apply: (H1 _ _ s).
   by apply: (H2 _ _ s).
+Qed.
+
+Lemma hoare_call ta tr Pf Qf x (f:fundef ta tr) e (Q:hpred):
+  hoaref Pf f Qf ->
+  hoare 
+    (fun s => 
+       Pf s.(semem) (ssem_pexpr s.(sevm) e) /\
+       forall m' (v:sst2ty tr), 
+         Qf m' v ->
+         Q {|semem := m'; sevm :=  W.write_rval s.(sevm) x v |})
+    [::Ccall x f e] 
+    Q.
+Proof.
+  move=> Hf ??;set c := Ccall _ _ _ => /ssem_iV s.
+  case: _ {-1}_ _ / s (erefl c) => // -[m mv]??????? /= s [] ??.
+  subst=> -[] ? [] [] ? [] ? [] Hpf Hq;subst.
+  by apply: Hq;apply: Hf s Hpf.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -225,6 +247,8 @@ Ltac wp_core P p :=
     end
   | _ => fail "wp_core: not a hoare judgment"
   end.
+
+
 
 (* -------------------------------------------------------------------------- *)
 (* ** Tests                                                                   *)
