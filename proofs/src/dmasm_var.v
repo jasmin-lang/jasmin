@@ -51,8 +51,8 @@ Canonical  var_choiceType  := ChoiceType var var_choiceMixin.
  * -------------------------------------------------------------------- *)
 
 Inductive rval : stype -> Set :=
-| Rvar  : forall (x:var), rval x.(vtype)
-| Rpair : forall st1 st2, rval st1 -> rval st2 -> rval (st1 ** st2).
+| Rvar  :> forall (x:var), rval x.(vtype)
+| Rpair :  forall st1 st2, rval st1 -> rval st2 -> rval (st1 ** st2).
 
 (* ** Module type for variables map 
  * -------------------------------------------------------------------- *)

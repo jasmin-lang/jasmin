@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import finmap strings dmasm_utils dmasm_type dmasm_var dmasm_sem.
+Require Import finmap strings word dmasm_utils dmasm_type dmasm_var dmasm_sem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -69,9 +69,7 @@ Definition ssem_sop2 st1 st2 str (sop : sop2 st1 st2 str) :=
         sst2ty st1 -> sst2ty st2 -> sst2ty str with
   | Oand       => andb
   | Oor        => orb
-  | Oadd       => fun (x y:word) =>
-                    let n := (x + y)%nat in
-                    (n >= 2^wsize,n%:R)
+  | Oadd       => wadd 
   | Oeq        => fun (x y : word) => x == y
   | Olt        => fun (x y : word) => x < y
   | Oget n     => fun a (i:word) => aget a (w2n i)
@@ -82,9 +80,7 @@ Definition ssem_sop3 st1 st2 st3 str (sop : sop3 st1 st2 st3 str) :=
   match sop in sop3 st1 st2 st3 str return 
         sst2ty st1 -> sst2ty st2 -> sst2ty st3 -> sst2ty str with
   | Oset n     => fun a i v => aset a (w2n i) v
-  | Oaddc      => fun (x y: word) (b: bool) =>
-                    let n := (x + y + b)%nat in
-                    (n >= 2^wsize,n%:R)
+  | Oaddc      => waddc 
   end.
 
 Fixpoint ssem_pexpr st (vm : svmap) (pe : pexpr st) : sst2ty st :=
@@ -186,3 +182,19 @@ with ssem_for : rval sword -> seq word -> sestate -> cmd -> sestate -> Prop :=
     ssem                s1 ac s2 ->
     ssem_for iv (ws)    s2 c  s3 ->
     ssem_for iv (w::ws) s1 c  s3.
+
+
+Lemma ssem_iV s i s' : ssem s [::i] s' -> ssem_i s i s'.
+Proof.
+  move=> H;inversion H;subst.
+  by inversion H5;subst.
+Qed.
+
+Lemma ssem_cV c1 c2 s s' : ssem s (c1 ++ c2) s' ->
+  exists s'', ssem s c1 s'' /\ ssem s'' c2 s'.
+Proof.
+  elim: c1 s s' => /=[ | i c Hc] s s'. 
+  + by exists s;split => //;constructor.
+  set c_ := _ :: _ => H;case: _ {-1}_ _ / H (erefl c_) => //= ? s2 ? ?? Hi Hcat [] ??;subst.
+  elim: (Hc _ _ Hcat)=> s1 [H1 H2];exists s1;split=>//;econstructor;eauto.
+Qed.

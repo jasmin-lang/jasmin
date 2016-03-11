@@ -4,7 +4,7 @@
 Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import finmap strings dmasm_utils dmasm_type dmasm_var.
+Require Import finmap strings word dmasm_utils dmasm_type dmasm_var.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -14,55 +14,6 @@ Import GRing.Theory.
 
 Open Scope string_scope.
 Local Open Scope ring_scope.
-
-(* ** Types for values
- * -------------------------------------------------------------------- *)
-
-Module Type SIZE.
-  Parameter wsize : nat.
-  Axiom wsizeE : wsize = 64.
-  
-  Parameter wbase : nat.
-  Axiom wbaseE : wbase = (2^wsize)%nat.
-  
-End SIZE. 
-
-Module Size : SIZE.
-  Definition wsize := 64.
-  Lemma wsizeE  : wsize = 64. 
-  Proof. done. Qed.
-
-  Definition  wbase := (2 ^ wsize)%nat.
-  Lemma wbaseE : wbase = (2^wsize)%nat.
-  Proof. done. Qed.
-
-End Size.
-Export Size.
-
-Definition word := 'Z_(wbase).
-Definition w2n (w : word) : nat := w.
-Definition n2w (n : nat) : word :=  n%:R.
-
-Definition word_beq (w1 w2:word) := 
-  match w1, w2 with
-  | Ordinal n1 _, Ordinal n2 _ => n1 == n2
-  end.
-
-Lemma word_eqP : Equality.axiom word_beq. 
-Proof. 
-  move=> [n1 eq1] [n2 eq2];apply:(iffP idP) => /= [/eqP ?| [] ?];subst.
-  + by f_equal; apply eq_irrelevance.
-  by apply eq_refl.
-Qed.
-
-Definition word_eqMixin     := EqMixin word_eqP. 
-Canonical  word_eqType      := Eval hnf in EqType word word_eqMixin.
-
-Lemma codeK_word : cancel w2n n2w.
-Proof. rewrite /cancel /w2n /n2w => x. by rewrite natr_Zp. Qed.
-
-Definition word_choiceMixin := CanChoiceMixin codeK_word.
-Canonical  word_choiceType  := ChoiceType word word_choiceMixin.
 
 (* ** Syntax
  * -------------------------------------------------------------------- *)
@@ -99,8 +50,8 @@ Inductive sop3 : stype -> stype -> stype -> stype -> Set :=
 | Oset  : forall n, sop3 (sarr n sword) sword sword (sarr n sword).
 
 Inductive pexpr : stype -> Type :=
-| Pvar   : forall x:var, pexpr x.(vtype)
-| Pconst : N -> pexpr sword
+| Pvar   :> forall x:var, pexpr x.(vtype)
+| Pconst :> N -> pexpr sword
 | Papp1  : forall st1 stres: stype, 
   sop1 st1 stres -> pexpr st1 -> pexpr stres
 | Papp2  : forall st1 st2 stres: stype, 
@@ -248,10 +199,8 @@ Definition sem_sop2 st1 st2 str (sop : sop2 st1 st2 str) :=
   match sop in sop2 st1 st2 str return 
         st2ty st1 -> st2ty st2 -> exec (st2ty str) with
   | Oand       => fun x y => ok (x && y)
-  | Oor       => fun x y => ok (x || y)
-  | Oadd       => fun (x y:word) =>
-                    let n := (x + y)%nat in
-                    ok (n >= 2^wsize,n%:R)
+  | Oor        => fun x y => ok (x || y)
+  | Oadd       => fun x y => ok (wadd x y)
   | Oeq        => fun (x y : word) => ok (x == y)
   | Olt        => fun (x y : word) => ok (x < y)
   | Oget n     => fun (a : (n.+1).-tuple word) (i:word) =>
@@ -269,9 +218,7 @@ Definition sem_sop3 st1 st2 st3 str (sop : sop3 st1 st2 st3 str) :=
                     then Error ErrOob
                     else
                       ok [tuple (if j == inZp i then v else tnth a j) | j < n.+1]
-  | Oaddc      => fun (x y: word) (b: bool) =>
-                    let n := (x + y + b)%nat in
-                    ok (n >= 2^wsize,n%:R)
+  | Oaddc      => fun x y c => ok (waddc x y c)
   end.
 
 Fixpoint sem_pexpr st (vm : vmap) (pe : pexpr st) : exec (st2ty st) :=

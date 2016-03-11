@@ -8,6 +8,7 @@ COQFILES := \
 	src/3rdparty/finmap.v \
 	src/pos_map.v \
 	src/strings.v \
+	src/word.v \
 	src/dmasm_utils.v \
 	src/arithmetica.v \
 	src/dmasm_type.v \
@@ -15,6 +16,7 @@ COQFILES := \
 	src/dmasm_sem.v \
 	src/dmasm_Ssem.v \
 	src/dmasm_sem_props.v \
+	src/symbolic_expr.v \
 	src/dmasm_logic.v \
 
 
