@@ -257,3 +257,35 @@ Notation "m .[ x ]" := (@DMst.get _ m x) : mtype_scope.
 Notation "m .[ x  <- v ]" := (@DMst.set _ m x v) : mtype_scope.
 Arguments DMst.get P m%mtype_scope k.
 Arguments DMst.set P m%mtype_scope k v.
+
+
+
+(* ** Comparison 
+ * -------------------------------------------------------------------- *)
+
+Fixpoint stype_cmp t t' : comparison :=
+  match t, t' with
+  | sword      , sword         => Eq 
+  | sword      , _             => Lt
+  | sbool      , sword         => Gt
+  | sbool      , sbool         => Eq 
+  | sbool      , _             => Lt
+  | sprod _  _ , sword         => Gt
+  | sprod _  _ , sbool         => Gt
+  | sprod t1 t2, sprod t1' t2' =>  
+    match stype_cmp t1 t1' with
+    | Lt => Lt
+    | Eq => stype_cmp t2 t2'
+    | Gt => Gt
+    end
+  | sprod _  _ , sarr  _   _   => Lt
+  | sarr  n  t , sarr  n'  t'  => 
+    match Nat.compare n n' with
+    | Lt => Lt
+    | Eq => stype_cmp t t'
+    | Gt => Gt
+    end
+  | sarr  _  _ , _             => Gt
+  end.
+
+Definition stype_lt t1 t2 := stype_cmp t1 t2 = Lt.
