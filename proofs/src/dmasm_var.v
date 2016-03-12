@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import strings dmasm_utils dmasm_type.
+Require Import pos_map strings dmasm_utils dmasm_type.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -81,11 +81,8 @@ Module Type Vmap.
 
 End Vmap.
 
-
 (* ** Variables map, to be used when computation is needed
  * -------------------------------------------------------------------- *)
-
-
 Module Mv <: Vmap.
 
   Import DMst Mid.
@@ -102,7 +99,7 @@ Module Mv <: Vmap.
   |}.
 
   Definition get {to} (m: t to) (x:var) : to x.(vtype) := 
-    match (m.(map).[x.(vtype)])%dms with 
+    match (m.(map).[x.(vtype)])%mt with 
     | Some mi => 
       match (mi.[x.(vname)])%ms with 
       | Some v => v
@@ -113,13 +110,13 @@ Module Mv <: Vmap.
 
   Definition set {to} (m: t to) (x:var) (v:to x.(vtype)) : t to :=
     let mi := 
-      match (m.(map).[x.(vtype)])%dms with 
+      match (m.(map).[x.(vtype)])%mt with 
       | Some mi => mi
       | None    => Mid.empty _ 
       end in
     let mi := (mi.[x.(vname) <- v])%ms in
     {| dft := m.(dft);
-       map := (m.(map).[x.(vtype) <- mi])%dms; |}.
+       map := (m.(map).[x.(vtype) <- mi])%mt; |}.
 
   Lemma get0 {to} (dft: forall x, to x.(vtype)) (x:var) : get (empty dft) x = dft x.
   Proof. by rewrite /empty /get DMst.get0. Qed.
@@ -132,20 +129,17 @@ Module Mv <: Vmap.
     move=> neq;rewrite /set /get.
     case : (boolP ((vtype x) == (vtype y))) => [/eqP eq | ?] /=;last by rewrite DMst.setP_neq.
     move: v;rewrite eq => v; rewrite DMst.setP_eq Mid.setP_neq.
-    + by case: (_.[_])%dms => //; rewrite Mid.get0.
+    + by case: (_.[_])%mt => //; rewrite Mid.get0.
     by apply: contra neq; case: x y eq {v}=> tx sx [] ty sy /= -> /eqP ->.
   Qed.
 
 End Mv.
 
 Delimit Scope mvar_scope with mv.
-Local Open Scope mvar_scope.
 Notation "vm .[ x ]" := (@Mv.get _ vm x) : mvar_scope.
-
-Reserved Notation "x .[ k <- v ]"
-     (at level 2, k at level 200, v at level 200, format "x .[ k  <-  v ]").
-
 Notation "vm .[ x  <- v ]" := (@Mv.set _ vm x v) : mvar_scope.
+Arguments Mv.get to m%mvar_scope x.
+Arguments Mv.set to m%mvar_scope x v.
 
 (* ** Variables function: to be not used if computation is needed, 
  *                       but extentianality is permited 
@@ -197,6 +191,9 @@ Delimit Scope vmap_scope with vmap.
 Notation "vm .[ id ]" := (Fv.get vm id) : vmap_scope.
 Notation "vm .[ k  <- v ]" := (@Fv.set _ vm k v) : vmap_scope.
 Notation "vm1 =v vm2" := (Fv.ext_eq vm1 vm2) (at level 70, no associativity) : vmap_scope.
+Arguments Fv.get to vm%vmap_scope x.
+Arguments Fv.set to vm%vmap_scope x v.
+Arguments Fv.ext_eq to vm1%vmap_scope vm2%vmap_scope.
 
 Module Type WrInp.
 

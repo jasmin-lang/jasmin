@@ -252,3 +252,8 @@ End DInjSType.
 
 Module DMst := DMmake DInjSType.
 
+Delimit Scope mtype_scope with mt.
+Notation "m .[ x ]" := (@DMst.get _ m x) : mtype_scope.
+Notation "m .[ x  <- v ]" := (@DMst.set _ m x v) : mtype_scope.
+Arguments DMst.get P m%mtype_scope k.
+Arguments DMst.set P m%mtype_scope k v.

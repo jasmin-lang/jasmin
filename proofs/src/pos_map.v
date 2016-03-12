@@ -55,6 +55,9 @@ Module Type InjPos.
   
 End InjPos.
 
+Reserved Notation "x .[ k <- v ]"
+     (at level 2, k at level 200, v at level 200, format "x .[ k  <-  v ]").
+
 Module Mmake (K:InjPos).
 
   Definition t (T:Type) := PositiveMap.t T.
@@ -65,13 +68,9 @@ Module Mmake (K:InjPos).
 
   Definition set {T} (m:t T) (k:K.t) (t:T) := PositiveMap.add (K.t2P k) t m.
 
-  Delimit Scope map_scope with ms.
-  Local Open Scope map_scope.
-  Notation "m .[ s ]" := (get m s): map_scope.
-  Reserved Notation "x .[ k <- v ]"
-     (at level 2, k at level 200, v at level 200, format "x .[ k  <-  v ]").
+  Local Notation "m .[ s ]" := (get m s).
 
-  Notation "x .[ k <- v ]" := (set x k v) : map_scope.
+  Local Notation "x .[ k <- v ]" := (set x k v).
 
   Lemma get0 P x : (empty P).[x] = None.
   Proof. by rewrite /empty /get PositiveMap.gempty. Qed.
@@ -89,6 +88,31 @@ Module Mmake (K:InjPos).
   Proof. by rewrite setP => /negPf ->. Qed.
 
 End Mmake.
+
+Lemma pos_eqP : Equality.axiom Pos.eqb. 
+Proof. by move=> x y;apply:(iffP idP);rewrite -Pos.eqb_eq. Qed.
+
+Definition pos_eqMixin := EqMixin pos_eqP.
+Canonical  pos_eqType  := EqType positive pos_eqMixin.
+
+Module InjPosPos.
+
+  Definition t := [eqType of positive].
+
+  Definition t2P (p:t):positive := p.
+
+  Lemma t2P_inj : injective t2P.
+  Proof. done. Qed.
+  
+End InjPosPos.
+
+Module Mp := Mmake InjPosPos.
+
+Delimit Scope mpos_scope with mp.
+Notation "m .[ x ]" := (@Mp.get _ m x) : mpos_scope.
+Notation "m .[ x  <- v ]" := (@Mp.set _ m x v) : mpos_scope.
+Arguments Mp.get T%type_scope m%mpos_scope k%positive_scope.
+Arguments Mp.set T%type_scope m%mpos_scope k%positive_scope t.
 
 Module Type DInjPos.
 
@@ -131,13 +155,8 @@ Module DMmake (K:DInjPos).
   Definition set {P} (m:t P) (k:K.t) (v:P k) := 
     PositiveMap.add (K.t2P k) (Box v) m.
 
-  Delimit Scope dmap_scope with dms.
-  Local Open Scope dmap_scope.
-  Notation "m .[ s ]" := (get m s): dmap_scope.
-  Reserved Notation "x .[ k <- v ]"
-     (at level 2, k at level 200, v at level 200, format "x .[ k  <-  v ]").
-
-  Notation "x .[ k <- v ]" := (@set _ x k v) : dmap_scope.
+  Notation "m .[ s ]" := (get m s).
+  Notation "x .[ k <- v ]" := (@set _ x k v).
   
   Lemma get0 P x : (empty P).[x] = None.
   Proof. by rewrite /empty /get PositiveMap.gempty. Qed.
@@ -170,6 +189,8 @@ Module DMmake (K:DInjPos).
   Qed.
 
 End DMmake.
+
+
 
 
 

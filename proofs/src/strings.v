@@ -124,3 +124,8 @@ Module InjString.
 End InjString.
 
 Module Ms := Mmake InjString.
+Delimit Scope mstring_scope with ms.
+Notation "m .[ x ]" := (@Ms.get _ m x) : mstring_scope.
+Notation "m .[ x  <- v ]" := (@Ms.set _ m x v) : mstring_scope.
+Arguments Ms.get T%type_scope m%mstring_scope k.
+Arguments Ms.set T%type_scope m%mstring_scope k t.
