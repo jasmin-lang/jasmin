@@ -116,7 +116,7 @@ Lemma hoare_call_seq ta tr Pf Qf x (f:fundef ta tr) e (P Q:hpred) c:
        Pf s.(semem) (ssem_pexpr s.(sevm) e) /\
        forall m' (v:sst2ty tr), 
          Qf m' v ->
-         Q {|semem := m'; sevm :=  W.write_rval s.(sevm) x v |}) ->
+         Q {|semem := m'; sevm := W.write_rval s.(sevm) x v |}) ->
   hoare P (rcons c (Ccall x f e)) Q.
 Proof.
   by rewrite -cats1=> Hf Hc;apply: (hoare_seq Hc);apply hoare_call.
@@ -163,20 +163,20 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 Definition spred (t:stype) := spexpr t.
-  
-Definition s2h t (P:sst2ty t -> Prop) (p:spred t) := 
-  fun (s:sestate) => P (ssem_spexpr s.(sevm) p).
+
+Definition s2h t (P:fpred t) (p:spred t) := 
+  fun (s:sestate) => P s.(semem) (ssem_spexpr msv0 s.(sevm) p).
 
 Definition wp_asgn {t1 t2} (rv:rval t1) (e:pexpr t1) (p: spred t2) := 
   subst_spexpr (E.write_rval vsubst_id rv (p2sp e)) p.
 
-Lemma hoare_asgn {t1 t2} (rv:rval t1) (e:pexpr t1) (P:sst2ty t2 -> Prop) (p: spred t2):
+Lemma hoare_asgn {t1 t2} (rv:rval t1) (e:pexpr t1) (P:fpred t2) (p: spred t2):
   hoare (s2h P (wp_asgn rv e p)) [:: Cbcmd (Assgn rv e)] (s2h P p).
 Proof.
   move=> s1_ s2_;set c := Cbcmd _=> /ssem_iV s.
   case: _ {-1}_ _ / s (erefl c) => // s1 s2 ? H [] ?; subst=> {c s1_ s2_}.
   case: H=> <- {s2}; rewrite /wp_asgn /s2h /=.
-  by rewrite /W.write_rval /E.write_rval (write_subst_map [::]) ssem_subst_map.
+  by rewrite /W.write_rval /E.write_rval (write_subst_map [::] msv0) ssem_subst_map.
 Qed.
 
 Definition wp_bcmd t bc (p:spred t) := 
@@ -232,7 +232,7 @@ Proof.
   by case: (wp c1 P) => ??; case: (wp c2 P) => ??.
 Qed.
 
-Lemma wp_tl c t (P:sst2ty t -> Prop) (p:spred t) : exists tl, 
+Lemma wp_tl c t (P:fpred t) (p:spred t) : exists tl, 
    c = (wp c p).1 ++ tl /\
    hoare (s2h P (wp c p).2) tl (s2h P p).
 Proof.
@@ -263,11 +263,11 @@ Proof.
   by exists [::];split=>//;apply:hoare_skip.
 Qed.
   
-Lemma hoare_wp t P Q c (p:spred t) : 
-   hoare Q (wp c p).1 (s2h P (wp c p).2) -> 
-   hoare Q c (s2h P p).
+Lemma hoare_wp t P Q c (q:spred t) : 
+   hoare P (wp c q).1 (s2h Q (wp c q).2) -> 
+   hoare P c (s2h Q q).
 Proof.
-  move=> H1;elim: (wp_tl c P p)=> tl [{2}->];apply: hoare_seq H1.
+  move=> H1;elim: (wp_tl c Q q)=> tl [{2}->];apply: hoare_seq H1.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -277,18 +277,18 @@ Qed.
 
 Ltac skip := try apply:hoare_skip.
 
-Ltac wp_core P p := 
+Ltac wp_core Q q := 
   match goal with
-  | |- hoare ?Q ?c _ => 
-    apply: (@hoare_wp _ P Q c p);
-    match eval vm_compute in (wp c p) with
-    | (?c', ?p') => 
+  | |- hoare ?P ?c _ => 
+    apply: (@hoare_wp _ P Q c q);
+    match eval vm_compute in (wp c q) with
+    | (?c', ?q') => 
       let c1 := fresh "c" in
-      let p1 := fresh "p" in
+      let q1 := fresh "p" in
       set c1 := c';
-      set p1 := p';
-      (have -> /=: (wp c p) = (c1,p1) by vm_cast_no_check (erefl (c1,p1)));
-      rewrite /c1 /p1 => {c1 p1}
+      set q1 := q';
+      (have -> /=: (wp c q) = (c1,q1) by vm_cast_no_check (erefl (c1,q1)));
+      rewrite /c1 /q1 => {c1 q1}
     end
   | _ => fail "wp_core: not a hoare judgment"
   end.
@@ -314,7 +314,7 @@ Definition c :=
 Lemma c_ok : 
   hoare (fun _ => True) c (fun s =>  s.(sevm).[x]%vmap = n2w w0 /\ s.(sevm).[y]%vmap = n2w w1).
 Proof.
-  set P := (fun (v:sst2ty (sword ** sword)) => v.1 = n2w w0 /\ v.2 = n2w w1).
+  set P := (fun (_:mem) (v:sst2ty (sword ** sword)) => v.1 = n2w w0 /\ v.2 = n2w w1).
   set p := Eapp2 (Opair _ _) x y.
   wp_core P p.
   by skip.
@@ -328,11 +328,8 @@ Definition c' :=
 Lemma c_ok1 : 
   hoare (fun _ => True) c' (fun s =>  s.(sevm).[x]%vmap = n2w w0 /\ s.(sevm).[z]%vmap = n2w w0).
 Proof.
-  set P := (fun (v:sst2ty (sword ** sword)) => v.1 = n2w w0 /\ v.2 = n2w w0).
+  set P := (fun (_:mem) (v:sst2ty (sword ** sword)) => v.1 = n2w w0 /\ v.2 = n2w w0).
   set p := Eapp2 (Opair _ _) x z.
   wp_core P p.
   by skip.
 Qed.
-
-
-  
