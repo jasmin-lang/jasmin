@@ -665,7 +665,7 @@ Proof.
   elim: pe => //= [| ???? He1 | ????? He1 ? He2 
                    | ?????? He1 ? He2 ? He3 | ?? He1 ? He2 ? He3];
     rewrite ?mk_op1P ?mk_op2P ?mk_op3P ?mk_ifP /= ?He1 ?He2 ?He3 //.
-  elim: l => [ | [id e] l Hrec] x //=;first by rewrite /vsubst_id Mv.get0.
+  elim: l => [ | [id e] l Hrec] x //=. 
   case: (boolP (id == x))=> [/eqP <-| ?].
   + by rewrite Fv.setP_eq Mv.setP_eq.
   by rewrite Fv.setP_neq // Mv.setP_neq. 

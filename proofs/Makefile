@@ -7,6 +7,7 @@ INCFLAGS := -R src $(NAME) -R src/3rdparty $(NAME)
 COQFILES := \
 	src/3rdparty/finmap.v \
 	src/pos_map.v \
+	src/gen_map.v \
 	src/strings.v \
 	src/word.v \
 	src/dmasm_utils.v \

@@ -3,16 +3,11 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import strings ZArith FMapPositive dmasm_utils.
+Require Import ZArith gen_map dmasm_utils.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-Import GRing.Theory.
-
-Open Scope string_scope.
-Local Open Scope ring_scope.
 
 (* ** Syntax
  * -------------------------------------------------------------------- *)
@@ -25,7 +20,6 @@ Inductive stype : Set :=
 | sarr  : forall (n : nat), stype -> stype.
 
 Notation "st1 ** st2" := (sprod st1 st2) (at level 40, left associativity).
-
 
 (* -------------------------------------------------------------------- *)
 Scheme Equality for stype. 
@@ -52,119 +46,115 @@ Admitted.
 Definition stype_choiceMixin := CanChoiceMixin codeK_stype.
 Canonical  stype_choiceType  := ChoiceType stype stype_choiceMixin.
 
-(* -------------------------------------------------------------------- *)
-Fixpoint n2P_app (n:nat) p := 
-  match n with 
-  | 0 => xI p
-  | S n => xO (n2P_app n p)
-  end.
+(* ** Comparison 
+ * -------------------------------------------------------------------- *)
 
-Definition n2P n := n2P_app n xH.
+Module OrdDecStype.
 
-Fixpoint P2n (p:positive) := 
-  match p with
-  | xO p => 
-    match P2n p with
-    | Some (n, p) => Some (S n, p)
-    | None => None
-    end
-  | xI p => Some (0%nat, p)
-  | xH   => None
-  end.
+  Definition t :=  stype.
 
-Lemma n2P_appP n p : n2P_app n p = append (n2P n) p.
-Proof.
-  by elim: n p => //= n Hn p;rewrite !Hn -appendA.
-Qed.
-
-Lemma n2PK n p: P2n (n2P_app n p) = Some (n, p).
-Proof. by elim: n => [ | n Hn] //=;rewrite Hn. Qed.
-
-Fixpoint plog p : nat := 
-  match p with
-  | xH => 0
-  | xO p => S (plog p)
-  | xI p => S (plog p)
-  end.
-
-Lemma plog_app p1 p2 : plog (append p1 p2) = (plog p1 + plog p2)%nat.
-Proof.
-  by elim: p1 => [p1 Hp1 | p1 Hp1 | ] //=;rewrite Hp1 addSn.
-Qed.
-
-Fixpoint st2P_app (st:stype) p := 
-  match st with
-  | sword       => xO (xO p)
-  | sbool       => xO (xI p)
-  | sprod t1 t2 => xI (xO (st2P_app t1 (st2P_app t2 p)))
-  | sarr  n  t  => xI (xI (n2P_app n (st2P_app t p)))
-  end.
-
-Fixpoint P2st_aux (p:positive) (log:nat) := 
-  match p, log with
-  | xO (xO p2), _ => 
-    Some (sword, p2)
-
-  | xO (xI p2), _ => 
-    Some (sbool, p2)
-
-  | xI (xO p'), S log => 
-    match P2st_aux p' log with
-    | Some (t1, p1') => 
-      match P2st_aux p1' log with
-      | Some (t2, p2') => Some (t1 ** t2, p2')
-      | None => None
+  Fixpoint cmp t t' : comparison :=
+    match t, t' with
+    | sword      , sword         => Eq 
+    | sword      , _             => Lt
+    | sbool      , sword         => Gt
+    | sbool      , sbool         => Eq 
+    | sbool      , _             => Lt
+    | sprod _  _ , sword         => Gt
+    | sprod _  _ , sbool         => Gt
+    | sprod t1 t2, sprod t1' t2' =>  
+      match cmp t1 t1' with
+      | Lt => Lt
+      | Eq => cmp t2 t2'
+      | Gt => Gt
       end
-    | None => None
-    end
+    | sprod _  _ , sarr  _   _   => Lt
+    | sarr  n  t , sarr  n'  t'  => 
+      match Nat.compare n n' with
+      | Lt => Lt
+      | Eq => cmp t t'
+      | Gt => Gt
+      end
+    | sarr  _  _ , _             => Gt
+    end.
 
-  | xI (xI p'), S log =>
-     match P2n p' with 
-     | Some (n', p1') =>
-       match P2st_aux p1' log with
-       | Some (st, p2') => Some (sarr n' st, p2') 
-       | _ => None
-       end 
-     | _ => None
-     end
+  Lemma cmp_eq x y: cmp x y = Eq <-> x = y.
+  Proof.
+    elim: x y => [||t1 Ht1 t2 Ht2 | n t Ht] [||t1' t2'|n' t'] //=.
+    + case: cmp (Ht1 t1') => [ | H | H].
+      + rewrite Ht2=> -[->] // _;split=> [-> | []] //.
+      + by split=> //;rewrite H=> -[].
+      by split=> //;rewrite H=> -[].
+    case: Nat.compare_spec=> [-> | H | H].
+    + rewrite Ht;split => [-> | []] //.
+    + by split=>// -[] ??;omega.
+    by split=>// -[] ??;omega.
+  Qed.
 
-  | _, _ => None
-  end. 
+  Lemma cmp_sym x y: cmp x y = CompOpp (cmp y x).
+  Proof.
+    elim: x y=> [||t1 Ht1 t2 Ht2 | n t Ht] [||t1' t2'|n' t'] //=.
+    + by rewrite Ht1 Ht2;case: cmp.
+    by rewrite Nat.compare_antisym Ht;case: Nat.compare.
+  Qed. 
+                                           
+  Definition c_trans c1 c2 := 
+    nosimpl (
+    match c1, c2 with
+    | Eq, _  => Some c2 
+    | _ , Eq => Some c1
+    | Lt, Lt => Some Lt 
+    | Gt, Gt => Some Gt
+    | _ , _  => None 
+    end).
+ 
+  Lemma c_transC c1 c2 : c_trans c1 c2 = c_trans c2 c1.
+  Proof. by case: c1 c2 => -[]. Qed.
 
-Definition st2P st := st2P_app st xH.
+  Lemma c_trans_Lt c1 c2 : c_trans Lt c1 = Some c2 -> Lt = c2.
+  Proof. by rewrite /c_trans;case:c1=> //= -[] <-. Qed.
 
-Lemma st2P_appP st p : st2P_app st p = append (st2P st) p.
-Proof.
-  elim: st p=> [ | | t1 Ht1 t2 Ht2 | k t Ht] p //=.
-  + by rewrite !(Ht1, Ht2) -!appendA.
-  + by rewrite !(Ht, n2P_appP) -!appendA.
-Qed.
+  Lemma c_trans_Gt c1 c2 : c_trans Gt c1 = Some c2 -> Gt = c2.
+  Proof. by rewrite /c_trans;case:c1=> //= -[] <-. Qed.
 
-Lemma st2PK n st p:
-  plog (st2P_app st p) <= n -> P2st_aux (st2P_app st p) n = Some (st, p).
-Proof.
-  elim: n st p => [[]//|n ih] [| |t1 t2|k t] //= p ltn.
-  + rewrite !ih 1?ltnW //; move: ltn; rewrite ltnS.
-    by rewrite !st2P_appP !plog_app; apply/leq_ltn_trans/leq_addl.
-  + rewrite n2PK ih //; move: ltn; rewrite ltnS n2P_appP plog_app.
-    by move/ltnW/(leq_trans _); apply; apply/leq_addl.
-Qed.
+  Lemma cmp_trans_c y x z c: c_trans (cmp x y) (cmp y z) = Some c -> cmp x z = c.
+  Proof.
+    elim: x y z c => [||t1 Ht1 t2 Ht2 | n t Ht] 
+                   [||t1' t2'|n' t'] /=
+                   [||t1'' t2''|n'' t''] c => //=;
+      try ((by move=> []) ||
+           (by apply c_trans_Lt) || 
+           (by apply c_trans_Gt)).
+    + case: cmp (Ht1 t1' t1'') (Ht2 t2' t2'');case: (cmp t1' t1'') => //.
+      + by move=> H1 H2 /H2;rewrite (H1 Eq).
+      + by move=> H1 H2;rewrite (H1 Lt) // c_transC;apply c_trans_Lt.
+      + by move=> H1 _ ;rewrite (H1 Gt) // c_transC;apply c_trans_Gt.
+      + by move=> H1 H2;rewrite (H1 Lt) // c_transC;apply c_trans_Lt.
+      + by move=> H1 H2;rewrite /c_trans =>-[] ?;subst;rewrite (H1 Lt).
+      + by move=> H1 H2;rewrite (H1 Gt) // c_transC;apply c_trans_Gt.
+      by move=> H1 H2;rewrite /c_trans =>-[] ?;subst;rewrite (H1 Gt).
+    case: Nat.compare_spec=> [ ? | | ];case: Nat.compare_spec=> [ ? | | //];subst=> //.
+    + by rewrite Nat.compare_refl;apply Ht.
+    + by move=> /nat_compare_lt ->;rewrite c_transC;apply c_trans_Lt.  
+    + by move=> /nat_compare_gt ->;rewrite c_transC;apply c_trans_Gt. 
+    + by move=> /nat_compare_lt -> /c_trans_Lt.  
+    + move=> ??;have /nat_compare_lt -> : (n < n'')%coq_nat by omega.
+      by apply c_trans_Lt.
+    + by move=> /nat_compare_gt -> /c_trans_Gt.  
+    move=> ??;have /nat_compare_gt -> : (n'' < n)%coq_nat by omega.
+    by apply c_trans_Gt.        
+  Qed.
 
-Lemma st2P_inj : injective st2P.
-Proof. 
-  rewrite /st2P => t1 t2 heq.
-  have := @st2PK (plog (st2P_app t1 xH)) t1 xH (leqnn _).
-  have := @st2PK (plog (st2P_app t2 xH)) t2 xH (leqnn _).
-  by rewrite heq=> -> [] ->.
-Qed.
+  Lemma cmp_trans y x z c: cmp x y = c -> cmp y z = c -> cmp x z = c.
+  Proof.
+    by move=> H1 H2;apply (@cmp_trans_c y);rewrite H1 H2;case: c {H1 H2}.
+  Qed.
 
-Module DInjSType.
+End OrdDecStype.
+
+Module CEDecStype.
 
   Definition t := [eqType of stype].
-
-  Definition t2P := st2P.
- 
-  Definition t2P_inj := st2P_inj.
   
   Fixpoint n_dec (n1 n2:nat) : {n1 = n2} + {True} :=
     match n1 as n return {n = n2} + {True} with
@@ -185,7 +175,7 @@ Module DInjSType.
       | _ => right I
       end
     end.
-          
+
   Fixpoint eq_dec (t1 t2:t) : {t1 = t2} + {True} :=
     match t1 as t return {t = t2} + {True} with 
     | sword =>
@@ -233,24 +223,29 @@ Module DInjSType.
       end
     end.
 
-  Lemma n_dec_r n1 n2 tt: n_dec n1 n2 = right tt -> n1 <> n2.
+  Lemma n_dec_r n1 n2 tt: n_dec n1 n2 = right tt -> n1 != n2.
   Proof.
     case: tt;elim: n1 n2 => [|n1 Hn1] [|n2] //=.
-    by case: n_dec (Hn1 n2) => // -[] neq _ [] *;apply neq.
+    by case: n_dec (Hn1 n2) => //= -[] H _;apply H.
   Qed.
-
-  Lemma eq_dec_r t1 t2 tt: eq_dec t1 t2 = right tt -> t1 <> t2.
+ 
+  Lemma eq_dec_r t1 t2 tt: eq_dec t1 t2 = right tt -> t1 != t2.
   Proof.
     case: tt;elim:t1 t2=> [|| t1 Ht1 t2 Ht2 | n t Ht] [|| t1' t2' | n' t'] //=.
-    + case: eq_dec (Ht1 t1') => [? _ | [] neq _ [] *];last by apply neq.
-      by case: eq_dec (Ht2 t2') => // -[] neq _ [] *;apply neq.
-    + case: n_dec (@n_dec_r n n' I) => [? _ | [] neq _ [] *];last by apply neq.
-      by case: eq_dec (Ht t') => // -[] neq _ [] *;apply neq.
+    + case: eq_dec (Ht1 t1') => [? _ | [] neq _ ].
+      + case: eq_dec (Ht2 t2') => // -[] neq _.
+        by move: (neq (erefl _));rewrite !eqE /= andbC => /negPf ->. 
+      by move: (neq (erefl _));rewrite !eqE /= => /negPf ->.   
+    case: n_dec (@n_dec_r n n' I) => [Heq _ | [] neq ].
+    + case: eq_dec (Ht t') => // -[] neq _;rewrite Heq.
+      by move: (neq (erefl _));rewrite !eqE /= andbC => /negPf ->. 
+    move: (neq (erefl _))=> /eqP H _;rewrite !eqE /=.
+    by case H':nat_beq=> //;move:H'=> /internal_nat_dec_bl.
   Qed.
-    
-End DInjSType.
 
-Module DMst := DMmake DInjSType.
+End CEDecStype.
+
+Module DMst := DMmake CEDecStype OrdDecStype.
 
 Delimit Scope mtype_scope with mt.
 Notation "m .[ x ]" := (@DMst.get _ m x) : mtype_scope.
@@ -259,33 +254,3 @@ Arguments DMst.get P m%mtype_scope k.
 Arguments DMst.set P m%mtype_scope k v.
 
 
-
-(* ** Comparison 
- * -------------------------------------------------------------------- *)
-
-Fixpoint stype_cmp t t' : comparison :=
-  match t, t' with
-  | sword      , sword         => Eq 
-  | sword      , _             => Lt
-  | sbool      , sword         => Gt
-  | sbool      , sbool         => Eq 
-  | sbool      , _             => Lt
-  | sprod _  _ , sword         => Gt
-  | sprod _  _ , sbool         => Gt
-  | sprod t1 t2, sprod t1' t2' =>  
-    match stype_cmp t1 t1' with
-    | Lt => Lt
-    | Eq => stype_cmp t2 t2'
-    | Gt => Gt
-    end
-  | sprod _  _ , sarr  _   _   => Lt
-  | sarr  n  t , sarr  n'  t'  => 
-    match Nat.compare n n' with
-    | Lt => Lt
-    | Eq => stype_cmp t t'
-    | Gt => Gt
-    end
-  | sarr  _  _ , _             => Gt
-  end.
-
-Definition stype_lt t1 t2 := stype_cmp t1 t2 = Lt.
