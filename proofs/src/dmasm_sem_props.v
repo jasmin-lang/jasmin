@@ -900,7 +900,7 @@ Admitted.
 (* ** Variable substitution
  * -------------------------------------------------------------------- *)
 
-Notation subst := (forall (x:var), pexpr x.(vtype)).
+Notation subst := (forall (x:var), pexpr x.(vtype)) (only parsing).
 
 Fixpoint subst_pexpr st (s : subst) (pe : pexpr st) :=
   match pe in pexpr st_ return pexpr st_ with
