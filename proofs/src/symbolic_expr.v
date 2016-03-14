@@ -4,7 +4,7 @@
 Require Import JMeq ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple finfun.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import pos_map word dmasm_utils dmasm_type dmasm_var dmasm_sem 
+Require Import pos_map gen_map word dmasm_utils dmasm_type dmasm_var dmasm_sem 
                dmasm_sem_props dmasm_Ssem.
 
 Set Implicit Arguments.
@@ -58,11 +58,16 @@ Lemma eqb_sop3P t1 t1' t2 t2' t3 t3' tr tr' (o:sop3 t1 t2 t3 tr) (o':sop3 t1' t2
   t1 = t1' -> t2 = t2' -> t3 = t3' -> eqb_sop3 o o' ->  tr = tr' /\ JMeq o o'.
 Proof. by move: o o'=> [|?] [|?] // [] ->. Qed.
 
-(* Symbolic variables:
- * This is a clone of variables only the type of ident change
+
+(* -------------------------------------------------------------------------- *)
+(* ** Symbolic variables                                                      *)
+(* -------------------------------------------------------------------------- *)
+
+(* This is a clone of variables only the type of ident change
  * Maybe we should merge both                                                 *) 
 
 Record svar := { svtype : stype; svname : positive; }.
+
 Definition svar_beq (v1 v2:svar) :=
   let (t1,n1) := v1 in
   let (t2,n2) := v2 in
@@ -76,6 +81,21 @@ Qed.
 
 Definition svar_eqMixin := EqMixin svar_eqP.
 Canonical  svar_eqType  := EqType svar svar_eqMixin.
+
+Definition svar_cmp (x y:svar) := 
+  Lex (stype_cmp x.(svtype) y.(svtype)) (Pos.compare x.(svname) y.(svname)).
+
+Instance svarO : Cmp svar_cmp.
+Proof.
+   constructor=> [x y | y x z c | [??] [??]] ;rewrite /svar_cmp !Lex_lex.
+  + by apply lex_sym;apply cmp_sym.
+  + by apply lex_trans=> /=; apply cmp_ctrans.
+  by move=> /lex_eq [] /= /(@cmp_eq _ _ stypeO) -> /(@cmp_eq _ _ positiveO) ->.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+(* ** Map of symbolic variables                                               *)
+(* -------------------------------------------------------------------------- *)
 
 Module Msv.
 
@@ -106,7 +126,7 @@ Module Msv.
     let mi := 
       match (m.(map).[x.(svtype)])%mt with 
       | Some mi => mi
-      | None    => Mid.empty _ 
+      | None    => Mp.empty _ 
       end in
     let mi := (mi.[x.(svname) <- v])%mp in
     {| dft := m.(dft);
@@ -135,6 +155,25 @@ Notation "vm .[ x  <- v ]" := (@Msv.set _ vm x v) : msvar_scope.
 Arguments Msv.get to m%msvar_scope x.
 Arguments Msv.set to m%msvar_scope x v.
 Definition msv0 := Msv.empty (fun v => sdflt_val v.(svtype)).
+
+(* -------------------------------------------------------------------------- *)
+(* ** Set of symbolic variables                                               *)
+(* -------------------------------------------------------------------------- *)
+
+Module CmpSVar.
+
+  Definition t := [eqType of svar].
+
+  Definition cmp : t -> t -> comparison := svar_cmp.
+
+  Definition cmpO : Cmp cmp := svarO.
+
+End CmpSVar.
+
+Module Ssv := Smake CmpSVar.
+
+
+
 (* -------------------------------------------------------------------------- *)
 (* ** Symbolic program expressions                                            *)
 (* -------------------------------------------------------------------------- *)

@@ -1,7 +1,8 @@
 (* ** Imports and settings *)
+Require Import FMaps FMapAVL.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import FMaps FMapAVL.
+Require Import dmasm_utils.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -9,44 +10,40 @@ Unset Printing Implicit Defensive.
 
 (* ** *)
 
-Module Type OrdDecT.
+Module Type CmpType.
 
-  Parameter t : Type.
+  Parameter t : eqType.
 
   Parameter cmp : t -> t -> comparison.
 
-  Parameter cmp_eq : forall x y, cmp x y = Eq <-> x = y.
+  Parameter cmpO : Cmp cmp.
 
-  Parameter cmp_sym : forall x y, cmp x y = CompOpp (cmp y x).
+End CmpType.
 
-  Parameter cmp_trans : forall y x z c, cmp x y = c -> cmp y z = c -> cmp x z = c.
+Module MkOrdT (T:CmpType) <: OrderedType.
 
-End OrdDecT.
-
-Module MkOrdT (T:OrdDecT) <: OrderedType.
-
-  Definition t := T.t.
+  Definition t := Equality.sort T.t.
 
   Definition eq x y := T.cmp x y = Eq.
   Definition lt x y := T.cmp x y = Lt.
 
   Lemma eq_refl x: eq x x. 
-  Proof. by rewrite /eq T.cmp_eq. Qed.
- 
+  Proof. apply: cmp_refl. Qed.
+
   Lemma eq_sym x y: eq x y -> eq y x.
-  Proof. by rewrite /eq=> Heq;rewrite T.cmp_sym Heq. Qed.
+  Proof. by rewrite /eq=> Heq;rewrite cmp_sym Heq. Qed.
 
   Lemma eq_trans x y z: eq x y -> eq y z -> eq x z.
-  Proof. by apply T.cmp_trans. Qed.
+  Proof. by apply cmp_trans. Qed.
 
   Lemma lt_trans x y z: lt x y -> lt y z -> lt x z.
-  Proof. apply T.cmp_trans. Qed.
+  Proof. apply cmp_trans. Qed.
 
   Lemma lt_not_eq x y: lt x y -> ~ eq x y.
   Proof. by rewrite /lt /eq => ->. Qed.
 
   Lemma gt_lt x y : T.cmp x y = Gt -> lt y x.
-  Proof. by rewrite /lt=> H;rewrite T.cmp_sym H. Qed.
+  Proof. by rewrite /lt=> H;rewrite cmp_sym H. Qed.
 
   Definition compare x y : Compare lt eq x y := 
     let c := T.cmp x y in
@@ -74,7 +71,45 @@ End CompuEqDec.
 Reserved Notation "x .[ k <- v ]"
      (at level 2, k at level 200, v at level 200, format "x .[ k  <-  v ]").
 
-Module DMmake (K:CompuEqDec) (T:OrdDecT with Definition t := Equality.sort K.t).
+Module Mmake (K:CmpType).
+
+  Module Ordered := MkOrdT K.
+
+  Module Map := FMapAVL.Make Ordered.
+
+  Module Facts := WFacts_fun Ordered Map.
+
+  Definition t (T:Type) := Map.t T.
+
+  Definition empty T : t T := Map.empty T.
+
+  Definition get {T} (m:t T) (k:K.t) := Map.find k m. 
+
+  Definition set {T} (m:t T) (k:K.t) (v:T) := Map.add k v m.
+
+  Local Notation "m .[ s ]" := (get m s).
+  Local Notation "x .[ k <- v ]" := (@set _ x k v).
+  
+  Lemma get0 T x : (empty T).[x] = None.
+  Proof. by rewrite /empty /get Facts.empty_o. Qed.
+
+  Lemma setP {T} (m: t T) x y (v:T) :
+    m.[x <- v].[y] = if x == y then Some v else m.[y].
+  Proof.  
+    rewrite /set /get /=;case: eqP=> H.
+    + by rewrite Facts.add_eq_o // H cmp_refl.
+    by rewrite Facts.add_neq_o // => H1;apply H;apply cmp_eq.
+  Qed.
+
+  Lemma setP_eq {T} (m: t T) x (v:T) : m.[x <- v].[x] = Some v.
+  Proof. by rewrite setP eq_refl. Qed.
+
+  Lemma setP_neq {T} (m: t T) x y (v:T) : x != y -> m.[x <- v].[y] = m.[y].
+  Proof. by rewrite setP=> /negPf ->. Qed.
+
+End Mmake.
+
+Module DMmake (K:CompuEqDec) (T:CmpType with Definition t := K.t).
 
   Record boxed (P:K.t -> Type) := Box {
     box_t : K.t;
@@ -125,9 +160,9 @@ Module DMmake (K:CompuEqDec) (T:OrdDecT with Definition t := Equality.sort K.t).
   Proof.  
     rewrite /set /get /from_boxed /=.
     case H: (K.eq_dec x y) (@K.eq_dec_r x y) => [Heq | []] => [ _ | Hneq].
-    + by rewrite Facts.add_eq_o ?H // T.cmp_eq.
+    + by rewrite Facts.add_eq_o ?H // Heq cmp_refl. 
     have {Hneq} /eqP Hneq := Hneq I (erefl _).  
-    by rewrite Facts.add_neq_o // T.cmp_eq. 
+    by rewrite Facts.add_neq_o // => H1;apply Hneq;apply cmp_eq.
   Qed.
 
   Lemma setP_eq {P} (m: t P) x (v:P x) : m.[x <- v].[x] = Some v.
@@ -143,4 +178,52 @@ Module DMmake (K:CompuEqDec) (T:OrdDecT with Definition t := Equality.sort K.t).
   Qed.
 
 End DMmake.
+
+
+(* --------------------------------------------------------------------------
+ ** Finite Set    
+ * -------------------------------------------------------------------------- *) 
+
+Require Import MSets.
+
+Module MkMOrdT (T:CmpType) <: Orders.OrderedType.
+  Definition t := Equality.sort T.t.
+ 
+  Definition eq := @Logic.eq t.
+
+  Lemma eq_equiv : Equivalence eq.
+  Proof. by auto. Qed.
+
+  Definition lt x y := T.cmp x y = Lt.
+  
+  Lemma lt_strorder : StrictOrder lt.
+  Proof. 
+    constructor. 
+    + by move=> x;rewrite /complement /lt cmp_refl.
+    move=> ???;apply cmp_trans.
+  Qed.
+
+  Lemma lt_compat : Proper (eq ==> eq ==> iff) lt.
+  Proof. by rewrite /eq;move=> ?? -> ?? ->. Qed.
+
+  Definition compare : t -> t -> comparison := T.cmp.
+
+  Lemma compare_spec :
+     forall x y : t, CompareSpec (eq x y) (lt x y) (lt y x) (compare x y).
+  Proof.
+    move=> x y;rewrite /compare /eq /lt (cmp_sym y x).
+    case: T.cmp (@cmp_eq _ _ T.cmpO x y);constructor;auto.
+  Qed.
+    
+  Lemma eq_dec : forall x y : t, {eq x y} + {~ eq x y}.
+  Proof. 
+    by move=> x y;case:(x =P y);[left | right].
+  Qed.
+
+End MkMOrdT.
+
+Module Smake (T:CmpType).
+  Module Ordered := MkMOrdT T.
+  Include (MSetAVL.Make Ordered).
+End Smake.
 

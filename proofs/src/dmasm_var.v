@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import pos_map strings dmasm_utils dmasm_type.
+Require Import strings dmasm_utils gen_map dmasm_type.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -39,6 +39,17 @@ Qed.
 
 Definition var_eqMixin := EqMixin var_eqP.
 Canonical  var_eqType  := EqType var var_eqMixin.
+
+Definition var_cmp (x y:var) := 
+  Lex (stype_cmp x.(vtype) y.(vtype)) (string_cmp x.(vname) y.(vname)).
+
+Instance varO : Cmp var_cmp.
+Proof.
+   constructor=> [x y | y x z c | [??] [??]] ;rewrite /var_cmp !Lex_lex.
+  + by apply lex_sym;apply cmp_sym.
+  + by apply lex_trans=> /=; apply cmp_ctrans.
+  by move=> /lex_eq [] /= /(@cmp_eq _ _ stypeO) -> /(@cmp_eq _ _ stringO) ->.
+Qed.
 
 Definition var2pair v := (v.(vtype), v.(vname)).
 Definition pair2var p := Var (fst p) (snd p).
@@ -225,3 +236,28 @@ Module WRmake (M:Vmap) (T:WrInp).
      write_vmap vm (write_subst l v [::]).
 
 End WRmake.
+
+(* ** Finite set of variables (computable)
+ *
+ * -------------------------------------------------------------------- *)
+
+Module CmpVar.
+
+  Definition t := [eqType of var].
+
+  Definition cmp : t -> t -> comparison := var_cmp.
+
+  Definition cmpO : Cmp cmp := varO.
+
+End CmpVar.
+
+Module Sv := Smake CmpVar.
+
+(*
+Definition x := {| vtype := sbool; vname := "x"; |}.
+Definition y := {| vtype := sbool; vname := "y"; |}.
+
+Time Compute Sv.mem x (Sv.add y (Sv.singleton x)).
+(* Finished transaction in 0. secs (0.u,0.s) (successful) *)
+*)
+

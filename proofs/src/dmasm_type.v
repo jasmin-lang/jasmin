@@ -49,108 +49,48 @@ Canonical  stype_choiceType  := ChoiceType stype stype_choiceMixin.
 (* ** Comparison 
  * -------------------------------------------------------------------- *)
 
-Module OrdDecStype.
+Fixpoint stype_cmp t t' : comparison :=
+  match t, t' with
+  | sword      , sword         => Eq 
+  | sword      , _             => Lt
+  | sbool      , sword         => Gt
+  | sbool      , sbool         => Eq 
+  | sbool      , _             => Lt
+  | sprod _  _ , sword         => Gt
+  | sprod _  _ , sbool         => Gt
+  | sprod t1 t2, sprod t1' t2' => Lex (stype_cmp t1 t1') (stype_cmp t2 t2')
+  | sprod _  _ , sarr  _   _   => Lt
+  | sarr  n  t , sarr  n'  t'  => Lex ( Nat.compare n n') (stype_cmp t t')
+  | sarr  _  _ , _             => Gt
+  end.
 
-  Definition t :=  stype.
+Instance stypeO : Cmp stype_cmp.
+Proof.
+  constructor.
+  + elim=> [||t1 Ht1 t2 Ht2 |n t Ht] [||t1' t2'|n' t'] //=;rewrite !Lex_lex;
+    by apply lex_sym; auto using Nat.compare_antisym.
+  + move=> y x;elim: x y=> 
+    [||t1 Ht1 t2 Ht2 |n t Ht] [||t1' t2'|n' t'] [||t1'' t2''|n'' t''] c//=;
+    try (by apply ctrans_Eq);eauto using ctrans_Lt, ctrans_Gt;
+    rewrite !Lex_lex;apply lex_trans=> /=;eauto.
+    case: Nat.compare_spec=> H1;case: Nat.compare_spec=> H2 ?;subst=> //=;
+    rewrite ctrans_Eq=> <-;
+    rewrite ?(Nat.compare_eq_iff, Nat.compare_lt_iff, Nat.compare_gt_iff);
+    omega.
+  elim=> [||t1 Ht1 t2 Ht2 |n t Ht] [||t1' t2'|n' t'] //=;rewrite !Lex_lex.
+  + by move=> /lex_eq /= [] /Ht1 -> /Ht2 ->.
+  by move=> /lex_eq /= [] /Nat.compare_eq_iff -> /Ht ->.
+Qed.
 
-  Fixpoint cmp t t' : comparison :=
-    match t, t' with
-    | sword      , sword         => Eq 
-    | sword      , _             => Lt
-    | sbool      , sword         => Gt
-    | sbool      , sbool         => Eq 
-    | sbool      , _             => Lt
-    | sprod _  _ , sword         => Gt
-    | sprod _  _ , sbool         => Gt
-    | sprod t1 t2, sprod t1' t2' =>  
-      match cmp t1 t1' with
-      | Lt => Lt
-      | Eq => cmp t2 t2'
-      | Gt => Gt
-      end
-    | sprod _  _ , sarr  _   _   => Lt
-    | sarr  n  t , sarr  n'  t'  => 
-      match Nat.compare n n' with
-      | Lt => Lt
-      | Eq => cmp t t'
-      | Gt => Gt
-      end
-    | sarr  _  _ , _             => Gt
-    end.
+Module CmpStype.
 
-  Lemma cmp_eq x y: cmp x y = Eq <-> x = y.
-  Proof.
-    elim: x y => [||t1 Ht1 t2 Ht2 | n t Ht] [||t1' t2'|n' t'] //=.
-    + case: cmp (Ht1 t1') => [ | H | H].
-      + rewrite Ht2=> -[->] // _;split=> [-> | []] //.
-      + by split=> //;rewrite H=> -[].
-      by split=> //;rewrite H=> -[].
-    case: Nat.compare_spec=> [-> | H | H].
-    + rewrite Ht;split => [-> | []] //.
-    + by split=>// -[] ??;omega.
-    by split=>// -[] ??;omega.
-  Qed.
+  Definition t : eqType := [eqType of stype].
 
-  Lemma cmp_sym x y: cmp x y = CompOpp (cmp y x).
-  Proof.
-    elim: x y=> [||t1 Ht1 t2 Ht2 | n t Ht] [||t1' t2'|n' t'] //=.
-    + by rewrite Ht1 Ht2;case: cmp.
-    by rewrite Nat.compare_antisym Ht;case: Nat.compare.
-  Qed. 
-                                           
-  Definition c_trans c1 c2 := 
-    nosimpl (
-    match c1, c2 with
-    | Eq, _  => Some c2 
-    | _ , Eq => Some c1
-    | Lt, Lt => Some Lt 
-    | Gt, Gt => Some Gt
-    | _ , _  => None 
-    end).
- 
-  Lemma c_transC c1 c2 : c_trans c1 c2 = c_trans c2 c1.
-  Proof. by case: c1 c2 => -[]. Qed.
+  Definition cmp : t -> t -> comparison := stype_cmp.
 
-  Lemma c_trans_Lt c1 c2 : c_trans Lt c1 = Some c2 -> Lt = c2.
-  Proof. by rewrite /c_trans;case:c1=> //= -[] <-. Qed.
-
-  Lemma c_trans_Gt c1 c2 : c_trans Gt c1 = Some c2 -> Gt = c2.
-  Proof. by rewrite /c_trans;case:c1=> //= -[] <-. Qed.
-
-  Lemma cmp_trans_c y x z c: c_trans (cmp x y) (cmp y z) = Some c -> cmp x z = c.
-  Proof.
-    elim: x y z c => [||t1 Ht1 t2 Ht2 | n t Ht] 
-                   [||t1' t2'|n' t'] /=
-                   [||t1'' t2''|n'' t''] c => //=;
-      try ((by move=> []) ||
-           (by apply c_trans_Lt) || 
-           (by apply c_trans_Gt)).
-    + case: cmp (Ht1 t1' t1'') (Ht2 t2' t2'');case: (cmp t1' t1'') => //.
-      + by move=> H1 H2 /H2;rewrite (H1 Eq).
-      + by move=> H1 H2;rewrite (H1 Lt) // c_transC;apply c_trans_Lt.
-      + by move=> H1 _ ;rewrite (H1 Gt) // c_transC;apply c_trans_Gt.
-      + by move=> H1 H2;rewrite (H1 Lt) // c_transC;apply c_trans_Lt.
-      + by move=> H1 H2;rewrite /c_trans =>-[] ?;subst;rewrite (H1 Lt).
-      + by move=> H1 H2;rewrite (H1 Gt) // c_transC;apply c_trans_Gt.
-      by move=> H1 H2;rewrite /c_trans =>-[] ?;subst;rewrite (H1 Gt).
-    case: Nat.compare_spec=> [ ? | | ];case: Nat.compare_spec=> [ ? | | //];subst=> //.
-    + by rewrite Nat.compare_refl;apply Ht.
-    + by move=> /nat_compare_lt ->;rewrite c_transC;apply c_trans_Lt.  
-    + by move=> /nat_compare_gt ->;rewrite c_transC;apply c_trans_Gt. 
-    + by move=> /nat_compare_lt -> /c_trans_Lt.  
-    + move=> ??;have /nat_compare_lt -> : (n < n'')%coq_nat by omega.
-      by apply c_trans_Lt.
-    + by move=> /nat_compare_gt -> /c_trans_Gt.  
-    move=> ??;have /nat_compare_gt -> : (n'' < n)%coq_nat by omega.
-    by apply c_trans_Gt.        
-  Qed.
-
-  Lemma cmp_trans y x z c: cmp x y = c -> cmp y z = c -> cmp x z = c.
-  Proof.
-    by move=> H1 H2;apply (@cmp_trans_c y);rewrite H1 H2;case: c {H1 H2}.
-  Qed.
-
-End OrdDecStype.
+  Definition cmpO : Cmp cmp := stypeO.
+  
+End CmpStype.
 
 Module CEDecStype.
 
@@ -245,12 +185,10 @@ Module CEDecStype.
 
 End CEDecStype.
 
-Module DMst := DMmake CEDecStype OrdDecStype.
+Module DMst := DMmake CEDecStype CmpStype.
 
 Delimit Scope mtype_scope with mt.
 Notation "m .[ x ]" := (@DMst.get _ m x) : mtype_scope.
 Notation "m .[ x  <- v ]" := (@DMst.set _ m x v) : mtype_scope.
 Arguments DMst.get P m%mtype_scope k.
 Arguments DMst.set P m%mtype_scope k v.
-
-
