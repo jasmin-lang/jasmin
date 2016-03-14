@@ -140,7 +140,6 @@ Definition assgn st (rv : rval st) pe := Cbcmd (Assgn rv pe).
 Definition load rv pe := Cbcmd (Load rv pe).
 Definition store pe1 pe2 := Cbcmd (Store pe1 pe2).
 
-
 (* ** Interpretation of types
  * -------------------------------------------------------------------- *)
 
@@ -213,12 +212,11 @@ Definition sem_sop2 st1 st2 str (sop : sop2 st1 st2 str) :=
 Definition sem_sop3 st1 st2 st3 str (sop : sop3 st1 st2 st3 str) :=
   match sop in sop3 st1 st2 st3 str return 
         st2ty st1 -> st2ty st2 -> st2ty st3 -> exec (st2ty str) with
-  | Oset n     => fun (a: (n.+1).-tuple word) (i v: word) =>
-                    if i > n
-                    then Error ErrOob
-                    else
-                      ok [tuple (if j == inZp i then v else tnth a j) | j < n.+1]
-  | Oaddc      => fun x y c => ok (waddc x y c)
+  | Oset n => fun (a: (n.+1).-tuple word) (i v: word) =>
+                if i > n
+                then Error ErrOob
+                else ok [tuple (if j == inZp i then v else tnth a j) | j < n.+1]
+  | Oaddc  => fun x y c => ok (waddc x y c)
   end.
 
 Fixpoint sem_pexpr st (vm : vmap) (pe : pexpr st) : exec (st2ty st) :=
@@ -287,7 +285,7 @@ Definition wrange d n1 n2 :=
   let idxs := iota n1 (n2 - n1) in
   match d with
   | UpTo   => idxs
-  | DownTo => rev idxs (* [seq (n1 + (n2 - n - 1))%nat | n <- idxs ] *)
+  | DownTo => rev idxs
   end.
 
 Definition sem_range (vm : vmap) (r : range) :=
@@ -297,15 +295,6 @@ Definition sem_range (vm : vmap) (r : range) :=
   let n1 := w2n w1 in
   let n2 := w2n w2 in
   ok [seq n2w n | n <- wrange d n1 n2].
-
-Record call := Call {
-  c_sta : stype;
-  c_str : stype;
-  c_res : rval c_str;
-  c_fd  : fundef c_sta c_str;
-  c_arg : pexpr c_sta;
-}.
-
 
 Inductive sem : estate -> cmd -> estate -> Prop :=
 | Eskip s :
@@ -324,12 +313,14 @@ with sem_i : estate -> instr -> estate -> Prop :=
     sem s1 (if cond then c1 else c2) s2 ->
     sem_i s1 (Cif pe c1 c2) s2
 
-| Ecall s1 s2 vmc sta str (res : rval str) (fd : fundef sta str) (arg : pexpr sta) :
-    (forall vmc,
-       exists s2, (* to enforce determinism, remove the exists *)
-         sem_call s1 (Call res fd arg) s2 vmc) ->
-    sem_call s1 (Call res fd arg) s2 vmc ->
-    sem_i s1 (Ccall res fd arg) s2
+| Ecall sta str m1 vm1 m2 (rv_res : rval str) (fd : fundef sta str) (pe_arg : pexpr sta)
+      (res : st2ty str):
+    let rarg := sem_pexpr vm1 pe_arg in
+    isOk rarg ->
+    sem_call m1 m2 fd.(fd_body) fd.(fd_res) (rdflt_ rarg) res ->
+    sem_i (Estate m1 vm1)
+          (Ccall rv_res fd pe_arg)
+          (Estate m2 (W.write_rval vm1 rv_res res))
 
 | EFor s1 s2 iv rng c ws :
     sem_range s1.(evm) rng = ok ws ->
@@ -347,32 +338,46 @@ with sem_for : rval sword -> seq word -> estate -> cmd -> estate -> Prop :=
     sem_for iv (ws)    s2 c  s3 ->
     sem_for iv (w::ws) s1 c  s3
 
-with sem_call : estate -> call -> estate -> vmap -> Prop :=
-| EcallRun m1 m2 vm1 vmc0 vmc2 sta str (rv_res : rval str) fd (pe_arg : pexpr sta) :
-    isOk (sem_pexpr vm1 pe_arg) ->
-    let arg := rdflt_ (sem_pexpr vm1 pe_arg) in
-    let vmc1 := W.write_rval vmc0 fd.(fd_arg) arg in
-    sem (Estate m1 vmc1) fd.(fd_body) (Estate m2 vmc2) ->
-    isOk (sem_pexpr vmc2 fd.(fd_res)) ->       
-    sem_call (Estate m1 vm1)
-             (Call rv_res fd pe_arg)
-             (Estate m2
-               (W.write_rval vm1 rv_res (rdflt_ (sem_pexpr vmc2 fd.(fd_res)))))
-             vmc0.
+with sem_call : forall sta str, mem -> mem -> cmd -> pexpr str 
+  -> st2ty sta -> st2ty str -> Prop :=
+
+| EcallRun sta str m1 m2 vm0 vm2 fb (fres : pexpr str) (farg : rval sta)
+      (arg : st2ty sta):
+    (* semantics defined for all vm0 *)
+    (forall vm0, exists m2 vm2,
+       let vm1 := W.write_rval vm0 farg arg in
+       sem (Estate m1 vm1) fb (Estate m2 vm2) /\
+       isOk (sem_pexpr vm2 fres)) ->
+    (* yields given memory m2 and result res *)
+    let vm1 := W.write_rval vm0 farg arg in
+    sem (Estate m1 vm1) fb (Estate m2 vm2) ->
+    let rres := sem_pexpr vm2 fres in
+    isOk rres ->
+    sem_call m1 m2 fb fres arg (rdflt_ rres).
 
 Scheme sem_Ind := Minimality for sem Sort Prop
 with sem_i_Ind := Minimality for sem_i Sort Prop
-with sem_for_Ind := Minimality for sem_for Sort Prop.
+with sem_for_Ind := Minimality for sem_for Sort Prop
+with sem_call_Ind := Minimality for sem_call Sort Prop.
 
 Lemma sem_inv_app l1 l2 s1 s2:
   sem s1 (l1 ++ l2) s2 ->
   exists s3,
     sem s1 l1 s3 /\ sem s3 l2 s2.
 Proof.
-  elim: l1 s1 => [ | i c Hi] s1_.
-  + by exists s1_; split=>//; constructor.
-  rewrite cat_cons=>Hs;inversion_clear Hs.
-  case: (Hi _ H0)=> {H0 Hi} s1 [Hs1 Hs2].
-  exists s1;split => //.
-  by eapply Eseq;eauto.
+  generalize s1. elim l1.
+  + move=> s1_; rewrite /= => H.
+    by exists s1_; split; first by constructor.
+  + move=> inst c Hi s1_ Hs.
+    rewrite cat_cons in Hs.
+    inversion Hs => {Hs}.
+    move: (Hi _ H4); elim => s5; case => Hs1 Hs2.
+    exists s5; split => //.
+    by apply (Eseq (s2:=s3)).
 Qed.
+
+Definition sem_fail (s1 : estate) (c : cmd) : Prop :=
+  forall s2, not (sem s1 c s2).
+
+Definition sem_i_fail (s1 : estate) (i : instr) : Prop :=
+  forall s2, not (sem_i s1 i s2).
