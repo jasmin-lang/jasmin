@@ -496,10 +496,10 @@ Proof.
     apply (EFor (ws:=ws)); last done.
     by rewrite -(rn_range_eq _ _ Hcan1).
   + by move=> s3 c_for iv; constructor.
-  + move=> s3 s4 s5 c_for w ws iv ac Hsac Hsac_rn Hsfor Hsfor_rn.
-    by apply (EForOne (s2:=(rn_estate pi s4))).
+  + move=> s3 s5 c_for w ws iv vm2 Hsfor Hsfor_rn.
+    apply (EForOne). admit. (* (s2:=(rn_estate pi s4))). *)
   + done.
-Qed.
+Admitted.
 
 Lemma rn_sem_equiv pi pi_inv m1 m2 vm1 vm2 c:
   cancel pi_inv pi ->
@@ -741,28 +741,47 @@ Proof.
     by rewrite /=; apply write_rval_eq_except.
   + by move=> s3 s4 iv rng cc ws Hrng Hcc_ws Heq1.
   + done.
-  + move=> s3 s4 s5 cc w ws iv ac Hac Heq1 Hcc_ws Heq2 Hcc_w_ws.
+  + admit.
+    (*
+    move=> s3 s4 s5 cc w ws iv ac Hac Heq1 Hcc_ws Heq2 Hcc_w_ws.
     apply (eq_except_sub (s2:=ids_rval iv `|` write_cmd cc)) in Heq1.
     + by apply (eq_except_trans Heq1 Heq2).
     rewrite /ac /= {ac Hac Heq1 Hcc_ws Heq2}; case Heq : _ / iv => //=.
     apply fsubset_refl.
+    *)
   + done.
-Qed.
+Admitted.
 
 (* ** Equivalent state leads to equivalent state
  * -------------------------------------------------------------------- *)
 
-Lemma sem_ids_unchanged (s1 s1' s2 s2': estate) c:
+Lemma sem_pexpr_read_eq st vm1 vm2 (pe : pexpr st):
+  vm1 = vm2 [&& ids_pexpr pe] ->
+  sem_pexpr vm1 pe = sem_pexpr vm2 pe.
+Admitted.
+
+Lemma sem_simu_read_eq (s1 s1' s2 s2': estate) c:
   s1.(emem) = s1'.(emem) /\ s1.(evm) = s1'.(evm) [&& read_cmd c] ->
-  sem s1  c s2 ->
+  sem s1 c s2 ->
   exists s2', 
     sem s1' c s2' ->
     s2.(emem) = s2'.(emem) /\ s2.(evm) = s2'.(evm)  [&& write_cmd c].
 Proof.
 Admitted.
 
+Lemma sem_fail_read_eq (s1 s1' s2 s2': estate) c:
+  s1.(emem) = s1'.(emem) /\ s1.(evm) = s1'.(evm) [&& read_cmd c] ->
+  sem_fail s1  c ->
+  sem_fail s1' c.
+Proof.
+Admitted.
+
 (* ** Inline call
  * -------------------------------------------------------------------- *)
+
+Local Open Scope char_scope.
+Definition underscore : Ascii.ascii := "_".
+Local Open Scope string_scope.
 
 Definition inlined_call sta str (rv_res : rval str) fd (pe_arg : pexpr sta) :=
   match fd with
@@ -778,38 +797,136 @@ Definition inline_call i :=
   | Ccall sta str rv_res fd pe_arg => Some (inlined_call rv_res fd pe_arg)
   end.
 
-Lemma eq_except_sym vm1 vm2 s:
-  vm1 = vm2 [\ s] -> vm2 = vm1 [\ s].
-Proof. rewrite /vmap_eq_except => Heq id Hnotin. rewrite Heq; done. Qed.
+Fixpoint replicateString n c :=
+  match n with
+  | 0    => ""
+  | n.+1 => String c (replicateString n c)
+  end.
 
-Lemma inline_call_simul sta str (s1 s2 : estate) (fd : fundef sta str) rv_res pe_arg:
-  sem s1 (inlined_call rv_res fd pe_arg) s2 ->
-  exists s2',
-    sem s1 [:: Ccall     rv_res fd pe_arg] s2' /\
-    s2.(emem) = s2'.(emem) /\
-    s2.(evm) = s2'.(evm) [\ write_fdef fd].
+Fixpoint countPrefix c s : nat :=
+  match s with
+  | String c' s => if c' == c then (countPrefix c s).+1 else 0%nat 
+  | EmptyString => 0%nat
+  end.
+
+Fixpoint findPrefix (ids : seq ident) n c :=
+  match ids with
+  | [::]       => replicateString n c
+  | id::ids => findPrefix ids (max (countPrefix c id + 1) n) c
+  end.
+
+Lemma findPrefix_away ids n c:
+  forall id,
+    id \in ids -> ~~ (prefix (findPrefix ids n c) id).
 Proof.
-  destruct fd=> /= Hic.
-  inversion Hic => {Hic}. clear H1 H1 H3 s4 s0 H0 H.
+  elim ids => //.
+  move=> id ids_ Hind id_. rewrite in_cons.
+  move=> Hor.
+  admit.
+Admitted.
+
+(* ** Test inlining
+ * -------------------------------------------------------------------- *)
+
+Notation x  := {| vtype := sword; vname := "x" |}.
+Notation y  := {| vtype := sword; vname := "y" |}.
+Notation z  := {| vtype := sword; vname := "z" |}.
+Notation x' := {| vtype := sword; vname := "x'" |}.
+Notation y' := {| vtype := sword; vname := "y'" |}.
+Notation z' := {| vtype := sword; vname := "z'" |}.
+
+Definition w0 : N := 0.
+Definition w1 : N := 1.
+
+Definition fbody := 
+  [:: assgn x z;
+      assgn y z;
+      Cif (Papp2 Oeq x w1) [::assgn z x] [::assgn z y] ].
+
+Definition ftest := FunDef (Rvar y) fbody (Pvar x).
+
+(*
+Eval vm_compute in (ids_pexpr (Pvar z)).
+
+Eval compute in (find_prefix_away [:: "x";"y";"__z"] 0 underscore).
+
+Eval compute in (inline_call (Ccall (Rvar x') ftest (Pvar y'))). 
+*)
+
+Lemma eq_except_sym vm1 vm2 s:
+  (vm1 = vm2 [\ s]) <-> (vm2 = vm1 [\ s]).
+Proof. rewrite /vmap_eq_except; split; move=> Heq id Hnotin; rewrite Heq; done. Qed.
+
+Lemma eq_on_sym vm1 vm2 s:
+  (vm1 = vm2 [&& s]) <-> (vm2 = vm1 [&& s]).
+Proof. rewrite /vmap_eq_on; split; move=> Heq id Hnotin; rewrite Heq; done. Qed.
+
+Definition simul (Rel : estate -> estate -> Prop) s1 s1' c c' s2 :=
+  Rel s1 s1' ->
+  sem s1 c s2 ->
+  exists s2', Rel s2 s2' /\ sem s1' c' s2'.
+
+Lemma and_imp (P Q : Prop):
+  P -> (P -> Q) -> P /\ Q.
+Proof. auto. Qed.
+
+Lemma inline_call_simul sta str (s1 s1' s2 : estate) (fd : fundef sta str) rv_res pe_arg:
+  [disjoint (ids_pexpr pe_arg) & write_fdef fd ] ->
+  simul (fun s s' => s.(emem) = s'.(emem) /\ 
+                     s.(evm) = s'.(evm) [\ write_fdef fd ] /\
+                     s.(evm) = s'.(evm) [&& ids_pexpr pe_arg])
+    s1 s1'
+    (inlined_call rv_res fd pe_arg)
+    [:: Ccall rv_res fd pe_arg]
+    s2.
+Proof.
+  rewrite /simul => Hdisj.
+  case; destruct fd=> [Hmem [Hvm1 Hvm2]] /= Hic.
+  inversion Hic; subst; clear Hic.
   apply sem_inv_app in H4. elim H4 => {H4} s2_1.
-  case => Hsl Hsassgn. inversion Hsassgn => {Hsassgn}.
-  inversion H5 => {H5}. rewrite H8 in H3. clear  H H0 H4 H6 H8 s s4 H1 c0 i0 s0 s5 i c.
-  inversion H2 => {H2}. clear H4 H H0 s4 s0 c.
-  inversion H3 => {H3}. clear H4 H H0 s4 s0 c.
-  rewrite /write_fdef /=.
-  pose s2' := ({| emem := s2.(emem);
-                  evm := write_rval s1.(evm) rv_res (rdflt_ (sem_pexpr s2_1.(evm) p)) |}).
+  case => Hsl Hsassgn. inversion Hsassgn; subst; clear Hsassgn.
+  inversion H5; subst; clear H5.
+  rewrite /write_fdef /=. rewrite /write_fdef /= in Hvm1.
+  inversion H2; subst; clear H2.
+  inversion H3; subst; clear H3.
+  pose s2' := {| emem := s2.(emem);
+                 evm := write_rval s1.(evm) rv_res (rdflt_ (sem_pexpr s2_1.(evm) p)) |}.
   exists s2'.
   split.
-  + apply (Eseq (s2:= s2')); last by apply Eskip.
-    rewrite /s2'. move: H1. case s1 => m1 vm1 H1.
-    have Hok: isOk (sem_pexpr vm1 pe_arg).
-    + by move: H1; rewrite /sem_bcmd /=; case (sem_pexpr vm1 pe_arg).
-    have Hok2: isOk (sem_pexpr (evm s2_1) p).
-    + by move: H2; rewrite /sem_bcmd /=; case (sem_pexpr (evm s2_1) p). 
+  + split => //.
+    apply and_imp; last first.
+    + by move=> H; apply (vmap_eq_except_on Hdisj H).
+    rewrite /s2' /=. move: H2 => /=. case (sem_pexpr (evm s2_1) p) => res //=.
+    case => <- //=. apply write_rval_eq_except_imp.
+    clear s2' res. apply eq_except_sym.
+    have H1_3: evm s1 = evm s3 [\ids_rval r `|` write_cmd l].
+    + move: H1 => /=. case (sem_pexpr (evm s1) pe_arg) => arg //=.
+      case => <- //=. apply (@eq_except_sub (ids_rval r)).
+      + by apply (fsubsetUl).
+      apply write_rval_eq_except.
+     apply (eq_except_trans H1_3).
+     apply (@eq_except_sub (write_cmd l)).
+     + by apply fsubsetUr.
+     by apply sem_eq_except.
+  + apply (Eseq (s2:=s2')) => //; last first.
+    + by apply Eskip.
+    rewrite /s2'. move: Hmem Hvm1 Hvm2. case s1' => //= m1' vm1' //=. clear s2'.
+    move: H1; case s1 => //= m1 vm1 //= H1 Hmem Hvm1 Hvm2.
+    have: sem_i {| emem := m1'; evm := vm1' |}
+                (Ccall rv_res (FunDef r l p) pe_arg)
+                {| emem := emem s2;
+                   evm := write_rval vm1' rv_res (rdflt_ (sem_pexpr (evm s2_1) p)) |}.
+    + apply Ecall.
+      + rewrite (@sem_pexpr_read_eq _ vm1' vm1); last first.
+        + by rewrite eq_on_sym.
+        by move: H1; case (sem_pexpr vm1 pe_arg) => //=.
+      + apply (EcallRun (vm0:=vm1) (farg:=r)).
+        admit. (* not the nofail c here *)
+      + admit.
     admit.
-    (*
-    apply (Ecall (vmc0:=vm1)) => //.
+    (*  => vm0.
+
+    apply Ecall.
     move: H1 Hok => /=. case (sem_pexpr vm1 pe_arg) => v //= Heq Ht {Ht}.
     move: Heq; case => Heq. rewrite -Heq in Hsl.
     move: H2 Hok2 => /=. case (sem_pexpr (evm s2_1) p) => v2 //= Heq2 Ht {Ht}.
@@ -818,23 +935,6 @@ Proof.
     have ->: {| emem := emem s2_1; evm := evm s2_1 |} = s2_1. case s2_1; done.
     done. 
     *)
-  split => //.
-  rewrite /=.
-  have W: evm s2_1 = evm s1 [\ids_rval r `|` write_cmd l].
-    have Q1: evm s1 = evm s3 [\ids_rval r `|` write_cmd l].
-(*      apply (@eq_except_sub _ _ (ids_rval r)). apply fsubsetUl.
-      by apply (sem_bcmd_eq_except H1).
-    have Q2: evm s3 = evm s2_1 [\ids_rval r `|` write_cmd l].
-      apply (@eq_except_sub _ _ (write_cmd l)). apply fsubsetUr.
-      by apply (sem_eq_except Hsl).
-    apply eq_except_sym.
-    by apply (eq_except_trans Q1 Q2).
-  have WW: evm s2 = write_rval (evm s1) rv_res (rdflt_ (sem_pexpr (evm s2_1) p))
-             [\ids_rval r `|` write_cmd l]. 
-    move: H2 => /=. case (sem_pexpr (evm s2_1) p) => v //=. case. case s2 => m2 vm2 /=.
-    case => HH <-. rewrite /write_rval.
-    by apply write_vmap_eq_except_imp.
-  apply WW. *)
 Admitted.
 
 (* ** Modify command at given position
