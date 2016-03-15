@@ -714,7 +714,7 @@ Qed.
 (* ** merge_if b e1 e2                                                        *)
 (* -------------------------------------------------------------------------- *)
 
-Fixpoint merge_if (b:spexpr sbool) {t} : spexpr t -> spexpr t ->  spexpr t   := 
+Fixpoint merge_if (b:spexpr sbool) {t} : spexpr t -> spexpr t ->  spexpr t := 
   match t as t_  return spexpr t_ -> spexpr t_ ->  spexpr t_ with
   | sprod t1 t2 => fun p p' => 
     match destr_pair p, destr_pair p' with
