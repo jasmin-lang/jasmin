@@ -711,6 +711,42 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
+(* ** program variables occuring in an symbolic expression                    *)
+(* -------------------------------------------------------------------------- *)
+
+Fixpoint fv_rec t (e:spexpr t) (s:Sv.t) := 
+  match e with 
+  | Evar   x                 => Sv.add x s
+  | Esvar  _                 => s
+  | Econst _                 => s
+  | Ebool  _                 => s
+  | Eapp1 _ _ _     e1       => fv_rec e1 s
+  | Eapp2 _ _ _ _   e1 e2    => fv_rec e1 (fv_rec e2 s)
+  | Eapp3 _ _ _ _ _ e1 e2 e3 => fv_rec e1 (fv_rec e2 (fv_rec e3 s))
+  | Eif   _         e1 e2 e3 => fv_rec e1 (fv_rec e2 (fv_rec e3 s))
+  end.
+
+Definition fv t e := @fv_rec t e Sv.empty.
+
+(* -------------------------------------------------------------------------- *)
+(* ** symbolic variables occuring in an symbolic expression                   *)
+(* -------------------------------------------------------------------------- *)
+
+Fixpoint sfv_rec t (e:spexpr t) (s:Ssv.t) := 
+  match e with 
+  | Esvar  x                 => Ssv.add x s
+  | Evar   _                 => s
+  | Econst _                 => s
+  | Ebool  _                 => s
+  | Eapp1 _ _ _     e1       => sfv_rec e1 s
+  | Eapp2 _ _ _ _   e1 e2    => sfv_rec e1 (sfv_rec e2 s)
+  | Eapp3 _ _ _ _ _ e1 e2 e3 => sfv_rec e1 (sfv_rec e2 (sfv_rec e3 s))
+  | Eif   _         e1 e2 e3 => sfv_rec e1 (sfv_rec e2 (sfv_rec e3 s))
+  end.
+
+Definition sfv t e := @sfv_rec t e Ssv.empty.
+
+(* -------------------------------------------------------------------------- *)
 (* ** merge_if b e1 e2                                                        *)
 (* -------------------------------------------------------------------------- *)
 
@@ -746,25 +782,74 @@ Inductive sform : Set :=
   | Fand    : sform -> sform -> sform 
   | For     : sform -> sform -> sform
   | Fimp    : sform -> sform -> sform
+  | Fif     : spexpr sbool -> sform -> sform -> sform
   | Fforall : svar -> sform -> sform.
 
 Definition sst2pred t := sst2ty t -> Prop.
 
 Notation pmap := (Msv.t sst2pred).
 
-Fixpoint ssem_sform (pm:pmap) (sm:smap) (vm:svmap) f : Prop := 
+Record allmap := {
+  pm : pmap;
+  sm : smap;
+  vm : svmap;
+}.
+
+Fixpoint ssem_sform (m:allmap) f : Prop := 
   match f with
-  | Fbool   e     => ssem_spexpr sm vm e 
-  | Fpred   p  e  => pm.[p]%msv (ssem_spexpr sm vm e)
-  | Fnot    f     => ~ ssem_sform pm sm vm f
-  | Fand    f1 f2 => ssem_sform pm sm vm f1 /\ ssem_sform pm sm vm f2
-  | For     f1 f2 => ssem_sform pm sm vm f1 \/ ssem_sform pm sm vm f2
-  | Fimp    f1 f2 => ssem_sform pm sm vm f1 -> ssem_sform pm sm vm f2
-  | Fforall x  f  => forall (v:sst2ty x.(svtype)), ssem_sform pm sm.[x <- v]%msv vm f
+  | Fbool   e     => ssem_spexpr m.(sm) m.(vm) e 
+  | Fpred   p  e  => m.(pm).[p]%msv (ssem_spexpr m.(sm) m.(vm) e)
+  | Fnot    f     => ~ ssem_sform m f
+  | Fand    f1 f2 => ssem_sform m f1 /\ ssem_sform m f2
+  | For     f1 f2 => ssem_sform m f1 \/ ssem_sform m f2
+  | Fimp    f1 f2 => ssem_sform m f1 -> ssem_sform m f2
+  | Fif   b f1 f2 => 
+    if ssem_spexpr m.(sm) m.(vm) b then ssem_sform m f1 
+    else ssem_sform m f2 
+  | Fforall x  f  => 
+    forall (v:sst2ty x.(svtype)),
+      ssem_sform {| pm := m.(pm); sm := m.(sm).[x <- v]%msv; vm:= m.(vm) |} f
   end.
 
+(* -------------------------------------------------------------------------- *)
+(* ** program variables occuring in a formula                                 *)
+(* -------------------------------------------------------------------------- *)
+
+Fixpoint ffv_rec  (f:sform) (s:Sv.t) := 
+  match f with
+  | Fbool   e     => fv_rec e s
+  | Fpred   _  e  => fv_rec e s 
+  | Fnot    f     => ffv_rec f s
+  | Fand    f1 f2 => ffv_rec f1 (ffv_rec f2 s)
+  | For     f1 f2 => ffv_rec f1 (ffv_rec f2 s)
+  | Fimp    f1 f2 => ffv_rec f1 (ffv_rec f2 s)
+  | Fif   b f1 f2 => fv_rec  b  (ffv_rec f1 (ffv_rec f2 s))
+  | Fforall _  f  => ffv_rec f s
+  end.
+
+Definition ffv f := ffv_rec f Sv.empty.
+
+(* -------------------------------------------------------------------------- *)
+(* ** symbolic variables occuring in a formula                                 *)
+(* -------------------------------------------------------------------------- *)
 
 
+Fixpoint sffv_rec  (f:sform) (s:Ssv.t) := 
+  match f with
+  | Fbool   e     => sfv_rec e s
+  | Fpred   _  e  => sfv_rec e s 
+  | Fnot    f     => sffv_rec f s
+  | Fand    f1 f2 => sffv_rec f1 (sffv_rec f2 s)
+  | For     f1 f2 => sffv_rec f1 (sffv_rec f2 s)
+  | Fimp    f1 f2 => sffv_rec f1 (sffv_rec f2 s)
+  | Fif   b f1 f2 => sfv_rec  b  (sffv_rec f1 (sffv_rec f2 s))
+  | Fforall x  f  => 
+    let s' := sffv_rec f s in
+    if Ssv.mem x s then s' else Ssv.remove x s'
+  end.
+
+Definition sffv f := sffv_rec f Ssv.empty.
+ 
 
 
 
