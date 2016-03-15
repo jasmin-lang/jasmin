@@ -332,10 +332,9 @@ with sem_for : rval sword -> seq word -> estate -> cmd -> estate -> Prop :=
 | EForDone s c iv :
     sem_for iv [::] s c s
 
-| EForOne s1 s2 s3 c w ws iv :
-    let ac := Cbcmd (Assgn iv (Pconst (N.of_nat (w2n w)))) :: c in
-    sem                s1 ac s2 ->
-    sem_for iv (ws)    s2 c  s3 ->
+| EForOne s1 s3 c w ws iv :
+    let vm2 := W.write_rval s1.(evm) iv w in
+    sem_for iv (ws)    (Estate s1.(emem) vm2) c  s3 ->
     sem_for iv (w::ws) s1 c  s3
 
 with sem_call : forall sta str, mem -> mem -> cmd -> pexpr str 
