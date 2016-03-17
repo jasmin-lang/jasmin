@@ -1,6 +1,7 @@
 (* * Prove properties about semantics of dmasm input language *)
 
 (* ** Imports and settings *)
+Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
@@ -828,20 +829,17 @@ Admitted.
 (* ** Test inlining
  * -------------------------------------------------------------------- *)
 
-Notation x  := {| vtype := sword; vname := "x" |}.
-Notation y  := {| vtype := sword; vname := "y" |}.
-Notation z  := {| vtype := sword; vname := "z" |}.
-Notation x' := {| vtype := sword; vname := "x'" |}.
-Notation y' := {| vtype := sword; vname := "y'" |}.
-Notation z' := {| vtype := sword; vname := "z'" |}.
-
-Definition w0 : N := 0.
-Definition w1 : N := 1.
-
+Local Notation x  := {| vtype := sword; vname := "x" |}.
+Local Notation y  := {| vtype := sword; vname := "y" |}.
+Local Notation z  := {| vtype := sword; vname := "z" |}.
+Local Notation x' := {| vtype := sword; vname := "x'" |}.
+Local Notation y' := {| vtype := sword; vname := "y'" |}.
+Local Notation z' := {| vtype := sword; vname := "z'" |}.
+ 
 Definition fbody := 
   [:: assgn x z;
       assgn y z;
-      Cif (Papp2 Oeq x w1) [::assgn z x] [::assgn z y] ].
+      Cif (Papp2 Oeq x 1%num) [::assgn z x] [::assgn z y] ].
 
 Definition ftest := FunDef (Rvar y) fbody (Pvar x).
 

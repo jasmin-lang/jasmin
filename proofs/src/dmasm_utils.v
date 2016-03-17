@@ -1,8 +1,9 @@
 (* * Utility definition for dmasm *)
 
 (* ** Imports and settings *)
+Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool seq choice eqtype.
-Require Import ZArith FMapPositive finmap.
+Require Import finmap.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -357,6 +358,12 @@ Instance boolO : Cmp bool_cmp.
 Proof.
   constructor=> [[] [] | [] [] [] c | [] []] //=; apply ctrans_Eq.
 Qed.
+
+Lemma pos_eqP : Equality.axiom Pos.eqb. 
+Proof. by move=> p1 p2;apply:(iffP idP);rewrite -Pos.eqb_eq. Qed.
+
+Definition pos_eqMixin := EqMixin pos_eqP.
+Canonical  pos_eqType  := EqType positive pos_eqMixin.
 
 Instance positiveO : Cmp Pos.compare.
 Proof.
