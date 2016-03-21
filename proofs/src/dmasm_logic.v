@@ -902,7 +902,36 @@ Proof.
   by SsvD.fsetdec.
 Qed.
 
-  
+Lemma swrite_rval_ssem x t (rv:rval t) s s': 
+  Sv.In x (read_rval rv) ->
+  (swrite_rval s' rv (ssem_rval s rv)).[x]%vmap = s.[x]%vmap.
+Proof.
+  elim: rv s' => [w | ?? r1 Hr1 r2 Hr2] s' /= Hin.
+  have <- : w = x by SvD.fsetdec.
+  + by rewrite Fv.setP_eq.
+  case: (SvP.MP.In_dec x (read_rval r1)) => Hx;first by apply Hr1.
+  by rewrite swrite_nin // Hr2 //;SvD.fsetdec.
+Qed.
+
+Lemma shoare_fun pm sm t tr (f:fundef t tr)  Pf Qf :
+  Sv.subset (ffv Pf) (read_rval f.(fd_arg)) ->
+  Sv.subset (ffv Qf) (read_rval f.(fd_res)) ->
+  hoare (f2h pm sm Pf) f.(fd_body) (f2h pm sm Qf) ->
+  shoaref pm sm Pf f Qf.
+Proof.
+  move=> HPf HQf Hbody;constructor => //.
+  move: HPf HQf => /SvD.F.subset_2 HPf /SvD.F.subset_2 HQf.
+  rewrite /f2fpred /f2h /init_st=> m m' va vr H. 
+  inversion H;subst=>{H}. inversion H4;subst=>{H4}. 
+  inversion H9;subst=>{H9} /=;subst => Hpre.
+  pose st2 :=  {| pm := pm; sm := sm; vm := (sevm es') |}.
+  rewrite (@ssem_sform_fv Qf _ st2) //.
+  + apply: (Hbody _ _ H7);move: Hpre;rewrite /f2h /es /=.
+    apply iffRL; apply ssem_sform_fv=> //;constructor=> //= x Hin.
+    by apply swrite_dep;SvD.fsetdec.
+  constructor=> //= x Hin. 
+  apply swrite_rval_ssem;SvD.fsetdec.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 (* ** Tactics                                                                 *)
