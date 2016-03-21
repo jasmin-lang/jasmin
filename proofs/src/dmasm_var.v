@@ -11,59 +11,51 @@ Unset Printing Implicit Defensive.
 
 Definition ident := string.
 
-Record var := Var { vtype : stype; vname : ident }.
-
-Definition var_beq (v1 v2:var) :=
-  let (t1,n1) := v1 in
-  let (t2,n2) := v2 in
-  (t1 == t2) && (n1 == n2).
-
-Lemma var_eqP : Equality.axiom var_beq. 
-Proof. 
-  move=> [t1 n1] [t2 n2];apply:(iffP idP) => /= [/andP[]/eqP->/eqP->| []->->] //.
-    by rewrite !eq_refl.
-Qed.
-
-Definition var_eqMixin := EqMixin var_eqP.
-Canonical  var_eqType  := EqType var var_eqMixin.
-
-Definition var2pair (v:var) := (v.(vtype), v.(vname)).
-Definition pair2var (p:stype * ident) := Var (fst p) (snd p).
-
-Lemma codeK_var : cancel var2pair pair2var. Proof. by rewrite /cancel; case => //. Qed.
-Definition var_choiceMixin := CanChoiceMixin codeK_var.
-Canonical  var_choiceType  := ChoiceType var var_choiceMixin.
-
-Definition var_cmp (x y:var) := 
-  Lex (stype_cmp x.(vtype) y.(vtype)) (string_cmp x.(vname) y.(vname)).
-
-Instance varO : Cmp var_cmp.
-Proof.
-  constructor=> [x y | y x z c | [??] [??]] ;rewrite /var_cmp !Lex_lex.
-  + by apply lex_sym;apply cmp_sym.
-  + by apply lex_trans=> /=; apply cmp_ctrans.
-  by move=> /lex_eq [] /= /(@cmp_eq _ _ stypeO) -> /(@cmp_eq _ _ stringO) ->.
-Qed.
-
 (* ** Variables map, to be used when computation is needed
  * -------------------------------------------------------------------- *)
-Module Type VAR.
+Module Type IDENT.
 
-  Declare Module Mid : MAP.
+  Parameter ident : eqType.
 
-  Parameter var : eqType.
-  
-  Parameter Var   : stype -> Mid.K.t -> var.   
-  Parameter vtype : var -> stype.
-  Parameter vname : var -> Mid.K.t.
+  Declare Module Mid : MAP with Definition K.t := ident.
 
-  Parameter var_surj :forall (x:var), x = Var x.(vtype) x.(vname).
+End IDENT.
 
-End VAR.
+Module MvMake (I:IDENT).
 
-Module MvMake (V:VAR).
+  Import I Mid.
 
-  Import V Mid.
+  Record var := Var { vtype : stype; vname : ident }.
+
+  Definition var_beq (v1 v2:var) :=
+    let (t1,n1) := v1 in
+    let (t2,n2) := v2 in
+    (t1 == t2) && (n1 == n2).
+
+  Lemma var_eqP : Equality.axiom var_beq. 
+  Proof. 
+    move=> [t1 n1] [t2 n2];apply:(iffP idP) => /= [/andP[]/eqP->/eqP->| []->->] //.
+      by rewrite !eq_refl.
+  Qed.
+
+  Definition var_eqMixin := EqMixin var_eqP.
+  Canonical  var_eqType  := EqType var var_eqMixin.
+
+  Definition var_cmp (x y:var) := 
+    Lex (stype_cmp x.(vtype) y.(vtype)) (K.cmp x.(vname) y.(vname)).
+
+  Instance varO : Cmp var_cmp.
+  Proof.
+    constructor=> [x y | y x z c | [??] [??]] ;rewrite /var_cmp !Lex_lex.
+    + by apply lex_sym;apply cmp_sym.
+    + by apply lex_trans=> /=; apply cmp_ctrans.
+    by move=> /lex_eq [] /= /(@cmp_eq _ _ stypeO) -> /(@cmp_eq _ _ K.cmpO) ->.
+  Qed.
+
+  Lemma var_surj (x:var) : x = Var x.(vtype) x.(vname).
+  Proof. by case: x. Qed.
+
+  Module Mv.
 
   Record rt_ (to:stype -> Type) := MkT {
     dft : forall (x:var) ,to x.(vtype);
@@ -97,9 +89,13 @@ Module MvMake (V:VAR).
     {| dft := m.(dft);
        tbl := (m.(tbl).[x.(vtype) <- mi])%mt; |}.
 
-  Definition map {to1 to2} (f:forall t, to1 t -> to2 t) (m: t to1) : t to2 :=
-    {| dft := fun (x:var) => f x.(vtype) (dft m x);
-       tbl := Mt.map (fun t mi => Mid.map (f t) mi) m.(tbl); |}.
+  Definition remove to (m: t to) x := 
+    match (m.(tbl).[x.(vtype)])%mt with 
+    | Some mi => 
+      {| dft := m.(dft); 
+         tbl :=  m.(tbl).[x.(vtype) <- Mid.remove mi x.(vname)]%mt; |}
+    | None    => m
+    end.
 
   Definition indom to x (m: t to) := 
     match (m.(tbl).[x.(vtype)])%mt with 
@@ -111,13 +107,37 @@ Module MvMake (V:VAR).
     | None => false
     end.
 
-  Definition remove to (m: t to) x := 
-    match (m.(tbl).[x.(vtype)])%mt with 
-    | Some mi => 
-      {| dft := m.(dft); 
-         tbl :=  m.(tbl).[x.(vtype) <- Mid.remove mi x.(vname)]%mt; |}
-    | None    => m
-    end.
+  Definition map {to1 to2} (f:forall t, to1 t -> to2 t) (m: t to1) : t to2 :=
+    {| dft := fun (x:var) => f x.(vtype) (dft m x);
+       tbl := Mt.map (fun t mi => Mid.map (f t) mi) m.(tbl); |}.
+
+  Definition map2 {to1 to2 to3}
+     (f:forall x, to1 x.(vtype) -> to2 x.(vtype) -> to3 x.(vtype)) 
+     (m1: t to1) (m2: t to2): t to3 :=
+    let dft1 := m1.(dft) in
+    let dft2 := m2.(dft) in
+    let doty ty mi1 mi2 := 
+       match mi1, mi2 with
+       | None, None => None
+       | Some mi1, None     => 
+         Some (Mid.mapi 
+           (fun id (v1:to1 ty) => let x := Var ty id in (f x v1 (dft2 x):to3 ty))
+           mi1)
+       | None    , Some mi2 => 
+         Some (Mid.mapi 
+           (fun id (v2:to2 ty) => let x := Var ty id in (f x (dft1 x) v2:to3 ty))
+           mi2)
+       | Some mi1, Some mi2 => 
+         Some (Mid.map2 (fun id (o1:option (to1 ty)) (o2: option (to2 ty))  => 
+           match o1, o2 with
+           | None   , None    => None
+           | Some v1, None    => let x := Var ty id in Some (f x v1 (dft2 x))
+           | None   , Some v2 => let x := Var ty id in Some (f x (dft1 x) v2)
+           | Some v1, Some v2 => let x := Var ty id in (Some (f x v1 v2): option (to3 ty))
+           end) mi1 mi2)
+        end in
+    {| dft := fun x => f x (dft1 x) (dft2 x);
+      tbl := Mt.map2 doty m1.(tbl) m2.(tbl) |}.
 
   Local Notation "vm .[ x ]" := (@get _ vm x).
   Local Notation "vm .[ x  <- v ]" := (@set _ vm x v).
@@ -170,14 +190,6 @@ Module MvMake (V:VAR).
   Lemma dft_setP {to} (m:t to) (x:var) (v:to x.(vtype)): dft (set m v) = dft m.
   Proof. done. Qed.
 
-  Lemma mapP {to1 to2} (f:forall t, to1 t -> to2 t) (m: t to1) x: 
-    get (map f m) x = f x.(vtype) (get m x).
-  Proof.
-    rewrite /map /get /=.
-    rewrite Mt.mapP;case: Mt.get => //= mi.       
-    by rewrite Mid.mapP; case: Mid.get.   
-  Qed.
-
   Lemma removeP_eq to (m: t to) x: (remove m x).[x] = dft m x.
   Proof. 
     rewrite /remove/get;case H: (tbl m).[_]%mt => [mi|] /=;last by rewrite H.
@@ -220,27 +232,53 @@ Module MvMake (V:VAR).
   Lemma dft_removeP to (m: t to) x: dft (remove m x) = dft m.
   Proof. by rewrite /dft/remove;case:(tbl m).[_]%mt. Qed.
 
+  Lemma mapP {to1 to2} (f:forall t, to1 t -> to2 t) (m: t to1) x: 
+    (map f m).[x] = f x.(vtype) m.[x].
+  Proof.
+    rewrite /map /get /=.
+    rewrite Mt.mapP;case: Mt.get => //= mi.       
+    by rewrite Mid.mapP; case: Mid.get.   
+  Qed.
+
+  Lemma map2P {to1 to2 to3} 
+    (f:forall x, to1 x.(vtype) -> to2 x.(vtype) -> to3 x.(vtype)) m1 m2 x:
+    (map2 f m1 m2).[x] = f x m1.[x] m2.[x].
+  Proof.
+    rewrite /map2 /get /= Mt.map2P //.
+    case: ((tbl m1).[vtype x])%mt=> [mi1 | ];case: ((tbl m2).[vtype x])%mt => [mi2 | ] //.
+    + rewrite Mid.map2P //.
+      by case: (Mid.get mi1 (vname x));case: (Mid.get mi2 (vname x))=> //;case: (x).
+    + by rewrite Mid.mapiP //;case: (Mid.get mi1 (vname x));case: (x).
+    by rewrite Mid.mapiP //;case: (Mid.get mi2 (vname x));case: (x).
+  Qed.
+  
+  End Mv.
+
 End MvMake.
 
 (* ** Types for idents 
  * -------------------------------------------------------------------- *)
 
-Module Var.
+Module Ident.
 
+  Definition ident := [eqType of string].
   Module Mid := Ms.
 
-  Definition var := [eqType of var].
-  
-  Definition Var   := Var.
-  Definition vtype := vtype.
-  Definition vname := vname.
-
-  Lemma var_surj (x:var) : x = Var x.(vtype) x.(vname).
-  Proof. by case x. Qed.
-
-End Var.
+End Ident.
  
-Module Mv := MvMake Var.
+Module Var := MvMake Ident.
+Export Var. (* Enrico: On pert les structures canoniques si pas de import *)
+Notation var   := Var.var.
+Notation vtype := Var.vtype.
+Notation vname := Var.vname.
+Notation Var   := Var.Var.
+
+Definition var2pair (v:var) := (v.(vtype), v.(vname)).
+Definition pair2var (p:stype * ident) := Var (fst p) (snd p).
+
+Lemma codeK_var : cancel var2pair pair2var. Proof. by rewrite /cancel; case => //. Qed.
+Definition var_choiceMixin := CanChoiceMixin codeK_var.
+Canonical  var_choiceType  := ChoiceType var var_choiceMixin.
 
 Delimit Scope mvar_scope with mv.
 Notation "vm .[ x ]" := (@Mv.get _ vm x) : mvar_scope.
@@ -339,7 +377,7 @@ Module Type Vmap.
       x != y -> get (@set to m x v) y = get m y.
 
 End Vmap.
-
+(*
 Module WRmake (M:Vmap) (T:WrInp).
   Import M T.
 
@@ -362,7 +400,7 @@ Module WRmake (M:Vmap) (T:WrInp).
      write_vmap vm (write_subst l v [::]).
 
 End WRmake.
-
+*)
 (* ** Finite set of variables (computable)
  *
  * -------------------------------------------------------------------- *)

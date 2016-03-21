@@ -79,7 +79,7 @@ Inductive instr :=
              instr
 
 with fundef : stype -> stype -> Type := 
-| FunDef : forall starg stres, rval starg -> seq instr -> pexpr stres -> fundef starg stres.
+| FunDef : forall starg stres, rval starg -> seq instr -> rval stres -> fundef starg stres.
 
 Notation cmd := (seq instr).
 
@@ -89,7 +89,7 @@ Definition fd_arg sta str (fd : fundef sta str) : rval sta :=
 Definition fd_body sta str (fd : fundef sta str) : cmd :=
   match fd with FunDef _ _ _ fb _ => fb end.
 
-Definition fd_res sta str (fd : fundef sta str) : pexpr str :=
+Definition fd_res sta str (fd : fundef sta str) : rval str :=
   match fd with FunDef _ _ _ _ fr => fr end.
 
 Section IND.
@@ -103,7 +103,7 @@ Section IND.
   Hypothesis Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (Cif e c1 c2).
   Hypothesis Hfor  : forall i rn c, Pc c -> Pi (Cfor i rn c).
   Hypothesis Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
-  Hypothesis Hfunc : forall ta tr (x:rval ta) c (re:pexpr tr), Pc c -> Pf (FunDef x c re).
+  Hypothesis Hfunc : forall ta tr (x:rval ta) c (re:rval tr), Pc c -> Pf (FunDef x c re).
 
   Fixpoint instr_rect' (i:instr) : Pi i := 
     match i return Pi i with
@@ -169,15 +169,20 @@ Definition rdflt_ (st : stype) e (r : result e (st2ty st)) : st2ty st :=
  * -------------------------------------------------------------------- *)
 
 Notation vmap     := (Fv.t st2ty).
-Notation vmap0    := (@Fv.empty st2ty dflt_val).
+Notation vmap0    := (@Fv.empty st2ty (fun x => dflt_val x.(vtype))).
 
-Module WrInp.
-  Definition to := st2ty.
-  Definition fst {t1 t2:stype} (v:to (t1 ** t2)): to t1 := v.1.
-  Definition snd {t1 t2:stype} (v:to (t1 ** t2)): to t2 := v.2.
-End WrInp.
+Fixpoint write_rval (s:vmap) {t} (l:rval t) : st2ty t -> vmap :=
+  match l in rval t_ return st2ty t_ -> vmap with
+  | Rvar x => fun v => s.[x <- v]%vmap
+  | Rpair t1 t2 rv1 rv2 => fun v => 
+    write_rval (write_rval s rv2 (snd v)) rv1 (fst v) 
+  end.
 
-Module W := WRmake Fv WrInp.
+Fixpoint sem_rval (s:vmap) t (rv:rval t) : st2ty t := 
+  match rv in rval t_ return st2ty t_ with
+  | Rvar x            => s.[x]%vmap
+  | Rpair _ _ rv1 rv2 => (sem_rval s rv1, sem_rval s rv2)
+  end.
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
@@ -266,12 +271,12 @@ Definition sem_bcmd (es : estate) (bc : bcmd) : exec estate :=
   match bc with
   | Assgn st rv pe =>
       sem_pexpr es.(evm) pe >>= fun v =>
-      let vm := W.write_rval es.(evm) rv v in
+      let vm := write_rval es.(evm) rv v in
       ok (Estate es.(emem) vm)
   | Load rv pe_addr =>
       sem_pexpr es.(evm) pe_addr >>= fun p =>
       read_mem es.(emem) p >>= fun w =>
-      let vm := W.write_rval es.(evm) rv w in
+      let vm := write_rval es.(evm) rv w in
       ok (Estate es.(emem) vm)
 
   | Store pe_addr pe_val =>
@@ -317,10 +322,10 @@ with sem_i : estate -> instr -> estate -> Prop :=
       (res : st2ty str):
     let rarg := sem_pexpr vm1 pe_arg in
     isOk rarg ->
-    sem_call m1 m2 fd.(fd_body) fd.(fd_res) (rdflt_ rarg) res ->
+    sem_call m1 fd (rdflt_ rarg) m2 res ->
     sem_i (Estate m1 vm1)
           (Ccall rv_res fd pe_arg)
-          (Estate m2 (W.write_rval vm1 rv_res res))
+          (Estate m2 (write_rval vm1 rv_res res))
 
 | EFor s1 s2 iv rng c ws :
     sem_range s1.(evm) rng = ok ws ->
@@ -333,26 +338,23 @@ with sem_for : rval sword -> seq word -> estate -> cmd -> estate -> Prop :=
     sem_for iv [::] s c s
 
 | EForOne s1 s3 c w ws iv :
-    let vm2 := W.write_rval s1.(evm) iv w in
+    let vm2 := write_rval s1.(evm) iv w in
     sem_for iv (ws)    (Estate s1.(emem) vm2) c  s3 ->
     sem_for iv (w::ws) s1 c  s3
 
-with sem_call : forall sta str, mem -> mem -> cmd -> pexpr str 
-  -> st2ty sta -> st2ty str -> Prop :=
+with sem_call : 
+  forall sta str, mem -> fundef sta str -> st2ty sta -> mem -> st2ty str -> Prop :=
 
-| EcallRun sta str m1 m2 vm0 vm2 fb (fres : pexpr str) (farg : rval sta)
-      (arg : st2ty sta):
+| EcallRun sta str m1 m2 vm0 vm2 (f:fundef sta str) (varg : st2ty sta):
     (* semantics defined for all vm0 *)
     (forall vm0, exists m2 vm2,
-       let vm1 := W.write_rval vm0 farg arg in
-       sem (Estate m1 vm1) fb (Estate m2 vm2) /\
-       isOk (sem_pexpr vm2 fres)) ->
+       let vm1 := write_rval vm0 f.(fd_arg) varg in
+       sem (Estate m1 vm1) f.(fd_body) (Estate m2 vm2)) ->
     (* yields given memory m2 and result res *)
-    let vm1 := W.write_rval vm0 farg arg in
-    sem (Estate m1 vm1) fb (Estate m2 vm2) ->
-    let rres := sem_pexpr vm2 fres in
-    isOk rres ->
-    sem_call m1 m2 fb fres arg (rdflt_ rres).
+    let vm1 := write_rval vm0 f.(fd_arg) varg in
+    sem (Estate m1 vm1) f.(fd_body) (Estate m2 vm2) ->
+    let rres := sem_rval vm2 f.(fd_res) in
+    sem_call m1 f varg m2 rres.
 
 Scheme sem_Ind := Minimality for sem Sort Prop
 with sem_i_Ind := Minimality for sem_i Sort Prop

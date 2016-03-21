@@ -44,16 +44,21 @@ Fixpoint sdflt_val st :  sst2ty st :=
  * -------------------------------------------------------------------- *)
 
 
-Notation svmap     := (Fv.t sst2ty).
-Notation svmap0    := (@Fv.empty sst2ty sdflt_val).
+Notation svmap    := (Fv.t sst2ty).
+Notation svmap0   := (@Fv.empty sst2ty (fun x => sdflt_val x.(vtype))).
 
-Module WrInp.
-  Definition to := sst2ty.
-  Definition fst {t1 t2:stype} (v:to (t1 ** t2)): to t1 := v.1.
-  Definition snd {t1 t2:stype} (v:to (t1 ** t2)): to t2 := v.2.
-End WrInp.
+Fixpoint swrite_rval (s:svmap) {t} (l:rval t) : sst2ty t -> svmap :=
+  match l in rval t_ return sst2ty t_ -> svmap with
+  | Rvar x => fun v => s.[x <- v]%vmap
+  | Rpair t1 t2 rv1 rv2 => fun v => 
+    swrite_rval (swrite_rval s rv2 (snd v)) rv1 (fst v) 
+  end.
 
-Module W := WRmake Fv WrInp.
+Fixpoint ssem_rval (s:svmap) t (rv:rval t) : sst2ty t := 
+  match rv in rval t_ return sst2ty t_ with
+  | Rvar x            => s.[x]%vmap
+  | Rpair _ _ rv1 rv2 => (ssem_rval s rv1, ssem_rval s rv2)
+  end.
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
@@ -114,12 +119,12 @@ Definition ssem_bcmd (es : sestate) (bc : bcmd) : exec sestate :=
   match bc with
   | Assgn st rv pe =>
       let v := ssem_pexpr es.(sevm) pe in
-      let vm := W.write_rval es.(sevm) rv v in
+      let vm := swrite_rval es.(sevm) rv v in
       ok (SEstate es.(semem) vm)
   | Load rv pe_addr =>
       let p := ssem_pexpr es.(sevm) pe_addr in
       read_mem es.(semem) p >>= fun w =>
-      let vm := W.write_rval es.(sevm) rv w in
+      let vm := swrite_rval es.(sevm) rv w in
       ok (SEstate es.(semem) vm)
 
   | Store pe_addr pe_val =>
@@ -161,7 +166,7 @@ with ssem_i : sestate -> instr -> sestate -> Prop :=
 | SEcall es m ta tr x (f:fundef ta tr) a vr:
     let va := ssem_pexpr es.(sevm) a in
     ssem_fun f es.(semem) va m vr ->
-    let vm2 := W.write_rval es.(sevm) x vr in 
+    let vm2 := swrite_rval es.(sevm) x vr in 
     ssem_i es (Ccall x f a) (SEstate m vm2)
 
 | SEforDone s1 s2 iv rng c ws :
@@ -171,9 +176,9 @@ with ssem_i : sestate -> instr -> sestate -> Prop :=
 
 with ssem_fun : forall ta tr (f:fundef ta tr) (m:mem) (va:sst2ty ta), mem -> sst2ty tr -> Prop :=
 | SEfun : forall ta tr (f:fundef ta tr) (m:mem) (va:sst2ty ta) vm es',
-    let es := {| semem := m; sevm := W.write_rval vm f.(fd_arg) va |} in
+    let es := {| semem := m; sevm := swrite_rval vm f.(fd_arg) va |} in
     ssem es f.(fd_body) es' ->
-    let rv := ssem_pexpr es'.(sevm) f.(fd_res) in
+    let rv := ssem_rval es'.(sevm) f.(fd_res) in
     ssem_fun f m va es'.(semem) rv
 
 with ssem_for : rval sword -> seq word -> sestate -> cmd -> sestate -> Prop :=

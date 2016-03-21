@@ -4,7 +4,7 @@
 Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import finmap strings dmasm_utils dmasm_type dmasm_var.
+Require Import finmap strings dmasm_utils dmasm_type.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

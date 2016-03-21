@@ -83,9 +83,15 @@ Module Type MAP.
 
   Parameter set : forall {T}, t T -> K.t -> T -> t T.
 
+  Parameter remove :  forall {T}, t T -> K.t -> t T.
+
   Parameter map : forall {T1 T2}, (T1 -> T2) -> t T1 -> t T2.
 
-  Parameter remove :  forall {T}, t T -> K.t -> t T.
+  Parameter mapi : forall {T1 T2}, (K.t -> T1 -> T2) -> t T1 -> t T2.
+
+  Parameter map2 : forall {T1 T2 T3}, 
+    (K.t -> option T1 -> option T2 -> option T3) ->
+    t T1 -> t T2 -> t T3.
 
   Notation "m .[ s ]" := (get m s).
   Notation "x .[ k <- v ]" := (@set _ x k v).
@@ -99,9 +105,6 @@ Module Type MAP.
 
   Parameter setP_neq : forall {T} (m: t T) x y (v:T), x != y -> m.[x <- v].[y] = m.[y].
 
-  Parameter mapP : forall {T1 T2} (f:T1 -> T2) (m:t T1) (x:K.t),
-    (map f m).[x] = omap f m.[x].
-
   Parameter removeP : forall {T} (m: t T) x y,
     (remove m x).[y] = if x == y then None else m.[y].
 
@@ -110,7 +113,18 @@ Module Type MAP.
 
   Parameter removeP_neq : forall {T} (m: t T) x y,
     x != y -> (remove m x).[y] = m.[y].
-     
+
+  Parameter mapP : forall {T1 T2} (f:T1 -> T2) (m:t T1) (x:K.t),
+    (map f m).[x] = omap f m.[x].
+
+  Parameter mapiP : forall {T1 T2} (f:K.t -> T1 -> T2) (m:t T1) (x:K.t),
+    (mapi f m).[x] = omap (f x) m.[x].
+
+  Parameter map2P : forall {T1 T2 T3} 
+    (f:K.t -> option T1 -> option T2 -> option T3) (m1:t T1) (m2:t T2) (x:K.t),
+    f x None None = None ->
+    (map2 f m1 m2).[x] = f x m1.[x] m2.[x].
+
 End MAP.
 
 Module Mmake (K:CmpType) <: MAP.
@@ -131,10 +145,36 @@ Module Mmake (K:CmpType) <: MAP.
 
   Definition set {T} (m:t T) (k:K.t) (v:T) := Map.add k v m.
 
-  Definition map := Map.map.
-
   Definition remove {T} (m:t T) (k:K.t) := Map.remove k m.
 
+  Definition map := Map.map.
+
+  Definition mapi := Map.mapi.
+
+  Definition raw_map2 {T1 T2 T3} (f:K.t -> option T1 -> option T2 -> option T3) m1 m2 := 
+    Map.Raw.map2_opt 
+      (fun k d o => f k (Some d) o)
+      (Map.Raw.map_option (fun k d => f k (Some d) None))
+      (Map.Raw.map_option (fun k d' => f k None (Some d'))) m1 m2.
+
+  Lemma raw_map2_bst {T1 T2 T3} (f:K.t -> option T1 -> option T2 -> option T3) m1 m2:
+    Map.Raw.bst (raw_map2 f (Map.this m1) (Map.this m2)).
+  Proof.
+    rewrite /raw_map2.
+    apply Map.Raw.Proofs.map2_opt_bst with (f0 := f).
+    + by apply Map.Raw.Proofs.map_option_bst=> ??? /(@cmp_eq _ _ _ _ _) ->.
+    + by apply Map.Raw.Proofs.map_option_bst=> ??? /(@cmp_eq _ _ _ _ _) ->.
+    + by move=> x m H;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
+    + by move=> x m H;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
+    + by apply Map.is_bst.     
+    by apply Map.is_bst. 
+  Qed.
+ 
+  Definition map2 {T1 T2 T3} (f:K.t -> option T1 -> option T2 -> option T3) 
+      (m1:t T1) (m2: t T2) : t T3 :=
+   (@Map.Bst _ (raw_map2 f m1.(Map.this) m2.(Map.this))
+       (raw_map2_bst f m1 m2)).
+   
   Notation "m .[ s ]" := (get m s).
   Notation "x .[ k <- v ]" := (@set _ x k v).
   
@@ -155,10 +195,6 @@ Module Mmake (K:CmpType) <: MAP.
   Lemma setP_neq {T} (m: t T) x y (v:T) : x != y -> m.[x <- v].[y] = m.[y].
   Proof. by rewrite setP=> /negPf ->. Qed.
 
-  Lemma mapP {T1 T2} (f:T1 -> T2) (m:t T1) (x:K.t):
-    (map f m).[x] = omap f m.[x].
-  Proof. by rewrite /map /get Facts.map_o. Qed.
-
   Lemma removeP {T} (m: t T) x y:
     (remove m x).[y] = if x == y then None else m.[y].
   Proof.
@@ -174,6 +210,46 @@ Module Mmake (K:CmpType) <: MAP.
 
   Lemma removeP_neq {T} (m: t T) x y: x != y -> (remove m x).[y] = m.[y].
   Proof. by rewrite removeP => /negPf ->. Qed.
+
+  Lemma mapP {T1 T2} (f:T1 -> T2) (m:t T1) (x:K.t):
+    (map f m).[x] = omap f m.[x].
+  Proof. by rewrite /map /get Facts.map_o. Qed.
+
+  Lemma mapiP {T1 T2} (f:K.t -> T1 -> T2) (m:t T1) (x:K.t):
+    (mapi f m).[x] = omap (f x) m.[x].
+  Proof. 
+    by rewrite /mapi /get Facts.mapi_o // => ??? /(@cmp_eq _ _ _ _ _) ->. 
+  Qed.
+
+  Lemma map2P {T1 T2 T3} (f:K.t -> option T1 -> option T2 -> option T3) 
+    (m1:t T1) (m2:t T2) (x:K.t):
+    f x None None = None ->
+    (map2 f m1 m2).[x] = f x m1.[x] m2.[x].
+  Proof. 
+    move=> Hnone.
+    case: (boolP (Map.mem x m1 || Map.mem x m2)).
+    + move=> /orP;rewrite /is_true -!Facts.mem_in_iff /Map.In !Map.Raw.Proofs.In_alt.
+      apply Map.Raw.Proofs.map2_opt_1 => //=.
+      + by apply Map.Raw.Proofs.map_option_bst=> ??? /(@cmp_eq _ _ _ _ _) ->.
+      + by apply Map.Raw.Proofs.map_option_bst=> ??? /(@cmp_eq _ _ _ _ _) ->.
+      + by move=> ???;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
+      + by move=> ???;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
+      + by move=> ???? /(@cmp_eq _ _ _ _ _) ->.
+      + by apply Map.is_bst.     
+      by apply Map.is_bst. 
+    rewrite !Facts.mem_find_b /get;case H1: Map.find;case H2: Map.find=>//= _.
+    case H3:Map.find=> //; have : Map.In x (map2 f m1 m2).
+    + by rewrite Facts.in_find_iff H3.
+    rewrite /map2 /Map.In /= Map.Raw.Proofs.In_alt=> /(@Map.Raw.Proofs.map2_opt_2 _ _ _ f).
+    rewrite -!Map.Raw.Proofs.In_alt -/(Map.In x m1) -/(Map.In x m2) !Facts.in_find_iff.
+    rewrite H1 H2 => -[] //.
+    + by apply Map.Raw.Proofs.map_option_bst=> ??? /(@cmp_eq _ _ _ _ _) ->.
+    + by apply Map.Raw.Proofs.map_option_bst=> ??? /(@cmp_eq _ _ _ _ _) ->.
+    + by move=> ???;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
+    + by move=> ???;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
+    + by apply Map.is_bst.     
+    by apply Map.is_bst. 
+  Qed.
 
 End Mmake.
 
@@ -194,32 +270,41 @@ Module DMmake (K:CmpType) (E:CompuEqDec with Definition t := K.t).
     | _ => None
     end.
 
-  Module Ordered := MkOrdT K.
-
-  Module Map := FMapAVL.Make Ordered.
-
-  Module Facts := WFacts_fun Ordered Map.
+  Module Map := Mmake K.
 
   Definition t (P:K.t -> Type) := Map.t (boxed P).
 
   Definition empty P : t P := Map.empty (boxed P).
 
   Definition get {P} (m:t P) (k:K.t) := 
-    from_boxed k (Map.find k m). 
+    from_boxed k (Map.get m k). 
 
-  Definition set {P} (m:t P) (k:K.t) (v:P k) := 
-    Map.add k (Box v) m.
+  Definition set {P} (m:t P) (k:K.t) (v:P k) := Map.set m k (Box v).
 
   Definition map {P1 P2} (f:forall k:K.t, P1 k -> P2 k) (m:t P1) : t P2 := 
     Map.map (fun b => {|box_t := b.(box_t); box_v := @f b.(box_t) b.(box_v) |}) m.
+
+  Definition map2 {P1 P2 P3} 
+      (f:forall k:K.t, option (P1 k) -> option (P2 k) -> option (P3 k))
+      (m1:t P1) (m2:t P2): t P3 := 
+    Map.map2 (fun k o1 o2 => 
+        omap (@Box P3 k) (f k (from_boxed k o1) (from_boxed k o2))) m1 m2.
 
   Notation "m .[ s ]" := (get m s).
   Notation "x .[ k <- v ]" := (@set _ x k v).
   
   Lemma get0 P x : (empty P).[x] = None.
-  Proof. 
-    rewrite /empty /get;have := @Map.empty_1 (boxed P).
-    case Heq: (Map.find x (Map.empty (boxed P)))=>[?|] //=.
+  Proof. by rewrite /empty /get Map.get0. Qed.
+
+  Lemma eq_dec_refl x: E.eq_dec x x = left (erefl x).
+  Proof.
+    case: (E.eq_dec x x) (@E.eq_dec_r x x) => [eq _ | b /(_ b (erefl _)) /eqP //].
+    by rewrite eq_axiomK.
+  Qed.
+
+  Lemma eq_dec_irefl x y: x <> y -> E.eq_dec x y = right I.
+  Proof.
+    case: (E.eq_dec x y) (@E.eq_dec_r x y) => [| []] //.
   Qed.
 
   Lemma setP {P} (m: t P) x y (v:P x) :
@@ -230,30 +315,31 @@ Module DMmake (K:CmpType) (E:CompuEqDec with Definition t := K.t).
     end.
   Proof.  
     rewrite /set /get /from_boxed /=.
-    case H: (E.eq_dec x y) (@E.eq_dec_r x y) => [Heq | []] => [ _ | Hneq].
-    + by rewrite Facts.add_eq_o ?H // Heq cmp_refl. 
-    have {Hneq} /eqP Hneq := Hneq I (erefl _).  
-    by rewrite Facts.add_neq_o // => H1;apply Hneq;apply cmp_eq.
+    rewrite Map.setP;case : (x =P y) => [<- | neq];first by rewrite eq_dec_refl.
+    by rewrite eq_dec_irefl.
   Qed.
 
   Lemma setP_eq {P} (m: t P) x (v:P x) : m.[x <- v].[x] = Some v.
-  Proof. 
-    rewrite setP;case: (E.eq_dec x x) (@E.eq_dec_r x x) => [eq _ | [] H ].
-    + by rewrite (eq_irrelevance eq (erefl x)).
-    by move: (H I (erefl _))=> /eqP.
-  Qed.
+  Proof. by rewrite setP eq_dec_refl. Qed.
 
   Lemma setP_neq {P} (m: t P) x y (v:P x) : x != y -> m.[x <- v].[y] = m.[y].
-  Proof. 
-    by rewrite setP;case: E.eq_dec=> // a /negP neq;elim neq;rewrite a.
-  Qed.
+  Proof. by move=> /eqP ?;rewrite setP eq_dec_irefl. Qed.
 
   Lemma mapP {P1 P2} (f:forall k:K.t, P1 k -> P2 k) (m:t P1) (x:K.t):
     (map f m).[x] = omap (f x) m.[x].
   Proof. 
-    rewrite /map /get Facts.map_o;case: Map.find => // -[z pz] /=.
+    rewrite /map /get Map.mapP;case: Map.get => // -[z pz] /=.
     case E.eq_dec=> e //=; move:(e);rewrite -e=> {e} e.                    
-    by rewrite (eq_irrelevance e (erefl z)).
+    by rewrite eq_axiomK.
+  Qed.
+
+  Lemma map2P {P1 P2 P3} (f:forall k:K.t, option (P1 k) -> option (P2 k) -> option (P3 k))
+    (m1:t P1)(m2:t P2) (x:K.t):
+    f x None None = None ->
+    (map2 f m1 m2).[x] = (f x) m1.[x] m2.[x].
+  Proof. 
+    move=> Hf;rewrite /get /map2 Map.map2P /=;last by rewrite Hf.
+    by case: (f x)=> //= ?;rewrite eq_dec_refl.
   Qed.
 
 End DMmake.

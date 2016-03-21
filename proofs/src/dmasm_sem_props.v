@@ -19,8 +19,6 @@ Local Open Scope vmap.
 Local Open Scope fset.
 Local Open Scope seq_scope.
 
-Import W.
-
 (* ** Equivalence relations on vmaps
  * -------------------------------------------------------------------- *)
 
@@ -101,7 +99,7 @@ Fixpoint ids_instr (i : instr) : {fset var} :=
 Notation ids_cmd := (ids_cmd_g ids_instr).
 
 Definition ids_fdef sta str (fd : fundef sta str) :=
-  ids_rval (fd_arg fd) `|` ids_pexpr (fd_res fd) `|` ids_cmd (fd_body fd).
+  ids_rval (fd_arg fd) `|` ids_rval (fd_res fd) `|` ids_cmd (fd_body fd).
 
 (* ** Read and write idents
  * -------------------------------------------------------------------- *)
@@ -124,7 +122,7 @@ Fixpoint read_instr (i : instr) : {fset var} :=
 Notation read_cmd := (ids_cmd_g read_instr).
 
 Definition read_fdef sta str (fd : fundef sta str) :=
-  ids_pexpr (fd_res fd) `|` read_cmd (fd_body fd).
+  ids_rval (fd_res fd) `|` read_cmd (fd_body fd).
 
 Definition write_bcmd (bc : bcmd) :=
   match bc with
@@ -196,7 +194,7 @@ Fixpoint rn_instr (pi : renaming) i :=
 with rn_fdef sta str (pi : renaming) (fd : fundef sta str) :=
   FunDef (rn_rval pi (fd_arg fd)) 
          [seq rn_instr pi i | i <- fd_body fd]
-         (rn_pexpr pi (fd_res fd)).
+         (rn_rval pi (fd_res fd)).
 
 Definition rn_cmd (pi : renaming) c :=
   [seq rn_instr pi i | i <- c].
@@ -212,9 +210,6 @@ Lemma rn_vmap_get pi vm x:
   (rn_vmap pi vm).[x] = vm.[rn_var pi x].
 Proof. by done. Qed.
 
-Definition rn_tosubst pi (ts : W.tosubst) :=
-  {| W.ts_v := rn_var pi ts.(W.ts_v); W.ts_to := ts.(W.ts_to) |}.
-
 Definition rn_estate pi s :=
   {| emem := s.(emem); evm := rn_vmap pi s.(evm) |}.
 
@@ -226,6 +221,14 @@ Lemma rn_pexpr_eq st (pi pi_inv : renaming) (vm : vmap) (pe : pexpr st):
   sem_pexpr vm pe = sem_pexpr (rn_vmap pi vm) (rn_pexpr pi_inv pe).
 Proof.
   move => Hcan; elim pe => //= [[t id] | ????<-| ?????<-?<-|??????<-?<-?<- ] //.
+  by rewrite rn_vmap_get /rn_var /= Hcan. 
+Qed.
+
+Lemma rn_rval_eq st (pi pi_inv : renaming) (vm : vmap) (rv : rval st):
+  cancel pi_inv pi ->
+  sem_rval vm rv = sem_rval (rn_vmap pi vm) (rn_rval pi_inv rv).
+Proof.
+  move=> Hcan;elim: rv => /= [[t id] | ?? ? <- ? <- //].
   by rewrite rn_vmap_get /rn_var /= Hcan. 
 Qed.
 
@@ -250,41 +253,16 @@ Proof.
   by apply: contra_neq neq=>->;apply rn_var_can.
 Qed.
 
-Lemma write_subst_rn_val st pi (rv : rval st) (v : st2ty st):
-  forall substs,
-    write_subst (rn_rval pi rv) v [seq rn_tosubst pi ts | ts <- substs ]
-  = [seq rn_tosubst pi ts | ts <- write_subst rv v substs].
-Proof.
-  elim:rv v => [x | st1 st2 r1 Hr1 r2 Hr2] v substs //=.
-  by rewrite Hr1 Hr2.
-Qed.    
-
-Lemma write_subst_rn_val_nil st pi (rv : rval st) (v : st2ty st):
-    write_subst (rn_rval pi rv) v [::]
-  = [seq rn_tosubst pi ts | ts <- write_subst rv v [::] ].
-Proof. by rewrite (write_subst_rn_val pi _ _ [::]). Qed.
-
-Lemma rn_write_vmap_eq pi pi_inv vm substs:
-  cancel pi_inv pi ->
-  cancel pi     pi_inv ->
-    write_vmap (rn_vmap pi vm) [seq rn_tosubst pi_inv ts | ts <- substs ]
-  = rn_vmap pi (write_vmap vm substs).
-Proof.
-  move=> Hcan1 Hcan2.
-  elim substs; first done.
-  move=> sub subs Hind; case sub => ts_id ts_v //=.
-  by rewrite Hind rn_vmap_set.
-Qed.
-
 Lemma rn_write_rval_eq pi pi_inv vm {st} (rv : rval st) (v : st2ty st):
   cancel pi_inv pi ->
   cancel pi     pi_inv ->
     write_rval (rn_vmap pi vm) (rn_rval pi_inv rv) v
   = rn_vmap pi (write_rval vm rv v).
 Proof.
-  move=> Hcan1 Hcan2; apply Fv.map_ext => id2 /=.
-  rewrite /write_rval write_subst_rn_val_nil.
-  by rewrite (rn_write_vmap_eq _ _ Hcan1 Hcan2).
+  move=> Hcan1 Hcan2. (* apply Fv.map_ext => id2 /=. *)
+  elim: rv v vm => /= [x | ?? r1 Hr1 r2 Hr2] v vm.
+  + by apply rn_vmap_set.
+  by rewrite Hr2 Hr1.
 Qed.
 
 (* ** Cancelling renamings
@@ -474,7 +452,7 @@ Proof.
               sem_for
                 (rn_rval pi_inv v) ws (rn_estate pi s1) (rn_cmd pi_inv c)
                 (rn_estate pi s2))
-           (fun sta str m1 m2 fb fa a r => true)).
+           (fun sta str m1 f a m2 r => true)).
   + by move=> s; constructor.
   + move=> s3 s4 s5 ii cc Hsi Hsi_rn Hsc Hsc_rn.
     by apply (Eseq (s2:=rn_estate pi s4)) => //.
@@ -547,31 +525,33 @@ Proof.
   by apply Hfail.
 Qed.  
 
-Lemma rn_sem_call_equiv {sta str} pi pi_inv m1 m2 l (fres : pexpr str)
-    (arg :st2ty sta) (res : st2ty str):
+Lemma rn_fdef_eq pi_inv ta tr (f:fundef ta tr) : 
+  rn_fdef pi_inv f = 
+  FunDef (rn_rval pi_inv f.(fd_arg)) 
+         [seq rn_instr pi_inv i | i <- fd_body f]
+         (rn_rval pi_inv f.(fd_res)).
+Proof. by case f. Qed.
+
+Lemma rn_sem_call_equiv {sta str} pi pi_inv m1 m2 (f:fundef sta str)
+                          (arg :st2ty sta) (res : st2ty str):
   cancel pi_inv pi ->
   cancel pi     pi_inv ->
-  sem_call m1 m2 l fres arg res ->
-  sem_call m1 m2 [seq rn_instr pi_inv i | i <- l] (rn_pexpr pi_inv fres) arg res.
+  sem_call m1 f arg m2 res ->
+  sem_call m1 (rn_fdef pi_inv f) arg m2 res.
 Proof.
   move=> Hcan1 Hcan2 Hscall.
   inversion Hscall; subst; clear Hscall.
-  rewrite /rres.
-  move: (@rn_pexpr_eq str pi pi_inv vm2 fres Hcan1) => WW.
-  rewrite WW.
-  apply (EcallRun (vm0:=rn_vmap pi vm0) (farg:=rn_rval pi_inv farg0)).
-  + move => vm3. move: (H7 (rn_vmap pi_inv vm3)). elim=> m3. elim=> vm4. case => [Hsem Hok]. 
-    exists m3. exists (rn_vmap pi vm4).
-    rewrite -(rn_vmap_cancel vm3 Hcan2).
-    split.
-    + rewrite /= (rn_write_rval_eq _ _ _ Hcan1 Hcan2).
-      by apply (rn_sem_equiv Hcan1 Hcan2).
-    + by rewrite -(@rn_pexpr_eq str pi pi_inv vm4 fres Hcan1).
-  + rewrite /vm1 in H8.
+  inversion H0;clear H0;subst. inversion H8;clear H8;subst;subst.
+  rewrite (@rn_rval_eq str pi pi_inv) //.
+  rewrite rn_fdef_eq.
+  apply (EcallRun (vm0:=rn_vmap pi vm0)).
+  + move => vm3. case: (H7 (rn_vmap pi_inv vm3))=> m3 -[vm4] Hsem. 
+    exists m3, (rn_vmap pi vm4); rewrite -(rn_vmap_cancel vm3 Hcan2).
     rewrite /= (rn_write_rval_eq _ _ _ Hcan1 Hcan2).
     by apply (rn_sem_equiv Hcan1 Hcan2).
-  + by rewrite -WW.
-Qed.
+  rewrite /= (rn_write_rval_eq _ _ _ Hcan1 Hcan2).
+  by apply (rn_sem_equiv Hcan1 Hcan2).
+Qed. 
 
 Lemma rn_sem_equiv_call sta str (s1 s2 : estate) pi pi_inv (fd : fundef sta str) rv_res pe_arg:
   cancel pi_inv pi ->
@@ -579,22 +559,17 @@ Lemma rn_sem_equiv_call sta str (s1 s2 : estate) pi pi_inv (fd : fundef sta str)
   sem s1 [:: Ccall rv_res fd                  pe_arg] s2 ->
   sem s1 [:: Ccall rv_res (rn_fdef pi_inv fd) pe_arg] s2.
 Proof.
-  move=> Hcan1 Hcan2.
-  destruct fd => /= Hsem.
-  apply (Eseq (s2:=s2)); last apply Eskip.
-  inversion Hsem; subst; clear Hsem.
-  inversion H4; subst; clear H4.
-  inversion H2; subst; clear H2.
-  apply (inj_pair2_eq_dec _ LEM) in H5.
-  apply (inj_pair2_eq_dec _ LEM) in H5.
-  rewrite H5 //= in H8. clear H5 fd1.
-  apply (inj_pair2_eq_dec _ LEM) in H4.
-  rewrite H4. clear H4 rv_res1.
-  apply (inj_pair2_eq_dec _ LEM) in H6.
-  rewrite -H6. clear H6 pe_arg.
-  apply (Ecall) => //.
-  rewrite /= -/rarg.
-  by apply (rn_sem_call_equiv Hcan1 Hcan2).
+  move=> Hcan1 Hcan2 Hsem.
+  apply (Eseq (s2:=s2));last apply Eskip.
+  inversion Hsem;subst;clear Hsem.
+  inversion H4;clear H4;subst.
+  inversion H2;clear H2;subst.
+  inversion H4;clear H4;subst.
+  inversion H5;clear H5;subst.
+  inversion H0;clear H0;subst.
+  inversion H6;clear H6;subst.
+  constructor => //.
+  apply: rn_sem_call_equiv Hcan1 Hcan2 H8.
 Qed.
 
 (* ** Upper bound on variables that are changed
@@ -636,21 +611,6 @@ Proof.
   by rewrite !Fv.setP_neq //;apply Heq.
 Qed.
 
-Lemma write_vmap_eq_except_aux vm substs:
-  vm = write_vmap vm substs [\ seq_fset [seq ts.(ts_v) | ts <- substs ]].
-Proof.
-  elim: substs => //= -[] x v ss Hrec;rewrite fset_cons /= => y.
-  rewrite in_fsetU Bool.negb_orb in_fset1 eq_sym => /andP -[??]. 
-  by rewrite Fv.setP_neq // Hrec.
-Qed.
-
-Lemma write_subst_arg st (rv : rval st) (v : st2ty st) (l : seq tosubst):
-  write_subst rv v l = (write_subst rv v [::]) ++ l.
-Proof.
-  elim: rv v l => /= [// | st1 st2 rv1 Hrv1 rv2 Hrv2] v ls.
-  by rewrite Hrv1 Hrv2 catA -Hrv2.
-Qed.
-
 Lemma seq_fset_cat (aT : choiceType) (l1 : seq aT) (l2 : seq aT):
   seq_fset (l1 ++ l2) = seq_fset l1 `|` seq_fset l2.
 Proof.
@@ -660,36 +620,22 @@ Proof.
   by rewrite fsetUA.
 Qed.
 
-Lemma ids_rval_write_substs st (rv : rval st) (v : st2ty st):
-  ids_rval rv = seq_fset [seq ts.(ts_v) | ts <- write_subst rv v [::] ].
-Proof.
-  elim: rv v => [x | st1 st2 rv1 Hrv1 rv2 Hrv2] v //=.
-  rewrite write_subst_arg map_cat seq_fset_cat.
-  by rewrite (Hrv1 v.1) (Hrv2 v.2) fsetUC.
-Qed.
-
 Lemma write_rval_eq_except st vm (rv : rval st) (v : st2ty st):
   vm = write_rval vm rv v [\ids_rval rv].
 Proof.
-  rewrite /write_rval (ids_rval_write_substs rv v).
-  by apply write_vmap_eq_except_aux.
-Qed.
-
-Lemma write_vmap_eq_except_imp vm1 vm2 s substs:
-  vm1 = vm2 [\s ] ->
-  write_vmap vm1 substs = write_vmap vm2 substs [\ s].
-Proof.
-  generalize vm1 vm2. elim substs => //.
-  move=> sub subs Hind vm3 vm4 Heq.
-  rewrite /=; case sub => st_ id_ v_.
-  by apply eq_except_set_imp; apply Hind.
+  elim: rv v vm => /= [x | ?? r1 Hr1 r2 Hr2] v vm.
+  + by apply eq_except_set.
+  move=> z;rewrite in_fsetU negb_or => /andP [] ??.
+  by rewrite -Hr1 // -Hr2.
 Qed.
 
 Lemma write_rval_eq_except_imp st vm1 vm2 (rv : rval st) (v : st2ty st) s:
   vm1 = vm2 [\s ] ->
   write_rval vm1 rv v = write_rval vm2 rv v [\ s].
 Proof.
-  by rewrite /write_rval; apply write_vmap_eq_except_imp.
+  elim: rv v vm1 vm2 => /= [x | ?? r1 Hr1 r2 Hr2] v vm1 vm2.
+  + by apply eq_except_set_imp.
+  by move=> ?;apply /Hr1/Hr2.
 Qed.
 
 Lemma sem_bcmd_eq_except s1 s2 bc:
@@ -725,7 +671,7 @@ Proof.
            (fun s1 c s2 => evm s1 = evm s2 [\ write_cmd c])
            (fun s1 i s2 => s1.(evm) = s2.(evm) [\ write_instr i])
            (fun v ws s1 c s2 => s1.(evm) = s2.(evm) [\ ids_rval v `|` write_cmd c])
-           (fun sta str m1 m2 fb fres arg res => true)).
+           (fun sta str m1 f arg m2 res => true)).
   + done.
   + move=> s3 s4 s5 i cc Hi Heq1 Hc Heq2.
     apply (eq_except_sub (s2:=write_cmd (i::cc))) in Heq1;
@@ -784,10 +730,17 @@ Local Open Scope char_scope.
 Definition underscore : Ascii.ascii := "_".
 Local Open Scope string_scope.
 
+Fixpoint rval2pe t (rv:rval t) := 
+  match rv in rval t_ return pexpr t_ with
+  | Rvar x              => x
+  | Rpair t1 t2 rv1 rv2 => Papp2 (Opair t1 t2) (rval2pe rv1) (rval2pe rv2)
+  end. 
+
 Definition inlined_call sta str (rv_res : rval str) fd (pe_arg : pexpr sta) :=
   match fd with
   | FunDef sta str fa fc fr =>
-      fun pe_arg rv_res => Cbcmd (Assgn fa pe_arg)::(fc++[:: Cbcmd (Assgn rv_res fr)])
+      fun pe_arg rv_res => 
+         Cbcmd (Assgn fa pe_arg)::(fc++[:: Cbcmd (Assgn rv_res (rval2pe fr))])
   end pe_arg rv_res.
 
 Definition inline_call i :=
@@ -841,7 +794,7 @@ Definition fbody :=
       assgn y z;
       Cif (Papp2 Oeq x 1%num) [::assgn z x] [::assgn z y] ].
 
-Definition ftest := FunDef (Rvar y) fbody (Pvar x).
+Definition ftest := FunDef (Rvar y) fbody (Rvar x).
 
 (*
 Eval vm_compute in (ids_pexpr (Pvar z)).
@@ -887,7 +840,7 @@ Proof.
   rewrite /write_fdef /=. rewrite /write_fdef /= in Hvm1.
   inversion H2; subst; clear H2.
   inversion H3; subst; clear H3.
-  pose s2' := {| emem := s2.(emem);
+(*  pose s2' := {| emem := s2.(emem);
                  evm := write_rval s1.(evm) rv_res (rdflt_ (sem_pexpr s2_1.(evm) p)) |}.
   exists s2'.
   split.
@@ -921,7 +874,7 @@ Proof.
       + apply (EcallRun (vm0:=vm1) (farg:=r)).
         admit. (* not the nofail c here *)
       + admit.
-    admit.
+    admit.*)
     (*  => vm0.
 
     apply Ecall.
