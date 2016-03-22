@@ -43,13 +43,21 @@ Proof. rewrite /cancel /w2n /n2w => x;by rewrite natr_Zp. Qed.
 Definition word_choiceMixin := CanChoiceMixin codeK_word.
 Canonical  word_choiceType  := ChoiceType word word_choiceMixin.
 
-Definition wadd (x y:word) :=
-  let n := (x + y)%nat in
-  (wbase <= n, n2w n).
+Definition wadd (x y:word) : (bool * word):=
+  let n := x + y in
+  (n < x, n).
 
 Definition waddc (x y:word) (c:bool) :=
-  let n := (x + y + c)%nat in
-  (wbase <= n, n2w n).
+  let n := x + y + if c then 0 else 1 in
+  (if c then n <= x else n < x, n).
+
+Definition wsub (x y:word) :=
+  let n := x - y in
+  (x < y, n).
+
+Definition wsubc (x y:word) (c:bool) :=
+  let n := x - y - if c then 1 else 0 in
+  (if c then x <= y else x < y, n).
 
 (* ** Machine word representation for the compiler and the wp
  * -------------------------------------------------------------------- *)

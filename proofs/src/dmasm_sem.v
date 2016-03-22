@@ -286,12 +286,14 @@ Definition sem_bcmd (es : estate) (bc : bcmd) : exec estate :=
       ok (Estate m es.(evm))
   end.
 
-Definition wrange d n1 n2 :=
-  let idxs := iota n1 (n2 - n1) in
-  match d with
-  | UpTo   => idxs
-  | DownTo => rev idxs
-  end.
+Definition wrange d (n1 n2:nat) :=
+  if n1 <= n2 then 
+    let idxs := iota n1 (S (n2 - n1)) in
+    match d with
+    | UpTo   => idxs
+    | DownTo => rev idxs
+    end
+  else [::].
 
 Definition sem_range (vm : vmap) (r : range) :=
   let: (d,pe1,pe2) := r in

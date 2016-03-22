@@ -140,7 +140,7 @@ Definition ssem_range (vm : svmap) (r : range) :=
   let w2 := ssem_pexpr vm pe2 in
   let n1 := w2n w1 in
   let n2 := w2n w2 in
-  ok [seq n2w n | n <- wrange d n1 n2].
+  [seq n2w n | n <- wrange d n1 n2].
 
 Inductive ssem : sestate -> cmd -> sestate -> Prop :=
 | SEskip s :
@@ -169,10 +169,11 @@ with ssem_i : sestate -> instr -> sestate -> Prop :=
     let vm2 := swrite_rval es.(sevm) x vr in 
     ssem_i es (Ccall x f a) (SEstate m vm2)
 
-| SEforDone s1 s2 iv rng c ws :
-    ssem_range s1.(sevm) rng = ok ws ->
-    ssem_for iv ws s1 c s2 ->
-    ssem_i s1 (Cfor iv rng c) s2
+| SEforDone s1 s2 i dir (e1 e2:pexpr sword) c:
+    let w1 := ssem_pexpr s1.(sevm) e1 in
+    let w2 := ssem_pexpr s1.(sevm) e2 in
+    ssem_for i dir w1 w2 s1 c s2 ->
+    ssem_i s1 (Cfor i (dir,e1,e2) c) s2
 
 with ssem_fun : forall ta tr (f:fundef ta tr) (m:mem) (va:sst2ty ta), mem -> sst2ty tr -> Prop :=
 | SEfun : forall ta tr (f:fundef ta tr) (m:mem) (va:sst2ty ta) vm es',
@@ -181,16 +182,19 @@ with ssem_fun : forall ta tr (f:fundef ta tr) (m:mem) (va:sst2ty ta), mem -> sst
     let rv := ssem_rval es'.(sevm) f.(fd_res) in
     ssem_fun f m va es'.(semem) rv
 
-with ssem_for : rval sword -> seq word -> sestate -> cmd -> sestate -> Prop :=
+with ssem_for : rval sword -> dir -> word -> word -> sestate -> cmd -> sestate -> Prop :=
 
-| SEForDone s c iv :
-    ssem_for iv [::] s c s
+| SEForDone i dir (w1 w2:word) c s :
+    w2 < w1 -> ssem_for i dir w1 w2 s c s
 
-| SEForOne s1 s2 s3 c w ws iv :
-    let ac := Cbcmd (Assgn iv (Pconst (N.of_nat (w2n w)))) :: c in
-    ssem                s1 ac s2 ->
-    ssem_for iv (ws)    s2 c  s3 ->
-    ssem_for iv (w::ws) s1 c  s3.
+| SEForOne (i:rval sword) dir (w1 w2:word) c s1 s2 s3:
+    w1 <= w2 ->
+    let w := if dir is UpTo then w1 else w2 in
+    ssem (SEstate s1.(semem) (swrite_rval s1.(sevm) i w)) c s2 ->
+    let w1' := if dir is UpTo then w1 + 1 else w1 in
+    let w2' := if dir is UpTo then w2     else w2 - 1 in
+    ssem_for i dir w1' w2' s2 c s3 ->
+    ssem_for i dir w1 w2 s1 c s3.
 
 Lemma ssem_iV s i s' : ssem s [::i] s' -> ssem_i s i s'.
 Proof.
