@@ -220,8 +220,14 @@ Proof.
   by apply (@leq_ltn_trans y)=> //;rewrite -ltnS addnC.
 Qed.
 
-Lemma word_sub1 (y x: word) : y < x -> nat_of_ord (x - 1)%R = (x - 1)%N.
+Lemma word_sub1 (y x: word) : y < x -> (x - 1)%R = (x - 1)%N :> nat.
 Proof. 
+case: x y => [[|x] ltx] [y lty] //=; rewrite ltnS => le_yx.
+rewrite [1%%_]modn_small ?[in X in X%%_]modn_small //.
+by rewrite !subn1 /= addSnnS modnDr modn_small // ltnW.
+Qed.
+
+
   move=> Hlt;rewrite /=.
 Admitted.
 
