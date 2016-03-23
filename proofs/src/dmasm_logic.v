@@ -227,10 +227,6 @@ rewrite [1%%_]modn_small ?[in X in X%%_]modn_small //.
 by rewrite !subn1 /= addSnnS modnDr modn_small // ltnW.
 Qed.
 
-
-  move=> Hlt;rewrite /=.
-Admitted.
-
 Lemma hoare_for_base (i:rval sword) dir (e1 e2:pexpr sword) I c:
   donotdep (vrv i) e1 ->
   donotdep (vrv i) e2 ->
