@@ -725,7 +725,7 @@ Lemma mk_addP_ne n (e:spexpr sword) st:
   Eapp2 Oadd n e.
 Proof.
   case: N.eqb_spec=> [->|]//=.
-  by rewrite /wadd /n2w add0n natr_Zp leqNgt ltn_ord.
+  by rewrite /wadd /n2w add0r.
 Qed.
 
 Lemma mk_addP_en n (e:spexpr sword) st:
@@ -733,7 +733,7 @@ Lemma mk_addP_en n (e:spexpr sword) st:
   Eapp2 Oadd e n.
 Proof.
   case: N.eqb_spec=> [->|]//=.
-  by rewrite /wadd /n2w addn0 natr_Zp leqNgt ltn_ord.
+  by rewrite /wadd /n2w addr0 ltnn.
 Qed.
 
 Lemma mk_addP (e1 e2:spexpr sword) st:
