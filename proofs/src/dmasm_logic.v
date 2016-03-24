@@ -394,12 +394,6 @@ Definition f2h (pm:pmap) (sm:smap) f : hpred :=
 Definition osubst (s1 s2: vsubst) := 
   Mv.map (fun t => @subst_spexpr t s1) s2.
 
-Lemma forall_iff A (P1 P2:A-> Prop): 
-  (forall x, P1 x <-> P2 x) -> (forall (x:A), P1 x) <-> (forall x, P2 x).
-Proof.
-  by move=> H;split=> Hx x;move: (Hx x);rewrite H.
-Qed.
-
 Lemma osubst_Pe t (e:spexpr t) s1 s2 rho : 
   subst_spexpr (osubst s1 s2) e =[rho] 
   subst_spexpr s1 (subst_spexpr s2 e).

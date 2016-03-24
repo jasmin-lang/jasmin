@@ -1,7 +1,7 @@
 (* * Syntax and semantics of the dmasm source language *)
 
 (* ** Imports and settings *)
-Require Import ZArith.
+Require Import JMeq ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import finmap strings word dmasm_utils dmasm_type dmasm_var.
@@ -190,6 +190,54 @@ Fixpoint sem_rval (s:vmap) t (rv:rval t) : st2ty t :=
   | Rvar x            => s.[x]%vmap
   | Rpair _ _ rv1 rv2 => (sem_rval s rv1, sem_rval s rv2)
   end.
+
+(* ** Operators
+ * -------------------------------------------------------------------- *)
+
+Definition eqb_sop1 {t1 tr t1' tr'} (o:sop1 t1 tr) (o':sop1 t1' tr') := 
+  match o, o' with
+  | Onot    , Onot     => true
+  | Ofst _ _, Ofst _ _ => true
+  | Osnd _ _, Osnd _ _ => true
+  | _       , _        => false
+  end.
+
+Definition eqb_sop2 {t1 t2 tr t1' t2' tr'} (o:sop2 t1 t2 tr) (o':sop2 t1' t2' tr') := 
+  match o, o' with
+| Oand     , Oand      => true
+| Oor      , Oor       => true
+| Oadd     , Oadd      => true
+| Oaddc    , Oaddc     => true
+| Osub     , Osub      => true
+| Osubc    , Osubc     => true
+| Oeq      , Oeq       => true
+| Olt      , Olt       => true
+| Ole      , Ole       => true
+| Oget _   , Oget _    => true
+| Opair _ _, Opair _ _ => true
+| _        , _         => false
+end.
+
+Definition eqb_sop3 {t1 t2 t3 tr t1' t2' t3' tr'} 
+           (o:sop3 t1 t2 t3 tr) (o':sop3 t1' t2' t3' tr') := 
+  match o, o' with
+ | Oaddcarry , Oaddcarry  => true
+ | Osubcarry , Osubcarry  => true
+ | Oset _    , Oset _     => true
+ | _         , _          => false
+ end.
+
+Lemma eqb_sop1P t1 t1' tr tr' (o:sop1 t1 tr) (o':sop1 t1' tr'):
+  t1 = t1' -> eqb_sop1 o o' ->  tr = tr' /\ JMeq o o'.
+Proof. by move: o o' => [|??|??] [|??|??] //= [] ->->. Qed. 
+
+Lemma eqb_sop2P t1 t1' t2 t2' tr tr' (o:sop2 t1 t2 tr) (o':sop2 t1' t2' tr'):
+  t1 = t1' -> t2 = t2' -> eqb_sop2 o o' -> tr = tr' /\ JMeq o o'.
+Proof. by move: o o'=> [|||||||||?|??] [|||||||||?|??] //= => [ []->| ->->]. Qed.
+
+Lemma eqb_sop3P t1 t1' t2 t2' t3 t3' tr tr' (o:sop3 t1 t2 t3 tr) (o':sop3 t1' t2' t3' tr'):
+  t1 = t1' -> t2 = t2' -> t3 = t3' -> eqb_sop3 o o' ->  tr = tr' /\ JMeq o o'.
+Proof. by move: o o'=> [||?] [||?] // [] ->. Qed.
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)

@@ -7,61 +7,14 @@ From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import gen_map word dmasm_utils dmasm_type dmasm_var dmasm_sem 
                dmasm_sem_props dmasm_Ssem.
 
+Import GRing.Theory.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Import GRing.Theory.
-
-Open Scope string_scope.
-Local Open Scope ring_scope.
 Local Open Scope seq_scope.
 
 (* TODO: move this *)
-Definition eqb_sop1 {t1 tr t1' tr'} (o:sop1 t1 tr) (o':sop1 t1' tr') := 
-  match o, o' with
-  | Onot    , Onot     => true
-  | Ofst _ _, Ofst _ _ => true
-  | Osnd _ _, Osnd _ _ => true
-  | _       , _        => false
-  end.
-
-Definition eqb_sop2 {t1 t2 tr t1' t2' tr'} (o:sop2 t1 t2 tr) (o':sop2 t1' t2' tr') := 
-  match o, o' with
-| Oand     , Oand      => true
-| Oor      , Oor       => true
-| Oadd     , Oadd      => true
-| Oaddc    , Oaddc     => true
-| Osub     , Osub      => true
-| Osubc    , Osubc     => true
-| Oeq      , Oeq       => true
-| Olt      , Olt       => true
-| Ole      , Ole       => true
-| Oget _   , Oget _    => true
-| Opair _ _, Opair _ _ => true
-| _        , _         => false
-end.
-
-Definition eqb_sop3 {t1 t2 t3 tr t1' t2' t3' tr'} 
-           (o:sop3 t1 t2 t3 tr) (o':sop3 t1' t2' t3' tr') := 
-  match o, o' with
- | Oaddcarry , Oaddcarry  => true
- | Osubcarry , Osubcarry  => true
- | Oset _    , Oset _     => true
- | _         , _          => false
- end.
-
-Lemma eqb_sop1P t1 t1' tr tr' (o:sop1 t1 tr) (o':sop1 t1' tr'):
-  t1 = t1' -> eqb_sop1 o o' ->  tr = tr' /\ JMeq o o'.
-Proof. by move: o o' => [|??|??] [|??|??] //= [] ->->. Qed. 
-
-Lemma eqb_sop2P t1 t1' t2 t2' tr tr' (o:sop2 t1 t2 tr) (o':sop2 t1' t2' tr'):
-  t1 = t1' -> t2 = t2' -> eqb_sop2 o o' -> tr = tr' /\ JMeq o o'.
-Proof. by move: o o'=> [|||||||||?|??] [|||||||||?|??] //= => [ []->| ->->]. Qed.
-
-Lemma eqb_sop3P t1 t1' t2 t2' t3 t3' tr tr' (o:sop3 t1 t2 t3 tr) (o':sop3 t1' t2' t3' tr'):
-  t1 = t1' -> t2 = t2' -> t3 = t3' -> eqb_sop3 o o' ->  tr = tr' /\ JMeq o o'.
-Proof. by move: o o'=> [||?] [||?] // [] ->. Qed.
 
 (* -------------------------------------------------------------------------- *)
 (* ** Symbolic variables                                                      *)
@@ -893,7 +846,6 @@ Definition vsubst_id := Mv.empty (fun x => Evar x).
 Definition ssubst := Msv.t spexpr.
 Definition ssubst_id := Msv.empty (fun x => Esvar x).
 
-(*
 Record asubst := {
   s_fv : Ssv.t; (* The set of symbolic variable occuring in the image of the subst *)
   s_v  : vsubst;
@@ -904,11 +856,11 @@ Definition asubst_init fv mv : asubst :=
   {| s_fv := fv;
      s_v  := mv;
      s_s  := ssubst_id; |}.
-*)
-Fixpoint subst_spexpr st (s : vsubst) (pe : spexpr st) :=
+
+Fixpoint subst_spexpr st (s : asubst) (pe : spexpr st) :=
   match pe in spexpr st_ return spexpr st_ with
-  | Evar          v              => (*s.(s_v).[v]%mv *) s.[v]%mv
-  | Esvar         x              => (*s.(s_s).[x]%msv*) x
+  | Evar          v              => s.(s_v).[v]%mv 
+  | Esvar         x              => s.(s_s).[x]%msv
   | Econst        c              => Econst c
   | Ebool         b              => Ebool  b
   | Eapp1 _ _     op pe1         =>
@@ -1216,18 +1168,18 @@ Definition fresh_svar (s:Ssv.t) :=
   let max := Ssv.fold add s xH in   
   Pos.succ max.
 
-(*
+
 Definition subst_rename s f x :=
- (* if Ssv.mem x s.(s_fv) then *)
+  if Ssv.mem x s.(s_fv) then 
     let all := Ssv.union s.(s_fv) (sffv f) in
     let x' := {| svtype := x.(svtype); svname := fresh_svar all; |} in
-    (x', {| s_fv := Ssv.add x' s.(s_fv);
+    (x'.(svname), {| s_fv := Ssv.add x' s.(s_fv);
             s_v  := s.(s_v);
             s_s  := s.(s_s).[x <- Esvar x']%msv |})
- (* else 
-    (x, {| s_fv := s.(s_fv);
+  else 
+    (x.(svname), {| s_fv := s.(s_fv);
            s_v  := s.(s_v);
-           s_s  := Msv.remove s.(s_s) x |}) *).
+           s_s  := Msv.remove s.(s_s) x |}).
  
 Fixpoint subst_sform (s:asubst) (f:sform) := 
   match f with
@@ -1239,11 +1191,118 @@ Fixpoint subst_sform (s:asubst) (f:sform) :=
   | Fimp    f1 f2 => Fimp  (subst_sform s f1) (subst_sform s f2) 
   | Fif   b f1 f2 => Fif   (subst_spexpr s b) (subst_sform s f1) (subst_sform s f2) 
   | Fforall x  f  => 
-      let (x',s)  := subst_rename s f x in
-      Fforall x' (subst_sform s f)
+      let (id,s)  := subst_rename s f x in
+      Fforall (SVar x.(svtype) id) (subst_sform s f)
   end.
-*)
 
+Definition subst_sstate (s:asubst) (rho:sstate) := 
+  {| pm := pm rho; 
+     sm := Msv.empty (fun x => ssem_spexpr rho (s.(s_s).[x]%msv)); 
+     vm := Fv.empty (fun x => ssem_spexpr rho (s.(s_v).[x]%mv)); |}.
+
+Lemma ssem_subst_spexpr rho s t (e:spexpr t) :
+  subst_spexpr s e =[rho, subst_sstate s rho] e.
+Proof.
+  by elim: e => //= [???? ->|????? -> ? ->|?????? -> ? -> ? ->|?? -> ? -> ? ->].
+Qed.
+
+Notation "f1 '=_[' st1 , st2 ']' f2" := (ssem_sform st1 f1 <-> ssem_sform st2 f2)
+ (at level 70, no associativity).
+
+Notation "f1 '=_[' st ']' f2" := (ssem_sform st f1 <-> ssem_sform st f2)
+ (at level 70, no associativity).
+
+Lemma forall_iff A (P1 P2:A-> Prop): 
+  (forall x, P1 x <-> P2 x) -> (forall (x:A), P1 x) <-> (forall x, P2 x).
+Proof.
+  by move=> H;split=> Hx x;move: (Hx x);rewrite H.
+Qed.
+
+Lemma ssem_sform_fv f st1 st2 : 
+  st1.(pm) = st2.(pm) -> st1 ={ ffv f, sffv f} st2 -> f =_[ st1, st2] f.
+Proof.
+Admitted.
+
+Class  wf_asubst (s:asubst) := {
+  dft_v  : Mv.dft  s.(s_v) = fun x => Evar x;
+  dft_s  : Msv.dft s.(s_s) = fun x => Esvar x;
+  indom_v : forall x, Mv.indom x s.(s_v)  -> Ssv.Subset (sfv s.(s_v).[x]%mv)  s.(s_fv);
+  indom_s : forall x, Msv.indom x s.(s_s) -> Ssv.Subset (sfv s.(s_s).[x]%msv) s.(s_fv);
+}.
+
+Lemma fresh_svarP t s: ~ Ssv.In {|svtype := t; svname := fresh_svar s|} s.
+Proof.
+  rewrite /fresh_svar.
+  have Hf: forall p x, Ssv.In x s -> 
+    (x.(svname) <= (Ssv.fold
+                     (fun (v : svar) (m : positive) => Pos.max (svname v) m) s p))%positive.
+  + move=> p x;apply SsvP.MP.fold_rec.
+    + by move=> ? He H;elim (He _ H).
+    move=> {p} z p s1 s2 _ Hnin Ha Hrec /Ha [-> | Hn];first by apply Pos.le_max_l. 
+    by apply (Pos.le_trans _ p);auto using Pos.le_max_r.
+  move=> /(Hf xH) /=;rewrite Pos.le_succ_l;apply Pos.lt_irrefl.
+Qed.
+
+Lemma subst_renameP s f x {H:wf_asubst s} : 
+  [/\ s_v (subst_rename s f x).2 = s_v s, 
+      ~Ssv.In (SVar x.(svtype) (subst_rename s f x).1) s.(s_fv),
+      ~Ssv.In (SVar x.(svtype) (subst_rename s f x).1) (Ssv.remove x (sffv f)), 
+      (s_s (subst_rename s f x).2).[x]%msv = (SVar x.(svtype) (subst_rename s f x).1) &
+      forall z, x != z ->  (s_s (subst_rename s f x).2).[z]%msv = (s_s s).[z]%msv].
+Proof.
+  rewrite /subst_rename;set fv := (Ssv.union _ _).
+  have Hfr := @fresh_svarP (svtype x) fv;case: ifPn=> [?|/negP Hin]; split=> //= [||| z ?].
+  + by SsvD.fsetdec. + by SsvD.fsetdec.  
+  + by apply Msv.setP_eq.
+  + by apply Msv.setP_neq.
+  + by move: Hin=> /SsvD.F.mem_iff;case x.
+  + by case x=> ??/=;SsvD.fsetdec.
+  + by rewrite Msv.removeP_eq dft_s;case x.
+  by rewrite Msv.removeP_neq.
+Qed.
+
+Instance wf_subst_rename s {H:wf_asubst s} f x : wf_asubst (subst_rename s f x).2.
+Proof.
+  case: H => dftv dfts domv doms.
+  rewrite /subst_rename;case : ifPn => Hin;constructor => //=;try (by rewrite Msv.dft_removeP).
+  + by move=> z /domv;SsvD.fsetdec.
+  + move=> z;rewrite Msv.indom_setP.
+    case: (_ =P _) => /= [<- _ | /eqP ? /doms].
+    + by rewrite Msv.setP_eq [sfv _]sfv_svar;SsvD.fsetdec.
+    rewrite Msv.setP_neq //;SsvD.fsetdec.
+  move=> z;rewrite Msv.indom_removeP => /andP [] ? /doms.
+  rewrite Msv.removeP_neq //;SsvD.fsetdec.
+Qed.
+
+Lemma ssem_subst_sform rho s f {H:wf_asubst s} :
+  subst_sform s f =_[rho, subst_sstate s rho] f.
+Proof.
+  elim: f s H rho => /=
+   [?|??|? Hf1|? Hf1 ? Hf2 |? Hf1 ? Hf2|? Hf1 ? Hf2|?? Hf1 ? Hf2 | x f1 Hf1] s Hwf rho;
+    rewrite ?ssem_subst_spexpr ?Hf1 ?Hf2 ?Hf3 //.
+  + by case: ifP;rewrite ?Hf1 ?Hf2.
+  rewrite (surjective_pairing (subst_rename _ _ _)) /=.
+  have [Hsv Hnin Hnin' Hssx Hss] := subst_renameP f1 x; apply forall_iff=> v.
+  rewrite Hf1; apply ssem_sform_fv => //=;constructor=> //= z Hz.
+  + rewrite !Fv.get0 /= Hsv.
+    case : (boolP (Mv.indom z (s_v s))) => [/indom_v Hsub | /Mv.indom_getP ->].
+    + apply ssem_spexpr_fv;constructor=> w Hw //=.
+      rewrite Msv.setP_neq //;apply /eqP=> ?;subst. 
+      by elim Hnin; apply: SsvP.MP.in_subset Hsub.
+    by rewrite dft_v.    
+  rewrite !Msv.get0 /=;case:(x =P z)=> [<-|/eqP Hneq].
+  + by rewrite Msv.setP_eq Hssx /= Msv.setP_eq.
+  rewrite Msv.setP_neq // Msv.get0 Hss //=.
+  case: (boolP (Msv.indom z (s_s s))) => [/indom_s Hsub| /Msv.indom_getP ->].
+  + apply ssem_spexpr_fv;constructor=> w Hw //=.
+    rewrite Msv.setP_neq //;apply /eqP=> ?;subst. 
+    by elim Hnin; apply: SsvP.MP.in_subset Hsub.
+  rewrite dft_s /= Msv.setP_neq //;apply /eqP=> ?;subst.
+  by move: Hneq=> /eqP Hneq;apply Hnin';apply SsvP.MP.Dec.F.remove_2.
+Qed.
+
+
+(*
 Fixpoint subst_sform (s:vsubst) (f:sform) := 
   match f with
   | Fbool   e     => Fbool (subst_spexpr s e)
@@ -1261,6 +1320,9 @@ Notation "f1 '=_[' st1 , st2 ']' e2" := (ssem_sform st1 f1 <-> ssem_sform st2 e2
 
 Notation "f1 '=_[' st ']' f2" := (ssem_sform st f1 <-> ssem_sform st f2)
  (at level 70, no associativity).
+*)
+
+
 
 (*Class  wf_asubst (s:asubst) := {
   dft_v  : Mv.dft  s.(s_v) = fun x => Evar x;
