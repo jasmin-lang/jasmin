@@ -32,12 +32,18 @@ Inductive sop2 : stype -> stype -> stype -> Set :=
 | Oand  : sop2 sbool sbool sbool
 | Oor   : sop2 sbool sbool sbool
 (* words *)
-| Oadd  : sop2 sword sword (sbool ** sword)
+| Oadd   : sop2 sword sword sword
+| Oaddc  : sop2 sword sword (sbool ** sword)
+
+| Osub  : sop2 sword sword sword
+| Osubc  : sop2 sword sword (sbool ** sword)
+
 (*| Oxor  : sop2 sword sword sword
 | Oland : sop2 sword sword sword
 | Olor  : sop2 sword sword sword *)
 | Oeq   : sop2 sword sword sbool
 | Olt   : sop2 sword sword sbool
+| Ole   : sop2 sword sword sbool
 (* arrays *)
 | Oget  : forall n, sop2 (sarr n sword) sword sword
 (* pairs *)
@@ -45,7 +51,8 @@ Inductive sop2 : stype -> stype -> stype -> Set :=
 
 Inductive sop3 : stype -> stype -> stype -> stype -> Set :=
 (* words *)
-| Oaddc : sop3 sword sword sbool (sbool ** sword)
+| Oaddcarry : sop3 sword sword sbool (sbool ** sword)
+| Osubcarry : sop3 sword sword sbool (sbool ** sword)
 (* arrays *)
 | Oset  : forall n, sop3 (sarr n sword) sword sword (sarr n sword).
 
@@ -205,8 +212,12 @@ Definition sem_sop2 st1 st2 str (sop : sop2 st1 st2 str) :=
   | Oand       => fun x y => ok (x && y)
   | Oor        => fun x y => ok (x || y)
   | Oadd       => fun x y => ok (wadd x y)
+  | Oaddc      => fun x y => ok (waddc x y)
+  | Osub       => fun x y => ok (wsub x y)
+  | Osubc      => fun x y => ok (wsubc x y)
   | Oeq        => fun (x y : word) => ok (x == y)
   | Olt        => fun (x y : word) => ok (x < y)
+  | Ole        => fun (x y : word) => ok (x <= y)  
   | Oget n     => fun (a : (n.+1).-tuple word) (i:word) =>
                     if i > n
                     then Error ErrOob
@@ -221,7 +232,8 @@ Definition sem_sop3 st1 st2 st3 str (sop : sop3 st1 st2 st3 str) :=
                 if i > n
                 then Error ErrOob
                 else ok [tuple (if j == inZp i then v else tnth a j) | j < n.+1]
-  | Oaddc  => fun x y c => ok (waddc x y c)
+  | Oaddcarry  => fun x y c => ok (waddcarry x y c)
+  | Osubcarry  => fun x y c => ok (wsubcarry x y c)
   end.
 
 Fixpoint sem_pexpr st (vm : vmap) (pe : pexpr st) : exec (st2ty st) :=

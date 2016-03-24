@@ -31,8 +31,12 @@ Definition eqb_sop2 {t1 t2 tr t1' t2' tr'} (o:sop2 t1 t2 tr) (o':sop2 t1' t2' tr
 | Oand     , Oand      => true
 | Oor      , Oor       => true
 | Oadd     , Oadd      => true
+| Oaddc    , Oaddc     => true
+| Osub     , Osub      => true
+| Osubc    , Osubc     => true
 | Oeq      , Oeq       => true
 | Olt      , Olt       => true
+| Ole      , Ole       => true
 | Oget _   , Oget _    => true
 | Opair _ _, Opair _ _ => true
 | _        , _         => false
@@ -41,9 +45,10 @@ end.
 Definition eqb_sop3 {t1 t2 t3 tr t1' t2' t3' tr'} 
            (o:sop3 t1 t2 t3 tr) (o':sop3 t1' t2' t3' tr') := 
   match o, o' with
- | Oaddc , Oaddc  => true
- | Oset _, Oset _ => true
- | _     , _      => false
+ | Oaddcarry , Oaddcarry  => true
+ | Osubcarry , Osubcarry  => true
+ | Oset _    , Oset _     => true
+ | _         , _          => false
  end.
 
 Lemma eqb_sop1P t1 t1' tr tr' (o:sop1 t1 tr) (o':sop1 t1' tr'):
@@ -52,12 +57,11 @@ Proof. by move: o o' => [|??|??] [|??|??] //= [] ->->. Qed.
 
 Lemma eqb_sop2P t1 t1' t2 t2' tr tr' (o:sop2 t1 t2 tr) (o':sop2 t1' t2' tr'):
   t1 = t1' -> t2 = t2' -> eqb_sop2 o o' -> tr = tr' /\ JMeq o o'.
-Proof. by move: o o'=> [|||||?|??] [|||||?|??] //= => [ []->| ->->]. Qed.
+Proof. by move: o o'=> [|||||||||?|??] [|||||||||?|??] //= => [ []->| ->->]. Qed.
 
 Lemma eqb_sop3P t1 t1' t2 t2' t3 t3' tr tr' (o:sop3 t1 t2 t3 tr) (o':sop3 t1' t2' t3' tr'):
   t1 = t1' -> t2 = t2' -> t3 = t3' -> eqb_sop3 o o' ->  tr = tr' /\ JMeq o o'.
-Proof. by move: o o'=> [|?] [|?] // [] ->. Qed.
-
+Proof. by move: o o'=> [||?] [||?] // [] ->. Qed.
 
 (* -------------------------------------------------------------------------- *)
 (* ** Symbolic variables                                                      *)
@@ -209,7 +213,7 @@ Fixpoint fv_rec {t} (e:spexpr t) (s:Sv.t) :=
 Instance fv_rec_m {t} (e:spexpr t) : Proper (Sv.Equal ==> Sv.Equal) (fv_rec e).
 Proof.
   move=> x.
-  elim:e x => //= [?| ????? He1 ? He2 | ?????? He1 ? He2 ? He3 | ?? He1 ? He2 ? He3] s1 s2 Heq. 
+  elim:e x => //= [?| ????? He1 ? He2 | ?????? He1 ? He2 ? He3 | ?? He1 ? He2 ? He3] s1 s2 Heq.
   + by rewrite Heq.
   + by apply /He1 /He2.
   + by apply /He1 /He2 /He3.
@@ -524,11 +528,10 @@ Qed.
 (* ** Destructor                                                              *)
 (* -------------------------------------------------------------------------- *)
 
-
 Definition destr_pair t1 t2 (p:spexpr (t1 ** t2)) : option (spexpr t1 * spexpr t2).
 case H: _ / p => [ ? | ? | ? | ? | ???? | ??? o e1 e2| ???????? | ????].
 + exact None. + exact None. + exact None. + exact None. + exact None.
-(case:o H e1 e2 => [||||||??[]<-<- e1 e2];last by exact (Some (e1,e2)))=> *;
+(case:o H e1 e2 => [||||||||||??[]<-<- e1 e2];last by exact (Some (e1,e2)))=> *;
  exact None.
 + exact None. + exact None.
 Defined.
@@ -543,7 +546,8 @@ Proof.
   case : t12 / p => // 
      [[]/= ?? <-| []/= ?? <-| ???? _ | t1' t2' tr' o e1 e2 | ???????? _| ???? _];
      try by move=> Heq; have:= JMeq_eq Heq.
-  case: o e1 e2 => //= [ e1 e2 [] ??|t t' e1 e2];subst.
+  case: o e1 e2 => //= [e1 e2 [] ??|e1 e2 [] ??|t t' e1 e2];subst.
+  + by move=> e;have := JMeq_eq e.
   + by move=> e;have := JMeq_eq e.
   move=> e;case: (e)=> ??;subst t t'.
   rewrite (eq_irrelevance e (erefl (t1 ** t2))) /= /eq_rect_r /=.
@@ -604,23 +608,57 @@ Definition mk_eq (e1 e2:spexpr sword) : spexpr sbool :=
 Definition mk_pair {t t'} (e1:spexpr t) (e2:spexpr t') :=
   Eapp2 (Opair t t') e1 e2.
 
-Definition mk_add (e1 e2:spexpr sword) : spexpr (sbool ** sword) := 
+Definition mk_add (e1 e2:spexpr sword) : spexpr sword := 
+  match e1, e2 with
+  | Econst n1, Econst n2 => iword_add n1 n2 
+  | Econst n, _ => 
+    if (n =? 0)%num then e2 else Eapp2 Oadd e1 e2
+  | _, Econst n => 
+    if (n =? 0)%num then e1 else Eapp2 Oadd e1 e2
+  | _, _ => Eapp2 Oadd e1 e2
+  end.
+
+Definition mk_addc (e1 e2:spexpr sword) : spexpr (sbool ** sword) := 
   match e1, e2 with
   | Econst n1, Econst n2 => 
-    let (c,n) := iword_add n1 n2 in
+    let (c,n) := iword_addc n1 n2 in
     mk_pair c n
   | Econst n, _ =>
-    if (n =? 0)%num then mk_pair false e2 else Eapp2 Oadd e1 e2
+    if (n =? 0)%num then mk_pair false e2 else Eapp2 Oaddc e1 e2
   | _, Econst n => 
-    if (n =? 0)%num then mk_pair false e1 else Eapp2 Oadd e1 e2
-  | _, _ => Eapp2 Oadd e1 e2
+    if (n =? 0)%num then mk_pair false e1 else Eapp2 Oaddc e1 e2
+  | _, _ => Eapp2 Oaddc e1 e2
+  end.
+
+Definition mk_sub (e1 e2:spexpr sword) : spexpr sword := 
+  match e1, e2 with
+  | Econst n1, Econst n2 => iword_sub n1 n2 
+  | _, Econst n => 
+    if (n =? 0)%num then e1 else Eapp2 Osub e1 e2
+  | _, _ => Eapp2 Osub e1 e2
+  end.
+
+Definition mk_subc (e1 e2:spexpr sword) : spexpr (sbool ** sword) := 
+  match e1, e2 with
+  | Econst n1, Econst n2 => 
+    let (c,n) := iword_subc n1 n2 in
+    mk_pair c n
+  | _, Econst n => 
+    if (n =? 0)%num then mk_pair false e1 else Eapp2 Osubc e1 e2
+  | _, _ => Eapp2 Osubc e1 e2
   end.
 
 Definition mk_lt (e1 e2:spexpr sword) : spexpr sbool := 
   match e1, e2 with
   | Econst n1, Econst n2 => iword_ltb n1 n2 
   | _        , Econst n  => if (n =? 0)%num then Ebool false else Eapp2 Olt e1 e2
-  | _        , _         => Eapp2 Olt e1 e2
+  | _        , _         => Eapp2 Olt e1 e2 (* FIXME : false is e1 = e2 *)
+  end.
+
+Definition mk_le (e1 e2:spexpr sword) : spexpr sbool := 
+  match e1, e2 with
+  | Econst n1, Econst n2 => iword_leb n1 n2 
+  | _        , _         => Eapp2 Ole e1 e2 (* FIXME : true is e1 = e2 *)
   end.
 
 (* FIXME: add other simplifications *)
@@ -630,7 +668,11 @@ Definition mk_op2 t1 t2 tr (op:sop2 t1 t2 tr): spexpr t1 -> spexpr t2 -> spexpr 
   | Oor         => mk_or 
   | Oeq         => mk_eq 
   | Oadd        => mk_add
+  | Oaddc       => mk_addc
+  | Osub        => mk_sub
+  | Osubc       => mk_subc
   | Olt         => mk_lt
+  | Ole         => mk_le
   | Oget n      => Eapp2 (Oget n)
   | Opair t1 t2 => Eapp2 (Opair t1 t2)
   end.
@@ -721,19 +763,17 @@ Lemma mk_pairP t1 t2 e1 e2 st:
 Proof. by done. Qed.
 
 Lemma mk_addP_ne n (e:spexpr sword) st:
-  (if (n =? 0)%num then mk_pair false e else Eapp2 Oadd n e) =[st]
+  (if (n =? 0)%num then e else Eapp2 Oadd n e) =[st]
   Eapp2 Oadd n e.
 Proof.
-  case: N.eqb_spec=> [->|]//=.
-  by rewrite /wadd /n2w add0r.
+  case: N.eqb_spec=> [->|]//=; by rewrite /wadd /n2w add0r.
 Qed.
 
 Lemma mk_addP_en n (e:spexpr sword) st:
-  (if (n =? 0)%num then mk_pair false e else Eapp2 Oadd e n) =[st]
+  (if (n =? 0)%num then e else Eapp2 Oadd e n) =[st]
   Eapp2 Oadd e n.
 Proof.
-  case: N.eqb_spec=> [->|]//=.
-  by rewrite /wadd /n2w addr0 ltnn.
+  case: N.eqb_spec=> [->|]//=;by rewrite /wadd /n2w addr0.
 Qed.
 
 Lemma mk_addP (e1 e2:spexpr sword) st:
@@ -741,9 +781,59 @@ Lemma mk_addP (e1 e2:spexpr sword) st:
 Proof.
   jm_destr e1;jm_destr e2 => //;rewrite /mk_add;
    try (apply: mk_addP_ne || apply:mk_addP_en).
-  rewrite [iword_add _ _]surjective_pairing mk_pairP.
-  (* FIXME: rewrite /=. is looping *)
   by rewrite /ssem_spexpr /ssem_sop2 iword_addP.
+Qed.
+
+Lemma mk_addcP_ne n (e:spexpr sword) st:
+  (if (n =? 0)%num then mk_pair false e else Eapp2 Oaddc n e) =[st]
+  Eapp2 Oaddc n e.
+Proof.
+  case: N.eqb_spec=> [->|]//=;by rewrite /waddc /n2w add0r.
+Qed.
+
+Lemma mk_addcP_en n (e:spexpr sword) st:
+  (if (n =? 0)%num then mk_pair false e else Eapp2 Oaddc e n) =[st]
+  Eapp2 Oaddc e n.
+Proof.
+  case: N.eqb_spec=> [->|]//=;by rewrite /waddc /n2w addr0 ltnn.
+Qed.
+
+Lemma mk_addcP (e1 e2:spexpr sword) st:
+  mk_addc e1 e2 =[st] Eapp2 Oaddc e1 e2.
+Proof.
+  jm_destr e1;jm_destr e2 => //;rewrite /mk_addc;
+   try (apply: mk_addcP_ne || apply:mk_addcP_en).
+  rewrite [iword_addc _ _]surjective_pairing mk_pairP.
+  by rewrite /ssem_spexpr /ssem_sop2 iword_addcP.
+Qed.
+
+Lemma mk_subP_en n (e:spexpr sword) st:
+  (if (n =? 0)%num then e else Eapp2 Osub e n) =[st]
+  Eapp2 Osub e n.
+Proof.
+  case: N.eqb_spec=> [->|]//=;by rewrite /wsub /n2w subr0.
+Qed.
+
+Lemma mk_subP (e1 e2:spexpr sword) st:
+  mk_sub e1 e2 =[st] Eapp2 Osub e1 e2.
+Proof.
+  jm_destr e1;jm_destr e2 => //;rewrite /mk_sub;try (apply:mk_subP_en).
+  by rewrite /ssem_spexpr /ssem_sop2 iword_subP.
+Qed.
+
+Lemma mk_subcP_en n (e:spexpr sword) st:
+  (if (n =? 0)%num then mk_pair false e else Eapp2 Osubc e n) =[st]
+  Eapp2 Osubc e n.
+Proof.
+  case: N.eqb_spec=> [->|]//=;by rewrite /wsubc /n2w subr0 ltn0.
+Qed.
+
+Lemma mk_subcP (e1 e2:spexpr sword) st:
+  mk_subc e1 e2 =[st] Eapp2 Osubc e1 e2.
+Proof.
+  jm_destr e1;jm_destr e2 => //;rewrite /mk_subc; try (apply:mk_subcP_en).
+  rewrite [iword_subc _ _]surjective_pairing mk_pairP.
+  by rewrite /ssem_spexpr /ssem_sop2 iword_subcP.
 Qed.
 
 Lemma mk_ltP_en n (e:spexpr sword) st:
@@ -753,17 +843,24 @@ Proof. by case: N.eqb_spec=> [->|]. Qed.
 Lemma mk_ltP (e1 e2:spexpr sword) st:
   mk_lt e1 e2 =[st] Eapp2 Olt e1 e2.
 Proof.
-  jm_destr e1;jm_destr e2 => //;rewrite /mk_lt;
-   try (apply: mk_ltP_en).
+  jm_destr e1;jm_destr e2 => //;rewrite /mk_lt;try (apply: mk_ltP_en).
   by apply iword_ltbP.
+Qed.
+
+Lemma mk_leP (e1 e2:spexpr sword) st:
+  mk_le e1 e2 =[st] Eapp2 Ole e1 e2.
+Proof.
+  jm_destr e1;jm_destr e2 => //;rewrite /mk_le; by apply iword_lebP.
 Qed.
 
 Lemma mk_op2P t1 t2 tr (o:sop2 t1 t2 tr) e1 e2 st:
   mk_op2 o e1 e2 =[st] Eapp2 o e1 e2.
 Proof.
   case:o e1 e2 st.
-  + by apply: mk_andP. + by apply: mk_orP. + by apply: mk_addP. 
-  + by apply: mk_eqP. + by apply: mk_ltP.
+  + by apply: mk_andP. + by apply: mk_orP. 
+  + by apply: mk_addP. + apply: mk_addcP. 
+  + by apply: mk_subP. + apply: mk_subcP. 
+  + by apply: mk_eqP. + by apply: mk_ltP. + by apply: mk_leP.
   + done. + done.
 Qed.
 
@@ -1115,7 +1212,7 @@ Proof. rewrite /sffv /= !sffv_recE;SsvD.fsetdec. Qed.
 (* -------------------------------------------------------------------------- *)
 
 Definition fresh_svar (s:Ssv.t) := 
-  let add v m := if (v.(svname) <? m)%positive then m else v.(svname) in
+  let add v m := Pos.max v.(svname) m in
   let max := Ssv.fold add s xH in   
   Pos.succ max.
 

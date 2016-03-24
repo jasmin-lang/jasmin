@@ -76,8 +76,12 @@ Definition ssem_sop2 st1 st2 str (sop : sop2 st1 st2 str) :=
   | Oand       => andb
   | Oor        => orb
   | Oadd       => wadd 
+  | Oaddc      => waddc 
+  | Osub       => wsub 
+  | Osubc      => wsubc 
   | Oeq        => fun (x y : word) => x == y
   | Olt        => fun (x y : word) => x < y
+  | Ole        => fun (x y : word) => x <= y
   | Oget n     => fun a (i:word) => aget a (w2n i)
   | Opair t1 t2 => fun x y => (x,y)
   end.
@@ -86,7 +90,8 @@ Definition ssem_sop3 st1 st2 st3 str (sop : sop3 st1 st2 st3 str) :=
   match sop in sop3 st1 st2 st3 str return 
         sst2ty st1 -> sst2ty st2 -> sst2ty st3 -> sst2ty str with
   | Oset n     => fun a i v => aset a (w2n i) v
-  | Oaddc      => waddc 
+  | Oaddcarry  => waddcarry 
+  | Osubcarry  => wsubcarry 
   end.
 
 Fixpoint ssem_pexpr st (vm : svmap) (pe : pexpr st) : sst2ty st :=
