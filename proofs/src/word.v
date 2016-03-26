@@ -63,6 +63,19 @@ Definition wsubcarry (x y:word) (c:bool) :=
   let n := x - y - if c then 1 else 0 in
   (if c then x <= y else x < y, n).
 
+Lemma word_add1 (y x: word) : x < y -> nat_of_ord (x + 1)%R = (x + 1)%N.
+Proof. 
+  move=> Hlt;rewrite /= !modn_small //.
+  by apply (@leq_ltn_trans y)=> //;rewrite -ltnS addnC.
+Qed.
+
+Lemma word_sub1 (y x: word) : y < x -> (x - 1)%R = (x - 1)%N :> nat.
+Proof. 
+case: x y => [[|x] ltx] [y lty] //=; rewrite ltnS => le_yx.
+rewrite [1%%_]modn_small ?[in X in X%%_]modn_small //.
+by rewrite !subn1 /= addSnnS modnDr modn_small // ltnW.
+Qed.
+
 (* ** Machine word representation for the compiler and the wp
  * -------------------------------------------------------------------- *)
 

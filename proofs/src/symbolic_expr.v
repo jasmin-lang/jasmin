@@ -14,8 +14,6 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope seq_scope.
 
-(* TODO: move this *)
-
 (* -------------------------------------------------------------------------- *)
 (* ** Symbolic variables                                                      *)
 (* -------------------------------------------------------------------------- *)
@@ -130,6 +128,32 @@ Notation "e1 '=[' st1 , st2 ']' e2" := (ssem_spexpr st1 e1 = ssem_spexpr st2 e2)
 
 Notation "e1 '=[' st ']' e2" := (ssem_spexpr st e1 = ssem_spexpr st e2)
  (at level 70, no associativity).
+
+Definition eeq t (e1 e2:spexpr t) := forall rho, e1 =[rho] e2.
+
+Instance eeq_R t: Equivalence (@eeq t).
+Proof. 
+  constructor => //.
+  + by move=> f1 f2 Heq s;rewrite Heq.
+  by move=> f1 f2 f3 Heq1 Heq2 s;rewrite Heq1.
+Qed.
+
+Notation "e1 '=E' e2" := (eeq e1 e2) (at level 70, no associativity).
+
+Instance Eapp1_m t1 tr (o:sop1 t1 tr) : Proper (@eeq t1 ==> @eeq tr) (Eapp1 o).
+Proof. by move=> ?? H rho /=;rewrite (H rho). Qed.
+
+Instance Eapp2_m t1 t2 tr (o:sop2 t1 t2 tr) : 
+  Proper (@eeq t1 ==> @eeq t2 ==> @eeq tr) (Eapp2 o).
+Proof. by move=> ?? H1 ?? H2 rho /=;rewrite (H1 rho) (H2 rho). Qed.
+
+Instance Eapp3_m t1 t2 t3 tr (o:sop3 t1 t2 t3 tr) : 
+  Proper (@eeq t1 ==> @eeq t2 ==> @eeq t3 ==> @eeq tr) (Eapp3 o).
+Proof. by move=> ?? H1 ?? H2 ?? H3 rho /=;rewrite (H1 rho) (H2 rho) (H3 rho). Qed.
+
+Instance Eif_m t : 
+  Proper (@eeq sbool ==> @eeq t ==> @eeq t ==> @eeq t) (@Eif t).
+Proof. by move=> ?? H1 ?? H2 ?? H3 rho /=;rewrite (H1 rho) (H2 rho) (H3 rho). Qed.
 
 (* Injection from program expression *)
 Fixpoint p2sp {t} (e:pexpr t) : spexpr t :=
@@ -305,7 +329,7 @@ Proof.
     apply H;(SvD.fsetdec || SsvD.fsetdec).
 Qed.
 
-Lemma ssem_spexpr_fv t (e:spexpr t) st1 st2: 
+Lemma eq_on_fv t (e:spexpr t) st1 st2: 
   st1 ={fv e, sfv e} st2 ->
   e =[st1, st2] e.
 Proof.
@@ -324,711 +348,235 @@ Proof.
 Qed.
  
 (* -------------------------------------------------------------------------- *)
-(* ** Equality between expressions                                            *)
-(* -------------------------------------------------------------------------- *)
-
-Fixpoint eqb_spexpr {t} {t'} (e:spexpr t) (e':spexpr t') := 
-  match e, e' with
-  | Evar x  , Evar x'   => x == x'
-  | Esvar x , Esvar x'  => x == x'
-  | Econst c, Econst c' => c == c'
-  | Ebool  b, Ebool  b' => b == b'
-  | Eapp1 _ _ o e1, Eapp1 _ _ o' e1' => 
-    eqb_sop1 o o' && eqb_spexpr e1 e1'
-  | Eapp2 _ _ _ o e1 e2, Eapp2 _ _ _ o' e1' e2' => 
-    eqb_sop2 o o' && eqb_spexpr e1 e1' && eqb_spexpr e2 e2'
-  | Eapp3 _ _ _ _ o e1 e2 e3, Eapp3 _ _ _ _ o' e1' e2' e3' => 
-    eqb_sop3 o o' && eqb_spexpr e1 e1' && eqb_spexpr e2 e2' && eqb_spexpr e3 e3'
-  | Eif _ b e1 e2, Eif _ b' e1' e2' =>
-    eqb_spexpr b b' && eqb_spexpr e1 e1' && eqb_spexpr e2 e2'
-  | _, _ => false
-  end.
-
-Notation unknown := (@Error unit bool tt).
-Notation known   := (Ok unit).
-
-Fixpoint eval_eq {t} {t'} (e:spexpr t) (e':spexpr t') : result unit bool := 
-  match e, e' with
-  | Evar x  , Evar x'   => if x == x' then known true else unknown
-  | Esvar x  , Esvar x' => if x == x' then known true else unknown
-  | Econst c, Econst c' => known (iword_eqb c c') 
-  | Ebool  b, Ebool  b' => known (b == b')
-  | Eapp1 _ _ o e1, Eapp1 _ _ o' e1' => 
-    if eqb_sop1 o o' then
-      eval_eq e1 e1' >>= (fun b =>
-      if b then known true else unknown)                          
-    else unknown
-  | Eapp2 _ _ _ o e1 e2, Eapp2 _ _ _ o' e1' e2' => 
-    if eqb_sop2 o o' then 
-      eval_eq e1 e1' >>= (fun b =>
-        if b then 
-          eval_eq e2 e2' >>= (fun b =>
-          if b then known true else unknown)
-        else unknown)                          
-    else unknown
-  | Eapp3 _ _ _ _ o e1 e2 e3, Eapp3 _ _ _ _ o' e1' e2' e3' => 
-    if eqb_sop3 o o' then 
-      eval_eq e1 e1' >>= (fun b =>
-      if b then 
-        eval_eq e2 e2' >>= (fun b =>
-        if b then 
-          eval_eq e3 e3' >>= (fun b =>
-          if b then known true else unknown)  
-        else unknown)
-      else unknown)                          
-    else unknown
-  | Eif _ b e1 e2, Eif _ b' e1' e2' =>
-    eval_eq b b' >>= (fun b =>
-    if b then 
-      eval_eq e1 e1' >>= (fun b =>
-      if b then 
-        eval_eq e2 e2' >>= (fun b =>
-        if b then known true else unknown)  
-      else unknown)
-    else 
-      eval_eq e1 e2' >>= (fun b =>
-      if b then 
-        eval_eq e2 e1' >>= (fun b =>
-        if b then known true else unknown)  
-      else unknown))
-  | _, _ => unknown
-  end.
- 
-Lemma eqb_spexprJM t t' (p:spexpr t) (p':spexpr t') : eqb_spexpr p p' -> t = t' /\ JMeq p p' .
-Proof.
-  elim: p t' p' => 
-     [x | x | w | b | ?? o p1 Hp1 |??? o p1 Hp1 p2 Hp2 
-     | ???? o p1 Hp1 p2 Hp2 p3 Hp3 | ? p1 Hp1 p2 Hp2 p3 Hp3] t'
-     [x' | x' | w' | b' | ?? o' p1' |??? o' p1' p2' 
-     | ???? o' p1' p2' p3' | ? p1' p2' p3'] //=.
-  + move=> /eqP -> //.
-  + move=> /eqP -> //.
-  + move=> /eqP -> //.
-  + move=> /eqP -> //.
-  + by rewrite andbC=> /andP [] /Hp1 [] ??;subst=> /eqb_sop1P []//??;do 2!subst.
-  + by rewrite -andbA andbC=> /andP [] /andP [] /Hp1[]?? /Hp2[]??;
-       subst=>/eqb_sop2P[]//??;do 2!subst.
-  + by rewrite -!andbA andbC=> /andP [] /andP [] /Hp1[]?? /andP [] /Hp2[]?? /Hp3[]??;
-       subst=>/eqb_sop3P[]//??;do 2!subst.
-  by rewrite andbC=> /andP [] /Hp3[]?? /andP [] /Hp1[]?? /Hp2[]??;do 2!subst.
-Qed.
-
-Lemma eqb_spexprP t  (p p':spexpr t) : eqb_spexpr p p' -> p = p'.
-Proof. move=> /eqb_spexprJM [] _;apply JMeq_eq. Qed.
-
-(* TODO: move this *)
-Lemma contra_p (A B:Prop): (A -> B) -> ~B -> ~A.
-Proof. tauto. Qed.
- 
-Lemma eval_eqJM st b t t' (e:spexpr t) (e':spexpr t'):  
-  eval_eq e e' = known b ->
-  t = t' /\
-  if b then JMeq (ssem_spexpr st e) (ssem_spexpr st e')
-  else ~JMeq (ssem_spexpr st e) (ssem_spexpr st e').
-Proof.
-  elim: e t' e' b => 
-     [? | ? | ? | ? | ?? o e1 He1 | ??? o e1 He1 e2 He2 
-     | ???? o e1 He1 e2 He2 e3 He3 | ? e1 He1 e2 He2 e3 He3] t'
-     [? | ? | ? | ? | ?? o' e1' | ??? o' e1' e2' 
-     | ???? o' e1' e2' e3' | ? e1' e2' e3'] b //=.
-  + by case: (_ =P _)=> [-> [] <-| ].
-  + by case: (_ =P _)=> [-> [] <-| ].
-  + move=> [];rewrite iword_eqbP;case:b=> [/eqP -> //|/eqP]=> H;split=>//. 
-    by move:H;apply contra_p=>jmeq; apply JMeq_eq.
-  + move=> [];case:b=> [/eqP->//|/eqP] H;split=>//.
-    by move:H; apply contra_p;apply JMeq_eq.
-  + case Ho: eqb_sop1=> //.
-    case: eval_eq (He1 _ e1' true)=> -[] // [] //= ? jm;subst=> -[].
-    case: (eqb_sop1P _ Ho) => //??;subst=> H;split=>//;subst.
-    by rewrite (JMeq_eq jm).
-  + case Ho: eqb_sop2=> //.
-    case: eval_eq (He1 _ e1' true)=> -[] // [] //= ? jm1;subst=> -[].
-    case: eval_eq (He2 _ e2' true)=> -[] // [] //= ? jm2;subst=> -[].
-    case: (eqb_sop2P _ _ Ho) => //??;subst=> H;split=>//;subst.
-    by rewrite (JMeq_eq jm1) (JMeq_eq jm2).
-  + case Ho: eqb_sop3=> //.
-    case: eval_eq (He1 _ e1' true)=> -[] // [] //= ? jm1;subst=> -[].
-    case: eval_eq (He2 _ e2' true)=> -[] // [] //= ? jm2;subst=> -[].
-    case: eval_eq (He3 _ e3' true)=> -[] // [] //= ? jm3;subst=> -[].
-    case: (eqb_sop3P _ _ _ Ho) => //??;subst=> H;split=>//;subst.
-    by rewrite (JMeq_eq jm1) (JMeq_eq jm2) (JMeq_eq jm3).
-  case: eval_eq (He1 _ e1')=> -[] //= H.
-  + case: (H true) => // _ jm1.
-    case: eval_eq (He2 _ e2' true)=> -[] // [] //= ? jm2;subst=> -[].
-    case: eval_eq (He3 _ e3' true)=> -[] // [] //= ? jm3;subst=> -[] ?.
-    subst;split=>//.
-    by rewrite (JMeq_eq jm1) (JMeq_eq jm2) (JMeq_eq jm3).
-  case: (H false) => // _ jm1.
-  case: eval_eq (He2 _ e3' true)=> -[] // [] //= ? jm2;subst=> -[].
-  case: eval_eq (He3 _ e2' true)=> -[] // [] //= ? jm3;subst=> -[] ?.
-  subst;split=>//.
-  have : (ssem_spexpr st e1) != (ssem_spexpr st e1').
-  + by apply /negP;move:jm1;apply contra_p=>/eqP->.
-  case: ifP;rewrite eq_sym => _.
-  + by rewrite eqb_id => /negPf ->.
-  by rewrite eqbF_neg=> /negPn ->.
-Qed.
-
-Lemma eval_eqP b t (e e':spexpr t) st :  
-  eval_eq e e' = known b ->
-  if b then e =[st] e' else ~(e =[st] e').
-Proof.
-  move=> /(eval_eqJM st) [] _;case:b;first by apply: JMeq_eq.
-  by apply contra_p=> ->.
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-(* ** Destructor                                                              *)
-(* -------------------------------------------------------------------------- *)
-
-Definition destr_pair t1 t2 (p:spexpr (t1 ** t2)) : option (spexpr t1 * spexpr t2).
-case H: _ / p => [ ? | ? | ? | ? | ???? | ??? o e1 e2| ???????? | ????].
-+ exact None. + exact None. + exact None. + exact None. + exact None.
-(case:o H e1 e2 => [||||||||||??[]<-<- e1 e2];last by exact (Some (e1,e2)))=> *;
- exact None.
-+ exact None. + exact None.
-Defined.
-
-Lemma destr_pairP t1 t2 (p:spexpr (t1 ** t2)) p1 p2:
-   destr_pair p = Some (p1, p2) -> p = Eapp2 (Opair _ _) p1 p2.
-Proof.
-  move=>Heq;apply JMeq_eq.
-  have {Heq}: JMeq (destr_pair p) (Some (p1, p2)) by rewrite Heq.
-  rewrite /destr_pair; move:p (erefl (t1 ** t2)). 
-  set t12 := (X in forall (p:spexpr X) (e : _ = X), _ -> @JMeq (spexpr X) _ _ _) => p.
-  case : t12 / p => // 
-     [[]/= ?? <-| []/= ?? <-| ???? _ | t1' t2' tr' o e1 e2 | ???????? _| ???? _];
-     try by move=> Heq; have:= JMeq_eq Heq.
-  case: o e1 e2 => //= [e1 e2 [] ??|e1 e2 [] ??|t t' e1 e2];subst.
-  + by move=> e;have := JMeq_eq e.
-  + by move=> e;have := JMeq_eq e.
-  move=> e;case: (e)=> ??;subst t t'.
-  rewrite (eq_irrelevance e (erefl (t1 ** t2))) /= /eq_rect_r /=.
-  move=> Heq;have [-> ->] // := JMeq_eq Heq.
-  (*  Enrico have [] -> -> // := JMeq_eq Heq. *)
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-(* ** Smart constructors                                                      *)
-(* -------------------------------------------------------------------------- *)
-
-Definition mk_not (e:spexpr sbool) : spexpr sbool := 
-  match e with
-  | Ebool b          => negb b
-  | Eapp1 _ _ Onot e => e 
-  | _                => Eapp1 Onot e
-  end.
-
-Definition mk_fst t1 t2 (p:spexpr (t1 ** t2)) : spexpr t1 :=
-  match destr_pair p with
-  | Some (p1,p2) => p1
-  | _            => Eapp1 (Ofst _ _) p
-  end.
-
-Definition mk_snd t1 t2 (p:spexpr (t1 ** t2)) : spexpr t2 :=
-  match destr_pair p with
-  | Some (p1,p2) => p2
-  | _            => Eapp1 (Osnd _ _) p
-  end.
-
-Definition mk_op1 t1 tr (op:sop1 t1 tr): spexpr t1 -> spexpr tr := 
-  match op in sop1 t1 tr return spexpr t1 -> spexpr tr with
-  | Onot     => mk_not 
-  | Ofst _ _ => @mk_fst _ _ 
-  | Osnd _ _ => @mk_snd _ _
-  end.
-
-Definition mk_and (e1 e2:spexpr sbool) : spexpr sbool := 
-  match e1, e2 with
-  | Ebool b, _ => if b then e2 else false
-  | _, Ebool b => if b then e1 else false
-  | _, _       => Eapp2 Oand e1 e2 
-  end.
-
-Definition mk_or (e1 e2:spexpr sbool) : spexpr sbool := 
-  match e1, e2 with
-  | Ebool b, _ => if b then Ebool true else e2
-  | _, Ebool b => if b then Ebool true else e1
-  | _, _       => Eapp2 Oor e1 e2 
-  end.
-
-Definition mk_eq (e1 e2:spexpr sword) : spexpr sbool := 
-  match eval_eq e1 e2 with
-  | Ok b    => b
-  | Error _ => Eapp2 Oeq e1 e2 
-  end.
-
-Definition mk_pair {t t'} (e1:spexpr t) (e2:spexpr t') :=
-  Eapp2 (Opair t t') e1 e2.
-
-Definition mk_add (e1 e2:spexpr sword) : spexpr sword := 
-  match e1, e2 with
-  | Econst n1, Econst n2 => iword_add n1 n2 
-  | Econst n, _ => 
-    if (n =? 0)%num then e2 else Eapp2 Oadd e1 e2
-  | _, Econst n => 
-    if (n =? 0)%num then e1 else Eapp2 Oadd e1 e2
-  | _, _ => Eapp2 Oadd e1 e2
-  end.
-
-Definition mk_addc (e1 e2:spexpr sword) : spexpr (sbool ** sword) := 
-  match e1, e2 with
-  | Econst n1, Econst n2 => 
-    let (c,n) := iword_addc n1 n2 in
-    mk_pair c n
-  | Econst n, _ =>
-    if (n =? 0)%num then mk_pair false e2 else Eapp2 Oaddc e1 e2
-  | _, Econst n => 
-    if (n =? 0)%num then mk_pair false e1 else Eapp2 Oaddc e1 e2
-  | _, _ => Eapp2 Oaddc e1 e2
-  end.
-
-Definition mk_sub (e1 e2:spexpr sword) : spexpr sword := 
-  match e1, e2 with
-  | Econst n1, Econst n2 => iword_sub n1 n2 
-  | _, Econst n => 
-    if (n =? 0)%num then e1 else Eapp2 Osub e1 e2
-  | _, _ => Eapp2 Osub e1 e2
-  end.
-
-Definition mk_subc (e1 e2:spexpr sword) : spexpr (sbool ** sword) := 
-  match e1, e2 with
-  | Econst n1, Econst n2 => 
-    let (c,n) := iword_subc n1 n2 in
-    mk_pair c n
-  | _, Econst n => 
-    if (n =? 0)%num then mk_pair false e1 else Eapp2 Osubc e1 e2
-  | _, _ => Eapp2 Osubc e1 e2
-  end.
-
-Definition mk_lt (e1 e2:spexpr sword) : spexpr sbool := 
-  match e1, e2 with
-  | Econst n1, Econst n2 => iword_ltb n1 n2 
-  | _        , Econst n  => if (n =? 0)%num then Ebool false else Eapp2 Olt e1 e2
-  | _        , _         => Eapp2 Olt e1 e2 (* FIXME : false is e1 = e2 *)
-  end.
-
-Definition mk_le (e1 e2:spexpr sword) : spexpr sbool := 
-  match e1, e2 with
-  | Econst n1, Econst n2 => iword_leb n1 n2 
-  | _        , _         => Eapp2 Ole e1 e2 (* FIXME : true is e1 = e2 *)
-  end.
-
-(* FIXME: add other simplifications *)
-Definition mk_op2 t1 t2 tr (op:sop2 t1 t2 tr): spexpr t1 -> spexpr t2 -> spexpr tr := 
-  match op in sop2 t1 t2 tr return spexpr t1 -> spexpr t2 -> spexpr tr with
-  | Oand        => mk_and 
-  | Oor         => mk_or 
-  | Oeq         => mk_eq 
-  | Oadd        => mk_add
-  | Oaddc       => mk_addc
-  | Osub        => mk_sub
-  | Osubc       => mk_subc
-  | Olt         => mk_lt
-  | Ole         => mk_le
-  | Oget n      => Eapp2 (Oget n)
-  | Opair t1 t2 => Eapp2 (Opair t1 t2)
-  end.
-
-(* FIXME: add simplifications *)
-Definition mk_op3 t1 t2 t3 tr (op:sop3 t1 t2 t3 tr):
-  spexpr t1 -> spexpr t2 -> spexpr t3 -> spexpr tr :=
-  Eapp3 op. 
-
-Definition mk_if t (b:spexpr sbool) (e1 e2 : spexpr t) := 
-  match b with
-  | Ebool b => if b then e1 else e2
-  | _       => 
-    match eval_eq e1 e2 with
-    | Ok true => e1
-    | _       => Eif b e1 e2
-    end
-  end.
-
-Ltac jm_destr e1 := 
-  let t := 
-      match type of e1 with 
-      | spexpr ?t => t 
-      | _ => fail 1 "jm_destr: an spexpr is expected" 
-      end in
-  let e' := fresh "e'" in
-  let t' := fresh "t'" in
-  let H  := fresh "H" in
-  let jmeq := fresh "jmeq" in
-  move: (erefl t) (JMeq_refl e1);
-  set e' := (e in _ -> @JMeq _ e _ _ -> _);move: e';
-  set t' := (X in forall (e':spexpr X), X = _ -> @JMeq (spexpr X) _ _ _ -> _)=> e';
-  (case: t' / e'=> [[??]H | [??]H | ?? | ?? | ?????| ???????| ?????????| ?????] jmeq;
-     [simpl in H | simpl in H | | | | | | ]);
-  subst;try rewrite -(JMeq_eq jmeq).
-
-Lemma mk_notP e st : mk_not e =[st] Eapp1 Onot e.
-Proof. 
-  jm_destr e=> //. 
-  match goal with |- mk_not (@Eapp1 ?t1 _ ?o ?e') =[_] _ => move: t1 o e' jmeq end.  
-  move=> t1 o e1 Hjme1 /=. set E := Eapp1 Onot (Eapp1 o e1).
-  move: (erefl t1) (erefl sbool) (JMeq_refl o).
-  set o' := (O in _ -> _ -> JMeq O _ -> _).
-  set t1' := (X in X = _ -> _ -> @JMeq (sop1 X _) _ _ _ -> _).
-  set t2' := (X in _ -> X = _ -> @JMeq (sop1 _ X) _ _ _ -> _).
-  case: t1' t2' / o' => [|??|??] ?? jmeq;subst;rewrite /E -(JMeq_eq jmeq) //=.
-  by rewrite Bool.negb_involutive.
-Qed.
-
-Lemma mk_fstP t1 t2 e st : mk_fst e =[st] Eapp1 (Ofst t1 t2) e.
-Proof.
-  rewrite /mk_fst;case H:destr_pair=> [[e1 e2]|//]; by rewrite (destr_pairP H).
-Qed.
-
-Lemma mk_sndP t1 t2 e st : mk_snd e =[st] Eapp1 (Osnd t1 t2) e.
-Proof.
-  rewrite /mk_snd;case H:destr_pair=> [[e1 e2]|//]; by rewrite (destr_pairP H).
-Qed.
-
-Lemma mk_op1P t1 tr (op:sop1 t1 tr) e st : mk_op1 op e =[st] Eapp1 op e.
-Proof.
-  case: op e st;[apply:mk_notP|apply:mk_fstP |apply:mk_sndP].
-Qed.
-
-Lemma mk_andP (e1 e2:spexpr sbool) st : 
-  mk_and e1 e2 =[st] Eapp2 Oand e1 e2.
-Proof. 
-  jm_destr e1;jm_destr e2 => //=;
-     try ((by case:ifP) || (by rewrite andbC;case:ifP)).
-Qed.
-
-Lemma mk_orP (e1 e2:spexpr sbool) st : 
-  mk_or e1 e2 =[st] Eapp2 Oor e1 e2.
-Proof. 
-  jm_destr e1;jm_destr e2 => //=;
-     try ((by case:ifP) || (by rewrite orbC;case:ifP)).
-Qed.
-
-Lemma mk_eqP (e1 e2:spexpr sword) st:
-  mk_eq e1 e2 =[st] Eapp2 Oeq e1 e2.
-Proof.
-  rewrite /mk_eq;case H:eval_eq => [b | ]//=.
-  apply esym;move:H=> /(eval_eqP st);apply: introTF;apply: eqP.
-Qed.
-
-Lemma mk_pairP t1 t2 e1 e2 st:
-   mk_pair e1 e2 =[st] Eapp2 (Opair t1 t2) e1 e2.
-Proof. by done. Qed.
-
-Lemma mk_addP_ne n (e:spexpr sword) st:
-  (if (n =? 0)%num then e else Eapp2 Oadd n e) =[st]
-  Eapp2 Oadd n e.
-Proof.
-  case: N.eqb_spec=> [->|]//=; by rewrite /wadd /n2w add0r.
-Qed.
-
-Lemma mk_addP_en n (e:spexpr sword) st:
-  (if (n =? 0)%num then e else Eapp2 Oadd e n) =[st]
-  Eapp2 Oadd e n.
-Proof.
-  case: N.eqb_spec=> [->|]//=;by rewrite /wadd /n2w addr0.
-Qed.
-
-Lemma mk_addP (e1 e2:spexpr sword) st:
-  mk_add e1 e2 =[st] Eapp2 Oadd e1 e2.
-Proof.
-  jm_destr e1;jm_destr e2 => //;rewrite /mk_add;
-   try (apply: mk_addP_ne || apply:mk_addP_en).
-  by rewrite /ssem_spexpr /ssem_sop2 iword_addP.
-Qed.
-
-Lemma mk_addcP_ne n (e:spexpr sword) st:
-  (if (n =? 0)%num then mk_pair false e else Eapp2 Oaddc n e) =[st]
-  Eapp2 Oaddc n e.
-Proof.
-  case: N.eqb_spec=> [->|]//=;by rewrite /waddc /n2w add0r.
-Qed.
-
-Lemma mk_addcP_en n (e:spexpr sword) st:
-  (if (n =? 0)%num then mk_pair false e else Eapp2 Oaddc e n) =[st]
-  Eapp2 Oaddc e n.
-Proof.
-  case: N.eqb_spec=> [->|]//=;by rewrite /waddc /n2w addr0 ltnn.
-Qed.
-
-Lemma mk_addcP (e1 e2:spexpr sword) st:
-  mk_addc e1 e2 =[st] Eapp2 Oaddc e1 e2.
-Proof.
-  jm_destr e1;jm_destr e2 => //;rewrite /mk_addc;
-   try (apply: mk_addcP_ne || apply:mk_addcP_en).
-  rewrite [iword_addc _ _]surjective_pairing mk_pairP.
-  by rewrite /ssem_spexpr /ssem_sop2 iword_addcP.
-Qed.
-
-Lemma mk_subP_en n (e:spexpr sword) st:
-  (if (n =? 0)%num then e else Eapp2 Osub e n) =[st]
-  Eapp2 Osub e n.
-Proof.
-  case: N.eqb_spec=> [->|]//=;by rewrite /wsub /n2w subr0.
-Qed.
-
-Lemma mk_subP (e1 e2:spexpr sword) st:
-  mk_sub e1 e2 =[st] Eapp2 Osub e1 e2.
-Proof.
-  jm_destr e1;jm_destr e2 => //;rewrite /mk_sub;try (apply:mk_subP_en).
-  by rewrite /ssem_spexpr /ssem_sop2 iword_subP.
-Qed.
-
-Lemma mk_subcP_en n (e:spexpr sword) st:
-  (if (n =? 0)%num then mk_pair false e else Eapp2 Osubc e n) =[st]
-  Eapp2 Osubc e n.
-Proof.
-  case: N.eqb_spec=> [->|]//=;by rewrite /wsubc /n2w subr0 ltn0.
-Qed.
-
-Lemma mk_subcP (e1 e2:spexpr sword) st:
-  mk_subc e1 e2 =[st] Eapp2 Osubc e1 e2.
-Proof.
-  jm_destr e1;jm_destr e2 => //;rewrite /mk_subc; try (apply:mk_subcP_en).
-  rewrite [iword_subc _ _]surjective_pairing mk_pairP.
-  by rewrite /ssem_spexpr /ssem_sop2 iword_subcP.
-Qed.
-
-Lemma mk_ltP_en n (e:spexpr sword) st:
-  (if (n =? 0)%num then Ebool false else Eapp2 Olt e n) =[st] Eapp2 Olt e n.
-Proof. by case: N.eqb_spec=> [->|]. Qed.
-
-Lemma mk_ltP (e1 e2:spexpr sword) st:
-  mk_lt e1 e2 =[st] Eapp2 Olt e1 e2.
-Proof.
-  jm_destr e1;jm_destr e2 => //;rewrite /mk_lt;try (apply: mk_ltP_en).
-  by apply iword_ltbP.
-Qed.
-
-Lemma mk_leP (e1 e2:spexpr sword) st:
-  mk_le e1 e2 =[st] Eapp2 Ole e1 e2.
-Proof.
-  jm_destr e1;jm_destr e2 => //;rewrite /mk_le; by apply iword_lebP.
-Qed.
-
-Lemma mk_op2P t1 t2 tr (o:sop2 t1 t2 tr) e1 e2 st:
-  mk_op2 o e1 e2 =[st] Eapp2 o e1 e2.
-Proof.
-  case:o e1 e2 st.
-  + by apply: mk_andP. + by apply: mk_orP. 
-  + by apply: mk_addP. + apply: mk_addcP. 
-  + by apply: mk_subP. + apply: mk_subcP. 
-  + by apply: mk_eqP. + by apply: mk_ltP. + by apply: mk_leP.
-  + done. + done.
-Qed.
-
-Lemma mk_op3P t1 t2 t3 tr (o:sop3 t1 t2 t3 tr) e1 e2 e3 st:
-  mk_op3 o e1 e2 e3 =[st] Eapp3 o e1 e2 e3.
-Proof. done. Qed.
-
-Lemma mk_ifP_aux t b (e1 e2:spexpr t) st:
-  match eval_eq e1 e2 with
-  | Ok true => e1
-  | _       => Eif b e1 e2
-  end =[st] Eif b e1 e2.
-Proof.                                                     
-  case Heq: (eval_eq e1 e2) => [[]|] //.
-  by move: Heq=> /(eval_eqP st) /= ->;case: ifP.
-Qed.
-
-Lemma mk_ifP t b (e1 e2:spexpr t) st: mk_if b e1 e2 =[st] Eif b e1 e2.
-Proof. 
-  by (jm_destr b=> //;try by apply:mk_ifP_aux)=> /=;case:ifP.
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-(* ** Substitution of variables by expressions                                 *)
+(* ** Parallel Substitution                                                   *)
 (* -------------------------------------------------------------------------- *)
 
 Definition vsubst := Mv.t  spexpr.
-Definition vsubst_id := Mv.empty (fun x => Evar x).
+Definition vs0    := Mv.empty [eta Evar].
 
-Definition ssubst := Msv.t spexpr.
-Definition ssubst_id := Msv.empty (fun x => Esvar x).
+Definition pssubst := Msv.t spexpr.
+Definition pss0     := Msv.empty [eta Esvar].
 
-Record asubst := {
-  s_fv : Ssv.t; (* The set of symbolic variable occuring in the image of the subst *)
-  s_v  : vsubst;
-  s_s  : ssubst;
+Record pvsubst := {
+  v_fv : Ssv.t; (* The set of symbolic variable occuring in the image of the subst *)
+  v_v  : vsubst;
 }.
 
-Definition asubst_init fv mv : asubst := 
-  {| s_fv := fv;
-     s_v  := mv;
-     s_s  := ssubst_id; |}.
+Record psubst := {
+  s_fv : Ssv.t; (* The set of symbolic variable occuring in the image of the subst *)
+  s_v  : vsubst;
+  s_s  : pssubst;
+}.
 
-Fixpoint subst_spexpr st (s : asubst) (pe : spexpr st) :=
+Class  wf_vsubst (s:pvsubst) := {
+  vdft_v  : Mv.dft  s.(v_v) = [eta Evar];
+  vindom_v : forall x, Mv.indom x s.(v_v)  -> Ssv.Subset (sfv s.(v_v).[x]%mv)  s.(v_fv);
+}.
+
+Class  wf_psubst (s:psubst) := {
+  dft_v  : Mv.dft  s.(s_v) = [eta Evar];
+  dft_s  : Msv.dft s.(s_s) = [eta Esvar];
+  indom_v : forall x, Mv.indom x s.(s_v)  -> Ssv.Subset (sfv s.(s_v).[x]%mv)  s.(s_fv);
+  indom_s : forall x, Msv.indom x s.(s_s) -> Ssv.Subset (sfv s.(s_s).[x]%msv) s.(s_fv);
+}.
+
+Definition pvs2ps (s:pvsubst) : psubst := {|
+  s_fv := s.(v_fv);
+  s_v  := s.(v_v);
+  s_s  := pss0;
+|}.
+
+Coercion pvs2ps : pvsubst >-> psubst.
+
+Instance wf_pvs2ps s {_: wf_vsubst s} : wf_psubst s.
+Proof. by constructor=> //;[apply vdft_v|apply vindom_v]. Qed.
+
+Definition ssubst (s:psubst) (rho:sstate) := 
+  {| pm := pm rho; 
+     sm := Msv.empty (fun x => ssem_spexpr rho (s.(s_s).[x]%msv)); 
+     vm := Fv.empty (fun x => ssem_spexpr rho (s.(s_v).[x]%mv)); |}.
+
+Definition ps1 := {| s_fv := Ssv.empty; s_v := vs0; s_s := pss0 |}.
+
+Instance wf_ps1 : wf_psubst ps1.
+Proof. by constructor. Qed.
+
+Lemma ps1P rho sv ss : ssubst ps1 rho ={ sv, ss} rho.
+Proof. by constructor => ?? /=;rewrite ?Fv.get0 ?Msv.get0. Qed.
+
+(* -------------------------------------------------------------------------- *)
+(* ** Substitution of variables by expressions                                *)
+(* -------------------------------------------------------------------------- *)
+
+Fixpoint esubst st (s : psubst) (pe : spexpr st) :=
   match pe in spexpr st_ return spexpr st_ with
   | Evar          v              => s.(s_v).[v]%mv 
   | Esvar         x              => s.(s_s).[x]%msv
   | Econst        c              => Econst c
   | Ebool         b              => Ebool  b
   | Eapp1 _ _     op pe1         =>
-    Eapp1 op (subst_spexpr s pe1)
+    Eapp1 op (esubst s pe1)
   | Eapp2 _ _ _   op pe1 pe2     => 
-    Eapp2 op (subst_spexpr s pe1) (subst_spexpr s pe2)
+    Eapp2 op (esubst s pe1) (esubst s pe2)
   | Eapp3 _ _ _ _ op pe1 pe2 pe3 => 
-    Eapp3 op (subst_spexpr s pe1) (subst_spexpr s pe2) (subst_spexpr s pe3)
+    Eapp3 op (esubst s pe1) (esubst s pe2) (esubst s pe3)
   | Eif _ b pe1 pe2       => 
-    Eif (subst_spexpr s b) (subst_spexpr s pe1) (subst_spexpr s pe2)
+    Eif (esubst s b) (esubst s pe1) (esubst s pe2)
   end.
 
 Fixpoint ewrite_rval (s:vsubst) {t} (l:rval t) : spexpr t -> vsubst :=
   match l in rval t_ return spexpr t_ -> vsubst with
   | Rvar x => fun v => s.[x <- v]%mv
   | Rpair t1 t2 rv1 rv2 => fun v => 
-    ewrite_rval (ewrite_rval s rv2 (mk_snd v)) rv1 (mk_fst v) 
+    ewrite_rval (ewrite_rval s rv2 (Eapp1 (Osnd _ _) v)) rv1 (Eapp1 (Ofst _ _) v) 
   end.
 
-(*
-Module WrInpE.
-  Definition to := spexpr.
-  Definition fst t1 t2 (e:spexpr (t1 ** t2)) := mk_fst e.
-  Definition snd t1 t2 (e:spexpr (t1 ** t2)) := mk_snd e.
-End WrInpE.
-
-Module E := WRmake Mv WrInpE.
-
-Lemma p2sp_fst st t1 t2 (e:pexpr (t1 ** t2)): 
-   (WrInpE.fst (p2sp e)) =[st] p2sp (Papp1 (Ofst _ _) e).
-Proof. by rewrite mk_fstP. Qed.
-
-Lemma p2sp_snd st t1 t2 (e:pexpr (t1 ** t2)): 
-   (WrInpE.snd (p2sp e)) =[st] p2sp (Papp1 (Osnd _ _) e).
-Proof. by rewrite mk_sndP. Qed.
-
-Definition map_ssem_pe st := 
-  map (fun ts:E.tosubst => {|W.ts_to := ssem_spexpr st ts.(E.ts_to) |}).
-
-Lemma map_ssem_pe_morph t (e2:spexpr t) l2 st r (e1:spexpr t) l1: 
-   e1 =[st] e2 ->
-   map_ssem_pe st l1 = map_ssem_pe st l2 ->
-   map_ssem_pe st (E.write_subst r e1 l1) = 
-   map_ssem_pe st (E.write_subst r e2 l2).
+Lemma esubstP rho s t (e:spexpr t) :
+  esubst s e =[rho, ssubst s rho] e.
 Proof.
-  elim: r e1 e2 l1 l2 => /= [x | ?? r1 Hr1 r2 Hr2] e1 e2 l1 l2;first by move=> -> ->.
-  move=> He Hl;apply Hr2;first by rewrite !mk_sndP /= He. 
-  by apply Hr1=> //;rewrite !mk_fstP /= He.
+  by elim: e => //= [???? ->|????? -> ? ->|?????? -> ? -> ? ->|?? -> ? -> ? ->].
 Qed.
-
-Lemma write_subst_map l st {t} (rv:rval t) (e:pexpr t) :
-  W.write_subst rv (ssem_pexpr st.(vm) e) (map_ssem_pe st l) = 
-  map_ssem_pe st (E.write_subst rv (p2sp e) l).
-Proof.
-  elim: rv e l=> {t} [ ??| ?? r1 Hr1 r2 Hr2 e] l //=.
-  + by rewrite sem_p2sp.
-  rewrite (@map_ssem_pe_morph _ (p2sp (Papp1 (Osnd _ _) e))
-                                (E.write_subst r1 (p2sp (Papp1 (Ofst _ _) e)) l)).
-  + by rewrite -Hr2 -Hr1. + by apply p2sp_snd.  
-  apply map_ssem_pe_morph=> //;apply p2sp_fst.
-Qed.
-
-Lemma ssem_subst_map {t2} (pe:spexpr t2) st l :   
-   ssem_spexpr st (subst_spexpr (asubst_init (E.write_vmap vsubst_id l)) pe) =
-   ssem_spexpr {|pm := st.(pm); sm := st.(sm);
-                 vm:= W.write_vmap st.(vm) (map_ssem_pe st l); |}
-                 pe.
-Proof.
-  elim: pe => //= [| ???? He1 | ????? He1 ? He2 
-                   | ?????? He1 ? He2 ? He3 | ?? He1 ? He2 ? He3];
-    rewrite ?mk_op1P ?mk_op2P ?mk_op3P ?mk_ifP /= ?He1 ?He2 ?He3 //.
-  elim: l => [ | [id e] l Hrec] x //=. 
-  case: (boolP (id == x))=> [/eqP <-| ?].
-  + by rewrite Fv.setP_eq Mv.setP_eq.
-  by rewrite Fv.setP_neq // Mv.setP_neq. 
-Qed.
- *)
-
-(*
-Fixpoint mk_subst_e t (e:spexpr t): spexpr t -> list E.tosubst -> list E.tosubst := 
-  match e in spexpr t_ return spexpr t_ -> list E.tosubst -> list E.tosubst with 
-  | Evar x => fun e' s => @E.ToSubst x e' :: s
-  | Eapp2 _ _ _ o e1 e2 => 
-    match o in sop2 t1 t2 tr return 
-      spexpr t1 -> spexpr t2 -> spexpr tr -> list E.tosubst -> list E.tosubst with
-    | Opair _ _ => fun e1 e2 e' s => mk_subst_e e2 (mk_snd e') (mk_subst_e e1 (mk_fst e') s)
-    | _         => fun e1 e2 e' s => s
-    end e1 e2
-  | _ => fun _ s => s
-  end.
-
-Fixpoint mk_subst_v t (e:spexpr t): sst2ty t -> list W.tosubst -> list W.tosubst := 
-  match e in spexpr t_ return sst2ty t_ -> list W.tosubst -> list W.tosubst with 
-  | Evar x => fun e' s => @W.ToSubst x e' :: s
-  | Eapp2 _ _ _ o e1 e2 => 
-    match o in sop2 t1 t2 tr return 
-      spexpr t1 -> spexpr t2 -> sst2ty tr -> list W.tosubst -> list W.tosubst with
-    | Opair _ _ => fun e1 e2 e' s => mk_subst_v e2 (snd e') (mk_subst_v e1 (fst e') s)
-    | _         => fun e1 e2 e' s => s
-    end e1 e2
-  | _ => fun _ s => s
-  end.
-
-Lemma mk_subst_map st {t} (e1 e2:spexpr t) l:
-  mk_subst_v e1 (ssem_spexpr st e2) (map_ssem_pe st l) = 
-  map_ssem_pe st (mk_subst_e e1 e2 l).
-Proof.
-  elim: e1 e2 l => {t} //= ??? -[] //= ?? e1 He1 e2 He2 e' l.
-  by rewrite -He2 -He1 mk_sndP mk_fstP.
-Qed.
-*)
-
-(*
-(* -------------------------------------------------------------------------- *)
-(* ** merge_if b e1 e2                                                        *)
-(* -------------------------------------------------------------------------- *)
-
-Fixpoint merge_if (b:spexpr sbool) {t} : spexpr t -> spexpr t ->  spexpr t := 
-  match t as t_  return spexpr t_ -> spexpr t_ ->  spexpr t_ with
-  | sprod t1 t2 => fun p p' => 
-    match destr_pair p, destr_pair p' with
-    | Some(p1,p2), Some(p1', p2') => 
-      Eapp2 (Opair _ _) (merge_if b p1 p1') (merge_if b p2 p2')
-    | _, _ => mk_if b p p'
-    end
-  | _ => fun p p' => mk_if b p p'
-  end.
-
-Lemma merge_ifP t b (e e':spexpr t) st:
-  merge_if b e e' =[st] Eif b e e'.
-Proof.
-  elim:t e e' st=>[ | |t1 Ht1 t2 Ht2 | n t Ht];try apply mk_ifP.
-  move=> /= e e' st.
-  case He: destr_pair => [[p1 p2] | ];try by rewrite mk_ifP.
-  case He': destr_pair => [[p1' p2'] | ];try by rewrite mk_ifP.
-  by rewrite /= Ht1 Ht2 (destr_pairP He) (destr_pairP He') /=;case:ifP.
-Qed.
-*)
 
 (* -------------------------------------------------------------------------- *)
 (* ** symbolic formula                                                        *)
 (* -------------------------------------------------------------------------- *)
 
+Inductive fop2 := 
+  | Fand 
+  | For 
+  | Fimp
+  | Fiff.
+
+Inductive fquant :=
+  | Fforall 
+  | Fexists.
+
+Definition fop2_eqb o1 o2 := 
+  match o1, o2 with
+  | Fand , Fand => true  
+  | For  , For  => true
+  | Fimp , Fimp => true
+  | Fiff , Fiff => true
+  | _    , _    => false
+  end.
+
+Lemma fop2_eqP : Equality.axiom fop2_eqb. 
+Proof. by move=> [] [] /=;constructor. Qed.
+
+Definition fop2_eqMixin := EqMixin fop2_eqP.
+Canonical  fop2_eqType  := EqType fop2 fop2_eqMixin.
+
+Definition fquant_eqb o1 o2 := 
+  match o1, o2 with
+  | Fforall , Fforall => true  
+  | Fexists , Fexists => true
+  | _       , _    => false
+  end.
+
+Lemma fquant_eqP : Equality.axiom fquant_eqb. 
+Proof. by move=> [] [] /=;constructor. Qed.
+
+Definition fquant_eqMixin := EqMixin fquant_eqP.
+Canonical  fquant_eqType  := EqType fquant fquant_eqMixin.
+
+Definition ssem_fop2 o p1 p2 := 
+  match o with 
+  | Fand => p1 /\ p2
+  | For  => p1 \/ p2
+  | Fimp => p1 -> p2
+  | Fiff => p1 <-> p2
+  end.
+
+Definition ssem_fquant t q (f:sst2ty t -> Prop) := 
+  match q with
+  | Fforall => forall v, f v
+  | Fexists => exists v, f v
+  end.
+
+Instance ssem_fop2_m : Proper (@eq fop2 ==> iff ==> iff ==> iff) ssem_fop2.
+Proof.
+  by move=> ? o -> ?? H1 ?? H2;case o => /=;rewrite H1 H2.
+Qed.
+
+Lemma forall_iff A (P1 P2:A-> Prop): 
+  (forall x, P1 x <-> P2 x) -> (forall (x:A), P1 x) <-> (forall x, P2 x).
+Proof. by move=> H;split=> Hx x;move: (Hx x);rewrite H. Qed.
+
+Lemma exists_iff A (P1 P2:A-> Prop): 
+  (forall x, P1 x <-> P2 x) -> (exists (x:A), P1 x) <-> (exists x, P2 x).
+Proof. by move=> H;split=> -[x Hx];exists x;move: Hx;rewrite H. Qed.
+
+Instance ssem_fquant_m t : 
+  Proper (@eq fquant ==> @pointwise_relation (sst2ty t) Prop iff ==> iff) (@ssem_fquant t).
+Proof.
+  by move=> ? q -> ?? H;case q => /=;[apply forall_iff |apply exists_iff];apply H.
+Qed.
+
 Inductive sform : Type := 
   | Fbool   : spexpr sbool -> sform 
   | Fpred   : forall (p:svar), spexpr p.(svtype) -> sform
   | Fnot    : sform -> sform 
-  | Fand    : sform -> sform -> sform 
-  | For     : sform -> sform -> sform
-  | Fimp    : sform -> sform -> sform
+  | Fop2    : fop2 -> sform -> sform -> sform 
   | Fif     : spexpr sbool -> sform -> sform -> sform
-  | Fforall : svar -> sform -> sform.
-
+  | Fquant  : fquant -> svar -> sform -> sform.
+ 
 Fixpoint ssem_sform (st:sstate) f : Prop := 
   match f with
   | Fbool   e     => ssem_spexpr st e 
   | Fpred   p  e  => st.(pm).[p]%msv (ssem_spexpr st e)
   | Fnot    f     => ~ ssem_sform st f
-  | Fand    f1 f2 => ssem_sform st f1 /\ ssem_sform st f2
-  | For     f1 f2 => ssem_sform st f1 \/ ssem_sform st f2
-  | Fimp    f1 f2 => ssem_sform st f1 -> ssem_sform st f2
+  | Fop2 o  f1 f2 => ssem_fop2 o (ssem_sform st f1) (ssem_sform st f2)
   | Fif   b f1 f2 => 
     if ssem_spexpr st b then ssem_sform st f1 
     else ssem_sform st f2 
-  | Fforall x  f  => 
-    forall (v:sst2ty x.(svtype)),
-      ssem_sform {| pm := st.(pm); sm := st.(sm).[x <- v]%msv; vm:= st.(vm) |} f
+  | Fquant q x f  => 
+    ssem_fquant q 
+      (fun (v:sst2ty x.(svtype)) =>
+        ssem_sform {| pm := st.(pm); sm := st.(sm).[x <- v]%msv; vm:= st.(vm) |} f)
   end.
+
+Notation "f1 '=_[' st1 , st2 ']' f2" := (ssem_sform st1 f1 <-> ssem_sform st2 f2)
+ (at level 70, no associativity).
+
+Notation "f1 '=_[' st ']' f2" := (ssem_sform st f1 <-> ssem_sform st f2)
+ (at level 70, no associativity).
+
+Definition feq (f1 f2:sform) := forall rho, f1 =_[rho] f2.
+
+Instance feq_R : Equivalence feq.
+Proof. 
+  constructor => //.
+  + by move=> f1 f2 Heq s;rewrite Heq.
+  by move=> f1 f2 f3 Heq1 Heq2 s;rewrite Heq1.
+Qed.
+
+Notation "f1 '=F' f2" := (feq f1 f2) (at level 70, no associativity).
+
+Instance Fbool_m : Proper (@eeq sbool ==> feq) Fbool.
+Proof. by move=> ?? H ? /=;rewrite H. Qed.
+
+Instance Fpred_m p : Proper (@eeq p.(svtype) ==> feq) (@Fpred p).
+Proof. by move=> ?? H ? /=;rewrite H. Qed.
+
+Instance Fnot_m: Proper (feq ==> feq) Fnot.
+Proof. by move=> ?? H1 rho /=;rewrite (H1 rho). Qed.
+
+Instance Fop2_m o: Proper (feq ==> feq ==> feq) (@Fop2 o).
+Proof. by move=> ?? H1 ?? H2 rho /=;rewrite (H1 rho) (H2 rho). Qed.
+
+Instance Fif_m: Proper (@eeq sbool==> feq ==> feq ==> feq) Fif.
+Proof. by move=> ?? H1 ?? H2 ?? H3 rho /=;rewrite (H1 rho);case: ifP. Qed.
+
+Instance Fquant_m q x: Proper (feq ==> feq) (Fquant q x).
+Proof. by move=> ?? H1 rho /=;apply ssem_fquant_m. Qed.
+
+Definition f_not f1    := Fnot f1.
+Definition f_and f1 f2 := Fop2 Fand f1 f2.
+Definition f_or  f1 f2 := Fop2 For f1 f2.
+Definition f_imp f1 f2 := Fop2 Fimp f1 f2.
+Definition f_iff f1 f2 := Fop2 Fiff f1 f2.
+Definition f_forall x f := Fquant Fforall x f.
+Definition f_exists x f := Fquant Fexists x f.
 
 (* -------------------------------------------------------------------------- *)
 (* ** program variables occuring in a formula                                 *)
@@ -1036,14 +584,12 @@ Fixpoint ssem_sform (st:sstate) f : Prop :=
 
 Fixpoint ffv_rec  (f:sform) (s:Sv.t) := 
   match f with
-  | Fbool   e     => fv_rec e s
-  | Fpred   _  e  => fv_rec e s 
-  | Fnot    f     => ffv_rec f s
-  | Fand    f1 f2 => ffv_rec f1 (ffv_rec f2 s)
-  | For     f1 f2 => ffv_rec f1 (ffv_rec f2 s)
-  | Fimp    f1 f2 => ffv_rec f1 (ffv_rec f2 s)
-  | Fif   b f1 f2 => fv_rec  b  (ffv_rec f1 (ffv_rec f2 s))
-  | Fforall _  f  => ffv_rec f s
+  | Fbool   e      => fv_rec e s
+  | Fpred   _  e   => fv_rec e s 
+  | Fnot    f      => ffv_rec f s
+  | Fop2  _ f1 f2  => ffv_rec f1 (ffv_rec f2 s)
+  | Fif   b f1 f2  => fv_rec  b  (ffv_rec f1 (ffv_rec f2 s))
+  | Fquant _ _ f   => ffv_rec f s
   end.
 
 Definition ffv f := ffv_rec f Sv.empty.
@@ -1051,18 +597,15 @@ Definition ffv f := ffv_rec f Sv.empty.
 Add Morphism ffv_rec with 
     signature ((@Logic.eq sform) ==> Sv.Equal ==> Sv.Equal)%signature as ffv_rec_m.
 Proof.
-  elim=> //= [? | ?? | ? He1 ? He2 | ? He1 ? He2 | ? He1 ? He2 | ?? He1 ? He2 ] ?? Heq.
-  + by rewrite Heq.       + by rewrite Heq.
-  + by apply /He1 /He2.   + by apply /He1 /He2.   + by apply /He1 /He2. 
+  elim=> //= [? | ?? | ?? He1 ? He2 | ?? He1 ? He2 ] ?? Heq.
+  + by rewrite Heq.   + by rewrite Heq.   + by apply /He1 /He2. 
   by apply /fv_rec_m /He1 /He2.
 Qed.
 
 Lemma ffv_recE (f:sform) s : Sv.Equal (ffv_rec f s) (Sv.union (ffv f) s).
 Proof.
-  elim: f s => //= [? | ?? | ? He1 ? He2 | ? He1 ? He2 | ? He1 ? He2 | ?? He1 ? He2 ] ?.
+  elim: f s => //= [? | ?? | ?? He1 ? He2 | ?? He1 ? He2 ] ?.
   + by rewrite fv_recE.   + by rewrite fv_recE. 
-  + by rewrite He1 He2 /ffv /= -!/(ffv _) He1 SvP.MP.union_assoc.
-  + by rewrite He1 He2 /ffv /= -!/(ffv _) He1 SvP.MP.union_assoc.
   + by rewrite He1 He2 /ffv /= -!/(ffv _) He1 SvP.MP.union_assoc.
   by rewrite fv_recE He1 He2 /ffv /= -!/(ffv _) fv_recE He1 !SvP.MP.union_assoc.
 Qed.
@@ -1076,21 +619,15 @@ Proof. done. Qed.
 Lemma ffv_not f : ffv (Fnot f) = ffv f.
 Proof. done. Qed.
 
-Lemma ffv_and f1 f2 : Sv.Equal (ffv (Fand f1 f2)) (Sv.union (ffv f1) (ffv f2)).
-Proof. rewrite /ffv /= !ffv_recE;SvD.fsetdec. Qed.
-
-Lemma ffv_or f1 f2 : Sv.Equal (ffv (For f1 f2)) (Sv.union (ffv f1) (ffv f2)).
-Proof. rewrite /ffv /= !ffv_recE;SvD.fsetdec. Qed.
-
-Lemma ffv_imp f1 f2 : Sv.Equal (ffv (Fimp f1 f2)) (Sv.union (ffv f1) (ffv f2)).
+Lemma ffv_op2 o f1 f2 : Sv.Equal (ffv (Fop2 o f1 f2)) (Sv.union (ffv f1) (ffv f2)).
 Proof. rewrite /ffv /= !ffv_recE;SvD.fsetdec. Qed.
 
 Lemma ffv_if e f1 f2 : 
   Sv.Equal (ffv (Fif e f1 f2)) (Sv.union (fv e) (Sv.union (ffv f1) (ffv f2))).
 Proof. rewrite /ffv /= !ffv_recE fv_recE;SvD.fsetdec. Qed.
 
-Lemma ffv_forall x f :
-  Sv.Equal (ffv (Fforall x f)) (ffv f).
+Lemma ffv_quant q x f :
+  Sv.Equal (ffv (Fquant q x f)) (ffv f).
 Proof. done. Qed.
   
 (* -------------------------------------------------------------------------- *)
@@ -1102,13 +639,9 @@ Fixpoint sffv_rec  (f:sform) (s:Ssv.t) :=
   | Fbool   e     => sfv_rec e s
   | Fpred   _  e  => sfv_rec e s 
   | Fnot    f     => sffv_rec f s
-  | Fand    f1 f2 => sffv_rec f1 (sffv_rec f2 s)
-  | For     f1 f2 => sffv_rec f1 (sffv_rec f2 s)
-  | Fimp    f1 f2 => sffv_rec f1 (sffv_rec f2 s)
+  | Fop2 _  f1 f2 => sffv_rec f1 (sffv_rec f2 s)
   | Fif   b f1 f2 => sfv_rec  b  (sffv_rec f1 (sffv_rec f2 s))
-  | Fforall x  f  => sffv_rec f (Ssv.add x s)
-(*    let s' := sffv_rec f s in
-    if Ssv.mem x s then s' else Ssv.remove x s' *)
+  | Fquant _ x f  => sffv_rec f (Ssv.add x s) 
   end.
 
 Definition sffv f := sffv_rec f Ssv.empty.
@@ -1116,19 +649,16 @@ Definition sffv f := sffv_rec f Ssv.empty.
 Add Morphism sffv_rec with 
     signature ((@Logic.eq sform) ==> Ssv.Equal ==> Ssv.Equal)%signature as sffv_rec_m.
 Proof.
-  elim=> //=[? | ?? | ? He1 ? He2 | ? He1 ? He2 | ? He1 ? He2 | ?? He1 ? He2 | x? He1] s1 s2 Heq.
-  + by rewrite Heq.       + by rewrite Heq.
-  + by apply /He1 /He2.   + by apply /He1 /He2.   + by apply /He1 /He2. 
+  elim=> //=[?|??|?? He1 ? He2|?? He1 ? He2|??? He1] s1 s2 Heq.
+  + by rewrite Heq.   + by rewrite Heq.   + by apply /He1 /He2.  
   + by apply /sfv_rec_m /He1 /He2.
   by apply He1;rewrite Heq.
 Qed.
 
 Lemma sffv_recE (f:sform) s : Ssv.Equal (sffv_rec f s) (Ssv.union (sffv f) s).
 Proof.
-  elim: f s => //= [? | ?? | ? He1 ? He2 | ? He1 ? He2 | ? He1 ? He2 | ?? He1 ? He2 | x? He1] s.
+  elim: f s => //= [?|??|?? He1 ? He2|?? He1 ? He2|??? He1] s.
   + by rewrite sfv_recE.   + by rewrite sfv_recE. 
-  + by rewrite He1 He2 /sffv /= -!/(sffv _) He1 SsvP.MP.union_assoc.
-  + by rewrite He1 He2 /sffv /= -!/(sffv _) He1 SsvP.MP.union_assoc.
   + by rewrite He1 He2 /sffv /= -!/(sffv _) He1 SsvP.MP.union_assoc.
   + by rewrite sfv_recE He1 He2 /sffv /= -!/(sffv _) sfv_recE He1 !SsvP.MP.union_assoc.
   rewrite /sffv /=; rewrite !He1;SsvD.fsetdec.
@@ -1143,21 +673,35 @@ Proof. done. Qed.
 Lemma sffv_not f : sffv (Fnot f) = sffv f.
 Proof. done. Qed.
 
-Lemma sffv_and f1 f2 : Ssv.Equal (sffv (Fand f1 f2)) (Ssv.union (sffv f1) (sffv f2)).
-Proof. rewrite /sffv /= !sffv_recE;SsvD.fsetdec. Qed.
-
-Lemma sffv_or f1 f2 : Ssv.Equal (sffv (For f1 f2)) (Ssv.union (sffv f1) (sffv f2)).
-Proof. rewrite /sffv /= !sffv_recE;SsvD.fsetdec. Qed.
-
-Lemma sffv_imp f1 f2 : Ssv.Equal (sffv (Fimp f1 f2)) (Ssv.union (sffv f1) (sffv f2)).
+Lemma sffv_op2 o f1 f2 : Ssv.Equal (sffv (Fop2 o f1 f2)) (Ssv.union (sffv f1) (sffv f2)).
 Proof. rewrite /sffv /= !sffv_recE;SsvD.fsetdec. Qed.
 
 Lemma sffv_if e f1 f2 : 
   Ssv.Equal (sffv (Fif e f1 f2)) (Ssv.union (sfv e) (Ssv.union (sffv f1) (sffv f2))).
 Proof. rewrite /sffv /= !sffv_recE sfv_recE;SsvD.fsetdec. Qed.
  
-Lemma sffv_forall x f :  Ssv.Equal (sffv (Fforall x f)) (Ssv.add x (sffv f)).
+Lemma sffv_quant q x f :  Ssv.Equal (sffv (Fquant q x f)) (Ssv.add x (sffv f)).
 Proof. rewrite /sffv /= !sffv_recE;SsvD.fsetdec. Qed.
+
+Lemma feq_on_fv f rho1 rho2 : 
+  rho1.(pm) = rho2.(pm) -> rho1 ={ ffv f, sffv f} rho2 -> f =_[rho1,rho2] f.
+Proof.
+  elim: f rho1 rho2=> //= [?|??|? Hf1|?? Hf1 ? Hf2|?? Hf1 ? Hf2|? x? Hf1] rho1 rho2 Hpm.
+  + by rewrite ffv_bool sffv_bool=> H;rewrite -(eq_on_fv H).
+  + by rewrite Hpm ffv_pred sffv_pred=> H;rewrite -(eq_on_fv H). 
+  + by rewrite ffv_not sffv_not=> H;rewrite (Hf1 _ _ Hpm H).
+  + rewrite ffv_op2 sffv_op2=> H;rewrite (Hf1 _ _ Hpm) ?(Hf2 _ _ Hpm) //;
+    apply: eq_on_m H=> //;(SvD.fsetdec || SsvD.fsetdec).
+  + rewrite ffv_if sffv_if=> H;rewrite (@eq_on_fv _ _ rho1 rho2);
+     last by apply: eq_on_m H=> //;(SvD.fsetdec || SsvD.fsetdec).
+    (* case: ssem_spexpr.  (Enrico : Bug ?) *)
+    by case: (ssem_spexpr _);[apply Hf1 | apply Hf2]=>//;apply: eq_on_m H;
+      (SvD.fsetdec || SsvD.fsetdec).
+  rewrite ffv_quant sffv_quant=> H;apply ssem_fquant_m=> // v;apply Hf1=> //=.
+  constructor=> /= z Hz;first by apply H.
+  case: (x =P z) => [<- | /eqP neq];rewrite ?Msv.setP_eq // ?Msv.setP_neq //.
+  by apply H;SsvD.fsetdec.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 (* ** Substitution of variables by expressions into formulas                  *)
@@ -1168,8 +712,7 @@ Definition fresh_svar (s:Ssv.t) :=
   let max := Ssv.fold add s xH in   
   Pos.succ max.
 
-
-Definition subst_rename s f x :=
+Definition rename s f x :=
   if Ssv.mem x s.(s_fv) then 
     let all := Ssv.union s.(s_fv) (sffv f) in
     let x' := {| svtype := x.(svtype); svname := fresh_svar all; |} in
@@ -1181,54 +724,17 @@ Definition subst_rename s f x :=
            s_v  := s.(s_v);
            s_s  := Msv.remove s.(s_s) x |}).
  
-Fixpoint subst_sform (s:asubst) (f:sform) := 
+Fixpoint fsubst (s:psubst) (f:sform) := 
   match f with
-  | Fbool   e     => Fbool (subst_spexpr s e)
-  | Fpred   p  e  => @Fpred p (subst_spexpr s e)
-  | Fnot    f     => Fnot  (subst_sform s f)
-  | Fand    f1 f2 => Fand  (subst_sform s f1) (subst_sform s f2) 
-  | For     f1 f2 => For   (subst_sform s f1) (subst_sform s f2) 
-  | Fimp    f1 f2 => Fimp  (subst_sform s f1) (subst_sform s f2) 
-  | Fif   b f1 f2 => Fif   (subst_spexpr s b) (subst_sform s f1) (subst_sform s f2) 
-  | Fforall x  f  => 
-      let (id,s)  := subst_rename s f x in
-      Fforall (SVar x.(svtype) id) (subst_sform s f)
+  | Fbool   e     => Fbool    (esubst s e)
+  | Fpred   p  e  => @Fpred p (esubst s e)
+  | Fnot    f     => Fnot     (fsubst s f)
+  | Fop2 o  f1 f2 => Fop2 o   (fsubst s f1) (fsubst s f2) 
+  | Fif   b f1 f2 => Fif      (esubst s b) (fsubst s f1) (fsubst s f2) 
+  | Fquant q x f  => 
+      let (id,s)  := rename s f x in
+      Fquant q (SVar x.(svtype) id) (fsubst s f)
   end.
-
-Definition subst_sstate (s:asubst) (rho:sstate) := 
-  {| pm := pm rho; 
-     sm := Msv.empty (fun x => ssem_spexpr rho (s.(s_s).[x]%msv)); 
-     vm := Fv.empty (fun x => ssem_spexpr rho (s.(s_v).[x]%mv)); |}.
-
-Lemma ssem_subst_spexpr rho s t (e:spexpr t) :
-  subst_spexpr s e =[rho, subst_sstate s rho] e.
-Proof.
-  by elim: e => //= [???? ->|????? -> ? ->|?????? -> ? -> ? ->|?? -> ? -> ? ->].
-Qed.
-
-Notation "f1 '=_[' st1 , st2 ']' f2" := (ssem_sform st1 f1 <-> ssem_sform st2 f2)
- (at level 70, no associativity).
-
-Notation "f1 '=_[' st ']' f2" := (ssem_sform st f1 <-> ssem_sform st f2)
- (at level 70, no associativity).
-
-Lemma forall_iff A (P1 P2:A-> Prop): 
-  (forall x, P1 x <-> P2 x) -> (forall (x:A), P1 x) <-> (forall x, P2 x).
-Proof.
-  by move=> H;split=> Hx x;move: (Hx x);rewrite H.
-Qed.
-
-Lemma ssem_sform_fv f st1 st2 : 
-  st1.(pm) = st2.(pm) -> st1 ={ ffv f, sffv f} st2 -> f =_[ st1, st2] f.
-Proof.
-Admitted.
-
-Class  wf_asubst (s:asubst) := {
-  dft_v  : Mv.dft  s.(s_v) = fun x => Evar x;
-  dft_s  : Msv.dft s.(s_s) = fun x => Esvar x;
-  indom_v : forall x, Mv.indom x s.(s_v)  -> Ssv.Subset (sfv s.(s_v).[x]%mv)  s.(s_fv);
-  indom_s : forall x, Msv.indom x s.(s_s) -> Ssv.Subset (sfv s.(s_s).[x]%msv) s.(s_fv);
-}.
 
 Lemma fresh_svarP t s: ~ Ssv.In {|svtype := t; svname := fresh_svar s|} s.
 Proof.
@@ -1243,14 +749,14 @@ Proof.
   move=> /(Hf xH) /=;rewrite Pos.le_succ_l;apply Pos.lt_irrefl.
 Qed.
 
-Lemma subst_renameP s f x {H:wf_asubst s} : 
-  [/\ s_v (subst_rename s f x).2 = s_v s, 
-      ~Ssv.In (SVar x.(svtype) (subst_rename s f x).1) s.(s_fv),
-      ~Ssv.In (SVar x.(svtype) (subst_rename s f x).1) (Ssv.remove x (sffv f)), 
-      (s_s (subst_rename s f x).2).[x]%msv = (SVar x.(svtype) (subst_rename s f x).1) &
-      forall z, x != z ->  (s_s (subst_rename s f x).2).[z]%msv = (s_s s).[z]%msv].
+Lemma renameP s f x {H:wf_psubst s} : 
+  [/\ s_v (rename s f x).2 = s_v s, 
+      ~Ssv.In (SVar x.(svtype) (rename s f x).1) s.(s_fv),
+      ~Ssv.In (SVar x.(svtype) (rename s f x).1) (Ssv.remove x (sffv f)), 
+      (s_s (rename s f x).2).[x]%msv = (SVar x.(svtype) (rename s f x).1) &
+      forall z, x != z ->  (s_s (rename s f x).2).[z]%msv = (s_s s).[z]%msv].
 Proof.
-  rewrite /subst_rename;set fv := (Ssv.union _ _).
+  rewrite /rename;set fv := (Ssv.union _ _).
   have Hfr := @fresh_svarP (svtype x) fv;case: ifPn=> [?|/negP Hin]; split=> //= [||| z ?].
   + by SsvD.fsetdec. + by SsvD.fsetdec.  
   + by apply Msv.setP_eq.
@@ -1261,10 +767,10 @@ Proof.
   by rewrite Msv.removeP_neq.
 Qed.
 
-Instance wf_subst_rename s {H:wf_asubst s} f x : wf_asubst (subst_rename s f x).2.
+Instance wf_rename s {H:wf_psubst s} f x : wf_psubst (rename s f x).2.
 Proof.
   case: H => dftv dfts domv doms.
-  rewrite /subst_rename;case : ifPn => Hin;constructor => //=;try (by rewrite Msv.dft_removeP).
+  rewrite /rename;case : ifPn => Hin;constructor => //=;try (by rewrite Msv.dft_removeP).
   + by move=> z /domv;SsvD.fsetdec.
   + move=> z;rewrite Msv.indom_setP.
     case: (_ =P _) => /= [<- _ | /eqP ? /doms].
@@ -1274,19 +780,18 @@ Proof.
   rewrite Msv.removeP_neq //;SsvD.fsetdec.
 Qed.
 
-Lemma ssem_subst_sform rho s f {H:wf_asubst s} :
-  subst_sform s f =_[rho, subst_sstate s rho] f.
+Lemma fsubstP rho s f {H:wf_psubst s} :
+  fsubst s f =_[rho, ssubst s rho] f.
 Proof.
-  elim: f s H rho => /=
-   [?|??|? Hf1|? Hf1 ? Hf2 |? Hf1 ? Hf2|? Hf1 ? Hf2|?? Hf1 ? Hf2 | x f1 Hf1] s Hwf rho;
-    rewrite ?ssem_subst_spexpr ?Hf1 ?Hf2 ?Hf3 //.
+  elim: f s H rho => /= [?|??|? Hf1|?? Hf1 ? Hf2|?? Hf1 ? Hf2|? x f1 Hf1] s Hwf rho;
+    rewrite ?esubstP ?Hf1 ?Hf2 ?Hf3 //.
   + by case: ifP;rewrite ?Hf1 ?Hf2.
-  rewrite (surjective_pairing (subst_rename _ _ _)) /=.
-  have [Hsv Hnin Hnin' Hssx Hss] := subst_renameP f1 x; apply forall_iff=> v.
-  rewrite Hf1; apply ssem_sform_fv => //=;constructor=> //= z Hz.
+  rewrite (surjective_pairing (rename _ _ _)) /=.
+  have [Hsv Hnin Hnin' Hssx Hss] := renameP f1 x; apply ssem_fquant_m => // v.
+  rewrite Hf1; apply feq_on_fv => //=;constructor=> //= z Hz.
   + rewrite !Fv.get0 /= Hsv.
     case : (boolP (Mv.indom z (s_v s))) => [/indom_v Hsub | /Mv.indom_getP ->].
-    + apply ssem_spexpr_fv;constructor=> w Hw //=.
+    + apply eq_on_fv;constructor=> w Hw //=.
       rewrite Msv.setP_neq //;apply /eqP=> ?;subst. 
       by elim Hnin; apply: SsvP.MP.in_subset Hsub.
     by rewrite dft_v.    
@@ -1294,200 +799,419 @@ Proof.
   + by rewrite Msv.setP_eq Hssx /= Msv.setP_eq.
   rewrite Msv.setP_neq // Msv.get0 Hss //=.
   case: (boolP (Msv.indom z (s_s s))) => [/indom_s Hsub| /Msv.indom_getP ->].
-  + apply ssem_spexpr_fv;constructor=> w Hw //=.
+  + apply eq_on_fv;constructor=> w Hw //=.
     rewrite Msv.setP_neq //;apply /eqP=> ?;subst. 
     by elim Hnin; apply: SsvP.MP.in_subset Hsub.
   rewrite dft_s /= Msv.setP_neq //;apply /eqP=> ?;subst.
   by move: Hneq=> /eqP Hneq;apply Hnin';apply SsvP.MP.Dec.F.remove_2.
 Qed.
 
+(* --------------------------------------------------------------------------- *)
+(* -- Free variables of the composition of subtitution                         *)
+(* --------------------------------------------------------------------------- *)
 
-(*
-Fixpoint subst_sform (s:vsubst) (f:sform) := 
-  match f with
-  | Fbool   e     => Fbool (subst_spexpr s e)
-  | Fpred   p  e  => @Fpred p (subst_spexpr s e)
-  | Fnot    f     => Fnot  (subst_sform s f)
-  | Fand    f1 f2 => Fand  (subst_sform s f1) (subst_sform s f2) 
-  | For     f1 f2 => For   (subst_sform s f1) (subst_sform s f2) 
-  | Fimp    f1 f2 => Fimp  (subst_sform s f1) (subst_sform s f2) 
-  | Fif   b f1 f2 => Fif   (subst_spexpr s b) (subst_sform s f1) (subst_sform s f2) 
-  | Fforall x  f  => Fforall x (subst_sform s f)
-  end.
+Definition fv_subst_body_v s x :=
+  if Mv.indom x s.(v_v) then Sv.union (fv (esubst s x)) else Sv.add x.
 
-Notation "f1 '=_[' st1 , st2 ']' e2" := (ssem_sform st1 f1 <-> ssem_sform st2 e2)
- (at level 70, no associativity).
+Definition fv_subst_body_s s x :=
+  if Msv.indom x s.(s_s) then Sv.union (fv (esubst s x)) else id.
 
-Notation "f1 '=_[' st ']' f2" := (ssem_sform st f1 <-> ssem_sform st f2)
- (at level 70, no associativity).
-*)
+Definition sfv_subst_body_v s x :=
+  if Mv.indom x s.(s_v) then Ssv.union (sfv (esubst s x)) else id.
 
+Definition sfv_subst_body_s s x :=
+  if Msv.indom x s.(s_s) then Ssv.union (sfv (esubst s x)) else Ssv.add x.
 
+Instance fv_subst_body_v_m s : Proper (eq ==> Sv.Equal ==> Sv.Equal) (fv_subst_body_v s).
+Proof. by rewrite /fv_subst_body_v => ?? -> ??;case:ifP => _ ->. Qed.
 
-(*Class  wf_asubst (s:asubst) := {
-  dft_v  : Mv.dft  s.(s_v) = fun x => Evar x;
-  dft_s  : Msv.dft s.(s_s) = fun x => Esvar x;
-  indom_v : forall x, Mv.indom x s.(s_v)  -> Ssv.Subset (sfv s.(s_v).[x]%mv)  s.(s_fv);
-  indom_s : forall x, Msv.indom x s.(s_s) -> Ssv.Subset (sfv s.(s_s).[x]%msv) s.(s_fv);
-}. *)
+Instance fv_subst_body_s_m s : Proper (eq ==> Sv.Equal ==> Sv.Equal) (fv_subst_body_s s).
+Proof. by rewrite /fv_subst_body_s => ?? -> ??;case:ifP => _ ->. Qed.
 
-(*
-(* TODO: move this *)
-Lemma forall_iff A (P1 P2:A-> Prop): 
-  (forall x, P1 x <-> P2 x) -> (forall (x:A), P1 x) <-> (forall x, P2 x).
+Instance sfv_subst_body_v_m s : Proper (eq ==> Ssv.Equal ==> Ssv.Equal) (sfv_subst_body_v s).
+Proof. by rewrite /sfv_subst_body_v=> ?? -> ??;case:ifP => _ ->. Qed.
+
+Instance sfv_subst_body_s_m s : Proper (eq ==> Ssv.Equal ==> Ssv.Equal) (sfv_subst_body_s s).
+Proof. by rewrite /sfv_subst_body_s=> ?? -> ??;case:ifP => _ ->. Qed.
+
+Lemma fv_subst_body_v_t s : SetoidList.transpose Sv.Equal (fv_subst_body_v s).
+Proof. by rewrite /fv_subst_body_v=> ???;case:ifP;case:ifP=> _ _;SvD.fsetdec. Qed.
+
+Lemma fv_subst_body_s_t s : SetoidList.transpose Sv.Equal (fv_subst_body_s s).
+Proof. by rewrite /fv_subst_body_s=> ???;case:ifP;case:ifP=> _ _;SvD.fsetdec. Qed.
+
+Lemma sfv_subst_body_v_t s : SetoidList.transpose Ssv.Equal (sfv_subst_body_v s).
+Proof. by rewrite /sfv_subst_body_v=> ???;case:ifP;case:ifP=> _ _;SsvD.fsetdec. Qed.
+
+Lemma sfv_subst_body_s_t s : SetoidList.transpose Ssv.Equal (sfv_subst_body_s s).
+Proof. by rewrite /sfv_subst_body_s=> ???;case:ifP;case:ifP=> _ _;SsvD.fsetdec. Qed.
+
+Hint Immediate fv_subst_body_v_t fv_subst_body_s_t sfv_subst_body_v_t sfv_subst_body_s_t.
+
+Definition fv_subst_v s vs  := Sv.fold  (fv_subst_body_v s)  vs Sv.empty. 
+Definition fv_subst_s s vs  := Ssv.fold (fv_subst_body_s s)  vs Sv.empty. 
+Definition sfv_subst_v s vs := Sv.fold  (sfv_subst_body_v s) vs Ssv.empty. 
+Definition sfv_subst_s s vs := Ssv.fold (sfv_subst_body_s s) vs Ssv.empty. 
+
+Instance fv_subst_v_m s : Proper (Sv.Equal ==> Sv.Equal) (fv_subst_v s).
 Proof.
-  by move=> H;split=> Hx x;move: (Hx x);rewrite H.
+  rewrite /fv_subst_v=> s1 s2 /Sv.equal_spec.
+  apply SvP.fold_equal;auto with typeclass_instances.
 Qed.
 
-Lemma ssem_sform_fv f st1 st2 : 
-  st1.(pm) = st2.(pm) -> st1 ={ ffv f, sffv f} st2 -> f =_[ st1, st2] f.
+Instance fv_subst_s_m s : Proper (Ssv.Equal ==> Sv.Equal) (fv_subst_s s).
 Proof.
-  elim: f st1 st2=> //= 
-    [ ? | ?? | f1 Hf1 | f1 Hf1 f2 Hf2 | f1 Hf1 f2 Hf2 | f1 Hf1 f2 Hf2 
-    | ? f1 Hf1 f2 Hf2 | x f1 Hf1] st1 st2 Hpm.
-  + by rewrite ffv_bool sffv_bool=> H;rewrite -(ssem_spexpr_fv H).
-  + by rewrite Hpm ffv_pred sffv_pred=> H;rewrite -(ssem_spexpr_fv H). 
-  + by rewrite ffv_not sffv_not=> H;rewrite (Hf1 _ _ Hpm H).
-  + by rewrite ffv_and sffv_and=> H;rewrite (Hf1 _ _ Hpm) ?(Hf2 _ _ Hpm) //;
-    apply: eq_on_m H=> //;(SvD.fsetdec || SsvD.fsetdec).
-  + by rewrite ffv_or sffv_or=> H;rewrite (Hf1 _ _ Hpm) ?(Hf2 _ _ Hpm) //;
-    apply: eq_on_m H=> //;(SvD.fsetdec || SsvD.fsetdec).
-  + by rewrite ffv_imp sffv_imp=> H;rewrite (Hf1 _ _ Hpm) ?(Hf2 _ _ Hpm) //;
-    apply: eq_on_m H=> //;(SvD.fsetdec || SsvD.fsetdec).
-  + rewrite ffv_if sffv_if=> H;rewrite (@ssem_spexpr_fv _ _ st1 st2);
-     last by apply: eq_on_m H=> //;(SvD.fsetdec || SsvD.fsetdec).
-    (* case: ssem_spexpr.  (Enrico : Bug ?) *)
-    case: (ssem_spexpr _);[apply Hf1 | apply Hf2]=>//;apply: eq_on_m H;
-    (SvD.fsetdec || SsvD.fsetdec).
-  rewrite ffv_forall sffv_forall=> H; apply forall_iff=> v;apply Hf1=> //=.
-  constructor=> /= z Hz;first by apply H.
-  case: (x =P z) => [<- | /eqP neq];rewrite ?Msv.setP_eq // ?Msv.setP_neq //.
-  apply H;move: neq=> /eqP;SsvD.fsetdec.
+  rewrite /fv_subst_s=> s1 s2 /Ssv.equal_spec.
+  apply SsvP.fold_equal;auto with typeclass_instances.
 Qed.
 
-Lemma ssem_subst_spexpr st2 st1 t (e:spexpr t) s: 
-  (forall (x:var), Sv.In x (fv e) -> subst_spexpr s x =[st1, st2] x) ->
-  (forall (x:svar), Ssv.In x (sfv e) -> subst_spexpr s x =[st1, st2] x) ->
-  subst_spexpr s e =[st1,st2] e.
+Instance sfv_subst_v_m s : Proper (Sv.Equal ==> Ssv.Equal) (sfv_subst_v s).
 Proof.
-  set fve := fv e; set sfve := sfv e. 
-  have : Sv.Subset (fv e) fve by done.
-  have : Ssv.Subset (sfv e) sfve by done.
-  move: fve sfve=> fve sfve Hs Hv Hfv Hsfv. (* Enrico : comment on fait le let *)
-  elim: e Hv Hs => //=
-   [x | x | ?? o e1 He1 | ??? o e1 He1 e2 He2 
-   | ???? o e1 He1 e2 He2 e3 He3 | ? e1 He1 e2 He2 e3 He3] Hv Hs. 
-  + by rewrite Hfv //;move:Hv;rewrite fv_var;SvD.fsetdec. 
-  + by rewrite Hsfv //;move:Hs;rewrite sfv_svar;SsvD.fsetdec. 
-  + rewrite mk_op1P /= He1 //.
-  + by rewrite mk_op2P /= He1 ?He2 //;move: Hv Hs;rewrite fv_op2 sfv_op2;
-     (SvD.fsetdec || SsvD.fsetdec). 
-  + by rewrite He1 ?He2 ?He3 //;move: Hv Hs;rewrite fv_op3 sfv_op3;
-     (SvD.fsetdec || SsvD.fsetdec).
-  by rewrite mk_ifP /= He1 ?He2 ?He3 //; move: Hv Hs;rewrite fv_if sfv_if;
-   (SvD.fsetdec || SsvD.fsetdec).
+  rewrite /fv_subst_v=> s1 s2 /Sv.equal_spec.
+  apply SvP.fold_equal;auto with typeclass_instances.
 Qed.
 
-Lemma fresh_svarP t s: ~ Ssv.In {|svtype := t; svname := fresh_svar s|} s.
+Instance sfv_subst_s_m s : Proper (Ssv.Equal ==> Ssv.Equal) (sfv_subst_s s).
 Proof.
-  rewrite /fresh_svar.
-  have Hf: forall p x, Ssv.In x s -> 
-    (x.(svname) <= (Ssv.fold
-                     (fun (v : svar) (m : positive) =>
-                      if (svname v <? m)%positive then m else svname v) s p))%positive.
-  + move=> p x;apply SsvP.MP.fold_rec.
-    + by move=> ? He H;elim (He _ H).
-    move=> {p} z p s1 s2 _ Hnin Ha Hrec /Ha [-> | Hn].
-    + by case: Pos.ltb_spec0=> [|_];[ apply: Pos.lt_le_incl | apply Pos.le_refl].
-    apply (Pos.le_trans _ p);first by auto.
-    by case: Pos.ltb_spec0=> [_|?];[apply Pos.le_refl | rewrite Pos.le_nlt].
-  by move=> /(Hf xH) /=;rewrite Pos.le_succ_l;apply Pos.lt_irrefl.
+  rewrite /fv_subst_s=> s1 s2 /Ssv.equal_spec.
+  apply SsvP.fold_equal;auto with typeclass_instances.
 Qed.
 
-Lemma ssem_subst_sform st2 st1 f s `{wf_asubst s}  : 
-  st1.(pm) = st2.(pm) ->
-  (forall (x:var), Sv.In x (ffv f) -> subst_spexpr s x =[st1, st2] x) ->
-  (forall (x:svar), Ssv.In x (sffv f) -> subst_spexpr s x =[st1, st2] x) ->
-  subst_sform s f =_[st1, st2] f.
+Lemma fv_subst_vE s s1 s2 : 
+  Sv.Equal (Sv.fold (fv_subst_body_v s) s1 s2) (Sv.union (fv_subst_v s s1) s2).
 Proof.
-  elim: f st2 st1 s H => /=
-    [ e | ?? | f1 Hf1 | f1 Hf1 f2 Hf2 | f1 Hf1 f2 Hf2 | f1 Hf1 f2 Hf2 
-    | ? f1 Hf1 f2 Hf2 | [xt xn] f1 Hf1] st2 st1 s Hwf Hpm => Hfv Hsfv.
-  + by rewrite (@ssem_subst_spexpr st2).
-  + by rewrite Hpm (@ssem_subst_spexpr st2).
-  + by rewrite (Hf1 st2).
-  + by rewrite (Hf1 st2) ?(Hf2 st2) // => ??;
-     ((apply Hfv;rewrite ffv_and;SvD.fsetdec) || 
-      (apply Hsfv;rewrite sffv_and;SsvD.fsetdec)). 
-  + by rewrite (Hf1 st2) ?(Hf2 st2) // => ??;
-     ((apply Hfv;rewrite ffv_or;SvD.fsetdec) || 
-      (apply Hsfv;rewrite sffv_or;SsvD.fsetdec)). 
-  + by rewrite (Hf1 st2) ?(Hf2 st2) // => ??;
-     ((apply Hfv;rewrite ffv_imp;SvD.fsetdec) || 
-      (apply Hsfv;rewrite sffv_imp;SsvD.fsetdec)). 
-  + rewrite (@ssem_subst_spexpr st2);
-    try (move=> ??;((apply Hfv;rewrite ffv_if;SvD.fsetdec) || 
-         (apply Hsfv;rewrite sffv_if;SsvD.fsetdec))).
-    by case: (ssem_spexpr _);[apply Hf1 | apply Hf2]=> // ??;
-     ((apply Hfv;rewrite ffv_if;SvD.fsetdec) || 
-      (apply Hsfv;rewrite sffv_if;SsvD.fsetdec)). 
-  case Heq: (subst_rename s f1 (SVar xt xn))=> [x' s'] /=.
-  have -> /=: x' = SVar xt x'.(svname).
-  + by move: Heq;rewrite /subst_rename /=;case: Ssv.mem => /= -[] <-.
-  apply forall_iff=> v;apply Hf1=> //=;
-    move:Heq;rewrite /subst_rename /=;case:Ssv_memP=> /= Hin -[] ? <-//=;subst=>/=.
-  + constructor => /=.  
-    + by apply dft_v.  + by apply dft_s.
-    + by move=> x /indom_v;SsvD.fsetdec.
-    move=> x;rewrite Msv.indom_setP; case: eqP=> /= [<- _ | /eqP Hne].
-    + by rewrite Msv.setP_eq /sfv /=;SsvD.fsetdec.
-    by rewrite Msv.setP_neq // => /indom_s;SsvD.fsetdec.
-  + constructor => /=. 
-    + by apply dft_v. + by rewrite Msv.dft_removeP;apply dft_s.
-    + by move=> x /indom_v;SsvD.fsetdec.
-    move=> x;rewrite Msv.indom_removeP; case: eqP=> /= [// | /eqP Hne].
-    by rewrite Msv.removeP_neq // => /indom_s.
-  + move=> x Hx;rewrite -Hfv //; apply ssem_spexpr_fv.
-    constructor=> // z Hz /=;rewrite Msv.setP_neq //.
-    apply /eqP=> Heq;apply(@fresh_svarP xt (Ssv.union (s_fv s) (sffv f1))).
-    have := @indom_v _ Hwf x; have := @Mv.indom_getP _ (s_v s) x.
-    rewrite Heq dft_v;case: Mv.indom=>[ _ /(_ (erefl _)) |  /(_ (erefl _)) H _].
-    + by SsvD.fsetdec.
-    by move: Hz;rewrite H sfv_var;SsvD.fsetdec.
-  + move=> x Hx;rewrite -Hfv //; apply ssem_spexpr_fv.
-    constructor=> // z Hz /=;rewrite Msv.setP_neq //.
-    apply /eqP=> ?;subst.
-    have := @indom_v _ Hwf x; have := @Mv.indom_getP _ (s_v s) x.
-    rewrite dft_v;case: Mv.indom=>[ _ /(_ (erefl _)) |  /(_ (erefl _)) H _].
-    + by SsvD.fsetdec.
-    by move: Hz;rewrite H sfv_var;SsvD.fsetdec.
-  + move=> z Hz;have Hnin:= @fresh_svarP xt (Ssv.union (s_fv s) (sffv f1)).
-    move:Hin; set x  := (SVar _ _)=> Hin.
-    move:Hnin;set x' := (SVar _ _)=> Hnin.
-    case: (x =P z) => [<- | /eqP Hxz].
-    + by rewrite !Msv.setP_eq /= Msv.setP_eq.
-    rewrite !Msv.setP_neq //;move: Hxz=> /eqP Hxz.
-    rewrite -Hsfv;last by rewrite sffv_forall -/x;SsvD.fsetdec.
-    apply ssem_spexpr_fv;constructor=> // y Hy /=;rewrite Msv.setP_neq //.
-    apply /eqP=> ?;subst y.
-    have := @indom_s _ Hwf z; have := @Msv.indom_getP _ (s_s s) z.
-    rewrite dft_s;case: Msv.indom=>[ _ /(_ (erefl _)) |  /(_ (erefl _)) H _].
-    + by SsvD.fsetdec.
-    by move: Hy;rewrite H sfv_svar;SsvD.fsetdec.
-  move=> z Hz;have Hnin:= @fresh_svarP xt (Ssv.union (s_fv s) (sffv f1)).
-  move:Hin; set x  := (SVar _ _)=> Hin.
-  move:Hnin;set x' := (SVar _ _)=> Hnin.
-  case: (x =P z) => [Heq | /eqP Hxz].
-  + by subst z;rewrite !Msv.setP_eq Msv.removeP_eq dft_s /= Msv.setP_eq.
-  rewrite Msv.setP_neq // Msv.removeP_neq //= -Hsfv.
-  + have := @indom_s _ Hwf z; have := @Msv.indom_getP _ (s_s s) z.
-    rewrite dft_s;case: Msv.indom=>[ _ /(_ (erefl _)) Hsub|  /(_ (erefl _)) ->/= _].
-    + apply ssem_spexpr_fv;constructor=> w Hw //=.
-      by rewrite Msv.setP_neq //;apply /eqP=> ?;subst w;SsvD.fsetdec.
-    by rewrite Msv.setP_neq.
-  by rewrite sffv_forall -/x;move: Hxz=>/eqP;SsvD.fsetdec.
+  apply SvP.MP.fold_rec.
+  + by move=> ??;rewrite /fv_subst_v SvP.MP.fold_1b.
+  move=> ???? ??? Hr.
+  rewrite  /fv_subst_v SvP.MP.fold_2;eauto.
+  rewrite Hr {1 2}/fv_subst_body_v;case:ifP=> _.
+  + move=> x; rewrite ?Sv.union_spec ?Sv.add_spec;tauto.
+  by rewrite SvP.MP.union_add //.
 Qed.
 
+Lemma fv_subst_sE s s1 s2 : 
+  Sv.Equal (Ssv.fold (fv_subst_body_s s) s1 s2) (Sv.union (fv_subst_s s s1) s2).
+Proof.
+  apply SsvP.MP.fold_rec.
+  + by move=> ??;rewrite /fv_subst_s SsvP.MP.fold_1b //. 
+  move=> ???? ??? Hr.
+  rewrite  /fv_subst_s SsvP.MP.fold_2;eauto.
+  rewrite Hr {1 2}/fv_subst_body_s;case:ifP=> _ //.
+  move=> x; rewrite ?Sv.union_spec ?Sv.add_spec;tauto.
+Qed.
+
+Lemma sfv_subst_vE s s1 s2 : 
+  Ssv.Equal (Sv.fold (sfv_subst_body_v s) s1 s2) (Ssv.union (sfv_subst_v s s1) s2).
+Proof.
+  apply SvP.MP.fold_rec.
+  + by move=> ??;rewrite /sfv_subst_v SvP.MP.fold_1b //. 
+  move=> ???? ??? Hr.
+  rewrite  /sfv_subst_v SvP.MP.fold_2;eauto.
+  rewrite Hr {1 2}/sfv_subst_body_v;case:ifP=> _ //.
+  move=> x; rewrite ?Ssv.union_spec ?Ssv.add_spec;tauto.
+Qed.
+
+Lemma sfv_subst_sE s s1 s2 : 
+  Ssv.Equal (Ssv.fold (sfv_subst_body_s s) s1 s2) (Ssv.union (sfv_subst_s s s1) s2).
+Proof.
+  apply SsvP.MP.fold_rec.
+  + move=> ??;rewrite /sfv_subst_s SsvP.MP.fold_1b;SsvD.fsetdec.
+  move=> ???? ??? Hr.
+  rewrite  /sfv_subst_s SsvP.MP.fold_2;eauto.
+  rewrite Hr {1 2}/sfv_subst_body_s;case:ifP=> _.
+  rewrite /Ssv.Equal=> x; rewrite ?Ssv.union_spec ?Ssv.add_spec;tauto.
+  by rewrite SsvP.MP.union_add //.
+Qed.
+
+Lemma fv_subst_v0 s: fv_subst_v s Sv.empty = Sv.empty.
+Proof. done. Qed.
+
+Lemma fv_subst_s0 s: fv_subst_s s Ssv.empty = Sv.empty.
+Proof. done. Qed.
+
+Lemma sfv_subst_v0 s: sfv_subst_v s Sv.empty = Ssv.empty.
+Proof. done. Qed.
+
+Lemma sfv_subst_s0 s: sfv_subst_s s Ssv.empty = Ssv.empty.
+Proof. done. Qed.
+
+Lemma fv_subst_v1 s x: 
+  Sv.Equal (fv_subst_v s (Sv.singleton x))
+            (if Mv.indom x s.(s_v) then (fv (esubst s x)) else Sv.singleton x).
+Proof.
+  rewrite [in X in Sv.Equal X _]SvP.MP.singleton_equal_add.
+  rewrite /fv_subst_v SvP.fold_add //;last by auto.
+  rewrite SvP.fold_empty /fv_subst_body_v;case:ifP;SvD.fsetdec. 
+Qed.
+
+Lemma fv_subst_s1 s x: 
+  Sv.Equal (fv_subst_s s (Ssv.singleton x))
+            (if Msv.indom x s.(s_s) then (fv (esubst s x)) else Sv.empty).
+Proof.
+  rewrite [in X in Sv.Equal X _]SsvP.MP.singleton_equal_add.
+  rewrite /fv_subst_s SsvP.fold_add //;last by auto.
+  rewrite SsvP.fold_empty /fv_subst_body_s;case:ifP;SvD.fsetdec. 
+Qed.
+
+Lemma sfv_subst_v1 s x: 
+  Ssv.Equal (sfv_subst_v s (Sv.singleton x))
+            (if Mv.indom x s.(s_v) then (sfv (esubst s x)) else Ssv.empty).
+Proof.
+  rewrite [in X in Ssv.Equal X _]SvP.MP.singleton_equal_add.
+  rewrite /sfv_subst_v SvP.fold_add //;last by auto.
+  rewrite SvP.fold_empty /sfv_subst_body_v;case:ifP;SsvD.fsetdec. 
+Qed.
+
+Lemma sfv_subst_s1 s x: 
+  Ssv.Equal (sfv_subst_s s (Ssv.singleton x))
+            (if Msv.indom x s.(s_s) then (sfv (esubst s x)) else Ssv.singleton x).
+Proof.
+  rewrite [in X in Ssv.Equal X _]SsvP.MP.singleton_equal_add.
+  rewrite /sfv_subst_s SsvP.fold_add //;last by auto.
+  rewrite SsvP.fold_empty /sfv_subst_body_s;case:ifP;SsvD.fsetdec. 
+Qed.
+
+Lemma fv_subst_vU s s1 s2: 
+  Sv.Equal (fv_subst_v s (Sv.union s1 s2)) (Sv.union (fv_subst_v s s1) (fv_subst_v s s2)).
+Proof.
+  pose s12 := Sv.inter s1 s2.
+  have -> : Sv.Equal (Sv.union s1 s2) 
+    (Sv.union (Sv.union (Sv.diff s1 s12) (Sv.diff s2 (s12))) s12).
+  + rewrite /s12=> x. 
+    rewrite !Sv.union_spec !Sv.diff_spec Sv.inter_spec.
+    case: (SvP.MP.In_dec x s1);case: (SvP.MP.In_dec x s2);tauto.
+  have {2}->: Sv.Equal s1 (Sv.union (Sv.diff s1 s12) s12) by SvD.fsetdec. 
+  have {2}->: Sv.Equal s2 (Sv.union (Sv.diff s2 s12) s12).
+  + rewrite /s12 => x. 
+    rewrite !Sv.union_spec !Sv.diff_spec Sv.inter_spec.
+    case: (SvP.MP.In_dec x s1);tauto.
+  rewrite /fv_subst_v ?SvP.MP.fold_union;auto=> x.
+  + rewrite !Sv.union_spec ![Sv.fold _ _ (Sv.fold _ _ _)]fv_subst_vE;SsvD.fsetdec.
+  + by SvD.fsetdec.   + by SvD.fsetdec.  + by SvD.fsetdec.  by SvD.fsetdec. 
+Qed.
+
+Lemma fv_subst_sU s s1 s2: 
+  Sv.Equal (fv_subst_s s (Ssv.union s1 s2)) (Sv.union (fv_subst_s s s1) (fv_subst_s s s2)).
+Proof.
+  pose s12 := Ssv.inter s1 s2.
+  have -> : Ssv.Equal (Ssv.union s1 s2) 
+    (Ssv.union (Ssv.union (Ssv.diff s1 s12) (Ssv.diff s2 (s12))) s12).
+  + rewrite /s12=> x. 
+    rewrite !Ssv.union_spec !Ssv.diff_spec Ssv.inter_spec.
+    case: (SsvP.MP.In_dec x s1);case: (SsvP.MP.In_dec x s2);tauto.
+  have {2}->: Ssv.Equal s1 (Ssv.union (Ssv.diff s1 s12) s12) by SsvD.fsetdec. 
+  have {2}->: Ssv.Equal s2 (Ssv.union (Ssv.diff s2 s12) s12).
+  + rewrite /s12 => x. 
+    rewrite !Ssv.union_spec !Ssv.diff_spec Ssv.inter_spec.
+    case: (SsvP.MP.In_dec x s1);tauto.
+  rewrite /fv_subst_s ?SsvP.MP.fold_union;auto => x.
+  + rewrite !Sv.union_spec ![Ssv.fold _ _ (Ssv.fold _ _ _)]fv_subst_sE;SsvD.fsetdec. 
+  + by SsvD.fsetdec.  + by SsvD.fsetdec.  + by SsvD.fsetdec.  by SsvD.fsetdec.
+Qed.
+
+Lemma sfv_subst_vU s s1 s2: 
+  Ssv.Equal (sfv_subst_v s (Sv.union s1 s2)) (Ssv.union (sfv_subst_v s s1) (sfv_subst_v s s2)).
+Proof.
+  pose s12 := Sv.inter s1 s2.
+  have -> : Sv.Equal (Sv.union s1 s2) 
+    (Sv.union (Sv.union (Sv.diff s1 s12) (Sv.diff s2 (s12))) s12).
+  + rewrite /s12=> x. 
+    rewrite !Sv.union_spec !Sv.diff_spec Sv.inter_spec.
+    case: (SvP.MP.In_dec x s1);case: (SvP.MP.In_dec x s2);tauto.
+  have {2}->: Sv.Equal s1 (Sv.union (Sv.diff s1 s12) s12) by SvD.fsetdec. 
+  have {2}->: Sv.Equal s2 (Sv.union (Sv.diff s2 s12) s12).
+  + rewrite /s12 => x. 
+    rewrite !Sv.union_spec !Sv.diff_spec Sv.inter_spec.
+    case: (SvP.MP.In_dec x s1);tauto.
+  rewrite /sfv_subst_v ?SvP.MP.fold_union;auto=> x.
+  + rewrite !Ssv.union_spec ![Sv.fold _ _ (Sv.fold _ _ _)]sfv_subst_vE;SsvD.fsetdec. 
+  + by SvD.fsetdec.   + by SvD.fsetdec.  + by SvD.fsetdec.  by SvD.fsetdec. 
+Qed.
+
+Lemma sfv_subst_sU s s1 s2: 
+  Ssv.Equal (sfv_subst_s s (Ssv.union s1 s2)) (Ssv.union (sfv_subst_s s s1) (sfv_subst_s s s2)).
+Proof.
+  pose s12 := Ssv.inter s1 s2.
+  have -> : Ssv.Equal (Ssv.union s1 s2) 
+    (Ssv.union (Ssv.union (Ssv.diff s1 s12) (Ssv.diff s2 (s12))) s12).
+  + rewrite /s12=> x. 
+    rewrite !Ssv.union_spec !Ssv.diff_spec Ssv.inter_spec.
+    case: (SsvP.MP.In_dec x s1);case: (SsvP.MP.In_dec x s2);tauto.
+  have {2}->: Ssv.Equal s1 (Ssv.union (Ssv.diff s1 s12) s12) by SsvD.fsetdec. 
+  have {2}->: Ssv.Equal s2 (Ssv.union (Ssv.diff s2 s12) s12).
+  + rewrite /s12 => x. 
+    rewrite !Ssv.union_spec !Ssv.diff_spec Ssv.inter_spec.
+    case: (SsvP.MP.In_dec x s1);tauto.
+  rewrite /sfv_subst_s ?SsvP.MP.fold_union;auto => x.
+  + rewrite !Ssv.union_spec ![Ssv.fold _ _ (Ssv.fold _ _ _)]sfv_subst_sE; SsvD.fsetdec. 
+  + by SsvD.fsetdec.  + by SsvD.fsetdec.  + by SsvD.fsetdec. by SsvD.fsetdec.
+Qed.
+
+Lemma sfv_esubst s {Hs: wf_psubst s} t (e:spexpr t): 
+  Ssv.Equal (sfv (esubst s e)) (Ssv.union (sfv_subst_v s (fv e)) (sfv_subst_s s (sfv e))).
+Proof.
+  elim: e =>
+   [?|?|?|?|???? He1|????? He1 ? He2|?????? He1 ? He2 ? He3|?? He1 ? He2 ? He3] /=.  
+  + rewrite sfv_var fv_var sfv_subst_v1 sfv_subst_s0 /=. 
+    case: ifPn;first by SsvD.fsetdec.
+    by move=> /Mv.indom_getP ->;rewrite dft_v sfv_var.
+  + rewrite sfv_svar fv_svar sfv_subst_s1 sfv_subst_v0 /=. 
+    case: ifPn;first by SsvD.fsetdec.
+    by move=> /Msv.indom_getP ->;rewrite dft_s sfv_svar.
+  + by rewrite sfv_const fv_const sfv_subst_s0 sfv_subst_v0.
+  + by rewrite sfv_bool fv_bool sfv_subst_s0 sfv_subst_v0.
+  + by rewrite !sfv_op1 fv_op1 He1;SsvD.fsetdec.
+  + rewrite !(sfv_op2,fv_op2,sfv_subst_sU,sfv_subst_vU,He1, He2)=> x.
+    rewrite !Ssv.union_spec;tauto.
+  + rewrite !(sfv_op3,fv_op3,sfv_subst_sU,sfv_subst_vU,He1, He2, He3)=> x.
+    rewrite !Ssv.union_spec;tauto.
+  rewrite !(sfv_if,fv_if,sfv_subst_sU,sfv_subst_vU,He1, He2, He3)=> x.
+  rewrite !Ssv.union_spec;tauto.
+Qed.
+
+Lemma fv_esubst s {Hs: wf_psubst s} t (e:spexpr t): 
+  Sv.Equal (fv (esubst s e)) (Sv.union (fv_subst_v s (fv e)) (fv_subst_s s (sfv e))).
+Proof.
+  elim: e =>
+   [?|?|?|?|???? He1|????? He1 ? He2|?????? He1 ? He2 ? He3|?? He1 ? He2 ? He3] /=.  
+  + rewrite fv_var sfv_var fv_subst_v1 fv_subst_s0 /=. 
+    case: ifPn;first by SvD.fsetdec.
+    by move=> /Mv.indom_getP ->;rewrite dft_v fv_var.
+  + rewrite fv_svar sfv_svar fv_subst_s1 fv_subst_v0 /=. 
+    case: ifPn;first by SvD.fsetdec.
+    by move=> /Msv.indom_getP ->;rewrite dft_s fv_svar.
+  + by rewrite sfv_const fv_const fv_subst_s0 fv_subst_v0.
+  + by rewrite sfv_bool fv_bool fv_subst_s0 fv_subst_v0.
+  + by rewrite !(sfv_op1,fv_op1, He1);SvD.fsetdec.
+  + rewrite !(sfv_op2,fv_op2,fv_subst_sU,fv_subst_vU,He1, He2)=> x.
+    rewrite !Sv.union_spec;tauto.
+  + rewrite !(sfv_op3,fv_op3,fv_subst_sU,fv_subst_vU,He1, He2, He3)=> x.
+    rewrite !Sv.union_spec;tauto.
+  rewrite !(sfv_if,fv_if,fv_subst_sU,fv_subst_vU,He1, He2, He3)=> x.
+  rewrite !Sv.union_spec;tauto.
+Qed.
+
+Lemma sfv_subst_v_I s1 s2 {H1:wf_psubst s1}: Ssv.Subset (sfv_subst_v s1 s2) (s_fv s1).
+Proof.
+  rewrite /sfv_subst_v;apply SvP.MP.fold_rec;first by SsvD.fsetdec.
+  move=> ???? ??? Hr;rewrite /sfv_subst_body_v;case:ifP=> //= /indom_v ?;SsvD.fsetdec.
+Qed.
+
+Lemma sfv_subst_s_I s1 s2 {H1:wf_psubst s1} : 
+   Ssv.Subset (sfv_subst_s s1 s2) (Ssv.union (s_fv s1) s2).
+Proof.
+  rewrite /sfv_subst_s;apply SsvP.MP.fold_rec;first by SsvD.fsetdec.
+  move=> x ? s' s'' ?? Hadd Hr;rewrite /sfv_subst_body_s.
+  have -> :Ssv.Equal s'' (Ssv.add x s'). 
+  + move=> z;rewrite (Hadd z) Ssv.add_spec;intuition. 
+  by case:ifP=>[/indom_s ? | _] /=; SsvD.fsetdec.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+(* -- Composition of substitutions                                            *)
+(* -------------------------------------------------------------------------- *)
+
+
+Definition osubst (s1 s2: pvsubst) := 
+  {| v_fv := Ssv.union s1.(v_fv) s2.(v_fv);
+     v_v  := Mv.map2  [eta Evar]  (fun _ _ e => esubst s1 e) s1.(v_v) s2.(v_v);
+(*     s_s  := Msv.map2 [eta Esvar] (fun _ _ e => esubst s1 e) s1.(s_s) s2.(s_s); *) |}.
+
+Instance wf_osubst s1 s2 {H1:wf_vsubst s1} {H2:wf_vsubst s2} : wf_vsubst (osubst s1 s2).
+Proof.
+  constructor.
+  + by rewrite Mv.dft_map2P.
+(*  + by rewrite Msv.dft_map2P. *)
+  + move=> x /=;rewrite Mv.indom_map2P Mv.map2P;
+    last by rewrite vdft_v /= => /Mv.indom_getP ->;rewrite vdft_v.
+    rewrite orbC;case: (boolP (Mv.indom x (s_v s2))) => /= [/vindom_v Hs2 _ | /Mv.indom_getP -> ].
+    + rewrite sfv_esubst. 
+      have := @sfv_subst_v_I _ (fv ((s_v s2).[x])%mv).
+ H1.
+      have := @sfv_subst_s_I _ (sfv ((s_v s2).[x])%mv) H1.
+      by SsvD.fsetdec.
+    move=> /indom_v;rewrite dft_v /=;SsvD.fsetdec.
+  move=> x /=;rewrite Msv.indom_map2P Msv.map2P;
+   last by rewrite dft_s /= => /Msv.indom_getP ->;rewrite dft_s.
+  rewrite orbC;case: (boolP (Msv.indom x (s_s s2))) => /= [/indom_s Hs2 _ | /Msv.indom_getP -> ].
+  + rewrite sfv_esubst. 
+    have := @sfv_subst_v_I _ (fv ((s_s s2).[x])%msv) H1.
+    have := @sfv_subst_s_I _ (sfv ((s_s s2).[x])%msv) H1.
+    by SsvD.fsetdec.
+  by move=> /indom_s;rewrite dft_s /=;SsvD.fsetdec.
+Qed.
+
+Lemma eq_on_osubst s1 s2 {H1:wf_subst s1} {H2:wf_subst s2} rho fv1 fv2:
+   ssubst (osubst s1 s2) rho ={ fv1, fv2} ssubst s2 (ssubst s1 rho).
+Proof.
+  constructor=> x ? /=.
+  + rewrite !Fv.get0 Mv.map2P.
+    + by rewrite !esubstP;constructor.
+    by rewrite dft_v /= => /Mv.indom_getP ->;rewrite dft_v.
+  rewrite !Msv.get0 Msv.map2P.
+  + by rewrite !esubstP;constructor.
+  by rewrite dft_s /= => /Msv.indom_getP ->;rewrite dft_s.
+Qed.
+
+Lemma osubst_Pe t (e:spexpr t) s1 s2 {H1:wf_subst s1} {H2:wf_subst s2} : 
+  esubst (osubst s1 s2) e =E esubst s1 (esubst s2 e).
+Proof.
+  by move=> rho;rewrite !esubstP;apply eq_on_fv;apply: eq_on_osubst.
+Qed.
+
+Lemma osubstP f s1 s2 {H1:wf_subst s1} {H2:wf_subst s2}: 
+  fsubst (osubst s1 s2) f =F fsubst s1 (fsubst s2 f).
+Proof.
+  by move=> rho;rewrite !fsubstP;apply feq_on_fv=> //;apply: eq_on_osubst.
+Qed.
  
+Definition merge_if (e:spexpr sbool) s1 s2 := 
+  {| s_fv := Ssv.union (sfv e) (Ssv.union s1.(s_fv) s2.(s_fv));
+     s_v  := Mv.map2  [eta Evar]  (fun _ e1 e2 => Eif e e1 e2) s1.(s_v) s2.(s_v);
+     s_s  := Msv.map2 [eta Esvar] (fun _ e1 e2 => Eif e e1 e2) s1.(s_s) s2.(s_s); |}.
 
-*)
+Instance wf_merge_if (e:spexpr sbool) s1 s2 {H1:wf_subst s1} {H2:wf_subst s2}:
+  wf_subst (merge_if e s1 s2).
+Proof.
+  constructor.
+  + by rewrite Mv.dft_map2P.
+  + by rewrite Msv.dft_map2P.
+  + move=> x /=; rewrite Mv.indom_map2P => Hdom;apply Mv.map2Pred.
+    + move=> ???;rewrite sfv_var;SsvD.fsetdec.
+    rewrite sfv_if;move: Hdom. 
+    case: (boolP (Mv.indom x (s_v s1)))=> /= [/indom_v ? _| /Mv.indom_getP -> /indom_v].
+    + by case: (boolP (Mv.indom x (s_v s2)))=> /= [/indom_v ? | /Mv.indom_getP ->];
+       rewrite ?dft_v;SsvD.fsetdec.
+    by rewrite dft_v sfv_var;SsvD.fsetdec.
+  + move=> x /=; rewrite Msv.indom_map2P => Hdom;apply Msv.map2Pred.
+    + move=> ??;rewrite dft_s sfv_if sfv_svar;SsvD.fsetdec.
+    rewrite sfv_if;move: Hdom. 
+    case: (boolP (Msv.indom x (s_s s1)))=> /= [/indom_s ? _| /Msv.indom_getP -> /indom_s].
+    + case: (boolP (Msv.indom x (s_s s2)))=> /= [/indom_s ? | /Msv.indom_getP ->].
+      SsvD.fsetdec.
+       rewrite ?dft_v;SsvD.fsetdec.
+    by rewrite dft_v sfv_var;SsvD.fsetdec.
+
+   
+Lemma merge_ifP_e e s1 s2 t (e':spexpr t) rho: 
+  (subst_spexpr (merge_if (p2sp e) s1 s2) e') =[rho]
+  if ssem_pexpr rho.(vm) e then subst_spexpr s1 e' else subst_spexpr s2 e'.
+Proof.
+  by elim:e' => //=
+    [?|?|?|?|???? He1|????? He1 ? He2|?????? He1 ? He2 ? He3|?? He1 ? He2 ? He3];
+    rewrite ?He1 ?He2 ?He3 // /merge_if ?Mv.map2P /= ?sem_p2sp;
+    case: (ssem_pexpr (vm rho) e).
+Qed.   
+
+Lemma merge_ifP e s1 s2 f rho: 
+  (subst_sform (merge_if (p2sp e) s1 s2) f) =_[rho]
+  if ssem_pexpr rho.(vm) e then subst_sform s1 f else subst_sform s2 f.
+Proof.
+  elim: f rho=> /=
+    [?|??|? Hf1|? Hf1 ? Hf2|? Hf1 ? Hf2|? Hf1 ? Hf2|?? Hf1 ? Hf2|x ? Hf1] rho;
+    rewrite ?merge_ifP_e ?Hf1 ?Hf2 /=; case Heq: (ssem_pexpr (vm rho) e)=> //=.
+  + by case: (ssem_spexpr _);rewrite ?Hf1 ?Hf2 ?Heq. 
+  + by case: (ssem_spexpr _);rewrite ?Hf1 ?Hf2 ?Heq. 
+  + by apply forall_iff=> ?;rewrite Hf1 Heq. 
+  by apply forall_iff=> ?;rewrite Hf1 Heq. 
+Qed.

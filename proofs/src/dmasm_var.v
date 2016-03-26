@@ -112,6 +112,7 @@ Module MvMake (I:IDENT).
        tbl := Mt.map (fun t mi => Mid.map (f t) mi) m.(tbl); |}.
 
   Definition map2 {to1 to2 to3}
+     (fd:forall x, to3 x.(vtype)) 
      (f:forall x, to1 x.(vtype) -> to2 x.(vtype) -> to3 x.(vtype)) 
      (m1: t to1) (m2: t to2): t to3 :=
     let dft1 := m1.(dft) in
@@ -136,8 +137,8 @@ Module MvMake (I:IDENT).
            | Some v1, Some v2 => let x := Var ty id in (Some (f x v1 v2): option (to3 ty))
            end) mi1 mi2)
         end in
-    {| dft := fun x => f x (dft1 x) (dft2 x);
-      tbl := Mt.map2 doty m1.(tbl) m2.(tbl) |}.
+    {| dft := fd;
+       tbl := Mt.map2 doty m1.(tbl) m2.(tbl) |}.
 
   Local Notation "vm .[ x ]" := (@get _ vm x).
   Local Notation "vm .[ x  <- v ]" := (@set _ vm x v).
@@ -240,17 +241,54 @@ Module MvMake (I:IDENT).
     by rewrite Mid.mapP; case: Mid.get.   
   Qed.
 
-  Lemma map2P {to1 to2 to3} 
-    (f:forall x, to1 x.(vtype) -> to2 x.(vtype) -> to3 x.(vtype)) m1 m2 x:
-    (map2 f m1 m2).[x] = f x m1.[x] m2.[x].
-  Proof.
-    rewrite /map2 /get /= Mt.map2P //.
-    case: ((tbl m1).[vtype x])%mt=> [mi1 | ];case: ((tbl m2).[vtype x])%mt => [mi2 | ] //.
-    + rewrite Mid.map2P //.
-      by case: (Mid.get mi1 (vname x));case: (Mid.get mi2 (vname x))=> //;case: (x).
-    + by rewrite Mid.mapiP //;case: (Mid.get mi1 (vname x));case: (x).
-    by rewrite Mid.mapiP //;case: (Mid.get mi2 (vname x));case: (x).
+  Lemma indom_mapP {to1 to2} (f:forall t, to1 t -> to2 t) (m: t to1) x:
+     indom x (map f m) = indom x m.
+  Proof. 
+    rewrite /map /indom /= Mt.mapP. 
+    by case: Mt.get => //= ?;rewrite Mid.mapP;case Mid.get.
   Qed.
+
+  Lemma dft_mapP {to1 to2} (f:forall t, to1 t -> to2 t) (m: t to1):
+     dft (map f m) = fun x : var => f (vtype x) (dft m x).
+  Proof. done. Qed.
+
+  Lemma map2Pred {to1 to2 to3} 
+    (fd: forall x,  to3 x.(vtype))    
+    (f:forall x, to1 x.(vtype) -> to2 x.(vtype) -> to3 x.(vtype)) m1 m2 x P:
+    (~~indom x m1 -> ~~indom x m2 -> P (f x (dft m1 x) (dft m2 x)) -> P (fd x)) ->
+    P (f x m1.[x] m2.[x]) -> P (map2 fd f m1 m2).[x].
+  Proof.
+    rewrite /indom /map2 /get /= Mt.map2P //.
+    case: ((tbl m1).[vtype x])%mt=>[mi1|];case: ((tbl m2).[vtype x])%mt=>[mi2|];last by auto.
+    + rewrite Mid.map2P //.
+      by case: (Mid.get mi1 (vname x));case: (Mid.get mi2 (vname x))=> //; 
+         last (by auto); case: (x) P.
+    + by rewrite Mid.mapiP //;case: (Mid.get mi1 (vname x));case: (x) P =>//=;auto.
+    by rewrite Mid.mapiP //;case: (Mid.get mi2 (vname x));case: (x) P=> //=;auto.
+  Qed.
+
+  Lemma map2P {to1 to2 to3} 
+    (fd: forall x,  to3 x.(vtype))    
+    (f:forall x, to1 x.(vtype) -> to2 x.(vtype) -> to3 x.(vtype)) m1 m2 x:
+    (~~indom x m1 -> ~~indom x m2 -> fd x = f x (dft m1 x) (dft m2 x)) ->
+    (map2 fd f m1 m2).[x] = f x m1.[x] m2.[x].
+  Proof. by apply map2Pred => // ?? H1 H2;rewrite H2 // H1. Qed.
+ 
+  Lemma indom_map2P {to1 to2 to3} fd
+      (f:forall x, to1 x.(vtype) -> to2 x.(vtype) -> to3 x.(vtype)) m1 m2 x:
+     indom x (map2 fd f m1 m2) = indom x m1 || indom x m2.
+  Proof. 
+    rewrite /map2 /indom /= Mt.map2P //.
+    case: ((tbl m1).[vtype x])%mt=> [mi1 | ];case: ((tbl m2).[vtype x])%mt => [mi2 | ] //.
+    + by rewrite Mid.map2P //; case: Mid.get => [?|] /=;case: Mid.get.
+    + by rewrite Mid.mapiP;case: Mid.get.
+    by rewrite Mid.mapiP;case: Mid.get.
+  Qed.
+
+  Lemma dft_map2P {to1 to2 to3} fd 
+      (f:forall x, to1 x.(vtype) -> to2 x.(vtype) -> to3 x.(vtype)) m1 m2:
+     dft (map2 fd f m1 m2) = fd. 
+  Proof. done. Qed.
   
   End Mv.
 
