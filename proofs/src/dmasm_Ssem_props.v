@@ -98,6 +98,9 @@ Qed.
 Lemma write_i_recE s i : Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)).
 Proof. by apply (write_c_recE s [:: i]). Qed.
 
+Lemma write_c_nil : write_c [::] = Sv.empty.
+Proof. done. Qed.
+
 Lemma write_c_cons i c: Sv.Equal (write_c (i::c)) (Sv.union (write_i i) (write_c c)).
 Proof. by rewrite {1}/write_c /= write_c_recE write_i_recE;SvD.fsetdec. Qed.
 
@@ -183,6 +186,8 @@ Proof.
   by rewrite Fv.setP_neq.   
 Qed.
 
+Lemma ssem_rval2pe t (i:rval t) s: ssem_pexpr s (rval2pe i) = ssem_rval s i.
+Proof. by elim: i => //= ??? -> ? ->. Qed.
 
 (* -------------------------------------------------------------------------- *)
 (* Properties on donotdep                                                     *)

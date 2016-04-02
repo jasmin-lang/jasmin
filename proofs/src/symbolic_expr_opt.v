@@ -191,17 +191,20 @@ Definition s_op1 t1 tr (op:sop1 t1 tr): spexpr t1 -> spexpr tr :=
   | Osnd _ _ => @ssnd _ _
   end.
 
-Definition sand (e1 e2:spexpr sbool) : spexpr sbool := 
-  match e1, e2 with
-  | Ebool b, _ => if b then e2 else false
-  | _, Ebool b => if b then e1 else false
-  | _, _       => Eapp2 Oand e1 e2 
+Definition is_bool (e:spexpr sbool) :=
+  match e with Ebool b => Some b | _ => None end.
+
+Definition sand e1 e2 := 
+  match is_bool e1, is_bool e2 with
+  | Some b, _ => if b then e2 else false
+  | _, Some b => if b then e1 else false
+  | _, _      => Eapp2 Oand e1 e2
   end.
 
 Definition sor (e1 e2:spexpr sbool) : spexpr sbool := 
-  match e1, e2 with
-  | Ebool b, _ => if b then Ebool true else e2
-  | _, Ebool b => if b then Ebool true else e1
+   match is_bool e1, is_bool e2 with
+  | Some b, _ => if b then Ebool true else e2
+  | _, Some b => if b then Ebool true else e1
   | _, _       => Eapp2 Oor e1 e2 
   end.
 
@@ -214,56 +217,62 @@ Definition seq (e1 e2:spexpr sword) : spexpr sbool :=
 Definition spair {t t'} (e1:spexpr t) (e2:spexpr t') :=
   Eapp2 (Opair t t') e1 e2.
 
+Definition is_const (e:spexpr sword) := 
+  match e with
+  | Econst n => Some n 
+  | _        => None
+  end.
+
 Definition sadd (e1 e2:spexpr sword) : spexpr sword := 
-  match e1, e2 with
-  | Econst n1, Econst n2 => iword_add n1 n2 
-  | Econst n, _ => 
+  match is_const e1, is_const e2 with
+  | Some n1, Some n2 => iword_add n1 n2 
+  | Some n, _ => 
     if (n =? 0)%num then e2 else Eapp2 Oadd e1 e2
-  | _, Econst n => 
+  | _, Some n => 
     if (n =? 0)%num then e1 else Eapp2 Oadd e1 e2
   | _, _ => Eapp2 Oadd e1 e2
   end.
 
 Definition saddc (e1 e2:spexpr sword) : spexpr (sbool ** sword) := 
-  match e1, e2 with
-  | Econst n1, Econst n2 => 
+  match is_const e1, is_const e2 with
+  | Some n1, Some n2 => 
     let (c,n) := iword_addc n1 n2 in
     spair c n
-  | Econst n, _ =>
+  | Some n, _ =>
     if (n =? 0)%num then spair false e2 else Eapp2 Oaddc e1 e2
-  | _, Econst n => 
+  | _, Some n => 
     if (n =? 0)%num then spair false e1 else Eapp2 Oaddc e1 e2
   | _, _ => Eapp2 Oaddc e1 e2
   end.
 
 Definition ssub (e1 e2:spexpr sword) : spexpr sword := 
-  match e1, e2 with
-  | Econst n1, Econst n2 => iword_sub n1 n2 
-  | _, Econst n => 
+  match is_const e1, is_const e2 with
+  | Some n1, Some n2 => iword_sub n1 n2 
+  | _, Some n => 
     if (n =? 0)%num then e1 else Eapp2 Osub e1 e2
   | _, _ => Eapp2 Osub e1 e2
   end.
 
 Definition ssubc (e1 e2:spexpr sword) : spexpr (sbool ** sword) := 
-  match e1, e2 with
-  | Econst n1, Econst n2 => 
+  match is_const e1, is_const e2 with
+  | Some n1, Some n2 => 
     let (c,n) := iword_subc n1 n2 in
     spair c n
-  | _, Econst n => 
+  | _, Some n => 
     if (n =? 0)%num then spair false e1 else Eapp2 Osubc e1 e2
   | _, _ => Eapp2 Osubc e1 e2
   end.
 
 Definition slt (e1 e2:spexpr sword) : spexpr sbool := 
-  match e1, e2 with
-  | Econst n1, Econst n2 => iword_ltb n1 n2 
-  | _        , Econst n  => if (n =? 0)%num then Ebool false else Eapp2 Olt e1 e2
+  match is_const e1, is_const e2 with
+  | Some n1, Some n2 => iword_ltb n1 n2 
+  | _        , Some n  => if (n =? 0)%num then Ebool false else Eapp2 Olt e1 e2
   | _        , _         => Eapp2 Olt e1 e2 (* FIXME : false is e1 = e2 *)
   end.
 
 Definition sle (e1 e2:spexpr sword) : spexpr sbool := 
-  match e1, e2 with
-  | Econst n1, Econst n2 => iword_leb n1 n2 
+  match is_const e1, is_const e2 with
+  | Some n1, Some n2 => iword_leb n1 n2 
   | _        , _         => Eapp2 Ole e1 e2 (* FIXME : true is e1 = e2 *)
   end.
 
@@ -289,8 +298,8 @@ Definition s_op3 t1 t2 t3 tr (op:sop3 t1 t2 t3 tr):
   Eapp3 op. 
 
 Definition sif t (b:spexpr sbool) (e1 e2 : spexpr t) := 
-  match b with
-  | Ebool b => if b then e1 else e2
+  match is_bool b with
+  | Some b => if b then e1 else e2
   | _       => 
     match eval_eq e1 e2 with
     | Ok true => e1
@@ -328,9 +337,27 @@ Proof.
   by rewrite Bool.negb_involutive.
 Qed.
 
+Lemma sfv_snot e : Ssv.Equal (sfv (snot e)) (sfv e).
+Proof.
+  jm_destr e=> //=;rewrite !sfv_op1 /=.
+  match type of jmeq with JMeq (Eapp1 ?s ?s') _ => rename s into o;rename s' into s1  end.
+  match type of o with sop1 ?t _ => rename t into t1 end.
+  move: (erefl t1) (erefl sbool) (JMeq_refl o).
+  set o' := (O in _ -> _ -> JMeq O _ -> _).
+  set t1' := (X in X = _ -> _ -> @JMeq (sop1 X _) _ _ _ -> _).
+  set t2' := (X in _ -> X = _ -> @JMeq (sop1 _ X) _ _ _ -> _).
+  by case: t1' t2' / o' => [|??|??] ?? jmeq';subst;rewrite -(JMeq_eq jmeq') //=.
+Qed.
+
 Lemma sfstP t1 t2 e : sfst e =E Eapp1 (Ofst t1 t2) e.
 Proof.
   rewrite /sfst=>?;case H:destr_pair=> [[e1 e2]|//]; by rewrite (destr_pairP H).
+Qed.
+
+Lemma sfv_sfst t1 t2 (e:spexpr (t1 ** t2)) : Ssv.Subset (sfv (sfst e)) (sfv e).
+Proof.
+  rewrite /sfst=>?;case H:destr_pair=> [[e1 e2]|//].
+  rewrite (destr_pairP H) sfv_op2;SsvD.fsetdec.
 Qed.
 
 Lemma ssndP t1 t2 e : ssnd e =E Eapp1 (Osnd t1 t2) e.
@@ -338,21 +365,54 @@ Proof.
   rewrite /ssnd=>?;case H:destr_pair=> [[e1 e2]|//]; by rewrite (destr_pairP H).
 Qed.
 
+Lemma sfv_ssnd t1 t2 (e:spexpr (t1 ** t2)) : Ssv.Subset (sfv (ssnd e)) (sfv e).
+Proof.
+  rewrite /ssnd=>?;case H:destr_pair=> [[e1 e2]|//].
+  rewrite (destr_pairP H) sfv_op2;SsvD.fsetdec.
+Qed.
+
 Lemma s_op1P t1 tr (op:sop1 t1 tr) e : s_op1 op e =E Eapp1 op e.
 Proof.
   case: op e;[apply:snotP|apply:sfstP |apply:ssndP].
 Qed.
 
+Lemma sfv_s_op1 t1 tr (o:sop1 t1 tr) e : Ssv.Subset (sfv (s_op1 o e)) (sfv e).
+Proof.
+  case: o e => [|??|??] e /=.
+  + by rewrite sfv_snot.
+  + by apply sfv_sfst.
+  by apply sfv_ssnd.
+Qed.
+
+Lemma is_boolP e b : is_bool e = Some b -> e = Ebool b.
+Proof. by jm_destr e=> //= -[] ->. Qed.
+
 Lemma sandP (e1 e2:spexpr sbool) : sand e1 e2 =E Eapp2 Oand e1 e2.
 Proof. 
-  move=>?;jm_destr e1;jm_destr e2 => //=;
-     try ((by case:ifP) || (by rewrite andbC;case:ifP)).
+  move=>?;rewrite /sand;case H: is_bool => [b | ].
+  + by rewrite (is_boolP H);case: ifP.
+  by case H1: is_bool => [b|] //=;rewrite (is_boolP H1) andbC;case: ifP.
+Qed.
+
+Lemma sfv_sand (e1 e2:spexpr sbool) : Ssv.Subset (sfv (sand e1 e2)) (sfv (Eapp2 Oand e1 e2)).
+Proof.
+  rewrite sfv_op2 /sand;case H: is_bool => [b | ].
+  + case: ifP;rewrite ?sfv_bool;SsvD.fsetdec.
+  case H1: is_bool => [[] | ];rewrite ?sfv_bool ?sfv_op2;SsvD.fsetdec.
 Qed.
 
 Lemma sorP (e1 e2:spexpr sbool) : sor e1 e2 =E Eapp2 Oor e1 e2.
-Proof. 
-  move=>?;jm_destr e1;jm_destr e2 => //=;
-     try ((by case:ifP) || (by rewrite orbC;case:ifP)).
+Proof.
+  move=>?;rewrite /sor;case H: is_bool => [b | ].
+  + by rewrite (is_boolP H);case: ifP.
+  by case H1: is_bool => [b|] //=;rewrite (is_boolP H1) orbC;case: ifP.
+Qed.
+
+Lemma sfv_sor (e1 e2:spexpr sbool) : Ssv.Subset (sfv (sor e1 e2)) (sfv (Eapp2 Oor e1 e2)).
+Proof.
+  rewrite sfv_op2 /sor;case H: is_bool => [b | ].
+  + case: ifP;rewrite ?sfv_bool;SsvD.fsetdec.
+  case H1: is_bool => [[] | ];rewrite ?sfv_bool ?sfv_op2;SsvD.fsetdec.
 Qed.
 
 Lemma seqP (e1 e2:spexpr sword): seq e1 e2 =E Eapp2 Oeq e1 e2.
@@ -361,86 +421,112 @@ Proof.
   apply esym;move:H=> /(eval_eqP rho);apply: introTF;apply: eqP.
 Qed.
 
+Lemma sfv_seq (e1 e2:spexpr sword) : Ssv.Subset (sfv (seq e1 e2)) (sfv (Eapp2 Oeq e1 e2)).
+Proof.
+  by rewrite sfv_op2 /seq;case H:eval_eq => [b | ]//=;rewrite ?sfv_bool ?sfv_op2;SsvD.fsetdec.
+Qed.
+
 Lemma spairP t1 t2 e1 e2: spair e1 e2 =E Eapp2 (Opair t1 t2) e1 e2.
 Proof. by done. Qed.
 
-Lemma saddP_ne n (e:spexpr sword):
-  (if (n =? 0)%num then e else Eapp2 Oadd n e) =E Eapp2 Oadd n e.
-Proof.
-  case: N.eqb_spec=> [->|] ? //=; by rewrite /wadd /n2w add0r.
-Qed.
+Lemma sfv_spair t1 t2 e1 e2: Ssv.Equal (sfv (spair e1 e2)) (sfv (Eapp2 (Opair t1 t2) e1 e2)).
+Proof. by done. Qed.
 
-Lemma saddP_en n (e:spexpr sword):
-  (if (n =? 0)%num then e else Eapp2 Oadd e n) =E Eapp2 Oadd e n.
-Proof.
-  case: N.eqb_spec=> [->|] ? //=;by rewrite /wadd /n2w addr0.
-Qed.
+Lemma is_constP (e:spexpr sword) n: is_const e = Some n -> e = n.
+Proof. by jm_destr e=> //= -[] ->. Qed.
 
 Lemma saddP (e1 e2:spexpr sword): sadd e1 e2 =E Eapp2 Oadd e1 e2.
 Proof.
-  move=>?;jm_destr e1;jm_destr e2 => //;rewrite /sadd;
-   try (apply: saddP_ne || apply:saddP_en).
-  by rewrite /ssem_spexpr /ssem_sop2 iword_addP.
+  move=> ?;rewrite /sadd;case H1:is_const => [n1|];case H2:is_const => [n2|];
+   rewrite ?(is_constP H1) ?(is_constP H2) //.
+  + by rewrite /= iword_addP.
+  + by case: N.eqb_spec=> [->|] //=; rewrite /wadd /n2w add0r.
+  by case: N.eqb_spec=> [->|] //=; rewrite /wadd /n2w addr0.
 Qed.
 
-Lemma saddcP_ne n (e:spexpr sword):
-  (if (n =? 0)%num then spair false e else Eapp2 Oaddc n e) =E Eapp2 Oaddc n e.
+Lemma sfv_sadd (e1 e2:spexpr sword): Ssv.Subset (sfv (sadd e1 e2)) (sfv (Eapp2 Oadd e1 e2)).
 Proof.
-  case: N.eqb_spec=> [->|] ? //=;by rewrite /waddc /n2w add0r.
-Qed.
-
-Lemma saddcP_en n (e:spexpr sword):
-  (if (n =? 0)%num then spair false e else Eapp2 Oaddc e n) =E Eapp2 Oaddc e n.
-Proof.
-  case: N.eqb_spec=> [->|] ? //=;by rewrite /waddc /n2w addr0 ltnn.
+  by rewrite /sadd;case H1:is_const => [n1|];case H2:is_const => [n2|];
+   rewrite ?(is_constP H1) ?(is_constP H2) //; case: N.eqb_spec=> [->|];
+   rewrite ?sfv_op2;SsvD.fsetdec.
 Qed.
 
 Lemma saddcP (e1 e2:spexpr sword): saddc e1 e2 =E Eapp2 Oaddc e1 e2.
 Proof.
-  move=> ?;jm_destr e1;jm_destr e2 => //;rewrite /saddc;
-   try (apply: saddcP_ne || apply:saddcP_en).
-  rewrite [iword_addc _ _]surjective_pairing spairP.
-  by rewrite /ssem_spexpr /ssem_sop2 iword_addcP.
+  move=> ?;rewrite /saddc;case H1:is_const => [n1|];case H2:is_const => [n2|];
+   rewrite ?(is_constP H1) ?(is_constP H2) //.
+  + rewrite [iword_addc _ _]surjective_pairing spairP.
+    by rewrite /ssem_spexpr /ssem_sop2 iword_addcP.
+  + by case: N.eqb_spec=> [->|] //=; rewrite /waddc /n2w add0r.
+  by case: N.eqb_spec=> [->|] //=; rewrite /waddc /n2w addr0 ltnn.
 Qed.
 
-Lemma ssubP_en n (e:spexpr sword):
-  (if (n =? 0)%num then e else Eapp2 Osub e n) =E Eapp2 Osub e n.
+Lemma sfv_saddc (e1 e2:spexpr sword): Ssv.Subset (sfv (saddc e1 e2)) (sfv (Eapp2 Oaddc e1 e2)).
 Proof.
-  case: N.eqb_spec=> [->|] ? //=;by rewrite /wsub /n2w subr0.
+  by rewrite sfv_op2 /saddc;case H1:is_const => [n1|];case H2:is_const => [n2|];
+   rewrite ?(is_constP H1) ?(is_constP H2) //; try case: N.eqb_spec=> [->|];
+   rewrite ?sfv_op2;SsvD.fsetdec.
 Qed.
 
 Lemma ssubP (e1 e2:spexpr sword): ssub e1 e2 =E Eapp2 Osub e1 e2.
 Proof.
-  move=> ?;jm_destr e1;jm_destr e2 => //;rewrite /ssub;try (apply:ssubP_en).
-  by rewrite /ssem_spexpr /ssem_sop2 iword_subP.
+  move=> ?;rewrite /ssub;case H1:is_const => [n1|];case H2:is_const => [n2|];
+   rewrite ?(is_constP H1) ?(is_constP H2) //.
+  + by rewrite /ssem_spexpr /ssem_sop2 iword_subP.
+  by case: N.eqb_spec=> [->|] //=;by rewrite /wsub /n2w subr0.
 Qed.
 
-Lemma ssubcP_en n (e:spexpr sword):
-  (if (n =? 0)%num then spair false e else Eapp2 Osubc e n) =E Eapp2 Osubc e n.
+Lemma sfv_ssub (e1 e2:spexpr sword): Ssv.Subset (sfv (ssub e1 e2)) (sfv (Eapp2 Osub e1 e2)).
 Proof.
-  case: N.eqb_spec=> [->|] ? //=;by rewrite /wsubc /n2w subr0 ltn0.
+  by rewrite sfv_op2 /ssub;case H1:is_const => [n1|];case H2:is_const => [n2|];
+   rewrite ?(is_constP H1) ?(is_constP H2) //; try case: N.eqb_spec=> [->|];
+   rewrite ?sfv_op2;SsvD.fsetdec.
 Qed.
 
 Lemma ssubcP (e1 e2:spexpr sword): ssubc e1 e2 =E Eapp2 Osubc e1 e2.
 Proof.
-  move=>?;jm_destr e1;jm_destr e2 => //;rewrite /ssubc; try (apply:ssubcP_en).
-  rewrite [iword_subc _ _]surjective_pairing spairP.
-  by rewrite /ssem_spexpr /ssem_sop2 iword_subcP.
+  move=> ?;rewrite /ssubc;case H1:is_const => [n1|];case H2:is_const => [n2|];
+   rewrite ?(is_constP H1) ?(is_constP H2) //.
+  + rewrite [iword_subc _ _]surjective_pairing spairP.
+    by rewrite /ssem_spexpr /ssem_sop2 iword_subcP.
+  by case: N.eqb_spec=> [->|] //=;by rewrite /wsubc /n2w subr0 ltn0.
 Qed.
 
-Lemma sltP_en n (e:spexpr sword):
-  (if (n =? 0)%num then Ebool false else Eapp2 Olt e n) =E Eapp2 Olt e n.
-Proof. by case: N.eqb_spec=> [->|]. Qed.
+Lemma sfv_ssubc (e1 e2:spexpr sword): Ssv.Subset (sfv (ssubc e1 e2)) (sfv (Eapp2 Osubc e1 e2)).
+Proof.
+  rewrite sfv_op2 /ssubc;case H1:is_const => [n1|];case H2:is_const => [n2|];
+   rewrite ?(is_constP H1) ?(is_constP H2) //; try case: N.eqb_spec=> [->|];
+   rewrite ?sfv_op2;try SsvD.fsetdec.
+  by case: iword_subc=> ?? /=. 
+Qed.
 
 Lemma sltP (e1 e2:spexpr sword): slt e1 e2 =E Eapp2 Olt e1 e2.
 Proof.
-  move=> ?; jm_destr e1;jm_destr e2 => //;rewrite /slt;try (apply: sltP_en).
-  by apply iword_ltbP.
+  move=> ?; rewrite /slt;case H1:is_const => [n1|];case H2:is_const => [n2|];
+   rewrite ?(is_constP H1) ?(is_constP H2) //.
+  + by apply iword_ltbP.
+  by case: N.eqb_spec=> [->|].
+Qed.
+
+Lemma sfv_slt (e1 e2:spexpr sword): Ssv.Subset (sfv (slt e1 e2)) (sfv (Eapp2 Olt e1 e2)).
+Proof.
+  rewrite sfv_op2 /slt;case H1:is_const => [n1|];case H2:is_const => [n2|];
+   rewrite ?(is_constP H1) ?(is_constP H2) ?sfv_op2 //.
+  by case:ifP;rewrite ?sfv_const ?sfv_bool;SsvD.fsetdec.
 Qed.
 
 Lemma sleP (e1 e2:spexpr sword): sle e1 e2 =E Eapp2 Ole e1 e2.
 Proof.
-  move=> ?;jm_destr e1;jm_destr e2 => //;rewrite /sle; by apply iword_lebP.
+  move=> ?; rewrite /sle;case H1:is_const => [n1| //];case H2:is_const => [n2|//];
+   rewrite ?(is_constP H1) ?(is_constP H2) //.
+  by apply iword_lebP.
+Qed.
+
+Lemma sfv_sle (e1 e2:spexpr sword): Ssv.Subset (sfv (sle e1 e2)) (sfv (Eapp2 Ole e1 e2)).
+Proof.
+  rewrite sfv_op2 /sle;case H1:is_const => [n1|//];last by rewrite sfv_op2.
+  case H2:is_const => [n2|];last by rewrite sfv_op2.
+  by rewrite ?(is_constP H1) ?(is_constP H2) ?sfv_op2.
 Qed.
 
 Lemma s_op2P t1 t2 tr (o:sop2 t1 t2 tr) e1 e2: s_op2 o e1 e2 =E Eapp2 o e1 e2.
@@ -453,25 +539,39 @@ Proof.
   + done. + by apply: spairP.
 Qed.
 
+Lemma sfv_s_op2 t1 t2 tr (o:sop2 t1 t2 tr) e1 e2: Ssv.Subset (sfv (s_op2 o e1 e2)) (sfv (Eapp2 o e1 e2)).
+Proof.
+  case:o e1 e2=> /=. 
+  + by apply: sfv_sand. + by apply: sfv_sor. 
+  + by apply: sfv_sadd. + by apply: sfv_saddc. 
+  + by apply: sfv_ssub. + by apply: sfv_ssubc. 
+  + by apply: sfv_seq.  + by apply: sfv_slt.   + by apply: sfv_sle.
+  + SsvD.fsetdec. + move=> *;rewrite sfv_spair;SsvD.fsetdec.
+Qed.
+
 Lemma s_op3P t1 t2 t3 tr (o:sop3 t1 t2 t3 tr) e1 e2 e3 st:
   s_op3 o e1 e2 e3 =[st] Eapp3 o e1 e2 e3.
 Proof. done. Qed.
 
-Lemma sifP_aux t b (e1 e2:spexpr t):
-  match eval_eq e1 e2 with
-  | Ok true => e1
-  | _       => Eif b e1 e2
-  end =E Eif b e1 e2.
-Proof.                                                     
+Lemma sfv_s_op3 t1 t2 t3 tr (o:sop3 t1 t2 t3 tr) e1 e2 e3 :
+  Ssv.Subset (sfv (s_op3 o e1 e2 e3)) (sfv (Eapp3 o e1 e2 e3)).
+Proof. done. Qed.
+
+Lemma sifP t b (e1 e2:spexpr t): sif b e1 e2 =E Eif b e1 e2.
+Proof. 
+  rewrite /sif;case H:is_bool => [b1|].
+  + by move=> ?;rewrite (is_boolP H) //=;case:ifP.
   case Heq: (eval_eq e1 e2) => [[]|] // rho.
   by move: Heq=> /(eval_eqP rho) /= ->;case: ifP.
 Qed.
 
-Lemma sifP t b (e1 e2:spexpr t): sif b e1 e2 =E Eif b e1 e2.
-Proof. 
-  move=> ?;by (jm_destr b=> //;try by apply:sifP_aux)=> /=;case:ifP.
+Lemma sfv_sif  t b (e1 e2:spexpr t): Ssv.Subset (sfv (sif b e1 e2)) (sfv (Eif b e1 e2)).
+Proof.
+  rewrite sfv_if /sif;case H:is_bool => [b1|].
+  + by rewrite (is_boolP H) sfv_bool;case: ifP;SsvD.fsetdec.
+  by case Heq: (eval_eq e1 e2) => [[]|];rewrite ?sfv_if //;SsvD.fsetdec.
 Qed.
-
+  
 (* -------------------------------------------------------------------------- *)
 (* ** Simplification of expression                                            *)
 (* -------------------------------------------------------------------------- *)
@@ -502,6 +602,28 @@ Proof.
   rewrite /eopt sesubstP=> rho; rewrite esubstP; apply /eq_on_fv/ps1P. 
 Qed.
 
+Lemma sfv_eopt t (e:spexpr t) : Ssv.Subset (sfv (eopt e)) (sfv e).
+Proof.
+  rewrite /eopt;elim: e => //=
+   [?|?|?|?|?? o e1 He1|??? o e1 He1 e2 He2|???? o e1 He1 e2 He2 e3 He3|? e1 He1 e2 He2 e3 He3] //.
+  + by have := @sfv_s_op1 _ _ o (sesubst ps1 e1);rewrite sfv_op1;SsvD.fsetdec.
+  + by have := @sfv_s_op2 _ _ _ o (sesubst ps1 e1) (sesubst ps1 e2);rewrite !sfv_op2;SsvD.fsetdec.
+  + by have := @sfv_s_op3 _ _ _ _ o (sesubst ps1 e1) (sesubst ps1 e2) (sesubst ps1 e3);rewrite !sfv_op3;SsvD.fsetdec.
+  have := @sfv_sif _ (sesubst ps1 e1) (sesubst ps1 e2) (sesubst ps1 e3);rewrite !sfv_if;SsvD.fsetdec.
+Qed.
+
+Definition sopt s := 
+  {| v_fv := s.(v_fv); v_v := Mv.map (fun _ e => eopt e) s.(v_v) |}.
+
+Instance wf_sopt s {H:wf_vsubst s} : wf_vsubst (sopt s).
+Proof.
+  constructor => [?|?].
+  + by rewrite Mv.dft_mapP /eopt vdft_v /= Mv.get0.
+  rewrite /sopt /= Mv.mapP /= Mv.indom_mapP => /vindom_v.
+  by apply SsvD.F.Subset_trans;apply sfv_eopt.
+Qed.
+
+  
 (* -------------------------------------------------------------------------- *)
 (* ** Smart constructors for formulaes                                        *)
 (* -------------------------------------------------------------------------- *)
@@ -663,6 +785,12 @@ Proof.
   rewrite /sf_if;jm_destr e => //;try by apply sf_ifP_eq.
   by case:ifP=> ?.
 Qed.
+
+Definition f_lt e1 e2 := Fbool (slt e1 e2).
+
+Definition f_le e1 e2 := Fbool (sle e1 e2).
+
+Definition f_eq e1 e2 := Fbool (seq e1 e2).
 
 (* -------------------------------------------------------------------------- *)
 (* ** Simplification of formulaes                                             *)
