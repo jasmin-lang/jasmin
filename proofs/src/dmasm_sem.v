@@ -407,15 +407,12 @@ with sem_for : rval sword -> seq word -> estate -> cmd -> estate -> Prop :=
 with sem_call : 
   forall sta str, mem -> fundef sta str -> st2ty sta -> mem -> st2ty str -> Prop :=
 
-| EcallRun sta str m1 m2 vm0 vm2 (f:fundef sta str) (varg : st2ty sta):
+| EcallRun sta str m1 m2 rres (f:fundef sta str) (varg : st2ty sta):
     (* semantics defined for all vm0 *)
-    (forall vm0, exists m2 vm2,
+    (forall vm0, exists vm2,
        let vm1 := write_rval vm0 f.(fd_arg) varg in
-       sem (Estate m1 vm1) f.(fd_body) (Estate m2 vm2)) ->
-    (* yields given memory m2 and result res *)
-    let vm1 := write_rval vm0 f.(fd_arg) varg in
-    sem (Estate m1 vm1) f.(fd_body) (Estate m2 vm2) ->
-    let rres := sem_rval vm2 f.(fd_res) in
+       sem (Estate m1 vm1) f.(fd_body) (Estate m2 vm2) /\
+       rres = sem_rval vm2 f.(fd_res)) ->
     sem_call m1 f varg m2 rres.
 
 Scheme sem_Ind := Minimality for sem Sort Prop

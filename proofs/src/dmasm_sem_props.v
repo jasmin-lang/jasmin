@@ -541,17 +541,14 @@ Lemma rn_sem_call_equiv {sta str} pi pi_inv m1 m2 (f:fundef sta str)
 Proof.
   move=> Hcan1 Hcan2 Hscall.
   inversion Hscall; subst; clear Hscall.
-  inversion H0;clear H0;subst. inversion H8;clear H8;subst;subst.
-  rewrite (@rn_rval_eq str pi pi_inv) //.
-  rewrite rn_fdef_eq.
-  apply (EcallRun (vm0:=rn_vmap pi vm0)).
-  + move => vm3. case: (H7 (rn_vmap pi_inv vm3))=> m3 -[vm4] Hsem. 
-    exists m3, (rn_vmap pi vm4); rewrite -(rn_vmap_cancel vm3 Hcan2).
-    rewrite /= (rn_write_rval_eq _ _ _ Hcan1 Hcan2).
-    by apply (rn_sem_equiv Hcan1 Hcan2).
-  rewrite /= (rn_write_rval_eq _ _ _ Hcan1 Hcan2).
-  by apply (rn_sem_equiv Hcan1 Hcan2).
-Qed. 
+  inversion H;clear H;subst. 
+(*  constructor=> /H6.  BUG Enrico *)
+  constructor=> vm0;case (H6 (rn_vmap pi_inv vm0))=> vm2 /= => -[ Hsem ->].
+  exists (rn_vmap pi vm2); rewrite rn_fdef_eq /=;split => //;first last.
+  + by rewrite (@rn_rval_eq str pi pi_inv).
+  move /(rn_sem_equiv Hcan1 Hcan2): Hsem.
+  rewrite -(rn_write_rval_eq _ _ _ Hcan1 Hcan2) rn_vmap_cancel //.
+Qed.
 
 Lemma rn_sem_equiv_call sta str (s1 s2 : estate) pi pi_inv (fd : fundef sta str) rv_res pe_arg:
   cancel pi_inv pi ->
