@@ -4,7 +4,7 @@
 Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import finmap strings word dmasm_utils dmasm_type dmasm_var dmasm_sem.
+Require Import finmap strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -60,7 +60,7 @@ Fixpoint ssem_rval (s:svmap) t (rv:rval t) : sst2ty t :=
   | Rpair _ _ rv1 rv2 => (ssem_rval s rv1, ssem_rval s rv2)
   end.
 
-(* ** Parameter expressions
+(* ** Operators 
  * -------------------------------------------------------------------- *)
 
 Definition ssem_sop1 st1 str (sop : sop1 st1 str) : sst2ty st1 -> sst2ty str :=
@@ -93,6 +93,9 @@ Definition ssem_sop3 st1 st2 st3 str (sop : sop3 st1 st2 st3 str) :=
   | Oaddcarry  => waddcarry 
   | Osubcarry  => wsubcarry 
   end.
+
+(* ** Operators 
+ * -------------------------------------------------------------------- *)
 
 Fixpoint ssem_pexpr st (vm : svmap) (pe : pexpr st) : sst2ty st :=
   match pe with

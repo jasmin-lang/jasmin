@@ -4,7 +4,7 @@
 Require Import JMeq ZArith Setoid Morphisms.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple finfun.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import gen_map word dmasm_utils dmasm_type dmasm_var dmasm_sem 
+Require Import gen_map word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem 
                dmasm_sem_props dmasm_Ssem.
 
 Import GRing.Theory.
@@ -74,10 +74,6 @@ Proof. rewrite {1}/vrv /= !vrv_recE;SvD.fsetdec. Qed.
 
 Lemma write_bcmdE s bc : Sv.Equal (write_bcmd_rec s bc) (Sv.union s (write_bcmd bc)).
 Proof. case: bc=> [? r _ | r _ | _ _] /=;rewrite ?vrv_recE;SvD.fsetdec. Qed.
-
-(* TODO: move this *)
-Definition cmd_Ind (P : cmd -> Prop) := 
-  @cmd_ind P (fun _ _ _ => True).
 
 Lemma write_c_recE s c : Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
 Proof.
