@@ -189,11 +189,11 @@ with sem_i : estate -> instr -> estate -> Prop :=
           (Ccall rv_res fd pe_arg)
           (Estate m2 (write_rval vm1 rv_res res))
 
-| EFor s1 s2 iv dir (low hi : pexpr sword) c vlow vhi :
+| EFor s1 s2 fi iv dir (low hi : pexpr sword) c vlow vhi :
     sem_pexpr s1.(evm) low = ok vlow ->
     sem_pexpr s1.(evm) hi  = ok vhi  ->
     sem_for iv dir vlow vhi s1 c s2 ->
-    sem_i s1 (Cfor iv (dir, low, hi) c) s2
+    sem_i s1 (Cfor fi iv (dir, low, hi) c) s2
 
 with sem_for : rval sword -> dir -> word -> word -> estate -> cmd -> estate -> Prop :=
 | EForDone s1 s2 iv dir w c :

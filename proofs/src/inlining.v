@@ -22,39 +22,12 @@ Local Open Scope seq_scope.
 (* ** inlining
  * -------------------------------------------------------------------- *)
 
-Print pexpr.
-Definition destr_pair t1 t2 (p:pexpr (t1 ** t2)) : option (pexpr t1 * pexpr t2).
-case H: _ / p => [ ? | ? | ???? | ??? o e1 e2| ???????? ].
-+ exact None. + exact None. + exact None. 
-+ (case:o H e1 e2 => [||||||||||??[]<-<- e1 e2];last by exact (Some (e1,e2)))=> *; 
-  exact None.
-exact None. 
-Defined.
-
-Definition efst t1 t2 (p:pexpr (t1 ** t2)) : pexpr t1 :=
-  match destr_pair p with
-  | Some (p1,p2) => p1
-  | _            => Papp1 (Ofst _ _) p
-  end.
-
-Definition esnd t1 t2 (p:pexpr (t1 ** t2)) : pexpr t2 :=
-  match destr_pair p with
-  | Some (p1,p2) => p2
-  | _            => Papp1 (Osnd _ _) p
-  end.
-Print cmd.
-
 Fixpoint assgn_tuple t (rv:rval t) : pexpr t -> cmd :=
   match rv in rval t0 return pexpr t0 -> cmd with
   | Rvar x              => fun e => [:: assgn (Rvar x) e]
   | Rpair t1 t2 rv1 rv2 => fun e => assgn_tuple rv1 (efst e) ++ assgn_tuple rv2 (esnd e)
   end.
 
-Fixpoint rval2pe t (rv:rval t) := 
-  match rv in rval t_ return pexpr t_ with
-  | Rvar x              => x
-  | Rpair t1 t2 rv1 rv2 => Papp2 (Opair t1 t2) (rval2pe rv1) (rval2pe rv2)
-  end. 
 
 Definition inline_cmd (inline_i: instr -> cmd) (c:cmd) := 
   List.fold_right (fun i c' => inline_i i ++ c') [::] c.

@@ -16,7 +16,6 @@ COQFILES := \
 	src/dmasm_var.v \
 	src/dmasm_expr.v \
 	src/dmasm_sem.v \
-	src/dmasm_sem_props.v \
 	src/dmasm_Ssem.v \
 	src/dmasm_Ssem_props.v \
 	src/symbolic_expr.v \

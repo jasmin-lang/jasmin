@@ -4,8 +4,8 @@
 Require Import JMeq ZArith Setoid Morphisms.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple finfun.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem 
-               dmasm_sem_props dmasm_Ssem dmasm_Ssem_props symbolic_expr symbolic_expr_opt.
+Require Import word dmasm_utils dmasm_type dmasm_var dmasm_expr
+               dmasm_Ssem dmasm_Ssem_props symbolic_expr symbolic_expr_opt.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -132,14 +132,14 @@ Qed.
 
 (* Loop *)
 
-Lemma hoare_for0 (i:rval sword) dir (e1 e2:pexpr sword) c Q:
+Lemma hoare_for0 fi (i:rval sword) dir (e1 e2:pexpr sword) c Q:
   hoare (fun s => Q s /\ ssem_pexpr (sevm s) e2 < ssem_pexpr (sevm s) e1) 
-        [::Cfor i (dir,e1,e2) c]
+        [::Cfor fi i (dir,e1,e2) c]
         Q.
 Proof.
-  move=> s1 s2;set c' := Cfor _ _ _ => /ssem_iV Hsem.
-  case: _ {-1}_ _ / Hsem (erefl c') => // ?????? /=;first by move=> _ _ [].
-  by move=> ? He _ [] ?????;subst=> -[];rewrite ltnNge He.
+  move=> s1 s2;set c' := Cfor _ _ _ _ => /ssem_iV Hsem.
+  case: _ {-1}_ _ / Hsem (erefl c')=> // ??????? /=;first by move=> _ _ [].
+  by move=> ? He _ [] ??????;subst=> -[];rewrite ltnNge He.
 Qed.
 
 Definition incr dir (i0:word) := 
@@ -148,7 +148,7 @@ Definition incr dir (i0:word) :=
   | DownTo => (i0 - 1)
   end.
 
-Lemma hoare_for_base (i:rval sword) dir (e1 e2:pexpr sword) I c:
+Lemma hoare_for_base fi (i:rval sword) dir (e1 e2:pexpr sword) I c:
   donotdep (vrv i) e1 ->
   donotdep (vrv i) e2 ->
   (forall (w1 w2 i0:word), 
@@ -166,17 +166,17 @@ Lemma hoare_for_base (i:rval sword) dir (e1 e2:pexpr sword) I c:
            let i0 := if dir is UpTo then w1 else w2 in
            let s' := {|semem := s.(semem); sevm := swrite_rval s.(sevm) i i0|} in
            w1 <= w2 /\ I s')
-         [:: Cfor i (dir,e1,e2) c ]
+         [:: Cfor fi i (dir,e1,e2) c ]
          (fun s => 
             I s /\ 
             let w1 := ssem_pexpr s.(sevm) e1 in
             let w2 := ssem_pexpr s.(sevm) e2 in
             ssem_rval s.(sevm) i = if dir is UpTo then w2 else w1).
 Proof.
-  move=> He1 He2 Hc ??;set c' := Cfor _ _ _ => /ssem_iV Hsem.
+  move=> He1 He2 Hc ??;set c' := Cfor _ _ _ _ => /ssem_iV Hsem.
   case: _ {-1}_ _ / Hsem (erefl c') => //.
-  + by move=> /= ?????? Hlt [] ?????;subst;rewrite leqNgt Hlt => -[].
-  move=> s s' i' dir' e1' e2' c0 w1 w2 Hw Hfor [] ?????;subst i' dir' e1' e2' c0.
+  + by move=> /= ??????? Hlt [] ??????;subst;rewrite leqNgt Hlt => -[].
+  move=> s s' ? i' dir' e1' e2' c0 w1 w2 Hw Hfor [] ??????;subst i' dir' e1' e2' c0.
   rewrite -/w1 -/w2 Hw => HI.
   have :  I s' /\ ssem_pexpr (sevm s') e1 = w1 /\ ssem_pexpr (sevm s') e2 = w2 /\
            ssem_rval (sevm s') i = if dir is UpTo then w2 else w1;last first.
@@ -276,7 +276,7 @@ Definition wp_rec :=
        if nilp c1_ && nilp c2_ then
          ([::], merge_if (p2sp e) P1 P2)
        else ([::Cif e c1 c2], Q))
-    (fun i rn c _ Q => ([::Cfor i rn c], Q))
+    (fun fi i rn c _ Q => ([::Cfor fi i rn c], Q))
     (fun _ _ x f a _ Q => ([::Ccall x f a], Q))
     (fun _ _ _ _ _ _ _ => tt).
 
@@ -472,9 +472,9 @@ Qed.
 
 (* Loop *)
 
-Lemma shoare_for0 pm sm i dir e1 e2 c c1 P Q:
+Lemma shoare_for0 pm sm fi i dir e1 e2 c c1 P Q:
    hoare P c1 (f2h pm sm (sf_and Q (f_lt (p2sp e2) (p2sp e1)))) ->
-   hoare P (rcons c1 (Cfor i (dir,e1,e2) c)) (f2h pm sm Q).
+   hoare P (rcons c1 (Cfor fi i (dir,e1,e2) c)) (f2h pm sm Q).
 Proof.
   move=> Hc1;apply (hoare_rcons Hc1).
   eapply hoare_conseq with (Q1 := f2h pm sm Q);[ | |apply hoare_for0 ]=> //.
@@ -637,14 +637,14 @@ Proof.
   by rewrite SvD.F.elements_iff.
 Qed.
   
-Lemma shoare_for pm (sm:smap) (i : rval sword) dir (e1 e2 : pexpr sword) c P I Q c1 id0 I' Q':
+Lemma shoare_for pm (sm:smap) fi (i : rval sword) dir (e1 e2 : pexpr sword) c P I Q c1 id0 I' Q':
   wp_for dir i e1 e2 c I Q = Some ((id0,I'),Q') ->
   (forall (v0:word), 
      let i0  := SVar sword id0 in
      let sm0 := sm.[i0 <- v0]%msv in
       hoare (f2h pm sm0 (f_and I (f_eq (p2sp (rval2pe i)) i0))) c (f2h pm sm0 I')) ->
   hoare P c1 (f2h pm sm Q') -> 
-  hoare P (rcons c1 (Cfor i (dir,e1,e2) c)) (f2h pm sm Q).
+  hoare P (rcons c1 (Cfor fi i (dir,e1,e2) c)) (f2h pm sm Q).
 Proof.
   rewrite /wp_for /pre_for;case: ifP=> //=.
   move=> /andP [] /SvD.F.is_empty_2 He /SvD.F.is_empty_2 Hi [] <- <- <- Hc Hc1.
@@ -686,7 +686,7 @@ Proof.
       last by SvD.fsetdec.
     by move=> [] ?;[apply H2|apply H1];auto.  
   
-  apply: (hoare_conseq _ _ (@hoare_for_base i dir e1 e2 (f2h pm sm I) c _ _ _)).
+  apply: (hoare_conseq _ _ (@hoare_for_base fi i dir e1 e2 (f2h pm sm I) c _ _ _)).
   + move=> s /=. rewrite /f_and sleP /I0 /= !sem_p2sp /= => -[] [] ? HI0 _;split=>//.
     move:HI0;apply iffRL;rewrite fsubstP /f2h /=.
     apply feq_on_fv=> //=;constructor=> // z Hz /=.

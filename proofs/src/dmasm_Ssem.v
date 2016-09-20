@@ -177,18 +177,18 @@ with ssem_i : sestate -> instr -> sestate -> Prop :=
     let vm2 := swrite_rval es.(sevm) x vr in 
     ssem_i es (Ccall x f a) (SEstate m vm2)
 
-| SEforDone0 s1 i dir (e1 e2:pexpr sword) c:
+| SEforDone0 s1 fi i dir (e1 e2:pexpr sword) c:
     let w1 := ssem_pexpr s1.(sevm) e1 in
     let w2 := ssem_pexpr s1.(sevm) e2 in
     (w2 < w1) ->
-    ssem_i s1 (Cfor i (dir,e1,e2) c) s1
+    ssem_i s1 (Cfor fi i (dir,e1,e2) c) s1
 
-| SEforDone s1 s2 i dir (e1 e2:pexpr sword) c:
+| SEforDone s1 s2 fi i dir (e1 e2:pexpr sword) c:
     let w1 := ssem_pexpr s1.(sevm) e1 in
     let w2 := ssem_pexpr s1.(sevm) e2 in
     (w1 <= w2) ->
     ssem_for i dir w1 w2 s1 c s2 ->
-    ssem_i s1 (Cfor i (dir,e1,e2) c) s2
+    ssem_i s1 (Cfor fi i (dir,e1,e2) c) s2
 
 
 with ssem_fun : forall ta tr (f:fundef ta tr) (m:mem) (va:sst2ty ta), mem -> sst2ty tr -> Prop :=

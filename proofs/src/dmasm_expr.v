@@ -131,10 +131,14 @@ Inductive dir := UpTo | DownTo.
 
 Definition range := (dir * pexpr sword * pexpr sword)%type.
 
+Inductive for_info :=
+| Unroll_for
+| Keep_for.
+
 Inductive instr := 
 | Cbcmd  : bcmd -> instr
 | Cif    : pexpr sbool -> seq instr -> seq instr -> instr
-| Cfor   : rval sword -> range -> seq instr -> instr
+| Cfor   : for_info -> rval sword -> range -> seq instr -> instr
 | Ccall  : forall starg stres, 
              rval  stres ->
              fundef starg stres ->
@@ -164,7 +168,7 @@ Section IND.
   Hypothesis Hseq  : forall i c,  Pi i -> Pc c -> Pc (i::c).
   Hypothesis Hbcmd : forall bc,  Pi (Cbcmd bc).
   Hypothesis Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (Cif e c1 c2).
-  Hypothesis Hfor  : forall i rn c, Pc c -> Pi (Cfor i rn c).
+  Hypothesis Hfor  : forall fi i rn c, Pc c -> Pi (Cfor fi i rn c).
   Hypothesis Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
   Hypothesis Hfunc : forall ta tr (x:rval ta) c (re:rval tr), Pc c -> Pf (FunDef x c re).
 
@@ -175,8 +179,8 @@ Section IND.
       Hif b
         (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect' i) Hc) c1)
         (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect' i) Hc) c2)
-    | Cfor i rn c =>
-      Hfor i rn 
+    | Cfor fi i rn c =>
+      Hfor fi i rn 
         (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect' i) Hc) c)
     | Ccall ta tr x f a =>
       Hcall x a (func_rect f)
@@ -255,7 +259,7 @@ Fixpoint write_i_rec s i :=
   match i with
   | Cbcmd bc        => write_bcmd_rec s bc
   | Cif   _ c1 c2   => foldl write_i_rec (foldl write_i_rec s c2) c1
-  | Cfor  x _ c     => foldl write_i_rec (vrv_rec s x) c
+  | Cfor  _ x _ c     => foldl write_i_rec (vrv_rec s x) c
   | Ccall _ _ x _ _ => vrv_rec s x
   end.
 
@@ -294,7 +298,7 @@ Proof.
            (fun i => forall s, Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)))
            (fun c => forall s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)))
            (fun _ _ _ => True)) => /= {c s}
-    [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|x rn c1 Hc1| ?? x f a _|//] s;
+    [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|? x rn c1 Hc1| ?? x f a _|//] s;
     rewrite /write_i /write_c /=.
   + by SvD.fsetdec. 
   + by rewrite !Hc1 !Hi; SvD.fsetdec.  
@@ -322,8 +326,8 @@ Proof.
   rewrite /write_i /= -/(write_c_rec _ c1) -/(write_c_rec _ c2) !write_c_recE;SvD.fsetdec.
 Qed.
 
-Lemma write_i_for x rn c :
-   Sv.Equal (write_i (Cfor x rn c)) (Sv.union (vrv x) (write_c c)).
+Lemma write_i_for fi x rn c :
+   Sv.Equal (write_i (Cfor fi x rn c)) (Sv.union (vrv x) (write_c c)).
 Proof.
   rewrite /write_i /= -/(write_c_rec _ c) write_c_recE vrv_recE;SvD.fsetdec.
 Qed.
@@ -331,3 +335,35 @@ Qed.
 Lemma write_i_call t1 t2 (f:fundef t1 t2) x a :
   write_i (Ccall x f a) = vrv x.
 Proof. done. Qed.
+
+
+(* -------------------------------------------------------------------------- *)
+(* Some smart constructors                                                    *)
+(* -------------------------------------------------------------------------- *)
+
+Definition destr_pair t1 t2 (p:pexpr (t1 ** t2)) : option (pexpr t1 * pexpr t2).
+case H: _ / p => [ ? | ? | ???? | ??? o e1 e2| ???????? ].
++ exact None. + exact None. + exact None. 
++ (case:o H e1 e2 => [||||||||||??[]<-<- e1 e2];last by exact (Some (e1,e2)))=> *; 
+  exact None.
+exact None. 
+Defined.
+
+Definition efst t1 t2 (p:pexpr (t1 ** t2)) : pexpr t1 :=
+  match destr_pair p with
+  | Some (p1,p2) => p1
+  | _            => Papp1 (Ofst _ _) p
+  end.
+
+Definition esnd t1 t2 (p:pexpr (t1 ** t2)) : pexpr t2 :=
+  match destr_pair p with
+  | Some (p1,p2) => p2
+  | _            => Papp1 (Osnd _ _) p
+  end.
+Print cmd.
+
+Fixpoint rval2pe t (rv:rval t) := 
+  match rv in rval t_ return pexpr t_ with
+  | Rvar x              => x
+  | Rpair t1 t2 rv1 rv2 => Papp2 (Opair t1 t2) (rval2pe rv1) (rval2pe rv2)
+  end. 

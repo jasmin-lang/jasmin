@@ -5,7 +5,7 @@ Require Import JMeq ZArith Setoid Morphisms.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple finfun.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import gen_map word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem 
-               dmasm_sem_props dmasm_Ssem.
+               dmasm_Ssem.
 
 Import GRing.Theory.
 Set Implicit Arguments.
@@ -37,7 +37,7 @@ Proof.
            (fun i => forall s1 s2, ssem_i s1 i s2 -> s1.(sevm) = s2.(sevm) [\ write_i i])
            (fun c => forall s1 s2, ssem   s1 c s2 -> s1.(sevm) = s2.(sevm) [\ write_c c])
            (fun _ _ _ => True)) => /= {c s1 s2}
-    [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|x rn c1 Hc1| ?? x f a _|//] s1 s2 Hsem;
+    [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|? x rn c1 Hc1| ?? x f a _|//] s1 s2 Hsem;
     inversion Hsem=>{Hsem};subst=> // z.
   + rewrite write_c_cons => Hz;rewrite (Hi _ _ H2) ?(Hc1 _ _ H4) //; SvD.fsetdec. 
   + rewrite write_i_bcmd;case: bc H1 => //= [? r p | r p | ??].
@@ -47,7 +47,7 @@ Proof.
   + by rewrite write_i_if=> ?;apply Hc1=> //; SvD.fsetdec. 
   + by rewrite write_i_if=> ?;apply Hc2=> //; SvD.fsetdec. 
   + rewrite write_i_for. 
-    elim: H5 Hc1=> {w1 w2 H4 e1 e2 dir s1 s2}.
+    elim: H6 Hc1=> {w1 w2 H5 e1 e2 dir s1 s2}.
     + move=> i _ w c s1 s2 Hsem Hc Hin.
       by rewrite -(Hc _ _ Hsem) /= -?vrvP //; SvD.fsetdec. 
     move => i dir w1 w2 c s1 s2 s3 _ /= Hsem _ Hrec Hc Hin.    
