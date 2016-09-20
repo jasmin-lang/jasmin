@@ -1,7 +1,7 @@
 (* * Syntax and semantics of the dmasm source language *)
 
 (* ** Imports and settings *)
-Require Import JMeq ZArith.
+Require Import JMeq ZArith Setoid Morphisms.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import finmap strings word dmasm_utils dmasm_type dmasm_var.
@@ -228,3 +228,106 @@ Definition write_mem (m : mem) (p w : word) : exec mem :=
   then ok (m.[p <- w]%fmap)
   else Error ErrAddrInvalid.
 
+
+
+(* -------------------------------------------------------------------------- *)
+(* Compute the set of writen variables of a program                           *)
+(* -------------------------------------------------------------------------- *)
+
+Fixpoint vrv_rec {t} (s:Sv.t) (rv : rval t)  :=
+  match rv with
+  | Rvar  x               => Sv.add x s
+  | Rpair st1 st2 rv1 rv2 => vrv_rec (vrv_rec s rv1) rv2 
+  end.
+
+Definition vrv {t} (rv : rval t) := vrv_rec Sv.empty rv.
+
+Definition write_bcmd_rec (s:Sv.t) bc  := 
+  match bc with
+  | Assgn _ rv _  => vrv_rec s rv
+  | Load rv _     => vrv_rec s rv
+  | Store _ _     => s
+  end.
+
+Definition write_bcmd := write_bcmd_rec Sv.empty.
+
+Fixpoint write_i_rec s i := 
+  match i with
+  | Cbcmd bc        => write_bcmd_rec s bc
+  | Cif   _ c1 c2   => foldl write_i_rec (foldl write_i_rec s c2) c1
+  | Cfor  x _ c     => foldl write_i_rec (vrv_rec s x) c
+  | Ccall _ _ x _ _ => vrv_rec s x
+  end.
+
+Definition write_i i := write_i_rec Sv.empty i.
+
+Definition write_c_rec s c := foldl write_i_rec s c.
+
+Definition write_c c := write_c_rec Sv.empty c.
+
+Instance vrv_rec_m {t} : Proper (Sv.Equal ==> (@eq (rval t)) ==> Sv.Equal) vrv_rec.
+Proof.
+  move=> s1 s2 Hs ? r ->.
+  elim:r s1 s2 Hs => //= [??? -> // | ?? r1 Hr1 r2 Hr2 ???];auto.
+Qed.
+
+Lemma vrv_var (x:var) : Sv.Equal (vrv x) (Sv.singleton x). 
+Proof. rewrite /vrv /=;SvD.fsetdec. Qed.
+
+Lemma vrv_recE t (r:rval t) s : Sv.Equal (vrv_rec s r) (Sv.union s (vrv r)).
+Proof.
+  elim: r s => //= [x | ?? r1 Hr1 r2 Hr2] s.
+  + by rewrite vrv_var;SvD.fsetdec.
+  rewrite /vrv /= !(Hr1,Hr2);SvD.fsetdec.
+Qed.
+
+Lemma vrv_pair t1 t2 (r1:rval t1) (r2:rval t2):
+  Sv.Equal (vrv (Rpair r1 r2)) (Sv.union (vrv r1) (vrv r2)).
+Proof. rewrite {1}/vrv /= !vrv_recE;SvD.fsetdec. Qed.
+
+Lemma write_bcmdE s bc : Sv.Equal (write_bcmd_rec s bc) (Sv.union s (write_bcmd bc)).
+Proof. case: bc=> [? r _ | r _ | _ _] /=;rewrite ?vrv_recE;SvD.fsetdec. Qed.
+
+Lemma write_c_recE s c : Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
+Proof.
+  apply (@cmd_rect
+           (fun i => forall s, Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)))
+           (fun c => forall s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)))
+           (fun _ _ _ => True)) => /= {c s}
+    [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|x rn c1 Hc1| ?? x f a _|//] s;
+    rewrite /write_i /write_c /=.
+  + by SvD.fsetdec. 
+  + by rewrite !Hc1 !Hi; SvD.fsetdec.  
+  + by rewrite !write_bcmdE; SvD.fsetdec.
+  + by rewrite -!/(write_c_rec _ c1) -!/(write_c_rec _ c2) !Hc1 !Hc2; SvD.fsetdec.
+  + by rewrite -!/(write_c_rec _ c1) !Hc1 vrv_recE; SvD.fsetdec.
+  by rewrite !vrv_recE; SvD.fsetdec.
+Qed.
+
+Lemma write_i_recE s i : Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)).
+Proof. by apply (write_c_recE s [:: i]). Qed.
+
+Lemma write_c_nil : write_c [::] = Sv.empty.
+Proof. done. Qed.
+
+Lemma write_c_cons i c: Sv.Equal (write_c (i::c)) (Sv.union (write_i i) (write_c c)).
+Proof. by rewrite {1}/write_c /= write_c_recE write_i_recE;SvD.fsetdec. Qed.
+
+Lemma write_i_bcmd bc : write_i (Cbcmd bc) = write_bcmd bc.
+Proof. done. Qed.
+
+Lemma write_i_if e c1 c2 :
+   Sv.Equal (write_i (Cif e c1 c2)) (Sv.union (write_c c1) (write_c c2)).
+Proof.
+  rewrite /write_i /= -/(write_c_rec _ c1) -/(write_c_rec _ c2) !write_c_recE;SvD.fsetdec.
+Qed.
+
+Lemma write_i_for x rn c :
+   Sv.Equal (write_i (Cfor x rn c)) (Sv.union (vrv x) (write_c c)).
+Proof.
+  rewrite /write_i /= -/(write_c_rec _ c) write_c_recE vrv_recE;SvD.fsetdec.
+Qed.
+
+Lemma write_i_call t1 t2 (f:fundef t1 t2) x a :
+  write_i (Ccall x f a) = vrv x.
+Proof. done. Qed.
