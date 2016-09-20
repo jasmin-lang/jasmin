@@ -178,8 +178,10 @@ with sem_i : estate -> instr -> estate -> Prop :=
     sem s1 (if cond then c1 else c2) s2 ->
     sem_i s1 (Cif pe c1 c2) s2
 
-| Ecall sta str m1 vm1 m2 (rv_res : rval str) (fd : fundef sta str) (pe_arg : pexpr sta)
-      (res : st2ty str):
+| Ecall sta str m1 vm1 m2
+        (rv_res : rval str) (fd : fundef sta str)
+        (pe_arg : pexpr sta) (res : st2ty str)
+  :
     let rarg := sem_pexpr vm1 pe_arg in
     isOk rarg ->
     sem_call m1 fd (rdflt_ rarg) m2 res ->
@@ -187,20 +189,24 @@ with sem_i : estate -> instr -> estate -> Prop :=
           (Ccall rv_res fd pe_arg)
           (Estate m2 (write_rval vm1 rv_res res))
 
-| EFor s1 s2 iv rng c ws :
-    sem_range s1.(evm) rng = ok ws ->
-    sem_for iv ws s1 c s2 ->
-    sem_i s1 (Cfor iv rng c) s2
+| EFor s1 s2 iv dir (low hi : pexpr sword) c vlow vhi :
+    sem_pexpr s1.(evm) low = ok vlow ->
+    sem_pexpr s1.(evm) hi  = ok vhi  ->
+    sem_for iv dir vlow vhi s1 c s2 ->
+    sem_i s1 (Cfor iv (dir, low, hi) c) s2
 
-with sem_for : rval sword -> seq word -> estate -> cmd -> estate -> Prop :=
+with sem_for : rval sword -> dir -> word -> word -> estate -> cmd -> estate -> Prop :=
+| EForDone s1 s2 iv dir w c :
+    sem (Estate s1.(emem) (write_rval s1.(evm) iv w)) c s2 ->
+    sem_for iv dir w w s1 c s2
 
-| EForDone s c iv :
-    sem_for iv [::] s c s
-
-| EForOne s1 s3 c w ws iv :
-    let vm2 := write_rval s1.(evm) iv w in
-    sem_for iv (ws)    (Estate s1.(emem) vm2) c  s3 ->
-    sem_for iv (w::ws) s1 c  s3
+| EForOne s1 s2 s3 (iv : rval sword) dir (w1 w2 : word) c : w1 < w2 ->
+    let w := if dir is UpTo then w1 else w2 in
+    sem (Estate s1.(emem) (write_rval s1.(evm) iv w)) c s2 ->
+    let w1' := if dir is UpTo then w1+1 else w1   in
+    let w2' := if dir is UpTo then w2   else w2-1 in
+    sem_for iv dir w1' w2' s2 c s3 ->
+    sem_for iv dir w1  w2  s1 c s3
 
 with sem_call : 
   forall sta str, mem -> fundef sta str -> st2ty sta -> mem -> st2ty str -> Prop :=

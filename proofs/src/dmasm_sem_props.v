@@ -448,9 +448,9 @@ Proof.
   generalize s1 c s2.
   apply (@sem_Ind _
            (fun s1 i s2 => sem_i (rn_estate pi s1) (rn_instr pi_inv i) (rn_estate pi s2))
-           (fun v ws s1 c s2 =>
+           (fun v d low hi s1 c s2 =>
               sem_for
-                (rn_rval pi_inv v) ws (rn_estate pi s1) (rn_cmd pi_inv c)
+                (rn_rval pi_inv v) d low hi (rn_estate pi s1) (rn_cmd pi_inv c)
                 (rn_estate pi s2))
            (fun sta str m1 f a m2 r => true)).
   + by move=> s; constructor.
@@ -470,13 +470,15 @@ Proof.
     apply (Ecall).
     + by rewrite -(rn_pexpr_eq _ _ Hcan1).
     + by rewrite -(rn_pexpr_eq _ _ Hcan1).
-  + move=> s3 s4 iv rng c_for ws Hsrng Hsc_for Hs_for.
-    rewrite /=.
-    apply (EFor (ws:=ws)); last done.
-    by rewrite -(rn_range_eq _ _ Hcan1).
-  + by move=> s3 c_for iv; constructor.
+  + move=> s3 s4 iv d lo hi c_for vlo vhi.
+    move=> ok_lo ok_hi Hsc_for Hs_for /=.
+    apply (EFor (vlow:=vlo) (vhi:=vhi)) => //.
+    by rewrite -(rn_pexpr_eq _ _ Hcan1).
+    by rewrite -(rn_pexpr_eq _ _ Hcan1).
+  + move=> s3 s4 iv d w c_for cwr ih; constructor => /=.
+    admit.
   + move=> s3 s5 c_for w ws iv vm2 Hsfor Hsfor_rn.
-    apply (EForOne). admit. (* (s2:=(rn_estate pi s4))). *)
+    (* apply (EForOne).*) admit. (* (s2:=(rn_estate pi s4))). *)
   + done.
 Admitted.
 
@@ -667,7 +669,7 @@ Proof.
    apply (@sem_Ind
            (fun s1 c s2 => evm s1 = evm s2 [\ write_cmd c])
            (fun s1 i s2 => s1.(evm) = s2.(evm) [\ write_instr i])
-           (fun v ws s1 c s2 => s1.(evm) = s2.(evm) [\ ids_rval v `|` write_cmd c])
+           (fun v d lo hi s1 c s2 => s1.(evm) = s2.(evm) [\ ids_rval v `|` write_cmd c])
            (fun sta str m1 f arg m2 res => true)).
   + done.
   + move=> s3 s4 s5 i cc Hi Heq1 Hc Heq2.
@@ -684,7 +686,7 @@ Proof.
   + move=> sta str m1 vm1 m2 rv_res fd pe_arg res rarg Hok Hscall Htrue.
     by rewrite /=; apply write_rval_eq_except.
   + by move=> s3 s4 iv rng cc ws Hrng Hcc_ws Heq1.
-  + done.
+  + admit.
   + admit.
     (*
     move=> s3 s4 s5 cc w ws iv ac Hac Heq1 Hcc_ws Heq2 Hcc_w_ws.
