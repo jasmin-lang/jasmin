@@ -3,8 +3,6 @@ MENHIRFLAGS=-use-menhir -menhir "menhir -v --explain"
 FINDLIBFLAGS=-use-ocamlfind -classic-display
 CFLAGS=-cflags "-w +a-e-9-45-44"
 COREFLAGS=-pkg core \
-    -pkg sexplib.syntax,comparelib.syntax,fieldslib.syntax,variantslib.syntax \
-    -pkg bin_prot.syntax \
     -tag short_paths \
     -cflags -strict-sequence
 

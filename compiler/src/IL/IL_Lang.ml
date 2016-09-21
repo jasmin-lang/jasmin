@@ -22,30 +22,30 @@ can be partially evaluated and the following constructs can be eliminated:
 *)
 (* *** Code *)
 
-type name = string with sexp, compare
+type name = string [@@deriving compare,sexp]
 
 type pop_u64 =
   | Pplus
   | Pmult
   | Pminus
-  with sexp, compare
+  [@@deriving compare,sexp]
 
 type patom =
   | Pparam of name (* global parameter (constant) *)
   | Pvar   of name (* function local variable *) 
-  with sexp, compare
+  [@@deriving compare,sexp]
 
 type 'a pexpr_g =
   | Patom of 'a
   | Pbinop of pop_u64 * 'a pexpr_g * 'a pexpr_g
   | Pconst of u64
-  with sexp, compare
+  [@@deriving compare,sexp]
 
 (* dimension expression in types *)
-type dexpr = name pexpr_g with sexp, compare
+type dexpr = name pexpr_g [@@deriving compare,sexp]
 
 (* parameter expression used in indexes and if-condition *)
-type pexpr = patom pexpr_g with sexp, compare
+type pexpr = patom pexpr_g [@@deriving compare,sexp]
 
 type pop_bool =
   | Peq
@@ -54,14 +54,14 @@ type pop_bool =
   | Pleq
   | Pgreater
   | Pgeq
-  with sexp, compare
+  [@@deriving compare,sexp]
 
 type pcond =
   | Ptrue
   | Pnot  of pcond
   | Pand  of pcond * pcond
   | Pcond of pop_bool * pexpr * pexpr
-  with sexp, compare
+  [@@deriving compare,sexp]
 
 (* ** Pseudo-registers, sources, and destinations
  * ------------------------------------------------------------------------ *)
@@ -77,18 +77,18 @@ type ty =
   | Bool
   | U64
   | Arr of dexpr
-  with sexp, compare
+  [@@deriving compare,sexp]
 
 type dest = {
   d_name : name;         (* r[i] has name r and (optional) index i, *)
   d_oidx : pexpr option; (* i denotes index for array get           *)
   d_loc  : L.loc;        (* location where pseudo-register occurs   *)
-} with sexp, compare
+} [@@deriving compare,sexp]
 
 type src =
   | Imm of pexpr (* Simm(i): immediate value i            *)
   | Src of dest  (* Sreg(d): where d destination register *)
-  with sexp, compare
+  [@@deriving compare,sexp]
 
 (* ** Operands and constructs for intermediate language
  * ------------------------------------------------------------------------ *)
@@ -97,11 +97,11 @@ The language supports the fixed operations given in 'op' (and function calls).
 *)
 (* *** Code *)
 
-type cmov_flag = CfSet of bool with sexp, compare
+type cmov_flag = CfSet of bool [@@deriving compare,sexp]
 
-type dir      = Left   | Right                with sexp, compare
-type carry_op = O_Add  | O_Sub                with sexp, compare
-type three_op = O_Imul | O_And | O_Xor | O_Or with sexp, compare
+type dir      = Left   | Right                [@@deriving compare,sexp]
+type carry_op = O_Add  | O_Sub                [@@deriving compare,sexp]
+type three_op = O_Imul | O_And | O_Xor | O_Or [@@deriving compare,sexp]
 
 type op =
   | ThreeOp of three_op
@@ -109,7 +109,7 @@ type op =
   | Carry   of carry_op  * dest option * src option
   | CMov    of cmov_flag               * src
   | Shift   of dir       * dest option
-  with sexp, compare
+  [@@deriving compare,sexp]
 
 (* ** Base instructions, instructions, and statements
  * ------------------------------------------------------------------------ *)
@@ -119,16 +119,15 @@ type op =
 - statements (list of instructions) *)
 (* *** Code *)
 
-
 type assgn_type =
   | Mv (* compile to move *)
   | Eq (* use as equality constraint in reg-alloc and compile to no-op *)
-  with sexp, compare
+  [@@deriving compare,sexp]
 
 type for_type =
   | Unfold
   | Loop
-  with sexp, compare
+  [@@deriving compare,sexp]
 
 type base_instr =
   
@@ -151,7 +150,7 @@ type base_instr =
   | Comment of string
     (* Comment(s): /* s */ *)
 
-  with sexp, compare
+  [@@deriving compare,sexp]
 
 type instr =
 
@@ -164,7 +163,7 @@ type instr =
     (* For(v,lower,upper,i): for v in lower..upper { i } *)
 
 and stmt = (instr L.located) list
-  with sexp, compare
+  [@@deriving compare,sexp]
 
 (* ** Function definitions, declarations, and modules
  * ------------------------------------------------------------------------ *)
@@ -172,26 +171,26 @@ and stmt = (instr L.located) list
 type call_conv =
   | Extern
   | Custom
-  with sexp, compare
+  [@@deriving compare,sexp]
 
 type storage =
   | Flag
   | Inline
   | Stack
   | Reg
-  with sexp, compare
+  [@@deriving compare,sexp]
 
 type fundef = {
   fd_decls  : (storage * name * ty) list; (* function-local declarations *)
   fd_body   : stmt;                       (* function body *)
   fd_ret    : name list                   (* return values *)
-} with sexp, compare
+} [@@deriving compare,sexp]
 
 type fundef_or_py =
   | Undef
   | Def of fundef
   | Py of string
-  with sexp, compare
+  [@@deriving compare,sexp]
 
 type func = {
   f_name      : name;                       (* function name *)
@@ -199,12 +198,33 @@ type func = {
   f_args      : (storage * name * ty) list; (* formal function arguments *)
   f_def       : fundef_or_py;               (* def. unless function just declared *)
   f_ret_ty    : (storage * ty) list;        (* return type *)
-} with sexp, compare
+} [@@deriving compare,sexp]
 
 type modul = {
   m_params : (name * ty) list; (* module parameters *)
   m_funcs  : func list;        (* module functions  *)
-} with sexp, compare
+} [@@deriving compare,sexp]
+
+(* ** Definitions
+ * ------------------------------------------------------------------------ *)
+
+(*
+type def =
+  | Dfun   of func
+  | Dparam of (name * ty)
+
+let mk_modul _ = failwith "undefined"
+
+let mk_if _ = failwith "undefined"
+
+let mk_instr _ = failwith "undefined"
+
+let mk_store _ = failwith "undefined"
+
+let mk_fundef _ = failwith "undefined"
+
+let mk_func _ = failwith "undefined"
+*)
 
 (* ** Values
  * ------------------------------------------------------------------------ *)
@@ -212,14 +232,14 @@ type modul = {
 type value =
   | Vu64 of u64
   | Varr of u64 U64.Map.t
-  with sexp, compare
+  [@@deriving compare,sexp]
 
 (* ** Define Map, Hashtables, and Sets
  * ------------------------------------------------------------------------ *)
 
 module Dest = struct
   module T = struct
-    type t = dest with sexp
+    type t = dest [@@deriving compare,sexp]
     let compare = compare_dest
     let hash v = Hashtbl.hash v
   end

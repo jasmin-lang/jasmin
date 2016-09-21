@@ -308,8 +308,10 @@ func :
     { mk_func (L.mk_loc ($startpos,$endpos)) rty name ext args def }
 
 param_or_func :
-| f=func                        { Dfun(f) }
-| PARAM ps=typed_vars SEMICOLON { Dparams(ps) }
+| f=func                       
+  { Dfun(f) }
+| PARAM ps=typed_vars SEMICOLON
+  { Dparams(ps) }
 
 modul :
 | pfs=param_or_func+ EOF

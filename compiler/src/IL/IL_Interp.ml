@@ -382,13 +382,13 @@ let rec interp_instr ms0 efun_map linstr =
       i := change !i;
     done;
     { !ms with
-      m_lmap = Map.change !ms.m_lmap cv (fun _ -> old_val) }
+      m_lmap = Map.change !ms.m_lmap cv ~f:(fun _ -> old_val) }
 
   | Binstr(Call(fname,rets,args)) ->
     interp_call ms0 efun_map fname rets args
 
 and interp_call ms efun_map fname call_rets call_args =
-  (** look up function definition *)
+  (* look up function definition *)
   let func = map_find_exn efun_map pp_string fname in
   match func.f_def with
   | Def fdef   -> interp_call_native ms efun_map func fdef    call_rets call_args
@@ -397,7 +397,7 @@ and interp_call ms efun_map fname call_rets call_args =
 
 and interp_call_python ms func py_code call_rets call_args =
   let decl_args = List.map func.f_args ~f:(fun (_,n,_) -> mk_dest_name n) in
-  (** compute lmap for callee *)
+  (* compute lmap for callee *)
   let pmap = ms.m_pmap in
   let lmap_caller = ms.m_lmap in
   let lmap_callee = String.Map.empty in
@@ -406,7 +406,7 @@ and interp_call_python ms func py_code call_rets call_args =
       ~lmap_lhs:lmap_callee ~lmap_rhs:lmap_caller
       decl_args call_args
   in
-  (** execute function body *)
+  (* execute function body *)
   let s_params =
     fsprintf "{%a}" (pp_list "," pp_string)
       (List.map (Map.to_alist ms.m_pmap)
@@ -422,7 +422,7 @@ and interp_call_python ms func py_code call_rets call_args =
         (pp_list "," pp_string) (s_args@[s_params]))
   in
   let rets = parse_value res in
-  (** store result *)
+  (* store result *)
   let ss_ds = match call_rets with
     | [ds] -> [ (rets,ds) ]
     | []   -> []
@@ -438,7 +438,7 @@ and interp_call_python ms func py_code call_rets call_args =
 and interp_call_native ms efun_map func fdef call_rets call_args =
   let decl_args = List.map func.f_args ~f:(fun (_,name,_) -> mk_dest_name name) in
   let decl_rets = List.map fdef.fd_ret ~f:(fun n -> Src(mk_dest_name n)) in
-  (** setup mstate for called function *)
+  (* setup mstate for called function *)
   let pmap = ms.m_pmap in
   let tenv_caller = ms.m_tenv in
   let lmap_caller = ms.m_lmap in
@@ -457,9 +457,9 @@ and interp_call_native ms efun_map func fdef call_rets call_args =
   let ms = (* keep pmap and mmap *)
     { ms with m_lmap = lmap_callee; m_fmap = fmap_callee; m_tenv = tenv_callee }
   in
-  (** execute function body *)
+  (* execute function body *)
   let ms = interp_stmt ms efun_map fdef.fd_body in
-  (** store result *)
+  (* store result *)
   let lmap_callee = ms.m_lmap in
   let lmap_caller =
     interp_assign pmap

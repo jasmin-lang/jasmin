@@ -20,7 +20,7 @@ module Lexing =
       F.fprintf fmt "%s:%i:%i" p.pos_fname p.pos_lnum p.pos_cnum
 
     type loc = { loc_start : position; loc_end : position }
-      with sexp, compare
+     [@@deriving compare,sexp]
     let pp_loc fmt l = (* FIXME: also print end of range *)
       F.fprintf fmt "%s:%i:%i" l.loc_start.pos_fname l.loc_start.pos_lnum l.loc_start.pos_cnum
     let mk_loc (ps,pe) = { loc_start = ps; loc_end = pe }
@@ -28,7 +28,7 @@ module Lexing =
     type 'a located = {
       l_val : 'a;
       l_loc : loc
-    } with sexp, compare
+    } [@@deriving compare,sexp]
 
   end
 
