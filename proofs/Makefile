@@ -21,7 +21,7 @@ COQFILES := \
 	src/symbolic_expr.v \
 	src/symbolic_expr_opt.v \
 	src/dmasm_logic.v \
-
+	src/equiv_sem.v
 
 include Makefile.common
 

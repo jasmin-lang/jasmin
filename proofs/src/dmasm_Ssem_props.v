@@ -46,12 +46,11 @@ Proof.
     by case write_mem => //= ? [] <-.
   + by rewrite write_i_if=> ?;apply Hc1=> //; SvD.fsetdec. 
   + by rewrite write_i_if=> ?;apply Hc2=> //; SvD.fsetdec. 
-  + rewrite write_i_for. 
-    elim: H6 Hc1=> {w1 w2 H5 e1 e2 dir s1 s2}.
-    + move=> i _ w c s1 s2 Hsem Hc Hin.
-      by rewrite -(Hc _ _ Hsem) /= -?vrvP //; SvD.fsetdec. 
-    move => i dir w1 w2 c s1 s2 s3 _ /= Hsem _ Hrec Hc Hin.    
-    by rewrite -Hrec // -(Hc _ _ Hsem) /= -?vrvP //; SvD.fsetdec. 
+  + rewrite write_i_for.
+    elim: H5 Hc1 => {w1 w2 e1 e2 dir s1 s2} //.
+    move=> v w ws c s1 s2 s3 sc _ ih h hc.
+    have/ih := hc => -/(_ h) <-; rewrite -(h _ _ sc); last by SvD.fsetdec.
+    by rewrite -vrvP //; SvD.fsetdec.
   by rewrite write_i_call=> Hin; move: H3 H4=> [] ?;subst=> -[] [] ?;subst;apply vrvP.  
 Qed.
 

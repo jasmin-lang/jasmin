@@ -17,7 +17,6 @@ Local Open Scope ring_scope.
 
 (* ** Interpretation of types
  * -------------------------------------------------------------------- *)
-
 Fixpoint st2ty (t : stype) : Type :=
   match t with
   | sword         => word
@@ -120,7 +119,6 @@ Fixpoint sem_pexpr st (vm : vmap) (pe : pexpr st) : exec (st2ty st) :=
 
 (* ** Instructions
  * -------------------------------------------------------------------- *)
-
 Record estate := Estate {
   emem : mem;
   evm  : vmap
@@ -145,7 +143,7 @@ Definition sem_bcmd (es : estate) (bc : bcmd) : exec estate :=
       ok (Estate m es.(evm))
   end.
 
-Definition wrange d (n1 n2:nat) :=
+Definition wrange d (n1 n2 : nat) :=
   if n1 <= n2 then 
     let idxs := iota n1 (S (n2 - n1)) in
     match d with
@@ -193,21 +191,17 @@ with sem_i : estate -> instr -> estate -> Prop :=
 | EFor s1 s2 fi iv dir (low hi : pexpr sword) c vlow vhi :
     sem_pexpr s1.(evm) low = ok vlow ->
     sem_pexpr s1.(evm) hi  = ok vhi  ->
-    sem_for iv dir vlow vhi s1 c s2 ->
+    sem_for iv (map n2w (wrange dir vlow vhi)) s1 c s2 ->
     sem_i s1 (Cfor fi iv (dir, low, hi) c) s2
 
-with sem_for : rval sword -> dir -> word -> word -> estate -> cmd -> estate -> Prop :=
-| EForDone s1 s2 iv dir w c :
-    sem (Estate s1.(emem) (write_rval s1.(evm) iv w)) c s2 ->
-    sem_for iv dir w w s1 c s2
+with sem_for : rval sword -> seq word -> estate -> cmd -> estate -> Prop :=
+| EForDone s iv c :
+    sem_for iv [::] s c s
 
-| EForOne s1 s2 s3 (iv : rval sword) dir (w1 w2 : word) c : w1 < w2 ->
-    let w := if dir is UpTo then w1 else w2 in
+| EForOne s1 s2 s3 (iv : rval sword) w ws c :
     sem (Estate s1.(emem) (write_rval s1.(evm) iv w)) c s2 ->
-    let w1' := if dir is UpTo then w1+1 else w1   in
-    let w2' := if dir is UpTo then w2   else w2-1 in
-    sem_for iv dir w1' w2' s2 c s3 ->
-    sem_for iv dir w1  w2  s1 c s3
+    sem_for iv ws s2 c s3 ->
+    sem_for iv (w :: ws) s1 c s3
 
 with sem_call : 
   forall sta str, mem -> fundef sta str -> st2ty sta -> mem -> st2ty str -> Prop :=
@@ -220,11 +214,13 @@ with sem_call :
        rres = sem_rval vm2 f.(fd_res)) ->
     sem_call m1 f varg m2 rres.
 
+(* -------------------------------------------------------------------- *)
 Scheme sem_Ind := Minimality for sem Sort Prop
-with sem_i_Ind := Minimality for sem_i Sort Prop
-with sem_for_Ind := Minimality for sem_for Sort Prop
-with sem_call_Ind := Minimality for sem_call Sort Prop.
+with   sem_i_Ind := Minimality for sem_i Sort Prop
+with   sem_for_Ind := Minimality for sem_for Sort Prop
+with   sem_call_Ind := Minimality for sem_call Sort Prop.
 
+(* -------------------------------------------------------------------- *)
 Lemma sem_inv_app l1 l2 s1 s2:
   sem s1 (l1 ++ l2) s2 ->
   exists s3,

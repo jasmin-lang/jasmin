@@ -344,36 +344,28 @@ Module Fv.
 
   Definition empty {to} dval : t to := {| map := dval |}.
 
-  Definition get {to} (vm : t to) x := nosimpl (vm.(map) x).
+  Definition get {to} (vm : t to) x :=
+    nosimpl (vm.(map) x).
 
   Definition set {to:stype -> Type} (vm : t to) x (v : to x.(vtype)) : t to :=
-    nosimpl ( 
-    Vmap (fun y =>
-      match (x =P y) with
-      | ReflectT eq => eq_rect x (fun x => to x.(vtype)) v y eq
-      | _           => vm.(map) y
-      end)).
+    nosimpl (Vmap (fun y =>
+      if x =P y is ReflectT p then ecast _ _ p v else vm.(map) y)).
 
   Lemma get0 to dval x: @get to (empty dval) x = dval x.
   Proof. done. Qed.
 
   Lemma setP_eq to (vm:t to) x (v:to x.(vtype)) : 
     get (@set _ vm x v) x = v.
-  Proof.
-    rewrite /get /set /=;case: eqP => // p.
-    by rewrite (eq_irrelevance p (erefl x)).
-  Qed.
+  Proof. by rewrite /get /set /=; case: eqP => // p; rewrite eq_axiomK. Qed.
 
   Lemma setP_neq to (vm:t to) x y (v:to x.(vtype)) : 
-    x != y ->
-    get (@set _ vm x v) y = get vm y.
-  Proof. by rewrite /get /set /=;case: eqP. Qed.
+    x != y -> get (@set _ vm x v) y = get vm y.
+  Proof. by rewrite /get /set /=; case: eqP. Qed.
 
   Definition ext_eq  {to} (vm1 vm2 : t to) :=
     forall x, get vm1 x = get vm2 x.
 
   Axiom map_ext: forall to (vm1 vm2 : t to), ext_eq vm1 vm2 -> vm1 = vm2.
-
 End Fv.
 
 Delimit Scope vmap_scope with vmap.

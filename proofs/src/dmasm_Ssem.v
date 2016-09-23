@@ -22,7 +22,7 @@ Definition array (T:Type) := nat -> T.
 Definition acnst {T} (t:T) : array T := fun i => t.
 Definition aget {T} (a:array T) (i:nat) := a i.
 Definition aset {T} (a:array T) (i:nat) (v:T) :=
-  fun j => if i == j  then v else a i.
+  fun j => if i == j  then v else a j.
 
 Fixpoint sst2ty (t : stype) : Type :=
   match t with
@@ -178,19 +178,11 @@ with ssem_i : sestate -> instr -> sestate -> Prop :=
     let vm2 := swrite_rval es.(sevm) x vr in 
     ssem_i es (Ccall x f a) (SEstate m vm2)
 
-| SEforDone0 s1 fi i dir (e1 e2:pexpr sword) c:
+| SEfor s1 s2 fi i dir (e1 e2:pexpr sword) c:
     let w1 := ssem_pexpr s1.(sevm) e1 in
     let w2 := ssem_pexpr s1.(sevm) e2 in
-    (w2 < w1) ->
-    ssem_i s1 (Cfor fi i (dir,e1,e2) c) s1
-
-| SEforDone s1 s2 fi i dir (e1 e2:pexpr sword) c:
-    let w1 := ssem_pexpr s1.(sevm) e1 in
-    let w2 := ssem_pexpr s1.(sevm) e2 in
-    (w1 <= w2) ->
-    ssem_for i dir w1 w2 s1 c s2 ->
-    ssem_i s1 (Cfor fi i (dir,e1,e2) c) s2
-
+    ssem_for i (map n2w (wrange dir w1 w2)) s1 c s2 ->
+    ssem_i s1 (Cfor fi i (dir, e1, e2) c) s2
 
 with ssem_fun : forall ta tr (f:fundef ta tr) (m:mem) (va:sst2ty ta), mem -> sst2ty tr -> Prop :=
 | SEfun : forall ta tr (f:fundef ta tr) (m:mem) (va:sst2ty ta) vm es',
@@ -199,19 +191,14 @@ with ssem_fun : forall ta tr (f:fundef ta tr) (m:mem) (va:sst2ty ta), mem -> sst
     let rv := ssem_rval es'.(sevm) f.(fd_res) in
     ssem_fun f m va es'.(semem) rv
 
-with ssem_for : rval sword -> dir -> word -> word -> sestate -> cmd -> sestate -> Prop :=
-| SEForDone i dir w c s1 s2 :
-    ssem (SEstate s1.(semem) (swrite_rval s1.(sevm) i w)) c s2 ->
-    ssem_for i dir w w s1 c s2
+with ssem_for : rval sword -> seq word -> sestate -> cmd -> sestate -> Prop :=
+| SEForDone i c s :
+    ssem_for i [::] s c s
 
-| SEForOne (i:rval sword) dir (w1 w2:word) c s1 s2 s3:
-    w1 < w2 ->
-    let w := if dir is UpTo then w1 else w2 in
+| SEForOne (i:rval sword) w ws c s1 s2 s3:
     ssem (SEstate s1.(semem) (swrite_rval s1.(sevm) i w)) c s2 ->
-    let w1' := if dir is UpTo then w1+1 else w1     in
-    let w2' := if dir is UpTo then w2   else w2 - 1 in
-    ssem_for i dir w1' w2' s2 c s3 ->
-    ssem_for i dir w1 w2 s1 c s3.
+    ssem_for i ws s2 c s3 ->
+    ssem_for i (w :: ws) s1 c s3.
 
 Lemma ssem_iV s i s' : ssem s [::i] s' -> ssem_i s i s'.
 Proof.

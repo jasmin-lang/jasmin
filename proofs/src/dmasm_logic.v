@@ -2,10 +2,13 @@
 
 (* ** Imports and settings *)
 Require Import JMeq ZArith Setoid Morphisms.
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple finfun.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
+From mathcomp Require Import seq tuple finfun.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import word dmasm_utils dmasm_type dmasm_var dmasm_expr
-               dmasm_Ssem dmasm_Ssem_props symbolic_expr symbolic_expr_opt.
+
+Require Import word dmasm_utils dmasm_type dmasm_var dmasm_expr.
+Require Import dmasm_sem dmasm_Ssem dmasm_Ssem_props.
+Require Import symbolic_expr symbolic_expr_opt.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -13,18 +16,17 @@ Unset Printing Implicit Defensive.
 
 Import GRing.Theory.
 
-Open Scope string_scope.
+Local Open Scope string_scope.
 Local Open Scope ring_scope.
 Local Open Scope seq_scope.
 
 (* -------------------------------------------------------------------------- *)
 (* ** Hoare Logic                                                             *)
 (* -------------------------------------------------------------------------- *)
-
 Definition hpred := sestate -> Prop.
 
 Definition hoare (Pre:hpred) (c:cmd) (Post:hpred) := 
-  forall (s s':sestate),  ssem s c s' -> Pre s -> Post s'.
+  forall (s s':sestate), ssem s c s' -> Pre s -> Post s'.
 
 Definition fpred (t:stype) := mem -> sst2ty t -> Prop.
 
@@ -132,89 +134,82 @@ Qed.
 
 (* Loop *)
 
-Lemma hoare_for0 fi (i:rval sword) dir (e1 e2:pexpr sword) c Q:
+(* -------------------------------------------------------------------- *)
+Lemma hoare_for0 (i:rval sword) fi dir (e1 e2:pexpr sword) c Q:
   hoare (fun s => Q s /\ ssem_pexpr (sevm s) e2 < ssem_pexpr (sevm s) e1) 
         [::Cfor fi i (dir,e1,e2) c]
         Q.
 Proof.
-  move=> s1 s2;set c' := Cfor _ _ _ _ => /ssem_iV Hsem.
-  case: _ {-1}_ _ / Hsem (erefl c')=> // ??????? /=;first by move=> _ _ [].
-  by move=> ? He _ [] ??????;subst=> -[];rewrite ltnNge He.
+move=> s1 s2; set c' := Cfor _ _ _ => /ssem_iV sem.
+inversion_clear sem; inversion H => -[] // _ h.
+by move: H0; rewrite /wrange leqNgt h.
 Qed.
 
-Definition incr dir (i0:word) := 
-  match dir with
-  | UpTo   => (i0 + 1)
-  | DownTo => (i0 - 1)
-  end.
+(* -------------------------------------------------------------------- *)
+Lemma hoare_for_base_x (i : rval sword) (ws : seq.seq word) I c :
+  (forall j : word, hoare
+     (fun s => [/\ I s, ssem_rval s.(sevm) i = j & j \in ws])
+     c
+     (fun s => [/\ I s & ssem_rval s.(sevm) i = j]))
 
-Lemma hoare_for_base fi (i:rval sword) dir (e1 e2:pexpr sword) I c:
+  -> (forall s1 s2, s1.(sevm) = s2.(sevm) [\vrv i] -> I s1 -> I s2)
+  -> forall s1 s2, ssem_for i ws s1 c s2 -> I s1 ->
+      [/\ I s2 & ssem_rval s2.(sevm) i = last (ssem_rval s1.(sevm) i) ws].
+Proof.
+move=> hc Iindep s1 s2 h; elim: h hc Iindep => //=.
+move=> {s1 s2 i ws c} i w ws c s1 s2 s3 sc hfor ih hc Idp Is1.
+move: sc; set s1' := (X in ssem X) => sc.
+case: (hc w _ _ sc); first (split; first last).
++ by rewrite inE eqxx. + by rewrite ssem_swrite_rval.
++ by apply: Idp Is1 => x Sx; rewrite swrite_nin.
+case/ih => // => [j s'1 s'2 /hc {hc}hc [? ? j_ws]|].
++ by apply/hc; split=> //; rewrite inE j_ws orbT.
+by move=> Is3 eqi <-; split.
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Definition incr dir (i : word) := 
+  if dir is UpTo then i+1 else i-1.
+
+Lemma hoare_for_base (i:rval sword) fi dir (e1 e2:pexpr sword) I cmd:
   donotdep (vrv i) e1 ->
   donotdep (vrv i) e2 ->
-  (forall (w1 w2 i0:word), 
-    hoare (fun s => [/\ I s , ssem_pexpr s.(sevm) e1 = w1, ssem_pexpr s.(sevm) e2 = w2,
-                    ssem_rval s.(sevm) i = i0 & w1 <= i0 <= w2])
-          c
-          (fun s => 
-             ssem_rval s.(sevm) i = i0 /\ 
-             let i1 := if i0 == (if dir is UpTo then w2 else w1) then i0 else incr dir i0 in
-             let s' := {|semem := s.(semem); sevm := swrite_rval s.(sevm) i i1|} in
-             [/\ I s', ssem_pexpr s'.(sevm) e1 = w1 & ssem_pexpr s'.(sevm) e2 = w2])) ->
-  hoare (fun s => 
-           let w1 := ssem_pexpr s.(sevm) e1 in
-           let w2 := ssem_pexpr s.(sevm) e2 in
-           let i0 := if dir is UpTo then w1 else w2 in
-           let s' := {|semem := s.(semem); sevm := swrite_rval s.(sevm) i i0|} in
-           w1 <= w2 /\ I s')
-         [:: Cfor fi i (dir,e1,e2) c ]
-         (fun s => 
-            I s /\ 
-            let w1 := ssem_pexpr s.(sevm) e1 in
-            let w2 := ssem_pexpr s.(sevm) e2 in
-            ssem_rval s.(sevm) i = if dir is UpTo then w2 else w1).
-Proof.
-  move=> He1 He2 Hc ??;set c' := Cfor _ _ _ _ => /ssem_iV Hsem.
-  case: _ {-1}_ _ / Hsem (erefl c') => //.
-  + by move=> /= ??????? Hlt [] ??????;subst;rewrite leqNgt Hlt => -[].
-  move=> s s' ? i' dir' e1' e2' c0 w1 w2 Hw Hfor [] ??????;subst i' dir' e1' e2' c0.
-  rewrite -/w1 -/w2 Hw => HI.
-  have :  I s' /\ ssem_pexpr (sevm s') e1 = w1 /\ ssem_pexpr (sevm s') e2 = w2 /\
-           ssem_rval (sevm s') i = if dir is UpTo then w2 else w1;last first.
-  + by move=> [] ? [] -> [] ->.
-  pose Pre i' dir' c' (w1' w2':word) s := 
-      [/\ i' = i, dir' = dir , c' = c & (if dir is UpTo then w2' = w2 else w1' = w1) ] /\
-      let w := if dir is UpTo then w1' else w2' in
-      [/\ w1 <= w <= w2, ssem_pexpr (sevm s) e1 = w1 ,
-      ssem_pexpr (sevm s) e2 = w2 &
-      I {| semem := semem s; sevm := swrite_rval (sevm s) i w |} ].
-  pose w1' := w1; pose w2' := w2.
-  have : Pre i dir c w1' w2' s.
-  + by rewrite /Pre;case : (dir) HI;rewrite leqnn Hw /= => -[] _ ?.
-  have Hie1 : forall s v, ssem_pexpr (swrite_rval s i v) e1 = ssem_pexpr s e1.
-  + by move=> ??;apply He1=> ?; apply swrite_nin. 
-  have Hie2 : forall s v, ssem_pexpr (swrite_rval s i v) e2 = ssem_pexpr s e2.
-  + by move=> ??;apply He2=> ?; apply swrite_nin.
-  elim: {HI c'} (Hfor : ssem_for i dir w1' w2' s c s')=> {w1' w2' Hfor}.
-  + move=> i' dir' w c' s1 s2 Hs [] {Pre} [] ??? Heqw [] Hbound Hw1 Hw2 HI;subst i' dir' c'.
-    have /= [] := Hc w1 w2 w _ _ Hs.
-    + by rewrite Hie1 Hie2 ssem_swrite_rval;case: (dir) HI Hbound.
-    by rewrite Hie1 Hie2; case: (dir) Heqw Hbound => {HI Hw1 Hw2 Hs} ? Hbound Hi -[];subst;
-     rewrite eq_refl -[in X in X -> _]Hi swrite_ssem_rval surj_SEstate => HI Hw1 Hw2;auto.
-  move=>  i' dir' w1'' w2'' c' s1 s2 s3 Hlt w Hs w1' w2' _ Hrec [] [] ??? Hw12;subst => /=.
-  rewrite -/w => -[] Hbound Hw1 Hw2 HI;apply Hrec.
-  have /= [] := Hc w1 w2 w _ _ Hs.
-  + by rewrite Hie1 Hie2 ssem_swrite_rval;case: (dir) HI Hbound.
-  rewrite Hie1 Hie2 /Pre=> {Hrec Hs HI Hw1 Hw2}.
-  have /negPf -> : w != if dir is UpTo then w2 else w1.
-  + by rewrite /w neq_ltn; case: (dir) Hw12=> <-;rewrite Hlt ?orbT.
-  move=> Hi [] HI Hw1 Hw2;rewrite /w1' /w2' => {w1' w2'};split;split=> //.
-  + by case: (dir) Hw12.
-  + move: Hbound;rewrite /w=>{Hi HI w};case:(dir) Hw12 => <- /andP [] H1 H2.
-    + by rewrite (word_add1 Hlt) /= addnC /= /addn/= -ltnS Hlt andbT ltnS;apply leqW.
-    by rewrite (word_sub1 Hlt);move: H1 H2 Hlt;rewrite -(rwP andP) -!(rwP leP) -minusE;omega.
-  by move: HI;rewrite /w /incr;case: (dir).
-Qed.
 
+  (forall (w1 w2 j : word),
+    hoare
+      (fun s => [/\ I s, ssem_rval s.(sevm) i = j, w1 <= j <= w2
+              , ssem_pexpr s.(sevm) e1 = w1
+              & ssem_pexpr s.(sevm) e2 = w2])
+
+      cmd
+
+      (fun s => 
+         let w  := if dir is UpTo then w2 else w1 in
+         let i1 := if j == w then j else incr dir j in
+         let s' := {|semem := s.(semem); sevm := swrite_rval s.(sevm) i i1|} in
+         [/\ I s', ssem_rval s.(sevm) i = j
+          , ssem_pexpr s'.(sevm) e1 = w1
+          & ssem_pexpr s'.(sevm) e2 = w2]))
+
+  ->
+
+  hoare
+    (fun s => 
+       let w1 := ssem_pexpr s.(sevm) e1 in
+       let w2 := ssem_pexpr s.(sevm) e2 in
+       let i0 := if dir is UpTo then w1 else w2 in
+       let s' := {|semem := s.(semem); sevm := swrite_rval s.(sevm) i i0|} in
+       I s' /\ w1 <= w2)
+
+    [:: Cfor fi i (dir, e1, e2) cmd ]
+
+    (fun s => 
+       let w1 := ssem_pexpr s.(sevm) e1 in
+       let w2 := ssem_pexpr s.(sevm) e2 in
+       I s /\ ssem_rval s.(sevm) i = if dir is UpTo then w2 else w1).
+Proof. Admitted.
+
+(*
 (* -------------------------------------------------------------------------- *)
 (* ** Weakest Precondition                                                    *)
 (* -------------------------------------------------------------------------- *)
@@ -839,3 +834,4 @@ Lemma c_ok1 :
 Proof.
   wp_core. by skip.
 Qed.
+*)
