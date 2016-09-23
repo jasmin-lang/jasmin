@@ -163,6 +163,7 @@ Fixpoint p2sp {t} (e:pexpr t) : spexpr t :=
   match e with
   | Pvar          x           => x
   | Pconst        w           => w
+  | Pbool         b           => b
   | Papp1 _ _     op e1       => Eapp1 op (p2sp e1)
   | Papp2 _ _ _   op e1 e2    => Eapp2 op (p2sp e1) (p2sp e2)
   | Papp3 _ _ _ _ op e1 e2 e3 => Eapp3 op (p2sp e1) (p2sp e2) (p2sp e3)

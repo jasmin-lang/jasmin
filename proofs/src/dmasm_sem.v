@@ -103,6 +103,7 @@ Fixpoint sem_pexpr st (vm : vmap) (pe : pexpr st) : exec (st2ty st) :=
   match pe with
   | Pvar v => ok (vm.[ v ]%vmap)
   | Pconst c => ok (n2w c)
+  | Pbool b  => ok b
   | Papp1 st1 str o pe1 =>
       sem_pexpr vm pe1 >>= fun v1 =>
       sem_sop1 o v1

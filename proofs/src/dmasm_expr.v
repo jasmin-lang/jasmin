@@ -111,6 +111,7 @@ Proof. by move: o o'=> [||?] [||?] // [] ->. Qed.
 Inductive pexpr : stype -> Type :=
 | Pvar   :> forall x:var, pexpr x.(vtype)
 | Pconst :> N -> pexpr sword
+| Pbool  :> bool -> pexpr sbool
 | Papp1  : forall st1 stres: stype, 
   sop1 st1 stres -> pexpr st1 -> pexpr stres
 | Papp2  : forall st1 st2 stres: stype, 
@@ -342,8 +343,8 @@ Proof. done. Qed.
 (* -------------------------------------------------------------------------- *)
 
 Definition destr_pair t1 t2 (p:pexpr (t1 ** t2)) : option (pexpr t1 * pexpr t2).
-case H: _ / p => [ ? | ? | ???? | ??? o e1 e2| ???????? ].
-+ exact None. + exact None. + exact None. 
+case H: _ / p => [ ? | ? | ? | ???? | ??? o e1 e2| ???????? ].
++ exact None. + exact None. + exact None. + exact None. 
 + (case:o H e1 e2 => [||||||||||??[]<-<- e1 e2];last by exact (Some (e1,e2)))=> *; 
   exact None.
 exact None. 

@@ -101,6 +101,7 @@ Fixpoint ssem_pexpr st (vm : svmap) (pe : pexpr st) : sst2ty st :=
   match pe with
   | Pvar v => vm.[ v ]%vmap
   | Pconst c => n2w c
+  | Pbool  b => b
   | Papp1 st1 str o pe1 =>
       let v1 := ssem_pexpr vm pe1 in
       ssem_sop1 o v1

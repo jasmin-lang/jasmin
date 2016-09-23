@@ -462,3 +462,6 @@ Proof.
   apply: (@equivP (Sv.mem x s));first by apply idP.
   by rewrite -Sv.mem_spec.
 Qed.
+
+(* Non dependant map *)
+Module Mvar :=  Mmake CmpVar.
