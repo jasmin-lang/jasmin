@@ -237,8 +237,70 @@ Proof.
     by apply (Eseq (s2:=s3)).
 Qed.
 
+Lemma sem_app l1 l2 s1 s2 s3:
+  sem s1 l1 s2 -> sem s2 l2 s3 ->
+  sem s1 (l1 ++ l2) s3.
+Proof.
+  elim: l1 s1.
+  + by move=> s1 H1;inversion H1.
+  move=> a l Hrec s1 H1;inversion H1;subst;clear H1 => /= Hl2.
+  by apply (Eseq H3);apply Hrec.
+Qed.
+
+Lemma sem_seq1 i s1 s2:
+  sem_i s1 i s2 -> sem s1 [::i] s2.
+Proof.
+  move=> Hi; apply (Eseq Hi);constructor.
+Qed.
+
 Definition sem_fail (s1 : estate) (c : cmd) : Prop :=
   forall s2, not (sem s1 c s2).
 
 Definition sem_i_fail (s1 : estate) (i : instr) : Prop :=
   forall s2, not (sem_i s1 i s2).
+
+
+Definition vmap_eq_except (s : Sv.t) (vm1 vm2 : vmap) :=
+  forall x, ~Sv.In x s -> vm1.[x]%vmap = vm2.[x]%vmap.
+
+Notation "vm1 = vm2 [\ s ]" := (vmap_eq_except s vm1 vm2) (at level 70, vm2 at next level,
+  format "'[hv ' vm1  '/' =  vm2  '/' [\ s ] ']'").
+
+Lemma vrvP t (r:rval t) v s : s = write_rval s r v [\ vrv r].
+Proof.
+  elim: r v s=> [x | ?? r1 Hr1 r2 Hr2] v s /= z; rewrite ?vrv_var ?vrv_pair=> ?.
+  + rewrite Fv.setP_neq //;apply /eqP; SvD.fsetdec.
+  rewrite -Hr1 -?Hr2//; SvD.fsetdec.
+Qed.
+
+Lemma writeP c s1 s2 : 
+   sem s1 c s2 -> s1.(evm) = s2.(evm) [\ write_c c].
+Proof.
+  apply (@cmd_rect
+           (fun i => forall s1 s2, sem_i s1 i s2 -> s1.(evm) = s2.(evm) [\ write_i i])
+           (fun c => forall s1 s2, sem   s1 c s2 -> s1.(evm) = s2.(evm) [\ write_c c])
+           (fun _ _ _ => True)) => /= {c s1 s2}
+    [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|? x rn c1 Hc1| ?? x f a _|//] s1 s2 Hsem;
+    inversion Hsem=>{Hsem};subst=> // z.
+  + rewrite write_c_cons => Hz;rewrite (Hi _ _ H2) ?(Hc1 _ _ H4) //; SvD.fsetdec. 
+  + rewrite write_i_bcmd;case: bc H1 => //= [? r p | r p | p1 p2].
+    + by case sem_pexpr => //= s [] <- /=;apply vrvP.
+    + by case sem_pexpr=> //= s; case read_mem => //= w [] <-;apply vrvP.
+    case (sem_pexpr _ p1) => //= s_1;case (sem_pexpr _ p2) => //= s_2.
+    by case write_mem => //= ? [] <-.
+  + by rewrite write_i_if=> ?; case:cond H4 H5=> H4 H5;[apply Hc1 | apply Hc2] => //;
+     SvD.fsetdec. 
+  + rewrite write_i_for. 
+    elim: H7 Hc1=> {H5 H6 dir s1 s2} //=.
+    move => s1 s2 s3 iv w1 w2 c Hsem Hfor Hrec Hc Hin.
+    rewrite -Hrec // -(Hc _ _ Hsem) /= -?vrvP //; SvD.fsetdec. 
+  by rewrite write_i_call=> Hin; move: H3 H4=> [] ?;subst=> -[] [] ?;subst;apply vrvP.  
+Qed.
+
+Lemma write_iP i s1 s2 : 
+   sem_i s1 i s2 -> s1.(evm) = s2.(evm) [\ write_i i].
+Proof.
+  move=> /sem_seq1 /writeP.
+  have := write_c_cons i [::].
+  move=> Heq H x Hx;apply H; SvD.fsetdec. 
+Qed.

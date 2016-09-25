@@ -350,6 +350,57 @@ case H: _ / p => [ ? | ? | ? | ???? | ??? o e1 e2| ???????? ].
 exact None. 
 Defined.
 
+Lemma destr_pairP t1 t2 (p:pexpr (t1 ** t2)) p1 p2:
+   destr_pair p = Some (p1, p2) -> p = Papp2 (Opair _ _) p1 p2.
+Proof.
+  move=>Heq;apply JMeq_eq.
+  have {Heq}: JMeq (destr_pair p) (Some (p1, p2)) by rewrite Heq.
+  rewrite /destr_pair; move:p (erefl (t1 ** t2)). 
+  set t12 := (X in forall (p:pexpr X) (e : _ = X), _ -> @JMeq (pexpr X) _ _ _) => p.
+  case : t12 / p => //.
+  + by move=> []/= ??<- Heq;have := JMeq_eq Heq.
+  + by move=> ???? _ Heq;have := JMeq_eq Heq.
+  + move=> t1' t2' tr' [] st1 st2 => //= => [ []?? e| []?? e | e1 e2 e].
+    + by have := JMeq_eq e.  + by have := JMeq_eq e.
+    case: (e)=> ??. subst st1 st2.
+    rewrite (eq_irrelevance e (erefl (t1 ** t2))) /= /eq_rect_r /=.
+    move=> Heq;have [-> ->] // := JMeq_eq Heq.
+  by move=> ???? ???? ? Heq;have := JMeq_eq Heq.
+Qed.
+
+Definition is_const t (e:pexpr t) := 
+  match e with
+  | Pconst n => Some n 
+  | _        => None
+  end.
+
+Ltac jm_destr e1 := 
+  let t := 
+      match type of e1 with 
+      | pexpr ?t => t 
+      | _ => fail 1 "jm_destr: an spexpr is expected" 
+      end in
+  let e' := fresh "e'" in
+  let t' := fresh "t'" in
+  let H  := fresh "H" in
+  let jmeq := fresh "jmeq" in
+  move: (erefl t) (JMeq_refl e1);
+  set e' := (e in _ -> @JMeq _ e _ _ -> _);move: e';
+  set t' := (X in forall (e':pexpr X), X = _ -> @JMeq (pexpr X) _ _ _ -> _)=> e';
+  (case: t' / e'=> [[??]H | ?? | ?? | ?????| ???????| ?????????] jmeq;
+     [simpl in H | | | | | ]);
+  subst;try rewrite -(JMeq_eq jmeq).
+
+Lemma is_constP e n : is_const e = Some n -> e = n.
+Proof. by jm_destr e=> //= -[] ->. Qed.
+
+Definition is_bool (e:pexpr sbool) :=
+  match e with Pbool b => Some b | _ => None end.
+
+Lemma is_boolP e b : is_bool e = Some b -> e = Pbool b.
+Proof. by jm_destr e=> //= -[] ->. Qed.
+
+
 Definition efst t1 t2 (p:pexpr (t1 ** t2)) : pexpr t1 :=
   match destr_pair p with
   | Some (p1,p2) => p1

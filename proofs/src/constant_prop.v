@@ -42,9 +42,6 @@ Definition s_op1 t1 tr (op:sop1 t1 tr): pexpr t1 -> pexpr tr :=
   | Osnd _ _ => @ssnd _ _
   end.
 
-Definition is_bool (e:pexpr sbool) :=
-  match e with Pbool b => Some b | _ => None end.
-
 Definition sand e1 e2 := 
   match is_bool e1, is_bool e2 with
   | Some b, _ => if b then e2 else false
@@ -61,12 +58,6 @@ Definition sor (e1 e2:pexpr sbool) : pexpr sbool :=
 
 Definition spair {t t'} (e1:pexpr t) (e2:pexpr t') :=
   Papp2 (Opair t t') e1 e2.
-
-Definition is_const t (e:pexpr t) := 
-  match e with
-  | Pconst n => Some n 
-  | _        => None
-  end.
 
 Definition seq (e1 e2:pexpr sword) : pexpr sbool := 
   match is_const e1, is_const e2 with
@@ -265,23 +256,6 @@ Proof. by move=> ???. Qed.
 
 Hint Immediate eeq_refl.
 
-Ltac jm_destr e1 := 
-  let t := 
-      match type of e1 with 
-      | pexpr ?t => t 
-      | _ => fail 1 "jm_destr: an spexpr is expected" 
-      end in
-  let e' := fresh "e'" in
-  let t' := fresh "t'" in
-  let H  := fresh "H" in
-  let jmeq := fresh "jmeq" in
-  move: (erefl t) (JMeq_refl e1);
-  set e' := (e in _ -> @JMeq _ e _ _ -> _);move: e';
-  set t' := (X in forall (e':pexpr X), X = _ -> @JMeq (pexpr X) _ _ _ -> _)=> e';
-  (case: t' / e'=> [[??]H | ?? | ?? | ?????| ???????| ?????????] jmeq;
-     [simpl in H | | | | | ]);
-  subst;try rewrite -(JMeq_eq jmeq).
-
 Lemma snotP e : Papp1 Onot e =E snot e.
 Proof. 
   jm_destr e=> //;try apply eeq_refl.
@@ -308,9 +282,6 @@ Proof.
   case: op e;[apply:snotP|apply:sfstP |apply:ssndP].
 Qed.
 
-Lemma is_boolP e b : is_bool e = Some b -> e = Pbool b.
-Proof. by jm_destr e=> //= -[] ->. Qed.
-
 Lemma bind_ok A x : x >>= [eta ok (A:=A)] = x.
 Proof. by case: x. Qed.
 
@@ -329,9 +300,6 @@ Proof.
   by case H1: is_bool => [[]|] v //=;rewrite (is_boolP H1) /=;
        case: sem_pexpr => //= a;rewrite orbC.
 Qed.
-
-Lemma is_constP e n : is_const e = Some n -> e = n.
-Proof. by jm_destr e=> //= -[] ->. Qed.
 
 Lemma seqP (e1 e2:pexpr sword): Papp2 Oeq e1 e2 =E seq e1 e2.
 Proof.
@@ -422,61 +390,7 @@ Proof.
   case Heq3: sem_pexpr=> //= Heqo.
   by apply s_op3P => /=;rewrite (He1 _ Heq1) (He2 _ Heq2) (He3 _ Heq3).
 Qed.
-
-Lemma surj_Estate s : {| emem := emem s; evm := evm s |} = s.
-Proof. by case: s. Qed.
   
-Definition vmap_eq_except (s : Sv.t) (vm1 vm2 : vmap) :=
-  forall x, ~Sv.In x s -> vm1.[x]%vmap = vm2.[x]%vmap.
-
-Notation "vm1 = vm2 [\ s ]" := (vmap_eq_except s vm1 vm2) (at level 70, vm2 at next level,
-  format "'[hv ' vm1  '/' =  vm2  '/' [\ s ] ']'").
-
-Lemma vrvP t (r:rval t) v s : s = write_rval s r v [\ vrv r].
-Proof.
-  elim: r v s=> [x | ?? r1 Hr1 r2 Hr2] v s /= z; rewrite ?vrv_var ?vrv_pair=> ?.
-  + rewrite Fv.setP_neq //;apply /eqP; SvD.fsetdec.
-  rewrite -Hr1 -?Hr2//; SvD.fsetdec.
-Qed.
-
-Lemma sem_seq1 i s1 s2:
-  sem_i s1 i s2 -> sem s1 [::i] s2.
-Proof.
-  move=> Hi; apply (Eseq Hi);constructor.
-Qed.
-
-Lemma writeP c s1 s2 : 
-   sem s1 c s2 -> s1.(evm) = s2.(evm) [\ write_c c].
-Proof.
-  apply (@cmd_rect
-           (fun i => forall s1 s2, sem_i s1 i s2 -> s1.(evm) = s2.(evm) [\ write_i i])
-           (fun c => forall s1 s2, sem   s1 c s2 -> s1.(evm) = s2.(evm) [\ write_c c])
-           (fun _ _ _ => True)) => /= {c s1 s2}
-    [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|? x rn c1 Hc1| ?? x f a _|//] s1 s2 Hsem;
-    inversion Hsem=>{Hsem};subst=> // z.
-  + rewrite write_c_cons => Hz;rewrite (Hi _ _ H2) ?(Hc1 _ _ H4) //; SvD.fsetdec. 
-  + rewrite write_i_bcmd;case: bc H1 => //= [? r p | r p | p1 p2].
-    + by case sem_pexpr => //= s [] <- /=;apply vrvP.
-    + by case sem_pexpr=> //= s; case read_mem => //= w [] <-;apply vrvP.
-    case (sem_pexpr _ p1) => //= s_1;case (sem_pexpr _ p2) => //= s_2.
-    by case write_mem => //= ? [] <-.
-  + by rewrite write_i_if=> ?; case:cond H4 H5=> H4 H5;[apply Hc1 | apply Hc2] => //;
-     SvD.fsetdec. 
-  + rewrite write_i_for. 
-    elim: H7 Hc1=> {H5 H6 dir s1 s2} //=.
-    move => s1 s2 s3 iv w1 w2 c Hsem Hfor Hrec Hc Hin.
-    rewrite -Hrec // -(Hc _ _ Hsem) /= -?vrvP //; SvD.fsetdec. 
-  by rewrite write_i_call=> Hin; move: H3 H4=> [] ?;subst=> -[] [] ?;subst;apply vrvP.  
-Qed.
-
-Lemma write_iP i s1 s2 : 
-   sem_i s1 i s2 -> s1.(evm) = s2.(evm) [\ write_i i].
-Proof.
-  move=> /sem_seq1 /writeP.
-  have := write_c_cons i [::].
-  move=> Heq H x Hx;apply H; SvD.fsetdec. 
-Qed.
-
 Lemma get_remove_cpm m xs x n: 
   Mvar.get (remove_cpm m xs) x = Some n ->  
   Mvar.get m x = Some n /\ ~Sv.In x xs.
@@ -503,25 +417,6 @@ Lemma remove_cpmP rho m t (x:rval t) v:
   valid_map (write_rval rho x v) (remove_cpm m (vrv x)).
 Proof.
   move=> Hv; apply: (valid_map_rm _ Hv); apply vrvP.
-Qed.
-
-(* TODO: move this in dmsam_expr.v *)
-Lemma destr_pairP t1 t2 (p:pexpr (t1 ** t2)) p1 p2:
-   destr_pair p = Some (p1, p2) -> p = Papp2 (Opair _ _) p1 p2.
-Proof.
-  move=>Heq;apply JMeq_eq.
-  have {Heq}: JMeq (destr_pair p) (Some (p1, p2)) by rewrite Heq.
-  rewrite /destr_pair; move:p (erefl (t1 ** t2)). 
-  set t12 := (X in forall (p:pexpr X) (e : _ = X), _ -> @JMeq (pexpr X) _ _ _) => p.
-  case : t12 / p => //.
-  + by move=> []/= ??<- Heq;have := JMeq_eq Heq.
-  + by move=> ???? _ Heq;have := JMeq_eq Heq.
-  + move=> t1' t2' tr' [] st1 st2 => //= => [ []?? e| []?? e | e1 e2 e].
-    + by have := JMeq_eq e.  + by have := JMeq_eq e.
-    case: (e)=> ??. subst st1 st2.
-    rewrite (eq_irrelevance e (erefl (t1 ** t2))) /= /eq_rect_r /=.
-    move=> Heq;have [-> ->] // := JMeq_eq Heq.
-  by move=> ???? ???? ? Heq;have := JMeq_eq Heq.
 Qed.
 
 Lemma add_cpmP_aux rho1 rho2 m t x (e:pexpr t) v: 
@@ -568,17 +463,6 @@ Proof.
   case Heq2 : (sem_pexpr _ e2)=> [v2|] //=.
   case Heq : write_mem => [?|] //= [] <- /=;split => //.
   by rewrite (const_prop_eP Hvalid Heq1) (const_prop_eP Hvalid Heq2) /= Heq.
-Qed.
-
-(* TODO: move this in dmsam_sem *)
-Lemma sem_app l1 l2 s1 s2 s3:
-  sem s1 l1 s2 -> sem s2 l2 s3 ->
-  sem s1 (l1 ++ l2) s3.
-Proof.
-  elim: l1 s1.
-  + by move=> s1 H1;inversion H1.
-  move=> a l Hrec s1 H1;inversion H1;subst;clear H1 => /= Hl2.
-  by apply (Eseq H3);apply Hrec.
 Qed.
 
 Lemma merge_cpmP rho m1 m2 : 
