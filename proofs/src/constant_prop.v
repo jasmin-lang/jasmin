@@ -463,10 +463,8 @@ Proof.
   + by rewrite write_i_if=> ?; case:cond H4 H5=> H4 H5;[apply Hc1 | apply Hc2] => //;
      SvD.fsetdec. 
   + rewrite write_i_for. 
-    elim: H7 Hc1 => {H5 H6 dir s1 s2}.
-    + move=> s1 s2 iv _ w c Hsem Hc Hnin.
-      by rewrite -(Hc _ _ Hsem) /= -?vrvP //;SvD.fsetdec. 
-    move => s1 s2 s3 iv dir w1 w2 c ? w Hsem w1' w2' Hsemf Hrec Hc Hin.    
+    elim: H7 Hc1=> {H5 H6 dir s1 s2} //=.
+    move => s1 s2 s3 iv w1 w2 c Hsem Hfor Hrec Hc Hin.
     rewrite -Hrec // -(Hc _ _ Hsem) /= -?vrvP //; SvD.fsetdec. 
   by rewrite write_i_call=> Hin; move: H3 H4=> [] ?;subst=> -[] [] ?;subst;apply vrvP.  
 Qed.
@@ -651,7 +649,32 @@ Section PROOF.
 
   Let Hfor  : forall fi i rn c, Pc c -> Pi (Cfor fi i rn c).
   Proof.
-  Admitted.
+    move=> fi i [[dir hi] low] c Hc s s' m H Hm /=.
+    set m1 := remove_cpm m (write_i (Cfor fi i (dir, hi,low) c)).
+    have Hm1 /= : valid_map (evm s) m1 by apply valid_map_rm with (evm s).
+    case Heq: const_prop => [m' c'] /=;split.
+    + apply valid_map_rm with (evm s)=> //; by apply write_iP.
+    apply sem_seq1;inversion H;clear H;subst.  
+    apply EFor with vlow vhi.
+    + by apply const_prop_eP. + by apply const_prop_eP.
+    clear H8 H9.
+    move: Hc Heq Hm1;rewrite /m1=> {m1 Hm}.
+    elim: H10=> {c s s' i}.
+    + move=> s i c Hc Heq Hv;constructor.
+    move=> s1 s2 s3 i w ws c Hs1 Hs2 Hrec Hc Heq Hv.
+    set m1 := remove_cpm m (write_i (Cfor fi i (dir, hi,low) c)).
+    have []:= Hc _ s2 m1 Hs1.
+    + move=> x n Hg; have [? Hin] := get_remove_cpm Hg.
+      rewrite -(@vrvP _ i w (evm s1));first apply Hv=> //. 
+      by move: Hin;rewrite write_i_for;SvD.fsetdec.
+    rewrite Heq /= => Hv2 Hc'.
+    apply EForOne with s2 => //; apply Hrec => //.
+    move=> x n Hg. have [? Hin] := get_remove_cpm Hg.
+    move:Hin;rewrite write_i_for => Hin.
+    rewrite -(writeP Hs1) /=;last SvD.fsetdec.
+    rewrite -(@vrvP _ i w (evm s1));first apply Hv=> //. 
+    by SvD.fsetdec.
+  Qed.
 
   Let Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
   Proof.

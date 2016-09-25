@@ -43,9 +43,9 @@ Definition inline_call inline_i sta str (rv_res : rval str) fd (pe_arg : pexpr s
 
 Fixpoint inline_i (i:instr) : cmd := 
   match i with
-  | Cbcmd _     => [::i]
-  | Cif b c1 c2 => [::Cif b (inline_cmd inline_i c1) (inline_cmd inline_i c2)]
-  | Cfor i rn c => [::Cfor i rn (inline_cmd inline_i c)]
+  | Cbcmd _              => [::i]
+  | Cif b c1 c2          => [::Cif b (inline_cmd inline_i c1) (inline_cmd inline_i c2)]
+  | Cfor fi i rn c       => [::Cfor fi i rn (inline_cmd inline_i c)]
   | Ccall ta tr x fd arg => inline_call inline_i x  fd arg
   end.
 
