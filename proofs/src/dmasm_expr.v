@@ -337,6 +337,111 @@ Lemma write_i_call t1 t2 (f:fundef t1 t2) x a :
   write_i (Ccall x f a) = vrv x.
 Proof. done. Qed.
 
+Fixpoint read_e_rec t (e:pexpr t) (s:Sv.t) : Sv.t := 
+  match e with
+  | Pvar x                    => Sv.add x s 
+  | Pconst _                  => s
+  | Pbool  _                  => s
+  | Papp1 _ _     op e1       => read_e_rec e1 s
+  | Papp2 _ _ _   op e1 e2    => read_e_rec e1 (read_e_rec e2 s)
+  | Papp3 _ _ _ _ op e1 e2 e3 => read_e_rec e1 (read_e_rec e2 (read_e_rec e3 s))
+  end.
+
+Definition read_e t (e:pexpr t) := read_e_rec e Sv.empty.
+         
+Definition read_bcmd_rec (s:Sv.t) (i:bcmd) : Sv.t := 
+  match i with
+  | Assgn _ _ e => read_e_rec e s
+  | Load _    e => read_e_rec e s 
+  | Store e1 e2 => read_e_rec e1 (read_e_rec e2 s)
+  end.
+
+Definition read_bcmd := read_bcmd_rec Sv.empty.
+
+Fixpoint read_i_rec (s:Sv.t) (i:instr) : Sv.t :=
+  match i with
+  | Cbcmd i => read_bcmd_rec s i 
+  | Cif b c1 c2 => 
+    let s := foldl read_i_rec s c1 in
+    let s := foldl read_i_rec s c2 in
+    read_e_rec b s 
+  | Cfor fi x (dir, e1, e2) c =>
+    let s := foldl read_i_rec s c in
+    read_e_rec e1 (read_e_rec e2 s)
+  | Ccall ta tr x fd arg => read_e_rec arg s
+  end.
+              
+Definition read_c_rec : Sv.t -> cmd -> Sv.t := foldl read_i_rec.
+
+Definition read_i := read_i_rec Sv.empty.
+
+Definition read_c := foldl read_i_rec Sv.empty.
+
+Lemma read_eE t (e:pexpr t) s : Sv.Equal (read_e_rec e s) (Sv.union (read_e e) s).
+Proof.
+  rewrite /read_e; elim: e s => /=.
+  + by move=> x s;SvD.fsetdec.
+  + by move=> _ s;SvD.fsetdec.
+  + by move=> _ s;SvD.fsetdec.
+  + by move=> ??? e1 He1 s;apply He1.
+  + move=> ???? e1 He1 e2 He2 s. 
+    by rewrite He1 He2 (He1 (read_e_rec _ _));SvD.fsetdec.
+  move=> ????? e1 He1 e2 He2 e3 He3 s.
+  rewrite He1 (He1 (read_e_rec _ _)) He2 (He2 (read_e_rec _ _)) He3;SvD.fsetdec.
+Qed.
+
+Lemma read_bcmdE s i: Sv.Equal (read_bcmd_rec s i) (Sv.union s (read_bcmd i)).
+Proof.
+  rewrite /read_bcmd;case:i=> [? r e | r e | e1 e2] /=.
+  + by rewrite read_eE /read_e;SvD.fsetdec.
+  + by rewrite read_eE /read_e;SvD.fsetdec. 
+  by rewrite read_eE (read_eE e2) (read_eE e1) /read_e;SvD.fsetdec.
+Qed.
+
+Lemma read_cE s c : Sv.Equal (read_c_rec s c) (Sv.union s (read_c c)).
+Proof.
+  apply (@cmd_rect
+           (fun i => forall s, Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)))
+           (fun c => forall s, Sv.Equal (read_c_rec s c) (Sv.union s (read_c c)))
+           (fun _ _ _ => True)) => /= {c s}
+    [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|? x [[dir lo] hi] c1 Hc1| ?? x f a _|//] s;
+    rewrite /read_i /read_c /=.
+  + by SvD.fsetdec. 
+  + by rewrite -/read_i -/read_c_rec !Hc1 Hi; SvD.fsetdec.  
+  + by rewrite !read_bcmdE; SvD.fsetdec.
+  + by rewrite -/read_c_rec !read_eE !Hc2 !Hc1;SvD.fsetdec.
+  + by rewrite -/read_c_rec !read_eE !Hc1; SvD.fsetdec.
+  by rewrite !read_eE; SvD.fsetdec.
+Qed.
+
+Lemma read_iE s i : Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)).
+Proof. by apply (read_cE s [:: i]). Qed.
+
+Lemma read_c_nil : read_c [::] = Sv.empty.
+Proof. done. Qed.
+
+Lemma read_c_cons i c: Sv.Equal (read_c (i::c)) (Sv.union (read_i i) (read_c c)).
+Proof. rewrite {1}/read_c /= -/read_c_rec read_cE read_iE;SvD.fsetdec. Qed.
+
+Lemma read_i_bcmd bc : read_i (Cbcmd bc) = read_bcmd bc.
+Proof. done. Qed.
+
+Lemma read_i_if e c1 c2 :
+   Sv.Equal (read_i (Cif e c1 c2)) (Sv.union (read_e e) (Sv.union (read_c c1) (read_c c2))).
+Proof.
+  rewrite /read_i /= -/read_c_rec read_eE !read_cE;SvD.fsetdec.
+Qed.
+
+Lemma read_i_for fi x dir lo hi c :
+   Sv.Equal (read_i (Cfor fi x (dir, lo, hi) c)) 
+            (Sv.union (read_e lo) (Sv.union (read_e hi) (read_c c))).
+Proof.
+  rewrite /read_i /= -/read_c_rec !read_eE read_cE;SvD.fsetdec.
+Qed.
+
+Lemma read_i_call t1 t2 (f:fundef t1 t2) x a :
+  read_i (Ccall x f a) = read_e a.
+Proof. done. Qed.
 
 (* -------------------------------------------------------------------------- *)
 (* Some smart constructors                                                    *)

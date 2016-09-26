@@ -304,3 +304,54 @@ Proof.
   have := write_c_cons i [::].
   move=> Heq H x Hx;apply H; SvD.fsetdec. 
 Qed.
+
+Definition eq_on (s : Sv.t) (vm1 vm2 : vmap) :=
+  forall x, Sv.In x s -> vm1.[x]%vmap = vm2.[x]%vmap.
+
+Notation "vm1 '=[' s ']' vm2" := (eq_on s vm1 vm2) (at level 70, vm2 at next level,
+  format "'[hv ' vm1  =[ s ]  '/'  vm2 ']'").
+
+Lemma eq_onT s vm1 vm2 vm3:
+  vm1 =[s] vm2 -> vm2 =[s] vm3 -> vm1 =[s] vm3.
+Proof. by move=> H1 H2 x Hin;rewrite H1 ?H2. Qed.
+
+Lemma eq_onI s1 s2 vm1 vm2 : Sv.Subset s1 s2 -> vm1 =[s2] vm2 -> vm1 =[s1] vm2.
+Proof. move=> Hs Heq x Hin;apply Heq;SvD.fsetdec. Qed.
+
+Lemma disjoint_eq_on s t (r:rval t) vm v: 
+  disjoint s (vrv r) ->
+  write_rval vm r v =[s] vm.
+Proof.
+  rewrite /disjoint /is_true Sv.is_empty_spec=> H z Hin.
+  elim: r vm v H => [x | ?? rv1 Hrv1 rv2 Hrv2] vm v.
+  + rewrite vrv_var /= => ?;rewrite Fv.setP_neq //;apply /eqP;SvD.fsetdec. 
+  rewrite vrv_pair /==> Hd;rewrite Hrv1 ?Hrv2 //;SvD.fsetdec. 
+Qed.
+
+Lemma read_e_eq_on t (e:pexpr t) s vm vm':
+  vm =[read_e_rec e s]  vm' ->
+  sem_pexpr vm e = sem_pexpr vm' e.
+Proof.
+  elim:e s => //=.
+  + by move=> x s H;rewrite H //;SvD.fsetdec. 
+  + by move=> ?? o e1 He1 s Heq;rewrite (He1 s Heq).
+  + move=> ??? o e1 He1 e2 He2 s Heq;rewrite (He1 _ Heq) (He2 s) //. 
+    by apply: eq_onI Heq;rewrite (read_eE e1);SvD.fsetdec.
+  move=> ???? o e1 He1 e2 He2 e3 He3 s Heq.    
+  rewrite (He1 _ Heq); have Heq2 : vm =[read_e_rec e2 (read_e_rec e3 s)]  vm'.
+  + by apply: eq_onI Heq;rewrite (read_eE e1);SvD.fsetdec.   
+  rewrite (He2 _ Heq2) (He3 s) //.     
+  by apply: eq_onI Heq2;rewrite (read_eE e2);SvD.fsetdec.
+Qed.
+
+Lemma write_rval_eq_on vm vm' s t (r:rval t) v:
+  vm =[Sv.diff s (vrv r)]  vm' ->
+  write_rval vm r v =[s]  write_rval vm' r v.
+Proof.
+  elim: r v vm vm' s => [x|?? rv1 H1 rv2 H2] v vm vm' s /=.
+  + move=> Heq z Hz.
+    case: (x =P z) => [ <- | /eqP H];first by rewrite !Fv.setP_eq. 
+    rewrite !Fv.setP_neq //;apply Heq.   
+    by move: H=> /eqP H;rewrite vrv_var;SvD.fsetdec.
+  by move=> Heq;apply H1;apply H2=> z Hz;apply Heq;rewrite vrv_pair;SvD.fsetdec.
+Qed.

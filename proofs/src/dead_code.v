@@ -17,40 +17,7 @@ Local Open Scope ring_scope.
 Local Open Scope fun_scope.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
-
-Fixpoint read_e t (e:pexpr t) (s:Sv.t) : Sv.t := 
-  match e with
-  | Pvar x => Sv.add x s 
-  | Pconst _ => s
-  | Pbool  _ => s
-  | Papp1 _ _ op e1 => read_e e1 s
-  | Papp2 _ _ _ op e1 e2 => read_e e1 (read_e e2 s)
-  | Papp3 _ _ _ _ op e1 e2 e3 => read_e e1 (read_e e2 (read_e e3 s))
-  end.
-      
-Fixpoint read_bcmd (s:Sv.t) (i:bcmd) : Sv.t := 
-  match i with
-  | Assgn _ _ e => read_e e s
-  | Load _ e => read_e e s 
-  | Store e1 e2 => read_e e1 (read_e e2 s)
-  end.
-
-Fixpoint read_i (s:Sv.t) (i:instr) : Sv.t :=
-  match i with
-  | Cbcmd i => read_bcmd s i 
-  | Cif b c1 c2 => 
-    let s := foldl read_i s c1 in
-    let s := foldl read_i s c2 in
-    read_e b s 
-  | Cfor fi x (dir, e1, e2) c =>
-    let s := foldl read_i s c in
-    read_e e1 (read_e e2 s)
-  | Ccall ta tr x fd arg => read_e arg s
-  end.
-                 
-Definition read_c : Sv.t -> cmd -> Sv.t := foldl read_i.
   
-Print result.
 Section CMD.
 
   Variable dead_code_i : instr ->  Sv.t -> result unit (Sv.t * cmd).
@@ -82,19 +49,17 @@ Section LOOP.
 
 End LOOP.
 
-Definition disjoint s1 s2 := Sv.is_empty (Sv.inter s1 s2).
-
 Definition dead_code_bcmd (i:bcmd) (s:Sv.t) :=
   match i with
   | Assgn t rv e =>
     let w := write_bcmd i in
     if disjoint s w then (s,[::])
-    else (read_e e (Sv.diff s w), [::Cbcmd i])
+    else (read_e_rec e (Sv.diff s w), [::Cbcmd i])
   | Load r e => 
     let w := write_bcmd i in
-    (read_e e (Sv.diff s w) , [::Cbcmd i])
+    (read_e_rec e (Sv.diff s w) , [::Cbcmd i])
   | Store e1 e2 =>
-    (read_e e1 (read_e e2 s), [::Cbcmd i])
+    (read_e_rec e1 (read_e_rec e2 s), [::Cbcmd i])
   end.
 
 Definition nb_loop := 100%coq_nat.
@@ -105,15 +70,15 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : result unit (Sv.t * cmd) :=
   | Cif b c1 c2 => 
     dead_code dead_code_i c1 s >>= (fun (sc:Sv.t * cmd) => let (s1,c1) := sc in
     dead_code dead_code_i c2 s >>= (fun (sc:Sv.t * cmd) => let (s2,c2) := sc in
-    Ok unit (read_e b (Sv.union s1 s2), [:: Cif b c1 c2])))
+    Ok unit (read_e_rec b (Sv.union s1 s2), [:: Cif b c1 c2])))
   | Cfor fi x (dir, e1, e2) c =>
-    let wc := read_c Sv.empty c in
+    let wc := read_c c in
     loop (dead_code dead_code_i c) nb_loop wc (vrv x) s >>= 
     (fun (sc:Sv.t * cmd) => let (s, c) := sc in
-    Ok unit (read_e e1 (read_e e2 s),[::Cfor fi x (dir,e1,e2) c]))
+    Ok unit (read_e_rec e1 (read_e_rec e2 s),[::Cfor fi x (dir,e1,e2) c]))
   | Ccall ta tr x fd arg =>
     dead_code_call fd >>= (fun fd => 
-    Ok unit (read_e arg (Sv.diff s (vrv x)), [::Ccall x fd arg]))
+    Ok unit (read_e_rec arg (Sv.diff s (vrv x)), [::Ccall x fd arg]))
   end
 
 with dead_code_call ta tr (fd:fundef ta tr) := 
@@ -122,72 +87,6 @@ with dead_code_call ta tr (fd:fundef ta tr) :=
     dead_code dead_code_i c (vrv r) >>= (fun (sc:Sv.t * cmd) => let (_, c) := sc in
     Ok unit (FunDef p c r))
   end.
-
-Definition vmap_eq_on (s : Sv.t) (vm1 vm2 : vmap) :=
-  forall x, Sv.In x s -> vm1.[x]%vmap = vm2.[x]%vmap.
-
-Notation "vm1 '=[' s ']' vm2" := (vmap_eq_on s vm1 vm2) (at level 70, vm2 at next level,
-  format "'[hv ' vm1  =[ s ]  '/'  vm2 ']'").
-
-Lemma vmap_eq_onT s vm1 vm2 vm3:
-  vm1 =[s] vm2 -> vm2 =[s] vm3 -> vm1 =[s] vm3.
-Proof. by move=> H1 H2 x Hin;rewrite H1 ?H2. Qed.
-
-Lemma vmap_eq_onI s1 s2 vm1 vm2 : Sv.Subset s1 s2 -> vm1 =[s2] vm2 -> vm1 =[s1] vm2.
-Proof. move=> Hs Heq x Hin;apply Heq;SvD.fsetdec. Qed.
-
-Lemma disjoint_eq_on s t (r:rval t) vm v: 
-  disjoint s (vrv r) ->
-  write_rval vm r v =[s] vm.
-Proof.
-  rewrite /disjoint /is_true Sv.is_empty_spec=> H z Hin.
-  elim: r vm v H => [x | ?? rv1 Hrv1 rv2 Hrv2] vm v.
-  + rewrite vrv_var /= => ?;rewrite Fv.setP_neq //;apply /eqP;SvD.fsetdec. 
-  rewrite vrv_pair /==> Hd;rewrite Hrv1 ?Hrv2 //;SvD.fsetdec. 
-Qed.
-
-Definition read t (e:pexpr t) := read_e e Sv.empty.
-
-Lemma read_e_read t (e:pexpr t) s : Sv.Equal (read_e e s) (Sv.union (read e) s).
-Proof.
-  rewrite /read; elim: e s => /=.
-  + by move=> x s;SvD.fsetdec.
-  + by move=> _ s;SvD.fsetdec.
-  + by move=> _ s;SvD.fsetdec.
-  + by move=> ??? e1 He1 s;apply He1.
-  + move=> ???? e1 He1 e2 He2 s. 
-    by rewrite He1 He2 (He1 (read_e _ _));SvD.fsetdec.
-  move=> ????? e1 He1 e2 He2 e3 He3 s.
-  rewrite He1 (He1 (read_e _ _)) He2 (He2 (read_e _ _)) He3;SvD.fsetdec.
-Qed.
-
-Lemma read_e_eq_on t (e:pexpr t) s vm vm':
-  vm =[read_e e s]  vm' ->
-  sem_pexpr vm e = sem_pexpr vm' e.
-Proof.
-  elim:e s => //=.
-  + by move=> x s H;rewrite H //;SvD.fsetdec. 
-  + by move=> ?? o e1 He1 s Heq;rewrite (He1 s Heq).
-  + move=> ??? o e1 He1 e2 He2 s Heq;rewrite (He1 _ Heq) (He2 s) //. 
-    by apply: vmap_eq_onI Heq;rewrite (read_e_read e1);SvD.fsetdec.
-  move=> ???? o e1 He1 e2 He2 e3 He3 s Heq.    
-  rewrite (He1 _ Heq); have Heq2 : vm =[read_e e2 (read_e e3 s)]  vm'.
-  + by apply: vmap_eq_onI Heq;rewrite (read_e_read e1);SvD.fsetdec.   
-  rewrite (He2 _ Heq2) (He3 s) //.     
-  by apply: vmap_eq_onI Heq2;rewrite (read_e_read e2);SvD.fsetdec.
-Qed.
-
-Lemma write_rval_eq_on vm vm' s t (r:rval t) v:
-  vm =[Sv.diff s (vrv r)]  vm' ->
-  write_rval vm r v =[s]  write_rval vm' r v.
-Proof.
-  elim: r v vm vm' s => [x|?? rv1 H1 rv2 H2] v vm vm' s /=.
-  + move=> Heq z Hz.
-    case: (x =P z) => [ <- | /eqP H];first by rewrite !Fv.setP_eq. 
-    rewrite !Fv.setP_neq //;apply Heq.   
-    by move: H=> /eqP H;rewrite vrv_var;SvD.fsetdec.
-  by move=> Heq;apply H1;apply H2=> z Hz;apply Heq;rewrite vrv_pair;SvD.fsetdec.
-Qed.
 
 Section PROOF.
 
@@ -245,27 +144,27 @@ Section PROOF.
       change (vrv_rec Sv.empty r) with (vrv r).
       case : (boolP (disjoint s2 (vrv r))) => /= [Hd Heq| _ H] vm1' Hvm.
       + exists vm1';split;last by constructor.
-        by rewrite -Heq;apply: vmap_eq_onT (disjoint_eq_on vm1 v Hd) Hvm.
+        by rewrite -Heq;apply: eq_onT (disjoint_eq_on vm1 v Hd) Hvm.
       subst; exists (write_rval vm1' r v);split;last first.
       + by apply sem_seq1;constructor => /=;rewrite -(read_e_eq_on Hvm) He.
-      apply write_rval_eq_on;apply: vmap_eq_onI Hvm.
-      rewrite read_e_read;SvD.fsetdec.
+      apply write_rval_eq_on;apply: eq_onI Hvm.
+      rewrite read_eE;SvD.fsetdec.
     + move=> r e;case He: (sem_pexpr _ e) => [v|]//=.
       case Hre : (read_mem m1 v) => [v'|]//= [] <- <- /= vm1'.
       change (vrv_rec Sv.empty r) with (vrv r) => Hr.
       exists (write_rval vm1' r v');split;last first.
       + by apply sem_seq1;constructor=> /=; rewrite -(read_e_eq_on Hr) He /= Hre.
-      apply write_rval_eq_on;apply: vmap_eq_onI Hr.
-      rewrite read_e_read;SvD.fsetdec.
+      apply write_rval_eq_on;apply: eq_onI Hr.
+      rewrite read_eE;SvD.fsetdec.
     move=> e1 e2;case He1: (sem_pexpr _ e1) => [v1|]//=.
     case He2: (sem_pexpr _ e2) => [v2|]//=.
     case Hw: (write_mem m1 v1 v2) => [m|]//= [] <- <- vm1' Hr.
     exists vm1';split. 
-    + by apply: vmap_eq_onI Hr;rewrite read_e_read (read_e_read e2);SvD.fsetdec.
+    + by apply: eq_onI Hr;rewrite read_eE (read_eE e2);SvD.fsetdec.
     apply sem_seq1;constructor => /=.
     rewrite -(read_e_eq_on Hr) He1 /=.
-    have Hr' : vm1 =[read_e e2 s2] vm1'.
-    + by apply: vmap_eq_onI Hr;rewrite (read_e_read e1);SvD.fsetdec.
+    have Hr' : vm1 =[read_e_rec e2 s2] vm1'.
+    + by apply: eq_onI Hr;rewrite (read_eE e1);SvD.fsetdec.
     by rewrite -(read_e_eq_on Hr') He2 /= Hw.
   Qed.
 
@@ -277,11 +176,11 @@ Section PROOF.
     case Heq2 : (dead_code dead_code_i c2 s3) => [[s2 c2']|] //= vm1' Hr.
     case: cond H5 H6 => H5 H6.
     + have := Hc1 m1 m2 vm1 vm2 H6 s3; rewrite Heq1=> /(_ vm1') [].
-      + by apply: vmap_eq_onI Hr;rewrite read_e_read;SvD.fsetdec.
+      + by apply: eq_onI Hr;rewrite read_eE;SvD.fsetdec.
       move=> vm2' [Heq' Hsem];exists vm2';split => //.
       by apply sem_seq1;apply Eif with true => //=; rewrite -(read_e_eq_on Hr).
     have := Hc2 m1 m2 vm1 vm2 H6 s3; rewrite Heq2=> /(_ vm1') [].
-    + by apply: vmap_eq_onI Hr;rewrite read_e_read;SvD.fsetdec.
+    + by apply: eq_onI Hr;rewrite read_eE;SvD.fsetdec.
     move=> vm2' [Heq' Hsem];exists vm2';split => //.
     by apply sem_seq1;apply Eif with false => //=; rewrite -(read_e_eq_on Hr).
   Qed.
@@ -314,21 +213,21 @@ Section PROOF.
             Heq Hc Hsub vm1' Hvm1.  
         + exists vm1';split=> //;constructor.
         have := Hc m1 m2 _ vm2 Hsc s2;rewrite Heq=> /(_ (write_rval vm1' i w)) /= [].
-        + by apply write_rval_eq_on;apply: vmap_eq_onI Hvm1.
+        + by apply write_rval_eq_on;apply: eq_onI Hvm1.
         move=> /= vm2' [Hvm2 Hsem2].
         elim (Hrec Heq Hc Hsub vm2' Hvm2) => vm3' /= [Hvm3 Hsem3].
         by exists vm3';split=> //;apply: EForOne Hsem3.
       move=> /(_ H10 Heq Hc Hsub) H vm1' Hvm1;case: (H vm1').
-      + by apply: vmap_eq_onI Hvm1;rewrite !read_e_read;SvD.fsetdec.
+      + by apply: eq_onI Hvm1;rewrite !read_eE;SvD.fsetdec.
       move=> vm2' [Hvm2 Hsem];exists vm2';split => //.
       apply sem_seq1;apply EFor with vlow vhi => //=.
       + by rewrite -(read_e_eq_on Hvm1).
-      have Hvm: evm st1 =[read_e hi s2]  vm1'.
-      + by apply: vmap_eq_onI Hvm1;rewrite (read_e_read low);SvD.fsetdec.
+      have Hvm: evm st1 =[read_e_rec hi s2]  vm1'.
+      + by apply: eq_onI Hvm1;rewrite (read_eE low);SvD.fsetdec.
       by rewrite -(read_e_eq_on Hvm).
     move=> _;have := Hrec (Sv.union s2 (Sv.diff s1 (vrv i))).
     case: loop => [[s c0] |] //= H vm1' /H [vm2' [Hvm Hsem]];exists vm2';split=> //.
-    by apply :   vmap_eq_onI Hvm;SvD.fsetdec.
+    by apply : eq_onI Hvm;SvD.fsetdec.
   Qed.
    
   Let Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
@@ -341,7 +240,7 @@ Section PROOF.
     case Heq' : dead_code_call => [fd'|] //= vm1' Hvm.
     have := Hf m1 m2 va res;rewrite Heq'=> /(_ Hsem) Hsem'.
     exists (write_rval vm1' x res);split.
-    + by apply write_rval_eq_on;apply: vmap_eq_onI Hvm;rewrite read_e_read; SvD.fsetdec.
+    + by apply write_rval_eq_on;apply: eq_onI Hvm;rewrite read_eE; SvD.fsetdec.
     by apply sem_seq1;constructor;rewrite -(read_e_eq_on Hvm) Heq.
   Qed.
 
@@ -356,7 +255,7 @@ Section PROOF.
     exists vm2';split=> // {H7 Heq}.
     elim: re vr Hvm2 Heqr => [z | ?? vr1 Hrec1 vr2 Hrec2] vr Hvm /= ->.
     + by rewrite Hvm // vrv_var;SvD.fsetdec.
-    by f_equal;[apply Hrec1 | apply Hrec2]=> //;apply: vmap_eq_onI Hvm;
+    by f_equal;[apply Hrec1 | apply Hrec2]=> //;apply: eq_onI Hvm;
       rewrite vrv_pair;SvD.fsetdec.
   Qed.
 

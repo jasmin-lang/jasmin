@@ -455,5 +455,7 @@ Proof.
   by rewrite -Sv.mem_spec.
 Qed.
 
+Definition disjoint s1 s2 := Sv.is_empty (Sv.inter s1 s2).
+
 (* Non dependant map *)
 Module Mvar :=  Mmake CmpVar.

@@ -24,8 +24,6 @@ Local Open Scope seq_scope.
 Definition unroll_cmd (unroll_i: instr -> cmd) (c:cmd) : cmd := 
   List.fold_right (fun i c' => unroll_i i ++ c') [::] c.
 
-Print wrange.
-
 Definition unroll_list dir vhi vlo :=
   let l := 
       if iword_leb vlo vhi then iota 0 (N.to_nat (iword_sub vhi vlo)).+1
