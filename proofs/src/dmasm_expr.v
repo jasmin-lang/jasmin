@@ -170,19 +170,39 @@ Section IND.
   Hypothesis Hbcmd : forall bc,  Pi (Cbcmd bc).
   Hypothesis Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (Cif e c1 c2).
   Hypothesis Hfor  : forall fi i rn c, Pc c -> Pi (Cfor fi i rn c).
-  Hypothesis Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
-  Hypothesis Hfunc : forall ta tr (x:rval ta) c (re:rval tr), Pc c -> Pf (FunDef x c re).
+  Hypothesis Hcall1 : forall ta tr x (f:fundef ta tr) a, Pc (fd_body f) -> Pi (Ccall x f a).
 
-  Fixpoint instr_rect' (i:instr) : Pi i := 
+  Fixpoint instr_rect1 (i:instr) : Pi i := 
     match i return Pi i with
     | Cbcmd bc => Hbcmd bc
     | Cif b c1 c2 =>
       Hif b
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect' i) Hc) c1)
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect' i) Hc) c2)
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect1 i) Hc) c1)
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect1 i) Hc) c2)
     | Cfor fi i rn c =>
       Hfor fi i rn 
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect' i) Hc) c)
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect1 i) Hc) c)
+    | Ccall ta tr x f a =>
+      @Hcall1 ta tr x f a 
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect1 i) Hc) (fd_body f))
+    end.
+
+  Definition cmd_rect1 c := 
+    list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect1 i) Hc) c.
+
+  Hypothesis Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
+  Hypothesis Hfunc : forall ta tr (x:rval ta) c (re:rval tr), Pc c -> Pf (FunDef x c re).
+
+  Fixpoint instr_rect2 (i:instr) : Pi i := 
+    match i return Pi i with
+    | Cbcmd bc => Hbcmd bc
+    | Cif b c1 c2 =>
+      Hif b
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c1)
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c2)
+    | Cfor fi i rn c =>
+      Hfor fi i rn 
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c)
     | Ccall ta tr x f a =>
       Hcall x a (func_rect f)
     end
@@ -190,11 +210,11 @@ Section IND.
     match f with
     | FunDef ta tr x c re => 
       Hfunc x re
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect' i) Hc) c)
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c)
     end.
 
   Definition cmd_rect c := 
-    list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect' i) Hc) c.
+    list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c.
 
 End IND.
 
@@ -517,7 +537,6 @@ Definition esnd t1 t2 (p:pexpr (t1 ** t2)) : pexpr t2 :=
   | Some (p1,p2) => p2
   | _            => Papp1 (Osnd _ _) p
   end.
-Print cmd.
 
 Fixpoint rval2pe t (rv:rval t) := 
   match rv in rval t_ return pexpr t_ with
