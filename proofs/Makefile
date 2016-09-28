@@ -26,6 +26,7 @@ COQFILES := \
 	src/constant_prop.v \
 	src/unrolling.v \
 	src/dead_code.v \
+	src/renaming.v \
 	src/compiler.v
 
 include Makefile.common

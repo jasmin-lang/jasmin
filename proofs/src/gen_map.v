@@ -93,6 +93,8 @@ Module Type MAP.
     (K.t -> option T1 -> option T2 -> option T3) ->
     t T1 -> t T2 -> t T3.
 
+  Parameter in_codom : forall {T:eqType}, T -> t T -> bool.
+
   Notation "m .[ s ]" := (get m s).
   Notation "x .[ k <- v ]" := (@set _ x k v).
 
@@ -125,6 +127,9 @@ Module Type MAP.
     f x None None = None ->
     (map2 f m1 m2).[x] = f x m1.[x] m2.[x].
 
+  Parameter in_codomP : forall {T:eqType} (m:t T) v,
+    in_codom v m <-> exists k, m.[k] = Some v.
+
 End MAP.
 
 Module Mmake (K:CmpType) <: MAP.
@@ -135,7 +140,7 @@ Module Mmake (K:CmpType) <: MAP.
 
   Module Map := FMapAVL.Make Ordered.
 
-  Module Facts := WFacts_fun Ordered Map.
+  Module Facts := WFacts_fun Ordered Map. 
 
   Definition t (T:Type) := Map.t T.
 
@@ -156,6 +161,9 @@ Module Mmake (K:CmpType) <: MAP.
       (fun k d o => f k (Some d) o)
       (Map.Raw.map_option (fun k d => f k (Some d) None))
       (Map.Raw.map_option (fun k d' => f k None (Some d'))) m1 m2.
+
+  Definition in_codom {T:eqType} v (m:t T) := 
+    Map.fold (fun k (v':T) b => b || (v == v')) m false.
 
   Lemma raw_map2_bst {T1 T2 T3} (f:K.t -> option T1 -> option T2 -> option T3) m1 m2:
     Map.Raw.bst (raw_map2 f (Map.this m1) (Map.this m2)).
@@ -250,6 +258,26 @@ Module Mmake (K:CmpType) <: MAP.
     + by apply Map.is_bst.     
     by apply Map.is_bst. 
   Qed.
+
+  Lemma in_codomP : forall {T:eqType} (m:t T) v,
+    in_codom v m <-> exists k, m.[k] = Some v.
+  Proof.
+    rewrite /in_codom=> T m v;rewrite Map.fold_1.
+    have ->: (exists k : K.t, m.[k] = Some v) <-> 
+             (exists k : K.t, InA (@Map.eq_key_elt _) (k, v) (Map.elements m)).            
+    + split;move=> [k Hk];exists k.
+      + by rewrite -Facts.elements_mapsto_iff Facts.find_mapsto_iff.
+      by move: Hk;rewrite -Facts.elements_mapsto_iff Facts.find_mapsto_iff.
+    elim: (Map.elements m) => /= [ | k ks Hrec].
+    + by split => // -[k H];inversion H.
+    case: eqP => [-> | Hdiff].
+    + have -> : fold_left (fun (a : bool) (p : Map.key * T) => a || (k.2 == p.2)) ks true.
+      + elim ks => //=.
+      by split=> // _;exists k.1;case k=> /=;constructor;reflexivity.
+    rewrite Hrec;split=> -[k' Hk];exists k';first by apply InA_cons_tl.
+    inversion Hk;clear Hk;subst=> //.
+    by case: H0 => /= ? Heq;elim: Hdiff.
+  Qed. 
 
 End Mmake.
 
