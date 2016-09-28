@@ -543,3 +543,26 @@ Fixpoint rval2pe t (rv:rval t) :=
   | Rvar x              => x
   | Rpair t1 t2 rv1 rv2 => Papp2 (Opair t1 t2) (rval2pe rv1) (rval2pe rv2)
   end. 
+
+Lemma read_e_efst t1 t2 (e:pexpr (t1 ** t2)): Sv.Subset (read_e (efst e)) (read_e e).
+Proof.
+  rewrite /efst.
+  case: destr_pair (@destr_pairP _ _ e) => [[e1 e2] /(_ _ _ (erefl _)) ->| _].
+  + by rewrite /read_e /= !read_eE;SvD.fsetdec.
+  by rewrite /read_e /=;SvD.fsetdec.
+Qed.
+
+Lemma read_e_esnd t1 t2 (e:pexpr (t1 ** t2)): Sv.Subset (read_e (esnd e)) (read_e e).
+Proof.
+  rewrite /esnd.
+  case: destr_pair (@destr_pairP _ _ e) => [[e1 e2] /(_ _ _ (erefl _)) ->| _].
+  + by rewrite /read_e /= (read_eE e1) !read_eE;SvD.fsetdec.
+  by rewrite /read_e /=;SvD.fsetdec.
+Qed.
+
+Lemma read_rval2pe t (x:rval t): Sv.Equal (read_e (rval2pe x)) (vrv x).
+Proof.
+  rewrite /read_e;elim: x => /= [x | ?? x1 Hx1 x2 Hx2].
+  + by rewrite vrv_var;SvD.fsetdec.
+  rewrite !read_eE vrv_pair -Hx1 -Hx2;SvD.fsetdec.
+Qed.

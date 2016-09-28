@@ -318,6 +318,9 @@ Proof. by move=> H1 H2 x Hin;rewrite H1 ?H2. Qed.
 Lemma eq_onI s1 s2 vm1 vm2 : Sv.Subset s1 s2 -> vm1 =[s2] vm2 -> vm1 =[s1] vm2.
 Proof. move=> Hs Heq x Hin;apply Heq;SvD.fsetdec. Qed.
 
+Lemma eq_onS vm1 s vm2 : vm1 =[s] vm2 -> vm2 =[s] vm1.
+Proof. by move=> Heq x Hin;rewrite Heq. Qed.
+
 Lemma disjoint_eq_on s t (r:rval t) vm v: 
   disjoint s (vrv r) ->
   write_rval vm r v =[s] vm.
@@ -354,4 +357,26 @@ Proof.
     rewrite !Fv.setP_neq //;apply Heq.   
     by move: H=> /eqP H;rewrite vrv_var;SvD.fsetdec.
   by move=> Heq;apply H1;apply H2=> z Hz;apply Heq;rewrite vrv_pair;SvD.fsetdec.
+Qed.
+
+Lemma sem_rval2pe t (x:rval t) vm: 
+  sem_pexpr vm (rval2pe x) = Ok error (sem_rval vm x).
+Proof. by elim: x => /= [//| ?? x1 -> x2 /= ->]. Qed.
+  
+Lemma sem_efst vm t1 t2 (e:pexpr (t1 ** t2)) v: 
+  sem_pexpr vm e = Ok error v ->
+  sem_pexpr vm (efst e) = Ok error v.1.
+Proof.
+  rewrite /efst.
+  case: destr_pair (@destr_pairP _ _ e) => /= [[e1 e2] /(_ _ _ (erefl _)) ->| _ ->] //=.
+  by case: (sem_pexpr vm e1)=> // v1;case: sem_pexpr => //= v2 [] <-.   
+Qed.
+
+Lemma sem_esnd vm t1 t2 (e:pexpr (t1 ** t2)) v: 
+  sem_pexpr vm e = Ok error v ->
+  sem_pexpr vm (esnd e) = Ok error v.2.
+Proof.
+  rewrite /esnd.
+  case: destr_pair (@destr_pairP _ _ e) => /= [[e1 e2] /(_ _ _ (erefl _)) ->| _ ->] //=.
+  by case: (sem_pexpr vm e1)=> // v1;case: sem_pexpr => //= v2 [] <-.   
 Qed.
