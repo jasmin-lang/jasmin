@@ -566,3 +566,87 @@ Proof.
   + by rewrite vrv_var;SvD.fsetdec.
   rewrite !read_eE vrv_pair -Hx1 -Hx2;SvD.fsetdec.
 Qed.
+
+(* ----------------------------------------------------------------------------------- *)
+
+Fixpoint eqb_pexpr t1 t2 (e1:pexpr t1) (e2:pexpr t2) : bool :=
+  match e1, e2 with
+  | Pvar x1  , Pvar x2    => x1 == x2
+  | Pconst n1, Pconst n2  => (n1 =? n2)%num
+  | Pbool b1 , Pbool b2   => b1 == b2
+  | Papp1 _ _ o1 e1         , Papp1 _ _ o2 e2          => 
+    eqb_sop1 o1 o2 && eqb_pexpr e1 e2
+  | Papp2 _ _ _ o1 e11 e12   , Papp2 _ _ _ o2 e21 e22     =>  
+    eqb_sop2 o1 o2 && eqb_pexpr e11 e21 && eqb_pexpr e12 e22
+  | Papp3 _ _ _ _ o1 e11 e12 e13, Papp3 _ _ _ _ o2 e21 e22 e23 => 
+    eqb_sop3 o1 o2 && eqb_pexpr e11 e21 && eqb_pexpr e12 e22 && eqb_pexpr e13 e23
+  | _, _ => false
+  end.
+
+Definition eqb_forinfo fi1 fi2 :=
+  match fi1, fi2 with
+  | Unroll_for, Unroll_for => true
+  | Keep_for  , Keep_for   => true
+  | _         , _          => false
+  end.
+
+Definition eqb_dir d1 d2 :=
+  match d1, d2 with
+  | UpTo  , UpTo   => true
+  | DownTo, DownTo => true
+  | _     , _     => false
+  end.
+
+Fixpoint eqb_rval t1 (x1:rval t1) t2 (x2:rval t2) :=
+  match x1, x2 with
+  | Rvar x1          , Rvar x2           => x1 == x2
+  | Rpair _ _ x11 x12, Rpair _ _ x21 x22 => eqb_rval x11 x21 && eqb_rval x12 x22
+  | _                , _                 => false
+  end.
+ 
+Definition eqb_bcmd i1 i2 := 
+  match i1, i2 with
+  | Assgn _ x1 e1, Assgn _ x2 e2 =>
+    eqb_rval x1 x2 && eqb_pexpr e1 e2
+  | Load x1 e1   , Load x2 e2    => 
+    eqb_rval x1 x2 && eqb_pexpr e1 e2
+  | Store e11 e12, Store e21 e22 =>
+    eqb_pexpr e11 e21 && eqb_pexpr e12 e22
+  | _            , _             =>
+    false
+  end.
+
+Section All2.
+
+  Variable A:Type.
+  Variable f : A -> A -> bool.
+ 
+  Fixpoint all2 (l1 l2: seq A) := 
+    match l1, l2 with
+    | [::]  , [::]   => true
+    | a1::l1, a2::l2 => f a1 a2 && all2 l1 l2
+    | _     , _      => false
+    end.
+
+End All2.
+ 
+Fixpoint eqb_instr i1 i2 := 
+  match i1, i2 with
+  | Cbcmd i1, Cbcmd i2 => eqb_bcmd i1 i2
+  | Cif e1 c11 c12, Cif e2 c21 c22 =>
+    eqb_pexpr e1 e2 && all2 eqb_instr c11 c21 && all2 eqb_instr c12 c22
+  | Cfor fi1 i1 (dir1,lo1,hi1) c1, Cfor fi2 i2 (dir2,lo2,hi2) c2 =>
+    eqb_forinfo fi1 fi2 && eqb_dir dir1 dir2 && 
+    eqb_pexpr lo1 lo2 && eqb_pexpr hi1 hi2 &&
+    all2 eqb_instr c1 c2
+  | Ccall _ _ x1 fd1 arg1, Ccall _ _ x2 fd2 arg2 => 
+    eqb_rval x1 x2 &&
+    eqb_fundef fd1 fd2 &&
+    eqb_pexpr arg1 arg2
+  | _, _ => false 
+  end
+with eqb_fundef ta1 tr1 (fd1:fundef ta1 tr1) ta2 tr2 (fd2:fundef ta2 tr2) :=
+  match fd1, fd2 with
+  | FunDef _ _ p1 c1 r1, FunDef _ _ p2 c2 r2 =>
+    eqb_rval p1 p2 && eqb_rval r1 r2 && all2 eqb_instr c1 c2
+  end.
