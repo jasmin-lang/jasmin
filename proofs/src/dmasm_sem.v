@@ -179,21 +179,34 @@ with sem_i : estate -> instr -> estate -> Prop :=
 
 | Ecall sta str m1 vm1 m2
         (rv_res : rval str) (fd : fundef sta str)
-        (pe_arg : pexpr sta) (res : st2ty str)
-  :
+        (pe_arg : pexpr sta) (res : st2ty str) :
     let rarg := sem_pexpr vm1 pe_arg in
     isOk rarg ->
     sem_call m1 fd (rdflt_ rarg) m2 res ->
     sem_i (Estate m1 vm1)
           (Ccall rv_res fd pe_arg)
           (Estate m2 (write_rval vm1 rv_res res))
-
-| EFor s1 s2 fi iv dir (low hi : pexpr sword) c vlow vhi :
+    
+| EFor s1 s2 iv dir (low hi : pexpr sword) c vlow vhi :
     sem_pexpr s1.(evm) low = ok vlow ->
     sem_pexpr s1.(evm) hi  = ok vhi  ->
     sem_for iv (map n2w (wrange dir vlow vhi)) s1 c s2 ->
-    sem_i s1 (Cfor fi iv (dir, low, hi) c) s2
+    sem_i s1 (Cfor iv (dir, low, hi) c) s2
 
+| Ewhile s1 s2 e c :
+   sem_while s1 e c s2 ->
+   sem_i s1 (Cwhile e c) s2
+
+with sem_while : estate -> pexpr sbool -> cmd -> estate -> Prop := 
+| EWhileDone s (e:pexpr sbool) c :
+    sem_pexpr s.(evm) e = ok false ->
+    sem_while s e c s
+| EWhileOne s1 s2 s3 (e:pexpr sbool) c :  
+    sem_pexpr s1.(evm) e = ok true ->
+    sem s1 c s2 ->
+    sem_while s2 e c s3 ->
+    sem_while s1 e c s3
+    
 with sem_for : rval sword -> seq word -> estate -> cmd -> estate -> Prop :=
 | EForDone s iv c :
     sem_for iv [::] s c s
@@ -218,6 +231,7 @@ with sem_call :
 Scheme sem_Ind := Minimality for sem Sort Prop
 with   sem_i_Ind := Minimality for sem_i Sort Prop
 with   sem_for_Ind := Minimality for sem_for Sort Prop
+with   sem_while_Ind := Minimality for sem_while Sort Prop
 with   sem_call_Ind := Minimality for sem_call Sort Prop.
 
 (* -------------------------------------------------------------------- *)
@@ -280,7 +294,7 @@ Proof.
            (fun i => forall s1 s2, sem_i s1 i s2 -> s1.(evm) = s2.(evm) [\ write_i i])
            (fun c => forall s1 s2, sem   s1 c s2 -> s1.(evm) = s2.(evm) [\ write_c c])
            (fun _ _ _ => True)) => /= {c s1 s2}
-    [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|? x rn c1 Hc1| ?? x f a _|//] s1 s2 Hsem;
+    [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|x rn c Hc|e c Hc|?? x f a _|//] s1 s2 Hsem;
     inversion Hsem=>{Hsem};subst=> // z.
   + rewrite write_c_cons => Hz;rewrite (Hi _ _ H2) ?(Hc1 _ _ H4) //; SvD.fsetdec. 
   + rewrite write_i_bcmd;case: bc H1 => //= [? r p | r p | p1 p2].
@@ -291,9 +305,12 @@ Proof.
   + by rewrite write_i_if=> ?; case:cond H4 H5=> H4 H5;[apply Hc1 | apply Hc2] => //;
      SvD.fsetdec. 
   + rewrite write_i_for. 
-    elim: H7 Hc1=> {H5 H6 dir s1 s2} //=.
+    elim: H6 Hc=> //= {H3 H5 dir s1 s2 c} //=.
     move => s1 s2 s3 iv w1 w2 c Hsem Hfor Hrec Hc Hin.
-    rewrite -Hrec // -(Hc _ _ Hsem) /= -?vrvP //; SvD.fsetdec. 
+    by rewrite -Hrec // -(Hc _ _ Hsem) /= -?vrvP //; SvD.fsetdec. 
+  + rewrite write_i_while;elim: H3 Hc => //= {s1 s2 e c}.
+    move => s1 s2 s3 e c He Hsem Hw Hrec Hc Hin.
+    by rewrite -Hrec // -(Hc _ _ Hsem) /= -?vrvP //; SvD.fsetdec. 
   by rewrite write_i_call=> Hin; move: H3 H4=> [] ?;subst=> -[] [] ?;subst;apply vrvP.  
 Qed.
 

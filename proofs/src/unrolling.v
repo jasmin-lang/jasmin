@@ -35,19 +35,16 @@ Fixpoint unroll_i (i:instr) : cmd :=
   match i with
   | Cbcmd _     => [::i]
   | Cif b c1 c2 => [::Cif b (unroll_cmd unroll_i c1) (unroll_cmd unroll_i c2)]
-  | Cfor fi i (dir, low, hi) c => 
+  | Cfor i (dir, low, hi) c => 
     let c' := unroll_cmd unroll_i c in
-    if fi is Unroll_for then
-      match is_const low, is_const hi with
-      | Some vlo, Some vhi =>
-        let l := unroll_list dir vhi vlo in
-        let cs := map (fun n => assgn i (Pconst n) :: c') l in
-        flatten cs 
-      | _, _             => [::Cfor fi i (dir, low, hi) c']
-      end
-      
-    else [::Cfor fi i (dir, low, hi) c']
-
+    match is_const low, is_const hi with
+    | Some vlo, Some vhi =>
+      let l := unroll_list dir vhi vlo in
+      let cs := map (fun n => assgn i (Pconst n) :: c') l in
+      flatten cs 
+    | _, _             => [::Cfor i (dir, low, hi) c']
+    end     
+  | Cwhile e c => [::Cwhile e (unroll_cmd unroll_i c)]
   | Ccall ta tr x fd arg => [::Ccall x (unroll_call fd) arg]
   end
 
@@ -104,20 +101,19 @@ Section PROOF.
   Lemma nat_of_bin_to_nat w : nat_of_bin w = N.to_nat w.
   Admitted.
 
-  Let Hfor  : forall fi i rn c, Pc c -> Pi (Cfor fi i rn c).
+  Let Hfor  : forall i rn c, Pc c -> Pi (Cfor i rn c).
   Proof.
-    move=> fi i [[dir low] hi] c Hc s s' Hs /=.
-    have Hs1 : sem s [:: Cfor fi i (dir, low, hi) (unroll_cmd unroll_i c)] s'.
+    move=> i [[dir low] hi] c Hc s s' Hs /=.
+    have Hs1 : sem s [:: Cfor i (dir, low, hi) (unroll_cmd unroll_i c)] s'.
     + apply sem_seq1. inversion Hs;clear Hs;subst.
-      apply EFor with vlow vhi=> // => {H7 H8}.
-      elim: H9 Hc=> {s s' vlow vhi c} [s iv c Hc| s1 s2 s3 iv w ws c Hs1 Hs2 Hrec Hc].
+      apply EFor with vlow vhi=> // => {H6 H7}.
+      elim: H8 Hc=> {s s' vlow vhi c} [s iv c Hc| s1 s2 s3 iv w ws c Hs1 Hs2 Hrec Hc].
       + by constructor.
       by apply EForOne with s2;[apply Hc|apply Hrec].
-    case: fi Hs Hs1=> //.
     case Heq1 : (is_const low) => [vlo| //].
-    case Heq2 : is_const => [vhi| //] Hi;inversion Hi;clear Hi;subst.
+    case Heq2 : is_const => [vhi| //];inversion Hs;clear Hs;subst.
     have ?:= is_constP Heq1;have ?:= is_constP Heq2;subst low hi=> {Heq1 Heq2}.
-    move: H7 H8 => /= [] ? [] ?;subst.
+    move: H6 H7 => /= [] ? [] ?;subst.
     have Heq : [seq N.to_nat i| i <-  unroll_list dir vhi vlo ] =
             wrange dir  (n2w vlo) (n2w vhi).
     + rewrite /wrange /unroll_list iword_lebP.
@@ -125,15 +121,24 @@ Section PROOF.
       case dir; rewrite ?map_rev -map_comp -(addn0 (n2w vlo)) iota_addl addn0 iword_sub_to.
       + by apply eq_map=> ? /=;rewrite iword_add_to -n2w_Nofnat.
       f_equal;by apply eq_map=> ? /=;rewrite iword_add_to -n2w_Nofnat.
-    rewrite -Heq in H9 => {Heq} _.
-    elim: unroll_list s H9=> [ | w ws Hrec] /= s Hf;inversion Hf;clear Hf;subst.
+    rewrite -Heq in H8 => {Heq Hs1}.
+    elim: unroll_list s H8=> [ | w ws Hrec] /= s Hf;inversion Hf;clear Hf;subst.
     + by constructor.
     apply Eseq with  {| emem := emem s; evm := write_rval (evm s) i (n2w (N.to_nat w)) |}.
     + by constructor => /=;rewrite nat_of_bin_to_nat.
     apply sem_app with s2;first by apply Hc.
     by apply Hrec.
   Qed.
-    
+
+  Let Hwhile : forall e c, Pc c -> Pi (Cwhile e c).
+  Proof.
+    move=> e c Hc s s' Hs /=.
+    apply sem_seq1;inversion Hs;clear Hs;subst;constructor.
+    elim: H3 Hc => {s s' e c} [s e c He | s1 s2 s3 e c He Hc Hw Hrec] HP.
+    + by apply EWhileDone. 
+    by apply EWhileOne with s2=> //;[apply HP | apply Hrec].
+  Qed.
+
   Let Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
   Proof.
     move=> ta tr x fd a Hf s s' H;inversion H;clear H;subst => /=.
@@ -154,7 +159,7 @@ Section PROOF.
   Lemma unroll_callP ta tr (f : fundef ta tr) mem mem' va vr: 
     sem_call mem f va mem' vr -> sem_call mem (unroll_call f) va mem' vr.
   Proof.
-    apply (@func_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hcall Hfunc).
+    apply (@func_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc).
   Qed.
 
 End PROOF.

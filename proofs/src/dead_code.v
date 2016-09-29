@@ -37,14 +37,23 @@ Section LOOP.
 
   Variable dead_code_c : Sv.t -> result unit (Sv.t * cmd).
 
-  Fixpoint loop (n:nat) (rc wx:Sv.t) (s:Sv.t) : result unit (Sv.t * cmd) :=
+  Fixpoint loop (n:nat) (wx:Sv.t) (s:Sv.t) : result unit (Sv.t * cmd) :=
     match n with
     | O => Error tt
     | S n =>
       dead_code_c s >>=  (fun (sc:Sv.t * cmd) => let (s', c') := sc in
       let s' := Sv.diff s' wx in
       if Sv.subset s' s then Ok unit (s,c') 
-      else loop n rc wx (Sv.union s s'))
+      else loop n wx (Sv.union s s'))
+    end.
+
+  Fixpoint wloop (n:nat) (s:Sv.t) : result unit (Sv.t * cmd) :=
+    match n with
+    | O => Error tt
+    | S n =>
+      dead_code_c s >>=  (fun (sc:Sv.t * cmd) => let (s', c') := sc in
+      if Sv.subset s' s then Ok unit (s,c') 
+      else wloop n (Sv.union s s'))
     end.
 
 End LOOP.
@@ -71,11 +80,14 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : result unit (Sv.t * cmd) :=
     dead_code dead_code_i c1 s >>= (fun (sc:Sv.t * cmd) => let (s1,c1) := sc in
     dead_code dead_code_i c2 s >>= (fun (sc:Sv.t * cmd) => let (s2,c2) := sc in
     Ok unit (read_e_rec b (Sv.union s1 s2), [:: Cif b c1 c2])))
-  | Cfor fi x (dir, e1, e2) c =>
-    let wc := read_c c in
-    loop (dead_code dead_code_i c) nb_loop wc (vrv x) s >>= 
+  | Cfor x (dir, e1, e2) c =>
+    loop (dead_code dead_code_i c) nb_loop (vrv x) s >>= 
     (fun (sc:Sv.t * cmd) => let (s, c) := sc in
-    Ok unit (read_e_rec e1 (read_e_rec e2 s),[::Cfor fi x (dir,e1,e2) c]))
+    Ok unit (read_e_rec e1 (read_e_rec e2 s),[::Cfor x (dir,e1,e2) c]))
+  | Cwhile e c =>
+    wloop (dead_code dead_code_i c) nb_loop (read_e_rec e s) >>= 
+    (fun (sc:Sv.t * cmd) => let (s, c) := sc in
+    Ok unit (s,[::Cwhile e c]))
   | Ccall ta tr x fd arg =>
     dead_code_call fd >>= (fun fd => 
     Ok unit (read_e_rec arg (Sv.diff s (vrv x)), [::Ccall x fd arg]))
@@ -187,9 +199,9 @@ Section PROOF.
 
   Opaque nb_loop.
 
-  Let Hfor  : forall fi i rn c, Pc c -> Pi (Cfor fi i rn c).
+  Let Hfor  : forall i rn c, Pc c -> Pi (Cfor i rn c).
   Proof.
-    move=> fi i [[dir low] hi] c Hc m1 m2 vm1 vm2 H;inversion H;clear H;subst=> /=.
+    move=> i [[dir low] hi] c Hc m1 m2 vm1 vm2 H;inversion H;clear H;subst=> /=.
     elim: nb_loop => //=.
     move=> n Hrec s2.
     case Heq : (dead_code dead_code_i c s2) => [[s1 c']|] //=.
@@ -207,7 +219,7 @@ Section PROOF.
              sem_for i [seq n2w i | i <- wrange dir vlow vhi]
                 {| emem := emem st1; evm := vm1' |} c'
                 {| emem := emem st2; evm := vm2' |}.
-      + move: st1 st2 => {Hrec H8 H9 H10 Hc Heq Hsub vm1 vm2 m1 m2} st1 st2.
+      + move: st1 st2 => {Hrec H7 H8 H9 Hc Heq Hsub vm1 vm2 m1 m2} st1 st2.
         elim=> {st1 st2 c i} [s i c
                              | [m1 vm1] [m2 vm2] [m3 vm3] i w ws c Hsc Hsf Hrec] /=
             Heq Hc Hsub vm1' Hvm1.  
@@ -217,7 +229,7 @@ Section PROOF.
         move=> /= vm2' [Hvm2 Hsem2].
         elim (Hrec Heq Hc Hsub vm2' Hvm2) => vm3' /= [Hvm3 Hsem3].
         by exists vm3';split=> //;apply: EForOne Hsem3.
-      move=> /(_ H10 Heq Hc Hsub) H vm1' Hvm1;case: (H vm1').
+      move=> /(_ H9 Heq Hc Hsub) H vm1' Hvm1;case: (H vm1').
       + by apply: eq_onI Hvm1;rewrite !read_eE;SvD.fsetdec.
       move=> vm2' [Hvm2 Hsem];exists vm2';split => //.
       apply sem_seq1;apply EFor with vlow vhi => //=.
@@ -229,7 +241,53 @@ Section PROOF.
     case: loop => [[s c0] |] //= H vm1' /H [vm2' [Hvm Hsem]];exists vm2';split=> //.
     by apply : eq_onI Hvm;SvD.fsetdec.
   Qed.
-   
+
+  Let Hwhile : forall e c, Pc c -> Pi (Cwhile e c).
+  Proof.
+    move=> e c Hc m1 m2 vm1 vm2 H;inversion H;clear H;subst=> /= s2.
+    set s2' := (read_e_rec e s2).
+    have : Sv.Subset (read_e_rec e s2) s2'.
+    + rewrite /s2' read_eE=> //.
+    elim: nb_loop s2' => //= n Hrec s2' Hsub.
+    case Heq : (dead_code dead_code_i c s2') => [[s1 c']|] //=.
+    case : (boolP (Sv.subset s1 s2')) => /=.
+    + move=> /Sv.subset_spec Hsub1.
+      pose st1 := {| emem := m1; evm := vm1 |}; pose st2:= {| emem := m2; evm := vm2 |}.
+      rewrite (_:vm1 = evm st1) // (_:vm2 = evm st2) //.
+      rewrite (_:m1 = emem st1) // (_:m2 = emem st2) //.
+      have: sem_while st1 e c st2 ->
+            dead_code dead_code_i c s2' = Ok unit (s1, c') -> Pc c -> 
+            Sv.Subset (read_e_rec e s2) s2' ->
+            forall vm1',  evm st1 =[s2']  vm1' ->
+             exists vm2' : vmap, 
+             evm st2 =[s2']  vm2' /\
+             sem_while {| emem := emem st1; evm := vm1' |} e c'
+                       {| emem := emem st2; evm := vm2' |}.
+      + move: st1 st2 => {H4 Hrec Hc Heq Hsub vm1 vm2 m1 m2} st1 st2.
+        elim=> {st1 st2 e c}
+          [ st e c He | [m1 vm1] [m2 vm2] [m3 vm3] e c He Hsc Hsf Hrec] /=
+            Heq Hc Hsub vm1' Hvm1.  
+        + exists vm1';split=> //;constructor.
+          rewrite -He /=;symmetry.
+          have /read_e_eq_on //: evm st =[read_e_rec e s2]  vm1'.
+          by apply: eq_onI Hvm1.
+        have := Hc m1 m2 _ vm2 Hsc s2';rewrite Heq => /(_ vm1') /= [].
+        + by apply: eq_onI Hvm1.
+        move=> /= vm2' [Hvm2 Hsem2].
+        elim (Hrec Heq Hc Hsub vm2' Hvm2) => vm3' /= [Hvm3 Hsem3].
+        exists vm3';split=> //;apply: EWhileOne Hsem3=> //.
+        rewrite -He /=;symmetry.
+        have /read_e_eq_on //: vm1 =[read_e_rec e s2]  vm1'.
+        by apply: eq_onI Hvm1.
+      move=> /(_ H4 Heq Hc Hsub) H vm1' Hvm1;case: (H vm1')=> //.
+      move=> vm2' [Hvm2 Hsem];exists vm2';split => //.
+      + by apply: eq_onI Hvm2;move: Hsub;rewrite read_eE;SvD.fsetdec.
+      by apply sem_seq1;constructor.
+    move=> _; have := Hrec (Sv.union s2' s1).
+    case: wloop => [[s c0] |] //=  H vm1' /(H _) [];first by SvD.fsetdec.
+    move=> vm2' [Hvm Hsem];exists vm2';split=> //.
+  Qed.
+     
   Let Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
   Proof.
     move=> ta tr x fd a Hf m1 m2 vm1 vm2 H;inversion H;clear H;subst.
@@ -265,7 +323,7 @@ Section PROOF.
     | _      => True
     end.
   Proof.
-    apply (@func_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hcall Hfunc).
+    apply (@func_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc).
   Qed.
 
 End PROOF.

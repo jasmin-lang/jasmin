@@ -135,9 +135,9 @@ Qed.
 (* Loop *)
 
 (* -------------------------------------------------------------------- *)
-Lemma hoare_for0 (i:rval sword) fi dir (e1 e2:pexpr sword) c Q:
+Lemma hoare_for0 (i:rval sword) dir (e1 e2:pexpr sword) c Q:
   hoare (fun s => Q s /\ ssem_pexpr (sevm s) e2 < ssem_pexpr (sevm s) e1) 
-        [::Cfor fi i (dir,e1,e2) c]
+        [::Cfor i (dir,e1,e2) c]
         Q.
 Proof.
 move=> s1 s2; set c' := Cfor _ _ _ => /ssem_iV sem.
@@ -171,7 +171,7 @@ Qed.
 Definition incr dir (i : word) := 
   if dir is UpTo then i+1 else i-1.
 
-Lemma hoare_for_base (i:rval sword) fi dir (e1 e2:pexpr sword) I cmd:
+Lemma hoare_for_base (i:rval sword) dir (e1 e2:pexpr sword) I cmd:
   donotdep (vrv i) e1 ->
   donotdep (vrv i) e2 ->
 
@@ -201,7 +201,7 @@ Lemma hoare_for_base (i:rval sword) fi dir (e1 e2:pexpr sword) I cmd:
        let s' := {|semem := s.(semem); sevm := swrite_rval s.(sevm) i i0|} in
        I s' /\ w1 <= w2)
 
-    [:: Cfor fi i (dir, e1, e2) cmd ]
+    [:: Cfor i (dir, e1, e2) cmd ]
 
     (fun s => 
        let w1 := ssem_pexpr s.(sevm) e1 in

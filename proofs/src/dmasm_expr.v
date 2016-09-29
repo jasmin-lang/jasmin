@@ -132,14 +132,11 @@ Inductive dir := UpTo | DownTo.
 
 Definition range := (dir * pexpr sword * pexpr sword)%type.
 
-Inductive for_info :=
-| Unroll_for
-| Keep_for.
-
 Inductive instr := 
 | Cbcmd  : bcmd -> instr
 | Cif    : pexpr sbool -> seq instr -> seq instr -> instr
-| Cfor   : for_info -> rval sword -> range -> seq instr -> instr
+| Cfor   : rval sword -> range -> seq instr -> instr
+| Cwhile : pexpr sbool -> seq instr -> instr
 | Ccall  : forall starg stres, 
              rval  stres ->
              fundef starg stres ->
@@ -169,7 +166,8 @@ Section IND.
   Hypothesis Hseq  : forall i c,  Pi i -> Pc c -> Pc (i::c).
   Hypothesis Hbcmd : forall bc,  Pi (Cbcmd bc).
   Hypothesis Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (Cif e c1 c2).
-  Hypothesis Hfor  : forall fi i rn c, Pc c -> Pi (Cfor fi i rn c).
+  Hypothesis Hfor  : forall i rn c, Pc c -> Pi (Cfor i rn c).
+  Hypothesis Hwhile : forall e c, Pc c -> Pi (Cwhile e c).
   Hypothesis Hcall1 : forall ta tr x (f:fundef ta tr) a, Pc (fd_body f) -> Pi (Ccall x f a).
 
   Fixpoint instr_rect1 (i:instr) : Pi i := 
@@ -179,8 +177,11 @@ Section IND.
       Hif b
         (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect1 i) Hc) c1)
         (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect1 i) Hc) c2)
-    | Cfor fi i rn c =>
-      Hfor fi i rn 
+    | Cfor i rn c =>
+      Hfor i rn 
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect1 i) Hc) c)
+    | Cwhile e c =>
+      Hwhile e 
         (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect1 i) Hc) c)
     | Ccall ta tr x f a =>
       @Hcall1 ta tr x f a 
@@ -200,8 +201,11 @@ Section IND.
       Hif b
         (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c1)
         (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c2)
-    | Cfor fi i rn c =>
-      Hfor fi i rn 
+    | Cfor i rn c =>
+      Hfor i rn 
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c)
+    | Cwhile e c =>
+      Hwhile e 
         (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c)
     | Ccall ta tr x f a =>
       Hcall x a (func_rect f)
@@ -280,7 +284,8 @@ Fixpoint write_i_rec s i :=
   match i with
   | Cbcmd bc        => write_bcmd_rec s bc
   | Cif   _ c1 c2   => foldl write_i_rec (foldl write_i_rec s c2) c1
-  | Cfor  _ x _ c     => foldl write_i_rec (vrv_rec s x) c
+  | Cfor  x _ c     => foldl write_i_rec (vrv_rec s x) c
+  | Cwhile  _ c     => foldl write_i_rec s c
   | Ccall _ _ x _ _ => vrv_rec s x
   end.
 
@@ -319,13 +324,14 @@ Proof.
            (fun i => forall s, Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)))
            (fun c => forall s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)))
            (fun _ _ _ => True)) => /= {c s}
-    [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|? x rn c1 Hc1| ?? x f a _|//] s;
+    [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|x rn c Hc| e c Hc | ?? x f a _|//] s;
     rewrite /write_i /write_c /=.
   + by SvD.fsetdec. 
   + by rewrite !Hc1 !Hi; SvD.fsetdec.  
   + by rewrite !write_bcmdE; SvD.fsetdec.
   + by rewrite -!/(write_c_rec _ c1) -!/(write_c_rec _ c2) !Hc1 !Hc2; SvD.fsetdec.
-  + by rewrite -!/(write_c_rec _ c1) !Hc1 vrv_recE; SvD.fsetdec.
+  + by rewrite -!/(write_c_rec _ c) !Hc vrv_recE; SvD.fsetdec.
+  + by rewrite -!/(write_c_rec _ c) !Hc ; SvD.fsetdec.
   by rewrite !vrv_recE; SvD.fsetdec.
 Qed.
 
@@ -347,10 +353,16 @@ Proof.
   rewrite /write_i /= -/(write_c_rec _ c1) -/(write_c_rec _ c2) !write_c_recE;SvD.fsetdec.
 Qed.
 
-Lemma write_i_for fi x rn c :
-   Sv.Equal (write_i (Cfor fi x rn c)) (Sv.union (vrv x) (write_c c)).
+Lemma write_i_for x rn c :
+   Sv.Equal (write_i (Cfor x rn c)) (Sv.union (vrv x) (write_c c)).
 Proof.
   rewrite /write_i /= -/(write_c_rec _ c) write_c_recE vrv_recE;SvD.fsetdec.
+Qed.
+
+Lemma write_i_while e c :
+   Sv.Equal (write_i (Cwhile e c)) (write_c c).
+Proof.
+  rewrite /write_i /= -/(write_c_rec _ c) write_c_recE;SvD.fsetdec.
 Qed.
 
 Lemma write_i_call t1 t2 (f:fundef t1 t2) x a :
@@ -385,9 +397,12 @@ Fixpoint read_i_rec (s:Sv.t) (i:instr) : Sv.t :=
     let s := foldl read_i_rec s c1 in
     let s := foldl read_i_rec s c2 in
     read_e_rec b s 
-  | Cfor fi x (dir, e1, e2) c =>
+  | Cfor x (dir, e1, e2) c =>
     let s := foldl read_i_rec s c in
     read_e_rec e1 (read_e_rec e2 s)
+  | Cwhile e c =>
+    let s := foldl read_i_rec s c in
+    read_e_rec e s
   | Ccall ta tr x fd arg => read_e_rec arg s
   end.
               
@@ -424,13 +439,14 @@ Proof.
            (fun i => forall s, Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)))
            (fun c => forall s, Sv.Equal (read_c_rec s c) (Sv.union s (read_c c)))
            (fun _ _ _ => True)) => /= {c s}
-    [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|? x [[dir lo] hi] c1 Hc1| ?? x f a _|//] s;
+    [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|x [[dir lo] hi] c Hc|e c Hc | ?? x f a _|//] s;
     rewrite /read_i /read_c /=.
   + by SvD.fsetdec. 
   + by rewrite -/read_i -/read_c_rec !Hc1 Hi; SvD.fsetdec.  
   + by rewrite !read_bcmdE; SvD.fsetdec.
   + by rewrite -/read_c_rec !read_eE !Hc2 !Hc1;SvD.fsetdec.
-  + by rewrite -/read_c_rec !read_eE !Hc1; SvD.fsetdec.
+  + by rewrite -/read_c_rec !read_eE !Hc; SvD.fsetdec.
+  + by rewrite -/read_c_rec !read_eE !Hc; SvD.fsetdec.
   by rewrite !read_eE; SvD.fsetdec.
 Qed.
 
@@ -452,9 +468,16 @@ Proof.
   rewrite /read_i /= -/read_c_rec read_eE !read_cE;SvD.fsetdec.
 Qed.
 
-Lemma read_i_for fi x dir lo hi c :
-   Sv.Equal (read_i (Cfor fi x (dir, lo, hi) c)) 
+Lemma read_i_for x dir lo hi c :
+   Sv.Equal (read_i (Cfor x (dir, lo, hi) c)) 
             (Sv.union (read_e lo) (Sv.union (read_e hi) (read_c c))).
+Proof.
+  rewrite /read_i /= -/read_c_rec !read_eE read_cE;SvD.fsetdec.
+Qed.
+
+Lemma read_i_while e c :
+   Sv.Equal (read_i (Cwhile e c)) 
+            (Sv.union (read_e e) (read_c c)).
 Proof.
   rewrite /read_i /= -/read_c_rec !read_eE read_cE;SvD.fsetdec.
 Qed.
@@ -583,13 +606,6 @@ Fixpoint eqb_pexpr t1 t2 (e1:pexpr t1) (e2:pexpr t2) : bool :=
   | _, _ => false
   end.
 
-Definition eqb_forinfo fi1 fi2 :=
-  match fi1, fi2 with
-  | Unroll_for, Unroll_for => true
-  | Keep_for  , Keep_for   => true
-  | _         , _          => false
-  end.
-
 Definition eqb_dir d1 d2 :=
   match d1, d2 with
   | UpTo  , UpTo   => true
@@ -616,6 +632,7 @@ Definition eqb_bcmd i1 i2 :=
     false
   end.
 
+(* TODO: move this *)
 Section All2.
 
   Variable A:Type.
@@ -635,10 +652,11 @@ Fixpoint eqb_instr i1 i2 :=
   | Cbcmd i1, Cbcmd i2 => eqb_bcmd i1 i2
   | Cif e1 c11 c12, Cif e2 c21 c22 =>
     eqb_pexpr e1 e2 && all2 eqb_instr c11 c21 && all2 eqb_instr c12 c22
-  | Cfor fi1 i1 (dir1,lo1,hi1) c1, Cfor fi2 i2 (dir2,lo2,hi2) c2 =>
-    eqb_forinfo fi1 fi2 && eqb_dir dir1 dir2 && 
-    eqb_pexpr lo1 lo2 && eqb_pexpr hi1 hi2 &&
+  | Cfor i1 (dir1,lo1,hi1) c1, Cfor i2 (dir2,lo2,hi2) c2 =>
+    eqb_dir dir1 dir2 && eqb_pexpr lo1 lo2 && eqb_pexpr hi1 hi2 &&
     all2 eqb_instr c1 c2
+  | Cwhile e1 c1 , Cwhile e2 c2 =>
+    eqb_pexpr e1 e2 && all2 eqb_instr c1 c2
   | Ccall _ _ x1 fd1 arg1, Ccall _ _ x2 fd2 arg2 => 
     eqb_rval x1 x2 &&
     eqb_fundef fd1 fd2 &&

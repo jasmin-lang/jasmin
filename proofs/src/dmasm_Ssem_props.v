@@ -37,7 +37,7 @@ Proof.
            (fun i => forall s1 s2, ssem_i s1 i s2 -> s1.(sevm) = s2.(sevm) [\ write_i i])
            (fun c => forall s1 s2, ssem   s1 c s2 -> s1.(sevm) = s2.(sevm) [\ write_c c])
            (fun _ _ _ => True)) => /= {c s1 s2}
-    [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|? x rn c1 Hc1| ?? x f a _|//] s1 s2 Hsem;
+    [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|x rn c Hc|e c Hc|?? x f a _|//] s1 s2 Hsem;
     inversion Hsem=>{Hsem};subst=> // z.
   + rewrite write_c_cons => Hz;rewrite (Hi _ _ H2) ?(Hc1 _ _ H4) //; SvD.fsetdec. 
   + rewrite write_i_bcmd;case: bc H1 => //= [? r p | r p | ??].
@@ -47,10 +47,14 @@ Proof.
   + by rewrite write_i_if=> ?;apply Hc1=> //; SvD.fsetdec. 
   + by rewrite write_i_if=> ?;apply Hc2=> //; SvD.fsetdec. 
   + rewrite write_i_for.
-    elim: H5 Hc1 => {w1 w2 e1 e2 dir s1 s2} //.
+    elim: H4 Hc => {w1 w2 e1 e2 dir s1 s2 c} //.
     move=> v w ws c s1 s2 s3 sc _ ih h hc.
     have/ih := hc => -/(_ h) <-; rewrite -(h _ _ sc); last by SvD.fsetdec.
     by rewrite -vrvP //; SvD.fsetdec.
+  + rewrite write_i_while.
+    elim: H3 Hc => {s1 s2 e c} //.
+    move=> s1 s2 s3 e c ? sc ? ih h hc.
+    by have/ih := hc => -/(_ h) <-; rewrite -(h _ _ sc); SvD.fsetdec.
   by rewrite write_i_call=> Hin; move: H3 H4=> [] ?;subst=> -[] [] ?;subst;apply vrvP.  
 Qed.
 

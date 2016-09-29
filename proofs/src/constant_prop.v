@@ -218,11 +218,16 @@ Fixpoint const_prop_i (m:map) (i:instr) : map * cmd :=
       let (m2,c2) := const_prop const_prop_i m c2 in
       (merge_cpm m1 m2, [:: Cif b c1 c2])
     end
-  | Cfor fi x (dir, e1, e2) c =>
+  | Cfor x (dir, e1, e2) c =>
+    let r := write_i i in
+    let m' := remove_cpm m r in
+    let (_,c) := const_prop const_prop_i m' c in
+    (m',[::Cfor x (dir, const_prop_e m e1, const_prop_e m e2) c])
+  | Cwhile e c =>
     let r := write_i i in
     let m := remove_cpm m r in
     let (_,c) := const_prop const_prop_i m c in
-    (m,[::Cfor fi x (dir, const_prop_e m e1, const_prop_e m e2) c])
+    (m,[::Cwhile (const_prop_e m e) c])
   | Ccall ta tr x fd arg =>
     let arg := const_prop_e m arg in
     let r := write_i i in
@@ -531,22 +536,22 @@ Section PROOF.
     by apply sem_seq1;apply (Eif Hseme);case: (cond) Hc;rewrite ?Heq1 ?Heq2 => -[] //=;auto.
   Qed.
 
-  Let Hfor  : forall fi i rn c, Pc c -> Pi (Cfor fi i rn c).
+  Let Hfor  : forall i rn c, Pc c -> Pi (Cfor i rn c).
   Proof.
-    move=> fi i [[dir hi] low] c Hc s s' m H Hm /=.
-    set m1 := remove_cpm m (write_i (Cfor fi i (dir, hi,low) c)).
+    move=> i [[dir hi] low] c Hc s s' m H Hm /=.
+    set m1 := remove_cpm m (write_i (Cfor i (dir, hi,low) c)).
     have Hm1 /= : valid_map (evm s) m1 by apply valid_map_rm with (evm s).
     case Heq: const_prop => [m' c'] /=;split.
     + apply valid_map_rm with (evm s)=> //; by apply write_iP.
     apply sem_seq1;inversion H;clear H;subst.  
     apply EFor with vlow vhi.
     + by apply const_prop_eP. + by apply const_prop_eP.
-    clear H8 H9.
+    clear H7 H8.
     move: Hc Heq Hm1;rewrite /m1=> {m1 Hm}.
-    elim: H10=> {c s s' i}.
-    + move=> s i c Hc Heq Hv;constructor.
+    elim: H9=> {c s s' i}.
+    + by move=> s i c Hc Heq Hv;constructor.
     move=> s1 s2 s3 i w ws c Hs1 Hs2 Hrec Hc Heq Hv.
-    set m1 := remove_cpm m (write_i (Cfor fi i (dir, hi,low) c)).
+    set m1 := remove_cpm m (write_i (Cfor i (dir, hi,low) c)).
     have []:= Hc _ s2 m1 Hs1.
     + move=> x n Hg; have [? Hin] := get_remove_cpm Hg.
       rewrite -(@vrvP _ i w (evm s1));first apply Hv=> //. 
@@ -558,6 +563,31 @@ Section PROOF.
     rewrite -(writeP Hs1) /=;last SvD.fsetdec.
     rewrite -(@vrvP _ i w (evm s1));first apply Hv=> //. 
     by SvD.fsetdec.
+  Qed.
+
+  Let Hwhile  : forall e c, Pc c -> Pi (Cwhile e c).
+  Proof.
+    move=> e c Hc s s' m H Hm /=.
+    set m1 := remove_cpm m (write_i (Cwhile e c)).
+    have Hm1 /= : valid_map (evm s) m1 by apply valid_map_rm with (evm s).
+    case Heq: const_prop => [m' c'] /=;split.
+    + apply valid_map_rm with (evm s)=> //; by apply write_iP.
+    apply sem_seq1;inversion H;clear H;subst;constructor.
+    move: Hc Heq Hm1;rewrite /m1=> {m1 Hm}.
+    elim: H4=> {e c s s'}.
+    + move=> s e c He Hc Heq Hv;constructor.
+      by apply const_prop_eP. 
+    move=> s1 s2 s3 e c He Hs1 Hs2 Hrec Hc Heq Hv.
+    set m1 := remove_cpm m (write_i (Cwhile e c)).
+    have [] //:= Hc _ s2 m1 Hs1.
+    rewrite Heq /= => Hv2 Hc'.
+    apply EWhileOne with s2 => //.
+    + by apply const_prop_eP. 
+    apply Hrec => //.
+    move=> x n Hg. have [? Hin] := get_remove_cpm Hg.
+    move:Hin;rewrite write_i_while => Hin.
+    rewrite -(writeP Hs1) /=;last SvD.fsetdec.
+    by apply Hv. 
   Qed.
 
   Let Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
@@ -585,7 +615,7 @@ Section PROOF.
   Lemma const_prop_callP ta tr (f : fundef ta tr) mem mem' va vr: 
     sem_call mem f va mem' vr -> sem_call mem (const_prop_call f) va mem' vr.
   Proof.
-    apply (@func_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hcall Hfunc).
+    apply (@func_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc).
   Qed.
 
 End PROOF.

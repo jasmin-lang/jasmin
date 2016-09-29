@@ -35,7 +35,8 @@ Fixpoint inline_i (i:instr) : cmd :=
   match i with
   | Cbcmd _              => [::i]
   | Cif b c1 c2          => [::Cif b (inline_cmd inline_i c1) (inline_cmd inline_i c2)]
-  | Cfor fi i rn c       => [::Cfor fi i rn (inline_cmd inline_i c)]
+  | Cfor i rn c          => [::Cfor i rn (inline_cmd inline_i c)]
+  | Cwhile e c           => [::Cwhile e (inline_cmd inline_i c)]
   | Ccall ta tr x fd arg => 
     match inline_fd fd in fundef sta str return pexpr sta -> rval str -> cmd with
     | FunDef sta str fa fc fr =>
@@ -49,8 +50,6 @@ with inline_fd ta tr (fd:fundef ta tr) :=
   match fd with
   | FunDef sta str fa fc fr => FunDef fa (inline_cmd inline_i fc) fr
   end.
-
-
 
 Section CMD.
 
@@ -78,6 +77,16 @@ Section LOOP.
       else loop n wx (Sv.union s s'))
     end.
 
+  Fixpoint wloop (n:nat) (re:Sv.t) (s:Sv.t) : result unit Sv.t :=
+    match n with
+    | O => Error tt
+    | S n =>
+      check_inline_c s >>=  (fun s' => 
+      let s' := Sv.union re s' in
+      if Sv.subset s' s then Ok unit s 
+      else wloop n re (Sv.union s s'))
+    end.
+
 End LOOP.
 
 Definition check_inline_bcmd (i:bcmd) (s:Sv.t) :=
@@ -102,9 +111,12 @@ Fixpoint check_inline_i (i:instr) (s:Sv.t) {struct i} : result unit Sv.t :=
     check_inline check_inline_i c1 s >>= (fun s1 => 
     check_inline check_inline_i c2 s >>= (fun s2 =>
     Ok unit (read_e_rec b (Sv.union s1 s2))))
-  | Cfor fi x (dir, e1, e2) c =>
+  | Cfor x (dir, e1, e2) c =>
     loop (check_inline check_inline_i c) nb_loop (vrv x) s >>= (fun s =>
     Ok unit (read_e_rec e1 (read_e_rec e2 s)))
+  | Cwhile e c =>
+    let re := read_e e in
+    wloop (check_inline check_inline_i c) nb_loop re (Sv.union re s)  
   | Ccall ta tr x fd arg =>
     let p := fd_arg fd in
     let c := fd_body fd in
@@ -123,8 +135,6 @@ Fixpoint check_inline_i (i:instr) (s:Sv.t) {struct i} : result unit Sv.t :=
 
 Definition check_inline_fd ta tr (fd:fundef ta tr) := 
   check_inline check_inline_i (fd_body fd) (vrv (fd_res fd)).
-(* >>=
-     (fun s => if Sv.subset s (vrv (fd_arg fd)) then Ok unit tt else Error tt). *)
           
 Section PROOF.
 
@@ -222,10 +232,9 @@ Section PROOF.
     by apply sem_seq1;apply Eif with false => //=; rewrite -(read_e_eq_on Hr).
   Qed.
 
-  
-  Let Hfor  : forall fi i rn c, Pc c -> Pi (Cfor fi i rn c).
+  Let Hfor  : forall i rn c, Pc c -> Pi (Cfor i rn c).
   Proof.
-    move=> fi i [[dir low] hi] c Hc m1 m2 vm1 vm2 H;inversion H;clear H;subst=> /=.
+    move=> i [[dir low] hi] c Hc m1 m2 vm1 vm2 H;inversion H;clear H;subst=> /=.
     elim: nb_loop => //= n Hrec s1 s2.
     case Heq : (check_inline check_inline_i c s2) => [s1'|] //=.
     case:ifP=> /= [/Sv.subset_spec Hsub [] <-| _].
@@ -241,7 +250,7 @@ Section PROOF.
              sem_for i [seq n2w i | i <- wrange dir vlow vhi]
                 {| emem := emem st1; evm := vm1' |} (inline_cmd inline_i c)
                 {| emem := emem st2; evm := vm2' |}.
-      + move: st1 st2 => {Hrec H8 H9 H10 Hc Heq Hsub vm1 vm2 m1 m2} st1 st2.
+      + move: st1 st2 => {Hrec H7 H8 H9 Hc Heq Hsub vm1 vm2 m1 m2} st1 st2.
         elim=> {st1 st2 c i} [s i c
                              | [m1 vm1] [m2 vm2] [m3 vm3] i w ws c Hsc Hsf Hrec] /=
             Heq Hc Hsub vm1' Hvm1.  
@@ -251,7 +260,7 @@ Section PROOF.
         move=> /= vm2' [Hvm2 Hsem2].
         elim (Hrec Heq Hc Hsub vm2' Hvm2) => vm3' /= [Hvm3 Hsem3].
         by exists vm3';split=> //;apply: EForOne Hsem3.
-      move=> /(_ H10 Heq Hc Hsub) H vm1' Hvm1;case: (H vm1').
+      move=> /(_ H9 Heq Hc Hsub) H vm1' Hvm1;case: (H vm1').
       + by apply: eq_onI Hvm1;rewrite !read_eE;SvD.fsetdec.
       move=> vm2' [Hvm2 Hsem];exists vm2';split => //.
       apply sem_seq1;apply EFor with vlow vhi => //=.
@@ -263,6 +272,47 @@ Section PROOF.
     case: loop => [s'|] //= H [] <- vm1' /H [] // vm2' [Hvm Hsem].
     exists vm2';split=> //.
     by apply : eq_onI Hvm;SvD.fsetdec.
+  Qed.
+
+  Let Hwhile : forall e c, Pc c -> Pi (Cwhile e c).
+  Proof.
+    move=> e c Hc m1 m2 vm1 vm2 H;inversion H;clear H;subst=> /=.
+    move=> s1 s2; set s2' := (Sv.union (read_e e) s2).
+    have : Sv.Subset (Sv.union (read_e e) s2) s2' by SvD.fsetdec. 
+    elim: nb_loop s1 s2 s2' => //= n Hrec s1 s2 s2' Hsub2.
+    case Heq : (check_inline check_inline_i c s2') => [s1'|] //=.
+    case:ifP=> /= [/Sv.subset_spec Hsub [] <-| _].
+    + have: 
+        forall vm1' : vmap,
+        vm1 =[s2']  vm1' ->
+        exists vm2' : vmap,
+          vm2 =[s2']  vm2' /\
+          sem_while {| emem := m1; evm := vm1' |} e (inline_cmd inline_i c)
+                    {| emem := m2; evm := vm2' |}.
+      + move: H4 Hsub Heq Hc.
+        set st1 := {| emem := m1; evm := vm1 |}; set st2:= {| emem := m2; evm := vm2 |}.
+        rewrite (_:vm1 = evm st1) // (_:vm2 = evm st2) //.
+        rewrite (_:m1 = emem st1) // (_:m2 = emem st2) //.   
+        move: st1 st2 => {Hrec vm1 vm2 m1 m2} st1 st2.
+        elim=> {Hsub2 st1 st2 e c} 
+           [st e c He | [m1 vm1] [m2 vm2] [m3 vm3] e c He Hsc Hsw Hrec] /= 
+           Hsub Heq Hc vm1' Hvm1.
+        + exists vm1';split=> //;constructor.
+          rewrite -He /=;symmetry.
+          have /read_e_eq_on //: evm st =[read_e_rec e s1']  vm1'.
+          by apply: eq_onI Hvm1;rewrite read_eE.
+        have /= [] := Hc m1 m2 _ vm2 Hsc _ _ Heq vm1'. 
+        + by apply: eq_onI Hvm1;SvD.fsetdec.
+        move=> /= vm2' [Hvm2 Hsem2].
+        case (Hrec Hsub Heq Hc vm2' Hvm2) => vm3' /= [Hvm3 Hsem3].
+        exists vm3';split=> //;apply: EWhileOne Hsem3=> //.
+        rewrite -He /=;symmetry.
+        have /read_e_eq_on //: vm1 =[read_e_rec e s1']  vm1'.
+        by apply: eq_onI Hvm1;rewrite read_eE.
+      move=> Hw vm1' /Hw [vm2' [Hvm2 Hsem]];exists vm2';split.
+      + by apply: eq_onI Hvm2;SvD.fsetdec.
+      by apply sem_seq1;constructor.
+    by move=> Hw vm1' Hvm1; apply: (Hrec s1 s2 _ _ Hw _ Hvm1);SvD.fsetdec.
   Qed.
 
   Let Hcall1 : forall ta tr x (f:fundef ta tr) a, Pc (fd_body f) -> Pi (Ccall x f a).
@@ -315,7 +365,7 @@ Section PROOF.
     move=> Hcc;constructor=> /= vm0.
     case: (H7 vm0) => vm2 [Hsem Hvr].
     case: 
-      (cmd_rect1 Hskip Hseq Hbcmd Hif Hfor Hcall1 (fd_body fd)
+      (cmd_rect1 Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall1 (fd_body fd)
                  _ _ _ _ Hsem _ _ Hcc (write_rval vm0 (fd_arg fd) va))
        => // vm2' [ Hvm2 Hsem'].
     exists vm2';split=> //. rewrite Hvr.

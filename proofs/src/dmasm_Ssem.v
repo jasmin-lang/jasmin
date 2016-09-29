@@ -178,11 +178,15 @@ with ssem_i : sestate -> instr -> sestate -> Prop :=
     let vm2 := swrite_rval es.(sevm) x vr in 
     ssem_i es (Ccall x f a) (SEstate m vm2)
 
-| SEfor s1 s2 fi i dir (e1 e2:pexpr sword) c:
+| SEfor s1 s2 i dir (e1 e2:pexpr sword) c:
     let w1 := ssem_pexpr s1.(sevm) e1 in
     let w2 := ssem_pexpr s1.(sevm) e2 in
     ssem_for i (map n2w (wrange dir w1 w2)) s1 c s2 ->
-    ssem_i s1 (Cfor fi i (dir, e1, e2) c) s2
+    ssem_i s1 (Cfor i (dir, e1, e2) c) s2
+
+| SEwhile s1 s2 e c :
+   ssem_while s1 e c s2 ->
+   ssem_i s1 (Cwhile e c) s2
 
 with ssem_fun : forall ta tr (f:fundef ta tr) (m:mem) (va:sst2ty ta), mem -> sst2ty tr -> Prop :=
 | SEfun : forall ta tr (f:fundef ta tr) (m:mem) (va:sst2ty ta) vm es',
@@ -198,7 +202,17 @@ with ssem_for : rval sword -> seq word -> sestate -> cmd -> sestate -> Prop :=
 | SEForOne (i:rval sword) w ws c s1 s2 s3:
     ssem (SEstate s1.(semem) (swrite_rval s1.(sevm) i w)) c s2 ->
     ssem_for i ws s2 c s3 ->
-    ssem_for i (w :: ws) s1 c s3.
+    ssem_for i (w :: ws) s1 c s3
+
+with ssem_while : sestate -> pexpr sbool -> cmd -> sestate -> Prop := 
+| SEWhileDone s (e:pexpr sbool) c :
+    ssem_pexpr s.(sevm) e = false ->
+    ssem_while s e c s
+| SEWhileOne s1 s2 s3 (e:pexpr sbool) c :  
+    ssem_pexpr s1.(sevm) e = true ->
+    ssem s1 c s2 ->
+    ssem_while s2 e c s3 ->
+    ssem_while s1 e c s3.
 
 Lemma ssem_iV s i s' : ssem s [::i] s' -> ssem_i s i s'.
 Proof.

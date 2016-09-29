@@ -97,12 +97,14 @@ Fixpoint check_rename_i m i1 i2 :=
     check_rename_e m e1 e2 >>= (fun m =>
     fold2 tt check_rename_i m c11 c21 >>= (fun m =>
     fold2 tt check_rename_i m c12 c22))
-  | Cfor fi1 i1 (dir1,lo1,hi1) c1, Cfor fi2 i2 (dir2,lo2,hi2) c2 =>
+  | Cfor i1 (dir1,lo1,hi1) c1, Cfor i2 (dir2,lo2,hi2) c2 =>
     if eqb_dir dir1 dir2 then
       check_rename_rval m i1 i2 >>= (fun m =>
       check_rename_e m lo1 lo2 >>= (fun m =>
       check_rename_e m hi1 hi2 >>= (fun m => fold2 tt check_rename_i m c1 c2)))
     else Error tt 
+  | Cwhile e1 c1, Cwhile e2 c2 =>
+    check_rename_e m e1 e2 >>= (fun m => fold2 tt check_rename_i m c1 c2)
   | Ccall _ _ x1 fd1 arg1, Ccall _ _ x2 fd2 arg2 => 
     if check_rename_fd fd1 fd2 then 
       check_rename_rval m x1 x2 >>= (fun m => check_rename_e m arg1 arg2)
@@ -410,7 +412,7 @@ Section PROOF.
   
   Let Hbcmd : forall bc,  Pi (Cbcmd bc).
   Proof.
-    move=> i1 r1 [i2 | | | ] //=.
+    move=> i1 r1 [i2 | | | | ] //=.
     case: i1 i2  =>
       [t1 rv1 e1 | rv1 e1 | e11 e12] [t2 rv2 e2 | rv2 e2 | e21 e22] //= r2.
     + case Hcr: check_rename_rval => [r'|]//= Hv Hce.
@@ -486,9 +488,9 @@ Section PROOF.
   Lemma eqb_dirP d1 d2 : reflect (d1 = d2) (eqb_dir d1 d2).
   Proof. by case: d1 d2 => -[] /=;constructor. Qed.
 
-  Let Hfor  : forall fi i rn c, Pc c -> Pi (Cfor fi i rn c).
+  Let Hfor  : forall i rn c, Pc c -> Pi (Cfor i rn c).
   Proof.
-    move=> fi1 i1 [[dir1 hi1] low1] c1 Hc r1 []//= fi2 i2 [[dir2 hi2] low2] c2 r2 Hvr1.
+    move=> i1 [[dir1 hi1] low1] c1 Hc r1 []//= i2 [[dir2 hi2] low2] c2 r2 Hvr1.
     case: eqb_dirP => [<-|] //=.
     case Hi : check_rename_rval => [r0|]//=.
     case Hhi: check_rename_e => [r'|]//=.
@@ -507,7 +509,7 @@ Section PROOF.
           exists vm2' : vmap, eq_rename r vm2 vm2' /\
           sem_for i2 [seq n2w i | i <- wrange dir1 vlow vhi]
              {| emem := m1; evm := vm1' |} c2 {| emem := m2; evm := vm2' |}.
-    + elim: [seq n2w i | i <- wrange dir1 vlow vhi] m1 vm1 H10 {H8 H9}=>
+    + elim: [seq n2w i | i <- wrange dir1 vlow vhi] m1 vm1 H9 {H8 H7}=>
        [ | w ws Hws] m1 vm1 H10;
        inversion H10;clear H10;subst.
       + move=> vm2' Hvm2;exists vm2';split=>//;constructor.
@@ -519,10 +521,42 @@ Section PROOF.
       have [vm2' [Hrn2 Hsem']]:= Hws _ _ H6 _ Hvm3.
       by exists vm2';split=>//;apply: EForOne Hsem'.
     move=> Hrn;case: (Hfor _ Hrn)=> [vm2' [Hrn2 Hsem']];exists vm2';split=>//.
-    apply: EFor Hsem';rewrite -?H8 -?H9 /=;symmetry.
+    apply: EFor Hsem';rewrite -?H7 -?H8 /=;symmetry.
     + apply: (eq_rn_sem Hvr _ Hrn Hhi).
       by apply: incl_mapT Hincl;apply: incl_mapT Hincl2.
     by apply: (eq_rn_sem Hvr _ Hrn Hlo); apply: incl_mapT Hincl.
+  Qed.
+
+  Let Hwhile  : forall e c, Pc c -> Pi (Cwhile e c).
+  Proof.
+    move=> e1 c1 Hc r1 []//= e2 c2 r2 Hvr1.
+    case He: check_rename_e => [r'|]//= Hfc.
+    have Hvr' := check_rename_e_valid He Hvr1.
+    have Hincl' := check_rename_e_incl He.
+    have {Hc} [Hvr2 Hincl2 Hc] := Hc _ _ _ Hvr' Hfc;split=>//.
+    + by apply: incl_mapT Hincl2.
+    move=> m1 m2 vm1 vm2 H;inversion H;clear H;subst.
+    move=> vm1' r Hvr Hincl.
+    have Hwhile: forall vm1', eq_rename r vm1 vm1' ->
+          exists vm2' : vmap, eq_rename r vm2 vm2' /\
+          sem_while {| emem := m1; evm := vm1' |} e2 c2 {| emem := m2; evm := vm2' |}.
+    + move: H4 Hc Hfc He.
+      set st1 := {| emem := m1; evm := vm1 |}; set st2 := {| emem := m2; evm := vm2 |}.
+      rewrite (_: m1 = emem st1) // (_: m2 = emem st2) //.
+      rewrite (_: vm1 = evm st1) // (_: vm2 = evm st2) //.
+      move: st1 st2=> st1 st2 {m1 vm1 m2 vm2 vm1'}.
+      elim => {e1 c1} [ st e1 c1 He1 | [m1 vm1] [m2 vm2] [m3 vm3] e1 c1 He1 Hc1 Hw Hrec]
+        Hc Hfc He vm1' Hvm1.
+      + exists vm1';split => //;constructor.
+        rewrite -He1 /=;symmetry.
+        by apply: (eq_rn_sem Hvr _ Hvm1 He); apply: incl_mapT Hincl.
+      have [vm2' [Hvm2 Hc2]]:= Hc _ _ _ _ Hc1 _ _ Hvr Hincl Hvm1.
+      have [vm3' [Hvm3 Hw2]]:= Hrec Hc Hfc He _ Hvm2.
+      exists vm3';split => //.
+      apply: EWhileOne Hw2=> //.
+      rewrite -He1 /=;symmetry.
+      by apply: (eq_rn_sem Hvr _ Hvm1 He); apply: incl_mapT Hincl.     
+    by move=> /Hwhile [vm2' [Hvm2 Hw]];exists vm2';split=>//; constructor.
   Qed.
 
   Let Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
@@ -615,7 +649,7 @@ Section PROOF.
     check_rename_fd f1 f2 -> 
     sem_call mem f1 va mem' vr -> sem_call mem f2 va mem' vr.
   Proof.
-    have H := (@func_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hcall Hfunc _ _ f1 f2).
+    have H := (@func_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc _ _ f1 f2).
     by move=> ?;apply H.
   Qed.
 
