@@ -549,6 +549,44 @@ Section PROOF.
     by apply: Hf H10.
   Qed.
 
+  Definition inv_map (r:map) (vm:vmap) :=
+    Mvar.fold (fun x id vm' => vm'.[x <- vm.[{|vtype := vtype x; vname := id|}]]) r vm. 
+
+  Lemma inv_mapP r vm: valid r -> eq_rename r (inv_map r vm) vm.
+  Proof.
+    move=> Hv x id Hx.
+    pose P := fun vm vm' =>
+     (foldl
+        (fun (a : vmap) (kv : CmpVar.t * Ident.ident) =>
+         a.[kv.1 <- vm.[{| vtype := vtype kv.1; vname := kv.2 |}]]) vm'
+         (Mvar.elements r)).[x] =
+     (if (x, id) \in Mvar.elements r
+       then vm.[{| vtype := vtype x; vname := id |}]
+       else vm'.[x]).
+    have : forall vm',P vm vm'.
+    + have : forall id', (x,id') \in Mvar.elements r -> id = id'.
+      + by move=> id' /Mvar.elementsP /=;rewrite Hx => -[].
+      rewrite /P=> {P}.
+      elim: Mvar.elements => //= -[y idy] elts Hrec Hinj vm'.
+      rewrite in_cons Hrec;last first.
+      + by move=> ? H;apply Hinj;rewrite in_cons H orbC.
+      case:eqP => /= [[<- <-] | Hdiff].
+      + by case:ifP => Hin //;rewrite Fv.setP_eq. 
+      case:(boolP (_ \in _))=> Hin //.
+      case: (y =P x) => [| /eqP] H;last by rewrite Fv.setP_neq.
+      by subst;elim Hdiff;rewrite (Hinj idy) // in_cons eq_refl.
+    move=> /(_ vm);rewrite /P /inv_map Mvar.foldP=> {P}.    
+    by move /(Mvar.elementsP (x,id)): Hx => ->.
+  Qed.
+
+  Lemma check_rename_rvar_e r t1 (rv1:rval t1) t2 (rv2:rval t2):
+    check_rename_rval r rv1 rv2 = 
+    check_rename_e r (rval2pe rv1) (rval2pe rv2).
+  Proof.
+    elim:rv1 r t2 rv2 => [x1 | ?? x11 Hx1 x12 Hx2] r ? [x2| ?? x21 x22] //=.
+    rewrite Hx1;case: check_rename_e => //=.
+  Qed.
+
   Let Hfunc : forall ta tr (x:rval ta) c (re:rval tr), Pc c -> Pf (FunDef x c re).
   Proof.
     move=> ta tr x1 c1 re1 Hc fd2. 
@@ -557,19 +595,21 @@ Section PROOF.
     case Hrvr: check_rename_rval => [r2|]//=.
     case Hf : fold2 => [r3|]//= _ mem mem' va vr H;inversion H;clear H;subst.
     inversion H0;clear H0;subst.
-    (* il faut calculer l'inverse de vm0 par r3 *)
-(*
-    constructor=> vm0;case: (H7 vm0) => vm2 /= [] Hsem Hvr {H7}.
+    constructor=> vm0.
+    case: (H7 (inv_map r3 vm0)) => vm2 /= [] Hsem Hvr {H7}.
     have [] := Hc _ _ _ _ Hf.
     + apply (check_rename_rv_valid Hrvr).
       by apply (check_rename_rv_valid Hrvx)=> x y id;rewrite Mvar.get0.
     move=> Hvr3 Hincl3 Hsem'.
-
-    have [] := Hsem' _ _ _ _ Hsem (write_rval vm0 (fd_arg fd2) va) r3 Hvr3 => //.
+    have []:= Hsem' _ _ _ _ Hsem (write_rval vm0 (fd_arg fd2) va) r3 Hvr3 => //.
     + apply: (eq_rn_write _ Hrvx) => //.
-      ha
-*)
-   Admitted.
+      + by apply: incl_mapT Hincl3;apply: check_rename_rv_incl Hrvr.
+      by apply inv_mapP.
+    move=> vm2' [Hrn Hsembody]; exists vm2'; split=> //; rewrite Hvr.
+    move: Hrvr;rewrite check_rename_rvar_e => Hrvr.
+    have := eq_rn_sem Hvr3 Hincl3 Hrn Hrvr.  
+    by rewrite !sem_rval2pe=> -[].
+  Qed.
 
   Lemma check_rename_fdP ta tr (f1 f2 : fundef ta tr) mem mem' va vr: 
     check_rename_fd f1 f2 -> 
@@ -580,6 +620,7 @@ Section PROOF.
   Qed.
 
 End PROOF.
+
 
 
 
