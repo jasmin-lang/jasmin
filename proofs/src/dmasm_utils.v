@@ -75,6 +75,36 @@ Fixpoint foldM eT aT bT (f : aT -> bT -> result eT bT) (acc : bT) (l : seq aT) :
 Definition isOk e a (r : result e a) :=
   if r is Ok _ then true else false.
 
+Section FOLD2.
+
+  Variable A E R:Type.
+  Variable e: E.
+  Variable f : A -> A -> R -> result E R.
+ 
+  Fixpoint fold2 (l1 l2: seq A) r := 
+    match l1, l2 with
+    | [::]  , [::]   => Ok E r 
+    | a1::l1, a2::l2 =>
+      f a1 a2 r >>= (fold2 l1 l2)
+    | _     , _      => Error e
+    end.
+
+End FOLD2.
+
+Section All2.
+
+  Variable A:Type.
+  Variable f : A -> A -> bool.
+ 
+  Fixpoint all2 (l1 l2: seq A) := 
+    match l1, l2 with
+    | [::]  , [::]   => true
+    | a1::l1, a2::l2 => f a1 a2 && all2 l1 l2
+    | _     , _      => false
+    end.
+
+End All2.
+
 (* ** Misc functions
  * -------------------------------------------------------------------- *)
 

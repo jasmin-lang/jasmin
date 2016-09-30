@@ -3,7 +3,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
 Require Import finmap strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
-Require Import renaming inlining unrolling constant_prop dead_code.
+Require Import allocation inlining unrolling constant_prop dead_code.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -32,7 +32,7 @@ Fixpoint unroll (n:nat) ta tr (fd:fundef ta tr) :=
   end.
                 
 Definition compile_fd ta tr (fd fdrn:fundef ta tr) :=
-  if check_rename_fd fd fdrn then
+  if check_alloc_fd fd fdrn then
     check_inline_fd fdrn >>= (fun _ =>
     unroll nb_loop (inline_fd fdrn))
   else Error tt.
@@ -67,11 +67,11 @@ Lemma compile_fdP ta tr (fd fdrn fd':fundef ta tr) mem va mem' vr:
   sem_call mem fd' va mem' vr.
 Proof.
   rewrite /compile_fd.
-  case Hrn: check_rename_fd => //=.
+  case Hrn: check_alloc_fd => //=.
   case Hinl : check_inline_fd => [s|] //= Hunr Hsem.
   apply (unrollP Hunr).
   apply: inlineP Hinl.
-  by apply: check_rename_fdP Hsem.
+  by apply: check_alloc_fdP Hsem.
 Qed.
     
    

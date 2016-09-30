@@ -133,6 +133,8 @@ Module Type MAP.
   Parameter elementsP : forall {T:eqType} (kv:K.t * T) m,
     reflect (m.[kv.1] = Some kv.2) (kv \in elements m).
 
+  Parameter elementsU : forall {T:eqType} (m:t T), uniq [seq x.1 | x <- (elements m)].
+
   Parameter foldP : forall {T A} (f:K.t -> T -> A -> A) m a,
     fold f m a = foldl (fun a (kv:K.t * T) => f kv.1 kv.2 a) a (elements m).
 
@@ -292,6 +294,18 @@ Module Mmake (K:CmpType) <: MAP.
     + move: (Ht (erefl _)).
       by move=> /(Facts.elements_mapsto_iff m kv.1 kv.2) /Facts.find_mapsto_iff.
     by move=>  /Facts.find_mapsto_iff /(Facts.elements_mapsto_iff m kv.1 kv.2) /Hf.
+  Qed.
+
+  Lemma elementsU {T:eqType} (m:t T): uniq [seq x.1 | x <- (elements m)].
+  Proof.
+    rewrite /elements; elim: (Map.elements m) (Map.elements_3w m) => [|p ps Hrec] //= H.
+    inversion H;clear H;subst.
+    rewrite andbC Hrec //=.
+    apply /negP=> H;apply H2.
+    elim: ps H {H2 H3 Hrec} => [|p' ps Hrec] //=;rewrite in_cons=> /orP [/eqP | ] H.
+    + apply InA_cons_hd. 
+      by rewrite /Map.eq_key /Map.Raw.Proofs.PX.eqk H; apply cmp_refl.
+    by apply /InA_cons_tl/Hrec.
   Qed.
 
   Lemma foldP : forall {T A} (f:K.t -> T -> A -> A) m a,

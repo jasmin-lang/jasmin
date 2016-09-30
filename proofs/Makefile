@@ -22,11 +22,11 @@ COQFILES := \
 	src/symbolic_expr_opt.v \
 	src/dmasm_logic.v \
 	src/equiv_sem.v \
+	src/allocation.v \
 	src/inlining.v \
 	src/constant_prop.v \
 	src/unrolling.v \
 	src/dead_code.v \
-	src/renaming.v \
 	src/compiler.v
 
 include Makefile.common

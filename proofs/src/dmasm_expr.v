@@ -631,21 +631,6 @@ Definition eqb_bcmd i1 i2 :=
   | _            , _             =>
     false
   end.
-
-(* TODO: move this *)
-Section All2.
-
-  Variable A:Type.
-  Variable f : A -> A -> bool.
- 
-  Fixpoint all2 (l1 l2: seq A) := 
-    match l1, l2 with
-    | [::]  , [::]   => true
-    | a1::l1, a2::l2 => f a1 a2 && all2 l1 l2
-    | _     , _      => false
-    end.
-
-End All2.
  
 Fixpoint eqb_instr i1 i2 := 
   match i1, i2 with
@@ -668,3 +653,6 @@ with eqb_fundef ta1 tr1 (fd1:fundef ta1 tr1) ta2 tr2 (fd2:fundef ta2 tr2) :=
   | FunDef _ _ p1 c1 r1, FunDef _ _ p2 c2 r2 =>
     eqb_rval p1 p2 && eqb_rval r1 r2 && all2 eqb_instr c1 c2
   end.
+
+Lemma eqb_dirP d1 d2 : reflect (d1 = d2) (eqb_dir d1 d2).
+Proof. by case: d1 d2 => -[] /=;constructor. Qed.
