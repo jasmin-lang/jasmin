@@ -128,7 +128,7 @@ Module CBEA.
 
   Definition eq_alloc (r:M.t) (vm vm':vmap) :=
     (forall x, Sv.In x (M.initvar r) -> vm.[x] = vm'.[x]) /\
-    (forall x n id, Ma.get (M.alloc r) (x,n) = Some id ->
+    (forall x n id, Ma.get (M.alloc r) (x,tobase n) = Some id ->
      match x with
      | Var (sarr s sword) id' => 
        let x := Var (sarr s sword) id' in
@@ -159,7 +159,7 @@ Module CBEA.
   Definition check_var m t1 (e1:pexpr t1) t2 (e2:pexpr t2) x2 := 
     match e1, e2 with
     | Pvar x1, Pconst n2 => 
-      (Ma.get (M.alloc m) (x1, n2) == Some (vname x2)) && 
+      (Ma.get (M.alloc m) (x1, tobase n2) == Some (vname x2)) && 
       (vtype x2 == sword)
     | _, _ => false
     end.
@@ -199,7 +199,7 @@ Module CBEA.
       | Papp3 _ _ _ _ (Oset _) xe1 en1 e2' =>
         if eqb_pexpr xe1 (Pvar x1) && check_e m e2' e2 then 
           match is_const en1 with 
-          | Some n1 => Ok unit (M.set_arr x1 n1 (vname x2) m)
+          | Some n1 => Ok unit (M.set_arr x1 (tobase n1) (vname x2) m)
           | None    => Error tt
           end
         else Error tt
@@ -247,7 +247,7 @@ Module CBEA.
     check_var r e1 e2 x2 ->
     exists x1 n2, [/\ t1 = vtype x1, t2 = sword, 
                    JMeq e1 (Pvar x1) , JMeq e2 (Pconst n2) & (vtype x2 = sword) /\
-                   (Ma.get (M.alloc r) (x1, n2) = Some (vname x2))].
+                   (Ma.get (M.alloc r) (x1, tobase n2) = Some (vname x2))].
   Proof. 
     by case: e1 e2 => // x1 [] //= n2 /andP[]/eqP ? /eqP ?;exists x1, n2;split. 
   Qed.
@@ -348,7 +348,7 @@ Module CBEA.
              JMeq rv2 (Rvar x2) &
              JMeq e1 (Papp3 (Oset n) (Pvar x1) (Pconst n1) e2')], 
           check_e r1 e2' e2, 
-          r2 = M.set_arr x1 n1 (vname x2) r1,
+          r2 = M.set_arr x1 (tobase n1) (vname x2) r1,
           ~Sv.In x1 (M.initvar r1) &
           ~Sv.In x2 (M.initvar r1)
          ].
@@ -364,6 +364,10 @@ Module CBEA.
     have -> //: JMeq p (Pvar {| vtype := sarr n sword; vname := nx1 |}).
     by move: H1;case: p=> //= x /eqP ->.
   Qed.
+
+  Lemma tobase_n2w n1 n2: tobase n1 = tobase n2 -> n2w n1 = n2w n2.
+  Proof.
+  Admitted.
 
   Lemma check_bcmdP i1 r1 i2 r2:
     check_bcmd i1 i2 r1 = Ok unit r2 ->
@@ -388,9 +392,9 @@ Module CBEA.
           + by apply /eqP=> Hx;subst;SvD.fsetdec.
           by apply /eqP=> Hx;subst;SvD.fsetdec.
         move=> x n0 id; set x1 := {| vtype := sarr n sword; vname := nx1 |}.
-        case: ((x1,n1) =P (x,n0)) => [[]??|/eqP Hneq].
-        + subst;subst;rewrite Ma.setP_eq=> -[] ?;subst.
-          by rewrite Hnlt !Fv.setP_eq tuple.tnth_mktuple eq_refl.
+        case: ((x1,tobase n1) =P (x,tobase n0)) => [[] Hx Hn|/eqP Hneq].
+        + subst x;rewrite Hn Ma.setP_eq=> -[] ?;subst=> /=.
+          by rewrite -(tobase_n2w Hn) Hnlt !Fv.setP_eq tuple.tnth_mktuple eq_refl.
         move=> /Ma.setP_neq [] // /Hvm_2.         
         case: x Hneq => -[] //= n2 [] //= xn Hneq.
         case: (x1 =P {| vtype := sarr n2 sword; vname := xn |}).
@@ -398,7 +402,7 @@ Module CBEA.
           rewrite tuple.tnth_mktuple Fv.setP_neq.
           + have -> // : (inZp (n2w n0) == inZp (n2w n1)) = false.
             move=> n;apply negbTE;apply /eqP.
-            admit. (* Need to normalize n0 and n1 ? *)
+            admit. 
           by apply /eqP=> -[].
         move=> /eqP Hne H1 H2; rewrite !Fv.setP_neq //. 
         by apply /eqP=> -[].
@@ -432,3 +436,4 @@ Module CBEA.
 End CBEA.
 
 Module CheckExpansion :=  MakeCheckAlloc CBEA.
+
