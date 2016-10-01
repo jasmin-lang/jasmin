@@ -32,7 +32,7 @@ Fixpoint unroll (n:nat) ta tr (fd:fundef ta tr) :=
   end.
                 
 Definition compile_fd ta tr (fd fdrn:fundef ta tr) :=
-  if check_alloc_fd fd fdrn then
+  if CheckAlloc.check_fd fd fdrn then
     check_inline_fd fdrn >>= (fun _ =>
     unroll nb_loop (inline_fd fdrn))
   else Error tt.
@@ -67,11 +67,11 @@ Lemma compile_fdP ta tr (fd fdrn fd':fundef ta tr) mem va mem' vr:
   sem_call mem fd' va mem' vr.
 Proof.
   rewrite /compile_fd.
-  case Hrn: check_alloc_fd => //=.
+  case Hrn: CheckAlloc.check_fd => //=.
   case Hinl : check_inline_fd => [s|] //= Hunr Hsem.
   apply (unrollP Hunr).
   apply: inlineP Hinl.
-  by apply: check_alloc_fdP Hsem.
+  by apply: CheckAlloc.check_fdP Hsem.
 Qed.
     
    
