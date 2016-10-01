@@ -677,7 +677,6 @@ Module CBA <: CheckB.
 
 End CBA.
 
-
 Module CheckAlloc :=  MakeCheckAlloc CBA.
 
 
