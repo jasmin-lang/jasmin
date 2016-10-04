@@ -1,21 +1,18 @@
 (* * Prove properties about semantics of dmasm input language *)
 
 (* ** Imports and settings *)
-Require Import ZArith.
+
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
+Require Import ZArith.
 Require Import Coq.Logic.Eqdep_dec.
-Require Import finmap strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
+Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Import GRing.Theory.
-
-Local Open Scope ring_scope.
-Local Open Scope fun_scope.
-Local Open Scope vmap.
+Local Open Scope vmap_scope.
 Local Open Scope seq_scope.
 
 (* ** unrolling
@@ -23,13 +20,6 @@ Local Open Scope seq_scope.
 
 Definition unroll_cmd (unroll_i: instr -> cmd) (c:cmd) : cmd := 
   List.fold_right (fun i c' => unroll_i i ++ c') [::] c.
-
-Definition unroll_list dir vhi vlo :=
-  let l := 
-      if iword_leb vlo vhi then iota 0 (N.to_nat (iword_sub vhi vlo)).+1
-      else [::] in
-  let l := [seq (iword_add vlo (N.of_nat i)) | i <- l] in
-  if dir is UpTo then l else rev l.
 
 Fixpoint unroll_i (i:instr) : cmd := 
   match i with
@@ -39,8 +29,8 @@ Fixpoint unroll_i (i:instr) : cmd :=
     let c' := unroll_cmd unroll_i c in
     match is_const low, is_const hi with
     | Some vlo, Some vhi =>
-      let l := unroll_list dir vhi vlo in
-      let cs := map (fun n => assgn i (Pconst n) :: c') l in
+      let l := wrange dir (I64.repr vlo) (I64.repr vhi) in
+      let cs := map (fun n => assgn i (Pconst (Z.of_nat n)) :: c') l in
       flatten cs 
     | _, _             => [::Cfor i (dir, low, hi) c']
     end     
@@ -89,18 +79,6 @@ Section PROOF.
     case: cond H5=> [/Hc1 | /Hc2] //.
   Qed.
 
-  Lemma iword_sub_to vhi vlo: (N.to_nat (iword_sub vhi vlo)) = (n2w vhi - n2w vlo)%N.
-  Admitted.
-
-  Lemma iword_add_to vhi vlo: (N.to_nat (iword_add vhi vlo)) = (n2w vhi + n2w vlo)%N.
-  Admitted.
-
-  Lemma n2w_Nofnat (x:nat) : x = n2w (N.of_nat x).
-  Admitted.
-
-  Lemma nat_of_bin_to_nat w : nat_of_bin w = N.to_nat w.
-  Admitted.
-
   Let Hfor  : forall i rn c, Pc c -> Pi (Cfor i rn c).
   Proof.
     move=> i [[dir low] hi] c Hc s s' Hs /=.
@@ -113,19 +91,11 @@ Section PROOF.
     case Heq1 : (is_const low) => [vlo| //].
     case Heq2 : is_const => [vhi| //];inversion Hs;clear Hs;subst.
     have ?:= is_constP Heq1;have ?:= is_constP Heq2;subst low hi=> {Heq1 Heq2}.
-    move: H6 H7 => /= [] ? [] ?;subst.
-    have Heq : [seq N.to_nat i| i <-  unroll_list dir vhi vlo ] =
-            wrange dir  (n2w vlo) (n2w vhi).
-    + rewrite /wrange /unroll_list iword_lebP.
-      case Heq : (n2w vlo <= n2w vhi);last by case dir.
-      case dir; rewrite ?map_rev -map_comp -(addn0 (n2w vlo)) iota_addl addn0 iword_sub_to.
-      + by apply eq_map=> ? /=;rewrite iword_add_to -n2w_Nofnat.
-      f_equal;by apply eq_map=> ? /=;rewrite iword_add_to -n2w_Nofnat.
-    rewrite -Heq in H8 => {Heq Hs1}.
-    elim: unroll_list s H8=> [ | w ws Hrec] /= s Hf;inversion Hf;clear Hf;subst.
+    move: H6 H7 => /= [] ? [] ?;subst=> {Hs1}.
+    elim: wrange s H8=> [ | w ws Hrec] /= s Hf;inversion Hf;clear Hf;subst.
     + by constructor.
-    apply Eseq with  {| emem := emem s; evm := write_rval (evm s) i (n2w (N.to_nat w)) |}.
-    + by constructor => /=;rewrite nat_of_bin_to_nat.
+    apply Eseq with  {| emem := emem s; evm := write_rval (evm s) i (n2w w) |}.
+    + by constructor.
     apply sem_app with s2;first by apply Hc.
     by apply Hrec.
   Qed.

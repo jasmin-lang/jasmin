@@ -1,10 +1,11 @@
 (* * Syntax and semantics of the dmasm source language *)
 
 (* ** Imports and settings *)
-Require Import JMeq ZArith Setoid Morphisms.
+
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import seq tuple finfun.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
+Require Import JMeq ZArith Setoid Morphisms.
 
 Require Import word dmasm_utils dmasm_type dmasm_var dmasm_expr.
 Require Import dmasm_sem dmasm_Ssem dmasm_Ssem_props.
@@ -13,12 +14,6 @@ Require Import symbolic_expr symbolic_expr_opt.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-Import GRing.Theory.
-
-Local Open Scope string_scope.
-Local Open Scope ring_scope.
-Local Open Scope seq_scope.
 
 (* -------------------------------------------------------------------------- *)
 (* ** Hoare Logic                                                             *)
@@ -136,13 +131,13 @@ Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma hoare_for0 (i:rval sword) dir (e1 e2:pexpr sword) c Q:
-  hoare (fun s => Q s /\ ssem_pexpr (sevm s) e2 < ssem_pexpr (sevm s) e1) 
+  hoare (fun s => Q s /\ (ssem_pexpr (sevm s) e2 < ssem_pexpr (sevm s) e1)%Z) 
         [::Cfor i (dir,e1,e2) c]
         Q.
 Proof.
 move=> s1 s2; set c' := Cfor _ _ _ => /ssem_iV sem.
-inversion_clear sem; inversion H => -[] // _ h.
-by move: H0; rewrite /wrange leqNgt h.
+inversion_clear sem; inversion H => -[] // _ /Z.ltb_lt h.
+by move: H0; rewrite /wrange Z.leb_antisym h.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -168,7 +163,7 @@ by move=> Is3 eqi <-; split.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Definition incr dir (i : word) := 
+(* Definition incr dir (i : word) := 
   if dir is UpTo then i+1 else i-1.
 
 Lemma hoare_for_base (i:rval sword) dir (e1 e2:pexpr sword) I cmd:
@@ -208,6 +203,7 @@ Lemma hoare_for_base (i:rval sword) dir (e1 e2:pexpr sword) I cmd:
        let w2 := ssem_pexpr s.(sevm) e2 in
        I s /\ ssem_rval s.(sevm) i = if dir is UpTo then w2 else w1).
 Proof. Admitted.
+*)
 
 (*
 (* -------------------------------------------------------------------------- *)

@@ -1,69 +1,50 @@
 (* ** Machine word *)
 
 (* ** Imports and settings *)
-Require Import ZArith.
+
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import finmap strings dmasm_utils dmasm_type.
+Require Import ZArith dmasm_utils.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Import GRing.Theory.
-
-Open Scope string_scope.
-Local Open Scope ring_scope.
+Local Open Scope Z_scope.
 
 (* ** Machine word representation for proof 
  * -------------------------------------------------------------------- *)
 
-Definition wsize := nosimpl 64%nat.
+Notation word := I64.int (only parsing).
 
-Module Type BASE.
-  Parameter wbase2 : nat.
-  Parameter wbaseE : wbase2 .+2 = (2^wsize)%nat.
-End BASE.
+Coercion I64.unsigned : I64.int >-> Z.
 
-Module Base : BASE.
-  Definition wbase2 := Zp_trunc (2^wsize)%nat.
-  Lemma wbaseE : wbase2 .+2 = (2^wsize)%nat.
-  Proof. by rewrite /wbase2 Zp_cast. Qed.
-End Base.
-Export Base.
-Notation wbase := (wbase2 .+2).
-Definition word := 'I_wbase.
-
-Definition w2n (w : word) : nat := w.
-Definition n2w (n : nat) : word :=  n%:R.
-
-Lemma codeK_word : cancel w2n n2w.
-Proof. rewrite /cancel /w2n /n2w => x;by rewrite natr_Zp. Qed.
-
-Definition word_choiceMixin := CanChoiceMixin codeK_word.
-Canonical  word_choiceType  := ChoiceType word word_choiceMixin.
-
-Definition wadd (x y:word) := x + y.
+Notation wadd := I64.add (only parsing).
 
 Definition waddc (x y:word) : (bool * word):=
-  let n := x + y in
-  (n < x, n).
+  let n := I64.unsigned x + I64.unsigned y in
+  (I64.modulus <=? n, I64.repr n).
+
+Definition Zofb (b:bool) := if b then 1 else 0.
 
 Definition waddcarry (x y:word) (c:bool) :=
-  let n := x + y + if c then 0 else 1 in
-  (if c then n <= x else n < x, n).
+  let n := I64.unsigned x + I64.unsigned y + Zofb c in
+  (I64.modulus <=? n, I64.repr n).
 
-Definition wsub (x y:word) := x - y.
+Notation wsub := I64.sub (only parsing).
 
 Definition wsubc (x y:word) :=
-  let n := x - y in
-  (x < y, n).
+  let n :=  I64.unsigned x -  I64.unsigned y in
+  (n <? 0, I64.repr n).
 
 Definition wsubcarry (x y:word) (c:bool) :=
-  let n := x - y - if c then 1 else 0 in
-  (if c then x <= y else x < y, n).
+  let n := I64.unsigned x - I64.unsigned y - Zofb c in
+  (n <? 0, I64.repr n).
 
-Lemma word_add1 (y x: word) : x < y -> nat_of_ord (x + 1)%R = (x + 1)%N.
+Definition wle (x y:word) := I64.unsigned x <=? I64.unsigned y.
+Definition wlt (x y:word) := I64.unsigned x <? I64.unsigned y.
+
+(*Lemma word_add1 (y x: word) : x < y -> nat_of_ord (x + 1)%R = (x + 1)%N.
 Proof. 
   move=> Hlt;rewrite /= !modn_small //.
   by apply (@leq_ltn_trans y)=> //;rewrite -ltnS addnC.
@@ -75,82 +56,112 @@ case: x y => [[|x] ltx] [y lty] //=; rewrite ltnS => le_yx.
 rewrite [1%%_]modn_small ?[in X in X%%_]modn_small //.
 by rewrite !subn1 /= addSnnS modnDr modn_small // ltnW.
 Qed.
+*)
+
+Lemma lt_unsigned x: (I64.modulus <=? I64.unsigned x)%Z = false.
+Proof. by rewrite Z.leb_gt;case: (I64.unsigned_range x). Qed.
+
+Lemma le_unsigned x: (0 <=? I64.unsigned x)%Z = true.
+Proof. by rewrite Z.leb_le;case: (I64.unsigned_range x). Qed.
+
+Lemma unsigned0 : I64.unsigned (I64.repr 0) = 0%Z.
+Proof. by rewrite I64.unsigned_repr. Qed.
+
+(* ** Coercion to nat 
+ * -------------------------------------------------------------------- *)
+
+Definition w2n (x:word) := Z.to_nat (I64.unsigned x).
+Definition n2w (n:nat) := I64.repr (Z.of_nat n).
 
 (* ** Machine word representation for the compiler and the wp
  * -------------------------------------------------------------------- *)
 
-Definition iword := N.
-Definition ibase := Eval vm_compute in N.pow 2 64.
-Definition tobase n:N := (n mod ibase)%num.
+Notation iword := Z (only parsing).
+
+Notation ibase := I64.modulus (only parsing).
+
+Notation tobase := I64.Z_mod_modulus (only parsing).
+
+Lemma reqP n1 n2: reflect (I64.repr n1 = I64.repr n2) (tobase n1 == tobase n2).
+Proof. by apply ueqP. Qed.
 
 Definition iword_eqb (n1 n2:iword) := 
-  (tobase n1 =? tobase n2)%num.
+  (tobase n1 =? tobase n2).
 
 Definition iword_ltb (n1 n2:iword) : bool:= 
-  (tobase n1 <? tobase n2)%num.
+  (tobase n1 <? tobase n2).
 
 Definition iword_leb (n1 n2:iword) : bool:= 
-  (tobase n1 <=? tobase n2)%num.
+  (tobase n1 <=? tobase n2).
 
-Definition iword_add (n1 n2:iword) : iword := tobase (n1 + n2)%num.
+Definition iword_add (n1 n2:iword) : iword := tobase (n1 + n2).
 
 Definition iword_addc (n1 n2:iword) : (bool * iword) := 
-  let n  := (n1 + n2)%num in
+  let n  := tobase n1 + tobase n2 in
   (ibase <=? n, tobase n).
 
 Definition iword_addcarry (n1 n2:iword) (c:bool) : (bool * iword) := 
-  let c  := N.of_nat c in
-  let n  := (n1 + n2 + c)%num in
+  let n  := tobase n1 + tobase n2 + Zofb c in
   (ibase <=? n, tobase n).
 
-Definition iword_sub (n1 n2:iword) : iword := tobase (n1 - n2)%num.
+Definition iword_sub (n1 n2:iword) : iword := tobase (n1 - n2).
 
 Definition iword_subc (n1 n2:iword) : (bool * iword) := 
-  let n1 := tobase n1 in
-  let n2 := tobase n2 in
-  if n1 <? n2 then (true, tobase (n1 + ibase - n2))
-  else (false, tobase (n1 - n2)).
+  let n := tobase n1 - tobase n2 in
+  (n <? 0, tobase n).
 
 Definition iword_subcarry (n1 n2:iword) (c:bool) : (bool * iword) := 
-  let c  := N.of_nat c in
-  let n1 := tobase n1 in
-  let n2 := tobase n2 in
-  if n1 <? n2 + c then (true, tobase (n1 + ibase - n2 - c))
-  else (false, tobase (n1 - n2 - c)).
+  let n := tobase n1 - tobase n2 - Zofb c in
+  (n <? 0, tobase n).
 
-Lemma iword_eqbP (n1 n2:iword) : iword_eqb n1 n2 = (n2w n1 == n2w n2).
-Admitted.
+Lemma iword_eqbP (n1 n2:iword) : iword_eqb n1 n2 = (I64.repr n1 == I64.repr n2).
+Proof. by []. Qed.
 
-Lemma iword_ltbP (n1 n2:iword) : iword_ltb n1 n2 = (n2w n1 < n2w n2).
-Admitted.
+Lemma iword_ltbP (n1 n2:iword) : iword_ltb n1 n2 = wlt (I64.repr n1) (I64.repr n2).
+Proof. by []. Qed.
 
-Lemma iword_lebP (n1 n2:iword) : iword_leb n1 n2 = (n2w n1 <= n2w n2).
-Admitted.
+Lemma iword_lebP (n1 n2:iword) : iword_leb n1 n2 = wle (I64.repr n1) (I64.repr n2).
+Proof. by []. Qed.
 
-Lemma iword_addP (n1 n2:iword) : n2w (iword_add n1 n2) = wadd (n2w n1) (n2w n2).
-Admitted.
+Lemma urepr n : I64.unsigned (I64.repr n) = I64.Z_mod_modulus n.
+Proof. done. Qed.
 
-Lemma iword_addcP (n1 n2:iword): 
+Lemma repr_mod n : I64.repr (I64.Z_mod_modulus n) = I64.repr n.
+Proof. by apply: reqP;rewrite !I64.Z_mod_modulus_eq Zmod_mod. Qed.
+
+Lemma iword_addP (n1 n2:iword) : 
+  I64.repr (iword_add n1 n2) = wadd (I64.repr n1) (I64.repr n2).
+Proof. 
+  apply: reqP;rewrite /iword_add /I64.add !urepr.
+  by rewrite !I64.Z_mod_modulus_eq Zmod_mod Zplus_mod.
+Qed.
+
+Lemma iword_addcP (n1 n2:iword) : 
   let r := iword_addc n1 n2 in
-  (r.1, n2w r.2) = waddc (n2w n1) (n2w n2).
-Admitted.
+  (r.1, I64.repr r.2) = waddc (I64.repr n1) (I64.repr n2).
+Proof. by rewrite /iword_addc /waddc !urepr /= repr_mod. Qed.
 
-Lemma iword_addcarryP (n1 n2:iword) c: 
+Lemma iword_addcarryP (n1 n2:iword) c : 
   let r := iword_addcarry n1 n2 c in
-  (r.1, n2w r.2) = waddcarry (n2w n1) (n2w n2) c.
-Admitted.
+  (r.1, I64.repr r.2) = waddcarry (I64.repr n1) (I64.repr n2) c.
+Proof. by rewrite /iword_addcarry /waddcarry !urepr /= repr_mod. Qed.
 
-Lemma iword_subP (n1 n2:iword) : n2w (iword_sub n1 n2) = wsub (n2w n1) (n2w n2).
-Admitted.
+Lemma iword_subP (n1 n2:iword) : 
+  I64.repr (iword_sub n1 n2) = wsub (I64.repr n1) (I64.repr n2).
+Proof.
+  apply: reqP;rewrite /iword_sub /I64.sub !urepr.
+  by rewrite !I64.Z_mod_modulus_eq Zmod_mod Zminus_mod.
+Qed.
 
-Lemma iword_subcP (n1 n2:iword): 
+Lemma iword_subcP (n1 n2:iword) : 
   let r := iword_subc n1 n2 in
-  (r.1, n2w r.2) = wsubc (n2w n1) (n2w n2).
-Admitted.
+  (r.1, I64.repr r.2) = wsubc (I64.repr n1) (I64.repr n2).
+Proof. by rewrite /iword_subc /wsubc !urepr /= repr_mod. Qed.
 
-Lemma iword_subcarryP (n1 n2:iword) c: 
+Lemma iword_subcarryP (n1 n2:iword) c : 
   let r := iword_subcarry n1 n2 c in
-  (r.1, n2w r.2) = wsubcarry (n2w n1) (n2w n2) c.
-Admitted.
+  (r.1, I64.repr r.2) = wsubcarry (I64.repr n1) (I64.repr n2) c.
+Proof. by rewrite /iword_subcarry /wsubcarry !urepr /= repr_mod. Qed.
+
 
 

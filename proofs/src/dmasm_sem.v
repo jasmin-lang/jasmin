@@ -1,28 +1,68 @@
 (* * Syntax and semantics of the dmasm source language *)
 
 (* ** Imports and settings *)
-Require Import JMeq ZArith.
+
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import finmap strings word dmasm_utils dmasm_type dmasm_var dmasm_expr.
+Require Import JMeq ZArith.
+
+Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Import GRing.Theory.
-
-Open Scope string_scope.
-Local Open Scope ring_scope.
-
 (* ** Interpretation of types
  * -------------------------------------------------------------------- *)
+
+Module FArray.
+
+  Definition array (T:Type) := word -> T.
+  Definition cnst {T} (t:T) : array T := fun i => t.
+  Definition get {T} (a:array T) (i:word) := a i.
+  Definition set {T} (a:array T) (i:word) (v:T) :=
+    fun j => if i == j  then v else a j.
+  
+  Lemma setP {T} (a:array T) (w1 w2:word) (t:T):
+    get (set a w1 t) w2 = if w1 == w2 then t else get a w2.
+  Proof. done. Qed.
+
+  Lemma setP_eq {T} (a:array T) (w:word) (t:T):
+    get (set a w t) w = t .
+  Proof. by rewrite setP eq_refl. Qed.
+
+  Lemma setP_neq {T} (a:array T) (w1 w2:word) (t:T): 
+    w1 != w2 -> get (set a w1 t) w2 = get a w2.
+  Proof. by rewrite setP=> /negPf ->. Qed.
+
+End FArray.
+
+Module Array.
+
+  Definition array (s:positive) T := FArray.array T.
+
+  Definition make {T:Type} (s:positive) (t:T) : array s T :=  FArray.cnst t.
+
+  Definition get {T} {s} (a:array s T) (w:word) : result error T := 
+    if ((0 <=? w) && (w <? Zpos s))%Z then ok (FArray.get a w)
+    else Error ErrOob.
+
+  Definition set {T} s (a:array s T) (x:word) (v:T) : result error (array s T):=
+    if ((0 <=? x) && (x <? Zpos s))%Z then ok (FArray.set a x v)
+    else Error ErrOob.
+
+  Lemma getP_inv T s (a:array s T) x t: 
+    get a x = ok t -> ((0 <=? x) && (x <? Zpos s))%Z.
+  Proof. by rewrite /get;case: ifP. Qed.
+
+End Array.
+  
 Fixpoint st2ty (t : stype) : Type :=
   match t with
   | sword         => word
   | sbool         => bool
   | sprod st1 st2 => ((st2ty st1) * (st2ty st2))%type
-  | sarr n st     => (n.+1).-tuple (st2ty st) (* do not allow zero-dim arrays *)
+  | sarr n st     => Array.array n (st2ty st)
   end.
 
 (* ** Default values
@@ -30,10 +70,10 @@ Fixpoint st2ty (t : stype) : Type :=
 
 Fixpoint dflt_val (st : stype) : st2ty st :=
   match st with
-  | sword         => n2w 0
+  | sword         => I64.repr Z0
   | sbool         => false
   | sprod st1 st2 => (dflt_val st1, dflt_val st2)
-  | sarr n    st  => [tuple (dflt_val st) | i < n.+1]
+  | sarr n    st  => Array.make n (dflt_val st) 
   end.
 
 Definition rdflt_ (st : stype) e (r : result e (st2ty st)) : st2ty st :=
@@ -78,22 +118,16 @@ Definition sem_sop2 st1 st2 str (sop : sop2 st1 st2 str) :=
   | Osub       => fun x y => ok (wsub x y)
   | Osubc      => fun x y => ok (wsubc x y)
   | Oeq        => fun (x y : word) => ok (x == y)
-  | Olt        => fun (x y : word) => ok (x < y)
-  | Ole        => fun (x y : word) => ok (x <= y)  
-  | Oget n     => fun (a : (n.+1).-tuple word) (i:word) =>
-                    if i > n
-                    then Error ErrOob
-                    else ok (tnth a (@inZp n i))
+  | Olt        => fun (x y : word) => ok (wlt x y)
+  | Ole        => fun (x y : word) => ok (wle x y)  
+  | Oget n     => @Array.get word n
   | Opair t1 t2 => fun x y => ok (x,y)
   end.
 
 Definition sem_sop3 st1 st2 st3 str (sop : sop3 st1 st2 st3 str) :=
   match sop in sop3 st1 st2 st3 str return 
         st2ty st1 -> st2ty st2 -> st2ty st3 -> exec (st2ty str) with
-  | Oset n => fun (a: (n.+1).-tuple word) (i v: word) =>
-                if i > n
-                then Error ErrOob
-                else ok [tuple (if j == inZp i then v else tnth a j) | j < n.+1]
+  | Oset n => @Array.set word n
   | Oaddcarry  => fun x y c => ok (waddcarry x y c)
   | Osubcarry  => fun x y c => ok (wsubcarry x y c)
   end.
@@ -101,7 +135,7 @@ Definition sem_sop3 st1 st2 st3 str (sop : sop3 st1 st2 st3 str) :=
 Fixpoint sem_pexpr st (vm : vmap) (pe : pexpr st) : exec (st2ty st) :=
   match pe with
   | Pvar v => ok (vm.[ v ]%vmap)
-  | Pconst c => ok (n2w c)
+  | Pconst c => ok (I64.repr c)
   | Pbool b  => ok b
   | Papp1 st1 str o pe1 =>
       sem_pexpr vm pe1 >>= fun v1 =>
@@ -143,9 +177,9 @@ Definition sem_bcmd (es : estate) (bc : bcmd) : exec estate :=
       ok (Estate m es.(evm))
   end.
 
-Definition wrange d (n1 n2 : nat) :=
-  if n1 <= n2 then 
-    let idxs := iota n1 (S (n2 - n1)) in
+Definition wrange d (n1 n2 : word) :=
+  if (n1 <=? n2)%Z then 
+    let idxs := iota (w2n n1) (S (w2n n2 - w2n n1)) in
     match d with
     | UpTo   => idxs
     | DownTo => rev idxs
@@ -156,9 +190,7 @@ Definition sem_range (vm : vmap) (r : range) :=
   let: (d,pe1,pe2) := r in
   sem_pexpr vm pe1 >>= fun w1 =>
   sem_pexpr vm pe2 >>= fun w2 =>
-  let n1 := w2n w1 in
-  let n2 := w2n w2 in
-  ok [seq n2w n | n <- wrange d n1 n2].
+  ok [seq n2w n | n <- wrange d w1 w2].
 
 Inductive sem : estate -> cmd -> estate -> Prop :=
 | Eskip s :
@@ -311,7 +343,7 @@ Proof.
   + rewrite write_i_while;elim: H3 Hc => //= {s1 s2 e c}.
     move => s1 s2 s3 e c He Hsem Hw Hrec Hc Hin.
     by rewrite -Hrec // -(Hc _ _ Hsem) /= -?vrvP //; SvD.fsetdec. 
-  by rewrite write_i_call=> Hin; move: H3 H4=> [] ?;subst=> -[] [] ?;subst;apply vrvP.  
+  by rewrite write_i_call=> Hin; move: H3 H4 => -[] ?;subst=> -[] [] ?;subst;apply vrvP.  
 Qed.
 
 Lemma write_iP i s1 s2 : 

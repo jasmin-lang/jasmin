@@ -6,12 +6,13 @@ SUBDIRS  :=
 INCFLAGS := -R src $(NAME) -R src/3rdparty $(NAME)
 COQFILES := \
 	src/3rdparty/finmap.v \
+	src/3rdparty/Coqlib.v \
+	src/3rdparty/Integers.v \
 	src/pos_map.v \
 	src/gen_map.v \
 	src/strings.v \
 	src/word.v \
 	src/dmasm_utils.v \
-	src/arithmetica.v \
 	src/dmasm_type.v \
 	src/dmasm_var.v \
 	src/dmasm_expr.v \

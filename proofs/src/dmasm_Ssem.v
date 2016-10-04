@@ -1,35 +1,28 @@
 (* * Syntax and semantics of the dmasm source language *)
 
 (* ** Imports and settings *)
-Require Import ZArith.
+
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import finmap strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
+Require Import ZArith.
+
+Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Import GRing.Theory.
-
 Open Scope string_scope.
-Local Open Scope ring_scope.
 
 (* ** Type interpretation
  * -------------------------------------------------------------------- *)
-
-Definition array (T:Type) := nat -> T.
-Definition acnst {T} (t:T) : array T := fun i => t.
-Definition aget {T} (a:array T) (i:nat) := a i.
-Definition aset {T} (a:array T) (i:nat) (v:T) :=
-  fun j => if i == j  then v else a j.
 
 Fixpoint sst2ty (t : stype) : Type :=
   match t with
   | sword         => word
   | sbool         => bool
   | sprod st1 st2 => ((sst2ty st1) * (sst2ty st2))%type
-  | sarr n st     => array (sst2ty st)
+  | sarr n st     => FArray.array (sst2ty st)
   end.
 
 Fixpoint sdflt_val st :  sst2ty st :=
@@ -37,7 +30,7 @@ Fixpoint sdflt_val st :  sst2ty st :=
   | sword         => n2w 0
   | sbool         => true
   | sprod st1 st2 => (sdflt_val st1, sdflt_val st2)
-  | sarr n st     => acnst (sdflt_val st)
+  | sarr n st     => FArray.cnst (sdflt_val st)
   end.
 
 (* ** Variable map
@@ -80,16 +73,16 @@ Definition ssem_sop2 st1 st2 str (sop : sop2 st1 st2 str) :=
   | Osub       => wsub 
   | Osubc      => wsubc 
   | Oeq        => fun (x y : word) => x == y
-  | Olt        => fun (x y : word) => x < y
-  | Ole        => fun (x y : word) => x <= y
-  | Oget n     => fun a (i:word) => aget a (w2n i)
+  | Olt        => wlt 
+  | Ole        => wle
+  | Oget n     => @FArray.get word
   | Opair t1 t2 => fun x y => (x,y)
   end.
 
 Definition ssem_sop3 st1 st2 st3 str (sop : sop3 st1 st2 st3 str) :=
   match sop in sop3 st1 st2 st3 str return 
         sst2ty st1 -> sst2ty st2 -> sst2ty st3 -> sst2ty str with
-  | Oset n     => fun a i v => aset a (w2n i) v
+  | Oset n     => @FArray.set word
   | Oaddcarry  => waddcarry 
   | Osubcarry  => wsubcarry 
   end.
@@ -100,7 +93,7 @@ Definition ssem_sop3 st1 st2 st3 str (sop : sop3 st1 st2 st3 str) :=
 Fixpoint ssem_pexpr st (vm : svmap) (pe : pexpr st) : sst2ty st :=
   match pe with
   | Pvar v => vm.[ v ]%vmap
-  | Pconst c => n2w c
+  | Pconst c => I64.repr c
   | Pbool  b => b
   | Papp1 st1 str o pe1 =>
       let v1 := ssem_pexpr vm pe1 in
@@ -147,9 +140,7 @@ Definition ssem_range (vm : svmap) (r : range) :=
   let: (d,pe1,pe2) := r in
   let w1 := ssem_pexpr vm pe1 in
   let w2 := ssem_pexpr vm pe2 in
-  let n1 := w2n w1 in
-  let n2 := w2n w2 in
-  [seq n2w n | n <- wrange d n1 n2].
+  [seq n2w n | n <- wrange d w1 w2].
 
 Inductive ssem : sestate -> cmd -> sestate -> Prop :=
 | SEskip s :

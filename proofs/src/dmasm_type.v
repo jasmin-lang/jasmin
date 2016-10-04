@@ -17,7 +17,7 @@ Inductive stype : Set :=
 | sword : stype
 | sbool : stype
 | sprod : stype -> stype -> stype
-| sarr  : forall (n : nat), stype -> stype.
+| sarr  : positive -> stype -> stype.
 
 Notation "st1 ** st2" := (sprod st1 st2) (at level 40, left associativity).
 
@@ -38,18 +38,10 @@ Qed.
 Definition stype_eqMixin     := Equality.Mixin steq_axiom.
 Canonical  stype_eqType      := Eval hnf in EqType stype stype_eqMixin.
 
-Parameter st2n : stype -> nat.
-Parameter n2st : nat -> stype.
-Lemma codeK_stype : cancel st2n n2st. 
-Admitted.
-
-Definition stype_choiceMixin := CanChoiceMixin codeK_stype.
-Canonical  stype_choiceType  := ChoiceType stype stype_choiceMixin.
-
 (* ** Comparison 
  * -------------------------------------------------------------------- *)
 
-Fixpoint stype_cmp t t' : comparison :=
+Fixpoint stype_cmp t t' :=
   match t, t' with
   | sword      , sword         => Eq 
   | sword      , _             => Lt
@@ -60,26 +52,23 @@ Fixpoint stype_cmp t t' : comparison :=
   | sprod _  _ , sbool         => Gt
   | sprod t1 t2, sprod t1' t2' => Lex (stype_cmp t1 t1') (stype_cmp t2 t2')
   | sprod _  _ , sarr  _   _   => Lt
-  | sarr  n  t , sarr  n'  t'  => Lex ( Nat.compare n n') (stype_cmp t t')
+  | sarr  n  t , sarr  n'  t'  => Lex (Pos.compare n n') (stype_cmp t t')
   | sarr  _  _ , _             => Gt
   end.
 
 Instance stypeO : Cmp stype_cmp.
 Proof.
   constructor.
-  + elim=> [||t1 Ht1 t2 Ht2 |n t Ht] [||t1' t2'|n' t'] //=;rewrite !Lex_lex;
-    by apply lex_sym; auto using Nat.compare_antisym.
-  + move=> y x;elim: x y=> 
+  + by elim=> [||t1 Ht1 t2 Ht2 |n t Ht] [||t1' t2'|n' t'] //=;rewrite !Lex_lex;
+    apply lex_sym; auto;apply cmp_sym.
+  + by move=> y x;elim: x y=> 
     [||t1 Ht1 t2 Ht2 |n t Ht] [||t1' t2'|n' t'] [||t1'' t2''|n'' t''] c//=;
     try (by apply ctrans_Eq);eauto using ctrans_Lt, ctrans_Gt;
-    rewrite !Lex_lex;apply lex_trans=> /=;eauto.
-    case: Nat.compare_spec=> H1;case: Nat.compare_spec=> H2 ?;subst=> //=;
-    rewrite ctrans_Eq=> <-;
-    rewrite ?(Nat.compare_eq_iff, Nat.compare_lt_iff, Nat.compare_gt_iff);
-    omega.
+    rewrite !Lex_lex;apply lex_trans=> /=;eauto; apply cmp_ctrans.
   elim=> [||t1 Ht1 t2 Ht2 |n t Ht] [||t1' t2'|n' t'] //=;rewrite !Lex_lex.
   + by move=> /lex_eq /= [] /Ht1 -> /Ht2 ->.
-  by move=> /lex_eq /= [] /Nat.compare_eq_iff -> /Ht ->.
+  move=> /lex_eq /= [] H;have -> := (@cmp_eq _ _ positiveO _ _ H). 
+  by move=> /Ht ->.
 Qed.
 
 Module CmpStype.
@@ -96,21 +85,31 @@ Module CEDecStype.
 
   Definition t := [eqType of stype].
   
-  Fixpoint n_dec (n1 n2:nat) : {n1 = n2} + {True} :=
-    match n1 as n return {n = n2} + {True} with
-    | O => 
-      match n2 as n0 return {O = n0} + {True} with
-      | O => left (erefl O)
+
+  Fixpoint pos_dec (p1 p2:positive) : {p1 = p2} + {True} :=
+    match p1 as p1' return {p1' = p2} + {True} with
+    | xH =>
+      match p2 as p2' return {xH = p2'} + {True} with
+      | xH => left (erefl xH)
+      | _  => right I
+      end
+    | xO p1' => 
+      match p2 as p2' return {xO p1' = p2'} + {True} with
+      | xO p2' => 
+        match pos_dec p1' p2' with
+        | left eq => 
+          left (eq_rect p1' (fun p => xO p1' = xO p) (erefl (xO p1')) p2' eq)
+        | _ => right I
+        end
       | _ => right I
       end
-    | S n1 =>
-      match n2 as n0 return {S n1 = n0} + {True} with
-      | S n2 => 
-        match n_dec n1 n2 with
-        | left eq =>
-          left (eq_rect n1 (fun n => S n1 = S n) (erefl (S n1)) n2 eq)
-        | right _ => 
-          right I
+    | xI p1' =>
+      match p2 as p2' return {xI p1' = p2'} + {True} with
+      | xI p2' => 
+        match pos_dec p1' p2' with
+        | left eq => 
+          left (eq_rect p1' (fun p => xI p1' = xI p) (erefl (xI p1')) p2' eq)
+        | _ => right I
         end
       | _ => right I
       end
@@ -147,7 +146,7 @@ Module CEDecStype.
     | sarr n1 t1 =>
       match t2 as t0 return {sarr n1 t1 = t0} + {True} with
       | sarr n2 t2 =>
-        match n_dec n1 n2 with
+        match pos_dec n1 n2 with
         | left eqn =>
           match eq_dec t1 t2 with
           | left eqt =>
@@ -163,10 +162,12 @@ Module CEDecStype.
       end
     end.
 
-  Lemma n_dec_r n1 n2 tt: n_dec n1 n2 = right tt -> n1 != n2.
+  Lemma pos_dec_r n1 n2 tt: pos_dec n1 n2 = right tt -> n1 != n2.
   Proof.
-    case: tt;elim: n1 n2 => [|n1 Hn1] [|n2] //=.
-    by case: n_dec (Hn1 n2) => //= -[] H _;apply H.
+    case: tt.
+    elim: n1 n2 => [n1 Hrec|n1 Hrec|] [n2|n2|] //=. 
+    + by case: pos_dec (Hrec n2) => //= -[] /(_ (erefl _)).
+    by case: pos_dec (Hrec n2) => //= -[] /(_ (erefl _)).
   Qed.
  
   Lemma eq_dec_r t1 t2 tt: eq_dec t1 t2 = right tt -> t1 != t2.
@@ -176,11 +177,11 @@ Module CEDecStype.
       + case: eq_dec (Ht2 t2') => // -[] neq _.
         by move: (neq (erefl _));rewrite !eqE /= andbC => /negPf ->. 
       by move: (neq (erefl _));rewrite !eqE /= => /negPf ->.   
-    case: n_dec (@n_dec_r n n' I) => [Heq _ | [] neq ].
+    case: pos_dec (@pos_dec_r n n' I) => [Heq _ | [] neq ].
     + case: eq_dec (Ht t') => // -[] neq _;rewrite Heq.
       by move: (neq (erefl _));rewrite !eqE /= andbC => /negPf ->. 
     move: (neq (erefl _))=> /eqP H _;rewrite !eqE /=.
-    by case H':nat_beq=> //;move:H'=> /internal_nat_dec_bl.
+    by case H':positive_beq=> //;move:H'=> /internal_positive_dec_bl.
   Qed.
 
 End CEDecStype.

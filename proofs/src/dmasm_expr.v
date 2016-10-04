@@ -4,7 +4,7 @@
 Require Import JMeq ZArith Setoid Morphisms.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import finmap strings word dmasm_utils dmasm_type dmasm_var.
+Require Import strings word dmasm_utils dmasm_type dmasm_var.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -15,9 +15,29 @@ Import GRing.Theory.
 Open Scope string_scope.
 Local Open Scope ring_scope.
 
-(* ** Operators
+(* ** Memory
  * -------------------------------------------------------------------- *)
 
+Inductive error := ErrOob | ErrAddrUndef | ErrAddrInvalid.
+
+Definition exec t := result error t.
+Definition ok := Ok error. 
+
+Definition word := I64.int.
+Definition mem := word -> word.
+
+Variable valid_addr : word -> bool.
+
+Definition read_mem (m : mem) (p : word) : exec word :=
+  if valid_addr p then Ok error (m p)
+  else Error ErrAddrInvalid.
+
+Definition write_mem (m : mem) (p w : word) : exec mem :=
+  if valid_addr p then ok (fun p' => if p' == p then w else m p')
+  else Error ErrAddrInvalid.
+
+(* ** Operators
+ * -------------------------------------------------------------------- *)
 
 Inductive sop1 : stype -> stype -> Set := 
 (* bools *)
@@ -106,11 +126,9 @@ Proof. by move: o o'=> [||?] [||?] // [] ->. Qed.
 (* ** Expressions
  * -------------------------------------------------------------------- *)
 
-
-
 Inductive pexpr : stype -> Type :=
 | Pvar   :> forall x:var, pexpr x.(vtype)
-| Pconst :> N -> pexpr sword
+| Pconst :> Z -> pexpr sword
 | Pbool  :> bool -> pexpr sbool
 | Papp1  : forall st1 stres: stype, 
   sop1 st1 stres -> pexpr st1 -> pexpr stres
@@ -234,30 +252,6 @@ Definition store pe1 pe2 := Cbcmd (Store pe1 pe2).
 
 Definition cmd_Ind (P : cmd -> Prop) := 
   @cmd_ind P (fun _ _ _ => True).
-
-(* ** Memory
- * -------------------------------------------------------------------- *)
-
-Inductive error := ErrOob | ErrAddrUndef | ErrAddrInvalid.
-
-Definition exec t := result error t.
-Definition ok := Ok error. 
-
-Definition mem := {fmap word -> word}.
-
-Variable valid_addr : word -> bool.
-
-Definition read_mem (m : mem) (p : word) : exec word :=
-  if valid_addr p
-  then o2r ErrAddrUndef (m.[? p]%fmap)
-  else Error ErrAddrInvalid.
-
-Definition write_mem (m : mem) (p w : word) : exec mem :=
-  if valid_addr p
-  then ok (m.[p <- w]%fmap)
-  else Error ErrAddrInvalid.
-
-
 
 (* -------------------------------------------------------------------------- *)
 (* Compute the set of writen variables of a program                           *)
@@ -595,7 +589,7 @@ Qed.
 Fixpoint eqb_pexpr t1 t2 (e1:pexpr t1) (e2:pexpr t2) : bool :=
   match e1, e2 with
   | Pvar x1  , Pvar x2    => x1 == x2
-  | Pconst n1, Pconst n2  => (n1 =? n2)%num
+  | Pconst n1, Pconst n2  => n1 == n2 
   | Pbool b1 , Pbool b2   => b1 == b2
   | Papp1 _ _ o1 e1         , Papp1 _ _ o2 e2          => 
     eqb_sop1 o1 o2 && eqb_pexpr e1 e2

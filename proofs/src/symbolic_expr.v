@@ -76,7 +76,7 @@ Qed.
 Inductive spexpr : stype -> Type :=
 | Evar   :> forall x:var , spexpr x.(vtype)
 | Esvar  :> forall x:svar, spexpr x.(svtype)
-| Econst :> N    -> spexpr sword
+| Econst :> Z    -> spexpr sword
 | Ebool  :> bool -> spexpr sbool
 | Eapp1  : forall t1 tr: stype, 
   sop1 t1 tr -> spexpr t1 -> spexpr tr
@@ -104,7 +104,7 @@ Fixpoint ssem_spexpr t (st:sstate) (pe : spexpr t) : sst2ty t :=
   match pe in spexpr t_ return sst2ty t_ with
   | Evar  x  => st.(vm).[x]%vmap
   | Esvar x  => st.(sm).[x]%msv
-  | Econst c => n2w c
+  | Econst c => I64.repr c
   | Ebool  b => b
   | Eapp1 _ _ o pe1 =>
       let v1 := ssem_spexpr st pe1 in
@@ -222,7 +222,7 @@ Proof. done. Qed.
 Lemma fv_bool (b:bool): fv b = Sv.empty.
 Proof. done. Qed.
 
-Lemma fv_const (n:N): fv n = Sv.empty.
+Lemma fv_const (n:Z): fv n = Sv.empty.
 Proof. done. Qed.
 
 Lemma fv_op1 t1 tr (o:sop1 t1 tr) (e1:spexpr t1) : 
@@ -293,7 +293,7 @@ Proof. by rewrite /sfv /=; SsvD.fsetdec. Qed.
 Lemma sfv_bool (b:bool): sfv b = Ssv.empty.
 Proof. done. Qed.
 
-Lemma sfv_const (n:N): sfv n = Ssv.empty.
+Lemma sfv_const (n:Z): sfv n = Ssv.empty.
 Proof. done. Qed.
 
 Lemma sfv_op1 t1 tr (o:sop1 t1 tr) (e1:spexpr t1) : 

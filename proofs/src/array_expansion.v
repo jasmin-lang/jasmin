@@ -5,53 +5,31 @@ Require Import JMeq ZArith Setoid Morphisms.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
-Require Import finmap strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
+Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
 Require Import allocation.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Import GRing.Theory.
 
-Local Open Scope ring_scope.
-Local Open Scope fun_scope.
 Local Open Scope vmap.
-Local Open Scope fset.
+
 Local Open Scope seq_scope.
-
-
-Lemma N_eqP : Equality.axiom N.eqb. 
-Proof. by move=> p1 p2;apply:(iffP idP);rewrite -N.eqb_eq. Qed.
-
-Definition N_eqMixin := EqMixin N_eqP.
-Canonical  N_eqType  := EqType N N_eqMixin.
-
-Instance NO : Cmp N.compare.
-Proof.
-  constructor.
-  + by move=> ??;rewrite N.compare_antisym.
-  + move=> ????;case:N.compare_spec=> [->|H1|H1];
-    case:N.compare_spec=> H2 //= -[] <- //;subst;
-    rewrite ?N.compare_lt_iff ?N.compare_gt_iff //.
-  + by apply: N.lt_trans H1 H2. 
-  by apply: N.lt_trans H2 H1.
-  apply N.compare_eq.
-Qed.
 
 Module CmpIndex.
 
-  Definition t := [eqType of (var * N)%type].
+  Definition t := [eqType of (var * Z)%type].
 
   Definition cmp : t -> t -> comparison := 
-    lex CmpVar.cmp N.compare.
+    lex CmpVar.cmp Z.compare.
 
   Lemma cmpO : Cmp cmp.
-  Proof. apply LexO;[apply CmpVar.cmpO|apply NO]. Qed.
+  Proof. apply LexO;[apply CmpVar.cmpO|apply ZO]. Qed.
 
 End CmpIndex.
 
-Local Notation index:= (var * N)%type.
+Local Notation index:= (var * Z)%type.
 
 Module Mi := gen_map.Mmake CmpIndex.
 
@@ -167,7 +145,7 @@ Module CBEA.
   Fixpoint check_e t1 t2 m (e1:pexpr t1) (e2:pexpr t2) : bool := 
     match e1, e2 with
     | Pvar x1  , Pvar x2    => (x1 == x2) && Sv.mem x1 (M.initvar m)
-    | Pconst n1, Pconst n2  => (n1 =? n2)%num
+    | Pconst n1, Pconst n2  => n1 == n2
     | Pbool b1 , Pbool b2   => b1 == b2
     | Papp1 _ _ o1 e1, Papp1 _ _ o2 e2 => 
       eqb_sop1 o1 o2 && check_e m e1 e2
@@ -312,7 +290,7 @@ Module CBEA.
       | ??? o2 e21  e22 | ???? o2 e21 e22 e23] //=.
     + move=> /andP[]/eqP[]<- <-;rewrite /is_true -SvD.F.mem_iff.
       by case : Hrn=> H _ /H ->.
-    + by move=> Heq; rewrite (Neqb_ok _ _ Heq).
+    + by move=> /eqP ->.
     + by move=> /eqP ->.
     + move=> /andP[] Ho H1.  
       have ? := check_e_eqt H1;subst;rewrite (He1 _ _ H1).
@@ -365,26 +343,23 @@ Module CBEA.
     by move: H1;case: p=> //= x /eqP ->.
   Qed.
 
-  Lemma tobase_n2w n1 n2: tobase n1 = tobase n2 -> n2w n1 = n2w n2.
-  Proof.
-  Admitted.
-
   Lemma check_bcmdP i1 r1 i2 r2:
     check_bcmd i1 i2 r1 = Ok unit r2 ->
     forall m1 m2 vm1 vm2, sem_i (Estate m1 vm1) (Cbcmd i1) (Estate m2 vm2) ->
     forall vm1', eq_alloc r1 vm1 vm1' ->
-    exists vm2', eq_alloc r2 vm2 vm2' /\ sem_i (Estate m1 vm1') (Cbcmd i2) (Estate m2 vm2').
+    exists vm2', eq_alloc r2 vm2 vm2' /\ 
+    sem_i (Estate m1 vm1') (Cbcmd i2) (Estate m2 vm2').
   Proof.
     case: i1 i2 =>
       [t1 rv1 e1 | rv1 e1 | e11 e12] [t2 rv2 e2 | rv2 e2 | e21 e22] //=.
     + case Himm: check_imm_set => [r1'|] /=. 
+
       + move=> [] ? m1 m2 vm1 vm2 H vm1' Hvm1;subst r1'.
         inversion H;clear H;subst. 
         move:Himm H2=> /= /check_imm_setP [nx1 [nx2 [n [n1 [e2']]]]] /= [] [].
         move=> ??;subst => -> -> -> Hce -> /= Hnin1 Hnin2.
-        have ? := check_e_eqt Hce;subst.
         case He2' : sem_pexpr => [v2'|] //=.
-        case:ifP => //= Hnlt [] <- <-.
+        rewrite /Array.set; case: ifP => [Hbound|] //= [] <- <-.
         exists (vm1'.[{| vtype := sword; vname := nx2 |} <- v2']);split;last first.
         + by constructor => /=;rewrite -(eq_sem Hvm1 Hce) He2'.
         case Hvm1=>Hvm_1 Hvm_2; split=> /=.
@@ -394,16 +369,15 @@ Module CBEA.
         move=> x n0 id; set x1 := {| vtype := sarr n sword; vname := nx1 |}.
         case: ((x1,tobase n1) =P (x,tobase n0)) => [[] Hx Hn|/eqP Hneq].
         + subst x;rewrite Hn Ma.setP_eq=> -[] ?;subst=> /=.
-          by rewrite -(tobase_n2w Hn) Hnlt !Fv.setP_eq tuple.tnth_mktuple eq_refl.
+          rewrite !Fv.setP_eq; move: Hn Hbound=> /eqP /reqP -> Hbound.
+          by rewrite /Array.get Hbound FArray.setP_eq.
         move=> /Ma.setP_neq [] // /Hvm_2.         
         case: x Hneq => -[] //= n2 [] //= xn Hneq.
         case: (x1 =P {| vtype := sarr n2 sword; vname := xn |}).
         + move=> [] ??;subst;rewrite /x1 Fv.setP_eq => H1 Hne.
-          rewrite tuple.tnth_mktuple Fv.setP_neq.
-          + have -> // : (inZp (n2w n0) == inZp (n2w n1)) = false.
-            move=> n;apply negbTE;apply /eqP.
-            admit. 
-          by apply /eqP=> -[].
+          rewrite /Array.get Fv.setP_neq;last by apply /eqP=> -[].
+          rewrite FArray.setP_neq //. 
+          by apply: contra Hneq => /eqP /reqP /eqP ->.
         move=> /eqP Hne H1 H2; rewrite !Fv.setP_neq //. 
         by apply /eqP=> -[].
       case: ifP => //= Hce Hcr.
@@ -431,7 +405,7 @@ Module CBEA.
     case Heqw: write_mem=> [m2'|]//= []<- <-.
     exists vm1';split=> //.
     by constructor=> /=;rewrite Heq1 Heq2 /= Heqw.
-  Admitted. 
+  Qed.
 
 End CBEA.
 

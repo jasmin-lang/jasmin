@@ -1,13 +1,13 @@
 (* * Syntax and semantics of the dmasm source language *)
 
 (* ** Imports and settings *)
-Require Import JMeq ZArith Setoid Morphisms.
+Require Import JMeq Setoid Morphisms.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple finfun.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
+Require Import ZArith.
 Require Import gen_map word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_Ssem 
                symbolic_expr.
 
-Import GRing.Theory.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -95,24 +95,24 @@ Proof.
     case: (eqb_sop1P _ Ho) => //??;subst=> H;split=>//;subst.
     by rewrite (JMeq_eq jm).
   + case Ho: eqb_sop2=> //.
-    case: eval_eq (He1 _ e1' true)=> -[] // [] //= ? jm1;subst=> -[].
+    case: eval_eq (He1 _ e1' true)=> -[] // [] //= ? jm1;subst.
     case: eval_eq (He2 _ e2' true)=> -[] // [] //= ? jm2;subst=> -[].
     case: (eqb_sop2P _ _ Ho) => //??;subst=> H;split=>//;subst.
     by rewrite (JMeq_eq jm1) (JMeq_eq jm2).
   + case Ho: eqb_sop3=> //.
-    case: eval_eq (He1 _ e1' true)=> -[] // [] //= ? jm1;subst=> -[].
-    case: eval_eq (He2 _ e2' true)=> -[] // [] //= ? jm2;subst=> -[].
+    case: eval_eq (He1 _ e1' true)=> -[] // [] //= ? jm1;subst.
+    case: eval_eq (He2 _ e2' true)=> -[] // [] //= ? jm2;subst.
     case: eval_eq (He3 _ e3' true)=> -[] // [] //= ? jm3;subst=> -[].
     case: (eqb_sop3P _ _ _ Ho) => //??;subst=> H;split=>//;subst.
     by rewrite (JMeq_eq jm1) (JMeq_eq jm2) (JMeq_eq jm3).
   case: eval_eq (He1 _ e1')=> -[] //= H.
   + case: (H true) => // _ jm1.
-    case: eval_eq (He2 _ e2' true)=> -[] // [] //= ? jm2;subst=> -[].
+    case: eval_eq (He2 _ e2' true)=> -[] // [] //= ? jm2;subst.
     case: eval_eq (He3 _ e3' true)=> -[] // [] //= ? jm3;subst=> -[] ?.
     subst;split=>//.
     by rewrite (JMeq_eq jm1) (JMeq_eq jm2) (JMeq_eq jm3).
   case: (H false) => // _ jm1.
-  case: eval_eq (He2 _ e3' true)=> -[] // [] //= ? jm2;subst=> -[].
+  case: eval_eq (He2 _ e3' true)=> -[] // [] //= ? jm2;subst.
   case: eval_eq (He3 _ e2' true)=> -[] // [] //= ? jm3;subst=> -[] ?.
   subst;split=>//.
   have : (ssem_spexpr st e1) != (ssem_spexpr st e1').
@@ -227,9 +227,9 @@ Definition sadd (e1 e2:spexpr sword) : spexpr sword :=
   match is_const e1, is_const e2 with
   | Some n1, Some n2 => iword_add n1 n2 
   | Some n, _ => 
-    if (n =? 0)%num then e2 else Eapp2 Oadd e1 e2
+    if (n =? 0)%Z then e2 else Eapp2 Oadd e1 e2
   | _, Some n => 
-    if (n =? 0)%num then e1 else Eapp2 Oadd e1 e2
+    if (n =? 0)%Z then e1 else Eapp2 Oadd e1 e2
   | _, _ => Eapp2 Oadd e1 e2
   end.
 
@@ -239,9 +239,9 @@ Definition saddc (e1 e2:spexpr sword) : spexpr (sbool ** sword) :=
     let (c,n) := iword_addc n1 n2 in
     spair c n
   | Some n, _ =>
-    if (n =? 0)%num then spair false e2 else Eapp2 Oaddc e1 e2
+    if (n =? 0)%Z then spair false e2 else Eapp2 Oaddc e1 e2
   | _, Some n => 
-    if (n =? 0)%num then spair false e1 else Eapp2 Oaddc e1 e2
+    if (n =? 0)%Z then spair false e1 else Eapp2 Oaddc e1 e2
   | _, _ => Eapp2 Oaddc e1 e2
   end.
 
@@ -249,7 +249,7 @@ Definition ssub (e1 e2:spexpr sword) : spexpr sword :=
   match is_const e1, is_const e2 with
   | Some n1, Some n2 => iword_sub n1 n2 
   | _, Some n => 
-    if (n =? 0)%num then e1 else Eapp2 Osub e1 e2
+    if (n =? 0)%Z then e1 else Eapp2 Osub e1 e2
   | _, _ => Eapp2 Osub e1 e2
   end.
 
@@ -259,14 +259,14 @@ Definition ssubc (e1 e2:spexpr sword) : spexpr (sbool ** sword) :=
     let (c,n) := iword_subc n1 n2 in
     spair c n
   | _, Some n => 
-    if (n =? 0)%num then spair false e1 else Eapp2 Osubc e1 e2
+    if (n =? 0)%Z then spair false e1 else Eapp2 Osubc e1 e2
   | _, _ => Eapp2 Osubc e1 e2
   end.
 
 Definition slt (e1 e2:spexpr sword) : spexpr sbool := 
   match is_const e1, is_const e2 with
   | Some n1, Some n2 => iword_ltb n1 n2 
-  | _        , Some n  => if (n =? 0)%num then Ebool false else Eapp2 Olt e1 e2
+  | _        , Some n  => if (n =? 0)%Z then Ebool false else Eapp2 Olt e1 e2
   | _        , _         => Eapp2 Olt e1 e2 (* FIXME : false is e1 = e2 *)
   end.
 
@@ -440,14 +440,14 @@ Proof.
   move=> ?;rewrite /sadd;case H1:is_const => [n1|];case H2:is_const => [n2|];
    rewrite ?(is_constP H1) ?(is_constP H2) //.
   + by rewrite /= iword_addP.
-  + by case: N.eqb_spec=> [->|] //=; rewrite /wadd /n2w add0r.
-  by case: N.eqb_spec=> [->|] //=; rewrite /wadd /n2w addr0.
+  + by case: Z.eqb_spec=> [->|] //=;rewrite I64.add_zero_l.
+  by case: Z.eqb_spec=> [->|] //=;rewrite I64.add_zero.
 Qed.
 
 Lemma sfv_sadd (e1 e2:spexpr sword): Ssv.Subset (sfv (sadd e1 e2)) (sfv (Eapp2 Oadd e1 e2)).
 Proof.
   by rewrite /sadd;case H1:is_const => [n1|];case H2:is_const => [n2|];
-   rewrite ?(is_constP H1) ?(is_constP H2) //; case: N.eqb_spec=> [->|];
+   rewrite ?(is_constP H1) ?(is_constP H2) //; case: Z.eqb_spec=> [->|];
    rewrite ?sfv_op2;SsvD.fsetdec.
 Qed.
 
@@ -457,14 +457,16 @@ Proof.
    rewrite ?(is_constP H1) ?(is_constP H2) //.
   + rewrite [iword_addc _ _]surjective_pairing spairP.
     by rewrite /ssem_spexpr /ssem_sop2 iword_addcP.
-  + by case: N.eqb_spec=> [->|] //=; rewrite /waddc /n2w add0r.
-  by case: N.eqb_spec=> [->|] //=; rewrite /waddc /n2w addr0 ltnn.
+  + case: Z.eqb_spec=> [->|] //=. 
+    by rewrite /waddc unsigned0 /= I64.repr_unsigned lt_unsigned.
+  case: Z.eqb_spec=> [->|] //=.
+  by rewrite /waddc unsigned0/= Z.add_0_r I64.repr_unsigned lt_unsigned.
 Qed.
 
 Lemma sfv_saddc (e1 e2:spexpr sword): Ssv.Subset (sfv (saddc e1 e2)) (sfv (Eapp2 Oaddc e1 e2)).
 Proof.
   by rewrite sfv_op2 /saddc;case H1:is_const => [n1|];case H2:is_const => [n2|];
-   rewrite ?(is_constP H1) ?(is_constP H2) //; try case: N.eqb_spec=> [->|];
+   rewrite ?(is_constP H1) ?(is_constP H2) //; try case: Z.eqb_spec=> [->|];
    rewrite ?sfv_op2;SsvD.fsetdec.
 Qed.
 
@@ -473,13 +475,13 @@ Proof.
   move=> ?;rewrite /ssub;case H1:is_const => [n1|];case H2:is_const => [n2|];
    rewrite ?(is_constP H1) ?(is_constP H2) //.
   + by rewrite /ssem_spexpr /ssem_sop2 iword_subP.
-  by case: N.eqb_spec=> [->|] //=;by rewrite /wsub /n2w subr0.
+  by case: Z.eqb_spec=> [->|] //=; rewrite /wsub unsigned0 Z.sub_0_r I64.repr_unsigned.
 Qed.
 
 Lemma sfv_ssub (e1 e2:spexpr sword): Ssv.Subset (sfv (ssub e1 e2)) (sfv (Eapp2 Osub e1 e2)).
 Proof.
   by rewrite sfv_op2 /ssub;case H1:is_const => [n1|];case H2:is_const => [n2|];
-   rewrite ?(is_constP H1) ?(is_constP H2) //; try case: N.eqb_spec=> [->|];
+   rewrite ?(is_constP H1) ?(is_constP H2) //; try case: Z.eqb_spec=> [->|];
    rewrite ?sfv_op2;SsvD.fsetdec.
 Qed.
 
@@ -489,23 +491,23 @@ Proof.
    rewrite ?(is_constP H1) ?(is_constP H2) //.
   + rewrite [iword_subc _ _]surjective_pairing spairP.
     by rewrite /ssem_spexpr /ssem_sop2 iword_subcP.
-  by case: N.eqb_spec=> [->|] //=;by rewrite /wsubc /n2w subr0 ltn0.
+  case: Z.eqb_spec=> [->|] //=.
+  by rewrite /wsubc unsigned0 Z.sub_0_r Z.ltb_antisym le_unsigned I64.repr_unsigned.
 Qed.
 
 Lemma sfv_ssubc (e1 e2:spexpr sword): Ssv.Subset (sfv (ssubc e1 e2)) (sfv (Eapp2 Osubc e1 e2)).
 Proof.
   rewrite sfv_op2 /ssubc;case H1:is_const => [n1|];case H2:is_const => [n2|];
-   rewrite ?(is_constP H1) ?(is_constP H2) //; try case: N.eqb_spec=> [->|];
+   rewrite ?(is_constP H1) ?(is_constP H2) //; try case: Z.eqb_spec=> [->|];
    rewrite ?sfv_op2;try SsvD.fsetdec.
-  by case: iword_subc=> ?? /=. 
 Qed.
 
 Lemma sltP (e1 e2:spexpr sword): slt e1 e2 =E Eapp2 Olt e1 e2.
 Proof.
   move=> ?; rewrite /slt;case H1:is_const => [n1|];case H2:is_const => [n2|];
    rewrite ?(is_constP H1) ?(is_constP H2) //.
-  + by apply iword_ltbP.
-  by case: N.eqb_spec=> [->|].
+  case: Z.eqb_spec=> [->|] //=.
+  by rewrite /wlt unsigned0 Z.ltb_antisym le_unsigned.
 Qed.
 
 Lemma sfv_slt (e1 e2:spexpr sword): Ssv.Subset (sfv (slt e1 e2)) (sfv (Eapp2 Olt e1 e2)).
@@ -519,7 +521,6 @@ Lemma sleP (e1 e2:spexpr sword): sle e1 e2 =E Eapp2 Ole e1 e2.
 Proof.
   move=> ?; rewrite /sle;case H1:is_const => [n1| //];case H2:is_const => [n2|//];
    rewrite ?(is_constP H1) ?(is_constP H2) //.
-  by apply iword_lebP.
 Qed.
 
 Lemma sfv_sle (e1 e2:spexpr sword): Ssv.Subset (sfv (sle e1 e2)) (sfv (Eapp2 Ole e1 e2)).

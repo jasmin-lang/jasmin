@@ -502,7 +502,7 @@ Module CBA <: CheckB.
   Fixpoint check_e t1 t2 (m:M.t) (e1:pexpr t1) (e2:pexpr t2) : bool := 
     match e1, e2 with
     | Pvar x1  , Pvar x2    => check_v m x1 x2
-    | Pconst n1, Pconst n2  => (n1 =? n2)%num
+    | Pconst n1, Pconst n2  => n1 == n2
     | Pbool b1 , Pbool b2   => b1 == b2
     | Papp1 _ _ o1 e1, Papp1 _ _ o2 e2 => 
       eqb_sop1 o1 o2 && check_e m e1 e2
@@ -618,7 +618,7 @@ Module CBA <: CheckB.
       | ??? o2 e21  e22 | ???? o2 e21 e22 e23] //=.
     + rewrite /check_v /=;case:(_ =P _) => Heqt //=.
       by subst; case Hget: M.get=> [id'|] //= /eqP ?;subst;rewrite (Hrn _ _ Hget).
-    + by move=> Heq; rewrite (Neqb_ok _ _ Heq).
+    + by move=> /eqP ->.
     + by move=> /eqP ->.
     + move=> /andP[] Ho H1.  
       have ? := check_e_eqt H1;subst;rewrite (He1 _ _ H1).

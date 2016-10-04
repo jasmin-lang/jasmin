@@ -2,7 +2,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
 
-Require Import finmap strings word dmasm_utils.
+Require Import strings word dmasm_utils.
 Require Import dmasm_type dmasm_var dmasm_expr.
 Require Import dmasm_sem dmasm_Ssem dmasm_Ssem_props.
 
@@ -10,29 +10,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Import GRing.Theory.
-
-Local Open Scope ring_scope.
-
 (* -------------------------------------------------------------------- *)
 Axiom fe : forall {T U} (f g : T -> U), (forall x, f x = g x) -> f = g.
-
-(* -------------------------------------------------------------------- *)
-Fixpoint st_dfl (t : stype) : st2ty t :=
-  match t return st2ty t with
-  | sword     => 0%R
-  | sbool     => false
-  | t1 ** t2  => (st_dfl t1, st_dfl t2)
-  | sarr n st => [tuple of nseq n.+1 (st_dfl st)]
-  end.
-
-Fixpoint sst_dfl (t : stype) : sst2ty t :=
-  match t return sst2ty t with
-  | sword     => 0%R
-  | sbool     => false
-  | t1 ** t2  => (sst_dfl t1, sst_dfl t2)
-  | sarr n st => (fun _ : nat => sst_dfl st)
-  end.
 
 (* -------------------------------------------------------------------- *)
 Fixpoint st2sst_ty {t : stype} :=
@@ -40,7 +19,12 @@ Fixpoint st2sst_ty {t : stype} :=
   | sword     => fun v => v
   | sbool     => fun v => v
   | t1 ** t2  => fun v => (st2sst_ty v.1, st2sst_ty v.2)
-  | sarr n st => fun v => (fun i : nat => st2sst_ty (nth (st_dfl st) v i))
+  | sarr n st => fun v => 
+       (fun i : word => st2sst_ty
+          match @Array.get _ n v i with
+          | Ok w => w
+          | _      => dflt_val st
+          end)
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -69,33 +53,23 @@ elim: p v => //=.
   by case: op v va => //= *; unfold ok in *; congruence.
 + move=> st1 st2 str op a1 ih1 a2 ih2 v h.
   case: (bindW h) => v1 /ih1 -> {h}h; case: (bindW h) => v2 /ih2 -> {h}.
-  case: {a1 a2 ih1 ih2} op v v1 v2 => //=;
-    try by (move=> *; unfold ok in *; congruence).
-  * by case=> /= *; unfold ok in *; try congruence.
-  * by case=> /= *; unfold ok in *; try congruence.
-  * move=> n w v1 v2; case: ifPn=> //; rewrite -leqNgt => le_v2_n.
-    case=> <-; rewrite /aget /= (tnth_nth 0); congr (_`_(_)).
-    by rewrite /inZp /= modn_small.
-  * by move=> {st1 st2} st1 st2 v v1 v2 [<-].
+  case: {a1 a2 ih1 ih2} op v v1 v2 => //=; try by move=> ??? [].
+  + by move=> v ?? [] ->;case v.
+  + by move=> v ?? [] ->;case v.
+  + by rewrite /FArray.get /= => ???? ->.
+  by move=> ????? [] <-.
 + move=> st1 st2 st3 sr op a1 ih1 a2 ih2 a3 ih3 v h.
   case: (bindW h) => v1 /ih1 -> {h}h;
     case: (bindW h) => v2 /ih2 -> {h}h.
     case: (bindW h) => v3 /ih3 -> {h}.
   case: {a1 a2 a3 ih1 ih2 ih3} op v v1 v2 v3 => //=.
-  * by case=> /=; unfold ok in *; congruence.
-  * by case=> /=; unfold ok in *; congruence.
-  move=> n a a' v1 v2; case: ifPn=> //=; rewrite -leqNgt.
-  move=> le_v1_n [<-] /=; apply/fe=> k; rewrite /aset.
-  case/boolP: (k <= n); last first.
-    rewrite -ltnNge=> h; rewrite !nth_default; last first.
-    + by rewrite size_tuple.
-    + by rewrite size_map -cardE card_ord.
-    by rewrite ltn_eqF 1?(leq_ltn_trans _ h).
-  move=> le_kn; rewrite [in RHS](nth_map 0); last first.
-    by rewrite -cardE card_ord ltnS.
-  rewrite /w2n -(inj_eq (@ord_inj _)) /= modn_small ?ltnS //.
-  rewrite eq_sym nth_enum_ord ?ltnS //; case: ifPn => // _.
-  by rewrite (tnth_nth 0) nth_enum_ord // ltnS.
+  + by move=> v ??? [] ->;case: v.
+  + by move=> v ??? [] ->;case: v.
+  move=> n a a' v1 v2.
+  rewrite /Array.set /Array.get /FArray.set;case:ifP => //= Hb [] <-;apply fe=> z.
+  case: ifP => [/eqP<-|Hne].
+  + by rewrite Hb /FArray.get eq_refl.
+  by case: ifPn=> //= ?;rewrite /FArray.get Hne.
 Qed.
 
 (* -------------------------------------------------------------------- *)

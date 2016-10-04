@@ -315,8 +315,8 @@ Definition var2pair (v:var) := (v.(vtype), v.(vname)).
 Definition pair2var (p:stype * ident) := Var (fst p) (snd p).
 
 Lemma codeK_var : cancel var2pair pair2var. Proof. by rewrite /cancel; case => //. Qed.
-Definition var_choiceMixin := CanChoiceMixin codeK_var.
-Canonical  var_choiceType  := ChoiceType var var_choiceMixin.
+Definition var_eqMixin := CanEqMixin codeK_var.
+Canonical  var_eqType  := EqType var var_eqMixin.
 
 Delimit Scope mvar_scope with mv.
 Notation "vm .[ x ]" := (@Mv.get _ vm x) : mvar_scope.
@@ -366,6 +366,7 @@ Module Fv.
     forall x, get vm1 x = get vm2 x.
 
   Axiom map_ext: forall to (vm1 vm2 : t to), ext_eq vm1 vm2 -> vm1 = vm2.
+
 End Fv.
 
 Delimit Scope vmap_scope with vmap.
@@ -407,30 +408,7 @@ Module Type Vmap.
       x != y -> get (@set to m x v) y = get m y.
 
 End Vmap.
-(*
-Module WRmake (M:Vmap) (T:WrInp).
-  Import M T.
 
-  Record tosubst := ToSubst {
-    ts_v  : var;
-    ts_to : to ts_v.(vtype);
-  }.
-
-  Fixpoint write_subst {t} (l:rval t) : to t -> list tosubst -> list tosubst := 
-    match l in rval t_ return to t_ -> list tosubst -> list tosubst with
-    | Rvar x => fun v s =>  (@ToSubst x v) :: s
-    | Rpair t1 t2 rv1 rv2 => fun v s => 
-      write_subst rv2 (snd v) (write_subst rv1 (fst v) s)
-    end.
-
-  Definition write_vmap := 
-     foldr (fun (ts:tosubst) vm => @M.set _ vm ts.(ts_v) ts.(ts_to)).
-
-  Definition write_rval {t} (vm:M.t to) (l:rval t) (v:to t) :=
-     write_vmap vm (write_subst l v [::]).
-
-End WRmake.
-*)
 (* ** Finite set of variables (computable)
  *
  * -------------------------------------------------------------------- *)

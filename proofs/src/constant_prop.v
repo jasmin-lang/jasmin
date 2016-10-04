@@ -1,23 +1,20 @@
 (* * Prove properties about semantics of dmasm input language *)
 
 (* ** Imports and settings *)
-Require Import JMeq ZArith Setoid Morphisms.
+Require Import JMeq Setoid Morphisms.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
+Require Import  ZArith.
+
 Require Import Coq.Logic.Eqdep_dec.
-Require Import finmap strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
+Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Import GRing.Theory.
-
-Local Open Scope ring_scope.
-Local Open Scope fun_scope.
-Local Open Scope vmap.
 Local Open Scope seq_scope.
-
+Local Open Scope vmap_scope.
 (* -------------------------------------------------------------------------- *)
 (* ** Smart constructors                                                      *)
 (* -------------------------------------------------------------------------- *)
@@ -69,9 +66,9 @@ Definition sadd (e1 e2:pexpr sword) : pexpr sword :=
   match is_const e1, is_const e2 with
   | Some n1, Some n2 => iword_add n1 n2 
   | Some n, _ => 
-    if (n =? 0)%num then e2 else Papp2 Oadd e1 e2
+    if (n == 0)%Z then e2 else Papp2 Oadd e1 e2
   | _, Some n => 
-    if (n =? 0)%num then e1 else Papp2 Oadd e1 e2
+    if (n == 0)%Z then e1 else Papp2 Oadd e1 e2
   | _, _ => Papp2 Oadd e1 e2
   end.
 
@@ -82,7 +79,7 @@ Definition ssub (e1 e2:pexpr sword) : pexpr sword :=
   match is_const e1, is_const e2 with
   | Some n1, Some n2 => iword_sub n1 n2 
   | _, Some n => 
-    if (n =? 0)%num then e1 else Papp2 Osub e1 e2
+    if (n == 0)%Z then e1 else Papp2 Osub e1 e2
   | _, _ => Papp2 Osub e1 e2
   end.
 
@@ -92,7 +89,7 @@ Definition ssubc (e1 e2:pexpr sword) : pexpr (sbool ** sword) :=
 Definition slt (e1 e2:pexpr sword) : pexpr sbool := 
   match is_const e1, is_const e2 with
   | Some n1, Some n2 => iword_ltb n1 n2 
-  | _        , Some n  => if (n =? 0)%num then Pbool false else Papp2 Olt e1 e2
+  | _        , Some n  => if (n == 0)%Z then Pbool false else Papp2 Olt e1 e2
   | _        , _         => Papp2 Olt e1 e2 (* FIXME : false is e1 = e2 *)
   end.
 
@@ -153,7 +150,7 @@ Definition merge_cpm : map -> map -> map :=
   Mvar.map2 (fun _ (o1 o2: option iword) => 
    match o1, o2 with
    | Some n1, Some n2 => 
-     if (n1 =? n2)%num then Some n1
+     if (n1 == n2)%Z then Some n1
      else None
    | _, _ => None
    end).
@@ -321,10 +318,10 @@ Proof.
   move=> ?;rewrite /sadd;case H1:is_const => [n1|];case H2:is_const => [n2|];
    rewrite ?(is_constP H1) ?(is_constP H2) // => v /=.
   + by rewrite iword_addP.
-  + case: N.eqb_spec=> [->|] //=;case sem_pexpr => //= ?.
-    by rewrite /wadd /n2w add0r.
-  case: N.eqb_spec=> [->|] //=; case sem_pexpr => //= ?.
-  by rewrite /wadd /n2w addr0.
+  + case: eqP => [->|] //=;case:sem_pexpr => [w|]//=.
+    by rewrite I64.add_zero_l.
+  case: eqP => [->|] //=;case:sem_pexpr => [w|]//=.
+  by rewrite I64.add_zero.
 Qed.
 
 Lemma saddcP (e1 e2:pexpr sword): Papp2 Oaddc e1 e2 =E saddc e1 e2 .
@@ -335,8 +332,8 @@ Proof.
   move=> ?;rewrite /ssub;case H1:is_const => [n1|];case H2:is_const => [n2|];
    rewrite ?(is_constP H1) ?(is_constP H2) // => v /=.
   + by rewrite iword_subP.
-  case: N.eqb_spec=> [->|] //=;case sem_pexpr => //= ?.
-  by rewrite /wsub /n2w subr0.
+  case: eqP => [->|]//=;case sem_pexpr => //= ?.
+  by rewrite I64.sub_zero_l.
 Qed.
 
 Lemma ssubcP (e1 e2:pexpr sword): Papp2 Osubc e1 e2 =E ssubc e1 e2.
@@ -346,8 +343,8 @@ Lemma sltP (e1 e2:pexpr sword): Papp2 Olt e1 e2 =E slt e1 e2.
 Proof.
   move=> ?; rewrite /slt;case H1:is_const => [n1|];case H2:is_const => [n2|];
    rewrite ?(is_constP H1) ?(is_constP H2) // => v /=.
-  + by rewrite iword_ltbP.
-  case: N.eqb_spec=> [->|] //=;case sem_pexpr => //= ?.
+  case: eqP => //= ->;case sem_pexpr => //= s [] <-.
+  by rewrite /wlt /= Z.ltb_antisym le_unsigned. 
 Qed.
 
 Lemma sleP (e1 e2:pexpr sword): Papp2 Ole e1 e2 =E sle e1 e2.
@@ -374,7 +371,7 @@ Proof. apply eeq_refl. Qed.
 Definition valid_map (vm: vmap)  (m:map) := 
   forall x n, Mvar.get m x = Some n -> 
      match vtype x as t0 return st2ty t0 -> Prop with 
-     | sword => fun v => v = n2w n 
+     | sword => fun v => v = I64.repr n 
      | _     => fun v => True
      end vm.[x].
 
@@ -476,7 +473,7 @@ Lemma merge_cpmP rho m1 m2 :
 Proof.
   move=> Hv x n;rewrite /merge_cpm Mvar.map2P //. 
   case Heq1 : (Mvar.get m1 x) => [n1|//]; case Heq2 : (Mvar.get m2 x) => [n2|//].
-  case: N.eqb_spec=> //.
+  case: eqP=> //.
   by move=> ? [] ?;do 2 subst;elim: Hv => Hv;apply Hv.
 Qed.
 
