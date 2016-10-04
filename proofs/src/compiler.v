@@ -31,10 +31,17 @@ Fixpoint unroll (n:nat) ta tr (fd:fundef ta tr) :=
       else unroll n fd')
   end.
                 
-Definition compile_fd ta tr (fd fdrn fdea:fundef ta tr) :=
+Section COMPILER.
+
+Variable rename: forall ta tr, fundef ta tr -> fundef ta tr.
+Variable expand: forall ta tr, fundef ta tr -> fundef ta tr.
+
+Definition compile_fd ta tr (fd:fundef ta tr) :=
+  let fdrn := rename fd in
   if CheckAlloc.check_fd fd fdrn then
     check_inline_fd fdrn >>= (fun _ =>
     unroll nb_loop (inline_fd fdrn) >>= (fun fd =>
+    let fdea := expand fd in                                           
     if CheckExpansion.check_fd fd fdea then Ok unit fdea 
     else Error tt))
   else Error tt.
@@ -64,7 +71,7 @@ Qed.
 Opaque nb_loop.
 
 Lemma compile_fdP ta tr (fd fdrn fdae fd':fundef ta tr) mem va mem' vr:
-  compile_fd fd fdrn fdae = Ok unit fd' ->
+  compile_fd fd = Ok unit fd' ->
   sem_call mem fd  va mem' vr ->
   sem_call mem fd' va mem' vr.
 Proof.
@@ -78,6 +85,9 @@ Proof.
   apply: inlineP Hinl.
   by apply: CheckAlloc.check_fdP Hsem.
 Qed.
+
+End COMPILER.
+
     
    
 
