@@ -24,6 +24,18 @@ ARG="$ARG,interp[rem_p=38][][test][]"
 
 ###########################################################################
 
+#FUN="test"
+
+#ARG="inline[$FUN],expand[$FUN][rem_p=38]"
+#ARG="$ARG,array_expand[$FUN]"
+#ARG="$ARG,save[/tmp/unfold2.mil][$FUN]"
+
+#./dmasm.native -t \
+#  "$ARG" \
+#  tests/compiler/must_fail/t_01.mil # also t_02.mil
+
+###########################################################################
+
 # ARG="inline[bar]"
 # ARG="$ARG,expand[bar][n=2]"
 # #ARG="$ARG,ssa[bar]"
