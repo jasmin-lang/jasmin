@@ -292,6 +292,7 @@ FIXME: Would it be easier to replace this by 'for' and perform the
 
 let array_assign_expand_stmt tenv stmt =
   let rec expand li =
+    let exp_s s = List.concat_map s ~f:expand in
     let _loc = li.L.l_loc in
     match li.L.l_val with
     | Binstr(Op(_,_,_))
@@ -300,10 +301,15 @@ let array_assign_expand_stmt tenv stmt =
     | Binstr(Store(_,_,_))
     | Binstr(Assgn(_,Imm(_),_)) -> [li]
 
-    | If(_,_,_)
-    | Binstr(Call(_))
-    | While(_,_,_) -> failwith "FIXERROR"
-
+    | If(Pcond(_),_,_) -> failwith "array expansion expects macro-if expanded"
+    | For(_,_,_,_)     -> failwith "array expansion expects macro-for expanded"
+    | Binstr(Call(_))  -> failwith "array expansion expects calls are expanded"
+    | While(wt,fc,stmt) ->
+      [ L.{ li with l_val = While(wt,fc,exp_s stmt) } ]
+    
+    | If(Fcond(_) as c,s1,s2) ->
+      [ L.{ li with l_val = If(c,exp_s s1,exp_s s2) } ]
+ 
     | Binstr(Assgn(d,Src(s),t)) ->
       let td = map_find_exn tenv pp_string d.d_name in
       let ts = map_find_exn tenv pp_string s.d_name in
@@ -318,24 +324,22 @@ let array_assign_expand_stmt tenv stmt =
         List.map ~f:mk_assgn (list_from_to ~first:U64.zero ~last:ub1)
       | _ -> [li]
       end
-
-    | For(iv,lb_ie,ub_ie,stmt) ->
-      let stmt = List.concat_map stmt ~f:expand in
-      [ L.{ li with l_val = For(iv,lb_ie,ub_ie,stmt) } ]
   in
   List.concat_map ~f:expand stmt
 
-let array_assign_expand_fundef fdef =
+let array_assign_expand_fundef fdef fargs =
   let tenv =
-    String.Map.of_alist_exn (List.map ~f:(fun (_,m,t) -> (m,t)) fdef.fd_decls)
+    String.Map.of_alist_exn
+      ((List.map ~f:(fun (_,m,t) -> (m,t)) fdef.fd_decls) @
+       (List.map ~f:(fun (_,m,t) -> (m,t)) fargs))
   in
   { fdef with fd_body  = array_assign_expand_stmt tenv fdef.fd_body }
 
 let array_assign_expand_func func =
   let fdef = match func.f_def with
-    | Def fd -> Def(array_assign_expand_fundef fd)
-    | Undef  -> failwith "FIXERROR"
-    | Py(_)  -> failwith "FIXERROR"
+    | Def fd -> Def(array_assign_expand_fundef fd func.f_args)
+    | Undef  -> failwith "Cannot expand array assignments in undefined function"
+    | Py(_)  -> failwith "Cannot expand array assignments in python function"
   in
   { func with f_def = fdef }
 

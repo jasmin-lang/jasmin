@@ -438,7 +438,6 @@ fn cswap(stack x2p, z2p, x3p, z3p : u64[4], stack swap : u64)
   return x2p, z2p, x3p, z3p;
 }
 
-
 // ** montgomery ladder
 // ************************************************************************
 
@@ -469,9 +468,9 @@ fn mladder(stack xr, sp : u64[4]) -> stack u64[4] * stack u64[4] {
       prevbit = bit;
       x2,z2,x3,z3 = cswap(x2,z2,x3,z3,swap);
       x2,z2,x3,z3 = ladderstep(x1,x2,z2,x3,z3);
-      cf,j -= 1;  // returns cf=1 on underflow
+      cf,j -= 1;  // returns cf=1 for input j=0
     } while !cf;
-    cf,i -= 1; // returns cf=1 on underflow
+    cf,i -= 1; // returns cf=1 for input i=0
   } while !cf;
   x2,z2,x3,z3 = cswap(x2,z2,x3,z3,prevbit);
   return x2, z2;
@@ -850,8 +849,8 @@ fn test_swap() {
 fn test_mladder() {
   stack xr : u64[4];
   stack xr_r, zr_r : u64[4];
-  stack sp     : u64[4];
-  stack u : u64;
+  stack sp : u64[4];
+  stack u  : u64;
   inline i : u64;
 
   sp[0] = 0xffffffffffffffff;
