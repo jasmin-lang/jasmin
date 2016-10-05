@@ -58,12 +58,12 @@ type pop_bool =
 
 type pcond =
   | Ptrue
-  | Pnot  of pcond
-  | Pand  of pcond * pcond
-  | Pcond of pop_bool * pexpr * pexpr
+  | Pnot of pcond
+  | Pand of pcond * pcond
+  | Pcmp of pop_bool * pexpr * pexpr
   [@@deriving compare,sexp]
 
-(* ** Pseudo-registers, sources, and destinations
+(* ** Types, sources, and destinations
  * ------------------------------------------------------------------------ *)
 (* *** Summary
 We define:
@@ -90,14 +90,20 @@ type src =
   | Src of dest  (* Sreg(d): where d destination register *)
   [@@deriving compare,sexp]
 
-(* ** Operands and constructs for intermediate language
+(* ** Operators and constructs for intermediate language
  * ------------------------------------------------------------------------ *)
 (* *** Summary
 The language supports the fixed operations given in 'op' (and function calls).
 *)
 (* *** Code *)
 
-type cmov_flag = CfSet of bool [@@deriving compare,sexp]
+type fcond = { fc_flag_set : bool; fc_flag : name }
+  [@@deriving compare,sexp]
+
+type fcond_or_pcond =
+  | Fcond of fcond (* flag condition *)
+  | Pcond of pcond (* parametric condition *)
+  [@@deriving compare,sexp]
 
 type dir      = Left   | Right                [@@deriving compare,sexp]
 type carry_op = O_Add  | O_Sub                [@@deriving compare,sexp]
@@ -105,10 +111,10 @@ type three_op = O_Imul | O_And | O_Xor | O_Or [@@deriving compare,sexp]
 
 type op =
   | ThreeOp of three_op
-  | Umul    of             dest
-  | Carry   of carry_op  * dest option * src option
-  | CMov    of cmov_flag               * src
-  | Shift   of dir       * dest option
+  | Umul    of            dest
+  | Carry   of carry_op * dest option * src option
+  | CMov    of fcond
+  | Shift   of dir      * dest option
   [@@deriving compare,sexp]
 
 (* ** Base instructions, instructions, and statements
@@ -119,14 +125,19 @@ type op =
 - statements (list of instructions) *)
 (* *** Code *)
 
+type while_type =
+  | WhileDo (* while t { ... } *)
+  | DoWhile (* do { ... } while t; *)
+  [@@deriving compare,sexp]
+
 type assgn_type =
   | Mv (* compile to move *)
   | Eq (* use as equality constraint in reg-alloc and compile to no-op *)
   [@@deriving compare,sexp]
 
-type for_type =
-  | Unfold
-  | Loop
+type is_macro =
+  | Macro
+  | Runtime
   [@@deriving compare,sexp]
 
 type base_instr =
@@ -156,11 +167,16 @@ type instr =
 
   | Binstr of base_instr
 
-  | If of pcond * stmt * stmt
-    (* If(c1,i1,i2): if c1 { i1 } else i2 *)
+  | If of fcond_or_pcond * stmt * stmt
+    (* If(c1,s1,s2): if c1 { s1 } else s2 *)
 
-  | For of for_type * name * pexpr * pexpr * stmt
-    (* For(v,lower,upper,i): for v in lower..upper { i } *)
+  | For of name * pexpr * pexpr * stmt
+    (* For(v,lower,upper,s): for v in lower..upper { s } *)
+
+  | While of while_type * fcond * stmt
+    (* While(wt,fcond,s):
+         wt=WhileDo  while fcond { s }
+         wt=DoWhile  do          { s } while fcond; *)
 
 and stmt = (instr L.located) list
   [@@deriving compare,sexp]
@@ -204,27 +220,6 @@ type modul = {
   m_params : (name * ty) list; (* module parameters *)
   m_funcs  : func list;        (* module functions  *)
 } [@@deriving compare,sexp]
-
-(* ** Definitions
- * ------------------------------------------------------------------------ *)
-
-(*
-type def =
-  | Dfun   of func
-  | Dparam of (name * ty)
-
-let mk_modul _ = failwith "undefined"
-
-let mk_if _ = failwith "undefined"
-
-let mk_instr _ = failwith "undefined"
-
-let mk_store _ = failwith "undefined"
-
-let mk_fundef _ = failwith "undefined"
-
-let mk_func _ = failwith "undefined"
-*)
 
 (* ** Values
  * ------------------------------------------------------------------------ *)

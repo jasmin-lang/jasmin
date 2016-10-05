@@ -41,7 +41,7 @@ module L = ParserUtil.Lexing
 
 %token REG FLAG PARAM STACK INLINE
 
-%token FOR FORCOLON
+%token FOR WHILE DO
 %token IN
 %token IF
 %token ELSE
@@ -135,7 +135,14 @@ pcond :
 | EXCL c=pcond                { Pnot(c)        }
 | c1=pcond LAND c2=pcond      { Pand(c1,c2)    }
 | LPAREN c = pcond RPAREN     { c              }
-| c1=pexpr o=pcondop c2=pexpr { Pcond(o,c1,c2) }
+| c1=pexpr o=pcondop c2=pexpr { Pcmp(o,c1,c2) }
+
+%inline fcond :
+| e= EXCL? s = ID { {fc_flag_set=(e=None); fc_flag = s} }
+
+pcond_or_fcond :
+| pc=pcond   { Pcond(pc) }
+| fc = fcond { Fcond(fc) }
 
 (* -------------------------------------------------------------------- *)
 (* * Sources and destinations *)
@@ -190,8 +197,8 @@ opeq:
 %inline assgn_rhs_mv:
 | s=src { `Assgn(s,Mv) }
 
-| s=src IF e=EXCL? cf=dest
-    { `Cmov(s,Src(cf),CfSet(e=None)) }
+| s=src IF e=EXCL? cf=ID
+    { `Cmov(s,{ fc_flag=cf; fc_flag_set=(e=None)}) }
 
 | s1=src op=binop s2=src
     { `BinOp(op,s1,s2) }
@@ -227,17 +234,20 @@ instr :
 | fname=ID args=tuple(src) SEMICOLON
     { Binstr(Call(fname, [], args)) }
 
-| IF c=pcond i1s=block ies=celse_if* mi2s=celse?
+| IF c=pcond_or_fcond i1s=block ies=celse_if* mi2s=celse?
     { mk_if c i1s mi2s ies }
 
-| FOR cv=ID IN ce1=pexpr DOTDOT ce2=pexpr is=block
-    { For(Unfold,cv,ce1,ce2,is) }
+| FOR  cv=ID IN ce1=pexpr DOTDOT ce2=pexpr is=block
+    { For(cv,ce1,ce2,is) }
 
-| FORCOLON cv=ID IN ce1=pexpr DOTDOT ce2=pexpr is=block
-    { For(Loop,cv,ce1,ce2,is) }
+| WHILE fc=fcond IN is=block
+    { While(WhileDo,fc,is) }
+
+| DO is=block WHILE fc=fcond SEMICOLON
+    { While(DoWhile,fc,is) }
 
 celse_if :
-| ELIF c=pcond is=block { (c,is) }
+| ELIF c=pcond_or_fcond is=block { (c,is) }
 
 celse :
 | ELSE is=block { is }

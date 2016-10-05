@@ -90,12 +90,12 @@ let mk_ternop loc dests op op2 s1 s2 s3 =
     | _    -> fail "invalid args for mult"
     end
 
-let mk_cmov loc dests s cf flg =
+let mk_cmov loc dests s fc =
   let d = match dests with
     | [d] -> d
     | _   -> P.failparse loc "invalid destination for cmov"
   in
-  Op(CMov(flg,cf),d,(Src(d),s))
+  Op(CMov(fc),d,(Src(d),s))
 
 let mk_instr dests rhs loc =
   match dests, rhs with
@@ -104,6 +104,6 @@ let mk_instr dests rhs loc =
   | [d], `Load(src,pe)           -> Binstr(Load(d,src,pe))
   | _,   `BinOp(o,s1,s2)         -> Binstr(mk_ternop loc dests o  o  s1 s2 None)
   | _,   `TernOp(o1,o2,s1,s2,s3) -> Binstr(mk_ternop loc dests o1 o2 s1 s2 (Some s3))
-  | _,   `Cmov(s,cf,flg)         -> Binstr(mk_cmov loc dests s cf flg)
+  | _,   `Cmov(s,fc)             -> Binstr(mk_cmov loc dests s fc)
   | _,   `Load(_,_)              -> P.failparse loc "load expects exactly one destination"
   | _,   `Assgn(_)               -> P.failparse loc "assignment expects exactly one destination"

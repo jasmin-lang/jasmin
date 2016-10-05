@@ -9,6 +9,17 @@ open Arith
 
 module F = Format
 
+(*
+(* Status flags *)
+type status_flag =
+  | CF (* carry flag CF        *)
+  | PF (* parity flag          *)
+  | AF (* auxiliary carry flag *)
+  | ZF (* zero flag            *)
+  | SF (* sign flag            *)
+  | OF (* overflow flag        *)
+  [@@deriving compare,sexp]
+*)
 
 (* ** We parameterize our semantics by the values.
  * ------------------------------------------------------------------------ *)

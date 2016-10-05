@@ -70,7 +70,8 @@ rule lex = parse
   | "MEM"    { MEM }
 
   | "for"    { FOR }
-  | "for:"   { FORCOLON }
+  | "while"  { WHILE }
+  | "do"     { DO }
   | "in"     { IN }
   | "if"     { IF }
   | "else"   { ELSE }

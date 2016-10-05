@@ -1,5 +1,6 @@
 (* * Utility functions for intermediate language *)
 
+(* ** Imports and abbreviations *)
 open Core_kernel.Std
 open IL_Lang
 open Arith
@@ -15,14 +16,14 @@ module SS = String.Set
 
 let dest_to_src d = Src(d)
 
-let equal_pop_u64    x y = compare_pop_u64    x y = 0
-let equal_pexpr      x y = compare_pexpr      x y = 0
-let equal_dexpr      x y = compare_dexpr      x y = 0
-let equal_pop_bool   x y = compare_pop_bool   x y = 0
-let equal_pcond      x y = compare_pcond      x y = 0
-let equal_cmov_flag  x y = compare_cmov_flag  x y = 0
-let equal_op         x y = compare_op         x y = 0
-let equal_ty         x y = compare_ty         x y = 0
+let equal_pop_u64  x y = compare_pop_u64     x y = 0
+let equal_pexpr    x y = compare_pexpr       x y = 0
+let equal_dexpr    x y = compare_dexpr       x y = 0
+let equal_pop_bool x y = compare_pop_bool    x y = 0
+let equal_pcond    x y = compare_pcond       x y = 0
+let equal_fcond    x y = compare_fcond       x y = 0
+let equal_op       x y = compare_op          x y = 0
+let equal_ty       x y = compare_ty          x y = 0
 
 let equal_src        x y = compare_src        x y = 0
 let equal_dest       x y = compare_dest       x y = 0
@@ -31,13 +32,7 @@ let equal_instr      x y = compare_instr      x y = 0
 let equal_stmt       x y = compare_stmt       x y = 0
 let equal_func       x y = compare_func       x y = 0
 let equal_fundef     x y = compare_fundef     x y = 0
-let equal_modul      x y = compare_modul     x y = 0
-
-let stmt_to_base_instrs st =
-  List.map st
-    ~f:(function
-          | Binstr(i) -> i
-          | _ -> failwith "expected macro-expanded statement, got for/if.")
+let equal_modul      x y = compare_modul      x y = 0
 
 let base_instrs_to_stmt bis =
   List.map ~f:(fun i -> Binstr(i)) bis
@@ -46,6 +41,7 @@ let is_src_imm  = function Imm _ -> true | _ -> false
 
 (* ** Collect parameter vars
  * ------------------------------------------------------------------------ *)
+(* Return the set of parameter variables occuring inside the given value *)
 
 let params_patom = function
   | Pparam(s)         -> SS.singleton s
@@ -63,10 +59,14 @@ let params_pexpr = params_pexpr_g params_patom
 let params_dexpr = params_pexpr_g SS.singleton
 
 let rec params_pcond = function
-  | Ptrue            -> SS.empty
-  | Pnot(ic)         -> params_pcond ic
-  | Pand (ic1,ic2)   -> Set.union (params_pcond ic1) (params_pcond ic2)
-  | Pcond(_,ce1,ce2) -> Set.union (params_pexpr ce1) (params_pexpr ce2)
+  | Ptrue           -> SS.empty
+  | Pnot(ic)        -> params_pcond ic
+  | Pand(ic1,ic2)   -> Set.union (params_pcond ic1) (params_pcond ic2)
+  | Pcmp(_,ce1,ce2) -> Set.union (params_pexpr ce1) (params_pexpr ce2)
+
+let params_fcond_or_pcond = function
+  | Fcond(_)  -> SS.empty
+  | Pcond(pc) -> params_pcond pc
 
 let params_opt f =
   Option.value_map ~default:SS.empty ~f:f
@@ -85,7 +85,7 @@ let params_src = function
 let params_op = function
   | ThreeOp(_)       -> SS.empty
   | Umul(d1)         -> params_dest d1
-  | CMov(_,s)        -> params_src s
+  | CMov(_)          -> SS.empty
   | Shift(_,d1o)     -> params_opt params_dest d1o
   | Carry(_,d1o,s1o) ->
     SS.union_list
@@ -116,12 +116,13 @@ let rec params_instr linstr =
   match linstr.L.l_val with
   | Binstr(bi) -> params_base_instr bi
   | If(cond,s1,s2) ->
-    SS.union_list [params_pcond cond; params_stmt s1; params_stmt s2]
-  | For(_,_,pe1,pe2,stmt) ->
+    SS.union_list [params_fcond_or_pcond cond; params_stmt s1; params_stmt s2]
+  | For(_name,pe1,pe2,stmt) ->
     SS.union_list
       [ params_pexpr pe1
       ; params_pexpr pe2
       ; params_stmt stmt ]
+  | While(_wt,_fc,stmt) -> params_stmt stmt
 
 and params_stmt stmt =
   SS.union_list (List.map stmt ~f:params_instr)
@@ -145,6 +146,8 @@ let params_modul modul =
 
 (* ** Collect program variables
  * ------------------------------------------------------------------------ *)
+(* Return all program variables occuring inside the given values.
+   This includes for-loop variables that only exist at compile-time. *)
 
 let pvars_patom = function
   | Pparam(_) -> SS.empty
@@ -165,7 +168,7 @@ let rec pvars_pcond = function
   | Ptrue            -> SS.empty
   | Pnot(ic)         -> pvars_pcond ic
   | Pand (ic1,ic2)   -> Set.union (pvars_pcond ic1) (pvars_pcond ic2)
-  | Pcond(_,ce1,ce2) -> Set.union (pvars_pexpr ce1) (pvars_pexpr ce2)
+  | Pcmp(_,ce1,ce2) -> Set.union (pvars_pexpr ce1) (pvars_pexpr ce2)
 
 let pvars_opt f =
   Option.value_map ~default:SS.empty ~f:f
@@ -179,10 +182,17 @@ let pvars_src = function
   | Imm _ -> SS.empty
   | Src d -> pvars_dest d
 
+let pvars_fcond fc =
+  SS.singleton fc.fc_flag
+
+let pvars_fcond_or_pcond = function
+  | Fcond(fc) -> pvars_fcond fc
+  | Pcond(pc) -> pvars_pcond pc
+
 let pvars_op = function
   | ThreeOp(_)       -> SS.empty
   | Umul(d1)         -> pvars_dest d1
-  | CMov(_,s)        -> pvars_src s
+  | CMov(fc)         -> pvars_fcond fc
   | Shift(_,d1o)     -> pvars_opt pvars_dest d1o
   | Carry(_,d1o,s1o) -> SS.union (pvars_opt pvars_dest d1o) (pvars_opt pvars_src s1o)
 
@@ -197,13 +207,17 @@ let pvars_base_instr = function
 let rec pvars_instr linstr =
   match linstr.L.l_val with
   | Binstr(bi)        -> pvars_base_instr bi
-  | If(c,s1,s2)       -> SS.union_list [pvars_stmt s1; pvars_stmt s2; pvars_pcond c]
-  | For(_,n,lb,ub,stmt) ->
+  | If(c,s1,s2)       -> SS.union_list [pvars_stmt s1; pvars_stmt s2; pvars_fcond_or_pcond c]
+  | For(n,lb,ub,stmt) ->
     SS.union_list
       [ pvars_stmt stmt
       ; SS.singleton n
       ; pvars_pexpr lb
       ; pvars_pexpr ub ]
+  | While(_wt,fcond,stmt) ->
+    SS.union_list
+      [ pvars_fcond fcond
+      ; params_stmt stmt ]
 
 and pvars_stmt stmt =
   SS.union_list (List.map stmt ~f:pvars_instr)
@@ -222,57 +236,11 @@ let pvars_func func =
 
 let pvars_modul modul =
   SS.union_list (List.map modul.m_funcs ~f:pvars_func)
-
-(* ** Collect destination variables
- * ------------------------------------------------------------------------ *)
-
-let dests_opt f =
-  Option.value_map ~default:DS.empty ~f:f
-
-let dests_dest d =
-  DS.singleton d
-
-let dests_src = function
-  | Imm _ -> DS.empty
-  | Src d -> dests_dest d
-
-let dests_op = function
-  | ThreeOp(_)       -> DS.empty
-  | Umul(d1)         -> dests_dest d1
-  | CMov(_,s)        -> dests_src s
-  | Shift(_,d1o)     -> dests_opt dests_dest d1o
-  | Carry(_,d1o,s1o) -> DS.union (dests_opt dests_dest d1o) (dests_opt dests_src s1o)
-
-let dests_base_instr = function
-  | Comment(_)      -> DS.empty
-  | Load(d,s,_)     -> DS.union (dests_dest d) (dests_src s)
-  | Store(s1,_,s2)  -> DS.union (dests_src s1) (dests_src s2)
-  | Assgn(d,s,_)    -> DS.union (dests_dest d) (dests_src s)
-  | Op(o,d,(s1,s2)) -> DS.union_list [dests_op o; dests_dest d; dests_src s1; dests_src s2]
-  | Call(_,ds,ss)   -> DS.union_list (List.map ds ~f:dests_dest @ List.map ss ~f:dests_src)
-
-let rec dests_instr linstr =
-  match linstr.L.l_val with
-  | Binstr(bi)            -> dests_base_instr bi
-  | If(_,s1,s2)           -> DS.union (dests_stmt s1) (dests_stmt s2)
-  | For(_,_,_lb,_ub,stmt) -> dests_stmt stmt
-
-and dests_stmt stmt =
-  DS.union_list (List.map stmt ~f:dests_instr)
-
-let dests_fundef fd =
-  dests_stmt fd.fd_body
-
-let dests_func func =
-  match func.f_def with
-  | Def fdef -> dests_fundef fdef
-  | _        -> DS.empty
-
-let dests_modul modul =
-  DS.union_list (List.map modul.m_funcs ~f:dests_func)
-
+ 
 (* ** Rename program variables
  * ------------------------------------------------------------------------ *)
+(* What is the meaning of this? 
+*)
 
 let rename_patom f pa =
   match pa with
@@ -291,10 +259,17 @@ let rename_pexpr = rename_pexpr_g rename_patom
 let rename_dexpr = rename_pexpr_g (fun f -> f)
 
 let rec rename_pcond f = function
-  | Ptrue          -> Ptrue
-  | Pnot(c)        -> Pnot(rename_pcond f c)
-  | Pand (c1,c2)   -> Pand(rename_pcond f c1,rename_pcond f c2)
-  | Pcond(o,e1,e2) -> Pcond(o,rename_pexpr f e1,rename_pexpr f e2)
+  | Ptrue         -> Ptrue
+  | Pnot(c)       -> Pnot(rename_pcond f c)
+  | Pand (c1,c2)  -> Pand(rename_pcond f c1,rename_pcond f c2)
+  | Pcmp(o,e1,e2) -> Pcmp(o,rename_pexpr f e1,rename_pexpr f e2)
+
+let rename_fcond f fc =
+  { fc with fc_flag = f fc.fc_flag }
+
+let rename_fcond_or_pcond f = function
+  | Fcond(fc) -> Fcond(rename_fcond f fc)
+  | Pcond(pc) -> Pcond(rename_pcond f pc)
 
 let rename_opt f =
   Option.map ~f:f
@@ -312,10 +287,11 @@ let rename_src f = function
 let rename_op f op =
   let rnd = rename_dest f in
   let rns = rename_src f in
+  let rnf = rename_fcond f in
   match op with
   | ThreeOp(_)         -> op
   | Umul(d1)           -> Umul(rnd d1)
-  | CMov(cond,s)       -> CMov(cond,rns s)
+  | CMov(fc)           -> CMov(rnf fc)
   | Shift(dir,d1o)     -> Shift(dir,rename_opt rnd d1o)
   | Carry(cop,d1o,s1o) -> Carry(cop,rename_opt rnd d1o, rename_opt rns s1o)
 
@@ -334,14 +310,16 @@ let rename_base_instr f bi =
 
 let rec rename_instr f linstr =
   let rne = rename_pexpr f in
-  let rnc = rename_pcond f in
+  let rnc = rename_fcond_or_pcond f in
+  let rnf = rename_fcond f in
   let rnb = rename_base_instr f in
   let rns = rename_stmt f in
   let instr =
     match linstr.L.l_val with
-    | Binstr(bi)       -> Binstr(rnb bi)
-    | If(c,s1,s2)      -> If(rnc c,rns s1, rns s2)
-    | For(t,v,lb,ub,s) -> For(t,f v,rne lb,rne ub,rns s)
+    | Binstr(bi)     -> Binstr(rnb bi)
+    | If(c,s1,s2)    -> If(rnc c,rns s1, rns s2)
+    | For(v,lb,ub,s) -> For(f v,rne lb,rne ub,rns s)
+    | While(wt,fc,s) -> While(wt,rnf fc,rns s)
   in
   { linstr with L.l_val = instr }
 
@@ -353,6 +331,8 @@ let rename_decls f decls =
 
 (* ** Rename destinations
  * ------------------------------------------------------------------------ *)
+(* What is the meaning of this? 
+*)
 
 let drename_opt f =
   Option.map ~f:f
@@ -365,13 +345,16 @@ let drename_src f = function
   | Imm _ as i -> i
   | Src d      -> Src (drename_dest f d)
 
+let drename_fcond f fc = { fc with fc_flag = fst (f fc.fc_flag None) }
+
 let drename_op f op =
   let rnd = drename_dest f in
   let rns = drename_src f in
+  let rnf = drename_fcond f in
   match op with
   | ThreeOp(_)         -> op
   | Umul(d1)           -> Umul(rnd d1)
-  | CMov(cond,s)       -> CMov(cond,rns s)
+  | CMov(fc)           -> CMov(rnf fc)
   | Shift(dir,d1o)     -> Shift(dir,drename_opt rnd d1o)
   | Carry(cop,d1o,s1o) -> Carry(cop,drename_opt rnd d1o, drename_opt rns s1o)
 
@@ -392,9 +375,10 @@ let rec drename_instr f linstr =
   let rns = drename_stmt f in
   let instr =
     match linstr.L.l_val with
-    | Binstr(bi)       -> Binstr(rnb bi)
-    | If(c,s1,s2)      -> If(c,rns s1, rns s2)
-    | For(t,v,lb,ub,s) -> For(t,v,lb,ub,rns s) (* FIXME: also rename v? *)
+    | Binstr(bi)     -> Binstr(rnb bi)
+    | If(c,s1,s2)    -> If(c,rns s1, rns s2)
+    | For(v,lb,ub,s) -> For(v,lb,ub,rns s) (* FIXME: also rename v? *)
+    | While(wt,fc,s) -> While(wt,fc,rns s) (* FIXME: also rename fc? *)
   in
   { linstr with L.l_val = instr }
 
@@ -409,6 +393,9 @@ let drename_decls f decls =
 
 let mk_dest_name name =
   { d_name = name; d_oidx = None; d_loc = L.dummy_loc }
+
+let src_of_fcond fc =
+  Src(mk_dest_name fc.fc_flag)
 
 let mk_base_instr loc bi = { L.l_loc = loc; L.l_val = Binstr(bi) }
 
@@ -454,10 +441,17 @@ let pcondop_to_string = function
   | Pgeq     -> ">="
 
 let rec pp_pcond fmt = function
-  | Ptrue            -> pp_string fmt "true"
-  | Pnot(ic)         -> F.fprintf fmt"!(%a)" pp_pcond ic
-  | Pand(c1,c2)      -> F.fprintf fmt"(%a && %a)" pp_pcond c1 pp_pcond c2
-  | Pcond(o,ie1,ie2) -> F.fprintf fmt"(%a %s %a)" pp_pexpr ie1 (pcondop_to_string o) pp_pexpr ie2
+  | Ptrue           -> pp_string fmt "true"
+  | Pnot(ic)        -> F.fprintf fmt"!(%a)" pp_pcond ic
+  | Pand(c1,c2)     -> F.fprintf fmt"(%a && %a)" pp_pcond c1 pp_pcond c2
+  | Pcmp(o,ie1,ie2) -> F.fprintf fmt"(%a %s %a)" pp_pexpr ie1 (pcondop_to_string o) pp_pexpr ie2
+
+let pp_fcond fmt fc =
+  F.fprintf fmt "%s%s" (if not fc.fc_flag_set then "!" else "") fc.fc_flag
+
+let pp_fcond_or_pcond fmt = function
+  | Pcond(pc) -> F.fprintf fmt "$(%a)" pp_pcond pc
+  | Fcond(fc) -> F.fprintf fmt "$(%a)" pp_fcond fc
 
 let pp_dest fmt {d_name=r; d_oidx=oidx} =
   match oidx with
@@ -507,9 +501,9 @@ let pp_op fmt (o,d,s1,s2) =
          | Some s -> F.fprintf fmt " %s %a" so pp_src s
          | None   -> pp_string fmt "")
       os3
-  | CMov(CfSet(is_set),s3) ->
-    F.fprintf fmt "%a = %a if %s%a else %a"
-      pp_dest d pp_src s2 (if is_set then "" else "!") pp_src s3 pp_src s1
+  | CMov(fc) ->
+    F.fprintf fmt "%a = %a if %s%s else %a"
+      pp_dest d pp_src s2 (if fc.fc_flag_set then "" else "!") fc.fc_flag pp_src s1
   | Shift(dir,od1) ->
     F.fprintf fmt "%a%a = %a %s %a"
       (fun fmt od ->
@@ -543,13 +537,17 @@ let rec pp_instr fmt li =
   | Binstr(i) -> pp_base_instr fmt i
   | If(c,i1,[]) ->
     F.fprintf fmt "if %a {@\n  @[<v 0>%a@]@\n}"
-      pp_pcond c pp_stmt i1
+      pp_fcond_or_pcond c pp_stmt i1
   | If(c,i1,i2) ->
     F.fprintf fmt "if %a {@\n  @[<v 0>%a@]@\n} else {@\n  @[<v 0>%a@]@\n}"
-      pp_pcond c pp_stmt i1 pp_stmt i2
-  | For(t,iv,ie1,ie2,i) ->
-    F.fprintf fmt "for%s %s in %a..%a {@\n  @[<v 0>%a@]@\n}"
-      (if t=Loop then ":" else "") iv pp_pexpr ie1 pp_pexpr ie2 pp_stmt i
+      pp_fcond_or_pcond c pp_stmt i1 pp_stmt i2
+  | For(iv,ie1,ie2,i) ->
+    F.fprintf fmt "for %s in %a..%a {@\n  @[<v 0>%a@]@\n}"
+      iv pp_pexpr ie1 pp_pexpr ie2 pp_stmt i
+  | While(WhileDo,fc,s) ->
+    F.fprintf fmt "while %a {@\n  @[<v 0>%a@]@\n}" pp_fcond fc pp_stmt s
+  | While(DoWhile,fc,s) ->
+    F.fprintf fmt "do {@\n  @[<v 0>%a@]@\n} while %a;" pp_stmt s pp_fcond fc
 
 and pp_stmt fmt is =
   F.fprintf fmt "%a" (pp_list "@\n" pp_instr) is
@@ -620,6 +618,14 @@ let pp_value_py fmt = function
 
 (* ** Utility functions
  * ------------------------------------------------------------------------ *)
+
+let fresh_suffix_fundef fd suffix =
+  let used = pvars_fundef fd in
+  let suff = ref ("_"^suffix) in
+  while (SS.exists used ~f:(fun s -> String.is_suffix ~suffix:!suff s)) do
+    suff := "_"^(!suff)
+  done;
+  !suff
 
 let parse_value s =
   let open MParser in

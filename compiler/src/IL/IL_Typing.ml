@@ -147,9 +147,10 @@ let typecheck_op (env : env) op z x y =
     Option.iter ~f:(fun s -> type_src_eq  s Bool) mcf_in;
     Option.iter ~f:(fun d -> type_dest_eq d Bool) mcf_out
 
-  | CMov(_,cf_in) ->
+  | CMov(fc) ->
     type_src_eq  x     U64;
     type_src_eq  y     U64;
+    let cf_in = src_of_fcond fc in
     type_src_eq  cf_in Bool;
     type_dest_eq z     U64
 
@@ -164,17 +165,26 @@ let typecheck_op (env : env) op z x y =
     type_dest_eq z U64;
     Option.iter ~f:(fun s -> type_dest_eq s Bool) mcf_out
 
+let typecheck_fcond env fc =
+  type_src_eq env (src_of_fcond fc) Bool
+
+let typecheck_fcond_or_pcond env = function
+  | Pcond(_)  -> ()
+  | Fcond(fc) -> typecheck_fcond env fc
+
 (** typecheck instructions and statements *)
 let rec typecheck_instr (env : env) linstr =
-  let tc_stmt  = typecheck_stmt  env in
-  let tc_op    = typecheck_op    env in
-  let tc_assgn = typecheck_assgn env in
+  let tc_stmt   = typecheck_stmt  env in
+  let tc_op     = typecheck_op    env in
+  let tc_assgn  = typecheck_assgn env in
+  let tc_cond   = typecheck_fcond_or_pcond env in
+  let tc_fcond  = typecheck_fcond env in
   let loc = linstr.L.l_loc in
   match linstr.L.l_val with
   | Binstr(Comment _)             -> ()
   | Binstr(Op(op,d,(s1,s2)))      -> tc_op op d s1 s2
   | Binstr(Assgn(d,s,_))          -> tc_assgn d s loc
-  | If(_,stmt1,stmt2)             -> tc_stmt stmt1; tc_stmt stmt2
+  | If(c,stmt1,stmt2)             -> tc_cond c; tc_stmt stmt1; tc_stmt stmt2
   | Binstr(Load(d,s,_pe))         -> type_src_eq  env s U64; typecheck_dest env.e_tenv d U64
   | Binstr(Store(s1,_pe,s2))      -> type_src_eq env s1 U64; type_src_eq env s2 U64
   | Binstr(Call(fname,rets,args)) ->
@@ -187,9 +197,12 @@ let rec typecheck_instr (env : env) linstr =
     list_iter2_exn rets cfun.f_ret_ty ~f:tc_dest
       ~err:(fun n_g n_e ->
               failtype_ loc "wrong number of l-values (got %i, exp. %i)" n_g n_e)
-  | For(_,pv,_,_,stmt) ->
+  | For(pv,_,_,stmt) ->
     typecheck_dest env.e_tenv { d_loc = loc; d_name = pv; d_oidx = None} U64;
     typecheck_stmt env stmt
+  | While(_wt,fc,s) ->
+    tc_fcond fc;
+    typecheck_stmt env s
 
 and typecheck_stmt (env : env) stmt =
   List.iter ~f:(typecheck_instr env) stmt

@@ -13,9 +13,12 @@ module L = Lexing
 module Lexing =
   struct
     include Lexing
-    let compare_position _p1 _p2 = failwith "Lexing.compare undefined"
-    let position_of_sexp _p = failwith "Lexing.compare undefined"
-    let sexp_of_position _p = failwith "Lexing.compare undefined"
+    let compare_position p1 p2 =
+      [%compare: string * int * int * int ]
+        (p1.pos_fname, p1.pos_lnum, p1.pos_bol, p1.pos_cnum)
+        (p2.pos_fname, p2.pos_lnum, p2.pos_bol, p2.pos_cnum)
+    let position_of_sexp _p = failwith "position_of_sexp undefined"
+    let sexp_of_position _p = failwith "sexp_of_position undefined"
     let pp_pos fmt p =
       F.fprintf fmt "%s:%i:%i" p.pos_fname p.pos_lnum p.pos_cnum
 

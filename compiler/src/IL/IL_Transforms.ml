@@ -1,4 +1,5 @@
 (* * Apply transformations to IL *)
+ 
 
 (* ** Imports *)
 open Core_kernel.Std
@@ -33,7 +34,6 @@ type transform =
   | MacroExpand of string * u64 String.Map.t
   | ArrayAssignExpand of string
   | ArrayExpand of string
-  | SSA
   | Type
   | Print of string * string option
   | Save of string * string option
@@ -88,8 +88,7 @@ let ptrafo =
     return (fn,mparam,mmem,args)
   in
   choice
-    [ string "ssa" >>$ SSA
-    ; string "typecheck" >>$ Type
+    [ (string "typecheck" >>$ Type)
     ; (string "array_assign_expand" >> (bracketed ident) >>= fun fn ->
        return (ArrayAssignExpand fn))
     ; (string "array_expand" >> (bracketed ident) >>= fun fn ->
@@ -156,8 +155,6 @@ let apply_transform trafo (modul0 : modul) =
       array_expand_modul modul fname
     | ArrayAssignExpand(fname) ->
       array_assign_expand_modul modul fname
-    | SSA -> assert false
-      (* transform_ssa efun *)
     | StripComments -> assert false
       (* conv_trans strip_comments efun *)
     | Print(name,ofname) ->

@@ -62,11 +62,11 @@ let peval_pcond pmap lmap cc =
       | _          ,Pnot(Ptrue) -> Pnot(Ptrue)
       | c1, c2                  -> Pand(c1,c2)
       end
-    | Pcond(cco,ce1,ce2) ->
+    | Pcmp(cco,ce1,ce2) ->
       begin match peval_pexpr pmap lmap ce1, peval_pexpr pmap lmap ce2 with
       | Pconst(c1), Pconst(c2) ->
         if eval_pcondop cco c1 c2 then Ptrue else Pnot(Ptrue)
-      | e1,         e2         -> Pcond(cco,e1,e2)
+      | e1,         e2         -> Pcmp(cco,e1,e2)
       end
   in
   go cc
@@ -113,9 +113,10 @@ and inline_calls_instr func_map (suffix : int) c decls (li : instr L.located) =
   let ilc_s = inline_calls_stmt func_map suffix c decls in
   let instrs =
     match li.L.l_val with
-    | If(c,s1,s2)      -> [{ li with L.l_val = If(c,ilc_s s1, ilc_s s2)}]
-    | For(t,c,lb,ub,s) -> [{ li with L.l_val = For(t,c,lb,ub,ilc_s s)}]
-    | Binstr(bi)       -> inline_calls_base_instr func_map suffix c li.L.l_loc decls bi
+    | If(c,s1,s2)    -> [{ li with L.l_val = If(c,ilc_s s1, ilc_s s2)}]
+    | For(c,lb,ub,s) -> [{ li with L.l_val = For(c,lb,ub,ilc_s s)}]
+    | Binstr(bi)     -> inline_calls_base_instr func_map suffix c li.L.l_loc decls bi
+    | While(wt,fc,s) -> [{ li with L.l_val = While(wt,fc,ilc_s s)}]
   in
   instrs
 
@@ -185,7 +186,7 @@ let inst_op pmap lmap op =
   | ThreeOp(op)       -> ThreeOp(op)
   | Umul(d)           -> Umul(inst_d d)
   | Carry(co,d1o,s1o) -> Carry(co,Option.map d1o ~f:inst_d,Option.map s1o ~f:inst_s)
-  | CMov(cmf,s1)      -> CMov(cmf,inst_s s1)
+  | CMov(fc)          -> CMov(fc) (* FIXME: check this *)
   | Shift(d,d1o)      -> Shift(d,Option.map d1o ~f:inst_d)
 
 let inst_base_instr pmap lmap bi =
@@ -217,7 +218,16 @@ let macro_expand_stmt pmap stmt =
 
     | Binstr(binstr) -> [mk_base_instr loc (inst_base_instr pmap lmap binstr)]
 
-    | If(ic,st1,st2) ->
+    | While(wt,fc,st) ->
+      let st = List.concat_map st ~f:(expand (indent + 2) lmap) in
+      [ { li with L.l_val = While(wt,fc,st) } ]
+
+    | If(Fcond(ic),st1,st2) ->
+      let st1 = List.concat_map st1 ~f:(expand (indent + 2) lmap) in
+      let st2 = List.concat_map st2 ~f:(expand (indent + 2) lmap) in
+      [ { li with L.l_val = If(Fcond(ic),st1,st2) } ]
+
+    | If(Pcond(ic),st1,st2) ->
       (* F.printf "\n%s %a\n%!" (spaces indent) pp_pcond ic; *)
       let cond = eval_pcond_exn pmap lmap ic in
       let st = if cond then st1 else st2 in
@@ -227,11 +237,7 @@ let macro_expand_stmt pmap stmt =
         @ [bicom loc (comment_if "END:   " indent cond ic)]
       )
 
-    | For(Loop,iv,lb_ie,ub_ie,stmt) ->
-      let stmt = List.concat_map stmt ~f:(expand (indent + 2) lmap) in
-      [ L.{ li with l_val = For(Loop,iv,lb_ie,ub_ie,stmt) } ]
-
-    | For(Unfold,iv,lb_ie,ub_ie,stmt) ->
+    | For(iv,lb_ie,ub_ie,stmt) ->
       (* F.printf "\n%s %a .. %a\n%!" (spaces indent) pp_pexpr lb_ie pp_pexpr ub_ie;  *)
       let lb  = eval_pexpr_exn pmap lmap lb_ie in
       let ub  = eval_pexpr_exn pmap lmap ub_ie in
@@ -296,7 +302,7 @@ let array_assign_expand_stmt tenv stmt =
 
     | If(_,_,_)
     | Binstr(Call(_))
-    | For(Unfold,_,_,_,_) -> failwith "FIXERROR"
+    | While(_,_,_) -> failwith "FIXERROR"
 
     | Binstr(Assgn(d,Src(s),t)) ->
       let td = map_find_exn tenv pp_string d.d_name in
@@ -313,9 +319,9 @@ let array_assign_expand_stmt tenv stmt =
       | _ -> [li]
       end
 
-    | For(Loop,iv,lb_ie,ub_ie,stmt) ->
+    | For(iv,lb_ie,ub_ie,stmt) ->
       let stmt = List.concat_map stmt ~f:expand in
-      [ L.{ li with l_val = For(Loop,iv,lb_ie,ub_ie,stmt) } ]
+      [ L.{ li with l_val = For(iv,lb_ie,ub_ie,stmt) } ]
   in
   List.concat_map ~f:expand stmt
 
@@ -362,7 +368,7 @@ let array_expand_fundef fdef =
   let tenv =
     String.Map.of_alist_exn (List.map ~f:(fun (_,m,t) -> (m,t)) fdef.fd_decls)
   in
-  let fresh_suffix = "__arr" in (* FIXME: use dests_fundef to choose something that is fresh *)
+  let fresh_suffix = fresh_suffix_fundef fdef "arr" in
   let update_decl ((s,n,t) as d) =
     match t with
     | U64 | Bool -> [d]
@@ -377,7 +383,7 @@ let array_expand_fundef fdef =
   }
 
 (* FIXME: we assume this is an extern function, hence all arguments and
-          return must have type u64 *)
+          returned values must have type u64 *)
 let array_expand_func func =
   let fdef = match func.f_def with
     | Def fd -> Def(array_expand_fundef fd)
@@ -389,49 +395,6 @@ let array_expand_func func =
 let array_expand_modul modul fname =
   let f_fun f = if f.f_name = fname then array_expand_func f else f in
   { modul with m_funcs = List.map modul.m_funcs ~f:f_fun }
-
-(* ** Single assignment
- * ------------------------------------------------------------------------ *)
-
-let transform_ssa _efun =
-  failwith "undefined"
-  (*
-  let bis = stmt_to_base_instrs efun.ef_body in
-  let counter = ref (U64.of_int 0) in
-  let var_map = Preg.Table.create () in
-  let get_index pr =
-    let r = hashtbl_find_exn var_map pp_preg pr in
-    mk_preg_index_u64 "r" r pr.pr_aux
-  in
-  let new_index pr =
-    let c = !counter in
-    counter := U64.succ !counter;
-    Hashtbl.set var_map ~key:pr ~data:c;
-    mk_preg_index_u64 "r" c pr.pr_aux
-  in
-  let update_src = function
-    | Simm(_) as s -> s
-    | Sreg(pr)     -> Sreg(get_index pr)
-    | Smem(pr,ie)  -> Smem(get_index pr,ie)
-  in
-  let update_dest = function
-    | Dreg(pr)    -> Dreg(new_index pr)
-    | Dmem(pr,ie) -> Dmem(get_index pr,ie)
-  in
-  let rename = function
-    | Comment(_) as bi -> bi
-    | App(o,ds,ss) -> (* Note: sources must be updated before destinations *)
-      (* F.printf ">> %a\n" pp_base_instr bi; *)
-      let ss = List.map ~f:update_src ss in
-      let ds = List.map ~f:update_dest ds in
-      App(o,ds,ss)
-  in
-  (* perform in the right order *)
-  let args = List.map ~f:(fun pr -> new_index pr) efun.ef_args in
-  let bis  = List.map ~f:rename bis in
-  let rets = List.map ~f:(fun pr -> get_index pr) efun.ef_ret in
-  { efun with ef_args = args; ef_body = base_instrs_to_stmt bis; ef_ret = rets; }
-  *)
 
 (* ** Validate transformation (assuming that transform_ssa correct)
  * ------------------------------------------------------------------------ *)

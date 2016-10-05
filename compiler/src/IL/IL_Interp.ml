@@ -24,7 +24,7 @@ let eval_pexpr pmap lmap ce =
   let rec go = function
     | Pbinop(o,ie1,ie2) ->
       begin match go ie1, go ie2 with
-      | Ok(x1), Ok(x2) ->
+      | Result.Ok(x1), Ok(x2) ->
         Ok(eval_pbinop o x1 x2)
       | Error(s), _
       | _, Error(s) ->
@@ -58,7 +58,7 @@ let eval_pcondop pc = fun x y ->
 
 let eval_pcond pmap lmap cc =
   let rec go = function
-    | Ptrue              -> Ok(true)
+    | Ptrue              -> Result.Ok(true)
     | Pnot(ic)           ->
       begin match go ic with
       | Ok(c)    -> Ok (not c)
@@ -71,7 +71,7 @@ let eval_pcond pmap lmap cc =
       | _, Error(s) ->
         Error(s)
       end
-    | Pcond(cco,ce1,ce2) ->
+    | Pcmp(cco,ce1,ce2) ->
       begin match eval_pexpr pmap lmap ce1, eval_pexpr pmap lmap ce2 with
       | Ok(x1),Ok(x2) -> Ok(eval_pcondop cco x1 x2)
       | Error(s), _
@@ -261,11 +261,12 @@ let interp_op (ms : mstate) z x y = function
     | None        -> ms
     end
 
-  | CMov(CfSet cf_is_set,cf_in)  ->
+  | CMov(fc)  ->
+    let cf_in = Src(mk_dest_name fc.fc_flag) in
     let s1 = read_src ms x in
     let s2 = read_src ms y in
     let cf = read_flag ms cf_in in
-    let res = if cf = cf_is_set then s2 else s1 in
+    let res = if cf = fc.fc_flag_set then s2 else s1 in
     write_dest_u64 ms z res
 
   | ThreeOp(O_Imul) ->
@@ -304,6 +305,14 @@ let interp_op (ms : mstate) z x y = function
 
 (* *** Interpret instruction
  * ------------------------------------------------------------------------ *)
+
+let eval_fcond_exn fmap fc =
+  let b = map_find_exn fmap pp_string fc.fc_flag in
+  if fc.fc_flag_set then b else not b
+
+let eval_fcond_or_pcond_exn pmap lmap fmap = function
+  | Fcond(fc) -> eval_fcond_exn fmap fc
+  | Pcond(pc) -> eval_pcond_exn pmap lmap pc
 
 let interp_assign pmap ~lmap_lhs ~lmap_rhs ds ss =
   let ss_ds =
@@ -348,12 +357,29 @@ let rec interp_instr ms0 efun_map linstr =
     interp_op ms0 d s1 s2 o
 
   | If(ccond,stmt1,stmt2) ->
-    if eval_pcond_exn pmap ms0.m_lmap ccond then
+    if eval_fcond_or_pcond_exn pmap ms0.m_lmap ms0.m_fmap ccond then
       interp_stmt ms0 efun_map stmt1
     else
       interp_stmt ms0 efun_map stmt2
+ 
+  | While(WhileDo,fc,s) ->
+    if (eval_fcond_exn ms0.m_fmap fc) then (
+      let ms = interp_stmt ms0 efun_map s in
+      interp_instr ms efun_map linstr
+    ) else (
+      ms0
+    )
 
-  | For(t,cv,clb,cub,stmt) ->
+  | While(DoWhile,fc,s) ->
+    let ms = interp_stmt ms0 efun_map s in
+    if (eval_fcond_exn ms.m_fmap fc) then (
+      interp_instr ms efun_map linstr
+    ) else (
+      ms
+    )
+
+
+  | For(cv,clb,cub,s) ->
     let lb = eval_pexpr_exn pmap ms0.m_lmap clb in
     let ub = eval_pexpr_exn pmap ms0.m_lmap cub in
     let (initial, test, change) =
@@ -374,11 +400,10 @@ let rec interp_instr ms0 efun_map linstr =
     let i = ref initial in
     while test !i do
       if false then (
-        F.printf "\nfor%s %s=%a in %a..%a\n%!"
-          (if t = Unfold then "" else ":")
+        F.printf "\nfor %s=%a in %a..%a\n%!"
           cv pp_uint64 !i pp_uint64 lb pp_uint64 ub);
       ms := update !ms !i;
-      ms := interp_stmt !ms efun_map stmt;
+      ms := interp_stmt !ms efun_map s;
       i := change !i;
     done;
     { !ms with
