@@ -135,11 +135,6 @@ type assgn_type =
   | Eq (* use as equality constraint in reg-alloc and compile to no-op *)
   [@@deriving compare,sexp]
 
-type is_macro =
-  | Macro
-  | Runtime
-  [@@deriving compare,sexp]
-
 type base_instr =
   
   | Assgn of dest * src * assgn_type
