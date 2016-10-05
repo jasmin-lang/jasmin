@@ -177,7 +177,7 @@ fn square(stack xa : u64[4]) -> reg u64[4] {
 
   reg z : u64[4*2];
   reg r : u64[4];
-  reg t : u64[3];
+  reg t : u64[5];
   reg rax, rdx, crem_p, h, l, hprev, zero : u64;
   flag cf : bool;
   inline i : u64;
@@ -246,26 +246,26 @@ fn square(stack xa : u64[4]) -> reg u64[4] {
   rax = xa[0];
   rdx, rax = rax * xa[0];
   z[0] = rax;
-  t[1] = rdx;
+  t[0] = rdx;
 
   rax = xa[1];
   rdx, rax = rax * xa[1];
-  t[2] = rax;
-  t[3] = rdx;
+  t[1] = rax;
+  t[2] = rdx;
 
   rax = xa[2];
   rdx, rax = rax * xa[2];
-  t[4] = rax;
-  t[5] = rdx;
+  t[3] = rax;
+  t[4] = rdx;
 
   rax = xa[3];
   rdx, rax = rax * xa[3];
 
-  cf, z[1] += t[1];
-  cf, z[2] += t[2] + cf;
-  cf, z[3] += t[3] + cf;
-  cf, z[4] += t[4] + cf;
-  cf, z[5] += t[5] + cf;
+  cf, z[1] += t[0];
+  cf, z[2] += t[1] + cf;
+  cf, z[3] += t[2] + cf;
+  cf, z[4] += t[3] + cf;
+  cf, z[5] += t[4] + cf;
   cf, z[6] += 0 + cf;
       z[7] += 0 + cf;
 
@@ -446,7 +446,8 @@ fn mladder(stack xr, sp : u64[4]) -> stack u64[4] * stack u64[4] {
   reg   tmp : u64;
   stack prevbit, bit, swap : u64;
   stack x1,x2,z2,x3,z3 : u64[4];
-  stack i, j : u64;
+  reg i, j : u64;
+  stack i_s, j_s : u64; // store values on stack
   flag cf : bool;
 
   prevbit = 0;
@@ -459,17 +460,21 @@ fn mladder(stack xr, sp : u64[4]) -> stack u64[4] * stack u64[4] {
   i = 3;
   do {
     tmp = sp[i];
+    i_s = i; // probably need the register
     s = tmp;
     j = 63;
     do {
       bit = s >> j;
+      j_s = j; // probably need the register
       bit = bit & 1;
       swap = bit ^ prevbit;
       prevbit = bit;
       x2,z2,x3,z3 = cswap(x2,z2,x3,z3,swap);
       x2,z2,x3,z3 = ladderstep(x1,x2,z2,x3,z3);
+      j = j_s;
       cf,j -= 1;  // returns cf=1 for input j=0
     } while !cf;
+    i = i_s;
     cf,i -= 1; // returns cf=1 for input i=0
   } while !cf;
   x2,z2,x3,z3 = cswap(x2,z2,x3,z3,prevbit);
