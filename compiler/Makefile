@@ -1,5 +1,5 @@
 OCAMLBUILD=ocamlbuild
-MENHIRFLAGS=-use-menhir -menhir "menhir -v --explain"
+MENHIRFLAGS=-use-menhir -menhir "menhir -v --explain --strict"
 FINDLIBFLAGS=-use-ocamlfind -classic-display
 CFLAGS=-cflags "-w +a-e-9-45-44"
 COREFLAGS=-pkg core \

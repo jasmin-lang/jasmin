@@ -137,12 +137,14 @@ pcond :
 | LPAREN c = pcond RPAREN     { c              }
 | c1=pexpr o=pcondop c2=pexpr { Pcmp(o,c1,c2) }
 
+
 %inline fcond :
 | e= EXCL? s = ID { {fc_flag_set=(e=None); fc_flag = s} }
 
 pcond_or_fcond :
-| pc=pcond   { Pcond(pc) }
-| fc = fcond { Fcond(fc) }
+| pc = pcond  { Pcond(pc) }
+| s  = ID     { Fcond({fc_flag_set=true; fc_flag = s}) }
+| EXCL s = ID { Fcond({fc_flag_set=false; fc_flag = s}) }
 
 (* -------------------------------------------------------------------- *)
 (* * Sources and destinations *)
@@ -206,16 +208,15 @@ opeq:
 | s1=src op1=binop s2=src op2=binop s3=src
     { `TernOp(op1,op2,s1,s2,s3) }
 
-| fname=ID args=tuple(src)
+| fname=ID LPAREN args=separated_list(COMMA,src) RPAREN
     { `Call(fname, args) }
 
 | MEM LBRACK ptr = src PLUS pe = pexpr RBRACK
     { `Load(ptr,pe) }
 
 %inline opeq_rhs:
-| s = src                 { fun op d -> `BinOp(op,Src(d),s) }
-| s2=src op2=binop s3=src { fun op1 d -> `TernOp(op1,op2,Src(d),s2,s3) }
-
+| s  = src                  { fun op d -> `BinOp(op,Src(d),s) }
+| s2 = src op2=binop s3=src { fun op1 d -> `TernOp(op1,op2,Src(d),s2,s3) }
 
 instr :
 | ds=tuple_nonempty(dest) EQ rhs=assgn_rhs_mv SEMICOLON
@@ -261,7 +262,7 @@ block :
 | LCBRACE stmt=linstr* RCBRACE { stmt }
 
 stmt :
-| stmt=linstr* { stmt }
+| stmt=linstr+ { stmt }
 
 (* -------------------------------------------------------------------- *)
 (* * Function definitions *)
