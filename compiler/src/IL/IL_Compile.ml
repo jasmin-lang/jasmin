@@ -214,18 +214,16 @@ let macro_expand_stmt pmap stmt =
 
   let rec expand indent lmap li =
     let loc = li.L.l_loc in
+    let me_s s = List.concat_map s ~f:(expand (indent + 2) lmap) in
     match li.L.l_val with
 
     | Binstr(binstr) -> [mk_base_instr loc (inst_base_instr pmap lmap binstr)]
 
     | While(wt,fc,st) ->
-      let st = List.concat_map st ~f:(expand (indent + 2) lmap) in
-      [ { li with L.l_val = While(wt,fc,st) } ]
+      [ { li with L.l_val = While(wt,fc,me_s st) } ]
 
     | If(Fcond(ic),st1,st2) ->
-      let st1 = List.concat_map st1 ~f:(expand (indent + 2) lmap) in
-      let st2 = List.concat_map st2 ~f:(expand (indent + 2) lmap) in
-      [ { li with L.l_val = If(Fcond(ic),st1,st2) } ]
+      [ { li with L.l_val = If(Fcond(ic),me_s st1,me_s st2) } ]
 
     | If(Pcond(ic),st1,st2) ->
       (* F.printf "\n%s %a\n%!" (spaces indent) pp_pcond ic; *)
@@ -356,33 +354,66 @@ and that all inline-loops and ifs have been expanded.
 *)
 (* *** Code *)
 
+let keep_arrays_non_const_index tenv fdef =
+  let dests = dests_fundef fdef in
+  let non_const_arrays = ref SS.empty in
+  let classify_arrays d = 
+    (* if d.d_oidx<>None then F.printf "array: %a\n" pp_dest d; *)
+    match d.d_oidx with
+    | None            -> ()
+    | Some(Pconst(_)) -> ()
+    | Some(Patom(Pvar(n))) when Map.find tenv n = Some(Reg,U64) ->
+      (* F.printf "adding %s\n" d.d_name; *)
+      non_const_arrays := SS.add !non_const_arrays d.d_name;
+      begin match Map.find tenv d.d_name with
+      | Some(Stack,_) -> ()
+      | _ ->
+        failwith (fsprintf "%s: array %s with non-constant indexes requires stack storage"
+                    "array expansion" d.d_name)
+      end
+  
+    | Some(pe)        ->
+      failwith (fsprintf "%s: the parameter-expression %a cannot be used as index"
+                  "array expansion" pp_pexpr pe)
+  in
+  DS.elements dests |> List.iter ~f:classify_arrays;
+  !non_const_arrays
+
 let rename_var name u fresh_suffix =
   fsprintf "%s_%a_%s" name pp_uint64 u fresh_suffix
 
-let array_expand_stmt _tenv unique_suffix stmt =
+let array_expand_stmt _tenv keep_arrays unique_suffix stmt =
   let ren name oidx =
-    match oidx with
-    | None            -> name, oidx
-    | Some(Pconst(u)) -> rename_var name u unique_suffix, None
-    | Some(_)         -> failwith "fixerror"
+    if not (SS.mem keep_arrays name) then
+      match oidx with
+      | None            -> name, oidx
+      | Some(Pconst(u)) -> rename_var name u unique_suffix, None
+      | Some(pe)        ->
+        failwith (fsprintf "%s: the parameter-expression %a cannot be used as index"
+                    "array_expand_stmt" pp_pexpr pe)
+    else
+      name,oidx
   in
   drename_stmt ren stmt
 
 let array_expand_fundef fdef =
   let tenv =
-    String.Map.of_alist_exn (List.map ~f:(fun (_,m,t) -> (m,t)) fdef.fd_decls)
+    String.Map.of_alist_exn (List.map ~f:(fun (s,m,t) -> (m,(s,t))) fdef.fd_decls)
   in
   let fresh_suffix = fresh_suffix_fundef fdef "arr" in
+  let keep_arrays = keep_arrays_non_const_index tenv fdef in
   let update_decl ((s,n,t) as d) =
     match t with
     | U64 | Bool -> [d]
+    | Arr(Pconst(_)) when SS.mem keep_arrays n -> [d]
     | Arr(Pconst(ub)) ->
       List.map ~f:(fun i -> (s,rename_var n i fresh_suffix,U64))
         (list_from_to ~first:U64.zero ~last:ub)
-    | Arr(_) -> failwith "FIXERROR"
+    | Arr(_) -> failwith "array expansion: impossible, array bounds are not constants"
   in
+  let body = array_expand_stmt tenv keep_arrays fresh_suffix fdef.fd_body in
   { fdef with
-    fd_body = array_expand_stmt tenv fresh_suffix fdef.fd_body;
+    fd_body = body;
     fd_decls = List.concat_map ~f:update_decl fdef.fd_decls
   }
 
@@ -391,8 +422,8 @@ let array_expand_fundef fdef =
 let array_expand_func func =
   let fdef = match func.f_def with
     | Def fd -> Def(array_expand_fundef fd)
-    | Undef  -> failwith "FIXERROR"
-    | Py(_)  -> failwith "FIXERROR"
+    | Undef  -> failwith "Cannot expand arrays assignments in undefined function"
+    | Py(_)  -> failwith "Cannot expand arrays assignments in python function"
   in
   { func with f_def = fdef }
 

@@ -39,6 +39,17 @@ let base_instrs_to_stmt bis =
 
 let is_src_imm  = function Imm _ -> true | _ -> false
 
+(* ** Constructor functions for destinations and located base instructions
+ * ------------------------------------------------------------------------ *)
+
+let mk_dest_name name =
+  { d_name = name; d_oidx = None; d_loc = L.dummy_loc }
+
+let src_of_fcond fc =
+  Src(mk_dest_name fc.fc_flag)
+
+let mk_base_instr loc bi = { L.l_loc = loc; L.l_val = Binstr(bi) }
+
 (* ** Collect parameter vars
  * ------------------------------------------------------------------------ *)
 (* Return the set of parameter variables occuring inside the given value *)
@@ -236,7 +247,60 @@ let pvars_func func =
 
 let pvars_modul modul =
   SS.union_list (List.map modul.m_funcs ~f:pvars_func)
- 
+
+(* ** Collect destination variables
+ * ------------------------------------------------------------------------ *)
+
+let dests_opt f =
+  Option.value_map ~default:DS.empty ~f:f
+
+let dests_dest d =
+  DS.singleton d
+
+let dests_src = function
+  | Imm _ -> DS.empty
+  | Src d -> dests_dest d
+
+let dests_fcond fc =
+  DS.singleton (mk_dest_name fc.fc_flag)
+
+let dests_op = function
+  | ThreeOp(_)       -> DS.empty
+  | Umul(d1)         -> dests_dest d1
+  | CMov(fc)         -> dests_fcond fc
+  | Shift(_,d1o)     -> dests_opt dests_dest d1o
+  | Carry(_,d1o,s1o) -> DS.union (dests_opt dests_dest d1o) (dests_opt dests_src s1o)
+
+let dests_base_instr = function
+  | Comment(_)      -> DS.empty
+  | Load(d,s,_)     -> DS.union (dests_dest d) (dests_src s)
+  | Store(s1,_,s2)  -> DS.union (dests_src s1) (dests_src s2)
+  | Assgn(d,s,_)    -> DS.union (dests_dest d) (dests_src s)
+  | Op(o,d,(s1,s2)) -> DS.union_list [dests_op o; dests_dest d; dests_src s1; dests_src s2]
+  | Call(_,ds,ss)   -> DS.union_list (List.map ds ~f:dests_dest @ List.map ss ~f:dests_src)
+
+let rec dests_instr linstr =
+  match linstr.L.l_val with
+  | Binstr(bi)          -> dests_base_instr bi
+  | If(Pcond(_),s1,s2)  -> DS.union (dests_stmt s1) (dests_stmt s2)
+  | If(Fcond(fc),s1,s2) -> DS.union_list [ dests_fcond fc; dests_stmt s1; dests_stmt s2 ]
+  | For(_,_lb,_ub,s)    -> dests_stmt s
+  | While(_,fc,s)       -> DS.union (dests_fcond fc) (dests_stmt s)
+
+and dests_stmt stmt =
+  DS.union_list (List.map stmt ~f:dests_instr)
+
+let dests_fundef fd =
+  dests_stmt fd.fd_body
+
+let dests_func func =
+  match func.f_def with
+  | Def fdef -> dests_fundef fdef
+  | _        -> DS.empty
+
+let dests_modul modul =
+  DS.union_list (List.map modul.m_funcs ~f:dests_func)
+
 (* ** Rename program variables
  * ------------------------------------------------------------------------ *)
 (* What is the meaning of this? 
@@ -387,17 +451,6 @@ and drename_stmt f stmt =
 
 let drename_decls f decls =
   List.map ~f:(fun (sto,n,ty) -> (sto,f n,ty)) decls
-
-(* ** Constructor functions for destinations and located base instructions
- * ------------------------------------------------------------------------ *)
-
-let mk_dest_name name =
-  { d_name = name; d_oidx = None; d_loc = L.dummy_loc }
-
-let src_of_fcond fc =
-  Src(mk_dest_name fc.fc_flag)
-
-let mk_base_instr loc bi = { L.l_loc = loc; L.l_val = Binstr(bi) }
 
 (* ** Pretty printing
  * ------------------------------------------------------------------------ *)

@@ -13,8 +13,9 @@ FUN="scalarmult"
 
 ARG="inline[$FUN],expand[$FUN][rem_p=38]"
 ARG="$ARG,array_assign_expand[$FUN]"
-#ARG="$ARG,array_expand[$FUN]"
 ARG="$ARG,save[/tmp/unfold.mil][$FUN]"
+ARG="$ARG,array_expand[$FUN]"
+ARG="$ARG,save[/tmp/unfold2.mil][$FUN]"
 ARG="$ARG,interp[rem_p=38][][test][]"
 
 ./dmasm.native -t \
