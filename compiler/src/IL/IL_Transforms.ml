@@ -147,13 +147,18 @@ let apply_transform trafo (modul0 : modul) =
     | None -> modul
   in
   let app_trafo modul t =
+    let notify s fname =
+      F.printf "%s in function %a\n%!" s pp_string fname
+    in
     match t with
     | InlineCalls(fname) ->
-      F.printf "inlining all calls in function %a" pp_string fname;
+      notify "inlining all calls" fname;
       inline_calls_modul modul fname
     | ArrayExpand(fname) ->
+      notify "expanding register arrays" fname;
       array_expand_modul modul fname
     | ArrayAssignExpand(fname) ->
+      notify "expanding array assignments" fname;
       array_assign_expand_modul modul fname
     | StripComments -> assert false
       (* conv_trans strip_comments efun *)
@@ -168,13 +173,16 @@ let apply_transform trafo (modul0 : modul) =
     | RegisterLiveness -> assert false
       (* transform_register_liveness efun *)
     | MacroExpand(fname,m) ->
+      notify "expanding macros" fname;
       macro_expand_modul m modul fname
     | Asm(_) -> assert false
     | Type ->
+      F.printf "type checking module\n%!" ;
       IL_Typing.typecheck_modul modul;
       modul
-    | Interp(fn,pmap,mmap,args) ->
-      IL_Interp.interp_modul modul pmap mmap args fn
+    | Interp(fname,pmap,mmap,args) ->
+      notify "interpreting" fname;
+      IL_Interp.interp_modul modul pmap mmap args fname
   in
   List.fold_left trafo ~init:modul0 ~f:app_trafo
 
