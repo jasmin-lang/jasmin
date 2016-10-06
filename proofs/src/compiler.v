@@ -2,8 +2,9 @@ Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
-Require Import finmap strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
+Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
 Require Import allocation inlining unrolling constant_prop dead_code array_expansion.
+Require Import linear.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -35,6 +36,7 @@ Section COMPILER.
 
 Variable rename: forall ta tr, fundef ta tr -> fundef ta tr.
 Variable expand: forall ta tr, fundef ta tr -> fundef ta tr.
+Variable ralloc: forall ta tr, fundef ta tr -> fundef ta tr.
 
 Definition compile_fd ta tr (fd:fundef ta tr) :=
   let fdrn := rename fd in
@@ -42,7 +44,11 @@ Definition compile_fd ta tr (fd:fundef ta tr) :=
     check_inline_fd fdrn >>= (fun _ =>
     unroll nb_loop (inline_fd fdrn) >>= (fun fd =>
     let fdea := expand fd in                                           
-    if CheckExpansion.check_fd fd fdea then Ok unit fdea 
+    if CheckExpansion.check_fd fd fdea then
+      let fda := ralloc fdea in
+       if CheckAlloc.check_fd fdea fda then
+         linear_fd fda 
+       else Error tt
     else Error tt))
   else Error tt.
 
@@ -70,18 +76,21 @@ Qed.
 
 Opaque nb_loop.
 
-Lemma compile_fdP ta tr (fd fdrn fdae fd':fundef ta tr) mem va mem' vr:
+Lemma compile_fdP ta tr (fd:fundef ta tr) (fd':lfundef ta tr)mem va mem' vr:
   compile_fd fd = Ok unit fd' ->
   sem_call mem fd  va mem' vr ->
-  sem_call mem fd' va mem' vr.
+  lsem_fd fd' va mem mem' vr.
 Proof.
   rewrite /compile_fd.
-  case Hrn: CheckAlloc.check_fd => //=.
+  case Hrn:  CheckAlloc.check_fd => //=.
   case Hinl: check_inline_fd => [s|] //=.
   case Hunr: unroll => [fdu|] //=.
-  case Hea:  CheckExpansion.check_fd => //= -[] <- Hsem.
+  case Hea:  CheckExpansion.check_fd => //=.
+  case Hra:  CheckAlloc.check_fd => //= /linear_fdP H Hsem. 
+  apply H.
+  apply: (CheckAlloc.check_fdP Hra).
   apply: (CheckExpansion.check_fdP Hea). 
-  apply (unrollP Hunr).
+  apply: (unrollP Hunr).
   apply: inlineP Hinl.
   by apply: CheckAlloc.check_fdP Hsem.
 Qed.

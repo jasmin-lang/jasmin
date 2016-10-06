@@ -29,6 +29,7 @@ COQFILES := \
 	src/unrolling.v \
 	src/dead_code.v \
 	src/array_expansion.v \
+	src/linear.v \
 	src/compiler.v
 
 include Makefile.common

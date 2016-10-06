@@ -1,7 +1,7 @@
 (* * Utility definition for dmasm *)
 
 (* ** Imports and settings *)
-Require Import ZArith.
+Require Import ZArith Setoid Morphisms CMorphisms CRelationClasses.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool seq choice eqtype.
 Require Integers.
 
@@ -47,6 +47,14 @@ Notation rmap  := Result.map.
 Notation ok    := (@Ok _) (only parsing).
 
 Notation "m >>= f" := (rbind f m) (at level 25, left associativity).
+
+Lemma bindA eT aT bT cT (f : aT -> result eT bT) (g: bT -> result eT cT) m:
+  m >>= f >>= g = m >>= (fun a => f a >>= g).
+Proof. case:m => //=. Qed.
+
+Lemma bind_eq eT aT rT (f1 f2 : aT -> result eT rT) m1 m2 :
+   m1 = m2 -> f1 =1 f2 -> m1 >>= f1 = m2 >>= f2.
+Proof. move=> <- Hf; case m1 => //=. Qed.
 
 Fixpoint mapM eT aT bT (f : aT -> result eT bT) (xs : seq aT) : result eT (seq bT) :=
   match xs with
@@ -247,6 +255,41 @@ Proof.
   constructor=> [[] [] | [] [] [] c | [] []] //=; apply ctrans_Eq.
 Qed.
 
+Polymorphic Instance equiv_iffT: Equivalence iffT.
+Proof. 
+  split.
+  + by move=> x;split;apply id.
+  + by move=> x1 x2 []??;split.
+  move=> x1 x2 x3 [??] [??];constructor;auto.
+Qed.
+
+Polymorphic Instance subrelation_iff_arrow : subrelation iffT arrow.
+Proof. by move=> ?? []. Qed.
+
+Polymorphic Instance subrelation_iff_flip_arrow : subrelation iffT (flip arrow).
+Proof. by move=> ?? []. Qed.
+
+Instance reflect_m: Proper (iff ==> (@eq bool) ==> iffT) reflect.
+Proof. by move=> P1 P2 Hiff b1 b2 ->; split=> H; apply (equivP H);rewrite Hiff. Qed.
+
+Lemma P_leP x y : reflect (Zpos x <= Zpos y)%Z (x <=? y)%positive.
+Proof. apply: (@equivP (Pos.le x y)) => //;rewrite -Pos.leb_le;apply idP. Qed.
+
+Lemma P_ltP x y : reflect (Zpos x < Zpos y)%Z (x <? y)%positive.
+Proof. apply: (@equivP (Pos.lt x y)) => //;rewrite -Pos.ltb_lt;apply idP. Qed.
+
+Lemma Pos_leb_trans y x z: 
+  (x <=? y)%positive -> (y <=? z)%positive -> (x <=? z)%positive. 
+Proof. move=> /P_leP ? /P_leP ?;apply /P_leP;omega. Qed.
+
+Lemma Pos_lt_leb_trans y x z: 
+  (x <? y)%positive -> (y <=? z)%positive -> (x <? z)%positive. 
+Proof. move=> /P_ltP ? /P_leP ?;apply /P_ltP;omega. Qed.
+
+Lemma Pos_le_ltb_trans y x z: 
+  (x <=? y)%positive -> (y <? z)%positive -> (x <? z)%positive. 
+Proof. move=> /P_leP ? /P_ltP ?;apply /P_ltP;omega. Qed.
+
 Lemma pos_eqP : Equality.axiom Pos.eqb. 
 Proof. by move=> p1 p2;apply:(iffP idP);rewrite -Pos.eqb_eq. Qed.
 
@@ -314,4 +357,5 @@ Proof.
     by apply: Z.lt_trans H2 H1. 
   by move=> x y /Z.compare_eq Heq; rewrite -(I64.repr_unsigned x) -(I64.repr_unsigned y) Heq.
 Qed.
+
 
