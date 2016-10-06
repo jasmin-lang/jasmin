@@ -26,6 +26,8 @@ Definition ok := Ok error.
 Definition word := I64.int.
 Definition mem := word -> word.
 
+Section MEM.
+ 
 Variable valid_addr : word -> bool.
 
 Definition read_mem (m : mem) (p : word) : exec word :=
@@ -35,6 +37,8 @@ Definition read_mem (m : mem) (p : word) : exec word :=
 Definition write_mem (m : mem) (p w : word) : exec mem :=
   if valid_addr p then ok (fun p' => if p' == p then w else m p')
   else Error ErrAddrInvalid.
+
+End MEM.
 
 (* ** Operators
  * -------------------------------------------------------------------- *)

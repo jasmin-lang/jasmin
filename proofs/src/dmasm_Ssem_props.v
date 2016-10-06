@@ -30,12 +30,18 @@ Proof.
   rewrite -Hr1 -?Hr2//; SvD.fsetdec.
 Qed.
 
+Section SEM.
+
+Variable valid_addr : word -> bool.
+
 Lemma writeP c s1 s2 : 
-   ssem s1 c s2 -> s1.(sevm) = s2.(sevm) [\ write_c c].
+   ssem valid_addr s1 c s2 -> s1.(sevm) = s2.(sevm) [\ write_c c].
 Proof.
   apply (@cmd_rect
-           (fun i => forall s1 s2, ssem_i s1 i s2 -> s1.(sevm) = s2.(sevm) [\ write_i i])
-           (fun c => forall s1 s2, ssem   s1 c s2 -> s1.(sevm) = s2.(sevm) [\ write_c c])
+           (fun i => forall s1 s2,
+                       ssem_i valid_addr s1 i s2 -> s1.(sevm) = s2.(sevm) [\ write_i i])
+           (fun c => forall s1 s2, 
+                       ssem valid_addr s1 c s2 -> s1.(sevm) = s2.(sevm) [\ write_c c])
            (fun _ _ _ => True)) => /= {c s1 s2}
     [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|x rn c Hc|e c Hc|?? x f a _|//] s1 s2 Hsem;
     inversion Hsem=>{Hsem};subst=> // z.
@@ -93,4 +99,5 @@ Proof. by elim: i => //= ??? -> ? ->. Qed.
 Definition donotdep  (s : Sv.t) t (e:pexpr t) := 
   forall s1 s2, s1 = s2 [\ s] -> ssem_pexpr s1 e = ssem_pexpr s2 e.
 
+End SEM.
 

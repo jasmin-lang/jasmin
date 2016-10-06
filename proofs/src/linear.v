@@ -65,10 +65,14 @@ Definition to_estate (s:lstate) := Estate s.(lmem) s.(lvm).
 Definition of_estate (s:estate) c := Lstate s.(emem) s.(evm) c.
 Definition setc (s:lstate) c :=  Lstate s.(lmem) s.(lvm) c.
 
+Section SEM.
+
+Variable valid_addr : word -> bool.
+
 Inductive lsem1 (c:lcmd) : lstate -> lstate -> Prop:=
 | LSem_bcmd : forall s1 s2 bc cs, 
     s1.(lc) = Lbcmd bc :: cs ->
-    sem_bcmd (to_estate s1) bc = ok s2 -> 
+    sem_bcmd valid_addr (to_estate s1) bc = ok s2 -> 
     lsem1 c s1 (of_estate s2 cs)
 | LSem_lbl : forall s1 lbl cs, 
     s1.(lc) = Llabel lbl :: cs ->
@@ -428,13 +432,15 @@ Section PROOF.
     forall lbl lbli li, linear_i i lbl [::] = Ok unit (lbli, li) ->
     [/\ (lbl <=? lbli)%positive,
      valid lbl lbli li & 
-     forall s1 s2, sem_i s1 i s2 -> lsem li (of_estate s1 li) (of_estate s2 [::])].
+     forall s1 s2, sem_i valid_addr s1 i s2 -> 
+       lsem li (of_estate s1 li) (of_estate s2 [::])].
 
   Let Pc (c:cmd) := 
     forall lbl lblc lc, linear_c linear_i c lbl [::] = Ok unit (lblc, lc) ->
     [/\ (lbl <=? lblc)%positive,
      valid lbl lblc lc & 
-     forall s1 s2, sem s1 c s2 -> lsem lc (of_estate s1 lc) (of_estate s2 [::])].
+     forall s1 s2, sem valid_addr s1 c s2 -> 
+       lsem lc (of_estate s1 lc) (of_estate s2 [::])].
 
   Let Pf ta tr (fd:fundef ta tr) := True.
 
@@ -636,7 +642,8 @@ Section PROOF.
     linear_c linear_i c lbl [::] = Ok unit (lblc, lc) ->
     [/\ (lbl <=? lblc)%positive,
      valid lbl lblc lc & 
-     forall s1 s2, sem s1 c s2 -> lsem lc (of_estate s1 lc) (of_estate s2 [::])].
+     forall s1 s2, sem valid_addr s1 c s2 -> 
+       lsem lc (of_estate s1 lc) (of_estate s2 [::])].
   Proof.
     apply (@cmd_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc).
   Qed.
@@ -644,7 +651,7 @@ Section PROOF.
   Lemma linear_fdP ta tr (fd :fundef ta tr) (lfd:lfundef ta tr) :
     linear_fd fd = Ok unit lfd ->
     forall m1 va m2 vr, 
-    sem_call m1 fd va m2 vr -> lsem_fd lfd va m1 m2 vr.
+    sem_call valid_addr m1 fd va m2 vr -> lsem_fd lfd va m1 m2 vr.
   Proof.
     rewrite /linear_fd linear_c_nil;case Heq: linear_c => [[lblc lc]|] //= [] <-.
     move=> m1 va m2 vr H;inversion H;clear H;subst.
@@ -656,4 +663,4 @@ Section PROOF.
 
 End PROOF.   
 
-  
+End SEM.  

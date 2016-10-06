@@ -102,32 +102,36 @@ with dead_code_call ta tr (fd:fundef ta tr) :=
 
 Section PROOF.
 
+  Variable valid_addr : word -> bool.
+
   Let Pi (i:instr) := 
-    forall mem1 mem2 vm1 vm2, sem_i (Estate mem1 vm1) i (Estate mem2 vm2) ->
+    forall mem1 mem2 vm1 vm2, sem_i valid_addr (Estate mem1 vm1) i (Estate mem2 vm2) ->
     forall s2, 
       match dead_code_i i s2 with
       | Ok (s1, c') =>
         forall vm1', vm1 =[s1] vm1' ->
         exists vm2', vm2 =[s2] vm2' /\ 
-          sem (Estate mem1 vm1') c' (Estate mem2 vm2')
+          sem valid_addr (Estate mem1 vm1') c' (Estate mem2 vm2')
       | _ => True
       end.
 
   Let Pc (c:cmd) := 
-    forall mem1 mem2 vm1 vm2, sem (Estate mem1 vm1) c (Estate mem2 vm2) ->
+    forall mem1 mem2 vm1 vm2, sem valid_addr (Estate mem1 vm1) c (Estate mem2 vm2) ->
     forall s2, 
       match dead_code dead_code_i c s2 with
       | Ok (s1, c') =>
         forall vm1', vm1 =[s1] vm1' ->
         exists vm2', vm2 =[s2] vm2' /\ 
-          sem (Estate mem1 vm1') c' (Estate mem2 vm2')
+          sem valid_addr (Estate mem1 vm1') c' (Estate mem2 vm2')
       | _ => True
       end.
 
   Let Pf ta tr (fd:fundef ta tr) := 
     forall mem mem' va vr, 
       match dead_code_call fd with
-      | Ok fd' => sem_call mem fd va mem' vr -> sem_call mem fd' va mem' vr
+      | Ok fd' => 
+        sem_call valid_addr mem fd va mem' vr -> 
+        sem_call valid_addr mem fd' va mem' vr
       | _ => True
       end.
 
@@ -162,7 +166,7 @@ Section PROOF.
       apply write_rval_eq_on;apply: eq_onI Hvm.
       rewrite read_eE;SvD.fsetdec.
     + move=> r e;case He: (sem_pexpr _ e) => [v|]//=.
-      case Hre : (read_mem m1 v) => [v'|]//= [] <- <- /= vm1'.
+      case Hre : (read_mem valid_addr m1 v) => [v'|]//= [] <- <- /= vm1'.
       change (vrv_rec Sv.empty r) with (vrv r) => Hr.
       exists (write_rval vm1' r v');split;last first.
       + by apply sem_seq1;constructor=> /=; rewrite -(read_e_eq_on Hr) He /= Hre.
@@ -170,7 +174,7 @@ Section PROOF.
       rewrite read_eE;SvD.fsetdec.
     move=> e1 e2;case He1: (sem_pexpr _ e1) => [v1|]//=.
     case He2: (sem_pexpr _ e2) => [v2|]//=.
-    case Hw: (write_mem m1 v1 v2) => [m|]//= [] <- <- vm1' Hr.
+    case Hw: (write_mem valid_addr m1 v1 v2) => [m|]//= [] <- <- vm1' Hr.
     exists vm1';split. 
     + by apply: eq_onI Hr;rewrite read_eE (read_eE e2);SvD.fsetdec.
     apply sem_seq1;constructor => /=.
@@ -210,13 +214,13 @@ Section PROOF.
       pose st1 := {| emem := m1; evm := vm1 |}; pose st2:= {| emem := m2; evm := vm2 |}.
       rewrite (_:vm1 = evm st1) // (_:vm2 = evm st2) //.
       rewrite (_:m1 = emem st1) // (_:m2 = emem st2) //.
-      have: sem_for i [seq n2w i | i <- wrange dir vlow vhi] st1 c st2 ->
+      have: sem_for valid_addr i [seq n2w i | i <- wrange dir vlow vhi] st1 c st2 ->
             dead_code dead_code_i c s2 = Ok unit (s1, c') -> Pc c -> 
             Sv.Subset (Sv.diff s1 (vrv i)) s2 ->
             forall vm1',  evm st1 =[s2]  vm1' ->
              exists vm2' : vmap, 
              evm st2 =[s2]  vm2' /\
-             sem_for i [seq n2w i | i <- wrange dir vlow vhi]
+             sem_for valid_addr i [seq n2w i | i <- wrange dir vlow vhi]
                 {| emem := emem st1; evm := vm1' |} c'
                 {| emem := emem st2; evm := vm2' |}.
       + move: st1 st2 => {Hrec H7 H8 H9 Hc Heq Hsub vm1 vm2 m1 m2} st1 st2.
@@ -255,13 +259,13 @@ Section PROOF.
       pose st1 := {| emem := m1; evm := vm1 |}; pose st2:= {| emem := m2; evm := vm2 |}.
       rewrite (_:vm1 = evm st1) // (_:vm2 = evm st2) //.
       rewrite (_:m1 = emem st1) // (_:m2 = emem st2) //.
-      have: sem_while st1 e c st2 ->
+      have: sem_while valid_addr st1 e c st2 ->
             dead_code dead_code_i c s2' = Ok unit (s1, c') -> Pc c -> 
             Sv.Subset (read_e_rec e s2) s2' ->
             forall vm1',  evm st1 =[s2']  vm1' ->
              exists vm2' : vmap, 
              evm st2 =[s2']  vm2' /\
-             sem_while {| emem := emem st1; evm := vm1' |} e c'
+             sem_while valid_addr {| emem := emem st1; evm := vm1' |} e c'
                        {| emem := emem st2; evm := vm2' |}.
       + move: st1 st2 => {H4 Hrec Hc Heq Hsub vm1 vm2 m1 m2} st1 st2.
         elim=> {st1 st2 e c}
@@ -319,7 +323,9 @@ Section PROOF.
 
   Lemma dead_code_callP ta tr (f : fundef ta tr) mem mem' va vr: 
     match dead_code_call f with 
-    | Ok fd' => sem_call mem f va mem' vr -> sem_call mem fd' va mem' vr
+    | Ok fd' => 
+      sem_call valid_addr mem f va mem' vr -> 
+      sem_call valid_addr mem fd' va mem' vr
     | _      => True
     end.
   Proof.

@@ -95,8 +95,12 @@ by apply/Fv.map_ext=> y /=; rewrite st2sst_vmap_set.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma st2sst_bcmd s1 c s2 : sem_bcmd s1 c = ok s2 ->
-  ssem_bcmd s1 c = ok (s2 : sestate).
+Section SEM.
+
+Variable valid_addr : word -> bool.
+
+Lemma st2sst_bcmd s1 c s2 : sem_bcmd valid_addr s1 c = ok s2 ->
+  ssem_bcmd valid_addr s1 c = ok (s2 : sestate).
 Proof.
 case: c=> [st r p|r p|p p'] /=.
 + move=> h; case: (bindW h) => v {h} /st2sst_pexpr.
@@ -139,3 +143,5 @@ apply: (@sem_Ind _ Pi Pf Pc); rewrite {}/Pi {}/Pf {}/Pc;
 
 Admitted.
 *)
+
+End SEM.

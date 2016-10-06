@@ -117,6 +117,10 @@ Record sestate := SEstate {
   sevm  : svmap
 }.
 
+Section SEM.
+
+Variable valid_addr : word -> bool.
+
 Definition ssem_bcmd (es : sestate) (bc : bcmd) : exec sestate :=
   match bc with
   | Assgn st rv pe =>
@@ -125,14 +129,14 @@ Definition ssem_bcmd (es : sestate) (bc : bcmd) : exec sestate :=
       ok (SEstate es.(semem) vm)
   | Load rv pe_addr =>
       let p := ssem_pexpr es.(sevm) pe_addr in
-      read_mem es.(semem) p >>= fun w =>
+      read_mem valid_addr es.(semem) p >>= fun w =>
       let vm := swrite_rval es.(sevm) rv w in
       ok (SEstate es.(semem) vm)
 
   | Store pe_addr pe_val =>
       let p := ssem_pexpr es.(sevm) pe_addr in
       let w := ssem_pexpr es.(sevm) pe_val in
-      write_mem es.(semem) p w >>= fun m =>
+      write_mem valid_addr es.(semem) p w >>= fun m =>
       ok (SEstate m es.(sevm))
   end.
 
@@ -219,3 +223,5 @@ Proof.
   set c_ := _ :: _ => H;case: _ {-1}_ _ / H (erefl c_) => //= ? s2 ? ?? Hi Hcat [] ??;subst.
   elim: (Hc _ _ Hcat)=> s1 [H1 H2];exists s1;split=>//;econstructor;eauto.
 Qed.
+
+End SEM.

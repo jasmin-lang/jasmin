@@ -158,6 +158,10 @@ Record estate := Estate {
   evm  : vmap
 }.
 
+Section SEM. 
+
+Variable valid_addr : word -> bool.
+
 Definition sem_bcmd (es : estate) (bc : bcmd) : exec estate :=
   match bc with
   | Assgn st rv pe =>
@@ -166,14 +170,14 @@ Definition sem_bcmd (es : estate) (bc : bcmd) : exec estate :=
       ok (Estate es.(emem) vm)
   | Load rv pe_addr =>
       sem_pexpr es.(evm) pe_addr >>= fun p =>
-      read_mem es.(emem) p >>= fun w =>
+      read_mem valid_addr es.(emem) p >>= fun w =>
       let vm := write_rval es.(evm) rv w in
       ok (Estate es.(emem) vm)
 
   | Store pe_addr pe_val =>
       sem_pexpr es.(evm) pe_addr >>= fun p =>
       sem_pexpr es.(evm) pe_val  >>= fun w =>
-      write_mem es.(emem) p w >>= fun m =>
+      write_mem valid_addr es.(emem) p w >>= fun m =>
       ok (Estate m es.(evm))
   end.
 
@@ -429,3 +433,11 @@ Proof.
   case: destr_pair (@destr_pairP _ _ e) => /= [[e1 e2] /(_ _ _ (erefl _)) ->| _ ->] //=.
   by case: (sem_pexpr vm e1)=> // v1;case: sem_pexpr => //= v2 [] <-.   
 Qed.
+
+End SEM.
+
+Notation "vm1 = vm2 [\ s ]" := (vmap_eq_except s vm1 vm2) (at level 70, vm2 at next level,
+  format "'[hv ' vm1  '/' =  vm2  '/' [\ s ] ']'").
+
+Notation "vm1 '=[' s ']' vm2" := (eq_on s vm1 vm2) (at level 70, vm2 at next level,
+  format "'[hv ' vm1  =[ s ]  '/'  vm2 ']'").

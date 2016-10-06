@@ -49,16 +49,18 @@ with unroll_call ta tr (fd:fundef ta tr) :=
 
 Section PROOF.
 
+  Variable valid_addr : word -> bool.
+
   Let Pi (i:instr) := 
-    forall s s', sem_i s i s' -> sem s (unroll_i i) s'.
+    forall s s', sem_i valid_addr s i s' -> sem valid_addr s (unroll_i i) s'.
 
   Let Pc (c:cmd) := 
-    forall s s', sem s c s' -> sem s (unroll_cmd unroll_i c) s'.
+    forall s s', sem valid_addr s c s' -> sem valid_addr s (unroll_cmd unroll_i c) s'.
 
   Let Pf ta tr (fd:fundef ta tr) := 
     forall mem mem' va vr, 
-    sem_call mem fd va mem' vr ->
-    sem_call mem (unroll_call fd) va mem' vr.
+    sem_call valid_addr mem fd va mem' vr ->
+    sem_call valid_addr mem (unroll_call fd) va mem' vr.
 
   Let Hskip : Pc [::].
   Proof. by move=> s s' H. Qed.
@@ -82,7 +84,7 @@ Section PROOF.
   Let Hfor  : forall i rn c, Pc c -> Pi (Cfor i rn c).
   Proof.
     move=> i [[dir low] hi] c Hc s s' Hs /=.
-    have Hs1 : sem s [:: Cfor i (dir, low, hi) (unroll_cmd unroll_i c)] s'.
+    have Hs1 : sem valid_addr s [:: Cfor i (dir, low, hi) (unroll_cmd unroll_i c)] s'.
     + apply sem_seq1. inversion Hs;clear Hs;subst.
       apply EFor with vlow vhi=> // => {H6 H7}.
       elim: H8 Hc=> {s s' vlow vhi c} [s iv c Hc| s1 s2 s3 iv w ws c Hs1 Hs2 Hrec Hc].
@@ -127,7 +129,8 @@ Section PROOF.
   Qed.
 
   Lemma unroll_callP ta tr (f : fundef ta tr) mem mem' va vr: 
-    sem_call mem f va mem' vr -> sem_call mem (unroll_call f) va mem' vr.
+    sem_call valid_addr mem f va mem' vr -> 
+    sem_call valid_addr mem (unroll_call f) va mem' vr.
   Proof.
     apply (@func_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc).
   Qed.

@@ -343,12 +343,12 @@ Module CBEA.
     by move: H1;case: p=> //= x /eqP ->.
   Qed.
 
-  Lemma check_bcmdP i1 r1 i2 r2:
+  Lemma check_bcmdP valid_addr i1 r1 i2 r2:
     check_bcmd i1 i2 r1 = Ok unit r2 ->
-    forall m1 m2 vm1 vm2, sem_i (Estate m1 vm1) (Cbcmd i1) (Estate m2 vm2) ->
+    forall m1 m2 vm1 vm2, sem_i valid_addr (Estate m1 vm1) (Cbcmd i1) (Estate m2 vm2) ->
     forall vm1', eq_alloc r1 vm1 vm1' ->
     exists vm2', eq_alloc r2 vm2 vm2' /\ 
-    sem_i (Estate m1 vm1') (Cbcmd i2) (Estate m2 vm2').
+    sem_i valid_addr (Estate m1 vm1') (Cbcmd i2) (Estate m2 vm2').
   Proof.
     case: i1 i2 =>
       [t1 rv1 e1 | rv1 e1 | e11 e12] [t2 rv2 e2 | rv2 e2 | e21 e22] //=.
