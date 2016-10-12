@@ -6,7 +6,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import JMeq ZArith.
 
-Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr.
+Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr memory.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -160,8 +160,6 @@ Record estate := Estate {
 
 Section SEM. 
 
-Variable valid_addr : word -> bool.
-
 Definition sem_bcmd (es : estate) (bc : bcmd) : exec estate :=
   match bc with
   | Assgn st rv pe =>
@@ -170,14 +168,14 @@ Definition sem_bcmd (es : estate) (bc : bcmd) : exec estate :=
       ok (Estate es.(emem) vm)
   | Load rv pe_addr =>
       sem_pexpr es.(evm) pe_addr >>= fun p =>
-      read_mem valid_addr es.(emem) p >>= fun w =>
+      read_mem es.(emem) p >>= fun w =>
       let vm := write_rval es.(evm) rv w in
       ok (Estate es.(emem) vm)
 
   | Store pe_addr pe_val =>
       sem_pexpr es.(evm) pe_addr >>= fun p =>
       sem_pexpr es.(evm) pe_val  >>= fun w =>
-      write_mem valid_addr es.(emem) p w >>= fun m =>
+      write_mem es.(emem) p w >>= fun m =>
       ok (Estate m es.(evm))
   end.
 

@@ -8,7 +8,7 @@ From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import JMeq ZArith Setoid Morphisms.
 
 Require Import word dmasm_utils dmasm_type dmasm_var dmasm_expr.
-Require Import dmasm_sem dmasm_Ssem dmasm_Ssem_props.
+Require Import memory dmasm_sem dmasm_Ssem dmasm_Ssem_props.
 Require Import symbolic_expr symbolic_expr_opt.
 
 Set Implicit Arguments.
@@ -16,7 +16,6 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Section SEM.
-Variable valid_addr : word -> bool.
 (* -------------------------------------------------------------------------- *)
 (* ** Hoare Logic                                                             *)
 (* -------------------------------------------------------------------------- *)
@@ -24,12 +23,12 @@ Variable valid_addr : word -> bool.
 Definition hpred := sestate -> Prop.
 
 Definition hoare (Pre:hpred) (c:cmd) (Post:hpred) := 
-  forall (s s':sestate), ssem valid_addr s c s' -> Pre s -> Post s'.
+  forall (s s':sestate), ssem s c s' -> Pre s -> Post s'.
 
 Definition fpred (t:stype) := mem -> sst2ty t -> Prop.
 
 Definition hoaref ta tr (Pre:fpred ta) (f:fundef ta tr) (Post:fpred tr) := 
-  forall (m m':mem) va vr, ssem_fun valid_addr f m va m' vr -> Pre m va -> Post m' vr.
+  forall (m m':mem) va vr, ssem_fun f m va m' vr -> Pre m va -> Post m' vr.
 
 (* -------------------------------------------------------------------------- *)
 (* ** Core Rules                                                              *)
@@ -58,7 +57,7 @@ Lemma hoare_notmod (P P' Q:hpred) c:
   hoare (fun s => P s /\ P' s) c (fun s => Q s /\ P' s).
 Proof.
   move=> Hd Hc s s' Hsem [HP HP'];split;first by apply (Hc _ _ Hsem).
-  by rewrite -(@Hd s s') //;apply (@writeP valid_addr).
+  by rewrite -(@Hd s s') //;apply writeP .
 Qed.
 
 (* Skip *)
@@ -75,7 +74,7 @@ Qed.
 
 (* Base command *)
 Lemma hoare_bcmd (P:hpred) bc: 
-  hoare (fun s1 => forall s2, ssem_bcmd valid_addr s1 bc = ok s2 -> P s2) [::Cbcmd bc] P.
+  hoare (fun s1 => forall s2, ssem_bcmd s1 bc = ok s2 -> P s2) [::Cbcmd bc] P.
 Proof.
   move=> ??;set c := Cbcmd _ => /ssem_iV s.
   case: _ {-1}_ _ / s (erefl c) => // ??? e [] ?;subst=> H.
@@ -151,7 +150,7 @@ Lemma hoare_for_base_x (i : rval sword) (ws : seq.seq word) I c :
      (fun s => [/\ I s & ssem_rval s.(sevm) i = j]))
 
   -> (forall s1 s2, s1.(sevm) = s2.(sevm) [\vrv i] -> I s1 -> I s2)
-  -> forall s1 s2, ssem_for valid_addr i ws s1 c s2 -> I s1 ->
+  -> forall s1 s2, ssem_for i ws s1 c s2 -> I s1 ->
       [/\ I s2 & ssem_rval s2.(sevm) i = last (ssem_rval s1.(sevm) i) ws].
 Proof.
 move=> hc Iindep s1 s2 h; elim: h hc Iindep => //=.

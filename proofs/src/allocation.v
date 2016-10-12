@@ -5,18 +5,14 @@ Require Import JMeq ZArith Setoid Morphisms.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
-Require Import finmap strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
+Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr
+               memory dmasm_sem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Import GRing.Theory.
-
-Local Open Scope ring_scope.
-Local Open Scope fun_scope.
 Local Open Scope vmap.
-Local Open Scope fset.
 Local Open Scope seq_scope.
 
 Module MakeMalloc(M:gen_map.MAP).
@@ -237,13 +233,13 @@ Module Type CheckB.
     check_e r e1 e2 ->
     JMeq (sem_pexpr vm1 e1) (sem_pexpr vm1' e2).
 
-  Parameter check_bcmdP : forall valid_addr i1, 
+  Parameter check_bcmdP : forall i1, 
     forall r1 i2 r2, check_bcmd i1 i2 r1 = Ok unit r2 ->
-    forall m1 m2 vm1 vm2, sem_i valid_addr (Estate m1 vm1) (Cbcmd i1) (Estate m2 vm2) ->
+    forall m1 m2 vm1 vm2, sem_i (Estate m1 vm1) (Cbcmd i1) (Estate m2 vm2) ->
     forall vm1', eq_alloc r1 vm1 vm1' ->
     exists vm2',   
       eq_alloc r2 vm2 vm2' /\ 
-      sem_i valid_addr (Estate m1 vm1') (Cbcmd i2) (Estate m2 vm2').
+      sem_i (Estate m1 vm1') (Cbcmd i2) (Estate m2 vm2').
 
 End CheckB.
 
@@ -304,27 +300,26 @@ with check_fd ta1 tr1 (fd1:fundef ta1 tr1) ta2 tr2 (fd2:fundef ta2 tr2) :=
 
 Section PROOF.
 
-  Variable valid_addr : word -> bool.
 
   Let Pi (i1:instr) := 
     forall r1 i2 r2, check_i i1 i2 r1 = Ok unit r2 ->
-    forall m1 m2 vm1 vm2, sem_i valid_addr (Estate m1 vm1) i1 (Estate m2 vm2) ->
+    forall m1 m2 vm1 vm2, sem_i (Estate m1 vm1) i1 (Estate m2 vm2) ->
     forall vm1', eq_alloc r1 vm1 vm1' ->
     exists vm2', eq_alloc r2 vm2 vm2' /\ 
-     sem_i valid_addr (Estate m1 vm1') i2 (Estate m2 vm2').
+     sem_i (Estate m1 vm1') i2 (Estate m2 vm2').
 
   Let Pc (c1:cmd) := 
     forall r1 c2 r2, fold2 tt check_i c1 c2 r1 = Ok unit r2 ->
-    forall m1 m2 vm1 vm2, sem valid_addr (Estate m1 vm1) c1 (Estate m2 vm2) ->
+    forall m1 m2 vm1 vm2, sem (Estate m1 vm1) c1 (Estate m2 vm2) ->
     forall vm1', eq_alloc r1 vm1 vm1' ->
     exists vm2', eq_alloc r2 vm2 vm2' /\ 
-     sem valid_addr (Estate m1 vm1') c2 (Estate m2 vm2').
+     sem (Estate m1 vm1') c2 (Estate m2 vm2').
 
   Let Pf ta tr (fd1:fundef ta tr) := 
     forall fd2, check_fd fd1 fd2 ->
     forall mem mem' va vr, 
-    sem_call valid_addr mem fd1 va mem' vr ->
-    sem_call valid_addr mem fd2 va mem' vr.
+    sem_call mem fd1 va mem' vr ->
+    sem_call mem fd2 va mem' vr.
 
   Let Hskip : Pc [::].
   Proof.
@@ -403,7 +398,7 @@ Section PROOF.
     inversion H;clear H;subst.
     have Hfor: forall vm1', eq_alloc r2' vm1 vm1' ->
           exists vm2', eq_alloc r2' vm2 vm2' /\
-          sem_for valid_addr i2 [seq n2w i | i <- wrange dir1 vlow vhi]
+          sem_for i2 [seq n2w i | i <- wrange dir1 vlow vhi]
              {| emem := m1; evm := vm1' |} c2 {| emem := m2; evm := vm2' |}.
     + elim: [seq n2w i | i <- _] m1 vm1 H9 {H8 H7}=> [ | w ws Hws] m1 vm1 H10;
       inversion H10;clear H10;subst.
@@ -429,7 +424,7 @@ Section PROOF.
     inversion H;clear H;subst.
     have Hwhile: forall vm1', eq_alloc r2 vm1 vm1' ->
           exists vm2', eq_alloc r2 vm2 vm2' /\
-          sem_while valid_addr {| emem := m1; evm := vm1' |} e2 c2
+          sem_while {| emem := m1; evm := vm1' |} e2 c2
                     {| emem := m2; evm := vm2' |}.
     + move: H4 Hcc Hce Hc.
       set st1 := {| emem := m1; evm := vm1 |}; set st2 := {| emem := m2; evm := vm2 |}.
@@ -482,7 +477,7 @@ Section PROOF.
 
   Lemma check_fdP ta tr (f1 f2 : fundef ta tr) mem mem' va vr: 
     check_fd f1 f2 -> 
-    sem_call valid_addr mem f1 va mem' vr -> sem_call valid_addr mem f2 va mem' vr.
+    sem_call mem f1 va mem' vr -> sem_call mem f2 va mem' vr.
   Proof.
     have H := (@func_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc _ _ f1 f2).
     by move=> ?;apply H.
@@ -646,12 +641,12 @@ Module CBA <: CheckB.
     sem_pexpr vm1 e1 = sem_pexpr vm1' e2.
   Proof. by move=> Hrn Hc;rewrite (eq_sem_aux Hrn Hc). Qed.
 
-  Lemma check_bcmdP valid_addr i1 r1 i2 r2:
+  Lemma check_bcmdP i1 r1 i2 r2:
     check_bcmd i1 i2 r1 = Ok unit r2 ->
-    forall m1 m2 vm1 vm2, sem_i valid_addr (Estate m1 vm1) (Cbcmd i1) (Estate m2 vm2) ->
+    forall m1 m2 vm1 vm2, sem_i (Estate m1 vm1) (Cbcmd i1) (Estate m2 vm2) ->
     forall vm1', eq_alloc r1 vm1 vm1' ->
     exists vm2', eq_alloc r2 vm2 vm2' /\ 
-      sem_i valid_addr (Estate m1 vm1') (Cbcmd i2) (Estate m2 vm2').
+      sem_i (Estate m1 vm1') (Cbcmd i2) (Estate m2 vm2').
   Proof.
     case: i1 i2 =>
       [t1 rv1 e1 | rv1 e1 | e11 e12] [t2 rv2 e2 | rv2 e2 | e21 e22] //=.

@@ -7,7 +7,8 @@ From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import  ZArith.
 
 Require Import Coq.Logic.Eqdep_dec.
-Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
+Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr 
+               memory dmasm_sem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -449,13 +450,11 @@ Proof. by apply add_cpmP_aux. Qed.
 
 Section PROOF.
 
-Variable valid_addr : word -> bool.
-
 Lemma const_prop_bcmdP (s s':estate) (m:map) (i:bcmd) : 
   valid_map s.(evm) m ->
-  sem_bcmd valid_addr s i = ok s' ->
+  sem_bcmd s i = ok s' ->
   valid_map s'.(evm) (fst (const_prop_bcmd m i)) /\
-  sem_bcmd valid_addr s (snd (const_prop_bcmd m i)) = ok s'.
+  sem_bcmd s (snd (const_prop_bcmd m i)) = ok s'.
 Proof.
   case: i => [t x e | x e | e1 e2] Hvalid /=.
   + case Heq : sem_pexpr => [v|] //=.
@@ -483,21 +482,21 @@ Qed.
 
 
   Let Pi (i:instr) := 
-    forall s s' m, sem_i valid_addr s i s' ->
+    forall s s' m, sem_i s i s' ->
     valid_map s.(evm) m ->
     valid_map s'.(evm) (fst (const_prop_i m i)) /\
-    sem valid_addr s (snd (const_prop_i m i)) s'.
+    sem s (snd (const_prop_i m i)) s'.
 
   Let Pc (c:cmd) := 
-    forall s s' m, sem valid_addr s c s' ->
+    forall s s' m, sem s c s' ->
     valid_map s.(evm) m ->
     valid_map s'.(evm) (fst (const_prop const_prop_i m c)) /\
-    sem valid_addr s (snd (const_prop const_prop_i m c)) s'.
+    sem s (snd (const_prop const_prop_i m c)) s'.
 
   Let Pf ta tr (fd:fundef ta tr) := 
     forall mem mem' va vr, 
-    sem_call valid_addr mem fd va mem' vr ->
-    sem_call valid_addr mem (const_prop_call fd) va mem' vr.
+    sem_call mem fd va mem' vr ->
+    sem_call mem (const_prop_call fd) va mem' vr.
 
   Let Hskip : Pc [::].
   Proof.
@@ -541,7 +540,7 @@ Qed.
     set m1 := remove_cpm m (write_i (Cfor i (dir, hi,low) c)).
     have Hm1 /= : valid_map (evm s) m1 by apply valid_map_rm with (evm s).
     case Heq: const_prop => [m' c'] /=;split.
-    + apply valid_map_rm with (evm s)=> //; by apply (@write_iP valid_addr).
+    + apply valid_map_rm with (evm s)=> //; by apply (@write_iP).
     apply sem_seq1;inversion H;clear H;subst.  
     apply EFor with vlow vhi.
     + by apply const_prop_eP. + by apply const_prop_eP.
@@ -570,7 +569,7 @@ Qed.
     set m1 := remove_cpm m (write_i (Cwhile e c)).
     have Hm1 /= : valid_map (evm s) m1 by apply valid_map_rm with (evm s).
     case Heq: const_prop => [m' c'] /=;split.
-    + apply valid_map_rm with (evm s)=> //; by apply (@write_iP valid_addr).
+    + apply valid_map_rm with (evm s)=> //; by apply (@write_iP).
     apply sem_seq1;inversion H;clear H;subst;constructor.
     move: Hc Heq Hm1;rewrite /m1=> {m1 Hm}.
     elim: H4=> {e c s s'}.
@@ -612,8 +611,8 @@ Qed.
   Qed.
 
   Lemma const_prop_callP ta tr (f : fundef ta tr) mem mem' va vr: 
-    sem_call valid_addr mem f va mem' vr -> 
-    sem_call valid_addr mem (const_prop_call f) va mem' vr.
+    sem_call mem f va mem' vr -> 
+    sem_call mem (const_prop_call f) va mem' vr.
   Proof.
     apply (@func_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc).
   Qed.

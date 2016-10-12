@@ -7,6 +7,7 @@ From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import ZArith.
 
 Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
+Require Import memory.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -119,8 +120,6 @@ Record sestate := SEstate {
 
 Section SEM.
 
-Variable valid_addr : word -> bool.
-
 Definition ssem_bcmd (es : sestate) (bc : bcmd) : exec sestate :=
   match bc with
   | Assgn st rv pe =>
@@ -129,14 +128,14 @@ Definition ssem_bcmd (es : sestate) (bc : bcmd) : exec sestate :=
       ok (SEstate es.(semem) vm)
   | Load rv pe_addr =>
       let p := ssem_pexpr es.(sevm) pe_addr in
-      read_mem valid_addr es.(semem) p >>= fun w =>
+      read_mem es.(semem) p >>= fun w =>
       let vm := swrite_rval es.(sevm) rv w in
       ok (SEstate es.(semem) vm)
 
   | Store pe_addr pe_val =>
       let p := ssem_pexpr es.(sevm) pe_addr in
       let w := ssem_pexpr es.(sevm) pe_val in
-      write_mem valid_addr es.(semem) p w >>= fun m =>
+      write_mem es.(semem) p w >>= fun m =>
       ok (SEstate m es.(sevm))
   end.
 

@@ -5,18 +5,14 @@ Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
-Require Import finmap strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
+Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr 
+               memory dmasm_sem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Import GRing.Theory.
-
-Local Open Scope ring_scope.
-Local Open Scope fun_scope.
 Local Open Scope vmap.
-Local Open Scope fset.
 Local Open Scope seq_scope.
 
 (* ** inlining
@@ -138,12 +134,10 @@ Definition check_inline_fd ta tr (fd:fundef ta tr) :=
           
 Section PROOF.
 
-  Variable valid_addr : word -> bool.
-
   Lemma assgn_tupleP m vm t (e:pexpr t) x v:
      disjoint (vrv x) (read_e e) ->  
      sem_pexpr vm e = Ok error v ->
-     sem valid_addr {| emem := m; evm := vm |} (assgn_tuple x e)
+     sem {| emem := m; evm := vm |} (assgn_tuple x e)
          {| emem := m; evm := write_rval vm x v |}.
   Proof.
     elim: x vm e v=> [x | ?? rv1 Hrv1 rv2 Hrv2] vm e v /= Hdisj He.
@@ -160,18 +154,18 @@ Section PROOF.
   Qed.
 
   Let Pi (i:instr) := 
-    forall m1 m2 vm1 vm2, sem_i valid_addr (Estate m1 vm1) i (Estate m2 vm2) ->
+    forall m1 m2 vm1 vm2, sem_i (Estate m1 vm1) i (Estate m2 vm2) ->
     forall s1 s2, check_inline_i i s2 = Ok unit s1 ->
     forall vm1', vm1 =[s1] vm1' -> 
     exists vm2', vm2 =[s2] vm2' /\ 
-      sem valid_addr (Estate m1 vm1') (inline_i i) (Estate m2 vm2').
+      sem (Estate m1 vm1') (inline_i i) (Estate m2 vm2').
 
   Let Pc (c:cmd) := 
-    forall m1 m2 vm1 vm2, sem valid_addr (Estate m1 vm1) c (Estate m2 vm2) ->
+    forall m1 m2 vm1 vm2, sem (Estate m1 vm1) c (Estate m2 vm2) ->
     forall s1 s2,  check_inline check_inline_i c s2 = Ok unit s1 ->
     forall vm1', vm1 =[s1] vm1' -> 
     exists vm2', vm2 =[s2] vm2' /\ 
-      sem valid_addr (Estate m1 vm1') (inline_cmd inline_i c) (Estate m2 vm2').
+      sem (Estate m1 vm1') (inline_cmd inline_i c) (Estate m2 vm2').
 
   Let Hskip : Pc [::].
   Proof. 
@@ -201,7 +195,7 @@ Section PROOF.
         by rewrite -/(read_e e);apply: eq_onI Hvm1;rewrite read_eE;SvD.fsetdec.
       by apply write_rval_eq_on;apply: eq_onI Hvm1;rewrite read_eE;SvD.fsetdec.
     + move=> r e;case He: (sem_pexpr _ e) => [v|]//=.
-      case Hre : (read_mem valid_addr m1 v) => [v'|]//= [] <- <- /= <- vm1' Hvm1.
+      case Hre : (read_mem m1 v) => [v'|]//= [] <- <- /= <- vm1' Hvm1.
       exists (write_rval vm1' r v');split.
       + by apply write_rval_eq_on;apply: eq_onI Hvm1;rewrite read_eE;SvD.fsetdec.
       apply sem_seq1;constructor=> /=.
@@ -209,7 +203,7 @@ Section PROOF.
       by rewrite -/(read_e e);apply: eq_onI Hvm1;rewrite read_eE;SvD.fsetdec.
     move=> e1 e2;case He1: (sem_pexpr _ e1) => [v1|]//=.
     case He2: (sem_pexpr _ e2) => [v2|]//=.
-    case Hw: (write_mem valid_addr m1 v1 v2) => [m|]//= [] <- <- <- vm1' Hvm1.
+    case Hw: (write_mem m1 v1 v2) => [m|]//= [] <- <- <- vm1' Hvm1.
     exists vm1';split=> //.
     + apply: eq_onI Hvm1;rewrite !read_eE;SvD.fsetdec.
     apply sem_seq1;constructor => /=.
@@ -245,13 +239,13 @@ Section PROOF.
     + pose st1 := {| emem := m1; evm := vm1 |}; pose st2:= {| emem := m2; evm := vm2 |}.
       rewrite (_:vm1 = evm st1) // (_:vm2 = evm st2) //.
       rewrite (_:m1 = emem st1) // (_:m2 = emem st2) //.
-      have: sem_for valid_addr i [seq n2w i | i <- wrange dir vlow vhi] st1 c st2 ->
+      have: sem_for i [seq n2w i | i <- wrange dir vlow vhi] st1 c st2 ->
             check_inline check_inline_i c s2 = Ok unit s1' -> Pc c -> 
             Sv.Subset (Sv.diff s1' (vrv i)) s2 ->
             forall vm1',  evm st1 =[s2]  vm1' ->
              exists vm2' : vmap, 
              evm st2 =[s2]  vm2' /\
-             sem_for valid_addr i [seq n2w i | i <- wrange dir vlow vhi]
+             sem_for i [seq n2w i | i <- wrange dir vlow vhi]
                 {| emem := emem st1; evm := vm1' |} (inline_cmd inline_i c)
                 {| emem := emem st2; evm := vm2' |}.
       + move: st1 st2 => {Hrec H7 H8 H9 Hc Heq Hsub vm1 vm2 m1 m2} st1 st2.
@@ -291,7 +285,7 @@ Section PROOF.
         vm1 =[s2']  vm1' ->
         exists vm2' : vmap,
           vm2 =[s2']  vm2' /\
-          sem_while valid_addr {| emem := m1; evm := vm1' |} e (inline_cmd inline_i c)
+          sem_while {| emem := m1; evm := vm1' |} e (inline_cmd inline_i c)
                     {| emem := m2; evm := vm2' |}.
       + move: H4 Hsub Heq Hc.
         set st1 := {| emem := m1; evm := vm1 |}; set st2:= {| emem := m2; evm := vm2 |}.
@@ -359,9 +353,9 @@ Section PROOF.
   Qed.
   
   Lemma inlineP ta tr (fd:fundef ta tr) mem mem' va vr s: 
-    sem_call valid_addr mem fd va mem' vr ->
+    sem_call mem fd va mem' vr ->
     check_inline_fd fd = Ok unit s ->
-    sem_call valid_addr mem (inline_fd fd) va mem' vr.
+    sem_call mem (inline_fd fd) va mem' vr.
   Proof.
     rewrite /check_inline_fd=> H;inversion H;clear H;subst.
     inversion H0;clear H0;subst. 

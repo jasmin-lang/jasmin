@@ -4,8 +4,8 @@
 Require Import JMeq ZArith Setoid Morphisms.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple finfun.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import gen_map word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem 
-               dmasm_Ssem.
+Require Import gen_map word dmasm_utils dmasm_type dmasm_var dmasm_expr memory
+               dmasm_sem dmasm_Ssem.
 
 Import GRing.Theory.
 Set Implicit Arguments.
@@ -32,16 +32,14 @@ Qed.
 
 Section SEM.
 
-Variable valid_addr : word -> bool.
-
 Lemma writeP c s1 s2 : 
-   ssem valid_addr s1 c s2 -> s1.(sevm) = s2.(sevm) [\ write_c c].
+   ssem s1 c s2 -> s1.(sevm) = s2.(sevm) [\ write_c c].
 Proof.
   apply (@cmd_rect
            (fun i => forall s1 s2,
-                       ssem_i valid_addr s1 i s2 -> s1.(sevm) = s2.(sevm) [\ write_i i])
+                       ssem_i s1 i s2 -> s1.(sevm) = s2.(sevm) [\ write_i i])
            (fun c => forall s1 s2, 
-                       ssem valid_addr s1 c s2 -> s1.(sevm) = s2.(sevm) [\ write_c c])
+                       ssem s1 c s2 -> s1.(sevm) = s2.(sevm) [\ write_c c])
            (fun _ _ _ => True)) => /= {c s1 s2}
     [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|x rn c Hc|e c Hc|?? x f a _|//] s1 s2 Hsem;
     inversion Hsem=>{Hsem};subst=> // z.

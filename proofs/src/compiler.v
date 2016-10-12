@@ -2,7 +2,7 @@ Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
-Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
+Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr memory dmasm_sem.
 Require Import allocation inlining unrolling constant_prop dead_code array_expansion.
 Require Import linear.
 
@@ -10,10 +10,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Import GRing.Theory.
-
-Local Open Scope ring_scope.
-Local Open Scope fun_scope.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
@@ -54,23 +50,21 @@ Definition compile_fd ta tr (fd:fundef ta tr) :=
 
 Section PROOF.
 
-Variable valid_addr : word -> bool.
-
 Lemma unroll1P ta tr (fd fd':fundef ta tr) mem va mem' vr:
   unroll1 fd = Ok unit fd' ->
-  sem_call valid_addr mem fd  va mem' vr ->
-  sem_call valid_addr mem fd' va mem' vr.
+  sem_call mem fd  va mem' vr ->
+  sem_call mem fd' va mem' vr.
 Proof.
   rewrite /unroll1=> Heq Hsem.
-  have := dead_code_callP valid_addr (const_prop_call (unroll_call fd)) mem mem' va vr.
+  have := dead_code_callP (const_prop_call (unroll_call fd)) mem mem' va vr.
   rewrite Heq=> H;apply H=> {H}.
   by apply const_prop_callP;apply unroll_callP.
 Qed.
 
 Lemma unrollP ta tr (fd fd':fundef ta tr) mem va mem' vr:
   unroll nb_loop fd = Ok unit fd' ->
-  sem_call valid_addr mem fd  va mem' vr ->
-  sem_call valid_addr mem fd' va mem' vr.
+  sem_call mem fd  va mem' vr ->
+  sem_call mem fd' va mem' vr.
 Proof.
   elim: nb_loop fd => /= [fd [] ->//|n Hn fd].
   case Heq: unroll1=> [fd1|] //=.
@@ -82,8 +76,8 @@ Opaque nb_loop.
 
 Lemma compile_fdP ta tr (fd:fundef ta tr) (fd':lfundef ta tr)mem va mem' vr:
   compile_fd fd = Ok unit fd' ->
-  sem_call valid_addr mem fd va mem' vr ->
-  lsem_fd valid_addr fd' va mem mem' vr.
+  sem_call mem fd va mem' vr ->
+  lsem_fd fd' va mem mem' vr.
 Proof.
   rewrite /compile_fd.
   case Hrn:  CheckAlloc.check_fd => //=.

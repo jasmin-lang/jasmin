@@ -10,35 +10,9 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Import GRing.Theory.
-
 Open Scope string_scope.
-Local Open Scope ring_scope.
 
-(* ** Memory
- * -------------------------------------------------------------------- *)
 
-Inductive error := ErrOob | ErrAddrUndef | ErrAddrInvalid.
-
-Definition exec t := result error t.
-Definition ok := Ok error. 
-
-Definition word := I64.int.
-Definition mem := word -> word.
-
-Section MEM.
- 
-Variable valid_addr : word -> bool.
-
-Definition read_mem (m : mem) (p : word) : exec word :=
-  if valid_addr p then Ok error (m p)
-  else Error ErrAddrInvalid.
-
-Definition write_mem (m : mem) (p w : word) : exec mem :=
-  if valid_addr p then ok (fun p' => if p' == p then w else m p')
-  else Error ErrAddrInvalid.
-
-End MEM.
 
 (* ** Operators
  * -------------------------------------------------------------------- *)
@@ -654,3 +628,36 @@ with eqb_fundef ta1 tr1 (fd1:fundef ta1 tr1) ta2 tr2 (fd2:fundef ta2 tr2) :=
 
 Lemma eqb_dirP d1 d2 : reflect (d1 = d2) (eqb_dir d1 d2).
 Proof. by case: d1 d2 => -[] /=;constructor. Qed.
+
+Lemma eqb_pexprP t1 (e1:pexpr t1) t2 (e2:pexpr t2):
+    eqb_pexpr e1 e2 -> t1 = t2 /\ JMeq e1 e2.
+Proof.
+  elim:e1 t2 e2=>
+    [x1|z1|b1|?? o1 e1 H1|??? o1 e11 H1 e12 H2|???? o1 e11 H1 e12 H2 e13 H3] t2
+    [x2|z2|b2|?? o2 e2   |??? o2 e21    e22   |???? o2 e21    e22    e23] //=.
+  + by move=> /eqP ->. + by move=> /eqP ->. + by move=> /eqP ->.
+  + by move=> /andP[] /eqb_sop1P H /H1[] ?;subst;case:H=> // ?;subst=> -> ->.
+  + move=> /andP[]/andP[] /eqb_sop2P H /H1 [] ? Heq1;subst.
+    by move=> /H2[] ? Heq2;subst;case:H => // ?;subst=> ->.
+  move=> /andP[]/andP[]/andP[] /eqb_sop3P H /H1 [] ? Heq1;subst.
+  move=> /H2[] ? Heq2;subst; move=> /H3[] ? Heq3;subst.
+  by case:H => // ?;subst=> ->.
+Qed.
+
+Lemma eqb_rvalP t1 (x1:rval t1) t2 (x2:rval t2):
+    eqb_rval x1 x2 -> t1 = t2 /\ JMeq x1 x2.
+Proof.
+  elim: x1 t2 x2=> [x1 | ?? x11 H1 x12 H2] t2 [x2 | ?? x21 x22] //=.
+  + by move=> /eqP ->.
+  by move=> /andP[] /H1[]?;subst=> -> /H2[]?;subst=> ->.
+Qed.
+
+Lemma eqb_bcmdP (i1 i2:bcmd) : eqb_bcmd i1 i2 -> i1 = i2.
+Proof.
+  case: i1 i2=> [? x1 e1|x1 e1|e11 e12] [? x2 e2|x2 e2|e21 e22] //= /andP [].
+  + by move=> /eqb_rvalP []?;subst=> -> /eqb_pexprP[]?;subst=> ->.
+  + by move=> /eqb_rvalP []?;subst=> -> /eqb_pexprP[]?;subst=> ->.
+  by move=> /eqb_pexprP []?;subst=> -> /eqb_pexprP[]?;subst=> ->.
+Qed.
+
+ 

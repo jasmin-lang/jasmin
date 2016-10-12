@@ -4,7 +4,7 @@ From mathcomp Require Import choice fintype eqtype div seq zmodp.
 
 Require Import strings word dmasm_utils.
 Require Import dmasm_type dmasm_var dmasm_expr.
-Require Import dmasm_sem dmasm_Ssem dmasm_Ssem_props.
+Require Import memory dmasm_sem dmasm_Ssem dmasm_Ssem_props.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -97,10 +97,8 @@ Qed.
 (* -------------------------------------------------------------------- *)
 Section SEM.
 
-Variable valid_addr : word -> bool.
-
-Lemma st2sst_bcmd s1 c s2 : sem_bcmd valid_addr s1 c = ok s2 ->
-  ssem_bcmd valid_addr s1 c = ok (s2 : sestate).
+Lemma st2sst_bcmd s1 c s2 : sem_bcmd s1 c = ok s2 ->
+  ssem_bcmd s1 c = ok (s2 : sestate).
 Proof.
 case: c=> [st r p|r p|p p'] /=.
 + move=> h; case: (bindW h) => v {h} /st2sst_pexpr.
