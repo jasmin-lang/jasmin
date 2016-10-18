@@ -431,39 +431,269 @@ let array_expand_modul modul fname =
   let f_fun f = if f.f_name = fname then array_expand_func f else f in
   { modul with m_funcs = List.map modul.m_funcs ~f:f_fun }
 
-(* ** Validate transformation (assuming that transform_ssa correct)
- * ------------------------------------------------------------------------ *)
-
-let validate_transform _efun0 _edef0 _efun _edef =
-  failwith "undefined"
-(*
-  if not (equal_efun (transform_ssa efun0) (transform_ssa efun)) then (
-    (* shrink counter-example *)
-   for i = 1 to List.length edef.ef_body do
-      let efun0  = shorten_efun i efun0 in
-      let efun   = shorten_efun i efun in
-      let tefun0 = transform_ssa efun0 in
-      let tefun  = transform_ssa efun in
-      if not (equal_efun tefun tefun0) then (
-        Out_channel.write_all "/tmp/before" ~data:(fsprintf "%a" pp_efun efun0);
-        Out_channel.write_all "/tmp/after" ~data:(fsprintf "%a" pp_efun efun);
-        Out_channel.write_all "/tmp/before_ssa" ~data:(fsprintf "%a" pp_efun tefun0);
-        Out_channel.write_all "/tmp/after_ssa" ~data:(fsprintf "%a" pp_efun tefun);
-        failwith "failure: see /tmp/before and /tmp/after for invalid renaming"
-      )
-    done;
-    assert false
-  )
-*)
-
 (* ** Register liveness
  * ------------------------------------------------------------------------ *)
 
+(* *** Liveness information definitions *)
+
+type node =
+  | NbI     of base_instr
+  | Nreturn of name list
+  | Nenter
+  | Nargs   of name list
+  | Njump   of fcond
+
+(* hashtable that holds the CFG and the current liveness information *)
 type live_info = {
-  li_bi : base_instr;
-  li_read_after_rhs : Dest.Set.t; (* the set of registers that might be read after
-                                     the RHS of bi has been evaluated *)
+  li_use  : SS.t      Pos.Table.t;
+  li_def  : SS.t      Pos.Table.t;
+  li_succ : Pos.Set.t Pos.Table.t;
+  li_pred : Pos.Set.t Pos.Table.t;
+  li_live : SS.t      Pos.Table.t;
+  li_str  : string    Pos.Table.t;
 }
+
+let enter_fun_pos  = [-1]
+let args_fun_pos   = [-2]
+let return_fun_pos = [-3]
+
+let li_get_use linfo pos = hashtbl_find_exn linfo.li_use pp_pos pos 
+let li_get_def linfo pos = hashtbl_find_exn linfo.li_def pp_pos pos
+let li_get_str linfo pos = hashtbl_find_exn linfo.li_str pp_pos pos
+let li_get_pred linfo pos =
+  Pos.Table.find linfo.li_pred pos |> Option.value ~default:Pos.Set.empty
+let li_get_succ linfo pos =
+  Pos.Table.find linfo.li_succ pos |> Option.value ~default:Pos.Set.empty
+let li_get_live linfo pos =
+  Pos.Table.find linfo.li_live pos |> Option.value ~default:SS.empty
+
+let li_add_succ linfo ~pos ~succ =
+  Pos.Table.change linfo.li_succ pos
+    ~f:(function | None   -> Some(Pos.Set.singleton succ)
+                 | Some s -> Some(Pos.Set.add s     succ))
+
+let li_add_pred linfo ~pos ~pred =
+  Pos.Table.change linfo.li_pred pos
+    ~f:(function | None   -> Some(Pos.Set.singleton pred)
+                 | Some s -> Some(Pos.Set.add s     pred))
+
+let li_pred_of_succ linfo =
+  Pos.Table.iteri linfo.li_succ
+    ~f:(fun ~key ~data ->
+          Pos.Set.iter data ~f:(fun pos -> li_add_pred linfo ~pos ~pred:key))
+
+let li_succ_of_pred linfo =
+  Pos.Table.iteri linfo.li_pred
+    ~f:(fun ~key ~data ->
+          Pos.Set.iter data ~f:(fun pos -> li_add_succ linfo ~pos ~succ:key))
+
+let pp_set pp_elem to_list fmt ss =
+  F.fprintf fmt "{%a}" (pp_list "," pp_elem) (to_list ss)
+
+let pp_set_string =
+  pp_set pp_string (fun s -> List.sort ~cmp:compare_string (SS.to_list s))
+let pp_set_pos =
+  pp_set pp_pos (fun s -> List.sort ~cmp:compare_pos (Pos.Set.to_list s))
+
+let pp_pos_table pp_data fmt li_ss =
+  List.iter
+    (List.sort ~cmp:(fun a b -> compare_pos (fst a) (fst b))
+       (Pos.Table.to_alist li_ss))
+    ~f:(fun (key,data) ->
+          F.fprintf fmt "%a -> %a; " pp_pos key pp_data data)
+
+let pp_live_info fmt li =
+  F.fprintf fmt "use: %a\ndef: %a\nsucc: %a\npred: %a\nlive: %a\n"
+    (pp_pos_table pp_set_string) li.li_use
+    (pp_pos_table pp_set_string) li.li_def
+    (pp_pos_table pp_set_pos)    li.li_succ
+    (pp_pos_table pp_set_pos)    li.li_pred
+    (pp_pos_table pp_set_string) li.li_live 
+
+let string_of_instr = function
+  | Binstr(bi)          -> fsprintf "%a"               pp_base_instr bi
+  | If(Fcond(fc),_,_)   -> fsprintf "if %a {} else {}" pp_fcond fc
+  | While(WhileDo,fc,_) -> fsprintf "while %a {}"      pp_fcond fc
+  | While(DoWhile,fc,_) -> fsprintf "do {} while %a;"  pp_fcond fc
+  | _                   -> fsprintf "string_of_instr: unexpected instruction"
+
+let dump_live_info linfo fname =
+  let to_string pos =
+    fsprintf "\"%a: %s :: def=%a use=%a live=%a\""
+      pp_pos pos
+      (li_get_str linfo pos)
+      pp_set_string (li_get_def linfo pos)
+      pp_set_string (li_get_use linfo pos)
+      pp_set_string (li_get_live linfo pos)
+  in
+  let g = ref G.empty in
+  Pos.Table.iteri linfo.li_succ
+    ~f:(fun ~key ~data ->
+          g := G.add_vertex !g (to_string key);
+          Pos.Set.iter data
+            ~f:(fun succ -> g := G.add_edge !g (to_string key) (to_string succ)));
+  let file = open_out_bin fname in
+  Dot.output_graph file !g
+
+(* *** CFG traversal *)
+
+let traverse_cfg ~f linfo =
+  let visited = Pos.Table.create () in
+  let rec go pos =
+    f pos;
+    Pos.Table.set visited ~key:pos ~data:();
+    Pos.Set.iter (Pos.Table.find linfo.li_pred pos
+                  |> Option.value ~default:Pos.Set.empty)
+      ~f:(fun p -> if Pos.Table.find visited p = None then go p)
+  in
+  go return_fun_pos
+
+let update_liveness linfo changed pos =
+  let succs = li_get_succ linfo pos in
+  if not (Pos.Set.is_empty (Pos.Set.inter !changed succs)) then (
+    let live = ref SS.empty in
+    Pos.Set.iter succs
+      ~f:(fun pos ->
+            let live_s = li_get_live linfo pos in
+            let def_s  = li_get_def  linfo pos in
+            let use_s  = li_get_use  linfo pos in
+            live := SS.union !live (SS.union (SS.diff live_s def_s) use_s));
+    if not (SS.equal !live (li_get_live linfo pos)) then (
+      changed := Set.add !changed pos;
+      Pos.Table.set linfo.li_live ~key:pos ~data:!live
+    )
+  )
+
+(* *** Liveness information computation *)
+
+let rec init_liveness_instr linfo ~path ~idx ~exit_p instr =
+  let pos = path@[idx] in
+  let succ_pos = Option.value exit_p ~default:(path@[idx + 1]) in
+  let li_use  = linfo.li_use  in
+  let li_def  = linfo.li_def  in
+  let _li_succ = linfo.li_succ in
+  let li_str  = linfo.li_str  in
+  (* set use, def, and str *)
+  Pos.Table.set li_use ~key:pos ~data:(use_instr instr);
+  Pos.Table.set li_def ~key:pos ~data:(def_instr instr);
+  Pos.Table.set li_str ~key:pos ~data:(string_of_instr instr);
+  (* set succ and recursively initialize blocks in if and while *)
+  match instr with
+
+  | Binstr(_) ->
+    li_add_succ linfo ~pos ~succ:succ_pos
+
+  | If(Fcond(_),s1,s2) ->
+    init_liveness_block linfo ~path:(pos@[0]) ~entry_p:pos ~exit_p:succ_pos s1;
+    init_liveness_block linfo ~path:(pos@[1]) ~entry_p:pos ~exit_p:succ_pos s2
+    
+  | While(WhileDo,_,s) ->
+    if s=[] then (
+      li_add_succ linfo ~pos ~succ:pos
+    ) else (
+      li_add_succ linfo ~pos:(pos@[0;List.length s - 1]) ~succ:pos;
+    );
+    init_liveness_block linfo ~path:(pos@[0]) ~entry_p:pos ~exit_p:succ_pos s
+    
+  | While(DoWhile,fc,s) ->
+    (* the use is associated with a later node *)
+    Pos.Table.set li_use ~key:pos ~data:SS.empty;
+    Pos.Table.set li_str ~key:pos ~data:"do {";
+    (* add node where test and backwards jump happens *)
+    let exit_pos = pos@[1] in
+    let exit_str = fsprintf "} while %a;" pp_fcond fc in
+    Pos.Table.set li_use ~key:exit_pos ~data:(use_instr instr);
+    Pos.Table.set li_def ~key:exit_pos ~data:SS.empty;
+    Pos.Table.set li_str ~key:exit_pos ~data:exit_str;
+    li_add_succ linfo ~pos:exit_pos ~succ:pos;
+    li_add_succ linfo ~pos:exit_pos ~succ:succ_pos;
+    init_liveness_block linfo ~path:(pos@[0]) ~entry_p:pos ~exit_p:exit_pos s
+
+  | If(Pcond(_),_,_)
+  | For(_,_,_,_)     -> failwith "liveness analysis: unexpected instruction"
+
+and init_liveness_block linfo ~path ~entry_p ~exit_p stmt =
+  let rec go ~path ~idx = function
+    | [] -> failwith "liveness analysis: impossible case"
+    | [i] ->
+      init_liveness_instr linfo ~path ~idx ~exit_p:(Some exit_p) i.L.l_val
+    | i::s ->
+      init_liveness_instr linfo ~path ~idx ~exit_p:None i.L.l_val;
+      go ~path ~idx:(idx+1) s
+  in
+  if stmt =[] then (
+    (* empty statement goes from entry to exit *)
+    li_add_succ linfo ~pos:entry_p ~succ:exit_p
+  ) else (
+    (* initialize first node *)
+    let first_pos = path@[0] in
+    li_add_succ linfo ~pos:entry_p ~succ:first_pos;
+    (* initialize statements *)
+    go ~path ~idx:0 stmt
+  )
+
+let compute_liveness_stmt linfo stmt ~enter_def ~return_use =
+  (* initialize function return node *)
+  let ret_str = fsprintf "return %a" (pp_list "," pp_string) return_use in
+  Pos.Table.set linfo.li_str ~key:return_fun_pos ~data:ret_str;
+  Pos.Table.set linfo.li_use ~key:return_fun_pos ~data:(SS.of_list return_use);
+  Pos.Table.set linfo.li_def ~key:return_fun_pos ~data:(SS.empty);
+  (* initialize function enter node *)
+  Pos.Table.set linfo.li_str ~key:enter_fun_pos ~data:"enter";
+  Pos.Table.set linfo.li_use ~key:enter_fun_pos ~data:SS.empty;
+  Pos.Table.set linfo.li_def ~key:enter_fun_pos ~data:SS.empty;
+  li_add_succ linfo ~pos:enter_fun_pos ~succ:args_fun_pos;
+  (* initialize function args node *)
+  let args_str = fsprintf "args %a" (pp_list "," pp_string) enter_def in
+  Pos.Table.set linfo.li_str ~key:args_fun_pos ~data:args_str;
+  Pos.Table.set linfo.li_use ~key:args_fun_pos ~data:(SS.empty);
+  Pos.Table.set linfo.li_def ~key:args_fun_pos ~data:(SS.of_list enter_def);
+  (* compute CFG into linfo *)
+  init_liveness_block linfo ~path:[] stmt
+    ~entry_p:args_fun_pos
+    ~exit_p:return_fun_pos;
+  (* add backward edges to CFG *)
+  li_pred_of_succ linfo;
+  (* update liveness information in live_info *)
+  let cont = ref true in
+  let changed_initial = Pos.Set.singleton return_fun_pos in
+  while !cont do
+    print_endline "iterate";
+    let changed = ref changed_initial  in
+    traverse_cfg ~f:(update_liveness linfo changed) linfo;
+    if Pos.Set.equal !changed changed_initial then cont := false
+  done
+
+let compute_liveness_fundef fdef arg_defs =
+  let stmt = fdef.fd_body in
+  let linfo =
+    { li_use  = Pos.Table.create ()
+    ; li_def  = Pos.Table.create ()
+    ; li_succ = Pos.Table.create ()
+    ; li_pred = Pos.Table.create ()
+    ; li_str  = Pos.Table.create ()
+    ; li_live = Pos.Table.create () }
+  in
+  compute_liveness_stmt linfo stmt ~enter_def:arg_defs ~return_use:fdef.fd_ret;
+  linfo
+
+let compute_liveness_func func =
+  let fdef = match func.f_def with
+    | Def fd -> fd
+    | Undef  -> failwith "Cannot add liveness annotations to undefined function"
+    | Py(_)  -> failwith "Cannot add liveness annotations to python function"
+  in
+  compute_liveness_fundef fdef
+
+let compute_liveness_modul modul fname =
+  match List.find modul.m_funcs ~f:(fun f -> f.f_name = fname) with
+  | Some func ->
+    let args_def = List.map ~f:(fun (_,n,_) -> n) func.f_args in
+    compute_liveness_func func args_def
+  | None      -> failwith "compute_liveness: function with given name not found"
+
+(* ** Old register liveness
+ * ------------------------------------------------------------------------ *)
 
 (* returns a list of tuples (bi, V) denoting that the instructions
    bi;... depend on the registers V *)

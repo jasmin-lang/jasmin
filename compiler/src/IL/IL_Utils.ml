@@ -716,3 +716,147 @@ let failtype_ loc fmt =
       let s = Buffer.contents buf in
       failtype loc s)
     fbuf fmt
+
+(* ** Variable uses and definitions (for liveness)
+ * ------------------------------------------------------------------------ *)
+
+let use_opt_src os =
+  Option.value_map ~default:SS.empty ~f:(fun s -> pvars_src s) os
+
+let use_op = function
+  | Carry(_,_,os) -> use_opt_src os
+  | CMov(fc)      -> SS.singleton fc.fc_flag
+  | ThreeOp(_)    -> SS.empty
+  | Umul(_)       -> SS.empty
+  | Shift(_,_)    -> SS.empty
+
+let use_binstr = function
+  | Assgn(_,s,_)           -> pvars_src s
+  | Op(o,_,(s1,s2))        -> SS.union_list [ pvars_src s1; pvars_src s2; use_op o ]
+  | Load(_,s,Pconst(_))   -> pvars_src s
+  | Store(s1,Pconst(_),s2) -> SS.union (pvars_src s1) (pvars_src s2)
+  | Comment(_)             -> SS.empty
+
+  | Call(_,_,_)
+  | Store(_,_,_)
+  | Load(_,_,_)            -> failwith "use_binstr: unexpected basic instruction"
+
+let use_instr = function
+  | Binstr(bi)        -> use_binstr bi
+  | If(Fcond(fc),_,_) -> pvars_fcond fc
+  | While(_,fc,_)     -> pvars_fcond fc
+  | If(Pcond(_),_,_)
+  | For(_,_,_,_)        -> failwith "use_instr: unexpected instruction"
+
+(* and use_stmt ~use = function *)
+(*   | [] -> () *)
+(*   | instr::stmt -> *)
+(*     use_instr ~use instr.L.l_val; *)
+(*     use_stmt ~use stmt *)
+
+(* ** Variable definitions (for liveness)
+ * ------------------------------------------------------------------------ *)
+
+let def_opt_dest od =
+  Option.value_map ~default:SS.empty ~f:(fun s -> pvars_dest s) od
+
+let def_op = function
+  | Carry(_,od,_) -> def_opt_dest od
+  | Umul(d)       -> pvars_dest d
+  | Shift(_,od)   -> def_opt_dest od
+  | CMov(_)       -> SS.empty
+  | ThreeOp(_)    -> SS.empty
+
+let def_binstr = function
+  | Assgn(d,_,_)         -> pvars_dest d
+  | Op(o,d,(_,_))        -> SS.union (pvars_dest d) (def_op o)
+  | Load(d,_,Pconst(_))  -> pvars_dest d
+  | Store(_,Pconst(_),_) -> SS.empty
+  | Comment(_)           -> SS.empty
+
+  | Call(_,_,_)
+  | Store(_,_,_)
+  | Load(_,_,_)          -> failwith "def_binstr: unexpected basic instruction"
+
+let def_instr = function
+  | Binstr(bi)       -> def_binstr bi
+  | If(Fcond(_),_,_) -> SS.empty
+  | While(_,_,_)     -> SS.empty
+
+  | If(Pcond(_),_,_)
+  | For(_,_,_,_)     -> failwith "def_instr: unexpected instruction"
+
+(* let rec def_instr = function *)
+(*   | Binstr(bi) -> *)
+(*     use := SS.union !use (use_binstr bi) *)
+(*   | If(Fcond(fc),s1,s2) -> *)
+(*     use_stmt ~use s1; *)
+(*     use_stmt ~use s2; *)
+(*     use := SS.union !use (pvars_fcond fc) *)
+(*   | While(_,fc,s) -> *)
+(*     use_stmt ~use s; *)
+(*     use := SS.union !use (pvars_fcond fc) *)
+
+(*   | If(Pcond(_),_,_) *)
+(*   | For(_,_,_,_) -> *)
+(*     failwith "def_instr: unexpected instruction" *)
+
+(* and def_stmt = *)
+(*  function *)
+(*   | [] -> SS.empty *)
+(*   | instr::stmt -> *)
+(*     use_instr ~use instr.L.l_val; *)
+(*     use_stmt ~use stmt *)
+
+(* ** Positions
+ * ------------------------------------------------------------------------ *)
+
+type pos = int list
+  [@@deriving compare,sexp]
+
+let pp_pos fmt pos = F.fprintf fmt "[%a]" (pp_list "," pp_int) pos
+
+module Pos = struct
+  module T = struct
+    type t = pos [@@deriving compare,sexp]
+    let compare = compare_pos
+    let hash v = Hashtbl.hash v
+  end
+  include T
+  include Comparable.Make(T)
+  include Hashable.Make(T)
+end
+
+(* ** Control flow graphs
+ * ------------------------------------------------------------------------ *)
+
+(* representation of a node -- must be hashable *)
+module Node = struct
+   type t = string
+   let compare = compare_string
+   let hash = Hashtbl.hash
+   let equal = (=)
+end
+
+(* representation of an edge -- must be comparable *)
+module Edge = struct
+   type t = string
+   let compare = Pervasives.compare
+   let equal = (=)
+   let default = ""
+end
+
+(* a functional/persistent graph *)
+module G = Graph.Persistent.Digraph.ConcreteBidirectionalLabeled(Node)(Edge)
+
+(* module for creating dot-files *)
+module Dot = Graph.Graphviz.Dot(struct
+   include G (* use the graph module from above *)
+   let edge_attributes (_a, e, _b) = [`Label e; `Color 4711]
+   let default_edge_attributes _ = []
+   let get_subgraph _ = None
+   let vertex_attributes _ = [`Shape `Box]
+   let vertex_name v = v
+   let default_vertex_attributes _ = []
+  let graph_attributes _ = []
+end)

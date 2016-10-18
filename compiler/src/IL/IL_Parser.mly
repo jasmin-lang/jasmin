@@ -241,7 +241,7 @@ instr :
 | FOR  cv=ID IN ce1=pexpr DOTDOT ce2=pexpr is=block
     { For(cv,ce1,ce2,is) }
 
-| WHILE fc=fcond IN is=block
+| WHILE fc=fcond is=block
     { While(WhileDo,fc,is) }
 
 | DO is=block WHILE fc=fcond SEMICOLON

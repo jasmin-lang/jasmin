@@ -13,17 +13,17 @@ open Arith
  * ------------------------------------------------------------------------ *)
 
 (* wrapper for liveness analysis that puts live sets into comments *)
-let transform_register_liveness _efunc =
-  failwith "undefined"
-  (*
-  let bis =
-    List.concat_map (register_liveness efunc)
-      ~f:(fun {li_bi = i; li_read_after_rhs = read} ->
-        [Comment (fsprintf "live: %a" (pp_list "," pp_preg) (Set.to_list read)); i])
-  in
-  { efunc with
-    ef_body = base_instrs_to_stmt bis }
-  *)
+let transform_register_liveness modul fname =
+  let live_info = compute_liveness_modul modul fname in
+  F.printf "%a" pp_live_info live_info;
+  let fname suffix = "/tmp/a"^suffix in
+  let dot = ".dot" in
+  let svg = ".svg" in
+  dump_live_info live_info (fname dot);
+  let res = Unix.system (fsprintf "dot %s -o%s -Tsvg" (fname dot) (fname svg)) in
+  if res <> Unix.WEXITED(0) then
+    failwith "dot failed some error code\n";
+  modul
 
 let strip_comments bis =
   List.filter ~f:(function Comment(_) -> false | _ -> true) bis
@@ -39,7 +39,7 @@ type transform =
   | Save of string * string option
   | RegisterAlloc of int
   | InlineCalls of string
-  | RegisterLiveness
+  | RegisterLiveness of string
   | StripComments
   | Asm of asm_lang
   | Interp of string * u64 String.Map.t * u64 U64.Map.t * value list
@@ -97,7 +97,8 @@ let ptrafo =
        option (bracketed ident) >>= fun fname -> return (Print(name,fname)))
     ; (string "save"  >> (bracketed ident) >>= fun name ->
        option (bracketed ident) >>= fun fname -> return (Save(name,fname)))
-    ; string "register_liveness" >>$ RegisterLiveness
+    ; (string "register_liveness" >> (bracketed ident) >>= fun fn ->
+       return (RegisterLiveness fn))
     ; string "strip_comments" >>$  StripComments
     ; (string "register_allocate" >> register_num >>= fun l ->
        return (RegisterAlloc(l)))
@@ -170,8 +171,8 @@ let apply_transform trafo (modul0 : modul) =
       Out_channel.write_all fname ~data:(fsprintf "%a" pp_modul modul_); modul
     | RegisterAlloc(_n) -> assert false
       (* register_allocate (min 15 n) efun *)
-    | RegisterLiveness -> assert false
-      (* transform_register_liveness efun *)
+    | RegisterLiveness(fname) ->
+      transform_register_liveness modul fname
     | MacroExpand(fname,m) ->
       notify "expanding macros" fname;
       macro_expand_modul m modul fname

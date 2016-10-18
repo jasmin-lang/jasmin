@@ -9,8 +9,9 @@ set -x
 
 ###########################################################################
 
-FUN="scalarmult"
+#FUN="scalarmult"
 
+ARG=""
 ARG="inline[$FUN],expand[$FUN][rem_p=38]"
 ARG="$ARG,array_assign_expand[$FUN]"
 ARG="$ARG,save[/tmp/unfold.mil][$FUN]"
@@ -18,9 +19,9 @@ ARG="$ARG,array_expand[$FUN]"
 ARG="$ARG,save[/tmp/unfold2.mil][$FUN]"
 ARG="$ARG,interp[rem_p=38][][test][]"
 
-./dmasm.native -t \
-  "$ARG" \
-  examples/25519-4limb/ladderstep.mil
+#./dmasm.native -t \
+#  "$ARG" \
+#  examples/25519-4limb/ladderstep.mil
 
 ###########################################################################
 
@@ -28,11 +29,22 @@ ARG="$ARG,interp[rem_p=38][][test][]"
 
 #ARG="inline[$FUN],expand[$FUN][rem_p=38]"
 #ARG="$ARG,array_expand[$FUN]"
-#ARG="$ARG,save[/tmp/unfold2.mil][$FUN]"
+#ARG="$ARG,save[/tmp/unfold.mil][$FUN]"
 
 #./dmasm.native -t \
 #  "$ARG" \
 #  tests/compiler/must_fail/t_01.mil # also t_02.mil
+
+###########################################################################
+
+FUN="test"
+
+ARG="register_liveness[$FUN]"
+ARG="$ARG,save[/tmp/unfold.mil][$FUN]"
+
+./dmasm.byte -t \
+  "$ARG" \
+  tests/compiler/ok/t_06.mil
 
 ###########################################################################
 
