@@ -19,7 +19,7 @@ let transform_register_liveness modul fname =
   let fname suffix = "/tmp/a"^suffix in
   let dot = ".dot" in
   let svg = ".svg" in
-  dump_live_info live_info (fname dot);
+  dump_live_info ~verbose:false live_info (fname dot);
   let res = Unix.system (fsprintf "dot %s -o%s -Tsvg" (fname dot) (fname svg)) in
   if res <> Unix.WEXITED(0) then
     failwith "dot failed some error code\n";
@@ -34,6 +34,7 @@ type transform =
   | MacroExpand of string * u64 String.Map.t
   | ArrayAssignExpand of string
   | ArrayExpand of string
+  | LocalSSA of string
   | Type
   | Print of string * string option
   | Save of string * string option
@@ -93,6 +94,8 @@ let ptrafo =
        return (ArrayAssignExpand fn))
     ; (string "array_expand" >> (bracketed ident) >>= fun fn ->
        return (ArrayExpand fn))
+    ; (string "local_ssa" >> (bracketed ident) >>= fun fn ->
+       return (LocalSSA fn))
     ; (string "print" >> (bracketed ident) >>= fun name ->
        option (bracketed ident) >>= fun fname -> return (Print(name,fname)))
     ; (string "save"  >> (bracketed ident) >>= fun name ->
@@ -127,19 +130,6 @@ let parse_trafo s =
     exit 1
 
 let apply_transform trafo (modul0 : modul) =
-  let _conv_trans _f _func =
-    assert false (*
-    let fdef = match func.f_def with
-      | Def d -> d
-      | Undef | Py _ -> failwith "cannot transform undefined function"
-    in
-    { func with
-      f_def = Def
-          { fdef with
-            fd_body = stmt_to_base_instrs fdef.fd_body |> f |> base_instrs_to_stmt}
-    }
-    *)
-  in
   let filter_fn modul ofname =
     match ofname with
     | Some fn -> { modul with
@@ -158,6 +148,9 @@ let apply_transform trafo (modul0 : modul) =
     | ArrayExpand(fname) ->
       notify "expanding register arrays" fname;
       array_expand_modul modul fname
+    | LocalSSA(fname) ->
+      notify "transforming into local SSA form" fname;
+      local_ssa_modul modul fname
     | ArrayAssignExpand(fname) ->
       notify "expanding array assignments" fname;
       array_assign_expand_modul modul fname

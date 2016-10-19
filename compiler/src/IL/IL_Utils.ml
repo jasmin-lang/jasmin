@@ -50,6 +50,11 @@ let src_of_fcond fc =
 
 let mk_base_instr loc bi = { L.l_loc = loc; L.l_val = Binstr(bi) }
 
+(* ** Occurence restriction for program variables
+ * ------------------------------------------------------------------------ *)
+
+type occ_restr = UseOnly | DefOnly
+
 (* ** Collect parameter vars
  * ------------------------------------------------------------------------ *)
 (* Return the set of parameter variables occuring inside the given value *)
@@ -348,10 +353,10 @@ let rename_src f = function
   | Imm _ as i -> i
   | Src d      -> Src (rename_dest f d)
 
-let rename_op f op =
-  let rnd = rename_dest f in
-  let rns = rename_src f in
-  let rnf = rename_fcond f in
+let rename_op ?rn_type f op =
+  let rnd = if rn_type=Some(UseOnly) then ident else rename_dest f in
+  let rns = if rn_type=Some(DefOnly) then ident else rename_src f in
+  let rnf = if rn_type=Some(DefOnly) then ident else rename_fcond f in
   match op with
   | ThreeOp(_)         -> op
   | Umul(d1)           -> Umul(rnd d1)
@@ -359,11 +364,11 @@ let rename_op f op =
   | Shift(dir,d1o)     -> Shift(dir,rename_opt rnd d1o)
   | Carry(cop,d1o,s1o) -> Carry(cop,rename_opt rnd d1o, rename_opt rns s1o)
 
-let rename_base_instr f bi =
-  let rnd = rename_dest f in
-  let rns = rename_src f in
-  let rno = rename_op f in
-  let rne = rename_pexpr f in
+let rename_base_instr ?rn_type f bi =
+  let rnd = if rn_type=Some(UseOnly) then ident else rename_dest f in
+  let rns = if rn_type=Some(DefOnly) then ident else rename_src  f in
+  let rno = rename_op ?rn_type f in
+  let rne = if rn_type=Some(DefOnly) then ident else rename_pexpr f in
   match bi with
   | Comment(_) as c -> c
   | Load(d,s,pe)    -> Load(rnd d,rns s,rne pe)
@@ -372,11 +377,11 @@ let rename_base_instr f bi =
   | Op(o,d,(s1,s2)) -> Op(rno o,rnd d,(rns s1,rns s2))
   | Call(fn,ds,ss)  -> Call(fn,List.map ~f:rnd ds,List.map ~f:rns ss)
 
-let rec rename_instr f linstr =
+let rec rename_instr ?rn_type f linstr =
   let rne = rename_pexpr f in
   let rnc = rename_fcond_or_pcond f in
   let rnf = rename_fcond f in
-  let rnb = rename_base_instr f in
+  let rnb = rename_base_instr ?rn_type f in
   let rns = rename_stmt f in
   let instr =
     match linstr.L.l_val with
@@ -387,8 +392,8 @@ let rec rename_instr f linstr =
   in
   { linstr with L.l_val = instr }
 
-and rename_stmt f stmt =
-  List.map stmt ~f:(rename_instr f)
+and rename_stmt ?rn_type f stmt =
+  List.map stmt ~f:(rename_instr ?rn_type f)
 
 let rename_decls f decls =
   List.map ~f:(fun (sto,n,ty) -> (sto,f n,ty)) decls
@@ -504,7 +509,7 @@ let pp_fcond fmt fc =
 
 let pp_fcond_or_pcond fmt = function
   | Pcond(pc) -> F.fprintf fmt "$(%a)" pp_pcond pc
-  | Fcond(fc) -> F.fprintf fmt "$(%a)" pp_fcond fc
+  | Fcond(fc) -> F.fprintf fmt "(%a)" pp_fcond fc
 
 let pp_dest fmt {d_name=r; d_oidx=oidx} =
   match oidx with
@@ -733,7 +738,7 @@ let use_op = function
 let use_binstr = function
   | Assgn(_,s,_)           -> pvars_src s
   | Op(o,_,(s1,s2))        -> SS.union_list [ pvars_src s1; pvars_src s2; use_op o ]
-  | Load(_,s,Pconst(_))   -> pvars_src s
+  | Load(_,s,Pconst(_))    -> pvars_src s
   | Store(s1,Pconst(_),s2) -> SS.union (pvars_src s1) (pvars_src s2)
   | Comment(_)             -> SS.empty
 
@@ -746,13 +751,7 @@ let use_instr = function
   | If(Fcond(fc),_,_) -> pvars_fcond fc
   | While(_,fc,_)     -> pvars_fcond fc
   | If(Pcond(_),_,_)
-  | For(_,_,_,_)        -> failwith "use_instr: unexpected instruction"
-
-(* and use_stmt ~use = function *)
-(*   | [] -> () *)
-(*   | instr::stmt -> *)
-(*     use_instr ~use instr.L.l_val; *)
-(*     use_stmt ~use stmt *)
+  | For(_,_,_,_)      -> failwith "use_instr: unexpected instruction"
 
 (* ** Variable definitions (for liveness)
  * ------------------------------------------------------------------------ *)
@@ -785,28 +784,6 @@ let def_instr = function
 
   | If(Pcond(_),_,_)
   | For(_,_,_,_)     -> failwith "def_instr: unexpected instruction"
-
-(* let rec def_instr = function *)
-(*   | Binstr(bi) -> *)
-(*     use := SS.union !use (use_binstr bi) *)
-(*   | If(Fcond(fc),s1,s2) -> *)
-(*     use_stmt ~use s1; *)
-(*     use_stmt ~use s2; *)
-(*     use := SS.union !use (pvars_fcond fc) *)
-(*   | While(_,fc,s) -> *)
-(*     use_stmt ~use s; *)
-(*     use := SS.union !use (pvars_fcond fc) *)
-
-(*   | If(Pcond(_),_,_) *)
-(*   | For(_,_,_,_) -> *)
-(*     failwith "def_instr: unexpected instruction" *)
-
-(* and def_stmt = *)
-(*  function *)
-(*   | [] -> SS.empty *)
-(*   | instr::stmt -> *)
-(*     use_instr ~use instr.L.l_val; *)
-(*     use_stmt ~use stmt *)
 
 (* ** Positions
  * ------------------------------------------------------------------------ *)

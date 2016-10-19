@@ -42,9 +42,20 @@ FUN="test"
 ARG="register_liveness[$FUN]"
 ARG="$ARG,save[/tmp/unfold.mil][$FUN]"
 
+#./dmasm.byte -t \
+#  "$ARG" \
+#  tests/compiler/ok/t_06.mil
+
+###########################################################################
+
+FUN="test"
+
+ARG="local_ssa[$FUN]"
+ARG="$ARG,save[/tmp/unfold.mil][$FUN]"
+
 ./dmasm.byte -t \
   "$ARG" \
-  tests/compiler/ok/t_06.mil
+  tests/compiler/ok/t_07.mil
 
 ###########################################################################
 

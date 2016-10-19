@@ -10,6 +10,7 @@ open IL_Interp
 
 module X64 = Asm_X64
 module MP  = MParser
+module ST  = String.Table
 
 (* ** Partially evaluate dimension and parameter-expressions
  * ------------------------------------------------------------------------ *)
@@ -431,31 +432,205 @@ let array_expand_modul modul fname =
   let f_fun f = if f.f_name = fname then array_expand_func f else f in
   { modul with m_funcs = List.map modul.m_funcs ~f:f_fun }
 
+(* ** Local SSA *)
+(* *** Summary
+*)
+(* *** Code *)
+
+type rn_info = {
+  rn_map    : int  ST.t; (* no entry = never defined *)
+  rn_unused : int  ST.t;
+}
+
+let rn_map_get rn_info name =
+  ST.find rn_info name |> Option.value ~default:0
+
+let rn_map_modify rn_info name =
+  let max_idx = ST.find rn_info.rn_unused name |> Option.value ~default:1 in
+  ST.set rn_info.rn_map    ~key:name ~data:max_idx;
+  ST.set rn_info.rn_unused ~key:name ~data:(succ max_idx)
+
+let mk_reg_name name idx =
+  if idx = 0 then name else fsprintf "%s_%i" name idx
+
+let rn_map_dowhile_update ~old:rn_map_enter rn_info =
+  let mapping = ST.create () in
+  let correct = ref [] in
+  let f ~key:name ~data:new_idx =
+    let old_idx = rn_map_get rn_map_enter name in
+    if old_idx<>new_idx then (
+      let old_name = mk_reg_name name old_idx in
+      let new_name = mk_reg_name name new_idx in
+      F.printf "rename  %s to %s\n"  new_name old_name;
+      ST.add_exn mapping ~key:new_name ~data:old_name;
+      correct := (name,old_idx)::!correct
+    )
+  in
+  ST.iteri rn_info.rn_map ~f;
+  List.iter ~f:(fun (s,idx) -> ST.set rn_info.rn_map ~key:s ~data:idx) !correct;
+  mapping
+
+let rn_map_if_update rn_info ~rn_if ~rn_else =
+  let changed_if   = ST.create () in
+  let changed_else = ST.create () in
+  (* populate given maps with changes *)
+  let track_changed s changed ~key:name ~data:new_idx =
+    let old_idx = rn_map_get rn_info.rn_map name in
+    if old_idx<>new_idx then (
+      F.printf "changed %s: '%s' from %i to %i\n" s name old_idx new_idx;
+      ST.set changed ~key:name ~data:();
+    ) else (
+      F.printf "unchanged %s: '%s'\n" s name; 
+    )
+  in
+  ST.iteri rn_if   ~f:(track_changed "if"   changed_if);
+  ST.iteri rn_else ~f:(track_changed "else" changed_else);
+  let changed =
+    SS.union
+      (SS.of_list @@ ST.keys changed_if)
+      (SS.of_list @@ ST.keys changed_else)
+  in
+  (* from new name to old name *)
+  let mapping_if_names   = ST.create () in
+  let mapping_else_names = ST.create () in
+  (* make renamings consistent for defs that are active when leaving the two branches
+     NOTE: we could make this more precise by restricting this to live defs *)
+  let merge name =
+    (* if a given name has been changed in both, then we choose the higher index *)
+    match ST.mem changed_if name, ST.mem changed_else name with
+    | false, false -> assert false
+    (* defs for name in both, choose larger index from else *)
+    | true, true ->
+      let idx_if   = rn_map_get rn_if   name in
+      let idx_else = rn_map_get rn_else name in
+      assert (idx_else > idx_if);
+      let name_if   = mk_reg_name name idx_if   in
+      let name_else = mk_reg_name name idx_else in
+      F.printf "rename %s to %s in if (use else name)\n" name_if name_else;
+      ST.set mapping_if_names ~key:name_if ~data:name_else;
+      (* update rn_map for statements following if-then-else *)
+      ST.set rn_info.rn_map ~key:name ~data:idx_else
+    (* def only in if-branch, rename if-def with old name *)
+    | true, false ->
+      let idx_if    = rn_map_get rn_if          name in
+      let idx_enter = rn_map_get rn_info.rn_map name in
+      assert (idx_if<>idx_enter);
+      let name_if    = mk_reg_name name idx_if    in
+      let name_enter = mk_reg_name name idx_enter in
+      F.printf "rename %s to %s in if (use enter name)\n"  name_if name_enter;
+      ST.set mapping_if_names ~key:name_if ~data:name_enter;
+    (* def only in else-branch, rename if-def with old name *)
+    | false, true ->
+      let idx_else  = rn_map_get rn_else        name in
+      let idx_enter = rn_map_get rn_info.rn_map name in
+      assert (idx_else<>idx_enter);
+      let name_else    = mk_reg_name name idx_else in
+      let name_enter = mk_reg_name name idx_enter  in
+      F.printf "rename %s to %s in else (use enter name)\n"  name_else name_enter;
+      ST.set mapping_else_names ~key:name_else ~data:name_enter;
+  in
+  SS.iter changed ~f:merge;
+  mapping_if_names, mapping_else_names
+
+let rec local_ssa_instr rn_info linstr =
+  let rename name =
+    let idx = rn_map_get rn_info.rn_map name in
+    mk_reg_name name idx
+  in
+  let instr' =
+    let instr = linstr.L.l_val in
+    match instr with
+
+    | Binstr(bi) ->
+      (* rename RHS *)
+      let bi = rename_base_instr ~rn_type:UseOnly rename bi in
+      (* update renaming map and rename LHS *)
+      let def_vars = def_binstr bi in
+      SS.iter def_vars ~f:(fun s -> rn_map_modify rn_info s);
+      let bi = rename_base_instr ~rn_type:DefOnly rename bi in
+      Binstr(bi)
+
+    | If(Fcond(fc),s1,s2) ->
+      let rn_map_if   = ST.copy rn_info.rn_map in
+      let rn_map_else = ST.copy rn_info.rn_map in
+      let fc = rename_fcond rename fc in
+      let s1 = local_ssa_stmt { rn_info with rn_map=rn_map_if   } s1 in
+      let s2 = local_ssa_stmt { rn_info with rn_map=rn_map_else } s2 in
+      let rn_sync_if, rn_sync_else =
+        rn_map_if_update rn_info ~rn_if:rn_map_if ~rn_else:rn_map_else
+      in
+      let rn rns s = ST.find rns s |> Option.value ~default:s in
+      let s1 = rename_stmt (rn rn_sync_if)   s1 in
+      let s2 = rename_stmt (rn rn_sync_else) s2 in
+      If(Fcond(fc),s1,s2)
+      
+    | While(DoWhile,fc,s) ->
+      let rn_map_enter = ST.copy rn_info.rn_map in
+      let s = local_ssa_stmt rn_info s in
+      (* rename fc with the rn_map for leave *)
+      let fc = rename_fcond rename fc in
+      (* make last def-index coincide with def-index from entering *)
+      let rn_sync = rn_map_dowhile_update ~old:rn_map_enter rn_info in
+      let rn s = ST.find rn_sync s |> Option.value ~default:s in
+      let fc = rename_fcond rn fc in
+      let s  = rename_stmt rn s in
+      While(DoWhile,fc,s)
+      
+    | While(WhileDo,_fc,_s) ->
+      failwith "INCOMPLETE"
+
+    | If(Pcond(_),_,_)
+    | For(_,_,_,_)     -> failwith "local SSA transformation: unexpected instruction"
+  in
+  { linstr with L.l_val = instr' }
+
+and local_ssa_stmt rn_map stmt =
+  (* let ld_map = last_def_map stmt in *)
+  List.map ~f:(local_ssa_instr rn_map) stmt
+
+let local_ssa_fundef fdef =
+  let rn_info = {
+    rn_map    = ST.create ();
+    rn_unused = ST.create ();
+  }
+  in
+  let body = local_ssa_stmt rn_info fdef.fd_body in
+  { fdef with
+    fd_body = body;
+  }
+
+(* FIXME: we assume this is an extern function, hence all arguments and
+          returned values must have type u64 *)
+let local_ssa_func func =
+  let fdef = match func.f_def with
+    | Def fd -> Def(local_ssa_fundef fd)
+    | Undef  -> failwith "Cannot apply local SSA transformation in undefined function"
+    | Py(_)  -> failwith "Cannot apply local SSA transformation in python function"
+  in
+  { func with f_def = fdef }
+
+let local_ssa_modul modul fname =
+  let f_fun f = if f.f_name = fname then local_ssa_func f else f in
+  { modul with m_funcs = List.map modul.m_funcs ~f:f_fun }
+
 (* ** Register liveness
  * ------------------------------------------------------------------------ *)
 
 (* *** Liveness information definitions *)
 
-type node =
-  | NbI     of base_instr
-  | Nreturn of name list
-  | Nenter
-  | Nargs   of name list
-  | Njump   of fcond
-
 (* hashtable that holds the CFG and the current liveness information *)
 type live_info = {
-  li_use  : SS.t      Pos.Table.t;
-  li_def  : SS.t      Pos.Table.t;
-  li_succ : Pos.Set.t Pos.Table.t;
-  li_pred : Pos.Set.t Pos.Table.t;
-  li_live : SS.t      Pos.Table.t;
-  li_str  : string    Pos.Table.t;
+  li_use         : SS.t      Pos.Table.t;
+  li_def         : SS.t      Pos.Table.t;
+  li_succ        : Pos.Set.t Pos.Table.t;
+  li_pred        : Pos.Set.t Pos.Table.t;
+  li_live_before : SS.t      Pos.Table.t;
+  li_live_after  : SS.t      Pos.Table.t;
+  li_str         : string    Pos.Table.t;
 }
 
 let enter_fun_pos  = [-1]
-let args_fun_pos   = [-2]
-let return_fun_pos = [-3]
+let return_fun_pos = [-2]
 
 let li_get_use linfo pos = hashtbl_find_exn linfo.li_use pp_pos pos 
 let li_get_def linfo pos = hashtbl_find_exn linfo.li_def pp_pos pos
@@ -464,8 +639,10 @@ let li_get_pred linfo pos =
   Pos.Table.find linfo.li_pred pos |> Option.value ~default:Pos.Set.empty
 let li_get_succ linfo pos =
   Pos.Table.find linfo.li_succ pos |> Option.value ~default:Pos.Set.empty
-let li_get_live linfo pos =
-  Pos.Table.find linfo.li_live pos |> Option.value ~default:SS.empty
+let li_get_live_before linfo pos =
+  Pos.Table.find linfo.li_live_before pos |> Option.value ~default:SS.empty
+let li_get_live_after linfo pos =
+  Pos.Table.find linfo.li_live_after pos |> Option.value ~default:SS.empty
 
 let li_add_succ linfo ~pos ~succ =
   Pos.Table.change linfo.li_succ pos
@@ -503,12 +680,14 @@ let pp_pos_table pp_data fmt li_ss =
           F.fprintf fmt "%a -> %a; " pp_pos key pp_data data)
 
 let pp_live_info fmt li =
-  F.fprintf fmt "use: %a\ndef: %a\nsucc: %a\npred: %a\nlive: %a\n"
+  F.fprintf fmt
+    "use: %a\ndef: %a\nsucc: %a\npred: %a\nlive_before: %a\nlive_after: %a\n"
     (pp_pos_table pp_set_string) li.li_use
     (pp_pos_table pp_set_string) li.li_def
     (pp_pos_table pp_set_pos)    li.li_succ
     (pp_pos_table pp_set_pos)    li.li_pred
-    (pp_pos_table pp_set_string) li.li_live 
+    (pp_pos_table pp_set_string) li.li_live_before
+    (pp_pos_table pp_set_string) li.li_live_after
 
 let string_of_instr = function
   | Binstr(bi)          -> fsprintf "%a"               pp_base_instr bi
@@ -517,14 +696,18 @@ let string_of_instr = function
   | While(DoWhile,fc,_) -> fsprintf "do {} while %a;"  pp_fcond fc
   | _                   -> fsprintf "string_of_instr: unexpected instruction"
 
-let dump_live_info linfo fname =
+let dump_live_info ~verbose linfo fname =
   let to_string pos =
-    fsprintf "\"%a: %s :: def=%a use=%a live=%a\""
+    fsprintf "\"%a\n%a: %s %s \n%a\""
+      pp_set_string (li_get_live_before linfo pos)
       pp_pos pos
       (li_get_str linfo pos)
-      pp_set_string (li_get_def linfo pos)
-      pp_set_string (li_get_use linfo pos)
-      pp_set_string (li_get_live linfo pos)
+      (if verbose then
+         fsprintf "def=%a use=%a "
+            pp_set_string (li_get_def linfo pos)
+            pp_set_string (li_get_use linfo pos)
+       else "")
+      pp_set_string (li_get_live_after linfo pos)
   in
   let g = ref G.empty in
   Pos.Table.iteri linfo.li_succ
@@ -552,15 +735,22 @@ let update_liveness linfo changed pos =
   let succs = li_get_succ linfo pos in
   if not (Pos.Set.is_empty (Pos.Set.inter !changed succs)) then (
     let live = ref SS.empty in
+    (* compute union of live_before of successors *)
     Pos.Set.iter succs
-      ~f:(fun pos ->
-            let live_s = li_get_live linfo pos in
-            let def_s  = li_get_def  linfo pos in
-            let use_s  = li_get_use  linfo pos in
-            live := SS.union !live (SS.union (SS.diff live_s def_s) use_s));
-    if not (SS.equal !live (li_get_live linfo pos)) then (
+      ~f:(fun spos ->
+            let live_s = li_get_live_before linfo spos in
+            (* let def_s  = li_get_def         linfo spos in *)
+            (* let use_s  = li_get_use         linfo spos in *)
+            (* live := SS.union !live (SS.union (SS.diff live_s def_s) use_s) *)
+            live := SS.union !live live_s);
+    (* update live_{before,after} of this vertex *)
+    if not (SS.equal !live (li_get_live_after linfo pos)) then (
       changed := Set.add !changed pos;
-      Pos.Table.set linfo.li_live ~key:pos ~data:!live
+      let def_s = li_get_def linfo pos in
+      let use_s = li_get_use linfo pos in
+      Pos.Table.set linfo.li_live_after  ~key:pos ~data:!live;
+      let live_before = SS.union (SS.diff !live def_s) use_s in
+      Pos.Table.set linfo.li_live_before ~key:pos ~data:live_before
     )
   )
 
@@ -633,30 +823,27 @@ and init_liveness_block linfo ~path ~entry_p ~exit_p stmt =
   )
 
 let compute_liveness_stmt linfo stmt ~enter_def ~return_use =
-  (* initialize function return node *)
+  (* initialize return node *)
   let ret_str = fsprintf "return %a" (pp_list "," pp_string) return_use in
   Pos.Table.set linfo.li_str ~key:return_fun_pos ~data:ret_str;
   Pos.Table.set linfo.li_use ~key:return_fun_pos ~data:(SS.of_list return_use);
   Pos.Table.set linfo.li_def ~key:return_fun_pos ~data:(SS.empty);
-  (* initialize function enter node *)
-  Pos.Table.set linfo.li_str ~key:enter_fun_pos ~data:"enter";
-  Pos.Table.set linfo.li_use ~key:enter_fun_pos ~data:SS.empty;
-  Pos.Table.set linfo.li_def ~key:enter_fun_pos ~data:SS.empty;
-  li_add_succ linfo ~pos:enter_fun_pos ~succ:args_fun_pos;
   (* initialize function args node *)
-  let args_str = fsprintf "args %a" (pp_list "," pp_string) enter_def in
-  Pos.Table.set linfo.li_str ~key:args_fun_pos ~data:args_str;
-  Pos.Table.set linfo.li_use ~key:args_fun_pos ~data:(SS.empty);
-  Pos.Table.set linfo.li_def ~key:args_fun_pos ~data:(SS.of_list enter_def);
+  let args_str = fsprintf "enter %a" (pp_list "," pp_string) enter_def in
+  Pos.Table.set linfo.li_str ~key:enter_fun_pos ~data:args_str;
+  Pos.Table.set linfo.li_use ~key:enter_fun_pos ~data:(SS.empty);
+  Pos.Table.set linfo.li_def ~key:enter_fun_pos ~data:(SS.of_list enter_def);
   (* compute CFG into linfo *)
   init_liveness_block linfo ~path:[] stmt
-    ~entry_p:args_fun_pos
+    ~entry_p:enter_fun_pos
     ~exit_p:return_fun_pos;
   (* add backward edges to CFG *)
   li_pred_of_succ linfo;
-  (* update liveness information in live_info *)
+  (* set liveness information in live_info *)
   let cont = ref true in
   let changed_initial = Pos.Set.singleton return_fun_pos in
+  let use_return = li_get_use linfo return_fun_pos in
+  Pos.Table.set linfo.li_live_before ~key:return_fun_pos ~data:use_return;
   while !cont do
     print_endline "iterate";
     let changed = ref changed_initial  in
@@ -667,23 +854,24 @@ let compute_liveness_stmt linfo stmt ~enter_def ~return_use =
 let compute_liveness_fundef fdef arg_defs =
   let stmt = fdef.fd_body in
   let linfo =
-    { li_use  = Pos.Table.create ()
-    ; li_def  = Pos.Table.create ()
-    ; li_succ = Pos.Table.create ()
-    ; li_pred = Pos.Table.create ()
-    ; li_str  = Pos.Table.create ()
-    ; li_live = Pos.Table.create () }
+    { li_use         = Pos.Table.create ()
+    ; li_def         = Pos.Table.create ()
+    ; li_succ        = Pos.Table.create ()
+    ; li_pred        = Pos.Table.create ()
+    ; li_str         = Pos.Table.create ()
+    ; li_live_before = Pos.Table.create ()
+    ; li_live_after  = Pos.Table.create () }
   in
   compute_liveness_stmt linfo stmt ~enter_def:arg_defs ~return_use:fdef.fd_ret;
   linfo
 
-let compute_liveness_func func =
+let compute_liveness_func func args_def =
   let fdef = match func.f_def with
     | Def fd -> fd
     | Undef  -> failwith "Cannot add liveness annotations to undefined function"
     | Py(_)  -> failwith "Cannot add liveness annotations to python function"
   in
-  compute_liveness_fundef fdef
+  compute_liveness_fundef fdef args_def
 
 let compute_liveness_modul modul fname =
   match List.find modul.m_funcs ~f:(fun f -> f.f_name = fname) with
@@ -691,42 +879,6 @@ let compute_liveness_modul modul fname =
     let args_def = List.map ~f:(fun (_,n,_) -> n) func.f_args in
     compute_liveness_func func args_def
   | None      -> failwith "compute_liveness: function with given name not found"
-
-(* ** Old register liveness
- * ------------------------------------------------------------------------ *)
-
-(* returns a list of tuples (bi, V) denoting that the instructions
-   bi;... depend on the registers V *)
-let register_liveness _efun =
-  failwith "undefined"
-  (*
-  let bis = stmt_to_base_instrs efun.ef_body in
-  let analz_dest read = function
-    | Dreg(r)   -> Set.remove read r
-    | Dmem(r,_) -> Set.add    read r
-  in
-  let analz_src read = function
-    | Sreg(r) | Smem(r,_) -> Set.add read r
-    | Simm(_) -> read
-  in
-  let rec go read left right =
-    match left, right with
-    | [],_ -> right
-    | li::lis,ris ->
-      begin match li with
-      | App(_,ds,ss) ->
-        (* first remove variables that are written *)
-        let read_after_lhs = List.fold ~f:analz_dest ~init:read ds in
-
-        (* then add variables that are read *)
-        let read = List.fold ~f:analz_src  ~init:read_after_lhs ss in
-        go read lis ({ li_bi = li; li_read_after_rhs = read_after_lhs}::ris)
-      | Comment _ ->
-        go read lis ({ li_bi = li; li_read_after_rhs = read }::ris)
-      end
-  in
-  go (Preg.Set.of_list efun.ef_ret) (List.rev bis) []
-  *)
 
 (* ** Collect equality constraints from +=, -=, :=, ...
  * ------------------------------------------------------------------------ *)
