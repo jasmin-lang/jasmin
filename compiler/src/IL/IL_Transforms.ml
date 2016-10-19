@@ -38,7 +38,7 @@ type transform =
   | Type
   | Print of string * string option
   | Save of string * string option
-  | RegisterAlloc of int
+  | RegisterAlloc of string * int
   | InlineCalls of string
   | RegisterLiveness of string
   | StripComments
@@ -103,8 +103,9 @@ let ptrafo =
     ; (string "register_liveness" >> (bracketed ident) >>= fun fn ->
        return (RegisterLiveness fn))
     ; string "strip_comments" >>$  StripComments
-    ; (string "register_allocate" >> register_num >>= fun l ->
-       return (RegisterAlloc(l)))
+    ; (string "register_allocate" >> (bracketed ident) >>= fun fn ->
+       register_num >>= fun l ->
+       return (RegisterAlloc(fn,l)))
     ; string "asm" >> char '[' >> asm_lang >>= (fun l -> char ']' >>$ (Asm(l)))
     ; (string "expand" >> bracketed ident >>= fun fname ->
        pmap >>= fun m -> return (MacroExpand(fname,m)))
@@ -162,8 +163,8 @@ let apply_transform trafo (modul0 : modul) =
     | Save(fname,ofname) ->
       let modul_ = filter_fn modul ofname in
       Out_channel.write_all fname ~data:(fsprintf "%a" pp_modul modul_); modul
-    | RegisterAlloc(_n) -> assert false
-      (* register_allocate (min 15 n) efun *)
+    | RegisterAlloc(fname,n) ->
+      reg_alloc_modul (min 15 n) modul fname
     | RegisterLiveness(fname) ->
       transform_register_liveness modul fname
     | MacroExpand(fname,m) ->

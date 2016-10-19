@@ -51,6 +51,7 @@ ARG="$ARG,save[/tmp/unfold.mil][$FUN]"
 FUN="test"
 
 ARG="local_ssa[$FUN]"
+ARG="register_allocate[$FUN][15]"
 ARG="$ARG,save[/tmp/unfold.mil][$FUN]"
 
 ./dmasm.byte -t \

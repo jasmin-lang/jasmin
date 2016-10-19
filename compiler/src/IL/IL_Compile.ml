@@ -10,7 +10,7 @@ open IL_Interp
 
 module X64 = Asm_X64
 module MP  = MParser
-module ST  = String.Table
+module HT  = Hashtbl
 
 (* ** Partially evaluate dimension and parameter-expressions
  * ------------------------------------------------------------------------ *)
@@ -438,23 +438,45 @@ let array_expand_modul modul fname =
 (* *** Code *)
 
 type rn_info = {
-  rn_map    : int  ST.t; (* no entry = never defined *)
-  rn_unused : int  ST.t;
+  rn_map    : int       String.Table.t; (* no entry = never defined *)
+  rn_unused : int       String.Table.t; (* smallest unused index    *)
+  rn_new    : Int.Set.t String.Table.t; (* indexes for initial vars *)
+}
+
+let mk_rn_info () = {
+  rn_map    = String.Table.create ();
+  rn_unused = String.Table.create ();
+  rn_new    = String.Table.create ();
 }
 
 let rn_map_get rn_info name =
-  ST.find rn_info name |> Option.value ~default:0
+  HT.find rn_info name |> Option.value ~default:0
+
+let rn_new_add rn_info name idx =
+  HT.change rn_info.rn_new name
+    ~f:(function | None    -> Some(Int.Set.singleton idx)
+                 | Some is -> Some(Set.add is idx))
+
+let rn_new_remove rn_info name idx =
+  HT.change rn_info.rn_new name
+    ~f:(function | None    -> assert false
+                 | Some is -> Some(Set.remove is idx))
 
 let rn_map_modify rn_info name =
-  let max_idx = ST.find rn_info.rn_unused name |> Option.value ~default:1 in
-  ST.set rn_info.rn_map    ~key:name ~data:max_idx;
-  ST.set rn_info.rn_unused ~key:name ~data:(succ max_idx)
+  let max_idx = HT.find rn_info.rn_unused name |> Option.value ~default:1 in
+  HT.set rn_info.rn_map    ~key:name ~data:max_idx;
+  HT.set rn_info.rn_unused ~key:name ~data:(succ max_idx);
+  rn_new_add rn_info name max_idx
 
 let mk_reg_name name idx =
   if idx = 0 then name else fsprintf "%s_%i" name idx
 
+let rn_info_rename rn_info name =
+  let idx = rn_map_get rn_info.rn_map name in
+  mk_reg_name name idx
+
 let rn_map_dowhile_update ~old:rn_map_enter rn_info =
-  let mapping = ST.create () in
+  let mapping = String.Table.create () in
   let correct = ref [] in
   let f ~key:name ~data:new_idx =
     let old_idx = rn_map_get rn_map_enter name in
@@ -462,42 +484,43 @@ let rn_map_dowhile_update ~old:rn_map_enter rn_info =
       let old_name = mk_reg_name name old_idx in
       let new_name = mk_reg_name name new_idx in
       F.printf "rename  %s to %s\n"  new_name old_name;
-      ST.add_exn mapping ~key:new_name ~data:old_name;
+      HT.add_exn mapping ~key:new_name ~data:old_name;
+      rn_new_remove rn_info name new_idx;
       correct := (name,old_idx)::!correct
     )
   in
-  ST.iteri rn_info.rn_map ~f;
-  List.iter ~f:(fun (s,idx) -> ST.set rn_info.rn_map ~key:s ~data:idx) !correct;
+  HT.iteri rn_info.rn_map ~f;
+  List.iter !correct ~f:(fun (s,idx) -> HT.set rn_info.rn_map ~key:s ~data:idx);
   mapping
 
 let rn_map_if_update rn_info ~rn_if ~rn_else =
-  let changed_if   = ST.create () in
-  let changed_else = ST.create () in
+  let changed_if   = String.Table.create () in
+  let changed_else = String.Table.create () in
   (* populate given maps with changes *)
   let track_changed s changed ~key:name ~data:new_idx =
     let old_idx = rn_map_get rn_info.rn_map name in
     if old_idx<>new_idx then (
       F.printf "changed %s: '%s' from %i to %i\n" s name old_idx new_idx;
-      ST.set changed ~key:name ~data:();
+      HT.set changed ~key:name ~data:();
     ) else (
       F.printf "unchanged %s: '%s'\n" s name; 
     )
   in
-  ST.iteri rn_if   ~f:(track_changed "if"   changed_if);
-  ST.iteri rn_else ~f:(track_changed "else" changed_else);
+  HT.iteri rn_if   ~f:(track_changed "if"   changed_if);
+  HT.iteri rn_else ~f:(track_changed "else" changed_else);
   let changed =
     SS.union
-      (SS.of_list @@ ST.keys changed_if)
-      (SS.of_list @@ ST.keys changed_else)
+      (SS.of_list @@ HT.keys changed_if)
+      (SS.of_list @@ HT.keys changed_else)
   in
   (* from new name to old name *)
-  let mapping_if_names   = ST.create () in
-  let mapping_else_names = ST.create () in
+  let mapping_if_names   = String.Table.create () in
+  let mapping_else_names = String.Table.create () in
   (* make renamings consistent for defs that are active when leaving the two branches
      NOTE: we could make this more precise by restricting this to live defs *)
   let merge name =
     (* if a given name has been changed in both, then we choose the higher index *)
-    match ST.mem changed_if name, ST.mem changed_else name with
+    match HT.mem changed_if name, HT.mem changed_else name with
     | false, false -> assert false
     (* defs for name in both, choose larger index from else *)
     | true, true ->
@@ -507,9 +530,10 @@ let rn_map_if_update rn_info ~rn_if ~rn_else =
       let name_if   = mk_reg_name name idx_if   in
       let name_else = mk_reg_name name idx_else in
       F.printf "rename %s to %s in if (use else name)\n" name_if name_else;
-      ST.set mapping_if_names ~key:name_if ~data:name_else;
+      HT.set mapping_if_names ~key:name_if ~data:name_else;
       (* update rn_map for statements following if-then-else *)
-      ST.set rn_info.rn_map ~key:name ~data:idx_else
+      HT.set rn_info.rn_map ~key:name ~data:idx_if;
+      rn_new_remove rn_info name idx_if
     (* def only in if-branch, rename if-def with old name *)
     | true, false ->
       let idx_if    = rn_map_get rn_if          name in
@@ -518,7 +542,8 @@ let rn_map_if_update rn_info ~rn_if ~rn_else =
       let name_if    = mk_reg_name name idx_if    in
       let name_enter = mk_reg_name name idx_enter in
       F.printf "rename %s to %s in if (use enter name)\n"  name_if name_enter;
-      ST.set mapping_if_names ~key:name_if ~data:name_enter;
+      HT.set mapping_if_names ~key:name_if ~data:name_enter;
+      rn_new_remove rn_info name idx_if
     (* def only in else-branch, rename if-def with old name *)
     | false, true ->
       let idx_else  = rn_map_get rn_else        name in
@@ -527,16 +552,14 @@ let rn_map_if_update rn_info ~rn_if ~rn_else =
       let name_else    = mk_reg_name name idx_else in
       let name_enter = mk_reg_name name idx_enter  in
       F.printf "rename %s to %s in else (use enter name)\n"  name_else name_enter;
-      ST.set mapping_else_names ~key:name_else ~data:name_enter;
+      HT.set mapping_else_names ~key:name_else ~data:name_enter;
+      rn_new_remove rn_info name idx_else
   in
   SS.iter changed ~f:merge;
   mapping_if_names, mapping_else_names
 
 let rec local_ssa_instr rn_info linstr =
-  let rename name =
-    let idx = rn_map_get rn_info.rn_map name in
-    mk_reg_name name idx
-  in
+  let rename = rn_info_rename rn_info in
   let instr' =
     let instr = linstr.L.l_val in
     match instr with
@@ -551,27 +574,27 @@ let rec local_ssa_instr rn_info linstr =
       Binstr(bi)
 
     | If(Fcond(fc),s1,s2) ->
-      let rn_map_if   = ST.copy rn_info.rn_map in
-      let rn_map_else = ST.copy rn_info.rn_map in
+      let rn_map_if   = HT.copy rn_info.rn_map in
+      let rn_map_else = HT.copy rn_info.rn_map in
       let fc = rename_fcond rename fc in
       let s1 = local_ssa_stmt { rn_info with rn_map=rn_map_if   } s1 in
       let s2 = local_ssa_stmt { rn_info with rn_map=rn_map_else } s2 in
       let rn_sync_if, rn_sync_else =
         rn_map_if_update rn_info ~rn_if:rn_map_if ~rn_else:rn_map_else
       in
-      let rn rns s = ST.find rns s |> Option.value ~default:s in
+      let rn rns s = HT.find rns s |> Option.value ~default:s in
       let s1 = rename_stmt (rn rn_sync_if)   s1 in
       let s2 = rename_stmt (rn rn_sync_else) s2 in
       If(Fcond(fc),s1,s2)
       
     | While(DoWhile,fc,s) ->
-      let rn_map_enter = ST.copy rn_info.rn_map in
+      let rn_map_enter = HT.copy rn_info.rn_map in
       let s = local_ssa_stmt rn_info s in
       (* rename fc with the rn_map for leave *)
       let fc = rename_fcond rename fc in
       (* make last def-index coincide with def-index from entering *)
       let rn_sync = rn_map_dowhile_update ~old:rn_map_enter rn_info in
-      let rn s = ST.find rn_sync s |> Option.value ~default:s in
+      let rn s = HT.find rn_sync s |> Option.value ~default:s in
       let fc = rename_fcond rn fc in
       let s  = rename_stmt rn s in
       While(DoWhile,fc,s)
@@ -585,22 +608,23 @@ let rec local_ssa_instr rn_info linstr =
   { linstr with L.l_val = instr' }
 
 and local_ssa_stmt rn_map stmt =
-  (* let ld_map = last_def_map stmt in *)
   List.map ~f:(local_ssa_instr rn_map) stmt
 
 let local_ssa_fundef fdef =
-  let rn_info = {
-    rn_map    = ST.create ();
-    rn_unused = ST.create ();
-  }
-  in
+  let rn_info = mk_rn_info () in
   let body = local_ssa_stmt rn_info fdef.fd_body in
-  { fdef with
-    fd_body = body;
+  let decls =
+    List.concat_map fdef.fd_decls
+      ~f:(fun (s,name,ty) ->
+            let iset = hashtbl_find_exn rn_info.rn_new pp_string name in
+            List.map ~f:(fun idx -> (s,mk_reg_name name idx,ty)) (Set.to_list iset))
+  in
+  let ret = List.map fdef.fd_ret ~f:(rn_info_rename rn_info) in
+  { fd_body  = body;
+    fd_decls = decls;
+    fd_ret   = ret;
   }
 
-(* FIXME: we assume this is an extern function, hence all arguments and
-          returned values must have type u64 *)
 let local_ssa_func func =
   let fdef = match func.f_def with
     | Def fd -> Def(local_ssa_fundef fd)
@@ -880,50 +904,72 @@ let compute_liveness_modul modul fname =
     compute_liveness_func func args_def
   | None      -> failwith "compute_liveness: function with given name not found"
 
-(* ** Collect equality constraints from +=, -=, :=, ...
+(* ** Collect equality and fixed register constraints from +=, -=, :=, ...
  * ------------------------------------------------------------------------ *)
 
-let eq_constrs _bis _regs =
-  failwith "undefined"
-  (*
-  let eq_classes    = Int.Table.create  () in
-  let class_map     = Preg.Table.create () in
-  let fixed_classes = Int.Table.create  () in
-  let last_index = ref (-1) in
+type reg_info = {
+  mutable ri_free_index : int;
+          ri_classes    : SS.t Int.Table.t;
+          ri_class_map  : int  String.Table.t;
+          ri_fixed      : int  Int.Table.t;
+          ri_regs       : unit String.Table.t;
+}
 
-  let new_class pr =
-    incr last_index;
-    let ci = !last_index in
-    Hashtbl.add_exn class_map  ~key:pr ~data:ci;
-    Hashtbl.add_exn eq_classes ~key:ci ~data:(Preg.Set.singleton pr);
-    ci
-  in
-  let add_to_class pr_old pr_new =
-    let ci = match Hashtbl.find class_map pr_old with
-      | Some c -> c
-      | None ->
-        failwith (fsprintf "eq_constrs_: %a undefined\n%a"
-                    pp_preg pr_old
-                    (pp_list "," pp_preg)
-                    (Hashtbl.keys class_map))
-    in
-    Hashtbl.add_exn class_map ~key:pr_new ~data:ci;
-    Hashtbl.change eq_classes ci
-      (function
-        | None   -> assert false
-        | Some s -> Some (Set.add s pr_new));
-    ci
-  in
-  let fix_class i reg =
-    match Hashtbl.find fixed_classes i with
+let pp_ht entry_sep map_sep pp_key pp_data fmt ht =
+  F.fprintf fmt "%a"
+    (pp_list entry_sep (pp_pair map_sep pp_key pp_data))
+    (List.sort ~cmp:compare @@ HT.to_alist ht)
+
+let pp_reg_info fmt rinfo =
+  F.fprintf fmt "ri_free_index: %i\nri_classes: %a\nri_class_map: %a\nri_fixed: %a\nri_regs: %a"
+    rinfo.ri_free_index
+    (pp_ht ", "  "->" pp_string pp_int)      rinfo.ri_class_map
+    (pp_ht ", "  "->" pp_int pp_set_string)  rinfo.ri_classes
+    (pp_ht ", "  "->" pp_int X64.pp_int_reg) rinfo.ri_fixed
+    pp_set_string                            (SS.of_list @@ HT.keys rinfo.ri_regs)
+
+let mk_reg_info () = {
+  ri_free_index = 0;
+  ri_regs       = String.Table.create ();
+  ri_classes    = Int.Table.create ();
+  ri_class_map  = String.Table.create ();
+  ri_fixed      = Int.Table.create ();
+}
+
+let reg_info_class_new rinfo name =
+  let ci = rinfo.ri_free_index in
+  rinfo.ri_free_index <- succ ci;
+  HT.add_exn rinfo.ri_class_map  ~key:name ~data:ci;
+  HT.add_exn rinfo.ri_classes ~key:ci ~data:(SS.singleton name);
+  ci
+
+let reg_info_class_add rinfo name_old name_new =
+  let ci = match HT.find rinfo.ri_class_map name_old with
+    | Some c -> c
     | None ->
-      Hashtbl.set fixed_classes ~key:i ~data:reg
-    | Some reg' when reg = reg' -> ()
-    | Some reg' ->
-      failwith (fsprintf "conflicting requirements: %s vs %s"
-                  (X64.string_of_reg reg') (X64.string_of_reg reg))
+      failwith (fsprintf "eq_constrs_: %s undefined\n%a"
+                  name_old
+                  (pp_list "," pp_string) (HT.keys rinfo.ri_class_map))
   in
-  let handle_bi = function
+  HT.add_exn rinfo.ri_class_map ~key:name_new ~data:ci;
+  HT.change rinfo.ri_classes ci
+      ~f:(function
+          | None   -> assert false
+          | Some s -> Some (Set.add s name_new));
+  ci
+
+let reg_info_fix_class rinfo ci reg =
+  match HT.find rinfo.ri_fixed ci with
+  | None ->
+    HT.set rinfo.ri_fixed ~key:ci ~data:reg
+  | Some reg' when reg = reg' -> ()
+  | Some reg' ->
+    failwith (fsprintf "conflicting requirements: %a vs %a"
+                 X64.pp_int_reg reg' X64.pp_int_reg reg)
+
+let reg_info_binstr linfo rinfo bi = ()
+   (*
+    function
    | Comment _ -> ()
 
    | App((Add|Sub), ([_;Dreg(d)] | [Dreg(d)]), Sreg(s)::_) ->
@@ -945,19 +991,90 @@ let eq_constrs _bis _regs =
    | App(_, ds, _) ->
      let dregs = List.filter_map ~f:(function Dreg(r) -> Some(r) | _ -> None) ds in
      List.iter ~f:(fun d -> ignore (new_class d)) dregs
-  in
-  List.iter regs ~f:(fun pr -> ignore (new_class pr));
-  List.iter bis ~f:handle_bi;
-  (eq_classes, fixed_classes, class_map)
-  *)
+   *)
+
+let rec reg_info_instr linfo rinfo li =
+  match li.L.l_val with
+
+  | Binstr(bi) ->
+    reg_info_binstr linfo rinfo bi
+
+  | While(DoWhile,fc,st) -> ()
+  
+  | While(WhileDo,fc,st) -> ()
+
+  | If(Fcond(fc),st1,st2) -> ()
+
+  | If(Pcond(_),_,_)
+  | For(_,_,_,_)     -> failwith "liveness analysis: unexpected instruction"
+
+
+and reg_info_stmt linfo rinfo stmt =
+  List.iter ~f:(reg_info_instr linfo rinfo) stmt
+
+let reg_info_func linfo func fdef =
+  let rinfo = mk_reg_info () in
+  (* fix classes for args: directly use the ABI argument registers for arguments *)
+  let arg_len = List.length func.f_args in
+  let arg_regs = List.take X64.arg_regs arg_len in
+  let arg_max = List.length X64.arg_regs in
+  if List.length arg_regs < arg_len then
+    failwith (fsprintf "register_alloc: at most %i arguments supported" arg_max);
+  List.iter (List.zip_exn func.f_args arg_regs)
+    ~f:(fun ((stor,arg,ty),arg_reg) ->
+          assert (stor = Reg && ty = U64);
+          let ci = reg_info_class_new rinfo arg in
+          reg_info_fix_class rinfo ci (X64.int_of_reg arg_reg));
+
+  List.iter fdef.fd_decls
+    ~f:(function
+          | (Reg,name,ty) -> assert (ty = U64); HT.add_exn rinfo.ri_regs ~key:name ~data:()
+          | _ -> ());
+  (* collect constraints from body *)
+  reg_info_stmt linfo rinfo fdef.fd_body;
+ 
+  (* directly use the ABI return registers for return values *)
+  let ret_extern_regs = List.map ~f:X64.int_of_reg X64.[RAX; RDX] in
+  let ret_len = List.length fdef.fd_ret in
+  let ret_regs = List.take ret_extern_regs ret_len in
+  let ret_max = List.length ret_extern_regs in
+  if List.length ret_regs < ret_len then
+    failwith (fsprintf "register_alloc: at most %i arguments supported" ret_max);
+  (* List.iter (List.zip_exn fdef.fd_ret ret_regs)
+    ~f:(fun (ret,ret_reg) -> HT.set rinfo.ri_fixed ~key:ret ~data:ret_reg); *)
+  rinfo
 
 (* ** Register allocation
  * ------------------------------------------------------------------------ *)
 
+let reg_alloc_stmt _reg_num _linfo _rinfo stmt = stmt
+
+let reg_alloc_fundef reg_num linfo rinfo fdef =
+  let body = reg_alloc_stmt reg_num linfo rinfo fdef.fd_body in
+  { fdef with
+    fd_body = body;
+  }
+
+let reg_alloc_func reg_num linfo func =
+  assert (func.f_call_conv = Extern);
+  let fd = match func.f_def with
+    | Def fd -> fd
+    | Undef  -> failwith "Cannot perform register allocation for undefined function"
+    | Py(_)  -> failwith "Cannot perform register allocation for python function"
+  in
+  let rinfo = reg_info_func linfo func fd in
+  F.printf "rinfo:\n%a\n" pp_reg_info rinfo;
+  let fdef = Def(reg_alloc_fundef reg_num linfo rinfo fd) in
+  { func with f_def = fdef }
+
+let reg_alloc_modul reg_num modul fname =
+  let linfo = compute_liveness_modul modul fname in
+  let f_fun f = if f.f_name = fname then reg_alloc_func reg_num linfo f else f in
+  { modul with m_funcs = List.map modul.m_funcs ~f:f_fun }
+
 (* PRE: We assume the code is in SSA. *)
-let register_allocate _nregs _efun0 =
-  failwith "undefined"
-  (*
+(*
+let register_allocate _nregs _efun0 = 
   let module E = struct exception PickExc of string end in
 
   (* Set of free registers: 0 .. nregs -1 *)
@@ -979,10 +1096,10 @@ let register_allocate _nregs _efun0 =
   (* track pseudo-registers that require a fixed register *)
   let fixed_pregs = Preg.Table.create () in
   let pick_free pr =
-    match Hashtbl.find fixed_pregs pr with
+    match HT.find fixed_pregs pr with
     | Some ri ->
       if Set.mem !free_regs ri then (
-        Hashtbl.set reg_map ~key:pr ~data:ri;
+        HT.set reg_map ~key:pr ~data:ri;
         free_regs_remove ri;
         ri
       ) else (
@@ -994,7 +1111,7 @@ let register_allocate _nregs _efun0 =
             pp_preg pr
             (pp_list "," pp_int) (Set.to_list !free_regs)
             (pp_list "," (pp_pair "->" pp_preg pp_int))
-            (Hashtbl.to_alist reg_map)
+            (HT.to_alist reg_map)
         in
         raise (E.PickExc err)
       )
@@ -1002,7 +1119,7 @@ let register_allocate _nregs _efun0 =
       begin match Set.max_elt !free_regs with
       | None -> raise (E.PickExc "no registers left")
       | Some i ->
-        Hashtbl.set reg_map ~key:pr ~data:i;
+        HT.set reg_map ~key:pr ~data:i;
         free_regs_remove i;
         i
       end
@@ -1014,7 +1131,7 @@ let register_allocate _nregs _efun0 =
   in
   let trans_dest d =
     let get pr =
-      match Hashtbl.find reg_map pr with
+      match HT.find reg_map pr with
       | None   -> int_to_preg (pick_free pr)
       | Some i -> int_to_preg i
     in
@@ -1029,7 +1146,7 @@ let register_allocate _nregs _efun0 =
       then ( free_regs_add i; false )
       else true
     in
-    Hashtbl.filteri_inplace reg_map ~f:remove_dead
+    HT.filteri_inplace reg_map ~f:remove_dead
   in
   let rec alloc left right =
     match right with
@@ -1047,7 +1164,7 @@ let register_allocate _nregs _efun0 =
             let s1 = trans_src (Sreg s1) in
             let s2 = trans_src s2        in
             free_dead_regs read_after_rhs;
-            Hashtbl.set fixed_pregs ~key:d  ~data:r1;
+            HT.set fixed_pregs ~key:d  ~data:r1;
             let d = trans_dest (Dreg d) in
             App(o,(linit ds)@[d],s1::s2::cfin)
 
@@ -1058,7 +1175,7 @@ let register_allocate _nregs _efun0 =
              let s1 = trans_src (Sreg(s1)) in
              let s2 = trans_src s2        in
              free_dead_regs read_after_rhs;
-             Hashtbl.set fixed_pregs ~key:d  ~data:r1;
+             HT.set fixed_pregs ~key:d  ~data:r1;
              let d = trans_dest (Dreg d) in
              App(o,[d],[s1;s2;cfin])
 
@@ -1088,13 +1205,13 @@ let register_allocate _nregs _efun0 =
       eq_constrs (stmt_to_base_instrs efun0.ef_body) (failwith "efun0.ef_args")
     in
     (* register %rax and %rdx for mul *)
-    Hashtbl.iter fixed_classes
+    HT.iter fixed_classes
       ~f:(fun ~key:i ~data:reg ->
             let pregs = hashtbl_find_exn eq_classes pp_int i in
             (* F.printf "## using %s for %a\n" (X64.string_of_reg reg) (pp_list "," pp_preg)
                 (Set.to_list pregs); *)
             Set.iter pregs ~f:(fun preg ->
-              Hashtbl.set fixed_pregs ~key:preg  ~data:(X64.(int_of_reg reg)))
+              HT.set fixed_pregs ~key:preg  ~data:(X64.(int_of_reg reg)))
       );
 
     if efun0.ef_extern then (
@@ -1105,7 +1222,7 @@ let register_allocate _nregs _efun0 =
       if List.length arg_regs < arg_len then
         failwith (fsprintf "register_alloc: at most %i arguments supported" arg_max);
       (* List.iter (List.zip_exn efun0.ef_args arg_regs)
-        ~f:(fun (arg,arg_reg) -> Hashtbl.set fixed_pregs ~key:arg ~data:arg_reg);
+        ~f:(fun (arg,arg_reg) -> HT.set fixed_pregs ~key:arg ~data:arg_reg);
       *)
 
       (* directly use the ABI return registers for return values *)
@@ -1116,7 +1233,7 @@ let register_allocate _nregs _efun0 =
       if List.length ret_regs < ret_len then
         failwith (fsprintf "register_alloc: at most %i arguments supported" ret_max);
       List.iter (List.zip_exn efun0.ef_ret ret_regs)
-        ~f:(fun (ret,ret_reg) -> Hashtbl.set fixed_pregs ~key:ret ~data:ret_reg)
+        ~f:(fun (ret,ret_reg) -> HT.set fixed_pregs ~key:ret ~data:ret_reg)
     )
   in
   let args = List.map efun0.ef_args ~f:(fun pr -> int_to_preg (pick_free pr)) in
@@ -1129,8 +1246,7 @@ let register_allocate _nregs _efun0 =
     }
   in
   (*validate_transform efun0 efun;*)
-  efun
-  *)
+  efun *)
 
 (* ** Translation to assembly
  * ------------------------------------------------------------------------ *)

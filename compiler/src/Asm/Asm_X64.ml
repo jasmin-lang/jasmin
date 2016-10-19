@@ -189,6 +189,8 @@ type afun = {
     | s     -> failwith ("string_of_reg: unknown register "^s)
 
   let pp_reg fmt r = F.fprintf fmt "%s" (string_of_reg r)
+  
+  let pp_int_reg fmt i = F.fprintf fmt "%s" (string_of_reg (reg_of_int i))
 
   let binop_to_string = function
     | Add  -> "addq"
