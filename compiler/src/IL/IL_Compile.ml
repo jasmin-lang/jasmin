@@ -23,10 +23,11 @@ let peval_param pmap _ p =
 let peval_patom pmap lmap pa =
   match pa with
   | Pparam(p) -> peval_param pmap lmap p
-  | Pvar(s) as v ->
-    begin match Map.find lmap s with
+  | Pdest(d) as v ->
+    assert (d.d_oidx=None);
+    begin match Map.find lmap d.d_name with
     | Some (Vu64 x) -> Pconst(x)
-    | Some(_)       -> failwith_ "peval_pexpr: variable %s of wrong type" s
+    | Some(_)       -> failwith_ "peval_pexpr: variable %s of wrong type" d.d_name
     | None          -> Patom(v)
     end
 
@@ -83,46 +84,50 @@ Inline function call C[x = f(a);]
 *)
 (* *** Code *)
 
-let rec inline_call func_map suffix c loc decls fname ds ss =
+let rec inline_call func_map suffix c loc fname ds ss =
   let ssuffix = "_"^string_of_int !c^(String.make (suffix + 1) '_') in
   let func = map_find_exn func_map pp_string fname in
   let fdef = match func.f_def with
     | Def d -> d
     | Undef | Py _ -> failwith_ "cannot inline calls in undefined function %s" fname
   in
-  let ret_ss = List.map ~f:(fun s -> Src(mk_dest_name (s^ssuffix))) fdef.fd_ret in
-  let arg_ds = List.map ~f:(fun (_,s,_) -> mk_dest_name (s^ssuffix)) func.f_args in
+  let ret_ss =
+    List.map2_exn
+      ~f:(fun n (s,t) -> Src(mk_dest_name (n^ssuffix) t s))
+      fdef.fd_ret func.f_ret_ty
+  in
+  let arg_ds = List.map ~f:(fun (s,n,t) -> mk_dest_name (n^ssuffix) t s) func.f_args in
   (* let arg_decls = List.map ~f:(fun (sto,s,ty) -> (sto,s^ssuffix,ty)) func.f_args in *)
   (* decls := !decls@arg_decls@(rename_decls (fun s -> s^ssuffix) fdef.fd_decls); *)
   let stmt = rename_stmt (fun s -> s^ssuffix) fdef.fd_body in
-  let stmt = inline_calls_stmt func_map suffix c decls stmt in
+  let stmt = inline_calls_stmt func_map suffix c stmt in
   (List.map2_exn ~f:(fun d s -> mk_base_instr loc (Assgn(d,s,Eq))) arg_ds ss)
   @ stmt
   @ (List.map2_exn ~f:(fun d s -> mk_base_instr loc (Assgn(d,s,Eq))) ds ret_ss)
 
-and inline_calls_base_instr func_map (suffix : int) c loc decls bi =
+and inline_calls_base_instr func_map (suffix : int) c loc bi =
   match bi with
   | Call(fn,ds,ss) ->
     incr c;
     [ L.{ l_val = Binstr(Comment(fsprintf "START Call: %a" pp_base_instr bi)); l_loc = loc} ]
-    @ inline_call func_map suffix c loc decls fn ds ss
+    @ inline_call func_map suffix c loc fn ds ss
     @ [ L.{ l_val = Binstr(Comment(fsprintf "END Call: %a" pp_base_instr bi)); l_loc = loc} ]
 
   | bi -> [ L.{ l_val = Binstr(bi); l_loc = loc} ]
 
-and inline_calls_instr func_map (suffix : int) c decls (li : instr L.located) =
-  let ilc_s = inline_calls_stmt func_map suffix c decls in
+and inline_calls_instr func_map (suffix : int) c (li : instr L.located) =
+  let ilc_s = inline_calls_stmt func_map suffix c in
   let instrs =
     match li.L.l_val with
     | If(c,s1,s2)    -> [{ li with L.l_val = If(c,ilc_s s1, ilc_s s2)}]
     | For(c,lb,ub,s) -> [{ li with L.l_val = For(c,lb,ub,ilc_s s)}]
-    | Binstr(bi)     -> inline_calls_base_instr func_map suffix c li.L.l_loc decls bi
+    | Binstr(bi)     -> inline_calls_base_instr func_map suffix c li.L.l_loc bi
     | While(wt,fc,s) -> [{ li with L.l_val = While(wt,fc,ilc_s s)}]
   in
   instrs
 
-and inline_calls_stmt func_map (suffix : int) c decls (s : stmt) : stmt =
-  List.concat_map ~f:(inline_calls_instr func_map suffix c decls) s
+and inline_calls_stmt func_map (suffix : int) c (s : stmt) : stmt =
+  List.concat_map ~f:(inline_calls_instr func_map suffix c) s
 
 let inline_calls_fun func_map (fname : string) =
   let func = map_find_exn func_map pp_string fname in
@@ -137,10 +142,9 @@ let inline_calls_fun func_map (fname : string) =
         ~f:(fun s -> not (String.is_suffix s ~suffix:(String.make (i+1) '_'))))
   in
   let c = ref 0 in
-  let decls = ref fdef.fd_decls in
-  let stmt = inline_calls_stmt func_map suffix c decls fdef.fd_body in
-  let func = { func with f_def =
-               Def { fdef with fd_body = stmt; fd_decls = !decls } } in
+  if fdef.fd_decls<>None then failwith_ "inline decls before inlining functions";
+  let stmt = inline_calls_stmt func_map suffix c fdef.fd_body in
+  let func = { func with f_def = Def { fdef with fd_body = stmt } } in
   Map.add func_map ~key:fname ~data:func
 
 let inline_calls_modul (modul : modul) (fname : string) : modul =
@@ -232,12 +236,12 @@ let macro_expand_stmt pmap stmt =
       let ub  = eval_pexpr_exn pmap lmap ub_ie in
       assert (U64.compare lb ub <= 0);
       let body_for_v v =
-          [bicom loc (fsprintf "%s%s = %s" (spaces (indent+2)) iv (U64.to_string v))]
-        @ (List.concat_map stmt ~f:(expand (indent + 2) (Map.add lmap ~key:iv ~data:(Vu64 v))))
+          [bicom loc (fsprintf "%s%s = %s" (spaces (indent+2)) iv.d_name (U64.to_string v))]
+        @ (List.concat_map stmt ~f:(expand (indent + 2) (Map.add lmap ~key:iv.d_name ~data:(Vu64 v))))
       in
-        [bicom loc (comment_while "START:" indent iv lb_ie ub_ie)]
+        [bicom loc (comment_while "START:" indent iv.d_name lb_ie ub_ie)]
       @ List.concat_map (list_from_to ~first:lb ~last:ub) ~f:body_for_v
-      @ [bicom loc (comment_while "END:" indent iv lb_ie ub_ie)]
+      @ [bicom loc (comment_while "END:" indent iv.d_name lb_ie ub_ie)]
   in
   List.concat_map ~f:(expand 0 String.Map.empty) stmt
 
@@ -276,6 +280,7 @@ let macro_expand_modul pvar_map modul fname =
                  ~f:(fun func -> if func.f_name = fname
                                  then macro_expand_func pvar_map func
                                  else func) }
+
 (* ** Expand array assignments *)
 (* *** Summary
 Replace array assignments 'a = b;' where a, b : u64[n] by
@@ -359,7 +364,7 @@ let keep_arrays_non_const_index tenv fdef =
     match d.d_oidx with
     | None            -> ()
     | Some(Pconst(_)) -> ()
-    | Some(Patom(Pvar(n))) when Map.find tenv n = Some(Reg,U64) ->
+    | Some(Patom(Pdest(d))) when Map.find tenv (d.d_name) = Some(Reg,U64) ->
       (* F.printf "adding %s\n" d.d_name; *)
       non_const_arrays := SS.add !non_const_arrays d.d_name;
       begin match Map.find tenv d.d_name with
@@ -391,7 +396,7 @@ let array_expand_stmt _tenv keep_arrays unique_suffix stmt =
     else
       name,oidx,odecl
   in
-  drename_stmt ren stmt
+  dest_map_stmt ren stmt
 
 let array_expand_fundef fdef =
   let tenv =

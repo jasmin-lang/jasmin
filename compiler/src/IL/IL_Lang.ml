@@ -30,11 +30,6 @@ type pop_u64 =
   | Pminus
   [@@deriving compare,sexp]
 
-type patom =
-  | Pparam of name (* global parameter (constant) *)
-  | Pvar   of name (* function local variable *) 
-  [@@deriving compare,sexp]
-
 type 'a pexpr_g =
   | Patom of 'a
   | Pbinop of pop_u64 * 'a pexpr_g * 'a pexpr_g
@@ -43,25 +38,6 @@ type 'a pexpr_g =
 
 (* dimension expression in types *)
 type dexpr = name pexpr_g [@@deriving compare,sexp]
-
-(* parameter expression used in indexes and if-condition *)
-type pexpr = patom pexpr_g [@@deriving compare,sexp]
-
-type pop_bool =
-  | Peq
-  | Pineq
-  | Pless
-  | Pleq
-  | Pgreater
-  | Pgeq
-  [@@deriving compare,sexp]
-
-type pcond =
-  | Ptrue
-  | Pnot of pcond
-  | Pand of pcond * pcond
-  | Pcmp of pop_bool * pexpr * pexpr
-  [@@deriving compare,sexp]
 
 (* ** Types, sources, and destinations
  * ------------------------------------------------------------------------ *)
@@ -93,9 +69,34 @@ type dest = {
   d_odecl : (ty  * storage) option (* the declaration might be stored here *)
 } [@@deriving compare,sexp]
 
+and patom =
+  | Pparam of name (* global parameter (constant) *)
+  | Pdest  of dest (* function local variable *) 
+  [@@deriving compare,sexp]
+
+(* parameter expression used in indexes and if-condition *)
+and pexpr = patom pexpr_g [@@deriving compare,sexp]
+
 type src =
   | Imm of pexpr (* Simm(i): immediate value i            *)
   | Src of dest  (* Sreg(d): where d destination register *)
+  [@@deriving compare,sexp]
+
+
+type pop_bool =
+  | Peq
+  | Pineq
+  | Pless
+  | Pleq
+  | Pgreater
+  | Pgeq
+  [@@deriving compare,sexp]
+
+type pcond =
+  | Ptrue
+  | Pnot of pcond
+  | Pand of pcond * pcond
+  | Pcmp of pop_bool * pexpr * pexpr
   [@@deriving compare,sexp]
 
 (* ** Operators and constructs for intermediate language
@@ -180,7 +181,7 @@ type instr =
   | If of fcond_or_pcond * stmt * stmt
     (* If(c1,s1,s2): if c1 { s1 } else s2 *)
 
-  | For of name * pexpr * pexpr * stmt
+  | For of dest * pexpr * pexpr * stmt
     (* For(v,lower,upper,s): for v in lower..upper { s } *)
 
   | While of while_type * fcond * stmt

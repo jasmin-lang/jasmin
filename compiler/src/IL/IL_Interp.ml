@@ -36,13 +36,14 @@ let eval_pexpr pmap lmap ce =
       | Some (x) -> Ok x
       | None     -> failwith_ "eval_pexpr: parameter %s undefined" s
       end
-    | Patom(Pvar(s)) ->
-      begin match Map.find lmap s with
+    | Patom(Pdest(d)) ->
+      assert (d.d_oidx=None);
+      begin match Map.find lmap d.d_name with
       | Some (Vu64 x) -> Ok x
       | Some (_) ->
-        Error (fsprintf "eval_pexpr: variable %s of wrong type" s)
+        Error (fsprintf "eval_pexpr: variable %a of wrong type" pp_dest d)
       | None ->
-        Error (fsprintf "eval_pexpr: variable %s undefined" s)
+        Error (fsprintf "eval_pexpr: variable %a undefined" pp_dest d)
       end
   in
   go ce
@@ -392,21 +393,21 @@ let rec interp_instr ms0 efun_map linstr =
       )
     in
     let update ms i =
-      { ms with m_lmap = Map.add ms.m_lmap ~key:cv ~data:(Vu64 i) }
+      { ms with m_lmap = Map.add ms.m_lmap ~key:cv.d_name ~data:(Vu64 i) }
     in
-    let old_val = Map.find ms0.m_lmap cv in
+    let old_val = Map.find ms0.m_lmap cv.d_name in
     let ms = ref ms0 in
     let i = ref initial in
     while test !i do
       if false then (
-        F.printf "\nfor %s=%a in %a..%a\n%!"
-          cv pp_uint64 !i pp_uint64 lb pp_uint64 ub);
+        F.printf "\nfor %a=%a in %a..%a\n%!"
+          pp_dest cv pp_uint64 !i pp_uint64 lb pp_uint64 ub);
       ms := update !ms !i;
       ms := interp_stmt !ms efun_map s;
       i := change !i;
     done;
     { !ms with
-      m_lmap = Map.change !ms.m_lmap cv ~f:(fun _ -> old_val) }
+      m_lmap = Map.change !ms.m_lmap cv.d_name ~f:(fun _ -> old_val) }
 
   | Binstr(Call(fname,rets,args)) ->
     interp_call ms0 efun_map fname rets args
@@ -420,7 +421,7 @@ and interp_call ms efun_map fname call_rets call_args =
   | Undef      -> failwith "Calling undefined function (only declared)"
 
 and interp_call_python ms func py_code call_rets call_args =
-  let decl_args = List.map func.f_args ~f:(fun (_,n,_) -> mk_dest_name n) in
+  let decl_args = List.map func.f_args ~f:(fun (s,n,t) -> mk_dest_name n t s) in
   (* compute lmap for callee *)
   let pmap = ms.m_pmap in
   let lmap_caller = ms.m_lmap in
@@ -460,8 +461,8 @@ and interp_call_python ms func py_code call_rets call_args =
   { ms with m_lmap = lmap_caller; }
 
 and interp_call_native ms efun_map func fdef call_rets call_args =
-  let decl_args = List.map func.f_args ~f:(fun (_,name,_) -> mk_dest_name name) in
-  let decl_rets = List.map fdef.fd_ret ~f:(fun n -> Src(mk_dest_name n)) in
+  let decl_args = List.map func.f_args ~f:(fun (s,name,t) -> mk_dest_name name t s) in
+  let decl_rets = List.map fdef.fd_ret ~f:(fun n -> Src(mk_dest_name n U64 Reg)) in
   (* setup mstate for called function *)
   let pmap = ms.m_pmap in
   let tenv_caller = ms.m_tenv in

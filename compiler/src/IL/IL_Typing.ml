@@ -200,7 +200,8 @@ let rec typecheck_instr (env : env) linstr =
       ~err:(fun n_g n_e ->
               failtype_ loc "wrong number of l-values (got %i, exp. %i)" n_g n_e)
   | For(pv,_,_,stmt) ->
-    typecheck_dest env.e_tenv { d_loc = loc; d_name = pv; d_oidx = None; d_odecl = None} U64;
+    assert(pv.d_oidx=None);
+    typecheck_dest env.e_tenv pv U64;
     typecheck_stmt env stmt
   | While(_wt,fc,s) ->
     tc_fcond fc;
@@ -212,19 +213,21 @@ and typecheck_stmt (env : env) stmt =
 (** typecheck return value *)
 let typecheck_ret (env : env) ret_ty ret =
   List.iter2_exn ret ret_ty
-    ~f:(fun name ty -> typecheck_dest env.e_tenv (mk_dest_name name) ty)
+    ~f:(fun name ty -> typecheck_dest env.e_tenv (mk_dest_name name ty Reg) ty)
 
-let extract_decls args fdef =
+let extract_decls ?s:(s="<>") args fdef =
   let args = SS.of_list (List.map ~f:(fun (_,n,_) -> n) args) in
   match fdef.fd_decls with
   | None ->
     let ds = dests_stmt fdef.fd_body in
     DS.to_list ds
     |> List.filter ~f:(fun d -> not (SS.mem args d.d_name))
-    |> List.map
+    |> List.concat_map
          ~f:(fun d -> match d.d_odecl with
-                      | None -> assert false
-                      | Some(ty,stor) -> (stor,d.d_name,ty))
+                      | None ->
+                        failtype_ d.d_loc "extract_decls: dest %a has no inline-decl (in %s)"
+                          pp_dest d s
+                      | Some(ty,stor) -> [stor,d.d_name,ty])
     |> List.dedup ~compare:compare_decl
   | Some decls -> decls
  
@@ -233,7 +236,7 @@ let typecheck_func (penv : penv) (fenv : fenv) func =
   match func.f_def with
   | Undef | Py _ -> ()
   | Def fdef ->
-    let decls = extract_decls func.f_args fdef in
+    let decls = extract_decls ~s:func.f_name func.f_args fdef in
     let tenv = String.Map.of_alist_exn
                  (  (Map.to_alist (tenv_of_func func decls))
                   @ (Map.to_alist penv))
@@ -264,12 +267,12 @@ let inline_decls_func func =
   | Undef | Py _ -> func
   | Def fdef ->
     match fdef.fd_decls with
-    | None -> assert false
+    | None       -> failwith "inline declarations: declarations already inlined"
     | Some decls ->
       let tenv  = tenv_of_func func decls in
       let stenv = stenv_of_func func decls in
       let body =
-        drename_stmt
+        dest_map_stmt
           (fun n oi odc ->
             assert(odc=None);
             let t = Map.find_exn tenv n in

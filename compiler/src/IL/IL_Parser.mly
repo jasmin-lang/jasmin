@@ -123,18 +123,18 @@ dexpr :
 | LPAREN e1=dexpr RPAREN     { e1                      }
 
 pexpr :
-| s=ID                       { Patom(Pvar(s))          }
+| s=dest                     { Patom(Pdest(s))         }
 | DOLLAR s=ID                { Patom(Pparam(s))        }
 | i=INT                      { Pconst(U64.of_string i) }
 | e1=pexpr o=pbinop e2=pexpr { Pbinop(o,e1,e2)         }
 | LPAREN e1=pexpr RPAREN     { e1                      }
 
 pcond :
-| TRUE                        { Ptrue          }
-| FALSE                       { Pnot(Ptrue)    }
-| EXCL c=pcond                { Pnot(c)        }
-| c1=pcond LAND c2=pcond      { Pand(c1,c2)    }
-| LPAREN c = pcond RPAREN     { c              }
+| TRUE                        { Ptrue         }
+| FALSE                       { Pnot(Ptrue)   }
+| EXCL c=pcond                { Pnot(c)       }
+| c1=pcond LAND c2=pcond      { Pand(c1,c2)   }
+| LPAREN c = pcond RPAREN     { c             }
 | c1=pexpr o=pcondop c2=pexpr { Pcmp(o,c1,c2) }
 
 
@@ -238,7 +238,7 @@ instr :
 | IF c=pcond_or_fcond i1s=block ies=celse_if* mi2s=celse?
     { mk_if c i1s mi2s ies }
 
-| FOR  cv=ID IN ce1=pexpr DOTDOT ce2=pexpr is=block
+| FOR  cv=dest IN ce1=pexpr DOTDOT ce2=pexpr is=block
     { For(cv,ce1,ce2,is) }
 
 | WHILE fc=fcond is=block
