@@ -79,7 +79,7 @@ fn sub(reg x : u64[4], stack ya : u64[4]) -> reg u64[4] {
 
 fn reduce(reg z : u64[4*2]) -> reg u64[4*2] {
   reg crem_p, rax, l, h, hprev, zero : u64;
-  reg cf : bool;
+  flag cf : bool;
   inline i : u64;
 
   crem_p = $rem_p;
@@ -122,8 +122,8 @@ fn mul(stack xa, ya : u64[4]) -> reg u64[4] {
   reg z    : u64[4*2];
   reg r    : u64[4];
   reg x, y : u64[4];
-  reg h, l, hprev, crem_p, rax, zero : u64;
-  reg cf : bool;
+  reg h, l, hprev : u64;
+  flag cf : bool;
   inline i, j : u64;
 
   x[0] = xa[0];
@@ -178,7 +178,7 @@ fn square(stack xa : u64[4]) -> reg u64[4] {
   reg z : u64[4*2];
   reg r : u64[4];
   reg t : u64[5];
-  reg rax, rdx, crem_p, h, l, hprev, zero : u64;
+  reg rax, rdx : u64;
   flag cf : bool;
   inline i : u64;
 
@@ -501,7 +501,7 @@ fn mula(stack x, y : u64[4]) -> stack u64[4] {
 }
 
 fn invert(stack xa : u64[4]) -> stack u64[4] {
-  stack ra, z2, t, z9, x, z11, z2_5_0, z2_10_0, z2_20_0, z2_50_0 : u64[4];
+  stack ra, z2, t, z9, z11, z2_5_0, z2_10_0, z2_20_0, z2_50_0 : u64[4];
   stack z2_100_0 : u64[4];
   inline i : u64;
 
@@ -759,7 +759,7 @@ fn test_mul() {
 }
 
 fn test_square() {
-  reg   x_tmp, y_tmp, z : u64[4];
+  reg   x_tmp, z : u64[4];
   stack x : u64[4];
   reg   u : u64;
   inline i : u64;
@@ -797,7 +797,6 @@ fn test_ladderstep() {
 fn test_ladderstep_tracing() {
   reg u : u64;
   reg x1, x2, z2, x3, z3 : u64[4];
-  reg x2_r, z2_r, x3_r, z3_r : u64[4];
   reg l1,l2,l3,l4,l5,l6,l7,l8,l9,l10,l11,l12,l13,l14,l15,l16,l17,l18 : u64[4];
   inline i : u64;
 
@@ -875,7 +874,6 @@ fn test_scalarmult() {
   stack pa, sa, ra : u64[4];
   reg rp, sp,pp : u64;
   stack u : u64;
-  stack l1,l2,l3,l4,l5,l6 : u64[4];
   inline i : u64;
 
   rp = 0;
