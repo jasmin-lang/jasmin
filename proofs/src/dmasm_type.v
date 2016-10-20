@@ -17,7 +17,7 @@ Inductive stype : Set :=
 | sword : stype
 | sbool : stype
 | sprod : stype -> stype -> stype
-| sarr  : positive -> stype -> stype.
+| sarr  : positive -> (* stype -> *) stype.
 
 Notation "st1 ** st2" := (sprod st1 st2) (at level 40, left associativity).
 
@@ -51,24 +51,25 @@ Fixpoint stype_cmp t t' :=
   | sprod _  _ , sword         => Gt
   | sprod _  _ , sbool         => Gt
   | sprod t1 t2, sprod t1' t2' => Lex (stype_cmp t1 t1') (stype_cmp t2 t2')
-  | sprod _  _ , sarr  _   _   => Lt
-  | sarr  n  t , sarr  n'  t'  => Lex (Pos.compare n n') (stype_cmp t t')
-  | sarr  _  _ , _             => Gt
+  | sprod _  _ , sarr  _       => Lt
+  | sarr  n    , sarr  n'      => Pos.compare n n'
+  | sarr  _    , _             => Gt
   end.
 
 Instance stypeO : Cmp stype_cmp.
 Proof.
   constructor.
-  + by elim=> [||t1 Ht1 t2 Ht2 |n t Ht] [||t1' t2'|n' t'] //=;rewrite !Lex_lex;
-    apply lex_sym; auto;apply cmp_sym.
-  + by move=> y x;elim: x y=> 
-    [||t1 Ht1 t2 Ht2 |n t Ht] [||t1' t2'|n' t'] [||t1'' t2''|n'' t''] c//=;
-    try (by apply ctrans_Eq);eauto using ctrans_Lt, ctrans_Gt;
-    rewrite !Lex_lex;apply lex_trans=> /=;eauto; apply cmp_ctrans.
-  elim=> [||t1 Ht1 t2 Ht2 |n t Ht] [||t1' t2'|n' t'] //=;rewrite !Lex_lex.
-  + by move=> /lex_eq /= [] /Ht1 -> /Ht2 ->.
-  move=> /lex_eq /= [] H;have -> := (@cmp_eq _ _ positiveO _ _ H). 
-  by move=> /Ht ->.
+  + elim=> [||t1 Ht1 t2 Ht2 |n] [||t1' t2'|n'] //=.
+    + by rewrite !Lex_lex;apply lex_sym; auto;apply cmp_sym.
+    apply cmp_sym.
+  + move=> y x;elim: x y=> 
+    [||t1 Ht1 t2 Ht2 |n] [||t1' t2'|n'] [||t1'' t2''|n''] c//=;
+    try (by apply ctrans_Eq);eauto using ctrans_Lt, ctrans_Gt.
+    + by rewrite !Lex_lex;apply lex_trans=> /=;eauto; apply cmp_ctrans.
+    apply cmp_ctrans.
+  elim=> [||t1 Ht1 t2 Ht2 |n] [||t1' t2'|n'] //=.
+  rewrite !Lex_lex; by move=> /lex_eq /= [] /Ht1 -> /Ht2 ->.
+  by move=> H; have -> := (@cmp_eq _ _ positiveO _ _ H). 
 Qed.
 
 Module CmpStype.
@@ -143,20 +144,12 @@ Module CEDecStype.
         end
       | _            => right I
       end
-    | sarr n1 t1 =>
-      match t2 as t0 return {sarr n1 t1 = t0} + {True} with
-      | sarr n2 t2 =>
+    | sarr n1 =>
+      match t2 as t0 return {sarr n1 = t0} + {True} with
+      | sarr n2 =>
         match pos_dec n1 n2 with
-        | left eqn =>
-          match eq_dec t1 t2 with
-          | left eqt =>
-            let auxn  := 
-                eq_rect n1 (fun n => sarr n1 t1 = sarr n t1) (erefl (sarr n1 t1)) n2 eqn in
-            let auxt := eq_rect t1 (fun t => sarr n1 t1 = sarr n2 t) auxn t2 eqt in
-            left auxt
-          | right _ => right I
-          end
-        | right _  => right I
+        | left eqn => left (eq_rect n1 (fun n => sarr n1 = sarr n) (erefl (sarr n1)) n2 eqn)
+        | right _ => right I
         end
       | _          => right I
       end
@@ -172,14 +165,12 @@ Module CEDecStype.
  
   Lemma eq_dec_r t1 t2 tt: eq_dec t1 t2 = right tt -> t1 != t2.
   Proof.
-    case: tt;elim:t1 t2=> [|| t1 Ht1 t2 Ht2 | n t Ht] [|| t1' t2' | n' t'] //=.
+    case: tt;elim:t1 t2=> [|| t1 Ht1 t2 Ht2 | n] [|| t1' t2' | n'] //=.
     + case: eq_dec (Ht1 t1') => [? _ | [] neq _ ].
       + case: eq_dec (Ht2 t2') => // -[] neq _.
         by move: (neq (erefl _));rewrite !eqE /= andbC => /negPf ->. 
       by move: (neq (erefl _));rewrite !eqE /= => /negPf ->.   
-    case: pos_dec (@pos_dec_r n n' I) => [Heq _ | [] neq ].
-    + case: eq_dec (Ht t') => // -[] neq _;rewrite Heq.
-      by move: (neq (erefl _));rewrite !eqE /= andbC => /negPf ->. 
+    case: pos_dec (@pos_dec_r n n' I) => [Heq _ | [] neq ] //=.
     move: (neq (erefl _))=> /eqP H _;rewrite !eqE /=.
     by case H':positive_beq=> //;move:H'=> /internal_positive_dec_bl.
   Qed.

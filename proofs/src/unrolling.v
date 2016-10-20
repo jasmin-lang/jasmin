@@ -123,8 +123,8 @@ Section PROOF.
   Let Hfunc : forall ta tr (x:rval ta) c (re:rval tr), Pc c -> Pf (FunDef x c re).
   Proof.
     move=> ta tr x c re Hc mem mem' va vr H;inversion H;clear H;subst.
-    inversion H0;clear H0;subst=> /=; constructor=> vm0.
-    by case: (H7 vm0)=> vm2 /= [] /Hc Hc' Hvr;exists vm2. 
+    inversion H0;clear H0;subst=> /=; constructor=> //= vm0 Hvm0.
+    by case: (H6 vm0 Hvm0)=> vm2 /= [] /Hc Hc' Hvr;exists vm2. 
   Qed.
 
   Lemma unroll_callP ta tr (f : fundef ta tr) mem mem' va vr: 

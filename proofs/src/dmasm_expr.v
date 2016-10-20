@@ -44,7 +44,7 @@ Inductive sop2 : stype -> stype -> stype -> Set :=
 | Olt   : sop2 sword sword sbool
 | Ole   : sop2 sword sword sbool
 (* arrays *)
-| Oget  : forall n, sop2 (sarr n sword) sword sword
+| Oget  : forall n, sop2 (sarr n) sword sword
 (* pairs *)
 | Opair : forall st1 st2, sop2 st1 st2 (st1 ** st2).
 
@@ -53,7 +53,7 @@ Inductive sop3 : stype -> stype -> stype -> stype -> Set :=
 | Oaddcarry : sop3 sword sword sbool (sbool ** sword)
 | Osubcarry : sop3 sword sword sbool (sbool ** sword)
 (* arrays *)
-| Oset  : forall n, sop3 (sarr n sword) sword sword (sarr n sword).
+| Oset  : forall n, sop3 (sarr n) sword sword (sarr n).
 
 Definition eqb_sop1 {t1 tr t1' tr'} (o:sop1 t1 tr) (o':sop1 t1' tr') := 
   match o, o' with

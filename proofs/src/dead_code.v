@@ -304,11 +304,11 @@ Section PROOF.
   Proof.
     move=> ta tr x c re Hc m1 m2 va vr /=.
     case Heq : dead_code => [[s1 c'] | ]//= H;inversion H;clear H;subst.
-    inversion H0;clear H0;subst=> /=; constructor=> vm0.
-    case: (H7 vm0)=> vm2 /= [Hsem Heqr]. 
+    inversion H0;clear H0;subst=> /=; constructor=> //= vm0 Hvm0.
+    case: (H6 vm0 Hvm0)=> vm2 /= [Hsem Heqr]. 
     have := Hc m1 m2 (write_rval vm0 x va) vm2 Hsem (vrv re);rewrite Heq.
     move=> /(_ (write_rval vm0 x va)) [] // vm2' [Hvm2 Hsem'].
-    exists vm2';split=> // {H7 Heq}.
+    exists vm2';split=> // {H6 H8 Heq}.
     elim: re vr Hvm2 Heqr => [z | ?? vr1 Hrec1 vr2 Hrec2] vr Hvm /= ->.
     + by rewrite Hvm // vrv_var;SvD.fsetdec.
     by f_equal;[apply Hrec1 | apply Hrec2]=> //;apply: eq_onI Hvm;

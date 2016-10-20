@@ -384,7 +384,7 @@ Proof.
   elim: e=> [x | n | b | ?? o e1 He1 | ??? o e1 He1 e2 He2 | ???? o e1 He1 e2 He2 e3 He3]
      v //=.
   + move=> [] Heq; have := Hvalid x;rewrite Heq.
-    case: x v Heq => -[ | | ??|?? ] ?? H /=;rewrite ?H //.
+    case: x v Heq => -[ | | ??|? ] ?? H /=;rewrite ?H //.
     by case Mvar.get => [n /(_ n (erefl _)) -> //| /=]; rewrite H.
   + by case Heq1: sem_pexpr=> //= Heqo; apply s_op1P => /=;rewrite (He1 _ Heq1).
   + case Heq1: (sem_pexpr rho e1)=> //=;case Heq2: sem_pexpr=> //= Heqo.
@@ -604,8 +604,8 @@ Qed.
   Proof.
     move=> ta tr x c re Hc mem mem' va vr H;inversion H;clear H;subst.
     inversion H0;clear H0;subst=> /=. 
-    case Heq: const_prop => [m' c'];constructor=> vm0.
-    case: (H7 vm0)=> vm2 /= [] /Hc Hr. have {Hr} []:= Hr empty_cpm.
+    case Heq: const_prop => [m' c'];constructor=> //= vm0 Hvm0.
+    case: (H6 vm0 Hvm0)=> vm2 /= [] /Hc Hr. have {Hr} []:= Hr empty_cpm.
     + by move=> z n;rewrite /empty_cpm Mvar.get0.
     by rewrite Heq /= => _ Hc' Hvr;exists vm2.
   Qed.

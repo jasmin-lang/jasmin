@@ -18,8 +18,11 @@ Unset Printing Implicit Defensive.
 Module FArray.
 
   Definition array (T:Type) := word -> T.
+
   Definition cnst {T} (t:T) : array T := fun i => t.
+
   Definition get {T} (a:array T) (i:word) := a i.
+
   Definition set {T} (a:array T) (i:word) (v:T) :=
     fun j => if i == j  then v else a j.
   
@@ -28,7 +31,7 @@ Module FArray.
   Proof. done. Qed.
 
   Lemma setP_eq {T} (a:array T) (w:word) (t:T):
-    get (set a w t) w = t .
+    get (set a w t) w = t.
   Proof. by rewrite setP eq_refl. Qed.
 
   Lemma setP_neq {T} (a:array T) (w1 w2:word) (t:T): 
@@ -39,21 +42,29 @@ End FArray.
 
 Module Array.
 
-  Definition array (s:positive) T := FArray.array T.
+  Definition array (s:positive) T := FArray.array (exec T).
 
-  Definition make {T:Type} (s:positive) (t:T) : array s T :=  FArray.cnst t.
+  Definition empty {T:Type} (s:positive) : array s T := FArray.cnst (Error ErrAddrUndef).
+
+  Definition make {T:Type} (s:positive) (t:T) : array s T :=  FArray.cnst (ok t). 
 
   Definition get {T} {s} (a:array s T) (w:word) : result error T := 
-    if ((0 <=? w) && (w <? Zpos s))%Z then ok (FArray.get a w)
+    if ((0 <=? w) && (w <? Zpos s))%Z then FArray.get a w
     else Error ErrOob.
 
   Definition set {T} s (a:array s T) (x:word) (v:T) : result error (array s T):=
-    if ((0 <=? x) && (x <? Zpos s))%Z then ok (FArray.set a x v)
+    if ((0 <=? x) && (x <? Zpos s))%Z then ok (FArray.set a x (ok v))
     else Error ErrOob.
 
   Lemma getP_inv T s (a:array s T) x t: 
     get a x = ok t -> ((0 <=? x) && (x <? Zpos s))%Z.
   Proof. by rewrite /get;case: ifP. Qed.
+
+  Lemma getP_empty T s x w: get (@empty T s) x <> ok w.
+  Proof. by rewrite /get/empty;case:ifP. Qed.
+
+  (* FIXME *)
+  Axiom eq_ext : forall T s (t1 t2:array s T), (forall x, get t1 x = get t2 x) -> t1 = t2.
 
 End Array.
   
@@ -62,7 +73,7 @@ Fixpoint st2ty (t : stype) : Type :=
   | sword         => word
   | sbool         => bool
   | sprod st1 st2 => ((st2ty st1) * (st2ty st2))%type
-  | sarr n st     => Array.array n (st2ty st)
+  | sarr n        => Array.array n word
   end.
 
 (* ** Default values
@@ -73,7 +84,7 @@ Fixpoint dflt_val (st : stype) : st2ty st :=
   | sword         => I64.repr Z0
   | sbool         => false
   | sprod st1 st2 => (dflt_val st1, dflt_val st2)
-  | sarr n    st  => Array.make n (dflt_val st) 
+  | sarr n        => @Array.empty word n
   end.
 
 Definition rdflt_ (st : stype) e (r : result e (st2ty st)) : st2ty st :=
@@ -96,6 +107,28 @@ Fixpoint sem_rval (s:vmap) t (rv:rval t) : st2ty t :=
   match rv in rval t_ return st2ty t_ with
   | Rvar x            => s.[x]%vmap
   | Rpair _ _ rv1 rv2 => (sem_rval s rv1, sem_rval s rv2)
+  end.
+
+(* Initial map *)
+
+Fixpoint is_empty_array (t:stype) : st2ty t -> Prop := 
+  match t as t0 return st2ty t0 -> Prop with
+  | sword => fun _ => True
+  | sbool => fun _ => True
+  | sprod t1 t2 => fun v => @is_empty_array t1 v.1 /\ @is_empty_array t2 v.2
+  | sarr n => fun v => v =  Array.empty n
+  end.
+
+Definition all_empty_arr (vm:vmap) := forall x, is_empty_array (vm.[x])%vmap.
+
+Fixpoint is_full_array (t:stype) : st2ty t -> Prop := 
+  match t as t0 return st2ty t0 -> Prop with
+  | sword => fun _ => True
+  | sbool => fun _ => True
+  | sprod t1 t2 => fun v => @is_full_array t1 v.1 /\ @is_full_array t2 v.2
+  | sarr n => fun (v:Array.array n word) => 
+    forall (p:word), (0 <= p < Zpos n)%Z -> 
+       exists w, Array.get v p = ok w
   end.
 
 (* ** Parameter expressions
@@ -166,6 +199,7 @@ Definition sem_bcmd (es : estate) (bc : bcmd) : exec estate :=
       sem_pexpr es.(evm) pe >>= fun v =>
       let vm := write_rval es.(evm) rv v in
       ok (Estate es.(emem) vm)
+
   | Load rv pe_addr =>
       sem_pexpr es.(evm) pe_addr >>= fun p =>
       read_mem es.(emem) p >>= fun w =>
@@ -255,10 +289,11 @@ with sem_call :
 
 | EcallRun sta str m1 m2 rres (f:fundef sta str) (varg : st2ty sta):
     (* semantics defined for all vm0 *)
-    (forall vm0, exists vm2,
+    (forall vm0, all_empty_arr vm0 -> exists vm2,
        let vm1 := write_rval vm0 f.(fd_arg) varg in
        sem (Estate m1 vm1) f.(fd_body) (Estate m2 vm2) /\
        rres = sem_rval vm2 f.(fd_res)) ->
+    is_full_array rres ->
     sem_call m1 f varg m2 rres.
 
 (* -------------------------------------------------------------------- *)
@@ -439,3 +474,271 @@ Notation "vm1 = vm2 [\ s ]" := (vmap_eq_except s vm1 vm2) (at level 70, vm2 at n
 
 Notation "vm1 '=[' s ']' vm2" := (eq_on s vm1 vm2) (at level 70, vm2 at next level,
   format "'[hv ' vm1  =[ s ]  '/'  vm2 ']'").
+
+
+
+Fixpoint val_uincl (t:stype) : st2ty t -> st2ty t -> Prop := 
+  match t as t0 return st2ty t0 -> st2ty t0 -> Prop with
+  | sword => fun w1 w2 => w1 = w2
+  | sbool => fun b1 b2 => b1 = b2
+  | sprod t1 t2 => fun v1 v2 => @val_uincl t1 v1.1 v2.1 /\ @val_uincl t2 v1.2 v2.2
+  | sarr n => fun (t1 t2:Array.array n word) => 
+      (forall i v, Array.get t1 i = ok v -> Array.get t2 i = ok v)
+  end.
+
+Definition vm_uincl (vm1 vm2:vmap) :=
+  forall x, val_uincl (vm1.[x])%vmap (vm2.[x])%vmap.
+
+Lemma val_uincl_refl t v: @val_uincl t v v.
+Proof. by elim: t v => //=. Qed.
+
+Hint Resolve val_uincl_refl.    
+
+Lemma sem_sop1_uincl t1 tr (o:sop1 t1 tr) v1 v1' v:
+   val_uincl v1 v1' ->
+   sem_sop1 o v1 = ok v ->
+   exists v', sem_sop1 o v1' = ok v' /\ val_uincl v v'.
+Proof.
+  case:o v1 v1' v.
+  + by move=> v1 v1' v <- Heq;exists v.
+  + by move=> ?? v1 v1' v [] H1 H2 [] <- /=;eauto.
+  by move=> ?? v1 v1' v [] H1 H2 [] <- /=;eauto.
+Qed.
+
+Lemma sem_sop2_uincl t1 t2 tr (o:sop2 t1 t2 tr) v1 v1' v2 v2' v:
+   val_uincl v1 v1' ->
+   val_uincl v2 v2' ->
+   sem_sop2 o v1 v2 = ok v ->
+   exists v', sem_sop2 o v1' v2' = ok v' /\ val_uincl v v'.
+Proof.
+  case:o v1 v1' v2 v2' v;try by move=> v1 v1' v2 v2' v /= <- <- [] <-;eauto.
+  + by move=> n v1 v1' v2 v2' v /= H <- /H;eauto.
+  by move=> ?? v1 v1' v2 v2' v H1 H2 [] <- /=;eauto.
+Qed.
+
+Lemma sem_sop3_uincl t1 t2 t3 tr (o:sop3 t1 t2 t3 tr) v1 v1' v2 v2' v3 v3' v:
+   val_uincl v1 v1' ->
+   val_uincl v2 v2' ->
+   val_uincl v3 v3' ->
+   sem_sop3 o v1 v2 v3 = ok v ->
+   exists v', sem_sop3 o v1' v2' v3'= ok v' /\ val_uincl v v'.
+Proof.
+  case:o v1 v1' v2 v2' v3 v3' v;try by move=> v1 v1' v2 v2' v3 v3' v /= <- <- [] <-;eauto.
+  move=> n v1 v1' v2 v2' v3 v3' v /= H <- <-.
+  rewrite /Array.set;case:ifP => //= ? [] <-.
+  exists (FArray.set v1' v2 (ok v3));split=>// i w.
+  have := H i w;rewrite /Array.get;case:ifP=>// ?.
+  by rewrite !FArray.setP;case:ifP=>//.
+Qed.
+
+Lemma sem_expr_uincl vm1 vm2 t (e:pexpr t) v1:
+  vm_uincl vm1 vm2 ->
+  sem_pexpr vm1 e = ok v1 ->
+  exists v2, sem_pexpr vm2 e = ok v2 /\ val_uincl v1 v2.
+Proof.
+  move=> Hu; elim: e v1=>//=
+     [x|z|b|?? o e1 He1|??? o e1 He1 e2 He2|???? o e1 He1 e2 He2 e3 He3] v1.
+  + by move=> [] <-;exists (vm2.[x])%vmap.
+  + by move=>[] <-;exists (I64.repr z);split=>//;constructor.
+  + by move=>[] <-;exists b;split=>//;constructor.
+  + case Heq:sem_pexpr=> [v1'|]//=;move:Heq=> /He1 [v2][->] Hu1 /= {He1 e1}.
+    by apply sem_sop1_uincl.
+  + case Heq:(sem_pexpr vm1 e1)=> [v1'|]//=;move:Heq=> /He1 [v1''][->] Hu1 /= {He1 e1}.
+    case Heq:(sem_pexpr vm1 e2)=> [v2'|]//=;move:Heq=> /He2 [v2''][->] Hu2 /= {He2 e2}.
+    by apply sem_sop2_uincl.
+  case Heq:(sem_pexpr vm1 e1)=> [v1'|]//=;move:Heq=> /He1 [v1''][->] Hu1 /= {He1 e1}.
+  case Heq:(sem_pexpr vm1 e2)=> [v2'|]//=;move:Heq=> /He2 [v2''][->] Hu2 /= {He2 e2}.
+  case Heq:(sem_pexpr vm1 e3)=> [v3'|]//=;move:Heq=> /He3 [v3''][->] Hu3 /= {He3 e3}.
+  by apply sem_sop3_uincl.
+Qed.
+
+Lemma write_uincl vm1 vm2 t (r:rval t) v1 v2:
+  vm_uincl vm1 vm2 ->
+  val_uincl v1 v2 ->
+  vm_uincl (write_rval vm1 r v1) (write_rval vm2 r v2).
+Proof.
+  elim: r v1 v2 vm1 vm2.
+  + move=> /= x v1 v2 vm1 vm2 Hvm Hv z.
+    case:(x =P z)=> [<-|/eqP ?];first by rewrite !Fv.setP_eq.
+    by rewrite !Fv.setP_neq.
+  by move=> t1 t2 r1 Hr1 r2 Hr2 v1 v2 vm1 vm2 Hvm [] ??;apply Hr1=>//;apply Hr2. 
+Qed.
+
+Section UNDEFINCL.
+
+Let Pi (i:instr) := 
+  forall s1 vm1 s2, 
+    vm_uincl (evm s1) vm1 ->
+    sem_i s1 i s2 ->
+    exists vm2, 
+       sem_i {|emem := emem s1; evm := vm1|} i {|emem := emem s2; evm := vm2|} /\ 
+       vm_uincl (evm s2) vm2.
+
+Let Pc (c:cmd) := 
+  forall s1 vm1 s2, 
+    vm_uincl (evm s1) vm1 ->
+    sem s1 c s2 ->
+    exists vm2, 
+       sem {|emem := emem s1; evm := vm1|} c {|emem := emem s2; evm := vm2|} /\ 
+       vm_uincl (evm s2) vm2.
+
+Let Pf ta tr (fd:fundef ta tr) := 
+  forall m1 va va' m2 vr,
+    val_uincl va va' ->
+    sem_call m1 fd va m2 vr ->
+    exists vr', sem_call m1 fd va' m2 vr' /\ val_uincl vr vr'.
+
+Let Hskip : Pc [::].
+Proof. 
+  by move=> s1 vm1 s2 Hu H;sinversion H;exists vm1;split=>//;constructor.
+Qed.
+
+Let Hseq  : forall i c,  Pi i -> Pc c -> Pc (i::c).
+Proof.
+  move=> i c Hi Hc s1 vm1 s3 Hu H;sinversion H.
+  move=> /Hi in H3;case (H3 _ Hu) => {H3} vm2 [Hi'] /Hc /(_ H5) [vm3] [Hc' Hvm3].
+  by exists vm3;split=>//;econstructor;eauto.
+Qed.
+
+Let Hbcmd : forall bc,  Pi (Cbcmd bc).
+Proof.
+  move=> i s1 vm1 s2 Hu H;sinversion H.
+  case: i H2 => /=.
+  + move=> ? r e. 
+    case Heq1: (sem_pexpr _ e)=> [v1|] //= [] <-.
+    case: (sem_expr_uincl Hu Heq1)=> v1' [He1 Hincl] /=.
+    exists (write_rval vm1 r v1');split;first by constructor=> /=;rewrite He1.
+    by apply write_uincl.
+  + move=> r e.
+    case Heq1: (sem_pexpr _ e)=> [v1|] //=.
+    case Heq2: read_mem => [v2|] //= [] <-.
+    case: (sem_expr_uincl Hu Heq1)=> v1' [He1 /= Hincl] /=;subst.
+    subst;exists (write_rval vm1 r v2);split.
+    + by constructor=> /=;rewrite He1 /= Heq2.
+    by apply write_uincl.
+
+  move=> e1 e2.
+  case Heq1: (sem_pexpr _ e1)=> [v1|] //=.
+  case Heq2: (sem_pexpr _ e2)=> [v2|] //=.
+  case Heq3: write_mem => [v3|] //= [] <-.
+  case: (sem_expr_uincl Hu Heq1)=> v1' [He1 /= Hincl1].
+  case: (sem_expr_uincl Hu Heq2)=> v2' [He2 /= Hincl2];subst.
+  by exists vm1;split=>//;constructor=>/=;rewrite He1 He2 /= Heq3.
+Qed.
+
+Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (Cif e c1 c2).
+Proof.
+  move=> e c1 c2 Hc1 Hc2 s1 vm1 s2 Hu H;sinversion H.
+  case: (sem_expr_uincl Hu H5)=> cond' [He' /= H];subst.
+  case: cond' He' {H5} H6 => He' Hs. 
+  + have [vm2 [Hs' Hu2]]:= (Hc1 _ _ _ Hu Hs).
+    exists vm2;split=> //;econstructor;eauto.
+  have [vm2 [Hs' Hu2]]:= (Hc2 _ _ _ Hu Hs).
+  exists vm2;split=> //;econstructor;eauto.
+Qed.
+
+Let Hfor  : forall i rn c, Pc c -> Pi (Cfor i rn c).
+Proof.
+  move=> i [[dir hi] low] c Hc s1 vm1 s2 Hu H;sinversion H.
+  case: (sem_expr_uincl Hu H7)=> vlow' [Hlow' /= H] {H7};subst.
+  case: (sem_expr_uincl Hu H8)=> vhi' [Hhi' /= H] {H8};subst.
+  have : exists vm2,  
+     sem_for i [seq n2w i | i <- wrange dir vlow' vhi']
+     {| emem := emem s1; evm := vm1 |} c {| emem := emem s2; evm := vm2 |} /\
+     vm_uincl (evm s2) vm2.
+  + move=> {Hlow' Hhi'}.
+    elim: wrange s1 vm1 Hu H9 => /= [|w ws Hrec] s1 vm1 Hu H;sinversion H.
+    + by exists vm1;split=>//;constructor.
+    have H := write_uincl i Hu (@val_uincl_refl sword (n2w w)).
+    have /(_ _ H) [vm2 /= [H1 /Hrec [//|vm3 [??]]]]:= (Hc _ _ _ _ H3).
+    by exists vm3;split=>//;econstructor;eauto.
+  move=> [vm2 [Hfor Hu2]];exists vm2;split=>//.
+  by econstructor;eauto.
+Qed.
+
+Let Hwhile  : forall e c, Pc c -> Pi (Cwhile e c).
+Proof.
+  move=> e c Hc s1 vm1 s2 Hu H;sinversion H.
+  have : exists vm2, 
+     sem_while {| emem := emem s1; evm := vm1 |} e c 
+               {| emem := emem s2; evm := vm2 |} /\
+     vm_uincl (evm s2) vm2.
+  elim: H4 vm1 Hu Hc => {e c s1 s2}
+    [s e c He| s1 s2 s3 e c He Hs _ Hrec] vm1 Hu Hc.
+  + exists vm1;split=>//;constructor.
+    by case: (sem_expr_uincl Hu He) => ? [-> <-].
+    case: (sem_expr_uincl Hu He) => /= ? [] ??;subst.
+    case: (Hc _ _ _ Hu Hs) => vm2 [Hc' Hu2].
+    case: (Hrec _ Hu2 Hc) => vm3 [Hw Hu3].
+    by exists vm3;split=>//;econstructor;eauto.
+  by move=> [vm2 [Hw Hu2]];exists vm2;split=>//;constructor.
+Qed.
+
+Let Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
+Proof.
+  move=> ta tr x fd a Hf s1 vm1 s2 Hu H;sinversion H.
+  sinversion H4;sinversion H5;sinversion H0;sinversion H6.
+  case He : sem_pexpr @rarg H7 H8 => [va|]//= _.
+  case: (sem_expr_uincl Hu He) => /= va' [] H1 H2 Hs.
+  have [vr' [Hs' Hu']]:= Hf _ _ _ _ _ H2 Hs.
+  exists (write_rval vm1 x vr');split;first by constructor;rewrite H1.
+  by apply write_uincl.
+Qed.
+
+Lemma empty_dflt t: is_empty_array (dflt_val t).
+Proof. elim: t => //=. Qed.
+
+Lemma empty_vmap0 : all_empty_arr vmap0.
+Proof. by move=> x;rewrite Fv.get0; apply empty_dflt. Qed.
+
+Lemma is_full_array_uincl t (v v':st2ty t): 
+  is_full_array v -> val_uincl v v' -> v = v'.
+Proof.
+  elim: t v v' => // [t1 Ht1 t2 Ht2 | s] /=.
+  + by move=> [v1 v2] [v1' v2'] /= [] ?? [] /Ht1 <- // /Ht2 <-.
+  move=> v v' Hf Hu; apply Array.eq_ext=> w;have := Hu w; have := Hf w.
+  rewrite /Array.get;case:ifP => // /andP [] /Z.leb_le ?  /Z.ltb_lt ?.
+  by move=> [] // x Hx Hv; rewrite Hx -(Hv _ Hx). 
+Qed.
+
+Let Hfunc : forall ta tr (x:rval ta) c (re:rval tr), Pc c -> Pf (FunDef x c re).
+Proof.
+  move=> ta tr x c re Hc m1 va va' m2 vr Hu Hs;sinversion Hs.
+  sinversion H.
+  have [vm2 /= [H1 H2]]:= H5 _ empty_vmap0.
+  have := sem_rval2pe re vm2. rewrite -H2.
+  have Hu0 : vm_uincl vmap0 vmap0.
+  + by move=> z.
+  have Hu1 := write_uincl x Hu0 Hu.
+  have /= /(_ _ Hu1) [vm3 [? Hu3]]:= Hc _ _ _ _ H1.
+  move=> Hre;have [vr' [? Hu2]]:= sem_expr_uincl Hu3 Hre.
+  have ?:=  is_full_array_uincl H7 Hu2;subst vr'.
+  exists vr;split=>//;constructor=>//.
+  move=> vm0 Hall;case (H5 _ Hall) => vm1 /= [Hs1 Heq1].
+  have := sem_rval2pe re vm1. rewrite -Heq1.
+  have Huvm : vm_uincl vm0 vm0.
+  + by move=> z.
+  have Hu1' := write_uincl x Huvm Hu.
+  have /(_ _ Hu1') [vm4 /= [? Hu4]] := Hc _ _ _ _ Hs1.
+  move=> Hre';have [vr' [Heq2 Hu5]]:= sem_expr_uincl Hu4 Hre'.
+  have ?:=  is_full_array_uincl H7 Hu5;subst vr'.
+  exists vm4;split=>//.
+  by have := sem_rval2pe re vm4;rewrite Heq2=>-[].
+Qed.
+
+Lemma sem_i_uincl i : Pi i.
+Proof.
+  apply (@instr_rect2 Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc).
+Qed.
+
+Lemma sem_uincl c : Pc c.
+Proof.
+  apply (@cmd_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc).
+Qed.
+
+Lemma sem_call_uincl ta tr (fd:fundef ta tr): Pf fd.
+Proof.
+  apply (@func_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc).
+Qed.
+
+End UNDEFINCL.

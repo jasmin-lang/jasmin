@@ -23,7 +23,7 @@ Fixpoint sst2ty (t : stype) : Type :=
   | sword         => word
   | sbool         => bool
   | sprod st1 st2 => ((sst2ty st1) * (sst2ty st2))%type
-  | sarr n st     => FArray.array (sst2ty st)
+  | sarr n        => FArray.array word
   end.
 
 Fixpoint sdflt_val st :  sst2ty st :=
@@ -31,7 +31,7 @@ Fixpoint sdflt_val st :  sst2ty st :=
   | sword         => n2w 0
   | sbool         => true
   | sprod st1 st2 => (sdflt_val st1, sdflt_val st2)
-  | sarr n st     => FArray.cnst (sdflt_val st)
+  | sarr n        => FArray.cnst (n2w 0)
   end.
 
 (* ** Variable map

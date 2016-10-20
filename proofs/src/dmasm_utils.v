@@ -359,3 +359,7 @@ Proof.
 Qed.
 
 
+(* ** Some Extra tactics
+ * -------------------------------------------------------------------- *)
+
+Ltac sinversion H := inversion H=>{H};subst.

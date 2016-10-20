@@ -313,6 +313,25 @@ Section PROOF.
     by move=> Hw vm1' Hvm1; apply: (Hrec s1 s2 _ _ Hw _ Hvm1);SvD.fsetdec.
   Qed.
 
+  Fixpoint set_empty (t:stype) : st2ty t -> st2ty t := 
+    match t return st2ty t -> st2ty t with
+    | sword => fun w => w
+    | sbool => fun b => b
+    | sprod t1 t2 => fun v => (@set_empty t1 v.1, @set_empty t2 v.2)
+    | sarr n => fun v => Array.empty n
+    end.
+    
+  Lemma all_empty_arr_set vm : 
+    all_empty_arr (Fv.empty (fun x0 : var => set_empty vm.[x0])).
+  Proof. by move=> x;rewrite Fv.get0; elim: (vtype x) (vm.[x])=> //=. Qed.
+
+  Lemma vm_uincl_set vm : 
+    vm_uincl (Fv.empty (fun x0 : var => set_empty vm.[x0])) vm.
+  Proof.
+    move=> x;rewrite Fv.get0;elim: (vtype x) (vm.[x])=> //=. 
+    by move=> ? t i v;rewrite /Array.empty /Array.get;case:ifP.
+  Qed.
+
   Let Hcall1 : forall ta tr x (f:fundef ta tr) a, Pc (fd_body f) -> Pi (Ccall x f a).
   Proof.
     move=> ta tr x fd a Hfc m1 m2 vm1 vm2 H;inversion H;clear H;subst=> /=.
@@ -321,35 +340,42 @@ Section PROOF.
     inversion H6;clear H6;subst;inversion H1;clear H1;subst.
     case Heq: sem_pexpr H3 H10 => [va /=|//] _ Hsem {fd2}.
     case:Hsem a x Hfc Heq=> {m1 m2 res va fd ta tr}.
-    move=> ta tr m1 m2 vr fd;case:fd vr => /= {ta tr} ta tr fa fc fr vr va Hfc.
+    move=> ta tr m1 m2 vr fd.
+    case:fd vr => /= {ta tr} ta tr fa fc fr vr va Hfc Hfull.
     move=> a x Hcf Heq /= s1 s2.
     case: ifP=> //= /andP [/andP[Hdisjx Hdisja] Hdisj].
     case Hcc: check_inline => [s'|] //=.
     case: ifP=> Hsub //= [] <- vm1' Hvm1.
-    case: (Hfc vm1) => vm2 [Hsem Hvr] {Hfc}.
+    case: (Hfc _ (all_empty_arr_set vm1)).
+    move=> vm2 [Hsem2 Heq2].
+    have Hu1 := vm_uincl_set vm1.
+    have Hu2 := write_uincl fa Hu1 (val_uincl_refl va).
+    have /(_ _ Hu2) [vm3 /=[] Hsem3 Hu3]:= sem_uincl _ Hsem2.
     move /SvD.F.subset_iff: Hsub => Hsub.
-    case : (Hcf _ _ _ _ Hsem _ _ Hcc (write_rval vm1' fa va))=> [ | vm2' [Hvm2 Hsem2]].
+    case (Hcf _ _ _ _ Hsem3 _ _ Hcc (write_rval vm1' fa va)).
     + by apply write_rval_eq_on;apply: eq_onI Hvm1; SvD.fsetdec.
+    move=> vm2' [Hvm2 Hsem2'].
     exists (write_rval vm2' x vr);split.
-    + apply write_rval_eq_on; apply (@eq_onT _ _ vm2);last first.
-      + by apply: eq_onI Hvm2;SvD.fsetdec.
-      apply (@eq_onT _ _ (write_rval vm1 fa va)).
-      + apply eq_onS;apply disjoint_eq_on.
+    + apply write_rval_eq_on; apply (@eq_onT _ _ (write_rval vm1 fa va)).
+      + apply eq_onS;apply disjoint_eq_on. 
         move: Hdisj;rewrite /disjoint /is_true !Sv.is_empty_spec write_c_recE.
         by SvD.fsetdec.
-      have /= Hex := writeP Hsem. 
+      apply (@eq_onT _ _ vm3);last by apply: eq_onI Hvm2;SvD.fsetdec.
+      have /= Hex := writeP Hsem3.
       move=> z Hin;rewrite Hex //.   
-      by move: Hdisj;rewrite /disjoint /is_true !Sv.is_empty_spec write_c_recE;SvD.fsetdec.
+      move: Hdisj;rewrite /disjoint /is_true !Sv.is_empty_spec write_c_recE.
+      by SvD.fsetdec.
     apply sem_app with {| emem := m1; evm := write_rval vm1' fa va |}.
     + apply assgn_tupleP=>//.
       rewrite <- Heq;apply read_e_eq_on with Sv.empty.
       by rewrite -/(read_e a);apply:eq_onS;apply: eq_onI Hvm1;SvD.fsetdec.
-    apply (sem_app Hsem2);apply assgn_tupleP.
+    apply (sem_app Hsem2');apply assgn_tupleP.
     + by rewrite /disjoint read_rval2pe.
-    rewrite -(@read_e_eq_on _ (rval2pe fr) Sv.empty vm2 vm2');last first.
+    rewrite -(@read_e_eq_on _ (rval2pe fr) Sv.empty vm3 vm2');last first.
     + rewrite -/(read_e (rval2pe fr));apply: eq_onI Hvm2.
       by rewrite read_rval2pe;SvD.fsetdec.
-    by rewrite Hvr sem_rval2pe.
+    have /(sem_expr_uincl Hu3) [v2' [Hv2']]:= sem_rval2pe fr vm2.
+    by rewrite -Heq2=> /(is_full_array_uincl Hfull) ->.
   Qed.
   
   Lemma inlineP ta tr (fd:fundef ta tr) mem mem' va vr s: 
@@ -360,8 +386,8 @@ Section PROOF.
     rewrite /check_inline_fd=> H;inversion H;clear H;subst.
     inversion H0;clear H0;subst. 
     have -> /= : fd = FunDef (fd_arg fd) (fd_body fd) (fd_res fd) by case: (fd).
-    move=> Hcc;constructor=> /= vm0.
-    case: (H7 vm0) => vm2 [Hsem Hvr].
+    move=> Hcc;constructor=> //= vm0 Hvm0.
+    case: (H6 vm0 Hvm0) => vm2 [Hsem Hvr].
     case: 
       (cmd_rect1 Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall1 (fd_body fd)
                  _ _ _ _ Hsem _ _ Hcc (write_rval vm0 (fd_arg fd) va))

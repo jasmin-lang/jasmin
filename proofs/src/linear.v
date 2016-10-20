@@ -93,12 +93,13 @@ Inductive lsem_fd ta tr (fd:lfundef ta tr) (va:st2ty ta)
    m1 m2 (vr:st2ty tr) : Prop := 
 | LSem_fd :  
     let c := fd.(lfd_body) in
-    (forall vm0 : vmap,
+    (forall vm0 : vmap, all_empty_arr vm0 ->
        exists vm2 cs,
        let vm1 := write_rval vm0 (lfd_arg fd) va in
        lsem c {| lmem := m1; lvm := vm1; lc := c |} 
                 {| lmem := m2; lvm := vm2; lc := Lreturn :: cs |} /\
        sem_rval vm2 (lfd_res fd) = vr) ->
+    is_full_array vr ->
     lsem_fd fd va m1 m2 vr.
 
 Lemma lsem_trans s2 s1 s3 c : 
@@ -653,9 +654,9 @@ Section PROOF.
   Proof.
     rewrite /linear_fd linear_c_nil;case Heq: linear_c => [[lblc lc]|] //= [] <-.
     move=> m1 va m2 vr H;inversion H;clear H;subst.
-    inversion H0;clear H0;subst;constructor => /= vm0.
+    inversion H0;clear H0;subst;constructor => //= vm0 Hvm0.
     have [_ _ H] := linear_cP Heq.
-    case: (H7 vm0)=> vm2 /= [] /H /(@lsem_cat_tl [:: Lreturn]) /= Hs Hr.
+    case: (H6 vm0 Hvm0)=> vm2 /= [] /H /(@lsem_cat_tl [:: Lreturn]) /= Hs Hr.
     by exists vm2, [::].
   Qed.
 

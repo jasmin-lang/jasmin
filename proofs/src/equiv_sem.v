@@ -19,11 +19,11 @@ Fixpoint st2sst_ty {t : stype} :=
   | sword     => fun v => v
   | sbool     => fun v => v
   | t1 ** t2  => fun v => (st2sst_ty v.1, st2sst_ty v.2)
-  | sarr n st => fun v => 
-       (fun i : word => st2sst_ty
-          match @Array.get _ n v i with
+  | sarr n    => fun v => 
+       (fun i : word => 
+          match @Array.get _ n v i return word with
           | Ok w => w
-          | _      => dflt_val st
+          | _      => n2w 0
           end)
   end.
 

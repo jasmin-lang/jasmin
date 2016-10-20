@@ -36,13 +36,13 @@ Variable ralloc: forall ta tr, fundef ta tr -> fundef ta tr.
 
 Definition compile_fd ta tr (fd:fundef ta tr) :=
   let fdrn := rename fd in
-  if CheckAlloc.check_fd fd fdrn then
+  if CheckAllocReg.check_fd fd fdrn then
     check_inline_fd fdrn >>= (fun _ =>
     unroll nb_loop (inline_fd fdrn) >>= (fun fd =>
     let fdea := expand fd in                                           
     if CheckExpansion.check_fd fd fdea then
       let fda := ralloc fdea in
-       if CheckAlloc.check_fd fdea fda then
+       if CheckAllocReg.check_fd fdea fda then
          linear_fd fda 
        else Error tt
     else Error tt))
@@ -80,17 +80,17 @@ Lemma compile_fdP ta tr (fd:fundef ta tr) (fd':lfundef ta tr)mem va mem' vr:
   lsem_fd fd' va mem mem' vr.
 Proof.
   rewrite /compile_fd.
-  case Hrn:  CheckAlloc.check_fd => //=.
+  case Hrn:  CheckAllocReg.check_fd => //=.
   case Hinl: check_inline_fd => [s|] //=.
   case Hunr: unroll => [fdu|] //=.
   case Hea:  CheckExpansion.check_fd => //=.
-  case Hra:  CheckAlloc.check_fd => //= /linear_fdP H Hsem. 
+  case Hra:  CheckAllocReg.check_fd => //= /linear_fdP H Hsem. 
   apply H.
-  apply: (CheckAlloc.check_fdP Hra).
+  apply: (CheckAllocReg.check_fdP Hra).
   apply: (CheckExpansion.check_fdP Hea). 
   apply: (unrollP Hunr).
   apply: inlineP Hinl.
-  by apply: CheckAlloc.check_fdP Hsem.
+  by apply: CheckAllocReg.check_fdP Hsem.
 Qed.
 
 End PROOF.
