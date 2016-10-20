@@ -221,6 +221,10 @@ let typecheck_func (penv : penv) (fenv : fenv) func =
                  (  (Map.to_alist (tenv_of_func func fdef.fd_decls))
                   @ (Map.to_alist penv))
     in
+    let used_vars = pvars_stmt fdef.fd_body in
+    List.iter fdef.fd_decls
+      ~f:(fun (_,name,_) -> if not (SS.mem used_vars name) then
+                              failwith (fsprintf "variable %s in %s not used" name func.f_name));
     let env  = { e_penv = penv; e_fenv = fenv; e_tenv = tenv } in
     typecheck_stmt env fdef.fd_body;
     typecheck_ret env (List.map ~f:snd func.f_ret_ty) fdef.fd_ret
