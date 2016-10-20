@@ -84,8 +84,13 @@ let map_find_exn ?(err=failwith) m pp pr =
   | Some x -> x
   | None ->
     let bt = try raise Not_found with _ -> Backtrace.get () in
-    err (fsprintf "map_find_exn %a failed, not in domain:\n%a\n%s"
-           pp pr (pp_list "," pp) (Map.keys m)
+    let dot_dot,keys =
+      let ks = Map.keys m in
+      if List.length ks > 30 then ",...", List.take ks 30 else "", ks
+    in
+    err (fsprintf "map_find_exn %a failed, not in domain:\n%a%s\n%s"
+           pp pr (pp_list "," pp) keys
+           dot_dot
            (Backtrace.to_string bt))
 
 let list_map2_exn ~err ~f xs ys =
@@ -102,5 +107,10 @@ let hashtbl_find_exn ?(err=failwith) m pp pr =
   match Hashtbl.find m pr with
   | Some x -> x
   | None ->
-    err (fsprintf "hashtbl_find_exn %a failed, not in domain:\n%a"
-           pp pr (pp_list "," pp) (Hashtbl.keys m))
+    let dot_dot,keys =
+      let ks = Hashtbl.keys m in
+      if List.length ks > 30 then ",...", List.take ks 30 else "", ks
+    in
+    err (fsprintf "hashtbl_find_exn %a failed, not in domain:\n%a%s"
+           pp pr (pp_list "," pp) keys
+           dot_dot)
