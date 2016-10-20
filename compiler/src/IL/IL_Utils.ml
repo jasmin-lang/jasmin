@@ -235,7 +235,7 @@ let rec pvars_instr linstr =
   | While(_wt,fcond,stmt) ->
     SS.union_list
       [ pvars_fcond fcond
-      ; params_stmt stmt ]
+      ; pvars_stmt stmt ]
 
 and pvars_stmt stmt =
   SS.union_list (List.map stmt ~f:pvars_instr)
