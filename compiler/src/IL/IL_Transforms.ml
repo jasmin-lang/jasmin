@@ -36,6 +36,7 @@ type transform =
   | ArrayExpand of string
   | LocalSSA of string
   | Type
+  | InlineDecls
   | Print of string * string option
   | Save of string * string option
   | RegisterAlloc of string * int
@@ -90,6 +91,7 @@ let ptrafo =
   in
   choice
     [ (string "typecheck" >>$ Type)
+    ; (string "inline_decls" >>$ InlineDecls)
     ; (string "array_assign_expand" >> (bracketed ident) >>= fun fn ->
        return (ArrayAssignExpand fn))
     ; (string "array_expand" >> (bracketed ident) >>= fun fn ->
@@ -133,10 +135,11 @@ let parse_trafo s =
 let apply_transform trafo (modul0 : modul) =
   let filter_fn modul ofname =
     match ofname with
-    | Some fn -> { modul with
-                   m_funcs =
-                     List.filter modul.m_funcs ~f:(fun f -> f.f_name = fn) }
-    | None -> modul
+    | Some fn ->
+      { modul with
+        m_funcs = List.filter modul.m_funcs ~f:(fun f -> f.f_name = fn) }
+    | None ->
+      modul
   in
   let app_trafo modul t =
     let notify s fname =
@@ -175,6 +178,9 @@ let apply_transform trafo (modul0 : modul) =
       F.printf "type checking module\n%!" ;
       IL_Typing.typecheck_modul modul;
       modul
+    | InlineDecls ->
+      F.printf "inlining decls for module\n%!" ;
+      IL_Typing.inline_decls_modul modul
     | Interp(fname,pmap,mmap,args) ->
       notify "interpreting" fname;
       IL_Interp.interp_modul modul pmap mmap args fname

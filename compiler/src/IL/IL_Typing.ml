@@ -29,6 +29,9 @@ type env = {
 let tenv_of_func func decls =
   String.Map.of_alist_exn (List.map ~f:(fun (_,m,t) -> (m,t)) (func.f_args@decls))
 
+let stenv_of_func func decls =
+  String.Map.of_alist_exn (List.map ~f:(fun (s,m,_) -> (m,s)) (func.f_args@decls))
+
 let type_error_ d fmt =
   let buf  = Buffer.create 127 in
   let fbuf = F.formatter_of_buffer buf in
@@ -129,37 +132,36 @@ let type_src_eq (env : env) src ty_exp =
  * ------------------------------------------------------------------------ *)
 
 (** typecheck operators *)
-let typecheck_op (env : env) op z x y =
-  let type_src_eq  = type_src_eq  env in
+let typecheck_op (env : env) op ds ss =
+  let type_src_eq  = type_src_eq env in
   let type_dest_eq = typecheck_dest env.e_tenv in
-  match op with
+  match view_op op ds ss with
 
-  | Umul(h) ->
+  | V_Umul(h,l,x,y) ->
     type_src_eq  x U64;
     type_src_eq  y U64;
-    type_dest_eq z U64;
+    type_dest_eq l U64;
     type_dest_eq h U64
 
-  | Carry(_,mcf_out,mcf_in) ->
+  | V_Carry(_,mcf_out,z,x,y,mcf_in) ->
     type_src_eq  x U64;
     type_src_eq  y U64;
     type_dest_eq z U64;
     Option.iter ~f:(fun s -> type_src_eq  s Bool) mcf_in;
     Option.iter ~f:(fun d -> type_dest_eq d Bool) mcf_out
 
-  | CMov(fc) ->
+  | V_Cmov(_,z,x,y,cf) ->
     type_src_eq  x     U64;
     type_src_eq  y     U64;
-    let cf_in = src_of_fcond fc in
-    type_src_eq  cf_in Bool;
+    type_src_eq  cf    Bool;
     type_dest_eq z     U64
 
-  | ThreeOp(_) ->
+  | V_ThreeOp(_,z,x,y) ->
     type_src_eq  x U64;
     type_src_eq  y U64;
     type_dest_eq z U64
 
-  | Shift(_dir,mcf_out) ->
+  | V_Shift(_dir,mcf_out,z,x,y) ->
     type_src_eq  x U64;
     type_src_eq  y U64;
     type_dest_eq z U64;
@@ -182,7 +184,7 @@ let rec typecheck_instr (env : env) linstr =
   let loc = linstr.L.l_loc in
   match linstr.L.l_val with
   | Binstr(Comment _)             -> ()
-  | Binstr(Op(op,d,(s1,s2)))      -> tc_op op d s1 s2
+  | Binstr(Op(op,ds,ss))          -> tc_op op ds ss
   | Binstr(Assgn(d,s,_))          -> tc_assgn d s loc
   | If(c,stmt1,stmt2)             -> tc_cond c; tc_stmt stmt1; tc_stmt stmt2
   | Binstr(Load(d,s,_pe))         -> type_src_eq  env s U64; typecheck_dest env.e_tenv d U64
@@ -198,7 +200,7 @@ let rec typecheck_instr (env : env) linstr =
       ~err:(fun n_g n_e ->
               failtype_ loc "wrong number of l-values (got %i, exp. %i)" n_g n_e)
   | For(pv,_,_,stmt) ->
-    typecheck_dest env.e_tenv { d_loc = loc; d_name = pv; d_oidx = None} U64;
+    typecheck_dest env.e_tenv { d_loc = loc; d_name = pv; d_oidx = None; d_odecl = None} U64;
     typecheck_stmt env stmt
   | While(_wt,fc,s) ->
     tc_fcond fc;
@@ -212,17 +214,32 @@ let typecheck_ret (env : env) ret_ty ret =
   List.iter2_exn ret ret_ty
     ~f:(fun name ty -> typecheck_dest env.e_tenv (mk_dest_name name) ty)
 
+let extract_decls args fdef =
+  let args = SS.of_list (List.map ~f:(fun (_,n,_) -> n) args) in
+  match fdef.fd_decls with
+  | None ->
+    let ds = dests_stmt fdef.fd_body in
+    DS.to_list ds
+    |> List.filter ~f:(fun d -> not (SS.mem args d.d_name))
+    |> List.map
+         ~f:(fun d -> match d.d_odecl with
+                      | None -> assert false
+                      | Some(ty,stor) -> (stor,d.d_name,ty))
+    |> List.dedup ~compare:compare_decl
+  | Some decls -> decls
+ 
 (** typecheck the given function *)
 let typecheck_func (penv : penv) (fenv : fenv) func =
   match func.f_def with
   | Undef | Py _ -> ()
   | Def fdef ->
+    let decls = extract_decls func.f_args fdef in
     let tenv = String.Map.of_alist_exn
-                 (  (Map.to_alist (tenv_of_func func fdef.fd_decls))
+                 (  (Map.to_alist (tenv_of_func func decls))
                   @ (Map.to_alist penv))
     in
     let used_vars = pvars_stmt fdef.fd_body in
-    List.iter fdef.fd_decls
+    List.iter decls
       ~f:(fun (_,name,_) -> if not (SS.mem used_vars name) then
                               failwith (fsprintf "variable %s in %s not used" name func.f_name));
     let env  = { e_penv = penv; e_fenv = fenv; e_tenv = tenv } in
@@ -240,3 +257,30 @@ let typecheck_modul modul =
                     failtype_ L.dummy_loc "parameter %s not declared (env: %a)"
                       pv (pp_list "," pp_string) (List.map ~f:fst modul.m_params));
   List.iter funcs ~f:(typecheck_func penv fenv)
+
+(** typecheck the given function *)
+let inline_decls_func func =
+  match func.f_def with
+  | Undef | Py _ -> func
+  | Def fdef ->
+    match fdef.fd_decls with
+    | None -> assert false
+    | Some decls ->
+      let tenv  = tenv_of_func func decls in
+      let stenv = stenv_of_func func decls in
+      let body =
+        drename_stmt
+          (fun n oi odc ->
+            assert(odc=None);
+            let t = Map.find_exn tenv n in
+            let s = Map.find_exn stenv n in
+            (n,oi,Some(t,s)))
+          fdef.fd_body
+      in
+      { func with f_def = Def({fdef with fd_body = body; fd_decls = None}) }
+    
+(** Inline declarations into dests *)
+let inline_decls_modul modul =
+  let funcs = List.map modul.m_funcs ~f:inline_decls_func in
+  { modul with m_funcs = funcs }
+

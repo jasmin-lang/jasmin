@@ -25,7 +25,7 @@ let mk_modul pfs =
 let mk_fundef decls stmt rets =
   let rets = Option.value ~default:[] rets in
   { fd_ret = rets;
-    fd_decls  = List.concat decls;
+    fd_decls  = Some(List.concat decls);
     fd_body   = get_opt [] stmt;
   }
 
@@ -72,30 +72,31 @@ let mk_ternop loc dests op op2 s1 s2 s3 =
   | (`Add | `Sub) as op ->
     let op = match op with `Add -> O_Add | `Sub -> O_Sub in
     let d1 = get_one_dest "add/sub" dests in
-    Op(Carry(op,d1,s3),d,(s1,s2))
+    
+    Op(Carry(op),Option.to_list d1@[d],[s1;s2] @ Option.to_list s3)
 
   | (`And | `Xor | `Or) as op  ->
     if dests<>[] then fail "invalid destination for and/xor";
     let op = match op with `And -> O_And | `Xor -> O_Xor | `Or -> O_Or in
-    Op(ThreeOp(op),d,(s1,s2))
+    Op(ThreeOp(op),[d],[s1;s2])
 
   | `Shift(dir) ->
     let d1 = get_one_dest "shift" dests in
-    Op(Shift(dir,d1),d,(s1,s2))
+    Op(Shift(dir),Option.to_list d1 @ [d],[s1;s2])
 
   | `Mul ->
     begin match dests with
-    | []   -> Op(ThreeOp(O_Imul),d,(s1,s2))
-    | [d1] -> Op(Umul(d1),d,(s1,s2))
+    | []   -> Op(ThreeOp(O_Imul),[d],[s1;s2])
+    | [d1] -> Op(Umul,[d1;d],[s1;s2])
     | _    -> fail "invalid args for mult"
     end
 
-let mk_cmov loc dests s fc =
+let mk_cmov loc dests neg s cf =
   let d = match dests with
     | [d] -> d
     | _   -> P.failparse loc "invalid destination for cmov"
   in
-  Op(CMov(fc),d,(Src(d),s))
+  Op(Cmov(neg),[d],[Src(d);s;Src(cf)])
 
 let mk_instr dests rhs loc =
   match dests, rhs with
@@ -104,6 +105,6 @@ let mk_instr dests rhs loc =
   | [d], `Load(src,pe)           -> Binstr(Load(d,src,pe))
   | _,   `BinOp(o,s1,s2)         -> Binstr(mk_ternop loc dests o  o  s1 s2 None)
   | _,   `TernOp(o1,o2,s1,s2,s3) -> Binstr(mk_ternop loc dests o1 o2 s1 s2 (Some s3))
-  | _,   `Cmov(s,fc)             -> Binstr(mk_cmov loc dests s fc)
+  | _,   `Cmov(neg,s,cf)         -> Binstr(mk_cmov loc dests neg s cf)
   | _,   `Load(_,_)              -> P.failparse loc "load expects exactly one destination"
   | _,   `Assgn(_)               -> P.failparse loc "assignment expects exactly one destination"

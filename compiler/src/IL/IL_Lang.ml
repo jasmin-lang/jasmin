@@ -79,10 +79,18 @@ type ty =
   | Arr of dexpr
   [@@deriving compare,sexp]
 
+type storage =
+  | Flag
+  | Inline
+  | Stack
+  | Reg
+  [@@deriving compare,sexp]
+
 type dest = {
-  d_name : name;         (* r[i] has name r and (optional) index i, *)
-  d_oidx : pexpr option; (* i denotes index for array get           *)
-  d_loc  : L.loc;        (* location where pseudo-register occurs   *)
+  d_name : name;                   (* r[i] has name r and (optional) index i, *)
+  d_oidx : pexpr option;           (* i denotes index for array get           *)
+  d_loc  : L.loc;                  (* location where pseudo-register occurs   *)
+  d_odecl : (ty  * storage) option (* the declaration might be stored here *)
 } [@@deriving compare,sexp]
 
 type src =
@@ -97,24 +105,19 @@ The language supports the fixed operations given in 'op' (and function calls).
 *)
 (* *** Code *)
 
-type fcond = { fc_flag_set : bool; fc_flag : name }
-  [@@deriving compare,sexp]
-
-type fcond_or_pcond =
-  | Fcond of fcond (* flag condition *)
-  | Pcond of pcond (* parametric condition *)
-  [@@deriving compare,sexp]
+(* type fcond = { fc_set : bool; fc_name : name } *)
+  (* [@@deriving compare,sexp] *)
 
 type dir      = Left   | Right                [@@deriving compare,sexp]
 type carry_op = O_Add  | O_Sub                [@@deriving compare,sexp]
 type three_op = O_Imul | O_And | O_Xor | O_Or [@@deriving compare,sexp]
 
-type op =
+ type op =
   | ThreeOp of three_op
-  | Umul    of            dest
-  | Carry   of carry_op * dest option * src option
-  | CMov    of fcond
-  | Shift   of dir      * dest option
+  | Umul
+  | Carry   of carry_op
+  | Cmov    of bool (* negate flag *)
+  | Shift   of dir
   [@@deriving compare,sexp]
 
 (* ** Base instructions, instructions, and statements
@@ -124,6 +127,14 @@ type op =
 - instructions (base instructions, if, for)
 - statements (list of instructions) *)
 (* *** Code *)
+
+type fcond = { fc_neg : bool; fc_dest : dest }
+  [@@deriving compare,sexp]
+
+type fcond_or_pcond =
+  | Fcond of fcond (* flag condition *)
+  | Pcond of pcond (* parametric condition *)
+  [@@deriving compare,sexp]
 
 type while_type =
   | WhileDo (* while t { ... } *)
@@ -135,14 +146,18 @@ type assgn_type =
   | Eq (* use as equality constraint in reg-alloc and compile to no-op *)
   [@@deriving compare,sexp]
 
+type if_type =
+  | Run   (* compile to move *)
+  | Macro (* use as equality constraint in reg-alloc and compile to no-op *)
+  [@@deriving compare,sexp]
+
 type base_instr =
   
   | Assgn of dest * src * assgn_type
     (* Assgn(d,s): d = s *)
 
-  | Op of op * dest * (src * src)
-    (* Op(o,d,(s1,s2)): d = o s1 s2
-       o can contain additional dests and srcs *)
+  | Op of op * dest list * src list
+    (* Op(ds,o,ss): ds = o(ss) *)
 
   | Call of name * dest list * src list
     (* Call(fname,rets,args): rets = fname(args) *)
@@ -184,15 +199,11 @@ type call_conv =
   | Custom
   [@@deriving compare,sexp]
 
-type storage =
-  | Flag
-  | Inline
-  | Stack
-  | Reg
-  [@@deriving compare,sexp]
+type decl = storage * name * ty [@@deriving compare,sexp]
 
 type fundef = {
-  fd_decls  : (storage * name * ty) list; (* function-local declarations *)
+  fd_decls  : (decl list) option;
+    (* function-local declarations, optional if all dests contain decl fields *)
   fd_body   : stmt;                       (* function body *)
   fd_ret    : name list                   (* return values *)
 } [@@deriving compare,sexp]
@@ -204,11 +215,11 @@ type fundef_or_py =
   [@@deriving compare,sexp]
 
 type func = {
-  f_name      : name;                       (* function name *)
-  f_call_conv : call_conv;                  (* callable or internal function *)
-  f_args      : (storage * name * ty) list; (* formal function arguments *)
-  f_def       : fundef_or_py;               (* def. unless function just declared *)
-  f_ret_ty    : (storage * ty) list;        (* return type *)
+  f_name      : name;                (* function name *)
+  f_call_conv : call_conv;           (* callable or internal function *)
+  f_args      : decl list;           (* formal function arguments *)
+  f_def       : fundef_or_py;        (* def. unless function just declared *)
+  f_ret_ty    : (storage * ty) list; (* return type *)
 } [@@deriving compare,sexp]
 
 type modul = {

@@ -235,16 +235,16 @@ let eval_py ms cmd =
 
 let is_Simm = function Imm _ -> true | _ -> false
 
-let interp_op (ms : mstate) z x y = function
-
-  | Umul(h) ->
+let interp_op (ms : mstate) o ds ss =
+  match view_op o ds ss with
+  | V_Umul(h,z,x,y) ->
     let x = read_src ms x in
     let y = read_src ms y in
     let (zh,zl) = U64.umul x y in
     let ms = write_dest_u64 ms z zl in
     write_dest_u64 ms h zh
 
-  | Carry(cop,mcf_out,mcf_in) ->
+  | V_Carry(cop,mcf_out,z,x,y,mcf_in) ->
     let cf =
       Option.value_map mcf_in ~default:false ~f:(fun cf -> read_flag ms cf)
     in
@@ -261,22 +261,21 @@ let interp_op (ms : mstate) z x y = function
     | None        -> ms
     end
 
-  | CMov(fc)  ->
-    let cf_in = Src(mk_dest_name fc.fc_flag) in
+  | V_Cmov(neg,z,x,y,cf)  ->
     let s1 = read_src ms x in
     let s2 = read_src ms y in
-    let cf = read_flag ms cf_in in
-    let res = if cf = fc.fc_flag_set then s2 else s1 in
+    let cf = read_flag ms cf in
+    let res = if cf <> neg then s2 else s1 in
     write_dest_u64 ms z res
 
-  | ThreeOp(O_Imul) ->
+  | V_ThreeOp(O_Imul,z,x,y) ->
     if not (is_Simm y) then
       failwith_ "expected immediate value for %a in IMul" pp_src y;
     let x = read_src ms x in
     let y = read_src ms y in
     write_dest_u64 ms z (fst (U64.imul_trunc x y))
     
-  | ThreeOp(O_Xor | O_And | O_Or as o) ->
+  | V_ThreeOp(O_Xor | O_And | O_Or as o,z,x,y) ->
     let x = read_src ms x in
     let y = read_src ms y in
     let f_op =
@@ -291,7 +290,7 @@ let interp_op (ms : mstate) z x y = function
     in
     write_dest_u64 ms z (f_op x y)
 
-  | Shift(dir,None) ->
+  | V_Shift(dir,None,z,x,y) ->
     (* if not (is_Simm y) then
          failwith_ "expected immediate value for %a in Shift" pp_src y; *)
     let x = read_src ms x in
@@ -299,16 +298,16 @@ let interp_op (ms : mstate) z x y = function
     let op = match dir with Left -> U64.shift_left | Right -> U64.shift_right in
     write_dest_u64 ms z (op x (U64.to_int y))
 
-  | Shift(_dir,Some(_)) ->
+  | V_Shift(_dir,Some(_),_,_,_) ->
     failwith "not implemented yet"
-
 
 (* *** Interpret instruction
  * ------------------------------------------------------------------------ *)
 
 let eval_fcond_exn fmap fc =
-  let b = map_find_exn fmap pp_string fc.fc_flag in
-  if fc.fc_flag_set then b else not b
+  assert (fc.fc_dest.d_oidx=None);
+  let b = map_find_exn fmap pp_string fc.fc_dest.d_name in
+  if fc.fc_neg then not b else b
 
 let eval_fcond_or_pcond_exn pmap lmap fmap = function
   | Fcond(fc) -> eval_fcond_exn fmap fc
@@ -353,8 +352,8 @@ let rec interp_instr ms0 efun_map linstr =
     { ms0 with
       m_mmap = Map.add ms0.m_mmap ~key:(U64.add ptr c) ~data:v }
 
-  | Binstr(Op(o,d,(s1,s2))) ->
-    interp_op ms0 d s1 s2 o
+  | Binstr(Op(o,ds,ss)) ->
+    interp_op ms0 o ds ss
 
   | If(ccond,stmt1,stmt2) ->
     if eval_fcond_or_pcond_exn pmap ms0.m_lmap ms0.m_fmap ccond then
@@ -468,7 +467,7 @@ and interp_call_native ms efun_map func fdef call_rets call_args =
   let tenv_caller = ms.m_tenv in
   let lmap_caller = ms.m_lmap in
   let fmap_caller = ms.m_fmap in
-  let tenv_callee = tenv_of_func func fdef.fd_decls in
+  let tenv_callee = tenv_of_func func (extract_decls func.f_args fdef) in
   let lmap_callee = String.Map.empty
     (* String.Map.of_alist_exn
        (List.map ~f:(fun (n,v) -> (n,Vu64 v)) (Map.to_alist pmap)) *)
@@ -525,7 +524,7 @@ let interp_modul
       (List.zip_exn (List.map f_args ~f:(fun (_,n,_) -> n)) args)
   in
   let fmap = String.Map.of_alist_exn [] in
-  let tenv = tenv_of_func func fdef.fd_decls in
+  let tenv = tenv_of_func func (extract_decls func.f_args fdef) in
   let pst =
       F.printf "### starting python\n%!";
       let pst = start_py () in

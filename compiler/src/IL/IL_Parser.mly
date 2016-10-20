@@ -139,12 +139,12 @@ pcond :
 
 
 %inline fcond :
-| e= EXCL? s = ID { {fc_flag_set=(e=None); fc_flag = s} }
+| e= EXCL? d = dest { {fc_neg=(e<>None); fc_dest = d} }
 
 pcond_or_fcond :
 | pc = pcond  { Pcond(pc) }
-| s  = ID     { Fcond({fc_flag_set=true; fc_flag = s}) }
-| EXCL s = ID { Fcond({fc_flag_set=false; fc_flag = s}) }
+| d  = dest   { Fcond({fc_neg=false; fc_dest = d}) }
+| EXCL d = dest { Fcond({fc_neg=true; fc_dest = d}) }
 
 (* -------------------------------------------------------------------- *)
 (* * Sources and destinations *)
@@ -154,7 +154,7 @@ pcond_or_fcond :
 
 %inline dest_noloc :
 | s=ID idx = dest_get?
-    { { d_name = s; d_oidx = idx; d_loc = L.dummy_loc } }
+    { { d_name = s; d_oidx = idx; d_loc = L.dummy_loc; d_odecl = None } }
 
 %inline dest :
 | ld=loc(dest_noloc)
@@ -199,8 +199,8 @@ opeq:
 %inline assgn_rhs_mv:
 | s=src { `Assgn(s,Mv) }
 
-| s=src IF e=EXCL? cf=ID
-    { `Cmov(s,{ fc_flag=cf; fc_flag_set=(e=None)}) }
+| s=src IF e=EXCL? cf=dest
+    { `Cmov(e<>None,s,cf) }
 
 | s1=src op=binop s2=src
     { `BinOp(op,s1,s2) }

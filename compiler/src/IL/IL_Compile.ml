@@ -92,8 +92,8 @@ let rec inline_call func_map suffix c loc decls fname ds ss =
   in
   let ret_ss = List.map ~f:(fun s -> Src(mk_dest_name (s^ssuffix))) fdef.fd_ret in
   let arg_ds = List.map ~f:(fun (_,s,_) -> mk_dest_name (s^ssuffix)) func.f_args in
-  let arg_decls = List.map ~f:(fun (sto,s,ty) -> (sto,s^ssuffix,ty)) func.f_args in
-  decls := !decls@arg_decls@(rename_decls (fun s -> s^ssuffix) fdef.fd_decls);
+  (* let arg_decls = List.map ~f:(fun (sto,s,ty) -> (sto,s^ssuffix,ty)) func.f_args in *)
+  (* decls := !decls@arg_decls@(rename_decls (fun s -> s^ssuffix) fdef.fd_decls); *)
   let stmt = rename_stmt (fun s -> s^ssuffix) fdef.fd_body in
   let stmt = inline_calls_stmt func_map suffix c decls stmt in
   (List.map2_exn ~f:(fun d s -> mk_base_instr loc (Assgn(d,s,Eq))) arg_ds ss)
@@ -180,22 +180,12 @@ let inst_src pmap lmap = function
   | Src(d)  -> Src(inst_dest pmap lmap d)
   | Imm(pe) -> Imm(inst_pexpr pmap lmap pe)
 
-let inst_op pmap lmap op =
-  let inst_d = inst_dest pmap lmap in
-  let inst_s = inst_src  pmap lmap in
-  match op with
-  | ThreeOp(op)       -> ThreeOp(op)
-  | Umul(d)           -> Umul(inst_d d)
-  | Carry(co,d1o,s1o) -> Carry(co,Option.map d1o ~f:inst_d,Option.map s1o ~f:inst_s)
-  | CMov(fc)          -> CMov(fc) (* FIXME: check this *)
-  | Shift(d,d1o)      -> Shift(d,Option.map d1o ~f:inst_d)
-
 let inst_base_instr pmap lmap bi =
   let inst_p = inst_pexpr pmap lmap in
   let inst_d = inst_dest  pmap lmap in
   let inst_s = inst_src   pmap lmap in
   match bi with
-  | Op(o,d,(s1,s2)) -> Op(inst_op pmap lmap o,inst_d d,(inst_s s1,inst_s s2))
+  | Op(o,ds,ss)     -> Op(o,List.map ~f:inst_d ds,List.map ~f:inst_s ss)
   | Assgn(d,s,t)    -> Assgn(inst_d d,inst_s s,t)
   | Load(d,s,pe)    -> Load(inst_d d,inst_s s,inst_p pe)
   | Store(s1,pe,s2) -> Store(inst_s s1,inst_p pe,inst_s s2)
@@ -252,8 +242,14 @@ let macro_expand_stmt pmap stmt =
   List.concat_map ~f:(expand 0 String.Map.empty) stmt
 
 let macro_expand_fundef pmap fdef =
-  { fd_decls = List.map fdef.fd_decls ~f:(fun (s,n,ty) -> (s,n,inst_ty pmap ty))
-  ; fd_body  = macro_expand_stmt pmap fdef.fd_body
+  (*
+  let decls =
+    List.map fdef.fd_decls ~f:(fun (s,n,ty) -> (s,n,inst_ty pmap ty))
+    |> List.filter ~f:(fun (s,_,_) -> s<>Inline)
+  in
+  *)
+  { fdef with (*fd_decls = decls *)
+    fd_body  = macro_expand_stmt pmap fdef.fd_body
   ; fd_ret   = fdef.fd_ret
   }
 
@@ -329,7 +325,7 @@ let array_assign_expand_stmt tenv stmt =
 let array_assign_expand_fundef fdef fargs =
   let tenv =
     String.Map.of_alist_exn
-      ((List.map ~f:(fun (_,m,t) -> (m,t)) fdef.fd_decls) @
+      ((List.map ~f:(fun (_,m,t) -> (m,t)) [] (* FIXME: fdef.fd_decls *)) @
        (List.map ~f:(fun (_,m,t) -> (m,t)) fargs))
   in
   { fdef with fd_body  = array_assign_expand_stmt tenv fdef.fd_body }
@@ -369,13 +365,13 @@ let keep_arrays_non_const_index tenv fdef =
       begin match Map.find tenv d.d_name with
       | Some(Stack,_) -> ()
       | _ ->
-        failwith (fsprintf "%s: array %s with non-constant indexes requires stack storage"
-                    "array expansion" d.d_name)
+        failwith_ "%s: array %s with non-constant indexes requires stack storage"
+          "array expansion" d.d_name
       end
   
     | Some(pe)        ->
-      failwith (fsprintf "%s: the parameter-expression %a cannot be used as index"
-                  "array expansion" pp_pexpr pe)
+      failwith_ "%s: the parameter-expression %a cannot be used as index"
+        "array expansion" pp_pexpr pe
   in
   DS.elements dests |> List.iter ~f:classify_arrays;
   !non_const_arrays
@@ -384,25 +380,26 @@ let rename_var name u fresh_suffix =
   fsprintf "%s_%a_%s" name pp_uint64 u fresh_suffix
 
 let array_expand_stmt _tenv keep_arrays unique_suffix stmt =
-  let ren name oidx =
+  let ren name oidx odecl =
     if not (SS.mem keep_arrays name) then
       match oidx with
-      | None            -> name, oidx
-      | Some(Pconst(u)) -> rename_var name u unique_suffix, None
+      | None            -> name, oidx, odecl
+      | Some(Pconst(u)) -> rename_var name u unique_suffix, None, odecl
       | Some(pe)        ->
-        failwith (fsprintf "%s: the parameter-expression %a cannot be used as index"
-                    "array_expand_stmt" pp_pexpr pe)
+        failwith_ "%s: the parameter-expression %a cannot be used as index"
+          "array_expand_stmt" pp_pexpr pe
     else
-      name,oidx
+      name,oidx,odecl
   in
   drename_stmt ren stmt
 
 let array_expand_fundef fdef =
   let tenv =
-    String.Map.of_alist_exn (List.map ~f:(fun (s,m,t) -> (m,(s,t))) fdef.fd_decls)
+    String.Map.of_alist_exn (List.map ~f:(fun (s,m,t) -> (m,(s,t))) [] (*FIXME: fdef.fd_decls*))
   in
   let fresh_suffix = fresh_suffix_fundef fdef "arr" in
   let keep_arrays = keep_arrays_non_const_index tenv fdef in
+  (*
   let update_decl ((s,n,t) as d) =
     match t with
     | U64 | Bool -> [d]
@@ -412,10 +409,11 @@ let array_expand_fundef fdef =
         (list_from_to ~first:U64.zero ~last:ub)
     | Arr(_) -> failwith "array expansion: impossible, array bounds are not constants"
   in
+  *)
   let body = array_expand_stmt tenv keep_arrays fresh_suffix fdef.fd_body in
   { fdef with
     fd_body = body;
-    fd_decls = List.concat_map ~f:update_decl fdef.fd_decls
+    fd_decls = None (* FIXME: List.concat_map ~f:update_decl fdef.fd_decls *)
   }
 
 (* FIXME: we assume this is an extern function, hence all arguments and
@@ -469,7 +467,7 @@ let rn_map_modify rn_info name =
   rn_new_add rn_info name max_idx
 
 let mk_reg_name name idx =
-  if idx = 0 then name else fsprintf "%s_%i" name idx
+  fsprintf "%s_%i" name idx
 
 let rn_info_rename rn_info name =
   let idx = rn_map_get rn_info.rn_map name in
@@ -478,18 +476,18 @@ let rn_info_rename rn_info name =
 let rn_map_dowhile_update ~old:rn_map_enter rn_info =
   let mapping = String.Table.create () in
   let correct = ref [] in
-  let f ~key:name ~data:new_idx =
+  let handle_changed ~key:name ~data:new_idx =
     let old_idx = rn_map_get rn_map_enter name in
     if old_idx<>new_idx then (
       let old_name = mk_reg_name name old_idx in
       let new_name = mk_reg_name name new_idx in
-      F.printf "rename  %s to %s\n"  new_name old_name;
+      (* F.printf "rename  %s to %s\n"  new_name old_name; *)
       HT.add_exn mapping ~key:new_name ~data:old_name;
       rn_new_remove rn_info name new_idx;
       correct := (name,old_idx)::!correct
     )
   in
-  HT.iteri rn_info.rn_map ~f;
+  HT.iteri rn_info.rn_map ~f:handle_changed;
   List.iter !correct ~f:(fun (s,idx) -> HT.set rn_info.rn_map ~key:s ~data:idx);
   mapping
 
@@ -497,17 +495,17 @@ let rn_map_if_update rn_info ~rn_if ~rn_else =
   let changed_if   = String.Table.create () in
   let changed_else = String.Table.create () in
   (* populate given maps with changes *)
-  let track_changed s changed ~key:name ~data:new_idx =
+  let handle_changed _s changed ~key:name ~data:new_idx =
     let old_idx = rn_map_get rn_info.rn_map name in
     if old_idx<>new_idx then (
-      F.printf "changed %s: '%s' from %i to %i\n" s name old_idx new_idx;
+      (* F.printf "changed %s: '%s' from %i to %i\n" s name old_idx new_idx; *)
       HT.set changed ~key:name ~data:();
     ) else (
-      F.printf "unchanged %s: '%s'\n" s name; 
+      (* F.printf "unchanged %s: '%s'\n" s name;  *)
     )
   in
-  HT.iteri rn_if   ~f:(track_changed "if"   changed_if);
-  HT.iteri rn_else ~f:(track_changed "else" changed_else);
+  HT.iteri rn_if   ~f:(handle_changed "if"   changed_if);
+  HT.iteri rn_else ~f:(handle_changed "else" changed_else);
   let changed =
     SS.union
       (SS.of_list @@ HT.keys changed_if)
@@ -529,7 +527,7 @@ let rn_map_if_update rn_info ~rn_if ~rn_else =
       assert (idx_else > idx_if);
       let name_if   = mk_reg_name name idx_if   in
       let name_else = mk_reg_name name idx_else in
-      F.printf "rename %s to %s in if (use else name)\n" name_if name_else;
+      (* F.printf "rename %s to %s in if (use else name)\n" name_if name_else; *)
       HT.set mapping_if_names ~key:name_if ~data:name_else;
       (* update rn_map for statements following if-then-else *)
       HT.set rn_info.rn_map ~key:name ~data:idx_else;
@@ -541,7 +539,7 @@ let rn_map_if_update rn_info ~rn_if ~rn_else =
       assert (idx_if<>idx_enter);
       let name_if    = mk_reg_name name idx_if    in
       let name_enter = mk_reg_name name idx_enter in
-      F.printf "rename %s to %s in if (use enter name)\n"  name_if name_enter;
+      (* F.printf "rename %s to %s in if (use enter name)\n"  name_if name_enter; *)
       HT.set mapping_if_names ~key:name_if ~data:name_enter;
       rn_new_remove rn_info name idx_if
     (* def only in else-branch, rename if-def with old name *)
@@ -551,7 +549,7 @@ let rn_map_if_update rn_info ~rn_if ~rn_else =
       assert (idx_else<>idx_enter);
       let name_else    = mk_reg_name name idx_else in
       let name_enter = mk_reg_name name idx_enter  in
-      F.printf "rename %s to %s in else (use enter name)\n"  name_else name_enter;
+      (* F.printf "rename %s to %s in else (use enter name)\n"  name_else name_enter; *)
       HT.set mapping_else_names ~key:name_else ~data:name_enter;
       rn_new_remove rn_info name idx_else
   in
@@ -613,15 +611,17 @@ and local_ssa_stmt rn_map stmt =
 let local_ssa_fundef fdef =
   let rn_info = mk_rn_info () in
   let body = local_ssa_stmt rn_info fdef.fd_body in
+  (*
   let decls =
     List.concat_map fdef.fd_decls
       ~f:(fun (s,name,ty) ->
             let iset = hashtbl_find_exn rn_info.rn_new pp_string name in
             List.map ~f:(fun idx -> (s,mk_reg_name name idx,ty)) (Set.to_list iset))
   in
+  *)
   let ret = List.map fdef.fd_ret ~f:(rn_info_rename rn_info) in
   { fd_body  = body;
-    fd_decls = decls;
+    fd_decls = None; (* FIXME *)
     fd_ret   = ret;
   }
 
@@ -631,7 +631,7 @@ let local_ssa_func func =
     | Undef  -> failwith "Cannot apply local SSA transformation in undefined function"
     | Py(_)  -> failwith "Cannot apply local SSA transformation in python function"
   in
-  { func with f_def = fdef }
+  { func with f_def = fdef; f_args = List.map ~f:(fun (s,n,t) -> (s,mk_reg_name n 0,t)) func.f_args }
 
 let local_ssa_modul modul fname =
   let f_fun f = if f.f_name = fname then local_ssa_func f else f in
@@ -763,9 +763,6 @@ let update_liveness linfo changed pos =
     Pos.Set.iter succs
       ~f:(fun spos ->
             let live_s = li_get_live_before linfo spos in
-            (* let def_s  = li_get_def         linfo spos in *)
-            (* let use_s  = li_get_use         linfo spos in *)
-            (* live := SS.union !live (SS.union (SS.diff live_s def_s) use_s) *)
             live := SS.union !live live_s);
     (* update live_{before,after} of this vertex *)
     if not (SS.equal !live (li_get_live_after linfo pos)) then (
@@ -936,6 +933,7 @@ let mk_reg_info () = {
   ri_fixed      = Int.Table.create ();
 }
 
+(*
 let reg_info_class_new rinfo name =
   if (not (HT.mem rinfo.ri_class_map name)) then (
     let ci = rinfo.ri_free_index in
@@ -946,19 +944,20 @@ let reg_info_class_new rinfo name =
   ) else (
     HT.find_exn rinfo.ri_class_map name 
   )
+*)
 
 let reg_info_class_union rinfo name_old name_new =
   let ci_old = match HT.find rinfo.ri_class_map name_old with
     | Some c -> c
     | None ->
-      failwith (fsprintf "eq_constrs_: %s undefined\n%a"
-                  name_old
-                  (pp_list "," pp_string) (HT.keys rinfo.ri_class_map))
+      failwith_ "eq_constrs_: %s undefined\n%a"
+        name_old
+        (pp_list "," pp_string) (HT.keys rinfo.ri_class_map)
   in
   (match HT.find rinfo.ri_class_map name_new with
    | Some ci_new ->
      let class_new = HT.find_exn rinfo.ri_classes ci_new in
-     SS.iter class_new (fun name -> HT.set rinfo.ri_class_map ~key:name ~data:ci_old);
+     SS.iter class_new ~f:(fun name -> HT.set rinfo.ri_class_map ~key:name ~data:ci_old);
      HT.change rinfo.ri_classes ci_old
         ~f:(function
             | None   -> assert false
@@ -968,58 +967,58 @@ let reg_info_class_union rinfo name_old name_new =
       HT.change rinfo.ri_classes ci_old
         ~f:(function
             | None   -> assert false
-            | Some s -> Some (Set.add s name_new)));
-  ci_old
+            | Some s -> Some (Set.add s name_new)))
 
-let reg_info_fix_class rinfo ci reg =
+let reg_info_fix_class _rinfo _name _reg =
+  ()
+  (*
   match HT.find rinfo.ri_fixed ci with
   | None ->
     HT.set rinfo.ri_fixed ~key:ci ~data:reg
   | Some reg' when reg = reg' -> ()
   | Some reg' ->
-    failwith (fsprintf "conflicting requirements: %a vs %a"
-                 X64.pp_int_reg reg' X64.pp_int_reg reg)
+    failwith_ "conflicting requirements: %a vs %a"
+      X64.pp_int_reg reg' X64.pp_int_reg reg
+  *)
 
-let reg_info_binstr linfo rinfo bi =
+let reg_info_binstr rinfo bi =
   let is_reg_dest d =
     if HT.mem rinfo.ri_regs d.d_name
     then ( assert (d.d_oidx=None); true)
     else ( false )
   in
-  let is_reg_src s =
+  let _is_reg_src s =
     match s with
     | Imm(_) -> assert false
     | Src(d) -> is_reg_dest d
   in
-  let reg_info_op op d s1 s2 =
+  let reg_info_op _op _ds _ss =
+    ()
+    (*
     match op with
 
-
     | Umul(d2) when is_reg_dest d2 && is_reg_dest d && is_reg_src s1 ->
-      let i1 = reg_info_class_union rinfo (get_src_dest_exn s1).d_name d.d_name in
-      let i2 = reg_info_class_new rinfo d2.d_name in
-      reg_info_fix_class rinfo i1 (X64.int_of_reg X64.RAX);
-      reg_info_fix_class rinfo i2 (X64.int_of_reg X64.RDX)
+      reg_info_class_union rinfo (get_src_dest_exn s1).d_name d.d_name;
+      reg_info_fix_class rinfo d.d_name (X64.int_of_reg X64.RAX);
+      reg_info_fix_class rinfo d2.d_name (X64.int_of_reg X64.RDX)
 
-    | Carry((O_Add|O_Sub),od,os) when is_reg_dest d && is_reg_src s1 ->
+    | Carry((O_Add|O_Sub),_od,_os) when is_reg_dest d && is_reg_src s1 ->
       ignore (reg_info_class_union rinfo (get_src_dest_exn s1).d_name d.d_name)
 
-    | (CMov(_) | Shift(_,_) | ThreeOp(O_Xor)) when is_reg_dest d && is_reg_src s1 ->
+    | (Cmov(_) | Shift(_,_) | ThreeOp(O_Xor)) when is_reg_dest d && is_reg_src s1 ->
       ignore (reg_info_class_union rinfo (get_src_dest_exn s1).d_name d.d_name)
 
     | Umul(_)
     | Carry(_)
     | Shift(_)
     | ThreeOp(_)
-    | CMov(_) -> assert false
+    | Cmov(_) -> assert false
+    *)
   in
   match bi with
 
-  | Op(o,d,(s1,s2)) ->
-    reg_info_op o d s1 s2
-
-  | Assgn(d,_s,Mv) when is_reg_dest d ->
-    ignore(reg_info_class_new rinfo d.d_name)
+  | Op(o,ds,ss) ->
+    reg_info_op o ds ss
 
   (* add equality constraint *)
   | Assgn(d,s,Eq) when is_reg_dest d ->
@@ -1028,9 +1027,6 @@ let reg_info_binstr linfo rinfo bi =
     | Src(s) -> ignore(reg_info_class_union rinfo s.d_name d.d_name)
     end
 
-  | Load(d,_s,_pe) when is_reg_dest d ->
-    ignore(reg_info_class_new rinfo d.d_name)
-
   | Load(_,_,_)
   | Assgn(_,_,_)        
   | Store(_,_,_)
@@ -1038,72 +1034,46 @@ let reg_info_binstr linfo rinfo bi =
 
   | Call(_) -> failwith "inline calls before register allocation"
 
-   (*
-    function
-   | Comment _ -> ()
-
-   OK:
-   | App((Add|Sub), ([_;Dreg(d)] | [Dreg(d)]), Sreg(s)::_) ->
-     (* ignore flags *)
-     ignore (add_to_class s d)
-
-   OK:
-   | App(UMul, [Dreg(d1);Dreg(d2)], (Sreg(s1)::_)) ->
-     let i1 = new_class d1 in
-     let i2 = add_to_class s1 d2 in
-     fix_class i1 X64.RDX;
-     fix_class i2 X64.RAX;
-
-   | App(CMov _, [Dreg(d)],[Sreg(s1);_s2;_cin]) ->
-     ignore (add_to_class s1 d)
-
-   | App((Add|Sub|UMul|CMov _), _, _) as bi ->
-     failwith (fsprintf "eq_constrs: unexpected instruction %a\n" pp_base_instr bi)
-
-   | App(_, ds, _) ->
-     let dregs = List.filter_map ~f:(function Dreg(r) -> Some(r) | _ -> None) ds in
-     List.iter ~f:(fun d -> ignore (new_class d)) dregs
-   *)
-
-let rec reg_info_instr linfo rinfo li =
+let rec reg_info_instr rinfo li =
   match li.L.l_val with
 
   | Binstr(bi) ->
-    reg_info_binstr linfo rinfo bi
+    reg_info_binstr rinfo bi
 
   | While(_,_fc,s) ->
-    reg_info_stmt linfo rinfo s
+    reg_info_stmt rinfo s
 
   | If(Fcond(_),s1,s2) ->
-    reg_info_stmt linfo rinfo s1;
-    reg_info_stmt linfo rinfo s2
+    reg_info_stmt rinfo s1;
+    reg_info_stmt rinfo s2
 
   | If(Pcond(_),_,_)
   | For(_,_,_,_)     -> failwith "liveness analysis: unexpected instruction"
 
-and reg_info_stmt linfo rinfo stmt =
-  List.iter ~f:(reg_info_instr linfo rinfo) stmt
+and reg_info_stmt rinfo stmt =
+  List.iter ~f:(reg_info_instr rinfo) stmt
 
-let reg_info_func linfo func fdef =
+let reg_info_func func fdef =
   let rinfo = mk_reg_info () in
   (* fix classes for args: directly use the ABI argument registers for arguments *)
-  let arg_len = List.length func.f_args in
+  let arg_len  = List.length func.f_args in
   let arg_regs = List.take X64.arg_regs arg_len in
-  let arg_max = List.length X64.arg_regs in
+  let arg_max  = List.length X64.arg_regs in
   if List.length arg_regs < arg_len then
-    failwith (fsprintf "register_alloc: at most %i arguments supported" arg_max);
+    failwith_ "register_alloc: at most %i arguments supported" arg_max;
   List.iter (List.zip_exn func.f_args arg_regs)
     ~f:(fun ((stor,arg,ty),arg_reg) ->
           assert (stor = Reg && ty = U64);
-          let ci = reg_info_class_new rinfo arg in
-          reg_info_fix_class rinfo ci (X64.int_of_reg arg_reg));
+          reg_info_fix_class rinfo arg (X64.int_of_reg arg_reg));
 
+  (* collect constraints from body *)
+  (*
   List.iter fdef.fd_decls
     ~f:(function
           | (Reg,name,ty) -> assert (ty = U64); HT.add_exn rinfo.ri_regs ~key:name ~data:()
           | _ -> ());
-  (* collect constraints from body *)
-  reg_info_stmt linfo rinfo fdef.fd_body;
+  *)
+  reg_info_stmt rinfo fdef.fd_body;
  
   (* directly use the ABI return registers for return values *)
   let ret_extern_regs = List.map ~f:X64.int_of_reg X64.[RAX; RDX] in
@@ -1111,7 +1081,7 @@ let reg_info_func linfo func fdef =
   let ret_regs = List.take ret_extern_regs ret_len in
   let ret_max = List.length ret_extern_regs in
   if List.length ret_regs < ret_len then
-    failwith (fsprintf "register_alloc: at most %i arguments supported" ret_max);
+    failwith_ "register_alloc: at most %i arguments supported" ret_max;
   (* List.iter (List.zip_exn fdef.fd_ret ret_regs)
     ~f:(fun (ret,ret_reg) -> HT.set rinfo.ri_fixed ~key:ret ~data:ret_reg); *)
   rinfo
@@ -1134,8 +1104,8 @@ let reg_alloc_func reg_num linfo func =
     | Undef  -> failwith "Cannot perform register allocation for undefined function"
     | Py(_)  -> failwith "Cannot perform register allocation for python function"
   in
-  let rinfo = reg_info_func linfo func fd in
-  F.printf "rinfo:\n%a\n" pp_reg_info rinfo;
+  let rinfo = reg_info_func func fd in
+  (* F.printf "rinfo:\n%a\n" pp_reg_info rinfo; *)
   let fdef = Def(reg_alloc_fundef reg_num linfo rinfo fd) in
   { func with f_def = fdef }
 
@@ -1242,7 +1212,7 @@ let register_allocate _nregs _efun0 =
 
           | App(Add,_,_) -> assert false
 
-          | App(CMov(_) as o,[Dreg(d)],[Sreg(s1);s2;cfin]) ->
+          | App(Cmov(_) as o,[Dreg(d)],[Sreg(s1);s2;cfin]) ->
              let r1 = hashtbl_find_exn reg_map pp_preg_ty s1 in
              let s1 = trans_src (Sreg(s1)) in
              let s2 = trans_src s2        in
@@ -1251,7 +1221,7 @@ let register_allocate _nregs _efun0 =
              let d = trans_dest (Dreg d) in
              App(o,[d],[s1;s2;cfin])
 
-          | App(CMov(_),_,_) -> assert false
+          | App(Cmov(_),_,_) -> assert false
 
           | App(o,ds,ss) ->
              let ss = List.map ~f:trans_src ss in
@@ -1393,7 +1363,7 @@ let to_asm_x64 _efun =
       ensure (is_dest_reg dl) "imul dest must be register";
       [c; X64.( Triop(IMul,trans_src s2,trans_src s1,trans_dest dl) )]
 
-    | App(CMov(CfSet(b)),[d],[s1;s2;_cin]) ->
+    | App(Cmov(CfSet(b)),[d],[s1;s2;_cin]) ->
       ensure (equal_src (dest_to_src d) s1) "cmov with dest<>src1";
       let instr = X64.( Binop(Cmov(CfSet(b)),trans_src s2,trans_dest d) ) in
       [c; instr]

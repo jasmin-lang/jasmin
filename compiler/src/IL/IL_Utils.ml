@@ -45,10 +45,10 @@ let get_src_dest_exn = function Imm _ -> assert false | Src(d) -> d
  * ------------------------------------------------------------------------ *)
 
 let mk_dest_name name =
-  { d_name = name; d_oidx = None; d_loc = L.dummy_loc }
+  { d_name = name; d_oidx = None; d_loc = L.dummy_loc; d_odecl = None }
 
 let src_of_fcond fc =
-  Src(mk_dest_name fc.fc_flag)
+  Src(fc.fc_dest)
 
 let mk_base_instr loc bi = { L.l_loc = loc; L.l_val = Binstr(bi) }
 
@@ -56,6 +56,45 @@ let mk_base_instr loc bi = { L.l_loc = loc; L.l_val = Binstr(bi) }
  * ------------------------------------------------------------------------ *)
 
 type occ_restr = UseOnly | DefOnly
+
+(* ** Operator view
+ * ------------------------------------------------------------------------ *)
+
+type op_view =
+  | V_ThreeOp of three_op *               dest * src * src
+  | V_Umul    of            dest        * dest * src * src
+  | V_Carry   of carry_op * dest option * dest * src * src * src option
+  | V_Cmov    of bool     *               dest * src * src * src
+  | V_Shift   of dir      * dest option * dest * src * src
+
+let view_op o ds ss =
+  match o, ds, ss with
+
+  | ThreeOp(o), [d1], [s1;s2] -> V_ThreeOp(o,d1,s1,s2)
+  | ThreeOp(_), _,     _      -> assert false
+    
+  | Umul, [d1;d2], [s1;s2]    -> V_Umul(d1,d2,s1,s2)
+  | Umul, _,       _          -> assert false
+ 
+  | Carry(co), ds, ss ->
+    let d1, d2 = match ds with
+      | [d1;d2] -> Some d1,d2
+      | [d2]    -> None,d2
+      | _       -> assert false
+    in
+    let s1, s2, s3 = match ss with
+      | [s1;s2;s3] -> s1,s2,Some(s3)
+      | [s1;s2]    -> s1,s2,None
+      | _          -> assert false
+    in
+    V_Carry(co,d1,d2,s1,s2,s3)
+ 
+  | Cmov(neg), [d1], [s1;s2;s3] -> V_Cmov(neg,d1,s1,s2,s3) 
+  | Cmov(_),    _,   _          -> assert false
+
+  | Shift(dir), [d1],    [s1;s2] -> V_Shift(dir,None,d1,s1,s2)
+  | Shift(dir), [d1;d2], [s1;s2] -> V_Shift(dir,Some(d1),d2,s1,s2)
+  | Shift(_),   _,    _       -> assert false
 
 (* ** Collect parameter vars
  * ------------------------------------------------------------------------ *)
@@ -82,10 +121,6 @@ let rec params_pcond = function
   | Pand(ic1,ic2)   -> Set.union (params_pcond ic1) (params_pcond ic2)
   | Pcmp(_,ce1,ce2) -> Set.union (params_pexpr ce1) (params_pexpr ce2)
 
-let params_fcond_or_pcond = function
-  | Fcond(_)  -> SS.empty
-  | Pcond(pc) -> params_pcond pc
-
 let params_opt f =
   Option.value_map ~default:SS.empty ~f:f
 
@@ -100,16 +135,9 @@ let params_src = function
   | Imm _ -> SS.empty
   | Src d -> params_dest d
 
-let params_op = function
-  | ThreeOp(_)       -> SS.empty
-  | Umul(d1)         -> params_dest d1
-  | CMov(_)          -> SS.empty
-  | Shift(_,d1o)     -> params_opt params_dest d1o
-  | Carry(_,d1o,s1o) ->
-    SS.union_list
-      [ params_opt params_dest d1o
-      ; params_opt params_src s1o
-      ]
+let params_pcond_or_fcond = function
+  | Fcond(_)  -> SS.empty
+  | Pcond(pc) -> params_pcond pc
 
 let params_base_instr = function
   | Comment(_) ->
@@ -122,9 +150,10 @@ let params_base_instr = function
       (SS.union (params_src s1) (params_src s2))
   | Assgn(d,s,_) ->
     SS.union (params_dest d) (params_src s)
-  | Op(o,d,(s1,s2)) ->
+  | Op(_,ds,ss) ->
     SS.union_list
-      [params_op o; params_dest d; params_src s1; params_src s2]
+     ( (List.map ds ~f:params_dest)
+      @(List.map ss ~f:params_src))
   | Call(_,ds,ss) ->
     SS.union_list
      ( (List.map ds ~f:params_dest)
@@ -134,7 +163,7 @@ let rec params_instr linstr =
   match linstr.L.l_val with
   | Binstr(bi) -> params_base_instr bi
   | If(cond,s1,s2) ->
-    SS.union_list [params_fcond_or_pcond cond; params_stmt s1; params_stmt s2]
+    SS.union_list [params_pcond_or_fcond cond; params_stmt s1; params_stmt s2]
   | For(_name,pe1,pe2,stmt) ->
     SS.union_list
       [ params_pexpr pe1
@@ -146,8 +175,9 @@ and params_stmt stmt =
   SS.union_list (List.map stmt ~f:params_instr)
 
 let params_fundef fd =
+  let decls = Option.value ~default:[] fd.fd_decls in
   SS.union
-    (SS.union_list (List.map fd.fd_decls ~f:(fun (_,_,ty) -> params_ty ty)))
+    (SS.union_list (List.map decls ~f:(fun (_,_,ty) -> params_ty ty)))
     (params_stmt fd.fd_body)
 
 let params_func func =
@@ -183,9 +213,9 @@ let pvars_pexpr = pvars_pexpr_g pvars_patom
 let pvars_dexpr de = pvars_pexpr_g SS.singleton de
 
 let rec pvars_pcond = function
-  | Ptrue            -> SS.empty
-  | Pnot(ic)         -> pvars_pcond ic
-  | Pand (ic1,ic2)   -> Set.union (pvars_pcond ic1) (pvars_pcond ic2)
+  | Ptrue           -> SS.empty
+  | Pnot(ic)        -> pvars_pcond ic
+  | Pand (ic1,ic2)  -> Set.union (pvars_pcond ic1) (pvars_pcond ic2)
   | Pcmp(_,ce1,ce2) -> Set.union (pvars_pexpr ce1) (pvars_pexpr ce2)
 
 let pvars_opt f =
@@ -201,25 +231,18 @@ let pvars_src = function
   | Src d -> pvars_dest d
 
 let pvars_fcond fc =
-  SS.singleton fc.fc_flag
+  pvars_dest fc.fc_dest
 
 let pvars_fcond_or_pcond = function
   | Fcond(fc) -> pvars_fcond fc
   | Pcond(pc) -> pvars_pcond pc
-
-let pvars_op = function
-  | ThreeOp(_)       -> SS.empty
-  | Umul(d1)         -> pvars_dest d1
-  | CMov(fc)         -> pvars_fcond fc
-  | Shift(_,d1o)     -> pvars_opt pvars_dest d1o
-  | Carry(_,d1o,s1o) -> SS.union (pvars_opt pvars_dest d1o) (pvars_opt pvars_src s1o)
 
 let pvars_base_instr = function
   | Comment(_)      -> SS.empty
   | Load(d,s,pe)    -> SS.union_list [pvars_dest d; pvars_src s; pvars_pexpr pe]
   | Store(s1,pe,s2) -> SS.union_list [pvars_src s1; pvars_src s2; pvars_pexpr pe]
   | Assgn(d,s,_)    -> SS.union (pvars_dest d) (pvars_src s)
-  | Op(o,d,(s1,s2)) -> SS.union_list [pvars_op o; pvars_dest d; pvars_src s1; pvars_src s2]
+  | Op(_,ds,ss)     -> SS.union_list (List.map ds ~f:pvars_dest @ List.map ss ~f:pvars_src)
   | Call(_,ds,ss)   -> SS.union_list (List.map ds ~f:pvars_dest @ List.map ss ~f:pvars_src)
 
 let rec pvars_instr linstr =
@@ -241,8 +264,9 @@ and pvars_stmt stmt =
   SS.union_list (List.map stmt ~f:pvars_instr)
 
 let pvars_fundef fd =
+  let decls = Option.value ~default:[] fd.fd_decls in
   SS.union
-    (SS.of_list (List.map fd.fd_decls ~f:(fun (_,s,_) -> s)))
+    (SS.of_list (List.map decls ~f:(fun (_,s,_) -> s)))
     (pvars_stmt fd.fd_body)
 
 let pvars_func func =
@@ -268,31 +292,27 @@ let dests_src = function
   | Imm _ -> DS.empty
   | Src d -> dests_dest d
 
-let dests_fcond fc =
-  DS.singleton (mk_dest_name fc.fc_flag)
-
-let dests_op = function
-  | ThreeOp(_)       -> DS.empty
-  | Umul(d1)         -> dests_dest d1
-  | CMov(fc)         -> dests_fcond fc
-  | Shift(_,d1o)     -> dests_opt dests_dest d1o
-  | Carry(_,d1o,s1o) -> DS.union (dests_opt dests_dest d1o) (dests_opt dests_src s1o)
-
 let dests_base_instr = function
   | Comment(_)      -> DS.empty
   | Load(d,s,_)     -> DS.union (dests_dest d) (dests_src s)
   | Store(s1,_,s2)  -> DS.union (dests_src s1) (dests_src s2)
   | Assgn(d,s,_)    -> DS.union (dests_dest d) (dests_src s)
-  | Op(o,d,(s1,s2)) -> DS.union_list [dests_op o; dests_dest d; dests_src s1; dests_src s2]
+  | Op(_,ds,ss)     -> DS.union_list (List.map ds ~f:dests_dest @ List.map ss ~f:dests_src)
   | Call(_,ds,ss)   -> DS.union_list (List.map ds ~f:dests_dest @ List.map ss ~f:dests_src)
+
+let dests_fcond fc =
+  DS.singleton fc.fc_dest
+
+let dests_fcond_or_pcond = function
+  | Fcond fc -> dests_fcond fc
+  | Pcond _  -> DS.empty
 
 let rec dests_instr linstr =
   match linstr.L.l_val with
-  | Binstr(bi)          -> dests_base_instr bi
-  | If(Pcond(_),s1,s2)  -> DS.union (dests_stmt s1) (dests_stmt s2)
-  | If(Fcond(fc),s1,s2) -> DS.union_list [ dests_fcond fc; dests_stmt s1; dests_stmt s2 ]
-  | For(_,_lb,_ub,s)    -> dests_stmt s
-  | While(_,fc,s)       -> DS.union (dests_fcond fc) (dests_stmt s)
+  | Binstr(bi)       -> dests_base_instr bi
+  | If(c,s1,s2)      -> DS.union_list [ dests_fcond_or_pcond c; dests_stmt s1; dests_stmt s2 ]
+  | For(_,_lb,_ub,s) -> dests_stmt s
+  | While(_,fc,s)    -> DS.union (dests_fcond fc) (dests_stmt s)
 
 and dests_stmt stmt =
   DS.union_list (List.map stmt ~f:dests_instr)
@@ -335,13 +355,6 @@ let rec rename_pcond f = function
   | Pand (c1,c2)  -> Pand(rename_pcond f c1,rename_pcond f c2)
   | Pcmp(o,e1,e2) -> Pcmp(o,rename_pexpr f e1,rename_pexpr f e2)
 
-let rename_fcond f fc =
-  { fc with fc_flag = f fc.fc_flag }
-
-let rename_fcond_or_pcond f = function
-  | Fcond(fc) -> Fcond(rename_fcond f fc)
-  | Pcond(pc) -> Pcond(rename_pcond f pc)
-
 let rename_opt f =
   Option.map ~f:f
 
@@ -351,32 +364,27 @@ let rename_dest f d =
     d_oidx = Option.map d.d_oidx ~f:(rename_pexpr f)
   }
 
+let rename_fcond f fc =
+  { fc with fc_dest = rename_dest f fc.fc_dest }
+
+let rename_fcond_or_pcond f = function
+  | Fcond(fc) -> Fcond(rename_fcond f fc)
+  | Pcond(pc) -> Pcond(rename_pcond f pc)
+
 let rename_src f = function
   | Imm _ as i -> i
   | Src d      -> Src (rename_dest f d)
 
-let rename_op ?rn_type f op =
-  let rnd = if rn_type=Some(UseOnly) then ident else rename_dest f in
-  let rns = if rn_type=Some(DefOnly) then ident else rename_src f in
-  let rnf = if rn_type=Some(DefOnly) then ident else rename_fcond f in
-  match op with
-  | ThreeOp(_)         -> op
-  | Umul(d1)           -> Umul(rnd d1)
-  | CMov(fc)           -> CMov(rnf fc)
-  | Shift(dir,d1o)     -> Shift(dir,rename_opt rnd d1o)
-  | Carry(cop,d1o,s1o) -> Carry(cop,rename_opt rnd d1o, rename_opt rns s1o)
-
 let rename_base_instr ?rn_type f bi =
   let rnd = if rn_type=Some(UseOnly) then ident else rename_dest f in
   let rns = if rn_type=Some(DefOnly) then ident else rename_src  f in
-  let rno = rename_op ?rn_type f in
   let rne = if rn_type=Some(DefOnly) then ident else rename_pexpr f in
   match bi with
   | Comment(_) as c -> c
   | Load(d,s,pe)    -> Load(rnd d,rns s,rne pe)
   | Store(s1,pe,s2) -> Store(rns s1,rne pe,rns s2)
   | Assgn(d,s,at)   -> Assgn(rnd d,rns s,at)
-  | Op(o,d,(s1,s2)) -> Op(rno o,rnd d,(rns s1,rns s2))
+  | Op(o,ds,ss)     -> Op(o,List.map ~f:rnd ds,List.map ~f:rns ss)
   | Call(fn,ds,ss)  -> Call(fn,List.map ~f:rnd ds,List.map ~f:rns ss)
 
 let rec rename_instr ?rn_type f linstr =
@@ -409,36 +417,25 @@ let drename_opt f =
   Option.map ~f:f
 
 let drename_dest f d =
-  let name, oidx = f d.d_name d.d_oidx in
-  { d with d_name = name; d_oidx = oidx }
+  let name, oidx, odecl = f d.d_name d.d_oidx d.d_odecl in
+  { d with d_name = name; d_oidx = oidx; d_odecl = odecl }
 
 let drename_src f = function
   | Imm _ as i -> i
   | Src d      -> Src (drename_dest f d)
 
-let drename_fcond f fc = { fc with fc_flag = fst (f fc.fc_flag None) }
-
-let drename_op f op =
-  let rnd = drename_dest f in
-  let rns = drename_src f in
-  let rnf = drename_fcond f in
-  match op with
-  | ThreeOp(_)         -> op
-  | Umul(d1)           -> Umul(rnd d1)
-  | CMov(fc)           -> CMov(rnf fc)
-  | Shift(dir,d1o)     -> Shift(dir,drename_opt rnd d1o)
-  | Carry(cop,d1o,s1o) -> Carry(cop,drename_opt rnd d1o, drename_opt rns s1o)
+let drename_fcond f fc =
+  { fc with fc_dest = rename_dest f fc.fc_dest }
 
 let drename_base_instr f bi =
   let rnd = drename_dest f in
   let rns = drename_src f in
-  let rno = drename_op f in
   match bi with
   | Comment(_) as c -> c
   | Load(d,s,pe)    -> Load(rnd d,rns s,pe)
   | Store(s1,pe,s2) -> Store(rns s1,pe,rns s2)
   | Assgn(d,s,at)   -> Assgn(rnd d,rns s,at)
-  | Op(o,d,(s1,s2)) -> Op(rno o,rnd d,(rns s1,rns s2))
+  | Op(o,ds,ss)     -> Op(o,List.map ~f:rnd ds,List.map ~f:rns ss)
   | Call(fn,ds,ss)  -> Call(fn,List.map ~f:rnd ds,List.map ~f:rns ss)
 
 let rec drename_instr f linstr =
@@ -506,13 +503,6 @@ let rec pp_pcond fmt = function
   | Pand(c1,c2)     -> F.fprintf fmt"(%a && %a)" pp_pcond c1 pp_pcond c2
   | Pcmp(o,ie1,ie2) -> F.fprintf fmt"(%a %s %a)" pp_pexpr ie1 (pcondop_to_string o) pp_pexpr ie2
 
-let pp_fcond fmt fc =
-  F.fprintf fmt "%s%s" (if not fc.fc_flag_set then "!" else "") fc.fc_flag
-
-let pp_fcond_or_pcond fmt = function
-  | Pcond(pc) -> F.fprintf fmt "$(%a)" pp_pcond pc
-  | Fcond(fc) -> F.fprintf fmt "(%a)" pp_fcond fc
-
 let pp_dest fmt {d_name=r; d_oidx=oidx} =
   match oidx with
   | None      -> F.fprintf fmt "%s" r
@@ -521,6 +511,13 @@ let pp_dest fmt {d_name=r; d_oidx=oidx} =
 let pp_src fmt = function
   | Src(d)  -> pp_dest fmt d
   | Imm(pe) -> pp_pexpr fmt pe
+
+let pp_fcond fmt fc =
+  F.fprintf fmt "%s%a" (if fc.fc_neg then "!" else "") pp_dest fc.fc_dest
+
+let pp_fcond_or_pcond fmt = function
+  | Pcond(pc) -> F.fprintf fmt "$(%a)" pp_pcond pc
+  | Fcond(fc) -> F.fprintf fmt "(%a)" pp_fcond fc
 
 let pp_ty fmt ty =
   match ty with
@@ -538,13 +535,13 @@ let pp_three_op fmt o =
      | O_Xor  -> "^"
      | O_Or   -> "|")
 
-let pp_op fmt (o,d,s1,s2) =
-  match o with
-  | Umul(d1) ->
-    F.fprintf fmt "%a, %a = %a * %a" pp_dest d1 pp_dest d pp_src s1 pp_src s2
-  | ThreeOp(o) ->
-    F.fprintf fmt "%a = %a %a %a" pp_dest d pp_src s1 pp_three_op o pp_src s2
-  | Carry(cfo,od1,os3) ->
+let pp_op fmt (o,ds,ss) =
+  match view_op o ds ss with
+  | V_Umul(d1,d2,s1,s2) ->
+    F.fprintf fmt "%a, %a = %a * %a" pp_dest d1 pp_dest d2 pp_src s1 pp_src s2
+  | V_ThreeOp(o,d1,s1,s2) ->
+    F.fprintf fmt "%a = %a %a %a" pp_dest d1 pp_src s1 pp_three_op o pp_src s2
+  | V_Carry(cfo,od1,d2,s1,s2,os3) ->
     let so = string_of_carry_op cfo in
     F.fprintf fmt "%a%a = %a %s %a%a"
       (fun fmt od ->
@@ -552,7 +549,7 @@ let pp_op fmt (o,d,s1,s2) =
          | Some d -> F.fprintf fmt "%a, " pp_dest d
          | None   -> pp_string fmt "")
       od1
-      pp_dest d
+      pp_dest d2
       pp_src s1
       so
       pp_src s2
@@ -561,17 +558,17 @@ let pp_op fmt (o,d,s1,s2) =
          | Some s -> F.fprintf fmt " %s %a" so pp_src s
          | None   -> pp_string fmt "")
       os3
-  | CMov(fc) ->
-    F.fprintf fmt "%a = %a if %s%s else %a"
-      pp_dest d pp_src s2 (if fc.fc_flag_set then "" else "!") fc.fc_flag pp_src s1
-  | Shift(dir,od1) ->
+  | V_Cmov(neg,d1,s1,s2,s3) ->
+    F.fprintf fmt "%a = %a if %s%a else %a"
+      pp_dest d1 pp_src s2 (if neg then "!" else "") pp_src s3 pp_src s1
+  | V_Shift(dir,od1,d1,s1,s2) ->
     F.fprintf fmt "%a%a = %a %s %a"
       (fun fmt od ->
          match od with
          | Some d -> F.fprintf fmt "%a" pp_dest d
          | None   -> pp_string fmt "")
       od1
-      pp_dest d
+      pp_dest d1
       pp_src s1
       (match dir with Left -> "<<" | Right -> ">>")
       pp_src s2
@@ -583,7 +580,7 @@ let pp_base_instr fmt bi =
   | Store(s1,pe,s2) -> F.fprintf fmt "MEM[%a + %a] = %a;" pp_src s1 pp_pexpr pe pp_src s2
   | Assgn(d1,s1,Mv) -> F.fprintf fmt "%a = %a;" pp_dest d1 pp_src s1
   | Assgn(d1,s1,Eq) -> F.fprintf fmt "%a := %a;" pp_dest d1 pp_src s1
-  | Op(o,d,(s1,s2)) -> F.fprintf fmt "%a;" pp_op (o,d,s1,s2)
+  | Op(o,ds,ss)     -> F.fprintf fmt "%a;" pp_op (o,ds,ss)
   | Call(name,[],args) ->
     F.fprintf fmt "%s(%a);" name (pp_list "," pp_src) args
   | Call(name,dest,args) ->
@@ -630,11 +627,12 @@ let pp_decl fmt (stor,name,ty) =
     pp_ty ty
 
 let pp_fundef fmt fd =
+  let decls = Option.value ~default:[] fd.fd_decls in
   F.fprintf fmt  " {@\n  @[<v 0>%a%a%a%a@]@\n}"
-    (pp_list "@\n" pp_decl) fd.fd_decls
+    (pp_list "@\n" pp_decl) decls
     (fun fmt xs -> match xs with
      | [] -> F.fprintf fmt ""
-     | _ -> F.fprintf fmt "@\n") fd.fd_decls
+     | _ -> F.fprintf fmt "@\n") decls
     pp_stmt    fd.fd_body
     pp_return  fd.fd_ret
 
@@ -730,16 +728,18 @@ let failtype_ loc fmt =
 let use_opt_src os =
   Option.value_map ~default:SS.empty ~f:(fun s -> pvars_src s) os
 
+(*
 let use_op = function
   | Carry(_,_,os) -> use_opt_src os
-  | CMov(fc)      -> SS.singleton fc.fc_flag
+  | Cmov(fc)      -> SS.singleton fc.fc_flag
   | ThreeOp(_)    -> SS.empty
   | Umul(_)       -> SS.empty
   | Shift(_,_)    -> SS.empty
+*)
 
 let use_binstr = function
   | Assgn(_,s,_)           -> pvars_src s
-  | Op(o,_,(s1,s2))        -> SS.union_list [ pvars_src s1; pvars_src s2; use_op o ]
+  | Op(_,_,ss)             -> SS.union_list (List.map ~f:pvars_src ss)
   | Load(_,s,Pconst(_))    -> pvars_src s
   | Store(s1,Pconst(_),s2) -> SS.union (pvars_src s1) (pvars_src s2)
   | Comment(_)             -> SS.empty
@@ -761,16 +761,9 @@ let use_instr = function
 let def_opt_dest od =
   Option.value_map ~default:SS.empty ~f:(fun s -> pvars_dest s) od
 
-let def_op = function
-  | Carry(_,od,_) -> def_opt_dest od
-  | Umul(d)       -> pvars_dest d
-  | Shift(_,od)   -> def_opt_dest od
-  | CMov(_)       -> SS.empty
-  | ThreeOp(_)    -> SS.empty
-
 let def_binstr = function
   | Assgn(d,_,_)         -> pvars_dest d
-  | Op(o,d,(_,_))        -> SS.union (pvars_dest d) (def_op o)
+  | Op(_,ds,_)           -> SS.union_list (List.map ~f:pvars_dest ds)
   | Load(d,_,Pconst(_))  -> pvars_dest d
   | Store(_,Pconst(_),_) -> SS.empty
   | Comment(_)           -> SS.empty
