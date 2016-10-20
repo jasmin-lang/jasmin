@@ -50,9 +50,10 @@ ARG="$ARG,save[/tmp/unfold.mil][$FUN]"
 
 FUN="test"
 
-ARG="local_ssa[$FUN]"
-ARG="register_allocate[$FUN][15]"
+ARG="typecheck,local_ssa[$FUN]"
 ARG="$ARG,save[/tmp/unfold.mil][$FUN]"
+ARG="$ARG,typecheck,register_allocate[$FUN][15]"
+ARG="$ARG,save[/tmp/unfold2.mil][$FUN]"
 
 ./dmasm.byte -t \
   "$ARG" \

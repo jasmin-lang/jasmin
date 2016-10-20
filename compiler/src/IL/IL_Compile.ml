@@ -532,7 +532,7 @@ let rn_map_if_update rn_info ~rn_if ~rn_else =
       F.printf "rename %s to %s in if (use else name)\n" name_if name_else;
       HT.set mapping_if_names ~key:name_if ~data:name_else;
       (* update rn_map for statements following if-then-else *)
-      HT.set rn_info.rn_map ~key:name ~data:idx_if;
+      HT.set rn_info.rn_map ~key:name ~data:idx_else;
       rn_new_remove rn_info name idx_if
     (* def only in if-branch, rename if-def with old name *)
     | true, false ->
@@ -835,7 +835,7 @@ and init_liveness_block linfo ~path ~entry_p ~exit_p stmt =
       init_liveness_instr linfo ~path ~idx ~exit_p:None i.L.l_val;
       go ~path ~idx:(idx+1) s
   in
-  if stmt =[] then (
+  if stmt = [] then (
     (* empty statement goes from entry to exit *)
     li_add_succ linfo ~pos:entry_p ~succ:exit_p
   ) else (
@@ -937,26 +937,39 @@ let mk_reg_info () = {
 }
 
 let reg_info_class_new rinfo name =
-  let ci = rinfo.ri_free_index in
-  rinfo.ri_free_index <- succ ci;
-  HT.add_exn rinfo.ri_class_map  ~key:name ~data:ci;
-  HT.add_exn rinfo.ri_classes ~key:ci ~data:(SS.singleton name);
-  ci
+  if (not (HT.mem rinfo.ri_class_map name)) then (
+    let ci = rinfo.ri_free_index in
+    rinfo.ri_free_index <- succ ci;
+    HT.add_exn rinfo.ri_class_map ~key:name ~data:ci;
+    HT.add_exn rinfo.ri_classes ~key:ci ~data:(SS.singleton name);
+    ci
+  ) else (
+    HT.find_exn rinfo.ri_class_map name 
+  )
 
-let reg_info_class_add rinfo name_old name_new =
-  let ci = match HT.find rinfo.ri_class_map name_old with
+let reg_info_class_union rinfo name_old name_new =
+  let ci_old = match HT.find rinfo.ri_class_map name_old with
     | Some c -> c
     | None ->
       failwith (fsprintf "eq_constrs_: %s undefined\n%a"
                   name_old
                   (pp_list "," pp_string) (HT.keys rinfo.ri_class_map))
   in
-  HT.add_exn rinfo.ri_class_map ~key:name_new ~data:ci;
-  HT.change rinfo.ri_classes ci
-      ~f:(function
-          | None   -> assert false
-          | Some s -> Some (Set.add s name_new));
-  ci
+  (match HT.find rinfo.ri_class_map name_new with
+   | Some ci_new ->
+     let class_new = HT.find_exn rinfo.ri_classes ci_new in
+     SS.iter class_new (fun name -> HT.set rinfo.ri_class_map ~key:name ~data:ci_old);
+     HT.change rinfo.ri_classes ci_old
+        ~f:(function
+            | None   -> assert false
+            | Some s -> Some (Set.union class_new s))
+    | None ->
+      HT.add_exn rinfo.ri_class_map ~key:name_new ~data:ci_old;
+      HT.change rinfo.ri_classes ci_old
+        ~f:(function
+            | None   -> assert false
+            | Some s -> Some (Set.add s name_new)));
+  ci_old
 
 let reg_info_fix_class rinfo ci reg =
   match HT.find rinfo.ri_fixed ci with
@@ -967,15 +980,74 @@ let reg_info_fix_class rinfo ci reg =
     failwith (fsprintf "conflicting requirements: %a vs %a"
                  X64.pp_int_reg reg' X64.pp_int_reg reg)
 
-let reg_info_binstr linfo rinfo bi = ()
+let reg_info_binstr linfo rinfo bi =
+  let is_reg_dest d =
+    if HT.mem rinfo.ri_regs d.d_name
+    then ( assert (d.d_oidx=None); true)
+    else ( false )
+  in
+  let is_reg_src s =
+    match s with
+    | Imm(_) -> assert false
+    | Src(d) -> is_reg_dest d
+  in
+  let reg_info_op op d s1 s2 =
+    match op with
+
+
+    | Umul(d2) when is_reg_dest d2 && is_reg_dest d && is_reg_src s1 ->
+      let i1 = reg_info_class_union rinfo (get_src_dest_exn s1).d_name d.d_name in
+      let i2 = reg_info_class_new rinfo d2.d_name in
+      reg_info_fix_class rinfo i1 (X64.int_of_reg X64.RAX);
+      reg_info_fix_class rinfo i2 (X64.int_of_reg X64.RDX)
+
+    | Carry((O_Add|O_Sub),od,os) when is_reg_dest d && is_reg_src s1 ->
+      ignore (reg_info_class_union rinfo (get_src_dest_exn s1).d_name d.d_name)
+
+    | (CMov(_) | Shift(_,_) | ThreeOp(O_Xor)) when is_reg_dest d && is_reg_src s1 ->
+      ignore (reg_info_class_union rinfo (get_src_dest_exn s1).d_name d.d_name)
+
+    | Umul(_)
+    | Carry(_)
+    | Shift(_)
+    | ThreeOp(_)
+    | CMov(_) -> assert false
+  in
+  match bi with
+
+  | Op(o,d,(s1,s2)) ->
+    reg_info_op o d s1 s2
+
+  | Assgn(d,_s,Mv) when is_reg_dest d ->
+    ignore(reg_info_class_new rinfo d.d_name)
+
+  (* add equality constraint *)
+  | Assgn(d,s,Eq) when is_reg_dest d ->
+    begin match s with
+    | Imm(_) -> assert false
+    | Src(s) -> ignore(reg_info_class_union rinfo s.d_name d.d_name)
+    end
+
+  | Load(d,_s,_pe) when is_reg_dest d ->
+    ignore(reg_info_class_new rinfo d.d_name)
+
+  | Load(_,_,_)
+  | Assgn(_,_,_)        
+  | Store(_,_,_)
+  | Comment(_)   -> ()
+
+  | Call(_) -> failwith "inline calls before register allocation"
+
    (*
     function
    | Comment _ -> ()
 
+   OK:
    | App((Add|Sub), ([_;Dreg(d)] | [Dreg(d)]), Sreg(s)::_) ->
      (* ignore flags *)
      ignore (add_to_class s d)
 
+   OK:
    | App(UMul, [Dreg(d1);Dreg(d2)], (Sreg(s1)::_)) ->
      let i1 = new_class d1 in
      let i2 = add_to_class s1 d2 in
@@ -999,15 +1071,15 @@ let rec reg_info_instr linfo rinfo li =
   | Binstr(bi) ->
     reg_info_binstr linfo rinfo bi
 
-  | While(DoWhile,fc,st) -> ()
-  
-  | While(WhileDo,fc,st) -> ()
+  | While(_,_fc,s) ->
+    reg_info_stmt linfo rinfo s
 
-  | If(Fcond(fc),st1,st2) -> ()
+  | If(Fcond(_),s1,s2) ->
+    reg_info_stmt linfo rinfo s1;
+    reg_info_stmt linfo rinfo s2
 
   | If(Pcond(_),_,_)
   | For(_,_,_,_)     -> failwith "liveness analysis: unexpected instruction"
-
 
 and reg_info_stmt linfo rinfo stmt =
   List.iter ~f:(reg_info_instr linfo rinfo) stmt

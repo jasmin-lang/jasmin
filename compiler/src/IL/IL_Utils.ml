@@ -37,7 +37,9 @@ let equal_modul      x y = compare_modul      x y = 0
 let base_instrs_to_stmt bis =
   List.map ~f:(fun i -> Binstr(i)) bis
 
-let is_src_imm  = function Imm _ -> true | _ -> false
+let is_src_imm = function Imm _ -> true | _ -> false
+
+let get_src_dest_exn = function Imm _ -> assert false | Src(d) -> d
 
 (* ** Constructor functions for destinations and located base instructions
  * ------------------------------------------------------------------------ *)
