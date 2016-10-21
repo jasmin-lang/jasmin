@@ -114,3 +114,40 @@ let hashtbl_find_exn ?(err=failwith) m pp pr =
     err (fsprintf "hashtbl_find_exn %a failed, not in domain:\n%a%s"
            pp pr (pp_list "," pp) keys
            dot_dot)
+
+(* ** Toggle variants in sum types
+ * ------------------------------------------------------------------------ *)
+
+module Toggle = struct
+  type st = ST [@@deriving compare,sexp]
+
+  (* empty for 'a <> st *)
+  type 'a t =
+    | U : st t
+
+  let witness = U
+  
+  let compare_t _ _ = 0
+  let t_of_sexp _ = assert false
+  let sexp_of_t _ = assert false
+  
+  type disable = unit t
+  type enable  = st   t
+  
+  let compare_disable _ _ = 0
+  let disable_of_sexp _ = assert false
+  let sexp_of_disable _ = assert false
+
+  let compare_enable _ _ = 0
+  let enable_of_sexp _ = assert false
+  let sexp_of_enable _ = assert false
+
+  type ('toggle,'a) option =
+    | None :       (disable,'a) option
+    | Some : 'a -> (enable,'a)  option
+  
+  let compare_option _ _ = 0
+
+end
+
+
