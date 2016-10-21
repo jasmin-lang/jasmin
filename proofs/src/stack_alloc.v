@@ -16,6 +16,140 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
+Module S.
+
+  Inductive instr : Type :=
+  | Cbcmd : bcmd -> instr
+  | Cif : pexpr sbool -> seq.seq instr -> seq.seq instr -> instr
+  | Cwhile : pexpr sbool -> seq.seq instr -> instr
+  | Ccall : forall starg stres : stype,
+            rval stres -> fundef starg stres -> pexpr starg -> instr
+
+  with fundef : stype -> stype -> Type :=
+    FunDef : forall starg stres : stype,
+        Z -> Ident.ident -> rval starg -> seq.seq instr -> rval stres -> fundef starg stres.
+
+  Notation cmd := (seq.seq instr).
+
+  Definition fd_stk_size ta tr (fd:fundef ta tr) := 
+    match fd with
+    | FunDef _ _ sz nstk fa fb fr => sz
+    end.
+
+  Definition fd_nstk ta tr (fd:fundef ta tr) := 
+    match fd with
+    | FunDef _ _ sz nstk fa fb fr => nstk
+    end.
+
+  Definition fd_arg ta tr (fd:fundef ta tr) := 
+    match fd with
+    | FunDef _ _ sz nstk fa fb fr => fa
+    end.
+
+  Definition fd_body ta tr (fd:fundef ta tr) := 
+    match fd with
+    | FunDef _ _ sz nstk fa fb fr => fb
+    end.
+
+  Definition fd_res ta tr (fd:fundef ta tr) := 
+    match fd with
+    | FunDef _ _ sz nstk fa fb fr => fr
+    end.
+
+  Notation vstk nstk := {|vtype := sword; vname := nstk|}.
+
+  Inductive sem : estate -> cmd -> estate -> Prop :=
+  | Eskip : forall s : estate, sem s [::] s
+  | Eseq : forall (s1 s2 s3 : estate) (i : instr) (c : cmd),
+           sem_i s1 i s2 -> sem s2 c s3 -> sem s1 (i :: c) s3
+
+  with sem_i : estate -> instr -> estate -> Prop :=
+  | Ebcmd : forall (s1 s2 : estate) (c : bcmd),
+            sem_bcmd s1 c = ok s2 -> sem_i s1 (Cbcmd c) s2
+  | Eif : forall (s1 s2 : estate) (pe : pexpr sbool) 
+            (cond : st2ty sbool) (c1 c2 : cmd),
+          sem_pexpr (evm s1) pe = ok cond ->
+          sem s1 (if cond then c1 else c2) s2 -> sem_i s1 (Cif pe c1 c2) s2
+  | Ecall : forall (sta str : stype) (m1 : mem) (vm1 : vmap) 
+              (m2 : mem) (rv_res : rval str) (fd : fundef sta str)
+              (pe_arg : pexpr sta) (res : st2ty str),
+            let rarg := sem_pexpr vm1 pe_arg in
+            isOk rarg ->
+            sem_call m1 fd (rdflt_ rarg) m2 res ->
+            sem_i {| emem := m1; evm := vm1 |} (Ccall rv_res fd pe_arg)
+              {| emem := m2; evm := write_rval vm1 rv_res res |}
+  | Ewhile : forall (s1 s2 : estate) (e : pexpr sbool) (c : cmd),
+             sem_while s1 e c s2 -> sem_i s1 (Cwhile e c) s2
+
+  with sem_while : estate -> pexpr sbool -> cmd -> estate -> Prop :=
+  | EWhileDone : forall (s : estate) (e : pexpr sbool) (c : cmd),
+                 sem_pexpr (evm s) e = ok false -> sem_while s e c s
+  | EWhileOne : forall (s1 s2 s3 : estate) (e : pexpr sbool) (c : cmd),
+                sem_pexpr (evm s1) e = ok true ->
+                sem s1 c s2 -> sem_while s2 e c s3 -> sem_while s1 e c s3
+
+  with sem_call : forall sta str : stype,
+      mem -> fundef sta str -> st2ty sta -> mem -> st2ty str -> Prop :=
+  | EcallRun :  forall (sta str : stype) (m1 m2 : mem) 
+                 (vr : st2ty str) (fd : fundef sta str)
+                 (va : st2ty sta) p,
+     alloc_stack m1 (fd_stk_size fd) = ok p ->
+     (forall vm0, 
+       all_empty_arr vm0 ->
+       exists vm2 m2',
+       let vm1 := write_rval vm0 (Rvar (vstk (fd_nstk fd))) p.1 in
+       let vm1 := write_rval vm1 (fd_arg fd) va in
+       [/\ sem {| emem := p.2; evm := vm1 |} (fd_body fd){| emem := m2'; evm := vm2 |},
+           vr = sem_rval vm2 (fd_res fd) &
+           m2 = free_stack m2' p.1 (fd_stk_size fd)]) ->
+     is_full_array vr ->
+     sem_call m1 fd va m2 vr.
+
+
+Section IND.
+  Variable Pi : instr -> Type.
+  Variable Pc : cmd -> Type.
+  Variable Pf : forall ta tr, fundef ta tr -> Type.
+
+  Hypothesis Hskip : Pc [::].
+  Hypothesis Hseq  : forall i c,  Pi i -> Pc c -> Pc (i::c).
+  Hypothesis Hbcmd : forall bc,  Pi (Cbcmd bc).
+  Hypothesis Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (Cif e c1 c2).
+
+  Hypothesis Hwhile : forall e c, Pc c -> Pi (Cwhile e c).
+  Hypothesis Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
+  Hypothesis Hfunc : forall ta tr nstk sz (x:rval ta) c (re:rval tr), 
+     Pc c -> Pf (FunDef nstk sz x c re).
+
+  Fixpoint instr_rect2 (i:instr) : Pi i := 
+    match i return Pi i with
+    | Cbcmd bc => Hbcmd bc
+    | Cif b c1 c2 =>
+      Hif b
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c1)
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c2)
+    | Cwhile e c =>
+      Hwhile e 
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c)
+    | Ccall ta tr x f a =>
+      Hcall x a (func_rect f)
+    end
+  with func_rect {ta tr} (f:fundef ta tr) : Pf f := 
+    match f with
+    | FunDef ta tr nstk sz x c re => 
+      Hfunc nstk sz x re
+        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c)
+    end.
+
+  Definition cmd_rect c := 
+    list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c.
+
+End IND.
+
+End S.
+
+Notation Scmd := (seq.seq S.instr).
+
 Definition map := (Mvar.t Z * Ident.ident)%type.
 
 Definition size_of (t:stype) := 
@@ -25,14 +159,14 @@ Definition size_of (t:stype) :=
   | _      => Error tt
   end.
 
-Definition init_map stk (l:list (var * Z)) sz:=
+Definition init_map (sz:Z) (nstk:Ident.ident) (l:list (var * Z)):=
   let add (vp:var*Z) (mp:Mvar.t Z * Z) :=
     if (mp.2 <=? vp.2)%Z then 
       size_of (vtype vp.1) >>= (fun s =>
       Ok unit (Mvar.set mp.1 vp.1 vp.2, vp.2 + s)%Z)
     else Error tt in
   foldM add (Mvar.empty Z, 0%Z) l >>= (fun mp =>
-    if (mp.2 <=? sz)%Z then Ok unit (mp.1, vname stk)
+    if (mp.2 <=? sz)%Z then Ok unit (mp.1, nstk)
     else Error tt).
 
 Definition is_in_stk (m:map) (x:var) := 
@@ -110,11 +244,11 @@ Definition check_bcmd m i1 i2 :=
 
 Fixpoint check_i m i1 i2 := 
   match i1, i2 with
-  | Cbcmd i1, Cbcmd i2 => check_bcmd m i1 i2
-  | Cif e1 c11 c12, Cif e2 c21 c22 =>
+  | Cbcmd i1, S.Cbcmd i2 => check_bcmd m i1 i2
+  | Cif e1 c11 c12, S.Cif e2 c21 c22 =>
     eqb_pexpr e1 e2 && check_e m e1 &&
     all2 (check_i m) c11 c21 && all2 (check_i m) c12 c22  
-  | Cwhile e1 c1, Cwhile e2 c2 =>
+  | Cwhile e1 c1, S.Cwhile e2 c2 =>
     eqb_pexpr e1 e2 && check_e m e1 && all2 (check_i m) c1 c2 
   | _, _ => false
   end.
@@ -501,12 +635,12 @@ Section PROOF.
   Let Pi (i1:instr) := 
     forall i2, check_i m i1 i2 ->
     forall s1 s1' s2, valid s1 s2 -> sem_i s1 i1 s1' ->
-    exists s2', sem_i s2 i2 s2' /\ valid s1' s2'.
+    exists s2', S.sem_i s2 i2 s2' /\ valid s1' s2'.
 
   Let Pc (c1:cmd) := 
     forall c2, all2 (check_i m) c1 c2 ->
     forall s1 s1' s2, valid s1 s2 -> sem s1 c1 s1' ->
-    exists s2', sem s2 c2 s2' /\ valid s1' s2'.
+    exists s2', S.sem s2 c2 s2' /\ valid s1' s2'.
 
   Let Pf ta tr (fd:fundef ta tr) := True.
 
@@ -522,7 +656,7 @@ Section PROOF.
     move=> s1 s1' s3 Hv H;inversion H;clear H;subst.
     have [s2' [Hi' Hv2]]:= Hi _ _ _ Hv H3.
     have [s3' [Hc' Hv3]]:= Hc _ _ _ Hv2 H5.
-    by exists s3';split=>//; apply: Eseq Hi' Hc'.
+    by exists s3';split=>//; apply: S.Eseq Hi' Hc'.
   Qed.
 
   Let Hbcmd : forall bc,  Pi (Cbcmd bc).
@@ -543,9 +677,9 @@ Section PROOF.
     case: (Hv) H5 => _ _ _ Hvm _;rewrite (check_eP Hvm He1)=> H5.
     case: cond H5 H6 => H5 H6.
     + have [s2' [H6' Hv']]:= Hc1 _ _ _ Hv H6;exists s2';split=>//.
-      by apply Eif with true => //.
+      by apply S.Eif with true => //.
     have [s2' [H6' Hv']]:= Hc2 _ _ _ Hv H6;exists s2';split=>//.
-    by apply Eif with false => //.
+    by apply S.Eif with false => //.
   Qed.
 
   Let Hfor  : forall i rn c, Pc c -> Pi (Cfor i rn c).
@@ -557,7 +691,7 @@ Section PROOF.
     move=> /andP[]/andP[] /eqb_pexprP [] _ <- He1 /Hc1{Hc1}Hc1.
     move=> s1 s1' s2 Hv H;inversion H;clear H;subst.
     have : exists s2' : estate,
-      sem_while s2 e1 c2 s2' /\ valid s1' s2';last first.
+      S.sem_while s2 e1 c2 s2' /\ valid s1' s2';last first.
     + by move=> [s2' [Hs Hv']];exists s2';split=> //;constructor.
     elim: H4 He1 Hc1 s2 Hv => {e1 e2 c1 s1 s1'} [s1 e c1|s1 s2 s3 e1 c1].
     + move=> Hse Hce _ s2 Hv;exists s2;split=>//;constructor.
@@ -566,7 +700,7 @@ Section PROOF.
     have [s2' [Hs2' Hv2]]:= HH _ _ _ Hv Hsc.
     have [s3' [Hs3' Hv3]]:= Hrec Hce HH _ Hv2.
     case: (Hv) Hse=> _ _ _ Hvm _;rewrite (check_eP Hvm Hce)=> Hse.
-    by exists s3';split=> //; apply: EWhileOne Hs3'.
+    by exists s3';split=> //; apply: S.EWhileOne Hs3'.
   Qed.
 
   Let Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
@@ -585,31 +719,15 @@ End PROOF.
 Lemma size_of_pos t s : size_of t = Ok unit s -> 1 <= s.
 Proof. case: t=> //= [|p []] //=[] <- //;zify; omega. Qed.
 
-Definition check_fd (nstk:Ident.ident) (sz:Z) (l:list (var * Z)) ta tr 
-    (fd: fundef ta tr) (fd': fundef ta tr) :=
-  match init_map {|vtype:= sword; vname := nstk|} l sz with 
+Definition check_fd (l:list (var * Z)) ta tr 
+    (fd: fundef ta tr) (fd': S.fundef ta tr) :=
+  match init_map (S.fd_stk_size fd') (S.fd_nstk fd') l  with 
   | Ok m => 
-    (check_rval m (fd_arg fd) && eqb_rval (fd_arg fd) (fd_arg fd')) &&
-    (check_e m (rval2pe (fd_res fd)) && eqb_rval (fd_res fd) (fd_res fd')) &&
-     all2 (check_i m) (fd_body fd) (fd_body fd')
+    (check_rval m (fd_arg fd) && eqb_rval (fd_arg fd) (S.fd_arg fd')) &&
+    (check_e m (rval2pe (fd_res fd)) && eqb_rval (fd_res fd) (S.fd_res fd')) &&
+     all2 (check_i m) (fd_body fd) (S.fd_body fd')
   | _ => false
   end.
-
-Inductive sem_stk_fd (nstk:Ident.ident) (sz:Z) 
-  (sta str : stype) (fd: fundef sta str) 
-  (m1:mem) (varg : st2ty sta) (m2:mem) (vres : st2ty str) : Prop :=
-| SemStkFd : forall p,
-     alloc_stack m1 sz = ok p ->
-     (forall vm0, 
-       all_empty_arr vm0 ->
-       exists vm2 m2',
-       let vm1 := write_rval vm0 (Rvar {|vtype:= sword; vname:= nstk|}) p.1 in
-       let vm1 := write_rval vm1 (fd_arg fd) varg in
-       [/\ sem {| emem := p.2; evm := vm1 |} (fd_body fd){| emem := m2'; evm := vm2 |},
-           vres = sem_rval vm2 (fd_res fd) &
-           m2 = free_stack m2' p.1 sz]) ->
-     is_full_array vres ->
-     sem_stk_fd nstk sz fd m1 varg m2 vres.
 
 Definition init_vm mem pstk (l : seq.seq (var * Z)) vm :=
   let add (vm : vmap) (vp : var * Z) := 
@@ -621,35 +739,35 @@ Definition init_vm mem pstk (l : seq.seq (var * Z)) vm :=
       end in
   foldl add vm l.
 
-Lemma init_mapP stk pstk l sz m vm m1 m2 :
+Lemma init_mapP nstk pstk l sz m vm m1 m2 :
   alloc_stack m1 sz = ok (pstk, m2) -> 
-  init_map stk l sz = Ok unit m -> 
+  init_map sz nstk l = Ok unit m -> 
   all_empty_arr vm ->
-  [/\ valid_map m sz, m.2 = vname stk, all_empty_arr (init_vm m2 pstk l vm) &
+  [/\ valid_map m sz, m.2 = nstk, all_empty_arr (init_vm m2 pstk l vm) &
   valid m sz pstk 
     {| emem := m1; evm := init_vm m2 pstk l vm |}
-    {| emem := m2; evm := vm.[{|vtype := sword;vname := vname stk|} <- pstk]|}].
+    {| emem := m2; evm := vm.[{|vtype := sword;vname := nstk|} <- pstk]|}].
 Proof.
   move=> /alloc_stackP [Hadd Hread Hval Hbound].
   rewrite /init_map /init_vm.
   set f1 := (f in foldM f _ _ ).
   set f2 := (f in foldl f vm _).
-  set g := (g in foldM _ _ _ >>= g). set vstk := vname stk.
+  set g := (g in foldM _ _ _ >>= g). 
   have : forall p p', 
     foldM f1 p l = Ok unit p' -> 
-    valid_map (p.1,vstk) p.2 -> 0 <= p.2 ->
+    valid_map (p.1,nstk) p.2 -> 0 <= p.2 ->
     (forall y py sy, Mvar.get p.1 y = Some py ->
         size_of (vtype y) = Ok unit sy -> py + sy <= p.2) ->
     [/\ p.2 <= p'.2, 
-        valid_map (p'.1, vstk) p'.2 &
+        valid_map (p'.1, nstk) p'.2 &
     forall vm1, 
       p'.2 <= sz ->
       all_empty_arr vm1 ->
-      valid (p.1,vstk) sz pstk {| emem := m1; evm := vm1 |}
-         {| emem := m2; evm := vm.[{| vtype := sword; vname := vstk |} <- pstk] |} ->
+      valid (p.1, nstk) sz pstk {| emem := m1; evm := vm1 |}
+         {| emem := m2; evm := vm.[{| vtype := sword; vname := nstk |} <- pstk] |} ->
       all_empty_arr (foldl f2 vm1 l) /\ 
-      valid (p'.1,vstk) sz pstk {| emem := m1; evm := foldl f2 vm1 l |}
-            {| emem := m2; evm := vm.[{| vtype := sword; vname := vstk |} <- pstk] |}].
+      valid (p'.1, nstk) sz pstk {| emem := m1; evm := foldl f2 vm1 l |}
+            {| emem := m2; evm := vm.[{| vtype := sword; vname := nstk |} <- pstk] |}].
   + elim:l => [|vp l Hrec] p p'//=.
     + by move=>[] <- ???;split=>//;omega.
     rewrite {2}/f1;case:ifPn=> //= /Z.leb_le Hle.
@@ -725,12 +843,12 @@ Proof.
   by exists sx;split=>//;split=>//;omega.
 Qed.
  
-Lemma check_stk_allocP nstk sz ta tr l (fd:fundef ta tr) fd':
-  check_fd nstk sz l fd fd' ->
+Lemma check_fdP ta tr l (fd:fundef ta tr) fd':
+  check_fd l fd fd' ->
   forall m1 va m1' vr, 
     sem_call m1 fd va m1' vr ->
-    (exists p, alloc_stack m1 sz = ok p) ->
-    sem_stk_fd nstk sz fd' m1 va m1' vr.
+    (exists p, alloc_stack m1 (S.fd_stk_size fd') = ok p) ->
+    S.sem_call m1 fd' va m1' vr.
 Proof.
   rewrite /check_fd. 
   case Hinit: init_map => [m|] //=.
@@ -740,6 +858,7 @@ Proof.
   have [/= Hv Hestk Hall Hval] := init_mapP Halloc Hinit Hvm0.
   have [vm2 /= [Hsem Heq]] := H6 _ Hall.
   rewrite -Hexa -Her.
+  pose nstk := S.fd_nstk fd'.
   pose s2 := {| emem := m2;
                  evm := write_rval vm0.[{| vtype := sword; vname := nstk |} <- pstk]
                            (fd_arg fd) va |}.
@@ -751,6 +870,7 @@ Proof.
     have := sem_rval2pe (fd_res fd) vm2'.
     by rewrite -(check_eP H Hcr) (sem_rval2pe (fd_res fd) vm2) Heq => -[].
   apply eq_memP=> w.
+  pose sz := S.fd_stk_size fd'.
   have -> := @free_stackP m2' (free_stack m2' pstk sz) pstk sz (erefl _) w.
   case Hval' => /=;rewrite /disjoint_stk => Hdisj Hmem Hvalw _ _.
   move: (Hdisj w) (Hmem w) (Hvalw w)=> {Hdisj Hmem Hval Hvalw} Hdisjw Hmemw Hvalw.

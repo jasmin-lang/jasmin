@@ -4,7 +4,7 @@ From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
 Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr memory dmasm_sem.
 Require Import allocation inlining unrolling constant_prop dead_code array_expansion.
-Require Import linear.
+Require Import stack_alloc linear.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -33,6 +33,7 @@ Section COMPILER.
 Variable rename: forall ta tr, fundef ta tr -> fundef ta tr.
 Variable expand: forall ta tr, fundef ta tr -> fundef ta tr.
 Variable ralloc: forall ta tr, fundef ta tr -> fundef ta tr.
+Variable stk_alloc : forall ta tr, fundef ta tr -> seq.seq (var * Z) * S.fundef ta tr.
 
 Definition compile_fd ta tr (fd:fundef ta tr) :=
   let fdrn := rename fd in
@@ -43,7 +44,12 @@ Definition compile_fd ta tr (fd:fundef ta tr) :=
     if CheckExpansion.check_fd fd fdea then
       let fda := ralloc fdea in
        if CheckAllocReg.check_fd fdea fda then
-         linear_fd fda 
+         let (l, fds) := stk_alloc fda in
+         if stack_alloc.check_fd l fda fds then 
+           linear_fd fds >>= (fun lfd =>
+             if lfd.(lfd_stk_size) == S.fd_stk_size fds then Ok unit lfd 
+             else Error tt)
+         else Error tt
        else Error tt
     else Error tt))
   else Error tt.
@@ -77,6 +83,7 @@ Opaque nb_loop.
 Lemma compile_fdP ta tr (fd:fundef ta tr) (fd':lfundef ta tr)mem va mem' vr:
   compile_fd fd = Ok unit fd' ->
   sem_call mem fd va mem' vr ->
+  (exists p, alloc_stack mem (lfd_stk_size fd') = ok p) ->
   lsem_fd fd' va mem mem' vr.
 Proof.
   rewrite /compile_fd.
@@ -84,8 +91,13 @@ Proof.
   case Hinl: check_inline_fd => [s|] //=.
   case Hunr: unroll => [fdu|] //=.
   case Hea:  CheckExpansion.check_fd => //=.
-  case Hra:  CheckAllocReg.check_fd => //= /linear_fdP H Hsem. 
-  apply H.
+  case Hra:  CheckAllocReg.check_fd => //=.
+  case stk_alloc => [l fds] //=.
+  case Hsa: stack_alloc.check_fd => //=.
+  case Hlfd:linear_fd => [lfd|] //=. 
+  case:eqP => [ Heq| //] [] <- Hsem;rewrite Heq=> Hex.
+  apply: (linear_fdP Hlfd).
+  apply: (stack_alloc.check_fdP Hsa) Hex.
   apply: (CheckAllocReg.check_fdP Hra).
   apply: (CheckExpansion.check_fdP Hea). 
   apply: (unrollP Hunr).

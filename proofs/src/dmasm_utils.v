@@ -93,10 +93,10 @@ End FOLD2.
 
 Section All2.
 
-  Variable A:Type.
-  Variable f : A -> A -> bool.
+  Variable A B:Type.
+  Variable f : A -> B -> bool.
  
-  Fixpoint all2 (l1 l2: seq A) := 
+  Fixpoint all2 (l1:seq A) (l2: seq B) := 
     match l1, l2 with
     | [::]  , [::]   => true
     | a1::l1, a2::l2 => f a1 a2 && all2 l1 l2

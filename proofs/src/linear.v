@@ -8,7 +8,7 @@ From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import JMeq ZArith.
 
 Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr.
-Require Import memory dmasm_sem.
+Require Import memory dmasm_sem stack_alloc.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -36,6 +36,8 @@ Definition is_label (lbl: label) (i:linstr) : bool :=
   end.
 
 Record lfundef ta tr := LFundef {
+ lfd_stk_size : Z;                            
+ lfd_nstk : Ident.ident;                           
  lfd_arg  : rval ta;
  lfd_body : lcmd;
  lfd_res  : rval tr
@@ -65,8 +67,6 @@ Definition to_estate (s:lstate) := Estate s.(lmem) s.(lvm).
 Definition of_estate (s:estate) c := Lstate s.(emem) s.(evm) c.
 Definition setc (s:lstate) c :=  Lstate s.(lmem) s.(lvm) c.
 
-Section SEM.
-
 Inductive lsem1 (c:lcmd) : lstate -> lstate -> Prop:=
 | LSem_bcmd : forall s1 s2 bc cs, 
     s1.(lc) = Lbcmd bc :: cs ->
@@ -91,14 +91,17 @@ Inductive lsem (c:lcmd) : lstate -> lstate -> Prop:=
 
 Inductive lsem_fd ta tr (fd:lfundef ta tr) (va:st2ty ta)
    m1 m2 (vr:st2ty tr) : Prop := 
-| LSem_fd :  
+| LSem_fd : forall p, 
+    alloc_stack m1 fd.(lfd_stk_size) = ok p ->
     let c := fd.(lfd_body) in
     (forall vm0 : vmap, all_empty_arr vm0 ->
-       exists vm2 cs,
-       let vm1 := write_rval vm0 (lfd_arg fd) va in
-       lsem c {| lmem := m1; lvm := vm1; lc := c |} 
-                {| lmem := m2; lvm := vm2; lc := Lreturn :: cs |} /\
-       sem_rval vm2 (lfd_res fd) = vr) ->
+       exists vm2 m2' cs,
+       let vm1 := write_rval vm0 (S.vstk fd.(lfd_nstk)) p.1 in
+       let vm1 := write_rval vm1 (lfd_arg fd) va in
+       [/\ lsem c {| lmem := p.2; lvm := vm1; lc := c |} 
+                {| lmem := m2'; lvm := vm2; lc := Lreturn :: cs |},
+       vr = sem_rval vm2 (lfd_res fd) &
+       m2 = free_stack m2' p.1 fd.(lfd_stk_size)]) ->             
     is_full_array vr ->
     lsem_fd fd va m1 m2 vr.
 
@@ -117,9 +120,9 @@ Notation "c1 '>;' c2" :=  (c2 >>= (fun p => Ok unit (p.1, c1 :: p.2)))
 
 Section LINEAR_C.
 
-  Variable linear_i : instr -> label -> lcmd -> result unit (label * lcmd).
+  Variable linear_i : S.instr -> label -> lcmd -> result unit (label * lcmd).
 
-  Fixpoint linear_c (c:cmd) (lbl:label) (lc:lcmd) := 
+  Fixpoint linear_c (c:Scmd) (lbl:label) (lc:lcmd) := 
     match c with
     | [::] => Ok unit (lbl, lc)
     | i::c => 
@@ -132,28 +135,28 @@ Definition next_lbl lbl := (lbl + 1)%positive.
 
 Definition enot (e:pexpr sbool) := Papp1 Onot e.
 
-Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) := 
+Fixpoint linear_i (i:S.instr) (lbl:label) (lc:lcmd) := 
   match i with
-  | Cbcmd bc => Ok unit (lbl, Lbcmd bc :: lc)
+  | S.Cbcmd bc => Ok unit (lbl, Lbcmd bc :: lc)
 
-  | Cif e [::] c2 =>
+  | S.Cif e [::] c2 =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
     Lcond e L1 >; linear_c linear_i c2 lbl (Llabel L1::lc)
 
-  | Cif e c1 [::] =>
+  | S.Cif e c1 [::] =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
     Lcond (enot e) L1 >; linear_c linear_i c1 lbl (Llabel L1::lc)
 
-  | Cif e c1 c2 =>
+  | S.Cif e c1 c2 =>
     let L1 := lbl in
     let L2 := next_lbl L1 in
     let lbl := next_lbl L2 in
     Lcond e L1 >; linear_c linear_i c2 ;; Lgoto L2 >; 
     Llabel L1 >; linear_c linear_i c1 lbl (Llabel L2:: lc)
 
-  | Cwhile e c =>
+  | S.Cwhile e c =>
     let L1 := lbl in
     let L2 := next_lbl L1 in
     let lbl := next_lbl L2 in
@@ -162,29 +165,30 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
     linear_c linear_i c lbl 
     (Llabel L1:: Lcond e L2 :: lc)
     
-  | Cfor _ _ _ => Error tt
-  | Ccall _ _ _ _ _ => Error tt
+  | S.Ccall _ _ _ _ _ => Error tt
+
   end.
 
-Definition linear_fd ta tr (fd:fundef ta tr) := 
-  (linear_c linear_i (fd_body fd) 1%positive [::Lreturn]) >>=
-   (fun p => Ok unit (LFundef (fd_arg fd) p.2 (fd_res fd))).
+Definition linear_fd ta tr (fd:S.fundef ta tr) := 
+  (linear_c linear_i (S.fd_body fd) 1%positive [::Lreturn]) >>=
+   (fun p => Ok unit 
+     (LFundef (S.fd_stk_size fd) (S.fd_nstk fd) (S.fd_arg fd) p.2 (S.fd_res fd))).
 
 Section CAT.
 
-  Let Pi (i:instr) := 
+  Let Pi (i:S.instr) := 
     forall lbl l , 
      linear_i i lbl l = 
      linear_i i lbl [::] >>= (fun (p:label*lcmd) => Ok unit (p.1, p.2 ++ l)).
 
 
-  Let Pc (c:cmd) := 
+  Let Pc (c:Scmd) := 
     forall lbl l , 
      linear_c linear_i c lbl l = 
      linear_c linear_i c lbl [::] >>= 
        (fun (p:label*lcmd) => Ok unit (p.1, p.2 ++ l)).
 
-  Let Pf ta tr (fd:fundef ta tr) := True.
+  Let Pf ta tr (fd:S.fundef ta tr) := True.
 
   Let Hskip : Pc [::].
   Proof. by []. Qed.
@@ -196,10 +200,10 @@ Section CAT.
     by rewrite Hi (Hi p.1 p.2) bindA;apply bind_eq => //= p';rewrite catA.
  Qed.
 
-  Let Hbcmd : forall bc,  Pi (Cbcmd bc).
+  Let Hbcmd : forall bc,  Pi (S.Cbcmd bc).
   Proof. by move=>[? x e|x e|e1 e2] lbl l. Qed.
 
-  Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (Cif e c1 c2).
+  Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (S.Cif e c1 c2).
   Proof.
     move=> e c1 c2 Hc1 Hc2 lbl l /=.
     case Heq1: (c1)=> [|i1 l1].
@@ -212,33 +216,31 @@ Section CAT.
     by rewrite -!catA /= -catA.
   Qed.
 
-  Let Hfor  : forall i rn c, Pc c -> Pi (Cfor i rn c).
-  Proof. by []. Qed.
-
-  Let Hwhile : forall e c, Pc c -> Pi (Cwhile e c).
+  Let Hwhile : forall e c, Pc c -> Pi (S.Cwhile e c).
   Proof.
     move=> e c Hc lbl l /=.
     by rewrite Hc (Hc _ [::_;_]) !bindA;apply bind_eq => //= p;rewrite -!catA.
   Qed.
      
-  Let Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
+  Let Hcall : forall ta tr x (f:S.fundef ta tr) a, Pf f -> Pi (S.Ccall x f a).
   Proof. by []. Qed.
 
-  Let Hfunc : forall ta tr (x:rval ta) c (re:rval tr), Pc c -> Pf (FunDef x c re).
+  Let Hfunc : forall ta tr nstk sz (x:rval ta) c (re:rval tr), 
+    Pc c -> Pf (S.FunDef nstk sz x c re).
   Proof. by []. Qed.
 
   Lemma linear_i_nil i lbl l :
      linear_i i lbl l = 
      linear_i i lbl [::] >>= (fun (p:label*lcmd) => Ok unit (p.1, p.2 ++ l)).
   Proof. 
-    apply (@instr_rect2 Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc).
+    apply (@S.instr_rect2 Pi Pc Pf Hskip Hseq Hbcmd Hif Hwhile Hcall Hfunc).
   Qed.
 
   Lemma linear_c_nil c lbl l :
      linear_c linear_i c lbl l = 
      linear_c linear_i c lbl [::] >>= (fun (p:label*lcmd) => Ok unit (p.1, p.2 ++ l)).
   Proof. 
-    apply (@cmd_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc).
+    apply (@S.cmd_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hwhile Hcall Hfunc).
   Qed.
 
 End CAT.
@@ -427,21 +429,21 @@ Proof. by move=> H; apply (LSem1 H); apply LSem0. Qed.
 
 Section PROOF.
 
-  Let Pi (i:instr) := 
+  Let Pi (i:S.instr) := 
     forall lbl lbli li, linear_i i lbl [::] = Ok unit (lbli, li) ->
     [/\ (lbl <=? lbli)%positive,
      valid lbl lbli li & 
-     forall s1 s2, sem_i s1 i s2 -> 
+     forall s1 s2, S.sem_i s1 i s2 -> 
        lsem li (of_estate s1 li) (of_estate s2 [::])].
 
-  Let Pc (c:cmd) := 
+  Let Pc (c:Scmd) := 
     forall lbl lblc lc, linear_c linear_i c lbl [::] = Ok unit (lblc, lc) ->
     [/\ (lbl <=? lblc)%positive,
      valid lbl lblc lc & 
-     forall s1 s2, sem s1 c s2 -> 
+     forall s1 s2, S.sem s1 c s2 -> 
        lsem lc (of_estate s1 lc) (of_estate s2 [::])].
 
-  Let Pf ta tr (fd:fundef ta tr) := True.
+  Let Pf ta tr (fd:S.fundef ta tr) := True.
 
   Let Hskip : Pc [::].
   Proof. 
@@ -471,14 +473,14 @@ Section PROOF.
     by apply: Hc H5.
   Qed.
 
-  Let Hbcmd : forall bc,  Pi (Cbcmd bc).
+  Let Hbcmd : forall bc,  Pi (S.Cbcmd bc).
   Proof. 
     move=> [? x e|x e|e1 e2] lbl lbl' l' [] <- <-;rewrite Pos.leb_refl;split=>// 
      -[m1 vm1] s2 H;inversion H;clear H;subst;apply LSem_step;
      eapply LSem_bcmd=> /=;eauto.
   Qed.
  
-  Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (Cif e c1 c2).
+  Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (S.Cif e c1 c2).
   Proof.
     move=> e c1 c2 Hc1 Hc2 lbl lbl' l' => /=.
     case Heq1: (c1)=> [|i1 l1].
@@ -584,10 +586,7 @@ Section PROOF.
     by rewrite H Pos.leb_antisym (Pos_lt_leb_trans (lt_next _) Hle1) /= => /(_ isT).
   Qed.
 
-  Let Hfor  : forall i rn c, Pc c -> Pi (Cfor i rn c).
-  Proof. by []. Qed.
-
-  Let Hwhile : forall e c, Pc c -> Pi (Cwhile e c).
+  Let Hwhile : forall e c, Pc c -> Pi (S.Cwhile e c).
   Proof.
     move=> e c Hc lbl lbli li /=;rewrite linear_c_nil.
     case Heq:linear_c => [[lblc lc]|] //= [] ??;subst lbli li.
@@ -631,35 +630,36 @@ Section PROOF.
     eapply LSem_lbl=> /=;eauto.
   Qed.
      
-  Let Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
+  Let Hcall : forall ta tr x (f:S.fundef ta tr) a, Pf f -> Pi (S.Ccall x f a).
   Proof. by []. Qed.
 
-  Let Hfunc : forall ta tr (x:rval ta) c (re:rval tr), Pc c -> Pf (FunDef x c re).
+  Let Hfunc : forall ta tr nstk sz (x:rval ta) c (re:rval tr), 
+    Pc c -> Pf (S.FunDef nstk sz x c re).
   Proof. by []. Qed.
 
   Lemma linear_cP c lbl lblc lc:
     linear_c linear_i c lbl [::] = Ok unit (lblc, lc) ->
     [/\ (lbl <=? lblc)%positive,
      valid lbl lblc lc & 
-     forall s1 s2, sem s1 c s2 -> 
+     forall s1 s2, S.sem s1 c s2 -> 
        lsem lc (of_estate s1 lc) (of_estate s2 [::])].
   Proof.
-    apply (@cmd_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc).
+    apply (@S.cmd_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hwhile Hcall Hfunc).
   Qed.
 
-  Lemma linear_fdP ta tr (fd :fundef ta tr) (lfd:lfundef ta tr) :
+  Lemma linear_fdP ta tr (fd:S.fundef ta tr) (lfd:lfundef ta tr) :
     linear_fd fd = Ok unit lfd ->
     forall m1 va m2 vr, 
-    sem_call m1 fd va m2 vr -> lsem_fd lfd va m1 m2 vr.
+    S.sem_call m1 fd va m2 vr -> lsem_fd lfd va m1 m2 vr.
   Proof.
     rewrite /linear_fd linear_c_nil;case Heq: linear_c => [[lblc lc]|] //= [] <-.
-    move=> m1 va m2 vr H;inversion H;clear H;subst.
-    inversion H0;clear H0;subst;constructor => //= vm0 Hvm0.
+    move=> m1 va m2 vr H;sinversion H;sinversion H0.
+    econstructor;eauto => //= vm0 Hvm0.
     have [_ _ H] := linear_cP Heq.
-    case: (H6 vm0 Hvm0)=> vm2 /= [] /H /(@lsem_cat_tl [:: Lreturn]) /= Hs Hr.
-    by exists vm2, [::].
+    case: (H7 vm0 Hvm0)=> vm2 /= [] m2' [] /H /= /(@lsem_cat_tl [:: Lreturn]) /= Hs Hr Hm2.
+    by exists vm2, m2', [::].
   Qed.
 
 End PROOF.   
 
-End SEM.  
+
