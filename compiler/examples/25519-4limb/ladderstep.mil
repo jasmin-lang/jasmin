@@ -77,10 +77,15 @@ fn sub(reg x : u64[4], stack ya : u64[4]) -> reg u64[4] {
 // ** reduction from 8 limbs to 4 limbs
 // ************************************************************************
 
-fn reduce(reg z : u64[4*2]) -> reg u64[4*2] {
+fn reduce(reg z_in : u64[8]) -> reg u64[4] {
   reg crem_p, rax, l, h, hprev, zero : u64;
+  reg z     : u64[8];
+  reg z_out : u64[4];
   flag cf : bool;
   inline i : u64;
+
+  // FIXME: check if this is really required 
+  for i in 0..8 { z[i] = z_in[i]; }
 
   crem_p = $rem_p;
   for i in 0..4 {
@@ -111,7 +116,10 @@ fn reduce(reg z : u64[4*2]) -> reg u64[4*2] {
   l = zero * $rem_p;
   z[0] += l;
 
-  return z;
+  // FIXME: check if this is really required 
+  for i in 0..4 { z_out[i] = z[i]; }
+
+  return z_out;
 }
 
 // ** multiplication
@@ -119,7 +127,7 @@ fn reduce(reg z : u64[4*2]) -> reg u64[4*2] {
 
 fn mul(stack xa, ya : u64[4]) -> reg u64[4] {
 
-  reg z    : u64[4*2];
+  reg z    : u64[8];
   reg r    : u64[4];
   reg x, y : u64[4];
   reg h, l, hprev : u64;
@@ -164,9 +172,9 @@ fn mul(stack xa, ya : u64[4]) -> reg u64[4] {
     }
   }
 
-  z = reduce(z);
+  r = reduce(z);
 
-  for i in 0..4 { r[i] = z[i]; }
+  //for i in 0..4 { r[i] = z[i]; }
   return r;
 }
 
@@ -175,7 +183,7 @@ fn mul(stack xa, ya : u64[4]) -> reg u64[4] {
 
 fn square(stack xa : u64[4]) -> reg u64[4] {
 
-  reg z : u64[4*2];
+  reg z : u64[8];
   reg r : u64[4];
   reg t : u64[5];
   reg rax, rdx : u64;
@@ -274,9 +282,10 @@ fn square(stack xa : u64[4]) -> reg u64[4] {
   cf, z[6] += rax;
       z[7] += rdx + cf;
 
-  z = reduce(z);
+  r = reduce(z);
 
-  for i in 0..4 { r[i] := z[i]; } // this should be a no-op and compile into equality constraint
+  // FIXME: maybe an equality constraint is enough here
+  //for i in 0..4 { r[i] = z[i]; }
 
   return r;
 }
@@ -419,21 +428,32 @@ fn ladderstep_tracing(
 // FIXME: compare with OpenSSL, this is a translation from C
 fn cswap(stack x2p, z2p, x3p, z3p : u64[4], stack swap : u64)
     -> stack u64[4] * stack u64[4] * stack u64[4] * stack u64[4] {
-  reg tmp, mask : u64;
+  reg tmp1, tmp2, mask : u64;
   inline i : u64;
 
   mask = swap * 0xffffffffffffffff;
 
   for i in 0..4 {
-    tmp = x2p[i] ^ x3p[i];
-    tmp = tmp & mask;
-    x2p[i] = x2p[i] ^ tmp;
-    x3p[i] = x3p[i] ^ tmp;
+    tmp1   = x2p[i];
+    tmp1  ^= x3p[i];
+    tmp1  &= mask;
+    tmp2   = x2p[i];
+    tmp2  ^= tmp1;
+    x2p[i] = tmp2;
 
-    tmp = z2p[i] ^ z3p[i];
-    tmp = tmp & mask;
-    z2p[i] = z2p[i] ^ tmp;
-    z3p[i] = z3p[i] ^ tmp;
+    tmp2   = x3p[i];
+    tmp2  ^= tmp1;
+    x3p[i] = tmp2;
+
+    tmp1   = z2p[i];
+    tmp1  ^= z3p[i];
+    tmp1  &= mask;
+    tmp2   = z2p[i];
+    tmp2  ^= tmp1;
+    z2p[i] = tmp2;
+    tmp2   = z3p[i];
+    tmp2  ^= tmp1;
+    z3p[i] = tmp2;
   }
   return x2p, z2p, x3p, z3p;
 }
@@ -443,8 +463,8 @@ fn cswap(stack x2p, z2p, x3p, z3p : u64[4], stack swap : u64)
 
 fn mladder(stack xr, sp : u64[4]) -> stack u64[4] * stack u64[4] {
   stack s : u64;
-  reg   tmp : u64;
-  stack prevbit, bit, swap : u64;
+  reg tmp1, tmp2, tmp3, bit, swap : u64;
+  stack prevbit : u64;
   stack x1,x2,z2,x3,z3 : u64[4];
   reg i, j : u64;
   stack i_s, j_s : u64; // store values on stack
@@ -459,15 +479,17 @@ fn mladder(stack xr, sp : u64[4]) -> stack u64[4] * stack u64[4] {
 
   i = 3;
   do {
-    tmp = sp[i];
+    tmp1 = sp[i];
     i_s = i; // probably need the register
-    s = tmp;
+    s = tmp1;
     j = 63;
     do {
-      bit = s >> j;
+      tmp2 = s;
+      bit = tmp2 >> j;
       j_s = j; // probably need the register
       bit = bit & 1;
-      swap = bit ^ prevbit;
+      swap = prevbit;
+      swap ^= bit;
       prevbit = bit;
       x2,z2,x3,z3 = cswap(x2,z2,x3,z3,swap);
       x2,z2,x3,z3 = ladderstep(x1,x2,z2,x3,z3);
@@ -648,13 +670,16 @@ extern fn scalarmult( reg rp : u64 /* address to store result  */
                     , reg sp : u64 /* address of secret scalar */
                     , reg pp : u64 /* address of point         */) {
   stack sa, xa, za, zia : u64[4];
+  stack rp_s : u64;
   reg   r : u64[4];
 
+  rp_s = rp; // FIXME: really required?
   sa = unpack_secret(sp);
   xa = unpack_point(pp);
   xa, za = mladder(xa,sa);
   zia = invert(za);
   r = mul(xa,zia);
+  rp = rp_s;
   pack(rp,r);
 }
 
@@ -933,5 +958,6 @@ fn test_fast() {
 
 fn test() {
   test_full();
+  //test_scalarmult();
   print_newline();
 }

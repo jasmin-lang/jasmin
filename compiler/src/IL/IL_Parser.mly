@@ -63,7 +63,7 @@ module L = ParserUtil.Lexing
 %left MINUS PLUS
 %left STAR
 
-%type <IL_Lang.modul> modul
+%type <IL_Lang.modul_u> modul
 
 %start modul
 
@@ -123,11 +123,12 @@ dexpr :
 | LPAREN e1=dexpr RPAREN     { e1                      }
 
 pexpr :
-| s=dest                     { Patom(Pdest(s))         }
-| DOLLAR s=ID                { Patom(Pparam(s))        }
-| i=INT                      { Pconst(U64.of_string i) }
-| e1=pexpr o=pbinop e2=pexpr { Pbinop(o,e1,e2)         }
-| LPAREN e1=pexpr RPAREN     { e1                      }
+| d=dest
+  { assert(d.d_idx=inone); Patom(mk_patom_dest_u d.d_name d.d_loc)  }
+| DOLLAR s=ID                { Patom(mk_patom_param s)              }
+| i=INT                      { Pconst(U64.of_string i)              }
+| e1=pexpr o=pbinop e2=pexpr { Pbinop(o,e1,e2)                      }
+| LPAREN e1=pexpr RPAREN     { e1                                   }
 
 pcond :
 | TRUE                        { Ptrue         }
@@ -154,7 +155,11 @@ pcond_or_fcond :
 
 %inline dest_noloc :
 | s=ID idx = dest_get?
-    { { d_name = s; d_oidx = idx; d_loc = L.dummy_loc; d_odecl = None } }
+    { let idx = match idx with
+                | None    -> inone
+                | Some pe -> mk_Iconst pe
+      in
+      { d_name = s; d_idx = idx; d_loc = L.dummy_loc; d_decl = () } }
 
 %inline dest :
 | ld=loc(dest_noloc)
@@ -162,10 +167,10 @@ pcond_or_fcond :
       { d with d_loc = L.mk_loc loc } }
 
 src :
-| d=dest                       { Src(d)                       }
-| DOLLAR i=ID                  { Imm(Patom(Pparam(i)))        }
-| DOLLAR LPAREN i=pexpr RPAREN { Imm(i)                       }
-| i=INT                        { Imm(Pconst(U64.of_string i)) }
+| d=dest                       { Src(d)                        }
+| DOLLAR i=ID                  { Imm(Patom(mk_patom_param(i))) }
+| DOLLAR LPAREN i=pexpr RPAREN { Imm(i)                        }
+| i=INT                        { Imm(Pconst(U64.of_string i))  }
 
 (* -------------------------------------------------------------------- *)
 (* * Operators and assignments *)

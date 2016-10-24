@@ -44,6 +44,17 @@ let fsprintf fmt =
       (Buffer.contents buf))
     fbuf fmt
 
+let pp_ht entry_sep map_sep pp_key pp_data fmt ht =
+  F.fprintf fmt "%a"
+    (pp_list entry_sep (pp_pair map_sep pp_key pp_data))
+    (List.sort ~cmp:compare @@ Hashtbl.to_alist ht)
+
+let pp_set pp_elem to_list fmt ss =
+  F.fprintf fmt "{%a}" (pp_list "," pp_elem) (to_list ss)
+
+let pp_set_string =
+  pp_set pp_string (fun s -> List.sort ~cmp:compare_string (String.Set.to_list s))
+
 (* ** Misc. functions
  * ------------------------------------------------------------------------ *)
 

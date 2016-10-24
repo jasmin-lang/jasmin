@@ -7,7 +7,7 @@ open Arith
 open Util
 
 module L = ParserUtil.Lexing
-module DS = Dest.Set
+module DS = Dest_t.Set
 module SS = String.Set
 
 
@@ -16,23 +16,23 @@ module SS = String.Set
 
 let dest_to_src d = Src(d)
 
-let equal_pop_u64  x y = compare_pop_u64     x y = 0
-let equal_pexpr    x y = compare_pexpr       x y = 0
-let equal_dexpr    x y = compare_dexpr       x y = 0
-let equal_pop_bool x y = compare_pop_bool    x y = 0
-let equal_pcond    x y = compare_pcond       x y = 0
-let equal_fcond    x y = compare_fcond       x y = 0
-let equal_op       x y = compare_op          x y = 0
-let equal_ty       x y = compare_ty          x y = 0
+let equal_pop_u64  x y = compare_pop_u64  x y = 0
+let equal_pexpr    x y = compare_pexpr_t  x y = 0
+let equal_dexpr    x y = compare_dexpr    x y = 0
+let equal_pop_bool x y = compare_pop_bool x y = 0
+let equal_pcond    x y = compare_pcond_t  x y = 0
+let equal_fcond    x y = compare_fcond_t  x y = 0
+let equal_op       x y = compare_op       x y = 0
+let equal_ty       x y = compare_ty       x y = 0
 
-let equal_src        x y = compare_src        x y = 0
-let equal_dest       x y = compare_dest       x y = 0
-let equal_base_instr x y = compare_base_instr x y = 0
-let equal_instr      x y = compare_instr      x y = 0
-let equal_stmt       x y = compare_stmt       x y = 0
-let equal_func       x y = compare_func       x y = 0
-let equal_fundef     x y = compare_fundef     x y = 0
-let equal_modul      x y = compare_modul      x y = 0
+let equal_src        x y = compare_src_t        x y = 0
+let equal_dest       x y = compare_dest_t       x y = 0
+let equal_base_instr x y = compare_base_instr_t x y = 0
+let equal_instr      x y = compare_instr_t      x y = 0
+let equal_stmt       x y = compare_stmt_t       x y = 0
+let equal_func       x y = compare_func_t       x y = 0
+let equal_fundef     x y = compare_fundef_t     x y = 0
+let equal_modul      x y = compare_modul_t      x y = 0
 
 let base_instrs_to_stmt bis =
   List.map ~f:(fun i -> Binstr(i)) bis
@@ -41,11 +41,47 @@ let is_src_imm = function Imm _ -> true | _ -> false
 
 let get_src_dest_exn = function Imm _ -> assert false | Src(d) -> d
 
+let map_fun ~f modul fname = 
+  let f_fun fn = if fn.f_name = fname then f fn else fn in
+  { modul with m_funcs = List.map modul.m_funcs ~f:f_fun }
+
+let map_fundef ~err_s ~f func =
+  let fdef = match func.f_def with
+    | Def fd -> Def(f fd)
+    | Undef  -> failwith ("Cannot "^err_s^" in undefined function")
+    | Py(_)  -> failwith ("Cannot "^err_s^" in python function")
+  in
+  { func with f_def = fdef }
+
+let get_fundef ~err_s func =
+  match func.f_def with
+  | Def fd -> fd
+  | Undef  -> failwith ("Cannot "^err_s^" in undefined function")
+  | Py(_)  -> failwith ("Cannot "^err_s^" in python function")
+
+
+(* ** Exceptions
+ * ------------------------------------------------------------------------ *)
+
+exception TypeError of L.loc * string
+
+let failtype loc s = raise (TypeError(loc,s))
+
+let failtype_ loc fmt =
+  let buf  = Buffer.create 127 in
+  let fbuf = F.formatter_of_buffer buf in
+  F.kfprintf
+    (fun _ ->
+      F.pp_print_flush fbuf ();
+      let s = Buffer.contents buf in
+      failtype loc s)
+    fbuf fmt
+
 (* ** Constructor functions for destinations and located base instructions
  * ------------------------------------------------------------------------ *)
 
 let mk_dest_name name ty sto =
-  { d_name = name; d_oidx = None; d_loc = L.dummy_loc; d_odecl = Some(ty,sto) }
+  { d_name = name; d_idx = inone; d_loc = L.dummy_loc; d_decl = (ty,sto) }
 
 let src_of_fcond fc =
   Src(fc.fc_dest)
@@ -57,15 +93,47 @@ let mk_base_instr loc bi = { L.l_loc = loc; L.l_val = Binstr(bi) }
 
 type occ_restr = UseOnly | DefOnly
 
+(* ** Concat-map instruction (with position)
+ * ------------------------------------------------------------------------ *)
+
+let rec concat_map_instr ~f pos linstr =
+  let instrs =
+    match linstr.L.l_val with
+    | Binstr(_) as i -> f pos i
+    | While(wt,fc,s) ->
+      let s = concat_map_stmt ~f (pos@[0]) s in
+      f pos (While(wt,fc,s))
+    | For(iv,lb,ub,s) ->
+      let s = concat_map_stmt ~f (pos@[0]) s in
+      f pos (For(iv,lb,ub,s))
+    | If(c,s1,s2) ->
+      let s1 = concat_map_stmt ~f (pos@[0]) s1 in
+      let s2 = concat_map_stmt ~f (pos@[1]) s2 in
+      f pos (If(c,s1,s2))
+  in
+  List.map ~f:(fun instr -> { linstr with L.l_val = instr }) instrs
+
+and concat_map_stmt ~f pos stmt =
+  List.concat @@ List.mapi ~f:(fun i instr -> concat_map_instr ~f (pos@[i]) instr) stmt
+
+let concat_map_fundef ~f fd =
+  { fd with fd_body = concat_map_stmt ~f [] fd.fd_body }
+
+let concat_map_func ~f func =
+  map_fundef ~err_s:"concat_map" ~f:(concat_map_fundef ~f)func
+
+let concat_map_modul ~f modul fname =
+  map_fun modul fname ~f:(concat_map_func ~f)
+
 (* ** Operator view
  * ------------------------------------------------------------------------ *)
 
 type op_view =
-  | V_ThreeOp of three_op *               dest * src * src
-  | V_Umul    of            dest        * dest * src * src
-  | V_Carry   of carry_op * dest option * dest * src * src * src option
-  | V_Cmov    of bool     *               dest * src * src * src
-  | V_Shift   of dir      * dest option * dest * src * src
+  | V_ThreeOp of three_op *                 dest_t * src_t * src_t
+  | V_Umul    of            dest_t        * dest_t * src_t * src_t
+  | V_Carry   of carry_op * dest_t option * dest_t * src_t * src_t * src_t option
+  | V_Cmov    of bool     *                 dest_t * src_t * src_t * src_t
+  | V_Shift   of dir      * dest_t option * dest_t * src_t * src_t
 
 let view_op o ds ss =
   match o, ds, ss with
@@ -110,10 +178,11 @@ let pbinop_to_string = function
   | Pmult  -> "*"
   | Pminus -> "-"
 
-let rec pp_dest fmt {d_name=r; d_oidx=oidx} =
-  match oidx with
-  | None      -> F.fprintf fmt "%s" r
-  | Some(idx) -> F.fprintf fmt "%s[%a]" r pp_pexpr idx
+let rec pp_dest fmt {d_name=r; d_idx=idx} =
+  match idx with
+  | Inone       -> F.fprintf fmt "%s" r
+  | Iconst(idx) -> F.fprintf fmt "%s[$%a]" r pp_pexpr idx
+  | Ireg(idx)   -> F.fprintf fmt "%s[%a]" r pp_dest  idx
 
 and pp_patom fmt pa =
   match pa with
@@ -322,9 +391,6 @@ let pp_value_py fmt = function
  * ------------------------------------------------------------------------ *)
 (* Return the set of parameter variables occuring inside the given value *)
 
-let params_patom = function
-  | Pparam(s)         -> SS.singleton s
-  | Pdest(_)          -> SS.empty
 
 let rec params_pexpr_g params_atom pe =
   let params_pexpr = params_pexpr_g params_atom in
@@ -333,9 +399,21 @@ let rec params_pexpr_g params_atom pe =
   | Pbinop(_,ce1,ce2) -> Set.union (params_pexpr ce1) (params_pexpr ce2)
   | Pconst _          -> SS.empty
 
-let params_pexpr = params_pexpr_g params_patom
+let params_patom = function
+  | Pparam(s)         -> SS.singleton s
+  | Pdest(_)          -> SS.empty
 
-let params_dexpr = params_pexpr_g SS.singleton
+let params_pexpr pe = params_pexpr_g params_patom pe
+
+let params_dexpr (de : dexpr) = params_pexpr_g SS.singleton de
+
+let params_dest d =
+  match d.d_idx with
+  | Inone      -> SS.empty
+  | Iconst(pe) -> params_pexpr pe
+  | Ireg(d)    ->
+    assert(d.d_idx=inone);
+    SS.empty
 
 let rec params_pcond = function
   | Ptrue           -> SS.empty
@@ -349,9 +427,6 @@ let params_opt f =
 let params_ty = function
   | Bool | U64 -> SS.empty
   | Arr(dim)   -> params_dexpr dim
-
-let params_dest pr =
-  params_opt params_pexpr pr.d_oidx
 
 let params_src = function
   | Imm _ -> SS.empty
@@ -422,10 +497,15 @@ let params_modul modul =
 let pvars_opt f =
   Option.value_map ~default:SS.empty ~f:f
 
-let rec pvars_dest d =
+let rec pvars_idx = function
+  | Inone      -> SS.empty
+  | Iconst(pe) -> pvars_pexpr pe
+  | Ireg(d)    -> pvars_dest d
+
+and pvars_dest d =
   SS.union
     (SS.singleton d.d_name)
-    (pvars_opt pvars_pexpr d.d_oidx)
+    (pvars_idx d.d_idx)
 
 and pvars_patom = function
   | Pparam(_) -> SS.empty
@@ -511,7 +591,13 @@ let dests_opt f =
 let rec dests_dest d =
   DS.union
     (DS.singleton d)
-    (dests_opt dests_pexpr d.d_oidx)
+    (dests_idx d.d_idx)
+
+and dests_idx idx =
+  match idx with
+  | Inone     -> DS.empty
+  | Iconst(c) -> dests_pexpr c
+  | Ireg(d)   -> dests_dest d
 
 and dests_patom = function
   | Pparam(_) -> DS.empty
@@ -574,12 +660,22 @@ let rename_opt f =
 let rec rename_dest f d =
   { d with
     d_name = f d.d_name;
-    d_oidx = Option.map d.d_oidx ~f:(rename_pexpr f)
+    d_idx = rename_idx f d.d_idx
   }
+
+and rename_idx f idx =
+  match idx with
+  | Inone      -> inone
+  | Iconst(pe) -> mk_Iconst (rename_pexpr f pe)
+  | Ireg(_)    ->
+    let n, l = destr_idx_Ireg_t idx in
+    mk_Ireg_t (f n) l
 
 and rename_patom f pa =
   match pa with
-  | Pdest(v)  -> Pdest(rename_dest f v)
+  | Pdest(_)  ->
+    let (n,loc) = destr_patom_dest_t pa in
+    mk_patom_dest_t (f n) loc
   | Pparam(_) -> pa
 
 and rename_pexpr f pe =
@@ -609,7 +705,7 @@ let rename_fcond_or_pcond f = function
 
 let rename_src f = function
   | Imm _ as i -> i
-  | Src d      -> Src (rename_dest f d)
+  | Src d      -> Src(rename_dest f d)
 
 let rename_base_instr ?rn_type f bi =
   let rnd = if rn_type=Some(UseOnly) then ident else rename_dest f in
@@ -642,8 +738,22 @@ let rec rename_instr ?rn_type f linstr =
 and rename_stmt ?rn_type f stmt =
   List.map stmt ~f:(rename_instr ?rn_type f)
 
-let rename_decls f decls =
-  List.map ~f:(fun (sto,n,ty) -> (sto,f n,ty)) decls
+let rename_fundef f fd =
+  assert (fd.fd_decls=None);
+  { fd with
+    fd_body = rename_stmt f fd.fd_body;
+    fd_ret  = List.map ~f fd.fd_ret; }
+
+let rename_func f func =
+  let def = match func.f_def with
+    | Def(fd) -> Def(rename_fundef f fd)
+    | Undef   -> failwith "Cannot rename undefined function"
+    | Py(_)   -> failwith "Cannot rename in python function"
+  in
+  { func with
+    f_args = List.map ~f:(fun (s,n,t) -> (s,f n,t)) func.f_args;
+    f_def  = def;
+  }
 
 (* ** Rename destinations
  * ------------------------------------------------------------------------ *)
@@ -653,59 +763,106 @@ let rename_decls f decls =
 let dest_map_opt f =
   Option.map ~f:f
 
-let rec dest_map_dest f d =
-  let oidx = Option.map ~f:(dest_map_pexpr f) d.d_oidx in
-  let name, oidx, odecl = f d.d_name oidx d.d_odecl in
-  { d with d_name = name; d_oidx = oidx; d_odecl = odecl }
-
-and dest_map_patom f pa =
+let dest_map_patom_u f pa =
   match pa with
-  | Pdest(v)  -> Pdest(dest_map_dest f v)
-  | Pparam(_) -> pa
+  | Pdest(d) ->
+    let (n,l) = destr_patom_dest_u pa in
+    let (n,idx,(ty,sto)) = f n inone () in
+    if (idx<>inone) then
+      failtype_ d.d_loc "array used in compile-time expression: %a" pp_dest d;
+    if (ty<>U64 || sto<>Inline) then
+      failtype_ d.d_loc "cannot assign decl %a %s to compile-time expression"
+        pp_ty ty (string_of_storage sto);
+    mk_patom_dest_t n l
+  | Pparam(n) -> mk_patom_param n
 
-and dest_map_pexpr f pe =
+let dest_map_patom_t f pa =
+  match pa with
+  | Pdest(_) ->
+    let (n,l) = destr_patom_dest_t pa in
+    let (n,idx,d) = f n inone (U64,Inline) in
+    assert(d=(U64,Inline) && idx=inone);
+    mk_patom_dest_t n l
+  | Pparam(n) -> mk_patom_param n
+
+let rec dest_map_pexpr dmp f pe =
   match pe with
-  | Patom(a)          -> Patom(dest_map_patom f a)
-  | Pbinop(o,pe1,pe2) -> Pbinop(o,dest_map_pexpr f pe1,dest_map_pexpr f pe2)
-  | Pconst _          -> pe
+  | Patom(a)          -> Patom(dmp f a)
+  | Pbinop(o,pe1,pe2) -> Pbinop(o,dest_map_pexpr dmp f pe1,dest_map_pexpr dmp f pe2)
+  | Pconst(c)         -> Pconst(c)
 
-let rec dest_map_pcond f pc =
+let dest_map_idx_t g f idx =
+  match g idx with
+  | None -> 
+    begin match idx with
+    | Inone      -> inone
+    | Iconst(pe) -> mk_Iconst (dest_map_pexpr dest_map_patom_t f pe)
+    | Ireg(_)    ->
+      let (n,l) = destr_idx_Ireg_t idx in
+      let (n,oi,d) = f n inone (U64,Reg) in
+      assert(d=(U64,Reg) && oi=inone);
+      mk_Ireg_t n l
+    end
+    | Some idx -> idx
+
+let dest_map_idx_u g f idx =
+  match g idx with
+  | None -> 
+    begin match idx with
+    | Inone      -> inone
+    | Iconst(pe) -> mk_Iconst (dest_map_pexpr dest_map_patom_u f pe)
+    | Ireg(_)    ->
+      let (n,l) = destr_idx_Ireg_u idx in
+      let (n,oi,d) = f n inone () in
+      assert(d=(U64,Reg) && oi=inone);
+      mk_Ireg_t n l
+    end
+  | Some idx -> idx
+
+let dest_map_dest dmi f d =
+  let idx = dmi f d.d_idx in
+  let name, idx, decl = f d.d_name idx d.d_decl in
+  { d_name = name; d_idx = idx; d_decl = decl; d_loc = d.d_loc }
+
+let rec dest_map_pcond dmp f pc =
   match pc with
   | Ptrue         -> Ptrue
-  | Pnot(c)       -> Pnot(dest_map_pcond f c)
-  | Pand (c1,c2)  -> Pand(dest_map_pcond f c1,dest_map_pcond f c2)
-  | Pcmp(o,e1,e2) -> Pcmp(o,dest_map_pexpr f e1,dest_map_pexpr f e2)
+  | Pnot(c)       -> Pnot(dest_map_pcond dmp f c)
+  | Pand (c1,c2)  -> Pand(dest_map_pcond dmp f c1,dest_map_pcond dmp f c2)
+  | Pcmp(o,e1,e2) -> Pcmp(o,dest_map_pexpr dmp f e1,dest_map_pexpr dmp f e2)
 
-let dest_map_src f = function
-  | Imm _ as i -> i
-  | Src d      -> Src (dest_map_dest f d)
+let dest_map_src dmi dmp f src =
+  match src with
+  | Imm(i) -> Imm(dest_map_pexpr dmp f i)
+  | Src(d) -> Src(dest_map_dest dmi f d)
 
-let dest_map_fcond f fc =
-  { fc with fc_dest = dest_map_dest f fc.fc_dest }
+let dest_map_fcond dmi f fc =
+  { fc with fc_dest = dest_map_dest dmi f fc.fc_dest }
 
-let dest_map_fcond_or_pcond f = function
-  | Fcond(fc) -> Fcond(dest_map_fcond f fc)
-  | Pcond(pc) -> Pcond(dest_map_pcond f pc)
+let dest_map_fcond_or_pcond dmi dmp f fc_pc =
+  match fc_pc with
+  | Fcond(fc) -> Fcond(dest_map_fcond dmi f fc)
+  | Pcond(pc) -> Pcond(dest_map_pcond dmp f pc)
 
-let dest_map_base_instr f bi =
-  let rnd = dest_map_dest f in
-  let rns = dest_map_src f in
-  let rnp = dest_map_pexpr f in
+let dest_map_base_instr dmi dmp f bi =
+  let rnd d = dest_map_dest dmi f d in
+  let rns s = dest_map_src dmi dmp f s in
+  let rnp p = dest_map_pexpr dmp f p in
   match bi with
-  | Comment(_)      -> bi
+  | Comment(c)      -> Comment(c)
   | Load(d,s,pe)    -> Load(rnd d,rns s,rnp pe)
-  | Store(s1,pe,s2) -> Store(rns s1,pe,rns s2)
+  | Store(s1,pe,s2) -> Store(rns s1,rnp pe,rns s2)
   | Assgn(d,s,at)   -> Assgn(rnd d,rns s,at)
   | Op(o,ds,ss)     -> Op(o,List.map ~f:rnd ds,List.map ~f:rns ss)
   | Call(fn,ds,ss)  -> Call(fn,List.map ~f:rnd ds,List.map ~f:rns ss)
 
-let rec dest_map_instr f linstr =
-  let rnb = dest_map_base_instr f in
-  let rns = dest_map_stmt f in
-  let rnd = dest_map_dest f in
-  let rnc = dest_map_fcond_or_pcond f in
-  let rnpe = dest_map_pexpr f in
-  let rnfc = dest_map_fcond f in
+let rec dest_map_instr dmi dmp f linstr =
+  let rnb = dest_map_base_instr dmi dmp f in
+  let rns = dest_map_stmt dmi dmp f in
+  let rnd = dest_map_dest dmi f in
+  let rnc = dest_map_fcond_or_pcond dmi dmp f in
+  let rnpe = dest_map_pexpr dmp f in
+  let rnfc = dest_map_fcond dmi f in
   let instr =
     match linstr.L.l_val with
     | Binstr(bi)     -> Binstr(rnb bi)
@@ -716,8 +873,12 @@ let rec dest_map_instr f linstr =
   in
   { linstr with L.l_val = instr }
 
-and dest_map_stmt f stmt =
-  List.map stmt ~f:(dest_map_instr f)
+and dest_map_stmt dmi dmp f stmt =
+  List.map stmt ~f:(dest_map_instr dmi dmp f)
+
+let dest_map_stmt_t g = dest_map_stmt (dest_map_idx_t g) dest_map_patom_t
+
+let dest_map_stmt_u g = dest_map_stmt (dest_map_idx_u g) dest_map_patom_u
 
 (* ** Utility functions
  * ------------------------------------------------------------------------ *)
@@ -750,35 +911,20 @@ let parse_value s =
   | Success t   -> t
   | Failed(s,_) -> failwith_ "parse_value: failed for %s" s
 
-(* ** Exceptions
- * ------------------------------------------------------------------------ *)
-
-exception TypeError of L.loc * string
-
-let failtype loc s = raise (TypeError(loc,s))
-
-let failtype_ loc fmt =
-  let buf  = Buffer.create 127 in
-  let fbuf = F.formatter_of_buffer buf in
-  F.kfprintf
-    (fun _ ->
-      F.pp_print_flush fbuf ();
-      let s = Buffer.contents buf in
-      failtype loc s)
-    fbuf fmt
-
 (* ** Variable uses and definitions (for liveness)
  * ------------------------------------------------------------------------ *)
 
 let use_opt_src os =
   Option.value_map ~default:SS.empty ~f:(fun s -> pvars_src s) os
 
+(* We consider 'a[i] = e' as a use of 'a' and *)
 let use_binstr = function
-  | Assgn(_,s,_)           -> pvars_src s
   | Op(_,_,ss)             -> SS.union_list (List.map ~f:pvars_src ss)
   | Load(_,s,Pconst(_))    -> pvars_src s
   | Store(s1,Pconst(_),s2) -> SS.union (pvars_src s1) (pvars_src s2)
   | Comment(_)             -> SS.empty
+  | Assgn(d,s,_)           ->
+    SS.union (pvars_src s) (if d.d_idx<>inone then pvars_dest d else SS.empty)
 
   | Call(_,_,_)
   | Store(_,_,_)
@@ -797,10 +943,23 @@ let use_instr = function
 let def_opt_dest od =
   Option.value_map ~default:SS.empty ~f:(fun s -> pvars_dest s) od
 
-let def_binstr = function
-  | Assgn(d,_,_)         -> pvars_dest d
-  | Op(_,ds,_)           -> SS.union_list (List.map ~f:pvars_dest ds)
-  | Load(d,_,Pconst(_))  -> pvars_dest d
+(* We do not consider 'a[i] = e' as a def for 'a' since 'a[j]' (for j<>i) is not redefined *)
+let def_binstr bi =
+  let ensure_not_aget d =
+    if (d.d_idx<>inone) then failtype d.d_loc "LHS cannot be array"
+  in
+  match bi with
+  | Assgn(d,_,_) when d.d_idx=inone->
+    pvars_dest d
+  | Assgn(_,_,_) ->
+    SS.empty
+  | Op(_,ds,_) ->
+    List.iter ~f:ensure_not_aget ds;
+    SS.union_list (List.map ~f:pvars_dest ds)
+  | Load(d,_,Pconst(_)) ->
+    ensure_not_aget d;
+    pvars_dest d
+
   | Store(_,Pconst(_),_) -> SS.empty
   | Comment(_)           -> SS.empty
 
@@ -840,18 +999,18 @@ end
 
 (* representation of a node -- must be hashable *)
 module Node = struct
-   type t = string
-   let compare = compare_string
+   type t = int * string
+   let compare = Pervasives.compare
    let hash = Hashtbl.hash
    let equal = (=)
 end
 
 (* representation of an edge -- must be comparable *)
 module Edge = struct
-   type t = string
+   type t = int
    let compare = Pervasives.compare
    let equal = (=)
-   let default = ""
+   let default = 0
 end
 
 (* a functional/persistent graph *)
@@ -860,11 +1019,14 @@ module G = Graph.Persistent.Digraph.ConcreteBidirectionalLabeled(Node)(Edge)
 (* module for creating dot-files *)
 module Dot = Graph.Graphviz.Dot(struct
    include G (* use the graph module from above *)
-   let edge_attributes (_a, e, _b) = [`Label e; `Color 4711]
+   let edge_attributes (_a, _e, _b) = [`Label ""; `Color 4711]
    let default_edge_attributes _ = []
    let get_subgraph _ = None
-   let vertex_attributes _ = [`Shape `Box]
-   let vertex_name v = v
+   let vertex_attributes (_i,s) =
+     [`Shape `Box;
+      `Label (String.slice s 0 (min (String.length s) 1000000))
+     ]
+   let vertex_name (i,_s) = string_of_int i
    let default_vertex_attributes _ = []
   let graph_attributes _ = []
 end)

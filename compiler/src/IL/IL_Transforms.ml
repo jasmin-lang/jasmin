@@ -15,15 +15,36 @@ open Arith
 (* wrapper for liveness analysis that puts live sets into comments *)
 let transform_register_liveness modul fname =
   let live_info = compute_liveness_modul modul fname in
-  F.printf "%a" pp_live_info live_info;
-  let fname suffix = "/tmp/a"^suffix in
-  let dot = ".dot" in
-  let svg = ".svg" in
-  dump_live_info ~verbose:false live_info (fname dot);
-  let res = Unix.system (fsprintf "dot %s -o%s -Tsvg" (fname dot) (fname svg)) in
-  if res <> Unix.WEXITED(0) then
-    failwith "dot failed some error code\n";
-  modul
+  (* F.printf "%a" LI.pp live_info; *)
+  let _mk_fn suffix = "/tmp/a"^suffix in
+  let _dot = ".dot" in
+  let _svg = ".svg" in
+  F.printf "dumping dot file\n%!";
+  (* LI.dump ~verbose:true live_info (mk_fn dot); *)
+  (* F.printf "calling dot\n%!"; *)
+  (* let res = Unix.system (fsprintf "dot %s -o%s -Tsvg" (mk_fn dot) (mk_fn svg)) in *)
+  (* if res <> Unix.WEXITED(0) then *)
+  (*   failwith "dot failed some error code\n"; *)
+  (* F.printf "dot finished\n%!"; *)
+  let func = List.find_exn ~f:(fun f -> f.f_name = fname) modul.m_funcs in
+  let fd = get_fundef ~err_s:"" func in
+  let denv = IT.denv_of_func func (IT.extract_decls func.f_args fd) in
+  let add_liveness pos instr =
+    let filter_reg =
+      SS.filter ~f:(fun n -> let (t,s) = Map.find_exn denv n in s = Reg && t = U64)
+    in
+    let l_before = LI.get_live_before live_info pos |> filter_reg in
+    let l_after = LI.get_live_after live_info pos |> filter_reg  in
+    let use = LI.get_use live_info pos |> filter_reg in
+    let def = LI.get_def live_info pos |> filter_reg in
+    [ Binstr (Comment (fsprintf "%a before: %a || use: %a"
+                         pp_pos pos pp_set_string l_before pp_set_string use))
+    ; instr
+    ; Binstr (Comment (fsprintf "%a after: %a || def: %a" pp_pos pos pp_set_string l_after
+                         pp_set_string def))
+    ]
+  in
+  concat_map_modul modul fname ~f:add_liveness
 
 let strip_comments bis =
   List.filter ~f:(function Comment(_) -> false | _ -> true) bis
@@ -36,13 +57,12 @@ type transform =
   | ArrayExpand of string
   | LocalSSA of string
   | Type
-  | InlineDecls
   | Print of string * string option
   | Save of string * string option
   | RegisterAlloc of string * int
   | InlineCalls of string
   | RegisterLiveness of string
-  | StripComments
+  | StripComments of string
   | Asm of asm_lang
   | Interp of string * u64 String.Map.t * u64 U64.Map.t * value list
     (* Interp(pmap,mmap,alist,fun):
@@ -91,7 +111,6 @@ let ptrafo =
   in
   choice
     [ (string "typecheck" >>$ Type)
-    ; (string "inline_decls" >>$ InlineDecls)
     ; (string "array_assign_expand" >> (bracketed ident) >>= fun fn ->
        return (ArrayAssignExpand fn))
     ; (string "array_expand" >> (bracketed ident) >>= fun fn ->
@@ -104,7 +123,8 @@ let ptrafo =
        option (bracketed ident) >>= fun fname -> return (Save(name,fname)))
     ; (string "register_liveness" >> (bracketed ident) >>= fun fn ->
        return (RegisterLiveness fn))
-    ; string "strip_comments" >>$  StripComments
+    ; (string "strip_comments" >> (bracketed ident) >>= fun fn ->
+       return (StripComments(fn)))
     ; (string "register_allocate" >> (bracketed ident) >>= fun fn ->
        register_num >>= fun l ->
        return (RegisterAlloc(fn,l)))
@@ -132,7 +152,8 @@ let parse_trafo s =
     eprintf "parsing transformation string failed: %s.\n%!" s;
     exit 1
 
-let apply_transform trafo (modul0 : modul) =
+let apply_transform trafo (modul0 : modul_u) =
+  let modul0 = IL_Typing.inline_decls_modul modul0 in
   let filter_fn modul ofname =
     match ofname with
     | Some fn ->
@@ -158,8 +179,9 @@ let apply_transform trafo (modul0 : modul) =
     | ArrayAssignExpand(fname) ->
       notify "expanding array assignments" fname;
       array_assign_expand_modul modul fname
-    | StripComments -> assert false
-      (* conv_trans strip_comments efun *)
+    | StripComments(fname) ->
+      notify "stripping comments" fname;
+      strip_comments_modul modul fname
     | Print(name,ofname) ->
       let modul_ = filter_fn modul ofname in
       F.printf ">> %s:@\n%a@\n@\n" name pp_modul modul_; modul
@@ -167,6 +189,7 @@ let apply_transform trafo (modul0 : modul) =
       let modul_ = filter_fn modul ofname in
       Out_channel.write_all fname ~data:(fsprintf "%a" pp_modul modul_); modul
     | RegisterAlloc(fname,n) ->
+      notify "performing register allocation" fname;
       reg_alloc_modul (min 15 n) modul fname
     | RegisterLiveness(fname) ->
       transform_register_liveness modul fname
@@ -178,9 +201,6 @@ let apply_transform trafo (modul0 : modul) =
       F.printf "type checking module\n%!" ;
       IL_Typing.typecheck_modul modul;
       modul
-    | InlineDecls ->
-      F.printf "inlining decls for module\n%!" ;
-      IL_Typing.inline_decls_modul modul
     | Interp(fname,pmap,mmap,args) ->
       notify "interpreting" fname;
       IL_Interp.interp_modul modul pmap mmap args fname

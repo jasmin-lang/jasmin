@@ -16,9 +16,9 @@ module L = ParserUtil.Lexing
 (* *** Typing environment
  * ------------------------------------------------------------------------ *)
 
-type penv = ty   String.Map.t
-type fenv = func String.Map.t
-type tenv = ty   String.Map.t
+type penv = ty     String.Map.t
+type fenv = func_t String.Map.t
+type tenv = ty     String.Map.t
 
 type env = {
   e_penv : penv;
@@ -31,6 +31,10 @@ let tenv_of_func func decls =
 
 let stenv_of_func func decls =
   String.Map.of_alist_exn (List.map ~f:(fun (s,m,_) -> (m,s)) (func.f_args@decls))
+
+let denv_of_func func decls =
+  String.Map.of_alist_exn (List.map ~f:(fun (s,m,t) -> (m,(t,s))) (func.f_args@decls))
+
 
 let type_error_ d fmt =
   let buf  = Buffer.create 127 in
@@ -54,7 +58,7 @@ let equiv_ty ty1 ty2 =
   | Arr(d1), Arr(d2) -> equal_dexpr d1 d2
   | _,       _       -> false
 
-let get_dim (dim : pexpr) (lb_o,ub_o) =
+let get_dim (dim : pexpr_t) (lb_o,ub_o) =
   let zero = Pconst U64.zero in
   let lb = get_opt zero lb_o in
   let ub = get_opt dim ub_o in
@@ -68,13 +72,13 @@ let get_dim (dim : pexpr) (lb_o,ub_o) =
 let type_dest_app d ty =
   match ty with
   | Bool | U64 ->
-    if Option.is_some d.d_oidx then
+    if inone<>d.d_idx then
       type_error_ d "register has type %a, cannot access array element" pp_ty ty;
     ty
   | Arr(_dim) as ty ->
-    begin match d.d_oidx with
-    | None    -> ty
-    | Some(_) -> U64
+    begin match d.d_idx with
+    | Inone    -> ty
+    | _        -> U64
     end
 
 (** Same as [type_dest_app] except that it looks up the type from [tenv] *)
@@ -176,11 +180,11 @@ let typecheck_fcond_or_pcond env = function
 
 (** typecheck instructions and statements *)
 let rec typecheck_instr (env : env) linstr =
-  let tc_stmt   = typecheck_stmt  env in
-  let tc_op     = typecheck_op    env in
-  let tc_assgn  = typecheck_assgn env in
-  let tc_cond   = typecheck_fcond_or_pcond env in
-  let tc_fcond  = typecheck_fcond env in
+  let tc_stmt  = typecheck_stmt  env in
+  let tc_op    = typecheck_op    env in
+  let tc_assgn = typecheck_assgn env in
+  let tc_cond  = typecheck_fcond_or_pcond env in
+  let tc_fcond = typecheck_fcond env in
   let loc = linstr.L.l_loc in
   match linstr.L.l_val with
   | Binstr(Comment _)             -> ()
@@ -200,7 +204,7 @@ let rec typecheck_instr (env : env) linstr =
       ~err:(fun n_g n_e ->
               failtype_ loc "wrong number of l-values (got %i, exp. %i)" n_g n_e)
   | For(pv,_,_,stmt) ->
-    assert(pv.d_oidx=None);
+    assert(pv.d_idx=inone);
     typecheck_dest env.e_tenv pv U64;
     typecheck_stmt env stmt
   | While(_wt,fc,s) ->
@@ -215,7 +219,7 @@ let typecheck_ret (env : env) ret_ty ret =
   List.iter2_exn ret ret_ty
     ~f:(fun name ty -> typecheck_dest env.e_tenv (mk_dest_name name ty Reg) ty)
 
-let extract_decls ?s:(s="<>") args fdef =
+let extract_decls args fdef =
   let args = SS.of_list (List.map ~f:(fun (_,n,_) -> n) args) in
   match fdef.fd_decls with
   | None ->
@@ -223,11 +227,7 @@ let extract_decls ?s:(s="<>") args fdef =
     DS.to_list ds
     |> List.filter ~f:(fun d -> not (SS.mem args d.d_name))
     |> List.concat_map
-         ~f:(fun d -> match d.d_odecl with
-                      | None ->
-                        failtype_ d.d_loc "extract_decls: dest %a has no inline-decl (in %s)"
-                          pp_dest d s
-                      | Some(ty,stor) -> [stor,d.d_name,ty])
+         ~f:(fun d -> let (ty,stor) = d.d_decl in [stor,d.d_name,ty])
     |> List.dedup ~compare:compare_decl
   | Some decls -> decls
  
@@ -236,7 +236,7 @@ let typecheck_func (penv : penv) (fenv : fenv) func =
   match func.f_def with
   | Undef | Py _ -> ()
   | Def fdef ->
-    let decls = extract_decls ~s:func.f_name func.f_args fdef in
+    let decls = extract_decls func.f_args fdef in
     let tenv = String.Map.of_alist_exn
                  (  (Map.to_alist (tenv_of_func func decls))
                   @ (Map.to_alist penv))
@@ -262,28 +262,54 @@ let typecheck_modul modul =
   List.iter funcs ~f:(typecheck_func penv fenv)
 
 (** typecheck the given function *)
-let inline_decls_func func =
+let inline_decls_func (func : func_u) : func_t =
   match func.f_def with
-  | Undef | Py _ -> func
+  | Undef ->
+    { f_name = func.f_name;
+      f_call_conv = func.f_call_conv;
+      f_args = func.f_args;
+      f_ret_ty = func.f_ret_ty;
+      f_def = Undef }
+  | Py c ->
+    { f_name = func.f_name;
+      f_call_conv = func.f_call_conv;
+      f_args = func.f_args;
+      f_ret_ty = func.f_ret_ty;
+      f_def = Py c }
+
   | Def fdef ->
     match fdef.fd_decls with
     | None       -> failwith "inline declarations: declarations already inlined"
     | Some decls ->
       let tenv  = tenv_of_func func decls in
       let stenv = stenv_of_func func decls in
-      let body =
-        dest_map_stmt
-          (fun n oi odc ->
-            assert(odc=None);
-            let t = Map.find_exn tenv n in
-            let s = Map.find_exn stenv n in
-            (n,oi,Some(t,s)))
-          fdef.fd_body
+      let f n idx () =
+        let t = Map.find_exn tenv n in
+        let s = Map.find_exn stenv n in
+        (n,idx,(t,s))
       in
-      { func with f_def = Def({fdef with fd_body = body; fd_decls = None}) }
+      let g idx =
+        match idx with
+        | Iconst(Patom(Pdest(_) as pd)) ->
+          let n, l = destr_patom_dest_u pd in
+          let t = Map.find_exn tenv n in
+          let s = Map.find_exn stenv n in
+          assert(t=U64);
+          if s=Reg then Some(mk_Ireg_t n l) else None
+        | _ -> None
+      in
+      let body = dest_map_stmt_u g f fdef.fd_body in
+      let fdef : fundef_t =
+        { fd_body = body; fd_ret = fdef.fd_ret; fd_decls = None; }
+      in
+      { f_name = func.f_name;
+        f_call_conv = func.f_call_conv;
+        f_args = func.f_args;
+        f_ret_ty = func.f_ret_ty;
+        f_def = Def(fdef) }
     
 (** Inline declarations into dests *)
-let inline_decls_modul modul =
+let inline_decls_modul (modul : modul_u) =
   let funcs = List.map modul.m_funcs ~f:inline_decls_func in
   { modul with m_funcs = funcs }
 

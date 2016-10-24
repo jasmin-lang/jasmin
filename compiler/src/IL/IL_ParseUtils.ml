@@ -10,7 +10,7 @@ module L = ParserUtil.Lexing
 (* ** Utility functions for parser
  * ------------------------------------------------------------------------ *)
 
-type decl = Dfun of func | Dparams of (string * ty) list
+type decl = Dfun of func_u | Dparams of (string * ty) list
 
 let mk_modul pfs =
   let params =
@@ -29,7 +29,7 @@ let mk_fundef decls stmt rets =
     fd_body   = get_opt [] stmt;
   }
 
-let mk_func loc rty name ext args (def : fundef_or_py) : func =
+let mk_func loc rty name ext args (def : fundef_or_py_u) : func_u =
   let rtys = Option.value ~default:[] rty in
   let () =
     match def with

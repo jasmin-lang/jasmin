@@ -37,7 +37,7 @@ let eval_pexpr pmap lmap ce =
       | None     -> failwith_ "eval_pexpr: parameter %s undefined" s
       end
     | Patom(Pdest(d)) ->
-      assert (d.d_oidx=None);
+      assert (d.d_idx=inone);
       begin match Map.find lmap d.d_name with
       | Some (Vu64 x) -> Ok x
       | Some (_) ->
@@ -121,25 +121,33 @@ let print_mstate ms =
   F.printf "decls: %a\n%!" (pp_list ", " (pp_pair " -> " pp_string pp_ty))
     (String.Map.to_alist ms.m_tenv)
 
-let read_lvar lmap s oidx =
+let read_lvar lmap s idx =
   let v = map_find_exn lmap pp_string s in
-  match v, oidx with
+  match v, idx with
   | Vu64(u), None -> Vu64(u)
   | Varr(vs),Some i ->
     Vu64(map_find_exn vs pp_uint64 i)
   | Varr(vs),None -> Varr(vs)
   | Vu64(_), _ ->
     failwith_ "read_lvar: expected array, got u64 in %s[%a]"
-      s (pp_opt "," pp_uint64) oidx
+      s (pp_opt "," pp_uint64) idx
 
-let read_src_val pmap lmap (s : src) =
+let read_src_val pmap lmap (s : src_t) =
   match s with
   | Imm pe -> Vu64(eval_pexpr_exn pmap lmap pe)
   | Src(d) ->
-    let oidx = Option.map (d.d_oidx) ~f:(eval_pexpr_exn pmap lmap) in
+    let oidx = match d.d_idx with
+      | Inone      -> None
+      | Iconst(pe) -> Some(eval_pexpr_exn pmap lmap pe)
+      | Ireg(d)    ->
+        begin match read_lvar lmap d.d_name None with
+        | Vu64(u) -> Some(u)
+        | _ -> assert false
+        end
+    in
     read_lvar lmap d.d_name oidx
 
-let read_src_ pmap lmap (s : src) =
+let read_src_ pmap lmap (s : src_t) =
   match read_src_val pmap lmap s with
   | Vu64(u) -> u
   | Varr(_) ->
@@ -163,9 +171,13 @@ let write_lvar ov s oidx v =
 let write_dest_ pmap lmap d v =
   let s    = d.d_name in
   let ov   = Map.find lmap s in
-  let oidx = Option.map d.d_oidx ~f:(eval_pexpr_exn pmap lmap) in
+  let oidx = match d.d_idx with
+    | Inone      -> None
+    | Iconst(pe) -> Some(eval_pexpr_exn pmap lmap pe)
+    | Ireg(_)    ->  failwith "not implemented"
+  in
   (* F.printf "###: %a\n%!" pp_value v; *)
-  let nv   = write_lvar ov s oidx v in
+  let nv = write_lvar ov s oidx v in
   (* F.printf "###: %a\n%!" pp_value v'; *)
   Map.add lmap ~key:s ~data:nv
 
@@ -176,14 +188,19 @@ let write_dest_u64 ms d u = write_dest ms d (Vu64(u))
 
 let read_flag ms s =
   match s with
-  | Src{d_name; d_oidx=None} -> map_find_exn ms.m_fmap pp_string d_name
-  | Src{d_oidx=Some(_)}      -> failwith "expected flag, got array access" 
-  | Imm _                    -> failwith "expected flag, got immediate"
+  | Src{d_name; d_idx=Inone} ->
+    map_find_exn ms.m_fmap pp_string d_name
+  | Src{d_idx=(Ireg(_)|Iconst(_))} ->
+    failwith "expected flag, got array access" 
+  | Imm _  ->
+    failwith "expected flag, got immediate"
 
 let write_flag ms d b =
-  match d.d_oidx with
-  | None    -> { ms with m_fmap = Map.add ms.m_fmap ~key:d.d_name ~data:b }
-  | Some(_) -> failwith "cannot give array element, flag (in register) expected"
+  match d.d_idx with
+  | Inone   ->
+    { ms with m_fmap = Map.add ms.m_fmap ~key:d.d_name ~data:b }
+  | Ireg(_) | Iconst(_) ->
+    failwith "cannot give array element, flag (in register) expected"
 
 (* *** Interact with python interpreter
  * ------------------------------------------------------------------------ *)
@@ -306,7 +323,7 @@ let interp_op (ms : mstate) o ds ss =
  * ------------------------------------------------------------------------ *)
 
 let eval_fcond_exn fmap fc =
-  assert (fc.fc_dest.d_oidx=None);
+  assert (fc.fc_dest.d_idx=inone);
   let b = map_find_exn fmap pp_string fc.fc_dest.d_name in
   if fc.fc_neg then not b else b
 
@@ -469,10 +486,7 @@ and interp_call_native ms efun_map func fdef call_rets call_args =
   let lmap_caller = ms.m_lmap in
   let fmap_caller = ms.m_fmap in
   let tenv_callee = tenv_of_func func (extract_decls func.f_args fdef) in
-  let lmap_callee = String.Map.empty
-    (* String.Map.of_alist_exn
-       (List.map ~f:(fun (n,v) -> (n,Vu64 v)) (Map.to_alist pmap)) *)
-  in
+  let lmap_callee = String.Map.empty in
   let fmap_callee = String.Map.empty in
   let lmap_callee =
     interp_assign pmap
@@ -502,7 +516,7 @@ and interp_stmt (ms0 : mstate) efun_map stmt =
  * ------------------------------------------------------------------------ *)
 
 let interp_modul
-  (modul : modul) (pmap : u64 String.Map.t) (mmap : u64 U64.Map.t)
+  (modul : modul_t) (pmap : u64 String.Map.t) (mmap : u64 U64.Map.t)
   (args : value list) (fname : string)
   =
   typecheck_modul modul;
