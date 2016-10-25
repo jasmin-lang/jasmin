@@ -7,6 +7,7 @@ open Util
 open IL_Lang
 open IL_Utils
 open IL_Compile
+open IL_Expand
 open Arith
 
 (* ** Apply transformations in sequence.
