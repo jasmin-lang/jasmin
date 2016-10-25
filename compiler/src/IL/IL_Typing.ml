@@ -17,12 +17,13 @@ module L = ParserUtil.Lexing
  * ------------------------------------------------------------------------ *)
 
 type penv = ty     String.Map.t
-type fenv = func_t String.Map.t
 type tenv = ty     String.Map.t
 
-type env = {
+type 'info fenv = 'info func_t String.Map.t
+
+type 'info env = {
   e_penv : penv;
-  e_fenv : fenv;
+  e_fenv : 'info fenv;
   e_tenv : tenv;
 }
 
@@ -92,12 +93,12 @@ let typecheck_dest (tenv : tenv) d ty_exp =
     type_error_ d "type mismatch (got %a, expected %a)" pp_ty ty pp_ty ty_exp
 
 (** Takes source and computes its type (see [type_dest]) *)
-let type_src (env : env) = function
+let type_src env = function
   | Imm(_) -> U64
   | Src(d) -> type_dest env.e_tenv d
 
 (** Same as [type_dest] except that it asserts that type is equal to [ty_exp] *)
-let typecheck_src (env : env) s ty_exp =
+let typecheck_src env s ty_exp =
   match s with
   | Imm(_) -> if not (equal_ty ty_exp (U64)) then assert false
   | Src(d) -> typecheck_dest env.e_tenv d ty_exp
@@ -106,7 +107,7 @@ let typecheck_src (env : env) s ty_exp =
  * ------------------------------------------------------------------------ *)
 
 (** Ensures that the source and destination for assignments are compatible *)
-let typecheck_assgn (env : env) d s pos =
+let typecheck_assgn env d s pos =
   let ty_s = type_src  env s in
   let ty_d = type_dest env.e_tenv d in
   if not (equiv_ty ty_s ty_d) then (
@@ -114,18 +115,8 @@ let typecheck_assgn (env : env) d s pos =
       pp_ty ty_d pp_ty ty_s
   ) (* FIXME: disallow flag assignments here? *)
 
-(*
-(** Checks that the base type of the given destination [t] is equal to [t] *)
-let type_dest_eq (env : env) d ty_exp =
-  let ty = map_find_exn ~err:(type_error d) env.e_tenv pp_string d.d_name in
-  if not (equiv_ty ty ty_exp) then (
-    type_error_ d "incompatible types, expected %a, got %a)"
-      pp_ty ty_exp pp_ty ty
-  )
-*)
-
 (** Checks that the base type of the given source is equal to [t] *)
-let type_src_eq (env : env) src ty_exp =
+let type_src_eq env src ty_exp =
   match src, ty_exp with
   | Imm _,  Bool   -> failwith "got u64, expected bool"
   | Imm _,  U64    -> ()
@@ -136,7 +127,7 @@ let type_src_eq (env : env) src ty_exp =
  * ------------------------------------------------------------------------ *)
 
 (** typecheck operators *)
-let typecheck_op (env : env) op ds ss =
+let typecheck_op env op ds ss =
   let type_src_eq  = type_src_eq env in
   let type_dest_eq = typecheck_dest env.e_tenv in
   match view_op op ds ss with
@@ -179,14 +170,14 @@ let typecheck_fcond_or_pcond env = function
   | Fcond(fc) -> typecheck_fcond env fc
 
 (** typecheck instructions and statements *)
-let rec typecheck_instr (env : env) linstr =
+let rec typecheck_instr env linstr =
   let tc_stmt  = typecheck_stmt  env in
   let tc_op    = typecheck_op    env in
   let tc_assgn = typecheck_assgn env in
   let tc_cond  = typecheck_fcond_or_pcond env in
   let tc_fcond = typecheck_fcond env in
-  let loc = linstr.L.l_loc in
-  match linstr.L.l_val with
+  let loc = linstr.i_info in
+  match linstr.i_val with
   | Binstr(Comment _)             -> ()
   | Binstr(Op(op,ds,ss))          -> tc_op op ds ss
   | Binstr(Assgn(d,s,_))          -> tc_assgn d s loc
@@ -211,11 +202,11 @@ let rec typecheck_instr (env : env) linstr =
     tc_fcond fc;
     typecheck_stmt env s
 
-and typecheck_stmt (env : env) stmt =
+and typecheck_stmt env stmt =
   List.iter ~f:(typecheck_instr env) stmt
 
 (** typecheck return value *)
-let typecheck_ret (env : env) ret_ty ret =
+let typecheck_ret env ret_ty ret =
   List.iter2_exn ret ret_ty
     ~f:(fun name ty -> typecheck_dest env.e_tenv (mk_dest_name name ty Reg) ty)
 
@@ -232,7 +223,7 @@ let extract_decls args fdef =
   | Some decls -> decls
  
 (** typecheck the given function *)
-let typecheck_func (penv : penv) (fenv : fenv) func =
+let typecheck_func (penv : penv) fenv func =
   match func.f_def with
   | Undef | Py _ -> ()
   | Def fdef ->
@@ -262,7 +253,7 @@ let typecheck_modul modul =
   List.iter funcs ~f:(typecheck_func penv fenv)
 
 (** typecheck the given function *)
-let inline_decls_func (func : func_u) : func_t =
+let inline_decls_func func =
   match func.f_def with
   | Undef ->
     { f_name = func.f_name;
@@ -299,7 +290,7 @@ let inline_decls_func (func : func_u) : func_t =
         | _ -> None
       in
       let body = dest_map_stmt_u g f fdef.fd_body in
-      let fdef : fundef_t =
+      let fdef =
         { fd_body = body; fd_ret = fdef.fd_ret; fd_decls = None; }
       in
       { f_name = func.f_name;
@@ -309,7 +300,7 @@ let inline_decls_func (func : func_u) : func_t =
         f_def = Def(fdef) }
     
 (** Inline declarations into dests *)
-let inline_decls_modul (modul : modul_u) =
+let inline_decls_modul modul =
   let funcs = List.map modul.m_funcs ~f:inline_decls_func in
   { modul with m_funcs = funcs }
 

@@ -28,11 +28,13 @@ let equal_ty       x y = compare_ty       x y = 0
 let equal_src        x y = compare_src_t        x y = 0
 let equal_dest       x y = compare_dest_t       x y = 0
 let equal_base_instr x y = compare_base_instr_t x y = 0
+(*
 let equal_instr      x y = compare_instr_t      x y = 0
 let equal_stmt       x y = compare_stmt_t       x y = 0
 let equal_func       x y = compare_func_t       x y = 0
 let equal_fundef     x y = compare_fundef_t     x y = 0
 let equal_modul      x y = compare_modul_t      x y = 0
+*)
 
 let base_instrs_to_stmt bis =
   List.map ~f:(fun i -> Binstr(i)) bis
@@ -86,7 +88,7 @@ let mk_dest_name name ty sto =
 let src_of_fcond fc =
   Src(fc.fc_dest)
 
-let mk_base_instr loc bi = { L.l_loc = loc; L.l_val = Binstr(bi) }
+let mk_base_instr info bi = { i_info = info; i_val = Binstr(bi) }
 
 (* ** Occurence restriction for program variables
  * ------------------------------------------------------------------------ *)
@@ -96,9 +98,9 @@ type occ_restr = UseOnly | DefOnly
 (* ** Concat-map instruction (with position)
  * ------------------------------------------------------------------------ *)
 
-let rec concat_map_instr ~f pos linstr =
+let rec concat_map_instr ~f pos instr_i =
   let instrs =
-    match linstr.L.l_val with
+    match instr_i.i_val with
     | Binstr(_) as i -> f pos i
     | While(wt,fc,s) ->
       let s = concat_map_stmt ~f (pos@[0]) s in
@@ -111,7 +113,7 @@ let rec concat_map_instr ~f pos linstr =
       let s2 = concat_map_stmt ~f (pos@[1]) s2 in
       f pos (If(c,s1,s2))
   in
-  List.map ~f:(fun instr -> { linstr with L.l_val = instr }) instrs
+  List.map ~f:(fun instr -> { instr_i with i_val = instr }) instrs
 
 and concat_map_stmt ~f pos stmt =
   List.concat @@ List.mapi ~f:(fun i instr -> concat_map_instr ~f (pos@[i]) instr) stmt
@@ -303,7 +305,7 @@ let pp_base_instr fmt bi =
       (pp_list "," pp_src) args
 
 let rec pp_instr fmt li =
-  match li.L.l_val with
+  match li.i_val with
   | Binstr(i) -> pp_base_instr fmt i
   | If(c,i1,[]) ->
     F.fprintf fmt "if %a {@\n  @[<v 0>%a@]@\n}"
@@ -457,7 +459,7 @@ let params_base_instr = function
       @(List.map ss ~f:params_src))
 
 let rec params_instr linstr =
-  match linstr.L.l_val with
+  match linstr.i_val with
   | Binstr(bi) -> params_base_instr bi
   | If(cond,s1,s2) ->
     SS.union_list [params_pcond_or_fcond cond; params_stmt s1; params_stmt s2]
@@ -549,7 +551,7 @@ let pvars_base_instr = function
   | Call(_,ds,ss)   -> SS.union_list (List.map ds ~f:pvars_dest @ List.map ss ~f:pvars_src)
 
 let rec pvars_instr linstr =
-  match linstr.L.l_val with
+  match linstr.i_val with
   | Binstr(bi)        -> pvars_base_instr bi
   | If(c,s1,s2)       -> SS.union_list [pvars_stmt s1; pvars_stmt s2; pvars_fcond_or_pcond c]
   | For(d,lb,ub,stmt) ->
@@ -629,7 +631,7 @@ let dests_fcond_or_pcond = function
   | Pcond _  -> DS.empty
 
 let rec dests_instr linstr =
-  match linstr.L.l_val with
+  match linstr.i_val with
   | Binstr(bi)       -> dests_base_instr bi
   | If(c,s1,s2)      -> DS.union_list [ dests_fcond_or_pcond c; dests_stmt s1; dests_stmt s2 ]
   | For(iv,lb,ub,s)  -> DS.union_list [ dests_dest iv; dests_pexpr lb; dests_pexpr ub; dests_stmt s ]
@@ -727,13 +729,13 @@ let rec rename_instr ?rn_type f linstr =
   let rns = rename_stmt f in
   let rnd = rename_dest f in
   let instr =
-    match linstr.L.l_val with
+    match linstr.i_val with
     | Binstr(bi)     -> Binstr(rnb bi)
     | If(c,s1,s2)    -> If(rnc c,rns s1, rns s2)
     | For(d,lb,ub,s) -> For(rnd d,rne lb,rne ub,rns s)
     | While(wt,fc,s) -> While(wt,rnf fc,rns s)
   in
-  { linstr with L.l_val = instr }
+  { linstr with i_val = instr }
 
 and rename_stmt ?rn_type f stmt =
   List.map stmt ~f:(rename_instr ?rn_type f)
@@ -864,14 +866,14 @@ let rec dest_map_instr dmi dmp f linstr =
   let rnpe = dest_map_pexpr dmp f in
   let rnfc = dest_map_fcond dmi f in
   let instr =
-    match linstr.L.l_val with
+    match linstr.i_val with
     | Binstr(bi)     -> Binstr(rnb bi)
     | If(c,s1,s2)    -> If(rnc c,rns s1, rns s2)
     | While(wt,fc,s) -> While(wt,rnfc fc,rns s)
     | For(v,lb,ub,s) ->
       For(rnd v,rnpe lb,rnpe ub,rns s)
   in
-  { linstr with L.l_val = instr }
+  { linstr with i_val = instr }
 
 and dest_map_stmt dmi dmp f stmt =
   List.map stmt ~f:(dest_map_instr dmi dmp f)

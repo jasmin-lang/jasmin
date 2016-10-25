@@ -85,7 +85,7 @@ Inline function call C[x = f(a);]
 *)
 (* *** Code *)
 
-let rec inline_call func_map suffix c loc fname ds ss =
+let rec inline_call func_map suffix c info fname ds ss =
   let ssuffix = "_"^string_of_int !c^(String.make (suffix + 1) '_') in
   let func = map_find_exn func_map pp_string fname in
   let fdef = match func.f_def with
@@ -100,32 +100,32 @@ let rec inline_call func_map suffix c loc fname ds ss =
   let arg_ds = List.map ~f:(fun (s,n,t) -> mk_dest_name (n^ssuffix) t s) func.f_args in
   let stmt = rename_stmt (fun s -> s^ssuffix) fdef.fd_body in
   let stmt = inline_calls_stmt func_map suffix c stmt in
-  (List.map2_exn ~f:(fun d s -> mk_base_instr loc (Assgn(d,s,Eq))) arg_ds ss)
+  (List.map2_exn ~f:(fun d s -> mk_base_instr info (Assgn(d,s,Eq))) arg_ds ss)
   @ stmt
-  @ (List.map2_exn ~f:(fun d s -> mk_base_instr loc (Assgn(d,s,Eq))) ds ret_ss)
+  @ (List.map2_exn ~f:(fun d s -> mk_base_instr info (Assgn(d,s,Eq))) ds ret_ss)
 
-and inline_calls_base_instr func_map (suffix : int) c loc bi =
+and inline_calls_base_instr func_map (suffix : int) c info bi =
   match bi with
   | Call(fn,ds,ss) ->
     incr c;
-    [ L.{ l_val = Binstr(Comment(fsprintf "START Call: %a" pp_base_instr bi)); l_loc = loc} ]
-    @ inline_call func_map suffix c loc fn ds ss
-    @ [ L.{ l_val = Binstr(Comment(fsprintf "END Call: %a" pp_base_instr bi)); l_loc = loc} ]
+    [ { i_val = Binstr(Comment(fsprintf "START Call: %a" pp_base_instr bi)); i_info = info} ]
+    @ inline_call func_map suffix c info fn ds ss
+    @ [ { i_val = Binstr(Comment(fsprintf "END Call: %a" pp_base_instr bi)); i_info = info} ]
 
-  | bi -> [ L.{ l_val = Binstr(bi); l_loc = loc} ]
+  | bi -> [ { i_val = Binstr(bi); i_info = info} ]
 
-and inline_calls_instr func_map (suffix : int) c (li : instr_t L.located) =
+and inline_calls_instr func_map (suffix : int) c (li : 'info instr_info_t) =
   let ilc_s = inline_calls_stmt func_map suffix c in
   let instrs =
-    match li.L.l_val with
-    | If(c,s1,s2)    -> [{ li with L.l_val = If(c,ilc_s s1, ilc_s s2)}]
-    | For(c,lb,ub,s) -> [{ li with L.l_val = For(c,lb,ub,ilc_s s)}]
-    | Binstr(bi)     -> inline_calls_base_instr func_map suffix c li.L.l_loc bi
-    | While(wt,fc,s) -> [{ li with L.l_val = While(wt,fc,ilc_s s)}]
+    match li.i_val with
+    | If(c,s1,s2)    -> [{ li with i_val = If(c,ilc_s s1, ilc_s s2)}]
+    | For(c,lb,ub,s) -> [{ li with i_val = For(c,lb,ub,ilc_s s)}]
+    | Binstr(bi)     -> inline_calls_base_instr func_map suffix c li.i_info bi
+    | While(wt,fc,s) -> [{ li with i_val = While(wt,fc,ilc_s s)}]
   in
   instrs
 
-and inline_calls_stmt func_map (suffix : int) c (s : stmt_t) : stmt_t =
+and inline_calls_stmt func_map (suffix : int) c (s : 'info stmt_t) : 'info stmt_t =
   List.concat_map ~f:(inline_calls_instr func_map suffix c) s
 
 let inline_calls_fun func_map (fname : string) =
@@ -146,7 +146,7 @@ let inline_calls_fun func_map (fname : string) =
   let func = { func with f_def = Def { fdef with fd_body = stmt } } in
   Map.add func_map ~key:fname ~data:func
 
-let inline_calls_modul (modul : modul_t) (fname : string) : modul_t =
+let inline_calls_modul (modul : 'info modul_t) fname : 'info modul_t =
   let func_map =
     String.Map.of_alist_exn (List.map ~f:(fun f -> (f.f_name,f)) modul.m_funcs)
   in
@@ -205,7 +205,7 @@ let inst_base_instr pmap lmap bi =
   | Comment(_)      -> bi
   | Call(_)         -> failwith "inline calls before macro expansion"
 
-let macro_expand_stmt pmap (stmt : stmt_t) =
+let macro_expand_stmt pmap (stmt : 'info stmt_t) =
   let spaces indent = String.make indent ' ' in
   let s_of_cond c = if c then "if" else "else" in
   let comment_if s indent cond ic =
@@ -214,29 +214,29 @@ let macro_expand_stmt pmap (stmt : stmt_t) =
   let comment_while s indent iv lb_ie ub_ie =
     fsprintf "%s%s for %s in %a..%a" s (spaces indent) iv pp_pexpr lb_ie pp_pexpr ub_ie
   in
-  let bicom loc c = mk_base_instr loc (Comment(c)) in
+  let bicom info c = mk_base_instr info (Comment(c)) in
 
   let rec expand indent lmap li =
-    let loc = li.L.l_loc in
+    let info = li.i_info in
     let me_s s = List.concat_map s ~f:(expand (indent + 2) lmap) in
-    match li.L.l_val with
+    match li.i_val with
 
-    | Binstr(binstr) -> [mk_base_instr loc (inst_base_instr pmap lmap binstr)]
+    | Binstr(binstr) -> [mk_base_instr info (inst_base_instr pmap lmap binstr)]
 
     | While(wt,fc,st) ->
-      [ { li with L.l_val = While(wt,fc,me_s st) } ]
+      [ { li with i_val = While(wt,fc,me_s st) } ]
 
     | If(Fcond(ic),st1,st2) ->
-      [ { li with L.l_val = If(Fcond(ic),me_s st1,me_s st2) } ]
+      [ { li with i_val = If(Fcond(ic),me_s st1,me_s st2) } ]
 
     | If(Pcond(ic),st1,st2) ->
       (* F.printf "\n%s %a\n%!" (spaces indent) pp_pcond ic; *)
       let cond = eval_pcond_exn pmap lmap ic in
       let st = if cond then st1 else st2 in
       if st=[] then [] else (
-          [bicom loc (comment_if "START: " indent cond ic)]
+          [bicom info (comment_if "START: " indent cond ic)]
         @ (List.concat_map ~f:(fun bi -> (expand (indent + 2) lmap bi)) st)
-        @ [bicom loc (comment_if "END:   " indent cond ic)]
+        @ [bicom info (comment_if "END:   " indent cond ic)]
       )
 
     | For(iv,lb_ie,ub_ie,stmt) ->
@@ -245,23 +245,23 @@ let macro_expand_stmt pmap (stmt : stmt_t) =
       let ub  = eval_pexpr_exn pmap lmap ub_ie in
       assert (U64.compare lb ub <= 0);
       let body_for_v v =
-          [bicom loc (fsprintf "%s%s = %s" (spaces (indent+2)) iv.d_name (U64.to_string v))]
+          [bicom info (fsprintf "%s%s = %s" (spaces (indent+2)) iv.d_name (U64.to_string v))]
         @ (List.concat_map stmt ~f:(expand (indent + 2) (Map.add lmap ~key:iv.d_name ~data:(Vu64 v))))
       in
-        [bicom loc (comment_while "START:" indent iv.d_name lb_ie ub_ie)]
+        [bicom info (comment_while "START:" indent iv.d_name lb_ie ub_ie)]
       @ List.concat_map (list_from_to ~first:lb ~last:ub) ~f:body_for_v
-      @ [bicom loc (comment_while "END:" indent iv.d_name lb_ie ub_ie)]
+      @ [bicom info (comment_while "END:" indent iv.d_name lb_ie ub_ie)]
   in
   List.concat_map ~f:(expand 0 String.Map.empty) stmt
 
-let macro_expand_fundef pmap (fdef : fundef_t) =
+let macro_expand_fundef pmap (fdef : 'info fundef_t) =
   if fdef.fd_decls<>None then failwith_ "inline decls before macro expanding";
   { fdef with
     fd_body  = macro_expand_stmt pmap fdef.fd_body
   ; fd_ret   = fdef.fd_ret
   }
 
-let macro_expand_func pmap (func : func_t) =
+let macro_expand_func pmap (func : 'info func_t) =
   let inst_t = inst_ty pmap in
   let fdef = match func.f_def with
     | Def fd -> Def(macro_expand_fundef pmap fd)
@@ -275,7 +275,7 @@ let macro_expand_func pmap (func : func_t) =
   ; f_ret_ty    = List.map func.f_ret_ty ~f:(fun (s,ty) -> (s,inst_t ty))
   }
 
-let macro_expand_modul pvar_map (modul : modul_t) fname =
+let macro_expand_modul pvar_map (modul : 'info modul_t) fname =
   List.iter modul.m_params
     ~f:(fun (n,_) -> if not (Map.mem pvar_map n)
                      then failwith_ "parameter %s not given for expand" n);
@@ -293,8 +293,7 @@ FIXME: Would it be easier to replace this by 'for' and perform the
 let array_assign_expand_stmt stmt =
   let rec expand li =
     let exp_s s = List.concat_map s ~f:expand in
-    let _loc = li.L.l_loc in
-    match li.L.l_val with
+    match li.i_val with
     | Binstr(Op(_,_,_))
     | Binstr(Comment(_))
     | Binstr(Load(_,_,_))
@@ -305,10 +304,10 @@ let array_assign_expand_stmt stmt =
     | For(_,_,_,_)     -> failwith "array expansion expects macro-for expanded"
     | Binstr(Call(_))  -> failwith "array expansion expects calls are expanded"
     | While(wt,fc,stmt) ->
-      [ L.{ li with l_val = While(wt,fc,exp_s stmt) } ]
+      [ { li with i_val = While(wt,fc,exp_s stmt) } ]
     
     | If(Fcond(_) as c,s1,s2) ->
-      [ L.{ li with l_val = If(c,exp_s s1,exp_s s2) } ]
+      [ { li with i_val = If(c,exp_s s1,exp_s s2) } ]
  
     | Binstr(Assgn(d,Src(s),t)) ->
       let (td,_) = d.d_decl in
@@ -319,7 +318,7 @@ let array_assign_expand_stmt stmt =
         let mk_assgn i =
           let d = {d with d_idx = mk_Iconst(Pconst i)} in
           let s = Src({s with d_idx = mk_Iconst(Pconst i)}) in
-          { li with L.l_val = Binstr(Assgn(d,s,t)) }
+          { li with i_val = Binstr(Assgn(d,s,t)) }
         in
         List.map ~f:mk_assgn (list_from_to ~first:U64.zero ~last:ub1)
       | _ -> [li]
@@ -555,7 +554,7 @@ let rn_map_if_update rn_info ~rn_if ~rn_else =
 let rec local_ssa_instr rn_info linstr =
   let rename = RNI.rename rn_info in
   let instr' =
-    match linstr.L.l_val with
+    match linstr.i_val with
 
     | Binstr(bi) ->
       (* rename RHS *)
@@ -599,7 +598,7 @@ let rec local_ssa_instr rn_info linstr =
     | If(Pcond(_),_,_)
     | For(_,_,_,_)     -> failwith "local SSA transformation: unexpected instruction"
   in
-  { linstr with L.l_val = instr' }
+  { linstr with i_val = instr' }
 
 and local_ssa_stmt rn_map stmt =
   List.map ~f:(local_ssa_instr rn_map) stmt

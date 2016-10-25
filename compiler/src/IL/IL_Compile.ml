@@ -269,9 +269,9 @@ and init_liveness_block linfo ~path ~entry_p ~exit_p stmt =
   let rec go ~path ~idx = function
     | [] -> failwith "liveness analysis: impossible case"
     | [i] ->
-      init_liveness_instr linfo ~path ~idx ~exit_p:(Some exit_p) i.L.l_val
+      init_liveness_instr linfo ~path ~idx ~exit_p:(Some exit_p) i.i_val
     | i::s ->
-      init_liveness_instr linfo ~path ~idx ~exit_p:None i.L.l_val;
+      init_liveness_instr linfo ~path ~idx ~exit_p:None i.i_val;
       go ~path ~idx:(idx+1) s
   in
   if stmt = [] then (
@@ -475,7 +475,7 @@ let reg_info_binstr rinfo bi =
 
 let rec reg_info_instr rinfo li =
   let ri_stmt = reg_info_stmt rinfo in
-  match li.L.l_val with
+  match li.i_val with
   | Binstr(bi)         -> reg_info_binstr rinfo bi
   | While(_,_fc,s)     -> ri_stmt s
   | If(Fcond(_),s1,s2) -> ri_stmt s1; ri_stmt s2

@@ -63,7 +63,7 @@ module L = ParserUtil.Lexing
 %left MINUS PLUS
 %left STAR
 
-%type <IL_Lang.modul_u> modul
+%type <ParserUtil.Lexing.loc IL_Lang.modul_u> modul
 
 %start modul
 
@@ -261,7 +261,7 @@ celse :
 linstr :
 | li = loc(instr)
   { match li with
-    | (instr,loc) -> L.{ l_val = instr; l_loc = mk_loc loc } }
+    | (instr,loc) -> { i_val = instr; i_info = L.mk_loc loc } }
 
 block :
 | LCBRACE stmt=linstr* RCBRACE { stmt }

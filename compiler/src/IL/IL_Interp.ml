@@ -348,7 +348,7 @@ let rec interp_instr ms0 efun_map linstr =
   (* F.printf "\ninstr: %a\n%!" pp_instr instr;
      print_mstate ms0; *)
   let pmap = ms0.m_pmap in
-  match linstr.L.l_val with
+  match linstr.i_val with
 
   | Binstr(Comment(_)) ->
     ms0
@@ -516,7 +516,7 @@ and interp_stmt (ms0 : mstate) efun_map stmt =
  * ------------------------------------------------------------------------ *)
 
 let interp_modul
-  (modul : modul_t) (pmap : u64 String.Map.t) (mmap : u64 U64.Map.t)
+  (modul : L.loc modul_t) (pmap : u64 String.Map.t) (mmap : u64 U64.Map.t)
   (args : value list) (fname : string)
   =
   typecheck_modul modul;

@@ -278,22 +278,24 @@ type 'decl base_instr =
 
   [@@deriving compare,sexp]
 
-type 'decl instr =
+type ('info,'decl) instr =
 
   | Binstr of 'decl base_instr
 
-  | If of 'decl fcond_or_pcond * 'decl stmt * 'decl stmt
+  | If of 'decl fcond_or_pcond * ('info,'decl) stmt * ('info,'decl) stmt
     (* If(c1,s1,s2): if c1 { s1 } else s2 *)
 
-  | For of 'decl dest * 'decl pexpr * 'decl pexpr * 'decl stmt
+  | For of 'decl dest * 'decl pexpr * 'decl pexpr * ('info,'decl) stmt
     (* For(v,lower,upper,s): for v in lower..upper { s } *)
 
-  | While of while_type * 'decl fcond * 'decl stmt
+  | While of while_type * 'decl fcond * ('info,'decl) stmt
     (* While(wt,fcond,s):
          wt=WhileDo  while fcond { s }
          wt=DoWhile  do          { s } while fcond; *)
 
-and 'decl stmt = ('decl instr L.located) list
+and ('info, 'decl) instr_info = { i_val : ('info,'decl) instr; i_info : 'info}
+
+and ('info, 'decl) stmt = (('info, 'decl) instr_info) list
   [@@deriving compare,sexp]
 
 (* ** Function definitions, declarations, and modules
@@ -306,29 +308,29 @@ type call_conv =
 
 type decl = stor * name * ty [@@deriving compare,sexp]
 
-type 'decl fundef = {
+type ('info,'decl) fundef = {
   fd_decls  : (decl list) option; (* function-local declarations, optional if decls inlined *)
-  fd_body   : 'decl stmt;         (* function body *)
+  fd_body   : ('info,'decl) stmt; (* function body *)
   fd_ret    : name list           (* return values *)
 } [@@deriving compare,sexp]
 
-type 'decl fundef_or_py =
+type ('info,'decl) fundef_or_py =
   | Undef
-  | Def of 'decl fundef
+  | Def of ('info,'decl) fundef
   | Py of string
   [@@deriving compare,sexp]
 
-type 'decl func = {
-  f_name      : name;                (* function name *)
-  f_call_conv : call_conv;           (* callable or internal function *)
-  f_args      : decl list;           (* formal function arguments *)
-  f_def       : 'decl fundef_or_py;  (* def. unless function just declared *)
-  f_ret_ty    : (stor * ty) list;    (* return type *)
+type ('info,'decl) func = {
+  f_name      : name;                        (* function name *)
+  f_call_conv : call_conv;                   (* callable or internal function *)
+  f_args      : decl list;                   (* formal function arguments *)
+  f_def       : ('info,'decl) fundef_or_py;  (* def. unless function just declared *)
+  f_ret_ty    : (stor * ty) list;            (* return type *)
 } [@@deriving compare,sexp]
 
-type 'decl modul = {
-  m_params : (name * ty) list; (* module parameters *)
-  m_funcs  : 'decl func list;  (* module functions  *)
+type ('info,'decl) modul = {
+  m_params : (name * ty) list;        (* module parameters *)
+  m_funcs  : ('info,'decl) func list; (* module functions  *)
 } [@@deriving compare,sexp]
 
 (* ** Type abbreviations for untyped and typed versions
@@ -342,12 +344,14 @@ type pcond_t          = tinfo pcond          [@@deriving compare,sexp]
 type fcond_t          = tinfo fcond          [@@deriving compare,sexp]
 type fcond_or_pcond_t = tinfo fcond_or_pcond [@@deriving compare,sexp]
 type base_instr_t     = tinfo base_instr     [@@deriving compare,sexp]
-type instr_t          = tinfo instr          [@@deriving compare,sexp]
-type stmt_t           = tinfo stmt           [@@deriving compare,sexp]
-type fundef_t         = tinfo fundef         [@@deriving compare,sexp]
-type fundef_or_py_t   = tinfo fundef_or_py   [@@deriving compare,sexp]
-type func_t           = tinfo func           [@@deriving compare,sexp]
-type modul_t          = tinfo modul          [@@deriving compare,sexp]
+
+type 'info instr_t        = ('info,tinfo) instr        [@@deriving compare,sexp]
+type 'info instr_info_t   = ('info,tinfo) instr_info   [@@deriving compare,sexp]
+type 'info stmt_t         = ('info,tinfo) stmt         [@@deriving compare,sexp]
+type 'info fundef_t       = ('info,tinfo) fundef       [@@deriving compare,sexp]
+type 'info fundef_or_py_t = ('info,tinfo) fundef_or_py [@@deriving compare,sexp]
+type 'info func_t         = ('info,tinfo) func         [@@deriving compare,sexp]
+type 'info modul_t        = ('info,tinfo) modul        [@@deriving compare,sexp]
 
 type dest_u           = unit dest            [@@deriving compare,sexp]
 type patom_u          = unit patom           [@@deriving compare,sexp]
@@ -357,12 +361,14 @@ type pcond_u          = unit pcond           [@@deriving compare,sexp]
 type fcond_u          = unit fcond           [@@deriving compare,sexp]
 type fcond_or_pcond_u = unit fcond_or_pcond  [@@deriving compare,sexp]
 type base_instr_u     = unit base_instr      [@@deriving compare,sexp]
-type instr_u          = unit instr           [@@deriving compare,sexp]
-type stmt_u           = unit stmt            [@@deriving compare,sexp]
-type fundef_u         = unit fundef          [@@deriving compare,sexp]
-type fundef_or_py_u   = unit fundef_or_py    [@@deriving compare,sexp]
-type func_u           = unit func            [@@deriving compare,sexp]
-type modul_u          = unit modul           [@@deriving compare,sexp]
+
+type 'info instr_u        = ('info,unit) instr        [@@deriving compare,sexp]
+type 'info instr_info_u   = ('info,unit) instr_info   [@@deriving compare,sexp]
+type 'info stmt_u         = ('info,unit) stmt         [@@deriving compare,sexp]
+type 'info fundef_u       = ('info,unit) fundef       [@@deriving compare,sexp]
+type 'info fundef_or_py_u = ('info,unit) fundef_or_py [@@deriving compare,sexp]
+type 'info func_u         = ('info,unit) func         [@@deriving compare,sexp]
+type 'info modul_u        = ('info,unit) modul        [@@deriving compare,sexp]
 
 (* ** Values
  * ------------------------------------------------------------------------ *)

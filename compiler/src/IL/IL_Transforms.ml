@@ -155,7 +155,7 @@ let parse_trafo s =
     eprintf "parsing transformation string failed: %s.\n%!" s;
     exit 1
 
-let apply_transform trafo (modul0 : modul_u) =
+let apply_transform trafo (modul0 : 'info modul_u) =
   let modul0 = IL_Typing.inline_decls_modul modul0 in
   let filter_fn modul ofname =
     match ofname with
