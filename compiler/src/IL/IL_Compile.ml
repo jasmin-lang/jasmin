@@ -45,33 +45,28 @@ module LI = struct
   let get_def linfo pos = hashtbl_find_exn linfo.def pp_pos pos
   let get_str linfo pos = hashtbl_find_exn linfo.str pp_pos pos
   let get_pred linfo pos =
-    Pos.Table.find linfo.pred pos |> Option.value ~default:Pos.Set.empty
+    HT.find linfo.pred pos |> get_opt Pos.Set.empty
   let get_succ linfo pos =
-    Pos.Table.find linfo.succ pos |> Option.value ~default:Pos.Set.empty
+    HT.find linfo.succ pos |> get_opt Pos.Set.empty
   let get_live_before linfo pos =
-    Pos.Table.find linfo.live_before pos |> Option.value ~default:SS.empty
+    HT.find linfo.live_before pos |> get_opt SS.empty
   let get_live_after linfo pos =
-    Pos.Table.find linfo.live_after pos |> Option.value ~default:SS.empty
+    HT.find linfo.live_after pos |> get_opt SS.empty
 
   let add_succ linfo ~pos ~succ =
-    Pos.Table.change linfo.succ pos
-      ~f:(function | None   -> Some(Pos.Set.singleton succ)
-                   | Some s -> Some(Pos.Set.add s     succ))
+    HT.change linfo.succ pos
+      ~f:(map_opt_def ~d:(Pos.Set.singleton succ)
+                      ~f:(fun s -> Pos.Set.add s succ))
 
   let add_pred linfo ~pos ~pred =
-    Pos.Table.change linfo.pred pos
-      ~f:(function | None   -> Some(Pos.Set.singleton pred)
-                   | Some s -> Some(Pos.Set.add s     pred))
+    HT.change linfo.pred pos
+      ~f:(map_opt_def ~d:(Pos.Set.singleton pred)
+                      ~f:(fun s -> Pos.Set.add s pred))
 
   let pred_of_succ linfo =
-    Pos.Table.iteri linfo.succ
+    HT.iteri linfo.succ
       ~f:(fun ~key ~data ->
             Pos.Set.iter data ~f:(fun pos -> add_pred linfo ~pos ~pred:key))
-
-  let succ_of_pred linfo =
-    Pos.Table.iteri linfo.pred
-      ~f:(fun ~key ~data ->
-            Pos.Set.iter data ~f:(fun pos -> add_succ linfo ~pos ~succ:key))
 
   let pp_set_pos =
     pp_set pp_pos (fun s -> List.sort ~cmp:compare_pos (Pos.Set.to_list s))
@@ -79,7 +74,7 @@ module LI = struct
   let pp_pos_table pp_data fmt li_ss =
     List.iter
       (List.sort ~cmp:(fun a b -> compare_pos (fst a) (fst b))
-         (Pos.Table.to_alist li_ss))
+         (HT.to_alist li_ss))
       ~f:(fun (key,data) ->
             F.fprintf fmt "%a -> %a; " pp_pos key pp_data data)
 
@@ -190,7 +185,7 @@ let update_liveness linfo changed pos =
   let live = ref SS.empty in
     (* compute union of live_before of successors *)
     (* F.printf "updating %a with succs: %a\n" pp_pos pos LI.pp_set_pos succs; *)
-  Pos.Set.iter succs
+  Set.iter succs
     ~f:(fun spos ->
           let live_s = LI.get_live_before linfo spos in
           live := SS.union !live live_s);
@@ -205,6 +200,24 @@ let update_liveness linfo changed pos =
   if not (SS.equal live_before live_before_old) then changed := true;
   Pos.Table.set linfo.LI.live_before ~key:pos ~data:live_before
 
+let iterate_liveness linfo =
+  let cont = ref true in
+  (* let changed_initial = Pos.Set.singleton LI.return_fun_pos in *)
+  let use_return = LI.get_use linfo LI.return_fun_pos in
+  Pos.Table.set linfo.LI.live_before ~key:LI.return_fun_pos ~data:use_return;
+  let n_iter = ref 0 in
+  while !cont do
+    incr n_iter;
+    (* print_endline "iterate"; *)
+    (* let changed = ref changed_initial  in *)
+    let changed = ref false in
+    LI.traverse_cfg_backward ~f:(update_liveness linfo changed) linfo;
+    if not !changed then cont := false;
+    (* if Pos.Set.equal !changed changed_initial then cont := false; *)
+    (* print_endline "iterate done" *)
+  done;
+  F.printf "---> iterations: %i\n" !n_iter
+
 (* *** Liveness information computation *)
 
 let rec init_liveness_instr linfo ~path ~idx ~exit_p instr =
@@ -214,9 +227,9 @@ let rec init_liveness_instr linfo ~path ~idx ~exit_p instr =
   let li_def  = linfo.LI.def  in
   let li_str  = linfo.LI.str  in
   (* set use, def, and str *)
-  Pos.Table.set li_use ~key:pos ~data:(use_instr instr);
-  Pos.Table.set li_def ~key:pos ~data:(def_instr instr);
-  Pos.Table.set li_str ~key:pos ~data:(LI.string_of_instr instr);
+  HT.set li_use ~key:pos ~data:(use_instr instr);
+  HT.set li_def ~key:pos ~data:(def_instr instr);
+  HT.set li_str ~key:pos ~data:(LI.string_of_instr instr);
   (* set succ and recursively initialize blocks in if and while *)
   match instr with
 
@@ -237,14 +250,14 @@ let rec init_liveness_instr linfo ~path ~idx ~exit_p instr =
     
   | While(DoWhile,fc,s) ->
     (* the use is associated with a later node *)
-    Pos.Table.set li_use ~key:pos ~data:SS.empty;
-    Pos.Table.set li_str ~key:pos ~data:"do {";
+    HT.set li_use ~key:pos ~data:SS.empty;
+    HT.set li_str ~key:pos ~data:"do {";
     (* add node where test and backwards jump happens *)
     let exit_pos = pos@[1] in
     let exit_str = fsprintf "} while %a;" pp_fcond fc in
-    Pos.Table.set li_use ~key:exit_pos ~data:(use_instr instr);
-    Pos.Table.set li_def ~key:exit_pos ~data:SS.empty;
-    Pos.Table.set li_str ~key:exit_pos ~data:exit_str;
+    HT.set li_use ~key:exit_pos ~data:(use_instr instr);
+    HT.set li_def ~key:exit_pos ~data:SS.empty;
+    HT.set li_str ~key:exit_pos ~data:exit_str;
     LI.add_succ linfo ~pos:exit_pos ~succ:pos;
     LI.add_succ linfo ~pos:exit_pos ~succ:succ_pos;
     init_liveness_block linfo ~path:(pos@[0]) ~entry_p:pos ~exit_p:exit_pos s
@@ -277,37 +290,20 @@ let compute_liveness_stmt linfo stmt ~enter_def ~return_use =
   let enter_pos = LI.enter_fun_pos in
   (* initialize return node *)
   let ret_str = fsprintf "return %a" (pp_list "," pp_string) return_use in
-  Pos.Table.set linfo.LI.str ~key:ret_pos ~data:ret_str;
-  Pos.Table.set linfo.LI.use ~key:ret_pos ~data:(SS.of_list return_use);
-  Pos.Table.set linfo.LI.def ~key:ret_pos ~data:(SS.empty);
+  HT.set linfo.LI.str ~key:ret_pos ~data:ret_str;
+  HT.set linfo.LI.use ~key:ret_pos ~data:(SS.of_list return_use);
+  HT.set linfo.LI.def ~key:ret_pos ~data:(SS.empty);
   (* initialize function args node *)
   let args_str = fsprintf "enter %a" (pp_list "," pp_string) enter_def in
-  Pos.Table.set linfo.LI.str ~key:enter_pos ~data:args_str;
-  Pos.Table.set linfo.LI.use ~key:enter_pos ~data:(SS.empty);
-  Pos.Table.set linfo.LI.def ~key:enter_pos ~data:(SS.of_list enter_def);
+  HT.set linfo.LI.str ~key:enter_pos ~data:args_str;
+  HT.set linfo.LI.use ~key:enter_pos ~data:(SS.empty);
+  HT.set linfo.LI.def ~key:enter_pos ~data:(SS.of_list enter_def);
   (* compute CFG into linfo *)
-  init_liveness_block linfo ~path:[] stmt
-    ~entry_p:enter_pos
-    ~exit_p:ret_pos;
+  init_liveness_block linfo ~path:[] stmt ~entry_p:enter_pos ~exit_p:ret_pos;
   (* add backward edges to CFG *)
   LI.pred_of_succ linfo;
   (* set liveness information in live_info *)
-  let cont = ref true in
-  (* let changed_initial = Pos.Set.singleton LI.return_fun_pos in *)
-  let use_return = LI.get_use linfo ret_pos in
-  Pos.Table.set linfo.LI.live_before ~key:ret_pos ~data:use_return;
-  let n_iter = ref 0 in
-  while !cont do
-    incr n_iter;
-    (* print_endline "iterate"; *)
-    (* let changed = ref changed_initial  in *)
-    let changed = ref false in
-    LI.traverse_cfg_backward ~f:(update_liveness linfo changed) linfo;
-    if not !changed then cont := false;
-    (* if Pos.Set.equal !changed changed_initial then cont := false; *)
-    (* print_endline "iterate done" *)
-  done;
-  F.printf "---> iterations: %i\n" !n_iter
+  iterate_liveness linfo
 
 let compute_liveness_fundef fdef arg_defs =
   let linfo = LI.mk () in
@@ -360,8 +356,8 @@ module REGI = struct
       ~f:(fun n ->
             let r = class_of rinfo n in 
             HT.change classes r
-              ~f:(function | None     -> Some(SS.singleton n)
-                           | Some(ss) -> Some(SS.add ss n)));
+              ~f:(map_opt_def ~d:(SS.singleton n)
+                              ~f:(fun ss -> SS.add ss n)));
     classes
 
   let rank_of rinfo name =

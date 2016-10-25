@@ -126,6 +126,11 @@ let hashtbl_find_exn ?(err=failwith) m pp pr =
            pp pr (pp_list "," pp) keys
            dot_dot)
 
+let map_opt_def ~d ~f os =
+  match os with
+  | None    -> Some(d)
+  | Some(s) -> Some(f s)
+
 (* ** Toggle variants in sum types
  * ------------------------------------------------------------------------ *)
 
