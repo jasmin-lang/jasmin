@@ -296,15 +296,18 @@ let compute_liveness_stmt linfo stmt ~enter_def ~return_use =
   (* let changed_initial = Pos.Set.singleton LI.return_fun_pos in *)
   let use_return = LI.get_use linfo ret_pos in
   Pos.Table.set linfo.LI.live_before ~key:ret_pos ~data:use_return;
+  let n_iter = ref 0 in
   while !cont do
-    print_endline "iterate";
+    incr n_iter;
+    (* print_endline "iterate"; *)
     (* let changed = ref changed_initial  in *)
     let changed = ref false in
     LI.traverse_cfg_backward ~f:(update_liveness linfo changed) linfo;
     if not !changed then cont := false;
     (* if Pos.Set.equal !changed changed_initial then cont := false; *)
-    print_endline "iterate done"
-  done
+    (* print_endline "iterate done" *)
+  done;
+  F.printf "---> iterations: %i\n" !n_iter
 
 let compute_liveness_fundef fdef arg_defs =
   let linfo = LI.mk () in
@@ -524,22 +527,21 @@ let reg_info_func rinfo func fdef =
 let max_not_in reg_num rs =
   let module E = struct exception Found of unit end in
   let ri = ref (reg_num - 1) in
-  let lrs = List.rev @@ Int.Set.to_list rs in
+  let lrs = List.rev @@ List.sort ~cmp:compare rs in
   (try (
     List.iter lrs ~f:(fun i -> if i = !ri then decr ri else raise (E.Found()))
    ) with
     E.Found() -> ()
   );
   if !ri >= 0 then (
-    assert (not (Int.Set.mem rs !ri));
     !ri
   ) else
     failwith "Cannot find free register"
 
-let assign_reg reg_num denv conflicts classes rinfo cur_pos name =
+let assign_reg reg_num denv (conflicts : (unit String.Table.t) String.Table.t) classes rinfo cur_pos name =
   let dbg = ref false in
-  let watch_list =
-    ["bit_3__0";"j_3__0";"swap_3__0";]
+  let watch_list = []
+    (* ["bit_3__0";"j_3__0";"swap_3__0";] *)
   in
   match Map.find denv name with
   | Some(U64,Reg) ->
@@ -553,37 +555,40 @@ let assign_reg reg_num denv conflicts classes rinfo cur_pos name =
     let ofixed = HT.find rinfo.REGI.fixed cl in
     if !dbg then F.printf "  in class %s fixed to %a\n%!" cl (pp_opt "-" REGI.pp_fixed) ofixed;
     let class_name = HT.find classes cl |> Option.value ~default:(SS.singleton cl) in
-    let conflicted = ref SS.empty in
+    let conflicted = String.Table.create () in
     SS.iter class_name
       ~f:(fun n ->
-            conflicted :=
-              SS.union !conflicted
-                (HT.find conflicts n
-                 |> Option.value ~default:SS.empty
-                 |> SS.filter ~f:(fun n -> let (t,s) = Map.find_exn denv n in s = Reg && t = U64)
-                ));
-    let conflicted = !conflicted in
-    if !dbg then F.printf "  conflicted with %a\n%!" pp_set_string conflicted;
-    let f n = Option.map ~f:fst (HT.find rinfo.REGI.fixed (REGI.class_of rinfo n)) in
-    let conflicted_fixed = Int.Set.of_list @@ List.filter_map ~f (SS.to_list conflicted) in
+            match HT.find conflicts n with
+            | None -> ()
+            | Some(ht) ->
+                HT.iter_keys ht
+                  ~f:(fun n ->
+                        let (t,s) = Map.find_exn denv n in
+                        if s = Reg && t = U64 then HT.set conflicted ~key:n ~data:()));
+    if !dbg then F.printf "  conflicted with %a\n%!" (pp_list "," pp_string) (HT.keys conflicted);
+    let conflicted_fixed = Int.Table.create () in
+    HT.iter_keys conflicted ~f:(fun n ->
+                                  match HT.find rinfo.REGI.fixed (REGI.class_of rinfo n) with
+                                  | None       -> ()
+                                  | Some(ri,_) -> HT.set conflicted_fixed ~key:ri ~data:());
     if !dbg then
       F.printf "  conflicted with fixed %a\n%!"
-        (pp_list "," X64.pp_int_reg) (Set.to_list conflicted_fixed);
+        (pp_list "," X64.pp_int_reg) (HT.keys conflicted_fixed);
     begin match ofixed with
     | None ->
-      let ri = max_not_in reg_num conflicted_fixed in
+      let ri = max_not_in reg_num (HT.keys conflicted_fixed) in
       REGI.fix_class rinfo (mk_dest_name cl U64 Reg) ri;
       if !dbg then F.printf "  fixed register to %a\n%!" X64.pp_int_reg ri
     | Some(ri,l) ->
-      if Set.mem conflicted_fixed ri then (
+      if HT.mem conflicted_fixed ri then (
         F.printf "\n\nERROR:\n\n%!";
         F.printf "  reg %s in class %s fixed to %a\n%!" name cl (pp_opt "-" REGI.pp_fixed) ofixed;
-        F.printf "  conflicted with %a\n%!" pp_set_string conflicted;
+        F.printf "  conflicted with %a\n%!" (pp_list "," pp_string) (HT.keys conflicted);
         let f n =
           Option.bind (HT.find rinfo.REGI.fixed (REGI.class_of rinfo n))
             (fun (i,_) -> if i = ri then Some (n,i) else None)
         in
-        let conflicted_fixed = List.filter_map ~f (SS.to_list conflicted) in
+        let conflicted_fixed = List.filter_map ~f (HT.keys conflicted) in
         F.printf "  conflicted with fixed %a\n%!"
           (pp_list "," (pp_pair ":" pp_string X64.pp_int_reg)) conflicted_fixed;
         
@@ -596,7 +601,7 @@ let assign_reg reg_num denv conflicts classes rinfo cur_pos name =
   | Some(_t,_s) -> ()
     (* F.printf "ignoring %s with %a %s\n" n pp_ty t (string_of_storage s) *)
 
-let assign_regs reg_num denv conflicts linfo rinfo =
+let assign_regs reg_num denv (conflicts : (unit String.Table.t) String.Table.t) linfo rinfo =
   let visited = Pos.Table.create () in
   let visit   = ref [LI.enter_fun_pos] in
   let classes = REGI.get_classes rinfo in
@@ -627,205 +632,54 @@ let reg_alloc_func reg_num func =
   in
   let extract_conflicts linfo conflicts ~key:pos ~data:live_set =
     let defs = LI.get_def linfo pos in
+    let add_set (ht : unit String.Table.t) live_set n' =
+      SS.iter live_set
+        ~f:(fun n -> if n<>n' then HT.set ht ~key:n ~data:());
+      ht
+    in
+    let new_set live_set n =
+      add_set (String.Table.create ()) live_set n
+    in
     SS.iter (SS.union live_set defs)
       ~f:(fun n ->
-            let live_set = SS.remove live_set n in
             HT.change conflicts n
-              ~f:(function | None     -> Some(live_set)
-                           | Some(ls) -> Some(SS.union live_set ls)))
+              ~f:(function | None     -> Some(new_set live_set n)
+                           | Some(ht) -> Some(add_set ht live_set n)))
   in
+  let print_time start stop = F.printf "   %fs\n%!" (stop -. start) in
 
   (* compute equality constraints and fixed constraints *)
   let rinfo = REGI.mk () in
+  let t1 = Unix.gettimeofday () in
+  F.printf "-> computing equality and fixed constraints\n%!";
   let fd = get_fundef ~err_s:"perform register allocation" func in
   reg_info_func rinfo func fd;
+  let t2 = Unix.gettimeofday () in
+  print_time t1 t2;
 
   (* compute liveness information *)
+  F.printf "-> computing liveness\n%!";
   let linfo = compute_liveness_func func in
   let conflicts = String.Table.create () in
+  let t3 = Unix.gettimeofday () in
+  print_time t2 t3;
+  F.printf "-> computing conflicts\n%!";
   HT.iteri linfo.LI.live_after ~f:(extract_conflicts linfo conflicts);
   let denv = IT.denv_of_func func (IT.extract_decls func.f_args fd) in
+  let t4 = Unix.gettimeofday () in
+  print_time t3 t4;
+  F.printf "-> assigning registers\n%!";
   assign_regs reg_num denv conflicts linfo rinfo;
-  rename_func (rename denv rinfo) func
+  let t5 = Unix.gettimeofday () in
+  print_time t4 t5;
+  F.printf "-> renaming variables\n%!";
+  let func = rename_func (rename denv rinfo) func in
+  let t6 = Unix.gettimeofday () in
+  print_time t5 t6;
+  func
   
 let reg_alloc_modul reg_num modul fname =
   map_fun ~f:(reg_alloc_func reg_num) modul fname
-
-(* PRE: We assume the code is in SSA. *)
-(*
-let register_allocate _nregs _efun0 = 
-  let module E = struct exception PickExc of string end in
-
-  (* Set of free registers: 0 .. nregs -1 *)
-  let free_regs = ref (Int.Set.of_list (List.init nregs ~f:(fun i -> i))) in
-  let free_regs_add i =
-    assert (not (Set.mem !free_regs i));
-    free_regs := Set.add !free_regs i
-  in
-  let free_regs_remove i =
-    assert (Set.mem !free_regs i);
-    free_regs := Set.remove !free_regs i
-  in
-
-  (* mapping from pseudo registers to integers 0 .. nreg-1 denoting machine registers *)
-  let reg_map = Preg.Table.create () in
-  let int_to_preg i = mk_preg_u64 (fsprintf "%%%i" i) in
-  let get_reg pr = int_to_preg (hashtbl_find_exn reg_map pp_preg_ty pr) in
-
-  (* track pseudo-registers that require a fixed register *)
-  let fixed_pregs = Preg.Table.create () in
-  let pick_free pr =
-    match HT.find fixed_pregs pr with
-    | Some ri ->
-      if Set.mem !free_regs ri then (
-        HT.set reg_map ~key:pr ~data:ri;
-        free_regs_remove ri;
-        ri
-      ) else (
-        let err =
-          fsprintf
-            "required register %s (%s) for %a already in use\nfree registers: [%a]\nmap: %a"
-            (X64.string_of_reg (X64.reg_of_int ri))
-            ((int_to_preg ri).pr_name)
-            pp_preg pr
-            (pp_list "," pp_int) (Set.to_list !free_regs)
-            (pp_list "," (pp_pair "->" pp_preg pp_int))
-            (HT.to_alist reg_map)
-        in
-        raise (E.PickExc err)
-      )
-    | None ->
-      begin match Set.max_elt !free_regs with
-      | None -> raise (E.PickExc "no registers left")
-      | Some i ->
-        HT.set reg_map ~key:pr ~data:i;
-        free_regs_remove i;
-        i
-      end
-  in
-  let trans_src = function
-    | Simm(_) as i -> i
-    | Sreg(pr)     -> Sreg(get_reg pr)
-    | Smem(pr,o)   -> Smem(get_reg pr,o)
-  in
-  let trans_dest d =
-    let get pr =
-      match HT.find reg_map pr with
-      | None   -> int_to_preg (pick_free pr)
-      | Some i -> int_to_preg i
-    in
-    match d with
-    | Dreg(pr)   -> Dreg(get pr)
-    | Dmem(pr,o) -> Dmem(get pr,o)
-  in
-
-  let free_dead_regs read_after_rhs =
-    let remove_dead pr i =
-      if not (Set.mem read_after_rhs pr)
-      then ( free_regs_add i; false )
-      else true
-    in
-    HT.filteri_inplace reg_map ~f:remove_dead
-  in
-  let rec alloc left right =
-    match right with
-    | [] -> List.rev left
-    | {li_bi = bi; li_read_after_rhs = read_after_rhs}::right ->
-      (* F.printf "reg_alloc: %a\n" pp_base_instr bi; *)
-      let bi =
-        try
-          begin match bi with
-          | Comment(_) -> bi
-
-          (* enforce dst = src1 and do not allocate registers for carry flag *)
-          | App((Add|Sub) as o,(([_;Dreg(d)] | [Dreg(d)]) as ds),(Sreg(s1)::s2::cfin)) ->
-            let r1 = hashtbl_find_exn reg_map pp_preg_ty s1 in
-            let s1 = trans_src (Sreg s1) in
-            let s2 = trans_src s2        in
-            free_dead_regs read_after_rhs;
-            HT.set fixed_pregs ~key:d  ~data:r1;
-            let d = trans_dest (Dreg d) in
-            App(o,(linit ds)@[d],s1::s2::cfin)
-
-          | App(Add,_,_) -> assert false
-
-          | App(Cmov(_) as o,[Dreg(d)],[Sreg(s1);s2;cfin]) ->
-             let r1 = hashtbl_find_exn reg_map pp_preg_ty s1 in
-             let s1 = trans_src (Sreg(s1)) in
-             let s2 = trans_src s2        in
-             free_dead_regs read_after_rhs;
-             HT.set fixed_pregs ~key:d  ~data:r1;
-             let d = trans_dest (Dreg d) in
-             App(o,[d],[s1;s2;cfin])
-
-          | App(Cmov(_),_,_) -> assert false
-
-          | App(o,ds,ss) ->
-             let ss = List.map ~f:trans_src ss in
-             free_dead_regs read_after_rhs;
-             let ds = List.map ~f:trans_dest ds in
-             App(o,ds,ss)
-          end
-        with
-          E.PickExc s ->
-            F.printf "\nRegister allocation failed:\n%s\n" s;
-            F.printf "\nhandled:\n%a\n" (pp_list "\n" pp_base_instr) (List.rev left);
-            F.printf "\nfailed for:\n%a\n" pp_base_instr bi;
-            F.printf "\nremaining:\n%a\n%!"
-              (pp_list "\n" pp_base_instr) (List.map ~f:(fun li -> li.li_bi) right);
-            raise (E.PickExc s)
-      in
-      (* F.printf "reg_alloc_done: %a\n" pp_base_instr bi; *)
-      alloc (bi::left) right
-  in
-
-  let () =
-    let (eq_classes, fixed_classes, _class_map) =
-      eq_constrs (stmt_to_base_instrs efun0.ef_body) (failwith "efun0.ef_args")
-    in
-    (* register %rax and %rdx for mul *)
-    HT.iter fixed_classes
-      ~f:(fun ~key:i ~data:reg ->
-            let pregs = hashtbl_find_exn eq_classes pp_int i in
-            (* F.printf "## using %s for %a\n" (X64.string_of_reg reg) (pp_list "," pp_preg)
-                (Set.to_list pregs); *)
-            Set.iter pregs ~f:(fun preg ->
-              HT.set fixed_pregs ~key:preg  ~data:(X64.(int_of_reg reg)))
-      );
-
-    if efun0.ef_extern then (
-      (* directly use the ABI argument registers for arguments *)
-      let arg_len = List.length efun0.ef_args in
-      let arg_regs = List.take (List.map ~f:X64.int_of_reg X64.arg_regs) arg_len in
-      let arg_max = List.length X64.arg_regs in
-      if List.length arg_regs < arg_len then
-        failwith (fsprintf "register_alloc: at most %i arguments supported" arg_max);
-      (* List.iter (List.zip_exn efun0.ef_args arg_regs)
-        ~f:(fun (arg,arg_reg) -> HT.set fixed_pregs ~key:arg ~data:arg_reg);
-      *)
-
-      (* directly use the ABI return registers for return values *)
-      let ret_extern_regs = List.map ~f:X64.int_of_reg X64.[RAX; RDX] in
-      let ret_len = List.length efun0.ef_ret in
-      let ret_regs = List.take ret_extern_regs ret_len in
-      let ret_max = List.length ret_extern_regs in
-      if List.length ret_regs < ret_len then
-        failwith (fsprintf "register_alloc: at most %i arguments supported" ret_max);
-      List.iter (List.zip_exn efun0.ef_ret ret_regs)
-        ~f:(fun (ret,ret_reg) -> HT.set fixed_pregs ~key:ret ~data:ret_reg)
-    )
-  in
-  let args = List.map efun0.ef_args ~f:(fun pr -> int_to_preg (pick_free pr)) in
-  let bis = alloc [] (register_liveness efun0) in
-  let efun =
-    { efun0 with
-      ef_args = args;
-      ef_body = base_instrs_to_stmt bis;
-      ef_ret  = List.map ~f:(fun pr -> get_reg pr) efun0.ef_ret;
-    }
-  in
-  (*validate_transform efun0 efun;*)
-  efun *)
 
 (* ** Translation to assembly
  * ------------------------------------------------------------------------ *)
