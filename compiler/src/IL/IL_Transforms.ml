@@ -63,6 +63,7 @@ type transform =
   | RegisterAlloc of string * int
   | InlineCalls of string
   | RegisterLiveness of string
+  | RemoveEqConstrs of string
   | StripComments of string
   | Asm of asm_lang
   | Interp of string * u64 String.Map.t * u64 U64.Map.t * value list
@@ -125,6 +126,8 @@ let ptrafo =
        return (RegisterLiveness fn))
     ; (string "strip_comments" >> (bracketed ident) >>= fun fn ->
        return (StripComments(fn)))
+    ; (string "remove_eq_constrs" >> (bracketed ident) >>= fun fn ->
+       return (RemoveEqConstrs(fn)))
     ; (string "register_allocate" >> (bracketed ident) >>= fun fn ->
        register_num >>= fun l ->
        return (RegisterAlloc(fn,l)))
@@ -182,6 +185,9 @@ let apply_transform trafo (modul0 : modul_u) =
     | StripComments(fname) ->
       notify "stripping comments" fname;
       strip_comments_modul modul fname
+    | RemoveEqConstrs(fname) ->
+      notify "removing equality constraints" fname;
+      remove_eq_constrs_modul modul fname
     | Print(name,ofname) ->
       let modul_ = filter_fn modul ofname in
       F.printf ">> %s:@\n%a@\n@\n" name pp_modul modul_; modul

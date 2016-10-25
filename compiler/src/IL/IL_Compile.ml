@@ -681,6 +681,26 @@ let reg_alloc_func reg_num func =
 let reg_alloc_modul reg_num modul fname =
   map_fun ~f:(reg_alloc_func reg_num) modul fname
 
+(* ** Remove equality constraints
+ * ------------------------------------------------------------------------ *)
+
+let remove_eq_constrs_instr _pos instr =
+  match instr with
+  | Binstr(Assgn(d1,Src(d2),Eq) as bi) ->
+    if (d1.d_name <> d2.d_name) then (
+      failtype_ d1.d_loc
+        "Removing equality constraints: RHS and LHS not equal in `%a'" pp_base_instr bi
+    ) else (
+      []
+    )
+  | Binstr(Assgn(d,Imm(_),Eq) as bi) ->
+    failtype_ d.d_loc "Removing equality constraints: RHS cannot be immediate in `%a'"
+      pp_base_instr bi
+  | i -> [i]
+
+let remove_eq_constrs_modul modul fname =
+  concat_map_modul modul fname ~f:remove_eq_constrs_instr
+
 (* ** Translation to assembly
  * ------------------------------------------------------------------------ *)
 
