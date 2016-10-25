@@ -516,7 +516,7 @@ and interp_stmt (ms0 : mstate) efun_map stmt =
  * ------------------------------------------------------------------------ *)
 
 let interp_modul
-  (modul : L.loc modul_t) (pmap : u64 String.Map.t) (mmap : u64 U64.Map.t)
+  (modul : 'info modul_t) (pmap : u64 String.Map.t) (mmap : u64 U64.Map.t)
   (args : value list) (fname : string)
   =
   typecheck_modul modul;

@@ -10,7 +10,7 @@ module L = ParserUtil.Lexing
 (* ** Utility functions for parser
  * ------------------------------------------------------------------------ *)
 
-type decl = Dfun of L.loc func_u | Dparams of (string * ty) list
+type decl = Dfun of unit func_u | Dparams of (string * ty) list
 
 let mk_modul pfs =
   let params =
@@ -29,7 +29,7 @@ let mk_fundef decls stmt rets =
     fd_body   = get_opt [] stmt;
   }
 
-let mk_func loc rty name ext args (def : L.loc fundef_or_py_u) : L.loc func_u =
+let mk_func loc rty name ext args (def : unit fundef_or_py_u) : unit func_u =
   let rtys = Option.value ~default:[] rty in
   let () =
     match def with
@@ -49,7 +49,7 @@ let mk_if c i1s mi2s ies =
   let ielse =
     List.fold
       ~init:(get_opt [] mi2s)
-      ~f:(fun celse (c,li) -> [ { i_val = If(c,li,celse); i_info = L.dummy_loc} ])
+      ~f:(fun celse (c,li) -> [ { i_val = If(c,li,celse); i_loc = L.dummy_loc; i_info = ()} ])
       (List.rev ies)
   in
   If(c,i1s,ielse)

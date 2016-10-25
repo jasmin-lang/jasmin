@@ -325,14 +325,124 @@ let compute_liveness_modul modul fname =
   | Some func -> compute_liveness_func func
   | None      -> failwith "compute_liveness: function with given name not found"
 
+(* ** New liveness computation
+ * ------------------------------------------------------------------------ *)
+
+module LV = struct
+  type t = {
+    live_before : SS.t;
+    live_after  : SS.t;
+  }
+
+  let mk () = {
+    live_before = SS.empty;
+    live_after  = SS.empty;
+  }
+
+  let remove_liveness_modul modul =
+    concat_map_modul_all modul
+      ~f:(fun _pos loc _ instr -> [{ i_val = instr; i_loc = loc; i_info = () }])
+
+  let add_initial_liveness_modul modul =
+    F.printf "add initial liveness\n%!";
+    concat_map_modul_all modul
+      ~f:(fun _pos loc _ instr -> [{ i_val = instr; i_loc = loc; i_info = mk () }])
+
+end
+
+let update_liveness_stmt stmt changed ~succ_live =
+  let set_card_eq s1 s2 = SS.length s1 = SS.length s2 in
+  let update_instr_i instr_i ~v ~lb ~la =
+    let lb_old = instr_i.i_info.LV.live_before in
+    if not !changed && not (set_card_eq lb_old lb) then changed := true;
+    { instr_i with
+      i_val  = v;
+      i_info = {LV.live_after = la; LV.live_before = lb; } }
+  in
+  let rec go left right succ_live =
+    match right with
+    | [] -> succ_live,left
+    | instr_i::right ->
+      begin match instr_i.i_val with
+
+      | Binstr(bi) as instr ->
+        let use = use_binstr bi in
+        let def = def_binstr bi in
+        let live_after = succ_live in
+        let live_before = SS.union (SS.diff live_after def) use in
+        let instr_i =
+          update_instr_i instr_i ~v:instr ~lb:live_before ~la:live_after
+        in
+        go (instr_i::left) right live_before
+
+      | If(fc,s1,s2) ->
+        let lb1, s1 = go [] (List.rev s1) succ_live in 
+        let lb2, s2 = go [] (List.rev s2) succ_live in 
+        let live_before = SS.union lb1 lb2 in
+        let instr_i =
+          update_instr_i instr_i ~v:(If(fc,s1,s2)) ~lb:live_before ~la:succ_live
+        in
+        go (instr_i::left) right live_before
+
+      | While(DoWhile,fc,s) as instr ->
+        let use_fc = use_instr instr in
+        let live_after_last = SS.union_list [ use_fc; instr_i.i_info.LV.live_before; succ_live ] in
+        let lb, s =
+          match List.rev s with
+          | [] ->
+            succ_live, []
+          | instr_i::_ as rs -> (* FIXME: check this optimizations *)
+            let old_live_after = instr_i.i_info.LV.live_after in
+            if set_card_eq old_live_after live_after_last then
+              ((List.hd_exn s).i_info.LV.live_before, s)
+            else (
+              go [] rs live_after_last
+            )
+        in
+        let live_before = lb in (* loop executed at least once *)
+        let instr_i =
+          update_instr_i instr_i ~v:(While(DoWhile,fc,s)) ~lb:live_before ~la:succ_live
+        in
+        go (instr_i::left) right live_before
+        
+      | While(WhileDo,_,_) -> failwith "Not implemented"
+      | For(_,_,_,_)       -> failwith "computing liveness information: unexpected instruction"
+        
+      end
+  in
+  snd (go [] (List.rev stmt) succ_live)
+
+let add_liveness_fundef fdef =
+  let changed = ref false in
+  let body = ref fdef.fd_body in
+  let cont = ref true in
+  F.printf "   iterate liveness: .%!";
+  while !cont do 
+    body := update_liveness_stmt !body changed ~succ_live:(SS.of_list fdef.fd_ret);
+    if not !changed then (
+      cont := false
+    ) else (
+      changed := false
+    );
+    F.printf ".%!"
+  done;
+  F.printf "\n%!";
+  { fdef with fd_body = !body }
+
+let add_liveness_func func =
+  map_fundef ~err_s:"add liveness information" ~f:add_liveness_fundef func
+
+let add_liveness_modul modul fname =
+  map_fun modul fname ~f:add_liveness_func
+    
 (* ** Collect equality and fixed register constraints from +=, -=, :=, ...
  * ------------------------------------------------------------------------ *)
 
 module REGI = struct
   type t = {
-    class_of : string        String.Table.t;
-    rank_of  : int           String.Table.t;
-    fixed    : (int * L.loc) String.Table.t;
+    class_of : string String.Table.t;
+    rank_of  : int    String.Table.t;
+    fixed    : int    String.Table.t;
   }
 
   let mk () = {
@@ -361,31 +471,22 @@ module REGI = struct
     classes
 
   let rank_of rinfo name =
-    match HT.find rinfo.rank_of name with
-    | None    -> 0
-    | Some(r) -> r
+    HT.find rinfo.rank_of name |> get_opt 0
 
-  let fix_class rinfo d reg =
-    let s = class_of rinfo d.d_name in
+  let fix_class rinfo name reg =
+    let s = class_of rinfo name in
     match HT.find rinfo.fixed s with
     | None ->
-      HT.set rinfo.fixed ~key:s ~data:(reg,d.d_loc)
-    | Some(reg',_) when reg = reg' -> ()
-    | Some(reg',loc') ->
-      failtype_ loc' "conflicting requirements: %a vs %a for %s"
-        X64.pp_int_reg reg' X64.pp_int_reg reg d.d_name
+      HT.set rinfo.fixed ~key:s ~data:reg
+    | Some(reg') when reg = reg' -> ()
+    | Some(reg') ->
+      failwith_  "conflicting requirements: %a vs %a for %s"
+        X64.pp_int_reg reg' X64.pp_int_reg reg name
 
-  let union_fixed fixed ~keep:s1 ~merge:s2 =
-    match HT.find fixed s1, HT.find fixed s2 with
-    | _, None -> ()
-    | None, Some(r2) ->
-      HT.remove fixed s2;
-      HT.set fixed ~key:s1 ~data:r2
-    | Some(r1), Some(r2) when r1 = r2 ->
-      HT.remove fixed s2; 
-    | Some(r1,_), Some(r2,_) ->
-      failwith_ "conflicting requirements: %a vs %a for %s and %s"
-        X64.pp_int_reg r1 X64.pp_int_reg r2 s1 s2
+  let union_fixed rinfo ~keep:s1 ~merge:s2 =
+    match HT.find rinfo.fixed s2 with
+    | Some(r) -> fix_class rinfo s1 r
+    | None    -> ()
 
   let union_class rinfo d1 d2 =
     let root1 = class_of rinfo d1.d_name in
@@ -396,13 +497,13 @@ module REGI = struct
       match () with
       | _ when rank1 < rank2 ->
         HT.set rinfo.class_of ~key:root1 ~data:root2;
-        union_fixed rinfo.fixed ~keep:root2 ~merge:root1
+        union_fixed rinfo ~keep:root2 ~merge:root1
       | _ when rank2 < rank1 ->
         HT.set rinfo.class_of ~key:root2 ~data:root1;
-        union_fixed rinfo.fixed ~keep:root1 ~merge:root2
+        union_fixed rinfo ~keep:root1 ~merge:root2
       | _ ->
         HT.set rinfo.class_of ~key:root1 ~data:root2;
-        union_fixed rinfo.fixed ~keep:root2 ~merge:root1;
+        union_fixed rinfo ~keep:root2 ~merge:root1;
         HT.set rinfo.rank_of  ~key:root2 ~data:(rank2 + 1)
     )
 
@@ -412,7 +513,7 @@ module REGI = struct
     F.fprintf fmt
       ("classes: %a\n"^^"ri_fixed: %a\n")
       (pp_ht ", "  "->" pp_string pp_set_string)  (get_classes rinfo)
-      (pp_ht ", "  "->" pp_string pp_fixed) rinfo.fixed
+      (pp_ht ", "  "->" pp_string X64.pp_int_reg) rinfo.fixed
 
 end
 
@@ -434,8 +535,8 @@ let reg_info_binstr rinfo bi =
     | V_Umul(d1,d2,s1,_)
       when is_reg_dest d1 && is_reg_dest d2 && is_reg_src s1 ->
       REGI.union_class rinfo (get_src_dest_exn s1) d2;
-      REGI.fix_class rinfo d2 (X64.int_of_reg X64.RAX);
-      REGI.fix_class rinfo d1 (X64.int_of_reg X64.RDX)
+      REGI.fix_class rinfo d2.d_name (X64.int_of_reg X64.RAX);
+      REGI.fix_class rinfo d1.d_name (X64.int_of_reg X64.RDX)
 
     | V_Carry(_,_,d2,s1,_,_)
       when is_reg_dest d2 && is_reg_src s1 ->
@@ -459,7 +560,7 @@ let reg_info_binstr rinfo bi =
   | Op(o,ds,ss) ->
     reg_info_op o ds ss
 
-  (* add equality constraint *)
+  (* FIXME: do the same for arrays, stack variables *)
   | Assgn(d,s,Eq) when is_reg_dest d ->
     begin match s with
     | Imm(_) -> assert false
@@ -467,7 +568,7 @@ let reg_info_binstr rinfo bi =
     end
 
   | Load(_,_,_)
-  | Assgn(_,_,_)        
+  | Assgn(_,_,_)
   | Store(_,_,_)
   | Comment(_)   -> ()
 
@@ -475,8 +576,9 @@ let reg_info_binstr rinfo bi =
 
 let rec reg_info_instr rinfo li =
   let ri_stmt = reg_info_stmt rinfo in
+  let ri_binstr = reg_info_binstr rinfo in
   match li.i_val with
-  | Binstr(bi)         -> reg_info_binstr rinfo bi
+  | Binstr(bi)         -> ri_binstr bi
   | While(_,_fc,s)     -> ri_stmt s
   | If(Fcond(_),s1,s2) -> ri_stmt s1; ri_stmt s2
 
@@ -497,7 +599,7 @@ let reg_info_func rinfo func fdef =
     List.iter (List.zip_exn func.f_args arg_regs)
       ~f:(fun ((s,n,t),arg_reg) ->
             assert (s = Reg && t = U64);
-            REGI.fix_class rinfo (mk_dest_name n Reg U64) (X64.int_of_reg arg_reg))
+            REGI.fix_class rinfo n (X64.int_of_reg arg_reg))
   in
   let fix_regs_ret rinfo =
     let ret_extern_regs = List.map ~f:X64.int_of_reg X64.[RAX; RDX] in
@@ -508,7 +610,7 @@ let reg_info_func rinfo func fdef =
       failwith_ "register_alloc: at most %i arguments supported" ret_max
     );
     List.iter (List.zip_exn fdef.fd_ret ret_regs)
-      ~f:(fun (n,ret_reg) -> REGI.fix_class rinfo (mk_dest_name n Reg U64) ret_reg)
+      ~f:(fun (n,ret_reg) -> REGI.fix_class rinfo n ret_reg)
   in
 
   fix_regs_args rinfo;
@@ -534,7 +636,7 @@ let max_not_in reg_num rs =
   ) else
     failwith "Cannot find free register"
 
-let assign_reg reg_num denv (conflicts : (unit String.Table.t) String.Table.t) classes rinfo cur_pos name =
+let assign_reg reg_num denv conflicts classes rinfo cur_pos name =
   let dbg = ref false in
   let watch_list = []
     (* ["bit_3__0";"j_3__0";"swap_3__0";] *)
@@ -549,7 +651,7 @@ let assign_reg reg_num denv (conflicts : (unit String.Table.t) String.Table.t) c
       F.printf "Here we are: %s %a\n%!" name pp_pos cur_pos
     );
     let ofixed = HT.find rinfo.REGI.fixed cl in
-    if !dbg then F.printf "  in class %s fixed to %a\n%!" cl (pp_opt "-" REGI.pp_fixed) ofixed;
+    if !dbg then F.printf "  in class %s fixed to %a\n%!" cl (pp_opt "-" X64.pp_int_reg) ofixed;
     let class_name = HT.find classes cl |> Option.value ~default:(SS.singleton cl) in
     let conflicted = String.Table.create () in
     SS.iter class_name
@@ -565,37 +667,36 @@ let assign_reg reg_num denv (conflicts : (unit String.Table.t) String.Table.t) c
     let conflicted_fixed = Int.Table.create () in
     HT.iter_keys conflicted ~f:(fun n ->
                                   match HT.find rinfo.REGI.fixed (REGI.class_of rinfo n) with
-                                  | None       -> ()
-                                  | Some(ri,_) -> HT.set conflicted_fixed ~key:ri ~data:());
+                                  | None     -> ()
+                                  | Some(ri) -> HT.set conflicted_fixed ~key:ri ~data:());
     if !dbg then
       F.printf "  conflicted with fixed %a\n%!"
         (pp_list "," X64.pp_int_reg) (HT.keys conflicted_fixed);
     begin match ofixed with
     | None ->
       let ri = max_not_in reg_num (HT.keys conflicted_fixed) in
-      REGI.fix_class rinfo (mk_dest_name cl U64 Reg) ri;
+      REGI.fix_class rinfo cl ri;
       if !dbg then F.printf "  fixed register to %a\n%!" X64.pp_int_reg ri
-    | Some(ri,l) ->
+    | Some(ri) ->
       if HT.mem conflicted_fixed ri then (
         F.printf "\n\nERROR:\n\n%!";
-        F.printf "  reg %s in class %s fixed to %a\n%!" name cl (pp_opt "-" REGI.pp_fixed) ofixed;
+        F.printf "  reg %s in class %s fixed to %a\n%!" name cl (pp_opt "-" X64.pp_int_reg) ofixed;
         F.printf "  conflicted with %a\n%!" (pp_list "," pp_string) (HT.keys conflicted);
         let f n =
           Option.bind (HT.find rinfo.REGI.fixed (REGI.class_of rinfo n))
-            (fun (i,_) -> if i = ri then Some (n,i) else None)
+            (fun i -> if i = ri then Some (n,i) else None)
         in
         let conflicted_fixed = List.filter_map ~f (HT.keys conflicted) in
         F.printf "  conflicted with fixed %a\n%!"
           (pp_list "," (pp_pair ":" pp_string X64.pp_int_reg)) conflicted_fixed;
         
-        failtype_ l "assign_reg: conflict between fixed register"
+        failwith_ "assign_reg: conflict between fixed registers"
       )
     end
 
   | None -> assert false
 
   | Some(_t,_s) -> ()
-    (* F.printf "ignoring %s with %a %s\n" n pp_ty t (string_of_storage s) *)
 
 let assign_regs reg_num denv (conflicts : (unit String.Table.t) String.Table.t) linfo rinfo =
   let visited = Pos.Table.create () in
@@ -621,7 +722,7 @@ let reg_alloc_func reg_num func =
     | None -> assert false
     | Some(U64,Reg) ->
       let cl = REGI.class_of rinfo name in
-      let ri = fst @@ HT.find_exn rinfo.REGI.fixed cl in
+      let ri = HT.find_exn rinfo.REGI.fixed cl in
       fsprintf "r_%i_%a" ri X64.pp_int_reg ri
     | Some(_,_) ->
       name
@@ -644,30 +745,31 @@ let reg_alloc_func reg_num func =
   in
   let print_time start stop = F.printf "   %fs\n%!" (stop -. start) in
 
-  (* compute equality constraints and fixed constraints *)
+  F.printf "-> computing equality and fixed constraints\n%!";
   let rinfo = REGI.mk () in
   let t1 = Unix.gettimeofday () in
-  F.printf "-> computing equality and fixed constraints\n%!";
   let fd = get_fundef ~err_s:"perform register allocation" func in
   reg_info_func rinfo func fd;
   let t2 = Unix.gettimeofday () in
   print_time t1 t2;
 
-  (* compute liveness information *)
   F.printf "-> computing liveness\n%!";
   let linfo = compute_liveness_func func in
   let conflicts = String.Table.create () in
   let t3 = Unix.gettimeofday () in
   print_time t2 t3;
+
   F.printf "-> computing conflicts\n%!";
   HT.iteri linfo.LI.live_after ~f:(extract_conflicts linfo conflicts);
   let denv = IT.denv_of_func func (IT.extract_decls func.f_args fd) in
   let t4 = Unix.gettimeofday () in
   print_time t3 t4;
+
   F.printf "-> assigning registers\n%!";
   assign_regs reg_num denv conflicts linfo rinfo;
   let t5 = Unix.gettimeofday () in
   print_time t4 t5;
+
   F.printf "-> renaming variables\n%!";
   let func = rename_func (rename denv rinfo) func in
   let t6 = Unix.gettimeofday () in
@@ -680,7 +782,7 @@ let reg_alloc_modul reg_num modul fname =
 (* ** Remove equality constraints
  * ------------------------------------------------------------------------ *)
 
-let remove_eq_constrs_instr _pos instr =
+let remove_eq_constrs_instr _pos loc info instr =
   match instr with
   | Binstr(Assgn(d1,Src(d2),Eq) as bi) ->
     if (d1.d_name <> d2.d_name) then (
@@ -692,7 +794,7 @@ let remove_eq_constrs_instr _pos instr =
   | Binstr(Assgn(d,Imm(_),Eq) as bi) ->
     failtype_ d.d_loc "Removing equality constraints: RHS cannot be immediate in `%a'"
       pp_base_instr bi
-  | i -> [i]
+  | _ -> [{ i_val = instr; i_loc = loc; i_info = info}]
 
 let remove_eq_constrs_modul modul fname =
   concat_map_modul modul fname ~f:remove_eq_constrs_instr

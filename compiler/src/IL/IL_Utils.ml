@@ -88,7 +88,9 @@ let mk_dest_name name ty sto =
 let src_of_fcond fc =
   Src(fc.fc_dest)
 
-let mk_base_instr info bi = { i_info = info; i_val = Binstr(bi) }
+let mk_base_instr instr bi = {
+  instr with i_val = Binstr(bi)
+}
 
 (* ** Occurence restriction for program variables
  * ------------------------------------------------------------------------ *)
@@ -98,34 +100,62 @@ type occ_restr = UseOnly | DefOnly
 (* ** Concat-map instruction (with position)
  * ------------------------------------------------------------------------ *)
 
-let rec concat_map_instr ~f pos instr_i =
-  let instrs =
+let rec concat_map_instr_info ~f pos instr_i =
+  let loc = instr_i.i_loc in
+  let info = instr_i.i_info in
+  let instrs_i =
     match instr_i.i_val with
-    | Binstr(_) as i -> f pos i
+    | Binstr(bi)     -> f pos loc info (Binstr(bi))
     | While(wt,fc,s) ->
       let s = concat_map_stmt ~f (pos@[0]) s in
-      f pos (While(wt,fc,s))
+      f pos loc info (While(wt,fc,s))
     | For(iv,lb,ub,s) ->
       let s = concat_map_stmt ~f (pos@[0]) s in
-      f pos (For(iv,lb,ub,s))
+      f pos loc info (For(iv,lb,ub,s))
     | If(c,s1,s2) ->
       let s1 = concat_map_stmt ~f (pos@[0]) s1 in
       let s2 = concat_map_stmt ~f (pos@[1]) s2 in
-      f pos (If(c,s1,s2))
+      f pos loc info (If(c,s1,s2))
   in
-  List.map ~f:(fun instr -> { instr_i with i_val = instr }) instrs
+  instrs_i
 
 and concat_map_stmt ~f pos stmt =
-  List.concat @@ List.mapi ~f:(fun i instr -> concat_map_instr ~f (pos@[i]) instr) stmt
+  List.concat @@
+    List.mapi ~f:(fun i instr -> concat_map_instr_info ~f (pos@[i]) instr) stmt
 
 let concat_map_fundef ~f fd =
-  { fd with fd_body = concat_map_stmt ~f [] fd.fd_body }
+  { fd_decls = fd.fd_decls;
+    fd_ret   = fd.fd_ret;
+    fd_body = concat_map_stmt ~f [] fd.fd_body }
 
-let concat_map_func ~f func =
-  map_fundef ~err_s:"concat_map" ~f:(concat_map_fundef ~f)func
+let concat_map_func ~f  func =
+  let fd = match func.f_def with
+    | Def(fd) -> Def(concat_map_fundef ~f fd)
+    | Py(py)  -> Py(py)
+    | Undef   -> Undef
+  in
+  { f_name = func.f_name;
+    f_call_conv = func.f_call_conv;
+    f_args      = func.f_args;
+    f_def       = fd;
+    f_ret_ty    = func.f_ret_ty;
+  }
+
+module T : sig
+val concat_map_modul_all :
+      f:(int list -> L.loc -> 'a -> 'b instr_t -> 'b instr_info_t list)
+   -> 'a modul_t
+   -> 'b modul_t
+end = struct
+let concat_map_modul_all ~f modul =
+    { m_params = modul.m_params;
+      m_funcs  = List.map ~f:(concat_map_func ~f) modul.m_funcs }
+end
+
+include T
 
 let concat_map_modul ~f modul fname =
-  map_fun modul fname ~f:(concat_map_func ~f)
+    map_fun modul fname ~f:(concat_map_func ~f)
 
 (* ** Operator view
  * ------------------------------------------------------------------------ *)

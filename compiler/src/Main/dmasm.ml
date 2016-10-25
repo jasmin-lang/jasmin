@@ -1,6 +1,7 @@
 open Core.Std
 open IL
 open IL_Utils
+open IL_Lang
 open Util
 
 module F  = Format
@@ -18,7 +19,7 @@ let parse_and_process ~parse ~ftype ~process file =
   | `ParseOk res       -> process s res
   | `ParseError(pinfo) -> eprintf "%s%!" (ParserUtil.error_string file pinfo)
 
-let process_mil trafo print_result out_file file s modul =
+let process_mil trafo print_result out_file file s (modul : 'info modul_u) =
   let res =
     try ILT.apply_transform_asm trafo modul
     with

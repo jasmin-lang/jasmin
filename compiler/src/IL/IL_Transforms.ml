@@ -14,41 +14,43 @@ open Arith
  * ------------------------------------------------------------------------ *)
 
 (* wrapper for liveness analysis that puts live sets into comments *)
-let transform_register_liveness modul fname =
-  let live_info = compute_liveness_modul modul fname in
-  (* F.printf "%a" LI.pp live_info; *)
-  let _mk_fn suffix = "/tmp/a"^suffix in
-  let _dot = ".dot" in
-  let _svg = ".svg" in
-  F.printf "dumping dot file\n%!";
-  (* LI.dump ~verbose:true live_info (mk_fn dot); *)
-  (* F.printf "calling dot\n%!"; *)
-  (* let res = Unix.system (fsprintf "dot %s -o%s -Tsvg" (mk_fn dot) (mk_fn svg)) in *)
-  (* if res <> Unix.WEXITED(0) then *)
-  (*   failwith "dot failed some error code\n"; *)
-  (* F.printf "dot finished\n%!"; *)
+let liveness_to_comments modul fname =
   let func = List.find_exn ~f:(fun f -> f.f_name = fname) modul.m_funcs in
   let fd = get_fundef ~err_s:"" func in
   let denv = IT.denv_of_func func (IT.extract_decls func.f_args fd) in
-  let add_liveness pos instr =
+  let add_liveness denv pos loc info instr =
+    let is_first = true (*
+      match List.rev pos with
+      | x::_ when x=0 -> true
+      | _ -> begin match instr with
+             | If(_,_,_) -> true
+             | While(_,_,_) -> true
+             | _ -> false
+             end *)
+    in
     let filter_reg =
       SS.filter ~f:(fun n -> let (t,s) = Map.find_exn denv n in s = Reg && t = U64)
     in
-    let l_before = LI.get_live_before live_info pos |> filter_reg in
-    let l_after = LI.get_live_after live_info pos |> filter_reg  in
-    let use = LI.get_use live_info pos |> filter_reg in
-    let def = LI.get_def live_info pos |> filter_reg in
-    [ Binstr (Comment (fsprintf "%a before: %a || use: %a"
-                         pp_pos pos pp_set_string l_before pp_set_string use))
-    ; instr
-    ; Binstr (Comment (fsprintf "%a after: %a || def: %a" pp_pos pos pp_set_string l_after
-                         pp_set_string def))
-    ]
+    let l_before = filter_reg info.LV.live_before in
+    let l_after = filter_reg info.LV.live_after in
+    let use = use_instr instr in
+    let def = def_instr instr in
+    let before =
+      [ Binstr (Comment (fsprintf "%a before: %a"
+                           pp_pos pos pp_set_string l_before)) ]
+    in
+    let after =
+      [ instr
+      ; Binstr (Comment (fsprintf "%a after:  %a || def: %a || use: %a"
+                           pp_pos pos pp_set_string l_after
+                           pp_set_string def pp_set_string use))
+      ]
+    in
+    List.map
+      ((if is_first then before else [])@after)
+      ~f:(fun i -> { i_val = i; i_loc = loc; i_info = info })
   in
-  concat_map_modul modul fname ~f:add_liveness
-
-let strip_comments bis =
-  List.filter ~f:(function Comment(_) -> false | _ -> true) bis
+  concat_map_modul modul fname ~f:(add_liveness denv)
 
 type asm_lang = X64
 
@@ -62,6 +64,7 @@ type transform =
   | Save of string * string option
   | RegisterAlloc of string * int
   | InlineCalls of string
+  | CommentsLiveness of string
   | RegisterLiveness of string
   | RemoveEqConstrs of string
   | StripComments of string
@@ -124,6 +127,8 @@ let ptrafo =
        option (bracketed ident) >>= fun fname -> return (Save(name,fname)))
     ; (string "register_liveness" >> (bracketed ident) >>= fun fn ->
        return (RegisterLiveness fn))
+    ; (string "liveness_comments" >> (bracketed ident) >>= fun fn ->
+       return (CommentsLiveness fn))
     ; (string "strip_comments" >> (bracketed ident) >>= fun fn ->
        return (StripComments(fn)))
     ; (string "remove_eq_constrs" >> (bracketed ident) >>= fun fn ->
@@ -155,67 +160,119 @@ let parse_trafo s =
     eprintf "parsing transformation string failed: %s.\n%!" s;
     exit 1
 
-let apply_transform trafo (modul0 : 'info modul_u) =
-  let modul0 = IL_Typing.inline_decls_modul modul0 in
-  let filter_fn modul ofname =
+type modules =
+  | U of unit modul_t
+  | L of LV.t modul_t
+
+let apply_transform trafos (modul0 : unit modul_u) =
+  let modul0 : unit modul_t = IL_Typing.inline_decls_modul modul0 in
+  let map_module m ~f =
+    match m with
+    | L m -> L(f m)
+    | U m -> L(f @@ LV.add_initial_liveness_modul m)
+  in
+  let filter_fn m ofname =
     match ofname with
     | Some fn ->
-      { modul with
-        m_funcs = List.filter modul.m_funcs ~f:(fun f -> f.f_name = fn) }
-    | None ->
-      modul
+      { m with
+        m_funcs = List.filter m.m_funcs ~f:(fun f -> f.f_name = fn) }
+    | None -> m
   in
-  let app_trafo modul t =
-    let notify s fname =
-      F.printf "%s in function %a\n%!" s pp_string fname
+  let notify s fn ~f =
+    let start = Unix.gettimeofday () in
+    F.printf "%s in function %s\n%!" s fn;
+    let res = f () in
+    let stop = Unix.gettimeofday () in
+    F.printf "   %fs\n%!" (stop -. start);
+    res
+  in
+
+  let app_trafo modul trafo =
+    let inline fn m =
+      notify "inlining all calls" fn
+        ~f:(fun () -> inline_calls_modul m fn)
     in
-    match t with
-    | InlineCalls(fname) ->
-      notify "inlining all calls" fname;
-      inline_calls_modul modul fname
-    | ArrayExpand(fname) ->
-      notify "expanding register arrays" fname;
-      array_expand_modul modul fname
-    | LocalSSA(fname) ->
-      notify "transforming into local SSA form" fname;
-      local_ssa_modul modul fname
-    | ArrayAssignExpand(fname) ->
-      notify "expanding array assignments" fname;
-      array_assign_expand_modul modul fname
-    | StripComments(fname) ->
-      notify "stripping comments" fname;
-      strip_comments_modul modul fname
-    | RemoveEqConstrs(fname) ->
-      notify "removing equality constraints" fname;
-      remove_eq_constrs_modul modul fname
-    | Print(name,ofname) ->
-      let modul_ = filter_fn modul ofname in
-      F.printf ">> %s:@\n%a@\n@\n" name pp_modul modul_; modul
-    | Save(fname,ofname) ->
-      let modul_ = filter_fn modul ofname in
-      Out_channel.write_all fname ~data:(fsprintf "%a" pp_modul modul_); modul
-    | RegisterAlloc(fname,n) ->
-      notify "performing register allocation" fname;
-      reg_alloc_modul (min 15 n) modul fname
-    | RegisterLiveness(fname) ->
-      transform_register_liveness modul fname
-    | MacroExpand(fname,m) ->
-      notify "expanding macros" fname;
-      macro_expand_modul m modul fname
-    | Asm(_) -> assert false
-    | Type ->
-      F.printf "type checking module\n%!" ;
-      IL_Typing.typecheck_modul modul;
+    let arr_exp fn m =
+      notify "expanding register arrays" fn
+        ~f:(fun () -> array_expand_modul m fn)
+    in
+    let local_ssa fn m =
+      notify "transforming into local SSA form" fn
+        ~f:(fun () -> local_ssa_modul m fn)
+    in
+    let save fn ofn m =
+      let m_ = filter_fn m ofn in
+      Out_channel.write_all fn ~data:(fsprintf "%a" pp_modul m_);
+      m
+    in
+    let print n ofn m =
+      let m_ = filter_fn m ofn in
+      F.printf ">> %s:@\n%a@\n@\n" n pp_modul m_;
+      m
+    in
+    let interp fn pmap mmap args m =
+      notify "interpreting" fn
+        ~f:(fun () -> IL_Interp.interp_modul m pmap mmap args fn)
+    in
+    let array_expand_modul fn m =
+      notify "expanding array assignments" fn
+        ~f:(fun () -> array_assign_expand_modul m fn)
+    in
+    let remove_eq_constrs fn m =
+      notify "removing equality constraints" fn
+        ~f:(fun () -> remove_eq_constrs_modul m fn)
+    in
+    let strip_comments fn m =
+      notify "stripping comments" fn
+        ~f:(fun () -> strip_comments_modul m fn)
+    in
+    let typecheck m =
+      notify "type checking module" "all functions"
+        ~f:(fun () -> IL_Typing.typecheck_modul m; m)
+    in
+    let register_alloc fn n m = 
+      notify "performing register allocation" fn
+        ~f:(fun () -> reg_alloc_modul (min 15 n) m fn)
+    in
+    let register_liveness fn m =
+      notify "adding register liveness information" fn
+        ~f:(fun () -> add_liveness_modul m fn)
+    in
+    let comments_liveness fn m =
+      notify "adding comments for liveness information" fn
+        ~f:(fun () -> liveness_to_comments m fn)
+    in
+    let macro_expand fn map m = 
+      notify "expanding macros" fn
+        ~f:(fun () -> macro_expand_modul map m fn)
+    in
+    match trafo with
+    | InlineCalls(fn)           -> map_module modul ~f:(inline fn)
+    | ArrayExpand(fn)           -> map_module modul ~f:(arr_exp fn)
+    | LocalSSA(fn)              -> map_module modul ~f:(local_ssa fn)
+    | Print(n,ofn)              -> map_module modul ~f:(print n ofn)
+    | Interp(fn,pmap,mmap,args) -> map_module modul ~f:(interp fn pmap mmap args)
+    | ArrayAssignExpand(fn)     -> map_module modul ~f:(array_expand_modul fn)
+    | StripComments(fn)         -> map_module modul ~f:(strip_comments fn)
+    | RemoveEqConstrs(fn)       -> map_module modul ~f:(remove_eq_constrs fn)
+    | RegisterAlloc(fn,n)       -> map_module modul ~f:(register_alloc fn n)
+    | MacroExpand(fn,map)       -> map_module modul ~f:(macro_expand fn map)
+    | Type                      -> map_module modul ~f:typecheck
+    | RegisterLiveness(fn)      -> map_module modul ~f:(register_liveness fn)
+    | CommentsLiveness(fn)      -> map_module modul ~f:(comments_liveness fn)
+    | Save(fn,ofn)              ->
+      begin match modul with
+      | U m -> ignore(save fn ofn m)
+      | L m -> ignore(save fn ofn m)
+      end;
       modul
-    | Interp(fname,pmap,mmap,args) ->
-      notify "interpreting" fname;
-      IL_Interp.interp_modul modul pmap mmap args fname
+    | Asm(_)                    -> assert false
   in
-  List.fold_left trafo ~init:modul0 ~f:app_trafo
+  List.fold_left trafos ~init:(U modul0) ~f:app_trafo
 
 let apply_transform_asm strafo modul =
   let (trafo,mlang) = parse_trafo strafo in
   let modul = apply_transform trafo modul in
   match mlang with
-  | None     -> `IL modul
+  | None     -> `IL (match modul with U m -> m | L m -> LV.remove_liveness_modul m)
   | Some X64 -> assert false (* `Asm_X64 (List.map ~f:to_asm_x64 modul) *)

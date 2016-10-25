@@ -176,7 +176,7 @@ let rec typecheck_instr env linstr =
   let tc_assgn = typecheck_assgn env in
   let tc_cond  = typecheck_fcond_or_pcond env in
   let tc_fcond = typecheck_fcond env in
-  let loc = linstr.i_info in
+  let loc = linstr.i_loc in
   match linstr.i_val with
   | Binstr(Comment _)             -> ()
   | Binstr(Op(op,ds,ss))          -> tc_op op ds ss

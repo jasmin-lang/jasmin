@@ -293,7 +293,11 @@ type ('info,'decl) instr =
          wt=WhileDo  while fcond { s }
          wt=DoWhile  do          { s } while fcond; *)
 
-and ('info, 'decl) instr_info = { i_val : ('info,'decl) instr; i_info : 'info}
+and ('info, 'decl) instr_info = {
+  i_val : ('info,'decl) instr;
+  i_loc  : L.loc;
+  i_info : 'info
+}
 
 and ('info, 'decl) stmt = (('info, 'decl) instr_info) list
   [@@deriving compare,sexp]
