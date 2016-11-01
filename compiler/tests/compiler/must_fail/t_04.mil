@@ -1,4 +1,6 @@
-extern fn test() = python print_newline;
+extern fn test() {
+  x[i] : inline bool;
+}
 
 /*
 START:CMD

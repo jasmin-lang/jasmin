@@ -1,0 +1,5 @@
+Parsing tests/compiler/must_fail/t_06.mil as MIL
+
+tests/compiler/must_fail/t_06.mil:5:4: 5:6 error: duplicate function name :foo
+fn foo(x : stack u64);
+   ^^^

@@ -1,0 +1,6 @@
+extern fn test() {
+  reg arr  : u64[4];
+  reg i, x : u64;
+  x = arr[i]; 
+   // ERROR: "array expansion: array arr with non-constant indexes requires stack storage"
+}

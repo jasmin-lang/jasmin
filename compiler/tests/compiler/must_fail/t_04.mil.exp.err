@@ -1,0 +1,5 @@
+Parsing tests/compiler/must_fail/t_04.mil as MIL
+
+tests/compiler/must_fail/t_04.mil:2:10: 2:20 error: storage inline only allowed for type u64
+  x[i] : inline bool;
+         ^^^^^^^^^^^

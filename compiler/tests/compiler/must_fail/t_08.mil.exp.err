@@ -1,0 +1,8 @@
+Parsing tests/compiler/must_fail/t_08.mil as MIL
+
+tests/compiler/must_fail/t_08.mil:1:8: 1:20 error: duplicated argument name
+fn foo(x : stack u64, x : stack u64) {
+       ^^^^^^^^^^^^^
+tests/compiler/must_fail/t_08.mil:1:23: 1:35 error: <-- also used here
+fn foo(x : stack u64, x : stack u64) {
+                      ^^^^^^^^^^^^^

@@ -1,0 +1,5 @@
+Parsing tests/compiler/must_fail/t_09.mil as MIL
+
+tests/compiler/must_fail/t_09.mil:2:3: 2:11 error: arity of return value does not match type,expected 2, got 1
+  return x;
+  ^^^^^^^^^

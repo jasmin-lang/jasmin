@@ -1,4 +1,5 @@
-extern fn test() = python print_newline;
+fn foo(x : stack u64, stack u64) {
+}
 
 /*
 START:CMD

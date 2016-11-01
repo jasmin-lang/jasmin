@@ -1,25 +1,29 @@
-fn foo(reg x : u64, reg y : u64) -> reg u64 {
-  x += 1;
-  x += y;
+param n : u64;
+
+// we can use a variable name that is ignored
+fn foo1(x : stack u64) -> stack u64 * reg u64 * reg bool;
+
+// we can also leave out variable names
+fn foo2(stack u64, stack u64[n], x,x,x : stack u64) -> stack u64[n] =
+  python print_foo;
+
+// we can use a variable name that is ignored
+fn foo3(x, y : stack u64, z : reg bool) -> stack u64 {
+  w : stack u64;
+  w = x;
+  w += x;
+  if (w = 5) {
+    z, x += w;
+  }
   return x;
 }
 
-extern fn bar() -> stack u64 * stack u64 {
-  reg u1,w1,q1,u2,w2,q2 : u64;
-  w1 = 2;
-  w2 = 4;
-  q1 = 3;
-  q2 = 1;
-  u1 = foo(w1,q1);
-  u2 = foo(w2,q2);
-  return u1, u2;
+// we can use a variable name that is ignored
+fn foo4(x : stack u64) {
 }
 
-fn assert_equal(stack x, y : u64) = python assert_equal;
-
-fn test() {
-  stack x1, x2 : u64;
-  x1, x2 = bar();
-  assert_equal(x1,x2);
-}
-  
+/*
+START:CMD
+ARG="print[input][types]"
+END:CMD
+*/

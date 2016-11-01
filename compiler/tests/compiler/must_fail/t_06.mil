@@ -1,0 +1,11 @@
+// we can use a variable name that is ignored
+fn foo(x : stack u64);
+
+// we can also leave out the variable name
+fn foo(x : stack u64);
+
+/*
+START:CMD
+ARG="print[input]"
+END:CMD
+*/
