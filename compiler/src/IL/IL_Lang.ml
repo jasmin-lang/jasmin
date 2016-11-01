@@ -8,6 +8,43 @@ module F = Format
 module P = ParserUtil
 module L = ParserUtil.Lexing
 
+(* ** Names
+ * ------------------------------------------------------------------------ *)
+(* *** Summary
+We use different types for the different namespaces for:
+- function names
+- parameters: global / module-level variables
+- variables: function local variables
+*)
+(* *** Code *)
+
+module Name = struct
+  module T : sig
+    type t [@@deriving compare,sexp]
+    val hash : t -> int
+    val pp : F.formatter -> t -> unit
+    val mk : string -> t
+    val to_string : t -> string
+  end = struct
+    type t = string [@@deriving compare,sexp]
+    let hash v = Hashtbl.hash v
+    let pp fmt (n : t) = Util.pp_string fmt n
+    let mk (s : string) = s
+    let to_string (n : t) = n
+  end
+  include T
+  include Comparable.Make(T)
+  include Hashable.Make(T)
+end
+
+module type NAME = sig
+  include module type of Name
+end
+
+module Pname : NAME = Name
+module Fname : NAME = Name
+module Vname : NAME = Name
+
 (* ** Compile time expressions
  * ------------------------------------------------------------------------ *)
 (* *** Summary
@@ -22,8 +59,6 @@ can be partially evaluated and the following constructs can be eliminated:
 *)
 (* *** Code *)
 
-type name = string [@@deriving compare,sexp]
-
 type pop_u64 =
   | Pplus
   | Pmult
@@ -36,158 +71,75 @@ type 'a pexpr_g =
   | Pconst of u64
   [@@deriving compare,sexp]
 
-(* dimension expression in types *)
-type dexpr = name pexpr_g [@@deriving compare,sexp]
 
-(* ** Types, sources, and destinations
+module Param = struct
+  module T = struct
+    type dexpr = t pexpr_g [@@deriving compare,sexp]
+ 
+    and ty =
+      | Bool
+      | U64
+      | Arr of dexpr
+      | TInvalid
+      [@@deriving compare,sexp]
+
+    and t = {
+      name : Pname.t; (* FIXME: do we need a number? *)
+      ty   : ty;
+      loc  : L.loc;
+    } [@@deriving compare,sexp]
+
+    let hash = Hashtbl.hash
+  end
+  include T
+  include Comparable.Make(T)
+  include Hashable.Make(T)
+  let pp fmt (p : t) = Pname.pp fmt p.name
+end
+
+include Param.T
+
+(* ** Types, variables, and parameters
  * ------------------------------------------------------------------------ *)
-(* *** Summary
-We define:
-- pseudo-registers that hold values and addresses
-- sources (r-values)
-- destinations (l-values)
-*)
-(* *** Code *)
-
-type ty =
-  | Bool
-  | U64
-  | Arr of dexpr
-  [@@deriving compare,sexp]
 
 type stor =
-  | Flag
   | Inline
   | Stack
   | Reg
+  | SInvalid (* invalid value used for initialization *)
   [@@deriving compare,sexp]
 
-type tinfo = ty * stor [@@deriving compare,sexp]
+module Var = struct
+  module T = struct
+    type t = {
+      name : Vname.t;
+      num  : int;
+      stor : stor;
+      ty   : ty;
+      loc  : L.loc;
+    } [@@deriving compare,sexp]
 
-module T : sig
-  type 'decl dest = {
-    d_name : name;
-    d_idx  : 'decl idx;
-    d_loc  : L.loc;
-    d_decl : 'decl
-  }
-  and 'decl patom = private
-    | Pparam of name
-    | Pdest  of 'decl dest
-
-  and 'decl idx = private
-    | Iconst of 'decl pexpr
-    | Ireg   of 'decl dest
-    | Inone
-    
-  and 'decl pexpr = ('decl patom) pexpr_g
-  
-  val compare_dest  : ('decl -> 'decl -> int) -> 'decl dest  -> 'decl dest  -> int
-  val compare_patom : ('decl -> 'decl -> int) -> 'decl patom -> 'decl patom -> int
-  val compare_pexpr : ('decl -> 'decl -> int) -> 'decl pexpr -> 'decl pexpr -> int
-  val compare_idx   : ('decl -> 'decl -> int) -> 'decl idx   -> 'decl idx   -> int
-
-  val sexp_of_dest  : ('decl -> Sexp.t) -> 'decl dest -> Sexp.t
-  val dest_of_sexp  : (Sexp.t -> 'decl) -> Sexp.t -> 'decl dest
-  val sexp_of_patom : ('decl -> Sexp.t) -> 'decl patom -> Sexp.t
-  val patom_of_sexp : (Sexp.t -> 'decl) -> Sexp.t -> 'decl patom
-  val sexp_of_pexpr : ('decl -> Sexp.t) -> 'decl pexpr -> Sexp.t
-  val pexpr_of_sexp : (Sexp.t -> 'decl) -> Sexp.t -> 'decl pexpr
-  val sexp_of_idx   : ('decl -> Sexp.t) -> 'decl idx -> Sexp.t
-  val idx_of_sexp   : (Sexp.t -> 'decl) -> Sexp.t -> 'decl idx
-
-  val mk_patom_dest_t    : name -> L.loc -> tinfo patom
-  val destr_patom_dest_t : tinfo patom -> (name * L.loc)
-
-  val mk_patom_dest_u    : name -> L.loc -> unit patom
-  val destr_patom_dest_u : unit patom -> (name * L.loc)
-
-  val mk_patom_param : name -> 'a patom
-
-  val inone : 'a idx
-  val mk_Iconst : 'a pexpr -> 'a idx
-  val mk_Ireg_t : name -> L.loc -> tinfo idx
-  val mk_Ireg_u : name -> L.loc -> unit idx
-
-  val destr_idx_Ireg_t : tinfo idx -> (name * L.loc)
-  val destr_idx_Ireg_u : unit idx -> (name * L.loc)
-end = struct
-  type 'decl dest = {
-    d_name : name;     (* r[i] has name r and (optional) index i, *)
-    d_idx : 'decl idx; (* i denotes index for array get           *)
-    d_loc  : L.loc;    (* location where pseudo-register occurs   *)
-    d_decl : 'decl     (* the declaration might be stored here    *)
-  } [@@deriving compare,sexp]
-
-  and 'decl patom =
-    | Pparam of name       (* global parameter (constant) *)
-    | Pdest  of 'decl dest (* function local variable *) 
-    [@@deriving compare,sexp]
-
-  (* parameter expression used in indexes and if-condition *)
-  and 'decl pexpr = ('decl patom) pexpr_g
-    [@@deriving compare,sexp]
-
-  and 'decl idx =
-    | Iconst of 'decl pexpr
-    | Ireg   of 'decl dest
-    | Inone
-    [@@deriving compare,sexp]
-
-  let mk_patom_dest_t n loc =
-    Pdest({ d_name = n; d_idx = Inone; d_loc = loc; d_decl = (U64,Inline) })
-
-  let destr_patom_dest_t pa =
-    match pa with
-    | Pparam(_) -> assert false
-    | Pdest(d) ->
-      assert (d.d_idx=Inone && fst d.d_decl = U64 && snd d.d_decl = Inline);
-      (d.d_name, d.d_loc)
-
-  let mk_patom_dest_u n loc =
-    Pdest({ d_name = n; d_idx = Inone; d_loc = loc; d_decl = () })
-
-  let destr_patom_dest_u pa =
-    match pa with
-    | Pparam(_) -> assert false
-    | Pdest(d) ->
-      assert (d.d_idx=Inone);
-      (d.d_name, d.d_loc)
-
-  let mk_patom_param n =
-    Pparam(n)
-
-  let inone = Inone
-  
-  let mk_Iconst pe = Iconst pe
-
-  let mk_Ireg_t n loc =
-    Ireg({d_name=n; d_idx=Inone; d_loc=loc; d_decl=(U64,Reg)})
-
-  let mk_Ireg_u n loc =
-    Ireg({d_name=n; d_idx=Inone; d_loc=loc; d_decl=()})
-
-  let destr_idx_Ireg_t pa =
-    match pa with
-    | Inone | Iconst _ -> assert false
-    | Ireg(d) ->
-      assert (d.d_idx=Inone && fst d.d_decl = U64 && snd d.d_decl = Reg);
-      (d.d_name, d.d_loc)
-
-  let destr_idx_Ireg_u pa =
-    match pa with
-    | Inone | Iconst _ -> assert false
-    | Ireg(d) ->
-      assert (d.d_idx=Inone);
-      (d.d_name, d.d_loc)
-
+    let hash = Hashtbl.hash
+  end
+  include T
+  include Comparable.Make(T)
+  include Hashable.Make(T)
+  let pp fmt (v : t) =
+    if Int.(v.num = 0) then
+      Vname.pp fmt v.name
+    else
+      F.fprintf fmt "%a.%i" Vname.pp v.name v.num
 end
 
-include T
+(* ** Atom, compile-time expressions, and conditions
+ * ------------------------------------------------------------------------ *)
 
-type 'decl src =
-  | Imm of 'decl pexpr (* Simm(i): immediate value i            *)
-  | Src of 'decl dest  (* Sreg(d): where d destination register *)
+type patom =
+  | Pparam of Param.t
+  | Pvar   of Var.t
+  [@@deriving compare,sexp]
+
+type pexpr = patom pexpr_g
   [@@deriving compare,sexp]
 
 type pop_bool =
@@ -199,11 +151,37 @@ type pop_bool =
   | Pgeq
   [@@deriving compare,sexp]
 
-type 'decl pcond =
+type pcond =
   | Ptrue
-  | Pnot of 'decl pcond
-  | Pand of 'decl pcond * 'decl pcond
-  | Pcmp of pop_bool * 'decl pexpr * 'decl pexpr
+  | Pnot of pcond
+  | Pand of pcond * pcond
+  | Pcmp of pop_bool * pexpr * pexpr
+  [@@deriving compare,sexp]
+
+(* ** Types, sources, and destinations
+ * ------------------------------------------------------------------------ *)
+(* *** Summary
+We define:
+- pseudo-registers that hold values and addresses
+- sources (r-values)
+- destinations (l-values)
+*)
+(* *** Code *)
+
+type idx =
+  | Iconst of pexpr
+  | Ivar   of Var.t
+  [@@deriving compare,sexp]
+
+type dest = {
+  d_var : Var.t;
+  d_idx : idx option;
+  d_loc : L.loc
+} [@@deriving compare,sexp]
+
+type src =
+  | Imm of pexpr (* Simm(i): immediate value i            *)
+  | Src of dest  (* Sreg(d): where d destination register *)
   [@@deriving compare,sexp]
 
 (* ** Operators and constructs for intermediate language
@@ -233,12 +211,12 @@ type three_op = O_Imul | O_And | O_Xor | O_Or [@@deriving compare,sexp]
 - statements (list of instructions) *)
 (* *** Code *)
 
-type 'decl fcond = { fc_neg : bool; fc_dest : 'decl dest }
+type fcond = { fc_neg : bool; fc_var : Var.t }
   [@@deriving compare,sexp]
 
-type 'decl fcond_or_pcond =
-  | Fcond of 'decl fcond (* flag condition *)
-  | Pcond of 'decl pcond (* parametric condition *)
+type fcond_or_pcond =
+  | Fcond of fcond (* flag condition *)
+  | Pcond of pcond (* parametric condition *)
   [@@deriving compare,sexp]
 
 type while_type =
@@ -256,21 +234,21 @@ type if_type =
   | Macro (* use as equality constraint in reg-alloc and compile to no-op *)
   [@@deriving compare,sexp]
 
-type 'decl base_instr =
+type base_instr =
   
-  | Assgn of 'decl dest * 'decl src * assgn_type
+  | Assgn of dest * src * assgn_type
     (* Assgn(d,s): d = s *)
 
-  | Op of op * 'decl dest list * 'decl src list
+  | Op of op * dest list * src list
     (* Op(ds,o,ss): ds = o(ss) *)
 
-  | Call of name * 'decl dest list * 'decl src list
+  | Call of Fname.t * dest list * src list
     (* Call(fname,rets,args): rets = fname(args) *)
 
-  | Load of 'decl dest * 'decl src * 'decl pexpr
+  | Load of dest * src * pexpr
     (* Load(d,src,pe): d = MEM[src + pe] *)
 
-  | Store of 'decl src * 'decl pexpr * 'decl src
+  | Store of src * pexpr * src
     (* Store(src1,pe,src2): MEM[src1 + pe] = src2 *) 
 
   | Comment of string
@@ -278,28 +256,22 @@ type 'decl base_instr =
 
   [@@deriving compare,sexp]
 
-type ('info,'decl) instr =
+type 'info instr =
 
-  | Binstr of 'decl base_instr
+  | Block of (base_instr L.located) list * 'info option
 
-  | If of 'decl fcond_or_pcond * ('info,'decl) stmt * ('info,'decl) stmt
+  | If of fcond_or_pcond * 'info stmt * 'info stmt * 'info option
     (* If(c1,s1,s2): if c1 { s1 } else s2 *)
 
-  | For of 'decl dest * 'decl pexpr * 'decl pexpr * ('info,'decl) stmt
+  | For of dest * pexpr * pexpr * 'info stmt * 'info option
     (* For(v,lower,upper,s): for v in lower..upper { s } *)
 
-  | While of while_type * 'decl fcond * ('info,'decl) stmt
+  | While of while_type * fcond * 'info stmt * 'info option
     (* While(wt,fcond,s):
          wt=WhileDo  while fcond { s }
          wt=DoWhile  do          { s } while fcond; *)
 
-and ('info, 'decl) instr_info = {
-  i_val : ('info,'decl) instr;
-  i_loc  : L.loc;
-  i_info : 'info
-}
-
-and ('info, 'decl) stmt = (('info, 'decl) instr_info) list
+and 'info stmt = (('info instr) L.located) list
   [@@deriving compare,sexp]
 
 (* ** Function definitions, declarations, and modules
@@ -310,69 +282,30 @@ type call_conv =
   | Custom
   [@@deriving compare,sexp]
 
-type decl = stor * name * ty [@@deriving compare,sexp]
+type tinfo = (stor * ty) [@@deriving compare,sexp]
 
-type ('info,'decl) fundef = {
-  fd_decls  : (decl list) option; (* function-local declarations, optional if decls inlined *)
-  fd_body   : ('info,'decl) stmt; (* function body *)
-  fd_ret    : name list           (* return values *)
+type 'info fundef = {
+  f_body      : 'info stmt; (* function body *)
+  f_arg       : Var.t list; (* argument values *)
+  f_ret       : Var.t list; (* return values *)
+  f_call_conv : call_conv;  (* callable or internal function *)
 } [@@deriving compare,sexp]
 
-type ('info,'decl) fundef_or_py =
-  | Undef
-  | Def of ('info,'decl) fundef
-  | Py of string
+type foreigndef = {
+  fo_py_def : string option;
+  fo_arg_ty : tinfo list;
+  fo_ret_ty : tinfo list
+} [@@deriving compare,sexp]
+
+type 'info func =
+  | Native  of 'info fundef
+  | Foreign of foreigndef
   [@@deriving compare,sexp]
 
-type ('info,'decl) func = {
-  f_name      : name;                        (* function name *)
-  f_call_conv : call_conv;                   (* callable or internal function *)
-  f_args      : decl list;                   (* formal function arguments *)
-  f_def       : ('info,'decl) fundef_or_py;  (* def. unless function just declared *)
-  f_ret_ty    : (stor * ty) list;            (* return type *)
+type 'info modul = {
+  m_params : Param.t list;           (* module parameters           *)
+  m_funcs  : 'info func Fname.Map.t; (* map from names to functions *)
 } [@@deriving compare,sexp]
-
-type ('info,'decl) modul = {
-  m_params : (name * ty) list;        (* module parameters *)
-  m_funcs  : ('info,'decl) func list; (* module functions  *)
-} [@@deriving compare,sexp]
-
-(* ** Type abbreviations for untyped and typed versions
- * ------------------------------------------------------------------------ *)
-
-type dest_t           = tinfo dest           [@@deriving compare,sexp]
-type patom_t          = tinfo patom          [@@deriving compare,sexp]
-type pexpr_t          = tinfo pexpr          [@@deriving compare,sexp]
-type src_t            = tinfo src            [@@deriving compare,sexp]
-type pcond_t          = tinfo pcond          [@@deriving compare,sexp]
-type fcond_t          = tinfo fcond          [@@deriving compare,sexp]
-type fcond_or_pcond_t = tinfo fcond_or_pcond [@@deriving compare,sexp]
-type base_instr_t     = tinfo base_instr     [@@deriving compare,sexp]
-
-type 'info instr_t        = ('info,tinfo) instr        [@@deriving compare,sexp]
-type 'info instr_info_t   = ('info,tinfo) instr_info   [@@deriving compare,sexp]
-type 'info stmt_t         = ('info,tinfo) stmt         [@@deriving compare,sexp]
-type 'info fundef_t       = ('info,tinfo) fundef       [@@deriving compare,sexp]
-type 'info fundef_or_py_t = ('info,tinfo) fundef_or_py [@@deriving compare,sexp]
-type 'info func_t         = ('info,tinfo) func         [@@deriving compare,sexp]
-type 'info modul_t        = ('info,tinfo) modul        [@@deriving compare,sexp]
-
-type dest_u           = unit dest            [@@deriving compare,sexp]
-type patom_u          = unit patom           [@@deriving compare,sexp]
-type pexpr_u          = unit pexpr           [@@deriving compare,sexp]
-type src_u            = unit src             [@@deriving compare,sexp]
-type pcond_u          = unit pcond           [@@deriving compare,sexp]
-type fcond_u          = unit fcond           [@@deriving compare,sexp]
-type fcond_or_pcond_u = unit fcond_or_pcond  [@@deriving compare,sexp]
-type base_instr_u     = unit base_instr      [@@deriving compare,sexp]
-
-type 'info instr_u        = ('info,unit) instr        [@@deriving compare,sexp]
-type 'info instr_info_u   = ('info,unit) instr_info   [@@deriving compare,sexp]
-type 'info stmt_u         = ('info,unit) stmt         [@@deriving compare,sexp]
-type 'info fundef_u       = ('info,unit) fundef       [@@deriving compare,sexp]
-type 'info fundef_or_py_u = ('info,unit) fundef_or_py [@@deriving compare,sexp]
-type 'info func_u         = ('info,unit) func         [@@deriving compare,sexp]
-type 'info modul_u        = ('info,unit) modul        [@@deriving compare,sexp]
 
 (* ** Values
  * ------------------------------------------------------------------------ *)
@@ -385,20 +318,9 @@ type value =
 (* ** Define Map, Hashtables, and Sets
  * ------------------------------------------------------------------------ *)
 
-module Dest_u = struct
+module Dest = struct
   module T = struct
-    type t = dest_u [@@deriving compare,sexp]
-    let compare = compare_t
-    let hash v = Hashtbl.hash v
-  end
-  include T
-  include Comparable.Make(T)
-  include Hashable.Make(T)
-end
-
-module Dest_t = struct
-  module T = struct
-    type t = dest_t [@@deriving compare,sexp]
+    type t = dest [@@deriving compare,sexp]
     let compare = compare_t
     let hash v = Hashtbl.hash v
   end

@@ -4,405 +4,146 @@
 open Core_kernel.Std
 open Util
 open Arith
-open IL_Lang
+(* open IL_Lang *)
 open IL_Utils
 
 module X64 = Asm_X64
 module MP  = MParser
 module HT  = Hashtbl
-module IT  = IL_Typing
+(* module IT  = IL_Typing *)
+
+
+(* ** Simple transformations
+ * ------------------------------------------------------------------------ *)
 
 (* ** Register liveness
  * ------------------------------------------------------------------------ *)
-
-(* *** Liveness information definitions *)
-
-module LI = struct 
-  (* hashtable that holds the CFG and the current liveness information *)
-  type t = {
-    use         : SS.t      Pos.Table.t;
-    def         : SS.t      Pos.Table.t;
-    succ        : Pos.Set.t Pos.Table.t;
-    pred        : Pos.Set.t Pos.Table.t;
-    live_before : SS.t      Pos.Table.t;
-    live_after  : SS.t      Pos.Table.t;
-    str         : string    Pos.Table.t;
-  }
-
-  let mk () =
-    { use         = Pos.Table.create ()
-    ; def         = Pos.Table.create ()
-    ; succ        = Pos.Table.create ()
-    ; pred        = Pos.Table.create ()
-    ; str         = Pos.Table.create ()
-    ; live_before = Pos.Table.create ()
-    ; live_after  = Pos.Table.create () }
-
-  let enter_fun_pos  = [-1]
-  let return_fun_pos = [-2]
-
-  let get_use linfo pos = hashtbl_find_exn linfo.use pp_pos pos 
-  let get_def linfo pos = hashtbl_find_exn linfo.def pp_pos pos
-  let get_str linfo pos = hashtbl_find_exn linfo.str pp_pos pos
-  let get_pred linfo pos =
-    HT.find linfo.pred pos |> get_opt Pos.Set.empty
-  let get_succ linfo pos =
-    HT.find linfo.succ pos |> get_opt Pos.Set.empty
-  let get_live_before linfo pos =
-    HT.find linfo.live_before pos |> get_opt SS.empty
-  let get_live_after linfo pos =
-    HT.find linfo.live_after pos |> get_opt SS.empty
-
-  let add_succ linfo ~pos ~succ =
-    HT.change linfo.succ pos
-      ~f:(map_opt_def ~d:(Pos.Set.singleton succ)
-                      ~f:(fun s -> Pos.Set.add s succ))
-
-  let add_pred linfo ~pos ~pred =
-    HT.change linfo.pred pos
-      ~f:(map_opt_def ~d:(Pos.Set.singleton pred)
-                      ~f:(fun s -> Pos.Set.add s pred))
-
-  let pred_of_succ linfo =
-    HT.iteri linfo.succ
-      ~f:(fun ~key ~data ->
-            Pos.Set.iter data ~f:(fun pos -> add_pred linfo ~pos ~pred:key))
-
-  let pp_set_pos =
-    pp_set pp_pos (fun s -> List.sort ~cmp:compare_pos (Pos.Set.to_list s))
-
-  let pp_pos_table pp_data fmt li_ss =
-    List.iter
-      (List.sort ~cmp:(fun a b -> compare_pos (fst a) (fst b))
-         (HT.to_alist li_ss))
-      ~f:(fun (key,data) ->
-            F.fprintf fmt "%a -> %a; " pp_pos key pp_data data)
-
-  let pp fmt li =
-    F.fprintf fmt
-      "use: %a\ndef: %a\nsucc: %a\npred: %a\nlive_before: %a\nlive_after: %a\n"
-      (pp_pos_table pp_set_string) li.use
-      (pp_pos_table pp_set_string) li.def
-      (pp_pos_table pp_set_pos)    li.succ
-      (pp_pos_table pp_set_pos)    li.pred
-      (pp_pos_table pp_set_string) li.live_before
-      (pp_pos_table pp_set_string) li.live_after
-
-  let string_of_instr = function
-    | Binstr(bi)          -> fsprintf "%a"               pp_base_instr bi
-    | If(Fcond(fc),_,_)   -> fsprintf "if %a {} else {}" pp_fcond fc
-    | While(WhileDo,fc,_) -> fsprintf "while %a {}"      pp_fcond fc
-    | While(DoWhile,fc,_) -> fsprintf "do {} while %a;"  pp_fcond fc
-    | _                   -> fsprintf "string_of_instr: unexpected instruction"
-
-  let traverse_cfg_backward ~f linfo =
-    let visited = Pos.Table.create () in
-    let rec go pos =
-      f pos;
-      Pos.Table.set visited ~key:pos ~data:();
-      Pos.Set.iter (Pos.Table.find linfo.pred pos
-                       |> Option.value ~default:Pos.Set.empty)
-        ~f:(fun p -> if Pos.Table.find visited p = None then go p)
-    in
-    go return_fun_pos
-
-  let dump ~verbose linfo fname =
-    let ctr = ref 1 in
-    let visited     = Pos.Table.create () in
-    let code_string = Pos.Table.create () in
-    let code_id     = Pos.Table.create () in
-    let node_succ   = Pos.Table.create () in
-    let to_string before pos =
-      fsprintf "%s%a: %s %s \\n%a"
-        (if before then
-            fsprintf "%a\\n"         pp_set_string (get_live_before linfo pos)
-
-         else "")
-        pp_pos pos
-        (get_str linfo pos)
-        (if verbose then
-           fsprintf "def=%a use=%a "
-              pp_set_string (get_def linfo pos)
-              pp_set_string (get_use linfo pos)
-         else "")
-        pp_set_string (get_live_after linfo pos)
-    in
-    let sb = Buffer.create 256 in
-    let rec collect_basic_block pos =
-      match HT.find linfo.succ pos with
-      | Some(ss) when false -> (* Set.length ss = 1 -> *)
-        let succ_pos = Set.min_elt_exn ss in
-        if not (HT.mem visited succ_pos) then (
-          begin match HT.find linfo.pred succ_pos with
-          | Some(ss) when Set.length ss = 1 ->
-            Buffer.add_string sb "\\n";
-            Buffer.add_string sb (to_string false succ_pos);
-            HT.set visited ~key:succ_pos ~data:();
-            collect_basic_block succ_pos
-          | None | Some(_) -> pos
-          end
-        ) else (
-          pos
-        )
-      | None | Some(_) -> pos
-    in
-    let rec go pos =
-      HT.set visited ~key:pos ~data:();
-      HT.set code_id ~key:pos ~data:!ctr;
-      incr ctr;
-      Buffer.clear sb;
-      Buffer.add_string sb (to_string true pos);
-      let pos' = collect_basic_block pos in
-      let s = Buffer.to_bytes sb in
-      HT.set code_string ~key:pos ~data:s;
-      let succs =
-        Pos.Table.find linfo.succ pos'
-        |> Option.value ~default:Pos.Set.empty
-      in
-      HT.set node_succ ~key:pos ~data:succs;
-      Set.iter succs
-        ~f:(fun p -> if Pos.Table.find visited p = None then go p)
-    in
-    go enter_fun_pos;
-    let g = ref G.empty in
-    Pos.Table.iteri node_succ
-      ~f:(fun ~key ~data ->
-            let to_string pos = HT.find_exn code_string pos in
-            g := G.add_vertex !g (HT.find_exn code_id key, to_string key);
-            Pos.Set.iter data
-              ~f:(fun succ ->
-                    g := G.add_edge !g (HT.find_exn code_id key, to_string key)
-                                       (HT.find_exn code_id succ, to_string succ)));
-    let file = open_out_bin fname in
-    Dot.output_graph file !g
-end
-
-(* *** CFG traversal *)
-
-let update_liveness linfo changed pos =
-  let succs = LI.get_succ linfo pos in
-  (* if not (Pos.Set.is_empty (Pos.Set.inter !changed succs)) then ( *)
-  let live = ref SS.empty in
-    (* compute union of live_before of successors *)
-    (* F.printf "updating %a with succs: %a\n" pp_pos pos LI.pp_set_pos succs; *)
-  Set.iter succs
-    ~f:(fun spos ->
-          let live_s = LI.get_live_before linfo spos in
-          live := SS.union !live live_s);
-  (* update live_{before,after} of this vertex *)
-  let live_after = LI.get_live_after linfo pos in
-  if not (SS.equal !live live_after) then changed := true;
-  let live_before_old = LI.get_live_before linfo pos in
-  let def_s = LI.get_def linfo pos in
-  let use_s = LI.get_use linfo pos in
-  Pos.Table.set linfo.LI.live_after ~key:pos ~data:!live;
-  let live_before = SS.union (SS.diff !live def_s) use_s in
-  if not (SS.equal live_before live_before_old) then changed := true;
-  Pos.Table.set linfo.LI.live_before ~key:pos ~data:live_before
-
-let iterate_liveness linfo =
-  let cont = ref true in
-  (* let changed_initial = Pos.Set.singleton LI.return_fun_pos in *)
-  let use_return = LI.get_use linfo LI.return_fun_pos in
-  Pos.Table.set linfo.LI.live_before ~key:LI.return_fun_pos ~data:use_return;
-  let n_iter = ref 0 in
-  while !cont do
-    incr n_iter;
-    (* print_endline "iterate"; *)
-    (* let changed = ref changed_initial  in *)
-    let changed = ref false in
-    LI.traverse_cfg_backward ~f:(update_liveness linfo changed) linfo;
-    if not !changed then cont := false;
-    (* if Pos.Set.equal !changed changed_initial then cont := false; *)
-    (* print_endline "iterate done" *)
-  done;
-  F.printf "---> iterations: %i\n" !n_iter
-
-(* *** Liveness information computation *)
-
-let rec init_liveness_instr linfo ~path ~idx ~exit_p instr =
-  let pos = path@[idx] in
-  let succ_pos = Option.value exit_p ~default:(path@[idx + 1]) in
-  let li_use  = linfo.LI.use  in
-  let li_def  = linfo.LI.def  in
-  let li_str  = linfo.LI.str  in
-  (* set use, def, and str *)
-  HT.set li_use ~key:pos ~data:(use_instr instr);
-  HT.set li_def ~key:pos ~data:(def_instr instr);
-  HT.set li_str ~key:pos ~data:(LI.string_of_instr instr);
-  (* set succ and recursively initialize blocks in if and while *)
-  match instr with
-
-  | Binstr(_) ->
-    LI.add_succ linfo ~pos ~succ:succ_pos
-
-  | If(Fcond(_),s1,s2) ->
-    init_liveness_block linfo ~path:(pos@[0]) ~entry_p:pos ~exit_p:succ_pos s1;
-    init_liveness_block linfo ~path:(pos@[1]) ~entry_p:pos ~exit_p:succ_pos s2
-    
-  | While(WhileDo,_,s) ->
-    if s=[] then (
-      LI.add_succ linfo ~pos ~succ:pos
-    ) else (
-      LI.add_succ linfo ~pos:(pos@[0;List.length s - 1]) ~succ:pos;
-    );
-    init_liveness_block linfo ~path:(pos@[0]) ~entry_p:pos ~exit_p:succ_pos s
-    
-  | While(DoWhile,fc,s) ->
-    (* the use is associated with a later node *)
-    HT.set li_use ~key:pos ~data:SS.empty;
-    HT.set li_str ~key:pos ~data:"do {";
-    (* add node where test and backwards jump happens *)
-    let exit_pos = pos@[1] in
-    let exit_str = fsprintf "} while %a;" pp_fcond fc in
-    HT.set li_use ~key:exit_pos ~data:(use_instr instr);
-    HT.set li_def ~key:exit_pos ~data:SS.empty;
-    HT.set li_str ~key:exit_pos ~data:exit_str;
-    LI.add_succ linfo ~pos:exit_pos ~succ:pos;
-    LI.add_succ linfo ~pos:exit_pos ~succ:succ_pos;
-    init_liveness_block linfo ~path:(pos@[0]) ~entry_p:pos ~exit_p:exit_pos s
-
-  | If(Pcond(_),_,_)
-  | For(_,_,_,_)     -> failwith "liveness analysis: unexpected instruction"
-
-and init_liveness_block linfo ~path ~entry_p ~exit_p stmt =
-  let rec go ~path ~idx = function
-    | [] -> failwith "liveness analysis: impossible case"
-    | [i] ->
-      init_liveness_instr linfo ~path ~idx ~exit_p:(Some exit_p) i.i_val
-    | i::s ->
-      init_liveness_instr linfo ~path ~idx ~exit_p:None i.i_val;
-      go ~path ~idx:(idx+1) s
-  in
-  if stmt = [] then (
-    (* empty statement goes from entry to exit *)
-    LI.add_succ linfo ~pos:entry_p ~succ:exit_p
-  ) else (
-    (* initialize first node *)
-    let first_pos = path@[0] in
-    LI.add_succ linfo ~pos:entry_p ~succ:first_pos;
-    (* initialize statements *)
-    go ~path ~idx:0 stmt
-  )
-
-let compute_liveness_stmt linfo stmt ~enter_def ~return_use =
-  let ret_pos = LI.return_fun_pos in
-  let enter_pos = LI.enter_fun_pos in
-  (* initialize return node *)
-  let ret_str = fsprintf "return %a" (pp_list "," pp_string) return_use in
-  HT.set linfo.LI.str ~key:ret_pos ~data:ret_str;
-  HT.set linfo.LI.use ~key:ret_pos ~data:(SS.of_list return_use);
-  HT.set linfo.LI.def ~key:ret_pos ~data:(SS.empty);
-  (* initialize function args node *)
-  let args_str = fsprintf "enter %a" (pp_list "," pp_string) enter_def in
-  HT.set linfo.LI.str ~key:enter_pos ~data:args_str;
-  HT.set linfo.LI.use ~key:enter_pos ~data:(SS.empty);
-  HT.set linfo.LI.def ~key:enter_pos ~data:(SS.of_list enter_def);
-  (* compute CFG into linfo *)
-  init_liveness_block linfo ~path:[] stmt ~entry_p:enter_pos ~exit_p:ret_pos;
-  (* add backward edges to CFG *)
-  LI.pred_of_succ linfo;
-  (* set liveness information in live_info *)
-  iterate_liveness linfo
-
-let compute_liveness_fundef fdef arg_defs =
-  let linfo = LI.mk () in
-  let stmt = fdef.fd_body in
-  compute_liveness_stmt linfo stmt ~enter_def:arg_defs ~return_use:fdef.fd_ret;
-  linfo
-
-let compute_liveness_func func =
-  let args_def = List.map ~f:(fun (_,n,_) -> n) func.f_args in
-  let fdef = match func.f_def with
-    | Def fd -> fd
-    | Undef  -> failwith "Cannot add liveness annotations to undefined function"
-    | Py(_)  -> failwith "Cannot add liveness annotations to python function"
-  in
-  compute_liveness_fundef fdef args_def
-
-let compute_liveness_modul modul fname =
-  match List.find modul.m_funcs ~f:(fun f -> f.f_name = fname) with
-  | Some func -> compute_liveness_func func
-  | None      -> failwith "compute_liveness: function with given name not found"
-
-(* ** New liveness computation
- * ------------------------------------------------------------------------ *)
+(* *** Summary
+We follow the terminology and description given in:
+  Keith D. Cooper & Linda Torczon - Engineering a compiler
+*)
+(* *** Code *)
 
 module LV = struct
-  type t = {
-    live_before : SS.t;
-    live_after  : SS.t;
+  type li = {
+    var_ue   : SS.t;
+    var_kill : SS.t;
+    live_out : SS.t;
+    is_basic : bool;
   }
+    
+  type t = li option
 
   let mk () = {
-    live_before = SS.empty;
-    live_after  = SS.empty;
+    var_ue   = SS.empty;
+    var_kill = SS.empty;
+    live_out = SS.empty;
+    is_basic = false;
   }
 
-  let remove_liveness_modul modul =
-    concat_map_modul_all modul
-      ~f:(fun _pos loc _ instr -> [{ i_val = instr; i_loc = loc; i_info = () }])
-
+  (*
   let add_initial_liveness_modul modul =
     F.printf "add initial liveness\n%!";
     concat_map_modul_all modul
-      ~f:(fun _pos loc _ instr -> [{ i_val = instr; i_loc = loc; i_info = mk () }])
-
+      ~f:(fun _pos loc _ instr -> [ set_info_instr None instr ])
+  *)
 end
 
-let update_liveness_stmt stmt changed ~succ_live =
-  let set_card_eq s1 s2 = SS.length s1 = SS.length s2 in
-  let update_instr_i instr_i ~v ~lb ~la =
-    let lb_old = instr_i.i_info.LV.live_before in
-    if not !changed && not (set_card_eq lb_old lb) then changed := true;
+
+let add_kill_ue_stmt _stmt =
+  undefined ()
+(*
+  let _handle_instr is_basic ue kill ii =
+    match ii with
+    | Block(bis,_) -> failwith "undefined"
+      (* let use  = use_binstr bi in *)
+      (* let def  = def_binstr bi in *)
+      (* let ue   = SS.union ue (SS.diff use kill) in *)
+      (* let kill = SS.union kill def in *)
+      (* is_basic, ue, kill, ii *)
+      
+    | If(fc,s1,s2,_) -> failwith "undefined"
+      (* true,  *)
+
+    | While(DoWhile,fc,s,_) -> failwith "undefined"
+     
+   
+    | While(WhileDo,_,_,_) -> failwith "Not implemented"
+    | For(_,_,_,_,_)       -> failwith "computing liveness information: unexpected instruction"
+    
+  and handle_stmt _acc _is_basic _ue _kill _iis =
+    failwith "undefined"
+  in
+  handle_stmt [] true SS.empty SS.empty stmt
+(*
+      
+        let use = use_binstr bi in
+        let def = def_binstr bi in
+        let live_before =
+          if first then (
+            (* let ht = String.Table.create () in *)
+            let ht = one_ht in
+            SS.iter use ~f:(fun n -> HT.set ht ~key:n ~data:());
+            ht
+          ) else ( info.LV.live_before )
+        in
+*)
+(*
+  let _set_card_eq s1 s2 = HT.length s1 = HT.length s2 in
+  let update_instr_i instr_i ~v ~lb =
+    (* let lb_old = instr_i.i_info.LV.live_before in *)
+    (* if not !changed && not (set_card_eq lb_old lb) then changed := true; *)
     { instr_i with
       i_val  = v;
-      i_info = {LV.live_after = la; LV.live_before = lb; } }
+      i_info = { LV.live_before = lb; } }
   in
+  let one_ht = String.Table.create () in
+  let other_ht = String.Table.create () in
   let rec go left right succ_live =
     match right with
     | [] -> succ_live,left
     | instr_i::right ->
+      let info = instr_i.i_info in
       begin match instr_i.i_val with
 
       | Binstr(bi) as instr ->
         let use = use_binstr bi in
         let def = def_binstr bi in
-        let live_after = succ_live in
-        let live_before = SS.union (SS.diff live_after def) use in
-        let instr_i =
-          update_instr_i instr_i ~v:instr ~lb:live_before ~la:live_after
+        let live_before =
+          if first then (
+            (* let ht = String.Table.create () in *)
+            let ht = one_ht in
+            SS.iter use ~f:(fun n -> HT.set ht ~key:n ~data:());
+            ht
+          ) else ( info.LV.live_before )
         in
-        go (instr_i::left) right live_before
+        HT.iter_keys succ_live
+          ~f:(fun n -> if not (SS.mem def n) then HT.set live_before ~key:n ~data:());
+        let instr_i =
+          update_instr_i instr_i ~v:instr ~lb:live_before
+        in
+        go (instr_i::left) right (* live_before *) other_ht
 
       | If(fc,s1,s2) ->
-        let lb1, s1 = go [] (List.rev s1) succ_live in 
-        let lb2, s2 = go [] (List.rev s2) succ_live in 
-        let live_before = SS.union lb1 lb2 in
+        let lb1, s1v = go [] (List.rev s1.s_val) succ_live in 
+        let lb2, s2v = go [] (List.rev s2.s_val) succ_live in 
+        let live_before = if first then String.Table.create () else info.LV.live_before in
+        HT.iter_keys lb1 ~f:(fun n -> HT.set live_before ~key:n ~data:());
+        HT.iter_keys lb2 ~f:(fun n -> HT.set live_before ~key:n ~data:());
         let instr_i =
-          update_instr_i instr_i ~v:(If(fc,s1,s2)) ~lb:live_before ~la:succ_live
+          update_instr_i instr_i ~v:(If(fc,{s1 with s_val=s1v},{s2 with s_val=s2v})) ~lb:live_before
         in
         go (instr_i::left) right live_before
 
       | While(DoWhile,fc,s) as instr ->
         let use_fc = use_instr instr in
-        let live_after_last = SS.union_list [ use_fc; instr_i.i_info.LV.live_before; succ_live ] in
-        let lb, s =
-          match List.rev s with
-          | [] ->
-            succ_live, []
-          | instr_i::_ as rs -> (* FIXME: check this optimizations *)
-            let old_live_after = instr_i.i_info.LV.live_after in
-            if set_card_eq old_live_after live_after_last then
-              ((List.hd_exn s).i_info.LV.live_before, s)
-            else (
-              go [] rs live_after_last
-            )
-        in
+        let live_after_last = String.Table.create () in
+        SS.iter use_fc                   ~f:(fun n -> HT.set live_after_last ~key:n ~data:());
+        HT.iter_keys info.LV.live_before ~f:(fun n -> HT.set live_after_last ~key:n ~data:());
+        HT.iter_keys succ_live           ~f:(fun n -> HT.set live_after_last ~key:n ~data:());
+        let lb, sv = go [] (List.rev s.s_val) live_after_last in
         let live_before = lb in (* loop executed at least once *)
-        let instr_i =
-          update_instr_i instr_i ~v:(While(DoWhile,fc,s)) ~lb:live_before ~la:succ_live
-        in
+        let instr_i = update_instr_i instr_i ~v:(While(DoWhile,fc,{ s with s_val = sv})) ~lb:live_before in
         go (instr_i::left) right live_before
         
       | While(WhileDo,_,_) -> failwith "Not implemented"
@@ -411,23 +152,38 @@ let update_liveness_stmt stmt changed ~succ_live =
       end
   in
   snd (go [] (List.rev stmt) succ_live)
+*)
 
-let add_liveness_fundef fdef =
+let add_liveness_fundef _fdef =
+  undefined ()
+  (*
+  let stmt = add_kill_ue_stmt fdef.fd_body in
+  { fdef with fd_body = stmt }
+  *)
+  (*
+  let succ_live =
+    let ht = String.Table.create () in
+    List.iter fdef.fd_ret ~f:(fun n -> HT.set ht ~key:n ~data:());
+    ht
+  in
   let changed = ref false in
-  let body = ref fdef.fd_body in
+  let body = ref fdef.fd_body.s_val in
   let cont = ref true in
+  let first = ref true in
   F.printf "   iterate liveness: .%!";
   while !cont do 
-    body := update_liveness_stmt !body changed ~succ_live:(SS.of_list fdef.fd_ret);
+    body := update_liveness_stmt !body !first changed ~succ_live;
+    cont := false;
     if not !changed then (
       cont := false
     ) else (
-      changed := false
+      changed := false;
+      first := false;
+      F.printf ".%!"
     );
-    F.printf ".%!"
   done;
   F.printf "\n%!";
-  { fdef with fd_body = !body }
+  *)
 
 let add_liveness_func func =
   map_fundef ~err_s:"add liveness information" ~f:add_liveness_fundef func
@@ -489,6 +245,8 @@ module REGI = struct
     | None    -> ()
 
   let union_class rinfo d1 d2 =
+    failwith "undefined"
+    (*
     let root1 = class_of rinfo d1.d_name in
     let root2 = class_of rinfo d2.d_name in
     if root1<>root2 then (
@@ -506,6 +264,7 @@ module REGI = struct
         union_fixed rinfo ~keep:root2 ~merge:root1;
         HT.set rinfo.rank_of  ~key:root2 ~data:(rank2 + 1)
     )
+    *)
 
   let pp_fixed fmt (i,_l) = X64.pp_int_reg fmt i
 
@@ -518,6 +277,8 @@ module REGI = struct
 end
 
 let reg_info_binstr rinfo bi =
+    failwith "undefined"
+    (*
   let is_reg_dest d =
     let (t,s) = d.d_decl in
     if s = Reg
@@ -537,6 +298,7 @@ let reg_info_binstr rinfo bi =
       REGI.union_class rinfo (get_src_dest_exn s1) d2;
       REGI.fix_class rinfo d2.d_name (X64.int_of_reg X64.RAX);
       REGI.fix_class rinfo d1.d_name (X64.int_of_reg X64.RDX)
+        
 
     | V_Carry(_,_,d2,s1,_,_)
       when is_reg_dest d2 && is_reg_src s1 ->
@@ -573,22 +335,28 @@ let reg_info_binstr rinfo bi =
   | Comment(_)   -> ()
 
   | Call(_) -> failwith "inline calls before register allocation"
+    *)
 
 let rec reg_info_instr rinfo li =
+  failwith "undefined"
+(*
   let ri_stmt = reg_info_stmt rinfo in
   let ri_binstr = reg_info_binstr rinfo in
   match li.i_val with
-  | Binstr(bi)         -> ri_binstr bi
+  | Block(bis,_)       -> failwith "undefined" (* ri_binstr bi *)
   | While(_,_fc,s)     -> ri_stmt s
   | If(Fcond(_),s1,s2) -> ri_stmt s1; ri_stmt s2
 
   | If(Pcond(_),_,_)
   | For(_,_,_,_)     -> failwith "register allocation: unexpected instruction"
+*)
 
 and reg_info_stmt rinfo stmt =
   List.iter ~f:(reg_info_instr rinfo) stmt
 
 let reg_info_func rinfo func fdef =
+  failwith "undefined"
+(*
   let fix_regs_args rinfo =
     let arg_len  = List.length func.f_args in
     let arg_regs = List.take X64.arg_regs arg_len in
@@ -617,6 +385,7 @@ let reg_info_func rinfo func fdef =
   fix_regs_ret rinfo;
   reg_info_stmt rinfo fdef.fd_body
   (* F.printf "\n%a\n%!" REGI.pp rinfo *)
+*)
 
 (* ** Register allocation
  * ------------------------------------------------------------------------ *)
@@ -698,7 +467,9 @@ let assign_reg reg_num denv conflicts classes rinfo cur_pos name =
 
   | Some(_t,_s) -> ()
 
-let assign_regs reg_num denv (conflicts : (unit String.Table.t) String.Table.t) linfo rinfo =
+let assign_regs _reg_num _denv (_conflicts : (unit String.Table.t) String.Table.t) _linfo _rinfo =
+  failwith "undefined"
+(*
   let visited = Pos.Table.create () in
   let visit   = ref [LI.enter_fun_pos] in
   let classes = REGI.get_classes rinfo in
@@ -714,8 +485,11 @@ let assign_regs reg_num denv (conflicts : (unit String.Table.t) String.Table.t) 
       visit := !visit @ (Set.to_list @@ LI.get_succ linfo cur_pos)
     )
   done
+*)
 
-let reg_alloc_func reg_num func =
+let reg_alloc_func _reg_num func =
+  undefined ()
+(*
   assert (func.f_call_conv = Extern);
   let rename denv rinfo name =
     match Map.find denv name with
@@ -727,7 +501,9 @@ let reg_alloc_func reg_num func =
     | Some(_,_) ->
       name
   in
-  let extract_conflicts linfo conflicts ~key:pos ~data:live_set =
+  let _extract_conflicts _linfo _conflicts ~key:_pos ~data:_live_set =
+    failwith "undefined"
+    (*
     let defs = LI.get_def linfo pos in
     let add_set (ht : unit String.Table.t) live_set n' =
       SS.iter live_set
@@ -742,6 +518,7 @@ let reg_alloc_func reg_num func =
             HT.change conflicts n
               ~f:(function | None     -> Some(new_set live_set n)
                            | Some(ht) -> Some(add_set ht live_set n)))
+    *)
   in
   let print_time start stop = F.printf "   %fs\n%!" (stop -. start) in
 
@@ -754,27 +531,30 @@ let reg_alloc_func reg_num func =
   print_time t1 t2;
 
   F.printf "-> computing liveness\n%!";
-  let linfo = compute_liveness_func func in
-  let conflicts = String.Table.create () in
+  let _linfo = failwith "undefined" (*compute_liveness_func func*) in
+  let _conflicts = String.Table.create () in
   let t3 = Unix.gettimeofday () in
   print_time t2 t3;
 
   F.printf "-> computing conflicts\n%!";
-  HT.iteri linfo.LI.live_after ~f:(extract_conflicts linfo conflicts);
+  (* HT.iteri linfo.LI.live_after ~f:(extract_conflicts linfo conflicts); *)
   let denv = IT.denv_of_func func (IT.extract_decls func.f_args fd) in
   let t4 = Unix.gettimeofday () in
   print_time t3 t4;
 
   F.printf "-> assigning registers\n%!";
-  assign_regs reg_num denv conflicts linfo rinfo;
+  (* assign_regs reg_num denv conflicts linfo rinfo; *)
   let t5 = Unix.gettimeofday () in
   print_time t4 t5;
 
   F.printf "-> renaming variables\n%!";
+  (*
   let func = rename_func (rename denv rinfo) func in
+  *)
   let t6 = Unix.gettimeofday () in
   print_time t5 t6;
   func
+*)
   
 let reg_alloc_modul reg_num modul fname =
   map_fun ~f:(reg_alloc_func reg_num) modul fname
@@ -782,9 +562,11 @@ let reg_alloc_modul reg_num modul fname =
 (* ** Remove equality constraints
  * ------------------------------------------------------------------------ *)
 
-let remove_eq_constrs_instr _pos loc info instr =
+let remove_eq_constrs_instr _pos info instr =
+  failwith "undefined"
+(*
   match instr with
-  | Binstr(Assgn(d1,Src(d2),Eq) as bi) ->
+  | Block(Assgn(d1,Src(d2),Eq) as bi) ->
     if (d1.d_name <> d2.d_name) then (
       failtype_ d1.d_loc
         "Removing equality constraints: RHS and LHS not equal in `%a'" pp_base_instr bi
@@ -795,6 +577,7 @@ let remove_eq_constrs_instr _pos loc info instr =
     failtype_ d.d_loc "Removing equality constraints: RHS cannot be immediate in `%a'"
       pp_base_instr bi
   | _ -> [{ i_val = instr; i_loc = loc; i_info = info}]
+*)
 
 let remove_eq_constrs_modul modul fname =
   concat_map_modul modul fname ~f:remove_eq_constrs_instr
@@ -916,7 +699,7 @@ let to_asm_x64 _efun =
     }
   )
   *)
-
+*)
 (* ** Calling convention for "extern" functions
  * ------------------------------------------------------------------------ *)
 

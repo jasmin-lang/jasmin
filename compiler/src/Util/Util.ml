@@ -17,6 +17,8 @@ let pp_bool fmt b = F.fprintf fmt "%s" (if b then "true" else "false")
 
 let pp_string fmt s = F.fprintf fmt "%s" s
 
+let pp_empty fmt = pp_string fmt ""
+
 let pp_pair sep ppa ppb fmt (a,b) = F.fprintf fmt "%a%s%a" ppa a sep ppb b
 
 let rec pp_list sep pp_elt f l =
@@ -130,6 +132,12 @@ let map_opt_def ~d ~f os =
   match os with
   | None    -> Some(d)
   | Some(s) -> Some(f s)
+
+let max_num_list =
+  List.fold_left ~init:0 ~f:max
+
+
+let undefined () = failwith "undefined"
 
 (* ** Toggle variants in sum types
  * ------------------------------------------------------------------------ *)

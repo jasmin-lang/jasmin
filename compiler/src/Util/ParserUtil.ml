@@ -39,9 +39,11 @@ module Lexing =
  * ------------------------------------------------------------------------ *)
 
 (* our custom parse error *)
-exception ParseError of Lexing.loc * string
+exception ParseError of (Lexing.loc * string) list
 
-let failparse loc s = raise (ParseError(loc,s))
+let failparse loc s = raise (ParseError([loc,s]))
+
+let failparse_l locs_s = raise (ParseError(locs_s))
 
 (* Use this in your lexer *)
 exception LexerError of string
@@ -77,8 +79,16 @@ let charpos_to_linepos s cp =
   with
     E.Found(l,cp,s) -> (l,cp,s)
 
-let wrap_error f fname s =
+let convert_error s (loc,err) =
   let open Lexing in
+  let start_pos = loc.loc_start.L.pos_cnum in
+  let end_pos   = loc.loc_end.L.pos_cnum in    
+  let (line_pos,lstart_pos,line) = charpos_to_linepos s start_pos in
+  let len = min (end_pos - start_pos) (String.length line - lstart_pos) in
+  let fname = loc.loc_start.L.pos_fname in
+  (fname,line_pos,lstart_pos,len,line,err)
+
+let wrap_error f fname s =
   let sbuf = lexbuf_from_string fname s in
   try
     `ParseOk (f sbuf)
@@ -88,45 +98,44 @@ let wrap_error f fname s =
     let end_pos = Lexing.lexeme_start sbuf in
     let (line_pos,lstart_pos,line) = charpos_to_linepos s start_pos in
     let len = min (end_pos - start_pos) (String.length line - lstart_pos) in
-    `ParseError (line_pos,lstart_pos,len,line,msg)
+    `ParseError [ (fname,line_pos,lstart_pos,len,line,msg) ]
   | ParserError ->
     let start_pos = Lexing.lexeme_start sbuf in
     let end_pos = Lexing.lexeme_start sbuf in
     let (line_pos,lstart_pos,line) = charpos_to_linepos s start_pos in
     let len = min (end_pos - start_pos) (String.length line - lstart_pos) in
-    `ParseError (line_pos,lstart_pos,len,line,"parse error")
-  | ParseError(loc,err) ->
-    let start_pos = loc.loc_start.L.pos_cnum in
-    let end_pos   = loc.loc_end.L.pos_cnum in    
-    let (line_pos,lstart_pos,line) = charpos_to_linepos s start_pos in
-    let len = min (end_pos - start_pos) (String.length line - lstart_pos) in
-    `ParseError (line_pos,lstart_pos,len,line,err)
+    `ParseError [ (fname,line_pos,lstart_pos,len,line,"parse error") ]
+  | ParseError(loc_errs) ->
+    `ParseError (List.map ~f:(convert_error s) loc_errs)
   | e ->
     failwith
       (F.sprintf "Unexpected error while lexing/parsing: %s,\n%s"
          (Exn.to_string e)
          (Exn.backtrace ()))
 
-let error_string file (line_start,start_pos,len,line,msg) =
+let error_string (fname,line_start,start_pos,len,line,msg) =
   let len = max 1 (len - 1) in
   let start_pos = max start_pos 0 in
   let spos = max (start_pos + 1) 0 in
-  (F.sprintf "%s:%i:%i: %i:%i error: %s\n" file line_start spos line_start (spos+len) msg)
+  (F.sprintf "%s:%i:%i: %i:%i error: %s\n" fname line_start spos line_start (spos+len) msg)
   ^(F.sprintf "%s\n" line)
   ^(F.sprintf "%s%s\n" (String.make start_pos ' ') (String.make (len + 1) '^'))
 
-let parse ~parse file s =
-  match parse s with
-  | `ParseOk pres      -> pres
-  | `ParseError(pinfo) -> failwith (error_string file pinfo)
+let error_string_list errs =
+  String.concat ~sep:"" @@ List.map ~f:error_string errs
 
-let failloc loc s msg =
-  let open Lexing in
-  let start_pos = loc.loc_start.L.pos_cnum in
-  let end_pos   = loc.loc_end.L.pos_cnum in
-  let (line_pos,lstart_pos,line) = charpos_to_linepos s start_pos in
-  let len = min (end_pos - start_pos) (String.length line - lstart_pos) in
-  let pinfo = (line_pos,lstart_pos,len,line,msg) in
-  let fname = loc.loc_start.L.pos_fname in
-  eprintf "%s%!" (error_string fname pinfo);
+let parse ~parse s =
+  match parse s with
+  | `ParseOk pres     -> pres
+  | `ParseError(errs) -> failwith (error_string_list errs)
+
+let failloc_c _s errs =
+  let err_s = error_string_list errs in
+  eprintf "%s%!" err_s;
+  exit (-1)
+
+let failloc s errs =
+  let errs = List.map ~f:(convert_error s) errs in
+  let err_s = error_string_list errs in
+  eprintf "%s%!" err_s;
   exit (-1)

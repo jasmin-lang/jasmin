@@ -1,16 +1,21 @@
+/*
+(* * Parser for dmasm *) */
+/*
+(* ** Header *) */
 %{
 open IL_Lang
 open Core_kernel
 open Arith
 open IL_ParseUtils
+open IL_Utils
 
 module P = ParserUtil
 module L = ParserUtil.Lexing
 
 %}
 
-/*======================================================================*/
-/* * Tokens */
+/*
+(* ** Tokens *) */
 
 %token EOF
 
@@ -39,7 +44,7 @@ module L = ParserUtil.Lexing
 %token EXCL DOTDOT COMMA
 %token SHR SHL XOR OR
 
-%token REG FLAG PARAM STACK INLINE
+%token REG PARAM STACK INLINE
 
 %token FOR WHILE DO
 %token IN
@@ -63,17 +68,17 @@ module L = ParserUtil.Lexing
 %left MINUS PLUS
 %left STAR
 
-%type <unit IL_Lang.modul_u> modul
+%type <unit IL_Lang.modul> modul
 
 %start modul
 
 %%
 
-(* -------------------------------------------------------------------- *)
-(* * Utility productions *)
+(* ** Utility productions
+ * -------------------------------------------------------------------- *)
 
 %inline loc(X):
-| x=X { (x, ($startpos,$endpos) ) }
+| x=X { (L.mk_loc ($startpos,$endpos), x) }
 
 %inline tuple(X):
 | LPAREN l=separated_list(COMMA,X) RPAREN { l }
@@ -100,35 +105,61 @@ terminated_list(S,X):
   { x::xs }
 | { [] }
 
-(* -------------------------------------------------------------------- *)
-(* * Index expressions and conditions *)
+(* ** Sources and destinations
+ * -------------------------------------------------------------------- *)
+
+%inline dest_get:
+| LBRACK idx = pexpr RBRACK { Iconst(idx) }
+
+%inline dest_noloc :
+| v=var idx = dest_get?
+    { { d_var = v; d_idx = idx; d_loc = L.dummy_loc } }
+    (* we must fix up Iconst eventually to Ivar with context information *)
+
+%inline dest :
+| ld=loc(dest_noloc)
+    { let (loc,d) = ld in { d with d_loc = loc } }
+
+param:
+| lid=loc(ID) { mk_param lid }
+
+src :
+| d=dest                       { Src(d)                       }
+| DOLLAR p=param               { Imm(Patom(Pparam(p)))        }
+| DOLLAR LPAREN i=pexpr RPAREN { Imm(i)                       }
+| i=INT                        { Imm(Pconst(U64.of_string i)) }
+
+(* ** Index expressions and conditions
+ * -------------------------------------------------------------------- *)
 
 %inline pbinop :
-| PLUS    { Pplus }
-| STAR    { Pmult }
+| PLUS    { Pplus  }
+| STAR    { Pmult  }
 | MINUS   { Pminus }
 
 %inline pcondop :
-| EQ      { Peq }
-| INEQ    { Pineq }
-| LESS    { Pless }
-| LEQ     { Pleq }
+| EQ      { Peq      }
+| INEQ    { Pineq    }
+| LESS    { Pless    }
+| LEQ     { Pleq     }
 | GREATER { Pgreater }
-| GEQ     { Pgeq }
+| GEQ     { Pgeq     }
+
+var :
+| lid = loc(ID) { mk_var lid }
 
 dexpr :
-| s=ID                       { Patom(s)                }
+| p=param                    { Patom(p)                }
 | i=INT                      { Pconst(U64.of_string i) }
 | e1=dexpr o=pbinop e2=dexpr { Pbinop(o,e1,e2)         }
 | LPAREN e1=dexpr RPAREN     { e1                      }
 
 pexpr :
-| d=dest
-  { assert(d.d_idx=inone); Patom(mk_patom_dest_u d.d_name d.d_loc)  }
-| DOLLAR s=ID                { Patom(mk_patom_param s)              }
-| i=INT                      { Pconst(U64.of_string i)              }
-| e1=pexpr o=pbinop e2=pexpr { Pbinop(o,e1,e2)                      }
-| LPAREN e1=pexpr RPAREN     { e1                                   }
+| v=var                      { Patom(Pvar(v))          }
+| DOLLAR p=param             { Patom(Pparam(p))        }
+| i=INT                      { Pconst(U64.of_string i) }
+| e1=pexpr o=pbinop e2=pexpr { Pbinop(o,e1,e2)         }
+| LPAREN e1=pexpr RPAREN     { e1                      }
 
 pcond :
 | TRUE                        { Ptrue         }
@@ -140,63 +171,38 @@ pcond :
 
 
 %inline fcond :
-| e= EXCL? d = dest { {fc_neg=(e<>None); fc_dest = d} }
+| e=EXCL? v=var { {fc_neg=(e<>None); fc_var = v} }
 
 pcond_or_fcond :
-| pc = pcond  { Pcond(pc) }
-| d  = dest   { Fcond({fc_neg=false; fc_dest = d}) }
-| EXCL d = dest { Fcond({fc_neg=true; fc_dest = d}) }
+| pc = pcond   { Pcond(pc) }
+| v  = var     { Fcond({fc_neg=false; fc_var = v}) }
+| EXCL v = var { Fcond({fc_neg=true; fc_var = v}) }
 
-(* -------------------------------------------------------------------- *)
-(* * Sources and destinations *)
-
-%inline dest_get:
-| LBRACK idx = pexpr RBRACK { idx }
-
-%inline dest_noloc :
-| s=ID idx = dest_get?
-    { let idx = match idx with
-                | None    -> inone
-                | Some pe -> mk_Iconst pe
-      in
-      { d_name = s; d_idx = idx; d_loc = L.dummy_loc; d_decl = () } }
-
-%inline dest :
-| ld=loc(dest_noloc)
-    { let (d,loc) = ld in
-      { d with d_loc = L.mk_loc loc } }
-
-src :
-| d=dest                       { Src(d)                        }
-| DOLLAR i=ID                  { Imm(Patom(mk_patom_param(i))) }
-| DOLLAR LPAREN i=pexpr RPAREN { Imm(i)                        }
-| i=INT                        { Imm(Pconst(U64.of_string i))  }
-
-(* -------------------------------------------------------------------- *)
-(* * Operators and assignments *)
+(* ** Operators and assignments
+ * -------------------------------------------------------------------- *)
 
 binop:
-| PLUS  { `Add }
-| MINUS { `Sub }
-| SHR   { `Shift(Right) }
-| SHL   { `Shift(Left) }
-| BAND  { `And }
-| XOR   { `Xor }
-| STAR  { `Mul }
-| OR    { `Or }
+| PLUS  { OpAdd }
+| MINUS { OpSub }
+| SHR   { OpShift(Right) }
+| SHL   { OpShift(Left) }
+| BAND  { OpAnd }
+| XOR   { OpXor }
+| STAR  { OpMul }
+| OR    { OpOr }
 
 opeq:
-| PLUSEQ  { `Add }
-| MINUSEQ { `Sub }
-| SHREQ   { `Shift(Right) }
-| SHLEQ   { `Shift(Left) }
-| BANDEQ  { `And }
-| XOREQ   { `Xor } 
-| OREQ    { `Or } 
-| MULEQ   { `Mul }
+| PLUSEQ  { OpAdd }
+| MINUSEQ { OpSub }
+| SHREQ   { OpShift(Right) }
+| SHLEQ   { OpShift(Left) }
+| BANDEQ  { OpAnd }
+| XOREQ   { OpXor } 
+| OREQ    { OpOr } 
+| MULEQ   { OpMul }
 
-(* -------------------------------------------------------------------- *)
-(* * Instructions *)
+(* ** Base instructions
+ * -------------------------------------------------------------------- *)
 
 %inline assgn_rhs_eq:
 | s=src { `Assgn(s,Eq) }
@@ -214,7 +220,7 @@ opeq:
     { `TernOp(op1,op2,s1,s2,s3) }
 
 | fname=ID LPAREN args=separated_list(COMMA,src) RPAREN
-    { `Call(fname, args) }
+    { `Call(Fname.mk fname, args) }
 
 | MEM LBRACK ptr = src PLUS pe = pexpr RBRACK
     { `Load(ptr,pe) }
@@ -223,34 +229,49 @@ opeq:
 | s  = src                  { fun op d -> `BinOp(op,Src(d),s) }
 | s2 = src op2=binop s3=src { fun op1 d -> `TernOp(op1,op2,Src(d),s2,s3) }
 
-instr :
+%inline store :
+| MEM LBRACK ptr = src PLUS pe = pexpr RBRACK EQ s = src
+    { (ptr,pe,s) }
+
+
+%inline base_instr :
 | ds=tuple_nonempty(dest) EQ rhs=assgn_rhs_mv SEMICOLON
     { mk_instr ds rhs (L.mk_loc ($startpos,$endpos)) }
 
 | ds=tuple_nonempty(dest) COLON EQ rhs=assgn_rhs_eq SEMICOLON
     { mk_instr ds rhs (L.mk_loc ($startpos,$endpos)) }
 
-| MEM LBRACK ptr = src PLUS pe = pexpr RBRACK EQ s = src SEMICOLON
-    { Binstr(mk_store ptr pe s) }
+| lst = loc(store) SEMICOLON
+    { let (l,(ptr,pe,s)) = lst in
+      Block([ { L.l_val = mk_store ptr pe s; L.l_loc = l} ],None) }
 
 | ds=tuple_nonempty(dest) op=opeq rhs=opeq_rhs SEMICOLON
     { let rhs = rhs op (Std.List.last_exn ds) in
       mk_instr ds rhs (L.mk_loc ($startpos,$endpos)) }
 
-| fname=ID args=tuple(src) SEMICOLON
-    { Binstr(Call(fname, [], args)) }
+(* ** Control instructions
+ * -------------------------------------------------------------------- *)
+
+%inline call :
+| fname=ID args=tuple(src) { (Fname.mk fname, args) }
+ 
+%inline control_instr :
+
+| lc=loc(call) SEMICOLON
+    { let (l,(fn,args)) = lc in
+      Block([ { L.l_val=Call(fn,[],args); L.l_loc=l} ],None) }
 
 | IF c=pcond_or_fcond i1s=block ies=celse_if* mi2s=celse?
     { mk_if c i1s mi2s ies }
 
-| FOR  cv=dest IN ce1=pexpr DOTDOT ce2=pexpr is=block
-    { For(cv,ce1,ce2,is) }
+| FOR cv=dest IN ce1=pexpr DOTDOT ce2=pexpr is=block
+    { For(cv,ce1,ce2,is,None) }
 
 | WHILE fc=fcond is=block
-    { While(WhileDo,fc,is) }
+    { While(WhileDo,fc,is,None) }
 
 | DO is=block WHILE fc=fcond SEMICOLON
-    { While(DoWhile,fc,is) }
+    { While(DoWhile,fc,is,None) }
 
 celse_if :
 | ELIF c=pcond_or_fcond is=block { (c,is) }
@@ -258,76 +279,90 @@ celse_if :
 celse :
 | ELSE is=block { is }
 
-linstr :
-| li = loc(instr)
-  { match li with
-    | (instr,loc) -> { i_val = instr; i_info = (); i_loc = L.mk_loc loc } }
+(* ** Instructions, blocks, and statements
+ * -------------------------------------------------------------------- *)
+
+%inline instr :
+| lbi = loc(base_instr)    { let (loc,bi) = lbi in { L.l_val=bi; L.l_loc = loc} }
+| lci = loc(control_instr) { let (loc,ci) = lci in { L.l_val=ci; L.l_loc = loc} }
 
 block :
-| LCBRACE stmt=linstr* RCBRACE { stmt }
+| LCBRACE stmt=instr* RCBRACE { stmt }
 
-stmt :
-| stmt=linstr+ { stmt }
-
-(* -------------------------------------------------------------------- *)
-(* * Function definitions *)
+(* ** Function definitions
+ * -------------------------------------------------------------------- *)
 
 return :
-| RETURN ret=tuple(ID) SEMICOLON { ret }
+| RETURN ret=tuple(var) SEMICOLON { ret }
 
 typ_dim :
 | LBRACK dim=dexpr RBRACK { (dim) }
 
 typ :
 | T_U64  odim=typ_dim? { match odim with None -> U64 | Some d -> Arr(d) }
-| T_BOOL               { Bool      }
-
-typed_vars :
-| vs=separated_nonempty_list(COMMA,ID) COLON t=typ
-    { Std.List.map ~f:(fun v -> (v,t)) vs }
-
-%inline storage:
-| REG    { Reg   }
-| STACK  { Stack }
-| FLAG   { Flag  }
-| INLINE { Inline  }
-
-decl :
-| sto=storage trs=typed_vars  { Std.List.map ~f:(fun (n,t) -> (sto,n,t)) trs }
+| T_BOOL               { Bool }
 
 stor_typ :
-| sto=storage ty=typ { (sto,ty) }
+| sto=storage ty=typ { mk_sto_ty (sto,ty) (L.mk_loc ($startpos,$endpos)) }
+
+%inline typed_vars_stor :
+| vs=separated_nonempty_list(COMMA,dest) COLON st=stor_typ
+    { (vs, st) } (* we parse dest here to prevent a conflict *)
+
+%inline storage:
+| REG    { Reg    }
+| STACK  { Stack  }
+| INLINE { Inline }
 
 ret_ty :
 | LARROW tys=separated_list(STAR,stor_typ) { tys }
 
-decls :
-| ds=terminated_list(SEMICOLON,decl) { ds }
+
+%inline func_item:
+| i = instr                     { FInstr(i) }
+| d = typed_vars_stor SEMICOLON { FDecl(d)  }
+
+%inline loc_func_item:
+| lf = loc(func_item) { lf }
 
 %inline func_body :
 | LCBRACE
-    ds   = decls
-    stmt = stmt?
-    ret  = return?
+    fis  = loc_func_item*
+    lret = loc(return?)
   RCBRACE
-  { Def(mk_fundef ds stmt ret) }
+    { FunNative(fis,lret) }
 | SEMICOLON
-  { Undef }
+    { FunForeign(None) }
 | EQ PYTHON s=ID SEMICOLON
-  { Py(s) }
+    { FunForeign(Some(s)) }
+
+%inline typed_vars_stor_var :
+| vs=separated_nonempty_list(COMMA,var) COLON st=stor_typ
+    { (vs, st) }
+
+arg_def :
+| ltv = loc(typed_vars_stor_var)
+    { let (l,(vs,st)) = ltv in (l,Some(vs),st) }
+| lst = loc(stor_typ)
+    { let (l,st) = lst in (l,None,st) }
 
 func :
-| ext=EXTERN? FN name=ID
-    args = paren_tuple(decl)
+| ext=EXTERN? FN lname=loc(ID)
+    args = paren_tuple(arg_def)
     rty  = ret_ty?
     def  = func_body
-    { mk_func (L.mk_loc ($startpos,$endpos)) rty name ext args def }
+    { (fst lname,
+       mk_func (fst lname) (Fname.mk @@ snd lname) (Util.get_opt [] rty) ext args def) }
+
+typed_params :
+| vs=separated_nonempty_list(COMMA,ID) COLON t=typ
+    { Std.List.map ~f:(fun v -> (v,t)) vs }
 
 param_or_func :
-| f=func                       
-  { Dfun(f) }
-| PARAM ps=typed_vars SEMICOLON
-  { Dparams(ps) }
+| lf=func
+    { (fst lf,Dfun(snd lf)) }
+| PARAM lps=loc(typed_params) SEMICOLON
+    { (fst lps, Dparams(snd lps)) }
 
 modul :
 | pfs=param_or_func+ EOF

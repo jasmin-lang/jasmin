@@ -16,15 +16,15 @@ let parse_and_process ~parse ~ftype ~process file =
   let s = In_channel.read_all file in
   eprintf "Parsing %s as %s\n\n%!" file ftype;
   match parse file s with
-  | `ParseOk res       -> process s res
-  | `ParseError(pinfo) -> eprintf "%s%!" (ParserUtil.error_string file pinfo)
+  | `ParseOk res        -> process s res
+  | `ParseError(pinfos) -> P.failloc_c s pinfos
 
-let process_mil trafo print_result out_file file s (modul : 'info modul_u) =
+let process_mil trafo print_result out_file file s (modul : 'info modul) =
   let res =
     try ILT.apply_transform_asm trafo modul
     with
-      | TypeError(loc,msg)  -> P.failloc loc s msg
-      | P.ParseError(loc,msg) -> P.failloc loc s msg
+      | TypeError(loc,msg) -> P.failloc s [loc,msg]
+      | P.ParseError(errs) -> P.failloc s errs
   in
   match res with
   | `Asm_X64 afuns ->
@@ -39,7 +39,7 @@ let process_mil trafo print_result out_file file s (modul : 'info modul_u) =
     )
   | `IL modul ->
     if print_result
-    then F.eprintf "%a@\n%!" ILU.pp_modul modul
+    then F.eprintf "%a@\n%!" (ILPP.pp_modul ?pp_info:None ~pp_types:false) modul
     else F.eprintf "Processed file %s@\n%!" file
 
 let dmasm trafo print_result out_file file =
