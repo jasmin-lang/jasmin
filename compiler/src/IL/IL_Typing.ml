@@ -169,11 +169,11 @@ let typecheck_base_instr ftable lbinstr =
   let tc_op    = typecheck_op    in
   let tc_assgn = typecheck_assgn in
   match lbinstr.L.l_val with
-  | Comment _             -> ()
-  | Op(op,ds,ss)          -> tc_op op ds ss
-  | Assgn(d,s,_)          -> tc_assgn d s d.d_loc
-  | Load(d,s,_pe)         -> type_src_eq  s U64; typecheck_dest d U64
-  | Store(s1,_pe,s2)      -> type_src_eq s1 U64; type_src_eq s2 U64
+  | Comment _           -> ()
+  | Op(op,ds,ss)        -> tc_op op ds ss
+  | Assgn(d,s,_)        -> tc_assgn d s d.d_loc
+  | Load(d,s,_pe)       -> type_src_eq  s U64; typecheck_dest d U64
+  | Store(s1,_pe,s2)    -> type_src_eq s1 U64; type_src_eq s2 U64
   | Call(fname,ret,arg) ->
     let loc = lbinstr.L.l_loc in
     let arg_ty, ret_ty =

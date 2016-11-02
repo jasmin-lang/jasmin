@@ -192,8 +192,8 @@ let mk_func loc name ret_ty ext args def =
         with
         | Invalid_argument(_) ->
           P.failparse lr (fsprintf ("arity of return value does not match type,"
-                                    ^^"expected %i, got %i")
-                            (List.length ret_ty) (List.length rets))
+                                    ^^" got %i, expected %i")
+                            (List.length rets) (List.length ret_ty))
       in
       (* check unused variables *)
       let () =

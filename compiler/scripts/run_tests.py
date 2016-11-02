@@ -120,7 +120,13 @@ def print_sep():
 
 ######################################################################
 
-# run("tests/compiler/must_fail/t_21.mil")
+# f = "tests/compiler/must_fail/t_27.mil"
+# print_sep()
+# print ""
+# system("cat %s"%f)
+# print_sep()
+# print ""
+# run(f)
 
 # exit(0)
 
