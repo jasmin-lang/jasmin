@@ -181,29 +181,33 @@ the last element of a statement.
 let finish_block prev_stmt cur_block =
   match cur_block with
   | [] -> prev_stmt
-  | _  -> Block(List.concat @@ List.rev cur_block,None)::prev_stmt
+  | _  -> { L.l_val = Block(List.concat @@ List.rev cur_block,None);
+            L.l_loc = L.dummy_loc }
+          ::prev_stmt
+          
 
-let merge_blocks_stmt _stmt =
-  undefined ()
-(*
-  let rec go prev_stmt cur_block instrs =
-    match instrs with
+let merge_blocks_stmt stmt =
+  let rec go prev_stmt cur_block linstrs =
+    match linstrs with
     | [] -> List.rev @@ finish_block prev_stmt cur_block
-    | Block(bs,_)::instrs ->
-      go prev_stmt (bs::cur_block) instrs
-    | If(c,s1,s2,i)::instrs ->
-      let s1 = go [] [] s1 in
-      let s2 = go [] [] s2 in
-      go (If(c,s1,s2,i)::(finish_block prev_stmt cur_block)) [] instrs
-    | For(v,lb,ub,s,i)::instrs ->
-      let s = go [] [] s in
-      go (For(v,lb,ub,s,i)::(finish_block prev_stmt cur_block)) [] instrs
-    | While(wt,c,s,i)::instrs ->
-      let s = go [] [] s in
-      go (While(wt,c,s,i)::(finish_block prev_stmt cur_block)) [] instrs
+    | linstr::linstrs ->
+      let mk instr = { linstr with L.l_val = instr } in
+      begin match linstr.L.l_val with
+      | Block(bs,_) ->
+        go prev_stmt (bs::cur_block) linstrs
+      | If(c,s1,s2,i) ->
+        let s1 = go [] [] s1 in
+        let s2 = go [] [] s2 in
+        go ((mk @@ If(c,s1,s2,i))::(finish_block prev_stmt cur_block)) [] linstrs
+      | For(v,lb,ub,s,i) ->
+        let s = go [] [] s in
+        go ((mk @@ For(v,lb,ub,s,i))::(finish_block prev_stmt cur_block)) [] linstrs
+      | While(wt,c,s,i) ->
+        let s = go [] [] s in
+        go ((mk @@ While(wt,c,s,i))::(finish_block prev_stmt cur_block)) [] linstrs
+      end
   in
   go [] [] stmt  
-*)
 
 let merge_blocks_modul modul fname =
   map_body_modul ~f:merge_blocks_stmt modul fname

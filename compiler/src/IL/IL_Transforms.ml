@@ -174,7 +174,6 @@ let map_module m (mf : map_mod) =
   | U m -> U(mf.f m)
 
 let apply_transform trafos (modul0 : unit modul) =
-  (* let modul0 : unit modul_t = IL_Typing.inline_decls_modul modul0 in *)
   let filter_fn m ofname =
     match ofname with
     | Some fn ->
@@ -219,9 +218,14 @@ let apply_transform trafos (modul0 : unit modul) =
       | L m, _     -> go m (ppm None)
     in
     let print n ppo m =
-      let m_ = filter_fn m ppo.pp_fname in
-      F.printf ">> %s:@\n%a@\n@\n" n (pp_modul ?pp_info:None ~pp_types:ppo.pp_types) m_;
-      m
+      let m = map_module m { f = fun m -> filter_fn m ppo.pp_fname } in
+      let go m ppi =
+        F.printf ">> %s:@\n%a@\n@\n" n (pp_modul ?pp_info:ppi ~pp_types:ppo.pp_types) m
+      in
+      match m, ppo.pp_info with
+      | U m, true  -> go m (Some(pp_info))
+      | U m, false -> go m None
+      | L m, _     -> go m None
     in
     let interp fn _pmap _mmap _args m =
       notify "interpreting" fn
@@ -270,7 +274,6 @@ let apply_transform trafos (modul0 : unit modul) =
     | InlineCalls(fn)           -> map_module modul {f = fun m -> inline fn m}
     | ArrayExpand(fn)           -> map_module modul {f = fun m -> arr_exp fn m}
     | LocalSSA(fn)              -> map_module modul {f = fun m -> local_ssa fn m}
-    | Print(n,ppo)              -> map_module modul {f = fun m -> print n ppo m}
     | Interp(fn,pmap,mmap,args) -> map_module modul {f = fun m -> interp fn pmap mmap args m}
     | ArrayAssignExpand(fn)     -> map_module modul {f = fun m -> array_expand_modul fn m}
     | StripComments(fn)         -> map_module modul {f = fun m -> strip_comments fn m}
@@ -281,6 +284,7 @@ let apply_transform trafos (modul0 : unit modul) =
     | RenumberIdents(rno)       -> map_module modul {f = fun m -> renumber_idents rno m}
     | RegisterLiveness(fn)      -> map_module modul {f = fun m -> register_liveness fn m}
     | MergeBlocks(ofn)          -> map_module modul {f = fun m -> merge_blocks ofn m}
+    | Print(n,ppo)              -> print n ppo modul; modul
     | Save(fn,ppo)              -> save fn ppo modul; modul
     | Asm(_)                    -> assert false
   in
