@@ -82,7 +82,10 @@ let type_dest d =
 let typecheck_dest d ty_exp =
   let ty = type_dest d in
   if not (equiv_ty ty ty_exp) then
-    type_error_ d.d_loc "type mismatch (got %a, expected %a)" pp_ty_nt ty pp_ty_nt ty_exp
+    P.failparse_l
+      [ (d.d_loc,
+         fsprintf "type mismatch (got %a, expected %a)" pp_ty_nt ty pp_ty_nt ty_exp);
+        (d.d_var.Var.dloc, "<-- declared here") ]
 
 (* Takes source and computes its type (see [type_dest]) *)
 let type_src = function

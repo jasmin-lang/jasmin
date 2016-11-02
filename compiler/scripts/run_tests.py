@@ -87,7 +87,7 @@ def test(fname,get_error,cp):
         print_err("error, wrong output on stderr")
         system("diff -u %s %s"%(fn_exp_err, fn_run_err))
         if cp:
-            system("cp %s %s\n  to use new definition"%(fn_run_err,fn_exp_err))
+            system("cp %s %s"%(fn_run_err,fn_exp_err))
         else:
             print "  run\n      cp %s %s\n  to use new definition"%(fn_run_err,fn_exp_err)
         return
@@ -97,7 +97,7 @@ def test(fname,get_error,cp):
         print_err("error, wrong output on stdout")
         system("diff -u %s %s"%(fn_exp_out, fn_run_out))
         if cp:
-            system("cp %s %s\n  to use new definition"%(fn_run_out,fn_exp_out))
+            system("cp %s %s"%(fn_run_out,fn_exp_out))
         else:
             print "  run\n      cp %s %s\n  to use new definition"%(fn_run_out,fn_exp_out)
         return
@@ -136,6 +136,8 @@ test_fail("tests/compiler/must_fail/t_23.mil")
 test_fail("tests/compiler/must_fail/t_24.mil")
 test_fail("tests/compiler/must_fail/t_25.mil")
 test_fail("tests/compiler/must_fail/t_26.mil")
+test_fail("tests/compiler/must_fail/t_27.mil")
+test_fail("tests/compiler/must_fail/t_28.mil")
 
 print_sep()
 

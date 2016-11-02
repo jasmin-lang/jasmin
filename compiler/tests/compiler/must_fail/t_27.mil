@@ -1,0 +1,12 @@
+// ill-typed addition
+
+extern fn test(x : reg u64, y : reg bool) -> reg u64 {
+  x += y;
+  return x;
+}
+
+/*
+START:CMD
+ARG="renumber_fun_unique,typecheck"
+END:CMD
+*/
