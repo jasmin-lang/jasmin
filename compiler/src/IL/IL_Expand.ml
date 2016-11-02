@@ -299,10 +299,10 @@ let rec inline_call func_table ctr fname ds ss =
   let fdef = get_fundef ~err_s:"inline_call: impossible" func in
   let ret_ss = 
     List.map fdef.f_ret
-      ~f:(fun v -> Src({d_var=v; d_idx=None; d_loc=v.Var.loc}))
+      ~f:(fun v -> Src({d_var=v; d_idx=None; d_loc=v.Var.uloc;}))
   in
   let arg_ds =
-    List.map ~f:(fun v -> {d_var=v; d_idx=None; d_loc=v.Var.loc}) fdef.f_arg
+    List.map ~f:(fun v -> {d_var=v; d_idx=None; d_loc=v.Var.uloc}) fdef.f_arg
   in
   let pref = List.map2_exn ~f:(fun d s -> Assgn(d,s,Eq)) arg_ds ss in
   let suff = List.map2_exn ~f:(fun d s -> Assgn(d,s,Eq)) ds ret_ss in

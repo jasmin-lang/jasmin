@@ -125,12 +125,12 @@ let vars_num_unique_fundef fd =
   let fconv v =
     match HT.find ntable v.Var.num with
     | None        ->
-      HT.set ntable ~key:v.Var.num ~data:(Var.(v.name,v.ty,v.stor,v.loc))
+      HT.set ntable ~key:v.Var.num ~data:(Var.(v.name,v.ty,v.stor,v.uloc))
     | Some(n,t,s,l) ->
       if (n<>v.Var.name || s<>v.Var.stor || t<>v.Var.ty) then
           P.failparse_l [(l, "same number used for different variables,\n"^
                              "  this is not allowed for typechecking input");
-                         (v.Var.loc, fsprintf "<-- also used here")]
+                         (v.Var.uloc, fsprintf "<-- also used here")]
       else
         ()
   in

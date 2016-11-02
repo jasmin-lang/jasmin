@@ -97,11 +97,11 @@ let typecheck_src s ty_exp =
 
 let type_var_eq v ty os =
   if not (equiv_ty v.Var.ty ty) then
-    type_error_ v.Var.loc "type mismatch (got %a, expected %a)"
+    type_error_ v.Var.uloc "type mismatch (got %a, expected %a)"
       pp_ty_nt v.Var.ty pp_ty_nt ty;
   match os with
   | Some(s) when s<>v.Var.stor->
-    type_error_ v.Var.loc "storage mismatch (got %s, expected %s)"
+    type_error_ v.Var.uloc "storage mismatch (got %s, expected %s)"
       (string_of_storage v.Var.stor) (string_of_storage s)
   | _ -> ()
 

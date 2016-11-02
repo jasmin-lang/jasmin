@@ -116,7 +116,8 @@ module Var = struct
       num  : int;
       stor : stor;
       ty   : ty;
-      loc  : L.loc;
+      uloc : L.loc; (* location where used *)
+      dloc : L.loc; (* location where defined *)
     } [@@deriving compare,sexp]
 
     let hash = Hashtbl.hash

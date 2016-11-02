@@ -316,7 +316,7 @@ stor_typ :
 | INLINE { Inline }
 
 ret_ty :
-| LARROW tys=separated_list(STAR,stor_typ) { tys }
+| LARROW tys=separated_list(STAR,loc(stor_typ)) { tys }
 
 
 %inline func_item:

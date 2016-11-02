@@ -60,7 +60,8 @@ let mk_param (l,(s,si)) =
 let mk_var (l,(s,si)) =
   let num = if si="" then 0 else int_of_string si in
   { Var.name = Vname.mk s; Var.ty = TInvalid;
-    Var.loc = l; Var.stor = SInvalid; Var.num=num }
+    Var.uloc = l; Var.stor = SInvalid; Var.num=num;
+    Var.dloc = L.dummy_loc (* fix up later *) }
 
 let mk_fname (s,si) =
   assert (si="");

@@ -271,7 +271,11 @@ let pp_foreign ~pp_types fmt name fo =
     | Some(s) ->  " = python "^s^";")
 
 let pp_native ?pp_info ~pp_types fmt (name,fdef) =
-  let clean v = { v with Var.loc = L.dummy_loc } in
+  let clean v =
+    { v with
+      Var.uloc = L.dummy_loc;
+      Var.dloc = L.dummy_loc; }
+  in
   let decls =
     Set.to_list
       (Set.diff (Set.union
