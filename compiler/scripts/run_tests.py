@@ -120,7 +120,7 @@ def print_sep():
 
 ######################################################################
 
-# run("tests/compiler/must_fail/t_25.mil")
+# run("tests/compiler/must_fail/t_21.mil")
 
 # exit(0)
 
@@ -128,16 +128,9 @@ def print_sep():
 
 print_sep()
 
-for fn in [ "%02i"%i for i in range(1,17)]:
+fail_exclude = [22]
+for fn in [ "%02i"%i for i in range(1,30) if not i in fail_exclude ]:
     test_fail("tests/compiler/must_fail/t_%s.mil"%fn)
-
-# test_fail("tests/compiler/must_fail/t_22.mil")
-test_fail("tests/compiler/must_fail/t_23.mil")
-test_fail("tests/compiler/must_fail/t_24.mil")
-test_fail("tests/compiler/must_fail/t_25.mil")
-test_fail("tests/compiler/must_fail/t_26.mil")
-test_fail("tests/compiler/must_fail/t_27.mil")
-test_fail("tests/compiler/must_fail/t_28.mil")
 
 print_sep()
 

@@ -1,0 +1,5 @@
+Parsing tests/compiler/must_fail/t_21.mil as MIL
+
+tests/compiler/must_fail/t_21.mil:11:3: 11:4 error: wrong storage type for call of bar: got ``stack'', expected ``reg''
+  x = bar();
+  ^^

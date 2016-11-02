@@ -18,15 +18,6 @@ module L = ParserUtil.Lexing
 (* *** Typing environment
  * ------------------------------------------------------------------------ *)
 
-type penv = unit Param.Table.t
-
-type 'info fenv = 'info func Fname.Map.t
-
-type 'info env = {
-  e_penv : penv;
-  e_fenv : 'info fenv;
-}
-
 let type_error_ l fmt =
   let buf  = Buffer.create 127 in
   let fbuf = F.formatter_of_buffer buf in
@@ -174,54 +165,63 @@ let typecheck_fcond_or_pcond = function
   | Pcond(_)  -> ()
   | Fcond(fc) -> typecheck_fcond fc
 
-let typecheck_base_instr fenv binstr =
+let typecheck_base_instr ftable lbinstr =
   let tc_op    = typecheck_op    in
   let tc_assgn = typecheck_assgn in
-  match binstr.L.l_val with
+  match lbinstr.L.l_val with
   | Comment _             -> ()
   | Op(op,ds,ss)          -> tc_op op ds ss
   | Assgn(d,s,_)          -> tc_assgn d s d.d_loc
   | Load(d,s,_pe)         -> type_src_eq  s U64; typecheck_dest d U64
   | Store(s1,_pe,s2)      -> type_src_eq s1 U64; type_src_eq s2 U64
-  | Call(_fname,_rets,_args) ->
-    undefined ()
-    (*
-    let cfun = map_find_exn env.e_fenv pp_string fname in
-    let tc_src s (_,_,ty_expected) = typecheck_src env s ty_expected in
-    let tc_dest d (_,ty_expected) = typecheck_dest env.e_tenv d ty_expected in
-    list_iter2_exn args cfun.f_args ~f:tc_src
-      ~err:(fun n_g n_e ->
-              failwith_ "wrong number of arguments (got %i, exp. %i)" n_g n_e);
-    list_iter2_exn rets cfun.f_ret_ty ~f:tc_dest
-      ~err:(fun n_g n_e ->
-              failwith_ "wrong number of l-values (got %i, exp. %i)" n_g n_e)
-    *)
+  | Call(fname,ret,arg) ->
+    let loc = lbinstr.L.l_loc in
+    let arg_ty, ret_ty =
+      match HT.find ftable fname with
+      | None       -> failloc_ loc "call to unknown function %a" Fname.pp fname
+      | Some(func) ->
+        begin match func with
+        | Foreign(fo) -> (fo.fo_arg_ty, fo.fo_ret_ty)
+        | Native(fd)  -> (List.map ~f:tinfo_of_var fd.f_arg,List.map ~f:tinfo_of_var fd.f_ret)
+        end
+    in
+    let tc_dest d (sto_exp,ty_exp) =
+      typecheck_dest d ty_exp;
+      let sto = d.d_var.Var.stor in
+      if sto<>sto_exp then
+        failloc_ d.d_var.Var.uloc "wrong storage type for call of %a: got ``%s'', expected ``%s''"
+          Fname.pp fname (string_of_storage sto) (string_of_storage sto_exp)
+    in
+    let tc_src s st =
+      match s with
+      | Imm(_) -> failloc_ loc "cannot call function %a with immediate value" Fname.pp fname
+      | Src(d) -> tc_dest d st
+    in
+    list_iter2_exn arg arg_ty ~f:tc_src
+      ~err:(fun n_g n_e -> failloc_ loc "wrong number of arguments: got %i, expected %i" n_g n_e);
+    list_iter2_exn ret ret_ty ~f:tc_dest
+      ~err:(fun n_g n_e -> failloc_ loc "wrong number of l-values: got %i, expected %i" n_g n_e)
 
-let rec typecheck_instr fenv instr =
-  let tc_stmt  = typecheck_stmt  fenv in
+let rec typecheck_instr ftable instr =
+  let tc_stmt  = typecheck_stmt ftable in
+  let tc_bi    = typecheck_base_instr ftable in
+  let tc_dest  = typecheck_dest in
   let tc_fcond = typecheck_fcond in
   let tc_cond  = typecheck_fcond_or_pcond in
   match instr.L.l_val with
-  | Block(bis,_) ->
-    List.iter ~f:(typecheck_base_instr fenv) bis
-  | If(c,stmt1,stmt2,_) ->
-    tc_cond c; tc_stmt stmt1; tc_stmt stmt2
-  | For(pv,_,_,stmt,_) ->
-    assert(pv.d_idx=None);
-    typecheck_dest pv U64;
-    typecheck_stmt fenv stmt
-  | While(_wt,fc,s,_) ->
-    tc_fcond fc;
-    typecheck_stmt fenv s
+  | Block(bis,_)        -> List.iter ~f:tc_bi bis
+  | If(c,stmt1,stmt2,_) -> tc_cond c; tc_stmt stmt1; tc_stmt stmt2
+  | For(pv,_,_,stmt,_)  -> assert(pv.d_idx=None); tc_dest pv U64; tc_stmt stmt
+  | While(_wt,fc,s,_)   -> tc_fcond fc; tc_stmt s
 
-and typecheck_stmt fenv stmt =
-  List.iter ~f:(typecheck_instr fenv) stmt
+and typecheck_stmt ftable stmt =
+  List.iter ~f:(typecheck_instr ftable) stmt
 
-let typecheck_func fenv func =
+let typecheck_func ftable func =
   match func with
   | Foreign(_) -> ()
   | Native(fd) ->
-    typecheck_stmt fenv fd.f_body
+    typecheck_stmt ftable fd.f_body
 
 let typecheck_modul modul =
   vars_num_unique_modul ~type_only:true modul;
@@ -230,5 +230,5 @@ let typecheck_modul modul =
       (List.map ~f:(fun p -> (p.Param.name,(p.Param.ty,p.Param.loc))) modul.m_params)
   in
   params_defined_modul penv (pp_ty ~pp_types:false) modul;
-  Map.iteri modul.m_funcs
-    ~f:(fun ~key:_ ~data:func -> typecheck_func modul.m_funcs func)
+  let ftable = Fname.Table.of_alist_exn (Map.to_alist modul.m_funcs) in
+  Map.iteri modul.m_funcs ~f:(fun ~key:_ ~data:func -> typecheck_func ftable func)

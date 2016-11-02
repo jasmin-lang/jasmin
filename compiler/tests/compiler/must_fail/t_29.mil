@@ -1,12 +1,12 @@
-/* function call with wrong argument type */
+// call to unknown functions
 
-fn bar(_x : reg u64) {
+fn bar() {
 }
 
 fn foo() {
   x : stack u64;
   x = 42;
-  bar(x);
+  bar_();
 }
 
 /*

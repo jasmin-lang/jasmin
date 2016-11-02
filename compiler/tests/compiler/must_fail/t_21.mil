@@ -1,6 +1,18 @@
-extern fn test() {
-  reg arr  : u64[4];
-  reg i, x : u64;
-  x = arr[i]; 
-   // ERROR: "array expansion: array arr with non-constant indexes requires stack storage"
+/* function call with wrong return type */
+
+fn bar() -> reg u64 {
+  x : reg u64;
+  x = 42;
+  return x;
 }
+
+fn foo() {
+  x : stack u64;
+  x = bar();
+}
+
+/*
+START:CMD
+ARG="typecheck"
+END:CMD
+*/

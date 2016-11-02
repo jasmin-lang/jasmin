@@ -1,11 +1,14 @@
 /* function call with wrong return type */
 
-fn bar() -> reg u64{
+fn bar() -> reg u64 {
+  x : reg u64;
+  x = 42;
+  return x;
 }
 
 fn foo() {
-  x : stack u64;
-  x= bar();
+  x : reg bool;
+  x = bar();
 }
 
 /*
