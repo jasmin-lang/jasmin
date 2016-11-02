@@ -64,8 +64,8 @@ let fold_vars_base_instr ~fapp ~fconv bi =
   let pve = fold_vars_pexpr ~fapp ~fconv in
   match bi.L.l_val with
   | Comment(_)      -> fapp []
-  | Load(d,s,pe)    -> fapp [ pvd d; pvs s; pve pe]
-  | Store(s1,pe,s2) -> fapp [ pvs s1; pvs s2; pve pe]
+  | Load(d,s,pe)    -> fapp [ pvd d; pvs s; pve pe ]
+  | Store(s1,pe,s2) -> fapp [ pvs s1; pvs s2; pve pe ]
   | Assgn(d,s,_)    -> fapp [ pvd d; pvs s ]
   | Op(_,ds,ss)     -> fapp [ fapp @@ List.map ds ~f:pvd; fapp @@ List.map ss ~f:pvs ]
   | Call(_,ds,ss)   -> fapp [ fapp @@ List.map ds ~f:pvd; fapp @@ List.map ss ~f:pvs ]
@@ -79,7 +79,7 @@ let rec fold_vars_instr instr ~fapp ~fconv =
   let pve = fold_vars_pexpr ~fapp ~fconv in
   match instr.L.l_val with
   | Block(bis,_)            -> fapp @@ List.map ~f:pvbi bis
-  | If(c,s1,s2,_)           -> fapp [ pvst s1; pvst s2; pvc c]
+  | If(c,s1,s2,_)           -> fapp [ pvst s1; pvst s2; pvc c ]
   | For(d,lb,ub,stmt,_)     -> fapp [ pvst stmt; pvd d; pve lb; pve ub ]
   | While(_wt,fcond,stmt,_) -> fapp [ pvfc fcond; pvst stmt ]
 

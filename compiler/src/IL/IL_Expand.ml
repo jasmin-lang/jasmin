@@ -121,9 +121,14 @@ let strip_comments_modul _modul _fname =
   concat_map_modul_all modul ~f:strip_comments
 *)
 
-let renumber_vars_func ?(ctr=ref 1) () _func =
+type renumber_opt =
+  | UniqueNumModule
+  | UniqueNumFun
+  | ReuseNum
+
+let renumber_vars_func ?(ctr=ref 1) () func =
   let imap = Var.Table.create () in
-  let _rn v =
+  let rn v =
     match HT.find imap v with
     | Some(n) -> { v with Var.num = n }
     | None    ->
@@ -132,19 +137,37 @@ let renumber_vars_func ?(ctr=ref 1) () _func =
       HT.set imap ~key:v ~data:n;
       { v with Var.num = n }
   in
-  undefined ()
-  (* rename_func rn func *)
+  map_vars_func ~f:rn func
 
-let renumber_vars_modul_all ?(all_distinct=false) m =
-  let ctr = if all_distinct then Some(ref 1) else None in
-  { m with  (* NOTE@rename *)
-    m_funcs = Map.map ~f:(renumber_vars_func ?ctr ()) m.m_funcs }
+let renumber_vars_func_reuse func =
+  let imap     = Var.Table.create () in
+  let num_used = Vname.Table.create () in
+  let rn v =
+    match HT.find imap v with
+    | Some(n) -> { v with Var.num = n }
+    | None    ->
+      let n = ref 0 in
+      HT.change num_used v.Var.name
+        ~f:(function | None    -> n := 0; Some(1)
+                     | Some(i) -> n := i; Some(i+1));
+      HT.set imap ~key:v ~data:!n;
+      { v with Var.num = !n }
+  in
+  map_vars_func ~f:rn func
 
-(* *** NOTE@rename
-   If we need this more often, we can cache the max for each
-   function/block/... .
-*)
-
+let renumber_vars_modul_all rno m =
+  match rno with
+  | ReuseNum ->
+    { m with m_funcs = Map.map ~f:renumber_vars_func_reuse m.m_funcs }
+  | _ ->
+    let rnvf = 
+      match rno with
+      | UniqueNumModule -> renumber_vars_func ?ctr:(Some(ref 1)) ()
+      | UniqueNumFun    -> renumber_vars_func ?ctr:None ()
+      | _ -> assert false
+    in
+    { m with m_funcs = Map.map ~f:rnvf m.m_funcs }
+ 
 (* ** Merge consecutive basic blocks
  * ------------------------------------------------------------------------ *)
 (* *** Summary

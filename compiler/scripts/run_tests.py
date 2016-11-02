@@ -63,6 +63,13 @@ def test(fname,get_error):
         system("cat %s; cat %s"%(fn_run_out,fn_run_err))
         return
 
+    # remove times
+    sed = '-E "s,[0-9]+\.[0-9]+s,REMOVED_TIME,"'
+    system("sed %s  %s.run.err >%s.run.err.tmp"%(sed,fname,fname))
+    system("mv %s.run.err.tmp %s.run.err"%(fname,fname))
+    system("sed %s %s.run.out >%s.run.out.tmp"%(sed,fname,fname))
+    system("mv %s.run.out.tmp %s.run.out"%(fname,fname))
+
     # compare with expected output
     if not os.path.isfile(fn_exp_err) or not os.path.isfile(fn_exp_out):
         print "\n  create initial version by running"
@@ -101,7 +108,7 @@ def print_sep():
 
 ######################################################################
 
-# run("tests/compiler/ok/t_01.mil")
+# run("tests/compiler/ok/t_04.mil")
 
 # exit(0)
 
@@ -115,7 +122,7 @@ for fn in [ "%02i"%i for i in range(1,17)]:
 
 print_sep()
 
-for fn in ["01"]:
+for fn in [ "%02i"%i for i in range(1,5)]:
     test_ok("tests/compiler/ok/t_%s.mil"%fn)
 
 print_sep()

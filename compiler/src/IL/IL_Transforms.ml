@@ -39,7 +39,7 @@ type transform =
   | InlineCalls of Fname.t
   | RegisterLiveness of Fname.t
   | RemoveEqConstrs of Fname.t
-  | RenumberIdents
+  | RenumberIdents of renumber_opt
   | Asm of asm_lang
   (* debugging *)
   | Type
@@ -111,7 +111,9 @@ let ptrafo =
   let get_pp_opts = get_opt (mk_pprint_opt None) in
   choice
     [ (string "typecheck" >>$ Type)
-    ; (string "renumber_idents" >>$ RenumberIdents)
+    ; (string "renumber_fun_unique" >>$ RenumberIdents(UniqueNumFun))
+    ; (string "renumber_module_unique" >>$ RenumberIdents(UniqueNumModule))
+    ; (string "renumber_reuse"  >>$ RenumberIdents(ReuseNum))
     ; (string "merge_blocks" >> option fname >>= fun ofn ->
        return (MergeBlocks ofn))
     ; (string "array_assign_expand" >> fname >>= fun fn ->
@@ -260,9 +262,9 @@ let apply_transform trafos (modul0 : unit modul) =
       | Some(fn) ->
         notify "merging basic blocks" fn ~f:(fun () -> merge_blocks_modul m fn)
     in
-    let renumber_idents _m =
-      notify "renumbering identifiers apart" all_fn
-        ~f:(fun () -> undefined () (*renumber_idents_modul_all m*))
+    let renumber_idents rno m =
+      notify "renumbering identifiers" all_fn
+        ~f:(fun () -> renumber_vars_modul_all rno m)
     in
     match trafo with
     | InlineCalls(fn)           -> map_module modul {f = fun m -> inline fn m}
@@ -276,7 +278,7 @@ let apply_transform trafos (modul0 : unit modul) =
     | RegisterAlloc(fn,n)       -> map_module modul {f = fun m -> register_alloc fn n m}
     | MacroExpand(fn,map)       -> map_module modul {f = fun m -> macro_expand fn map m}
     | Type                      -> map_module modul {f = fun m -> typecheck m}
-    | RenumberIdents            -> map_module modul {f = fun m -> renumber_idents m}
+    | RenumberIdents(rno)       -> map_module modul {f = fun m -> renumber_idents rno m}
     | RegisterLiveness(fn)      -> map_module modul {f = fun m -> register_liveness fn m}
     | MergeBlocks(ofn)          -> map_module modul {f = fun m -> merge_blocks ofn m}
     | Save(fn,ppo)              -> save fn ppo modul; modul
