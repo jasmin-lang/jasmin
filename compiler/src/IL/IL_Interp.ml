@@ -6,7 +6,9 @@ open Util
 open Arith
 open IL_Lang
 open IL_Utils
-(* open IL_Typing *)
+open IL_Pprint
+open IL_Misc
+open IL_Typing
 open IL_Expand
 
 module P = ParserUtil
@@ -24,14 +26,15 @@ type py_state = {
 }
 
 type 'info mstate =
-  { m_pmap   : u64   Ident.Map.t           (* parameter variables *)
-  ; m_lmap   : value Int64.Map.t           (* (function) local variables *)
-  ; m_fmap   : bool  Int64.Map.t           (* flags *)
-  ; m_mmap   : u64   U64.Map.t             (* memory *)
-  ; m_py     : py_state option             (* state of python interpreter *)
-  ; m_ftable : 'info func_t String.Table.t (* state of python interpreter *)
+  { m_ptable  : u64   Pname.Table.t      (* parameter variables *)
+  ; m_ltable  : value Int.Table.t        (* (function) local variables *)
+  ; m_fltable : bool  Int.Table.t        (* flags *)
+  ; m_mtable  : u64   U64.Table.t        (* memory *)
+  ; m_py      : py_state option          (* state of python interpreter *)
+  ; m_ftable  : 'info func Fname.Table.t (* function environment *)
   }
 
+(*
 let print_mstate ms =
   F.printf "cvars: %a\n" (pp_list ", " (pp_pair " -> " pp_ident pp_uint64))
     (Map.to_alist ms.m_pmap);
@@ -41,49 +44,50 @@ let print_mstate ms =
     (Map.to_alist ms.m_fmap);
   F.printf "mem: %a\n" (pp_list ", " (pp_pair " -> " pp_uint64 pp_uint64))
     (Map.to_alist ms.m_mmap)
+*)
 
 (* *** Reading values
  * ------------------------------------------------------------------------ *)
 
-let read_lvar lmap s idx =
-  let v = map_find_exn lmap pp_int64 s.i_num in
+let read_lvar ltable lv idx =
+  let v = hashtbl_find_exn ltable pp_int lv.Var.num in
   match v, idx with
   | Vu64(u), None   -> Vu64(u)
   | Varr(vs),Some i -> Vu64(map_find_exn vs pp_uint64 i)
   | Varr(vs),None   -> Varr(vs)
   | Vu64(_), _ ->
     failwith_ "read_lvar: expected array, got u64 in %a[%a]"
-      pp_ident s (pp_opt "," pp_uint64) idx
+      Var.pp lv (pp_opt "," pp_uint64) idx
 
-let read_src_val pmap lmap (s : src_t) =
+let read_src_val ptable ltable (s : src) =
   match s with
-  | Imm pe -> Vu64(eval_pexpr_exn pmap lmap pe)
+  | Imm pe -> Vu64(eval_pexpr_exn ptable ltable pe)
   | Src(d) ->
     let oidx = match d.d_idx with
-      | Inone      -> None
-      | Iconst(pe) -> Some(eval_pexpr_exn pmap lmap pe)
-      | Ireg(d)    ->
-        begin match read_lvar lmap d.d_ident None with
+      | None             -> None
+      | Some(Iconst(pe)) -> Some(eval_pexpr_exn ptable ltable pe)
+      | Some(Ivar(v))    ->
+        begin match read_lvar ltable v None with
         | Vu64(u) -> Some(u)
         | _       -> assert false
         end
     in
-    read_lvar lmap d.d_ident oidx
+    read_lvar ltable d.d_var oidx
 
-let read_src_ pmap lmap (s : src_t) =
+let read_src_ pmap lmap (s : src) =
   match read_src_val pmap lmap s with
   | Vu64(u) -> u
   | Varr(_) ->
     failwith_ "read_src: expected u64, got array for %a"
-      pp_src s
+      pp_src_nt s
 
-let read_src ms = read_src_ ms.m_pmap ms.m_lmap
+let read_src ms = read_src_ ms.m_ptable ms.m_ltable
 
 let read_flag ms s =
   match s with
-  | Src{d_ident; d_idx=Inone}      -> map_find_exn ms.m_fmap pp_int64 d_ident.i_num
-  | Src{d_idx=(Ireg(_)|Iconst(_))} -> failwith "expected flag, got array access" 
-  | Imm _                          -> failwith "expected flag, got immediate"
+  | Src{d_var; d_idx=None} -> hashtbl_find_exn ms.m_fltable pp_int d_var.Var.num
+  | Src{d_idx=Some(_)}     -> failwith "expected flag, got array access" 
+  | Imm _                  -> failwith "expected flag, got immediate"
 
 (* *** Writing values
  * ------------------------------------------------------------------------ *)
@@ -95,35 +99,34 @@ let write_lvar ov s oidx v =
   | Some(Varr(vs)),Some(i), Vu64(u) -> Varr(Map.add vs ~key:i ~data:u)
   | _,             Some(_), Varr(_) ->
     failwith_ "write_lvar: cannot write array to %a[%a]"
-      pp_ident s (pp_opt "_" pp_uint64) oidx
+      Var.pp s (pp_opt "_" pp_uint64) oidx
   | Some(Vu64(_)), Some(_), _ ->
     failwith_ "write_lvar: expected array, got u64 in %a[%a]"
-      pp_ident s (pp_opt "_" pp_uint64) oidx
+      Var.pp s (pp_opt "_" pp_uint64) oidx
 
-let write_dest_ pmap lmap d v =
-  let s    = d.d_ident in
-  let ov   = Map.find lmap s.i_num in
+let write_dest_ ptable ltable d v =
+  let s    = d.d_var in
+  let ov   = HT.find ltable s.Var.num in
   let oidx = match d.d_idx with
-    | Inone      -> None
-    | Iconst(pe) -> Some(eval_pexpr_exn pmap lmap pe)
-    | Ireg(_)    -> failwith "not implemented"
+    | None             -> None
+    | Some(Iconst(pe)) -> Some(eval_pexpr_exn ptable ltable pe)
+    | Some(Ivar(_))    -> failwith "not implemented"
   in
   (* F.printf "###: %a\n%!" pp_value v; *)
   let nv = write_lvar ov s oidx v in
   (* F.printf "###: %a\n%!" pp_value v'; *)
-  Map.add lmap ~key:s.i_num ~data:nv
+  HT.set ltable ~key:s.Var.num ~data:nv
 
 let write_dest ms d x =
-  { ms with m_lmap = write_dest_ ms.m_pmap ms.m_lmap d x }
+  write_dest_ ms.m_ptable ms.m_ltable d x
 
 let write_dest_u64 ms d u = write_dest ms d (Vu64(u))
 
 let write_flag ms d b =
   match d.d_idx with
-  | Inone   ->
-    { ms with m_fmap = Map.add ms.m_fmap ~key:d.d_ident.i_num ~data:b }
-  | Ireg(_) | Iconst(_) ->
-    failwith "cannot give array element, flag (in register) expected"
+  | None    -> HT.set ms.m_fltable ~key:d.d_var.Var.num ~data:b
+  | Some(_) -> failwith "cannot give array element, flag (in register) expected"
+
 
 (* *** Interact with python interpreter
  * ------------------------------------------------------------------------ *)
@@ -147,9 +150,9 @@ let eval_py_ pst cmd =
   output_string c_out cmd;
   flush c_out;
   (* result is last line of output *)
-  F.printf "### eval_py_: waiting for python output for ``%s''\n%!" cmd;
+  (* F.printf "### eval_py_: waiting for python output for ``%s''\n%!" cmd; *)
   let res = input_line c_in in
-  F.printf "### eval_py_: got python output ``%s''\n%!" res;
+  (* F.printf "### eval_py_: got python output ``%s''\n%!" res; *)
   res
 
 let stop_sage pst =
@@ -182,7 +185,7 @@ let interp_op (ms : 'info mstate) o ds ss =
     let x = read_src ms x in
     let y = read_src ms y in
     let (zh,zl) = U64.umul x y in
-    let ms = write_dest_u64 ms z zl in
+    write_dest_u64 ms z zl;
     write_dest_u64 ms h zh
 
   | V_Carry(cop,mcf_out,z,x,y,mcf_in) ->
@@ -196,10 +199,10 @@ let interp_op (ms : 'info mstate) o ds ss =
       | O_Add -> U64.add_carry x y cf
       | O_Sub -> U64.sub_carry x y cf
     in
-    let ms = write_dest_u64 ms z zo in
+    write_dest_u64 ms z zo;
     begin match mcf_out with
     | Some cf_out -> write_flag ms cf_out cfo
-    | None        -> ms
+    | None        -> ()
     end
 
   | V_Cmov(neg,z,x,y,cf)  ->
@@ -210,8 +213,8 @@ let interp_op (ms : 'info mstate) o ds ss =
     write_dest_u64 ms z res
 
   | V_ThreeOp(O_Imul,z,x,y) ->
-    if not (is_Simm y) then
-      failwith_ "expected immediate value for %a in IMul" pp_src y;
+    (* if not (is_Simm y) then *)
+      (* failwith_ "expected immediate value for %a in IMul" pp_src_nt y; *)
     let x = read_src ms x in
     let y = read_src ms y in
     write_dest_u64 ms z (fst (U64.imul_trunc x y))
@@ -242,87 +245,88 @@ let interp_op (ms : 'info mstate) o ds ss =
 (* *** Interpret instruction
  * ------------------------------------------------------------------------ *)
 
-let eval_fcond_exn fmap fc =
-  assert (fc.fc_dest.d_idx=inone);
-  let b = map_find_exn fmap pp_int64 fc.fc_dest.d_ident.i_num in
+let eval_fcond_exn fltable fc =
+  let b = hashtbl_find_exn fltable pp_int fc.fc_var.Var.num in
   if fc.fc_neg then not b else b
 
-let eval_fcond_or_pcond_exn pmap lmap fmap = function
-  | Fcond(fc) -> eval_fcond_exn fmap fc
-  | Pcond(pc) -> eval_pcond_exn pmap lmap pc
+let eval_fcond_or_pcond_exn ptable ltable fltable = function
+  | Fcond(fc) -> eval_fcond_exn fltable fc
+  | Pcond(pc) -> eval_pcond_exn ptable ltable pc
 
-let interp_assign pmap ~lmap_lhs ~lmap_rhs ds ss =
+let interp_assign ptable ltable ds ss =
   let ss_ds =
     try List.zip_exn ss ds
     with Invalid_argument _ ->
       failwith_
         "assignment %a = %a failed, lhs and rhs have different dimensions (%a = %a)"
-        (pp_list "," pp_dest) ds (pp_list "," pp_src) ss (pp_list "," pp_src)
-        ss (pp_list "," pp_dest) ds
+        (pp_list "," pp_dest_nt) ds (pp_list "," pp_src_nt) ss (pp_list "," pp_src_nt)
+        ss (pp_list "," pp_dest_nt) ds
   in
-  List.fold ss_ds
-    ~init:lmap_lhs
-    ~f:(fun lmap (s,d) -> write_dest_ pmap lmap d (read_src_val pmap lmap_rhs s))
+  let vs_ds = List.map ss_ds ~f:(fun (s,d) -> (read_src_val ptable ltable s,d)) in
+  List.iter vs_ds ~f:(fun (v,d) -> write_dest_ ptable ltable d v)
 
-let rec interp_base_instr ms0 binstr =
-  let pmap = ms0.m_pmap in
-  match binstr with
-  | Comment(_) -> ms0
+let rec interp_base_instr ms lbinstr =
+  let ptable = ms.m_ptable in
+  match lbinstr.L.l_val with
+  | Comment(_) -> ()
 
-  | Op(o,ds,ss) -> interp_op ms0 o ds ss
+  | Op(o,ds,ss) -> interp_op ms o ds ss
 
-  | Call(fname,rets,args) -> interp_call ms0 fname rets args
+  | Call(fname,rets,args) -> interp_call ms fname rets args
 
   | Assgn(d,s,_) ->
-    let lmap = interp_assign pmap ~lmap_lhs:ms0.m_lmap ~lmap_rhs:ms0.m_lmap [d] [s] in
-    { ms0 with m_lmap = lmap }
+    interp_assign ptable ms.m_ltable [d] [s]
+    (* { ms0 with m_lmap = lmap } *)
 
   | Load(d,s,pe) ->
+    undefined ()
+    (*
     let ptr = read_src ms0 s in
     let c = eval_pexpr_exn pmap ms0.m_lmap pe in
     let v = map_find_exn ms0.m_mmap pp_uint64 (U64.add c ptr) in
     write_dest ms0 d (Vu64 v)
+    *)
 
   | Store(s1,pe,s2) ->
+    undefined ()
+    (*
     let v = read_src ms0 s2 in
     let ptr = read_src ms0 s1 in
     let c = eval_pexpr_exn pmap ms0.m_lmap pe in
     { ms0 with
       m_mmap = Map.add ms0.m_mmap ~key:(U64.add ptr c) ~data:v }
+    *)
 
-and interp_instr ms0 instr =
+and interp_instr ms linstr =
   (* F.printf "\ninstr: %a\n%!" pp_instr instr;
      print_mstate ms0; *)
-  let pmap = ms0.m_pmap in
-  match instr with
-  | Block(bis,_) ->
-    List.fold bis
-      ~f:(fun ms i -> interp_base_instr ms i)
-      ~init:ms0
+  let ptable = ms.m_ptable in
+  match linstr.L.l_val with
+  | Block(bis,_) ->    
+    List.iter bis
+      ~f:(fun lbi -> interp_base_instr ms lbi)
 
   | If(ccond,stmt1,stmt2,_) ->
-    if eval_fcond_or_pcond_exn pmap ms0.m_lmap ms0.m_fmap ccond then
-      interp_stmt ms0 stmt1
+    if eval_fcond_or_pcond_exn ptable ms.m_ltable ms.m_fltable ccond then
+      interp_stmt ms stmt1
     else
-      interp_stmt ms0 stmt2
+      interp_stmt ms stmt2
  
   | While(WhileDo,fc,s,_) ->
-    if (eval_fcond_exn ms0.m_fmap fc) then (
-      let ms = interp_stmt ms0 s in
-      interp_instr ms instr
-    ) else (
-      ms0
-    )
+    if (eval_fcond_exn ms.m_fltable fc) then (
+      interp_stmt ms s;
+      interp_instr ms linstr
+    ) 
 
   | While(DoWhile,fc,s,_) ->
-    let ms = interp_stmt ms0 s in
-    if (eval_fcond_exn ms.m_fmap fc) then (
-      interp_instr ms instr
-    ) else (
-      ms
+    interp_stmt ms s;
+    if (eval_fcond_exn ms.m_fltable fc) then (
+      interp_instr ms linstr
     )
-
+  
   | For(cv,clb,cub,s,_) ->
+    failwith "for-undefined"
+    (*
     let lb = eval_pexpr_exn pmap ms0.m_lmap clb in
     let ub = eval_pexpr_exn pmap ms0.m_lmap cub in
     let (initial, test, change) =
@@ -351,38 +355,39 @@ and interp_instr ms0 instr =
     done;
     { !ms with
       m_lmap = Map.change !ms.m_lmap cv.d_ident.i_num ~f:(fun _ -> old_val) }
+    *)
 
-and interp_call ms fname call_rets call_args =
+and interp_call ms fname call_rets call_args = 
   (* look up function definition *)
-  let func = hashtbl_find_exn ms.m_ftable pp_string fname in
-  match func.f_def with
-  | Def fdef   -> interp_call_native ms func fdef    call_rets call_args
-  | Py py_code -> interp_call_python ms func py_code call_rets call_args
-  | Undef      -> failwith "Calling undefined function (only declared)"
+  let func = hashtbl_find_exn ms.m_ftable Fname.pp fname in
+  match func with
+  | Native(fd) -> interp_call_native ms func fd call_rets call_args
+  | Foreign(fo) ->
+    begin match fo.fo_py_def with 
+    | None    -> failwith "Calling undefined function (only declared)"
+    | Some(s) -> interp_call_python ms func s call_rets call_args
+    end
 
 and interp_call_python ms func py_code call_rets call_args =
-  let decl_args = List.map func.f_args ~f:(fun (s,i,t) -> mk_dest_name i t s) in
+  (* let decl_args = List.map func.f_args ~f:(fun (s,i,t) -> mk_dest_name i t s) in *)
   (* compute lmap for callee *)
-  let pmap = ms.m_pmap in
-  let lmap_caller = ms.m_lmap in
-  let lmap_callee = Int64.Map.empty in
-  let lmap_callee =
-    interp_assign pmap
-      ~lmap_lhs:lmap_callee ~lmap_rhs:lmap_caller
-      decl_args call_args
-  in
+  let ptable = ms.m_ptable in
+  let ltable = ms.m_ltable in
+  (* let lmap_caller = ms.m_lmap in *)
+  (* let lmap_callee = Int64.Map.empty in *)
+  (* let lmap_callee = *)
+    (* interp_assign pmap *)
+      (* ~lmap_lhs:lmap_callee ~lmap_rhs:lmap_caller *)
+      (* decl_args call_args *)
+  (* in *)
   (* execute function body *)
   let s_params =
     fsprintf "{%a}" (pp_list "," pp_string)
-      (List.map (Map.to_alist ms.m_pmap)
-        ~f:(fun (s,v) -> fsprintf "'%s' : %a" s.i_name pp_uint64 v))
+      (List.map (HT.to_alist ms.m_ptable)
+        ~f:(fun (pn,v) -> fsprintf "'%a' : %a" Pname.pp pn pp_uint64 v))
   in
-  let s_args =
-    List.map func.f_args
-      ~f:(fun (_,s,_) ->
-            F.printf "looking up value for %a %a\n" pp_ident s pp_int64 s.i_num;
-            fsprintf "%a" pp_value_py (Map.find_exn lmap_callee s.i_num))
-  in    
+  let vs = List.map call_args ~f:(fun s -> read_src_val ptable ltable s) in
+  let s_args = List.map vs ~f:(fun v -> fsprintf "%a" pp_value_py v) in    
   let (res,ms) =
     eval_py ms
       (fsprintf "res = %s(%a)\nprint(str(res))\n" py_code
@@ -395,14 +400,11 @@ and interp_call_python ms func py_code call_rets call_args =
     | []   -> []
     | _    -> assert false
   in
-  let lmap_caller =
-    List.fold ss_ds
-      ~init:lmap_caller
-      ~f:(fun lmap (s,d) -> write_dest_ pmap lmap d s)
-  in
-  { ms with m_lmap = lmap_caller; }
+  List.iter ss_ds ~f:(fun (s,d) -> write_dest_ ptable ltable d s)
 
 and interp_call_native ms func fdef call_rets call_args =
+  failwith "call-native-undefined"
+  (*
   let decl_args = List.map func.f_args ~f:(fun (s,name,t) -> mk_dest_name name t s) in
   let decl_rets = List.map fdef.fd_ret ~f:(fun n -> Src(mk_dest_name n U64 Reg)) in
   (* setup mstate for called function *)
@@ -428,38 +430,37 @@ and interp_call_native ms func fdef call_rets call_args =
       call_rets decl_rets
   in
   { ms with m_lmap = lmap_caller; m_fmap = fmap_caller }
+  *)
 
-and interp_stmt (ms0 : 'info mstate) stmt =
-  List.fold stmt
-    ~f:(fun ms i -> interp_instr ms i)
-    ~init:ms0
+and interp_stmt (ms : 'info mstate) stmt =
+  List.iter stmt
+    ~f:(fun li -> interp_instr ms li)
 
 (* *** Interpret function (in module)
  * ------------------------------------------------------------------------ *)
 
 let interp_modul
-  (modul0 : 'info modul_t) (pmap : u64 Ident.Map.t) (mmap : u64 U64.Map.t)
-  (args : value list) (fname : string)
+  (modul : 'info modul) (_pmap : u64 Pname.Map.t) (_mmap : u64 U64.Map.t)
+  (_args : value list) (fname : Fname.t)
   =
-  (* let modul = renumber_idents_modul_all ~all_distinct:true modul0 in *)
-  let modul = modul0 in
+  vars_num_unique_modul ~type_only:false modul;
   typecheck_modul modul;
-  let func_table =
-    String.Table.of_alist_exn (List.map ~f:(fun f -> (f.f_name,f)) modul.m_funcs)
-  in
-  let func = hashtbl_find_exn func_table pp_string fname in
-  let fdef = get_fundef ~err_s:"interpreter " func in
-  let stmt = fdef.fd_body in
+  let ftable = Fname.Table.of_alist_exn (Map.to_alist modul.m_funcs) in
+  let func = hashtbl_find_exn ftable Fname.pp fname in
+  let fd = get_fundef ~err_s:"interpreter " func in
+  let stmt = fd.f_body in
+  (*
   let f_args = func.f_args in
   if List.length f_args <> List.length args then
     failwith_ "interp_string: wrong number of arguments given (got %i, exp. %i)"
       (List.length args) (List.length f_args);
+  *)
   (* FIXME: typecheck arguments and parameters *)
-  let lmap =
-    Int64.Map.of_alist_exn
-      (List.map2_exn ~f:(fun (_,i,_) a -> (i.i_num,a)) f_args args)
+  let ltable = Int.Table.create ()
+    (* Int64.Map.of_alist_exn *)
+      (* (List.map2_exn ~f:(fun (_,i,_) a -> (i.i_num,a)) f_args args) *)
   in
-  let fmap = Int64.Map.empty in
+  let fltable = Int.Table.create () in
   let pst =
       F.printf "### starting python\n%!";
       let pst = start_py () in
@@ -471,12 +472,12 @@ let interp_modul
       pst
   in
   let ms =
-    { m_lmap   = lmap
-    ; m_pmap   = pmap
-    ; m_fmap   = fmap
-    ; m_mmap   = mmap
-    ; m_py     = Some pst
-    ; m_ftable = func_table
+    { m_ltable  = ltable
+    ; m_ptable  = Pname.Table.create ()
+    ; m_fltable = fltable
+    ; m_mtable  = U64.Table.create ()
+    ; m_py      = Some pst
+    ; m_ftable  = ftable
     }
   in
   (* print_endline "#########################"; *)

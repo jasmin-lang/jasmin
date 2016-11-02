@@ -474,6 +474,12 @@ def rand(s,params):
   # print('>>> rand_arr: res=%s'%(str(res)), file=sys.stderr)
   return res
 
+def rand_u64(s,params):
+  # print('>>> rand_arr: x=%s'%(str(s)), file=sys.stderr)
+  random.seed(s)
+  res = random.getrandbits(64)
+  return res
+
 def assert_equal_add(x,y,z,params):
   xi = to_big_int(x)
   yi = to_big_int(y)
@@ -493,6 +499,10 @@ def assert_equal_mul(x,y,z,params):
   yi = to_big_int(y)
   zi = to_big_int(z)
   assert ((xi * yi) % p == (zi % p))
+  return []
+
+def assert_equal_u64(x,y,params):
+  assert (x == y)
   return []
 
 # translated from:

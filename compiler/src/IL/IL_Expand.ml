@@ -16,14 +16,12 @@ module IT  = IL_Typing
 (* ** Interpreting compile-time expressions and conditions
  * ------------------------------------------------------------------------ *)
 
-type pmap = u64 String.Map.t
-
 let eval_pbinop = function
   | Pplus  -> U64.add
   | Pmult  -> U64.mul
   | Pminus -> U64.sub
 
-let eval_pexpr pmap lmap ce =
+let eval_pexpr ptable ltable ce =
   let rec go = function
     | Pbinop(o,ie1,ie2) ->
       begin match go ie1, go ie2 with
@@ -35,12 +33,12 @@ let eval_pexpr pmap lmap ce =
       end
     | Pconst(c) -> Ok c
     | Patom(Pparam(p)) ->
-      begin match Map.find pmap p.Param.name with
+      begin match HT.find ptable p.Param.name with
       | Some (x) -> Ok x
       | None     -> failwith_ "eval_pexpr: parameter %a undefined" Param.pp p
       end
     | Patom(Pvar(v)) ->
-      begin match Map.find lmap v.Var.num with
+      begin match HT.find ltable v.Var.num with
       | Some (Vu64 x) -> Ok x
       | Some (_) ->
         Error (fsprintf "eval_pexpr: variable %a of wrong type" Var.pp v)
@@ -59,7 +57,7 @@ let eval_pcondop pc = fun x y ->
   | Pleq     -> U64.compare x y <= 0
   | Pgeq     -> U64.compare x y >= 0
 
-let eval_pcond pmap lmap cc =
+let eval_pcond ptable ltable cc =
   let rec go = function
     | Ptrue              -> Result.Ok(true)
     | Pnot(ic)           ->
@@ -75,7 +73,7 @@ let eval_pcond pmap lmap cc =
         Error(s)
       end
     | Pcmp(cco,ce1,ce2) ->
-      begin match eval_pexpr pmap lmap ce1, eval_pexpr pmap lmap ce2 with
+      begin match eval_pexpr ptable ltable ce1, eval_pexpr ptable ltable ce2 with
       | Ok(x1),Ok(x2) -> Ok(eval_pcondop cco x1 x2)
       | Error(s), _
       | _, Error(s) ->
@@ -84,11 +82,11 @@ let eval_pcond pmap lmap cc =
   in
   go cc
 
-let eval_pexpr_exn pmap lmap ce = 
-  eval_pexpr pmap lmap ce |> Result.ok_or_failwith
+let eval_pexpr_exn ptable ltable ce = 
+  eval_pexpr ptable ltable ce |> Result.ok_or_failwith
 
-let eval_pcond_exn pmap lmap cc = 
-  eval_pcond pmap lmap cc |> Result.ok_or_failwith
+let eval_pcond_exn ptable ltable cc = 
+  eval_pcond ptable ltable cc |> Result.ok_or_failwith
 
 (* ** Simple transformations
  * ------------------------------------------------------------------------ *)

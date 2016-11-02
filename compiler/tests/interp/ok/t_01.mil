@@ -1,31 +1,29 @@
-param n : u64;
+fn rand_u64(reg u64) -> reg u64 = python rand_u64;
+fn assert_equal_u64(reg u64, reg u64) = python assert_equal_u64;
 
-fn print(stack x : u64[n]) = python print_u64_arr;
+fn test() {
+  x, y, z   : reg u64;
+  w, r1, r2 : reg u64;
+  s         : reg u64;
 
-fn rand_arr(stack s : u64) -> stack u64[n] = python rand;
+  s = 42;
 
-fn assert_equal(stack x, y : u64[n]) = python assert_equal;
+  x = rand_u64(s); s += 1;
+  y = rand_u64(s); s += 1;
+  z = rand_u64(s);
 
+  r1 = x*z;
+  w  = y*z;
+  r1 += w;
 
-fn bar(stack u : u64[2]) -> stack u64[2] {
-  u[0] = 15 + u[0];
-  u[1] = 17 + u[1];
-  return u;
+  r2 = x + y;
+  r2 *= z;
+
+  assert_equal_u64(r1,r2);
 }
 
-fn test_fun(stack y : u64[n]) {
-  reg x : u64[n];
-  reg z : u64[n];
-  reg w : u64[2];
-
-  z = rand_arr(1);
-  //x = z;
-  
-  //print(z);
-  //z<0> = 1;
-  //assert_equal(z,x);
-  //w[0] = z[0];
-  //w[1] = z[1];
-  //w = bar(w);
-  //print(x<0..n>);
-}
+/*
+START:CMD
+ARG="typecheck,renumber_fun_unique,interp[][][test][]"
+END:CMD
+*/

@@ -31,7 +31,7 @@ let mk_pprint_opt ofn = {
 
 type transform =
   | MergeBlocks of Fname.t option
-  | MacroExpand of Fname.t * u64 Ident.Map.t
+  | MacroExpand of Fname.t * u64 Pname.Map.t
   | ArrayAssignExpand of Fname.t
   | ArrayExpand of Fname.t
   | LocalSSA of Fname.t
@@ -46,8 +46,8 @@ type transform =
   | Print of string * pprint_opt
   | Save  of string * pprint_opt
   | StripComments of Fname.t
-  | Interp of Fname.t * u64 Ident.Map.t * u64 U64.Map.t * value list
-    (* Interp(pmap,mmap,alist,fun):
+  | Interp of Fname.t * u64 Pname.Map.t * u64 U64.Map.t * value list
+    (* Interp(fun,pmap,mmap,alist,fun):
          interpret call of function fun() with parameters pmap, memory mmap,
          argument list alist *)
 
@@ -71,7 +71,7 @@ let ptrafo =
         return (Varr(vs))) ]
   in
   let pmapping =
-    ident >>= fun _s -> char '=' >> u64 >>= fun u -> return (undefined (),u)
+    ident >>= fun s -> char '=' >> u64 >>= fun u -> return (Pname.mk s,u)
   in
   let mmapping =
     u64 >>= fun s -> char '=' >> u64 >>= fun u -> return (s,u)
@@ -139,11 +139,10 @@ let ptrafo =
        return (RegisterAlloc(fn,l)))
     ; string "asm" >> char '[' >> asm_lang >>= (fun l -> char ']' >>$ (Asm(l)))
     ; (string "expand" >> fname >>= fun fname ->
-       pmap >>= fun _m -> return (MacroExpand(fname,undefined ())))
+       pmap >>= fun pm -> return (MacroExpand(fname,pm)))
     ; (string "inline" >> fname >>= fun fname -> return (InlineCalls(fname)))
     ; string "interp" >> interp_args >>=
-        fun (fn,_mp,mm,args) -> return (Interp(fn,undefined () (*mp*)
-                                             ,mm,args)) ]
+        fun (fn,pm,mm,args) -> return (Interp(fn,pm,mm,args)) ]
 
 let parse_trafo s =
   let open MP in
@@ -229,9 +228,9 @@ let apply_transform trafos (modul0 : unit modul) =
       | U m, false -> go m None
       | L m, _     -> go m None
     in
-    let interp fn _pmap _mmap _args m =
+    let interp fn pmap mmap args m =
       notify "interpreting" fn
-        ~f:(fun () -> undefined () (*IL_Interp.interp_modul m pmap mmap args fn;*); m)
+        ~f:(fun () -> IL_Interp.interp_modul m pmap mmap args fn; m)
     in
     let array_expand_modul fn m =
       notify "expanding array assignments" fn

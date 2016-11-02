@@ -74,8 +74,6 @@ and pp_var ~pp_types fmt v =
   else
     Var.pp fmt v
 
-let pp_ty_nt = pp_ty ~pp_types:false
-
 let rec pp_pexpr ~pp_types fmt ce =
   let ppe = pp_pexpr ~pp_types in
   match ce with
@@ -319,3 +317,9 @@ let pp_value_py fmt = function
     pp_uint64 fmt u
   | Varr(vs) ->
     F.fprintf fmt "[%a]" (pp_list "," pp_uint64) (List.map ~f:snd (Map.to_alist vs))
+
+let pp_ty_nt = pp_ty ~pp_types:false
+
+let pp_dest_nt = pp_dest ~pp_types:false
+
+let pp_src_nt = pp_src ~pp_types:false
