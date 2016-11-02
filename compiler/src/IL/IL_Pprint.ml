@@ -134,22 +134,26 @@ let pp_three_op fmt o =
 let pp_op ~pp_types fmt (o,ds,ss) =
   let ppd = pp_dest ~pp_types in
   let pps = pp_src ~pp_types in
+  let ppdso ppo fmt (d,s,o) =
+    if equal_src (Src(d)) s then
+      F.fprintf fmt "%a %a=" ppd d ppo o
+    else
+      F.fprintf fmt "%a = %a %a" ppd d pps s ppo o
+  in
   match view_op o ds ss with
   | V_Umul(d1,d2,s1,s2) ->
     F.fprintf fmt "%a, %a = %a * %a" ppd d1 ppd d2 pps s1 pps s2
   | V_ThreeOp(o,d1,s1,s2) ->
-    F.fprintf fmt "%a = %a %a %a" ppd d1 pps s1 pp_three_op o pps s2
+    F.fprintf fmt "%a %a" (ppdso pp_three_op) (d1,s1,o) pps s2
   | V_Carry(cfo,od1,d2,s1,s2,os3) ->
     let so = string_of_carry_op cfo in
-    F.fprintf fmt "%a%a = %a %s %a%a"
+    F.fprintf fmt "%a%a %a%a"
       (fun fmt od ->
          match od with
          | Some d -> F.fprintf fmt "%a, " ppd d
          | None   -> pp_string fmt "")
       od1
-      ppd d2
-      pps s1
-      so
+      (ppdso pp_string) (d2,s1,so)
       pps s2
       (fun fmt os ->
          match os with
@@ -160,15 +164,13 @@ let pp_op ~pp_types fmt (o,ds,ss) =
     F.fprintf fmt "%a = %a if %s%a else %a"
       ppd d1 pps s2 (if neg then "!" else "") pps s3 pps s1
   | V_Shift(dir,od1,d1,s1,s2) ->
-    F.fprintf fmt "%a%a = %a %s %a"
+    F.fprintf fmt "%a%a %a"
       (fun fmt od ->
          match od with
          | Some d -> F.fprintf fmt "%a" ppd d
          | None   -> pp_string fmt "")
       od1
-      ppd d1
-      pps s1
-      (match dir with Left -> "<<" | Right -> ">>")
+      (ppdso pp_string) (d1,s1,match dir with Left -> "<<" | Right -> ">>")
       pps s2
 
 let pp_base_instr ~pp_types fmt bi =

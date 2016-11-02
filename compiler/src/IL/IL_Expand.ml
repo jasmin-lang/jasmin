@@ -373,7 +373,7 @@ let inline_calls_modul modul fname =
 (* *** Summary
 Given values for parameters, perform the following unfolding:
 1. evaluate pexpr/dexpr in dimensions and ranges
-2. unfold loops and if-then-else
+2. unfold for-loops and if-then-else with parameter-cond
 3. evaluate pexpr in indexing
 Assumes that there are no function calls in the macro-expanded function.
 *)

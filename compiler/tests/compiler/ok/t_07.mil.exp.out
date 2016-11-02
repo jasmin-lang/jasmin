@@ -1,0 +1,48 @@
+inlining all calls in foo2 function(s)
+   REMOVED_TIME
+renumbering identifiers in all function(s)
+   REMOVED_TIME
+>> input:
+fn foo2(x : stack u64, y : stack u64, cf : reg bool) -> stack u64 {
+  cf.1 : reg bool
+  w : stack u64
+  x.1 : stack u64
+  y.1 : stack u64
+  z : stack u64
+  // START
+  w = x;
+  cf, w = w + x;
+  // END
+  // START
+  if (!cf) {
+    // START
+    cf, x = x + w;
+    cf, x = x + y;
+    /* START: inlined call to foo1 */
+    x.1 := x;
+    y.1 := y;
+    cf.1 := cf;
+    cf.1, x.1 = x.1 + y.1 + cf.1;
+    // END
+    // START
+    if (cf.1) {
+      // START
+      cf.1, x.1 = x.1 + y.1;
+      cf.1, x.1 = x.1 + y.1;
+      // END
+    }
+    // END
+    // START
+    /* START: inlined call to foo0 */
+    z := x.1;
+    z = z + z;
+    x.1 := z;
+    /* END: inlined call to foo0 */
+    x := x.1;
+    /* END: inlined call to foo1 */
+    // END
+  }
+  // END
+  return x;
+}
+

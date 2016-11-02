@@ -4,10 +4,10 @@ renumbering identifiers in all function(s)
 fn foo1(x.1 : stack u64, y.2 : stack u64, z.3 : reg bool) -> stack u64 {
   w.4 : stack u64
   (w.4 : stack u64) = (x.1 : stack u64);
-  (w.4 : stack u64) = (w.4 : stack u64) + (x.1 : stack u64);
+  (w.4 : stack u64) += (x.1 : stack u64);
   if $(w.4 : stack u64 = 5) {
-    (z.3 : reg bool), (x.1 : stack u64) = (x.1 : stack u64) + (w.4 : stack u64);
-    (z.3 : reg bool), (x.1 : stack u64) = (x.1 : stack u64) + (y.2 : stack u64);
+    (z.3 : reg bool), (x.1 : stack u64) += (w.4 : stack u64);
+    (z.3 : reg bool), (x.1 : stack u64) += (y.2 : stack u64);
   }
   return (x.1 : stack u64);
 }
@@ -15,10 +15,10 @@ fn foo1(x.1 : stack u64, y.2 : stack u64, z.3 : reg bool) -> stack u64 {
 fn foo2(x.1 : stack u64, y.2 : stack u64, z.3 : reg bool) -> stack u64 {
   w.4 : stack u64
   (w.4 : stack u64) = (x.1 : stack u64);
-  (w.4 : stack u64) = (w.4 : stack u64) + (x.1 : stack u64);
+  (w.4 : stack u64) += (x.1 : stack u64);
   if $(w.4 : stack u64 = 5) {
-    (z.3 : reg bool), (x.1 : stack u64) = (x.1 : stack u64) + (w.4 : stack u64);
-    (z.3 : reg bool), (x.1 : stack u64) = (x.1 : stack u64) + (y.2 : stack u64);
+    (z.3 : reg bool), (x.1 : stack u64) += (w.4 : stack u64);
+    (z.3 : reg bool), (x.1 : stack u64) += (y.2 : stack u64);
   }
   return (x.1 : stack u64);
 }
