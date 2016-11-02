@@ -1,17 +1,16 @@
 // * Implementation of montgomery ladder for curve25519
 
-/* param n     : u64; the number of limbs is fixed for now */
-param rem_p : u64; /* 2^(n*64) mod p      */
+param rem_p : u64; /* 2^(4*64) mod p      */
 
 // ** addition
 // ************************************************************************
 
-fn add(reg x : u64[4], stack ya : u64[4]) -> reg u64[4] {
+fn add(x : reg u64[4], ya : stack u64[4]) -> reg u64[4] {
 
-  reg  y : u64[4];
-  reg  add0, add1 : u64;
-  flag cf : bool;
-  inline i : u64;
+  y          : reg u64[4];
+  add0, add1 : reg u64;
+  cf         : reg bool;
+  i          : inline u64;
 
   for i in 0..4 {
     y[i] = ya[i];
@@ -40,12 +39,12 @@ fn add(reg x : u64[4], stack ya : u64[4]) -> reg u64[4] {
 // ** subtraction
 // ************************************************************************
 
-fn sub(reg x : u64[4], stack ya : u64[4]) -> reg u64[4] {
+fn sub(x : reg u64[4], ya : stack u64[4]) -> reg u64[4] {
 
-  reg  y : u64[4];
-  reg  sub0, sub1 : u64;
-  flag cf : bool;
-  inline i : u64;
+  y          : reg u64[4];
+  sub0, sub1 : reg u64;
+  cf         : reg bool;
+  i          : inline u64;
 
   for i in  0..4 {
     y[i] = ya[i];
@@ -77,12 +76,12 @@ fn sub(reg x : u64[4], stack ya : u64[4]) -> reg u64[4] {
 // ** reduction from 8 limbs to 4 limbs
 // ************************************************************************
 
-fn reduce(reg z_in : u64[8]) -> reg u64[4] {
-  reg crem_p, rax, l, h, hprev, zero : u64;
-  reg z     : u64[8];
-  reg z_out : u64[4];
-  flag cf : bool;
-  inline i : u64;
+fn reduce(z_in : reg u64[8]) -> reg u64[4] {
+  crem_p, rax, l, h, hprev, zero : reg u64;
+  z                              : reg u64[8];
+  z_out                          : reg u64[4];
+  cf                             : reg bool;
+  i                              : inline u64;
 
   // FIXME: check if this is really required 
   for i in 0..8 { z[i] = z_in[i]; }
@@ -125,14 +124,14 @@ fn reduce(reg z_in : u64[8]) -> reg u64[4] {
 // ** multiplication
 // ************************************************************************
 
-fn mul(stack xa, ya : u64[4]) -> reg u64[4] {
+fn mul(xa, ya : stack u64[4]) -> reg u64[4] {
 
-  reg z    : u64[8];
-  reg r    : u64[4];
-  reg x, y : u64[4];
-  reg h, l, hprev : u64;
-  flag cf : bool;
-  inline i, j : u64;
+  z           : reg u64[8];
+  r           : reg u64[4];
+  x, y        : reg u64[4];
+  h, l, hprev : reg u64;
+  cf          : reg bool;
+  i, j        : inline u64;
 
   x[0] = xa[0];
   for j in 0..4 {
@@ -181,14 +180,13 @@ fn mul(stack xa, ya : u64[4]) -> reg u64[4] {
 // ** squaring
 // ************************************************************************
 
-fn square(stack xa : u64[4]) -> reg u64[4] {
+fn square(xa : stack u64[4]) -> reg u64[4] {
 
-  reg z : u64[8];
-  reg r : u64[4];
-  reg t : u64[5];
-  reg rax, rdx : u64;
-  flag cf : bool;
-  inline i : u64;
+  z        : reg u64[8];
+  r        : reg u64[4];
+  t        : reg u64[5];
+  rax, rdx : reg u64;
+  cf       : reg bool;
 
   z[7] = 0;
 
@@ -293,12 +291,13 @@ fn square(stack xa : u64[4]) -> reg u64[4] {
 // ** ladderstep
 // ************************************************************************
 
-fn ladderstep(stack x1p, x2p, z2p, x3p, z3p : u64[4])
+fn ladderstep(x1p, x2p, z2p, x3p, z3p : stack u64[4])
     -> stack u64[4] * stack u64[4] * stack u64[4] * stack u64[4] {
-  reg t1,  t2,  t7,  t6,  t5,  t3,  t4,  t9, t8  : u64[4];
-  stack t1p, t2p, t7p, t6p, t5p, t3p, t4p, t9p : u64[4];
-  reg w1, w2, w3, w4, w5, w6, w7 : u64[4];
-  stack c121666p : u64[4];
+
+  t1,  t2,  t7,  t6,  t5,  t3,  t4,  t9, t8 : reg u64[4];
+  t1p, t2p, t7p, t6p, t5p, t3p, t4p, t9p    : stack u64[4];
+  w1, w2, w3, w4, w5, w6, w7                : reg u64[4];
+  c121666p                                  : stack u64[4];
 
   c121666p[0] = 121666;
   c121666p[1] = 0;
@@ -356,17 +355,18 @@ fn ladderstep(stack x1p, x2p, z2p, x3p, z3p : u64[4])
 
 
 fn ladderstep_tracing(
-    stack x1p, x2p, z2p, x3p, z3p : u64[4]
+    x1p, x2p, z2p, x3p, z3p : stack u64[4]
   ) -> stack u64[4] * stack u64[4] * stack u64[4] * stack u64[4] * stack u64[4] *
        stack u64[4] * stack u64[4] * stack u64[4] * stack u64[4] * stack u64[4] *
        stack u64[4] * stack u64[4] * stack u64[4] * stack u64[4] * stack u64[4] *
        stack u64[4] * stack u64[4] * stack u64[4]
  {
-  reg t1,  t2,  t7,  t6,  t5,  t3,  t4,  t9, t8  : u64[4];
-  stack t1p, t2p, t7p, t6p, t5p, t3p, t4p, t9p : u64[4];
-  reg w1, w2, w3, w4, w5, w6, w7 : u64[4];
-  reg c121666p : u64[4];
-  stack l1,l2,l3,l4,l5,l6,l7,l8,l9,l10,l11,l12,l13,l14,l15,l16,l17,l18 : u64[4];
+
+  t1,  t2,  t7,  t6,  t5,  t3,  t4,  t9, t8                      : reg u64[4];
+  t1p, t2p, t7p, t6p, t5p, t3p, t4p, t9p                         : stack u64[4];
+  w1, w2, w3, w4, w5, w6, w7                                     : reg u64[4];
+  c121666p                                                       : reg u64[4];
+  l1,l2,l3,l4,l5,l6,l7,l8,l9,l10,l11,l12,l13,l14,l15,l16,l17,l18 : stack u64[4];
 
   c121666p[0] = 121666;
   c121666p[1] = 0;
@@ -426,10 +426,11 @@ fn ladderstep_tracing(
 // ************************************************************************
 
 // FIXME: compare with OpenSSL, this is a translation from C
-fn cswap(stack x2p, z2p, x3p, z3p : u64[4], stack swap : u64)
+fn cswap(x2p, z2p, x3p, z3p : stack u64[4], swap : stack u64)
     -> stack u64[4] * stack u64[4] * stack u64[4] * stack u64[4] {
-  reg tmp1, tmp2, mask : u64;
-  inline i : u64;
+
+  tmp1, tmp2, mask : reg u64;
+  i                : inline u64;
 
   mask = swap * 0xffffffffffffffff;
 
@@ -461,14 +462,15 @@ fn cswap(stack x2p, z2p, x3p, z3p : u64[4], stack swap : u64)
 // ** montgomery ladder
 // ************************************************************************
 
-fn mladder(stack xr, sp : u64[4]) -> stack u64[4] * stack u64[4] {
-  stack s : u64;
-  reg tmp1, tmp2, tmp3, bit, swap : u64;
-  stack prevbit : u64;
-  stack x1,x2,z2,x3,z3 : u64[4];
-  reg i, j : u64;
-  stack i_s, j_s : u64; // store values on stack
-  flag cf : bool;
+fn mladder(xr, sp : stack u64[4]) -> stack u64[4] * stack u64[4] {
+
+  s                     : stack u64;
+  tmp1, tmp2, bit, swap : reg u64;
+  prevbit               : stack u64;
+  x1,x2,z2,x3,z3        : stack u64[4];
+  i, j                  : reg u64;
+  i_s, j_s              : stack u64; // store values on stack
+  cf                    : reg bool;
 
   prevbit = 0;
   x1 = xr;
@@ -506,26 +508,28 @@ fn mladder(stack xr, sp : u64[4]) -> stack u64[4] * stack u64[4] {
 // ** inversion
 // ************************************************************************
 
-fn squarea(stack x : u64[4]) -> stack u64[4] {
-  reg r : u64[4];
-  stack ra : u64[4];
+fn squarea(x : stack u64[4]) -> stack u64[4] {
+  r  : reg u64[4];
+  ra : stack u64[4];
+
   r = square(x);
   ra = r;
   return ra;
 }
 
-fn mula(stack x, y : u64[4]) -> stack u64[4] {
-  reg r : u64[4];
-  stack ra : u64[4];
+fn mula(x, y : stack u64[4]) -> stack u64[4] {
+  r  : reg u64[4];
+  ra : stack u64[4];
+
   r = mul(x,y);
   ra = r;
   return ra;
 }
 
-fn invert(stack xa : u64[4]) -> stack u64[4] {
-  stack ra, z2, t, z9, z11, z2_5_0, z2_10_0, z2_20_0, z2_50_0 : u64[4];
-  stack z2_100_0 : u64[4];
-  inline i : u64;
+fn invert(xa : stack u64[4]) -> stack u64[4] {
+  ra, z2, t, z9, z11, z2_5_0, z2_10_0, z2_20_0, z2_50_0 : stack u64[4];
+  z2_100_0                                              : stack u64[4];
+  i                                                     : inline u64;
 
   z2 = squarea(xa);                   /* 2 */
   t = squarea(z2);                    /* 4 */
@@ -578,9 +582,9 @@ fn invert(stack xa : u64[4]) -> stack u64[4] {
 // ** unpack_point
 // ************************************************************************
 
-fn unpack_point(reg xp : u64) -> stack u64[4] {
-  stack xa : u64[4];
-  reg   x3 : u64;
+fn unpack_point(xp : reg u64) -> stack u64[4] {
+  xa : stack u64[4];
+  x3 : reg u64;
 
   xa[0] = MEM[xp + 0*8];
   xa[1] = MEM[xp + 1*8];
@@ -595,9 +599,9 @@ fn unpack_point(reg xp : u64) -> stack u64[4] {
 // ** unpack_secret
 // ************************************************************************
 
-fn unpack_secret(reg sp : u64) -> stack u64[4] {
-  stack sa : u64[4];
-  reg   si : u64;
+fn unpack_secret(sp : reg u64) -> stack u64[4] {
+  sa : stack u64[4];
+  si : reg u64;
 
   si    = MEM[sp + 0*8];
   si    = si & 4722366482869645213688; // 0xfffffffffffffffff8;
@@ -614,10 +618,10 @@ fn unpack_secret(reg sp : u64) -> stack u64[4] {
 // ** freeze
 // ************************************************************************
 
-fn freeze(stack xa : u64[4]) -> stack u64[4] {
-  reg r, t : u64[4];
-  reg two63 : u64;
-  flag cf : bool;
+fn freeze(xa : stack u64[4]) -> stack u64[4] {
+  r, t  : reg u64[4];
+  two63 : reg u64;
+  cf    : reg bool;
 
   r = xa;
   t = r;
@@ -654,8 +658,8 @@ fn freeze(stack xa : u64[4]) -> stack u64[4] {
 // ************************************************************************
 
 /* assumes input x reduced below 2^255 */
-fn pack(reg rp : u64, stack xa : u64[4]) {
-  inline i : u64;
+fn pack(rp : reg u64, xa : stack u64[4]) {
+  i : inline u64;
 
   xa = freeze(xa);
   for i in 0..4 {
@@ -666,12 +670,12 @@ fn pack(reg rp : u64, stack xa : u64[4]) {
 // ** scalar multiplication
 // ************************************************************************
 
-extern fn scalarmult( reg rp : u64 /* address to store result  */
-                    , reg sp : u64 /* address of secret scalar */
-                    , reg pp : u64 /* address of point         */) {
-  stack sa, xa, za, zia : u64[4];
-  stack rp_s : u64;
-  reg   r : u64[4];
+extern fn scalarmult( rp : reg u64 /* address to store result  */
+                    , sp : reg u64 /* address of secret scalar */
+                    , pp : reg u64 /* address of point         */) {
+  sa, xa, za, zia : stack u64[4];
+  rp_s            : stack u64;
+  r               : reg u64[4];
 
   rp_s = rp; // FIXME: really required?
   sa = unpack_secret(sp);
@@ -684,15 +688,15 @@ extern fn scalarmult( reg rp : u64 /* address to store result  */
 }
 
 fn scalarmult_tracing(
-      reg rp : u64 /* address to store result  */
-    , reg sp : u64 /* address of secret scalar */
-    , reg pp : u64 /* address of point         */)
+      rp : reg u64 /* address to store result  */
+    , sp : reg u64 /* address of secret scalar */
+    , pp : reg u64 /* address of point         */)
   -> stack u64[4] * stack u64[4] * stack u64[4] *
      stack u64[4] * stack u64[4] * stack u64[4]
 {
-  stack sa, xa, za, zia : u64[4];
-  stack l1,l2,l3,l4,l5,l6 : u64[4];
-  reg   r : u64[4];
+  sa, xa, za, zia   : stack u64[4];
+  l1,l2,l3,l4,l5,l6 : stack u64[4];
+  r                 : reg u64[4];
 
   sa = unpack_secret(sp);       l1 = sa;
   xa = unpack_point(pp);        l2 = xa;
@@ -706,33 +710,33 @@ fn scalarmult_tracing(
 // * tests
 // ************************************************************************
 
-fn rand_arr(stack s : u64) -> stack u64[4] = python rand;
-fn rand_point(stack s : u64) -> stack u64[4] = python rand_point;
-fn assert_equal(stack x,y : u64[4]) = python assert_equal;
-fn print_arr(stack x : u64[4]) = python print_u64_arr;
-fn print_u64(stack x : u64) = python print_u64;
+fn rand_arr(stack u64) -> stack u64[4] = python rand;
+fn rand_point(stack u64) -> stack u64[4] = python rand_point;
+fn assert_equal(x,y : stack u64[4]) = python assert_equal;
+fn print_arr(x : stack u64[4]) = python print_u64_arr;
+fn print_u64(x : stack u64) = python print_u64;
 fn print_newline() = python print_newline;
-fn assert_equal_add(stack x,y,z : u64[4]) = python assert_equal_add;
-fn assert_equal_sub(stack x,y,z : u64[4]) = python assert_equal_sub;
-fn assert_equal_mul(stack x,y,z : u64[4]) = python assert_equal_mul;
-fn assert_equal_arr(stack x,y : u64[4]) = python assert_equal_arr;
-fn assert_equal_ladderstep(stack x1,x2,z2,x3,z3,x2_r,z2_r,x3_r,z3_r : u64[4])
+fn assert_equal_add(x,y,z : stack u64[4]) = python assert_equal_add;
+fn assert_equal_sub(x,y,z : stack u64[4]) = python assert_equal_sub;
+fn assert_equal_mul(x,y,z : stack u64[4]) = python assert_equal_mul;
+fn assert_equal_arr(x,y : stack u64[4]) = python assert_equal_arr;
+fn assert_equal_ladderstep(x1,x2,z2,x3,z3,x2_r,z2_r,x3_r,z3_r : stack u64[4])
   = python assert_equal_ladderstep;
-fn assert_equal_ladderstep_tracing(stack x1,x2,z2,x3,z3
-     ,l1,l2,l3,l4,l5,l6,l7,l8,l9,l10,l11,l12,l13,l14,l15,l16,l17,l18 : u64[4])
+fn assert_equal_ladderstep_tracing(x1,x2,z2,x3,z3
+     ,l1,l2,l3,l4,l5,l6,l7,l8,l9,l10,l11,l12,l13,l14,l15,l16,l17,l18 : stack u64[4])
   = python assert_equal_ladderstep_tracing;
-fn assert_equal_mladder(stack xr, sp, xr_r, zr_r : u64[4]) = python assert_equal_mladder;
-fn assert_equal_scalarmult(stack r, p, s : u64[4]) = python assert_equal_scalarmult;
-fn assert_equal_scalarmult_tracing(stack r,p,s,l1,l2,l3,l4,l5,l6 : u64[4])
+fn assert_equal_mladder(xr, sp, xr_r, zr_r : stack u64[4]) = python assert_equal_mladder;
+fn assert_equal_scalarmult(r, p, s : stack u64[4]) = python assert_equal_scalarmult;
+fn assert_equal_scalarmult_tracing(r,p,s,l1,l2,l3,l4,l5,l6 : stack u64[4])
   = python assert_equal_scalarmult_tracing;
-fn assert_equal_inv(stack x, y : u64[4]) = python assert_equal_inv;
-fn mod_p(stack s : u64[4]) -> stack u64[4] = python mod_p;
+fn assert_equal_inv(x, y : stack u64[4]) = python assert_equal_inv;
+fn mod_p(s : stack u64[4]) -> stack u64[4] = python mod_p;
 
 fn test_add() {
-  reg x, y_tmp, z : u64[4];
-  stack y : u64[4];
-  reg u : u64;
-  inline i : u64;
+  x, y_tmp, z : reg u64[4];
+  y           : stack u64[4];
+  u           : reg u64;
+  i           : inline u64;
 
   for i in 0..999 {
     u = i;
@@ -747,10 +751,10 @@ fn test_add() {
 }
 
 fn test_sub() {
-  reg x, y_tmp, z : u64[4];
-  stack y : u64[4];
-  reg u : u64;
-  inline i : u64;
+  x, y_tmp, z : reg u64[4];
+  y           : stack u64[4];
+  u           : reg u64;
+  i           : inline u64;
 
   for i in 0..999 {
     u = i;
@@ -765,10 +769,10 @@ fn test_sub() {
 }
 
 fn test_mul() {
-  reg   x_tmp, y_tmp, z : u64[4];
-  stack x, y : u64[4];
-  reg   u : u64;
-  inline i : u64;
+  x_tmp, y_tmp, z : reg u64[4];
+  x, y            : stack u64[4];
+  u               : reg u64;
+  i               : inline u64;
 
   for i in 0..999 {
     u = i;
@@ -784,10 +788,10 @@ fn test_mul() {
 }
 
 fn test_square() {
-  reg   x_tmp, z : u64[4];
-  stack x : u64[4];
-  reg   u : u64;
-  inline i : u64;
+  x_tmp, z : reg u64[4];
+  x        : stack u64[4];
+  u        : reg u64;
+  i        : inline u64;
 
   for i in 0..999 {
     u = i;
@@ -800,10 +804,10 @@ fn test_square() {
 }
 
 fn test_ladderstep() {
-  reg u : u64;
-  reg x1, x2, z2, x3, z3 : u64[4];
-  reg x2_r, z2_r, x3_r, z3_r : u64[4];
-  inline i : u64;
+  u                      : reg u64;
+  x1, x2, z2, x3, z3     : reg u64[4];
+  x2_r, z2_r, x3_r, z3_r : reg u64[4];
+  i                      : inline u64;
 
   for i in 0..999 {
     u = i;
@@ -820,10 +824,11 @@ fn test_ladderstep() {
 }
 
 fn test_ladderstep_tracing() {
-  reg u : u64;
-  reg x1, x2, z2, x3, z3 : u64[4];
-  reg l1,l2,l3,l4,l5,l6,l7,l8,l9,l10,l11,l12,l13,l14,l15,l16,l17,l18 : u64[4];
-  inline i : u64;
+  u                               : reg u64;
+  x1, x2, z2, x3, z3              : reg u64[4];
+  l1,l2,l3,l4,l5,l6,l7,l8,l9,l10  : reg u64[4];
+  l11,l12,l13,l14,l15,l16,l17,l18 : reg u64[4];
+  i                               : inline u64;
 
   for i in 0..999 {
     u = i;
@@ -842,13 +847,13 @@ fn test_ladderstep_tracing() {
 }
 
 fn test_swap() {
-  stack x2r, z2r, x3r, z3r : u64[4];
-  stack x2r_a, z2r_a, x3r_a, z3r_a : u64[4];
-  stack x2r_b, z2r_b, x3r_b, z3r_b : u64[4];
-  stack u : u64;
-  stack zero : u64;
-  stack one  : u64;
-  inline i : u64;
+  x2r, z2r, x3r, z3r         : stack u64[4];
+  x2r_a, z2r_a, x3r_a, z3r_a : stack u64[4];
+  x2r_b, z2r_b, x3r_b, z3r_b : stack u64[4];
+  u                          : stack u64;
+  zero                       : stack u64;
+  one                        : stack u64;
+  i                          : inline u64;
 
   zero = 0;
   one = 1;
@@ -876,11 +881,11 @@ fn test_swap() {
 
 
 fn test_mladder() {
-  stack xr : u64[4];
-  stack xr_r, zr_r : u64[4];
-  stack sp : u64[4];
-  stack u  : u64;
-  inline i : u64;
+  xr         : stack u64[4];
+  xr_r, zr_r : stack u64[4];
+  sp         : stack u64[4];
+  u          : stack u64;
+  i          : inline u64;
 
   sp[0] = 0xffffffffffffffff;
   sp[1] = 0;
@@ -896,10 +901,10 @@ fn test_mladder() {
 }
 
 fn test_scalarmult() {
-  stack pa, sa, ra : u64[4];
-  reg rp, sp,pp : u64;
-  stack u : u64;
-  inline i : u64;
+  pa, sa, ra : stack u64[4];
+  rp, sp,pp  : reg u64;
+  u          : stack u64;
+  i          : inline u64;
 
   rp = 0;
   sp = $(4*8); // 4*64bit = 4*8byte
