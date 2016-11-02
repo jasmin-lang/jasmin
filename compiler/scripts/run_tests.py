@@ -38,7 +38,7 @@ def extract_enclosed(fname,marker):
 def print_err(s):
     print bcolors.FAIL + s + bcolors.ENDC
 
-def test(fname,get_error):
+def test(fname,get_error,cp):
 
     if verbose:
         print "\n%s:"%(fname),
@@ -72,30 +72,42 @@ def test(fname,get_error):
 
     # compare with expected output
     if not os.path.isfile(fn_exp_err) or not os.path.isfile(fn_exp_out):
-        print "\n  create initial version by running"
-        print "    cp %s %s"%(fn_run_err,fn_exp_err)
-        print "    cp %s %s"%(fn_run_out,fn_exp_out)
+        if cp:
+            print "\n  initial version created"
+            system("cp %s %s"%(fn_run_err,fn_exp_err))
+            system("cp %s %s"%(fn_run_out,fn_exp_out))
+        else:
+            print "\n  create initial version by running"
+            print "    cp %s %s"%(fn_run_err,fn_exp_err)
+            print "    cp %s %s"%(fn_run_out,fn_exp_out)
+            
     exp_err = open(fn_exp_err).read()
     run_err = open(fn_run_err).read()
     if exp_err!=run_err:
         print_err("error, wrong output on stderr")
         system("diff -u %s %s"%(fn_exp_err, fn_run_err))
-        print "  run\n      cp %s %s\n  to use new definition"%(fn_run_err,fn_exp_err)
+        if cp:
+            system("cp %s %s\n  to use new definition"%(fn_run_err,fn_exp_err))
+        else:
+            print "  run\n      cp %s %s\n  to use new definition"%(fn_run_err,fn_exp_err)
         return
     exp_out = open(fn_exp_out).read()
     run_out = open(fn_run_out).read()
     if exp_out!=run_out:
         print_err("error, wrong output on stdout")
         system("diff -u %s %s"%(fn_exp_out, fn_run_out))
-        print "  run\n      cp %s %s\n  to use new definition"%(fn_run_out,fn_exp_out)
+        if cp:
+            system("cp %s %s\n  to use new definition"%(fn_run_out,fn_exp_out))
+        else:
+            print "  run\n      cp %s %s\n  to use new definition"%(fn_run_out,fn_exp_out)
         return
     print bcolors.OKGREEN + "ok" + bcolors.ENDC,
 
-def test_fail(fname):
-    return test(fname,True)
+def test_fail(fname,cp=False):
+    return test(fname,True,cp)
 
-def test_ok(fname):
-    return test(fname,False)
+def test_ok(fname,cp=False):
+    return test(fname,False,cp)
 
 def run(fname):
     arg = extract_enclosed(fname,"CMD")
@@ -123,6 +135,7 @@ test_fail("tests/compiler/must_fail/t_22.mil")
 test_fail("tests/compiler/must_fail/t_23.mil")
 test_fail("tests/compiler/must_fail/t_24.mil")
 test_fail("tests/compiler/must_fail/t_25.mil")
+test_fail("tests/compiler/must_fail/t_26.mil")
 
 print_sep()
 
