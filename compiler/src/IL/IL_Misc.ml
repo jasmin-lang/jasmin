@@ -124,12 +124,12 @@ let vars_num_unique_fundef fd =
   let ntable = Int.Table.create () in
   let fconv v =
     match HT.find ntable v.Var.num with
-    | None        ->
+    | None ->
       HT.set ntable ~key:v.Var.num ~data:(Var.(v.name,v.ty,v.stor,v.uloc))
     | Some(n,t,s,l) ->
       if (n<>v.Var.name || s<>v.Var.stor || t<>v.Var.ty) then
           P.failparse_l [(l, "same number used for different variables,\n"^
-                             "  this is not allowed for typechecking input");
+                             "  this is not allowed for some transformations");
                          (v.Var.uloc, fsprintf "<-- also used here")]
       else
         ()
@@ -137,11 +137,32 @@ let vars_num_unique_fundef fd =
   let fapp _ = () in
   fold_vars_fundef ~fapp ~fconv fd
 
-let vars_num_unique_modul modul =
+let vars_type_consistent_fundef fd =
+  let ntable = Vname_num.Table.create () in
+  let fconv v =
+    let nn = (v.Var.name, v.Var.num) in
+    match HT.find ntable nn with
+    | None ->
+      HT.set ntable ~key:nn ~data:(Var.(v.ty,v.stor,v.uloc))
+    | Some(t,s,l) ->
+      if (s<>v.Var.stor || t<>v.Var.ty) then
+          P.failparse_l [(l, "inconsistent type for same variable");
+                         (v.Var.uloc, fsprintf "<-- also occurs here")]
+      else
+        ()
+  in
+  let fapp _ = () in
+  fold_vars_fundef ~fapp ~fconv fd
+
+let vars_num_unique_modul ~type_only modul =
   let check func =
     match func with
     | Foreign(_) -> ()
-    | Native(fd) -> vars_num_unique_fundef fd
+    | Native(fd) ->
+      if type_only then
+        vars_type_consistent_fundef fd
+      else
+        vars_num_unique_fundef fd
   in
   Map.iteri modul.m_funcs ~f:(fun ~key:_ ~data:func -> check func)
 

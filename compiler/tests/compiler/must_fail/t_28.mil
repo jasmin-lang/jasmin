@@ -10,6 +10,6 @@ extern fn test(x : reg u64, y : reg u64[4]) -> reg u64 {
 
 /*
 START:CMD
-ARG="renumber_fun_unique,typecheck"
+ARG="typecheck"
 END:CMD
 */

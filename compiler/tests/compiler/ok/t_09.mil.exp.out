@@ -1,10 +1,8 @@
-renumbering identifiers in all function(s)
-   REMOVED_TIME
 type checking module in all function(s)
    REMOVED_TIME
 >> renum:
-extern fn test(x.1 : stack u64, y.2 : stack u64) -> stack u64 {
-  x.1 += y.2;
+extern fn test(x.1 : stack u64, y.1 : stack u64) -> stack u64 {
+  x.1 += y.1;
   return x.1;
 }
 

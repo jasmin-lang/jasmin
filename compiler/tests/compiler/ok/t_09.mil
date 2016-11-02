@@ -8,6 +8,6 @@ extern fn test(x.1, y.1 : stack u64) -> stack u64 {
 
 /*
 START:CMD
-ARG="renumber_fun_unique,typecheck,print[renum][fun=test]"
+ARG="typecheck,print[renum][fun=test]"
 END:CMD
 */

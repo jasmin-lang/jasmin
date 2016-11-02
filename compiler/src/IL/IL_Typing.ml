@@ -224,7 +224,7 @@ let typecheck_func fenv func =
     typecheck_stmt fenv fd.f_body
 
 let typecheck_modul modul =
-  vars_num_unique_modul modul;
+  vars_num_unique_modul ~type_only:true modul;
   let penv =
     Pname.Table.of_alist_exn
       (List.map ~f:(fun p -> (p.Param.name,(p.Param.ty,p.Param.loc))) modul.m_params)
