@@ -1,20 +1,20 @@
 merging basic blocks in all function(s)
    REMOVED_TIME
 >> input:
-fn foo1(x.1 : stack u64, y.2 : stack u64, z.3 : reg bool) -> stack u64 {
-  w.4 : stack u64
+fn foo1(x : stack u64, y : stack u64, z : reg bool) -> stack u64 {
+  w : stack u64
   // START
-  (w.4 : stack u64) = (x.1 : stack u64);
-  (w.4 : stack u64) += (x.1 : stack u64);
+  (w : stack u64) = (x : stack u64);
+  (w : stack u64) += (x : stack u64);
   // END
   // START
-  if $(w.4 : stack u64 = 5) {
+  if $(w : stack u64 = 5) {
     // START
-    (z.3 : reg bool), (x.1 : stack u64) += (w.4 : stack u64);
-    (z.3 : reg bool), (x.1 : stack u64) += (y.2 : stack u64);
+    (z : reg bool), (x : stack u64) += (w : stack u64);
+    (z : reg bool), (x : stack u64) += (y : stack u64);
     // END
   }
   // END
-  return (x.1 : stack u64);
+  return (x : stack u64);
 }
 

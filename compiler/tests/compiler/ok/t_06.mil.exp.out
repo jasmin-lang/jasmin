@@ -3,15 +3,15 @@ inlining all calls in foo function(s)
 stripping comments in foo function(s)
    REMOVED_TIME
 >> input:
-fn foo(x.1 : stack u64, y.2 : stack u64, z.3 : reg bool) -> stack u64 {
-  w.4 : stack u64
-  (w.4 : stack u64) = (x.1 : stack u64);
-  (w.4 : stack u64) += (x.1 : stack u64);
-  if $(w.4 : stack u64 = 5) {
-    (z.3 : reg bool), (x.1 : stack u64) += (w.4 : stack u64);
-    (z.3 : reg bool), (x.1 : stack u64) += (y.2 : stack u64);
+fn foo(x : stack u64, y : stack u64, z : reg bool) -> stack u64 {
+  w : stack u64
+  (w : stack u64) = (x : stack u64);
+  (w : stack u64) += (x : stack u64);
+  if $(w : stack u64 = 5) {
+    (z : reg bool), (x : stack u64) += (w : stack u64);
+    (z : reg bool), (x : stack u64) += (y : stack u64);
   }
   
-  return (x.1 : stack u64);
+  return (x : stack u64);
 }
 

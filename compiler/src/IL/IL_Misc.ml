@@ -6,6 +6,8 @@ open IL_Utils
 open Util
 
 module L = ParserUtil.Lexing
+module P = ParserUtil
+module HT = Hashtbl
 module DS = Dest.Set
 module SS = String.Set
 module PS = Param.Set
@@ -102,7 +104,7 @@ let fold_vars_modul modul ~fapp ~fconv =
   fapp @@
     List.map ~f:(fold_vars_func ~fapp ~fconv) (Map.data modul.m_funcs)
 
-(* **** Specialized fold functions: var set, max num
+(* **** Specialized fold functions: var set, max num, num is already unique
  * ------------------------------------------------------------------------ *)
 
 let vars_stmt stmt =
@@ -114,8 +116,33 @@ let vars_modul modul =
 let max_var_fundef stmt =
   fold_vars_fundef ~fapp:max_num_list ~fconv:(fun v -> v.Var.num) stmt
 
-let max_var_modul stmt =
-  fold_vars_modul ~fapp:max_num_list ~fconv:(fun v -> v.Var.num) stmt
+let max_var_modul modul =
+  fold_vars_modul ~fapp:max_num_list ~fconv:(fun v -> v.Var.num) modul
+
+let vars_num_unique_fundef fd =
+  let ntable = Int.Table.create () in
+  let fconv v =
+    match HT.find ntable v.Var.num with
+    | None        ->
+      HT.set ntable ~key:v.Var.num ~data:(Var.(v.name,v.ty,v.stor,v.loc))
+    | Some(n,t,s,l) ->
+      if (n<>v.Var.name || s<>v.Var.stor || t<>v.Var.ty) then
+          P.failparse_l [(l, "same number used for different variables,\n"^
+                             "  this is not allowed for typechecking input");
+                         (v.Var.loc, fsprintf "<-- also used here")]
+      else
+        ()
+  in
+  let fapp _ = () in
+  fold_vars_fundef ~fapp ~fconv fd
+
+let vars_num_unique_modul modul =
+  let check func =
+    match func with
+    | Foreign(_) -> ()
+    | Native(fd) -> vars_num_unique_fundef fd
+  in
+  Map.iteri modul.m_funcs ~f:(fun ~key:_ ~data:func -> check func)
 
 (* *** Collect parameters (values ot type Param.t)
  * ------------------------------------------------------------------------ *)

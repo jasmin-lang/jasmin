@@ -1,0 +1,9 @@
+Parsing tests/compiler/must_fail/t_22.mil as MIL
+
+tests/compiler/must_fail/t_22.mil:3:16: 3:18 error: same number used for different variables,
+  this is not allowed for typechecking input
+extern fn test(x.1, y.1 : stack u64) -> stack u64 {
+               ^^^
+tests/compiler/must_fail/t_22.mil:3:21: 3:23 error: <-- also used here
+extern fn test(x.1, y.1 : stack u64) -> stack u64 {
+                    ^^^

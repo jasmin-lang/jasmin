@@ -4,6 +4,7 @@
 open IL_Lang
 open IL_Pprint
 open IL_Utils
+open IL_Misc
 open Util
 open Arith
 open Core_kernel.Std
@@ -267,8 +268,8 @@ let typecheck_func (_penv : penv) _fenv _func =
     typecheck_ret env (List.map ~f:snd func.f_ret_ty) fdef.fd_ret
   *)
 
-let typecheck_modul _modul =
-  undefined ()
+let typecheck_modul modul =
+  vars_num_unique_modul modul
 (*
   let funcs = modul.m_funcs in
   let fenv = String.Map.of_alist_exn (List.map funcs ~f:(fun f -> (f.f_name, f))) in

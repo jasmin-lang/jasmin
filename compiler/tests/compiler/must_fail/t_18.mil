@@ -1,1 +1,15 @@
-/* FIXME: function call with wrong return type */
+/* function call with wrong return arity */
+
+fn bar() {
+}
+
+fn foo() {
+  x : stack u64;
+  x = bar();
+}
+
+/*
+START:CMD
+ARG="typecheck"
+END:CMD
+*/

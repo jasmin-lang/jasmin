@@ -146,7 +146,7 @@ let mk_func loc name ret_ty ext args def =
       (* compute declaration and update types/storage of variables *)
       let decls = List.concat_map ~f:conv_decl decls in
       let dmap = Vname_num.Table.create () in
-      let num = ref 0 in
+      (* let num = ref 0 in *)
       let mk_decl v =
         let nn = (v.Var.name,v.Var.num) in 
         match HT.find dmap nn with
@@ -154,7 +154,7 @@ let mk_func loc name ret_ty ext args def =
           P.failparse_l [(v'.Var.loc , fsprintf "variable %a declared twice" Var.pp v);
                          (v.Var.loc,  "<-- also declared here")]
         | None ->
-          HT.set dmap ~key:nn ~data:{ v with Var.num=(incr num; !num) }
+          HT.set dmap ~key:nn ~data:v (*{ v with Var.num=(incr num; !num) }*)
       in
       List.iter ~f:mk_decl (args@decls);
       let used_map = HT.copy dmap in
