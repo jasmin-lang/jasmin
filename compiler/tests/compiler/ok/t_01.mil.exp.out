@@ -3,17 +3,45 @@ param n : u64;
 
 fn foo1(stack u64) -> stack u64 * reg u64 * reg bool;
 
-fn foo2(stack u64,stack u64[n : invalid],stack u64,stack u64,stack u64) -> stack u64[n : invalid] = python print_foo;
-
-fn foo3(x.1 : stack u64, y.2 : stack u64, z.3 : reg bool) -> stack u64 {
+fn foo10(x.1 : stack u64, y.2 : stack u64, z.3 : reg bool) -> stack u64 {
+  w.4 : stack u64
   (w.4 : stack u64) = (x.1 : stack u64);
   (w.4 : stack u64) = (w.4 : stack u64) + (x.1 : stack u64);
   if $(w.4 : stack u64 = 5) {
     (z.3 : reg bool), (x.1 : stack u64) = (x.1 : stack u64) + (w.4 : stack u64);
+    (z.3 : reg bool), (x.1 : stack u64) = (x.1 : stack u64) + (y.2 : stack u64);
   }
   return (x.1 : stack u64);
 }
 
-fn foo4(x.1 : stack u64) {
+fn foo2(stack u64,stack u64[n : invalid],stack u64,stack u64,stack u64) -> stack u64[n : invalid] = python print_foo;
+
+fn foo3(_x.1 : stack u64) {
+}
+
+fn foo4(_x.1 : stack u64) {
+}
+
+fn foo5(x.1 : stack u64) {
+  (x.1 : stack u64) = (x.1 : stack u64) + (x.1 : stack u64);
+}
+
+fn foo6(x.1 : stack u64) -> stack u64 {
+  return (x.1 : stack u64);
+}
+
+fn foo7(x.1 : stack u64) {
+  y.2 : stack u64
+  (x.1 : stack u64) = (x.1 : stack u64) + (y.2 : stack u64);
+}
+
+fn foo8(x.1 : stack u64) -> stack u64 * stack u64 {
+  y.2 : stack u64
+  return (y.2 : stack u64),(x.1 : stack u64);
+}
+
+fn foo9(x.1 : stack u64) -> stack u64 {
+  (x.1 : stack u64) = (x.1 : stack u64) + (x.1 : stack u64);
+  return (x.1 : stack u64);
 }
 

@@ -1,6 +1,7 @@
 open Core_kernel.Std
 open IL_Lang
 open IL_Utils
+open IL_Misc
 open Arith
 open Util
 
@@ -230,15 +231,7 @@ and pp_stmt  ?pp_info ~pp_types fmt stmt =
 let pp_return ~pp_types fmt names =
   match names with
   | [] -> pp_string fmt ""
-  | _  -> F.fprintf fmt "@\nreturn %a;" (pp_list "," (pp_var ~pp_types)) names
-
-(*
-let pp_var_i ~pp_types fmt v =
-  F.fprintf fmt "%a : %s %a"
-    Vname.pp v.Var.name
-    (string_of_storage v.Var.stor)
-    (pp_ty ~pp_types) v.Var.ty
-*)
+  | _  -> F.fprintf fmt "return %a;" (pp_list "," (pp_var ~pp_types)) names
 
 let pp_tinfo ~pp_types fmt (sto,ty) =
   F.fprintf fmt "%s %a"
@@ -258,11 +251,12 @@ let pp_fundef  ?pp_info ~pp_types fmt (decls,body,ret) =
     (  " {%a@[<v 0>%a" (* decls *)
      ^^"%a"            (* body *)
      ^^"%a"            (* body *)
-     ^^"%a@]@\n}")     (* return *)
+     ^^"%a%a@]@\n}")   (* return *)
     (pp_either ((decls,body,ret)=([],[],[])) "" "@\n  ") ()
     (pp_list "@\n" ppvi) decls
-    (pp_either (decls=[] || (body,ret)=([],[])) "" "@\n") ()
+    (pp_either (decls=[] || body=[]) "" "@\n") ()
     (pp_stmt ?pp_info ~pp_types) body
+    (pp_either ((decls=[] && body=[]) || ret=[]) "" "@\n") ()
     (pp_return ~pp_types) ret
 
 let pp_foreign ~pp_types fmt name fo =
@@ -275,13 +269,18 @@ let pp_foreign ~pp_types fmt name fo =
     | Some(s) ->  " = python "^s^";")
 
 let pp_native ?pp_info ~pp_types fmt (name,fdef) =
+  let decls =
+    Set.to_list
+      (Set.diff (Set.union (vars_stmt fdef.f_body) (Var.Set.of_list fdef.f_ret))
+         (Var.Set.of_list fdef.f_arg))
+  in
   F.fprintf fmt "@[<v 0>%sfn %a(%a)%a%a@]"
     (string_of_call_conv fdef.f_call_conv)
     Fname.pp name
     (pp_list ", " (pp_var_i ~pp_types)) fdef.f_arg
     (pp_ret_ty ~pp_types) (List.map ~f:tinfo_of_var fdef.f_ret)
     (pp_fundef ?pp_info ~pp_types)
-      ([] (* decl *)
+      ( decls
       , fdef.f_body
       , fdef.f_ret
       )

@@ -1,0 +1,5 @@
+Parsing tests/compiler/must_fail/t_15.mil as MIL
+
+tests/compiler/must_fail/t_15.mil:1:8: 1:20 error: variable x not used, rename to _x to ignore
+fn foo(x : stack u64) {
+       ^^^^^^^^^^^^^

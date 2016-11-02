@@ -90,7 +90,7 @@ let conv_decl (ds,(s,t)) =
           else
             { d.d_var with Var.stor = s; Var.ty = t; } )
 
-let mk_func loc name ret_ty  ext args def =
+let mk_func loc name ret_ty ext args def =
   let func =
     match def with
 
@@ -119,7 +119,7 @@ let mk_func loc name ret_ty  ext args def =
           ~f:(function | (l,None,_)         -> P.failparse l "variable name missing"
                        | (l,Some(vs),(s,t)) -> List.map ~f:(fun v -> mk_arg l v s t) vs)
       in
-      let (decls, instrs) = partition_fun_items fis in
+      let (decls, stmt) = partition_fun_items fis in
       let call_conv = if ext=None then Custom else Extern in
       let mk_ret_elem v (s,t) = {v with Var.stor=s; Var.ty=t } in
       let rets = get_opt [] rets in
@@ -132,7 +132,7 @@ let mk_func loc name ret_ty  ext args def =
                                     ^^"expected %i, got %i")
                             (List.length ret_ty) (List.length rets))
       in
-      let dmap = Vname.Table.create () in
+      let dmap     = Vname.Table.create () in
       let decls = List.concat_map ~f:conv_decl decls in
       let num = ref 0 in
       let mk_decl v =
@@ -144,19 +144,27 @@ let mk_func loc name ret_ty  ext args def =
           HT.set dmap ~key:v.Var.name ~data:{ v with Var.num=(incr num; !num) }
       in
       List.iter ~f:mk_decl (args@decls);
-      let fd =
-        { f_body = instrs;
-          f_arg  = args;
-          f_ret = ret;
-          f_call_conv = call_conv; }
-      in
-      let update_type v =
+      let used_map = HT.copy dmap in
+      let update_type in_arg v =
         match HT.find dmap v.Var.name with
-        | Some(v') -> v'
+        | Some(v') ->
+          if not in_arg then HT.change used_map v.Var.name ~f:(fun _ -> None);
+          v'
         | None     ->
           P.failparse v.Var.loc (fsprintf "variable %a undeclared" Var.pp v)
       in
-      let fd = map_vars_fundef ~f:update_type fd in
+      let fd =
+        { f_body      = map_vars_stmt ~f:(update_type false) stmt;
+          f_arg       = List.map ~f:(update_type true) args;
+          f_ret       = List.map ~f:(update_type false) ret;
+          f_call_conv = call_conv; }
+      in
+      HT.iteri used_map
+        ~f:(fun ~key:name ~data:v ->
+              if not (String.is_prefix (Vname.to_string name) ~prefix:"_") then
+                P.failparse v.Var.loc
+                  (fsprintf "variable %a not used, rename to _%a to ignore"
+                     Vname.pp name Vname.pp name));
       Native fd
   in
   name,func
