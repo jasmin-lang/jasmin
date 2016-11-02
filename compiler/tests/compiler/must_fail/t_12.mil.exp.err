@@ -1,8 +1,8 @@
 Parsing tests/compiler/must_fail/t_12.mil as MIL
 
-tests/compiler/must_fail/t_12.mil:1:8: 1:20 error: variable x declared twice
+tests/compiler/must_fail/t_12.mil:1:8: 1:9 error: variable x declared twice
 fn foo(x : stack u64) {
-       ^^^^^^^^^^^^^
+       ^^
 tests/compiler/must_fail/t_12.mil:2:3: 2:4 error: <-- also declared here
   x : stack u64;
   ^^

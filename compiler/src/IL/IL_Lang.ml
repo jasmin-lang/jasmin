@@ -328,3 +328,14 @@ module Dest = struct
   include Comparable.Make(T)
   include Hashable.Make(T)
 end
+
+module Vname_num = struct
+  module T = struct
+    type t = (Vname.t * int) [@@deriving compare,sexp]
+    let compare = compare_t
+    let hash v = Hashtbl.hash v
+  end
+  include T
+  include Comparable.Make(T)
+  include Hashable.Make(T)
+end

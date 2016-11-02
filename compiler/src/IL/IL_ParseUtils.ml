@@ -3,6 +3,7 @@
 open Core_kernel.Std
 open IL_Lang
 open IL_Misc
+open IL_Utils
 open Util
 
 module P = ParserUtil
@@ -14,14 +15,13 @@ module HT = Hashtbl
 
 type decl_item =
   | Dfun of (Fname.t * unit func)
-  | Dparams of (string * ty) list
+  | Dparams of ((string * string) * ty) list
 
 let mk_modul pfs =
   let params =
     List.filter_map ~f:(function (l,Dparams(ps)) -> Some(l,ps) | _ -> None) pfs
     |> List.concat_map ~f:(fun (l,ps) -> List.map ~f:(fun p -> (l,p)) ps)
-    |> List.map ~f:(fun (l,(n,t)) ->
-                      { Param.name = Pname.mk n; Param.ty = t; Param.loc = l })
+    |> List.map ~f:(fun (l,(n,t)) -> { (mk_param (l,n)) with Param.ty = t })
   in
   let funcs =
     List.filter_map ~f:(function (l,Dfun(func)) -> Some(l,func) | _ -> None) pfs
@@ -45,7 +45,7 @@ type fun_item =
   | FDecl  of (dest list * (stor * ty))
 
 type body =
-  | FunForeign of string option
+  | FunForeign of (string * string) option
   | FunNative of (L.loc * fun_item) list * (L.loc * (Var.t list option))
 
 let partition_fun_items fis =
@@ -101,26 +101,36 @@ let mk_func loc name ret_ty ext args def =
           ~f:(function | (_,None,st)     -> [st]
                        | (_,Some(vs),st) -> List.map ~f:(fun _ -> st) vs)
       in
+      let os = match os with
+        | Some(s,si) -> assert (si=""); Some(s)
+        | None       -> None
+      in
       Foreign { fo_py_def=os; fo_arg_ty=arg_ty; fo_ret_ty=ret_ty }
 
     | FunNative(fis,(lr,rets)) ->
-      let arg_names = Vname.Table.create () in
-      let mk_arg l v s t =
-        match HT.find arg_names v.Var.name with
+      let (decls, stmt) = partition_fun_items fis in
+      let call_conv = if ext=None then Custom else Extern in
+
+      (* create arg variables and check for duplicates *)
+      let arg_names = Vname_num.Table.create () in
+      let mk_arg v s t =
+        let nn = (v.Var.name,v.Var.num) in
+        match HT.find arg_names nn with
         | Some(l1) ->
           P.failparse_l [l1, "duplicated argument name";
-                         l,  "<-- also used here"]
+                         v.Var.loc,  "<-- also used here"]
         | None ->
-          HT.set arg_names ~key:v.Var.name ~data:l;
-          { v with Var.stor=s; Var.ty = t; Var.loc = l } 
+          HT.set arg_names ~key:nn ~data:v.Var.loc;
+          { v with Var.stor=s; Var.ty = t; } 
       in
       let args =
         List.concat_map args
           ~f:(function | (l,None,_)         -> P.failparse l "variable name missing"
-                       | (l,Some(vs),(s,t)) -> List.map ~f:(fun v -> mk_arg l v s t) vs)
+                       | (_,Some(vs),(s,t)) ->
+                         List.map ~f:(fun v -> mk_arg v s t) vs)
       in
-      let (decls, stmt) = partition_fun_items fis in
-      let call_conv = if ext=None then Custom else Extern in
+
+      (* create return variables and ensure that arity matches *)
       let mk_ret_elem v (s,t) = {v with Var.stor=s; Var.ty=t } in
       let rets = get_opt [] rets in
       let ret =
@@ -132,23 +142,27 @@ let mk_func loc name ret_ty ext args def =
                                     ^^"expected %i, got %i")
                             (List.length ret_ty) (List.length rets))
       in
-      let dmap     = Vname.Table.create () in
+
+      (* compute declaration and update types/storage of variables *)
       let decls = List.concat_map ~f:conv_decl decls in
+      let dmap = Vname_num.Table.create () in
       let num = ref 0 in
       let mk_decl v =
-        match HT.find dmap v.Var.name with
+        let nn = (v.Var.name,v.Var.num) in 
+        match HT.find dmap nn with
         | Some(v') ->
           P.failparse_l [(v'.Var.loc , fsprintf "variable %a declared twice" Var.pp v);
                          (v.Var.loc,  "<-- also declared here")]
         | None ->
-          HT.set dmap ~key:v.Var.name ~data:{ v with Var.num=(incr num; !num) }
+          HT.set dmap ~key:nn ~data:{ v with Var.num=(incr num; !num) }
       in
       List.iter ~f:mk_decl (args@decls);
       let used_map = HT.copy dmap in
       let update_type in_arg v =
-        match HT.find dmap v.Var.name with
+        let nn = (v.Var.name,v.Var.num) in 
+        match HT.find dmap nn with
         | Some(v') ->
-          if not in_arg then HT.change used_map v.Var.name ~f:(fun _ -> None);
+          if not in_arg then HT.change used_map nn ~f:(fun _ -> None);
           v'
         | None     ->
           P.failparse v.Var.loc (fsprintf "variable %a undeclared" Var.pp v)
@@ -160,11 +174,12 @@ let mk_func loc name ret_ty ext args def =
           f_call_conv = call_conv; }
       in
       HT.iteri used_map
-        ~f:(fun ~key:name ~data:v ->
-              if not (String.is_prefix (Vname.to_string name) ~prefix:"_") then
+        ~f:(fun ~key:nn ~data:v ->
+              let v' = { v with Var.num = snd nn } in
+              if not (String.is_prefix (Vname.to_string (fst nn)) ~prefix:"_") then
                 P.failparse v.Var.loc
                   (fsprintf "variable %a not used, rename to _%a to ignore"
-                     Vname.pp name Vname.pp name));
+                     Var.pp v' Var.pp v'));
       Native fd
   in
   name,func

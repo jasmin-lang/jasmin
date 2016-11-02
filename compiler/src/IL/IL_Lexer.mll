@@ -83,8 +83,12 @@ rule lex = parse
   | ('-'? ['0'-'9']+) as s { INT(s) }
   | ("0x" ['0'-'9' 'a'-'f' '_']+) as s { INT(s) }
 
+  | (['a'-'z' '_']['a'-'z' 'A'-'Z' '_' '0'-'9']* as s)
+    '.' ((['0'-'9']+) as si)
+    { NID(s,si) }
+
   | ['a'-'z' '_']['a'-'z' 'A'-'Z' '_' '0'-'9']* as s
-    { ID s }
+    { NID(s,"") }
 
 and comment = parse
   | "*/"        { () }

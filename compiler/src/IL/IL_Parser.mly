@@ -60,7 +60,8 @@ module L = ParserUtil.Lexing
 
 %token MEM
 
-%token <string> ID 
+// %token <string> ID 
+%token <string * string> NID
 %token <string> INT
 
 %left LAND
@@ -121,7 +122,7 @@ terminated_list(S,X):
     { let (loc,d) = ld in { d with d_loc = loc } }
 
 param:
-| lid=loc(ID) { mk_param lid }
+| lid=loc(NID) { mk_param lid }
 
 src :
 | d=dest                       { Src(d)                       }
@@ -146,7 +147,7 @@ src :
 | GEQ     { Pgeq     }
 
 var :
-| lid = loc(ID) { mk_var lid }
+| lid = loc(NID) { mk_var lid }
 
 dexpr :
 | p=param                    { Patom(p)                }
@@ -219,8 +220,8 @@ opeq:
 | s1=src op1=binop s2=src op2=binop s3=src
     { `TernOp(op1,op2,s1,s2,s3) }
 
-| fname=ID LPAREN args=separated_list(COMMA,src) RPAREN
-    { `Call(Fname.mk fname, args) }
+| fname=NID args=paren_tuple(src)
+    { `Call(mk_fname fname, args) }
 
 | MEM LBRACK ptr = src PLUS pe = pexpr RBRACK
     { `Load(ptr,pe) }
@@ -253,7 +254,7 @@ opeq:
  * -------------------------------------------------------------------- *)
 
 %inline call :
-| fname=ID args=tuple(src) { (Fname.mk fname, args) }
+| fname=NID args=paren_tuple(src) { (mk_fname fname, args) }
  
 %inline control_instr :
 
@@ -333,7 +334,7 @@ ret_ty :
     { FunNative(fis,lret) }
 | SEMICOLON
     { FunForeign(None) }
-| EQ PYTHON s=ID SEMICOLON
+| EQ PYTHON s=NID SEMICOLON
     { FunForeign(Some(s)) }
 
 %inline typed_vars_stor_var :
@@ -347,15 +348,15 @@ arg_def :
     { let (l,st) = lst in (l,None,st) }
 
 func :
-| ext=EXTERN? FN lname=loc(ID)
+| ext=EXTERN? FN lname=loc(NID)
     args = paren_tuple(arg_def)
     rty  = ret_ty?
     def  = func_body
     { (fst lname,
-       mk_func (fst lname) (Fname.mk @@ snd lname) (Util.get_opt [] rty) ext args def) }
+       mk_func (fst lname) (mk_fname @@ snd lname) (Util.get_opt [] rty) ext args def) }
 
 typed_params :
-| vs=separated_nonempty_list(COMMA,ID) COLON t=typ
+| vs=separated_nonempty_list(COMMA,NID) COLON t=typ
     { Std.List.map ~f:(fun v -> (v,t)) vs }
 
 param_or_func :

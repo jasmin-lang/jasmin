@@ -1,0 +1,8 @@
+>> input:
+fn foo(z.1 : stack u64, z.2 : stack u64) -> stack u64 {
+  // START
+  z.1 += z.2;
+  // END
+  return z.1;
+}
+

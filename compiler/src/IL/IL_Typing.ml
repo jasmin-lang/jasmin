@@ -28,7 +28,6 @@ type 'info env = {
   e_tenv : tenv;
 }
 
-
 let tenv_of_func _func _decls = undefined ()
 (*
   Ident.Map.of_alist_exn (List.map ~f:(fun (_,m,t) -> (m,t)) (func.f_args@decls))
@@ -280,62 +279,4 @@ let typecheck_modul _modul =
                     failtype_ L.dummy_loc "parameter %a not declared (env: %a)"
                       pp_ident pv (pp_list "," pp_ident) (List.map ~f:fst modul.m_params));
   List.iter funcs ~f:(typecheck_func penv fenv)
-*)
-
-let inline_decls_func _func =
-  undefined ()
-(*
-  match func.f_def with
-  | Undef ->
-    { f_name = func.f_name;
-      f_call_conv = func.f_call_conv;
-      f_args = func.f_args;
-      f_ret_ty = func.f_ret_ty;
-      f_def = Undef }
-  | Py c ->
-    { f_name = func.f_name;
-      f_call_conv = func.f_call_conv;
-      f_args = func.f_args;
-      f_ret_ty = func.f_ret_ty;
-      f_def = Py c }
-
-  | Def fdef ->
-    match fdef.fd_decls with
-    | None       -> failwith "inline declarations: declarations already inlined"
-    | Some decls ->
-      let tenv  = tenv_of_func func decls in
-      let stenv = stenv_of_func func decls in
-      let f n idx () =
-        let t = Map.find_exn tenv n in
-        let s = Map.find_exn stenv n in
-        (n,idx,(t,s))
-      in
-      let g idx =
-        match idx with
-        | Iconst(Patom(Pdest(d) as pd)) ->
-          let n, l = destr_patom_dest_u pd in
-          let t = match Map.find tenv n with
-            | Some(t) -> t
-            | None    -> failtype_ d.d_loc "undeclared variable %a" pp_ident d.d_ident
-          in
-          let s = Map.find_exn stenv n in
-          assert(t=U64);
-          if s=Reg then Some(mk_Ireg_t n l) else None
-        | _ -> None
-      in
-      let body = dest_map_stmt_u g f fdef.fd_body in
-      let fdef =
-        { fd_body = body; fd_ret = fdef.fd_ret; fd_decls = None; }
-      in
-      { f_name = func.f_name;
-        f_call_conv = func.f_call_conv;
-        f_args = func.f_args;
-        f_ret_ty = func.f_ret_ty;
-        f_def = Def(fdef) }
-*)    
-let inline_decls_modul _modul =
-  undefined ()
-(*
-  let funcs = List.map modul.m_funcs ~f:inline_decls_func in
-  { modul with m_funcs = funcs }
 *)

@@ -53,12 +53,18 @@ let map_info_instr ~f = function
 
 let tinfo_of_var v = (v.Var.stor, v.Var.ty)
 
-let mk_param (l,s) =
+let mk_param (l,(s,si)) =
+  assert (si="");
   { Param.name = Pname.mk s; Param.ty = TInvalid; Param.loc = l }
 
-let mk_var (l,s) =
+let mk_var (l,(s,si)) =
+  let num = if si="" then 0 else int_of_string si in
   { Var.name = Vname.mk s; Var.ty = TInvalid;
-    Var.loc = l; Var.stor = SInvalid; Var.num=0 }
+    Var.loc = l; Var.stor = SInvalid; Var.num=num }
+
+let mk_fname (s,si) =
+  assert (si="");
+  Fname.mk s
 
 let map_func modul fname ~f =
   { modul with
