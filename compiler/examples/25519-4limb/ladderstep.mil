@@ -365,7 +365,7 @@ fn ladderstep_tracing(
   t1,  t2,  t7,  t6,  t5,  t3,  t4,  t9, t8                      : reg u64[4];
   t1p, t2p, t7p, t6p, t5p, t3p, t4p, t9p                         : stack u64[4];
   w1, w2, w3, w4, w5, w6, w7                                     : reg u64[4];
-  c121666p                                                       : reg u64[4];
+  c121666p                                                       : stack u64[4];
   l1,l2,l3,l4,l5,l6,l7,l8,l9,l10,l11,l12,l13,l14,l15,l16,l17,l18 : stack u64[4];
 
   c121666p[0] = 121666;
@@ -426,7 +426,7 @@ fn ladderstep_tracing(
 // ************************************************************************
 
 // FIXME: compare with OpenSSL, this is a translation from C
-fn cswap(x2p, z2p, x3p, z3p : stack u64[4], swap : stack u64)
+fn cswap(x2p, z2p, x3p, z3p : stack u64[4], swap : reg u64)
     -> stack u64[4] * stack u64[4] * stack u64[4] * stack u64[4] {
 
   tmp1, tmp2, mask : reg u64;
@@ -501,7 +501,8 @@ fn mladder(xr, sp : stack u64[4]) -> stack u64[4] * stack u64[4] {
     i = i_s;
     cf,i -= 1; // returns cf=1 for input i=0
   } while !cf;
-  x2,z2,x3,z3 = cswap(x2,z2,x3,z3,prevbit);
+  swap = prevbit;
+  x2,z2,x3,z3 = cswap(x2,z2,x3,z3,swap);
   return x2, z2;
 }
 
@@ -618,7 +619,7 @@ fn unpack_secret(sp : reg u64) -> stack u64[4] {
 // ** freeze
 // ************************************************************************
 
-fn freeze(xa : stack u64[4]) -> stack u64[4] {
+fn freeze(xa : reg u64[4]) -> reg u64[4] {
   r, t  : reg u64[4];
   two63 : reg u64;
   cf    : reg bool;
@@ -658,7 +659,7 @@ fn freeze(xa : stack u64[4]) -> stack u64[4] {
 // ************************************************************************
 
 /* assumes input x reduced below 2^255 */
-fn pack(rp : reg u64, xa : stack u64[4]) {
+fn pack(rp : reg u64, xa : reg u64[4]) {
   i : inline u64;
 
   xa = freeze(xa);
@@ -733,10 +734,11 @@ fn assert_equal_inv(x, y : stack u64[4]) = python assert_equal_inv;
 fn mod_p(s : stack u64[4]) -> stack u64[4] = python mod_p;
 
 fn test_add() {
-  x, y_tmp, z : reg u64[4];
+  x, y_tmp, z : stack u64[4];
   y           : stack u64[4];
-  u           : reg u64;
+  u           : stack u64;
   i           : inline u64;
+  x_r, z_r    : reg u64[4];
 
   for i in 0..999 {
     u = i;
@@ -745,15 +747,18 @@ fn test_add() {
     u += 1;
     y_tmp = rand_arr(u);
     y = y_tmp;
-    z = add(x,y);
+    x_r = x;
+    z_r = add(x_r,y);
+    z = z_r;
     assert_equal_add(x,y,z);
   }
 }
 
 fn test_sub() {
-  x, y_tmp, z : reg u64[4];
+  x, y_tmp, z : stack u64[4];
+  x_r, z_r    : reg u64[4];
   y           : stack u64[4];
-  u           : reg u64;
+  u           : stack u64;
   i           : inline u64;
 
   for i in 0..999 {
@@ -763,15 +768,18 @@ fn test_sub() {
     u += 1;
     y_tmp = rand_arr(u);
     y = y_tmp;
-    z = sub(x,y);
+    x_r = x;
+    z_r = sub(x_r,y);
+    z = z_r;
     assert_equal_sub(x,y,z);
   }
 }
 
 fn test_mul() {
-  x_tmp, y_tmp, z : reg u64[4];
+  x_tmp, y_tmp, z : stack u64[4];
   x, y            : stack u64[4];
-  u               : reg u64;
+  z_r             : reg u64[4];
+  u               : stack u64;
   i               : inline u64;
 
   for i in 0..999 {
@@ -782,32 +790,34 @@ fn test_mul() {
     y_tmp = rand_arr(u);
     x = x_tmp;
     y = y_tmp;
-    z = mul(x,y);
+    z_r = mul(x,y);
+    z = z_r;
     assert_equal_mul(x,y,z);
   }
 }
 
 fn test_square() {
-  x_tmp, z : reg u64[4];
+  x_tmp, z : stack u64[4];
   x        : stack u64[4];
-  u        : reg u64;
+  u        : stack u64;
   i        : inline u64;
+  z_r      : reg u64[4];
 
   for i in 0..999 {
     u = i;
     print_u64(u);
     x_tmp = rand_arr(u);
     x = x_tmp;
-    z = square(x);
+    z_r = square(x);
+    z = z_r;
     assert_equal_mul(x,x,z);
   }
 }
 
 fn test_ladderstep() {
-  u                      : reg u64;
-  x1, x2, z2, x3, z3     : reg u64[4];
-  x2_r, z2_r, x3_r, z3_r : reg u64[4];
-  i                      : inline u64;
+  u                   : stack u64;
+  x1, x2, z2, x3, z3  : stack u64[4];
+  i                   : inline u64;
 
   for i in 0..999 {
     u = i;
@@ -818,16 +828,16 @@ fn test_ladderstep() {
     x3 = rand_arr(u); u += 1;
     z3 = rand_arr(u); u += 1;
 
-    x2_r, z2_r, x3_r, z3_r = ladderstep(x1, x2, z2, x3, z3);
-    assert_equal_ladderstep(x1,x2,z2,x3,z3,x2_r,z2_r,x3_r,z3_r);
+    x2, z2, x3, z3 = ladderstep(x1, x2, z2, x3, z3);
+    assert_equal_ladderstep(x1,x2,z2,x3,z3,x2,z2,x3,z3);
   }
 }
 
 fn test_ladderstep_tracing() {
-  u                               : reg u64;
-  x1, x2, z2, x3, z3              : reg u64[4];
-  l1,l2,l3,l4,l5,l6,l7,l8,l9,l10  : reg u64[4];
-  l11,l12,l13,l14,l15,l16,l17,l18 : reg u64[4];
+  u                               : stack u64;
+  x1, x2, z2, x3, z3              : stack u64[4];
+  l1,l2,l3,l4,l5,l6,l7,l8,l9,l10  : stack u64[4];
+  l11,l12,l13,l14,l15,l16,l17,l18 : stack u64[4];
   i                               : inline u64;
 
   for i in 0..999 {
@@ -851,8 +861,8 @@ fn test_swap() {
   x2r_a, z2r_a, x3r_a, z3r_a : stack u64[4];
   x2r_b, z2r_b, x3r_b, z3r_b : stack u64[4];
   u                          : stack u64;
-  zero                       : stack u64;
-  one                        : stack u64;
+  zero                       : reg u64;
+  one                        : reg u64;
   i                          : inline u64;
 
   zero = 0;
