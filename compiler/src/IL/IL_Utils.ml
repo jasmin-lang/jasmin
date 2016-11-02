@@ -60,6 +60,17 @@ let mk_var (l,s) =
   { Var.name = Vname.mk s; Var.ty = TInvalid;
     Var.loc = l; Var.stor = SInvalid; Var.num=0 }
 
+let map_func modul fname ~f =
+  { modul with
+    m_funcs = Map.change modul.m_funcs fname
+                ~f:(function | None        -> assert false
+                             | Some(func) -> Some(f func)) }
+
+let get_fundef ~err_s func =
+  match func with
+  | Foreign(_) -> failwith err_s
+  | Native(fd) -> fd
+
 (* ** Exceptions
  * ------------------------------------------------------------------------ *)
 

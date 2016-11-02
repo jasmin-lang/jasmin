@@ -93,33 +93,30 @@ let eval_pcond_exn pmap lmap cc =
 (* ** Simple transformations
  * ------------------------------------------------------------------------ *)
 
-let reset_info_modul _modul =
-  undefined ()
-(*
-  concat_map_modul_all modul
-    ~f:(fun loc _pos _ instr ->
-          [ { L.l_loc = loc; L.l_val = set_info_instr None instr } ])
-*)
+(* *** Reset module info / strip comments *)
 
-let strip_comments_modul _modul _fname =
-  undefined ()
-(*
+let reset_info_modul modul =
+  concat_map_modul_all modul
+    ~f:(fun loc _pos _oinfo instr ->
+          [ { L.l_loc = loc; L.l_val = set_info_instr None instr } ])
+
+let strip_comments_modul modul fname =
   let is_not_Comment lbi =
     match lbi.L.l_val with
     | Comment _ -> false
     | _         -> true
   in
-  let strip_comments loc _pos _info instr =
+  let strip_comments loc _pos _oinfo instr =
     let instrs = 
       match instr with
-      | Block(bis,i) ->
-        [ Block(List.filter ~f:is_not_Comment bis,None) ]
-      | instr -> [ instr ]
+      | Block(bis,i) -> [ Block(List.filter ~f:is_not_Comment bis,i) ]
+      | instr        -> [ instr ]
     in
     List.map ~f:(fun i -> { L.l_loc=loc; L.l_val=i }) instrs
   in
-  concat_map_modul_all modul ~f:strip_comments
-*)
+  concat_map_modul modul fname ~f:strip_comments
+
+(* *** Renumbering Var.num *)
 
 type renumber_opt =
   | UniqueNumModule
@@ -179,12 +176,12 @@ the last element of a statement.
 (* *** Code *)
 
 let finish_block prev_stmt cur_block =
-  match cur_block with
+  match List.concat @@ List.rev cur_block with
   | [] -> prev_stmt
-  | _  -> { L.l_val = Block(List.concat @@ List.rev cur_block,None);
-            L.l_loc = L.dummy_loc }
-          ::prev_stmt
-          
+  | (lbi_first::_) as bis  ->
+    let lbi_last = List.last_exn bis in
+    let loc = L.mk_loc (lbi_first.L.l_loc.L.loc_start,lbi_last.L.l_loc.L.loc_end) in
+    { L.l_val = Block(bis,None); L.l_loc = loc }::prev_stmt
 
 let merge_blocks_stmt stmt =
   let rec go prev_stmt cur_block linstrs =
@@ -218,26 +215,23 @@ let merge_blocks_modul_all modul =
 (* ** Partially evaluate dimension and parameter-expressions
  * ------------------------------------------------------------------------ *)
 
-let peval_param pmap _ p =
-  match Map.find pmap p with
+let peval_param ptable _ p =
+  match HT.find ptable p with
   | Some(x) -> Pconst(x)
   | None    -> failwith_ "peval_patom: parameter %a undefined" Param.pp p
 
-let peval_patom _pmap _lmap _pa =
-  undefined ()
-  (*
+let peval_patom ptable ltable pa =
   match pa with
-  | Pparam(p)    -> peval_param pmap lmap p
-  | Pvar(v) as v ->
-    begin match Map.find lmap v.vid with
+  | Pparam(p)     -> peval_param ptable ltable p
+  | Pvar(v) as pv ->
+    begin match HT.find ltable v.Var.num with
     | Some (Vu64 x) -> Pconst(x)
-    | None          -> Patom(v)
+    | None          -> Patom(pv)
     | Some(_)       ->
-      failwith_ "peval_pexpr: variable %a of wrong type" pp_ident d.d_id
+      failwith_ "peval_pexpr: variable %a of wrong type" Var.pp v
     end
-  *)
 
-let peval_pexpr_g peval_atom pmap lmap ce =
+let peval_pexpr_g peval_atom ptable ltable ce =
   let rec go = function
     | Pbinop(o,e1,e2) ->
       begin match go e1, go e2 with
@@ -245,16 +239,16 @@ let peval_pexpr_g peval_atom pmap lmap ce =
         Pconst(eval_pbinop o c1 c2)
       | e1,e2 -> Pbinop(o,e1,e2)
       end
-    | Patom(a) -> peval_atom pmap lmap a
+    | Patom(a) -> peval_atom ptable ltable a
     | Pconst(_) as e -> e
   in
   go ce
 
-let peval_pexpr pmap lmap = peval_pexpr_g peval_patom pmap lmap
+let peval_pexpr ptable ltable = peval_pexpr_g peval_patom ptable ltable
 
-let peval_dexpr pmap lmap = peval_pexpr_g peval_param pmap lmap
+let peval_dexpr ptable ltable = peval_pexpr_g peval_param ptable ltable
 
-let peval_pcond pmap lmap cc =
+let peval_pcond ptable ltable cc =
   let rec go = function
     | Ptrue              -> Ptrue
     | Pnot(ic)           ->
@@ -271,7 +265,7 @@ let peval_pcond pmap lmap cc =
       | c1, c2                  -> Pand(c1,c2)
       end
     | Pcmp(cco,ce1,ce2) ->
-      begin match peval_pexpr pmap lmap ce1, peval_pexpr pmap lmap ce2 with
+      begin match peval_pexpr ptable ltable ce1, peval_pexpr ptable ltable ce2 with
       | Pconst(c1), Pconst(c2) ->
         if eval_pcondop cco c1 c2 then Ptrue else Pnot(Ptrue)
       | e1,         e2         -> Pcmp(cco,e1,e2)
@@ -290,93 +284,89 @@ Inline function call C[x = f(a);]
 *)
 (* *** Code *)
 
-let rec inline_call _func_table _ctr _fname _ds _ss =
-  undefined ()
-(*
+let rec inline_call func_table ctr fname ds ss =
   let func =
-    match hashtbl_find_exn func_table pp_string fname with
+    match hashtbl_find_exn func_table Fname.pp fname with
     | func, true  -> func
     | func, false ->
       let func = inline_calls_func func_table fname func in
       HT.set func_table ~key:fname ~data:(func,true);
       func
   in
-  let func = renumber_idents_func ~ctr () func in
+  let func = renumber_vars_func ~ctr () func in
   let fdef = get_fundef ~err_s:"inline_call: impossible" func in
-  let ret_ss = undefined () in 
-  (*
-    List.map2_exn fdef.fd_ret func.f_ret_ty
-      ~f:(fun id (s,t) -> Src(mk_dest_name id t s))
-  *)
-  let arg_ds = undefined ()
-    (* List.map ~f:(fun (s,id,t) -> mk_dest_name id t s) func.f_args *)
+  let ret_ss = 
+    List.map fdef.f_ret
+      ~f:(fun v -> Src({d_var=v; d_idx=None; d_loc=v.Var.loc}))
+  in
+  let arg_ds =
+    List.map ~f:(fun v -> {d_var=v; d_idx=None; d_loc=v.Var.loc}) fdef.f_arg
   in
   let pref = List.map2_exn ~f:(fun d s -> Assgn(d,s,Eq)) arg_ds ss in
   let suff = List.map2_exn ~f:(fun d s -> Assgn(d,s,Eq)) ds ret_ss in
 
-  let pref = Comment("START: inlined call to "^fname)::pref in
-  let suff = suff@[Comment("END: inlined call to "^fname)] in
-  Block(pref,None)::fdef.f_body@[Block(suff,None)]
-*)
-
-and inline_calls_block _func_table _ctr _bis =
-  undefined ()
-(*
-  let collect_block prev_stmt cur_block =
-    match cur_block with
-    | [] -> prev_stmt
-    | _  -> Block(List.rev cur_block,None)::prev_stmt
+  let pref = Comment("START: inlined call to "^Fname.to_string fname)::pref in
+  let suff = suff@[Comment("END: inlined call to "^Fname.to_string fname)] in
+  let mk_block bis =
+    let lbis = List.map ~f:(fun bi -> {L.l_val=bi; L.l_loc=L.dummy_loc}) bis in
+    { L.l_val = Block(lbis,None);
+      L.l_loc = L.dummy_loc }
   in
-  let rec go prev_stmt cur_block bis =
-    match bis with
-    | [] -> List.rev @@ collect_block prev_stmt cur_block
+  (mk_block pref)::fdef.f_body@[(mk_block suff)]
 
-    | Call(fn,ds,ss)::bis ->
-      let fstmt = inline_call func_table ctr fn ds ss in
-      let prev_stmt = (List.rev fstmt)@(collect_block prev_stmt cur_block) in
-      go prev_stmt [] bis
-      (* NOTE: we don't merge blocks here, this will be tried in inline_calls_stmt *)
+and inline_calls_block func_table ctr lbis =
+  let rec go prev_stmt lbis =
+    match lbis with
+    | [] -> List.rev prev_stmt
 
-    | bi::bis -> go prev_stmt (bi::cur_block) bis
+    | lbi::lbis ->
+      begin match lbi.L.l_val with
+      | Call(fn,ds,ss) ->
+        let fstmt = inline_call func_table ctr fn ds ss in
+        let prev_stmt = (List.rev fstmt)@prev_stmt in
+        go prev_stmt lbis
+        (* NOTE: we don't merge blocks here, this will be tried in inline_calls_stmt *)
+      | _ ->
+        go ({L.l_val=Block([lbi],None); L.l_loc=lbi.L.l_loc}::prev_stmt) lbis
+      end
   in
-  go [] [] bis
-*)
+  go [] lbis
 
-and inline_calls_instr _func_table _ctr _instr =
-  undefined ()
-(*
+and inline_calls_instr func_table ctr linstr =
   let ilc_s = inline_calls_stmt func_table ctr in
-  match instr with
-  | If(c,s1,s2,i)    -> [ If(c,ilc_s s1, ilc_s s2,i) ]
-  | For(c,lb,ub,s,i) -> [ For(c,lb,ub,ilc_s s,i) ]
-  | While(wt,fc,s,i) -> [ While(wt,fc,ilc_s s,i) ]
-  | Block(bis,_)     -> inline_calls_block func_table ctr bis
-*)
+  let instr = linstr.L.l_val in
+  let mki i = { linstr with L.l_val = i } in
+  let instrs =
+    match instr with
+    | If(c,s1,s2,i)    -> [ mki @@ If(c,ilc_s s1, ilc_s s2,i) ]
+    | For(c,lb,ub,s,i) -> [ mki @@ For(c,lb,ub,ilc_s s,i) ]
+    | While(wt,fc,s,i) -> [ mki @@ While(wt,fc,ilc_s s,i) ]
+    | Block(lbis,_)    -> inline_calls_block func_table ctr lbis
+  in
+  instrs
+
 and inline_calls_stmt func_table ctr (stmt : 'info stmt) : 'info stmt =
   merge_blocks_stmt @@ List.concat_map ~f:(inline_calls_instr func_table ctr) stmt
 
-and inline_calls_func func_table fname func =
-  let fdef = match func with
-    | Native fd -> fd
-    | Foreign _ -> failwith_ "cannot inline calls in foreign function %s" fname
+and inline_calls_func func_table (fname : Fname.t) func =
+  let fd = match func with
+    | Foreign(_) -> failwith_ "cannot inline calls in foreign function %a" Fname.pp fname
+    | Native(fd) -> fd
   in
-  let max_num = undefined () (*max_ident_func func*) in
+  let max_num = max_var_fundef fd in
   (* F.printf "max: %a\n%!" pp_int64 max_num; *)
-  let ctr = ref (Int64.succ max_num) in
-  let stmt = inline_calls_stmt func_table ctr fdef.f_body in
-  Native { fdef with f_body = stmt }
+  let ctr = ref (succ max_num) in
+  let stmt = inline_calls_stmt func_table ctr fd.f_body in
+  Native { fd with f_body = stmt }
 
-let inline_calls_modul _modul _fname =
-  undefined ()
-(*
+let inline_calls_modul modul fname =
   (* before inlining a call to f, we inline in f and store the result in func_table  *)
   let func_table =
     Map.to_alist modul.m_funcs
     |> List.map ~f:(fun (fn,f) -> (fn,(f,false)))
-    |> String.Table.of_alist_exn
+    |> Fname.Table.of_alist_exn
   in
-  map_fun ~f:(inline_calls_func func_table fname) modul fname
-*)
+  map_func ~f:(inline_calls_func func_table fname) modul fname
 
 (* ** Macro expansion: loop unrolling, if, ...
  * ------------------------------------------------------------------------ *)

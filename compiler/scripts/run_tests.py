@@ -108,7 +108,7 @@ def print_sep():
 
 ######################################################################
 
-# run("tests/compiler/ok/t_05.mil")
+# run("tests/compiler/ok/t_06.mil")
 
 # exit(0)
 
@@ -122,7 +122,7 @@ for fn in [ "%02i"%i for i in range(1,17)]:
 
 print_sep()
 
-for fn in [ "%02i"%i for i in range(1,6)]:
+for fn in [ "%02i"%i for i in range(1,8)]:
     test_ok("tests/compiler/ok/t_%s.mil"%fn)
 
 print_sep()

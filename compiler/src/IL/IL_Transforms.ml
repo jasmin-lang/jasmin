@@ -26,7 +26,7 @@ let mk_pprint_opt ofn = {
   pp_fname = ofn;
   pp_info  = false;
   pp_num   = false;
-  pp_types = true;
+  pp_types = false;
 }
 
 type transform =
@@ -53,7 +53,9 @@ type transform =
 
 let ptrafo =
   let open MP in
-  let ident = many1 (MParser.none_of "]=") >>= fun l -> return (String.of_char_list l) in
+  let ident =
+    many1 (MParser.none_of "]=,") >>= fun l -> return (String.of_char_list l)
+  in
   let asm_lang = choice [ string "x86-64" >>$ X64 ] in
   let enclosed p pstart pend = pstart >> p >>= fun x -> pend >>$ x in
   let bracketed p = enclosed p (char '[') (char ']') in
@@ -122,14 +124,14 @@ let ptrafo =
        return (ArrayExpand fn))
     ; (string "local_ssa" >> fname >>= fun fn ->
        return (LocalSSA fn))
+    ; (string "strip_comments" >> fname >>= fun fn ->
+       return (StripComments(fn)))
     ; (string "print" >> (bracketed ident) >>= fun name ->
        (option pprint_opts) >>= fun pp_opts -> return (Print(name,get_pp_opts pp_opts)))
     ; (string "save"  >> (bracketed ident) >>= fun name ->
        (option pprint_opts) >>= fun pp_opts -> return (Save(name,get_pp_opts pp_opts)))
     ; (string "register_liveness" >> fname >>= fun fn ->
        return (RegisterLiveness fn))
-    ; (string "strip_comments" >> fname >>= fun fn ->
-       return (StripComments(fn)))
     ; (string "remove_eq_constrs" >> fname >>= fun fn ->
        return (RemoveEqConstrs(fn)))
     ; (string "register_allocate" >> fname >>= fun fn ->

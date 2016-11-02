@@ -2,6 +2,7 @@
 (* ** Imports and abbreviations *)
 open Core_kernel.Std
 open IL_Lang
+open IL_Utils
 open Util
 
 module L = ParserUtil.Lexing
@@ -110,8 +111,8 @@ let vars_stmt stmt =
 let vars_modul modul =
   fold_vars_modul ~fapp:VS.union_list ~fconv:VS.singleton modul
 
-let max_var_func stmt =
-  fold_vars_func ~fapp:max_num_list ~fconv:(fun v -> v.Var.num) stmt
+let max_var_fundef stmt =
+  fold_vars_fundef ~fapp:max_num_list ~fconv:(fun v -> v.Var.num) stmt
 
 let max_var_modul stmt =
   fold_vars_modul ~fapp:max_num_list ~fconv:(fun v -> v.Var.num) stmt
@@ -372,26 +373,26 @@ let map_body_fundef ~f fd =
 
 let map_body_func ~f func =
   match func with
-  | Foreign(_) -> func
+  | Foreign(fd) -> Foreign(fd)
   | Native(fd) -> Native(map_body_fundef ~f fd)
 
 let map_body_modul ~f modul fname =
-  { modul with
-    m_funcs = Map.change modul.m_funcs fname
-                ~f:(function | None       -> assert false
-                             | Some(func) -> Some(map_body_func ~f func)) }
+  { m_params = modul.m_params;
+    m_funcs  = Map.change modul.m_funcs fname
+                 ~f:(function | None       -> assert false
+                              | Some(func) -> Some(map_body_func ~f func)) }
 
 let map_body_modul_all ~f modul =
-  { modul with
-    m_funcs = Map.map ~f:(fun func -> map_body_func ~f func) modul.m_funcs }
+  { m_params = modul.m_params;
+    m_funcs  = Map.map ~f:(fun func -> map_body_func ~f func) modul.m_funcs }
 
 (* *** Concat-map instruction (with position and info)
  * ------------------------------------------------------------------------ *)
 
 let rec concat_map_instr ~f pos instr =
-  let loc = instr.L.l_val in
+  let loc = instr.L.l_loc in
   match instr.L.l_val with
-  | Block(bis,i)      ->
+  | Block(bis,i) ->
     f loc pos i @@ Block(bis,None)
   | While(wt,fc,s,i) ->
     let s = concat_map_stmt ~f (pos@[0]) s in
@@ -412,7 +413,11 @@ let concat_map_fundef ~f = map_body_fundef ~f:(concat_map_stmt [] ~f)
 
 let concat_map_func ~f = map_body_func ~f:(concat_map_stmt [] ~f)
 
-let concat_map_modul_all ~f = map_body_modul_all ~f:(concat_map_stmt [] ~f)
+let concat_map_modul_all : 'a 'b.
+  f:(L.loc -> pos -> 'a option -> 'b instr -> 'b instr L.located list) ->
+  ('a modul) ->
+  ('b modul)
+= fun ~f m -> map_body_modul_all ~f:(concat_map_stmt [] ~f) m
 
 let concat_map_modul ~f = map_body_modul ~f:(concat_map_stmt [] ~f)
 
