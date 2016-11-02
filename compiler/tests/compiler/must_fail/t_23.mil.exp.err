@@ -1,0 +1,5 @@
+Parsing tests/compiler/must_fail/t_23.mil as MIL
+
+tests/compiler/must_fail/t_23.mil:4:9: 4:19 error: parameter not declared
+  x += $undef_param;
+        ^^^^^^^^^^^

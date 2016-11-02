@@ -168,7 +168,7 @@ let fold_params_patom  ~fapp ~fconv = function
 
 let fold_params_ty ~fapp ~fconv = function
   | TInvalid   -> assert false
-  | Bool | U64 -> PS.empty
+  | Bool | U64 -> fapp []
   | Arr(dim)   -> fold_params_dexpr ~fapp ~fconv dim
 
 let fold_params_var ~fapp ~fconv v =
@@ -221,15 +221,13 @@ let rec fold_params_instr ~fapp ~fconv instr =
   let fpc = fold_params_pcond_or_fcond ~fapp ~fconv in
   let fpbi = fold_params_base_instr ~fapp ~fconv in
   match instr.L.l_val with
-  | Block(bis,_)   -> PS.union_list @@ List.map ~f:fpbi bis
-  | If(cond,s1,s2,_) ->
-    PS.union_list [fpc cond; fps s1; fps s2]
-  | For(_name,pe1,pe2,stmt,_) ->
-    PS.union_list [ fpe pe1; fpe pe2; fps stmt ]
-  | While(_wt,_fc,stmt,_) -> fps stmt
+  | Block(bis,_)              -> fapp @@ List.map ~f:fpbi bis
+  | If(cond,s1,s2,_)          -> fapp [fpc cond; fps s1; fps s2]
+  | For(_name,pe1,pe2,stmt,_) -> fapp [ fpe pe1; fpe pe2; fps stmt ]
+  | While(_wt,_fc,stmt,_)     -> fps stmt
 
 and fold_params_stmt ~fapp ~fconv stmt =
-  PS.union_list (List.map stmt ~f:(fold_params_instr ~fapp ~fconv))
+  fapp (List.map stmt ~f:(fold_params_instr ~fapp ~fconv))
 
 let fold_params_fundef fd ~fapp ~fconv =
   fapp
@@ -254,6 +252,21 @@ let params_stmt stmt =
 
 let params_modul modul =
   fold_params_modul ~fapp:PS.union_list ~fconv:PS.singleton modul
+
+let params_defined_modul penv pp_ty modul =
+  let fapp _ = () in
+  let fconv p =
+    match HT.find penv p.Param.name with
+    | None -> P.failparse p.Param.loc "undeclared parameter"
+    | Some(t,l) when t<>p.Param.ty ->
+      P.failparse_l
+        [l, fsprintf "parameter declared with type ``%a'' and occurs with type ``%a''"
+              pp_ty t pp_ty p.Param.ty;
+         p.Param.loc, "<-- occurs here"]
+    | _ -> ()
+                     
+  in
+  fold_params_modul ~fapp ~fconv modul
 
 (* *** Collect destinations (values of type dest)
  * ------------------------------------------------------------------------ *)
@@ -552,6 +565,128 @@ let map_vars_modul ~f modul fname =
 let map_vars_modul_all ~f modul =
   { modul with
     m_funcs = Map.map ~f:(fun func -> map_vars_func ~f func) modul.m_funcs }
+
+(* *** Map function over all parameters
+ * ------------------------------------------------------------------------ *)
+
+let map_params_patom ~f:(f : Param.t -> Param.t) pa =
+  match pa with
+  | Pparam(p) -> Pparam(f p)
+  | Pvar(v)   -> Pvar(v)
+
+let rec map_params_idx ~f:(f : Param.t -> Param.t) i =
+  match i with
+  | Iconst(pe) -> Iconst(map_params_pexpr ~f pe)
+  | Ivar(v)    -> Ivar(v)
+
+and map_params_dest ~f:(f : Param.t -> Param.t) d =
+  { d_var = d.d_var
+  ; d_idx = Option.map ~f:(map_params_idx ~f) d.d_idx
+  ; d_loc = d.d_loc }
+    
+and map_params_pexpr pe ~f:(f : Param.t -> Param.t) =
+  let mvp = map_params_pexpr ~f in
+  let mva = map_params_patom ~f in
+  match pe with
+  | Patom(pa)         -> Patom(mva pa)
+  | Pbinop(o,pe1,pe2) -> Pbinop(o,mvp pe1, mvp pe2)
+  | Pconst(c)         -> Pconst(c)
+
+and map_params_var ~f:(f : Param.t -> Param.t) v =
+  { v with Var.ty = map_params_ty ~f v.Var.ty }
+
+and map_params_ty ~f ty =
+  match ty with
+  | TInvalid | Bool | U64 -> ty
+  | Arr(dim)              -> Arr(map_params_dexpr ~f dim)
+
+and map_params_dexpr ~f de =
+  let mvp = map_params_dexpr ~f in
+  match de with
+  | Patom(p)          -> Patom(f p)
+  | Pbinop(o,pe1,pe2) -> Pbinop(o,mvp pe1, mvp pe2)
+  | Pconst(c)         -> Pconst(c)
+
+let rec map_params_pcond ~f:(f : Param.t -> Param.t) pc =
+  let mvpc = map_params_pcond ~f in
+  let mvpe = map_params_pexpr ~f in
+  match pc with
+  | Ptrue           -> Ptrue
+  | Pnot(pc)        -> Pnot(mvpc pc)
+  | Pand(pc1,pc2)   -> Pand(mvpc pc1, mvpc pc2)
+  | Pcmp(o,pe1,pe2) -> Pcmp(o,mvpe pe1, mvpe pe2)
+
+let map_params_src ~f:(f : Param.t -> Param.t) = function
+  | Imm(pe) -> Imm(map_params_pexpr ~f pe)
+  | Src(d)  -> Src(map_params_dest ~f d)
+
+let map_params_fcond_or_pcond ~f = function
+  | Fcond(fc) -> Fcond(fc)
+  | Pcond(pc) -> Pcond(map_params_pcond ~f pc)
+
+let map_params_base_instr ~f:(f : Param.t -> Param.t) lbi =
+  let mvd = map_params_dest ~f in
+  let mvds = List.map ~f:mvd in
+  let mvs = map_params_src ~f in
+  let mvss = List.map ~f:mvs in
+  let mvpe = map_params_pexpr ~f in
+  let bi = lbi.L.l_val in
+  let bi =
+    match bi with
+    | Comment(_)      -> bi
+    | Load(d,s,pe)    -> Load(mvd d, mvs s, mvpe pe)
+    | Store(s1,pe,s2) -> Store(mvs s1, mvpe pe, mvs s2)
+    | Assgn(d,s,at)   -> Assgn(mvd d, mvs s, at)
+    | Op(o,ds,ss)     -> Op(o,mvds ds, mvss ss)
+    | Call(fn,ds,ss)  -> Call(fn,mvds ds, mvss ss)
+  in
+  { L.l_loc = lbi.L.l_loc; L.l_val = bi }
+
+let rec map_params_instr linstr ~f:(f : Param.t -> Param.t) =
+  let mvbi = map_params_base_instr ~f in
+  let mvs = map_params_stmt ~f in
+  let mvc = map_params_fcond_or_pcond ~f in
+  let mvd = map_params_dest ~f in
+  let mvp = map_params_pexpr ~f in
+  let instr = 
+    match linstr.L.l_val with
+    | Block(bis,i)     -> Block(List.map ~f:mvbi bis,i)
+    | If(c,s1,s2,i)    -> If(mvc c,mvs s1,mvs s2,i)
+    | For(d,lb,ub,s,i) -> For(mvd d,mvp lb,mvp ub,mvs s,i)
+    | While(wt,fc,s,i) -> While(wt,fc,mvs s,i)
+  in
+  { L.l_val = instr; L.l_loc = linstr.L.l_loc }
+
+and map_params_stmt stmt ~f:(f : Param.t -> Param.t) =
+  List.map stmt ~f:(map_params_instr ~f)
+
+let map_params_fundef ~f:(f : Param.t -> Param.t) fd =
+  { f_body      = map_params_stmt ~f fd.f_body;
+    f_arg       = List.map ~f:(map_params_var ~f) fd.f_arg;
+    f_ret       = List.map ~f:(map_params_var ~f) fd.f_ret;
+    f_call_conv = fd.f_call_conv;
+  }
+
+let map_params_foreigndef ~f fo =
+  { fo with
+    fo_arg_ty = List.map ~f:(fun (s,t) -> (s,map_params_ty ~f t)) fo.fo_arg_ty;
+    fo_ret_ty = List.map ~f:(fun (s,t) -> (s,map_params_ty ~f t)) fo.fo_ret_ty;
+  }
+
+let map_params_func ~f:(f : Param.t -> Param.t) func =
+  match func with
+  | Foreign(fd) -> Foreign(map_params_foreigndef ~f fd)
+  | Native(fd)  -> Native(map_params_fundef ~f fd)
+
+let map_params_modul ~f:(f : Param.t -> Param.t) modul fname =
+  { modul with
+    m_funcs = Map.change modul.m_funcs fname
+                ~f:(function | None       -> assert false
+                             | Some(func) -> Some(map_params_func ~f func)) }
+
+let map_params_modul_all ~f:(f : Param.t -> Param.t) modul =
+  { modul with
+    m_funcs = Map.map ~f:(fun func -> map_params_func ~f func) modul.m_funcs }
 
 (* *** Map function over all destinations
  * ------------------------------------------------------------------------ *)

@@ -23,6 +23,9 @@ let mk_modul pfs =
     |> List.concat_map ~f:(fun (l,ps) -> List.map ~f:(fun p -> (l,p)) ps)
     |> List.map ~f:(fun (l,(n,t)) -> { (mk_param (l,n)) with Param.ty = t })
   in
+  let ptable =
+    Pname.Table.of_alist_exn (List.map ~f:(fun p -> (p.Param.name,p.Param.ty)) params)
+  in
   let funcs =
     List.filter_map ~f:(function (l,Dfun(func)) -> Some(l,func) | _ -> None) pfs
   in
@@ -30,6 +33,13 @@ let mk_modul pfs =
     match funcs with
     | [] -> fmap
     | (l,(fn,f))::funcs ->
+      let f =
+        map_params_func f
+          ~f:(fun p ->
+                match HT.find ptable p.Param.name with
+                | None    -> P.failparse p.Param.loc "parameter not declared"
+                | Some ty -> { p with Param.ty = ty })
+      in
       let fmap =
         Map.change fmap fn
           ~f:(function | Some _ ->

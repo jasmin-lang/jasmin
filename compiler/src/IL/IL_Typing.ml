@@ -18,44 +18,26 @@ module L = ParserUtil.Lexing
 (* *** Typing environment
  * ------------------------------------------------------------------------ *)
 
-type penv = ty Ident.Map.t
-type tenv = ty Ident.Map.t
+type penv = unit Param.Table.t
 
-type 'info fenv = 'info func String.Map.t
+type 'info fenv = 'info func Fname.Map.t
 
 type 'info env = {
   e_penv : penv;
   e_fenv : 'info fenv;
-  e_tenv : tenv;
 }
 
-let tenv_of_func _func _decls = undefined ()
-(*
-  Ident.Map.of_alist_exn (List.map ~f:(fun (_,m,t) -> (m,t)) (func.f_args@decls))
-*)
-
-let stenv_of_func _func _decls = undefined ()
-(*
-  Ident.Map.of_alist_exn (List.map ~f:(fun (s,m,_) -> (m,s)) (func.f_args@decls))
-*)
-
-let denv_of_func _func _decls = undefined ()
-(*
-  Ident.Map.of_alist_exn (List.map ~f:(fun (s,m,t) -> (m,(t,s))) (func.f_args@decls))
-*)
-
-
-let type_error_ d fmt =
+let type_error_ l fmt =
   let buf  = Buffer.create 127 in
   let fbuf = F.formatter_of_buffer buf in
   F.kfprintf
     (fun _ ->
       F.pp_print_flush fbuf ();
       let s = Buffer.contents buf in
-      failloc d.d_loc s)
+      failloc l s)
     fbuf fmt
 
-let type_error d s = failloc d.d_loc s
+let type_error l s = failloc l s
 
 (* *** Compute types of registers taking (array) indexes into account
  * ------------------------------------------------------------------------ *)
@@ -75,15 +57,16 @@ let get_dim (dim : pexpr) (lb_o,ub_o) =
   then ub
   else Pbinop(Pminus,ub,lb)
 
-(** [type_dest_app pr ty] takes a pseudo-register pr<ies> and the
-    type of pr and returns the type of pr<ies>.
-    Example: for pr<3,0..n> with pr : u64<5,n>[n], the result is u64<n>[n] *)
+(* [type_dest_app pr ty] takes a pseudo-register pr<ies> and the
+   type of pr and returns the type of pr<ies>.
+   Example: for pr<3,0..n> with pr : u64<5,n>[n], the result is u64<n>[n] *)
 let type_dest_app d ty =
   match ty with
   | TInvalid -> assert false
   | Bool | U64 ->
     if None<>d.d_idx then
-      type_error_ d "register has type %a, cannot access array element" pp_ty_nt ty;
+      type_error_ d.d_loc "register has type %a, cannot access array element"
+        pp_ty_nt ty;
     ty
   | Arr(_dim) as ty ->
     begin match d.d_idx with
@@ -91,57 +74,54 @@ let type_dest_app d ty =
     | _    -> U64
     end
 
-(** Same as [type_dest_app] except that it looks up the type from [tenv] *)
-let type_dest (_tenv : tenv) _d = undefined ()
-(*
-  type_dest_app d (map_find_exn ~err:(type_error d) tenv pp_ident d.d_id)
-*)
+(* Same as [type_dest_app] except that it looks up the type from [tenv] *)
+let type_dest d =
+  type_dest_app d d.d_var.Var.ty
 
-(** Same as [type_dest] except that it asserts that type is equal to [ty_exp] *)
-let typecheck_dest (tenv : tenv) d ty_exp =
-  let ty = type_dest tenv d in
+(* Same as [type_dest] except that it asserts that type is equal to [ty_exp] *)
+let typecheck_dest d ty_exp =
+  let ty = type_dest d in
   if not (equiv_ty ty ty_exp) then
-    type_error_ d "type mismatch (got %a, expected %a)" pp_ty_nt ty pp_ty_nt ty_exp
+    type_error_ d.d_loc "type mismatch (got %a, expected %a)" pp_ty_nt ty pp_ty_nt ty_exp
 
-(** Takes source and computes its type (see [type_dest]) *)
-let type_src env = function
+(* Takes source and computes its type (see [type_dest]) *)
+let type_src = function
   | Imm(_) -> U64
-  | Src(d) -> type_dest env.e_tenv d
+  | Src(d) -> type_dest d
 
-(** Same as [type_dest] except that it asserts that type is equal to [ty_exp] *)
-let typecheck_src env s ty_exp =
+(* Same as [type_dest] except that it asserts that type is equal to [ty_exp] *)
+let typecheck_src s ty_exp =
   match s with
   | Imm(_) -> if not (equal_ty ty_exp (U64)) then assert false
-  | Src(d) -> typecheck_dest env.e_tenv d ty_exp
+  | Src(d) -> typecheck_dest d ty_exp
 
 (* *** Check types for assignments, destinations, and sources
  * ------------------------------------------------------------------------ *)
 
-(** Ensures that the source and destination for assignments are compatible *)
-let typecheck_assgn env d s pos =
-  let ty_s = type_src  env s in
-  let ty_d = type_dest env.e_tenv d in
+(* Ensures that the source and destination for assignments are compatible *)
+let typecheck_assgn d s pos =
+  let ty_s = type_src s in
+  let ty_d = type_dest d in
   if not (equiv_ty ty_s ty_d) then (
     failloc_ pos "incompatible types for assignment: lhs %, rhs %a)"
       pp_ty_nt ty_d pp_ty_nt ty_s
   ) (* FIXME: disallow flag assignments here? *)
 
-(** Checks that the base type of the given source is equal to [t] *)
-let type_src_eq env src ty_exp =
+(* Checks that the base type of the given source is equal to [t] *)
+let type_src_eq src ty_exp =
   match src, ty_exp with
   | _    ,  TInvalid -> assert false
   | Imm _,  Bool     -> failwith "got u64, expected bool"
   | Imm _,  U64      -> ()
   | Imm _,  Arr(_)   -> failwith "got u64, expected u64[..]"
-  | Src(d), t        -> typecheck_dest env.e_tenv d t
+  | Src(d), t        -> typecheck_dest d t
 
 (* *** Check types for ops, instructions, statements, and functions
  * ------------------------------------------------------------------------ *)
 
-(** typecheck operators *)
-let typecheck_op env op ds ss =
-  let type_src_eq  = type_src_eq env in
-  let type_dest_eq = typecheck_dest env.e_tenv in
+(* typecheck operators *)
+let typecheck_op op ds ss =
+  let type_dest_eq = typecheck_dest in
   match view_op op ds ss with
 
   | V_Umul(h,l,x,y) ->
@@ -184,14 +164,14 @@ let typecheck_fcond_or_pcond env = function
   | Fcond(fc) -> typecheck_fcond env fc
 
 let typecheck_base_instr env binstr =
-  let tc_op    = typecheck_op    env in
-  let tc_assgn = typecheck_assgn env in
+  let tc_op    = typecheck_op    in
+  let tc_assgn = typecheck_assgn in
   match binstr.L.l_val with
   | Comment _             -> ()
   | Op(op,ds,ss)          -> tc_op op ds ss
   | Assgn(d,s,_)          -> tc_assgn d s d.d_loc
-  | Load(d,s,_pe)         -> type_src_eq  env s U64; typecheck_dest env.e_tenv d U64
-  | Store(s1,_pe,s2)      -> type_src_eq env s1 U64; type_src_eq env s2 U64
+  | Load(d,s,_pe)         -> type_src_eq  s U64; typecheck_dest d U64
+  | Store(s1,_pe,s2)      -> type_src_eq s1 U64; type_src_eq s2 U64
   | Call(_fname,_rets,_args) ->
     undefined ()
     (*
@@ -217,7 +197,7 @@ let rec typecheck_instr env instr =
     tc_cond c; tc_stmt stmt1; tc_stmt stmt2
   | For(pv,_,_,stmt,_) ->
     assert(pv.d_idx=None);
-    typecheck_dest env.e_tenv pv U64;
+    typecheck_dest pv U64;
     typecheck_stmt env stmt
   | While(_wt,fc,s,_) ->
     tc_fcond fc;
@@ -232,27 +212,12 @@ let typecheck_ret _env _ret_ty _ret = undefined ()
     ~f:(fun name ty -> typecheck_dest env.e_tenv (mk_dest_name name Reg ty) ty)
 *)
 
-let extract_decls _args _fdef =
-  undefined ()
-  (*
-  let args = Ident.Set.of_list (List.map ~f:(fun (_,n,_) -> n) args) in
-  match fdef.fd_decls with
-  | None ->
-    let ds = dests_stmt fdef.fd_body in
-    DS.to_list ds
-    |> List.filter ~f:(fun d -> not (Set.mem args d.d_ident))
-    |> List.concat_map
-         ~f:(fun d -> let (ty,stor) = d.d_decl in [stor,d.d_ident,ty])
-    |> List.dedup ~compare:compare_decl
-  | Some decls -> decls
-  *)
-
-let typecheck_func (_penv : penv) _fenv _func =
-  undefined ()
-  (*
-  match func.f_def with
-  | Undef | Py _ -> ()
-  | Def fdef ->
+let typecheck_func _fenv func =
+  match func with
+  | Foreign(_) -> ()
+  | Native(_fd) ->
+    ()
+    (*
     let decls = extract_decls func.f_args fdef in
     let tenv = Ident.Map.of_alist_exn
                  (  (Map.to_alist (tenv_of_func func decls))
@@ -269,15 +234,18 @@ let typecheck_func (_penv : penv) _fenv _func =
   *)
 
 let typecheck_modul modul =
-  vars_num_unique_modul modul
-(*
-  let funcs = modul.m_funcs in
-  let fenv = String.Map.of_alist_exn (List.map funcs ~f:(fun f -> (f.f_name, f))) in
-  let penv = Ident.Map.of_alist_exn modul.m_params in
-  let params_decl = params_modul modul in
-  Set.iter params_decl
-    ~f:(fun pv -> if not (Map.mem penv pv) then
-                    failtype_ L.dummy_loc "parameter %a not declared (env: %a)"
-                      pp_ident pv (pp_list "," pp_ident) (List.map ~f:fst modul.m_params));
-  List.iter funcs ~f:(typecheck_func penv fenv)
-*)
+  vars_num_unique_modul modul;
+  let penv =
+    Pname.Table.of_alist_exn
+      (List.map ~f:(fun p -> (p.Param.name,(p.Param.ty,p.Param.loc))) modul.m_params)
+  in
+  params_defined_modul penv (pp_ty ~pp_types:false) modul;
+  (* let params_decl = params_modul modul in *)
+  (* Set.iter params_decl *)
+  (*   ~f:(fun p -> *)
+  (*         if not (HT.mem penv p) then *)
+  (*           type_error_ p.Param.loc *)
+  (*             "parameter %a not declared (env: %a)" *)
+  (*                Param.pp p (pp_list "," Param.pp) modul.m_params); *)
+  Map.iteri modul.m_funcs
+    ~f:(fun ~key:_ ~data:func -> typecheck_func modul.m_funcs func)

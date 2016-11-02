@@ -120,6 +120,7 @@ for fn in [ "%02i"%i for i in range(1,17)]:
     test_fail("tests/compiler/must_fail/t_%s.mil"%fn)
 
 test_fail("tests/compiler/must_fail/t_22.mil")
+test_fail("tests/compiler/must_fail/t_23.mil")
 
 print_sep()
 

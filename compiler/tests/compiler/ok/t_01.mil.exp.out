@@ -14,7 +14,7 @@ fn foo10(x : stack u64, y : stack u64, z : reg bool) -> stack u64 {
   return (x : stack u64);
 }
 
-fn foo2(stack u64,stack u64[n : invalid],stack u64,stack u64,stack u64) -> stack u64[n : invalid] = python print_foo;
+fn foo2(stack u64,stack u64[n : u64],stack u64,stack u64,stack u64) -> stack u64[n : u64] = python print_foo;
 
 fn foo3(_x : stack u64) {
 }
