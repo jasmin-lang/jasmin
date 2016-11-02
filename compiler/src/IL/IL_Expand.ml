@@ -124,30 +124,32 @@ type renumber_opt =
   | ReuseNum
 
 let renumber_vars_func ?(ctr=ref 1) () func =
-  let imap = Var.Table.create () in
+  let imap     = Vname_num.Table.create () in
   let rn v =
-    match HT.find imap v with
+    let nn = (v.Var.name,v.Var.num) in
+    match HT.find imap nn with
     | Some(n) -> { v with Var.num = n }
     | None    ->
       let n = !ctr in
       ctr := succ n;
-      HT.set imap ~key:v ~data:n;
+      HT.set imap ~key:nn ~data:n;
       { v with Var.num = n }
   in
   map_vars_func ~f:rn func
 
 let renumber_vars_func_reuse func =
-  let imap     = Var.Table.create () in
+  let imap     = Vname_num.Table.create () in
   let num_used = Vname.Table.create () in
   let rn v =
-    match HT.find imap v with
+    let nn = (v.Var.name,v.Var.num) in
+    match HT.find imap nn with
     | Some(n) -> { v with Var.num = n }
     | None    ->
       let n = ref 0 in
       HT.change num_used v.Var.name
         ~f:(function | None    -> n := 0; Some(1)
                      | Some(i) -> n := i; Some(i+1));
-      HT.set imap ~key:v ~data:!n;
+      HT.set imap ~key:nn ~data:!n;
       { v with Var.num = !n }
   in
   map_vars_func ~f:rn func

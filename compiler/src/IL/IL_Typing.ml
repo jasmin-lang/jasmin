@@ -95,6 +95,16 @@ let typecheck_src s ty_exp =
   | Imm(_) -> if not (equal_ty ty_exp (U64)) then assert false
   | Src(d) -> typecheck_dest d ty_exp
 
+let type_var_eq v ty os =
+  if not (equiv_ty v.Var.ty ty) then
+    type_error_ v.Var.loc "type mismatch (got %a, expected %a)"
+      pp_ty_nt v.Var.ty pp_ty_nt ty;
+  match os with
+  | Some(s) when s<>v.Var.stor->
+    type_error_ v.Var.loc "storage mismatch (got %s, expected %s)"
+      (string_of_storage v.Var.stor) (string_of_storage s)
+  | _ -> ()
+
 (* *** Check types for assignments, destinations, and sources
  * ------------------------------------------------------------------------ *)
 
@@ -154,16 +164,14 @@ let typecheck_op op ds ss =
     type_dest_eq z U64;
     Option.iter ~f:(fun s -> type_dest_eq s Bool) mcf_out
 
-let typecheck_fcond _env _fc = undefined ()
-(*
-  type_src_eq env (src_of_fcond fc) Bool
-*)
+let typecheck_fcond fc =
+  type_var_eq fc.fc_var Bool (Some(Reg))
 
-let typecheck_fcond_or_pcond env = function
+let typecheck_fcond_or_pcond = function
   | Pcond(_)  -> ()
-  | Fcond(fc) -> typecheck_fcond env fc
+  | Fcond(fc) -> typecheck_fcond fc
 
-let typecheck_base_instr env binstr =
+let typecheck_base_instr fenv binstr =
   let tc_op    = typecheck_op    in
   let tc_assgn = typecheck_assgn in
   match binstr.L.l_val with
@@ -186,52 +194,31 @@ let typecheck_base_instr env binstr =
               failwith_ "wrong number of l-values (got %i, exp. %i)" n_g n_e)
     *)
 
-let rec typecheck_instr env instr =
-  let tc_stmt  = typecheck_stmt  env in
-  let tc_fcond = typecheck_fcond env in
-  let tc_cond  = typecheck_fcond_or_pcond env in
+let rec typecheck_instr fenv instr =
+  let tc_stmt  = typecheck_stmt  fenv in
+  let tc_fcond = typecheck_fcond in
+  let tc_cond  = typecheck_fcond_or_pcond in
   match instr.L.l_val with
   | Block(bis,_) ->
-    List.iter ~f:(typecheck_base_instr env) bis
+    List.iter ~f:(typecheck_base_instr fenv) bis
   | If(c,stmt1,stmt2,_) ->
     tc_cond c; tc_stmt stmt1; tc_stmt stmt2
   | For(pv,_,_,stmt,_) ->
     assert(pv.d_idx=None);
     typecheck_dest pv U64;
-    typecheck_stmt env stmt
+    typecheck_stmt fenv stmt
   | While(_wt,fc,s,_) ->
     tc_fcond fc;
-    typecheck_stmt env s
+    typecheck_stmt fenv s
 
-and typecheck_stmt env stmt =
-  List.iter ~f:(typecheck_instr env) stmt
+and typecheck_stmt fenv stmt =
+  List.iter ~f:(typecheck_instr fenv) stmt
 
-let typecheck_ret _env _ret_ty _ret = undefined ()
-(*
-  List.iter2_exn ret ret_ty
-    ~f:(fun name ty -> typecheck_dest env.e_tenv (mk_dest_name name Reg ty) ty)
-*)
-
-let typecheck_func _fenv func =
+let typecheck_func fenv func =
   match func with
   | Foreign(_) -> ()
-  | Native(_fd) ->
-    ()
-    (*
-    let decls = extract_decls func.f_args fdef in
-    let tenv = Ident.Map.of_alist_exn
-                 (  (Map.to_alist (tenv_of_func func decls))
-                  @ (Map.to_alist penv))
-    in
-    let used_vars = idents_stmt fdef.fd_body in
-    List.iter decls
-      ~f:(fun (_,ident,_) ->
-            if not (Set.mem used_vars ident) then
-              failwith (fsprintf "variable %a in %s not used" pp_ident ident func.f_name));
-    let env  = { e_penv = penv; e_fenv = fenv; e_tenv = tenv } in
-    typecheck_stmt env fdef.fd_body;
-    typecheck_ret env (List.map ~f:snd func.f_ret_ty) fdef.fd_ret
-  *)
+  | Native(fd) ->
+    typecheck_stmt fenv fd.f_body
 
 let typecheck_modul modul =
   vars_num_unique_modul modul;
@@ -240,12 +227,5 @@ let typecheck_modul modul =
       (List.map ~f:(fun p -> (p.Param.name,(p.Param.ty,p.Param.loc))) modul.m_params)
   in
   params_defined_modul penv (pp_ty ~pp_types:false) modul;
-  (* let params_decl = params_modul modul in *)
-  (* Set.iter params_decl *)
-  (*   ~f:(fun p -> *)
-  (*         if not (HT.mem penv p) then *)
-  (*           type_error_ p.Param.loc *)
-  (*             "parameter %a not declared (env: %a)" *)
-  (*                Param.pp p (pp_list "," Param.pp) modul.m_params); *)
   Map.iteri modul.m_funcs
     ~f:(fun ~key:_ ~data:func -> typecheck_func modul.m_funcs func)

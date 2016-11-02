@@ -161,7 +161,7 @@ let mk_func loc name ret_ty ext args def =
         let nn = (v.Var.name,v.Var.num) in 
         match HT.find dmap nn with
         | Some(v') ->
-          P.failparse_l [(v'.Var.loc , fsprintf "variable %a declared twice" Var.pp v);
+          P.failparse_l [(v'.Var.loc, fsprintf "variable %a declared twice" Var.pp v);
                          (v.Var.loc,  "<-- also declared here")]
         | None ->
           HT.set dmap ~key:nn ~data:v (*{ v with Var.num=(incr num; !num) }*)
@@ -173,7 +173,7 @@ let mk_func loc name ret_ty ext args def =
         match HT.find dmap nn with
         | Some(v') ->
           if not in_arg then HT.change used_map nn ~f:(fun _ -> None);
-          v'
+          { v with Var.ty=v'.Var.ty; Var.stor=v'.Var.stor; }
         | None     ->
           P.failparse v.Var.loc (fsprintf "variable %a undeclared" Var.pp v)
       in

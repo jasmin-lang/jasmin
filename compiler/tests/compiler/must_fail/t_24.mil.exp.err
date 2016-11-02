@@ -1,0 +1,5 @@
+Parsing tests/compiler/must_fail/t_24.mil as MIL
+
+tests/compiler/must_fail/t_24.mil:8:11: 8:12 error: type mismatch (got u64, expected bool)
+  } while x;
+          ^^

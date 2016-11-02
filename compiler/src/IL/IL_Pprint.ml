@@ -271,10 +271,14 @@ let pp_foreign ~pp_types fmt name fo =
     | Some(s) ->  " = python "^s^";")
 
 let pp_native ?pp_info ~pp_types fmt (name,fdef) =
+  let clean v = { v with Var.loc = L.dummy_loc } in
   let decls =
     Set.to_list
-      (Set.diff (Set.union (vars_stmt fdef.f_body) (Var.Set.of_list fdef.f_ret))
-         (Var.Set.of_list fdef.f_arg))
+      (Set.diff (Set.union
+                   (Var.Set.of_list
+                      (List.map ~f:clean (Set.to_list (vars_stmt fdef.f_body))))
+                   (Var.Set.of_list (List.map ~f:clean fdef.f_ret)))
+         (Var.Set.of_list (List.map ~f:clean fdef.f_arg)))
   in
   F.fprintf fmt "@[<v 0>%sfn %a(%a)%a%a@]"
     (string_of_call_conv fdef.f_call_conv)

@@ -90,10 +90,11 @@ and fold_vars_stmt stmt ~fapp ~fconv =
   fapp (List.map stmt ~f:(fold_vars_instr ~fapp ~fconv))
 
 let fold_vars_fundef fd ~fapp ~fconv =
-  fapp
-    [ fold_vars_stmt fd.f_body ~fapp ~fconv
-    ; fapp @@ List.map ~f:fconv fd.f_arg 
-    ; fapp @@ List.map ~f:fconv fd.f_ret ]
+  (* fix eval order to improve error messages that use this function *)
+  let s1 = fapp @@ List.map ~f:fconv fd.f_arg in
+  let s2 = fold_vars_stmt fd.f_body ~fapp ~fconv in
+  let s3 = fapp @@ List.map ~f:fconv fd.f_ret in
+  fapp [ s1; s2; s3 ]
 
 let fold_vars_func func ~fapp ~fconv =
   match func with
