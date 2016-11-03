@@ -546,15 +546,14 @@ and that all inline-loops and ifs have been expanded.
 *)
 (* *** Code *)
 
-let keep_arrays_non_const_index _fdef =
-  undefined ()
-(*
+let keep_arrays_non_const_index _fdef = undefined ()
+  (*
   let dests = dests_fundef fdef in
   let non_const_arrays = ref Ident.Set.empty in
   let classify_arrays d = 
     (* if d.d_oidx<>None then F.printf "array: %a\n" pp_dest d; *)
     match d.d_idx with
-    | Inone -> ()
+    | None -> ()
     | Iconst(Pconst(_)) -> ()
     | Ireg(di) ->
       non_const_arrays := Set.add !non_const_arrays d.d_id;
@@ -576,7 +575,7 @@ let keep_arrays_non_const_index _fdef =
   in
   DS.elements dests |> List.iter ~f:classify_arrays;
   !non_const_arrays
-*)
+  *)
 
 let array_expand_stmt _keep_arrays _unique_suffix _stmt =
   undefined ()
@@ -607,28 +606,66 @@ let array_expand_stmt _keep_arrays _unique_suffix _stmt =
   (* dest_map_stmt_t (fun _ -> None) ren stmt *)
 *)
 
-let array_expand_fundef _fdef =
-  failwith "undefined"
-(*
-  if fdef.fd_decls<>None then failwith_ "array expand: expected empty decls";
-  let fresh_suffix = fresh_suffix_fundef fdef "arr" in
-  let keep_arrays = keep_arrays_non_const_index fdef in
-  let body = array_expand_stmt keep_arrays fresh_suffix fdef.fd_body in
-  { fdef with
-    fd_body = body;
-    fd_decls = None
-  }
-*)
+let array_expand_fundef fd =
+  (* FIXME: check that args and ret do not contain arrays *)
+  vars_num_unique_fundef fd;
+  let ctr = ref (succ (max_var_fundef fd)) in
+  let stmt = fd.f_body in
 
-(* FIXME: we assume this is an extern function, hence all arguments and
-          returned values must have type u64 *)
-let array_expand_func _func =
-  undefined ()
-  (* map_fundef ~err_s:"expand arrays" ~f:array_expand_fundef func *)
+  (* populate non-const table *)
+  let non_const_table = Int.Table.create () in
+  iter_dests_stmt stmt ~fdest:(fun d ->
+    match d.d_idx with
+    | Some(Ipexpr(Pconst(_))) | None -> ()
+    | Some(_) -> 
+      HT.set non_const_table ~key:d.d_var.Var.num ~data:()
+  );
+  
+  (* populate mapping table *)
+  let const_table = Int.Table.create () in
+  iter_dests_stmt stmt ~fdest:(fun d ->
+    match d.d_idx with
+    | Some(Ipexpr(Pconst(_))) ->
+      let n = d.d_var.Var.num in
+      if (not (HT.mem non_const_table n) &&
+          not (HT.mem const_table n)) then (
+        let a_size = match d.d_var.Var.ty with
+          | Arr(Pconst(u)) ->
+            U64.to_int u
+          | _ -> assert false
+        in
+        HT.set const_table ~key:n ~data:!ctr;
+        ctr := !ctr + a_size
+      )
+    | _ -> ()
+  );
 
-let array_expand_modul _modul _fname =
-  undefined ()
-  (* map_fun modul fname ~f:array_expand_func *)
+  (* apply mapping table *)
+  let stmt = map_dests_stmt stmt ~f:(fun d ->
+    match d.d_idx with
+    | Some(Ipexpr(Pconst(i))) ->
+      let n = d.d_var.Var.num in
+      begin match HT.find const_table n with
+      | Some(base) ->
+        let i = U64.to_int i in
+        let v = d.d_var in
+        {d with
+          d_idx = None;
+          d_var = { v with Var.num = base + i; Var.ty = U64 } }
+      | None -> d
+      end
+    | _ -> d)
+   in
+  { fd with f_body = stmt }
+
+let array_expand_func func =
+  match func with
+  | Foreign(_) -> assert false
+  | Native(fd) -> Native(array_expand_fundef fd)
+
+let array_expand_modul modul fname =
+  
+  map_func ~f:array_expand_func modul fname
 
 (* ** Local SSA *)
 (* *** Summary
