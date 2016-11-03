@@ -309,7 +309,7 @@ let map_params_modul_all ~f modul =
 let rec map_tys_patom ~f:(f : ty -> ty) pa =
   match pa with
   | Pparam(p) -> Pparam(map_tys_param ~f p)
-  | Pvar(v)   -> Pvar(v)
+  | Pvar(v)   -> Pvar(map_tys_var ~f v)
 
 and map_tys_param ~f:(f : ty -> ty) p =
   { p with Param.ty = map_tys_ty ~f p.Param.ty }
@@ -317,10 +317,10 @@ and map_tys_param ~f:(f : ty -> ty) p =
 and map_tys_idx ~f:(f : ty -> ty) i =
   match i with
   | Ipexpr(pe) -> Ipexpr(map_tys_pexpr ~f pe)
-  | Ivar(v)    -> Ivar(v)
+  | Ivar(v)    -> Ivar(map_tys_var ~f v)
 
 and map_tys_dest ~f:(f : ty -> ty) d =
-  { d_var = d.d_var
+  { d_var = map_tys_var ~f d.d_var
   ; d_idx = Option.map ~f:(map_tys_idx ~f) d.d_idx
   ; d_loc = d.d_loc }
     
@@ -361,8 +361,11 @@ let map_tys_src ~f:(f : ty -> ty) = function
   | Imm(pe) -> Imm(map_tys_pexpr ~f pe)
   | Src(d)  -> Src(map_tys_dest ~f d)
 
+let map_tys_fcond ~f fc =
+  { fc with fc_var = map_tys_var ~f fc.fc_var }
+
 let map_tys_fcond_or_pcond ~f = function
-  | Fcond(fc) -> Fcond(fc)
+  | Fcond(fc) -> Fcond(map_tys_fcond ~f fc)
   | Pcond(pc) -> Pcond(map_tys_pcond ~f pc)
 
 let map_tys_base_instr ~f:(f : ty -> ty) lbi =

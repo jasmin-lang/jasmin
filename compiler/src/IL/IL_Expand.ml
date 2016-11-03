@@ -225,7 +225,7 @@ let merge_blocks_modul_all modul =
  * ------------------------------------------------------------------------ *)
 
 let peval_param ptable _ p =
-  match HT.find ptable p with
+  match HT.find ptable p.Param.name with
   | Some(x) -> Pconst(x)
   | None    -> failwith_ "peval_patom: parameter %a undefined" Param.pp p
 
@@ -387,145 +387,116 @@ Assumes that there are no function calls in the macro-expanded function.
 *)
 (* *** Code *)
 
-let inst_ty pmap ty =
+let inst_ty ptable ty =
+  let ltable = Int.Table.create () in
   match ty with
   | TInvalid -> assert false
   | Bool     -> Bool
   | U64      -> U64
-  | Arr(dim) -> Arr(peval_dexpr pmap Ident.Map.empty dim)
+  | Arr(dim) -> Arr(peval_dexpr ptable ltable dim)
 
-let inst_dest _pmap _lmap _d =
-  undefined ()
-(*
-  let g idx =
-    match idx with
-    | Inone -> Some(inone)
-    | Iconst(pe) ->
-      begin match peval_pexpr pmap lmap pe with
-      | Pconst(_) as pc -> Some(mk_Iconst pc)
-      | _ -> assert false
-      end
-    | Ireg(_) -> None
+let inst_var ltable v ~default ~f =
+  match HT.find ltable v.Var.num with
+  | None          -> default
+  | Some(Vu64(u)) -> f @@ Pconst(u)
+  | Some(_)       -> assert false
+
+let inst_idx ptable ltable idx =
+  match idx with
+  | Ivar(v)    -> inst_var ltable v ~default:idx ~f:(fun pe -> Ipexpr pe)
+  | Ipexpr(pe) -> Ipexpr(peval_pexpr ptable ltable pe)
+  
+
+let inst_dest ptable ltable d =
+  { d with
+    d_idx = Option.map ~f:(inst_idx ptable ltable) d.d_idx }
+
+let inst_src ptable ltable = function
+  | Imm(pe) -> Imm(peval_pexpr ptable ltable pe)
+  | Src(d)  ->
+    let s = Src(inst_dest ptable ltable d) in
+    if d.d_idx<>None then (
+      s
+    ) else (
+      inst_var ltable d.d_var ~default:s ~f:(fun pe -> Imm(pe))
+    )
+
+let inst_base_instr ptable ltable lbi =
+  let inst_p = peval_pexpr ptable ltable in
+  let inst_d = inst_dest   ptable ltable in
+  let inst_s = inst_src    ptable ltable in
+  let inst_ds = List.map ~f:inst_d in
+  let inst_ss = List.map ~f:inst_s in
+  let bi = lbi.L.l_val in
+  let bi =
+    match bi with
+    | Comment(_)      -> bi
+    | Op(o,ds,ss)     -> Op(o,inst_ds ds,inst_ss ss)
+    | Assgn(d,s,t)    -> Assgn(inst_d d,inst_s s,t)
+    | Load(d,s,pe)    -> Load(inst_d d,inst_s s,inst_p pe)
+    | Store(s1,pe,s2) -> Store(inst_s s1,inst_p pe,inst_s s2)
+    | Call(fn,ds,ss)  -> Call(fn,inst_ds ds,inst_ss ss)
   in
-  let f n idx (t,s) =
-    (n,idx,(inst_ty pmap t,s))
-  in
-  let idx = dest_map_idx_t g f d.d_idx in
-  let (s,t) = d.d_decl in
-  { d with d_idx  = idx;
-           d_decl = (s,inst_ty pmap t); }
-*)
+  { lbi with L.l_val = bi }
 
-let inst_src pmap lmap = function
-  | Src(d)  -> Src(inst_dest pmap lmap d)
-  | Imm(pe) -> Imm(peval_pexpr pmap lmap pe)
+let rec macro_expand_instr ptable ltable linstr =
+  let me_s = macro_expand_stmt ptable ltable in
+  let inst_bi = inst_base_instr ptable ltable in
+  let add_loc instr = { linstr with L.l_val = instr } in
+  match linstr.L.l_val with
+      
+  | Block(lbis,_)         -> [ add_loc @@ Block(List.map ~f:inst_bi lbis,None) ]
 
-let inst_base_instr pmap lmap bi =
-  let inst_p = peval_pexpr pmap lmap in
-  let inst_d = inst_dest  pmap lmap in
-  let inst_s = inst_src   pmap lmap in
-  match bi with
-  | Op(o,ds,ss)     -> Op(o,List.map ~f:inst_d ds,List.map ~f:inst_s ss)
-  | Assgn(d,s,t)    -> Assgn(inst_d d,inst_s s,t)
-  | Load(d,s,pe)    -> Load(inst_d d,inst_s s,inst_p pe)
-  | Store(s1,pe,s2) -> Store(inst_s s1,inst_p pe,inst_s s2)
-  | Comment(_)      -> bi
-  | Call(_)         -> failwith "inline calls before macro expansion"
+  | While(wt,fc,s,_)      -> [ add_loc @@ While(wt,fc,me_s s,None) ]
+        
+  | If(Fcond(fc),s1,s2,_) -> [ add_loc @@ If(Fcond(fc),me_s s1,me_s s2,None) ]
+        
+  | If(Pcond(pc),s1,s2,_) ->
+    let cond = eval_pcond_exn ptable ltable pc in
+    let s = if cond then s1 else s2 in
+    me_s s
 
-let macro_expand_stmt _pmap (_stmt : 'info stmt) =
-  failwith "undefined"
-  (*
-  let spaces indent = String.make indent ' ' in
-  let s_of_cond c = if c then "if" else "else" in
-  let comment_if s indent cond ic =
-    fsprintf "%s%s %s %a" (spaces indent) s (s_of_cond cond) pp_pcond ic
-  in
-  let comment_while s indent iv lb_ie ub_ie =
-    fsprintf "%s%s for %s in %a..%a" s (spaces indent) iv pp_pexpr lb_ie pp_pexpr ub_ie
-  in
-  let bicom info c = mk_base_instr info (Comment(c)) in
+  | For(iv,lb_ie,ub_ie,s,_) ->
+    let lb  = eval_pexpr_exn ptable ltable lb_ie in
+    let ub  = eval_pexpr_exn ptable ltable ub_ie in
+    assert (U64.compare lb ub <= 0);
+    assert (iv.d_idx=None);
+    let i_num = iv.d_var.Var.num in
+    let res = ref [] in
+    let ctr = ref lb in
+    let old_val = HT.find ltable i_num in
+    while (U64.compare !ctr ub < 0) do
+      HT.set ltable ~key:i_num ~data:(Vu64 !ctr);
+      let s = me_s s in
+      res := s::!res;
+      ctr := U64.succ !ctr
+    done;
+    HT.change ltable i_num ~f:(fun _ -> old_val);
+    List.concat @@ List.rev !res
 
-  let rec expand indent lmap li =
-    let me_s s = { s with s_val = List.concat_map s.s_val ~f:(expand (indent + 2) lmap) } in
-    match li.i_val with
+and macro_expand_stmt ptable ltable stmt =
+  List.concat_map ~f:(macro_expand_instr ptable ltable) stmt
 
-    | Binstr(binstr) -> [mk_base_instr li (inst_base_instr pmap lmap binstr)]
-
-    | While(wt,fc,st) ->
-      [ { li with i_val = While(wt,fc,me_s st) } ]
-
-    | If(Fcond(ic),st1,st2) ->
-      [ { li with i_val = If(Fcond(ic),me_s st1,me_s st2) } ]
-
-    | If(Pcond(ic),st1,st2) ->
-      (* F.printf "\n%s %a\n%!" (spaces indent) pp_pcond ic; *)
-      let cond = eval_pcond_exn pmap lmap ic in
-      let st = if cond then st1 else st2 in
-      if st.s_val=[] then [] else (
-          [bicom li (comment_if "START: " indent cond ic)]
-        @ (List.concat_map ~f:(fun bi -> (expand (indent + 2) lmap bi)) st.s_val)
-        @ [bicom li (comment_if "END:   " indent cond ic)]
-      )
-
-    | For(iv,lb_ie,ub_ie,stmt) ->
-      (* F.printf "\n%s %a .. %a\n%!" (spaces indent) pp_pexpr lb_ie pp_pexpr ub_ie;  *)
-      let lb  = eval_pexpr_exn pmap lmap lb_ie in
-      let ub  = eval_pexpr_exn pmap lmap ub_ie in
-      assert (U64.compare lb ub <= 0);
-      let body_for_v v =
-          [bicom li (fsprintf "%s%s = %s" (spaces (indent+2)) iv.d_name (U64.to_string v))]
-        @ (List.concat_map stmt.s_val ~f:(expand (indent + 2) (Map.add lmap ~key:iv.d_name ~data:(Vu64 v))))
-      in
-        [bicom li (comment_while "START:" indent iv.d_name lb_ie ub_ie)]
-      @ List.concat_map (list_from_to ~first:lb ~last:ub) ~f:body_for_v
-      @ [bicom li (comment_while "END:" indent iv.d_name lb_ie ub_ie)]
-  in
-  List.concat_map ~f:(expand 0 String.Map.empty) stmt.s_val
-  *)
-
-let macro_expand_fundef _pmap (_fdef : 'info fundef) =
-  failwith "undefined"
-  (*
-  if fdef.fd_decls<>None then failwith_ "inline decls before macro expanding";
-  { fdef with
-    fd_body  = { fdef.fd_body with s_val = macro_expand_stmt pmap fdef.fd_body }
-  ; fd_ret   = fdef.fd_ret
-  }
-  *)
+let macro_expand_native ptable fd =
+  vars_num_unique_fundef fd;
+  let ltable = Int.Table.create () in
+  { fd with f_body = macro_expand_stmt ptable ltable fd.f_body }
 
 let macro_expand_func ptable func =
-  func
-  (*
-  let inst_t = inst_ty pmap in
-  let fdef = match func.f_def with
-    | Def fd -> Def(macro_expand_fundef pmap fd)
-    | Undef  -> Undef
-    | Py(s)  -> Py(s)
-  in
-  { f_name      = func.f_name
-  ; f_call_conv = func.f_call_conv
-  ; f_args      = List.map func.f_args ~f:(fun (s,n,ty) -> (s,n,inst_t ty))
-  ; f_def       = fdef
-  ; f_ret_ty    = List.map func.f_ret_ty ~f:(fun (s,ty) -> (s,inst_t ty))
-  }
-  *)
+  (* check that all parameters are given *)
+  iter_params_func func ~fparam:(fun p ->
+    if not (HT.mem ptable p.Param.name) then
+      failloc_ p.Param.loc "all parameters must be given for macro expansion"); 
+  let func = map_tys_func ~f:(inst_ty ptable) func in
+  match func with
+  | Foreign(_) -> func
+  | Native(fd) -> Native(macro_expand_native ptable fd)
 
 let macro_expand_modul ptable modul fname =
   map_func ~f:(macro_expand_func ptable) modul fname
 
 let macro_expand_modul_all ptable modul =
   List.map ~f:(fun nf -> { nf with nf_func = macro_expand_func ptable nf.nf_func }) modul
-
-  (*
-  List.iter modul.m_params
-    ~f:(fun (i,_) ->
-      if not (Map.mem pvar_map i)
-      then failwith_ "parameter %a not given for expand" pp_ident i);
-  modul
-  *)
-(*
-  map_fun modul fname ~f:(macro_expand_func pvar_map)
-*)
 
 (* ** Expand array assignments *)
 (* *** Summary
