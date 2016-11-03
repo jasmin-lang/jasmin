@@ -8,7 +8,7 @@ fn foo1(x : stack u64, y : stack u64, z : reg bool) -> stack u64 {
   (w : stack u64) += (x : stack u64);
   // END
   // START
-  if $(w : stack u64 = 5) {
+  if (w : stack u64 = 5) {
     // START
     (z : reg bool), (x : stack u64) += (w : stack u64);
     (z : reg bool), (x : stack u64) += (y : stack u64);

@@ -14,7 +14,7 @@ fn foo2(x : stack u64, y : stack u64, cf : reg bool) -> stack u64 {
   cf, w += x;
   // END
   // START
-  if (!cf) {
+  if !cf {
     // START
     cf, x += w;
     cf, x += y;
@@ -25,7 +25,7 @@ fn foo2(x : stack u64, y : stack u64, cf : reg bool) -> stack u64 {
     cf.1, x.1 += y.1 + cf.1;
     // END
     // START
-    if (cf.1) {
+    if cf.1 {
       // START
       cf.1, x.1 += y.1;
       cf.1, x.1 += y.1;
