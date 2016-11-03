@@ -276,7 +276,6 @@ let rec interp_base_instr ms lbinstr =
 
   | Assgn(d,s,_) ->
     interp_assign ptable ms.m_ltable [d] [s]
-    (* { ms0 with m_lmap = lmap } *)
 
   | Load(d,s,pe) ->
     let ptr = read_src ms s in
@@ -318,10 +317,8 @@ and interp_instr ms linstr =
     )
   
   | For(cv,clb,cub,s,_) ->
-    failwith "for-undefined"
-    (*
-    let lb = eval_pexpr_exn pmap ms0.m_lmap clb in
-    let ub = eval_pexpr_exn pmap ms0.m_lmap cub in
+    let lb = eval_pexpr_exn ptable ms.m_ltable clb in
+    let ub = eval_pexpr_exn ptable ms.m_ltable cub in
     let (initial, test, change) =
       if U64.compare lb ub < 0
       then (
@@ -332,23 +329,20 @@ and interp_instr ms linstr =
         , U64.pred)
       )
     in
-    let update ms i =
-      { ms with m_lmap = Map.add ms.m_lmap ~key:cv.d_ident.i_num ~data:(Vu64 i) }
+    let update i =
+      HT.set ms.m_ltable ~key:cv.d_var.Var.num ~data:(Vu64 i)
     in
-    let old_val = Map.find ms0.m_lmap cv.d_ident.i_num in
-    let ms = ref ms0 in
+    let old_val = HT.find ms.m_ltable cv.d_var.Var.num in
     let i = ref initial in
     while test !i do
       if false then (
         F.printf "\nfor %a=%a in %a..%a\n%!"
-          pp_dest cv pp_uint64 !i pp_uint64 lb pp_uint64 ub);
-      ms := update !ms !i;
-      ms := interp_stmt !ms s;
+          pp_dest_nt cv pp_uint64 !i pp_uint64 lb pp_uint64 ub);
+      update !i;
+      interp_stmt ms s;
       i := change !i;
     done;
-    { !ms with
-      m_lmap = Map.change !ms.m_lmap cv.d_ident.i_num ~f:(fun _ -> old_val) }
-    *)
+    HT.change ms.m_ltable cv.d_var.Var.num ~f:(fun _ -> old_val)
 
 and interp_call ms fname call_rets call_args = 
   (* look up function definition *)
@@ -358,10 +352,10 @@ and interp_call ms fname call_rets call_args =
   | Foreign(fo) ->
     begin match fo.fo_py_def with 
     | None    -> failwith "Calling undefined function (only declared)"
-    | Some(s) -> interp_call_python ms func s call_rets call_args
+    | Some(s) -> interp_call_python ms s call_rets call_args
     end
 
-and interp_call_python ms func py_code call_rets call_args =
+and interp_call_python ms py_code call_rets call_args =
   let ptable = ms.m_ptable in
   let ltable = ms.m_ltable in
   let s_params =
@@ -371,7 +365,7 @@ and interp_call_python ms func py_code call_rets call_args =
   in
   let vs = List.map call_args ~f:(fun s -> read_src_val ptable ltable s) in
   let s_args = List.map vs ~f:(fun v -> fsprintf "%a" pp_value_py v) in    
-  let (res,ms) =
+  let res,_ =
     eval_py ms
       (fsprintf "res = %s(%a)\nprint(str(res))\n" py_code
         (pp_list "," pp_string) (s_args@[s_params]))
