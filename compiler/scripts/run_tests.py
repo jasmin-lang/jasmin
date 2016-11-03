@@ -145,7 +145,7 @@ for fn in [ "%02i"%i for i in range(1,10)]:
 
 print_sep()
 
-for fn in [ "%02i"%i for i in range(1,3)]:
+for fn in [ "%02i"%i for i in range(1,4)]:
     test_ok("tests/interp/ok/t_%s.mil"%fn)
 
 print_sep()

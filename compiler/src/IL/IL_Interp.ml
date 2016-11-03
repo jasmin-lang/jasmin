@@ -279,23 +279,16 @@ let rec interp_base_instr ms lbinstr =
     (* { ms0 with m_lmap = lmap } *)
 
   | Load(d,s,pe) ->
-    undefined ()
-    (*
-    let ptr = read_src ms0 s in
-    let c = eval_pexpr_exn pmap ms0.m_lmap pe in
-    let v = map_find_exn ms0.m_mmap pp_uint64 (U64.add c ptr) in
-    write_dest ms0 d (Vu64 v)
-    *)
+    let ptr = read_src ms s in
+    let c = eval_pexpr_exn ptable ms.m_ltable pe in
+    let v = hashtbl_find_exn ms.m_mtable pp_uint64 (U64.add c ptr) in
+    write_dest ms d (Vu64 v)
 
   | Store(s1,pe,s2) ->
-    undefined ()
-    (*
-    let v = read_src ms0 s2 in
-    let ptr = read_src ms0 s1 in
-    let c = eval_pexpr_exn pmap ms0.m_lmap pe in
-    { ms0 with
-      m_mmap = Map.add ms0.m_mmap ~key:(U64.add ptr c) ~data:v }
-    *)
+    let v = read_src ms s2 in
+    let ptr = read_src ms s1 in
+    let c = eval_pexpr_exn ptable ms.m_ltable pe in
+    HT.set ms.m_mtable ~key:(U64.add ptr c) ~data:v
 
 and interp_instr ms linstr =
   (* F.printf "\ninstr: %a\n%!" pp_instr instr;
@@ -369,18 +362,8 @@ and interp_call ms fname call_rets call_args =
     end
 
 and interp_call_python ms func py_code call_rets call_args =
-  (* let decl_args = List.map func.f_args ~f:(fun (s,i,t) -> mk_dest_name i t s) in *)
-  (* compute lmap for callee *)
   let ptable = ms.m_ptable in
   let ltable = ms.m_ltable in
-  (* let lmap_caller = ms.m_lmap in *)
-  (* let lmap_callee = Int64.Map.empty in *)
-  (* let lmap_callee = *)
-    (* interp_assign pmap *)
-      (* ~lmap_lhs:lmap_callee ~lmap_rhs:lmap_caller *)
-      (* decl_args call_args *)
-  (* in *)
-  (* execute function body *)
   let s_params =
     fsprintf "{%a}" (pp_list "," pp_string)
       (List.map (HT.to_alist ms.m_ptable)
