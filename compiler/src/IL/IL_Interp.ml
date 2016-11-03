@@ -361,7 +361,7 @@ and interp_call ms fname call_rets call_args =
   (* look up function definition *)
   let func = hashtbl_find_exn ms.m_ftable Fname.pp fname in
   match func with
-  | Native(fd) -> interp_call_native ms func fd call_rets call_args
+  | Native(fd) -> interp_call_native ms fd call_rets call_args
   | Foreign(fo) ->
     begin match fo.fo_py_def with 
     | None    -> failwith "Calling undefined function (only declared)"
@@ -402,35 +402,23 @@ and interp_call_python ms func py_code call_rets call_args =
   in
   List.iter ss_ds ~f:(fun (s,d) -> write_dest_ ptable ltable d s)
 
-and interp_call_native ms func fdef call_rets call_args =
-  failwith "call-native-undefined"
-  (*
-  let decl_args = List.map func.f_args ~f:(fun (s,name,t) -> mk_dest_name name t s) in
-  let decl_rets = List.map fdef.fd_ret ~f:(fun n -> Src(mk_dest_name n U64 Reg)) in
+and interp_call_native ms fd call_rets call_args =
   (* setup mstate for called function *)
-  let pmap = ms.m_pmap in
-  let lmap_caller = ms.m_lmap in
-  let fmap_caller = ms.m_fmap in
-  let fmap_callee = Int64.Map.empty in
-  let lmap_callee = Int64.Map.empty in
-  let lmap_callee =
-    interp_assign pmap decl_args call_args
-      ~lmap_lhs:lmap_callee ~lmap_rhs:lmap_caller
-  in
-  let ms = (* keep pmap and mmap *)
-    { ms with m_lmap = lmap_callee; m_fmap = fmap_callee }
-  in
+  let ptable = ms.m_ptable in
+  let ltable = ms.m_ltable in
+  let mkd v = {d_var=v; d_idx=None; d_loc=v.Var.uloc} in
+  (* load arguments *)
+  let vs = List.map call_args ~f:(fun s -> read_src_val ptable ltable s) in
+  List.iter2_exn fd.f_arg vs
+    ~f:(fun var v -> write_dest ms (mkd var) v);
+
   (* execute function body *)
-  let ms = interp_stmt ms fdef.fd_body in
+  interp_stmt ms fd.f_body;
+
   (* store result *)
-  let lmap_callee = ms.m_lmap in
-  let lmap_caller =
-    interp_assign pmap
-      ~lmap_lhs:lmap_caller ~lmap_rhs:lmap_callee
-      call_rets decl_rets
-  in
-  { ms with m_lmap = lmap_caller; m_fmap = fmap_caller }
-  *)
+  let vs = List.map fd.f_ret ~f:(fun v -> read_src_val ptable ltable (Src(mkd v))) in
+  List.iter2_exn call_rets vs ~f:(fun d v -> write_dest ms d v)
+
 
 and interp_stmt (ms : 'info mstate) stmt =
   List.iter stmt
