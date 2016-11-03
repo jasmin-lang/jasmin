@@ -177,10 +177,8 @@ let map_module m (mf : map_mod) =
 let apply_transform trafos (modul0 : unit modul) =
   let filter_fn m ofname =
     match ofname with
-    | Some fn ->
-      { m with
-        m_funcs = Map.filter_keys m.m_funcs ~f:(fun n -> n = fn) }
-    | None -> m
+    | Some fn -> List.filter ~f:(fun nf -> nf.nf_name = fn) m
+    | None    -> m
   in
   let notify s fn ~f =
     let start = Unix.gettimeofday () in

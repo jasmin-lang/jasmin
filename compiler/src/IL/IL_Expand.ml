@@ -90,7 +90,6 @@ let eval_pcond_exn ptable ltable cc =
 
 (* ** Simple transformations
  * ------------------------------------------------------------------------ *)
-
 (* *** Reset module info / strip comments *)
 
 let reset_info_modul modul =
@@ -152,18 +151,27 @@ let renumber_vars_func_reuse func =
   in
   map_vars_func ~f:rn func
 
-let renumber_vars_modul_all rno m =
+let renumber_vars_named_func ?ctr () nf =
+  { nf_name = nf.nf_name;
+    nf_func = renumber_vars_func ?ctr () nf.nf_func }
+
+
+let renumber_vars_named_func_reuse nf =
+  { nf_name = nf.nf_name;
+    nf_func = renumber_vars_func_reuse nf.nf_func }
+
+let renumber_vars_modul_all rno modul =
   match rno with
   | ReuseNum ->
-    { m with m_funcs = Map.map ~f:renumber_vars_func_reuse m.m_funcs }
+    List.map ~f:renumber_vars_named_func_reuse modul
   | _ ->
     let rnvf = 
       match rno with
-      | UniqueNumModule -> renumber_vars_func ?ctr:(Some(ref 1)) ()
-      | UniqueNumFun    -> renumber_vars_func ?ctr:None ()
+      | UniqueNumModule -> renumber_vars_named_func ?ctr:(Some(ref 1)) ()
+      | UniqueNumFun    -> renumber_vars_named_func ?ctr:None ()
       | _ -> assert false
     in
-    { m with m_funcs = Map.map ~f:rnvf m.m_funcs }
+    List.map ~f:rnvf modul
  
 (* ** Merge consecutive basic blocks
  * ------------------------------------------------------------------------ *)
@@ -362,8 +370,7 @@ and inline_calls_func func_table (fname : Fname.t) func =
 let inline_calls_modul modul fname =
   (* before inlining a call to f, we inline in f and store the result in func_table  *)
   let func_table =
-    Map.to_alist modul.m_funcs
-    |> List.map ~f:(fun (fn,f) -> (fn,(f,false)))
+    List.map ~f:(fun nf -> (nf.nf_name,(nf.nf_func,false))) modul
     |> Fname.Table.of_alist_exn
   in
   map_func ~f:(inline_calls_func func_table fname) modul fname
@@ -501,13 +508,16 @@ let macro_expand_func _pmap (_func : 'info func) =
   }
   *)
 
-let macro_expand_modul _pvar_map (_modul : 'info modul) _fname =
-  undefined ()
-(*
+let macro_expand_modul _ptable modul _fname =
+  modul
+  (*
   List.iter modul.m_params
     ~f:(fun (i,_) ->
       if not (Map.mem pvar_map i)
       then failwith_ "parameter %a not given for expand" pp_ident i);
+  modul
+  *)
+(*
   map_fun modul fname ~f:(macro_expand_func pvar_map)
 *)
 

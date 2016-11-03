@@ -225,10 +225,6 @@ let typecheck_func ftable func =
 
 let typecheck_modul modul =
   vars_num_unique_modul ~type_only:true modul;
-  let penv =
-    Pname.Table.of_alist_exn
-      (List.map ~f:(fun p -> (p.Param.name,(p.Param.ty,p.Param.loc))) modul.m_params)
-  in
-  params_defined_modul penv (pp_ty ~pp_types:false) modul;
-  let ftable = Fname.Table.of_alist_exn (Map.to_alist modul.m_funcs) in
-  Map.iteri modul.m_funcs ~f:(fun ~key:_ ~data:func -> typecheck_func ftable func)
+  params_consistent_modul (pp_ty ~pp_types:false) modul;
+  let ftable = Fname.Table.of_alist_exn (List.map ~f:(fun nf -> (nf.nf_name, nf.nf_func)) modul) in
+  List.iter modul ~f:(fun nf -> typecheck_func ftable nf.nf_func)

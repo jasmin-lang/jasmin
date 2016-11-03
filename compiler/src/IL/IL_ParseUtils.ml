@@ -29,9 +29,10 @@ let mk_modul pfs =
   let funcs =
     List.filter_map ~f:(function (l,Dfun(func)) -> Some(l,func) | _ -> None) pfs
   in
-  let rec go fmap funcs =
+  let fn_table = Fname.Table.create () in
+  let rec go acc funcs =
     match funcs with
-    | [] -> fmap
+    | [] -> List.rev acc
     | (l,(fn,f))::funcs ->
       let f =
         map_params_func f
@@ -40,15 +41,12 @@ let mk_modul pfs =
                 | None    -> P.failparse p.Param.loc "parameter not declared"
                 | Some ty -> { p with Param.ty = ty })
       in
-      let fmap =
-        Map.change fmap fn
-          ~f:(function | Some _ ->
-                         P.failparse l ("duplicate function name :"^(Fname.to_string fn))
-                       | None   ->  Some(f))
-      in
-      go fmap funcs
+      if HT.mem fn_table fn then
+        P.failparse l ("duplicate function name :"^(Fname.to_string fn));
+      HT.set fn_table ~key:fn ~data:();
+      go ({nf_name = fn; nf_func = f}::acc) funcs
   in
-  { m_funcs = go Fname.Map.empty funcs; m_params = params }
+  go [] funcs
 
 type fun_item =
   | FInstr of (unit instr) L.located

@@ -411,7 +411,7 @@ let interp_modul
   let modul = renumber_vars_modul_all UniqueNumModule modul in
   vars_num_unique_modul ~type_only:false modul; (* FIXME: everything must be unique, test this *)
   typecheck_modul modul;
-  let ftable = Fname.Table.of_alist_exn (Map.to_alist modul.m_funcs) in
+  let ftable = Fname.Table.of_alist_exn (List.map ~f:(fun nf -> (nf.nf_name,nf.nf_func)) modul) in
   let func = hashtbl_find_exn ftable Fname.pp fname in
   let fd = get_fundef ~err_s:"interpreter " func in
   let stmt = fd.f_body in

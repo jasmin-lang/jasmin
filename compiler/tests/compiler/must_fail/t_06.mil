@@ -1,7 +1,7 @@
-// we can use a variable name that is ignored
+// same function name used twice
+
 fn foo(x : stack u64);
 
-// we can also leave out the variable name
 fn foo(x : stack u64);
 
 /*

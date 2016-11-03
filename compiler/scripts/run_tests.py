@@ -120,7 +120,7 @@ def print_sep():
 
 ######################################################################
 
-# f = "tests/interp/ok/t_05.mil"
+# f = "tests/compiler/ok/t_10.mil"
 # print_sep()
 # print ""
 # system("cat %s"%f)

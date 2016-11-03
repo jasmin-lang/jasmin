@@ -293,17 +293,17 @@ let pp_native ?pp_info ~pp_types fmt (name,fdef) =
       , fdef.f_ret
       )
 
-let pp_func ?pp_info ~pp_types fmt (name,f) =
-  match f with
-  | Foreign(fo)  -> pp_foreign ~pp_types fmt name fo
-  | Native(fdef) -> pp_native ?pp_info ~pp_types  fmt (name,fdef)
+let pp_func ?pp_info ~pp_types fmt nf =
+  match nf.nf_func with
+  | Foreign(fo)  -> pp_foreign ~pp_types fmt nf.nf_name fo
+  | Native(fdef) -> pp_native ?pp_info ~pp_types  fmt (nf.nf_name,fdef)
 
 let pp_param ~pp_types fmt p =
   F.fprintf fmt "param %a : %a;@\n@\n" Param.pp p (pp_ty ~pp_types) p.ty
 
 let pp_modul ?pp_info ~pp_types fmt modul =
-  pp_list ""  (pp_param ~pp_types) fmt modul.m_params;
-  pp_list "@\n@\n" (pp_func ?pp_info ~pp_types) fmt (Map.to_alist modul.m_funcs)
+  pp_list ""  (pp_param ~pp_types) fmt (Set.to_list @@ params_modul modul);
+  pp_list "@\n@\n" (pp_func ?pp_info ~pp_types) fmt modul
 
 let pp_value fmt = function
   | Vu64 u   ->

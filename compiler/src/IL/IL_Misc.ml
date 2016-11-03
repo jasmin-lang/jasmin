@@ -101,9 +101,12 @@ let fold_vars_func func ~fapp ~fconv =
   | Foreign _  -> fapp []
   | Native(fd) -> fold_vars_fundef fd ~fapp ~fconv
 
+let fold_vars_named_func nf ~fapp ~fconv =
+  fold_vars_func nf.nf_func ~fapp ~fconv
+
 let fold_vars_modul modul ~fapp ~fconv =
   fapp @@
-    List.map ~f:(fold_vars_func ~fapp ~fconv) (Map.data modul.m_funcs)
+    List.map ~f:(fold_vars_named_func ~fapp ~fconv) modul
 
 (* **** Specialized fold functions: var set, max num, num is already unique
  * ------------------------------------------------------------------------ *)
@@ -164,7 +167,7 @@ let vars_num_unique_modul ~type_only modul =
       else
         vars_num_unique_fundef fd
   in
-  Map.iteri modul.m_funcs ~f:(fun ~key:_ ~data:func -> check func)
+  List.iter modul ~f:(fun nf -> check nf.nf_func)
 
 (* *** Collect parameters (values ot type Param.t)
  * ------------------------------------------------------------------------ *)
@@ -262,9 +265,12 @@ let fold_params_func func ~fapp ~fconv =
   | Foreign _  -> fapp []
   | Native(fd) -> fold_params_fundef fd ~fapp ~fconv
 
+let fold_params_named_func nf ~fapp ~fconv =
+  fold_params_func nf.nf_func ~fapp ~fconv
+
 let fold_params_modul modul ~fapp ~fconv =
   fapp @@
-    List.map ~f:(fold_params_func ~fapp ~fconv) (Map.data modul.m_funcs)
+    List.map ~f:(fold_params_named_func ~fapp ~fconv) modul
 
 (* **** Specialized fold functions: param set, max num
  * ------------------------------------------------------------------------ *)
@@ -275,18 +281,19 @@ let params_stmt stmt =
 let params_modul modul =
   fold_params_modul ~fapp:PS.union_list ~fconv:PS.singleton modul
 
-let params_defined_modul penv pp_ty modul =
+let params_consistent_modul pp_ty modul =
+  let ptable = Pname.Table.create () in
   let fapp _ = () in
   let fconv p =
-    match HT.find penv p.Param.name with
-    | None -> P.failparse p.Param.loc "undeclared parameter"
+    match HT.find ptable p.Param.name with
+    | None ->
+      HT.set ptable ~key:p.Param.name ~data:(p.Param.ty,p.Param.loc)
     | Some(t,l) when t<>p.Param.ty ->
       P.failparse_l
-        [l, fsprintf "parameter declared with type ``%a'' and occurs with type ``%a''"
+        [l, fsprintf "parameter occurs with types ``%a'' and ``%a''"
               pp_ty t pp_ty p.Param.ty;
-         p.Param.loc, "<-- occurs here"]
+         p.Param.loc, "<-- occurs here too"]
     | _ -> ()
-                     
   in
   fold_params_modul ~fapp ~fconv modul
 
@@ -336,9 +343,12 @@ let fold_dests_func func ~fapp ~fconv =
   | Foreign _  -> fapp []
   | Native(fd) -> fold_dests_fundef fd ~fapp ~fconv
 
+let fold_dests_named_func nf ~fapp ~fconv =
+  fold_dests_func nf.nf_func ~fapp ~fconv
+
 let fold_dests_modul modul ~fapp ~fconv =
   fapp @@
-    List.map ~f:(fold_dests_func ~fapp ~fconv) (Map.data modul.m_funcs)
+    List.map ~f:(fold_dests_named_func ~fapp ~fconv) modul
 
 (* **** Specialized fold functions: dest set
  * ------------------------------------------------------------------------ *)
@@ -438,15 +448,15 @@ let map_body_func ~f func =
   | Foreign(fd) -> Foreign(fd)
   | Native(fd) -> Native(map_body_fundef ~f fd)
 
+let map_body_named_func ~f nf =
+  { nf_name = nf.nf_name;
+    nf_func = map_body_func ~f nf.nf_func }
+
 let map_body_modul ~f modul fname =
-  { m_params = modul.m_params;
-    m_funcs  = Map.change modul.m_funcs fname
-                 ~f:(function | None       -> assert false
-                              | Some(func) -> Some(map_body_func ~f func)) }
+  map_named_func ~f:(map_body_named_func ~f)modul fname
 
 let map_body_modul_all ~f modul =
-  { m_params = modul.m_params;
-    m_funcs  = Map.map ~f:(fun func -> map_body_func ~f func) modul.m_funcs }
+  List.map ~f:(map_body_named_func ~f) modul
 
 (* *** Concat-map instruction (with position and info)
  * ------------------------------------------------------------------------ *)
@@ -578,15 +588,15 @@ let map_vars_func ~f func =
   | Foreign(_) -> func
   | Native(fd) -> Native(map_vars_fundef ~f fd)
 
+let map_vars_named_func ~f nf =
+  { nf_name = nf.nf_name;
+    nf_func = map_vars_func ~f nf.nf_func }
+
 let map_vars_modul ~f modul fname =
-  { modul with
-    m_funcs = Map.change modul.m_funcs fname
-                ~f:(function | None       -> assert false
-                             | Some(func) -> Some(map_vars_func ~f func)) }
+  map_named_func ~f:(map_vars_named_func ~f) modul fname
 
 let map_vars_modul_all ~f modul =
-  { modul with
-    m_funcs = Map.map ~f:(fun func -> map_vars_func ~f func) modul.m_funcs }
+  List.map ~f:(map_vars_named_func ~f) modul
 
 (* *** Map function over all parameters
  * ------------------------------------------------------------------------ *)
@@ -700,15 +710,15 @@ let map_params_func ~f:(f : Param.t -> Param.t) func =
   | Foreign(fd) -> Foreign(map_params_foreigndef ~f fd)
   | Native(fd)  -> Native(map_params_fundef ~f fd)
 
+let map_params_named_func ~f nf =
+  { nf_name = nf.nf_name;
+    nf_func = map_params_func ~f nf.nf_func }
+
 let map_params_modul ~f:(f : Param.t -> Param.t) modul fname =
-  { modul with
-    m_funcs = Map.change modul.m_funcs fname
-                ~f:(function | None       -> assert false
-                             | Some(func) -> Some(map_params_func ~f func)) }
+  map_named_func ~f:(map_params_named_func ~f) modul fname
 
 let map_params_modul_all ~f:(f : Param.t -> Param.t) modul =
-  { modul with
-    m_funcs = Map.map ~f:(fun func -> map_params_func ~f func) modul.m_funcs }
+  List.map ~f:(map_params_named_func ~f) modul
 
 (* *** Map function over all destinations
  * ------------------------------------------------------------------------ *)
@@ -760,12 +770,12 @@ let map_dests_func ~f func =
   | Foreign(_) -> func
   | Native(fd) -> Native(map_dests_fundef ~f fd)
 
+let map_dests_named_func ~f nf =
+  { nf_name = nf.nf_name;
+    nf_func = map_dests_func ~f nf.nf_func; }
+
 let map_dests_modul ~f modul fname =
-  { modul with
-    m_funcs = Map.change modul.m_funcs fname
-                ~f:(function | None       -> assert false
-                             | Some(func) -> Some(map_dests_func ~f func)) }
+  map_named_func ~f:(map_dests_named_func ~f) modul fname
 
 let map_dests_modul_all ~f modul =
-  { modul with
-    m_funcs = Map.map ~f:(fun func -> map_dests_func ~f func) modul.m_funcs }
+  List.map ~f:(map_dests_named_func ~f) modul

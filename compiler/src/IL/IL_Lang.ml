@@ -303,10 +303,12 @@ type 'info func =
   | Foreign of foreigndef
   [@@deriving compare,sexp]
 
-type 'info modul = {
-  m_params : Param.t list;           (* module parameters           *)
-  m_funcs  : 'info func Fname.Map.t; (* map from names to functions *)
-} [@@deriving compare,sexp]
+type 'info named_func = {
+  nf_name : Fname.t;
+  nf_func : 'info func;
+}
+
+type 'info modul = 'info named_func list
 
 (* ** Values
  * ------------------------------------------------------------------------ *)

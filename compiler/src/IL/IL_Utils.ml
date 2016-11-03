@@ -68,10 +68,11 @@ let mk_fname (s,si) =
   Fname.mk s
 
 let map_func modul fname ~f =
-  { modul with
-    m_funcs = Map.change modul.m_funcs fname
-                ~f:(function | None        -> assert false
-                             | Some(func) -> Some(f func)) }
+  List.map modul
+    ~f:(fun nf -> if nf.nf_name = fname then { nf with nf_func = f nf.nf_func} else nf)
+
+let map_named_func modul fname ~f =
+  List.map modul ~f:(fun nf -> if nf.nf_name = fname then f nf else nf)
 
 let get_fundef ~err_s func =
   match func with

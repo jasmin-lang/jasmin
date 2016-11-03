@@ -1,18 +1,5 @@
 >> input:
-param n : u64;
-
 fn foo1(stack u64) -> stack u64 * reg u64 * reg bool;
-
-fn foo10(x : stack u64, y : stack u64, z : reg bool) -> stack u64 {
-  w : stack u64
-  (w : stack u64) = (x : stack u64);
-  (w : stack u64) += (x : stack u64);
-  if $(w : stack u64 = 5) {
-    (z : reg bool), (x : stack u64) += (w : stack u64);
-    (z : reg bool), (x : stack u64) += (y : stack u64);
-  }
-  return (x : stack u64);
-}
 
 fn foo2(stack u64,stack u64[n : u64],stack u64,stack u64,stack u64) -> stack u64[n : u64] = python print_foo;
 
@@ -42,6 +29,17 @@ fn foo8(x : stack u64) -> stack u64 * stack u64 {
 
 fn foo9(x : stack u64) -> stack u64 {
   (x : stack u64) += (x : stack u64);
+  return (x : stack u64);
+}
+
+fn foo10(x : stack u64, y : stack u64, z : reg bool) -> stack u64 {
+  w : stack u64
+  (w : stack u64) = (x : stack u64);
+  (w : stack u64) += (x : stack u64);
+  if $(w : stack u64 = 5) {
+    (z : reg bool), (x : stack u64) += (w : stack u64);
+    (z : reg bool), (x : stack u64) += (y : stack u64);
+  }
   return (x : stack u64);
 }
 
