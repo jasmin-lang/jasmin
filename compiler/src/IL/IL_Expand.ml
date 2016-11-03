@@ -546,66 +546,6 @@ and that all inline-loops and ifs have been expanded.
 *)
 (* *** Code *)
 
-let keep_arrays_non_const_index _fdef = undefined ()
-  (*
-  let dests = dests_fundef fdef in
-  let non_const_arrays = ref Ident.Set.empty in
-  let classify_arrays d = 
-    (* if d.d_oidx<>None then F.printf "array: %a\n" pp_dest d; *)
-    match d.d_idx with
-    | None -> ()
-    | Iconst(Pconst(_)) -> ()
-    | Ireg(di) ->
-      non_const_arrays := Set.add !non_const_arrays d.d_id;
-      let (s,_) = d.d_decl in
-      let (si,_) = di.d_decl in
-      begin match s, si with
-      | Stack, Reg -> ()
-      | _, _ ->
-        failwith_
-          ("%s: array %a (%s) with non-constant indexes requires stack storage, "
-           ^^"index %a (%s) must have reg storage")
-          "array expansion"
-          pp_ident d.d_id (string_of_storage s)
-          pp_ident di.d_id (string_of_storage si)
-      end
-    | Iconst(pe) ->
-      failwith_ "%s: the parameter-expression %a cannot be used as index"
-        "array expansion" pp_pexpr pe
-  in
-  DS.elements dests |> List.iter ~f:classify_arrays;
-  !non_const_arrays
-  *)
-
-let array_expand_stmt _keep_arrays _unique_suffix _stmt =
-  undefined ()
-(*
-  let _rename_var name u =
-    fsprintf "%a_%a_%s" pp_ident name pp_uint64 u unique_suffix
-  in
-  let _update_decl ((t,s) as d) =
-    match t with
-    | U64 | Bool     -> d
-    | Arr(Pconst(_)) -> (U64,s)
-    | Arr(_) -> failwith "array expansion: impossible, array bounds are not constants"
-  in
-  let _ren name idx decl =
-    if not (Set.mem keep_arrays name) then
-      match idx with
-      | Inone             -> name, idx, decl
-      | Ireg(_)           -> name, idx, decl
-      | Iconst(Pconst(_u)) -> failwith "undefined"
-        (*rename_var name u, inone, update_decl decl*)
-      | Iconst(pe)        ->
-        failwith_ "%s: the parameter-expression %a cannot be used as index"
-          "array_expand_stmt" pp_pexpr pe
-    else
-      name,idx,decl
-  in
-  undefined ()
-  (* dest_map_stmt_t (fun _ -> None) ren stmt *)
-*)
-
 let array_expand_fundef fd =
   (* FIXME: check that args and ret do not contain arrays *)
   vars_num_unique_fundef fd;
