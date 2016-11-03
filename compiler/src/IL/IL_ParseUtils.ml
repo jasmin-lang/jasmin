@@ -2,12 +2,12 @@
 
 open Core_kernel.Std
 open IL_Lang
-open IL_Misc
+open IL_Map
 open IL_Utils
 open Util
 
-module P = ParserUtil
-module L = ParserUtil.Lexing
+module P  = ParserUtil
+module L  = ParserUtil.Lexing
 module HT = Hashtbl
 
 (* ** Utility functions for parser

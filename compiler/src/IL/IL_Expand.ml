@@ -5,7 +5,8 @@ open Core_kernel.Std
 open Util
 open Arith
 open IL_Lang
-open IL_Misc
+open IL_Map
+open IL_Iter
 open IL_Utils
 
 module X64 = Asm_X64
@@ -492,8 +493,9 @@ let macro_expand_fundef _pmap (_fdef : 'info fundef) =
   }
   *)
 
-let macro_expand_func _pmap (_func : 'info func) =
-  undefined () (*
+let macro_expand_func ptable func =
+  func
+  (*
   let inst_t = inst_ty pmap in
   let fdef = match func.f_def with
     | Def fd -> Def(macro_expand_fundef pmap fd)
@@ -508,8 +510,12 @@ let macro_expand_func _pmap (_func : 'info func) =
   }
   *)
 
-let macro_expand_modul _ptable modul _fname =
-  modul
+let macro_expand_modul ptable modul fname =
+  map_func ~f:(macro_expand_func ptable) modul fname
+
+let macro_expand_modul_all ptable modul =
+  List.map ~f:(fun nf -> { nf with nf_func = macro_expand_func ptable nf.nf_func }) modul
+
   (*
   List.iter modul.m_params
     ~f:(fun (i,_) ->

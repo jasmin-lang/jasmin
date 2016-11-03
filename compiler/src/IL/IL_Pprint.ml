@@ -1,7 +1,7 @@
 open Core_kernel.Std
 open IL_Lang
 open IL_Utils
-open IL_Misc
+open IL_Iter
 open Arith
 open Util
 
@@ -34,7 +34,7 @@ let pp_add_prefix fs pp fmt x =
 
 let rec pp_patom ~pp_types fmt pa =
   match pa with
-  | Pparam(p) -> F.fprintf fmt "$%a" Param.pp p
+  | Pparam(p) -> F.fprintf fmt "$%a" (pp_param ~pp_types) p
   | Pvar(v)   -> pp_var_i ~pp_types fmt v
 
 and pp_var_i ~pp_types fmt v =
@@ -44,7 +44,7 @@ and pp_var_i ~pp_types fmt v =
     (pp_ty ~pp_types) v.Var.ty
 
 and pp_param_i ~pp_types fmt p =
-  F.fprintf fmt "%a : %a"
+  F.fprintf fmt "(%a : %a)"
     Param.pp p
     (pp_ty ~pp_types) p.Param.ty
 
@@ -89,7 +89,7 @@ let pp_dest ~pp_types fmt {d_var=v; d_idx=oidx} =
   let ppi = pp_idx ~pp_types in
   match oidx with
   | None      -> F.fprintf fmt "%a"      (pp_var ~pp_types) v
-  | Some(idx) -> F.fprintf fmt "%a[$%a]" (pp_var ~pp_types) v ppi idx
+  | Some(idx) -> F.fprintf fmt "%a[%a]" (pp_var ~pp_types) v ppi idx
 
 let pcondop_to_string = function
   | Peq      -> "="
@@ -116,8 +116,8 @@ let pp_fcond ~pp_types fmt fc =
   F.fprintf fmt "%s%a" (if fc.fc_neg then "!" else "") (pp_var ~pp_types) fc.fc_var
 
 let pp_fcond_or_pcond ~pp_types fmt = function
-  | Pcond(pc) -> F.fprintf fmt "$%a" (pp_pcond ~pp_types) pc
-  | Fcond(fc) -> F.fprintf fmt "(%a)" (pp_fcond ~pp_types) fc
+  | Pcond(pc) -> F.fprintf fmt "%a" (pp_pcond ~pp_types) pc
+  | Fcond(fc) -> F.fprintf fmt "%a" (pp_fcond ~pp_types) fc
 
 let string_of_carry_op = function O_Add -> "+" | O_Sub -> "-"
 
@@ -298,11 +298,17 @@ let pp_func ?pp_info ~pp_types fmt nf =
   | Foreign(fo)  -> pp_foreign ~pp_types fmt nf.nf_name fo
   | Native(fdef) -> pp_native ?pp_info ~pp_types  fmt (nf.nf_name,fdef)
 
-let pp_param ~pp_types fmt p =
+let pp_param_entry ~pp_types fmt p =
   F.fprintf fmt "param %a : %a;@\n@\n" Param.pp p (pp_ty ~pp_types) p.ty
 
 let pp_modul ?pp_info ~pp_types fmt modul =
-  pp_list ""  (pp_param ~pp_types) fmt (Set.to_list @@ params_modul modul);
+  let params =
+    Set.to_list (params_modul modul)
+    |> List.map ~f:(fun p -> { p with Param.loc=L.dummy_loc })
+    |> Param.Set.of_list
+    |> Set.to_list
+  in
+  pp_list ""  (pp_param_entry ~pp_types) fmt params;
   pp_list "@\n@\n" (pp_func ?pp_info ~pp_types) fmt modul
 
 let pp_value fmt = function
