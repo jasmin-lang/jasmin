@@ -507,57 +507,35 @@ FIXME: Would it be easier to replace this by 'for' and perform the
 *)
 (* *** Code *)
 
-let array_assign_expand_stmt _stmt =
-  failwith "undefined"
-  (*
-  let rec expand li =
-    let exp_s s = { s with s_val = List.concat_map s.s_val ~f:expand } in
-    match li.i_val with
-    | Binstr(Op(_,_,_))
-    | Binstr(Comment(_))
-    | Binstr(Load(_,_,_))
-    | Binstr(Store(_,_,_))
-    | Binstr(Assgn(_,Imm(_),_)) -> [li]
+let array_assign_expand_basic_instr lbi =
+  let bi = lbi.L.l_val in
+  match bi with
+  | Assgn(d,Src(s),t) ->
+    let td = d.d_var.Var.ty in
+    let ts = s.d_var.Var.ty in
+    begin match d.d_idx, s.d_idx, td, ts with
+    | None, None, Arr(Pconst(ub1)), Arr(Pconst(ub2)) ->
+      assert (U64.equal ub1 ub2);
+      let mk_assgn i =
+        let d = {d with d_idx = Some(Ipexpr(Pconst(i))) } in
+        let s = Src({s with d_idx = Some(Ipexpr(Pconst(i))) }) in
+        { lbi with L.l_val = Assgn(d,s,t) }
+      in
+      List.map ~f:mk_assgn (list_from_to ~first:U64.zero ~last:ub1)
+    | _ -> [lbi]
+    end
+  | _ -> [lbi]
 
-    | If(Pcond(_),_,_) -> failwith "array expansion expects macro-if expanded"
-    | For(_,_,_,_)     -> failwith "array expansion expects macro-for expanded"
-    | Binstr(Call(_))  -> failwith "array expansion expects calls are expanded"
-    | While(wt,fc,stmt) ->
-      [ { li with i_val = While(wt,fc,exp_s stmt) } ]
-    
-    | If(Fcond(_) as c,s1,s2) ->
-      [ { li with i_val = If(c,exp_s s1,exp_s s2) } ]
- 
-    | Binstr(Assgn(d,Src(s),t)) ->
-      let (td,_) = d.d_decl in
-      let (ts,_) = s.d_decl in
-      begin match d.d_idx, s.d_idx, td, ts with
-      | Inone, Inone, Arr(Pconst(ub1)), Arr(Pconst(ub2)) ->
-        assert (U64.equal ub1 ub2);
-        let mk_assgn i =
-          let d = {d with d_idx = mk_Iconst(Pconst i)} in
-          let s = Src({s with d_idx = mk_Iconst(Pconst i)}) in
-          { li with i_val = Binstr(Assgn(d,s,t)) }
-        in
-        List.map ~f:mk_assgn (list_from_to ~first:U64.zero ~last:ub1)
-      | _ -> [li]
-      end
+let array_assign_expand_instr loc _pos _oinfo instr =
+  let instr =
+    match instr with
+    | Block(bis,_) -> Block(List.concat_map ~f:array_assign_expand_basic_instr bis,None)
+    | _            -> instr
   in
-  List.concat_map ~f:expand stmt
-  *)
-
-let array_assign_expand_fundef fdef =
-  let stmt = fdef.f_body in
-  { fdef with
-    f_body  = array_assign_expand_stmt stmt }
-
-let array_assign_expand_func _func =
-  undefined ()
-  (* map_fundef ~err_s:"expand array assignments" ~f:array_assign_expand_fundef func *)
-
-let array_assign_expand_modul _modul _fname =
-  undefined ()
-  (* map_fun modul fname ~f:array_assign_expand_func *)
+  [ { L.l_val = instr; L.l_loc = loc } ]
+ 
+let array_assign_expand_modul modul fname =
+  concat_map_modul modul fname ~f:array_assign_expand_instr
 
 (* ** Expand arrays *)
 (* *** Summary

@@ -120,7 +120,7 @@ def print_sep():
 
 ######################################################################
 
-# f = "tests/compiler/ok/t_11.mil"
+# f = "tests/compiler/ok/t_12.mil"
 # print_sep()
 # print ""
 # system("cat %s"%f)
@@ -139,7 +139,7 @@ for fn in [ "%02i"%i for i in range(1,31) if not i in fail_exclude ]:
 
 print_sep()
 
-for fn in [ "%02i"%i for i in range(1,12)]:
+for fn in [ "%02i"%i for i in range(1,13)]:
     test_ok("tests/compiler/ok/t_%s.mil"%fn)
 
 print_sep()

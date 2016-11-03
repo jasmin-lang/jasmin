@@ -32,7 +32,7 @@ let map_body_named_func ~f nf =
     nf_func = map_body_func ~f nf.nf_func }
 
 let map_body_modul ~f modul fname =
-  map_named_func ~f:(map_body_named_func ~f)modul fname
+  map_named_func ~f:(map_body_named_func ~f) modul fname
 
 let map_body_modul_all ~f modul =
   List.map ~f:(map_body_named_func ~f) modul
@@ -64,11 +64,7 @@ let concat_map_fundef ~f = map_body_fundef ~f:(concat_map_stmt [] ~f)
 
 let concat_map_func ~f = map_body_func ~f:(concat_map_stmt [] ~f)
 
-let concat_map_modul_all : 'a 'b.
-  f:(L.loc -> pos -> 'a option -> 'b instr -> 'b instr L.located list) ->
-  ('a modul) ->
-  ('b modul)
-= fun ~f m -> map_body_modul_all ~f:(concat_map_stmt [] ~f) m
+let concat_map_modul_all ~f m = map_body_modul_all ~f:(concat_map_stmt [] ~f) m
 
 let concat_map_modul ~f = map_body_modul ~f:(concat_map_stmt [] ~f)
 
