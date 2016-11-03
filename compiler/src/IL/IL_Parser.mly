@@ -110,7 +110,7 @@ terminated_list(S,X):
  * -------------------------------------------------------------------- *)
 
 %inline dest_get:
-| LBRACK idx = pexpr RBRACK { Iconst(idx) }
+| LBRACK pe = pexpr RBRACK { Ipexpr(pe) }
 
 %inline dest_noloc :
 | v=var idx = dest_get?

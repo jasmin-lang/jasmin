@@ -139,7 +139,7 @@ for fn in [ "%02i"%i for i in range(1,30) if not i in fail_exclude ]:
 
 print_sep()
 
-for fn in [ "%02i"%i for i in range(1,10)]:
+for fn in [ "%02i"%i for i in range(1,11)]:
     test_ok("tests/compiler/ok/t_%s.mil"%fn)
 
 print_sep()

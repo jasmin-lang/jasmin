@@ -170,7 +170,7 @@ We define:
 (* *** Code *)
 
 type idx =
-  | Iconst of pexpr
+  | Ipexpr of pexpr
   | Ivar   of Var.t
   [@@deriving compare,sexp]
 

@@ -65,7 +65,7 @@ let read_src_val ptable ltable (s : src) =
   | Src(d) ->
     let oidx = match d.d_idx with
       | None             -> None
-      | Some(Iconst(pe)) -> Some(eval_pexpr_exn ptable ltable pe)
+      | Some(Ipexpr(pe)) -> Some(eval_pexpr_exn ptable ltable pe)
       | Some(Ivar(v))    ->
         begin match read_lvar ltable v None with
         | Vu64(u) -> Some(u)
@@ -109,7 +109,7 @@ let write_dest_ ptable ltable d v =
   let ov   = HT.find ltable s.Var.num in
   let oidx = match d.d_idx with
     | None             -> None
-    | Some(Iconst(pe)) -> Some(eval_pexpr_exn ptable ltable pe)
+    | Some(Ipexpr(pe)) -> Some(eval_pexpr_exn ptable ltable pe)
     | Some(Ivar(_))    -> failwith "not implemented"
   in
   (* F.printf "###: write value %a -> %a\n%!" pp_dest_nt d pp_value v; *)

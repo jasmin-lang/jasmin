@@ -82,7 +82,7 @@ let map_vars_patom ~f pa =
 
 let rec map_vars_idx ~f i =
   match i with
-  | Iconst(pe) -> Iconst(map_vars_pexpr ~f pe)
+  | Ipexpr(pe) -> Ipexpr(map_vars_pexpr ~f pe)
   | Ivar(v)    -> Ivar(f v)
 
 and map_vars_dest ~f d =
@@ -190,10 +190,8 @@ and map_params_param ~f p =
 
 and map_params_idx ~f i =
   match i with
-  | Iconst(pe) ->
-    Iconst(map_params_pexpr ~f pe)
-  | Ivar(v)    ->
-    Ivar(map_params_var ~f v)
+  | Ipexpr(pe) -> Ipexpr(map_params_pexpr ~f pe)
+  | Ivar(v)    -> Ivar(map_params_var ~f v)
 
 and map_params_dest ~f d =
   { d_var = map_params_var ~f d.d_var
@@ -318,7 +316,7 @@ and map_tys_param ~f:(f : ty -> ty) p =
 
 and map_tys_idx ~f:(f : ty -> ty) i =
   match i with
-  | Iconst(pe) -> Iconst(map_tys_pexpr ~f pe)
+  | Ipexpr(pe) -> Ipexpr(map_tys_pexpr ~f pe)
   | Ivar(v)    -> Ivar(v)
 
 and map_tys_dest ~f:(f : ty -> ty) d =

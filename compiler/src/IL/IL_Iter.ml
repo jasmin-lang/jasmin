@@ -20,7 +20,7 @@ let iter_vars_patom ~fvar = function
   | Pvar(v)   -> fvar v
 
 let rec iter_vars_idx ~fvar = function
-  | Iconst(pe) -> iter_vars_pexpr ~fvar pe
+  | Ipexpr(pe) -> iter_vars_pexpr ~fvar pe
   | Ivar(v)    -> fvar v
 
 and iter_vars_dest ~fvar d =
@@ -209,7 +209,7 @@ let iter_params_pexpr ~fparam pe =
   iter_params_pexpr_g iter_params_patom ~fparam pe
 
 let iter_params_idx ~fparam = function
-  | Iconst(pe) -> iter_params_pexpr ~fparam pe
+  | Ipexpr(pe) -> iter_params_pexpr ~fparam pe
   | Ivar(_)    -> ()
 
 let rec iter_params_pcond ~fparam pc =

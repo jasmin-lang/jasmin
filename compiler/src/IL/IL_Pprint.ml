@@ -82,7 +82,7 @@ let rec pp_pexpr ~pp_types fmt ce =
   | Pconst(u)          -> pp_string fmt (U64.to_string u)
 
 let pp_idx ~pp_types fmt = function
-  | Iconst(pe) -> pp_pexpr ~pp_types fmt pe
+  | Ipexpr(pe) -> pp_pexpr ~pp_types fmt pe
   | Ivar(v)    -> pp_var ~pp_types fmt v
 
 let pp_dest ~pp_types fmt {d_var=v; d_idx=oidx} =
