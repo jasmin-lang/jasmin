@@ -98,10 +98,10 @@ let write_lvar ov s oidx v =
   | None,          Some(i), Vu64(u) -> Varr(U64.Map.singleton i u)
   | Some(Varr(vs)),Some(i), Vu64(u) -> Varr(Map.add vs ~key:i ~data:u)
   | _,             Some(_), Varr(_) ->
-    failwith_ "write_lvar: cannot write array to %a[%a]"
+    failloc_ s.Var.uloc "write_lvar: cannot write array to %a[%a]"
       Var.pp s (pp_opt "_" pp_uint64) oidx
   | Some(Vu64(_)), Some(_), _ ->
-    failwith_ "write_lvar: expected array, got u64 in %a[%a]"
+    failloc_ s.Var.uloc "write_lvar: expected array, got u64 in %a[%a]"
       Var.pp s (pp_opt "_" pp_uint64) oidx
 
 let write_dest_ ptable ltable d v =
@@ -112,9 +112,9 @@ let write_dest_ ptable ltable d v =
     | Some(Iconst(pe)) -> Some(eval_pexpr_exn ptable ltable pe)
     | Some(Ivar(_))    -> failwith "not implemented"
   in
-  (* F.printf "###: %a\n%!" pp_value v; *)
+  (* F.printf "###: write value %a -> %a\n%!" pp_dest_nt d pp_value v; *)
   let nv = write_lvar ov s oidx v in
-  (* F.printf "###: %a\n%!" pp_value v'; *)
+  (* F.printf "###: new value %a -> %a\n%!" pp_dest_nt d pp_value nv; *)
   HT.set ltable ~key:s.Var.num ~data:nv
 
 let write_dest ms d x =
@@ -405,10 +405,11 @@ and interp_stmt (ms : 'info mstate) stmt =
  * ------------------------------------------------------------------------ *)
 
 let interp_modul
-  (modul : 'info modul) (_pmap : u64 Pname.Map.t) (_mmap : u64 U64.Map.t)
+  (modul : 'info modul) (ptable : u64 Pname.Table.t) (mtable : u64 U64.Table.t)
   (_args : value list) (fname : Fname.t)
   =
-  vars_num_unique_modul ~type_only:false modul;
+  let modul = renumber_vars_modul_all UniqueNumModule modul in
+  vars_num_unique_modul ~type_only:false modul; (* FIXME: everything must be unique, test this *)
   typecheck_modul modul;
   let ftable = Fname.Table.of_alist_exn (Map.to_alist modul.m_funcs) in
   let func = hashtbl_find_exn ftable Fname.pp fname in
@@ -438,9 +439,9 @@ let interp_modul
   in
   let ms =
     { m_ltable  = ltable
-    ; m_ptable  = Pname.Table.create ()
+    ; m_ptable  = ptable
     ; m_fltable = fltable
-    ; m_mtable  = U64.Table.create ()
+    ; m_mtable  = mtable
     ; m_py      = Some pst
     ; m_ftable  = ftable
     }

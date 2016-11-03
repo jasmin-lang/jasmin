@@ -815,9 +815,10 @@ fn test_square() {
 }
 
 fn test_ladderstep() {
-  u                   : stack u64;
-  x1, x2, z2, x3, z3  : stack u64[4];
-  i                   : inline u64;
+  u                       : stack u64;
+  x1, x2, z2, x3, z3      : stack u64[4];
+  x2_r, z2_r, x3_r, z3_r  : stack u64[4];
+  i                       : inline u64;
 
   for i in 0..999 {
     u = i;
@@ -828,8 +829,8 @@ fn test_ladderstep() {
     x3 = rand_arr(u); u += 1;
     z3 = rand_arr(u); u += 1;
 
-    x2, z2, x3, z3 = ladderstep(x1, x2, z2, x3, z3);
-    assert_equal_ladderstep(x1,x2,z2,x3,z3,x2,z2,x3,z3);
+    x2_r,z2_r,x3_r,z3_r = ladderstep(x1,x2,z2,x3,z3);
+    assert_equal_ladderstep(x1,x2,z2,x3,z3,x2_r,z2_r,x3_r,z3_r);
   }
 }
 

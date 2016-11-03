@@ -120,14 +120,13 @@ def print_sep():
 
 ######################################################################
 
-# f = "tests/interp/ok/t_04.mil"
+# f = "tests/interp/ok/t_05.mil"
 # print_sep()
 # print ""
 # system("cat %s"%f)
 # print_sep()
 # print ""
 # run(f)
-
 # exit(0)
 
 ######################################################################
@@ -145,7 +144,7 @@ for fn in [ "%02i"%i for i in range(1,10)]:
 
 print_sep()
 
-for fn in [ "%02i"%i for i in range(1,5)]:
+for fn in [ "%02i"%i for i in range(1,6)]:
     test_ok("tests/interp/ok/t_%s.mil"%fn)
 
 print_sep()

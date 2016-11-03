@@ -13,7 +13,9 @@ FUN="scalarmult"
 
 ARG="renumber_fun_unique,typecheck"
 ARG="$ARG,save[/tmp/unfold.mil][fun=$FUN]"
-# ARG="inline[$FUN]"
+ARG="$ARG,interp[rem_p=38][][test][]"
+ARG="$ARG,inline[$FUN]"
+ARG="$ARG,interp[rem_p=38][][test][]"
 #ARG="$ARG,typecheck"
 #ARG="$ARG,save[/tmp/unfold1.mil][$FUN]"
 #ARG="$ARG,expand[$FUN][rem_p=38]"
@@ -38,7 +40,6 @@ ARG="$ARG,save[/tmp/unfold.mil][fun=$FUN]"
 #ARG="$ARG,save[/tmp/unfold3.mil][$FUN]"
 #ARG="$ARG,typecheck"
 #ARG="$ARG,interp[rem_p=38][][test][]"
-#ARG="$ARG,interp[rem_p=38][][test][]"
 #ARG="$ARG,save[/tmp/unfold.mil][$FUN]"
 #ARG="$ARG,save[/tmp/unfold2.mil][$FUN]"
 #ARG="$ARG,typecheck,local_ssa[$FUN]"
@@ -47,9 +48,7 @@ ARG="$ARG,save[/tmp/unfold.mil][fun=$FUN]"
 #ARG="$ARG,save[/tmp/unfold4.mil][$FUN]"
 #ARG="$ARG,typecheck"
 
-time ./dmasm.native -t \
-  "$ARG" \
-  examples/25519-4limb/ladderstep.mil
+time ./dmasm.native -t "$ARG" examples/25519-4limb/ladderstep.mil
 
 exit 0
 

@@ -31,7 +31,7 @@ let mk_pprint_opt ofn = {
 
 type transform =
   | MergeBlocks of Fname.t option
-  | MacroExpand of Fname.t * u64 Pname.Map.t
+  | MacroExpand of Fname.t * u64 Pname.Table.t
   | ArrayAssignExpand of Fname.t
   | ArrayExpand of Fname.t
   | LocalSSA of Fname.t
@@ -46,7 +46,7 @@ type transform =
   | Print of string * pprint_opt
   | Save  of string * pprint_opt
   | StripComments of Fname.t
-  | Interp of Fname.t * u64 Pname.Map.t * u64 U64.Map.t * value list
+  | Interp of Fname.t * u64 Pname.Table.t * u64 U64.Table.t * value list
     (* Interp(fun,pmap,mmap,alist,fun):
          interpret call of function fun() with parameters pmap, memory mmap,
          argument list alist *)
@@ -82,8 +82,8 @@ let ptrafo =
   in
   let fname = bracketed (ident >>= fun s -> return @@ Fname.mk s) in
   let args = bracketed (sep_by (value ()) (char ',')) in
-  let pmap = mappings pmapping Pname.Map.of_alist_exn in
-  let mmap = mappings mmapping U64.Map.of_alist_exn in
+  let pmap = mappings pmapping (fun l -> Pname.Table.of_alist_exn l) in
+  let mmap = mappings mmapping (fun l -> U64.Table.of_alist_exn l) in
   let interp_args =
     pmap  >>= fun mparam ->
     mmap  >>= fun mmem ->
