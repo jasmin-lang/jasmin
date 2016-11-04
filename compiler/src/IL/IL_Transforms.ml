@@ -175,6 +175,7 @@ let map_module m (mf : map_mod) =
   | U m -> U(mf.f m)
 
 let apply_transform trafos (modul0 : unit modul) =
+  let total = ref 0. in
   let filter_fn m ofname =
     match ofname with
     | Some fn -> List.filter ~f:(fun nf -> nf.nf_name = fn) m
@@ -185,7 +186,9 @@ let apply_transform trafos (modul0 : unit modul) =
     F.printf "%s in %s function(s)\n%!" s (Fname.to_string fn);
     let res = f () in
     let stop = Unix.gettimeofday () in
-    F.printf "   %fs\n%!" (stop -. start);
+    let d = (stop -. start) *. 1000. in
+    F.printf "   %fms\n%!" d;
+    total := d +. !total;
     res
   in
   let all_fn = Fname.mk "all" in
@@ -287,7 +290,14 @@ let apply_transform trafos (modul0 : unit modul) =
     | Save(fn,ppo)              -> save fn ppo modul; modul
     | Asm(_)                    -> assert false
   in
-  List.fold_left trafos ~init:(U modul0) ~f:app_trafo
+  let start = Unix.gettimeofday () in 
+  let res = List.fold_left trafos ~init:(U modul0) ~f:app_trafo in
+  let stop = Unix.gettimeofday () in
+  let d = (stop -. start) *. 1000. in
+  F.printf "\ntotal transformation time: %fms\n%!" !total;
+  F.printf "\ntotal time (with save/print): %fms\n%!" d;
+  res
+
 
 let apply_transform_asm strafo modul =
   let (trafo,mlang) = parse_trafo strafo in

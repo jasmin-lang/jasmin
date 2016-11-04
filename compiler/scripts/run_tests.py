@@ -64,7 +64,7 @@ def test(fname,get_error,cp):
         return
 
     # remove times
-    sed = '-E "s,[0-9]+\.[0-9]+s,REMOVED_TIME,"'
+    sed = '-E "s,[0-9]+\.[0-9]+ms,REMOVED_TIME,"'
     system("sed %s  %s.run.err >%s.run.err.tmp"%(sed,fname,fname))
     system("mv %s.run.err.tmp %s.run.err"%(fname,fname))
     system("sed %s %s.run.out >%s.run.out.tmp"%(sed,fname,fname))

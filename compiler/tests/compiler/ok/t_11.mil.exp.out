@@ -60,3 +60,7 @@ extern fn test() {
   }
 }
 
+
+total transformation time: REMOVED_TIME
+
+total time (with save/print): REMOVED_TIME

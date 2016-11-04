@@ -83,3 +83,7 @@ extern fn test() {
   arr3[15] = arr4[15];
 }
 
+
+total transformation time: REMOVED_TIME
+
+total time (with save/print): REMOVED_TIME

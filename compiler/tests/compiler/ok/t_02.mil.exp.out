@@ -12,3 +12,7 @@ fn foo(x : stack u64, y : stack u64, z : reg bool) -> stack u64 {
   return (x : stack u64);
 }
 
+
+total transformation time: REMOVED_TIME
+
+total time (with save/print): REMOVED_TIME
