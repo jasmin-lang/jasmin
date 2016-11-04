@@ -197,19 +197,24 @@ let merge_blocks_stmt stmt =
     match linstrs with
     | [] -> List.rev @@ finish_block prev_stmt cur_block
     | linstr::linstrs ->
+      let fix_stmt stmt =
+        match stmt with
+        | [] -> [ { linstr with L.l_val = Block([],None) } ]
+        | _  -> stmt
+      in
       let mk instr = { linstr with L.l_val = instr } in
       begin match linstr.L.l_val with
       | Block(bs,_) ->
         go prev_stmt (bs::cur_block) linstrs
       | If(c,s1,s2,i) ->
-        let s1 = go [] [] s1 in
-        let s2 = go [] [] s2 in
+        let s1 = fix_stmt @@ go [] [] s1 in
+        let s2 = fix_stmt @@ go [] [] s2 in
         go ((mk @@ If(c,s1,s2,i))::(finish_block prev_stmt cur_block)) [] linstrs
       | For(v,lb,ub,s,i) ->
-        let s = go [] [] s in
+        let s = fix_stmt @@ go [] [] s in
         go ((mk @@ For(v,lb,ub,s,i))::(finish_block prev_stmt cur_block)) [] linstrs
       | While(wt,c,s,i) ->
-        let s = go [] [] s in
+        let s = fix_stmt @@ go [] [] s in
         go ((mk @@ While(wt,c,s,i))::(finish_block prev_stmt cur_block)) [] linstrs
       end
   in
@@ -387,8 +392,7 @@ Assumes that there are no function calls in the macro-expanded function.
 *)
 (* *** Code *)
 
-let inst_ty ptable ty =
-  let ltable = Int.Table.create () in
+let inst_ty ptable ltable ty =
   match ty with
   | TInvalid -> assert false
   | Bool     -> Bool
@@ -405,7 +409,6 @@ let inst_idx ptable ltable idx =
   match idx with
   | Ivar(v)    -> inst_var ltable v ~default:idx ~f:(fun pe -> Ipexpr pe)
   | Ipexpr(pe) -> Ipexpr(peval_pexpr ptable ltable pe)
-  
 
 let inst_dest ptable ltable d =
   { d with
@@ -422,12 +425,12 @@ let inst_src ptable ltable = function
     )
 
 let inst_base_instr ptable ltable lbi =
+  let bi = lbi.L.l_val in
   let inst_p = peval_pexpr ptable ltable in
   let inst_d = inst_dest   ptable ltable in
   let inst_s = inst_src    ptable ltable in
   let inst_ds = List.map ~f:inst_d in
   let inst_ss = List.map ~f:inst_s in
-  let bi = lbi.L.l_val in
   let bi =
     match bi with
     | Comment(_)      -> bi
@@ -454,6 +457,7 @@ let rec macro_expand_instr ptable ltable linstr =
   | If(Pcond(pc),s1,s2,_) ->
     let cond = eval_pcond_exn ptable ltable pc in
     let s = if cond then s1 else s2 in
+    (* info s; *)
     me_s s
 
   | For(iv,lb_ie,ub_ie,s,_) ->
@@ -461,6 +465,7 @@ let rec macro_expand_instr ptable ltable linstr =
     let ub  = eval_pexpr_exn ptable ltable ub_ie in
     assert (U64.compare lb ub <= 0);
     assert (iv.d_idx=None);
+    (* info s; *)
     let i_num = iv.d_var.Var.num in
     let res = ref [] in
     let ctr = ref lb in
@@ -486,11 +491,20 @@ let macro_expand_func ptable func =
   (* check that all parameters are given *)
   iter_params_func func ~fparam:(fun p ->
     if not (HT.mem ptable p.Param.name) then
-      failloc_ p.Param.loc "all parameters must be given for macro expansion"); 
-  let func = map_tys_func ~f:(inst_ty ptable) func in
+      failloc_ p.Param.loc "all parameters must be given for macro expansion");
+  let ltable = Int.Table.create () in
+  let func = map_tys_func ~f:(inst_ty ptable ltable) func in
   match func with
   | Foreign(_) -> func
   | Native(fd) -> Native(macro_expand_native ptable fd)
+
+(*
+checking params defined:  1.7 ms
+checking num-uniqueness:  2.5 ms
+type mapping     :       10.0 ms
+control-unfolding:        7.0 ms
+basic_instr: inst.:      30.0 ms
+*)
 
 let macro_expand_modul ptable modul fname =
   map_func ~f:(macro_expand_func ptable) modul fname
@@ -547,8 +561,11 @@ and that all inline-loops and ifs have been expanded.
 (* *** Code *)
 
 let array_expand_fundef fd =
-  (* FIXME: check that args and ret do not contain arrays *)
+  (* check that args and ret do not contain arrays, var numbers are unique *)
+  List.iter fd.f_ret ~f:(fun v -> assert (v.Var.ty=U64));
+  List.iter fd.f_arg ~f:(fun v -> assert (v.Var.ty=U64));
   vars_num_unique_fundef fd;
+
   let ctr = ref (succ (max_var_fundef fd)) in
   let stmt = fd.f_body in
 
@@ -557,10 +574,10 @@ let array_expand_fundef fd =
   iter_dests_stmt stmt ~fdest:(fun d ->
     match d.d_idx with
     | Some(Ipexpr(Pconst(_))) | None -> ()
-    | Some(_) -> 
+    | Some(_) ->
       HT.set non_const_table ~key:d.d_var.Var.num ~data:()
   );
-  
+
   (* populate mapping table *)
   let const_table = Int.Table.create () in
   iter_dests_stmt stmt ~fdest:(fun d ->
@@ -570,9 +587,8 @@ let array_expand_fundef fd =
       if (not (HT.mem non_const_table n) &&
           not (HT.mem const_table n)) then (
         let a_size = match d.d_var.Var.ty with
-          | Arr(Pconst(u)) ->
-            U64.to_int u
-          | _ -> assert false
+          | Arr(Pconst(u)) -> U64.to_int u
+          | _              -> assert false
         in
         HT.set const_table ~key:n ~data:!ctr;
         ctr := !ctr + a_size
@@ -589,13 +605,13 @@ let array_expand_fundef fd =
       | Some(base) ->
         let i = U64.to_int i in
         let v = d.d_var in
-        {d with
+        { d with
           d_idx = None;
-          d_var = { v with Var.num = base + i; Var.ty = U64 } }
+          d_var = { v with Var.num = base + i; Var.ty = U64 }; }
       | None -> d
       end
     | _ -> d)
-   in
+  in
   { fd with f_body = stmt }
 
 let array_expand_func func =
@@ -603,213 +619,5 @@ let array_expand_func func =
   | Foreign(_) -> assert false
   | Native(fd) -> Native(array_expand_fundef fd)
 
-let array_expand_modul modul fname =
-  
+let array_expand_modul modul fname = 
   map_func ~f:array_expand_func modul fname
-
-(* ** Local SSA *)
-(* *** Summary
-*)
-(* *** Code *)
-
-(* **** Maintain renaming info *)
-
-module RNI = struct
-  type t = {
-    map     : int       String.Table.t; (* no entry = never defined *)
-    unused  : int       String.Table.t; (* smallest unused index    *)
-    changed : Int.Set.t String.Table.t; (* indexes for initial vars *)
-  }
-
-  let mk () = {
-    map     = String.Table.create ();
-    unused  = String.Table.create ();
-    changed = String.Table.create ();
-  }
-
-  let map_get rn_info name =
-    HT.find rn_info name |> Option.value ~default:0
-
-  let changed_add rn_info name idx =
-    HT.change rn_info.changed name
-      ~f:(function | None    -> Some(Int.Set.singleton idx)
-                   | Some is -> Some(Set.add is idx))
-
-  let changed_remove rn_info name idx =
-    HT.change rn_info.changed name
-      ~f:(function | None    -> assert false
-                   | Some is -> Some(Set.remove is idx))
-
-  let map_modify rn_info name =
-    let max_idx = HT.find rn_info.unused name |> Option.value ~default:1 in
-    HT.set rn_info.map    ~key:name ~data:max_idx;
-    HT.set rn_info.unused ~key:name ~data:(succ max_idx);
-    changed_add rn_info name max_idx
-
-  let mk_reg_name name idx =
-    fsprintf "%s_%i" name idx
-
-  let rename rn_info name =
-    let idx = map_get rn_info.map name in
-    mk_reg_name name idx
-
-end
-
-(* **** Synchronize renaming for do-while *)
-
-let rn_map_dowhile_update ~old:rn_map_enter rn_info =
-  let mapping = String.Table.create () in
-  let correct = ref [] in
-  let handle_changed ~key:name ~data:new_idx =
-    let old_idx = RNI.map_get rn_map_enter name in
-    if old_idx<>new_idx then (
-      let old_name = RNI.mk_reg_name name old_idx in
-      let new_name = RNI.mk_reg_name name new_idx in
-      (* F.printf "rename  %s to %s\n"  new_name old_name; *)
-      HT.add_exn mapping ~key:new_name ~data:old_name;
-      RNI.changed_remove rn_info name new_idx;
-      correct := (name,old_idx)::!correct
-    )
-  in
-  HT.iteri rn_info.RNI.map ~f:handle_changed;
-  List.iter !correct ~f:(fun (s,idx) -> HT.set rn_info.RNI.map ~key:s ~data:idx);
-  mapping
-
-(* **** Synchronize renaming for if *)
-
-let rn_map_if_update rn_info ~rn_if ~rn_else =
-  let changed_if   = String.Table.create () in
-  let changed_else = String.Table.create () in
-  (* populate given maps with changes *)
-  let handle_changed _s changed ~key:name ~data:new_idx =
-    let old_idx = RNI.map_get rn_info.RNI.map name in
-    if old_idx<>new_idx then (
-      (* F.printf "changed %s: '%s' from %i to %i\n" s name old_idx new_idx; *)
-      HT.set changed ~key:name ~data:();
-    ) else (
-      (* F.printf "unchanged %s: '%s'\n" s name;  *)
-    )
-  in
-  HT.iteri rn_if   ~f:(handle_changed "if"   changed_if);
-  HT.iteri rn_else ~f:(handle_changed "else" changed_else);
-  let changed =
-    SS.union
-      (SS.of_list @@ HT.keys changed_if)
-      (SS.of_list @@ HT.keys changed_else)
-  in
-  (* from new name to old name *)
-  let mapping_if_names   = String.Table.create () in
-  let mapping_else_names = String.Table.create () in
-  (* make renamings consistent for defs that are active when leaving the two branches
-     NOTE: we could make this more precise by restricting this to live defs *)
-  let merge name =
-    (* if a given name has been changed in both, then we choose the higher index *)
-    match HT.mem changed_if name, HT.mem changed_else name with
-    | false, false -> assert false
-    (* defs for name in both, choose larger index from else *)
-    | true, true ->
-      let idx_if   = RNI.map_get rn_if   name in
-      let idx_else = RNI.map_get rn_else name in
-      assert (idx_else > idx_if);
-      let name_if   = RNI.mk_reg_name name idx_if   in
-      let name_else = RNI.mk_reg_name name idx_else in
-      (* F.printf "rename %s to %s in if (use else name)\n" name_if name_else; *)
-      HT.set mapping_if_names ~key:name_if ~data:name_else;
-      (* update rn_map for statements following if-then-else *)
-      HT.set rn_info.RNI.map ~key:name ~data:idx_else;
-      RNI.changed_remove rn_info name idx_if
-    (* def only in if-branch, rename if-def with old name *)
-    | true, false ->
-      let idx_if    = RNI.map_get rn_if          name in
-      let idx_enter = RNI.map_get rn_info.RNI.map name in
-      assert (idx_if<>idx_enter);
-      let name_if    = RNI.mk_reg_name name idx_if    in
-      let name_enter = RNI.mk_reg_name name idx_enter in
-      (* F.printf "rename %s to %s in if (use enter name)\n"  name_if name_enter; *)
-      HT.set mapping_if_names ~key:name_if ~data:name_enter;
-      RNI.changed_remove rn_info name idx_if
-    (* def only in else-branch, rename if-def with old name *)
-    | false, true ->
-      let idx_else  = RNI.map_get rn_else        name in
-      let idx_enter = RNI.map_get rn_info.RNI.map name in
-      assert (idx_else<>idx_enter);
-      let name_else    = RNI.mk_reg_name name idx_else in
-      let name_enter = RNI.mk_reg_name name idx_enter  in
-      (* F.printf "rename %s to %s in else (use enter name)\n"  name_else name_enter; *)
-      HT.set mapping_else_names ~key:name_else ~data:name_enter;
-      RNI.changed_remove rn_info name idx_else
-  in
-  SS.iter changed ~f:merge;
-  mapping_if_names, mapping_else_names
-
-let rec local_ssa_instr _rn_info _linstr =
-  failwith "undefined"
-  (*
-  let rename = RNI.rename rn_info in
-  let instr' =
-    match linstr.i_val with
-
-    | Binstr(bi) ->
-      (* rename RHS *)
-      (* FIXME: how to treat arr[i] = 5? *)
-      let bi = rename_base_instr ~rn_type:UseOnly rename bi in
-      (* update renaming map and rename LHS *)
-      let def_vars = def_binstr bi in
-      SS.iter def_vars ~f:(fun s -> RNI.map_modify rn_info s);
-      let bi = rename_base_instr ~rn_type:DefOnly rename bi in
-      Binstr(bi)
-
-    | If(Fcond(fc),s1,s2) ->
-      let rn_map_if   = HT.copy rn_info.RNI.map in
-      let rn_map_else = HT.copy rn_info.RNI.map in
-      let fc = rename_fcond rename fc in
-      let s1 = local_ssa_stmt { rn_info with RNI.map=rn_map_if   } s1 in
-      let s2 = local_ssa_stmt { rn_info with RNI.map=rn_map_else } s2 in
-      let rn_sync_if, rn_sync_else =
-        rn_map_if_update rn_info ~rn_if:rn_map_if ~rn_else:rn_map_else
-      in
-      let rn rns s = HT.find rns s |> Option.value ~default:s in
-      let s1 = rename_stmt (rn rn_sync_if)   s1 in
-      let s2 = rename_stmt (rn rn_sync_else) s2 in
-      If(Fcond(fc),s1,s2)
-      
-    | While(DoWhile,fc,s) ->
-      let rn_map_enter = HT.copy rn_info.RNI.map in
-      let s = local_ssa_stmt rn_info s in
-      (* rename fc with the rn_map for leave *)
-      let fc = rename_fcond rename fc in
-      (* make last def-index coincide with def-index from entering *)
-      let rn_sync = rn_map_dowhile_update ~old:rn_map_enter rn_info in
-      let rn s = HT.find rn_sync s |> Option.value ~default:s in
-      let fc = rename_fcond rn fc in
-      let s  = rename_stmt rn s in
-      While(DoWhile,fc,s)
-      
-    | While(WhileDo,_fc,_s) ->
-      failwith "INCOMPLETE"
-
-    | If(Pcond(_),_,_)
-    | For(_,_,_,_)     -> failwith "local SSA transformation: unexpected instruction"
-  in
-  { linstr with i_val = instr' }
-  *)
-
-and local_ssa_stmt rn_map stmt =
-  List.map ~f:(local_ssa_instr rn_map) stmt
-
-let local_ssa_fundef fdef =
-  let rn_info = RNI.mk () in
-  let body = local_ssa_stmt rn_info fdef.f_body in
-  let ret = failwith  "undefined" (*List.map fdef.fd_ret ~f:(RNI.rename rn_info)*) in
-  { fdef with f_body = body; f_ret = ret;}
-
-let local_ssa_func _func =
-  failwith "undefined"
-  (*
-  let func = map_fundef ~err_s:"apply local SSA transformation" ~f:local_ssa_fundef func in
-  { func with f_args = List.map ~f:(fun (s,n,t) -> (s,RNI.mk_reg_name n 0,t)) func.f_args }
-  *)
-
-let local_ssa_modul _modul _fname =
-  undefined ()
-  (* map_fun modul fname ~f:local_ssa_func *)

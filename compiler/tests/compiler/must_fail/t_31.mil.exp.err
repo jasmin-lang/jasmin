@@ -1,0 +1,5 @@
+Parsing tests/compiler/must_fail/t_31.mil as MIL
+
+tests/compiler/must_fail/t_31.mil:12:8: 12:9 error: variable used before definition
+  x += z;
+       ^^

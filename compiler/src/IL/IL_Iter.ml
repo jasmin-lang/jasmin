@@ -12,7 +12,7 @@ module SS = String.Set
 module PS = Param.Set
 module VS = Var.Set
 
-(* ** Collect variables (values of type Var.t)
+(* ** Iterate over variables (values of type Var.t)
  * ------------------------------------------------------------------------ *)
 
 let iter_vars_patom ~fvar = function
@@ -100,7 +100,7 @@ let iter_vars_named_func nf ~fvar =
 let iter_vars_modul modul ~fvar =
   List.iter ~f:(iter_vars_named_func ~fvar) modul
 
-(* *** Specialized fold functions: var set, max num, num is already unique
+(* ** Specialized variable traversals: var set, max num, num is already unique
  * ------------------------------------------------------------------------ *)
 
 let vars_stmt stmt =
@@ -179,7 +179,7 @@ let vars_num_unique_modul ~type_only modul =
   in
   List.iter modul ~f:(fun nf -> check nf.nf_func)
 
-(* ** Collect parameters (values ot type Param.t)
+(* ** Iterate over parameters (values ot type Param.t)
  * ------------------------------------------------------------------------ *)
 
 let rec iter_params_pexpr_g iter_params_atom ~fparam pe =
@@ -279,7 +279,7 @@ let iter_params_named_func nf ~fparam =
 let iter_params_modul modul ~fparam =
   List.iter ~f:(iter_params_named_func ~fparam) modul
 
-(* *** Specialized fold functions: param set, max num
+(* ** Specialized parameter traversals: param set, max num
  * ------------------------------------------------------------------------ *)
 
 let params_stmt stmt =
@@ -313,7 +313,7 @@ let params_consistent_modul pp_ty modul =
   in
   iter_params_modul ~fparam modul
 
-(* ** Collect destinations (values of type dest)
+(* ** Iterate over destinations (values of type dest)
  * ------------------------------------------------------------------------ *)
 
 let iter_dests_dest ~fdest d =
@@ -361,7 +361,7 @@ let iter_dests_named_func nf ~fdest =
 let iter_dests_modul modul ~fdest =
   List.iter ~f:(iter_dests_named_func ~fdest) modul
 
-(* *** Specialized fold functions: dest set
+(* ** Specialized dest traversals: dest set
  * ------------------------------------------------------------------------ *)
 
 let dests_stmt stmt =
@@ -377,3 +377,62 @@ let dests_modul modul =
     res := DS.add !res d
   in
   iter_dests_modul ~fdest modul
+
+(* ** Iterate over instructions
+ * ------------------------------------------------------------------------ *)
+
+let rec iter_instrs_instr ~f linstr =
+  let iis = iter_instrs_stmt ~f in
+  let instr = linstr.L.l_val in
+  begin match instr with
+  | Block(_,_)     -> ()
+  | While(_,_,s,_) -> iis s
+  | For(_,_,_,s,_) -> iis s
+  | If(_,s1,s2,_)  -> iis s1; iis s2
+  end;
+  f linstr
+
+and iter_instrs_stmt ~f stmt =
+  List.iter ~f:(iter_instrs_instr ~f) stmt
+
+let iter_instrs_fundef ~f fd =
+  iter_instrs_stmt ~f fd.f_body
+
+let iter_instrs_func ~f func =
+  match func with
+  | Foreign(_) -> ()
+  | Native(fd) -> iter_instrs_fundef ~f fd
+
+let iter_instrs_named_func ~f nf =
+  iter_instrs_func ~f nf.nf_func
+
+let iter_instrs_modul ~f modul fname =
+   List.iter  modul
+     ~f:(fun nf -> if nf.nf_name = fname then iter_instrs_named_func ~f nf)
+
+let iter_instrs_modul_all ~f modul =
+  List.iter ~f:(iter_instrs_named_func ~f) modul
+
+(* *** Specialized instruction traversals
+ * ------------------------------------------------------------------------ *)
+(* **** Summary
+   These functions return false if an if/for/while contains empty
+   branches (stmt []), we expect expect empty block instead (Block([],_))
+   because they contain info instead.
+*)
+(* **** Code *)
+
+let no_empty_branches_instr_exn linstr =
+  match linstr.L.l_val with
+  | While(_,_,[],_)
+  | For(_,_,_,[],_)
+  | If(_,[],_,_)
+  | If(_,_,[],_) ->
+    failwith_ "Empty statement nested inside while/for/if not allowed (use merge_blocks to fix)"
+  | _ -> ()
+
+let no_nempty_branches_modul_all modul =
+  iter_instrs_modul_all ~f:no_empty_branches_instr_exn modul
+
+let no_nempty_branches_modul modul fname =
+  iter_instrs_modul ~f:no_empty_branches_instr_exn modul fname

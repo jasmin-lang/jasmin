@@ -1,0 +1,7 @@
+renumbering identifiers in all function(s)
+   REMOVED_TIME
+type checking module in all function(s)
+   REMOVED_TIME
+merging basic blocks in all function(s)
+   REMOVED_TIME
+transforming into local SSA form in test function(s)

@@ -192,9 +192,30 @@ let apply_transform trafos (modul0 : unit modul) =
     res
   in
   let all_fn = Fname.mk "all" in
-  let pp_info = function
-    | BlockStart -> fun fmt _info -> pp_string fmt "// START"
-    | BlockEnd   -> fun fmt _info -> pp_string fmt "// END"
+  let pp_info_lv tg =
+    match tg with
+    | BlockStart -> fun fmt info ->
+      let lv = (Option.value ~default:(LV.mk ()) info).LV.enter in
+      if IS.is_empty lv.LV.var_ue && IS.is_empty lv.LV.var_kill && IS.is_empty lv.LV.live_out then
+        pp_string fmt "// STARTBLOCK:"
+      else 
+        F.fprintf fmt "// STARTBLOCK:@\n//   var_ue=%a@\n//   var_kill=%a@\n//   live-out=%a"
+          pp_set_int lv.LV.var_ue
+          pp_set_int lv.LV.var_kill
+          pp_set_int lv.LV.live_out
+    | BlockEnd -> fun fmt info ->
+      let lv = (Option.value ~default:(LV.mk ()) info).LV.leave in
+      if IS.is_empty lv.LV.var_ue && IS.is_empty lv.LV.var_kill && IS.is_empty lv.LV.live_out then
+        pp_string fmt "// ENDBLOCK:"
+      else 
+        F.fprintf fmt "// ENDBLOCK:@\n//   var_ue=%a@\n//   var_kill=%a@\n//   live-out=%a"
+          pp_set_int lv.LV.var_ue
+          pp_set_int lv.LV.var_kill
+          pp_set_int lv.LV.live_out
+  in
+  let pp_info_u = function
+    | BlockStart -> fun fmt _info -> pp_string fmt "// STARTBLOCK"
+    | BlockEnd   -> fun fmt _info -> pp_string fmt "// ENDBLOCK"
   in
 
   let app_trafo modul trafo =
@@ -213,11 +234,12 @@ let apply_transform trafos (modul0 : unit modul) =
     let save fn ppo m =
       let m = map_module m { f = fun m -> filter_fn m ppo.pp_fname } in
       let go m pp = Out_channel.write_all fn ~data:(fsprintf "%a" pp m) in
-      let ppm ppi = pp_modul ?pp_info:ppi ~pp_types:ppo.pp_info in
+      let ppm ppi = pp_modul ?pp_info:ppi ~pp_types:ppo.pp_types in
       match m, ppo.pp_info with
-      | U m, true  -> go m (ppm (Some(pp_info)))
+      | U m, true  -> go m (ppm (Some(pp_info_u)))
       | U m, false -> go m (ppm None)
-      | L m, _     -> go m (ppm None)
+      | L m, true  -> go m (ppm (Some(pp_info_lv)))
+      | L m, false -> go m (ppm None)
     in
     let print n ppo m =
       let m = map_module m { f = fun m -> filter_fn m ppo.pp_fname } in
@@ -225,9 +247,10 @@ let apply_transform trafos (modul0 : unit modul) =
         F.printf ">> %s:@\n%a@\n@\n" n (pp_modul ?pp_info:ppi ~pp_types:ppo.pp_types) m
       in
       match m, ppo.pp_info with
-      | U m, true  -> go m (Some(pp_info))
+      | U m, true  -> go m (Some(pp_info_u))
       | U m, false -> go m None
-      | L m, _     -> go m None
+      | L m, true  -> go m (Some(pp_info_lv))
+      | L m, false -> go m None
     in
     let interp fn pmap mmap args m =
       notify "interpreting" fn
@@ -253,9 +276,12 @@ let apply_transform trafos (modul0 : unit modul) =
       notify "performing register allocation" fn
         ~f:(fun () -> undefined () (*reg_alloc_modul (min 15 n) m fn*))
     in
-    let register_liveness fn _m =
+    let register_liveness fn m =
       notify "adding register liveness information" fn
-        ~f:(fun () -> undefined () (*add_liveness_modul m fn*))
+        ~f:(fun () ->
+              match m with
+              | U m -> L (add_liveness_modul (reset_info_modul m) fn)
+              | L m -> L (add_liveness_modul (reset_info_modul m) fn))
     in
     let macro_expand fn map m = 
       notify "expanding macros" fn
@@ -284,7 +310,7 @@ let apply_transform trafos (modul0 : unit modul) =
     | MacroExpand(fn,map)       -> map_module modul {f = fun m -> macro_expand fn map m}
     | Type                      -> map_module modul {f = fun m -> typecheck m}
     | RenumberIdents(rno)       -> map_module modul {f = fun m -> renumber_idents rno m}
-    | RegisterLiveness(fn)      -> map_module modul {f = fun m -> register_liveness fn m}
+    | RegisterLiveness(fn)      -> register_liveness fn modul
     | MergeBlocks(ofn)          -> map_module modul {f = fun m -> merge_blocks ofn m}
     | Print(n,ppo)              -> print n ppo modul; modul
     | Save(fn,ppo)              -> save fn ppo modul; modul

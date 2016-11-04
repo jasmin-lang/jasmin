@@ -17,6 +17,8 @@ let pp_bool fmt b = F.fprintf fmt "%s" (if b then "true" else "false")
 
 let pp_string fmt s = F.fprintf fmt "%s" s
 
+let pp_int fmt i = F.fprintf fmt "%i" i
+
 let pp_empty fmt = pp_string fmt ""
 
 let pp_pair sep ppa ppb fmt (a,b) = F.fprintf fmt "%a%s%a" ppa a sep ppb b
@@ -56,6 +58,9 @@ let pp_set pp_elem to_list fmt ss =
 
 let pp_set_string =
   pp_set pp_string (fun s -> List.sort ~cmp:compare_string (String.Set.to_list s))
+
+let pp_set_int =
+  pp_set pp_int (fun s -> List.sort ~cmp:compare (Int.Set.to_list s))
 
 (* ** Misc. functions
  * ------------------------------------------------------------------------ *)

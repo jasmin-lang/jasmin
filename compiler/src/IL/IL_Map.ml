@@ -37,7 +37,7 @@ let map_body_modul ~f modul fname =
 let map_body_modul_all ~f modul =
   List.map ~f:(map_body_named_func ~f) modul
 
-(* ** Concat-map instruction (with position and info)
+(* ** Concat-map instructions (with position and info)
  * ------------------------------------------------------------------------ *)
 
 let rec concat_map_instr ~f pos instr =
