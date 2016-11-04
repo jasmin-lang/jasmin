@@ -324,13 +324,6 @@ Notation "vm .[ x  <- v ]" := (@Mv.set _ vm x v) : mvar_scope.
 Arguments Mv.get to m%mvar_scope x.
 Arguments Mv.set to m%mvar_scope x v.
 
-(* ** Right values
- * -------------------------------------------------------------------- *)
-
-Inductive rval : stype -> Type :=
-| Rvar  :> forall (x:var), rval x.(vtype)
-| Rpair :  forall st1 st2, rval st1 -> rval st2 -> rval (st1 ** st2).
-
 (* ** Variables function: to be not used if computation is needed, 
  *                       but extentianality is permited 
  * -------------------------------------------------------------------- *)

@@ -135,6 +135,7 @@ Fixpoint const_prop_e t (m:map) (e:pexpr t) : pexpr t :=
       end
     | _ => fun e => e
     end (Pvar x)
+  | Pload e  => Pload (const_prop_e m e)
   | Pconst n => Pconst n
   | Pbool  b => Pbool b
   | Papp1 _ _ op e1 => 
@@ -159,6 +160,13 @@ Definition merge_cpm : map -> map -> map :=
 Definition remove_cpm (m:map) (s:Sv.t): map :=
   Sv.fold (fun x m => Mvar.remove m x) s m.
 
+Fixpoint const_prop_rv t (m:map) (rv:rval t) : rval t := 
+  match rv in rval t0 return rval t0 with
+  | Rvar x => Rvar x
+  | Rmem e => Rmem (const_prop_e m e)
+  | Rpair _ _ x1 x2 => Rpair (const_prop_rv m x1) (const_prop_rv m x2)
+  end.
+
 Fixpoint add_cpm t (m:map) (rv:rval t) : pexpr t -> map := 
   match rv in rval t0 return pexpr t0 -> map with 
   | Rvar x => fun e => 
@@ -166,6 +174,7 @@ Fixpoint add_cpm t (m:map) (rv:rval t) : pexpr t -> map :=
     | Some n => Mvar.set m x n 
     | None   => remove_cpm m (vrv rv)
     end
+  | Rmem _ => fun e => m
   | Rpair _ _ rv1 rv2 => fun e => 
      match destr_pair e with
      | Some (e1,e2) => add_cpm (add_cpm m rv2 e2) rv1 e1
@@ -188,23 +197,14 @@ Section CMD.
 
 End CMD.
 
-Definition const_prop_bcmd (m:map) (i:bcmd) :=
-  match i with
-  | Assgn t rv e =>
-    let e := const_prop_e m e in
-    (add_cpm m rv e, Assgn rv e)
-  | Load r e => 
-    let e := const_prop_e m e in
-    (remove_cpm m (vrv r), Load r e)
-  | Store e1 e2 =>
-    let e1 := const_prop_e m e1 in
-    let e2 := const_prop_e m e2 in
-    (m, Store e1 e2)
-  end.
-
 Fixpoint const_prop_i (m:map) (i:instr) : map * cmd := 
   match i with
-  | Cbcmd i     => let (m,i) := const_prop_bcmd m i in (m,[::Cbcmd i])
+  | Cassgn _ x e     => 
+    let e := const_prop_e m e in 
+    let x := const_prop_rv m x in
+    let m := add_cpm m x e in
+    (m, [:: Cassgn x e])
+
   | Cif b c1 c2 => 
     let b := const_prop_e m b in
     match is_bool b with
@@ -237,8 +237,8 @@ Fixpoint const_prop_i (m:map) (i:instr) : map * cmd :=
 with const_prop_call ta tr (fd:fundef ta tr) := 
   match fd with
   | FunDef ta tr p c r =>
-    let (_, c) := const_prop const_prop_i empty_cpm c in
-    FunDef p c r
+    let (m, c) := const_prop const_prop_i empty_cpm c in
+    FunDef p c (const_prop_e m r)
   end.
 
 (* ** proofs
@@ -376,20 +376,21 @@ Definition valid_map (vm: vmap)  (m:map) :=
      | _     => fun v => True
      end vm.[x].
 
-Lemma const_prop_eP t (e:pexpr t) (rho:vmap) (m:map):  
-  valid_map rho m ->
-  e =[rho] const_prop_e m e.
+Lemma const_prop_eP t (e:pexpr t) s (m:map):  
+  valid_map (evm s) m ->
+  e =[s] const_prop_e m e.
 Proof.
   move=> Hvalid;rewrite /eqok.
-  elim: e=> [x | n | b | ?? o e1 He1 | ??? o e1 He1 e2 He2 | ???? o e1 He1 e2 He2 e3 He3]
+  elim: e=> [x | e He | n | b | ?? o e1 He1 | ??? o e1 He1 e2 He2 | ???? o e1 He1 e2 He2 e3 He3]
      v //=.
   + move=> [] Heq; have := Hvalid x;rewrite Heq.
     case: x v Heq => -[ | | ??|? ] ?? H /=;rewrite ?H //.
     by case Mvar.get => [n /(_ n (erefl _)) -> //| /=]; rewrite H.
+  + by case Heq: sem_pexpr => //= Hr;rewrite (He _ Heq).
   + by case Heq1: sem_pexpr=> //= Heqo; apply s_op1P => /=;rewrite (He1 _ Heq1).
-  + case Heq1: (sem_pexpr rho e1)=> //=;case Heq2: sem_pexpr=> //= Heqo.
+  + case Heq1: (sem_pexpr _ e1)=> //=;case Heq2: sem_pexpr=> //= Heqo.
     by apply s_op2P => /=;rewrite (He1 _ Heq1) (He2 _ Heq2).
-  case Heq1: (sem_pexpr rho e1)=> //=;case Heq2: (sem_pexpr rho e2)=> //=.
+  case Heq1: (sem_pexpr _ e1)=> //=;case Heq2: (sem_pexpr _ e2)=> //=.
   case Heq3: sem_pexpr=> //= Heqo.
   by apply s_op3P => /=;rewrite (He1 _ Heq1) (He2 _ Heq2) (He3 _ Heq3).
 Qed.
@@ -415,60 +416,76 @@ Proof.
   by rewrite -Hrho //; apply (Hval _ _ Hm). 
 Qed.
 
-Lemma remove_cpmP rho m t (x:rval t) v: 
-  valid_map rho m ->
-  valid_map (write_rval rho x v) (remove_cpm m (vrv x)).
-Proof.
-  move=> Hv; apply: (valid_map_rm _ Hv); apply vrvP.
+Lemma remove_cpmP_aux s0 s s' m t (x:rval t) rx v: 
+  rval2vval s0 x = ok rx ->
+  write_vval s rx v = ok s' ->
+  valid_map (evm s) m ->
+  valid_map (evm s') (remove_cpm m (vrv x)).
+Proof. 
+  move=> Hr Hw Hv; apply: (valid_map_rm _ Hv);eapply vrvP_aux;eauto.
 Qed.
 
-Lemma add_cpmP_aux rho1 rho2 m t x (e:pexpr t) v: 
-  valid_map rho1 m ->
-  sem_pexpr rho2 e = ok v ->
-  valid_map (write_rval rho1 x v) (add_cpm m x e).
+Lemma remove_cpmP s s' m t (x:rval t) v: 
+  write_rval s x v = ok s' ->
+  valid_map (evm s) m ->
+  valid_map (evm s') (remove_cpm m (vrv x)).
+Proof. move=> Hw Hv; apply: (valid_map_rm _ Hv);eapply vrvP;eauto. Qed.
+
+Lemma const_prop_rvP t (x:rval t) s (m:map) rv:  
+  valid_map (evm s) m ->
+  rval2vval s x = ok rv ->
+  rval2vval s (const_prop_rv m x) = ok rv.
 Proof.
-  elim: x e v m rho1 rho2 => [[] tx nx /=| ?? rv1 Hrv1 rv2 Hrv2] e v m rho1 rho2 Hvalid;
-    simpl add_cpm.
-  + case Heq: (is_const e) => [?|] He;last by apply: remove_cpmP.
-    case: e v Heq He => //= n v [] <- [] <- z i.
-    rewrite Mvar.setP;case (_ =P z) => [<- [] <- /=| /eqP Hneq Hget].
-    + by rewrite Fv.setP_eq.
-    by rewrite Fv.setP_neq //;apply: Hvalid.    
-  case Heq: destr_pair => [ [e1 e2]| ];last by move=> ?;apply: remove_cpmP.
-  have He:= destr_pairP Heq;subst e => /=.
-  case Heq1 : (sem_pexpr _ e1) => [v1|] //=.
-  case Heq2 : (sem_pexpr _ e2) => [v2|] //= [] <- /=.
-  apply (Hrv1 _ _ _ _ rho2) => //.
-  apply (Hrv2 _ _ _ _ rho2) => //.
+  move=> Hvalid;elim: x rv => [x | e | ?? x1 Hx1 x2 Hx2] //= rv.
+  + case Heq: sem_pexpr => [ve|] //=.
+    by rewrite (const_prop_eP Hvalid Heq).
+  case Heq1: (rval2vval _ x1) => [rv1|]//=.
+  case Heq2: (rval2vval _ x2) => [rv2|]//= [] <-.
+  by rewrite (Hx1 _ Heq1) (Hx2 _ Heq2).
 Qed.
 
-Lemma add_cpmP rho m t x (e:pexpr t) v: 
-  valid_map rho m ->
-  sem_pexpr rho e = ok v ->
-  valid_map (write_rval rho x v) (add_cpm m x e).
-Proof. by apply add_cpmP_aux. Qed.
-
-Section PROOF.
-
-Lemma const_prop_bcmdP (s s':estate) (m:map) (i:bcmd) : 
-  valid_map s.(evm) m ->
-  sem_bcmd s i = ok s' ->
-  valid_map s'.(evm) (fst (const_prop_bcmd m i)) /\
-  sem_bcmd s (snd (const_prop_bcmd m i)) = ok s'.
+Lemma add_cpmP_aux s1 s1' s2 m t x (e:pexpr t) v: 
+  write_rval s1 x v = ok s1' ->
+  valid_map (evm s1) m ->
+  sem_pexpr s2 e = ok v ->
+  valid_map (evm s1') (add_cpm m x e).
 Proof.
-  case: i => [t x e | x e | e1 e2] Hvalid /=.
-  + case Heq : sem_pexpr => [v|] //=.
-    have H:= const_prop_eP Hvalid Heq. 
-    by rewrite H /= => -[] <-;split=> //=; apply add_cpmP.
-  + case Heq : sem_pexpr => [v|] //=.
-    case Heq': read_mem => [v'|] //= [] <- /=.
-    have H:= const_prop_eP Hvalid Heq;split;first by apply remove_cpmP.    
-    by rewrite H /= Heq'.
-  case Heq1 : (sem_pexpr _ e1)=> [v1|] //=.
-  case Heq2 : (sem_pexpr _ e2)=> [v2|] //=.
-  case Heq : write_mem => [?|] //= [] <- /=;split => //.
-  by rewrite (const_prop_eP Hvalid Heq1) (const_prop_eP Hvalid Heq2) /= Heq.
+  rewrite /write_rval.
+  case Heq: rval2vval => [rv|] //=. 
+  move: {1}s1 Heq => s0.
+  elim: x rv e v m s1 s1' s2 => [[] tx nx /=| ep | ?? rv1 Hrv1 rv2 Hrv2] /= rv e v m s1 s1' s2 Heq
+    Hw Hvalid; simpl add_cpm.
+  + move: Heq Hw=> [] <- [] <- /=.
+    case Heq: (is_const e) => [?|] He.
+    + case: e v Heq He => //= n v [] <- [] <- z i.
+      rewrite Mvar.setP;case (_ =P z) => [<- [] <- /=| /eqP Hneq Hget].
+      + by rewrite Fv.setP_eq.
+      by rewrite Fv.setP_neq //;apply: Hvalid.  
+    eapply valid_map_rm;eauto=> z /=.
+    rewrite (vrv_var {| vtype := tx; vname := nx |})=> Hin.
+    rewrite Fv.setP_neq //;apply /eqP;SvD.fsetdec.
+  + case: sem_pexpr Heq Hw => //= ? [] <- /=.
+    by case: write_mem => //= ? [] <-.
+  case Heq1 : (rval2vval _ rv1) Heq Hw => [vr1|] //=.
+  case Heq2 : (rval2vval _ rv2) => [vr2|] //= [] <- /=.
+  case Heq2' : write_vval => [s'|] //= Heq1'.
+  case Heq: destr_pair => [ [e1 e2]| ].
+  + have He:= destr_pairP Heq;subst e => /=.
+    case Heq1'' : (sem_pexpr _ e1) => [v1|] //=.
+    case Heq2'' : (sem_pexpr _ e2) => [v2|] //= [] ?;subst.
+    apply: (Hrv1 _ _ _ _ _ _ _ Heq1 Heq1' _ Heq1'').
+    by apply: (Hrv2 _ _ _ _ _ _ _ Heq2 Heq2' _ Heq2'').
+  move=> ?;apply remove_cpmP_aux with s0 s1 (Vpair vr1 vr2) v =>//=.
+  + by rewrite Heq1 Heq2.  
+  by rewrite Heq2' /= Heq1'.
 Qed.
+
+Lemma add_cpmP s s' m t x (e:pexpr t) v: 
+  write_rval s x v = ok s' ->
+  valid_map (evm s) m ->
+  sem_pexpr s e = ok v ->
+  valid_map (evm s') (add_cpm m x e).
+Proof. apply add_cpmP_aux. Qed.
 
 Lemma merge_cpmP rho m1 m2 : 
   valid_map rho m1 \/ valid_map rho m2 ->  
@@ -480,6 +497,7 @@ Proof.
   by move=> ? [] ?;do 2 subst;elim: Hv => Hv;apply Hv.
 Qed.
 
+Section PROOF.
 
   Let Pi (i:instr) := 
     forall s s' m, sem_i s i s' ->
@@ -511,12 +529,18 @@ Qed.
     by apply (sem_app Hi' Hc').
   Qed.
 
-  Let Hbcmd : forall bc,  Pi (Cbcmd bc).
+  Let Hbcmd : forall t (x:rval t) e,  Pi (Cassgn x e).
   Proof.
-    move=> i s s' m H Hm;inversion H;clear H;subst=> /=.
-    have []:= const_prop_bcmdP Hm H2.
-    case: const_prop_bcmd=> m' c' /= ??;split=> //.
-    by apply sem_seq1;constructor.
+    move=> t x e s s' m H Hm;sinversion H => /=.
+    sinversion H3;sinversion H4.
+    case Heq: sem_pexpr H5  => [v|] //=.  
+    have H:= const_prop_eP Hm Heq=> H'.
+    have : write_rval s (const_prop_rv m x) v = ok s'.
+    + move: H';rewrite /write_rval. 
+      case Heq': rval2vval => [vr|]//=.
+      by rewrite (const_prop_rvP Hm Heq').
+    split;first by eapply add_cpmP;eauto.
+    by apply sem_seq1;constructor;rewrite H.
   Qed.
 
   Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (Cif e c1 c2).
@@ -548,18 +572,20 @@ Qed.
     move: Hc Heq Hm1;rewrite /m1=> {m1 Hm}.
     elim: H9=> {c s s' i}.
     + by move=> s i c Hc Heq Hv;constructor.
-    move=> s1 s2 s3 i w ws c Hs1 Hs2 Hrec Hc Heq Hv.
+    move=> s1 s1' s2 s3 i w ws c Hw1 Hs1 Hs2 Hrec Hc Heq Hv.
     set m1 := remove_cpm m (write_i (Cfor i (dir, hi,low) c)).
-    have []:= Hc _ s2 m1 Hs1.
-    + move=> x n Hg; have [? Hin] := get_remove_cpm Hg.
-      rewrite -(@vrvP _ i w (evm s1));first apply Hv=> //. 
-      by move: Hin;rewrite write_i_for;SvD.fsetdec.
-    rewrite Heq /= => Hv2 Hc'.
-    apply EForOne with s2 => //; apply Hrec => //.
+    have H := Hc _ _ _ Hs1.
+    apply EForOne with s1' s2 => //.
+    + have [] := Hc _ s2 m1 Hs1 .
+      + move=> x n Hg; have [? Hin] := get_remove_cpm Hg.
+        rewrite -(@vrvP _ i w s1) //;first apply Hv=> //. 
+        by move: Hin;rewrite write_i_for;SvD.fsetdec.
+      by rewrite Heq /= => Hv2 Hc'.
+    apply Hrec => //.
     move=> x n Hg. have [? Hin] := get_remove_cpm Hg.
     move:Hin;rewrite write_i_for => Hin.
     rewrite -(writeP Hs1) /=;last SvD.fsetdec.
-    rewrite -(@vrvP _ i w (evm s1));first apply Hv=> //. 
+    rewrite -(@vrvP _ i w s1) //;first apply Hv=> //. 
     by SvD.fsetdec.
   Qed.
 
@@ -592,22 +618,21 @@ Qed.
   Proof.
     move=> ta tr x fd a Hf s s' m H;inversion H;clear H;subst => /=.
     unfold rarg in * => {rarg}.
-    inversion H4;clear H4;subst;inversion H5;clear H5.
-    inversion H6;clear H6;subst;inversion H0;clear H0;subst.
-    move=> Hm;split;first by rewrite write_i_call;apply remove_cpmP.
-    case Heq: (sem_pexpr vm1 a) H7 H8 => [va /=|//] _ /Hf Hs.
+    sinversion H2;sinversion H6;sinversion H5;sinversion H0.
+    move=> Hm;split;first by rewrite write_i_call;eapply remove_cpmP;eauto.
+    case Heq: (sem_pexpr s a) H7 H8 => [va /=|//] _ /Hf Hs.
     have Ha:= @const_prop_eP _ a _ _ Hm _ Heq.
-    by apply sem_seq1;constructor; rewrite Ha.
+    by apply sem_seq1;econstructor;eauto; rewrite Ha.
   Qed.
 
-  Let Hfunc : forall ta tr (x:rval ta) c (re:rval tr), Pc c -> Pf (FunDef x c re).
+  Let Hfunc : forall ta tr (x:rval ta) c (re:pexpr tr), Pc c -> Pf (FunDef x c re).
   Proof.
-    move=> ta tr x c re Hc mem mem' va vr H;inversion H;clear H;subst.
-    inversion H0;clear H0;subst=> /=. 
+    move=> ta tr x c re Hc mem mem' va vr H;sinversion H;sinversion H0=>/=.
     case Heq: const_prop => [m' c'];constructor=> //= vm0 Hvm0.
-    case: (H6 vm0 Hvm0)=> vm2 /= [] /Hc Hr. have {Hr} []:= Hr empty_cpm.
+    case: (H6 vm0 Hvm0)=> vm2 /= [vm1 []] He /Hc Hr. 
+    have {Hr} []:= Hr empty_cpm.
     + by move=> z n;rewrite /empty_cpm Mvar.get0.
-    by rewrite Heq /= => _ Hc' Hvr;exists vm2.
+    by rewrite Heq /= => ? Hc' Hvr;exists vm2, vm1;split=>//;apply const_prop_eP.
   Qed.
 
   Lemma const_prop_callP ta tr (f : fundef ta tr) mem mem' va vr: 

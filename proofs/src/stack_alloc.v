@@ -18,6 +18,73 @@ Local Open Scope seq_scope.
 
 Module S.
 
+  Inductive sop1 : stype -> stype -> Set :=
+  | Onot : sop1 sbool sbool.
+
+  Inductive sop2 : stype -> stype -> stype -> Set :=
+  | Oand : sop2 sbool sbool sbool
+  | Oor : sop2 sbool sbool sbool
+  | Oadd : sop2 sword sword sword
+  | Oaddc : sop2 sword sword (sbool ** sword)
+  | Osub : sop2 sword sword sword
+  | Osubc : sop2 sword sword (sbool ** sword)
+  | Oeq : sop2 sword sword sbool
+  | Olt : sop2 sword sword sbool
+  | Ole : sop2 sword sword sbool.
+
+  Inductive sop3 : stype -> stype -> stype -> stype -> Set :=
+  | Oaddcarry : sop3 sword sword sbool (sbool ** sword)
+  | Osubcarry : sop3 sword sword sbool (sbool ** sword).
+
+  Inductive scale := 
+  | S1
+  | S2
+  | S4
+  | S8.
+
+  Record mem_addr := {
+    base  : option Ident.ident;
+    index : option (Ident.ident * scale);
+    offset: option Z;
+  }.
+
+  Inductive regmem : stype -> Type :=
+  | RegMemR : forall x:var, regmem (vtype x)
+  | RegMemM : mem_addr -> regmem sword.
+
+  Inductive expr : stype -> Type :=
+  | Eregmem : forall t, regmem t -> expr t
+  | Econst  : Z -> expr sword
+  | Ebool   : bool -> expr sbool
+  | Eapp1 : forall st1 stres : stype,
+    sop1 st1 stres -> expr st1 -> expr stres
+  | Eapp2 : forall st1 st2 stres : stype,
+    sop2 st1 st2 stres -> expr st1 -> expr st2 -> expr stres
+  | Eapp3 : forall st1 st2 st3 stres : stype,
+    sop3 st1 st2 st3 stres ->
+    expr st1 -> expr st2 -> expr st3 -> expr stres.
+Print rval.
+
+
+
+
+
+
+  Inductive pexpr : stype -> Type :=
+    Pvar : forall x : var, pexpr (vtype x)
+  | Pconst : Z -> pexpr sword
+  | Pbool : bool -> pexpr sbool
+  | Papp1 : forall st1 stres : stype,
+            dmasm_expr.sop1 st1 stres -> pexpr st1 -> pexpr stres
+  | Papp2 : forall st1 st2 stres : stype,
+            dmasm_expr.sop2 st1 st2 stres ->
+            pexpr st1 -> pexpr st2 -> pexpr stres
+  | Papp3 : forall st1 st2 st3 stres : stype,
+            dmasm_expr.sop3 st1 st2 st3 stres ->
+            pexpr st1 -> pexpr st2 -> pexpr st3 -> pexpr stres
+
+
+
   Inductive instr : Type :=
   | Cbcmd : bcmd -> instr
   | Cif : pexpr sbool -> seq.seq instr -> seq.seq instr -> instr

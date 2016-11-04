@@ -24,7 +24,7 @@ Definition unroll_cmd (unroll_i: instr -> cmd) (c:cmd) : cmd :=
 
 Fixpoint unroll_i (i:instr) : cmd := 
   match i with
-  | Cbcmd _     => [::i]
+  | Cassgn _ _ _ => [::i]
   | Cif b c1 c2 => [::Cif b (unroll_cmd unroll_i c1) (unroll_cmd unroll_i c2)]
   | Cfor i (dir, low, hi) c => 
     let c' := unroll_cmd unroll_i c in
@@ -70,7 +70,7 @@ Section PROOF.
     by apply: sem_app (Hi _ _ H3) (Hc _ _ H5).
   Qed.
 
-  Let Hbcmd : forall bc,  Pi (Cbcmd bc).
+  Let Hbcmd : forall t (x:rval t) e,  Pi (Cassgn x e).
   Proof. move=> i s s' /=;apply: sem_seq1. Qed.
 
   Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (Cif e c1 c2).
@@ -86,16 +86,16 @@ Section PROOF.
     have Hs1 : sem s [:: Cfor i (dir, low, hi) (unroll_cmd unroll_i c)] s'.
     + apply sem_seq1. inversion Hs;clear Hs;subst.
       apply EFor with vlow vhi=> // => {H6 H7}.
-      elim: H8 Hc=> {s s' vlow vhi c} [s iv c Hc| s1 s2 s3 iv w ws c Hs1 Hs2 Hrec Hc].
+      elim: H8 Hc=> {s s' vlow vhi c} [s iv c Hc| s1 s1' s2 s3 iv w ws c Hw Hs1 Hs2 Hrec Hc].
       + by constructor.
-      by apply EForOne with s2;[apply Hc|apply Hrec].
+      by apply EForOne with s1' s2 => //;[apply Hc|apply Hrec].
     case Heq1 : (is_const low) => [vlo| //].
     case Heq2 : is_const => [vhi| //];inversion Hs;clear Hs;subst.
     have ?:= is_constP Heq1;have ?:= is_constP Heq2;subst low hi=> {Heq1 Heq2}.
     move: H6 H7 => /= [] ? [] ?;subst=> {Hs1}.
     elim: wrange s H8=> [ | w ws Hrec] /= s Hf;inversion Hf;clear Hf;subst.
     + by constructor.
-    apply Eseq with  {| emem := emem s; evm := write_rval (evm s) i (n2w w) |}.
+    apply Eseq with  s1'.
     + by constructor.
     apply sem_app with s2;first by apply Hc.
     by apply Hrec.
@@ -112,19 +112,18 @@ Section PROOF.
 
   Let Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
   Proof.
-    move=> ta tr x fd a Hf s s' H;inversion H;clear H;subst => /=.
+    move=> ta tr x fd a Hf s s' H;sinversion H => /=.
+    sinversion H2;sinversion H5;sinversion H6;sinversion H0.
     unfold rarg in * => {rarg}.
-    inversion H4;clear H4;subst;inversion H5;clear H5.
-    inversion H6;clear H6;subst;inversion H0;clear H0;subst.
-    case Heq: (sem_pexpr vm1 a) H7 H8 => [va /=|//] _ /Hf Hs.
-    by apply sem_seq1;constructor;rewrite Heq.
+    case Heq: (sem_pexpr _ a) H7 H8 => [va /=|//] _ /Hf Hs.
+    by apply sem_seq1;econstructor;eauto;rewrite Heq.
   Qed.
 
-  Let Hfunc : forall ta tr (x:rval ta) c (re:rval tr), Pc c -> Pf (FunDef x c re).
+  Let Hfunc : forall ta tr (x:rval ta) c (re:pexpr tr), Pc c -> Pf (FunDef x c re).
   Proof.
-    move=> ta tr x c re Hc mem mem' va vr H;inversion H;clear H;subst.
-    inversion H0;clear H0;subst=> /=; constructor=> //= vm0 Hvm0.
-    by case: (H6 vm0 Hvm0)=> vm2 /= [] /Hc Hc' Hvr;exists vm2. 
+    move=> ta tr x c re Hc mem mem' va vr H;sinversion H.
+    sinversion H0=> /=; constructor=> //= vm0 Hvm0.
+    by case: (H6 vm0 Hvm0)=> vm2 /= [] vm1 [] ? /Hc Hc' Hvr;exists vm2, vm1. 
   Qed.
 
   Lemma unroll_callP ta tr (f : fundef ta tr) mem mem' va vr: 
