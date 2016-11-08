@@ -1,5 +1,3 @@
-Parsing tests/compiler/must_fail/t_28.mil as MIL
-
 tests/compiler/must_fail/t_28.mil:7:8: 7:9 error: type mismatch (got u64[4], expected u64)
   x += y;       // this is the problem
        ^^

@@ -40,7 +40,7 @@ extern fn test() {
   arr2.32 : stack u64
   arr2.33 : stack u64
   arr2.34 : stack u64
-  arr3.4 : stack u64[16]
+  arr3.4s : stack u64[16]
   arr4.35 : stack u64
   arr4.36 : stack u64
   arr4.37 : stack u64
@@ -75,23 +75,23 @@ extern fn test() {
       arr1.18 := arr2.32;
       arr1.19 := arr2.33;
       arr1.20 := arr2.34;
-      arr3.4[0] = arr4.35;
-      arr3.4[1] = arr4.36;
-      arr3.4[2] = arr4.37;
-      arr3.4[3] = arr4.38;
-      arr3.4[4] = arr4.39;
-      arr3.4[5] = arr4.40;
-      arr3.4[6] = arr4.41;
-      arr3.4[7] = arr4.42;
-      arr3.4[8] = arr4.43;
-      arr3.4[9] = arr4.44;
-      arr3.4[10] = arr4.45;
-      arr3.4[11] = arr4.46;
-      arr3.4[12] = arr4.47;
-      arr3.4[13] = arr4.48;
-      arr3.4[14] = arr4.49;
-      arr3.4[15] = arr4.50;
-      arr3.4[i.5 : reg u64] = arr4.37;
+      arr3.4s[0] = arr4.35;
+      arr3.4s[1] = arr4.36;
+      arr3.4s[2] = arr4.37;
+      arr3.4s[3] = arr4.38;
+      arr3.4s[4] = arr4.39;
+      arr3.4s[5] = arr4.40;
+      arr3.4s[6] = arr4.41;
+      arr3.4s[7] = arr4.42;
+      arr3.4s[8] = arr4.43;
+      arr3.4s[9] = arr4.44;
+      arr3.4s[10] = arr4.45;
+      arr3.4s[11] = arr4.46;
+      arr3.4s[12] = arr4.47;
+      arr3.4s[13] = arr4.48;
+      arr3.4s[14] = arr4.49;
+      arr3.4s[15] = arr4.50;
+      arr3.4s[i.5 : reg u64] = arr4.37;
     }
   }
   arr1.7 := arr2.21;
@@ -108,22 +108,22 @@ extern fn test() {
   arr1.18 := arr2.32;
   arr1.19 := arr2.33;
   arr1.20 := arr2.34;
-  arr3.4[0] = arr4.35;
-  arr3.4[1] = arr4.36;
-  arr3.4[2] = arr4.37;
-  arr3.4[3] = arr4.38;
-  arr3.4[4] = arr4.39;
-  arr3.4[5] = arr4.40;
-  arr3.4[6] = arr4.41;
-  arr3.4[7] = arr4.42;
-  arr3.4[8] = arr4.43;
-  arr3.4[9] = arr4.44;
-  arr3.4[10] = arr4.45;
-  arr3.4[11] = arr4.46;
-  arr3.4[12] = arr4.47;
-  arr3.4[13] = arr4.48;
-  arr3.4[14] = arr4.49;
-  arr3.4[15] = arr4.50;
+  arr3.4s[0] = arr4.35;
+  arr3.4s[1] = arr4.36;
+  arr3.4s[2] = arr4.37;
+  arr3.4s[3] = arr4.38;
+  arr3.4s[4] = arr4.39;
+  arr3.4s[5] = arr4.40;
+  arr3.4s[6] = arr4.41;
+  arr3.4s[7] = arr4.42;
+  arr3.4s[8] = arr4.43;
+  arr3.4s[9] = arr4.44;
+  arr3.4s[10] = arr4.45;
+  arr3.4s[11] = arr4.46;
+  arr3.4s[12] = arr4.47;
+  arr3.4s[13] = arr4.48;
+  arr3.4s[14] = arr4.49;
+  arr3.4s[15] = arr4.50;
 }
 
 

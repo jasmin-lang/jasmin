@@ -1,5 +1,3 @@
-Parsing tests/compiler/must_fail/t_16.mil as MIL
-
 tests/compiler/must_fail/t_16.mil:5:3: 5:4 error: variable z not used, rename to _z to ignore
   z : stack u64;
   ^^

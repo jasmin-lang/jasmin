@@ -1,5 +1,3 @@
-Parsing tests/compiler/must_fail/t_01.mil as MIL
-
 tests/compiler/must_fail/t_01.mil:1:11: 1:14 error: foreign function cannot have extern modifier
 extern fn test();
           ^^^^

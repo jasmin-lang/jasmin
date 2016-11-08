@@ -3,18 +3,22 @@ merging basic blocks in all function(s)
 >> input:
 fn foo1(x : stack u64, y : stack u64, z : reg bool) -> stack u64 {
   w : stack u64
-  // START
+  // STARTBLOCK
   (w : stack u64) = (x : stack u64);
   (w : stack u64) += (x : stack u64);
-  // END
-  // START
+  // ENDBLOCK
+  // STARTBLOCK
   if (w : stack u64 = 5) {
-    // START
+    // STARTBLOCK
     (z : reg bool), (x : stack u64) += (w : stack u64);
     (z : reg bool), (x : stack u64) += (y : stack u64);
-    // END
+    // ENDBLOCK
+  } else {
+    // STARTBLOCK
+    
+    // ENDBLOCK
   }
-  // END
+  // ENDBLOCK
   return (x : stack u64);
 }
 

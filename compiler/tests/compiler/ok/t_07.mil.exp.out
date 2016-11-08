@@ -9,13 +9,13 @@ fn foo2(x : stack u64, y : stack u64, cf : reg bool) -> stack u64 {
   x.1 : stack u64
   y.1 : stack u64
   z : stack u64
-  // START
+  // STARTBLOCK
   w = x;
   cf, w += x;
-  // END
-  // START
+  // ENDBLOCK
+  // STARTBLOCK
   if !cf {
-    // START
+    // STARTBLOCK
     cf, x += w;
     cf, x += y;
     /* START: inlined call to foo1 */
@@ -23,16 +23,20 @@ fn foo2(x : stack u64, y : stack u64, cf : reg bool) -> stack u64 {
     y.1 := y;
     cf.1 := cf;
     cf.1, x.1 += y.1 + cf.1;
-    // END
-    // START
+    // ENDBLOCK
+    // STARTBLOCK
     if cf.1 {
-      // START
+      // STARTBLOCK
       cf.1, x.1 += y.1;
       cf.1, x.1 += y.1;
-      // END
+      // ENDBLOCK
+    } else {
+      // STARTBLOCK
+      
+      // ENDBLOCK
     }
-    // END
-    // START
+    // ENDBLOCK
+    // STARTBLOCK
     /* START: inlined call to foo0 */
     z := x.1;
     z += z;
@@ -40,9 +44,13 @@ fn foo2(x : stack u64, y : stack u64, cf : reg bool) -> stack u64 {
     /* END: inlined call to foo0 */
     x := x.1;
     /* END: inlined call to foo1 */
-    // END
+    // ENDBLOCK
+  } else {
+    // STARTBLOCK
+    
+    // ENDBLOCK
   }
-  // END
+  // ENDBLOCK
   return x;
 }
 
