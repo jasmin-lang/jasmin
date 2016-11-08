@@ -80,7 +80,7 @@ let partition_fun_items fis =
       go decls (fi::instrs) instr_loc fis
     | None,     (_,FDecl(fd))::fis  ->
       go (fd::decls) instrs instr_loc fis
-    | Some(li), (l,FDecl(fd))::_ ->
+    | Some(li), (l,FDecl(fd))::fis ->
       add_errs [ l,  "declarations cannot follow instructions";
                  li, "<-- first instruction here"];
       go (fd::decls) instrs instr_loc fis

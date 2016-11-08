@@ -1,8 +1,6 @@
-Parsing tests/compiler/must_fail/t_03.mil as MIL
-
-tests/compiler/must_fail/t_03.mil:4:3: 4:16 error: declarations cannot follow instructions
-  y : stack u64;
-  ^^^^^^^^^^^^^^
 tests/compiler/must_fail/t_03.mil:3:3: 3:8 error: <-- first instruction here
   x = 0;
   ^^^^^^
+tests/compiler/must_fail/t_03.mil:4:3: 4:17 error: declarations cannot follow instructions
+  _y : stack u64;
+  ^^^^^^^^^^^^^^^
