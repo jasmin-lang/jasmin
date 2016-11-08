@@ -13,6 +13,19 @@ module HT = Hashtbl
 (* ** Utility functions for parser
  * ------------------------------------------------------------------------ *)
 
+let errs = ref []
+
+let add_err l msg =
+  errs := (l,msg) :: !errs
+
+let add_errs new_errs =
+  errs := new_errs @ !errs
+
+let get_errs () =
+  List.sort ~cmp:(fun (l1,_) (l2,_) -> L.compare_loc l1 l2) !errs
+  |> List.remove_consecutive_duplicates ~equal:(fun (l1,_) (l2,_) -> L.compare_loc l1 l2 = 0)
+
+
 type decl_item =
   | Dfun of (Fname.t * unit func)
   | Dparams of ((string * string) * ty) list
@@ -42,11 +55,13 @@ let mk_modul pfs =
                 | Some ty -> { p with Param.ty = ty })
       in
       if HT.mem fn_table fn then
-        P.failparse l ("duplicate function name :"^(Fname.to_string fn));
+        add_err l ("duplicate function name :"^(Fname.to_string fn));
       HT.set fn_table ~key:fn ~data:();
       go ({nf_name = fn; nf_func = f}::acc) funcs
   in
-  go [] funcs
+  let funcs = go [] funcs in
+  if !errs<>[] then P.failparse_l (get_errs ());
+  funcs
 
 type fun_item =
   | FInstr of (unit instr) L.located
@@ -65,9 +80,10 @@ let partition_fun_items fis =
       go decls (fi::instrs) instr_loc fis
     | None,     (_,FDecl(fd))::fis  ->
       go (fd::decls) instrs instr_loc fis
-    | Some(li), (l,FDecl(_))::_    ->
-      P.failparse_l [ l,  "declarations cannot follow instructions";
-                      li, "<-- first instruction here"]
+    | Some(li), (l,FDecl(fd))::_ ->
+      add_errs [ l,  "declarations cannot follow instructions";
+                 li, "<-- first instruction here"];
+      go (fd::decls) instrs instr_loc fis
   in
   go [] [] None fis
 
@@ -83,9 +99,9 @@ type op =
 let mk_sto_ty (sto,ty) l =
   begin match sto,ty with
   | Inline, U64 -> ()
-  | Inline, _   -> P.failparse l  "storage inline only allowed for type u64"
+  | Inline, _   -> add_err l  "storage inline only allowed for type u64"
   | Reg, Bool   -> ()
-  | _,   Bool   -> P.failparse l  "type bool must have storage reg (register flags)"
+  | _,   Bool   -> add_err l  "type bool must have storage reg (register flags)"
   | _           -> ()
   end;
   (sto,ty)
@@ -94,16 +110,16 @@ let conv_decl (ds,(s,t)) =
   List.map ds
     ~f:(fun d ->
           if d.d_idx<>None then
-            P.failparse d.d_loc "expected identifier, not array get"
-          else
-            { d.d_var with Var.stor = s; Var.ty = t; } )
+            add_err d.d_loc "expected identifier, not array get";
+          { d.d_var with Var.stor = s; Var.ty = t; } )
 
 let mk_func loc name ret_ty ext args def =
   let func =
     match def with
 
     | FunForeign(os) ->
-      if ext<>None then P.failparse loc "foreign function cannot have extern modifier";
+      if ext<>None then
+        add_err loc "foreign function cannot have extern modifier";
       let arg_ty =
         List.concat_map args
           ~f:(function | (_,None,st)     -> [st]
@@ -124,13 +140,14 @@ let mk_func loc name ret_ty ext args def =
       let arg_names = Vname_num.Table.create () in
       let mk_arg v s t =
         let nn = (v.Var.name,v.Var.num) in
-        match HT.find arg_names nn with
+        begin match HT.find arg_names nn with
         | Some(l1) ->
-          P.failparse_l [l1, "duplicated argument name";
-                         v.Var.uloc,  "<-- also used here"]
-        | None ->
-          HT.set arg_names ~key:nn ~data:v.Var.uloc;
-          { v with Var.stor=s; Var.ty = t; } 
+          add_errs [l1, "duplicated argument name";
+                    v.Var.uloc,  "<-- also used here"]
+        | None -> ()
+        end;
+        HT.set arg_names ~key:nn ~data:v.Var.uloc;
+        { v with Var.stor=s; Var.ty = t; } 
       in
       let args =
         List.concat_map args
@@ -144,12 +161,13 @@ let mk_func loc name ret_ty ext args def =
       let dmap = Vname_num.Table.create () in
       let mk_decl v =
         let nn = (v.Var.name,v.Var.num) in 
-        match HT.find dmap nn with
+        begin match HT.find dmap nn with
         | Some(v') ->
-          P.failparse_l [(v'.Var.uloc, fsprintf "variable %a declared twice" Var.pp v);
-                         (v.Var.uloc,  "<-- also declared here")]
-        | None ->
-          HT.set dmap ~key:nn ~data:v
+          add_errs [(v'.Var.uloc, fsprintf "variable %a declared twice" Var.pp v);
+                    (v.Var.uloc,  "<-- also declared here")]
+        | None -> ()
+        end;
+        HT.set dmap ~key:nn ~data:v
       in
       List.iter ~f:mk_decl (args@decls);
       let used_map = HT.copy dmap in
@@ -159,8 +177,9 @@ let mk_func loc name ret_ty ext args def =
         | Some(v') ->
           if not in_arg then HT.change used_map nn ~f:(fun _ -> None);
           { v with Var.ty=v'.Var.ty; Var.stor=v'.Var.stor; Var.dloc = v'.Var.uloc }
-        | None     ->
-          P.failparse v.Var.uloc (fsprintf "variable %a undeclared" Var.pp v)
+        | None ->
+          add_err v.Var.uloc (fsprintf "variable %a undeclared" Var.pp v);
+          v
       in
 
       let rets = get_opt [] rets in
@@ -173,25 +192,23 @@ let mk_func loc name ret_ty ext args def =
       (* check return variables and ensure that arity matches *)
       let check_ret_elem v (l,(s,t)) =
         if v.Var.stor<>s then
-          P.failparse_l [(v.Var.uloc, fsprintf "return storage type for %a wrong"
-                                        Var.pp v);
-                         (l,           "<-- return storage declared here");
-                         (v.Var.dloc,  "<-- variable declared here")
-                        ];
+          add_errs [(v.Var.uloc, fsprintf "return storage type for %a wrong" Var.pp v);
+                    (l,           "<-- return storage declared here");
+                    (v.Var.dloc,  "<-- variable declared here")
+                   ];
         if v.Var.ty<>t then
-          P.failparse_l [(v.Var.uloc, fsprintf "return type for %a wrong"
-                                       Var.pp v);
-                         (l,           "<-- return type declared here");
-                         (v.Var.dloc,  "<-- variable declared here")]
+          add_errs [(v.Var.uloc, fsprintf "return type for %a wrong" Var.pp v);
+                    (l,           "<-- return type declared here");
+                    (v.Var.dloc,  "<-- variable declared here")]
       in
       let () =
         try
           List.iter2_exn fd.f_ret ret_ty ~f:check_ret_elem
         with
         | Invalid_argument(_) ->
-          P.failparse lr (fsprintf ("arity of return value does not match type,"
-                                    ^^" got %i, expected %i")
-                            (List.length rets) (List.length ret_ty))
+          add_err lr (fsprintf ("arity of return value does not match type,"
+                                ^^" got %i, expected %i")
+                        (List.length rets) (List.length ret_ty))
       in
       (* check unused variables *)
       let () =
@@ -199,7 +216,7 @@ let mk_func loc name ret_ty ext args def =
           ~f:(fun ~key:nn ~data:v ->
                 let v' = { v with Var.num = snd nn } in
                 if not (String.is_prefix (Vname.to_string (fst nn)) ~prefix:"_") then
-                  P.failparse v.Var.uloc
+                  add_err v.Var.uloc
                     (fsprintf "variable %a not used, rename to _%a to ignore"
                        Var.pp v' Var.pp v'))
       in

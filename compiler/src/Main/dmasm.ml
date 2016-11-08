@@ -12,9 +12,9 @@ module L  = ParserUtil.Lexing
 (* --------------------------------------------------------------------- *)
 (* Command implementations *)
 
-let parse_and_process ~parse ~ftype ~process file =
+let parse_and_process ~parse ~ftype:_ ~process file =
   let s = In_channel.read_all file in
-  eprintf "Parsing %s as %s\n\n%!" file ftype;
+  (* eprintf "Parsing %s as %s\n\n%!" file ftype; *)
   match parse file s with
   | `ParseOk res        -> process s res
   | `ParseError(pinfos) -> P.failloc_c s pinfos

@@ -45,7 +45,7 @@ rule lex = parse
   | ">>="   { SHREQ }
   | "<<="   { SHLEQ }
   | "^="    { XOREQ }
-  | "|="    { OREQ  }
+  | "|="    { OREQ }
 
   | "-"     { MINUS }
   | "*"     { STAR }
@@ -68,17 +68,17 @@ rule lex = parse
   | "param"  { PARAM }
   | "MEM"    { MEM }
 
-  | "for"    { FOR }
-  | "while"  { WHILE }
-  | "do"     { DO }
-  | "in"     { IN }
-  | "if"     { IF }
-  | "else"   { ELSE }
+  | "for"              { FOR }
+  | "while"            { WHILE }
+  | "do"               { DO }
+  | "in"               { IN }
+  | "if"               { IF }
+  | "else"             { ELSE }
   | "else" blank+ "if" { ELIF }
-  | "extern" { EXTERN }
-  | "fn"     { FN }
-  | "python" { PYTHON }
-  | "return" { RETURN }
+  | "extern"           { EXTERN }
+  | "fn"               { FN }
+  | "python"           { PYTHON }
+  | "return"           { RETURN }
 
   | ('-'? ['0'-'9']+) as s { INT(s) }
   | ("0x" ['0'-'9' 'a'-'f' '_']+) as s { INT(s) }

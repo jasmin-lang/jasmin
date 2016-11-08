@@ -130,6 +130,8 @@ let renumber_vars_func ?(ctr=ref 1) () func =
     | None    ->
       let n = !ctr in
       ctr := succ n;
+      (* we use negative indices for stack variables *)
+      let n = if v.Var.stor=Stack then -n else n in
       HT.set imap ~key:nn ~data:n;
       { v with Var.num = n }
   in
@@ -197,10 +199,12 @@ let merge_blocks_stmt stmt =
     match linstrs with
     | [] -> List.rev @@ finish_block prev_stmt cur_block
     | linstr::linstrs ->
-      let fix_stmt stmt =
+      let fix_stmt stmt = stmt
+        (*
         match stmt with
         | [] -> [ { linstr with L.l_val = Block([],None) } ]
         | _  -> stmt
+        *)
       in
       let mk instr = { linstr with L.l_val = instr } in
       begin match linstr.L.l_val with

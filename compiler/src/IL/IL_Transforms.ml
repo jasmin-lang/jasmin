@@ -192,26 +192,37 @@ let apply_transform trafos (modul0 : unit modul) =
     res
   in
   let all_fn = Fname.mk "all" in
+  let pp_stats fmt li = 
+      if IS.is_empty li.LV.var_ue && IS.is_empty li.LV.var_kill && IS.is_empty li.LV.live_out then (
+        pp_string fmt ""
+      ) else (
+        let lout_killed = Set.inter li.LV.live_out li.LV.var_kill in
+        let lout_nkilled = Set.diff li.LV.live_out li.LV.var_kill in
+        F.fprintf fmt
+          ("%a@\n//   var_ue[%i]=%a@\n//   var_kill[%i]=%a"
+           ^^"@\n//   live-out[%i/%i]=%a killed/%a not killed")
+          (fun fmt () -> match li.LV.phi with
+          | None -> pp_string fmt ""
+          | Some phi ->
+            F.fprintf fmt "@\n//   phi: %a" LV.pp_phi phi) ()
+          (IS.length li.LV.var_ue)
+          pp_set_vn li.LV.var_ue
+          (IS.length li.LV.var_kill)
+          pp_set_vn li.LV.var_kill
+          (IS.length lout_killed)
+          (IS.length lout_nkilled)
+          pp_set_vn lout_killed
+          pp_set_vn lout_nkilled
+      )
+  in
   let pp_info_lv tg =
     match tg with
     | BlockStart -> fun fmt info ->
-      let lv = (Option.value ~default:(LV.mk ()) info).LV.enter in
-      if IS.is_empty lv.LV.var_ue && IS.is_empty lv.LV.var_kill && IS.is_empty lv.LV.live_out then
-        pp_string fmt "// STARTBLOCK:"
-      else 
-        F.fprintf fmt "// STARTBLOCK:@\n//   var_ue=%a@\n//   var_kill=%a@\n//   live-out=%a"
-          pp_set_int lv.LV.var_ue
-          pp_set_int lv.LV.var_kill
-          pp_set_int lv.LV.live_out
+      let li = (Option.value ~default:(LV.mk ()) info).LV.enter in
+      F.fprintf fmt "// STARTBLOCK:%a" pp_stats li
     | BlockEnd -> fun fmt info ->
-      let lv = (Option.value ~default:(LV.mk ()) info).LV.leave in
-      if IS.is_empty lv.LV.var_ue && IS.is_empty lv.LV.var_kill && IS.is_empty lv.LV.live_out then
-        pp_string fmt "// ENDBLOCK:"
-      else 
-        F.fprintf fmt "// ENDBLOCK:@\n//   var_ue=%a@\n//   var_kill=%a@\n//   live-out=%a"
-          pp_set_int lv.LV.var_ue
-          pp_set_int lv.LV.var_kill
-          pp_set_int lv.LV.live_out
+      let li = (Option.value ~default:(LV.mk ()) info).LV.leave in
+      F.fprintf fmt "// ENDBLOCK:%a" pp_stats li
   in
   let pp_info_u = function
     | BlockStart -> fun fmt _info -> pp_string fmt "// STARTBLOCK"
@@ -226,10 +237,6 @@ let apply_transform trafos (modul0 : unit modul) =
     let arr_exp fn m =
       notify "expanding register arrays" fn
         ~f:(fun () -> array_expand_modul m fn)
-    in
-    let local_ssa fn m =
-      notify "transforming into local SSA form" fn
-        ~f:(fun () -> local_ssa_modul m fn)
     in
     let save fn ppo m =
       let m = map_module m { f = fun m -> filter_fn m ppo.pp_fname } in
@@ -283,6 +290,13 @@ let apply_transform trafos (modul0 : unit modul) =
               | U m -> L (add_liveness_modul (reset_info_modul m) fn)
               | L m -> L (add_liveness_modul (reset_info_modul m) fn))
     in
+    let local_ssa fn m =
+      notify "transforming into local SSA form" fn
+        ~f:(fun () ->
+              match m with
+              | U _ -> assert false
+              | L m -> L (local_ssa_modul m fn))
+    in
     let macro_expand fn map m = 
       notify "expanding macros" fn
         ~f:(fun () -> macro_expand_modul map m fn)
@@ -301,7 +315,6 @@ let apply_transform trafos (modul0 : unit modul) =
     match trafo with
     | InlineCalls(fn)           -> map_module modul {f = fun m -> inline fn m}
     | ArrayExpand(fn)           -> map_module modul {f = fun m -> arr_exp fn m}
-    | LocalSSA(fn)              -> map_module modul {f = fun m -> local_ssa fn m}
     | Interp(fn,pmap,mmap,args) -> map_module modul {f = fun m -> interp fn pmap mmap args m}
     | ArrayAssignExpand(fn)     -> map_module modul {f = fun m -> array_expand_modul fn m}
     | StripComments(fn)         -> map_module modul {f = fun m -> strip_comments fn m}
@@ -310,8 +323,9 @@ let apply_transform trafos (modul0 : unit modul) =
     | MacroExpand(fn,map)       -> map_module modul {f = fun m -> macro_expand fn map m}
     | Type                      -> map_module modul {f = fun m -> typecheck m}
     | RenumberIdents(rno)       -> map_module modul {f = fun m -> renumber_idents rno m}
-    | RegisterLiveness(fn)      -> register_liveness fn modul
     | MergeBlocks(ofn)          -> map_module modul {f = fun m -> merge_blocks ofn m}
+    | RegisterLiveness(fn)      -> register_liveness fn modul
+    | LocalSSA(fn)              -> local_ssa fn modul
     | Print(n,ppo)              -> print n ppo modul; modul
     | Save(fn,ppo)              -> save fn ppo modul; modul
     | Asm(_)                    -> assert false

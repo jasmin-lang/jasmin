@@ -6,7 +6,6 @@ open Util
 open Arith
 open IL_Lang
 open IL_Utils
-open IL_Pprint
 open IL_Map
 open IL_Iter
 
@@ -14,25 +13,55 @@ module X64 = Asm_X64
 module MP  = MParser
 module HT  = Hashtbl
 module IS  = Int.Set
-(* module IT  = IL_Typing *)
-
-
-(* ** Simple transformations
- * ------------------------------------------------------------------------ *)
 
 (* ** Register liveness
  * ------------------------------------------------------------------------ *)
 (* *** Summary
 We follow the terminology and description given in:
   Keith D. Cooper & Linda Torczon - Engineering a compiler
-*)
+
+We consider our structured language constructs as follows as CFG:
+Block:
+                [ empty-block ]
+                      |
+                  [ Block ]
+
+
+If:               [ test ]
+                    /  \ 
+        [ if-branch ] [ else-branch ]
+                 \      /
+             [ empty-block ]
+
+
+DoWhile:          [ empty-block ]
+                       |
+                    [ Body ]<-\
+                       |      |
+                    [ test ]--/
+
+
+WhileDo:         /--[ Test ]<--\
+                 |      |      |
+                 |   [ Body ]--/
+                 V             
+             [ empty-block ]
+
+
+We use the empty-blocks to allow for a uniform representation with
+enter/leave blocks that we can use to attach data. Note that the live-out
+of enter-block holds the live-in of actual block which is useful for
+printing.
+*) 
 (* *** Code *)
 
 module LV = struct
+  type phi = (int * int list) list
   type li = {
     var_ue   : IS.t;
     var_kill : IS.t;
     live_out : IS.t;
+    phi      : phi option;
   }
 
   (* an instruction can represent leave and enter nodes and we
@@ -46,6 +75,7 @@ module LV = struct
     var_ue   = IS.empty;
     var_kill = IS.empty;
     live_out = IS.empty;
+    phi      = None;
   }
 
   let mk () = { enter = mk_li (); leave = mk_li () }
@@ -55,6 +85,15 @@ module LV = struct
       pp_set_int i.var_ue
       pp_set_int i.var_kill
       pp_set_int i.live_out
+
+  let pp_phi_fun fmt (lhs,vec) =
+    F.fprintf fmt "[%i]=phi[%a]" lhs (pp_list "," pp_int) vec
+
+  let pp_phi fmt phi =
+    (pp_list "; " pp_phi_fun) fmt phi
+
+  let compute_lin lout li =
+    Set.union (Set.diff lout li.var_kill) li.var_ue
 
 end
 
@@ -68,7 +107,8 @@ let compute_kill_ue_block bis =
   in
   let handle_dest d =
     if d.d_idx<>None then (
-      F.printf "warning: new_var does not handle %a correctly\n" pp_dest_nt d
+      (* F.printf "warning: new_var does not handle %a correctly\n" pp_dest_nt d *)
+      (* writing to a[3] does not kill a *)
     ) else (
       let n = d.d_var.Var.num in
       kill := Set.add !kill n
@@ -102,12 +142,17 @@ let compute_kill_ue_block bis =
   { LV.leave =
       { LV.live_out = IS.empty;
         LV.var_ue   = !ue;
-        LV.var_kill = !kill };
+        LV.var_kill = !kill;
+        LV.phi      = None; };
     LV.enter = LV.mk_li () }
 
 let rec add_kill_ue_instr linstr =
   let instr = linstr.L.l_val in
   let empty_li = LV.mk_li () in
+  let ue_only v =
+    { empty_li with
+      LV.var_ue = IS.singleton v }
+  in
   let instr =
     match instr with
     | Block(bis,_) -> Block(bis,Some(compute_kill_ue_block bis))
@@ -115,23 +160,27 @@ let rec add_kill_ue_instr linstr =
     | If(Fcond(fc),s1,s2,_) ->
       let s1 = add_kill_ue_stmt s1 in
       let s2 = add_kill_ue_stmt s2 in
-      let i = { LV.leave = empty_li;
-                LV.enter = { empty_li
-                             with LV.var_ue = IS.singleton fc.fc_var.Var.num }}
+      let i = { LV.enter = ue_only fc.fc_var.Var.num;
+                LV.leave = empty_li; }
       in
       If(Fcond(fc),s1,s2,Some(i))
       
     | While(DoWhile,fc,s,_) ->
       let s = add_kill_ue_stmt s in
       let i = { LV.enter = empty_li;
-                LV.leave = { empty_li
-                             with LV.var_ue = IS.singleton fc.fc_var.Var.num }}
+                LV.leave = ue_only fc.fc_var.Var.num }
       in
       While(DoWhile,fc,s,Some(i))
       
-    | While(WhileDo,_,_,_)
-    | If(Pcond(_),_,_,_)
-    | For(_,_,_,_,_)       -> failwith "add liveness annotation: unexpected instruction"
+    | While(WhileDo,fc,s,_) ->
+      let s = add_kill_ue_stmt s in
+      let i = { LV.enter = ue_only fc.fc_var.Var.num;
+                LV.leave = empty_li; }
+      in
+      While(WhileDo,fc,s,Some(i))
+      
+    | For(_,_,_,_,_)
+    | If(Pcond(_),_,_,_) -> failwith "add liveness annotation: unexpected instruction"
   in
   { linstr with L.l_val = instr }
 
@@ -139,48 +188,96 @@ let rec add_kill_ue_instr linstr =
 and add_kill_ue_stmt stmt =
   List.map stmt ~f:add_kill_ue_instr
 
-let update_liveness_stmt stmt _changed lout =
-  let _lin info =
-    Set.union (Set.diff info.LV.live_out info.LV.var_kill) info.LV.var_ue
+let update_liveness_stmt stmt changed lout =
+  let update_lout li lout =
+    if IS.equal li.LV.live_out lout then (
+      li
+    ) else (
+      changed := true; { li with LV.live_out = lout }
+    )
   in
-  let rec handle li lout =
-    let i =
-      match li.L.l_val with
-      | Block(bis,Some(i))    ->
-        Block(bis,Some({ i with LV.leave = {i.LV.leave with LV.live_out = lout }}))
+  let rec handle linstr lout =
+    let lin, instr =
+      match linstr.L.l_val with
+      | Block(bis,Some(i)) ->
+        (* kill/ue of block stored in leave, use them to compute live-in of block *)
+        let lin = LV.compute_lin lout i.LV.leave  in
+        (* the enter-block is unused, we store live-in of block for only for printing *)
+        assert (IS.is_empty i.LV.enter.LV.var_kill && IS.is_empty i.LV.enter.LV.var_ue);
+        let i =
+          { LV.enter = update_lout i.LV.enter lin;
+            LV.leave = update_lout i.LV.leave lout; }
+        in
+        lin, Block(bis,Some(i))
         
-      | If(Fcond(fc),s1,s2,i) ->
-        If(Fcond(fc),go [] (List.rev s1) lout,go [] (List.rev s2) lout,i)
+      | If(Fcond(fc),s1,s2,Some(i)) ->
+        (* compute live-in values of if-/else-branch (leave block is empty => use lout) *)
+        let lin1, s1 = go [] lout (List.rev s1) in
+        let lin2, s2 = go [] lout (List.rev s2) in
+        (* compute live-out of test-/enter-node *)
+        let lout_test = IS.union lin1 lin2 in
+        (* we store lout in leave-block *only* for printing *)
+        let i =
+          { LV.enter = update_lout i.LV.enter  lout_test;
+            LV.leave = update_lout i.LV.leave lout; }
+        in
+        let lin = LV.compute_lin lout_test i.LV.enter in
+        lin, If(Fcond(fc),s1,s2,Some(i))
         
-      | While(DoWhile,fc,s,i) ->
-        While(DoWhile,fc,go [] (List.rev s) lout,i)
+      | While(DoWhile,fc,s,Some(i)) ->
+        (* compute live-in of test-/leave-node *)
+        let li_test  = update_lout i.LV.leave lout in
+        let lin_test = LV.compute_lin lout li_test in
+        (* compute live-out of loop-body as:
+           (live-in of test-node) `union` (live-out of enter-node) *) 
+        let lout_body = IS.union lin_test i.LV.enter.LV.live_out in
+        (* compute live-in of body and store as live-out of enter-node *)
+        let lin_body, s = go [] lout_body (List.rev s) in
+        let i =
+          { LV.enter = update_lout i.LV.enter lin_body;
+            LV.leave = li_test }
+        in
+        lin_body, While(DoWhile,fc,s,Some(i))
+  
+      | While(WhileDo,fc,s,Some(i)) ->
+        (* the enter-/test-node has two successors, leave and body *)
+        let lout_test = IS.union lout i.LV.enter.LV.live_out in
+        let lin_test  = LV.compute_lin lout_test i.LV.enter in
+        (* the live-in of the test-node is the live-out of the body *)
+        let lin_body, s = go [] lin_test (List.rev s) in
+        let lout_test   = IS.union lin_body lout in
+        let i =
+          { LV.enter = update_lout i.LV.enter lout_test;
+            LV.leave = update_lout i.LV.leave lout }
+        in
+        lin_body, While(WhileDo,fc,s,Some(i))
   
       | Block(_,None)
       | If(_,_,_,None)
       | While(_,_,_,None) -> assert false
         
-      | While(WhileDo,_,_,_)
-      | If(Pcond(_),_,_,_)
-      | For(_,_,_,_,_)        -> failwith "update liveness annotation: unexpected instruction"
+      | For(_,_,_,_,_)
+      | If(Pcond(_),_,_,_) -> failwith "update liveness annotation: unexpected instruction"
     in
-    { li with L.l_val = i }
+    lin, { linstr with L.l_val = instr }
 
-  and go acc linstrs lout =
+  and go after lout_cur linstrs =
     match linstrs with
-    | []      -> acc
-    | li::lis -> go ((handle li lout)::acc) lis lout
+    | []      -> lout_cur, after
+    | li::lis ->
+      let lin, li = handle li lout_cur in
+      go (li::after) lin lis
   in
-  go [] (List.rev stmt) lout
+  snd (go [] lout (List.rev stmt))
 
 let add_liveness_fundef fd =
-  let changed = ref false in
   let stmt = ref (add_kill_ue_stmt fd.f_body) in
-  let cont = ref false in
+  let changed = ref false in
+  let cont = ref true in
   F.printf "   iterate liveness: .%!";
   let lout = IS.of_list (List.map ~f:(fun v -> v.Var.num) fd.f_ret) in
   while !cont do 
     stmt := update_liveness_stmt !stmt changed lout;
-    cont := false;
     if not !changed then (
       cont := false
     ) else (
@@ -204,10 +301,11 @@ let add_liveness_named_func nf =
     nf_func = add_liveness_func nf.nf_func; }
 
 let add_liveness_modul modul fname =
-  no_nempty_branches_modul modul fname;
+  (* no_nempty_branches_modul modul fname; *)
   map_named_func modul fname ~f:add_liveness_named_func
 
-(* ** Local SSA *)
+(* ** Local SSA
+ * ------------------------------------------------------------------------ *)
 (* *** Summary *)
 (* *** Code *)
 
@@ -227,221 +325,145 @@ module RNI = struct
   }
 
   let rn_var rni v =
+    (* F.printf "use-ing %a\n%!" Var.pp v; *)
     match HT.find rni.map v.Var.num with
     | None    -> failloc_ v.Var.uloc "variable used before definition"
     | Some(n) -> { v with Var.num = n }
 
-  let rn_dest_var rni v =
+  let rn_dest_var_num rni old_n =
     let n = !(rni.max_num) in
     incr rni.max_num;
-    HT.set rni.map ~key:v.Var.num ~data:n;
+    HT.set rni.map ~key:old_n ~data:n;
+    (* F.printf "def-ing %i to %i\n%!" old_n n; *)
+    n
+
+  let rn_dest_var rni v =
+    (* F.printf "def-ing %a\n%!" Var.pp v; *)
+    let n = rn_dest_var_num rni v.Var.num in
     { v with Var.num = n }
   
   let rn_dest rni d =
     if d.d_idx<>None then (
-      F.printf "warning: new_var does not handle %a correctly" pp_dest_nt d;
+      (* F.printf "warning: new_var does not handle %a correctly\n%!" pp_dest_nt d; *)
       d
     ) else (
       { d with d_var = rn_dest_var rni d.d_var }
     )
-
-  (*
-  let map_get rn_info name =
-    HT.find rn_info name |> Option.value ~default:0
-
-  let changed_add rn_info name idx =
-    HT.change rn_info.changed name
-      ~f:(function | None    -> Some(Int.Set.singleton idx)
-                   | Some is -> Some(Set.add is idx))
-
-  let changed_remove rn_info name idx =
-    HT.change rn_info.changed name
-      ~f:(function | None    -> assert false
-                   | Some is -> Some(Set.remove is idx))
-
-  let map_modify rn_info name =
-    let max_idx = HT.find rn_info.unused name |> Option.value ~default:1 in
-    HT.set rn_info.map    ~key:name ~data:max_idx;
-    HT.set rn_info.unused ~key:name ~data:(succ max_idx);
-    changed_add rn_info name max_idx
-
-  let mk_reg_name name idx =
-    fsprintf "%s_%i" name idx
-
-  let rename rn_info v =
-    let num = map_get rn_info.map v.Var.num in
-    { v with Var.num = num }
-  *)
 end
-
-(* **** Synchronize renaming for do-while *)
-
-let rn_map_dowhile_update ~old:_rn_map_enter _rn_info =
-  undefined () (*
-  let mapping = String.Table.create () in
-  let correct = ref [] in
-  let handle_changed ~key:name ~data:new_idx =
-    let old_idx = RNI.map_get rn_map_enter name in
-    if old_idx<>new_idx then (
-      let old_name = RNI.mk_reg_name name old_idx in
-      let new_name = RNI.mk_reg_name name new_idx in
-      (* F.printf "rename  %s to %s\n"  new_name old_name; *)
-      HT.add_exn mapping ~key:new_name ~data:old_name;
-      RNI.changed_remove rn_info name new_idx;
-      correct := (name,old_idx)::!correct
-    )
-  in
-  HT.iteri rn_info.RNI.map ~f:handle_changed;
-  List.iter !correct ~f:(fun (s,idx) -> HT.set rn_info.RNI.map ~key:s ~data:idx);
-  mapping
-               *)
-
-(* **** Synchronize renaming for if *)
-
-let rn_map_if_update _rn_info ~rn_if:_ ~rn_else:_ =
-  undefined () (*
-  let changed_if   = String.Table.create () in
-  let changed_else = String.Table.create () in
-  (* populate given maps with changes *)
-  let handle_changed _s changed ~key:name ~data:new_idx =
-    let old_idx = RNI.map_get rn_info.RNI.map name in
-    if old_idx<>new_idx then (
-      (* F.printf "changed %s: '%s' from %i to %i\n" s name old_idx new_idx; *)
-      HT.set changed ~key:name ~data:();
-    ) else (
-      (* F.printf "unchanged %s: '%s'\n" s name;  *)
-    )
-  in
-  HT.iteri rn_if   ~f:(handle_changed "if"   changed_if);
-  HT.iteri rn_else ~f:(handle_changed "else" changed_else);
-  let changed =
-    SS.union
-      (SS.of_list @@ HT.keys changed_if)
-      (SS.of_list @@ HT.keys changed_else)
-  in
-  (* from new name to old name *)
-  let mapping_if_names   = String.Table.create () in
-  let mapping_else_names = String.Table.create () in
-  (* make renamings consistent for defs that are active when leaving the two branches
-     NOTE: we could make this more precise by restricting this to live defs *)
-  let merge name =
-    (* if a given name has been changed in both, then we choose the higher index *)
-    match HT.mem changed_if name, HT.mem changed_else name with
-    | false, false -> assert false
-    (* defs for name in both, choose larger index from else *)
-    | true, true ->
-      let idx_if   = RNI.map_get rn_if   name in
-      let idx_else = RNI.map_get rn_else name in
-      assert (idx_else > idx_if);
-      let name_if   = RNI.mk_reg_name name idx_if   in
-      let name_else = RNI.mk_reg_name name idx_else in
-      (* F.printf "rename %s to %s in if (use else name)\n" name_if name_else; *)
-      HT.set mapping_if_names ~key:name_if ~data:name_else;
-      (* update rn_map for statements following if-then-else *)
-      HT.set rn_info.RNI.map ~key:name ~data:idx_else;
-      RNI.changed_remove rn_info name idx_if
-    (* def only in if-branch, rename if-def with old name *)
-    | true, false ->
-      let idx_if    = RNI.map_get rn_if          name in
-      let idx_enter = RNI.map_get rn_info.RNI.map name in
-      assert (idx_if<>idx_enter);
-      let name_if    = RNI.mk_reg_name name idx_if    in
-      let name_enter = RNI.mk_reg_name name idx_enter in
-      (* F.printf "rename %s to %s in if (use enter name)\n"  name_if name_enter; *)
-      HT.set mapping_if_names ~key:name_if ~data:name_enter;
-      RNI.changed_remove rn_info name idx_if
-    (* def only in else-branch, rename if-def with old name *)
-    | false, true ->
-      let idx_else  = RNI.map_get rn_else         name in
-      let idx_enter = RNI.map_get rn_info.RNI.map name in
-      assert (idx_else<>idx_enter);
-      let name_else  = RNI.mk_reg_name name idx_else in
-      let name_enter = RNI.mk_reg_name name idx_enter  in
-      (* F.printf "rename %s to %s in else (use enter name)\n" name_else name_enter; *)
-      HT.set mapping_else_names ~key:name_else ~data:name_enter;
-      RNI.changed_remove rn_info name idx_else
-  in
-  SS.iter changed ~f:merge;
-  mapping_if_names, mapping_else_names
-*)
-
-(*
-RENAME a block:
-*)
 
 let local_ssa_base_instr rni lbi =
   let bi = lbi.L.l_val in
   let bi =
     match bi with
-    | Comment(_)      -> bi
-    | Assgn(d,s,at)   ->
+    | Comment(_) -> bi
+    | Assgn(d,s,at) ->
       let s = map_vars_src ~f:(RNI.rn_var rni) s in
       let d = RNI.rn_dest rni d in
       Assgn(d,s,at)
-    | Op(o,ds,ss)     ->
+    | Op(o,ds,ss) ->
       let ss = List.map ~f:(map_vars_src ~f:(RNI.rn_var rni)) ss in
       let ds = List.map ~f:(RNI.rn_dest rni) ds in
       Op(o,ds,ss)
-    | Load(_d,_s,_pe)    -> failwith "load"
-    | Store(_s1,_pe,_s2) -> failwith "store"
+    | Load(d,s,pe) ->
+      let s = map_vars_src ~f:(RNI.rn_var rni) s in
+      let pe = map_vars_pexpr ~f:(RNI.rn_var rni) pe in
+      let d = RNI.rn_dest rni d in
+      Load(d,s,pe)
+    | Store(s1,pe,s2) ->
+      let s1 = map_vars_src ~f:(RNI.rn_var rni) s1 in
+      let pe = map_vars_pexpr ~f:(RNI.rn_var rni) pe in
+      let s2 = map_vars_src ~f:(RNI.rn_var rni) s2 in
+      Store(s1,pe,s2)
     | Call(_fn,_ds,_ss)  -> failwith "call"
   in
   { lbi with L.l_val = bi }
 
 let rec local_ssa_instr rni linstr =
-  (* let _rename = RNI.rename rni in *)
   let instr = linstr.L.l_val in
+  let rn_phi rnt v =
+    match HT.find rnt v.Var.num with
+    | None    -> v
+    | Some(n) -> { v with Var.num = n }
+  in
+  let add_phi phi i =
+    { i with
+      LV.enter = 
+        {i.LV.leave with LV.phi = if !phi<>[] then Some(List.rev !phi) else None} }
+  in
   let instr =
     match instr with
 
-    | Block(bis,_) ->
-      (* rename RHS *)
-      (* FIXME: how to treat arr[i] = 5? *)
-      (* let bi = rename_base_instr ~rn_type:UseOnly rename bi in *)
-      (* update renaming map and rename LHS *)
-      (* let def_vars = def_binstr bi in *)
-      (* SS.iter def_vars ~f:(fun s -> RNI.map_modify rn_info s); *)
-      (* let bi = rename_base_instr ~rn_type:DefOnly rename bi in *)
+    | Block(bis,Some(i)) ->
       let bis = List.map ~f:(local_ssa_base_instr rni) bis in
-      Block(bis,None)
+      Block(bis,Some(i))
 
-    | If(Fcond(fc),s1,s2,_) ->
+    | If(Fcond(fc),s1,s2,Some(i)) ->
       let rn_map_if   = HT.copy rni.RNI.map in
       let rn_map_else = HT.copy rni.RNI.map in
       let fc = map_vars_fcond ~f:(RNI.rn_var rni) fc in
       let s1 = local_ssa_stmt { rni with RNI.map=rn_map_if   } s1 in
       let s2 = local_ssa_stmt { rni with RNI.map=rn_map_else } s2 in
-      
-      If(Fcond(fc),local_ssa_stmt rni s1,local_ssa_stmt rni s2, None)
-      (*
-      let rn_sync_if, rn_sync_else =
-        rn_map_if_update rn_info ~rn_if:rn_map_if ~rn_else:rn_map_else
-      in
-      let rn rns s = HT.find rns s |> Option.value ~default:s in
-      let s1 = rename_stmt (rn rn_sync_if)   s1 in
-      let s2 = rename_stmt (rn rn_sync_else) s2 in
-      If(Fcond(fc),s1,s2)
-      *)
-      
-    | While(DoWhile,_fc,_s,_) -> instr
-      (*
-      let rn_map_enter = HT.copy rn_info.RNI.map in
-      let s = local_ssa_stmt rn_info s in
-      (* rename fc with the rn_map for leave *)
-      let fc = rename_fcond rename fc in
-      (* make last def-index coincide with def-index from entering *)
-      let rn_sync = rn_map_dowhile_update ~old:rn_map_enter rn_info in
-      let rn s = HT.find rn_sync s |> Option.value ~default:s in
-      let fc = rename_fcond rn fc in
-      let s  = rename_stmt rn s in
-      While(DoWhile,fc,s)
-      *)
-      
-    | While(WhileDo,_fc,_s,_) ->
-      failwith "INCOMPLETE"
-
-    | If(Pcond(_),_,_,_)
-    | For(_,_,_,_,_)     -> failwith "local SSA transformation: unexpected instruction"
+      let lout = i.LV.leave.LV.live_out in
+      let phi = ref [] in
+      IS.iter lout ~f:(fun i ->
+        let before   = HT.find_exn rni.RNI.map i in
+        let if_num   = HT.find_exn rn_map_if   i in
+        let else_num = HT.find_exn rn_map_else i in
+        if (before<>if_num || before<>else_num) then (
+          let new_n = RNI.rn_dest_var_num rni i in
+          phi := (new_n,[if_num;else_num]) :: !phi
+        ));
+      let i = add_phi phi i in
+      If(Fcond(fc),s1,s2,Some(i))
+        
+    | While(WhileDo,fc,s,Some(i)) ->
+      let rn_map_body = HT.copy rni.RNI.map in
+      let fc = map_vars_fcond ~f:(RNI.rn_var rni) fc in
+      let s = local_ssa_stmt { rni with RNI.map=rn_map_body } s in
+      let lout = i.LV.enter.LV.live_out in
+      let lin  = LV.compute_lin lout i.LV.enter in
+      (* F.printf "live_out=%a\n%!" pp_set_int lin; *)
+      let phi = ref [] in
+      let rn_phi_table = Int.Table.create () in
+      IS.iter lin ~f:(fun i ->
+        let enter_num = HT.find_exn rni.RNI.map i in
+        let body_num  = HT.find_exn rn_map_body i in
+        if (enter_num<>body_num) then (
+          let new_n = RNI.rn_dest_var_num rni i in
+          phi := (new_n,[enter_num;body_num]) :: !phi;
+          HT.set rn_phi_table ~key:enter_num ~data:new_n
+        ));
+      let i = add_phi phi i in
+      let s = map_vars_stmt s ~f:(rn_phi rn_phi_table) in
+      let fc = map_vars_fcond fc ~f:(rn_phi rn_phi_table) in
+      While(WhileDo,fc,s,Some(i))
+ 
+   | While(DoWhile,fc,s,Some(i)) ->
+      let rn_map_enter = HT.copy rni.RNI.map in
+      let s = local_ssa_stmt rni s in
+      let fc = map_vars_fcond ~f:(RNI.rn_var rni) fc in
+      let lin = i.LV.enter.LV.live_out in
+      (* F.printf "live_out=%a\n%!" pp_set_int lin; *)
+      let phi = ref [] in
+      let rn_phi_table = Int.Table.create () in
+      IS.iter lin ~f:(fun i ->
+        let enter_num = HT.find_exn rn_map_enter i in
+        let body_num  = HT.find_exn rni.RNI.map  i in
+        if (enter_num<>body_num) then (
+          let new_n = RNI.rn_dest_var_num rni i in
+          phi := (new_n,[enter_num;body_num]) :: !phi;
+          HT.set rn_phi_table ~key:enter_num ~data:new_n
+        ));
+      let i = add_phi phi i in
+      let s = map_vars_stmt s ~f:(rn_phi rn_phi_table) in
+      While(DoWhile,fc,s,Some(i))
+ 
+    | Block(_,None)
+    | If(_,_,_,None)
+    | While(_,_,_,None) -> assert false
+    
+    | For(_,_,_,_,_)
+    | If(Pcond(_),_,_,_) -> failwith "local SSA transformation: unexpected instruction"
   in
   { linstr with L.l_val = instr }
 
@@ -452,6 +474,12 @@ let local_ssa_fundef fd =
   let mn = max_var_fundef fd in
   let rni = RNI.mk mn in
   let arg = List.map ~f:(RNI.rn_dest_var rni) fd.f_arg in
+  iter_dests_fundef fd ~fdest:(fun d ->
+    (* FIXME: there should be explicit initializations for arrays? *)
+    if d.d_idx<>None && not (HT.mem rni.RNI.map d.d_var.Var.num) then
+      (* F.printf "adding %a\n%!" pp_dest_nt d; *)
+      ignore(RNI.rn_dest_var rni d.d_var)
+  );
   let body = local_ssa_stmt rni fd.f_body in
   let ret = List.map ~f:(RNI.rn_var rni) fd.f_ret in
   { fd with
@@ -464,7 +492,7 @@ let local_ssa_func func =
 
 let local_ssa_modul modul fname =
   map_func modul fname ~f:local_ssa_func
- 
+
 (* ** Collect equality and fixed register constraints from +=, -=, :=, ...
  * ------------------------------------------------------------------------ *)
 (*
@@ -974,6 +1002,7 @@ let to_asm_x64 _efun =
   )
   *)
 *)
+
 (* ** Calling convention for "extern" functions
  * ------------------------------------------------------------------------ *)
 

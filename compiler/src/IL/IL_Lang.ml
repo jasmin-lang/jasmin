@@ -126,10 +126,13 @@ module Var = struct
   include Comparable.Make(T)
   include Hashable.Make(T)
   let pp fmt (v : t) =
-    if Int.(v.num = 0) then
+    if Int.(v.num = 0) then (
       Vname.pp fmt v.name
-    else
+    ) else if Int.(v.num < 0) then (
+      F.fprintf fmt "%a.%is" Vname.pp v.name (- v.num)
+    ) else (
       F.fprintf fmt "%a.%i" Vname.pp v.name v.num
+    )
 end
 
 (* ** Atom, compile-time expressions, and conditions

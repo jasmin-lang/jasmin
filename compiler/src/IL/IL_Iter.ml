@@ -407,7 +407,7 @@ let iter_instrs_named_func ~f nf =
   iter_instrs_func ~f nf.nf_func
 
 let iter_instrs_modul ~f modul fname =
-   List.iter  modul
+   List.iter modul
      ~f:(fun nf -> if nf.nf_name = fname then iter_instrs_named_func ~f nf)
 
 let iter_instrs_modul_all ~f modul =
@@ -416,9 +416,9 @@ let iter_instrs_modul_all ~f modul =
 (* *** Specialized instruction traversals
  * ------------------------------------------------------------------------ *)
 (* **** Summary
-   These functions return false if an if/for/while contains empty
-   branches (stmt []), we expect expect empty block instead (Block([],_))
-   because they contain info instead.
+   These functions return false if an if/for/while contains empty branches
+   (stmt []), we expect empty block instead (Block([],_)) because they
+   contain info.
 *)
 (* **** Code *)
 

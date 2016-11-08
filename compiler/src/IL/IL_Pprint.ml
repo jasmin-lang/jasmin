@@ -324,6 +324,13 @@ let pp_value_py fmt = function
   | Varr(vs) ->
     F.fprintf fmt "[%a]" (pp_list "," pp_uint64) (List.map ~f:snd (Map.to_alist vs))
 
+let pp_set_vn fmt (s : Int.Set.t) =
+  let pp_vn fmt (vn : int) =
+    if Int.(vn < 0) then F.fprintf fmt "%is" Int.(- vn) else pp_int fmt vn
+  in
+  F.fprintf fmt "{%a}" (pp_list "," pp_vn) (List.sort ~cmp:compare_int (Set.to_list s))
+
+
 let pp_ty_nt = pp_ty ~pp_types:false
 
 let pp_dest_nt = pp_dest ~pp_types:false
