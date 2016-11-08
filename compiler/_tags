@@ -1,4 +1,5 @@
 true: bin_annot, debug, thread
+<docs>: -traverse
 
 <src>     or <c_src>    or <src/Test>: include
 <src/Asm> or <src/Util> or <src/IL>  : include
