@@ -1,5 +1,3 @@
-Parsing tests/compiler/must_fail/t_05.mil as MIL
-
-tests/compiler/must_fail/t_05.mil:2:3: 2:6 error: expected identifier, not array get
-  x[i] : stack u64;
-  ^^^^
+tests/compiler/must_fail/t_05.mil:2:3: 2:7 error: expected identifier, not array get
+  _x[i] : stack u64;
+  ^^^^^

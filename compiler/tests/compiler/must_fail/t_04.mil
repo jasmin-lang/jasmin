@@ -1,5 +1,5 @@
 extern fn test() {
-  x[i] : inline bool;
+  _x[i] : inline bool;
 }
 
 /*

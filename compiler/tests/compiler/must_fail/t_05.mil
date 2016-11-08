@@ -1,5 +1,5 @@
 extern fn test() {
-  x[i] : stack u64;
+  _x[i] : stack u64;
 }
 
 /*
