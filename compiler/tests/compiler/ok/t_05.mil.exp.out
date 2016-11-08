@@ -13,10 +13,6 @@ fn foo1(x : stack u64, y : stack u64, z : reg bool) -> stack u64 {
     (z : reg bool), (x : stack u64) += (w : stack u64);
     (z : reg bool), (x : stack u64) += (y : stack u64);
     // ENDBLOCK
-  } else {
-    // STARTBLOCK
-    
-    // ENDBLOCK
   }
   // ENDBLOCK
   return (x : stack u64);

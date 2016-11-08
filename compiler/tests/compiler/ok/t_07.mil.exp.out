@@ -30,10 +30,6 @@ fn foo2(x : stack u64, y : stack u64, cf : reg bool) -> stack u64 {
       cf.1, x.1 += y.1;
       cf.1, x.1 += y.1;
       // ENDBLOCK
-    } else {
-      // STARTBLOCK
-      
-      // ENDBLOCK
     }
     // ENDBLOCK
     // STARTBLOCK
@@ -44,10 +40,6 @@ fn foo2(x : stack u64, y : stack u64, cf : reg bool) -> stack u64 {
     /* END: inlined call to foo0 */
     x := x.1;
     /* END: inlined call to foo1 */
-    // ENDBLOCK
-  } else {
-    // STARTBLOCK
-    
     // ENDBLOCK
   }
   // ENDBLOCK
