@@ -133,7 +133,7 @@ def print_sep():
 
 print_sep()
 
-fail_exclude = [22]
+fail_exclude = [3,22]
 for fn in [ "%02i"%i for i in range(1,32) if not i in fail_exclude ]:
     test_fail("tests/compiler/must_fail/t_%s.mil"%fn)
 
