@@ -1,5 +1,3 @@
-Parsing tests/compiler/must_fail/t_31.mil as MIL
-
-tests/compiler/must_fail/t_31.mil:12:8: 12:9 error: variable used before definition
-  x += z;
-       ^^
+tests/compiler/must_fail/t_31.mil:6:3: 6:9 error: live variable ?.4 not defined in all required branches
+  if cf {
+  ^^^^^^^

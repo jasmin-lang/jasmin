@@ -380,6 +380,13 @@ let local_ssa_base_instr rni lbi =
 
 let rec local_ssa_instr rni linstr =
   let instr = linstr.L.l_val in
+  let loc = linstr.L.l_loc in
+  let find_live rn_map i =
+    match HT.find rn_map i with
+    | Some(n) -> n
+    | None ->
+      failloc_ loc "live variable ?.%i not defined in all required branches" i
+  in
   let rn_phi rnt v =
     match HT.find rnt v.Var.num with
     | None    -> v
@@ -406,10 +413,10 @@ let rec local_ssa_instr rni linstr =
       let lout = i.LV.leave.LV.live_out in
       let phi = ref [] in
       IS.iter lout ~f:(fun i ->
-        let before   = HT.find_exn rni.RNI.map i in
-        let if_num   = HT.find_exn rn_map_if   i in
-        let else_num = HT.find_exn rn_map_else i in
-        if (before<>if_num || before<>else_num) then (
+        let before   = HT.find rni.RNI.map i in
+        let if_num   = find_live rn_map_if   i in
+        let else_num = find_live rn_map_else i in
+        if (before=None || (before<>Some(if_num) || before<>Some(else_num))) then (
           let new_n = RNI.rn_dest_var_num rni i in
           phi := (new_n,[if_num;else_num]) :: !phi
         ));

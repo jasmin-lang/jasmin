@@ -191,12 +191,12 @@ let mk_func loc name ret_ty ext args def =
       in
       (* check return variables and ensure that arity matches *)
       let check_ret_elem v (l,(s,t)) =
-        if v.Var.stor<>s then
+        if v.Var.stor<>SInvalid && v.Var.stor<>s then
           add_errs [(v.Var.uloc, fsprintf "return storage type for %a wrong" Var.pp v);
                     (l,           "<-- return storage declared here");
                     (v.Var.dloc,  "<-- variable declared here")
                    ];
-        if v.Var.ty<>t then
+        if v.Var.ty<>TInvalid && v.Var.ty<>t then
           add_errs [(v.Var.uloc, fsprintf "return type for %a wrong" Var.pp v);
                     (l,           "<-- return type declared here");
                     (v.Var.dloc,  "<-- variable declared here")]

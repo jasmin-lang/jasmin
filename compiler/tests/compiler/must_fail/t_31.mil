@@ -15,6 +15,6 @@ extern fn test(cf : reg bool) {
 /*
 START:CMD
 ARG="renumber_fun_unique,typecheck,save[/tmp/ssa1.mil][]"
-ARG="$ARG,merge_blocks,local_ssa[test]"
+ARG="$ARG,merge_blocks,register_liveness[test],local_ssa[test]"
 END:CMD
 */
