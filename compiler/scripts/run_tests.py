@@ -2,6 +2,7 @@
 
 from os import system
 import os.path
+import sys
 
 verbose = True
 debug = False
@@ -120,31 +121,34 @@ def print_sep():
 
 ######################################################################
 
-# f = "tests/compiler/ok/t_13.mil"
-# print_sep()
-# print ""
-# system("cat %s"%f)
-# print_sep()
-# print ""
-# run(f)
-# exit(0)
+def single_test(f):
+    print "running test for %s"%(f)
+    run(f)
+    exit(0)
 
 ######################################################################
 
-print_sep()
+def all_tests():
+    print_sep()
 
-fail_exclude = [22]
-for fn in [ "%02i"%i for i in range(1,32) if not i in fail_exclude ]:
-    test_fail("tests/compiler/must_fail/t_%s.mil"%fn)
+    fail_exclude = [22]
+    for fn in [ "%02i"%i for i in range(1,32) if not i in fail_exclude ]:
+        test_fail("tests/compiler/must_fail/t_%s.mil"%fn)
 
-print_sep()
+    print_sep()
+        
+    for fn in [ "%02i"%i for i in range(1,14)]:
+        test_ok("tests/compiler/ok/t_%s.mil"%fn)
 
-for fn in [ "%02i"%i for i in range(1,14)]:
-    test_ok("tests/compiler/ok/t_%s.mil"%fn)
+    print_sep()
 
-print_sep()
+    for fn in [ "%02i"%i for i in range(1,6)]:
+        test_ok("tests/interp/ok/t_%s.mil"%fn)
 
-for fn in [ "%02i"%i for i in range(1,6)]:
-    test_ok("tests/interp/ok/t_%s.mil"%fn)
+    print_sep()
 
-print_sep()
+if __name__ == "__main__":
+  if len(sys.argv) > 1:
+    single_test(sys.argv[1])
+  else:
+    all_tests()
