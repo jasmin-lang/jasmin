@@ -21,9 +21,22 @@ opam install dmasm --deps-only
 
 ```
 make dmasm
-make test-dmasm-square # output assembly file
-make unit-tests
+./scripts/run_tests.py
 ```
+
+Documentation
+=============
+
+To build the dmasm documentation, you need the `Sphinx documentation
+generator <http://www.sphinx-doc.org/>`_::
+
+    $ pip install sphinx==1.3.5 sphinx-autobuild
+    $ cd dmasm/docs
+    $ make html
+    $ open _build/html/index.html
+
+We have tested with version 1.3.5, but everything might also work with
+a later version.
 
 Hacking
 =======
