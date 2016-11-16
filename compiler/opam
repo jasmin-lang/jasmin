@@ -20,4 +20,5 @@ depends: [
   "menhir"
   "mparser"
   "ounit"
+  "ppx-jane"
 ]
