@@ -56,44 +56,72 @@ To perform register allocation, we assume given a statement, a
 list of argument variables of type ``reg u64``, and a list of
 return variables of type ``reg u64`` [#args]_.
 
-- For each basic-block, we have computed the φ-function (if
-  necessary) and the :literal:`liveOut` set.
+1. For each basic-block, we have computed the φ-function (if
+   necessary) and the :literal:`liveOut` set.
 
-- For each variable ``v``, we have computed the equivalence
-  class ``[v]`` arising from the equality constraints. We
-  derive equality constraints from
+2. For each variable ``v``, we have computed the equivalence
+   class ``[v]`` arising from the equality constraints. We
+   derive equality constraints from
 
-  (1) two-address assembly instructions
-  (2) renaming assignemnts, and
-  (3) φ-functions.
+   (1) two-address assembly instructions
+   (2) renaming assignments, and
+   (3) φ-functions.
 
-  The information is stored in a map ``repr`` such that
-  ``repr[v] = repr[v']`` iff ``[v] = [v']``.
+   The information is stored in a map ``repr`` such that
+   ``repr[v] = repr[v']`` iff ``[v] = [v']``.
    
-- For each variable ``v``, we have computed a map ``blocks`` such
-  that ``p ∈ blocks[v]`` iff ``v`` occurs in the block with position
-  ``p``. We have also computed a map ``live`` such that ``live[v,p]``
-  is defined iff ``v`` is live in the block with position ``p``.
-  If ``live[v,p] = (l,u)`` then
+3. For each variable ``v``, we have computed a map ``blocks`` such
+   that ``p ∈ blocks[v]`` iff ``v`` occurs in the block with position
+   ``p``. We have also computed a map ``live`` such that ``live[v,p]``
+   is defined iff ``v`` is live in the block with position ``p``.
+   If ``live[v,p] = (l,u)`` then
   
-  (1) ``l = ⊥`` if ``v`` is defined in another basic block (that
-      dominates ``j``) and ``v`` defined in line ``l`` otherwise.
-  (2) ``u = ⊥`` if ``v`` is in :literal:`liveOut` and ``v`` last used
-      in line ``u`` otherwise [#deadpos]_. 
+   (1) if ``l = ⊥``, then ``v`` is defined in another basic block (that
+       dominates ``p``)
 
-Basic-block
-------------
+       if ``l ≠ ⊥``, then ``v`` is defined in line ``l``
+   (2) if ``u = ⊥``, then ``v`` is in :literal:`liveOut`
+       
+       if ``u ≠ ⊥``, then ``v`` is last used in line ``u`` [#deadpos]_
 
-Given a basic block in SSA form, we can first make a backwards pass and
-add instructions :literal:`free(v₁,..,vₖ)` immediately after the first
-use of all variables :literal:`vᵢ` that are not live when exiting
-the block (i.e., in the :literal:`liveOut` set).
+4. For each variable ``v ∈ range(repr)``, we have computed if the
+   register is fixed. We store this information in a map ``fix`` such
+   that ``fix[v] = rᵢ ∈ FixRegs`` if ``v`` must be assigned the fixed
+   register ``rᵢ``.
+
+Output
+------
+
+A map ``reg`` such that for each variable ``v`` that occurs in the function
+``reg[v]`` is the assigned register. The assignment must satisfy the following
+requirements:
+
+1. Compatible with ``repr`` and ``fix``.
+
+2. Compatible with ``live``, i.e., if ``reg[v] = reg[v']`` then the two
+   variables do not interfere.
+
+Algorithm for basic blocks
+--------------------------
+
+
+
+Dealing with ``if-then-else``
+-----------------------------
+
+Dealing with ``while-do``
+-------------------------
+
+Dealing with ``do-while``
+-------------------------
 
 
 .. rubric:: Footnotes
 
-.. [#args]_    For now, we assume there are fewer arguments/return than
-                we can pass in registers.
-.. [#deadpos]_ You must check where ``v`` is used to determine when it can
-               be reused, for example, in ``arr[v₁],v₂ = v₃ * v₄``, the
-               can occur as an index in the dest
+.. [#args]    For now, we assume there are fewer arguments/return values
+              than we can pass in registers.
+.. [#deadpos] You must check where ``v`` is used to determine when it can
+              be reused, for example, in ``arr[v₁],v₂ = v₃ * v₄``, 
+              ``v₁`` occurs as index in the left-hand-side and it depends
+              on the concrete instruction if the register assigned to
+              ``v₁`` can be used for ``v₂``.
