@@ -1,7 +1,7 @@
 (* * Prove properties about semantics of dmasm input language *)
 
 (* ** Imports and settings *)
-Require Import ZArith.
+Require Import JMeq ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
@@ -63,13 +63,19 @@ Fixpoint write_mem t (r:rval t) : bool :=
 
 Definition nb_loop := 100%coq_nat.
 
+Definition check_nop t1 t2 (rv:rval t1) (e:pexpr t2) :=
+  match rv, e with
+  | Rvar x1, Pvar x2 => x1 == x2
+  | _, _ => false
+  end.
+ 
 Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : result unit (Sv.t * cmd) := 
   match i with
   | Cassgn t rv e =>
     let w := write_i i in
     if disjoint s w && negb (write_mem rv) then Ok unit (s,[::])
+    else if check_nop rv e then Ok unit (s,[::])
     else Ok unit (read_rv_rec rv (read_e_rec e (Sv.diff s w)), [::i])
-
   | Cif b c1 c2 => 
     dead_code dead_code_i c1 s >>= (fun (sc:Sv.t * cmd) => let (s1,c1) := sc in
     dead_code dead_code_i c2 s >>= (fun (sc:Sv.t * cmd) => let (s2,c2) := sc in
@@ -160,6 +166,10 @@ Section PROOF.
     by apply: sem_app Hsi' Hsc'.
   Qed.
 
+  Lemma check_nop_spec t1 t2 (r:rval t1) (e:pexpr t2): check_nop r e ->
+    exists x, [/\ t1 = vtype x, t2 = vtype x, JMeq r (Rvar x) & JMeq e (Pvar x)].
+  Proof. by case: r e => //= x1 [] //= x2 /eqP <-;exists x1. Qed.
+
   Let Hbcmd : forall t (x:rval t) e,  Pi (Cassgn x e).
   Proof. 
     move=> t x e m1 m2 vm1 vm2 H;sinversion H=> /= s2.
@@ -169,7 +179,14 @@ Section PROOF.
       case Heq: sem_pexpr H5 => [v|] //= H5.
       rewrite (write_memP Hmem H5);split;last by constructor.
       by apply: eq_onT Hvm;apply eq_onS;apply (disjoint_eq_on Hdisj H5).
-    move=> ?;case Heq: sem_pexpr H5 => [v|] //= Hw vm1' Hvm.
+    move=> ?;case: ifPn.
+    + move=> /check_nop_spec [[yt y] /= [<- _ ]] Hx He;subst.
+      move: H5;rewrite /write_rval /= => -[] ??;subst=> vm1' Hvm.
+      exists vm1';split;last by constructor.
+      move=> z Hz. case :({| vtype := t; vname := y |} =P z) => [->|/eqP Hne].
+      + by rewrite Fv.setP_eq Hvm.
+      by rewrite Fv.setP_neq ?Hvm.
+    move=> ?; case Heq: sem_pexpr H5 => [v|] //= Hw vm1' Hvm.
     have /(_ s2 vm1') [|vm2' [Hvm2 Hw2]] := write_rval_eq_on Hw.    
     + by apply: eq_onI Hvm;rewrite !read_rvE read_eE write_i_assgn;SvD.fsetdec.
     exists vm2';split=>//;apply sem_seq1;constructor.
