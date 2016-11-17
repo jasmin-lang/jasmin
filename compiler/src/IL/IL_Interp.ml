@@ -380,10 +380,11 @@ and interp_call_python ms py_code call_rets call_args =
       (fsprintf "res = %s(%a)\nprint(str(res))\n" py_code
         (pp_list "," pp_string) (s_args@[s_params]))
   in
-  let rets = parse_value res in
   (* store result *)
   let ss_ds = match call_rets with
-    | [ds] -> [ (rets,ds) ]
+    | [ds] ->
+      let rets = parse_value ds.d_var.Var.ty res in
+      [ (rets,ds) ]
     | []   -> []
     | _    -> assert false
   in

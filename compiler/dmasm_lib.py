@@ -426,6 +426,30 @@ def rand_point(seed,params):
   x = to_digits(two64,4,ai)
   return x
 
+def mod_64(x):
+  return x & 0xffffffffffffffff
+
+def get_64x4(i,x):
+  return mod_64(x >> i*64)
+
+def mk_64x4(x0,x1,x2,x3):
+  return x0 + (x1 << 64) + (x2 << 128) + (x3 << 192)
+
+def add_64x4(x,y,params):
+  z0 = get_64x4(0,x) + get_64x4(0,y)
+  z1 = get_64x4(1,x) + get_64x4(1,y)
+  z2 = get_64x4(2,x) + get_64x4(2,y)
+  z3 = get_64x4(3,x) + get_64x4(3,y)
+  z = mk_64x4(mod_64(z0),mod_64(z1),mod_64(z2),mod_64(z3))
+  #print("x  = %02x"%x,  file=sys.stderr)
+  #print("y  = %02x"%y,  file=sys.stderr)
+  #print("z0 = %02x"%z0, file=sys.stderr)
+  #print("z1 = %02x"%z1, file=sys.stderr)
+  #print("z2 = %02x"%z2, file=sys.stderr)
+  #print("z3 = %02x"%z3, file=sys.stderr)
+  #print("z  = %02x"%z,  file=sys.stderr)
+  return z
+
 # * Code from CFRG on curves (BSD licensed)
 ###########################################################################
 

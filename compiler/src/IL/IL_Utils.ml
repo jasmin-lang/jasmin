@@ -138,7 +138,7 @@ let view_op o ds ss =
 (* ** Misc. utility functions
  * ------------------------------------------------------------------------ *)
 
-let parse_value s =
+let parse_value ty s =
   let open MParser in
   let bi =
     many1 digit >>= fun s ->
@@ -146,13 +146,17 @@ let parse_value s =
     return (Big_int.big_int_of_string (String.of_char_list s))
   in
   let value =
-    choice
-      [ (bi >>= fun u -> return (Value.mk_Vu 64 u)) (* FIXME: fixed to 64 bit *)
-      ; (char '[' >>= fun _ ->
-        (sep_by bi (char ',' >> optional (char ' '))) >>= fun vs ->
-        char ']' >>= fun _ ->
-        let vs = U64.Map.of_alist_exn (List.mapi vs ~f:(fun i v -> (U64.of_int i, v))) in
-        return (Value.mk_Varr 64 vs)) ]             (* FIXME: fixed to 64 bit *)
+    match ty with
+    | Bool | TInvalid ->
+      assert false
+    | U(n)     ->
+      bi >>= fun u -> return (Value.mk_Vu n u)
+    | Arr(n,_) ->
+      (char '[' >>= fun _ ->
+       (sep_by bi (char ',' >> optional (char ' '))) >>= fun vs ->
+       char ']' >>= fun _ ->
+       let vs = U64.Map.of_alist_exn (List.mapi vs ~f:(fun i v -> (U64.of_int i, v))) in
+       return (Value.mk_Varr n vs))
   in
   match parse_string (value >>= fun x -> eof >>$ x) s () with
   | Success t   -> t

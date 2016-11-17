@@ -66,7 +66,8 @@ def test(fname,get_error,cp):
 
     # remove times
     sed = '-E "s,[0-9]+\.[0-9]+ms,REMOVED_TIME,"'
-    system("sed %s  %s.run.err >%s.run.err.tmp"%(sed,fname,fname))
+    system("sed %s  %s.run.err | grep -v 'Python ' | grep -v 'GCC ' >%s.run.err.tmp"%(
+             sed,fname,fname))
     system("mv %s.run.err.tmp %s.run.err"%(fname,fname))
     system("sed %s %s.run.out >%s.run.out.tmp"%(sed,fname,fname))
     system("mv %s.run.out.tmp %s.run.out"%(fname,fname))
@@ -142,7 +143,7 @@ def all_tests():
 
     print_sep()
 
-    for fn in [ "%02i"%i for i in range(1,6)]:
+    for fn in [ "%02i"%i for i in range(1,7)]:
         test_ok("tests/interp/ok/t_%s.mil"%fn)
 
     print_sep()

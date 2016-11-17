@@ -127,7 +127,7 @@ src :
 | d=dest                       { Src(d)                         }
 | DOLLAR p=param               { Imm(64,Patom(Pparam(p)))       } (* FIXME: fixed for 64 *)
 | DOLLAR LPAREN i=pexpr RPAREN { Imm(64,i)                      } (* FIXME: fixed for 64 *)
-| i=INT  n=utype               { Imm(n,Pconst(Big_int.big_int_of_string i)) }
+| i=INT COLON n=utype          { Imm(n,Pconst(Big_int.big_int_of_string i)) }
 | i=INT                        { Imm(64,Pconst(Big_int.big_int_of_string i)) }
 
 (* ** Index expressions and conditions

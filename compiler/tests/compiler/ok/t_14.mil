@@ -7,8 +7,8 @@ fn test(r.10, r.11 : reg u32) -> reg u32 * reg u32 {
   cf                     : reg bool;
 
   r.16 = 7;
-  r.12 = 1u32;
-  r.15 = 1u32;
+  r.12 = 1:u32;
+  r.15 = 1:u32;
   cf,r.16 += 42;
   while cf { // original: r13 >= 1
     r.14 = r.11;

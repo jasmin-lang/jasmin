@@ -1,0 +1,53 @@
+// test support for other bit sizes and other operations
+
+fn rand_u64(reg u64) -> reg u64 = python rand_u64;
+fn assert_equal_u64(reg u64, reg u64) = python assert_equal;
+fn assert_equal_u256(reg u256, reg u256) = python assert_equal;
+
+fn add_64x4(reg u256, reg u256)-> reg u256 = python add_64x4;
+
+
+// overloading
+
+
+fn test() {
+  x8   : reg u8;
+  x16  : reg u16;
+  x32  : reg u32;
+  x64  : reg u64;
+  x128 : reg u128;
+  x256 : reg u256;
+  y256 : reg u256;
+  c    : reg u256;
+  s    : reg u64;
+
+
+  s = 0;
+
+  x8   = 42:u8;
+  x16  = 42:u16;
+  x32  = 42:u32;
+  x64  = rand_u64(s); s += 1;
+  x128 = 42:u128;
+  x256 = 42:u256;
+
+  c    = 1:u256;
+  x256 = 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe:u256;
+  y256 = add_64x4(x256, c);
+
+  c = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:u256;
+  assert_equal_u256(y256,c);
+
+  c    = 1:u256;
+  y256 = add_64x4(y256, c);
+  c = 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000:u256;
+  assert_equal_u256(y256,c);
+}
+
+// 
+
+/*
+START:CMD
+ARG="typecheck,renumber_fun_unique,interp[][][test][]"
+END:CMD
+*/
