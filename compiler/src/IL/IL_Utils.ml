@@ -143,16 +143,16 @@ let parse_value s =
   let u64 =
     many1 digit >>= fun s ->
     optional (char 'L') >>
-    return (U64.of_string (String.of_char_list s))
+    return (Big_int.big_int_of_string (String.of_char_list s))
   in
   let value =
     choice
-      [ (u64 >>= fun u -> return (Vu64 u))
+      [ (u64 >>= fun u -> return (Vu(64,u)))
       ; (char '[' >>= fun _ ->
         (sep_by u64 (char ',' >> optional (char ' '))) >>= fun vs ->
         char ']' >>= fun _ ->
         let vs = U64.Map.of_alist_exn (List.mapi vs ~f:(fun i v -> (U64.of_int i, v))) in
-        return (Varr(vs))) ]
+        return (Varr(64,vs))) ] (* FIXME: fixed to 64 bit *)
   in
   match parse_string (value >>= fun x -> eof >>$ x) s () with
   | Success t   -> t

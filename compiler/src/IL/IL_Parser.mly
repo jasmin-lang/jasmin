@@ -5,7 +5,6 @@
 %{
 open IL_Lang
 open Core_kernel
-open Arith
 open IL_ParseUtils
 open IL_Utils
 
@@ -32,7 +31,7 @@ module L = ParserUtil.Lexing
 %token LARROW
 %token DOLLAR
 
-%token T_U64
+%token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256
 %token T_BOOL
 
 %token STAR
@@ -125,10 +124,11 @@ param:
 | lid=loc(NID) { mk_param lid }
 
 src :
-| d=dest                       { Src(d)                       }
-| DOLLAR p=param               { Imm(Patom(Pparam(p)))        }
-| DOLLAR LPAREN i=pexpr RPAREN { Imm(i)                       }
-| i=INT                        { Imm(Pconst(U64.of_string i)) }
+| d=dest                       { Src(d)                         }
+| DOLLAR p=param               { Imm(64,Patom(Pparam(p)))       } (* FIXME: fixed for 64 *)
+| DOLLAR LPAREN i=pexpr RPAREN { Imm(64,i)                      } (* FIXME: fixed for 64 *)
+| i=INT  n=utype               { Imm(n,Pconst(Big_int.big_int_of_string i)) }
+| i=INT                        { Imm(64,Pconst(Big_int.big_int_of_string i)) }
 
 (* ** Index expressions and conditions
  * -------------------------------------------------------------------- *)
@@ -150,17 +150,17 @@ var :
 | lid = loc(NID) { mk_var lid }
 
 dexpr :
-| p=param                    { Patom(p)                }
-| i=INT                      { Pconst(U64.of_string i) }
-| e1=dexpr o=pbinop e2=dexpr { Pbinop(o,e1,e2)         }
-| LPAREN e1=dexpr RPAREN     { e1                      }
+| p=param                    { Patom(p)                            }
+| i=INT                      { Pconst(Big_int.big_int_of_string i) }
+| e1=dexpr o=pbinop e2=dexpr { Pbinop(o,e1,e2)                     }
+| LPAREN e1=dexpr RPAREN     { e1                                  }
 
 pexpr :
-| v=var                      { Patom(Pvar(v))          }
-| DOLLAR p=param             { Patom(Pparam(p))        }
-| i=INT                      { Pconst(U64.of_string i) }
-| e1=pexpr o=pbinop e2=pexpr { Pbinop(o,e1,e2)         }
-| LPAREN e1=pexpr RPAREN     { e1                      }
+| v=var                      { Patom(Pvar(v))                      }
+| DOLLAR p=param             { Patom(Pparam(p))                    }
+| i=INT                      { Pconst(Big_int.big_int_of_string i) }
+| e1=pexpr o=pbinop e2=pexpr { Pbinop(o,e1,e2)                     }
+| LPAREN e1=pexpr RPAREN     { e1                                  }
 
 pcond :
 | TRUE                        { Ptrue         }
@@ -299,9 +299,17 @@ return :
 typ_dim :
 | LBRACK dim=dexpr RBRACK { (dim) }
 
+utype :
+| T_U8   {   8 }
+| T_U16  {  16 }
+| T_U32  {  32 }
+| T_U64  {  64 }
+| T_U128 { 128 }
+| T_U256 { 256 }
+
 typ :
-| T_U64  odim=typ_dim? { match odim with None -> U64 | Some d -> Arr(d) }
-| T_BOOL               { Bool }
+| ut=utype  odim=typ_dim? { match odim with None -> U(ut) | Some d -> Arr(ut,d) }
+| T_BOOL                  { Bool }
 
 stor_typ :
 | sto=storage ty=typ { mk_sto_ty (sto,ty) (L.mk_loc ($startpos,$endpos)) }

@@ -31,7 +31,7 @@ let mk_pprint_opt ofn = {
 
 type transform =
   | MergeBlocks of Fname.t option
-  | MacroExpand of Fname.t * u64 Pname.Table.t
+  | MacroExpand of Fname.t * big_int Pname.Table.t
   | ArrayAssignExpand of Fname.t
   | ArrayExpand of Fname.t
   | LocalSSA of Fname.t
@@ -46,7 +46,7 @@ type transform =
   | Print of string * pprint_opt
   | Save  of string * pprint_opt
   | StripComments of Fname.t
-  | Interp of Fname.t * u64 Pname.Table.t * u64 U64.Table.t * value list
+  | Interp of Fname.t * big_int Pname.Table.t * u64 U64.Table.t * value list
     (* Interp(fun,pmap,mmap,alist,fun):
          interpret call of function fun() with parameters pmap, memory mmap,
          argument list alist *)
@@ -59,22 +59,22 @@ let ptrafo =
   let asm_lang = choice [ string "x86-64" >>$ X64 ] in
   let enclosed p pstart pend = pstart >> p >>= fun x -> pend >>$ x in
   let bracketed p = enclosed p (char '[') (char ']') in
-  let u64 = many1 digit >>= fun s -> return (U64.of_string (String.of_char_list s)) in
+  let u64 = many1 digit >>= fun s -> return (Big_int.big_int_of_string (String.of_char_list s)) in
   let int = many1 digit >>= fun s -> return (int_of_string (String.of_char_list s)) in
   let value () =
     choice
-      [ (u64 >>= fun u -> return (Vu64 u))
+      [ (u64 >>= fun u -> return (Vu(64,u)))
       ; (char '[' >>= fun _ ->
         (sep_by u64 (char ',')) >>= fun vs ->
         char ']' >>= fun _ ->
         let vs = U64.Map.of_alist_exn (List.mapi vs ~f:(fun i v -> (U64.of_int i, v))) in
-        return (Varr(vs))) ]
+        return (Varr(64,vs))) ]
   in
   let pmapping =
     ident >>= fun s -> char '=' >> u64 >>= fun u -> return (Pname.mk s,u)
   in
   let mmapping =
-    u64 >>= fun s -> char '=' >> u64 >>= fun u -> return (s,u)
+    u64 >>= fun s -> char '=' >> u64 >>= fun u -> return (U64.of_big_int s,u)
   in
   let register_num = bracketed int in
   let mappings p mc =
@@ -83,7 +83,9 @@ let ptrafo =
   let fname = bracketed (ident >>= fun s -> return @@ Fname.mk s) in
   let args = bracketed (sep_by (value ()) (char ',')) in
   let pmap = mappings pmapping (fun l -> Pname.Table.of_alist_exn l) in
-  let mmap = mappings mmapping (fun l -> U64.Table.of_alist_exn l) in
+  let mmap = mappings mmapping
+               (fun l -> U64.Table.of_alist_exn (List.map ~f:(fun (a,i) -> a,U64.of_big_int i) l))
+  in
   let interp_args =
     pmap  >>= fun mparam ->
     mmap  >>= fun mmem ->
@@ -162,8 +164,8 @@ let parse_trafo s =
     exit 1
 
 type modules =
-  | U of unit modul
-  | L of LV.t modul
+  | Um of unit modul
+  | Lm of LV.t modul
 
 type map_mod = {
   f : 'a. 'a modul -> 'a modul
@@ -171,8 +173,8 @@ type map_mod = {
 
 let map_module m (mf : map_mod) =
   match m with
-  | L m -> L(mf.f m)
-  | U m -> U(mf.f m)
+  | Lm m -> Lm(mf.f m)
+  | Um m -> Um(mf.f m)
 
 let apply_transform trafos (modul0 : unit modul) =
   let total = ref 0. in
@@ -243,10 +245,10 @@ let apply_transform trafos (modul0 : unit modul) =
       let go m pp = Out_channel.write_all fn ~data:(fsprintf "%a" pp m) in
       let ppm ppi = pp_modul ?pp_info:ppi ~pp_types:ppo.pp_types in
       match m, ppo.pp_info with
-      | U m, true  -> go m (ppm (Some(pp_info_u)))
-      | U m, false -> go m (ppm None)
-      | L m, true  -> go m (ppm (Some(pp_info_lv)))
-      | L m, false -> go m (ppm None)
+      | Um m, true  -> go m (ppm (Some(pp_info_u)))
+      | Um m, false -> go m (ppm None)
+      | Lm m, true  -> go m (ppm (Some(pp_info_lv)))
+      | Lm m, false -> go m (ppm None)
     in
     let print n ppo m =
       let m = map_module m { f = fun m -> filter_fn m ppo.pp_fname } in
@@ -254,14 +256,16 @@ let apply_transform trafos (modul0 : unit modul) =
         F.printf ">> %s:@\n%a@\n@\n" n (pp_modul ?pp_info:ppi ~pp_types:ppo.pp_types) m
       in
       match m, ppo.pp_info with
-      | U m, true  -> go m (Some(pp_info_u))
-      | U m, false -> go m None
-      | L m, true  -> go m (Some(pp_info_lv))
-      | L m, false -> go m None
+      | Um m, true  -> go m (Some(pp_info_u))
+      | Um m, false -> go m None
+      | Lm m, true  -> go m (Some(pp_info_lv))
+      | Lm m, false -> go m None
     in
     let interp fn pmap mmap args m =
       notify "interpreting" fn
-        ~f:(fun () -> IL_Interp.interp_modul m pmap mmap args fn; m)
+        ~f:(fun () ->
+            IL_Interp.interp_modul m pmap mmap args fn;
+            m)
     in
     let array_expand_modul fn m =
       notify "expanding array assignments" fn
@@ -287,15 +291,15 @@ let apply_transform trafos (modul0 : unit modul) =
       notify "adding register liveness information" fn
         ~f:(fun () ->
               match m with
-              | U m -> L (add_liveness_modul (reset_info_modul m) fn)
-              | L m -> L (add_liveness_modul (reset_info_modul m) fn))
+              | Um m -> Lm (add_liveness_modul (reset_info_modul m) fn)
+              | Lm m -> Lm (add_liveness_modul (reset_info_modul m) fn))
     in
     let local_ssa fn m =
       notify "transforming into local SSA form" fn
         ~f:(fun () ->
               match m with
-              | U _ -> assert false
-              | L m -> L (local_ssa_modul m fn))
+              | Um _ -> assert false
+              | Lm m -> Lm (local_ssa_modul m fn))
     in
     let macro_expand fn map m = 
       notify "expanding macros" fn
@@ -331,7 +335,7 @@ let apply_transform trafos (modul0 : unit modul) =
     | Asm(_)                    -> assert false
   in
   let start = Unix.gettimeofday () in 
-  let res = List.fold_left trafos ~init:(U modul0) ~f:app_trafo in
+  let res = List.fold_left trafos ~init:(Um modul0) ~f:app_trafo in
   let stop = Unix.gettimeofday () in
   let d = (stop -. start) *. 1000. in
   F.printf "\ntotal transformation time: %fms\n%!" !total;
@@ -343,5 +347,5 @@ let apply_transform_asm strafo modul =
   let (trafo,mlang) = parse_trafo strafo in
   let modul = apply_transform trafo modul in
   match mlang with
-  | None     -> `IL (match modul with U m -> m | L m -> reset_info_modul m)
+  | None     -> `IL (match modul with Um m -> m | Lm m -> reset_info_modul m)
   | Some X64 -> assert false (* `Asm_X64 (List.map ~f:to_asm_x64 modul) *)

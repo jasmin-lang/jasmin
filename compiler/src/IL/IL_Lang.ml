@@ -68,7 +68,7 @@ type pop_u64 =
 type 'a pexpr_g =
   | Patom of 'a
   | Pbinop of pop_u64 * 'a pexpr_g * 'a pexpr_g
-  | Pconst of u64
+  | Pconst of big_int
   [@@deriving compare,sexp]
 
 
@@ -78,8 +78,8 @@ module Param = struct
  
     and ty =
       | Bool
-      | U64
-      | Arr of dexpr
+      | U of int           (* U(n): unsigned n-bit integer *)
+      | Arr of int * dexpr (* Arr(n,de): array of n-bit integers with dim. de *) 
       | TInvalid
       [@@deriving compare,sexp]
 
@@ -184,8 +184,8 @@ type dest = {
 } [@@deriving compare,sexp]
 
 type src =
-  | Imm of pexpr (* Simm(i): immediate value i            *)
-  | Src of dest  (* Sreg(d): where d destination register *)
+  | Imm of int * pexpr (* Simm(n,i): immediate value n-bit integer value i *)
+  | Src of dest        (* Sreg(d): where d destination register            *)
   [@@deriving compare,sexp]
 
 (* ** Operators and constructs for intermediate language
@@ -317,8 +317,8 @@ type 'info modul = 'info named_func list
  * ------------------------------------------------------------------------ *)
 
 type value =
-  | Vu64 of u64
-  | Varr of u64 U64.Map.t
+  | Vu   of int * big_int
+  | Varr of int * big_int U64.Map.t
   [@@deriving compare,sexp]
 
 (* ** Define Map, Hashtables, and Sets

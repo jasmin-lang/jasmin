@@ -56,17 +56,17 @@ and pp_param ~pp_types fmt p =
 
 and pp_ty ~pp_types fmt ty =
   match ty with
-  | TInvalid -> F.fprintf fmt "invalid"
-  | Bool     -> F.fprintf fmt "bool"
-  | U64      -> F.fprintf fmt "u64"
-  | Arr(dim) -> F.fprintf fmt "u64[%a]" (pp_dexpr ~pp_types) dim
+  | TInvalid   -> F.fprintf fmt "invalid"
+  | Bool       -> F.fprintf fmt "bool"
+  | U(n)       -> F.fprintf fmt "u%i" n
+  | Arr(n,dim) -> F.fprintf fmt "u%i[%a]" n (pp_dexpr ~pp_types) dim
 
 and pp_dexpr ~pp_types fmt ce =
   let ppd = pp_dexpr ~pp_types in
   match ce with
   | Patom(p)           -> pp_param ~pp_types fmt p
   | Pbinop(op,ie1,ie2) -> F.fprintf fmt "%a %s %a" ppd ie1 (string_of_pbinop op) ppd ie2
-  | Pconst(u)          -> pp_string fmt (U64.to_string u)
+  | Pconst(u)          -> pp_string fmt (Big_int.string_of_big_int u)
 
 and pp_var ~pp_types fmt v =
   if pp_types then
@@ -79,7 +79,7 @@ let rec pp_pexpr ~pp_types fmt ce =
   match ce with
   | Patom(pa)          -> pp_patom ~pp_types fmt pa
   | Pbinop(op,ie1,ie2) -> F.fprintf fmt "%a %s %a" ppe ie1 (string_of_pbinop op) ppe ie2
-  | Pconst(u)          -> pp_string fmt (U64.to_string u)
+  | Pconst(u)          -> pp_string fmt (Big_int.string_of_big_int u)
 
 let pp_idx ~pp_types fmt = function
   | Ipexpr(pe) -> pp_pexpr ~pp_types fmt pe
@@ -109,8 +109,9 @@ let rec pp_pcond ~pp_types fmt pc =
   | Pcmp(o,ie1,ie2) -> F.fprintf fmt"(%a %s %a)" ppe ie1 (pcondop_to_string o) ppe ie2
 
 let pp_src ~pp_types fmt = function
-  | Src(d)  -> pp_dest ~pp_types fmt d
-  | Imm(pe) -> pp_pexpr ~pp_types fmt pe
+  | Src(d)              -> pp_dest  ~pp_types fmt d
+  | Imm(i,pe) when i=64 -> F.fprintf fmt "%a" (pp_pexpr ~pp_types) pe
+  | Imm(i,pe)           -> F.fprintf fmt "%au%i" (pp_pexpr ~pp_types) pe i
 
 let pp_fcond ~pp_types fmt fc =
   F.fprintf fmt "%s%a" (if fc.fc_neg then "!" else "") (pp_var ~pp_types) fc.fc_var
@@ -312,17 +313,17 @@ let pp_modul ?pp_info ~pp_types fmt modul =
   pp_list "@\n@\n" (pp_func ?pp_info ~pp_types) fmt modul
 
 let pp_value fmt = function
-  | Vu64 u   ->
-    pp_uint64 fmt u
-  | Varr(vs) ->
-    F.fprintf fmt "[%a]" (pp_list "," (pp_pair "->" pp_uint64 pp_uint64))
+  | Vu(_n,u)   ->
+    pp_big_int fmt u
+  | Varr(_n,vs) ->
+    F.fprintf fmt "[%a]" (pp_list "," (pp_pair "->" pp_uint64 pp_big_int))
       (Map.to_alist vs)
 
 let pp_value_py fmt = function
-  | Vu64 u   ->
-    pp_uint64 fmt u
-  | Varr(vs) ->
-    F.fprintf fmt "[%a]" (pp_list "," pp_uint64) (List.map ~f:snd (Map.to_alist vs))
+  | Vu(_,u)   ->
+    pp_big_int fmt u
+  | Varr(_,vs) ->
+    F.fprintf fmt "[%a]" (pp_list "," pp_big_int) (List.map ~f:snd (Map.to_alist vs))
 
 let pp_set_vn fmt (s : Int.Set.t) =
   let pp_vn fmt (vn : int) =

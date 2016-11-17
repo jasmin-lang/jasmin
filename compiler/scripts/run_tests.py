@@ -137,7 +137,7 @@ def all_tests():
 
     print_sep()
         
-    for fn in [ "%02i"%i for i in range(1,14)]:
+    for fn in [ "%02i"%i for i in range(1,15)]:
         test_ok("tests/compiler/ok/t_%s.mil"%fn)
 
     print_sep()

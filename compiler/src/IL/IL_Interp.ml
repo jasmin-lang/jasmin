@@ -26,10 +26,10 @@ type py_state = {
 }
 
 type 'info mstate =
-  { m_ptable  : u64   Pname.Table.t      (* parameter variables *)
-  ; m_ltable  : value Int.Table.t        (* (function) local variables *)
-  ; m_fltable : bool  Int.Table.t        (* flags *)
-  ; m_mtable  : u64   U64.Table.t        (* memory *)
+  { m_ptable  : big_int Pname.Table.t      (* parameter variables *)
+  ; m_ltable  : value   Int.Table.t        (* (function) local variables *)
+  ; m_fltable : bool    Int.Table.t        (* flags *)
+  ; m_mtable  : u64     U64.Table.t        (* memory *)
   ; m_py      : py_state option          (* state of python interpreter *)
   ; m_ftable  : 'info func Fname.Table.t (* function environment *)
   }
@@ -52,31 +52,31 @@ let print_mstate ms =
 let read_lvar ltable lv idx =
   let v = hashtbl_find_exn ltable pp_int lv.Var.num in
   match v, idx with
-  | Vu64(u), None   -> Vu64(u)
-  | Varr(vs),Some i -> Vu64(map_find_exn vs pp_uint64 i)
-  | Varr(vs),None   -> Varr(vs)
-  | Vu64(_), _ ->
+  | Vu(n,u), None     -> Vu(n,u)
+  | Varr(n,vs),Some i -> Vu(n,map_find_exn vs pp_uint64 i)
+  | Varr(n,vs),None   -> Varr(n,vs)
+  | Vu(_,_), _ ->
     failwith_ "read_lvar: expected array, got u64 in %a[%a]"
       Var.pp lv (pp_opt "," pp_uint64) idx
 
 let read_src_val ptable ltable (s : src) =
   match s with
-  | Imm pe -> Vu64(eval_pexpr_exn ptable ltable pe)
+  | Imm(i,pe) -> Vu(i,eval_pexpr_exn ptable ltable pe)
   | Src(d) ->
     let oidx = match d.d_idx with
       | None             -> None
-      | Some(Ipexpr(pe)) -> Some(eval_pexpr_exn ptable ltable pe)
+      | Some(Ipexpr(pe)) -> Some(U64.of_big_int @@ eval_pexpr_exn ptable ltable pe)
       | Some(Ivar(v))    ->
         begin match read_lvar ltable v None with
-        | Vu64(u) -> Some(u)
-        | _       -> assert false
+        | Vu(64,u) -> Some(U64.of_big_int u)
+        | _        -> assert false
         end
     in
     read_lvar ltable d.d_var oidx
 
 let read_src_ pmap lmap (s : src) =
   match read_src_val pmap lmap s with
-  | Vu64(u) -> u
+  | Vu(_,u) -> u
   | Varr(_) ->
     failwith_ "read_src: expected u64, got array for %a"
       pp_src_nt s
@@ -94,13 +94,15 @@ let read_flag ms s =
 
 let write_lvar ov s oidx v =
   match ov, oidx, v with
-  | _,             None   , _       -> v
-  | None,          Some(i), Vu64(u) -> Varr(U64.Map.singleton i u)
-  | Some(Varr(vs)),Some(i), Vu64(u) -> Varr(Map.add vs ~key:i ~data:u)
-  | _,             Some(_), Varr(_) ->
+  | _,               None   , _        -> v
+  | None,            Some(i), Vu(n,u)  -> Varr(n,U64.Map.singleton i u)
+  | Some(Varr(n,vs)),Some(i), Vu(m,u)  ->
+    assert(n = m);
+    Varr(n,Map.add vs ~key:i ~data:u)
+  | _,               Some(_), Varr(_)  ->
     failloc_ s.Var.uloc "write_lvar: cannot write array to %a[%a]"
       Var.pp s (pp_opt "_" pp_uint64) oidx
-  | Some(Vu64(_)), Some(_), _ ->
+  | Some(Vu(_)), Some(_), _ ->
     failloc_ s.Var.uloc "write_lvar: expected array, got u64 in %a[%a]"
       Var.pp s (pp_opt "_" pp_uint64) oidx
 
@@ -109,7 +111,7 @@ let write_dest_ ptable ltable d v =
   let ov   = HT.find ltable s.Var.num in
   let oidx = match d.d_idx with
     | None             -> None
-    | Some(Ipexpr(pe)) -> Some(eval_pexpr_exn ptable ltable pe)
+    | Some(Ipexpr(pe)) -> Some(U64.of_big_int @@ eval_pexpr_exn ptable ltable pe)
     | Some(Ivar(_))    -> failwith "not implemented"
   in
   (* F.printf "###: write value %a -> %a\n%!" pp_dest_nt d pp_value v; *)
@@ -120,7 +122,7 @@ let write_dest_ ptable ltable d v =
 let write_dest ms d x =
   write_dest_ ms.m_ptable ms.m_ltable d x
 
-let write_dest_u64 ms d u = write_dest ms d (Vu64(u))
+let write_dest_u64 ms d u = write_dest ms d (Vu(64,u))
 
 let write_flag ms d b =
   match d.d_idx with
@@ -180,13 +182,15 @@ let eval_py ms cmd =
 let is_Simm = function Imm _ -> true | _ -> false
 
 let interp_op (ms : 'info mstate) o ds ss =
+  let to_bi = U64.to_big_int in
+  let of_bi = U64.of_big_int in
   match view_op o ds ss with
   | V_Umul(h,z,x,y) ->
     let x = read_src ms x in
     let y = read_src ms y in
-    let (zh,zl) = U64.umul x y in
-    write_dest_u64 ms z zl;
-    write_dest_u64 ms h zh
+    let (zh,zl) = U64.umul (of_bi x) (of_bi y) in
+    write_dest_u64 ms z (to_bi zl);
+    write_dest_u64 ms h (to_bi zh)
 
   | V_Carry(cop,mcf_out,z,x,y,mcf_in) ->
     let cf =
@@ -196,10 +200,10 @@ let interp_op (ms : 'info mstate) o ds ss =
     let y = read_src ms y in
     let (zo,cfo) =
       match cop with
-      | O_Add -> U64.add_carry x y cf
-      | O_Sub -> U64.sub_carry x y cf
+      | O_Add -> U64.add_carry (of_bi x) (of_bi y) cf
+      | O_Sub -> U64.sub_carry (of_bi x) (of_bi y) cf
     in
-    write_dest_u64 ms z zo;
+    write_dest_u64 ms z (to_bi zo);
     begin match mcf_out with
     | Some cf_out -> write_flag ms cf_out cfo
     | None        -> ()
@@ -217,7 +221,7 @@ let interp_op (ms : 'info mstate) o ds ss =
       (* failwith_ "expected immediate value for %a in IMul" pp_src_nt y; *)
     let x = read_src ms x in
     let y = read_src ms y in
-    write_dest_u64 ms z (fst (U64.imul_trunc x y))
+    write_dest_u64 ms z (to_bi @@ fst (U64.imul_trunc (of_bi x) (of_bi y)))
     
   | V_ThreeOp(O_Xor | O_And | O_Or as o,z,x,y) ->
     let x = read_src ms x in
@@ -229,7 +233,7 @@ let interp_op (ms : 'info mstate) o ds ss =
       | O_Or  -> U64.logor
       | _     -> failwith "impossible"
     in
-    write_dest_u64 ms z (f_op x y)
+    write_dest_u64 ms z (to_bi @@ f_op (of_bi x) (of_bi y))
 
   | V_Shift(dir,None,z,x,y) ->
     (* if not (is_Simm y) then
@@ -237,7 +241,7 @@ let interp_op (ms : 'info mstate) o ds ss =
     let x = read_src ms x in
     let y = read_src ms y in
     let op = match dir with Left -> U64.shift_left | Right -> U64.shift_right in
-    write_dest_u64 ms z (op x (U64.to_int y))
+    write_dest_u64 ms z (to_bi @@ op (of_bi x) (U64.to_int (of_bi y)))
 
   | V_Shift(_dir,Some(_),_,_,_) ->
     failwith "not implemented yet"
@@ -266,6 +270,8 @@ let interp_assign ptable ltable ds ss =
   List.iter vs_ds ~f:(fun (v,d) -> write_dest_ ptable ltable d v)
 
 let rec interp_base_instr ms lbinstr =
+  let to_bi = U64.to_big_int in
+  let of_bi = U64.of_big_int in
   let ptable = ms.m_ptable in
   match lbinstr.L.l_val with
   | Comment(_) -> ()
@@ -277,17 +283,17 @@ let rec interp_base_instr ms lbinstr =
   | Assgn(d,s,_) ->
     interp_assign ptable ms.m_ltable [d] [s]
 
-  | Load(d,s,pe) ->
+  | Load(d,s,pe) -> (* FIXME: we should be able to load different sizes *)
     let ptr = read_src ms s in
     let c = eval_pexpr_exn ptable ms.m_ltable pe in
-    let v = hashtbl_find_exn ms.m_mtable pp_uint64 (U64.add c ptr) in
-    write_dest ms d (Vu64 v)
+    let v = hashtbl_find_exn ms.m_mtable pp_uint64 (U64.add (of_bi c) (of_bi ptr)) in
+    write_dest ms d (Vu(64,to_bi v))
 
   | Store(s1,pe,s2) ->
     let v = read_src ms s2 in
     let ptr = read_src ms s1 in
     let c = eval_pexpr_exn ptable ms.m_ltable pe in
-    HT.set ms.m_mtable ~key:(U64.add ptr c) ~data:v
+    HT.set ms.m_mtable ~key:(U64.add (of_bi ptr) (of_bi c)) ~data:(of_bi v)
 
 and interp_instr ms linstr =
   (* F.printf "\ninstr: %a\n%!" pp_instr instr;
@@ -317,27 +323,28 @@ and interp_instr ms linstr =
     )
   
   | For(cv,clb,cub,s,_) ->
+    let cmp = Big_int.compare_big_int in
     let lb = eval_pexpr_exn ptable ms.m_ltable clb in
     let ub = eval_pexpr_exn ptable ms.m_ltable cub in
     let (initial, test, change) =
-      if U64.compare lb ub < 0
+      if Big_int.compare_big_int lb ub < 0
       then (
-        (lb, (fun i -> U64.compare i ub < 0), U64.succ)
+        (lb, (fun i -> cmp i ub < 0), Big_int.succ_big_int)
       ) else ( (* 64 .. 0 -> 63,62,..,0 *)
-        assert (U64.compare U64.zero lb < 0);
-        (U64.pred lb, (fun i -> U64.compare i ub >= 0 && U64.compare i lb <= 0 )
-        , U64.pred)
+        assert (cmp Big_int.zero_big_int lb < 0);
+        (Big_int.pred_big_int lb, (fun i -> cmp i ub >= 0 && cmp i lb <= 0 )
+        , Big_int.pred_big_int)
       )
     in
     let update i =
-      HT.set ms.m_ltable ~key:cv.d_var.Var.num ~data:(Vu64 i)
+      HT.set ms.m_ltable ~key:cv.d_var.Var.num ~data:(Vu(64,i))
     in
     let old_val = HT.find ms.m_ltable cv.d_var.Var.num in
     let i = ref initial in
     while test !i do
       if false then (
         F.printf "\nfor %a=%a in %a..%a\n%!"
-          pp_dest_nt cv pp_uint64 !i pp_uint64 lb pp_uint64 ub);
+          pp_dest_nt cv pp_big_int !i pp_big_int lb pp_big_int ub);
       update !i;
       interp_stmt ms s;
       i := change !i;
@@ -361,7 +368,7 @@ and interp_call_python ms py_code call_rets call_args =
   let s_params =
     fsprintf "{%a}" (pp_list "," pp_string)
       (List.map (HT.to_alist ms.m_ptable)
-        ~f:(fun (pn,v) -> fsprintf "'%a' : %a" Pname.pp pn pp_uint64 v))
+        ~f:(fun (pn,v) -> fsprintf "'%a' : %a" Pname.pp pn pp_big_int v))
   in
   let vs = List.map call_args ~f:(fun s -> read_src_val ptable ltable s) in
   let s_args = List.map vs ~f:(fun v -> fsprintf "%a" pp_value_py v) in    
@@ -396,7 +403,6 @@ and interp_call_native ms fd call_rets call_args =
   let vs = List.map fd.f_ret ~f:(fun v -> read_src_val ptable ltable (Src(mkd v))) in
   List.iter2_exn call_rets vs ~f:(fun d v -> write_dest ms d v)
 
-
 and interp_stmt (ms : 'info mstate) stmt =
   List.iter stmt
     ~f:(fun li -> interp_instr ms li)
@@ -405,7 +411,7 @@ and interp_stmt (ms : 'info mstate) stmt =
  * ------------------------------------------------------------------------ *)
 
 let interp_modul
-  (modul : 'info modul) (ptable : u64 Pname.Table.t) (mtable : u64 U64.Table.t)
+  (modul : 'info modul) (ptable : big_int Pname.Table.t) (mtable : u64 U64.Table.t)
   (_args : value list) (fname : Fname.t)
   =
   let modul = renumber_vars_modul_all UniqueNumModule modul in

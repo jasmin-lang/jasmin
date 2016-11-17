@@ -27,7 +27,12 @@ rule lex = parse
 
   | ":"     { COLON }
 
-  | "u64"   { T_U64 }
+  | "u8"    { T_U8  }
+  | "u16"   { T_U16  }
+  | "u32"   { T_U32  }
+  | "u64"   { T_U64  }
+  | "u128"  { T_U128 }
+  | "u256"  { T_U256 }
   | "bool"  { T_BOOL }
 
   | "="     { EQ }

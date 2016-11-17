@@ -17,10 +17,12 @@ module IT  = IL_Typing
 (* ** Interpreting compile-time expressions and conditions
  * ------------------------------------------------------------------------ *)
 
-let eval_pbinop = function
-  | Pplus  -> U64.add
-  | Pmult  -> U64.mul
-  | Pminus -> U64.sub
+let eval_pbinop op =
+  let open Big_int_Infix in
+  match op with
+  | Pplus  -> fun x y -> x +! y
+  | Pmult  -> fun x y -> x *! y
+  | Pminus -> fun x y -> x -! y
 
 let eval_pexpr ptable ltable ce =
   let rec go = function
@@ -40,7 +42,7 @@ let eval_pexpr ptable ltable ce =
       end
     | Patom(Pvar(v)) ->
       begin match HT.find ltable v.Var.num with
-      | Some (Vu64 x) -> Ok x
+      | Some (Vu(n,x)) -> Ok(mod_pow_two x n)
       | Some (_) ->
         Error (fsprintf "eval_pexpr: variable %a of wrong type" Var.pp v)
       | None ->
@@ -50,13 +52,14 @@ let eval_pexpr ptable ltable ce =
   go ce
 
 let eval_pcondop pc = fun x y ->
+  let open Big_int_Infix in
   match pc with
-  | Peq      -> U64.equal x y
-  | Pineq    -> not (U64.equal x y)
-  | Pless    -> U64.compare x y < 0
-  | Pgreater -> U64.compare x y > 0
-  | Pleq     -> U64.compare x y <= 0
-  | Pgeq     -> U64.compare x y >= 0
+  | Peq      -> x === y
+  | Pineq    -> not (x === y)
+  | Pless    -> Big_int.compare_big_int x y < 0
+  | Pgreater -> Big_int.compare_big_int x y > 0
+  | Pleq     -> Big_int.compare_big_int x y <= 0
+  | Pgeq     -> Big_int.compare_big_int x y >= 0
 
 let eval_pcond ptable ltable cc =
   let rec go = function
@@ -243,9 +246,9 @@ let peval_patom ptable ltable pa =
   | Pparam(p)     -> peval_param ptable ltable p
   | Pvar(v) as pv ->
     begin match HT.find ltable v.Var.num with
-    | Some (Vu64 x) -> Pconst(x)
-    | None          -> Patom(pv)
-    | Some(_)       ->
+    | Some (Vu(_,x)) -> Pconst(x)
+    | None           -> Patom(pv)
+    | Some(_)        ->
       failwith_ "peval_pexpr: variable %a of wrong type" Var.pp v
     end
 
@@ -398,20 +401,20 @@ Assumes that there are no function calls in the macro-expanded function.
 
 let inst_ty ptable ltable ty =
   match ty with
-  | TInvalid -> assert false
-  | Bool     -> Bool
-  | U64      -> U64
-  | Arr(dim) -> Arr(peval_dexpr ptable ltable dim)
+  | TInvalid   -> assert false
+  | Bool       -> Bool
+  | U(i)       -> U(i)
+  | Arr(i,dim) -> Arr(i,peval_dexpr ptable ltable dim)
 
 let inst_var ltable v ~default ~f =
   match HT.find ltable v.Var.num with
   | None          -> default
-  | Some(Vu64(u)) -> f @@ Pconst(u)
+  | Some(Vu(n,u)) -> f n @@ Pconst(u)
   | Some(_)       -> assert false
 
 let inst_idx ptable ltable idx =
   match idx with
-  | Ivar(v)    -> inst_var ltable v ~default:idx ~f:(fun pe -> Ipexpr pe)
+  | Ivar(v)    -> inst_var ltable v ~default:idx ~f:(fun _ pe -> Ipexpr pe)
   | Ipexpr(pe) -> Ipexpr(peval_pexpr ptable ltable pe)
 
 let inst_dest ptable ltable d =
@@ -419,13 +422,13 @@ let inst_dest ptable ltable d =
     d_idx = Option.map ~f:(inst_idx ptable ltable) d.d_idx }
 
 let inst_src ptable ltable = function
-  | Imm(pe) -> Imm(peval_pexpr ptable ltable pe)
-  | Src(d)  ->
+  | Imm(i,pe) -> Imm(i,peval_pexpr ptable ltable pe)
+  | Src(d)    ->
     let s = Src(inst_dest ptable ltable d) in
     if d.d_idx<>None then (
       s
     ) else (
-      inst_var ltable d.d_var ~default:s ~f:(fun pe -> Imm(pe))
+      inst_var ltable d.d_var ~default:s ~f:(fun n pe -> Imm(n,pe))
     )
 
 let inst_base_instr ptable ltable lbi =
@@ -467,18 +470,18 @@ let rec macro_expand_instr ptable ltable linstr =
   | For(iv,lb_ie,ub_ie,s,_) ->
     let lb  = eval_pexpr_exn ptable ltable lb_ie in
     let ub  = eval_pexpr_exn ptable ltable ub_ie in
-    assert (U64.compare lb ub <= 0);
+    assert (Big_int.compare_big_int lb ub <= 0);
     assert (iv.d_idx=None);
     (* info s; *)
     let i_num = iv.d_var.Var.num in
     let res = ref [] in
     let ctr = ref lb in
     let old_val = HT.find ltable i_num in
-    while (U64.compare !ctr ub < 0) do
-      HT.set ltable ~key:i_num ~data:(Vu64 !ctr);
+    while (Big_int.compare_big_int !ctr ub < 0) do
+      HT.set ltable ~key:i_num ~data:(Vu(64,!ctr));
       let s = me_s s in
       res := s::!res;
-      ctr := U64.succ !ctr
+      ctr := Big_int.succ_big_int !ctr
     done;
     HT.change ltable i_num ~f:(fun _ -> old_val);
     List.concat @@ List.rev !res
@@ -532,14 +535,14 @@ let array_assign_expand_basic_instr lbi =
     let td = d.d_var.Var.ty in
     let ts = s.d_var.Var.ty in
     begin match d.d_idx, s.d_idx, td, ts with
-    | None, None, Arr(Pconst(ub1)), Arr(Pconst(ub2)) ->
-      assert (U64.equal ub1 ub2);
+    | None, None, Arr(i,Pconst(ub1)), Arr(j,Pconst(ub2)) ->
+      assert (Big_int.eq_big_int ub1 ub2 && i = j);
       let mk_assgn i =
         let d = {d with d_idx = Some(Ipexpr(Pconst(i))) } in
         let s = Src({s with d_idx = Some(Ipexpr(Pconst(i))) }) in
         { lbi with L.l_val = Assgn(d,s,t) }
       in
-      List.map ~f:mk_assgn (list_from_to ~first:U64.zero ~last:ub1)
+      List.map ~f:mk_assgn (list_from_to_big_int ~first:Big_int.zero_big_int ~last:ub1)
     | _ -> [lbi]
     end
   | _ -> [lbi]
@@ -566,8 +569,8 @@ and that all inline-loops and ifs have been expanded.
 
 let array_expand_fundef fd =
   (* check that args and ret do not contain arrays, var numbers are unique *)
-  List.iter fd.f_ret ~f:(fun v -> assert (v.Var.ty=U64));
-  List.iter fd.f_arg ~f:(fun v -> assert (v.Var.ty=U64));
+  List.iter fd.f_ret ~f:(fun v -> assert (v.Var.ty=U(64)));
+  List.iter fd.f_arg ~f:(fun v -> assert (v.Var.ty=U(64)));
   vars_num_unique_fundef fd;
 
   let ctr = ref (succ (max_var_fundef fd)) in
@@ -591,8 +594,8 @@ let array_expand_fundef fd =
       if (not (HT.mem non_const_table n) &&
           not (HT.mem const_table n)) then (
         let a_size = match d.d_var.Var.ty with
-          | Arr(Pconst(u)) -> U64.to_int u
-          | _              -> assert false
+          | Arr(_,Pconst(u)) -> Big_int.int_of_big_int u
+          | _                -> assert false
         in
         HT.set const_table ~key:n ~data:!ctr;
         ctr := !ctr + a_size
@@ -607,11 +610,11 @@ let array_expand_fundef fd =
       let n = d.d_var.Var.num in
       begin match HT.find const_table n with
       | Some(base) ->
-        let i = U64.to_int i in
+        let i = Big_int.int_of_big_int i in
         let v = d.d_var in
         { d with
           d_idx = None;
-          d_var = { v with Var.num = base + i; Var.ty = U64 }; }
+          d_var = { v with Var.num = base + i; Var.ty = U(64) }; }
       | None -> d
       end
     | _ -> d)

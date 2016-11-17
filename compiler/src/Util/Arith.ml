@@ -20,6 +20,16 @@ let sample_bigint_insecure p =
     )
   in mod_big_int (go ~pos:0 ~rem:p ~res:(big_int_of_int 0)) p
 
+type big_int = Big_int.big_int
+
+let big_int_of_sexp _bi =
+  failwith "big_int_of_sexp: undefined"
+
+let sexp_of_big_int _bi =
+  failwith "sexp_of_big_int: undefined"
+
+let compare_big_int = Big_int.compare_big_int
+
 module Big_int_Infix = struct
   include Big_int
   let (+!)  = add_big_int
@@ -31,7 +41,10 @@ module Big_int_Infix = struct
   let (<!<) x i = shift_left_big_int x i
   let (===) = eq_big_int
   let (<!)  = lt_big_int
+  let (%!)  = mod_big_int
 end
+
+let mod_pow_two n m = Big_int.(mod_big_int n (power_int_positive_int 2 m))
 
 module U64 = struct
   open Unsigned
@@ -129,6 +142,17 @@ let list_from_to ~first ~last =
   let rec go i acc =
     if U64.compare i last < 0 then
       go (U64.succ i) (i::acc)
+    else
+      List.rev acc
+  in
+  go first []
+
+(* list containing [first..last) excluding last *)
+let list_from_to_big_int ~first ~last =
+  assert (Big_int.compare_big_int first last < 0);
+  let rec go i acc =
+    if Big_int.compare_big_int i last < 0 then
+      go (Big_int.succ_big_int i) (i::acc)
     else
       List.rev acc
   in

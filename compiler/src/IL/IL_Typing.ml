@@ -6,7 +6,6 @@ open IL_Pprint
 open IL_Utils
 open IL_Iter
 open Util
-open Arith
 open Core_kernel.Std
 
 module P = ParserUtil
@@ -35,13 +34,13 @@ let type_error l s = failloc l s
 
 let equiv_ty ty1 ty2 =
   match ty1, ty2 with
-  | Bool,    Bool    -> true
-  | U64    , U64     -> true
-  | Arr(d1), Arr(d2) -> equal_dexpr d1 d2
-  | _,       _       -> false
+  | Bool,    Bool        -> true
+  | U(i)   , U(j)        -> i = j
+  | Arr(i,d1), Arr(j,d2) -> i = j && equal_dexpr d1 d2
+  | _,       _           -> false
 
 let get_dim (dim : pexpr) (lb_o,ub_o) =
-  let zero = Pconst U64.zero in
+  let zero = Pconst Big_int.zero_big_int in
   let lb = get_opt zero lb_o in
   let ub = get_opt dim ub_o in
   if equal_pexpr lb zero
@@ -54,15 +53,15 @@ let get_dim (dim : pexpr) (lb_o,ub_o) =
 let type_dest_app d ty =
   match ty with
   | TInvalid -> assert false
-  | Bool | U64 ->
+  | Bool | U(_) ->
     if None<>d.d_idx then
       type_error_ d.d_loc "register has type %a, cannot access array element"
         pp_ty_nt ty;
     ty
-  | Arr(_dim) as ty ->
+  | Arr(i,_dim) as ty ->
     begin match d.d_idx with
     | None -> ty
-    | _    -> U64
+    | _    -> U(i)
     end
 
 (* Same as [type_dest_app] except that it looks up the type from [tenv] *)
@@ -80,13 +79,13 @@ let typecheck_dest d ty_exp =
 
 (* Takes source and computes its type (see [type_dest]) *)
 let type_src = function
-  | Imm(_) -> U64
-  | Src(d) -> type_dest d
+  | Imm(n,_) -> U(n)
+  | Src(d)   -> type_dest d
 
 (* Same as [type_dest] except that it asserts that type is equal to [ty_exp] *)
 let typecheck_src s ty_exp =
   match s with
-  | Imm(_) -> if not (equal_ty ty_exp (U64)) then assert false
+  | Imm(_) -> if not (equal_ty ty_exp (U(64))) then assert false
   | Src(d) -> typecheck_dest d ty_exp
 
 let type_var_eq v ty os =
@@ -116,7 +115,8 @@ let type_src_eq src ty_exp =
   match src, ty_exp with
   | _    ,  TInvalid -> assert false
   | Imm _,  Bool     -> failwith "got u64, expected bool"
-  | Imm _,  U64      -> ()
+  | Imm _,  U(64)    -> ()
+  | Imm _,  U(i)     -> failwith_ "got u64, expected u%i" i
   | Imm _,  Arr(_)   -> failwith "got u64, expected u64[..]"
   | Src(d), t        -> typecheck_dest d t
 
@@ -129,33 +129,33 @@ let typecheck_op op ds ss =
   match view_op op ds ss with
 
   | V_Umul(h,l,x,y) ->
-    type_src_eq  x U64;
-    type_src_eq  y U64;
-    type_dest_eq l U64;
-    type_dest_eq h U64
+    type_src_eq  x (U(64));
+    type_src_eq  y (U(64));
+    type_dest_eq l (U(64));
+    type_dest_eq h (U(64))
 
   | V_Carry(_,mcf_out,z,x,y,mcf_in) ->
-    type_src_eq  x U64;
-    type_src_eq  y U64;
-    type_dest_eq z U64;
+    type_src_eq  x (U(64));
+    type_src_eq  y (U(64));
+    type_dest_eq z (U(64));
     Option.iter ~f:(fun s -> type_src_eq  s Bool) mcf_in;
     Option.iter ~f:(fun d -> type_dest_eq d Bool) mcf_out
 
   | V_Cmov(_,z,x,y,cf) ->
-    type_src_eq  x     U64;
-    type_src_eq  y     U64;
+    type_src_eq  x     (U(64));
+    type_src_eq  y     (U(64));
     type_src_eq  cf    Bool;
-    type_dest_eq z     U64
+    type_dest_eq z     (U(64))
 
   | V_ThreeOp(_,z,x,y) ->
-    type_src_eq  x U64;
-    type_src_eq  y U64;
-    type_dest_eq z U64
+    type_src_eq  x (U(64));
+    type_src_eq  y (U(64));
+    type_dest_eq z (U(64))
 
   | V_Shift(_dir,mcf_out,z,x,y) ->
-    type_src_eq  x U64;
-    type_src_eq  y U64;
-    type_dest_eq z U64;
+    type_src_eq  x (U(64));
+    type_src_eq  y (U(64));
+    type_dest_eq z (U(64));
     Option.iter ~f:(fun s -> type_dest_eq s Bool) mcf_out
 
 let typecheck_fcond fc =
@@ -172,8 +172,8 @@ let typecheck_base_instr ftable lbinstr =
   | Comment _           -> ()
   | Op(op,ds,ss)        -> tc_op op ds ss
   | Assgn(d,s,_)        -> tc_assgn d s d.d_loc
-  | Load(d,s,_pe)       -> type_src_eq  s U64; typecheck_dest d U64
-  | Store(s1,_pe,s2)    -> type_src_eq s1 U64; type_src_eq s2 U64
+  | Load(d,s,_pe)       -> type_src_eq  s (U(64)); typecheck_dest d (U(64))
+  | Store(s1,_pe,s2)    -> type_src_eq s1 (U(64)); type_src_eq s2 (U(64))
   | Call(fname,ret,arg) ->
     let loc = lbinstr.L.l_loc in
     let arg_ty, ret_ty =
@@ -211,7 +211,7 @@ let rec typecheck_instr ftable instr =
   match instr.L.l_val with
   | Block(bis,_)        -> List.iter ~f:tc_bi bis
   | If(c,stmt1,stmt2,_) -> tc_cond c; tc_stmt stmt1; tc_stmt stmt2
-  | For(pv,_,_,stmt,_)  -> assert(pv.d_idx=None); tc_dest pv U64; tc_stmt stmt
+  | For(pv,_,_,stmt,_)  -> assert(pv.d_idx=None); tc_dest pv (U(64)); tc_stmt stmt
   | While(_wt,fc,s,_)   -> tc_fcond fc; tc_stmt s
 
 and typecheck_stmt ftable stmt =

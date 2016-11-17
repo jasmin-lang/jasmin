@@ -98,11 +98,11 @@ type op =
 
 let mk_sto_ty (sto,ty) l =
   begin match sto,ty with
-  | Inline, U64 -> ()
-  | Inline, _   -> add_err l  "storage inline only allowed for type u64"
-  | Reg, Bool   -> ()
-  | _,   Bool   -> add_err l  "type bool must have storage reg (register flags)"
-  | _           -> ()
+  | Inline, U(64) -> ()
+  | Inline, _     -> add_err l  "storage inline only allowed for type u64"
+  | Reg, Bool     -> ()
+  | _,   Bool     -> add_err l  "type bool must have storage reg (register flags)"
+  | _             -> ()
   end;
   (sto,ty)
 
@@ -196,7 +196,7 @@ let mk_func loc name ret_ty ext args def =
                     (l,           "<-- return storage declared here");
                     (v.Var.dloc,  "<-- variable declared here")
                    ];
-        if v.Var.ty<>TInvalid && v.Var.ty<>t then
+        if not (equal_ty v.Var.ty TInvalid) && not (equal_ty v.Var.ty t) then
           add_errs [(v.Var.uloc, fsprintf "return type for %a wrong" Var.pp v);
                     (l,           "<-- return type declared here");
                     (v.Var.dloc,  "<-- variable declared here")]

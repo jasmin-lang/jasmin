@@ -2,6 +2,7 @@
 (* ** Imports and abbreviations *)
 open Core_kernel.Std
 open IL_Lang
+open IL_Utils
 open Util
 
 module L = ParserUtil.Lexing
@@ -45,8 +46,8 @@ let rec iter_vars_pcond ~fvar pc =
   | Pcmp(_,ce1,ce2) -> ivpe ce1; ivpe ce2
 
 let iter_vars_src ~fvar = function
-  | Imm pe -> iter_vars_pexpr ~fvar pe
-  | Src d  -> iter_vars_dest  ~fvar d
+  | Imm(_,pe) -> iter_vars_pexpr ~fvar pe
+  | Src d     -> iter_vars_dest  ~fvar d
 
 let iter_vars_fcond ~fvar fc =
   fvar fc.fc_var
@@ -142,7 +143,7 @@ let vars_num_unique_fundef fd =
     | None ->
       HT.set ntable ~key:v.Var.num ~data:(Var.(v.name,v.ty,v.stor,v.uloc))
     | Some(n,t,s,l) ->
-      if (n<>v.Var.name || s<>v.Var.stor || t<>v.Var.ty) then
+      if (n<>v.Var.name || s<>v.Var.stor || not (equal_ty t v.Var.ty)) then
           P.failparse_l [(l, "same number used for different variables,\n"^
                              "  this is not allowed for some transformations");
                          (v.Var.uloc, fsprintf "<-- also used here")]
@@ -159,7 +160,7 @@ let vars_type_consistent_fundef fd =
     | None ->
       HT.set ntable ~key:nn ~data:(Var.(v.ty,v.stor,v.uloc))
     | Some(t,s,l) ->
-      if (s<>v.Var.stor || t<>v.Var.ty) then
+      if (s<>v.Var.stor || not (equal_ty t v.Var.ty)) then
           P.failparse_l [(l, "inconsistent type for same variable");
                          (v.Var.uloc, fsprintf "<-- also occurs here")]
       else
@@ -198,9 +199,9 @@ let iter_params_patom  ~fparam = function
   | Pvar(_)   -> ()
 
 let iter_params_ty ~fparam = function
-  | TInvalid   -> assert false
-  | Bool | U64 -> ()
-  | Arr(dim)   -> iter_params_dexpr ~fparam dim
+  | TInvalid    -> assert false
+  | Bool | U(_) -> ()
+  | Arr(_,dim)  -> iter_params_dexpr ~fparam dim
 
 let iter_params_var ~fparam v =
   iter_params_ty ~fparam v.Var.ty
@@ -226,8 +227,8 @@ let iter_params_dest ~fparam d =
   iter_params_var ~fparam d.d_var
 
 let iter_params_src ~fparam = function
-  | Imm pe -> iter_params_pexpr ~fparam pe
-  | Src d  -> iter_params_dest ~fparam d
+  | Imm(_,pe) -> iter_params_pexpr ~fparam pe
+  | Src(d)    -> iter_params_dest ~fparam d
 
 let iter_params_pcond_or_fcond ~fparam = function
   | Fcond(_)  -> ()

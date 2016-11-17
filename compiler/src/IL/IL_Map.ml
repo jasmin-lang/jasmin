@@ -104,8 +104,8 @@ let rec map_vars_pcond ~f pc =
   | Pcmp(o,pe1,pe2) -> Pcmp(o,mvpe pe1, mvpe pe2)
 
 let map_vars_src ~f = function
-  | Imm(pe) -> Imm(map_vars_pexpr ~f pe)
-  | Src(d)  -> Src(map_vars_dest ~f d)
+  | Imm(i,pe) -> Imm(i,map_vars_pexpr ~f pe)
+  | Src(d)    -> Src(map_vars_dest ~f d)
 
 let map_vars_fcond ~f fc =
   { fc with fc_var = f fc.fc_var }
@@ -207,8 +207,8 @@ and map_params_var ~f v =
 
 and map_params_ty ~f ty =
   match ty with
-  | TInvalid | Bool | U64 -> ty
-  | Arr(dim)              -> Arr(map_params_dexpr ~f dim)
+  | TInvalid | Bool | U(_) -> ty
+  | Arr(n,dim)             -> Arr(n,map_params_dexpr ~f dim)
 
 and map_params_dexpr ~f de =
   let mvp = map_params_dexpr ~f in
@@ -226,10 +226,9 @@ let rec map_params_pcond ~f pc =
   | Pand(pc1,pc2)   -> Pand(mvpc pc1, mvpc pc2)
   | Pcmp(o,pe1,pe2) -> Pcmp(o,mvpe pe1, mvpe pe2)
 
-let map_params_src ~f =
-  function
-  | Imm(pe) -> Imm(map_params_pexpr ~f pe)
-  | Src(d)  -> Src(map_params_dest ~f d)
+let map_params_src ~f = function
+  | Imm(i,pe) -> Imm(i,map_params_pexpr ~f pe)
+  | Src(d)    -> Src(map_params_dest ~f d)
 
 let map_params_fcond_or_pcond ~f = function
   | Fcond(fc) -> Fcond(fc)
@@ -333,8 +332,8 @@ and map_tys_var ~f:(f : ty -> ty) v =
 
 and map_tys_ty ~f:(f : ty -> ty) ty =
   match ty with
-  | TInvalid | Bool | U64 -> f ty
-  | Arr(dim)              -> f (Arr(map_tys_dexpr ~f dim))
+  | TInvalid | Bool | U(_) -> f ty
+  | Arr(n,dim)             -> f (Arr(n,map_tys_dexpr ~f dim))
 
 and map_tys_dexpr ~f:(f : ty -> ty) de =
   let mtd = map_tys_dexpr ~f in
@@ -354,8 +353,8 @@ let rec map_tys_pcond ~f:(f : ty -> ty) pc =
   | Pcmp(o,pe1,pe2) -> Pcmp(o,mvpe pe1, mvpe pe2)
 
 let map_tys_src ~f:(f : ty -> ty) = function
-  | Imm(pe) -> Imm(map_tys_pexpr ~f pe)
-  | Src(d)  -> Src(map_tys_dest ~f d)
+  | Imm(i,pe) -> Imm(i,map_tys_pexpr ~f pe)
+  | Src(d)    -> Src(map_tys_dest ~f d)
 
 let map_tys_fcond ~f fc =
   { fc with fc_var = map_tys_var ~f fc.fc_var }
@@ -432,8 +431,8 @@ let map_tys_modul_all ~f:(f : ty -> ty) modul =
  * ------------------------------------------------------------------------ *)
     
 let map_dests_src ~f = function
-  | Imm(pe) -> Imm(pe)
-  | Src(d)  -> Src(f d)
+  | Imm(i,pe) -> Imm(i,pe)
+  | Src(d)    -> Src(f d)
 
 let map_dests_base_instr ~f lbi =
   let mvds = List.map ~f in
