@@ -133,11 +133,13 @@ let write_flag ms d b =
 (* *** Interact with python interpreter
  * ------------------------------------------------------------------------ *)
 
+(*
 let sage_dir =
   try
     Sys.getenv "SAGE_DIR"
   with Not_found ->
     failwith "Set environment variable SAGE_DIR to sage directory (containing bin/sage)"
+*)
 
 (* let py_cmd = sage_dir^"/bin/sage -python -i" *)
 let py_cmd = "/usr/bin/python -i"
