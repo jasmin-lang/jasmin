@@ -25,6 +25,7 @@ let eval_pbinop op =
   | Pminus -> fun x y -> x -! y
 
 let eval_pexpr ptable ltable ce =
+  let open Value in
   let rec go = function
     | Pbinop(o,ie1,ie2) ->
       begin match go ie1, go ie2 with
@@ -37,12 +38,13 @@ let eval_pexpr ptable ltable ce =
     | Pconst(c) -> Ok c
     | Patom(Pparam(p)) ->
       begin match HT.find ptable p.Param.name with
-      | Some (x) -> Ok x
-      | None     -> failwith_ "eval_pexpr: parameter %a undefined" Param.pp p
+      | Some(Vu(_,x))   -> Ok x
+      | Some(Varr(_,_)) -> failwith_ "eval_pexpr: array parameter not supported" Param.pp p
+      | None            -> failwith_ "eval_pexpr: parameter %a undefined" Param.pp p
       end
     | Patom(Pvar(v)) ->
       begin match HT.find ltable v.Var.num with
-      | Some (Vu(n,x)) -> Ok(mod_pow_two x n)
+      | Some (Value.Vu(n,x)) -> Ok(mod_pow_two x n)
       | Some (_) ->
         Error (fsprintf "eval_pexpr: variable %a of wrong type" Var.pp v)
       | None ->
@@ -238,17 +240,18 @@ let merge_blocks_modul_all modul =
 
 let peval_param ptable _ p =
   match HT.find ptable p.Param.name with
-  | Some(x) -> Pconst(x)
-  | None    -> failwith_ "peval_patom: parameter %a undefined" Param.pp p
+  | Some(Value.Vu(_,x))   -> Pconst(x)
+  | Some(Value.Varr(_,_)) -> failwith_ "peval_patom: array parameter %a unsupported" Param.pp p
+  | None                  -> failwith_ "peval_patom: parameter %a undefined" Param.pp p
 
 let peval_patom ptable ltable pa =
   match pa with
   | Pparam(p)     -> peval_param ptable ltable p
   | Pvar(v) as pv ->
     begin match HT.find ltable v.Var.num with
-    | Some (Vu(_,x)) -> Pconst(x)
-    | None           -> Patom(pv)
-    | Some(_)        ->
+    | Some (Value.Vu(_,x)) -> Pconst(x)
+    | None                 -> Patom(pv)
+    | Some(_) ->
       failwith_ "peval_pexpr: variable %a of wrong type" Var.pp v
     end
 
@@ -265,9 +268,11 @@ let peval_pexpr_g peval_atom ptable ltable ce =
   in
   go ce
 
-let peval_pexpr ptable ltable = peval_pexpr_g peval_patom ptable ltable
+let peval_pexpr ptable ltable =
+  peval_pexpr_g peval_patom ptable ltable
 
-let peval_dexpr ptable ltable = peval_pexpr_g peval_param ptable ltable
+let peval_dexpr ptable ltable =
+  peval_pexpr_g peval_param ptable ltable
 
 let peval_pcond ptable ltable cc =
   let rec go = function
@@ -408,9 +413,9 @@ let inst_ty ptable ltable ty =
 
 let inst_var ltable v ~default ~f =
   match HT.find ltable v.Var.num with
-  | None          -> default
-  | Some(Vu(n,u)) -> f n @@ Pconst(u)
-  | Some(_)       -> assert false
+  | None                -> default
+  | Some(Value.Vu(n,u)) -> f n @@ Pconst(u)
+  | Some(_)             -> assert false
 
 let inst_idx ptable ltable idx =
   match idx with
@@ -478,7 +483,7 @@ let rec macro_expand_instr ptable ltable linstr =
     let ctr = ref lb in
     let old_val = HT.find ltable i_num in
     while (Big_int.compare_big_int !ctr ub < 0) do
-      HT.set ltable ~key:i_num ~data:(Vu(64,!ctr));
+      HT.set ltable ~key:i_num ~data:(Value.mk_Vu 64 !ctr);
       let s = me_s s in
       res := s::!res;
       ctr := Big_int.succ_big_int !ctr
@@ -504,14 +509,6 @@ let macro_expand_func ptable func =
   match func with
   | Foreign(_) -> func
   | Native(fd) -> Native(macro_expand_native ptable fd)
-
-(*
-checking params defined:  1.7 ms
-checking num-uniqueness:  2.5 ms
-type mapping     :       10.0 ms
-control-unfolding:        7.0 ms
-basic_instr: inst.:      30.0 ms
-*)
 
 let macro_expand_modul ptable modul fname =
   map_func ~f:(macro_expand_func ptable) modul fname

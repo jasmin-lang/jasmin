@@ -26,12 +26,12 @@ type py_state = {
 }
 
 type 'info mstate =
-  { m_ptable  : big_int Pname.Table.t      (* parameter variables *)
-  ; m_ltable  : value   Int.Table.t        (* (function) local variables *)
-  ; m_fltable : bool    Int.Table.t        (* flags *)
-  ; m_mtable  : u64     U64.Table.t        (* memory *)
-  ; m_py      : py_state option          (* state of python interpreter *)
-  ; m_ftable  : 'info func Fname.Table.t (* function environment *)
+  { m_ptable  : value Pname.Table.t       (* parameter variables *)
+  ; m_ltable  : value Int.Table.t         (* (function) local variables *)
+  ; m_fltable : bool  Int.Table.t         (* flags *)
+  ; m_mtable  : u64   U64.Table.t         (* memory *)
+  ; m_py      : py_state option           (* state of python interpreter *)
+  ; m_ftable  : 'info func Fname.Table.t  (* function environment *)
   }
 
 (*
@@ -51,33 +51,34 @@ let print_mstate ms =
 
 let read_lvar ltable lv idx =
   let v = hashtbl_find_exn ltable pp_int lv.Var.num in
+  let open Value in
   match v, idx with
-  | Vu(n,u), None     -> Vu(n,u)
-  | Varr(n,vs),Some i -> Vu(n,map_find_exn vs pp_uint64 i)
-  | Varr(n,vs),None   -> Varr(n,vs)
-  | Vu(_,_), _ ->
-    failwith_ "read_lvar: expected array, got u64 in %a[%a]"
-      Var.pp lv (pp_opt "," pp_uint64) idx
+  | Vu(n,u), None     -> mk_Vu n u
+  | Varr(n,vs),Some i -> mk_Vu n (map_find_exn vs pp_uint64 i)
+  | Varr(n,vs),None   -> mk_Varr n vs
+  | Vu(n,_), _ ->
+    failwith_ "read_lvar: expected array, got u%i in %a[%a]"
+      n Var.pp lv (pp_opt "," pp_uint64) idx
 
-let read_src_val ptable ltable (s : src) =
+let read_src_val ptable ltable s =
   match s with
-  | Imm(i,pe) -> Vu(i,eval_pexpr_exn ptable ltable pe)
+  | Imm(n,pe) -> Value.mk_Vu n (eval_pexpr_exn ptable ltable pe)
   | Src(d) ->
     let oidx = match d.d_idx with
       | None             -> None
       | Some(Ipexpr(pe)) -> Some(U64.of_big_int @@ eval_pexpr_exn ptable ltable pe)
       | Some(Ivar(v))    ->
         begin match read_lvar ltable v None with
-        | Vu(64,u) -> Some(U64.of_big_int u)
-        | _        -> assert false
+        | Value.Vu(64,u) -> Some(U64.of_big_int u)
+        | _              -> assert false
         end
     in
     read_lvar ltable d.d_var oidx
 
-let read_src_ pmap lmap (s : src) =
+let read_src_ pmap lmap s =
   match read_src_val pmap lmap s with
-  | Vu(_,u) -> u
-  | Varr(_) ->
+  | Value.Vu(_,u) -> u
+  | Value.Varr(_) ->
     failwith_ "read_src: expected u64, got array for %a"
       pp_src_nt s
 
@@ -93,12 +94,13 @@ let read_flag ms s =
  * ------------------------------------------------------------------------ *)
 
 let write_lvar ov s oidx v =
+  let open Value in
   match ov, oidx, v with
   | _,               None   , _        -> v
-  | None,            Some(i), Vu(n,u)  -> Varr(n,U64.Map.singleton i u)
+  | None,            Some(i), Vu(n,u)  -> mk_Varr n (U64.Map.singleton i u)
   | Some(Varr(n,vs)),Some(i), Vu(m,u)  ->
     assert(n = m);
-    Varr(n,Map.add vs ~key:i ~data:u)
+    mk_Varr n (Map.add vs ~key:i ~data:u)
   | _,               Some(_), Varr(_)  ->
     failloc_ s.Var.uloc "write_lvar: cannot write array to %a[%a]"
       Var.pp s (pp_opt "_" pp_uint64) oidx
@@ -122,13 +124,12 @@ let write_dest_ ptable ltable d v =
 let write_dest ms d x =
   write_dest_ ms.m_ptable ms.m_ltable d x
 
-let write_dest_u64 ms d u = write_dest ms d (Vu(64,u))
+let write_dest_u64 ms d u = write_dest ms d (Value.mk_Vu 64 u)
 
 let write_flag ms d b =
   match d.d_idx with
   | None    -> HT.set ms.m_fltable ~key:d.d_var.Var.num ~data:b
   | Some(_) -> failwith "cannot give array element, flag (in register) expected"
-
 
 (* *** Interact with python interpreter
  * ------------------------------------------------------------------------ *)
@@ -289,7 +290,7 @@ let rec interp_base_instr ms lbinstr =
     let ptr = read_src ms s in
     let c = eval_pexpr_exn ptable ms.m_ltable pe in
     let v = hashtbl_find_exn ms.m_mtable pp_uint64 (U64.add (of_bi c) (of_bi ptr)) in
-    write_dest ms d (Vu(64,to_bi v))
+    write_dest ms d (Value.mk_Vu 64 (to_bi v))
 
   | Store(s1,pe,s2) ->
     let v = read_src ms s2 in
@@ -339,7 +340,7 @@ and interp_instr ms linstr =
       )
     in
     let update i =
-      HT.set ms.m_ltable ~key:cv.d_var.Var.num ~data:(Vu(64,i))
+      HT.set ms.m_ltable ~key:cv.d_var.Var.num ~data:(Value.mk_Vu 64 i)
     in
     let old_val = HT.find ms.m_ltable cv.d_var.Var.num in
     let i = ref initial in
@@ -370,7 +371,7 @@ and interp_call_python ms py_code call_rets call_args =
   let s_params =
     fsprintf "{%a}" (pp_list "," pp_string)
       (List.map (HT.to_alist ms.m_ptable)
-        ~f:(fun (pn,v) -> fsprintf "'%a' : %a" Pname.pp pn pp_big_int v))
+        ~f:(fun (pn,v) -> fsprintf "'%a' : %a" Pname.pp pn pp_value v))
   in
   let vs = List.map call_args ~f:(fun s -> read_src_val ptable ltable s) in
   let s_args = List.map vs ~f:(fun v -> fsprintf "%a" pp_value_py v) in    
@@ -413,7 +414,7 @@ and interp_stmt (ms : 'info mstate) stmt =
  * ------------------------------------------------------------------------ *)
 
 let interp_modul
-  (modul : 'info modul) (ptable : big_int Pname.Table.t) (mtable : u64 U64.Table.t)
+  (modul : 'info modul) (ptable : value Pname.Table.t) (mtable : u64 U64.Table.t)
   (_args : value list) (fname : Fname.t)
   =
   let modul = renumber_vars_modul_all UniqueNumModule modul in

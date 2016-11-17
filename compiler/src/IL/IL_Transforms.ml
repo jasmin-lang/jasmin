@@ -31,7 +31,7 @@ let mk_pprint_opt ofn = {
 
 type transform =
   | MergeBlocks of Fname.t option
-  | MacroExpand of Fname.t * big_int Pname.Table.t
+  | MacroExpand of Fname.t * value Pname.Table.t
   | ArrayAssignExpand of Fname.t
   | ArrayExpand of Fname.t
   | LocalSSA of Fname.t
@@ -46,7 +46,7 @@ type transform =
   | Print of string * pprint_opt
   | Save  of string * pprint_opt
   | StripComments of Fname.t
-  | Interp of Fname.t * big_int Pname.Table.t * u64 U64.Table.t * value list
+  | Interp of Fname.t * value Pname.Table.t * u64 U64.Table.t * value list
     (* Interp(fun,pmap,mmap,alist,fun):
          interpret call of function fun() with parameters pmap, memory mmap,
          argument list alist *)
@@ -63,15 +63,15 @@ let ptrafo =
   let int = many1 digit >>= fun s -> return (int_of_string (String.of_char_list s)) in
   let value () =
     choice
-      [ (u64 >>= fun u -> return (Vu(64,u)))
+      [ (u64 >>= fun u -> return (Value.mk_Vu 64 u))
       ; (char '[' >>= fun _ ->
         (sep_by u64 (char ',')) >>= fun vs ->
         char ']' >>= fun _ ->
         let vs = U64.Map.of_alist_exn (List.mapi vs ~f:(fun i v -> (U64.of_int i, v))) in
-        return (Varr(64,vs))) ]
+        return (Value.mk_Varr 64 vs)) ]
   in
   let pmapping =
-    ident >>= fun s -> char '=' >> u64 >>= fun u -> return (Pname.mk s,u)
+    ident >>= fun s -> char '=' >> u64 >>= fun u -> return (Pname.mk s,Value.mk_Vu 64 u)
   in
   let mmapping =
     u64 >>= fun s -> char '=' >> u64 >>= fun u -> return (U64.of_big_int s,u)

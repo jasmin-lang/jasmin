@@ -25,7 +25,6 @@ let get_errs () =
   List.sort ~cmp:(fun (l1,_) (l2,_) -> L.compare_loc l1 l2) !errs
   |> List.remove_consecutive_duplicates ~equal:(fun (l1,_) (l2,_) -> L.compare_loc l1 l2 = 0)
 
-
 type decl_item =
   | Dfun of (Fname.t * unit func)
   | Dparams of ((string * string) * ty) list

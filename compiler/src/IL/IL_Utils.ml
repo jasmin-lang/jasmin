@@ -140,19 +140,19 @@ let view_op o ds ss =
 
 let parse_value s =
   let open MParser in
-  let u64 =
+  let bi =
     many1 digit >>= fun s ->
     optional (char 'L') >>
     return (Big_int.big_int_of_string (String.of_char_list s))
   in
   let value =
     choice
-      [ (u64 >>= fun u -> return (Vu(64,u)))
+      [ (bi >>= fun u -> return (Value.mk_Vu 64 u)) (* FIXME: fixed to 64 bit *)
       ; (char '[' >>= fun _ ->
-        (sep_by u64 (char ',' >> optional (char ' '))) >>= fun vs ->
+        (sep_by bi (char ',' >> optional (char ' '))) >>= fun vs ->
         char ']' >>= fun _ ->
         let vs = U64.Map.of_alist_exn (List.mapi vs ~f:(fun i v -> (U64.of_int i, v))) in
-        return (Varr(64,vs))) ] (* FIXME: fixed to 64 bit *)
+        return (Value.mk_Varr 64 vs)) ]             (* FIXME: fixed to 64 bit *)
   in
   match parse_string (value >>= fun x -> eof >>$ x) s () with
   | Success t   -> t

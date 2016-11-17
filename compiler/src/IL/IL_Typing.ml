@@ -142,10 +142,10 @@ let typecheck_op op ds ss =
     Option.iter ~f:(fun d -> type_dest_eq d Bool) mcf_out
 
   | V_Cmov(_,z,x,y,cf) ->
-    type_src_eq  x     (U(64));
-    type_src_eq  y     (U(64));
-    type_src_eq  cf    Bool;
-    type_dest_eq z     (U(64))
+    type_src_eq  x (U(64));
+    type_src_eq  y (U(64));
+    type_src_eq  cf Bool;
+    type_dest_eq z (U(64))
 
   | V_ThreeOp(_,z,x,y) ->
     type_src_eq  x (U(64));

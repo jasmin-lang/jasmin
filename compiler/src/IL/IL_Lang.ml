@@ -316,10 +316,36 @@ type 'info modul = 'info named_func list
 (* ** Values
  * ------------------------------------------------------------------------ *)
 
-type value =
-  | Vu   of int * big_int
-  | Varr of int * big_int U64.Map.t
-  [@@deriving compare,sexp]
+module Value : sig
+  type t = private
+    | Vu   of int * big_int
+    | Varr of int * big_int U64.Map.t
+    [@@deriving compare,sexp]
+
+  val mk_Vu : int -> big_int -> t
+
+  val mk_Varr : int -> big_int U64.Map.t -> t
+
+end = struct
+
+  type t =
+    | Vu   of int * big_int
+    | Varr of int * big_int U64.Map.t
+    [@@deriving compare,sexp]
+
+  let is_reduced n x = 
+    Big_int.eq_big_int (mod_pow_two x n) x
+
+  let mk_Vu n x =
+    assert (is_reduced n x);
+    Vu(n,x)
+
+  let mk_Varr n m =
+    Map.iteri ~f:(fun ~key:_ ~data -> assert(is_reduced n data)) m;
+    Varr(n,m)
+end
+
+type value = Value.t
 
 (* ** Define Map, Hashtables, and Sets
  * ------------------------------------------------------------------------ *)

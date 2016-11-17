@@ -313,16 +313,16 @@ let pp_modul ?pp_info ~pp_types fmt modul =
   pp_list "@\n@\n" (pp_func ?pp_info ~pp_types) fmt modul
 
 let pp_value fmt = function
-  | Vu(_n,u)   ->
+  | Value.Vu(_n,u)   ->
     pp_big_int fmt u
-  | Varr(_n,vs) ->
+  | Value.Varr(_n,vs) ->
     F.fprintf fmt "[%a]" (pp_list "," (pp_pair "->" pp_uint64 pp_big_int))
       (Map.to_alist vs)
 
 let pp_value_py fmt = function
-  | Vu(_,u)   ->
+  | Value.Vu(_,u)   ->
     pp_big_int fmt u
-  | Varr(_,vs) ->
+  | Value.Varr(_,vs) ->
     F.fprintf fmt "[%a]" (pp_list "," pp_big_int) (List.map ~f:snd (Map.to_alist vs))
 
 let pp_set_vn fmt (s : Int.Set.t) =
