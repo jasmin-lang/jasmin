@@ -426,29 +426,122 @@ def rand_point(seed,params):
   x = to_digits(two64,4,ai)
   return x
 
-def mod_64(x):
-  return x & 0xffffffffffffffff
+# * AVX vector instructions
+###########################################################################
+
+# ** General
+
+def mod_n(n,x):
+  return x & ((1 << n) - 1)
+
+# ** 64 bit
 
 def get_64x4(i,x):
-  return mod_64(x >> i*64)
+  return mod_n(64,x >> i*64)
 
-def mk_64x4(x0,x1,x2,x3):
-  return x0 + (x1 << 64) + (x2 << 128) + (x3 << 192)
+def mk_64x4(x):
+  r = 0
+  for i in range(0,4):
+    r += x[i] << 64*i
+  return r 
 
 def add_64x4(x,y,params):
-  z0 = get_64x4(0,x) + get_64x4(0,y)
-  z1 = get_64x4(1,x) + get_64x4(1,y)
-  z2 = get_64x4(2,x) + get_64x4(2,y)
-  z3 = get_64x4(3,x) + get_64x4(3,y)
-  z = mk_64x4(mod_64(z0),mod_64(z1),mod_64(z2),mod_64(z3))
-  #print("x  = %02x"%x,  file=sys.stderr)
-  #print("y  = %02x"%y,  file=sys.stderr)
-  #print("z0 = %02x"%z0, file=sys.stderr)
-  #print("z1 = %02x"%z1, file=sys.stderr)
-  #print("z2 = %02x"%z2, file=sys.stderr)
-  #print("z3 = %02x"%z3, file=sys.stderr)
-  #print("z  = %02x"%z,  file=sys.stderr)
-  return z
+  z = [0] * 4
+  for i in range(0,4):
+    z[i] = mod_n(64,get_64x4(i,x) + get_64x4(i,y))
+  r = mk_64x4(z)
+  # print('>>> r: x=%02x'%(r), file=sys.stderr)
+  return r
+
+def permute_64x4(v,c,params):
+  # print('>>> c=%02x'%(c), file=sys.stderr)
+  # print('>>> v=%064x'%(v), file=sys.stderr)
+  w = [0] * 4
+  for i in range(0,4):
+    s = (c >> 2*i) % 4
+    w[i] = get_64x4(s,v)
+  r = mk_64x4(w)
+  # print('>>> r=%064x'%(r), file=sys.stderr)
+  return r
+
+# ** 32 bit
+
+def get_32x8(i,x):
+  return mod_n(32,x >> i*32)
+
+def mk_32x8(x):
+  r = 0
+  for i in range(0,8):
+    r += x[i] << 32*i
+  return r 
+
+def set_32x8(x7,x6,x5,x4,x3,x2,x1,x0,params):
+  return mk_32x8([x0,x1,x2,x3,x4,x5,x6,x7])
+
+def shuffle_32x8(v,c,params):
+  # print('>>> c=%02x'%(c), file=sys.stderr)
+  # print('>>> v=%064x'%(v), file=sys.stderr)
+  w = [0] * 8
+  for i in range(0,4):
+    s = (c >> 2*i) % 4
+    w[i] = get_32x8(s,v)
+  for i in range(0,4):
+    s = (c >> 2*i) % 4
+    w[4+i] = get_32x8(4 + s,v)
+  r = mk_32x8(w)
+  # print('>>> r=%064x'%(r), file=sys.stderr)
+  return r
+
+def add_32x8(x,y,params):
+  z = [0] * 8
+  for i in range(0,8):
+    z[i] = mod_n(32,get_32x8(i,x) + get_32x8(i,y))
+  r = mk_32x8(z)
+  # print('>>> r: x=%02x'%(r), file=sys.stderr)
+  return r
+
+def umul_32x4(x,y,params):
+  z = [0] * 4
+  for i in range(0,4):
+    u = get_32x8(i*2,x) * get_32x8(i*2,y)
+    z[i] = mod_n(64,u)
+  r = mk_64x4(z)
+  return r
+
+def decode_i32(x):
+  if x >> 31 == 0:
+    return x
+  else:
+    return x - (1 << 32)
+
+def encode_i32(x):
+  if x < 0:
+    return (1 << 32) + x
+  else:
+    return x
+
+def imul_32x4(x,y,params):
+  z = [0] * 4
+  for i in range(0,4):
+    u = decode_i32(get_32x8(i*2,x))
+    v = decode_i32(get_32x8(i*2,y))
+    z[i] = encode_i32(u*v)
+  r = mk_64x4(z)
+  # print('>>> r=%064x'%(r), file=sys.stderr)
+  return r
+
+def test_enc():
+  assert(decode_i32(42) == 42)
+  u = 0x80000000
+  u = 1 << 31
+  v = decode_i32(u)
+  w = encode_i32(v)
+  # print('>>> u=%02x'%(u), file=sys.stderr)
+  # print('>>> v=%i'%(v), file=sys.stderr)
+  # print('>>> w=%02x'%(w), file=sys.stderr)
+  assert(u == w)
+
+# test_enc()
 
 # * Code from CFRG on curves (BSD licensed)
 ###########################################################################

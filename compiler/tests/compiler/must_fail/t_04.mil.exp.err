@@ -1,6 +1,3 @@
 tests/compiler/must_fail/t_04.mil:2:3: 2:7 error: expected identifier, not array get
   _x[i] : inline bool;
   ^^^^^
-tests/compiler/must_fail/t_04.mil:2:11: 2:21 error: storage inline only allowed for type u64
-  _x[i] : inline bool;
-          ^^^^^^^^^^^

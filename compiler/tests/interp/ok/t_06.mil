@@ -6,9 +6,17 @@ fn assert_equal_u256(reg u256, reg u256) = python assert_equal;
 
 fn add_64x4(reg u256, reg u256)-> reg u256 = python add_64x4;
 
+fn add_32x8(reg u256, reg u256)-> reg u256 = python add_32x8;
 
-// overloading
+fn umul_32x4(reg u256, reg u256)-> reg u256 = python umul_32x4;
 
+fn imul_32x4(reg u256, reg u256)-> reg u256 = python imul_32x4;
+
+fn set_32x8(x7, x6, x5, x4, x3, x2, x1, x0 : reg u32)-> reg u256 = python set_32x8; 
+
+fn shuffle_32x8(x : reg u256, inline u8)-> reg u256 = python shuffle_32x8; 
+
+fn permute_64x4(x : reg u256, inline u8)-> reg u256 = python permute_64x4; 
 
 fn test() {
   x8   : reg u8;
@@ -21,6 +29,7 @@ fn test() {
   c    : reg u256;
   s    : reg u64;
 
+  w : reg u32[8];
 
   s = 0;
 
@@ -30,21 +39,94 @@ fn test() {
   x64  = rand_u64(s); s += 1;
   x128 = 42:u128;
   x256 = 42:u256;
-
+  
+  // test: non-overflow on addition
   c    = 1:u256;
-  x256 = 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe:u256;
+  x256 = 0xffffffff_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff_fffffffe:u256;
   y256 = add_64x4(x256, c);
-
-  c = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff:u256;
+  c = 0xffffffff_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff:u256;
   assert_equal_u256(y256,c);
 
+  // test: overflow on 64-bit lane
   c    = 1:u256;
   y256 = add_64x4(y256, c);
-  c = 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000:u256;
+  c = 0xffffffff_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff_00000000_00000000:u256;
   assert_equal_u256(y256,c);
-}
 
-// 
+  // test: overflow on 32-bit lane
+  c    = 2:u256;
+  y256 = add_32x8(x256, c);
+  c = 0xffffffff_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff_00000000:u256;
+  assert_equal_u256(y256,c);
+
+  // test: umul ignores odd 32-bit lanes (* 1)
+  x256 = 0x00000001_ffffffff_aabbccdd_ffffffff_00000000_ffffffff_ffffffff_ffffffff:u256;
+  y256 = 0x00000001_00000001_aabbccdd_00000001_00000000_00000001_ffffffff_00000001:u256;
+  y256 = umul_32x4(x256, y256);
+
+  c = 0x00000000_ffffffff_00000000_ffffffff_00000000_ffffffff_00000000_ffffffff:u256;
+  assert_equal_u256(y256,c);
+
+  // test: umul ignores odd 32-bit lanes (* ff)
+  x256 = 0x00000001_ffffffff_aabbccdd_ffffffff_00000000_ffffffff_ffffffff_ffffffff:u256;
+  y256 = 0x00000001_00000100_aabbccdd_00000100_00000000_00000100_ffffffff_00000100:u256;
+  y256 = umul_32x4(x256, y256);
+
+  c = 0x000000ff_ffffff00_000000ff_ffffff00_000000ff_ffffff00_000000ff_ffffff00:u256;
+  assert_equal_u256(y256,c);
+
+  // test: imul ignores odd 32-bit lanes (* 1)
+  x256 = 0x00000001_ffffffff_aabbccdd_ffffffff_00000000_ffffffff_ffffffff_ffffffff:u256;
+  y256 = 0x00000001_00000001_aabbccdd_00000001_00000000_00000001_ffffffff_00000001:u256;
+  y256 = imul_32x4(x256, y256);
+
+  c = 0x00000000_ffffffff_00000000_ffffffff_00000000_ffffffff_00000000_ffffffff:u256;
+  //assert_equal_u256(y256,c);
+
+  // test: imul multiply with -1
+  x256 = 0x00000001_fffffffe_aabbccdd_fffffffe_00000000_fffffffe_ffffffff_fffffffe:u256;
+  y256 = 0x00000001_ffffffff_aabbccdd_ffffffff_00000000_ffffffff_ffffffff_ffffffff:u256;
+  y256 = imul_32x4(x256, y256);
+
+  c = 0x00000000_00000002_00000000_00000002_00000000_00000002_00000000_00000002:u256;
+  assert_equal_u256(y256,c);
+
+  // test: set_32x8
+  x256 = 0x00000008_00000007_00000006_00000005_00000004_00000003_00000002_00000001:u256;
+  w[0] = 1:u32;
+  w[1] = 2:u32;
+  w[2] = 3:u32;
+  w[3] = 4:u32;
+  w[4] = 5:u32;
+  w[5] = 6:u32;
+  w[6] = 7:u32;
+  w[7] = 8:u32;
+
+  y256 = set_32x8(w[7],w[6],w[5],w[4],w[3],w[2],w[1],w[0]);
+  assert_equal_u256(x256,y256);
+
+  // test shuffle: identity
+  y256 = shuffle_32x8(x256,0xe4:u8); // 0xe4 = 0b11_10_01_00 => identity
+  assert_equal_u256(x256,y256);
+  
+  // test shuffle: increasing to decreasing
+  y256 = shuffle_32x8(x256,0x1b:u8); // 0xe4 = 0b00_01_10_11
+  x256 = 0x00000005_00000006_00000007_00000008_00000001_00000002_00000003_00000004:u256;
+  assert_equal_u256(x256,y256);
+
+  // test permute: identity
+  x256 = 0x00000008_00000007_00000006_00000005_00000004_00000003_00000002_00000001:u256;
+  y256 = permute_64x4(x256,0xe4:u8); // 0xe4 = 0b11_10_01_00 => identity
+  assert_equal_u256(x256,y256);
+  
+  // test permute: increasing to decreasing
+  x256 = 0x00000008_00000007_00000006_00000005_00000004_00000003_00000002_00000001:u256;
+  y256 = permute_64x4(x256,0x1b:u8); // 0xe4 = 0b00_01_10_11
+  x256 = 0x00000002_00000001_00000004_00000003_00000006_00000005_00000008_00000007:u256;
+  assert_equal_u256(x256,y256);
+
+  // 
+}
 
 /*
 START:CMD
