@@ -25,6 +25,23 @@ let rec bi_of_pos pos =
   | BinNums.Coq_xO p -> (bi_of_pos p) <!< 1
   | BinNums.Coq_xI p -> ((bi_of_pos p) <!< 1) +! Big_int.unit_big_int
 
+
+let ascii_of_char x = 
+  let x = int_of_char x in
+  let bit i = 
+    if x lsr (7 - i) land 1 = 1 then Datatypes.Coq_true 
+    else Datatypes.Coq_false in
+  Ascii.Ascii(bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7)
+
+let string0_of_string s = 
+  let s0 = ref String0.EmptyString in
+  for i = String.length s - 1 downto 0 do
+    s0 := String0.String (ascii_of_char s.[i], !s0) 
+  done;
+  !s0
+
+(* ----------------------------------------------------------------- *)
+
 let of_ty ty =
   match ty with
   | Bool               -> DT.Coq_sbool
@@ -55,8 +72,10 @@ let of_pop_bool po =
   | Pgeq     -> assert false
 
 let of_var v =
-  ignore (v.Var.num (* int *), v.Var.ty);
-  undefined ()
+  let open Dmasm_var.Var in
+  let vname = string0_of_string (string_of_int v.Var.num) in
+  let vtype = of_ty v.Var.ty in
+  { Dmasm_var.Var.vname=Obj.magic vname; Dmasm_var.Var.vtype = vtype }
 
 let rec of_pexpr pe =
   match pe with
