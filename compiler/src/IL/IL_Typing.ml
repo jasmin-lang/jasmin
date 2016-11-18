@@ -192,10 +192,20 @@ let typecheck_base_instr ftable lbinstr =
         failloc_ d.d_var.Var.uloc "wrong storage type for call of %a: got ``%s'', expected ``%s''"
           Fname.pp fname (string_of_storage sto) (string_of_storage sto_exp)
     in
+    let tc_imm n (sto_exp,ty_exp) =
+      let ty = U(n) in
+      let sto = Inline in
+      if not (equiv_ty ty ty_exp) then
+        failwith_ "wrong type for call of %a: got ``%a'', expected ``%a''"
+          Fname.pp fname pp_ty_nt ty pp_ty_nt ty_exp;
+      if sto_exp<>sto then
+        failwith_ "wrong storage type for call of %a: got ``%s'', expected ``%s''"
+          Fname.pp fname (string_of_storage sto) (string_of_storage sto_exp)
+    in
     let tc_src s st =
       match s with
-      | Imm(_) -> failloc_ loc "cannot call function %a with immediate value" Fname.pp fname
-      | Src(d) -> tc_dest d st
+      | Src(d)   -> tc_dest d st
+      | Imm(n,_) -> tc_imm n st
     in
     list_iter2_exn arg arg_ty ~f:tc_src
       ~err:(fun n_g n_e -> failloc_ loc "wrong number of arguments: got %i, expected %i" n_g n_e);

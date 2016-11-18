@@ -95,14 +95,7 @@ type op =
   | OpOr  
   | OpMul
 
-let mk_sto_ty (sto,ty) l =
-  begin match sto,ty with
-  | Inline, U(64) -> ()
-  | Inline, _     -> add_err l  "storage inline only allowed for type u64"
-  | Reg, Bool     -> ()
-  | _,   Bool     -> add_err l  "type bool must have storage reg (register flags)"
-  | _             -> ()
-  end;
+let mk_sto_ty (sto,ty) _l =
   (sto,ty)
 
 let conv_decl (ds,(s,t)) =

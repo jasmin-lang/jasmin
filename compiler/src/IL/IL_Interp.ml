@@ -383,7 +383,13 @@ and interp_call_python ms py_code call_rets call_args =
   (* store result *)
   let ss_ds = match call_rets with
     | [ds] ->
-      let rets = parse_value ds.d_var.Var.ty res in
+      let rets =
+        try
+          parse_value ds.d_var.Var.ty res
+        with
+          Invalid_argument(s) ->
+            failwith_ "value returned by python call to %s invalid: %s" py_code s
+      in
       [ (rets,ds) ]
     | []   -> []
     | _    -> assert false

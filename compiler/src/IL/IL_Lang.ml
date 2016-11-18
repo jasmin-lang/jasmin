@@ -71,7 +71,6 @@ type 'a pexpr_g =
   | Pconst of big_int
   [@@deriving compare,sexp]
 
-
 module Param = struct
   module T = struct
     type dexpr = t pexpr_g [@@deriving compare,sexp]
@@ -174,7 +173,7 @@ We define:
 
 type idx =
   | Ipexpr of pexpr
-  | Ivar   of Var.t
+  | Ivar   of Var.t (* FIXME: can be more general *)
   [@@deriving compare,sexp]
 
 type dest = {
@@ -184,7 +183,7 @@ type dest = {
 } [@@deriving compare,sexp]
 
 type src =
-  | Imm of int * pexpr (* Simm(n,i): immediate value n-bit integer value i *)
+  | Imm of int * pexpr (* Simm(n,i): immediate value n-bit integer value i *) (* FIXME: pexpr should have size, not Imm *)
   | Src of dest        (* Sreg(d): where d destination register            *)
   [@@deriving compare,sexp]
 
@@ -337,11 +336,14 @@ end = struct
     Big_int.eq_big_int (mod_pow_two x n) x
 
   let mk_Vu n x =
-    assert (is_reduced n x);
+    if not (is_reduced n x) then
+      raise (Invalid_argument("mk_Vu: value is not reduced"));
     Vu(n,x)
 
   let mk_Varr n m =
-    Map.iteri ~f:(fun ~key:_ ~data -> assert(is_reduced n data)) m;
+    Map.iteri m ~f:(fun ~key:_ ~data ->
+      if not (is_reduced n data) then
+        raise (Invalid_argument("mk_Vu: value is not reduced")));
     Varr(n,m)
 end
 
