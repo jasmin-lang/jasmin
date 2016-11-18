@@ -2,6 +2,8 @@
 
 (* ** Imports and abbreviations *)
 open IL_Lang
+open IL_Utils
+open IL_Typing
 open Util
 open Arith
 
@@ -176,9 +178,91 @@ let of_src s =
       DE.Papp2(DT.Coq_sarr(n),DT.Coq_sword,DT.Coq_sword,DE.Oget(n),v,cpe)
     end 
 
-let of_base_instr bi =
-  undefined ()
 
+let of_op_view o = 
+(*
+  | V_Umul(h,l,x,y) -> assert false
+(*    
+    let h = of_dest h and l = of_dest l in
+    let x = of_src x and y = of_src y in
+    (t0, DE.Rpair(t1,t2, h, l), Papp2(t0,t1,t2, Omul *)
+
+  | V_Carry(o,mcf_out,z,x,y,mcf_in) ->
+(*  add _  z x y _  ->  z = add x y
+    add cf z x y _  ->  z = add_carry x y false
+    add cf z x y ci ->  (cf, z) = add_carry x y ci 
+    add _  z x y ci ->  (cf, z) = add_carry x y ci *)
+    let z = of_dest z in
+    let x = of_src x in
+    let y = of_src y in
+    let cf = Option.map of_dest mcf_out in 
+    let ci = Option.map of_src  mcf_in  in
+    let wc = 
+      match cf, ci with
+      | None, None -> `Normal
+      | None, Some _ -> assert false
+      | Some cf, None -> `Carry(cf, ci)
+      | Some cf, Some ci -> `Carry(cf, ci)
+      
+
+
+    match 
+
+    let 
+    
+    
+    type_src_eq  x (U(64));
+    type_src_eq  y (U(64));
+    type_dest_eq z (U(64));
+    Option.iter ~f:(fun s -> type_src_eq  s Bool) mcf_in;
+    Option.iter ~f:(fun d -> type_dest_eq d Bool) mcf_out
+
+  | V_Cmov(_,z,x,y,cf) ->
+    type_src_eq  x (U(64));
+    type_src_eq  y (U(64));
+    type_src_eq  cf Bool;
+    type_dest_eq z (U(64))
+
+  | V_ThreeOp(_,z,x,y) ->
+    type_src_eq  x (U(64));
+    type_src_eq  y (U(64));
+    type_dest_eq z (U(64))
+
+  | V_Shift(_dir,mcf_out,z,x,y) ->
+    type_src_eq  x (U(64));
+    type_src_eq  y (U(64));
+    type_dest_eq z (U(64));
+    Option.iter ~f:(fun s -> type_dest_eq s Bool) mcf_out
+*)
+assert false 
+let of_base_instr bi =
+  match bi with
+  | Assgn(d,s,aty) -> (* TODO: aty is losed, should be keep *)
+    let rd = of_dest d in
+    let es = of_src s in
+    let ty = type_dest d in
+    DE.Cassgn(of_ty ty ,rd,es) 
+  | Op(o,ds,ss) ->
+    let ty, rds, e = of_op_view (view_op o ds ss) in
+    DE.Cassgn(ty ,rds, e) 
+
+  | _ -> assert false 
+(*    
+  | Call of Fname.t * dest list * src list
+    (* Call(fname,rets,args): rets = fname(args) *)
+
+  | Load of dest * src * pexpr
+    (* Load(d,src,pe): d = MEM[src + pe] *)
+
+  | Store of src * pexpr * src
+    (* Store(src1,pe,src2): MEM[src1 + pe] = src2 *) 
+
+  | Comment of string
+    (* Comment(s): /* s */ *)
+
+    
+  undefined ()
+*)
 (*
 type rval =
 | Rvar of Var.var
