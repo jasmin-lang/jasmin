@@ -2,6 +2,7 @@
 
 fn rand_u64(reg u64) -> reg u64 = python rand_u64;
 fn assert_equal_u64(reg u64, reg u64) = python assert_equal;
+fn assert_equal_u64s(stack u64, stack u64) = python assert_equal;
 fn assert_equal_u256(reg u256, reg u256) = python assert_equal;
 
 fn add_64x4(reg u256, reg u256)-> reg u256 = python add_64x4;
@@ -13,6 +14,10 @@ fn umul_32x4(reg u256, reg u256)-> reg u256 = python umul_32x4;
 fn imul_32x4(reg u256, reg u256)-> reg u256 = python imul_32x4;
 
 fn set_32x8(x7, x6, x5, x4, x3, x2, x1, x0 : reg u32)-> reg u256 = python set_32x8; 
+
+fn set_64x4(a : stack u64[4])-> reg u256 = python set_64x4; 
+
+fn get_64x4(x : reg u256)-> stack u64[4] = python extract_64x4; 
 
 fn shuffle_32x8(x : reg u256, inline u8)-> reg u256 = python shuffle_32x8; 
 
@@ -36,7 +41,11 @@ fn test() {
   c    : reg u256;
   s    : reg u64;
 
-  w : reg u32[8];
+  w  : reg u32[8];
+  ww : stack u64[4];
+  vv : stack u64[4];
+  
+  i : inline u64;
 
   s = 0;
 
@@ -111,6 +120,21 @@ fn test() {
 
   y256 = set_32x8(w[7],w[6],w[5],w[4],w[3],w[2],w[1],w[0]);
   assert_equal_u256(x256,y256);
+
+  // test: set_64x4
+  x256 = 0x00000008_00000007_00000006_00000005_00000004_00000003_00000002_00000001:u256;
+  ww[0] = 0x00000002_00000001:u64;
+  ww[1] = 0x00000004_00000003:u64;
+  ww[2] = 0x00000006_00000005:u64;
+  ww[3] = 0x00000008_00000007:u64;
+
+  y256 = set_64x4(ww);
+  assert_equal_u256(x256,y256);
+
+  vv = get_64x4(x256);
+  for i in 0..4 {
+    assert_equal_u64s(ww[i],vv[i]);
+  }
 
   // test shuffle: identity
   y256 = shuffle_32x8(x256,0xe4:u8); // 0xe4 = 0b11_10_01_00 => identity

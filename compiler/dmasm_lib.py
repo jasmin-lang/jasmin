@@ -510,6 +510,15 @@ def shift_left_64x4(v,c,params):
   # print('>>> r=%064x'%(r), file=sys.stderr)
   return r
 
+def set_64x4(x,params):
+  return mk_64x4(x)
+
+def extract_64x4(x,params):
+  w = [0] * 4
+  for i in range(0,4):
+    w[i] = get_64x4(i,x)
+  return w
+
 # ** 32 bit
 
 def get_32x8(i,x):
