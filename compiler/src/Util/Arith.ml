@@ -41,6 +41,7 @@ module Big_int_Infix = struct
   let (<!<) x i = shift_left_big_int x i
   let (===) = eq_big_int
   let (<!)  = lt_big_int
+  let (<=!) = le_big_int
   let (%!)  = mod_big_int
 end
 
