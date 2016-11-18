@@ -78,7 +78,7 @@ module Param = struct
     and ty =
       | Bool
       | U of int           (* U(n): unsigned n-bit integer *)
-      | Arr of int * dexpr (* Arr(n,de): array of n-bit integers with dim. de *) 
+      | Arr of int * dexpr (* Arr(n,de): array of n-bit integers with dim. *) 
       | TInvalid
       [@@deriving compare,sexp]
 

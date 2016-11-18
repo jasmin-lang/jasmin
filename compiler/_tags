@@ -3,6 +3,7 @@ true: bin_annot, debug, thread
 
 <src>     or <c_src>    or <src/Test>: include
 <src/Asm> or <src/Util> or <src/IL>  : include
+<src/CIL>  : include
 
 <src/**/*>: package(core), thread, package(num), package(ppx_jane)
 <src/**/*>: package(mparser),package(ctypes.foreign)
