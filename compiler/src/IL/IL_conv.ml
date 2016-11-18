@@ -28,6 +28,20 @@ let rec bi_of_pos pos =
   | BinNums.Coq_xO p -> (bi_of_pos p) <!< 1
   | BinNums.Coq_xI p -> ((bi_of_pos p) <!< 1) +! Big_int.unit_big_int
 
+let coqZ_of_bi bi =
+  let open Big_int_Infix in
+  if bi === Big_int.zero_big_int then
+    BinNums.Z0
+  else if bi <! Big_int.zero_big_int then 
+    BinNums.Zneg (pos_of_bi (Big_int.minus_big_int bi))
+  else 
+    BinNums.Zpos (pos_of_bi bi)
+  
+let bi_of_coqZ z =
+  match z with
+  | BinNums.Zneg p -> Big_int.minus_big_int (bi_of_pos p)
+  | BinNums.Z0 -> Big_int.zero_big_int
+  | BinNums.Zpos p -> bi_of_pos p
 
 let ascii_of_char x = 
   let x = int_of_char x in
@@ -43,11 +57,6 @@ let string0_of_string s =
   done;
   !s0
 
-let coqZ_of_bi _pos =
-  undefined ()
-
-let bi_of_coqZ _pos =
-  undefined ()
 
 let of_bool _b = undefined ()
 
