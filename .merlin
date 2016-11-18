@@ -9,5 +9,6 @@ B _build/src/IL
 B _build/src/Tests
 B _build/src/Main
 B _build/src/Util
+B _build/src/CIL
 
 PKG num core mparser ctypes.foreign oUnit ocamlgraph ppx_jane
