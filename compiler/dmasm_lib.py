@@ -464,6 +464,25 @@ def permute_64x4(v,c,params):
   # print('>>> r=%064x'%(r), file=sys.stderr)
   return r
 
+def shift_right_64x4(v,c,params):
+  w = [0] * 4
+  for i in range(0,4):
+    w[i] = get_64x4(i,v) >> c
+  r = mk_64x4(w)
+  # print('>>> r=%064x'%(r), file=sys.stderr)
+  return r
+
+def shift_left_64x4(v,c,params):
+  w = [0] * 4
+  for i in range(0,4):
+    w[i] = mod_n(64,get_64x4(i,v) << c)
+    # print('>>> v[i]=%08x'%(get_64x4(i,v)), file=sys.stderr)
+    # print('>>> w[i]=%08x'%(w[i]), file=sys.stderr)
+  r = mk_64x4(w)
+  # print('>>> v=%064x'%(v), file=sys.stderr)
+  # print('>>> r=%064x'%(r), file=sys.stderr)
+  return r
+
 # ** 32 bit
 
 def get_32x8(i,x):
