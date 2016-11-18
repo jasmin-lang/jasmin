@@ -1,6 +1,6 @@
-(* open Core.Std *)
-(* open IL *)
-(* open IL_Utils *)
+(* * Conversion to and from Coq language *)
+
+(* ** Imports and abbreviations *)
 open IL_Lang
 open Util
 open Arith
@@ -8,6 +8,9 @@ open Arith
 module F  = Format
 module DE  = Dmasm_expr
 module DT  = Dmasm_type
+
+(* ** Conversions for strings, numbers, ...
+ * ------------------------------------------------------------------------ *)
 
 let rec pos_of_bi bi =
   let open Big_int_Infix in
@@ -40,7 +43,18 @@ let string0_of_string s =
   done;
   !s0
 
-(* ----------------------------------------------------------------- *)
+let coqZ_of_bi _pos =
+  undefined ()
+
+let bi_of_coqZ _pos =
+  undefined ()
+
+let of_bool _b = undefined ()
+
+let to_bool _cb = undefined ()
+
+(* ** Types, pexpr, ...
+ * ------------------------------------------------------------------------ *)
 
 let of_ty ty =
   match ty with
@@ -79,9 +93,44 @@ let of_var v =
 
 let rec of_pexpr pe =
   match pe with
-  | Patom(Pparam(_)) -> assert false (* expanded beforehand *)
-  | Patom(Pvar(v))   -> DE.Pvar(of_var v)
-  | _                -> assert false
+  | Patom(Pparam(_))   -> assert false (* expanded beforehand *)
+  | Patom(Pvar(v))     -> DE.Pvar(of_var v)
+  | Pbinop(po,pe1,pe2) ->
+    let pe1 = of_pexpr pe1 in
+    let pe2 = of_pexpr pe2 in
+    DE.Papp2(DT.Coq_sword,DT.Coq_sword,DT.Coq_sword,of_pop_u64 po,pe1,pe2) 
+  | Pconst bi ->
+    DE.Pconst(coqZ_of_bi bi)
+
+let mk_not cpc =
+  DE.Papp1(DT.Coq_sbool,DT.Coq_sbool,DE.Onot, cpc)
+
+
+let mk_eq cpe1 cpe2 =
+  DE.Papp2(DT.Coq_sword,DT.Coq_sword,DT.Coq_sbool,DE.Oeq,cpe1,cpe2)
+
+let rec of_pcond pc =
+  match pc with
+  | Ptrue    -> DE.Pbool(of_bool true)
+
+  | Pnot(pc) -> mk_not(of_pcond pc)
+    
+  | Pand(pc1,pc2) ->
+    let cpc1 = of_pcond pc1 in
+    let cpc2 = of_pcond pc2 in
+    DE.Papp2(DT.Coq_sbool,DT.Coq_sbool,DT.Coq_sbool,DE.Oand,cpc1,cpc2)
+    
+  | Pcmp(pop,pe1,pe2) ->
+    let cpe1 = of_pexpr pe1 in
+    let cpe2 = of_pexpr pe2 in
+    begin match pop with
+    | Peq      -> mk_eq cpe1 cpe2
+    | Pineq    -> mk_not (mk_eq cpe1 cpe2)
+    | Pless    -> assert false
+    | Pleq     -> assert false
+    | Pgreater -> assert false
+    | Pgeq     -> assert false
+    end
 
 (* 
 type sop1 =
