@@ -434,6 +434,33 @@ def rand_point(seed,params):
 def mod_n(n,x):
   return x & ((1 << n) - 1)
 
+# ** 8 bit
+
+def get_8x32(i,x):
+  return mod_n(8,x >> i*8)
+
+def mk_8x32(x):
+  r = 0
+  for i in range(0,32):
+    r += x[i] << 8*i
+  return r
+
+def blend_8x32(v1,v2,v3,params):
+  w = [0] * 32
+  for i in range(0,32):
+    b = get_8x32(i,v3)
+    if b == 0:
+      # print('>>> get first', file=sys.stderr)
+      w[i] = get_8x32(i,v1)
+    else:
+      # print('>>> get second', file=sys.stderr)
+      w[i] = get_8x32(i,v2)
+  r = mk_8x32(w)
+  # print('>>> v1=%064x'%(v1), file=sys.stderr)
+  # print('>>> v2=%064x'%(v2), file=sys.stderr)
+  # print('>>>  r=%064x'%(r),  file=sys.stderr)
+  return r
+
 # ** 64 bit
 
 def get_64x4(i,x):
