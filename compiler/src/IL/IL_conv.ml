@@ -57,10 +57,13 @@ let string0_of_string s =
   done;
   !s0
 
+let of_bool b = 
+  if b then Datatypes.Coq_true else Datatypes.Coq_false
 
-let of_bool _b = undefined ()
-
-let to_bool _cb = undefined ()
+let to_bool cb = 
+  match cb with 
+  | Datatypes.Coq_true -> true
+  | Datatypes.Coq_false -> false
 
 (* ** Types, pexpr, ...
  * ------------------------------------------------------------------------ *)
