@@ -88,15 +88,6 @@ let of_pop_u64 po =
   | Pmult  -> DE.Omul
   | Pminus -> DE.Osub
 
-let of_pop_bool po =
-  match po with
-  | Peq      -> DE.Oeq
-  | Pineq    -> assert false
-  | Pless    -> DE.Olt
-  | Pleq     -> DE.Ole
-  | Pgreater -> assert false
-  | Pgeq     -> assert false
-
 let of_var v =
   let open Dmasm_var.Var in
   let vname = string0_of_string (string_of_int v.Var.num) in
@@ -114,12 +105,20 @@ let rec of_pexpr pe =
   | Pconst bi ->
     DE.Pconst(coqZ_of_bi bi)
 
+let mk_and cpc1 cpc2 =
+  DE.Papp2(DT.Coq_sbool,DT.Coq_sbool,DT.Coq_sbool,DE.Oand,cpc1,cpc2)
+
 let mk_not cpc =
   DE.Papp1(DT.Coq_sbool,DT.Coq_sbool,DE.Onot, cpc)
 
+let mk_cmp cop cpe1 cpe2 =
+  DE.Papp2(DT.Coq_sword,DT.Coq_sword,DT.Coq_sbool,cop,cpe1,cpe2)
 
-let mk_eq cpe1 cpe2 =
-  DE.Papp2(DT.Coq_sword,DT.Coq_sword,DT.Coq_sbool,DE.Oeq,cpe1,cpe2)
+let mk_eq = mk_cmp DE.Oeq
+
+let mk_less = mk_cmp DE.Olt
+
+let mk_leq = mk_cmp DE.Ole
 
 let rec of_pcond pc =
   match pc with
@@ -127,62 +126,58 @@ let rec of_pcond pc =
 
   | Pnot(pc) -> mk_not(of_pcond pc)
     
-  | Pand(pc1,pc2) ->
-    let cpc1 = of_pcond pc1 in
-    let cpc2 = of_pcond pc2 in
-    DE.Papp2(DT.Coq_sbool,DT.Coq_sbool,DT.Coq_sbool,DE.Oand,cpc1,cpc2)
-    
+  | Pand(pc1,pc2) -> mk_and (of_pcond pc1) (of_pcond pc2)
+
   | Pcmp(pop,pe1,pe2) ->
     let cpe1 = of_pexpr pe1 in
     let cpe2 = of_pexpr pe2 in
     begin match pop with
     | Peq      -> mk_eq cpe1 cpe2
     | Pineq    -> mk_not (mk_eq cpe1 cpe2)
-    | Pless    -> assert false
-    | Pleq     -> assert false
-    | Pgreater -> assert false
-    | Pgeq     -> assert false
+    | Pless    -> mk_less cpe1 cpe2
+    | Pleq     -> mk_leq cpe1 cpe2
+    | Pgreater -> mk_less cpe2 cpe1 (* FIXME: make it consistent *)
+    | Pgeq     -> mk_leq  cpe2 cpe1 (* FIXME: make it consistent *)
     end
 
-(* 
-type sop1 =
-| Onot
-| Ofst of stype * stype
-| Osnd of stype * stype
-*)
+(* FIXME: Rmem missing on ocaml side *)
+let of_dest d =
+  match d.d_idx with
+  | None             -> DE.Rvar(of_var d.d_var)
+  | Some(idx) ->
+    let s = match d.d_var.Var.ty with
+      | Arr(64,Pconst(c)) -> pos_of_bi c
+      | _                 -> assert false
+    in
+    let cpe =
+      match idx with
+      | Ipexpr(pe) -> of_pexpr pe
+      | Ivar(v)    -> of_pexpr (Patom(Pvar(v)))
+    in
+    DE.Raset(s,(of_var d.d_var).Dmasm_var.Var.vname, cpe)
 
-(*
-type sop2 =
-| Oand
-| Oor
-| Oadd
-| Oaddc
-| Osub
-| Osubc
-| Oeq
-| Olt
-| Ole
-| Oget of positive
-| Opair of stype * stype
-*)
+let of_src s =
+  match s with
+  | Imm(_,pe) -> of_pexpr pe
+  | Src(d)    ->
+    let v = of_pexpr (Patom(Pvar(d.d_var))) in
+    begin match d.d_idx with
+    | None      -> v
+    | Some(idx) ->
+      let n = match d.d_var.Var.ty with
+        | Arr(64,Pconst(c)) -> pos_of_bi c
+        | _                 -> assert false
+      in
+      let cpe =
+        match idx with
+        | Ipexpr(pe) -> of_pexpr pe
+        | Ivar(v)    -> of_pexpr (Patom(Pvar(v)))
+      in
+      DE.Papp2(DT.Coq_sarr(n),DT.Coq_sword,DT.Coq_sword,DE.Oget(n),v,cpe)
+    end 
 
-(*
-type sop3 =
-| Oaddcarry
-| Osubcarry
-| Oset of positive
-*)
-
-(*
-type pexpr =
-| Pvar of Var.var
-| Pload of pexpr
-| Pconst of coq_Z
-| Pbool of bool
-| Papp1 of stype * stype * sop1 * pexpr
-| Papp2 of stype * stype * stype * sop2 * pexpr * pexpr
-| Papp3 of stype * stype * stype * stype * sop3 * pexpr * pexpr * pexpr
-*)
+let of_base_instr bi =
+  undefined ()
 
 (*
 type rval =
