@@ -32,6 +32,7 @@ Inductive sop2 : stype -> stype -> stype -> Set :=
 | Oor   : sop2 sbool sbool sbool
 (* words *)
 | Oadd   : sop2 sword sword sword
+| Omul   : sop2 sword sword sword
 | Oaddc  : sop2 sword sword (sbool ** sword)
 
 | Osub  : sop2 sword sword sword
@@ -69,6 +70,7 @@ Definition eqb_sop2 {t1 t2 tr t1' t2' tr'} (o:sop2 t1 t2 tr) (o':sop2 t1' t2' tr
 | Oor      , Oor       => true
 | Oadd     , Oadd      => true
 | Oaddc    , Oaddc     => true
+| Omul     , Omul     => true
 | Osub     , Osub      => true
 | Osubc    , Osubc     => true
 | Oeq      , Oeq       => true
@@ -94,7 +96,7 @@ Proof. by move: o o' => [|??|??] [|??|??] //= [] ->->. Qed.
 
 Lemma eqb_sop2P t1 t1' t2 t2' tr tr' (o:sop2 t1 t2 tr) (o':sop2 t1' t2' tr'):
   t1 = t1' -> t2 = t2' -> eqb_sop2 o o' -> tr = tr' /\ JMeq o o'.
-Proof. by move: o o'=> [|||||||||?|??] [|||||||||?|??] //= => [ []->| ->->]. Qed.
+Proof. by move: o o'=> [||||||||||?|??] [||||||||||?|??] //= => [ []->| ->->]. Qed.
 
 Lemma eqb_sop3P t1 t1' t2 t2' t3 t3' tr tr' (o:sop3 t1 t2 t3 tr) (o':sop3 t1' t2' t3' tr'):
   t1 = t1' -> t2 = t2' -> t3 = t3' -> eqb_sop3 o o' ->  tr = tr' /\ JMeq o o'.
@@ -477,7 +479,7 @@ Proof. done. Qed.
 Definition destr_pair t1 t2 (p:pexpr (t1 ** t2)) : option (pexpr t1 * pexpr t2).
 case H: _ / p => [ ? | ? | ? | ? | ???? | ??? o e1 e2| ???????? ].
 + exact None. + exact None. + exact None. + exact None. + exact None. 
-+ (case:o H e1 e2 => [||||||||||??[]<-<- e1 e2];last by exact (Some (e1,e2)))=> *; 
++ (case:o H e1 e2 => [|||||||||||??[]<-<- e1 e2];last by exact (Some (e1,e2)))=> *; 
   exact None.
 exact None. 
 Defined.
