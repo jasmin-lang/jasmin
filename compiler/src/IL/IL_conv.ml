@@ -1,10 +1,10 @@
 (* * Conversion to and from Coq language *)
 
 (* ** Imports and abbreviations *)
+open Core_kernel.Std
 open IL_Lang
 open IL_Utils
 open IL_Typing
-open Util
 open Arith
 
 module F  = Format
@@ -91,7 +91,6 @@ let of_pop_u64 po =
   | Pminus -> DE.Osub
 
 let of_var v =
-  let open Dmasm_var.Var in
   let vname = string0_of_string (string_of_int v.Var.num) in
   let vtype = of_ty v.Var.ty in
   { Dmasm_var.Var.vname=Obj.magic vname; Dmasm_var.Var.vtype = vtype }
@@ -178,10 +177,9 @@ let of_src s =
       DE.Papp2(DT.Coq_sarr(n),DT.Coq_sword,DT.Coq_sword,DE.Oget(n),v,cpe)
     end 
 
-
 let of_op_view o = 
-(*
-  | V_Umul(h,l,x,y) -> assert false
+  match o with 
+  | V_Umul(_h,_l,_x,_y) -> assert false
 (*    
     let h = of_dest h and l = of_dest l in
     let x = of_src x and y = of_src y in
@@ -195,28 +193,35 @@ let of_op_view o =
     let z = of_dest z in
     let x = of_src x in
     let y = of_src y in
-    let cf = Option.map of_dest mcf_out in 
-    let ci = Option.map of_src  mcf_in  in
+    let cf = Option.map mcf_out ~f:of_dest in 
+    let ci = Option.map mcf_in  ~f:of_src in
     let wc = 
       match cf, ci with
-      | None, None -> `Normal
+      | None, None -> `NoCarry
       | None, Some _ -> assert false
-      | Some cf, None -> `Carry(cf, ci)
-      | Some cf, Some ci -> `Carry(cf, ci)
-      
+      | Some cf, None -> `Carry(cf, DE.Pbool (of_bool false))
+      | Some cf, Some ci -> `Carry(cf, ci) in
+    let sword = DT.Coq_sword in
+    let sbool = DT.Coq_sbool in
+    let cword = DT.Coq_sprod(sbool, sword) in
+    let e = 
+      match o, wc with
+      | O_Add, `NoCarry ->
+        DE.Papp2 (sword, sword, sword, DE.Oadd, x, y) 
+      | O_Add, `Carry(_, ci) ->
+        DE.Papp3 (sword, sword, sbool, cword, DE.Oaddcarry, x, y, ci) 
+      | O_Sub, `NoCarry ->
+        DE.Papp2 (sword, sword, sword, DE.Osub, x, y) 
+      | O_Sub, `Carry(_, ci) ->
+        DE.Papp3 (sword, sword, sbool, cword, DE.Osubcarry, x, y, ci) in
+    let ty, rv = 
+      match wc with
+      | `NoCarry -> sword, z
+      | `Carry(cf,_) -> cword, DE.Rpair(sbool, sword, cf, z) in
+    ty, rv, e
 
-
-    match 
-
-    let 
-    
-    
-    type_src_eq  x (U(64));
-    type_src_eq  y (U(64));
-    type_dest_eq z (U(64));
-    Option.iter ~f:(fun s -> type_src_eq  s Bool) mcf_in;
-    Option.iter ~f:(fun d -> type_dest_eq d Bool) mcf_out
-
+  | _ -> 
+(*
   | V_Cmov(_,z,x,y,cf) ->
     type_src_eq  x (U(64));
     type_src_eq  y (U(64));
