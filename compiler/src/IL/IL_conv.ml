@@ -39,3 +39,83 @@ let to_ty cty =
   | DT.Coq_sarr(pos) -> Arr(64, Pconst(bi_of_pos pos))
   | _                -> assert false
 
+let of_pop_u64 po =
+  match po with
+  | Pplus  -> DE.Oadd
+  | Pmult  -> DE.Omul
+  | Pminus -> DE.Osub
+
+let pop_bool po =
+  match po with
+  | Peq      -> DE.Oeq
+  | Pineq    -> assert false
+  | Pless    -> DE.Olt
+  | Pleq     -> DE.Ole
+  | Pgreater -> assert false
+  | Pgeq     -> assert false
+
+(* 
+type sop1 =
+| Onot
+| Ofst of stype * stype
+| Osnd of stype * stype
+*)
+
+(*
+type sop2 =
+| Oand
+| Oor
+| Oadd
+| Oaddc
+| Osub
+| Osubc
+| Oeq
+| Olt
+| Ole
+| Oget of positive
+| Opair of stype * stype
+*)
+
+(*
+type sop3 =
+| Oaddcarry
+| Osubcarry
+| Oset of positive
+*)
+
+(*
+type pexpr =
+| Pvar of Var.var
+| Pload of pexpr
+| Pconst of coq_Z
+| Pbool of bool
+| Papp1 of stype * stype * sop1 * pexpr
+| Papp2 of stype * stype * stype * sop2 * pexpr * pexpr
+| Papp3 of stype * stype * stype * stype * sop3 * pexpr * pexpr * pexpr
+*)
+
+(*
+type rval =
+| Rvar of Var.var
+| Rmem of pexpr
+| Raset of positive * Equality.sort * pexpr
+| Rpair of stype * stype * rval * rval
+*)
+(*
+type dir =
+| UpTo
+| DownTo
+*)
+(*
+type range = ((dir, pexpr) prod, pexpr) prod
+*)
+(*
+type instr =
+| Cassgn of stype * rval * pexpr
+| Cif of pexpr * instr list * instr list
+| Cfor of rval * range * instr list
+| Cwhile of pexpr * instr list
+| Ccall of stype * stype * rval * fundef * pexpr
+and fundef =
+| FunDef of stype * stype * rval * instr list * pexpr
+*)
