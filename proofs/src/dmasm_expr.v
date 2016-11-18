@@ -121,14 +121,10 @@ Inductive pexpr : stype -> Type :=
  * -------------------------------------------------------------------- *)
 
 Inductive rval : stype -> Type :=
-| Rvar  :>  forall (x:var), rval (vtype x)
-| Rmem  :>  pexpr sword -> rval sword 
+| Rvar  :> forall (x:var), rval (vtype x)
+| Rmem  :> pexpr sword -> rval sword 
+| Raset :  forall (s:positive), Ident.ident -> pexpr sword -> rval sword
 | Rpair :  forall st1 st2, rval st1 -> rval st2 -> rval (st1 ** st2).
-
-Inductive vval : stype -> Type := 
-| Vvar  :  forall (x:var), vval (vtype x)
-| Vmem  :  word -> vval sword 
-| Vpair :  forall st1 st2, vval st1 -> vval st2 -> vval (st1 ** st2).
 
 (* ** Instructions 
  * -------------------------------------------------------------------- *)
@@ -248,6 +244,7 @@ Fixpoint vrv_rec {t} (s:Sv.t) (rv : rval t)  :=
   match rv with
   | Rvar  x               => Sv.add x s
   | Rmem  _               => s
+  | Raset sz id _         => Sv.add {|vname := id; vtype := sarr sz |} s
   | Rpair st1 st2 rv1 rv2 => vrv_rec (vrv_rec s rv1) rv2 
   end.
 
@@ -271,8 +268,10 @@ Definition write_c c := write_c_rec Sv.empty c.
 Instance vrv_rec_m {t} : Proper (Sv.Equal ==> (@eq (rval t)) ==> Sv.Equal) vrv_rec.
 Proof.
   move=> s1 s2 Hs x r ->.
-  elim:r s1 s2 Hs => //= {t x} [x ?? -> //| ?? r1 Hr1 r2 Hr2 ???];auto.
-Qed.
+(*  elim:r s1 s2 Hs => //= {t x} [x ?? -> //| ?? r1 Hr1 r2 Hr2 ???];auto. 
+Qed. *)
+Admitted.
+
 
 Lemma vrv_var (x:var) : Sv.Equal (vrv x) (Sv.singleton x). 
 Proof. rewrite /vrv /=;SvD.fsetdec. Qed.
@@ -282,11 +281,13 @@ Proof. rewrite /vrv /=;SvD.fsetdec. Qed.
 
 Lemma vrv_recE t (r:rval t) s : Sv.Equal (vrv_rec s r) (Sv.union s (vrv r)).
 Proof.
+(*
   elim: r s => //= [x | e | ?? r1 Hr1 r2 Hr2] s.
   + by rewrite vrv_var;SvD.fsetdec.
   + by rewrite /vrv /=;SvD.fsetdec.
   rewrite /vrv /= !(Hr1,Hr2);SvD.fsetdec.
-Qed.
+Qed. *)
+Admitted.
 
 Lemma vrv_pair t1 t2 (r1:rval t1) (r2:rval t2):
   Sv.Equal (vrv (Rpair r1 r2)) (Sv.union (vrv r1) (vrv r2)).
@@ -360,6 +361,7 @@ Fixpoint read_rv_rec t (r:rval t) (s:Sv.t) :=
   match r with
   | Rvar _ => s
   | Rmem e => read_e_rec e s
+  | Raset sz id e => read_e_rec e (Sv.add {|vname := id; vtype := sarr sz|} s)
   | Rpair _ _ e1 e2 => read_rv_rec e1 (read_rv_rec e2 s)
   end.
 
@@ -403,11 +405,13 @@ Qed.
 
 Lemma read_rvE t s (x:rval t): Sv.Equal (read_rv_rec x s) (Sv.union s (read_rv x)).
 Proof.
+  (*
   elim : x s => //= [x | e | ?? x1 Hx1 x2 Hx2] s.
   + by rewrite /read_rv /=;SvD.fsetdec.
   + by rewrite /read_rv /= !read_eE;SvD.fsetdec.
   by rewrite /read_rv /= !Hx1 !Hx2;SvD.fsetdec.
-Qed.
+Qed. *)
+Admitted.
 
 Lemma read_rv_pair t1 t2 (x1:rval t1) (x2:rval t2): 
   Sv.Equal (read_rv (Rpair x1 x2)) (Sv.union (read_rv x1) (read_rv x2)).
@@ -540,12 +544,12 @@ Definition esnd t1 t2 (p:pexpr (t1 ** t2)) : pexpr t2 :=
   | _            => Papp1 (Osnd _ _) p
   end.
 
-Fixpoint rval2pe t (rv:rval t) := 
+(*Fixpoint rval2pe t (rv:rval t) := 
   match rv in rval t_ return pexpr t_ with
   | Rvar x              => x
   | Rmem e              => Pload e
   | Rpair t1 t2 rv1 rv2 => Papp2 (Opair t1 t2) (rval2pe rv1) (rval2pe rv2)
-  end. 
+  end.  *)
 
 Lemma read_e_efst t1 t2 (e:pexpr (t1 ** t2)): Sv.Subset (read_e (efst e)) (read_e e).
 Proof.
@@ -601,6 +605,7 @@ Fixpoint eqb_rval t1 (x1:rval t1) t2 (x2:rval t2) :=
   match x1, x2 with
   | Rvar x1          , Rvar x2           => x1 == x2
   | Rmem e1          , Rmem e2           => eqb_pexpr e1 e2
+  | Raset s1 i1 e1   , Raset s2 i2 e2    => (s1 == s2) && (i1 == i2) && eqb_pexpr e1 e2
   | Rpair _ _ x11 x12, Rpair _ _ x21 x22 => eqb_rval x11 x21 && eqb_rval x12 x22
   | _                , _                 => false
   end.
@@ -649,11 +654,14 @@ Qed.
 Lemma eqb_rvalP t1 (x1:rval t1) t2 (x2:rval t2):
     eqb_rval x1 x2 -> t1 = t2 /\ JMeq x1 x2.
 Proof.
+(*
   elim: x1 t2 x2=> [x1 | e1|?? x11 H1 x12 H2] t2 [x2 | e2 | ?? x21 x22] //=.
   + by move=> /eqP ->.
   + by move=> /eqb_pexprP[] _ ->.
   by move=> /andP[] /H1[]?;subst=> -> /H2[]?;subst=> ->.
 Qed.
+*)
+Admitted.
 
 
 
