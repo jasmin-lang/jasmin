@@ -45,7 +45,7 @@ let of_pop_u64 po =
   | Pmult  -> DE.Omul
   | Pminus -> DE.Osub
 
-let pop_bool po =
+let of_pop_bool po =
   match po with
   | Peq      -> DE.Oeq
   | Pineq    -> assert false
@@ -53,6 +53,16 @@ let pop_bool po =
   | Pleq     -> DE.Ole
   | Pgreater -> assert false
   | Pgeq     -> assert false
+
+let of_var v =
+  ignore (v.Var.num (* int *), v.Var.ty);
+  undefined ()
+
+let rec of_pexpr pe =
+  match pe with
+  | Patom(Pparam(_)) -> assert false (* expanded beforehand *)
+  | Patom(Pvar(v))   -> DE.Pvar(of_var v)
+  | _                -> assert false
 
 (* 
 type sop1 =
