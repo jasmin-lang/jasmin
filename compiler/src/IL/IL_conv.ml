@@ -117,10 +117,6 @@ let mk_cmp cop cpe1 cpe2 =
 
 let mk_eq = mk_cmp DE.Oeq
 
-let mk_less = mk_cmp DE.Olt
-
-let mk_leq = mk_cmp DE.Ole
-
 let rec of_pcond pc =
   match pc with
   | Ptrue    -> DE.Pbool(of_bool true)
@@ -135,16 +131,16 @@ let rec of_pcond pc =
     begin match pop with
     | Peq      -> mk_eq cpe1 cpe2
     | Pineq    -> mk_not (mk_eq cpe1 cpe2)
-    | Pless    -> mk_less cpe1 cpe2
-    | Pleq     -> mk_leq cpe1 cpe2
-    | Pgreater -> mk_less cpe2 cpe1 (* FIXME: make it consistent *)
-    | Pgeq     -> mk_leq  cpe2 cpe1 (* FIXME: make it consistent *)
+    | Pless    -> mk_cmp DE.Olt cpe1 cpe2
+    | Pleq     -> mk_cmp DE.Ole cpe1 cpe2
+    | Pgreater -> mk_cmp DE.Ogt cpe1 cpe2
+    | Pgeq     -> mk_cmp DE.Oge cpe1 cpe2
     end
 
 (* FIXME: Rmem missing on ocaml side *)
 let of_dest d =
   match d.d_idx with
-  | None             -> DE.Rvar(of_var d.d_var)
+  | None      -> DE.Rvar(of_var d.d_var)
   | Some(idx) ->
     let s = match d.d_var.Var.ty with
       | Arr(64,Pconst(c)) -> pos_of_bi c
@@ -239,19 +235,24 @@ let of_op_view o =
     type_dest_eq z (U(64));
     Option.iter ~f:(fun s -> type_dest_eq s Bool) mcf_out
 *)
-assert false 
+  assert false 
+
 let of_base_instr bi =
+
   match bi with
-  | Assgn(d,s,aty) -> (* TODO: aty is losed, should be keep *)
+
+  | Assgn(d,s,_aty) -> (* TODO: aty lost, should be preserved *)
     let rd = of_dest d in
     let es = of_src s in
     let ty = type_dest d in
     DE.Cassgn(of_ty ty ,rd,es) 
+
   | Op(o,ds,ss) ->
     let ty, rds, e = of_op_view (view_op o ds ss) in
     DE.Cassgn(ty ,rds, e) 
 
   | _ -> assert false 
+
 (*    
   | Call of Fname.t * dest list * src list
     (* Call(fname,rets,args): rets = fname(args) *)
