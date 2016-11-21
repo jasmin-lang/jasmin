@@ -12,84 +12,109 @@ Unset Printing Implicit Defensive.
 
 Open Scope string_scope.
 
-
-
 (* ** Operators
  * -------------------------------------------------------------------- *)
+(* *** Summary
+   Operators represent several constructs in the Ocaml compiler:
+   - const-op: compile-time expressions (constexpr in C++)
+   - list-op: argument and result lists
+   - arr-op: reading and writing arrays
+   - cpu-op: CPU instructions such as addition with carry
+*)
 
 Inductive sop1 : stype -> stype -> Set := 
 (* bools *)
-| Onot  : sop1 sbool sbool
-(* words *)
-(*| Olnot : sop1 sword sword *)
+| Onot : sop1 sbool sbool                       (* const *)
 (* pairs *)
-| Ofst  : forall st1 st2, sop1 (st1 ** st2) st1
-| Osnd  : forall st1 st2, sop1 (st1 ** st2) st2.
+| Ofst : forall st1 st2, sop1 (st1 ** st2) st1  (* list *)
+| Osnd : forall st1 st2, sop1 (st1 ** st2) st2. (* list *)
+
+(* words *)
+(*| Olnot : sop1 sword sword (* cpu *) *)
 
 Inductive sop2 : stype -> stype -> stype -> Set :=
-(* bools *)
-| Oand  : sop2 sbool sbool sbool
-| Oor   : sop2 sbool sbool sbool
-(* words *)
-| Oadd   : sop2 sword sword sword
-| Omul   : sop2 sword sword sword
-| Omulu  : sop2 sword sword (sword ** sword)
-| Oaddc  : sop2 sword sword (sbool ** sword)
+| Oand  : sop2 sbool sbool sbool                     (* const *)
+| Oor   : sop2 sbool sbool sbool                     (* const *)
 
-| Osub  : sop2 sword sword sword
-| Osubc  : sop2 sword sword (sbool ** sword)
+| Oadd  : sop2 sword sword sword                     (* const *)
+| Omul  : sop2 sword sword sword                     (* const *)
+| Osub  : sop2 sword sword sword                     (* const *)
 
-(*| Oxor  : sop2 sword sword sword
-| Oland : sop2 sword sword sword
-| Olor  : sop2 sword sword sword *)
-| Oeq   : sop2 sword sword sbool
-| Olt   : sop2 sword sword sbool
-| Ole   : sop2 sword sword sbool
-(* arrays *)
-| Oget  : forall n, sop2 (sarr n) sword sword
-(* pairs *)
-| Opair : forall st1 st2, sop2 st1 st2 (st1 ** st2).
+| Oeq   : sop2 sword sword sbool                     (* const *)
+| Olt   : sop2 sword sword sbool                     (* const *)
+| Ole   : sop2 sword sword sbool                     (* const *)
+| Ogt   : sop2 sword sword sbool                     (* const *)
+| Oge   : sop2 sword sword sbool                     (* const *)
+
+| Omulu : sop2 sword sword (sword ** sword)         (* cpu *)
+| Oaddc : sop2 sword sword (sbool ** sword)         (* cpu *)
+| Osubc : sop2 sword sword (sbool ** sword)         (* cpu *)
+(*| Oxor  : sop2 sword sword sword                   (* cpu *)
+  | Oland : sop2 sword sword sword                   (* cpu *)
+  | Olor  : sop2 sword sword sword                   (* cpu *)
+*)
+
+| Oget  : forall n, sop2 (sarr n) sword sword        (* arr *)
+| Opair : forall st1 st2, sop2 st1 st2 (st1 ** st2). (* list *)
 
 Inductive sop3 : stype -> stype -> stype -> stype -> Set :=
-(* words *)
-| Oaddcarry : sop3 sword sword sbool (sbool ** sword)
-| Osubcarry : sop3 sword sword sbool (sbool ** sword)
-(* arrays *)
-| Oset  : forall n, sop3 (sarr n) sword sword (sarr n).
+| Oaddcarry : sop3 sword sword sbool (sbool ** sword)   (* cpu *)
+| Osubcarry : sop3 sword sword sbool (sbool ** sword)   (* cpu *)
+| Oset  : forall n, sop3 (sarr n) sword sword (sarr n). (* arr *)
 
 Definition eqb_sop1 {t1 tr t1' tr'} (o:sop1 t1 tr) (o':sop1 t1' tr') := 
   match o, o' with
   | Onot    , Onot     => true
+  | Onot    , _        => false
   | Ofst _ _, Ofst _ _ => true
+  | Ofst _ _, _        => false
   | Osnd _ _, Osnd _ _ => true
-  | _       , _        => false
+  | Osnd _ _, _        => false
   end.
 
 Definition eqb_sop2 {t1 t2 tr t1' t2' tr'} (o:sop2 t1 t2 tr) (o':sop2 t1' t2' tr') := 
   match o, o' with
 | Oand     , Oand      => true
+| Oand     , _         => false
 | Oor      , Oor       => true
+| Oor      , _         => false
 | Oadd     , Oadd      => true
+| Oadd     , _         => false
 | Oaddc    , Oaddc     => true
+| Oaddc    , _         => false
 | Omul     , Omul      => true
+| Omul     , _         => false
 | Omulu    , Omulu     => true
+| Omulu    , _         => false
 | Osub     , Osub      => true
+| Osub     , _         => false
 | Osubc    , Osubc     => true
+| Osubc    , _         => false
 | Oeq      , Oeq       => true
+| Oeq      , _         => false
 | Olt      , Olt       => true
+| Olt      , _         => false
 | Ole      , Ole       => true
+| Ole      , _         => false
+| Ogt      , Ogt       => true
+| Ogt      , _         => false
+| Oge      , Oge       => true
+| Oge      , _         => false
 | Oget _   , Oget _    => true
+| Oget _   , _         => false
 | Opair _ _, Opair _ _ => true
-| _        , _         => false
+| Opair _ _, _         => false
 end.
 
 Definition eqb_sop3 {t1 t2 t3 tr t1' t2' t3' tr'} 
            (o:sop3 t1 t2 t3 tr) (o':sop3 t1' t2' t3' tr') := 
   match o, o' with
  | Oaddcarry , Oaddcarry  => true
+ | Oaddcarry , _          => false
  | Osubcarry , Osubcarry  => true
+ | Osubcarry , _          => false
  | Oset _    , Oset _     => true
- | _         , _          => false
+ | Oset _    , _          => false
  end.
 
 Lemma eqb_sop1P t1 t1' tr tr' (o:sop1 t1 tr) (o':sop1 t1' tr'):
@@ -98,12 +123,13 @@ Proof. by move: o o' => [|??|??] [|??|??] //= [] ->->. Qed.
 
 Lemma eqb_sop2P t1 t1' t2 t2' tr tr' (o:sop2 t1 t2 tr) (o':sop2 t1' t2' tr'):
   t1 = t1' -> t2 = t2' -> eqb_sop2 o o' -> tr = tr' /\ JMeq o o'.
-Proof. by move: o o'=> [|||||||||||?|??] [|||||||||||?|??] //= => [ []-> | ->->]. Qed.
+Proof.
+  by move: o o'=> [|||||||||||||?|??] [|||||||||||||?|??] //= => [ []-> | ->->].
+Qed.
 
 Lemma eqb_sop3P t1 t1' t2 t2' t3 t3' tr tr' (o:sop3 t1 t2 t3 tr) (o':sop3 t1' t2' t3' tr'):
   t1 = t1' -> t2 = t2' -> t3 = t3' -> eqb_sop3 o o' ->  tr = tr' /\ JMeq o o'.
 Proof. by move: o o'=> [||?] [||?] // [] ->. Qed.
-
 
 (* ** Expressions
  * -------------------------------------------------------------------- *)
@@ -119,7 +145,6 @@ Inductive pexpr : stype -> Type :=
   sop2 st1 st2 stres -> pexpr st1 -> pexpr st2 -> pexpr stres
 | Papp3  : forall st1 st2 st3 stres: stype, 
   sop3 st1 st2 st3 stres -> pexpr st1 -> pexpr st2 -> pexpr st3 -> pexpr stres.
-
 
 (* ** Right values
  * -------------------------------------------------------------------- *)
@@ -161,6 +186,9 @@ Definition fd_body sta str (fd : fundef sta str) : cmd :=
 
 Definition fd_res sta str (fd : fundef sta str) : pexpr str :=
   match fd with FunDef _ _ _ _ fr => fr end.
+
+(* ** Recursor for instructions, cmds, and fundefs
+ * -------------------------------------------------------------------- *)
 
 Section IND.
   Variable Pi : instr -> Type.
@@ -240,11 +268,10 @@ Definition store pe1 pe2 := Cassgn (Rmem pe1) pe2.
 Definition cmd_Ind (P : cmd -> Prop) := 
   @cmd_ind P (fun _ _ _ => True).
 
-(* -------------------------------------------------------------------------- *)
-(* Compute the set of writen variables of a program                           *)
-(* -------------------------------------------------------------------------- *)
+(* ** Compute written variables
+ * -------------------------------------------------------------------- *)
 
-Fixpoint vrv_rec {t} (s:Sv.t) (rv : rval t)  :=
+Fixpoint vrv_rec {t} (s:Sv.t) (rv:rval t) :=
   match rv with
   | Rvar  x               => Sv.add x s
   | Rmem  _               => s
@@ -252,7 +279,7 @@ Fixpoint vrv_rec {t} (s:Sv.t) (rv : rval t)  :=
   | Rpair st1 st2 rv1 rv2 => vrv_rec (vrv_rec s rv1) rv2 
   end.
 
-Definition vrv {t} (rv : rval t) := vrv_rec Sv.empty rv.
+Definition vrv {t} (rv:rval t) := vrv_rec Sv.empty rv.
 
 Fixpoint write_i_rec s i := 
   match i with
@@ -272,10 +299,10 @@ Definition write_c c := write_c_rec Sv.empty c.
 Instance vrv_rec_m {t} : Proper (Sv.Equal ==> (@eq (rval t)) ==> Sv.Equal) vrv_rec.
 Proof.
   move=> s1 s2 Hs x r ->.
+  elim:r => //=.
 (*  elim:r s1 s2 Hs => //= {t x} [x ?? -> //| ?? r1 Hr1 r2 Hr2 ???];auto. 
 Qed. *)
 Admitted.
-
 
 Lemma vrv_var (x:var) : Sv.Equal (vrv x) (Sv.singleton x). 
 Proof. rewrite /vrv /=;SvD.fsetdec. Qed.
@@ -348,6 +375,9 @@ Lemma write_i_call t1 t2 (f:fundef t1 t2) x a :
   write_i (Ccall x f a) = vrv x.
 Proof. done. Qed.
 
+(* ** Compute read variables
+ * -------------------------------------------------------------------- *)
+
 Fixpoint read_e_rec t (e:pexpr t) (s:Sv.t) : Sv.t := 
   match e with
   | Pvar x                    => Sv.add x s 
@@ -363,9 +393,9 @@ Definition read_e t (e:pexpr t) := read_e_rec e Sv.empty.
          
 Fixpoint read_rv_rec t (r:rval t) (s:Sv.t) := 
   match r with
-  | Rvar _ => s
-  | Rmem e => read_e_rec e s
-  | Raset sz id e => read_e_rec e (Sv.add {|vname := id; vtype := sarr sz|} s)
+  | Rvar _          => s
+  | Rmem e          => read_e_rec e s
+  | Raset sz id e   => read_e_rec e (Sv.add {|vname := id; vtype := sarr sz|} s)
   | Rpair _ _ e1 e2 => read_rv_rec e1 (read_rv_rec e2 s)
   end.
 
@@ -447,7 +477,8 @@ Proof. done. Qed.
 Lemma read_c_cons i c: Sv.Equal (read_c (i::c)) (Sv.union (read_i i) (read_c c)).
 Proof. rewrite {1}/read_c /= -/read_c_rec read_cE read_iE;SvD.fsetdec. Qed.
 
-Lemma read_i_assgn t (x:rval t) e : Sv.Equal (read_i (Cassgn x e)) (Sv.union (read_rv x) (read_e e)).
+Lemma read_i_assgn t (x:rval t) e :
+  Sv.Equal (read_i (Cassgn x e)) (Sv.union (read_rv x) (read_e e)).
 Proof. rewrite /read_i /= read_rvE read_eE;SvD.fsetdec. Qed.
 
 Lemma read_i_if e c1 c2 :
@@ -474,14 +505,13 @@ Lemma read_i_call t1 t2 (f:fundef t1 t2) x a :
   read_i (Ccall x f a) = read_e a.
 Proof. done. Qed.
 
-(* -------------------------------------------------------------------------- *)
-(* Some smart constructors                                                    *)
-(* -------------------------------------------------------------------------- *)
+(* ** Some smart constructors
+ * -------------------------------------------------------------------------- *)
 
 Definition destr_pair t1 t2 (p:pexpr (t1 ** t2)) : option (pexpr t1 * pexpr t2).
 case H: _ / p => [ ? | ? | ? | ? | ???? | ??? o e1 e2| ???????? ].
 + exact None. + exact None. + exact None. + exact None. + exact None. 
-+ (case:o H e1 e2 => [||||||||||||??[]<-<- e1 e2];last by exact (Some (e1,e2)))=> *; 
++ (case:o H e1 e2 => [||||||||||||||??[]<-<- e1 e2];last by exact (Some (e1,e2)))=> *; 
   exact None.
 exact None. 
 Defined.
@@ -584,7 +614,9 @@ vrv_var;SvD.fsetdec.
   rewrite !read_eE vrv_pair -Hx1 -Hx2;SvD.fsetdec.
 Qed.
 *)
-(* ----------------------------------------------------------------------------------- *)
+
+(* ** Equality
+ * -------------------------------------------------------------------------- *)
 
 Fixpoint eqb_pexpr t1 t2 (e1:pexpr t1) (e2:pexpr t2) : bool :=
   match e1, e2 with
@@ -669,8 +701,3 @@ Proof.
 Qed.
 *)
 Admitted.
-
-
-
-
- 
