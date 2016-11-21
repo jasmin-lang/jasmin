@@ -24,7 +24,7 @@ Open Scope string_scope.
 
 Inductive sop1 : stype -> stype -> Set := 
 (* bools *)
-| Onot : sop1 sbool sbool                  (* const *)
+| Onot : sop1 sbool sbool                       (* const *)
 (* pairs *)
 | Ofst : forall st1 st2, sop1 (st1 ** st2) st1  (* list *)
 | Osnd : forall st1 st2, sop1 (st1 ** st2) st2. (* list *)
@@ -54,10 +54,6 @@ Inductive sop2 : stype -> stype -> stype -> Set :=
 | Olor  : sop2 sword sword sword                     (* cpu *)
 | Olsr  : sop2 sword sword sword                     (* cpu *)
 | Olsl  : sop2 sword sword sword                     (* cpu *)
-(*| Oxor  : sop2 sword sword sword                   (* cpu *)
-  | Oland : sop2 sword sword sword                   (* cpu *)
-  | Olor  : sop2 sword sword sword                   (* cpu *)
-*)
 
 | Oget  : forall n, sop2 (sarr n) sword sword        (* arr *)
 | Opair : forall st1 st2, sop2 st1 st2 (st1 ** st2). (* list *)
