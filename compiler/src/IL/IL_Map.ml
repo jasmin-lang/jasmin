@@ -98,7 +98,7 @@ let rec map_vars_pcond ~f pc =
   let mvpc = map_vars_pcond ~f in
   let mvpe = map_vars_pexpr ~f in
   match pc with
-  | Ptrue           -> Ptrue
+  | Pbool(_)        -> pc
   | Pnot(pc)        -> Pnot(mvpc pc)
   | Pand(pc1,pc2)   -> Pand(mvpc pc1, mvpc pc2)
   | Pcmp(o,pe1,pe2) -> Pcmp(o,mvpe pe1, mvpe pe2)
@@ -221,7 +221,7 @@ let rec map_params_pcond ~f pc =
   let mvpc = map_params_pcond ~f in
   let mvpe = map_params_pexpr ~f in
   match pc with
-  | Ptrue           -> Ptrue
+  | Pbool(_)        -> pc
   | Pnot(pc)        -> Pnot(mvpc pc)
   | Pand(pc1,pc2)   -> Pand(mvpc pc1, mvpc pc2)
   | Pcmp(o,pe1,pe2) -> Pcmp(o,mvpe pe1, mvpe pe2)
@@ -347,7 +347,7 @@ let rec map_tys_pcond ~f:(f : ty -> ty) pc =
   let mvpc = map_tys_pcond ~f in
   let mvpe = map_tys_pexpr ~f in
   match pc with
-  | Ptrue           -> Ptrue
+  | Pbool(_)        -> pc
   | Pnot(pc)        -> Pnot(mvpc pc)
   | Pand(pc1,pc2)   -> Pand(mvpc pc1, mvpc pc2)
   | Pcmp(o,pe1,pe2) -> Pcmp(o,mvpe pe1, mvpe pe2)

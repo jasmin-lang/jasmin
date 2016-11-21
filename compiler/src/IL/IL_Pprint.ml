@@ -92,18 +92,19 @@ let pp_dest ~pp_types fmt {d_var=v; d_idx=oidx} =
   | Some(idx) -> F.fprintf fmt "%a[%a]" (pp_var ~pp_types) v ppi idx
 
 let pcondop_to_string = function
-  | Peq      -> "="
-  | Pineq    -> "!="
-  | Pless    -> "<"
-  | Pleq     -> "<="
-  | Pgreater -> ">"
-  | Pgeq     -> ">="
+  | Peq  -> "="
+  | Pneq -> "!="
+  | Plt  -> "<"
+  | Ple  -> "<="
+  | Pgt  -> ">"
+  | Pge  -> ">="
 
 let rec pp_pcond ~pp_types fmt pc =
   let ppc = pp_pcond ~pp_types in
   let ppe = pp_pexpr ~pp_types in
   match pc with
-  | Ptrue           -> pp_string fmt "true"
+  | Pbool(true)     -> pp_string fmt "true"
+  | Pbool(false)    -> pp_string fmt "true"
   | Pnot(ic)        -> F.fprintf fmt"!(%a)" ppc ic
   | Pand(c1,c2)     -> F.fprintf fmt"(%a && %a)" ppc c1 ppc c2
   | Pcmp(o,ie1,ie2) -> F.fprintf fmt"(%a %s %a)" ppe ie1 (pcondop_to_string o) ppe ie2

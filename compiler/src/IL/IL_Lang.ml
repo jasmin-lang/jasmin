@@ -147,18 +147,18 @@ type pexpr = patom pexpr_g
 
 type pop_bool =
   | Peq
-  | Pineq
-  | Pless
-  | Pleq
-  | Pgreater
-  | Pgeq
+  | Pneq
+  | Plt
+  | Ple
+  | Pgt
+  | Pge
   [@@deriving compare,sexp]
 
 type pcond =
-  | Ptrue
-  | Pnot of pcond
-  | Pand of pcond * pcond
-  | Pcmp of pop_bool * pexpr * pexpr
+  | Pbool of bool
+  | Pnot  of pcond
+  | Pand  of pcond * pcond
+  | Pcmp  of pop_bool * pexpr * pexpr
   [@@deriving compare,sexp]
 
 (* ** Types, sources, and destinations
@@ -230,11 +230,6 @@ type while_type =
 type assgn_type =
   | Mv (* compile to move *)
   | Eq (* use as equality constraint in reg-alloc and compile to no-op *)
-  [@@deriving compare,sexp]
-
-type if_type =
-  | Run   (* compile to move *)
-  | Macro (* use as equality constraint in reg-alloc and compile to no-op *)
   [@@deriving compare,sexp]
 
 type base_instr =

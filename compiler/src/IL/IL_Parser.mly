@@ -139,12 +139,12 @@ src :
 | MINUS   { Pminus }
 
 %inline pcondop :
-| EQ      { Peq      }
-| INEQ    { Pineq    }
-| LESS    { Pless    }
-| LEQ     { Pleq     }
-| GREATER { Pgreater }
-| GEQ     { Pgeq     }
+| EQ      { Peq  }
+| INEQ    { Pneq }
+| LESS    { Plt  }
+| LEQ     { Ple  }
+| GREATER { Pgt  }
+| GEQ     { Pge  }
 
 var :
 | lid = loc(NID) { mk_var lid }
@@ -163,8 +163,8 @@ pexpr :
 | LPAREN e1=pexpr RPAREN     { e1                                  }
 
 pcond :
-| TRUE                        { Ptrue         }
-| FALSE                       { Pnot(Ptrue)   }
+| TRUE                        { Pbool(true)   }
+| FALSE                       { Pbool(false)  }
 | EXCL c=pcond                { Pnot(c)       }
 | c1=pcond LAND c2=pcond      { Pand(c1,c2)   }
 | LPAREN c = pcond RPAREN     { c             }

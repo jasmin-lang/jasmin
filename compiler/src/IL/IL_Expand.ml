@@ -56,22 +56,22 @@ let eval_pexpr ptable ltable ce =
 let eval_pcondop pc = fun x y ->
   let open Big_int_Infix in
   match pc with
-  | Peq      -> x === y
-  | Pineq    -> not (x === y)
-  | Pless    -> Big_int.compare_big_int x y < 0
-  | Pgreater -> Big_int.compare_big_int x y > 0
-  | Pleq     -> Big_int.compare_big_int x y <= 0
-  | Pgeq     -> Big_int.compare_big_int x y >= 0
+  | Peq  -> x === y
+  | Pneq -> not (x === y)
+  | Plt  -> Big_int.compare_big_int x y < 0
+  | Pgt  -> Big_int.compare_big_int x y > 0
+  | Ple  -> Big_int.compare_big_int x y <= 0
+  | Pge  -> Big_int.compare_big_int x y >= 0
 
 let eval_pcond ptable ltable cc =
   let rec go = function
-    | Ptrue              -> Result.Ok(true)
-    | Pnot(ic)           ->
+    | Pbool(b) -> Result.Ok(b)
+    | Pnot(ic) ->
       begin match go ic with
       | Ok(c)    -> Ok (not c)
       | Error(s) -> Error(s)
       end
-    | Pand(cc1,cc2)      ->
+    | Pand(cc1,cc2) ->
       begin match go cc1, go cc2 with
       | Ok(c1),Ok(c2) -> Ok(c1 && c2)
       | Error(s), _
@@ -276,24 +276,24 @@ let peval_dexpr ptable ltable =
 
 let peval_pcond ptable ltable cc =
   let rec go = function
-    | Ptrue              -> Ptrue
-    | Pnot(ic)           ->
+    | Pbool(b) -> Pbool(b)
+    | Pnot(ic) ->
       begin match go ic with
-      | Ptrue   -> Pnot(Ptrue)
-      | Pnot(c) -> c
-      | c       -> Pnot(c)
+      | Pnot(c)  -> c
+      | Pbool(b) -> Pbool(not b)
+      | c        -> Pnot(c)
       end
-    | Pand(cc1,cc2)      ->
+    | Pand(cc1,cc2) ->
       begin match go cc1, go cc2 with
-      | Ptrue,      Ptrue       -> Ptrue
-      | Pnot(Ptrue),_
-      | _          ,Pnot(Ptrue) -> Pnot(Ptrue)
-      | c1, c2                  -> Pand(c1,c2)
+      | Pbool(true), Pbool(true)   -> Pbool(true)
+      | Pbool(false), _
+      | _           , Pbool(false) -> Pbool(false)
+      | c1, c2                     -> Pand(c1,c2)
       end
     | Pcmp(cco,ce1,ce2) ->
       begin match peval_pexpr ptable ltable ce1, peval_pexpr ptable ltable ce2 with
       | Pconst(c1), Pconst(c2) ->
-        if eval_pcondop cco c1 c2 then Ptrue else Pnot(Ptrue)
+        if eval_pcondop cco c1 c2 then Pbool(true) else Pbool(false)
       | e1,         e2         -> Pcmp(cco,e1,e2)
       end
   in

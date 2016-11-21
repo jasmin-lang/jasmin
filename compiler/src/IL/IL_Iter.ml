@@ -40,7 +40,7 @@ let rec iter_vars_pcond ~fvar pc =
   let ivpc = iter_vars_pcond ~fvar in
   let ivpe = iter_vars_pexpr ~fvar in
   match pc with
-  | Ptrue           -> ()
+  | Pbool(_)        -> ()
   | Pnot(ic)        -> ivpc ic
   | Pand (ic1,ic2)  -> ivpc ic1; ivpc ic2
   | Pcmp(_,ce1,ce2) -> ivpe ce1; ivpe ce2
@@ -217,7 +217,7 @@ let rec iter_params_pcond ~fparam pc =
   let ipc = iter_params_pcond ~fparam in
   let ipe = iter_params_pexpr ~fparam in
   match pc with
-  | Ptrue           -> ()
+  | Pbool(_)        -> ()
   | Pnot(ic)        -> iter_params_pcond ~fparam ic
   | Pand(ic1,ic2)   -> ipc ic1; ipc ic2
   | Pcmp(_,ce1,ce2) -> ipe ce1; ipe ce2

@@ -43,7 +43,6 @@ let process_mil trafo print_result out_file file s (modul : 'info modul) =
     else F.eprintf "Processed file %s@\n%!" file
 
 let dmasm trafo print_result out_file file =
-  ignore (IL_conv.of_ty (undefined ()));
   match Filename.split_extension file with
   | _, Some "mil" ->
     parse_and_process

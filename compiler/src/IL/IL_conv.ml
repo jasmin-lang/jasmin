@@ -8,8 +8,10 @@ open IL_Typing
 open Arith
 
 module F  = Format
-module DE  = Dmasm_expr
-module DT  = Dmasm_type
+module DE = Dmasm_expr
+module DT = Dmasm_type
+module DV = Dmasm_var
+module Lex = ParserUtil.Lexing
 
 (* ** Conversions for strings, numbers, ...
  * ------------------------------------------------------------------------ *)
@@ -52,6 +54,14 @@ let ascii_of_char x =
     else Datatypes.Coq_false in
   Ascii.Ascii(bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7)
 
+let char_of_ascii c = 
+  let Ascii.Ascii(b7, b6, b5, b4, b3, b2, b1, b0) = c in
+  let cv b i = if b = Datatypes.Coq_true  then 1 lsl i else 0 in
+  let i =
+    (cv b7 7) + (cv b6 6) + (cv b5 5) + (cv b4 4) + (cv b3 3) + (cv b2 2) + (cv b1 1) + (cv b0 0) 
+  in
+  char_of_int i
+
 let string0_of_string s = 
   let s0 = ref String0.EmptyString in
   for i = String.length s - 1 downto 0 do
@@ -59,56 +69,94 @@ let string0_of_string s =
   done;
   !s0
 
-let of_bool b = 
+let string_of_string0 s0 =
+  let rec go acc s0 =
+    match s0 with
+    | String0.EmptyString   -> List.rev acc
+    | String0.String (c,s0) ->
+      go ((char_of_ascii c)::acc) s0
+  in
+  String.of_char_list (go [] s0)
+
+let cbool_of_bool b =
   if b then Datatypes.Coq_true else Datatypes.Coq_false
 
-let to_bool cb = 
-  match cb with 
-  | Datatypes.Coq_true -> true
+let bool_of_cbool cb =
+  match cb with
+  | Datatypes.Coq_true  -> true
   | Datatypes.Coq_false -> false
 
-(* ** Types, pexpr, ...
+(* ** Types, pexpr, and pcond
  * ------------------------------------------------------------------------ *)
 
-let of_ty ty =
+let cty_of_ty ty =
   match ty with
   | Bool               -> DT.Coq_sbool
   | U(64)              -> DT.Coq_sword
   | Arr(64,Pconst(bi)) -> DT.Coq_sarr(pos_of_bi bi)
   | _                  -> assert false
 
-let to_ty cty =
+let ty_of_cty cty =
   match cty with
   | DT.Coq_sbool     -> Bool
   | DT.Coq_sword     -> U(64)
   | DT.Coq_sarr(pos) -> Arr(64, Pconst(bi_of_pos pos))
-  | _                -> assert false
+  | _                -> failwith "ty_of_cty: cannot convert given coq type"
 
-let of_pop_u64 po =
+let sop2_of_pop_u64 po =
   match po with
   | Pplus  -> DE.Oadd
   | Pmult  -> DE.Omul
   | Pminus -> DE.Osub
 
-let of_var v =
+let pop_u64_of_sop2 sop =
+  match sop with
+  | DE.Oadd -> Pplus
+  | DE.Omul -> Pmult
+  | DE.Osub -> Pminus
+  | _       -> failwith "pop_u64_of_sop2: cannot map operation to pop_u64"
+  
+let cvar_of_var v =
   let vname = string0_of_string (string_of_int v.Var.num) in
-  let vtype = of_ty v.Var.ty in
-  { Dmasm_var.Var.vname=Obj.magic vname; Dmasm_var.Var.vtype = vtype }
+  let vtype = cty_of_ty v.Var.ty in
+  { DV.Var.vname = Obj.magic vname; DV.Var.vtype = vtype }
 
-let rec of_pexpr pe =
+let var_of_cvar cvar =
+  let num = int_of_string (string_of_string0 (Obj.magic cvar.DV.Var.vname)) in
+  let ty = ty_of_cty cvar.DV.Var.vtype in
+  { Var.name = Vname.mk "x";  (* FIXME: preserve *)
+    Var.num = num;
+    Var.ty   = ty;
+    Var.stor = Reg;           (* FIXME: preserve *)
+    Var.uloc = Lex.dummy_loc; (* FIXME: preserve *)
+    Var.dloc = Lex.dummy_loc  (* FIXME: preserve *)
+  }
+
+let rec cpexpr_of_pexpr pe =
   match pe with
-  | Patom(Pparam(_))   -> assert false (* expanded beforehand *)
-  | Patom(Pvar(v))     -> DE.Pvar(of_var v)
+  | Patom(Pparam(_))   -> failwith "cpexpr_of_pexpr: parameters not supported"
+  | Patom(Pvar(v))     -> DE.Pvar(cvar_of_var v)
   | Pbinop(po,pe1,pe2) ->
-    let pe1 = of_pexpr pe1 in
-    let pe2 = of_pexpr pe2 in
-    DE.Papp2(DT.Coq_sword,DT.Coq_sword,DT.Coq_sword,of_pop_u64 po,pe1,pe2) 
+    let pe1 = cpexpr_of_pexpr pe1 in
+    let pe2 = cpexpr_of_pexpr pe2 in
+    DE.Papp2(DT.Coq_sword,DT.Coq_sword,DT.Coq_sword,sop2_of_pop_u64 po,pe1,pe2) 
   | Pconst bi ->
     DE.Pconst(coqZ_of_bi bi)
 
-let mk_and cpc1 cpc2 =
-  DE.Papp2(DT.Coq_sbool,DT.Coq_sbool,DT.Coq_sbool,DE.Oand,cpc1,cpc2)
+let rec pexpr_of_cpexpr pe =
+  match pe with
+  | DE.Pvar(v) -> Patom(Pvar(var_of_cvar v))
+  | DE.Papp2(DT.Coq_sword,DT.Coq_sword,DT.Coq_sword,sop,cpe1,cpe2) ->
+    let pe1 = pexpr_of_cpexpr cpe1 in
+    let pe2 = pexpr_of_cpexpr cpe2 in
+    Pbinop(pop_u64_of_sop2 sop,pe1,pe2)
+  | DE.Pconst(zi) ->
+    Pconst(bi_of_coqZ zi)
+  | _ -> failwith "pexpr_of_cexpr: unsupported pexpr"
 
+let mk_and cpc1 cpc2 =
+ DE.Papp2(DT.Coq_sbool,DT.Coq_sbool,DT.Coq_sbool,DE.Oand,cpc1,cpc2)
+ 
 let mk_not cpc =
   DE.Papp1(DT.Coq_sbool,DT.Coq_sbool,DE.Onot, cpc)
 
@@ -117,30 +165,51 @@ let mk_cmp cop cpe1 cpe2 =
 
 let mk_eq = mk_cmp DE.Oeq
 
-let rec of_pcond pc =
+let rec pexpr_of_pcond pc =
   match pc with
-  | Ptrue    -> DE.Pbool(of_bool true)
-
-  | Pnot(pc) -> mk_not(of_pcond pc)
-    
-  | Pand(pc1,pc2) -> mk_and (of_pcond pc1) (of_pcond pc2)
-
+  | Pbool(b) -> DE.Pbool(cbool_of_bool b)
+  | Pnot(pc) -> mk_not(pexpr_of_pcond pc)
+  | Pand(pc1,pc2) -> mk_and (pexpr_of_pcond pc1) (pexpr_of_pcond pc2)
   | Pcmp(pop,pe1,pe2) ->
-    let cpe1 = of_pexpr pe1 in
-    let cpe2 = of_pexpr pe2 in
+    let cpe1 = cpexpr_of_pexpr pe1 in
+    let cpe2 = cpexpr_of_pexpr pe2 in
     begin match pop with
-    | Peq      -> mk_eq cpe1 cpe2
-    | Pineq    -> mk_not (mk_eq cpe1 cpe2)
-    | Pless    -> mk_cmp DE.Olt cpe1 cpe2
-    | Pleq     -> mk_cmp DE.Ole cpe1 cpe2
-    | Pgreater -> mk_cmp DE.Ogt cpe1 cpe2
-    | Pgeq     -> mk_cmp DE.Oge cpe1 cpe2
+    | Peq  -> mk_cmp DE.Oeq cpe1 cpe2
+    | Plt  -> mk_cmp DE.Olt  cpe1 cpe2
+    | Ple  -> mk_cmp DE.Ole  cpe1 cpe2
+    | Pgt  -> mk_cmp DE.Ogt  cpe1 cpe2
+    | Pge  -> mk_cmp DE.Oge  cpe1 cpe2
+    | Pneq -> mk_cmp DE.Oneq  cpe1 cpe2
     end
 
-(* FIXME: Rmem missing on ocaml side *)
-let of_dest d =
+let rec pcond_of_pexpr pe =
+  match pe with
+  | DE.Pbool(cb) -> Pbool(bool_of_cbool cb)
+  | DE.Papp1(DT.Coq_sbool,DT.Coq_sbool,DE.Onot, cpc) ->
+    Pnot(pcond_of_pexpr cpc)
+  | DE.Papp2(DT.Coq_sbool,DT.Coq_sbool,DT.Coq_sbool,DE.Oand,cpc1,cpc2) ->
+    Pand(pcond_of_pexpr cpc1, pcond_of_pexpr cpc2)
+  | DE.Papp2(DT.Coq_sword,DT.Coq_sword,DT.Coq_sbool,cop,cpe1,cpe2) ->
+    let pe1 = pexpr_of_cpexpr cpe1 in
+    let pe2 = pexpr_of_cpexpr cpe2 in
+    begin match cop with
+    | DE.Oeq  -> Pcmp(Peq,pe1,pe2)
+    | DE.Oneq -> Pcmp(Pneq,pe1,pe2)
+    | DE.Olt  -> Pcmp(Plt,pe1,pe2)
+    | DE.Ole  -> Pcmp(Ple,pe1,pe2)
+    | DE.Ogt  -> Pcmp(Pgt,pe1,pe2)
+    | DE.Oge  -> Pcmp(Pge,pe1,pe2)
+    | DE.Oand -> failwith "impossible"
+    | _       -> failwith "pcond_pexpr: unsuppported operator"
+    end
+  | _       -> failwith "pcond_pexpr: unsuppported operator"
+
+(* ** Sources, destinations, and operators
+ * ------------------------------------------------------------------------ *)
+
+let rval_of_dest d =
   match d.d_idx with
-  | None      -> DE.Rvar(of_var d.d_var)
+  | None      -> DE.Rvar(cvar_of_var d.d_var)
   | Some(idx) ->
     let s = match d.d_var.Var.ty with
       | Arr(64,Pconst(c)) -> pos_of_bi c
@@ -148,16 +217,32 @@ let of_dest d =
     in
     let cpe =
       match idx with
-      | Ipexpr(pe) -> of_pexpr pe
-      | Ivar(v)    -> of_pexpr (Patom(Pvar(v)))
+      | Ipexpr(pe) -> cpexpr_of_pexpr pe
+      | Ivar(v)    -> cpexpr_of_pexpr (Patom(Pvar(v)))
     in
-    DE.Raset(s,(of_var d.d_var).Dmasm_var.Var.vname, cpe)
+    DE.Raset(s,(cvar_of_var d.d_var).Dmasm_var.Var.vname, cpe)
 
-let of_src s =
+let dest_of_rval d =
+  match d.d_idx with
+  | None      -> DE.Rvar(cvar_of_var d.d_var)
+  | Some(idx) ->
+    let s = match d.d_var.Var.ty with
+      | Arr(64,Pconst(c)) -> pos_of_bi c
+      | _                 -> assert false
+    in
+    let cpe =
+      match idx with
+      | Ipexpr(pe) -> cpexpr_of_pexpr pe
+      | Ivar(v)    -> cpexpr_of_pexpr (Patom(Pvar(v)))
+    in
+    DE.Raset(s,(cvar_of_var d.d_var).Dmasm_var.Var.vname, cpe)
+  (* FIXME: Rmem missing on ocaml side *)
+
+let pexpr_of_src s =
   match s with
-  | Imm(_,pe) -> of_pexpr pe
+  | Imm(_,pe) -> cpexpr_of_pexpr pe
   | Src(d)    ->
-    let v = of_pexpr (Patom(Pvar(d.d_var))) in
+    let v = cpexpr_of_pexpr (Patom(Pvar(d.d_var))) in
     begin match d.d_idx with
     | None      -> v
     | Some(idx) ->
@@ -167,8 +252,8 @@ let of_src s =
       in
       let cpe =
         match idx with
-        | Ipexpr(pe) -> of_pexpr pe
-        | Ivar(v)    -> of_pexpr (Patom(Pvar(v)))
+        | Ipexpr(pe) -> cpexpr_of_pexpr pe
+        | Ivar(v)    -> cpexpr_of_pexpr (Patom(Pvar(v)))
       in
       DE.Papp2(DT.Coq_sarr(n),DT.Coq_sword,DT.Coq_sword,DE.Oget(n),v,cpe)
     end 
@@ -186,16 +271,16 @@ let of_op_view o =
     add cf z x y _  ->  z = add_carry x y false
     add cf z x y ci ->  (cf, z) = add_carry x y ci 
     add _  z x y ci ->  (cf, z) = add_carry x y ci *)
-    let z = of_dest z in
-    let x = of_src x in
-    let y = of_src y in
-    let cf = Option.map mcf_out ~f:of_dest in 
-    let ci = Option.map mcf_in  ~f:of_src in
+    let z = rval_of_dest z in
+    let x = pexpr_of_src x in
+    let y = pexpr_of_src y in
+    let cf = Option.map mcf_out ~f:rval_of_dest in 
+    let ci = Option.map mcf_in  ~f:pexpr_of_src in
     let wc = 
       match cf, ci with
       | None, None -> `NoCarry
       | None, Some _ -> assert false
-      | Some cf, None -> `Carry(cf, DE.Pbool (of_bool false))
+      | Some cf, None -> `Carry(cf, DE.Pbool (cbool_of_bool false))
       | Some cf, Some ci -> `Carry(cf, ci) in
     let sword = DT.Coq_sword in
     let sbool = DT.Coq_sbool in
@@ -237,21 +322,29 @@ let of_op_view o =
 *)
   assert false 
 
+(* ** Basic instructions, instructions, and statements
+ * ------------------------------------------------------------------------ *)
+
 let of_base_instr bi =
 
   match bi with
 
   | Assgn(d,s,_aty) -> (* TODO: aty lost, should be preserved *)
-    let rd = of_dest d in
-    let es = of_src s in
+    let rd = rval_of_dest d in
+    let es = pexpr_of_src s in
     let ty = type_dest d in
-    DE.Cassgn(of_ty ty ,rd,es) 
+    DE.Cassgn(cty_of_ty ty ,rd,es) 
 
   | Op(o,ds,ss) ->
     let ty, rds, e = of_op_view (view_op o ds ss) in
     DE.Cassgn(ty ,rds, e) 
 
   | _ -> assert false 
+
+let () =
+  let s1 = "abcde.777" in
+  let s2 = string_of_string0 (string0_of_string s1) in
+  assert (s1 = s2);
 
 (*    
   | Call of Fname.t * dest list * src list

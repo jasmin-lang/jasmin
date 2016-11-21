@@ -141,7 +141,6 @@ let map_opt_def ~d ~f os =
 let max_num_list =
   List.fold_left ~init:0 ~f:max
 
-
 let undefined () = failwith "undefined"
 
 (* ** Toggle variants in sum types
