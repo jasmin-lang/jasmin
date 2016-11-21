@@ -5,8 +5,8 @@
  * -------------------------------------------------------------------- *)
 
 (* -------------------------------------------------------------------- *)
-From mathcomp Require Import ssreflect eqtype ssrbool ssrnat ssrfun seq choice.
-From mathcomp Require Import bigop ssralg ssrint.
+From mathcomp Require Import ssreflect eqtype ssrbool ssrnat ssrfun seq.
+From mathcomp Require Import choice ssralg bigop.
 
 Import GRing.Theory.
 
@@ -30,8 +30,8 @@ Notation "- x"     := (PEopp x  ) : ssring.
 Notation "x * y"   := (PEmul x y) : ssring.
 Notation "x ^+ n"  := (PEpow x n) : ssring.
 
-Notation "0" := (PEc 0%Z) : ssring.
-Notation "1" := (PEc 1%Z) : ssring.
+Notation "0" := PEO : ssring.
+Notation "1" := PEI : ssring.
 
 Delimit Scope ssring with S.
 
@@ -46,8 +46,8 @@ Notation "x ^-1"   := (FEinv x)   : ssfield.
 Notation "x / y"   := (FEdiv x y) : ssfield.
 Notation "x ^+ n"  := (FEpow x n) : ssfield.
 
-Notation "0" := (FEc 0%Z) : ssfield.
-Notation "1" := (FEc 1%Z) : ssfield.
+Notation "0" := FEO : ssfield.
+Notation "1" := FEI : ssfield.
 
 Delimit Scope ssfield with F.
 
@@ -78,13 +78,10 @@ Instance closed_cons T (x : T) (xs : seq T)
  : closed (x :: xs).
 
 (* -------------------------------------------------------------------- *)
-Class reify (R : Type) (a : R) (t : PExpr Z) (e : seq R).
+Class reify (R : idomainType) (a : R) (t : PExpr Z) (e : seq R).
 
-Instance reify_zero (R : zmodType) e : @reify R 0 0%S e.
-Instance reify_one  (R : ringType) e : @reify R 1 1%S e.
-
-Instance reify_intconst n e
-  : reify (Posz n) ((n : Z)%:S)%S e.
+Instance reify_zero (R : idomainType) e : @reify R 0 0%S e.
+Instance reify_one  (R : idomainType) e : @reify R 1 1%S e.
 
 Instance reify_natconst (R : idomainType) n e
   : @reify R n%:R ((n : Z)%:S)%S e.
@@ -131,16 +128,13 @@ Ltac reify xt xe :=
   end.
 
 (* -------------------------------------------------------------------- *)
-Class freify (F : Type) (a : F) (t : FExpr Z) (e : seq F).
+Class freify (F : fieldType) (a : F) (t : FExpr Z) (e : seq F).
 
 Instance freify_zero (F : fieldType) e : @freify F 0 0%F e.
 Instance freify_one  (F : fieldType) e : @freify F 1 1%F e.
 
 Instance freify_natconst (F : fieldType) n e
   : @freify F n%:R ((n : Z)%:S)%F e.
-
-Instance freify_intconst n e
-  : @freify int (Posz n) ((n : Z)%:S)%F e.
 
 Instance freify_add (F : fieldType) a1 a2 t1 t2 e
   {_: @freify F a1 t1 e}
@@ -361,7 +355,7 @@ Definition Rcorrect (R : idomainType) :=
 Definition Fcorrect (F : fieldType) :=
   Field_correct
     (Eqsth F) (RE F) (congr1 GRing.inv)
-    (F2AF (Eqsth F) (RE F) (RF F)) (RZ F) (PN F) get_signZ_th
+    (F2AF (Eqsth F) (RE F) (RF F)) (RZ F) (PN F)
     (triv_div_th
        (Eqsth F) (RE F)
        (Rth_ARth (Eqsth F) (RE F) (RR F)) (RZ F)).
@@ -369,6 +363,8 @@ Definition Fcorrect (F : fieldType) :=
 (* -------------------------------------------------------------------- *)
 Fixpoint Reval (R : ringType) (l : seq R) (pe : PExpr Z) :=
   match pe with
+  | 0%S           => 0
+  | 1%S           => 1
   | (c%:S)%S      => R_of_Z c
   | ('X_j)%S      => BinList.nth 0 j l
   | (pe1 + pe2)%S => (Reval l pe1) + (Reval l pe2)
@@ -383,7 +379,7 @@ Fixpoint Reval (R : ringType) (l : seq R) (pe : PExpr Z) :=
   end.
 
 Local Notation RevalC R :=
-  (PEeval 0 +%R *%R ~%R -%R (R_of_Z (R := R)) nat_of_N (@GRing.exp R)).
+  (PEeval 0 1 +%R *%R ~%R -%R (R_of_Z (R := R)) nat_of_N (@GRing.exp R)).
 
 Lemma PEReval (R : ringType): RevalC _ =2 @Reval R.
 Proof.
@@ -395,6 +391,8 @@ Qed.
 (* -------------------------------------------------------------------- *)
 Fixpoint Feval (F : fieldType) (l : seq F) (pe : FExpr Z) :=
   match pe with
+  | 0%F           => 0
+  | 1%F           => 1
   | (c%:S)%F      => R_of_Z c
   | ('X_j)%F      => BinList.nth 0 j l
   | (pe1 + pe2)%F => (Feval l pe1) + (Feval l pe2)
@@ -411,7 +409,8 @@ Fixpoint Feval (F : fieldType) (l : seq F) (pe : FExpr Z) :=
   end.
 
 Local Notation FevalC R :=
-  (FEeval 0 +%R *%R ~%R -%R /%R ^-1%R (R_of_Z (R := R)) nat_of_N (@GRing.exp R)).
+  (FEeval 0 1 +%R *%R ~%R -%R /%R ^-1%R
+          (R_of_Z (R := R)) nat_of_N (@GRing.exp R)).
 
 Lemma PEFeval (F : fieldType): FevalC _ =2 @Feval F.
 Proof.

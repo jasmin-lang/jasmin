@@ -8,6 +8,7 @@ COQFILES := \
 	src/3rdparty/finmap.v \
 	src/3rdparty/Coqlib.v \
 	src/3rdparty/Integers.v \
+	src/3rdparty/ssrring.v \
 	src/pos_map.v \
 	src/gen_map.v \
 	src/strings.v \
