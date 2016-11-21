@@ -208,7 +208,7 @@ let rec pcond_of_pexpr pe =
     end
   | _       -> failwith "pcond_pexpr: unsuppported operator"
 
-(* ** Sources, destinations, and operators
+(* ** Sources and destinations
  * ------------------------------------------------------------------------ *)
 
 let rval_of_dest d =
@@ -224,13 +224,25 @@ let rval_of_dest d =
       | Ipexpr(pe) -> cpexpr_of_pexpr pe
       | Ivar(v)    -> cpexpr_of_pexpr (Patom(Pvar(v)))
     in
-    DE.Raset(dummy_vinfo,s,(cvar_of_var d.d_var).Dmasm_var.Var.vname, cpe)
+    DE.Raset(dummy_vinfo,s,(cvar_of_var d.d_var).DV.Var.vname, cpe)
 
-let dest_of_rval _rv =
-  Util.undefined ()
-  (* FIXME: Rmem missing on ocaml side *)
+let idx_of_cpexpr cpe =
+  Ipexpr(pexpr_of_cpexpr cpe)
+  (* FIXME: distinguish between Ipexpr and Ivar *)
 
-let pexpr_of_src s =
+let dest_of_rval rv =
+  match rv with
+  | DE.Rvar(_vi,cvar) ->
+    { d_var=var_of_cvar cvar; d_idx=None; d_loc=Lex.dummy_loc }
+  | DE.Raset(_vi,dim,id,cpe) ->
+    let cvar = { DV.Var.vname=id; DV.Var.vtype=DT.Coq_sarr(dim) } in
+    { d_var=var_of_cvar cvar; d_idx=Some(idx_of_cpexpr cpe); d_loc=Lex.dummy_loc }
+  | DE.Rpair(_t1,_t2,_rv1,_rv2)   ->
+    failwith "dest_of_rval: cannot deal with pairs"
+  | DE.Rmem(_cpe) ->
+    failwith "dest_of_rval: support for memory missing"
+
+let cpexpr_of_src s =
   match s with
   | Imm(_,pe) -> cpexpr_of_pexpr pe
   | Src(d)    ->
@@ -250,6 +262,20 @@ let pexpr_of_src s =
       DE.Papp2(DT.Coq_sarr(n),DT.Coq_sword,DT.Coq_sword,DE.Oget(n),v,cpe)
     end 
 
+let src_of_cpexpr cpe =
+  match cpe with
+  | DE.Pvar(vi,cvar) ->
+    Src(dest_of_rval @@ DE.Rvar(vi,cvar))
+
+  | DE.Papp2(tin1,tin2,tres,DE.Oget(dim),DE.Pvar(vi,cvar),cpe) ->
+    let d = { d_var=var_of_cvar cvar; d_idx=Some(idx_of_cpexpr cpe); d_loc=Lex.dummy_loc } in
+    Src(d)
+
+  | _ -> Imm(64,pexpr_of_cpexpr cpe) (* FIXME: dimension fixed *)
+
+(* ** Operators
+ * ------------------------------------------------------------------------ *)
+
 let of_op_view o = 
   match o with 
   | V_Umul(_h,_l,_x,_y) -> assert false
@@ -264,10 +290,10 @@ let of_op_view o =
     add cf z x y ci ->  (cf, z) = add_carry x y ci 
     add _  z x y ci ->  (cf, z) = add_carry x y ci *)
     let z = rval_of_dest z in
-    let x = pexpr_of_src x in
-    let y = pexpr_of_src y in
+    let x = cpexpr_of_src x in
+    let y = cpexpr_of_src y in
     let cf = Option.map mcf_out ~f:rval_of_dest in 
-    let ci = Option.map mcf_in  ~f:pexpr_of_src in
+    let ci = Option.map mcf_in  ~f:cpexpr_of_src in
     let wc = 
       match cf, ci with
       | None, None -> `NoCarry
@@ -327,7 +353,7 @@ let of_base_instr bi =
       | Eq -> DE.AT_Eq
     in
     let rd = rval_of_dest d in
-    let es = pexpr_of_src s in
+    let es = cpexpr_of_src s in
     let ty = type_dest d in
     DE.Cassgn(cty_of_ty ty,rd,atag,es) 
 
@@ -336,11 +362,6 @@ let of_base_instr bi =
     DE.Cassgn(ty,rds,DE.AT_Mv,e) 
 
   | _ -> assert false 
-
-let () =
-  let s1 = "abcde.777" in
-  let s2 = string_of_string0 (string0_of_string s1) in
-  assert (s1 = s2);
 
 (*    
   | Call of Fname.t * dest list * src list
