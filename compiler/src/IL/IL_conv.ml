@@ -32,6 +32,8 @@ let rec bi_of_pos pos =
   | BinNums.Coq_xO p -> (bi_of_pos p) <!< 1
   | BinNums.Coq_xI p -> ((bi_of_pos p) <!< 1) +! Big_int.unit_big_int
 
+let one_pos = BinNums.Coq_xH
+
 let coqZ_of_bi bi =
   let open Big_int_Infix in
   if bi === Big_int.zero_big_int then
@@ -86,6 +88,8 @@ let bool_of_cbool cb =
   | Datatypes.Coq_true  -> true
   | Datatypes.Coq_false -> false
 
+let dummy_vinfo = one_pos
+
 (* ** Types, pexpr, and pcond
  * ------------------------------------------------------------------------ *)
 
@@ -135,7 +139,7 @@ let var_of_cvar cvar =
 let rec cpexpr_of_pexpr pe =
   match pe with
   | Patom(Pparam(_))   -> failwith "cpexpr_of_pexpr: parameters not supported"
-  | Patom(Pvar(v))     -> DE.Pvar(cvar_of_var v)
+  | Patom(Pvar(v))     -> DE.Pvar(dummy_vinfo, cvar_of_var v)
   | Pbinop(po,pe1,pe2) ->
     let pe1 = cpexpr_of_pexpr pe1 in
     let pe2 = cpexpr_of_pexpr pe2 in
@@ -145,7 +149,7 @@ let rec cpexpr_of_pexpr pe =
 
 let rec pexpr_of_cpexpr pe =
   match pe with
-  | DE.Pvar(v) -> Patom(Pvar(var_of_cvar v))
+  | DE.Pvar(_,v) -> Patom(Pvar(var_of_cvar v))
   | DE.Papp2(DT.Coq_sword,DT.Coq_sword,DT.Coq_sword,sop,cpe1,cpe2) ->
     let pe1 = pexpr_of_cpexpr cpe1 in
     let pe2 = pexpr_of_cpexpr cpe2 in
@@ -209,7 +213,7 @@ let rec pcond_of_pexpr pe =
 
 let rval_of_dest d =
   match d.d_idx with
-  | None      -> DE.Rvar(cvar_of_var d.d_var)
+  | None      -> DE.Rvar(dummy_vinfo,cvar_of_var d.d_var)
   | Some(idx) ->
     let s = match d.d_var.Var.ty with
       | Arr(64,Pconst(c)) -> pos_of_bi c
@@ -220,22 +224,10 @@ let rval_of_dest d =
       | Ipexpr(pe) -> cpexpr_of_pexpr pe
       | Ivar(v)    -> cpexpr_of_pexpr (Patom(Pvar(v)))
     in
-    DE.Raset(s,(cvar_of_var d.d_var).Dmasm_var.Var.vname, cpe)
+    DE.Raset(dummy_vinfo,s,(cvar_of_var d.d_var).Dmasm_var.Var.vname, cpe)
 
-let dest_of_rval d =
-  match d.d_idx with
-  | None      -> DE.Rvar(cvar_of_var d.d_var)
-  | Some(idx) ->
-    let s = match d.d_var.Var.ty with
-      | Arr(64,Pconst(c)) -> pos_of_bi c
-      | _                 -> assert false
-    in
-    let cpe =
-      match idx with
-      | Ipexpr(pe) -> cpexpr_of_pexpr pe
-      | Ivar(v)    -> cpexpr_of_pexpr (Patom(Pvar(v)))
-    in
-    DE.Raset(s,(cvar_of_var d.d_var).Dmasm_var.Var.vname, cpe)
+let dest_of_rval _rv =
+  Util.undefined ()
   (* FIXME: Rmem missing on ocaml side *)
 
 let pexpr_of_src s =
@@ -329,15 +321,19 @@ let of_base_instr bi =
 
   match bi with
 
-  | Assgn(d,s,_aty) -> (* TODO: aty lost, should be preserved *)
+  | Assgn(d,s,aty) -> (* TODO: aty lost, should be preserved *)
+    let atag = match aty with
+      | Mv -> DE.AT_Mv
+      | Eq -> DE.AT_Eq
+    in
     let rd = rval_of_dest d in
     let es = pexpr_of_src s in
     let ty = type_dest d in
-    DE.Cassgn(cty_of_ty ty ,rd,es) 
+    DE.Cassgn(cty_of_ty ty,rd,atag,es) 
 
   | Op(o,ds,ss) ->
     let ty, rds, e = of_op_view (view_op o ds ss) in
-    DE.Cassgn(ty ,rds, e) 
+    DE.Cassgn(ty,rds,DE.AT_Mv,e) 
 
   | _ -> assert false 
 
