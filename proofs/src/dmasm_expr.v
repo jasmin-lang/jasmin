@@ -24,7 +24,7 @@ Open Scope string_scope.
 
 Inductive sop1 : stype -> stype -> Set := 
 (* bools *)
-| Onot : sop1 sbool sbool                       (* const *)
+| Onot : sop1 sbool sbool                  (* const *)
 (* pairs *)
 | Ofst : forall st1 st2, sop1 (st1 ** st2) st1  (* list *)
 | Osnd : forall st1 st2, sop1 (st1 ** st2) st2. (* list *)
@@ -43,6 +43,7 @@ Inductive sop2 : stype -> stype -> stype -> Set :=
 | Omulu : sop2 sword sword (sword ** sword)          (* cpu *)
 
 | Oeq   : sop2 sword sword sbool                     (* const *)
+| Oneq  : sop2 sword sword sbool                     (* const *)
 | Olt   : sop2 sword sword sbool                     (* const *)
 | Ole   : sop2 sword sword sbool                     (* const *)
 | Ogt   : sop2 sword sword sbool                     (* const *)
@@ -53,6 +54,10 @@ Inductive sop2 : stype -> stype -> stype -> Set :=
 | Olor  : sop2 sword sword sword                     (* cpu *)
 | Olsr  : sop2 sword sword sword                     (* cpu *)
 | Olsl  : sop2 sword sword sword                     (* cpu *)
+(*| Oxor  : sop2 sword sword sword                   (* cpu *)
+  | Oland : sop2 sword sword sword                   (* cpu *)
+  | Olor  : sop2 sword sword sword                   (* cpu *)
+*)
 
 | Oget  : forall n, sop2 (sarr n) sword sword        (* arr *)
 | Opair : forall st1 st2, sop2 st1 st2 (st1 ** st2). (* list *)
@@ -94,6 +99,8 @@ Definition eqb_sop2 {t1 t2 tr t1' t2' tr'} (o:sop2 t1 t2 tr) (o':sop2 t1' t2' tr
   
   | Oeq      , Oeq       => true
   | Oeq      , _         => false
+  | Oneq     , Oeq       => true
+  | Oneq     , _         => false
   | Olt      , Olt       => true
   | Olt      , _         => false
   | Ole      , Ole       => true
@@ -589,7 +596,7 @@ Definition destr_pair t1 t2 (p:pexpr (t1 ** t2)) : option (pexpr t1 * pexpr t2).
 (*
 case H: _ / p => [ ? | ? | ? | ? | ???? | ??? o e1 e2| ???????? ].
 + exact None. + exact None. + exact None. + exact None. + exact None. 
-+ (case:o H e1 e2 => [||||||||||||||??[]<-<- e1 e2];last by exact (Some (e1,e2)))=> *; 
++ (case:o H e1 e2 => [|||||||||||||||??[]<-<- e1 e2];last by exact (Some (e1,e2)))=> *; 
   exact None.
 exact None. 
 Defined.
