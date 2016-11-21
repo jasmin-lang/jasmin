@@ -42,6 +42,10 @@ doc:
 ###########################################################################
 # Targets for development and testing
 
+test-conv:
+	$(OCAMLBUILD) $(OCAMLBUILDFLAGS) src/IL/IL_conv.native
+	./IL_conv.native
+
 test-dmasm-reg: dmasm
 	./dmasm.native -p -t "register_allocate[10]" examples/test/register-alloc.mil
 
