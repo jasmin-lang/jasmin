@@ -264,27 +264,27 @@ let apply_transform trafos (modul0 : unit modul) =
       | Lm m, true  -> go m (Some(pp_info_lv))
       | Lm m, false -> go m None
     in
-   let test_conversion fn (m0 : modules) =
+   let test_conversion fn m0 =
      let open IL_Conv in
-     let m0 = match m0 with
-       | Um m -> m
-       | Lm m -> reset_info_modul m
-     in
-     let cvi = CVI.mk () in
-     let conv func =
-       match func with
-       | Foreign(_) -> assert false
-       | Native(fd) ->
-         let fd =
-           { fd with
-             f_body = stmt_of_cmd cvi (cmd_of_stmt cvi fd.f_body); }
+     notify "testing conversion" fn
+       ~f:(fun () ->
+         let cvi = CVI.mk () in
+         let conv func =
+           match func with
+           | Foreign(_) -> assert false
+           | Native(fd) ->
+             let fd =
+               { fd with
+                 f_body = stmt_of_cmd cvi (cmd_of_stmt cvi fd.f_body); }
+             in
+             Native(fd)
          in
-         Native(fd)
-     in
-     let m1 = map_func m0 fn ~f:conv in
-     if not (equal_modul m0 m1) then
-       failwith_ "test_conversion: roundtrip for function %s failed"
-         (Fname.to_string fn)
+         let m1 = map_func m0 fn ~f:conv in
+         if not (equal_modul m0 m1) then (
+           F.printf "test_conversion: roundtrip for function %s failed@\n"
+             (Fname.to_string fn)
+         );
+         m1)
    in
    let interp fn pmap mmap args m =
       notify "interpreting" fn
@@ -354,7 +354,7 @@ let apply_transform trafos (modul0 : unit modul) =
     | RenumberIdents(rno)       -> map_module modul {f = fun m -> renumber_idents rno m}
     | MergeBlocks(ofn)          -> map_module modul {f = fun m -> merge_blocks ofn m}
     | RegisterLiveness(fn)      -> register_liveness fn modul
-    | TestConversion(fn)        -> test_conversion fn modul; modul
+    | TestConversion(fn)        -> map_module modul {f = fun m -> test_conversion fn m}
     | LocalSSA(fn)              -> local_ssa fn modul
     | Print(n,ppo)              -> print n ppo modul; modul
     | Save(fn,ppo)              -> save fn ppo modul; modul

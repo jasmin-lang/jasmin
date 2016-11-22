@@ -91,15 +91,39 @@ let bool_of_cbool cb =
   | Datatypes.Coq_true  -> true
   | Datatypes.Coq_false -> false
 
+let list_of_clist cl =
+  let rec go acc cl =
+    match cl with
+    | Datatypes.Coq_nil -> List.rev acc
+    | Datatypes.Coq_cons(c,cl) ->
+      go (c::acc) cl
+  in
+  go [] cl
+
+let clist_of_list l =
+  let rec go acc l =
+    match l with
+    | [] -> acc
+    | x::l ->
+      go (Datatypes.Coq_cons(x,acc)) l
+  in
+  go Datatypes.Coq_nil (List.rev l)
+
+let sword = DT.Coq_sword
+let sbool = DT.Coq_sbool
+let sarr i = DT.Coq_sarr(pos_of_bi i)
+
 (* ** Conversation info (required for lossless roundtrip)
  * ------------------------------------------------------------------------ *)
 
 module CVI = struct
+  
   type t = {
-    ctr   : int ref;
-    vargs : (int,Vname.t * stor * Lex.loc * Lex.loc) HT.t;
-    dargs : (int,Lex.loc * bool) HT.t;
-    iloc  : (int,Lex.loc) HT.t;
+    ctr     : int ref;
+    vargs   : (int,Vname.t * stor * Lex.loc * Lex.loc) HT.t;
+    dargs   : (int,Lex.loc * bool) HT.t;
+    iloc    : (int,Lex.loc) HT.t;
+    ifcond : (int,bool) HT.t; (* true if fcond *)
   }
 
   let mk () =
@@ -107,6 +131,7 @@ module CVI = struct
       vargs = Int.Table.create ();
       dargs = Int.Table.create ();
       iloc  = Int.Table.create ();
+      ifcond  = Int.Table.create ();
     }
 
   let new_ctr cvi =
@@ -145,7 +170,16 @@ module CVI = struct
 
   let get_iloc cvi i =
     let num = Big_int.int_of_big_int (bi_of_pos i) in
-    match HT.find cvi.vargs num with
+    match HT.find cvi.iloc num with
+    | Some(loc) -> loc
+    | None      -> assert false
+
+  let add_ifcond cvi k is_fcond =
+    HT.set cvi.ifcond ~key:k ~data:is_fcond
+
+  let get_ifcond cvi i =
+    let num = Big_int.int_of_big_int (bi_of_pos i) in
+    match HT.find cvi.ifcond num with
     | Some(loc) -> loc
     | None      -> assert false
 
@@ -156,9 +190,9 @@ end
 
 let cty_of_ty ty =
   match ty with
-  | Bool               -> DT.Coq_sbool
-  | U(64)              -> DT.Coq_sword
-  | Arr(64,Pconst(bi)) -> DT.Coq_sarr(pos_of_bi bi)
+  | Bool               -> sbool
+  | U(64)              -> sword
+  | Arr(64,Pconst(bi)) -> sarr bi
   | _                  -> assert false
 
 let ty_of_cty cty =
@@ -204,7 +238,7 @@ let rec cpexpr_of_pexpr cvi pe =
     let k = CVI.add_varg cvi v in
     DE.Pvar(pos_of_int k, cvar_of_var v)
   | Pbinop(po,pe1,pe2) ->
-    DE.Papp2(DT.Coq_sword,DT.Coq_sword,DT.Coq_sword,sop2_of_pop_u64 po,cpe pe1,cpe pe2) 
+    DE.Papp2(sword,sword,sword,sop2_of_pop_u64 po,cpe pe1,cpe pe2) 
   | Pconst bi ->
     DE.Pconst(coqZ_of_bi bi)
   | Patom(Pparam(_))   ->
@@ -229,7 +263,7 @@ let mk_not cpc =
   DE.Papp1(DT.Coq_sbool,DT.Coq_sbool,DE.Onot, cpc)
 
 let mk_cmp cop cpe1 cpe2 =
-  DE.Papp2(DT.Coq_sword,DT.Coq_sword,DT.Coq_sbool,cop,cpe1,cpe2)
+  DE.Papp2(sword,sword,sbool,cop,cpe1,cpe2)
 
 let mk_eq = mk_cmp DE.Oeq
 
@@ -345,9 +379,8 @@ let cpexpr_of_src cvi s =
         | Ipexpr(pe) -> cpexpr_of_pexpr cvi pe
         | Ivar(v)    -> cpexpr_of_pexpr cvi (Patom(Pvar(v)))
       in
-      let tword = DT.Coq_sword in
       let tarr = DT.Coq_sarr(n) in
-      DE.Papp2(tarr,tword,tword,DE.Oget(n),v,cpe)
+      DE.Papp2(tarr,sword,sword,DE.Oget(n),v,cpe)
     end
 
 let src_of_cpexpr cvi cpe =
@@ -356,7 +389,7 @@ let src_of_cpexpr cvi cpe =
     Src(dest_of_rval cvi @@ DE.Rvar(vi,cvar))
 
   | DE.Papp2(tin1,tin2,tres,DE.Oget(dim),DE.Pvar(vi,cvar),cpe) ->
-    assert(tin1=DT.Coq_sarr(dim) && tin2=DT.Coq_sword && tres=DT.Coq_sword);
+    assert(tin1=DT.Coq_sarr(dim) && tin2=sword && tres=sword);
     let vargs,(darg,is_Ivar) = CVI.get_darg cvi vi in
     let d =
       { d_var=var_of_cvar cvar vargs;
@@ -371,8 +404,6 @@ let src_of_cpexpr cvi cpe =
  * ------------------------------------------------------------------------ *)
 
 let of_op_view cvi o = 
-  let sword = DT.Coq_sword in
-  let sbool = DT.Coq_sbool in
   let cword = DT.Coq_sprod(sbool, sword) in
   match o with 
   | V_Umul(h,l,x,y) -> 
@@ -419,7 +450,8 @@ let of_op_view cvi o =
     let x = cpexpr_of_src cvi x in
     let y = cpexpr_of_src cvi y in
     let cf = cpexpr_of_src cvi cf in
-    let e = DE.Papp3(sbool,t,t,t,DE.Oif t,cf,x,y) in
+    (* on the ocaml side, we have 'if cf then y else x' *)
+    let e = DE.Papp3(sbool,t,t,t,DE.Oif t,cf,y,x) in
     t, z, e
 
   | V_ThreeOp(o,z,x,y) ->
@@ -450,13 +482,19 @@ let of_op_view cvi o =
 (* ** Basic instructions, instructions, and statements
  * ------------------------------------------------------------------------ *)
 
+let atag_of_assgn_type = function
+  | Mv -> DE.AT_Mv
+  | Eq -> DE.AT_Eq
+
+let assgn_type_of_atag = function
+  | DE.AT_Mv -> Mv
+  | DE.AT_Eq -> Eq
+  | _        -> assert false
+
 let cinstr_of_base_instr cvi bi =
   match bi with
   | Assgn(d,s,aty) ->
-    let atag = match aty with
-      | Mv -> DE.AT_Mv
-      | Eq -> DE.AT_Eq
-    in
+    let atag = atag_of_assgn_type aty in
     let rd = rval_of_dest cvi d in
     let es = cpexpr_of_src cvi s in
     let ty = type_dest d in
@@ -478,8 +516,13 @@ let cinstr_of_base_instr cvi bi =
   | Store(_s1,_pe,_s2) ->
     failwith "cinstr_of_base_instr: store not supported yet"
 
-let cinstr_of_linstr cvi linstr =
-  let _loc = linstr.L.l_loc in
+let cpexpr_of_fcond cvi {fc_neg; fc_var} =
+  let cpe_v = cpexpr_of_pexpr cvi (Patom(Pvar(fc_var))) in
+  (if fc_neg then DE.Papp1(sbool,sbool,DE.Onot,cpe_v) else cpe_v)
+
+
+let rec cinstr_of_linstr cvi linstr =
+  let loc = linstr.L.l_loc in
   let ci =
     match linstr.L.l_val with
     | Block(lbis,oinfo) ->
@@ -492,40 +535,226 @@ let cinstr_of_linstr cvi linstr =
       in
       List.concat_map ~f:conv_bi lbis
 
-    | If(_cond,_s1,_s2,oinfo) ->
+    | If(cond,s1,s2,oinfo) ->
+      let k = CVI.add_iloc cvi loc in
       assert(oinfo=None);
-      assert false
+      let cmd1 = cmd_of_stmt cvi s1 in
+      let cmd2 = cmd_of_stmt cvi s2 in
+      let cpe = match cond with
+        | Fcond(fc) ->
+          CVI.add_ifcond cvi k true;
+          cpexpr_of_fcond cvi fc
+        | Pcond(pc) ->
+          CVI.add_ifcond cvi k false;
+          cpexpr_of_pcond cvi pc
+      in
+      [ DE.MkI (pos_of_int k, DE.Cif(cpe,cmd1,cmd2)) ]
 
-    | For(_d,_pe_lb,_pe_ub,_s,oinfo) ->
+    | For(d,pe_lb,pe_ub,s,oinfo) ->
       assert(oinfo=None);
-      assert false
+      let k = CVI.add_iloc cvi loc in
+      let cmd = cmd_of_stmt cvi s in
+      let rval = rval_of_dest cvi d in
+      (* FIXME: we do not distinguish DownTo/UpTo in Ocaml *)
+      let rng =
+        Datatypes.Coq_pair(
+          Datatypes.Coq_pair(DE.UpTo,cpexpr_of_pexpr cvi pe_lb),
+          cpexpr_of_pexpr cvi pe_ub)
+      in
+      [ DE.MkI (pos_of_int k, DE.Cfor(rval,rng,cmd)) ]
 
-    | While(_wt,_fc,_s,oinfo) ->
+    | While(wt,fc,s,oinfo) ->
       assert(oinfo=None);
-      assert false
+      if (wt=DoWhile) then failwith "conversion to coq does not support do-while";
+      let k = CVI.add_iloc cvi loc in
+      let cmd = cmd_of_stmt cvi s in
+      let cpe = cpexpr_of_fcond cvi fc in
+      [ DE.MkI (pos_of_int k, DE.Cwhile(cpe,cmd)) ]
   in
   ci
 
-let instr_of_cinstr _cvi lci =
-  let _k, ci = match lci with DE.MkI(k,ci) -> k,ci in
-  match ci with
-  | DE.Cassgn(_st,_rval,_atag,_pe) ->
-    failwith "instr_of_cinstr: assignment not supported yet"
+and cmd_of_stmt cvi s =
+  clist_of_list @@ List.concat_map ~f:(cinstr_of_linstr cvi) s
 
-  | DE.Cif(_pe,_instrs1,_instrs2) ->
-    assert false
+let rec dests_of_rval cvi num rval =
+  match rval with
+  | DE.Rpair(_,_,rv1,rv2) ->
+    if num > 1 then
+      dest_of_rval cvi rv1::(dests_of_rval cvi (num - 1) rv2)
+    else
+      failwith "dests_of_rval: unexpected pair"
+  | _ -> 
+    if num = 1 then
+      [ dest_of_rval cvi rval ]
+    else
+      failwith "dests_of_rval: expected pair"
 
-  | DE.Cfor(_rval,_rng,_instrs) ->
-    assert false
+let srcs_of_cpexpr _cvi _num _rval =
+  failwith "srcs_of_cpexpr: ..."
 
-  | DE.Cwhile(_pe,_instrs) ->
-    assert false
+let base_instr_of_papp2 cvi rval sop cpe1 cpe2 =
+  match sop with
+  | DE. Omulu ->
+    let x = src_of_cpexpr cvi cpe1 in
+    let y = src_of_cpexpr cvi cpe2 in
+    let ds = dests_of_rval cvi 2 rval in
+    Op(Umul,ds,[x;y])
+    
+  | DE. Omul (* FIXME: separate Imul in Coq? *)
+  | DE. Oland
+  | DE. Oxor
+  | DE. Olor ->
+    let x = src_of_cpexpr cvi cpe1 in
+    let y = src_of_cpexpr cvi cpe2 in
+    let ds = dests_of_rval cvi 1 rval in
+    let top = match sop with
+      | DE. Omul  -> O_Imul
+      | DE. Oland -> O_And
+      | DE. Oxor  -> O_Xor
+      | DE. Olor  -> O_Or
+      | _         -> assert false
+    in
+    Op(ThreeOp(top),ds,[x;y])
+    
+  | DE. Olsr
+  | DE. Olsl ->
+    let x = src_of_cpexpr cvi cpe1 in
+    let y = src_of_cpexpr cvi cpe2 in
+    let ds = dests_of_rval cvi 1 rval in
+    let dir = match sop with
+      | DE. Olsr -> Right
+      | DE. Olsl -> Left
+      | _        -> assert false
+    in
+    Op(Shift(dir),ds,[x;y])
 
-  | DE.Ccall(_starg,_stres,_rval,_fdef,_pe) ->
-    assert false
+  | DE. Oand -> assert false
+  | DE. Oor  -> assert false
+  | DE. Oadd -> assert false
+  | DE. Osub -> assert false
 
-let cmd_of_stmt cvi s =
-  List.concat_map ~f:(cinstr_of_linstr cvi) s
+  | DE. Oeq  -> assert false
+  | DE. Oneq -> assert false
+  | DE. Olt  -> assert false
+  | DE. Ole  -> assert false
+  | DE. Ogt  -> assert false
+  | DE. Oge  -> assert false
 
-let stmt_of_cmd cvi c =
-  List.map ~f:(instr_of_cinstr cvi) c
+  | DE. Oget(_) -> assert false
+  | DE. Opair(_) -> assert false
+
+
+let base_instr_of_papp3 cvi rval sop cpe1 cpe2 cpe3 =
+  let get_cf_in cpe =
+    match cpe with
+    | DE.Pbool(Datatypes.Coq_false) -> []
+    | _                             -> [src_of_cpexpr cvi cpe]
+  in
+  match sop with
+  | DE.Oaddcarry
+  | DE.Osubcarry
+  | DE.Oaddc
+  | DE.Osubc ->
+    let x = src_of_cpexpr cvi cpe1 in
+    let y = src_of_cpexpr cvi cpe2 in
+    let cop,dnum = match sop with
+      | DE.Oaddcarry -> O_Add,2
+      | DE.Osubcarry -> O_Sub,2
+      | DE.Oaddc     -> O_Add,1
+      | DE.Osubc     -> O_Sub,1
+      | _            -> assert false
+    in
+    let ds = dests_of_rval cvi dnum rval in
+    Op(Carry(cop),ds,[x;y]@(get_cf_in cpe3))
+    
+  | DE.Oif(_st) ->
+    let cf = src_of_cpexpr cvi cpe1 in
+    let y = src_of_cpexpr cvi cpe2 in
+    let x = src_of_cpexpr cvi cpe3 in
+    let ds = dests_of_rval cvi 1 rval in
+    (* on the ocaml side, we have 'if cf then y else x' *)
+    Op(Cmov(false),ds,[x;y;cf])
+    
+  | DE.Oset(_) -> assert false
+
+  let s1 = src_of_cpexpr 
+
+let base_instr_of_cassgn cvi _st rval atag pe =
+  match pe with
+  | DE.Pvar(_)
+  | DE.Pconst(_)
+  | DE.Papp2(_,_,_,DE.Oget(_),_,_) ->
+    let d = dest_of_rval cvi rval in
+    let s = src_of_cpexpr cvi pe in
+    let aty = assgn_type_of_atag atag in
+    Assgn(d,s,aty)
+
+  | DE.Papp3(_,_,_,_,sop,cpe1,cpe2,cpe3) ->
+    base_instr_of_papp3 cvi rval sop cpe1 cpe2 cpe3
+
+  | DE.Papp2(_,_,_,sop,cpe1,cpe2) ->
+    base_instr_of_papp2 cvi rval sop cpe1 cpe2
+
+  | DE.Papp1(_) -> assert false
+
+  | DE.Pbool(_) -> assert false
+
+  | DE.Pload(_) -> assert false
+
+let fcond_of_cpexpr cvi cpe =
+  let neg, cpe_v = 
+    match cpe with
+    | DE.Papp1(_,_,DE.Onot,cpe_v) -> true, cpe_v
+    | _                           -> false, cpe
+  in
+  let v =
+    match pexpr_of_cpexpr cvi cpe_v with
+    | Patom(Pvar(v)) -> v
+    | _              -> assert false
+  in
+  {fc_neg=neg; fc_var=v}
+
+let rec instr_of_cinstr cvi lci =
+  let k, ci = match lci with DE.MkI(k,ci) -> k,ci in
+  let loc = CVI.get_iloc cvi k in
+  let instr =
+    match ci with
+    | DE.Cassgn(st,rval,atag,pe) ->
+      Block([{ L.l_val = base_instr_of_cassgn cvi st rval atag pe;
+               L.l_loc = loc }],
+            None)
+
+    | DE.Cif(cpe,cmd1,cmd2) ->
+      let is_fcond = CVI.get_ifcond cvi k in
+      let s1 = stmt_of_cmd cvi cmd1 in
+      let s2 = stmt_of_cmd cvi cmd2 in
+      let cond =
+        if is_fcond then (
+          Fcond(fcond_of_cpexpr cvi cpe)
+        ) else (
+          Pcond(pcond_of_cpexpr cvi cpe)
+        )
+      in
+      If(cond,s1,s2,None)
+
+    | DE.Cfor(rval,rng,cmd) ->
+      let d = dest_of_rval cvi rval in
+      let dir,cpe_lb,cpe_ub = match rng with
+        | Datatypes.Coq_pair(Datatypes.Coq_pair(dir,cpe_lb),cpe_ub) -> dir,cpe_lb,cpe_ub
+      in
+      assert(dir=DE.UpTo);
+      let s = stmt_of_cmd cvi cmd in
+      For(d,pexpr_of_cpexpr cvi cpe_lb,pexpr_of_cpexpr cvi cpe_ub,s,None)
+
+    | DE.Cwhile(cpe,cmd) ->
+      let s = stmt_of_cmd cvi cmd in
+      let fc = fcond_of_cpexpr cvi cpe in
+      While(WhileDo,fc,s,None)
+
+    | DE.Ccall(_starg,_stres,_rval,_fdef,_pe) ->
+      assert false
+  in
+  { L.l_loc = loc; L.l_val = instr }
+
+and stmt_of_cmd cvi c =
+   List.map ~f:(instr_of_cinstr cvi) (list_of_clist c)

@@ -1,10 +1,80 @@
 fn test() {
   x : reg u64;
+  y : reg u64;
+  z : reg u64[4];
+  cf : reg bool;
+  i : inline u64;
+
+  // asignments
+  y = 1;
+  z[1] = 2;
+  x = y;
+  y = z[1];
+  y = z[x];
+
+  // addition variants
   x += 1;
+  cf,x += 1;
+  x += 1 + cf;
+  cf,x += 1 + cf;
+
+  // subtraction variants
+  x -= 1;
+  cf,x -= 1;
+  x -= 1 - cf;
+  cf,x -= 1 - cf;
+
+  // conditional move
+  x = y if cf;
+  // x = y if !cf; // unsupported at the moment
+
+  // umul
+  x,y = x * y;
+
+  // imul
+  x = x * y;
+
+  // xor
+  x = y ^ z[1];
+
+  // land
+  x = y & z[1];
+
+  // lor
+  x = y | z[1];
+  
+  // shift-left
+  x = y >> 10;
+  // cf,x = y >> 10; // unsupported at the moment
+
+  // shift-right
+  x = y << 10;
+  // cf,x = y << 10; // unsupported at the moment
+
+  // for loops
+  for i in 0..10 {
+    z[i] += 1;
+    if (i = 0) {
+      z[1] += 1;
+    }
+  }
+
+  if cf {
+    z[1] += 1;
+  }
+
+  if !cf {
+    z[1] += 1;
+  }
+
+  while cf {
+    cf,x += x;
+  }
 }
 
 /*
 START:CMD
-ARG="renumber_fun_unique,test_conv[test]"
+ARG="renumber_fun_unique,save[/tmp/before.mil][fun=test],test_conv[test],save[/tmp/after.mil][fun=test]"
+#ARG="renumber_fun_unique,test_conv[test]"
 END:CMD
 */
