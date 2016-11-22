@@ -17,6 +17,7 @@ COQFILES := \
 	src/dmasm_type.v \
 	src/dmasm_var.v \
 	src/dmasm_expr.v \
+	src/extraction.v \
 	src/memory.v \
 	src/dmasm_sem.v \
 	src/allocation.v \
