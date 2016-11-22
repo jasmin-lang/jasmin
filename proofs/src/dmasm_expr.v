@@ -589,15 +589,12 @@ Proof. done. Qed.
  * -------------------------------------------------------------------------- *)
 
 Definition destr_pair t1 t2 (p:pexpr (t1 ** t2)) : option (pexpr t1 * pexpr t2).
-(*
 case H: _ / p => [ ? | ? | ? | ? | ???? | ??? o e1 e2| ???????? ].
 + exact None. + exact None. + exact None. + exact None. + exact None. 
-+ (case:o H e1 e2 => [|||||||||||||||??[]<-<- e1 e2];last by exact (Some (e1,e2)))=> *; 
++ (case:o H e1 e2 => [||||||||||||||||||??[]<-<- e1 e2];last by exact (Some (e1,e2)))=> *; 
   exact None.
 exact None. 
 Defined.
-*)
-Admitted.
 
 Lemma destr_pairP t1 t2 (p:pexpr (t1 ** t2)) p1 p2:
    destr_pair p = Some (p1, p2) -> p = Papp2 (Opair _ _) p1 p2.
