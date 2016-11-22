@@ -119,19 +119,23 @@ let sarr i = DT.Coq_sarr(pos_of_bi i)
 module CVI = struct
   
   type t = {
-    ctr     : int ref;
-    vargs   : (int,Vname.t * stor * Lex.loc * Lex.loc) HT.t;
-    dargs   : (int,Lex.loc * bool) HT.t;
-    iloc    : (int,Lex.loc) HT.t;
+    ctr    : int ref;
+    vargs  : (int,Vname.t * stor * Lex.loc * Lex.loc) HT.t;
+    dargs  : (int,Lex.loc * bool) HT.t;
+    iloc   : (int,Lex.loc) HT.t;
     ifcond : (int,bool) HT.t; (* true if fcond *)
+    fname  : (int,Fname.t) HT.t; (* function name for call *)
+    ftable : (Fname.t,unit fundef) HT.t;
   }
 
-  let mk () =
+  let mk ftable =
     { ctr = ref 2;
-      vargs = Int.Table.create ();
-      dargs = Int.Table.create ();
-      iloc  = Int.Table.create ();
-      ifcond  = Int.Table.create ();
+      vargs  = Int.Table.create ();
+      dargs  = Int.Table.create ();
+      iloc   = Int.Table.create ();
+      ifcond = Int.Table.create ();
+      fname  = Int.Table.create ();
+      ftable = ftable;
     }
 
   let new_ctr cvi =
@@ -182,6 +186,16 @@ module CVI = struct
     match HT.find cvi.ifcond num with
     | Some(loc) -> loc
     | None      -> assert false
+
+  let get_fundef cvi fname =
+    HT.find_exn cvi.ftable fname
+
+  let add_fname cvi k fname =
+    HT.set cvi.fname ~key:k ~data:fname
+
+  let get_fname cvi k =
+    let num = Big_int.int_of_big_int (bi_of_pos k) in
+    HT.find_exn cvi.fname num
 
 end
 
@@ -508,24 +522,100 @@ let assgn_type_of_atag = function
   | DE.AT_Eq -> Eq
   | _        -> assert false
 
-let cinstr_of_base_instr cvi bi =
-  match bi with
+let rval_of_dests cvi ds =
+  let conv_d d = cty_of_ty (type_dest d),rval_of_dest cvi d in
+  let rec go ds =
+    match ds with
+    | [] -> assert false (* there is no unit rval *)
+    | [d] -> conv_d d
+    | d::ds ->
+      let ty_d,r_d = conv_d d in
+      let ty_ds,r_ds = go ds in
+      DT.Coq_sprod(ty_d,ty_ds), DE.Rpair(ty_d,ty_ds,r_d,r_ds)
+  in
+  snd (go ds)
+
+let rec dests_of_rval cvi num rval =
+  match rval with
+  | DE.Rpair(_,_,rv1,rv2) ->
+    if num > 1 then
+      dest_of_rval cvi rv1::(dests_of_rval cvi (num - 1) rv2)
+    else
+      failwith "dests_of_rval: unexpected pair"
+  | _ -> 
+    if num = 1 then
+      [ dest_of_rval cvi rval ]
+    else
+      failwith "dests_of_rval: expected pair"
+
+let cpexpr_of_srcs cvi ss =
+  let conv_s s = cty_of_ty (type_src s),cpexpr_of_src cvi s in
+  let rec go ss =
+    match ss with
+    | [] -> assert false (* there is no unit pexpr *)
+    | [s] -> conv_s s
+    | s::ss ->
+      let ty_s,cpe_s = conv_s s in
+      let ty_ss,cpe_ss = go ss in
+      let ty_p = DT.Coq_sprod(ty_s,ty_ss) in
+      ty_p, DE.Papp2(ty_s,ty_ss,ty_p,DE.Opair(ty_s,ty_ss),cpe_s,cpe_ss)
+  in
+  snd (go ss)
+
+let rec srcs_of_cpexpr cvi num cpe =
+  match cpe with
+  | DE.Papp2(_,_,_,DE.Opair(_,_),cpe_s,cpe_ss) ->
+    if num > 1 then
+      src_of_cpexpr cvi cpe_s::(srcs_of_cpexpr cvi (num - 1) cpe_ss)
+    else
+      failwith "srcs_of_cexpr: unexpected pair"
+  | _ -> 
+    if num = 1 then
+      [ src_of_cpexpr cvi cpe ]
+    else
+      failwith "srcs_of_cexpr: expected pair"
+
+let rec cty_of_tys tys =
+  match tys with
+  | []    -> assert false (* FIXME: add unit to Coq *)
+  | [t]   -> cty_of_ty t
+  | t::ts -> DT.Coq_sprod(cty_of_ty t,cty_of_tys ts)
+
+let rec cfundef_of_fundef cvi tin tres fd =
+  let dest_of_var v = {d_var=v;d_loc=Lex.dummy_loc;d_idx=None} in
+  let src_of_var v = Src(dest_of_var v) in
+  let rval_arg = rval_of_dests cvi (List.map ~f:dest_of_var fd.f_arg) in
+  let cpe_res = cpexpr_of_srcs cvi (List.map ~f:src_of_var fd.f_arg) in
+  let cmd = cmd_of_stmt cvi fd.f_body  in
+  DE.FunDef(tin,tres,rval_arg,cmd,cpe_res)
+
+and cinstr_of_base_instr cvi lbi =
+  let k = CVI.add_iloc cvi lbi.L.l_loc in
+  match lbi.L.l_val with
   | Assgn(d,s,aty) ->
     let atag = atag_of_assgn_type aty in
     let rd = rval_of_dest cvi d in
     let es = cpexpr_of_src cvi s in
     let ty = type_dest d in
-    Some(DE.Cassgn(cty_of_ty ty,rd,atag,es))
+    Some(k,DE.Cassgn(cty_of_ty ty,rd,atag,es))
 
   | Op(o,ds,ss) ->
     let ty, rds, e = of_op_view cvi (view_op o ds ss) in
-    Some(DE.Cassgn(ty,rds,DE.AT_Mv,e))
+    Some(k,DE.Cassgn(ty,rds,DE.AT_Mv,e))
 
   | Comment(_s) ->
     None
 
-  | Call(_fname,_ds,_ss) ->
-    failwith "cinstr_of_base_instr: calls not supported yet"
+  | Call(fname,ds,ss) ->
+    CVI.add_fname cvi k fname;
+    let fd = CVI.get_fundef cvi fname in
+    let ty_of_var v = v.Var.ty in
+    let tin  = cty_of_tys (List.map ~f:ty_of_var fd.f_arg) in
+    let tres  = cty_of_tys (List.map ~f:ty_of_var fd.f_ret) in
+    let cfd = cfundef_of_fundef cvi tin tres fd in
+    let rval = rval_of_dests cvi ds in
+    let cpe = cpexpr_of_srcs cvi ss in
+    Some(k,DE.Ccall(tin,tres,rval,cfd,cpe))
 
   | Load(_d,_s,_pe) ->
     failwith "cinstr_of_base_instr: load not supported yet"
@@ -533,17 +623,16 @@ let cinstr_of_base_instr cvi bi =
   | Store(_s1,_pe,_s2) ->
     failwith "cinstr_of_base_instr: store not supported yet"
 
-let rec cinstr_of_linstr cvi linstr =
+and cinstr_of_linstr cvi linstr =
   let loc = linstr.L.l_loc in
   let ci =
     match linstr.L.l_val with
     | Block(lbis,oinfo) ->
       assert(oinfo=None);
       let conv_bi lbi =
-        let k = CVI.add_iloc cvi lbi.L.l_loc in
-        match cinstr_of_base_instr cvi lbi.L.l_val with
-        | None     -> []
-        | Some(ci) -> [ DE.MkI (pos_of_int k,ci) ]
+        match cinstr_of_base_instr cvi lbi with
+        | None       -> []
+        | Some(k,ci) -> [ DE.MkI (pos_of_int k,ci) ]
       in
       List.concat_map ~f:conv_bi lbis
 
@@ -587,19 +676,6 @@ let rec cinstr_of_linstr cvi linstr =
 
 and cmd_of_stmt cvi s =
   clist_of_list @@ List.concat_map ~f:(cinstr_of_linstr cvi) s
-
-let rec dests_of_rval cvi num rval =
-  match rval with
-  | DE.Rpair(_,_,rv1,rv2) ->
-    if num > 1 then
-      dest_of_rval cvi rv1::(dests_of_rval cvi (num - 1) rv2)
-    else
-      failwith "dests_of_rval: unexpected pair"
-  | _ -> 
-    if num = 1 then
-      [ dest_of_rval cvi rval ]
-    else
-      failwith "dests_of_rval: expected pair"
 
 let base_instr_of_papp2 cvi rval sop cpe1 cpe2 =
   match sop with
@@ -713,12 +789,13 @@ let base_instr_of_cassgn cvi _st rval atag pe =
 let rec instr_of_cinstr cvi lci =
   let k, ci = match lci with DE.MkI(k,ci) -> k,ci in
   let loc = CVI.get_iloc cvi k in
+  let mk_block bi =
+    Block([{ L.l_val = bi; L.l_loc = loc }], None)
+  in
   let instr =
     match ci with
     | DE.Cassgn(st,rval,atag,pe) ->
-      Block([{ L.l_val = base_instr_of_cassgn cvi st rval atag pe;
-               L.l_loc = loc }],
-            None)
+      mk_block (base_instr_of_cassgn cvi st rval atag pe)
 
     | DE.Cif(cpe,cmd1,cmd2) ->
       let is_fcond = CVI.get_ifcond cvi k in
@@ -747,8 +824,15 @@ let rec instr_of_cinstr cvi lci =
       let fc = fcond_of_cpexpr cvi cpe in
       While(WhileDo,fc,s,None)
 
-    | DE.Ccall(_starg,_stres,_rval,_fdef,_pe) ->
-      assert false
+    | DE.Ccall(_starg,_stres,rval,_fdef,cpe) ->
+      (* FIXME: we ignore fdef, translation from different Ccall might conflict *)
+      let fname = CVI.get_fname cvi k in
+      let fd = CVI.get_fundef cvi fname in
+      let dnum = List.length fd.f_ret in
+      let ds = dests_of_rval cvi dnum rval in
+      let snum = List.length fd.f_arg in
+      let ss = srcs_of_cpexpr cvi snum cpe in
+      mk_block (Call(fname,ds,ss))
   in
   { L.l_loc = loc; L.l_val = instr }
 

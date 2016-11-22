@@ -266,9 +266,15 @@ let apply_transform trafos (modul0 : unit modul) =
     in
    let test_conversion fn m0 =
      let open IL_Conv in
+     let m0 = match m0 with Um m0 -> m0 | Lm _ -> assert false in
      notify "testing conversion" fn
        ~f:(fun () ->
-         let cvi = CVI.mk () in
+         let ftable =
+           Fname.Table.of_alist_exn
+             (List.concat_map m0
+                ~f:(fun nf -> match nf.nf_func with Native(fd) -> [(nf.nf_name,fd)] | _ -> []))
+         in
+         let cvi = CVI.mk ftable in
          let conv func =
            match func with
            | Foreign(_) -> assert false
@@ -284,7 +290,7 @@ let apply_transform trafos (modul0 : unit modul) =
            F.printf "test_conversion: roundtrip for function %s failed@\n"
              (Fname.to_string fn)
          );
-         m1)
+         Um m1)
    in
    let interp fn pmap mmap args m =
       notify "interpreting" fn
@@ -354,7 +360,7 @@ let apply_transform trafos (modul0 : unit modul) =
     | RenumberIdents(rno)       -> map_module modul {f = fun m -> renumber_idents rno m}
     | MergeBlocks(ofn)          -> map_module modul {f = fun m -> merge_blocks ofn m}
     | RegisterLiveness(fn)      -> register_liveness fn modul
-    | TestConversion(fn)        -> map_module modul {f = fun m -> test_conversion fn m}
+    | TestConversion(fn)        -> test_conversion fn modul
     | LocalSSA(fn)              -> local_ssa fn modul
     | Print(n,ppo)              -> print n ppo modul; modul
     | Save(fn,ppo)              -> save fn ppo modul; modul

@@ -45,7 +45,7 @@ let () =
 
   (* pexpr *)
   let check pe1 =
-    let cvi = CVI.mk () in
+    let cvi = CVI.mk (Fname.Table.create ()) in
     let pe2 = pexpr_of_cpexpr cvi (cpexpr_of_pexpr cvi pe1) in
     if not (equal_pexpr pe1 pe2) then
       failwith_ "check variable roundtrip ``%a'' <> ``%a''"
@@ -90,7 +90,7 @@ let () =
 
   (* pcond *)
   let check pc1 =
-    let cvi = CVI.mk () in
+    let cvi = CVI.mk (Fname.Table.create ()) in
     let pc2 = pcond_of_cpexpr cvi (cpexpr_of_pcond cvi pc1) in
     if not (equal_pcond pc1 pc2) then (
       F.printf "check variable roundtrip@\n``%a''@\n<>@\n``%a''@\n%!"
@@ -104,7 +104,7 @@ let () =
 
   (* destinations *)
   let check d1 =
-    let cvi = CVI.mk () in
+    let cvi = CVI.mk (Fname.Table.create ()) in
     let d2 = dest_of_rval cvi (rval_of_dest cvi d1) in
     if not (equal_dest d1 d2) then (
       F.printf "check variable roundtrip@\n``%a''@\n<>@\n``%a''@\n%!"
@@ -120,7 +120,7 @@ let () =
 
   (* sources *)
   let check s1 =
-    let cvi = CVI.mk () in
+    let cvi = CVI.mk (Fname.Table.create ()) in
     let s2 = src_of_cpexpr cvi (cpexpr_of_src cvi s1) in
     if not (equal_src s1 s2) then (
       F.printf "check variable roundtrip@\n``%a''@\n<>@\n``%a''@\n%!"
