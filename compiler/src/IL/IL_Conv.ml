@@ -185,7 +185,7 @@ module CVI = struct
 
 end
 
-(* ** Types, pexpr, and pcond
+(* ** Types, pexpr, pcond, and fcond
  * ------------------------------------------------------------------------ *)
 
 let cty_of_ty ty =
@@ -309,6 +309,23 @@ let rec pcond_of_cpexpr vat pe =
     | _       -> failwith "pcond_pexpr: unsuppported operator"
     end
   | _       -> failwith "pcond_pexpr: unsuppported operator"
+
+let cpexpr_of_fcond cvi {fc_neg; fc_var} =
+  let cpe_v = cpexpr_of_pexpr cvi (Patom(Pvar(fc_var))) in
+  (if fc_neg then DE.Papp1(sbool,sbool,DE.Onot,cpe_v) else cpe_v)
+
+let fcond_of_cpexpr cvi cpe =
+  let neg, cpe_v = 
+    match cpe with
+    | DE.Papp1(_,_,DE.Onot,cpe_v) -> true, cpe_v
+    | _                           -> false, cpe
+  in
+  let v =
+    match pexpr_of_cpexpr cvi cpe_v with
+    | Patom(Pvar(v)) -> v
+    | _              -> assert false
+  in
+  {fc_neg=neg; fc_var=v}
 
 (* ** Sources and destinations
  * ------------------------------------------------------------------------ *)
@@ -516,11 +533,6 @@ let cinstr_of_base_instr cvi bi =
   | Store(_s1,_pe,_s2) ->
     failwith "cinstr_of_base_instr: store not supported yet"
 
-let cpexpr_of_fcond cvi {fc_neg; fc_var} =
-  let cpe_v = cpexpr_of_pexpr cvi (Patom(Pvar(fc_var))) in
-  (if fc_neg then DE.Papp1(sbool,sbool,DE.Onot,cpe_v) else cpe_v)
-
-
 let rec cinstr_of_linstr cvi linstr =
   let loc = linstr.L.l_loc in
   let ci =
@@ -588,9 +600,6 @@ let rec dests_of_rval cvi num rval =
       [ dest_of_rval cvi rval ]
     else
       failwith "dests_of_rval: expected pair"
-
-let srcs_of_cpexpr _cvi _num _rval =
-  failwith "srcs_of_cpexpr: ..."
 
 let base_instr_of_papp2 cvi rval sop cpe1 cpe2 =
   match sop with
@@ -700,19 +709,6 @@ let base_instr_of_cassgn cvi _st rval atag pe =
   | DE.Pbool(_) -> assert false
 
   | DE.Pload(_) -> assert false
-
-let fcond_of_cpexpr cvi cpe =
-  let neg, cpe_v = 
-    match cpe with
-    | DE.Papp1(_,_,DE.Onot,cpe_v) -> true, cpe_v
-    | _                           -> false, cpe
-  in
-  let v =
-    match pexpr_of_cpexpr cvi cpe_v with
-    | Patom(Pvar(v)) -> v
-    | _              -> assert false
-  in
-  {fc_neg=neg; fc_var=v}
 
 let rec instr_of_cinstr cvi lci =
   let k, ci = match lci with DE.MkI(k,ci) -> k,ci in
