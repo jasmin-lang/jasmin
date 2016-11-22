@@ -99,12 +99,14 @@ module CVI = struct
     ctr   : int ref;
     vargs : (int,Vname.t * stor * Lex.loc * Lex.loc) HT.t;
     dargs : (int,Lex.loc * bool) HT.t;
+    iloc  : (int,Lex.loc) HT.t;
   }
 
   let mk () =
     { ctr = ref 2;
       vargs = Int.Table.create ();
       dargs = Int.Table.create ();
+      iloc  = Int.Table.create ();
     }
 
   let new_ctr cvi =
@@ -135,6 +137,17 @@ module CVI = struct
     | Some(va), Some(da) -> va,da
     | None,     _        -> assert false
     | _,        None     -> assert false
+
+  let add_iloc cvi loc =
+    let k = new_ctr cvi in
+    HT.set cvi.iloc ~key:k ~data:loc;
+    k
+
+  let get_iloc cvi i =
+    let num = Big_int.int_of_big_int (bi_of_pos i) in
+    match HT.find cvi.vargs num with
+    | Some(loc) -> loc
+    | None      -> assert false
 
 end
 
@@ -437,11 +450,9 @@ let of_op_view cvi o =
 (* ** Basic instructions, instructions, and statements
  * ------------------------------------------------------------------------ *)
 
-let of_base_instr cvi bi =
-
+let cinstr_of_base_instr cvi bi =
   match bi with
-
-  | Assgn(d,s,aty) -> (* TODO: aty lost, should be preserved *)
+  | Assgn(d,s,aty) ->
     let atag = match aty with
       | Mv -> DE.AT_Mv
       | Eq -> DE.AT_Eq
@@ -449,52 +460,72 @@ let of_base_instr cvi bi =
     let rd = rval_of_dest cvi d in
     let es = cpexpr_of_src cvi s in
     let ty = type_dest d in
-    DE.Cassgn(cty_of_ty ty,rd,atag,es) 
+    Some(DE.Cassgn(cty_of_ty ty,rd,atag,es))
 
   | Op(o,ds,ss) ->
     let ty, rds, e = of_op_view cvi (view_op o ds ss) in
-    DE.Cassgn(ty,rds,DE.AT_Mv,e) 
+    Some(DE.Cassgn(ty,rds,DE.AT_Mv,e))
 
-  | _ -> assert false 
+  | Comment(_s) ->
+    None
 
-(*    
-  | Call of Fname.t * dest list * src list
-    (* Call(fname,rets,args): rets = fname(args) *)
+  | Call(_fname,_ds,_ss) ->
+    failwith "cinstr_of_base_instr: calls not supported yet"
 
-  | Load of dest * src * pexpr
-    (* Load(d,src,pe): d = MEM[src + pe] *)
+  | Load(_d,_s,_pe) ->
+    failwith "cinstr_of_base_instr: load not supported yet"
 
-  | Store of src * pexpr * src
-    (* Store(src1,pe,src2): MEM[src1 + pe] = src2 *) 
+  | Store(_s1,_pe,_s2) ->
+    failwith "cinstr_of_base_instr: store not supported yet"
 
-  | Comment of string
-    (* Comment(s): /* s */ *)
+let cinstr_of_linstr cvi linstr =
+  let _loc = linstr.L.l_loc in
+  let ci =
+    match linstr.L.l_val with
+    | Block(lbis,oinfo) ->
+      assert(oinfo=None);
+      let conv_bi lbi =
+        let k = CVI.add_iloc cvi lbi.L.l_loc in
+        match cinstr_of_base_instr cvi lbi.L.l_val with
+        | None     -> []
+        | Some(ci) -> [ DE.MkI (pos_of_int k,ci) ]
+      in
+      List.concat_map ~f:conv_bi lbis
 
-    
-  undefined ()
-*)
-(*
-type rval =
-| Rvar of Var.var
-| Rmem of pexpr
-| Raset of positive * Equality.sort * pexpr
-| Rpair of stype * stype * rval * rval
-*)
-(*
-type dir =
-| UpTo
-| DownTo
-*)
-(*
-type range = ((dir, pexpr) prod, pexpr) prod
-*)
-(*
-type instr =
-| Cassgn of stype * rval * pexpr
-| Cif of pexpr * instr list * instr list
-| Cfor of rval * range * instr list
-| Cwhile of pexpr * instr list
-| Ccall of stype * stype * rval * fundef * pexpr
-and fundef =
-| FunDef of stype * stype * rval * instr list * pexpr
-*)
+    | If(_cond,_s1,_s2,oinfo) ->
+      assert(oinfo=None);
+      assert false
+
+    | For(_d,_pe_lb,_pe_ub,_s,oinfo) ->
+      assert(oinfo=None);
+      assert false
+
+    | While(_wt,_fc,_s,oinfo) ->
+      assert(oinfo=None);
+      assert false
+  in
+  ci
+
+let instr_of_cinstr _cvi lci =
+  let _k, ci = match lci with DE.MkI(k,ci) -> k,ci in
+  match ci with
+  | DE.Cassgn(_st,_rval,_atag,_pe) ->
+    failwith "instr_of_cinstr: assignment not supported yet"
+
+  | DE.Cif(_pe,_instrs1,_instrs2) ->
+    assert false
+
+  | DE.Cfor(_rval,_rng,_instrs) ->
+    assert false
+
+  | DE.Cwhile(_pe,_instrs) ->
+    assert false
+
+  | DE.Ccall(_starg,_stres,_rval,_fdef,_pe) ->
+    assert false
+
+let cmd_of_stmt cvi s =
+  List.concat_map ~f:(cinstr_of_linstr cvi) s
+
+let stmt_of_cmd cvi c =
+  List.map ~f:(instr_of_cinstr cvi) c

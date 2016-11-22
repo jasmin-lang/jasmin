@@ -303,9 +303,9 @@ type 'info func =
 type 'info named_func = {
   nf_name : Fname.t;
   nf_func : 'info func;
-}
+} [@@deriving compare,sexp]
 
-type 'info modul = 'info named_func list
+type 'info modul = 'info named_func list [@@deriving compare,sexp]
 
 (* ** Values
  * ------------------------------------------------------------------------ *)

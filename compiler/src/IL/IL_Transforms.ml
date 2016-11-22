@@ -7,6 +7,7 @@ open IL_Lang
 open IL_Pprint
 open IL_Compile
 open IL_Expand
+open IL_Utils
 open Arith
 
 (* ** Apply transformations in sequence.
@@ -44,6 +45,7 @@ type transform =
   | Type
   | Print of string * pprint_opt
   | Save  of string * pprint_opt
+  | TestConversion of Fname.t
   | StripComments of Fname.t
   | Interp of Fname.t * value Pname.Table.t * u64 U64.Table.t * value list
     (* Interp(fun,pmap,mmap,alist,fun):
@@ -135,6 +137,8 @@ let ptrafo =
        return (RegisterLiveness fn))
     ; (string "remove_eq_constrs" >> fname >>= fun fn ->
        return (RemoveEqConstrs(fn)))
+    ; (string "test_conv" >> fname >>= fun fn ->
+       return (TestConversion fn))
     ; (string "register_allocate" >> fname >>= fun fn ->
        register_num >>= fun l ->
        return (RegisterAlloc(fn,l)))
@@ -260,7 +264,29 @@ let apply_transform trafos (modul0 : unit modul) =
       | Lm m, true  -> go m (Some(pp_info_lv))
       | Lm m, false -> go m None
     in
-    let interp fn pmap mmap args m =
+   let test_conversion fn (m0 : modules) =
+     let open IL_Conv in
+     let m0 = match m0 with
+       | Um m -> m
+       | Lm m -> reset_info_modul m
+     in
+     let cvi = CVI.mk () in
+     let conv func =
+       match func with
+       | Foreign(_) -> assert false
+       | Native(fd) ->
+         let fd =
+           { fd with
+             f_body = stmt_of_cmd cvi (cmd_of_stmt cvi fd.f_body); }
+         in
+         Native(fd)
+     in
+     let m1 = map_func m0 fn ~f:conv in
+     if not (equal_modul m0 m1) then
+       failwith_ "test_conversion: roundtrip for function %s failed"
+         (Fname.to_string fn)
+   in
+   let interp fn pmap mmap args m =
       notify "interpreting" fn
         ~f:(fun () ->
             IL_Interp.interp_modul m pmap mmap args fn;
@@ -328,6 +354,7 @@ let apply_transform trafos (modul0 : unit modul) =
     | RenumberIdents(rno)       -> map_module modul {f = fun m -> renumber_idents rno m}
     | MergeBlocks(ofn)          -> map_module modul {f = fun m -> merge_blocks ofn m}
     | RegisterLiveness(fn)      -> register_liveness fn modul
+    | TestConversion(fn)        -> test_conversion fn modul; modul
     | LocalSSA(fn)              -> local_ssa fn modul
     | Print(n,ppo)              -> print n ppo modul; modul
     | Save(fn,ppo)              -> save fn ppo modul; modul

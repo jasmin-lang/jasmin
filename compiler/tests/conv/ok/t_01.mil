@@ -1,0 +1,10 @@
+fn test() {
+  x : reg u64;
+  x += 1;
+}
+
+/*
+START:CMD
+ARG="renumber_fun_unique,test_conv[test]"
+END:CMD
+*/

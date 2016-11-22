@@ -148,6 +148,11 @@ def all_tests():
 
     print_sep()
 
+    for fn in [ "%02i"%i for i in range(1,2)]:
+        test_ok("tests/conv/ok/t_%s.mil"%fn)
+
+    print_sep()
+
 if __name__ == "__main__":
   if len(sys.argv) > 1:
     single_test(sys.argv[1])

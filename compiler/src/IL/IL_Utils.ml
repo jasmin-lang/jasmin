@@ -29,6 +29,8 @@ let equal_src        x y = compare_src        x y = 0
 let equal_dest       x y = compare_dest       x y = 0
 let equal_base_instr x y = compare_base_instr x y = 0
 
+let equal_modul      x y = compare_modul (fun _ _ -> 0) x y = 0
+
 let is_src_imm = function Imm _ -> true | _ -> false
 
 let get_src_dest_exn = function Imm _ -> assert false | Src(d) -> d
