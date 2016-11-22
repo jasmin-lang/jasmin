@@ -91,6 +91,54 @@ let bool_of_cbool cb =
   | Datatypes.Coq_true  -> true
   | Datatypes.Coq_false -> false
 
+(* ** Conversation info (required for lossless roundtrip)
+ * ------------------------------------------------------------------------ *)
+
+module CVI = struct
+  type t = {
+    ctr   : int ref;
+    vargs : (int,Vname.t * stor * Lex.loc * Lex.loc) HT.t;
+    dargs : (int,Lex.loc * bool) HT.t;
+  }
+
+  let mk () =
+    { ctr = ref 2;
+      vargs = Int.Table.create ();
+      dargs = Int.Table.create ();
+    }
+
+  let new_ctr cvi =
+    let k = !(cvi.ctr) in
+    incr cvi.ctr;
+    k
+
+  let add_varg cvi v =
+    let k = new_ctr cvi in
+    HT.set cvi.vargs ~key:k ~data:(v.Var.name,v.Var.stor,v.Var.uloc,v.Var.dloc);
+    k
+
+  let get_varg cvi vinfo =
+    let num = Big_int.int_of_big_int (bi_of_pos vinfo) in
+    match HT.find cvi.vargs num with
+    | Some(va) -> va
+    | None     -> assert false
+
+  let add_darg cvi d =
+    let k = add_varg cvi d.d_var in
+    let is_Ivar = match d.d_idx with Some(Ivar(_)) -> true | _ -> false in
+    HT.set cvi.dargs ~key:k ~data:(d.d_loc,is_Ivar);
+    k
+
+  let get_darg cvi vinfo =
+    let num = Big_int.int_of_big_int (bi_of_pos vinfo) in
+    match HT.find cvi.vargs num, HT.find cvi.dargs num with
+    | Some(va), Some(da) -> va,da
+    | None,     _        -> assert false
+    | _,        None     -> assert false
+
+end
+
+
 (* ** Types, pexpr, and pcond
  * ------------------------------------------------------------------------ *)
 
@@ -137,32 +185,27 @@ let var_of_cvar cvar (name,stor,uloc,dloc) =
     Var.dloc = dloc;
   }
 
-let rec cpexpr_of_pexpr pe =
+let rec cpexpr_of_pexpr cvi pe =
+  let cpe = cpexpr_of_pexpr cvi in
   match pe with
-  | Patom(Pparam(_))   -> failwith "cpexpr_of_pexpr: parameters not supported"
-  | Patom(Pvar(v))     -> DE.Pvar(pos_of_int v.Var.num, cvar_of_var v)
+  | Patom(Pvar(v))     ->
+    let k = CVI.add_varg cvi v in
+    DE.Pvar(pos_of_int k, cvar_of_var v)
   | Pbinop(po,pe1,pe2) ->
-    let pe1 = cpexpr_of_pexpr pe1 in
-    let pe2 = cpexpr_of_pexpr pe2 in
-    DE.Papp2(DT.Coq_sword,DT.Coq_sword,DT.Coq_sword,sop2_of_pop_u64 po,pe1,pe2) 
+    DE.Papp2(DT.Coq_sword,DT.Coq_sword,DT.Coq_sword,sop2_of_pop_u64 po,cpe pe1,cpe pe2) 
   | Pconst bi ->
     DE.Pconst(coqZ_of_bi bi)
+  | Patom(Pparam(_))   ->
+    failwith "cpexpr_of_pexpr: parameters not supported"
 
-let get_var_args vat vinfo =
-  let num = Big_int.int_of_big_int (bi_of_pos vinfo) in
-  match HT.find vat num with
-  | Some(va) -> va
-  | None     -> assert false
-
-let rec pexpr_of_cpexpr vat pe =
+let rec pexpr_of_cpexpr cvi pe =
+  let pcp = pexpr_of_cpexpr cvi in
   match pe with
   | DE.Pvar(vi,v) ->
-    let vargs = get_var_args vat vi in
+    let vargs = CVI.get_varg cvi vi in
     Patom(Pvar(var_of_cvar v vargs))
   | DE.Papp2(DT.Coq_sword,DT.Coq_sword,DT.Coq_sword,sop,cpe1,cpe2) ->
-    let pe1 = pexpr_of_cpexpr vat cpe1 in
-    let pe2 = pexpr_of_cpexpr vat cpe2 in
-    Pbinop(pop_u64_of_sop2 sop,pe1,pe2)
+    Pbinop(pop_u64_of_sop2 sop,pcp cpe1,pcp cpe2)
   | DE.Pconst(zi) ->
     Pconst(bi_of_coqZ zi)
   | _ -> failwith "pexpr_of_cexpr: unsupported pexpr"
@@ -178,21 +221,22 @@ let mk_cmp cop cpe1 cpe2 =
 
 let mk_eq = mk_cmp DE.Oeq
 
-let rec cpexpr_of_pcond pc =
-  let cpc = cpexpr_of_pcond in
+let rec cpexpr_of_pcond cvi pc =
+  let cpc = cpexpr_of_pcond cvi in
+  let cpe = cpexpr_of_pexpr cvi in
   match pc with
   | Pbool(b)          -> DE.Pbool(cbool_of_bool b)
   | Pnot(pc)          -> mk_not(cpc pc)
   | Pand(pc1,pc2)     -> mk_and (cpc pc1) (cpc pc2)
   | Pcmp(pop,pe1,pe2) ->
-    let cpe1 = cpexpr_of_pexpr pe1 in
-    let cpe2 = cpexpr_of_pexpr pe2 in
+    let cpe1 = cpe pe1 in
+    let cpe2 = cpe pe2 in
     begin match pop with
-    | Peq  -> mk_cmp DE.Oeq cpe1 cpe2
-    | Plt  -> mk_cmp DE.Olt  cpe1 cpe2
-    | Ple  -> mk_cmp DE.Ole  cpe1 cpe2
-    | Pgt  -> mk_cmp DE.Ogt  cpe1 cpe2
-    | Pge  -> mk_cmp DE.Oge  cpe1 cpe2
+    | Peq  -> mk_cmp DE.Oeq   cpe1 cpe2
+    | Plt  -> mk_cmp DE.Olt   cpe1 cpe2
+    | Ple  -> mk_cmp DE.Ole   cpe1 cpe2
+    | Pgt  -> mk_cmp DE.Ogt   cpe1 cpe2
+    | Pge  -> mk_cmp DE.Oge   cpe1 cpe2
     | Pneq -> mk_cmp DE.Oneq  cpe1 cpe2
     end
 
@@ -223,9 +267,11 @@ let rec pcond_of_cpexpr vat pe =
 (* ** Sources and destinations
  * ------------------------------------------------------------------------ *)
 
-let rval_of_dest d =
+let rval_of_dest cvi d =
   match d.d_idx with
-  | None      -> DE.Rvar(pos_of_int d.d_var.Var.num,cvar_of_var d.d_var)
+  | None      ->
+    let k = CVI.add_darg cvi d in
+    DE.Rvar(pos_of_int k,cvar_of_var d.d_var)
   | Some(idx) ->
     let s = match d.d_var.Var.ty with
       | Arr(64,Pconst(c)) -> pos_of_bi c
@@ -233,34 +279,49 @@ let rval_of_dest d =
     in
     let cpe =
       match idx with
-      | Ipexpr(pe) -> cpexpr_of_pexpr pe
-      | Ivar(v)    -> cpexpr_of_pexpr (Patom(Pvar(v)))
+      | Ipexpr(pe) -> cpexpr_of_pexpr cvi pe
+      | Ivar(v)    -> cpexpr_of_pexpr cvi (Patom(Pvar(v)))
     in
-    DE.Raset(pos_of_int d.d_var.Var.num,s,(cvar_of_var d.d_var).DV.Var.vname, cpe)
+    let k = CVI.add_darg cvi d in
+    DE.Raset(pos_of_int k,s,(cvar_of_var d.d_var).DV.Var.vname, cpe)
 
-let idx_of_cpexpr vat cpe =
-  Ipexpr(pexpr_of_cpexpr vat cpe)
-  (* FIXME: distinguish between Ipexpr and Ivar *)
+let idx_of_cpexpr cvi is_Ivar idx =
+  if is_Ivar then (
+    let v =
+      match idx with
+      | DE.Pvar(i,v) ->
+        let vargs = CVI.get_varg cvi i in
+        var_of_cvar v vargs
+      | _ ->
+        assert false
+    in
+    Ivar(v)
+  ) else (
+    Ipexpr(pexpr_of_cpexpr cvi idx)
+  )
+      
+(* FIXME: distinguish between Ipexpr and Ivar *)
 
-let dest_of_rval vat rv =
+let dest_of_rval cvi rv =
   match rv with
   | DE.Rvar(vi,cvar) ->
-    let vargs = get_var_args vat vi in
-    { d_var=var_of_cvar cvar vargs; d_idx=None; d_loc=Lex.dummy_loc }
+    let vargs,(dloc,_is_Ivar) = CVI.get_darg cvi vi in
+    { d_var=var_of_cvar cvar vargs; d_idx=None; d_loc=dloc }
   | DE.Raset(vi,dim,id,cpe) ->
     let cvar = { DV.Var.vname=id; DV.Var.vtype=DT.Coq_sarr(dim) } in
-    let vargs = get_var_args vat vi in
-    { d_var=var_of_cvar cvar vargs; d_idx=Some(idx_of_cpexpr vat cpe); d_loc=Lex.dummy_loc }
+    let vargs,(dloc,is_Ivar) = CVI.get_darg cvi vi in
+    { d_var=var_of_cvar cvar vargs; d_idx=Some(idx_of_cpexpr cvi is_Ivar cpe); d_loc=dloc }
   | DE.Rpair(_t1,_t2,_rv1,_rv2)   ->
     failwith "dest_of_rval: cannot deal with pairs"
   | DE.Rmem(_cpe) ->
     failwith "dest_of_rval: support for memory missing"
 
-let cpexpr_of_src s =
+let cpexpr_of_src cvi s =
+  let cpe = cpexpr_of_pexpr cvi in
   match s with
-  | Imm(_,pe) -> cpexpr_of_pexpr pe
+  | Imm(_,pe) -> cpe pe
   | Src(d)    ->
-    let v = cpexpr_of_pexpr (Patom(Pvar(d.d_var))) in
+    let v = cpe (Patom(Pvar(d.d_var))) in
     begin match d.d_idx with
     | None      -> v
     | Some(idx) ->
@@ -270,33 +331,33 @@ let cpexpr_of_src s =
       in
       let cpe =
         match idx with
-        | Ipexpr(pe) -> cpexpr_of_pexpr pe
-        | Ivar(v)    -> cpexpr_of_pexpr (Patom(Pvar(v)))
+        | Ipexpr(pe) -> cpe pe
+        | Ivar(v)    -> cpe (Patom(Pvar(v)))
       in
       DE.Papp2(DT.Coq_sarr(n),DT.Coq_sword,DT.Coq_sword,DE.Oget(n),v,cpe)
     end 
 
-let src_of_cpexpr vat cpe =
+let src_of_cpexpr cvi cpe =
   match cpe with
   | DE.Pvar(vi,cvar) ->
-    Src(dest_of_rval vat @@ DE.Rvar(vi,cvar))
+    Src(dest_of_rval cvi @@ DE.Rvar(vi,cvar))
 
   | DE.Papp2(tin1,tin2,tres,DE.Oget(dim),DE.Pvar(vi,cvar),cpe) ->
     assert(tin1=DT.Coq_sarr(dim) && tin2=DT.Coq_sword && tres=DT.Coq_sword);
-    let vargs = get_var_args vat vi in
+    let vargs,(darg,is_Ivar) = CVI.get_darg cvi vi in
     let d =
       { d_var=var_of_cvar cvar vargs;
-        d_idx=Some(idx_of_cpexpr vat cpe);
-        d_loc=Lex.dummy_loc }
+        d_idx=Some(idx_of_cpexpr cvi is_Ivar cpe);
+        d_loc=darg }
     in
     Src(d)
 
-  | _ -> Imm(64,pexpr_of_cpexpr vat cpe) (* FIXME: bitsize fixed *)
+  | _ -> Imm(64,pexpr_of_cpexpr cvi cpe) (* FIXME: bitsize fixed *)
 
 (* ** Operators
  * ------------------------------------------------------------------------ *)
 
-let of_op_view o = 
+let of_op_view cvi o = 
   let sword = DT.Coq_sword in
   let sbool = DT.Coq_sbool in
   let cword = DT.Coq_sprod(sbool, sword) in
@@ -308,11 +369,11 @@ let of_op_view o =
     (t0, DE.Rpair(t1,t2, h, l), Papp2(t0,t1,t2, Omul *)
 
   | V_Carry(o,mcf_out,z,x,y,mcf_in) ->
-    let z = rval_of_dest z in
-    let x = cpexpr_of_src x in
-    let y = cpexpr_of_src y in
-    let cf = Option.map mcf_out ~f:rval_of_dest in 
-    let ci = Option.map mcf_in  ~f:cpexpr_of_src in
+    let z = rval_of_dest cvi z in
+    let x = cpexpr_of_src cvi x in
+    let y = cpexpr_of_src cvi y in
+    let cf = Option.map mcf_out ~f:(rval_of_dest cvi) in 
+    let ci = Option.map mcf_in  ~f:(cpexpr_of_src cvi) in
     let wc, ci = 
       match cf, ci with
       | None,    None    -> `IgnoreCarry, DE.Pbool(cbool_of_bool false)
@@ -359,7 +420,7 @@ let of_op_view o =
 (* ** Basic instructions, instructions, and statements
  * ------------------------------------------------------------------------ *)
 
-let of_base_instr bi =
+let of_base_instr cvi bi =
 
   match bi with
 
@@ -368,13 +429,13 @@ let of_base_instr bi =
       | Mv -> DE.AT_Mv
       | Eq -> DE.AT_Eq
     in
-    let rd = rval_of_dest d in
-    let es = cpexpr_of_src s in
+    let rd = rval_of_dest cvi d in
+    let es = cpexpr_of_src cvi s in
     let ty = type_dest d in
     DE.Cassgn(cty_of_ty ty,rd,atag,es) 
 
   | Op(o,ds,ss) ->
-    let ty, rds, e = of_op_view (view_op o ds ss) in
+    let ty, rds, e = of_op_view cvi (view_op o ds ss) in
     DE.Cassgn(ty,rds,DE.AT_Mv,e) 
 
   | _ -> assert false 
