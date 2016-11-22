@@ -362,11 +362,14 @@ let of_op_view cvi o =
   let sbool = DT.Coq_sbool in
   let cword = DT.Coq_sprod(sbool, sword) in
   match o with 
-  | V_Umul(_h,_l,_x,_y) -> 
-    let h = of_dest h and l = of_dest l in
-    let x = of_src x and y = of_src y in
+  | V_Umul(h,l,x,y) -> 
+    let h = rval_of_dest cvi h in
+    let l = rval_of_dest cvi l in
+    let x = cpexpr_of_src cvi x in
+    let y = cpexpr_of_src cvi y in
     let t = DT.Coq_sprod(sword, sword) in
-    (t, DE.Rpair(sword,sword, h, l), Papp2(sword, sword, t, DE.Omulu))
+    let cpe = DE.Papp2(sword,sword,t,DE.Omulu,x,y) in
+    t, DE.Rpair(sword,sword,h,l), cpe
 
   | V_Carry(o,mcf_out,z,x,y,mcf_in) ->
     let z = rval_of_dest cvi z in
@@ -382,7 +385,7 @@ let of_op_view cvi o =
       | Some cf, Some ci -> `Carry(cf),   ci
     in
     let papp3 op rty = DE.Papp3 (sword,sword,sbool,rty,op,x,y,ci) in
-    let e = 
+    let cpe = 
       match o, wc with
       | O_Add, `IgnoreCarry -> papp3 DE.Oaddc     sword
       | O_Add, `Carry(_)    -> papp3 DE.Oaddcarry cword
@@ -394,15 +397,16 @@ let of_op_view cvi o =
       | `IgnoreCarry   -> sword, z
       | `Carry(cf) -> cword, DE.Rpair(sbool, sword, cf, z)
     in
-    ty, rv, e
+    ty, rv, cpe
 
-  | V_Cmov(dir,z,x,y,cf) ->
+  | V_Cmov(neg,z,x,y,cf) ->
+    assert(not neg); (* FIXME: also handle negated flags *)
     let t = cty_of_ty (type_dest z) in 
     let z = rval_of_dest cvi z in
     let x = cpexpr_of_src cvi x in
     let y = cpexpr_of_src cvi y in
     let cf = cpexpr_of_src cvi cf in
-    let e = DE.Papp3 sbool t t t (DE.Oif t) cf x y in
+    let e = DE.Papp3(sbool,t,t,t,DE.Oif t,cf,x,y) in
     t, z, e
 
   | V_ThreeOp(o,z,x,y) ->
@@ -410,31 +414,25 @@ let of_op_view cvi o =
     let x = cpexpr_of_src cvi x in
     let y = cpexpr_of_src cvi y in
     let o = match o with
-      | O_Imul -> Omul
-      | O_And  -> Oland
-      | O_Xor  -> Oxor
-      | O_Or   -> Olor in
-
-    let e = Papp2 sword sword sword o x y in
-
-    sword, z, e
+      | O_Imul -> DE.Omul
+      | O_And  -> DE.Oland
+      | O_Xor  -> DE.Oxor
+      | O_Or   -> DE.Olor
+    in
+    let cpe = DE.Papp2(sword,sword,sword,o,x,y) in
+    sword, z, cpe
 
   | V_Shift(dir,mcf_out,z,x,y) ->
     if (mcf_out <> None) then failwith "of_op_view : carry in shift";
     let z = rval_of_dest cvi z in
     let x = cpexpr_of_src cvi x in
     let y = cpexpr_of_src cvi y in
-    let o = 
-      match dir with
-      | Left  -> Olsl
-      | Right -> Olsr
+    let o = match dir with
+      | Left  -> DE.Olsl
+      | Right -> DE.Olsr
     in
-    let e = Papp2 sword sword sword o x y in
-    sword, z, e
-      
-
-    
-
+    let cpe = DE.Papp2(sword,sword,sword,o,x,y) in
+    sword, z, cpe
 
 (* ** Basic instructions, instructions, and statements
  * ------------------------------------------------------------------------ *)
