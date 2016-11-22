@@ -138,7 +138,6 @@ module CVI = struct
 
 end
 
-
 (* ** Types, pexpr, and pcond
  * ------------------------------------------------------------------------ *)
 
@@ -300,8 +299,6 @@ let idx_of_cpexpr cvi is_Ivar idx =
     Ipexpr(pexpr_of_cpexpr cvi idx)
   )
       
-(* FIXME: distinguish between Ipexpr and Ivar *)
-
 let dest_of_rval cvi rv =
   match rv with
   | DE.Rvar(vi,cvar) ->
@@ -320,10 +317,11 @@ let cpexpr_of_src cvi s =
   let cpe = cpexpr_of_pexpr cvi in
   match s with
   | Imm(_,pe) -> cpe pe
-  | Src(d)    ->
-    let v = cpe (Patom(Pvar(d.d_var))) in
+  | Src(d) ->
+    let k = CVI.add_darg cvi d in
+    let v = DE.Pvar(pos_of_int k,cvar_of_var d.d_var) in
     begin match d.d_idx with
-    | None      -> v
+    | None -> v
     | Some(idx) ->
       let n = match d.d_var.Var.ty with
         | Arr(64,Pconst(c)) -> pos_of_bi c
@@ -331,11 +329,13 @@ let cpexpr_of_src cvi s =
       in
       let cpe =
         match idx with
-        | Ipexpr(pe) -> cpe pe
-        | Ivar(v)    -> cpe (Patom(Pvar(v)))
+        | Ipexpr(pe) -> cpexpr_of_pexpr cvi pe
+        | Ivar(v)    -> cpexpr_of_pexpr cvi (Patom(Pvar(v)))
       in
-      DE.Papp2(DT.Coq_sarr(n),DT.Coq_sword,DT.Coq_sword,DE.Oget(n),v,cpe)
-    end 
+      let tword = DT.Coq_sword in
+      let tarr = DT.Coq_sarr(n) in
+      DE.Papp2(tarr,tword,tword,DE.Oget(n),v,cpe)
+    end
 
 let src_of_cpexpr cvi cpe =
   match cpe with

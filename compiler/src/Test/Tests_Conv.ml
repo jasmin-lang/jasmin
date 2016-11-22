@@ -119,6 +119,23 @@ let () =
   check d2;
 
   (* sources *)
+  let check s1 =
+    let cvi = CVI.mk () in
+    let s2 = src_of_cpexpr cvi (cpexpr_of_src cvi s1) in
+    if not (equal_src s1 s2) then (
+      F.printf "check variable roundtrip@\n``%a''@\n<>@\n``%a''@\n%!"
+        (pp_src ~pp_types:true) s1
+        (pp_src ~pp_types:true) s2;
+      failwith "test failed, see above"
+    )
+  in
+  let s1 = Imm(64,pe1) in
+  check s1;
+  let s2 = Src(d1) in
+  check s2;
+  let s3 = Src(d2) in
+  check s3;
+  
   (* base instructions *)
   (* instructions *)
   (* functions *)
