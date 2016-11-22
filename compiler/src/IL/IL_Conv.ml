@@ -362,11 +362,11 @@ let of_op_view cvi o =
   let sbool = DT.Coq_sbool in
   let cword = DT.Coq_sprod(sbool, sword) in
   match o with 
-  | V_Umul(_h,_l,_x,_y) -> assert false
-(*    
+  | V_Umul(_h,_l,_x,_y) -> 
     let h = of_dest h and l = of_dest l in
     let x = of_src x and y = of_src y in
-    (t0, DE.Rpair(t1,t2, h, l), Papp2(t0,t1,t2, Omul *)
+    let t = DT.Coq_sprod(sword, sword) in
+    (t, DE.Rpair(sword,sword, h, l), Papp2(sword, sword, t, DE.Omulu))
 
   | V_Carry(o,mcf_out,z,x,y,mcf_in) ->
     let z = rval_of_dest cvi z in
@@ -396,26 +396,45 @@ let of_op_view cvi o =
     in
     ty, rv, e
 
-  | _ -> 
-(*
-  | V_Cmov(_,z,x,y,cf) ->
-    type_src_eq  x (U(64));
-    type_src_eq  y (U(64));
-    type_src_eq  cf Bool;
-    type_dest_eq z (U(64))
+  | V_Cmov(dir,z,x,y,cf) ->
+    let t = cty_of_ty (type_dest z) in 
+    let z = rval_of_dest cvi z in
+    let x = cpexpr_of_src cvi x in
+    let y = cpexpr_of_src cvi y in
+    let cf = cpexpr_of_src cvi cf in
+    let e = DE.Papp3 sbool t t t (DE.Oif t) cf x y in
+    t, z, e
 
-  | V_ThreeOp(_,z,x,y) ->
-    type_src_eq  x (U(64));
-    type_src_eq  y (U(64));
-    type_dest_eq z (U(64))
+  | V_ThreeOp(o,z,x,y) ->
+    let z = rval_of_dest cvi z in
+    let x = cpexpr_of_src cvi x in
+    let y = cpexpr_of_src cvi y in
+    let o = match o with
+      | O_Imul -> Omul
+      | O_And  -> Oland
+      | O_Xor  -> Oxor
+      | O_Or   -> Olor in
 
-  | V_Shift(_dir,mcf_out,z,x,y) ->
-    type_src_eq  x (U(64));
-    type_src_eq  y (U(64));
-    type_dest_eq z (U(64));
-    Option.iter ~f:(fun s -> type_dest_eq s Bool) mcf_out
-*)
-  assert false 
+    let e = Papp2 sword sword sword o x y in
+
+    sword, z, e
+
+  | V_Shift(dir,mcf_out,z,x,y) ->
+    if (mcf_out <> None) then failwith "of_op_view : carry in shift";
+    let z = rval_of_dest cvi z in
+    let x = cpexpr_of_src cvi x in
+    let y = cpexpr_of_src cvi y in
+    let o = 
+      match dir with
+      | Left  -> Olsl
+      | Right -> Olsr
+    in
+    let e = Papp2 sword sword sword o x y in
+    sword, z, e
+      
+
+    
+
 
 (* ** Basic instructions, instructions, and statements
  * ------------------------------------------------------------------------ *)
