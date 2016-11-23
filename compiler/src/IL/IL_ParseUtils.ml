@@ -23,7 +23,8 @@ let add_errs new_errs =
 
 let get_errs () =
   List.sort ~cmp:(fun (l1,_) (l2,_) -> L.compare_loc l1 l2) !errs
-  |> List.remove_consecutive_duplicates ~equal:(fun (l1,_) (l2,_) -> L.compare_loc l1 l2 = 0)
+  |> List.remove_consecutive_duplicates
+      ~equal:(fun (l1,_) (l2,_) -> L.compare_loc l1 l2 = 0)
 
 type decl_item =
   | Dfun of (Fname.t * unit func)
@@ -95,15 +96,16 @@ type op =
   | OpOr  
   | OpMul
 
-let mk_sto_ty (sto,ty) _l =
-  (sto,ty)
-
 let conv_decl (ds,(s,t)) =
   List.map ds
     ~f:(fun d ->
-          if d.d_idx<>None then
-            add_err d.d_loc "expected identifier, not array get";
-          { d.d_var with Var.stor = s; Var.ty = t; } )
+          match d with
+          | Mem(sd,_) ->
+            failloc_ sd.d_loc "expected identifier, not MEM"
+          | Sdest(sd) ->
+            if sd.d_idx<>None then
+              add_err sd.d_loc "expected identifier, not array get";
+            { sd.d_var with Var.stor = s; Var.ty = t; } )
 
 let mk_func loc name ret_ty ext args def =
   let func =
@@ -227,7 +229,7 @@ let mk_if c i1s mi2s ies =
   in
   If(c,i1s,ielse,None)
 
-let mk_store ptr pe src = Store(ptr,pe,src)
+(* let mk_store ptr pe src = Store(ptr,pe,src) *)
 
 let mk_ternop loc dests op op2 s1 s2 s3 =
   let fail s = P.failparse loc s in
@@ -278,7 +280,6 @@ let mk_instr dests rhs loc =
   match dests, rhs with
   | _,   `Call(fname,args)       -> mk_block @@ Call(fname,dests,args)
   | [d], `Assgn(src,aty)         -> mk_block @@ Assgn(d,src,aty)
-  | [d], `Load(src,pe)           -> mk_block @@ Load(d,src,pe)
   | _,   `BinOp(o,s1,s2)         -> mk_block @@ mk_ternop loc dests o o s1 s2 None
   | _,   `TernOp(o1,o2,s1,s2,s3) -> mk_block @@ mk_ternop loc dests o1 o2 s1 s2 (Some s3)
   | _,   `Cmov(neg,s,cf)         -> mk_block @@ mk_cmov loc dests neg s cf

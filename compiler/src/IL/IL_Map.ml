@@ -82,9 +82,14 @@ let rec map_vars_idx ~f i =
   | Ivar(v)    -> Ivar(f v)
 
 and map_vars_dest ~f d =
-  { d_var = f d.d_var
-  ; d_idx = Option.map ~f:(map_vars_idx ~f) d.d_idx
-  ; d_loc = d.d_loc }
+  match d with
+  | Mem(sd,pe) -> Mem(map_vars_sdest ~f sd, map_vars_pexpr ~f pe)
+  | Sdest(sd)  -> Sdest(map_vars_sdest ~f sd)
+
+and map_vars_sdest ~f sd =
+  { d_var = f sd.d_var
+  ; d_idx = Option.map ~f:(map_vars_idx ~f) sd.d_idx
+  ; d_loc = sd.d_loc }
     
 and map_vars_pexpr pe ~f =
   let mvp = map_vars_pexpr ~f in
@@ -119,13 +124,10 @@ let map_vars_base_instr ~f lbi =
   let mvds = List.map ~f:mvd in
   let mvs = map_vars_src ~f in
   let mvss = List.map ~f:mvs in
-  let mvpe = map_vars_pexpr ~f in
   let bi = lbi.L.l_val in
   let bi =
     match bi with
     | Comment(_)      -> bi
-    | Load(d,s,pe)    -> Load(mvd d, mvs s, mvpe pe)
-    | Store(s1,pe,s2) -> Store(mvs s1, mvpe pe, mvs s2)
     | Assgn(d,s,at)   -> Assgn(mvd d, mvs s, at)
     | Op(o,ds,ss)     -> Op(o,mvds ds, mvss ss)
     | Call(fn,ds,ss)  -> Call(fn,mvds ds, mvss ss)
@@ -137,14 +139,14 @@ let rec map_vars_instr linstr ~f =
   let mvs = map_vars_stmt ~f in
   let mvc = map_vars_fcond_or_pcond ~f in
   let mvfc = map_vars_fcond ~f in
-  let mvd = map_vars_dest ~f in
+  let mvsd = map_vars_sdest ~f in
   let mvp = map_vars_pexpr ~f in
   let instr = 
     match linstr.L.l_val with
-    | Block(bis,i)     -> Block(List.map ~f:mvbi bis,i)
-    | If(c,s1,s2,i)    -> If(mvc c,mvs s1,mvs s2,i)
-    | For(d,lb,ub,s,i) -> For(mvd d,mvp lb,mvp ub,mvs s,i)
-    | While(wt,fc,s,i) -> While(wt,mvfc fc,mvs s,i)
+    | Block(bis,i)      -> Block(List.map ~f:mvbi bis,i)
+    | If(c,s1,s2,i)     -> If(mvc c,mvs s1,mvs s2,i)
+    | For(sd,lb,ub,s,i) -> For(mvsd sd,mvp lb,mvp ub,mvs s,i)
+    | While(wt,fc,s,i)  -> While(wt,mvfc fc,mvs s,i)
   in
   { L.l_val = instr; L.l_loc = linstr.L.l_loc }
 
@@ -190,9 +192,14 @@ and map_params_idx ~f i =
   | Ivar(v)    -> Ivar(map_params_var ~f v)
 
 and map_params_dest ~f d =
-  { d_var = map_params_var ~f d.d_var
-  ; d_idx = Option.map ~f:(map_params_idx ~f) d.d_idx
-  ; d_loc = d.d_loc }
+  match d with
+  | Sdest(sd)  -> Sdest(map_params_sdest ~f sd)
+  | Mem(sd,pe) -> Mem(map_params_sdest ~f sd, map_params_pexpr ~f pe)
+
+and map_params_sdest ~f sd =
+  { d_var = map_params_var ~f sd.d_var
+  ; d_idx = Option.map ~f:(map_params_idx ~f) sd.d_idx
+  ; d_loc = sd.d_loc }
     
 and map_params_pexpr pe ~f =
   let mvp = map_params_pexpr ~f in
@@ -239,13 +246,10 @@ let map_params_base_instr ~f lbi =
   let mvds = List.map ~f:mvd in
   let mvs = map_params_src ~f in
   let mvss = List.map ~f:mvs in
-  let mvpe = map_params_pexpr ~f in
   let bi = lbi.L.l_val in
   let bi =
     match bi with
     | Comment(_)      -> bi
-    | Load(d,s,pe)    -> Load(mvd d, mvs s, mvpe pe)
-    | Store(s1,pe,s2) -> Store(mvs s1, mvpe pe, mvs s2)
     | Assgn(d,s,at)   -> Assgn(mvd d, mvs s, at)
     | Op(o,ds,ss)     -> Op(o,mvds ds, mvss ss)
     | Call(fn,ds,ss)  -> Call(fn,mvds ds, mvss ss)
@@ -256,14 +260,14 @@ let rec map_params_instr linstr ~f =
   let mvbi = map_params_base_instr ~f in
   let mvs = map_params_stmt ~f in
   let mvc = map_params_fcond_or_pcond ~f in
-  let mvd = map_params_dest ~f in
+  let mvsd = map_params_sdest ~f in
   let mvp = map_params_pexpr ~f in
   let instr = 
     match linstr.L.l_val with
-    | Block(bis,i)     -> Block(List.map ~f:mvbi bis,i)
-    | If(c,s1,s2,i)    -> If(mvc c,mvs s1,mvs s2,i)
-    | For(d,lb,ub,s,i) -> For(mvd d,mvp lb,mvp ub,mvs s,i)
-    | While(wt,fc,s,i) -> While(wt,fc,mvs s,i)
+    | Block(bis,i)      -> Block(List.map ~f:mvbi bis,i)
+    | If(c,s1,s2,i)     -> If(mvc c,mvs s1,mvs s2,i)
+    | For(sd,lb,ub,s,i) -> For(mvsd sd,mvp lb,mvp ub,mvs s,i)
+    | While(wt,fc,s,i)  -> While(wt,fc,mvs s,i)
   in
   { L.l_val = instr; L.l_loc = linstr.L.l_loc }
 
@@ -314,10 +318,15 @@ and map_tys_idx ~f:(f : ty -> ty) i =
   | Ipexpr(pe) -> Ipexpr(map_tys_pexpr ~f pe)
   | Ivar(v)    -> Ivar(map_tys_var ~f v)
 
-and map_tys_dest ~f:(f : ty -> ty) d =
-  { d_var = map_tys_var ~f d.d_var
-  ; d_idx = Option.map ~f:(map_tys_idx ~f) d.d_idx
-  ; d_loc = d.d_loc }
+and map_tys_dest ~f d =
+  match d with
+  | Sdest(sd)  -> Sdest(map_tys_sdest ~f sd)
+  | Mem(sd,pe) -> Mem(map_tys_sdest ~f sd, map_tys_pexpr ~f pe)
+
+and map_tys_sdest ~f sd =
+  { d_var = map_tys_var ~f sd.d_var
+  ; d_idx = Option.map ~f:(map_tys_idx ~f) sd.d_idx
+  ; d_loc = sd.d_loc }
     
 and map_tys_pexpr pe ~f:(f : ty -> ty) =
   let mvp = map_tys_pexpr ~f in
@@ -368,13 +377,10 @@ let map_tys_base_instr ~f:(f : ty -> ty) lbi =
   let mvds = List.map ~f:mvd in
   let mvs  = map_tys_src ~f in
   let mvss = List.map ~f:mvs in
-  let mvpe = map_tys_pexpr ~f in
   let bi = lbi.L.l_val in
   let bi =
     match bi with
     | Comment(_)      -> bi
-    | Load(d,s,pe)    -> Load(mvd d, mvs s, mvpe pe)
-    | Store(s1,pe,s2) -> Store(mvs s1, mvpe pe, mvs s2)
     | Assgn(d,s,at)   -> Assgn(mvd d, mvs s, at)
     | Op(o,ds,ss)     -> Op(o,mvds ds, mvss ss)
     | Call(fn,ds,ss)  -> Call(fn,mvds ds, mvss ss)
@@ -385,14 +391,14 @@ let rec map_tys_instr linstr ~f:(f : ty -> ty) =
   let mvbi = map_tys_base_instr ~f in
   let mvs = map_tys_stmt ~f in
   let mvc = map_tys_fcond_or_pcond ~f in
-  let mvd = map_tys_dest ~f in
+  let mvsd = map_tys_sdest ~f in
   let mvp = map_tys_pexpr ~f in
   let instr = 
     match linstr.L.l_val with
-    | Block(bis,i)     -> Block(List.map ~f:mvbi bis,i)
-    | If(c,s1,s2,i)    -> If(mvc c,mvs s1,mvs s2,i)
-    | For(d,lb,ub,s,i) -> For(mvd d,mvp lb,mvp ub,mvs s,i)
-    | While(wt,fc,s,i) -> While(wt,fc,mvs s,i)
+    | Block(bis,i)      -> Block(List.map ~f:mvbi bis,i)
+    | If(c,s1,s2,i)     -> If(mvc c,mvs s1,mvs s2,i)
+    | For(sd,lb,ub,s,i) -> For(mvsd sd,mvp lb,mvp ub,mvs s,i)
+    | While(wt,fc,s,i)  -> While(wt,fc,mvs s,i)
   in
   { L.l_val = instr; L.l_loc = linstr.L.l_loc }
 
@@ -429,57 +435,60 @@ let map_tys_modul_all ~f:(f : ty -> ty) modul =
 
 (* ** Map function over all destinations
  * ------------------------------------------------------------------------ *)
-    
-let map_dests_src ~f = function
-  | Imm(i,pe) -> Imm(i,pe)
-  | Src(d)    -> Src(f d)
 
-let map_dests_base_instr ~f lbi =
-  let mvds = List.map ~f in
-  let mvs = map_dests_src ~f in
-  let mvss = List.map ~f:mvs in
+let map_sdests_dest ~f = function
+  | Mem(sd,pe) -> Mem(f sd, pe)
+  | Sdest(sd)  -> Sdest(f sd)
+
+let map_sdests_src ~f = function
+  | Imm(i,pe) -> Imm(i,pe)
+  | Src(d)    -> Src(map_sdests_dest ~f d)
+
+let map_sdests_base_instr ~f lbi =
+  let msd = map_sdests_dest ~f in
+  let msds = List.map ~f:(map_sdests_dest ~f) in
+  let mss = map_sdests_src ~f in
+  let msss = List.map ~f:mss in
   let bi = lbi.L.l_val in
   let bi =
     match bi with
     | Comment(_)      -> bi
-    | Load(d,s,pe)    -> Load(f d, mvs s, pe)
-    | Store(s1,pe,s2) -> Store(mvs s1, pe, mvs s2)
-    | Assgn(d,s,at)   -> Assgn(f d, mvs s, at)
-    | Op(o,ds,ss)     -> Op(o,mvds ds, mvss ss)
-    | Call(fn,ds,ss)  -> Call(fn,mvds ds, mvss ss)
+    | Assgn(d,s,at)   -> Assgn(msd d, mss s, at)
+    | Op(o,ds,ss)     -> Op(o,msds ds, msss ss)
+    | Call(fn,ds,ss)  -> Call(fn,msds ds, msss ss)
   in
   { L.l_loc = lbi.L.l_loc; L.l_val = bi }
 
-let rec map_dests_instr linstr ~f =
-  let mvbi = map_dests_base_instr ~f in
-  let mvs = map_dests_stmt ~f in
+let rec map_sdests_instr linstr ~f =
+  let msbi = map_sdests_base_instr ~f in
+  let mss = map_sdests_stmt ~f in
   let instr = 
     match linstr.L.l_val with
-    | Block(bis,i)     -> Block(List.map ~f:mvbi bis,i)
-    | If(c,s1,s2,i)    -> If(c,mvs s1,mvs s2,i)
-    | For(d,lb,ub,s,i) -> For(f d,lb,ub,mvs s,i)
-    | While(wt,fc,s,i) -> While(wt,fc,mvs s,i)
+    | Block(bis,i)      -> Block(List.map ~f:msbi bis,i)
+    | If(c,s1,s2,i)     -> If(c,mss s1,mss s2,i)
+    | For(sd,lb,ub,s,i) -> For(f sd,lb,ub,mss s,i)
+    | While(wt,fc,s,i)  -> While(wt,fc,mss s,i)
   in
   { L.l_val = instr; L.l_loc = linstr.L.l_loc }
 
-and map_dests_stmt stmt ~f =
-  List.map stmt ~f:(map_dests_instr ~f)
+and map_sdests_stmt stmt ~f =
+  List.map stmt ~f:(map_sdests_instr ~f)
 
-let map_dests_fundef ~f fd =
-  { f_body      = map_dests_stmt ~f fd.f_body;
+let map_sdests_fundef ~f fd =
+  { f_body      = map_sdests_stmt ~f fd.f_body;
     f_arg       = fd.f_arg;
     f_ret       = fd.f_ret;
     f_call_conv = fd.f_call_conv;
   }
 
-let map_dests_func ~f func =
+let map_sdests_func ~f func =
   match func with
   | Foreign(_) -> func
-  | Native(fd) -> Native(map_dests_fundef ~f fd)
+  | Native(fd) -> Native(map_sdests_fundef ~f fd)
 
 let map_dests_named_func ~f nf =
   { nf_name = nf.nf_name;
-    nf_func = map_dests_func ~f nf.nf_func; }
+    nf_func = map_sdests_func ~f nf.nf_func; }
 
 let map_dests_modul ~f modul fname =
   map_named_func ~f:(map_dests_named_func ~f) modul fname

@@ -176,11 +176,17 @@ type idx =
   | Ivar   of Var.t (* FIXME: can be more general *)
   [@@deriving compare,sexp]
 
-type dest = {
+(* simple destination (find better name) *)
+type sdest = {
   d_var : Var.t;
   d_idx : idx option;
   d_loc : L.loc
 } [@@deriving compare,sexp]
+
+type dest =
+  | Mem   of sdest * pexpr
+  | Sdest of sdest
+  [@@deriving compare,sexp]
 
 type src =
   | Imm of int * pexpr (* Simm(n,i): immediate value n-bit integer value i *) (* FIXME: pexpr should have size, not Imm *)
@@ -243,12 +249,6 @@ type base_instr =
   | Call of Fname.t * dest list * src list
     (* Call(fname,rets,args): rets = fname(args) *)
 
-  | Load of dest * src * pexpr
-    (* Load(d,src,pe): d = MEM[src + pe] *)
-
-  | Store of src * pexpr * src
-    (* Store(src1,pe,src2): MEM[src1 + pe] = src2 *) 
-
   | Comment of string
     (* Comment(s): /* s */ *)
 
@@ -261,7 +261,7 @@ type 'info instr =
   | If of fcond_or_pcond * 'info stmt * 'info stmt * 'info option
     (* If(c1,s1,s2): if c1 { s1 } else s2 *)
 
-  | For of dest * pexpr * pexpr * 'info stmt * 'info option
+  | For of sdest * pexpr * pexpr * 'info stmt * 'info option
     (* For(v,lower,upper,s): for v in lower..upper { s } *)
 
   | While of while_type * fcond * 'info stmt * 'info option
@@ -350,6 +350,17 @@ type value = Value.t
 module Dest = struct
   module T = struct
     type t = dest [@@deriving compare,sexp]
+    let compare = compare_t
+    let hash v = Hashtbl.hash v
+  end
+  include T
+  include Comparable.Make(T)
+  include Hashable.Make(T)
+end
+
+module Sdest = struct
+  module T = struct
+    type t = sdest [@@deriving compare,sexp]
     let compare = compare_t
     let hash v = Hashtbl.hash v
   end

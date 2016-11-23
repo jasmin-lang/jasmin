@@ -5,140 +5,142 @@ open IL_Lang
 open IL_Utils
 open Util
 
-module L = ParserUtil.Lexing
-module P = ParserUtil
-module HT = Hashtbl
-module DS = Dest.Set
-module SS = String.Set
-module PS = Param.Set
-module VS = Var.Set
+module L   = ParserUtil.Lexing
+module P   = ParserUtil
+module HT  = Hashtbl
+module SDS = Sdest.Set
+module SS  = String.Set
+module PS  = Param.Set
+module VS  = Var.Set
 
 (* ** Iterate over variables (values of type Var.t)
  * ------------------------------------------------------------------------ *)
 
-let iter_vars_patom ~fvar = function
+let iter_vars_patom ~f = function
   | Pparam(_) -> ()
-  | Pvar(v)   -> fvar v
+  | Pvar(v)   -> f v
 
-let rec iter_vars_idx ~fvar = function
-  | Ipexpr(pe) -> iter_vars_pexpr ~fvar pe
-  | Ivar(v)    -> fvar v
+let rec iter_vars_idx ~f = function
+  | Ipexpr(pe) -> iter_vars_pexpr ~f pe
+  | Ivar(v)    -> f v
 
-and iter_vars_dest ~fvar d =
-  fvar d.d_var;
-  Option.iter ~f:(iter_vars_idx ~fvar) d.d_idx
+and iter_vars_dest ~f d =
+  match d with
+  | Mem(sd,pe) -> iter_vars_sdest ~f sd; iter_vars_pexpr ~f pe
+  | Sdest(sd)  -> iter_vars_sdest ~f sd
 
-and iter_vars_pexpr pe ~fvar =
-  let ive = iter_vars_pexpr ~fvar in
-  let iva = iter_vars_patom ~fvar in
+and iter_vars_sdest ~f sd =
+  f sd.d_var;
+  Option.iter ~f:(iter_vars_idx ~f) sd.d_idx
+
+and iter_vars_pexpr pe ~f =
+  let ive = iter_vars_pexpr ~f in
+  let iva = iter_vars_patom ~f in
   match pe with
   | Patom(a)          -> iva a
   | Pbinop(_,ce1,ce2) -> ive ce1; ive ce2
   | Pconst _          -> ()
 
-let rec iter_vars_pcond ~fvar pc =
-  let ivpc = iter_vars_pcond ~fvar in
-  let ivpe = iter_vars_pexpr ~fvar in
+let rec iter_vars_pcond ~f pc =
+  let ivpc = iter_vars_pcond ~f in
+  let ivpe = iter_vars_pexpr ~f in
   match pc with
   | Pbool(_)        -> ()
   | Pnot(ic)        -> ivpc ic
   | Pand (ic1,ic2)  -> ivpc ic1; ivpc ic2
   | Pcmp(_,ce1,ce2) -> ivpe ce1; ivpe ce2
 
-let iter_vars_src ~fvar = function
-  | Imm(_,pe) -> iter_vars_pexpr ~fvar pe
-  | Src d     -> iter_vars_dest  ~fvar d
+let iter_vars_src ~f = function
+  | Imm(_,pe) -> iter_vars_pexpr ~f pe
+  | Src d     -> iter_vars_dest  ~f d
 
-let iter_vars_fcond ~fvar fc =
-  fvar fc.fc_var
+let iter_vars_fcond ~f fc =
+  f fc.fc_var
 
-let iter_vars_fcond_or_pcond ~fvar = function
-  | Fcond(fc) -> iter_vars_fcond ~fvar fc
-  | Pcond(pc) -> iter_vars_pcond ~fvar pc
+let iter_vars_fcond_or_pcond ~f = function
+  | Fcond(fc) -> iter_vars_fcond ~f fc
+  | Pcond(pc) -> iter_vars_pcond ~f pc
 
-let iter_vars_base_instr ~fvar bi =
-  let ivd = iter_vars_dest  ~fvar in
-  let ivs = iter_vars_src   ~fvar in
-  let ive = iter_vars_pexpr ~fvar in
+let iter_vars_base_instr ~f bi =
+  let ivd = iter_vars_dest  ~f in
+  let ivs = iter_vars_src   ~f in
   match bi.L.l_val with
   | Comment(_)      -> ()
-  | Load(d,s,pe)    -> ivd d; ivs s; ive pe
-  | Store(s1,pe,s2) -> ivs s1; ivs s2; ive pe
   | Assgn(d,s,_)    -> ivd d; ivs s
   | Op(_,ds,ss)     -> List.iter ds ~f:ivd; List.iter ss ~f:ivs
   | Call(_,ds,ss)   -> List.iter ds ~f:ivd; List.iter ss ~f:ivs
 
-let rec iter_vars_instr instr ~fvar =
-  let ivbi = iter_vars_base_instr    ~fvar in
-  let ivst = iter_vars_stmt          ~fvar in
-  let ivc = iter_vars_fcond_or_pcond ~fvar in
-  let ivfc = iter_vars_fcond         ~fvar in
-  let ivd = iter_vars_dest           ~fvar in
-  let ive = iter_vars_pexpr          ~fvar in
+let rec iter_vars_instr instr ~f =
+  let ivbi = iter_vars_base_instr    ~f in
+  let ivst = iter_vars_stmt          ~f in
+  let ivc = iter_vars_fcond_or_pcond ~f in
+  let ivfc = iter_vars_fcond         ~f in
+  let ivsd = iter_vars_sdest         ~f in
+  let ive = iter_vars_pexpr          ~f in
   match instr.L.l_val with
   | Block(bis,_)            -> List.iter ~f:ivbi bis
   | If(c,s1,s2,_)           -> ivst s1; ivst s2; ivc c
-  | For(d,lb,ub,stmt,_)     -> ivst stmt; ivd d; ive lb; ive ub
+  | For(d,lb,ub,stmt,_)     -> ivst stmt; ivsd d; ive lb; ive ub
   | While(_wt,fcond,stmt,_) -> ivfc fcond; ivst stmt
 
-and iter_vars_stmt stmt ~fvar =
-  List.iter stmt ~f:(iter_vars_instr ~fvar)
+and iter_vars_stmt stmt ~f =
+  List.iter stmt ~f:(iter_vars_instr ~f)
 
-let iter_vars_fundef fd ~fvar =
+let iter_vars_fundef fd ~f =
   (* fix eval order to improve error messages that use this function *)
-  List.iter ~f:fvar fd.f_arg;
-  iter_vars_stmt fd.f_body ~fvar;
-  List.iter ~f:fvar fd.f_ret
+  List.iter ~f:f fd.f_arg;
+  iter_vars_stmt fd.f_body ~f;
+  List.iter ~f:f fd.f_ret
 
-let iter_vars_func func ~fvar =
+let iter_vars_func func ~f =
   match func with
   | Foreign _  -> ()
-  | Native(fd) -> iter_vars_fundef fd ~fvar
+  | Native(fd) -> iter_vars_fundef fd ~f
 
-let iter_vars_named_func nf ~fvar =
-  iter_vars_func nf.nf_func ~fvar
+let iter_vars_named_func nf ~f =
+  iter_vars_func nf.nf_func ~f
 
-let iter_vars_modul modul ~fvar =
-  List.iter ~f:(iter_vars_named_func ~fvar) modul
+let iter_vars_modul modul ~f =
+  List.iter ~f:(iter_vars_named_func ~f) modul
 
-(* ** Specialized variable traversals: var set, max num, num is already unique
+(* ** Specialized var traversals: var set, max num, num is already unique
  * ------------------------------------------------------------------------ *)
 
 let vars_stmt stmt =
   let res = ref VS.empty in
-  let fvar v =
+  let f v =
     res := Set.add !res v
   in
-  iter_vars_stmt ~fvar stmt;
+  iter_vars_stmt ~f stmt;
   !res
 
 let vars_modul modul =
   let res = ref VS.empty in
-  let fvar v =
+  let f v =
     res := Set.add !res v
   in
-  iter_vars_modul ~fvar modul;
+  iter_vars_modul ~f modul;
   !res
 
 let max_var_fundef stmt =
   let res = ref 0 in
-  let fvar v =
+  let f v =
     res := max !res v.Var.num
   in
-  iter_vars_fundef ~fvar stmt;
+  iter_vars_fundef ~f stmt;
   !res
 
 let max_var_modul modul =
   let res = ref 0 in
-  let fvar v =
+  let f v =
     res := max !res v.Var.num
   in
-  iter_vars_modul ~fvar modul;
+  iter_vars_modul ~f modul;
   !res
 
 let vars_num_unique_fundef fd =
   let ntable = Int.Table.create () in
-  let fvar v =
+  let f v =
     match HT.find ntable v.Var.num with
     | None ->
       HT.set ntable ~key:v.Var.num ~data:(Var.(v.name,v.ty,v.stor,v.uloc))
@@ -150,11 +152,11 @@ let vars_num_unique_fundef fd =
       else
         ()
   in
-  iter_vars_fundef ~fvar fd
+  iter_vars_fundef ~f fd
 
 let vars_type_consistent_fundef fd =
   let ntable = Vname_num.Table.create () in
-  let fvar v =
+  let f v =
     let nn = (v.Var.name, v.Var.num) in
     match HT.find ntable nn with
     | None ->
@@ -166,7 +168,7 @@ let vars_type_consistent_fundef fd =
       else
         ()
   in
-  iter_vars_fundef ~fvar fd
+  iter_vars_fundef ~f fd
 
 let vars_num_unique_modul ~type_only modul =
   let check func =
@@ -183,125 +185,127 @@ let vars_num_unique_modul ~type_only modul =
 (* ** Iterate over parameters (values ot type Param.t)
  * ------------------------------------------------------------------------ *)
 
-let rec iter_params_pexpr_g iter_params_atom ~fparam pe =
-  let ipe = iter_params_pexpr_g iter_params_atom ~fparam in
-  let ipa = iter_params_atom ~fparam in
+let rec iter_params_pexpr_g iter_params_atom ~f pe =
+  let ipe = iter_params_pexpr_g iter_params_atom ~f in
+  let ipa = iter_params_atom ~f in
   match pe with
   | Patom(a)          -> ipa a
   | Pbinop(_,ce1,ce2) -> ipe ce1; ipe ce2
   | Pconst _          -> ()
 
-let iter_params_dexpr de ~fparam =
-  iter_params_pexpr_g (fun ~fparam -> fparam) ~fparam de
+let iter_params_dexpr de ~f =
+  iter_params_pexpr_g (fun ~f -> f) ~f de
 
-let iter_params_patom  ~fparam = function
-  | Pparam(s) -> fparam s
+let iter_params_patom  ~f = function
+  | Pparam(s) -> f s
   | Pvar(_)   -> ()
 
-let iter_params_ty ~fparam = function
+let iter_params_ty ~f = function
   | TInvalid    -> assert false
   | Bool | U(_) -> ()
-  | Arr(_,dim)  -> iter_params_dexpr ~fparam dim
+  | Arr(_,dim)  -> iter_params_dexpr ~f dim
 
-let iter_params_var ~fparam v =
-  iter_params_ty ~fparam v.Var.ty
+let iter_params_var ~f v =
+  iter_params_ty ~f v.Var.ty
 
-let iter_params_pexpr ~fparam pe =
-  iter_params_pexpr_g iter_params_patom ~fparam pe
+let iter_params_pexpr ~f pe =
+  iter_params_pexpr_g iter_params_patom ~f pe
 
-let iter_params_idx ~fparam = function
-  | Ipexpr(pe) -> iter_params_pexpr ~fparam pe
+let iter_params_idx ~f = function
+  | Ipexpr(pe) -> iter_params_pexpr ~f pe
   | Ivar(_)    -> ()
 
-let rec iter_params_pcond ~fparam pc =
-  let ipc = iter_params_pcond ~fparam in
-  let ipe = iter_params_pexpr ~fparam in
+let rec iter_params_pcond ~f pc =
+  let ipc = iter_params_pcond ~f in
+  let ipe = iter_params_pexpr ~f in
   match pc with
   | Pbool(_)        -> ()
-  | Pnot(ic)        -> iter_params_pcond ~fparam ic
+  | Pnot(ic)        -> iter_params_pcond ~f ic
   | Pand(ic1,ic2)   -> ipc ic1; ipc ic2
   | Pcmp(_,ce1,ce2) -> ipe ce1; ipe ce2
 
-let iter_params_dest ~fparam d =
-  Option.iter ~f:(iter_params_idx ~fparam) d.d_idx;
-  iter_params_var ~fparam d.d_var
+let iter_params_sdest ~f sd =
+  Option.iter ~f:(iter_params_idx ~f) sd.d_idx;
+  iter_params_var ~f sd.d_var
 
-let iter_params_src ~fparam = function
-  | Imm(_,pe) -> iter_params_pexpr ~fparam pe
-  | Src(d)    -> iter_params_dest ~fparam d
+let iter_params_dest ~f d =
+  match d with
+  | Sdest(sd)  -> iter_params_sdest ~f sd
+  | Mem(sd,pe) -> iter_params_sdest ~f sd; iter_params_pexpr ~f pe
 
-let iter_params_pcond_or_fcond ~fparam = function
+let iter_params_src ~f = function
+  | Imm(_,pe) -> iter_params_pexpr ~f pe
+  | Src(d)    -> iter_params_dest ~f d
+
+let iter_params_pcond_or_fcond ~f = function
   | Fcond(_)  -> ()
-  | Pcond(pc) -> iter_params_pcond ~fparam pc
+  | Pcond(pc) -> iter_params_pcond ~f pc
 
-let iter_params_base_instr ~fparam bi =
-  let ipe = iter_params_pexpr ~fparam in
-  let ips = iter_params_src ~fparam in
-  let ipd = iter_params_dest ~fparam in
+let iter_params_base_instr ~f bi =
+  let ips = iter_params_src ~f in
+  let ipd = iter_params_dest ~f in
   match bi.L.l_val with
   | Comment(_)      -> ()
-  | Load(d,s,pe)    -> ipe pe; ipd d; ips s
-  | Store(s1,pe,s2) -> ipe pe; ips s1; ips s2
   | Assgn(d,s,_)    -> ipd d; ips s
   | Op(_,ds,ss)     -> List.iter ds ~f:ipd; List.iter ss ~f:ips
   | Call(_,ds,ss)   -> List.iter ds ~f:ipd; List.iter ss ~f:ips
 
-let rec iter_params_instr ~fparam instr =
-  let ipe = iter_params_pexpr ~fparam in
-  let ips = iter_params_stmt ~fparam in
-  let ipc = iter_params_pcond_or_fcond ~fparam in
-  let ipbi = iter_params_base_instr ~fparam in
+let rec iter_params_instr ~f instr =
+  let ipe = iter_params_pexpr ~f in
+  let ips = iter_params_stmt ~f in
+  let ipc = iter_params_pcond_or_fcond ~f in
+  let ipbi = iter_params_base_instr ~f in
   match instr.L.l_val with
   | Block(bis,_)              -> List.iter ~f:ipbi bis
   | If(cond,s1,s2,_)          -> ipc cond; ips s1; ips s2
   | For(_name,pe1,pe2,stmt,_) -> ipe pe1; ipe pe2; ips stmt
   | While(_wt,_fc,stmt,_)     -> ips stmt
 
-and iter_params_stmt ~fparam stmt =
-  List.iter stmt ~f:(iter_params_instr ~fparam)
+and iter_params_stmt ~f stmt =
+  List.iter stmt ~f:(iter_params_instr ~f)
 
-let iter_params_fundef fd ~fparam =
-  List.iter ~f:(iter_params_var ~fparam) fd.f_arg;
-  iter_params_stmt fd.f_body ~fparam;
-  List.iter ~f:(iter_params_var ~fparam) fd.f_ret
+let iter_params_fundef fd ~f =
+  List.iter ~f:(iter_params_var ~f) fd.f_arg;
+  iter_params_stmt fd.f_body ~f;
+  List.iter ~f:(iter_params_var ~f) fd.f_ret
 
-let iter_params_foreign fo ~fparam =
-  List.iter ~f:(fun (_,t) -> iter_params_ty ~fparam t) fo.fo_arg_ty;
-  List.iter ~f:(fun (_,t) -> iter_params_ty ~fparam t) fo.fo_ret_ty
+let iter_params_foreign fo ~f =
+  List.iter ~f:(fun (_,t) -> iter_params_ty ~f t) fo.fo_arg_ty;
+  List.iter ~f:(fun (_,t) -> iter_params_ty ~f t) fo.fo_ret_ty
   
-let iter_params_func func ~fparam =
+let iter_params_func func ~f =
   match func with
-  | Foreign(fo) -> iter_params_foreign fo ~fparam
-  | Native(fd)  -> iter_params_fundef fd ~fparam
+  | Foreign(fo) -> iter_params_foreign fo ~f
+  | Native(fd)  -> iter_params_fundef fd ~f
 
-let iter_params_named_func nf ~fparam =
-  iter_params_func nf.nf_func ~fparam
+let iter_params_named_func nf ~f =
+  iter_params_func nf.nf_func ~f
 
-let iter_params_modul modul ~fparam =
-  List.iter ~f:(iter_params_named_func ~fparam) modul
+let iter_params_modul modul ~f =
+  List.iter ~f:(iter_params_named_func ~f) modul
 
 (* ** Specialized parameter traversals: param set, max num
  * ------------------------------------------------------------------------ *)
 
 let params_stmt stmt =
   let res = ref PS.empty in
-  let fparam p =
+  let f p =
     res := PS.add !res p
   in
-  iter_params_stmt ~fparam stmt;
+  iter_params_stmt ~f stmt;
   !res
 
 let params_modul modul =
   let res = ref PS.empty in
-  let fparam p =
+  let f p =
     res := PS.add !res p
   in
-  iter_params_modul ~fparam modul;
+  iter_params_modul ~f modul;
   !res
 
 let params_consistent_modul pp_ty modul =
   let ptable = Pname.Table.create () in
-  let fparam p =
+  let f p =
     match HT.find ptable p.Param.name with
     | None ->
       HT.set ptable ~key:p.Param.name ~data:(p.Param.ty,p.Param.loc)
@@ -312,72 +316,71 @@ let params_consistent_modul pp_ty modul =
          p.Param.loc, "<-- occurs here too"]
     | _ -> ()
   in
-  iter_params_modul ~fparam modul
+  iter_params_modul ~f modul
 
 (* ** Iterate over destinations (values of type dest)
  * ------------------------------------------------------------------------ *)
 
-let iter_dests_dest ~fdest d =
-  fdest d
+let iter_sdests_dest ~f d =
+  match d with
+  | Mem(sd,_pe) -> f sd
+  | Sdest(sd)   -> f sd
 
-let iter_dests_src ~fdest = function
+let iter_sdests_src ~f = function
   | Imm _ -> ()
-  | Src d -> iter_dests_dest ~fdest d
+  | Src d -> iter_sdests_dest ~f d
 
-let iter_dests_base_instr ~fdest bi =
-  let ivd = iter_dests_dest ~fdest in
-  let ivs = iter_dests_src ~fdest in
+let iter_sdests_base_instr ~f bi =
+  let ivd = iter_sdests_dest ~f in
+  let ivs = iter_sdests_src ~f in
   match bi.L.l_val with
   | Comment(_)       -> ()
-  | Load(d,s,_pe)    -> ivd d; ivs s
-  | Store(s1,_pe,s2) -> ivs s1; ivs s2
   | Assgn(d,s,_)     -> ivd d; ivs s
   | Op(_,ds,ss)      -> List.iter ds ~f:ivd; List.iter ss ~f:ivs
   | Call(_,ds,ss)    -> List.iter ds ~f:ivd; List.iter ss ~f:ivs
 
-let rec iter_dests_instr instr ~fdest =
-  let ivbi = iter_dests_base_instr ~fdest in
-  let ivst = iter_dests_stmt ~fdest in
-  let ivd = iter_dests_dest ~fdest in
+let rec iter_sdests_instr instr ~f =
+  let ivbi = iter_sdests_base_instr ~f in
+  let ivst = iter_sdests_stmt ~f in
   match instr.L.l_val with
-  | Block(bis,_)          -> List.iter ~f:ivbi bis
-  | If(_c,s1,s2,_)        -> ivst s1; ivst s2
-  | For(d,_lb,_ub,stmt,_) -> ivd d; ivst stmt
-  | While(_wt,_fc,stmt,_) -> ivst stmt
+  | Block(bis,_)           -> List.iter ~f:ivbi bis
+  | If(_c,s1,s2,_)         -> ivst s1; ivst s2
+  | For(sd,_lb,_ub,stmt,_) -> f sd; ivst stmt
+  | While(_wt,_fc,stmt,_)  -> ivst stmt
 
-and iter_dests_stmt stmt ~fdest =
-  List.iter stmt ~f:(iter_dests_instr ~fdest)
+and iter_sdests_stmt stmt ~f =
+  List.iter stmt ~f:(iter_sdests_instr ~f)
 
-let iter_dests_fundef fd ~fdest =
-  iter_dests_stmt fd.f_body ~fdest
+let iter_sdests_fundef fd ~f =
+  iter_sdests_stmt fd.f_body ~f
     
-let iter_dests_func func ~fdest =
+let iter_sdests_func func ~f =
   match func with
   | Foreign _  -> ()
-  | Native(fd) -> iter_dests_fundef fd ~fdest
+  | Native(fd) -> iter_sdests_fundef fd ~f
 
-let iter_dests_named_func nf ~fdest =
-  iter_dests_func nf.nf_func ~fdest
+let iter_sdests_named_func nf ~f =
+  iter_sdests_func nf.nf_func ~f
 
-let iter_dests_modul modul ~fdest =
-  List.iter ~f:(iter_dests_named_func ~fdest) modul
+let iter_sdests_modul modul ~f =
+  List.iter ~f:(iter_sdests_named_func ~f) modul
 
 (* ** Specialized dest traversals: dest set
  * ------------------------------------------------------------------------ *)
 
-let dests_stmt stmt =
-  let res = ref DS.empty in
-  let fdest d =
-    res := DS.add !res d
+let sdests_stmt stmt =
+  let res = ref SDS.empty in
+  let f d =
+    res := SDS.add !res d
   in
-  iter_dests_stmt ~fdest stmt
+  iter_sdests_stmt ~f stmt
 
-let dests_modul modul =
-  let res = ref DS.empty in
-  let fdest d =
-    res := DS.add !res d
+let sdests_modul modul =
+  let res = ref SDS.empty in
+  let f d =
+    res := SDS.add !res d
   in
-  iter_dests_modul ~fdest modul
+  iter_sdests_modul ~f modul
 
 (* ** Iterate over instructions
  * ------------------------------------------------------------------------ *)

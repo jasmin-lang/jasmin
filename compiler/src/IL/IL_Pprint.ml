@@ -85,11 +85,18 @@ let pp_idx ~pp_types fmt = function
   | Ipexpr(pe) -> pp_pexpr ~pp_types fmt pe
   | Ivar(v)    -> pp_var ~pp_types fmt v
 
-let pp_dest ~pp_types fmt {d_var=v; d_idx=oidx} =
+let pp_sdest ~pp_types fmt {d_var=v; d_idx=oidx} =
   let ppi = pp_idx ~pp_types in
   match oidx with
-  | None      -> F.fprintf fmt "%a"      (pp_var ~pp_types) v
+  | None      -> F.fprintf fmt "%a"     (pp_var ~pp_types) v
   | Some(idx) -> F.fprintf fmt "%a[%a]" (pp_var ~pp_types) v ppi idx
+
+let pp_dest ~pp_types fmt d =
+  match d with
+  | Mem(sd,pe) ->
+    F.fprintf fmt "MEM[%a + %a]" (pp_sdest ~pp_types) sd (pp_pexpr ~pp_types) pe
+  | Sdest(sd) ->
+    pp_sdest ~pp_types fmt sd
 
 let pcondop_to_string = function
   | Peq  -> "="
@@ -176,12 +183,12 @@ let pp_op ~pp_types fmt (o,ds,ss) =
 let pp_base_instr ~pp_types fmt bi =
   let ppd = pp_dest ~pp_types in
   let pps = pp_src ~pp_types in
-  let ppe = pp_pexpr ~pp_types in
+  (* let ppe = pp_pexpr ~pp_types in *)
   let ppo = pp_op ~pp_types in
   match bi.L.l_val with
   | Comment(s)      -> F.fprintf fmt "/* %s */" s
-  | Load(d,s,pe)    -> F.fprintf fmt "%a = MEM[%a + %a];" ppd d pps s ppe pe
-  | Store(s1,pe,s2) -> F.fprintf fmt "MEM[%a + %a] = %a;" pps s1 ppe pe pps s2
+  (* | Load(d,s,pe)    -> F.fprintf fmt "%a = MEM[%a + %a];" ppd d pps s ppe pe *)
+  (* | Store(s1,pe,s2) -> F.fprintf fmt "MEM[%a + %a] = %a;" pps s1 ppe pe pps s2 *)
   | Assgn(d1,s1,Mv) -> F.fprintf fmt "%a = %a;" ppd d1 pps s1
   | Assgn(d1,s1,Eq) -> F.fprintf fmt "%a := %a;" ppd d1 pps s1
   | Op(o,ds,ss)     -> F.fprintf fmt "%a;" ppo (o,ds,ss)
@@ -206,7 +213,7 @@ let rec pp_instr ?pp_info ~pp_types fmt instr =
   let ppc = pp_fcond_or_pcond ~pp_types in
   let ppfc = pp_fcond ~pp_types in
   let ppe = pp_pexpr ~pp_types in
-  let ppd = pp_dest ~pp_types in
+  let ppsd = pp_sdest ~pp_types in
   let ppbi = pp_base_instr ~pp_types in
   let pp fmt () =
     match instr.L.l_val with
@@ -218,7 +225,7 @@ let rec pp_instr ?pp_info ~pp_types fmt instr =
         ppc c pps i1 pps i2
     | For(iv,ie1,ie2,i,_) ->
       F.fprintf fmt "for %a in %a..%a {@\n  @[<v 0>%a@]@\n}"
-        ppd iv ppe ie1 ppe ie2 pps i
+        ppsd iv ppe ie1 ppe ie2 pps i
     | While(WhileDo,fc,s,_) ->
       F.fprintf fmt "while %a {@\n  @[<v 0>%a@]@\n}" ppfc fc pps s
     | While(DoWhile,fc,s,_) ->
@@ -334,6 +341,8 @@ let pp_set_vn fmt (s : Int.Set.t) =
 
 
 let pp_ty_nt = pp_ty ~pp_types:false
+
+let pp_sdest_nt = pp_sdest ~pp_types:false
 
 let pp_dest_nt = pp_dest ~pp_types:false
 

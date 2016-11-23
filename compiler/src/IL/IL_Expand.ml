@@ -323,10 +323,10 @@ let rec inline_call func_table ctr fname ds ss =
   let fdef = get_fundef ~err_s:"inline_call: impossible" func in
   let ret_ss = 
     List.map fdef.f_ret
-      ~f:(fun v -> Src({d_var=v; d_idx=None; d_loc=v.Var.uloc;}))
+      ~f:(fun v -> Src(Sdest({d_var=v; d_idx=None; d_loc=v.Var.uloc;})))
   in
   let arg_ds =
-    List.map ~f:(fun v -> {d_var=v; d_idx=None; d_loc=v.Var.uloc}) fdef.f_arg
+    List.map ~f:(fun v -> Sdest({d_var=v; d_idx=None; d_loc=v.Var.uloc})) fdef.f_arg
   in
   let pref = List.map2_exn ~f:(fun d s -> Assgn(d,s,Eq)) arg_ds ss in
   let suff = List.map2_exn ~f:(fun d s -> Assgn(d,s,Eq)) ds ret_ss in
@@ -422,23 +422,30 @@ let inst_idx ptable ltable idx =
   | Ivar(v)    -> inst_var ltable v ~default:idx ~f:(fun _ pe -> Ipexpr pe)
   | Ipexpr(pe) -> Ipexpr(peval_pexpr ptable ltable pe)
 
+let inst_sdest ptable ltable sd =
+  { sd with
+    d_idx = Option.map ~f:(inst_idx ptable ltable) sd.d_idx }
+
 let inst_dest ptable ltable d =
-  { d with
-    d_idx = Option.map ~f:(inst_idx ptable ltable) d.d_idx }
+  let isd = inst_sdest ptable ltable in
+  let ipe = peval_pexpr ptable ltable in
+  match d with
+  | Mem(sd,pe) -> Mem(isd sd, ipe pe)
+  | Sdest(sd)  -> Sdest(isd sd)
 
 let inst_src ptable ltable = function
   | Imm(i,pe) -> Imm(i,peval_pexpr ptable ltable pe)
   | Src(d)    ->
     let s = Src(inst_dest ptable ltable d) in
-    if d.d_idx<>None then (
-      s
-    ) else (
-      inst_var ltable d.d_var ~default:s ~f:(fun n pe -> Imm(n,pe))
-    )
+    begin match d with
+    | Sdest(sd) when sd.d_idx=None ->
+      inst_var ltable sd.d_var ~default:s ~f:(fun n pe -> Imm(n,pe))
+    | _ -> s
+    end
 
 let inst_base_instr ptable ltable lbi =
   let bi = lbi.L.l_val in
-  let inst_p = peval_pexpr ptable ltable in
+  (* let inst_p = peval_pexpr ptable ltable in *)
   let inst_d = inst_dest   ptable ltable in
   let inst_s = inst_src    ptable ltable in
   let inst_ds = List.map ~f:inst_d in
@@ -448,8 +455,8 @@ let inst_base_instr ptable ltable lbi =
     | Comment(_)      -> bi
     | Op(o,ds,ss)     -> Op(o,inst_ds ds,inst_ss ss)
     | Assgn(d,s,t)    -> Assgn(inst_d d,inst_s s,t)
-    | Load(d,s,pe)    -> Load(inst_d d,inst_s s,inst_p pe)
-    | Store(s1,pe,s2) -> Store(inst_s s1,inst_p pe,inst_s s2)
+    (* | Load(d,s,pe)    -> Load(inst_d d,inst_s s,inst_p pe) *)
+    (* | Store(s1,pe,s2) -> Store(inst_s s1,inst_p pe,inst_s s2) *)
     | Call(fn,ds,ss)  -> Call(fn,inst_ds ds,inst_ss ss)
   in
   { lbi with L.l_val = bi }
@@ -501,7 +508,7 @@ let macro_expand_native ptable fd =
 
 let macro_expand_func ptable func =
   (* check that all parameters are given *)
-  iter_params_func func ~fparam:(fun p ->
+  iter_params_func func ~f:(fun p ->
     if not (HT.mem ptable p.Param.name) then
       failloc_ p.Param.loc "all parameters must be given for macro expansion");
   let ltable = Int.Table.create () in
@@ -528,15 +535,15 @@ FIXME: Would it be easier to replace this by 'for' and perform the
 let array_assign_expand_basic_instr lbi =
   let bi = lbi.L.l_val in
   match bi with
-  | Assgn(d,Src(s),t) ->
+  | Assgn(Sdest(d),Src(Sdest(s)),t) ->
     let td = d.d_var.Var.ty in
     let ts = s.d_var.Var.ty in
     begin match d.d_idx, s.d_idx, td, ts with
     | None, None, Arr(i,Pconst(ub1)), Arr(j,Pconst(ub2)) ->
       assert (Big_int.eq_big_int ub1 ub2 && i = j);
       let mk_assgn i =
-        let d = {d with d_idx = Some(Ipexpr(Pconst(i))) } in
-        let s = Src({s with d_idx = Some(Ipexpr(Pconst(i))) }) in
+        let d = Sdest{ d with d_idx = Some(Ipexpr(Pconst(i))) } in
+        let s = Src(Sdest{s with d_idx = Some(Ipexpr(Pconst(i)))}) in
         { lbi with L.l_val = Assgn(d,s,t) }
       in
       List.map ~f:mk_assgn (list_from_to_big_int ~first:Big_int.zero_big_int ~last:ub1)
@@ -575,7 +582,7 @@ let array_expand_fundef fd =
 
   (* populate non-const table *)
   let non_const_table = Int.Table.create () in
-  iter_dests_stmt stmt ~fdest:(fun d ->
+  iter_sdests_stmt stmt ~f:(fun d ->
     match d.d_idx with
     | Some(Ipexpr(Pconst(_))) | None -> ()
     | Some(_) ->
@@ -584,7 +591,7 @@ let array_expand_fundef fd =
 
   (* populate mapping table *)
   let const_table = Int.Table.create () in
-  iter_dests_stmt stmt ~fdest:(fun d ->
+  iter_sdests_stmt stmt ~f:(fun d ->
     match d.d_idx with
     | Some(Ipexpr(Pconst(_))) ->
       let n = d.d_var.Var.num in
@@ -601,7 +608,7 @@ let array_expand_fundef fd =
   );
 
   (* apply mapping table *)
-  let stmt = map_dests_stmt stmt ~f:(fun d ->
+  let stmt = map_sdests_stmt stmt ~f:(fun d ->
     match d.d_idx with
     | Some(Ipexpr(Pconst(i))) ->
       let n = d.d_var.Var.num in

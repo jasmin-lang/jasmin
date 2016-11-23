@@ -6,6 +6,7 @@ open IL_Lang
 open IL_Utils
 open IL_Typing
 open Arith
+open Util
 
 module F  = Format
 module DE = Dmasm_expr
@@ -395,7 +396,8 @@ let cpexpr_of_src cvi s =
   let cpe = cpexpr_of_pexpr cvi in
   match s with
   | Imm(_,pe) -> cpe pe
-  | Src(d) ->
+  | Src(_) -> assert false
+  | Src(Sdest(d)) ->
     let k = CVI.add_darg cvi d in
     let v = DE.Pvar(pos_of_int k,cvar_of_var d.d_var) in
     begin match d.d_idx with
@@ -417,24 +419,25 @@ let cpexpr_of_src cvi s =
 let src_of_cpexpr cvi cpe =
   match cpe with
   | DE.Pvar(vi,cvar) ->
-    Src(dest_of_rval cvi @@ DE.Rvar(vi,cvar))
+    Src(Sdest(dest_of_rval cvi @@ DE.Rvar(vi,cvar)))
 
   | DE.Papp2(tin1,tin2,tres,DE.Oget(dim),DE.Pvar(vi,cvar),cpe) ->
     assert(tin1=DT.Coq_sarr(dim) && tin2=sword && tres=sword);
     let vargs,(darg,is_Ivar) = CVI.get_darg cvi vi in
-    let d =
+    let sd =
       { d_var=var_of_cvar cvar vargs;
         d_idx=Some(idx_of_cpexpr cvi is_Ivar cpe);
         d_loc=darg }
     in
-    Src(d)
+    Src(Sdest(sd))
 
   | _ -> Imm(64,pexpr_of_cpexpr cvi cpe) (* FIXME: bitsize fixed *)
 
 (* ** Operators
  * ------------------------------------------------------------------------ *)
 
-let of_op_view cvi o = 
+let of_op_view cvi o =
+  undefined () (*
   let cword = DT.Coq_sprod(sbool, sword) in
   match o with 
   | V_Umul(h,l,x,y) -> 
@@ -509,6 +512,7 @@ let of_op_view cvi o =
     in
     let cpe = DE.Papp2(sword,sword,sword,o,x,y) in
     sword, z, cpe
+               *)
 
 (* ** Basic instructions, instructions, and statements
  * ------------------------------------------------------------------------ *)
@@ -523,6 +527,8 @@ let assgn_type_of_atag = function
   | _        -> assert false
 
 let rval_of_dests cvi ds =
+  undefined ()
+  (*
   let conv_d d = cty_of_ty (type_dest d),rval_of_dest cvi d in
   let rec go ds =
     match ds with
@@ -534,6 +540,7 @@ let rval_of_dests cvi ds =
       DT.Coq_sprod(ty_d,ty_ds), DE.Rpair(ty_d,ty_ds,r_d,r_ds)
   in
   snd (go ds)
+  *)
 
 let rec dests_of_rval cvi num rval =
   match rval with
@@ -582,14 +589,19 @@ let rec cty_of_tys tys =
   | t::ts -> DT.Coq_sprod(cty_of_ty t,cty_of_tys ts)
 
 let rec cfundef_of_fundef cvi tin tres fd =
+  undefined () 
+  (*
   let dest_of_var v = {d_var=v;d_loc=Lex.dummy_loc;d_idx=None} in
   let src_of_var v = Src(dest_of_var v) in
   let rval_arg = rval_of_dests cvi (List.map ~f:dest_of_var fd.f_arg) in
   let cpe_res = cpexpr_of_srcs cvi (List.map ~f:src_of_var fd.f_arg) in
   let cmd = cmd_of_stmt cvi fd.f_body  in
   DE.FunDef(tin,tres,rval_arg,cmd,cpe_res)
+  *)
 
 and cinstr_of_base_instr cvi lbi =
+  undefined ()
+  (*
   let k = CVI.add_iloc cvi lbi.L.l_loc in
   match lbi.L.l_val with
   | Assgn(d,s,aty) ->
@@ -616,12 +628,7 @@ and cinstr_of_base_instr cvi lbi =
     let rval = rval_of_dests cvi ds in
     let cpe = cpexpr_of_srcs cvi ss in
     Some(k,DE.Ccall(tin,tres,rval,cfd,cpe))
-
-  | Load(_d,_s,_pe) ->
-    failwith "cinstr_of_base_instr: load not supported yet"
-
-  | Store(_s1,_pe,_s2) ->
-    failwith "cinstr_of_base_instr: store not supported yet"
+  *)
 
 and cinstr_of_linstr cvi linstr =
   let loc = linstr.L.l_loc in
@@ -678,6 +685,8 @@ and cmd_of_stmt cvi s =
   clist_of_list @@ List.concat_map ~f:(cinstr_of_linstr cvi) s
 
 let base_instr_of_papp2 cvi rval sop cpe1 cpe2 =
+  undefined ()
+  (*
   match sop with
   | DE. Omulu ->
     let x = src_of_cpexpr cvi cpe1 in
@@ -727,9 +736,11 @@ let base_instr_of_papp2 cvi rval sop cpe1 cpe2 =
 
   | DE. Oget(_) -> assert false
   | DE. Opair(_) -> assert false
-
+  *)
 
 let base_instr_of_papp3 cvi rval sop cpe1 cpe2 cpe3 =
+  undefined ()
+  (*
   let get_cf_in cpe =
     match cpe with
     | DE.Pbool(Datatypes.Coq_false) -> []
@@ -761,10 +772,11 @@ let base_instr_of_papp3 cvi rval sop cpe1 cpe2 cpe3 =
     Op(Cmov(false),ds,[x;y;cf])
     
   | DE.Oset(_) -> assert false
-
-  let s1 = src_of_cpexpr 
+  *)
 
 let base_instr_of_cassgn cvi _st rval atag pe =
+  undefined ()
+  (*
   match pe with
   | DE.Pvar(_)
   | DE.Pconst(_)
@@ -785,8 +797,11 @@ let base_instr_of_cassgn cvi _st rval atag pe =
   | DE.Pbool(_) -> assert false
 
   | DE.Pload(_) -> assert false
+  *)
 
 let rec instr_of_cinstr cvi lci =
+  undefined ()
+  (*
   let k, ci = match lci with DE.MkI(k,ci) -> k,ci in
   let loc = CVI.get_iloc cvi k in
   let mk_block bi =
@@ -835,6 +850,7 @@ let rec instr_of_cinstr cvi lci =
       mk_block (Call(fname,ds,ss))
   in
   { L.l_loc = loc; L.l_val = instr }
+  *)
 
 and stmt_of_cmd cvi c =
    List.map ~f:(instr_of_cinstr cvi) (list_of_clist c)

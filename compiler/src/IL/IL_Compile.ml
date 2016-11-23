@@ -105,37 +105,33 @@ let compute_kill_ue_block bis =
     if not (Set.mem !kill n) then
       ue := Set.add !ue n
   in
-  let handle_dest d =
-    if d.d_idx<>None then (
+  let handle_sdest sd =
+    if sd.d_idx<>None then (
       (* F.printf "warning: new_var does not handle %a correctly\n" pp_dest_nt d *)
       (* writing to a[3] does not kill a *)
     ) else (
-      let n = d.d_var.Var.num in
+      let n = sd.d_var.Var.num in
       kill := Set.add !kill n
     )
+  in
+  let handle_dest d =
+    match d with
+    | Sdest(sd) -> handle_sdest sd
+    | Mem(_,_)  -> ()
+      (* writing to MEM[x] does not define x *)
   in
   let go lbi =
     match lbi.L.l_val with
     | Comment(_) -> ()
 
     | Assgn(d,s,_) ->
-      iter_vars_src ~fvar:handle_var_use s;
+      iter_vars_src ~f:handle_var_use s;
       handle_dest d
 
     | Op(_,ds,ss) ->
-      List.iter ~f:(iter_vars_src ~fvar:handle_var_use) ss;
+      List.iter ~f:(iter_vars_src ~f:handle_var_use) ss;
       List.iter ~f:handle_dest ds
-
-    | Load(d,s,pe)    ->
-      iter_vars_src ~fvar:handle_var_use s;
-      iter_vars_pexpr ~fvar:handle_var_use pe;
-      handle_dest d
-      
-    | Store(s1,pe,s2) ->
-      iter_vars_src ~fvar:handle_var_use s1;
-      iter_vars_src ~fvar:handle_var_use s2;
-      iter_vars_pexpr ~fvar:handle_var_use pe;
-      
+  
     | Call(_,_ds,_ss)  -> failwith "call"
   in
   List.iter ~f:go bis;
@@ -342,13 +338,20 @@ module RNI = struct
     let n = rn_dest_var_num rni v.Var.num in
     { v with Var.num = n }
   
-  let rn_dest rni d =
-    if d.d_idx<>None then (
+  let rn_sdest rni sd =
+    if sd.d_idx<>None then (
       (* F.printf "warning: new_var does not handle %a correctly\n%!" pp_dest_nt d; *)
-      d
+      sd
     ) else (
-      { d with d_var = rn_dest_var rni d.d_var }
+      { sd with d_var = rn_dest_var rni sd.d_var }
     )
+
+  let rn_dest rni d =
+    match d with
+    | Mem(sd,pe) -> Mem({sd with d_var = rn_var rni sd.d_var}, pe)
+        (* FIXME: rename pe too? rename index in d_var? *)
+    | Sdest(sd)  -> Sdest(rn_sdest rni sd)
+
 end
 
 let local_ssa_base_instr rni lbi =
@@ -364,16 +367,6 @@ let local_ssa_base_instr rni lbi =
       let ss = List.map ~f:(map_vars_src ~f:(RNI.rn_var rni)) ss in
       let ds = List.map ~f:(RNI.rn_dest rni) ds in
       Op(o,ds,ss)
-    | Load(d,s,pe) ->
-      let s = map_vars_src ~f:(RNI.rn_var rni) s in
-      let pe = map_vars_pexpr ~f:(RNI.rn_var rni) pe in
-      let d = RNI.rn_dest rni d in
-      Load(d,s,pe)
-    | Store(s1,pe,s2) ->
-      let s1 = map_vars_src ~f:(RNI.rn_var rni) s1 in
-      let pe = map_vars_pexpr ~f:(RNI.rn_var rni) pe in
-      let s2 = map_vars_src ~f:(RNI.rn_var rni) s2 in
-      Store(s1,pe,s2)
     | Call(_fn,_ds,_ss)  -> failwith "call"
   in
   { lbi with L.l_val = bi }
@@ -481,12 +474,13 @@ let local_ssa_fundef fd =
   let mn = max_var_fundef fd in
   let rni = RNI.mk mn in
   let arg = List.map ~f:(RNI.rn_dest_var rni) fd.f_arg in
-  iter_dests_fundef fd ~fdest:(fun d ->
+  let register_array sd =
     (* FIXME: there should be explicit initializations for arrays? *)
-    if d.d_idx<>None && not (HT.mem rni.RNI.map d.d_var.Var.num) then
+    if sd.d_idx<>None && not (HT.mem rni.RNI.map sd.d_var.Var.num) then
       (* F.printf "adding %a\n%!" pp_dest_nt d; *)
-      ignore(RNI.rn_dest_var rni d.d_var)
-  );
+      ignore(RNI.rn_dest_var rni sd.d_var)
+  in
+  iter_sdests_fundef fd ~f:register_array;
   let body = local_ssa_stmt rni fd.f_body in
   let ret = List.map ~f:(RNI.rn_var rni) fd.f_ret in
   { fd with

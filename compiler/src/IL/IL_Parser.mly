@@ -111,14 +111,18 @@ terminated_list(S,X):
 %inline dest_get:
 | LBRACK pe = pexpr RBRACK { Ipexpr(pe) }
 
-%inline dest_noloc :
+%inline sdest_noloc :
 | v=var idx = dest_get?
     { { d_var = v; d_idx = idx; d_loc = L.dummy_loc } }
     (* we must fix up Iconst eventually to Ivar with context information *)
 
-%inline dest :
-| ld=loc(dest_noloc)
+%inline sdest :
+| ld=loc(sdest_noloc)
     { let (loc,d) = ld in { d with d_loc = loc } }
+
+%inline dest :
+| sd=sdest                                      { Sdest(sd)   }
+| MEM LBRACK ptr = sdest PLUS pe = pexpr RBRACK { Mem(ptr,pe) }
 
 param:
 | lid=loc(NID) { mk_param lid }
@@ -223,17 +227,20 @@ opeq:
 | fname=NID args=paren_tuple(src)
     { `Call(mk_fname fname, args) }
 
+(*
 | MEM LBRACK ptr = src PLUS pe = pexpr RBRACK
     { `Load(ptr,pe) }
+*)
 
 %inline opeq_rhs:
 | s  = src                  { fun op d -> `BinOp(op,Src(d),s) }
 | s2 = src op2=binop s3=src { fun op1 d -> `TernOp(op1,op2,Src(d),s2,s3) }
 
+(*
 %inline store :
 | MEM LBRACK ptr = src PLUS pe = pexpr RBRACK EQ s = src
     { (ptr,pe,s) }
-
+*)
 
 %inline base_instr :
 | ds=tuple_nonempty(dest) EQ rhs=assgn_rhs_mv SEMICOLON
@@ -242,9 +249,11 @@ opeq:
 | ds=tuple_nonempty(dest) COLON EQ rhs=assgn_rhs_eq SEMICOLON
     { mk_instr ds rhs (L.mk_loc ($startpos,$endpos)) }
 
+(*
 | lst = loc(store) SEMICOLON
     { let (l,(ptr,pe,s)) = lst in
       Block([ { L.l_val = mk_store ptr pe s; L.l_loc = l} ],None) }
+*)
 
 | ds=tuple_nonempty(dest) op=opeq rhs=opeq_rhs SEMICOLON
     { let rhs = rhs op (Std.List.last_exn ds) in
@@ -265,7 +274,7 @@ opeq:
 | IF c=pcond_or_fcond i1s=block ies=celse_if* mi2s=celse?
     { mk_if c i1s mi2s ies }
 
-| FOR cv=dest IN ce1=pexpr DOTDOT ce2=pexpr is=block
+| FOR cv=sdest IN ce1=pexpr DOTDOT ce2=pexpr is=block
     { For(cv,ce1,ce2,is,None) }
 
 | WHILE fc=fcond is=block
@@ -312,7 +321,7 @@ typ :
 | T_BOOL                  { Bool }
 
 stor_typ :
-| sto=storage ty=typ { mk_sto_ty (sto,ty) (L.mk_loc ($startpos,$endpos)) }
+| sto=storage ty=typ { (sto,ty) }
 
 %inline typed_vars_stor :
 | vs=separated_nonempty_list(COMMA,dest) COLON st=stor_typ
