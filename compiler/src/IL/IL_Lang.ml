@@ -332,7 +332,8 @@ end = struct
 
   let mk_Vu n x =
     if not (is_reduced n x) then
-      raise (Invalid_argument("mk_Vu: value is not reduced"));
+      raise (Invalid_argument("mk_Vu: value is not reduced, "
+                              ^Big_int.string_of_big_int x^" ("^string_of_int n^" bits)"));
     Vu(n,x)
 
   let mk_Varr n m =

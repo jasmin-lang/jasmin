@@ -60,7 +60,7 @@ let ptrafo =
   let asm_lang = choice [ string "x86-64" >>$ X64 ] in
   let enclosed p pstart pend = pstart >> p >>= fun x -> pend >>$ x in
   let bracketed p = enclosed p (char '[') (char ']') in
-  let u64 = many1 digit >>= fun s -> return (Big_int.big_int_of_string (String.of_char_list s)) in
+  let u64 = many1 digit >>= fun s -> return (Arith.parse_big_int (String.of_char_list s)) in
   let int = many1 digit >>= fun s -> return (int_of_string (String.of_char_list s)) in
   let value () =
     choice

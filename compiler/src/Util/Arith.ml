@@ -45,6 +45,51 @@ module Big_int_Infix = struct
   let (%!)  = mod_big_int
 end
 
+let parse_big_int s =
+  let cs = String.to_list s in
+  let base,digits =
+    match cs with
+    | '0'::'x'::digits -> 16,digits
+    | '0'::'b'::digits -> 2,digits
+    | _                -> 10,cs
+  in
+  let base = Big_int.big_int_of_int base in
+  let res = ref Big_int.zero_big_int in
+  let rec go ds =
+    match ds with
+    | []      -> !res
+    | '_'::ds -> go ds
+    | d::ds   ->
+      let open Big_int_Infix in
+      res := !res *! base;
+      let n =
+        begin match d with
+        | '0' -> 0
+        | '1' -> 1
+        | '2' -> 2
+        | '3' -> 3
+        | '4' -> 4
+        | '5' -> 5
+        | '6' -> 6
+        | '7' -> 7
+        | '8' -> 8
+        | '9' -> 9
+        | 'A' | 'a' -> 10
+        | 'B' | 'b' -> 11
+        | 'C' | 'c' -> 12
+        | 'D' | 'd' -> 13
+        | 'E' | 'e' -> 14
+        | 'F' | 'f' -> 15
+        | _ -> assert false
+        end
+      in
+      let n = big_int_of_int n in
+      assert (n <! base);
+      res := !res +! n;
+      go ds
+  in
+  go digits
+
 let mod_pow_two n m = Big_int.(mod_big_int n (power_int_positive_int 2 m))
 
 module U64 = struct

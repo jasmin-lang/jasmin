@@ -46,9 +46,9 @@ let eval_pexpr ptable ltable ce =
       begin match HT.find ltable v.Var.num with
       | Some (Value.Vu(n,x)) -> Ok(mod_pow_two x n)
       | Some (_) ->
-        Error (fsprintf "eval_pexpr: variable %a of wrong type" Var.pp v)
+        failloc_ v.Var.uloc "eval_pexpr: variable %a has wrong type" Var.pp v
       | None ->
-        Error (fsprintf "eval_pexpr: variable %a undefined" Var.pp v)
+        failloc_ v.Var.uloc "eval_pexpr: variable %a undefined" Var.pp v
       end
   in
   go ce

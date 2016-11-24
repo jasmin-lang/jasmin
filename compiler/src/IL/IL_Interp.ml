@@ -167,7 +167,7 @@ let write_dest_u64 ptable ltable mtable d u =
 
 let write_flag ms d b =
   match d with
-  | Mem(sd,pe) -> failwith "cannot store boolean values in memory"
+  | Mem(_sd,_pe) -> failwith "cannot store boolean values in memory"
   | Sdest(sd)  ->
     begin match sd.d_idx with
     | None -> HT.set ms.m_fltable ~key:sd.d_var.Var.num ~data:b
@@ -320,6 +320,7 @@ let interp_assign ptable ltable mtable ds ss =
   
 let rec interp_base_instr ms lbinstr =
   let ptable = ms.m_ptable in
+  (* F.printf "%a\n%!" (pp_base_instr ~pp_types:false) lbinstr; *)
   match lbinstr.L.l_val with
   | Comment(_) -> ()
 

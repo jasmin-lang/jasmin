@@ -432,7 +432,7 @@ fn cswap(x2p, z2p, x3p, z3p : stack u64[4], swap : reg u64)
   tmp1, tmp2, mask : reg u64;
   i                : inline u64;
 
-  mask = swap * 0xffffffffffffffff;
+  mask = swap * 0xffff_ffff_ffff_ffff;
 
   for i in 0..4 {
     tmp1   = x2p[i];
@@ -591,7 +591,7 @@ fn unpack_point(xp : reg u64) -> stack u64[4] {
   xa[1] = MEM[xp + 1*8];
   xa[2] = MEM[xp + 2*8];
   x3    = MEM[xp + 3*8];
-  x3    = x3 & 9223372036854775807; // 0x7fffffffffffffff;
+  x3    = x3 & 0x7fff_ffff_ffff_ffff;
   xa[3] = x3;
 
   return xa;
@@ -605,13 +605,13 @@ fn unpack_secret(sp : reg u64) -> stack u64[4] {
   si : reg u64;
 
   si    = MEM[sp + 0*8];
-  si    = si & 4722366482869645213688; // 0xfffffffffffffffff8;
+  si    = si & 0xffff_ffff_ffff_fff8;
   sa[0] = si;
   sa[1] = MEM[sp + 1*8];
   sa[2] = MEM[sp + 2*8];
   si    = MEM[sp + 3*8];
-  si    = si & 9223372036854775807; // 0x7fffffffffffffffff;
-  si    = si | 4611686018427387904; // FIXME: why does 0x400...0 not work
+  si    = si & 0x7fff_ffff_ffff_ffff;
+  si    = si | 0x4000_0000_0000_0000;
   sa[3] = si;
   return sa;
 }
@@ -703,7 +703,7 @@ fn scalarmult_tracing(
   xa = unpack_point(pp);        l2 = xa;
   xa, za = mladder(xa,sa);      l3 = xa; l4 = za;
   zia = invert(za);             l5 = zia;
-  r = mul(xa,zia);              l6 =r;
+  r = mul(xa,zia);              l6 = r;
   pack(rp,r);
   return l1,l2,l3,l4,l5,l6;
 }
@@ -898,10 +898,10 @@ fn test_mladder() {
   u          : stack u64;
   i          : inline u64;
 
-  sp[0] = 0xffffffffffffffff;
+  sp[0] = 0xffff_ffff_ffff_ffff;
   sp[1] = 0;
-  sp[2] = 0x5555555555555555;
-  sp[3] = 0xfffffffffffffffe;
+  sp[2] = 0x5555_5555_5555_5555;
+  sp[3] = 0xffff_ffff_ffff_fffe;
   for i in 0..99 {
     u = i;
     print_u64(u);
