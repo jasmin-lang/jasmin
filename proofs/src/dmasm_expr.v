@@ -22,334 +22,264 @@ Open Scope string_scope.
    - cpu-op: CPU instructions such as addition with carry
 *)
 
-Inductive sop1 : stype -> stype -> Set := 
-(* bools *)
-| Onot : sop1 sbool sbool                       (* const *)
-(* pairs *)
-| Ofst : forall st1 st2, sop1 (st1 ** st2) st1  (* list *)
-| Osnd : forall st1 st2, sop1 (st1 ** st2) st2. (* list *)
+Inductive sop2 : Set :=
+| Oand  : sop2                      (* const : sbool -> sbool -> sbool *)
+| Oor   : sop2                      (* const : sbool -> sbool -> sbool *)
 
-(* words *)
-(*| Olnot : sop1 sword sword (* cpu *) *)
+| Oadd  : sop2                      (* const : sint -> sint -> sint *)
+| Omul  : sop2                      (* const : sint -> sint -> sint *)
+| Osub  : sop2                      (* const : sint -> sint -> sint *)
 
-Inductive sop2 : stype -> stype -> stype -> Set :=
-| Oand  : sop2 sbool sbool sbool                     (* const *)
-| Oor   : sop2 sbool sbool sbool                     (* const *)
+| Oeq   : sop2                      (* const : sint -> sint -> sbool *)
+| Oneq  : sop2                      (* const : sint -> sint -> sbool *)
+| Olt   : sop2                      (* const : sint -> sint -> sbool *)
+| Ole   : sop2                      (* const : sint -> sint -> sbool *)
+| Ogt   : sop2                      (* const : sint -> sint -> sbool *)
+| Oge   : sop2.                     (* const : sint -> sint -> sbool *)
 
-| Oadd  : sop2 sword sword sword                     (* const *)
-| Omul  : sop2 sword sword sword                     (* const *)
-| Osub  : sop2 sword sword sword                     (* const *)
+Inductive sopn : Set :=
+| Olnot : sopn                      (* cpu : sword -> sword *) 
 
-| Omulu : sop2 sword sword (sword ** sword)          (* cpu *)
+| Oxor  : sopn                      (* cpu   : sword -> sword -> sword *)
+| Oland : sopn                      (* cpu   : sword -> sword -> sword *)
+| Olor  : sopn                      (* cpu   : sword -> sword -> sword *)
+| Olsr  : sopn                      (* cpu   : sword -> sword -> sword *)
+| Olsl  : sopn                      (* cpu   : sword -> sword -> sword *)
 
-| Oeq   : sop2 sword sword sbool                     (* const *)
-| Oneq  : sop2 sword sword sbool                     (* const *)
-| Olt   : sop2 sword sword sbool                     (* const *)
-| Ole   : sop2 sword sword sbool                     (* const *)
-| Ogt   : sop2 sword sword sbool                     (* const *)
-| Oge   : sop2 sword sword sbool                     (* const *)
+| Oif   : sopn                      (* cpu  : sbool -> sword -> sword -> sword *)
 
-| Oxor  : sop2 sword sword sword                     (* cpu *)
-| Oland : sop2 sword sword sword                     (* cpu *)
-| Olor  : sop2 sword sword sword                     (* cpu *)
-| Olsr  : sop2 sword sword sword                     (* cpu *)
-| Olsl  : sop2 sword sword sword                     (* cpu *)
+| Omulu     : sopn                  (* cpu   : [sword; sword]        -> [sword;sword] *)
+| Oaddcarry : sopn                  (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
+| Osubcarry : sopn.                 (* cpu   : [sword; sword; sbool] -> [sbool;sword] *) 
 
-| Oget  : forall n, sop2 (sarr n) sword sword             (* arr *)
-| Opair : forall st1 st2, sop2 st1 st2 (st1 ** st2).      (* list *)
+Scheme Equality for sop2.
+(* Definition sop2_beq : sop2 -> sop2 -> bool *)
 
-Inductive sop3 : stype -> stype -> stype -> stype -> Set :=
-| Oaddcarry : sop3 sword sword sbool (sbool ** sword)       (* cpu *)
-| Oaddc     : sop3 sword sword sbool sword                  (* cpu *)
-| Osubcarry : sop3 sword sword sbool (sbool ** sword)       (* cpu *)
-| Osubc     : sop3 sword sword sbool sword                  (* cpu *)
-| Oif       : forall t, sop3 sbool t t t                         (* cpu *)
-| Oset      : forall n, sop3 (sarr n) sword sword (sarr n).      (* arr *)
+Lemma sop2_eq_axiom : Equality.axiom sop2_beq. 
+Proof. 
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_sop2_dec_bl.
+  by apply: internal_sop2_dec_lb.
+Qed.
 
-Definition eqb_sop1 {t1 tr t1' tr'} (o:sop1 t1 tr) (o':sop1 t1' tr') := 
-  match o, o' with
-  | Onot    , Onot     => true
-  | Onot    , _        => false
-  | Ofst _ _, Ofst _ _ => true
-  | Ofst _ _, _        => false
-  | Osnd _ _, Osnd _ _ => true
-  | Osnd _ _, _        => false
-  end.
+Definition sop2_eqMixin     := Equality.Mixin sop2_eq_axiom.
+Canonical  sop2_eqType      := Eval hnf in EqType sop2 sop2_eqMixin.
 
-Definition eqb_sop2 {t1 t2 tr t1' t2' tr'} (o:sop2 t1 t2 tr) (o':sop2 t1' t2' tr') := 
-  match o, o' with
-  | Oand     , Oand      => true
-  | Oand     , _         => false
-  | Oor      , Oor       => true
-  | Oor      , _         => false
-  
-  | Oadd     , Oadd      => true
-  | Oadd     , _         => false
-  | Omul     , Omul      => true
-  | Omul     , _         => false
-  | Osub     , Osub      => true
-  | Osub     , _         => false
-  
-  | Omulu    , Omulu     => true
-  | Omulu    , _         => false
-  
-  | Oeq      , Oeq       => true
-  | Oeq      , _         => false
-  | Oneq     , Oeq       => true
-  | Oneq     , _         => false
-  | Olt      , Olt       => true
-  | Olt      , _         => false
-  | Ole      , Ole       => true
-  | Ole      , _         => false
-  | Ogt      , Ogt       => true
-  | Ogt      , _         => false
-  | Oge      , Oge       => true
-  | Oge      , _         => false
-  
-  | Oxor     , Oxor      => true
-  | Oxor     , _         => false
-  | Oland    , Oland     => true
-  | Oland    , _         => false
-  | Olor     , Olor      => true
-  | Olor     , _         => false
-  | Olsr     , Olsr      => true
-  | Olsr     , _         => false
-  | Olsl     , Olsl      => true
-  | Olsl     , _         => false
-  
-  | Oget _   , Oget _    => true
-  | Oget _   , _         => false
-  | Opair _ _, Opair _ _ => true
-  | Opair _ _, _         => false
-  end.
+Scheme Equality for sopn.
+(* Definition sopn_beq : sopn -> sopn -> bool *)
+Lemma sopn_eq_axiom : Equality.axiom sopn_beq. 
+Proof. 
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_sopn_dec_bl.
+  by apply: internal_sopn_dec_lb.
+Qed.
 
-Definition eqb_sop3 {t1 t2 t3 tr t1' t2' t3' tr'} 
-           (o:sop3 t1 t2 t3 tr) (o':sop3 t1' t2' t3' tr') := 
-  match o, o' with
-  | Oaddcarry , Oaddcarry  => true
-  | Oaddcarry , _          => false
-  | Oaddc     , Oaddc      => true
-  | Oaddc     , _          => false
-
-  | Osubcarry , Osubcarry  => true
-  | Osubcarry , _          => false
-  | Osubc     , Osubc      => true
-  | Osubc     , _          => false
-
-  | Oif t1    , Oif t2     => t1 == t2
-  | Oif _     , _          => false
-
-  | Oset _    , Oset _     => true
-  | Oset _    , _          => false
- end.
-
-Lemma eqb_sop1P t1 t1' tr tr' (o:sop1 t1 tr) (o':sop1 t1' tr'):
-  t1 = t1' -> eqb_sop1 o o' ->  tr = tr' /\ JMeq o o'.
-Proof. by move: o o' => [|??|??] [|??|??] //= [] ->->. Qed. 
-
-Lemma eqb_sop2P t1 t1' t2 t2' tr tr' (o:sop2 t1 t2 tr) (o':sop2 t1' t2' tr'):
-  t1 = t1' -> t2 = t2' -> eqb_sop2 o o' -> tr = tr' /\ JMeq o o'.
-Proof.
-(*
-  by move: o o'=> [|||||||||||||?|??] [|||||||||||||?|??] //= => [ []-> | ->->].
-Qed. *)
-Admitted.
-
-Lemma eqb_sop3P t1 t1' t2 t2' t3 t3' tr tr' (o:sop3 t1 t2 t3 tr) (o':sop3 t1' t2' t3' tr'):
-  t1 = t1' -> t2 = t2' -> t3 = t3' -> eqb_sop3 o o' ->  tr = tr' /\ JMeq o o'.
-Proof. (*by move: o o'=> [||?] [||?] // [] ->. Qed. *)
-Admitted.
+Definition sopn_eqMixin     := Equality.Mixin sopn_eq_axiom.
+Canonical  sopn_eqType      := Eval hnf in EqType sopn sopn_eqMixin.
 
 (* ** Expressions
  * -------------------------------------------------------------------- *)
 (* Used only by the ocaml compiler *)
 Definition var_info := positive.
 
-Inductive pexpr : stype -> Type :=
-| Pvar   :> var_info -> forall (x:var), pexpr (vtype x)
-| Pload  :> pexpr sword -> pexpr sword
-| Pconst :> Z -> pexpr sword
-| Pbool  :> bool -> pexpr sbool
-| Papp1  : forall st1 stres: stype, 
-  sop1 st1 stres -> pexpr st1 -> pexpr stres
-| Papp2  : forall st1 st2 stres: stype, 
-  sop2 st1 st2 stres -> pexpr st1 -> pexpr st2 -> pexpr stres
-| Papp3  : forall st1 st2 st3 stres: stype, 
-  sop3 st1 st2 st3 stres -> pexpr st1 -> pexpr st2 -> pexpr st3 -> pexpr stres.
+Inductive pexpr : Type :=
+| Pconst :> Z -> pexpr
+| Pbool  :> bool -> pexpr
+| Pcast  : pexpr -> pexpr              (* int -> word *)
+| Pvar   : var_info -> var -> pexpr
+| Pget   : var_info -> var -> pexpr -> pexpr 
+| Pload  : pexpr -> pexpr 
+| Pnot   : pexpr -> pexpr 
+| Papp2  : sop2 -> pexpr -> pexpr -> pexpr.
+
+Notation pexprs := (seq pexpr).
+
+Fixpoint pexpr_beq (e1 e2:pexpr) : bool :=
+  match e1, e2 with
+  | Pconst n1 , Pconst n2    => n1 == n2 
+  | Pbool  b1 , Pbool  b2    => b1 == b2
+  | Pcast  e1 , Pcast  e2    => pexpr_beq e1 e2
+  | Pvar i1 x1, Pvar i2 x2   => (i1 == i2) && (x1 == x2)
+  | Pget i1 x1 e1, Pget i2 x2 e2   => (i1 == i2) && (x1 == x2) && pexpr_beq e1 e2
+  | Pload  e1 , Pload  e2    => pexpr_beq e1 e2 
+  | Pnot   e1 , Pnot   e2    => pexpr_beq e1 e2 
+  | Papp2 o1 e11 e12, Papp2 o2 e21 e22  =>  
+     (o1 == o2) && pexpr_beq e11 e21 && pexpr_beq e12 e22
+  | _, _ => false
+  end.
+
+Lemma pexpr_eq_axiom : Equality.axiom pexpr_beq. 
+Proof. 
+Admitted.
+
+Definition pexpr_eqMixin     := Equality.Mixin pexpr_eq_axiom.
+Canonical  pexpr_eqType      := Eval hnf in EqType pexpr pexpr_eqMixin.
 
 (* ** Right values
  * -------------------------------------------------------------------- *)
 
-Inductive rval : stype -> Type :=
-| Rvar  :  var_info -> forall (x:var), rval (vtype x)
-| Rmem  :> pexpr sword -> rval sword 
-| Raset :  var_info -> forall (s:positive), Ident.ident -> pexpr sword -> rval sword
-| Rpair :  forall st1 st2, rval st1 -> rval st2 -> rval (st1 ** st2).
+Inductive rval : Type :=
+| Rnone : rval
+| Rvar  : var_info -> var -> rval
+| Rmem  :> pexpr -> rval
+| Raset :  var_info -> var -> pexpr -> rval.
+
+Notation rvals := (seq rval).
+
+Definition rval_beq (x1:rval) (x2:rval) :=
+  match x1, x2 with
+  | Rnone         , Rnone          => true
+  | Rvar i1 x1    , Rvar i2 x2     => (i1 == i2) && (x1 == x2)
+  | Rmem e1       , Rmem e2        => e1 == e2
+  | Raset i1 x1 e1, Raset i2 x2 e2 => (i1 == i2) && (x1 == x2) && (e1 == e2)
+  | _             , _              => false   
+  end.
+
+Lemma rval_eq_axiom : Equality.axiom rval_beq. 
+Proof. 
+Admitted.
+
+Definition rval_eqMixin     := Equality.Mixin rval_eq_axiom.
+Canonical  rval_eqType      := Eval hnf in EqType rval rval_eqMixin.
 
 (* ** Instructions 
  * -------------------------------------------------------------------- *)
 
 Inductive dir := UpTo | DownTo.
 
-Definition range := (dir * pexpr sword * pexpr sword)%type.
+Scheme Equality for dir.
+
+Lemma dir_eq_axiom : Equality.axiom dir_beq. 
+Proof. 
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_dir_dec_bl.
+  by apply: internal_dir_dec_lb.
+Qed.
+
+Definition dir_eqMixin     := Equality.Mixin dir_eq_axiom.
+Canonical  dir_eqType      := Eval hnf in EqType dir dir_eqMixin.
+
+Definition range := (dir * pexpr * pexpr)%type.
 
 Definition instr_info := positive.
 
 Inductive assgn_tag := 
-  | AT_Mv
-  | AT_Eq
-  | AT_const.
+  | AT_keep    (* normal assignment *)
+  | AT_rename  (* equality constraint introduced by inline ... *)
+  | AT_inline. (* assignment to be removed later : introduce by unrolling ... *) 
+
+Scheme Equality for assgn_tag.
+
+Lemma assgn_tag_eq_axiom : Equality.axiom assgn_tag_beq. 
+Proof. 
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_assgn_tag_dec_bl.
+  by apply: internal_assgn_tag_dec_lb.
+Qed.
+
+Definition assgn_tag_eqMixin     := Equality.Mixin assgn_tag_eq_axiom.
+Canonical  assgn_tag_eqType      := Eval hnf in EqType assgn_tag assgn_tag_eqMixin.
+
+(* -------------------------------------------------------------------- *)
+
+Notation funname := positive (only parsing).
 
 Inductive instr_r := 
-| Cassgn : forall st, rval st -> assgn_tag -> pexpr st -> instr_r
-| Cif    : pexpr sbool -> seq instr -> seq instr  -> instr_r
-| Cfor   : rval sword -> range -> seq instr -> instr_r
-| Cwhile : pexpr sbool -> seq instr -> instr_r
-| Ccall  : forall starg stres, 
-             rval  stres ->
-             fundef starg stres ->
-             pexpr starg ->
-             instr_r
+| Cassgn : rval -> assgn_tag -> pexpr -> instr_r
+| Copn   : rvals -> sopn -> pexprs -> instr_r 
+ 
+| Cif    : pexpr -> seq instr -> seq instr  -> instr_r
+| Cfor   : var (*: sint *) -> range -> seq instr -> instr_r
+| Cwhile : pexpr -> seq instr -> instr_r
+| Ccall  : rvals -> funname -> pexprs -> instr_r 
 
-with instr := MkI : instr_info -> instr_r ->  instr
-
-with fundef : stype -> stype -> Type := 
-| FunDef : forall starg stres, rval starg -> seq instr -> pexpr stres -> fundef starg stres.
+with instr := MkI : instr_info -> instr_r ->  instr.
 
 Notation cmd := (seq instr).
 
-Definition fd_arg sta str (fd : fundef sta str) : rval sta :=
-  match fd with FunDef _ _ fa _ _ => fa end.
-
-Definition fd_body sta str (fd : fundef sta str) : cmd :=
-  match fd with FunDef _ _ _ fb _ => fb end.
-
-Definition fd_res sta str (fd : fundef sta str) : pexpr str :=
-  match fd with FunDef _ _ _ _ fr => fr end.
+Record fundef := MkFun {
+  f_params : seq var;
+  f_body   : cmd;
+  f_res    : pexprs;
+}.
 
 Definition instr_d (i:instr) := 
   match i with
   | MkI i _ => i
   end.
- 
-(* ** Recursor for instructions, cmds, and fundefs
- * -------------------------------------------------------------------- *)
 
-Section IND.
+Fixpoint instr_r_beq i1 i2 := 
+  match i1, i2 with
+  | Cassgn x1 tag1 e1, Cassgn x2 tag2 e2 => 
+     (tag1 == tag2) && (x1 == x2) && (e1 == e2)
+  | Copn x1 o1 e1, Copn x2 o2 e2 =>
+     (x1 == x2) && (o1 == o2) && (e1 == e2)
+  | Cif e1 c11 c12, Cif e2 c21 c22 =>
+    (e1 == e2) && all2 instr_beq c11 c21 && all2 instr_beq c12 c22
+  | Cfor i1 (dir1,lo1,hi1) c1, Cfor i2 (dir2,lo2,hi2) c2 =>
+    (i1 == i2) && (dir1 == dir2) && (lo1 == lo2) && (hi1 == hi2) && all2 instr_beq c1 c2
+  | Cwhile e1 c1 , Cwhile e2 c2 =>
+    (e1 == e2) && all2 instr_beq c1 c2
+  | Ccall x1 f1 arg1, Ccall x2 f2 arg2 => 
+    (x1==x2) && (f1 == f2) && (arg1 == arg2)
+  | _, _ => false 
+  end
+with instr_beq i1 i2 := 
+  match i1, i2 with
+  | MkI if1 i1, MkI if2 i2 => (if1 == if2) && (instr_r_beq i1 i2) 
+  end.
 
-  Variable Pi : instr_r -> Type.
-  Variable PI : instr -> Type.
-  Variable Pc : cmd -> Type.
-  Variable Pf : forall ta tr, fundef ta tr -> Type.
+Lemma instr_r_eq_axiom : Equality.axiom instr_r_beq. 
+Proof. 
+Admitted.
 
-  Hypothesis HIi : forall info i, Pi i -> PI (MkI info i).
-  Hypothesis Hskip  : Pc [::].
-  Hypothesis Hseq   : forall i c,  PI i -> Pc c -> Pc (i::c).
-  Hypothesis Hassgn : forall t x tag e,  Pi (@Cassgn t x tag e).
-  Hypothesis Hif    : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (Cif e c1 c2).
-  Hypothesis Hfor   : forall i rn c, Pc c -> Pi (Cfor i rn c).
-  Hypothesis Hwhile : forall e c, Pc c -> Pi (Cwhile e c).
-  Hypothesis Hcall1 : forall ta tr x (f:fundef ta tr) a, Pc (fd_body f) -> Pi (Ccall x f a).
+Definition instr_r_eqMixin     := Equality.Mixin instr_r_eq_axiom.
+Canonical  instr_r_eqType      := Eval hnf in EqType instr_r instr_r_eqMixin.
 
-  Fixpoint instr_rect1 (i:instr_r) : Pi i := 
-    match i return Pi i with
-    | Cassgn t x tag e => Hassgn x tag e
-    | Cif b c1 c2 =>
-      Hif b
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect1I i) Hc) c1)
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect1I i) Hc) c2)
-    | Cfor i rn c =>
-      Hfor i rn 
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect1I i) Hc) c)
-    | Cwhile e c =>
-      Hwhile e 
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect1I i) Hc) c)
-    | Ccall ta tr x f a =>
-      @Hcall1 ta tr x f a 
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect1I i) Hc) (fd_body f))
-    end
-  with instr_rect1I (i:instr) : PI i :=
-    match i with
-    | MkI info i => HIi info (instr_rect1 i)
-    end.
+Lemma instr_eq_axiom : Equality.axiom instr_beq. 
+Proof. 
+Admitted.
 
+Definition instr_eqMixin     := Equality.Mixin instr_eq_axiom.
+Canonical  instr_eqType      := Eval hnf in EqType instr instr_eqMixin.
 
-  Definition cmd_rect1 c := 
-    list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect1I i) Hc) c.
+Definition fundef_beq fd1 fd2 := 
+  match fd1, fd2 with
+  | MkFun x1 c1 r1, MkFun x2 c2 r2 =>
+    (x1 == x2) && (c1 == c2) && (r1 == r2)
+  end.
 
-  Hypothesis Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
-  Hypothesis Hfunc : forall ta tr (x:rval ta) c (re:pexpr tr), Pc c -> Pf (FunDef x c re).
+Lemma fundef_eq_axiom : Equality.axiom fundef_beq. 
+Proof. 
+Admitted.
 
-  Fixpoint instr_rect2 (i:instr_r) : Pi i := 
-    match i return Pi i with
-    | Cassgn t x tag e => Hassgn x tag e
-    | Cif b c1 c2 =>
-      Hif b
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2I i) Hc) c1)
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2I i) Hc) c2)
-    | Cfor i rn c =>
-      Hfor i rn 
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2I i) Hc) c)
-    | Cwhile e c =>
-      Hwhile e 
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2I i) Hc) c)
-    | Ccall ta tr x f a =>
-      Hcall x a (func_rect f)
-    end
-  with instr_rect2I (i:instr) : PI i :=
-    match i with
-    | MkI info i => HIi info (instr_rect2 i)
-    end
-  with func_rect {ta tr} (f:fundef ta tr) : Pf f := 
-    match f with
-    | FunDef ta tr x c re => 
-      Hfunc x re
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2I i) Hc) c)
-    end.
-
-  Definition cmd_rect c := 
-    list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2I i) Hc) c.
-
-End IND.
-
-Lemma trivial_cmd_ind (P:cmd -> Prop) (info : instr_info) (i : instr_r) :
-  (forall info : instr_info, P [:: MkI info i]) -> 
-  P [:: MkI info i].
-Proof. by move=> H;apply H. Qed.
-
-Definition cmd_ind (P:cmd -> Prop) (Pf:forall ta tr, fundef ta tr -> Prop) := 
-  @cmd_rect (fun i => forall info, P [::MkI info i]) (fun i => P [::i]) P Pf (@trivial_cmd_ind P).
-
-Definition func_ind (P:cmd -> Prop) (Pf:forall ta tr, fundef ta tr -> Prop) := 
-  @func_rect (fun i => forall info, P [::MkI info i]) (fun i => P [::i]) P Pf (@trivial_cmd_ind P).
-
-(*Definition assgn st (rv : rval st) pe := Cassgn rv pe.
-Definition load (rv:rval sword) pe := Cassgn rv (Pload pe).
-Definition store pe1 pe2 := Cassgn (Rmem pe1) pe2.*)
-
-Definition cmd_Ind (P : cmd -> Prop) := 
-  @cmd_ind P (fun _ _ _ => True) .
+Definition fundef_eqMixin     := Equality.Mixin fundef_eq_axiom.
+Canonical  fundef_eqType      := Eval hnf in EqType fundef fundef_eqMixin.
 
 (* ** Compute written variables
  * -------------------------------------------------------------------- *)
 
-Fixpoint vrv_rec {t} (s:Sv.t) (rv:rval t) :=
+Definition vrv_rec (s:Sv.t) (rv:rval) :=
   match rv with
+  | Rnone                 => s
   | Rvar  _ x             => Sv.add x s
   | Rmem  _               => s
-  | Raset _ sz id _       => Sv.add {|vname := id; vtype := sarr sz |} s
-  | Rpair st1 st2 rv1 rv2 => vrv_rec (vrv_rec s rv1) rv2 
+  | Raset _ x _           => Sv.add x s
   end.
 
-Definition vrv {t} (rv:rval t) := vrv_rec Sv.empty rv.
+Definition vrvs_rec s (rv:rvals) := foldl vrv_rec s rv.
+
+Definition vrv := (vrv_rec Sv.empty).
+Definition vrvs := (vrvs_rec Sv.empty).
 
 Fixpoint write_i_rec s i := 
   match i with
-  | Cassgn t x _ _  => vrv_rec s x
+  | Cassgn x _ _    => vrv_rec s x
+  | Copn xs _ _     => vrvs_rec s xs
   | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
-  | Cfor  x _ c     => foldl write_I_rec (vrv_rec s x) c
+  | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
   | Cwhile  _ c     => foldl write_I_rec s c
-  | Ccall _ _ x _ _ => vrv_rec s x
+  | Ccall x _ _     => vrvs_rec s x
   end
 with write_I_rec s i := 
   match i with
@@ -364,6 +294,7 @@ Definition write_c_rec s c := foldl write_I_rec s c.
 
 Definition write_c c := write_c_rec Sv.empty c.
 
+(*
 Instance vrv_rec_m {t} : Proper (Sv.Equal ==> (@eq (rval t)) ==> Sv.Equal) vrv_rec.
 Proof.
   move=> s1 s2 Hs x r ->.
@@ -444,61 +375,69 @@ Qed.
 Lemma write_i_call t1 t2 (f:fundef t1 t2) x a :
   write_i (Ccall x f a) = vrv x.
 Proof. done. Qed.
+*)
 
 (* ** Compute read variables
  * -------------------------------------------------------------------- *)
 
-Fixpoint read_e_rec t (e:pexpr t) (s:Sv.t) : Sv.t := 
+Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t := 
   match e with
-  | Pvar _ x                  => Sv.add x s 
-  | Pload e                   => read_e_rec e s
-  | Pconst _                  => s
-  | Pbool  _                  => s
-  | Papp1 _ _     op e1       => read_e_rec e1 s
-  | Papp2 _ _ _   op e1 e2    => read_e_rec e1 (read_e_rec e2 s)
-  | Papp3 _ _ _ _ op e1 e2 e3 => read_e_rec e1 (read_e_rec e2 (read_e_rec e3 s))
+  | Pconst _       => s
+  | Pbool  _       => s
+  | Pcast  e       => read_e_rec s e 
+  | Pvar _ x       => Sv.add x s 
+  | Pget _ x e     => read_e_rec (Sv.add x s) e
+  | Pload e        => read_e_rec s e
+  | Pnot e         => read_e_rec s e 
+  | Papp2 op e1 e2 => read_e_rec (read_e_rec s e2) e1
   end.
 
-Definition read_e t (e:pexpr t) := read_e_rec e Sv.empty.
+Definition read_e := read_e_rec Sv.empty.
+Definition read_es_rec := foldl read_e_rec.
+Definition read_es := read_es_rec Sv.empty.
          
-Fixpoint read_rv_rec t (r:rval t) (s:Sv.t) := 
+Definition read_rv_rec  (s:Sv.t) (r:rval) := 
   match r with
+  | Rnone           => s 
   | Rvar _ _        => s
-  | Rmem e          => read_e_rec e s
-  | Raset _ sz id e => read_e_rec e (Sv.add {|vname := id; vtype := sarr sz|} s)
-  | Rpair _ _ e1 e2 => read_rv_rec e1 (read_rv_rec e2 s)
+  | Rmem e          => read_e_rec s e
+  | Raset _ x e     => read_e_rec (Sv.add x s) e 
   end.
 
-Definition read_rv t (r:rval t) := read_rv_rec r Sv.empty.
+Definition read_rv := read_rv_rec Sv.empty.
+Definition read_rvs_rec := foldl read_rv_rec.
+Definition read_rvs := read_rvs_rec Sv.empty.
 
 Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
   match i with
-  | Cassgn _ x _ e => read_rv_rec x (read_e_rec e s)
+  | Cassgn x _ e => read_rv_rec (read_e_rec s e) x
+  | Copn xs _ es => read_es_rec (read_rvs_rec s xs) es
   | Cif b c1 c2 => 
     let s := foldl read_I_rec s c1 in
     let s := foldl read_I_rec s c2 in
-    read_e_rec b s 
+    read_e_rec s b 
   | Cfor x (dir, e1, e2) c =>
     let s := foldl read_I_rec s c in
-    read_e_rec e1 (read_e_rec e2 s)
+    read_e_rec (read_e_rec s e2) e1
   | Cwhile e c =>
     let s := foldl read_I_rec s c in
-    read_e_rec e s
-  | Ccall ta tr x fd arg => read_e_rec arg s
+    read_e_rec s e
+  | Ccall xs _ es => read_es_rec (read_rvs_rec s xs) es
   end
 with read_I_rec (s:Sv.t) (i:instr) : Sv.t :=
   match i with 
   | MkI _ i => read_i_rec s i
   end.
               
-Definition read_c_rec : Sv.t -> cmd -> Sv.t := foldl read_I_rec.
+Definition read_c_rec := foldl read_I_rec.
 
 Definition read_i := read_i_rec Sv.empty.
 
 Definition read_I := read_I_rec Sv.empty.
 
-Definition read_c := foldl read_I_rec Sv.empty.
+Definition read_c := read_c_rec Sv.empty.
 
+(*
 Lemma read_eE t (e:pexpr t) s : Sv.Equal (read_e_rec e s) (Sv.union (read_e e) s).
 Proof.
   rewrite /read_e; elim: e s => /=.
@@ -584,45 +523,18 @@ Qed.
 Lemma read_i_call t1 t2 (f:fundef t1 t2) x a :
   read_i (Ccall x f a) = read_e a.
 Proof. done. Qed.
+*)
 
 (* ** Some smart constructors
  * -------------------------------------------------------------------------- *)
 
-Definition destr_pair t1 t2 (p:pexpr (t1 ** t2)) : option (pexpr t1 * pexpr t2).
-case H: _ / p => [ ? | ? | ? | ? | ???? | ??? o e1 e2| ???????? ].
-+ exact None. + exact None. + exact None. + exact None. + exact None. 
-+ (case:o H e1 e2 => [||||||||||||||||||??[]<-<- e1 e2];last by exact (Some (e1,e2)))=> *; 
-  exact None.
-exact None. 
-Defined.
-
-Lemma destr_pairP t1 t2 (p:pexpr (t1 ** t2)) p1 p2:
-   destr_pair p = Some (p1, p2) -> p = Papp2 (Opair _ _) p1 p2.
-Proof.
-(*
-  move=>Heq;apply JMeq_eq.
-  have {Heq}: JMeq (destr_pair p) (Some (p1, p2)) by rewrite Heq.
-  rewrite /destr_pair; move:p (erefl (t1 ** t2)). 
-  set t12 := (X in forall (p:pexpr X) (e : _ = X), _ -> @JMeq (pexpr X) _ _ _) => p.
-  case : t12 / p => //.
-  + by move=> []/= ??<- Heq;have := JMeq_eq Heq.
-  + by move=> ???? _ Heq;have := JMeq_eq Heq.
-  + move=> t1' t2' tr' [] st1 st2 => //= => [ []?? e| []?? e | e1 e2 e ].
-    + by have := JMeq_eq e.  + by have := JMeq_eq e.
-    case: (e)=> ??. subst st1 st2.
-    rewrite (eq_irrelevance e (erefl (t1 ** t2))) /= /eq_rect_r /=.
-    move=> Heq;have [-> ->] // := JMeq_eq Heq.
-  by move=> ???? ???? ? Heq;have := JMeq_eq Heq.
-Qed.
-*)
-Admitted.
-
-Definition is_const t (e:pexpr t) := 
+Fixpoint is_const (e:pexpr) := 
   match e with
-  | Pconst n => Some n 
+  | Pconst n => Some n
   | _        => None
   end.
 
+(*
 (*
 Ltac jm_destr e1 := 
   let t := 
@@ -643,141 +555,24 @@ Ltac jm_destr e1 :=
 *)
 Lemma is_constP e n : is_const e = Some n -> e = n.
 Proof. (*by jm_destr e=> //= -[] ->. Qed. *) Admitted.
+*)
 
-Definition is_bool (e:pexpr sbool) :=
-  match e with Pbool b => Some b | _ => None end.
+Definition is_bool (e:pexpr) :=
+  match e with 
+  | Pbool b => Some b 
+  | _ => None 
+  end.
 
 Lemma is_boolP e b : is_bool e = Some b -> e = Pbool b.
 Proof. (* by jm_destr e=> //= -[] ->. Qed. *) Admitted.
 
-Definition efst t1 t2 (p:pexpr (t1 ** t2)) : pexpr t1 :=
-  match destr_pair p with
-  | Some (p1,p2) => p1
-  | _            => Papp1 (Ofst _ _) p
-  end.
-
-Definition esnd t1 t2 (p:pexpr (t1 ** t2)) : pexpr t2 :=
-  match destr_pair p with
-  | Some (p1,p2) => p2
-  | _            => Papp1 (Osnd _ _) p
-  end.
-
-Lemma read_e_efst t1 t2 (e:pexpr (t1 ** t2)): Sv.Subset (read_e (efst e)) (read_e e).
-Proof.
-  rewrite /efst.
-  case: destr_pair (@destr_pairP _ _ e) => [[e1 e2] /(_ _ _ (erefl _)) ->| _].
-  + by rewrite /read_e /= !read_eE;SvD.fsetdec.
-  by rewrite /read_e /=;SvD.fsetdec.
-Qed.
-
-Lemma read_e_esnd t1 t2 (e:pexpr (t1 ** t2)): Sv.Subset (read_e (esnd e)) (read_e e).
-Proof.
-  rewrite /esnd.
-  case: destr_pair (@destr_pairP _ _ e) => [[e1 e2] /(_ _ _ (erefl _)) ->| _].
-  + by rewrite /read_e /= (read_eE e1) !read_eE;SvD.fsetdec.
-  by rewrite /read_e /=;SvD.fsetdec.
-Qed.
-
 (* ** Equality
  * -------------------------------------------------------------------------- *)
 
-Fixpoint eqb_pexpr t1 t2 (e1:pexpr t1) (e2:pexpr t2) : bool :=
-  match e1, e2 with
-  | Pvar i1 x1, Pvar i2 x2   => (i1 == i2) && (x1 == x2)
-  | Pload e1  , Pload e2     => eqb_pexpr e1 e2 
-  | Pconst n1 , Pconst n2    => n1 == n2 
-  | Pbool b1  , Pbool b2     => b1 == b2
-  | Papp1 _ _ o1 e1         , Papp1 _ _ o2 e2          => 
-    eqb_sop1 o1 o2 && eqb_pexpr e1 e2
-  | Papp2 _ _ _ o1 e11 e12   , Papp2 _ _ _ o2 e21 e22     =>  
-    eqb_sop2 o1 o2 && eqb_pexpr e11 e21 && eqb_pexpr e12 e22
-  | Papp3 _ _ _ _ o1 e11 e12 e13, Papp3 _ _ _ _ o2 e21 e22 e23 => 
-    eqb_sop3 o1 o2 && eqb_pexpr e11 e21 && eqb_pexpr e12 e22 && eqb_pexpr e13 e23
-  | _, _ => false
-  end.
 
-Definition eqb_dir d1 d2 :=
-  match d1, d2 with
-  | UpTo  , UpTo   => true
-  | DownTo, DownTo => true
-  | _     , _     => false
-  end.
 
-Fixpoint eqb_rval t1 (x1:rval t1) t2 (x2:rval t2) :=
-  match x1, x2 with
-  | Rvar i1 x1       , Rvar i2 x2        => (i1 == i2) && (x1 == x2)
-  | Rmem e1          , Rmem e2           => eqb_pexpr e1 e2
-  | Raset if1 s1 i1 e1, Raset if2 s2 i2 e2 => (if1 == if2) && (s1 == s2) && (i1 == i2) && eqb_pexpr e1 e2
-  | Rpair _ _ x11 x12, Rpair _ _ x21 x22 => eqb_rval x11 x21 && eqb_rval x12 x22
-  | _                , _                 => false
-  end.
+
+
  
-Definition eqb_assgn_tag t1 t2 := 
-  match t1, t2 with 
-  | AT_Mv   , AT_Mv => true
-  | AT_Mv   , _     => false
-  | AT_Eq   , AT_Eq => true
-  | AT_Eq   , _     => false
-  | AT_const, AT_const => true
-  | AT_const,          => false
-  end.
+
    
-Fixpoint eqb_instr_r i1 i2 := 
-  match i1, i2 with
-  | Cassgn _ x1 tag1 e1, Cassgn _ x2 tag2 e2 => eqb_assgn_tag tag1 tag2 && eqb_rval x1 x2 && eqb_pexpr e1 e2
-  | Cif e1 c11 c12, Cif e2 c21 c22 =>
-    eqb_pexpr e1 e2 && all2 eqb_instr c11 c21 && all2 eqb_instr c12 c22
-  | Cfor i1 (dir1,lo1,hi1) c1, Cfor i2 (dir2,lo2,hi2) c2 =>
-    eqb_dir dir1 dir2 && eqb_pexpr lo1 lo2 && eqb_pexpr hi1 hi2 &&
-    all2 eqb_instr c1 c2
-  | Cwhile e1 c1 , Cwhile e2 c2 =>
-    eqb_pexpr e1 e2 && all2 eqb_instr c1 c2
-  | Ccall _ _ x1 fd1 arg1, Ccall _ _ x2 fd2 arg2 => 
-    eqb_rval x1 x2 &&
-    eqb_fundef fd1 fd2 &&
-    eqb_pexpr arg1 arg2
-  | _, _ => false 
-  end
-with eqb_instr i1 i2 := 
-  match i1, i2 with
-  | MkI if1 i1, MkI if2 i2 => (if1 == if2) && (eqb_instr_r i1 i2) 
-  end
-with eqb_fundef ta1 tr1 (fd1:fundef ta1 tr1) ta2 tr2 (fd2:fundef ta2 tr2) :=
-  match fd1, fd2 with
-  | FunDef _ _ p1 c1 r1, FunDef _ _ p2 c2 r2 =>
-    eqb_rval p1 p2 && eqb_pexpr r1 r2 && all2 eqb_instr c1 c2
-  end.
-
-Lemma eqb_dirP d1 d2 : reflect (d1 = d2) (eqb_dir d1 d2).
-Proof. by case: d1 d2 => -[] /=;constructor. Qed.
-
-Lemma eqb_pexprP t1 (e1:pexpr t1) t2 (e2:pexpr t2):
-    eqb_pexpr e1 e2 -> t1 = t2 /\ JMeq e1 e2.
-Proof.
-(*
-  elim:e1 t2 e2=>
-    [x1|e1 H1|z1|b1|?? o1 e1 H1|??? o1 e11 H1 e12 H2|???? o1 e11 H1 e12 H2 e13 H3] t2
-    [x2|e2|z2|b2|?? o2 e2   |??? o2 e21    e22   |???? o2 e21    e22    e23] //=.
-  + by move=> /eqP ->. + by move=> /H1[] ? ->.
-  + by move=> /eqP ->. + by move=> /eqP ->.
-  + by move=> /andP[] /eqb_sop1P H /H1[] ?;subst;case:H=> // ?;subst=> -> ->.
-  + move=> /andP[]/andP[] /eqb_sop2P H /H1 [] ? Heq1;subst.
-    by move=> /H2[] ? Heq2;subst;case:H => // ?;subst=> ->.
-  move=> /andP[]/andP[]/andP[] /eqb_sop3P H /H1 [] ? Heq1;subst.
-  move=> /H2[] ? Heq2;subst; move=> /H3[] ? Heq3;subst.
-  by case:H => // ?;subst=> ->.
-Qed.
-*)
-Admitted.
-
-Lemma eqb_rvalP t1 (x1:rval t1) t2 (x2:rval t2):
-    eqb_rval x1 x2 -> t1 = t2 /\ JMeq x1 x2.
-Proof.
-(*
-  elim: x1 t2 x2=> [x1 | e1|?? x11 H1 x12 H2] t2 [x2 | e2 | ?? x21 x22] //=.
-  + by move=> /eqP ->.
-  + by move=> /eqb_pexprP[] _ ->.
-  by move=> /andP[] /H1[]?;subst=> -> /H2[]?;subst=> ->.
-Qed.
-*)
-Admitted.

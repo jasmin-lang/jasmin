@@ -21,10 +21,6 @@ Coercion I64.unsigned : I64.int >-> Z.
 
 Notation wadd := I64.add (only parsing).
 
-Definition waddc (x y:word) : (bool * word):=
-  let n := I64.unsigned x + I64.unsigned y in
-  (I64.modulus <=? n, I64.repr n).
-
 Definition Zofb (b:bool) := if b then 1 else 0.
 
 Definition waddcarry (x y:word) (c:bool) :=
@@ -33,30 +29,16 @@ Definition waddcarry (x y:word) (c:bool) :=
 
 Notation wsub := I64.sub (only parsing).
 
-Definition wsubc (x y:word) :=
-  let n :=  I64.unsigned x -  I64.unsigned y in
-  (n <? 0, I64.repr n).
-
 Definition wsubcarry (x y:word) (c:bool) :=
   let n := I64.unsigned x - I64.unsigned y - Zofb c in
   (n <? 0, I64.repr n).
 
+Definition wumul (x y: word) := 
+  let n := I64.unsigned x * I64.unsigned y in
+  (I64.repr (Z.quot n I64.modulus), I64.repr n).
+  
 Definition wle (x y:word) := I64.unsigned x <=? I64.unsigned y.
 Definition wlt (x y:word) := I64.unsigned x <? I64.unsigned y.
-
-(*Lemma word_add1 (y x: word) : x < y -> nat_of_ord (x + 1)%R = (x + 1)%N.
-Proof. 
-  move=> Hlt;rewrite /= !modn_small //.
-  by apply (@leq_ltn_trans y)=> //;rewrite -ltnS addnC.
-Qed.
-
-Lemma word_sub1 (y x: word) : y < x -> (x - 1)%R = (x - 1)%N :> nat.
-Proof. 
-case: x y => [[|x] ltx] [y lty] //=; rewrite ltnS => le_yx.
-rewrite [1%%_]modn_small ?[in X in X%%_]modn_small //.
-by rewrite !subn1 /= addSnnS modnDr modn_small // ltnW.
-Qed.
-*)
 
 Lemma lt_unsigned x: (I64.modulus <=? I64.unsigned x)%Z = false.
 Proof. by rewrite Z.leb_gt;case: (I64.unsigned_range x). Qed.
@@ -136,11 +118,6 @@ Proof.
   by rewrite !I64.Z_mod_modulus_eq Zmod_mod Zplus_mod.
 Qed.
 
-Lemma iword_addcP (n1 n2:iword) : 
-  let r := iword_addc n1 n2 in
-  (r.1, I64.repr r.2) = waddc (I64.repr n1) (I64.repr n2).
-Proof. by rewrite /iword_addc /waddc !urepr /= repr_mod. Qed.
-
 Lemma iword_addcarryP (n1 n2:iword) c : 
   let r := iword_addcarry n1 n2 c in
   (r.1, I64.repr r.2) = waddcarry (I64.repr n1) (I64.repr n2) c.
@@ -152,11 +129,6 @@ Proof.
   apply: reqP;rewrite /iword_sub /I64.sub !urepr.
   by rewrite !I64.Z_mod_modulus_eq Zmod_mod Zminus_mod.
 Qed.
-
-Lemma iword_subcP (n1 n2:iword) : 
-  let r := iword_subc n1 n2 in
-  (r.1, I64.repr r.2) = wsubc (I64.repr n1) (I64.repr n2).
-Proof. by rewrite /iword_subc /wsubc !urepr /= repr_mod. Qed.
 
 Lemma iword_subcarryP (n1 n2:iword) c : 
   let r := iword_subcarry n1 n2 c in

@@ -14,19 +14,14 @@ Unset Printing Implicit Defensive.
 
 (* more expressive than required, but leads to simpler definitions *)
 Inductive stype : Set :=
-| sword : stype
 | sbool : stype
-| sprod : stype -> stype -> stype
-| sarr  : positive -> (* stype -> *) stype.
-
-Notation "st1 ** st2" := (sprod st1 st2) (at level 40, left associativity).
+| sint  : stype
+| sarr  : positive -> stype
+| sword : stype.
 
 (* -------------------------------------------------------------------- *)
 Scheme Equality for stype. 
 (* Definition stype_beq : stype -> stype -> bool *)
-
-Definition eq_stype (st1 st2 : stype) : {st1 = st2} + {st1<>st2}.
-Proof. apply stype_eq_dec. Qed.
 
 Lemma steq_axiom : Equality.axiom stype_beq. 
 Proof. 
@@ -41,17 +36,19 @@ Canonical  stype_eqType      := Eval hnf in EqType stype stype_eqMixin.
 (* ** Comparison 
  * -------------------------------------------------------------------- *)
 
-Fixpoint stype_cmp t t' :=
+Definition stype_cmp t t' :=
   match t, t' with
-  | sword      , sword         => Eq 
-  | sword      , _             => Lt
-  | sbool      , sword         => Gt
   | sbool      , sbool         => Eq 
   | sbool      , _             => Lt
-  | sprod _  _ , sword         => Gt
-  | sprod _  _ , sbool         => Gt
-  | sprod t1 t2, sprod t1' t2' => Lex (stype_cmp t1 t1') (stype_cmp t2 t2')
-  | sprod _  _ , sarr  _       => Lt
+
+  | sint       , sbool         => Gt
+  | sint       , sint          => Eq
+  | sint       , _             => Lt
+
+  | sword      , sarr _        => Lt
+  | sword      , sword         => Eq 
+  | sword      , _             => Gt
+
   | sarr  n    , sarr  n'      => Pos.compare n n'
   | sarr  _    , _             => Gt
   end.
@@ -59,16 +56,12 @@ Fixpoint stype_cmp t t' :=
 Instance stypeO : Cmp stype_cmp.
 Proof.
   constructor.
-  + elim=> [||t1 Ht1 t2 Ht2 |n] [||t1' t2'|n'] //=.
-    + by rewrite !Lex_lex;apply lex_sym; auto;apply cmp_sym.
+  + elim=> [||n|] [||n'|] //=.
     apply cmp_sym.
-  + move=> y x;elim: x y=> 
-    [||t1 Ht1 t2 Ht2 |n] [||t1' t2'|n'] [||t1'' t2''|n''] c//=;
+  + move=> y x;elim: x y=> [||n|] [||n'|] [||n''|] c//=;
     try (by apply ctrans_Eq);eauto using ctrans_Lt, ctrans_Gt.
-    + by rewrite !Lex_lex;apply lex_trans=> /=;eauto; apply cmp_ctrans.
     apply cmp_ctrans.
-  elim=> [||t1 Ht1 t2 Ht2 |n] [||t1' t2'|n'] //=.
-  rewrite !Lex_lex; by move=> /lex_eq /= [] /Ht1 -> /Ht2 ->.
+  elim=> [||n|] [||n'|] //=.
   by move=> H; have -> := (@cmp_eq _ _ positiveO _ _ H). 
 Qed.
 
@@ -116,33 +109,17 @@ Module CEDecStype.
       end
     end.
 
-  Fixpoint eq_dec (t1 t2:t) : {t1 = t2} + {True} :=
+  Definition eq_dec (t1 t2:t) : {t1 = t2} + {True} :=
     match t1 as t return {t = t2} + {True} with 
-    | sword =>
-      match t2 as t0 return {sword = t0} + {True} with
-      | sword => left (erefl sword)
-      | _     => right I
-      end
     | sbool =>
       match t2 as t0 return {sbool = t0} + {True} with
       | sbool => left (erefl sbool)
       | _     => right I
       end
-    | sprod t1 t1' =>
-      match t2 as t0 return {t1 ** t1' = t0} + {True} with
-      | sprod t2 t2' =>
-        match eq_dec t1 t2 with
-        | left eq1 =>
-          match eq_dec t1' t2' with
-          | left eq2 => 
-            let aux  := eq_rect t1 (fun t => t1 ** t1' = t ** t1') (erefl (t1 ** t1')) t2 eq1 in
-            let aux' := eq_rect t1' (fun t => t1 ** t1' = t2 ** t) aux t2' eq2 in
-            left aux'
-          | right _  => right I
-          end
-        | right _  => right I
-        end
-      | _            => right I
+    | sint =>
+      match t2 as t0 return {sint = t0} + {True} with
+      | sint => left (erefl sint)
+      | _     => right I
       end
     | sarr n1 =>
       match t2 as t0 return {sarr n1 = t0} + {True} with
@@ -152,6 +129,11 @@ Module CEDecStype.
         | right _ => right I
         end
       | _          => right I
+      end
+    | sword =>
+      match t2 as t0 return {sword = t0} + {True} with
+      | sword => left (erefl sword)
+      | _     => right I
       end
     end.
 
@@ -165,11 +147,7 @@ Module CEDecStype.
  
   Lemma eq_dec_r t1 t2 tt: eq_dec t1 t2 = right tt -> t1 != t2.
   Proof.
-    case: tt;elim:t1 t2=> [|| t1 Ht1 t2 Ht2 | n] [|| t1' t2' | n'] //=.
-    + case: eq_dec (Ht1 t1') => [? _ | [] neq _ ].
-      + case: eq_dec (Ht2 t2') => // -[] neq _.
-        by move: (neq (erefl _));rewrite !eqE /= andbC => /negPf ->. 
-      by move: (neq (erefl _));rewrite !eqE /= => /negPf ->.   
+    case: tt;elim:t1 t2=> [||n|] [||n'|] //=.
     case: pos_dec (@pos_dec_r n n' I) => [Heq _ | [] neq ] //=.
     move: (neq (erefl _))=> /eqP H _;rewrite !eqE /=.
     by case H':positive_beq=> //;move:H'=> /internal_positive_dec_bl.

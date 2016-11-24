@@ -121,23 +121,23 @@ Definition nb_loop := 100%coq_nat.
 
 Fixpoint check_i i1 i2 r := 
   match i1, i2 with
-  | Cassgn t1 x1 e1, Cassgn t2 x2 e2 => 
+  | Cassgn t1 x1 _ e1, Cassgn t2 x2 _ e2 => 
     check_e e1 e2 r >>= check_rval x1 x2
 
   | Cif e1 c11 c12, Cif e2 c21 c22 =>
     check_e e1 e2 r >>= (fun re =>
-      fold2 tt check_i c11 c21 re >>= (fun r1 =>
-      fold2 tt check_i c12 c22 re >>= (fun r2 => Ok unit (M.merge r1 r2))))
+      fold2 tt check_I c11 c21 re >>= (fun r1 =>
+      fold2 tt check_I c12 c22 re >>= (fun r2 => Ok unit (M.merge r1 r2))))
 
   | Cfor i1 (dir1,hi1,lo1) c1, Cfor i2 (dir2,hi2,lo2) c2 =>
     if eqb_dir dir1 dir2 then 
       check_e lo1 lo2 r >>= (fun rlo =>
       check_e hi1 hi2 rlo >>= (fun rhi =>
-      let check_c r := check_rval i1 i2 r >>= fold2 tt check_i c1 c2 in
+      let check_c r := check_rval i1 i2 r >>= fold2 tt check_I c1 c2 in
       loop check_c nb_loop rhi)) 
     else Error tt 
   | Cwhile e1 c1, Cwhile e2 c2 =>
-     loop (fun r => check_e e1 e2 r >>= fold2 tt check_i c1 c2) nb_loop r
+     loop (fun r => check_e e1 e2 r >>= fold2 tt check_I c1 c2) nb_loop r
   | Ccall _ _ x1 fd1 arg1, Ccall _ _ x2 fd2 arg2 => 
     if check_fd fd1 fd2 then 
       check_e arg1 arg2 r >>= check_rval x1 x2
@@ -145,24 +145,36 @@ Fixpoint check_i i1 i2 r :=
   | _, _ => Error tt
   end
 
+with check_I i1 i2 r := 
+  match i1, i2 with
+  | MkI _ i1, MkI _ i2 => check_i i1 i2 r
+  end
+
 with check_fd ta1 tr1 (fd1:fundef ta1 tr1) ta2 tr2 (fd2:fundef ta2 tr2) :=
   match fd1, fd2 with
   | FunDef _ _ p1 c1 r1, FunDef _ _ p2 c2 r2 =>
     isOk (check_rval p1 p2 M.empty >>= (fun r =>
-          fold2 tt check_i c1 c2 r >>= check_e r1 r2))
+          fold2 tt check_I c1 c2 r >>= check_e r1 r2))
   end.
 
 Section PROOF.
 
-  Let Pi (i1:instr) := 
+  Let Pi (i1:instr_r) := 
     forall r1 i2 r2, check_i i1 i2 r1 = Ok unit r2 ->
     forall m1 m2 vm1 vm2, sem_i (Estate m1 vm1) i1 (Estate m2 vm2) ->
     forall vm1', eq_alloc r1 vm1 vm1' ->
     exists vm2', eq_alloc r2 vm2 vm2' /\ 
      sem_i (Estate m1 vm1') i2 (Estate m2 vm2').
 
+  Let PI (i1:instr) :=
+    forall r1 i2 r2, check_I i1 i2 r1 = Ok unit r2 ->
+    forall m1 m2 vm1 vm2, sem_I (Estate m1 vm1) i1 (Estate m2 vm2) ->
+    forall vm1', eq_alloc r1 vm1 vm1' ->
+    exists vm2', eq_alloc r2 vm2 vm2' /\ 
+     sem_I (Estate m1 vm1') i2 (Estate m2 vm2').
+    
   Let Pc (c1:cmd) := 
-    forall r1 c2 r2, fold2 tt check_i c1 c2 r1 = Ok unit r2 ->
+    forall r1 c2 r2, fold2 tt check_I c1 c2 r1 = Ok unit r2 ->
     forall m1 m2 vm1 vm2, sem (Estate m1 vm1) c1 (Estate m2 vm2) ->
     forall vm1', eq_alloc r1 vm1 vm1' ->
     exists vm2', eq_alloc r2 vm2 vm2' /\ 
@@ -173,6 +185,10 @@ Section PROOF.
     forall mem mem' va va' vr, val_uincl va va' ->
     sem_call mem fd1 va mem' vr ->
     sem_call mem fd2 va' mem' vr.
+  
+  Let HI : forall info i, Pi i -> PI (MkI info i).
+  Proof.
+   move=> info1 i1 Hi r1 [info2 i2] r2.
 
   Let Hskip : Pc [::].
   Proof.
@@ -180,7 +196,7 @@ Section PROOF.
     move=> vm1' Hvm1;exists vm1';split=>//=;constructor.
   Qed.
 
-  Let Hseq  : forall i c,  Pi i -> Pc c -> Pc (i::c).
+  Let Hseq  : forall i c,  PI i -> Pc c -> Pc (i::c).
   Proof.
     move=> i1 c1 Hi Hc r1 [//|i2 c2] r2 /=.
     case Hci : check_i => [ri|] //= Hcc m1 m3 vm1 vm3 H;inversion H;clear H;subst.

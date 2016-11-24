@@ -370,14 +370,6 @@ Arguments Fv.get to vm%vmap_scope x.
 Arguments Fv.set to vm%vmap_scope x v.
 Arguments Fv.ext_eq to vm1%vmap_scope vm2%vmap_scope.
 
-Module Type WrInp.
-
-  Parameter to : stype -> Type.
-  Parameter fst : forall {t1 t2:stype}, to (t1 ** t2) -> to t1.
-  Parameter snd : forall {t1 t2:stype}, to (t1 ** t2) -> to t2.
-  
-End WrInp.
-
 Module Type Vmap.
 
   Parameter t : (stype -> Type) -> Type.
