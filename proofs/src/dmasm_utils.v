@@ -47,6 +47,7 @@ Notation rmap  := Result.map.
 Notation ok    := (@Ok _) (only parsing).
 
 Notation "m >>= f" := (rbind f m) (at level 25, left associativity).
+Notation "'Let' x ':=' m 'in' body" := (m >>= (fun x => body)) (at level 25).
 
 Lemma bindA eT aT bT cT (f : aT -> result eT bT) (g: bT -> result eT cT) m:
   m >>= f >>= g = m >>= (fun a => f a >>= g).
@@ -77,15 +78,15 @@ Definition isOk e a (r : result e a) :=
 
 Section FOLD2.
 
-  Variable A E R:Type.
+  Variable A B E R:Type.
   Variable e: E.
-  Variable f : A -> A -> R -> result E R.
+  Variable f : A -> B -> R -> result E R.
  
-  Fixpoint fold2 (l1 l2: seq A) r := 
-    match l1, l2 with
+  Fixpoint fold2 (la:seq A) (lb: seq B) r := 
+    match la, lb with
     | [::]  , [::]   => Ok E r 
-    | a1::l1, a2::l2 =>
-      f a1 a2 r >>= (fold2 l1 l2)
+    | a::la, b::lb =>
+      f a b r >>= (fold2 la lb)
     | _     , _      => Error e
     end.
 

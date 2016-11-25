@@ -67,102 +67,147 @@ Module Array.
   Axiom eq_ext : forall T s (t1 t2:array s T), (forall x, get t1 x = get t2 x) -> t1 = t2.
 
 End Array.
-  
-Fixpoint st2ty (t : stype) : Type :=
+
+Definition sem_t (t : stype) : Type :=   
   match t with
-  | sword         => word
-  | sbool         => bool
-  | sprod st1 st2 => ((st2ty st1) * (st2ty st2))%type
-  | sarr n        => Array.array n word
+  | sbool  => bool
+  | sint   => Z
+  | sarr n => Array.array n word 
+  | sword  => word
   end.
 
 (* ** Default values
  * -------------------------------------------------------------------- *)
 
-Fixpoint dflt_val (st : stype) : st2ty st :=
-  match st with
-  | sword         => I64.repr Z0
+Definition dflt_val (t : stype) : sem_t t :=
+  match t with
   | sbool         => false
-  | sprod st1 st2 => (dflt_val st1, dflt_val st2)
+  | sint          => Z0
   | sarr n        => @Array.empty word n
+  | sword         => I64.repr Z0
   end.
 
-Definition rdflt_ (st : stype) e (r : result e (st2ty st)) : st2ty st :=
-  rdflt (dflt_val st) r.
+Definition rdflt_ (t : stype) e (r : result e (sem_t t)) : sem_t t :=
+  rdflt (dflt_val t) r.
+
+(* ** Values
+  * -------------------------------------------------------------------- *)
+
+Inductive value : Type := 
+  | Vbool :> bool -> value
+  | Vint  :> Z    -> value
+  | Varr  : forall n, Array.array n word -> value 
+  | Vword :> word -> value.
+
+Definition type_error {t} := @Error _ t ErrType.
+
+Definition to_bool v :=
+  match v with
+  | Vbool b => ok b
+  | _       => type_error
+  end.
+
+Definition to_int v :=
+  match v with
+  | Vint z => ok z
+  | _      => type_error
+  end.
+
+Definition to_arr n v : exec (Array.array n word) :=
+  match v with
+  | Varr n' t => 
+    match CEDecStype.pos_dec n' n with
+    | left H => 
+      ok (eq_rect n' (fun p => Array.array p word) t n H)
+    | _      => type_error
+    end
+  | _ => type_error
+  end.
+
+Definition to_word v := 
+  match v with
+  | Vword w => ok w
+  | _       => type_error
+  end.
+
+Definition of_val t : value -> exec (sem_t t) :=
+  match t return value -> exec (sem_t t) with
+  | sbool  => to_bool
+  | sint   => to_int
+  | sarr n => to_arr n
+  | sword  => to_word
+  end.
+
+Definition to_val t : sem_t t -> value := 
+  match t return sem_t t -> value with 
+  | sbool  => Vbool
+  | sint   => Vint
+  | sarr n => @Varr n
+  | sword  => Vword
+  end.
 
 (* ** Variable map
  * -------------------------------------------------------------------- *)
 
-Notation vmap     := (Fv.t st2ty).
-Notation vmap0    := (@Fv.empty st2ty (fun x => dflt_val x.(vtype))).
+Notation vmap     := (Fv.t sem_t).
+Notation vmap0    := (@Fv.empty sem_t (fun x => dflt_val x.(vtype))).
 
-Fixpoint is_empty_array (t:stype) : st2ty t -> Prop := 
-  match t as t0 return st2ty t0 -> Prop with
-  | sword => fun _ => True
-  | sbool => fun _ => True
-  | sprod t1 t2 => fun v => @is_empty_array t1 v.1 /\ @is_empty_array t2 v.2
+Definition get_var (m:vmap) x := 
+  @to_val (vtype x) (m.[x]%vmap).
+
+Definition set_var (m:vmap) x v := 
+  Let v := @of_val (vtype x) v in
+  ok (m.[x<-v]%vmap).
+
+Definition is_empty_array (t:stype) := 
+  match t return sem_t t -> Prop with
+  | sbool  => fun _ => True
+  | sint   => fun _ => True
   | sarr n => fun v => v =  Array.empty n
+  | sword  => fun _ => True
   end.
 
 Definition all_empty_arr (vm:vmap) := forall x, is_empty_array (vm.[x])%vmap.
 
-Fixpoint is_full_array (t:stype) : st2ty t -> Prop := 
-  match t as t0 return st2ty t0 -> Prop with
-  | sword => fun _ => True
-  | sbool => fun _ => True
-  | sprod t1 t2 => fun v => @is_full_array t1 v.1 /\ @is_full_array t2 v.2
-  | sarr n => fun (v:Array.array n word) => 
-    forall (p:word), (0 <= p < Zpos n)%Z -> 
-       exists w, Array.get v p = ok w
+Definition is_full_array v := 
+  match v with
+  | Varr n t => 
+    forall (p:word), (0 <= p < Zpos n)%Z -> exists w, Array.get t p = ok w
+  | _ => True
   end.
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
-Definition sem_sop1 st1 str (sop : sop1 st1 str) : st2ty st1 -> exec (st2ty str) :=
-  match sop in sop1 st1 str return st2ty st1 -> exec (st2ty str) with
-  | Onot       => fun b => ok(~~ b)
-  | Ofst t1 t2 => fun (xy : (st2ty t1 * st2ty t2)) => ok xy.1
-  | Osnd t1 t2 => fun (xy : (st2ty t1 * st2ty t2)) => ok xy.2
-  end.
+Definition lprod ts tr := 
+  foldr (fun t tr => t -> tr) tr ts.
 
-Definition sem_sop2 st1 st2 str (sop : sop2 st1 st2 str) :=
-  match sop in sop2 st1 st2 str return 
-        st2ty st1 -> st2ty st2 -> exec (st2ty str) with
-  | Oand       => fun x y => ok (x && y)
-  | Oor        => fun x y => ok (x || y)
-
-  | Oadd       => fun x y => ok (wadd x y)
-  | Omul       => fun x y => ok (snd (wumul x y))
-  | Osub       => fun x y => ok (wsub x y)
-  | Omulu      => fun x y => ok (wumul x y)
-
-  | Oeq        => fun (x y : word) => ok (x == y)
-  | Oneq       => fun (x y : word) => ok (x != y)
-  | Olt        => fun (x y : word) => ok (wlt x y)
-  | Ole        => fun (x y : word) => ok (wle x y)
-  | Ogt        => fun (x y : word) => ok (wlt y x)
-  | Oge        => fun (x y : word) => ok (wle y x)
+Definition sem_prod ts tr := lprod (map sem_t ts) tr.
  
-  | Oxor       => fun (x y : word) => ok (I64.xor  x y)  
-  | Oland      => fun (x y : word) => ok (I64.and  x y)  
-  | Olor       => fun (x y : word) => ok (I64.or   x y)  
-  | Olsr       => fun (x y : word) => ok (I64.shru x y)  
-  | Olsl       => fun (x y : word) => ok (I64.shl  x y)  
+Definition mk_sem_sop2 t1 t2 tr (o:sem_t t1 -> sem_t t2 -> sem_t tr) v1 v2 :=
+  Let v1 := of_val t1 v1 in
+  Let v2 := of_val t2 v2 in
+  ok (@to_val tr (o v1 v2)).
 
-  | Oget n     => @Array.get word n
-  | Opair t1 t2 => fun x y => ok (x,y)
-  end.
+Definition sem_op2_b  := @mk_sem_sop2 sbool sbool sbool.
+Definition sem_op2_i  := @mk_sem_sop2 sint  sint  sint.
+Definition sem_op2_ib := @mk_sem_sop2 sint  sint  sbool.
 
-Definition sem_sop3 st1 st2 st3 str (sop : sop3 st1 st2 st3 str) :=
-  match sop in sop3 st1 st2 st3 str return 
-        st2ty st1 -> st2ty st2 -> st2ty st3 -> exec (st2ty str) with
-  | Oset n => @Array.set word n
-  | Oaddcarry  => fun x y c => ok (waddcarry x y c)
-  | Oaddc      => fun x y c => ok (snd (waddcarry x y c))
-  | Osubcarry  => fun x y c => ok (wsubcarry x y c)
-  | Osubc      => fun x y c => ok (snd (wsubcarry x y c))
-  | Oif t      => fun c x y => ok (if c then x else y)
+Definition sem_sop2 (o:sop2) :=
+  match o with
+  | Oand => sem_op2_b andb
+  | Oor  => sem_op2_b orb
+
+  | Oadd => sem_op2_i Z.add
+  | Omul => sem_op2_i Z.mul
+  | Osub => sem_op2_i Z.sub
+
+  | Oeq  => sem_op2_ib Z.eqb
+  | Oneq => sem_op2_ib (fun x y => negb (Z.eqb x y))
+  | Olt  => sem_op2_ib Z.ltb
+  | Ole  => sem_op2_ib Z.leb
+  | Ogt  => sem_op2_ib (fun x y => Z.ltb y x)
+  | Oge  => sem_op2_ib (fun x y => Z.leb y x)
   end.
 
 Record estate := Estate {
@@ -170,74 +215,115 @@ Record estate := Estate {
   evm  : vmap
 }.
 
-Fixpoint sem_pexpr st (s:estate) (pe : pexpr st) : exec (st2ty st) :=
-  match pe with
-  | Pvar _ v => ok (s.(evm).[ v ]%vmap)
-  | Pload pe => 
-    sem_pexpr s pe >>= read_mem s.(emem)
-  | Pconst c => ok (I64.repr c)
-  | Pbool b  => ok b
-  | Papp1 st1 str o pe1 =>
-      sem_pexpr s pe1 >>= fun v1 =>
-      sem_sop1 o v1
-  | Papp2 st1 st2 str o pe1 pe2 =>
-      sem_pexpr s pe1 >>= fun v1 =>
-      sem_pexpr s pe2 >>= fun v2 =>
-      sem_sop2 o v1 v2
-  | Papp3 st1 st2 st3 str o pe1 pe2 pe3 =>
-      sem_pexpr s pe1 >>= fun v1 =>
-      sem_pexpr s pe2 >>= fun v2 =>
-      sem_pexpr s pe3 >>= fun v3 =>
-      sem_sop3 o v1 v2 v3
+Definition on_arr_var A (s:estate) (x:var) (f:forall n, Array.array n word -> exec A) :=
+  match vtype x as t return sem_t t -> exec A with
+  | sarr n => f n
+  | _ => fun _ => type_error 
+  end  (s.(evm).[ x ]%vmap).
+
+Notation "'Let' ( n , t ) ':=' s '.[' x ']' 'in' body" :=
+  (@on_arr_var _ s x (fun n (t:Array.array n word) => body)) (at level 25, s at level 0).
+ 
+Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
+  match e with
+  | Pconst z => ok (Vint z)
+  | Pbool b  => ok (Vbool b)
+  | Pcast e  => 
+    Let z := sem_pexpr s e >>= to_int in
+    ok (Vword (I64.repr z))  
+  | Pvar _ v => ok (get_var s.(evm) v)
+  | Pget _ x e => 
+      Let (n,t) := s.[x] in
+      Let i := sem_pexpr s e >>= to_word in
+      Let w := Array.get t i in
+      ok (Vword w)
+  | Pload e => 
+    Let w := sem_pexpr s e >>= to_word >>= read_mem s.(emem) in
+    ok (@to_val sword w)
+  | Pnot e => 
+    Let b := sem_pexpr s e >>= to_bool in 
+    ok (Vbool (negb b))
+  | Papp2 o e1 e2 =>
+    Let v1 := sem_pexpr s e1 in
+    Let v2 := sem_pexpr s e2 in
+    sem_sop2 o v1 v2
   end.
 
-Inductive vval : stype -> Type :=
-  | Vvar  : forall x : var, vval (vtype x)
-  | Vmem  : word -> vval sword
-  | Vaset : forall p, Ident.ident -> Array.array p word -> word -> vval sword
-  | Vpair : forall st1 st2 : stype, vval st1 -> vval st2 -> vval (st1 ** st2).
+Definition sem_pexprs s := mapM (sem_pexpr s).
+ 
+Inductive vval : Type :=
+ | Vnone : vval
+ | Vvar  : var  -> vval
+ | Vmem  : word -> vval
+ | Vaset : forall p, var -> Array.array p word -> word -> vval.
 
-Fixpoint rval2vval (s:estate) {t} (r:rval t) : exec (vval t) := 
-  match r in rval t return exec (vval t) with
-  | Rvar _ x => ok (Vvar x)
-  | Rmem e => sem_pexpr s e >>= (fun v => ok (Vmem v))
-  | Raset _ p id e =>  
-    let x := {| vname := id; vtype := sarr p |} in
-    sem_pexpr s e >>= (fun v => ok (@Vaset p id (s.(evm).[ x ]%vmap) v))
-  | Rpair _ _ r1 r2 => 
-    rval2vval s r1 >>= (fun v1 =>
-    rval2vval s r2 >>= (fun v2 =>
-    ok (Vpair v1 v2)))
+Notation vvals := (seq vval).
+
+Definition sem_rval (s:estate) (r:rval) : exec vval :=
+  match r with
+  | Rnone    => ok (Vnone)
+  | Rvar _ x => ok (Vvar x)  
+  | Rmem e   => 
+    Let p := sem_pexpr s e >>= to_word in
+    ok (Vmem p)
+  | Raset _ x i =>
+    Let (n,t) := s.[x] in
+    Let i := sem_pexpr s i >>= to_word in
+    ok (Vaset x t i)
   end.
 
-Fixpoint write_vval (s:estate) {t} (l:vval t) : st2ty t -> exec estate :=
-  match l in vval t_ return st2ty t_ -> exec estate with
-  | Vvar x => fun v => ok {|emem := s.(emem); evm := s.(evm).[x <- v]%vmap|}
-  | Vmem p => fun v => 
-     write_mem s.(emem) p v >>= (fun m =>
-      ok {|emem := m;  evm := s.(evm) |})
-  | Vaset p id t w => fun v =>
-     let x := {| vname := id; vtype := sarr p |} in                   
-      Array.set t w v >>= (fun t =>
-       ok {|emem := s.(emem); evm := s.(evm).[x <- t]%vmap|})
-  | Vpair _ _ l1 l2 => fun v =>
-     write_vval s l2 v.2 >>= (fun s =>
-      write_vval s l1 v.1)
+Definition sem_rvals (s:estate) := mapM (sem_rval s).
+
+Definition write_var (x:var) (v:value) (s:estate) : exec estate :=
+  Let vm := set_var s.(evm) x v in
+  ok ({| emem := s.(emem); evm := vm |}).
+
+Definition write_vval (l:vval) (v:value) (s:estate) : exec estate :=
+  match l with 
+  | Vnone  => ok s
+  | Vvar x => write_var x v s
+  | Vmem p =>  
+    Let w := to_word v in
+    Let m :=  write_mem s.(emem) p w in
+    ok {|emem := m;  evm := s.(evm) |}
+  | Vaset p x t i =>
+    Let v := to_word v in
+    Let t := Array.set t i v in
+    Let vm := set_var s.(evm) x (@to_val (sarr p) t) in 
+    ok ({| emem := s.(emem); evm := vm |})
   end.
 
-Definition write_rval (s:estate) {t} (l:rval t) (v:st2ty t): exec estate :=
-  rval2vval s l >>= (fun l => write_vval s l v).
+Definition write_vars xs vs (s:estate) := 
+  fold2 ErrType write_var xs vs s.
 
-(* Initial map *)
+Definition write_vvals rs vs (s:estate) := 
+  fold2 ErrType write_vval rs vs s.
+
+Definition write_rval s x v := 
+  Let vx := sem_rval s x in
+  write_vval vx v s.
+
+Definition write_rvals s xs vs := 
+  Let vxs := sem_rvals s xs in
+  write_vvals vxs vs s.
 
 (* ** Instructions
  * -------------------------------------------------------------------- *)
 
 Section SEM. 
 
-Definition wrange d (n1 n2 : word) :=
+Variable P:prog.
+
+Definition get_fundef f := 
+  let pos := find (fun ffd => f == fst ffd) P in
+  if pos <= size P then
+    Some (snd (nth (xH,dummy_fundef) P pos))
+  else None.
+
+(* FIXME: wrange n n = [::] or [::n] *)
+Definition wrange d (n1 n2 : Z) :=
   if (n1 <=? n2)%Z then 
-    let idxs := iota (w2n n1) (S (w2n n2 - w2n n1)) in
+    let idxs := mkseq (fun n => n1 + Z.of_nat n)%Z (S (Z.to_nat (n2 - n1))) in
     match d with
     | UpTo   => idxs
     | DownTo => rev idxs
@@ -246,10 +332,10 @@ Definition wrange d (n1 n2 : word) :=
 
 Definition sem_range (s : estate) (r : range) :=
   let: (d,pe1,pe2) := r in
-  sem_pexpr s pe1 >>= fun w1 =>
-  sem_pexpr s pe2 >>= fun w2 =>
-  ok [seq n2w n | n <- wrange d w1 w2].
-
+  Let i1 := sem_pexpr s pe1 >>= to_int in
+  Let i2 := sem_pexpr s pe2 >>= to_int in 
+  ok (wrange d i1 i2).
+ 
 Inductive sem : estate -> cmd -> estate -> Prop :=
 | Eskip s :
     sem s [::] s
@@ -258,83 +344,82 @@ Inductive sem : estate -> cmd -> estate -> Prop :=
     sem_I s1 i s2 -> sem s2 c s3 -> sem s1 (i::c) s3
 
 with sem_I : estate -> instr -> estate -> Prop :=
-| EmkI info i s1 s2: 
+| EmkI ii i s1 s2: 
     sem_i s1 i s2 ->
-    sem_I s1 (MkI info i) s2
+    sem_I s1 (MkI ii i) s2
 
 with sem_i : estate -> instr_r -> estate -> Prop :=
-
-| Eassgn s1 s2 t (x:rval t) tag e:
+| Eassgn s1 s2 (x:rval) tag e:
     sem_pexpr s1 e >>= (write_rval s1 x) = ok s2 -> 
     sem_i s1 (Cassgn x tag e) s2
 
-| Eif s1 s2 (pe : pexpr sbool) cond c1 c2 :
-    sem_pexpr s1 pe = ok cond ->
-    sem s1 (if cond then c1 else c2) s2 ->
-    sem_i s1 (Cif pe c1 c2) s2
+| Eopn s1 s2 o xs es:
+    sem_pexprs s1 es >>= (write_rvals s1 xs) = ok s2 ->
+    sem_i s1 (Copn xs o es) s2
 
-| Ecall sta str s1 m2 s2
-        (rv_res : rval str) (fd : fundef sta str)
-        (pe_arg : pexpr sta) (res : st2ty str) :
-    let rarg := sem_pexpr s1 pe_arg in
-    isOk rarg ->
-    sem_call s1.(emem) fd (rdflt_ rarg) m2 res ->
-    write_rval {|emem:= m2; evm := s1.(evm) |} rv_res res = ok s2 ->
-    sem_i s1
-          (Ccall rv_res fd pe_arg)
-          s2
-    
-| EFor s1 s2 iv dir (low hi : pexpr sword) c vlow vhi :
-    sem_pexpr s1 low = ok vlow ->
-    sem_pexpr s1 hi  = ok vhi  ->
-    sem_for iv (map n2w (wrange dir vlow vhi)) s1 c s2 ->
-    sem_i s1 (Cfor iv (dir, low, hi) c) s2
+| Eif_true s1 s2 e c1 c2 :
+    sem_pexpr s1 e >>= to_bool = ok true ->
+    sem s1 c1 s2 ->
+    sem_i s1 (Cif e c1 c2) s2
 
-| Ewhile s1 s2 e c :
-   sem_while s1 e c s2 ->
-   sem_i s1 (Cwhile e c) s2
+| Eif_false s1 s2 e c1 c2 :
+    sem_pexpr s1 e >>= to_bool = ok false ->
+    sem s1 c2 s2 ->
+    sem_i s1 (Cif e c1 c2) s2
 
-with sem_while : estate -> pexpr sbool -> cmd -> estate -> Prop := 
-| EWhileDone s (e:pexpr sbool) c :
-    sem_pexpr s e = ok false ->
-    sem_while s e c s
-| EWhileOne s1 s2 s3 (e:pexpr sbool) c :  
-    sem_pexpr s1 e = ok true ->
+| Ewhile_true s1 s2 s3 e c :
+    sem_pexpr s1 e >>= to_bool = ok true ->
     sem s1 c s2 ->
-    sem_while s2 e c s3 ->
-    sem_while s1 e c s3
-    
-with sem_for : rval sword -> seq word -> estate -> cmd -> estate -> Prop :=
-| EForDone s iv c :
-    sem_for iv [::] s c s
+    sem_i s2 (Cwhile e c) s3 ->
+    sem_i s2 (Cwhile e c) s3
 
-| EForOne s1 s1' s2 s3 (iv : rval sword) w ws c :
-    write_rval s1 iv w = ok s1' ->
+| Ewhile_false s e c :
+    sem_pexpr s e >>= to_bool = ok false ->
+    sem_i s (Cwhile e c) s
+
+| Efor s1 s2 i d lo hi c vlo vhi :
+    sem_pexpr s1 lo >>= to_int = ok vlo ->
+    sem_pexpr s1 hi >>= to_int = ok vhi ->
+    sem_for i (wrange d vlo vhi) s1 c s2 ->
+    sem_i s1 (Cfor i (d, lo, hi) c) s2
+
+| Ecall s1 m2 s2 xs f fd args vargs vs : 
+    sem_pexprs s1 args = ok vargs ->
+    sem_call s1.(emem) fd vargs m2 vs ->
+    write_rvals {|emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->
+    sem_i s1 (Ccall xs f args) s2
+
+with sem_for : var -> seq Z -> estate -> cmd -> estate -> Prop :=
+| EForDone s i c :
+    sem_for i [::] s c s
+
+| EForOne s1 s1' s2 s3 i w ws c :
+    write_var i (Vint w) s1 = ok s1' ->
     sem s1' c s2 ->
-    sem_for iv ws s2 c s3 ->
-    sem_for iv (w :: ws) s1 c s3
+    sem_for i ws s2 c s3 ->
+    sem_for i (w :: ws) s1 c s3
 
-with sem_call : 
-  forall sta str, mem -> fundef sta str -> st2ty sta -> mem -> st2ty str -> Prop :=
-
-| EcallRun sta str m1 m2 rres (f:fundef sta str) (varg : st2ty sta):
+with sem_call : mem -> fundef -> seq value -> mem -> seq value -> Prop := 
+| EcallRun m1 m2 f vargs vres:
     (* semantics defined for all vm0 *)
-    (forall vm0, all_empty_arr vm0 -> exists s1 vm2,
-       [/\ 
-        write_rval (Estate m1 vm0) f.(fd_arg) varg = ok s1, 
-       sem s1 f.(fd_body) (Estate m2 vm2) &
-       sem_pexpr (Estate m2 vm2) f.(fd_res) = ok rres]) ->
-    is_full_array rres ->
-    sem_call m1 f varg m2 rres.
+    (forall vm0, all_empty_arr vm0 -> 
+       exists s1 vm2, [/\ 
+        write_vars f.(f_params) vargs (Estate m1 vm0) = ok s1, 
+        sem s1 f.(f_body) (Estate m2 vm2) &
+        map (get_var vm2) f.(f_res) = vres]) ->
+    List.Forall is_full_array vres ->
+    sem_call m1 f vargs m2 vres.
+
+
 
 (* -------------------------------------------------------------------- *)
 Scheme sem_Ind := Minimality for sem Sort Prop
 with   sem_i_Ind := Minimality for sem_i Sort Prop
 with   sem_I_Ind := Minimality for sem_I Sort Prop
 with   sem_for_Ind := Minimality for sem_for Sort Prop
-with   sem_while_Ind := Minimality for sem_while Sort Prop
 with   sem_call_Ind := Minimality for sem_call Sort Prop.
 
+(*
 (* -------------------------------------------------------------------- *)
 Lemma sem_inv_app l1 l2 s1 s2:
   sem s1 (l1 ++ l2) s2 ->
@@ -580,9 +665,10 @@ Proof.
   case: destr_pair (@destr_pairP _ _ e) => /= [[e1 e2] /(_ _ _ (erefl _)) ->| _ ->] //=.
   by case: (sem_pexpr vm e1)=> // v1;case: sem_pexpr => //= v2 [] <-.   
 Qed.
-
+*)
 End SEM.
 
+(*
 Notation "vm1 = vm2 [\ s ]" := (vmap_eq_except s vm1 vm2) (at level 70, vm2 at next level,
   format "'[hv ' vm1  '/' =  vm2  '/' [\ s ] ']'").
 
@@ -871,3 +957,4 @@ Proof.
 Qed.
 *)
 End UNDEFINCL.
+*)

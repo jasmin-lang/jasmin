@@ -200,8 +200,13 @@ Notation cmd := (seq instr).
 Record fundef := MkFun {
   f_params : seq var;
   f_body   : cmd;
-  f_res    : pexprs;
+  f_res    : seq var;
 }.
+
+Definition prog := seq (funname * fundef).
+
+Definition dummy_fundef := 
+ {|f_params := [::]; f_body := [::]; f_res := [::] |}. 
 
 Definition instr_d (i:instr) := 
   match i with
