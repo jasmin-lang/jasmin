@@ -1,7 +1,7 @@
 (* * Syntax and semantics of the dmasm source language *)
 
 (* ** Imports and settings *)
-Require Import JMeq ZArith Setoid Morphisms.
+Require Import ZArith Setoid Morphisms.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import strings word dmasm_utils dmasm_type dmasm_var.
@@ -9,8 +9,6 @@ Require Import strings word dmasm_utils dmasm_type dmasm_var.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-Open Scope string_scope.
 
 (* ** Operators
  * -------------------------------------------------------------------- *)
@@ -82,57 +80,80 @@ Canonical  sopn_eqType      := Eval hnf in EqType sopn sopn_eqMixin.
 (* Used only by the ocaml compiler *)
 Definition var_info := positive.
 
+Record var_i := VarI {
+  v_var :> var;
+  v_info : var_info 
+}.
+
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
 | Pcast  : pexpr -> pexpr              (* int -> word *)
-| Pvar   : var_info -> var -> pexpr
-| Pget   : var_info -> var -> pexpr -> pexpr 
+| Pvar   : var_i -> pexpr
+| Pget   : var_i -> pexpr -> pexpr 
 | Pload  : pexpr -> pexpr 
 | Pnot   : pexpr -> pexpr 
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr.
 
 Notation pexprs := (seq pexpr).
 
-Fixpoint pexpr_beq (e1 e2:pexpr) : bool :=
-  match e1, e2 with
-  | Pconst n1 , Pconst n2    => n1 == n2 
-  | Pbool  b1 , Pbool  b2    => b1 == b2
-  | Pcast  e1 , Pcast  e2    => pexpr_beq e1 e2
-  | Pvar i1 x1, Pvar i2 x2   => (i1 == i2) && (x1 == x2)
-  | Pget i1 x1 e1, Pget i2 x2 e2   => (i1 == i2) && (x1 == x2) && pexpr_beq e1 e2
-  | Pload  e1 , Pload  e2    => pexpr_beq e1 e2 
-  | Pnot   e1 , Pnot   e2    => pexpr_beq e1 e2 
-  | Papp2 o1 e11 e12, Papp2 o2 e21 e22  =>  
-     (o1 == o2) && pexpr_beq e11 e21 && pexpr_beq e12 e22
-  | _, _ => false
+Definition var_i_beq x1 x2 := 
+  match x1, x2 with
+  | VarI x1 i1, VarI x2 i2 => (x1 == x2) && (i1 == i2)
   end.
 
-Lemma pexpr_eq_axiom : Equality.axiom pexpr_beq. 
+Lemma var_i_eq_axiom : Equality.axiom var_i_beq. 
 Proof. 
 Admitted.
 
-Definition pexpr_eqMixin     := Equality.Mixin pexpr_eq_axiom.
-Canonical  pexpr_eqType      := Eval hnf in EqType pexpr pexpr_eqMixin.
+Definition var_i_eqMixin     := Equality.Mixin var_i_eq_axiom.
+Canonical  var_i_eqType      := Eval hnf in EqType var_i var_i_eqMixin.
+
+Module Eq_pexpr.
+Fixpoint eqb (e1 e2:pexpr) : bool :=
+  match e1, e2 with
+  | Pconst n1   , Pconst n2    => n1 == n2 
+  | Pbool  b1   , Pbool  b2    => b1 == b2
+  | Pcast  e1   , Pcast  e2    => eqb e1 e2
+  | Pvar   x1   , Pvar   x2    => (x1 == x2)
+  | Pget   x1 e1, Pget   x2 e2 => (x1 == x2) && eqb e1 e2
+  | Pload  e1   , Pload  e2    => eqb e1 e2 
+  | Pnot   e1   , Pnot   e2    => eqb e1 e2 
+  | Papp2 o1 e11 e12, Papp2 o2 e21 e22  =>  
+     (o1 == o2) && eqb e11 e21 && eqb e12 e22
+  | _, _ => false
+  end.
+
+
+  Lemma eq_axiom : Equality.axiom eqb. 
+  Proof. 
+  Admitted.     
+
+  Definition eqMixin := Equality.Mixin eq_axiom.
+  Module Exports.
+  Canonical eqType  := Eval hnf in EqType pexpr eqMixin.
+  End Exports.
+End Eq_pexpr.
+Import Eq_pexpr.Exports.
 
 (* ** Right values
  * -------------------------------------------------------------------- *)
 
 Inductive rval : Type :=
-| Rnone : rval
-| Rvar  : var_info -> var -> rval
+| Rnone :  rval
+| Rvar  :  var_i -> rval
 | Rmem  :> pexpr -> rval
-| Raset :  var_info -> var -> pexpr -> rval.
+| Raset :  var_i -> pexpr -> rval.
 
 Notation rvals := (seq rval).
 
 Definition rval_beq (x1:rval) (x2:rval) :=
   match x1, x2 with
-  | Rnone         , Rnone          => true
-  | Rvar i1 x1    , Rvar i2 x2     => (i1 == i2) && (x1 == x2)
-  | Rmem e1       , Rmem e2        => e1 == e2
-  | Raset i1 x1 e1, Raset i2 x2 e2 => (i1 == i2) && (x1 == x2) && (e1 == e2)
-  | _             , _              => false   
+  | Rnone      , Rnone       => true
+  | Rvar  x1   , Rvar  x2    => x1 == x2
+  | Rmem  e1   , Rmem  e2    => e1 == e2
+  | Raset x1 e1, Raset x2 e2 => (x1 == x2) && (e1 == e2)
+  | _          , _           => false   
   end.
 
 Lemma rval_eq_axiom : Equality.axiom rval_beq. 
@@ -189,7 +210,7 @@ Inductive instr_r :=
 | Copn   : rvals -> sopn -> pexprs -> instr_r 
  
 | Cif    : pexpr -> seq instr -> seq instr  -> instr_r
-| Cfor   : var (*: sint *) -> range -> seq instr -> instr_r
+| Cfor   : var_i -> range -> seq instr -> instr_r
 | Cwhile : pexpr -> seq instr -> instr_r
 | Ccall  : rvals -> funname -> pexprs -> instr_r 
 
@@ -198,9 +219,9 @@ with instr := MkI : instr_info -> instr_r ->  instr.
 Notation cmd := (seq instr).
 
 Record fundef := MkFun {
-  f_params : seq var;
+  f_params : seq var_i;
   f_body   : cmd;
-  f_res    : seq var;
+  f_res    : seq var_i;
 }.
 
 Definition prog := seq (funname * fundef).
@@ -266,10 +287,10 @@ Canonical  fundef_eqType      := Eval hnf in EqType fundef fundef_eqMixin.
 
 Definition vrv_rec (s:Sv.t) (rv:rval) :=
   match rv with
-  | Rnone                 => s
-  | Rvar  _ x             => Sv.add x s
-  | Rmem  _               => s
-  | Raset _ x _           => Sv.add x s
+  | Rnone      => s
+  | Rvar  x    => Sv.add x s
+  | Rmem  _    => s
+  | Raset x _  => Sv.add x s
   end.
 
 Definition vrvs_rec s (rv:rvals) := foldl vrv_rec s rv.
@@ -387,14 +408,14 @@ Proof. done. Qed.
 
 Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t := 
   match e with
-  | Pconst _       => s
-  | Pbool  _       => s
-  | Pcast  e       => read_e_rec s e 
-  | Pvar _ x       => Sv.add x s 
-  | Pget _ x e     => read_e_rec (Sv.add x s) e
-  | Pload e        => read_e_rec s e
-  | Pnot e         => read_e_rec s e 
-  | Papp2 op e1 e2 => read_e_rec (read_e_rec s e2) e1
+  | Pconst _        => s
+  | Pbool  _        => s
+  | Pcast  e        => read_e_rec s e 
+  | Pvar   x        => Sv.add x s 
+  | Pget   x e      => read_e_rec (Sv.add x s) e
+  | Pload  e        => read_e_rec s e
+  | Pnot   e        => read_e_rec s e 
+  | Papp2  op e1 e2 => read_e_rec (read_e_rec s e2) e1
   end.
 
 Definition read_e := read_e_rec Sv.empty.
@@ -403,10 +424,10 @@ Definition read_es := read_es_rec Sv.empty.
          
 Definition read_rv_rec  (s:Sv.t) (r:rval) := 
   match r with
-  | Rnone           => s 
-  | Rvar _ _        => s
-  | Rmem e          => read_e_rec s e
-  | Raset _ x e     => read_e_rec (Sv.add x s) e 
+  | Rnone     => s 
+  | Rvar  _   => s
+  | Rmem  e   => read_e_rec s e
+  | Raset x e => read_e_rec (Sv.add x s) e 
   end.
 
 Definition read_rv := read_rv_rec Sv.empty.
@@ -571,8 +592,11 @@ Definition is_bool (e:pexpr) :=
 Lemma is_boolP e b : is_bool e = Some b -> e = Pbool b.
 Proof. (* by jm_destr e=> //= -[] ->. Qed. *) Admitted.
 
-(* ** Equality
- * -------------------------------------------------------------------------- *)
+
+
+
+
+
 
 
 

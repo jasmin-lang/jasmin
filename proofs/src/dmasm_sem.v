@@ -231,8 +231,8 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pcast e  => 
     Let z := sem_pexpr s e >>= to_int in
     ok (Vword (I64.repr z))  
-  | Pvar _ v => ok (get_var s.(evm) v)
-  | Pget _ x e => 
+  | Pvar v => ok (get_var s.(evm) v)
+  | Pget x e => 
       Let (n,t) := s.[x] in
       Let i := sem_pexpr s e >>= to_word in
       Let w := Array.get t i in
@@ -261,12 +261,12 @@ Notation vvals := (seq vval).
 
 Definition sem_rval (s:estate) (r:rval) : exec vval :=
   match r with
-  | Rnone    => ok (Vnone)
-  | Rvar _ x => ok (Vvar x)  
-  | Rmem e   => 
+  | Rnone   => ok (Vnone)
+  | Rvar  x => ok (Vvar x)  
+  | Rmem  e => 
     Let p := sem_pexpr s e >>= to_word in
     ok (Vmem p)
-  | Raset _ x i =>
+  | Raset x i =>
     Let (n,t) := s.[x] in
     Let i := sem_pexpr s i >>= to_word in
     ok (Vaset x t i)
@@ -293,8 +293,10 @@ Definition write_vval (l:vval) (v:value) (s:estate) : exec estate :=
     ok ({| emem := s.(emem); evm := vm |})
   end.
 
+Definition write_var_i (x:var_i) := write_var x.
+
 Definition write_vars xs vs (s:estate) := 
-  fold2 ErrType write_var xs vs s.
+  fold2 ErrType write_var_i xs vs s.
 
 Definition write_vvals rs vs (s:estate) := 
   fold2 ErrType write_vval rs vs s.
@@ -377,7 +379,7 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     sem_pexpr s e >>= to_bool = ok false ->
     sem_i s (Cwhile e c) s
 
-| Efor s1 s2 i d lo hi c vlo vhi :
+| Efor s1 s2 (i:var_i) d lo hi c vlo vhi :
     sem_pexpr s1 lo >>= to_int = ok vlo ->
     sem_pexpr s1 hi >>= to_int = ok vhi ->
     sem_for i (wrange d vlo vhi) s1 c s2 ->
@@ -406,11 +408,9 @@ with sem_call : mem -> fundef -> seq value -> mem -> seq value -> Prop :=
        exists s1 vm2, [/\ 
         write_vars f.(f_params) vargs (Estate m1 vm0) = ok s1, 
         sem s1 f.(f_body) (Estate m2 vm2) &
-        map (get_var vm2) f.(f_res) = vres]) ->
+        map (fun (x:var_i) => get_var vm2 x) f.(f_res) = vres]) ->
     List.Forall is_full_array vres ->
     sem_call m1 f vargs m2 vres.
-
-
 
 (* -------------------------------------------------------------------- *)
 Scheme sem_Ind := Minimality for sem Sort Prop

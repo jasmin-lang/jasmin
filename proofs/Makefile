@@ -17,9 +17,9 @@ COQFILES := \
 	src/dmasm_type.v \
 	src/dmasm_var.v \
 	src/dmasm_expr.v \
-	src/extraction.v \
 	src/memory.v \
 	src/dmasm_sem.v \
+	src/compiler_util.v \
 	src/allocation.v \
 	src/inlining.v \
 	src/constant_prop.v \
@@ -28,7 +28,8 @@ COQFILES := \
 	src/array_expansion.v \
 	src/stack_alloc.v \
 	src/linear.v \
-	src/compiler.v 
+	src/compiler.v \
+	src/extraction.v 
 
 #	src/dmasm_Ssem.v \
 	src/equiv_sem.v \

@@ -4,7 +4,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
 Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr
-               memory dmasm_sem.
+               memory dmasm_sem compiler_util.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -13,7 +13,9 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
-Fixpoint val_uincl2 (t1 t2:stype) : st2ty t1 -> st2ty t2 -> Prop := 
+
+
+(*Fixpoint val_uincl2 (t1 t2:stype) : st2ty t1 -> st2ty t2 -> Prop := 
   match t1 return (st2ty t1 -> st2ty t2 -> Prop) with
   | sword => 
     match t2 return (st2ty sword -> st2ty t2 -> Prop) with
@@ -46,7 +48,7 @@ Proof.
   elim: t v1 v2 => //= [t1 Ht1 t2 Ht2 | p] v1 v2;first by rewrite Ht1 Ht2.
   split=> [|[]];auto.
 Qed.
-
+*)
 Module Type CheckB.
 
   Module M.
@@ -55,18 +57,21 @@ Module Type CheckB.
     Parameter merge : t -> t -> t.
     Parameter incl  : t -> t -> bool.
 
-    Parameter incl_refl : forall r, incl r r.
+(*    Parameter incl_refl : forall r, incl r r.
     Parameter incl_trans: forall r2 r1 r3, incl r1 r2 -> incl r2 r3 -> incl r1 r3.
 
     Parameter merge_incl_l: forall r1 r2, incl (merge r1 r2) r1.
-    Parameter merge_incl_r: forall r1 r2, incl (merge r1 r2) r2.
+    Parameter merge_incl_r: forall r1 r2, incl (merge r1 r2) r2.  *)
+
 
   End M.
 
-  Parameter check_e : forall t1 t2, pexpr t1 -> pexpr t2 -> M.t -> result unit M.t.
-  Parameter check_rval : forall t1 t2, rval t1 -> rval t2 -> M.t -> result unit M.t.
+  Parameter check_e    : pexpr -> pexpr -> M.t -> cexec M.t.
+  Parameter check_var  : var_i -> var_i -> M.t -> cexec M.t.
+  Parameter check_rval : rval  -> rval  -> M.t -> cexec M.t.
+  Parameter check_rvals: rvals -> rvals -> M.t -> cexec M.t.
 
-  Parameter eq_alloc : M.t -> vmap -> vmap -> Prop.
+(*  Parameter eq_alloc : M.t -> vmap -> vmap -> Prop.
 
   Parameter eq_alloc_empty: forall vm, all_empty_arr vm -> eq_alloc M.empty vm vm.
 
@@ -80,7 +85,7 @@ Module Type CheckB.
     t1 = t2.
     
   Parameter check_e_eqt : forall r r' t1 (e1:pexpr t1) t2 (e2:pexpr t2),
-    check_e e1 e2 r = Ok unit r' -> t1 = t2.
+    check_e e1 e2 r = Ok unit r' -> t1 = t2. 
    
   Parameter eq_write_aux : forall t1 (rv1:rval t1) t2 (rv2:rval t2) v1 v2 r1 r2 s1 s1' vm1,
      check_rval rv1 rv2 r1 = Ok unit r2 ->
@@ -96,7 +101,7 @@ Module Type CheckB.
     eq_alloc re s.(evm) vm /\
     forall v1,  sem_pexpr s e1 = ok v1 ->
     exists v2, sem_pexpr (Estate s.(emem) vm) e2 = ok v2 /\ val_uincl2 v1 v2.
-
+*)
 End CheckB.
 
 Module MakeCheckAlloc (C:CheckB).
@@ -105,50 +110,70 @@ Import C.
 
 Section LOOP.
 
-  Variable check_c : M.t -> result unit M.t.
+  Variable check_c : M.t -> cexec M.t.
  
   Fixpoint loop (n:nat) (m:M.t) := 
     match n with
-    | O => Error tt
+    | O => cerror Cerr_Loop
     | S n =>
-      check_c m >>= (fun m' =>
-       if M.incl m m' then Ok unit m else loop n (M.merge m m'))
+      Let m' := check_c m in
+      if M.incl m m' then cok m 
+      else loop n (M.merge m m')
     end.
 
 End LOOP.
 
-Definition nb_loop := 100%coq_nat.
+Definition fold2_error := Cerr_fold2 "allocation:check_e".
 
-Fixpoint check_i i1 i2 r := 
+Definition cmd2_error := Cerr_fold2 "allocation:check_cmd".
+
+Definition check_es iinfo es1 es2 r := 
+  fold2 (fold2_error iinfo) (check_e iinfo) es1 es2 r.
+
+Fixpoint check_i iinfo i1 i2 r := 
   match i1, i2 with
-  | Cassgn t1 x1 _ e1, Cassgn t2 x2 _ e2 => 
-    check_e e1 e2 r >>= check_rval x1 x2
-
+  | Cassgn x1 _ e1, Cassgn x2 _ e2 => 
+    check_e iinfo e1 e2 r >>= check_rval iinfo x1 x2
+  | Copn xs1 o1 es1, Copn xs2 o2 es2 =>
+    check_es iinfo es1 es2 r >>= check_rvals iinfo xs1 xs2
+  | Ccall x1 f1 arg1, Ccall x2 f2 arg2 => 
+    if f1 == f2 then 
+      check_es iinfo arg1 arg2 r >>= check_rvals iinfo x1 x2
+    else cerror (iinfo, Cerr_neqfun f1 f2 "allocation") 
   | Cif e1 c11 c12, Cif e2 c21 c22 =>
-    check_e e1 e2 r >>= (fun re =>
-      fold2 tt check_I c11 c21 re >>= (fun r1 =>
-      fold2 tt check_I c12 c22 re >>= (fun r2 => Ok unit (M.merge r1 r2))))
-
-  | Cfor i1 (dir1,hi1,lo1) c1, Cfor i2 (dir2,hi2,lo2) c2 =>
-    if eqb_dir dir1 dir2 then 
-      check_e lo1 lo2 r >>= (fun rlo =>
-      check_e hi1 hi2 rlo >>= (fun rhi =>
-      let check_c r := check_rval i1 i2 r >>= fold2 tt check_I c1 c2 in
-      loop check_c nb_loop rhi)) 
-    else Error tt 
-  | Cwhile e1 c1, Cwhile e2 c2 =>
-     loop (fun r => check_e e1 e2 r >>= fold2 tt check_I c1 c2) nb_loop r
-  | Ccall _ _ x1 fd1 arg1, Ccall _ _ x2 fd2 arg2 => 
-    if check_fd fd1 fd2 then 
-      check_e arg1 arg2 r >>= check_rval x1 x2
-    else Error tt
-  | _, _ => Error tt
+    Let re := check_e e1 e2 r in
+    Let r1 := fold2 cmd2_error check_I c11 c21 re in
+    Let r2 := fold2 cmd2_error check_I c12 c22 re in 
+    cok (M.merge r1 r2)
+  | _, _ => cerror (iinfo, Cerr_neqinstr i1 i2 "allocation")
   end
 
 with check_I i1 i2 r := 
   match i1, i2 with
   | MkI _ i1, MkI _ i2 => check_i i1 i2 r
   end
+
+.
+
+
+
+  | Cfor i1 (dir1,hi1,lo1) c1, Cfor i2 (dir2,hi2,lo2) c2 =>
+    if 
+    if eqb_dir dir1 dir2 then 
+      check_e lo1 lo2 r >>= (fun rlo =>
+      check_e hi1 hi2 rlo >>= (fun rhi =>
+      let check_c r := check_rval i1 i2 r >>= fold2 tt check_I c1 c2 in
+      loop check_c Loop.nb rhi)) 
+    else Error tt 
+  | Cwhile e1 c1, Cwhile e2 c2 =>
+     loop (fun r => check_e e1 e2 r >>= fold2 tt check_I c1 c2) Loop.nb r
+  | Ccall x1 f1 arg1, Ccall x2 f2 arg2 => 
+    if f1 == f2 then 
+      check_e arg1 arg2 r >>= check_rval x1 x2
+    else Error tt
+  | _, _ => Error tt
+  end
+
 
 with check_fd ta1 tr1 (fd1:fundef ta1 tr1) ta2 tr2 (fd2:fundef ta2 tr2) :=
   match fd1, fd2 with
@@ -915,8 +940,8 @@ Module CBAreg.
     case Hs01 : (rval2vval _ x21) => [vr1'|]//=.
     case Hs02 : (rval2vval _ x22) => [vr2'|]//= [] <-.
     case Hw2: write_vval => [s2|] //= Hw1 [Hu1 Hu2] Heqa [Hvr1 Hvr2].
-    have [vm3 /= [Hvm3 Heqa']]:= Hx2 _ _ _ _ _ _ _ _ _ _ _ Hc2 Hv2 Hs02 Hw2 Hu2 Heqa Hvr2.
-    have [vm4 /= [Hvm4 Heqa'']] := Hx1 _ _ _ _ _ _ _ _ _ _ _ Hc1 Hv1 Hs01 Hw1 Hu1 Heqa' Hvr1.
+    have [vm3 /= [Hvm3 Heqa']]:= Hx2 _ _ _ _ _ _ _ _ _ _ _ Hc2 Hv2 Hs02 Hw2 Hu2 Heqa Hvr2. 
+    have [vm4 /= [Hvm4 Heqa'' ]] := Hx1 _ _ _ _ _ _ _ _ _ _ _ Hc1 Hv1 Hs01 Hw1 Hu1 Heqa' Hvr1.
     rewrite Hvm3 /=;eexists;eauto.
   Qed.
 
