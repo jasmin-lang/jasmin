@@ -11,7 +11,7 @@ Unset Printing Implicit Defensive.
  * -------------------------------------------------------------------------- *)
 
 Inductive compiler_error_msg :=
-  | Cerr_Alloc    : var_info -> var -> compiler_error_msg
+  | Cerr_Alloc    : var_i -> compiler_error_msg
   | Cerr_Loop     : compiler_error_msg
   | Cerr_fold2    : string -> compiler_error_msg
   | Cerr_neqop    : sopn -> sopn -> string -> compiler_error_msg

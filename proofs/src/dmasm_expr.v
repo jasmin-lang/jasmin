@@ -205,6 +205,25 @@ Canonical  assgn_tag_eqType      := Eval hnf in EqType assgn_tag assgn_tag_eqMix
 
 Notation funname := positive (only parsing).
 
+Inductive inline_info := 
+  | InlineFun
+  | DoNotInline.
+
+Scheme Equality for inline_info.
+
+Lemma inline_info_eq_axiom : Equality.axiom inline_info_beq. 
+Proof. 
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_inline_info_dec_bl.
+  by apply: internal_inline_info_dec_lb.
+Qed.
+
+Definition inline_info_eqMixin     := Equality.Mixin inline_info_eq_axiom.
+Canonical  inline_info_eqType      := Eval hnf in EqType inline_info inline_info_eqMixin.
+
+(* -------------------------------------------------------------------- *)
+
+
 Inductive instr_r := 
 | Cassgn : rval -> assgn_tag -> pexpr -> instr_r
 | Copn   : rvals -> sopn -> pexprs -> instr_r 
@@ -212,7 +231,7 @@ Inductive instr_r :=
 | Cif    : pexpr -> seq instr -> seq instr  -> instr_r
 | Cfor   : var_i -> range -> seq instr -> instr_r
 | Cwhile : pexpr -> seq instr -> instr_r
-| Ccall  : rvals -> funname -> pexprs -> instr_r 
+| Ccall  : inline_info -> rvals -> funname -> pexprs -> instr_r 
 
 with instr := MkI : instr_info -> instr_r ->  instr.
 
@@ -246,8 +265,8 @@ Fixpoint instr_r_beq i1 i2 :=
     (i1 == i2) && (dir1 == dir2) && (lo1 == lo2) && (hi1 == hi2) && all2 instr_beq c1 c2
   | Cwhile e1 c1 , Cwhile e2 c2 =>
     (e1 == e2) && all2 instr_beq c1 c2
-  | Ccall x1 f1 arg1, Ccall x2 f2 arg2 => 
-    (x1==x2) && (f1 == f2) && (arg1 == arg2)
+  | Ccall ii1 x1 f1 arg1, Ccall ii2 x2 f2 arg2 => 
+    (ii1 == ii2) && (x1==x2) && (f1 == f2) && (arg1 == arg2)
   | _, _ => false 
   end
 with instr_beq i1 i2 := 
@@ -305,7 +324,7 @@ Fixpoint write_i_rec s i :=
   | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
   | Cwhile  _ c     => foldl write_I_rec s c
-  | Ccall x _ _     => vrvs_rec s x
+  | Ccall _ x _ _   => vrvs_rec s x
   end
 with write_I_rec s i := 
   match i with
@@ -448,7 +467,7 @@ Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
   | Cwhile e c =>
     let s := foldl read_I_rec s c in
     read_e_rec s e
-  | Ccall xs _ es => read_es_rec (read_rvs_rec s xs) es
+  | Ccall _ xs _ es => read_es_rec (read_rvs_rec s xs) es
   end
 with read_I_rec (s:Sv.t) (i:instr) : Sv.t :=
   match i with 

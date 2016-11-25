@@ -99,6 +99,8 @@ Inductive value : Type :=
   | Varr  : forall n, Array.array n word -> value 
   | Vword :> word -> value.
 
+Definition values := seq value.
+
 Definition type_error {t} := @Error _ t ErrType.
 
 Definition to_bool v :=
@@ -309,6 +311,53 @@ Definition write_rvals s xs vs :=
   Let vxs := sem_rvals s xs in
   write_vvals vxs vs s.
 
+(* Definition sem_prod ts tr := lprod (map sem_t ts) tr. *)
+
+Fixpoint app_sopn ts : sem_prod ts values -> values -> exec values := 
+  match ts return sem_prod ts values -> values -> exec values with
+  | [::] => fun (o:values) (vs:values) => 
+    match vs with 
+    | [::] => ok o
+    | _    => type_error
+    end
+  | t::ts => fun (o:sem_t t -> sem_prod ts values) (vs:values) =>
+    match vs with
+    | [::]  => type_error
+    | v::vs => 
+      Let v := of_val t v in
+      app_sopn (o v) vs
+    end
+  end.
+Arguments app_sopn ts o l:clear implicits.
+
+(*Notation exist_o := (@existT _ (fun (ts:seq stype) => sem_prod ts values)).
+Notation Oww o  := (exist_o [:: sword] (fun x => [::Vword (o x)])).
+Notation Owww o := (exist_o [:: sword; sword] (fun x y => [::Vword (o x y)])). *)
+
+Definition pval t1 t2 (p: sem_t t1 * sem_t t2) :=
+  [::to_val p.1; to_val p.2].
+
+Notation oww o  := (app_sopn [::sword] (fun x => [::Vword (o x)])).
+Notation owww o := (app_sopn [:: sword; sword] (fun x y => [::Vword (o x y)])).
+
+Definition sem_sopn (o:sopn) :  values -> exec values :=
+  match o with
+  | Olnot => oww I64.not
+  | Oxor  => owww I64.xor
+  | Oland => owww I64.and 
+  | Olor  => owww I64.or
+  | Olsr  => owww I64.shru
+  | Olsl  => owww I64.shl 
+  | Oif   => 
+    app_sopn [::sbool; sword; sword] (fun b x y => [::Vword (if b then x else y)])
+  | Omulu => 
+    app_sopn [::sword; sword] (fun x y => @pval sword sword (wumul x y))
+  | Oaddcarry =>
+    app_sopn [::sword; sword; sbool] (fun x y c => @pval sbool sword (waddcarry x y c))
+  | Osubcarry =>
+    app_sopn [::sword; sword; sbool] (fun x y c => @pval sbool sword (wsubcarry x y c))
+  end.
+
 (* ** Instructions
  * -------------------------------------------------------------------- *)
 
@@ -322,10 +371,9 @@ Definition get_fundef f :=
     Some (snd (nth (xH,dummy_fundef) P pos))
   else None.
 
-(* FIXME: wrange n n = [::] or [::n] *)
 Definition wrange d (n1 n2 : Z) :=
-  if (n1 <=? n2)%Z then 
-    let idxs := mkseq (fun n => n1 + Z.of_nat n)%Z (S (Z.to_nat (n2 - n1))) in
+  if (n1 <? n2)%Z then 
+    let idxs := mkseq (fun n => n1 + Z.of_nat n)%Z (Z.to_nat (n2 - n1)) in
     match d with
     | UpTo   => idxs
     | DownTo => rev idxs
@@ -356,7 +404,7 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     sem_i s1 (Cassgn x tag e) s2
 
 | Eopn s1 s2 o xs es:
-    sem_pexprs s1 es >>= (write_rvals s1 xs) = ok s2 ->
+    sem_pexprs s1 es >>= sem_sopn o >>= (write_rvals s1 xs) = ok s2 ->
     sem_i s1 (Copn xs o es) s2
 
 | Eif_true s1 s2 e c1 c2 :
@@ -385,11 +433,11 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     sem_for i (wrange d vlo vhi) s1 c s2 ->
     sem_i s1 (Cfor i (d, lo, hi) c) s2
 
-| Ecall s1 m2 s2 xs f fd args vargs vs : 
+| Ecall s1 m2 s2 ii xs f fd args vargs vs : 
     sem_pexprs s1 args = ok vargs ->
     sem_call s1.(emem) fd vargs m2 vs ->
     write_rvals {|emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->
-    sem_i s1 (Ccall xs f args) s2
+    sem_i s1 (Ccall ii xs f args) s2
 
 with sem_for : var -> seq Z -> estate -> cmd -> estate -> Prop :=
 | EForDone s i c :
