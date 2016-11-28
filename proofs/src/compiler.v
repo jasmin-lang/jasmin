@@ -3,17 +3,15 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
 Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr memory dmasm_sem.
-Require Import allocation inlining unrolling constant_prop dead_code array_expansion.
-Require Import stack_alloc linear.
+Require Import compiler_util allocation inlining.
+(*unrolling constant_prop dead_code array_expansion*)
+(*Require Import stack_alloc linear. *)
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Local Open Scope vmap.
-Local Open Scope seq_scope.
-
-
+(*
 Definition unroll1 ta tr (fd:fundef ta tr) := 
   let fd := unroll_call fd in
   let fd := const_prop_call fd in
@@ -27,15 +25,21 @@ Fixpoint unroll (n:nat) ta tr (fd:fundef ta tr) :=
       if eqb_fundef fd fd' then Ok unit fd 
       else unroll n fd')
   end.
-                
+  *)              
+
 Section COMPILER.
 
-Variable rename: forall ta tr, fundef ta tr -> fundef ta tr.
-Variable expand: forall ta tr, fundef ta tr -> fundef ta tr.
+(*Variable expand: forall ta tr, fundef ta tr -> fundef ta tr.
 Variable ralloc: forall ta tr, fundef ta tr -> fundef ta tr.
-Variable stk_alloc : forall ta tr, fundef ta tr -> seq.seq (var * Z) * S.fundef ta tr.
+Variable stk_alloc : forall ta tr, fundef ta tr -> seq.seq (var * Z) * S.fundef ta tr. *)
 
-Definition compile_fd ta tr (fd:fundef ta tr) :=
+Definition compile_prog (p:prog) := 
+  Let p := inline_prog p in
+  cfok p.
+
+(*
+    
+Definition compile_fd (ffd:funname * fundef ta tr) :=
   let fdrn := rename fd in
   if CheckAllocReg.check_fd fd fdrn then
     check_inline_fd fdrn >>= (fun _ =>
@@ -106,10 +110,8 @@ Proof.
 Qed.
 
 End PROOF.
+*)
 
 End COMPILER.
 
     
-   
-
-

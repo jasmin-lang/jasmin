@@ -434,6 +434,7 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     sem_i s1 (Cfor i (d, lo, hi) c) s2
 
 | Ecall s1 m2 s2 ii xs f fd args vargs vs : 
+    get_fundef f = Some fd ->
     sem_pexprs s1 args = ok vargs ->
     sem_call s1.(emem) fd vargs m2 vs ->
     write_rvals {|emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->

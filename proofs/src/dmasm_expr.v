@@ -183,6 +183,7 @@ Canonical  dir_eqType      := Eval hnf in EqType dir dir_eqMixin.
 Definition range := (dir * pexpr * pexpr)%type.
 
 Definition instr_info := positive.
+Definition dummy_iinfo := xH. (* WARNING BENEDICKT *)
 
 Inductive assgn_tag := 
   | AT_keep    (* normal assignment *)
@@ -203,7 +204,7 @@ Canonical  assgn_tag_eqType      := Eval hnf in EqType assgn_tag assgn_tag_eqMix
 
 (* -------------------------------------------------------------------- *)
 
-Notation funname := positive (only parsing).
+Definition funname := positive.
 
 Inductive inline_info := 
   | InlineFun
@@ -238,6 +239,7 @@ with instr := MkI : instr_info -> instr_r ->  instr.
 Notation cmd := (seq instr).
 
 Record fundef := MkFun {
+  f_iinfo  : instr_info;                     
   f_params : seq var_i;
   f_body   : cmd;
   f_res    : seq var_i;
@@ -246,7 +248,7 @@ Record fundef := MkFun {
 Definition prog := seq (funname * fundef).
 
 Definition dummy_fundef := 
- {|f_params := [::]; f_body := [::]; f_res := [::] |}. 
+ {|f_iinfo := dummy_iinfo; f_params := [::]; f_body := [::]; f_res := [::] |}. 
 
 Definition instr_d (i:instr) := 
   match i with
@@ -290,8 +292,8 @@ Canonical  instr_eqType      := Eval hnf in EqType instr instr_eqMixin.
 
 Definition fundef_beq fd1 fd2 := 
   match fd1, fd2 with
-  | MkFun x1 c1 r1, MkFun x2 c2 r2 =>
-    (x1 == x2) && (c1 == c2) && (r1 == r2)
+  | MkFun ii1 x1 c1 r1, MkFun ii2 x2 c2 r2 =>
+    (ii1 == ii2) && (x1 == x2) && (c1 == c2) && (r1 == r2)
   end.
 
 Lemma fundef_eq_axiom : Equality.axiom fundef_beq. 

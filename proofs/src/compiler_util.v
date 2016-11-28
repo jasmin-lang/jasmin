@@ -10,25 +10,59 @@ Unset Printing Implicit Defensive.
 (* ** Compiler error 
  * -------------------------------------------------------------------------- *)
 
-Inductive compiler_error_msg :=
-  | Cerr_Alloc    : var_i -> compiler_error_msg
-  | Cerr_Loop     : compiler_error_msg
-  | Cerr_fold2    : string -> compiler_error_msg
-  | Cerr_neqop    : sopn -> sopn -> string -> compiler_error_msg
-  | Cerr_neqfun   : funname -> funname -> string -> compiler_error_msg
-  | Cerr_neqinstr : instr_r -> instr_r -> string -> compiler_error_msg.
+Inductive error_msg :=
+  | Cerr_varalloc : var_i -> var_i -> string -> error_msg
+  | Cerr_inline   : Sv.t -> Sv.t -> error_msg
+  | Cerr_Loop     : error_msg
+  | Cerr_fold2    : string -> error_msg
+  | Cerr_neqop2   : sop2 -> sop2 -> string -> error_msg
+  | Cerr_neqop    : sopn -> sopn -> string -> error_msg
+  | Cerr_neqdir   : string -> error_msg
+  | Cerr_neqexpr  : pexpr -> pexpr -> string -> error_msg
+  | Cerr_neqrval  : rval -> rval -> string -> error_msg
+  | Cerr_neqfun   : funname -> funname -> string -> error_msg
+  | Cerr_neqinstr : instr_r -> instr_r -> string -> error_msg
+  | Cerr_unknown_fun : funname -> string -> error_msg
+  | Cerr_in_fun   : fun_error -> error_msg
 
-Definition compiler_error := (instr_info * compiler_error_msg)%type.
+with fun_error   := 
+  | Ferr_in_body  : funname -> funname -> (instr_info * error_msg) -> fun_error
+  | Ferr_neqfun   : funname -> funname -> fun_error
+  | Ferr_neqprog  : fun_error.
 
-Definition cexec A := result compiler_error_msg A.
-Definition ciexec A := result compiler_error A.
 
-Definition cok {A} (a:A) : cexec A := @Ok compiler_error_msg A a.
-Definition ciok {A} (a:A) : ciexec A := @Ok compiler_error A a.
+Notation instr_error := (instr_info * error_msg)%type.
 
-Definition cerror  (c:compiler_error_msg) {A} : cexec A := @Error _ A c.
-Definition cierror (c:compiler_error) {A} : ciexec A := @Error _ A c.
+Definition cexec A := result error_msg A.
+Definition ciexec A := result instr_error A.
+Definition cfexec A := result fun_error A.
 
+Definition cok {A} (a:A) : cexec A := @Ok error_msg A a.
+Definition ciok {A} (a:A) : ciexec A := @Ok instr_error A a.
+Definition cfok {A} (a:A) : cfexec A := @Ok fun_error A a.
+
+Definition cerror  (c:error_msg) {A} : cexec A := @Error _ A c.
+Definition cierror (ii:instr_info) (c:error_msg) {A} : ciexec A := @Error _ A (ii,c).
+Definition cferror  (c:fun_error) {A} : cfexec A := @Error _ A c.
+
+Definition add_iinfo {A} ii (r:cexec A) : ciexec A := 
+  match r with
+  | Ok a => @Ok _ A a
+  | Error e  => Error (ii,e)
+  end.
+
+Definition add_finfo {A} f1 f2 (r:ciexec A) : cfexec A := 
+  match r with
+  | Ok a => @Ok _ A a
+  | Error e  => Error (Ferr_in_body f1 f2 e)
+  end.
+
+Definition add_infun {A} (ii:instr_info) (r:cfexec A) : ciexec A :=
+  match r with
+  | Ok a => @Ok _ A a
+  | Error e => Error (ii, Cerr_in_fun e)
+  end.
+ 
 Module Type LoopCounter.
   Parameter nb:nat.
 End LoopCounter.
@@ -37,10 +71,6 @@ Module Loop : LoopCounter.
   Definition nb := 100.
 End Loop.
 
-Definition add_iinfo {A} ii (r:cexec A) : ciexec A := 
-  match r with
-  | Ok a => @Ok _ A a
-  | Error e  => Error (ii,e)
-  end.
+
 
 

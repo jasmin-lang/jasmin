@@ -6,7 +6,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
 Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr 
-               memory dmasm_sem.
+               memory dmasm_sem compiler_util allocation.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -18,120 +18,80 @@ Local Open Scope seq_scope.
 (* ** inlining
  * -------------------------------------------------------------------- *)
 
-Fixpoint assgn_tuple t (rv:rval t) : pexpr t -> cmd :=
-  match rv in rval t0 return pexpr t0 -> cmd with
-  | Rvar x              => fun e => [:: assgn (Rvar x) e]
-  | Rmem p              => fun e => [:: assgn (Rmem p) e]
-  | Rpair t1 t2 rv1 rv2 => fun e => assgn_tuple rv2 (esnd e) ++ assgn_tuple rv1 (efst e)
+Definition assgn_tuple iinfo (xs:rvals) (es:pexprs) :=
+  let assgn xe := MkI iinfo (Cassgn xe.1 AT_rename xe.2) in
+  map assgn (zip xs es).
+
+Definition depend x e s :=
+  read_rv_rec (read_e_rec s e) x.
+
+Definition depends xs es s :=
+  read_rvs_rec (read_es_rec s es) xs.
+
+Definition inline_c (inline_i: instr -> Sv.t -> ciexec (Sv.t * cmd)) c s := 
+  foldr (fun i r =>
+    Let r := r in
+    Let ri := inline_i i r.1 in
+    ciok (ri.1, ri.2 ++ r.2)) (ciok (s,[::])) c.
+
+Definition check_rename iinfo f fd1 fd2 (s:Sv.t) := 
+  Let _ := add_infun iinfo (CheckAllocReg.check_fundef (f,fd1) (f,fd2) tt) in
+  let s2 := read_es (map Pvar fd2.(f_res)) in
+  let s2 := read_c_rec s2 fd2.(f_body) in
+  let s2 := write_c_rec s2 fd2.(f_body) in
+  let s2 := vrvs_rec s2 (map Rvar fd2.(f_res)) in
+  if disjoint s s2 then ciok tt 
+  else cierror iinfo (Cerr_inline s s2).
+
+Definition get_fun (p:prog) iinfo (f:funname) :=
+  match get_fundef p f with
+  | Some fd => ciok fd 
+  | None    => cierror iinfo (Cerr_unknown_fun f "inlining")
   end.
+  
+Parameter rename_fd : fundef -> fundef.
 
-Definition inline_cmd (inline_i: instr -> cmd) (c:cmd) := 
-  List.fold_right (fun i c' => inline_i i ++ c') [::] c.
-
-Fixpoint inline_i (i:instr) : cmd := 
+Fixpoint inline_i (p:prog) (i:instr) (s:Sv.t) : ciexec (Sv.t * cmd) := 
   match i with
-  | Cassgn _ _ _         => [::i]
-  | Cif b c1 c2          => [::Cif b (inline_cmd inline_i c1) (inline_cmd inline_i c2)]
-  | Cfor i rn c          => [::Cfor i rn (inline_cmd inline_i c)]
-  | Cwhile e c           => [::Cwhile e (inline_cmd inline_i c)]
-  | Ccall ta tr x fd arg => 
-    match inline_fd fd in fundef sta str return pexpr sta -> rval str -> cmd with
-    | FunDef sta str fa fc fr =>
-      fun pe_arg rv_res => 
-        assgn_tuple fa pe_arg ++ 
-        (fc ++ assgn_tuple rv_res fr)
-    end arg x
-  end
-
-with inline_fd ta tr (fd:fundef ta tr) :=
-  match fd with
-  | FunDef sta str fa fc fr => FunDef fa (inline_cmd inline_i fc) fr
+  | MkI iinfo ir =>
+    match ir with 
+    | Cassgn x t e => ciok (depend x e s, [::i])
+    | Copn xs o es => ciok (depends xs es s, [::i])
+    | Cif e c1 c2  =>
+      Let c1 := inline_c (inline_i p) c1 s in
+      Let c2 := inline_c (inline_i p) c2 s in
+      ciok (read_e_rec (Sv.union c1.1 c2.1) e, [::MkI iinfo (Cif e c1.2 c2.2)])
+    | Cfor x (d,lo,hi) c =>
+      Let c := inline_c (inline_i p) c s in
+      let r := read_e_rec (read_e_rec (Sv.add x c.1) lo) hi in
+      ciok (r, [::MkI iinfo (Cfor x (d, lo, hi) c.2)])
+    | Cwhile e c =>
+      Let c := inline_c (inline_i p) c s in
+      let s := read_e_rec c.1 e in
+      ciok (s, [::MkI iinfo (Cwhile e c.2)])
+    | Ccall inline xs f es =>
+      if inline is InlineFun then
+        Let fd := get_fun p iinfo f in 
+        let fd' := rename_fd fd in
+        Let _ := check_rename iinfo f fd fd' s in
+        ciok (s,  assgn_tuple iinfo (map Rvar fd'.(f_params)) es ++ 
+                  (fd'.(f_body) ++ assgn_tuple iinfo xs (map Pvar fd'.(f_res))))
+      else ciok (depends xs es s, [::i])        
+    end
+  end.
+  
+Definition inline_fd (ffd:funname * fundef) (p:cfexec prog) :=
+  Let p := p in
+  match ffd with 
+  | (f, MkFun ii params c res) =>
+    let s := read_es (map Pvar res) in
+    Let c := add_finfo f f (inline_c (inline_i p) c s) in 
+    cfok ((f, MkFun ii params c.2 res)::p)
   end.
 
-Section CMD.
+Definition inline_prog (p:prog) := foldr inline_fd (cfok [::]) p.
 
-  Variable check_inline_i : instr ->  Sv.t -> result unit Sv.t.
-
-  Fixpoint check_inline (c:cmd) (s:Sv.t) : result unit Sv.t :=
-    match c with
-    | [::] => Ok unit s
-    | i::c => check_inline c s >>= (check_inline_i i)
-    end.
-
-End CMD.
-
-Section LOOP.
-
-  Variable check_inline_c : Sv.t -> result unit Sv.t.
-
-  Fixpoint loop (n:nat) (rx wx:Sv.t) (s:Sv.t) : result unit Sv.t :=
-    match n with
-    | O => Error tt
-    | S n =>
-      check_inline_c s >>=  (fun s' => 
-      let s' := Sv.union rx (Sv.diff s' wx) in
-      if Sv.subset s' s then Ok unit s 
-      else loop n rx wx (Sv.union s s'))
-    end.
-
-  Fixpoint wloop (n:nat) (re:Sv.t) (s:Sv.t) : result unit Sv.t :=
-    match n with
-    | O => Error tt
-    | S n =>
-      check_inline_c s >>=  (fun s' => 
-      let s' := Sv.union re s' in
-      if Sv.subset s' s then Ok unit s 
-      else wloop n re (Sv.union s s'))
-    end.
-
-End LOOP.
-
-Fixpoint check_inline_rv t (x:rval t) := 
-  match x with
-  | Rvar _ => true
-  | Rmem _ => false
-  | Rpair _ _ x1 x2 => check_inline_rv x1 && check_inline_rv x2
-  end.
-
-Definition check_inline_bcmd t (x:rval t) (e:pexpr t) s := 
-  Ok unit (read_rv_rec x (read_e_rec e (Sv.diff s (vrv x)))).
-
-Definition nb_loop := 100%coq_nat.
-Opaque nb_loop.
-
-Fixpoint check_inline_i (i:instr) (s:Sv.t) {struct i} : result unit Sv.t := 
-  match i with
-  | Cassgn t x e => check_inline_bcmd x e s
-  | Cif b c1 c2 => 
-    check_inline check_inline_i c1 s >>= (fun s1 => 
-    check_inline check_inline_i c2 s >>= (fun s2 =>
-    Ok unit (read_e_rec b (Sv.union s1 s2))))
-  | Cfor x (dir, e1, e2) c =>
-    loop (check_inline check_inline_i c) nb_loop (read_rv x) (vrv x) s >>= (fun s =>
-    Ok unit (read_e_rec e1 (read_e_rec e2 s)))
-  | Cwhile e c =>
-    let re := read_e e in
-    wloop (check_inline check_inline_i c) nb_loop re (Sv.union re s)  
-  | Ccall ta tr x fd arg =>
-    let p := fd_arg fd in
-    let c := fd_body fd in
-    let r := fd_res fd in
-    let sx := vrv x in
-    let sr := read_e r in
-    let sa := read_e arg in
-    let sp := vrv p in
-    let s := Sv.diff s sx in  
-    if check_inline_rv (fd_arg fd) && check_inline_rv x && 
-       disjoint sx sr && disjoint sp sa && disjoint s (write_c_rec sp c) then
-      check_inline check_inline_i c (Sv.union s sr) >>= (fun s' =>
-        if Sv.subset s' (Sv.union s sp) then Ok unit (Sv.union s sa)
-        else Error tt)    
-    else Error tt
-  end.
-
-Definition check_inline_fd ta tr (fd:fundef ta tr) := 
-  check_inline check_inline_i (fd_body fd) (read_e (fd_res fd)).
-          
+(*          
 Section PROOF.
  
   Lemma check_rval2 s1 s2 t (x:rval t) vr:  
@@ -419,3 +379,4 @@ Section PROOF.
   Qed.
 
 End PROOF.
+*)

@@ -67,7 +67,6 @@ Module Type CheckB.
   End M.
 
   Parameter check_e    : pexpr -> pexpr -> M.t -> cexec M.t.
-  Parameter check_var  : var_i -> var_i -> M.t -> cexec M.t.
   Parameter check_rval : rval  -> rval  -> M.t -> cexec M.t.
   Parameter check_rvals: rvals -> rvals -> M.t -> cexec M.t.
 
@@ -104,20 +103,23 @@ Module Type CheckB.
 *)
 End CheckB.
 
+Definition salloc : string := "allocation".
+
 Module MakeCheckAlloc (C:CheckB).
 
 Import C.
 
 Section LOOP.
 
-  Variable check_c : M.t -> cexec M.t.
+  Variable ii:instr_info.
+  Variable check_c : M.t -> ciexec M.t.
  
   Fixpoint loop (n:nat) (m:M.t) := 
     match n with
-    | O => cerror Cerr_Loop
+    | O => cierror ii Cerr_Loop
     | S n =>
       Let m' := check_c m in
-      if M.incl m m' then cok m 
+      if M.incl m m' then ciok m 
       else loop n (M.merge m m')
     end.
 
@@ -127,61 +129,70 @@ Definition fold2_error := Cerr_fold2 "allocation:check_e".
 
 Definition cmd2_error := Cerr_fold2 "allocation:check_cmd".
 
-Definition check_es iinfo es1 es2 r := 
-  fold2 (fold2_error iinfo) (check_e iinfo) es1 es2 r.
+Definition check_es es1 es2 r := fold2 fold2_error check_e es1 es2 r.
+
+Definition check_var x1 x2 r := check_rval (Rvar x1) (Rvar x2) r.
+Definition check_vars xs1 xs2 r := check_rvals (map Rvar xs1) (map Rvar xs2) r.
 
 Fixpoint check_i iinfo i1 i2 r := 
   match i1, i2 with
   | Cassgn x1 _ e1, Cassgn x2 _ e2 => 
-    check_e iinfo e1 e2 r >>= check_rval iinfo x1 x2
+    add_iinfo iinfo (check_e e1 e2 r >>= check_rval x1 x2)
   | Copn xs1 o1 es1, Copn xs2 o2 es2 =>
-    check_es iinfo es1 es2 r >>= check_rvals iinfo xs1 xs2
-  | Ccall x1 f1 arg1, Ccall x2 f2 arg2 => 
+    if o1 == o2 then
+      add_iinfo iinfo (check_es es1 es2 r >>= check_rvals xs1 xs2)
+    else cierror iinfo (Cerr_neqop o1 o2 salloc)
+  | Ccall _ x1 f1 arg1, Ccall _ x2 f2 arg2 => 
     if f1 == f2 then 
-      check_es iinfo arg1 arg2 r >>= check_rvals iinfo x1 x2
-    else cerror (iinfo, Cerr_neqfun f1 f2 "allocation") 
+      add_iinfo iinfo (check_es arg1 arg2 r >>= check_rvals x1 x2)
+    else cierror iinfo (Cerr_neqfun f1 f2 salloc) 
   | Cif e1 c11 c12, Cif e2 c21 c22 =>
-    Let re := check_e e1 e2 r in
-    Let r1 := fold2 cmd2_error check_I c11 c21 re in
-    Let r2 := fold2 cmd2_error check_I c12 c22 re in 
-    cok (M.merge r1 r2)
-  | _, _ => cerror (iinfo, Cerr_neqinstr i1 i2 "allocation")
+    Let re := add_iinfo iinfo (check_e e1 e2 r) in
+    Let r1 := fold2 (iinfo,cmd2_error) check_I c11 c21 re in
+    Let r2 := fold2 (iinfo,cmd2_error) check_I c12 c22 re in 
+    ciok (M.merge r1 r2)
+  | Cfor x1 (d1,lo1,hi1) c1, Cfor x2 (d2,lo2,hi2) c2 =>
+    if d1 == d2 then 
+      Let rhi := add_iinfo iinfo (check_e lo1 lo2 r >>=check_e hi1 hi2) in
+      let check_c r := 
+          add_iinfo iinfo (check_var x1 x2 r) >>= 
+          fold2 (iinfo,cmd2_error) check_I c1 c2 in
+      loop iinfo check_c Loop.nb rhi 
+    else cierror iinfo (Cerr_neqdir salloc)
+  | Cwhile e1 c1, Cwhile e2 c2 =>
+    let check_c r :=
+      add_iinfo iinfo (check_e e1 e2 r) >>= 
+      fold2 (iinfo,cmd2_error) check_I c1 c2 in
+     loop iinfo check_c Loop.nb r
+  | _, _ => cierror iinfo (Cerr_neqinstr i1 i2 salloc)
   end
 
 with check_I i1 i2 r := 
   match i1, i2 with
-  | MkI _ i1, MkI _ i2 => check_i i1 i2 r
-  end
-
-.
-
-
-
-  | Cfor i1 (dir1,hi1,lo1) c1, Cfor i2 (dir2,hi2,lo2) c2 =>
-    if 
-    if eqb_dir dir1 dir2 then 
-      check_e lo1 lo2 r >>= (fun rlo =>
-      check_e hi1 hi2 rlo >>= (fun rhi =>
-      let check_c r := check_rval i1 i2 r >>= fold2 tt check_I c1 c2 in
-      loop check_c Loop.nb rhi)) 
-    else Error tt 
-  | Cwhile e1 c1, Cwhile e2 c2 =>
-     loop (fun r => check_e e1 e2 r >>= fold2 tt check_I c1 c2) Loop.nb r
-  | Ccall x1 f1 arg1, Ccall x2 f2 arg2 => 
-    if f1 == f2 then 
-      check_e arg1 arg2 r >>= check_rval x1 x2
-    else Error tt
-  | _, _ => Error tt
-  end
-
-
-with check_fd ta1 tr1 (fd1:fundef ta1 tr1) ta2 tr2 (fd2:fundef ta2 tr2) :=
-  match fd1, fd2 with
-  | FunDef _ _ p1 c1 r1, FunDef _ _ p2 c2 r2 =>
-    isOk (check_rval p1 p2 M.empty >>= (fun r =>
-          fold2 tt check_I c1 c2 r >>= check_e r1 r2))
+  | MkI ii i1, MkI _ i2 => check_i ii i1 i2 r
   end.
 
+Definition check_cmd iinfo := fold2 (iinfo,cmd2_error) check_I.
+
+Definition check_fundef (f1 f2: funname * fundef) (_:unit) := 
+  let (f1,fd1) := f1 in
+  let (f2,fd2) := f2 in
+  if f1 == f2 then
+    add_finfo f1 f2 (
+    Let r := add_iinfo fd1.(f_iinfo) (check_vars fd1.(f_params) fd2.(f_params) M.empty) in
+    Let r := check_cmd fd1.(f_iinfo) fd1.(f_body) fd2.(f_body) r in
+    let es1 := map Pvar fd1.(f_res) in
+    let es2 := map Pvar fd2.(f_res) in
+    Let _r := add_iinfo fd1.(f_iinfo) (check_es es1 es2 r) in
+    ciok tt)    
+  else cferror (Ferr_neqfun f1 f2).
+
+Definition check_prog prog1 prog2 :=
+  fold2 Ferr_neqprog check_fundef prog1 prog2 tt.
+
+  
+
+(*
 Section PROOF.
 
   Let Pi (i1:instr_r) := 
@@ -406,7 +417,7 @@ Section PROOF.
   Qed.
 
 End PROOF.
-
+*)
 End MakeCheckAlloc.
 
 Module MakeMalloc(M:gen_map.MAP).
@@ -680,67 +691,76 @@ Module CBAreg.
 
   End M.
 
-  Definition check_v x1 x2 (m:M.t) :=
+  Definition check_v xi1 xi2 (m:M.t) : cexec M.t :=
+    let x1 := xi1.(v_var) in
+    let x2 := xi2.(v_var) in    
     if vtype x1 == vtype x2 then
       match M.get m x1 with
       | None     => 
         match vtype x1 with
         | sarr _ => 
-          if Sv.mem x1 (M.mset m) then Error tt
-          else Ok unit (M.set m x1 (vname x2))
-        | _ => Error tt
+          if Sv.mem x1 (M.mset m) then cerror (Cerr_varalloc xi1 xi2 "array already set") 
+          else cok (M.set m x1 (vname x2))
+        | _ => cerror (Cerr_varalloc xi1 xi2 "variable not set") 
         end
       | Some id' => 
-        if vname x2 == id' then Ok unit m 
-        else Error tt
+        if vname x2 == id' then cok m 
+        else cerror (Cerr_varalloc xi1 xi2 "variable mismatch")
       end
-    else Error tt.
-  
-  Fixpoint check_e t1 t2 (e1:pexpr t1) (e2:pexpr t2) (m:M.t) := 
-    match e1, e2 with
-    | Pvar x1  , Pvar x2    => check_v x1 x2 m
-    | Pload e1 , Pload e2   => check_e e1 e2 m
-    | Pconst n1, Pconst n2  => 
-      if n1 == n2 then Ok unit m else Error tt
-    | Pbool b1 , Pbool b2   => 
-      if b1 == b2  then Ok unit m else Error tt
-    | Papp1 _ _ o1 e1, Papp1 _ _ o2 e2 => 
-      if eqb_sop1 o1 o2 then check_e e1 e2 m
-      else Error tt
-    | Papp2 _ _ _ o1 e11 e12   , Papp2 _ _ _ o2 e21 e22     =>  
-      if eqb_sop2 o1 o2 then 
-        check_e e11 e21 m >>= (check_e e12 e22)
-      else Error tt
-    | Papp3 _ _ _ _ o1 e11 e12 e13, Papp3 _ _ _ _ o2 e21 e22 e23 => 
-      if eqb_sop3 o1 o2 then 
-        check_e e11 e21 m >>= check_e e12 e22 >>= check_e e13 e23
-      else Error tt
-    | _, _ => Error tt
+    else cerror (Cerr_varalloc xi1 xi2 "type mismatch").
+
+  Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t:= 
+    match e1, e2 with 
+    | Pconst n1, Pconst n2 => 
+      if n1 == n2 then cok m else cerror (Cerr_neqexpr e1 e2 salloc) 
+    | Pbool  b1, Pbool  b2 => 
+      if b1 == b2 then cok m else cerror (Cerr_neqexpr e1 e2 salloc)
+    | Pcast  e1, Pcast  e2 => check_e e1 e2 m 
+    | Pvar   x1, Pvar   x2 => check_v x1 x2 m
+    | Pget x1 e1, Pget x2 e2 => check_v x1 x2 m >>= check_e e1 e2
+    | Pload  e1, Pload  e2 => check_e e1 e2 m   
+    | Pnot   e1, Pnot   e2 => check_e e1 e2 m
+    | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
+      if o1 == o2 then check_e e11 e21 m >>= check_e e12 e22
+      else cerror (Cerr_neqop2 o1 o2 salloc)
+    | _, _ => cerror (Cerr_neqexpr e1 e2 salloc)
     end.
-    
-  Fixpoint check_rval_mem  t1 t2 (x1:rval t1) (x2:rval t2) m :=
+
+  Definition check_rval_e (x1 x2:rval) m : cexec M.t :=
     match x1, x2 with
-    | Rvar x1, Rvar x2 => Ok unit m
+    | Rnone  , Rnone   => cok m
+    | Rvar _ , Rvar  _ => cok m
     | Rmem e1, Rmem e2 => check_e e1 e2 m
-    | Rpair _ _ x11 x12, Rpair _ _ x21 x22 => 
-      check_rval_mem x12 x22 m >>= check_rval_mem x11 x21
-    | _                , _                 => Error tt
+    | Raset x1 e1, Raset x2 e2 => check_v x1 x2 m >>= check_e e1 e2
+    | _      , _       => cerror (Cerr_neqrval x1 x2 salloc)
     end.
 
-  Fixpoint check_rval_aux t1 t2 (x1:rval t1) (x2:rval t2) m :=
+  Definition check_var_aux (xi1 xi2:var_i) m : cexec M.t :=
+    let x1 := xi1.(v_var) in
+    let x2 := xi2.(v_var) in
+    if vtype x1 == vtype x2 then cok (M.set m x1 (vname x2))
+    else cerror (Cerr_varalloc xi1 xi2 "type mismatch").
+
+  Fixpoint check_rval_aux (x1 x2:rval) m : cexec M.t :=
     match x1, x2 with
-    | Rvar x1, Rvar x2 => 
-      if vtype x1 == vtype x2 then Ok unit (M.set m x1 (vname x2))
-      else Error tt 
-    | Rmem e1, Rmem e2 => Ok unit m
-    | Rpair _ _ x11 x12, Rpair _ _ x21 x22 => 
-      check_rval_aux x12 x22 m >>= check_rval_aux x11 x21
-    | _                , _                 => Error tt
+    | Rnone   , Rnone    => cok m 
+    | Rvar xi1, Rvar xi2 => check_var_aux xi1 xi2 m
+    | Rmem e1 , Rmem e2  => cok m
+    | Raset xi1 _, Raset xi2 _ => check_var_aux xi1 xi2 m
+    | _       , _        => cerror (Cerr_neqrval x1 x2 salloc)
     end.
 
-  Definition check_rval t1 t2 (x1:rval t1) (x2:rval t2) m := 
-    check_rval_mem x1 x2 m >>= (check_rval_aux x1 x2).
-    
+  Definition check_rvals_e := fold2 (Cerr_fold2 "allocation:check_rvals_e") check_rval_e.
+
+  Definition check_rvals_aux := fold2 (Cerr_fold2 "allocation:check_rvals_aux") check_rval_aux.
+
+  Definition check_rval (x1 x2:rval) m := 
+    check_rval_e x1 x2 m >>= (check_rval_aux x1 x2).
+
+  Definition check_rvals (xs1 xs2:rvals) m := 
+    check_rvals_e xs1 xs2 m >>= (check_rvals_aux xs1 xs2).
+
+(*    
   Definition eq_alloc (r:M.t) (vm1 vm2:vmap) := 
     (forall x, ~Sv.In x (M.mset r) -> is_empty_array vm1.[x]) /\
     (forall x id,  M.get r x = Some id ->
@@ -944,7 +964,7 @@ Module CBAreg.
     have [vm4 /= [Hvm4 Heqa'' ]] := Hx1 _ _ _ _ _ _ _ _ _ _ _ Hc1 Hv1 Hs01 Hw1 Hu1 Heqa' Hvr1.
     rewrite Hvm3 /=;eexists;eauto.
   Qed.
-
+*)
 End CBAreg.
 
 Module CheckAllocReg :=  MakeCheckAlloc CBAreg.

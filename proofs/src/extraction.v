@@ -1,9 +1,9 @@
-Require Import dmasm_expr.
+Require Import compiler.
 
 Cd  "../code/dmasm/src/CIL/".
 
 Extraction Blacklist String List Nat.
 
-Separate Extraction dmasm_expr.
+Separate Extraction compiler.
 
 Cd  "../../../../coq/".
