@@ -48,8 +48,10 @@ Definition get_fun (p:prog) iinfo (f:funname) :=
   | Some fd => ciok fd 
   | None    => cierror iinfo (Cerr_unknown_fun f "inlining")
   end.
-  
-Parameter rename_fd : fundef -> fundef.
+
+Section INLINE.
+
+Variable rename_fd : fundef -> fundef.
 
 Fixpoint inline_i (p:prog) (i:instr) (s:Sv.t) : ciexec (Sv.t * cmd) := 
   match i with
@@ -380,3 +382,5 @@ Section PROOF.
 
 End PROOF.
 *)
+
+End INLINE.

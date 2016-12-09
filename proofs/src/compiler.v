@@ -33,8 +33,10 @@ Section COMPILER.
 Variable ralloc: forall ta tr, fundef ta tr -> fundef ta tr.
 Variable stk_alloc : forall ta tr, fundef ta tr -> seq.seq (var * Z) * S.fundef ta tr. *)
 
+Variable rename_fd : fundef -> fundef.
+
 Definition compile_prog (p:prog) := 
-  Let p := inline_prog p in
+  Let p := inline_prog rename_fd p in
   cfok p.
 
 (*
