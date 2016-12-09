@@ -117,6 +117,7 @@ let compute_kill_ue_block bis =
   let handle_dest d =
     match d with
     | Sdest(sd) -> handle_sdest sd
+    | Ignore(_) -> ()
     | Mem(_,_)  -> ()
       (* writing to MEM[x] does not define x *)
   in
@@ -351,6 +352,7 @@ module RNI = struct
     | Mem(sd,pe) -> Mem({sd with d_var = rn_var rni sd.d_var}, pe)
         (* FIXME: rename pe too? rename index in d_var? *)
     | Sdest(sd)  -> Sdest(rn_sdest rni sd)
+    | Ignore(_)  -> d
 
 end
 

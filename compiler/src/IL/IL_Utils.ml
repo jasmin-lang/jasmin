@@ -24,6 +24,7 @@ let equal_pcond    x y = compare_pcond    x y = 0
 let equal_fcond    x y = compare_fcond    x y = 0
 let equal_op       x y = compare_op       x y = 0
 let equal_ty       x y = compare_ty       x y = 0
+let equal_base_ty  x y = compare_base_ty  x y = 0
 
 let equal_src        x y = compare_src        x y = 0
 let equal_dest       x y = compare_dest       x y = 0
@@ -80,6 +81,12 @@ let get_fundef ~err_s func =
   match func with
   | Foreign(_) -> failwith err_s
   | Native(fd) -> fd
+
+let tu64  = Bty(U(64))
+let tbool = Bty(Bool)
+let tint  = Bty(Int)
+
+let tuN  n = Bty(U(n))
 
 (* ** Exceptions
  * ------------------------------------------------------------------------ *)
@@ -149,16 +156,16 @@ let parse_value ty s =
   in
   let value =
     match ty with
-    | Bool | TInvalid ->
-      assert false
-    | U(n)     ->
+    | Bty(U(n)) ->
       bi >>= fun u -> return (Value.mk_Vu n u)
-    | Arr(n,_) ->
+    | Arr(U(n),_) ->
       (char '[' >>= fun _ ->
        (sep_by bi (char ',' >> optional (char ' '))) >>= fun vs ->
        char ']' >>= fun _ ->
        let vs = U64.Map.of_alist_exn (List.mapi vs ~f:(fun i v -> (U64.of_int i, v))) in
        return (Value.mk_Varr n vs))
+    | Bty(Bool) | TInvalid | Arr(_,_) | Bty(Int) ->
+      assert false
   in
   match parse_string (value >>= fun x -> eof >>$ x) s () with
   | Success t   -> t

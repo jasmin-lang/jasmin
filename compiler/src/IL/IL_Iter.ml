@@ -26,6 +26,7 @@ let rec iter_vars_idx ~f = function
 
 and iter_vars_dest ~f d =
   match d with
+  | Ignore(_)  -> ()
   | Mem(sd,pe) -> iter_vars_sdest ~f sd; iter_vars_pexpr ~f pe
   | Sdest(sd)  -> iter_vars_sdest ~f sd
 
@@ -202,7 +203,7 @@ let iter_params_patom  ~f = function
 
 let iter_params_ty ~f = function
   | TInvalid    -> assert false
-  | Bool | U(_) -> ()
+  | Bty(_)      -> ()
   | Arr(_,dim)  -> iter_params_dexpr ~f dim
 
 let iter_params_var ~f v =
@@ -230,6 +231,7 @@ let iter_params_sdest ~f sd =
 
 let iter_params_dest ~f d =
   match d with
+  | Ignore(_)  -> ()
   | Sdest(sd)  -> iter_params_sdest ~f sd
   | Mem(sd,pe) -> iter_params_sdest ~f sd; iter_params_pexpr ~f pe
 
@@ -323,6 +325,7 @@ let params_consistent_modul pp_ty modul =
 
 let iter_sdests_dest ~f d =
   match d with
+  | Ignore(_)   -> ()
   | Mem(sd,_pe) -> f sd
   | Sdest(sd)   -> f sd
 

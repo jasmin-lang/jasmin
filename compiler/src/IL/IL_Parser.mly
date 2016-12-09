@@ -34,6 +34,8 @@ module L = ParserUtil.Lexing
 %token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256
 %token T_BOOL
 
+%token UNDERSCORE
+
 %token STAR
 %token BAND
 %token MINUS
@@ -121,17 +123,18 @@ terminated_list(S,X):
     { let (loc,d) = ld in { d with d_loc = loc } }
 
 %inline dest :
-| sd=sdest                                      { Sdest(sd)   }
-| MEM LBRACK ptr = sdest PLUS pe = pexpr RBRACK { Mem(ptr,pe) }
+| l = loc(UNDERSCORE)                           { Ignore(fst l) }
+| sd=sdest                                      { Sdest(sd)     }
+| MEM LBRACK ptr = sdest PLUS pe = pexpr RBRACK { Mem(ptr,pe)   }
 
 param:
 | lid=loc(NID) { mk_param lid }
 
 src :
-| d=dest                       { Src(d)                         }
-| DOLLAR p=param               { Imm(64,Patom(Pparam(p)))       } (* FIXME: fixed for 64 *)
-| DOLLAR LPAREN i=pexpr RPAREN { Imm(64,i)                      } (* FIXME: fixed for 64 *)
-| i=INT COLON n=utype          { Imm(n,Pconst(Arith.parse_big_int i)) }
+| d=dest                       { assert_not_ignore d; Src(d)           }
+| DOLLAR p=param               { Imm(64,Patom(Pparam(p)))              } (* FIXME: fixed for 64 *)
+| DOLLAR LPAREN i=pexpr RPAREN { Imm(64,i)                             } (* FIXME: fixed for 64 *)
+| i=INT COLON n=utype          { Imm(n,Pconst(Arith.parse_big_int i))  }
 | i=INT                        { Imm(64,Pconst(Arith.parse_big_int i)) }
 
 (* ** Index expressions and conditions
@@ -321,8 +324,8 @@ utype :
 | T_U256 { 256 }
 
 typ :
-| ut=utype  odim=typ_dim? { match odim with None -> U(ut) | Some d -> Arr(ut,d) }
-| T_BOOL                  { Bool }
+| ut=utype  odim=typ_dim? { match odim with None -> Bty(U(ut)) | Some d -> Arr(U(ut),d) }
+| T_BOOL                  { Bty(Bool) }
 
 stor_typ :
 | sto=storage ty=typ { (sto,ty) }

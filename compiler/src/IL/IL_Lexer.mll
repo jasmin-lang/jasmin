@@ -35,6 +35,8 @@ rule lex = parse
   | "u256"  { T_U256 }
   | "bool"  { T_BOOL }
 
+  | "_"     { UNDERSCORE }
+
   | "="     { EQ }
   | "!="    { INEQ }
   | "+="    { PLUSEQ }

@@ -71,14 +71,19 @@ type 'a pexpr_g =
   | Pconst of big_int
   [@@deriving compare,sexp]
 
+type base_ty =
+  | Bool
+  | U   of int (* U(n): unsigned n-bit integer, n=1 is bool *)
+  | Int        (* Unbounded integer for pexpr *)
+  [@@deriving compare,sexp]
+
 module Param = struct
   module T = struct
     type dexpr = t pexpr_g [@@deriving compare,sexp]
  
     and ty =
-      | Bool
-      | U of int           (* U(n): unsigned n-bit integer *)
-      | Arr of int * dexpr (* Arr(n,de): array of n-bit integers with dim. *) 
+      | Bty of base_ty
+      | Arr of base_ty * dexpr (* Arr(n,de): array of n-bit integers with dim. *) 
       | TInvalid
       [@@deriving compare,sexp]
 
@@ -189,8 +194,9 @@ type sdest = {
 } [@@deriving compare,sexp]
 
 type dest =
-  | Mem   of sdest * pexpr
-  | Sdest of sdest
+  | Ignore of L.loc (* ignore value, like _ in Ocaml *) 
+  | Mem    of sdest * pexpr
+  | Sdest  of sdest
   [@@deriving compare,sexp]
 
 type src =

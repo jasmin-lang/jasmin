@@ -85,6 +85,7 @@ and map_vars_dest ~f d =
   match d with
   | Mem(sd,pe) -> Mem(map_vars_sdest ~f sd, map_vars_pexpr ~f pe)
   | Sdest(sd)  -> Sdest(map_vars_sdest ~f sd)
+  | Ignore(_)  -> d
 
 and map_vars_sdest ~f sd =
   { d_var = f sd.d_var
@@ -195,6 +196,7 @@ and map_params_dest ~f d =
   match d with
   | Sdest(sd)  -> Sdest(map_params_sdest ~f sd)
   | Mem(sd,pe) -> Mem(map_params_sdest ~f sd, map_params_pexpr ~f pe)
+  | Ignore(_)  -> d
 
 and map_params_sdest ~f sd =
   { d_var = map_params_var ~f sd.d_var
@@ -214,8 +216,8 @@ and map_params_var ~f v =
 
 and map_params_ty ~f ty =
   match ty with
-  | TInvalid | Bool | U(_) -> ty
-  | Arr(n,dim)             -> Arr(n,map_params_dexpr ~f dim)
+  | TInvalid | Bty(_) -> ty
+  | Arr(n,dim)        -> Arr(n,map_params_dexpr ~f dim)
 
 and map_params_dexpr ~f de =
   let mvp = map_params_dexpr ~f in
@@ -322,6 +324,7 @@ and map_tys_dest ~f d =
   match d with
   | Sdest(sd)  -> Sdest(map_tys_sdest ~f sd)
   | Mem(sd,pe) -> Mem(map_tys_sdest ~f sd, map_tys_pexpr ~f pe)
+  | Ignore(_)  -> d
 
 and map_tys_sdest ~f sd =
   { d_var = map_tys_var ~f sd.d_var
@@ -341,8 +344,8 @@ and map_tys_var ~f:(f : ty -> ty) v =
 
 and map_tys_ty ~f:(f : ty -> ty) ty =
   match ty with
-  | TInvalid | Bool | U(_) -> f ty
-  | Arr(n,dim)             -> f (Arr(n,map_tys_dexpr ~f dim))
+  | TInvalid | Bty(_) -> f ty
+  | Arr(n,dim)        -> f (Arr(n,map_tys_dexpr ~f dim))
 
 and map_tys_dexpr ~f:(f : ty -> ty) de =
   let mtd = map_tys_dexpr ~f in
@@ -436,9 +439,11 @@ let map_tys_modul_all ~f:(f : ty -> ty) modul =
 (* ** Map function over all destinations
  * ------------------------------------------------------------------------ *)
 
-let map_sdests_dest ~f = function
+let map_sdests_dest ~f d =
+  match d with
   | Mem(sd,pe) -> Mem(f sd, pe)
   | Sdest(sd)  -> Sdest(f sd)
+  | Ignore(_)   -> d
 
 let map_sdests_src ~f = function
   | Imm(i,pe) -> Imm(i,pe)

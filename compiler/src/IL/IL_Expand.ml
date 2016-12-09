@@ -418,8 +418,7 @@ Assumes that there are no function calls in the macro-expanded function.
 let inst_ty ptable ltable ty =
   match ty with
   | TInvalid   -> assert false
-  | Bool       -> Bool
-  | U(i)       -> U(i)
+  | Bty(_)     -> ty
   | Arr(i,dim) -> Arr(i,peval_dexpr ptable ltable dim)
 
 let inst_var ltable v ~default ~f =
@@ -441,6 +440,7 @@ let inst_dest ptable ltable d =
   let isd = inst_sdest ptable ltable in
   let ipe = peval_pexpr ptable ltable in
   match d with
+  | Ignore(_)  -> d
   | Mem(sd,pe) -> Mem(isd sd, ipe pe)
   | Sdest(sd)  -> Sdest(isd sd)
 
@@ -584,8 +584,8 @@ and that all inline-loops and ifs have been expanded.
 
 let array_expand_fundef fd =
   (* check that args and ret do not contain arrays, var numbers are unique *)
-  List.iter fd.f_ret ~f:(fun v -> assert (v.Var.ty=U(64)));
-  List.iter fd.f_arg ~f:(fun v -> assert (v.Var.ty=U(64)));
+  List.iter fd.f_ret ~f:(fun v -> assert (v.Var.ty=tu64));
+  List.iter fd.f_arg ~f:(fun v -> assert (v.Var.ty=tu64));
   vars_num_unique_fundef fd;
 
   let ctr = ref (succ (max_var_fundef fd)) in
@@ -629,7 +629,7 @@ let array_expand_fundef fd =
         let v = d.d_var in
         { d with
           d_idx = None;
-          d_var = { v with Var.num = base + i; Var.ty = U(64) }; }
+          d_var = { v with Var.num = base + i; Var.ty = tu64}; }
       | None -> d
       end
     | _ -> d)

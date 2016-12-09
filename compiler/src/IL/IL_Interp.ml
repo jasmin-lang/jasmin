@@ -87,6 +87,7 @@ let read_mem_val ptable ltable mtable sd pe =
 
 let read_dest_val ptable ltable mtable d =
   match d with
+  | Ignore(_)  -> assert false
   | Sdest(sd)  -> read_sdest_val ptable ltable sd
   | Mem(sd,pe) -> read_mem_val ptable ltable mtable sd pe
 
@@ -109,6 +110,7 @@ let read_flag ms s =
   | Src(Sdest{d_var; d_idx=None}) -> hashtbl_find_exn ms.m_fltable pp_int d_var.Var.num
   | Src(Sdest{d_idx=Some(_)})     -> failwith "expected flag, got array access" 
   | Src(Mem(_))                   -> failwith "expected flag, got memory access" 
+  | Src(Ignore(_))                -> assert false
   | Imm _                         -> failwith "expected flag, got immediate"
 
 (* *** Writing values
@@ -159,6 +161,7 @@ let write_sdest_u64 ptable ltable d u =
 
 let write_dest ptable ltable mtable d x =
   match d with
+  | Ignore(_)  -> ()
   | Mem(sd,pe) -> write_mem ptable ltable mtable sd pe x
   | Sdest(sd)  -> write_sdest ptable ltable sd x
 
@@ -167,6 +170,7 @@ let write_dest_u64 ptable ltable mtable d u =
 
 let write_flag ms d b =
   match d with
+  | Ignore(_)    -> ()
   | Mem(_sd,_pe) -> failwith "cannot store boolean values in memory"
   | Sdest(sd)  ->
     begin match sd.d_idx with

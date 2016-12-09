@@ -112,6 +112,8 @@ let clist_of_list l =
 
 let sword = DT.Coq_sword
 let sbool = DT.Coq_sbool
+let sint  = DT.Coq_sint
+
 let sarr i = DT.Coq_sarr(pos_of_bi i)
 
 (* ** Conversation info (required for lossless roundtrip)
@@ -203,18 +205,24 @@ end
 (* ** Types, pexpr, pcond, and fcond
  * ------------------------------------------------------------------------ *)
 
+let cty_of_bty = function
+  | Bool  -> sbool
+  | U(64) -> sword
+  | Int   -> sint
+  | _     -> assert false
+
 let cty_of_ty ty =
   match ty with
-  | Bool               -> sbool
-  | U(64)              -> sword
-  | Arr(64,Pconst(bi)) -> sarr bi
-  | _                  -> assert false
+  | Bty(bt)               -> sword
+  | Arr(U(64),Pconst(bi)) -> sarr bi
+  | _                     -> assert false
 
 let ty_of_cty cty =
   match cty with
-  | DT.Coq_sbool     -> Bool
-  | DT.Coq_sword     -> U(64)
-  | DT.Coq_sarr(pos) -> Arr(64, Pconst(bi_of_pos pos))
+  | DT.Coq_sbool     -> tbool
+  | DT.Coq_sword     -> tu64
+  | DT.Coq_sint      -> tint
+  | DT.Coq_sarr(pos) -> Arr(U(64), Pconst(bi_of_pos pos))
   | _                -> failwith "ty_of_cty: cannot convert given coq type"
 
 let sop2_of_pop_u64 po =

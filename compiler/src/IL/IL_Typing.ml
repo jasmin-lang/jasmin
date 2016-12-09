@@ -35,10 +35,9 @@ let type_error l s = failloc l s
 (* Return [true] if the types [t1] and [t2] are equivalent. *)
 let equiv_ty ty1 ty2 =
   match ty1, ty2 with
-  | Bool,    Bool        -> true
-  | U(i)   , U(j)        -> i = j
-  | Arr(i,d1), Arr(j,d2) -> i = j && equal_dexpr d1 d2
-  | _,       _           -> false
+  | Bty(bt1), Bty(bt2)       -> equal_base_ty bt1 bt2
+  | Arr(bt1,d1), Arr(bt2,d2) -> equal_base_ty bt1 bt2 && equal_dexpr d1 d2
+  | _,       _               -> false
 
 (* Compute dimension from [dim] pexpr or upper and lower bound. *)
 let get_dim (dim : pexpr) (lb_o,ub_o) =
@@ -54,15 +53,15 @@ let type_sdest sd =
   let ty = sd.d_var.Var.ty in
   match ty with
   | TInvalid -> assert false
-  | Bool | U(_) ->
+  | Bty(bt) ->
     if None<>sd.d_idx then
       type_error_ sd.d_loc "register has type %a, cannot access array element"
-        pp_ty_nt ty;
+        pp_base_ty bt;
     ty
-  | Arr(i,_dim) as ty ->
+  | Arr(bt,_dim) as ty ->
     begin match sd.d_idx with
     | None -> ty
-    | _    -> U(i)
+    | _    -> Bty(bt)
     end
 
 (* Ensure that [sd] has given type [ty_exp]. *)
@@ -77,28 +76,30 @@ let typecheck_sdest sd ty_exp =
 (* Ensure that [d] has given type [ty_exp]. *)
 let typecheck_dest d ty_exp =
   match d with
+  | Ignore(_)  -> ()
   | Sdest(sd)  -> typecheck_sdest sd ty_exp
   | Mem(sd,_pe) ->
-    typecheck_sdest sd (U(64));
-    if ty_exp<>U(64) then
+    typecheck_sdest sd (Bty(U(64)));
+    if ty_exp<>Bty(U(64)) then
       failloc_ sd.d_var.Var.uloc "Memory access return u64"
 
 (* Return type of [d] and ensure that d well-typed. *)
 let type_dest d =
   match d with
+  | Ignore(_)   -> assert false
   | Sdest(sd)   -> type_sdest sd
-  | Mem(sd,_pe) -> typecheck_sdest sd (U(64)); U(64)
+  | Mem(sd,_pe) -> typecheck_sdest sd (Bty(U(64))); Bty(U(64))
 
 (* Return type of source [s]. *)
 let type_src s =
   match s with
-  | Imm(n,_) -> U(n)
+  | Imm(n,_) -> Bty(U(n))
   | Src(d)   -> type_dest d
 
 (* Ensure that type of [s] is equal to [ty_exp]. *)
 let typecheck_src s ty_exp =
   match s with
-  | Imm(_) -> if not (equal_ty ty_exp (U(64))) then assert false
+  | Imm(_) -> if not (equal_ty ty_exp (Bty(U(64)))) then assert false
   | Src(d) -> typecheck_dest d ty_exp
 
 (* Ensure that var [v] has type [ty] and (optional) storage [os]. *)
@@ -127,12 +128,13 @@ let typecheck_assgn d s pos =
 (* Checks that the base type of the given source is equal to [t] *)
 let type_src_eq src ty_exp =
   match src, ty_exp with
-  | _    ,  TInvalid -> assert false
-  | Imm _,  Bool     -> failwith "got u64, expected bool"
-  | Imm _,  U(64)    -> ()
-  | Imm _,  U(i)     -> failwith_ "got u64, expected u%i" i
-  | Imm _,  Arr(_)   -> failwith "got u64, expected u64[..]"
-  | Src(d), t        -> typecheck_dest d t
+  | _    ,  TInvalid   -> assert false
+  | Imm _,  Bty(Bool)  -> failwith "got u64, expected bool"
+  | Imm _,  Bty(U(64)) -> ()
+  | Imm _,  Bty(U(i))  -> failwith_ "got u64, expected u%i" i
+  | Imm _,  Bty(Int)   -> failwith_ "got u64, expected int"
+  | Imm _,  Arr(_)     -> failwith "got u64, expected u64[..]"
+  | Src(d), t          -> typecheck_dest d t
 
 (* *** Check types for ops, instructions, statements, and functions
  * ------------------------------------------------------------------------ *)
@@ -142,37 +144,37 @@ let typecheck_op op ds ss =
   match view_op op ds ss with
 
   | V_Umul(h,l,x,y) ->
-    type_src_eq  x (U(64));
-    type_src_eq  y (U(64));
-    type_dest_eq l (U(64));
-    type_dest_eq h (U(64))
+    type_src_eq  x tu64;
+    type_src_eq  y tu64;
+    type_dest_eq l tu64;
+    type_dest_eq h tu64
 
   | V_Carry(_,mcf_out,z,x,y,mcf_in) ->
-    type_src_eq  x (U(64));
-    type_src_eq  y (U(64));
-    type_dest_eq z (U(64));
-    Option.iter ~f:(fun s -> type_src_eq  s Bool) mcf_in;
-    Option.iter ~f:(fun d -> type_dest_eq d Bool) mcf_out
+    type_src_eq  x tu64;
+    type_src_eq  y tu64;
+    type_dest_eq z tu64;
+    Option.iter ~f:(fun s -> type_src_eq  s tbool) mcf_in;
+    Option.iter ~f:(fun d -> type_dest_eq d tbool) mcf_out
 
   | V_Cmov(_,z,x,y,cf) ->
-    type_src_eq  x (U(64));
-    type_src_eq  y (U(64));
-    type_src_eq  cf Bool;
-    type_dest_eq z (U(64))
+    type_src_eq  x tu64;
+    type_src_eq  y tu64;
+    type_src_eq  cf tbool;
+    type_dest_eq z  tu64
 
   | V_ThreeOp(_,z,x,y) ->
-    type_src_eq  x (U(64));
-    type_src_eq  y (U(64));
-    type_dest_eq z (U(64))
+    type_src_eq  x tu64;
+    type_src_eq  y tu64;
+    type_dest_eq z tu64
 
   | V_Shift(_dir,mcf_out,z,x,y) ->
-    type_src_eq  x (U(64));
-    type_src_eq  y (U(64));
-    type_dest_eq z (U(64));
-    Option.iter ~f:(fun s -> type_dest_eq s Bool) mcf_out
+    type_src_eq  x tu64;
+    type_src_eq  y tu64;
+    type_dest_eq z tu64;
+    Option.iter ~f:(fun s -> type_dest_eq s tbool) mcf_out
 
 let typecheck_fcond fc =
-  type_var_eq fc.fc_var Bool (Some(Reg))
+  type_var_eq fc.fc_var tbool (Some(Reg))
 
 let typecheck_fcond_or_pcond = function
   | Pcond(_)  -> ()
@@ -192,6 +194,7 @@ let typecheck_call ftable loc fname ret arg =
       typecheck_dest d ty_exp;
       let uloc,sto =
         match d with
+        | Ignore(_) -> assert false
         | Mem(sd,_) -> sd.d_loc, Stack (* FIXME: we treat Mem and Stack the same *)
         | Sdest(sd) -> sd.d_loc, sd.d_var.Var.stor
       in
@@ -200,7 +203,7 @@ let typecheck_call ftable loc fname ret arg =
           Fname.pp fname (string_of_storage sto) (string_of_storage sto_exp)
     in
     let tc_imm n (sto_exp,ty_exp) =
-      let ty = U(n) in
+      let ty = tuN n in
       let sto = Inline in
       if not (equiv_ty ty ty_exp) then
         failwith_ "wrong type for call of %a: got ``%a'', expected ``%a''"
@@ -239,7 +242,7 @@ let rec typecheck_instr ftable instr =
   match instr.L.l_val with
   | Block(bis,_)        -> List.iter ~f:tc_bi bis
   | If(c,stmt1,stmt2,_) -> tc_cond c; tc_stmt stmt1; tc_stmt stmt2
-  | For(sd,_,_,stmt,_)  -> assert(sd.d_idx=None); tc_sdest sd (U(64)); tc_stmt stmt
+  | For(sd,_,_,stmt,_)  -> assert(sd.d_idx=None); tc_sdest sd tu64; tc_stmt stmt
   | While(_wt,fc,s,_)   -> tc_fcond fc; tc_stmt s
 
 and typecheck_stmt ftable stmt =

@@ -15,6 +15,7 @@ fn test() {
   r1 = x*z;
   w  = y*z;
   r1 += w;
+  _  = w + w;
 
   r2 = x + y;
   r2 *= z;

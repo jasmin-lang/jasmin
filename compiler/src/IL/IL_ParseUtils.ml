@@ -26,6 +26,10 @@ let get_errs () =
   |> List.remove_consecutive_duplicates
       ~equal:(fun (l1,_) (l2,_) -> L.compare_loc l1 l2 = 0)
 
+let assert_not_ignore = function
+  | Ignore(_) -> assert false
+  | _         -> ()
+
 type decl_item =
   | Dfun of (Fname.t * unit func)
   | Dparams of ((string * string) * ty) list
@@ -100,6 +104,8 @@ let conv_decl (ds,(s,t)) =
   List.map ds
     ~f:(fun d ->
           match d with
+          | Ignore(l) ->
+            failloc_ l "expected identifier, not _"
           | Mem(sd,_) ->
             failloc_ sd.d_loc "expected identifier, not MEM"
           | Sdest(sd) ->

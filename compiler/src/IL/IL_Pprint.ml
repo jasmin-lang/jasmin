@@ -16,7 +16,6 @@ let string_of_storage = function
   | Reg      -> "reg"
   | Inline   -> "inline"
 
-
 let string_of_call_conv = function
   | Extern -> "extern "
   | _      -> ""
@@ -31,6 +30,12 @@ let pp_add_suffix fs pp fmt x =
 
 let pp_add_prefix fs pp fmt x =
   F.fprintf fmt (fs^^"%a") pp x
+
+and pp_base_ty fmt bty =
+  match bty with
+  | Bool -> F.fprintf fmt "bool"
+  | U(n) -> F.fprintf fmt "u%i" n
+  | Int  -> F.fprintf fmt "int"
 
 let rec pp_patom ~pp_types fmt pa =
   match pa with
@@ -56,10 +61,9 @@ and pp_param ~pp_types fmt p =
 
 and pp_ty ~pp_types fmt ty =
   match ty with
-  | TInvalid   -> F.fprintf fmt "invalid"
-  | Bool       -> F.fprintf fmt "bool"
-  | U(n)       -> F.fprintf fmt "u%i" n
-  | Arr(n,dim) -> F.fprintf fmt "u%i[%a]" n (pp_dexpr ~pp_types) dim
+  | TInvalid    -> F.fprintf fmt "invalid"
+  | Bty(bt)     -> pp_base_ty fmt bt
+  | Arr(bt,dim) -> F.fprintf fmt "%a[%a]" pp_base_ty bt (pp_dexpr ~pp_types) dim
 
 and pp_dexpr ~pp_types fmt ce =
   let ppd = pp_dexpr ~pp_types in
@@ -93,6 +97,7 @@ let pp_sdest ~pp_types fmt {d_var=v; d_idx=oidx} =
 
 let pp_dest ~pp_types fmt d =
   match d with
+  | Ignore(_)  -> pp_string fmt "_"
   | Mem(sd,pe) ->
     F.fprintf fmt "MEM[%a + %a]" (pp_sdest ~pp_types) sd (pp_pexpr ~pp_types) pe
   | Sdest(sd) ->
