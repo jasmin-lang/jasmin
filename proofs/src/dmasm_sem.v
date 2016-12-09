@@ -239,7 +239,8 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
       Let i := sem_pexpr s e >>= to_word in
       Let w := Array.get t i in
       ok (Vword w)
-  | Pload e => 
+  | Pload x e =>
+    (* FIXME: use x as offset *)
     Let w := sem_pexpr s e >>= to_word >>= read_mem s.(emem) in
     ok (@to_val sword w)
   | Pnot e => 
@@ -252,7 +253,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   end.
 
 Definition sem_pexprs s := mapM (sem_pexpr s).
- 
+
 Inductive vval : Type :=
  | Vnone : vval
  | Vvar  : var  -> vval
@@ -263,9 +264,10 @@ Notation vvals := (seq vval).
 
 Definition sem_rval (s:estate) (r:rval) : exec vval :=
   match r with
-  | Rnone   => ok (Vnone)
+  | Rnone _ => ok (Vnone)
   | Rvar  x => ok (Vvar x)  
-  | Rmem  e => 
+  | Rmem  x e => 
+    (* FIXME: use x as offset *)
     Let p := sem_pexpr s e >>= to_word in
     ok (Vmem p)
   | Raset x i =>
@@ -347,7 +349,8 @@ Definition sem_sopn (o:sopn) :  values -> exec values :=
   | Oland => owww I64.and 
   | Olor  => owww I64.or
   | Olsr  => owww I64.shru
-  | Olsl  => owww I64.shl 
+  | Olsl  => owww I64.shl
+  | Omuli => owww (fun x y => let (h,l) := wumul x y in l) (* FIXME: check imul INTEL manual *)
   | Oif   => 
     app_sopn [::sbool; sword; sword] (fun b x y => [::Vword (if b then x else y)])
   | Omulu => 

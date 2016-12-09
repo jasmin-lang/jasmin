@@ -718,7 +718,7 @@ Module CBAreg.
     | Pcast  e1, Pcast  e2 => check_e e1 e2 m 
     | Pvar   x1, Pvar   x2 => check_v x1 x2 m
     | Pget x1 e1, Pget x2 e2 => check_v x1 x2 m >>= check_e e1 e2
-    | Pload  e1, Pload  e2 => check_e e1 e2 m   
+    | Pload x1 e1, Pload x2 e2 => check_v x1 x2 m >>= check_e e1 e2
     | Pnot   e1, Pnot   e2 => check_e e1 e2 m
     | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
       if o1 == o2 then check_e e11 e21 m >>= check_e e12 e22
@@ -728,9 +728,9 @@ Module CBAreg.
 
   Definition check_rval_e (x1 x2:rval) m : cexec M.t :=
     match x1, x2 with
-    | Rnone  , Rnone   => cok m
+    | Rnone _, Rnone _ => cok m
     | Rvar _ , Rvar  _ => cok m
-    | Rmem e1, Rmem e2 => check_e e1 e2 m
+    | Rmem x1 e1, Rmem x2 e2 => check_v x1 x2 m >>= check_e e1 e2
     | Raset x1 e1, Raset x2 e2 => check_v x1 x2 m >>= check_e e1 e2
     | _      , _       => cerror (Cerr_neqrval x1 x2 salloc)
     end.
@@ -743,9 +743,9 @@ Module CBAreg.
 
   Fixpoint check_rval_aux (x1 x2:rval) m : cexec M.t :=
     match x1, x2 with
-    | Rnone   , Rnone    => cok m 
+    | Rnone  _, Rnone _  => cok m 
     | Rvar xi1, Rvar xi2 => check_var_aux xi1 xi2 m
-    | Rmem e1 , Rmem e2  => cok m
+    | Rmem x1 _ , Rmem x2 _  => check_var_aux x1 x2 m
     | Raset xi1 _, Raset xi2 _ => check_var_aux xi1 xi2 m
     | _       , _        => cerror (Cerr_neqrval x1 x2 salloc)
     end.
@@ -968,7 +968,3 @@ Module CBAreg.
 End CBAreg.
 
 Module CheckAllocReg :=  MakeCheckAlloc CBAreg.
-
-
-
-

@@ -47,6 +47,7 @@ Inductive sopn : Set :=
 | Oif   : sopn                      (* cpu  : sbool -> sword -> sword -> sword *)
 
 | Omulu     : sopn                  (* cpu   : [sword; sword]        -> [sword;sword] *)
+| Omuli     : sopn                  (* cpu   : [sword; sword]        -> [sword]       *)
 | Oaddcarry : sopn                  (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
 | Osubcarry : sopn.                 (* cpu   : [sword; sword; sbool] -> [sbool;sword] *) 
 
@@ -91,7 +92,7 @@ Inductive pexpr : Type :=
 | Pcast  : pexpr -> pexpr              (* int -> word *)
 | Pvar   : var_i -> pexpr
 | Pget   : var_i -> pexpr -> pexpr 
-| Pload  : pexpr -> pexpr 
+| Pload  : var_i -> pexpr -> pexpr 
 | Pnot   : pexpr -> pexpr 
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr.
 
@@ -117,7 +118,7 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
   | Pcast  e1   , Pcast  e2    => eqb e1 e2
   | Pvar   x1   , Pvar   x2    => (x1 == x2)
   | Pget   x1 e1, Pget   x2 e2 => (x1 == x2) && eqb e1 e2
-  | Pload  e1   , Pload  e2    => eqb e1 e2 
+  | Pload  x1 e1, Pload  x2 e2 => (x1 == x2) && eqb e1 e2 
   | Pnot   e1   , Pnot   e2    => eqb e1 e2 
   | Papp2 o1 e11 e12, Papp2 o2 e21 e22  =>  
      (o1 == o2) && eqb e11 e21 && eqb e12 e22
@@ -140,18 +141,18 @@ Import Eq_pexpr.Exports.
  * -------------------------------------------------------------------- *)
 
 Inductive rval : Type :=
-| Rnone :  rval
-| Rvar  :  var_i -> rval
-| Rmem  :> pexpr -> rval
-| Raset :  var_i -> pexpr -> rval.
+| Rnone : var_info -> rval
+| Rvar  : var_i -> rval
+| Rmem  : var_i -> pexpr -> rval
+| Raset : var_i -> pexpr -> rval.
 
 Notation rvals := (seq rval).
 
 Definition rval_beq (x1:rval) (x2:rval) :=
   match x1, x2 with
-  | Rnone      , Rnone       => true
+  | Rnone i1   , Rnone i2    => i1 == i2
   | Rvar  x1   , Rvar  x2    => x1 == x2
-  | Rmem  e1   , Rmem  e2    => e1 == e2
+  | Rmem  x1 e1, Rmem  x2 e2 => (x1 == x2) && (e1 == e2)
   | Raset x1 e1, Raset x2 e2 => (x1 == x2) && (e1 == e2)
   | _          , _           => false   
   end.
@@ -308,9 +309,9 @@ Canonical  fundef_eqType      := Eval hnf in EqType fundef fundef_eqMixin.
 
 Definition vrv_rec (s:Sv.t) (rv:rval) :=
   match rv with
-  | Rnone      => s
+  | Rnone _    => s
   | Rvar  x    => Sv.add x s
-  | Rmem  _    => s
+  | Rmem  _ _  => s
   | Raset x _  => Sv.add x s
   end.
 
@@ -434,7 +435,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Pcast  e        => read_e_rec s e 
   | Pvar   x        => Sv.add x s 
   | Pget   x e      => read_e_rec (Sv.add x s) e
-  | Pload  e        => read_e_rec s e
+  | Pload  x e      => read_e_rec (Sv.add x s) e
   | Pnot   e        => read_e_rec s e 
   | Papp2  op e1 e2 => read_e_rec (read_e_rec s e2) e1
   end.
@@ -445,9 +446,9 @@ Definition read_es := read_es_rec Sv.empty.
          
 Definition read_rv_rec  (s:Sv.t) (r:rval) := 
   match r with
-  | Rnone     => s 
+  | Rnone _   => s 
   | Rvar  _   => s
-  | Rmem  e   => read_e_rec s e
+  | Rmem  x e => read_e_rec (Sv.add x s) e
   | Raset x e => read_e_rec (Sv.add x s) e 
   end.
 
@@ -612,17 +613,3 @@ Definition is_bool (e:pexpr) :=
 
 Lemma is_boolP e b : is_bool e = Some b -> e = Pbool b.
 Proof. (* by jm_destr e=> //= -[] ->. Qed. *) Admitted.
-
-
-
-
-
-
-
-
-
-
-
- 
-
-   
