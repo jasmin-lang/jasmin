@@ -116,9 +116,9 @@ let compute_kill_ue_block bis =
   in
   let handle_dest d =
     match d with
-    | Sdest(sd) -> handle_sdest sd
-    | Ignore(_) -> ()
-    | Mem(_,_)  -> ()
+    | Rdest(Sdest(sd)) -> handle_sdest sd
+    | Ignore(_)        -> ()
+    | Rdest(Mem(_,_))  -> ()
       (* writing to MEM[x] does not define x *)
   in
   let go lbi =
@@ -349,9 +349,9 @@ module RNI = struct
 
   let rn_dest rni d =
     match d with
-    | Mem(sd,pe) -> Mem({sd with d_var = rn_var rni sd.d_var}, pe)
+    | Rdest(Mem(sd,pe)) -> Rdest(Mem({sd with d_var = rn_var rni sd.d_var}, pe))
         (* FIXME: rename pe too? rename index in d_var? *)
-    | Sdest(sd)  -> Sdest(rn_sdest rni sd)
+    | Rdest(Sdest(sd)) -> Rdest(Sdest(rn_sdest rni sd))
     | Ignore(_)  -> d
 
 end

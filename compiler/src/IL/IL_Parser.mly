@@ -122,16 +122,19 @@ terminated_list(S,X):
 | ld=loc(sdest_noloc)
     { let (loc,d) = ld in { d with d_loc = loc } }
 
-%inline dest :
-| l = loc(UNDERSCORE)                           { Ignore(fst l) }
+%inline rdest :
 | sd=sdest                                      { Sdest(sd)     }
 | MEM LBRACK ptr = sdest PLUS pe = pexpr RBRACK { Mem(ptr,pe)   }
+
+%inline dest :
+| l = loc(UNDERSCORE) { Ignore(fst l) }
+| rd = rdest          { Rdest(rd)     }
 
 param:
 | lid=loc(NID) { mk_param lid }
 
 src :
-| d=dest                       { assert_not_ignore d; Src(d)           }
+| d=rdest                      { Src(d)                                }
 | DOLLAR p=param               { Imm(64,Patom(Pparam(p)))              } (* FIXME: fixed for 64 *)
 | DOLLAR LPAREN i=pexpr RPAREN { Imm(64,i)                             } (* FIXME: fixed for 64 *)
 | i=INT COLON n=utype          { Imm(n,Pconst(Arith.parse_big_int i))  }
@@ -222,7 +225,7 @@ opeq:
 %inline assgn_rhs_mv:
 | s=src { `Assgn(s,Mv) }
 
-| s=src IF e=EXCL? cf=dest
+| s=src IF e=EXCL? cf=rdest
     { `Cmov(e<>None,s,cf) }
 
 | s1=src op=binop s2=src
@@ -234,20 +237,9 @@ opeq:
 | fname=NID args=paren_tuple(src)
     { `Call(mk_fname fname, args) }
 
-(*
-| MEM LBRACK ptr = src PLUS pe = pexpr RBRACK
-    { `Load(ptr,pe) }
-*)
-
 %inline opeq_rhs:
-| s  = src                  { fun op d -> `BinOp(op,Src(d),s) }
-| s2 = src op2=binop s3=src { fun op1 d -> `TernOp(op1,op2,Src(d),s2,s3) }
-
-(*
-%inline store :
-| MEM LBRACK ptr = src PLUS pe = pexpr RBRACK EQ s = src
-    { (ptr,pe,s) }
-*)
+| s  = src                  { fun op d  -> `BinOp(op,src_of_dest d,s) }
+| s2 = src op2=binop s3=src { fun op1 d -> `TernOp(op1,op2,src_of_dest d,s2,s3) }
 
 %inline base_instr :
 | ds=tuple_nonempty(dest) EQ rhs=assgn_rhs_mv SEMICOLON
@@ -255,12 +247,6 @@ opeq:
 
 | ds=tuple_nonempty(dest) COLON EQ rhs=assgn_rhs_eq SEMICOLON
     { mk_instr ds rhs (L.mk_loc ($startpos,$endpos)) }
-
-(*
-| lst = loc(store) SEMICOLON
-    { let (l,(ptr,pe,s)) = lst in
-      Block([ { L.l_val = mk_store ptr pe s; L.l_loc = l} ],None) }
-*)
 
 | ds=tuple_nonempty(dest) op=opeq rhs=opeq_rhs SEMICOLON
     { let rhs = rhs op (Std.List.last_exn ds) in
@@ -332,7 +318,7 @@ stor_typ :
 
 %inline typed_vars_stor :
 | vs=separated_nonempty_list(COMMA,dest) COLON st=stor_typ
-    { (vs, st) } (* we parse dest here to prevent a conflict *)
+    { (vs, st) } (* we parse rdest here to prevent a conflict *)
 
 %inline storage:
 | REG    { Reg    }

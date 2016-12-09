@@ -193,15 +193,21 @@ type sdest = {
   d_loc : L.loc
 } [@@deriving compare,sexp]
 
-type dest =
-  | Ignore of L.loc (* ignore value, like _ in Ocaml *) 
+(* real destination *)
+type rdest =
   | Mem    of sdest * pexpr
   | Sdest  of sdest
   [@@deriving compare,sexp]
 
+type dest =
+  | Ignore of L.loc (* ignore value, like _ in Ocaml *) 
+  | Rdest of rdest
+  [@@deriving compare,sexp]
+
 type src =
-  | Imm of int * pexpr (* Simm(n,i): immediate value n-bit integer value i *) (* FIXME: pexpr should have size, not Imm *)
-  | Src of dest        (* Sreg(d): where d destination register            *)
+  | Src of rdest       (* Sreg(d): where d destination register            *)
+  | Imm of int * pexpr (* Simm(n,i): immediate value n-bit integer value i *)
+      (* FIXME: this is like a cast *)
   [@@deriving compare,sexp]
 
 (* ** Operators and constructs for intermediate language

@@ -24,11 +24,15 @@ let rec iter_vars_idx ~f = function
   | Ipexpr(pe) -> iter_vars_pexpr ~f pe
   | Ivar(v)    -> f v
 
-and iter_vars_dest ~f d =
-  match d with
-  | Ignore(_)  -> ()
+and iter_vars_rdest ~f rd =
+  match rd with
   | Mem(sd,pe) -> iter_vars_sdest ~f sd; iter_vars_pexpr ~f pe
   | Sdest(sd)  -> iter_vars_sdest ~f sd
+
+and iter_vars_dest ~f d =
+  match d with
+  | Ignore(_) -> ()
+  | Rdest(rd) -> iter_vars_rdest ~f rd
 
 and iter_vars_sdest ~f sd =
   f sd.d_var;
@@ -53,7 +57,7 @@ let rec iter_vars_pcond ~f pc =
 
 let iter_vars_src ~f = function
   | Imm(_,pe) -> iter_vars_pexpr ~f pe
-  | Src d     -> iter_vars_dest  ~f d
+  | Src d     -> iter_vars_rdest  ~f d
 
 let iter_vars_fcond ~f fc =
   f fc.fc_var
@@ -229,15 +233,19 @@ let iter_params_sdest ~f sd =
   Option.iter ~f:(iter_params_idx ~f) sd.d_idx;
   iter_params_var ~f sd.d_var
 
-let iter_params_dest ~f d =
-  match d with
-  | Ignore(_)  -> ()
+let iter_params_rdest ~f rd =
+  match rd with
   | Sdest(sd)  -> iter_params_sdest ~f sd
   | Mem(sd,pe) -> iter_params_sdest ~f sd; iter_params_pexpr ~f pe
 
+let iter_params_dest ~f d =
+  match d with
+  | Ignore(_) -> ()
+  | Rdest(rd) -> iter_params_rdest ~f rd
+
 let iter_params_src ~f = function
   | Imm(_,pe) -> iter_params_pexpr ~f pe
-  | Src(d)    -> iter_params_dest ~f d
+  | Src(d)    -> iter_params_rdest ~f d
 
 let iter_params_pcond_or_fcond ~f = function
   | Fcond(_)  -> ()
@@ -323,15 +331,20 @@ let params_consistent_modul pp_ty modul =
 (* ** Iterate over destinations (values of type dest)
  * ------------------------------------------------------------------------ *)
 
-let iter_sdests_dest ~f d =
-  match d with
-  | Ignore(_)   -> ()
+let iter_sdests_rdest ~f rd =
+  match rd with
   | Mem(sd,_pe) -> f sd
   | Sdest(sd)   -> f sd
 
+
+let iter_sdests_dest ~f d =
+  match d with
+  | Ignore(_) -> ()
+  | Rdest(rd) -> iter_sdests_rdest ~f rd
+
 let iter_sdests_src ~f = function
   | Imm _ -> ()
-  | Src d -> iter_sdests_dest ~f d
+  | Src d -> iter_sdests_rdest ~f d
 
 let iter_sdests_base_instr ~f bi =
   let ivd = iter_sdests_dest ~f in

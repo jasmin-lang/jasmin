@@ -73,34 +73,44 @@ let typecheck_sdest sd ty_exp =
          fsprintf "type mismatch (got %a, expected %a)" pp_ty_nt ty pp_ty_nt ty_exp);
         (sd.d_var.Var.dloc, "<-- declared here") ]
 
-(* Ensure that [d] has given type [ty_exp]. *)
-let typecheck_dest d ty_exp =
-  match d with
-  | Ignore(_)  -> ()
+let typecheck_rdest rd ty_exp =
+  match rd with
   | Sdest(sd)  -> typecheck_sdest sd ty_exp
   | Mem(sd,_pe) ->
     typecheck_sdest sd (Bty(U(64)));
     if ty_exp<>Bty(U(64)) then
       failloc_ sd.d_var.Var.uloc "Memory access return u64"
 
+
+(* Ensure that [d] has given type [ty_exp]. *)
+let typecheck_dest d ty_exp =
+  match d with
+  | Ignore(_) -> ()
+  | Rdest(rd) -> typecheck_rdest rd ty_exp
+
+(* Return type of [d] and ensure that d well-typed. *)
+let type_rdest rd =
+  match rd with
+  | Sdest(sd)   -> type_sdest sd
+  | Mem(sd,_pe) -> typecheck_sdest sd (Bty(U(64))); Bty(U(64))
+
 (* Return type of [d] and ensure that d well-typed. *)
 let type_dest d =
   match d with
-  | Ignore(_)   -> assert false
-  | Sdest(sd)   -> type_sdest sd
-  | Mem(sd,_pe) -> typecheck_sdest sd (Bty(U(64))); Bty(U(64))
+  | Ignore(_) -> assert false
+  | Rdest(rd) -> type_rdest rd
 
 (* Return type of source [s]. *)
 let type_src s =
   match s with
   | Imm(n,_) -> Bty(U(n))
-  | Src(d)   -> type_dest d
+  | Src(d)   -> type_rdest d
 
 (* Ensure that type of [s] is equal to [ty_exp]. *)
 let typecheck_src s ty_exp =
   match s with
   | Imm(_) -> if not (equal_ty ty_exp (Bty(U(64)))) then assert false
-  | Src(d) -> typecheck_dest d ty_exp
+  | Src(d) -> typecheck_rdest d ty_exp
 
 (* Ensure that var [v] has type [ty] and (optional) storage [os]. *)
 let type_var_eq v ty os =
@@ -134,7 +144,7 @@ let type_src_eq src ty_exp =
   | Imm _,  Bty(U(i))  -> failwith_ "got u64, expected u%i" i
   | Imm _,  Bty(Int)   -> failwith_ "got u64, expected int"
   | Imm _,  Arr(_)     -> failwith "got u64, expected u64[..]"
-  | Src(d), t          -> typecheck_dest d t
+  | Src(d), t          -> typecheck_rdest d t
 
 (* *** Check types for ops, instructions, statements, and functions
  * ------------------------------------------------------------------------ *)
@@ -190,11 +200,10 @@ let typecheck_call ftable loc fname ret arg =
       | Native(fd)  -> (List.map ~f:tinfo_of_var fd.f_arg,List.map ~f:tinfo_of_var fd.f_ret)
       end
     in
-    let tc_dest d (sto_exp,ty_exp) =
-      typecheck_dest d ty_exp;
+    let tc_rdest rd (sto_exp,ty_exp) =
+      typecheck_rdest rd ty_exp;
       let uloc,sto =
-        match d with
-        | Ignore(_) -> assert false
+        match rd with
         | Mem(sd,_) -> sd.d_loc, Stack (* FIXME: we treat Mem and Stack the same *)
         | Sdest(sd) -> sd.d_loc, sd.d_var.Var.stor
       in
@@ -214,8 +223,13 @@ let typecheck_call ftable loc fname ret arg =
     in
     let tc_src s st =
       match s with
-      | Src(d)   -> tc_dest d st
+      | Src(d)   -> tc_rdest d st
       | Imm(n,_) -> tc_imm n st
+    in
+    let tc_dest d st =
+      match d with
+      | Ignore(_) -> ()
+      | Rdest(rd) -> tc_rdest rd st
     in
     list_iter2_exn arg arg_ty ~f:tc_src
       ~err:(fun n_g n_e -> failloc_ loc "wrong number of arguments: got %i, expected %i" n_g n_e);

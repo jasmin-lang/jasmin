@@ -85,15 +85,14 @@ let read_mem_val ptable ltable mtable sd pe =
   let v = hashtbl_find_exn mtable pp_uint64 (U64.add (of_bi c) (of_bi ptr)) in
   Value.mk_Vu 64 (to_bi v)
 
-let read_dest_val ptable ltable mtable d =
+let read_rdest_val ptable ltable mtable d =
   match d with
-  | Ignore(_)  -> assert false
   | Sdest(sd)  -> read_sdest_val ptable ltable sd
   | Mem(sd,pe) -> read_mem_val ptable ltable mtable sd pe
 
 let read_src_val ptable ltable mtable s =
   match s with
-  | Src(d)    -> read_dest_val ptable ltable mtable d
+  | Src(d)    -> read_rdest_val ptable ltable mtable d
   | Imm(n,pe) -> Value.mk_Vu n (eval_pexpr_exn ptable ltable pe)
 
 let read_src_ pmap lmap mtable s =
@@ -110,7 +109,6 @@ let read_flag ms s =
   | Src(Sdest{d_var; d_idx=None}) -> hashtbl_find_exn ms.m_fltable pp_int d_var.Var.num
   | Src(Sdest{d_idx=Some(_)})     -> failwith "expected flag, got array access" 
   | Src(Mem(_))                   -> failwith "expected flag, got memory access" 
-  | Src(Ignore(_))                -> assert false
   | Imm _                         -> failwith "expected flag, got immediate"
 
 (* *** Writing values
@@ -159,11 +157,15 @@ let write_sdest ptable ltable d v =
 let write_sdest_u64 ptable ltable d u =
   write_sdest ptable ltable d (Value.mk_Vu 64 u)
 
-let write_dest ptable ltable mtable d x =
+let write_rdest ptable ltable mtable d x =
   match d with
-  | Ignore(_)  -> ()
   | Mem(sd,pe) -> write_mem ptable ltable mtable sd pe x
   | Sdest(sd)  -> write_sdest ptable ltable sd x
+
+let write_dest ptable ltable mtable d x =
+  match d with
+  | Ignore(_) -> ()
+  | Rdest(rd) -> write_rdest ptable ltable mtable rd x
 
 let write_dest_u64 ptable ltable mtable d u =
   write_dest ptable ltable mtable d (Value.mk_Vu 64 u)
@@ -171,8 +173,8 @@ let write_dest_u64 ptable ltable mtable d u =
 let write_flag ms d b =
   match d with
   | Ignore(_)    -> ()
-  | Mem(_sd,_pe) -> failwith "cannot store boolean values in memory"
-  | Sdest(sd)  ->
+  | Rdest(Mem(_sd,_pe)) -> failwith "cannot store boolean values in memory"
+  | Rdest(Sdest(sd)) ->
     begin match sd.d_idx with
     | None -> HT.set ms.m_fltable ~key:sd.d_var.Var.num ~data:b
     | Some(_) -> failwith "cannot give array element, flag (in register) expected"
@@ -418,7 +420,7 @@ and interp_call_python ms py_code call_rets call_args =
   in
   (* store result *)
   let ss_ds = match call_rets with
-    | [Sdest(ds)] ->
+    | [Rdest(Sdest(ds))] ->
       let rets =
         try
           parse_value ds.d_var.Var.ty res

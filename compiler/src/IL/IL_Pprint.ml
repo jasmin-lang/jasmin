@@ -95,13 +95,17 @@ let pp_sdest ~pp_types fmt {d_var=v; d_idx=oidx} =
   | None      -> F.fprintf fmt "%a"     (pp_var ~pp_types) v
   | Some(idx) -> F.fprintf fmt "%a[%a]" (pp_var ~pp_types) v ppi idx
 
-let pp_dest ~pp_types fmt d =
+let pp_rdest ~pp_types fmt d =
   match d with
-  | Ignore(_)  -> pp_string fmt "_"
   | Mem(sd,pe) ->
     F.fprintf fmt "MEM[%a + %a]" (pp_sdest ~pp_types) sd (pp_pexpr ~pp_types) pe
   | Sdest(sd) ->
     pp_sdest ~pp_types fmt sd
+
+let pp_dest ~pp_types fmt d =
+  match d with
+  | Ignore(_) -> pp_string fmt "_"
+  | Rdest(rd) -> pp_rdest ~pp_types fmt rd
 
 let pcondop_to_string = function
   | Peq  -> "="
@@ -126,7 +130,7 @@ let rec pp_pcond ~pp_types fmt pc =
   | Pcmp(o,ie1,ie2) -> F.fprintf fmt"(%a %s %a)" ppe ie1 (pcondop_to_string o) ppe ie2
 
 let pp_src ~pp_types fmt = function
-  | Src(d)              -> pp_dest  ~pp_types fmt d
+  | Src(d)              -> pp_rdest ~pp_types fmt d
   | Imm(i,pe) when i=64 -> F.fprintf fmt "%a" (pp_pexpr ~pp_types) pe
   | Imm(i,pe)           -> F.fprintf fmt "%au%i" (pp_pexpr ~pp_types) pe i
 
@@ -148,12 +152,14 @@ let pp_three_op fmt o =
      | O_Or   -> "|")
 
 let pp_op ~pp_types fmt (o,ds,ss) =
+  let pprd = pp_rdest ~pp_types in
   let ppd = pp_dest ~pp_types in
   let pps = pp_src ~pp_types in
   let ppdso ppo fmt (d,s,o) =
-    if equal_src (Src(d)) s then
-      F.fprintf fmt "%a %a=" ppd d ppo o
-    else
+    match d with
+    | Rdest(rd) when equal_src (Src(rd)) s ->
+      F.fprintf fmt "%a %a=" pprd rd ppo o
+    | _ ->
       F.fprintf fmt "%a = %a %a" ppd d pps s ppo o
   in
   match view_op o ds ss with

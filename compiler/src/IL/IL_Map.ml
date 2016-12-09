@@ -81,11 +81,15 @@ let rec map_vars_idx ~f i =
   | Ipexpr(pe) -> Ipexpr(map_vars_pexpr ~f pe)
   | Ivar(v)    -> Ivar(f v)
 
-and map_vars_dest ~f d =
-  match d with
+and map_vars_rdest ~f rd =
+  match rd with
   | Mem(sd,pe) -> Mem(map_vars_sdest ~f sd, map_vars_pexpr ~f pe)
   | Sdest(sd)  -> Sdest(map_vars_sdest ~f sd)
-  | Ignore(_)  -> d
+
+and map_vars_dest ~f d =
+  match d with
+  | Ignore(_) -> d
+  | Rdest(rd) -> Rdest(map_vars_rdest ~f rd)
 
 and map_vars_sdest ~f sd =
   { d_var = f sd.d_var
@@ -111,7 +115,7 @@ let rec map_vars_pcond ~f pc =
 
 let map_vars_src ~f = function
   | Imm(i,pe) -> Imm(i,map_vars_pexpr ~f pe)
-  | Src(d)    -> Src(map_vars_dest ~f d)
+  | Src(d)    -> Src(map_vars_rdest ~f d)
 
 let map_vars_fcond ~f fc =
   { fc with fc_var = f fc.fc_var }
@@ -192,11 +196,15 @@ and map_params_idx ~f i =
   | Ipexpr(pe) -> Ipexpr(map_params_pexpr ~f pe)
   | Ivar(v)    -> Ivar(map_params_var ~f v)
 
-and map_params_dest ~f d =
-  match d with
+and map_params_rdest ~f rd =
+  match rd with
   | Sdest(sd)  -> Sdest(map_params_sdest ~f sd)
   | Mem(sd,pe) -> Mem(map_params_sdest ~f sd, map_params_pexpr ~f pe)
-  | Ignore(_)  -> d
+
+and map_params_dest ~f d =
+  match d with
+  | Ignore(_) -> d
+  | Rdest(rd) -> Rdest(map_params_rdest ~f rd)
 
 and map_params_sdest ~f sd =
   { d_var = map_params_var ~f sd.d_var
@@ -237,7 +245,7 @@ let rec map_params_pcond ~f pc =
 
 let map_params_src ~f = function
   | Imm(i,pe) -> Imm(i,map_params_pexpr ~f pe)
-  | Src(d)    -> Src(map_params_dest ~f d)
+  | Src(d)    -> Src(map_params_rdest ~f d)
 
 let map_params_fcond_or_pcond ~f = function
   | Fcond(fc) -> Fcond(fc)
@@ -320,11 +328,15 @@ and map_tys_idx ~f:(f : ty -> ty) i =
   | Ipexpr(pe) -> Ipexpr(map_tys_pexpr ~f pe)
   | Ivar(v)    -> Ivar(map_tys_var ~f v)
 
-and map_tys_dest ~f d =
-  match d with
+and map_tys_rdest ~f rd =
+  match rd with
   | Sdest(sd)  -> Sdest(map_tys_sdest ~f sd)
   | Mem(sd,pe) -> Mem(map_tys_sdest ~f sd, map_tys_pexpr ~f pe)
-  | Ignore(_)  -> d
+
+and map_tys_dest ~f d =
+  match d with
+  | Ignore(_) -> d
+  | Rdest(rd) -> Rdest(map_tys_rdest ~f rd)
 
 and map_tys_sdest ~f sd =
   { d_var = map_tys_var ~f sd.d_var
@@ -366,7 +378,7 @@ let rec map_tys_pcond ~f:(f : ty -> ty) pc =
 
 let map_tys_src ~f:(f : ty -> ty) = function
   | Imm(i,pe) -> Imm(i,map_tys_pexpr ~f pe)
-  | Src(d)    -> Src(map_tys_dest ~f d)
+  | Src(d)    -> Src(map_tys_rdest ~f d)
 
 let map_tys_fcond ~f fc =
   { fc with fc_var = map_tys_var ~f fc.fc_var }
@@ -439,15 +451,21 @@ let map_tys_modul_all ~f:(f : ty -> ty) modul =
 (* ** Map function over all destinations
  * ------------------------------------------------------------------------ *)
 
-let map_sdests_dest ~f d =
-  match d with
+
+let map_sdests_rdest ~f rd =
+  match rd with
   | Mem(sd,pe) -> Mem(f sd, pe)
   | Sdest(sd)  -> Sdest(f sd)
-  | Ignore(_)   -> d
+
+
+let map_sdests_dest ~f d =
+  match d with
+  | Ignore(_) -> d
+  | Rdest(rd) -> Rdest(map_sdests_rdest ~f rd)
 
 let map_sdests_src ~f = function
   | Imm(i,pe) -> Imm(i,pe)
-  | Src(d)    -> Src(map_sdests_dest ~f d)
+  | Src(d)    -> Src(map_sdests_rdest ~f d)
 
 let map_sdests_base_instr ~f lbi =
   let msd = map_sdests_dest ~f in

@@ -337,7 +337,7 @@ let rec inline_call func_table ctr fname ds ss =
       ~f:(fun v -> Src(Sdest({d_var=v; d_idx=None; d_loc=v.Var.uloc;})))
   in
   let arg_ds =
-    List.map ~f:(fun v -> Sdest({d_var=v; d_idx=None; d_loc=v.Var.uloc})) fdef.f_arg
+    List.map ~f:(fun v -> Rdest(Sdest({d_var=v; d_idx=None; d_loc=v.Var.uloc}))) fdef.f_arg
   in
   let pref = List.map2_exn ~f:(fun d s -> Assgn(d,s,Eq)) arg_ds ss in
   let suff = List.map2_exn ~f:(fun d s -> Assgn(d,s,Eq)) ds ret_ss in
@@ -436,19 +436,23 @@ let inst_sdest ptable ltable sd =
   { sd with
     d_idx = Option.map ~f:(inst_idx ptable ltable) sd.d_idx }
 
-let inst_dest ptable ltable d =
+let inst_rdest ptable ltable d =
   let isd = inst_sdest ptable ltable in
   let ipe = peval_pexpr ptable ltable in
   match d with
-  | Ignore(_)  -> d
   | Mem(sd,pe) -> Mem(isd sd, ipe pe)
   | Sdest(sd)  -> Sdest(isd sd)
 
+let inst_dest ptable ltable d =
+  match d with
+  | Ignore(_) -> d
+  | Rdest(rd) -> Rdest(inst_rdest ptable ltable rd)
+
 let inst_src ptable ltable = function
   | Imm(i,pe) -> Imm(i,peval_pexpr ptable ltable pe)
-  | Src(d)    ->
-    let s = Src(inst_dest ptable ltable d) in
-    begin match d with
+  | Src(rd)    ->
+    let s = Src(inst_rdest ptable ltable rd) in
+    begin match rd with
     | Sdest(sd) when sd.d_idx=None ->
       inst_var ltable sd.d_var ~default:s ~f:(fun n pe -> Imm(n,pe))
     | _ -> s
@@ -546,7 +550,7 @@ FIXME: Would it be easier to replace this by 'for' and perform the
 let array_assign_expand_basic_instr lbi =
   let bi = lbi.L.l_val in
   match bi with
-  | Assgn(Sdest(d),Src(Sdest(s)),t) ->
+  | Assgn(Rdest(Sdest(d)),Src(Sdest(s)),t) ->
     let td = d.d_var.Var.ty in
     let ts = s.d_var.Var.ty in
     begin match d.d_idx, s.d_idx, td, ts with
@@ -555,7 +559,7 @@ let array_assign_expand_basic_instr lbi =
       let mk_assgn i =
         let d = Sdest{ d with d_idx = Some(Ipexpr(Pconst(i))) } in
         let s = Src(Sdest{s with d_idx = Some(Ipexpr(Pconst(i)))}) in
-        { lbi with L.l_val = Assgn(d,s,t) }
+        { lbi with L.l_val = Assgn(Rdest(d),s,t) }
       in
       List.map ~f:mk_assgn (list_from_to_big_int ~first:Big_int.zero_big_int ~last:ub1)
     | _ -> [lbi]

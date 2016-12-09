@@ -26,9 +26,10 @@ let get_errs () =
   |> List.remove_consecutive_duplicates
       ~equal:(fun (l1,_) (l2,_) -> L.compare_loc l1 l2 = 0)
 
-let assert_not_ignore = function
-  | Ignore(_) -> assert false
-  | _         -> ()
+let src_of_dest d =
+  match d with
+  | Rdest(rd) -> Src(rd)
+  | Ignore(l) -> failloc_ l "dest_to_src failed, ``_'' not supported here"
 
 type decl_item =
   | Dfun of (Fname.t * unit func)
@@ -106,9 +107,9 @@ let conv_decl (ds,(s,t)) =
           match d with
           | Ignore(l) ->
             failloc_ l "expected identifier, not _"
-          | Mem(sd,_) ->
+          | Rdest(Mem(sd,_)) ->
             failloc_ sd.d_loc "expected identifier, not MEM"
-          | Sdest(sd) ->
+          | Rdest(Sdest(sd)) ->
             if sd.d_idx<>None then
               add_err sd.d_loc "expected identifier, not array get";
             { sd.d_var with Var.stor = s; Var.ty = t; } )
@@ -274,12 +275,16 @@ let mk_ternop loc dests op op2 s1 s2 s3 =
     | _    -> fail "invalid args for mult"
     end
 
-let mk_cmov loc dests neg s cf =
+let mk_cmov loc (dests : dest list) neg s cf =
   let d = match dests with
     | [d] -> d
     | _   -> P.failparse loc "invalid destination for cmov"
   in
-  Op(Cmov(neg),[d],[Src(d);s;Src(cf)])
+  let sd = match d with
+    | Rdest(rd) -> Src(rd)
+    | Ignore(l) -> failloc_ l "``_'' not supported here"
+  in
+  Op(Cmov(neg),[d],[sd;s;Src(cf)])
 
 let mk_instr dests rhs loc =
   let mk_block bi = Block([ { L.l_val=bi; L.l_loc=loc }],None) in
