@@ -38,19 +38,19 @@ Canonical  stype_eqType      := Eval hnf in EqType stype stype_eqMixin.
 
 Definition stype_cmp t t' :=
   match t, t' with
-  | sbool      , sbool         => Eq 
-  | sbool      , _             => Lt
+  | sbool   , sbool         => Eq 
+  | sbool   , _             => Lt
 
-  | sint       , sbool         => Gt
-  | sint       , sint          => Eq
-  | sint       , _             => Lt
+  | sint    , sbool         => Gt
+  | sint    , sint          => Eq
+  | sint    , _             => Lt
 
-  | sword      , sarr _        => Lt
-  | sword      , sword         => Eq 
-  | sword      , _             => Gt
+  | sword   , sarr _        => Lt
+  | sword   , sword         => Eq 
+  | sword   , _             => Gt
 
-  | sarr  n    , sarr  n'      => Pos.compare n n'
-  | sarr  _    , _             => Gt
+  | sarr  n , sarr  n'      => Pos.compare n n'
+  | sarr  _ , _             => Gt
   end.
 
 Instance stypeO : Cmp stype_cmp.
