@@ -15,9 +15,9 @@ let () =
   let check t =
     assert (equal_ty (ty_of_cty (cty_of_ty t)) t)
   in
-  check Bool;
-  check (U(64));
-  let at = Arr(64,Pconst(Big_int.big_int_of_int 10)) in
+  check tbool;
+  check tu64;
+  let at = Arr(U(64),Pconst(Big_int.big_int_of_int 10)) in
   check at;
 
   (* Variables *)
@@ -41,7 +41,7 @@ let () =
         (pp_var ~pp_types:true) v2
   in
   check "xxxxx" 99 at Reg;
-  check "xxxxxaaas" 42 Bool Inline;
+  check "xxxxxaaas" 42 tbool Inline;
 
   (* pexpr *)
   let check pe1 =
@@ -56,7 +56,7 @@ let () =
   let v1 = 
     { Var.name = Vname.mk "arg0";
       Var.num  = 1;
-      Var.ty   = Bool;
+      Var.ty   = tbool;
       Var.stor = Inline;
       Var.uloc = Lex.dummy_loc;
       Var.dloc = Lex.dummy_loc;
@@ -66,7 +66,7 @@ let () =
   let v2 =
     { Var.name = Vname.mk "arg2";
       Var.num  = 2;
-      Var.ty   = U(64);
+      Var.ty   = tu64;
       Var.stor = Reg;
       Var.uloc = Lex.dummy_loc;
       Var.dloc = Lex.dummy_loc;
@@ -76,7 +76,7 @@ let () =
   let v3 =
     { Var.name = Vname.mk "arg2";
       Var.num  = 2;
-      Var.ty   = Arr(64,Pconst(Big_int.big_int_of_int 10));
+      Var.ty   = Arr(U(64),Pconst(Big_int.big_int_of_int 10));
       Var.stor = Reg;
       Var.uloc = Lex.dummy_loc;
       Var.dloc = Lex.dummy_loc;
@@ -105,7 +105,7 @@ let () =
   (* destinations *)
   let check d1 =
     let cvi = CVI.mk (Fname.Table.create ()) in
-    let d2 = sdest_of_rval cvi (rval_of_sdest cvi d1) in
+    let d2 = dest_of_rval cvi (rval_of_dest cvi d1) in
     if not (equal_dest d1 d2) then (
       F.printf "check variable roundtrip@\n``%a''@\n<>@\n``%a''@\n%!"
         (pp_dest ~pp_types:true) d1
@@ -114,17 +114,18 @@ let () =
     )
   in
   let sd1 = { d_var = v1; d_idx=None; d_loc = Lex.dummy_loc; } in
-  let d1 = Sdest(sd1) in
+  let rd1 = Sdest(sd1) in
+  let d1 = Rdest(rd1) in
   check d1;
   let sd2 = { d_var = v3; d_idx=Some(Ivar(v2)); d_loc = Lex.dummy_loc; } in
-  let d2 = Sdest(sd2) in
+  let rd2 = Sdest sd2 in
+  let d2 = Rdest(rd2) in
   check d2;
-  let d3 = Mem(sd1, Pconst(Big_int.zero_big_int)) in
+  let d3 = Rdest(Mem(sd1, Pconst(Big_int.zero_big_int))) in
   check d3;
   
 
   (* sources *)
-  (*
   let check s1 =
     let cvi = CVI.mk (Fname.Table.create ()) in
     let s2 = src_of_cpexpr cvi (cpexpr_of_src cvi s1) in
@@ -137,11 +138,10 @@ let () =
   in
   let s1 = Imm(64,pe1) in
   check s1;
-  let s2 = Src(d1) in
+  let s2 = Src(rd1) in
   check s2;
-  let s3 = Src(d2) in
+  let s3 = Src(rd2) in
   check s3;
-  *)
   
   (* base instructions *)
   (* instructions *)

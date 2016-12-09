@@ -2,12 +2,19 @@ fn foo1(x,y : reg u64, c : reg bool) -> reg u64 * reg bool * reg u64 {
   return x,c,y;
 }
 
+fn bar1(x,y : reg u64, c : reg bool) -> reg u64 * reg bool * reg u64 {
+  return x,c,y;
+}
+
 fn test() {
   u, v : reg u64;
   cf : reg bool;
   u_, v_ : reg u64;
   cf_ : reg bool;
 
+  u_,cf_,v_ = foo1(u,v,cf);
+  u_,cf_,v_ = bar1(u,v,cf);
+  u_,cf_,v_ = bar1(u,v,cf);
   u_,cf_,v_ = foo1(u,v,cf);
 }
 
