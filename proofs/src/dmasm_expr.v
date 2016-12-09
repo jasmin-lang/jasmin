@@ -183,7 +183,7 @@ Canonical  dir_eqType      := Eval hnf in EqType dir dir_eqMixin.
 Definition range := (dir * pexpr * pexpr)%type.
 
 Definition instr_info := positive.
-Definition dummy_iinfo := xH. (* WARNING BENEDICKT *)
+Definition dummy_iinfo := xH.
 
 Inductive assgn_tag := 
   | AT_keep    (* normal assignment *)
@@ -239,7 +239,7 @@ with instr := MkI : instr_info -> instr_r ->  instr.
 Notation cmd := (seq instr).
 
 Record fundef := MkFun {
-  f_iinfo  : instr_info;                     
+  f_iinfo  : instr_info;
   f_params : seq var_i;
   f_body   : cmd;
   f_res    : seq var_i;
