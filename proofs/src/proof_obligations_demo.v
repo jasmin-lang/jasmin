@@ -141,12 +141,11 @@ Definition b2i (b : bool) := if b then 1 else 0.
 
 Notation "b ':%Z'"  := (b2i b) (at level 2, left associativity, format "b ':%Z'").
 
-Notation p64  := (locked (2^64)).
-Notation p128 := (p64*p64).
-Notation p192 := (p128*p64).
-Notation p256 := (p192*p64).
-Search positive nat.
+Notation p64 := (locked (2^64)).
 Notation pow n := (p64^(Z.of_nat n)).
+Notation p128  := (pow 2).
+Notation p192  := (pow 3).
+Notation p256  := (pow 4).
 
 Lemma Z_pow_pos_gt0 (n : nat) : 0 < 2 ^ (Z.of_nat n).
 Proof.
@@ -459,7 +458,7 @@ rewrite Z.pow_2_r.
 case cf2; last first.
 + case cf1; last first.
   + move=> H1 H2. simp. trans_cmp_b.
-    rewrite (_:   p64 * x1 + x0 + (p64 * y1 + y0) + cf0:%Z
+    rewrite (_:   p64 * x1 + x0   + (p64 * y1 + y0) + cf0:%Z
                 = p64 * (x1 + y1) + (x0 + y0 + cf0:%Z)); last ring.
     move: H1 H2; rewrite !Z_le_leq_succ => H1 H2.
     apply (Z.le_trans _ (p64 * (p64 - 1) + (p64 - 1))).
@@ -483,14 +482,14 @@ case cf2; last first.
   + move=> H1 H2. simp. trans_cmp_b.
     rewrite (_:   p64 * x1 + x0 + (p64 * y1 + y0) + cf0:%Z
                 = p64*(x1 + y1) + (x0 + y0 + cf0:%Z)); last ring.
-    rewrite (_ : p128 = p64*(p64 - 1) + p64); last ring.
+    rewrite (_ : p64*p64 = p64*(p64 - 1) + p64); last ring.
     apply (Z.add_le_mono); last done.
     apply (Zmult_le_compat_l); last apply p64_ge0.
     by apply (Zplus_le_reg_r _ _ 1); ring_simplify.
   + move=> G H {G}. simp. trans_cmp_b.
     rewrite (_ :   p64 * x1 + x0 + (p64 * y1 + y0) + cf0:%Z
                  = p64 * (x1 + y1) + (x0 + y0 + cf0:%Z)); last ring.
-    rewrite (_ : p128 = p128 + (0 + 0 + 0)); last ring.
+    rewrite (_ : p64*p64 = p64*p64 + (0 + 0 + 0)); last ring.
     apply (Z.add_le_mono).
     + by apply (Zmult_le_compat_l); last apply p64_ge0.
     apply (Z.add_le_mono).
@@ -649,7 +648,8 @@ Ltac add_len N Tn Xn Yn G1 G2 G3 G4 G5 G6 :=
   have G5 : all (fun d => is_u64 d) Yn; first band_auto;
   have G6 : all (fun d => is_u64 d) Tn; first band_auto.
 
-Ltac combine := (* repeat *)
+Ltac combine1 :=
+  idtac "combine1_enter";
   match goal with
   | [ H1  : (?cf1,_) <- adc 1 ?X0 ?Y0 false,
       H2  : (_,_)    <- adc 1 ?X1 ?Y1 ?cf1,
@@ -658,10 +658,17 @@ Ltac combine := (* repeat *)
       By0 : is_true (is_u64 ?Y0),
       By1 : is_true (is_u64 ?Y1)
       |- _ ] =>
+    idtac "combine_chain_1";
     move: (combine_chain1 Bx0 Bx1 By0 By1 H1 H2) => {H1} {H2} H1
+  end.
+
+Ltac combineN :=
+  idtac "combineN_enter";
+  match goal with
   | [ H1  : (?cf1,ds2i ?Tn) <- adc ?N (ds2i ?Xn)  (ds2i ?Yn) false,
       H2  : (_,_)           <- adc 1  ?Xsn        ?Ysn       ?cf1
       |- _ ] =>
+    idtac "combine_chainN";
     let Hlen_x := fresh "Hl_x" in
     let Hlen_y := fresh "Hl_y" in
     let Hlen_t := fresh "Hl_t" in
@@ -673,7 +680,83 @@ Ltac combine := (* repeat *)
       => {H1} {H2} {Hlen_x} {Hlen_y} {Hlen_t} {Hall_x} {Hall_y} {Hall_t} H1
   end.
 
+Ltac combine := repeat combine1; repeat combineN.
+
 (* ** Lemmas for splitting *)
+
+Lemma Z_eq_mod (x y n : Z):
+  x = y -> x mod n = y mod n.
+Proof.
+move=> H. by congr (fun x => x mod n).
+Qed.
+
+Ltac is_not_mod t :=
+  match t with
+  | _ mod _ => fail 1
+  | _ => idtac
+  end.
+
+Ltac push_in_mod_aux T1 T2 N H Lem :=
+  is_not_mod T1;
+  is_not_mod T2; 
+  rewrite (Lem T1 T2 N) in H.
+
+Ltac push_in_mod :=
+  match goal with
+  | [ H : context[(?T1 + ?T2) mod ?N] |- _ ] => push_in_mod_aux T1 T2 N H Zplus_mod
+  | [ H : context[(?T1 - ?T2) mod ?N] |- _ ] => push_in_mod_aux T1 T2 N H Zminus_mod
+  | [ H : context[(?T1 * ?T2) mod ?N] |- _ ] => push_in_mod_aux T1 T2 N H Zmult_mod
+  end.
+
+Lemma Z_mod_pow_pow (x : Z) (n : nat) :
+  x ^ (Z.of_nat (S n)) mod (x ^ (Z.of_nat 1)) = 0.
+Proof.
+rewrite !Nat2Z.inj_succ Z.pow_succ_r; last (apply Zle_0_nat).
+rewrite Nat2Z.inj_0 Z.pow_succ_r ?Z.pow_0_r ?Z.mul_1_r; last done.
+by rewrite Z.mul_comm Z_mod_mult.
+Qed.
+
+Lemma Z_mod_pow (x : Z) (n : nat) :
+  x ^ (Z.of_nat (S n)) mod x = 0.
+Proof.
+rewrite !Nat2Z.inj_succ Z.pow_succ_r; last (apply Zle_0_nat).
+by rewrite Z.mul_comm Z_mod_mult.
+Qed.
+
+Ltac mod_simp :=
+  match goal with
+  | [ H : context[?N mod ?N] |- _ ] => rewrite Z_mod_same_full in H
+  | [ H : context[(?N ^ (Z.of_nat (S _))) mod ?N ] |- _ ] =>
+    rewrite Z_mod_pow in H
+  end.
+
+(*
+Ltac not_has_mod t n :=
+  match t with
+  | _ mod _   => fail 
+  | ?T1 + ?T2 => not_has_mod T1; not_has_mod T2
+  | ?T1 - ?T2 => not_has_mod T1; not_has_mod T2
+  | ?T1 * ?T2 => not_has_mod T1; not_has_mod T2
+  | _         => idtac
+  end.
+
+Ltac push_out_mod_aux T1 T2 N H Lem :=
+  not_has_mod T1;
+  not_has_mod T2;
+  rewrite -(Lem T1 T2 N) in H.
+*)
+
+(*
+Ltac push_out_mod :=
+  match goal with
+  | [ H : context[(?T1 mod ?N + ?T2 mod ?N) mod ?N] |- _ ] =>
+    push_out_mod_aux T1 T2 N H Zplus_mod
+  | [ H : context[(?T1 mod ?N - ?T2 mod ?N) mod ?N] |- _ ] =>
+    push_in_mod_aux T1 T2 N H Zminus_mod
+  | [ H : context[(?T1 mod ?N * ?T2 mod ?N) mod ?N] |- _ ] =>
+    push_in_mod_aux T1 T2 N H Zmult_mod
+  end.
+*)
 
 Lemma split_chain1 (x0 y0 x1 y1 t0 t1 : Z) (cf0 cf2 :bool)
   (B_x0: is_u64 x0)
@@ -689,10 +772,26 @@ move=> H1. rewrite /adc_v /oflow in H1.
 move : (assgnKl H1) => H2. rewrite -H2 in H1.
 move : (assgnKr H1) => H3. clear H1.
 exists (adc_cf 1 x0 y0 cf0).
-rewrite /adc_v. split.
-+ rewrite /Assgn /oflow. congr pair. admit.
-+ 
-+ rewrite /Assgn. (* done. done. case. move=> [] G1 G2. *)
+rewrite /adc_v.
+rewrite !ds2i_cons in H3; simp. 
+move : (Z_eq_mod p64 H3) => H4.
+repeat push_in_mod. repeat mod_simp. repeat push_out_mod.
+
+ simp. rewrite Z_mod_div_pow.
+rewrite !Z_mod_same_full in H4.
+ repeat push_out_mod.
+
+
+rewrite Zplus_mod Zminus_mod {1}Zplus_mod in H4.
+Search ((_  + _) mod _ = (_ mod _ + _) mod _)%Z.
+have H_t0: t0 = x0 + y0 + cf0:%Z - oflow 1 x0 y0 cf0.
+
+split.
++ rewrite /Assgn /oflow. congr pair.
+  admit.
++ rewrite /Assgn. congr pair.
+  + admit.
+  + 
 Admitted.
 
 Lemma split_chainN (n : nat) (xn yn tn : seq Z) (xsn ysn tsn : Z) (cf0 cfsn :bool) :
@@ -749,12 +848,12 @@ Lemma corr_add_4limb
   (cf2,t2)   <- adc 1 x2 y2 cf1   -> 
   (cf3,t3)   <- adc 1 x3 y3 cf2   ->
   (add1      <- if cf3 then 38 else 0)  ->
-  (ccf0,v0) <- adc 1 t0 add1 false     ->
-  (ccf1,z1) <- adc 1 t1 0    ccf0      ->
-  (ccf2,z2) <- adc 1 t2 0    ccf1      -> 
-  (ccf3,z3) <- adc 1 t3 0    ccf2      ->
-  (add2     <- if ccf3 then 38 else 0)  ->
-  (cf_f,z0) <- adc 1 v0 add2 false
+  (ccf0,v0)  <- adc 1 t0 add1 false     ->
+  (ccf1,z1)  <- adc 1 t1 0    ccf0      ->
+  (ccf2,z2)  <- adc 1 t2 0    ccf1      -> 
+  (ccf3,z3)  <- adc 1 t3 0    ccf2      ->
+  (add2      <- if ccf3 then 38 else 0)  ->
+  (cf_f,z0)  <- adc 1 v0 add2 false
   ->
     ds2i [:: z3; z2; z1; z0]
   = ds2i [:: x3; x2; x1; x0] +
@@ -762,18 +861,17 @@ Lemma corr_add_4limb
     (cf3:%Z + ccf3:%Z)*(38 - p256).
 Proof.
 (* combine carry chains *)
-pop_defs. repeat combine. sort_defs.
+pop_defs. combine. sort_defs.
 push_defs. case cf3; last first.
-+ pop_defs. simp.
-  rewrite (assgnKr L2).
-  rewrite (assgnKr L0) /adc_v /oflow.
-  rewrite -(assgnKl L0).
-  simp. ring.
++ pop_defs. simp. sort_defs.
+  by rewrite (assgnKr L2) (assgnKr L0) /adc_v /oflow -(assgnKl L0); simp.
 + simp. case ccf3; last first.
   + pop_defs. simp.
     rewrite (assgnKr L2) /adc_v /oflow -(assgnKl L2). simp.
     rewrite (assgnKr L0) /adc_v /oflow -(assgnKl L0). simp.
-    apply Zeq_eq0. ring_simplify. rewrite //=. ring.
+    have Ds2i_simp1: forall xs, [:i 0 & xs] = [::i xs ]; first (move=>xs; rewrite ds2i_cons; ring).
+    have Ds2i_simp2: forall x, [:i x] = x. move=>xs; rewrite ds2i_cons. unfold length. unfold ds2i. rewrite Z.pow_0_r. ring.
+    apply Zeq_eq0. rewrite !(Ds2i_simp1, Ds2i_simp2). ring.
   + pop_defs. simp.
     rewrite /adc_v /oflow in L4.
     move : (assgnKl L4) => Heq. rewrite -Heq in L4. simp.
@@ -786,8 +884,7 @@ push_defs. case cf3; last first.
       apply Zeq_eq0. simp. ring_simplify.
       move: (assgnKl L2).
       rewrite /oflow -(assgnKl L0). simp.
-      move=> <-. unfold ds2i. unfold length. simp. rewrite (_ : 4 = Z.of_nat 4); last done.
-      ring.
+      move=> <-. unfold ds2i. unfold length. simp. ring.
     + move: (@split_chainN 3%nat [:: t2; t1; t0] [:: 0; 0; 38] [:: z2; z1; v0] t3 0 z3 false true).
       case; try (rewrite //=; fail). band_auto. band_auto. band_auto.
       move=> cccf2 [] L5 L6.
