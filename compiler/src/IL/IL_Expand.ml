@@ -71,9 +71,13 @@ let eval_pcond ptable ltable cc =
       | Ok(c)    -> Ok (not c)
       | Error(s) -> Error(s)
       end
-    | Pand(cc1,cc2) ->
+    | Pbop(o,cc1,cc2) ->
       begin match go cc1, go cc2 with
-      | Ok(c1),Ok(c2) -> Ok(c1 && c2)
+      | Ok(c1),Ok(c2) ->
+        begin match o with
+        | Pand -> Ok(c1 && c2)
+        | Por  -> Ok(c1 || c2)
+        end
       | Error(s), _
       | _, Error(s) ->
         Error(s)
@@ -283,12 +287,19 @@ let peval_pcond ptable ltable cc =
       | Pbool(b) -> Pbool(not b)
       | c        -> Pnot(c)
       end
-    | Pand(cc1,cc2) ->
+    | Pbop(Pand,cc1,cc2) ->
       begin match go cc1, go cc2 with
       | Pbool(true), Pbool(true)   -> Pbool(true)
       | Pbool(false), _
       | _           , Pbool(false) -> Pbool(false)
-      | c1, c2                     -> Pand(c1,c2)
+      | c1, c2                     -> Pbop(Pand,c1,c2)
+      end
+    | Pbop(Por,cc1,cc2) ->
+      begin match go cc1, go cc2 with
+      | Pbool(false), Pbool(false) -> Pbool(false)
+      | Pbool(true), _
+      | _           , Pbool(true) -> Pbool(true)
+      | c1, c2                    -> Pbop(Por,c1,c2)
       end
     | Pcmp(cco,ce1,ce2) ->
       begin match peval_pexpr ptable ltable ce1, peval_pexpr ptable ltable ce2 with

@@ -106,6 +106,10 @@ let pcondop_to_string = function
   | Pgt  -> ">"
   | Pge  -> ">="
 
+let pboolop_to_string = function
+  | Pand  -> "&&"
+  | Por -> "||"
+
 let rec pp_pcond ~pp_types fmt pc =
   let ppc = pp_pcond ~pp_types in
   let ppe = pp_pexpr ~pp_types in
@@ -113,7 +117,7 @@ let rec pp_pcond ~pp_types fmt pc =
   | Pbool(true)     -> pp_string fmt "true"
   | Pbool(false)    -> pp_string fmt "true"
   | Pnot(ic)        -> F.fprintf fmt"!(%a)" ppc ic
-  | Pand(c1,c2)     -> F.fprintf fmt"(%a && %a)" ppc c1 ppc c2
+  | Pbop(o,c1,c2)   -> F.fprintf fmt"(%a %s %a)" ppc c1 (pboolop_to_string o) ppc c2
   | Pcmp(o,ie1,ie2) -> F.fprintf fmt"(%a %s %a)" ppe ie1 (pcondop_to_string o) ppe ie2
 
 let pp_src ~pp_types fmt = function

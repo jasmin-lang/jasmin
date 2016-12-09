@@ -57,6 +57,7 @@ rule lex = parse
   | "+"     { PLUS }
   | "&"     { BAND }
   | "&&"    { LAND }
+  | "||"    { LOR }
   | ";"     { SEMICOLON }
   | "!"     { EXCL }
   | "true"  { TRUE }

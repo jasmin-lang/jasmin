@@ -99,13 +99,13 @@ let () =
       failwith "test failed, see above"
     )
   in
-  let pc1 = Pnot(Pand(Pbool(true),Pand(Pbool(false),Pcmp(Peq,pe1,pe2)))) in
+  let pc1 = Pnot(Pbop(Pand,Pbool(true),Pbop(Pand,Pbool(false),Pcmp(Peq,pe1,pe2)))) in
   check pc1;
 
   (* destinations *)
   let check d1 =
     let cvi = CVI.mk (Fname.Table.create ()) in
-    let d2 = dest_of_rval cvi (rval_of_dest cvi d1) in
+    let d2 = sdest_of_rval cvi (rval_of_sdest cvi d1) in
     if not (equal_dest d1 d2) then (
       F.printf "check variable roundtrip@\n``%a''@\n<>@\n``%a''@\n%!"
         (pp_dest ~pp_types:true) d1
@@ -113,12 +113,18 @@ let () =
       failwith "test failed, see above"
     )
   in
-  let d1 = { d_var = v1; d_idx=None; d_loc = Lex.dummy_loc; } in
+  let sd1 = { d_var = v1; d_idx=None; d_loc = Lex.dummy_loc; } in
+  let d1 = Sdest(sd1) in
   check d1;
-  let d2 = { d_var = v3; d_idx=Some(Ivar(v2)); d_loc = Lex.dummy_loc; } in
+  let sd2 = { d_var = v3; d_idx=Some(Ivar(v2)); d_loc = Lex.dummy_loc; } in
+  let d2 = Sdest(sd2) in
   check d2;
+  let d3 = Mem(sd1, Pconst(Big_int.zero_big_int)) in
+  check d3;
+  
 
   (* sources *)
+  (*
   let check s1 =
     let cvi = CVI.mk (Fname.Table.create ()) in
     let s2 = src_of_cpexpr cvi (cpexpr_of_src cvi s1) in
@@ -135,6 +141,7 @@ let () =
   check s2;
   let s3 = Src(d2) in
   check s3;
+  *)
   
   (* base instructions *)
   (* instructions *)

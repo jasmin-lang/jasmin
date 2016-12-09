@@ -145,7 +145,7 @@ type patom =
 type pexpr = patom pexpr_g
   [@@deriving compare,sexp]
 
-type pop_bool =
+type pop_cmp =
   | Peq
   | Pneq
   | Plt
@@ -154,11 +154,16 @@ type pop_bool =
   | Pge
   [@@deriving compare,sexp]
 
+type pop_bool =
+  | Pand
+  | Por
+  [@@deriving compare,sexp]
+
 type pcond =
   | Pbool of bool
   | Pnot  of pcond
-  | Pand  of pcond * pcond
-  | Pcmp  of pop_bool * pexpr * pexpr
+  | Pbop  of pop_bool * pcond * pcond
+  | Pcmp  of pop_cmp * pexpr * pexpr
   [@@deriving compare,sexp]
 
 (* ** Types, sources, and destinations

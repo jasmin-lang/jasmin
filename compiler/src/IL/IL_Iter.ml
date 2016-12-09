@@ -47,7 +47,7 @@ let rec iter_vars_pcond ~f pc =
   match pc with
   | Pbool(_)        -> ()
   | Pnot(ic)        -> ivpc ic
-  | Pand (ic1,ic2)  -> ivpc ic1; ivpc ic2
+  | Pbop(_,ic1,ic2) -> ivpc ic1; ivpc ic2
   | Pcmp(_,ce1,ce2) -> ivpe ce1; ivpe ce2
 
 let iter_vars_src ~f = function
@@ -221,7 +221,7 @@ let rec iter_params_pcond ~f pc =
   match pc with
   | Pbool(_)        -> ()
   | Pnot(ic)        -> iter_params_pcond ~f ic
-  | Pand(ic1,ic2)   -> ipc ic1; ipc ic2
+  | Pbop(_,ic1,ic2) -> ipc ic1; ipc ic2
   | Pcmp(_,ce1,ce2) -> ipe ce1; ipe ce2
 
 let iter_params_sdest ~f sd =

@@ -251,9 +251,9 @@ let rec cpexpr_of_pexpr cvi pe =
   match pe with
   | Patom(Pvar(v))     ->
     let k = CVI.add_varg cvi v in
-    DE.Pvar(pos_of_int k, cvar_of_var v)
+    DE.Pvar{DE.v_var=cvar_of_var v; DE.v_info=pos_of_int k}
   | Pbinop(po,pe1,pe2) ->
-    DE.Papp2(sword,sword,sword,sop2_of_pop_u64 po,cpe pe1,cpe pe2) 
+    DE.Papp2(sop2_of_pop_u64 po,cpe pe1,cpe pe2) 
   | Pconst bi ->
     DE.Pconst(coqZ_of_bi bi)
   | Patom(Pparam(_))   ->
@@ -262,23 +262,32 @@ let rec cpexpr_of_pexpr cvi pe =
 let rec pexpr_of_cpexpr cvi pe =
   let pcp = pexpr_of_cpexpr cvi in
   match pe with
-  | DE.Pvar(vi,v) ->
-    let vargs = CVI.get_varg cvi vi in
-    Patom(Pvar(var_of_cvar v vargs))
-  | DE.Papp2(DT.Coq_sword,DT.Coq_sword,DT.Coq_sword,sop,cpe1,cpe2) ->
+  | DE.Pvar(vi) ->
+    let vargs = CVI.get_varg cvi vi.DE.v_info in
+    Patom(Pvar(var_of_cvar vi.DE.v_var vargs))
+  | DE.Papp2(sop,cpe1,cpe2) ->
     Pbinop(pop_u64_of_sop2 sop,pcp cpe1,pcp cpe2)
   | DE.Pconst(zi) ->
     Pconst(bi_of_coqZ zi)
   | _ -> failwith "pexpr_of_cexpr: unsupported pexpr"
 
-let mk_and cpc1 cpc2 =
- DE.Papp2(DT.Coq_sbool,DT.Coq_sbool,DT.Coq_sbool,DE.Oand,cpc1,cpc2)
+let bop_to_csop2 = function
+  | Pand -> DE.Oand
+  | Por  -> DE.Oor
+
+let sop2_to_bop = function
+  | DE.Oand -> Pand
+  | DE.Oor  -> Por
+  | _ -> assert false
+
+let mk_bop o cpc1 cpc2 =
+ DE.Papp2(bop_to_csop2 o,cpc1,cpc2)
  
 let mk_not cpc =
-  DE.Papp1(DT.Coq_sbool,DT.Coq_sbool,DE.Onot, cpc)
+  DE.Pnot(cpc)
 
 let mk_cmp cop cpe1 cpe2 =
-  DE.Papp2(sword,sword,sbool,cop,cpe1,cpe2)
+  DE.Papp2(cop,cpe1,cpe2)
 
 let mk_eq = mk_cmp DE.Oeq
 
@@ -288,7 +297,7 @@ let rec cpexpr_of_pcond cvi pc =
   match pc with
   | Pbool(b)          -> DE.Pbool(cbool_of_bool b)
   | Pnot(pc)          -> mk_not(cpc pc)
-  | Pand(pc1,pc2)     -> mk_and (cpc pc1) (cpc pc2)
+  | Pbop(o,pc1,pc2)   -> mk_bop o (cpc pc1) (cpc pc2)
   | Pcmp(pop,pe1,pe2) ->
     let cpe1 = cpe pe1 in
     let cpe2 = cpe pe2 in
@@ -306,11 +315,11 @@ let rec pcond_of_cpexpr vat pe =
   let pep = pexpr_of_cpexpr vat in
   match pe with
   | DE.Pbool(cb) -> Pbool(bool_of_cbool cb)
-  | DE.Papp1(DT.Coq_sbool,DT.Coq_sbool,DE.Onot, cpc) ->
+  | DE.Pnot(cpc) ->
     Pnot(pcp cpc)
-  | DE.Papp2(DT.Coq_sbool,DT.Coq_sbool,DT.Coq_sbool,DE.Oand,cpc1,cpc2) ->
-    Pand(pcp cpc1, pcp cpc2)
-  | DE.Papp2(DT.Coq_sword,DT.Coq_sword,DT.Coq_sbool,cop,cpe1,cpe2) ->
+  | DE.Papp2(o,cpc1,cpc2) ->
+    Pbop(sop2_to_bop o,pcp cpc1, pcp cpc2)
+  | DE.Papp2(cop,cpe1,cpe2) ->
     let pe1 = pep cpe1 in
     let pe2 = pep cpe2 in
     begin match cop with
@@ -327,13 +336,13 @@ let rec pcond_of_cpexpr vat pe =
 
 let cpexpr_of_fcond cvi {fc_neg; fc_var} =
   let cpe_v = cpexpr_of_pexpr cvi (Patom(Pvar(fc_var))) in
-  (if fc_neg then DE.Papp1(sbool,sbool,DE.Onot,cpe_v) else cpe_v)
+  (if fc_neg then DE.Pnot(cpe_v) else cpe_v)
 
 let fcond_of_cpexpr cvi cpe =
   let neg, cpe_v = 
     match cpe with
-    | DE.Papp1(_,_,DE.Onot,cpe_v) -> true, cpe_v
-    | _                           -> false, cpe
+    | DE.Pnot(cpe_v) -> true, cpe_v
+    | _              -> false, cpe
   in
   let v =
     match pexpr_of_cpexpr cvi cpe_v with
@@ -345,31 +354,27 @@ let fcond_of_cpexpr cvi cpe =
 (* ** Sources and destinations
  * ------------------------------------------------------------------------ *)
 
-let rval_of_dest cvi d =
+let rval_of_sdest cvi d =
   match d.d_idx with
   | None      ->
     let k = CVI.add_darg cvi d in
-    DE.Rvar(pos_of_int k,cvar_of_var d.d_var)
+    DE.Rvar({DE.v_info=pos_of_int k;DE.v_var=cvar_of_var d.d_var})
   | Some(idx) ->
-    let s = match d.d_var.Var.ty with
-      | Arr(64,Pconst(c)) -> pos_of_bi c
-      | _                 -> assert false
-    in
     let cpe =
       match idx with
       | Ipexpr(pe) -> cpexpr_of_pexpr cvi pe
       | Ivar(v)    -> cpexpr_of_pexpr cvi (Patom(Pvar(v)))
     in
     let k = CVI.add_darg cvi d in
-    DE.Raset(pos_of_int k,s,(cvar_of_var d.d_var).DV.Var.vname, cpe)
+    DE.Raset({DE.v_info=pos_of_int k;DE.v_var=cvar_of_var d.d_var}, cpe)
 
 let idx_of_cpexpr cvi is_Ivar idx =
   if is_Ivar then (
     let v =
       match idx with
-      | DE.Pvar(i,v) ->
-        let vargs = CVI.get_varg cvi i in
-        var_of_cvar v vargs
+      | DE.Pvar(v) ->
+        let vargs = CVI.get_varg cvi v.DE.v_info in
+        var_of_cvar v.DE.v_var vargs
       | _ ->
         assert false
     in
@@ -378,54 +383,51 @@ let idx_of_cpexpr cvi is_Ivar idx =
     Ipexpr(pexpr_of_cpexpr cvi idx)
   )
       
-let dest_of_rval cvi rv =
+let sdest_of_rval cvi rv =
   match rv with
-  | DE.Rvar(vi,cvar) ->
+  | DE.Rvar(cvar_i) ->
+    let cvar = cvar_i.DE.v_var in
+    let vi   = cvar_i.DE.v_info in
     let vargs,(dloc,_is_Ivar) = CVI.get_darg cvi vi in
     { d_var=var_of_cvar cvar vargs; d_idx=None; d_loc=dloc }
-  | DE.Raset(vi,dim,id,cpe) ->
-    let cvar = { DV.Var.vname=id; DV.Var.vtype=DT.Coq_sarr(dim) } in
+  | DE.Raset(cvar_i,cpe) ->
+    let cvar = cvar_i.DE.v_var in
+    let vi = cvar_i.DE.v_info in
     let vargs,(dloc,is_Ivar) = CVI.get_darg cvi vi in
     { d_var=var_of_cvar cvar vargs; d_idx=Some(idx_of_cpexpr cvi is_Ivar cpe); d_loc=dloc }
-  | DE.Rpair(_t1,_t2,_rv1,_rv2)   ->
-    failwith "dest_of_rval: cannot deal with pairs"
   | DE.Rmem(_cpe) ->
     failwith "dest_of_rval: support for memory missing"
+  | DE.Rnone ->
+    failwith "dest_of_rval: support for none missing"
 
 let cpexpr_of_src cvi s =
   let cpe = cpexpr_of_pexpr cvi in
   match s with
   | Imm(_,pe) -> cpe pe
-  | Src(_) -> assert false
   | Src(Sdest(d)) ->
     let k = CVI.add_darg cvi d in
-    let v = DE.Pvar(pos_of_int k,cvar_of_var d.d_var) in
+    let v = {DE.v_info=pos_of_int k; DE.v_var=cvar_of_var d.d_var} in
     begin match d.d_idx with
-    | None -> v
+    | None -> DE.Pvar(v)
     | Some(idx) ->
-      let n = match d.d_var.Var.ty with
-        | Arr(64,Pconst(c)) -> pos_of_bi c
-        | _                 -> assert false
-      in
       let cpe =
         match idx with
         | Ipexpr(pe) -> cpexpr_of_pexpr cvi pe
         | Ivar(v)    -> cpexpr_of_pexpr cvi (Patom(Pvar(v)))
       in
-      let tarr = DT.Coq_sarr(n) in
-      DE.Papp2(tarr,sword,sword,DE.Oget(n),v,cpe)
+      DE.Pget(v,cpe)
     end
+  | Src(_) -> assert false
 
 let src_of_cpexpr cvi cpe =
   match cpe with
-  | DE.Pvar(vi,cvar) ->
-    Src(Sdest(dest_of_rval cvi @@ DE.Rvar(vi,cvar)))
+  | DE.Pvar(cvar_i) ->
+    Src(Sdest(sdest_of_rval cvi @@ DE.Rvar(cvar_i)))
 
-  | DE.Papp2(tin1,tin2,tres,DE.Oget(dim),DE.Pvar(vi,cvar),cpe) ->
-    assert(tin1=DT.Coq_sarr(dim) && tin2=sword && tres=sword);
-    let vargs,(darg,is_Ivar) = CVI.get_darg cvi vi in
+  | DE.Pget(cvar_i,cpe) ->
+    let vargs,(darg,is_Ivar) = CVI.get_darg cvi cvar_i.DE.v_info in
     let sd =
-      { d_var=var_of_cvar cvar vargs;
+      { d_var=var_of_cvar cvar_i.DE.v_var vargs;
         d_idx=Some(idx_of_cpexpr cvi is_Ivar cpe);
         d_loc=darg }
     in
@@ -518,13 +520,13 @@ let of_op_view cvi o =
  * ------------------------------------------------------------------------ *)
 
 let atag_of_assgn_type = function
-  | Mv -> DE.AT_Mv
-  | Eq -> DE.AT_Eq
+  | Mv -> DE.AT_keep
+  | Eq -> DE.AT_rename
 
 let assgn_type_of_atag = function
-  | DE.AT_Mv -> Mv
-  | DE.AT_Eq -> Eq
-  | _        -> assert false
+  | DE.AT_keep   -> Mv
+  | DE.AT_rename -> Eq
+  | _            -> assert false
 
 let rval_of_dests cvi ds =
   undefined ()
@@ -543,6 +545,7 @@ let rval_of_dests cvi ds =
   *)
 
 let rec dests_of_rval cvi num rval =
+  undefined () (*
   match rval with
   | DE.Rpair(_,_,rv1,rv2) ->
     if num > 1 then
@@ -554,8 +557,10 @@ let rec dests_of_rval cvi num rval =
       [ dest_of_rval cvi rval ]
     else
       failwith "dests_of_rval: expected pair"
+  *)
 
 let cpexpr_of_srcs cvi ss =
+  undefined () (*
   let conv_s s = cty_of_ty (type_src s),cpexpr_of_src cvi s in
   let rec go ss =
     match ss with
@@ -568,8 +573,11 @@ let cpexpr_of_srcs cvi ss =
       ty_p, DE.Papp2(ty_s,ty_ss,ty_p,DE.Opair(ty_s,ty_ss),cpe_s,cpe_ss)
   in
   snd (go ss)
+  *)
 
 let rec srcs_of_cpexpr cvi num cpe =
+  undefined ()
+  (*
   match cpe with
   | DE.Papp2(_,_,_,DE.Opair(_,_),cpe_s,cpe_ss) ->
     if num > 1 then
@@ -581,12 +589,15 @@ let rec srcs_of_cpexpr cvi num cpe =
       [ src_of_cpexpr cvi cpe ]
     else
       failwith "srcs_of_cexpr: expected pair"
+  *)
 
 let rec cty_of_tys tys =
+  undefined () (*
   match tys with
   | []    -> assert false (* FIXME: add unit to Coq *)
   | [t]   -> cty_of_ty t
   | t::ts -> DT.Coq_sprod(cty_of_ty t,cty_of_tys ts)
+  *)
 
 let rec cfundef_of_fundef cvi tin tres fd =
   undefined () 
@@ -662,14 +673,15 @@ and cinstr_of_linstr cvi linstr =
       assert(oinfo=None);
       let k = CVI.add_iloc cvi loc in
       let cmd = cmd_of_stmt cvi s in
-      let rval = rval_of_dest cvi d in
+      (* let rval = rval_of_dest cvi d in *)
+      let cvar_i = undefined () in
       (* FIXME: we do not distinguish DownTo/UpTo in Ocaml *)
       let rng =
         Datatypes.Coq_pair(
           Datatypes.Coq_pair(DE.UpTo,cpexpr_of_pexpr cvi pe_lb),
           cpexpr_of_pexpr cvi pe_ub)
       in
-      [ DE.MkI (pos_of_int k, DE.Cfor(rval,rng,cmd)) ]
+      [ DE.MkI (pos_of_int k, DE.Cfor(cvar_i,rng,cmd)) ]
 
     | While(wt,fc,s,oinfo) ->
       assert(oinfo=None);

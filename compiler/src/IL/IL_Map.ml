@@ -105,7 +105,7 @@ let rec map_vars_pcond ~f pc =
   match pc with
   | Pbool(_)        -> pc
   | Pnot(pc)        -> Pnot(mvpc pc)
-  | Pand(pc1,pc2)   -> Pand(mvpc pc1, mvpc pc2)
+  | Pbop(o,pc1,pc2) -> Pbop(o,mvpc pc1, mvpc pc2)
   | Pcmp(o,pe1,pe2) -> Pcmp(o,mvpe pe1, mvpe pe2)
 
 let map_vars_src ~f = function
@@ -230,7 +230,7 @@ let rec map_params_pcond ~f pc =
   match pc with
   | Pbool(_)        -> pc
   | Pnot(pc)        -> Pnot(mvpc pc)
-  | Pand(pc1,pc2)   -> Pand(mvpc pc1, mvpc pc2)
+  | Pbop(o,pc1,pc2) -> Pbop(o,mvpc pc1, mvpc pc2)
   | Pcmp(o,pe1,pe2) -> Pcmp(o,mvpe pe1, mvpe pe2)
 
 let map_params_src ~f = function
@@ -358,8 +358,8 @@ let rec map_tys_pcond ~f:(f : ty -> ty) pc =
   match pc with
   | Pbool(_)        -> pc
   | Pnot(pc)        -> Pnot(mvpc pc)
-  | Pand(pc1,pc2)   -> Pand(mvpc pc1, mvpc pc2)
-  | Pcmp(o,pe1,pe2) -> Pcmp(o,mvpe pe1, mvpe pe2)
+  | Pbop(o,pc1,pc2) -> Pbop(o,mvpc pc1,mvpc pc2)
+  | Pcmp(o,pe1,pe2) -> Pcmp(o,mvpe pe1,mvpe pe2)
 
 let map_tys_src ~f:(f : ty -> ty) = function
   | Imm(i,pe) -> Imm(i,map_tys_pexpr ~f pe)

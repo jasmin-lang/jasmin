@@ -38,7 +38,7 @@ module L = ParserUtil.Lexing
 %token BAND
 %token MINUS
 %token PLUS
-%token LAND
+%token LAND LOR
 %token SEMICOLON
 %token EXCL DOTDOT COMMA
 %token SHR SHL XOR OR
@@ -59,12 +59,12 @@ module L = ParserUtil.Lexing
 
 %token MEM
 
-// %token <string> ID 
 %token <string * string> NID
 %token <string> INT
 
-%left LAND
 %nonassoc EXCL
+%left LAND
+%left LOR
 %left MINUS PLUS
 %left STAR
 
@@ -166,13 +166,17 @@ pexpr :
 | e1=pexpr o=pbinop e2=pexpr { Pbinop(o,e1,e2)                     }
 | LPAREN e1=pexpr RPAREN     { e1                                  }
 
+%inline pbop :
+| LAND { Pand }
+| LOR  { Por  }
+
 pcond :
-| TRUE                        { Pbool(true)   }
-| FALSE                       { Pbool(false)  }
-| EXCL c=pcond                { Pnot(c)       }
-| c1=pcond LAND c2=pcond      { Pand(c1,c2)   }
-| LPAREN c = pcond RPAREN     { c             }
-| c1=pexpr o=pcondop c2=pexpr { Pcmp(o,c1,c2) }
+| TRUE                        { Pbool(true)      }
+| FALSE                       { Pbool(false)     }
+| EXCL c=pcond                { Pnot(c)          }
+| c1=pcond o=pbop c2=pcond    { Pbop(o,c1,c2)    }
+| LPAREN c = pcond RPAREN     { c                }
+| c1=pexpr o=pcondop c2=pexpr { Pcmp(o,c1,c2)    }
 
 
 %inline fcond :
