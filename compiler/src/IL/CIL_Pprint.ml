@@ -8,9 +8,11 @@ open Dmasm_expr
 open Dmasm_type
 open Dmasm_var
 
-module F  = Format
+module F   = Format
 module Lex = ParserUtil.Lexing
-module HT = Hashtbl
+module HT  = Hashtbl
+
+let show_vinfo = ref true
 
 (* ** Pretty printing for basic types
  * ------------------------------------------------------------------------ *)
@@ -29,6 +31,9 @@ let pp_coqZ fmt cz =
 
 let pp_cbool fmt cb =
   pp_bool fmt (bool_of_cbool cb)
+
+let pp_minfo pp1 fmt () =
+  if !show_vinfo then pp1 fmt else pp_string fmt ""
 
 (* ** Pretty printing
  * ------------------------------------------------------------------------ *)
@@ -84,9 +89,9 @@ let pp_sopn fmt sopn =
     | Osubcarry -> "subc")
 
 let pp_var_info fmt vi =
-  F.fprintf fmt "%a.%a:%a"
+  F.fprintf fmt "v%a%a:%a"
     pp_var_name vi.v_var.Var.vname
-    pp_pos vi.v_info
+    (pp_minfo (fun fmt -> F.fprintf fmt ".%a" pp_pos vi.v_info)) ()
     pp_ty (vi.v_var.Var.vtype)
 
 let rec pp_pexpr fmt pe =
@@ -112,7 +117,7 @@ let pp_ret_type fmt res =
   if rtypes=[] then (
     pp_string fmt ""
   ) else (
-    F.fprintf fmt " -> %a " (pp_list " * " pp_ty) rtypes
+    F.fprintf fmt "-> %a " (pp_list " * " pp_ty) rtypes
   )
 
 let pp_range fmt rng =
@@ -147,16 +152,19 @@ let rec pp_instr_r fmt instr =
 
 and pp_instr fmt instr =
   let MkI(iinfo,instr) = instr in
-  F.fprintf fmt "%a; // %a" pp_instr_r instr pp_pos iinfo
+  F.fprintf fmt "%a;%a"
+    pp_instr_r instr
+    (pp_minfo (fun fmt -> F.fprintf fmt "// %a" pp_pos iinfo)) ()
 
 and pp_instrs fmt instrs =
   pp_clist "@\n" pp_instr fmt instrs
 
 let pp_fundef fmt fd =
-  F.fprintf fmt "(%a) %a{@\n  @[<v 0>%a@]@\n}"
+  F.fprintf fmt "(%a) %a{@\n  @[<v 0>%a@\nreturn %a;@]@\n}"
     (pp_clist ", " pp_var_info) fd.f_params
     pp_ret_type fd.f_res
     (pp_clist "@\n" pp_instr) fd.f_body
+    (pp_clist ", " pp_var_info) fd.f_params
 
 let pp_named_fun fmt nf =
   let (fn,fd) = pair_of_cpair nf in

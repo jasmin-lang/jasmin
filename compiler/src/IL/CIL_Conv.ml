@@ -6,7 +6,7 @@ open IL_Lang
 open IL_Utils
 open IL_Typing
 open CIL_Utils
-open CIL_Pprint
+(* open CIL_Pprint *)
 
 module F  = Format
 module DE = Dmasm_expr
@@ -70,7 +70,9 @@ module CVI = struct
     match HT.find cvi.vargs num, HT.find cvi.dargs num with
     | Some(va), Some(da) -> va,da
     | None,     _        -> assert false
-    | _,        None     -> assert false
+    | Some(va), None     -> (* variables can become destinations *)
+      let (_,_,_,dloc) = va in
+      va, (dloc, false)
 
   let add_iloc cvi loc =
     let k = new_ctr cvi in
@@ -518,9 +520,8 @@ and cinstr_of_linstr cvi linstr =
       let cvar_i = DE.{v_info=pos_of_int kv; v_var=v} in
       (* FIXME: we do not distinguish DownTo/UpTo in Ocaml *)
       let rng =
-        Datatypes.Coq_pair(
-          Datatypes.Coq_pair(DE.UpTo,cpexpr_of_pexpr cvi pe_lb),
-          cpexpr_of_pexpr cvi pe_ub)
+        cpair_of_pair (cpair_of_pair (DE.UpTo,cpexpr_of_pexpr cvi pe_lb),
+                       cpexpr_of_pexpr cvi pe_ub)
       in
       [ DE.MkI (pos_of_int ki, DE.Cfor(cvar_i,rng,cmd)) ]
 
@@ -590,9 +591,7 @@ let rec instr_of_cinstr cvi lci =
     | DE.Cfor(vi,rng,cmd) ->
       let v = var_of_cvar_i cvi vi in
       let d = { d_var = v; d_idx=None; d_loc= v.Var.uloc } in
-      let dir,cpe_lb,cpe_ub = match rng with
-        | Datatypes.Coq_pair(Datatypes.Coq_pair(dir,cpe_lb),cpe_ub) -> dir,cpe_lb,cpe_ub
-      in
+      let Datatypes.Coq_pair(Datatypes.Coq_pair(dir,cpe_lb),cpe_ub) = rng in
       assert(dir=DE.UpTo);
       let s = stmt_of_cmd cvi cmd in
       For(d,pexpr_of_cpexpr cvi cpe_lb,pexpr_of_cpexpr cvi cpe_ub,s,None)
@@ -636,31 +635,39 @@ let fundef_of_cfundef cvi cfd =
     f_ret       = res;
   }
 
+
+
 (* inline all function call in given function fname *)
 let inline_calls_modul _fname modul =
+  let modul = IL_Iter.sort_call_graph modul in
   let cvi = CVI.mk () in
-  F.printf "calling inlining\n%!";
+  (* F.printf "calling inlining\n%!"; *)
   let conv_nf nf =
     match nf.nf_func with
     | Native(fd) ->
       let cfd = cfundef_of_fundef cvi fd in
       let k = CVI.add_fname cvi nf.nf_name in
-      Datatypes.Coq_pair(pos_of_int k,cfd)
+      cpair_of_pair (pos_of_int k,cfd)
     | Foreign(_) ->
       assert false
   in
-  let cfds = List.map ~f:conv_nf modul in  
+  (* inliner expects leaves of call-graph last *)
+  let cfds = List.rev @@ List.map ~f:conv_nf modul in  
   let prog = clist_of_list cfds in
-  F.printf "Coq before:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog;
-  let prog = match Compiler.compile_prog (fun v -> v) prog with
+  (* F.printf "Coq before:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog; *)
+  let rename_fd fd =
+    (* F.printf "called rename fundef: %i!\n%!" (List.length @@ list_of_clist fd.DE.f_body); *)
+    fd
+  in
+  let prog = match Compiler.compile_prog rename_fd prog with
     | DU.Ok(cfuns) -> cfuns
     | _            -> assert false
   in
-  F.printf "Coq after:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog;
+  (* F.printf "Coq after:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog; *)
   let conv_cfd cfd =
-    let Datatypes.Coq_pair(i,cfd) = cfd in
+    let i,cfd = pair_of_cpair cfd in
     let name = CVI.get_fname cvi i in
     { nf_name = name;
       nf_func = Native(fundef_of_cfundef cvi cfd) }
   in
-  List.map ~f:conv_cfd @@ list_of_clist prog
+  List.map ~f:conv_cfd @@ List.rev @@ list_of_clist prog

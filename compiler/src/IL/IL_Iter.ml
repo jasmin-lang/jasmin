@@ -456,3 +456,81 @@ let no_nempty_branches_modul_all modul =
 
 let no_nempty_branches_modul modul fname =
   iter_instrs_modul ~f:no_empty_branches_instr_exn modul fname
+
+(* ** Iterate over base-instructions
+ * ------------------------------------------------------------------------ *)
+
+let iter_binstrs_block ~f linstr =
+  let instr = linstr.L.l_val in
+  match instr with
+  | Block(binstrs,_) -> List.iter ~f binstrs
+  | While(_,_,_,_)   -> ()
+  | For(_,_,_,_,_)   -> ()
+  | If(_,_,_,_)      -> ()
+
+let iter_binstrs_instr ~f linstr =
+  iter_instrs_instr ~f:(iter_binstrs_block ~f) linstr
+
+let iter_binstrs_stmt ~f stmt =
+  iter_instrs_stmt ~f:(iter_binstrs_block ~f) stmt
+
+let iter_binstrs_fundef ~f fd =
+  iter_instrs_fundef ~f:(iter_binstrs_block ~f) fd
+
+let iter_binstrs_func ~f func =
+  iter_instrs_func ~f:(iter_binstrs_block ~f) func
+
+let iter_binstrs_named_func ~f nf =
+  iter_instrs_named_func ~f:(iter_binstrs_block ~f) nf
+
+let iter_binstrs_modul ~f modul fname =
+  iter_instrs_modul ~f:(iter_binstrs_block ~f) modul fname
+
+let iter_binstrs_modul_all ~f modul =
+  iter_instrs_modul_all ~f:(iter_binstrs_block ~f) modul
+
+(* ** Get called functions
+ * ------------------------------------------------------------------------ *)
+
+let called_named_func nf =
+  let names = ref Fname.Set.empty in
+  let add_name binstr = match binstr.L.l_val with
+    | Call(fn,_,_) -> names := Set.add !names fn
+    | _            -> ()
+  in
+  iter_binstrs_named_func ~f:add_name nf;
+  !names
+
+let sort_call_graph modul =
+  let calling = Fname.Table.create () in
+  let namedfuns = Fname.Table.create () in
+  List.iter modul
+    ~f:(fun nf ->
+          HT.set calling ~key:nf.nf_name ~data:(called_named_func nf);
+          HT.set namedfuns ~key:nf.nf_name ~data:nf);
+  let added_set = ref Fname.Set.empty in
+  let visited = ref Fname.Set.empty in
+  let added = ref [] in
+  let rec go fns =
+    match fns with
+    | []      -> List.rev !added
+    | fn::fns ->
+      if Set.mem !added_set fn then (
+        (* added already earlier *)
+        go fns
+      ) else ( 
+        let called = Set.diff (HT.find_exn calling fn) !added_set in
+        if Set.is_empty called then ( 
+          (* all functions called by nf already added *)
+          added_set := Set.add !added_set fn;
+          added := (HT.find_exn namedfuns fn)::!added;
+          go fns
+        ) else (
+          (* we have to add functions called by nf first *)
+          if Set.mem !visited fn then failwith_ "cycle in call graph %a" Fname.pp fn;
+          visited := Set.add !visited fn;
+          go (Set.to_list called @ (fn::fns))
+        )
+      )
+  in
+  go (List.map ~f:(fun nf -> nf.nf_name) modul)
