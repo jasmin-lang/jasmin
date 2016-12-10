@@ -2,10 +2,10 @@ type checking module in all function(s)
    REMOVED_TIME
 merging basic blocks in all function(s)
    REMOVED_TIME
-adding register liveness information in test function(s)
+adding register liveness information in ``test'' function(s)
    iterate liveness: ...
    REMOVED_TIME
-transforming into local SSA form in test function(s)
+transforming into local SSA form in ``test'' function(s)
    REMOVED_TIME
 type checking module in all function(s)
    REMOVED_TIME

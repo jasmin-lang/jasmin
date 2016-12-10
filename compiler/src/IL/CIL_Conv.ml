@@ -5,116 +5,16 @@ open Core_kernel.Std
 open IL_Lang
 open IL_Utils
 open IL_Typing
-open Arith
-open Util
+open CIL_Utils
+open CIL_Pprint
 
 module F  = Format
 module DE = Dmasm_expr
+module DU = Dmasm_utils
 module DT = Dmasm_type
 module DV = Dmasm_var
 module Lex = ParserUtil.Lexing
 module HT = Hashtbl
-
-(* ** Conversions for strings, numbers, ...
- * ------------------------------------------------------------------------ *)
-
-let rec pos_of_bi bi =
-  let open Big_int_Infix in
-  if bi <=! Big_int.unit_big_int then BinNums.Coq_xH
-  else 
-    let p = pos_of_bi (bi >>! 1) in
-    if (bi %! (Big_int.big_int_of_int 2)) === Big_int.unit_big_int 
-    then BinNums.Coq_xI p 
-    else BinNums.Coq_xO p 
-
-let rec bi_of_pos pos =
-  let open Big_int_Infix in
-  match pos with
-  | BinNums.Coq_xH   -> Big_int.unit_big_int
-  | BinNums.Coq_xO p -> (bi_of_pos p) <!< 1
-  | BinNums.Coq_xI p -> ((bi_of_pos p) <!< 1) +! Big_int.unit_big_int
-
-let int_of_pos pos = Big_int.int_of_big_int (bi_of_pos pos)
-
-let pos_of_int pos = pos_of_bi (Big_int.big_int_of_int pos)
-
-let coqZ_of_bi bi =
-  let open Big_int_Infix in
-  if bi === Big_int.zero_big_int then
-    BinNums.Z0
-  else if bi <! Big_int.zero_big_int then 
-    BinNums.Zneg (pos_of_bi (Big_int.minus_big_int bi))
-  else 
-    BinNums.Zpos (pos_of_bi bi)
-  
-let bi_of_coqZ z =
-  match z with
-  | BinNums.Zneg p -> Big_int.minus_big_int (bi_of_pos p)
-  | BinNums.Z0 -> Big_int.zero_big_int
-  | BinNums.Zpos p -> bi_of_pos p
-
-let ascii_of_char x = 
-  let x = int_of_char x in
-  let bit i = 
-    if x lsr (7 - i) land 1 = 1 then Datatypes.Coq_true 
-    else Datatypes.Coq_false in
-  Ascii.Ascii(bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7)
-
-let char_of_ascii c = 
-  let Ascii.Ascii(b7, b6, b5, b4, b3, b2, b1, b0) = c in
-  let cv b i = if b = Datatypes.Coq_true  then 1 lsl i else 0 in
-  let i =
-    (cv b7 7) + (cv b6 6) + (cv b5 5) + (cv b4 4) + (cv b3 3) + (cv b2 2) + (cv b1 1) + (cv b0 0) 
-  in
-  char_of_int i
-
-let string0_of_string s = 
-  let s0 = ref String0.EmptyString in
-  for i = String.length s - 1 downto 0 do
-    s0 := String0.String (ascii_of_char s.[i], !s0) 
-  done;
-  !s0
-
-let string_of_string0 s0 =
-  let rec go acc s0 =
-    match s0 with
-    | String0.EmptyString   -> List.rev acc
-    | String0.String (c,s0) ->
-      go ((char_of_ascii c)::acc) s0
-  in
-  String.of_char_list (go [] s0)
-
-let cbool_of_bool b =
-  if b then Datatypes.Coq_true else Datatypes.Coq_false
-
-let bool_of_cbool cb =
-  match cb with
-  | Datatypes.Coq_true  -> true
-  | Datatypes.Coq_false -> false
-
-let list_of_clist cl =
-  let rec go acc cl =
-    match cl with
-    | Datatypes.Coq_nil -> List.rev acc
-    | Datatypes.Coq_cons(c,cl) ->
-      go (c::acc) cl
-  in
-  go [] cl
-
-let clist_of_list l =
-  let rec go acc l =
-    match l with
-    | [] -> acc
-    | x::l ->
-      go (Datatypes.Coq_cons(x,acc)) l
-  in
-  go Datatypes.Coq_nil (List.rev l)
-
-let sword = DT.Coq_sword
-let sbool = DT.Coq_sbool
-let sint  = DT.Coq_sint
-
-let sarr i = DT.Coq_sarr(pos_of_bi i)
 
 (* ** Conversation info (required for lossless roundtrip)
  * ------------------------------------------------------------------------ *)
@@ -129,10 +29,10 @@ module CVI = struct
     ifcond    : (int,bool) HT.t; (* true if fcond *)
     fname     : (int,Fname.t) HT.t; (* function name for call *)
     fname_rev : (Fname.t,int) HT.t; (* function name for call *)
-    ftable    : (Fname.t,unit fundef) HT.t;
+    fdinfo    : (int,call_conv) HT.t;
   }
 
-  let mk ftable =
+  let mk () =
     { ctr = ref 2;
       vargs     = Int.Table.create ();
       dargs     = Int.Table.create ();
@@ -140,7 +40,7 @@ module CVI = struct
       ifcond    = Int.Table.create ();
       fname     = Int.Table.create ();
       fname_rev = Fname.Table.create ();
-      ftable    = ftable;
+      fdinfo    = Int.Table.create ();
     }
 
   let new_ctr cvi =
@@ -154,7 +54,7 @@ module CVI = struct
     k
 
   let get_varg cvi vinfo =
-    let num = Big_int.int_of_big_int (bi_of_pos vinfo) in
+    let num = int_of_pos vinfo in
     match HT.find cvi.vargs num with
     | Some(va) -> va
     | None     -> assert false
@@ -166,7 +66,7 @@ module CVI = struct
     k
 
   let get_darg cvi vinfo =
-    let num = Big_int.int_of_big_int (bi_of_pos vinfo) in
+    let num = int_of_pos vinfo in
     match HT.find cvi.vargs num, HT.find cvi.dargs num with
     | Some(va), Some(da) -> va,da
     | None,     _        -> assert false
@@ -178,7 +78,7 @@ module CVI = struct
     k
 
   let get_iloc cvi i =
-    let num = Big_int.int_of_big_int (bi_of_pos i) in
+    let num = int_of_pos i in
     match HT.find cvi.iloc num with
     | Some(loc) -> loc
     | None      -> assert false
@@ -187,17 +87,15 @@ module CVI = struct
     HT.set cvi.ifcond ~key:k ~data:is_fcond
 
   let get_ifcond cvi i =
-    let num = Big_int.int_of_big_int (bi_of_pos i) in
+    let num = int_of_pos i in
     match HT.find cvi.ifcond num with
     | Some(loc) -> loc
     | None      -> assert false
 
-  let get_fundef cvi fname =
-    HT.find_exn cvi.ftable fname
-
-  let add_fname cvi k fname =
+  let add_fname cvi fname =
     match HT.find cvi.fname_rev fname with
     | None ->
+      let k = new_ctr cvi in
       HT.set cvi.fname ~key:k ~data:fname;
       HT.set cvi.fname_rev ~key:fname ~data:k;
       k
@@ -206,6 +104,17 @@ module CVI = struct
   let get_fname cvi k =
     let num = Big_int.int_of_big_int (bi_of_pos k) in
     HT.find_exn cvi.fname num
+
+  let add_fdinfo cvi fd =
+    let k = new_ctr cvi in
+    HT.set cvi.fdinfo ~key:k ~data:fd.f_call_conv;
+    k
+
+  let get_fdinfo cvi k =
+    let num = int_of_pos k in
+    match HT.find cvi.fdinfo num with
+    | Some(cc) -> cc
+    | None     -> assert false
 
 end
 
@@ -249,6 +158,10 @@ let cvar_of_var v =
   let vtype = cty_of_ty v.Var.ty in
   { DV.Var.vname = Obj.magic vname; DV.Var.vtype = vtype }
 
+let cvar_i_of_var cvi v =
+  let k = CVI.add_varg cvi v in
+  DE.{v_info = pos_of_int k; v_var = cvar_of_var v}
+
 let var_of_cvar cvar (name,stor,uloc,dloc) =
   let num = int_of_string (string_of_string0 (Obj.magic cvar.DV.Var.vname)) in
   let ty = ty_of_cty cvar.DV.Var.vtype in
@@ -260,12 +173,15 @@ let var_of_cvar cvar (name,stor,uloc,dloc) =
     Var.dloc = dloc;
   }
 
+let var_of_cvar_i cvi vi =
+  let varg = CVI.get_varg cvi vi.DE.v_info in
+  var_of_cvar vi.DE.v_var varg
+
 let rec cpexpr_of_pexpr cvi pe =
   let cpe = cpexpr_of_pexpr cvi in
   match pe with
   | Patom(Pvar(v))     ->
-    let k = CVI.add_varg cvi v in
-    DE.Pvar{DE.v_var=cvar_of_var v; DE.v_info=pos_of_int k}
+    DE.Pvar(cvar_i_of_var cvi v)
   | Pbinop(po,pe1,pe2) ->
     DE.Papp2(sop2_of_pop_u64 po,cpe pe1,cpe pe2) 
   | Pconst bi ->
@@ -277,8 +193,7 @@ let rec pexpr_of_cpexpr cvi pe =
   let pcp = pexpr_of_cpexpr cvi in
   match pe with
   | DE.Pvar(vi) ->
-    let vargs = CVI.get_varg cvi vi.DE.v_info in
-    Patom(Pvar(var_of_cvar vi.DE.v_var vargs))
+    Patom(Pvar(var_of_cvar_i cvi vi))
   | DE.Papp2(sop,cpe1,cpe2) ->
     Pbinop(pop_u64_of_sop2 sop,pcp cpe1,pcp cpe2)
   | DE.Pconst(zi) ->
@@ -418,8 +333,7 @@ let idx_of_cpexpr cvi is_Ivar idx =
     let v =
       match idx with
       | DE.Pvar(v) ->
-        let vargs = CVI.get_varg cvi v.DE.v_info in
-        var_of_cvar v.DE.v_var vargs
+        var_of_cvar_i cvi v
       | _ ->
         assert false
     in
@@ -433,7 +347,7 @@ let rdest_of_rval cvi rv =
   | DE.Rvar(cvar_i) ->
     let cvar = cvar_i.DE.v_var in
     let vi   = cvar_i.DE.v_info in
-    let vargs,(dloc,_is_Ivar) = CVI.get_darg cvi vi in
+    let vargs,(dloc,_) = CVI.get_darg cvi vi in
     let d = { d_var=var_of_cvar cvar vargs; d_idx=None; d_loc=dloc } in
     Sdest(d)
   | DE.Raset(cvar_i,cpe) ->
@@ -543,18 +457,7 @@ let assgn_type_of_atag = function
   | DE.AT_rename -> Eq
   | _            -> assert false
 
-let rec cfundef_of_fundef _cvi _tin _tres _fd =
-  undefined () 
-  (*
-  let dest_of_var v = {d_var=v;d_loc=Lex.dummy_loc;d_idx=None} in
-  let src_of_var v = Src(dest_of_var v) in
-  let rval_arg = rval_of_dests cvi (List.map ~f:dest_of_var fd.f_arg) in
-  let cpe_res = cpexpr_of_srcs cvi (List.map ~f:src_of_var fd.f_arg) in
-  let cmd = cmd_of_stmt cvi fd.f_body  in
-  DE.FunDef(tin,tres,rval_arg,cmd,cpe_res)
-  *)
-
-and cinstr_of_base_instr cvi lbi =
+let rec cinstr_of_base_instr cvi lbi =
   let k = CVI.add_iloc cvi lbi.L.l_loc in
   match lbi.L.l_val with
   | Assgn(d,s,aty) ->
@@ -573,7 +476,7 @@ and cinstr_of_base_instr cvi lbi =
     None
 
   | Call(fname,ds,ss) ->
-    let fun_id = pos_of_int @@ CVI.add_fname cvi k fname in
+    let fun_id = pos_of_int @@ CVI.add_fname cvi fname in
     let rvals = List.map ~f:(rval_of_dest cvi) ds in
     let args  = List.map ~f:(cpexpr_of_src cvi) ss in
     Some(k,DE.Ccall(DE.InlineFun,clist_of_list rvals,fun_id,clist_of_list args))
@@ -685,8 +588,7 @@ let rec instr_of_cinstr cvi lci =
       If(cond,s1,s2,None)
 
     | DE.Cfor(vi,rng,cmd) ->
-      let vargs = CVI.get_varg cvi vi.DE.v_info in
-      let v = var_of_cvar vi.DE.v_var vargs in
+      let v = var_of_cvar_i cvi vi in
       let d = { d_var = v; d_idx=None; d_loc= v.Var.uloc } in
       let dir,cpe_lb,cpe_ub = match rng with
         | Datatypes.Coq_pair(Datatypes.Coq_pair(dir,cpe_lb),cpe_ub) -> dir,cpe_lb,cpe_ub
@@ -711,3 +613,54 @@ let rec instr_of_cinstr cvi lci =
 
 and stmt_of_cmd cvi c =
    List.map ~f:(instr_of_cinstr cvi) (list_of_clist c)
+
+let cfundef_of_fundef cvi fd =
+  let k = CVI.add_fdinfo cvi fd in
+  let cmd = cmd_of_stmt cvi fd.f_body  in
+  let params = List.map ~f:(cvar_i_of_var cvi) fd.f_arg in
+  let res = List.map ~f:(cvar_i_of_var cvi) fd.f_ret in
+  DE.{ f_iinfo  = pos_of_int k;
+       f_params = clist_of_list params;
+       f_body   = cmd;
+       f_res    = clist_of_list res;
+     }
+
+let fundef_of_cfundef cvi cfd =
+  let call_conv = CVI.get_fdinfo cvi cfd.DE.f_iinfo in
+  let body = stmt_of_cmd cvi cfd.DE.f_body in
+  let params = List.map ~f:(var_of_cvar_i cvi) @@ list_of_clist cfd.DE.f_params in
+  let res    = List.map ~f:(var_of_cvar_i cvi)    @@ list_of_clist cfd.DE.f_res in
+  { f_call_conv = call_conv;
+    f_arg       = params;
+    f_body      = body;
+    f_ret       = res;
+  }
+
+(* inline all function call in given function fname *)
+let inline_calls_modul _fname modul =
+  let cvi = CVI.mk () in
+  F.printf "calling inlining\n%!";
+  let conv_nf nf =
+    match nf.nf_func with
+    | Native(fd) ->
+      let cfd = cfundef_of_fundef cvi fd in
+      let k = CVI.add_fname cvi nf.nf_name in
+      Datatypes.Coq_pair(pos_of_int k,cfd)
+    | Foreign(_) ->
+      assert false
+  in
+  let cfds = List.map ~f:conv_nf modul in  
+  let prog = clist_of_list cfds in
+  F.printf "Coq before:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog;
+  let prog = match Compiler.compile_prog (fun v -> v) prog with
+    | DU.Ok(cfuns) -> cfuns
+    | _            -> assert false
+  in
+  F.printf "Coq after:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog;
+  let conv_cfd cfd =
+    let Datatypes.Coq_pair(i,cfd) = cfd in
+    let name = CVI.get_fname cvi i in
+    { nf_name = name;
+      nf_func = Native(fundef_of_cfundef cvi cfd) }
+  in
+  List.map ~f:conv_cfd @@ list_of_clist prog

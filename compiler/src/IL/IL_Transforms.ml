@@ -10,6 +10,8 @@ open IL_Expand
 open IL_Utils
 open Arith
 
+module Cert = CIL_Conv
+
 (* ** Apply transformations in sequence.
  * ------------------------------------------------------------------------ *)
 
@@ -29,6 +31,8 @@ let mk_pprint_opt ofn = {
   pp_types = false;
 }
 
+type cert = NonCert | Cert
+
 type transform =
   | MergeBlocks of Fname.t option
   | MacroExpand of Fname.t * value Pname.Table.t
@@ -36,7 +40,7 @@ type transform =
   | ArrayExpand of Fname.t
   | LocalSSA of Fname.t
   | RegisterAlloc of Fname.t * int
-  | InlineCalls of Fname.t
+  | InlineCalls of cert * Fname.t
   | RegisterLiveness of Fname.t
   | RemoveEqConstrs of Fname.t
   | RenumberIdents of renumber_opt
@@ -145,7 +149,8 @@ let ptrafo =
     ; string "asm" >> char '[' >> asm_lang >>= (fun l -> char ']' >>$ (Asm(l)))
     ; (string "expand" >> fname >>= fun fname ->
        pmap >>= fun pm -> return (MacroExpand(fname,pm)))
-    ; (string "inline" >> fname >>= fun fname -> return (InlineCalls(fname)))
+    ; (string "cert_inline" >> fname >>= fun fname -> return (InlineCalls(Cert,fname)))
+    ; (string "inline" >> fname >>= fun fname -> return (InlineCalls(NonCert,fname)))
     ; string "interp" >> interp_args >>=
         fun (fn,pm,mm,args) -> return (Interp(fn,pm,mm,args)) ]
 
@@ -186,9 +191,11 @@ let apply_transform trafos (modul0 : unit modul) =
     | Some fn -> List.filter ~f:(fun nf -> nf.nf_name = fn) m
     | None    -> m
   in
+  let all_fn = Fname.mk "all" in
   let notify s fn ~f =
     let start = Unix.gettimeofday () in
-    F.printf "%s in %s function(s)\n%!" s (Fname.to_string fn);
+    F.printf "%s in %s function(s)\n%!" s
+      (if Fname.equal fn all_fn then "all" else "``"^Fname.to_string fn^"''");
     let res = f () in
     let stop = Unix.gettimeofday () in
     let d = (stop -. start) *. 1000. in
@@ -196,7 +203,6 @@ let apply_transform trafos (modul0 : unit modul) =
     total := d +. !total;
     res
   in
-  let all_fn = Fname.mk "all" in
   let pp_stats fmt li = 
       if IS.is_empty li.LV.var_ue && IS.is_empty li.LV.var_kill && IS.is_empty li.LV.live_out then (
         pp_string fmt ""
@@ -239,6 +245,10 @@ let apply_transform trafos (modul0 : unit modul) =
       notify "inlining all calls" fn
         ~f:(fun () -> inline_calls_modul m fn)
     in
+    let inline_cert fn m =
+      notify "inlining all calls (certified)" fn
+        ~f:(fun () -> Cert.inline_calls_modul fn m)
+    in
     let arr_exp fn m =
       notify "expanding register arrays" fn
         ~f:(fun () -> array_expand_modul m fn)
@@ -265,16 +275,11 @@ let apply_transform trafos (modul0 : unit modul) =
       | Lm m, false -> go m None
     in
    let test_conversion fn m0 =
-     let open IL_Conv in
+     let open CIL_Conv in
      let m0 = match m0 with Um m0 -> m0 | Lm _ -> assert false in
      notify "testing conversion" fn
        ~f:(fun () ->
-         let ftable =
-           Fname.Table.of_alist_exn
-             (List.concat_map m0
-                ~f:(fun nf -> match nf.nf_func with Native(fd) -> [(nf.nf_name,fd)] | _ -> []))
-         in
-         let cvi = CVI.mk ftable in
+         let cvi = CVI.mk () in
          let conv func =
            match func with
            | Foreign(_) -> assert false
@@ -348,7 +353,8 @@ let apply_transform trafos (modul0 : unit modul) =
         ~f:(fun () -> renumber_vars_modul_all rno m)
     in
     match trafo with
-    | InlineCalls(fn)           -> map_module modul {f = fun m -> inline fn m}
+    | InlineCalls(NonCert,fn)   -> map_module modul {f = fun m -> inline fn m}
+    | InlineCalls(Cert,fn)      -> map_module modul {f = fun m -> inline_cert fn m}
     | ArrayExpand(fn)           -> map_module modul {f = fun m -> arr_exp fn m}
     | Interp(fn,pmap,mmap,args) -> map_module modul {f = fun m -> interp fn pmap mmap args m}
     | ArrayAssignExpand(fn)     -> map_module modul {f = fun m -> array_expand_modul fn m}

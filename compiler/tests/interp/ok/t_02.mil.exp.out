@@ -2,7 +2,7 @@ type checking module in all function(s)
    REMOVED_TIME
 renumbering identifiers in all function(s)
    REMOVED_TIME
-interpreting in test function(s)
+interpreting in ``test'' function(s)
 ### starting python
 ### loading dmasm_lib
 

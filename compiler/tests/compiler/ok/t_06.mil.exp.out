@@ -1,6 +1,6 @@
-inlining all calls in foo function(s)
+inlining all calls in ``foo'' function(s)
    REMOVED_TIME
-stripping comments in foo function(s)
+stripping comments in ``foo'' function(s)
    REMOVED_TIME
 >> input:
 fn foo(x : stack u64, y : stack u64, z : reg bool) -> stack u64 {
