@@ -1,4 +1,4 @@
-(* * Experiments for proof *)
+(* * Lemmas for addition operator *)
 
 (* ** Setup *)
 Require Import ZArith zmod_setoid proof_utils proof_sem Psatz Setoid Morphisms.

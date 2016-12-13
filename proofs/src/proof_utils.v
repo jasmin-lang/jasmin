@@ -94,7 +94,7 @@ Ltac push_defs :=
 Ltac pop_defs :=
   let L_ignore := fresh "L" in 
   repeat match goal with
-        | [ _ : _ |- ?x <- ?y -> _] =>
+        | [ _ : _ |- _ <- _ -> _] =>
           let L1 := fresh "L" in move => L1
          end.
 

@@ -1,4 +1,4 @@
-(* * Experiments for proof *)
+(* * Proof for 4-limb addition for curve25519 *)
 
 (* ** Setup *)
 Require Import ZArith zmod_setoid proof_utils proof_sem proof_add Psatz.
