@@ -116,7 +116,7 @@ Section LOOP.
  
   Fixpoint loop (n:nat) (m:M.t) := 
     match n with
-    | O => cierror ii Cerr_Loop
+    | O => cierror ii (Cerr_Loop "allocation")
     | S n =>
       Let m' := check_c m in
       if M.incl m m' then ciok m 

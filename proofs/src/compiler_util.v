@@ -13,7 +13,7 @@ Unset Printing Implicit Defensive.
 Inductive error_msg :=
   | Cerr_varalloc : var_i -> var_i -> string -> error_msg
   | Cerr_inline   : Sv.t -> Sv.t -> error_msg
-  | Cerr_Loop     : error_msg
+  | Cerr_Loop     : string -> error_msg
   | Cerr_fold2    : string -> error_msg
   | Cerr_neqop2   : sop2 -> sop2 -> string -> error_msg
   | Cerr_neqop    : sopn -> sopn -> string -> error_msg
@@ -28,7 +28,8 @@ Inductive error_msg :=
 with fun_error   := 
   | Ferr_in_body  : funname -> funname -> (instr_info * error_msg) -> fun_error
   | Ferr_neqfun   : funname -> funname -> fun_error
-  | Ferr_neqprog  : fun_error.
+  | Ferr_neqprog  : fun_error
+  | Ferr_loop     : fun_error.
 
 
 Notation instr_error := (instr_info * error_msg)%type.

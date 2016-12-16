@@ -3,29 +3,27 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
 Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr memory dmasm_sem.
-Require Import compiler_util allocation inlining.
-(*unrolling constant_prop dead_code array_expansion*)
+Require Import compiler_util allocation inlining unrolling constant_prop dead_code.
+(* array_expansion*)
 (*Require Import stack_alloc linear. *)
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(*
-Definition unroll1 ta tr (fd:fundef ta tr) := 
-  let fd := unroll_call fd in
-  let fd := const_prop_call fd in
-  dead_code_call fd.
+Definition unroll1 (p:prog) := 
+  let p := unroll_prog p in
+  let p := const_prop_prog p in
+  dead_code_prog p.
 
-Fixpoint unroll (n:nat) ta tr (fd:fundef ta tr) :=
+Fixpoint unroll (n:nat) (p:prog) :=
   match n with
-  | O   => Ok unit fd  (* Should we raise an error ? *)
+  | O   => cferror Ferr_loop
   | S n => 
-    unroll1 fd >>= (fun fd' =>
-      if eqb_fundef fd fd' then Ok unit fd 
-      else unroll n fd')
+    Let p' := unroll1 p in
+    if p == p' then cfok p 
+    else unroll n p'
   end.
-  *)              
 
 Section COMPILER.
 
@@ -37,6 +35,7 @@ Variable rename_fd : fundef -> fundef.
 
 Definition compile_prog (p:prog) := 
   Let p := inline_prog rename_fd p in
+  Let p := unroll Loop.nb p in
   cfok p.
 
 (*

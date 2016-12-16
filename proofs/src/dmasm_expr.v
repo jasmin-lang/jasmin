@@ -135,7 +135,7 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
   Canonical eqType  := Eval hnf in EqType pexpr eqMixin.
   End Exports.
 End Eq_pexpr.
-Import Eq_pexpr.Exports.
+Export Eq_pexpr.Exports.
 
 (* ** Right values
  * -------------------------------------------------------------------- *)

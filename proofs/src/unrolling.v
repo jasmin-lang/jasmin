@@ -7,7 +7,7 @@ From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import ZArith.
 Require Import Coq.Logic.Eqdep_dec.
 Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr 
-               memory dmasm_sem.
+               memory dmasm_sem compiler_util.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -22,32 +22,37 @@ Local Open Scope seq_scope.
 Definition unroll_cmd (unroll_i: instr -> cmd) (c:cmd) : cmd := 
   List.fold_right (fun i c' => unroll_i i ++ c') [::] c.
 
+Definition assgn ii x e := MkI ii (Cassgn (Rvar x) AT_inline e).
+
 Fixpoint unroll_i (i:instr) : cmd := 
-  match i with
-  | Cassgn _ _ _ => [::i]
-  | Cif b c1 c2 => [::Cif b (unroll_cmd unroll_i c1) (unroll_cmd unroll_i c2)]
+  let (ii, ir) := i in
+  match ir with
+  | Cassgn _ _ _ => [:: i ]
+  | Copn   _ _ _ => [:: i ]
+  | Cif b c1 c2  => [:: MkI ii (Cif b (unroll_cmd unroll_i c1) (unroll_cmd unroll_i c2)) ]
   | Cfor i (dir, low, hi) c => 
     let c' := unroll_cmd unroll_i c in
     match is_const low, is_const hi with
     | Some vlo, Some vhi =>
       let l := wrange dir (I64.repr vlo) (I64.repr vhi) in
-      let cs := map (fun n => assgn i (Pconst (Z.of_nat n)) :: c') l in
+      let cs := map (fun n => assgn ii i (Pconst n) :: c') l in
       flatten cs 
-    | _, _             => [::Cfor i (dir, low, hi) c']
+    | _, _       => [:: MkI ii (Cfor i (dir, low, hi) c') ]
     end     
-  | Cwhile e c => [::Cwhile e (unroll_cmd unroll_i c)]
-  | Ccall ta tr x fd arg => [::Ccall x (unroll_call fd) arg]
-  end
-
-with unroll_call ta tr (fd:fundef ta tr) := 
-  match fd with
-  | FunDef ta tr p c r => 
-    FunDef p (unroll_cmd unroll_i c) r
+  | Cwhile e c   => [:: MkI ii (Cwhile e (unroll_cmd unroll_i c)) ]
+  | Ccall _ _ _ _  => [:: i ]
   end.
+
+Definition unroll_fun (f:funname * fundef) :=
+  let (ii,p,c,r) := f.2 in
+  (f.1, MkFun ii p (unroll_cmd unroll_i c) r).
+
+Definition unroll_prog (p:prog) := map unroll_fun p.
 
 (* ** proofs
  * -------------------------------------------------------------------- *)
 
+(*
 Section PROOF.
 
   Let Pi (i:instr) := 
@@ -134,3 +139,4 @@ Section PROOF.
   Qed.
 
 End PROOF.
+*)

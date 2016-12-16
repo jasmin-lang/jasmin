@@ -5,7 +5,8 @@ Require Import JMeq ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
-Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr memory dmasm_sem.
+Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr memory dmasm_sem
+               compiler_util.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -14,92 +15,100 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
   
-Section CMD.
 
-  Variable dead_code_i : instr ->  Sv.t -> result unit (Sv.t * cmd).
-
-  Fixpoint dead_code (c:cmd) (s:Sv.t) : result unit (Sv.t * cmd) :=
-    match c with
-    | [::] => Ok unit (s, [::])
-    | i::c =>
-      dead_code c s >>= (fun (sc:Sv.t * cmd) => let (s, c) := sc in
-      dead_code_i i s >>= (fun (si:Sv.t * cmd) => let (s,ic) := si in
-      Ok unit (s, ic ++ c)))
-    end.
-
-End CMD.
+Definition dead_code_c (dead_code_i: instr -> Sv.t -> ciexec (Sv.t * cmd)) 
+                       c s :  ciexec (Sv.t * cmd):= 
+  foldr (fun i r =>
+    Let r := r in
+    Let ri := dead_code_i i r.1 in
+    ciok (ri.1, ri.2 ++ r.2)) (ciok (s,[::])) c.
 
 Section LOOP.
 
-  Variable dead_code_c : Sv.t -> result unit (Sv.t * cmd).
+  Variable dead_code_c : Sv.t -> ciexec (Sv.t * cmd).
+  Variable ii : instr_info.
 
-  Fixpoint loop (n:nat) (rx:Sv.t) (wx:Sv.t) (s:Sv.t) : result unit (Sv.t * cmd) :=
+  Fixpoint loop (n:nat) (rx:Sv.t) (wx:Sv.t) (s:Sv.t) : ciexec (Sv.t * cmd) :=
     match n with
-    | O => Error tt
+    | O => cierror ii (Cerr_Loop "dead_code")
     | S n =>
-      dead_code_c s >>=  (fun (sc:Sv.t * cmd) => let (s', c') := sc in
+      Let sc := dead_code_c s in
+      let: (s',c') := sc in
       let s' := Sv.union rx (Sv.diff s' wx) in
-      if Sv.subset s' s then Ok unit (s,c') 
-      else loop n rx wx (Sv.union s s'))
+      if Sv.subset s' s then ciok (s,c') 
+      else loop n rx wx (Sv.union s s')
     end.
 
-  Fixpoint wloop (n:nat) (s:Sv.t) : result unit (Sv.t * cmd) :=
+  Fixpoint wloop (n:nat) (s:Sv.t) : ciexec (Sv.t * cmd) :=
     match n with
-    | O => Error tt
+    | O =>  cierror ii (Cerr_Loop "dead_code")
     | S n =>
-      dead_code_c s >>=  (fun (sc:Sv.t * cmd) => let (s', c') := sc in
-      if Sv.subset s' s then Ok unit (s,c') 
-      else wloop n (Sv.union s s'))
+      Let sc := dead_code_c s in
+      let: (s',c') := sc in
+      if Sv.subset s' s then ciok (s,c') 
+      else wloop n (Sv.union s s')
     end.
 
 End LOOP.
 
-Fixpoint write_mem t (r:rval t) : bool := 
-  match r with 
-  | Rvar _ => false
-  | Rmem _ => true
-  | Rpair _ _ r1 r2 => write_mem r1 || write_mem r2
-  end.
+Definition write_mem (r:rval) : bool := 
+  if r is Rmem _ _ then true else false.
 
-Definition nb_loop := 100%coq_nat.
-
-Definition check_nop t1 t2 (rv:rval t1) (e:pexpr t2) :=
+Definition check_nop (rv:rval) (e:pexpr) :=
   match rv, e with
   | Rvar x1, Pvar x2 => x1 == x2
   | _, _ => false
   end.
  
-Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : result unit (Sv.t * cmd) := 
-  match i with
-  | Cassgn t rv e =>
-    let w := write_i i in
-    if disjoint s w && negb (write_mem rv) then Ok unit (s,[::])
-    else if check_nop rv e then Ok unit (s,[::])
-    else Ok unit (read_rv_rec rv (read_e_rec e (Sv.diff s w)), [::i])
-  | Cif b c1 c2 => 
-    dead_code dead_code_i c1 s >>= (fun (sc:Sv.t * cmd) => let (s1,c1) := sc in
-    dead_code dead_code_i c2 s >>= (fun (sc:Sv.t * cmd) => let (s2,c2) := sc in
-    Ok unit (read_e_rec b (Sv.union s1 s2), [:: Cif b c1 c2])))
-  | Cfor x (dir, e1, e2) c =>
-    loop (dead_code dead_code_i c) nb_loop (read_rv x) (vrv x) s >>= 
-    (fun (sc:Sv.t * cmd) => let (s, c) := sc in
-    Ok unit (read_e_rec e1 (read_e_rec e2 s),[::Cfor x (dir,e1,e2) c]))
-  | Cwhile e c =>
-    wloop (dead_code dead_code_i c) nb_loop (read_e_rec e s) >>= 
-    (fun (sc:Sv.t * cmd) => let (s, c) := sc in
-    Ok unit (s,[::Cwhile e c]))
-  | Ccall ta tr x fd arg =>
-    dead_code_call fd >>= (fun fd => 
-    Ok unit (read_e_rec arg (read_rv_rec x (Sv.diff s (vrv x))), [::Ccall x fd arg]))
-  end
+Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) := 
+  let (ii,ir) := i in
+  match ir with
+  | Cassgn x tag e =>
+    let w := write_i ir in
+    if tag == AT_inline then
+      if disjoint s w && negb (write_mem x) then ciok (s, [::])
+      else if check_nop x e then ciok (s, [::])
+      else ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
+    else   ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
+  
+  | Copn xs _ es =>
+    ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
 
-with dead_code_call ta tr (fd:fundef ta tr) := 
-  match fd with
-  | FunDef ta tr p c r =>
-    dead_code dead_code_i c (read_e r) >>= (fun (sc:Sv.t * cmd) => let (_, c) := sc in
-    Ok unit (FunDef p c r))
+  | Cif b c1 c2 => 
+    Let sc1 := dead_code_c dead_code_i c1 s in
+    Let sc2 := dead_code_c dead_code_i c2 s in
+    let: (s1,c1) := sc1 in
+    let: (s2,c2) := sc2 in
+    ciok (read_e_rec (Sv.union s1 s2) b, [:: MkI ii (Cif b c1 c2)])
+
+  | Cfor x (dir, e1, e2) c =>
+    Let sc := loop (dead_code_c dead_code_i c) ii Loop.nb 
+                   (read_rv (Rvar x)) (vrv (Rvar x)) s in
+    let: (s, c) := sc in
+    ciok (read_e_rec (read_e_rec s e2) e1,[:: MkI ii (Cfor x (dir,e1,e2) c) ])
+
+  | Cwhile e c =>
+    Let sc := wloop (dead_code_c dead_code_i c) ii Loop.nb (read_e_rec s e) in
+    let: (s, c) := sc in
+    ciok (s, [:: MkI ii (Cwhile e c) ])
+
+  | Ccall _ xs _ es =>
+    ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
   end.
 
+Definition dead_code_fd (ffd:funname * fundef) (p:cfexec prog) :=
+  Let p := p in
+  match ffd with 
+  | (f, MkFun ii params c res) =>
+    let s := read_es (map Pvar res) in
+    Let c := add_finfo f f (dead_code_c dead_code_i  c s) in 
+    cfok ((f, MkFun ii params c.2 res)::p)
+  end.
+
+Definition dead_code_prog (p:prog) := foldr dead_code_fd (cfok [::]) p.
+
+
+(*
 Lemma write_memP t (x:rval t) v m1 m2 vm1 vm2:
   ~~ write_mem x -> 
   write_rval {| emem := m1; evm := vm1 |} x v = ok {| emem := m2; evm := vm2 |} ->
@@ -340,3 +349,4 @@ Section PROOF.
   Qed.
 
 End PROOF.
+*)
