@@ -104,8 +104,11 @@ Definition var_i_beq x1 x2 :=
   end.
 
 Lemma var_i_eq_axiom : Equality.axiom var_i_beq. 
-Proof. 
-Admitted.
+Proof.
+  move=> [x xi] [y yi] /=. 
+  apply (@equivP ((x == y) /\ (xi == yi)));first by apply: andP.
+  by split => -[] => [/eqP -> /eqP| -> ] ->.
+Qed.
 
 Definition var_i_eqMixin     := Equality.Mixin var_i_eq_axiom.
 Canonical  var_i_eqType      := Eval hnf in EqType var_i var_i_eqMixin.
@@ -128,7 +131,24 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
 
   Lemma eq_axiom : Equality.axiom eqb. 
   Proof. 
-  Admitted.     
+    elim => [n1|b1|e1 He1|x1|x1 e1 He1|x1 e1 He1|e1 He1|o1 e11 He11 e12 He12] 
+            [n2|b2|e2|x2|x2 e2|x2 e2|e2|o2 e21 e22] /=;try by constructor.
+    + apply (@equivP (n1 = n2));first by apply: eqP.
+      by split => [->|[]->].
+    + apply (@equivP (b1 = b2));first by apply: eqP.
+      by split => [->|[]->].
+    + by apply: (equivP (He1 e2)); split => [->|[]->].
+    + apply (@equivP (x1 = x2));first by apply: eqP.
+      by split => [->|[]->].
+    + apply (@equivP ((x1 == x2) /\ eqb e1 e2));first by apply andP.
+      by split=> [ [] /eqP -> /He1 -> | [] -> <- ] //;split => //;apply /He1.
+    + apply (@equivP ((x1 == x2) /\ eqb e1 e2));first by apply andP.
+      by split=> [ [] /eqP -> /He1 -> | [] -> <- ] //;split => //;apply /He1.
+    + by apply: (equivP (He1 e2)); split => [->|[]->].
+    apply (@equivP (((o1 == o2) && eqb e11 e21) /\ eqb e12 e22));first by apply andP.
+    split=> [ []/andP[]/eqP-> /He11 -> /He12->| [] <- <- <- ] //.
+    by rewrite eq_refl /=;split;[apply /He11|apply /He12].
+  Qed.
 
   Definition eqMixin := Equality.Mixin eq_axiom.
   Module Exports.
@@ -159,7 +179,16 @@ Definition rval_beq (x1:rval) (x2:rval) :=
 
 Lemma rval_eq_axiom : Equality.axiom rval_beq. 
 Proof. 
-Admitted.
+  case=> [i1|x1|x1 e1|x1 e1] [i2|x2|x2 e2|x2 e2] /=;try by constructor. 
+  + apply (@equivP (i1 = i2));first by apply: eqP.
+    by split => [->|[]->].
+  + apply (@equivP (x1 = x2));first by apply: eqP.
+    by split => [->|[]->].
+  + apply (@equivP ((x1 == x2) /\ e1 == e2));first by apply andP.
+    by split=> [ [] /eqP -> /eqP -> | [] -> <- ] //.
+  apply (@equivP ((x1 == x2) /\ e1 == e2));first by apply andP.
+  by split=> [ [] /eqP -> /eqP -> | [] -> <- ] //.
+Qed.
 
 Definition rval_eqMixin     := Equality.Mixin rval_eq_axiom.
 Canonical  rval_eqType      := Eval hnf in EqType rval rval_eqMixin.
@@ -277,16 +306,66 @@ with instr_beq i1 i2 :=
   | MkI if1 i1, MkI if2 i2 => (if1 == if2) && (instr_r_beq i1 i2) 
   end.
 
-Lemma instr_r_eq_axiom : Equality.axiom instr_r_beq. 
+Section ALL2.
+   Variable T:Type.
+   Variable eqb: T -> T -> bool.
+   Variable Heq : forall (x y:T), reflect (x = y) (eqb x y).
+
+   Lemma reflect_all2 l1 l2 : reflect (l1 = l2) (all2 eqb l1 l2).
+   Proof.
+     elim: l1 l2 => [|e1 l1 Hrec1] [|e2 l2] /=;try by constructor.
+     apply (@equivP (eqb e1 e2 /\ all2 eqb l1 l2));first by apply andP.
+     split=> [ [] /Heq -> /Hrec1 ->|[] ??] //.
+     split. by apply /Heq. by apply /Hrec1.
+   Defined.
+End ALL2.
+
+Section EQI.
+  Variable Heq : forall (x y:instr_r), reflect (x=y) (instr_r_beq x y).
+  
+  Lemma instr_eq_axiom_ : Equality.axiom instr_beq.
+  Proof.
+    move=> [ii1 ir1] [ii2 ir2].
+    apply (@equivP (ii1 == ii2 /\ instr_r_beq ir1 ir2));first by apply andP.
+    by split=> [[] /eqP -> /Heq -> |[]/eqP ?/Heq ]//; split.
+  Defined.
+End EQI.
+
+Lemma instr_r_eq_axiom : Equality.axiom instr_r_beq.
 Proof. 
-Admitted.
+  rewrite /Equality.axiom.
+  fix Hrec 1;case => 
+    [x1 t1 e1|x1 o1 e1|e1 c11 c12|x1 [[dir1 lo1] hi1] c1|e1 c1|ii1 x1 f1 arg1]
+    [x2 t2 e2|x2 o2 e2|e2 c21 c22|x2 [[dir2 lo2] hi2] c2|e2 c2|ii2 x2 f2 arg2] /=;
+  try by constructor.
+  + apply (@equivP ((t1 == t2) && (x1 == x2) && (e1 == e2)));first by apply idP.
+    split=> [/andP [] /andP [] /eqP-> /eqP-> /eqP-> | [] <- <- <- ] //.
+    by rewrite !eq_refl.
+  + apply (@equivP ((x1 == x2) && (o1 == o2) && (e1 == e2)));first by apply idP.
+    split=> [/andP [] /andP [] /eqP-> /eqP-> /eqP-> | [] <- <- <- ] //.
+    by rewrite !eq_refl.
+  + apply (@equivP ((e1 == e2) && (all2 instr_beq c11 c21) && (all2 instr_beq c12 c22)));
+      first by apply idP. 
+    have H := reflect_all2 (instr_eq_axiom_ Hrec).    
+    split=> [/andP[]/andP[]| []] /eqP -> /H -> /H -> //.
+  + apply (@equivP  ((x1 == x2) && (dir1 == dir2) && (lo1 == lo2) && (hi1 == hi2) &&
+      all2 instr_beq c1 c2)); first by apply idP. 
+    have H := reflect_all2 (instr_eq_axiom_ Hrec).    
+    split=> [/andP[]/andP[]/andP[]/andP[]| []] /eqP->/eqP->/eqP->/eqP->/H-> //.
+  + apply (@equivP  ((e1 == e2) && all2 instr_beq c1 c2)); first by apply idP. 
+    have H := reflect_all2 (instr_eq_axiom_ Hrec).    
+    split=> [/andP[]/eqP->/H-> | []/eqP->/H->] //.
+  apply (@equivP ((ii1 == ii2) && (x1 == x2) && (f1 == f2) && (arg1 == arg2)));first by apply idP.
+  by split=> [/andP[]/andP[]/andP[]| []]/eqP->/eqP->/eqP->/eqP->.
+Qed.
 
 Definition instr_r_eqMixin     := Equality.Mixin instr_r_eq_axiom.
 Canonical  instr_r_eqType      := Eval hnf in EqType instr_r instr_r_eqMixin.
 
 Lemma instr_eq_axiom : Equality.axiom instr_beq. 
 Proof. 
-Admitted.
+  apply: instr_eq_axiom_ instr_r_eq_axiom .
+Qed.
 
 Definition instr_eqMixin     := Equality.Mixin instr_eq_axiom.
 Canonical  instr_eqType      := Eval hnf in EqType instr instr_eqMixin.
@@ -299,7 +378,10 @@ Definition fundef_beq fd1 fd2 :=
 
 Lemma fundef_eq_axiom : Equality.axiom fundef_beq. 
 Proof. 
-Admitted.
+  move=> [i1 p1 c1 r1] [i2 p2 c2 r2] /=.
+  apply (@equivP ((i1 == i2) && (p1 == p2) && (c1 == c2) && (r1 == r2)));first by apply idP.
+  by split=> [/andP[]/andP[]/andP[] | []] /eqP->/eqP->/eqP->/eqP->.
+Qed.
 
 Definition fundef_eqMixin     := Equality.Mixin fundef_eq_axiom.
 Canonical  fundef_eqType      := Eval hnf in EqType fundef fundef_eqMixin.
