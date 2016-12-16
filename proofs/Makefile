@@ -31,7 +31,8 @@ COQFILES := \
 	src/proof_utils.v \
 	src/proof_sem.v \
 	src/proof_add.v \
-	src/proof_4limb_add_25519.v
+	src/proof_4limb_add_25519.v \
+	src/proof_4limb_mul_25519.v
 
 #	src/array_expansion.v \
 	src/stack_alloc.v \

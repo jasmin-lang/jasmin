@@ -10,17 +10,32 @@ Unset Printing Implicit Defensive.
 
 Open Local Scope Z_scope.
 
-(* ** Multiplication for 4 limbs  *)
+(* ** Constant and variable renaming   *)
+
+Ltac is_Z_const E :=
+  let NE := eval cbv in E in
+  match NE with
+  | Z0     => idtac
+  | Zpos _ => idtac
+  | Zneg _ => idtac
+  | _      => fail 1
+  end.
+
 Ltac prop_const := repeat
   match goal with
   | [ H : ?X <- ?Y |- _ ] =>
-    let Heq := fresh "Weq" in
-    is_var X; is_var Y; move : (assgnK H)=> Heq {H};
-    push_defs; rewrite Heq; clear Heq; pop_defs
-  | [ H : ?X <- 0%Z |- _ ] =>
-    let Heq := fresh "Weq" in
-    is_var X; move : (assgnK H)=> Heq {H};
-    push_defs; rewrite Heq; clear Heq; pop_defs
+    is_var X; is_var Y;
+    replace X with Y in *;
+    clear H
+  | [ H : ?X <- ?E |- _ ] =>    
+    is_Z_const E;
+    idtac "is_Z_const"; idtac E;
+    let NE := eval cbv in E in
+    replace X with NE in *;
+    try (clear X);
+    clear H
+  | [ H : is_true (is_u64 ?E) |- _] =>
+    is_Z_const E; clear H
   end.
  
 (* ** Multiplication for 4 limbs  *)
@@ -82,38 +97,249 @@ Lemma ds2i_mul_scalar_scalar (x y : Z) :
     = [:i umul_h x y; umul_l x y].
 Proof. move=> H1 H2; rewrite !ds2i_singleton umul_sem => //. Qed.
 
-Lemma bounds_umul_test (x y : Z)
+Lemma Zdiv_mod (a b : Z) : b <> 0 -> a / b * b = a - (a mod b).
+Proof. by move=> H; rewrite Zmod_eq_full => //; ring. Qed.
+
+Lemma bounds_umul_h (x y : Z)
   (Hb_x : is_u64 x)
-  (Hb_y : is_u64 y)
-:
-  x * y <= 2^128 - 2*2^64 + 1.
-Proof. by move: Hb_x Hb_y; rewrite !is_u64K -lock; nia. Qed.
+  (Hb_y : is_u64 y) :
+  umul_h x y <= 2^64 - 2.
+Proof.
+move: Hb_x Hb_y. rewrite !is_u64K /umul_h -lock => Hb_x Hb_y.
+apply (Zmult_le_reg_r _ _ (2^64)); first done.
+rewrite Zdiv_mod; last done.
+have Hor: ((x =? 2^64 - 1) && (y =? 2^64 - 1)) \/ ~((x =? 2^64 - 1) && (y =? 2^64 - 1))
+  by case ((x =? 2^64 - 1) && (y =? 2^64 - 1)); auto.
+elim Hor.
++ by move=> /andP []; rewrite /is_true !Z.eqb_eq => -> ->.
++ move=> /negP /nandP => {Hor} Hor. elim Hor.
+  (* x <= 2^64 - 2 *)
+  + move=> /negP. rewrite /is_true Bool.not_true_iff_false Z.eqb_neq => H.
+    have Hle2: x * y - (x * y) mod 2^64  <= (2^64 - 2)*(2^64 - 1) - 0
+      by apply Z.sub_le_mono; [ apply Zmult_le_compat; nia | move: (Z_mod_lt (x*y) (2^64)); nia ].
+    by apply (Z.le_trans _ _ _ Hle2); nia.
+  (* y <= 2^64 - 2 *)
+  + move=> /negP. rewrite /is_true Bool.not_true_iff_false Z.eqb_neq => H.
+    have Hle2: x * y - (x * y) mod 2^64  <= (2^64 - 1)*(2^64 - 2) - 0
+      by apply Z.sub_le_mono; [ apply Zmult_le_compat; nia | move: (Z_mod_lt (x*y) (2^64)); nia ].
+    by apply (Z.le_trans _ _ _ Hle2); nia.
+Qed.
 
-(* ad-hoc tactic for dealing with 5-step umul;adc;adc_v;adc;adc_v sequence *)
-Ltac do_step5 Hno_over L0 L1 L2 L3 L4:=
-  let Heq := fresh "Weq" in
-  rewrite Hno_over in L0;
-  rewrite /adc_v /oflow in L1;
-  move : (assgnKl L1) => Heq; rewrite -Heq in L1;
-  first [ rewrite (assgnK L0) => {L0} | rewrite (assgnKr L0) => {L0}];
-  rewrite (assgnKr L1) => {L1} {Heq};
+Lemma bounds_umul_cases (x y : Z)
+  (Hb_x : is_u64 x)
+  (Hb_y : is_u64 y) :
+  (umul_h x y = 2^64 - 2 /\ umul_l x y = 1)
+  \/ umul_h x y <= 2^64 - 3.
+Proof.
+move: Hb_x Hb_y; rewrite !is_u64K /umul_h /umul_l -lock => Hb_x Hb_y.
+have Hor: ((x =? 2^64 - 1) && (y =? 2^64 - 1)) \/ ~((x =? 2^64 - 1) && (y =? 2^64 - 1))
+  by case ((x =? 2^64 - 1) && (y =? 2^64 - 1)); auto.
+elim Hor.
++ by move=> /andP []; rewrite /is_true !Z.eqb_eq => -> ->; left.
++ move=> /negP /nandP => {Hor} Hor. right.
+  apply (Zmult_le_reg_r _ _ (2^64)); first done.
+  rewrite Zdiv_mod; last done.
+  have G: forall x y,
+            0 <= x < 2 ^ 64 -> 0 <= y < 2 ^ 64 ->
+            ~~ (x =? 2 ^ 64 - 1) ->
+            x * y - (x * y) mod 2 ^ 64 <= (2 ^ 64 - 3) * 2 ^ 64; last first.
+  + by elim Hor => Hp ; [ apply G | rewrite Z.mul_comm; apply G ].
+  clear x y Hb_x Hb_y Hor. move=> x y Hbx Hby.
+  move=> /negP. rewrite /is_true Bool.not_true_iff_false Z.eqb_neq => H.
+  have Hor2: ((x =? 2^64 - 2) && (y =? 2^64 - 1)) \/ ~((x =? 2^64 - 2) && (y =? 2^64 - 1))
+    by case ((x =? 2^64 - 2) && (y =? 2^64 - 1)); auto.
+  elim Hor2.
+  (* x =? 2 ^ 64 - 2) && (y =? 2 ^ 64 - 1) *)
+  + by move=> /andP []; rewrite /is_true !Z.eqb_eq => -> ->.
+  + move=> /negP /nandP => Hor. elim Hor.
+    (* x <= 2^64 - 3 *)
+    + move=> /negP. rewrite /is_true Bool.not_true_iff_false Z.eqb_neq => H2.
+      have Hle2: x * y - (x * y) mod 2^64  <= (2^64 - 3)*(2^64 - 1) - 0
+        by apply Z.sub_le_mono;[apply Zmult_le_compat; nia | move: (Z_mod_lt (x*y) (2^64));nia ].
+      by apply (Z.le_trans _ _ _ Hle2); nia.
+    + move=> /negP. rewrite /is_true Bool.not_true_iff_false Z.eqb_neq => H2.
+      have Hle2: x * y - (x * y) mod 2^64  <= (2^64 - 2)*(2^64 - 2) - 0
+        by apply Z.sub_le_mono;[apply Zmult_le_compat; nia | move: (Z_mod_lt (x*y) (2^64));nia ].
+      by apply (Z.le_trans _ _ _ Hle2); nia.
+Qed.
 
-  rewrite Hno_over in L2;
-  rewrite /adc_v /oflow in L3;
-  move : (assgnKl L3) => Heq; rewrite -Heq in L3;
-  rewrite (assgnK L2) => {L2};
-  rewrite (assgnKr L3) => {L3};
-  rewrite (assgnKr L4) (assgnKl L4) => {L4} {Heq}.
+Definition adc_v_nof (x y : Z) (cf : bool) := x + y + cf:%Z.
 
-(* ad-hoc tactic for dealing with 3-step umul;adc;adc_v sequence *)
-Ltac do_step3 Hno_over L0 L1 L2 :=
-  let Heq := fresh "Weq" in
-  rewrite Hno_over in L0;
-  rewrite /adc_v /oflow in L1;
-  move : (assgnKl L1) => Heq; rewrite -Heq in L1;
-  rewrite (assgnK L0) => {L0};
-  rewrite (assgnKr L1) => {L1} {Heq};
-  rewrite (assgnKr L2) (assgnKl L2) => {L2}.
+Lemma adc_v_nof_intro (x y : Z) (cf : bool):
+  x + y + cf:%Z < p64 ->
+  adc_v 1 x y cf = adc_v_nof x y cf.
+Proof.
+rewrite -lock. move=> Hlt. rewrite /adc_v /adc_v_nof /oflow.
+have : (pow 1 <=? x + y + cf:%Z = adc_cf 1 x y cf) by rewrite /adc_cf -lock.
+case (adc_cf 1 x y cf) => Hineq; last by simp.
+by move: Hineq; rewrite -Zle_is_le_bool -lock; nia.
+Qed.
+
+Lemma adc_v_nof_umul (x y h l : Z) (cf : bool):
+  is_u64 x ->
+  is_u64 y ->
+  (h,l) <- umul x y ->
+  adc_v 1 h 0 cf = adc_v_nof h 0 cf.
+Proof.
+move=> Hbx Hby /assgnKl Humul_h.
+apply adc_v_nof_intro.
+by move: (bounds_umul_h Hbx Hby); rewrite -lock; case cf; simp; lia.
+Qed.
+
+Lemma umul_h_plus_cf (x y : Z) (cf : bool):
+  is_u64 x ->
+  is_u64 y ->
+  umul_h x y + cf:%Z < p64.
+Proof.
+move=> Hbx Hby.
+by move: (bounds_umul_h Hbx Hby); rewrite -lock; case cf; simp; lia.
+Qed.
+
+Definition TagEq {T} (x y : T) := x = y.
+
+Lemma TagEqI {T} (x y : T) : x <- y <-> TagEq x y.
+Proof. by rewrite /TagEq. Qed.
+
+
+Ltac inline_adc :=
+  match goal with
+  (* unfold adc_v_nof *)
+  | [ Hd: ?V <- adc_v_nof _ _ _ |- context[?V] ] =>
+    idtac V; idtac "";
+    (* not_used_var_hyp V; *)
+    idtac "not_used"; idtac "";
+    rewrite !(assgnK Hd) /adc_v_nof; clear Hd
+  (* unfold adc_v *)
+  | [ Hd: ?V <- adc_v 1%nat ?X ?Y ?CF_IN |- context[?V] ] =>
+    idtac V; idtac "";
+    (* not_used_var_hyp V; *)
+    idtac "not_used"; idtac "";
+    rewrite !(assgnK Hd) /adc_v /oflow;
+    (match goal with
+     | [ Hc: ?CF_OUT <- adc_cf 1%nat X Y CF_IN |- _ ] =>
+       idtac CF_OUT; idtac "fold-CF";
+       (* not_used_var_hyp CF_OUT; *)
+       (* idtac "not_used"; idtac ""; *)
+       rewrite -!(assgnK Hc) (* ; clear Hd *)
+     end)
+  end.
+
+Ltac inline_umul :=
+  match goal with
+  (* unfold umul_h and umul_l *)
+  | [ Hd: ?V <- umul_h _ _ |- context[?V] ] =>
+    idtac V; idtac "";
+    (* not_used_var_hyp V; *)
+    idtac "not_used"; idtac "";
+    rewrite !(assgnK Hd) (* ; clear Hd *)
+  | [ Hd: ?V <- umul_l _ _ |- context[?V] ] =>
+    idtac V; idtac "";
+    (* not_used_var_hyp V; *)
+    idtac "not_used"; idtac "";
+    rewrite !(assgnK Hd) (* ; clear Hd *)
+  end.
+
+Ltac inline :=
+  repeat inline_adc;
+  repeat inline_umul.
+
+Ltac inline_var_def V :=
+  match goal with
+  | [ H: V <- _ |- context[V]] => rewrite (assgnK H)
+  end.
+
+(* prove no-overflow for ignored carries *)
+Ltac not_used_var_hyp V :=
+  match goal with
+  | [ H : _ <- ?T |- _ ] =>
+    match T with context[V] => fail 2 end
+  | _                       => idtac
+  end.
+
+Ltac not_used_var_goal V :=
+  match goal with
+  | [ _ : _ |- context[V] ] => fail 1
+  | _                      => idtac
+  end.
+
+Ltac simp_adc_cf_nof :=
+   match reverse goal with
+   | [ Hv:  _ <- adc_v  1 ?X ?Y ?CF_IN |- TagEq _ _ ] =>
+     (match goal with
+      | [ Hcf: ?CF_OUT <- adc_cf 1 X Y CF_IN |- _ ] =>
+        not_used_var_hyp CF_OUT; not_used_var_goal CF_OUT;
+        clear Hcf;
+        idtac Hv; idtac "cf unused";
+        rewrite (@adc_v_nof_intro X Y CF_IN) in Hv;
+          [idtac | try (by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf) ]
+
+      | [ Hcf: ?CF_OUT <- adc_cf 1 X Y CF_IN |- _ ] =>
+        fail 1
+      | _ =>
+        idtac Hv; idtac "no cf";
+        rewrite (@adc_v_nof_intro X Y CF_IN) in Hv;
+          [idtac | try (by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf) ]
+      end)
+   end.
+
+Ltac simp_nof :=
+  rewrite -/(@TagEq Z _ _);
+  repeat simp_adc_cf_nof;
+  rewrite /TagEq.
+
+Ltac split_pair_assgn :=
+  match goal with
+  (* first split all assignments *)
+  | [ Hd: (_,_)  <- (_,_) |- _ ] =>
+    idtac "split "; idtac "";
+    let Hd1 := fresh Hd in
+    let Hd2 := fresh Hd in
+    move: (assgnKr Hd) (assgnKl Hd) => Hd1 Hd2 {Hd};
+    rewrite -/(Assgn _ _) in Hd1;
+    rewrite -/(Assgn _ _) in Hd2
+  end.
+
+Ltac tag_occ_goal := repeat
+  (match goal with
+   | [ H: ?V <- _ |- context[?V] ] =>
+     move: H; rewrite (@TagEqI _ _ _) => H
+   | [ H1: ?V <- _, H2: TagEq _ ?T |- _ ] =>
+     match T with
+     | context[V] => move: H1; rewrite (@TagEqI _ _ _) => H1
+     end
+   end).
+
+Ltac is_unused V :=
+  match goal with
+  | [ H: TagEq V _ |- _ ]  => fail 1
+  | [ H: _ |- context[V] ] => fail 1
+  | [ H: TagEq _ ?T |- _ ] => match T with context[V] => fail 2 end
+  | [ _:_           |- _ ] => idtac
+  end.
+
+Ltac drop_not_tagged := repeat
+  (match goal with
+   | [ H: _ <- _ |- _ ] => clear H
+   | [ H: is_true (is_u64 ?V) |- _] =>
+     idtac V; idtac "check-tagged";
+     is_unused V;
+     idtac V; idtac "clear";
+     clear H; try (clear V)
+   end).
+
+Ltac remove_tags := repeat
+  (match goal with
+   | [ H: TagEq _ _ |- _ ] => move: H; rewrite -(@TagEqI _ _ _) => H
+   end).
+
+Ltac remove_unused := tag_occ_goal; drop_not_tagged; remove_tags.
+
+Ltac simp_post :=
+  rewrite !ds2i_mul_cons;
+  rewrite !ds2i_mul_scalar; try done;
+  rewrite !ds2i_mul_scalar_scalar; try done; unfold length;
+  unfold ds2i,length; ring_simplify;
+  rewrite !Z.pow_0_r !Z.pow_1_r !Z.mul_1_r !Z.mul_1_l.
 
 Lemma corr_mul_4limb
   (* inputs *)
@@ -455,30 +681,226 @@ Lemma corr_mul_4limb
       ds2i [:: z7; z6; z5 ;z4 ;z3; z2; z1; z0]
     = ds2i [:: ya3; ya2; ya1; ya0] * ds2i [:: xa3; xa2; xa1; xa0].
 Proof.
-pop_defs. prop_const. sort_defs.
-rewrite !ds2i_mul_cons.
-rewrite !ds2i_mul_scalar.
-rewrite !ds2i_mul_scalar_scalar; try done. unfold length.
-unfold ds2i. unfold length. ring_simplify.
-rewrite !Z.pow_0_r !Z.pow_1_r !Z.mul_1_r !Z.mul_1_l.
-have Hno_over: forall x y c, adc_v 1 x y c = x + y + c:%Z. admit.
+(* simplify program by constant propagation *)
+pop_defs; prop_const; sort_defs.
 
-do_step5 Hno_over L63 L62 L61 L60 L59.
-do_step5 Hno_over L58 L57 L56 L55 L54.
-do_step5 Hno_over L53 L52 L51 L50 L49.
-do_step3 Hno_over L48 L47 L46.
-do_step5 Hno_over L45 L44 L43 L42 L41.
-do_step5 Hno_over L40 L39 L38 L37 L36.
-do_step5 Hno_over L35 L34 L33 L32 L31.
-do_step3 Hno_over L30 L29 L28.
-do_step5 Hno_over L27 L26 L25 L24 L23.
-do_step5 Hno_over L22 L21 L20 L19 L18.
-do_step5 Hno_over L17 L16 L15 L14 L13.
-do_step3 Hno_over L12 L11 L10.
-do_step3 Hno_over L9 L8 L7.
-do_step3 Hno_over L6 L5 L4.
-do_step3 Hno_over L3 L2 L1.
+(* simplify post-condition *)
+simp_post.
 
-rewrite (assgnKr L0) (assgnKl L0) => {L0}.
-apply Zeq_eq0; rewrite !b2i_false -lock; unfold Z.of_nat; ring.
+(* generate no_overflow obligations and inline defs into post-condition *)
+repeat split_pair_assgn; simp_nof; first inline.
+
+(* discharge post-condition *)
+apply Zeq_eq0; rewrite -lock; unfold Z.of_nat, b2i; ring.
+
+remove_unused.
+rewrite -/(adc_v_nof _ _ _).
+
+Ltac not_umul E :=
+  match E with
+  | umul_h _ _ => fail 1
+  | umul_l _ _ => fail 1
+  | _ => idtac
+  end.
+
+Ltac expand_upto_umul T :=
+  match goal with
+  | [ H : _ |- (T _ _ ?CF) < _] =>
+    is_var CF; inline_var_def CF
+  | [ H : _ |- context[T ?X ?E _]] =>
+    is_var X; not_umul E; inline_var_def X
+  | [ H : _ |- context[T ?E ?X _]] =>
+    is_var X; not_umul E; inline_var_def X
+  end.
+
+repeat (first [ expand_upto_umul adc_v_nof
+              | expand_upto_umul (adc_cf 1)
+              | expand_upto_umul (adc_v 1)]).
+
+rewrite Z.add_0_l.
+inline_var_def h'13. inline_var_def cf''13.
+inline_var_def z4''13. inline_var_def h''13. inline_var_def cf'''13.
+inline_var_def l'13.
+move: (bounds_umul_cases Hb_ya3 Hb_xa1). elim.
++ move=> [] Hh Hl. move: Hb_z4''13.
+ rewrite !Hh !Hl.
+  have : (pow 1 <=? z4'03 + 1 + false:%Z = adc_cf 1 z4'03 1 false) by rewrite /adc_cf -lock.
+  rewrite /adc_v /oflow.
+  case (adc_cf 1 z4'03 1 false).
+  + rewrite -Zle_is_le_bool !(b2i_false,b2i_true) !Z.add_0_r.
+    move=> Hb Hz4.
+    rewrite (_: z4'03 + 1 - 1 * pow 1 = 0); last first.
+    + apply (Z.le_antisymm).
+      + move: Hb_z4'03; rewrite !is_u64K -lock //=. 
+        rewrite (_ : Z.pow_pos 2 64 = 18446744073709551616); last by done.
+        lia.
+      + by move: Hz4; rewrite !is_u64K -lock //=; nia.
+    have adc_cf_symm: forall x y cf, adc_cf 1 x y cf =  adc_cf 1 y x cf.
+      by move=> x y cf; rewrite /adc_cf (Z.add_comm x y).
+    rewrite adc_cf_symm adc1_cf_0.
+    by rewrite b2i_false -lock /adc_v_nof b2i_true; nia. done.
+  + rewrite Z.leb_gt  !(b2i_false,b2i_true).
+    move=> Hb Hz4. rewrite /adc_v_nof b2i_false.
+    case (adc_cf 1 (z4'03 + 1 + 0 - 0 * pow 1) hprev'12 false); rewrite -lock //=; nia.
++ inline_var_def h'13. inline_var_def h''13.
+  rewrite /adc_v_nof -lock.
+  case cf'''13; case cf''13; rewrite !(b2i_true,b2i_false); nia.
+
+
+remove_unused.
+rewrite Z.add_0_l.
+move: (bounds_umul_cases Hb_ya3 Hb_xa1). elim.
++ move=> [] Hh Hl. move: Hb_z4''13.
+  inline_var_def h'13. inline_var_def cf''13.
+  inline_var_def z4''13. inline_var_def h''13. inline_var_def cf'''13.
+  inline_var_def l'13. rewrite !Hh !Hl.
+  have : (pow 1 <=? z4'03 + 1 + false:%Z = adc_cf 1 z4'03 1 false) by rewrite /adc_cf -lock.
+  rewrite /adc_v /oflow.
+  case (adc_cf 1 z4'03 1 false).
+  + rewrite -Zle_is_le_bool !(b2i_false,b2i_true) !Z.add_0_r.
+    move=> Hb Hz4.
+    rewrite (_: z4'03 + 1 - 1 * pow 1 = 0); last first.
+    + apply (Z.le_antisymm).
+      + move: Hb_z4'03; rewrite !is_u64K -lock //=. 
+        rewrite (_ : Z.pow_pos 2 64 = 18446744073709551616); last by done.
+        lia.
+      + by move: Hz4; rewrite !is_u64K -lock //=; nia.
+    have adc_cf_symm: forall x y cf, adc_cf 1 x y cf =  adc_cf 1 y x cf.
+      by move=> x y cf; rewrite /adc_cf (Z.add_comm x y).
+    rewrite adc_cf_symm adc1_cf_0.
+    by rewrite b2i_false -lock /adc_v_nof b2i_true; nia. done.
+  + rewrite Z.leb_gt  !(b2i_false,b2i_true).
+    move=> Hb Hz4. rewrite /adc_v_nof b2i_false.
+    case (adc_cf 1 (z4'03 + 1 + 0 - 0 * pow 1) hprev'12 false); rewrite -lock //=; nia.
++ inline_var_def h'13. inline_var_def h''13.
+  rewrite /adc_v_nof -lock.
+  case cf'''13; case cf''13; rewrite !(b2i_true,b2i_false); nia.
+
+remove_unused.
+rewrite Z.add_0_l.
+move: (bounds_umul_cases Hb_ya3 Hb_xa2). elim.
+(* h and l fixed values *)
++ move=> [] Hh Hl. move: Hb_z5''23.
+  inline_var_def h'23. inline_var_def cf''23.
+  inline_var_def z5''23. inline_var_def h''23. inline_var_def cf'''23.
+  inline_var_def l'23. rewrite !Hh !Hl.
+  have : (pow 1 <=? z5'13 + 1 + false:%Z = adc_cf 1 z5'13 1 false) by rewrite /adc_cf -lock.
+  rewrite /adc_v /oflow.
+  case (adc_cf 1 z5'13 1 false).
+  + rewrite -Zle_is_le_bool !(b2i_false,b2i_true) !Z.add_0_r.
+    move=> Hb Hz5.
+    rewrite (_: z5'13 + 1 - 1 * pow 1 = 0); last first.
+    + apply (Z.le_antisymm).
+      + move: Hb_z5'13; rewrite !is_u64K -lock //=. 
+        rewrite (_ : Z.pow_pos 2 64 = 18446744073709551616); last by done.
+        lia.
+      + by move: Hz5; rewrite !is_u64K -lock //=; nia.
+    have adc_cf_symm: forall x y cf, adc_cf 1 x y cf =  adc_cf 1 y x cf.
+      by move=> x y cf; rewrite /adc_cf (Z.add_comm x y).
+    rewrite adc_cf_symm adc1_cf_0.
+    by rewrite b2i_false -lock /adc_v_nof b2i_true; nia. done.
+  + rewrite Z.leb_gt  !(b2i_false,b2i_true).
+    move=> Hb Hz5. rewrite /adc_v_nof b2i_false.
+    case (adc_cf 1 (z5'13 + 1 + 0 - 0 * pow 1) hprev'22 false); rewrite -lock //=; nia.
+  (* enough space for two carries *)
++ inline_var_def h'23. inline_var_def h''23.
+  rewrite /adc_v_nof -lock.
+  case cf'''23; case cf''23; rewrite !(b2i_true,b2i_false); nia.
+
+remove_unused.
+rewrite Z.add_0_l.
+move: (bounds_umul_cases Hb_ya3 Hb_xa3). elim.
++ move=> [] Hh Hl. move: Hb_z6'33.
+  inline_var_def h'33. inline_var_def cf''33.
+  inline_var_def z6'33. inline_var_def h''33. inline_var_def cf'''33.
+  inline_var_def l'33. rewrite !Hh !Hl.
+  have : (pow 1 <=? z6'23 + 1 + false:%Z = adc_cf 1 z6'23 1 false) by rewrite /adc_cf -lock.
+  rewrite /adc_v /oflow.
+  case (adc_cf 1 z6'23 1 false).
+  + rewrite -Zle_is_le_bool !(b2i_false,b2i_true) !Z.add_0_r.
+    move=> Hb Hz6.
+    rewrite (_: z6'23 + 1 - 1 * pow 1 = 0); last first.
+    + apply (Z.le_antisymm).
+      + move: Hb_z6'23; rewrite !is_u64K -lock //=. 
+        rewrite (_ : Z.pow_pos 2 64 = 18446744073709551616); last by done.
+        lia.
+      + by move: Hz6; rewrite !is_u64K -lock //=; nia.
+    have adc_cf_symm: forall x y cf, adc_cf 1 x y cf =  adc_cf 1 y x cf.
+      by move=> x y cf; rewrite /adc_cf (Z.add_comm x y).
+    rewrite adc_cf_symm adc1_cf_0.
+    by rewrite b2i_false -lock /adc_v_nof b2i_true; nia. done.
+  + rewrite Z.leb_gt  !(b2i_false,b2i_true).
+    move=> Hb Hz6. rewrite /adc_v_nof b2i_false.
+    case (adc_cf 1 (z6'23 + 1 + 0 - 0 * pow 1) hprev'32 false); rewrite -lock //=; nia.
++ inline_var_def h'33. inline_var_def h''33.
+  rewrite /adc_v_nof -lock.
+  case cf'''33; case cf''33; rewrite !(b2i_true,b2i_false); nia.
+
+
+ admit.
+remove_unused. admit.
+
+move: (Tag L46) => {L46} L46.
+
+admit.
+admit.
+admit.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+admit.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+admit.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+admit.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+admit.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+admit.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+admit.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+Admitted.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+
+
+rewrite Z.add_0_l.
+move: (bounds_umul_cases Hb_ya1 Hb_xa1). elim.
++ move=> [] Hh Hl.
+  inline_var_def cf'11. inline_var_def z2''11.
+  inline_var_def h'11. inline_var_def h''11. inline_var_def cf''11.
+  inline_var_def l'11. rewrite !Hh !Hl /adc_v /oflow. simp.
+  
++ inline_var_def h'11. inline_var_def h''11.
+   rewrite /adc_v -lock /oflow.
+   have Hbool: forall b, 0 <= b:%Z < 2 by move=>b; case b; rewrite //=; lia.
+   move : (Hbool cf'11) (Hbool (adc_cf 1 (umul_h ya1 xa1) 0 cf''11))  (Hbool cf''11).
+   rewrite -lock. case (adc_cf 1 (umul_h ya1 xa1) 0 cf''11); case cf''11; case cf'11;
+   rewrite !(b2i_true,b2i_false); nia.
+case cf'11; nia.  ove
+
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+admit.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+admit.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+admit.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+admit.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+admit.
+by inline; rewrite (Z.add_0_l,Z.add_0_r); apply umul_h_plus_cf.
+admit.
+admit.
+admit.
 Admitted.
