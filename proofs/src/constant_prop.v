@@ -74,7 +74,7 @@ Definition smul e1 e2:=
   | _, _ => Papp2 Omul e1 e2
   end.
 
-Definition seq e1 e2 := 
+Definition s_eq e1 e2 := 
   match is_const e1, is_const e2 with
   | Some n1, Some n2 => Pbool (n1 == n2)
   | _, _             => 
@@ -127,7 +127,7 @@ Definition s_op2 o e1 e2 :=
   | Oadd        => sadd e1 e2
   | Osub        => ssub e1 e2
   | Omul        => smul e1 e2
-  | Oeq         => seq  e1 e2
+  | Oeq         => s_eq e1 e2
   | Oneq        => sneq e1 e2
   | Olt         => slt  e1 e2
   | Ole         => sle  e1 e2
@@ -138,9 +138,9 @@ Definition s_op2 o e1 e2 :=
 (* ** constant propagation 
  * -------------------------------------------------------------------- *)
 
-Local Notation map := (Mvar.t Z).
+Local Notation vmap := (Mvar.t Z).
 
-Fixpoint const_prop_e (m:map) e :=
+Fixpoint const_prop_e (m:vmap) e :=
   match e with
   | Pconst _  => e
   | Pbool  _  => e
@@ -152,9 +152,9 @@ Fixpoint const_prop_e (m:map) e :=
   | Papp2 o e1 e2 => s_op2 o e1 e2
   end.
 
-Definition empty_cpm : map := @Mvar.empty Z.
+Definition empty_cpm : vmap := @Mvar.empty Z.
 
-Definition merge_cpm : map -> map -> map := 
+Definition merge_cpm : vmap -> vmap -> vmap := 
   Mvar.map2 (fun _ (o1 o2: option Z) => 
    match o1, o2 with
    | Some n1, Some n2 => 
@@ -163,10 +163,10 @@ Definition merge_cpm : map -> map -> map :=
    | _, _ => None
    end).
 
-Definition remove_cpm (m:map) (s:Sv.t): map :=
+Definition remove_cpm (m:vmap) (s:Sv.t): vmap :=
   Sv.fold (fun x m => Mvar.remove m x) s m.
 
-Fixpoint const_prop_rv (m:map) (rv:rval) : rval := 
+Fixpoint const_prop_rv (m:vmap) (rv:rval) : rval := 
   match rv with 
   | Rnone _   => rv
   | Rvar  _   => rv
@@ -174,7 +174,7 @@ Fixpoint const_prop_rv (m:map) (rv:rval) : rval :=
   | Raset x e => Raset x (const_prop_e m e)
   end.
 
-Definition add_cpm (m:map) (rv:rval) tag e := 
+Definition add_cpm (m:vmap) (rv:rval) tag e := 
   if rv is Rvar x then
     if tag is AT_inline then 
       if is_const e is Some n then Mvar.set m x n else Mvar.remove m x
@@ -183,9 +183,9 @@ Definition add_cpm (m:map) (rv:rval) tag e :=
                            
 Section CMD.
 
-  Variable const_prop_i : map -> instr -> map * cmd.
+  Variable const_prop_i : vmap -> instr -> vmap * cmd.
 
-  Fixpoint const_prop (m:map) (c:cmd) : map * cmd :=
+  Fixpoint const_prop (m:vmap) (c:cmd) : vmap * cmd :=
     match c with
     | [::] => (m, [::])
     | i::c =>
@@ -196,7 +196,7 @@ Section CMD.
 
 End CMD.
 
-Fixpoint const_prop_i (m:map) (i:instr) : map * cmd := 
+Fixpoint const_prop_i (m:vmap) (i:instr) : vmap * cmd := 
   let (ii,ir) := i in
   match ir with
   | Cassgn x tag e => 
@@ -206,8 +206,8 @@ Fixpoint const_prop_i (m:map) (i:instr) : map * cmd :=
     (m, [:: MkI ii (Cassgn x tag e)])
 
   | Copn xs o es =>
-    let es := seq.map (const_prop_e m) es in
-    let xs := seq.map (const_prop_rv m) xs in
+    let es := map (const_prop_e m) es in
+    let xs := map (const_prop_rv m) xs in
     let m  := remove_cpm m (write_i ir) in
     (m, [:: MkI ii (Copn xs o es) ])
 
@@ -236,8 +236,8 @@ Fixpoint const_prop_i (m:map) (i:instr) : map * cmd :=
     (m, [:: MkI ii (Cwhile (const_prop_e m e) c)])
 
   | Ccall fi xs f es =>
-    let es := seq.map (const_prop_e m) es in
-    let xs := seq.map (const_prop_rv m) xs in
+    let es := map (const_prop_e m) es in
+    let xs := map (const_prop_rv m) xs in
     let m := remove_cpm m (write_i ir) in
     (m, [:: MkI ii (Ccall fi xs f es) ])
   end.
@@ -247,7 +247,7 @@ Definition const_prop_fun (f:funname * fundef) :=
   let (_, c) := const_prop const_prop_i empty_cpm c in
   (f.1, MkFun ii p c r).
 
-Definition const_prop_prog (p:prog) : prog := seq.map const_prop_fun p.
+Definition const_prop_prog (p:prog) : prog := map const_prop_fun p.
 
 (* ** proofs
  * -------------------------------------------------------------------- *)

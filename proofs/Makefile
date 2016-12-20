@@ -25,6 +25,7 @@ COQFILES := \
 	src/unrolling.v \
 	src/constant_prop.v \
 	src/dead_code.v \
+	src/array_expansion.v \
 	src/compiler.v \
 	src/extraction.v \
 	src/zmod_setoid.v \
@@ -34,8 +35,7 @@ COQFILES := \
 	src/proof_4limb_add_25519.v \
 	src/proof_4limb_mul_25519.v
 
-#	src/array_expansion.v \
-	src/stack_alloc.v \
+#	src/stack_alloc.v \
 	src/linear.v \
 
 

@@ -4,7 +4,8 @@ From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
 Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr memory dmasm_sem.
 Require Import compiler_util allocation inlining unrolling constant_prop dead_code.
-(* array_expansion*)
+Require Import array_expansion.
+
 (*Require Import stack_alloc linear. *)
 
 Set Implicit Arguments.
@@ -32,11 +33,23 @@ Variable ralloc: forall ta tr, fundef ta tr -> fundef ta tr.
 Variable stk_alloc : forall ta tr, fundef ta tr -> seq.seq (var * Z) * S.fundef ta tr. *)
 
 Variable rename_fd : fundef -> fundef.
+Variable expand_fd : fundef -> fundef.
+Variable alloc_fd  : fundef -> fundef.
+
+Definition expand_prog (p:prog) := 
+  map (fun f => (f.1, expand_fd f.2)) p.
+
+Definition alloc_prog (p:prog) := 
+    map (fun f => (f.1, alloc_fd f.2)) p.
 
 Definition compile_prog (p:prog) := 
   Let p := inline_prog rename_fd p in
   Let p := unroll Loop.nb p in
-  cfok p.
+  let pe := expand_prog p in
+  Let _ := CheckExpansion.check_prog p pe in
+  let pa := alloc_prog pe in
+  Let _ := CheckAllocReg.check_prog pe pa in
+  cfok pa.
 
 (*
     

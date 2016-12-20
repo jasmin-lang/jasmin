@@ -1,12 +1,12 @@
 (* * Prove properties about semantics of dmasm input language *)
 
 (* ** Imports and settings *)
-Require Import JMeq.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
 Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr memory dmasm_sem.
-Require Import constant_prop.
+
+Require Import compiler_util.
 Require Import ZArith.
 
 Set Implicit Arguments.
@@ -18,223 +18,123 @@ Local Open Scope seq_scope.
 
 Module S.
 
-  Inductive sop1 : stype -> stype -> Set :=
-  | Onot : sop1 sbool sbool.
-
-  Inductive sop2 : stype -> stype -> stype -> Set :=
-  | Oand : sop2 sbool sbool sbool
-  | Oor : sop2 sbool sbool sbool
-  | Oadd : sop2 sword sword sword
-  | Oaddc : sop2 sword sword (sbool ** sword)
-  | Osub : sop2 sword sword sword
-  | Osubc : sop2 sword sword (sbool ** sword)
-  | Oeq : sop2 sword sword sbool
-  | Olt : sop2 sword sword sbool
-  | Ole : sop2 sword sword sbool.
-
-  Inductive sop3 : stype -> stype -> stype -> stype -> Set :=
-  | Oaddcarry : sop3 sword sword sbool (sbool ** sword)
-  | Osubcarry : sop3 sword sword sbool (sbool ** sword).
-
-  Inductive scale := 
-  | S1
-  | S2
-  | S4
-  | S8.
-
-  Record mem_addr := {
-    base  : option Ident.ident;
-    index : option (Ident.ident * scale);
-    offset: option Z;
+  Record sfundef := MkSFun {
+    sf_iinfo  : instr_info;
+    sf_stk_sz : Z;
+    sf_stk_id : Ident.ident; 
+    sf_params : seq var_i;
+    sf_body   : cmd;
+    sf_res    : seq var_i;
   }.
 
-  Inductive regmem : stype -> Type :=
-  | RegMemR : forall x:var, regmem (vtype x)
-  | RegMemM : mem_addr -> regmem sword.
-
-  Inductive expr : stype -> Type :=
-  | Eregmem : forall t, regmem t -> expr t
-  | Econst  : Z -> expr sword
-  | Ebool   : bool -> expr sbool
-  | Eapp1 : forall st1 stres : stype,
-    sop1 st1 stres -> expr st1 -> expr stres
-  | Eapp2 : forall st1 st2 stres : stype,
-    sop2 st1 st2 stres -> expr st1 -> expr st2 -> expr stres
-  | Eapp3 : forall st1 st2 st3 stres : stype,
-    sop3 st1 st2 st3 stres ->
-    expr st1 -> expr st2 -> expr st3 -> expr stres.
-Print rval.
-
-
-
-
-
-
-  Inductive pexpr : stype -> Type :=
-    Pvar : forall x : var, pexpr (vtype x)
-  | Pconst : Z -> pexpr sword
-  | Pbool : bool -> pexpr sbool
-  | Papp1 : forall st1 stres : stype,
-            dmasm_expr.sop1 st1 stres -> pexpr st1 -> pexpr stres
-  | Papp2 : forall st1 st2 stres : stype,
-            dmasm_expr.sop2 st1 st2 stres ->
-            pexpr st1 -> pexpr st2 -> pexpr stres
-  | Papp3 : forall st1 st2 st3 stres : stype,
-            dmasm_expr.sop3 st1 st2 st3 stres ->
-            pexpr st1 -> pexpr st2 -> pexpr st3 -> pexpr stres
-
-
-
-  Inductive instr : Type :=
-  | Cbcmd : bcmd -> instr
-  | Cif : pexpr sbool -> seq.seq instr -> seq.seq instr -> instr
-  | Cwhile : pexpr sbool -> seq.seq instr -> instr
-  | Ccall : forall starg stres : stype,
-            rval stres -> fundef starg stres -> pexpr starg -> instr
-
-  with fundef : stype -> stype -> Type :=
-    FunDef : forall starg stres : stype,
-        Z -> Ident.ident -> rval starg -> seq.seq instr -> rval stres -> fundef starg stres.
-
-  Notation cmd := (seq.seq instr).
-
-  Definition fd_stk_size ta tr (fd:fundef ta tr) := 
-    match fd with
-    | FunDef _ _ sz nstk fa fb fr => sz
-    end.
-
-  Definition fd_nstk ta tr (fd:fundef ta tr) := 
-    match fd with
-    | FunDef _ _ sz nstk fa fb fr => nstk
-    end.
-
-  Definition fd_arg ta tr (fd:fundef ta tr) := 
-    match fd with
-    | FunDef _ _ sz nstk fa fb fr => fa
-    end.
-
-  Definition fd_body ta tr (fd:fundef ta tr) := 
-    match fd with
-    | FunDef _ _ sz nstk fa fb fr => fb
-    end.
-
-  Definition fd_res ta tr (fd:fundef ta tr) := 
-    match fd with
-    | FunDef _ _ sz nstk fa fb fr => fr
-    end.
+  Definition sprog := seq (funname * sfundef).
 
   Notation vstk nstk := {|vtype := sword; vname := nstk|}.
 
+  Definition dummy_sfundef := 
+    {| sf_iinfo := dummy_iinfo; 
+       sf_stk_sz := 0;
+       sf_stk_id := ""%string;
+       sf_params := [::]; 
+       sf_body := [::]; 
+       sf_res := [::] |}.
+
+  Section SEM.
+
+  Variable P:sprog.
+
+  Definition get_fundef f := 
+    let pos := find (fun ffd => f == fst ffd) P in
+    if pos <= size P then
+      Some (snd (nth (xH,dummy_sfundef) P pos))
+    else None.
+
+Check alloc_stack .
+Check write_vars.
   Inductive sem : estate -> cmd -> estate -> Prop :=
-  | Eskip : forall s : estate, sem s [::] s
-  | Eseq : forall (s1 s2 s3 : estate) (i : instr) (c : cmd),
-           sem_i s1 i s2 -> sem s2 c s3 -> sem s1 (i :: c) s3
+  | Eskip s : sem s [::] s
 
-  with sem_i : estate -> instr -> estate -> Prop :=
-  | Ebcmd : forall (s1 s2 : estate) (c : bcmd),
-            sem_bcmd s1 c = ok s2 -> sem_i s1 (Cbcmd c) s2
-  | Eif : forall (s1 s2 : estate) (pe : pexpr sbool) 
-            (cond : st2ty sbool) (c1 c2 : cmd),
-          sem_pexpr (evm s1) pe = ok cond ->
-          sem s1 (if cond then c1 else c2) s2 -> sem_i s1 (Cif pe c1 c2) s2
-  | Ecall : forall (sta str : stype) (m1 : mem) (vm1 : vmap) 
-              (m2 : mem) (rv_res : rval str) (fd : fundef sta str)
-              (pe_arg : pexpr sta) (res : st2ty str),
-            let rarg := sem_pexpr vm1 pe_arg in
-            isOk rarg ->
-            sem_call m1 fd (rdflt_ rarg) m2 res ->
-            sem_i {| emem := m1; evm := vm1 |} (Ccall rv_res fd pe_arg)
-              {| emem := m2; evm := write_rval vm1 rv_res res |}
-  | Ewhile : forall (s1 s2 : estate) (e : pexpr sbool) (c : cmd),
-             sem_while s1 e c s2 -> sem_i s1 (Cwhile e c) s2
+  | Eseq s1 s2 s3 i c :
+    sem_I s1 i s2 -> sem s2 c s3 -> sem s1 (i::c) s3
 
-  with sem_while : estate -> pexpr sbool -> cmd -> estate -> Prop :=
-  | EWhileDone : forall (s : estate) (e : pexpr sbool) (c : cmd),
-                 sem_pexpr (evm s) e = ok false -> sem_while s e c s
-  | EWhileOne : forall (s1 s2 s3 : estate) (e : pexpr sbool) (c : cmd),
-                sem_pexpr (evm s1) e = ok true ->
-                sem s1 c s2 -> sem_while s2 e c s3 -> sem_while s1 e c s3
+  with sem_I : estate -> instr -> estate -> Prop :=
+  | EmkI ii i s1 s2: 
+    sem_i s1 i s2 ->
+    sem_I s1 (MkI ii i) s2
 
-  with sem_call : forall sta str : stype,
-      mem -> fundef sta str -> st2ty sta -> mem -> st2ty str -> Prop :=
-  | EcallRun :  forall (sta str : stype) (m1 m2 : mem) 
-                 (vr : st2ty str) (fd : fundef sta str)
-                 (va : st2ty sta) p,
-     alloc_stack m1 (fd_stk_size fd) = ok p ->
+  with sem_i : estate -> instr_r -> estate -> Prop :=
+  | Eassgn s1 s2 (x:rval) tag e:
+    sem_pexpr s1 e >>= (write_rval s1 x) = ok s2 -> 
+    sem_i s1 (Cassgn x tag e) s2
+
+  | Eopn s1 s2 o xs es:
+    sem_pexprs s1 es >>= sem_sopn o >>= (write_rvals s1 xs) = ok s2 ->
+    sem_i s1 (Copn xs o es) s2
+
+  | Eif_true s1 s2 e c1 c2 :
+    sem_pexpr s1 e >>= to_bool = ok true ->
+    sem s1 c1 s2 ->
+    sem_i s1 (Cif e c1 c2) s2
+
+  | Eif_false s1 s2 e c1 c2 :
+    sem_pexpr s1 e >>= to_bool = ok false ->
+    sem s1 c2 s2 ->
+    sem_i s1 (Cif e c1 c2) s2
+
+  | Ewhile_true s1 s2 s3 e c :
+    sem_pexpr s1 e >>= to_bool = ok true ->
+    sem s1 c s2 ->
+    sem_i s2 (Cwhile e c) s3 ->
+    sem_i s2 (Cwhile e c) s3
+
+  | Ewhile_false s e c :
+    sem_pexpr s e >>= to_bool = ok false ->
+    sem_i s (Cwhile e c) s
+
+  | Ecall s1 m2 s2 ii xs f fd args vargs vs : 
+    get_fundef f = Some fd ->
+    sem_pexprs s1 args = ok vargs ->
+    sem_call s1.(emem) fd vargs m2 vs ->
+    write_rvals {|emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->
+    sem_i s1 (Ccall ii xs f args) s2
+
+  with sem_call : mem -> sfundef -> seq value -> mem -> seq value -> Prop :=
+  | EcallRun m1 m2 sf vargs vres p:
+     alloc_stack m1 (sf_stk_sz sf) = ok p ->
      (forall vm0, 
        all_empty_arr vm0 ->
-       exists vm2 m2',
-       let vm1 := write_rval vm0 (Rvar (vstk (fd_nstk fd))) p.1 in
-       let vm1 := write_rval vm1 (fd_arg fd) va in
-       [/\ sem {| emem := p.2; evm := vm1 |} (fd_body fd){| emem := m2'; evm := vm2 |},
-           vr = sem_rval vm2 (fd_res fd) &
-           m2 = free_stack m2' p.1 (fd_stk_size fd)]) ->
-     is_full_array vr ->
-     sem_call m1 fd va m2 vr.
+       exists s1 s2  vm2 m2',
+        [/\ write_var  (vstk (sf_stk_id sf)) p.1 (Estate p.2 vm0) = ok s1,
+            write_vars (sf_params sf) vargs s1 = ok s2, 
+            sem s2 (sf_body sf) {| emem := m2'; evm := vm2 |},
+            map (fun (x:var_i) => get_var vm2 x) sf.(sf_res) = vres &
+            m2 = free_stack m2' p.1 (sf_stk_sz sf)]) ->
+     List.Forall is_full_array vres ->
+     sem_call m1 sf vargs m2 vres.
 
-
-Section IND.
-  Variable Pi : instr -> Type.
-  Variable Pc : cmd -> Type.
-  Variable Pf : forall ta tr, fundef ta tr -> Type.
-
-  Hypothesis Hskip : Pc [::].
-  Hypothesis Hseq  : forall i c,  Pi i -> Pc c -> Pc (i::c).
-  Hypothesis Hbcmd : forall bc,  Pi (Cbcmd bc).
-  Hypothesis Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (Cif e c1 c2).
-
-  Hypothesis Hwhile : forall e c, Pc c -> Pi (Cwhile e c).
-  Hypothesis Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
-  Hypothesis Hfunc : forall ta tr nstk sz (x:rval ta) c (re:rval tr), 
-     Pc c -> Pf (FunDef nstk sz x c re).
-
-  Fixpoint instr_rect2 (i:instr) : Pi i := 
-    match i return Pi i with
-    | Cbcmd bc => Hbcmd bc
-    | Cif b c1 c2 =>
-      Hif b
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c1)
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c2)
-    | Cwhile e c =>
-      Hwhile e 
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c)
-    | Ccall ta tr x f a =>
-      Hcall x a (func_rect f)
-    end
-  with func_rect {ta tr} (f:fundef ta tr) : Pf f := 
-    match f with
-    | FunDef ta tr nstk sz x c re => 
-      Hfunc nstk sz x re
-        (list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c)
-    end.
-
-  Definition cmd_rect c := 
-    list_rect Pc Hskip (fun i c Hc => Hseq (instr_rect2 i) Hc) c.
-
-End IND.
+  End SEM.
 
 End S.
 
-Notation Scmd := (seq.seq S.instr).
-
-Definition map := (Mvar.t Z * Ident.ident)%type.
+Definition vmap := (Mvar.t Z * Ident.ident)%type.
 
 Definition size_of (t:stype) := 
   match t with
-  | sword  => Ok unit 1%Z
-  | sarr n => Ok unit (Zpos n)
-  | _      => Error tt
+  | sword  => cok unit 1%Z
+  | sarr n => cok unit (Zpos n)
+  | _      => cerror (Cerr_stk_alloc "size_of")
   end.
 
-Definition init_map (sz:Z) (nstk:Ident.ident) (l:list (var * Z)):=
+Definition init_vmap (sz:Z) (nstk:Ident.ident) (l:list (var * Z)):=
   let add (vp:var*Z) (mp:Mvar.t Z * Z) :=
     if (mp.2 <=? vp.2)%Z then 
-      size_of (vtype vp.1) >>= (fun s =>
-      Ok unit (Mvar.set mp.1 vp.1 vp.2, vp.2 + s)%Z)
-    else Error tt in
-  foldM add (Mvar.empty Z, 0%Z) l >>= (fun mp =>
-    if (mp.2 <=? sz)%Z then Ok unit (mp.1, nstk)
-    else Error tt).
+      Let s := size_of (vtype vp.1) in
+      cok (Mvar.set mp.1 vp.1 vp.2, vp.2 + s)%Z
+    else cerror (Cerr_stk_alloc "overlap") in
+  Let mp := foldM add (Mvar.empty Z, 0%Z) l in 
+  if (mp.2 <=? sz)%Z then cok (mp.1, nstk)
+  else cerror (Cerr_stk_alloc "stack size").
+ 
 
 Definition is_in_stk (m:map) (x:var) := 
   match Mvar.get m.1 x with 

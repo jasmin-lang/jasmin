@@ -6,7 +6,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
 Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr memory dmasm_sem.
-Require Import allocation.
+Require Import allocation compiler_util.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -103,6 +103,7 @@ Module CBEA.
 
   End M.
 
+(*
   Definition eq_alloc (r:M.t) (vm vm':vmap) :=
     (forall x, Sv.In x (M.initvar r) -> val_uincl vm.[x] vm'.[x]) /\
     (forall x n id, Ma.get (M.alloc r) (x,tobase n) = Some id ->
@@ -132,77 +133,64 @@ Module CBEA.
     | Oget _ => true
     | _      => false
     end.
+*)
 
-  Definition check_var m t1 (e1:pexpr t1) t2 (e2:pexpr t2) x2 := 
+  Definition check_var m x1 e1 x2 := 
+    match is_const e1 with
+    | Some n1 => (Ma.get (M.alloc m) (x1.(v_var), tobase n1) == Some (vname x2)) &&
+                  (vtype x2 == sword)
+    | _ => false
+    end.
+
+  Fixpoint check_eb m (e1 e2:pexpr) : bool := 
     match e1, e2 with
-    | Pvar x1, Pconst n2 => 
-      (Ma.get (M.alloc m) (x1, tobase n2) == Some (vname x2)) && 
-      (vtype x2 == sword)
+    | Pconst   n1, Pconst   n2 => n1 == n2
+    | Pbool    b1, Pbool    b2 => b1 == b2
+    | Pcast    e1, Pcast    e2 => check_eb m e1 e2
+    | Pvar     x1, Pvar     x2 => (x1.(v_var) == x2) && Sv.mem x1 (M.initvar m)
+    | Pget  x1 e1, Pget  x2 e2 => 
+      (x1.(v_var) == x2) && Sv.mem x1 (M.initvar m) && check_eb m e1 e2
+    | Pget  x1 e1, Pvar  x2    => check_var m x1 e1 x2
+    | Pload x1 e1, Pload x2 e2 => 
+      (x1.(v_var) == x2) && Sv.mem x1 (M.initvar m) && check_eb m e1 e2
+    | Pnot     e1, Pnot     e2 => check_eb m e1 e2
+    | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>    
+      (o1 == o2) && check_eb m e11 e21 && check_eb m e12 e22
     | _, _ => false
     end.
 
-  Fixpoint check_eb t1 t2 m (e1:pexpr t1) (e2:pexpr t2) : bool := 
-    match e1, e2 with
-    | Pvar x1  , Pvar x2    => (x1 == x2) && Sv.mem x1 (M.initvar m)
-    | Pload e1 , Pload e2   => check_eb m e1 e2
-    | Pconst n1, Pconst n2  => n1 == n2
-    | Pbool b1 , Pbool b2   => b1 == b2
-    | Papp1 _ _ o1 e1, Papp1 _ _ o2 e2 => 
-      eqb_sop1 o1 o2 && check_eb m e1 e2
-    | Papp2 _ _ _ o1 e11 e12   , Papp2 _ _ _ o2 e21 e22     =>  
-      eqb_sop2 o1 o2 && check_eb m e11 e21 && check_eb m e12 e22
-    | Papp3 _ _ _ _ o1 e11 e12 e13, Papp3 _ _ _ _ o2 e21 e22 e23 => 
-      eqb_sop3 o1 o2 && check_eb m e11 e21 &&
-      check_eb m e12 e22 && check_eb m e13 e23
-    | Papp2 _ _ _ o1 e11 e12, Pvar x2 => 
-      is_oget o1 && check_var m e11 e12 x2
-    | _, _ => false
-    end.
+  Definition check_e (e1 e2:pexpr) m := 
+    if check_eb m e1 e2 then cok m else cerror (Cerr_arr_exp e1 e2). 
 
-  Definition check_e t1 t2 (e1:pexpr t1) (e2:pexpr t2) r := 
-    if check_eb r e1 e2 then Ok unit r else Error tt.
-
-  Fixpoint check_rvalb  t1 t2 (x1:rval t1) (x2:rval t2) m :=
-    match x1, x2 with
-    | Rvar x1, Rvar x2 => x1 == x2
-    | Rmem e1, Rmem e2 => check_eb m e1 e2
-    | Rpair _ _ x11 x12, Rpair _ _ x21 x22 => 
-      check_rvalb x12 x22 m && check_rvalb x11 x21 m
-    | _, _ => false
-    end.
-
-  Fixpoint check_rval_aux t1 t2 (x1:rval t1) (x2:rval t2) m :=
-    match x1, x2 with
+  Definition check_rval_aux mi (r1 r2:rval) m := 
+    match r1, r2 with 
+    | Rnone _, Rnone _ => cok m
     | Rvar x1, Rvar x2 => 
-      if (x1 == x2) && ~~Sv.mem x1 (M.allocated m) then Ok unit (M.set_var x1 m) 
-      else Error tt
-    | Rmem e1, Rmem e2 => Ok unit m
-    | Rpair _ _ x11 x12, Rpair _ _ x21 x22 => 
-      check_rval_aux x12 x22 m >>= check_rval_aux x11 x21
-    | _, _ => Error tt
-    end.
-
-  Definition check_rval t1 t2 x1 x2 m := 
-    if @check_rvalb t1 t2 x1 x2 m then check_rval_aux x1 x2 m
-    else Error tt.
-
-  Definition check_imm_set t1 t2 (x1:rval t1) (e1:pexpr t1) (x2:rval t2) (e2:pexpr t2) m :=
-    match x1, x2 with
-    | Rvar x1, Rvar x2 => 
-      if Sv.mem x1 (M.initvar m) || Sv.mem x2 (M.initvar m) then Error tt
-      else match e1 with
-      | Papp3 _ _ _ _ (Oset _) xe1 en1 e2' =>
-        if eqb_pexpr xe1 (Pvar x1) && check_eb m e2' e2 then 
-          match is_const en1 with 
-          | Some n1 => Ok unit (M.set_arr x1 (tobase n1) (vname x2) m)
-          | None    => Error tt
-          end
-        else Error tt
-      | _ => Error tt
+      if (x1.(v_var) == x2) && ~~Sv.mem x1 (M.allocated m) then cok (M.set_var x1 m) 
+      else cerror (Cerr_arr_exp_v r1 r2)
+    | Rmem x1 e1, Rmem x2 e2 =>
+      if  (x1.(v_var) == x2) && Sv.mem x1 (M.initvar mi) && check_eb mi e1 e2 then cok m
+      else cerror (Cerr_arr_exp_v r1 r2)
+    | Raset x1 e1, Rvar x2 =>
+      if Sv.mem x1 (M.initvar m) || Sv.mem x2 (M.initvar m) then cerror (Cerr_arr_exp_v r1 r2)
+      else match is_const e1 with 
+      | Some n1 => cok (M.set_arr x1 n1 (vname x2) m)
+      | None    => cerror (Cerr_arr_exp_v r1 r2)
       end
-    | _, _ => Error tt
+    | Raset x1 e1, Raset x2 e2 =>
+      if (x1.(v_var) == x2) && check_eb mi e1 e2 && ~~Sv.mem x1 (M.allocated m) then 
+        cok (M.set_var x1 m)
+      else cerror (Cerr_arr_exp_v r1 r2)
+    | _, _ => cerror (Cerr_arr_exp_v r1 r2)
     end.
- 
+
+  Definition check_rval (r1 r2:rval) m := check_rval_aux m r1 r2 m.
+
+  Definition fold2_error := Cerr_fold2 "array_expansion:check_rval".
+
+  Definition check_rvals xs1 xs2 m := fold2 fold2_error (check_rval_aux m) xs1 xs2 m.
+
+(* 
   Definition check_bcmd t1 (x1:rval t1) (e1:pexpr t1) t2 (x2:rval t2) (e2:pexpr t2) m := 
     match check_imm_set x1 e1 x2 e2 m with 
     | Error _ => 
@@ -497,7 +485,7 @@ Module CBEA.
     exists vm1';split=> //.
     by constructor=> /=;rewrite Hs1 Hs2 /= Heqw.
   Qed.
-
+*)
 End CBEA.
 
 Module CheckExpansion :=  MakeCheckAlloc CBEA.
