@@ -10,6 +10,14 @@ Unset Printing Implicit Defensive.
 
 Open Local Scope Z_scope.
 
+Lemma a (x : Z):
+  (* 0 <= x < 2^64  -> *)
+  x + 1 >= 2^ 64 ->
+  x + 1 - 2^64 = 0.
+Proof.
+lia.
+
+
 (* ** Constant and variable renaming   *)
 
 Ltac is_Z_const E :=
@@ -200,13 +208,11 @@ Definition TagEq {T} (x y : T) := x = y.
 Lemma TagEqI {T} (x y : T) : x <- y <-> TagEq x y.
 Proof. by rewrite /TagEq. Qed.
 
-
 Ltac inline_adc :=
   match goal with
   (* unfold adc_v_nof *)
   | [ Hd: ?V <- adc_v_nof _ _ _ |- context[?V] ] =>
     idtac V; idtac "";
-    (* not_used_var_hyp V; *)
     idtac "not_used"; idtac "";
     rewrite !(assgnK Hd) /adc_v_nof; clear Hd
   (* unfold adc_v *)
@@ -218,8 +224,6 @@ Ltac inline_adc :=
     (match goal with
      | [ Hc: ?CF_OUT <- adc_cf 1%nat X Y CF_IN |- _ ] =>
        idtac CF_OUT; idtac "fold-CF";
-       (* not_used_var_hyp CF_OUT; *)
-       (* idtac "not_used"; idtac ""; *)
        rewrite -!(assgnK Hc) (* ; clear Hd *)
      end)
   end.
@@ -668,7 +672,7 @@ Lemma corr_mul_4limb
     (cf''32,z5'32) <- adc 1 z5'23 l'32 false ->
     h'32 <- adc_v 1 h''32 0 cf''32 ->
     (cf'32,z5) <- adc 1 z5'32 hprev'31 false ->
-    hprev''32 <- 0 ->
+[    hprev''32 <- 0 ->
     hprev'32 <- adc_v 1 hprev''32 h'32 cf'32 ->
 
     y3'33 <- ya3 ->
@@ -696,11 +700,39 @@ apply Zeq_eq0; rewrite -lock; unfold Z.of_nat, b2i; ring.
 remove_unused.
 rewrite -/(adc_v_nof _ _ _).
 
+(* we must prove that either (addition with one arg 0):
+   - cf''13=false
+   - cf''13=true and h'13 < 2^64 -1 *)
+(* addition with arbitrary value *)
+have Hcase1: cf''13 = false \/ (cf''13=true /\ h'13 < 2^64 - 1); last first.
++ elim Hcase1. move: Hb_h'13. rewrite is_u64K /adc_v_nof -lock. move=> Hbound1 ->.
+  by rewrite b2i_false; nia.
++ by move=> [] ->; rewrite /adc_v_nof b2i_true -lock; lia.
+inline_var_def h'13.
+have Hcase2: cf'''13 = false /\ \/ (cf'''13 = true /\ h''13 < 2^64 - 2); last first.
+
+
+inline_var_def cf''13.
+rewrite /adc_v_nof Z.add_0_r.
+
++ elim Hcase2. move: Hb_h''13. rewrite is_u64K /adc_v_nof -lock. move=> Hbound2 ->.
+  case (adc_cf 1 z4''13 hprev'12 false); last (left; done).
+  right; rewrite b2i_false. nia.
++ move=> [] ->; rewrite /adc_v_nof b2i_true -lock. lia.
+
+inline_var_def h''13.
+inline_var_def z4''13.
+inline_var_def l'13.
++ elim Hcase1. move: Hb_h'13. rewrite is_u64K /adc_v_nof -lock. move=> Hbound1 ->.
+  rewrite b2i_false; nia.
++ move=> [] ->; rewrite /adc_v_nof b2i_true -lock. lia.
+
+(* first case: 
 Ltac not_umul E :=
   match E with
   | umul_h _ _ => fail 1
   | umul_l _ _ => fail 1
-  | _ => idtac
+  | _          => idtac
   end.
 
 Ltac expand_upto_umul T :=
