@@ -4,9 +4,10 @@
 open Core_kernel.Std
 open IL_Lang
 open IL_Utils
+open Util
 open IL_Typing
 open CIL_Utils
-(* open CIL_Pprint *)
+open CIL_Pprint
 
 module F  = Format
 module DE = Dmasm_expr
@@ -654,14 +655,25 @@ let inline_calls_modul _fname modul =
   (* inliner expects leaves of call-graph last *)
   let cfds = List.rev @@ List.map ~f:conv_nf modul in  
   let prog = clist_of_list cfds in
+
   (* F.printf "Coq before:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog; *)
   let rename_fd fd =
     (* F.printf "called rename fundef: %i!\n%!" (List.length @@ list_of_clist fd.DE.f_body); *)
     fd
   in
-  let prog = match Compiler.compile_prog rename_fd prog with
+  let _expand_fd fd =
+    (* F.printf "called expand fundef: %i!\n%!" (List.length @@ list_of_clist fd.DE.f_body); *)
+    fd
+  in
+  let _alloc_fd fd =
+    (* F.printf "called alloc fundef: %i!\n%!" (List.length @@ list_of_clist fd.DE.f_body); *)
+    fd
+  in
+
+  (* let prog = match Compiler.compile_prog rename_fd expand_fd alloc_fd prog with *)
+  let prog = match Inlining.inline_prog rename_fd prog with
     | DU.Ok(cfuns) -> cfuns
-    | _            -> assert false
+    | DU.Error(e)  -> failwith_ "compile failed with %a" pp_fun_error e
   in
   (* F.printf "Coq after:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog; *)
   let conv_cfd cfd =

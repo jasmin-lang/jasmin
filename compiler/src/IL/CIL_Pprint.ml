@@ -3,6 +3,7 @@
 (* ** Imports and abbreviations *)
 open Core_kernel.Std
 open CIL_Utils
+open Compiler_util
 open Util
 open Dmasm_expr
 open Dmasm_type
@@ -172,3 +173,61 @@ let pp_named_fun fmt nf =
 
 let pp_prog fmt prog =
   pp_clist "@\n@\n" pp_named_fun fmt prog
+
+(* ** Pretty printing errors
+ * ------------------------------------------------------------------------ *)
+
+let rec pp_error fmt e =
+  match e with
+  | Cerr_arr_exp_v(rv1,rv2) ->
+    F.fprintf fmt "arr_exp_v: rval1=%a, rval2=%a" pp_rval rv1 pp_rval rv2
+  | Cerr_stk_alloc(s) ->
+    F.fprintf fmt "stk_alloc: %s" (string_of_string0 s)
+  | Cerr_varalloc(vi1,vi2,s) ->
+    F.fprintf fmt "varalloc: vi1=%a, vi2=%a, msg=%s"
+      pp_var_info vi1 pp_var_info vi2 (string_of_string0 s)
+  | Cerr_inline(_v1,_v2) ->
+    F.fprintf fmt "inline: v1=?, v2=?" (* how to print Sv.t *)
+  | Cerr_Loop(s) ->
+    F.fprintf fmt "loop: %s" (string_of_string0 s)
+  | Cerr_fold2(s) ->
+    F.fprintf fmt "loop: %s" (string_of_string0 s)
+  | Cerr_neqdir(s) ->
+    F.fprintf fmt "neqdir: %s" (string_of_string0 s)
+  | Cerr_in_fun(fe) ->
+    F.fprintf fmt "in_fun: %a" pp_fun_error fe
+  | Cerr_arr_exp(pe1,pe2) ->
+    F.fprintf fmt "arr_exp: pexpr1=%a, pexpr2=%a" pp_pexpr pe1 pp_pexpr pe2
+  | Cerr_neqop2(so1,so2,s) ->
+    F.fprintf fmt "neqop2: sop2_1=%a, sop2_2=%a, msg=%s"
+      pp_sop2 so1 pp_sop2 so2 (string_of_string0 s)  
+  | Cerr_neqop(so1,so2,s) ->
+    F.fprintf fmt "neqop: sop2_1=%a, sop2_2=%a, msg=%s"
+      pp_sopn so1 pp_sopn so2 (string_of_string0 s)
+  | Cerr_unknown_fun(fn,s) ->
+    F.fprintf fmt "unknown_fun: funname=%a, msg=%s"
+      pp_pos fn (string_of_string0 s)
+  | Cerr_neqexpr(pe1,pe2,s) ->
+    F.fprintf fmt "neqexpr: pexpr1=%a, pexpr2=%a, msg=%s"
+      pp_pexpr pe1 pp_pexpr pe2 (string_of_string0 s)    
+  | Cerr_neqrval(rv1,rv2,s) ->
+    F.fprintf fmt "neqrval: rval1=%a, rval2=%a, msg=%s"
+      pp_rval rv1 pp_rval rv2 (string_of_string0 s)
+  | Cerr_neqfun(fn1,fn2,s) ->
+    F.fprintf fmt "neqfun: fn1=%a, fn2=%a, msg=%s"
+      pp_pos fn1 pp_pos fn2 (string_of_string0 s)    
+  | Cerr_neqinstr(i1,i2,s) ->
+    F.fprintf fmt "neqinstr: instr1=%a, instr2=%a, msg=%s"
+      pp_instr_r i1 pp_instr_r i2 (string_of_string0 s)    
+
+and pp_fun_error fmt fe =
+  match fe with
+  | Ferr_in_body(fn1,fn2,Datatypes.Coq_pair(i_info (*:instr_info*),e_msg (*:error_msg*))) ->
+    F.fprintf fmt "fun_error.in_body: funname1=%a, funname2=%a, instr_info=%a, error_msg=%a"
+      pp_pos fn1 pp_pos fn2 pp_pos i_info pp_error e_msg
+  | Ferr_neqfun(fn1,fn2) ->
+    F.fprintf fmt "fun_error.neqfun: funname1=%a, funname2=%a" pp_pos fn1 pp_pos fn2
+  | Ferr_neqprog ->
+    F.fprintf fmt "fun_error.neqprog"
+  | Ferr_loop ->
+    F.fprintf fmt "fun_error.loop"
