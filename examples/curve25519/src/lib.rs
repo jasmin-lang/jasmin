@@ -282,9 +282,6 @@ mod tests {
                 }
             }
             assert_eq!(p12,p21);
-            assert_eq!(bigint_of_ds(p12) % p_mod(), 
-                       bigint_of_ds(p21) % p_mod());
         }
     }
-
 }
