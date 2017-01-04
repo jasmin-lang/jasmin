@@ -264,9 +264,6 @@ fn square(xa : stack u64[4]) -> reg u64[4] {
   t[3] = rax;
   t[4] = rdx;
 
-  rax = xa[3];
-  rdx, rax = rax * xa[3];
-
   cf, z[1] += t[0];
   cf, z[2] += t[1] + cf;
   cf, z[3] += t[2] + cf;
