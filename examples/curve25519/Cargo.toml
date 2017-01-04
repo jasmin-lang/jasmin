@@ -1,0 +1,11 @@
+[package]
+name = "jasmin-curve25519"
+version = "0.1.0"
+authors = ["Benedikt Schmidt <beschmi@gmail.com>"]
+
+[dependencies]
+jasmin = { path = "../jasmin-lib" }
+num = "*"
+num-bigint = "*"
+num-traits = "*"
+rand = "*"
