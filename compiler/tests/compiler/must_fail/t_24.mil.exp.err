@@ -1,0 +1,9 @@
+tests/compiler/must_fail/t_24.mil:3:16: 3:17 error: <-- variable declared here
+extern fn test(x : reg u64) -> stack u64 {
+               ^^
+tests/compiler/must_fail/t_24.mil:3:32: 3:40 error: <-- return storage declared here
+extern fn test(x : reg u64) -> stack u64 {
+                               ^^^^^^^^^
+tests/compiler/must_fail/t_24.mil:9:10: 9:11 error: return storage type for x wrong
+  return x;
+         ^^

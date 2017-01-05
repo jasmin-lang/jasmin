@@ -1,0 +1,132 @@
+renumbering identifiers in all function(s)
+   REMOVED_TIME
+type checking module in all function(s)
+   REMOVED_TIME
+expanding macros in ``test'' function(s)
+   REMOVED_TIME
+expanding array assignments in ``test'' function(s)
+   REMOVED_TIME
+expanding register arrays in ``test'' function(s)
+   REMOVED_TIME
+type checking module in all function(s)
+   REMOVED_TIME
+>> renum:
+extern fn test() {
+  arr1.7 : stack u64
+  arr1.8 : stack u64
+  arr1.9 : stack u64
+  arr1.10 : stack u64
+  arr1.11 : stack u64
+  arr1.12 : stack u64
+  arr1.13 : stack u64
+  arr1.14 : stack u64
+  arr1.15 : stack u64
+  arr1.16 : stack u64
+  arr1.17 : stack u64
+  arr1.18 : stack u64
+  arr1.19 : stack u64
+  arr1.20 : stack u64
+  arr2.21 : stack u64
+  arr2.22 : stack u64
+  arr2.23 : stack u64
+  arr2.24 : stack u64
+  arr2.25 : stack u64
+  arr2.26 : stack u64
+  arr2.27 : stack u64
+  arr2.28 : stack u64
+  arr2.29 : stack u64
+  arr2.30 : stack u64
+  arr2.31 : stack u64
+  arr2.32 : stack u64
+  arr2.33 : stack u64
+  arr2.34 : stack u64
+  arr3.4s : stack u64[16]
+  arr4.35 : stack u64
+  arr4.36 : stack u64
+  arr4.37 : stack u64
+  arr4.38 : stack u64
+  arr4.39 : stack u64
+  arr4.40 : stack u64
+  arr4.41 : stack u64
+  arr4.42 : stack u64
+  arr4.43 : stack u64
+  arr4.44 : stack u64
+  arr4.45 : stack u64
+  arr4.46 : stack u64
+  arr4.47 : stack u64
+  arr4.48 : stack u64
+  arr4.49 : stack u64
+  arr4.50 : stack u64
+  cf.6 : reg bool
+  i.5 : reg u64
+  while cf.6 {
+    if cf.6 {
+      arr1.7 := arr2.21;
+      arr1.8 := arr2.22;
+      arr1.9 := arr2.23;
+      arr1.10 := arr2.24;
+      arr1.11 := arr2.25;
+      arr1.12 := arr2.26;
+      arr1.13 := arr2.27;
+      arr1.14 := arr2.28;
+      arr1.15 := arr2.29;
+      arr1.16 := arr2.30;
+      arr1.17 := arr2.31;
+      arr1.18 := arr2.32;
+      arr1.19 := arr2.33;
+      arr1.20 := arr2.34;
+      arr3.4s[0] = arr4.35;
+      arr3.4s[1] = arr4.36;
+      arr3.4s[2] = arr4.37;
+      arr3.4s[3] = arr4.38;
+      arr3.4s[4] = arr4.39;
+      arr3.4s[5] = arr4.40;
+      arr3.4s[6] = arr4.41;
+      arr3.4s[7] = arr4.42;
+      arr3.4s[8] = arr4.43;
+      arr3.4s[9] = arr4.44;
+      arr3.4s[10] = arr4.45;
+      arr3.4s[11] = arr4.46;
+      arr3.4s[12] = arr4.47;
+      arr3.4s[13] = arr4.48;
+      arr3.4s[14] = arr4.49;
+      arr3.4s[15] = arr4.50;
+      arr3.4s[i.5 : reg u64] = arr4.37;
+    }
+  }
+  arr1.7 := arr2.21;
+  arr1.8 := arr2.22;
+  arr1.9 := arr2.23;
+  arr1.10 := arr2.24;
+  arr1.11 := arr2.25;
+  arr1.12 := arr2.26;
+  arr1.13 := arr2.27;
+  arr1.14 := arr2.28;
+  arr1.15 := arr2.29;
+  arr1.16 := arr2.30;
+  arr1.17 := arr2.31;
+  arr1.18 := arr2.32;
+  arr1.19 := arr2.33;
+  arr1.20 := arr2.34;
+  arr3.4s[0] = arr4.35;
+  arr3.4s[1] = arr4.36;
+  arr3.4s[2] = arr4.37;
+  arr3.4s[3] = arr4.38;
+  arr3.4s[4] = arr4.39;
+  arr3.4s[5] = arr4.40;
+  arr3.4s[6] = arr4.41;
+  arr3.4s[7] = arr4.42;
+  arr3.4s[8] = arr4.43;
+  arr3.4s[9] = arr4.44;
+  arr3.4s[10] = arr4.45;
+  arr3.4s[11] = arr4.46;
+  arr3.4s[12] = arr4.47;
+  arr3.4s[13] = arr4.48;
+  arr3.4s[14] = arr4.49;
+  arr3.4s[15] = arr4.50;
+}
+
+
+total transformation time: REMOVED_TIME
+
+total time (with save/print): REMOVED_TIME

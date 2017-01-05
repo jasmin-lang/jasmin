@@ -1,0 +1,8 @@
+fn foo() -> stack u64 {
+  reg x, y : u64[n];
+
+  x[0], y[0] += x[0];
+/*
+ERROR: mismatch between return type and return statement
+*/
+}

@@ -1,0 +1,11 @@
+// same function name used twice
+
+fn foo(x : stack u64);
+
+fn foo(x : stack u64);
+
+/*
+START:CMD
+ARG="print[input]"
+END:CMD
+*/

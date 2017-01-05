@@ -1,0 +1,89 @@
+renumbering identifiers in all function(s)
+   REMOVED_TIME
+type checking module in all function(s)
+   REMOVED_TIME
+expanding macros in ``test'' function(s)
+   REMOVED_TIME
+expanding array assignments in ``test'' function(s)
+   REMOVED_TIME
+type checking module in all function(s)
+   REMOVED_TIME
+renumbering identifiers in all function(s)
+   REMOVED_TIME
+>> renum:
+extern fn test() {
+  arr1 : stack u64[14]
+  arr2 : stack u64[14]
+  arr3 : stack u64[16]
+  arr4 : stack u64[16]
+  cf : reg bool
+  while cf {
+    if cf {
+      arr1[0] := arr2[0];
+      arr1[1] := arr2[1];
+      arr1[2] := arr2[2];
+      arr1[3] := arr2[3];
+      arr1[4] := arr2[4];
+      arr1[5] := arr2[5];
+      arr1[6] := arr2[6];
+      arr1[7] := arr2[7];
+      arr1[8] := arr2[8];
+      arr1[9] := arr2[9];
+      arr1[10] := arr2[10];
+      arr1[11] := arr2[11];
+      arr1[12] := arr2[12];
+      arr1[13] := arr2[13];
+      arr3[0] = arr4[0];
+      arr3[1] = arr4[1];
+      arr3[2] = arr4[2];
+      arr3[3] = arr4[3];
+      arr3[4] = arr4[4];
+      arr3[5] = arr4[5];
+      arr3[6] = arr4[6];
+      arr3[7] = arr4[7];
+      arr3[8] = arr4[8];
+      arr3[9] = arr4[9];
+      arr3[10] = arr4[10];
+      arr3[11] = arr4[11];
+      arr3[12] = arr4[12];
+      arr3[13] = arr4[13];
+      arr3[14] = arr4[14];
+      arr3[15] = arr4[15];
+    }
+  }
+  arr1[0] := arr2[0];
+  arr1[1] := arr2[1];
+  arr1[2] := arr2[2];
+  arr1[3] := arr2[3];
+  arr1[4] := arr2[4];
+  arr1[5] := arr2[5];
+  arr1[6] := arr2[6];
+  arr1[7] := arr2[7];
+  arr1[8] := arr2[8];
+  arr1[9] := arr2[9];
+  arr1[10] := arr2[10];
+  arr1[11] := arr2[11];
+  arr1[12] := arr2[12];
+  arr1[13] := arr2[13];
+  arr3[0] = arr4[0];
+  arr3[1] = arr4[1];
+  arr3[2] = arr4[2];
+  arr3[3] = arr4[3];
+  arr3[4] = arr4[4];
+  arr3[5] = arr4[5];
+  arr3[6] = arr4[6];
+  arr3[7] = arr4[7];
+  arr3[8] = arr4[8];
+  arr3[9] = arr4[9];
+  arr3[10] = arr4[10];
+  arr3[11] = arr4[11];
+  arr3[12] = arr4[12];
+  arr3[13] = arr4[13];
+  arr3[14] = arr4[14];
+  arr3[15] = arr4[15];
+}
+
+
+total transformation time: REMOVED_TIME
+
+total time (with save/print): REMOVED_TIME

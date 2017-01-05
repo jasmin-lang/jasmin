@@ -1,0 +1,10 @@
+fn foo(x : stack u64) {
+  x : stack u64;
+}
+
+/*
+START:CMD
+ARG="print[input]"
+END:CMD
+*/
+

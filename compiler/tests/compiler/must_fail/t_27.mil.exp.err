@@ -1,0 +1,6 @@
+tests/compiler/must_fail/t_27.mil:4:8: 4:9 error: type mismatch (got bool, expected u64)
+  x += y;
+       ^^
+tests/compiler/must_fail/t_27.mil:3:29: 3:30 error: <-- declared here
+extern fn test(x : reg u64, y : reg bool) -> reg u64 {
+                            ^^

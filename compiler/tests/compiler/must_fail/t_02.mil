@@ -1,0 +1,7 @@
+extern fn test() = python print_newline;
+
+/*
+START:CMD
+ARG="print[input]"
+END:CMD
+*/

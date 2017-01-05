@@ -1,0 +1,110 @@
+{
+  open IL_Parser
+
+  exception Error of string
+
+  let unterminated_comment () =
+    raise (Error "unterminated comment")
+}
+
+let blank = [' ' '\t' '\r' '\n']
+let newline = '\n'
+
+rule lex = parse
+  | blank+  { lex lexbuf }
+  | "/*"    { comment lexbuf; lex lexbuf }
+  | "//"    { line_comment lexbuf; lex lexbuf }
+  | eof     { EOF }
+
+  | "["     { LBRACK }
+  | "]"     { RBRACK }
+  | "{"     { LCBRACE }
+  | "}"     { RCBRACE }
+  | "("     { LPAREN }
+  | ")"     { RPAREN }
+
+  | "->"    { LARROW }
+
+  | ":"     { COLON }
+
+  | "u8"    { T_U8  }
+  | "u16"   { T_U16  }
+  | "u32"   { T_U32  }
+  | "u64"   { T_U64  }
+  | "u128"  { T_U128 }
+  | "u256"  { T_U256 }
+  | "bool"  { T_BOOL }
+
+  | "_"     { UNDERSCORE }
+
+  | "="     { EQ }
+  | "!="    { INEQ }
+  | "+="    { PLUSEQ }
+  | "*="    { MULEQ }
+  | "-="    { MINUSEQ }
+  | "&="    { BANDEQ }
+  | "<="    { LEQ }
+  | "<"     { LESS }
+  | ">="    { GEQ }
+  | ">"     { GREATER }
+  | ".."    { DOTDOT }
+  | ","     { COMMA }
+  | ">>="   { SHREQ }
+  | "<<="   { SHLEQ }
+  | "^="    { XOREQ }
+  | "|="    { OREQ }
+
+  | "-"     { MINUS }
+  | "*"     { STAR }
+  | "+"     { PLUS }
+  | "&"     { BAND }
+  | "&&"    { LAND }
+  | "||"    { LOR }
+  | ";"     { SEMICOLON }
+  | "!"     { EXCL }
+  | "true"  { TRUE }
+  | "false" { FALSE }
+  | ">>"    { SHR }
+  | "<<"    { SHL }
+  | "^"     { XOR }
+  | "|"     { OR }
+  | "$"     { DOLLAR }
+
+  | "reg"    { REG }
+  | "stack"  { STACK }
+  | "inline" { INLINE }
+  | "param"  { PARAM }
+  | "MEM"    { MEM }
+
+  | "for"              { FOR }
+  | "while"            { WHILE }
+  | "do"               { DO }
+  | "in"               { IN }
+  | "if"               { IF }
+  | "else"             { ELSE }
+  | "else" blank+ "if" { ELIF }
+  | "extern"           { EXTERN }
+  | "fn"               { FN }
+  | "python"           { PYTHON }
+  | "return"           { RETURN }
+
+  | ('-'? ['0'-'9']+) as s { INT(s) }
+  | ("0x" ['0'-'9' 'a'-'f' '_']+) as s { INT(s) }
+
+  | (['a'-'z' '_']['a'-'z' 'A'-'Z' '_' '0'-'9']* as s)
+    '.' ((['0'-'9']+) as si)
+    { NID(s,si) }
+
+  | ['a'-'z' '_']['a'-'z' 'A'-'Z' '_' '0'-'9']* as s
+    { NID(s,"") }
+
+and comment = parse
+  | "*/"        { () }
+  | "/*"        { comment lexbuf; comment lexbuf }
+  | newline     { Lexing.new_line lexbuf; comment lexbuf }
+  | eof         { unterminated_comment () }
+  | _           { comment lexbuf }
+
+and line_comment = parse
+  | newline { () }
+  | _       { line_comment lexbuf }

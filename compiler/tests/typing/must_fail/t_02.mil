@@ -1,0 +1,17 @@
+param n : u64;
+
+fn foo() -> stack u64 {
+  reg u : u64;
+  u = 0;
+  return u;
+}
+
+extern fn bar() -> stack u64[n*2] {
+  reg u : u64[n*2];
+
+  u = foo();
+  return u;
+/*
+ERROR: 12:4 error: type mismatch (got u64[n * 2], expected u64)
+*/
+}

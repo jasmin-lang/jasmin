@@ -1,0 +1,20 @@
+>> renum:
+param n : u64;
+
+extern fn test() {
+  i : inline u64
+  x : stack u64[(n : u64)]
+  (x : stack u64[(n : u64)])[0] = 0;
+  for (i : inline u64) in 0..$(n : u64) {
+    if ((($(n : u64) = 10) && ($(n : u64) = 10)) || true) {
+      (x : stack u64[(n : u64)])[$(n : u64) - 1] += 1;
+    } else {
+      (x : stack u64[(n : u64)])[$(n : u64) - 1] += 1;
+    }
+  }
+}
+
+
+total transformation time: REMOVED_TIME
+
+total time (with save/print): REMOVED_TIME

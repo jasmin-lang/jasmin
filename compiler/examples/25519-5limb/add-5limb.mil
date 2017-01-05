@@ -1,0 +1,16 @@
+extern fn add(zp, xp, yp) {
+
+  for i in 0 .. n {
+    r[i] = *( xp + i*8);
+  }
+
+  for i in 0 .. n {
+    y[i] = * (yp + i*8);
+    r[i] += y[i];
+  }
+
+  for i in 0 ..n {
+    *(zp + i*8) = r[i];
+  }
+
+}

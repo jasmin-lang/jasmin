@@ -1,0 +1,24 @@
+opam-version: "1.2"
+name: "dmasm"
+version: "0.1"
+maintainer: "Benedikt Schmidt <beschmi@gmail.com>"
+authors: [ "Benedikt Schmidt <beschmi@gmail.com>" ]
+homepage: ""
+bug-reports: ""
+license: ""
+build: [
+  [make]
+]
+install: [make "install"]
+remove: [make "uninstall"]
+depends: [
+  "ocamlfind"
+  "ocamlgraph"
+  "core"
+  "ctypes"
+  "ctypes-foreign"
+  "menhir"
+  "mparser"
+  "ounit"
+  "ppx_jane"
+]

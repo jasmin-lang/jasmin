@@ -1,0 +1,3 @@
+tests/compiler/must_fail/t_31.mil:6:3: 6:9 error: live variable ?.4 not defined in all required branches
+  if cf {
+  ^^^^^^^

@@ -1,0 +1,8 @@
+extern fn bar() {
+  reg v, u : u64;
+
+  v = u[0];
+/*
+ERROR: register has type u64, cannot access array element
+*/
+}

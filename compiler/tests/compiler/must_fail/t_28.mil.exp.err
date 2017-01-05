@@ -1,0 +1,6 @@
+tests/compiler/must_fail/t_28.mil:7:8: 7:9 error: type mismatch (got u64[4], expected u64)
+  x += y;       // this is the problem
+       ^^
+tests/compiler/must_fail/t_28.mil:3:29: 3:30 error: <-- declared here
+extern fn test(x : reg u64, y : reg u64[4]) -> reg u64 {
+                            ^^

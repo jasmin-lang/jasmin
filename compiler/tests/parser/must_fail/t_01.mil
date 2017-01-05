@@ -1,0 +1,8 @@
+fn foo() {
+  reg x : u64[n];
+
+  x[0], x[0], y += x[0];
+/*
+ERROR: invalid args for add/sub
+*/
+}
