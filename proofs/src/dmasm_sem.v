@@ -233,8 +233,8 @@ Definition sem_sop2 (o:sop2) :=
   | Oneq => sem_op2_ib (fun x y => negb (Z.eqb x y))
   | Olt  => sem_op2_ib Z.ltb
   | Ole  => sem_op2_ib Z.leb
-  | Ogt  => sem_op2_ib (fun x y => Z.ltb y x)
-  | Oge  => sem_op2_ib (fun x y => Z.leb y x)
+  | Ogt  => sem_op2_ib Z.gtb
+  | Oge  => sem_op2_ib Z.geb
   end.
 
 Record estate := Estate {
@@ -278,6 +278,10 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   end.
 
 Definition sem_pexprs s := mapM (sem_pexpr s).
+
+
+
+
 
 Inductive vval : Type :=
  | Vnone : vval
@@ -449,7 +453,7 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     sem_pexpr s1 e >>= to_bool = ok true ->
     sem s1 c s2 ->
     sem_i s2 (Cwhile e c) s3 ->
-    sem_i s2 (Cwhile e c) s3
+    sem_i s1 (Cwhile e c) s3
 
 | Ewhile_false s e c :
     sem_pexpr s e >>= to_bool = ok false ->
@@ -490,6 +494,8 @@ with sem_call : mem -> fundef -> seq value -> mem -> seq value -> Prop :=
     sem_call m1 f vargs m2 vres.
 
 (* -------------------------------------------------------------------- *)
+
+
 Scheme sem_Ind := Minimality for sem Sort Prop
 with   sem_i_Ind := Minimality for sem_i Sort Prop
 with   sem_I_Ind := Minimality for sem_I Sort Prop
