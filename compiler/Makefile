@@ -71,6 +71,9 @@ test-arith:
 	gcc -DTEST c_src/arith.c -o t_arith
 	./t_arith
 
+test-curve25519-rust: jasminc
+	./jasminc.native ../examples/curve25519/src/scalarmult.rs
+
 %.inferred.mli:
 	ocamlbuild $(OCAMLBUILDFLAGS) src/$@ && cat _build/src/$@
 

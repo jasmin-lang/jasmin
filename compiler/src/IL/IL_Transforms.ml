@@ -22,6 +22,7 @@ type pprint_opt = {
   pp_info  : bool;
   pp_num   : bool;
   pp_types : bool;
+  pp_rust  : bool;
 }
 
 let mk_pprint_opt ofn = {
@@ -29,6 +30,7 @@ let mk_pprint_opt ofn = {
   pp_info  = false;
   pp_num   = false;
   pp_types = false;
+  pp_rust  = false;
 }
 
 type cert = NonCert | Cert
@@ -102,6 +104,7 @@ let ptrafo =
   let pprint_opt =
     choice
       [ (string "info" >>$ `Info)
+      ; (string "rust" >>$ `Rust)
       ; (string "num" >>$ `Num)
       ; (string "types" >>$ `Types)
       ; (string "fun=" >> ident >>= fun s -> return (`Fun (Fname.mk s)))
@@ -113,6 +116,7 @@ let ptrafo =
       ~f:(fun ppo opt ->
             match opt with
             | `Info   -> { ppo with pp_info  = true }
+            | `Rust   -> { ppo with pp_rust  = true }
             | `Num    -> { ppo with pp_num   = true }
             | `Types  -> { ppo with pp_types = true }
             | `Fun fn -> { ppo with pp_fname = Some(fn) })
@@ -262,7 +266,12 @@ let apply_transform trafos (modul0 : unit modul) =
     let save fn ppo m =
       let m = map_module m { f = fun m -> filter_fn m ppo.pp_fname } in
       let go m pp = Out_channel.write_all fn ~data:(fsprintf "%a" pp m) in
-      let ppm ppi = pp_modul ?pp_info:ppi ~pp_types:ppo.pp_types in
+      let ppm ppi =
+        if ppo.pp_rust then
+          ILR_Pprint.pp_modul ?pp_info:ppi ~pp_types:ppo.pp_types
+        else
+          pp_modul ?pp_info:ppi ~pp_types:ppo.pp_types
+      in
       match m, ppo.pp_info with
       | Um m, true  -> go m (ppm (Some(pp_info_u)))
       | Um m, false -> go m (ppm None)
@@ -271,8 +280,14 @@ let apply_transform trafos (modul0 : unit modul) =
     in
     let print n ppo m =
       let m = map_module m { f = fun m -> filter_fn m ppo.pp_fname } in
+      let ppm ppi =
+        if ppo.pp_rust then
+          ILR_Pprint.pp_modul ?pp_info:ppi ~pp_types:ppo.pp_types
+        else
+          ILR_Pprint.pp_modul ?pp_info:ppi ~pp_types:ppo.pp_types
+      in
       let go m ppi =
-        F.printf ">> %s:@\n%a@\n@\n" n (pp_modul ?pp_info:ppi ~pp_types:ppo.pp_types) m
+        F.printf ">> %s:@\n%a@\n@\n" n (ppm ppi) m
       in
       match m, ppo.pp_info with
       | Um m, true  -> go m (Some(pp_info_u))

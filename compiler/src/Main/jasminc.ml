@@ -44,6 +44,12 @@ let process_mil trafo print_result out_file file s (modul : 'info modul) =
 
 let jasminc trafo print_result out_file file =
   match Filename.split_extension file with
+  | _, Some "rs" ->
+    parse_and_process
+      ~parse:ILP.modul_rust
+      ~ftype:"MIL"
+      ~process:(process_mil trafo print_result out_file file)
+      file
   | _, Some "mil" ->
     parse_and_process
       ~parse:ILP.modul
