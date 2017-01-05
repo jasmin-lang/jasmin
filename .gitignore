@@ -16,6 +16,7 @@ _build
 *.run.err
 *.pyc
 *.native
+.DS_Store
 
 target
 
