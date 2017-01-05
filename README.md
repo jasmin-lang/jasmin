@@ -19,6 +19,7 @@ This repository contains the following subdirectories:
    - `$ make`
 2. Compile and test compiler
    - `$ cd compiler`
+   - `$ make`
    - `$ ./scripts/run_tests.py`
 3. Compile and test rust support library:
    - `$ cd rust-lib`
