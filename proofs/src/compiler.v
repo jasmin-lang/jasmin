@@ -26,6 +26,8 @@ Fixpoint unroll (n:nat) (p:prog) :=
     else unroll n p'
   end.
 
+Definition unroll_loop (p:prog) := unroll Loop.nb p.
+
 Section COMPILER.
 
 (*Variable expand: forall ta tr, fundef ta tr -> fundef ta tr.
