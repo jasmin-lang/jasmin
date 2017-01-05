@@ -204,9 +204,10 @@ let pp_base_instr ~pp_types fmt bi =
   | Comment(s)      -> F.fprintf fmt "/* %s */" s
   (* | Load(d,s,pe)    -> F.fprintf fmt "%a = MEM[%a + %a];" ppd d pps s ppe pe *)
   (* | Store(s1,pe,s2) -> F.fprintf fmt "MEM[%a + %a] = %a;" pps s1 ppe pe pps s2 *)
-  | Assgn(d1,s1,Mv) -> F.fprintf fmt "%a = %a;" ppd d1 pps s1
-  | Assgn(d1,s1,Eq) -> F.fprintf fmt "%a := %a;" ppd d1 pps s1
-  | Op(o,ds,ss)     -> F.fprintf fmt "%a;" ppo (o,ds,ss)
+  | Assgn(d1,s1,Mv)  -> F.fprintf fmt "%a = %a;" ppd d1 pps s1
+  | Assgn(d1,s1,Eq)  -> F.fprintf fmt "%a := %a;" ppd d1 pps s1
+  | Assgn(d1,s1,Inl) -> F.fprintf fmt "%a <- %a;" ppd d1 pps s1
+  | Op(o,ds,ss)      -> F.fprintf fmt "%a;" ppo (o,ds,ss)
   | Call(fn,[],args) ->
     F.fprintf fmt "%a(%a);" Fname.pp fn (pp_list "," pps) args
   | Call(fn,dest,args) ->

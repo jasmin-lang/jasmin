@@ -251,8 +251,9 @@ type while_type =
   [@@deriving compare,sexp]
 
 type assgn_type =
-  | Mv (* compile to move *)
-  | Eq (* use as equality constraint in reg-alloc and compile to no-op *)
+  | Mv  (* compile to move *)
+  | Eq  (* use as equality constraint in reg-alloc and compile to no-op *)
+  | Inl (* result of unfolding loops, must be inlined in next pass *)
   [@@deriving compare,sexp]
 
 type base_instr =

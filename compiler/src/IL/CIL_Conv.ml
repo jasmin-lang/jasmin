@@ -452,13 +452,14 @@ let op_of_sopn top =
  * ------------------------------------------------------------------------ *)
 
 let atag_of_assgn_type = function
-  | Mv -> DE.AT_keep
-  | Eq -> DE.AT_rename
+  | Mv  -> DE.AT_keep
+  | Eq  -> DE.AT_rename
+  | Inl -> DE.AT_inline
 
 let assgn_type_of_atag = function
   | DE.AT_keep   -> Mv
   | DE.AT_rename -> Eq
-  | _            -> assert false
+  | DE.AT_inline -> Inl
 
 let rec cinstr_of_base_instr cvi lbi =
   let k = CVI.add_iloc cvi lbi.L.l_loc in
@@ -636,10 +637,8 @@ let fundef_of_cfundef cvi cfd =
     f_ret       = res;
   }
 
-
-
-(* inline all function call in given function fname *)
-let inline_calls_modul _fname modul =
+(* inline all function calls in the given module *)
+let apply_cert_transform _fname modul ~f =
   let modul = IL_Iter.sort_call_graph modul in
   let cvi = CVI.mk () in
   (* F.printf "calling inlining\n%!"; *)
@@ -657,21 +656,7 @@ let inline_calls_modul _fname modul =
   let prog = clist_of_list cfds in
 
   (* F.printf "Coq before:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog; *)
-  let rename_fd fd =
-    (* F.printf "called rename fundef: %i!\n%!" (List.length @@ list_of_clist fd.DE.f_body); *)
-    fd
-  in
-  let _expand_fd fd =
-    (* F.printf "called expand fundef: %i!\n%!" (List.length @@ list_of_clist fd.DE.f_body); *)
-    fd
-  in
-  let _alloc_fd fd =
-    (* F.printf "called alloc fundef: %i!\n%!" (List.length @@ list_of_clist fd.DE.f_body); *)
-    fd
-  in
-
-  (* let prog = match Compiler.compile_prog rename_fd expand_fd alloc_fd prog with *)
-  let prog = match Inlining.inline_prog rename_fd prog with
+  let prog = match f prog with
     | DU.Ok(cfuns) -> cfuns
     | DU.Error(e)  -> failwith_ "compile failed with %a" pp_fun_error e
   in
@@ -683,3 +668,30 @@ let inline_calls_modul _fname modul =
       nf_func = Native(fundef_of_cfundef cvi cfd) }
   in
   List.map ~f:conv_cfd @@ List.rev @@ list_of_clist prog
+
+(* inline all function calls in the given module *)
+let inline_calls_modul fname modul =
+  let rename_fd fd =
+    (* F.printf "called rename fundef: %i!\n%!" (List.length @@ list_of_clist fd.DE.f_body); *)
+    fd
+  in
+  apply_cert_transform fname modul ~f:(Inlining.inline_prog rename_fd)
+
+(* unroll all loops in the given module *)
+let unroll_loops_modul fname modul =
+  let macro_expand prog =
+    F.printf "Coq before unrolling:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog;
+    match Compiler.unroll_loop prog with
+    | DU.Error(e)  -> failwith_ "unrolling loops failed with %a" pp_fun_error e
+    | DU.Ok(prog) ->
+      F.printf "Coq after unrolling:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog;
+      let prog = Constant_prop.const_prop_prog prog in
+      F.printf "Coq after constant propagation:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog;
+      begin match Dead_code.dead_code_prog prog with
+      | DU.Error(e) -> failwith_ "dead-code elimination failed with %a" pp_fun_error e
+      | DU.Ok(prog) ->
+        F.printf "Coq after dead code elimination:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog;
+        DU.Ok(prog)
+      end
+  in
+  apply_cert_transform fname modul ~f:macro_expand
