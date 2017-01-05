@@ -1,5 +1,5 @@
-src/CIL/*.ml
-src/CIL/*.mli
+compiler/src/CIL/*.ml
+compiler/src/CIL/*.mli
 *.d
 *.o
 *.a
@@ -7,8 +7,17 @@ src/CIL/*.mli
 *.cmx[as]
 *.annot
 *.vo
+*.cache
 *.glob
 *.aux
+*.lock
+_build
+*.run.out
+*.run.err
+*.pyc
+*.native
+
+target
 
 Makefile.coq
 _CoqProject*
