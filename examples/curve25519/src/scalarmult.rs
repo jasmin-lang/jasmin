@@ -6,7 +6,7 @@ rust! {
   use jasmin::U64::*;
 }
 
-const rem_p: b64 = Jval { val: 38};
+const rem_p: b64 = jc!(38);
 
 // ** addition
 
@@ -32,7 +32,7 @@ pub fn fadd(mut x: reg! ([b64; 4]), ya: stack! ([b64; 4]))
             (cf, x[i]) = adc(x[i],y[i],cf);
         }
 
-        add0 = #0;
+        add0 = jc!(0);
         add1 = rem_p;
         when !cf { add1 = add0 };
 
@@ -48,7 +48,7 @@ pub fn fadd(mut x: reg! ([b64; 4]), ya: stack! ([b64; 4]))
         x[0] = add_v(x[0],add0);
     }
 
-    return x;
+    return x
 }
 
 // ** subtraction
@@ -72,7 +72,7 @@ pub fn fsub(mut x: reg! ([b64; 4]), ya: stack! ([b64; 4]))
             y[i] = ya[i];
             (cf, x[i]) = sbb(x[i],y[i],cf);
         }
-        sub0 = #0;
+        sub0 = jc!(0);
         sub1 = rem_p;
         when !cf { sub1 = sub0 };
 
@@ -122,12 +122,12 @@ fn freduce(z_in: reg! ([b64; 8])) -> reg! ([b64; 4]) {
             (h, l) = mul(rax,crem_p);
             (cf, z[i]) = add(z[i],l);
             if (i == 0) {
-                hprev = #0;
+                hprev = jc!(0);
                 hprev = adc_v(hprev,h,cf);
             } else {
                 h = adc_v(h,0,cf);
                 (cf,z[i]) = add(z[i],hprev);
-                hprev = #0;
+                hprev = jc!(0);
                 hprev = adc_v(hprev,h,cf);
             }
         }
@@ -139,7 +139,7 @@ fn freduce(z_in: reg! ([b64; 8])) -> reg! ([b64; 4]) {
             (cf, z[i]) = adc(z[i],0,cf);
         }
 
-        zero = #0;
+        zero = jc!(0);
         zero = adc_v(zero,0,cf);
 
         l = imul(zero,rem_p);
@@ -185,7 +185,7 @@ pub fn fmul(xa: stack! ([b64; 4]), ya: stack! ([b64; 4]))
                 z[1] = h;
             } else {
                 (cf, z[j]) = add(z[j],l);
-                z[j + 1]   = #0;
+                z[j + 1]   = jc!(0);
                 z[j + 1]   = adc_v(z[j + 1],h,cf);
             }
         }
@@ -197,24 +197,24 @@ pub fn fmul(xa: stack! ([b64; 4]), ya: stack! ([b64; 4]))
                 (h, l) = mul(y[j],x[i]);
                 (cf, z[i+j]) = add(z[i+j],l);
                 if (j == 0) {
-                    hprev = #0;
+                    hprev = jc!(0);
                     hprev = adc_v(hprev,h,cf);
                 } else {
                     h = adc_v(h,0,cf);
                     (cf, z[i+j]) = add(z[i+j],hprev);
                     if (1 <= j && j < 4 - 1) {
-                        hprev = #0;
+                        hprev = jc!(0);
                         hprev = adc_v(hprev,h,cf);
                     } else { /* j = 4 */
-                        z[i + j + 1] = #0;
+                        z[i + j + 1] = jc!(0);
                         z[i + j + 1] = adc_v(z[i + j + 1],h,cf);
                     }
                 }
             }
         }
+        r = freduce(z);
     }
 
-    r = freduce(z);
 
     return r
 }
@@ -237,7 +237,7 @@ pub fn fsquare(xa: stack! ([b64; 4])) -> reg! ([b64; 4]) {
     }
 
     code! {
-        z[7] = #0;
+        z[7] = jc!(0);
 
         /*   2*x01 + 2*x02 + 2*x03 + 2*x12 + 2*x13 + 2*x23
              + x00 + x11 + x22 + x33 */
@@ -373,8 +373,16 @@ pub fn ladderstep(mut x1p: stack! ([b64; 4]),
         c121666p: stack! ([b64; 4]);
     }
 
+    rust! {
+        c121666p = [jc!(0); 4];
+    }
+
     code! {
-        c121666p = [121666, 0, 0, 0];
+        //c121666p = [121666, 0, 0, 0];
+        c121666p[0] = jc!(121666);
+        c121666p[1] = jc!(0);
+        c121666p[2] = jc!(0);
+        c121666p[3] = jc!(0);
 
         // workp mapping: 0 -> x1p, 1 -> x2p, 2 -> z2p, 3 -> x3p, 4 -> z3p
         t1  = x2p;
@@ -491,7 +499,7 @@ pub fn mula(x: stack! ([b64; 4]), y: stack! ([b64; 4])) -> stack! ([b64; 4]) {
         r = fmul(x,y);
         ra = r;
     }
-    return ra;
+    return ra
 }
 
 pub fn finvert(xa: stack! ([b64; 4])) -> stack! ([b64; 4]) {
@@ -582,20 +590,30 @@ pub fn mladder(xr: stack! ([b64; 4]), sp: stack! ([b64; 4]))
         cf:      reg!   (b1);
     }
 
-    code! {
-        prevbit = #0;
-        x1 = xr;
-        x2 = [1, 0, 0, 0];
-        z2 = [0, 0, 0, 0];
-        x3 = xr;
-        z3 = [1, 0, 0, 0];
+    rust! {
+        x2 = [jc!(0); 4]; // FIXME
+        z2 = [jc!(0); 4]; // FIXME
+        z3 = [jc!(0); 4]; // FIXME
+    }
 
-        i = #3;
+    code! {
+        prevbit = jc!(0);
+        x1 = xr;
+        //x2 = [1, 0, 0, 0];
+        for i in (0..4) { x2[i] = jc!(0); }
+
+        //z2 = [0, 0, 0, 0];
+        for i in (0..4) { z2[i] = jc!(0); }
+        x3 = xr;
+        //z3 = [1, 0, 0, 0];
+        for i in (0..4) { z3[i] = jc!(0); }
+
+        i = jc!(3);
         do {
             tmp1 = sp[i]; // FIXME: better syntax
             i_s = i; // probably need the register
             s = tmp1;
-            j = #63;
+            j = jc!(63);
             do {
                 tmp2 = s;
                 bit = shr(tmp2,j);
@@ -624,7 +642,7 @@ pub fn mladder(xr: stack! ([b64; 4]), sp: stack! ([b64; 4]))
 
 pub fn unpack_point(mut p: reg! ([b64; 4])) -> stack! ([b64; 4]) {
     var! {
-        pa : stack! ([b64; 4])
+        pa : stack! ([b64; 4]);
     }
 
     code! {
@@ -639,7 +657,7 @@ pub fn unpack_point(mut p: reg! ([b64; 4])) -> stack! ([b64; 4]) {
 
 pub fn unpack_secret(mut s: reg! ([b64; 4])) -> stack! ([b64; 4]) {
     var! {
-        sa : stack! ([b64; 4])
+        sa : stack! ([b64; 4]);
     }
 
     code! {
@@ -664,7 +682,7 @@ pub fn freeze(mut xa: reg! ([b64; 4])) -> reg! ([b64; 4]) {
     code! {
         r = xa;
         t = r;
-        two63 = #1;
+        two63 = jc!(1);
         two63 = shl(two63,63);
         (cf, t[0]) = add(t[0],19);
         (cf, t[1]) = adc(t[1],0,cf);
@@ -722,7 +740,7 @@ pub fn scalarmult(s : reg! ([b64; 4]), /* secret scalar */
 
 pub fn scalarmult_ext(mut rp : reg! (b64), /* address for result */
                           sp : reg! (b64), /* address of scalar  */
-                          pp : reg! (b64), /* address of point   */) {
+                          pp : reg! (b64)  /* address of point   */) {
     var! {
         p: stack! ([b64; 4]);
         s: stack! ([b64; 4]);

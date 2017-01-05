@@ -180,20 +180,20 @@ pub mod jasmin {
             __j_internal!{ $($rest)* }
         };
         // standard assignment: v = ..
-        ( $v0: ident = # $v1: expr ; $($rest:tt)* ) => {
-            $v0 = $v1.to_jval();
-            __j_internal!{ $($rest)* }
-        };
+        //( $v0: ident = # $v1: expr ; $($rest:tt)* ) => {
+        //    $v0 = $v1.to_jval();
+        //    __j_internal!{ $($rest)* }
+        //};
         // standard assignment: v = ..
         ( $v0: ident = $e: expr ; $($rest:tt)* ) => {
             $v0 = $e;
             __j_internal!{ $($rest)* }
         };
         // standard assignment: v = ..
-        ( $v0: ident [ $e0: expr ] = # $v1: expr ; $($rest:tt)* ) => {
-            $v0[$e0] = $v1.to_jval();
-            __j_internal!{ $($rest)* }
-        };
+        //( $v0: ident [ $e0: expr ] = # $v1: expr ; $($rest:tt)* ) => {
+        //    $v0[$e0] = $v1.to_jval();
+        //    __j_internal!{ $($rest)* }
+        //};
 
         // standard assignment: a[..] = ..
         ( $v0: ident [ $e0: expr ] = $v1: expr ; $($rest:tt)* ) => {
@@ -287,7 +287,7 @@ pub mod jasmin {
     }
 
     #[macro_export]
-    macro_rules! jconst {
+    macro_rules! jc {
         ( $e: expr ) => {
             Jval { val: $e }
         }

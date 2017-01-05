@@ -175,9 +175,9 @@ mod tests {
             let mut z3__;
             
             code! {
-                s = #0;
+                s = jc!(0);
                 (x2_,z2_,x3_,z3_)     = cswap(x2,z2,x3,z3,s);
-                s = #1;
+                s = jc!(1);
                 (x3__,z3__,x2__,z2__) = cswap(x2,z2,x3,z3,s);
             }
             assert_eq!(x2,x2_);
@@ -245,9 +245,9 @@ mod tests {
                 p12 = [0; 4];
                 p2  = [0; 4];
                 p21 = [0; 4];
-                p_p = #0*4*8;
-                s_p = #1*4*8;
-                r_p = #2*4*8;
+                p_p = jc!(0*4*8);
+                s_p = jc!(1*4*8);
+                r_p = jc!(2*4*8);
 
                 // s2*(s1*P)
                 for i in (0..4) {
