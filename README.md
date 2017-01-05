@@ -9,8 +9,8 @@ This repository contains the following subdirectories:
 
 # Dependencies
 
-Rust nightly (tested with rustup)
-Coq, ssreflect, Ocaml (tested with opam)
+- Rust nightly (tested with rustup)
+- Coq, ssreflect, Ocaml (tested with opam)
 
 # Testing
 
