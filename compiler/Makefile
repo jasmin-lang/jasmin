@@ -72,7 +72,7 @@ test-arith:
 	./t_arith
 
 test-curve25519-rust: jasminc
-	./jasminc.native ../examples/curve25519/src/scalarmult.rs
+	./jasminc.native ../examples/curve25519/src/scalarmult.rs -t "typecheck,print[original][rust]"
 
 %.inferred.mli:
 	ocamlbuild $(OCAMLBUILDFLAGS) src/$@ && cat _build/src/$@

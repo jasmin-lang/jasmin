@@ -27,13 +27,14 @@ rule lex = parse
 
   | ":"     { COLON }
 
-  | "b8"    { T_U8  }
+  | "b8"    { T_U8   }
   | "b16"   { T_U16  }
   | "b32"   { T_U32  }
   | "b64"   { T_U64  }
   | "b128"  { T_U128 }
   | "b256"  { T_U256 }
   | "b1"    { T_BOOL }
+  | "uint"  { T_INT  }
 
   | "_"     { UNDERSCORE }
 
@@ -73,7 +74,7 @@ rule lex = parse
 
   | "reg!"   { REG }
   | "stack!" { STACK }
-  | "inline" { INLINE }
+  | "inline!" { INLINE }
   | "param"  { PARAM }
   | "const"  { CONST }
   | "MEM"    { MEM }

@@ -32,7 +32,7 @@ module L = ParserUtil.Lexing
 %token LARROW
 %token DOLLAR
 
-%token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256
+%token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
 %token T_BOOL
 
 %token UNDERSCORE
@@ -322,6 +322,8 @@ utype :
 typ :
 | ut = utype
   { Bty(U(ut)) }
+| T_INT
+  { Bty(Int) }
 | LBRACK ut=utype SEMICOLON d=dexpr RBRACK
   { Arr(U(ut),d) }
 | T_BOOL
