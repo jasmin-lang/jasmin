@@ -13,10 +13,10 @@ const rem_p: b64 = Jval { val: 38};
 pub fn fadd(mut x: reg! ([b64; 4]), ya: stack! ([b64; 4]))
   -> reg! ([b64; 4]) {
     var! {
-        y:    reg! ([b64; 4]),
-        cf:   reg! (b1),
-        add0: reg! (b64),
-        add1: reg! (b64)
+        y:    reg! ([b64; 4]);
+        cf:   reg! (b1);
+        add0: reg! (b64);
+        add1: reg! (b64);
     }
 
     rust! {
@@ -57,10 +57,10 @@ pub fn fsub(mut x: reg! ([b64; 4]), ya: stack! ([b64; 4]))
   -> reg! ([b64; 4]) {
 
     var! {
-        y    : reg! ([b64; 4]),
-        sub0 : reg! (b64),
-        sub1 : reg! (b64),
-        cf   : reg! (b1),
+        y    : reg! ([b64; 4]);
+        sub0 : reg! (b64);
+        sub1 : reg! (b64);
+        cf   : reg! (b1);
     }
 
     rust! { y = [0.to_jval(); 4]; }
@@ -95,15 +95,15 @@ pub fn fsub(mut x: reg! ([b64; 4]), ya: stack! ([b64; 4]))
 
 fn freduce(z_in: reg! ([b64; 8])) -> reg! ([b64; 4]) {
     var! {
-        crem_p: reg! (b64),
-        rax:    reg! (b64),
-        l:      reg! (b64),
-        h:      reg! (b64),
-        hprev:  reg! (b64),
-        zero:   reg! (b64),
-        z:      reg! ([b64; 8]),
-        z_out:  reg! ([b64; 4]),
-        cf:     reg! (b1)
+        crem_p: reg! (b64);
+        rax:    reg! (b64);
+        l:      reg! (b64);
+        h:      reg! (b64);
+        hprev:  reg! (b64);
+        zero:   reg! (b64);
+        z:      reg! ([b64; 8]);
+        z_out:  reg! ([b64; 4]);
+        cf:     reg! (b1);
     }
 
     rust! {
@@ -157,14 +157,14 @@ pub fn fmul(xa: stack! ([b64; 4]), ya: stack! ([b64; 4]))
   -> reg! ([b64; 4]) {
 
     var! {
-        z     : reg! ([b64; 8]),
-        r     : reg! ([b64; 4]),
-        x     : reg! ([b64; 4]),
-        y     : reg! ([b64; 4]),
-        h     : reg! (b64),
-        l     : reg! (b64),
-        hprev : reg! (b64),
-        cf    : reg! (b1)
+        z     : reg! ([b64; 8]);
+        r     : reg! ([b64; 4]);
+        x     : reg! ([b64; 4]);
+        y     : reg! ([b64; 4]);
+        h     : reg! (b64);
+        l     : reg! (b64);
+        hprev : reg! (b64);
+        cf    : reg! (b1);
     }
 
     rust! {
@@ -223,12 +223,12 @@ pub fn fmul(xa: stack! ([b64; 4]), ya: stack! ([b64; 4]))
 
 pub fn fsquare(xa: stack! ([b64; 4])) -> reg! ([b64; 4]) {
     var! {
-        z:   reg! ([b64; 8]),
-        r:   reg! ([b64; 4]),
-        t:   reg! ([b64; 5]),
-        rax: reg! (b64),
-        rdx: reg! (b64),
-        cf:  reg! (b1)
+        z:   reg! ([b64; 8]);
+        r:   reg! ([b64; 4]);
+        t:   reg! ([b64; 5]);
+        rax: reg! (b64);
+        rdx: reg! (b64);
+        cf:  reg! (b1);
     }
 
     rust! {
@@ -343,34 +343,34 @@ pub fn ladderstep(mut x1p: stack! ([b64; 4]),
         stack! ([b64; 4]),stack! ([b64; 4])) {
 
     var! {
-        t1: reg! ([b64; 4]),
-        t2: reg! ([b64; 4]),
-        t7: reg! ([b64; 4]),
-        t6: reg! ([b64; 4]),
-        t5: reg! ([b64; 4]),
-        t3: reg! ([b64; 4]),
-        t4: reg! ([b64; 4]),
-        t9: reg! ([b64; 4]),
-        t8: reg! ([b64; 4]),
+        t1: reg! ([b64; 4]);
+        t2: reg! ([b64; 4]);
+        t7: reg! ([b64; 4]);
+        t6: reg! ([b64; 4]);
+        t5: reg! ([b64; 4]);
+        t3: reg! ([b64; 4]);
+        t4: reg! ([b64; 4]);
+        t9: reg! ([b64; 4]);
+        t8: reg! ([b64; 4]);
 
-        t1p: stack! ([b64; 4]),
-        t2p: stack! ([b64; 4]),
-        t7p: stack! ([b64; 4]),
-        t6p: stack! ([b64; 4]),
-        t5p: stack! ([b64; 4]),
-        t3p: stack! ([b64; 4]),
-        t4p: stack! ([b64; 4]),
-        t9p: stack! ([b64; 4]),
+        t1p: stack! ([b64; 4]);
+        t2p: stack! ([b64; 4]);
+        t7p: stack! ([b64; 4]);
+        t6p: stack! ([b64; 4]);
+        t5p: stack! ([b64; 4]);
+        t3p: stack! ([b64; 4]);
+        t4p: stack! ([b64; 4]);
+        t9p: stack! ([b64; 4]);
 
-        w1: reg! ([b64; 4]),
-        w2: reg! ([b64; 4]),
-        w3: reg! ([b64; 4]),
-        w4: reg! ([b64; 4]),
-        w5: reg! ([b64; 4]),
-        w6: reg! ([b64; 4]),
-        w7: reg! ([b64; 4]),
+        w1: reg! ([b64; 4]);
+        w2: reg! ([b64; 4]);
+        w3: reg! ([b64; 4]);
+        w4: reg! ([b64; 4]);
+        w5: reg! ([b64; 4]);
+        w6: reg! ([b64; 4]);
+        w7: reg! ([b64; 4]);
 
-        c121666p: stack! ([b64; 4])
+        c121666p: stack! ([b64; 4]);
     }
 
     code! {
@@ -434,9 +434,9 @@ pub fn cswap(mut x2p: stack! ([b64; 4]),
     -> (stack! ([b64; 4]),stack! ([b64; 4]),stack! ([b64; 4]),stack! ([b64;4])) {
 
     var! {
-        tmp1: reg! (b64),
-        tmp2: reg! (b64),
-        mask: reg! (b64),
+        tmp1: reg! (b64);
+        tmp2: reg! (b64);
+        mask: reg! (b64);
     }
 
     code! {
@@ -471,8 +471,8 @@ pub fn cswap(mut x2p: stack! ([b64; 4]),
 
 pub fn squarea(x: stack! ([b64; 4])) -> stack! ([b64;4]) {
     var! {
-        r  : reg!   ([b64; 4]),
-        ra : stack! ([b64; 4])
+        r  : reg!   ([b64; 4]);
+        ra : stack! ([b64; 4]);
     }
     
     code! {
@@ -484,8 +484,8 @@ pub fn squarea(x: stack! ([b64; 4])) -> stack! ([b64;4]) {
 
 pub fn mula(x: stack! ([b64; 4]), y: stack! ([b64; 4])) -> stack! ([b64; 4]) {
     var! {
-        r  : reg!   ([b64; 4]),
-        ra : stack! ([b64; 4])
+        r  : reg!   ([b64; 4]);
+        ra : stack! ([b64; 4]);
     }
     code! {
         r = fmul(x,y);
@@ -496,16 +496,16 @@ pub fn mula(x: stack! ([b64; 4]), y: stack! ([b64; 4])) -> stack! ([b64; 4]) {
 
 pub fn finvert(xa: stack! ([b64; 4])) -> stack! ([b64; 4]) {
     var! {
-        ra:       stack! ([b64; 4]),
-        z2:       stack! ([b64; 4]),
-        t:        stack! ([b64; 4]),
-        z9:       stack! ([b64; 4]),
-        z11:      stack! ([b64; 4]),
-        z2_5_0:   stack! ([b64; 4]),
-        z2_10_0:  stack! ([b64; 4]),
-        z2_20_0:  stack! ([b64; 4]),
-        z2_50_0:  stack! ([b64; 4]),
-        z2_100_0: stack! ([b64; 4])
+        ra:       stack! ([b64; 4]);
+        z2:       stack! ([b64; 4]);
+        t:        stack! ([b64; 4]);
+        z9:       stack! ([b64; 4]);
+        z11:      stack! ([b64; 4]);
+        z2_5_0:   stack! ([b64; 4]);
+        z2_10_0:  stack! ([b64; 4]);
+        z2_20_0:  stack! ([b64; 4]);
+        z2_50_0:  stack! ([b64; 4]);
+        z2_100_0: stack! ([b64; 4]);
     }
     
     code! {
@@ -563,23 +563,23 @@ pub fn mladder(xr: stack! ([b64; 4]), sp: stack! ([b64; 4]))
   -> (stack! ([b64; 4]), stack! ([b64; 4])) {
 
     var! {
-        s:       stack! (b64),
-        tmp1:    reg!   (b64),
-        tmp2:    reg!   (b64),
-        bit:     reg!   (b64),
-        swap:    reg!   (b64),
-        prevbit: stack! (b64),
-        x1:      stack! ([b64; 4]),
-        x2:      stack! ([b64; 4]),
-        z2:      stack! ([b64; 4]),
-        x3:      stack! ([b64; 4]),
-        z3:      stack! ([b64; 4]),
-        i:       reg!   (b64),
-        j:       reg!   (b64),
-        i_s:     stack! (b64),
-        j_s:     stack! (b64),
-        _a:      stack! ([b64; 4]),
-        cf:      reg!   (b1)
+        s:       stack! (b64);
+        tmp1:    reg!   (b64);
+        tmp2:    reg!   (b64);
+        bit:     reg!   (b64);
+        swap:    reg!   (b64);
+        prevbit: stack! (b64);
+        x1:      stack! ([b64; 4]);
+        x2:      stack! ([b64; 4]);
+        z2:      stack! ([b64; 4]);
+        x3:      stack! ([b64; 4]);
+        z3:      stack! ([b64; 4]);
+        i:       reg!   (b64);
+        j:       reg!   (b64);
+        i_s:     stack! (b64);
+        j_s:     stack! (b64);
+        _a:      stack! ([b64; 4]);
+        cf:      reg!   (b1);
     }
 
     code! {
@@ -655,10 +655,10 @@ pub fn unpack_secret(mut s: reg! ([b64; 4])) -> stack! ([b64; 4]) {
 
 pub fn freeze(mut xa: reg! ([b64; 4])) -> reg! ([b64; 4]) {
     var! {
-        r: reg! ([b64; 4]),
-        t: reg! ([b64; 4]),
-        two63 : reg! (b64),
-        cf    : reg! (b1)
+        r: reg! ([b64; 4]);
+        t: reg! ([b64; 4]);
+        two63 : reg! (b64);
+        cf    : reg! (b1);
     }
 
     code! {
@@ -700,11 +700,11 @@ pub fn scalarmult(s : reg! ([b64; 4]), /* secret scalar */
                   p : reg! ([b64; 4])  /* point         */)
   -> reg! ([b64; 4]) {
     var! {
-        sa:   stack! ([b64; 4]),
-        xa:   stack! ([b64; 4]),
-        za:   stack! ([b64; 4]),
-        zia:  stack! ([b64; 4]),
-        r:    reg!   ([b64; 4])
+        sa:   stack! ([b64; 4]);
+        xa:   stack! ([b64; 4]);
+        za:   stack! ([b64; 4]);
+        zia:  stack! ([b64; 4]);
+        r:    reg!   ([b64; 4]);
     }
 
     code! {
@@ -724,9 +724,9 @@ pub fn scalarmult_ext(mut rp : reg! (b64), /* address for result */
                           sp : reg! (b64), /* address of scalar  */
                           pp : reg! (b64), /* address of point   */) {
     var! {
-        p: stack! ([b64; 4]),
-        s: stack! ([b64; 4]),
-        r: reg!   ([b64; 4])
+        p: stack! ([b64; 4]);
+        s: stack! ([b64; 4]);
+        r: reg!   ([b64; 4]);
     }
     
     rust! {

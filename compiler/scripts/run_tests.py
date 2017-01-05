@@ -6,7 +6,7 @@ import sys
 
 verbose = True
 debug = False
-dmasm="./dmasm.native"
+jasminc="./jasminc.native"
 all_failed = []
 
 class bcolors:
@@ -53,7 +53,7 @@ def test(fname,get_error,cp):
     arg = extract_enclosed(fname,"CMD")
     arg_set = ";\n".join(arg)
     cmd = 'sh -c \'%s;\n%s -t "$ARG" %s 2>%s.run.err >%s.run.out\''%(
-             arg_set,dmasm,fname,fname,fname)
+             arg_set,jasminc,fname,fname,fname)
 
     # run and check error code
     if debug:
@@ -114,7 +114,7 @@ def test_ok(fname,cp=False):
 def run(fname):
     arg = extract_enclosed(fname,"CMD")
     arg_set = ";\n".join(arg)
-    cmd = 'time sh -c \'%s;\n%s -t "$ARG" %s\''%(arg_set,dmasm,fname)
+    cmd = 'time sh -c \'%s;\n%s -t "$ARG" %s\''%(arg_set,jasminc,fname)
     system(cmd)
 
 def print_sep():

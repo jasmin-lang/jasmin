@@ -2,7 +2,7 @@
 
 extern crate extprim;
 
-pub mod var;
+//pub mod var;
 
 use std::collections::HashMap;
 use std::cell::RefCell;
@@ -99,6 +99,19 @@ pub mod jasmin {
         }
     }
 
+    #[macro_export]
+    macro_rules! var {
+        () => {};
+        ($($name: ident : $t: ty);* $(;)*) => {
+            let ($(mut $name),* ,) : ($($t),* ,);
+        }
+        //    ($($bname: ident : $bt: ty);*; $name: ident, $($rest: tt)*) => {
+        //        var!{$($bname: $bt,)* $name: _; $($rest)*}
+        //    };
+        //    ($($bname: ident : $bt: ty);* ; $name: ident : $t: ty, $($rest: tt)*) => {
+        //        var!{$($bname: $bt,)* $name: $t; $($rest)*}
+        //    };
+    }
 
     #[macro_export]
     macro_rules! code {
@@ -268,6 +281,19 @@ pub mod jasmin {
     }
 
     #[macro_export]
+    macro_rules! jasmin {
+        ( $( $d: tt )* ) => {
+        }
+    }
+
+    #[macro_export]
+    macro_rules! jconst {
+        ( $e: expr ) => {
+            Jval { val: $e }
+        }
+    }
+
+    #[macro_export]
     macro_rules! reg {
         ( $( $d: tt )* ) => {
             $( $d )*
@@ -414,12 +440,14 @@ mod tests {
         #![allow(unused_assignments)]
         #![allow(unused_variables)]
 
-        let mut x    : stack! (b64);
-        let mut y    : reg! (b64);
-        let mut cf   : reg! (b1);
-        let mut _cf  : reg! (b1);
-        let mut arr1 : reg! ([b64; 10]);
-        let mut arr2 : reg! ([b64; 10]);
+        var! {
+            x    : stack! (b64);
+            y    : reg! (b64);
+            cf   : reg! (b1);
+            _cf  : reg! (b1);
+            arr1 : reg! ([b64; 10]);
+            arr2 : reg! ([b64; 10])
+        }
 
         code!{
             do {
@@ -467,8 +495,12 @@ mod tests {
 
     #[test]
     fn test_mem() {
-        let mut x    : stack! (b64);
-        let     p    : stack! (b64);
+        #![allow(unused_mut)]
+        
+        var! {
+            x    : stack! (b64);
+            p    : stack! (b64);
+        }
 
         println!("starting test");
         code!{

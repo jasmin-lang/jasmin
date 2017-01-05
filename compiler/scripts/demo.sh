@@ -2,8 +2,8 @@
 
 set -x
 
-#./dmasm.native -p -t "typecheck,inline[bar]" tests/compiler/ok/t_01.mil 
-#./dmasm.native -t \
+#./jasminc.native -p -t "typecheck,inline[bar]" tests/compiler/ok/t_01.mil 
+#./jasminc.native -t \
 #  "inline[ladderstep],print[test]" \
 #  examples/25519-4limb/ladderstep.mil
 
@@ -57,7 +57,7 @@ ARG="$ARG,interp[rem_p=38][][test][]"
 #ARG="$ARG,save[/tmp/unfold4.mil][$FUN]"
 #ARG="$ARG,typecheck"
 
-time ./dmasm.native -t "$ARG" examples/25519-4limb/ladderstep.mil
+time ./jasminc.native -t "$ARG" examples/25519-4limb/ladderstep.mil
 
 exit 0
 
@@ -69,7 +69,7 @@ exit 0
 #ARG="$ARG,array_expand[$FUN]"
 #ARG="$ARG,save[/tmp/unfold.mil][$FUN]"
 
-#./dmasm.native -t \
+#./jasminc.native -t \
 #  "$ARG" \
 #  tests/compiler/must_fail/t_01.mil # also t_02.mil
 
@@ -80,7 +80,7 @@ FUN="test"
 ARG="register_liveness[$FUN]"
 ARG="$ARG,save[/tmp/unfold.mil][$FUN]"
 
-#./dmasm.byte -t \
+#./jasminc.byte -t \
 #  "$ARG" \
 #  tests/compiler/ok/t_06.mil
 
@@ -93,7 +93,7 @@ ARG="$ARG,save[/tmp/unfold.mil][$FUN]"
 ARG="$ARG,typecheck,register_allocate[$FUN][15]"
 ARG="$ARG,save[/tmp/unfold2.mil][$FUN]"
 
-#./dmasm.native -t \
+#./jasminc.native -t \
 #  "$ARG" \
 #  tests/compiler/ok/t_07.mil
 
@@ -115,7 +115,7 @@ ARG="$ARG,save[/tmp/unfold.mil][$FUN]"
 ARG="$ARG,typecheck,register_allocate[$FUN][15]"
 ARG="$ARG,save[/tmp/unfold2.mil][$FUN]"
 
-#./dmasm.native -t \
+#./jasminc.native -t \
 #  "$ARG" \
 #  tests/compiler/ok/t_08.mil
 
@@ -138,7 +138,7 @@ ARG="$ARG,register_liveness[$FUN]"
 ARG="$ARG,typecheck,register_allocate[$FUN][15]"
 ARG="$ARG,save[/tmp/unfold2.mil][$FUN]"
 
-#./dmasm.native -t \
+#./jasminc.native -t \
 #  "$ARG" \
 #  tests/compiler/ok/t_09.mil
 
@@ -159,7 +159,7 @@ ARG="$ARG,save[/tmp/unfold.mil][$FUN]"
 ARG="$ARG,register_liveness[$FUN]"
 ARG="$ARG,save[/tmp/unfold2.mil][$FUN]"
 
-./dmasm.native -t \
+./jasminc.native -t \
   "$ARG" \
   tests/compiler/ok/t_10.mil
 
@@ -174,12 +174,12 @@ ARG="$ARG,save[/tmp/unfold2.mil][$FUN]"
 # ARG="$ARG,save[/tmp/a.mil][bar]"
 # #ARG="$ARG,interp[n=2][][test][]"
 
-# ./dmasm.native -t \
+# ./jasminc.native -t \
 #   "$ARG" \
 #   tests/compiler/ok/t_03.mil
 # cat /tmp/a.mil
 
-# #./dmasm.native -t \
+# #./jasminc.native -t \
 # #  "inline[scalarmult],expand[scalarmult][rem_p=38],save[test_unfold]" \
 # #  examples/25519-4limb/ladderstep.mil
 

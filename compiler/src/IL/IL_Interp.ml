@@ -485,11 +485,11 @@ let interp_modul
   let pst =
       F.printf "### starting python\n%!";
       let pst = start_py () in
-      F.printf "### loading dmasm_lib\n%!";
-      output_string pst.py_cout "from dmasm_lib import *\n";
+      F.printf "### loading jasmin_lib\n%!";
+      output_string pst.py_cout "from jasmin_lib import *\n";
       flush pst.py_cout;
       let _ = eval_py_ pst "confirm_started()\n"  in
-      F.printf "\n### dmasm_lib loaded\n%!";
+      F.printf "\n### jasmin_lib loaded\n%!";
       pst
   in
   let ms =

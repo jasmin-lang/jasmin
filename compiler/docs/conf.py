@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# dmasm documentation build configuration file.
+# jasmin documentation build configuration file.
 #
 # This file is execfile()d with the current directory set to its
 # containing dir.
@@ -54,9 +54,9 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'dmasm'
-copyright = u'2016, Dmasm Developers'
-author = u'Dmasm Developers'
+project = u'jasmin'
+copyright = u'2016, Jasmin Developers'
+author = u'Jasmin Developers'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -92,7 +92,7 @@ todo_include_todos = True
 #html_theme = 'sphinx_rtd_theme'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'dmasmdoc'
+htmlhelp_basename = 'jasmindoc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -103,7 +103,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  (master_doc, 'dmasm.tex', u'Dmasm Documentation',
+  (master_doc, 'jasmin.tex', u'Jasmin Documentation',
    author, 'manual'),
 ]
 
@@ -113,7 +113,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'dmasm', u'Dmasm Documentation',
+    (master_doc, 'jasmin', u'Jasmin Documentation',
      [author], 1)
 ]
 
@@ -124,8 +124,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  (master_doc, 'Dmasm', u'Dmasm Documentation',
-   author, 'Dmasm', 'One line description of project.',
+  (master_doc, 'Jasmin', u'Jasmin Documentation',
+   author, 'Jasmin', 'One line description of project.',
    'Miscellaneous'),
 ]
 

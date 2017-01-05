@@ -1,5 +1,5 @@
 /*
-(* * Parser for dmasm *) */
+(* * Parser for jasmin/standalone *) */
 /*
 (* ** Header *) */
 %{

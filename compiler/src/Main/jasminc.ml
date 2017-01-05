@@ -42,7 +42,7 @@ let process_mil trafo print_result out_file file s (modul : 'info modul) =
     then F.eprintf "%a@\n%!" (ILPP.pp_modul ?pp_info:None ~pp_types:false) modul
     else F.eprintf "Processed file %s@\n%!" file
 
-let dmasm trafo print_result out_file file =
+let jasminc trafo print_result out_file file =
   match Filename.split_extension file with
   | _, Some "mil" ->
     parse_and_process
@@ -95,7 +95,7 @@ let command =
     ~summary:"Compiler from MIL to assembly."
     ~readme:(fun () ->
       String.concat ~sep:"\n"
-       [ "The dmasm tool transforms the given (.mil|.s) file.";
+       [ "The jasmin compiler transforms the given (.mil|.s) file.";
          "";
          "Transformations are given as comma-separated lists of";
          "transformation passes from the following list:";
@@ -114,7 +114,7 @@ let command =
        )
     spec
     (fun trafo print_result out_file filename () ->
-       dmasm trafo print_result out_file filename)
+       jasminc trafo print_result out_file filename)
 
 let () =
   Command.run ~version:"1.0" ~build_info:"none" command

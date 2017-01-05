@@ -4,9 +4,9 @@ renumbering identifiers in all function(s)
    REMOVED_TIME
 interpreting in ``test'' function(s)
 ### starting python
-### loading dmasm_lib
+### loading jasmin_lib
 
-### dmasm_lib loaded
+### jasmin_lib loaded
    REMOVED_TIME
 
 total transformation time: REMOVED_TIME

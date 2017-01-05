@@ -1,4 +1,4 @@
-;;; dmasm-mode.el --- A major emacs mode for editing DMASM source code -*-lexical-binding: t-*-
+;;; jasmin-mode.el --- A major emacs mode for editing DMASM source code -*-lexical-binding: t-*-
 
 ;; Derived from Rust mode (see below):
 ;; Version: 0.2.0
@@ -117,7 +117,7 @@
   (save-excursion (backward-char) (and (= ?! (char-after)) (rust-looking-back-ident))))
 
 ;; Syntax definitions and helpers
-(defvar dmasm-mode-syntax-table
+(defvar jasmin-mode-syntax-table
   (let ((table (make-syntax-table)))
 
     ;; Operators
@@ -141,50 +141,50 @@
 
     table))
 
-(defgroup dmasm-mode nil
-  "Support for DMASM code."
+(defgroup jasmin-mode nil
+  "Support for Jasmin code."
   :link '(url-link "http://www.rust-lang.org/")
   :group 'languages)
 
 (defcustom rust-indent-offset 2
-  "Indent DMASM code by this number of spaces."
+  "Indent Jasmin code by this number of spaces."
   :type 'integer
-  :group 'dmasm-mode
+  :group 'jasmin-mode
   :safe #'integerp)
 
 (defcustom rust-indent-method-chain nil
-  "Indent DMASM method chains, aligned by the '.' operators"
+  "Indent Jasmin method chains, aligned by the '.' operators"
   :type 'boolean
-  :group 'dmasm-mode
+  :group 'jasmin-mode
   :safe #'booleanp)
 
 (defcustom rust-indent-where-clause t
   "Indent the line starting with the where keyword following a
 function or trait.  When nil, where will be aligned with fn or trait."
   :type 'boolean
-  :group 'dmasm-mode
+  :group 'jasmin-mode
   :safe #'booleanp)
 
 (defcustom rust-playpen-url-format "https://play.rust-lang.org/?code=%s"
   "Format string to use when submitting code to the playpen"
   :type 'string
-  :group 'dmasm-mode)
+  :group 'jasmin-mode)
 (defcustom rust-shortener-url-format "http://is.gd/create.php?format=simple&url=%s"
   "Format string to use for creating the shortened link of a playpen submission"
   :type 'string
-  :group 'dmasm-mode)
+  :group 'jasmin-mode)
 
 (defcustom rust-match-angle-brackets t
   "Enable angle bracket matching.  Attempt to match `<' and `>' where
   appropriate."
   :type 'boolean
   :safe #'booleanp
-  :group 'dmasm-mode)
+  :group 'jasmin-mode)
 
 (defface rust-unsafe-face
   '((t :inherit font-lock-warning-face))
   "Face for the `unsafe' keyword."
-  :group 'dmasm-mode)
+  :group 'jasmin-mode)
 
 (defun rust-paren-level () (nth 0 (syntax-ppss)))
 (defun rust-in-str-or-cmnt () (nth 8 (syntax-ppss)))
@@ -294,7 +294,7 @@ function or trait.  When nil, where will be aligned with fn or trait."
          ;; foo.bar
          (t (funcall skip-dot-identifier)))))))
 
-(defun dmasm-mode-indent-line ()
+(defun jasmin-mode-indent-line ()
   (interactive)
   (let ((indent
          (save-excursion
@@ -480,7 +480,7 @@ function or trait.  When nil, where will be aligned with fn or trait."
 
 
 ;; Font-locking definitions and helpers
-(defconst dmasm-mode-keywords
+(defconst jasmin-mode-keywords
   '("as"
     "box" "break"
     "const" "continue" "crate"
@@ -529,11 +529,11 @@ function or trait.  When nil, where will be aligned with fn or trait."
   (concat "\\_<" (regexp-opt words t) "\\_>"))
 (defconst rust-re-special-types (regexp-opt-symbols rust-special-types))
 
-(defvar dmasm-mode-font-lock-keywords
+(defvar jasmin-mode-font-lock-keywords
   (append
    `(
      ;; Keywords proper
-     (,(regexp-opt-symbols dmasm-mode-keywords) . font-lock-keyword-face)
+     (,(regexp-opt-symbols jasmin-mode-keywords) . font-lock-keyword-face)
 
      ;; Special types
      (,(regexp-opt-symbols rust-special-types) . font-lock-type-face)
@@ -940,7 +940,7 @@ function or trait.  When nil, where will be aligned with fn or trait."
 
        ;; If we are looking back at a keyword, it's an angle bracket
        ;; unless that keyword is "self", "true" or "false"
-       ((rust-looking-back-symbols dmasm-mode-keywords)
+       ((rust-looking-back-symbols jasmin-mode-keywords)
         (rust-looking-back-symbols '("self" "true" "false")))
 
        ;; If we're looking back at an identifier, this depends on whether
@@ -1012,14 +1012,14 @@ function or trait.  When nil, where will be aligned with fn or trait."
            (backward-up-list)
            (not (looking-at "<"))))))))))
 
-(defvar dmasm-mode-font-lock-syntactic-keywords
+(defvar jasmin-mode-font-lock-syntactic-keywords
   (append
    ;; Handle raw strings and character literals:
    `((rust-look-for-non-standard-string (1 "|" nil t) (4 "_" nil t) (5 "|" nil t) (6 "|" nil t) (7 "\"" nil t) (8 "\"" nil t)))
    ;; Find where < and > characters represent operators rather than angle brackets:
    '((rust-look-for-non-angle-bracket-lt-gt (0 "." t)))))
 
-(defun dmasm-mode-syntactic-face-function (state)
+(defun jasmin-mode-syntactic-face-function (state)
   "Syntactic face function to distinguish doc comments from other comments."
   (if (nth 3 state) 'font-lock-string-face
     (save-excursion
@@ -1200,24 +1200,24 @@ This is written mainly to be used as `end-of-defun-function' for Rust."
     (goto-char (point-max))))
 
 ;; For compatibility with Emacs < 24, derive conditionally
-(defalias 'dmasm-parent-mode
+(defalias 'jasmin-parent-mode
   (if (fboundp 'prog-mode) 'prog-mode 'fundamental-mode))
 
 ;;;###autoload
-(define-derived-mode dmasm-mode dmasm-parent-mode "DMASM"
-  "Major mode for DMASM code."
-  :group 'dmasm-mode
-  :syntax-table dmasm-mode-syntax-table
+(define-derived-mode jasmin-mode jasmin-parent-mode "JASMIN"
+  "Major mode for JASMIN code."
+  :group 'jasmin-mode
+  :syntax-table jasmin-mode-syntax-table
 
   ;; Indentation
-  (setq-local indent-line-function 'dmasm-mode-indent-line)
+  (setq-local indent-line-function 'jasmin-mode-indent-line)
 
   ;; Fonts
   (add-to-list 'font-lock-extend-region-functions 'rust-font-lock-extend-region)
-  (setq-local font-lock-defaults '(dmasm-mode-font-lock-keywords
+  (setq-local font-lock-defaults '(jasmin-mode-font-lock-keywords
                                    nil nil nil nil
-                                   (font-lock-syntactic-keywords . dmasm-mode-font-lock-syntactic-keywords)
-                                   (font-lock-syntactic-face-function . dmasm-mode-syntactic-face-function)
+                                   (font-lock-syntactic-keywords . jasmin-mode-font-lock-syntactic-keywords)
+                                   (font-lock-syntactic-face-function . jasmin-mode-syntactic-face-function)
                                    ))
 
   ;; Misc
@@ -1246,13 +1246,13 @@ This is written mainly to be used as `end-of-defun-function' for Rust."
   )
 
 ;;;###autoload
-(add-to-list 'auto-mode-alist '("\\.mil\\'" . dmasm-mode))
+(add-to-list 'auto-mode-alist '("\\.mil\\'" . jasmin-mode))
 
-(defun dmasm-mode-reload ()
+(defun jasmin-mode-reload ()
   (interactive)
-  (unload-feature 'dmasm-mode)
-  (require 'dmasm-mode)
-  (dmasm-mode))
+  (unload-feature 'jasmin-mode)
+  (require 'jasmin-mode)
+  (jasmin-mode))
 
 ;; Issue #104: When reverting the buffer, make sure all fontification is redone
 ;; so that we don't end up missing a non-angle-bracket '<' or '>' character.
@@ -1298,6 +1298,6 @@ See `compilation-error-regexp-alist' for help on their format.")
                   (cons 'cargo cargo-compilation-regexps))
      (add-to-list 'compilation-error-regexp-alist 'cargo)))
 
-(provide 'dmasm-mode)
+(provide 'jasmin-mode)
 
-;;; dmasm-mode.el ends here
+;;; jasmin-mode.el ends here

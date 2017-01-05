@@ -379,7 +379,7 @@ def bytes_to_element(bytes):
   # or in the 2*L/4*L/8*L groups. Promote it to a correct-group Element.
   return Element(P.XYTZ)
 
-# * Functions callable from dmasm
+# * Functions callable from jasmin
 ###########################################################################
 
 def confirm_started():

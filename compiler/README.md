@@ -1,37 +1,37 @@
 Installing with OPAM
 ====================
 
-1. Switch to the dmasm directory.
+1. Switch to the jasmin directory.
 
-2. Create a new opam switch for dmasm and activate it:
+2. Create a new opam switch for jasmin and activate it:
 
 ```
-opam switch dmasm --alias-of 4.02.3
+opam switch jasmin --alias-of 4.02.3
 eval `opam config env`
 ```
 
 3. Install all dependecies using opam:
 
 ```
-opam pin add dmasm `pwd` -n
-opam install dmasm --deps-only
+opam pin add jasmin `pwd` -n
+opam install jasmin --deps-only
 ```
 
-4. Compile dmasm and test:
+4. Compile jasmin and test:
 
 ```
-make dmasm
+make jasmin
 ./scripts/run_tests.py
 ```
 
 Documentation
 =============
 
-To build the dmasm documentation, you need the `Sphinx documentation
+To build the jasmin documentation, you need the `Sphinx documentation
 generator <http://www.sphinx-doc.org/>`_::
 
     $ pip install sphinx==1.3.5 sphinx-autobuild
-    $ cd dmasm/docs
+    $ cd docs
     $ make html
     $ open _build/html/index.html
 

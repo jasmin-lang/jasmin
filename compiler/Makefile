@@ -20,20 +20,18 @@ OCAMLBUILDFLAGS= $(CFLAGS) $(COREFLAGS) $(FINDLIBFLAGS) $(MENHIRFLAGS)
 ###########################################################################
 # main targets
 
-.PHONY: all dmasm clean doc test-dmasm-assemble test-dmasm-reg \
+.PHONY: all jasminc clean doc \
   run_tests run-run_tests tests
 
-all: dmasm
+all: jasminc
 
 unit-tests: run-run_tests test-arith
 
-dmasm:
-	$(OCAMLBUILD) $(OCAMLBUILDFLAGS) src/Main/dmasm.native
+jasminc:
+	$(OCAMLBUILD) $(OCAMLBUILDFLAGS) src/Main/jasminc.native
 
 clean:
-	-@rm doc/dmasm.html
-	-@rm dmasm.native
-	-@rm run_tests.native
+	-@rm jasminc.native
 	$(OCAMLBUILD) -clean
 
 doc:
@@ -46,26 +44,10 @@ test-conv:
 	$(OCAMLBUILD) $(OCAMLBUILDFLAGS) src/Test/Tests_Conv.native
 	./Tests_Conv.native
 
-test-dmasm-reg: dmasm
-	./dmasm.native -p -t "register_allocate[10]" examples/test/register-alloc.mil
-
-test-dmasm-square: dmasm
-	./dmasm.native -p -t "expand[n=4],ssa,register_allocate[15],strip_comments,asm[x86-64]" examples/test/add_call.mil
-
-test-dmasm-add-call: dmasm
-	./dmasm.native -p -t "expand[n=3],ssa,strip_comments,register_allocate[15],asm[x86-64]" examples/test/add_call.mil
-
-demo: dmasm
+demo: jasmin
 	./scripts/demo.sh
 
-test-dmasm-typing: dmasm
-	./dmasm.native -p -t "typecheck" tests/typing/must_fail/t_01.mil
 
-test-dmasm-parser: dmasm
-	./dmasm.native -p -t "typecheck" tests/parser/ok/t_01.mil
-
-test-dmasm-interp: dmasm
-	./dmasm.native -t "interp[n=4][][test_fun][[2,3,4,5]]" tests/interp/ok/t_01.mil
 
 run_tests:
 	test -d _build/c_src || mkdir -p _build/c_src
@@ -82,7 +64,7 @@ run_tests:
 run-run_tests: run_tests
 	./run_tests.native
 
-tests: dmasm
+tests: jasminc
 	./scripts/run_tests.sh
 
 test-arith:

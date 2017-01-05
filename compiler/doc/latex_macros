@@ -1,2 +1,0 @@
-\newcommand{\ZZ}{\mathbb{Z}}
-\newcommand{\sem}[1]{[\![ #1 ]\!]}

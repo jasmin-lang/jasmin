@@ -1,4 +1,4 @@
-;;; flycheck-dmasm.el --- Flycheck: DMASM support    -*- lexical-binding: t; -*-
+;;; flycheck-jasmin.el --- Flycheck: Jasmin support    -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2016  Benedikt Schmidt <beschmi@gmail.com>
 
@@ -26,45 +26,45 @@
 
 ;;; Commentary:
 
-;; This Flycheck extension provides a syntax checker for the DMASM language to
-;; check DMASM buffers for errors.
+;; This Flycheck extension provides a syntax checker for the Jasmin language to
+;; check Jasmin buffers for errors.
 ;;
 ;; # Setup
 ;;
 ;; Add the following to your init file:
 ;;
 ;;    ;; Enable Flycheck checker
-;;    (flycheck-dmasm-setup))
+;;    (flycheck-jasmin-setup))
 ;;
 ;; # Usage
 ;;
-;; Just use Flycheck as usual in DMASM Mode buffers. Flycheck will
-;; automatically use the `dmasm` syntax checker if DMASM Mode is enabled.
+;; Just use Flycheck as usual in Jasmin Mode buffers. Flycheck will
+;; automatically use the `jasmin` syntax checker if Jasmin Mode is enabled.
 
 ;;; Code:
 
 (require 'flycheck)
 
-(flycheck-define-checker dmasm
-  "Flycheck DMASM files using the standard compiler."
-  :command ("dmasm" source)
+(flycheck-define-checker jasmin
+  "Flycheck Jasmin files using the standard compiler."
+  :command ("jasmin" source)
   :error-patterns
   ((error line-start
           (one-or-more (not (any ":"))) ":" line ":" column
           (message)
           line-end))
-  :modes dmasm-mode
+  :modes jasmin-mode
   :predicate (lambda () t))
 
 
 ;;;###autoload
-(defun flycheck-dmasm-setup ()
-  "Setup Flycheck DMASM.
+(defun flycheck-jasmin-setup ()
+  "Setup Flycheck Jasmin.
 
-Add `dmasm' to `flycheck-checkers'."
+Add `jasmin' to `flycheck-checkers'."
   (interactive)
-  (add-to-list 'flycheck-checkers 'dmasm))
+  (add-to-list 'flycheck-checkers 'jasmin))
 
-(provide 'flycheck-dmasm)
+(provide 'flycheck-jasmin)
 
-;;; flycheck-dmasm.el ends here
+;;; flycheck-jasmin.el ends here

@@ -195,13 +195,13 @@ mod tests {
     fn test_scalarmult() {
         let mut rng = ::rand::thread_rng();
         var! {
-            p    : [b64; 4],
-            s1   : [b64; 4],
-            s2   : [b64; 4],
-            p1   : [b64; 4],
-            p12  : [b64; 4],
-            p2   : [b64; 4],
-            p21  : [b64; 4]
+            p    : [b64; 4];
+            s1   : [b64; 4];
+            s2   : [b64; 4];
+            p1   : [b64; 4];
+            p12  : [b64; 4];
+            p2   : [b64; 4];
+            p21  : [b64; 4];
         }
         
         for _ in 0..1000 {
@@ -223,16 +223,16 @@ mod tests {
     fn test_scalarmult_ext() {
         let mut rng = ::rand::thread_rng();
         var! {
-            p_p  : b64,
-            s_p  : b64,
-            r_p  : b64,
-            p    : [b64; 4],
-            s1   : [b64; 4],
-            s2   : [b64; 4],
-            p1   : [b64; 4],
-            p12  : [b64; 4],
-            p2   : [b64; 4],
-            p21  : [b64; 4]
+            p_p  : b64;
+            s_p  : b64;
+            r_p  : b64;
+            p    : [b64; 4];
+            s1   : [b64; 4];
+            s2   : [b64; 4];
+            p1   : [b64; 4];
+            p12  : [b64; 4];
+            p2   : [b64; 4];
+            p21  : [b64; 4];
         }
         
         for _ in 0..1000 {

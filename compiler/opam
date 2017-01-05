@@ -1,5 +1,5 @@
 opam-version: "1.2"
-name: "dmasm"
+name: "jasmin"
 version: "0.1"
 maintainer: "Benedikt Schmidt <beschmi@gmail.com>"
 authors: [ "Benedikt Schmidt <beschmi@gmail.com>" ]
