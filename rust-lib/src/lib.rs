@@ -345,26 +345,26 @@ pub mod U64 {
     }
 
     // we use ToJval<u64> to allow for u64 constants
-    pub fn add_v<T1,T2>(x: T1, y: T2) -> b64
+    pub fn add<T1,T2>(x: T1, y: T2) -> b64
       where T1: ToJval<u64>,T2: ToJval<u64> {
         let (x,y) = (x.to_jval(), y.to_jval());
         jv(x.val.wrapping_add(y.val))
     }
 
-    pub fn add<T1,T2>(x: T1, y: T2) -> (b1,b64) 
+    pub fn add_cf<T1,T2>(x: T1, y: T2) -> (b1,b64) 
       where T1: ToJval<u64>,T2: ToJval<u64> {
         let (x,y) = (x.to_jval(), y.to_jval());
         let (r,cf) = x.val.overflowing_add(y.val);
         (jv(cf),jv(r))
     }
 
-    pub fn adc_v<T1,T2,T3>(x: T1, y: T2, cf: T3) -> b64
+    pub fn adc<T1,T2,T3>(x: T1, y: T2, cf: T3) -> b64
       where T1: ToJval<u64>,T2: ToJval<u64>, T3: ToJval<bool> {
         let (x,y,cf) = (x.to_jval(), y.to_jval(),cf.to_jval());
         jv(x.val.wrapping_add(y.val).wrapping_add(cf.val as u64))
     }
 
-    pub fn adc<T1,T2,T3>(x: T1, y: T2, cf: T3) -> (b1,b64)
+    pub fn adc_cf<T1,T2,T3>(x: T1, y: T2, cf: T3) -> (b1,b64)
       where T1: ToJval<u64>,T2: ToJval<u64>, T3: ToJval<bool> {
         let (x,y,cf) = (x.to_jval(), y.to_jval(),cf.to_jval());
         let (r,cf1) = x.val.overflowing_add(y.val);
@@ -373,13 +373,13 @@ pub mod U64 {
     }
 
 
-    pub fn sub_v<T1,T2>(x: T1, y: T2) -> b64
+    pub fn sub<T1,T2>(x: T1, y: T2) -> b64
       where T1: ToJval<u64>,T2: ToJval<u64> {
         let (x,y) = (x.to_jval(), y.to_jval());
         jv(x.val.wrapping_sub(y.val))
     }
 
-    pub fn sub<T1,T2>(x: T1, y: T2) -> (b1,b64)
+    pub fn sub_cf<T1,T2>(x: T1, y: T2) -> (b1,b64)
       where T1: ToJval<u64>,T2: ToJval<u64> {
         let (x,y) = (x.to_jval(), y.to_jval());
         let (r,cf) = x.val.overflowing_sub(y.val);
@@ -387,13 +387,13 @@ pub mod U64 {
     }
 
 
-    pub fn sbb_v<T1,T2,T3>(x: T1, y: T2, cf: T3) -> b64
+    pub fn sbb<T1,T2,T3>(x: T1, y: T2, cf: T3) -> b64
       where T1: ToJval<u64>,T2: ToJval<u64>, T3: ToJval<bool> {
         let (x,y,cf) = (x.to_jval(), y.to_jval(),cf.to_jval());
         jv(x.val.wrapping_sub(y.val).wrapping_sub(cf.val as u64))
     }
 
-    pub fn sbb<T1,T2,T3>(x: T1, y: T2, cf: T3) -> (b1,b64)
+    pub fn sbb_cf<T1,T2,T3>(x: T1, y: T2, cf: T3) -> (b1,b64)
       where T1: ToJval<u64>,T2: ToJval<u64>, T3: ToJval<bool> {
         let (x,y,cf) = (x.to_jval(),y.to_jval(),cf.to_jval());
         let (r,cf1) = x.val.overflowing_sub(y.val);
@@ -499,21 +499,21 @@ mod tests {
                 arr1[0] = jc!(0);
                 y  = x;
                 cf = cf.val.to_jval();
-                (cf,x)  = adc(x,y,cf);
-                when cf { x = adc_v(x,y,cf) };
-                when !cf { x = adc_v(x,y,false) };
-                (_cf,x) = adc(x,y,cf);
-                (cf,x)  = add(x,0);
-                (cf,y)  = adc(x,y,cf);
+                (cf,x)  = adc_cf(x,y,cf);
+                when cf { x = adc(x,y,cf) };
+                when !cf { x = adc(x,y,false) };
+                (_cf,x) = adc_cf(x,y,cf);
+                (cf,x)  = add_cf(x,0);
+                (cf,y)  = adc_cf(x,y,cf);
                 (x,y,cf,_cf) = (x,y,cf,_cf);
                 _cf  = cf;
                 cf = jc!(false);
             } while cf;
             do {
-                (cf,x)  = add(x,y);
-                (_cf,x) = adc(x,y,cf);
-                (cf,x)  = add(x,y);
-                (_cf,y) = adc(x,y,cf);
+                (cf,x)  = add_cf(x,y);
+                (_cf,x) = adc_cf(x,y,cf);
+                (cf,x)  = add_cf(x,y);
+                (_cf,y) = adc_cf(x,y,cf);
                 cf = jc!(true);
             } while !cf;
             

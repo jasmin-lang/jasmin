@@ -65,7 +65,7 @@ let jasminc trafo print_result out_file file =
           F.eprintf "File %s parsed successfully.\n\n%!" file)
       file
   | _, (None | Some _) ->
-    eprintf "Unsupported file extension, expected 'mil' or 's'.\n\n%!"
+    eprintf "Unsupported file extension, expected 'rs'.\n\n%!"
 
 (* --------------------------------------------------------------------- *)
 (* Command line interface *)

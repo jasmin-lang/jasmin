@@ -4,7 +4,7 @@
 (* ** Header *) */
 %{
 open IL_Lang
-open Core_kernel
+(* open Core_kernel *)
 open IL_ParseUtils
 open IL_Utils
 
@@ -22,12 +22,12 @@ module L = ParserUtil.Lexing
 %token EQ
 %token EQEQ
 %token INEQ
-%token PLUSEQ MINUSEQ BANDEQ MULEQ
+(* %token PLUSEQ MINUSEQ BANDEQ MULEQ *)
 %token LEQ
 %token LESS
 %token GREATER
 %token GEQ
-%token SHREQ SHLEQ XOREQ OREQ
+(* %token SHREQ SHLEQ XOREQ OREQ *)
 %token COLON
 %token LARROW
 %token DOLLAR
@@ -38,13 +38,13 @@ module L = ParserUtil.Lexing
 %token UNDERSCORE
 
 %token STAR
-%token BAND
+(* %token BAND *)
 %token MINUS
 %token PLUS
 %token LAND LOR
 %token SEMICOLON
 %token EXCL DOTDOT COMMA
-%token SHR SHL XOR OR
+(* %token SHR SHL XOR OR *)
 
 %token REG STACK INLINE CONST
 
@@ -205,6 +205,7 @@ pcond_or_fcond :
 (* ** Operators and assignments
  * -------------------------------------------------------------------- *)
 
+(*
 binop:
 | PLUS  { OpAdd }
 | MINUS { OpSub }
@@ -214,7 +215,9 @@ binop:
 | XOR   { OpXor }
 | STAR  { OpMul }
 | OR    { OpOr }
+*)
 
+(*
 opeq:
 | PLUSEQ  { OpAdd }
 | MINUSEQ { OpSub }
@@ -224,6 +227,7 @@ opeq:
 | XOREQ   { OpXor } 
 | OREQ    { OpOr } 
 | MULEQ   { OpMul }
+*)
 
 (* ** Base instructions
  * -------------------------------------------------------------------- *)
@@ -235,6 +239,7 @@ opeq:
 | s=src                      { `Assgn(s,Mv) }
 | JCEXCL LPAREN s=src RPAREN { `Assgn(s,Mv) }
 
+(*
 | s=src IF e=EXCL? cf=rdest
     { `Cmov(e<>None,s,cf) }
 
@@ -243,13 +248,15 @@ opeq:
 
 | s1=src op1=binop s2=src op2=binop s3=src
     { `TernOp(op1,op2,s1,s2,s3) }
-
+*)
 | fname=NID args=paren_tuple(src)
     { `Call(mk_fname fname, args) }
 
+(*
 %inline opeq_rhs:
 | s  = src                  { fun op d  -> `BinOp(op,src_of_dest d,s) }
 | s2 = src op2=binop s3=src { fun op1 d -> `TernOp(op1,op2,src_of_dest d,s2,s3) }
+*)
 
 %inline base_instr :
 | ds=tuple_nonempty(dest) EQ rhs=assgn_rhs_mv SEMICOLON
@@ -261,9 +268,11 @@ opeq:
 | ds=tuple_nonempty(dest) COLON EQ rhs=assgn_rhs_eq SEMICOLON
     { mk_instr ds rhs (L.mk_loc ($startpos,$endpos)) }
 
+(*
 | ds=tuple_nonempty(dest) op=opeq rhs=opeq_rhs SEMICOLON
     { let rhs = rhs op (Std.List.last_exn ds) in
       mk_instr ds rhs (L.mk_loc ($startpos,$endpos)) }
+*)
 
 (* ** Control instructions
  * -------------------------------------------------------------------- *)

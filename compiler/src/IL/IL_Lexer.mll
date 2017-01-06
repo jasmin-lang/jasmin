@@ -41,6 +41,7 @@ rule lex = parse
   | "="     { EQ }
   | "=="    { EQEQ }
   | "!="    { INEQ }
+  (*
   | "+="    { PLUSEQ }
   | "*="    { MULEQ }
   | "-="    { MINUSEQ }
@@ -48,28 +49,33 @@ rule lex = parse
   | "<="    { LEQ }
   | "<"     { LESS }
   | ">="    { GEQ }
+  *)
   | ">"     { GREATER }
   | ".."    { DOTDOT }
   | ","     { COMMA }
+  (*
   | ">>="   { SHREQ }
   | "<<="   { SHLEQ }
   | "^="    { XOREQ }
   | "|="    { OREQ }
+  *)
 
   | "-"     { MINUS }
   | "*"     { STAR }
   | "+"     { PLUS }
-  | "&"     { BAND }
+  (* | "&"     { BAND } *)
   | "&&"    { LAND }
   | "||"    { LOR }
   | ";"     { SEMICOLON }
   | "!"     { EXCL }
   | "true"  { TRUE }
   | "false" { FALSE }
+  (*
   | ">>"    { SHR }
   | "<<"    { SHL }
   | "^"     { XOR }
   | "|"     { OR }
+  *)
   | "$"     { DOLLAR }
 
   | "reg!"   { REG }

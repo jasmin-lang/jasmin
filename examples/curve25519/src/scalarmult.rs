@@ -26,11 +26,11 @@ pub fn fadd(mut x: reg! ([b64; 4]), ya: stack! ([b64; 4]))
 
     code!{
         y[0] = ya[0];
-        (cf, x[0]) = add(x[0],y[0]);
+        (cf, x[0]) = add_cf(x[0],y[0]);
 
         for i in (1..4) {
             y[i] = ya[i];
-            (cf, x[i]) = adc(x[i],y[i],cf);
+            (cf, x[i]) = adc_cf(x[i],y[i],cf);
         }
 
         add0 = jc!(0);
@@ -39,14 +39,14 @@ pub fn fadd(mut x: reg! ([b64; 4]), ya: stack! ([b64; 4]))
 
         for i in (0..4) {
             if (i == 0) {
-                (cf, x[0]) = add(x[0],add1);
+                (cf, x[0]) = add_cf(x[0],add1);
             } else {
-                (cf, x[i]) = adc(x[i],add0,cf);
+                (cf, x[i]) = adc_cf(x[i],add0,cf);
             }
         }
 
         when cf { add0 = add1 };
-        x[0] = add_v(x[0],add0);
+        x[0] = add(x[0],add0);
     }
 
     return x
@@ -69,10 +69,10 @@ pub fn fsub(mut x: reg! ([b64; 4]), ya: stack! ([b64; 4]))
 
     code! {
         y[0] = ya[0];
-        (cf, x[0]) = sub(x[0],y[0]);
+        (cf, x[0]) = sub_cf(x[0],y[0]);
         for i in (1..4) {
             y[i] = ya[i];
-            (cf, x[i]) = sbb(x[i],y[i],cf);
+            (cf, x[i]) = sbb_cf(x[i],y[i],cf);
         }
         sub0 = jc!(0);
         sub1 = rem_p;
@@ -80,14 +80,14 @@ pub fn fsub(mut x: reg! ([b64; 4]), ya: stack! ([b64; 4]))
 
         for i in (0..4) {
             if (i == 0) {
-                (cf, x[0]) = sub(x[0],sub1);
+                (cf, x[0]) = sub_cf(x[0],sub1);
             } else {
-                (cf,x[i]) = sbb(x[i],sub0,cf);
+                (cf,x[i]) = sbb_cf(x[i],sub0,cf);
             }
         }
 
         when cf { sub0 = sub1 };
-        x[0] = sub_v(x[0],sub0);
+        x[0] = sub(x[0],sub0);
     }
 
     return x
@@ -123,30 +123,30 @@ fn freduce(z_in: reg! ([b64; 8])) -> reg! ([b64; 4]) {
         for i in (0..4) {
             rax = z[4 + i];
             (h, l) = mul(rax,crem_p);
-            (cf, z[i]) = add(z[i],l);
+            (cf, z[i]) = add_cf(z[i],l);
             if (i == 0) {
                 hprev = jc!(0);
-                hprev = adc_v(hprev,h,cf);
+                hprev = adc(hprev,h,cf);
             } else {
-                h = adc_v(h,0,cf);
-                (cf,z[i]) = add(z[i],hprev);
+                h = adc(h,0,cf);
+                (cf,z[i]) = add_cf(z[i],hprev);
                 hprev = jc!(0);
-                hprev = adc_v(hprev,h,cf);
+                hprev = adc(hprev,h,cf);
             }
         }
         
         l = imul(hprev,rem_p);
-        (cf, z[0]) = add(z[0],l);
+        (cf, z[0]) = add_cf(z[0],l);
 
         for i in (1..4) {
-            (cf, z[i]) = adc(z[i],0,cf);
+            (cf, z[i]) = adc_cf(z[i],0,cf);
         }
 
         zero = jc!(0);
-        zero = adc_v(zero,0,cf);
+        zero = adc(zero,0,cf);
 
         l = imul(zero,rem_p);
-        z[0] = add_v(z[0],l);
+        z[0] = add(z[0],l);
 
         // FIXME: check if really required 
         for i in (0..4) { z_out[i] = z[i]; }
@@ -189,9 +189,9 @@ pub fn fmul(xa: stack! ([b64; 4]), ya: stack! ([b64; 4]))
                 z[0] = l;
                 z[1] = h;
             } else {
-                (cf, z[j]) = add(z[j],l);
+                (cf, z[j]) = add_cf(z[j],l);
                 z[j + 1]   = jc!(0);
-                z[j + 1]   = adc_v(z[j + 1],h,cf);
+                z[j + 1]   = adc(z[j + 1],h,cf);
             }
         }
         
@@ -200,19 +200,19 @@ pub fn fmul(xa: stack! ([b64; 4]), ya: stack! ([b64; 4]))
             for j in (0..4) {
                 y[j] = ya[j];
                 (h, l) = mul(y[j],x[i]);
-                (cf, z[i+j]) = add(z[i+j],l);
+                (cf, z[i+j]) = add_cf(z[i+j],l);
                 if (j == 0) {
                     hprev = jc!(0);
-                    hprev = adc_v(hprev,h,cf);
+                    hprev = adc(hprev,h,cf);
                 } else {
-                    h = adc_v(h,0,cf);
-                    (cf, z[i+j]) = add(z[i+j],hprev);
+                    h = adc(h,0,cf);
+                    (cf, z[i+j]) = add_cf(z[i+j],hprev);
                     if (1 <= j && j < 4 - 1) {
                         hprev = jc!(0);
-                        hprev = adc_v(hprev,h,cf);
+                        hprev = adc(hprev,h,cf);
                     } else { /* j = 4 */
                         z[i + j + 1] = jc!(0);
-                        z[i + j + 1] = adc_v(z[i + j + 1],h,cf);
+                        z[i + j + 1] = adc(z[i + j + 1],h,cf);
                     }
                 }
             }
@@ -267,25 +267,25 @@ pub fn fsquare(xa: stack! ([b64; 4])) -> reg! ([b64; 4]) {
 
         rax = xa[2];
         (rdx, rax) = mul(rax,xa[0]);
-        (cf, z[2]) = add(z[2],rax);
-        (cf, z[3]) = adc(z[3],rdx,cf);
-        z[4]       = adc_v(z[4],0,cf);
+        (cf, z[2]) = add_cf(z[2],rax);
+        (cf, z[3]) = adc_cf(z[3],rdx,cf);
+        z[4]       = adc(z[4],0,cf);
 
         rax = xa[3];
         (rdx, rax) = mul(rax,xa[1]);
-        (cf, z[4]) = add(z[4],rax);
-        (cf, z[5]) = adc(z[5],rdx,cf);
-             z[6]  = adc_v(z[6],0,cf);
+        (cf, z[4]) = add_cf(z[4],rax);
+        (cf, z[5]) = adc_cf(z[5],rdx,cf);
+             z[6]  = adc(z[6],0,cf);
 
         /*   [2*]x01 + [2*]x02 + 2*x03 + [2*]x12 + [2*]x13 + [2*]x23
              + x00 + x11 + x22 + x33 */
 
         rax = xa[3];
         (rdx, rax) = mul(rax,xa[0]);
-        (cf, z[3]) = add(z[3],rax);
-        (cf, z[4]) = adc(z[4],rdx,cf);
-        (cf, z[5]) = adc(z[5],0,cf);
-             z[6]  = adc_v(z[6],0,cf);
+        (cf, z[3]) = add_cf(z[3],rax);
+        (cf, z[4]) = adc_cf(z[4],rdx,cf);
+        (cf, z[5]) = adc_cf(z[5],0,cf);
+             z[6]  = adc(z[6],0,cf);
 
         /*   x01 + x02 + x03 + x12 + x13 + x23
              + x00 + x11 + x22 + x33 */
@@ -293,13 +293,13 @@ pub fn fsquare(xa: stack! ([b64; 4])) -> reg! ([b64; 4]) {
         /* set z<1..2n+1> = 2*z<1..2n+1> since
            we have summed all x_i*x_j with i<>j
            so far and these occur twice */
-        (cf, z[1]) = add(z[1],z[1]);
-        (cf, z[2]) = adc(z[2],z[2],cf);
-        (cf, z[3]) = adc(z[3],z[3],cf);
-        (cf, z[4]) = adc(z[4],z[4],cf);
-        (cf, z[5]) = adc(z[5],z[5],cf);
-        (cf, z[6]) = adc(z[6],z[6],cf);
-             z[7]  = adc_v(z[7],z[7],cf);
+        (cf, z[1]) = add_cf(z[1],z[1]);
+        (cf, z[2]) = adc_cf(z[2],z[2],cf);
+        (cf, z[3]) = adc_cf(z[3],z[3],cf);
+        (cf, z[4]) = adc_cf(z[4],z[4],cf);
+        (cf, z[5]) = adc_cf(z[5],z[5],cf);
+        (cf, z[6]) = adc_cf(z[6],z[6],cf);
+             z[7]  = adc(z[7],z[7],cf);
 
         /* x00 + x11 + x22 + x33 */
         
@@ -318,18 +318,18 @@ pub fn fsquare(xa: stack! ([b64; 4])) -> reg! ([b64; 4]) {
         t[3] = rax;
         t[4] = rdx;
 
-        (cf, z[1]) = add(z[1],t[0]);
-        (cf, z[2]) = adc(z[2],t[1],cf);
-        (cf, z[3]) = adc(z[3],t[2],cf);
-        (cf, z[4]) = adc(z[4],t[3],cf);
-        (cf, z[5]) = adc(z[5],t[4],cf);
-        (cf, z[6]) = adc(z[6],0,cf);
-             z[7]  = adc_v(z[7],0,cf);
+        (cf, z[1]) = add_cf(z[1],t[0]);
+        (cf, z[2]) = adc_cf(z[2],t[1],cf);
+        (cf, z[3]) = adc_cf(z[3],t[2],cf);
+        (cf, z[4]) = adc_cf(z[4],t[3],cf);
+        (cf, z[5]) = adc_cf(z[5],t[4],cf);
+        (cf, z[6]) = adc_cf(z[6],0,cf);
+             z[7]  = adc(z[7],0,cf);
 
         rax = xa[3];
         (rdx, rax) = mul(rax,xa[3]);
-        (cf, z[6]) = add(z[6],rax);
-             z[7]  = adc_v(z[7],rdx,cf);
+        (cf, z[6]) = add_cf(z[6],rax);
+             z[7]  = adc(z[7],rdx,cf);
 
         r = freduce(z);
     }
@@ -634,10 +634,10 @@ pub fn mladder(xr: stack! ([b64; 4]), sp: stack! ([b64; 4]))
                 (x2,z2,x3,z3) = cswap(x2,z2,x3,z3,swap);
                 (x2,z2,x3,z3) = ladderstep(x1,x2,z2,x3,z3);
                 j = j_s;
-                (cf,j) = sub(j,1); // returns cf=1 for input j=0
+                (cf,j) = sub_cf(j,1); // returns cf=1 for input j=0
             } while !cf;
             i = i_s;
-            (cf,i) = sub(i,1); // returns cf=1 for input i=0
+            (cf,i) = sub_cf(i,1); // returns cf=1 for input i=0
         } while !cf;
 
         swap = prevbit;
@@ -693,10 +693,10 @@ pub fn freeze(mut xa: reg! ([b64; 4])) -> reg! ([b64; 4]) {
         t = r;
         two63 = jc!(1);
         two63 = shl(two63,63);
-        (cf, t[0]) = add(t[0],19);
-        (cf, t[1]) = adc(t[1],0,cf);
-        (cf, t[2]) = adc(t[2],0,cf);
-        (cf, t[3]) = adc(t[3],two63,cf);
+        (cf, t[0]) = add_cf(t[0],19);
+        (cf, t[1]) = adc_cf(t[1],0,cf);
+        (cf, t[2]) = adc_cf(t[2],0,cf);
+        (cf, t[3]) = adc_cf(t[3],two63,cf);
         when cf { r[0] = t[0] };
         when cf { r[1] = t[1] };
         when cf { r[2] = t[2] };
@@ -705,10 +705,10 @@ pub fn freeze(mut xa: reg! ([b64; 4])) -> reg! ([b64; 4]) {
         t[1] = r[1];
         t[2] = r[2];
         t[3] = r[3];
-        (cf, t[0]) = add(t[0],19);
-        (cf, t[1]) = adc(t[1],0,cf);
-        (cf, t[2]) = adc(t[2],0,cf);
-        (cf, t[3]) = adc(t[3],two63,cf);
+        (cf, t[0]) = add_cf(t[0],19);
+        (cf, t[1]) = adc_cf(t[1],0,cf);
+        (cf, t[2]) = adc_cf(t[2],0,cf);
+        (cf, t[3]) = adc_cf(t[3],two63,cf);
         when cf { r[0] = t[0] };
         when cf { r[1] = t[1] };
         when cf { r[2] = t[2] };

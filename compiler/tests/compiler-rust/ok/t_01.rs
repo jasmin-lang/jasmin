@@ -48,7 +48,7 @@ pub fn foo4(_x: stack! (b64)) {
 // body only
 pub fn foo5(mut x: stack! (b64)) {
     code! {
-        x = add_v(x,x);
+        x = add(x,x);
     }
 }
 
@@ -67,7 +67,7 @@ fn foo7(mut x: stack! (b64)) {
     
     code! {
         y = jc!(0);  // jc!(n)
-        x = add_v(x,y);
+        x = add(x,y);
     }
 }
 
@@ -82,7 +82,7 @@ fn foo8(x : stack! (b64)) -> (stack! (b64),stack! (b64)) {
 // body + return
 fn foo9(mut x: stack! (b64)) -> stack! (b64) {
     code! {
-        x = add_v(x,x);
+        x = add(x,x);
     }
 
     return x
@@ -98,12 +98,12 @@ fn foo10(mut x: stack! (b64), y: stack! (b64), mut z: reg! (b1)) -> stack! (b64)
         w = x;
         (w,x,z) = foo1(x);
         x = jc!(5);
-        w = add_v(w,x);
+        w = add(w,x);
         if (w == jc!(5)) {
-            (z,x) = add(x,w);
-            (z,x) = add(x,y);
+            (z,x) = add_cf(x,w);
+            (z,x) = add_cf(x,y);
         }
-        x = adc_v(x,x,z);
+        x = adc(x,x,z);
     }
     return x
 }

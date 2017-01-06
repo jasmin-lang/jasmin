@@ -1,3 +1,16 @@
+type checking module in all function(s)
+   REMOVED_TIME
+
+running 1 test
+test test::test1 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured
+
 >> roundtrip:
 #![allow(non_upper_case_globals)]
 #![allow(dead_code)]
@@ -10,6 +23,7 @@
 rust! {
     use jasmin::jasmin::*;
     use jasmin::U64::*;
+    
 }
 
 rust! {
@@ -24,6 +38,15 @@ rust! {
     }
 }
 
+rust! {
+    fn foo1(x: stack! (b64)) -> (stack! (b64), reg! (b64), reg! (b1)) {
+        return (x,x,jc!(false));
+    }
+}
+
+const n : b64 = jc!(10);
+
+decl! { fn foo1(stack! (b64)) -> (stack! (b64),reg! (b64),reg! (b1)); }
 fn foo3(mut _x: stack! (b64)) {
 }
 
@@ -32,7 +55,7 @@ pub fn foo4(mut _x: stack! (b64)) {
 
 pub fn foo5(mut x: stack! (b64)) {
     code! {
-        x = add_v(x,x);
+        x = add(x,x);
     }
 }
 
@@ -46,7 +69,7 @@ fn foo7(mut x: stack! (b64)) {
     }
     code! {
         y = jc!(0);
-        x = add_v(x,y);
+        x = add(x,y);
     }
 }
 
@@ -56,7 +79,7 @@ fn foo8(mut x: stack! (b64)) -> (stack! (b64),stack! (b64)) {
 
 fn foo9(mut x: stack! (b64)) -> stack! (b64) {
     code! {
-        x = add_v(x,x);
+        x = add(x,x);
     }
     return x
 }
@@ -67,13 +90,14 @@ fn foo10(mut x: stack! (b64), mut y: stack! (b64), mut z: reg! (b1)) -> stack! (
     }
     code! {
         w = x;
+        (w,x,z) = foo1(x);
         x = jc!(5);
-        w = add_v(w,x);
+        w = add(w,x);
         if (w == jc!(5)) {
-            (z,x) = add(x,w);
-            (z,x) = add(x,y);
+            (z,x) = add_cf(x,w);
+            (z,x) = add_cf(x,y);
         }
-        x = adc_v(x,x,z);
+        x = adc(x,x,z);
     }
     return x
 }
