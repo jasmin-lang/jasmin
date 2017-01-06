@@ -17,6 +17,7 @@ _build
 *.pyc
 *.native
 .DS_Store
+test_jasmin.rs
 
 target
 
