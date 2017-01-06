@@ -1,0 +1,3 @@
+tests/compiler/must_fail/t_21.rs:18:9: 18:10 error: wrong storage type for call of bar: got ``stack!'', expected ``reg!''
+        x = bar();
+        ^^

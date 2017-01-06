@@ -1,0 +1,3 @@
+tests/compiler/must_fail/t_04.rs:3:9: 3:13 error: expected identifier, not array get
+        _x[i] : inline! (b1);
+        ^^^^^

@@ -1,9 +1,0 @@
-extern fn test() {
-  _x[i] : stack u64;
-}
-
-/*
-START:CMD
-ARG="print[input]"
-END:CMD
-*/

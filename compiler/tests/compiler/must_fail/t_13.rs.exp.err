@@ -1,0 +1,3 @@
+tests/compiler/must_fail/t_13.rs:2:10: 2:11 error: variable x undeclared
+  return x
+         ^^

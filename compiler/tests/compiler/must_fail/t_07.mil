@@ -1,8 +1,0 @@
-fn foo(x : stack u64, stack u64) {
-}
-
-/*
-START:CMD
-ARG="print[input]"
-END:CMD
-*/

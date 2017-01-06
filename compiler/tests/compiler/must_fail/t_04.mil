@@ -1,9 +1,0 @@
-extern fn test() {
-  _x[i] : inline bool;
-}
-
-/*
-START:CMD
-ARG="print[input]"
-END:CMD
-*/

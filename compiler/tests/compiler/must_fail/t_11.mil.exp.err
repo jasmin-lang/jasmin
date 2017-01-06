@@ -1,6 +1,0 @@
-tests/compiler/must_fail/t_11.mil:2:3: 2:4 error: variable x declared twice
-  x : stack u64;
-  ^^
-tests/compiler/must_fail/t_11.mil:3:3: 3:4 error: <-- also declared here
-  x : stack u64; 
-  ^^

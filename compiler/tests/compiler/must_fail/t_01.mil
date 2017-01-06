@@ -1,7 +1,0 @@
-extern fn test();
-
-/*
-START:CMD
-ARG="print[input]"
-END:CMD
-*/

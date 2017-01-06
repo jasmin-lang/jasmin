@@ -1,0 +1,6 @@
+tests/compiler/must_fail/t_03.rs:6:9: 6:14 error: <-- first instruction here
+        x = 0;
+        ^^^^^^
+tests/compiler/must_fail/t_03.rs:9:9: 9:25 error: declarations cannot follow instructions
+        _y : stack! (b64);
+        ^^^^^^^^^^^^^^^^^

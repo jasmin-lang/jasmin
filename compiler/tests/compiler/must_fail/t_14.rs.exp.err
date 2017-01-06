@@ -1,0 +1,3 @@
+tests/compiler/must_fail/t_14.rs:6:9: 6:10 error: variable y undeclared
+        y = x;
+        ^^
