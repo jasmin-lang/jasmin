@@ -39,7 +39,7 @@ let process_mil trafo print_result out_file file s (modul : 'info modul) =
     )
   | `IL modul ->
     if print_result
-    then F.eprintf "%a@\n%!" (ILPP.pp_modul ?pp_info:None ~pp_types:false) modul
+    then F.eprintf "%a@\n%!" (IL_Pprint.pp_modul ?pp_info:None ~pp_types:false) modul
     else F.eprintf "Processed file %s@\n%!" file
 
 let jasminc trafo print_result out_file file =

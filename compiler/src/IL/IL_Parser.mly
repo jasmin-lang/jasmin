@@ -367,7 +367,7 @@ func :
 
 typed_params :
 | vs=separated_nonempty_list(COMMA,NID) COLON t=typ
-    { Std.List.map ~f:(fun v -> (v,t)) vs }
+    { Std.List.map ~f:(fun v -> (v,t,None)) vs }
 
 param_or_func :
 | lf=func

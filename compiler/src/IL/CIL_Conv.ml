@@ -639,7 +639,7 @@ let fundef_of_cfundef cvi cfd =
 
 (* inline all function calls in the given module *)
 let apply_cert_transform _fname modul ~f =
-  let modul = IL_Iter.sort_call_graph modul in
+  let modul = { modul with mod_funcs=IL_Iter.sort_call_graph modul.mod_funcs } in
   let cvi = CVI.mk () in
   (* F.printf "calling inlining\n%!"; *)
   let conv_nf nf =
@@ -652,7 +652,7 @@ let apply_cert_transform _fname modul ~f =
       assert false
   in
   (* inliner expects leaves of call-graph last *)
-  let cfds = List.rev @@ List.map ~f:conv_nf modul in  
+  let cfds = List.rev @@ List.map ~f:conv_nf modul.mod_funcs in  
   let prog = clist_of_list cfds in
 
   (* F.printf "Coq before:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog; *)
@@ -667,7 +667,7 @@ let apply_cert_transform _fname modul ~f =
     { nf_name = name;
       nf_func = Native(fundef_of_cfundef cvi cfd) }
   in
-  List.map ~f:conv_cfd @@ List.rev @@ list_of_clist prog
+  { modul with mod_funcs=List.map ~f:conv_cfd @@ List.rev @@ list_of_clist prog }
 
 (* inline all function calls in the given module *)
 let inline_calls_modul fname modul =

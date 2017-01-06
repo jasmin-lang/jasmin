@@ -1,48 +1,81 @@
->> input:
-param n : u64;
+>> roundtrip:
+#![allow(non_upper_case_globals)]
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_mut)]
+#![allow(unused_assignments)]
 
-fn foo1(stack u64) -> stack u64 * reg u64 * reg bool;
+#[macro_use] extern crate jasmin;
 
-fn foo2(stack u64,stack u64[(n : u64)],stack u64,stack u64,stack u64) -> stack u64[(n : u64)] = python print_foo;
-
-fn foo3(_x : stack u64) {
+rust! {
+    use jasmin::jasmin::*;
+    use jasmin::U64::*;
 }
 
-fn foo4(_x : stack u64) {
+rust! {
+    mod test {
+        use jasmin::jasmin::*;
+        use jasmin::U64::*;
+
+        #[test]
+        fn test1() {
+            ::foo3(0.to_jval());
+        }
+    }
 }
 
-fn foo5(x : stack u64) {
-  (x : stack u64) += (x : stack u64);
+fn foo3(mut _x: stack! (b64)) {
 }
 
-fn foo6(x : stack u64) -> stack u64 {
-  return (x : stack u64);
+pub fn foo4(mut _x: stack! (b64)) {
 }
 
-fn foo7(x : stack u64) {
-  y : stack u64
-  (x : stack u64) += (y : stack u64);
+pub fn foo5(mut x: stack! (b64)) {
+    code! {
+        x = add_v(x,x);
+    }
 }
 
-fn foo8(x : stack u64) -> stack u64 * stack u64 {
-  y : stack u64
-  return (y : stack u64),(x : stack u64);
+fn foo6(mut x: stack! (b64)) -> stack! (b64) {
+    return x
 }
 
-fn foo9(x : stack u64) -> stack u64 {
-  (x : stack u64) += (x : stack u64);
-  return (x : stack u64);
+fn foo7(mut x: stack! (b64)) {
+    var! {
+        y: stack! (b64);
+    }
+    code! {
+        y = jc!(0);
+        x = add_v(x,y);
+    }
 }
 
-fn foo10(x : stack u64, y : stack u64, z : reg bool) -> stack u64 {
-  w : stack u64
-  (w : stack u64) = (x : stack u64);
-  (w : stack u64) += (x : stack u64);
-  if (w : stack u64 = 5) {
-    (z : reg bool), (x : stack u64) += (w : stack u64);
-    (z : reg bool), (x : stack u64) += (y : stack u64);
-  }
-  return (x : stack u64);
+fn foo8(mut x: stack! (b64)) -> (stack! (b64),stack! (b64)) {
+    return (x,x)
+}
+
+fn foo9(mut x: stack! (b64)) -> stack! (b64) {
+    code! {
+        x = add_v(x,x);
+    }
+    return x
+}
+
+fn foo10(mut x: stack! (b64), mut y: stack! (b64), mut z: reg! (b1)) -> stack! (b64) {
+    var! {
+        w: stack! (b64);
+    }
+    code! {
+        w = x;
+        x = jc!(5);
+        w = add_v(w,x);
+        if (w == jc!(5)) {
+            (z,x) = add(x,w);
+            (z,x) = add(x,y);
+        }
+        x = adc_v(x,x,z);
+    }
+    return x
 }
 
 

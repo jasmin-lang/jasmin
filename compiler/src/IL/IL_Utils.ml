@@ -71,11 +71,21 @@ let mk_fname (s,si) =
   Fname.mk s
 
 let map_func modul fname ~f =
-  List.map modul
-    ~f:(fun nf -> if nf.nf_name = fname then { nf with nf_func = f nf.nf_func} else nf)
+  { mod_rust_sections   = modul.mod_rust_sections;
+    mod_rust_attributes = modul.mod_rust_attributes;
+    mod_funcs =
+      List.map modul.mod_funcs
+        ~f:(fun nf -> if nf.nf_name = fname then { nf with nf_func = f nf.nf_func} else nf)
+  }
 
 let map_named_func modul fname ~f =
-  List.map modul ~f:(fun nf -> if nf.nf_name = fname then f nf else nf)
+  { mod_rust_sections   = modul.mod_rust_sections;
+    mod_rust_attributes = modul.mod_rust_attributes;
+    mod_funcs =
+      List.map modul.mod_funcs ~f:(fun nf -> if nf.nf_name = fname then f nf else nf)
+  }
+
+  
 
 let get_fundef ~err_s func =
   match func with

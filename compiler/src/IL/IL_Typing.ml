@@ -272,6 +272,6 @@ let typecheck_modul modul =
   vars_num_unique_modul ~type_only:true modul;
   params_consistent_modul (pp_ty ~pp_types:false) modul;
   let ftable =
-    Fname.Table.of_alist_exn (List.map ~f:(fun nf -> (nf.nf_name, nf.nf_func)) modul)
+    Fname.Table.of_alist_exn (List.map ~f:(fun nf -> (nf.nf_name, nf.nf_func)) modul.mod_funcs)
   in
-  List.iter modul ~f:(fun nf -> typecheck_func ftable nf.nf_func)
+  List.iter modul.mod_funcs ~f:(fun nf -> typecheck_func ftable nf.nf_func)

@@ -143,15 +143,21 @@ def all_tests():
 
     print_sep()
 
-    for fn in [ "%02i"%i for i in range(1,7)]:
-        test_ok("tests/interp/ok/t_%s.mil"%fn)
+    #for fn in [ "%02i"%i for i in range(1,7)]:
+    #    test_ok("tests/interp/ok/t_%s.mil"%fn)
 
-    print_sep()
+    #print_sep()
 
     for fn in [ "%02i"%i for i in range(1,4)]:
         test_ok("tests/conv/ok/t_%s.mil"%fn)
 
     print_sep()
+
+    for fn in [ "%02i"%i for i in range(1,2)]:
+        test_ok("tests/compiler-rust/ok/t_%s.rs"%fn)
+
+    print_sep()
+
 
 if __name__ == "__main__":
   if len(sys.argv) > 1:

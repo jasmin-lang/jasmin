@@ -100,6 +100,7 @@ let eval_pcond_exn ptable ltable cc =
 
 (* ** Simple transformations
  * ------------------------------------------------------------------------ *)
+
 (* *** Reset module info / strip comments *)
 
 let reset_info_modul modul =
@@ -175,7 +176,7 @@ let renumber_vars_named_func_reuse nf =
 let renumber_vars_modul_all rno modul =
   match rno with
   | ReuseNum ->
-    List.map ~f:renumber_vars_named_func_reuse modul
+    { modul with mod_funcs=List.map ~f:renumber_vars_named_func_reuse modul.mod_funcs }
   | _ ->
     let rnvf = 
       match rno with
@@ -183,7 +184,7 @@ let renumber_vars_modul_all rno modul =
       | UniqueNumFun    -> renumber_vars_named_func ?ctr:None ()
       | _ -> assert false
     in
-    List.map ~f:rnvf modul
+    { modul with mod_funcs = List.map ~f:rnvf modul.mod_funcs }
  
 (* ** Merge consecutive basic blocks
  * ------------------------------------------------------------------------ *)
@@ -399,7 +400,7 @@ and inline_calls_func func_table (fname : Fname.t) func =
 let inline_calls_modul modul fname =
   (* before inlining a call to f, we inline in f and store the result in func_table  *)
   let func_table =
-    List.map ~f:(fun nf -> (nf.nf_name,(nf.nf_func,false))) modul
+    List.map ~f:(fun nf -> (nf.nf_name,(nf.nf_func,false))) modul.mod_funcs
     |> Fname.Table.of_alist_exn
   in
   map_func ~f:(inline_calls_func func_table fname) modul fname

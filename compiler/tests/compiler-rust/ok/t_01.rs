@@ -1,10 +1,10 @@
-#![allow(non_upper_case_globals)] 
-#![allow(dead_code)] 
-#![allow(unused_imports)] 
-#![allow(unused_mut)] 
-#![allow(unused_assignments)] 
+#![allow(non_upper_case_globals)]
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_mut)]
+#![allow(unused_assignments)]
 
-//#[macro_use] extern crate jasmin;
+#[macro_use] extern crate jasmin;
 
 rust! {
     use jasmin::jasmin::*;
@@ -24,7 +24,7 @@ rust! {
 }
 
 // UNSUPPORTED FOR NOW:
-// const n : b64 = jconst!(10); // constants with default values, can be overriden
+const n : b64 = jc!(10); // constants with default values, can be overriden
 
 // UNSUPPORTED: we can use a variable name that is ignored
 // fn foo1(x : stack! (b64)) -> (stack! (b64), reg! (b64), reg! (b1));
@@ -66,7 +66,7 @@ fn foo7(mut x: stack! (b64)) {
     }
     
     code! {
-        y = jc!(0);
+        y = jc!(0);  // jc!(n)
         x = add_v(x,y);
     }
 }
@@ -91,7 +91,7 @@ fn foo9(mut x: stack! (b64)) -> stack! (b64) {
 // decl + body + return
 fn foo10(mut x: stack! (b64), y: stack! (b64), mut z: reg! (b1)) -> stack! (b64) {
     var! {
-        w : stack! (b64);
+        w: stack! (b64);
     }
     
     code! {
@@ -99,8 +99,8 @@ fn foo10(mut x: stack! (b64), y: stack! (b64), mut z: reg! (b1)) -> stack! (b64)
         x = jc!(5);
         w = add_v(w,x);
         if (w == jc!(5)) {
-            (z, x) = add(x,w);
-            (z, x) = add(x,y);
+            (z,x) = add(x,w);
+            (z,x) = add(x,y);
         }
         x = adc_v(x,x,z);
     }
@@ -109,6 +109,7 @@ fn foo10(mut x: stack! (b64), y: stack! (b64), mut z: reg! (b1)) -> stack! (b64)
 
 /*
 START:CMD
-ARG="print[input][rust]"
+#ARG="save[tests/build/test_jasmin.rs][]"
+ARG="print[roundtrip][]"
 END:CMD
 */

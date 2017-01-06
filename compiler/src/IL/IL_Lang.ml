@@ -323,7 +323,12 @@ type 'info named_func = {
   nf_func : 'info func;
 } [@@deriving compare,sexp]
 
-type 'info modul = 'info named_func list [@@deriving compare,sexp]
+type 'info modul = {
+  mod_funcs           : 'info named_func list;
+  mod_rust_sections   : string list;
+  mod_rust_attributes : string list;
+  (* FIXME: const/params? *)
+} [@@deriving compare,sexp]
 
 (* ** Values
  * ------------------------------------------------------------------------ *)

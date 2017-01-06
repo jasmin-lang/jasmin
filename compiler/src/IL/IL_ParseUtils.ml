@@ -33,16 +33,24 @@ let src_of_dest d =
 
 type decl_item =
   | Dfun of (Fname.t * unit func)
-  | Dparams of ((string * string) * ty) list
+  | Dparams of ((string * string) * ty * pexpr option) list
+  | Drust_attr of string
+  | Drust_sec of string
 
 let mk_modul pfs =
   let params =
     List.filter_map ~f:(function (l,Dparams(ps)) -> Some(l,ps) | _ -> None) pfs
     |> List.concat_map ~f:(fun (l,ps) -> List.map ~f:(fun p -> (l,p)) ps)
-    |> List.map ~f:(fun (l,(n,t)) -> { (mk_param (l,n)) with Param.ty = t })
+    |> List.map ~f:(fun (l,(n,t,ope)) -> ({ (mk_param (l,n)) with Param.ty = t }, ope))
+  in
+  let rust_attrs =
+    List.concat_map ~f:(function (_l,Drust_attr(s)) -> [s] | _ -> []) pfs
+  in
+  let rust_sections =
+    List.concat_map ~f:(function (_l,Drust_sec(s)) -> [s] | _ -> []) pfs
   in
   let ptable =
-    Pname.Table.of_alist_exn (List.map ~f:(fun p -> (p.Param.name,p.Param.ty)) params)
+    Pname.Table.of_alist_exn (List.map ~f:(fun (p,_ope) -> (p.Param.name,p.Param.ty)) params)
   in
   let funcs =
     List.filter_map ~f:(function (l,Dfun(func)) -> Some(l,func) | _ -> None) pfs
@@ -66,7 +74,7 @@ let mk_modul pfs =
   in
   let funcs = go [] funcs in
   if !errs<>[] then P.failparse_l (get_errs ());
-  funcs
+  { mod_funcs=funcs; mod_rust_sections=rust_sections; mod_rust_attributes=rust_attrs }
 
 type fun_item =
   | FInstr of (unit instr) L.located
@@ -179,6 +187,7 @@ let mk_func loc name ret_ty ext args def =
           if not in_arg then HT.change used_map nn ~f:(fun _ -> None);
           { v with Var.ty=v'.Var.ty; Var.stor=v'.Var.stor; Var.dloc = v'.Var.uloc }
         | None ->
+          (* FIXME: also look for params/constants *)
           add_err v.Var.uloc (fsprintf "variable %a undeclared" Var.pp v);
           v
       in

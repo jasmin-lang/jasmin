@@ -22,7 +22,6 @@ type pprint_opt = {
   pp_info  : bool;
   pp_num   : bool;
   pp_types : bool;
-  pp_rust  : bool;
 }
 
 let mk_pprint_opt ofn = {
@@ -30,7 +29,6 @@ let mk_pprint_opt ofn = {
   pp_info  = false;
   pp_num   = false;
   pp_types = false;
-  pp_rust  = false;
 }
 
 type cert = NonCert | Cert
@@ -54,10 +52,6 @@ type transform =
   | Save  of string * pprint_opt
   | TestConversion of Fname.t
   | StripComments of Fname.t
-  | Interp of Fname.t * value Pname.Table.t * u64 U64.Table.t * value list
-    (* Interp(fun,pmap,mmap,alist,fun):
-         interpret call of function fun() with parameters pmap, memory mmap,
-         argument list alist *)
 
 let ptrafo =
   let open MP in
@@ -69,7 +63,7 @@ let ptrafo =
   let bracketed p = enclosed p (char '[') (char ']') in
   let u64 = many1 digit >>= fun s -> return (Arith.parse_big_int (String.of_char_list s)) in
   let int = many1 digit >>= fun s -> return (int_of_string (String.of_char_list s)) in
-  let value () =
+  let _value () =
     choice
       [ (u64 >>= fun u -> return (Value.mk_Vu 64 u))
       ; (char '[' >>= fun _ ->
@@ -81,30 +75,15 @@ let ptrafo =
   let pmapping =
     ident >>= fun s -> char '=' >> u64 >>= fun u -> return (Pname.mk s,Value.mk_Vu 64 u)
   in
-  let mmapping =
-    u64 >>= fun s -> char '=' >> u64 >>= fun u -> return (U64.of_big_int s,u)
-  in
   let register_num = bracketed int in
   let mappings p mc =
     bracketed (sep_by p (char ',') >>= fun l -> return (mc l))
   in
   let fname = bracketed (ident >>= fun s -> return @@ Fname.mk s) in
-  let args = bracketed (sep_by (value ()) (char ',')) in
   let pmap = mappings pmapping (fun l -> Pname.Table.of_alist_exn l) in
-  let mmap = mappings mmapping
-               (fun l -> U64.Table.of_alist_exn (List.map ~f:(fun (a,i) -> a,U64.of_big_int i) l))
-  in
-  let interp_args =
-    pmap  >>= fun mparam ->
-    mmap  >>= fun mmem ->
-    fname >>= fun fn ->
-    args  >>= fun args ->
-    return (fn,mparam,mmem,args)
-  in
   let pprint_opt =
     choice
       [ (string "info" >>$ `Info)
-      ; (string "rust" >>$ `Rust)
       ; (string "num" >>$ `Num)
       ; (string "types" >>$ `Types)
       ; (string "fun=" >> ident >>= fun s -> return (`Fun (Fname.mk s)))
@@ -116,7 +95,6 @@ let ptrafo =
       ~f:(fun ppo opt ->
             match opt with
             | `Info   -> { ppo with pp_info  = true }
-            | `Rust   -> { ppo with pp_rust  = true }
             | `Num    -> { ppo with pp_num   = true }
             | `Types  -> { ppo with pp_types = true }
             | `Fun fn -> { ppo with pp_fname = Some(fn) })
@@ -156,9 +134,7 @@ let ptrafo =
        pmap >>= fun pm -> return (MacroExpand(fname,pm)))
     ; (string "cert_inline" >> fname >>= fun fname -> return (InlineCalls(Cert,fname)))
     ; (string "cert_unroll" >> fname >>= fun fname -> return (UnrollLoopsCert(fname)))
-    ; (string "inline" >> fname >>= fun fname -> return (InlineCalls(NonCert,fname)))
-    ; string "interp" >> interp_args >>=
-        fun (fn,pm,mm,args) -> return (Interp(fn,pm,mm,args)) ]
+    ; (string "inline" >> fname >>= fun fname -> return (InlineCalls(NonCert,fname))) ]
 
 let parse_trafo s =
   let open MP in
@@ -185,7 +161,7 @@ type map_mod = {
   f : 'a. 'a modul -> 'a modul
 }
 
-let map_module m (mf : map_mod) =
+let map_module (m : modules) (mf : map_mod) =
   match m with
   | Lm m -> Lm(mf.f m)
   | Um m -> Um(mf.f m)
@@ -194,7 +170,7 @@ let apply_transform trafos (modul0 : unit modul) =
   let total = ref 0. in
   let filter_fn m ofname =
     match ofname with
-    | Some fn -> List.filter ~f:(fun nf -> nf.nf_name = fn) m
+    | Some fn -> { m with mod_funcs=List.filter ~f:(fun nf -> nf.nf_name = fn) m.mod_funcs }
     | None    -> m
   in
   let all_fn = Fname.mk "all" in
@@ -267,10 +243,7 @@ let apply_transform trafos (modul0 : unit modul) =
       let m = map_module m { f = fun m -> filter_fn m ppo.pp_fname } in
       let go m pp = Out_channel.write_all fn ~data:(fsprintf "%a" pp m) in
       let ppm ppi =
-        if ppo.pp_rust then
-          ILR_Pprint.pp_modul ?pp_info:ppi ~pp_types:ppo.pp_types
-        else
-          pp_modul ?pp_info:ppi ~pp_types:ppo.pp_types
+        IL_Pprint.pp_modul ?pp_info:ppi ~pp_types:ppo.pp_types
       in
       match m, ppo.pp_info with
       | Um m, true  -> go m (ppm (Some(pp_info_u)))
@@ -281,10 +254,7 @@ let apply_transform trafos (modul0 : unit modul) =
     let print n ppo m =
       let m = map_module m { f = fun m -> filter_fn m ppo.pp_fname } in
       let ppm ppi =
-        if ppo.pp_rust then
-          ILR_Pprint.pp_modul ?pp_info:ppi ~pp_types:ppo.pp_types
-        else
-          ILR_Pprint.pp_modul ?pp_info:ppi ~pp_types:ppo.pp_types
+        IL_Pprint.pp_modul ?pp_info:ppi ~pp_types:ppo.pp_types
       in
       let go m ppi =
         F.printf ">> %s:@\n%a@\n@\n" n (ppm ppi) m
@@ -295,11 +265,11 @@ let apply_transform trafos (modul0 : unit modul) =
       | Lm m, true  -> go m (Some(pp_info_lv))
       | Lm m, false -> go m None
     in
-   let test_conversion fn m0 =
-     let open CIL_Conv in
-     let m0 = match m0 with Um m0 -> m0 | Lm _ -> assert false in
-     notify "testing conversion" fn
-       ~f:(fun () ->
+    let test_conversion fn m0 =
+      let open CIL_Conv in
+      let m0 = match m0 with Um m0 -> m0 | Lm _ -> assert false in
+      notify "testing conversion" fn
+        ~f:(fun () ->
          let cvi = CVI.mk () in
          let conv func =
            match func with
@@ -317,12 +287,6 @@ let apply_transform trafos (modul0 : unit modul) =
              (Fname.to_string fn)
          );
          Um m1)
-   in
-   let interp fn pmap mmap args m =
-      notify "interpreting" fn
-        ~f:(fun () ->
-            IL_Interp.interp_modul m pmap mmap args fn;
-            m)
     in
     let array_expand_modul fn m =
       notify "expanding array assignments" fn
@@ -378,7 +342,6 @@ let apply_transform trafos (modul0 : unit modul) =
     | InlineCalls(Cert,fn)      -> map_module modul {f = fun m -> inline_cert fn m}
     | UnrollLoopsCert(fn)       -> map_module modul {f = fun m -> unroll_cert fn m}
     | ArrayExpand(fn)           -> map_module modul {f = fun m -> arr_exp fn m}
-    | Interp(fn,pmap,mmap,args) -> map_module modul {f = fun m -> interp fn pmap mmap args m}
     | ArrayAssignExpand(fn)     -> map_module modul {f = fun m -> array_expand_modul fn m}
     | StripComments(fn)         -> map_module modul {f = fun m -> strip_comments fn m}
     | RemoveEqConstrs(fn)       -> map_module modul {f = fun m -> remove_eq_constrs fn m}

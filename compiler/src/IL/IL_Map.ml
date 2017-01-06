@@ -35,7 +35,13 @@ let map_body_modul ~f modul fname =
   map_named_func ~f:(map_body_named_func ~f) modul fname
 
 let map_body_modul_all ~f modul =
-  List.map ~f:(map_body_named_func ~f) modul
+  { mod_rust_sections   = modul.mod_rust_sections;
+    mod_rust_attributes = modul.mod_rust_attributes;
+    mod_funcs =
+      List.map ~f:(map_body_named_func ~f) modul.mod_funcs
+  }
+
+
 
 (* ** Concat-map instructions (with position and info)
  * ------------------------------------------------------------------------ *)

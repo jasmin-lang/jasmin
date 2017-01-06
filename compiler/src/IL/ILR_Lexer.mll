@@ -110,16 +110,22 @@ rule lex = parse
     { RUST_ATTRIBUTE(s) }
 
   | "rust!" blank* "{"
-    { RUST_SECTION (rust_sec 0 lexbuf) }
-  | "#[macro_use]" blank+ "extern" blank+ "crate" blank+ "jasmin"
+    { RUST_SECTION (rust_sec (Buffer.create 100) 0 lexbuf) }
+
+  | "#[macro_use]" blank+ "extern" blank+ "crate" blank+ "jasmin" blank* ";"
     { EXTERN_JASMIN }
 
-and rust_sec opened = parse
-  | "}"   { if opened=0 then Lexing.lexeme lexbuf else rust_sec (opened - 1) lexbuf }
-  | "{"   { rust_sec (opened + 1) lexbuf }
-  | _     { rust_sec opened lexbuf }
-  | "/*"  { comment lexbuf; rust_sec opened lexbuf }
-  | "//"  { line_comment lexbuf; rust_sec opened lexbuf }
+and rust_sec buf opened = parse
+  | "}"   { if opened=0 then (
+              Buffer.contents buf
+            ) else (
+              Buffer.add_char buf '}';
+              rust_sec buf (opened - 1) lexbuf
+            ) }
+  | "{"   { Buffer.add_char buf '{'; rust_sec buf (opened + 1) lexbuf }
+  | _     { Buffer.add_string buf (Lexing.lexeme lexbuf); rust_sec buf opened lexbuf }
+  | "/*"  { comment lexbuf; rust_sec buf opened lexbuf }
+  | "//"  { line_comment lexbuf; rust_sec buf opened lexbuf }
   | eof   { raise (Error "end-of-file inside rust! { .. }") }
 
 and comment = parse

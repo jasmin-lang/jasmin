@@ -387,19 +387,19 @@ func :
 
 typed_params :
 | vs=separated_nonempty_list(COMMA,NID) COLON t=typ
-    { Std.List.map ~f:(fun v -> (v,t)) vs }
+    { Std.List.map ~f:(fun v -> (v,t,None)) vs }
 
 param_or_func :
 | lf=func
     { [ (fst lf,Dfun(snd lf)) ] }
 | PARAM lps=loc(typed_params) SEMICOLON
     { [ (fst lps, Dparams(snd lps)) ] }
-| CONST NID COLON _t=typ EQ JCEXCL LPAREN _i=INT RPAREN SEMICOLON
-    { [] }
-| _ra=RUST_ATTRIBUTE
-    { [] }
-| _rs=RUST_SECTION
-    { [] }
+| CONST lnid=loc(NID) COLON t=typ EQ JCEXCL LPAREN pe=pexpr RPAREN SEMICOLON
+    { [ (fst lnid, Dparams([(snd lnid,t,Some(pe))])) ] }
+| ra=loc(RUST_ATTRIBUTE)
+    { [(fst ra, Drust_attr(snd ra))] }
+| rs=loc(RUST_SECTION)
+    { [(fst rs, Drust_sec(snd rs))] }
 | EXTERN_JASMIN
     { [] }
 

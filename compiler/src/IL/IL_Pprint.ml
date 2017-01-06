@@ -12,18 +12,24 @@ type info_ctxt = BlockStart | BlockEnd
 
 let string_of_storage = function
   | SInvalid -> "invalid"
-  | Stack    -> "stack"
-  | Reg      -> "reg"
+  | Stack    -> "stack!"
+  | Reg      -> "reg!"
   | Inline   -> "inline"
 
 let string_of_call_conv = function
-  | Extern -> "extern "
+  | Extern -> "pub " (* FIXME: we abuse extern for now *)
   | _      -> ""
 
 let string_of_pbinop = function
   | Pplus  -> "+"
   | Pmult  -> "*"
   | Pminus -> "-"
+
+let pp_tuple pp_elem fmt t =
+  match t with
+  | []  -> pp_string fmt "()"
+  | [x] -> pp_elem fmt x
+  | xs  -> F.fprintf fmt "(%a)" (pp_list "," pp_elem) xs
 
 let pp_add_suffix fs pp fmt x =
   F.fprintf fmt ("%a"^^fs) pp x
@@ -33,23 +39,23 @@ let pp_add_prefix fs pp fmt x =
 
 and pp_base_ty fmt bty =
   match bty with
-  | Bool -> F.fprintf fmt "bool"
-  | U(n) -> F.fprintf fmt "u%i" n
+  | Bool -> F.fprintf fmt "b1"
+  | U(n) -> F.fprintf fmt "b%i" n
   | Int  -> F.fprintf fmt "int"
 
 let rec pp_patom ~pp_types fmt pa =
   match pa with
-  | Pparam(p) -> F.fprintf fmt "$%a" (pp_param ~pp_types) p
-  | Pvar(v)   -> pp_var_i ~pp_types fmt v
+  | Pparam(p) -> F.fprintf fmt "%a" (pp_param ~pp_types) p
+  | Pvar(v)   -> F.fprintf fmt "%a" (pp_var ~pp_types) v
 
 and pp_var_i ~pp_types fmt v =
-  F.fprintf fmt "%a : %s %a"
+  F.fprintf fmt "%a: %s (%a)"
     Var.pp v
     (string_of_storage v.Var.stor)
     (pp_ty ~pp_types) v.Var.ty
 
 and pp_param_i ~pp_types fmt p =
-  F.fprintf fmt "(%a : %a)"
+  F.fprintf fmt "(%a: %a)"
     Param.pp p
     (pp_ty ~pp_types) p.Param.ty
 
@@ -74,7 +80,7 @@ and pp_dexpr ~pp_types fmt ce =
 
 and pp_var ~pp_types fmt v =
   if pp_types then
-    F.fprintf fmt "(%a)" (pp_var_i ~pp_types) v
+    F.fprintf fmt "%a" (pp_var_i ~pp_types) v
   else
     Var.pp fmt v
 
@@ -83,7 +89,7 @@ let rec pp_pexpr ~pp_types fmt ce =
   match ce with
   | Patom(pa)          -> pp_patom ~pp_types fmt pa
   | Pbinop(op,ie1,ie2) -> F.fprintf fmt "%a %s %a" ppe ie1 (string_of_pbinop op) ppe ie2
-  | Pconst(u)          -> pp_string fmt (Big_int.string_of_big_int u)
+  | Pconst(u)          -> F.fprintf fmt "jc!(%s)" (Big_int.string_of_big_int u)
 
 let pp_idx ~pp_types fmt = function
   | Ipexpr(pe) -> pp_pexpr ~pp_types fmt pe
@@ -108,7 +114,7 @@ let pp_dest ~pp_types fmt d =
   | Rdest(rd) -> pp_rdest ~pp_types fmt rd
 
 let pcondop_to_string = function
-  | Peq  -> "="
+  | Peq  -> "=="
   | Pneq -> "!="
   | Plt  -> "<"
   | Ple  -> "<="
@@ -212,7 +218,7 @@ let pp_base_instr ~pp_types fmt bi =
     F.fprintf fmt "%a(%a);" Fname.pp fn (pp_list "," pps) args
   | Call(fn,dest,args) ->
     F.fprintf fmt "%a = %a(%a);"
-      (pp_list "," ppd) dest
+      (pp_tuple ppd) dest
       Fname.pp fn
       (pp_list "," pps) args
 
@@ -235,17 +241,17 @@ let rec pp_instr ?pp_info ~pp_types fmt instr =
     match instr.L.l_val with
     | Block(bis,_) -> pp_list "@\n" ppbi fmt bis
     | If(c,i1,[],_) ->
-      F.fprintf fmt "if %a {@\n  @[<v 0>%a@]@\n}" ppc c pps i1
+      F.fprintf fmt "if %a {@\n    @[<v 0>%a@]@\n}" ppc c pps i1
     | If(c,i1,i2,_) ->
-      F.fprintf fmt "if %a {@\n  @[<v 0>%a@]@\n} else {@\n  @[<v 0>%a@]@\n}"
+      F.fprintf fmt "if %a {@\n    @[<v 0>%a@]@\n} else {@\n  @[<v 0>%a@]@\n}"
         ppc c pps i1 pps i2
     | For(iv,ie1,ie2,i,_) ->
-      F.fprintf fmt "for %a in %a..%a {@\n  @[<v 0>%a@]@\n}"
+      F.fprintf fmt "for %a in %a..%a {@\n    @[<v 0>%a@]@\n}"
         ppsd iv ppe ie1 ppe ie2 pps i
     | While(WhileDo,fc,s,_) ->
-      F.fprintf fmt "while %a {@\n  @[<v 0>%a@]@\n}" ppfc fc pps s
+      F.fprintf fmt "while %a {@\n    @[<v 0>%a@]@\n}" ppfc fc pps s
     | While(DoWhile,fc,s,_) ->
-      F.fprintf fmt "do {@\n  @[<v 0>%a@]@\n} while %a;" pps s ppfc fc
+      F.fprintf fmt "do {@\n    @[<v 0>%a@]@\n} while %a;" pps s ppfc fc
   in
   let info = get_info_instr instr.L.l_val in
   F.fprintf fmt "%a%a%a" pp_start info pp () pp_end info
@@ -256,31 +262,43 @@ and pp_stmt  ?pp_info ~pp_types fmt stmt =
 let pp_return ~pp_types fmt names =
   match names with
   | [] -> pp_string fmt ""
-  | _  -> F.fprintf fmt "return %a;" (pp_list "," (pp_var ~pp_types)) names
+  | _  -> F.fprintf fmt "return %a" (pp_tuple (pp_var ~pp_types)) names
 
 let pp_tinfo ~pp_types fmt (sto,ty) =
-  F.fprintf fmt "%s %a"
+  F.fprintf fmt "%s (%a)"
     (string_of_storage sto) (pp_ty ~pp_types) ty
 
 let pp_ret_ty ~pp_types fmt ret_ty =
   if ret_ty=[] then pp_string fmt ""
-  else F.fprintf fmt " -> %a" (pp_list " * " (pp_tinfo ~pp_types)) ret_ty
+  else F.fprintf fmt " -> %a" (pp_tuple (pp_tinfo ~pp_types)) ret_ty
 
 let pp_fundef  ?pp_info ~pp_types fmt (decls,body,ret) =
   let pp_either test fse fsne fmt () =
-    if test then  F.fprintf fmt fse
+    if test then F.fprintf fmt fse
     else F.fprintf fmt fsne
   in
+  let pp_code fmt body =
+    match body with
+    | [] -> pp_string fmt ""
+    | _  ->
+      F.fprintf fmt "code! {@\n    @[<v 0>%a@]@\n}" (pp_stmt ?pp_info ~pp_types) body
+  in
   let ppvi = pp_var_i ~pp_types in
+  let pp_decls fmt decls =
+    match decls with
+    | [] -> pp_string fmt ""
+    | _ ->
+      F.fprintf fmt "var! {@\n    @[<v 0>%a;@]@\n}" (pp_list "@\n" ppvi) decls
+  in
   F.fprintf fmt 
     (  " {%a@[<v 0>%a" (* decls *)
      ^^"%a"            (* body *)
      ^^"%a"            (* body *)
      ^^"%a%a@]@\n}")   (* return *)
-    (pp_either ((decls,body,ret)=([],[],[])) "" "@\n  ") ()
-    (pp_list "@\n" ppvi) decls
+    (pp_either ((decls,body,ret)=([],[],[])) "" "@\n    ") ()
+    pp_decls decls
     (pp_either (decls=[] || body=[]) "" "@\n") ()
-    (pp_stmt ?pp_info ~pp_types) body
+    pp_code body
     (pp_either ((decls=[] && body=[]) || ret=[]) "" "@\n") ()
     (pp_return ~pp_types) ret
 
@@ -310,7 +328,7 @@ let pp_native ?pp_info ~pp_types fmt (name,fdef) =
   F.fprintf fmt "@[<v 0>%sfn %a(%a)%a%a@]"
     (string_of_call_conv fdef.f_call_conv)
     Fname.pp name
-    (pp_list ", " (pp_var_i ~pp_types)) fdef.f_arg
+    (pp_list ", " (pp_add_prefix "mut " (pp_var_i ~pp_types))) fdef.f_arg
     (pp_ret_ty ~pp_types) (List.map ~f:tinfo_of_var fdef.f_ret)
     (pp_fundef ?pp_info ~pp_types)
       ( decls
@@ -328,13 +346,24 @@ let pp_param_entry ~pp_types fmt p =
 
 let pp_modul ?pp_info ~pp_types fmt modul =
   let params =
-    Set.to_list (params_modul modul)
+    Set.to_list (params_modul modul.mod_funcs)
     |> List.map ~f:(fun p -> { p with Param.loc=L.dummy_loc })
     |> Param.Set.of_list
     |> Set.to_list
   in
+  let pp_rust_attrib fmt attr = F.fprintf fmt "#![%s]\n" attr in
+  let pp_rust_sec fmt sec =
+    F.fprintf fmt "rust! {%s}\n" sec
+  in
+  let attrs = modul.mod_rust_attributes in
+  let secs = modul.mod_rust_sections in
+  pp_list ""  pp_rust_attrib fmt attrs;
+  F.fprintf fmt "%s#[macro_use] extern crate jasmin;\n%s"
+    (if attrs=[] then "" else "\n")
+    (if secs=[] then "" else "\n");
+  pp_list "\n"  pp_rust_sec fmt secs;
   pp_list ""  (pp_param_entry ~pp_types) fmt params;
-  pp_list "@\n@\n" (pp_func ?pp_info ~pp_types) fmt modul
+  pp_list "@\n@\n" (pp_func ?pp_info ~pp_types) fmt modul.mod_funcs
 
 let pp_value fmt = function
   | Value.Vu(_n,u)   ->
@@ -354,7 +383,6 @@ let pp_set_vn fmt (s : Int.Set.t) =
     if Int.(vn < 0) then F.fprintf fmt "%is" Int.(- vn) else pp_int fmt vn
   in
   F.fprintf fmt "{%a}" (pp_list "," pp_vn) (List.sort ~cmp:compare_int (Set.to_list s))
-
 
 let pp_ty_nt = pp_ty ~pp_types:false
 

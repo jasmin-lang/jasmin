@@ -185,7 +185,7 @@ let vars_num_unique_modul ~type_only modul =
       else
         vars_num_unique_fundef fd
   in
-  List.iter modul ~f:(fun nf -> check nf.nf_func)
+  List.iter modul.mod_funcs ~f:(fun nf -> check nf.nf_func)
 
 (* ** Iterate over parameters (values ot type Param.t)
  * ------------------------------------------------------------------------ *)
@@ -326,7 +326,7 @@ let params_consistent_modul pp_ty modul =
          p.Param.loc, "<-- occurs here too"]
     | _ -> ()
   in
-  iter_params_modul ~f modul
+  iter_params_modul ~f modul.mod_funcs
 
 (* ** Iterate over destinations (values of type dest)
  * ------------------------------------------------------------------------ *)
