@@ -459,7 +459,7 @@ pub fn cswap(mut x2p: stack! ([b64; 4]),
         for i in (0..4) {
             tmp1   = x2p[i];
             tmp1   = xor(tmp1,x3p[i]);
-            tmp1   = land(tmp1,mask);
+            tmp1   = band(tmp1,mask);
             tmp2   = x2p[i];
             tmp2   = xor(tmp2,tmp1);
             x2p[i] = tmp2;
@@ -469,7 +469,7 @@ pub fn cswap(mut x2p: stack! ([b64; 4]),
 
             tmp1   = z2p[i];
             tmp1   = xor(tmp1,z3p[i]);
-            tmp1   = land(tmp1,mask);
+            tmp1   = band(tmp1,mask);
             tmp2   = z2p[i];
             tmp2   = xor(tmp2,tmp1);
             z2p[i] = tmp2;
@@ -627,7 +627,7 @@ pub fn mladder(xr: stack! ([b64; 4]), sp: stack! ([b64; 4]))
                 tmp2 = s;
                 bit = shr(tmp2,j);
                 j_s = j; // probably need the register
-                bit = land(bit,1);
+                bit = band(bit,1);
                 swap = prevbit;
                 swap = xor(swap,bit);
                 prevbit = bit;
@@ -655,7 +655,7 @@ pub fn unpack_point(mut p: reg! ([b64; 4])) -> stack! ([b64; 4]) {
     }
 
     code! {
-        p[3] = land(p[3],0x7fff_ffff_ffff_ffff);
+        p[3] = band(p[3],0x7fff_ffff_ffff_ffff);
         pa = p;
     }
 
@@ -670,9 +670,9 @@ pub fn unpack_secret(mut s: reg! ([b64; 4])) -> stack! ([b64; 4]) {
     }
 
     code! {
-        s[0] = land(s[0],0xffff_ffff_ffff_fff8);
-        s[3] = land(s[3],0x7fff_ffff_ffff_ffff);
-        s[3] = lor(s[3],0x4000_0000_0000_0000);
+        s[0] = band(s[0],0xffff_ffff_ffff_fff8);
+        s[3] = band(s[3],0x7fff_ffff_ffff_ffff);
+        s[3] = bor(s[3],0x4000_0000_0000_0000);
         sa = s;
     }
     return sa

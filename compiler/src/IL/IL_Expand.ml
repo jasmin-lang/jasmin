@@ -332,13 +332,13 @@ let rec inline_call func_table ctr fname ds ss =
       func
   in
   let func = renumber_vars_func ~ctr () func in
-  let fdef = get_fundef ~err_s:"inline_call: impossible" func in
+  (* let fdef = get_fundef ~err_s:"inline_call: impossible" func in *)
   let ret_ss = 
-    List.map fdef.f_ret
+    List.map func.f_ret
       ~f:(fun v -> Src(Sdest({d_var=v; d_idx=None; d_loc=v.Var.uloc;})))
   in
   let arg_ds =
-    List.map ~f:(fun v -> Rdest(Sdest({d_var=v; d_idx=None; d_loc=v.Var.uloc}))) fdef.f_arg
+    List.map ~f:(fun v -> Rdest(Sdest({d_var=v; d_idx=None; d_loc=v.Var.uloc}))) func.f_arg
   in
   let pref = List.map2_exn ~f:(fun d s -> Assgn(d,s,Eq)) arg_ds ss in
   let suff = List.map2_exn ~f:(fun d s -> Assgn(d,s,Eq)) ds ret_ss in
@@ -350,7 +350,7 @@ let rec inline_call func_table ctr fname ds ss =
     { L.l_val = Block(lbis,None);
       L.l_loc = L.dummy_loc }
   in
-  (mk_block pref)::fdef.f_body@[(mk_block suff)]
+  (mk_block pref)::func.f_body@[(mk_block suff)]
 
 and inline_calls_block func_table ctr lbis =
   let rec go prev_stmt lbis =
@@ -386,16 +386,12 @@ and inline_calls_instr func_table ctr linstr =
 and inline_calls_stmt func_table ctr (stmt : 'info stmt) : 'info stmt =
   merge_blocks_stmt @@ List.concat_map ~f:(inline_calls_instr func_table ctr) stmt
 
-and inline_calls_func func_table (fname : Fname.t) func =
-  let fd = match func with
-    | Foreign(_) -> failwith_ "cannot inline calls in foreign function %a" Fname.pp fname
-    | Native(fd) -> fd
-  in
-  let max_num = max_var_fundef fd in
+and inline_calls_func func_table (_fname : Fname.t) func =
+  let max_num = max_var_func func in
   (* F.printf "max: %a\n%!" pp_int64 max_num; *)
   let ctr = ref (succ max_num) in
-  let stmt = inline_calls_stmt func_table ctr fd.f_body in
-  Native { fd with f_body = stmt }
+  let stmt = inline_calls_stmt func_table ctr func.f_body in
+  { func with f_body = stmt }
 
 let inline_calls_modul modul fname =
   (* before inlining a call to f, we inline in f and store the result in func_table  *)
@@ -517,10 +513,10 @@ let rec macro_expand_instr ptable ltable linstr =
 and macro_expand_stmt ptable ltable stmt =
   List.concat_map ~f:(macro_expand_instr ptable ltable) stmt
 
-let macro_expand_native ptable fd =
-  vars_num_unique_fundef fd;
+let macro_expand_native ptable func =
+  vars_num_unique_func func;
   let ltable = Int.Table.create () in
-  { fd with f_body = macro_expand_stmt ptable ltable fd.f_body }
+  { func with f_body = macro_expand_stmt ptable ltable func.f_body }
 
 let macro_expand_func ptable func =
   (* check that all parameters are given *)
@@ -529,9 +525,7 @@ let macro_expand_func ptable func =
       failloc_ p.Param.loc "all parameters must be given for macro expansion");
   let ltable = Int.Table.create () in
   let func = map_tys_func ~f:(inst_ty ptable ltable) func in
-  match func with
-  | Foreign(_) -> func
-  | Native(fd) -> Native(macro_expand_native ptable fd)
+  macro_expand_native ptable func
 
 let macro_expand_modul ptable modul fname =
   map_func ~f:(macro_expand_func ptable) modul fname
@@ -587,14 +581,14 @@ and that all inline-loops and ifs have been expanded.
 *)
 (* *** Code *)
 
-let array_expand_fundef fd =
+let array_expand_func func =
   (* check that args and ret do not contain arrays, var numbers are unique *)
-  List.iter fd.f_ret ~f:(fun v -> assert (v.Var.ty=tu64));
-  List.iter fd.f_arg ~f:(fun v -> assert (v.Var.ty=tu64));
-  vars_num_unique_fundef fd;
+  List.iter func.f_ret ~f:(fun v -> assert (v.Var.ty=tu64));
+  List.iter func.f_arg ~f:(fun v -> assert (v.Var.ty=tu64));
+  vars_num_unique_func func;
 
-  let ctr = ref (succ (max_var_fundef fd)) in
-  let stmt = fd.f_body in
+  let ctr = ref (succ (max_var_func func)) in
+  let stmt = func.f_body in
 
   (* populate non-const table *)
   let non_const_table = Int.Table.create () in
@@ -639,12 +633,7 @@ let array_expand_fundef fd =
       end
     | _ -> d)
   in
-  { fd with f_body = stmt }
-
-let array_expand_func func =
-  match func with
-  | Foreign(_) -> assert false
-  | Native(fd) -> Native(array_expand_fundef fd)
+  { func with f_body = stmt }
 
 let array_expand_modul modul fname = 
   map_func ~f:array_expand_func modul fname

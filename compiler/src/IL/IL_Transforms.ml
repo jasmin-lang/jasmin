@@ -48,6 +48,7 @@ type transform =
   | Asm of asm_lang
   (* debugging *)
   | Type
+  | CargoTest
   | Print of string * pprint_opt
   | Save  of string * pprint_opt
   | TestConversion of Fname.t
@@ -103,6 +104,7 @@ let ptrafo =
   let get_pp_opts = get_opt (mk_pprint_opt None) in
   choice
     [ (string "typecheck" >>$ Type)
+    ; (string "cargo_test" >>$ CargoTest)
     ; (string "renumber_fun_unique" >>$ RenumberIdents(UniqueNumFun))
     ; (string "renumber_module_unique" >>$ RenumberIdents(UniqueNumModule))
     ; (string "renumber_reuse"  >>$ RenumberIdents(ReuseNum))
@@ -272,14 +274,8 @@ let apply_transform trafos (modul0 : unit modul) =
         ~f:(fun () ->
          let cvi = CVI.mk () in
          let conv func =
-           match func with
-           | Foreign(_) -> assert false
-           | Native(fd) ->
-             let fd =
-               { fd with
-                 f_body = stmt_of_cmd cvi (cmd_of_stmt cvi fd.f_body); }
-             in
-             Native(fd)
+           { func with
+             f_body = stmt_of_cmd cvi (cmd_of_stmt cvi func.f_body); }
          in
          let m1 = map_func m0 fn ~f:conv in
          if not (equal_modul m0 m1) then (
@@ -355,6 +351,10 @@ let apply_transform trafos (modul0 : unit modul) =
     | LocalSSA(fn)              -> local_ssa fn modul
     | Print(n,ppo)              -> print n ppo modul; modul
     | Save(fn,ppo)              -> save fn ppo modul; modul
+    | CargoTest                 ->
+      save "tests/build/test_jasmin.rs" (mk_pprint_opt None) modul;
+      ignore (Sys.command "cd tests/build/ && cargo test"); (* FIXME: don't use system, don't hardcode path *)
+      modul
     | Asm(_)                    -> assert false
   in
   let start = Unix.gettimeofday () in 

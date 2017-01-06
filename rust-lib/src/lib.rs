@@ -298,6 +298,13 @@ pub mod jasmin {
         }
     }
 
+
+    #[macro_export]
+    macro_rules! decl {
+        ( $( $d: tt )* ) => {
+        }
+    }
+
     #[macro_export]
     macro_rules! jc {
         ( $e: expr ) => {
@@ -414,13 +421,13 @@ pub mod U64 {
         jv(x.val ^ y.val)
     }
 
-    pub fn land<T1,T2>(x: T1, y: T2) -> b64
+    pub fn band<T1,T2>(x: T1, y: T2) -> b64
       where T1: ToJval<u64>,T2: ToJval<u64> {
         let (x,y) = (x.to_jval(), y.to_jval());
         jv(x.val & y.val)
     }
 
-    pub fn lor<T1,T2>(x: T1, y: T2) -> b64
+    pub fn bor<T1,T2>(x: T1, y: T2) -> b64
       where T1: ToJval<u64>,T2: ToJval<u64> {
         let (x,y) = (x.to_jval(), y.to_jval());
         jv(x.val | y.val)

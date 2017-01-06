@@ -65,11 +65,12 @@ def test(fname,get_error,cp):
         return
 
     # remove times
-    sed = '-E "s,[0-9]+\.[0-9]+ms,REMOVED_TIME,"'
-    system("sed %s  %s.run.err | grep -v 'Python ' | grep -v 'GCC ' >%s.run.err.tmp"%(
-             sed,fname,fname))
+    sed1 = '-E "s,[0-9]+\.[0-9]+ms,REMOVED_TIME,"'
+    sed2 = '-E "s,[0-9]+\.[0-9]+ secs,REMOVED_TIME,"'
+    system("sed %s  %s.run.err | sed %s | grep -v 'Python ' | grep -v 'GCC ' >%s.run.err.tmp"%(
+             sed1,fname,sed2,fname))
     system("mv %s.run.err.tmp %s.run.err"%(fname,fname))
-    system("sed %s %s.run.out >%s.run.out.tmp"%(sed,fname,fname))
+    system("sed %s %s.run.out | sed %s >%s.run.out.tmp"%(sed1,fname,sed2,fname))
     system("mv %s.run.out.tmp %s.run.out"%(fname,fname))
 
     # compare with expected output
@@ -133,25 +134,25 @@ def all_tests():
     print_sep()
 
     fail_exclude = [22]
-    for fn in [ "%02i"%i for i in range(1,32) if not i in fail_exclude ]:
-        test_fail("tests/compiler/must_fail/t_%s.mil"%fn)
+    #for fn in [ "%02i"%i for i in range(1,32) if not i in fail_exclude ]:
+    #    test_fail("tests/compiler/must_fail/t_%s.mil"%fn)
 
-    print_sep()
+    # print_sep()
         
-    for fn in [ "%02i"%i for i in range(1,15)]:
-        test_ok("tests/compiler/ok/t_%s.mil"%fn)
+    #for fn in [ "%02i"%i for i in range(1,15)]:
+    #    test_ok("tests/compiler/ok/t_%s.mil"%fn)
 
-    print_sep()
+    # print_sep()
 
     #for fn in [ "%02i"%i for i in range(1,7)]:
     #    test_ok("tests/interp/ok/t_%s.mil"%fn)
 
     #print_sep()
 
-    for fn in [ "%02i"%i for i in range(1,4)]:
-        test_ok("tests/conv/ok/t_%s.mil"%fn)
+    #for fn in [ "%02i"%i for i in range(1,4)]:
+    #    test_ok("tests/conv/ok/t_%s.mil"%fn)
 
-    print_sep()
+    # print_sep()
 
     for fn in [ "%02i"%i for i in range(1,2)]:
         test_ok("tests/compiler-rust/ok/t_%s.rs"%fn)

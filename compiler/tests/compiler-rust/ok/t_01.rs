@@ -9,6 +9,7 @@
 rust! {
     use jasmin::jasmin::*;
     use jasmin::U64::*;
+    
 }
 
 rust! {
@@ -23,20 +24,19 @@ rust! {
     }
 }
 
-// UNSUPPORTED FOR NOW:
-const n : b64 = jc!(10); // constants with default values, can be overriden
+rust! {
+    fn foo1(x: stack! (b64)) -> (stack! (b64), reg! (b64), reg! (b1)) {
+        return (x,x,jc!(false));
+    }
+}
 
-// UNSUPPORTED: we can use a variable name that is ignored
-// fn foo1(x : stack! (b64)) -> (stack! (b64), reg! (b64), reg! (b1));
+const n : b64 = jc!(10);
 
-// UNSUPPORTED: we can also leave out variable names
-// fn foo2(stack u64, stack u64[n], x,x,x : stack u64) -> stack u64[n] =
-//   python print_foo;
+decl! { fn foo1(stack! (b64)) -> (stack! (b64), reg! (b64), reg! (b1)); }
 
 // nothing
 fn foo3(_x: stack! (b64)) {
 }
-
 
 // decl only
 pub fn foo4(_x: stack! (b64)) {
@@ -96,6 +96,7 @@ fn foo10(mut x: stack! (b64), y: stack! (b64), mut z: reg! (b1)) -> stack! (b64)
     
     code! {
         w = x;
+        (w,x,z) = foo1(x);
         x = jc!(5);
         w = add_v(w,x);
         if (w == jc!(5)) {
@@ -109,7 +110,6 @@ fn foo10(mut x: stack! (b64), y: stack! (b64), mut z: reg! (b1)) -> stack! (b64)
 
 /*
 START:CMD
-#ARG="save[tests/build/test_jasmin.rs][]"
-ARG="print[roundtrip][]"
+ARG="typecheck,cargo_test,print[roundtrip][]"
 END:CMD
 */

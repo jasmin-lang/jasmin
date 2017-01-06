@@ -300,34 +300,30 @@ type call_conv =
 
 type tinfo = (stor * ty) [@@deriving compare,sexp]
 
-type 'info fundef = {
+type 'info func = {
   f_body      : 'info stmt; (* function body *)
   f_arg       : Var.t list; (* argument values *)
   f_ret       : Var.t list; (* return values *)
   f_call_conv : call_conv;  (* callable or internal function *)
 } [@@deriving compare,sexp]
 
-type foreigndef = {
-  fo_py_def : string option;
-  fo_arg_ty : tinfo list;
-  fo_ret_ty : tinfo list
-} [@@deriving compare,sexp]
-
-type 'info func =
-  | Native  of 'info fundef
-  | Foreign of foreigndef
-  [@@deriving compare,sexp]
-
 type 'info named_func = {
   nf_name : Fname.t;
   nf_func : 'info func;
+} [@@deriving compare,sexp]
+
+type named_proto = {
+  np_name   : Fname.t;
+  np_arg_ty : tinfo list;
+  np_ret_ty : tinfo list;
 } [@@deriving compare,sexp]
 
 type 'info modul = {
   mod_funcs           : 'info named_func list;
   mod_rust_sections   : string list;
   mod_rust_attributes : string list;
-  (* FIXME: const/params? *)
+  mod_params          : (Param.t * pexpr) list;
+  mod_funprotos       : named_proto list;
 } [@@deriving compare,sexp]
 
 (* ** Values

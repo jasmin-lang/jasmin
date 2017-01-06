@@ -1,5 +1,5 @@
 /*
-(* * Parser for jasmin/standalone *) */
+(* * Parser for jasmin/rust *) */
 /*
 (* ** Header *) */
 %{
@@ -8,7 +8,7 @@ open Core_kernel
 open IL_ParseUtils
 open IL_Utils
 
-module P = ParserUtil
+(* module P = ParserUtil *)
 module L = ParserUtil.Lexing
 
 %}
@@ -20,6 +20,7 @@ module L = ParserUtil.Lexing
 
 %token LBRACK RBRACK LCBRACE RCBRACE LPAREN RPAREN
 %token EQ
+%token EQEQ
 %token INEQ
 %token PLUSEQ MINUSEQ BANDEQ MULEQ
 %token LEQ
@@ -31,7 +32,7 @@ module L = ParserUtil.Lexing
 %token LARROW
 %token DOLLAR
 
-%token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256
+%token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
 %token T_BOOL
 
 %token UNDERSCORE
@@ -45,24 +46,31 @@ module L = ParserUtil.Lexing
 %token EXCL DOTDOT COMMA
 %token SHR SHL XOR OR
 
-%token REG PARAM STACK INLINE
+%token REG STACK INLINE CONST
 
-%token FOR WHILE DO
+%token FOR WHILE DO WHEN
 %token IN
 %token IF
 %token ELSE
 %token ELIF
 %token TRUE
 %token FALSE
-%token EXTERN
+%token PUB
+%token MUT
+%token JCEXCL
+%token VAREXCL
+%token CODEEXCL
+%token DECL
 %token FN
-%token PYTHON
 %token RETURN
 
 %token MEM
 
 %token <string * string> NID
 %token <string> INT
+%token <string> RUST_ATTRIBUTE
+%token <string> RUST_SECTION
+%token EXTERN_JASMIN
 
 %nonassoc EXCL
 %left LAND
@@ -149,7 +157,7 @@ src :
 | MINUS   { Pminus }
 
 %inline pcondop :
-| EQ      { Peq  }
+| EQEQ    { Peq  }
 | INEQ    { Pneq }
 | LESS    { Plt  }
 | LEQ     { Ple  }
@@ -166,11 +174,12 @@ dexpr :
 | LPAREN e1=dexpr RPAREN     { e1                                  }
 
 pexpr :
-| v=var                      { Patom(Pvar(v))                      }
-| DOLLAR p=param             { Patom(Pparam(p))                    }
-| i=INT                      { Pconst(Arith.parse_big_int i) }
-| e1=pexpr o=pbinop e2=pexpr { Pbinop(o,e1,e2)                     }
-| LPAREN e1=pexpr RPAREN     { e1                                  }
+| v=var                        { Patom(Pvar(v))                }
+| DOLLAR p=param               { Patom(Pparam(p))              }
+| i=INT                        { Pconst(Arith.parse_big_int i) }
+| e1=pexpr o=pbinop e2=pexpr   { Pbinop(o,e1,e2)               }
+| LPAREN e1=pexpr RPAREN       { e1                            }
+| JCEXCL LPAREN e=pexpr RPAREN { e                             }
 
 %inline pbop :
 | LAND { Pand }
@@ -223,7 +232,8 @@ opeq:
 | s=src { `Assgn(s,Eq) }
 
 %inline assgn_rhs_mv:
-| s=src { `Assgn(s,Mv) }
+| s=src                      { `Assgn(s,Mv) }
+| JCEXCL LPAREN s=src RPAREN { `Assgn(s,Mv) }
 
 | s=src IF e=EXCL? cf=rdest
     { `Cmov(e<>None,s,cf) }
@@ -243,6 +253,9 @@ opeq:
 
 %inline base_instr :
 | ds=tuple_nonempty(dest) EQ rhs=assgn_rhs_mv SEMICOLON
+    { mk_instr ds rhs (L.mk_loc ($startpos,$endpos)) }
+
+| WHEN _fc=fcond LCBRACE ds=tuple_nonempty(dest) EQ rhs=assgn_rhs_mv RCBRACE SEMICOLON
     { mk_instr ds rhs (L.mk_loc ($startpos,$endpos)) }
 
 | ds=tuple_nonempty(dest) COLON EQ rhs=assgn_rhs_eq SEMICOLON
@@ -267,7 +280,7 @@ opeq:
 | IF c=pcond_or_fcond i1s=block ies=celse_if* mi2s=celse?
     { mk_if c i1s mi2s ies }
 
-| FOR cv=sdest IN ce1=pexpr DOTDOT ce2=pexpr is=block
+| FOR cv=sdest IN LPAREN ce1=pexpr DOTDOT ce2=pexpr RPAREN is=block
     { For(cv,ce1,ce2,is,None) }
 
 | WHILE fc=fcond is=block
@@ -296,10 +309,7 @@ block :
  * -------------------------------------------------------------------- *)
 
 return :
-| RETURN ret=tuple(var) SEMICOLON { ret }
-
-typ_dim :
-| LBRACK dim=dexpr RBRACK { (dim) }
+| RETURN ret=tuple(var) { ret }
 
 utype :
 | T_U8   {   8 }
@@ -310,11 +320,17 @@ utype :
 | T_U256 { 256 }
 
 typ :
-| ut=utype  odim=typ_dim? { match odim with None -> Bty(U(ut)) | Some d -> Arr(U(ut),d) }
-| T_BOOL                  { Bty(Bool) }
+| ut = utype
+  { Bty(U(ut)) }
+| T_INT
+  { Bty(Int) }
+| LBRACK ut=utype SEMICOLON d=dexpr RBRACK
+  { Arr(U(ut),d) }
+| T_BOOL
+  { Bty(Bool) }
 
 stor_typ :
-| sto=storage ty=typ { (sto,ty) }
+| sto=storage LPAREN ty=typ RPAREN { (sto,ty) }
 
 %inline typed_vars_stor :
 | vs=separated_nonempty_list(COMMA,dest) COLON st=stor_typ
@@ -326,55 +342,69 @@ stor_typ :
 | INLINE { Inline }
 
 ret_ty :
-| LARROW tys=separated_list(STAR,loc(stor_typ)) { tys }
+| LARROW tys=tuple(loc(stor_typ)) { tys }
 
+%inline wrap_instr:
+| i = instr { FInstr(i) }
+
+%inline wrap_decl:
+| d = typed_vars_stor { FDecl(d) }
 
 %inline func_item:
-| i = instr                     { FInstr(i) }
-| d = typed_vars_stor SEMICOLON { FDecl(d)  }
-
-%inline loc_func_item:
-| lf = loc(func_item) { lf }
+| _rs=RUST_SECTION                                                       { []   }
+| CODEEXCL LCBRACE is = loc(wrap_instr)*  RCBRACE                        { is }
+| VAREXCL LCBRACE ds = terminated_list(SEMICOLON,loc(wrap_decl)) RCBRACE { ds }
 
 %inline func_body :
 | LCBRACE
-    fis  = loc_func_item*
+    fis  = func_item*
     lret = loc(return?)
   RCBRACE
-    { FunNative(fis,lret) }
+    { Some(List.concat fis,lret) }
 | SEMICOLON
-    { FunForeign(None) }
-| EQ PYTHON s=NID SEMICOLON
-    { FunForeign(Some(s)) }
+    { None }
 
 %inline typed_vars_stor_var :
 | vs=separated_nonempty_list(COMMA,var) COLON st=stor_typ
     { (vs, st) }
 
 arg_def :
-| ltv = loc(typed_vars_stor_var)
+| MUT? ltv = loc(typed_vars_stor_var)
     { let (l,(vs,st)) = ltv in (l,Some(vs),st) }
-| lst = loc(stor_typ)
+| MUT? lst = loc(stor_typ)
     { let (l,st) = lst in (l,None,st) }
 
+func_decl :
+| DECL LCBRACE pub=PUB? FN lname=loc(NID)
+    args = paren_tuple(arg_def)
+    rty  = ret_ty?
+    SEMICOLON RCBRACE
+    { (fst lname,
+       mk_func (fst lname) (mk_fname @@ snd lname) (Util.get_opt [] rty) pub args None) }
+
+
 func :
-| ext=EXTERN? FN lname=loc(NID)
+| pub=PUB? FN lname=loc(NID)
     args = paren_tuple(arg_def)
     rty  = ret_ty?
     def  = func_body
     { (fst lname,
-       mk_func (fst lname) (mk_fname @@ snd lname) (Util.get_opt [] rty) ext args def) }
-
-typed_params :
-| vs=separated_nonempty_list(COMMA,NID) COLON t=typ
-    { Std.List.map ~f:(fun v -> (v,t,None)) vs }
+       mk_func (fst lname) (mk_fname @@ snd lname) (Util.get_opt [] rty) pub args def) }
 
 param_or_func :
 | lf=func
-    { (fst lf,Dfun(snd lf)) }
-| PARAM lps=loc(typed_params) SEMICOLON
-    { (fst lps, Dparams(snd lps)) }
+    { [ (fst lf,Dfun(snd lf)) ] }
+| CONST lnid=loc(NID) COLON t=typ EQ JCEXCL LPAREN pe=pexpr RPAREN SEMICOLON
+    { [ (fst lnid, Dparams([(snd lnid,t,pe)])) ] }
+| ra=loc(RUST_ATTRIBUTE)
+    { [(fst ra, Drust_attr(snd ra))] }
+| rs=loc(RUST_SECTION)
+    { [(fst rs, Drust_sec(snd rs))] }
+| EXTERN_JASMIN
+    { [] }
+| fd=func_decl
+    { [ (fst fd,Dfun(snd fd)) ] }
 
 modul :
 | pfs=param_or_func+ EOF
-  { mk_modul pfs }
+  { mk_modul (List.concat pfs) }

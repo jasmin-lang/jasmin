@@ -267,7 +267,7 @@ let update_liveness_stmt stmt changed lout =
   in
   snd (go [] lout (List.rev stmt))
 
-let add_liveness_fundef fd =
+let add_liveness_func fd =
   let stmt = ref (add_kill_ue_stmt fd.f_body) in
   let changed = ref false in
   let cont = ref true in
@@ -287,11 +287,6 @@ let add_liveness_fundef fd =
     f_arg       = fd.f_arg;
     f_ret       = fd.f_ret;
     f_body      = !stmt; }
-
-let add_liveness_func func =
-  match func with
-  | Foreign(_) -> assert false
-  | Native(fd) -> Native(add_liveness_fundef fd)
 
 let add_liveness_named_func nf =
   { nf_name = nf.nf_name;
@@ -472,8 +467,8 @@ let rec local_ssa_instr rni linstr =
 and local_ssa_stmt rni stmt =
   List.map ~f:(local_ssa_instr rni) stmt
 
-let local_ssa_fundef fd =
-  let mn = max_var_fundef fd in
+let local_ssa_func fd =
+  let mn = max_var_func fd in
   let rni = RNI.mk mn in
   let arg = List.map ~f:(RNI.rn_dest_var rni) fd.f_arg in
   let register_array sd =
@@ -482,16 +477,11 @@ let local_ssa_fundef fd =
       (* F.printf "adding %a\n%!" pp_dest_nt d; *)
       ignore(RNI.rn_dest_var rni sd.d_var)
   in
-  iter_sdests_fundef fd ~f:register_array;
+  iter_sdests_func fd ~f:register_array;
   let body = local_ssa_stmt rni fd.f_body in
   let ret = List.map ~f:(RNI.rn_var rni) fd.f_ret in
   { fd with
     f_body = body; f_ret = ret; f_arg = arg}
-
-let local_ssa_func func =
-  match func with
-  | Foreign(fo) -> Foreign(fo)
-  | Native(fd)  -> Native(local_ssa_fundef fd)
 
 let local_ssa_modul modul fname =
   map_func modul fname ~f:local_ssa_func

@@ -302,16 +302,15 @@ let pp_fundef  ?pp_info ~pp_types fmt (decls,body,ret) =
     (pp_either ((decls=[] && body=[]) || ret=[]) "" "@\n") ()
     (pp_return ~pp_types) ret
 
-let pp_foreign ~pp_types fmt name fo =
-  F.fprintf fmt "@[<v 0>fn %a(%a)%a%s@]"
-    Fname.pp name
-    (pp_list "," (pp_tinfo ~pp_types)) fo.fo_arg_ty
-    (pp_ret_ty ~pp_types) fo.fo_ret_ty
-    (match fo.fo_py_def with
-    | None    -> ";"
-    | Some(s) ->  " = python "^s^";")
+let pp_funproto ~pp_types fmt np =
+  F.fprintf fmt "decl! { fn %a(%a)%a; }"
+    Fname.pp np.np_name
+    (pp_list "," (pp_tinfo ~pp_types)) np.np_arg_ty
+    (pp_ret_ty ~pp_types) np.np_ret_ty
 
-let pp_native ?pp_info ~pp_types fmt (name,fdef) =
+let pp_func ?pp_info ~pp_types fmt nf =
+  let name = nf.nf_name in
+  let fdef = nf.nf_func in
   let clean v =
     { v with
       Var.uloc = L.dummy_loc;
@@ -336,21 +335,19 @@ let pp_native ?pp_info ~pp_types fmt (name,fdef) =
       , fdef.f_ret
       )
 
-let pp_func ?pp_info ~pp_types fmt nf =
-  match nf.nf_func with
-  | Foreign(fo)  -> pp_foreign ~pp_types fmt nf.nf_name fo
-  | Native(fdef) -> pp_native ?pp_info ~pp_types  fmt (nf.nf_name,fdef)
-
-let pp_param_entry ~pp_types fmt p =
-  F.fprintf fmt "param %a : %a;@\n@\n" Param.pp p (pp_ty ~pp_types) p.ty
+let pp_param_entry ~pp_types fmt (p,pe) =
+  F.fprintf fmt "const %a : %a = %a;@\n@\n"
+    Param.pp p (pp_ty ~pp_types) p.ty (pp_pexpr ~pp_types) pe
 
 let pp_modul ?pp_info ~pp_types fmt modul =
+  (*
   let params =
     Set.to_list (params_modul modul.mod_funcs)
     |> List.map ~f:(fun p -> { p with Param.loc=L.dummy_loc })
     |> Param.Set.of_list
     |> Set.to_list
   in
+  *)
   let pp_rust_attrib fmt attr = F.fprintf fmt "#![%s]\n" attr in
   let pp_rust_sec fmt sec =
     F.fprintf fmt "rust! {%s}\n" sec
@@ -361,8 +358,10 @@ let pp_modul ?pp_info ~pp_types fmt modul =
   F.fprintf fmt "%s#[macro_use] extern crate jasmin;\n%s"
     (if attrs=[] then "" else "\n")
     (if secs=[] then "" else "\n");
-  pp_list "\n"  pp_rust_sec fmt secs;
-  pp_list ""  (pp_param_entry ~pp_types) fmt params;
+  pp_list "\n" pp_rust_sec fmt secs;
+  pp_string fmt "\n";
+  pp_list ""  (pp_param_entry ~pp_types) fmt modul.mod_params;
+  pp_list "" (pp_funproto ~pp_types) fmt modul.mod_funprotos;
   pp_list "@\n@\n" (pp_func ?pp_info ~pp_types) fmt modul.mod_funcs
 
 let pp_value fmt = function

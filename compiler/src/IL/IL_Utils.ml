@@ -72,6 +72,8 @@ let mk_fname (s,si) =
 
 let map_func modul fname ~f =
   { mod_rust_sections   = modul.mod_rust_sections;
+    mod_params          = modul.mod_params;
+    mod_funprotos       = modul.mod_funprotos;
     mod_rust_attributes = modul.mod_rust_attributes;
     mod_funcs =
       List.map modul.mod_funcs
@@ -80,18 +82,14 @@ let map_func modul fname ~f =
 
 let map_named_func modul fname ~f =
   { mod_rust_sections   = modul.mod_rust_sections;
+    mod_params          = modul.mod_params;
+    mod_funprotos       = modul.mod_funprotos;
     mod_rust_attributes = modul.mod_rust_attributes;
     mod_funcs =
       List.map modul.mod_funcs ~f:(fun nf -> if nf.nf_name = fname then f nf else nf)
   }
 
   
-
-let get_fundef ~err_s func =
-  match func with
-  | Foreign(_) -> failwith err_s
-  | Native(fd) -> fd
-
 let tu64  = Bty(U(64))
 let tbool = Bty(Bool)
 let tint  = Bty(Int)

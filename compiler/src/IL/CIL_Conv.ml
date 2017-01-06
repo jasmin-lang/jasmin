@@ -643,13 +643,9 @@ let apply_cert_transform _fname modul ~f =
   let cvi = CVI.mk () in
   (* F.printf "calling inlining\n%!"; *)
   let conv_nf nf =
-    match nf.nf_func with
-    | Native(fd) ->
-      let cfd = cfundef_of_fundef cvi fd in
-      let k = CVI.add_fname cvi nf.nf_name in
-      cpair_of_pair (pos_of_int k,cfd)
-    | Foreign(_) ->
-      assert false
+    let cfd = cfundef_of_fundef cvi nf.nf_func in
+    let k = CVI.add_fname cvi nf.nf_name in
+    cpair_of_pair (pos_of_int k,cfd)
   in
   (* inliner expects leaves of call-graph last *)
   let cfds = List.rev @@ List.map ~f:conv_nf modul.mod_funcs in  
@@ -665,7 +661,7 @@ let apply_cert_transform _fname modul ~f =
     let i,cfd = pair_of_cpair cfd in
     let name = CVI.get_fname cvi i in
     { nf_name = name;
-      nf_func = Native(fundef_of_cfundef cvi cfd) }
+      nf_func = fundef_of_cfundef cvi cfd }
   in
   { modul with mod_funcs=List.map ~f:conv_cfd @@ List.rev @@ list_of_clist prog }
 

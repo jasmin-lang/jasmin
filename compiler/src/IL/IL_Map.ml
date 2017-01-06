@@ -15,17 +15,12 @@ module VS = Var.Set
 (* ** Map over all function bodies in modul, fundef, func
  * ------------------------------------------------------------------------ *)
 
-let map_body_fundef ~f fd =
+let map_body_func ~f fd =
   { f_body      = f fd.f_body;
     f_arg       = fd.f_arg;
     f_ret       = fd.f_ret;
     f_call_conv = fd.f_call_conv;
   }
-
-let map_body_func ~f func =
-  match func with
-  | Foreign(fd) -> Foreign(fd)
-  | Native(fd) -> Native(map_body_fundef ~f fd)
 
 let map_body_named_func ~f nf =
   { nf_name = nf.nf_name;
@@ -36,6 +31,8 @@ let map_body_modul ~f modul fname =
 
 let map_body_modul_all ~f modul =
   { mod_rust_sections   = modul.mod_rust_sections;
+    mod_funprotos       = modul.mod_funprotos;
+    mod_params          = modul.mod_params;
     mod_rust_attributes = modul.mod_rust_attributes;
     mod_funcs =
       List.map ~f:(map_body_named_func ~f) modul.mod_funcs
@@ -65,8 +62,6 @@ let rec concat_map_instr ~f pos instr =
 and concat_map_stmt ~f pos stmt =
   List.concat @@
     List.mapi ~f:(fun i instr -> concat_map_instr ~f (pos@[i]) instr) stmt
-
-let concat_map_fundef ~f = map_body_fundef ~f:(concat_map_stmt [] ~f)
 
 let concat_map_func ~f = map_body_func ~f:(concat_map_stmt [] ~f)
 
@@ -164,17 +159,12 @@ let rec map_vars_instr linstr ~f =
 and map_vars_stmt stmt ~f =
   List.map stmt ~f:(map_vars_instr ~f)
 
-let map_vars_fundef ~f fd =
+let map_vars_func ~f fd =
   { f_body      = map_vars_stmt ~f fd.f_body;
     f_arg       = List.map ~f fd.f_arg;
     f_ret       = List.map ~f fd.f_ret;
     f_call_conv = fd.f_call_conv;
   }
-
-let map_vars_func ~f func =
-  match func with
-  | Foreign(_) -> func
-  | Native(fd) -> Native(map_vars_fundef ~f fd)
 
 let map_vars_named_func ~f nf =
   { nf_name = nf.nf_name;
@@ -290,23 +280,12 @@ let rec map_params_instr linstr ~f =
 and map_params_stmt stmt ~f =
   List.map stmt ~f:(map_params_instr ~f)
 
-let map_params_fundef ~f fd =
+let map_params_func ~f fd =
   { f_body      = map_params_stmt ~f fd.f_body;
     f_arg       = List.map ~f:(map_params_var ~f) fd.f_arg;
     f_ret       = List.map ~f:(map_params_var ~f) fd.f_ret;
     f_call_conv = fd.f_call_conv;
   }
-
-let map_params_foreigndef ~f fo =
-  { fo with
-    fo_arg_ty = List.map ~f:(fun (s,t) -> (s,map_params_ty ~f t)) fo.fo_arg_ty;
-    fo_ret_ty = List.map ~f:(fun (s,t) -> (s,map_params_ty ~f t)) fo.fo_ret_ty;
-  }
-
-let map_params_func ~f func =
-  match func with
-  | Foreign(fd) -> Foreign(map_params_foreigndef ~f fd)
-  | Native(fd)  -> Native(map_params_fundef ~f fd)
 
 let map_params_named_func ~f nf =
   { nf_name = nf.nf_name;
@@ -426,23 +405,12 @@ let rec map_tys_instr linstr ~f:(f : ty -> ty) =
 and map_tys_stmt stmt ~f:(f : ty -> ty) =
   List.map stmt ~f:(map_tys_instr ~f)
 
-let map_tys_fundef ~f:(f : ty -> ty) fd =
+let map_tys_func ~f:(f : ty -> ty) fd =
   { f_body      = map_tys_stmt ~f fd.f_body;
     f_arg       = List.map ~f:(map_tys_var ~f) fd.f_arg;
     f_ret       = List.map ~f:(map_tys_var ~f) fd.f_ret;
     f_call_conv = fd.f_call_conv;
   }
-
-let map_tys_foreigndef ~f:(f : ty -> ty) fo =
-  { fo with
-    fo_arg_ty = List.map ~f:(fun (s,t) -> (s,map_tys_ty ~f t)) fo.fo_arg_ty;
-    fo_ret_ty = List.map ~f:(fun (s,t) -> (s,map_tys_ty ~f t)) fo.fo_ret_ty;
-  }
-
-let map_tys_func ~f:(f : ty -> ty) func =
-  match func with
-  | Foreign(fd) -> Foreign(map_tys_foreigndef ~f fd)
-  | Native(fd)  -> Native(map_tys_fundef ~f fd)
 
 let map_tys_named_func ~f nf =
   { nf_name = nf.nf_name;
@@ -503,17 +471,12 @@ let rec map_sdests_instr linstr ~f =
 and map_sdests_stmt stmt ~f =
   List.map stmt ~f:(map_sdests_instr ~f)
 
-let map_sdests_fundef ~f fd =
+let map_sdests_func ~f fd =
   { f_body      = map_sdests_stmt ~f fd.f_body;
     f_arg       = fd.f_arg;
     f_ret       = fd.f_ret;
     f_call_conv = fd.f_call_conv;
   }
-
-let map_sdests_func ~f func =
-  match func with
-  | Foreign(_) -> func
-  | Native(fd) -> Native(map_sdests_fundef ~f fd)
 
 let map_dests_named_func ~f nf =
   { nf_name = nf.nf_name;

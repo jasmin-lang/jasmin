@@ -91,16 +91,11 @@ let rec iter_vars_instr instr ~f =
 and iter_vars_stmt stmt ~f =
   List.iter stmt ~f:(iter_vars_instr ~f)
 
-let iter_vars_fundef fd ~f =
+let iter_vars_func fd ~f =
   (* fix eval order to improve error messages that use this function *)
   List.iter ~f:f fd.f_arg;
   iter_vars_stmt fd.f_body ~f;
   List.iter ~f:f fd.f_ret
-
-let iter_vars_func func ~f =
-  match func with
-  | Foreign _  -> ()
-  | Native(fd) -> iter_vars_fundef fd ~f
 
 let iter_vars_named_func nf ~f =
   iter_vars_func nf.nf_func ~f
@@ -127,12 +122,12 @@ let vars_modul modul =
   iter_vars_modul ~f modul;
   !res
 
-let max_var_fundef stmt =
+let max_var_func stmt =
   let res = ref 0 in
   let f v =
     res := max !res v.Var.num
   in
-  iter_vars_fundef ~f stmt;
+  iter_vars_func ~f stmt;
   !res
 
 let max_var_modul modul =
@@ -143,7 +138,7 @@ let max_var_modul modul =
   iter_vars_modul ~f modul;
   !res
 
-let vars_num_unique_fundef fd =
+let vars_num_unique_func fd =
   let ntable = Int.Table.create () in
   let f v =
     match HT.find ntable v.Var.num with
@@ -157,9 +152,9 @@ let vars_num_unique_fundef fd =
       else
         ()
   in
-  iter_vars_fundef ~f fd
+  iter_vars_func ~f fd
 
-let vars_type_consistent_fundef fd =
+let vars_type_consistent_func fd =
   let ntable = Vname_num.Table.create () in
   let f v =
     let nn = (v.Var.name, v.Var.num) in
@@ -173,17 +168,14 @@ let vars_type_consistent_fundef fd =
       else
         ()
   in
-  iter_vars_fundef ~f fd
+  iter_vars_func ~f fd
 
 let vars_num_unique_modul ~type_only modul =
   let check func =
-    match func with
-    | Foreign(_) -> ()
-    | Native(fd) ->
-      if type_only then
-        vars_type_consistent_fundef fd
-      else
-        vars_num_unique_fundef fd
+    if type_only then
+      vars_type_consistent_func func
+    else
+      vars_num_unique_func func
   in
   List.iter modul.mod_funcs ~f:(fun nf -> check nf.nf_func)
 
@@ -274,19 +266,10 @@ let rec iter_params_instr ~f instr =
 and iter_params_stmt ~f stmt =
   List.iter stmt ~f:(iter_params_instr ~f)
 
-let iter_params_fundef fd ~f =
+let iter_params_func fd ~f =
   List.iter ~f:(iter_params_var ~f) fd.f_arg;
   iter_params_stmt fd.f_body ~f;
   List.iter ~f:(iter_params_var ~f) fd.f_ret
-
-let iter_params_foreign fo ~f =
-  List.iter ~f:(fun (_,t) -> iter_params_ty ~f t) fo.fo_arg_ty;
-  List.iter ~f:(fun (_,t) -> iter_params_ty ~f t) fo.fo_ret_ty
-  
-let iter_params_func func ~f =
-  match func with
-  | Foreign(fo) -> iter_params_foreign fo ~f
-  | Native(fd)  -> iter_params_fundef fd ~f
 
 let iter_params_named_func nf ~f =
   iter_params_func nf.nf_func ~f
@@ -367,14 +350,9 @@ let rec iter_sdests_instr instr ~f =
 and iter_sdests_stmt stmt ~f =
   List.iter stmt ~f:(iter_sdests_instr ~f)
 
-let iter_sdests_fundef fd ~f =
+let iter_sdests_func fd ~f =
   iter_sdests_stmt fd.f_body ~f
     
-let iter_sdests_func func ~f =
-  match func with
-  | Foreign _  -> ()
-  | Native(fd) -> iter_sdests_fundef fd ~f
-
 let iter_sdests_named_func nf ~f =
   iter_sdests_func nf.nf_func ~f
 
@@ -415,13 +393,8 @@ let rec iter_instrs_instr ~f linstr =
 and iter_instrs_stmt ~f stmt =
   List.iter ~f:(iter_instrs_instr ~f) stmt
 
-let iter_instrs_fundef ~f fd =
+let iter_instrs_func ~f fd =
   iter_instrs_stmt ~f fd.f_body
-
-let iter_instrs_func ~f func =
-  match func with
-  | Foreign(_) -> ()
-  | Native(fd) -> iter_instrs_fundef ~f fd
 
 let iter_instrs_named_func ~f nf =
   iter_instrs_func ~f nf.nf_func
@@ -474,11 +447,8 @@ let iter_binstrs_instr ~f linstr =
 let iter_binstrs_stmt ~f stmt =
   iter_instrs_stmt ~f:(iter_binstrs_block ~f) stmt
 
-let iter_binstrs_fundef ~f fd =
-  iter_instrs_fundef ~f:(iter_binstrs_block ~f) fd
-
-let iter_binstrs_func ~f func =
-  iter_instrs_func ~f:(iter_binstrs_block ~f) func
+let iter_binstrs_func ~f fd =
+  iter_instrs_func ~f:(iter_binstrs_block ~f) fd
 
 let iter_binstrs_named_func ~f nf =
   iter_instrs_named_func ~f:(iter_binstrs_block ~f) nf

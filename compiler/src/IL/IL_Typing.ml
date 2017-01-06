@@ -190,15 +190,16 @@ let typecheck_fcond_or_pcond = function
   | Pcond(_)  -> ()
   | Fcond(fc) -> typecheck_fcond fc
 
-let typecheck_call ftable loc fname ret arg =
-  let arg_ty, ret_ty =
+let typecheck_call fptable ftable loc fname ret arg =
+  let arg_ty, ret_ty, stor_dont_care =
     match HT.find ftable fname with
-    | None       -> failloc_ loc "call to unknown function %a" Fname.pp fname
-    | Some(func) ->
-      begin match func with
-      | Foreign(fo) -> (fo.fo_arg_ty, fo.fo_ret_ty)
-      | Native(fd)  -> (List.map ~f:tinfo_of_var fd.f_arg,List.map ~f:tinfo_of_var fd.f_ret)
+    | None       ->
+      begin match HT.find fptable fname with
+      | None -> failloc_ loc "call to unknown function %a" Fname.pp fname
+      | Some(np) -> np.np_arg_ty, np.np_ret_ty,true
       end
+    | Some(func) ->
+      List.map ~f:tinfo_of_var func.f_arg,List.map ~f:tinfo_of_var func.f_ret,false
     in
     let tc_rdest rd (sto_exp,ty_exp) =
       typecheck_rdest rd ty_exp;
@@ -207,7 +208,7 @@ let typecheck_call ftable loc fname ret arg =
         | Mem(sd,_) -> sd.d_loc, Stack (* FIXME: we treat Mem and Stack the same *)
         | Sdest(sd) -> sd.d_loc, sd.d_var.Var.stor
       in
-      if sto<>sto_exp then
+      if not stor_dont_care && sto<>sto_exp then
         failloc_ uloc "wrong storage type for call of %a: got ``%s'', expected ``%s''"
           Fname.pp fname (string_of_storage sto) (string_of_storage sto_exp)
     in
@@ -237,20 +238,20 @@ let typecheck_call ftable loc fname ret arg =
       ~err:(fun n_g n_e -> failloc_ loc "wrong number of l-values: got %i, expected %i" n_g n_e)
 
 
-let typecheck_base_instr ftable lbinstr =
+let typecheck_base_instr fptable ftable lbinstr =
   let loc = lbinstr.L.l_loc in
   match lbinstr.L.l_val with
   | Comment _           -> ()
   | Op(op,ds,ss)        -> typecheck_op op ds ss
   | Assgn(d,s,_)        -> typecheck_assgn d s loc
-  | Call(fname,ret,arg) -> typecheck_call ftable loc fname ret arg
+  | Call(fname,ret,arg) -> typecheck_call fptable ftable loc fname ret arg
   (* | Load(d,s,_pe)       -> type_src_eq  s (U(64)); typecheck_dest d (U(64)) *)
   (* | Store(s1,_pe,s2)    -> type_src_eq s1 (U(64)); type_src_eq s2 (U(64)) *)
 
-let rec typecheck_instr ftable instr =
-  let tc_stmt  = typecheck_stmt ftable in
-  let tc_bi    = typecheck_base_instr ftable in
-  let tc_sdest  = typecheck_sdest in
+let rec typecheck_instr fptable ftable instr =
+  let tc_stmt  = typecheck_stmt fptable ftable in
+  let tc_bi    = typecheck_base_instr fptable ftable in
+  let tc_sdest = typecheck_sdest in
   let tc_fcond = typecheck_fcond in
   let tc_cond  = typecheck_fcond_or_pcond in
   match instr.L.l_val with
@@ -259,19 +260,20 @@ let rec typecheck_instr ftable instr =
   | For(sd,_,_,stmt,_)  -> assert(sd.d_idx=None); tc_sdest sd tu64; tc_stmt stmt
   | While(_wt,fc,s,_)   -> tc_fcond fc; tc_stmt s
 
-and typecheck_stmt ftable stmt =
-  List.iter ~f:(typecheck_instr ftable) stmt
+and typecheck_stmt fptable ftable stmt =
+  List.iter ~f:(typecheck_instr fptable ftable) stmt
 
-let typecheck_func ftable func =
-  match func with
-  | Foreign(_) -> ()
-  | Native(fd) ->
-    typecheck_stmt ftable fd.f_body
+let typecheck_func fptable ftable func =
+  typecheck_stmt fptable ftable func.f_body
 
 let typecheck_modul modul =
   vars_num_unique_modul ~type_only:true modul;
   params_consistent_modul (pp_ty ~pp_types:false) modul;
+  let fptable = 
+    Fname.Table.of_alist_exn (List.map ~f:(fun np -> (np.np_name, np))
+                                (IL_stdlib.std_protos () @ modul.mod_funprotos))
+  in
   let ftable =
     Fname.Table.of_alist_exn (List.map ~f:(fun nf -> (nf.nf_name, nf.nf_func)) modul.mod_funcs)
   in
-  List.iter modul.mod_funcs ~f:(fun nf -> typecheck_func ftable nf.nf_func)
+  List.iter modul.mod_funcs ~f:(fun nf -> typecheck_func fptable ftable nf.nf_func)

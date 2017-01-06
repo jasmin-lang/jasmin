@@ -27,17 +27,19 @@ rule lex = parse
 
   | ":"     { COLON }
 
-  | "u8"    { T_U8  }
-  | "u16"   { T_U16  }
-  | "u32"   { T_U32  }
-  | "u64"   { T_U64  }
-  | "u128"  { T_U128 }
-  | "u256"  { T_U256 }
-  | "bool"  { T_BOOL }
+  | "b8"    { T_U8   }
+  | "b16"   { T_U16  }
+  | "b32"   { T_U32  }
+  | "b64"   { T_U64  }
+  | "b128"  { T_U128 }
+  | "b256"  { T_U256 }
+  | "b1"    { T_BOOL }
+  | "uint"  { T_INT  }
 
   | "_"     { UNDERSCORE }
 
   | "="     { EQ }
+  | "=="    { EQEQ }
   | "!="    { INEQ }
   | "+="    { PLUSEQ }
   | "*="    { MULEQ }
@@ -70,23 +72,28 @@ rule lex = parse
   | "|"     { OR }
   | "$"     { DOLLAR }
 
-  | "reg"    { REG }
-  | "stack"  { STACK }
-  | "inline" { INLINE }
-  | "param"  { PARAM }
+  | "reg!"   { REG }
+  | "stack!" { STACK }
+  | "inline!" { INLINE }
+  | "const"  { CONST }
   | "MEM"    { MEM }
 
-  | "for"              { FOR }
-  | "while"            { WHILE }
-  | "do"               { DO }
-  | "in"               { IN }
-  | "if"               { IF }
-  | "else"             { ELSE }
-  | "else" blank+ "if" { ELIF }
-  | "extern"           { EXTERN }
-  | "fn"               { FN }
-  | "python"           { PYTHON }
-  | "return"           { RETURN }
+  | "for"              { FOR      }
+  | "when"             { WHEN     }
+  | "while"            { WHILE    }
+  | "do"               { DO       }
+  | "in"               { IN       }
+  | "if"               { IF       }
+  | "else"             { ELSE     }
+  | "else" blank+ "if" { ELIF     }
+  | "pub"              { PUB      }
+  | "mut"              { MUT      }
+  | "jc!"              { JCEXCL   }
+  | "var!"             { VAREXCL  }
+  | "decl!"            { DECL     }
+  | "code!"            { CODEEXCL }
+  | "fn"               { FN       }
+  | "return"           { RETURN   }
 
   | ('-'? ['0'-'9']+) as s { INT(s) }
   | ("0x" ['0'-'9' 'a'-'f' '_']+) as s { INT(s) }
@@ -97,6 +104,28 @@ rule lex = parse
 
   | ['a'-'z' '_']['a'-'z' 'A'-'Z' '_' '0'-'9']* as s
     { NID(s,"") }
+
+  | "#![" (['a'-'z' '_' 'A'-'Z' '_' '0'-'9' ')' '(']+ as s) "]"
+    { RUST_ATTRIBUTE(s) }
+
+  | "rust!" blank* "{"
+    { RUST_SECTION (rust_sec (Buffer.create 100) 0 lexbuf) }
+
+  | "#[macro_use]" blank+ "extern" blank+ "crate" blank+ "jasmin" blank* ";"
+    { EXTERN_JASMIN }
+
+and rust_sec buf opened = parse
+  | "}"   { if opened=0 then (
+              Buffer.contents buf
+            ) else (
+              Buffer.add_char buf '}';
+              rust_sec buf (opened - 1) lexbuf
+            ) }
+  | "{"   { Buffer.add_char buf '{'; rust_sec buf (opened + 1) lexbuf }
+  | _     { Buffer.add_string buf (Lexing.lexeme lexbuf); rust_sec buf opened lexbuf }
+  | "/*"  { comment lexbuf; rust_sec buf opened lexbuf }
+  | "//"  { line_comment lexbuf; rust_sec buf opened lexbuf }
+  | eof   { raise (Error "end-of-file inside rust! { .. }") }
 
 and comment = parse
   | "*/"        { () }
