@@ -1,8 +1,0 @@
-fn foo() {
-  reg x : u64[n];
-
-  x[0], x[0], y  reg = x[0];
-/*
-ERROR: parse error
-*/
-}

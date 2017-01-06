@@ -1,0 +1,66 @@
+>> input:
+#[macro_use] extern crate jasmin;
+param n : b64;
+
+fn foo1(stack! (b64)) -> (stack! (b64),reg! (b64),reg! (b1));
+
+fn foo2(stack! (b64),stack! (b64[(n: b64)]),stack! (b64),stack! (b64),stack! (b64)) -> stack! (b64[(n: b64)]) = python print_foo;
+
+fn foo3(mut _x: stack! (b64)) {
+}
+
+fn foo4(mut _x: stack! (b64)) {
+}
+
+fn foo5(mut x: stack! (b64)) {
+    code! {
+        x: stack! (b64) += x: stack! (b64);
+    }
+}
+
+fn foo6(mut x: stack! (b64)) -> stack! (b64) {
+    return x: stack! (b64)
+}
+
+fn foo7(mut x: stack! (b64)) {
+    var! {
+        y: stack! (b64);
+    }
+    code! {
+        x: stack! (b64) += y: stack! (b64);
+    }
+}
+
+fn foo8(mut x: stack! (b64)) -> (stack! (b64),stack! (b64)) {
+    var! {
+        y: stack! (b64);
+    }
+    return (y: stack! (b64),x: stack! (b64))
+}
+
+fn foo9(mut x: stack! (b64)) -> stack! (b64) {
+    code! {
+        x: stack! (b64) += x: stack! (b64);
+    }
+    return x: stack! (b64)
+}
+
+fn foo10(mut x: stack! (b64), mut y: stack! (b64), mut z: reg! (b1)) -> stack! (b64) {
+    var! {
+        w: stack! (b64);
+    }
+    code! {
+        w: stack! (b64) = x: stack! (b64);
+        w: stack! (b64) += x: stack! (b64);
+        if (w: stack! (b64) == jc!(5)) {
+            z: reg! (b1), x: stack! (b64) += w: stack! (b64);
+            z: reg! (b1), x: stack! (b64) += y: stack! (b64);
+        }
+    }
+    return x: stack! (b64)
+}
+
+
+total transformation time: REMOVED_TIME
+
+total time (with save/print): REMOVED_TIME

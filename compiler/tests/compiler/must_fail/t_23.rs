@@ -1,6 +1,6 @@
 // use undeclared parameter
 
-extern fn test(x : stack u64) -> stack u64 {
+fn test(x : stack u64) -> stack u64 {
   x += $undef_param;
   return x;
 }

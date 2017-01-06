@@ -1,0 +1,38 @@
+renumbering identifiers in all function(s)
+   REMOVED_TIME
+>> input:
+#[macro_use] extern crate jasmin;
+fn foo1(mut x.1s: stack! (b64), mut y.2s: stack! (b64), mut z.3: reg! (b1)) -> stack! (b64) {
+                                      var! {
+                                          w.4s: stack! (b64);
+                                      }
+                                      code! {
+                                          w.4s: stack! (b64) = x.1s: stack! (b64);
+                                          w.4s: stack! (b64) += x.1s: stack! (b64);
+                                          if (w.4s: stack! (b64) == jc!(5)) {
+                                              z.3: reg! (b1), x.1s: stack! (b64) += w.4s: stack! (b64);
+                                              z.3: reg! (b1), x.1s: stack! (b64) += y.2s: stack! (b64);
+                                          }
+                                      }
+                                      return x.1s: stack! (b64)
+                                  }
+
+fn foo2(mut x.5s: stack! (b64), mut y.6s: stack! (b64), mut z.7: reg! (b1)) -> stack! (b64) {
+    var! {
+        w.8s: stack! (b64);
+    }
+    code! {
+        w.8s: stack! (b64) = x.5s: stack! (b64);
+        w.8s: stack! (b64) += x.5s: stack! (b64);
+        if (w.8s: stack! (b64) == jc!(5)) {
+            z.7: reg! (b1), x.5s: stack! (b64) += w.8s: stack! (b64);
+            z.7: reg! (b1), x.5s: stack! (b64) += y.6s: stack! (b64);
+        }
+    }
+    return x.5s: stack! (b64)
+}
+
+
+total transformation time: REMOVED_TIME
+
+total time (with save/print): REMOVED_TIME

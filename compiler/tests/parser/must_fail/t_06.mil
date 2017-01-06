@@ -1,8 +1,0 @@
-fn foo() {
-  reg x, y : u64[n];
-
-  x[0], z[0] = x[0] if y[0];
-/*
-ERROR: invalid destination for cmov
-*/
-}

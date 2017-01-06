@@ -1,0 +1,15 @@
+type checking module in all function(s)
+   REMOVED_TIME
+>> renum:
+#[macro_use] extern crate jasmin;
+pub fn test(mut x.1: stack! (b64), mut y.1: stack! (b64)) -> stack! (b64) {
+                                      code! {
+                                          x.1 += y.1;
+                                      }
+                                      return x.1
+                                  }
+
+
+total transformation time: REMOVED_TIME
+
+total time (with save/print): REMOVED_TIME

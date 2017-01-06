@@ -1,0 +1,57 @@
+inlining all calls in ``foo2'' function(s)
+   REMOVED_TIME
+renumbering identifiers in all function(s)
+   REMOVED_TIME
+>> input:
+#[macro_use] extern crate jasmin;
+fn foo2(mut x: stack! (b64), mut y: stack! (b64), mut cf: reg! (b1)) -> stack! (b64) {
+                                      var! {
+                                          cf.1: reg! (b1)
+                                          w: stack! (b64)
+                                          x.1: stack! (b64)
+                                          y.1: stack! (b64)
+                                          z: stack! (b64);
+                                      }
+                                      code! {
+                                          // STARTBLOCK
+                                          w = x;
+                                          cf, w += x;
+                                          // ENDBLOCK
+                                          // STARTBLOCK
+                                          if !cf {
+                                              // STARTBLOCK
+                                              cf, x += w;
+                                              cf, x += y;
+                                              /* START: inlined call to foo1 */
+                                              x.1 := x;
+                                              y.1 := y;
+                                              cf.1 := cf;
+                                              cf.1, x.1 += y.1 + cf.1;
+                                              // ENDBLOCK
+                                              // STARTBLOCK
+                                              if cf.1 {
+                                                  // STARTBLOCK
+                                                  cf.1, x.1 += y.1;
+                                                  cf.1, x.1 += y.1;
+                                                  // ENDBLOCK
+                                              }
+                                              // ENDBLOCK
+                                              // STARTBLOCK
+                                              /* START: inlined call to foo0 */
+                                              z := x.1;
+                                              z += z;
+                                              x.1 := z;
+                                              /* END: inlined call to foo0 */
+                                              x := x.1;
+                                              /* END: inlined call to foo1 */
+                                              // ENDBLOCK
+                                          }
+                                          // ENDBLOCK
+                                      }
+                                      return x
+                                  }
+
+
+total transformation time: REMOVED_TIME
+
+total time (with save/print): REMOVED_TIME

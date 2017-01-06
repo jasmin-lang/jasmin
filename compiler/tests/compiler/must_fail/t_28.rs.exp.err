@@ -1,4 +1,4 @@
-tests/compiler/must_fail/t_28.mil:7:8: 7:9 error: type mismatch (got u64[4], expected u64)
+tests/compiler/must_fail/t_28.mil:7:8: 7:9 error: type mismatch (got b64[4], expected b64)
   x += y;       // this is the problem
        ^^
 tests/compiler/must_fail/t_28.mil:3:29: 3:30 error: <-- declared here

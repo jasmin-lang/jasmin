@@ -1,0 +1,94 @@
+renumbering identifiers in all function(s)
+   REMOVED_TIME
+type checking module in all function(s)
+   REMOVED_TIME
+expanding macros in ``test'' function(s)
+   REMOVED_TIME
+expanding array assignments in ``test'' function(s)
+   REMOVED_TIME
+type checking module in all function(s)
+   REMOVED_TIME
+renumbering identifiers in all function(s)
+   REMOVED_TIME
+>> renum:
+#[macro_use] extern crate jasmin;
+pub fn test() {
+                                      var! {
+                                          arr1: stack! (b64[14])
+                                          arr2: stack! (b64[14])
+                                          arr3: stack! (b64[16])
+                                          arr4: stack! (b64[16])
+                                          cf: reg! (b1);
+                                      }
+                                      code! {
+                                          while cf {
+                                              if cf {
+                                                  arr1[jc!(0)] := arr2[jc!(0)];
+                                                  arr1[jc!(1)] := arr2[jc!(1)];
+                                                  arr1[jc!(2)] := arr2[jc!(2)];
+                                                  arr1[jc!(3)] := arr2[jc!(3)];
+                                                  arr1[jc!(4)] := arr2[jc!(4)];
+                                                  arr1[jc!(5)] := arr2[jc!(5)];
+                                                  arr1[jc!(6)] := arr2[jc!(6)];
+                                                  arr1[jc!(7)] := arr2[jc!(7)];
+                                                  arr1[jc!(8)] := arr2[jc!(8)];
+                                                  arr1[jc!(9)] := arr2[jc!(9)];
+                                                  arr1[jc!(10)] := arr2[jc!(10)];
+                                                  arr1[jc!(11)] := arr2[jc!(11)];
+                                                  arr1[jc!(12)] := arr2[jc!(12)];
+                                                  arr1[jc!(13)] := arr2[jc!(13)];
+                                                  arr3[jc!(0)] = arr4[jc!(0)];
+                                                  arr3[jc!(1)] = arr4[jc!(1)];
+                                                  arr3[jc!(2)] = arr4[jc!(2)];
+                                                  arr3[jc!(3)] = arr4[jc!(3)];
+                                                  arr3[jc!(4)] = arr4[jc!(4)];
+                                                  arr3[jc!(5)] = arr4[jc!(5)];
+                                                  arr3[jc!(6)] = arr4[jc!(6)];
+                                                  arr3[jc!(7)] = arr4[jc!(7)];
+                                                  arr3[jc!(8)] = arr4[jc!(8)];
+                                                  arr3[jc!(9)] = arr4[jc!(9)];
+                                                  arr3[jc!(10)] = arr4[jc!(10)];
+                                                  arr3[jc!(11)] = arr4[jc!(11)];
+                                                  arr3[jc!(12)] = arr4[jc!(12)];
+                                                  arr3[jc!(13)] = arr4[jc!(13)];
+                                                  arr3[jc!(14)] = arr4[jc!(14)];
+                                                  arr3[jc!(15)] = arr4[jc!(15)];
+                                              }
+                                          }
+                                          arr1[jc!(0)] := arr2[jc!(0)];
+                                          arr1[jc!(1)] := arr2[jc!(1)];
+                                          arr1[jc!(2)] := arr2[jc!(2)];
+                                          arr1[jc!(3)] := arr2[jc!(3)];
+                                          arr1[jc!(4)] := arr2[jc!(4)];
+                                          arr1[jc!(5)] := arr2[jc!(5)];
+                                          arr1[jc!(6)] := arr2[jc!(6)];
+                                          arr1[jc!(7)] := arr2[jc!(7)];
+                                          arr1[jc!(8)] := arr2[jc!(8)];
+                                          arr1[jc!(9)] := arr2[jc!(9)];
+                                          arr1[jc!(10)] := arr2[jc!(10)];
+                                          arr1[jc!(11)] := arr2[jc!(11)];
+                                          arr1[jc!(12)] := arr2[jc!(12)];
+                                          arr1[jc!(13)] := arr2[jc!(13)];
+                                          arr3[jc!(0)] = arr4[jc!(0)];
+                                          arr3[jc!(1)] = arr4[jc!(1)];
+                                          arr3[jc!(2)] = arr4[jc!(2)];
+                                          arr3[jc!(3)] = arr4[jc!(3)];
+                                          arr3[jc!(4)] = arr4[jc!(4)];
+                                          arr3[jc!(5)] = arr4[jc!(5)];
+                                          arr3[jc!(6)] = arr4[jc!(6)];
+                                          arr3[jc!(7)] = arr4[jc!(7)];
+                                          arr3[jc!(8)] = arr4[jc!(8)];
+                                          arr3[jc!(9)] = arr4[jc!(9)];
+                                          arr3[jc!(10)] = arr4[jc!(10)];
+                                          arr3[jc!(11)] = arr4[jc!(11)];
+                                          arr3[jc!(12)] = arr4[jc!(12)];
+                                          arr3[jc!(13)] = arr4[jc!(13)];
+                                          arr3[jc!(14)] = arr4[jc!(14)];
+                                          arr3[jc!(15)] = arr4[jc!(15)];
+                                      }
+                                  }
+
+
+total transformation time: REMOVED_TIME
+
+total time (with save/print): REMOVED_TIME

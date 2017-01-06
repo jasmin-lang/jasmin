@@ -1,0 +1,71 @@
+renumbering identifiers in all function(s)
+   REMOVED_TIME
+type checking module in all function(s)
+   REMOVED_TIME
+expanding macros in ``test'' function(s)
+   REMOVED_TIME
+renumbering identifiers in all function(s)
+   REMOVED_TIME
+>> renum:
+#[macro_use] extern crate jasmin;
+pub fn test() {
+                                      var! {
+                                          cf: reg! (b1)
+                                          ptr: reg! (b64)
+                                          v_0: stack! (b64[15])
+                                          v_14: stack! (b64[15])
+                                          v_inner: stack! (b64[15])
+                                          v_inner_inner: stack! (b64[7])
+                                          v_inner_outer: stack! (b64[15]);
+                                      }
+                                      code! {
+                                          if cf {
+                                              v_0[jc!(0)] = jc!(0);
+                                              v_14[jc!(14)] += jc!(1);
+                                              v_inner[jc!(10)] = jc!(10);
+                                              v_inner_outer[jc!(10)] = MEM[ptr + jc!(80)];
+                                              v_inner_inner[jc!(5)] = jc!(5);
+                                              MEM[ptr + jc!(40)] = jc!(5);
+                                              v_inner_outer[jc!(10)] = MEM[ptr + jc!(80)];
+                                              v_inner_inner[jc!(6)] = jc!(6);
+                                              MEM[ptr + jc!(48)] = jc!(6);
+                                              v_14[jc!(14)] += jc!(1);
+                                              v_inner[jc!(11)] = jc!(11);
+                                              v_inner_outer[jc!(11)] = MEM[ptr + jc!(88)];
+                                              v_inner_inner[jc!(5)] = jc!(5);
+                                              MEM[ptr + jc!(40)] = jc!(5);
+                                              v_inner_outer[jc!(11)] = MEM[ptr + jc!(88)];
+                                              v_inner_inner[jc!(6)] = jc!(6);
+                                              MEM[ptr + jc!(48)] = jc!(6);
+                                              v_14[jc!(14)] += jc!(1);
+                                              v_inner[jc!(12)] = jc!(12);
+                                              v_inner_outer[jc!(12)] = MEM[ptr + jc!(96)];
+                                              v_inner_inner[jc!(5)] = jc!(5);
+                                              MEM[ptr + jc!(40)] = jc!(5);
+                                              v_inner_outer[jc!(12)] = MEM[ptr + jc!(96)];
+                                              v_inner_inner[jc!(6)] = jc!(6);
+                                              MEM[ptr + jc!(48)] = jc!(6);
+                                              v_14[jc!(14)] += jc!(1);
+                                              v_inner[jc!(13)] = jc!(13);
+                                              v_inner_outer[jc!(13)] = MEM[ptr + jc!(104)];
+                                              v_inner_inner[jc!(5)] = jc!(5);
+                                              MEM[ptr + jc!(40)] = jc!(5);
+                                              v_inner_outer[jc!(13)] = MEM[ptr + jc!(104)];
+                                              v_inner_inner[jc!(6)] = jc!(6);
+                                              MEM[ptr + jc!(48)] = jc!(6);
+                                              v_14[jc!(14)] += jc!(1);
+                                              v_inner[jc!(14)] = jc!(14);
+                                              v_inner_outer[jc!(14)] = MEM[ptr + jc!(112)];
+                                              v_inner_inner[jc!(5)] = jc!(5);
+                                              MEM[ptr + jc!(40)] = jc!(5);
+                                              v_inner_outer[jc!(14)] = MEM[ptr + jc!(112)];
+                                              v_inner_inner[jc!(6)] = jc!(6);
+                                              MEM[ptr + jc!(48)] = jc!(6);
+                                          }
+                                      }
+                                  }
+
+
+total transformation time: REMOVED_TIME
+
+total time (with save/print): REMOVED_TIME

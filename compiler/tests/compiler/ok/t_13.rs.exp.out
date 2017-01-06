@@ -1,0 +1,137 @@
+renumbering identifiers in all function(s)
+   REMOVED_TIME
+type checking module in all function(s)
+   REMOVED_TIME
+expanding macros in ``test'' function(s)
+   REMOVED_TIME
+expanding array assignments in ``test'' function(s)
+   REMOVED_TIME
+expanding register arrays in ``test'' function(s)
+   REMOVED_TIME
+type checking module in all function(s)
+   REMOVED_TIME
+>> renum:
+#[macro_use] extern crate jasmin;
+pub fn test() {
+                                      var! {
+                                          arr1.7: stack! (b64)
+                                          arr1.8: stack! (b64)
+                                          arr1.9: stack! (b64)
+                                          arr1.10: stack! (b64)
+                                          arr1.11: stack! (b64)
+                                          arr1.12: stack! (b64)
+                                          arr1.13: stack! (b64)
+                                          arr1.14: stack! (b64)
+                                          arr1.15: stack! (b64)
+                                          arr1.16: stack! (b64)
+                                          arr1.17: stack! (b64)
+                                          arr1.18: stack! (b64)
+                                          arr1.19: stack! (b64)
+                                          arr1.20: stack! (b64)
+                                          arr2.21: stack! (b64)
+                                          arr2.22: stack! (b64)
+                                          arr2.23: stack! (b64)
+                                          arr2.24: stack! (b64)
+                                          arr2.25: stack! (b64)
+                                          arr2.26: stack! (b64)
+                                          arr2.27: stack! (b64)
+                                          arr2.28: stack! (b64)
+                                          arr2.29: stack! (b64)
+                                          arr2.30: stack! (b64)
+                                          arr2.31: stack! (b64)
+                                          arr2.32: stack! (b64)
+                                          arr2.33: stack! (b64)
+                                          arr2.34: stack! (b64)
+                                          arr3.4s: stack! (b64[16])
+                                          arr4.35: stack! (b64)
+                                          arr4.36: stack! (b64)
+                                          arr4.37: stack! (b64)
+                                          arr4.38: stack! (b64)
+                                          arr4.39: stack! (b64)
+                                          arr4.40: stack! (b64)
+                                          arr4.41: stack! (b64)
+                                          arr4.42: stack! (b64)
+                                          arr4.43: stack! (b64)
+                                          arr4.44: stack! (b64)
+                                          arr4.45: stack! (b64)
+                                          arr4.46: stack! (b64)
+                                          arr4.47: stack! (b64)
+                                          arr4.48: stack! (b64)
+                                          arr4.49: stack! (b64)
+                                          arr4.50: stack! (b64)
+                                          cf.6: reg! (b1)
+                                          i.5: reg! (b64);
+                                      }
+                                      code! {
+                                          while cf.6 {
+                                              if cf.6 {
+                                                  arr1.7 := arr2.21;
+                                                  arr1.8 := arr2.22;
+                                                  arr1.9 := arr2.23;
+                                                  arr1.10 := arr2.24;
+                                                  arr1.11 := arr2.25;
+                                                  arr1.12 := arr2.26;
+                                                  arr1.13 := arr2.27;
+                                                  arr1.14 := arr2.28;
+                                                  arr1.15 := arr2.29;
+                                                  arr1.16 := arr2.30;
+                                                  arr1.17 := arr2.31;
+                                                  arr1.18 := arr2.32;
+                                                  arr1.19 := arr2.33;
+                                                  arr1.20 := arr2.34;
+                                                  arr3.4s[jc!(0)] = arr4.35;
+                                                  arr3.4s[jc!(1)] = arr4.36;
+                                                  arr3.4s[jc!(2)] = arr4.37;
+                                                  arr3.4s[jc!(3)] = arr4.38;
+                                                  arr3.4s[jc!(4)] = arr4.39;
+                                                  arr3.4s[jc!(5)] = arr4.40;
+                                                  arr3.4s[jc!(6)] = arr4.41;
+                                                  arr3.4s[jc!(7)] = arr4.42;
+                                                  arr3.4s[jc!(8)] = arr4.43;
+                                                  arr3.4s[jc!(9)] = arr4.44;
+                                                  arr3.4s[jc!(10)] = arr4.45;
+                                                  arr3.4s[jc!(11)] = arr4.46;
+                                                  arr3.4s[jc!(12)] = arr4.47;
+                                                  arr3.4s[jc!(13)] = arr4.48;
+                                                  arr3.4s[jc!(14)] = arr4.49;
+                                                  arr3.4s[jc!(15)] = arr4.50;
+                                                  arr3.4s[i.5] = arr4.37;
+                                              }
+                                          }
+                                          arr1.7 := arr2.21;
+                                          arr1.8 := arr2.22;
+                                          arr1.9 := arr2.23;
+                                          arr1.10 := arr2.24;
+                                          arr1.11 := arr2.25;
+                                          arr1.12 := arr2.26;
+                                          arr1.13 := arr2.27;
+                                          arr1.14 := arr2.28;
+                                          arr1.15 := arr2.29;
+                                          arr1.16 := arr2.30;
+                                          arr1.17 := arr2.31;
+                                          arr1.18 := arr2.32;
+                                          arr1.19 := arr2.33;
+                                          arr1.20 := arr2.34;
+                                          arr3.4s[jc!(0)] = arr4.35;
+                                          arr3.4s[jc!(1)] = arr4.36;
+                                          arr3.4s[jc!(2)] = arr4.37;
+                                          arr3.4s[jc!(3)] = arr4.38;
+                                          arr3.4s[jc!(4)] = arr4.39;
+                                          arr3.4s[jc!(5)] = arr4.40;
+                                          arr3.4s[jc!(6)] = arr4.41;
+                                          arr3.4s[jc!(7)] = arr4.42;
+                                          arr3.4s[jc!(8)] = arr4.43;
+                                          arr3.4s[jc!(9)] = arr4.44;
+                                          arr3.4s[jc!(10)] = arr4.45;
+                                          arr3.4s[jc!(11)] = arr4.46;
+                                          arr3.4s[jc!(12)] = arr4.47;
+                                          arr3.4s[jc!(13)] = arr4.48;
+                                          arr3.4s[jc!(14)] = arr4.49;
+                                          arr3.4s[jc!(15)] = arr4.50;
+                                      }
+                                  }
+
+
+total transformation time: REMOVED_TIME
+
+total time (with save/print): REMOVED_TIME
