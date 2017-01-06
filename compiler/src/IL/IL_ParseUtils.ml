@@ -301,7 +301,7 @@ let mk_cmov loc (dests : dest list) neg s cf =
 let mk_instr dests rhs loc =
   let mk_block bi = Block([ { L.l_val=bi; L.l_loc=loc }],None) in
   match dests, rhs with
-  | _,   `Call(fname,args)       -> mk_block @@ Call(fname,dests,args)
+  | _,   `Call(fname,args,di)    -> mk_block @@ Call(fname,dests,args,di)
   | [d], `Assgn(src,aty)         -> mk_block @@ Assgn(d,src,aty)
   | _,   `BinOp(o,s1,s2)         -> mk_block @@ mk_ternop loc dests o o s1 s2 None
   | _,   `TernOp(o1,o2,s1,s2,s3) -> mk_block @@ mk_ternop loc dests o1 o2 s1 s2 (Some s3)

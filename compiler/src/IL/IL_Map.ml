@@ -133,10 +133,10 @@ let map_vars_base_instr ~f lbi =
   let bi = lbi.L.l_val in
   let bi =
     match bi with
-    | Comment(_)      -> bi
-    | Assgn(d,s,at)   -> Assgn(mvd d, mvs s, at)
-    | Op(o,ds,ss)     -> Op(o,mvds ds, mvss ss)
-    | Call(fn,ds,ss)  -> Call(fn,mvds ds, mvss ss)
+    | Comment(_)        -> bi
+    | Assgn(d,s,at)     -> Assgn(mvd d, mvs s, at)
+    | Op(o,ds,ss)       -> Op(o,mvds ds, mvss ss)
+    | Call(fn,ds,ss,di) -> Call(fn,mvds ds, mvss ss,di)
   in
   { L.l_loc = lbi.L.l_loc; L.l_val = bi }
 
@@ -255,10 +255,10 @@ let map_params_base_instr ~f lbi =
   let bi = lbi.L.l_val in
   let bi =
     match bi with
-    | Comment(_)      -> bi
-    | Assgn(d,s,at)   -> Assgn(mvd d, mvs s, at)
-    | Op(o,ds,ss)     -> Op(o,mvds ds, mvss ss)
-    | Call(fn,ds,ss)  -> Call(fn,mvds ds, mvss ss)
+    | Comment(_)        -> bi
+    | Assgn(d,s,at)     -> Assgn(mvd d, mvs s, at)
+    | Op(o,ds,ss)       -> Op(o,mvds ds, mvss ss)
+    | Call(fn,ds,ss,di) -> Call(fn,mvds ds, mvss ss,di)
   in
   { L.l_loc = lbi.L.l_loc; L.l_val = bi }
 
@@ -380,10 +380,10 @@ let map_tys_base_instr ~f:(f : ty -> ty) lbi =
   let bi = lbi.L.l_val in
   let bi =
     match bi with
-    | Comment(_)      -> bi
-    | Assgn(d,s,at)   -> Assgn(mvd d, mvs s, at)
-    | Op(o,ds,ss)     -> Op(o,mvds ds, mvss ss)
-    | Call(fn,ds,ss)  -> Call(fn,mvds ds, mvss ss)
+    | Comment(_)        -> bi
+    | Assgn(d,s,at)     -> Assgn(mvd d, mvs s, at)
+    | Op(o,ds,ss)       -> Op(o,mvds ds, mvss ss)
+    | Call(fn,ds,ss,di) -> Call(fn,mvds ds, mvss ss,di)
   in
   { L.l_loc = lbi.L.l_loc; L.l_val = bi }
 
@@ -449,10 +449,10 @@ let map_sdests_base_instr ~f lbi =
   let bi = lbi.L.l_val in
   let bi =
     match bi with
-    | Comment(_)      -> bi
-    | Assgn(d,s,at)   -> Assgn(msd d, mss s, at)
-    | Op(o,ds,ss)     -> Op(o,msds ds, msss ss)
-    | Call(fn,ds,ss)  -> Call(fn,msds ds, msss ss)
+    | Comment(_)        -> bi
+    | Assgn(d,s,at)     -> Assgn(msd d, mss s, at)
+    | Op(o,ds,ss)       -> Op(o,msds ds, msss ss)
+    | Call(fn,ds,ss,di) -> Call(fn,msds ds, msss ss,di)
   in
   { L.l_loc = lbi.L.l_loc; L.l_val = bi }
 

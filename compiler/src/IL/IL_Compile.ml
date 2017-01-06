@@ -133,7 +133,7 @@ let compute_kill_ue_block bis =
       List.iter ~f:(iter_vars_src ~f:handle_var_use) ss;
       List.iter ~f:handle_dest ds
   
-    | Call(_,_ds,_ss)  -> failwith "call"
+    | Call(_,_ds,_ss,_)  -> failwith "call"
   in
   List.iter ~f:go bis;
   { LV.leave =
@@ -364,7 +364,7 @@ let local_ssa_base_instr rni lbi =
       let ss = List.map ~f:(map_vars_src ~f:(RNI.rn_var rni)) ss in
       let ds = List.map ~f:(RNI.rn_dest rni) ds in
       Op(o,ds,ss)
-    | Call(_fn,_ds,_ss)  -> failwith "call"
+    | Call(_fn,_ds,_ss,_)  -> failwith "call"
   in
   { lbi with L.l_val = bi }
 

@@ -59,6 +59,7 @@ module L = ParserUtil.Lexing
 %token MUT
 %token JCEXCL
 %token VAREXCL
+%token INLEXCL
 %token CODEEXCL
 %token DECL
 %token FN
@@ -250,7 +251,10 @@ opeq:
     { `TernOp(op1,op2,s1,s2,s3) }
 *)
 | fname=NID args=paren_tuple(src)
-    { `Call(mk_fname fname, args) }
+    { `Call(mk_fname fname, args,NoInline) }
+
+| INLEXCL LCBRACE fname=NID args=paren_tuple(src) RCBRACE
+    { `Call(mk_fname fname, args,DoInline) }
 
 (*
 %inline opeq_rhs:
@@ -282,9 +286,13 @@ opeq:
  
 %inline control_instr :
 
-| lc=loc(call) SEMICOLON
+| lc= loc(call) SEMICOLON
     { let (l,(fn,args)) = lc in
-      Block([ { L.l_val=Call(fn,[],args); L.l_loc=l} ],None) }
+      Block([ { L.l_val=Call(fn,[],args,NoInline); L.l_loc=l} ],None) }
+
+| INLEXCL LCBRACE lc= loc(call) RCBRACE SEMICOLON
+    { let (l,(fn,args)) = lc in
+      Block([ { L.l_val=Call(fn,[],args,DoInline); L.l_loc=l} ],None) }
 
 | IF c=pcond_or_fcond i1s=block ies=celse_if* mi2s=celse?
     { mk_if c i1s mi2s ies }

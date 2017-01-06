@@ -331,6 +331,13 @@ pub mod jasmin {
             $( $d )*
         }
     }
+
+    #[macro_export]
+    macro_rules! inl {
+        ( $( $d: tt )* ) => {
+            $( $d )*
+        }
+    }
 }
 
 // 
@@ -493,7 +500,7 @@ mod tests {
                     x = MEM[x + i*8];
                 }      
                 x = MEM[x + 0];
-                arr1 = id_array(arr1);
+                arr1 = inl!{ id_array(arr1) };
                 clear_array(arr1);
                 cf = jc!(false);
                 arr1[0] = jc!(0);

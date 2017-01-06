@@ -8,7 +8,7 @@ fn bar1(x: reg! (b64),y: reg! (b64), c: reg! (b1)) -> (reg! (b64), reg! (b1), re
 fn foo1(x: reg! (b64), y: reg! (b64), c: reg! (b1)) -> (reg! (b64),reg! (b1),reg! (b64)) {
     code! {
         x = add_v(x,y);
-        (x,c,y) = bar1(x,y,c); 
+        (x,c,y) = inl!{ bar1(x,y,c) };
     }
     return (x,c,y)
 }
@@ -28,13 +28,13 @@ fn test() {
         u = 0;
         v = 0;
 
-        u_,cf_,v_ = foo1(u,v,cf);
+        u_,cf_,v_ = inl!{ foo1(u,v,cf) };
         for i in (0..10) {
             while cf {
                 if cf {
-                    u_,cf_,v_ = foo1(u,v,cf);
+                    u_,cf_,v_ = inl!{ foo1(u,v,cf) };
                 } else {
-                    u_,cf_,v_ = bar1(u,v,cf); 
+                    u_,cf_,v_ = inl! { bar1(u,v,cf) };
                 }
             }
         }

@@ -206,6 +206,8 @@ let pp_base_instr ~pp_types fmt bi =
   let pps = pp_src ~pp_types in
   (* let ppe = pp_pexpr ~pp_types in *)
   let ppo = pp_op ~pp_types in
+  let inline_pref = "inl!{ " in
+  let inline_suf = " }" in
   match bi.L.l_val with
   | Comment(s)      -> F.fprintf fmt "/* %s */" s
   (* | Load(d,s,pe)    -> F.fprintf fmt "%a = MEM[%a + %a];" ppd d pps s ppe pe *)
@@ -214,13 +216,18 @@ let pp_base_instr ~pp_types fmt bi =
   | Assgn(d1,s1,Eq)  -> F.fprintf fmt "%a := %a;" ppd d1 pps s1
   | Assgn(d1,s1,Inl) -> F.fprintf fmt "%a <- %a;" ppd d1 pps s1
   | Op(o,ds,ss)      -> F.fprintf fmt "%a;" ppo (o,ds,ss)
-  | Call(fn,[],args) ->
-    F.fprintf fmt "%a(%a);" Fname.pp fn (pp_list "," pps) args
-  | Call(fn,dest,args) ->
-    F.fprintf fmt "%a = %a(%a);"
+  | Call(fn,[],args,di) ->
+    F.fprintf fmt "%s%a(%a)%s;"
+      (if di=DoInline then inline_pref else "")
+      Fname.pp fn (pp_list "," pps) args
+      (if di=DoInline then inline_suf else "")
+  | Call(fn,dest,args,di) ->
+    F.fprintf fmt "%a = %s%a(%a)%s;"
       (pp_tuple ppd) dest
+      (if di=DoInline then inline_pref else "")
       Fname.pp fn
       (pp_list "," pps) args
+      (if di=DoInline then inline_suf else "")
 
 let rec pp_instr ?pp_info ~pp_types fmt instr =
   let pp_start, pp_end =
@@ -286,7 +293,7 @@ let pp_fundef  ?pp_info ~pp_types fmt (decls,body,ret) =
   let ppvi = pp_var_i ~pp_types in
   let pp_decls fmt decls =
     match decls with
-    | [] -> pp_string fmt ""
+    | [] -> ()
     | _ ->
       F.fprintf fmt "var! {@\n    @[<v 0>%a;@]@\n}" (pp_list "@\n" ppvi) decls
   in

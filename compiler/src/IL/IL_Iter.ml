@@ -73,7 +73,7 @@ let iter_vars_base_instr ~f bi =
   | Comment(_)      -> ()
   | Assgn(d,s,_)    -> ivd d; ivs s
   | Op(_,ds,ss)     -> List.iter ds ~f:ivd; List.iter ss ~f:ivs
-  | Call(_,ds,ss)   -> List.iter ds ~f:ivd; List.iter ss ~f:ivs
+  | Call(_,ds,ss,_) -> List.iter ds ~f:ivd; List.iter ss ~f:ivs
 
 let rec iter_vars_instr instr ~f =
   let ivbi = iter_vars_base_instr    ~f in
@@ -250,7 +250,7 @@ let iter_params_base_instr ~f bi =
   | Comment(_)      -> ()
   | Assgn(d,s,_)    -> ipd d; ips s
   | Op(_,ds,ss)     -> List.iter ds ~f:ipd; List.iter ss ~f:ips
-  | Call(_,ds,ss)   -> List.iter ds ~f:ipd; List.iter ss ~f:ips
+  | Call(_,ds,ss,_) -> List.iter ds ~f:ipd; List.iter ss ~f:ips
 
 let rec iter_params_instr ~f instr =
   let ipe = iter_params_pexpr ~f in
@@ -336,7 +336,7 @@ let iter_sdests_base_instr ~f bi =
   | Comment(_)       -> ()
   | Assgn(d,s,_)     -> ivd d; ivs s
   | Op(_,ds,ss)      -> List.iter ds ~f:ivd; List.iter ss ~f:ivs
-  | Call(_,ds,ss)    -> List.iter ds ~f:ivd; List.iter ss ~f:ivs
+  | Call(_,ds,ss,_)  -> List.iter ds ~f:ivd; List.iter ss ~f:ivs
 
 let rec iter_sdests_instr instr ~f =
   let ivbi = iter_sdests_base_instr ~f in
@@ -465,8 +465,8 @@ let iter_binstrs_modul_all ~f modul =
 let called_named_func nf =
   let names = ref Fname.Set.empty in
   let add_name binstr = match binstr.L.l_val with
-    | Call(fn,_,_) -> names := Set.add !names fn
-    | _            -> ()
+    | Call(fn,_,_,DoInline) -> names := Set.add !names fn
+    | _                     -> ()
   in
   iter_binstrs_named_func ~f:add_name nf;
   !names

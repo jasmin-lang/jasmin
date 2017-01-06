@@ -97,6 +97,7 @@ fn foo10(mut x: stack! (b64), y: stack! (b64), mut z: reg! (b1)) -> stack! (b64)
     code! {
         w = x;
         (w,x,z) = foo1(x);
+        inl!{ foo4(x) };
         x = jc!(5);
         w = add(w,x);
         if (w == jc!(5)) {

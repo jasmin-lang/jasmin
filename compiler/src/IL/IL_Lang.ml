@@ -250,6 +250,11 @@ type while_type =
   | DoWhile (* do { ... } while t; *)
   [@@deriving compare,sexp]
 
+type call_type =
+  | DoInline
+  | NoInline
+  [@@deriving compare,sexp]
+
 type assgn_type =
   | Mv  (* compile to move *)
   | Eq  (* use as equality constraint in reg-alloc and compile to no-op *)
@@ -264,7 +269,7 @@ type base_instr =
   | Op of op * dest list * src list
     (* Op(ds,o,ss): ds = o(ss) *)
 
-  | Call of Fname.t * dest list * src list
+  | Call of Fname.t * dest list * src list * call_type
     (* Call(fname,rets,args): rets = fname(args) *)
 
   | Comment of string

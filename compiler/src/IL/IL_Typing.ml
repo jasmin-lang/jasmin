@@ -241,10 +241,10 @@ let typecheck_call fptable ftable loc fname ret arg =
 let typecheck_base_instr fptable ftable lbinstr =
   let loc = lbinstr.L.l_loc in
   match lbinstr.L.l_val with
-  | Comment _           -> ()
-  | Op(op,ds,ss)        -> typecheck_op op ds ss
-  | Assgn(d,s,_)        -> typecheck_assgn d s loc
-  | Call(fname,ret,arg) -> typecheck_call fptable ftable loc fname ret arg
+  | Comment _             -> ()
+  | Op(op,ds,ss)          -> typecheck_op op ds ss
+  | Assgn(d,s,_)          -> typecheck_assgn d s loc
+  | Call(fname,ret,arg,_) -> typecheck_call fptable ftable loc fname ret arg
   (* | Load(d,s,_pe)       -> type_src_eq  s (U(64)); typecheck_dest d (U(64)) *)
   (* | Store(s1,_pe,s2)    -> type_src_eq s1 (U(64)); type_src_eq s2 (U(64)) *)
 

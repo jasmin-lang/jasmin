@@ -96,6 +96,7 @@ rule lex = parse
   | "mut"              { MUT      }
   | "jc!"              { JCEXCL   }
   | "var!"             { VAREXCL  }
+  | "inl!"             { INLEXCL  }
   | "decl!"            { DECL     }
   | "code!"            { CODEEXCL }
   | "fn"               { FN       }

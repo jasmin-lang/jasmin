@@ -359,7 +359,7 @@ and inline_calls_block func_table ctr lbis =
 
     | lbi::lbis ->
       begin match lbi.L.l_val with
-      | Call(fn,ds,ss) ->
+      | Call(fn,ds,ss,DoInline) ->
         let fstmt = inline_call func_table ctr fn ds ss in
         let prev_stmt = (List.rev fstmt)@prev_stmt in
         go prev_stmt lbis
@@ -464,12 +464,12 @@ let inst_base_instr ptable ltable lbi =
   let inst_ss = List.map ~f:inst_s in
   let bi =
     match bi with
-    | Comment(_)      -> bi
-    | Op(o,ds,ss)     -> Op(o,inst_ds ds,inst_ss ss)
-    | Assgn(d,s,t)    -> Assgn(inst_d d,inst_s s,t)
+    | Comment(_)        -> bi
+    | Op(o,ds,ss)       -> Op(o,inst_ds ds,inst_ss ss)
+    | Assgn(d,s,t)      -> Assgn(inst_d d,inst_s s,t)
     (* | Load(d,s,pe)    -> Load(inst_d d,inst_s s,inst_p pe) *)
     (* | Store(s1,pe,s2) -> Store(inst_s s1,inst_p pe,inst_s s2) *)
-    | Call(fn,ds,ss)  -> Call(fn,inst_ds ds,inst_ss ss)
+    | Call(fn,ds,ss,di) -> Call(fn,inst_ds ds,inst_ss ss,di)
   in
   { lbi with L.l_val = bi }
 

@@ -479,11 +479,12 @@ let rec cinstr_of_base_instr cvi lbi =
   | Comment(_s) ->
     None
 
-  | Call(fname,ds,ss) ->
+  | Call(fname,ds,ss,di) ->
     let fun_id = pos_of_int @@ CVI.add_fname cvi fname in
     let rvals = List.map ~f:(rval_of_dest cvi) ds in
     let args  = List.map ~f:(cpexpr_of_src cvi) ss in
-    Some(k,DE.Ccall(DE.InlineFun,clist_of_list rvals,fun_id,clist_of_list args))
+    let inl = if di=DoInline then DE.InlineFun else DE.DoNotInline in
+    Some(k,DE.Ccall(inl,clist_of_list rvals,fun_id,clist_of_list args))
 
 and cinstr_of_linstr cvi linstr =
   let loc = linstr.L.l_loc in
@@ -604,11 +605,10 @@ let rec instr_of_cinstr cvi lci =
       While(WhileDo,fc,s,None)
 
     | DE.Ccall(iinfo,rvals,fun_id,args) ->
-      assert(iinfo=DE.InlineFun);
       let fname = CVI.get_fname cvi fun_id in
       let ds = List.map ~f:(dest_of_rval cvi)  @@ list_of_clist rvals in
       let ss = List.map ~f:(src_of_cpexpr cvi) @@ list_of_clist args in
-      mk_block (Call(fname,ds,ss))
+      mk_block (Call(fname,ds,ss,if iinfo=DE.InlineFun then DoInline else NoInline))
   in
   { L.l_loc = loc; L.l_val = instr }
 
