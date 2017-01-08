@@ -8,7 +8,7 @@ fn foo() {
         x: stack! (b64);
     }
     code! {
-        x = 42;
+        x = b64!(42);
         bar(x);
     }
 }

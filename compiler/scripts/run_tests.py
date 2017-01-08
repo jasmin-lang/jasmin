@@ -134,7 +134,7 @@ def all_tests():
     print_sep()
 
     fail_exclude = [2,22]
-    for fn in [ "%02i"%i for i in range(1,23) if not i in fail_exclude ]:
+    for fn in [ "%02i"%i for i in range(1,24) if not i in fail_exclude ]:
         test_fail("tests/compiler/must_fail/t_%s.rs"%fn)
 
     print_sep()

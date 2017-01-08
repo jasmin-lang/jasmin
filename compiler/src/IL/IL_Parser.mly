@@ -8,7 +8,6 @@ open IL_Lang
 open IL_ParseUtils
 open IL_Utils
 
-(* module P = ParserUtil *)
 module L = ParserUtil.Lexing
 
 %}
@@ -22,15 +21,12 @@ module L = ParserUtil.Lexing
 %token EQ
 %token EQEQ
 %token INEQ
-(* %token PLUSEQ MINUSEQ BANDEQ MULEQ *)
 %token LEQ
 %token LESS
 %token GREATER
 %token GEQ
-(* %token SHREQ SHLEQ XOREQ OREQ *)
 %token COLON
 %token LARROW
-%token DOLLAR
 
 %token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
 %token T_BOOL
@@ -38,13 +34,11 @@ module L = ParserUtil.Lexing
 %token UNDERSCORE
 
 %token STAR
-(* %token BAND *)
 %token MINUS
 %token PLUS
 %token LAND LOR
 %token SEMICOLON
 %token EXCL DOTDOT COMMA
-(* %token SHR SHL XOR OR *)
 
 %token REG STACK INLINE CONST
 
@@ -57,7 +51,6 @@ module L = ParserUtil.Lexing
 %token FALSE
 %token PUB
 %token MUT
-%token JCEXCL
 %token VAREXCL
 %token INLEXCL
 %token CODEEXCL
@@ -66,6 +59,8 @@ module L = ParserUtil.Lexing
 %token RETURN
 
 %token MEM
+
+%token <int> BCAST
 
 %token <string * string> NID
 %token <string> INT
@@ -125,7 +120,7 @@ terminated_list(S,X):
 %inline sdest_noloc :
 | v=var idx = dest_get?
     { { d_var = v; d_idx = idx; d_loc = L.dummy_loc } }
-    (* we must fix up Iconst eventually to Ivar with context information *)
+    (* we must fix up Ipexpr eventually to Ivar with context information *)
 
 %inline sdest :
 | ld=loc(sdest_noloc)
@@ -142,12 +137,14 @@ terminated_list(S,X):
 param:
 | lid=loc(NID) { mk_param lid }
 
+
+
 src :
-| d=rdest                      { Src(d)                                }
-| DOLLAR p=param               { Imm(64,Patom(Pparam(p)))              } (* FIXME: fixed for 64 *)
-| DOLLAR LPAREN i=pexpr RPAREN { Imm(64,i)                             } (* FIXME: fixed for 64 *)
-| i=INT COLON n=utype          { Imm(n,Pconst(Arith.parse_big_int i))  }
-| i=INT                        { Imm(64,Pconst(Arith.parse_big_int i)) }
+| d=rdest               { Src(d) }
+| i=BCAST LPAREN pe = pexpr RPAREN
+  { assert (i=64 || i=1);
+    Imm(i,pe) } (* FIXME: fixed 64*)
+(*| i=INT                 { Imm(64,Pconst(Arith.parse_big_int i)) }*)
 
 (* ** Index expressions and conditions
  * -------------------------------------------------------------------- *)
@@ -176,11 +173,9 @@ dexpr :
 
 pexpr :
 | v=var                        { Patom(Pvar(v))                }
-| DOLLAR p=param               { Patom(Pparam(p))              }
 | i=INT                        { Pconst(Arith.parse_big_int i) }
 | e1=pexpr o=pbinop e2=pexpr   { Pbinop(o,e1,e2)               }
 | LPAREN e1=pexpr RPAREN       { e1                            }
-| JCEXCL LPAREN e=pexpr RPAREN { e                             }
 
 %inline pbop :
 | LAND { Pand }
@@ -203,33 +198,6 @@ pcond_or_fcond :
 | v  = var     { Fcond({fc_neg=false; fc_var = v}) }
 | EXCL v = var { Fcond({fc_neg=true; fc_var = v}) }
 
-(* ** Operators and assignments
- * -------------------------------------------------------------------- *)
-
-(*
-binop:
-| PLUS  { OpAdd }
-| MINUS { OpSub }
-| SHR   { OpShift(Right) }
-| SHL   { OpShift(Left) }
-| BAND  { OpAnd }
-| XOR   { OpXor }
-| STAR  { OpMul }
-| OR    { OpOr }
-*)
-
-(*
-opeq:
-| PLUSEQ  { OpAdd }
-| MINUSEQ { OpSub }
-| SHREQ   { OpShift(Right) }
-| SHLEQ   { OpShift(Left) }
-| BANDEQ  { OpAnd }
-| XOREQ   { OpXor } 
-| OREQ    { OpOr } 
-| MULEQ   { OpMul }
-*)
-
 (* ** Base instructions
  * -------------------------------------------------------------------- *)
 
@@ -238,29 +206,12 @@ opeq:
 
 %inline assgn_rhs_mv:
 | s=src                      { `Assgn(s,Mv) }
-| JCEXCL LPAREN s=src RPAREN { `Assgn(s,Mv) }
 
-(*
-| s=src IF e=EXCL? cf=rdest
-    { `Cmov(e<>None,s,cf) }
-
-| s1=src op=binop s2=src
-    { `BinOp(op,s1,s2) }
-
-| s1=src op1=binop s2=src op2=binop s3=src
-    { `TernOp(op1,op2,s1,s2,s3) }
-*)
 | fname=NID args=paren_tuple(src)
     { `Call(mk_fname fname, args,NoInline) }
 
 | INLEXCL LCBRACE fname=NID args=paren_tuple(src) RCBRACE
     { `Call(mk_fname fname, args,DoInline) }
-
-(*
-%inline opeq_rhs:
-| s  = src                  { fun op d  -> `BinOp(op,src_of_dest d,s) }
-| s2 = src op2=binop s3=src { fun op1 d -> `TernOp(op1,op2,src_of_dest d,s2,s3) }
-*)
 
 %inline base_instr :
 | ds=tuple_nonempty(dest) EQ rhs=assgn_rhs_mv SEMICOLON
@@ -271,12 +222,6 @@ opeq:
 
 | ds=tuple_nonempty(dest) COLON EQ rhs=assgn_rhs_eq SEMICOLON
     { mk_instr ds rhs (L.mk_loc ($startpos,$endpos)) }
-
-(*
-| ds=tuple_nonempty(dest) op=opeq rhs=opeq_rhs SEMICOLON
-    { let rhs = rhs op (Std.List.last_exn ds) in
-      mk_instr ds rhs (L.mk_loc ($startpos,$endpos)) }
-*)
 
 (* ** Control instructions
  * -------------------------------------------------------------------- *)
@@ -337,21 +282,17 @@ utype :
 | T_U256 { 256 }
 
 typ :
-| ut = utype
-  { Bty(U(ut)) }
-| T_INT
-  { Bty(Int) }
-| LBRACK ut=utype SEMICOLON d=dexpr RBRACK
-  { Arr(U(ut),d) }
-| T_BOOL
-  { Bty(Bool) }
+| ut = utype                               { Bty(U(ut)) }
+| T_INT                                    { Bty(Int) }
+| LBRACK ut=utype SEMICOLON d=dexpr RBRACK { Arr(U(ut),d) }
+| T_BOOL                                   { Bty(Bool) }
 
 stor_typ :
 | sto=storage LPAREN ty=typ RPAREN { (sto,ty) }
 
 %inline typed_vars_stor :
-| vs=separated_nonempty_list(COMMA,dest) COLON st=stor_typ
-    { (vs, st) } (* we parse rdest here to prevent a conflict *)
+| vs=loc(var) COLON st=stor_typ
+    { (fst vs, snd vs, st) }
 
 %inline storage:
 | REG    { Reg    }
@@ -361,29 +302,9 @@ stor_typ :
 ret_ty :
 | LARROW tys=tuple(loc(stor_typ)) { tys }
 
-%inline wrap_instr:
-| i = instr { FInstr(i) }
-
-%inline wrap_decl:
-| d = typed_vars_stor { FDecl(d) }
-
-%inline func_item:
-| _rs=RUST_SECTION                                                       { []   }
-| CODEEXCL LCBRACE is = loc(wrap_instr)*  RCBRACE                        { is }
-| VAREXCL LCBRACE ds = terminated_list(SEMICOLON,loc(wrap_decl)) RCBRACE { ds }
-
-%inline func_body :
-| LCBRACE
-    fis  = func_item*
-    lret = loc(return?)
-  RCBRACE
-    { Some(List.concat fis,lret) }
-| SEMICOLON
-    { None }
-
 %inline typed_vars_stor_var :
-| vs=separated_nonempty_list(COMMA,var) COLON st=stor_typ
-    { (vs, st) }
+| v=var COLON st=stor_typ
+    { (v, st) }
 
 arg_def :
 | MUT? ltv = loc(typed_vars_stor_var)
@@ -397,22 +318,53 @@ func_decl :
     rty  = ret_ty?
     SEMICOLON RCBRACE
     { (fst lname,
-       mk_func (fst lname) (mk_fname @@ snd lname) (Util.get_opt [] rty) pub args None) }
+       Dproto { dp_fname=mk_fname @@ snd lname;
+                dp_ret_ty=Util.get_opt [] rty;
+                dp_is_pub=pub<>None;
+                dp_arg_ty=args }) } 
 
+%inline rust_sec:
+| _rs=RUST_SECTION {  }
+
+%inline code_sec:
+| CODEEXCL LCBRACE is = instr*  RCBRACE { is }
+
+%inline var_sec:
+| VAREXCL LCBRACE ds = terminated_list(SEMICOLON,typed_vars_stor) RCBRACE
+  { ds }
+
+%inline func_body :
+| LCBRACE
+    vs  = var_sec?
+    _rs = rust_sec?
+    is  = code_sec?
+    lret = loc(return?)
+  RCBRACE
+    { (Util.get_opt [] vs,Util.get_opt [] is,(fst lret, Util.get_opt [] (snd lret))) }
 
 func :
 | pub=PUB? FN lname=loc(NID)
     args = paren_tuple(arg_def)
     rty  = ret_ty?
-    def  = func_body
-    { (fst lname,
-       mk_func (fst lname) (mk_fname @@ snd lname) (Util.get_opt [] rty) pub args def) }
+    defs  = func_body
+    { let (vars,instrs,ret) = defs in
+      (fst lname,
+       Dfun { df_fname=mk_fname @@ snd lname;
+              df_ret_ty=Util.get_opt [] rty;
+              df_is_pub=pub<>None;
+              df_arg_list=args;
+              df_instrs=instrs;
+              df_vars=vars;
+              df_ret=ret;
+              })
+    }
 
 param_or_func :
 | lf=func
-    { [ (fst lf,Dfun(snd lf)) ] }
-| CONST lnid=loc(NID) COLON t=typ EQ JCEXCL LPAREN pe=pexpr RPAREN SEMICOLON
+    { [ lf ] }
+| CONST lnid=loc(NID) COLON t=typ EQ pe=pexpr SEMICOLON
     { [ (fst lnid, Dparams([(snd lnid,t,pe)])) ] }
+    (* FIXME: we should assert type=usize here *)
 | ra=loc(RUST_ATTRIBUTE)
     { [(fst ra, Drust_attr(snd ra))] }
 | rs=loc(RUST_SECTION)
@@ -420,8 +372,7 @@ param_or_func :
 | EXTERN_JASMIN
     { [] }
 | fd=func_decl
-    { [ (fst fd,Dfun(snd fd)) ] }
+    { [ fd ] }
 
 modul :
-| pfs=param_or_func+ EOF
-  { mk_modul (List.concat pfs) }
+| pfs=param_or_func+ EOF { mk_modul (List.concat pfs) }

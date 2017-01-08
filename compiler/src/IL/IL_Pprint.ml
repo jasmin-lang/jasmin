@@ -13,8 +13,9 @@ type info_ctxt = BlockStart | BlockEnd
 let string_of_storage = function
   | SInvalid -> "invalid"
   | Stack    -> "stack!"
+  | Const    -> "const!"
   | Reg      -> "reg!"
-  | Inline   -> "inline"
+  | Inline   -> "inline!"
 
 let string_of_call_conv = function
   | Extern -> "pub " (* FIXME: we abuse extern for now *)
@@ -41,7 +42,7 @@ and pp_base_ty fmt bty =
   match bty with
   | Bool -> F.fprintf fmt "b1"
   | U(n) -> F.fprintf fmt "b%i" n
-  | Int  -> F.fprintf fmt "int"
+  | Int  -> F.fprintf fmt "uint"
 
 let rec pp_patom ~pp_types fmt pa =
   match pa with
@@ -89,7 +90,7 @@ let rec pp_pexpr ~pp_types fmt ce =
   match ce with
   | Patom(pa)          -> pp_patom ~pp_types fmt pa
   | Pbinop(op,ie1,ie2) -> F.fprintf fmt "%a %s %a" ppe ie1 (string_of_pbinop op) ppe ie2
-  | Pconst(u)          -> F.fprintf fmt "jc!(%s)" (Big_int.string_of_big_int u)
+  | Pconst(u)          -> F.fprintf fmt "%s" (Big_int.string_of_big_int u)
 
 let pp_idx ~pp_types fmt = function
   | Ipexpr(pe) -> pp_pexpr ~pp_types fmt pe
@@ -136,9 +137,8 @@ let rec pp_pcond ~pp_types fmt pc =
   | Pcmp(o,ie1,ie2) -> F.fprintf fmt"(%a %s %a)" ppe ie1 (pcondop_to_string o) ppe ie2
 
 let pp_src ~pp_types fmt = function
-  | Src(d)              -> pp_rdest ~pp_types fmt d
-  | Imm(i,pe) when i=64 -> F.fprintf fmt "%a" (pp_pexpr ~pp_types) pe
-  | Imm(i,pe)           -> F.fprintf fmt "%au%i" (pp_pexpr ~pp_types) pe i
+  | Src(d)    -> pp_rdest ~pp_types fmt d
+  | Imm(i,pe) -> F.fprintf fmt "b%i!(%a)" i (pp_pexpr ~pp_types) pe
 
 let pp_fcond ~pp_types fmt fc =
   F.fprintf fmt "%s%a" (if fc.fc_neg then "!" else "") (pp_var ~pp_types) fc.fc_var
@@ -253,7 +253,7 @@ let rec pp_instr ?pp_info ~pp_types fmt instr =
       F.fprintf fmt "if %a {@\n    @[<v 0>%a@]@\n} else {@\n  @[<v 0>%a@]@\n}"
         ppc c pps i1 pps i2
     | For(iv,ie1,ie2,i,_) ->
-      F.fprintf fmt "for %a in %a..%a {@\n    @[<v 0>%a@]@\n}"
+      F.fprintf fmt "for %a in (%a..%a) {@\n    @[<v 0>%a@]@\n}"
         ppsd iv ppe ie1 ppe ie2 pps i
     | While(WhileDo,fc,s,_) ->
       F.fprintf fmt "while %a {@\n    @[<v 0>%a@]@\n}" ppfc fc pps s
@@ -292,10 +292,11 @@ let pp_fundef  ?pp_info ~pp_types fmt (decls,body,ret) =
   in
   let ppvi = pp_var_i ~pp_types in
   let pp_decls fmt decls =
+    let decls = List.filter ~f:(fun v -> v.Var.stor<>Const) decls in
     match decls with
     | [] -> ()
     | _ ->
-      F.fprintf fmt "var! {@\n    @[<v 0>%a;@]@\n}" (pp_list "@\n" ppvi) decls
+      F.fprintf fmt "var! {@\n    @[<v 0>%a;@]@\n}" (pp_list ";@\n" ppvi) decls
   in
   F.fprintf fmt 
     (  " {%a@[<v 0>%a" (* decls *)

@@ -1,8 +1,10 @@
 // use undeclared parameter
 
-fn test(x : stack u64) -> stack u64 {
-  x += $undef_param;
-  return x;
+fn test(x: stack! (b64)) -> stack! (b64) {
+    code! {
+        x = b64!(undef_var_param);
+    }
+  return x
 }
 
 /*

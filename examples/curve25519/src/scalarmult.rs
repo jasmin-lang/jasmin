@@ -1,4 +1,4 @@
-// * Scalar multipiplication for curve25519 with 4 limbs
+// * Scalar multiplication for curve25519 with 4 limbs
 #![allow(unused_mut)] 
 
 rust! {
@@ -6,7 +6,7 @@ rust! {
   use jasmin::U64::*;
 }
 
-const rem_p: b64 = jc!(38);
+const rem_p: uint = 38;
 
 // ** addition
 
@@ -33,8 +33,8 @@ pub fn fadd(mut x: reg! ([b64; 4]), ya: stack! ([b64; 4]))
             (cf, x[i]) = adc_cf(x[i],y[i],cf);
         }
 
-        add0 = jc!(0);
-        add1 = rem_p;
+        add0 = b64!(0);
+        add1 = b64!(rem_p);
         when !cf { add1 = add0 };
 
         for i in (0..4) {
@@ -74,8 +74,8 @@ pub fn fsub(mut x: reg! ([b64; 4]), ya: stack! ([b64; 4]))
             y[i] = ya[i];
             (cf, x[i]) = sbb_cf(x[i],y[i],cf);
         }
-        sub0 = jc!(0);
-        sub1 = rem_p;
+        sub0 = b64!(0);
+        sub1 = b64!(rem_p);
         when !cf { sub1 = sub0 };
 
         for i in (0..4) {
@@ -119,33 +119,33 @@ fn freduce(z_in: reg! ([b64; 8])) -> reg! ([b64; 4]) {
         // FIXME: check if really required 
         for i in (0..8) { z[i] = z_in[i]; }
     
-        crem_p = rem_p;
+        crem_p = b64!(rem_p);
         for i in (0..4) {
             rax = z[4 + i];
             (h, l) = mul(rax,crem_p);
             (cf, z[i]) = add_cf(z[i],l);
             if (i == 0) {
-                hprev = jc!(0);
+                hprev = b64!(0);
                 hprev = adc(hprev,h,cf);
             } else {
-                h = adc(h,0,cf);
+                h = adc(h,b64!(0),cf);
                 (cf,z[i]) = add_cf(z[i],hprev);
-                hprev = jc!(0);
+                hprev = b64!(0);
                 hprev = adc(hprev,h,cf);
             }
         }
         
-        l = imul(hprev,rem_p);
+        l = imul(hprev,b64!(rem_p));
         (cf, z[0]) = add_cf(z[0],l);
 
         for i in (1..4) {
-            (cf, z[i]) = adc_cf(z[i],0,cf);
+            (cf, z[i]) = adc_cf(z[i],b64!(0),cf);
         }
 
-        zero = jc!(0);
-        zero = adc(zero,0,cf);
+        zero = b64!(0);
+        zero = adc(zero,b64!(0),cf);
 
-        l = imul(zero,rem_p);
+        l = imul(zero,b64!(rem_p));
         z[0] = add(z[0],l);
 
         // FIXME: check if really required 
@@ -190,7 +190,7 @@ pub fn fmul(xa: stack! ([b64; 4]), ya: stack! ([b64; 4]))
                 z[1] = h;
             } else {
                 (cf, z[j]) = add_cf(z[j],l);
-                z[j + 1]   = jc!(0);
+                z[j + 1]   = b64!(0);
                 z[j + 1]   = adc(z[j + 1],h,cf);
             }
         }
@@ -202,16 +202,16 @@ pub fn fmul(xa: stack! ([b64; 4]), ya: stack! ([b64; 4]))
                 (h, l) = mul(y[j],x[i]);
                 (cf, z[i+j]) = add_cf(z[i+j],l);
                 if (j == 0) {
-                    hprev = jc!(0);
+                    hprev = b64!(0);
                     hprev = adc(hprev,h,cf);
                 } else {
-                    h = adc(h,0,cf);
+                    h = adc(h,b64!(0),cf);
                     (cf, z[i+j]) = add_cf(z[i+j],hprev);
                     if (1 <= j && j < 4 - 1) {
-                        hprev = jc!(0);
+                        hprev = b64!(0);
                         hprev = adc(hprev,h,cf);
                     } else { /* j = 4 */
-                        z[i + j + 1] = jc!(0);
+                        z[i + j + 1] = b64!(0);
                         z[i + j + 1] = adc(z[i + j + 1],h,cf);
                     }
                 }
@@ -242,7 +242,7 @@ pub fn fsquare(xa: stack! ([b64; 4])) -> reg! ([b64; 4]) {
     }
 
     code! {
-        z[7] = jc!(0);
+        z[7] = b64!(0);
 
         /*   2*x01 + 2*x02 + 2*x03 + 2*x12 + 2*x13 + 2*x23
              + x00 + x11 + x22 + x33 */
@@ -269,13 +269,13 @@ pub fn fsquare(xa: stack! ([b64; 4])) -> reg! ([b64; 4]) {
         (rdx, rax) = mul(rax,xa[0]);
         (cf, z[2]) = add_cf(z[2],rax);
         (cf, z[3]) = adc_cf(z[3],rdx,cf);
-        z[4]       = adc(z[4],0,cf);
+        z[4]       = adc(z[4],b64!(0),cf);
 
         rax = xa[3];
         (rdx, rax) = mul(rax,xa[1]);
         (cf, z[4]) = add_cf(z[4],rax);
         (cf, z[5]) = adc_cf(z[5],rdx,cf);
-             z[6]  = adc(z[6],0,cf);
+             z[6]  = adc(z[6],b64!(0),cf);
 
         /*   [2*]x01 + [2*]x02 + 2*x03 + [2*]x12 + [2*]x13 + [2*]x23
              + x00 + x11 + x22 + x33 */
@@ -284,8 +284,8 @@ pub fn fsquare(xa: stack! ([b64; 4])) -> reg! ([b64; 4]) {
         (rdx, rax) = mul(rax,xa[0]);
         (cf, z[3]) = add_cf(z[3],rax);
         (cf, z[4]) = adc_cf(z[4],rdx,cf);
-        (cf, z[5]) = adc_cf(z[5],0,cf);
-             z[6]  = adc(z[6],0,cf);
+        (cf, z[5]) = adc_cf(z[5],b64!(0),cf);
+             z[6]  = adc(z[6],b64!(0),cf);
 
         /*   x01 + x02 + x03 + x12 + x13 + x23
              + x00 + x11 + x22 + x33 */
@@ -323,8 +323,8 @@ pub fn fsquare(xa: stack! ([b64; 4])) -> reg! ([b64; 4]) {
         (cf, z[3]) = adc_cf(z[3],t[2],cf);
         (cf, z[4]) = adc_cf(z[4],t[3],cf);
         (cf, z[5]) = adc_cf(z[5],t[4],cf);
-        (cf, z[6]) = adc_cf(z[6],0,cf);
-             z[7]  = adc(z[7],0,cf);
+        (cf, z[6]) = adc_cf(z[6],b64!(0),cf);
+             z[7]  = adc(z[7],b64!(0),cf);
 
         rax = xa[3];
         (rdx, rax) = mul(rax,xa[3]);
@@ -344,7 +344,7 @@ pub fn ladderstep(mut x1p: stack! ([b64; 4]),
                   mut z2p: stack! ([b64; 4]),
                   mut x3p: stack! ([b64; 4]),
                   mut z3p: stack! ([b64; 4]))
-    -> (stack! ([b64; 4]), stack! ([b64; 4]),
+    -> (stack! ([b64; 4]),stack! ([b64; 4]),
         stack! ([b64; 4]),stack! ([b64; 4])) {
 
     var! {
@@ -379,15 +379,15 @@ pub fn ladderstep(mut x1p: stack! ([b64; 4]),
     }
 
     rust! {
-        c121666p = [jc!(0); 4];
+        c121666p = [b64!(0); 4];
     }
 
     code! {
         //c121666p = [121666, 0, 0, 0];
-        c121666p[0] = jc!(121666);
-        c121666p[1] = jc!(0);
-        c121666p[2] = jc!(0);
-        c121666p[3] = jc!(0);
+        c121666p[0] = b64!(121666);
+        c121666p[1] = b64!(0);
+        c121666p[2] = b64!(0);
+        c121666p[3] = b64!(0);
 
         // workp mapping: 0 -> x1p, 1 -> x2p, 2 -> z2p, 3 -> x3p, 4 -> z3p
         t1  = x2p;
@@ -454,7 +454,7 @@ pub fn cswap(mut x2p: stack! ([b64; 4]),
     }
 
     code! {
-        mask = imul(swap,0xffff_ffff_ffff_ffff);
+        mask = imul(swap,b64!(0xffff_ffff_ffff_ffff));
 
         for i in (0..4) {
             tmp1   = x2p[i];
@@ -599,45 +599,45 @@ pub fn mladder(xr: stack! ([b64; 4]), sp: stack! ([b64; 4]))
     }
 
     rust! {
-        x2 = [jc!(0); 4]; // FIXME
-        z2 = [jc!(0); 4]; // FIXME
-        z3 = [jc!(0); 4]; // FIXME
+        x2 = [b64!(0); 4]; // FIXME
+        z2 = [b64!(0); 4]; // FIXME
+        z3 = [b64!(0); 4]; // FIXME
     }
 
     code! {
-        prevbit = jc!(0);
+        prevbit = b64!(0);
         x1 = xr;
         //x2 = [1, 0, 0, 0];
-        x2[0] = jc!(1);
-        for u in (1..4) { x2[u] = jc!(0); }
+        x2[0] = b64!(1);
+        for u in (1..4) { x2[u] = b64!(0); }
 
         //z2 = [0, 0, 0, 0];
-        for u in (0..4) { z2[u] = jc!(0); }
+        for u in (0..4) { z2[u] = b64!(0); }
         x3 = xr;
         //z3 = [1, 0, 0, 0];
-        for u in (0..4) { z3[u] = jc!(0); }
+        for u in (0..4) { z3[u] = b64!(0); }
 
-        i = jc!(3);
+        i = b64!(3);
         do {
-            tmp1 = sp[i];
+            tmp1 = sp[jv!(i)];
             i_s = i; // probably need the register
             s = tmp1;
-            j = jc!(63);
+            j = b64!(63);
             do {
                 tmp2 = s;
                 bit = shr(tmp2,j);
                 j_s = j; // probably need the register
-                bit = band(bit,1);
+                bit = band(bit,b64!(1));
                 swap = prevbit;
                 swap = xor(swap,bit);
                 prevbit = bit;
                 (x2,z2,x3,z3) = cswap(x2,z2,x3,z3,swap);
                 (x2,z2,x3,z3) = ladderstep(x1,x2,z2,x3,z3);
                 j = j_s;
-                (cf,j) = sub_cf(j,1); // returns cf=1 for input j=0
+                (cf,j) = sub_cf(j,b64!(1)); // returns cf=1 for input j=0
             } while !cf;
             i = i_s;
-            (cf,i) = sub_cf(i,1); // returns cf=1 for input i=0
+            (cf,i) = sub_cf(i,b64!(1)); // returns cf=1 for input i=0
         } while !cf;
 
         swap = prevbit;
@@ -655,7 +655,7 @@ pub fn unpack_point(mut p: reg! ([b64; 4])) -> stack! ([b64; 4]) {
     }
 
     code! {
-        p[3] = band(p[3],0x7fff_ffff_ffff_ffff);
+        p[3] = band(p[3],b64!(0x7fff_ffff_ffff_ffff));
         pa = p;
     }
 
@@ -670,9 +670,9 @@ pub fn unpack_secret(mut s: reg! ([b64; 4])) -> stack! ([b64; 4]) {
     }
 
     code! {
-        s[0] = band(s[0],0xffff_ffff_ffff_fff8);
-        s[3] = band(s[3],0x7fff_ffff_ffff_ffff);
-        s[3] = bor(s[3],0x4000_0000_0000_0000);
+        s[0] = band(s[0],b64!(0xffff_ffff_ffff_fff8));
+        s[3] = band(s[3],b64!(0x7fff_ffff_ffff_ffff));
+        s[3] = bor(s[3],b64!(0x4000_0000_0000_0000));
         sa = s;
     }
     return sa
@@ -691,11 +691,11 @@ pub fn freeze(mut xa: reg! ([b64; 4])) -> reg! ([b64; 4]) {
     code! {
         r = xa;
         t = r;
-        two63 = jc!(1);
-        two63 = shl(two63,63);
-        (cf, t[0]) = add_cf(t[0],19);
-        (cf, t[1]) = adc_cf(t[1],0,cf);
-        (cf, t[2]) = adc_cf(t[2],0,cf);
+        two63 = b64!(1);
+        two63 = shl(two63,b64!(63));
+        (cf, t[0]) = add_cf(t[0],b64!(19));
+        (cf, t[1]) = adc_cf(t[1],b64!(0),cf);
+        (cf, t[2]) = adc_cf(t[2],b64!(0),cf);
         (cf, t[3]) = adc_cf(t[3],two63,cf);
         when cf { r[0] = t[0] };
         when cf { r[1] = t[1] };
@@ -705,9 +705,9 @@ pub fn freeze(mut xa: reg! ([b64; 4])) -> reg! ([b64; 4]) {
         t[1] = r[1];
         t[2] = r[2];
         t[3] = r[3];
-        (cf, t[0]) = add_cf(t[0],19);
-        (cf, t[1]) = adc_cf(t[1],0,cf);
-        (cf, t[2]) = adc_cf(t[2],0,cf);
+        (cf, t[0]) = add_cf(t[0],b64!(19));
+        (cf, t[1]) = adc_cf(t[1],b64!(0),cf);
+        (cf, t[2]) = adc_cf(t[2],b64!(0),cf);
         (cf, t[3]) = adc_cf(t[3],two63,cf);
         when cf { r[0] = t[0] };
         when cf { r[1] = t[1] };

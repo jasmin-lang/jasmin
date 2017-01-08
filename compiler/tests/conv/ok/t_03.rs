@@ -25,8 +25,8 @@ fn test() {
     }
 
     code! {
-        u = 0;
-        v = 0;
+        u = b64!(0);
+        v = b64!(0);
 
         u_,cf_,v_ = inl!{ foo1(u,v,cf) };
         for i in (0..10) {

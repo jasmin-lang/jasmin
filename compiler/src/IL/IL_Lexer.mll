@@ -41,42 +41,19 @@ rule lex = parse
   | "="     { EQ }
   | "=="    { EQEQ }
   | "!="    { INEQ }
-  (*
-  | "+="    { PLUSEQ }
-  | "*="    { MULEQ }
-  | "-="    { MINUSEQ }
-  | "&="    { BANDEQ }
-  | "<="    { LEQ }
-  | "<"     { LESS }
-  | ">="    { GEQ }
-  *)
   | ">"     { GREATER }
   | ".."    { DOTDOT }
   | ","     { COMMA }
-  (*
-  | ">>="   { SHREQ }
-  | "<<="   { SHLEQ }
-  | "^="    { XOREQ }
-  | "|="    { OREQ }
-  *)
 
   | "-"     { MINUS }
   | "*"     { STAR }
   | "+"     { PLUS }
-  (* | "&"     { BAND } *)
   | "&&"    { LAND }
   | "||"    { LOR }
   | ";"     { SEMICOLON }
   | "!"     { EXCL }
   | "true"  { TRUE }
   | "false" { FALSE }
-  (*
-  | ">>"    { SHR }
-  | "<<"    { SHL }
-  | "^"     { XOR }
-  | "|"     { OR }
-  *)
-  | "$"     { DOLLAR }
 
   | "reg!"   { REG }
   | "stack!" { STACK }
@@ -94,13 +71,14 @@ rule lex = parse
   | "else" blank+ "if" { ELIF     }
   | "pub"              { PUB      }
   | "mut"              { MUT      }
-  | "jc!"              { JCEXCL   }
   | "var!"             { VAREXCL  }
   | "inl!"             { INLEXCL  }
   | "decl!"            { DECL     }
   | "code!"            { CODEEXCL }
   | "fn"               { FN       }
   | "return"           { RETURN   }
+  | "b" (['0'-'9']+ as i) "!"
+    { BCAST(int_of_string i)   }
 
   | ('-'? ['0'-'9']+) as s { INT(s) }
   | ("0x" ['0'-'9' 'a'-'f' '_']+) as s { INT(s) }

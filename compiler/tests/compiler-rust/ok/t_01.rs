@@ -26,11 +26,11 @@ rust! {
 
 rust! {
     fn foo1(x: stack! (b64)) -> (stack! (b64), reg! (b64), reg! (b1)) {
-        return (x,x,jc!(false));
+        return (x,x,b1!(false));
     }
 }
 
-const n : b64 = jc!(10);
+const n : uint = 10;
 
 decl! { fn foo1(stack! (b64)) -> (stack! (b64), reg! (b64), reg! (b1)); }
 
@@ -66,7 +66,7 @@ fn foo7(mut x: stack! (b64)) {
     }
     
     code! {
-        y = jc!(0);  // jc!(n)
+        y = b64!(n);
         x = add(x,y);
     }
 }
@@ -92,17 +92,20 @@ fn foo9(mut x: stack! (b64)) -> stack! (b64) {
 fn foo10(mut x: stack! (b64), y: stack! (b64), mut z: reg! (b1)) -> stack! (b64) {
     var! {
         w: stack! (b64);
+        j: inline! (uint);
     }
     
     code! {
         w = x;
         (w,x,z) = foo1(x);
         inl!{ foo4(x) };
-        x = jc!(5);
+        x = b64!(5);
         w = add(w,x);
-        if (w == jc!(5)) {
-            (z,x) = add_cf(x,w);
-            (z,x) = add_cf(x,y);
+        for j in (0..10) {
+            if (j == 5) {
+                (z,x) = add_cf(x,w);
+                (z,x) = add_cf(x,y);
+            }
         }
         x = adc(x,x,z);
     }

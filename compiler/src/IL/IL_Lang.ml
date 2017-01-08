@@ -108,6 +108,7 @@ include Param.T
 
 type stor =
   | Inline
+  | Const
   | Stack
   | Reg
   | SInvalid (* invalid value used for initialization *)

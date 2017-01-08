@@ -257,7 +257,7 @@ let rec typecheck_instr fptable ftable instr =
   match instr.L.l_val with
   | Block(bis,_)        -> List.iter ~f:tc_bi bis
   | If(c,stmt1,stmt2,_) -> tc_cond c; tc_stmt stmt1; tc_stmt stmt2
-  | For(sd,_,_,stmt,_)  -> assert(sd.d_idx=None); tc_sdest sd tu64; tc_stmt stmt
+  | For(sd,_,_,stmt,_)  -> assert(sd.d_idx=None); tc_sdest sd tint; tc_stmt stmt
   | While(_wt,fc,s,_)   -> tc_fcond fc; tc_stmt s
 
 and typecheck_stmt fptable ftable stmt =

@@ -14,8 +14,8 @@ fn bar1(mut x.1: reg! (b64), mut y.3: reg! (b64), mut c.2: reg! (b1)) -> (reg! (
 
 fn foo1(mut x.4: reg! (b64), mut y.6: reg! (b64), mut c.5: reg! (b1)) -> (reg! (b64),reg! (b1),reg! (b64)) {
     var! {
-        c.2: reg! (b1)
-        x.1: reg! (b64)
+        c.2: reg! (b1);
+        x.1: reg! (b64);
         y.3: reg! (b64);
     }
     code! {
@@ -33,23 +33,23 @@ fn foo1(mut x.4: reg! (b64), mut y.6: reg! (b64), mut c.5: reg! (b1)) -> (reg! (
 
 fn test() {
     var! {
-        c.2: reg! (b1)
-        c.5: reg! (b1)
-        cf.9: reg! (b1)
-        cf_.11: reg! (b1)
-        i.13: inline (b64)
-        u.7: reg! (b64)
-        u_.10: reg! (b64)
-        v.8: reg! (b64)
-        v_.12: reg! (b64)
-        x.1: reg! (b64)
-        x.4: reg! (b64)
-        y.3: reg! (b64)
+        c.2: reg! (b1);
+        c.5: reg! (b1);
+        cf.9: reg! (b1);
+        cf_.11: reg! (b1);
+        i.13: inline! (b64);
+        u.7: reg! (b64);
+        u_.10: reg! (b64);
+        v.8: reg! (b64);
+        v_.12: reg! (b64);
+        x.1: reg! (b64);
+        x.4: reg! (b64);
+        y.3: reg! (b64);
         y.6: reg! (b64);
     }
     code! {
-        u.7 = jc!(0);
-        v.8 = jc!(0);
+        u.7 = b64!(0);
+        v.8 = b64!(0);
         x.4 := u.7;
         y.6 := v.8;
         c.5 := cf.9;
@@ -64,7 +64,7 @@ fn test() {
         u_.10 := x.4;
         cf_.11 := c.5;
         v_.12 := y.6;
-        for i.13 in jc!(0)..jc!(10) {
+        for i.13 in (0..10) {
             while cf.9 {
                 if cf.9 {
                     x.4 := u.7;

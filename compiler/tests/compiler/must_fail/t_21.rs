@@ -5,7 +5,7 @@ fn bar() -> reg! (b64) {
         x : reg! (b64);
     }
     code! {
-        x = 42;
+        x = b64!(42);
     }
     return x
 }

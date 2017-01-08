@@ -16,7 +16,7 @@ thread_local! {
 #[macro_use]
 pub mod jasmin {
     use MEM_ARRAY;
-    use std::ops::{Index,IndexMut};
+    //use std::ops::{Index,IndexMut};
 
     pub fn addr_to_idx(p: u64,off: usize) -> usize {
         ((p as usize) + (off as usize))/ 8
@@ -85,6 +85,7 @@ pub mod jasmin {
         fn to_jval(self) -> b1 { Jval { val: self } }
     }
 
+    /*
     impl Index<Jval<u64>> for [b64] {
         type Output = b64;
 
@@ -94,11 +95,11 @@ pub mod jasmin {
     }
 
     impl IndexMut<Jval<u64>> for [b64] {
-
         fn index_mut(&mut self, i: b64) -> &mut b64 {
             &mut self[i.val as usize]
         }
     }
+    */
 
     #[macro_export]
     macro_rules! var {
@@ -106,12 +107,6 @@ pub mod jasmin {
         ($($name: ident : $t: ty);* $(;)*) => {
             let ($(mut $name),* ,) : ($($t),* ,);
         }
-        //    ($($bname: ident : $bt: ty);*; $name: ident, $($rest: tt)*) => {
-        //        var!{$($bname: $bt,)* $name: _; $($rest)*}
-        //    };
-        //    ($($bname: ident : $bt: ty);* ; $name: ident : $t: ty, $($rest: tt)*) => {
-        //        var!{$($bname: $bt,)* $name: $t; $($rest)*}
-        //    };
     }
 
     #[macro_export]
@@ -181,20 +176,10 @@ pub mod jasmin {
             __j_internal!{ $($rest)* }
         };
         // standard assignment: v = ..
-        //( $v0: ident = # $v1: expr ; $($rest:tt)* ) => {
-        //    $v0 = $v1.to_jval();
-        //    __j_internal!{ $($rest)* }
-        //};
-        // standard assignment: v = ..
         ( $v0: ident = $e: expr ; $($rest:tt)* ) => {
             $v0 = $e;
             __j_internal!{ $($rest)* }
         };
-        // standard assignment: v = ..
-        //( $v0: ident [ $e0: expr ] = # $v1: expr ; $($rest:tt)* ) => {
-        //    $v0[$e0] = $v1.to_jval();
-        //    __j_internal!{ $($rest)* }
-        //};
 
         // standard assignment: a[..] = ..
         ( $v0: ident [ $e0: expr ] = $v1: expr ; $($rest:tt)* ) => {
@@ -306,9 +291,23 @@ pub mod jasmin {
     }
 
     #[macro_export]
-    macro_rules! jc {
+    macro_rules! b64 {
         ( $e: expr ) => {
-            Jval { val: $e }
+            Jval { val: ($e as u64) }
+        }
+    }
+
+    #[macro_export]
+    macro_rules! b1 {
+        ( $e: expr ) => {
+            Jval { val: ($e as bool) }
+        }
+    }
+
+   #[macro_export]
+    macro_rules! jv {
+        ( $e: expr ) => {
+            ($e.val as usize)
         }
     }
 
@@ -351,6 +350,76 @@ pub mod U64 {
         Jval {val: x}
     }
 
+    pub fn add(x: b64, y: b64) -> b64 {
+        jv(x.val.wrapping_add(y.val))
+    }
+
+    pub fn add_cf(x: b64, y: b64) -> (b1,b64) {
+        let (r,cf) = x.val.overflowing_add(y.val);
+        (jv(cf),jv(r))
+    }
+
+    pub fn adc(x: b64, y: b64, cf: b1) -> b64 {
+        jv(x.val.wrapping_add(y.val).wrapping_add(cf.val as u64))
+    }
+
+    pub fn adc_cf(x: b64, y: b64, cf: b1) -> (b1,b64) {
+        let (r,cf1) = x.val.overflowing_add(y.val);
+        let (r,cf2) = r.overflowing_add(cf.val as u64);
+        (jv(cf1 || cf2),jv(r))
+    }
+
+    pub fn sub(x: b64, y: b64) -> b64 {
+        jv(x.val.wrapping_sub(y.val))
+    }
+
+    pub fn sub_cf(x: b64, y: b64) -> (b1,b64) {
+        let (r,cf) = x.val.overflowing_sub(y.val);
+        (jv(cf),jv(r))
+    }
+
+
+    pub fn sbb(x: b64, y: b64, cf: b1) -> b64 {
+        jv(x.val.wrapping_sub(y.val).wrapping_sub(cf.val as u64))
+    }
+
+    pub fn sbb_cf(x: b64, y: b64, cf: b1) -> (b1,b64) {
+        let (r,cf1) = x.val.overflowing_sub(y.val);
+        let (r,cf2) = r.overflowing_sub(cf.val as u64);
+        (jv(cf1 || cf2),jv(r))
+    }
+
+    pub fn mul(x: b64, y: b64) -> (b64, b64) {
+        let z = x.val.to_u128().unwrap() * y.val.to_u128().unwrap();
+        (jv(z.high64()), jv(z.low64()))
+    }
+
+    pub fn imul(x: b64, y: b64) -> b64 {
+        let z = x.val.to_u128().unwrap() * y.val.to_u128().unwrap();
+        jv(z.low64())
+    }
+
+    pub fn xor(x: b64, y: b64) -> b64 {
+        jv(x.val ^ y.val)
+    }
+
+    pub fn band(x: b64, y: b64) -> b64 {
+        jv(x.val & y.val)
+    }
+
+    pub fn bor(x: b64, y: b64) -> b64 {
+        jv(x.val | y.val)
+    }
+
+    pub fn shr(x: b64, y: b64) -> b64 {
+        jv(x.val >> y.val)
+    }
+
+    pub fn shl(x: b64, y: b64) -> b64 {
+        jv(x.val << y.val)
+    }
+
+    /*
     // we use ToJval<u64> to allow for u64 constants
     pub fn add<T1,T2>(x: T1, y: T2) -> b64
       where T1: ToJval<u64>,T2: ToJval<u64> {
@@ -451,6 +520,7 @@ pub mod U64 {
         let (x,y) = (x.to_jval(), y.to_jval());
         jv(x.val << y.val)
     }
+    */
 
     pub type uint = usize;
 }
@@ -488,11 +558,11 @@ mod tests {
             do {
                 arr1 = [0; 10];
                 arr2 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-                x  = jc!(16);
+                x  = b64!(16);
                 MEM[x + 0] = x;
-                y = jc!(0);
-                arr1[y] = jc!(1);
-                y = arr1[y];
+                y = b64!(0);
+                arr1[jv!(y)] = b64!(1);
+                y = arr1[jv!(y)];
                 for i in (0..4) {
                     MEM[x + i*8] = x;
                 }
@@ -502,26 +572,26 @@ mod tests {
                 x = MEM[x + 0];
                 arr1 = inl!{ id_array(arr1) };
                 clear_array(arr1);
-                cf = jc!(false);
-                arr1[0] = jc!(0);
+                cf = b1!(false);
+                arr1[0] = b64!(0);
                 y  = x;
                 cf = cf.val.to_jval();
                 (cf,x)  = adc_cf(x,y,cf);
-                when cf { x = adc(x,y,cf) };
-                when !cf { x = adc(x,y,false) };
+                when cf  { x = adc(x,y,cf) };
+                when !cf { x = adc(x,y,b1!(false)) };
                 (_cf,x) = adc_cf(x,y,cf);
-                (cf,x)  = add_cf(x,0);
+                (cf,x)  = add_cf(x,b64!(0));
                 (cf,y)  = adc_cf(x,y,cf);
                 (x,y,cf,_cf) = (x,y,cf,_cf);
                 _cf  = cf;
-                cf = jc!(false);
+                cf = b1!(false);
             } while cf;
             do {
                 (cf,x)  = add_cf(x,y);
                 (_cf,x) = adc_cf(x,y,cf);
                 (cf,x)  = add_cf(x,y);
                 (_cf,y) = adc_cf(x,y,cf);
-                cf = jc!(true);
+                cf = b1!(true);
             } while !cf;
             
         };
@@ -540,9 +610,9 @@ mod tests {
 
         println!("starting test");
         code!{
-            p = jc!(8);
+            p = b64!(8);
             for i in (0..64) {
-                x = jc!(i as u64);
+                x = b64!(i);
                 MEM[p + i*8] = x;
                 rust! { println!("writing {} with i={}: ",x.val,i) }
             }
