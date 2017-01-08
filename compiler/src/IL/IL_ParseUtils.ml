@@ -179,21 +179,26 @@ let mk_modul pfs =
     Pname.Table.of_alist_exn
       (List.map ~f:(fun (p,_ope) -> (p.Param.name,p.Param.ty)) params)
   in
-  let _fn_table = Fname.Table.create () in
-  let protos =
-    List.filter_map
-      ~f:(function (l,Dproto(d)) -> Some(mk_proto l d) | _ -> None)
-      pfs
-  in
-  let funcs =
-    List.filter_map
-      ~f:(function (l,Dfun(d)) -> Some(mk_func ptable l d) | _ -> None)
-      pfs
-  in
+  let fn_table = Fname.Table.create () in
+  let protos = ref [] in
+  let funcs = ref [] in
+  List.iter pfs
+    ~f:(function
+    | (l,Dproto(d)) ->
+      if HT.mem fn_table d.dp_fname then
+        add_err l ("duplicate function name :"^(Fname.to_string d.dp_fname));
+      HT.set fn_table ~key:d.dp_fname ~data:();
+      protos := !protos @ [ mk_proto l d ]
+    |  (l,Dfun(d)) ->
+      if HT.mem fn_table d.df_fname then
+        add_err l ("duplicate function name :"^(Fname.to_string d.df_fname));
+      HT.set fn_table ~key:d.df_fname ~data:();
+      funcs := !funcs @ [ mk_func ptable l d ]
+    | _ -> ());
   (* FIXME: add checks for duplicate names (functions. consts vs. variables *)
   if !errs<>[] then P.failparse_l (get_errs ());
-  { mod_funcs=funcs;
-    mod_funprotos=protos;
+  { mod_funcs=(!funcs);
+    mod_funprotos=(!protos);
     mod_params=params;
     mod_rust_sections=rust_sections;
     mod_rust_attributes=rust_attrs }
