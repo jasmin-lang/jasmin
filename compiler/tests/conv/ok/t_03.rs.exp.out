@@ -6,11 +6,11 @@ inlining all calls (certified) in ``test'' function(s)
 #[macro_use] extern crate jasmin;
 
 fn bar1(mut x.1: reg! (b64), mut y.3: reg! (b64), mut c.2: reg! (b1)) -> (reg! (b64),reg! (b1),reg! (b64)) {
-                                       code! {
-                                           x.1 = sub_v(x.1,y.3);
-                                       }
-                                       return (x.1,c.2,y.3)
-                                   }
+    code! {
+        x.1 = sub_v(x.1,y.3);
+    }
+    return (x.1,c.2,y.3)
+}
 
 fn foo1(mut x.4: reg! (b64), mut y.6: reg! (b64), mut c.5: reg! (b1)) -> (reg! (b64),reg! (b1),reg! (b64)) {
     var! {

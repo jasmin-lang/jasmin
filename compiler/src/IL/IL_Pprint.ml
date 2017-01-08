@@ -332,7 +332,7 @@ let pp_func ?pp_info ~pp_types fmt nf =
                    (Var.Set.of_list (List.map ~f:clean fdef.f_ret)))
          (Var.Set.of_list (List.map ~f:clean fdef.f_arg)))
   in
-  F.fprintf fmt "@[<v 0>%sfn %a(%a)%a%a@]"
+  F.fprintf fmt "@[<v 0>%sfn %a(%a)%a@]%a"
     (string_of_call_conv fdef.f_call_conv)
     Fname.pp name
     (pp_list ", " (pp_add_prefix "mut " (pp_var_i ~pp_types))) fdef.f_arg

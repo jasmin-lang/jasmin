@@ -139,8 +139,8 @@ def all_tests():
 
     print_sep()
         
-    #for fn in [ "%02i"%i for i in range(1,15)]:
-    #    test_ok("tests/compiler/ok/t_%s.mil"%fn)
+    for fn in [ "%02i"%i for i in range(1,3)]:
+        test_ok("tests/compiler/ok/t_%s.rs"%fn)
 
     # print_sep()
 
@@ -151,11 +151,6 @@ def all_tests():
 
     for fn in [ "%02i"%i for i in range(1,4)]:
         test_ok("tests/conv/ok/t_%s.rs"%fn)
-
-    print_sep()
-
-    for fn in [ "%02i"%i for i in range(1,2)]:
-        test_ok("tests/compiler-rust/ok/t_%s.rs"%fn)
 
     print_sep()
 

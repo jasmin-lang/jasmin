@@ -1,12 +1,16 @@
-fn foo(x, y : stack u64, z : reg bool) -> stack u64 {
-  w : stack u64;
-  w = x;
-  w += x;
-  if (w = 5) {
-    z, x += w;
-    z, x += y;
-  }
-  return x;
+fn foo(x: stack! (b64),  y: stack! (b64), z: reg! (b1)) -> stack! (b64) {
+    var! {
+        w : stack! (b64);
+    }
+    code! {
+        w = x;
+        w = add(w,x);
+        if (w == 5) {
+            (z, x) = add(x,w);
+            (z, x) = add(x,y);
+        }
+    }
+    return x
 }
 
 /*

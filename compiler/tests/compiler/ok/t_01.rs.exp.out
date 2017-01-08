@@ -1,25 +1,66 @@
->> input:
+type checking module in all function(s)
+   REMOVED_TIME
+
+running 1 test
+test test::test1 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured
+
+>> roundtrip:
+#![allow(non_upper_case_globals)]
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_mut)]
+#![allow(unused_assignments)]
+
 #[macro_use] extern crate jasmin;
-param n : b64;
 
-fn foo1(stack! (b64)) -> (stack! (b64),reg! (b64),reg! (b1));
+rust! {
+    use jasmin::jasmin::*;
+    use jasmin::U64::*;
+    
+}
 
-fn foo2(stack! (b64),stack! (b64[(n: b64)]),stack! (b64),stack! (b64),stack! (b64)) -> stack! (b64[(n: b64)]) = python print_foo;
+rust! {
+    mod test {
+        use jasmin::jasmin::*;
+        use jasmin::U64::*;
 
+        #[test]
+        fn test1() {
+            ::foo3(0.to_jval());
+        }
+    }
+}
+
+rust! {
+    fn foo1(x: stack! (b64)) -> (stack! (b64), reg! (b64), reg! (b1)) {
+        return (x,x,b1!(false));
+    }
+}
+
+const n : uint = 10;
+
+decl! { fn foo1(stack! (b64)) -> (stack! (b64),reg! (b64),reg! (b1)); }
 fn foo3(mut _x: stack! (b64)) {
 }
 
-fn foo4(mut _x: stack! (b64)) {
+pub fn foo4(mut _x: stack! (b64)) {
 }
 
-fn foo5(mut x: stack! (b64)) {
+pub fn foo5(mut x: stack! (b64)) {
     code! {
-        x: stack! (b64) += x: stack! (b64);
+        x = add(x,x);
     }
 }
 
 fn foo6(mut x: stack! (b64)) -> stack! (b64) {
-    return x: stack! (b64)
+    return x
 }
 
 fn foo7(mut x: stack! (b64)) {
@@ -27,37 +68,42 @@ fn foo7(mut x: stack! (b64)) {
         y: stack! (b64);
     }
     code! {
-        x: stack! (b64) += y: stack! (b64);
+        y = b64!(n);
+        x = add(x,y);
     }
 }
 
 fn foo8(mut x: stack! (b64)) -> (stack! (b64),stack! (b64)) {
-    var! {
-        y: stack! (b64);
-    }
-    return (y: stack! (b64),x: stack! (b64))
+    return (x,x)
 }
 
 fn foo9(mut x: stack! (b64)) -> stack! (b64) {
     code! {
-        x: stack! (b64) += x: stack! (b64);
+        x = add(x,x);
     }
-    return x: stack! (b64)
+    return x
 }
 
 fn foo10(mut x: stack! (b64), mut y: stack! (b64), mut z: reg! (b1)) -> stack! (b64) {
     var! {
+        j: inline! (uint);
         w: stack! (b64);
     }
     code! {
-        w: stack! (b64) = x: stack! (b64);
-        w: stack! (b64) += x: stack! (b64);
-        if (w: stack! (b64) == jc!(5)) {
-            z: reg! (b1), x: stack! (b64) += w: stack! (b64);
-            z: reg! (b1), x: stack! (b64) += y: stack! (b64);
+        w = x;
+        (w,x,z) = foo1(x);
+        inl!{ foo4(x) };
+        x = b64!(5);
+        w = add(w,x);
+        for j in (0..10) {
+            if (j == 5) {
+                (z,x) = add_cf(x,w);
+                (z,x) = add_cf(x,y);
+            }
         }
+        x = adc(x,x,z);
     }
-    return x: stack! (b64)
+    return x
 }
 
 
