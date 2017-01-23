@@ -28,3 +28,8 @@ This repository contains the following subdirectories:
    - `$ cd examples/curve25519`
    - `$ cargo test --release`
 
+# License
+
+All our code is MIT licensed. Since we use GPL licensed third party Coq
+theories and extract code from the LGPL licensed Coq standard library,
+our compiler is GPL licensed.
