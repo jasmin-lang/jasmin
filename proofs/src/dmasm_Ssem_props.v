@@ -48,18 +48,24 @@ Definition svmap_eq_except (s : Sv.t) (vm1 vm2 : svmap) :=
 Notation "vm1 = vm2 [\ s ]" := (svmap_eq_except s vm1 vm2) (at level 70, vm2 at next level,
   format "'[hv ' vm1  '/' =  vm2  '/' [\ s ] ']'").
 
-Lemma vrvP t (r:rval t) v s : s = swrite_rval s r v [\ vrv r].
+Lemma vrvP (r:rval) v s s' : swrite_rval s r v = ok s' -> s.(sevm) = s'.(sevm) [\ vrv r].
 Proof.
+(*
   elim: r v s=> [x | ?? r1 Hr1 r2 Hr2] v s /= z; rewrite ?vrv_var ?vrv_pair=> ?.
   + rewrite Fv.setP_neq //;apply /eqP; SvD.fsetdec.
   rewrite -Hr1 -?Hr2//; SvD.fsetdec.
 Qed.
+*)
+Admitted.
 
 Section SEM.
 
+Variable P: prog.
+
 Lemma writeP c s1 s2 : 
-   ssem s1 c s2 -> s1.(sevm) = s2.(sevm) [\ write_c c].
+   ssem P s1 c s2 -> s1.(sevm) = s2.(sevm) [\ write_c c].
 Proof.
+(*
   apply (@cmd_rect
            (fun i => forall s1 s2,
                        ssem_i s1 i s2 -> s1.(sevm) = s2.(sevm) [\ write_i i])
@@ -86,13 +92,15 @@ Proof.
     by have/ih := hc => -/(_ h) <-; rewrite -(h _ _ sc); SvD.fsetdec.
   by rewrite write_i_call=> Hin; move: H3 H4=> [] ?;subst=> -[] [] ?;subst;apply vrvP.  
 Qed.
-
+*)
+Admitted.
 
 (* -------------------------------------------------------------------------- *)
 (* Properties on swrite_rval                                                  *)
 (* -------------------------------------------------------------------------- *)
 
-Lemma swrite_nin  t (rv:rval t) (v:sst2ty t) z s:
+(*
+Lemma swrite_nin t (rv:rval) (v:svalue) z s:
   ~Sv.In z (vrv rv) ->
   ((swrite_rval s rv v).[z])%vmap = s.[z]%vmap.
 Proof.
@@ -121,6 +129,6 @@ Proof. by elim: i => //= ??? -> ? ->. Qed.
 
 Definition donotdep  (s : Sv.t) t (e:pexpr t) := 
   forall s1 s2, s1 = s2 [\ s] -> ssem_pexpr s1 e = ssem_pexpr s2 e.
+*)
 
 End SEM.
-

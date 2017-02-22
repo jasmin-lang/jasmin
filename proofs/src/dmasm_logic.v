@@ -34,7 +34,7 @@ Require Import JMeq ZArith Setoid Morphisms.
 
 Require Import word dmasm_utils dmasm_type dmasm_var dmasm_expr.
 Require Import memory dmasm_sem dmasm_Ssem dmasm_Ssem_props.
-Require Import symbolic_expr symbolic_expr_opt.
+(*Require Import symbolic_expr symbolic_expr_opt.*)
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -45,15 +45,19 @@ Section SEM.
 (* ** Hoare Logic                                                             *)
 (* -------------------------------------------------------------------------- *)
 
+Variable pr: prog.
+
 Definition hpred := sestate -> Prop.
 
 Definition hoare (Pre:hpred) (c:cmd) (Post:hpred) := 
-  forall (s s':sestate), ssem s c s' -> Pre s -> Post s'.
+  forall (s s':sestate), ssem pr s c s' -> Pre s -> Post s'.
 
-Definition fpred (t:stype) := mem -> sst2ty t -> Prop.
+Definition fpred (t:stype) := mem -> ssem_t t -> Prop.
 
-Definition hoaref ta tr (Pre:fpred ta) (f:fundef ta tr) (Post:fpred tr) := 
-  forall (m m':mem) va vr, ssem_fun f m va m' vr -> Pre m va -> Post m' vr.
+(* TODO: fix
+Definition hoaref ta tr (Pre:fpred ta) (f:fundef) (Post:fpred tr) := 
+  forall (m m':mem) va vr, ssem_call P m f va m' vr -> Pre m va -> Post m' vr.
+*)
 
 (* -------------------------------------------------------------------------- *)
 (* ** Core Rules                                                              *)
@@ -82,7 +86,7 @@ Lemma hoare_notmod (P P' Q:hpred) c:
   hoare (fun s => P s /\ P' s) c (fun s => Q s /\ P' s).
 Proof.
   move=> Hd Hc s s' Hsem [HP HP'];split;first by apply (Hc _ _ Hsem).
-  by rewrite -(@Hd s s') //;apply writeP .
+  by rewrite -(@Hd s s') //;apply: (@writeP pr).
 Qed.
 
 (* Skip *)
@@ -98,6 +102,7 @@ Proof.
 Qed.
 
 (* Base command *)
+(* TODO: fix
 Lemma hoare_bcmd (P:hpred) bc: 
   hoare (fun s1 => forall s2, ssem_bcmd s1 bc = ok s2 -> P s2) [::Cbcmd bc] P.
 Proof.
@@ -105,9 +110,11 @@ Proof.
   case: _ {-1}_ _ / s (erefl c) => // ??? e [] ?;subst=> H.
   by apply: (H _ e).
 Qed.
+*)
 
 (* Sequence *)
 
+(* TODO: fix
 Lemma hoare_seq R P Q c1 c2 : 
   hoare P c1 R -> hoare R c2 Q -> hoare P (c1 ++ c2) Q.
 Proof.
@@ -122,9 +129,10 @@ Proof. by apply:hoare_seq. Qed.
 Lemma hoare_rcons R P Q i c : 
   hoare P c R -> hoare R [::i] Q -> hoare P (rcons c i) Q.
 Proof. by rewrite -cats1;apply:hoare_seq. Qed.
+*)
 
+(*
 (* Conditionnal *)
-
 Lemma hoare_if P Q (e: pexpr sbool) c1 c2 : 
   hoare (fun s => ssem_pexpr s.(sevm) e /\ P s) c1 Q ->
   hoare (fun s => ~~ssem_pexpr s.(sevm) e /\ P s) c2 Q ->
@@ -188,6 +196,7 @@ case/ih => // => [j s'1 s'2 /hc {hc}hc [? ? j_ws]|].
 + by apply/hc; split=> //; rewrite inE j_ws orbT.
 by move=> Is3 eqi <-; split.
 Qed.
+*)
 
 (* -------------------------------------------------------------------- *)
 (* Definition incr dir (i : word) := 

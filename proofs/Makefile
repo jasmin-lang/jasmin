@@ -29,7 +29,9 @@ COQFILES := \
 	src/compiler.v \
 	src/extraction.v \
 	src/zmod_setoid.v \
-	src/dmasm_Ssem.v
+	src/dmasm_Ssem.v \
+	src/dmasm_Ssem_props.v \
+	src/dmasm_logic.v
 
 #	src/proof_utils.v \
 	src/proof_sem.v \
@@ -42,10 +44,8 @@ COQFILES := \
 
 
 #	src/equiv_sem.v \
-	src/dmasm_Ssem_props.v \
 	src/symbolic_expr.v \
-	src/symbolic_expr_opt.v \
-	src/dmasm_logic.v 
+	src/symbolic_expr_opt.v
 
 
 include Makefile.common
