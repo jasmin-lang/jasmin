@@ -37,12 +37,12 @@ def extract_enclosed(fname,marker):
         raise "no terminator found"
 
 def print_err(s):
-    print bcolors.FAIL + s + bcolors.ENDC
+    print(bcolors.FAIL + s + bcolors.ENDC)
 
 def test(fname,get_error,cp):
 
     if verbose:
-        print "\n%s:"%(fname),
+        print("\n%s:"%(fname)),
 
     fn_run_err = fname + ".run.err"
     fn_exp_err = fname + ".exp.err"
@@ -57,7 +57,7 @@ def test(fname,get_error,cp):
 
     # run and check error code
     if debug:
-        print "%s"%cmd
+        print("%s"%cmd)
     err = system(cmd)
     if (err != 0) != get_error:
         print_err("error, expected %s"%("error" if get_error else "success"))
@@ -76,13 +76,13 @@ def test(fname,get_error,cp):
     # compare with expected output
     if not os.path.isfile(fn_exp_err) or not os.path.isfile(fn_exp_out):
         if cp:
-            print "\n  initial version created"
+            print("\n  initial version created")
             system("cp %s %s"%(fn_run_err,fn_exp_err))
             system("cp %s %s"%(fn_run_out,fn_exp_out))
         else:
-            print "\n  create initial version by running"
-            print "    cp %s %s"%(fn_run_err,fn_exp_err)
-            print "    cp %s %s"%(fn_run_out,fn_exp_out)
+            print("\n  create initial version by running")
+            print("    cp %s %s"%(fn_run_err,fn_exp_err))
+            print("    cp %s %s"%(fn_run_out,fn_exp_out))
             
     exp_err = open(fn_exp_err).read()
     run_err = open(fn_run_err).read()
@@ -92,7 +92,7 @@ def test(fname,get_error,cp):
         if cp:
             system("cp %s %s"%(fn_run_err,fn_exp_err))
         else:
-            print "  run\n      cp %s %s\n  to use new definition"%(fn_run_err,fn_exp_err)
+            print("  run\n      cp %s %s\n  to use new definition"%(fn_run_err,fn_exp_err))
         return
     exp_out = open(fn_exp_out).read()
     run_out = open(fn_run_out).read()
@@ -102,9 +102,9 @@ def test(fname,get_error,cp):
         if cp:
             system("cp %s %s"%(fn_run_out,fn_exp_out))
         else:
-            print "  run\n      cp %s %s\n  to use new definition"%(fn_run_out,fn_exp_out)
+            print("  run\n      cp %s %s\n  to use new definition"%(fn_run_out,fn_exp_out))
         return
-    print bcolors.OKGREEN + "ok" + bcolors.ENDC,
+    print(bcolors.OKGREEN + "ok" + bcolors.ENDC),
 
 def test_fail(fname,cp=False):
     return test(fname,True,cp)
@@ -119,12 +119,12 @@ def run(fname):
     system(cmd)
 
 def print_sep():
-    print "\n\n%s"%("#"*70)
+    print("\n\n%s"%("#"*70))
 
 ######################################################################
 
 def single_test(f):
-    print "running test for %s"%(f)
+    print("running test for %s"%(f))
     run(f)
     exit(0)
 
