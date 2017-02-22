@@ -29,18 +29,19 @@ COQFILES := \
 	src/compiler.v \
 	src/extraction.v \
 	src/zmod_setoid.v \
-	src/proof_utils.v \
+	src/dmasm_Ssem.v
+
+#	src/proof_utils.v \
 	src/proof_sem.v \
 	src/proof_add.v \
-	src/proof_4limb_add_25519.v
-	# src/proof_4limb_mul_25519.v
+	src/proof_4limb_add_25519.v \
+	src/proof_4limb_mul_25519.v
 
 #	src/stack_alloc.v \
 	src/linear.v \
 
 
-#	src/dmasm_Ssem.v \
-	src/equiv_sem.v \
+#	src/equiv_sem.v \
 	src/dmasm_Ssem_props.v \
 	src/symbolic_expr.v \
 	src/symbolic_expr_opt.v \

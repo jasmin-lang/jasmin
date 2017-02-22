@@ -23,7 +23,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-(* * Syntax and semantics of the dmasm source language *)
+(* * New semantic which is "unsafe" (may not fail on invalid code) but simplifies the Hoare logic *)
 
 (* ** Imports and settings *)
 
@@ -43,209 +43,345 @@ Open Scope string_scope.
 (* ** Type interpretation
  * -------------------------------------------------------------------- *)
 
-Fixpoint sst2ty (t : stype) : Type :=
+Definition ssem_t (t : stype) : Type :=
   match t with
-  | sword         => word
-  | sbool         => bool
-  | sprod st1 st2 => ((sst2ty st1) * (sst2ty st2))%type
-  | sarr n        => FArray.array word
+  | sbool  => bool
+  | sint   => Z
+  | sarr n => FArray.array word
+  | sword  => word
   end.
 
-Fixpoint sdflt_val st :  sst2ty st :=
+Definition sdflt_val st : ssem_t st :=
   match st with
-  | sword         => n2w 0
-  | sbool         => true
-  | sprod st1 st2 => (sdflt_val st1, sdflt_val st2)
+  | sbool         => false
+  | sint          => Z0
   | sarr n        => FArray.cnst (n2w 0)
+  | sword         => I64.repr Z0
+  end.
+
+(* ** Values
+  * -------------------------------------------------------------------- *)
+
+Inductive svalue : Type :=
+  | SVbool :> bool -> svalue
+  | SVint  :> Z    -> svalue
+  | SVarr  : forall n : positive, FArray.array word -> svalue
+  | SVword :> word -> svalue.
+
+Definition svalues := seq svalue.
+
+Definition sto_bool v :=
+  match v with
+  | SVbool b => ok b
+  | _       => type_error
+  end.
+
+Definition sto_int v :=
+  match v with
+  | SVint z => ok z
+  | _      => type_error
+  end.
+
+Definition sto_arr v : exec (FArray.array word) :=
+  match v with
+  | SVarr n t => ok t
+  | _ => type_error
+  end.
+
+Definition sto_word v :=
+  match v with
+  | SVword w => ok w
+  | _       => type_error
+  end.
+
+Definition of_sval t : svalue -> exec (ssem_t t) :=
+  match t return svalue -> exec (ssem_t t) with
+  | sbool  => sto_bool
+  | sint   => sto_int
+  | sarr n => sto_arr
+  | sword  => sto_word
+  end.
+
+Definition to_sval t : ssem_t t -> svalue :=
+  match t return ssem_t t -> svalue with
+  | sbool  => SVbool
+  | sint   => SVint
+  | sarr n => @SVarr n
+  | sword  => SVword
   end.
 
 (* ** Variable map
  * -------------------------------------------------------------------- *)
 
+Notation svmap    := (Fv.t ssem_t).
+Notation svmap0   := (@Fv.empty ssem_t (fun x => sdflt_val x.(vtype))).
 
-Notation svmap    := (Fv.t sst2ty).
-Notation svmap0   := (@Fv.empty sst2ty (fun x => sdflt_val x.(vtype))).
+Definition sget_var (m:svmap) x :=
+  @to_sval (vtype x) (m.[x]%vmap).
 
-Fixpoint swrite_rval (s:svmap) {t} (l:rval t) : sst2ty t -> svmap :=
-  match l in rval t_ return sst2ty t_ -> svmap with
-  | Rvar x => fun v => s.[x <- v]%vmap
-  | Rpair t1 t2 rv1 rv2 => fun v => 
-    swrite_rval (swrite_rval s rv2 (snd v)) rv1 (fst v) 
-  end.
+Definition sset_var (m:svmap) x v :=
+  Let v := @of_sval (vtype x) v in
+  ok (m.[x<-v]%vmap).
 
-Fixpoint ssem_rval (s:svmap) t (rv:rval t) : sst2ty t := 
-  match rv in rval t_ return sst2ty t_ with
-  | Rvar x            => s.[x]%vmap
-  | Rpair _ _ rv1 rv2 => (ssem_rval s rv1, ssem_rval s rv2)
-  end.
-
-(* ** Operators 
+(* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
-Definition ssem_sop1 st1 str (sop : sop1 st1 str) : sst2ty st1 -> sst2ty str :=
-  match sop in sop1 st1 str return sst2ty st1 -> sst2ty str with
-  | Onot       => negb
-  | Ofst t1 t2 => fst 
-  | Osnd t1 t2 => snd 
+Definition ssem_prod ts tr := lprod (map ssem_t ts) tr.
+
+Definition mk_ssem_sop2 t1 t2 tr (o:ssem_t t1 -> ssem_t t2 -> ssem_t tr) v1 v2 :=
+  Let v1 := of_sval t1 v1 in
+  Let v2 := of_sval t2 v2 in
+  ok (@to_sval tr (o v1 v2)).
+
+Definition ssem_op2_b  := @mk_ssem_sop2 sbool sbool sbool.
+Definition ssem_op2_i  := @mk_ssem_sop2 sint  sint  sint.
+Definition ssem_op2_ib := @mk_ssem_sop2 sint  sint  sbool.
+
+Definition ssem_sop2 (o:sop2) :=
+  match o with
+  | Oand => ssem_op2_b andb
+  | Oor  => ssem_op2_b orb
+
+  | Oadd => ssem_op2_i Z.add
+  | Omul => ssem_op2_i Z.mul
+  | Osub => ssem_op2_i Z.sub
+
+  | Oeq  => ssem_op2_ib Z.eqb
+  | Oneq => ssem_op2_ib (fun x y => negb (Z.eqb x y))
+  | Olt  => ssem_op2_ib Z.ltb
+  | Ole  => ssem_op2_ib Z.leb
+  | Ogt  => ssem_op2_ib Z.gtb
+  | Oge  => ssem_op2_ib Z.geb
   end.
-
-Definition ssem_sop2 st1 st2 str (sop : sop2 st1 st2 str) :=
-  match sop in sop2 st1 st2 str return 
-        sst2ty st1 -> sst2ty st2 -> sst2ty str with
-  | Oand       => andb
-  | Oor        => orb
-  | Oadd       => wadd 
-  | Oaddc      => waddc 
-  | Osub       => wsub 
-  | Osubc      => wsubc 
-  | Oeq        => fun (x y : word) => x == y
-  | Olt        => wlt 
-  | Ole        => wle
-  | Oget n     => @FArray.get word
-  | Opair t1 t2 => fun x y => (x,y)
-  end.
-
-Definition ssem_sop3 st1 st2 st3 str (sop : sop3 st1 st2 st3 str) :=
-  match sop in sop3 st1 st2 st3 str return 
-        sst2ty st1 -> sst2ty st2 -> sst2ty st3 -> sst2ty str with
-  | Oset n     => @FArray.set word
-  | Oaddcarry  => waddcarry 
-  | Osubcarry  => wsubcarry 
-  end.
-
-(* ** Operators 
- * -------------------------------------------------------------------- *)
-
-Fixpoint ssem_pexpr st (vm : svmap) (pe : pexpr st) : sst2ty st :=
-  match pe with
-  | Pvar v => vm.[ v ]%vmap
-  | Pconst c => I64.repr c
-  | Pbool  b => b
-  | Papp1 st1 str o pe1 =>
-      let v1 := ssem_pexpr vm pe1 in
-      ssem_sop1 o v1
-  | Papp2 st1 st2 str o pe1 pe2 =>
-      let v1 := ssem_pexpr vm pe1 in 
-      let v2 := ssem_pexpr vm pe2 in
-      ssem_sop2 o v1 v2
-  | Papp3 st1 st2 st3 str o pe1 pe2 pe3 =>
-      let v1 := ssem_pexpr vm pe1 in
-      let v2 := ssem_pexpr vm pe2 in
-      let v3 := ssem_pexpr vm pe3 in
-      ssem_sop3 o v1 v2 v3
-  end.
-
-(* ** Instructions
- * -------------------------------------------------------------------- *)
 
 Record sestate := SEstate {
   semem : mem;
   sevm  : svmap
 }.
 
-Section SEM.
+Definition son_arr_var A (s:sestate) (x:var) (f:forall n, FArray.array word -> exec A) :=
+  match vtype x as t return ssem_t t -> exec A with
+  | sarr n => f n
+  | _ => fun _ => type_error
+  end  (s.(sevm).[ x ]%vmap).
 
-Definition ssem_bcmd (es : sestate) (bc : bcmd) : exec sestate :=
-  match bc with
-  | Assgn st rv pe =>
-      let v := ssem_pexpr es.(sevm) pe in
-      let vm := swrite_rval es.(sevm) rv v in
-      ok (SEstate es.(semem) vm)
-  | Load rv pe_addr =>
-      let p := ssem_pexpr es.(sevm) pe_addr in
-      read_mem es.(semem) p >>= fun w =>
-      let vm := swrite_rval es.(sevm) rv w in
-      ok (SEstate es.(semem) vm)
+Notation "'SLet' ( n , t ) ':=' s '.[' x ']' 'in' body" :=
+  (@son_arr_var _ s x (fun n (t:FArray.array word) => body)) (at level 25, s at level 0).
 
-  | Store pe_addr pe_val =>
-      let p := ssem_pexpr es.(sevm) pe_addr in
-      let w := ssem_pexpr es.(sevm) pe_val in
-      write_mem es.(semem) p w >>= fun m =>
-      ok (SEstate m es.(sevm))
+Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : exec svalue :=
+  match e with
+  | Pconst z => ok (SVint z)
+  | Pbool b  => ok (SVbool b)
+  | Pcast e  =>
+    Let z := ssem_pexpr s e >>= sto_int in
+    ok (SVword (I64.repr z))
+  | Pvar v => ok (sget_var s.(sevm) v)
+  | Pget x e =>
+      SLet (n,t) := s.[x] in
+      Let i := ssem_pexpr s e >>= sto_word in
+      ok (SVword (FArray.get t i))
+  | Pload x e =>
+    (* FIXME: use x as offset *)
+    Let w := ssem_pexpr s e >>= sto_word >>= read_mem s.(semem) in
+    ok (@to_sval sword w)
+  | Pnot e =>
+    Let b := ssem_pexpr s e >>= sto_bool in
+    ok (SVbool (negb b))
+  | Papp2 o e1 e2 =>
+    Let v1 := ssem_pexpr s e1 in
+    Let v2 := ssem_pexpr s e2 in
+    ssem_sop2 o v1 v2
   end.
 
-Definition ssem_range (vm : svmap) (r : range) :=
-  let: (d,pe1,pe2) := r in
-  let w1 := ssem_pexpr vm pe1 in
-  let w2 := ssem_pexpr vm pe2 in
-  [seq n2w n | n <- wrange d w1 w2].
+Definition ssem_pexprs s := mapM (ssem_pexpr s).
+
+Inductive svval : Type :=
+ | SVnone : svval
+ | SVvar  : var  -> svval
+ | SVmem  : word -> svval
+ | SVaset : forall p : positive, var -> FArray.array word -> word -> svval.
+
+Notation svvals := (seq svval).
+
+Definition ssem_rval (s:sestate) (r:rval) : exec svval :=
+  match r with
+  | Rnone _ => ok (SVnone)
+  | Rvar  x => ok (SVvar x)
+  | Rmem  x e =>
+    (* FIXME: use x as offset *)
+    Let p := ssem_pexpr s e >>= sto_word in
+    ok (SVmem p)
+  | Raset x i =>
+    SLet (n,t) := s.[x] in
+    Let i := ssem_pexpr s i >>= sto_word in
+    ok (SVaset n x t i)
+  end.
+
+Definition ssem_rvals (s:sestate) := mapM (ssem_rval s).
+
+Definition swrite_var (x:var) (v:svalue) (s:sestate) : exec sestate :=
+  Let vm := sset_var s.(sevm) x v in
+  ok ({| semem := s.(semem); sevm := vm |}).
+
+Definition swrite_vval (l:svval) (v:svalue) (s:sestate) : exec sestate :=
+  match l with
+  | SVnone  => ok s
+  | SVvar x => swrite_var x v s
+  | SVmem p =>
+    Let w := sto_word v in
+    Let m :=  write_mem s.(semem) p w in
+    ok {|semem := m; sevm := s.(sevm) |}
+  | SVaset p x t i =>
+    Let v := sto_word v in
+    let t := FArray.set t i v in
+    Let vm := sset_var s.(sevm) x (@to_sval (sarr p) t) in
+    ok ({| semem := s.(semem); sevm := vm |})
+  end.
+
+Definition swrite_var_i (x:var_i) := swrite_var x.
+
+Definition swrite_vars xs vs (s:sestate) :=
+  fold2 ErrType swrite_var_i xs vs s.
+
+Definition swrite_vvals rs vs (s:sestate) :=
+  fold2 ErrType swrite_vval rs vs s.
+
+Definition swrite_rval s x v :=
+  Let vx := ssem_rval s x in
+  swrite_vval vx v s.
+
+Definition swrite_rvals s xs vs :=
+  Let vxs := ssem_rvals s xs in
+  swrite_vvals vxs vs s.
+
+Fixpoint sapp_sopn ts : ssem_prod ts svalues -> svalues -> exec svalues :=
+  match ts return ssem_prod ts svalues -> svalues -> exec svalues with
+  | [::] => fun (o:svalues) (vs:svalues) =>
+    match vs with
+    | [::] => ok o
+    | _    => type_error
+    end
+  | t::ts => fun (o:ssem_t t -> ssem_prod ts svalues) (vs:svalues) =>
+    match vs with
+    | [::]  => type_error
+    | v::vs =>
+      Let v := of_sval t v in
+      sapp_sopn (o v) vs
+    end
+  end.
+Arguments sapp_sopn ts o l:clear implicits.
+
+Definition spval t1 t2 (p: ssem_t t1 * ssem_t t2) :=
+  [::to_sval p.1; to_sval p.2].
+
+Notation soww o  := (sapp_sopn [::sword] (fun x => [::SVword (o x)])).
+Notation sowww o := (sapp_sopn [:: sword; sword] (fun x y => [::SVword (o x y)])).
+
+Definition ssem_sopn (o:sopn) : svalues -> exec svalues :=
+  match o with
+  | Olnot => soww I64.not
+  | Oxor  => sowww I64.xor
+  | Oland => sowww I64.and
+  | Olor  => sowww I64.or
+  | Olsr  => sowww I64.shru
+  | Olsl  => sowww I64.shl
+  | Omuli => sowww (fun x y => let (h,l) := wumul x y in l) (* FIXME: check imul INTEL manual *)
+  | Oif   =>
+    sapp_sopn [::sbool; sword; sword] (fun b x y => [::SVword (if b then x else y)])
+  | Omulu =>
+    sapp_sopn [::sword; sword] (fun x y => @spval sword sword (wumul x y))
+  | Oaddcarry =>
+    sapp_sopn [::sword; sword; sbool] (fun x y c => @spval sbool sword (waddcarry x y c))
+  | Osubcarry =>
+    sapp_sopn [::sword; sword; sbool] (fun x y c => @spval sbool sword (wsubcarry x y c))
+  end.
+
+(* ** Instructions
+ * -------------------------------------------------------------------- *)
+
+Section SEM.
+
+Variable P:prog.
+
+Definition get_fundef f :=
+  let pos := find (fun ffd => f == fst ffd) P in
+  if pos <= size P then
+    Some (snd (nth (xH,dummy_fundef) P pos))
+  else None.
 
 Inductive ssem : sestate -> cmd -> sestate -> Prop :=
 | SEskip s :
     ssem s [::] s
 
 | SEseq s1 s2 s3 i c :
-    ssem_i s1 i s2 -> ssem s2 c s3 -> ssem s1 (i::c) s3
+    ssem_I s1 i s2 -> ssem s2 c s3 -> ssem s1 (i::c) s3
 
-with ssem_i : sestate -> instr -> sestate -> Prop :=
-| SEbcmd s1 s2 c:
-    ssem_bcmd s1 c = ok s2 -> ssem_i s1 (Cbcmd c) s2
+with ssem_I : sestate -> instr -> sestate -> Prop :=
+| SEmkI ii i s1 s2:
+    ssem_i s1 i s2 ->
+    ssem_I s1 (MkI ii i) s2
 
-| SEifTrue s1 s2 (pe : pexpr sbool) c1 c2 :
-    ssem_pexpr s1.(sevm) pe ->
+with ssem_i : sestate -> instr_r -> sestate -> Prop :=
+| SEassgn s1 s2 (x:rval) tag e:
+    ssem_pexpr s1 e >>= (swrite_rval s1 x) = ok s2 ->
+    ssem_i s1 (Cassgn x tag e) s2
+
+| SEopn s1 s2 o xs es:
+    ssem_pexprs s1 es >>= ssem_sopn o >>= (swrite_rvals s1 xs) = ok s2 ->
+    ssem_i s1 (Copn xs o es) s2
+
+| SEif_true s1 s2 e c1 c2 :
+    ssem_pexpr s1 e >>= sto_bool = ok true ->
     ssem s1 c1 s2 ->
-    ssem_i s1 (Cif pe c1 c2) s2
+    ssem_i s1 (Cif e c1 c2) s2
 
-| SEifFalse s1 s2 (pe : pexpr sbool) c1 c2 :
-    ~~ssem_pexpr s1.(sevm) pe ->
+| SEif_false s1 s2 e c1 c2 :
+    ssem_pexpr s1 e >>= sto_bool = ok false ->
     ssem s1 c2 s2 ->
-    ssem_i s1 (Cif pe c1 c2) s2
+    ssem_i s1 (Cif e c1 c2) s2
 
-| SEcall es m ta tr x (f:fundef ta tr) a vr:
-    let va := ssem_pexpr es.(sevm) a in
-    ssem_fun f es.(semem) va m vr ->
-    let vm2 := swrite_rval es.(sevm) x vr in 
-    ssem_i es (Ccall x f a) (SEstate m vm2)
+| SEwhile_true s1 s2 s3 e c :
+    ssem_pexpr s1 e >>= sto_bool = ok true ->
+    ssem s1 c s2 ->
+    ssem_i s2 (Cwhile e c) s3 ->
+    ssem_i s1 (Cwhile e c) s3
 
-| SEfor s1 s2 i dir (e1 e2:pexpr sword) c:
-    let w1 := ssem_pexpr s1.(sevm) e1 in
-    let w2 := ssem_pexpr s1.(sevm) e2 in
-    ssem_for i (map n2w (wrange dir w1 w2)) s1 c s2 ->
-    ssem_i s1 (Cfor i (dir, e1, e2) c) s2
+| SEwhile_false s e c :
+    ssem_pexpr s e >>= sto_bool = ok false ->
+    ssem_i s (Cwhile e c) s
 
-| SEwhile s1 s2 e c :
-   ssem_while s1 e c s2 ->
-   ssem_i s1 (Cwhile e c) s2
+| SEfor s1 s2 (i:var_i) d lo hi c vlo vhi :
+    ssem_pexpr s1 lo >>= sto_int = ok vlo ->
+    ssem_pexpr s1 hi >>= sto_int = ok vhi ->
+    ssem_for i (wrange d vlo vhi) s1 c s2 ->
+    ssem_i s1 (Cfor i (d, lo, hi) c) s2
 
-with ssem_fun : forall ta tr (f:fundef ta tr) (m:mem) (va:sst2ty ta), mem -> sst2ty tr -> Prop :=
-| SEfun : forall ta tr (f:fundef ta tr) (m:mem) (va:sst2ty ta) vm es',
-    let es := {| semem := m; sevm := swrite_rval vm f.(fd_arg) va |} in
-    ssem es f.(fd_body) es' ->
-    let rv := ssem_rval es'.(sevm) f.(fd_res) in
-    ssem_fun f m va es'.(semem) rv
+| SEcall s1 m2 s2 ii xs f fd args vargs vs :
+    get_fundef f = Some fd ->
+    ssem_pexprs s1 args = ok vargs ->
+    ssem_call s1.(semem) fd vargs m2 vs ->
+    swrite_rvals {|semem:= m2; sevm := s1.(sevm) |} xs vs = ok s2 ->
+    ssem_i s1 (Ccall ii xs f args) s2
 
-with ssem_for : rval sword -> seq word -> sestate -> cmd -> sestate -> Prop :=
-| SEForDone i c s :
+with ssem_for : var -> seq Z -> sestate -> cmd -> sestate -> Prop :=
+| SEForDone s i c :
     ssem_for i [::] s c s
 
-| SEForOne (i:rval sword) w ws c s1 s2 s3:
-    ssem (SEstate s1.(semem) (swrite_rval s1.(sevm) i w)) c s2 ->
+| SEForOne s1 s1' s2 s3 i w ws c :
+    swrite_var i (SVint w) s1 = ok s1' ->
+    ssem s1' c s2 ->
     ssem_for i ws s2 c s3 ->
     ssem_for i (w :: ws) s1 c s3
 
-with ssem_while : sestate -> pexpr sbool -> cmd -> sestate -> Prop := 
-| SEWhileDone s (e:pexpr sbool) c :
-    ssem_pexpr s.(sevm) e = false ->
-    ssem_while s e c s
-| SEWhileOne s1 s2 s3 (e:pexpr sbool) c :  
-    ssem_pexpr s1.(sevm) e = true ->
-    ssem s1 c s2 ->
-    ssem_while s2 e c s3 ->
-    ssem_while s1 e c s3.
-
-Lemma ssem_iV s i s' : ssem s [::i] s' -> ssem_i s i s'.
-Proof.
-  move=> H;inversion H;subst.
-  by inversion H5;subst.
-Qed.
-
-Lemma ssem_cV c1 c2 s s' : ssem s (c1 ++ c2) s' ->
-  exists s'', ssem s c1 s'' /\ ssem s'' c2 s'.
-Proof.
-  elim: c1 s s' => /=[ | i c Hc] s s'. 
-  + by exists s;split => //;constructor.
-  set c_ := _ :: _ => H;case: _ {-1}_ _ / H (erefl c_) => //= ? s2 ? ?? Hi Hcat [] ??;subst.
-  elim: (Hc _ _ Hcat)=> s1 [H1 H2];exists s1;split=>//;econstructor;eauto.
-Qed.
+with ssem_call : mem -> fundef -> seq svalue -> mem -> seq svalue -> Prop :=
+| SEcallRun m1 m2 f vargs vres:
+    (* semantics defined for all vm0 *)
+    (forall vm0, (* TODO: check: all_empty_arr vm0 -> *)
+       exists s1 vm2, [/\
+        swrite_vars f.(f_params) vargs (SEstate m1 vm0) = ok s1,
+        ssem s1 f.(f_body) (SEstate m2 vm2) &
+        map (fun (x:var_i) => sget_var vm2 x) f.(f_res) = vres]) ->
+    (*TODO: check: List.Forall is_full_array vres -> *)
+    ssem_call m1 f vargs m2 vres.
 
 End SEM.
