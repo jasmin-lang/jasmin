@@ -48,7 +48,7 @@ Definition svmap_eq_except (s : Sv.t) (vm1 vm2 : svmap) :=
 Notation "vm1 = vm2 [\ s ]" := (svmap_eq_except s vm1 vm2) (at level 70, vm2 at next level,
   format "'[hv ' vm1  '/' =  vm2  '/' [\ s ] ']'").
 
-Lemma vrvP (r:rval) v s s' : swrite_rval s r v = ok s' -> s.(sevm) = s'.(sevm) [\ vrv r].
+Lemma vrvP (r:rval) v s s' : swrite_rval s r v = s' -> s.(sevm) = s'.(sevm) [\ vrv r].
 Proof.
 (*
   elim: r v s=> [x | ?? r1 Hr1 r2 Hr2] v s /= z; rewrite ?vrv_var ?vrv_pair=> ?.
