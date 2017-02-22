@@ -59,6 +59,52 @@ Definition hoaref ta tr (Pre:fpred ta) (f:fundef) (Post:fpred tr) :=
   forall (m m':mem) va vr, ssem_call P m f va m' vr -> Pre m va -> Post m' vr.
 *)
 
+(* TODO: move *)
+Lemma ssem_iV s i s' x : ssem pr s [:: MkI x i] s' -> ssem_i pr s i s'.
+Proof.
+  move=> H.
+  case: _ {-1}_ _ / H (erefl [:: MkI x i])=> // s1 s2 s3 i' c H1 H2 H3.
+  case: H3=> H4 H5.
+  rewrite -{}H5 in H2.
+  rewrite -{}H4 in H1.
+  have H2': s2 = s3 by case: _ {-1}_ _ / H2 (erefl ([::] : cmd)).
+  rewrite -{}H2' {H2}.
+  case: _ {-1}_ _ / H1 (erefl (MkI x i))=> ii i0 s0 s4 H4 H5.
+  case: H5=> H5 -> //.
+Qed.
+
+(** Examples **)
+
+Definition a := Var sword "a".
+Definition b := Var sword "b".
+Definition c := Var sword "c".
+Definition m := svmap0.[a <- I64.repr 3].[b <- I64.repr 2]%vmap.
+Definition p : cmd := [:: MkI xH (Copn [:: Rnone xH; Rvar (VarI c xH)] Oaddcarry [:: Pvar (VarI a xH); Pvar (VarI b xH); Pbool false])].
+
+Lemma example1: hoare (fun s => s.(sevm) = m) p (fun s => s.(sevm).[c]%vmap = I64.repr 5).
+Proof.
+move=> s s' HP Hs.
+move: HP=> /ssem_iV H'.
+set c := Copn _ _ _ in H'.
+case: _ {-1}_ _ / H' (erefl c) Hs=> // s1 s2 o xs es Hw Hc Hs.
+case: Hc=> Hxs Ho Hes.
+rewrite -{}Ho -{}Hes -{}Hxs in Hw.
+rewrite /= in Hw.
+rewrite Hs /= in Hw.
+have Ha: (m.[a])%vmap = I64.repr 3.
+  by rewrite Fv.setP_neq // Fv.setP_eq.
+have Hb: (m.[b])%vmap = I64.repr 2.
+  by rewrite Fv.setP_eq.
+rewrite {}Ha {}Hb /= in Hw.
+have Hc: (waddcarry (I64.repr 3) (I64.repr 2) false) = (false, I64.repr 5) by split.
+rewrite /swrite_rvals /= in Hw.
+rewrite /swrite_vvals /= in Hw.
+rewrite /swrite_var /= in Hw.
+rewrite -Hw /=.
+rewrite /sset_var /=.
+by rewrite Fv.setP_eq.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 (* ** Core Rules                                                              *)
 (* -------------------------------------------------------------------------- *)
@@ -92,8 +138,9 @@ Qed.
 (* Skip *)
 
 Lemma hoare_skip_core P : hoare P [::] P.
-Proof. 
-  by move=> ?? s Hp;case: _ {-1}_ _ / s (erefl ([::]:cmd)) Hp.
+Proof.
+  move=> s s' Hs Hp.
+  by have ->: s' = s by case: _ {-1}_ _ / Hs (erefl ([::] : cmd)).
 Qed.
 
 Lemma hoare_skip (Q P:hpred) : (forall s, Q s -> P s) -> hoare Q [::] P.
