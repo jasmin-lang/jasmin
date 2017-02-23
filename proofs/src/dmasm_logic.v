@@ -60,6 +60,13 @@ Definition hoaref ta tr (Pre:fpred ta) (f:fundef) (Post:fpred tr) :=
 *)
 
 (* TODO: move *)
+Lemma ssem_IV s i s' x : ssem_I pr s (MkI x i) s' -> ssem_i pr s i s'.
+Proof.
+  move=> H1.
+  case: _ {-1}_ _ / H1 (erefl (MkI x i))=> ii i0 s0 s4 H4 H5.
+  by case: H5=> H5 ->.
+Qed.
+
 Lemma ssem_iV s i s' x : ssem pr s [:: MkI x i] s' -> ssem_i pr s i s'.
 Proof.
   move=> H.
@@ -69,39 +76,17 @@ Proof.
   rewrite -{}H4 in H1.
   have H2': s2 = s3 by case: _ {-1}_ _ / H2 (erefl ([::] : cmd)).
   rewrite -{}H2' {H2}.
-  case: _ {-1}_ _ / H1 (erefl (MkI x i))=> ii i0 s0 s4 H4 H5.
-  case: H5=> H5 -> //.
+  apply: ssem_IV.
+  exact: H1.
 Qed.
 
-(** Examples **)
-
-Definition a := Var sword "a".
-Definition b := Var sword "b".
-Definition c := Var sword "c".
-Definition m := svmap0.[a <- I64.repr 3].[b <- I64.repr 2]%vmap.
-Definition p : cmd := [:: MkI xH (Copn [:: Rnone xH; Rvar (VarI c xH)] Oaddcarry [:: Pvar (VarI a xH); Pvar (VarI b xH); Pbool false])].
-
-Lemma example1: hoare (fun s => s.(sevm) = m) p (fun s => s.(sevm).[c]%vmap = I64.repr 5).
+Lemma ssem_cV c1 c2 s s' : ssem pr s (c1 ++ c2) s' ->
+  exists s'', ssem pr s c1 s'' /\ ssem pr s'' c2 s'.
 Proof.
-move=> s s' HP Hs.
-move: HP=> /ssem_iV H'.
-set c := Copn _ _ _ in H'.
-case: _ {-1}_ _ / H' (erefl c) Hs=> // s1 s2 o xs es Hw Hc Hs.
-case: Hc=> Hxs Ho Hes.
-rewrite -{}Ho -{}Hes -{}Hxs in Hw.
-rewrite /= in Hw.
-rewrite Hs /= in Hw.
-have Ha: (m.[a])%vmap = I64.repr 3.
-  by rewrite Fv.setP_neq // Fv.setP_eq.
-have Hb: (m.[b])%vmap = I64.repr 2.
-  by rewrite Fv.setP_eq.
-rewrite {}Ha {}Hb /= in Hw.
-have Hc: (waddcarry (I64.repr 3) (I64.repr 2) false) = (false, I64.repr 5) by split.
-rewrite /swrite_rvals /= in Hw.
-rewrite /swrite_var /= in Hw.
-rewrite -Hw /=.
-rewrite /sset_var /=.
-by rewrite Fv.setP_eq.
+  elim: c1 s s' => /=[ | i c Hc] s s'.
+  + by exists s;split => //;constructor.
+  set c_ := _ :: _ => H;case: _ {-1}_ _ / H (erefl c_) => //= ? s2 ? ?? Hi Hcat [] ??;subst.
+  elim: (Hc _ _ Hcat)=> s1 [H1 H2];exists s1;split=>//;econstructor;eauto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -147,20 +132,28 @@ Proof.
   move=> qp;apply: (@hoare_conseq P P)=> //;apply hoare_skip_core.
 Qed.
 
-(* Base command *)
-(* TODO: fix
-Lemma hoare_bcmd (P:hpred) bc: 
-  hoare (fun s1 => forall s2, ssem_bcmd s1 bc = ok s2 -> P s2) [::Cbcmd bc] P.
+(* Base commands *)
+Lemma hoare_assgn (P: hpred) x tag e ii:
+  hoare (fun s1 => P (swrite_rval x (ssem_pexpr s1 e) s1)) [:: MkI ii (Cassgn x tag e)] P.
 Proof.
-  move=> ??;set c := Cbcmd _ => /ssem_iV s.
-  case: _ {-1}_ _ / s (erefl c) => // ??? e [] ?;subst=> H.
-  by apply: (H _ e).
+  move=> s s' Hs Hp.
+  move: (ssem_iV Hs)=> {Hs}Hs.
+  set c := Cassgn _ _ _ in Hs.
+  by case: _ {-1}_ _ / Hs (erefl c) Hp=> // s1 s2 x0 tag0 e0 v <- [] <- _ ->.
 Qed.
-*)
+
+Lemma hoare_opn (P: hpred) xs o es ii:
+  hoare (fun s1 => P (swrite_rvals s1 xs (ssem_sopn o (ssem_pexprs s1 es))))
+        [:: MkI ii (Copn xs o es)] P.
+Proof.
+  move=> s s' Hs Hp.
+  move: (ssem_iV Hs)=> {Hs}Hs.
+  set c := Copn _ _ _ in Hs.
+  by case: _ {-1}_ _ / Hs (erefl c) Hp=> // s1 s2 o0 xs0 es0 <- [] <- <- <-.
+Qed.
 
 (* Sequence *)
 
-(* TODO: fix
 Lemma hoare_seq R P Q c1 c2 : 
   hoare P c1 R -> hoare R c2 Q -> hoare P (c1 ++ c2) Q.
 Proof.
@@ -175,7 +168,25 @@ Proof. by apply:hoare_seq. Qed.
 Lemma hoare_rcons R P Q i c : 
   hoare P c R -> hoare R [::i] Q -> hoare P (rcons c i) Q.
 Proof. by rewrite -cats1;apply:hoare_seq. Qed.
-*)
+
+(** Examples **)
+
+Definition a := Var sword "a".
+Definition b := Var sword "b".
+Definition c := Var sword "c".
+Definition m := svmap0.[a <- I64.repr 3].[b <- I64.repr 2]%vmap.
+Definition p : cmd := [:: MkI xH (Copn [:: Rnone xH; Rvar (VarI c xH)] Oaddcarry [:: Pvar (VarI a xH); Pvar (VarI b xH); Pbool false])].
+
+Lemma example1: hoare (fun s => s.(sevm) = m) p (fun s => s.(sevm).[c]%vmap = I64.repr 5).
+Proof.
+have H := (@hoare_opn (fun s : sestate => ((sevm s).[c])%vmap = I64.repr 5) [:: Rnone xH; Rvar (VarI c xH)] Oaddcarry [:: Pvar (VarI a xH); Pvar (VarI b xH); Pbool false] xH).
+apply: (hoare_conseq _ _ H)=> //.
+move=> s /= ->.
+have ->: (m.[a])%vmap = I64.repr 3 by rewrite Fv.setP_neq // Fv.setP_eq.
+have ->: (m.[b])%vmap = I64.repr 2 by rewrite Fv.setP_eq.
+rewrite /sset_var /=.
+by rewrite Fv.setP_eq.
+Qed.
 
 (*
 (* Conditionnal *)
