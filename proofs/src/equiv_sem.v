@@ -40,10 +40,10 @@ Axiom fe : forall {T U} (f g : T -> U), (forall x, f x = g x) -> f = g.
 
 (* -------------------------------------------------------------------- *)
 Fixpoint st2sst_ty {t : stype} :=
-  match t return st2ty t -> sst2ty t with
+  match t return sem_t t -> ssem_t t with
   | sword     => fun v => v
+  | sint      => fun v => v
   | sbool     => fun v => v
-  | t1 ** t2  => fun v => (st2sst_ty v.1, st2sst_ty v.2)
   | sarr n    => fun v => 
        (fun i : word => 
           match @Array.get _ n v i return word with
@@ -60,6 +60,14 @@ Definition vmap_to_svmap (v : vmap) : svmap :=
 Coercion estate_to_sestate (s : estate) :=
   {| semem := s.(emem); sevm := vmap_to_svmap s.(evm); |}.
 
+Definition value_to_svalue (v: value) : svalue :=
+  match v with
+  | Vbool b => SVbool b
+  | Vint i => SVint i
+  | Vword w => SVword w
+  | Varr n t => SVarr n (@st2sst_ty (sarr n) t)
+  end.
+
 (* -------------------------------------------------------------------- *)
 Hint Constructors ssem ssem_i : ssem.
 
@@ -68,34 +76,85 @@ Lemma bindW {T U} (v : exec T) (f : T -> exec U) r :
   v >>= f = ok r -> exists2 a, v = ok a & f a = ok r.
 Proof. by case E: v => [a|//] /= <-; exists a. Qed.
 
-(* -------------------------------------------------------------------- *)
-Lemma st2sst_pexpr {t} s (p : pexpr t) v : sem_pexpr s p = ok v ->
-  ssem_pexpr (vmap_to_svmap s) p = (st2sst_ty v).
+Lemma st2sst_toval {t} x:
+  to_sval (@st2sst_ty t x) = value_to_svalue (to_val x).
+Proof. by case: t x. Qed.
+
+Lemma st2sst_getvar s x :
+  sget_var (vmap_to_svmap (evm s)) x = value_to_svalue (get_var (evm s) x).
 Proof.
-elim: p v => //=.
-+ by move=> x v [<-]. + by move=> n v [<-]. + by move=> n v [<-].
-+ move=> st rt op a iha v h; case: (bindW h)=> va /iha -> {a h iha}.
-  by case: op v va => //= *; unfold ok in *; congruence.
-+ move=> st1 st2 str op a1 ih1 a2 ih2 v h.
-  case: (bindW h) => v1 /ih1 -> {h}h; case: (bindW h) => v2 /ih2 -> {h}.
-  case: {a1 a2 ih1 ih2} op v v1 v2 => //=; try by move=> ??? [].
-  + by move=> v ?? [] ->;case v.
-  + by move=> v ?? [] ->;case v.
-  + by rewrite /FArray.get /= => ???? ->.
-  by move=> ????? [] <-.
-+ move=> st1 st2 st3 sr op a1 ih1 a2 ih2 a3 ih3 v h.
-  case: (bindW h) => v1 /ih1 -> {h}h;
-    case: (bindW h) => v2 /ih2 -> {h}h.
-    case: (bindW h) => v3 /ih3 -> {h}.
-  case: {a1 a2 a3 ih1 ih2 ih3} op v v1 v2 v3 => //=.
-  + by move=> v ??? [] ->;case: v.
-  + by move=> v ??? [] ->;case: v.
-  move=> n a a' v1 v2.
-  rewrite /Array.set /Array.get /FArray.set;case:ifP => //= Hb [] <-;apply fe=> z.
-  case: ifP => [/eqP<-|Hne].
-  + by rewrite Hb /FArray.get eq_refl.
-  by case: ifPn=> //= ?;rewrite /FArray.get Hne.
+by rewrite /sget_var /get_var st2sst_toval.
 Qed.
+
+(* TODO: can these 3 lemmas be put together? *)
+Lemma st2sst_op2_b f v1 v2 v: sem_op2_b f v1 v2 = ok v ->
+  ssem_op2_b f (value_to_svalue v1) (value_to_svalue v2) = value_to_svalue v.
+Proof.
+rewrite /sem_op2_b /mk_sem_sop2=> h.
+case: (bindW h)=> b1 /= {h}.
+case: v1=> // b' [<-] h.
+case: (bindW h)=> b2 /= {h}.
+by case: v2=> // b'' [<-] [<-].
+Qed.
+
+Lemma st2sst_op2_i f v1 v2 v: sem_op2_i f v1 v2 = ok v ->
+  ssem_op2_i f (value_to_svalue v1) (value_to_svalue v2) = value_to_svalue v.
+Proof.
+rewrite /sem_op2_i /mk_sem_sop2=> h.
+case: (bindW h)=> b1 /= {h}.
+case: v1=> // b' [<-] h.
+case: (bindW h)=> b2 /= {h}.
+by case: v2=> // b'' [<-] [<-].
+Qed.
+
+Lemma st2sst_op2_ib f v1 v2 v: sem_op2_ib f v1 v2 = ok v ->
+  ssem_op2_ib f (value_to_svalue v1) (value_to_svalue v2) = value_to_svalue v.
+Proof.
+rewrite /sem_op2_ib /mk_sem_sop2=> h.
+case: (bindW h)=> b1 /= {h}.
+case: v1=> // b' [<-] h.
+case: (bindW h)=> b2 /= {h}.
+by case: v2=> // b'' [<-] [<-].
+Qed.
+
+Lemma st2sst_op2 s v v1 v2: sem_sop2 s v1 v2 = ok v ->
+  ssem_sop2 s (value_to_svalue v1) (value_to_svalue v2) = value_to_svalue v.
+Proof.
+  case: s=> /=;
+  try exact: st2sst_op2_b;
+  try exact: st2sst_op2_i;
+  try exact: st2sst_op2_ib.
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma st2sst_pexpr s (p : pexpr) v : sem_pexpr s p = ok v ->
+  ssem_pexpr (estate_to_sestate s) p = value_to_svalue v.
+Proof.
+elim: p v=> //=.
++ by move=> x v [<-].
++ by move=> x v [<-].
++ move=> p Hv v h.
+  case: (bindW h)=> z h' [<-].
+  case: (bindW h')=> x /Hv ->.
+  case: x=> // z0 /= [<-] //.
++ by move=> x v [<-]; rewrite st2sst_getvar.
++ move=> v p Hv v0.
+  admit.
++ move=> ? p Hv v h.
+  case: (bindW h)=> w {h}h [<-].
+  case: (bindW h)=> x {h}h.
+  case: (bindW h)=> y /Hv ->.
+  case: y=> // w0 [<-].
+  by rewrite /= /sread_mem => ->.
++ move=> p Hv v h.
+  case: (bindW h)=> b {h}h [<-].
+  case: (bindW h)=> x /Hv ->.
+  by case: x=> // x0 [<-].
++ move=> s0 p Hv1 p0 Hv2 v h.
+  case: (bindW h)=> v1 /Hv1 -> {h}h.
+  case: (bindW h)=> v2 /Hv2 -> {h}.
+  exact: st2sst_op2.
+Admitted.
 
 (* -------------------------------------------------------------------- *)
 Lemma st2sst_vmap_get (s : vmap) (x : var) :
@@ -110,7 +169,8 @@ by case: eqP=> // eq; case: y / eq.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma st2sst_write {t} s (x : rval t) (v : st2ty t) :
+(*
+Lemma st2sst_write {t} s (x : rval) v :
     vmap_to_svmap (write_rval s x v)
   = swrite_rval (vmap_to_svmap s) x (st2sst_ty v).
 Proof.
@@ -118,27 +178,15 @@ elim: x s v => /= [x|st1 st2 r1 ih1 r2 ih2] s v; last first.
   by rewrite !(ih1, ih2).
 by apply/Fv.map_ext=> y /=; rewrite st2sst_vmap_set.
 Qed.
+*)
 
 (* -------------------------------------------------------------------- *)
 Section SEM.
 
-Lemma st2sst_bcmd s1 c s2 : sem_bcmd s1 c = ok s2 ->
-  ssem_bcmd s1 c = ok (s2 : sestate).
-Proof.
-case: c=> [st r p|r p|p p'] /=.
-+ move=> h; case: (bindW h) => v {h} /st2sst_pexpr.
-  by move=> -> [<-]; rewrite -st2sst_write.
-+ move=> h; case: (bindW h) => v /(@st2sst_pexpr sword) -> {h}.
-  by case: (read_mem _ _) => //= w [<-]; rewrite -st2sst_write.
-+ move=> h; case: (bindW h) => v /(@st2sst_pexpr sword) -> {h}.
-  move=> h; case: (bindW h) => w /(@st2sst_pexpr sword) -> {h}.
-  by case: (write_mem _ _ _) => //= m [<-].
-Qed.
-
-(*
 (* -------------------------------------------------------------------- *)
-Lemma st2sst_cmd : forall s1 c s2, sem s1 c s2 -> ssem s1 c s2.
+Lemma st2sst_cmd : forall p s1 c s2, sem p s1 c s2 -> ssem p s1 c s2.
 Proof.
+(*
 pose Pi s1 i s2 := ssem_i s1 i s2.
 pose Pf rv d lo hi s1 c s2 := ssem_for rv d lo hi s1 c s2.
 pose Pc sta str m1 (fd : fundef sta str) ag m2 res :=
@@ -161,10 +209,7 @@ apply: (@sem_Ind _ Pi Pf Pc); rewrite {}/Pi {}/Pf {}/Pc;
       rewrite (st2sst_pexpr (t := sword) Elo) ;
       rewrite (st2sst_pexpr (t := sword) Ehi) //.
     by rewrite vlo'E vhi'E.
-  
-
-
-Admitted.
 *)
+Admitted.
 
 End SEM.
