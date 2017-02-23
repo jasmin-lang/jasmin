@@ -686,24 +686,6 @@ Proof.
   case Heq': rval2vval=> [rv|] //= Hw.
   apply: (write_vval_eq_on Heq' Hw);apply: eq_onI Heq;rewrite read_rvE;SvD.fsetdec.
 Qed.
-
-Lemma sem_efst vm t1 t2 (e:pexpr (t1 ** t2)) v: 
-  sem_pexpr vm e = Ok error v ->
-  sem_pexpr vm (efst e) = Ok error v.1.
-Proof.
-  rewrite /efst.
-  case: destr_pair (@destr_pairP _ _ e) => /= [[e1 e2] /(_ _ _ (erefl _)) ->| _ ->] //=.
-  by case: (sem_pexpr vm e1)=> // v1;case: sem_pexpr => //= v2 [] <-.   
-Qed.
-
-Lemma sem_esnd vm t1 t2 (e:pexpr (t1 ** t2)) v: 
-  sem_pexpr vm e = Ok error v ->
-  sem_pexpr vm (esnd e) = Ok error v.2.
-Proof.
-  rewrite /esnd.
-  case: destr_pair (@destr_pairP _ _ e) => /= [[e1 e2] /(_ _ _ (erefl _)) ->| _ ->] //=.
-  by case: (sem_pexpr vm e1)=> // v1;case: sem_pexpr => //= v2 [] <-.   
-Qed.
 *)
 End SEM.
 

@@ -445,40 +445,29 @@ Lemma get_remove_cpm m xs x n:
   Mvar.get (remove_cpm m xs) x = Some n ->  
   Mvar.get m x = Some n /\ ~Sv.In x xs.
 Proof.
-  rewrite /remove_cpm.
-  apply SvP.MP.fold_rec_bis. 
+  rewrite /remove_cpm; apply SvP.MP.fold_rec_bis. 
   + by move=> s s' a ? H /H [] ??;split => //;SvD.fsetdec. 
   + by move=> ->;split => //;SvD.fsetdec. 
   move=> z m' s1 ?? H; rewrite Mvar.removeP. 
   case: (z =P x) => //= ? /H [];split=> //;SvD.fsetdec. 
 Qed.
 
-(*
 Lemma valid_cpm_rm rho1 rho2 xs m:
   rho1 = rho2 [\ xs] ->
   valid_cpm rho1 m ->
   valid_cpm rho2 (remove_cpm m xs).
 Proof.
-  move=> Hrho Hval [] [] //= nx v /get_remove_cpm [] Hm Hin.
-  by rewrite -Hrho //; apply (Hval _ _ Hm). 
+  move=> Hrho Hval x nx /get_remove_cpm [] Hm Hin.
+  rewrite /get_var -Hrho //;apply (Hval _ _ Hm). 
 Qed.
 
-Lemma remove_cpmP_aux s0 s s' m t (x:rval t) rx v: 
-  rval2vval s0 x = ok rx ->
-  write_vval s rx v = ok s' ->
-  valid_cpm (evm s) m ->
-  valid_cpm (evm s') (remove_cpm m (vrv x)).
-Proof. 
-  move=> Hr Hw Hv; apply: (valid_cpm_rm _ Hv);eapply vrvP_aux;eauto.
-Qed.
-
-Lemma remove_cpmP s s' m t (x:rval t) v: 
-  write_rval s x v = ok s' ->
+Lemma remove_cpmP s s' m x v: 
+  write_rval x v s = ok s' ->
   valid_cpm (evm s) m ->
   valid_cpm (evm s') (remove_cpm m (vrv x)).
 Proof. move=> Hw Hv; apply: (valid_cpm_rm _ Hv);eapply vrvP;eauto. Qed.
 
-Lemma const_prop_rvP t (x:rval t) s (m:map) rv:  
+(*Lemma const_prop_rvP t (x:rval t) s (m:map) rv:  
   valid_cpm (evm s) m ->
   rval2vval s x = ok rv ->
   rval2vval s (const_prop_rv m x) = ok rv.
@@ -489,49 +478,64 @@ Proof.
   case Heq1: (rval2vval _ x1) => [rv1|]//=.
   case Heq2: (rval2vval _ x2) => [rv2|]//= [] <-.
   by rewrite (Hx1 _ Heq1) (Hx2 _ Heq2).
-Qed.
+Qed. *)
 
-Lemma add_cpmP_aux s1 s1' s2 m t x (e:pexpr t) v: 
-  write_rval s1 x v = ok s1' ->
-  valid_cpm (evm s1) m ->
-  sem_pexpr s2 e = ok v ->
-  valid_cpm (evm s1') (add_cpm m x e).
-Proof.
-  rewrite /write_rval.
-  case Heq: rval2vval => [rv|] //=. 
-  move: {1}s1 Heq => s0.
-  elim: x rv e v m s1 s1' s2 => [[] tx nx /=| ep | ?? rv1 Hrv1 rv2 Hrv2] /= rv e v m s1 s1' s2 Heq
-    Hw Hvalid; simpl add_cpm.
-  + move: Heq Hw=> [] <- [] <- /=.
-    case Heq: (is_const e) => [?|] He.
-    + case: e v Heq He => //= n v [] <- [] <- z i.
-      rewrite Mvar.setP;case (_ =P z) => [<- [] <- /=| /eqP Hneq Hget].
-      + by rewrite Fv.setP_eq.
-      by rewrite Fv.setP_neq //;apply: Hvalid.  
-    eapply valid_cpm_rm;eauto=> z /=.
-    rewrite (vrv_var {| vtype := tx; vname := nx |})=> Hin.
-    rewrite Fv.setP_neq //;apply /eqP;SvD.fsetdec.
-  + case: sem_pexpr Heq Hw => //= ? [] <- /=.
-    by case: write_mem => //= ? [] <-.
-  case Heq1 : (rval2vval _ rv1) Heq Hw => [vr1|] //=.
-  case Heq2 : (rval2vval _ rv2) => [vr2|] //= [] <- /=.
-  case Heq2' : write_vval => [s'|] //= Heq1'.
-  case Heq: destr_pair => [ [e1 e2]| ].
-  + have He:= destr_pairP Heq;subst e => /=.
-    case Heq1'' : (sem_pexpr _ e1) => [v1|] //=.
-    case Heq2'' : (sem_pexpr _ e2) => [v2|] //= [] ?;subst.
-    apply: (Hrv1 _ _ _ _ _ _ _ Heq1 Heq1' _ Heq1'').
-    by apply: (Hrv2 _ _ _ _ _ _ _ Heq2 Heq2' _ Heq2'').
-  move=> ?;apply remove_cpmP_aux with s0 s1 (Vpair vr1 vr2) v =>//=.
-  + by rewrite Heq1 Heq2.  
-  by rewrite Heq2' /= Heq1'.
-Qed.
-
-Lemma add_cpmP s s' m t x (e:pexpr t) v: 
-  write_rval s x v = ok s' ->
+Lemma remove1_cpmP x v s s' m:
+  write_var x v s = ok s' ->
   valid_cpm (evm s) m ->
+  valid_cpm (evm s') (Mvar.remove m x).
+Proof.
+  move=> Hw Hv z n. rewrite Mvar.removeP. 
+  case:ifPn => /eqP // ? Hz;rewrite /get_var -(vrvP_var Hw); last by SvD.fsetdec.
+  by apply: Hv Hz.
+Qed.
+
+Lemma rbindP eT aT rT (e:result eT aT) (body:aT -> result eT rT) v (P:Type):
+  (forall z, e = ok z -> body z = Ok _ v -> P) ->
+  e >>= body = Ok _ v -> P.
+Proof. by case: e=> //= a H /H H';apply H'. Qed.
+
+Lemma on_arr_varP A (f : forall n : positive, Array.array n word -> exec A) v s x P:
+  (forall n t, vtype x = sarr n -> f n t = ok v -> P) -> 
+  on_arr_var s x f = ok v -> P.
+Proof. by rewrite /on_arr_var;case: x => -[] //= ?? H /H H';apply H'. Qed.
+
+Ltac t_rbindP := repeat (apply:rbindP => ??).
+
+Lemma add_cpmP_aux s1 s1' s2 m x e v tag: 
+  sem_pexpr s2 e = ok v -> 
+  write_rval x v s1 = ok s1' ->
+  valid_cpm (evm s1) m -> 
+  valid_cpm (evm s1') (add_cpm m x tag e).
+Proof.
+  rewrite /add_cpm;case: x => [xi | x | x | x] //= He.
+  + by move=> [] ->.
+  + case: tag; try (by apply: remove1_cpmP).
+    case: is_constP He; last by move=> ??;apply: remove1_cpmP.
+    move=> n /= [] <-;rewrite /write_var /set_var.
+    case: x => -[] [] //= xn vi [] <- /= Hv z /= n0.
+    case: ({| vtype := sint; vname := xn |} =P z).
+    + move=> <- /=;rewrite Mvar.setP_eq=> -[] <-;by rewrite /get_var Fv.setP_eq.
+    move=> /eqP Hneq;rewrite Mvar.setP_neq // /get_var /= Fv.setP_neq //.
+    by apply Hv.
+  + by move=> p;t_rbindP => -[] <-.
+  move=> p; apply: on_arr_varP => n t Hx.
+  apply: rbindP => vp ?; apply: rbindP => v' ?.
+  apply: rbindP => t' ?. 
+  case: x Hx => -[] tx x xi /= ->.
+  rewrite /set_var /=. 
+  case: CEDecStype.pos_dec (@CEDecStype.pos_dec_r n n)=> /=;last 
+    by move=> [] /(_ I (refl_equal _)).
+  move=> a _ [] <- /= Hv z nz Hz;rewrite /get_var.
+  rewrite Fv.setP_neq;first by apply Hv.
+  by move: Hz=> /Hv;case z => -[].
+Qed.
+
+Lemma add_cpmP s s' m x e tag v: 
   sem_pexpr s e = ok v ->
-  valid_cpm (evm s') (add_cpm m x e).
+  write_rval x v s = ok s' ->
+  valid_cpm (evm s) m ->
+  valid_cpm (evm s') (add_cpm m x tag e).
 Proof. apply add_cpmP_aux. Qed.
 
 Lemma merge_cpmP rho m1 m2 : 
@@ -544,6 +548,7 @@ Proof.
   by move=> ? [] ?;do 2 subst;elim: Hv => Hv;apply Hv.
 Qed.
 
+(*
 Section PROOF.
 
   Let Pi (i:instr) := 
