@@ -40,12 +40,6 @@ Unset Printing Implicit Defensive.
 (* ** Memory
  * -------------------------------------------------------------------- *)
 
-Inductive error := 
- | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType.
-
-Definition exec t := result error t.
-Definition ok := Ok error. 
-
 Definition word := I64.int.
 
 Parameter mem : Type.

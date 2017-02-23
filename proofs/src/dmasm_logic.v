@@ -134,22 +134,25 @@ Qed.
 
 (* Base commands *)
 Lemma hoare_assgn (P: hpred) x tag e ii:
-  hoare (fun s1 => P (swrite_rval x (ssem_pexpr s1 e) s1)) [:: MkI ii (Cassgn x tag e)] P.
+  hoare (fun s1 => forall p w, ssem_pexpr s1 e = ok p -> swrite_rval x p s1 = ok w -> P w) [:: MkI ii (Cassgn x tag e)] P.
 Proof.
   move=> s s' Hs Hp.
   move: (ssem_iV Hs)=> {Hs}Hs.
   set c := Cassgn _ _ _ in Hs.
-  by case: _ {-1}_ _ / Hs (erefl c) Hp=> // s1 s2 x0 tag0 e0 v <- [] <- _ ->.
+  case: _ {-1}_ _ / Hs (erefl c) Hp=> // s1 s2 x0 tag0 e0 h [] -> _ ->.
+  by case: (bindW h)=> p Hp Hw /(_ _ _ Hp Hw).
 Qed.
 
 Lemma hoare_opn (P: hpred) xs o es ii:
-  hoare (fun s1 => P (swrite_rvals s1 xs (ssem_sopn o (ssem_pexprs s1 es))))
+  hoare (fun s1 => forall p r w, ssem_pexprs s1 es = ok p -> ssem_sopn o p = ok r -> swrite_rvals s1 xs r = ok w -> P w)
         [:: MkI ii (Copn xs o es)] P.
 Proof.
   move=> s s' Hs Hp.
   move: (ssem_iV Hs)=> {Hs}Hs.
   set c := Copn _ _ _ in Hs.
-  by case: _ {-1}_ _ / Hs (erefl c) Hp=> // s1 s2 o0 xs0 es0 <- [] <- <- <-.
+  case: _ {-1}_ _ / Hs (erefl c) Hp=> // s1 s2 o0 xs0 es0 h [] -> -> ->.
+  case: (bindW h)=> r {h}h Hs.
+  by case: (bindW h)=> w {h} Hr Hw /(_ _ _ _ Hr Hw Hs).
 Qed.
 
 (* Sequence *)
@@ -181,11 +184,14 @@ Lemma example1: hoare (fun s => s.(sevm) = m) p (fun s => s.(sevm).[c]%vmap = I6
 Proof.
 have H := (@hoare_opn (fun s : sestate => ((sevm s).[c])%vmap = I64.repr 5) [:: Rnone xH; Rvar (VarI c xH)] Oaddcarry [:: Pvar (VarI a xH); Pvar (VarI b xH); Pbool false] xH).
 apply: (hoare_conseq _ _ H)=> //.
-move=> s /= ->.
-have ->: (m.[a])%vmap = I64.repr 3 by rewrite Fv.setP_neq // Fv.setP_eq.
-have ->: (m.[b])%vmap = I64.repr 2 by rewrite Fv.setP_eq.
-rewrite /sset_var /=.
-by rewrite Fv.setP_eq.
+move=> s /= Hm p r w.
+rewrite /ssem_pexprs /= Hm.
+move=> [] <- h.
+have Ha: (m.[a])%vmap = I64.repr 3 by rewrite Fv.setP_neq // Fv.setP_eq.
+have Hb: (m.[b])%vmap = I64.repr 2 by rewrite Fv.setP_eq.
+rewrite /sget_var {}Ha {}Hb /= in h.
+move: h=> [] <- /= [] <- /=.
+by rewrite Hm Fv.setP_eq.
 Qed.
 
 (*

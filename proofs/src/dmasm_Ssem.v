@@ -72,30 +72,30 @@ Definition svalues := seq svalue.
 
 Definition sto_bool v :=
   match v with
-  | SVbool b => b
-  | _        => false
+  | SVbool b => ok b
+  | _        => type_error
   end.
 
 Definition sto_int v :=
   match v with
-  | SVint z => z
-  | _       => Z0
+  | SVint z => ok z
+  | _       => type_error
   end.
 
 Definition sto_arr v :=
   match v with
-  | SVarr n t => t
-  | _ => FArray.cnst (n2w 0)
+  | SVarr n t => ok t
+  | _         => type_error
   end.
 
 Definition sto_word v :=
   match v with
-  | SVword w => w
-  | _        => I64.repr Z0
+  | SVword w => ok w
+  | _        => type_error
   end.
 
-Definition of_sval t : svalue -> ssem_t t :=
-  match t return svalue -> ssem_t t with
+Definition of_sval t : svalue -> exec (ssem_t t) :=
+  match t return svalue -> exec (ssem_t t) with
   | sbool  => sto_bool
   | sint   => sto_int
   | sarr n => sto_arr
@@ -120,8 +120,8 @@ Definition sget_var (m:svmap) x :=
   @to_sval (vtype x) (m.[x]%vmap).
 
 Definition sset_var (m:svmap) x v :=
-  let v := @of_sval (vtype x) v in
-  m.[x<-v]%vmap.
+  Let v := @of_sval (vtype x) v in
+  ok (m.[x<-v]%vmap).
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
@@ -129,9 +129,9 @@ Definition sset_var (m:svmap) x v :=
 Definition ssem_prod ts tr := lprod (map ssem_t ts) tr.
 
 Definition mk_ssem_sop2 t1 t2 tr (o:ssem_t t1 -> ssem_t t2 -> ssem_t tr) v1 v2 :=
-  let v1 := of_sval t1 v1 in
-  let v2 := of_sval t2 v2 in
-  @to_sval tr (o v1 v2).
+  Let v1 := of_sval t1 v1 in
+  Let v2 := of_sval t2 v2 in
+  ok (@to_sval tr (o v1 v2)).
 
 Definition ssem_op2_b  := @mk_ssem_sop2 sbool sbool sbool.
 Definition ssem_op2_i  := @mk_ssem_sop2 sint  sint  sint.
@@ -180,83 +180,76 @@ Definition swrite_mem m w w' :=
   | _ => m
   end.
 
-Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : svalue :=
+Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : exec svalue :=
   match e with
-  | Pconst z => SVint z
-  | Pbool b  => SVbool b
+  | Pconst z => ok (SVint z)
+  | Pbool b  => ok (SVbool b)
   | Pcast e  =>
-    let z := sto_int (ssem_pexpr s e) in
-    SVword (I64.repr z)
-  | Pvar v => sget_var s.(sevm) v
+    Let z := ssem_pexpr s e >>= sto_int in
+    ok (SVword (I64.repr z))
+  | Pvar v => ok (sget_var s.(sevm) v)
   | Pget x e =>
       SLet (n,t) := s.[x] in
-      let i := sto_word (ssem_pexpr s e) in
-      SVword (FArray.get t i)
+      Let i := ssem_pexpr s e >>= sto_word in
+      ok (SVword (FArray.get t i))
   | Pload x e =>
     (* FIXME: use x as offset *)
-    let w := sread_mem s.(semem) (sto_word (ssem_pexpr s e)) in
-    @to_sval sword w
+    Let x := ssem_pexpr s e >>= sto_word in
+    let w := sread_mem s.(semem) x in
+    ok (@to_sval sword w)
   | Pnot e =>
-    let b := sto_bool (ssem_pexpr s e) in
-    SVbool (negb b)
+    Let b := ssem_pexpr s e >>= sto_bool in
+    ok (SVbool (negb b))
   | Papp2 o e1 e2 =>
-    let v1 := ssem_pexpr s e1 in
-    let v2 := ssem_pexpr s e2 in
+    Let v1 := ssem_pexpr s e1 in
+    Let v2 := ssem_pexpr s e2 in
     ssem_sop2 o v1 v2
   end.
 
-Definition ssem_pexprs s := map (ssem_pexpr s).
+Definition ssem_pexprs s := mapM (ssem_pexpr s).
 
-Definition swrite_var (x:var_i) (v:svalue) (s:sestate) : sestate :=
-  let vm := sset_var s.(sevm) x v in
-  {| semem := s.(semem); sevm := vm |}.
-
-Fixpoint fold2 {A} {B} {R} (f: A -> B -> R -> R) (la:seq A) (lb: seq B) (r: R) :=
-    match la, lb with
-    | [::]  , [::]   => r
-    | a::la, b::lb =>
-      fold2 f la lb (f a b r)
-    | _     , _      => r
-    end.
+Definition swrite_var (x:var_i) (v:svalue) (s:sestate) : exec sestate :=
+  Let vm := sset_var s.(sevm) x v in
+  ok {| semem := s.(semem); sevm := vm |}.
 
 Definition swrite_vars xs vs s :=
-  fold2 swrite_var xs vs s.
+  fold2 ErrType swrite_var xs vs s.
 
-Definition swrite_rval  (l:rval) (v:svalue) (s:sestate) : sestate :=
+Definition swrite_rval  (l:rval) (v:svalue) (s:sestate) : exec sestate :=
   match l with
-  | Rnone _ => s
+  | Rnone _ => ok s
   | Rvar x => swrite_var x v s
   | Rmem x e =>
-    let vx := sto_word (sget_var (sevm s) x) in
-    let ve := sto_word (ssem_pexpr s e) in
+    Let vx := sto_word (sget_var (sevm s) x) in
+    Let ve := ssem_pexpr s e >>= sto_word in
     let p := wadd vx ve in (* should we add the size of value, i.e vx + sz * se *)
-    let w := sto_word v in
+    Let w := sto_word v in
     let m := swrite_mem s.(semem) p w in
-    {|semem := m;  sevm := s.(sevm) |}
+    ok {|semem := m;  sevm := s.(sevm) |}
   | Raset x i =>
     SLet (n,t) := s.[x] in
-    let i := sto_word (ssem_pexpr s i) in
-    let v := sto_word v in
+    Let i := ssem_pexpr s i >>= sto_word in
+    Let v := sto_word v in
     let t := FArray.set t i v in
-    let vm := sset_var s.(sevm) x (@to_sval (sarr n) t) in
-    {| semem := s.(semem); sevm := vm |}
+    Let vm := sset_var s.(sevm) x (@to_sval (sarr n) t) in
+    ok {| semem := s.(semem); sevm := vm |}
   end.
 
 Definition swrite_rvals (s:sestate) xs vs :=
-   fold2 swrite_rval xs vs s.
+   fold2 ErrType swrite_rval xs vs s.
 
-Fixpoint sapp_sopn ts : ssem_prod ts svalues -> svalues -> svalues :=
-  match ts return ssem_prod ts svalues -> svalues -> svalues with
+Fixpoint sapp_sopn ts : ssem_prod ts svalues -> svalues -> exec svalues :=
+  match ts return ssem_prod ts svalues -> svalues -> exec svalues with
   | [::] => fun (o:svalues) (vs:svalues) =>
     match vs with
-    | [::] => o
-    | _    => [::]
+    | [::] => ok o
+    | _    => type_error
     end
   | t::ts => fun (o:ssem_t t -> ssem_prod ts svalues) (vs:svalues) =>
     match vs with
-    | [::]  => [::]
+    | [::]  => type_error
     | v::vs =>
-      let v := of_sval t v in
+      Let v := of_sval t v in
       sapp_sopn (o v) vs
     end
   end.
@@ -268,7 +261,7 @@ Definition spval t1 t2 (p: ssem_t t1 * ssem_t t2) :=
 Notation soww o  := (sapp_sopn [::sword] (fun x => [::SVword (o x)])).
 Notation sowww o := (sapp_sopn [:: sword; sword] (fun x y => [::SVword (o x y)])).
 
-Definition ssem_sopn (o:sopn) : svalues -> svalues :=
+Definition ssem_sopn (o:sopn) : svalues -> exec svalues :=
   match o with
   | Olnot => soww I64.not
   | Oxor  => sowww I64.xor
@@ -314,44 +307,44 @@ with ssem_I : sestate -> instr -> sestate -> Prop :=
 
 with ssem_i : sestate -> instr_r -> sestate -> Prop :=
 | SEassgn s1 s2 (x:rval) tag e:
-    let v := ssem_pexpr s1 e in swrite_rval x v s1 = s2 ->
+    (Let v := ssem_pexpr s1 e in swrite_rval x v s1) = ok s2 ->
     ssem_i s1 (Cassgn x tag e) s2
 
 | SEopn s1 s2 o xs es:
-    swrite_rvals s1 xs (ssem_sopn o (ssem_pexprs s1 es)) = s2 ->
+    ssem_pexprs s1 es >>= ssem_sopn o >>= (swrite_rvals s1 xs) = ok s2 ->
     ssem_i s1 (Copn xs o es) s2
 
 | SEif_true s1 s2 e c1 c2 :
-    sto_bool (ssem_pexpr s1 e) = true ->
+    ssem_pexpr s1 e >>= sto_bool = ok true ->
     ssem s1 c1 s2 ->
     ssem_i s1 (Cif e c1 c2) s2
 
 | SEif_false s1 s2 e c1 c2 :
-    sto_bool (ssem_pexpr s1 e) = false ->
+    ssem_pexpr s1 e >>= sto_bool = ok false ->
     ssem s1 c2 s2 ->
     ssem_i s1 (Cif e c1 c2) s2
 
 | SEwhile_true s1 s2 s3 e c :
-    sto_bool (ssem_pexpr s1 e) = true ->
+    ssem_pexpr s1 e >>= sto_bool = ok true ->
     ssem s1 c s2 ->
     ssem_i s2 (Cwhile e c) s3 ->
     ssem_i s1 (Cwhile e c) s3
 
 | SEwhile_false s e c :
-    sto_bool (ssem_pexpr s e) = false ->
+    ssem_pexpr s e >>= sto_bool = ok false ->
     ssem_i s (Cwhile e c) s
 
 | SEfor s1 s2 (i:var_i) d lo hi c vlo vhi :
-    sto_int (ssem_pexpr s1 lo) = vlo ->
-    sto_int (ssem_pexpr s1 hi) = vhi ->
+    ssem_pexpr s1 lo >>= sto_int = ok vlo ->
+    ssem_pexpr s1 hi >>= sto_int = ok vhi ->
     ssem_for i (wrange d vlo vhi) s1 c s2 ->
     ssem_i s1 (Cfor i (d, lo, hi) c) s2
 
 | SEcall s1 m2 s2 ii xs f fd args vargs vs :
     get_fundef f = Some fd ->
-    ssem_pexprs s1 args = vargs ->
+    ssem_pexprs s1 args = ok vargs ->
     ssem_call s1.(semem) fd vargs m2 vs ->
-    swrite_rvals {|semem:= m2; sevm := s1.(sevm) |} xs vs = s2 ->
+    swrite_rvals {|semem:= m2; sevm := s1.(sevm) |} xs vs = ok s2 ->
     ssem_i s1 (Ccall ii xs f args) s2
 
 with ssem_for : var -> seq Z -> sestate -> cmd -> sestate -> Prop :=
@@ -359,7 +352,7 @@ with ssem_for : var -> seq Z -> sestate -> cmd -> sestate -> Prop :=
     ssem_for i [::] s c s
 
 | SEForOne s1 s1' s2 s3 i w ws c :
-    swrite_var i (SVint w) s1 = s1' ->
+    swrite_var i (SVint w) s1 = ok s1' ->
     ssem s1' c s2 ->
     ssem_for i ws s2 c s3 ->
     ssem_for i (w :: ws) s1 c s3
@@ -369,7 +362,7 @@ with ssem_call : mem -> fundef -> seq svalue -> mem -> seq svalue -> Prop :=
     (* semantics defined for all vm0 *)
     (forall vm0, (* TODO: check: all_empty_arr vm0 -> *)
        exists s1 vm2, [/\
-        swrite_vars f.(f_params) vargs (SEstate m1 vm0) = s1,
+        swrite_vars f.(f_params) vargs (SEstate m1 vm0) = ok s1,
         ssem s1 f.(f_body) (SEstate m2 vm2) &
         map (fun (x:var_i) => sget_var vm2 x) f.(f_res) = vres]) ->
     (*TODO: check: List.Forall is_full_array vres -> *)

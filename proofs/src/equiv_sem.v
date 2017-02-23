@@ -72,24 +72,16 @@ Definition value_to_svalue (v: value) : svalue :=
 Hint Constructors ssem ssem_i : ssem.
 
 (* -------------------------------------------------------------------- *)
-Lemma bindW {T U} (v : exec T) (f : T -> exec U) r :
-  v >>= f = ok r -> exists2 a, v = ok a & f a = ok r.
-Proof. by case E: v => [a|//] /= <-; exists a. Qed.
-
 Lemma st2sst_toval {t} x:
   to_sval (@st2sst_ty t x) = value_to_svalue (to_val x).
 Proof. by case: t x. Qed.
 
 Lemma st2sst_ofval x v v':
-  of_val (vtype x) v = ok v' -> of_sval (vtype x) (value_to_svalue v) = st2sst_ty v'.
+  of_val (vtype x) v = ok v' -> of_sval (vtype x) (value_to_svalue v) = ok (st2sst_ty v').
 Proof.
-case: v=> //; case: (vtype x) v'=> //=.
-by move=> ?? [->].
-by move=> ?? [->].
-move=> p v' n a.
+case: v=> //; case: (vtype x) v'=> //= p v' n a.
 case: (CEDecStype.pos_dec n p)=> // H [<-].
 by case: _ / H.
-by move=> ?? [->].
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -112,18 +104,18 @@ Qed.
 
 Lemma st2sst_setvar x v vm vm':
   set_var vm x v = ok vm' ->
-  sset_var (vmap_to_svmap vm) x (value_to_svalue v) = vmap_to_svmap vm'.
+  sset_var (vmap_to_svmap vm) x (value_to_svalue v) = ok (vmap_to_svmap vm').
 Proof.
 rewrite /set_var=> h.
 case: (bindW h)=> v' Hv' [<-].
 rewrite /sset_var /=.
 rewrite (st2sst_ofval Hv')=> //.
-by rewrite st2sst_vmap_set.
+by rewrite /= st2sst_vmap_set.
 Qed.
 
 (* TODO: can these 3 lemmas be put together? *)
 Lemma st2sst_op2_b f v1 v2 v: sem_op2_b f v1 v2 = ok v ->
-  ssem_op2_b f (value_to_svalue v1) (value_to_svalue v2) = value_to_svalue v.
+  ssem_op2_b f (value_to_svalue v1) (value_to_svalue v2) = ok (value_to_svalue v).
 Proof.
 rewrite /sem_op2_b /mk_sem_sop2=> h.
 case: (bindW h)=> b1 /= {h}.
@@ -133,7 +125,7 @@ by case: v2=> // b'' [<-] [<-].
 Qed.
 
 Lemma st2sst_op2_i f v1 v2 v: sem_op2_i f v1 v2 = ok v ->
-  ssem_op2_i f (value_to_svalue v1) (value_to_svalue v2) = value_to_svalue v.
+  ssem_op2_i f (value_to_svalue v1) (value_to_svalue v2) = ok (value_to_svalue v).
 Proof.
 rewrite /sem_op2_i /mk_sem_sop2=> h.
 case: (bindW h)=> b1 /= {h}.
@@ -143,7 +135,7 @@ by case: v2=> // b'' [<-] [<-].
 Qed.
 
 Lemma st2sst_op2_ib f v1 v2 v: sem_op2_ib f v1 v2 = ok v ->
-  ssem_op2_ib f (value_to_svalue v1) (value_to_svalue v2) = value_to_svalue v.
+  ssem_op2_ib f (value_to_svalue v1) (value_to_svalue v2) = ok (value_to_svalue v).
 Proof.
 rewrite /sem_op2_ib /mk_sem_sop2=> h.
 case: (bindW h)=> b1 /= {h}.
@@ -153,7 +145,7 @@ by case: v2=> // b'' [<-] [<-].
 Qed.
 
 Lemma st2sst_op2 s v v1 v2: sem_sop2 s v1 v2 = ok v ->
-  ssem_sop2 s (value_to_svalue v1) (value_to_svalue v2) = value_to_svalue v.
+  ssem_sop2 s (value_to_svalue v1) (value_to_svalue v2) = ok (value_to_svalue v).
 Proof.
   case: s=> /=;
   try exact: st2sst_op2_b;
@@ -163,7 +155,7 @@ Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma st2sst_pexpr s (p : pexpr) v : sem_pexpr s p = ok v ->
-  ssem_pexpr (estate_to_sestate s) p = value_to_svalue v.
+  ssem_pexpr (estate_to_sestate s) p = ok (value_to_svalue v).
 Proof.
 elim: p v=> //=.
 + by move=> x v [<-].
@@ -194,7 +186,7 @@ Admitted.
 (* -------------------------------------------------------------------- *)
 
 Lemma st2sst_write_val s1 s2 v x:
-   write_var x v s1 = ok s2 -> swrite_var x (value_to_svalue v) s1 = s2.
+   write_var x v s1 = ok s2 -> swrite_var x (value_to_svalue v) s1 = ok (estate_to_sestate s2).
 Proof.
 rewrite /write_var=> h.
 case: (bindW h)=> vm Hs [<-].
@@ -204,7 +196,7 @@ Qed.
 
 Lemma st2sst_write_rval s1 s2 (x: rval) v :
   write_rval x v s1 = ok s2 ->
-  swrite_rval x (value_to_svalue v) s1 = s2.
+  swrite_rval x (value_to_svalue v) s1 = ok (estate_to_sestate s2).
 Proof.
 elim: x s1 s2 v=> v /=.
 + by move=> s1 s2 v0 [->].
@@ -233,7 +225,7 @@ pose Pf v s s1 c s2 := ssem_for P v s s1 c s2.
 apply: (@sem_Ind P _ Pi PI Pf); try by (move=> *; eauto with ssem).
 (* Cassgn *)
 + constructor.
-  by case: (bindW H)=> v {H} /st2sst_pexpr -> /st2sst_write_rval ->.
+  by case: (bindW H)=> v {H} /st2sst_pexpr -> /st2sst_write_rval <-.
 (* Copn *)
 + constructor.
   case: (bindW H)=> v {H}H.

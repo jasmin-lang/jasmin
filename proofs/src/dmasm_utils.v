@@ -69,7 +69,6 @@ Notation rapp  := Result.apply.
 Notation rdflt := Result.default.
 Notation rbind := Result.bind.
 Notation rmap  := Result.map.
-Notation ok    := (@Ok _) (only parsing).
 
 Notation "m >>= f" := (rbind f m) (at level 25, left associativity).
 Notation "'Let' x ':=' m 'in' body" := (m >>= (fun x => body)) (at level 25).
@@ -81,6 +80,16 @@ Proof. case:m => //=. Qed.
 Lemma bind_eq eT aT rT (f1 f2 : aT -> result eT rT) m1 m2 :
    m1 = m2 -> f1 =1 f2 -> m1 >>= f1 = m2 >>= f2.
 Proof. move=> <- Hf; case m1 => //=. Qed.
+
+Inductive error := 
+ | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType.
+
+Definition exec t := result error t.
+Definition ok := Ok error.
+
+Lemma bindW {T U} (v : exec T) (f : T -> exec U) r :
+  v >>= f = ok r -> exists2 a, v = ok a & f a = ok r.
+Proof. by case E: v => [a|//] /= <-; exists a. Qed.
 
 Fixpoint mapM eT aT bT (f : aT -> result eT bT) (xs : seq aT) : result eT (seq bT) :=
   match xs with
