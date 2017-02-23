@@ -98,7 +98,6 @@ have Hb: (m.[b])%vmap = I64.repr 2.
 rewrite {}Ha {}Hb /= in Hw.
 have Hc: (waddcarry (I64.repr 3) (I64.repr 2) false) = (false, I64.repr 5) by split.
 rewrite /swrite_rvals /= in Hw.
-rewrite /swrite_vvals /= in Hw.
 rewrite /swrite_var /= in Hw.
 rewrite -Hw /=.
 rewrite /sset_var /=.

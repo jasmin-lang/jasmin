@@ -207,50 +207,9 @@ Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : svalue :=
 
 Definition ssem_pexprs s := map (ssem_pexpr s).
 
-Inductive svval : Type :=
- | SVnone : svval
- | SVvar  : var  -> svval
- | SVmem  : word -> svval
- | SVaset : forall p : positive, var -> FArray.array word -> word -> svval.
-
-Notation svvals := (seq svval).
-
-Definition ssem_rval (s:sestate) (r:rval) : svval :=
-  match r with
-  | Rnone _ => SVnone
-  | Rvar  x => SVvar x
-  | Rmem  x e =>
-    (* FIXME: use x as offset *)
-    let p := sto_word (ssem_pexpr s e) in
-    SVmem p
-  | Raset x i =>
-    SLet (n,t) := s.[x] in
-    let i := sto_word (ssem_pexpr s i) in
-    SVaset n x t i
-  end.
-
-Definition ssem_rvals (s:sestate) := map (ssem_rval s).
-
-Definition swrite_var (x:var) (v:svalue) (s:sestate) : sestate :=
+Definition swrite_var (x:var_i) (v:svalue) (s:sestate) : sestate :=
   let vm := sset_var s.(sevm) x v in
   {| semem := s.(semem); sevm := vm |}.
-
-Definition swrite_vval (l:svval) (v:svalue) (s:sestate) : sestate :=
-  match l with
-  | SVnone  => s
-  | SVvar x => swrite_var x v s
-  | SVmem p =>
-    let w := sto_word v in
-    let m := swrite_mem s.(semem) p w in
-    {|semem := m; sevm := s.(sevm) |}
-  | SVaset p x t i =>
-    let v := sto_word v in
-    let t := FArray.set t i v in
-    let vm := sset_var s.(sevm) x (@to_sval (sarr p) t) in
-    {| semem := s.(semem); sevm := vm |}
-  end.
-
-Definition swrite_var_i (x:var_i) := swrite_var x.
 
 Fixpoint fold2 {A} {B} {R} (f: A -> B -> R -> R) (la:seq A) (lb: seq B) (r: R) :=
     match la, lb with
@@ -260,19 +219,31 @@ Fixpoint fold2 {A} {B} {R} (f: A -> B -> R -> R) (la:seq A) (lb: seq B) (r: R) :
     | _     , _      => r
     end.
 
-Definition swrite_vars xs vs (s:sestate) :=
-  fold2 swrite_var_i xs vs s.
+Definition swrite_vars xs vs s :=
+  fold2 swrite_var xs vs s.
 
-Definition swrite_vvals rs vs (s:sestate) :=
-  fold2 swrite_vval rs vs s.
+Definition swrite_rval  (l:rval) (v:svalue) (s:sestate) : sestate :=
+  match l with
+  | Rnone _ => s
+  | Rvar x => swrite_var x v s
+  | Rmem x e =>
+    let vx := sto_word (sget_var (sevm s) x) in
+    let ve := sto_word (ssem_pexpr s e) in
+    let p := wadd vx ve in (* should we add the size of value, i.e vx + sz * se *)
+    let w := sto_word v in
+    let m := swrite_mem s.(semem) p w in
+    {|semem := m;  sevm := s.(sevm) |}
+  | Raset x i =>
+    SLet (n,t) := s.[x] in
+    let i := sto_word (ssem_pexpr s i) in
+    let v := sto_word v in
+    let t := FArray.set t i v in
+    let vm := sset_var s.(sevm) x (@to_sval (sarr n) t) in
+    {| semem := s.(semem); sevm := vm |}
+  end.
 
-Definition swrite_rval s x v :=
-  let vx := ssem_rval s x in
-  swrite_vval vx v s.
-
-Definition swrite_rvals s xs vs :=
-  let vxs := ssem_rvals s xs in
-  swrite_vvals vxs vs s.
+Definition swrite_rvals (s:sestate) xs vs :=
+   fold2 swrite_rval xs vs s.
 
 Fixpoint sapp_sopn ts : ssem_prod ts svalues -> svalues -> svalues :=
   match ts return ssem_prod ts svalues -> svalues -> svalues with
@@ -343,7 +314,7 @@ with ssem_I : sestate -> instr -> sestate -> Prop :=
 
 with ssem_i : sestate -> instr_r -> sestate -> Prop :=
 | SEassgn s1 s2 (x:rval) tag e:
-    swrite_rval s1 x (ssem_pexpr s1 e) = s2 ->
+    let v := ssem_pexpr s1 e in swrite_rval x v s1 = s2 ->
     ssem_i s1 (Cassgn x tag e) s2
 
 | SEopn s1 s2 o xs es:
