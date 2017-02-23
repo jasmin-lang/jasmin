@@ -411,6 +411,46 @@ Qed.
 Definition fundef_eqMixin     := Equality.Mixin fundef_eq_axiom.
 Canonical  fundef_eqType      := Eval hnf in EqType fundef fundef_eqMixin.
 
+Section RECT.
+  Variables (Pr:instr_r -> Type) (Pi:instr -> Type) (Pc : cmd -> Type).
+  Hypothesis Hmk  : forall i ii, Pr i -> Pi (MkI ii i).
+  Hypothesis Hnil : Pc [::].
+  Hypothesis Hcons: forall i c, Pi i -> Pc c -> Pc (i::c).
+  Hypothesis Hasgn: forall x t e, Pr (Cassgn x t e).
+  Hypothesis Hopn : forall xs o es, Pr (Copn xs o es).
+  Hypothesis Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
+  Hypothesis Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
+  Hypothesis Hwhile : forall e c, Pc c -> Pr (Cwhile e c).
+  Hypothesis Hcall: forall i xs f es, Pr (Ccall i xs f es).
+
+  Section C.
+  Variable instr_rect : forall i, Pi i.
+
+  Fixpoint cmd_rect_aux (c:cmd) : Pc c :=
+    match c return Pc c with
+    | [::] => Hnil
+    | i::c => @Hcons i c (instr_rect i) (cmd_rect_aux c)
+    end.
+  End C.
+
+  Fixpoint instr_Rect (i:instr) : Pi i :=
+    match i return Pi i with
+    | MkI ii i => @Hmk i ii (instr_r_Rect i) 
+    end
+  with instr_r_Rect (i:instr_r) : Pr i :=
+    match i return Pr i with
+    | Cassgn x t e => Hasgn x t e
+    | Copn xs o es => Hopn xs o es
+    | Cif e c1 c2  => @Hif e c1 c2 (cmd_rect_aux instr_Rect c1) (cmd_rect_aux instr_Rect c2)
+    | Cfor i (dir,lo,hi) c => @Hfor i dir lo hi c (cmd_rect_aux instr_Rect c)
+    | Cwhile e c   => @Hwhile e c (cmd_rect_aux instr_Rect c)
+    | Ccall ii xs f es => @Hcall ii xs f es 
+    end.
+
+  Definition cmd_rect := cmd_rect_aux instr_Rect.
+
+End RECT.
+ 
 (* ** Compute written variables
  * -------------------------------------------------------------------- *)
 
@@ -449,64 +489,69 @@ Definition write_c_rec s c := foldl write_I_rec s c.
 
 Definition write_c c := write_c_rec Sv.empty c.
 
-(*
-Instance vrv_rec_m {t} : Proper (Sv.Equal ==> (@eq (rval t)) ==> Sv.Equal) vrv_rec.
+Instance vrv_rec_m : Proper (Sv.Equal ==> eq ==> Sv.Equal) vrv_rec.
 Proof.
-  move=> s1 s2 Hs x r ->.
-  elim:r => //=.
-(*  elim:r s1 s2 Hs => //= {t x} [x ?? -> //| ?? r1 Hr1 r2 Hr2 ???];auto. 
-Qed. *)
-Admitted.
+  move=> s1 s2 Hs x r ->;case:r => //= [v | v _];SvD.fsetdec. 
+Qed.
 
-Lemma vrv_var (x:var) info: Sv.Equal (vrv (Rvar info x)) (Sv.singleton x). 
+Lemma vrv_none i : vrv (Rnone i) = Sv.empty.
+Proof. by []. Qed.
+
+Lemma vrv_var x: Sv.Equal (vrv (Rvar x)) (Sv.singleton x). 
 Proof. rewrite /vrv /=;SvD.fsetdec. Qed.
 
-Lemma vrv_mem e : Sv.Equal (vrv (Rmem e)) Sv.empty. 
+Lemma vrv_mem x e : vrv (Rmem x e) = Sv.empty. 
+Proof. by []. Qed.
+
+Lemma vrv_aset x e : Sv.Equal (vrv (Raset x e)) (Sv.singleton x). 
 Proof. rewrite /vrv /=;SvD.fsetdec. Qed.
 
-Lemma vrv_recE t (r:rval t) s : Sv.Equal (vrv_rec s r) (Sv.union s (vrv r)).
+Lemma vrv_recE s (r:rval) : Sv.Equal (vrv_rec s r) (Sv.union s (vrv r)).
 Proof.
-(*
-  elim: r s => //= [x | e | ?? r1 Hr1 r2 Hr2] s.
-  + by rewrite vrv_var;SvD.fsetdec.
-  + by rewrite /vrv /=;SvD.fsetdec.
-  rewrite /vrv /= !(Hr1,Hr2);SvD.fsetdec.
-Qed. *)
-Admitted.
+  case: r => [i| x| x e| x e];
+    rewrite ?vrv_none ?vrv_var ?vrv_mem ?vrv_aset /=;
+    SvD.fsetdec.
+Qed.
 
-Lemma vrv_pair t1 t2 (r1:rval t1) (r2:rval t2):
-  Sv.Equal (vrv (Rpair r1 r2)) (Sv.union (vrv r1) (vrv r2)).
-Proof. rewrite {1}/vrv /= !vrv_recE;SvD.fsetdec. Qed.
+Lemma vrvs_recE s rs : Sv.Equal (vrvs_rec s rs) (Sv.union s (vrvs rs)).
+Proof.
+  rewrite /vrvs;elim: rs s => [|r rs Hrec] s /=;first by SvD.fsetdec.
+  rewrite Hrec (Hrec (vrv_rec _ _)) (vrv_recE s);SvD.fsetdec.
+Qed.
+
+Lemma vrvs_cons r rs : Sv.Equal (vrvs (r::rs)) (Sv.union (vrv r) (vrvs rs)).
+Proof. by rewrite /vrvs /= vrvs_recE. Qed.
 
 Lemma write_c_recE s c : Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
 Proof.
-(*
   apply (@cmd_rect
            (fun i => forall s, Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)))
            (fun i => forall s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)))
-           (fun c => forall s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)))
-           (fun _ _ _ => True)) => /= {c s}
-    [ |i c1 Hi Hc1|t x e|e c1 c2 Hc1 Hc2|x rn c Hc| e c Hc | ?? x f a _|//] s;
-    rewrite /write_i /write_c /=.
-  + by SvD.fsetdec. 
-  + by rewrite !Hc1 !Hi; SvD.fsetdec.  
-  + by rewrite !vrv_recE;SvD.fsetdec.
-  + by rewrite -!/(write_c_rec _ c1) -!/(write_c_rec _ c2) !Hc1 !Hc2; SvD.fsetdec.
-  + by rewrite -!/(write_c_rec _ c) !Hc vrv_recE; SvD.fsetdec.
-  + by rewrite -!/(write_c_rec _ c) !Hc ; SvD.fsetdec.
-  by rewrite !vrv_recE; SvD.fsetdec.
-Qed. *) Admitted.
+           (fun c => forall s, Sv.Equal (foldl write_I_rec s c) (Sv.union s (write_c c)))) => 
+     /= {c s}
+    [ i ii Hi | | i c Hi Hc | x t e | xs o es | e c1 c2 Hc1 Hc2
+    | v dir lo hi c Hc | e c Hc | ii xs f es] s;
+    rewrite /write_I /write_i /write_c /=
+    ?Hc1 ?Hc2 /write_c_rec ?Hc ?Hi -?vrv_recE -?vrvs_recE //;
+    by SvD.fsetdec.
+Qed.
+
+Lemma write_I_recE s i : Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)).
+Proof. by apply (write_c_recE s [:: i]). Qed.
 
 Lemma write_i_recE s i : Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)).
-Proof. (* by apply (write_c_recE s [:: i]). Qed. *) Admitted.
+Proof. by apply (write_I_recE s (MkI 1%positive i)). Qed.
 
 Lemma write_c_nil : write_c [::] = Sv.empty.
 Proof. done. Qed.
 
 Lemma write_c_cons i c: Sv.Equal (write_c (i::c)) (Sv.union (write_I i) (write_c c)).
-Proof. (* by rewrite {1}/write_c /= write_c_recE write_i_recE;SvD.fsetdec. Qed. *) Admitted.
+Proof. rewrite {1}/write_c /= write_c_recE write_I_recE;SvD.fsetdec. Qed. 
 
-Lemma write_i_assgn t (x:rval t) tag e : write_i (Cassgn x tag e) = vrv x. 
+Lemma write_i_assgn x tag e : write_i (Cassgn x tag e) = vrv x. 
+Proof. done. Qed.
+
+Lemma write_i_opn xs o es : write_i (Copn xs o es) = vrvs xs. 
 Proof. done. Qed.
 
 Lemma write_i_if e c1 c2 :
@@ -516,9 +561,9 @@ Proof.
 Qed.
 
 Lemma write_i_for x rn c :
-   Sv.Equal (write_i (Cfor x rn c)) (Sv.union (vrv x) (write_c c)).
+   Sv.Equal (write_i (Cfor x rn c)) (Sv.union (Sv.singleton x) (write_c c)).
 Proof.
-  rewrite /write_i /= -/(write_c_rec _ c) write_c_recE vrv_recE;SvD.fsetdec.
+  rewrite /write_i /= -/(write_c_rec _ c) write_c_recE ;SvD.fsetdec.
 Qed.
 
 Lemma write_i_while e c :
@@ -527,10 +572,9 @@ Proof.
   rewrite /write_i /= -/(write_c_rec _ c) write_c_recE;SvD.fsetdec.
 Qed.
 
-Lemma write_i_call t1 t2 (f:fundef t1 t2) x a :
-  write_i (Ccall x f a) = vrv x.
+Lemma write_i_call ii xs f es :
+  write_i (Ccall ii xs f es) = vrvs xs.
 Proof. done. Qed.
-*)
 
 (* ** Compute read variables
  * -------------------------------------------------------------------- *)
@@ -592,66 +636,62 @@ Definition read_I := read_I_rec Sv.empty.
 
 Definition read_c := read_c_rec Sv.empty.
 
-(*
-Lemma read_eE t (e:pexpr t) s : Sv.Equal (read_e_rec e s) (Sv.union (read_e e) s).
+Lemma read_eE e s : Sv.Equal (read_e_rec s e) (Sv.union (read_e e) s).
 Proof.
-  rewrite /read_e; elim: e s => /=.
-  + by move=> x s;SvD.fsetdec.
-  + by [].
-  + by move=> _ s;SvD.fsetdec.
-  + by move=> _ s;SvD.fsetdec.
-  + by move=> ??? e1 He1 s;apply He1.
-  + move=> ???? e1 He1 e2 He2 s. 
-    by rewrite He1 He2 (He1 (read_e_rec _ _));SvD.fsetdec.
-  move=> ????? e1 He1 e2 He2 e3 He3 s.
-  rewrite He1 (He1 (read_e_rec _ _)) He2 (He2 (read_e_rec _ _)) He3;SvD.fsetdec.
+  elim: e s => //= [v | v e He | v e He | o e1 He1 e2 He2] s;
+   rewrite /read_e /= ?He ?He1 ?He2; by SvD.fsetdec.
 Qed.
 
-Lemma read_rvE t s (x:rval t): Sv.Equal (read_rv_rec x s) (Sv.union s (read_rv x)).
+Lemma read_esE es s : Sv.Equal (read_es_rec s es) (Sv.union (read_es es) s).
 Proof.
-  (*
-  elim : x s => //= [x | e | ?? x1 Hx1 x2 Hx2] s.
-  + by rewrite /read_rv /=;SvD.fsetdec.
-  + by rewrite /read_rv /= !read_eE;SvD.fsetdec.
-  by rewrite /read_rv /= !Hx1 !Hx2;SvD.fsetdec.
-Qed. *)
-Admitted.
+  elim: es s => [ | e es Hes] s;rewrite /read_es /= ?Hes ?read_eE;SvD.fsetdec.
+Qed.
 
-Lemma read_rv_pair t1 t2 (x1:rval t1) (x2:rval t2): 
-  Sv.Equal (read_rv (Rpair x1 x2)) (Sv.union (read_rv x1) (read_rv x2)).
-Proof. by rewrite /read_rv /= !read_rvE;SvD.fsetdec. Qed.
+Lemma read_rvE s x: Sv.Equal (read_rv_rec s x) (Sv.union s (read_rv x)).
+Proof.
+  case: x => //= [_|_|x e|x e]; rewrite /read_rv /= ?read_eE;SvD.fsetdec.
+Qed.
+
+Lemma read_rvsE s xs:  Sv.Equal (read_rvs_rec s xs) (Sv.union s (read_rvs xs)).
+Proof.
+  elim: xs s => [ |x xs Hxs] s;rewrite /read_rvs /= ?Hxs ?read_rvE;SvD.fsetdec.
+Qed.
+
+Lemma read_rvs_nil : read_rvs [::] = Sv.empty.
+Proof. done. Qed.
+
+Lemma read_rvs_cons x xs : Sv.Equal (read_rvs (x::xs)) (Sv.union (read_rv x) (read_rvs xs)).
+Proof.
+  rewrite {1}/read_rvs /= read_rvsE read_rvE;SvD.fsetdec.
+Qed.
 
 Lemma read_cE s c : Sv.Equal (read_c_rec s c) (Sv.union s (read_c c)).
 Proof.
-(*
   apply (@cmd_rect
            (fun i => forall s, Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)))
-           (fun c => forall s, Sv.Equal (read_c_rec s c) (Sv.union s (read_c c)))
-           (fun _ _ _ => True)) => /= {c s}
-    [ |i c1 Hi Hc1|t x e|e c1 c2 Hc1 Hc2|x [[dir lo] hi] c Hc|e c Hc | ?? x f a _|//] s;
-    rewrite /read_i /read_c /=.
-  + by SvD.fsetdec. 
-  + by rewrite -/read_i -/read_c_rec !Hc1 Hi; SvD.fsetdec.  
-  + by rewrite !read_rvE !read_eE; SvD.fsetdec.
-  + by rewrite -/read_c_rec !read_eE !Hc2 !Hc1;SvD.fsetdec.
-  + by rewrite -/read_c_rec !read_eE !Hc; SvD.fsetdec.
-  + by rewrite -/read_c_rec !read_eE !Hc; SvD.fsetdec.
-  by rewrite !read_eE; SvD.fsetdec.
-Qed. *)
-Admitted.
+           (fun i => forall s, Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)))
+           (fun c => forall s, Sv.Equal (foldl read_I_rec s c) (Sv.union s (read_c c))))
+           => /= {c s}
+   [ i ii Hi | | i c Hi Hc | x t e | xs o es | e c1 c2 Hc1 Hc2
+    | v dir lo hi c Hc | e c Hc | ii xs f es] s;
+    rewrite /read_I /read_i /read_c /=
+     ?read_rvE ?read_eE ?read_esE ?read_rvsE ?Hc2 ?Hc1 /read_c_rec ?Hc ?Hi //;
+    by SvD.fsetdec.
+Qed.
+
+Lemma read_IE s i : Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)).
+Proof. by apply (read_cE s [:: i]). Qed.  
 
 Lemma read_iE s i : Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)).
-Proof. (* by apply (read_cE s [:: i]). Qed. *) 
-Admitted.
+Proof. by apply (read_IE s (MkI 1%positive i)). Qed. 
 
 Lemma read_c_nil : read_c [::] = Sv.empty.
 Proof. done. Qed.
 
 Lemma read_c_cons i c: Sv.Equal (read_c (i::c)) (Sv.union (read_I i) (read_c c)).
-Proof. (* rewrite {1}/read_c /= -/read_c_rec read_cE read_iE;SvD.fsetdec. Qed. *) 
-Admitted.
+Proof. by rewrite {1}/read_c /= read_cE //. Qed.
 
-Lemma read_i_assgn t (x:rval t) tag e :
+Lemma read_i_assgn x tag e :
   Sv.Equal (read_i (Cassgn x tag e)) (Sv.union (read_rv x) (read_e e)).
 Proof. rewrite /read_i /= read_rvE read_eE;SvD.fsetdec. Qed.
 
@@ -675,10 +715,9 @@ Proof.
   rewrite /read_i /= -/read_c_rec !read_eE read_cE;SvD.fsetdec.
 Qed.
 
-Lemma read_i_call t1 t2 (f:fundef t1 t2) x a :
-  read_i (Ccall x f a) = read_e a.
-Proof. done. Qed.
-*)
+Lemma read_i_call ii xs f es :
+  Sv.Equal (read_i (Ccall ii xs f es)) (Sv.union (read_rvs xs) (read_es es)).
+Proof. rewrite /read_i /= read_esE read_rvsE;SvD.fsetdec. Qed.
 
 (* ** Some smart constructors
  * -------------------------------------------------------------------------- *)
@@ -689,34 +728,20 @@ Fixpoint is_const (e:pexpr) :=
   | _        => None
   end.
 
-(*
-(*
-Ltac jm_destr e1 := 
-  let t := 
-      match type of e1 with 
-      | pexpr ?t => t 
-      | _ => fail 1 "jm_destr: an spexpr is expected" 
-      end in
-  let e' := fresh "e'" in
-  let t' := fresh "t'" in
-  let H  := fresh "H" in
-  let jmeq := fresh "jmeq" in
-  move: (erefl t) (JMeq_refl e1);
-  set e' := (e in _ -> @JMeq _ e _ _ -> _);move: e';
-  set t' := (X in forall (e':pexpr X), X = _ -> @JMeq (pexpr X) _ _ _ -> _)=> e';
-  (case: t' / e'=> [[??]H | ?? | ?? | ?? | ?????| ???????| ?????????] jmeq;
-     [simpl in H | | | | | | ]);
-  subst;try rewrite -(JMeq_eq jmeq).
-*)
-Lemma is_constP e n : is_const e = Some n -> e = n.
-Proof. (*by jm_destr e=> //= -[] ->. Qed. *) Admitted.
-*)
-
 Definition is_bool (e:pexpr) :=
   match e with 
   | Pbool b => Some b 
   | _ => None 
   end.
 
-Lemma is_boolP e b : is_bool e = Some b -> e = Pbool b.
-Proof. (* by jm_destr e=> //= -[] ->. Qed. *) Admitted.
+Inductive is_reflect (A:Type) (P:A -> pexpr) : pexpr -> option A -> Prop := 
+ | Is_reflect_some : forall a, is_reflect P (P a) (Some a)
+ | Is_reflect_none : forall e, is_reflect P e None.
+
+
+Lemma is_boolP e : is_reflect Pbool e (is_bool e).
+Proof. by case e=> *;constructor. Qed.
+
+Lemma is_constP e : is_reflect Pconst e (is_const e).
+Proof. by case: e=>*;constructor. Qed.
+

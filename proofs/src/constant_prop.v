@@ -205,7 +205,7 @@ Definition add_cpm (m:cpm) (rv:rval) tag e :=
     if tag is AT_inline then 
       if is_const e is Some n then Mvar.set m x n else Mvar.remove m x
     else Mvar.remove m x
-  else m.
+  else m. 
                            
 Section CMD.
 
@@ -300,14 +300,6 @@ Proof.
   case: sem_pexpr => //= a; case: a => //= b; by rewrite negbK.
 Qed.
 
-Inductive is_reflect (A:Type) (P:A -> pexpr) : pexpr -> option A -> Prop := 
- | Is_reflect_some : forall a, is_reflect P (P a) (Some a)
- | Is_reflect_none : forall e, is_reflect P e None.
-
-
-Lemma is_boolP e : is_reflect Pbool e (is_bool e).
-Proof. by case e=> *;constructor. Qed.
-
 Lemma sandP e1 e2 : Papp2 Oand e1 e2 =E sand e1 e2.
 Proof.
   rewrite /sand. case: is_boolP => [b1 rho v /=| {e1} e1]. 
@@ -323,9 +315,6 @@ Proof.
   case: is_boolP => [b2 rho v /=|{e2}e2];last by auto using eeq_refl.
   by case:b2;case: sem_pexpr => //= -[] //= b [] <-;rewrite ?orbT ?orbF.
 Qed.
-
-Lemma is_constP e : is_reflect Pconst e (is_const e).
-Proof. by case: e=>*;constructor. Qed.
 
 Lemma saddP e1 e2 : Papp2 Oadd e1 e2 =E sadd e1 e2.
 Proof.
@@ -451,8 +440,6 @@ Proof.
   case Heq1: (sem_pexpr s e1) => [ve1| ] //=.
   by rewrite (He1 _ Heq1) (He2 _ Heq2).
 Qed.
-
-(*
   
 Lemma get_remove_cpm m xs x n: 
   Mvar.get (remove_cpm m xs) x = Some n ->  
@@ -466,6 +453,7 @@ Proof.
   case: (z =P x) => //= ? /H [];split=> //;SvD.fsetdec. 
 Qed.
 
+(*
 Lemma valid_cpm_rm rho1 rho2 xs m:
   rho1 = rho2 [\ xs] ->
   valid_cpm rho1 m ->
