@@ -108,8 +108,8 @@ apply/Fv.map_ext=> y; rewrite /Fv.get /Fv.set /=.
 by case: eqP=> // eq; case: y / eq.
 Qed.
 
-Lemma st2sst_getvar s x :
-  sget_var (vmap_to_svmap (evm s)) x = value_to_svalue (get_var (evm s) x).
+Lemma st2sst_getvar vm x :
+  sget_var (vmap_to_svmap vm) x = value_to_svalue (get_var vm x).
 Proof.
 by rewrite /sget_var /get_var st2sst_toval.
 Qed.
@@ -256,6 +256,19 @@ rewrite /swrite_var /=.
 by rewrite (st2sst_setvar Hs).
 Qed.
 
+Lemma st2sst_write_vars s1 s2 v x:
+   write_vars x v s1 = ok s2 -> swrite_vars x (map value_to_svalue v) s1 = ok (estate_to_sestate s2).
+Proof.
+elim: v s1 x=> [s1|a l IH s1].
+case=> //.
+rewrite /=.
+by move=> [] ->.
+case=> // a0 l0.
+rewrite /= => h.
+case: (bindW h)=> x /st2sst_write_var -> /= H.
+exact: (IH _ _ H).
+Qed.
+
 Lemma st2sst_write_rval s1 s2 (x: rval) v :
   write_rval x v s1 = ok s2 ->
   swrite_rval x (value_to_svalue v) s1 = ok (estate_to_sestate s2).
@@ -342,8 +355,20 @@ apply: (@sem_Ind P _ Pi PI Pf Pc); try by (move=> *; eauto with ssem).
   apply: (@SEForOne _ s1 s1' s2)=> //.
   by rewrite (st2sst_write_var Hw).
 + move=> m1 m2 f vargs vres H Hf.
-  apply: SEcallRun=> vm0.
-  admit.
+  apply: SEcallRun=> svm0.
+  have vm0: vmap by admit.
+  have Hvm0: vmap_to_svmap vm0 = svm0 by admit.
+  have Hvm0': all_empty_arr vm0 by admit.
+  move: (H vm0 Hvm0')=> {H} [s1 [vm2 [/st2sst_write_vars Ha Hb Hc]]].
+  exists s1, (vmap_to_svmap vm2); split.
+  rewrite -Ha /=.
+  congr (_ _).
+  by rewrite -Hvm0.
+  admit. (* Missing recursion hypothesis! *)
+  rewrite -Hc /=.
+  rewrite -map_comp.
+  apply eq_in_map=> i Hi /=.
+  by rewrite st2sst_getvar.
 Admitted.
 
 End SEM.
