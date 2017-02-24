@@ -42,6 +42,8 @@ Unset Printing Implicit Defensive.
 
 Definition word := I64.int.
 
+Module Memory.
+
 Parameter mem : Type.
 
 Parameter read_mem : mem -> word -> exec word.
@@ -68,7 +70,7 @@ Parameter writeP_eq : forall m w1 w,
    write_mem m w1 w >>= (fun m => read_mem m w1) = ok w.
 
 Parameter writeP_neq : forall m w1 w2 w, 
-   valid_addr m w1 ->
+   valid_addr m w1 -> w1 <> w2 ->
    write_mem m w1 w >>= (fun m => read_mem m w2) = read_mem m w2.
 
 Parameter alloc_stack : mem -> Z -> exec (word * mem).
@@ -92,6 +94,38 @@ Parameter free_stackP : forall m m' pstk sz,
 Parameter eq_memP : forall m m',
     (forall w, read_mem m w = read_mem m' w) -> m = m'.
 
+End Memory.
 
+Module UnsafeMemory.
 
- 
+Parameter mem : Type.
+
+Parameter read_mem : mem -> word -> word.
+Parameter write_mem : mem -> word -> word -> mem.
+
+Parameter writeP_eq : forall m w1 w,
+   read_mem (write_mem m w1 w) w1 = w.
+
+Parameter writeP_neq : forall m w1 w2 w, w1 <> w2 ->
+   read_mem (write_mem m w1 w) w2 = read_mem m w2.
+
+Parameter alloc_stack : mem -> Z -> exec (word * mem).
+
+Parameter free_stack : mem -> word -> Z -> mem.
+
+Parameter alloc_stackP : forall m m' sz pstk,
+   alloc_stack m sz = ok (pstk, m') ->
+   [/\ (pstk + sz < I64.modulus)%Z,
+      (forall w, read_mem m w = read_mem m' w) &
+      (forall w, ~(pstk <= w < pstk + sz)%Z)].
+
+Parameter free_stackP : forall m m' pstk sz,
+   free_stack m pstk sz = m' ->
+   forall w,
+     read_mem m' w = read_mem m w.
+
+Parameter eq_memP : forall m m',
+    (forall w, read_mem m w = read_mem m' w) -> m = m'.
+
+End UnsafeMemory.
+

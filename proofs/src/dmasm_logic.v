@@ -45,6 +45,8 @@ Section SEM.
 (* ** Hoare Logic                                                             *)
 (* -------------------------------------------------------------------------- *)
 
+Import UnsafeMemory.
+
 Variable pr: prog.
 
 Definition hpred := sestate -> Prop.

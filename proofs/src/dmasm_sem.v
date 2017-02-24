@@ -237,6 +237,8 @@ Definition sem_sop2 (o:sop2) :=
   | Oge  => sem_op2_ib Z.geb
   end.
 
+Import Memory.
+
 Record estate := Estate {
   emem : mem;
   evm  : vmap
@@ -250,7 +252,7 @@ Definition on_arr_var A (s:estate) (x:var) (f:forall n, Array.array n word -> ex
 
 Notation "'Let' ( n , t ) ':=' s '.[' x ']' 'in' body" :=
   (@on_arr_var _ s x (fun n (t:Array.array n word) => body)) (at level 25, s at level 0).
- 
+
 Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   match e with
   | Pconst z => ok (Vint z)

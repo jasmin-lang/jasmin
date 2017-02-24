@@ -154,6 +154,8 @@ Definition ssem_sop2 (o:sop2) :=
   | Oge  => ssem_op2_ib Z.geb
   end.
 
+Import UnsafeMemory.
+
 Record sestate := SEstate {
   semem : mem;
   sevm  : svmap
@@ -167,18 +169,6 @@ Definition son_arr_var A (s:sestate) (x:var) (f:forall n, FArray.array word -> A
 
 Notation "'SLet' ( n , t ) ':=' s '.[' x ']' 'in' body" :=
   (@son_arr_var _ s x (fun n (t:FArray.array word) => body)) (at level 25, s at level 0).
-
-Definition sread_mem m w :=
-  match (read_mem m w) with
-  | Ok v => v
-  | _ => I64.repr Z0
-  end.
-
-Definition swrite_mem m w w' :=
-  match (write_mem m w w') with
-  | Ok v => v
-  | _ => m
-  end.
 
 Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : exec svalue :=
   match e with
@@ -195,7 +185,7 @@ Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : exec svalue :=
   | Pload x e =>
     (* FIXME: use x as offset *)
     Let x := ssem_pexpr s e >>= sto_word in
-    let w := sread_mem s.(semem) x in
+    let w := read_mem s.(semem) x in
     ok (@to_sval sword w)
   | Pnot e =>
     Let b := ssem_pexpr s e >>= sto_bool in
@@ -224,7 +214,7 @@ Definition swrite_rval  (l:rval) (v:svalue) (s:sestate) : exec sestate :=
     Let ve := ssem_pexpr s e >>= sto_word in
     let p := wadd vx ve in (* should we add the size of value, i.e vx + sz * se *)
     Let w := sto_word v in
-    let m := swrite_mem s.(semem) p w in
+    let m := write_mem s.(semem) p w in
     ok {|semem := m;  sevm := s.(sevm) |}
   | Raset x i =>
     SLet (n,t) := s.[x] in
