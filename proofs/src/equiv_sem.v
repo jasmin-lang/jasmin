@@ -58,7 +58,7 @@ Definition vmap_to_svmap (v : vmap) : svmap :=
 
 (* -------------------------------------------------------------------- *)
 Coercion estate_to_sestate (s : estate) :=
-  {| semem := s.(emem); sevm := vmap_to_svmap s.(evm); |}.
+  {| semem := mem_to_smem s.(emem); sevm := vmap_to_svmap s.(evm); |}.
 
 Definition value_to_svalue (v: value) : svalue :=
   match v with
@@ -172,7 +172,7 @@ elim: p v=> //=.
   case: (bindW h)=> x {h}h.
   case: (bindW h)=> y /Hv ->.
   case: y=> // w0 [<-].
-  by rewrite /= /sread_mem => ->.
+  by rewrite /= => /mem2smem_read ->.
 + move=> p Hv v h.
   case: (bindW h)=> b {h}h [<-].
   case: (bindW h)=> x /Hv ->.
@@ -216,7 +216,7 @@ Admitted.
 
 (* -------------------------------------------------------------------- *)
 
-Lemma st2sst_write_val s1 s2 v x:
+Lemma st2sst_write_var s1 s2 v x:
    write_var x v s1 = ok s2 -> swrite_var x (value_to_svalue v) s1 = ok (estate_to_sestate s2).
 Proof.
 rewrite /write_var=> h.
@@ -232,7 +232,7 @@ Proof.
 elim: x s1 s2 v=> v /=.
 + by move=> s1 s2 v0 [->].
 + move=> s1 s2 v0 /=.
-  exact: st2sst_write_val.
+  exact: st2sst_write_var.
 + move=> p s1 s2 v0 h.
   case: (bindW h)=> vx H {h}h.
   case: (bindW h)=> ve {h} h1 h2.
@@ -242,8 +242,6 @@ elim: x s1 s2 v=> v /=.
   admit.
 + admit.
 Admitted.
-
-Check swrite_rvals.
 
 Lemma st2sst_write_rvals r v s1 s2:
   write_rvals s1 r v = ok s2 ->
@@ -272,7 +270,7 @@ move=> P.
 pose PI s1 i s2 := ssem_I P s1 i s2.
 pose Pi s1 i s2 := ssem_i P s1 i s2.
 pose Pf v s s1 c s2 := ssem_for P v s s1 c s2.
-pose Pc m1 f vargs m2 vres := ssem_call P m1 f (map value_to_svalue vargs) m2 (map value_to_svalue vres).
+pose Pc m1 f vargs m2 vres := ssem_call P (mem_to_smem m1) f (map value_to_svalue vargs) (mem_to_smem m2) (map value_to_svalue vres).
 apply: (@sem_Ind P _ Pi PI Pf Pc); try by (move=> *; eauto with ssem).
 (* Cassgn *)
 + constructor.
@@ -304,14 +302,14 @@ apply: (@sem_Ind P _ Pi PI Pf Pc); try by (move=> *; eauto with ssem).
   case: (bindW h2)=> x /st2sst_pexpr ->.
   by case: x.
 + move=> s1 m2 s2 ii xs f fd args vargs vs Hfd Hvargs Hcall H Hw.
-  apply (@SEcall _ s1 m2 s2 ii xs f fd args (map value_to_svalue vargs) (map value_to_svalue vs))=> //.
+  apply (@SEcall _ s1 (mem_to_smem m2) s2 ii xs f fd args (map value_to_svalue vargs) (map value_to_svalue vs))=> //.
   by rewrite (st2sst_pexprs Hvargs).
   by rewrite (st2sst_write_rvals Hw).
 + move=> s i c.
   exact: SEForDone.
 + move=> s1 s1' s2 s3 i w ws c Hw Hs Hss Hfor Honce.
   apply: (@SEForOne _ s1 s1' s2)=> //.
-  by rewrite (st2sst_write_val Hw).
+  by rewrite (st2sst_write_var Hw).
 + move=> m1 m2 f vargs vres H Hf.
   apply: SEcallRun=> vm0.
   admit. (*TODO: fix*)

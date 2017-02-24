@@ -129,3 +129,12 @@ Parameter eq_memP : forall m m',
 
 End UnsafeMemory.
 
+Parameter mem_to_smem: Memory.mem -> UnsafeMemory.mem.
+
+Parameter mem2smem_read: forall m w w',
+  Memory.read_mem m w = ok w' ->
+  UnsafeMemory.read_mem (mem_to_smem m) w = w'.
+
+Parameter mem2smem_write: forall m w1 m' w,
+  Memory.write_mem m w1 w = ok m' ->
+  mem_to_smem m' = UnsafeMemory.write_mem (mem_to_smem m) w1 w.
