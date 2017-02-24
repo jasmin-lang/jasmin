@@ -183,6 +183,37 @@ elim: p v=> //=.
   exact: st2sst_op2.
 Admitted.
 
+Lemma st2sst_pexprs s (p : pexprs) v : sem_pexprs s p = ok v ->
+  ssem_pexprs (estate_to_sestate s) p = ok (map value_to_svalue v).
+Proof.
+elim: p v=> //=.
+rewrite /sem_pexprs /ssem_pexprs /=.
+by move=> v [] <-.
+move=> a l IH v.
+rewrite /sem_pexprs /ssem_pexprs /=.
+have ->: mapM (sem_pexpr s) l = sem_pexprs s l by [].
+have ->: mapM (ssem_pexpr s) l = ssem_pexprs s l by [].
+move=> h.
+case: (bindW h)=> x /st2sst_pexpr -> {h} /= h.
+case: (bindW h)=> x0 {h} Hm [<-].
+by rewrite (IH x0 Hm).
+Qed.
+
+Lemma st2sst_sopn: forall o x v,
+  sem_sopn o x = ok v -> ssem_sopn o (map value_to_svalue x) = ok (map value_to_svalue v).
+Proof.
+move=> o x v.
+case: o.
+rewrite /=.
+case: x=> // a l h.
+case: (bindW h)=> x Hx {h}.
+case: l=> //.
+move=> [] <- /=.
+rewrite /sto_word.
+by case: a Hx=> //= w [->].
+admit. (* Many other cases... *)
+Admitted.
+
 (* -------------------------------------------------------------------- *)
 
 Lemma st2sst_write_val s1 s2 v x:
@@ -212,6 +243,25 @@ elim: x s1 s2 v=> v /=.
 + admit.
 Admitted.
 
+Check swrite_rvals.
+
+Lemma st2sst_write_rvals r v s1 s2:
+  write_rvals s1 r v = ok s2 ->
+  swrite_rvals s1 r (map value_to_svalue v) = ok (estate_to_sestate s2).
+Proof.
+rewrite /write_rvals /swrite_rvals.
+elim: v r s1=> //=.
++ case=> //= s1.
+  by move=> [] ->.
++ move=> a l IH.
+  case=> // h q s1.
+  rewrite /=.
+  move=> h'.
+  case: (bindW h')=> x Hw Hf.
+  rewrite (st2sst_write_rval Hw) /=.
+  by apply (IH q).
+Qed.
+
 (* -------------------------------------------------------------------- *)
 Section SEM.
 
@@ -222,15 +272,49 @@ move=> P.
 pose PI s1 i s2 := ssem_I P s1 i s2.
 pose Pi s1 i s2 := ssem_i P s1 i s2.
 pose Pf v s s1 c s2 := ssem_for P v s s1 c s2.
-apply: (@sem_Ind P _ Pi PI Pf); try by (move=> *; eauto with ssem).
+pose Pc m1 f vargs m2 vres := ssem_call P m1 f (map value_to_svalue vargs) m2 (map value_to_svalue vres).
+apply: (@sem_Ind P _ Pi PI Pf Pc); try by (move=> *; eauto with ssem).
 (* Cassgn *)
 + constructor.
   by case: (bindW H)=> v {H} /st2sst_pexpr -> /st2sst_write_rval <-.
 (* Copn *)
 + constructor.
-  case: (bindW H)=> v {H}H.
-  admit.
-+ (* ... *)
+  case: (bindW H)=> v {H}H /st2sst_write_rvals <-.
+  case: (bindW H)=> x {H} /st2sst_pexprs -> /st2sst_sopn H'.
+  by rewrite /= H' /=.
++ constructor=> //.
+  case: (bindW H)=> x /st2sst_pexpr ->.
+  by case: x.
++ move=> s1 s2 e c1 c2 H Hs Hss.
+  apply: SEif_false=> //.
+  case: (bindW H)=> x /st2sst_pexpr ->.
+  by case: x.
++ move=> s1 s2 s3 e c H Hs Hss Hs3 HP.
+  apply: (@SEwhile_true P s1 s2 s3 e c)=> //.
+  case: (bindW H)=> x /st2sst_pexpr ->.
+  by case: x.
++ move=> s e c H.
+  apply: SEwhile_false.
+  case: (bindW H)=> x /st2sst_pexpr ->.
+  by case: x.
++ move=> s1 s2 i d lo hi c vlo vhi h1 h2 Hfor Hf.
+  apply: (@SEfor P s1 s2 i d lo hi c vlo vhi)=> //.
+  case: (bindW h1)=> x /st2sst_pexpr ->.
+  by case: x.
+  case: (bindW h2)=> x /st2sst_pexpr ->.
+  by case: x.
++ move=> s1 m2 s2 ii xs f fd args vargs vs Hfd Hvargs Hcall H Hw.
+  apply (@SEcall _ s1 m2 s2 ii xs f fd args (map value_to_svalue vargs) (map value_to_svalue vs))=> //.
+  by rewrite (st2sst_pexprs Hvargs).
+  by rewrite (st2sst_write_rvals Hw).
++ move=> s i c.
+  exact: SEForDone.
++ move=> s1 s1' s2 s3 i w ws c Hw Hs Hss Hfor Honce.
+  apply: (@SEForOne _ s1 s1' s2)=> //.
+  by rewrite (st2sst_write_val Hw).
++ move=> m1 m2 f vargs vres H Hf.
+  apply: SEcallRun=> vm0.
+  admit. (*TODO: fix*)
 Admitted.
 
 End SEM.
