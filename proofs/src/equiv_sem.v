@@ -84,6 +84,18 @@ case: (CEDecStype.pos_dec n p)=> // H [<-].
 by case: _ / H.
 Qed.
 
+Lemma st2sst_ofword v y:
+  of_val sword v = ok y -> sto_word (value_to_svalue v) = ok y.
+Proof.
+by case: v.
+Qed.
+
+Lemma st2sst_ofbool v y:
+  of_val sbool v = ok y -> sto_bool (value_to_svalue v) = ok y.
+Proof.
+by case: v.
+Qed.
+
 (* -------------------------------------------------------------------- *)
 Lemma st2sst_vmap_get (s : vmap) (x : var) :
   (vmap_to_svmap s).[x]%vmap = st2sst_ty s.[x]%vmap.
@@ -165,7 +177,7 @@ elim: p v=> //=.
   case: (bindW h')=> x /Hv ->.
   case: x=> // z0 /= [<-] //.
 + by move=> x v [<-]; rewrite st2sst_getvar.
-+ move=> v p Hv v0.
++ move=> v p Hv v0 H.
   admit.
 + move=> ? p Hv v h.
   case: (bindW h)=> w {h}h [<-].
@@ -204,15 +216,34 @@ Lemma st2sst_sopn: forall o x v,
 Proof.
 move=> o x v.
 case: o.
-rewrite /=.
 case: x=> // a l h.
 case: (bindW h)=> x Hx {h}.
 case: l=> //.
 move=> [] <- /=.
-rewrite /sto_word.
 by case: a Hx=> //= w [->].
-admit. (* Many other cases... *)
-Admitted.
+all: try (case: x=> // a1 l h1 /=;
+case: (bindW h1)=> x /st2sst_ofword -> {h1};
+case: l=> // a2 l h2 /=;
+case: (bindW h2)=> y /st2sst_ofword -> {h2};
+case: l=> //;
+by move=> [] <- /=).
+case: x=> // a1 l h /=.
+case: (bindW h)=> x /st2sst_ofbool -> {h}.
+case: l=> // a2 l h /=.
+case: (bindW h)=> y /st2sst_ofword -> {h}.
+case: l=> // a3 l h /=.
+case: (bindW h)=> z /st2sst_ofword -> {h}.
+case: l=> //.
+by move=> [] <- /=.
+all: case: x=> // a1 l h /=;
+case: (bindW h)=> x /st2sst_ofword -> {h};
+case: l=> // a2 l h /=;
+case: (bindW h)=> y /st2sst_ofword -> {h};
+case: l=> // a3 l h /=;
+case: (bindW h)=> z /st2sst_ofbool -> {h};
+case: l=> //;
+by move=> [] <- /=.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 
@@ -234,12 +265,12 @@ elim: x s1 s2 v=> v /=.
 + move=> s1 s2 v0 /=.
   exact: st2sst_write_var.
 + move=> p s1 s2 v0 h.
-  case: (bindW h)=> vx H {h}h.
+  case: (bindW h)=> vx /st2sst_ofword H {h}h.
+  rewrite -st2sst_getvar in H; rewrite {}H /=.
   case: (bindW h)=> ve {h} h1 h2.
-  case: (bindW h1)=> x {h1} Hp Hx.
-  case: (bindW h2)=> w Hw {h2}h2.
-  case: (bindW h2)=> m Hm {h2}[<-].
-  admit.
+  case: (bindW h1)=> x {h1} /st2sst_pexpr -> /st2sst_ofword /= -> /=.
+  case: (bindW h2)=> w /st2sst_ofword -> {h2}h2 /=.
+  by case: (bindW h2)=> m /mem2smem_write <- [] <-.
 + admit.
 Admitted.
 
@@ -312,7 +343,7 @@ apply: (@sem_Ind P _ Pi PI Pf Pc); try by (move=> *; eauto with ssem).
   by rewrite (st2sst_write_var Hw).
 + move=> m1 m2 f vargs vres H Hf.
   apply: SEcallRun=> vm0.
-  admit. (*TODO: fix*)
+  admit.
 Admitted.
 
 End SEM.
