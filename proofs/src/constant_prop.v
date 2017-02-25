@@ -959,7 +959,7 @@ Section PROOF.
     by apply const_prop_rvsP.
   Qed.
 
-  Local Lemma Hproc (m1 m2 : mem) (fd : fundef) vargs vres : 
+  Local Lemma Hproc m1 m2 (fd : fundef) vargs vres : 
     (forall vm0 : vmap,
        all_empty_arr vm0 ->
        exists (s1 : estate) (vm2 : vmap),

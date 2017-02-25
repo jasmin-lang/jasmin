@@ -69,6 +69,7 @@ Notation rapp  := Result.apply.
 Notation rdflt := Result.default.
 Notation rbind := Result.bind.
 Notation rmap  := Result.map.
+Notation ok    := (@Ok _).
 
 Notation "m >>= f" := (rbind f m) (at level 25, left associativity).
 Notation "'Let' x ':=' m 'in' body" := (m >>= (fun x => body)) (at level 25).
@@ -85,7 +86,6 @@ Inductive error :=
  | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType.
 
 Definition exec t := result error t.
-Definition ok := Ok error.
 
 Lemma bindW {T U} (v : exec T) (f : T -> exec U) r :
   v >>= f = ok r -> exists2 a, v = ok a & f a = ok r.
