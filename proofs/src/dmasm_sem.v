@@ -365,12 +365,6 @@ Section SEM.
 
 Variable P:prog.
 
-Definition get_fundef f := 
-  let pos := find (fun ffd => f == fst ffd) P in
-  if pos <= size P then
-    Some (snd (nth (xH,dummy_fundef) P pos))
-  else None.
-
 Definition wrange d (n1 n2 : Z) :=
   if (n1 <? n2)%Z then 
     let idxs := mkseq (fun n => n1 + Z.of_nat n)%Z (Z.to_nat (n2 - n1)) in
@@ -434,7 +428,7 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     sem_i s1 (Cfor i (d, lo, hi) c) s2
 
 | Ecall s1 m2 s2 ii xs f fd args vargs vs : 
-    get_fundef f = Some fd ->
+    get_fundef P f = Some fd ->
     sem_pexprs s1 args = ok vargs ->
     sem_call s1.(emem) fd vargs m2 vs ->
     write_rvals {|emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->

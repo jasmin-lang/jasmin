@@ -411,6 +411,22 @@ Qed.
 Definition fundef_eqMixin     := Equality.Mixin fundef_eq_axiom.
 Canonical  fundef_eqType      := Eval hnf in EqType fundef fundef_eqMixin.
 
+Definition get_fundef p f := 
+  let pos := find (fun ffd => f == fst ffd) p in
+  if pos < size p then
+    Some (snd (nth (xH,dummy_fundef) p pos))
+  else None.
+
+Definition map_prog (F:fundef -> fundef) := map (fun (f:funname * fundef) => (f.1, F f.2)).
+
+Lemma get_map_prog F p fn : 
+  get_fundef (map_prog F p) fn = omap F (get_fundef p fn).
+Proof.
+  rewrite /get_fundef /map_prog size_map find_map. 
+  set F1 := (F1 in find F1 _);case: ifPn => // Hlt.
+  rewrite (nth_map (1%positive, dummy_fundef)) //.
+Qed.
+
 Section RECT.
   Variables (Pr:instr_r -> Type) (Pi:instr -> Type) (Pc : cmd -> Type).
   Hypothesis Hmk  : forall i ii, Pr i -> Pi (MkI ii i).

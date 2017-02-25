@@ -279,7 +279,7 @@ Variable P:prog.
 
 Definition get_fundef f :=
   let pos := find (fun ffd => f == fst ffd) P in
-  if pos <= size P then
+  if pos < size P then
     Some (snd (nth (xH,dummy_fundef) P pos))
   else None.
 
