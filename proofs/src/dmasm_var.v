@@ -26,6 +26,7 @@
 (* * Syntax and semantics of the dmasm source language *)
 
 (* ** Imports and settings *)
+Require Import Setoid Morphisms.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import strings dmasm_utils gen_map dmasm_type.
@@ -447,3 +448,25 @@ Definition disjoint s1 s2 := Sv.is_empty (Sv.inter s1 s2).
 
 (* Non dependant map *)
 Module Mvar :=  Mmake CmpVar.
+
+Definition Mvar_eq T (m1 m2:Mvar.t T) := 
+  forall x, Mvar.get m1 x = Mvar.get m2 x.
+
+Polymorphic Instance equiv_Mvar_eq T : Equivalence (@Mvar_eq T).
+Proof. 
+  split=> //.
+  + by move=> m1 m2 Hm z;rewrite Hm.
+  by move=> m1 m2 m3 Hm1 Hm2 z;rewrite Hm1 Hm2.
+Qed.
+
+Instance Mvar_get_m T: 
+  Proper (@Mvar_eq T ==> eq ==> eq) Mvar.get.
+Proof. by move=> m1 m2 Hm ?? <-. Qed.
+
+Instance Mvar_set_m T: 
+  Proper (@Mvar_eq T ==> eq ==> eq ==> @Mvar_eq T) Mvar.set.
+Proof. by move=> m1 m2 Hm ?? <- ?? <- z;rewrite !Mvar.setP;case:ifP. Qed.
+
+Instance Mvar_remove_m T: 
+  Proper (@Mvar_eq T ==> eq ==> @Mvar_eq T) Mvar.remove.
+Proof. by move=> m1 m2 Hm ?? <- z;rewrite !Mvar.removeP;case:ifP. Qed.
