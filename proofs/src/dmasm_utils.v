@@ -91,6 +91,13 @@ Lemma bindW {T U} (v : exec T) (f : T -> exec U) r :
   v >>= f = ok r -> exists2 a, v = ok a & f a = ok r.
 Proof. by case E: v => [a|//] /= <-; exists a. Qed.
 
+Lemma rbindP eT aT rT (e:result eT aT) (body:aT -> result eT rT) v (P:Type):
+  (forall z, e = ok z -> body z = Ok _ v -> P) ->
+  e >>= body = Ok _ v -> P.
+Proof. by case: e=> //= a H /H H';apply H'. Qed.
+
+Ltac t_rbindP := repeat (apply:rbindP => ??).
+
 Fixpoint mapM eT aT bT (f : aT -> result eT bT) (xs : seq aT) : result eT (seq bT) :=
   match xs with
   | [::] =>

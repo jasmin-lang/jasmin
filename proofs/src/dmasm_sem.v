@@ -253,6 +253,11 @@ Definition on_arr_var A (s:estate) (x:var) (f:forall n, Array.array n word -> ex
 Notation "'Let' ( n , t ) ':=' s '.[' x ']' 'in' body" :=
   (@on_arr_var _ s x (fun n (t:Array.array n word) => body)) (at level 25, s at level 0).
 
+Lemma on_arr_varP A (f : forall n : positive, Array.array n word -> exec A) v s x P:
+  (forall n t, vtype x = sarr n -> f n t = ok v -> P) -> 
+  on_arr_var s x f = ok v -> P.
+Proof. by rewrite /on_arr_var;case: x => -[] //= ?? H /H H';apply H'. Qed.
+ 
 Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   match e with
   | Pconst z => ok (Vint z)
