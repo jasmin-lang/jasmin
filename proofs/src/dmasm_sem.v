@@ -293,28 +293,30 @@ Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
 Definition write_vars xs vs s := 
   fold2 ErrType write_var xs vs s.
 
-Definition write_rval  (l:rval) (v:value) (s:estate) : exec estate :=
+Definition write_rval_aux (s0:estate) (l:rval) (v:value) (s:estate) : exec estate :=
   match l with 
   | Rnone _ => ok s
   | Rvar x => write_var x v s
   | Rmem x e =>  
-    Let vx := to_word (get_var (evm s) x) in
-    Let ve := sem_pexpr s e >>= to_word in
+    Let vx := to_word (get_var (evm s0) x) in
+    Let ve := sem_pexpr s0 e >>= to_word in
     let p := wadd vx ve in (* should we add the size of value, i.e vx + sz * se *)
     Let w := to_word v in
     Let m :=  write_mem s.(emem) p w in
     ok {|emem := m;  evm := s.(evm) |}
   | Raset x i =>
-    Let (n,t) := s.[x] in
-    Let i := sem_pexpr s i >>= to_word in
+    Let (n,t) := s0.[x] in
+    Let i := sem_pexpr s0 i >>= to_word in
     Let v := to_word v in
     Let t := Array.set t i v in
     Let vm := set_var s.(evm) x (@to_val (sarr n) t) in 
     ok ({| emem := s.(emem); evm := vm |})
   end.
+ 
+Definition write_rval l v s := write_rval_aux s l v s.
 
 Definition write_rvals (s:estate) xs vs := 
-   fold2 ErrType write_rval xs vs s.
+   fold2 ErrType (write_rval_aux s) xs vs s.
 
 Fixpoint app_sopn ts : sem_prod ts values -> values -> exec values := 
   match ts return sem_prod ts values -> values -> exec values with
@@ -494,9 +496,9 @@ Proof.
   rewrite /write_var /set_var; case: of_val => //= v' [<-] /=.
   by move=> z Hz;rewrite Fv.setP_neq //;apply /eqP; SvD.fsetdec.
 Qed.
-   
-Lemma vrvP (x:rval) v s1 s2 : 
-  write_rval x v s1 = ok s2 -> 
+
+Lemma vrv_auxP s0 (x:rval) v s1 s2 : 
+  write_rval_aux s0 x v s1 = ok s2 -> 
   s1.(evm) = s2.(evm) [\ vrv x].
 Proof.
   case x => /= [ _ [<-] | ? /vrvP_var| y e| y e] //.
@@ -513,15 +515,22 @@ Proof.
   case: CEDecStype.pos_dec => //= H [<-] /=.
   by move=> z Hz;rewrite Fv.setP_neq //;apply /eqP; SvD.fsetdec.
 Qed.
+   
+Lemma vrvP (x:rval) v s1 s2 : 
+  write_rval x v s1 = ok s2 -> 
+  s1.(evm) = s2.(evm) [\ vrv x].
+Proof. by apply vrv_auxP. Qed.
 
 Lemma vrvsP xs vs s1 s2 :
   write_rvals s1 xs vs = ok s2 -> 
   s1.(evm) = s2.(evm) [\ vrvs xs].
 Proof.
+  rewrite /write_rvals.
+  move: {1}s1 => s0.
   elim: xs vs s1 s2 => [|x xs Hrec] [|v vs] s1 s2 //=.
   + by move=> [<-].
-  case Hrv: write_rval => [s | ] //= /Hrec Hrvs z.
-  by rewrite vrvs_cons => Hnin;rewrite (vrvP Hrv) ?Hrvs //;SvD.fsetdec.
+  case Hrv: write_rval_aux => [s | ] //= /Hrec Hrvs z.
+  by rewrite vrvs_cons => Hnin;rewrite (vrv_auxP Hrv) ?Hrvs //;SvD.fsetdec.
 Qed.
 
 Lemma write_i_opn xs o es : write_i (Copn xs o es) = vrvs xs. 
