@@ -459,12 +459,147 @@ with sem_call : mem -> fundef -> seq value -> mem -> seq value -> Prop :=
 
 (* -------------------------------------------------------------------- *)
 
-Scheme sem_Ind := Minimality for sem Sort Prop
-with   sem_i_Ind := Minimality for sem_i Sort Prop
-with   sem_I_Ind := Minimality for sem_I Sort Prop
-with   sem_for_Ind := Minimality for sem_for Sort Prop
-with   sem_call_Ind := Minimality for sem_call Sort Prop.
+Section SEM_IND.
+  Variables
+    (Pc   : estate -> cmd -> estate -> Prop)
+    (Pi_r : estate -> instr_r -> estate -> Prop)
+    (Pi : estate -> instr -> estate -> Prop)
+    (Pfor : var -> seq Z -> estate -> cmd -> estate -> Prop)
+    (Pfun : mem -> fundef -> seq value -> mem -> seq value -> Prop).
+ 
+  Hypothesis Hnil : forall s : estate, Pc s [::] s.
 
+  Hypothesis Hcons : forall (s1 s2 s3 : estate) (i : instr) (c : cmd),
+    sem_I s1 i s2 -> Pi s1 i s2 -> sem s2 c s3 -> Pc s2 c s3 -> Pc s1 (i :: c) s3.
+
+  Hypothesis HmkI : forall (ii : instr_info) (i : instr_r) (s1 s2 : estate),
+    sem_i s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
+
+  Hypothesis Hasgn : forall (s1 s2 : estate) (x : rval) (tag : assgn_tag) (e : pexpr),
+    Let v := sem_pexpr s1 e in write_rval x v s1 = Ok error s2 ->
+    Pi_r s1 (Cassgn x tag e) s2.
+
+  Hypothesis Hopn : forall (s1 s2 : estate) (o : sopn) (xs : rvals) (es : pexprs),
+    Let x := Let x := sem_pexprs s1 es in sem_sopn o x in write_rvals s1 xs x = Ok error s2 -> 
+    Pi_r s1 (Copn xs o es) s2.
+
+  Hypothesis Hif_true : forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
+    Let x := sem_pexpr s1 e in to_bool x = Ok error true ->
+    sem s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+
+  Hypothesis Hif_false : forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
+    Let x := sem_pexpr s1 e in to_bool x = Ok error false ->
+    sem s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+
+  Hypothesis Hwhile_true : forall (s1 s2 s3 : estate) (e : pexpr) (c : cmd),
+    Let x := sem_pexpr s1 e in to_bool x = Ok error true ->
+    sem s1 c s2 -> Pc s1 c s2 ->
+    sem_i s2 (Cwhile e c) s3 -> Pi_r s2 (Cwhile e c) s3 -> Pi_r s1 (Cwhile e c) s3.
+
+  Hypothesis Hwhile_false : forall (s : estate) (e : pexpr) (c : cmd),
+    Let x := sem_pexpr s e in to_bool x = Ok error false ->
+    Pi_r s (Cwhile e c) s.
+
+
+  Hypothesis Hfor : forall (s1 s2 : estate) (i : var_i) (d : dir) 
+         (lo hi : pexpr) (c : cmd) (vlo vhi : Z),
+    Let x := sem_pexpr s1 lo in to_int x = Ok error vlo ->
+    Let x := sem_pexpr s1 hi in to_int x = Ok error vhi ->
+    sem_for i (wrange d vlo vhi) s1 c s2 ->
+    Pfor i (wrange d vlo vhi) s1 c s2 -> Pi_r s1 (Cfor i (d, lo, hi) c) s2.
+
+  Hypothesis Hfor_nil : forall (s : estate) (i : var) (c : cmd), Pfor i [::] s c s.
+
+  Hypothesis Hfor_cons : forall (s1 s1' s2 s3 : estate) (i : var_i) 
+         (w : Z) (ws : seq Z) (c : cmd),
+    write_var i w s1 = Ok error s1' ->
+    sem s1' c s2 -> Pc s1' c s2 ->
+    sem_for i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
+
+  Hypothesis Hcall : forall (s1 : estate) (m2 : mem) (s2 : estate) 
+         (ii : inline_info) (xs : rvals) (fn : pos_eqType) 
+         (fd : fundef) (args : pexprs) (vargs vs : seq value),
+    get_fundef P fn = Some fd ->
+    sem_pexprs s1 args = Ok error vargs ->
+    sem_call (emem s1) fd vargs m2 vs -> Pfun (emem s1) fd vargs m2 vs ->
+    write_rvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
+    Pi_r s1 (Ccall ii xs fn args) s2.
+
+  Hypothesis Hproc : forall (m1 m2 : mem) (fd : fundef) (vargs vres : seq value),
+    (forall vm0 : vmap,
+       all_empty_arr vm0 ->
+       exists (s1 : estate) (vm2 : vmap),
+         [/\ write_vars (f_params fd) vargs {| emem := m1; evm := vm0 |} =  Ok error s1, 
+             sem s1 (f_body fd) {| emem := m2; evm := vm2 |},
+             Pc s1 (f_body fd) {| emem := m2; evm := vm2 |}
+          & map (fun (x:var_i) => get_var vm2 x) fd.(f_res) = vres]) ->
+    List.Forall is_full_array vres -> Pfun m1 fd vargs m2 vres.
+
+  Section CALL.
+
+    Variable sem_Ind : forall s1 c s2, sem s1 c s2 -> Pc s1 c s2.
+
+    Definition sem_call_Ind_aux m1 fd vargs m2 vres :
+       sem_call m1 fd vargs m2 vres -> Pfun m1 fd vargs m2 vres.
+    Proof.
+      move=> [] {m1 m2 vargs vres fd} m1 m2 fd vargs vres H Hfull.
+      apply Hproc=> //.
+      move=> vm0 /H [] s1 [] vm2 [] Hargs Hsem Hres.
+      exists s1, vm2;split => //.
+      by apply sem_Ind.
+    Defined.
+
+  End CALL.
+      
+  Fixpoint sem_Ind (e : estate) (l : cmd) (e0 : estate) (s : sem e l e0) {struct s} :
+    Pc e l e0 :=
+    match s in (sem e1 l0 e2) return (Pc e1 l0 e2) with
+    | Eskip s0 => Hnil s0
+    | @Eseq s1 s2 s3 i c s0 s4 =>
+        @Hcons s1 s2 s3 i c s0 (@sem_I_Ind s1 i s2 s0) s4 (@sem_Ind s2 c s3 s4)
+    end
+
+  with sem_i_Ind (e : estate) (i : instr_r) (e0 : estate) (s : sem_i e i e0) {struct s} :
+    Pi_r e i e0 :=
+    match s in (sem_i e1 i0 e2) return (Pi_r e1 i0 e2) with
+    | @Eassgn s1 s2 x tag e1 e2 => @Hasgn s1 s2 x tag e1 e2
+    | @Eopn s1 s2 o xs es e1 => @Hopn s1 s2 o xs es e1
+    | @Eif_true s1 s2 e1 c1 c2 e2 s0 => 
+      @Hif_true s1 s2 e1 c1 c2 e2 s0 (@sem_Ind s1 c1 s2 s0)
+    | @Eif_false s1 s2 e1 c1 c2 e2 s0 => 
+      @Hif_false s1 s2 e1 c1 c2 e2 s0 (@sem_Ind s1 c2 s2 s0)
+    | @Ewhile_true s1 s2 s3 e1 c e2 s0 s4 =>
+      @Hwhile_true s1 s2 s3 e1 c e2 s0 (@sem_Ind s1 c s2 s0) s4 
+      (@sem_i_Ind s2 (Cwhile e1 c) s3 s4)
+    | @Ewhile_false s0 e1 c e2 => @Hwhile_false s0 e1 c e2
+    | @Efor s1 s2 i0 d lo hi c vlo vhi e1 e2 s0 =>
+      @Hfor s1 s2 i0 d lo hi c vlo vhi e1 e2 s0
+        (@sem_for_Ind i0 (wrange d vlo vhi) s1 c s2 s0)
+    | @Ecall s1 m2 s2 ii xs f13 fd args vargs vs e1 e2 s0 e3 =>
+      @Hcall s1 m2 s2 ii xs f13 fd args vargs vs e1 e2 s0
+        (@sem_call_Ind (emem s1) fd vargs m2 vs s0) e3
+    end
+
+  with sem_I_Ind (e : estate) (i : instr) (e0 : estate) (s : sem_I e i e0) {struct s} :
+    Pi e i e0 :=
+    match s in (sem_I e1 i0 e2) return (Pi e1 i0 e2) with
+    | @EmkI ii i0 s1 s2 s0 => @HmkI ii i0 s1 s2 s0 (@sem_i_Ind s1 i0 s2 s0)
+    end
+
+  with sem_for_Ind (v : var) (l : seq Z) (e : estate) (l0 : cmd) (e0 : estate)
+         (s : sem_for v l e l0 e0) {struct s} : Pfor v l e l0 e0 :=
+    match s in (sem_for v0 l1 e1 l2 e2) return (Pfor v0 l1 e1 l2 e2) with
+    | EForDone s0 i c => Hfor_nil s0 i c
+    | @EForOne s1 s1' s2 s3 i w ws c e1 s0 s4 =>
+      @Hfor_cons s1 s1' s2 s3 i w ws c e1 s0 (@sem_Ind s1' c s2 s0)
+         s4 (@sem_for_Ind i ws s2 c s3 s4)
+    end
+
+  with sem_call_Ind (m : mem) (f13 : fundef) (l : seq value) (m0 : mem) 
+         (l0 : seq value) (s : sem_call m f13 l m0 l0) {struct s} : Pfun m f13 l m0 l0 :=
+    @sem_call_Ind_aux (@sem_Ind) m f13 l m0 l0 s.
+
+End SEM_IND.
 
 (* -------------------------------------------------------------------- *)
 
@@ -555,10 +690,10 @@ Proof.
   + by move=> s1 s2 e c1 c2 _ _ Hrec z;rewrite write_i_if => Hnin;apply Hrec;SvD.fsetdec.
   + by move=> s1 s2 s3 e c _ _ Hc _ Hw z Hnin; rewrite Hc ?Hw.
   + by move=> s1 s2 i d lo hi c vlo vhi _ _ _ Hrec z;rewrite write_i_for;apply Hrec.
-  + move=> s1 m2 s2 ii xs f fd args vargs vs _ _ _ _ Hw z.
-    by rewrite write_i_call;apply (vrvsP Hw).
   + move=> s1 s1' s2 s3 i w ws c Hw _ Hc _ Hf z Hnin.
     by rewrite (vrvP_var Hw) ?Hc ?Hf //;SvD.fsetdec.
+  + move=> s1 m2 s2 ii xs f fd args vargs vs _ _ _ _ Hw z.
+    by rewrite write_i_call;apply (vrvsP Hw).
 Qed.
 
 Lemma write_IP i s1 s2 : 
@@ -696,6 +831,7 @@ Proof.
 Qed.
 *)
 End SEM.
+
 
 
 Notation "vm1 = vm2 [\ s ]" := (vmap_eq_except s vm1 vm2) (at level 70, vm2 at next level,
