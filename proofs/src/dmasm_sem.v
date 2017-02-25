@@ -29,7 +29,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import JMeq ZArith.
+Require Import ZArith.
 
 Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr memory.
 
@@ -260,12 +260,17 @@ Proof. by rewrite /on_arr_var;case: x => -[] //= ?? H /H H';apply H'. Qed.
 
 Lemma on_arr_varP2 A (f : forall n : positive, Array.array n word -> exec A) v s x P:
   (forall n t, vtype x = sarr n -> 
-               JMeq ((evm s).[x])%vmap t ->      
-(*               @to_val (vtype x) ((evm s).[x])%vmap = @Varr n t -> *)
+               @to_val (vtype x) ((evm s).[x])%vmap = @Varr n t -> 
                f n t = ok v -> P) -> 
   on_arr_var s x f = ok v -> P.
 Proof. by rewrite /on_arr_var;case: x => -[] //= ?? H /H H';apply H'. Qed.
  
+Definition Varr_inj n n' t t' : @Varr n t = @Varr n' t' -> n = n' /\ t = t' :=
+  fun e => let 'Logic.eq_refl := e in conj Logic.eq_refl Logic.eq_refl.
+
+Lemma Varr_inj1 n t t' : @Varr n t = @Varr n t' -> t = t'.
+Proof. by move=> /Varr_inj []. Qed.
+
 Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   match e with
   | Pconst z => ok (Vint z)
@@ -931,7 +936,7 @@ Proof.
     by case: (value_uincl_int Hvu Hto) => ??;subst; exists (Vword (I64.repr z)).
   + by move=> [] <-;exists (get_var vm2 x);split=> //;apply get_var_uincl.
   + have := Hu x;case x => -[xt xn] xi /= H H';move: H' H.
-    apply: on_arr_varP2 => /= n t -> /= H; have {H} <- := JMeq_eq H.
+    apply: on_arr_varP2 => /= n t -> /= /Varr_inj1 <-.
     apply: rbindP => z;apply: rbindP => vp /Hp [] vp' [] Hvp' Hvu Hto.
     case: (value_uincl_word Hvu Hto) => ??;subst.
     apply: rbindP=> w Hget [] <- /=.
