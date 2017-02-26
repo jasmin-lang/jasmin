@@ -153,7 +153,6 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
   | _, _ => false
   end.
 
-
   Lemma eq_axiom : Equality.axiom eqb. 
   Proof. 
     elim => [n1|b1|e1 He1|x1|x1 e1 He1|x1 e1 He1|e1 He1|o1 e11 He11 e12 He12] 

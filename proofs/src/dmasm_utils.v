@@ -181,6 +181,9 @@ Definition req eT aT (f : aT -> aT -> Prop) (o1 o2 : result eT aT) :=
   | _ ,       _      => false
   end.
 
+Lemma List_Forall2_refl A (R:A->A->Prop) l : (forall a, R a a) -> List.Forall2 R l l.
+Proof. by move=> HR;elim: l => // a l Hrec;constructor. Qed.
+
 (* -------------------------------------------------------------------------- *)
 (* Operators to build comparison                                              *)
 (* ---------------------------------------------------------------------------*)
