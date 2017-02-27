@@ -121,113 +121,131 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
     ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
   end.
 
-Definition dead_code_fd (ffd:funname * fundef) (p:cfexec prog) :=
-  Let p := p in
-  match ffd with 
-  | (f, MkFun ii params c res) =>
+Definition dead_code_fd (fd: fundef) :=
+  match fd with
+  | MkFun ii params c res =>
     let s := read_es (map Pvar res) in
-    Let c := add_finfo f f (dead_code_c dead_code_i  c s) in 
-    cfok ((f, MkFun ii params c.2 res)::p)
+    Let c := dead_code_c dead_code_i c s in
+    ciok (MkFun ii params c.2 res)
   end.
 
-Definition dead_code_prog (p:prog) := foldr dead_code_fd (cfok [::]) p.
+Definition dead_code_ffd (ffd:funname * fundef) (p:cfexec prog) :=
+  Let p := p in
+  match ffd with
+  | (f, fd) =>
+    let fd' := dead_code_fd fd in
+    Let c := add_finfo f f fd' in
+    cfok ((f, c) :: p)
+  end.
 
+Definition dead_code_prog (p:prog) := foldr dead_code_ffd (cfok [::]) p.
 
-(*
-Lemma write_memP t (x:rval t) v m1 m2 vm1 vm2:
+Lemma write_memP (x:rval) v m1 m2 vm1 vm2:
   ~~ write_mem x -> 
-  write_rval {| emem := m1; evm := vm1 |} x v = ok {| emem := m2; evm := vm2 |} ->
+  write_rval x v {| emem := m1; evm := vm1 |} = ok {| emem := m2; evm := vm2 |} ->
   m1 = m2.
 Proof.
-  rewrite /write_rval; case Heq: rval2vval=> [vr|]//=.
-  move: {1}{| emem := m1; evm := vm1 |} Heq => s.
-  elim: x vr v m1 m2 vm1 vm2 => //= [x|?? x1 Hx1 x2 Hx2] vr v m1 m2 vm1 vm2.
-  + by move=> [] <- _ /= [].
-  case Heq1: (rval2vval _ x1) => [vr1|] //=.
-  case Heq2: (rval2vval _ x2) => [vr2|] //= [] <-.
-  rewrite negb_or=> /andP [H1 H2] /=.
-  case Heq2' : write_vval => [[m vm]|] //= /Hx1 <- //.
-  by apply: Hx2 Heq2'.
+rewrite /write_rval /write_rval_aux.
+elim: x=> // [v0|v0|v0 p] _.
++ by move=> [] ->.
++ rewrite /write_var /=.
+  by apply: rbindP=> z Hz [] ->.
++ apply: on_arr_varP2=> n t Ht Hval.
+  apply: rbindP=> i.
+  apply: rbindP=> x Hx Hi.
+  apply: rbindP=> v1 Hv.
+  apply: rbindP=> t0 Ht0.
+  apply: rbindP=> vm Hvm /=.
+  by move=> [] ->.
 Qed.
 
 Section PROOF.
 
-  Let Pi (i:instr) := 
-    forall mem1 mem2 vm1 vm2, sem_i (Estate mem1 vm1) i (Estate mem2 vm2) ->
-    forall s2, 
+  Variable p : prog.
+
+  Let p' := dead_code_prog p.
+
+  Let Pi (s:estate) (i:instr) (s':estate) :=
+    forall s2,
       match dead_code_i i s2 with
       | Ok (s1, c') =>
-        forall vm1', vm1 =[s1] vm1' ->
-        exists vm2', vm2 =[s2] vm2' /\ 
-          sem (Estate mem1 vm1') c' (Estate mem2 vm2')
+        forall vm1', s.(evm) =[s1] vm1' ->
+        exists vm2', s'.(evm) =[s2] vm2' /\ 
+          sem p (Estate s.(emem) vm1') c' (Estate s'.(emem) vm2')
       | _ => True
       end.
 
-  Let Pc (c:cmd) := 
-    forall mem1 mem2 vm1 vm2, sem (Estate mem1 vm1) c (Estate mem2 vm2) ->
+  Let Pc (s:estate) (c:cmd) (s':estate) :=
     forall s2, 
-      match dead_code dead_code_i c s2 with
+      match dead_code_c dead_code_i c s2 with
       | Ok (s1, c') =>
-        forall vm1', vm1 =[s1] vm1' ->
-        exists vm2', vm2 =[s2] vm2' /\ 
-          sem (Estate mem1 vm1') c' (Estate mem2 vm2')
+        forall vm1', s.(evm) =[s1] vm1' ->
+        exists vm2', s'.(evm) =[s2] vm2' /\ 
+          sem p (Estate s.(emem) vm1') c' (Estate s'.(emem) vm2')
       | _ => True
       end.
 
-  Let Pf ta tr (fd:fundef ta tr) := 
-    forall mem mem' va vr, 
-      match dead_code_call fd with
-      | Ok fd' => 
-        sem_call mem fd va mem' vr -> 
-        sem_call mem fd' va mem' vr
-      | _ => True
-      end.
+  Let Pf mem fd va mem' vr := 
+    match dead_code_fd fd with
+    | Ok fd' => 
+      sem_call p mem fd va mem' vr -> 
+      sem_call p mem fd' va mem' vr
+    | _ => True
+    end.
 
-  Let Hskip : Pc [::].
-  Proof. 
-    move=> m1 m2 vm1 vm2 /= H;inversion H;subst=> s2 st1' Heq;exists st1';split=>//.
+  Local Lemma Hskip s : Pc s [::] s.
+  Proof.
+    case: s=> mem vm s2 vm' Hvm.
+    exists vm'; split=> //.
     constructor.
   Qed.
 
-  Let Hseq  : forall i c,  Pi i -> Pc c -> Pc (i::c).
+  Local Lemma Hcons s1 s2 s3 i c :
+    sem_I p s1 i s2 ->
+    Pi s1 i s2 -> sem p s2 c s3 -> Pc s2 c s3 -> Pc s1 (i :: c) s3.
   Proof.
-    move=> i c Hi Hc m1 m3 vm1 vm3 H;inversion H;clear H;subst=> /=.
-    case: s2 H3 H5  => m2 vm2 H3 H5 s3.
-    have := Hc _ _ _ _ H5 s3;case: (dead_code dead_code_i c s3) => /= [[s2 c'] | //] Hc'.
-    have := Hi _ _ _ _ H3 s2;case: (dead_code_i i s2) => [[s1 i']|] //=Hi' vm1' /Hi'.
+    move=> H Hi H' Hc sv3 /=.
+    have := Hc sv3.
+    case: (dead_code_c dead_code_i c sv3)=> [[sv2 c']|//] Hc' /=.
+    have := Hi sv2.
+    case: (dead_code_i i sv2)=> [[sv1 i']|] //= Hi' vm1' /Hi'.
     move=> [vm2' [Heq2 Hsi']];case: (Hc' _ Heq2) => [vm3' [Heq3 Hsc']].
     exists vm3';split=> //.
     by apply: sem_app Hsi' Hsc'.
   Qed.
 
-  Lemma check_nop_spec t1 t2 (r:rval t1) (e:pexpr t2): check_nop r e ->
-    exists x, [/\ t1 = vtype x, t2 = vtype x, JMeq r (Rvar x) & JMeq e (Pvar x)].
+  Lemma check_nop_spec (r:rval) (e:pexpr): check_nop r e ->
+    exists x, r = (Rvar x) /\ e = (Pvar x).
   Proof. by case: r e => //= x1 [] //= x2 /eqP <-;exists x1. Qed.
 
-  Let Hbcmd : forall t (x:rval t) e,  Pi (Cassgn x e).
-  Proof. 
-    move=> t x e m1 m2 vm1 vm2 H;sinversion H=> /= s2.
-    sinversion H3;sinversion H4=> /=.
-    case: ifPn.
-    + move=> /andP[] Hdisj Hmem vm1' Hvm;exists vm1'. 
-      case Heq: sem_pexpr H5 => [v|] //= H5.
-      rewrite (write_memP Hmem H5);split;last by constructor.
-      by apply: eq_onT Hvm;apply eq_onS;apply (disjoint_eq_on Hdisj H5).
-    move=> ?;case: ifPn.
-    + move=> /check_nop_spec [[yt y] /= [<- _ ]] Hx He;subst.
-      move: H5;rewrite /write_rval /= => -[] ??;subst=> vm1' Hvm.
-      exists vm1';split;last by constructor.
-      move=> z Hz. case :({| vtype := t; vname := y |} =P z) => [->|/eqP Hne].
-      + by rewrite Fv.setP_eq Hvm.
-      by rewrite Fv.setP_neq ?Hvm.
-    move=> ?; case Heq: sem_pexpr H5 => [v|] //= Hw vm1' Hvm.
-    have /(_ s2 vm1') [|vm2' [Hvm2 Hw2]] := write_rval_eq_on Hw.    
-    + by apply: eq_onI Hvm;rewrite !read_rvE read_eE write_i_assgn;SvD.fsetdec.
-    exists vm2';split=>//;apply sem_seq1;constructor.
-    have <- := @read_e_eq_on _ e Sv.empty m1 vm1 vm1';first by rewrite Heq.
-    by apply: eq_onI Hvm;rewrite !read_rvE !read_eE;SvD.fsetdec.
-  Qed.
+  Local Lemma Hassgn s1 s2 x tag e ii :
+    Let v := sem_pexpr s1 e in write_rval x v s1 = Ok error s2 ->
+    Pi s1 (MkI ii (Cassgn x tag e)) s2.
+  Proof.
+    move: s1 s2=> [m1 vm1] [m2 vm2].
+    apply: rbindP=> v Hv Hw s2 /=.
+    case: ifPn=> _ /=.
+    + admit.
+    + move=> vm1' Hvm.
+      rewrite write_i_assgn in Hvm.
+      have Hvm': vm1 =[Sv.union (Sv.union (read_e e) (Sv.diff s2 (vrv x))) (read_rv x)] vm1'.
+        admit. (* read_eE + read_rvE *)
+      have Hbla: Sv.Subset (read_rv x) (Sv.union (Sv.union (read_e e) (Sv.diff s2 (vrv x))) (read_rv x)).
+        by SvD.fsetdec.
+      have [vm2' [Hvm2 Hw2]] := @write_rval_eq_on _ _ _ _ _ vm1 vm2 vm1' Hbla Hw Hvm'.
+      exists vm2'; split.
+      + apply: (eq_onI _ Hvm2); SvD.fsetdec.
+      + apply: sem_seq1.
+        constructor.
+        constructor.
+        rewrite (@read_e_eq_on Sv.empty vm1 vm1') ?Hv //.
+        have ->: read_e_rec Sv.empty e = Sv.union (read_e e) Sv.empty by admit.
+        apply: eq_onS.
+        apply: (eq_onI _ Hvm').
+        SvD.fsetdec.
+  Admitted.
 
+  (*
   Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (Cif e c1 c2).
   Proof.
     move=> e c1 c2 Hc1 Hc2 m1 m2 vm1 vm2 H;inversion H;clear H;subst.
@@ -361,17 +379,23 @@ Section PROOF.
     exists {| emem := m; evm := vm' |}, vm2';split=>//.
     by rewrite -(read_e_eq_on m2 Hvm2).
   Qed.
+  *)
 
-  Lemma dead_code_callP ta tr (f : fundef ta tr) mem mem' va vr: 
-    match dead_code_call f with 
-    | Ok fd' => 
-      sem_call mem f va mem' vr -> 
-      sem_call mem fd' va mem' vr
-    | _      => True
+  Lemma dead_code_callP fd mem mem' va vr:
+    match (dead_code_prog p) with
+    | Ok p' =>
+      match dead_code_fd fd with 
+      | Ok fd' => 
+        sem_call p' mem fd va mem' vr -> 
+        sem_call p' mem fd' va mem' vr
+      | _      => True
+      end
+    | _ => True
     end.
   Proof.
+    (*
     apply (@func_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc).
-  Qed.
+    *)
+  Admitted.
 
 End PROOF.
-*)
