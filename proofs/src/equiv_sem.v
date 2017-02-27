@@ -177,8 +177,23 @@ elim: p v=> //=.
   case: (bindW h')=> x /Hv ->.
   case: x=> // z0 /= [<-] //.
 + by move=> x v [<-]; rewrite st2sst_getvar.
-+ move=> v p Hv v0 H.
-  admit.
++ move=> v p Hv v0.
+  apply: on_arr_varP2=> n t Ht Hval.
+  apply: rbindP=> i.
+  apply: rbindP=> x /Hv -> /st2sst_ofword Hi.
+  apply: rbindP=> w Harr [<-] /=.
+  rewrite Hi /=.
+  case: v Ht Hval=> v vi /= Ht Hval.
+  case: v Ht Hval=> vt vn /= Ht Hval.
+  subst vt.
+  rewrite /son_arr_var /=.
+  rewrite /= in Hval.
+  move: (Varr_inj1 Hval)=> Hbla.
+  rewrite -Hbla in Harr.
+  rewrite st2sst_vmap_get.
+  congr (_ _).
+  rewrite /FArray.get /=.
+  by rewrite Harr.
 + move=> ? p Hv v h.
   case: (bindW h)=> w {h}h [<-].
   case: (bindW h)=> x {h}h.
@@ -193,7 +208,7 @@ elim: p v=> //=.
   case: (bindW h)=> v1 /Hv1 -> {h}h.
   case: (bindW h)=> v2 /Hv2 -> {h}.
   exact: st2sst_op2.
-Admitted.
+Qed.
 
 Lemma st2sst_pexprs s (p : pexprs) v : sem_pexprs s p = ok v ->
   ssem_pexprs (estate_to_sestate s) p = ok (map value_to_svalue v).
@@ -269,39 +284,47 @@ case: (bindW h)=> x /st2sst_write_var -> /= H.
 exact: (IH _ _ H).
 Qed.
 
-Lemma st2sst_write_rval s1 s2 (x: rval) v :
-  write_rval x v s1 = ok s2 ->
-  swrite_rval x (value_to_svalue v) s1 = ok (estate_to_sestate s2).
+Lemma st2sst_write_rval_aux s0 s1 s2 (x: rval) v :
+  write_rval_aux s0 x v s1 = ok s2 ->
+  swrite_rval_aux s0 x (value_to_svalue v) s1 = ok (estate_to_sestate s2).
 Proof.
 elim: x s1 s2 v=> v /=.
 + by move=> s1 s2 v0 [->].
 + move=> s1 s2 v0 /=.
   exact: st2sst_write_var.
-+ move=> p s1 s2 v0 h.
-  case: (bindW h)=> vx /st2sst_ofword H {h}h.
-  rewrite -st2sst_getvar in H; rewrite {}H /=.
-  case: (bindW h)=> ve {h} h1 h2.
-  case: (bindW h1)=> x {h1} /st2sst_pexpr -> /st2sst_ofword /= -> /=.
-  case: (bindW h2)=> w /st2sst_ofword -> {h2}h2 /=.
-  by case: (bindW h2)=> m /mem2smem_write <- [] <-.
++ move=> p s1 s2 v0.
+  apply: rbindP=> vx /st2sst_ofword Hvx.
+  rewrite -st2sst_getvar in Hvx; rewrite {}Hvx.
+  apply: rbindP=> z.
+  apply: rbindP=> x /st2sst_pexpr -> /st2sst_ofword Hz.
+  apply: rbindP=> w /st2sst_ofword -> /=.
+  apply: rbindP=> m /mem2smem_write Hm []<-.
+  by rewrite Hz /= -Hm.
 + admit.
 Admitted.
+
+Lemma st2sst_write_rval s1 s2 (x: rval) v :
+  write_rval x v s1 = ok s2 ->
+  swrite_rval x (value_to_svalue v) s1 = ok (estate_to_sestate s2).
+Proof.
+  exact: st2sst_write_rval_aux.
+Qed.
 
 Lemma st2sst_write_rvals r v s1 s2:
   write_rvals s1 r v = ok s2 ->
   swrite_rvals s1 r (map value_to_svalue v) = ok (estate_to_sestate s2).
 Proof.
 rewrite /write_rvals /swrite_rvals.
-elim: v r s1=> //=.
-+ case=> //= s1.
-  by move=> [] ->.
-+ move=> a l IH.
-  case=> // h q s1.
-  rewrite /=.
-  move=> h'.
-  case: (bindW h')=> x Hw Hf.
-  rewrite (st2sst_write_rval Hw) /=.
-  by apply (IH q).
+have H: forall x, fold2 ErrType (write_rval_aux s1) r v x = ok s2 ->
+  fold2 ErrType (swrite_rval_aux s1) r [seq value_to_svalue i | i <- v] x = ok (estate_to_sestate s2).
+  elim: v r=> //=.
+  + case=> //= x.
+    by move=> [] ->.
+  + move=> a l IH.
+    case=> // h q x /=.
+    apply: rbindP=> x' /st2sst_write_rval_aux -> Hf /=.
+    by apply: (IH q).
+exact: H.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -345,27 +368,27 @@ apply: (@sem_Ind P _ Pi PI Pf Pc); try by (move=> *; eauto with ssem).
   by case: x.
   case: (bindW h2)=> x /st2sst_pexpr ->.
   by case: x.
-+ move=> s1 m2 s2 ii xs f fd args vargs vs Hfd Hvargs Hcall H Hw.
-  apply (@SEcall _ s1 (mem_to_smem m2) s2 ii xs f fd args (map value_to_svalue vargs) (map value_to_svalue vs))=> //.
-  by rewrite (st2sst_pexprs Hvargs).
-  by rewrite (st2sst_write_rvals Hw).
 + move=> s i c.
   exact: SEForDone.
 + move=> s1 s1' s2 s3 i w ws c Hw Hs Hss Hfor Honce.
   apply: (@SEForOne _ s1 s1' s2)=> //.
   by rewrite (st2sst_write_var Hw).
++ move=> s1 m2 s2 ii xs f fd args vargs vs Hfd Hvargs Hcall H Hw.
+  apply (@SEcall _ s1 (mem_to_smem m2) s2 ii xs f fd args (map value_to_svalue vargs) (map value_to_svalue vs))=> //.
+  by rewrite (st2sst_pexprs Hvargs).
+  by rewrite (st2sst_write_rvals Hw).
 + move=> m1 m2 f vargs vres H Hf.
   apply: SEcallRun=> svm0.
   have vm0: vmap by admit.
   have Hvm0: vmap_to_svmap vm0 = svm0 by admit.
   have Hvm0': all_empty_arr vm0 by admit.
-  move: (H vm0 Hvm0')=> {H} [s1 [vm2 [/st2sst_write_vars Ha Hb Hc]]].
+  move: (H vm0 Hvm0')=> {H} [s1 [vm2 [/st2sst_write_vars Ha Hb Hc Hd]]].
   exists s1, (vmap_to_svmap vm2); split.
   rewrite -Ha /=.
   congr (_ _).
   by rewrite -Hvm0.
-  admit. (* Missing recursion hypothesis! *)
-  rewrite -Hc /=.
+  rewrite //.
+  rewrite -Hd /=.
   rewrite -map_comp.
   apply eq_in_map=> i Hi /=.
   by rewrite st2sst_getvar.
