@@ -375,17 +375,6 @@ Proof.
   by move=> /(Hrec _ _ _ _ Hz Hforall).
 Qed.
 
-
-
-(*******************************************)
-(*******************************************)
-(*******************************************)
-(*******************************************)
-(*******************************************)
-(*******************************************)
-(*******************************************)
-(*******************************************)
-
 Definition value_to_svalue (v: value) : svalue :=
   match v with
   | Vbool b => SVbool b
@@ -393,211 +382,6 @@ Definition value_to_svalue (v: value) : svalue :=
   | Vword w => SVword w
   | Varr n t => SVarr n (@st2sst_ty (sarr n) t)
   end.
-
-(* -------------------------------------------------------------------- *)
-Hint Constructors ssem ssem_i : ssem.
-
-(* -------------------------------------------------------------------- *)
-Lemma st2sst_toval {t} x:
-  to_sval (@st2sst_ty t x) = value_to_svalue (to_val x).
-Proof. by case: t x. Qed.
-
-Lemma st2sst_ofval x v v':
-  of_val (vtype x) v = ok v' -> of_sval (vtype x) (value_to_svalue v) = ok (st2sst_ty v').
-Proof.
-case: v=> //; case: (vtype x) v'=> //= p v' n a.
-case: (CEDecStype.pos_dec n p)=> // H [<-].
-by case: _ / H.
-Qed.
-
-Lemma st2sst_ofword v y:
-  of_val sword v = ok y -> sto_word (value_to_svalue v) = ok y.
-Proof.
-by case: v.
-Qed.
-
-Lemma st2sst_ofbool v y:
-  of_val sbool v = ok y -> sto_bool (value_to_svalue v) = ok y.
-Proof.
-by case: v.
-Qed.
-
-(* -------------------------------------------------------------------- *)
-(*
-Lemma st2sst_vmap_get (s : vmap) (x : var) :
-  (vmap_to_svmap s).[x]%vmap = st2sst_ty s.[x]%vmap.
-Proof. by []. Qed.
-
-Lemma st2sst_vmap_set (s : vmap) (x : var) v :
-  (vmap_to_svmap s).[x <- st2sst_ty v]%vmap = vmap_to_svmap s.[x <- v]%vmap.
-Proof.
-apply/Fv.map_ext=> y; rewrite /Fv.get /Fv.set /=.
-by case: eqP=> // eq; case: y / eq.
-Qed.
-
-Lemma st2sst_getvar vm svm x : svm_uincl vm svm ->
-  sget_var svm x = value_to_svalue (get_var vm x).
-Proof.
-by rewrite /sget_var /get_var st2sst_toval.
-Qed.
-
-Lemma st2sst_setvar x v vm vm':
-  set_var vm x v = ok vm' ->
-  sset_var (vmap_to_svmap vm) x (value_to_svalue v) = ok (vmap_to_svmap vm').
-Proof.
-rewrite /set_var=> h.
-case: (bindW h)=> v' Hv' [<-].
-rewrite /sset_var /=.
-rewrite (st2sst_ofval Hv')=> //.
-by rewrite /= st2sst_vmap_set.
-Qed.
-*)
-
-(* TODO: can these 3 lemmas be put together? *)
-Lemma st2sst_op2_b f v1 v2 v: sem_op2_b f v1 v2 = ok v ->
-  ssem_op2_b f (value_to_svalue v1) (value_to_svalue v2) = ok (value_to_svalue v).
-Proof.
-rewrite /sem_op2_b /mk_sem_sop2=> h.
-case: (bindW h)=> b1 /= {h}.
-case: v1=> // b' [<-] h.
-case: (bindW h)=> b2 /= {h}.
-by case: v2=> // b'' [<-] [<-].
-Qed.
-
-Lemma st2sst_op2_i f v1 v2 v: sem_op2_i f v1 v2 = ok v ->
-  ssem_op2_i f (value_to_svalue v1) (value_to_svalue v2) = ok (value_to_svalue v).
-Proof.
-rewrite /sem_op2_i /mk_sem_sop2=> h.
-case: (bindW h)=> b1 /= {h}.
-case: v1=> // b' [<-] h.
-case: (bindW h)=> b2 /= {h}.
-by case: v2=> // b'' [<-] [<-].
-Qed.
-
-Lemma st2sst_op2_ib f v1 v2 v: sem_op2_ib f v1 v2 = ok v ->
-  ssem_op2_ib f (value_to_svalue v1) (value_to_svalue v2) = ok (value_to_svalue v).
-Proof.
-rewrite /sem_op2_ib /mk_sem_sop2=> h.
-case: (bindW h)=> b1 /= {h}.
-case: v1=> // b' [<-] h.
-case: (bindW h)=> b2 /= {h}.
-by case: v2=> // b'' [<-] [<-].
-Qed.
-
-Lemma st2sst_op2 s v v1 v2: sem_sop2 s v1 v2 = ok v ->
-  ssem_sop2 s (value_to_svalue v1) (value_to_svalue v2) = ok (value_to_svalue v).
-Proof.
-  case: s=> /=;
-  try exact: st2sst_op2_b;
-  try exact: st2sst_op2_i;
-  try exact: st2sst_op2_ib.
-Qed.
-
-(* -------------------------------------------------------------------- *)
-Lemma st2sst_pexpr s ss (p : pexpr) v : sestate_uincl s ss ->
-  sem_pexpr s p = ok v ->
-  ssem_pexpr ss p = ok (value_to_svalue v).
-Proof.
-move=> Hincl.
-elim: p v=> //=.
-+ by move=> x v [<-].
-+ by move=> x v [<-].
-+ move=> p Hv v h.
-  case: (bindW h)=> z h' [<-].
-  case: (bindW h')=> x /Hv ->.
-  by case: x=> // z0 /= [<-] //.
-+ admit.
-(*
-+ by move=> x v [<-]; rewrite st2sst_getvar.
-*)
-+ admit.
-(*
-+ move=> v p Hv v0.
-  apply: on_arr_varP2=> n t Ht Hval.
-  apply: rbindP=> i.
-  apply: rbindP=> x /Hv -> /st2sst_ofword Hi.
-  apply: rbindP=> w Harr [<-] /=.
-  rewrite Hi /=.
-  case: v Ht Hval=> v vi /= Ht Hval.
-  case: v Ht Hval=> vt vn /= Ht Hval.
-  subst vt.
-  rewrite /son_arr_var /=.
-  rewrite /= in Hval.
-  move: (Varr_inj1 Hval)=> Hbla.
-  rewrite -Hbla in Harr.
-  rewrite st2sst_vmap_get.
-  congr (_ _).
-  rewrite /FArray.get /=.
-  by rewrite Harr.
-*)
-+ move=> ? p Hv v h.
-  case: (bindW h)=> w {h}h [<-].
-  case: (bindW h)=> x {h}h.
-  case: (bindW h)=> y /Hv ->.
-  case: y=> // w0 [<-].
-  move: Hincl=> [<- _].
-  by rewrite /= => /mem2smem_read ->.
-+ move=> p Hv v h.
-  case: (bindW h)=> b {h}h [<-].
-  case: (bindW h)=> x /Hv ->.
-  by case: x=> // x0 [<-].
-+ move=> s0 p Hv1 p0 Hv2 v h.
-  case: (bindW h)=> v1 /Hv1 -> {h}h.
-  case: (bindW h)=> v2 /Hv2 -> {h}.
-  exact: st2sst_op2.
-Admitted.
-
-(*
-Lemma st2sst_pexprs s (p : pexprs) v : sem_pexprs s p = ok v ->
-  ssem_pexprs (estate_to_sestate s) p = ok (map value_to_svalue v).
-Proof.
-elim: p v=> //=.
-rewrite /sem_pexprs /ssem_pexprs /=.
-by move=> v [] <-.
-move=> a l IH v.
-rewrite /sem_pexprs /ssem_pexprs /=.
-have ->: mapM (sem_pexpr s) l = sem_pexprs s l by [].
-have ->: mapM (ssem_pexpr s) l = ssem_pexprs s l by [].
-move=> h.
-case: (bindW h)=> x /st2sst_pexpr -> {h} /= h.
-case: (bindW h)=> x0 {h} Hm [<-].
-by rewrite (IH x0 Hm).
-Qed.
-*)
-
-Lemma st2sst_sopn: forall o x v,
-  sem_sopn o x = ok v -> ssem_sopn o (map value_to_svalue x) = ok (map value_to_svalue v).
-Proof.
-move=> o x v.
-case: o.
-case: x=> // a l h.
-case: (bindW h)=> x Hx {h}.
-case: l=> //.
-move=> [] <- /=.
-by case: a Hx=> //= w [->].
-all: try (case: x=> // a1 l h1 /=;
-case: (bindW h1)=> x /st2sst_ofword -> {h1};
-case: l=> // a2 l h2 /=;
-case: (bindW h2)=> y /st2sst_ofword -> {h2};
-case: l=> //;
-by move=> [] <- /=).
-case: x=> // a1 l h /=.
-case: (bindW h)=> x /st2sst_ofbool -> {h}.
-case: l=> // a2 l h /=.
-case: (bindW h)=> y /st2sst_ofword -> {h}.
-case: l=> // a3 l h /=.
-case: (bindW h)=> z /st2sst_ofword -> {h}.
-case: l=> //.
-by move=> [] <- /=.
-all: case: x=> // a1 l h /=;
-case: (bindW h)=> x /st2sst_ofword -> {h};
-case: l=> // a2 l h /=;
-case: (bindW h)=> y /st2sst_ofword -> {h};
-case: l=> // a3 l h /=;
-case: (bindW h)=> z /st2sst_ofbool -> {h};
-case: l=> //;
-by move=> [] <- /=.
-Qed.
 
 (* -------------------------------------------------------------------- *)
 Section SEM.
@@ -744,17 +528,28 @@ Local Lemma Hcall s1 m2 s2 ii xs fn fd args vargs vs :
   write_rvals {| emem := m2; evm := evm s1 |} xs vs = ok s2 ->
   Pi_r s1 (Ccall ii xs fn args) s2.
 Proof.
-  move=> Hget Hargs Hcall Hfd Hxs vm1 Hvm1.
-  have [vargs' [Hsa /Hfd Hc]]:= ssem_pexprs_uincl Hvm1 Hargs.
-  have Hvm1' : sestate_uincl {| emem := m2; evm := evm s1 |} vm1.
-    move: Hvm1=>[H1 H2].
-    split=> //.
-    rewrite -H1 /=.
-Admitted.
-(*
+  move=> Hget Hargs Hcall Hfd Hxs s Hs.
+  have [vargs' [Hsa /Hfd Hc]]:= ssem_pexprs_uincl Hs Hargs.
+  have Hbla: List.Forall2 svalue_uincl vs [seq value_to_svalue i | i <- vs].
+  + clear Hcall Hfd Hxs Hc.
+    elim: vs=> [//=|v vs IH].
+    rewrite //=.
+    apply: List.Forall2_cons.
     rewrite //.
-  have [vm2' [??]]:= writes_uincl Hvm1' (List_Forall2_refl vs value_uincl_refl) Hxs.
+    (* TODO: this should be a separate lemma *)
+    case: v=> //.
+    move=> n a /=; split=> // i v.
+    by rewrite /FArray.get => ->.
+    exact: IH.
+  have := swrites_uincl _ Hbla Hxs.
+  have Hvm1: sestate_uincl {| emem := m2; evm := evm s1 |} {| semem := mem_to_smem m2; sevm := sevm s |}.
+    split=> //.
+    by move: Hs=> [_ ?].
+  have [vm2' [??]]:= swrites_uincl Hvm1 Hbla Hxs.
   exists vm2';split=>//;econstructor;eauto.
+  rewrite (proj1 Hvm1) /= in Hc.
+  rewrite (proj1 Hs) /= in Hc.
+  exact: Hc.
 Qed.
 
 Local Lemma Hproc m1 m2 fd vargs vres :
@@ -767,15 +562,36 @@ Local Lemma Hproc m1 m2 fd vargs vres :
            &  map (fun (x:var_i) => get_var vm2 x) fd.(f_res) = vres]) ->
   List.Forall is_full_array vres -> Pfun m1 fd vargs m2 vres.
 Proof.
-  move=> Hrec Hvres vargs' Hargs.
+  move=> Hrec Hvres vargs' vres' Hargs Hres.
+  constructor=> svm0.
+  have vm0: vmap by admit.
+  have Hvm0: svm_uincl vm0 svm0 by admit.
+  have Hvm0': all_empty_arr vm0 by admit.
+  move: (Hrec vm0 Hvm0')=> [s1 [vm2 []]].
+  have Hs: sestate_uincl {| emem := m1; evm := vm0 |} {| semem := mem_to_smem m1; sevm := svm0 |} by [].
+  move=> /(swrite_vars_uincl Hs Hargs) /= [ss'] [] Hwv Hs1 ?.
+  move=> /(_ _ Hs1) [vm3] /= [] Hssem Hvm2 ?;subst.
+  eexists;eexists;split;eauto.  
+  have Hvm3: vm3 = {| semem := mem_to_smem m2; sevm := sevm vm3 |}.
+    admit.
+  rewrite Hvm3 in Hssem.
+  exact: Hssem.
+  admit.
+(*
+  have := sget_vars_uincl (f_res fd) (proj2 Hvm2).
+  by move=> /(is_full_array_uincls Hvres) ->.
+*)
+  (*
   constructor=> // vm0 /Hrec [s1 [vm2 []]].
   move=> /(write_vars_uincl (vm_uincl_refl _) Hargs) /= [vm1'] [] Hwv Hvm1 ?.
   move=> /(_ _ Hvm1) [vm3] /= [] ? Hvm2 ?;subst.
   eexists;eexists;split;eauto.
   have := get_vars_uincl (f_res fd) Hvm2.
   by move=> /(is_full_array_uincls Hvres) ->.
-Qed.
+  *)
+Admitted.
 
+(*
 Lemma sem_call_uincl vargs m1 fd m2 vres vargs':
   List.Forall2 value_uincl vargs vargs' ->
   sem_call p m1 fd vargs m2 vres ->
