@@ -228,20 +228,18 @@ Section PROOF.
     + admit.
     + move=> vm1' Hvm.
       rewrite write_i_assgn in Hvm.
-      have Hvm': vm1 =[Sv.union (Sv.union (read_e e) (Sv.diff s2 (vrv x))) (read_rv x)] vm1'.
-        admit. (* read_eE + read_rvE *)
-      have Hbla: Sv.Subset (read_rv x) (Sv.union (Sv.union (read_e e) (Sv.diff s2 (vrv x))) (read_rv x)).
-        by SvD.fsetdec.
-      have [vm2' [Hvm2 Hw2]] := @write_rval_eq_on _ _ _ _ _ vm1 vm2 vm1' Hbla Hw Hvm'.
+      move: Hvm; rewrite read_rvE read_eE=> Hvm.
+      have [|vm2' [Hvm2 Hw2]] := @write_rval_eq_on _ _ _ _ _ vm1 vm2 vm1' _ Hw Hvm.
+      SvD.fsetdec.
       exists vm2'; split.
       + apply: (eq_onI _ Hvm2); SvD.fsetdec.
       + apply: sem_seq1.
         constructor.
         constructor.
         rewrite (@read_e_eq_on Sv.empty vm1 vm1') ?Hv //.
-        have ->: read_e_rec Sv.empty e = Sv.union (read_e e) Sv.empty by admit.
+        rewrite read_eE.
         apply: eq_onS.
-        apply: (eq_onI _ Hvm').
+        apply: (eq_onI _ Hvm).
         SvD.fsetdec.
   Admitted.
 
