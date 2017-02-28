@@ -53,12 +53,21 @@ Fixpoint st2sst_ty {t : stype} :=
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition vmap_to_svmap (v : vmap) : svmap :=
-  {| Fv.map := fun x : var => st2sst_ty (v.(Fv.map) x); |}.
+Definition sval_uincl (t:stype) : sem_t t -> ssem_t t -> Prop :=
+  match t as t0 return sem_t t0 -> ssem_t t0 -> Prop with
+  | sbool => fun b1 b2 => b1 = b2
+  | sint  => fun i1 i2 => i1 = i2
+  | sword => fun w1 w2 => w1 = w2
+  | sarr n => fun (t1:Array.array n word) (t2:FArray.array word) =>
+      (forall i v, Array.get t1 i = ok v -> FArray.get t2 i = v)
+  end.
+
+Definition svm_uincl (vm:vmap) (svm:svmap) :=
+  forall x, sval_uincl (vm.[x])%vmap (svm.[x])%vmap.
 
 (* -------------------------------------------------------------------- *)
-Coercion estate_to_sestate (s : estate) :=
-  {| semem := mem_to_smem s.(emem); sevm := vmap_to_svmap s.(evm); |}.
+Definition sestate_uincl (s: estate) (ss: sestate) :=
+  mem_to_smem s.(emem) = ss.(semem) /\ (svm_uincl s.(evm) ss.(sevm)).
 
 Definition value_to_svalue (v: value) : svalue :=
   match v with
@@ -97,6 +106,7 @@ by case: v.
 Qed.
 
 (* -------------------------------------------------------------------- *)
+(*
 Lemma st2sst_vmap_get (s : vmap) (x : var) :
   (vmap_to_svmap s).[x]%vmap = st2sst_ty s.[x]%vmap.
 Proof. by []. Qed.
@@ -108,8 +118,8 @@ apply/Fv.map_ext=> y; rewrite /Fv.get /Fv.set /=.
 by case: eqP=> // eq; case: y / eq.
 Qed.
 
-Lemma st2sst_getvar vm x :
-  sget_var (vmap_to_svmap vm) x = value_to_svalue (get_var vm x).
+Lemma st2sst_getvar vm svm x : svm_uincl vm svm ->
+  sget_var svm x = value_to_svalue (get_var vm x).
 Proof.
 by rewrite /sget_var /get_var st2sst_toval.
 Qed.
@@ -124,6 +134,7 @@ rewrite /sset_var /=.
 rewrite (st2sst_ofval Hv')=> //.
 by rewrite /= st2sst_vmap_set.
 Qed.
+*)
 
 (* TODO: can these 3 lemmas be put together? *)
 Lemma st2sst_op2_b f v1 v2 v: sem_op2_b f v1 v2 = ok v ->
@@ -166,17 +177,24 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma st2sst_pexpr s (p : pexpr) v : sem_pexpr s p = ok v ->
-  ssem_pexpr (estate_to_sestate s) p = ok (value_to_svalue v).
+Lemma st2sst_pexpr s ss (p : pexpr) v : sestate_uincl s ss ->
+  sem_pexpr s p = ok v ->
+  ssem_pexpr ss p = ok (value_to_svalue v).
 Proof.
+move=> Hincl.
 elim: p v=> //=.
 + by move=> x v [<-].
 + by move=> x v [<-].
 + move=> p Hv v h.
   case: (bindW h)=> z h' [<-].
   case: (bindW h')=> x /Hv ->.
-  case: x=> // z0 /= [<-] //.
+  by case: x=> // z0 /= [<-] //.
++ admit.
+(*
 + by move=> x v [<-]; rewrite st2sst_getvar.
+*)
++ admit.
+(*
 + move=> v p Hv v0.
   apply: on_arr_varP2=> n t Ht Hval.
   apply: rbindP=> i.
@@ -194,11 +212,13 @@ elim: p v=> //=.
   congr (_ _).
   rewrite /FArray.get /=.
   by rewrite Harr.
+*)
 + move=> ? p Hv v h.
   case: (bindW h)=> w {h}h [<-].
   case: (bindW h)=> x {h}h.
   case: (bindW h)=> y /Hv ->.
   case: y=> // w0 [<-].
+  move: Hincl=> [<- _].
   by rewrite /= => /mem2smem_read ->.
 + move=> p Hv v h.
   case: (bindW h)=> b {h}h [<-].
@@ -208,8 +228,9 @@ elim: p v=> //=.
   case: (bindW h)=> v1 /Hv1 -> {h}h.
   case: (bindW h)=> v2 /Hv2 -> {h}.
   exact: st2sst_op2.
-Qed.
+Admitted.
 
+(*
 Lemma st2sst_pexprs s (p : pexprs) v : sem_pexprs s p = ok v ->
   ssem_pexprs (estate_to_sestate s) p = ok (map value_to_svalue v).
 Proof.
@@ -225,6 +246,7 @@ case: (bindW h)=> x /st2sst_pexpr -> {h} /= h.
 case: (bindW h)=> x0 {h} Hm [<-].
 by rewrite (IH x0 Hm).
 Qed.
+*)
 
 Lemma st2sst_sopn: forall o x v,
   sem_sopn o x = ok v -> ssem_sopn o (map value_to_svalue x) = ok (map value_to_svalue v).
@@ -262,6 +284,7 @@ Qed.
 
 (* -------------------------------------------------------------------- *)
 
+(*
 Lemma st2sst_write_var s1 s2 v x:
    write_var x v s1 = ok s2 -> swrite_var x (value_to_svalue v) s1 = ok (estate_to_sestate s2).
 Proof.
@@ -326,20 +349,42 @@ have H: forall x, fold2 ErrType (write_rval_aux s1) r v x = ok s2 ->
     by apply: (IH q).
 exact: H.
 Qed.
+*)
 
 (* -------------------------------------------------------------------- *)
 Section SEM.
 
 (* -------------------------------------------------------------------- *)
-Lemma st2sst_cmd : forall p s1 c s2, sem p s1 c s2 -> ssem p s1 c s2.
+Lemma st2sst_cmd : forall p s1 c s2, sem p s1 c s2 -> forall ss1, sestate_uincl s1 ss1 -> exists ss2, sestate_uincl s2 ss2 /\ ssem p ss1 c ss2.
 Proof.
 move=> P.
-pose PI s1 i s2 := ssem_I P s1 i s2.
-pose Pi s1 i s2 := ssem_i P s1 i s2.
-pose Pf v s s1 c s2 := ssem_for P v s s1 c s2.
-pose Pc m1 f vargs m2 vres := ssem_call P (mem_to_smem m1) f (map value_to_svalue vargs) (mem_to_smem m2) (map value_to_svalue vres).
-apply: (@sem_Ind P _ Pi PI Pf Pc); try by (move=> *; eauto with ssem).
-(* Cassgn *)
+pose Pc s1 i s2 :=
+  forall ss1, sestate_uincl s1 ss1 -> exists ss2, sestate_uincl s2 ss2 /\ ssem P ss1 i ss2.
+pose Pi_r s1 i s2 :=
+  forall ss1, sestate_uincl s1 ss1 -> exists ss2, sestate_uincl s2 ss2 /\ ssem_I P ss1 i ss2.
+pose Pi s1 i s2 :=
+  forall ss1, sestate_uincl s1 ss1 -> exists ss2, sestate_uincl s2 ss2 /\ ssem_i P ss1 i ss2.
+pose Pfor v s s1 c s2 :=
+  forall ss1, sestate_uincl s1 ss1 -> exists ss2, sestate_uincl s2 ss2 /\ ssem_for P v s ss1 c ss2.
+pose Pfun m1 f vargs m2 vres :=
+  ssem_call P (mem_to_smem m1) f (map value_to_svalue vargs) (mem_to_smem m2) (map value_to_svalue vres).
+apply (@sem_Ind P Pc Pi Pi_r Pfor Pfun); try by (move=> *; eauto with ssem).
+(* Hnil *)
++ move=> s ss1 Hss1.
+  exists ss1; split=> //.
+  constructor.
+(* Hcons *)
++ move=> s1 s2 s3 i c Hsem12 IH12 Hsem23 IH23 ss1 Hss1.
+  move: IH12=> /(_ ss1 Hss1) [ss2 [Hss2 Hssem12]].
+  move: IH23=> /(_ ss2 Hss2) [ss3 [Hss3 Hssem23]].
+  exists ss3; split=> //.
+  apply: SEseq; [exact: Hssem12|exact:Hssem23].
+(* HmkI *)
++ move=> ii i s1 s2 Hsem IH ss1 Hss1.
+  move: IH=> /(_ ss1 Hss1) [ss2 [Hss2 Hssem]].
+  by exists ss2; split.
+(* Hassgn *)
+(*
 + constructor.
   by case: (bindW H)=> v {H} /st2sst_pexpr -> /st2sst_write_rval <-.
 (* Copn *)
@@ -392,6 +437,7 @@ apply: (@sem_Ind P _ Pi PI Pf Pc); try by (move=> *; eauto with ssem).
   rewrite -map_comp.
   apply eq_in_map=> i Hi /=.
   by rewrite st2sst_getvar.
+*)
 Admitted.
 
 End SEM.
