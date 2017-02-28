@@ -26,7 +26,7 @@
 (* * Syntax and semantics of the dmasm source language *)
 
 (* ** Imports and settings *)
-
+Require Import Setoid Morphisms.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import ZArith.
@@ -637,6 +637,30 @@ Definition vmap_eq_except (s : Sv.t) (vm1 vm2 : vmap) :=
 Notation "vm1 = vm2 [\ s ]" := (vmap_eq_except s vm1 vm2) (at level 70, vm2 at next level,
   format "'[hv ' vm1  '/' =  vm2  '/' [\ s ] ']'").
 
+Lemma vmap_eq_exceptT s vm1 vm2 vm3:
+  vm1 = vm2 [\s] -> vm2 = vm3 [\s] -> vm1 = vm3 [\s].
+Proof. by move=> H1 H2 x Hin;rewrite H1 ?H2. Qed.
+
+Lemma vmap_eq_exceptI s1 s2 vm1 vm2 : Sv.Subset s1 s2 -> vm1 = vm2 [\s1] -> vm1 = vm2 [\s2].
+Proof. move=> Hs Heq x Hin;apply Heq;SvD.fsetdec. Qed.
+
+Lemma vmap_eq_exceptS vm1 s vm2 : vm1 = vm2 [\s] -> vm2 = vm1 [\s].
+Proof. by move=> Heq x Hin;rewrite Heq. Qed.
+
+Instance equiv_vmap_eq_except s: Equivalence (vmap_eq_except s).
+Proof.
+  constructor=> //.
+  move=> ??;apply: vmap_eq_exceptS.
+  move=> ???;apply: vmap_eq_exceptT.
+Qed.
+
+Instance vmap_eq_except_impl : 
+  Proper (Sv.Subset ==> eq ==> eq ==> Basics.impl) vmap_eq_except.
+Proof. by move=> s1 s2 H vm1 ? <- vm2 ? <-;apply: vmap_eq_exceptI. Qed.
+
+Instance vmap_eq_except_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) vmap_eq_except.
+Proof. by move=> s1 s2 Heq vm1 ? <- vm2 ? <-;split;apply: vmap_eq_exceptI;rewrite Heq. Qed.
+
 Lemma vrvP_var (x:var_i) v s1 s2 :
   write_var x v s1 = ok s2 -> 
   s1.(evm) = s2.(evm) [\ Sv.add x Sv.empty].
@@ -734,6 +758,19 @@ Proof. move=> Hs Heq x Hin;apply Heq;SvD.fsetdec. Qed.
 
 Lemma eq_onS vm1 s vm2 : vm1 =[s] vm2 -> vm2 =[s] vm1.
 Proof. by move=> Heq x Hin;rewrite Heq. Qed.
+
+Instance equiv_eq_on s: Equivalence (eq_on s).
+Proof.
+  constructor=> //.
+  move=> ??;apply: eq_onS.
+  move=> ???;apply: eq_onT.
+Qed.
+
+Instance eq_on_impl : Proper (Basics.flip Sv.Subset ==> eq ==> eq ==> Basics.impl) eq_on.
+Proof. by move=> s1 s2 H vm1 ? <- vm2 ? <-;apply: eq_onI. Qed.
+
+Instance eq_on_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) eq_on.
+Proof. by move=> s1 s2 Heq vm1 ? <- vm2 ? <-;split;apply: eq_onI;rewrite Heq. Qed.
 
 Lemma disjoint_eq_on s r s1 s2 v: 
   disjoint s (vrv r) ->
