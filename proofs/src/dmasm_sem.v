@@ -176,25 +176,23 @@ Definition to_val t : sem_t t -> value :=
 (* ** Variable map
  * -------------------------------------------------------------------- *)
 
-Notation vmap     := (Fv.t sem_t).
-Notation vmap0    := (@Fv.empty sem_t (fun x => dflt_val x.(vtype))).
+Notation vmap     := (Fv.t (fun t => exec (sem_t t))).
+
+Definition undef_addr t := 
+  match t return exec (sem_t t) with
+  | sbool | sint | sword => Error ErrAddrUndef
+  | sarr n => ok (Array.empty n)
+  end.
+
+Definition vmap0  := 
+  @Fv.empty (fun t => exec (sem_t t)) (fun x => undef_addr x.(vtype)).
 
 Definition get_var (m:vmap) x := 
-  @to_val (vtype x) (m.[x]%vmap).
+  Let v := (m.[x]%vmap) in ok (@to_val (vtype x) v).
 
 Definition set_var (m:vmap) x v := 
   Let v := @of_val (vtype x) v in
-  ok (m.[x<-v]%vmap).
-
-Definition is_empty_array (t:stype) := 
-  match t return sem_t t -> Prop with
-  | sbool  => fun _ => True
-  | sint   => fun _ => True
-  | sarr n => fun v => v =  Array.empty n
-  | sword  => fun _ => True
-  end.
-
-Definition all_empty_arr (vm:vmap) := forall x, is_empty_array (vm.[x])%vmap.
+  ok (m.[x<-ok v]%vmap).
 
 Definition is_full_array v := 
   match v with
@@ -245,25 +243,31 @@ Record estate := Estate {
 }.
 
 Definition on_arr_var A (s:estate) (x:var) (f:forall n, Array.array n word -> exec A) :=
+  Let v := (s.(evm).[ x ]%vmap) in  
   match vtype x as t return sem_t t -> exec A with
   | sarr n => f n
   | _ => fun _ => type_error 
-  end  (s.(evm).[ x ]%vmap).
-
+  end v.
+ 
 Notation "'Let' ( n , t ) ':=' s '.[' x ']' 'in' body" :=
   (@on_arr_var _ s x (fun n (t:Array.array n word) => body)) (at level 25, s at level 0).
 
 Lemma on_arr_varP A (f : forall n : positive, Array.array n word -> exec A) v s x P:
   (forall n t, vtype x = sarr n -> f n t = ok v -> P) -> 
   on_arr_var s x f = ok v -> P.
-Proof. by rewrite /on_arr_var;case: x => -[] //= ?? H /H H';apply H'. Qed.
+Proof. 
+  by rewrite /on_arr_var => H;apply: rbindP;case: x H => -[] //= ?? H ??;apply H.
+Qed.
 
 Lemma on_arr_varP2 A (f : forall n : positive, Array.array n word -> exec A) v s x P:
   (forall n t, vtype x = sarr n -> 
-               @to_val (vtype x) ((evm s).[x])%vmap = @Varr n t -> 
+               get_var (evm s) x = ok (@Varr n t) ->
                f n t = ok v -> P) -> 
   on_arr_var s x f = ok v -> P.
-Proof. by rewrite /on_arr_var;case: x => -[] //= ?? H /H H';apply H'. Qed.
+Proof. 
+  rewrite /on_arr_var=> H;apply: rbindP;case: x H => -[] //= ?? H ? Hz;apply H => //.
+  by rewrite /get_var Hz.  
+Qed.
  
 Definition Varr_inj n n' t t' : @Varr n t = @Varr n' t' -> n = n' /\ t = t' :=
   fun e => let 'Logic.eq_refl := e in conj Logic.eq_refl Logic.eq_refl.
@@ -278,7 +282,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pcast e  => 
     Let z := sem_pexpr s e >>= to_int in
     ok (Vword (I64.repr z))  
-  | Pvar v => ok (get_var s.(evm) v)
+  | Pvar v => get_var s.(evm) v
   | Pget x e => 
       Let (n,t) := s.[x] in
       Let i := sem_pexpr s e >>= to_word in
@@ -311,7 +315,7 @@ Definition write_rval_aux (s0:estate) (l:rval) (v:value) (s:estate) : exec estat
   | Rnone _ => ok s
   | Rvar x => write_var x v s
   | Rmem x e =>  
-    Let vx := to_word (get_var (evm s0) x) in
+    Let vx := get_var (evm s0) x >>= to_word in
     Let ve := sem_pexpr s0 e >>= to_word in
     let p := wadd vx ve in (* should we add the size of value, i.e vx + sz * se *)
     Let w := to_word v in
@@ -460,18 +464,22 @@ with sem_for : var -> seq Z -> estate -> cmd -> estate -> Prop :=
     sem_for i (w :: ws) s1 c s3
 
 with sem_call : mem -> fundef -> seq value -> mem -> seq value -> Prop := 
-| EcallRun m1 m2 f vargs vres:
-    (* semantics defined for all vm0 *)
-    (forall vm0, all_empty_arr vm0 -> 
-       exists s1 vm2, [/\ 
-        write_vars f.(f_params) vargs (Estate m1 vm0) = ok s1, 
-        sem s1 f.(f_body) (Estate m2 vm2) &
-        map (fun (x:var_i) => get_var vm2 x) f.(f_res) = vres]) ->
+| EcallRun m1 m2 f vargs s1 vm2 vres:
+    write_vars f.(f_params) vargs (Estate m1 vmap0) = ok s1 -> 
+    sem s1 f.(f_body) (Estate m2 vm2) ->
+    mapM (fun (x:var_i) => get_var vm2 x) f.(f_res) = ok vres ->
     List.Forall is_full_array vres ->
     sem_call m1 f vargs m2 vres.
 
 (* -------------------------------------------------------------------- *)
+Scheme sem_Ind    := Induction for sem      Sort Prop
+with sem_i_Ind    := Induction for sem_i    Sort Prop
+with sem_I_Ind    := Induction for sem_I    Sort Prop
+with sem_for_Ind  := Induction for sem_for  Sort Prop
+with sem_call_Ind := Induction for sem_call Sort Prop.
 
+(* This is not needed anymore the scheme generate by Scheme is now the expected one *)
+(*
 Section SEM_IND.
   Variables
     (Pc   : estate -> cmd -> estate -> Prop)
@@ -612,7 +620,7 @@ Section SEM_IND.
          (l0 : seq value) (s : sem_call m f13 l m0 l0) {struct s} : Pfun m f13 l m0 l0 :=
     @sem_call_Ind_aux (@sem_Ind) m f13 l m0 l0 s.
 
-End SEM_IND.
+End SEM_IND. *)
 
 (* -------------------------------------------------------------------- *)
 
@@ -674,10 +682,7 @@ Lemma vrv_auxP s0 (x:rval) v s1 s2 :
   s1.(evm) = s2.(evm) [\ vrv x].
 Proof.
   case x => /= [ _ [<-] | ? /vrvP_var| y e| y e] //.
-  + case: (to_word (get_var _ _)) => //= vy.             
-    case: (Let _ := sem_pexpr _ _ in _) => //= ve.
-    case: to_word => //= w.
-    by case: write_mem => //= m [<-].
+  + by t_rbindP => -[<-].
   apply: on_arr_varP2 => n t; case:y => -[] ty yn yi /= -> Hy.
   apply: rbindP => we;apply: rbindP => ve He Hve.
   apply: rbindP => v0 Hv0;apply rbindP => t' Ht'.
@@ -709,12 +714,12 @@ Proof. done. Qed.
 Lemma writeP c s1 s2 : 
    sem s1 c s2 -> s1.(evm) = s2.(evm) [\ write_c c].
 Proof.
-  apply (@sem_Ind (fun s1 c s2 => s1.(evm) = s2.(evm) [\ write_c c])
-                  (fun s1 i s2 => s1.(evm) = s2.(evm) [\ write_i i])
-                  (fun s1 i s2 => s1.(evm) = s2.(evm) [\ write_I i])
-                  (fun x ws s1 c s2 => 
+  apply (@sem_Ind (fun s1 c s2 _ => s1.(evm) = s2.(evm) [\ write_c c])
+                  (fun s1 i s2 _ => s1.(evm) = s2.(evm) [\ write_i i])
+                  (fun s1 i s2 _ => s1.(evm) = s2.(evm) [\ write_I i])
+                  (fun x ws s1 c s2 _ => 
                      s1.(evm) = s2.(evm) [\ (Sv.union (Sv.singleton x) (write_c c))])
-                  (fun _ _ _ _ _ => True)) => {c s1 s2} //.
+                  (fun _ _ _ _ _ _ => True)) => {c s1 s2} //.
   + move=> s1 s2 s3 i c _ Hi _ Hc z;rewrite write_c_cons => Hnin.
     by rewrite Hi ?Hc //;SvD.fsetdec.
   + move=> s1 s2 x tag e; case: sem_pexpr => //= v Hw z.
@@ -725,10 +730,10 @@ Proof.
   + by move=> s1 s2 e c1 c2 _ _ Hrec z;rewrite write_i_if => Hnin;apply Hrec;SvD.fsetdec.
   + by move=> s1 s2 s3 e c _ _ Hc _ Hw z Hnin; rewrite Hc ?Hw.
   + by move=> s1 s2 i d lo hi c vlo vhi _ _ _ Hrec z;rewrite write_i_for;apply Hrec.
-  + move=> s1 s1' s2 s3 i w ws c Hw _ Hc _ Hf z Hnin.
-    by rewrite (vrvP_var Hw) ?Hc ?Hf //;SvD.fsetdec.
   + move=> s1 m2 s2 ii xs f fd args vargs vs _ _ _ _ Hw z.
     by rewrite write_i_call;apply (vrvsP Hw).
+  + move=> s1 s1' s2 s3 i w ws c Hw _ Hc _ Hf z Hnin.
+    by rewrite (vrvP_var Hw) ?Hc ?Hf //;SvD.fsetdec.
 Qed.
 
 Lemma write_IP i s1 s2 : 
@@ -801,8 +806,7 @@ Proof.
   + by move=> /He ->. 
   + move=> /get_var_eq_on -> //;SvD.fsetdec. 
   + move=> Heq;rewrite (He _ Heq)=> {He}.
-    case:v Heq => [[[]]] //= n vn _;rewrite /on_arr_var /= => H.
-    by rewrite H // read_eE;SvD.fsetdec.
+    rewrite /on_arr_var Heq // read_eE;SvD.fsetdec.
   + by move=> /He ->.
   + by move=> /He ->.
   move=> Heq;rewrite (He1 _ Heq) (He2 s) //.
@@ -827,11 +831,12 @@ Lemma set_var_eq_on s x v vm1 vm2 vm1':
      set_var vm1' x v = ok vm2'.
 Proof.
   rewrite /set_var;case: of_val => //= v' [<-] Heq.
-  exists (vm1'.[x <- v'])%vmap;split=>// z Hin.
+  exists (vm1'.[x <- ok v'])%vmap;split=>// z Hin.
   case: (x =P z) => [<- | /eqP Hxz];first by rewrite !Fv.setP_eq.
   rewrite !Fv.setP_neq ?Heq //;move/eqP:Hxz; SvD.fsetdec.
 Qed.
 
+(*
 Lemma write_rval_eq_on s x v m1 m2 vm1 vm2 vm1': 
   Sv.Subset (read_rv x) s ->
   write_rval x v {| emem := m1; evm := vm1 |} = ok {|emem := m2; evm := vm2 |} ->
@@ -847,11 +852,13 @@ Proof.
     by have [vm2' [Heq' ->]]:= set_var_eq_on Heq Hvm;exists vm2'.
   + rewrite read_eE => Hsub Hsem Hvm;move:Hsem. 
     rewrite -(get_var_eq_on _ Hvm);last by SvD.fsetdec.
-    case: (to_word (get_var _ _)) => //= vx.
+    apply: rbindP => vx. 
+
     rewrite (@read_e_eq_on (Sv.add x Sv.empty) vm1');first last.
     + by apply: eq_onI Hvm;rewrite read_eE;SvD.fsetdec.
     case:(Let _ := sem_pexpr _ _ in _) => //= ve.
-    by case: to_word => //= w;case: write_mem => //= m [<- <-];exists vm1'.
+    case: to_word => //= w;case: write_mem => //= m [<- <-];exists vm1'.
+    rewrite Hvx.
   move=> Hsub Hsem Hvm;move:Hsem.      
   case:x Hsub => [[[]]] //= n vn _;rewrite /on_arr_var /=.
   rewrite read_eE;set x := {| vtype := sarr n; vname := vn |} => H.
@@ -878,6 +885,8 @@ Proof.
   apply: (write_vval_eq_on Heq' Hw);apply: eq_onI Heq;rewrite read_rvE;SvD.fsetdec.
 Qed.
 *)
+
+*)
 End SEM.
 
 
@@ -888,6 +897,7 @@ Notation "vm1 = vm2 [\ s ]" := (vmap_eq_except s vm1 vm2) (at level 70, vm2 at n
 Notation "vm1 '=[' s ']' vm2" := (eq_on s vm1 vm2) (at level 70, vm2 at next level,
   format "'[hv ' vm1  =[ s ]  '/'  vm2 ']'").
 
+(*
 Definition val_uincl (t:stype) : sem_t t -> sem_t t -> Prop := 
   match t as t0 return sem_t t0 -> sem_t t0 -> Prop with
   | sbool => fun b1 b2 => b1 = b2
@@ -1457,3 +1467,4 @@ Proof.
 Qed.
 
 End UNDEFINCL.
+*)
