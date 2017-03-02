@@ -1,8 +1,8 @@
-/*
 (* * License
  * -----------------------------------------------------------------------
  * Copyright 2016--2017 IMDEA Software Institute
  * Copyright 2016--2017 Inria
+ * Copyright 2017 Google Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -23,7 +23,6 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
-*/
 
 {
   open Asm_Parser
