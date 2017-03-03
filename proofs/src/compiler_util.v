@@ -66,15 +66,27 @@ Definition add_infun {A} (ii:instr_info) (r:cfexec A) : ciexec A :=
   | Ok a => @Ok _ A a
   | Error e => Error (ii, Cerr_in_fun e)
   end.
+
+Lemma add_finfoP A (a:A) e f1 f2 (P:Prop):  
+  (e = ok a -> P) -> 
+  add_finfo f1 f2 e = ok a -> P.
+Proof. by case: e=> //= a' H [] Heq;apply H;rewrite Heq. Qed.
+
+Lemma add_iinfoP A (a:A) (e:cexec A) ii (P:Prop):  
+  (e = ok a -> P) -> 
+  add_iinfo ii e = ok a -> P.
+Proof. by case: e=> //= a' H [] Heq;apply H;rewrite Heq. Qed.
  
 Module Type LoopCounter.
-  Parameter nb:nat.
+  Parameter nb  : nat.
+  Parameter nbP : nb = (nb.-1).+1.
 End LoopCounter.
 
 Module Loop : LoopCounter.
   Definition nb := 100.
+  Lemma nbP : nb = (nb.-1).+1.
+  Proof. done. Qed.
 End Loop.
-
 
 
 

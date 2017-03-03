@@ -440,14 +440,13 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     sem_for i (wrange d vlo vhi) s1 c s2 ->
     sem_i s1 (Cfor i (d, lo, hi) c) s2
 
-| Ecall s1 m2 s2 ii xs f fd args vargs vs : 
-    get_fundef P f = Some fd ->
+| Ecall s1 m2 s2 ii xs f args vargs vs : 
     sem_pexprs s1 args = ok vargs ->
-    sem_call s1.(emem) fd vargs m2 vs ->
+    sem_call s1.(emem) f vargs m2 vs ->
     write_rvals {|emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->
     sem_i s1 (Ccall ii xs f args) s2
 
-with sem_for : var -> seq Z -> estate -> cmd -> estate -> Prop :=
+with sem_for : var_i -> seq Z -> estate -> cmd -> estate -> Prop :=
 | EForDone s i c :
     sem_for i [::] s c s
 
@@ -457,13 +456,14 @@ with sem_for : var -> seq Z -> estate -> cmd -> estate -> Prop :=
     sem_for i ws s2 c s3 ->
     sem_for i (w :: ws) s1 c s3
 
-with sem_call : mem -> fundef -> seq value -> mem -> seq value -> Prop := 
-| EcallRun m1 m2 f vargs s1 vm2 vres:
+with sem_call : mem -> funname -> seq value -> mem -> seq value -> Prop := 
+| EcallRun m1 m2 fn f vargs s1 vm2 vres:
+    get_fundef P fn = Some f ->
     write_vars f.(f_params) vargs (Estate m1 vmap0) = ok s1 -> 
     sem s1 f.(f_body) (Estate m2 vm2) ->
     mapM (fun (x:var_i) => get_var vm2 x) f.(f_res) = ok vres ->
     List.Forall is_full_array vres ->
-    sem_call m1 f vargs m2 vres.
+    sem_call m1 fn vargs m2 vres.
 
 (* -------------------------------------------------------------------- *)
 (* The generated scheme is borring to use *)
@@ -480,8 +480,8 @@ Section SEM_IND.
     (Pc   : estate -> cmd -> estate -> Prop)
     (Pi_r : estate -> instr_r -> estate -> Prop)
     (Pi : estate -> instr -> estate -> Prop)
-    (Pfor : var -> seq Z -> estate -> cmd -> estate -> Prop)
-    (Pfun : mem -> fundef -> seq value -> mem -> seq value -> Prop).
+    (Pfor : var_i -> seq Z -> estate -> cmd -> estate -> Prop)
+    (Pfun : mem -> funname -> seq value -> mem -> seq value -> Prop).
  
   Hypothesis Hnil : forall s : estate, Pc s [::] s.
 
@@ -516,7 +516,6 @@ Section SEM_IND.
     Let x := sem_pexpr s e in to_bool x = Ok error false ->
     Pi_r s (Cwhile e c) s.
 
-
   Hypothesis Hfor : forall (s1 s2 : estate) (i : var_i) (d : dir) 
          (lo hi : pexpr) (c : cmd) (vlo vhi : Z),
     Let x := sem_pexpr s1 lo in to_int x = Ok error vlo ->
@@ -524,7 +523,7 @@ Section SEM_IND.
     sem_for i (wrange d vlo vhi) s1 c s2 ->
     Pfor i (wrange d vlo vhi) s1 c s2 -> Pi_r s1 (Cfor i (d, lo, hi) c) s2.
 
-  Hypothesis Hfor_nil : forall (s : estate) (i : var) (c : cmd), Pfor i [::] s c s.
+  Hypothesis Hfor_nil : forall (s : estate) (i : var_i) (c : cmd), Pfor i [::] s c s.
 
   Hypothesis Hfor_cons : forall (s1 s1' s2 s3 : estate) (i : var_i) 
          (w : Z) (ws : seq Z) (c : cmd),
@@ -533,22 +532,22 @@ Section SEM_IND.
     sem_for i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
 
   Hypothesis Hcall : forall (s1 : estate) (m2 : mem) (s2 : estate) 
-         (ii : inline_info) (xs : rvals) (fn : pos_eqType) 
-         (fd : fundef) (args : pexprs) (vargs vs : seq value),
-    get_fundef P fn = Some fd ->
+         (ii : inline_info) (xs : rvals) 
+         (fn : funname) (args : pexprs) (vargs vs : seq value),
     sem_pexprs s1 args = Ok error vargs ->
-    sem_call (emem s1) fd vargs m2 vs -> Pfun (emem s1) fd vargs m2 vs ->
+    sem_call (emem s1) fn vargs m2 vs -> Pfun (emem s1) fn vargs m2 vs ->
     write_rvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
     Pi_r s1 (Ccall ii xs fn args) s2.
 
-  Hypothesis Hproc : forall (m1 m2 : mem) (f : fundef) (vargs : seq value)
+  Hypothesis Hproc : forall (m1 m2 : mem) (fn:funname) (f : fundef) (vargs : seq value)
          (s1 : estate) (vm2 : vmap) (vres : seq value),
+    get_fundef P fn = Some f ->
     write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
     sem s1 (f_body f) {| emem := m2; evm := vm2 |} -> 
     Pc s1 (f_body f) {| emem := m2; evm := vm2 |} ->
     mapM (fun x : var_i => get_var vm2 x) (f_res f) = ok vres ->
     List.Forall is_full_array vres -> 
-    Pfun m1 f vargs m2 vres.
+    Pfun m1 fn vargs m2 vres.
 
   Fixpoint sem_Ind (e : estate) (l : cmd) (e0 : estate) (s : sem e l e0) {struct s} :
     Pc e l e0 :=
@@ -574,9 +573,9 @@ Section SEM_IND.
     | @Efor s1 s2 i0 d lo hi c vlo vhi e1 e2 s0 =>
       @Hfor s1 s2 i0 d lo hi c vlo vhi e1 e2 s0
         (@sem_for_Ind i0 (wrange d vlo vhi) s1 c s2 s0)
-    | @Ecall s1 m2 s2 ii xs f13 fd args vargs vs e1 e2 s0 e3 =>
-      @Hcall s1 m2 s2 ii xs f13 fd args vargs vs e1 e2 s0
-        (@sem_call_Ind (emem s1) fd vargs m2 vs s0) e3
+    | @Ecall s1 m2 s2 ii xs f13 args vargs vs e2 s0 e3 =>
+      @Hcall s1 m2 s2 ii xs f13 args vargs vs e2 s0
+        (@sem_call_Ind (emem s1) f13 vargs m2 vs s0) e3
     end
 
   with sem_I_Ind (e : estate) (i : instr) (e0 : estate) (s : sem_I e i e0) {struct s} :
@@ -585,7 +584,7 @@ Section SEM_IND.
     | @EmkI ii i0 s1 s2 s0 => @HmkI ii i0 s1 s2 s0 (@sem_i_Ind s1 i0 s2 s0)
     end
 
-  with sem_for_Ind (v : var) (l : seq Z) (e : estate) (l0 : cmd) (e0 : estate)
+  with sem_for_Ind (v : var_i) (l : seq Z) (e : estate) (l0 : cmd) (e0 : estate)
          (s : sem_for v l e l0 e0) {struct s} : Pfor v l e l0 e0 :=
     match s in (sem_for v0 l1 e1 l2 e2) return (Pfor v0 l1 e1 l2 e2) with
     | EForDone s0 i c => Hfor_nil s0 i c
@@ -594,11 +593,11 @@ Section SEM_IND.
          s4 (@sem_for_Ind i ws s2 c s3 s4)
     end
 
-  with sem_call_Ind (m : mem) (f13 : fundef) (l : seq value) (m0 : mem) 
+  with sem_call_Ind (m : mem) (f13 : funname) (l : seq value) (m0 : mem) 
          (l0 : seq value) (s : sem_call m f13 l m0 l0) {struct s} : Pfun m f13 l m0 l0 :=
     match s with 
-    | @EcallRun m1 m2 f vargs s1 vm2 vres Hw Hsem Hmap Hvres =>
-       @Hproc m1 m2 f vargs s1 vm2 vres Hw Hsem (sem_Ind Hsem) Hmap Hvres 
+    | @EcallRun m1 m2 fn f vargs s1 vm2 vres Hget Hw Hsem Hmap Hvres =>
+       @Hproc m1 m2 fn f vargs s1 vm2 vres Hget Hw Hsem (sem_Ind Hsem) Hmap Hvres 
     end.
 
 End SEM_IND. 
@@ -713,7 +712,7 @@ Proof.
   + by move=> s1 s2 i d lo hi c vlo vhi _ _ _ Hrec z;rewrite write_i_for;apply Hrec.
   + move=> s1 s1' s2 s3 i w ws c Hw _ Hc _ Hf z Hnin.
     by rewrite (vrvP_var Hw) ?Hc ?Hf //;SvD.fsetdec.
-  + move=> s1 m2 s2 ii xs f fd args vargs vs _ _ _ _ Hw z.
+  + move=> s1 m2 s2 ii xs fn args vargs vs _ _ _ Hw z.
     by rewrite write_i_call;apply (vrvsP Hw).
 Qed.
 
@@ -1246,6 +1245,27 @@ Proof.
   by move=> /(Hrec _ _ _ _ _ Hvm2 Hforall).
 Qed.
 
+Lemma write_vars_rvals xs vs s1: 
+  write_vars xs vs s1 = write_rvals s1 [seq Rvar i | i <- xs] vs.
+Proof.
+  rewrite /write_vars /write_rvals.
+  elim: xs vs {1 3}s1 => [ | x xs Hrec] [ | v vs] //= s1'.
+  by case: write_var => //=.
+Qed.
+
+Lemma sem_pexprs_get_var s xs : 
+  sem_pexprs s [seq Pvar i | i <- xs] = mapM (fun x : var_i => get_var (evm s) x) xs.
+Proof.
+  rewrite /sem_pexprs;elim: xs=> //= x xs Hrec.
+  by case: get_var => //= v;rewrite Hrec.
+Qed.
+
+Lemma get_fundef_cons fnd p fn: 
+  get_fundef (fnd :: p) fn = if fn == fnd.1 then Some fnd.2 else get_fundef p fn.
+Proof.
+  rewrite /get_fundef;case:ifP => /=; by case: ifPn => //= ?;rewrite ltnS => ->.
+Qed.
+
 Section UNDEFINCL.
 
 Variable (p:prog).
@@ -1271,7 +1291,7 @@ Let Pi s1 i s2 :=
       sem_I p {|emem := emem s1; evm := vm1|} i {|emem := emem s2; evm := vm2|} /\ 
       vm_uincl (evm s2) vm2.
 
-Let Pfor i zs s1 c s2 := 
+Let Pfor (i:var_i) zs s1 c s2 := 
   forall vm1, 
     vm_uincl (evm s1) vm1 ->
     exists vm2, 
@@ -1393,30 +1413,30 @@ Proof.
   by econstructor;eauto.
 Qed.
 
-Local Lemma Hcall s1 m2 s2 ii xs fn fd args vargs vs : 
-  get_fundef p fn = Some fd ->
+Local Lemma Hcall s1 m2 s2 ii xs fn args vargs vs : 
   sem_pexprs s1 args = ok vargs ->
-  sem_call p (emem s1) fd vargs m2 vs ->
-  Pfun (emem s1) fd vargs m2 vs ->
+  sem_call p (emem s1) fn vargs m2 vs ->
+  Pfun (emem s1) fn vargs m2 vs ->
   write_rvals {| emem := m2; evm := evm s1 |} xs vs = ok s2 ->
   Pi_r s1 (Ccall ii xs fn args) s2.
 Proof.
-  move=> Hget Hargs Hcall Hfd Hxs vm1 Hvm1.
+  move=> Hargs Hcall Hfd Hxs vm1 Hvm1.
   have [vargs' [Hsa /Hfd Hc]]:= sem_pexprs_uincl Hvm1 Hargs.
   have Hvm1' : vm_uincl (evm {| emem := m2; evm := evm s1 |}) vm1 by done.
   have [vm2' [??]]:= writes_uincl Hvm1' (List_Forall2_refl vs value_uincl_refl) Hxs.
   exists vm2';split=>//;econstructor;eauto.
 Qed.
 
-Local Lemma Hproc m1 m2 f vargs s1 vm2 vres: 
-  write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
-  sem p s1 (f_body f) {| emem := m2; evm := vm2 |} -> 
-  Pc s1 (f_body f) {| emem := m2; evm := vm2 |} ->
-  mapM (fun x : var_i => get_var vm2 x) (f_res f) = ok vres ->
+Local Lemma Hproc m1 m2 fn fd vargs s1 vm2 vres: 
+  get_fundef p fn = Some fd ->
+  write_vars (f_params fd) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
+  sem p s1 (f_body fd) {| emem := m2; evm := vm2 |} -> 
+  Pc s1 (f_body fd) {| emem := m2; evm := vm2 |} ->
+  mapM (fun x : var_i => get_var vm2 x) (f_res fd) = ok vres ->
   List.Forall is_full_array vres -> 
-  Pfun m1 f vargs m2 vres.
+  Pfun m1 fn vargs m2 vres.
 Proof.
-  move=> Hargs Hsem Hrec Hmap Hfull vargs' Uargs.   
+  move=> Hget Hargs Hsem Hrec Hmap Hfull vargs' Uargs.   
   have [vm1 [Hargs' Hvm1]]:= write_vars_uincl (vm_uincl_refl _) Uargs Hargs.
   have [vm2' /= [] Hsem' Uvm2]:= Hrec _ Hvm1.
   have [vs2 [Hvs2]] := get_vars_uincl Uvm2 Hmap.
@@ -1424,10 +1444,10 @@ Proof.
   econstructor;eauto.
 Qed.
 
-Lemma sem_call_uincl vargs m1 fd m2 vres vargs':
+Lemma sem_call_uincl vargs m1 f m2 vres vargs':
   List.Forall2 value_uincl vargs vargs' ->
-  sem_call p m1 fd vargs m2 vres ->
-  sem_call p m1 fd vargs' m2 vres.
+  sem_call p m1 f vargs m2 vres ->
+  sem_call p m1 f vargs' m2 vres.
 Proof.
   move=> H1 H2.
   by apply:
@@ -1475,3 +1495,4 @@ Proof.
 Qed.
 
 End UNDEFINCL.
+
