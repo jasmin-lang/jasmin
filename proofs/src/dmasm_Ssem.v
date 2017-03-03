@@ -279,12 +279,6 @@ Section SEM.
 
 Variable P:prog.
 
-Definition get_fundef f :=
-  let pos := find (fun ffd => f == fst ffd) P in
-  if pos < size P then
-    Some (snd (nth (xH,dummy_fundef) P pos))
-  else None.
-
 Inductive ssem : sestate -> cmd -> sestate -> Prop :=
 | SEskip s :
     ssem s [::] s
@@ -332,10 +326,9 @@ with ssem_i : sestate -> instr_r -> sestate -> Prop :=
     ssem_for i (wrange d vlo vhi) s1 c s2 ->
     ssem_i s1 (Cfor i (d, lo, hi) c) s2
 
-| SEcall s1 m2 s2 ii xs f fd args vargs vs :
-    get_fundef f = Some fd ->
+| SEcall s1 m2 s2 ii xs f args vargs vs :
     ssem_pexprs s1 args = ok vargs ->
-    ssem_call s1.(semem) fd vargs m2 vs ->
+    ssem_call s1.(semem) f vargs m2 vs ->
     swrite_rvals {|semem:= m2; sevm := s1.(sevm) |} xs vs = ok s2 ->
     ssem_i s1 (Ccall ii xs f args) s2
 
@@ -349,15 +342,12 @@ with ssem_for : var -> seq Z -> sestate -> cmd -> sestate -> Prop :=
     ssem_for i ws s2 c s3 ->
     ssem_for i (w :: ws) s1 c s3
 
-with ssem_call : mem -> fundef -> seq svalue -> mem -> seq svalue -> Prop :=
-| SEcallRun m1 m2 f vargs vres:
-    (* semantics defined for all vm0 *)
-    (forall vm0, (* TODO: check: all_empty_arr vm0 -> *)
-       exists s1 vm2, [/\
-        swrite_vars f.(f_params) vargs (SEstate m1 vm0) = ok s1,
-        ssem s1 f.(f_body) (SEstate m2 vm2) &
-        map (fun (x:var_i) => sget_var vm2 x) f.(f_res) = vres]) ->
-    (*TODO: check: List.Forall is_full_array vres -> *)
-    ssem_call m1 f vargs m2 vres.
+with ssem_call : mem -> funname -> seq svalue -> mem -> seq svalue -> Prop := 
+| SEcallRun m1 m2 fn f vargs s1 vm2 vres:
+    get_fundef P fn = Some f ->
+    swrite_vars f.(f_params) vargs (SEstate m1 svmap0) = ok s1 ->
+    ssem s1 f.(f_body) (SEstate m2 vm2) ->
+    map (fun (x:var_i) => sget_var vm2 x) f.(f_res) = vres ->
+    ssem_call m1 fn vargs m2 vres.
 
 End SEM.

@@ -63,6 +63,9 @@ Module FArray.
     w1 != w2 -> get (set a w1 t) w2 = get a w2.
   Proof. by rewrite setP=> /negPf ->. Qed.
 
+  (* FIXME *)
+  Axiom eq_ext : forall T (t1 t2:array T), (forall x, get t1 x = get t2 x) -> t1 = t2.
+
 End FArray.
 
 Module Array.
