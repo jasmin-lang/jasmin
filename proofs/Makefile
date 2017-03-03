@@ -22,6 +22,7 @@ COQFILES := \
 	src/compiler_util.v \
 	src/extraction.v \
 	src/zmod_setoid.v \
+	src/dead_code.v \
 	src/dmasm_Ssem.v \
 	src/dmasm_Ssem_props.v \
 	src/dmasm_logic.v \
@@ -32,7 +33,6 @@ COQFILES := \
 	src/inlining.v \
 	src/unrolling.v \
 	src/constant_prop.v \
-	src/dead_code.v \
 	src/compiler.v \
 #	src/proof_utils.v \
 	src/proof_sem.v \

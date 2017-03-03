@@ -150,7 +150,7 @@ elim: x=> // [v0|v0|v0 p] _.
 + by move=> [] ->.
 + rewrite /write_var /=.
   by apply: rbindP=> z Hz [] ->.
-+ apply: on_arr_varP2=> n t Ht Hval.
++ apply: on_arr_varP=> n t Ht Hval.
   apply: rbindP=> i.
   apply: rbindP=> x Hx Hi.
   apply: rbindP=> v1 Hv.
@@ -163,7 +163,9 @@ Section PROOF.
 
   Variable p : prog.
 
-  Let p' := dead_code_prog p.
+  Variable p' : prog.
+
+  Parameter dead_code_ok : dead_code_prog p = ok p'.
 
   Let Pi (s:estate) (i:instr) (s':estate) :=
     forall s2,
@@ -171,7 +173,7 @@ Section PROOF.
       | Ok (s1, c') =>
         forall vm1', s.(evm) =[s1] vm1' ->
         exists vm2', s'.(evm) =[s2] vm2' /\ 
-          sem p (Estate s.(emem) vm1') c' (Estate s'.(emem) vm2')
+          sem p' (Estate s.(emem) vm1') c' (Estate s'.(emem) vm2')
       | _ => True
       end.
 
@@ -181,15 +183,16 @@ Section PROOF.
       | Ok (s1, c') =>
         forall vm1', s.(evm) =[s1] vm1' ->
         exists vm2', s'.(evm) =[s2] vm2' /\ 
-          sem p (Estate s.(emem) vm1') c' (Estate s'.(emem) vm2')
+          sem p' (Estate s.(emem) vm1') c' (Estate s'.(emem) vm2')
       | _ => True
       end.
 
-  Let Pf mem fd va mem' vr := 
+  Let Pfun m1 fn vargs m2 vres :=
+    forall fd, get_fundef p fn = Some fd ->
     match dead_code_fd fd with
     | Ok fd' => 
-      sem_call p mem fd va mem' vr -> 
-      sem_call p mem fd' va mem' vr
+      sem_call p m1 fn vargs m2 vres -> 
+      sem_call p' m1 fn vargs m2 vres
     | _ => True
     end.
 
@@ -379,17 +382,9 @@ Section PROOF.
   Qed.
   *)
 
-  Lemma dead_code_callP fd mem mem' va vr:
-    match (dead_code_prog p) with
-    | Ok p' =>
-      match dead_code_fd fd with 
-      | Ok fd' => 
-        sem_call p' mem fd va mem' vr -> 
-        sem_call p' mem fd' va mem' vr
-      | _      => True
-      end
-    | _ => True
-    end.
+  Lemma dead_code_callP fn mem mem' va vr:
+    sem_call p mem fn va mem' vr ->
+    sem_call p' mem fn va mem' vr.
   Proof.
     (*
     apply (@func_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc).
