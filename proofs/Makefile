@@ -20,6 +20,8 @@ COQFILES := \
 	src/memory.v \
 	src/dmasm_sem.v \
 	src/compiler_util.v \
+	src/allocation.v \
+	src/constant_prop.v \
 	src/extraction.v \
 	src/zmod_setoid.v \
 	src/dead_code.v \
@@ -29,11 +31,10 @@ COQFILES := \
 	src/equiv_sem.v
 
 #	src/array_expansion.v \
-	src/allocation.v \
 	src/inlining.v \
 	src/unrolling.v \
-	src/constant_prop.v \
 	src/compiler.v \
+
 #	src/proof_utils.v \
 	src/proof_sem.v \
 	src/proof_add.v \

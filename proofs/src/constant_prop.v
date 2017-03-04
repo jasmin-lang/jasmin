@@ -416,15 +416,7 @@ Proof.
 Qed.
 
 Definition valid_cpm (vm: vmap)  (m:cpm) := 
-  forall x n, Mvar.get m x = Some n -> get_var vm x = Vint n.
-
-Lemma on_arr_var_err V (s:estate) x e (v:V) :
-  Let (_, _) := s.[x] in Error e <> ok v.
-Proof. by rewrite /on_arr_var;case: x => -[]. Qed.
-
-Lemma Let_err {E A V:Type} {e:E} {a: result E A} {v:V}:
-  Let _ := a in Error e <> Ok _ v.
-Proof. by case a. Qed.
+  forall x n, Mvar.get m x = Some n -> get_var vm x = ok (Vint n).
 
 Lemma const_prop_eP (e:pexpr) s (m:cpm):  
   valid_cpm (evm s) m ->
@@ -434,14 +426,12 @@ Proof.
   elim: e=> [z | b | e He | x | x e He | x e He | e He | e e1 He1 e2 He2] v //=.
   + by case Heq: sem_pexpr => [ve|] //=;rewrite (He _ Heq).
   + by case Heq: Mvar.get => [n|] //=;rewrite (Hvalid _ _ Heq).
-  + case Heq: sem_pexpr => [ve|] //=;first by rewrite (He _ Heq).
-    by move=> H;case: (on_arr_var_err H).
+  + apply:on_arr_varP;rewrite /on_arr_var => n t ? -> /=.
+    by apply: rbindP => ?;apply: rbindP => ? /He -> /= ->.  
   + by case Heq: sem_pexpr => [ve|] //=;rewrite (He _ Heq).
   + by apply snotP.
   move=> H;apply /s_op2P;move: H => /=.
-  case Heq2: sem_pexpr => [ve2| ] /=;last by move => /Let_err.
-  case Heq1: (sem_pexpr s e1) => [ve1| ] //=.
-  by rewrite (He1 _ Heq1) (He2 _ Heq2).
+  by apply:rbindP => ve1 /He1 ->;apply:rbindP => ve2 /He2 ->. 
 Qed.
 
 Definition eqoks (e1 e2:seq pexpr) st := 
@@ -516,7 +506,6 @@ Proof.
   by apply: Hv Hz.
 Qed.
 
-
 Lemma add_cpmP_aux s1 s1' s2 m x e v tag: 
   sem_pexpr s2 e = ok v -> 
   write_rval x v s1 = ok s1' ->
@@ -534,16 +523,15 @@ Proof.
     move=> /eqP Hneq;rewrite Mvar.setP_neq // /get_var /= Fv.setP_neq //.
     by apply Hv.
   + by move=> p;t_rbindP => -[] <-.
-  move=> p; apply: on_arr_varP => n t Hx.
-  apply: rbindP => vp ?; apply: rbindP => v' ?.
-  apply: rbindP => t' ?. 
-  case: x Hx => -[] tx x xi /= ->.
+  move=> p; apply: on_arr_varP => n t Htx Hx.
+  apply: rbindP => vp ?; apply: rbindP => v' ?; apply: rbindP => t' ?. 
+  case: x Htx Hx => -[] tx x xi /= ->.
   rewrite /set_var /=. 
   case: CEDecStype.pos_dec (@CEDecStype.pos_dec_r n n)=> /=;last 
     by move=> [] /(_ I (refl_equal _)).
-  move=> a _ [] <- /= Hv z nz Hz;rewrite /get_var.
+  move=> a _ ? [] <- /= Hv z nz Hz;rewrite /get_var.
   rewrite Fv.setP_neq;first by apply Hv.
-  by move: Hz=> /Hv;case z => -[].
+  move: Hz=> /Hv;case z => -[] //= ??; apply rbindP => //.
 Qed.
 
 Lemma add_cpmP s s' m x e tag v: 
@@ -572,9 +560,8 @@ Proof.
   + apply: rbindP => z Hz;rewrite Hz /=.
     apply: rbindP => z'.
     by apply: rbindP => z'' /(@const_prop_eP p _ _ Hv) -> /= ->.
-  case: x => -[[]] //= n t _;rewrite /on_arr_var /=.
-  apply: rbindP => z.
-  by apply: rbindP => z'' /(@const_prop_eP p _ _ Hv) -> /= ->.
+  apply: on_arr_varP;rewrite /on_arr_var => n t Htx -> /=. 
+  by apply: rbindP => z;apply: rbindP => z'' /(@const_prop_eP p _ _ Hv) -> /= ->.
 Qed.
 
 Lemma const_prop_rvP s1 s2 m x v: 
@@ -643,10 +630,6 @@ Proof.
 Qed.
 
 Definition Mvarc_eq T := RelationPairs.RelProd (@Mvar_eq T) (@eq cmd).
-
-(*Polymorphic Instance equiv_Mvarc_eq T : Equivalence (@Mvarc_eq T).
-Proof. 
-Admitted. *)
 
 Section PROPER.
 
@@ -782,14 +765,14 @@ Section PROOF.
       valid_cpm s'.(evm) (const_prop const_prop_i m c).1 /\
       sem p' s (const_prop const_prop_i m c).2 s'.
 
-  Let Pfor i vs s c s' :=
+  Let Pfor (i:var_i) vs s c s' :=
     forall m, 
       Mvar_eq m (remove_cpm m (Sv.union (Sv.singleton i) (write_c c))) ->
       valid_cpm s.(evm) m ->
       sem_for p' i vs s (const_prop const_prop_i m c).2 s'.
 
-  Let Pfun mem fd vargs mem' vres :=
-      sem_call p' mem (const_prop_fun fd) vargs mem' vres.
+  Let Pfun (mem:Memory.mem) fn vargs (mem':Memory.mem) vres :=
+    sem_call p' mem fn vargs mem' vres.
 
   Local Lemma Hskip s: Pc s [::] s.
   Proof. move=> m /= ?;split=>//; constructor. Qed.
@@ -943,45 +926,38 @@ Section PROOF.
     by apply: EForOne Hc'.
   Qed.
 
-  Local Lemma Hcall s1 m2 s2 ii xs fn fd args vargs vs:
-        get_fundef p fn = Some fd ->
-        sem_pexprs s1 args = Ok error vargs ->
-        sem_call p (emem s1) fd vargs m2 vs ->
-        Pfun (emem s1) fd vargs m2 vs ->
-        write_rvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
-        Pi_r s1 (Ccall ii xs fn args) s2.
+  Local Lemma Hcall s1 m2 s2 ii xs fn args vargs vs:
+    sem_pexprs s1 args = Ok error vargs ->
+    sem_call p (emem s1) fn vargs m2 vs ->
+    Pfun (emem s1) fn vargs m2 vs ->
+    write_rvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
+    Pi_r s1 (Ccall ii xs fn args) s2.
   Proof.
-    move=> Hfn Hargs Hcall Hfun Hvs m ii' Hm /=;split.
+    move=> Hargs Hcall Hfun Hvs m ii' Hm /=;split.
     + by apply: valid_cpm_rm Hm;apply (@write_iP p);econstructor;eauto.
     apply sem_seq1;constructor;econstructor;eauto.
-    + by rewrite (@get_map_prog const_prop_fun) Hfn.
     + by apply const_prop_esP.
     by apply const_prop_rvsP.
   Qed.
 
-  Local Lemma Hproc m1 m2 (fd : fundef) vargs vres : 
-    (forall vm0 : vmap,
-       all_empty_arr vm0 ->
-       exists (s1 : estate) (vm2 : vmap),
-           [/\ write_vars (f_params fd) vargs {| emem := m1; evm := vm0 |} =
-               Ok error s1,
-               sem p s1 (f_body fd) {| emem := m2; evm := vm2 |},
-               Pc s1 (f_body fd) {| emem := m2; evm := vm2 |}
-             & map (fun (x:var_i) => get_var vm2 x) fd.(f_res) = vres]) ->
-    List.Forall is_full_array vres -> Pfun m1 fd vargs m2 vres.
+  Local Lemma Hproc m1 m2 fn f vargs s1 vm2 vres: 
+    get_fundef p fn = Some f ->
+    write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
+    sem p s1 (f_body f) {| emem := m2; evm := vm2 |} -> 
+    Pc s1 (f_body f) {| emem := m2; evm := vm2 |} ->
+    mapM (fun x : var_i => get_var vm2 x) (f_res f) = ok vres ->
+    List.Forall is_full_array vres -> 
+    Pfun m1 fn vargs m2 vres.
   Proof.
-    case: fd=> fi fparams fc fres. 
-    move=> Hrec Hfull;constructor => // vm0 /Hrec [] s1 [] vm2 [] /= Hargs Hsem Hc Hres.
-    exists s1, vm2;split => //= {Hrec}.
-    + by case : const_prop.
-    + have : valid_cpm (evm s1) empty_cpm by move=> x n;rewrite Mvar.get0.
-      by move=> /Hc [];case: const_prop.
-    by case : const_prop.  
+    case: f=> fi fparams fc fres /= Hget Hw _ Hc Hres Hfull. 
+    have := (@get_map_prog const_prop_fun p fn);rewrite Hget /=.
+    have : valid_cpm (evm s1) empty_cpm by move=> x n;rewrite Mvar.get0.
+    by move=> /Hc [];case: const_prop;econstructor;eauto.
   Qed.
 
-  Lemma const_prop_callP fd mem mem' va vr: 
-    sem_call p mem fd va mem' vr -> 
-    sem_call p' mem (const_prop_fun fd) va mem' vr.
+  Lemma const_prop_callP f mem mem' va vr: 
+    sem_call p mem f va mem' vr -> 
+    sem_call p' mem f va mem' vr.
   Proof.
     apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
