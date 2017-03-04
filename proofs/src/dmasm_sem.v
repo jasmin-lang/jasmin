@@ -967,6 +967,10 @@ Proof.
   by move=> <- ?;exists z. 
 Qed.
 
+Lemma to_val_uincl t (z z' : sem_t t) :
+  val_uincl z z' <-> value_uincl (to_val z) (to_val z').
+Proof. by case: t z z'=> //=;tauto. Qed.
+
 Lemma value_uincl_int ve ve' z :
   value_uincl ve ve' -> to_int ve = ok z -> ve = z /\ ve' = z.
 Proof. by case:ve ve' => //= z0 [] //= z1 -> [] ->. Qed.
@@ -1034,6 +1038,14 @@ Proof.
   by exists (o z1 z2). 
 Qed.
 
+Lemma vuincl_sem_sop2 o ve1 ve1' ve2 ve2' v1 :
+  value_uincl ve1 ve1' -> value_uincl ve2 ve2' ->
+  sem_sop2 o ve1 ve2 = ok v1 ->
+  exists v2 : value, sem_sop2 o ve1' ve2' = ok v2 /\ value_uincl v1 v2.
+Proof.
+  case:o => /=;eauto using vuincl_sem_op2_i, vuincl_sem_op2_b, vuincl_sem_op2_ib.
+Qed.
+
 Lemma sem_pexpr_uincl s1 vm2 e v1:
   vm_uincl s1.(evm) vm2 ->
   sem_pexpr s1 e = ok v1 ->
@@ -1057,7 +1069,7 @@ Proof.
     by case: (value_uincl_bool Hvu Hto) => ??;subst => /=;exists (~~b).
   apply: rbindP => ve1 /He1 [] ve1' [] -> Hvu1.
   apply: rbindP => ve2 /He2 [] ve2' [] -> Hvu2 {He1 He2}.
-  case:o => /=;eauto using vuincl_sem_op2_i, vuincl_sem_op2_b, vuincl_sem_op2_ib.
+  by apply vuincl_sem_sop2.
 Qed.
 
 Lemma sem_pexprs_uincl s1 vm2 es vs1:
