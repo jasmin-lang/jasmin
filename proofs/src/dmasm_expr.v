@@ -710,6 +710,10 @@ Lemma read_i_assgn x tag e :
   Sv.Equal (read_i (Cassgn x tag e)) (Sv.union (read_rv x) (read_e e)).
 Proof. rewrite /read_i /= read_rvE read_eE;SvD.fsetdec. Qed.
 
+Lemma read_i_opn xs o es: 
+  Sv.Equal (read_i (Copn xs o es)) (Sv.union (read_rvs xs) (read_es es)).
+Proof. by rewrite /read_i /= read_esE read_rvsE;SvD.fsetdec. Qed.
+
 Lemma read_i_if e c1 c2 :
    Sv.Equal (read_i (Cif e c1 c2)) (Sv.union (read_e e) (Sv.union (read_c c1) (read_c c2))).
 Proof.
@@ -733,6 +737,9 @@ Qed.
 Lemma read_i_call ii xs f es :
   Sv.Equal (read_i (Ccall ii xs f es)) (Sv.union (read_rvs xs) (read_es es)).
 Proof. rewrite /read_i /= read_esE read_rvsE;SvD.fsetdec. Qed.
+
+Lemma read_Ii ii i: read_I (MkI ii i) = read_i i.
+Proof. by done. Qed.
 
 (* ** Some smart constructors
  * -------------------------------------------------------------------------- *)

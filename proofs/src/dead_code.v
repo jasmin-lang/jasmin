@@ -229,21 +229,16 @@ Section PROOF.
     apply: rbindP=> v Hv Hw s2 /=.
     case: ifPn=> _ /=.
     + admit.
-    + move=> vm1' Hvm.
-      rewrite write_i_assgn in Hvm.
-      move: Hvm; rewrite read_rvE read_eE=> Hvm.
-      have [|vm2' [Hvm2 Hw2]] := @write_rval_eq_on _ _ _ _ _ vm1 vm2 vm1' _ Hw Hvm.
-      SvD.fsetdec.
-      exists vm2'; split.
-      + apply: (eq_onI _ Hvm2); SvD.fsetdec.
-      + apply: sem_seq1.
-        constructor.
-        constructor.
-        rewrite (@read_e_eq_on Sv.empty vm1 vm1') ?Hv //.
-        rewrite read_eE.
-        apply: eq_onS.
-        apply: (eq_onI _ Hvm).
-        SvD.fsetdec.
+    move=> vm1' Hvm.
+    rewrite write_i_assgn in Hvm.
+    move: Hvm; rewrite read_rvE read_eE=> Hvm.
+    have [|vm2' [Hvm2 Hw2]] := @write_rval_eq_on _ _ _ _ _ vm1' _ Hw Hvm.
+    + by SvD.fsetdec.
+    exists vm2'; split.
+    + by apply: eq_onI Hvm2; SvD.fsetdec.
+    apply: sem_seq1; constructor; constructor.
+    rewrite (@read_e_eq_on Sv.empty vm1 vm1') ?Hv // read_eE.
+    by apply: eq_onS; apply: eq_onI Hvm; SvD.fsetdec.
   Admitted.
 
   (*

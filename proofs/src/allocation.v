@@ -502,6 +502,35 @@ Section PROOF.
     exists vm2;split=>//;econstructor;eauto.
   Qed.
 
+  Section REFL.
+
+    Hypothesis eq_prog : p1 = p2.
+
+    Local Lemma Hproc_eq m1 m2 fn f vargs s1 vm2 vres: 
+      get_fundef p1 fn = Some f ->
+      write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
+      sem p1 s1 (f_body f) {| emem := m2; evm := vm2 |} -> 
+      Pc s1 (f_body f) {| emem := m2; evm := vm2 |} ->
+      mapM (fun x : var_i => get_var vm2 x) (f_res f) = ok vres ->
+      List.Forall is_full_array vres -> 
+      Pfun m1 fn vargs m2 vres.
+    Proof.
+      move=> Hget Hw Hsem _ Hres Hfull vargs2 Hvargs2;rewrite -eq_prog.
+      have: sem_call p1 m1 fn vargs m2 vres by econstructor;eauto.
+      by apply: sem_call_uincl.
+    Qed.
+
+    Lemma alloc_callP_eq_aux f mem mem' va vr: 
+      sem_call p1 mem f va mem' vr -> 
+      sem_call p2 mem f va mem' vr.
+    Proof.
+      move=> /(sem_call_Ind Hskip Hcons HmkI Hassgn Hopn Hif_true Hif_false 
+                Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc_eq) H.
+      by apply H;apply List_Forall2_refl.
+    Qed.
+
+  End REFL.
+   
   Local Lemma Hproc m1 m2 fn f vargs s1 vm2 vres: 
     get_fundef p1 fn = Some f ->
     write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
@@ -536,6 +565,11 @@ Section PROOF.
   Qed.
 
 End PROOF.
+
+Lemma alloc_callP_eq p f mem mem' va vr: 
+  sem_call p mem f va mem' vr -> 
+  sem_call p mem f va mem' vr.
+Proof. by apply alloc_callP_eq_aux. Qed.
 
 End MakeCheckAlloc.
 
