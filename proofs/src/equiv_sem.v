@@ -326,22 +326,21 @@ Proof.
   by move=> /(swrite_var_uincl Hvm Hv) [] vm2 [] -> Hvm2 /(Hrec _ _ _ _ Hvm2 Hvs).
 Qed.
 
-Lemma swrite_uincl_aux s0 s1 s' ss0 ss1 r v1 v2:
-  sestate_uincl s0 ss0 ->
+Lemma swrite_uincl s1 s' ss1 r v1 v2:
   sestate_uincl s1 ss1 ->
   svalue_uincl v1 v2 ->
-  write_rval_aux s0 r v1 s1 = ok s' ->
+  write_rval r v1 s1 = ok s' ->
   exists ss',
-    swrite_rval_aux ss0 r v2 ss1 = ok ss' /\ sestate_uincl s' ss'.
+    swrite_rval r v2 ss1 = ok ss' /\ sestate_uincl s' ss'.
 Proof.
-  move=> Hs0 Hs1 Hv;case:r => [xi | x | x p | x p] /=.
+  move=> Hs1 Hv;case:r => [xi | x | x p | x p] /=.
   + by move=> [] <-;exists ss1.
   + rewrite /write_var /swrite_var;apply: rbindP=> vm2 /=.
     move: Hs1=> [Hmem1 Hvm1].
     rewrite -Hmem1.
     by move=> /(sset_var_uincl Hvm1 Hv) [vm2' [-> ?]] [] <- /=;exists {| semem := mem_to_smem (emem s1); sevm := vm2' |}.
-  + apply: rbindP => vx; apply: rbindP=> x' Hx' /(svalue_uincl_word (sget_var_uincl (proj2 Hs0) Hx')) [] _ ->.
-    apply: rbindP => ve; apply: rbindP => ve' /(ssem_pexpr_uincl Hs0) [ve''] [] -> Hve.
+  + apply: rbindP => vx; apply: rbindP=> x' Hx' /(svalue_uincl_word (sget_var_uincl (proj2 Hs1) Hx')) [] _ ->.
+    apply: rbindP => ve; apply: rbindP => ve' /(ssem_pexpr_uincl Hs1) [ve''] [] -> Hve.
     move=> /(svalue_uincl_word Hve) [] _ -> /=.
     apply: rbindP => w /(svalue_uincl_word Hv) [] _ -> /=.
     move: Hs1=> [Hmem1 Hvm1].
@@ -352,32 +351,22 @@ Proof.
   have Hblabla: forall x x', ok x = ok x' -> x = x'. by move=> T T' x x'; case.
   have := (Hblabla _ _ _ _ Ha).
   move=> /Varr_inj1 {Hblabla} {Ha} <-.
-  apply: rbindP => i;apply: rbindP=> vp /(ssem_pexpr_uincl Hs0) [vp' [-> Hvp]].
-  move: Hs0=> [Hmem0 Hvm0].
+  apply: rbindP => i;apply: rbindP=> vp /(ssem_pexpr_uincl Hs1) [vp' [-> Hvp]].
+  move: Hs1=> [Hmem0 Hvm0].
   move=>  /(svalue_uincl_word Hvp) [] _ -> /=.
   apply: rbindP => v /(svalue_uincl_word Hv) [] _ -> /=.
   apply: rbindP=> t; set x := {|vtype := _ |}.
-  have Hvm0': @sval_uincl (sarr n) a' ((sevm ss0).[x])%vmap.
+  have Hvm0': @sval_uincl (sarr n) a' ((sevm ss1).[x])%vmap.
     by have := (Hvm0 x); rewrite /= /seval_uincl Ha'.
   move=> /(SArray_set_uincl Hvm0').
   move=> [] t' [H1 Ht];apply: rbindP=> vm'.
   have Hut: svalue_uincl (Varr t) (SVarr n t') by split.
-  move: Hs1=> [Hmem1 Hvm1].
-  move=> /(sset_var_uincl Hvm1 Hut) /= [vm2' [Hvm2' ?]] [] <- /=.
+  move=> /(sset_var_uincl Hvm0 Hut) /= [vm2' [Hvm2' ?]] [] <- /=.
   rewrite /son_arr_var /= H1 /=.
   rewrite /sset_var /= in Hvm2'.
   move: Hvm2'=> [] ->.
   by exists {| semem := semem ss1; sevm := vm2' |}.
 Qed.
-
-Lemma swrite_uincl s s' ss r v1 v2:
-  sestate_uincl s ss ->
-  svalue_uincl v1 v2 ->
-  write_rval r v1 s = ok s' ->
-  exists ss',
-    swrite_rval r v2 ss = ok ss' /\
-    sestate_uincl s' ss'.
-Proof. by move=> ?; apply swrite_uincl_aux. Qed.
 
 Lemma swrites_uincl s s' ss r v1 v2:
   sestate_uincl s ss ->
@@ -387,12 +376,10 @@ Lemma swrites_uincl s s' ss r v1 v2:
     swrite_rvals ss r v2 = ok ss' /\
     sestate_uincl s' ss'.
 Proof.
-  rewrite /write_rvals /swrite_rvals => Hs.
-  move: {1 3} s {1 3} ss (Hs)=> s0.
-  elim: r v1 v2 s0=> [|r rs Hrec] v1 v2 s0 ss0 Hs0 /= [] //=.
-  + by move=> [] <-; exists ss0.
+  elim: r v1 v2 s ss=> [|r rs Hrec] v1 v2 s ss Hs /= [] //=.
+  + by move=> [] <-; exists ss.
   move=> {v1 v2} v1 v2 vs1 vs2 Hv Hforall.
-  apply: rbindP=> z /(swrite_uincl_aux Hs Hs0 Hv) [] x [] -> Hz.
+  apply: rbindP=> z /(swrite_uincl Hs Hv) [] x [] -> Hz.
   by move=> /(Hrec _ _ _ _ Hz Hforall).
 Qed.
 

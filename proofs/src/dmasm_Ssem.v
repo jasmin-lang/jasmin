@@ -205,30 +205,28 @@ Definition swrite_var (x:var_i) (v:svalue) (s:sestate) : exec sestate :=
 Definition swrite_vars xs vs s :=
   fold2 ErrType swrite_var xs vs s.
 
-Definition swrite_rval_aux (s0: sestate) (l:rval) (v:svalue) (s:sestate) : exec sestate :=
+Definition swrite_rval (l:rval) (v:svalue) (s:sestate) : exec sestate :=
   match l with
   | Rnone _ => ok s
   | Rvar x => swrite_var x v s
   | Rmem x e =>
-    Let vx := sto_word (sget_var (sevm s0) x) in
-    Let ve := ssem_pexpr s0 e >>= sto_word in
+    Let vx := sto_word (sget_var (sevm s) x) in
+    Let ve := ssem_pexpr s e >>= sto_word in
     let p := wadd vx ve in (* should we add the size of value, i.e vx + sz * se *)
     Let w := sto_word v in
     let m := write_mem s.(semem) p w in
     ok {|semem := m;  sevm := s.(sevm) |}
   | Raset x i =>
-    SLet (n,t) := s0.[x] in
-    Let i := ssem_pexpr s0 i >>= sto_word in
+    SLet (n,t) := s.[x] in
+    Let i := ssem_pexpr s i >>= sto_word in
     Let v := sto_word v in
     let t := FArray.set t i v in
     Let vm := sset_var s.(sevm) x (@to_sval (sarr n) t) in
     ok {| semem := s.(semem); sevm := vm |}
   end.
 
-Definition swrite_rval l v s := swrite_rval_aux s l v s.
-
 Definition swrite_rvals (s:sestate) xs vs :=
-   fold2 ErrType (swrite_rval_aux s) xs vs s.
+   fold2 ErrType swrite_rval xs vs s.
 
 Fixpoint sapp_sopn ts : ssem_prod ts svalues -> svalues -> exec svalues :=
   match ts return ssem_prod ts svalues -> svalues -> exec svalues with
