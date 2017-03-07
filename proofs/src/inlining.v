@@ -289,6 +289,50 @@ Section SUBSET.
   
 End SUBSET.
 
+(* TODO move *)
+Lemma read_es_cons e es : 
+  Sv.Equal (read_es (e :: es)) (Sv.union (read_e e) (read_es es)).
+Proof. by rewrite /read_es /= !read_esE read_eE;SvD.fsetdec. Qed.
+
+Lemma assgn_tuple_Rvar p ii (xs:seq var_i) es vs s s' :
+  let xs := map Rvar xs in
+  disjoint (vrvs xs) (read_es es) ->  
+  sem_pexprs s es = ok vs ->
+  write_rvals s xs vs = ok s' ->
+  sem p s (assgn_tuple ii xs es) s'.
+Proof.
+  rewrite /write_rvals /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
+  case: s => sm svm.
+  have : svm =[(read_es es)] svm by done.
+  elim: xs es vs {2 5 6} svm => [ | x xs Hrec] [ | e es] [ | v vs] //= vm1.
+  + by move=> _ _ _ [->];constructor.
+  + by move=> _ _;apply: rbindP => ??;apply: rbindP. 
+  rewrite vrvs_cons read_es_cons /= => Hvm1  Hdisj.
+  apply: rbindP => ve Hve;apply: rbindP => ves Hves [??];subst ve ves.
+  apply: rbindP => s1' Hw Hws.
+  apply Eseq with s1'.
+  + do 2 constructor.
+    have H : svm =[read_e e] vm1 by apply: eq_onI Hvm1;SvD.fsetdec.
+    by rewrite -(read_e_eq_on sm H) Hve.
+  move: Hw;rewrite /write_var;apply:rbindP => vm1' /= Hset [?];subst s1'.
+  apply: Hrec Hves Hws;last by SvD.fsetdec.
+  apply: (@eq_onT _ _ vm1);first by apply: eq_onI Hvm1;SvD.fsetdec.
+  apply: rbindP Hset => w ? [<-] z Hz.
+  by rewrite Fv.setP_neq //;apply /eqP;SvD.fsetdec.
+Qed.
+
+(*
+Lemma assgn_tuple_Pvar p ii xs (xrs:seq var_i) vres s1 s2 :
+  disjoint (vrvs xs) (read_es (map Pvar xrs)) ->  
+  mapM (fun x : var_i => get_var (evm s1) x) xrs = ok vres ->
+  write_rvals s1 xs vres = ok s2 ->
+  sem p s1 (assgn_tuple ii xs (map Pvar xrs)) s2.
+Proof.
+  have : (evm s1) =[read_es (map Pvar xrs)] (evm s1) by done.
+  move: {2}(evm s1).
+
+*)
+
 Section PROOF.
 
 (* 
@@ -541,7 +585,6 @@ Section PROOF.
     by exists vm3;split=>//;apply: EForOne Hsc' Hsf'.
   Qed.
 
-(*
   Local Lemma Hcall s1 m2 s2 ii xs fn args vargs vs:
     sem_pexprs s1 args = Ok error vargs ->
     sem_call p (emem s1) fn vargs m2 vs ->
@@ -557,8 +600,38 @@ Section PROOF.
       apply sem_seq1;constructor;eapply Ecall;eauto.
       symmetry;rewrite -Hes;apply read_es_eq_on with Sv.empty.
       by apply: eq_onI Hvm1;rewrite read_esE read_i_call;SvD.fsetdec.
-    apply: rbindP => fd' /get_funP /(inline_progP uniq_funname Hp) [fd Hfd]. 
-    apply: rbindP => -[];apply:rbindP => -[];apply: add_infunP.
+    apply: rbindP => fd' /get_funP Hfd'.
+    have [fd [Hfd Hinline]] := inline_progP uniq_funname Hp Hfd'.
+    apply: rbindP => -[];apply:rbindP => -[];apply: add_infunP => Hcheckf.
+    sinversion Hfun. move: H;rewrite Hfd' => -[?];subst f.
+    have [s1' [s2' [Hwv Hbody Hvs]]]:= CheckAllocReg.alloc_funP_eq Hcheckf H0 H1 H2 H3. 
+    move=> /=;case: ifP => //= Hdisj _ [<- <-] vm1.
+    move: Hdisj; rewrite read_i_call vrvs_recE write_c_recE read_cE.
+
+Search assgn_tuple.
+
+Search read_c_rec read_c.
+
+
+
+
+
+
+Search inline_fd.
+H0 H1 H2 H3.
+
+  forall (p : prog) (fn : funname) (f f' : fundef) 
+    (m1 : Memory.mem) (vargs vres : seq value) (s1 s2 : estate),
+  CheckAllocReg.check_fundef (fn, f) (fn, f') tt = ok tt ->
+  write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
+  sem p s1 (f_body f) s2 ->
+  mapM (fun x : var_i => get_var (evm s2) x) (f_res f) = ok vres ->
+  List.Forall is_full_array vres ->
+  exists s1' s2' : estate,
+    [/\ write_vars (f_params f') vargs {| emem := m1; evm := vmap0 |} =
+        ok s1', sem p s1' (f_body f') s2'
+      & mapM (fun x : var_i => get_var (evm s2') x) (f_res f') = ok vres]
+
 Search CheckAllocReg.check_fundef.
 
 Print add_infun.

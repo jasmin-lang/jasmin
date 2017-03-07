@@ -21,7 +21,6 @@ COQFILES := \
 	src/dmasm_sem.v \
 	src/compiler_util.v \
 	src/allocation.v \
-	src/inlining.v \
 	src/constant_prop.v \
 	src/dead_code.v \
 	src/extraction.v \
@@ -32,6 +31,7 @@ COQFILES := \
 	src/equiv_sem.v
 
 #	src/array_expansion.v \
+	src/inlining.v \
 	src/unrolling.v \
 	src/compiler.v \
 

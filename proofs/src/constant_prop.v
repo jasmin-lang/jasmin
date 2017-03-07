@@ -192,19 +192,29 @@ Definition merge_cpm : cpm -> cpm -> cpm :=
 Definition remove_cpm (m:cpm) (s:Sv.t): cpm :=
   Sv.fold (fun x m => Mvar.remove m x) s m.
 
-Definition const_prop_rv (m:cpm) (rv:rval) : rval := 
+Definition const_prop_rv (m:cpm) (rv:rval) : cpm * rval := 
   match rv with 
-  | Rnone _   => rv
-  | Rvar  _   => rv
-  | Rmem  x e => Rmem x (const_prop_e m e)
-  | Raset x e => Raset x (const_prop_e m e)
+  | Rnone _   => (m, rv)
+  | Rvar  x   => (Mvar.remove m x, rv)
+    (* TODO : FIXME should we do more on x, in particular if x is a known value *)
+  | Rmem  x e => (m, Rmem x (const_prop_e m e))
+  | Raset x e => (Mvar.remove m x, Raset x (const_prop_e m e))
+  end.
+
+Fixpoint const_prop_rvs (m:cpm) (rvs:rvals) : cpm * rvals := 
+  match rvs with
+  | [::] => (m, [::])
+  | rv::rvs => 
+    let (m,rv)  := const_prop_rv m rv in 
+    let (m,rvs) := const_prop_rvs m rvs in
+    (m, rv::rvs)
   end.
 
 Definition add_cpm (m:cpm) (rv:rval) tag e := 
   if rv is Rvar x then
     if tag is AT_inline then 
-      if is_const e is Some n then Mvar.set m x n else Mvar.remove m x
-    else Mvar.remove m x
+      if is_const e is Some n then Mvar.set m x n else m 
+    else m
   else m. 
                            
 Section CMD.
@@ -222,18 +232,18 @@ Section CMD.
 
 End CMD.
 
+
 Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd := 
   match ir with
   | Cassgn x tag e => 
     let e := const_prop_e m e in 
-    let x := const_prop_rv m x in
+    let (m,x) := const_prop_rv m x in
     let m := add_cpm m x tag e in
     (m, [:: MkI ii (Cassgn x tag e)])
 
   | Copn xs o es =>
     let es := map (const_prop_e m) es in
-    let xs := map (const_prop_rv m) xs in
-    let m  := remove_cpm m (write_i ir) in
+    let (m,xs) := const_prop_rvs m xs in
     (m, [:: MkI ii (Copn xs o es) ])
 
   | Cif b c1 c2 => 
@@ -262,8 +272,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
 
   | Ccall fi xs f es =>
     let es := map (const_prop_e m) es in
-    let xs := map (const_prop_rv m) xs in
-    let m := remove_cpm m (write_i ir) in
+    let (m,xs) := const_prop_rvs m xs in
     (m, [:: MkI ii (Ccall fi xs f es) ])
   end
 
@@ -446,6 +455,78 @@ Proof.
   by apply: rbindP => vs' /Hrec /=;rewrite /sem_pexprs => -> [] <-.
 Qed.
 
+Lemma remove_cpm1P x v m s1 s1' : 
+  write_var x v s1 = ok s1' ->
+  valid_cpm (evm s1) m ->
+  valid_cpm (evm s1') (Mvar.remove m x).
+Proof.
+  move=> Hw Hv z n;rewrite Mvar.removeP;case: ifPn => //= ? /Hv.
+  move: Hw;apply: rbindP => vm;apply: rbindP => w ? [<-] [<-].
+  by rewrite /get_var /=;rewrite Fv.setP_neq.
+Qed.
+
+Lemma add_cpmP s1 s1' m x e tag v : 
+  sem_pexpr s1 e = ok v -> 
+  write_rval x v s1 = ok s1' ->
+  valid_cpm (evm s1') m -> 
+  valid_cpm (evm s1') (add_cpm m x tag e).
+Proof.
+  rewrite /add_cpm;case: x => [xi | x | x | x] //= He.
+  case: tag => //.
+  case: is_constP He => //= n [<-].
+  case: x => -[] [] //= xn vi [] <- /= Hv z /= n0.
+  have := Hv z n0.
+  case: ({| vtype := sint; vname := xn |} =P z).
+  + move=> <- /=;rewrite Mvar.setP_eq=> ? -[] <-;by rewrite /get_var Fv.setP_eq.
+  by move=> /eqP Hneq;rewrite Mvar.setP_neq.
+Qed.
+
+Lemma merge_cpmP rho m1 m2 : 
+  valid_cpm rho m1 \/ valid_cpm rho m2 ->  
+  valid_cpm rho (merge_cpm m1 m2).
+Proof.
+  move=> Hv x n;rewrite /merge_cpm Mvar.map2P //. 
+  case Heq1 : (Mvar.get m1 x) => [n1|//]; case Heq2 : (Mvar.get m2 x) => [n2|//].
+  case: eqP=> //.
+  by move=> ? [] ?;do 2 subst;elim: Hv => Hv;apply Hv.
+Qed.
+
+Lemma const_prop_rvP s1 s2 m x v: 
+  valid_cpm (evm s1) m ->
+  write_rval x v s1 = Ok error s2 ->
+  valid_cpm (evm s2) (const_prop_rv m x).1 /\
+  write_rval (const_prop_rv m x).2 v s1 = ok s2.
+Proof.
+  case:x => [ii | x | x p | x p] /= Hv.
+  + by move=> [<-].
+  + by move=> H;split=>//;apply: remove_cpm1P H Hv.
+  + apply: rbindP => z Hz;rewrite Hz /=.
+    apply: rbindP => z'.
+    apply: rbindP => z'' /(@const_prop_eP p _ _ Hv) -> /= -> /=.
+    by apply: rbindP => w -> /=;apply: rbindP => m' -> [<-].
+  apply: on_arr_varP;rewrite /on_arr_var => n t Htx -> /=. 
+  apply: rbindP => z;apply: rbindP => z'' /(@const_prop_eP p _ _ Hv) -> /= -> /=.
+  apply: rbindP => w -> /=;apply: rbindP => t' -> /=.
+  apply: rbindP => vm Hvm [<-];rewrite Hvm;split=>//=.
+  have H : write_var x (Varr t') s1 = ok (Estate (emem s1) vm) by rewrite /write_var Hvm.
+  by apply: remove_cpm1P H Hv.
+Qed.
+
+Lemma const_prop_rvsP s1 s2 m x v: 
+  valid_cpm (evm s1) m ->
+  write_rvals s1 x v = Ok error s2 ->
+  valid_cpm (evm s2) (const_prop_rvs m x).1 /\
+  write_rvals s1 (const_prop_rvs m x).2 v = ok s2.
+Proof.
+  elim: x v m s1 s2 => [ | x xs Hrec] [ | v vs] //= m s1 s2 Hm.
+  + by move=> [<-].
+  apply: rbindP => s1' Hw Hws.
+  have [/=]:= const_prop_rvP Hm Hw.
+  case Hx : const_prop_rv => [m1 rv'] /= Hm1 Hw'.
+  have [/=]:= Hrec _ _ _ _ Hm1 Hws.
+  by case Hxs : const_prop_rvs => [m2 rvs'] /= ?;rewrite Hw'.
+Qed.
+
 Lemma remove_cpm_spec (m : cpm) (xs : Sv.t) (x : CmpVar.t):
   match Mvar.get (remove_cpm m xs) x with 
   | Some n => Mvar.get m x = Some n /\ ~ Sv.In x xs
@@ -453,19 +534,12 @@ Lemma remove_cpm_spec (m : cpm) (xs : Sv.t) (x : CmpVar.t):
   end.
 Proof.
   rewrite /remove_cpm;apply SvP.MP.fold_rec_bis. 
-  + move=> s s' a Heq;case: Mvar.get=> [? [] ??| [? | ?]].
-    + by split => //;SvD.fsetdec. 
-    + by left.
-    by right;SvD.fsetdec. 
-  + case: Mvar.get=> [? | ].
-    + split => //;SvD.fsetdec. 
-    by left.
+  + move=> s s' a Heq.
+    by case: Mvar.get=> [? [] ??| [? | ?]]; [split=> //;SvD.fsetdec | left | right;SvD.fsetdec].
+  + by case: Mvar.get=> [? | ]; [ split => //;SvD.fsetdec | left].
   move=> ?????;rewrite Mvar.removeP;case:ifPn => /eqP Heq.
   + by rewrite Heq=> _;right;SvD.fsetdec. 
-  case: Mvar.get=> [? [] ??| [?|?]].
-  + by split=> //;SvD.fsetdec. 
-  + by left.
-  by SvD.fsetdec. 
+  by case: Mvar.get=> [? [] ??| [?|?]];[split=> //;SvD.fsetdec | left | SvD.fsetdec]. 
 Qed.
 
 Lemma remove_cpm2 m xs : Mvar_eq (remove_cpm (remove_cpm m xs) xs) (remove_cpm m xs). 
@@ -496,90 +570,6 @@ Lemma remove_cpmP s s' m x v:
   valid_cpm (evm s') (remove_cpm m (vrv x)).
 Proof. move=> Hw Hv; apply: (valid_cpm_rm _ Hv);eapply vrvP;eauto. Qed.
 
-Lemma remove1_cpmP x v s s' m:
-  write_var x v s = ok s' ->
-  valid_cpm (evm s) m ->
-  valid_cpm (evm s') (Mvar.remove m x).
-Proof.
-  move=> Hw Hv z n. rewrite Mvar.removeP. 
-  case:ifPn => /eqP // ? Hz;rewrite /get_var -(vrvP_var Hw); last by SvD.fsetdec.
-  by apply: Hv Hz.
-Qed.
-
-Lemma add_cpmP_aux s1 s1' s2 m x e v tag: 
-  sem_pexpr s2 e = ok v -> 
-  write_rval x v s1 = ok s1' ->
-  valid_cpm (evm s1) m -> 
-  valid_cpm (evm s1') (add_cpm m x tag e).
-Proof.
-  rewrite /add_cpm;case: x => [xi | x | x | x] //= He.
-  + by move=> [] ->.
-  + case: tag; try (by apply: remove1_cpmP).
-    case: is_constP He; last by move=> ??;apply: remove1_cpmP.
-    move=> n /= [] <-;rewrite /write_var /set_var.
-    case: x => -[] [] //= xn vi [] <- /= Hv z /= n0.
-    case: ({| vtype := sint; vname := xn |} =P z).
-    + move=> <- /=;rewrite Mvar.setP_eq=> -[] <-;by rewrite /get_var Fv.setP_eq.
-    move=> /eqP Hneq;rewrite Mvar.setP_neq // /get_var /= Fv.setP_neq //.
-    by apply Hv.
-  + by move=> p;t_rbindP => -[] <-.
-  move=> p; apply: on_arr_varP => n t Htx Hx.
-  apply: rbindP => vp ?; apply: rbindP => v' ?; apply: rbindP => t' ?. 
-  case: x Htx Hx => -[] tx x xi /= ->.
-  rewrite /set_var /=. 
-  case: CEDecStype.pos_dec (@CEDecStype.pos_dec_r n n)=> /=;last 
-    by move=> [] /(_ I (refl_equal _)).
-  move=> a _ ? [] <- /= Hv z nz Hz;rewrite /get_var.
-  rewrite Fv.setP_neq;first by apply Hv.
-  move: Hz=> /Hv;case z => -[] //= ??; apply rbindP => //.
-Qed.
-
-Lemma add_cpmP s s' m x e tag v: 
-  sem_pexpr s e = ok v ->
-  write_rval x v s = ok s' ->
-  valid_cpm (evm s) m ->
-  valid_cpm (evm s') (add_cpm m x tag e).
-Proof. apply add_cpmP_aux. Qed.
-
-Lemma merge_cpmP rho m1 m2 : 
-  valid_cpm rho m1 \/ valid_cpm rho m2 ->  
-  valid_cpm rho (merge_cpm m1 m2).
-Proof.
-  move=> Hv x n;rewrite /merge_cpm Mvar.map2P //. 
-  case Heq1 : (Mvar.get m1 x) => [n1|//]; case Heq2 : (Mvar.get m2 x) => [n2|//].
-  case: eqP=> //.
-  by move=> ? [] ?;do 2 subst;elim: Hv => Hv;apply Hv.
-Qed.
-
-Lemma const_prop_rv_auxP s0 s1 s2 m x v: 
-  valid_cpm (evm s0) m ->
-  write_rval_aux s0 x v s1 = Ok error s2 ->
-  write_rval_aux s0 (const_prop_rv m x) v s1 = ok s2.
-Proof.
-  case:x => [ii | x | x p | x p] //= Hv. 
-  + apply: rbindP => z Hz;rewrite Hz /=.
-    apply: rbindP => z'.
-    by apply: rbindP => z'' /(@const_prop_eP p _ _ Hv) -> /= ->.
-  apply: on_arr_varP;rewrite /on_arr_var => n t Htx -> /=. 
-  by apply: rbindP => z;apply: rbindP => z'' /(@const_prop_eP p _ _ Hv) -> /= ->.
-Qed.
-
-Lemma const_prop_rvP s1 s2 m x v: 
-  valid_cpm (evm s1) m ->
-  write_rval x v s1 = Ok error s2 ->
-  write_rval (const_prop_rv m x) v s1 = ok s2.
-Proof. by apply const_prop_rv_auxP. Qed.
-
-Lemma const_prop_rvsP s1 s2 m x v: 
-  valid_cpm (evm s1) m ->
-  write_rvals s1 x v = Ok error s2 ->
-  write_rvals s1 (map (const_prop_rv m) x) v = ok s2.
-Proof.
-  rewrite /write_rvals;move: {1 2 4} s1 => s0 Hs0.
-  elim: x v s1 s2 => //= x xs Hrec [] //= v vs s1 s2.
-  by apply: rbindP => z /(const_prop_rv_auxP Hs0) -> /Hrec.
-Qed.
-
 Instance const_prop_e_m : 
   Proper (@Mvar_eq Z ==> eq ==> eq) const_prop_e.
 Proof.
@@ -593,10 +583,22 @@ Proof.
 Qed.
 
 Instance const_prop_rv_m : 
-  Proper (@Mvar_eq Z ==> eq ==> eq) const_prop_rv.
+  Proper (@Mvar_eq Z ==> eq ==> RelationPairs.RelProd (@Mvar_eq Z) eq) const_prop_rv.
 Proof.
   move=> m1 m2 Hm rv rv' <- {rv'}.
-  by case: rv => //= ??;rewrite Hm.
+  by case: rv => [ v | v | v p | v p] //=;rewrite Hm.
+Qed.
+
+Instance const_prop_rvs_m : 
+  Proper (@Mvar_eq Z ==> eq ==> RelationPairs.RelProd (@Mvar_eq Z) eq) const_prop_rvs.
+Proof.
+  move=> m1 m2 Hm rv rv' <- {rv'}.
+  elim: rv m1 m2 Hm => //= rv rvs Hrec m1 m2 Hm.
+  have [/=]:= const_prop_rv_m Hm (refl_equal rv).
+  case: const_prop_rv => ??;case: const_prop_rv => ??.
+  rewrite /RelationPairs.RelCompFun /= => /Hrec H ->.
+  case: const_prop_rvs H => ??;case: const_prop_rvs => ?? [].
+  by rewrite /RelationPairs.RelCompFun /= => -> ->.
 Qed.
 
 Instance add_cpm_m : 
@@ -605,17 +607,6 @@ Proof.
   move=> m1 m2 Hm x x' <- {x'} t t' <- {t'} e e' <- {e'}.
   case: x t => //= v [];rewrite ?Hm //.
   by case: is_const => [n | ];rewrite Hm.
-Qed.
-
-Instance remove_cpm_m : 
-  Proper (@Mvar_eq Z ==> Sv.Equal ==> @Mvar_eq Z) remove_cpm.
-Proof.
-  move=> m1 m2 Hm s1 s2 Hs z.
-  case: Mvar.get (remove_cpm_spec m1 s1 z) => [? |];
-   case: Mvar.get (remove_cpm_spec m2 s2 z) => [? |] => //.
-  + by rewrite Hm => -[] -> _ [[]] ->.
-  + by rewrite Hm Hs => -[ -> | ? ] [].
-  by rewrite Hm Hs => -[] -> ? [] .
 Qed.
 
 Instance merge_cpm_m : 
@@ -627,6 +618,17 @@ Proof.
   have -> := Mvar.map2P m1 m1' Hz.
   have -> := Mvar.map2P m2 m2' Hz.
   by rewrite Hm Hm'. 
+Qed.
+
+Instance remove_cpm_m : 
+  Proper (@Mvar_eq Z ==> Sv.Equal ==> @Mvar_eq Z) remove_cpm.
+Proof.
+  move=> m1 m2 Hm s1 s2 Hs z.
+  case: Mvar.get (remove_cpm_spec m1 s1 z) => [? |];
+   case: Mvar.get (remove_cpm_spec m2 s2 z) => [? |] => //.
+  + by rewrite Hm => -[] -> _ [[]] ->.
+  + by rewrite Hm Hs => -[ -> | ? ] [].
+  by rewrite Hm Hs => -[] -> ? [] .
 Qed.
 
 Definition Mvarc_eq T := RelationPairs.RelProd (@Mvar_eq T) (@eq cmd).
@@ -660,13 +662,18 @@ Section PROPER.
 
   Local Lemma Wasgn x t e: Pr (Cassgn x t e).
   Proof.
-    by move=> ii m1 m2 /= Heq;split;rewrite /RelationPairs.RelCompFun /=; rewrite Heq.
+    move=> ii m1 m2 /= Heq; have := const_prop_rv_m Heq (refl_equal x).
+    case: const_prop_rv => ??;case: const_prop_rv => ?? [].
+    rewrite /RelationPairs.RelCompFun /= => -> ->.
+    by split => //=; rewrite /RelationPairs.RelCompFun /= Heq.
   Qed.
 
   Local Lemma Wopn xs o es: Pr (Copn xs o es).
   Proof.
-    move=> ii m1 m2 Heq /=;split;rewrite /RelationPairs.RelCompFun /=.
-    + by rewrite Heq.
+    move=> ii m1 m2 Heq /=;have := const_prop_rvs_m Heq (refl_equal xs).
+    case: const_prop_rvs => ??;case: const_prop_rvs => ?? [].
+    rewrite /RelationPairs.RelCompFun /= => -> ->.
+    split => //=; rewrite /RelationPairs.RelCompFun /=.
     by do 3 f_equal;apply eq_in_map=> z _;rewrite Heq.
   Qed.
 
@@ -706,9 +713,11 @@ Section PROPER.
 
   Local Lemma Wcall i xs f es: Pr (Ccall i xs f es).
   Proof.
-    move=> ii m1 m2 Hw /=;split;rewrite /RelationPairs.RelCompFun /=.
-    + by rewrite Hw.
-    by do 3 f_equal;apply eq_in_map=> z _;rewrite Hw. 
+    move=> ii m1 m2 Heq /=;have := const_prop_rvs_m Heq (refl_equal xs).
+    case: const_prop_rvs => ??;case: const_prop_rvs => ?? [].
+    rewrite /RelationPairs.RelCompFun /= => -> ->.
+    split => //=; rewrite /RelationPairs.RelCompFun /=.
+    by do 3 f_equal;apply eq_in_map=> z _;rewrite Heq.
   Qed.
 
 End PROPER.
@@ -796,8 +805,8 @@ Section PROOF.
     Pi_r s1 (Cassgn x tag e) s2.
   Proof.
     apply: rbindP => v He Hw m ii /= Hm. 
-    have H := const_prop_eP Hm He; have H' := const_prop_rvP Hm Hw.
-    split;first by eapply add_cpmP;eauto.
+    have H := const_prop_eP Hm He; have [] := const_prop_rvP Hm Hw.
+    case: const_prop_rv => m' x' /= Hm' Hw';split;first by eapply add_cpmP;eauto.
     by apply sem_seq1;constructor;constructor;rewrite H.
   Qed.
 
@@ -807,8 +816,8 @@ Section PROOF.
   Proof.
     move=> H m ii Hm; apply: rbindP H => vs.
     apply: rbindP => ves Hes Ho Hw;move: (Hes) (Hw).
-    move=> /(const_prop_esP Hm) Hes' /(const_prop_rvsP Hm) Hw';split=> /=.
-    + by apply: valid_cpm_rm Hm;apply (@write_iP p);constructor; rewrite Hes /= Ho. 
+    move=> /(const_prop_esP Hm) Hes' /(const_prop_rvsP Hm) [] /=.
+    case: const_prop_rvs => m' rvs' /= ??;split=>//.
     by apply sem_seq1;do 2 constructor;rewrite Hes' /= Ho.
   Qed.
 
@@ -918,7 +927,7 @@ Section PROOF.
         rewrite Heqm;move: (remove_cpm_spec m (Sv.union (Sv.singleton i) (write_c c)) i).
         by case: Mvar.get => // a [];SvD.fsetdec.
       have -> := valid_cpm_m (refl_equal (evm s1')) Hmi.
-      by apply: remove1_cpmP Hw Hm.
+      by apply: remove_cpm1P Hw Hm.
     have [_ Hc']:= Hc _ Hm'.        
     have /(Hf _ Heqm) : valid_cpm (evm s2) m.
     + have -> := valid_cpm_m (refl_equal (evm s2)) Heqm.
@@ -933,11 +942,11 @@ Section PROOF.
     write_rvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
     Pi_r s1 (Ccall ii xs fn args) s2.
   Proof.
-    move=> Hargs Hcall Hfun Hvs m ii' Hm /=;split.
-    + by apply: valid_cpm_rm Hm;apply (@write_iP p);econstructor;eauto.
-    apply sem_seq1;constructor;econstructor;eauto.
-    + by apply const_prop_esP.
-    by apply const_prop_rvsP.
+    move=> Hargs Hcall Hfun Hvs m ii' Hm.
+    have Hargs' := const_prop_esP Hm Hargs.
+    have /(_ _ Hm) [] /=:= const_prop_rvsP _ Hvs.
+    case: const_prop_rvs => m' rvs' /= ??;split=>//.
+    by apply sem_seq1;constructor;econstructor;eauto.
   Qed.
 
   Local Lemma Hproc m1 m2 fn f vargs s1 vm2 vres: 

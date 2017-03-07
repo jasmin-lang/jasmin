@@ -446,6 +446,12 @@ Qed.
 
 Definition disjoint s1 s2 := Sv.is_empty (Sv.inter s1 s2).
 
+Instance disjoint_m : 
+  Proper (Sv.Equal ==> Sv.Equal ==> eq) disjoint.
+Proof.
+  by move => s1 s1' Heq1 s2 s2' Heq2;rewrite /disjoint Heq1 Heq2.
+Qed.
+
 (* Non dependant map *)
 Module Mvar :=  Mmake CmpVar.
 

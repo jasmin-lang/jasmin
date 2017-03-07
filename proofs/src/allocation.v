@@ -56,9 +56,7 @@ Module Type CheckB.
 
   Parameter check_e    : pexpr -> pexpr -> M.t -> cexec M.t.
   
-  Parameter check_rval_e : rval -> rval -> M.t -> cexec M.t.
-
-  Parameter check_rval_w : rval -> rval -> M.t -> cexec M.t.
+  Parameter check_rval : rval -> rval -> M.t -> cexec M.t.
 
   Parameter eq_alloc : M.t -> vmap -> vmap -> Prop.
 
@@ -76,21 +74,13 @@ Module Type CheckB.
     forall m v1,  sem_pexpr (Estate m vm1) e1 = ok v1 ->
     exists v2, sem_pexpr (Estate m vm2) e2 = ok v2 /\ value_uincl v1 v2.
 
-  Parameter check_rval_eP : forall r r' vm1 vm2 x1 x2,
-    eq_alloc r vm1 vm2 ->
-    check_rval_e x1 x2 r = ok r' ->
-    eq_alloc r' vm1 vm2.
- 
-  Parameter check_rval_wP : forall r0 r0' r1 r1' x1 x2 s0 s1 s1' vm0 vm1 v1 v2,
-    eq_alloc r0 s0.(evm) vm0 ->
-    check_rval_e x1 x2 r0 = ok r0' ->
+  Parameter check_rvalP : forall r1 r1' x1 x2 s1 s1' vm1 v1 v2,
+    check_rval x1 x2 r1 = ok r1' ->
     eq_alloc r1 s1.(evm) vm1 ->
-    check_rval_w x1 x2 r1 = ok r1' ->
-    write_rval_aux s0 x1 v1 s1 = ok s1' ->
     value_uincl v1 v2 ->
+    write_rval x1 v1 s1 = ok s1' ->
     exists vm1', 
-      write_rval_aux (Estate s0.(emem) vm0) x2 v2 (Estate s1.(emem) vm1) = 
-         ok (Estate s1'.(emem) vm1') /\
+      write_rval x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1') /\
       eq_alloc r1' s1'.(evm) vm1'.
 
 End CheckB.
@@ -123,17 +113,8 @@ Definition cmd2_error := Cerr_fold2 "allocation:check_cmd".
 
 Definition check_es es1 es2 r := fold2 check_e_error check_e es1 es2 r.
 
-Definition check_rvals_e := 
-  fold2 (Cerr_fold2 "allocation:check_rvals_e") check_rval_e.
-
-Definition check_rvals_w := 
-  fold2 (Cerr_fold2 "allocation:check_rvals_aux") check_rval_w.
-
-Definition check_rval (x1 x2:rval) m := 
-  check_rval_e x1 x2 m >>= (check_rval_w x1 x2).
-
-Definition check_rvals (xs1 xs2:rvals) m := 
-  check_rvals_e xs1 xs2 m >>= (check_rvals_w xs1 xs2).
+Definition check_rvals := 
+  fold2 (Cerr_fold2 "allocation:check_rvals") check_rval.
 
 Definition check_var x1 x2 r := check_rval (Rvar x1) (Rvar x2) r.
 
@@ -195,66 +176,22 @@ Definition check_fundef (f1 f2: funname * fundef) (_:unit) :=
 Definition check_prog prog1 prog2 :=
   fold2 Ferr_neqprog check_fundef prog1 prog2 tt.
   
-Lemma check_rvalP x1 x2 v1 v2 r1 r2 s1 s2 vm1 :
-  check_rval x1 x2 r1 = ok r2 ->
-  eq_alloc r1 s1.(evm) vm1 ->
-  write_rval x1 v1 s1 = ok s2 ->
-  value_uincl v1 v2 ->
-  exists vm2, 
-    write_rval x2 v2 (Estate s1.(emem) vm1) = ok (Estate s2.(emem) vm2) /\
-    eq_alloc r2 s2.(evm) vm2.
-Proof.
-  apply: rbindP => r0 Hce Hcr Hea Hw Hu. 
-  have Hea1 := check_rval_eP Hea Hce.
-  by have [vm2 [Hw' Hea2]]:= check_rval_wP Hea Hce Hea1 Hcr Hw Hu;exists vm2.
-Qed.
-
-Lemma check_rvals_eP r r' vm1 vm2 xs1 xs2:
-  eq_alloc r vm1 vm2 ->
-  check_rvals_e xs1 xs2 r = ok r' ->
-  eq_alloc r' vm1 vm2.
-Proof.
-  elim: xs1 xs2 r r' => [ | x1 xs1 Hrec] [ | x2 xs2] //= r r' Hr. 
-  + by move=> [<-].
-  by apply: rbindP => r1 /(check_rval_eP Hr);apply Hrec.
-Qed.
-
-Lemma check_rvalsP_aux r0 r0' r1 r1' xs1 xs2 s0 s1 s1' vm0 vm1 vs1 vs2 :
-  List.Forall2 value_uincl vs1 vs2 ->
-  eq_alloc r0 s0.(evm) vm0 ->
-  check_rvals_e xs1 xs2 r0 = ok r0' ->
-  eq_alloc r1 s1.(evm) vm1 ->
-  check_rvals_w xs1 xs2 r1 = ok r1' ->
-  fold2 ErrType (write_rval_aux s0) xs1 vs1 s1 = ok s1' ->
-  exists vm1', 
-    fold2 ErrType (write_rval_aux (Estate s0.(emem) vm0)) xs2 vs2 (Estate s1.(emem) vm1) = 
-       ok (Estate s1'.(emem) vm1') /\
-    eq_alloc r1' s1'.(evm) vm1'.
-Proof. 
-  elim: xs1 xs2 vs1 vs2 r0 r1 s1 vm1 => 
-   [ | x1 xs1 Hrec] [ | x2 xs2] //= vs1 vs2 r0 r1 s1 vm1 [] //=.
-  + by move=> Hea0 _ Hea1 [<-] [<-];exists vm1.
-  move=> {vs1 vs2} v1 v2 vs1 vs2 Uv Uvs Hea0. 
-  apply: rbindP => r2 He Hes Hea1. 
-  apply: rbindP => r3 Hce Hces.
-  apply: rbindP => s2 Hwe Hwes.
-  have Hea2 := check_rval_eP Hea0 He.
-  have [vm1' [-> Hea3 /=]] := check_rval_wP Hea0 He Hea1 Hce Hwe Uv.
-  have [vm2 [-> Hea']]:= Hrec _ _ _ _ _ _ _ Uvs Hea2 Hes Hea3 Hces Hwes.
-  by exists vm2.
-Qed.
-
 Lemma check_rvalsP xs1 xs2 vs1 vs2 r1 r2 s1 s2 vm1 :
   check_rvals xs1 xs2 r1 = ok r2 ->
   eq_alloc r1 s1.(evm) vm1 ->
-  write_rvals s1 xs1 vs1 = ok s2 ->
   List.Forall2 value_uincl vs1 vs2 ->
+  write_rvals s1 xs1 vs1 = ok s2 ->
   exists vm2, 
     write_rvals (Estate s1.(emem) vm1) xs2 vs2 = ok (Estate s2.(emem) vm2) /\
     eq_alloc r2 s2.(evm) vm2.
 Proof. 
-  apply: rbindP => r3 Hce Hcr Hea Hw Hu.
-  by apply (check_rvalsP_aux Hu Hea Hce (check_rvals_eP Hea Hce) Hcr Hw).
+  elim: xs1 xs2 vs1 vs2 r1 r2 s1 s2 vm1 => [ | x1 xs1 Hrec] [ | x2 xs2] //=
+    vs1 vs2 r1 r2 s1 s2 vm1.
+  + by move=> [<-] Hvm1 [] //= [<-];exists vm1.
+  apply: rbindP => r3 Hx Hcxs Hvm1 [] //= {vs1 vs2}.
+  move=> v1 v2 vs1 vs2 Hv Hvs;apply: rbindP => s3 Hw Hws.
+  have [vm3 [->/= Hvm3]] := check_rvalP Hx Hvm1 Hv Hw.
+  apply: Hrec Hcxs Hvm3 Hvs Hws. 
 Qed.
 
 Section PROOF.
@@ -329,11 +266,11 @@ Section PROOF.
     Let v := sem_pexpr s1 e in write_rval x v s1 = Ok error s2 ->
     Pi_r s1 (Cassgn x tag e) s2.
   Proof.
-    case: s1 => sm1 svm1.
+    case: s1 => sm1 svm1. 
     apply: rbindP => v He Hw ii r1 [] //= x2 tag2 e2 r2 vm1 Hvm1.
     apply: add_iinfoP.
-    apply: rbindP => r1' /check_eP -/(_ _ _ Hvm1) [Hr1'] /(_ _ _ He) [v2 [He2 Hu2]].
-    move=> /check_rvalP -/(_ _ _ (Estate sm1 svm1) _ _ Hr1' Hw Hu2) [vm2] [Hwv Hvm2].
+    apply: rbindP => r1' /check_eP -/(_ _ _ Hvm1) [Hr1'] /(_ _ _ He) [v2 [He2 Hu2]] Hcx.
+    have /(_ _ Hr1') [vm2 [Hwv Hvm2]]:= check_rvalP Hcx _ Hu2 Hw.
     by exists vm2;split=>//;constructor;rewrite He2.
   Qed.
 
@@ -364,8 +301,8 @@ Section PROOF.
     case:ifPn => //= /eqP <-.
     apply: add_iinfoP.
     apply: rbindP => r1' /check_esP -/(_ _ _ Hvm1) [Hr1'] /(_ _ He) [v2 [He2 Hu2]].
-    have [v' [Ho' Hv] ]:= vuincl_sem_opn Hu2 Ho.
-    move=> /check_rvalsP -/(_ _ _ _ _ _ Hr1' Hw Hv) [vm2] [Hwv Hvm2].
+    have [v' [Ho' Hv] Hcxs]:= vuincl_sem_opn Hu2 Ho.
+    have /(_ _ Hr1') [vm2 [Hwv Hvm2]]:= check_rvalsP Hcxs _ Hv Hw.
     by exists vm2;split=>//;constructor;rewrite He2 /= Ho'.
   Qed.
 
@@ -478,7 +415,7 @@ Section PROOF.
     sem_for p1 i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
   Proof.
     move=> Hwi _ Hc _ Hfor i2 ii r1 r1' c2 r2 vm2 Heq Hr1' Hcc Hincl. 
-    have [vm3 [Hwi2 Hvm3]] := check_rvalP Hr1' Heq Hwi (value_uincl_refl _).
+    have [vm3 [Hwi2 Hvm3]] := check_rvalP Hr1' Heq (value_uincl_refl _) Hwi.
     have [vm4 [Hvm4 Hsc]] := Hc _ _ _ _ _ Hvm3 Hcc.
     have [vm5 [Hvm5 Hsf]] := Hfor _ _ _ _ _ _ _ (eq_alloc_incl Hincl Hvm4) Hr1' Hcc Hincl.
     by exists vm5;split=>//;econstructor;eauto.
@@ -498,7 +435,7 @@ Section PROOF.
     have Hs2 := Hfun _ Hvargs.
     have Hvs : List.Forall2 value_uincl vs vs.
     + by apply: List_Forall2_refl value_uincl_refl.
-    have /(_ _ _ Hr1' Hvs) [vm2 [Hw2 Hr2]]:= check_rvalsP Hcxs _ Hw.
+    have /(_ _ Hr1') [vm2 [Hw2 Hr2]]:= check_rvalsP Hcxs _ Hvs Hw.
     exists vm2;split=>//;econstructor;eauto.
   Qed.
 
@@ -520,13 +457,30 @@ Section PROOF.
       by apply: sem_call_uincl.
     Qed.
 
-    Lemma alloc_callP_eq_aux f mem mem' va vr: 
-      sem_call p1 mem f va mem' vr -> 
-      sem_call p2 mem f va mem' vr.
+    Lemma alloc_funP_eq_aux fn f f' m1 vargs vres s1 s2: 
+      check_fundef (fn, f) (fn, f') tt = ok tt ->
+      write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
+      sem p1 s1 (f_body f) s2 ->
+      mapM (fun x : var_i => get_var (evm s2) x) (f_res f) = ok vres ->
+      List.Forall is_full_array vres ->
+      exists s1' s2',
+       [ /\ write_vars (f_params f') vargs {| emem := m1; evm := vmap0 |} = ok s1', 
+        sem p2 s1' (f_body f') s2' &
+        mapM (fun x : var_i => get_var (evm s2') x) (f_res f') = ok vres].
     Proof.
-      move=> /(sem_call_Ind Hskip Hcons HmkI Hassgn Hopn Hif_true Hif_false 
-                Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc_eq) H.
-      by apply H;apply List_Forall2_refl.
+      rewrite /check_fundef eq_refl;apply: add_finfoP.
+      apply:rbindP => r1;apply:add_iinfoP => Hcparams.
+      apply:rbindP => r2 Hcc;apply: rbindP => r3;apply: add_iinfoP => Hcres _.
+      rewrite write_vars_rvals=> /(check_rvalsP Hcparams). 
+      move=> /(_ vargs _ eq_alloc_empty) [ | vm3 /= [Hw2 Hvm3]].
+      + by apply: List_Forall2_refl.
+      move=> /(sem_Ind Hskip Hcons HmkI Hassgn Hopn Hif_true Hif_false 
+                Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc_eq) Hc.
+      have [vm4 /= [Hvm4 Hsc2] Hres Hfull]:= Hc _ _ _ _ _ Hvm3 Hcc.
+      do 2 eexists;split;eauto;first by rewrite write_vars_rvals.
+      have := check_esP Hcres Hvm4.
+      move=> [Hr3];rewrite sem_pexprs_get_var => /(_ _ Hres) [vres2 /= []].
+      by rewrite sem_pexprs_get_var => ? /(is_full_array_uincls Hfull) ->.
     Qed.
 
   End REFL.
@@ -566,10 +520,17 @@ Section PROOF.
 
 End PROOF.
 
-Lemma alloc_callP_eq p f mem mem' va vr: 
-  sem_call p mem f va mem' vr -> 
-  sem_call p mem f va mem' vr.
-Proof. by apply alloc_callP_eq_aux. Qed.
+Lemma alloc_funP_eq p fn f f' m1 vargs vres s1 s2: 
+  check_fundef (fn, f) (fn, f') tt = ok tt ->
+  write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
+  sem p s1 (f_body f) s2 ->
+  mapM (fun x : var_i => get_var (evm s2) x) (f_res f) = ok vres ->
+  List.Forall is_full_array vres ->
+  exists s1' s2',
+   [ /\ write_vars (f_params f') vargs {| emem := m1; evm := vmap0 |} = ok s1', 
+    sem p s1' (f_body f') s2' &
+    mapM (fun x : var_i => get_var (evm s2') x) (f_res f') = ok vres].
+Proof. by apply alloc_funP_eq_aux. Qed.
 
 End MakeCheckAlloc.
 
@@ -875,27 +836,18 @@ Module CBAreg.
     | _, _ => cerror (Cerr_neqexpr e1 e2 salloc)
     end.
 
-  Definition check_rval_e (x1 x2:rval) m : cexec M.t :=
-    match x1, x2 with
-    | Rnone _, Rnone _ => cok m
-    | Rvar _ , Rvar  _ => cok m
-    | Rmem x1 e1, Rmem x2 e2 => check_v x1 x2 m >>= check_e e1 e2
-    | Raset x1 e1, Raset x2 e2 => check_v x1 x2 m >>= check_e e1 e2
-    | _      , _       => cerror (Cerr_neqrval x1 x2 salloc)
-    end.
-
-  Definition check_var_w (xi1 xi2:var_i) m : cexec M.t :=
+  Definition check_var (xi1 xi2:var_i) m : cexec M.t :=
     let x1 := xi1.(v_var) in
     let x2 := xi2.(v_var) in
     if vtype x1 == vtype x2 then cok (M.set m x1 (vname x2))
     else cerror (Cerr_varalloc xi1 xi2 "type mismatch").
 
-  Definition check_rval_w (x1 x2:rval) m : cexec M.t :=
+  Definition check_rval (x1 x2:rval) m : cexec M.t :=
     match x1, x2 with
     | Rnone  _   , Rnone _     => cok m 
-    | Rvar xi1   , Rvar xi2    => check_var_w xi1 xi2 m
-    | Rmem x1 _  , Rmem x2 _   => cok m 
-    | Raset xi1 _, Raset xi2 _ => check_var_w xi1 xi2 m
+    | Rvar x1    , Rvar x2     => check_var x1 x2 m
+    | Rmem x1 e1 , Rmem x2 e2  => check_v x1 x2 m >>= check_e e1 e2
+    | Raset x1 e1, Raset x2 e2 => check_v x1 x2 m >>= check_e e1 e2 >>= check_var x1 x2
     | _          , _           => cerror (Cerr_neqrval x1 x2 salloc)
     end.
      
@@ -988,29 +940,15 @@ Module CBAreg.
     by apply vuincl_sem_sop2.
   Qed.
 
-  Lemma check_rval_eP r r' vm1 vm2 x1 x2:
-    eq_alloc r vm1 vm2 ->
-    check_rval_e x1 x2 r = ok r' ->
-    eq_alloc r' vm1 vm2.
-  Proof.
-    case: x1 x2 => /= [ii1 | x1 | x1 p1 | x1 p1] [ii2 | x2 | x2 p2 | x2 p2] //=.
-    + by move=> ? [<-].
-    + by move=> ? [<-].
-    + move=> Hea;apply: rbindP => r1 /check_vP -/(_ _ _ Hea) [] Hea1 ?. 
-      by move=> /check_eP -/(_ _ _ Hea1) [].
-    move=> Hea;apply: rbindP => r1 /check_vP -/(_ _ _ Hea) [] Hea1 ?. 
-    by move=> /check_eP -/(_ _ _ Hea1) [].
-  Qed.
- 
-  Lemma check_var_wP r1 r1' vm1 vm2 vm1' x1 x2 v1 v2 :
+  Lemma check_varP r1 r1' vm1 vm2 vm1' x1 x2 v1 v2 :
     eq_alloc r1 vm1 vm2 ->
-    check_var_w x1 x2 r1 = ok r1' ->
+    check_var x1 x2 r1 = ok r1' ->
     set_var vm1 x1 v1 = ok vm1' ->
     value_uincl v1 v2 ->
     exists vm2' : vmap,
       set_var vm2 x2 v2 = ok vm2' /\ eq_alloc r1' vm1' vm2'.
   Proof.
-    rewrite /check_var_w;case: eqP => //= Ht Hea [<-].
+    rewrite /check_var;case: eqP => //= Ht Hea [<-].
     apply: rbindP => v1' Hv1' [<-] Hu.
     have [v2' [Hv2' Hu']]:= of_val_uincl Hu Hv1'.
     case: x2 Ht => -[xt2 xn2] _ /= <-.
@@ -1029,52 +967,45 @@ Module CBAreg.
     move=> /(M.setP_neq Hne) [] Hx1 Hid;rewrite !Fv.setP_neq //;first by apply Hget.
     by apply /eqP => -[] _ /Hid.
   Qed.
-        
-  Lemma check_rval_wP r0 r0' r1 r1' x1 x2 s0 s1 s1' vm0 vm1 v1 v2 :
-    eq_alloc r0 s0.(evm) vm0 ->
-    check_rval_e x1 x2 r0 = ok r0' ->
+
+  Lemma check_rvalP r1 r1' x1 x2 s1 s1' vm1 v1 v2 :
+    check_rval x1 x2 r1 = ok r1' ->
     eq_alloc r1 s1.(evm) vm1 ->
-    check_rval_w x1 x2 r1 = ok r1' ->
-    write_rval_aux s0 x1 v1 s1 = ok s1' ->
     value_uincl v1 v2 ->
+    write_rval x1 v1 s1 = ok s1' ->
     exists vm1', 
-      write_rval_aux (Estate s0.(emem) vm0) x2 v2 (Estate s1.(emem) vm1) = 
-         ok (Estate s1'.(emem) vm1') /\
+      write_rval x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1') /\
       eq_alloc r1' s1'.(evm) vm1'.
   Proof.
     case: x1 x2 => /= [ii1 | x1 | x1 p1 | x1 p1] [ii2 | x2 | x2 p2 | x2 p2] //=.
-    + by move=> Hea _ Hea1 [<-] [<-] Hv;exists vm1.
-    + move=> Hea0 _ Hea1 Hc.
-      apply: rbindP => vm2 Hset [<-] Hu.
-      have [vm3 [Hvm3 Hr1']]:= check_var_wP Hea1 Hc Hset Hu.
-      by exists vm3;rewrite /write_var /= Hvm3.
-    + move=> Hea0;apply: rbindP => r2 Hcv Hce Hea1 [?];subst r1'.
-      apply: rbindP => z1;apply: rbindP => vx1 Hgetx1 Hto1.
-      have [Hea2 /(_ _ Hgetx1) [vx2 [->]] /=]:= check_vP Hcv Hea0.
-      move=> /value_uincl_word -/(_ _ Hto1) [??];subst.
-      have Hs0 : s0 = Estate (emem s0) (evm s0) by case s0.
-      apply: rbindP => ze;apply: rbindP => ve;rewrite Hs0 => Hse Htoe.
-      have [Heq0' /(_ _ _ Hse) /= [v3 [->]]]:= check_eP Hce Hea2. 
-      move=> /value_uincl_word -/(_ _ Htoe) [??];subst ve v3 => /=.
-      apply:rbindP => w1 Htow1 H. 
-      move=> /value_uincl_word -/(_ _ Htow1) [??];subst v1 v2 => /=.
-      by apply: rbindP H => m' -> [<-];exists vm1.
-    move=> Hea0;apply: rbindP => r2 Hcv Hce Hea1 Hcvr.
-    apply: on_arr_varP => n t1 Htx1 Hgetx1;rewrite /on_arr_var.
-    have [Hea2 /(_ _ Hgetx1) [vx2 [->]]]:= check_vP Hcv Hea0.
-    case: vx2 => //= n0 t2 [? Ht];subst n0.
-    have Hs0 : s0 = Estate (emem s0) (evm s0) by case s0.
-    apply: rbindP => z1;apply: rbindP => vp1;rewrite Hs0 => Hsp1 Hto1.
-    have [Heq0' /(_ _ _ Hsp1) /= [v3 [->]]]:= check_eP Hce Hea2.
-    move=> /value_uincl_word -/(_ _ Hto1) [??];subst vp1 v3 => /=.
-    apply:rbindP => w1 Htow1 H. 
-    move=> /value_uincl_word -/(_ _ Htow1) [??];subst v1 v2 => /=.
-    apply: rbindP H=> t1' Ht1'.
-    have [t2' [-> Ht2']]:= Array_set_uincl Ht Ht1'. 
-    apply: rbindP => vm2 Hvm2 [<-] /=.
-    have Ut' : value_uincl (Varr t1') (Varr t2') by done.
-    by have [vm2' [-> ?] /=]:= check_var_wP Hea1 Hcvr Hvm2 Ut'; exists vm2'.
-  Qed.
+    + by move=> [<-] ?? [<-];exists vm1.  
+    + rewrite /write_var=> Hc Hvm1 Hv;apply rbindP => vm1' Hset [<-] /=.
+      by have [vm2 [-> Hr1']/=]:= check_varP Hvm1 Hc Hset Hv; exists vm2.
+    + apply: rbindP => r2 Hcv Hce Hvm1 Hv.
+      apply: rbindP => wx;apply:rbindP => vx.
+      have [Hr2 H/H{H} [vx' [-> Hvx /=]]]:= check_vP Hcv Hvm1.
+      move=> /(value_uincl_word Hvx) [_ ->] /=.
+      apply: rbindP => we;apply:rbindP => ve.
+      case: s1 Hvm1 Hr2 => sm1 svm1 /= Hvm1 Hr2.
+      have [Hr1' H/H{H} [ve' [-> Hve]]]:= check_eP Hce Hr2.
+      move=> /(value_uincl_word Hve) [_ ->] /=.
+      apply: rbindP => w /(value_uincl_word Hv) [_ ->] /=.
+      by apply: rbindP => ? -> -[<-];exists vm1.
+     apply: rbindP => r2;apply:rbindP=> r3 Hcv Hce Hcva Hvm1 Hv.
+     apply: on_arr_varP => n t Htx;rewrite /on_arr_var /=.
+     have [Hr3 H/H{H} [vx2 [->]]]:= check_vP Hcv Hvm1.
+     case: vx2 => //= n0 t2 [? Ht];subst n0.
+     apply: rbindP => we;apply:rbindP => ve.
+     case: s1 Hvm1 Hr3 => sm1 svm1 /= Hvm1 Hr3.
+     have [Hr1' H/H{H} [ve' [-> Hve]]]:= check_eP Hce Hr3.
+     move=> /(value_uincl_word Hve) [_ ->] /=.
+     apply: rbindP => w /(value_uincl_word Hv) [_ ->] /=.
+     apply: rbindP => t1' Ht1'.
+     have [t2' [-> Ht2']]:= Array_set_uincl Ht Ht1'. 
+     apply: rbindP => vm2 Hvm2 [<-] /=.
+     have Ut' : value_uincl (Varr t1') (Varr t2') by done.
+     by have [vm2' [-> ?] /=]:= check_varP Hr1' Hcva Hvm2 Ut';exists vm2'.
+   Qed.
 
 End CBAreg.
 
