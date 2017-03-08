@@ -205,7 +205,7 @@ Lemma inline_progP' p p' f fd :
   exists fd', get_fundef p' f = Some fd' /\ inline_fd p' fd = ok fd'.
 Proof.
   elim: p p' => [ | [f1 fd1] p Hrec] p' //. 
-  rewrite cons_uniq => /= /andP [] Hf1 Huniq.
+  rewrite /= => /andP [] Hf1 Huniq.
   apply: rbindP => p1 Hp1.
   apply: rbindP => fd1';apply: add_finfoP => Hinl [] <-.
   rewrite !get_fundef_cons /=;case: eqP => [? [?]| Hne].
