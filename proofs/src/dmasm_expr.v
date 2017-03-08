@@ -662,6 +662,10 @@ Proof.
   elim: es s => [ | e es Hes] s;rewrite /read_es /= ?Hes ?read_eE;SvD.fsetdec.
 Qed.
 
+Lemma read_es_cons e es : 
+  Sv.Equal (read_es (e :: es)) (Sv.union (read_e e) (read_es es)).
+Proof. by rewrite /read_es /= !read_esE read_eE;SvD.fsetdec. Qed.
+
 Lemma read_rvE s x: Sv.Equal (read_rv_rec s x) (Sv.union s (read_rv x)).
 Proof.
   case: x => //= [_|_|x e|x e]; rewrite /read_rv /= ?read_eE;SvD.fsetdec.

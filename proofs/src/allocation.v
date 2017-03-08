@@ -463,10 +463,10 @@ Section PROOF.
       sem p1 s1 (f_body f) s2 ->
       mapM (fun x : var_i => get_var (evm s2) x) (f_res f) = ok vres ->
       List.Forall is_full_array vres ->
-      exists s1' s2',
+      exists s1' vm2,
        [ /\ write_vars (f_params f') vargs {| emem := m1; evm := vmap0 |} = ok s1', 
-        sem p2 s1' (f_body f') s2' &
-        mapM (fun x : var_i => get_var (evm s2') x) (f_res f') = ok vres].
+        sem p2 s1' (f_body f') (Estate (emem s2) vm2) &
+        mapM (fun x : var_i => get_var vm2 x) (f_res f') = ok vres].
     Proof.
       rewrite /check_fundef eq_refl;apply: add_finfoP.
       apply:rbindP => r1;apply:add_iinfoP => Hcparams.
@@ -526,10 +526,10 @@ Lemma alloc_funP_eq p fn f f' m1 vargs vres s1 s2:
   sem p s1 (f_body f) s2 ->
   mapM (fun x : var_i => get_var (evm s2) x) (f_res f) = ok vres ->
   List.Forall is_full_array vres ->
-  exists s1' s2',
+  exists s1' vm2,
    [ /\ write_vars (f_params f') vargs {| emem := m1; evm := vmap0 |} = ok s1', 
-    sem p s1' (f_body f') s2' &
-    mapM (fun x : var_i => get_var (evm s2') x) (f_res f') = ok vres].
+    sem p s1' (f_body f') (Estate (emem s2) vm2) &
+    mapM (fun x : var_i => get_var vm2 x) (f_res f') = ok vres].
 Proof. by apply alloc_funP_eq_aux. Qed.
 
 End MakeCheckAlloc.
