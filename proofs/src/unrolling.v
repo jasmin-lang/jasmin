@@ -59,7 +59,7 @@ Fixpoint unroll_i (i:instr) : cmd :=
     let c' := unroll_cmd unroll_i c in
     match is_const low, is_const hi with
     | Some vlo, Some vhi =>
-      let l := wrange dir (I64.repr vlo) (I64.repr vhi) in
+      let l := wrange dir vlo vhi in
       let cs := map (fun n => assgn ii i (Pconst n) :: c') l in
       flatten cs 
     | _, _       => [:: MkI ii (Cfor i (dir, low, hi) c') ]
@@ -68,100 +68,186 @@ Fixpoint unroll_i (i:instr) : cmd :=
   | Ccall _ _ _ _  => [:: i ]
   end.
 
-Definition unroll_fun (f:funname * fundef) :=
-  let (ii,p,c,r) := f.2 in
-  (f.1, MkFun ii p (unroll_cmd unroll_i c) r).
+Definition unroll_fun (f:fundef) :=
+  let (ii,p,c,r) := f in
+  MkFun ii p (unroll_cmd unroll_i c) r.
 
-Definition unroll_prog (p:prog) := map unroll_fun p.
+Definition unroll_prog (p:prog) := map_prog unroll_fun p.
 
 (* ** proofs
  * -------------------------------------------------------------------- *)
 
-(*
 Section PROOF.
 
-  Let Pi (i:instr) := 
-    forall s s', sem_i s i s' -> sem s (unroll_i i) s'.
+  Variable p : prog.
 
-  Let Pc (c:cmd) := 
-    forall s s', sem s c s' -> sem s (unroll_cmd unroll_i c) s'.
+  Definition p' := unroll_prog p.
 
-  Let Pf ta tr (fd:fundef ta tr) := 
-    forall mem mem' va vr, 
-    sem_call mem fd va mem' vr ->
-    sem_call mem (unroll_call fd) va mem' vr.
+  Let Pi_r (s:estate) (i:instr_r) (s':estate) :=
+    forall ii, sem p' s (unroll_i (MkI ii i)) s'.
 
-  Let Hskip : Pc [::].
-  Proof. by move=> s s' H. Qed.
+  Let Pi (s:estate) (i:instr) (s':estate) :=
+    sem p' s (unroll_i i) s'.
 
-  Let Hseq  : forall i c,  Pi i -> Pc c -> Pc (i::c).
+  Let Pc (s:estate) (c:cmd) (s':estate) :=
+    sem p' s (unroll_cmd unroll_i c) s'.
+
+  Let Pfor (i:var_i) vs s c s' :=
+    sem_for p' i vs s (unroll_cmd unroll_i c) s'
+    /\ forall ii, sem p' s
+      (flatten (map (fun n => assgn ii i (Pconst n) :: (unroll_cmd unroll_i c)) vs)) s'.
+
+  Let Pfun m1 fn vargs m2 vres :=
+    sem_call p' m1 fn vargs m2 vres.
+
+  Local Lemma Hskip s : Pc s [::] s.
+  Proof. exact: Eskip. Qed.
+
+  Local Lemma Hcons s1 s2 s3 i c :
+    sem_I p s1 i s2 ->
+    Pi s1 i s2 -> sem p s2 c s3 -> Pc s2 c s3 -> Pc s1 (i :: c) s3.
   Proof.
-    move=> i c Hi Hc s s' H;inversion H;clear H;subst=> /=.
-    by apply: sem_app (Hi _ _ H3) (Hc _ _ H5).
+    move=> Hsi Hi Hsc Hc.
+    exact: (sem_app Hi Hc).
   Qed.
 
-  Let Hbcmd : forall t (x:rval t) e,  Pi (Cassgn x e).
-  Proof. move=> i s s' /=;apply: sem_seq1. Qed.
+  Local Lemma HmkI ii i s1 s2 :
+    sem_i p s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
+  Proof. move=> _ Hi; exact: Hi. Qed.
 
-  Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (Cif e c1 c2).
+  Local Lemma Hassgn s1 s2 x tag e :
+    Let v := sem_pexpr s1 e in write_rval x v s1 = Ok error s2 ->
+    Pi_r s1 (Cassgn x tag e) s2.
   Proof.
-    move=> e c1 c2 Hc1 Hc2 s s' /= Hs;apply sem_seq1.
-    inversion Hs;clear Hs;subst. apply (Eif H4)=> {H4}.
-    case: cond H5=> [/Hc1 | /Hc2] //.
+    move=> Hw ii.
+    by apply: sem_seq1; apply: EmkI; apply: Eassgn.
   Qed.
 
-  Let Hfor  : forall i rn c, Pc c -> Pi (Cfor i rn c).
+  Local Lemma Hopn s1 s2 o xs es :
+    Let x := Let x := sem_pexprs s1 es in sem_sopn o x
+    in write_rvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
   Proof.
-    move=> i [[dir low] hi] c Hc s s' Hs /=.
-    have Hs1 : sem s [:: Cfor i (dir, low, hi) (unroll_cmd unroll_i c)] s'.
-    + apply sem_seq1. inversion Hs;clear Hs;subst.
-      apply EFor with vlow vhi=> // => {H6 H7}.
-      elim: H8 Hc=> {s s' vlow vhi c} [s iv c Hc| s1 s1' s2 s3 iv w ws c Hw Hs1 Hs2 Hrec Hc].
-      + by constructor.
-      by apply EForOne with s1' s2 => //;[apply Hc|apply Hrec].
-    case Heq1 : (is_const low) => [vlo| //].
-    case Heq2 : is_const => [vhi| //];inversion Hs;clear Hs;subst.
-    have ?:= is_constP Heq1;have ?:= is_constP Heq2;subst low hi=> {Heq1 Heq2}.
-    move: H6 H7 => /= [] ? [] ?;subst=> {Hs1}.
-    elim: wrange s H8=> [ | w ws Hrec] /= s Hf;inversion Hf;clear Hf;subst.
-    + by constructor.
-    apply Eseq with  s1'.
-    + by constructor.
-    apply sem_app with s2;first by apply Hc.
-    by apply Hrec.
+    move=> Hw ii.
+    by apply: sem_seq1; apply: EmkI; apply: Eopn.
   Qed.
 
-  Let Hwhile : forall e c, Pc c -> Pi (Cwhile e c).
+  Local Lemma Hif_true s1 s2 e c1 c2 :
+    Let x := sem_pexpr s1 e in to_bool x = Ok error true ->
+    sem p s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
   Proof.
-    move=> e c Hc s s' Hs /=.
-    apply sem_seq1;inversion Hs;clear Hs;subst;constructor.
-    elim: H3 Hc => {s s' e c} [s e c He | s1 s2 s3 e c He Hc Hw Hrec] HP.
-    + by apply EWhileDone. 
-    by apply EWhileOne with s2=> //;[apply HP | apply Hrec].
+    move=> Hb Hsc Hc ii.
+    by apply: sem_seq1; apply: EmkI; apply: Eif_true.
   Qed.
 
-  Let Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
+  Local Lemma Hif_false s1 s2 e c1 c2 :
+    Let x := sem_pexpr s1 e in to_bool x = Ok error false ->
+    sem p s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
   Proof.
-    move=> ta tr x fd a Hf s s' H;sinversion H => /=.
-    sinversion H2;sinversion H5;sinversion H6;sinversion H0.
-    unfold rarg in * => {rarg}.
-    case Heq: (sem_pexpr _ a) H7 H8 => [va /=|//] _ /Hf Hs.
-    by apply sem_seq1;econstructor;eauto;rewrite Heq.
+    move=> Hb Hsc Hc ii.
+    by apply: sem_seq1; apply: EmkI; apply: Eif_false.
   Qed.
 
-  Let Hfunc : forall ta tr (x:rval ta) c (re:pexpr tr), Pc c -> Pf (FunDef x c re).
+  Local Lemma Hwhile_true s1 s2 s3 e c :
+    Let x := sem_pexpr s1 e in to_bool x = ok true ->
+    sem p s1 c s2 -> Pc s1 c s2 ->
+    sem_i p s2 (Cwhile e c) s3 -> Pi_r s2 (Cwhile e c) s3 -> Pi_r s1 (Cwhile e c) s3.
   Proof.
-    move=> ta tr x c re Hc mem mem' va vr H;sinversion H.
-    sinversion H0=> /=; constructor=> //= vm0 Hvm0.
-    by case: (H6 vm0 Hvm0)=> vm2 /= [] vm1 [] ? /Hc Hc' Hvr;exists vm2, vm1. 
+    move=> Hb Hsc Hc Hsi Hi ii.
+    apply: sem_seq1; apply: EmkI; apply: Ewhile_true=> //.
+    apply: Hc.
+    move: Hi=> /(_ ii) Hi.
+    sinversion Hi.
+    sinversion H2.
+    sinversion H4.
+    apply: H5.
   Qed.
 
-  Lemma unroll_callP ta tr (f : fundef ta tr) mem mem' va vr: 
-    sem_call mem f va mem' vr -> 
-    sem_call mem (unroll_call f) va mem' vr.
+  Local Lemma Hwhile_false s e c :
+    Let x := sem_pexpr s e in to_bool x = ok false ->
+    Pi_r s (Cwhile e c) s.
   Proof.
-    apply (@func_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc).
+   move=> Hb ii.
+   by apply: sem_seq1; apply: EmkI; apply: Ewhile_false.
+  Qed.
+
+  Local Lemma Hfor s1 s2 (i:var_i) d lo hi c vlo vhi :
+    Let x := sem_pexpr s1 lo in to_int x = Ok error vlo ->
+    Let x := sem_pexpr s1 hi in to_int x = Ok error vhi ->
+    sem_for p i (wrange d vlo vhi) s1 c s2 ->
+    Pfor i (wrange d vlo vhi) s1 c s2 -> Pi_r s1 (Cfor i (d, lo, hi) c) s2.
+  Proof.
+    move=> Hlo Hhi Hc [Hfor Hfor'] ii.
+    rewrite /=.
+    case Hlo': (is_const lo)=> [nlo|].
+    + case Hhi': (is_const hi)=> [nhi|].
+      + have ->: nlo = vlo.
+          rewrite /is_const /= in Hlo'.
+          by case: lo Hlo Hlo'=> //= z [] -> [] ->.
+        have ->: nhi = vhi.
+          rewrite /is_const /= in Hhi'.
+          by case: hi Hhi Hhi'=> //= z [] -> [] ->.
+        exact: Hfor'.
+      apply: sem_seq1; apply: EmkI; apply: Efor; [apply: Hlo|apply: Hhi|apply: Hfor].
+    apply: sem_seq1; apply: EmkI; apply: Efor; [apply: Hlo|apply: Hhi|apply: Hfor].
+  Qed.
+
+  Local Lemma Hfor_nil s i c: Pfor i [::] s c s.
+  Proof.
+    split=> //=.
+    exact: EForDone.
+    move=> ii.
+    apply: Eskip.
+  Qed.
+
+  Local Lemma Hfor_cons s1 s1' s2 s3 (i : var_i) (w:Z) (ws:seq Z) c :
+    write_var i w s1 = Ok error s1' ->
+    sem p s1' c s2 ->
+    Pc s1' c s2 ->
+    sem_for p i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
+  Proof.
+    move=> Hw Hsc Hc Hsfor [Hfor Hfor']; split=> [|ii].
+    apply: EForOne; [exact: Hw|exact: Hc|exact: Hfor].
+    move: Hfor'=> /(_ ii) Hfor'.
+    apply: Eseq; [apply: EmkI; apply: Eassgn; exact: Hw|apply: sem_app].
+    exact: Hc.
+    exact: Hfor'.
+  Qed.
+
+  Local Lemma Hcall s1 m2 s2 ii xs fn args vargs vs:
+    sem_pexprs s1 args = Ok error vargs ->
+    sem_call p (emem s1) fn vargs m2 vs ->
+    Pfun (emem s1) fn vargs m2 vs ->
+    write_rvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
+    Pi_r s1 (Ccall ii xs fn args) s2.
+  Proof.
+    move=> Hexpr Hcall Hfun Hw ii'.
+    apply: sem_seq1; apply: EmkI; apply: Ecall; [exact: Hexpr|exact: Hfun|exact: Hw].
+  Qed.
+
+  Local Lemma Hproc m1 m2 fn f vargs s1 vm2 vres:
+    get_fundef p fn = Some f ->
+    write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
+    sem p s1 (f_body f) {| emem := m2; evm := vm2 |} ->
+    Pc s1 (f_body f) {| emem := m2; evm := vm2 |} ->
+    mapM (fun x : var_i => get_var vm2 x) (f_res f) = ok vres ->
+    List.Forall is_full_array vres ->
+    Pfun m1 fn vargs m2 vres.
+  Proof.
+    case: f=> fi fparams fc fres /= Hget Hw _ Hc Hres Hfull.
+    have := (@get_map_prog unroll_fun p fn); rewrite Hget /= => Hget'.
+    apply: EcallRun=> //.
+    exact: Hget'.
+    exact: Hw.
+    exact: Hc.
+    exact: Hres.
+  Qed.
+
+  Lemma const_prop_callP f mem mem' va vr:
+    sem_call p mem f va mem' vr ->
+    sem_call p' mem f va mem' vr.
+  Proof.
+    apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 
 End PROOF.
-*)
