@@ -54,12 +54,10 @@ Definition hpred := sestate -> Prop.
 Definition hoare (Pre:hpred) (c:cmd) (Post:hpred) := 
   forall (s s':sestate), ssem pr s c s' -> Pre s -> Post s'.
 
-Definition fpred (t:stype) := mem -> ssem_t t -> Prop.
+Definition fpred := mem -> seq svalue -> Prop.
 
-(* TODO: fix
-Definition hoaref ta tr (Pre:fpred ta) (f:fundef) (Post:fpred tr) := 
-  forall (m m':mem) va vr, ssem_call P m f va m' vr -> Pre m va -> Post m' vr.
-*)
+Definition hoaref (Pre:fpred) (f:funname) (Post:fpred) := 
+  forall (m m':mem) va vr, ssem_call pr m f va m' vr -> Pre m va -> Post m' vr.
 
 (* TODO: move *)
 Lemma ssem_IV s i s' x : ssem_I pr s (MkI x i) s' -> ssem_i pr s i s'.
@@ -196,39 +194,45 @@ move: h=> [] <- /= [] <- /=.
 by rewrite Hm Fv.setP_eq.
 Qed.
 
-(*
 (* Conditionnal *)
-Lemma hoare_if P Q (e: pexpr sbool) c1 c2 : 
-  hoare (fun s => ssem_pexpr s.(sevm) e /\ P s) c1 Q ->
-  hoare (fun s => ~~ssem_pexpr s.(sevm) e /\ P s) c2 Q ->
-  hoare P [::Cif e c1 c2] Q.
+Lemma hoare_if P Q (e: pexpr) c1 c2 ii : 
+  hoare (fun s => ssem_pexpr s e = ok (SVbool true) /\ P s) c1 Q ->
+  hoare (fun s => ssem_pexpr s e = ok (SVbool false) /\ P s) c2 Q ->
+  hoare P [:: MkI ii (Cif e c1 c2)] Q.
 Proof.
-  move=> H1 H2 ??;set c := Cif _ _ _ => /ssem_iV s.
-  case: _ {-1}_ _ / s (erefl c) => // ?????? s [] ??? Hp;subst.
-  + by apply: (H1 _ _ s).
-  by apply: (H2 _ _ s).
+  move=> H1 H2 s s' /ssem_iV Hssem HP.
+  sinversion Hssem.
+  + apply: H1; [exact: H7|split; [|exact: HP]].
+    case: (bindW H6)=> x ->.
+    by elim: x=> //= b [] ->.
+  + apply: H2; [exact: H7|split; [|exact: HP]].
+    case: (bindW H6)=> x ->.
+    by elim: x=> //= b [] ->.
 Qed.
 
 (* Call *)
-Lemma hoare_call ta tr Pf Qf x (f:fundef ta tr) e (Q:hpred):
+Lemma hoare_call Pf Qf x (f:funname) e (Q:hpred) ii ic:
   hoaref Pf f Qf ->
   hoare 
-    (fun s => 
-       Pf s.(semem) (ssem_pexpr s.(sevm) e) /\
-       forall m' (v:sst2ty tr), 
-         Qf m' v ->
-         Q {|semem := m'; sevm :=  swrite_rval s.(sevm) x v |})
-    [::Ccall x f e] 
+    (fun s => forall vargs, ssem_pexprs s e = ok vargs ->
+       Pf s.(semem) vargs /\
+       forall m' vres s',
+         Qf m' vres ->
+         swrite_rvals {| semem := m'; sevm := sevm s |} x vres = ok s' ->
+         Q s')
+    [:: MkI ii (Ccall ic x f e)]
     Q.
 Proof.
-  move=> Hf ??;set c := Ccall _ _ _ => /ssem_iV s.
-  case: _ {-1}_ _ / s (erefl c) => // -[m mv]??????? /= s [] ??.
-  subst=> -[] ? [] [] ? [] ? [] Hpf Hq;subst.
-  by apply: Hq;apply: Hf s Hpf.
+  move=> Hf s s' /ssem_iV Hs HP.
+  sinversion Hs.
+  move: HP=> /(_ vargs H5) [HP1 HP2].
+  apply: (HP2 m2 vs)=> //.
+  apply: (Hf (semem s) m2 vargs)=> //.
 Qed.
 
 (* Loop *)
 
+(*
 (* -------------------------------------------------------------------- *)
 Lemma hoare_for0 (i:rval sword) dir (e1 e2:pexpr sword) c Q:
   hoare (fun s => Q s /\ (ssem_pexpr (sevm s) e2 < ssem_pexpr (sevm s) e1)%Z) 
@@ -310,10 +314,6 @@ Proof. Admitted.
 (* -------------------------------------------------------------------------- *)
 (* ** Weakest Precondition                                                    *)
 (* -------------------------------------------------------------------------- *)
-
-(* TODO move this *)
-
-(* end move this *)
 
 Definition f2h (pm:pmap) (sm:smap) f : hpred := 
   fun se => ssem_sform {|pm := pm; sm := sm; vm := se.(sevm) |} f.

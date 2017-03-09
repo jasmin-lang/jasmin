@@ -25,7 +25,6 @@ COQFILES := \
 	src/constant_prop.v \
 	src/dead_code.v \
 	src/unrolling.v \
-	src/extraction.v \
 	src/zmod_setoid.v \
 	src/dmasm_Ssem.v \
 	src/dmasm_Ssem_props.v \
@@ -34,6 +33,7 @@ COQFILES := \
 
 #	src/array_expansion.v \
 	src/compiler.v \
+	src/extraction.v \
 
 #	src/proof_utils.v \
 	src/proof_sem.v \
