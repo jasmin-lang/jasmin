@@ -922,7 +922,7 @@ Module CBAreg.
       apply: on_arr_varP => n t Heqt /Hget [v2 []].
       rewrite /on_arr_var;case: v2 => //= n' t' -> [] ? Ht /=;subst n'.
       apply: rbindP => w;apply: rbindP => ve /Hse1 [v2 [-> U2 Hto]].
-      have [_ -> /=]:= value_uincl_word U2 Hto.
+      have [_ -> /=]:= value_uincl_int U2 Hto.
       by apply: rbindP => w' /Ht -> [] <-;exists (Vword w').
     + apply: rbindP => r' Hcv Hce Hea. 
       have [Hea' Hget]:= check_vP Hcv Hea.
@@ -998,7 +998,7 @@ Module CBAreg.
      apply: rbindP => we;apply:rbindP => ve.
      case: s1 Hvm1 Hr3 => sm1 svm1 /= Hvm1 Hr3.
      have [Hr1' H/H{H} [ve' [-> Hve]]]:= check_eP Hce Hr3.
-     move=> /(value_uincl_word Hve) [_ ->] /=.
+     move=> /(value_uincl_int Hve) [_ ->] /=.
      apply: rbindP => w /(value_uincl_word Hv) [_ ->] /=.
      apply: rbindP => t1' Ht1'.
      have [t2' [-> Ht2']]:= Array_set_uincl Ht Ht1'. 

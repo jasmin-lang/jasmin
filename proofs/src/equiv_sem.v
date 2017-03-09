@@ -46,7 +46,7 @@ Fixpoint st2sst_ty {t : stype} :=
   | sint      => fun v => v
   | sbool     => fun v => v
   | sarr n    => fun v => 
-       (fun i : word => 
+       (fun i => 
           match @Array.get _ n v i return word with
           | Ok w => w
           | _      => n2w 0
@@ -181,7 +181,7 @@ Proof.
   + move=> ?; eexists; split=> //; exact: sget_var_uincl.
   + have := Hu2 x;case x => -[xt xn] xi /= H H';move: H' H.
     apply: on_arr_varP=> /= n t -> /= /(sget_var_uincl Hu2) /= [_ Hsame].
-    apply: rbindP => z;apply: rbindP => vp /Hp [] vp' [] Hvp' Hvu /(svalue_uincl_word Hvu) [Hvp1 Hvp2].
+    apply: rbindP => z;apply: rbindP => vp /Hp [] vp' [] Hvp' Hvu /(svalue_uincl_int Hvu) [Hvp1 Hvp2].
     apply: rbindP=> w Hw [] <- /= ?.
     rewrite Hvp' Hvp2 /=.
     eexists; split=> //.
@@ -353,7 +353,7 @@ Proof.
   move=> /Varr_inj1 {Hblabla} {Ha} <-.
   apply: rbindP => i;apply: rbindP=> vp /(ssem_pexpr_uincl Hs1) [vp' [-> Hvp]].
   move: Hs1=> [Hmem0 Hvm0].
-  move=>  /(svalue_uincl_word Hvp) [] _ -> /=.
+  move=>  /(svalue_uincl_int Hvp) [] _ -> /=.
   apply: rbindP => v /(svalue_uincl_word Hv) [] _ -> /=.
   apply: rbindP=> t; set x := {|vtype := _ |}.
   have Hvm0': @sval_uincl (sarr n) a' ((sevm ss1).[x])%vmap.

@@ -180,7 +180,7 @@ Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : exec svalue :=
   | Pvar v => ok (sget_var s.(sevm) v)
   | Pget x e =>
       SLet (n,t) := s.[x] in
-      Let i := ssem_pexpr s e >>= sto_word in
+      Let i := ssem_pexpr s e >>= sto_int in
       ok (SVword (FArray.get t i))
   | Pload x e =>
     (* FIXME: use x as offset *)
@@ -218,7 +218,7 @@ Definition swrite_rval (l:rval) (v:svalue) (s:sestate) : exec sestate :=
     ok {|semem := m;  sevm := s.(sevm) |}
   | Raset x i =>
     SLet (n,t) := s.[x] in
-    Let i := ssem_pexpr s i >>= sto_word in
+    Let i := ssem_pexpr s i >>= sto_int in
     Let v := sto_word v in
     let t := FArray.set t i v in
     Let vm := sset_var s.(sevm) x (@to_sval (sarr n) t) in

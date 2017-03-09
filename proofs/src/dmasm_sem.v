@@ -42,24 +42,24 @@ Unset Printing Implicit Defensive.
 
 Module FArray.
 
-  Definition array (T:Type) := word -> T.
+  Definition array (T:Type) := Z -> T.
 
   Definition cnst {T} (t:T) : array T := fun i => t.
 
-  Definition get {T} (a:array T) (i:word) := a i.
+  Definition get {T} (a:array T) (i:Z) := a i.
 
-  Definition set {T} (a:array T) (i:word) (v:T) :=
+  Definition set {T} (a:array T) (i:Z) (v:T) :=
     fun j => if i == j  then v else a j.
   
-  Lemma setP {T} (a:array T) (w1 w2:word) (t:T):
+  Lemma setP {T} (a:array T) (w1 w2:Z) (t:T):
     get (set a w1 t) w2 = if w1 == w2 then t else get a w2.
   Proof. done. Qed.
 
-  Lemma setP_eq {T} (a:array T) (w:word) (t:T):
+  Lemma setP_eq {T} (a:array T) w (t:T):
     get (set a w t) w = t.
   Proof. by rewrite setP eq_refl. Qed.
 
-  Lemma setP_neq {T} (a:array T) (w1 w2:word) (t:T): 
+  Lemma setP_neq {T} (a:array T) w1 w2 (t:T): 
     w1 != w2 -> get (set a w1 t) w2 = get a w2.
   Proof. by rewrite setP=> /negPf ->. Qed.
 
@@ -76,11 +76,11 @@ Module Array.
 
   Definition make {T:Type} (s:positive) (t:T) : array s T :=  FArray.cnst (ok t). 
 
-  Definition get {T} {s} (a:array s T) (w:word) : result error T := 
+  Definition get {T} {s} (a:array s T) w : result error T := 
     if ((0 <=? w) && (w <? Zpos s))%Z then FArray.get a w
     else Error ErrOob.
 
-  Definition set {T} s (a:array s T) (x:word) (v:T) : result error (array s T):=
+  Definition set {T} s (a:array s T) x (v:T) : result error (array s T):=
     if ((0 <=? x) && (x <? Zpos s))%Z then ok (FArray.set a x (ok v))
     else Error ErrOob.
 
@@ -200,7 +200,7 @@ Definition set_var (m:vmap) x v :=
 Definition is_full_array v := 
   match v with
   | Varr n t => 
-    forall (p:word), (0 <= p < Zpos n)%Z -> exists w, Array.get t p = ok w
+    forall p, (0 <= p < Zpos n)%Z -> exists w, Array.get t p = ok w
   | _ => True
   end.
 
@@ -223,7 +223,7 @@ Definition sem_op2_ib := @mk_sem_sop2 sint  sint  sbool.
 
 Definition sem_sop2 (o:sop2) :=
   match o with
-  | Oand => sem_op2_b andb
+  | Oand => sem_op2_b andb     
   | Oor  => sem_op2_b orb
 
   | Oadd => sem_op2_i Z.add
@@ -282,7 +282,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pvar v => get_var s.(evm) v
   | Pget x e => 
       Let (n,t) := s.[x] in
-      Let i := sem_pexpr s e >>= to_word in
+      Let i := sem_pexpr s e >>= to_int in
       Let w := Array.get t i in
       ok (Vword w)
   | Pload x e =>
@@ -320,7 +320,7 @@ Definition write_rval (l:rval) (v:value) (s:estate) : exec estate :=
     ok {|emem := m;  evm := s.(evm) |}
   | Raset x i =>
     Let (n,t) := s.[x] in
-    Let i := sem_pexpr s i >>= to_word in
+    Let i := sem_pexpr s i >>= to_int in
     Let v := to_word v in
     Let t := Array.set t i v in
     Let vm := set_var s.(evm) x (@to_val (sarr n) t) in 
@@ -1062,7 +1062,7 @@ Proof.
   + apply on_arr_varP => n t Htx;rewrite /on_arr_var=> /(get_var_uincl Hu) [v2 [->]]. 
     case: v2 => //= ? t' [] ? Htt';subst.
     apply: rbindP => z;apply: rbindP => vp /Hp [] vp' [] -> /= Hvu Hto.
-    case: (value_uincl_word Hvu Hto) => ??;subst.
+    case: (value_uincl_int Hvu Hto) => ??;subst.
     apply: rbindP=> w /Htt' Hget [] <- /=.
     by exists w;rewrite Hget.
   + apply: rbindP => w;apply: rbindP => wp;apply: rbindP => vp /Hp [] vp' [] -> Hvu Hto.
@@ -1224,7 +1224,7 @@ Proof.
   apply: on_arr_varP => n a Htx /(get_var_uincl Hvm1).
   rewrite /on_arr_var => -[] vx [] /= -> /=;case: vx => //= n0 t0 [] ? Ht0;subst.
   apply: rbindP => i;apply: rbindP=> vp /(sem_pexpr_uincl Hvm1) [vp' [-> Hvp]] /=.
-  move=>  /(value_uincl_word Hvp) [] _ -> /=.
+  move=>  /(value_uincl_int Hvp) [] _ -> /=.
   apply: rbindP => v /(value_uincl_word Hv) [] _ -> /=.
   apply: rbindP => t=> /(Array_set_uincl Ht0).
   move=> [] t' [-> Ht];apply: rbindP => vm'.
