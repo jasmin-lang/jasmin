@@ -927,8 +927,10 @@ Module CBAreg.
     + apply: rbindP => r' Hcv Hce Hea. 
       have [Hea' Hget]:= check_vP Hcv Hea.
       have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split=>// m v1.
-      apply: rbindP => w;apply: rbindP => w';apply: rbindP => ve /Hse1 [v2 [-> U2 Hto]].
-      by have [_ -> /= -> [<-]]:= value_uincl_word U2 Hto; exists (Vword w).
+      apply: rbindP => w1;apply: rbindP => ve1 /Hget [ve1' [->]]. 
+      move=> /value_uincl_word H/H{H}[??];subst.
+      apply: rbindP => w2;apply: rbindP => ve /Hse1 [v2 [-> /value_uincl_word H/H [_ ->]]] /=.
+      by exists v1.
     + move=> H /(He1 _ _ _ _ H) [Hea Hse1];split=>//.
       move=> m v1;apply:rbindP => b;apply: rbindP => ve /Hse1 [v2 [->] /= U2 Hto [] <-].
       by have [_ -> /=]:= value_uincl_bool U2 Hto; exists (Vbool (~~b)).

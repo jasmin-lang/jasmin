@@ -437,7 +437,8 @@ Proof.
   + by case Heq: Mvar.get => [n|] //=;rewrite (Hvalid _ _ Heq).
   + apply:on_arr_varP;rewrite /on_arr_var => n t ? -> /=.
     by apply: rbindP => ?;apply: rbindP => ? /He -> /= ->.  
-  + by case Heq: sem_pexpr => [ve|] //=;rewrite (He _ Heq).
+  + apply:rbindP => w -> /=.
+    by case Heq: sem_pexpr => [ve|] //=;rewrite (He _ Heq).
   + by apply snotP.
   move=> H;apply /s_op2P;move: H => /=.
   by apply:rbindP => ve1 /He1 ->;apply:rbindP => ve2 /He2 ->. 

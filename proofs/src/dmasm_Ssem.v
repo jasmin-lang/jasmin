@@ -183,9 +183,9 @@ Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : exec svalue :=
       Let i := ssem_pexpr s e >>= sto_int in
       ok (SVword (FArray.get t i))
   | Pload x e =>
-    (* FIXME: use x as offset *)
-    Let x := ssem_pexpr s e >>= sto_word in
-    let w := read_mem s.(semem) x in
+    Let w1 := ok (sget_var s.(sevm) x) >>= sto_word in
+    Let w2 := ssem_pexpr s e >>= sto_word in
+    let w := read_mem s.(semem) (I64.add w1 w2) in
     ok (@to_sval sword w)
   | Pnot e =>
     Let b := ssem_pexpr s e >>= sto_bool in

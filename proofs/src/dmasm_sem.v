@@ -286,8 +286,9 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
       Let w := Array.get t i in
       ok (Vword w)
   | Pload x e =>
-    (* FIXME: use x as offset *)
-    Let w := sem_pexpr s e >>= to_word >>= read_mem s.(emem) in
+    Let w1 := get_var s.(evm) x >>= to_word in
+    Let w2 := sem_pexpr s e >>= to_word in
+    Let w  := read_mem s.(emem) (I64.add w1 w2) in
     ok (@to_val sword w)
   | Pnot e => 
     Let b := sem_pexpr s e >>= to_bool in 
@@ -789,7 +790,7 @@ Proof.
     rewrite (@on_arr_var_eq_on 
       {| emem := m; evm := vm' |} _ {| emem := m; evm := vm |} _ _ _ Heq) ?read_eE //.
     by SvD.fsetdec.
-  + by move=> /He ->.
+  + by move=> Hvm;rewrite (get_var_eq_on _ Hvm) ?(He _ Hvm) // read_eE;SvD.fsetdec.
   + by move=> /He ->.
   move=> Heq;rewrite (He1 _ Heq) (He2 s) //.
   by move=> z Hin;apply Heq;rewrite read_eE;SvD.fsetdec.
@@ -1065,8 +1066,10 @@ Proof.
     case: (value_uincl_int Hvu Hto) => ??;subst.
     apply: rbindP=> w /Htt' Hget [] <- /=.
     by exists w;rewrite Hget.
-  + apply: rbindP => w;apply: rbindP => wp;apply: rbindP => vp /Hp [] vp' [] -> Hvu Hto.
-    by case: (value_uincl_word Hvu Hto) => ??;subst => /= -> [] <-;exists w.
+  + apply: rbindP => w1;apply: rbindP => vx /(get_var_uincl Hu) [vx' [->]].
+    move=> /value_uincl_word H/H{H}[_ ->].
+    apply: rbindP => wp;apply: rbindP => vp /Hp [] vp' [] ->.
+    by move=> /value_uincl_word Hvu /Hvu [_ ->] /=;exists v1.
   + apply: rbindP => b;apply: rbindP => vx /Hp [] vp' [] -> Hvu Hto [] <-.
     by case: (value_uincl_bool Hvu Hto) => ??;subst => /=;exists (~~b).
   apply: rbindP => ve1 /He1 [] ve1' [] -> Hvu1.

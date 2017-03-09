@@ -186,9 +186,12 @@ Proof.
     rewrite Hvp' Hvp2 /=.
     eexists; split=> //.
     by rewrite (Hsame _ _ Hw).
-  + apply: rbindP => w;apply: rbindP => wp;apply: rbindP => vp /Hp [] vp' [] -> Hvu Hto.
-    rewrite -Hu1.
-    by case: (svalue_uincl_word Hvu Hto) => ??;subst => /= /mem2smem_read -> [] <-; exists w.
+  + apply: rbindP => w1;apply: rbindP => vx /(sget_var_uincl Hu2) /svalue_uincl_word H/H.
+    move=> [_ ->] /=.
+    apply: rbindP => wp;apply: rbindP => vp /Hp [] vp' [] -> Hvu Hto.
+    rewrite -Hu1 /=.
+    case: (svalue_uincl_word Hvu Hto) => ??;subst.
+    by apply rbindP => w /= /mem2smem_read -> [] <-;exists w.
   + apply: rbindP => b;apply: rbindP => vx /Hp [] vp' [] -> Hvu Hto [] <-.
     by case: (svalue_uincl_bool Hvu Hto) => ??;subst => /=;exists (~~b).
   apply: rbindP => ve1 /He1 [] ve1' [] -> Hvu1.
