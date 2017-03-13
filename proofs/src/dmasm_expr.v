@@ -111,6 +111,16 @@ Record var_i := VarI {
   v_info : var_info 
 }.
 
+Record var_attr := VarA {
+  va_pub : bool
+}.
+
+Definition var_info_to_attr (vi: var_info) :=
+  match vi with
+  | xI _ => VarA true
+  | _ => VarA false
+  end.
+
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
