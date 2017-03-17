@@ -56,11 +56,8 @@ Definition result_eq (r1 r2: result E A): bool :=
 
 Lemma result_eqP : Equality.axiom result_eq.
 Proof.
-  case=> [a1|e1] [a2|e2]; try by apply: ReflectF.
-  apply: (@equivP (a1 = a2)); first by apply/eqP.
-  by split=> [->|[] ->].
-  apply: (@equivP (e1 = e2)); first by apply/eqP.
-  by split=> [->|[] ->].
+  case=> [a1|e1] [a2|e2] /=; try (by apply: ReflectF);
+  by apply: (equivP eqP);split=>[|[]] ->.
 Qed.
 
 Canonical result_eqMixin := EqMixin result_eqP.
@@ -110,22 +107,16 @@ Proof. move=> <- Hf; case m1 => //=. Qed.
 Inductive error := 
  | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType.
 
-Definition error_eq (e1 e2: error) :=
-  match e1, e2 with
-  | ErrOob, ErrOob => true
-  | ErrAddrUndef, ErrAddrUndef => true
-  | ErrAddrInvalid, ErrAddrInvalid => true
-  | ErrStack, ErrStack => true
-  | ErrType, ErrType => true
-  | _, _ => false
-  end.
+Scheme Equality for error.
 
-Lemma error_eqP : Equality.axiom error_eq.
+Lemma error_beqP : Equality.axiom error_beq.
 Proof.
-  case; case; try exact: ReflectF; try exact: ReflectT.
+  move=> e1 e2;case Heq: error_beq;constructor.
+  + by apply: internal_error_dec_bl.
+  by move=> /internal_error_dec_lb;rewrite Heq.
 Qed.
 
-Canonical error_eqMixin := EqMixin error_eqP.
+Canonical error_eqMixin := EqMixin error_beqP.
 Canonical error_eqType := Eval hnf in EqType error error_eqMixin.
 
 Definition exec t := result error t.
