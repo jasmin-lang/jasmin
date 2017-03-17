@@ -43,6 +43,31 @@ Inductive result (E : Type) (A : Type) : Type :=
 
 Arguments Error {E} {A} s.
 
+Section ResultEqType.
+
+Variable E A : eqType.
+
+Definition result_eq (r1 r2: result E A): bool :=
+  match r1, r2 with
+  | Ok a1, Ok a2 => a1 == a2
+  | Error e1, Error e2 => e1 == e2
+  | _, _ => false
+  end.
+
+Lemma result_eqP : Equality.axiom result_eq.
+Proof.
+  case=> [a1|e1] [a2|e2]; try by apply: ReflectF.
+  apply: (@equivP (a1 = a2)); first by apply/eqP.
+  by split=> [->|[] ->].
+  apply: (@equivP (e1 = e2)); first by apply/eqP.
+  by split=> [->|[] ->].
+Qed.
+
+Canonical result_eqMixin := EqMixin result_eqP.
+Canonical result_eqType := Eval hnf in EqType (result E A) result_eqMixin.
+
+End ResultEqType.
+
 Module Result.
 
 Definition apply eT aT rT (f : aT -> rT) (x : rT) (u : result eT aT) :=
@@ -84,6 +109,24 @@ Proof. move=> <- Hf; case m1 => //=. Qed.
 
 Inductive error := 
  | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType.
+
+Definition error_eq (e1 e2: error) :=
+  match e1, e2 with
+  | ErrOob, ErrOob => true
+  | ErrAddrUndef, ErrAddrUndef => true
+  | ErrAddrInvalid, ErrAddrInvalid => true
+  | ErrStack, ErrStack => true
+  | ErrType, ErrType => true
+  | _, _ => false
+  end.
+
+Lemma error_eqP : Equality.axiom error_eq.
+Proof.
+  case; case; try exact: ReflectF; try exact: ReflectT.
+Qed.
+
+Canonical error_eqMixin := EqMixin error_eqP.
+Canonical error_eqType := Eval hnf in EqType error error_eqMixin.
 
 Definition exec t := result error t.
 
