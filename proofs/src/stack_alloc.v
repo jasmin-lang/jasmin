@@ -54,7 +54,7 @@ Module S.
 
   Definition sprog := seq (funname * sfundef).
 
-  Notation vstk nstk := {|vtype := sword; vname := nstk|}.
+  Notation vstk nstk := {|v_var := {|vtype := sword; vname := nstk|}; v_info := xH|}.
 
   Definition dummy_sfundef := 
     {| sf_iinfo := dummy_iinfo; 
@@ -74,8 +74,8 @@ Module S.
       Some (snd (nth (xH,dummy_sfundef) P pos))
     else None.
 
-Check alloc_stack .
-Check write_vars.
+  Import Memory.
+
   Inductive sem : estate -> cmd -> estate -> Prop :=
   | Eskip s : sem s [::] s
 
@@ -89,7 +89,7 @@ Check write_vars.
 
   with sem_i : estate -> instr_r -> estate -> Prop :=
   | Eassgn s1 s2 (x:rval) tag e:
-    sem_pexpr s1 e >>= (write_rval s1 x) = ok s2 -> 
+    (Let v := sem_pexpr s1 e in write_rval x v s1) = ok s2 ->
     sem_i s1 (Cassgn x tag e) s2
 
   | Eopn s1 s2 o xs es:
@@ -116,26 +116,22 @@ Check write_vars.
     sem_pexpr s e >>= to_bool = ok false ->
     sem_i s (Cwhile e c) s
 
-  | Ecall s1 m2 s2 ii xs f fd args vargs vs : 
-    get_fundef f = Some fd ->
+  | Ecall s1 m2 s2 ii xs f args vargs vs :
     sem_pexprs s1 args = ok vargs ->
-    sem_call s1.(emem) fd vargs m2 vs ->
+    sem_call s1.(emem) f vargs m2 vs ->
     write_rvals {|emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->
     sem_i s1 (Ccall ii xs f args) s2
 
-  with sem_call : mem -> sfundef -> seq value -> mem -> seq value -> Prop :=
-  | EcallRun m1 m2 sf vargs vres p:
-     alloc_stack m1 (sf_stk_sz sf) = ok p ->
-     (forall vm0, 
-       all_empty_arr vm0 ->
-       exists s1 s2  vm2 m2',
-        [/\ write_var  (vstk (sf_stk_id sf)) p.1 (Estate p.2 vm0) = ok s1,
-            write_vars (sf_params sf) vargs s1 = ok s2, 
-            sem s2 (sf_body sf) {| emem := m2'; evm := vm2 |},
-            map (fun (x:var_i) => get_var vm2 x) sf.(sf_res) = vres &
-            m2 = free_stack m2' p.1 (sf_stk_sz sf)]) ->
-     List.Forall is_full_array vres ->
-     sem_call m1 sf vargs m2 vres.
+  with sem_call : mem -> funname -> seq value -> mem -> seq value -> Prop :=
+  | EcallRun m1 m2 fn sf vargs s1 s2 m2' vm2 vres p:
+    get_fundef fn = Some sf ->
+    alloc_stack m1 (sf_stk_sz sf) = ok p ->
+    write_var  (vstk (sf_stk_id sf)) p.1 (Estate p.2 vmap0) = ok s1 ->
+    write_vars (sf_params sf) vargs s1 = ok s2 ->
+    sem s2 (sf_body sf) {| emem := m2'; evm := vm2 |} ->
+    mapM (fun (x:var_i) => get_var vm2 x) sf.(sf_res) = ok vres ->
+    m2 = free_stack m2' p.1 (sf_stk_sz sf) ->
+    sem_call m1 fn vargs m2 vres.
 
   End SEM.
 
@@ -145,8 +141,8 @@ Definition vmap := (Mvar.t Z * Ident.ident)%type.
 
 Definition size_of (t:stype) := 
   match t with
-  | sword  => cok unit 1%Z
-  | sarr n => cok unit (Zpos n)
+  | sword  => cok 1%Z
+  | sarr n => cok (Zpos n)
   | _      => cerror (Cerr_stk_alloc "size_of")
   end.
 
@@ -159,8 +155,8 @@ Definition init_vmap (sz:Z) (nstk:Ident.ident) (l:list (var * Z)):=
   Let mp := foldM add (Mvar.empty Z, 0%Z) l in 
   if (mp.2 <=? sz)%Z then cok (mp.1, nstk)
   else cerror (Cerr_stk_alloc "stack size").
- 
 
+(*
 Definition is_in_stk (m:map) (x:var) := 
   match Mvar.get m.1 x with 
   | Some _ => true
@@ -876,4 +872,4 @@ Proof.
   have : valid_addr m2' w by apply /readV;exists w'.
   by rewrite Hvalw Hbound orbC /= => /readV [w1];rewrite Heq1.
 Qed.
-
+*)
