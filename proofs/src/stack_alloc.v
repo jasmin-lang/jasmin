@@ -137,16 +137,17 @@ Module S.
 
 End S.
 
-Definition vmap := (Mvar.t Z * Ident.ident)%type.
+
+Definition map := (Mvar.t Z * Ident.ident)%type.
 
 Definition size_of (t:stype) := 
   match t with
-  | sword  => cok 1%Z
-  | sarr n => cok (Zpos n)
+  | sword  => ok 1%Z
+  | sarr n => ok (Zpos n)
   | _      => cerror (Cerr_stk_alloc "size_of")
   end.
 
-Definition init_vmap (sz:Z) (nstk:Ident.ident) (l:list (var * Z)):=
+Definition init_map (sz:Z) (nstk:Ident.ident) (l:list (var * Z)):=
   let add (vp:var*Z) (mp:Mvar.t Z * Z) :=
     if (mp.2 <=? vp.2)%Z then 
       Let s := size_of (vtype vp.1) in
@@ -156,12 +157,78 @@ Definition init_vmap (sz:Z) (nstk:Ident.ident) (l:list (var * Z)):=
   if (mp.2 <=? sz)%Z then cok (mp.1, nstk)
   else cerror (Cerr_stk_alloc "stack size").
 
-(*
-Definition is_in_stk (m:map) (x:var) := 
+Definition is_in_stk (m:map) (x:var_i) := 
   match Mvar.get m.1 x with 
   | Some _ => true
   | None   => false
   end.
+
+Definition vstk (m:map) :=  {|vtype := sword; vname := m.2|}.
+
+Definition is_vstk (m:map) (x:var_i) := 
+  (vname x == m.2) && (vtype x == sword).
+
+Definition check_var (m:map) (x1 x2:var_i) :=
+  ~~ is_in_stk m x1 && (v_var x1 == v_var x2) && ~~is_vstk m x1.
+
+Definition check_var_stk (m:map) (x1 x2:var_i) (e2:pexpr) := 
+  is_vstk m x2 && (vtype x1 == sword) &&
+    match Mvar.get m.1 x1 with
+    | Some ofs => e2 == (Pcast (Pconst ofs))
+    | _ => false
+    end.
+
+Definition is_arr_type (t:stype) := 
+  match t with
+  | sarr _ => true
+  | _      => false
+  end.
+
+Definition check_arr_stk (m:map) (x1:var_i) (e1:pexpr) (x2:var_i) (e2:pexpr) := 
+  is_vstk m x2 && is_arr_type (vtype x1) &&
+    match Mvar.get m.1 x1 with
+    | Some ofs => 
+      (e2 == Pcast (Papp2 Oadd (Pconst ofs) e1)) || 
+      (e2 == Pcast (Papp2 Oadd e1 (Pconst ofs))) ||
+      match e1 with
+      | Pconst n => e2 == Pcast (Pconst (ofs + n)) 
+      | _        => false
+      end
+    | _ => false
+    end.
+
+Fixpoint check_e (m:map) (e1 e2: pexpr) := 
+  match e1, e2 with 
+  | Pconst n1, Pconst n2 => n1 == n2 
+  | Pbool  b1, Pbool  b2 => b1 == b2 
+  | Pcast  e1, Pcast  e2 => check_e m e1 e2 
+  | Pvar   x1, Pvar   x2 => check_var m x1 x2 
+  | Pvar   x1, Pload x2 e2 => check_var_stk m x1 x2 e2
+  | Pget  x1 e1, Pget x2 e2 => ~~ is_in_stk m x1 && (x1 == x2) && check_e m e1 e2
+  | Pget  x1 e1, Pload x2 e2 => check_arr_stk m x1 e1 x2 e2
+  | Pload x1 e1, Pload x2 e2 => check_var m x1 x2 && check_e m e1 e2
+  | Pnot   e1, Pnot   e2 => check_e m e1 e2 
+  | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
+    (o1 == o2) && check_e m e11 e21 && check_e m e12 e22
+  | _, _ => false
+  end.
+
+Definition check_rval (m:map) (r1 r2:rval) := 
+  match r1, r2 with
+  | Rnone _, Rnone _ => true
+  | Rvar x1, Rvar x2 => check_var m x1 x2
+  | Rvar x1, Rmem x2 e2 => check_var_stk m x1 x2 e2
+  | Rmem x1 e1, Rmem x2 e2 => 
+    (check_var m x1 x2 && check_e m e1 e2) || check_arr_stk m x1 e1 x2 e2
+  | Raset x1 e1, Raset x2 e2 => check_var m x1 x2 && check_e m e1 e2
+  | Raset x1 e1, Rmem x2 e2 => check_arr_stk m x1 e1 x2 e2
+  | _, _ => false
+  end.
+
+
+(*
+
+
 
 Fixpoint check_e (m:map) t (e:pexpr t) := 
   match e with
@@ -173,7 +240,7 @@ Fixpoint check_e (m:map) t (e:pexpr t) :=
   | Papp3 _ _ _ _ _ e1 e2 e3 => check_e m e1 && check_e m e2 && check_e m e3
   end.
 
-Fixpoint check_rval (m:map) t (x:rval t) := 
+(*Fixpoint check_rval (m:map) t (x:rval t) := 
   match x with 
   | Rvar x          => ~~(is_in_stk m x || (vname x == m.2))
   | Rpair _ _ x1 x2 => check_rval m x1 && check_rval m x2
@@ -184,7 +251,7 @@ Definition check_bcmd1 m i :=
   | Assgn _ x e => check_rval m x && check_e m e
   | Load  x e   => check_rval m x && check_e m e
   | Store e1 e2 => check_e m e1 && check_e m e2
-  end.
+  end. *)
 
 Definition vstk (m:map) :=  {|vtype := sword; vname := m.2|}.
 Definition estk (m:map) := Pvar (vstk m).
