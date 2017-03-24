@@ -157,13 +157,14 @@ Definition init_map (sz:Z) (nstk:Ident.ident) (l:list (var * Z)):=
   if (mp.2 <=? sz)%Z then cok (mp.1, nstk)
   else cerror (Cerr_stk_alloc "stack size").
 
-Definition is_in_stk (m:map) (x:var_i) := 
+Definition is_in_stk (m:map) (x:var) :=
   match Mvar.get m.1 x with 
   | Some _ => true
   | None   => false
   end.
 
 Definition vstk (m:map) :=  {|vtype := sword; vname := m.2|}.
+Definition estk (m:map) := Pvar {|v_var := vstk m; v_info := xH|}.
 
 Definition is_vstk (m:map) (x:var_i) := 
   (vname x == m.2) && (vtype x == sword).
@@ -204,7 +205,7 @@ Fixpoint check_e (m:map) (e1 e2: pexpr) :=
   | Pcast  e1, Pcast  e2 => check_e m e1 e2 
   | Pvar   x1, Pvar   x2 => check_var m x1 x2 
   | Pvar   x1, Pload x2 e2 => check_var_stk m x1 x2 e2
-  | Pget  x1 e1, Pget x2 e2 => ~~ is_in_stk m x1 && (x1 == x2) && check_e m e1 e2
+  | Pget  x1 e1, Pget x2 e2 => check_var m x1 x2 && check_e m e1 e2
   | Pget  x1 e1, Pload x2 e2 => check_arr_stk m x1 e1 x2 e2
   | Pload x1 e1, Pload x2 e2 => check_var m x1 x2 && check_e m e1 e2
   | Pnot   e1, Pnot   e2 => check_e m e1 e2 
@@ -225,86 +226,14 @@ Definition check_rval (m:map) (r1 r2:rval) :=
   | _, _ => false
   end.
 
-
-(*
-
-
-
-Fixpoint check_e (m:map) t (e:pexpr t) := 
-  match e with
-  | Pvar x => ~~(is_in_stk m x || (vname x == m.2))
-  | Pconst _ => true
-  | Pbool  _ => true
-  | Papp1 _ _ _ e1 => check_e m e1
-  | Papp2 _ _ _ _ e1 e2 => check_e m e1 && check_e m e2
-  | Papp3 _ _ _ _ _ e1 e2 e3 => check_e m e1 && check_e m e2 && check_e m e3
-  end.
-
-(*Fixpoint check_rval (m:map) t (x:rval t) := 
-  match x with 
-  | Rvar x          => ~~(is_in_stk m x || (vname x == m.2))
-  | Rpair _ _ x1 x2 => check_rval m x1 && check_rval m x2
-  end.
-
-Definition check_bcmd1 m i := 
-  match i with
-  | Assgn _ x e => check_rval m x && check_e m e
-  | Load  x e   => check_rval m x && check_e m e
-  | Store e1 e2 => check_e m e1 && check_e m e2
-  end. *)
-
-Definition vstk (m:map) :=  {|vtype := sword; vname := m.2|}.
-Definition estk (m:map) := Pvar (vstk m).
- 
-Definition check_add (m:map) (p:Z) t (ex:pexpr t) :=
-  eqb_pexpr ex (sadd (estk m) (Pconst p)).
-
-Definition check_assgn (m:map) x t (ex:pexpr t) :=
-  match Mvar.get m.1 x with
-  | None   => false
-  | Some p => check_add m p ex
-  end.
-
-Definition is_var t (e:pexpr t) := 
-  match e with
-  | Pvar x => Some x
-  | _      => None
-  end.
-
-Definition check_set (m:map) t1 (x:var) (e1:pexpr t1) (e e2:pexpr sword) :=
-  match e1 with
-  | Papp3 _ _ _ _ (Oset _) ex ep e1 =>
-    match is_var ex with
-    | None    => false
-    | Some x' => 
-      (x == x') && eqb_pexpr e1 e2 && check_e m e2 && check_e m ep &&
-      match Mvar.get m.1 x with
-      | None => false
-      | Some p => eqb_pexpr e (sadd (estk m) (sadd ep (Pconst p)))
-      end
-    end
-  | _ => false
-  end.
-
-Definition check_bcmd2 m i1 i2 :=
-  match i1, i2 with
-  | Assgn _ (Rvar x) e1, Store ex e2 =>
-    (eqb_pexpr e1 e2 && check_e m e1 && check_assgn m x ex) ||
-    check_set m x e1 ex e2 
-  | _, _ => false
-  end.
-
-Definition check_bcmd m i1 i2 := 
-  (check_bcmd1 m i1 && eqb_bcmd i1 i2) || check_bcmd2 m i1 i2.
-
-Fixpoint check_i m i1 i2 := 
-  match i1, i2 with
-  | Cbcmd i1, S.Cbcmd i2 => check_bcmd m i1 i2
-  | Cif e1 c11 c12, S.Cif e2 c21 c22 =>
-    eqb_pexpr e1 e2 && check_e m e1 &&
-    all2 (check_i m) c11 c21 && all2 (check_i m) c12 c22  
-  | Cwhile e1 c1, S.Cwhile e2 c2 =>
-    eqb_pexpr e1 e2 && check_e m e1 && all2 (check_i m) c1 c2 
+Fixpoint check_i (m: map) (i1 i2: instr) : bool :=
+  let (_, ir1) := i1 in
+  let (_, ir2) := i2 in
+  match ir1, ir2 with
+  | Cassgn r1 _ e1, Cassgn r2 _ e2 => check_rval m r1 r2 && check_e m e1 e2
+  | Copn rs1 o1 e1, Copn rs2 o2 e2 => all2 (check_rval m) rs1 rs2 && (o1 == o2) && all2 (check_e m) e1 e2
+  | Cif e1 c1 c1', Cif e2 c2 c2' => check_e m e1 e2 && all2 (check_i m) c1 c2 && all2 (check_i m) c1' c2'
+  | Cwhile e1 c1, Cwhile e2 c2 => check_e m e1 e2 && all2 (check_i m) c1 c2
   | _, _ => false
   end.
 
@@ -316,13 +245,15 @@ Definition stk_ok (w:word) (z:Z) := w + z < I64.modulus.
 
 Definition valid_map (m:map) (stk_size:Z) := 
   forall x px, Mvar.get m.1 x = Some px -> 
-     exists sx, size_of (vtype x) = Ok unit sx /\
+     exists sx, size_of (vtype x) = ok sx /\
      [/\ 0 <= px, px + sx <= stk_size &
          forall y py sy, x != y ->  
-           Mvar.get m.1 y = Some py -> size_of (vtype y) = Ok unit sy ->
+           Mvar.get m.1 y = Some py -> size_of (vtype y) = ok sy ->
            px + sx <= py \/ py + sy <= px].
 
 Section PROOF.
+  Variable P: prog.
+  Variable SP: S.sprog.
 
   Variable m:map.
   Variable stk_size : Z.
@@ -332,18 +263,21 @@ Section PROOF.
 
   Hypothesis validm : valid_map m stk_size.
 
+  Import Memory.
+
   Definition valid_stk (vm1:vmap) (m2:mem) pstk :=
-    forall x, 
+    forall x,
       match Mvar.get m.1 x with
       | Some p =>
         match vtype x with
-        | sword => read_mem m2 (I64.repr (pstk + p)) = ok vm1.[{|vtype:=sword;vname := vname x|}]
-        | sarr s => 
+        | sword => read_mem m2 (I64.repr (pstk + p)) = vm1.[{|vtype:=sword;vname := vname x|}]
+        | sarr s =>
           let t := vm1.[{|vtype := sarr s;vname := vname x|}] in
-          forall x, (0 <= x < Zpos s)%Z ->
-            valid_addr m2 (I64.repr (pstk + (x + p))) /\
-            forall v, FArray.get t (I64.repr x) = ok v ->
-              read_mem m2 (I64.repr (pstk + (x + p))) = ok v
+          forall a, t = ok a ->
+            forall x, (0 <= x < Zpos s)%Z ->
+              valid_addr m2 (I64.repr (pstk + (x + p))) /\
+              forall v, FArray.get a (I64.repr x) = ok v ->
+                read_mem m2 (I64.repr (pstk + (x + p))) = ok v
         | _ => True
         end
       | _ => True
@@ -361,63 +295,19 @@ Section PROOF.
         (forall w, valid_addr (emem s2) w = valid_addr (emem s1) w ||  
                                        ((pstk <=? w) && (w <? pstk + stk_size))),
         eq_vm (evm s1) (evm s2) & 
-        (evm s2).[{|vtype:= sword; vname := m.2|}] = pstk /\
+        (evm s2).[{|vtype:= sword; vname := m.2|}] = ok pstk /\
         valid_stk (evm s1) (emem s2) pstk ].
 
-  Lemma check_eP t (e:pexpr t) (vm1 vm2:vmap) :
-    eq_vm vm1 vm2 -> check_e m e ->
-    sem_pexpr vm1 e = sem_pexpr vm2 e.
-  Proof.
-    move=> Hvm;elim:e => /=
-     [x Hx|z _ |b _ |?? o e1 He1|??? o e1 He1 e2 He2|???? o e1 He1 e2 He2 e3 He3] //.
-    + (rewrite (Hvm x) //;apply: contra Hx)=> [->|/eqP ->] //=.
-      by rewrite eq_refl orbT.
-    + by move=> /He1 ->.
-    + by move=> /andP[] /He1 -> /He2 ->.
-    by move=> /andP[]/andP[]/He1 -> /He2 -> /He3 ->.
-  Qed.
+  Lemma check_eP (e1 e2: pexpr) (s1 s2: estate) :
+    check_e m e1 e2 -> valid s1 s2 -> sem_pexpr s1 e1 = sem_pexpr s2 e2.
+  Admitted.
 
-  Lemma check_rvalP t (x:rval t) v (vm1 vm2:vmap) :
-    check_rval m x -> 
-    eq_vm vm1 vm2 -> eq_vm (write_rval vm1 x v) (write_rval vm2 x v).
-  Proof.
-    elim: x v vm1 vm2 => [x | ?? x1 Hx1 x2 Hx2] /= v vm1 vm2.
-    + move=> Hx Heq y Hy1 Hy2.
-      case: (x =P y) => [<-|/eqP ?];first by rewrite !Fv.setP_eq.
-      by rewrite !Fv.setP_neq //;apply Heq.
-    by move=> /andP[] H1 H2 Heq;apply Hx1 => //;apply Hx2.
-  Qed.
-
-  Lemma check_rval_in p t (x:rval t) z vm v: 
-    Mvar.get m.1 z = Some p ->
-    check_rval m x ->
-    (write_rval vm x v).[z] = vm.[z].
-  Proof.
-    move=> Hget;elim : x vm v => [x | ?? x1 Hx1 x2 Hx2] vm v /=.
-    + move=> Hx;rewrite Fv.setP_neq //;apply: contra Hx => /eqP ->.
-      by rewrite /is_in_stk Hget.
-    by move=> /andP[] H1 H2; rewrite Hx1 // Hx2.
-  Qed.
-    
-  Lemma valid_write_rval s1 s2 t (x:rval t) v: 
-    check_rval m x -> valid s1 s2 ->
-    valid {| emem := emem s1; evm := write_rval (evm s1) x v |}
-          {| emem := emem s2; evm := write_rval (evm s2) x v |}.
-  Proof.
-    move=> Hc [H0 H1 HH H2 [H3 H4]];split => //=.
-    + by apply: check_rvalP Hc H2.
-    split.    
-    + elim: x Hc v (evm s2) H3 => /= [x Hx |?? x1 Hx1 x2 Hx2 /andP[] ??] v vm2;
-       last by auto.
-      rewrite Fv.setP_neq //;apply: contra Hx => /eqP -> /=.
-      by rewrite eq_refl orbC.  
-    move=> z;have := H4 z.
-    case Heq: Mvar.get => [p|]//.
-    case Heqt : vtype => [||| n]//=. 
-    + by rewrite (@check_rval_in p) //;case: (z) Heqt Heq => ??/= ->.
-    rewrite (@check_rval_in p) //.
-    by case: (z) Heqt Heq => ??/= ->.
-  Qed.
+  Lemma check_rvalP (r1 r2: rval) v (s1 s2: estate) :
+    check_rval m r1 r2 -> valid s1 s2 ->
+    forall s1' s2', write_rval r1 v s1 = ok s1' ->
+    write_rval r2 v s2 = ok s2' ->
+    valid s1' s2'.
+  Admitted.
 
   Lemma read_write_mem m1 v1 v2 m2 w:
     write_mem m1 v1 v2 = ok m2 -> 
@@ -434,14 +324,15 @@ Section PROOF.
     case Hw: (valid_addr m1 w);move /readV: (Hw).
     + move=> [w' Hw'];symmetry.
       case (v1 =P w) => [ | /eqP] Heq.
-      + by subst;apply /readV;exists v2; rewrite Hr memory.writeP Hv1 eq_refl.
-      by apply /readV;exists w'; rewrite Hr memory.writeP (negbTE Heq) Hv1.
+      + by subst;apply /readV;exists v2; rewrite Hr Memory.writeP Hv1 eq_refl.
+      by apply /readV;exists w'; rewrite Hr Memory.writeP (negbTE Heq) Hv1.
     move=> Hm1;symmetry;apply /readV => -[w'].
-    rewrite Hr memory.writeP Hv1;case:ifP => /eqP Heq.
+    rewrite Hr Memory.writeP Hv1;case:ifP => /eqP Heq.
     + by subst;move: Hv1;rewrite Hw.
     by move=> ?;apply Hm1;exists w'.
   Qed.   
 
+  (*
   Lemma check_bcmd1P i s1 s1' s2 : 
     valid s1 s2 -> 
     check_bcmd1 m i ->
@@ -499,6 +390,7 @@ Section PROOF.
     have := H0 _ H1v1;rewrite I64.unsigned_repr=> [[]|];first by omega.
     by rewrite /I64.max_unsigned; omega.
   Qed.
+  *)
 
   Lemma get_valid_wrepr x p: 
      Mvar.get m.1 {| vtype := sword; vname := x |} = Some p -> 
@@ -520,7 +412,8 @@ Section PROOF.
     move: pstk_add (I64.unsigned_range pstk);rewrite /stk_ok/I64.max_unsigned.
     move=> ??;omega.
   Qed.
- 
+
+  (*
   Lemma get_valid_word x p m1 m2: 
      valid m1 m2 -> 
      Mvar.get m.1 {| vtype := sword; vname := x |} = Some p -> 
@@ -540,8 +433,10 @@ Section PROOF.
     move=> [] H0 H1 _ H2 [H3 H4] Hget Hp1.
     by have := H4 {| vtype := sarr n; vname := x |};rewrite Hget /= => /(_ _ Hp1) [].
   Qed.
+*)
 
-  Lemma is_varP t (e:pexpr t) x : 
+  (*
+  Lemma is_varP t (e:pexpr) x :
      is_var e = Some x -> t = vtype x /\ JMeq e (Pvar x).
   Proof. by case: e => //= ? [] ->. Qed.
 
@@ -563,12 +458,14 @@ Section PROOF.
     case Heq: Mvar.get => [p|] //= /eqb_pexprP []_ ->.
     by exists n, nx', ep, p.
   Qed.
+  *)
 
   Lemma add_repr_r x y : I64.add x (I64.repr y) = I64.repr (x + y).
   Proof.
     by apply: reqP; rewrite !urepr !I64.Z_mod_modulus_eq Zplus_mod_idemp_r eq_refl.
   Qed.
 
+  (*
   Lemma check_bcmd2P i1 i2 s1 s1' s2 : 
     valid s1 s2 -> 
     check_bcmd2 m i1 i2 ->
@@ -686,34 +583,53 @@ Section PROOF.
       omega.
     by subst p1;apply Heqr;move: Hgetx;rewrite Hgetz=> -[] <-.
   Qed.
+  *)
 
-  Let Pi (i1:instr) := 
+  Let Pi_r s1 (i1:instr_r) s2 :=
+    forall ii1 ii2 i2, check_i m (MkI ii1 i1) (MkI ii2 i2) ->
+    forall s1', valid s1 s1' ->
+    exists s2', S.sem_i SP s1' i2 s2' /\ valid s2 s2'.
+
+  Let Pi s1 (i1:instr) s2 :=
     forall i2, check_i m i1 i2 ->
-    forall s1 s1' s2, valid s1 s2 -> sem_i s1 i1 s1' ->
-    exists s2', S.sem_i s2 i2 s2' /\ valid s1' s2'.
+    forall s1', valid s1 s1' ->
+    exists s2', S.sem_I SP s1' i2 s2' /\ valid s2 s2'.
 
-  Let Pc (c1:cmd) := 
+  Let Pc s1 (c1:cmd) s2 :=
     forall c2, all2 (check_i m) c1 c2 ->
-    forall s1 s1' s2, valid s1 s2 -> sem s1 c1 s1' ->
-    exists s2', S.sem s2 c2 s2' /\ valid s1' s2'.
+    forall s1', valid s1 s1' ->
+    exists s2', S.sem SP s1' c2 s2' /\ valid s2 s2'.
 
-  Let Pf ta tr (fd:fundef ta tr) := True.
+  Let Pfor (i1: var_i) (vs: seq Z) (s1: estate) (c: cmd) (s2: estate) := True.
 
-  Let Hskip : Pc [::].
-  Proof. 
-    move=> [] //= _ s1 s1' s2 Hv H;inversion H;clear H;subst.
-    exists s2;split=>//;constructor.
-  Qed.
+  Let Pfun (m1: mem) (fn: funname) (vargs: seq value) (m2: mem) (vres: seq value) := True.
 
-  Let Hseq  : forall i c,  Pi i -> Pc c -> Pc (i::c).
+  Local Lemma Hskip s: Pc s [::] s.
   Proof.
-    move=> i1 c1 Hi Hc [|i2 c2] //= /andP[] /Hi{Hi}Hi /Hc{Hc}Hc.
-    move=> s1 s1' s3 Hv H;inversion H;clear H;subst.
-    have [s2' [Hi' Hv2]]:= Hi _ _ _ Hv H3.
-    have [s3' [Hc' Hv3]]:= Hc _ _ _ Hv2 H5.
-    by exists s3';split=>//; apply: S.Eseq Hi' Hc'.
+    move=> [] // => _ s' Hv.
+    exists s'; split; [exact: S.Eskip|exact: Hv].
   Qed.
 
+  Local Lemma Hcons s1 s2 s3 i c :
+    sem_I P s1 i s2 ->
+    Pi s1 i s2 -> sem P s2 c s3 -> Pc s2 c s3 -> Pc s1 (i :: c) s3.
+  Proof.
+    move=> _ Hi _ Hc [|i' c'] //= /andP [Hi'c Hc'c] s1' Hv.
+    have [s2' [Hi' Hv2]] := Hi _ Hi'c _ Hv.
+    have [s3' [Hc' Hv3]] := Hc _ Hc'c _ Hv2.
+    exists s3'; split=> //.
+    apply: S.Eseq; [exact: Hi'|exact: Hc'].
+  Qed.
+
+  Local Lemma HmkI ii i s1 s2 :
+    sem_i P s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
+  Proof. 
+    move=> _ Hi [ii' ir'] Hc s1' Hv.
+    move: Hi=> /(_ ii ii' ir' Hc s1' Hv) [s2' [Hs2'1 Hs2'2]].
+    by exists s2'; split.
+  Qed.
+
+  (*
   Let Hbcmd : forall bc,  Pi (Cbcmd bc).
   Proof. 
     move=> i1 [] //= i2 Hc s1 s1' s2 Hv H;inversion H;clear H;subst.
@@ -768,19 +684,18 @@ Section PROOF.
   Proof. 
     apply (@cmd_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc).
   Qed.
+  *)
 
 End PROOF.
 
-Lemma size_of_pos t s : size_of t = Ok unit s -> 1 <= s.
-Proof. case: t=> //= [|p []] //=[] <- //;zify; omega. Qed.
+Lemma size_of_pos t s : size_of t = ok s -> 1 <= s.
+Proof. case: t=> //= [p [] <-|[] <-] //=; zify; omega. Qed.
 
-Definition check_fd (l:list (var * Z)) ta tr 
-    (fd: fundef ta tr) (fd': S.fundef ta tr) :=
-  match init_map (S.fd_stk_size fd') (S.fd_nstk fd') l  with 
-  | Ok m => 
-    (check_rval m (fd_arg fd) && eqb_rval (fd_arg fd) (S.fd_arg fd')) &&
-    (check_e m (rval2pe (fd_res fd)) && eqb_rval (fd_res fd) (S.fd_res fd')) &&
-     all2 (check_i m) (fd_body fd) (S.fd_body fd')
+Definition check_fd (l:list (var * Z))
+    (fd: fundef) (fd': S.sfundef) :=
+  match init_map (S.sf_stk_sz fd') (S.sf_stk_id fd') l with 
+  | Ok m =>
+     all2 (check_i m) (f_body fd) (S.sf_body fd')
   | _ => false
   end.
 
@@ -788,12 +703,13 @@ Definition init_vm mem pstk (l : seq.seq (var * Z)) vm :=
   let add (vm : vmap) (vp : var * Z) := 
     match vtype vp.1 with
     | sword => 
-      let w := Result.default I64.zero (read_mem mem (I64.repr (pstk + vp.2))) in
-      vm.[{|vtype := sword; vname := vname vp.1 |} <- w]
+      let w := Result.default I64.zero (Memory.read_mem mem (I64.repr (pstk + vp.2))) in
+      vm.[{|vtype := sword; vname := vname vp.1 |} <- ok w]
     | _ => vm 
       end in
   foldl add vm l.
 
+(*
 Lemma init_mapP nstk pstk l sz m vm m1 m2 :
   alloc_stack m1 sz = ok (pstk, m2) -> 
   init_map sz nstk l = Ok unit m -> 
@@ -897,7 +813,9 @@ Proof.
   case :(Hv x px Hx) => //= sx [] Hsx [] H1 H2 H3.
   by exists sx;split=>//;split=>//;omega.
 Qed.
- 
+*)
+
+(*
 Lemma check_fdP ta tr l (fd:fundef ta tr) fd':
   check_fd l fd fd' ->
   forall m1 va m1' vr, 
