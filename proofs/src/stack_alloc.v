@@ -110,7 +110,7 @@ Module S.
     sem_pexpr s1 e >>= to_bool = ok true ->
     sem s1 c s2 ->
     sem_i s2 (Cwhile e c) s3 ->
-    sem_i s2 (Cwhile e c) s3
+    sem_i s1 (Cwhile e c) s3
 
   | Ewhile_false s e c :
     sem_pexpr s e >>= to_bool = ok false ->
@@ -270,14 +270,18 @@ Section PROOF.
       match Mvar.get m.1 x with
       | Some p =>
         match vtype x with
-        | sword => read_mem m2 (I64.repr (pstk + p)) = vm1.[{|vtype:=sword;vname := vname x|}]
+        | sword =>
+          valid_addr m2 (I64.repr (pstk + p)) /\
+          let sv := vm1.[{|vtype:=sword;vname := vname x|}] in
+          forall v, sv = ok v ->
+            read_mem m2 (I64.repr (pstk + p)) = ok v
         | sarr s =>
-          let t := vm1.[{|vtype := sarr s;vname := vname x|}] in
-          forall a, t = ok a ->
-            forall x, (0 <= x < Zpos s)%Z ->
-              valid_addr m2 (I64.repr (pstk + (x + p))) /\
-              forall v, FArray.get a (I64.repr x) = ok v ->
-                read_mem m2 (I64.repr (pstk + (x + p))) = ok v
+          forall off, (0 <= off < Zpos s)%Z ->
+            valid_addr m2 (I64.repr (pstk + (off + p))) /\
+            let t := vm1.[{|vtype := sarr s;vname := vname x|}] in
+            forall a, t = ok a ->
+              forall v, FArray.get a (I64.repr off) = ok v ->
+                read_mem m2 (I64.repr (pstk + (off + p))) = ok v
         | _ => True
         end
       | _ => True
@@ -302,11 +306,20 @@ Section PROOF.
     check_e m e1 e2 -> valid s1 s2 -> sem_pexpr s1 e1 = sem_pexpr s2 e2.
   Admitted.
 
+  Lemma check_esP (es es': pexprs) (s1 s2: estate) :
+    all2 (check_e m) es es' -> valid s1 s2 -> sem_pexprs s1 es = sem_pexprs s2 es'.
+  Admitted.
+
   Lemma check_rvalP (r1 r2: rval) v (s1 s2: estate) :
     check_rval m r1 r2 -> valid s1 s2 ->
-    forall s1' s2', write_rval r1 v s1 = ok s1' ->
-    write_rval r2 v s2 = ok s2' ->
-    valid s1' s2'.
+    forall s1', write_rval r1 v s1 = ok s1' ->
+    exists s2', write_rval r2 v s2 = ok s2' /\ valid s1' s2'.
+  Admitted.
+
+  Lemma check_rvalsP (r1 r2: rvals) vs (s1 s2: estate) :
+    all2 (check_rval m) r1 r2 -> valid s1 s2 ->
+    forall s1', write_rvals s1 r1 vs = ok s1' ->
+    exists s2', write_rvals s2 r2 vs = ok s2' /\ valid s1' s2'.
   Admitted.
 
   Lemma read_write_mem m1 v1 v2 m2 w:
@@ -413,15 +426,13 @@ Section PROOF.
     move=> ??;omega.
   Qed.
 
-  (*
   Lemma get_valid_word x p m1 m2: 
      valid m1 m2 -> 
      Mvar.get m.1 {| vtype := sword; vname := x |} = Some p -> 
      valid_addr (emem m2) (I64.repr (pstk + p)).
   Proof.
     move=> [] H0 H1 _ H2 [H3 H4] Hget.
-    have := H4 {| vtype := sword; vname := x |};rewrite Hget /= => H.
-    apply /readV;eexists;eauto.
+    by have := H4 {| vtype := sword; vname := x |};rewrite Hget /= => -[-> _].
   Qed.
 
   Lemma get_valid_arr x n p p1 m1 m2: 
@@ -433,7 +444,6 @@ Section PROOF.
     move=> [] H0 H1 _ H2 [H3 H4] Hget Hp1.
     by have := H4 {| vtype := sarr n; vname := x |};rewrite Hget /= => /(_ _ Hp1) [].
   Qed.
-*)
 
   (*
   Lemma is_varP t (e:pexpr) x :
@@ -629,63 +639,127 @@ Section PROOF.
     by exists s2'; split.
   Qed.
 
-  (*
-  Let Hbcmd : forall bc,  Pi (Cbcmd bc).
-  Proof. 
-    move=> i1 [] //= i2 Hc s1 s1' s2 Hv H;inversion H;clear H;subst.
-    move:Hc;rewrite /check_bcmd => /orP [/andP[] Hc /eqb_bcmdP <-| Hc].
-    + have [s2' [H2' Hv']]:= check_bcmd1P Hv Hc H2.
-      by exists s2';split=>//;constructor.
-    have [s2' [H2' Hv']]:= check_bcmd2P Hv Hc H2.
-    by exists s2';split=>//;constructor.
-  Qed.
-
-  Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (Cif e c1 c2).
+  Local Lemma Hassgn s1 s2 x tag e :
+    Let v := sem_pexpr s1 e in write_rval x v s1 = Ok error s2 ->
+    Pi_r s1 (Cassgn x tag e) s2.
   Proof.
-    move=> e1 c11 c12 Hc1 Hc2 [] //= e2 c21 c22.
-    move=> /andP[]/andP[]/andP[]/eqb_pexprP [] _ <- He1.
-    move=> /Hc1{Hc1}Hc1 /Hc2{Hc2}Hc2 s1 s1' s2 Hv H;inversion H;clear H;subst.
-    case: (Hv) H5 => _ _ _ Hvm _;rewrite (check_eP Hvm He1)=> H5.
-    case: cond H5 H6 => H5 H6.
-    + have [s2' [H6' Hv']]:= Hc1 _ _ _ Hv H6;exists s2';split=>//.
-      by apply S.Eif with true => //.
-    have [s2' [H6' Hv']]:= Hc2 _ _ _ Hv H6;exists s2';split=>//.
-    by apply S.Eif with false => //.
+    apply: rbindP=> v Hv Hw ii1 ii2 i2 Hi2 s1' Hvalid.
+    case: i2 Hi2=> //= x' a e' /andP [Hrval He].
+    have He_eq := (check_eP He Hvalid).
+    move: (check_rvalP Hrval Hvalid Hw)=> [s2' [Hw' Hvalid']].
+    exists s2'; split=> //.
+    apply: S.Eassgn.
+    by rewrite -He_eq Hv.
   Qed.
 
-  Let Hfor  : forall i rn c, Pc c -> Pi (Cfor i rn c).
-  Proof. by []. Qed.
-
-  Let Hwhile : forall e c, Pc c -> Pi (Cwhile e c).
+  Local Lemma Hopn s1 s2 o xs es :
+    Let x := Let x := sem_pexprs s1 es in sem_sopn o x
+    in write_rvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
   Proof.
-    move=> e1 c1 Hc1 [] //= e2 c2.
-    move=> /andP[]/andP[] /eqb_pexprP [] _ <- He1 /Hc1{Hc1}Hc1.
-    move=> s1 s1' s2 Hv H;inversion H;clear H;subst.
-    have : exists s2' : estate,
-      S.sem_while s2 e1 c2 s2' /\ valid s1' s2';last first.
-    + by move=> [s2' [Hs Hv']];exists s2';split=> //;constructor.
-    elim: H4 He1 Hc1 s2 Hv => {e1 e2 c1 s1 s1'} [s1 e c1|s1 s2 s3 e1 c1].
-    + move=> Hse Hce _ s2 Hv;exists s2;split=>//;constructor.
-      by case:Hv => _ _ _ Hvm _;rewrite -(check_eP Hvm Hce).
-    move=> Hse Hsc Hsw Hrec Hce HH s1' Hv.
-    have [s2' [Hs2' Hv2]]:= HH _ _ _ Hv Hsc.
-    have [s3' [Hs3' Hv3]]:= Hrec Hce HH _ Hv2.
-    case: (Hv) Hse=> _ _ _ Hvm _;rewrite (check_eP Hvm Hce)=> Hse.
-    by exists s3';split=> //; apply: S.EWhileOne Hs3'.
+    apply: rbindP=> vs.
+    apply: rbindP=> w He Hop Hw ii1 ii2 i2 Hi2 s1' Hvalid.
+    case: i2 Hi2=> //= xs' o' es' /andP [/andP [Hrvals /eqP Ho] Hes].
+    have Hes_eq := (check_esP Hes Hvalid).
+    move: (check_rvalsP Hrvals Hvalid Hw)=> [s2' [Hw' Hvalid']].
+    exists s2'; split=> //.
+    apply: S.Eopn.
+    by rewrite -Hes_eq He /= -Ho Hop /= Hw'.
   Qed.
 
-  Let Hcall : forall ta tr x (f:fundef ta tr) a, Pf f -> Pi (Ccall x f a).
-  Proof. by []. Qed.
-
-  Let Hfunc : forall ta tr (x:rval ta) c (re:rval tr), Pc c -> Pf (FunDef x c re).
-  Proof. by []. Qed.
-
-  Lemma check_cP c : Pc c.
-  Proof. 
-    apply (@cmd_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hfor Hwhile Hcall Hfunc).
+  Local Lemma Hif_true s1 s2 e c1 c2 :
+    Let x := sem_pexpr s1 e in to_bool x = Ok error true ->
+    sem P s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+  Proof.
+    move=> ? ? Hc ii1 ii2 i2 Hi2 s1' Hvalid.
+    case: i2 Hi2=> //= e' c1' c2' /andP [/andP [He Htrue] _].
+    move: (Hc _ Htrue _ Hvalid)=> [s2' [Hsem Hvalid']].
+    exists s2'; split=> //.
+    apply: S.Eif_true=> //.
+    by rewrite -(check_eP He Hvalid).
   Qed.
-  *)
 
+  Local Lemma Hif_false s1 s2 e c1 c2 :
+    Let x := sem_pexpr s1 e in to_bool x = Ok error false ->
+    sem P s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+  Proof.
+    move=> ? ? Hc ii1 ii2 i2 Hi2 s1' Hvalid.
+    case: i2 Hi2=> //= e' c1' c2' /andP [/andP [He _] Hfalse].
+    move: (Hc _ Hfalse _ Hvalid)=> [s2' [Hsem Hvalid']].
+    exists s2'; split=> //.
+    apply: S.Eif_false=> //.
+    by rewrite -(check_eP He Hvalid).
+  Qed.
+
+  Local Lemma Hwhile_true s1 s2 s3 e c :
+    Let x := sem_pexpr s1 e in to_bool x = ok true ->
+    sem P s1 c s2 -> Pc s1 c s2 ->
+    sem_i P s2 (Cwhile e c) s3 -> Pi_r s2 (Cwhile e c) s3 -> Pi_r s1 (Cwhile e c) s3.
+  Proof.
+    move=> Htrue ? Hc ? Hwhile ii1 ii2 i2 Hi2 s1' Hvalid.
+    case: i2 Hi2=> //= e' c' /andP [He Hi].
+    move: (Hc _ Hi _ Hvalid)=> [s2' [Hsem' Hvalid']].
+    have [|s3' [Hsem'' Hvalid'']] := (Hwhile ii1 ii2 (Cwhile e' c') _ _ Hvalid').
+    by rewrite /= He Hi.
+    exists s3'; split=> //.
+    apply: S.Ewhile_true.
+    rewrite (check_eP He Hvalid) in Htrue.
+    exact: Htrue.
+    exact: Hsem'.
+    exact: Hsem''.
+  Qed.
+
+  Local Lemma Hwhile_false s e c :
+    Let x := sem_pexpr s e in to_bool x = ok false ->
+    Pi_r s (Cwhile e c) s.
+  Proof.
+    move=> Hfalse ii1 ii2 i2 Hi2 s1' Hvalid.
+    case: i2 Hi2=> //= e' c' /andP [He _].
+    exists s1'; split=> //.
+    apply: S.Ewhile_false.
+    rewrite -(check_eP He Hvalid).
+    exact: Hfalse.
+  Qed.
+
+  Local Lemma Hfor s1 s2 (i:var_i) d lo hi c vlo vhi :
+    Let x := sem_pexpr s1 lo in to_int x = Ok error vlo ->
+    Let x := sem_pexpr s1 hi in to_int x = Ok error vhi ->
+    sem_for P i (wrange d vlo vhi) s1 c s2 ->
+    Pfor i (wrange d vlo vhi) s1 c s2 -> Pi_r s1 (Cfor i (d, lo, hi) c) s2.
+  Proof. by []. Qed.
+
+  Local Lemma Hfor_nil s i c: Pfor i [::] s c s.
+  Proof. by []. Qed.
+
+  Local Lemma Hfor_cons s1 s1' s2 s3 (i : var_i) (w:Z) (ws:seq Z) c :
+    write_var i w s1 = Ok error s1' ->
+    sem P s1' c s2 ->
+    Pc s1' c s2 ->
+    sem_for P i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
+  Proof. by []. Qed.
+
+  Local Lemma Hcall s1 m2 s2 ii xs fn args vargs vs:
+    sem_pexprs s1 args = Ok error vargs ->
+    sem_call P (emem s1) fn vargs m2 vs ->
+    Pfun (emem s1) fn vargs m2 vs ->
+    write_rvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
+    Pi_r s1 (Ccall ii xs fn args) s2.
+  Proof. by []. Qed.
+
+  Local Lemma Hproc m1 m2 fn f vargs s1 vm2 vres:
+    get_fundef P fn = Some f ->
+    write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
+    sem P s1 (f_body f) {| emem := m2; evm := vm2 |} ->
+    Pc s1 (f_body f) {| emem := m2; evm := vm2 |} ->
+    mapM (fun x : var_i => get_var vm2 x) (f_res f) = ok vres ->
+    List.Forall is_full_array vres ->
+    Pfun m1 fn vargs m2 vres.
+  Proof. by []. Qed.
+
+  Lemma check_cP s1 c1 s2: sem P s1 c1 s2 -> Pc s1 c1 s2.
+  Proof.
+    apply (@sem_Ind P Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
+  Qed.
 End PROOF.
 
 Lemma size_of_pos t s : size_of t = ok s -> 1 <= s.
