@@ -120,18 +120,20 @@ let command =
     ~summary:"Compiler from MIL to assembly."
     ~readme:(fun () ->
       String.concat ~sep:"\n"
-       [ "The jasmin compiler transforms the given (.mil|.s) file.";
+       [ "The jasmin compiler transforms the given (.rs|.s) file.";
          "";
          "Transformations are given as comma-separated lists of";
          "transformation passes from the following list:";
          "";
+         "  coq[f]:";
+         "	print function f in concrete Coq syntax";
          "  expand[p1=i1,...,pk=ik]:";
          "    expand macros with given mapping from parameters to integers";
          "  ssa:";
          "    rename variables to obtain static single assignment form";
          "  register_alloc:";
          "    allocate registers";
-         "  asm(X86-64):";
+         "  asm[x86-64]:";
          "    compile to assembly";
          "";
          " Example: 'expand[n=5],ssa,register_alloc,asm(X86-64)'"

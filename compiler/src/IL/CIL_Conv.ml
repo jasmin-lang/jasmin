@@ -673,7 +673,7 @@ let apply_cert_transform _fname modul ~f =
     cpair_of_pair (pos_of_int k,cfd)
   in
   (* inliner expects leaves of call-graph last *)
-  let cfds = List.rev @@ List.map ~f:conv_nf modul.mod_funcs in  
+  let cfds = List.rev @@ List.map ~f:conv_nf modul.mod_funcs in
   let prog = clist_of_list cfds in
 
   (* F.printf "Coq before:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog; *)
@@ -716,3 +716,26 @@ let unroll_loops_modul fname modul =
       end
   in
   apply_cert_transform fname modul ~f:macro_expand
+
+(* print in Coq concrete syntax *)
+let print_coq_modul modul =
+  let modul = { modul with mod_funcs = IL_Iter.sort_call_graph modul.mod_funcs } in
+  let cvi = CVI.mk () in
+  let conv_nf nf =
+    let cfd = cfundef_of_fundef cvi nf.nf_func in
+    let k = CVI.add_fname cvi nf.nf_name in
+    cpair_of_pair (pos_of_int k,cfd)
+  in
+  let cfds = List.rev_map ~f:conv_nf modul.mod_funcs in
+  let prog = clist_of_list cfds in
+
+  (* Trick to direct the output of F.printf to a file *)
+  let file = open_out "jasminOut.v" in
+  let shell = Unix.dup Unix.stdout in
+  Unix.dup2 (Unix.descr_of_out_channel file) Unix.stdout;
+  F.printf "@[<v 0>%a@]@\n%!" CIL_PprintC.pp_prog prog;
+  F.print_flush ();
+  Out_channel.close file;
+  Unix.dup2 shell Unix.stdout;
+
+  modul

@@ -70,6 +70,7 @@ type transform =
   | RegisterLiveness of Fname.t
   | RemoveEqConstrs of Fname.t
   | RenumberIdents of renumber_opt
+  | PrintCoq
   | Asm of asm_lang
   (* debugging *)
   | Type
@@ -157,6 +158,7 @@ let ptrafo =
        register_num >>= fun l ->
        return (RegisterAlloc(fn,l)))
     ; string "asm" >> char '[' >> asm_lang >>= (fun l -> char ']' >>$ (Asm(l)))
+    ; (string "coq" >> return PrintCoq)
     ; (string "expand" >> fname >>= fun fname ->
        pmap >>= fun pm -> return (MacroExpand(fname,pm)))
     ; (string "cert_inline" >> fname >>= fun fname -> return (InlineCalls(Cert,fname)))
@@ -212,7 +214,7 @@ let apply_transform trafos (modul0 : unit modul) =
     total := d +. !total;
     res
   in
-  let pp_stats fmt li = 
+  let pp_stats fmt li =
       if IS.is_empty li.LV.var_ue && IS.is_empty li.LV.var_kill && IS.is_empty li.LV.live_out then (
         pp_string fmt ""
       ) else (
@@ -292,6 +294,10 @@ let apply_transform trafos (modul0 : unit modul) =
       | Lm m, true  -> go m (Some(pp_info_lv))
       | Lm m, false -> go m None
     in
+    let print_coq m =
+      notify "printing in Coq concrete syntax" all_fn
+        ~f:(fun () -> Cert.print_coq_modul m)
+    in
     let test_conversion fn m0 =
       let open CIL_Conv in
       let m0 = match m0 with Um m0 -> m0 | Lm _ -> assert false in
@@ -325,7 +331,7 @@ let apply_transform trafos (modul0 : unit modul) =
       notify "type checking module" all_fn
         ~f:(fun () -> IL_Typing.typecheck_modul m; m)
     in
-    let register_alloc fn _n _m = 
+    let register_alloc fn _n _m =
       notify "performing register allocation" fn
         ~f:(fun () -> undefined () (*reg_alloc_modul (min 15 n) m fn*))
     in
@@ -343,7 +349,7 @@ let apply_transform trafos (modul0 : unit modul) =
               | Um _ -> assert false
               | Lm m -> Lm (local_ssa_modul m fn))
     in
-    let macro_expand fn map m = 
+    let macro_expand fn map m =
       notify "expanding macros" fn
         ~f:(fun () -> macro_expand_modul map m fn)
     in
@@ -381,8 +387,9 @@ let apply_transform trafos (modul0 : unit modul) =
       ignore (Sys.command "cd tests/build/ && cargo test"); (* FIXME: don't use system, don't hardcode path *)
       modul
     | Asm(_)                    -> assert false
+    | PrintCoq -> map_module modul { f = fun m -> print_coq m }
   in
-  let start = Unix.gettimeofday () in 
+  let start = Unix.gettimeofday () in
   let res = List.fold_left trafos ~init:(Um modul0) ~f:app_trafo in
   let stop = Unix.gettimeofday () in
   let d = (stop -. start) *. 1000. in
