@@ -185,7 +185,7 @@ Definition is_arr_type (t:stype) :=
   | _      => false
   end.
 
-Fixpoint check_arr_stk (m:map) (x1:var_i) (e1:pexpr) (x2:var_i) (e2:pexpr) :=
+Definition check_arr_stk' check_e (m:map) (x1:var_i) (e1:pexpr) (x2:var_i) (e2:pexpr) :=
   is_vstk m x2 && is_arr_type (vtype x1) &&
     match Mvar.get m.1 x1 with
     | Some ofs =>
@@ -202,8 +202,9 @@ Fixpoint check_arr_stk (m:map) (x1:var_i) (e1:pexpr) (x2:var_i) (e2:pexpr) :=
       | _        => false
       end
     | _ => false
-    end
-with check_e (m:map) (e1 e2: pexpr) :=
+    end.
+
+Fixpoint check_e (m:map) (e1 e2: pexpr) :=
   match e1, e2 with 
   | Pconst n1, Pconst n2 => n1 == n2 
   | Pbool  b1, Pbool  b2 => b1 == b2 
@@ -211,13 +212,15 @@ with check_e (m:map) (e1 e2: pexpr) :=
   | Pvar   x1, Pvar   x2 => check_var m x1 x2 
   | Pvar   x1, Pload x2 e2 => check_var_stk m x1 x2 e2
   | Pget  x1 e1, Pget x2 e2 => check_var m x1 x2 && check_e m e1 e2
-  | Pget  x1 e1, Pload x2 e2 => check_arr_stk m x1 e1 x2 e2
+  | Pget  x1 e1, Pload x2 e2 => check_arr_stk' check_e m x1 e1 x2 e2
   | Pload x1 e1, Pload x2 e2 => check_var m x1 x2 && check_e m e1 e2
   | Pnot   e1, Pnot   e2 => check_e m e1 e2 
   | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
     (o1 == o2) && check_e m e11 e21 && check_e m e12 e22
   | _, _ => false
   end.
+
+Definition check_arr_stk := check_arr_stk' check_e.
 
 Definition check_rval (m:map) (r1 r2:rval) := 
   match r1, r2 with
@@ -411,11 +414,12 @@ Section PROOF.
 
   Lemma check_arr_stkP s1 s2 x1 e1 x2 e2 v:
     check_arr_stk m x1 e1 x2 e2 ->
+    (forall e2' v, check_e m e1 e2' -> sem_pexpr s1 e1 = ok v -> sem_pexpr s2 e2' = ok v) ->
     valid s1 s2 ->
     sem_pexpr s1 (Pget x1 e1) = ok v ->
     sem_pexpr s2 (Pload x2 e2) = ok v.
   Proof.
-    move=> /andP [/andP [Hvstk Harrt] Hget] Hvalid.
+    move=> /andP [/andP [Hvstk Harrt] Hget] Hcheck Hvalid.
     case Hget: (Mvar.get m.1 x1) Hget=> [ofs|//] Het.
     rewrite /=.
     apply: on_arr_varP=> n t Ht Harr.
@@ -436,10 +440,12 @@ Section PROOF.
     by apply Z.ltb_lt.
     move=> Hvalid /(_ t _ w) H.
     move: Het=> /orP; case.
-    move=> /orP; case=> /eqP ->.
+    move=> /orP; case.
+    case: e2=> // -[] // [] // [] // ofs' e2' /andP [Hofs He].
+    + rewrite /= (Hcheck _ _ He Hx) /=.
+      admit.
     + rewrite /=. admit.
-    + rewrite /=. admit.
-    + case: e1 Hx=> // z Hx /eqP -> /=.
+    + case: e1 Hx Hcheck=> // z Hx Hcheck /eqP -> /=.
       rewrite /= in Hx.
       rewrite add_repr_r.
       rewrite [ofs + z]Z.add_comm.
@@ -487,7 +493,8 @@ Section PROOF.
       move: IH=> /(_ _ _ He12 Hx) -> /=.
       by rewrite Hx' /= Hw.
     + move=> He Hv1.
-      exact: (check_arr_stkP He Hv Hv1).
+      apply: (check_arr_stkP He _ Hv Hv1).
+      exact: IH.
     + case: e2=> // v2 e2 /= /andP [Hv12 He12].
       apply: rbindP=> w1.
       apply: rbindP=> x1 Hx1 Hw1.
