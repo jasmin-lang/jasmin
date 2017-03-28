@@ -185,20 +185,25 @@ Definition is_arr_type (t:stype) :=
   | _      => false
   end.
 
-Definition check_arr_stk (m:map) (x1:var_i) (e1:pexpr) (x2:var_i) (e2:pexpr) := 
+Fixpoint check_arr_stk (m:map) (x1:var_i) (e1:pexpr) (x2:var_i) (e2:pexpr) :=
   is_vstk m x2 && is_arr_type (vtype x1) &&
     match Mvar.get m.1 x1 with
-    | Some ofs => 
-      (e2 == Pcast (Papp2 Oadd (Pconst ofs) e1)) || 
-      (e2 == Pcast (Papp2 Oadd e1 (Pconst ofs))) ||
+    | Some ofs =>
+      match e2 with
+      | Pcast (Papp2 Oadd (Pconst ofs') e2') => (ofs == ofs') && check_e m e1 e2'
+      | _ => false
+      end ||
+      match e2 with
+      | Pcast (Papp2 Oadd e2' (Pconst ofs')) => (ofs == ofs') && check_e m e1 e2'
+      | _ => false
+      end ||
       match e1 with
       | Pconst n => e2 == Pcast (Pconst (ofs + n)) 
       | _        => false
       end
     | _ => false
-    end.
-
-Fixpoint check_e (m:map) (e1 e2: pexpr) := 
+    end
+with check_e (m:map) (e1 e2: pexpr) :=
   match e1, e2 with 
   | Pconst n1, Pconst n2 => n1 == n2 
   | Pbool  b1, Pbool  b2 => b1 == b2 
