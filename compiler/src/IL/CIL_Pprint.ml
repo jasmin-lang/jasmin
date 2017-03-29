@@ -247,7 +247,7 @@ let rec pp_error fmt e =
 
 and pp_fun_error fmt fe =
   match fe with
-  | Ferr_in_body(fn1,fn2,Datatypes.Coq_pair(i_info (*:instr_info*),e_msg (*:error_msg*))) ->
+  | Ferr_in_body(fn1,fn2,(i_info (*:instr_info*),e_msg (*:error_msg*))) ->
     F.fprintf fmt "fun_error.in_body: funname1=%a, funname2=%a, instr_info=%a, error_msg=%a"
       pp_pos fn1 pp_pos fn2 pp_pos i_info pp_error e_msg
   | Ferr_neqfun(fn1,fn2) ->

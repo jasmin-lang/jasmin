@@ -75,25 +75,23 @@ let bi_of_coqZ z =
   | BinNums.Z0 -> Big_int.zero_big_int
   | BinNums.Zpos p -> bi_of_pos p
 
-let ascii_of_char x = 
+let ascii_of_char x =
   let x = int_of_char x in
-  let bit i = 
-    if x lsr (7 - i) land 1 = 1 then Datatypes.Coq_true 
-    else Datatypes.Coq_false in
+  let bit i = x lsr (7 - i) land 1 = 1 in
   Ascii.Ascii(bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7)
 
-let char_of_ascii c = 
+let char_of_ascii c =
   let Ascii.Ascii(b7, b6, b5, b4, b3, b2, b1, b0) = c in
-  let cv b i = if b = Datatypes.Coq_true  then 1 lsl i else 0 in
+  let cv b i = if b then 1 lsl i else 0 in
   let i =
-    (cv b7 7) + (cv b6 6) + (cv b5 5) + (cv b4 4) + (cv b3 3) + (cv b2 2) + (cv b1 1) + (cv b0 0) 
+    (cv b7 7) + (cv b6 6) + (cv b5 5) + (cv b4 4) + (cv b3 3) + (cv b2 2) + (cv b1 1) + (cv b0 0)
   in
   char_of_int i
 
-let string0_of_string s = 
+let string0_of_string s =
   let s0 = ref String0.EmptyString in
   for i = String.length s - 1 downto 0 do
-    s0 := String0.String (ascii_of_char s.[i], !s0) 
+    s0 := String0.String (ascii_of_char s.[i], !s0)
   done;
   !s0
 
@@ -107,37 +105,22 @@ let string_of_string0 s0 =
   String.of_char_list (go [] s0)
 
 let cbool_of_bool b =
-  if b then Datatypes.Coq_true else Datatypes.Coq_false
+	b
 
 let bool_of_cbool cb =
-  match cb with
-  | Datatypes.Coq_true  -> true
-  | Datatypes.Coq_false -> false
+	cb
 
 let list_of_clist cl =
-  let rec go acc cl =
-    match cl with
-    | Datatypes.Coq_nil -> List.rev acc
-    | Datatypes.Coq_cons(c,cl) ->
-      go (c::acc) cl
-  in
-  go [] cl
+	cl
 
 let clist_of_list l =
-  let rec go acc l =
-    match l with
-    | [] -> acc
-    | x::l ->
-      go (Datatypes.Coq_cons(x,acc)) l
-  in
-  go Datatypes.Coq_nil (List.rev l)
+	l
 
-let cpair_of_pair (x,y) =
-  Datatypes.Coq_pair(x,y)
+let cpair_of_pair xy =
+	xy
 
 let pair_of_cpair cp =
-  let Datatypes.Coq_pair(x,y) = cp in
-  (x,y)
+	cp
 
 let sword = DT.Coq_sword
 let sbool = DT.Coq_sbool

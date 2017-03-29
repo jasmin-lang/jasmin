@@ -31,10 +31,8 @@ COQFILES := \
 	src/dmasm_Ssem.v \
 	src/dmasm_Ssem_props.v \
 	src/dmasm_logic.v \
-	src/equiv_sem.v
-
-
-#	src/compiler.v \
+	src/equiv_sem.v \
+	src/compiler.v \
 	src/extraction.v \
 
 

@@ -25,6 +25,8 @@
 
 Require Import compiler.
 
+Require ExtrOcamlBasic.
+
 Cd  "../compiler/src/CIL/".
 
 Extraction Blacklist String List Nat.

@@ -619,7 +619,7 @@ let rec instr_of_cinstr cvi lci =
     | DE.Cfor(vi,rng,cmd) ->
       let v = var_of_cvar_i cvi vi in
       let d = { d_var = v; d_idx=None; d_loc= v.Var.uloc } in
-      let Datatypes.Coq_pair(Datatypes.Coq_pair(dir,cpe_lb),cpe_ub) = rng in
+      let ((dir,cpe_lb),cpe_ub) = rng in
       assert(dir=DE.UpTo);
       let s = stmt_of_cmd cvi cmd in
       For(d,pexpr_of_cpexpr cvi cpe_lb,pexpr_of_cpexpr cvi cpe_ub,s,None)
