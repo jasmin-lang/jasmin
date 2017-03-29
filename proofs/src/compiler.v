@@ -76,6 +76,10 @@ Definition compile_prog (p:prog) :=
   Let _ := CheckExpansion.check_prog p pe in
   let pa := alloc_prog pe in
   Let _ := CheckAllocReg.check_prog pe pa in
+  (* dead_code to clean nop assignment *)                 
+  (* stack_allocation                  *)
+  (* linearisation                     *)
+  (* asm                               *)
   cfok pa.
 
 (*
