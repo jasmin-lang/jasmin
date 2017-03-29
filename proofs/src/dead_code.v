@@ -90,7 +90,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
   match ir with
   | Cassgn x tag e =>
     let w := write_i ir in
-    if tag == AT_inline then
+    if tag != AT_keep then
       if disjoint s w && negb (write_mem x) then ciok (s, [::])
       else if check_nop x e then ciok (s, [::])
       else ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
