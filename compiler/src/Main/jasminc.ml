@@ -69,7 +69,7 @@ let process_mil trafo print_result out_file file s (modul : 'info modul) =
 
 let jasminc trafo print_result out_file file =
   match Filename.split_extension file with
-  | _, Some "rs" ->
+  | _, Some ("mil" | "rs") ->
     parse_and_process
       ~parse:ILP.modul
       ~ftype:"rs"
@@ -120,7 +120,7 @@ let command =
     ~summary:"Compiler from MIL to assembly."
     ~readme:(fun () ->
       String.concat ~sep:"\n"
-       [ "The jasmin compiler transforms the given (.rs|.s) file.";
+       [ "The jasmin compiler transforms the given (.mil|.rs|.s) file.";
          "";
          "Transformations are given as comma-separated lists of";
          "transformation passes from the following list:";
