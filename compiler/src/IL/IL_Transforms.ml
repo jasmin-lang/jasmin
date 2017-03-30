@@ -70,7 +70,7 @@ type transform =
   | RegisterLiveness of Fname.t
   | RemoveEqConstrs of Fname.t
   | RenumberIdents of renumber_opt
-  | PrintCoq
+  | PrintCoq of string
   | Asm of asm_lang
   (* debugging *)
   | Type
@@ -158,7 +158,7 @@ let ptrafo =
        register_num >>= fun l ->
        return (RegisterAlloc(fn,l)))
     ; string "asm" >> char '[' >> asm_lang >>= (fun l -> char ']' >>$ (Asm(l)))
-    ; (string "coq" >> return PrintCoq)
+    ; (string "coq" >> (bracketed ident) >>= fun filename -> return (PrintCoq filename))
     ; (string "expand" >> fname >>= fun fname ->
        pmap >>= fun pm -> return (MacroExpand(fname,pm)))
     ; (string "cert_inline" >> fname >>= fun fname -> return (InlineCalls(Cert,fname)))
@@ -294,9 +294,9 @@ let apply_transform trafos (modul0 : unit modul) =
       | Lm m, true  -> go m (Some(pp_info_lv))
       | Lm m, false -> go m None
     in
-    let print_coq m =
-      notify "printing in Coq concrete syntax" all_fn
-        ~f:(fun () -> Cert.print_coq_modul m)
+    let print_coq fn m =
+      notify ("printing to “" ^ fn ^ "” in Coq concrete syntax") all_fn
+        ~f:(fun () -> Cert.print_coq_modul fn m)
     in
     let test_conversion fn m0 =
       let open CIL_Conv in
@@ -387,7 +387,7 @@ let apply_transform trafos (modul0 : unit modul) =
       ignore (Sys.command "cd tests/build/ && cargo test"); (* FIXME: don't use system, don't hardcode path *)
       modul
     | Asm(_)                    -> assert false
-    | PrintCoq -> map_module modul { f = fun m -> print_coq m }
+    | PrintCoq(fn) -> map_module modul { f = fun m -> print_coq fn m }
   in
   let start = Unix.gettimeofday () in
   let res = List.fold_left trafos ~init:(Um modul0) ~f:app_trafo in

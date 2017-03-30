@@ -718,7 +718,7 @@ let unroll_loops_modul fname modul =
   apply_cert_transform fname modul ~f:macro_expand
 
 (* print in Coq concrete syntax *)
-let print_coq_modul modul =
+let print_coq_modul filename modul =
   let modul = { modul with mod_funcs = IL_Iter.sort_call_graph modul.mod_funcs } in
   let cvi = CVI.mk () in
   let conv_nf nf =
@@ -730,7 +730,7 @@ let print_coq_modul modul =
   let prog = clist_of_list cfds in
 
   (* Trick to direct the output of F.printf to a file *)
-  let file = open_out "jasminOut.v" in
+  let file = open_out filename in
   let shell = Unix.dup Unix.stdout in
   Unix.dup2 (Unix.descr_of_out_channel file) Unix.stdout;
   F.printf "@[<v 0>%a@]@\n%!" CIL_PprintC.pp_prog prog;

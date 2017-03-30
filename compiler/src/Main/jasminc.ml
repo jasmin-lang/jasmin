@@ -125,8 +125,8 @@ let command =
          "Transformations are given as comma-separated lists of";
          "transformation passes from the following list:";
          "";
-         "  coq[f]:";
-         "	print function f in concrete Coq syntax";
+         "  coq[filename]:";
+         "	print the program in concrete Coq syntax into said file";
          "  expand[p1=i1,...,pk=ik]:";
          "    expand macros with given mapping from parameters to integers";
          "  ssa:";
