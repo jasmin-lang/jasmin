@@ -302,6 +302,17 @@ Section PROOF.
   Definition eq_vm (vm1 vm2:vmap) := 
     (forall (x:var), ~~ is_in_stk m x -> ~~ is_vstk m x -> vm1.[x] = vm2.[x]).
 
+  Lemma eq_vm_write vm1 vm2 x v:
+    eq_vm vm1 vm2 ->
+    eq_vm vm1.[x <- v] vm2.[x <- v].
+  Proof.
+    move=> Heqvm w ??.
+    case Heq: (w == x).
+    + move: Heq=> /eqP ->; by rewrite !Fv.setP_eq.
+    + move: Heq=> /negPf Heq.
+      by rewrite !Fv.setP_neq ?Heqvm // eq_sym Heq.
+  Qed.
+
   Definition disjoint_stk m := 
     forall w, valid_addr m w -> ~(pstk <= w < pstk + stk_size).
 
@@ -313,7 +324,6 @@ Section PROOF.
         eq_vm (evm s1) (evm s2) & 
         (evm s2).[{|vtype:= sword; vname := m.2|}] = ok pstk /\
         valid_stk (evm s1) (emem s2) pstk ].
-
 
   Lemma get_valid_wrepr x p: 
      Mvar.get m.1 {| vtype := sword; vname := x |} = Some p -> 
@@ -390,6 +400,21 @@ Section PROOF.
     rewrite Hr Memory.writeP Hv1;case:ifP => /eqP Heq.
     + by subst;move: Hv1;rewrite Hw.
     by move=> ?;apply Hm1;exists w'.
+  Qed.
+
+  Lemma read_mem_write_same addr addr' val m1 m2 m1' m2':
+    write_mem m1 addr val = ok m1' ->
+    write_mem m2 addr val = ok m2' ->
+    (forall w, valid_addr m1 w -> read_mem m1 w = read_mem m2 w) ->
+    valid_addr m1 addr' ->
+    read_mem m1' addr' = read_mem m2' addr'.
+  Proof.
+    move=> Hw1 Hw2 Hother Hv'.
+    have Hv1: valid_addr m1 addr.
+      apply/writeV; exists m1'; exact: Hw1.
+    have Hv2: valid_addr m2 addr.
+      apply/writeV; exists m2'; exact: Hw2.
+    rewrite (read_write_mem _ Hw1) (read_write_mem _ Hw2) !writeP Hv1 Hv2 Hother //.
   Qed.
 
   Lemma add_repr_r x y : I64.add x (I64.repr y) = I64.repr (x + y).
@@ -555,30 +580,17 @@ Section PROOF.
     by rewrite (check_eP _ Hvalid Hy).
   Qed.
 
-  Lemma check_varW (vi vi': var_i) (s1 s2: estate) v :
-    check_var m vi vi' -> valid s1 s2 -> forall s1', write_var vi v s1 = ok s1' ->
-    exists s2', write_var vi' v s2 = ok s2' /\ valid s1' s2'.
+  Lemma valid_stk_write_notinstk s1 s2 vi v:
+    ~~ (is_in_stk m vi) ->
+    valid_stk (evm s1) (emem s2) pstk ->
+    valid_stk (evm s1).[vi <- ok v] (emem s2) pstk.
   Proof.
-    move=> /andP [/andP [Hnotinstk /eqP Heq] Hnotstk] Hv s1'.
-    apply: rbindP=> z /=.
-    apply: rbindP=> z0 Hz0 []<- []<-.
-    exists {| emem := emem s2; evm := (evm s2).[vi <- ok z0] |}; split.
-    by rewrite /write_var /set_var -Heq Hz0 /=.
-    move: Hv=> [] H1 H2 H3 H4 [H5 H6].
-    split=> //=.
-    + move=> x Hx1 Hx2.
-      case Hx3: (x == vi).
-      + move: Hx3=> /eqP ->.
-        by rewrite !Fv.setP_eq.
-      + by rewrite !Fv.setP_neq ?H4 //; apply/negPf; rewrite eq_sym.
-    + split.
-      by rewrite Fv.setP_neq.
-      move=> x.
-      move: H6=> /(_ x).
-      case Hget: (Mvar.get m.1 x)=> [get|] //.
-      have Hx: x != vi.
-        apply/negP=> /eqP Habs.
-        by rewrite /is_in_stk -Habs Hget in Hnotinstk.
+    move=> Hnotinstk Hstk x.
+    move: Hstk=> /(_ x).
+    case Hget: (Mvar.get m.1 x)=> [get|] //.
+    have Hx: x != vi.
+      apply/negP=> /eqP Habs.
+      by rewrite /is_in_stk -Habs Hget in Hnotinstk.
       case Htype: (vtype x)=> // [p|].
       + move=> H off Hoff.
         move: H=> /(_ off Hoff) [H H'].
@@ -595,6 +607,23 @@ Section PROOF.
         rewrite -Hv0 /sv Fv.setP_neq // /=.
         case: x Hget Hx Htype sv v0 Hv0=> [xt xn] /= Hget Hx Htype sv v0 Hv0.
         by rewrite -Htype eq_sym.
+  Qed.
+
+  Lemma check_varW (vi vi': var_i) (s1 s2: estate) v :
+    check_var m vi vi' -> valid s1 s2 -> forall s1', write_var vi v s1 = ok s1' ->
+    exists s2', write_var vi' v s2 = ok s2' /\ valid s1' s2'.
+  Proof.
+    move=> /andP [/andP [Hnotinstk /eqP Heq] Hnotstk] Hv s1'.
+    apply: rbindP=> z /=.
+    apply: rbindP=> z0 Hz0 []<- []<-.
+    exists {| emem := emem s2; evm := (evm s2).[vi <- ok z0] |}; split.
+    by rewrite /write_var /set_var -Heq Hz0 /=.
+    move: Hv=> [] H1 H2 H3 H4 [H5 H6].
+    split=> //=.
+    + exact: eq_vm_write.
+    + split.
+      by rewrite Fv.setP_neq.
+      exact: valid_stk_write_notinstk.
   Qed.
 
   Lemma vtype_diff x x': vtype x != vtype x' -> x != x'.
@@ -644,6 +673,37 @@ Section PROOF.
     have := (size_of_pos Hsz); lia.
   Qed.
 
+  Lemma valid_get_w vn get:
+    Mvar.get m.1 {| vtype := sword; vname := vn |} = Some get ->
+    (pstk <=? I64.add pstk (I64.repr get)) && (I64.add pstk (I64.repr get) <? pstk + stk_size).
+  Proof.
+    move=> Hget.
+    move: (validm Hget)=> [sx [/= [] Hsz [Hsx Hsx' _]]].
+    apply/andP; split.
+    apply: Zle_imp_le_bool.
+    rewrite add_repr_r.
+    rewrite -(get_valid_wrepr Hget); lia.
+    rewrite add_repr_r.
+    apply Zlt_is_lt_bool.
+    rewrite -(get_valid_wrepr Hget); lia.
+  Qed.
+
+  Lemma valid_get_a vn get n:
+    Mvar.get m.1 {| vtype := sarr n; vname := vn |} = Some get ->
+    (pstk <=? I64.add pstk (I64.repr get)) && (I64.add pstk (I64.repr get) <? pstk + stk_size).
+  Proof.
+    move=> Hget.
+    move: (validm Hget)=> [sx [/= [] Hsz [Hsx Hsx' _]]].
+    have ->: get = 0 + get by [].
+    apply/andP; split.
+    apply: Zle_imp_le_bool.
+    rewrite add_repr_r.
+    rewrite -(get_valid_arepr Hget); lia.
+    rewrite add_repr_r.
+    apply Zlt_is_lt_bool.
+    rewrite -(get_valid_arepr Hget); lia.
+  Qed.
+
   Lemma check_var_stkW (vi vi': var_i) (s1 s2: estate) v e:
     check_var_stk m vi vi' e -> valid s1 s2 -> forall s1', write_var vi v s1 = ok s1' ->
     exists s2' : estate, write_rval (Rmem vi' e) v s2 = ok s2' /\ valid s1' s2'.
@@ -661,15 +721,7 @@ Section PROOF.
     rewrite /get_var /vstk H5 /=.
     have Hvmem: valid_addr (emem s2) (I64.add pstk (I64.repr get)).
       rewrite H3.
-      apply/orP; right.
-      move: (validm Hget)=> [sx [/= [] Hsz [Hsx Hsx' _]]].
-      apply/andP; split.
-      apply: Zle_imp_le_bool.
-      rewrite add_repr_r.
-      rewrite -(get_valid_wrepr Hget); lia.
-      rewrite add_repr_r.
-      apply Zlt_is_lt_bool.
-      rewrite -(get_valid_wrepr Hget); lia.
+      apply/orP; right; apply: (valid_get_w Hget).
     have Hmem: exists m', write_mem (emem s2) (I64.add pstk (I64.repr get)) z0 = ok m'.
       by apply/writeV.
     move: Hmem=> [m' Hm'].
@@ -772,7 +824,95 @@ Section PROOF.
     check_var m vi vi' -> check_e m e e' -> valid s1 s2 -> forall s1', write_rval (Rmem vi e) v s1 = ok s1'->
     exists s2', write_rval (Rmem vi' e') v s2 = ok s2' /\ valid s1' s2'.
   Proof.
-  Admitted.
+    move=> Hvar He Hv s1'.
+    have Hv' := Hv.
+    move: Hv'=> [] H1 H2 H3 H4 [H5 H6].
+    apply: rbindP=> ptr.
+    apply: rbindP=> vptr Hvptr Hptr.
+    apply: rbindP=> off.
+    apply: rbindP=> voff Hvoff Hoff.
+    apply: rbindP=> val Hval.
+    apply: rbindP=> m' Hm' []<-.
+    rewrite /=.
+    have ->: get_var (evm s2) vi' = ok vptr.
+      rewrite -Hvptr.
+      symmetry.
+      apply/check_varP=> //.
+    rewrite /= Hptr /=.
+    rewrite (check_eP He Hv Hvoff) /= Hoff /= Hval /=.
+    have Hvmem: valid_addr (emem s2) (I64.add ptr off).
+      rewrite H3.
+      apply/orP; left; apply/writeV; exists m'; exact: Hm'.
+    have Hmem: exists m', write_mem (emem s2) (I64.add ptr off) val = ok m'.
+      by apply/writeV.
+    move: Hmem=> [m'2 Hm'2].
+    rewrite Hm'2 /=.
+    exists {| emem := m'2; evm := evm s2 |}; split=> //.
+    split=> //=.
+    + move=> w Hw.
+      rewrite -(write_valid _ Hm') in Hw.
+      exact: H1.
+    + move=> w Hw.
+      apply: read_mem_write_same.
+      exact: Hm'.
+      exact: Hm'2.
+      exact: H2.
+      by rewrite (write_valid _ Hm').
+    + move=> w.
+      rewrite -(write_valid _ Hm') -(write_valid _ Hm'2).
+      exact: H3.
+    + split=> //.
+      move=> x.
+      move: H6=> /(_ x).
+      case Hget: (Mvar.get m.1 x)=> [getx|//].
+      case Htypex: (vtype x)=> [ | |n| ] //.
+      + move=> H off0 Hoff0.
+        move: H=> /(_ off0 Hoff0) [H H'].
+        split.
+        by rewrite -(write_valid _ Hm'2).
+        move=> t a Ht v0 Hv0.
+        rewrite -(H' a Ht v0 Hv0).
+        rewrite (read_write_mem _ Hm'2) writeP Hvmem.
+        suff ->: I64.add ptr off == I64.repr (pstk + (off0 + getx)) = false=> //.
+        apply/eqP=> Habs.
+        have Hvalid1: valid_addr (emem s1) (I64.add ptr off).
+          apply/writeV; exists m'; exact: Hm'.
+        have := (H1 _ Hvalid1).
+        rewrite Habs=> Habs'.
+        apply: Habs'.
+        move: (validm Hget)=> [sx [/= Hsz [Hsx Hsx' _]]].
+        have Hx: x = {| vtype := sarr n; vname := vname x |}.
+          rewrite -Htypex; clear; case: x=> //.
+        rewrite Hx in Hget.
+        rewrite -(get_valid_arepr Hget Hoff0).
+        split.
+        lia.
+        rewrite Htypex /= in Hsz.
+        move: Hsz=> [].
+        lia.
+      + move=> [H H']; split.
+        by rewrite -(write_valid _ Hm'2).
+        move=> sv v0 Hv0.
+        rewrite -(H' v0 Hv0).
+        rewrite (read_write_mem _ Hm'2) writeP Hvmem.
+        suff ->: I64.add ptr off == I64.repr (pstk + getx) = false=> //.
+        apply/eqP=> Habs.
+        have Hvalid1: valid_addr (emem s1) (I64.add ptr off).
+          apply/writeV; exists m'; exact: Hm'.
+        have := (H1 _ Hvalid1).
+        rewrite Habs=> Habs'.
+        apply: Habs'.
+        move: (validm Hget)=> [sx [/= Hsz [Hsx Hsx' _]]].
+        have Hx: x = {| vtype := sword; vname := vname x |}.
+          rewrite -Htypex; clear; case: x=> //.
+        rewrite Hx in Hget.
+        rewrite -(get_valid_wrepr Hget).
+        split.
+        lia.
+        rewrite Htypex /= in Hsz.
+        move: Hsz=> [].
+        lia.
+  Qed.
 
   Lemma check_arr_stk_memW (vi vi': var_i) (s1 s2: estate) v e e':
     check_arr_stk m vi e vi' e' -> valid s1 s2 -> forall s1', write_rval (Rmem vi e) v s1 = ok s1' ->
@@ -784,7 +924,29 @@ Section PROOF.
     check_var m vi vi' -> check_e m e e' -> valid s1 s2 -> forall s1', write_rval (Raset vi e) v s1 = ok s1'->
     exists s2', write_rval (Raset vi' e') v s2 = ok s2' /\ valid s1' s2'.
   Proof.
-  Admitted.
+    move=> Hvar He Hv s1'.
+    have Hv' := Hv.
+    move: Hv'=> [] H1 H2 H3 H4 [H5 H6].
+    apply: rbindP=> [[]] // n a Ha.
+    apply: rbindP=> i.
+    apply: rbindP=> vali Hvali Hi.
+    apply: rbindP=> v0 Hv0.
+    apply: rbindP=> t Ht.
+    apply: rbindP=> vm.
+    apply: rbindP=> varr Hvarr []<- []<-.
+    rewrite /=.
+    rewrite (check_eP He Hv Hvali) /= Hv0 /= Hi /=.
+    rewrite /on_arr_var.
+    rewrite -(check_varP Hvar H4) Ha /= Ht /= /set_var.
+    have Hvar' := Hvar; move: Hvar'=> /andP [/andP [Hnotinstk /eqP Heq] notstk].
+    rewrite -Heq Hvarr /=.
+    exists {| emem := emem s2; evm := (evm s2).[vi <- ok varr] |}; split=> //.
+    split=> //=.
+    + exact: eq_vm_write.
+    + split=> //.
+      rewrite Fv.setP_neq //.
+      exact: valid_stk_write_notinstk.
+  Qed.
 
   Lemma check_rvalP (r1 r2: rval) v (s1 s2: estate) :
     check_rval m r1 r2 -> valid s1 s2 ->
