@@ -450,4 +450,102 @@ Proof.
     eauto using ssem_sop2_inv.
 Qed.
 
+Definition wp_set (x: var) (e: pexpr) (f: formula) : formula.
+  refine
+  match type_check_pexpr e (vtype x) with
+  | Some te =>
+    existT _ (
+    λ m s,
+    ∀ v, sem_texpr m s (vtype x) te = v → projT1 f m (s.[x <- v])%mv) _
+  | None => ffalse
+  end.
+Proof.
+  abstract (
+  apply formula_m;
+  move=> m s s' E X v V;
+  rewrite (projT2 f m); [| reflexivity | apply env_ext_set, env_ext_sym, E ];
+  apply X; etransitivity; [ apply sem_texpr_m, E | exact V ]).
+Defined.
+
+Definition has_array_type (x: var) : { n | vtype x = sarr n } + { True } :=
+  match vtype x with
+  | sarr n => inleft (exist _ n Logic.eq_refl)
+  | _ => inright I
+  end.
+
+Definition wp_aset (x: var) (e e': pexpr) (f: formula) : formula.
+  refine
+  match has_array_type x with
+  | inleft (exist n Tx as Tx') =>
+  match type_check_pexpr e sint with
+  | Some te =>
+  match type_check_pexpr e' sword with
+  | Some te' =>
+    existT _ (
+    λ m s,
+    ∀ i v,
+      let t := eq_rect _ _  s.[x]%mv _ Tx in
+      sem_texpr m s sint te = i →
+      sem_texpr m s sword te' = v →
+      let a : ssem_t (vtype x) := eq_rect _ _ (FArray.set t i v) _ (Logic.eq_sym Tx) in
+      projT1 f m (s.[x <- a])%mv) _
+  | None => ffalse end
+  | None => ffalse end
+  | inright _ => ffalse end.
+Proof.
+  abstract (
+  apply formula_m;
+  move=> m s s' E X i v /= Hi Hv;
+  rewrite (projT2 f m); [| reflexivity | apply env_ext_set, env_ext_sym, E ];
+  specialize (X i v);
+  rewrite ! (sem_texpr_m _ _ _ E) in X;
+  specialize (X Hi Hv);
+  rewrite E in X;
+  exact X
+  ).
+Defined.
+
+Definition has_pointer_type (x: var) : { vtype x = sword } + { True } :=
+  match vtype x with
+  | sword => left Logic.eq_refl
+  | _ => right I
+  end.
+
+Definition wp_store (x: var) (e e': pexpr) (f: formula) : formula.
+  refine
+  match has_pointer_type x with
+  | left Tx =>
+  match type_check_pexpr e sword with
+  | Some te =>
+  match type_check_pexpr e' sword with
+  | Some te' =>
+    existT _ (
+    λ m s,
+    ∀ i v m',
+      sem_texpr m s sword te = i →
+      sem_texpr m s sword te' = v →
+      write_mem m i v = m' →
+      projT1 f m' s
+    ) _
+  | None => ffalse end
+  | None => ffalse end
+  | right _ => ffalse end.
+Proof.
+  abstract (
+  apply formula_m;
+  move=> m s s' E X i v m' /= Hi Hv Hm';
+  specialize (X i v m');
+  rewrite (projT2 f m'); [ | reflexivity | apply env_ext_sym, E ];
+  rewrite ! (sem_texpr_m _ _ _ E) in X;
+  exact (X Hi Hv Hm')).
+Defined.
+
+Definition wp_assgn (x: lval) : pexpr → formula → formula :=
+  match x with
+  | Lnone _ => λ _, id
+  | Lvar x => wp_set x
+  | Lmem x i => wp_store x i
+  | Laset x i => wp_aset x i
+  end.
+
 End WEAKEST_PRECONDITION.
