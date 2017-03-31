@@ -131,10 +131,10 @@ let rec pp_pexpr fmt pe =
 
 let pp_rval fmt rv =
   match rv with
-  | Rnone(i)     -> F.fprintf fmt "(Rnone %a)" pp_pos i
-  | Rvar(vi)     -> F.fprintf fmt "(Rvar %a)" pp_var_info vi
-  | Rmem(vi,pe)  -> F.fprintf fmt "(Rmem %a %a)" pp_var_info vi pp_pexpr pe
-  | Raset(vi,pe) -> F.fprintf fmt "(Raset %a %a)" pp_var_info vi pp_pexpr pe
+  | Lnone(i)     -> F.fprintf fmt "(Lnone %a)" pp_pos i
+  | Lvar(vi)     -> F.fprintf fmt "(Lvar %a)" pp_var_info vi
+  | Lmem(vi,pe)  -> F.fprintf fmt "(Lmem %a %a)" pp_var_info vi pp_pexpr pe
+  | Laset(vi,pe) -> F.fprintf fmt "(Laset %a %a)" pp_var_info vi pp_pexpr pe
 
 let pp_ret_type fmt res =
   F.fprintf fmt "[:: %a]" (pp_clist "; " pp_var_info) res

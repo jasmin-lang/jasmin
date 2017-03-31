@@ -145,7 +145,7 @@ Lemma write_memP (x:rval) v m1 m2 vm1 vm2:
   write_rval x v {| emem := m1; evm := vm1 |} = ok {| emem := m2; evm := vm2 |} ->
   m1 = m2.
 Proof.
-  elim: x=> //= [v0|v0|v0 p] _.
+  case: x=> //= [v0|v0|v0 p] _.
   + by move=> [] ->.
   + by apply: rbindP=> z Hz [] ->.
   apply: on_arr_varP=> n t Ht Hval.

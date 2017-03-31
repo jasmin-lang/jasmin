@@ -191,27 +191,37 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
 End Eq_pexpr.
 Export Eq_pexpr.Exports.
 
-(* ** Right values
+(* ** Left values
  * -------------------------------------------------------------------- *)
 
-Inductive rval : Type :=
-| Rnone : var_info -> rval
-| Rvar  : var_i -> rval
-| Rmem  : var_i -> pexpr -> rval
-| Raset : var_i -> pexpr -> rval.
+Variant lval : Type :=
+| Lnone `(var_info)
+| Lvar `(var_i)
+| Lmem `(var_i) `(pexpr)
+| Laset `(var_i) `(pexpr)
+.
+
+Notation lvals := (seq lval).
+
+(* Temporary alias *)
+Notation rval := lval (only parsing).
+Notation Rnone := Lnone (only parsing).
+Notation Rvar := Lvar (only parsing).
+Notation Rmem := Lmem (only parsing).
+Notation Raset := Laset (only parsing).
 
 Notation rvals := (seq rval).
 
-Definition rval_beq (x1:rval) (x2:rval) :=
+Definition lval_beq (x1:lval) (x2:lval) :=
   match x1, x2 with
-  | Rnone i1   , Rnone i2    => i1 == i2
-  | Rvar  x1   , Rvar  x2    => x1 == x2
-  | Rmem  x1 e1, Rmem  x2 e2 => (x1 == x2) && (e1 == e2)
-  | Raset x1 e1, Raset x2 e2 => (x1 == x2) && (e1 == e2)
+  | Lnone i1   , Lnone i2    => i1 == i2
+  | Lvar  x1   , Lvar  x2    => x1 == x2
+  | Lmem  x1 e1, Lmem  x2 e2 => (x1 == x2) && (e1 == e2)
+  | Laset x1 e1, Laset x2 e2 => (x1 == x2) && (e1 == e2)
   | _          , _           => false   
   end.
 
-Lemma rval_eq_axiom : Equality.axiom rval_beq. 
+Lemma lval_eq_axiom : Equality.axiom lval_beq.
 Proof. 
   case=> [i1|x1|x1 e1|x1 e1] [i2|x2|x2 e2|x2 e2] /=;try by constructor. 
   + apply (@equivP (i1 = i2));first by apply: eqP.
@@ -224,8 +234,8 @@ Proof.
   by split=> [ [] /eqP -> /eqP -> | [] -> <- ] //.
 Qed.
 
-Definition rval_eqMixin     := Equality.Mixin rval_eq_axiom.
-Canonical  rval_eqType      := Eval hnf in EqType rval rval_eqMixin.
+Definition lval_eqMixin     := Equality.Mixin lval_eq_axiom.
+Canonical  lval_eqType      := Eval hnf in EqType lval lval_eqMixin.
 
 (* ** Instructions 
  * -------------------------------------------------------------------- *)
@@ -290,13 +300,13 @@ Canonical  inline_info_eqType      := Eval hnf in EqType inline_info inline_info
 
 
 Inductive instr_r := 
-| Cassgn : rval -> assgn_tag -> pexpr -> instr_r
-| Copn   : rvals -> sopn -> pexprs -> instr_r 
+| Cassgn : lval -> assgn_tag -> pexpr -> instr_r
+| Copn   : lvals -> sopn -> pexprs -> instr_r
  
 | Cif    : pexpr -> seq instr -> seq instr  -> instr_r
 | Cfor   : var_i -> range -> seq instr -> instr_r
 | Cwhile : pexpr -> seq instr -> instr_r
-| Ccall  : inline_info -> rvals -> funname -> pexprs -> instr_r 
+| Ccall  : inline_info -> lvals -> funname -> pexprs -> instr_r
 
 with instr := MkI : instr_info -> instr_r ->  instr.
 
@@ -479,15 +489,15 @@ End RECT.
 (* ** Compute written variables
  * -------------------------------------------------------------------- *)
 
-Definition vrv_rec (s:Sv.t) (rv:rval) :=
+Definition vrv_rec (s:Sv.t) (rv:lval) :=
   match rv with
-  | Rnone _    => s
-  | Rvar  x    => Sv.add x s
-  | Rmem  _ _  => s
-  | Raset x _  => Sv.add x s
+  | Lnone _    => s
+  | Lvar  x    => Sv.add x s
+  | Lmem  _ _  => s
+  | Laset x _  => Sv.add x s
   end.
 
-Definition vrvs_rec s (rv:rvals) := foldl vrv_rec s rv.
+Definition vrvs_rec s (rv:lvals) := foldl vrv_rec s rv.
 
 Definition vrv := (vrv_rec Sv.empty).
 Definition vrvs := (vrvs_rec Sv.empty).
@@ -519,19 +529,19 @@ Proof.
   move=> s1 s2 Hs x r ->;case:r => //= [v | v _];SvD.fsetdec. 
 Qed.
 
-Lemma vrv_none i : vrv (Rnone i) = Sv.empty.
+Lemma vrv_none i : vrv (Lnone i) = Sv.empty.
 Proof. by []. Qed.
 
-Lemma vrv_var x: Sv.Equal (vrv (Rvar x)) (Sv.singleton x). 
+Lemma vrv_var x: Sv.Equal (vrv (Lvar x)) (Sv.singleton x).
 Proof. rewrite /vrv /=;SvD.fsetdec. Qed.
 
-Lemma vrv_mem x e : vrv (Rmem x e) = Sv.empty. 
+Lemma vrv_mem x e : vrv (Lmem x e) = Sv.empty.
 Proof. by []. Qed.
 
-Lemma vrv_aset x e : Sv.Equal (vrv (Raset x e)) (Sv.singleton x). 
+Lemma vrv_aset x e : Sv.Equal (vrv (Laset x e)) (Sv.singleton x).
 Proof. rewrite /vrv /=;SvD.fsetdec. Qed.
 
-Lemma vrv_recE s (r:rval) : Sv.Equal (vrv_rec s r) (Sv.union s (vrv r)).
+Lemma vrv_recE s (r:lval) : Sv.Equal (vrv_rec s r) (Sv.union s (vrv r)).
 Proof.
   case: r => [i| x| x e| x e];
     rewrite ?vrv_none ?vrv_var ?vrv_mem ?vrv_aset /=;
@@ -620,12 +630,12 @@ Definition read_e := read_e_rec Sv.empty.
 Definition read_es_rec := foldl read_e_rec.
 Definition read_es := read_es_rec Sv.empty.
          
-Definition read_rv_rec  (s:Sv.t) (r:rval) := 
+Definition read_rv_rec  (s:Sv.t) (r:lval) :=
   match r with
-  | Rnone _   => s 
-  | Rvar  _   => s
-  | Rmem  x e => read_e_rec (Sv.add x s) e
-  | Raset x e => read_e_rec (Sv.add x s) e 
+  | Lnone _   => s
+  | Lvar  _   => s
+  | Lmem  x e => read_e_rec (Sv.add x s) e
+  | Laset x e => read_e_rec (Sv.add x s) e
   end.
 
 Definition read_rv := read_rv_rec Sv.empty.

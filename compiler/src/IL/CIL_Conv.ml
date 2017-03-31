@@ -329,7 +329,7 @@ let rval_of_sdest cvi sd =
   match sd.d_idx with
   | None ->
     let k = CVI.add_darg cvi sd in
-    DE.Rvar({DE.v_info=pos_of_int k;DE.v_var=cvar_of_var sd.d_var})
+    DE.Lvar({DE.v_info=pos_of_int k;DE.v_var=cvar_of_var sd.d_var})
   | Some(idx) ->
     let cpe =
       match idx with
@@ -337,7 +337,7 @@ let rval_of_sdest cvi sd =
       | Ivar(v)    -> cpexpr_of_pexpr cvi (Patom(Pvar(v)))
     in
     let k = CVI.add_darg cvi sd in
-    DE.Raset({DE.v_info=pos_of_int k;DE.v_var=cvar_of_var sd.d_var}, cpe)
+    DE.Laset({DE.v_info=pos_of_int k;DE.v_var=cvar_of_var sd.d_var}, cpe)
 
 let rval_of_rdest cvi rd =
   match rd with
@@ -347,14 +347,14 @@ let rval_of_rdest cvi rd =
       failwith "rval_of_rdest: memory base pointer cannot be array"
     ) else (
       let k = CVI.add_darg cvi sd in
-      DE.Rmem(DE.{v_info=pos_of_int k; v_var=cvar_of_var sd.d_var}, cpexpr_of_pexpr cvi pe)
+      DE.Lmem(DE.{v_info=pos_of_int k; v_var=cvar_of_var sd.d_var}, cpexpr_of_pexpr cvi pe)
     )
 let rval_of_dest cvi d =
   match d with
   | Rdest(rd) -> rval_of_rdest cvi rd
   | Ignore(l) ->
     let k = CVI.add_iloc cvi l in
-    DE.Rnone(pos_of_int k)
+    DE.Lnone(pos_of_int k)
 
 let idx_of_cpexpr cvi is_Ivar idx =
   if is_Ivar then (
@@ -372,30 +372,30 @@ let idx_of_cpexpr cvi is_Ivar idx =
       
 let rdest_of_rval cvi rv =
   match rv with
-  | DE.Rvar(cvar_i) ->
+  | DE.Lvar(cvar_i) ->
     let cvar = cvar_i.DE.v_var in
     let vi   = cvar_i.DE.v_info in
     let vargs,(dloc,_) = CVI.get_darg cvi vi in
     let d = { d_var=var_of_cvar cvar vargs; d_idx=None; d_loc=dloc } in
     Sdest(d)
-  | DE.Raset(cvar_i,cpe) ->
+  | DE.Laset(cvar_i,cpe) ->
     let cvar = cvar_i.DE.v_var in
     let vi = cvar_i.DE.v_info in
     let vargs,(dloc,is_Ivar) = CVI.get_darg cvi vi in
     let d = { d_var=var_of_cvar cvar vargs; d_idx=Some(idx_of_cpexpr cvi is_Ivar cpe); d_loc=dloc } in
     Sdest(d)
-  | DE.Rmem(cvar_i,cpe) ->
+  | DE.Lmem(cvar_i,cpe) ->
     let cvar = cvar_i.DE.v_var in
     let vi = cvar_i.DE.v_info in
     let vargs,(dloc,_) = CVI.get_darg cvi vi in
     let sd = { d_var=var_of_cvar cvar vargs; d_idx=None; d_loc=dloc } in
     Mem(sd,pexpr_of_cpexpr cvi cpe)
-  | DE.Rnone(_) ->
+  | DE.Lnone(_) ->
     failwith "sdest_of_rval: unexpected None"
 
 let dest_of_rval cvi rv =
   match rv with
-  | DE.Rnone(k) ->
+  | DE.Lnone(k) ->
     let l = CVI.get_iloc cvi k in
     Ignore(l)
   | _ -> Rdest(rdest_of_rval cvi rv)
@@ -422,7 +422,7 @@ let cpexpr_of_src cvi s =
 let src_of_cpexpr cvi cpe =
   match cpe with
   | DE.Pvar(cvar_i) ->
-    Src(rdest_of_rval cvi @@ DE.Rvar(cvar_i))
+    Src(rdest_of_rval cvi @@ DE.Lvar(cvar_i))
 
   | DE.Pget(cvar_i,cpe) ->
     let vargs,(darg,is_Ivar) = CVI.get_darg cvi cvar_i.DE.v_info in

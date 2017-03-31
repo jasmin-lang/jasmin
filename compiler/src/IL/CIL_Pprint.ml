@@ -133,10 +133,10 @@ let rec pp_pexpr fmt pe =
 
 let pp_rval fmt rv =
   match rv with
-  | Rnone(i)     -> F.fprintf fmt "_#%a" pp_pos i
-  | Rvar(vi)     -> pp_var_info fmt vi
-  | Rmem(vi,pe)  -> F.fprintf fmt "MEM[%a + %a]" pp_var_info vi pp_pexpr pe
-  | Raset(vi,pe) -> F.fprintf fmt "%a[%a]" pp_var_info vi pp_pexpr pe
+  | Lnone(i)     -> F.fprintf fmt "_#%a" pp_pos i
+  | Lvar(vi)     -> pp_var_info fmt vi
+  | Lmem(vi,pe)  -> F.fprintf fmt "MEM[%a + %a]" pp_var_info vi pp_pexpr pe
+  | Laset(vi,pe) -> F.fprintf fmt "%a[%a]" pp_var_info vi pp_pexpr pe
 
 let pp_ret_type fmt res =
   let rtypes = List.map ~f:(fun vi -> vi.v_var.Var.vtype) @@ list_of_clist res in
