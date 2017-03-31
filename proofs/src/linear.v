@@ -45,35 +45,38 @@ Local Open Scope seq_scope.
 
 Definition label := positive.
 
-Inductive linstr := 
-| Lbcmd  : bcmd -> linstr
-| Llabel : label -> linstr
-| Lgoto  : label -> linstr
-| Lcond  : pexpr sbool -> label -> linstr
-| Lreturn: linstr.
+Inductive linstr_r := 
+  | Lassgn : rval -> assgn_tag -> pexpr -> linstr_r
+  | Lopn   : rvals -> sopn -> pexprs -> linstr_r
+  | Llabel : label -> linstr_r
+  | Lgoto  : label -> linstr_r
+  | Lcond  : pexpr -> label -> linstr_r
+  | Lreturn: linstr_r.
+
+Record linstr : Type :=  MkLI { li_ii : instr_info; li_i : linstr_r }.
 
 Definition lcmd := seq linstr.
 
 Definition is_label (lbl: label) (i:linstr) : bool :=
-  match i with
+  match i.(li_i) with
   | Llabel lbl' => lbl == lbl'
   | _ => false
   end.
 
-Record lfundef ta tr := LFundef {
+Record lfundef := LFundef {
  lfd_stk_size : Z;                            
  lfd_nstk : Ident.ident;                           
- lfd_arg  : lval ta;
+ lfd_arg  : seq var_i;
  lfd_body : lcmd;
- lfd_res  : lval tr
+ lfd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)
 }.
 
 (* --------------------------------------------------------------------------- *)
 (* Semantic                                                                    *)
 
-Lemma is_labelP i lbl: reflect (i = Llabel lbl) (is_label lbl i).
+Lemma is_labelP i lbl: reflect (i.(li_i) = Llabel lbl) (is_label lbl i).
 Proof.
-  case:i => [?| lbl'|?|??|] /=;try by constructor.
+  case:i => ii [||l|||] //=;try by constructor.
   by apply:(equivP (_ =P _));split=> [|[]] ->.
 Qed.
 
