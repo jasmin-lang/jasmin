@@ -178,4 +178,75 @@ Qed.
 Remark ffalse_denote (P: Prop) s : ⟦ ffalse ⟧ s → P.
 Proof. easy. Qed.
 
+Variant stype' : Type := sint' | sbool'.
+
+Definition stype_of_stype' (ty: stype') : stype :=
+  match ty with
+  | sint' => sint
+  | sbool' => sbool
+  end.
+
+Local Coercion stype_of_stype' : stype' >-> stype.
+
+Definition op2_type (op: sop2) : stype' * stype' :=
+  match op with
+  | (Oand | Oor ) => (sbool', sbool')
+  | (Oadd | Omul | Osub) => (sint', sint')
+  | (Oeq | Oneq | Olt | Ole | Ogt | Oge) => (sint', sbool')
+  end.
+
+Definition op2_type_i op := fst (op2_type op).
+Definition op2_type_o op := snd (op2_type op).
+
+Definition sem_texpr_sop2 op : ssem_t (op2_type_i op) → ssem_t (op2_type_i op) → ssem_t (op2_type_o op) :=
+  match op with
+  | Oand => andb
+  | Oor => orb
+  | Oadd => Z.add
+  | Omul => Z.mul
+  | Osub => Z.sub
+  | Oeq => Z.eqb
+  | Oneq => λ x y, negb (Z.eqb x y)
+  | Olt => Z.ltb
+  | Ole => Z.leb
+  | Ogt => Z.gtb
+  | Oge => Z.geb
+  end.
+
+Inductive texpr : stype → Type :=
+| Tconst : Z → texpr sint
+| Tbool : bool → texpr sbool
+| Tcast : texpr sint → texpr sword
+| Tvar x : texpr (vtype x)
+| Tget : positive → Ident.ident → texpr sint → texpr sword
+| Tload : Ident.ident → texpr sword → texpr sword
+| Tnot : texpr sbool → texpr sbool
+| Tapp2 op (_ _: texpr (op2_type_i op)) : texpr (op2_type_o op)
+.
+
+Section SEM_TEXPR.
+  Context (m: sestate).
+  Fixpoint sem_texpr ty (e: texpr ty) : ssem_t ty :=
+    match e in texpr ty return ssem_t ty with
+    | Tconst z => z
+    | Tbool b => b
+    | Tcast e => I64.repr (sem_texpr sint e)
+    | Tvar x => (sevm m).[x]
+    | Tget n x e =>
+      let a := (sevm m).[{| vtype := sarr n; vname := x |}] in
+      let i := sem_texpr sint e in
+      FArray.get a i
+    | Tload x e =>
+      let w1 := (sevm m).[{| vtype := sword; vname := x |}] in
+      let w2 := sem_texpr sword e in
+      let w := read_mem (semem m) (I64.add w1 w2) in
+      w
+    | Tnot e => negb (sem_texpr sbool e)
+    | Tapp2 op e1 e2 =>
+      let v1 := sem_texpr (op2_type_i op) e1 in
+      let v2 := sem_texpr (op2_type_i op) e2 in
+      sem_texpr_sop2 op v1 v2
+    end%vmap.
+End SEM_TEXPR.
+
 End WEAKEST_PRECONDITION.
