@@ -47,6 +47,12 @@ Definition MkI_inj {ii i ii' i'} (H: MkI ii i = MkI ii' i') :
   ii = ii' ∧ i = i' :=
   let 'Logic.eq_refl := H in conj Logic.eq_refl Logic.eq_refl.
 
+Definition Some_inj {A} (a a': A) (H: Some a = Some a') : a = a' :=
+  let 'Logic.eq_refl := H in Logic.eq_refl.
+
+Definition ok_inj {E A} (a a': A) (H: Ok E a = ok a') : a = a' :=
+  let 'Logic.eq_refl := H in Logic.eq_refl.
+
 Definition hpred : Type :=
   sestate → Prop.
 
@@ -312,5 +318,136 @@ Fixpoint type_check_pexpr (e: pexpr) (ty: stype) : option (texpr ty) :=
     | None => None end
     | None => None end
   end.
+
+Lemma of_sval_to_sval ty x :
+  of_sval ty (to_sval x) = ok x.
+Proof. by move: x; case ty. Qed.
+
+Lemma sto_word_inv x i :
+  sto_word x = ok i →
+  x = i.
+Proof. case: x => // i' H; apply ok_inj in H. congruence. Qed.
+
+Lemma sto_int_inv x i :
+  sto_int x = ok i →
+  x = i.
+Proof. case: x => // i' H; apply ok_inj in H. congruence. Qed.
+
+Lemma sto_bool_inv x b :
+  sto_bool x = ok b →
+  x = b.
+Proof. case: x => // i' H; apply ok_inj in H. congruence. Qed.
+
+Lemma ssem_sop2_inv op vp vq v :
+  ssem_sop2 op vp vq = ok v →
+  ∀ p q,
+    of_sval (op2_type_i op) vp = ok p →
+    of_sval (op2_type_i op) vq = ok q →
+    of_sval (op2_type_o op) v = ok (sem_texpr_sop2 op p q).
+Proof.
+  case: op; simpl; intros;
+    repeat
+      match goal with
+      | H : ?a = ?b |- _ => subst a || subst b
+      | H : sto_bool _ = ok _ |- _ => apply sto_bool_inv in H
+      | H : sto_int _ = ok _ |- _ => apply sto_int_inv in H
+      | H : _ = ok _ |- _ => apply ok_inj in H
+      end; reflexivity.
+Qed.
+
+Lemma type_check_pexprP {e ty te} :
+  type_check_pexpr e ty = Some te →
+  ∀ m s v,
+  ssem_pexpr (SEstate m s) e = ok v →
+  ∀ s',
+  (∀ x, s.[x]%vmap = s'.[x]%mv) →
+  of_sval _ v = ok (sem_texpr m s' ty te).
+Proof.
+  elim: e ty te.
+  - move=> z [] // te H; apply Some_inj in H; subst.
+    move=> m s v H; apply ok_inj in H; subst v.
+    reflexivity.
+  - move=> b [] // te H; apply Some_inj in H; subst.
+    move=> m s v H; apply ok_inj in H; subst v.
+    reflexivity.
+  - move=> p IHp ty te; simpl.
+    move: (IHp sint); clear IHp.
+    case: (type_check_pexpr p _) => // tp IHp.
+    move: te. case: ty => // te H; apply Some_inj in H; subst.
+    specialize (IHp _ Logic.eq_refl).
+    move=> m s v.
+    move=> H; case: (bindW H) => vp Ep'. clear H.
+    case: (bindW Ep') => ip Ep H. clear Ep'.
+    apply sto_int_inv in H. subst ip.
+    move=> H; apply ok_inj in H; subst.
+    move=> s' E. simpl.
+    specialize (IHp _ _ _ Ep _ E).
+    apply sto_int_inv in IHp. congruence.
+  - move=> v ty te. simpl. case: stype_eq_dec => //.
+    move=> EQ H; apply Some_inj in H; subst.
+    move=> m s v' H; apply ok_inj in H; subst v'.
+    move=> s' E. simpl. unfold sget_var. rewrite E.
+    apply of_sval_to_sval.
+  - move=> [[]] // [] // n t vi e IH ty te.
+    simpl.
+    move: (IH sint). clear IH.
+    case: (type_check_pexpr _ _) => // tt IH.
+    specialize (IH _ Logic.eq_refl).
+    move: te. case: ty => // te H; apply Some_inj in H; subst.
+    move=> m s v.
+    move=> H; case: (bindW H) => vp Ep. clear H.
+    case: (bindW Ep) => i Ei Ti. clear Ep.
+    move=> H; apply ok_inj in H; subst.
+    move=> s' E. simpl.
+    specialize (IH _ _ _ Ei _ E).
+    apply sto_int_inv in IH.
+    apply sto_int_inv in Ti.
+    congruence.
+  - move=> [[]] // [] // x xi p IHp ty te; simpl.
+    move: (IHp sword); clear IHp.
+    case: (type_check_pexpr p _) => // tp IHp.
+    specialize (IHp _ Logic.eq_refl).
+    move: te. case: ty => // te H; apply Some_inj in H; subst.
+    move=> m s v.
+    move=> H; case: (bindW H) => vp Ep'. clear H.
+    case: (bindW Ep') => ip Ep H. clear Ep'.
+    apply sto_word_inv in H. subst ip.
+    move=> H; apply ok_inj in H; subst.
+    move=> s' E. simpl.
+    specialize (IHp _ _ _ Ep _ E).
+    apply ok_inj in IHp; subst vp.
+    congruence.
+  - move=> p IHp ty te; simpl.
+    move: (IHp sbool); clear IHp.
+    case: (type_check_pexpr p _) => // tp IHp.
+    move: te. case: ty => // te H; apply Some_inj in H; subst.
+    specialize (IHp _ Logic.eq_refl).
+    move=> m s v.
+    move=> H; case: (bindW H) => vp Ep'. clear H.
+    case: (bindW Ep') => ip Ep H. clear Ep'.
+    apply sto_bool_inv in H. subst ip.
+    move=> H; apply ok_inj in H; subst.
+    move=> s' E. simpl.
+    specialize (IHp _ _ _ Ep _ E).
+    apply sto_bool_inv in IHp. congruence.
+  - move=> op p IHp q IHq ty te.
+    simpl.
+    move: (IHp (op2_type_i op)). clear IHp.
+    case: (type_check_pexpr p _) => // tp IHp.
+    specialize (IHp _ Logic.eq_refl).
+    move: (IHq (op2_type_i op)). clear IHq.
+    case: (type_check_pexpr q _) => // tq IHq.
+    specialize (IHq _ Logic.eq_refl).
+    case (stype_eq_dec _ _) => // EQ. subst ty.
+    move=> H; apply Some_inj in H; subst te.
+    move=> m s v.
+    move=> H; case: (bindW H) => vp Ep. clear H.
+    move=> H; case: (bindW H) => vq Eq. clear H.
+    move=> H.
+    move=> s' E. simpl.
+    specialize (IHp _ _ _ Ep _ E).
+    specialize (IHq _ _ _ Eq _ E).
+    eauto using ssem_sop2_inv.
+Qed.
 
 End WEAKEST_PRECONDITION.
