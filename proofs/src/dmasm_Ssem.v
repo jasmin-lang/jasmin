@@ -34,6 +34,8 @@ Require Import ZArith.
 Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr dmasm_sem.
 Require Import memory.
 
+Require Import Utf8.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -161,10 +163,10 @@ Record sestate := SEstate {
   sevm  : svmap
 }.
 
-Definition son_arr_var A (s:sestate) (x:var) (f:forall n, FArray.array word -> A) :=
-  match vtype x as t return ssem_t t -> A with
+Definition son_arr_var A (s: sestate) (x: var) (f: positive → FArray.array word → exec A) :=
+  match vtype x as t return ssem_t t → exec A with
   | sarr n => f n
-  | _ => fun _ => f xH (FArray.cnst (n2w 0))
+  | _ => λ _, type_error
   end  (s.(sevm).[ x ]%vmap).
 
 Notation "'SLet' ( n , t ) ':=' s '.[' x ']' 'in' body" :=
