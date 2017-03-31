@@ -192,16 +192,16 @@ Definition merge_cpm : cpm -> cpm -> cpm :=
 Definition remove_cpm (m:cpm) (s:Sv.t): cpm :=
   Sv.fold (fun x m => Mvar.remove m x) s m.
 
-Definition const_prop_rv (m:cpm) (rv:rval) : cpm * rval := 
+Definition const_prop_rv (m:cpm) (rv:lval) : cpm * lval := 
   match rv with 
-  | Rnone _   => (m, rv)
-  | Rvar  x   => (Mvar.remove m x, rv)
+  | Lnone _   => (m, rv)
+  | Lvar  x   => (Mvar.remove m x, rv)
     (* TODO : FIXME should we do more on x, in particular if x is a known value *)
-  | Rmem  x e => (m, Rmem x (const_prop_e m e))
-  | Raset x e => (Mvar.remove m x, Raset x (const_prop_e m e))
+  | Lmem  x e => (m, Lmem x (const_prop_e m e))
+  | Laset x e => (Mvar.remove m x, Laset x (const_prop_e m e))
   end.
 
-Fixpoint const_prop_rvs (m:cpm) (rvs:rvals) : cpm * rvals := 
+Fixpoint const_prop_rvs (m:cpm) (rvs:lvals) : cpm * lvals := 
   match rvs with
   | [::] => (m, [::])
   | rv::rvs => 
@@ -210,8 +210,8 @@ Fixpoint const_prop_rvs (m:cpm) (rvs:rvals) : cpm * rvals :=
     (m, rv::rvs)
   end.
 
-Definition add_cpm (m:cpm) (rv:rval) tag e := 
-  if rv is Rvar x then
+Definition add_cpm (m:cpm) (rv:lval) tag e := 
+  if rv is Lvar x then
     if tag is AT_inline then 
       if is_const e is Some n then Mvar.set m x n else m 
     else m
@@ -468,7 +468,7 @@ Qed.
 
 Lemma add_cpmP s1 s1' m x e tag v : 
   sem_pexpr s1 e = ok v -> 
-  write_rval x v s1 = ok s1' ->
+  write_lval x v s1 = ok s1' ->
   valid_cpm (evm s1') m -> 
   valid_cpm (evm s1') (add_cpm m x tag e).
 Proof.
@@ -494,9 +494,9 @@ Qed.
 
 Lemma const_prop_rvP s1 s2 m x v: 
   valid_cpm (evm s1) m ->
-  write_rval x v s1 = Ok error s2 ->
+  write_lval x v s1 = Ok error s2 ->
   valid_cpm (evm s2) (const_prop_rv m x).1 /\
-  write_rval (const_prop_rv m x).2 v s1 = ok s2.
+  write_lval (const_prop_rv m x).2 v s1 = ok s2.
 Proof.
   case:x => [ii | x | x p | x p] /= Hv.
   + by move=> [<-].
@@ -515,9 +515,9 @@ Qed.
 
 Lemma const_prop_rvsP s1 s2 m x v: 
   valid_cpm (evm s1) m ->
-  write_rvals s1 x v = Ok error s2 ->
+  write_lvals s1 x v = Ok error s2 ->
   valid_cpm (evm s2) (const_prop_rvs m x).1 /\
-  write_rvals s1 (const_prop_rvs m x).2 v = ok s2.
+  write_lvals s1 (const_prop_rvs m x).2 v = ok s2.
 Proof.
   elim: x v m s1 s2 => [ | x xs Hrec] [ | v vs] //= m s1 s2 Hm.
   + by move=> [<-].
@@ -566,7 +566,7 @@ Proof.
 Qed.
 
 Lemma remove_cpmP s s' m x v: 
-  write_rval x v s = ok s' ->
+  write_lval x v s = ok s' ->
   valid_cpm (evm s) m ->
   valid_cpm (evm s') (remove_cpm m (vrv x)).
 Proof. move=> Hw Hv; apply: (valid_cpm_rm _ Hv);eapply vrvP;eauto. Qed.
@@ -802,7 +802,7 @@ Section PROOF.
   Proof. by move=> _ Hi m /(Hi _ ii). Qed.
  
   Local Lemma Hassgn s1 s2 x tag e :
-    Let v := sem_pexpr s1 e in write_rval x v s1 = Ok error s2 ->
+    Let v := sem_pexpr s1 e in write_lval x v s1 = Ok error s2 ->
     Pi_r s1 (Cassgn x tag e) s2.
   Proof.
     apply: rbindP => v He Hw m ii /= Hm. 
@@ -813,7 +813,7 @@ Section PROOF.
 
   Local Lemma Hopn s1 s2 o xs es : 
     Let x := Let x := sem_pexprs s1 es in sem_sopn o x
-    in write_rvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
+    in write_lvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
   Proof.
     move=> H m ii Hm; apply: rbindP H => vs.
     apply: rbindP => ves Hes Ho Hw;move: (Hes) (Hw).
@@ -940,7 +940,7 @@ Section PROOF.
     sem_pexprs s1 args = Ok error vargs ->
     sem_call p (emem s1) fn vargs m2 vs ->
     Pfun (emem s1) fn vargs m2 vs ->
-    write_rvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
+    write_lvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
     Pi_r s1 (Ccall ii xs fn args) s2.
   Proof.
     move=> Hargs Hcall Hfun Hvs m ii' Hm.

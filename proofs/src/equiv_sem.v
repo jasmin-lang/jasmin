@@ -332,9 +332,9 @@ Qed.
 Lemma swrite_uincl s1 s' ss1 r v1 v2:
   sestate_uincl s1 ss1 ->
   svalue_uincl v1 v2 ->
-  write_rval r v1 s1 = ok s' ->
+  write_lval r v1 s1 = ok s' ->
   exists ss',
-    swrite_rval r v2 ss1 = ok ss' /\ sestate_uincl s' ss'.
+    swrite_lval r v2 ss1 = ok ss' /\ sestate_uincl s' ss'.
 Proof.
   move=> Hs1 Hv;case:r => [xi | x | x p | x p] /=.
   + by move=> [] <-;exists ss1.
@@ -374,9 +374,9 @@ Qed.
 Lemma swrites_uincl s s' ss r v1 v2:
   sestate_uincl s ss ->
   List.Forall2 svalue_uincl v1 v2 ->
-  write_rvals s r v1 = ok s' ->
+  write_lvals s r v1 = ok s' ->
   exists ss',
-    swrite_rvals ss r v2 = ok ss' /\
+    swrite_lvals ss r v2 = ok ss' /\
     sestate_uincl s' ss'.
 Proof.
   elim: r v1 v2 s ss=> [|r rs Hrec] v1 v2 s ss Hs /= [] //=.
@@ -428,7 +428,7 @@ Local Lemma HmkI ii i s1 s2 : sem_i p s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i
 Proof. by move=> _ Hi vm1 /Hi [vm2 []] Hsi ?;exists vm2. Qed.
 
 Local Lemma Hasgn s1 s2 x tag e :
-  Let v := sem_pexpr s1 e in write_rval x v s1 = ok s2 ->
+  Let v := sem_pexpr s1 e in write_lval x v s1 = ok s2 ->
   Pi_r s1 (Cassgn x tag e) s2.
 Proof.
   move=> Hs2 vm1 Hvm1;apply:rbindP Hs2 => z /(ssem_pexpr_uincl Hvm1) [] z' [] Hz' Hz.
@@ -438,7 +438,7 @@ Qed.
 
 Local Lemma Hopn s1 s2 o xs es:
   Let x := Let x := sem_pexprs s1 es in sem_sopn o x in
-  write_rvals s1 xs x = ok s2 -> Pi_r s1 (Copn xs o es) s2.
+  write_lvals s1 xs x = ok s2 -> Pi_r s1 (Copn xs o es) s2.
 Proof.
   move=> H vm1 Hvm1; apply: rbindP H => rs;apply: rbindP => vs.
   move=> /(ssem_pexprs_uincl Hvm1) [] vs' [] H1 H2.
@@ -527,7 +527,7 @@ Local Lemma Hcall s1 m2 s2 ii xs fn args vargs vs :
   sem_pexprs s1 args = ok vargs ->
   sem_call p (emem s1) fn vargs m2 vs ->
   Pfun (emem s1) fn vargs m2 vs ->
-  write_rvals {| emem := m2; evm := evm s1 |} xs vs = ok s2 ->
+  write_lvals {| emem := m2; evm := evm s1 |} xs vs = ok s2 ->
   Pi_r s1 (Ccall ii xs fn args) s2.
 Proof.
   move=> Hargs Hcall Hfd Hxs s Hs.

@@ -205,18 +205,18 @@ Definition swrite_var (x:var_i) (v:svalue) (s:sestate) : exec sestate :=
 Definition swrite_vars xs vs s :=
   fold2 ErrType swrite_var xs vs s.
 
-Definition swrite_rval (l:rval) (v:svalue) (s:sestate) : exec sestate :=
+Definition swrite_lval (l:lval) (v:svalue) (s:sestate) : exec sestate :=
   match l with
-  | Rnone _ => ok s
-  | Rvar x => swrite_var x v s
-  | Rmem x e =>
+  | Lnone _ => ok s
+  | Lvar x => swrite_var x v s
+  | Lmem x e =>
     Let vx := sto_word (sget_var (sevm s) x) in
     Let ve := ssem_pexpr s e >>= sto_word in
     let p := wadd vx ve in (* should we add the size of value, i.e vx + sz * se *)
     Let w := sto_word v in
     let m := write_mem s.(semem) p w in
     ok {|semem := m;  sevm := s.(sevm) |}
-  | Raset x i =>
+  | Laset x i =>
     SLet (n,t) := s.[x] in
     Let i := ssem_pexpr s i >>= sto_int in
     Let v := sto_word v in
@@ -225,8 +225,8 @@ Definition swrite_rval (l:rval) (v:svalue) (s:sestate) : exec sestate :=
     ok {| semem := s.(semem); sevm := vm |}
   end.
 
-Definition swrite_rvals (s:sestate) xs vs :=
-   fold2 ErrType swrite_rval xs vs s.
+Definition swrite_lvals (s:sestate) xs vs :=
+   fold2 ErrType swrite_lval xs vs s.
 
 Fixpoint sapp_sopn ts : ssem_prod ts svalues -> svalues -> exec svalues :=
   match ts return ssem_prod ts svalues -> svalues -> exec svalues with
@@ -290,12 +290,12 @@ with ssem_I : sestate -> instr -> sestate -> Prop :=
     ssem_I s1 (MkI ii i) s2
 
 with ssem_i : sestate -> instr_r -> sestate -> Prop :=
-| SEassgn s1 s2 (x:rval) tag e:
-    (Let v := ssem_pexpr s1 e in swrite_rval x v s1) = ok s2 ->
+| SEassgn s1 s2 (x:lval) tag e:
+    (Let v := ssem_pexpr s1 e in swrite_lval x v s1) = ok s2 ->
     ssem_i s1 (Cassgn x tag e) s2
 
 | SEopn s1 s2 o xs es:
-    ssem_pexprs s1 es >>= ssem_sopn o >>= (swrite_rvals s1 xs) = ok s2 ->
+    ssem_pexprs s1 es >>= ssem_sopn o >>= (swrite_lvals s1 xs) = ok s2 ->
     ssem_i s1 (Copn xs o es) s2
 
 | SEif_true s1 s2 e c1 c2 :
@@ -327,7 +327,7 @@ with ssem_i : sestate -> instr_r -> sestate -> Prop :=
 | SEcall s1 m2 s2 ii xs f args vargs vs :
     ssem_pexprs s1 args = ok vargs ->
     ssem_call s1.(semem) f vargs m2 vs ->
-    swrite_rvals {|semem:= m2; sevm := s1.(sevm) |} xs vs = ok s2 ->
+    swrite_lvals {|semem:= m2; sevm := s1.(sevm) |} xs vs = ok s2 ->
     ssem_i s1 (Ccall ii xs f args) s2
 
 with ssem_for : var -> seq Z -> sestate -> cmd -> sestate -> Prop :=

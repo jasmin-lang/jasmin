@@ -34,7 +34,7 @@ Proof. case; eauto. Qed.
 Lemma ssem_i_inv { prg s i s' } :
   ssem_i prg s i s' →
   match i with
-  | Cassgn x tg e => ∃ v, ssem_pexpr s e = ok v ∧ swrite_rval x v s = ok s'
+  | Cassgn x tg e => ∃ v, ssem_pexpr s e = ok v ∧ swrite_lval x v s = ok s'
   | _ => True
   end.
 Proof.
@@ -92,7 +92,7 @@ Lemma hoare_assgn (P: hpred) ii x tag e :
   hoare
     (λ s, ∀ v s',
         ssem_pexpr s e = ok v →
-        swrite_rval x v s = ok s' →
+        swrite_lval x v s = ok s' →
         P s')
     [:: MkI ii (Cassgn x tag e) ] P.
 Proof.

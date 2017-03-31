@@ -47,7 +47,7 @@ Local Open Scope seq_scope.
 Definition unroll_cmd (unroll_i: instr -> cmd) (c:cmd) : cmd := 
   List.fold_right (fun i c' => unroll_i i ++ c') [::] c.
 
-Definition assgn ii x e := MkI ii (Cassgn (Rvar x) AT_inline e).
+Definition assgn ii x e := MkI ii (Cassgn (Lvar x) AT_inline e).
 
 Fixpoint unroll_i (i:instr) : cmd := 
   let (ii, ir) := i in
@@ -116,7 +116,7 @@ Section PROOF.
   Proof. move=> _ Hi; exact: Hi. Qed.
 
   Local Lemma Hassgn s1 s2 x tag e :
-    Let v := sem_pexpr s1 e in write_rval x v s1 = Ok error s2 ->
+    Let v := sem_pexpr s1 e in write_lval x v s1 = Ok error s2 ->
     Pi_r s1 (Cassgn x tag e) s2.
   Proof.
     move=> Hw ii.
@@ -125,7 +125,7 @@ Section PROOF.
 
   Local Lemma Hopn s1 s2 o xs es :
     Let x := Let x := sem_pexprs s1 es in sem_sopn o x
-    in write_rvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
+    in write_lvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
   Proof.
     move=> Hw ii.
     by apply: sem_seq1; apply: EmkI; apply: Eopn.
@@ -217,7 +217,7 @@ Section PROOF.
     sem_pexprs s1 args = Ok error vargs ->
     sem_call p (emem s1) fn vargs m2 vs ->
     Pfun (emem s1) fn vargs m2 vs ->
-    write_rvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
+    write_lvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
     Pi_r s1 (Ccall ii xs fn args) s2.
   Proof.
     move=> Hexpr Hcall Hfun Hw ii'.

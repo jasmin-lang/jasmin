@@ -203,15 +203,6 @@ Variant lval : Type :=
 
 Notation lvals := (seq lval).
 
-(* Temporary alias *)
-Notation rval := lval (only parsing).
-Notation Rnone := Lnone (only parsing).
-Notation Rvar := Lvar (only parsing).
-Notation Rmem := Lmem (only parsing).
-Notation Raset := Laset (only parsing).
-
-Notation rvals := (seq rval).
-
 Definition lval_beq (x1:lval) (x2:lval) :=
   match x1, x2 with
   | Lnone i1   , Lnone i2    => i1 == i2

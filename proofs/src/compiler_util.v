@@ -19,13 +19,13 @@ Inductive error_msg :=
   | Cerr_neqop    : sopn -> sopn -> string -> error_msg
   | Cerr_neqdir   : string -> error_msg
   | Cerr_neqexpr  : pexpr -> pexpr -> string -> error_msg
-  | Cerr_neqrval  : rval -> rval -> string -> error_msg
+  | Cerr_neqrval  : lval -> lval -> string -> error_msg
   | Cerr_neqfun   : funname -> funname -> string -> error_msg
   | Cerr_neqinstr : instr_r -> instr_r -> string -> error_msg
   | Cerr_unknown_fun : funname -> string -> error_msg
   | Cerr_in_fun   : fun_error -> error_msg
   | Cerr_arr_exp  : pexpr -> pexpr -> error_msg 
-  | Cerr_arr_exp_v: rval -> rval -> error_msg 
+  | Cerr_arr_exp_v: lval -> lval -> error_msg 
   | Cerr_stk_alloc: string -> error_msg
 
 with fun_error   := 

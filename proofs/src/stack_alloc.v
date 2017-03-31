@@ -89,12 +89,12 @@ Module S.
     sem_I s1 (MkI ii i) s2
 
   with sem_i : estate -> instr_r -> estate -> Prop :=
-  | Eassgn s1 s2 (x:rval) tag e:
-    (Let v := sem_pexpr s1 e in write_rval x v s1) = ok s2 ->
+  | Eassgn s1 s2 (x:lval) tag e:
+    (Let v := sem_pexpr s1 e in write_lval x v s1) = ok s2 ->
     sem_i s1 (Cassgn x tag e) s2
 
   | Eopn s1 s2 o xs es:
-    sem_pexprs s1 es >>= sem_sopn o >>= (write_rvals s1 xs) = ok s2 ->
+    sem_pexprs s1 es >>= sem_sopn o >>= (write_lvals s1 xs) = ok s2 ->
     sem_i s1 (Copn xs o es) s2
 
   | Eif_true s1 s2 e c1 c2 :
@@ -120,7 +120,7 @@ Module S.
   | Ecall s1 m2 s2 ii xs f args vargs vs :
     sem_pexprs s1 args = ok vargs ->
     sem_call s1.(emem) f vargs m2 vs ->
-    write_rvals {|emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->
+    write_lvals {|emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->
     sem_i s1 (Ccall ii xs f args) s2
 
   with sem_call : mem -> funname -> seq value -> mem -> seq value -> Prop :=
@@ -226,14 +226,14 @@ Fixpoint check_e (m:map) (e1 e2: pexpr) :=
 
 Definition check_arr_stk := check_arr_stk' check_e.
 
-Definition check_rval (m:map) (r1 r2:rval) := 
+Definition check_lval (m:map) (r1 r2:lval) := 
   match r1, r2 with
-  | Rnone _, Rnone _ => true
-  | Rvar x1, Rvar x2 => check_var m x1 x2
-  | Rvar x1, Rmem x2 e2 => check_var_stk m x1 x2 e2
-  | Rmem x1 e1, Rmem x2 e2 => check_var m x1 x2 && check_e m e1 e2
-  | Raset x1 e1, Raset x2 e2 => check_var m x1 x2 && check_e m e1 e2
-  | Raset x1 e1, Rmem x2 e2 => check_arr_stk m x1 e1 x2 e2
+  | Lnone _, Lnone _ => true
+  | Lvar x1, Lvar x2 => check_var m x1 x2
+  | Lvar x1, Lmem x2 e2 => check_var_stk m x1 x2 e2
+  | Lmem x1 e1, Lmem x2 e2 => check_var m x1 x2 && check_e m e1 e2
+  | Laset x1 e1, Laset x2 e2 => check_var m x1 x2 && check_e m e1 e2
+  | Laset x1 e1, Lmem x2 e2 => check_arr_stk m x1 e1 x2 e2
   | _, _ => false
   end.
 
@@ -241,8 +241,8 @@ Fixpoint check_i (m: map) (i1 i2: instr) : bool :=
   let (_, ir1) := i1 in
   let (_, ir2) := i2 in
   match ir1, ir2 with
-  | Cassgn r1 _ e1, Cassgn r2 _ e2 => check_rval m r1 r2 && check_e m e1 e2
-  | Copn rs1 o1 e1, Copn rs2 o2 e2 => all2 (check_rval m) rs1 rs2 && (o1 == o2) && all2 (check_e m) e1 e2
+  | Cassgn r1 _ e1, Cassgn r2 _ e2 => check_lval m r1 r2 && check_e m e1 e2
+  | Copn rs1 o1 e1, Copn rs2 o2 e2 => all2 (check_lval m) rs1 rs2 && (o1 == o2) && all2 (check_e m) e1 e2
   | Cif e1 c1 c1', Cif e2 c2 c2' => check_e m e1 e2 && all2 (check_i m) c1 c2 && all2 (check_i m) c1' c2'
   | Cwhile e1 c1, Cwhile e2 c2 => check_e m e1 e2 && all2 (check_i m) c1 c2
   | _, _ => false
@@ -784,7 +784,7 @@ Section PROOF.
 
   Lemma check_var_stkW (vi vi': var_i) (s1 s2: estate) v e:
     check_var_stk m vi vi' e -> valid s1 s2 -> forall s1', write_var vi v s1 = ok s1' ->
-    exists s2' : estate, write_rval (Rmem vi' e) v s2 = ok s2' /\ valid s1' s2'.
+    exists s2' : estate, write_lval (Lmem vi' e) v s2 = ok s2' /\ valid s1' s2'.
   Proof.
     move=> /andP [/andP [Hisvstk /eqP Htype] He] Hv.
     case Hget: (Mvar.get m.1 vi) He=> [get|//] /eqP -> s1'.
@@ -902,8 +902,8 @@ Section PROOF.
   Qed.
 
   Lemma check_arr_stkW (vi vi': var_i) (s1 s2: estate) v e e':
-    check_arr_stk m vi e vi' e' -> valid s1 s2 -> forall s1', write_rval (Raset vi e) v s1 = ok s1' ->
-    exists s2', write_rval (Rmem vi' e') v s2 = ok s2' /\ valid s1' s2'.
+    check_arr_stk m vi e vi' e' -> valid s1 s2 -> forall s1', write_lval (Laset vi e) v s1 = ok s1' ->
+    exists s2', write_lval (Lmem vi' e') v s2 = ok s2' /\ valid s1' s2'.
   Proof.
     move=> Harr Hv s1'.
     have := Hv => [[]] H1 H2 H3 H4 [H5 H6].
@@ -1106,8 +1106,8 @@ Section PROOF.
   Qed.
 
   Lemma check_memW (vi vi': var_i) (s1 s2: estate) v e e':
-    check_var m vi vi' -> check_e m e e' -> valid s1 s2 -> forall s1', write_rval (Rmem vi e) v s1 = ok s1'->
-    exists s2', write_rval (Rmem vi' e') v s2 = ok s2' /\ valid s1' s2'.
+    check_var m vi vi' -> check_e m e e' -> valid s1 s2 -> forall s1', write_lval (Lmem vi e) v s1 = ok s1'->
+    exists s2', write_lval (Lmem vi' e') v s2 = ok s2' /\ valid s1' s2'.
   Proof.
     move=> Hvar He Hv s1'.
     have Hv' := Hv.
@@ -1200,8 +1200,8 @@ Section PROOF.
   Qed.
 
   Lemma check_arrW (vi vi': var_i) (s1 s2: estate) v e e':
-    check_var m vi vi' -> check_e m e e' -> valid s1 s2 -> forall s1', write_rval (Raset vi e) v s1 = ok s1'->
-    exists s2', write_rval (Raset vi' e') v s2 = ok s2' /\ valid s1' s2'.
+    check_var m vi vi' -> check_e m e e' -> valid s1 s2 -> forall s1', write_lval (Laset vi e) v s1 = ok s1'->
+    exists s2', write_lval (Laset vi' e') v s2 = ok s2' /\ valid s1' s2'.
   Proof.
     move=> Hvar He Hv s1'.
     have Hv' := Hv.
@@ -1227,10 +1227,10 @@ Section PROOF.
       exact: valid_stk_write_notinstk.
   Qed.
 
-  Lemma check_rvalP (r1 r2: rval) v (s1 s2: estate) :
-    check_rval m r1 r2 -> valid s1 s2 ->
-    forall s1', write_rval r1 v s1 = ok s1' ->
-    exists s2', write_rval r2 v s2 = ok s2' /\ valid s1' s2'.
+  Lemma check_lvalP (r1 r2: lval) v (s1 s2: estate) :
+    check_lval m r1 r2 -> valid s1 s2 ->
+    forall s1', write_lval r1 v s1 = ok s1' ->
+    exists s2', write_lval r2 v s2 = ok s2' /\ valid s1' s2'.
   Proof.
     move=> Hr Hv; move: Hr.
     case: r1=> [vi|vi|vi e|vi e].
@@ -1251,17 +1251,17 @@ Section PROOF.
       move: (check_arrW Hvar He Hv Hw)=> [s2' Hs2']; exists s2'=> //.
   Qed.
 
-  Lemma check_rvalsP (r1 r2: rvals) vs (s1 s2: estate) :
-    all2 (check_rval m) r1 r2 -> valid s1 s2 ->
-    forall s1', write_rvals s1 r1 vs = ok s1' ->
-    exists s2', write_rvals s2 r2 vs = ok s2' /\ valid s1' s2'.
+  Lemma check_lvalsP (r1 r2: lvals) vs (s1 s2: estate) :
+    all2 (check_lval m) r1 r2 -> valid s1 s2 ->
+    forall s1', write_lvals s1 r1 vs = ok s1' ->
+    exists s2', write_lvals s2 r2 vs = ok s2' /\ valid s1' s2'.
   Proof.
     elim: r1 r2 vs s1 s2=> //= [|a l IH] [|a' l'] // [] //.
     + move=> ? s2 ? Hvalid s1' [] <-.
       exists s2; split=> //.
     + move=> vsa vsl s1 s2 /andP [Hchecka Hcheckl] Hvalid s1'.
       apply: rbindP=> x Ha Hl.
-      move: (check_rvalP Hchecka Hvalid Ha)=> [s3 [Hs3 Hvalid']].
+      move: (check_lvalP Hchecka Hvalid Ha)=> [s3 [Hs3 Hvalid']].
       move: (IH _ _ _ _ Hcheckl Hvalid' _ Hl)=> [s3' [Hs3' Hvalid'']].
       exists s3'; split=> //.
       by rewrite /= Hs3.
@@ -1312,13 +1312,13 @@ Section PROOF.
   Qed.
 
   Local Lemma Hassgn s1 s2 x tag e :
-    Let v := sem_pexpr s1 e in write_rval x v s1 = Ok error s2 ->
+    Let v := sem_pexpr s1 e in write_lval x v s1 = Ok error s2 ->
     Pi_r s1 (Cassgn x tag e) s2.
   Proof.
     apply: rbindP=> v Hv Hw ii1 ii2 i2 Hi2 s1' Hvalid.
-    case: i2 Hi2=> //= x' a e' /andP [Hrval He].
+    case: i2 Hi2=> //= x' a e' /andP [Hlval He].
     have He_eq := (check_eP He Hvalid Hv).
-    move: (check_rvalP Hrval Hvalid Hw)=> [s2' [Hw' Hvalid']].
+    move: (check_lvalP Hlval Hvalid Hw)=> [s2' [Hw' Hvalid']].
     exists s2'; split=> //.
     apply: S.Eassgn.
     by rewrite He_eq.
@@ -1326,13 +1326,13 @@ Section PROOF.
 
   Local Lemma Hopn s1 s2 o xs es :
     Let x := Let x := sem_pexprs s1 es in sem_sopn o x
-    in write_rvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
+    in write_lvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
   Proof.
     apply: rbindP=> vs.
     apply: rbindP=> w He Hop Hw ii1 ii2 i2 Hi2 s1' Hvalid.
-    case: i2 Hi2=> //= xs' o' es' /andP [/andP [Hrvals /eqP Ho] Hes].
+    case: i2 Hi2=> //= xs' o' es' /andP [/andP [Hlvals /eqP Ho] Hes].
     have Hes_eq := (check_esP Hes Hvalid).
-    move: (check_rvalsP Hrvals Hvalid Hw)=> [s2' [Hw' Hvalid']].
+    move: (check_lvalsP Hlvals Hvalid Hw)=> [s2' [Hw' Hvalid']].
     exists s2'; split=> //.
     apply: S.Eopn.
     by rewrite (Hes_eq _ He) /= -Ho Hop /= Hw'.
@@ -1411,7 +1411,7 @@ Section PROOF.
     sem_pexprs s1 args = Ok error vargs ->
     sem_call P (emem s1) fn vargs m2 vs ->
     Pfun (emem s1) fn vargs m2 vs ->
-    write_rvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
+    write_lvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
     Pi_r s1 (Ccall ii xs fn args) s2.
   Proof. by []. Qed.
 

@@ -76,12 +76,12 @@ Section LOOP.
 
 End LOOP.
 
-Definition write_mem (r:rval) : bool := 
-  if r is Rmem _ _ then true else false.
+Definition write_mem (r:lval) : bool := 
+  if r is Lmem _ _ then true else false.
 
-Definition check_nop (rv:rval) (e:pexpr) :=
+Definition check_nop (rv:lval) (e:pexpr) :=
   match rv, e with
-  | Rvar x1, Pvar x2 => x1 == x2
+  | Lvar x1, Pvar x2 => x1 == x2
   | _, _ => false
   end.
  
@@ -108,7 +108,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
 
   | Cfor x (dir, e1, e2) c =>
     Let sc := loop (dead_code_c dead_code_i c) ii Loop.nb 
-                   (read_rv (Rvar x)) (vrv (Rvar x)) s in
+                   (read_rv (Lvar x)) (vrv (Lvar x)) s in
     let: (s, c) := sc in
     ciok (read_e_rec (read_e_rec s e2) e1,[:: MkI ii (Cfor x (dir,e1,e2) c) ])
 
@@ -140,9 +140,9 @@ Definition dead_code_ffd (ffd:funname * fundef) (p:cfexec prog) :=
 
 Definition dead_code_prog (p:prog) := foldr dead_code_ffd (cfok [::]) p.
 
-Lemma write_memP (x:rval) v m1 m2 vm1 vm2:
+Lemma write_memP (x:lval) v m1 m2 vm1 vm2:
   ~~ write_mem x -> 
-  write_rval x v {| emem := m1; evm := vm1 |} = ok {| emem := m2; evm := vm2 |} ->
+  write_lval x v {| emem := m1; evm := vm1 |} = ok {| emem := m2; evm := vm2 |} ->
   m1 = m2.
 Proof.
   case: x=> //= [v0|v0|v0 p] _.
@@ -196,7 +196,7 @@ Section PROOF.
     forall s2, 
       match dead_code_c dead_code_i c s2 with
       | Ok (s1, c') =>
-        Sv.Subset (Sv.union (read_rv (Rvar i)) (Sv.diff s1 (vrv (Rvar i)))) s2 ->
+        Sv.Subset (Sv.union (read_rv (Lvar i)) (Sv.diff s1 (vrv (Lvar i)))) s2 ->
         forall vm1', s.(evm) =[s2] vm1' ->
         exists vm2', s'.(evm) =[s2] vm2' /\
           sem_for p' i vs (Estate s.(emem) vm1') c' (Estate s'.(emem) vm2')
@@ -231,8 +231,8 @@ Section PROOF.
     sem_i p s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
   Proof. move=> _ Hi. exact: Hi. Qed.
 
-  Lemma check_nop_spec (r:rval) (e:pexpr): check_nop r e ->
-    exists x, r = (Rvar x) /\ e = (Pvar x).
+  Lemma check_nop_spec (r:lval) (e:pexpr): check_nop r e ->
+    exists x, r = (Lvar x) /\ e = (Pvar x).
   Proof. by case: r e => //= x1 [] //= x2 /eqP <-;exists x1. Qed.
 
   (* TODO: move *)
@@ -245,7 +245,7 @@ Section PROOF.
   Qed.
 
   Local Lemma Hassgn s1 s2 x tag e :
-    Let v := sem_pexpr s1 e in write_rval x v s1 = Ok error s2 ->
+    Let v := sem_pexpr s1 e in write_lval x v s1 = Ok error s2 ->
     Pi_r s1 (Cassgn x tag e) s2.
   Proof.
     move: s1 s2=> [m1 vm1] [m2 vm2].
@@ -286,7 +286,7 @@ Section PROOF.
         + move=> vm1' Hvm.
           rewrite write_i_assgn in Hvm.
           move: Hvm; rewrite read_rvE read_eE=> Hvm.
-          have [|vm2' [Hvm2 Hw2]] := write_rval_eq_on _ Hw Hvm; first by SvD.fsetdec.
+          have [|vm2' [Hvm2 Hw2]] := write_lval_eq_on _ Hw Hvm; first by SvD.fsetdec.
           exists vm2'; split.
           + by apply: eq_onI Hvm2; SvD.fsetdec.
           + apply: sem_seq1; constructor; constructor.
@@ -295,7 +295,7 @@ Section PROOF.
     + move=> vm1' Hvm.
       rewrite write_i_assgn in Hvm.
       move: Hvm; rewrite read_rvE read_eE=> Hvm.
-      have [|vm2' [Hvm2 Hw2]] := write_rval_eq_on _ Hw Hvm; first by SvD.fsetdec.
+      have [|vm2' [Hvm2 Hw2]] := write_lval_eq_on _ Hw Hvm; first by SvD.fsetdec.
       exists vm2'; split.
       + by apply: eq_onI Hvm2; SvD.fsetdec.
       + apply: sem_seq1; constructor; constructor.
@@ -305,12 +305,12 @@ Section PROOF.
 
   Local Lemma Hopn s1 s2 o xs es :
     Let x := Let x := sem_pexprs s1 es in sem_sopn o x
-    in write_rvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
+    in write_lvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
   Proof.
     apply: rbindP=> x; apply: rbindP=> x0 Hexpr Hopn Hw.
     rewrite /Pi_r /==> ii s0 vm1' Hvm.
     move: Hvm; rewrite read_esE read_rvsE=> Hvm.
-    have [|vm2 [Hvm2 Hvm2']] := write_rvals_eq_on _ Hw Hvm; first by SvD.fsetdec.
+    have [|vm2 [Hvm2 Hvm2']] := write_lvals_eq_on _ Hw Hvm; first by SvD.fsetdec.
     exists vm2; split.
     by apply: eq_onI Hvm2; SvD.fsetdec.
     econstructor.
@@ -530,12 +530,12 @@ Section PROOF.
     sem_pexprs s1 args = Ok error vargs ->
     sem_call p (emem s1) fn vargs m2 vs ->
     Pfun (emem s1) fn vargs m2 vs ->
-    write_rvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
+    write_lvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
     Pi_r s1 (Ccall ii xs fn args) s2.
   Proof.
     move=> Hexpr Hcall Hfun Hw ii' sv0.
     rewrite /==> vm1' Hvm.
-    have [|vm2 [Hvm2 /= Hvm2']] := write_rvals_eq_on _ Hw Hvm.
+    have [|vm2 [Hvm2 /= Hvm2']] := write_lvals_eq_on _ Hw Hvm.
       rewrite read_esE read_rvsE; SvD.fsetdec.
     exists vm2; split.
     apply: eq_onI Hvm2.

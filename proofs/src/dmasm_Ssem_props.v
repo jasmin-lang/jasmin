@@ -48,7 +48,7 @@ Definition svmap_eq_except (s : Sv.t) (vm1 vm2 : svmap) :=
 Notation "vm1 = vm2 [\ s ]" := (svmap_eq_except s vm1 vm2) (at level 70, vm2 at next level,
   format "'[hv ' vm1  '/' =  vm2  '/' [\ s ] ']'").
 
-Lemma vrvP (r:rval) v s s' : swrite_rval r v s = ok s' -> s.(sevm) = s'.(sevm) [\ vrv r].
+Lemma vrvP (r:lval) v s s' : swrite_lval r v s = ok s' -> s.(sevm) = s'.(sevm) [\ vrv r].
 Proof.
 (*
   elim: r v s=> [x | ?? r1 Hr1 r2 Hr2] v s /= z; rewrite ?vrv_var ?vrv_pair=> ?.
@@ -96,31 +96,31 @@ Qed.
 Admitted.
 
 (* -------------------------------------------------------------------------- *)
-(* Properties on swrite_rval                                                  *)
+(* Properties on swrite_lval                                                  *)
 (* -------------------------------------------------------------------------- *)
 
 (*
-Lemma swrite_nin t (rv:rval) (v:svalue) z s:
+Lemma swrite_nin t (rv:lval) (v:svalue) z s:
   ~Sv.In z (vrv rv) ->
-  ((swrite_rval s rv v).[z])%vmap = s.[z]%vmap.
+  ((swrite_lval s rv v).[z])%vmap = s.[z]%vmap.
 Proof.
   elim: rv v s => /= [x | ??? Hr1 ? Hr2] v s;rewrite ?vrv_var ?vrv_pair => Hin.
   + by rewrite Fv.setP_neq //;apply /eqP; SvD.fsetdec.
   rewrite Hr1 ?Hr2 //;SvD.fsetdec.
 Qed.
 
-Lemma ssem_swrite_rval s (r:rval sword) w: 
-  ssem_rval (swrite_rval s r w) r = w.
+Lemma ssem_swrite_lval s (r:lval sword) w: 
+  ssem_lval (swrite_lval s r w) r = w.
 Proof. by case H : sword / r w => //= ?;rewrite Fv.setP_eq. Qed.
 
-Lemma swrite_ssem_rval s (r:rval sword): swrite_rval s r (ssem_rval s r) = s.
+Lemma swrite_ssem_lval s (r:lval sword): swrite_lval s r (ssem_lval s r) = s.
 Proof.
   apply Fv.map_ext=> x1;case H : sword / (r) => [ x2 | ] //=. 
   case: (x2 =P x1) => [ -> | /eqP ? ];first by rewrite Fv.setP_eq. 
   by rewrite Fv.setP_neq.   
 Qed.
 
-Lemma ssem_rval2pe t (i:rval t) s: ssem_pexpr s (rval2pe i) = ssem_rval s i.
+Lemma ssem_lval2pe t (i:lval t) s: ssem_pexpr s (lval2pe i) = ssem_lval s i.
 Proof. by elim: i => //= ??? -> ? ->. Qed.
 
 (* -------------------------------------------------------------------------- *)

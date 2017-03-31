@@ -265,7 +265,7 @@ Proof. rewrite /fv /= !fv_recE; SvD.fsetdec. Qed.
 Lemma fv_if t e1 (e2 e3:spexpr t) : 
   Sv.Equal (fv (Eif e1 e2 e3)) (Sv.union (fv e1) (Sv.union (fv e2) (fv e3))).
 Proof. rewrite /fv /= !fv_recE; SvD.fsetdec. Qed.
-Lemma fv_rval2pe t (i:rval t): Sv.Equal (fv (p2sp (rval2pe i))) (vrv i).
+Lemma fv_lval2pe t (i:lval t): Sv.Equal (fv (p2sp (lval2pe i))) (vrv i).
 Proof.
   elim: i => //= ?? r1 Hr1 r2 Hr2.
   by rewrite fv_op2 Hr1 Hr2 vrv_pair.
@@ -477,11 +477,11 @@ Fixpoint esubst st (s : psubst) (pe : spexpr st) :=
     Eif (esubst s b) (esubst s pe1) (esubst s pe2)
   end.
 
-Fixpoint ewrite_rval (s:vsubst) {t} (l:rval t) : spexpr t -> vsubst :=
-  match l in rval t_ return spexpr t_ -> vsubst with
-  | Rvar x => fun v => s.[x <- v]%mv
+Fixpoint ewrite_lval (s:vsubst) {t} (l:lval t) : spexpr t -> vsubst :=
+  match l in lval t_ return spexpr t_ -> vsubst with
+  | Lvar x => fun v => s.[x <- v]%mv
   | Rpair t1 t2 rv1 rv2 => fun v => 
-    ewrite_rval (ewrite_rval s rv2 (Eapp1 (Osnd _ _) v)) rv1 (Eapp1 (Ofst _ _) v) 
+    ewrite_lval (ewrite_lval s rv2 (Eapp1 (Osnd _ _) v)) rv1 (Eapp1 (Ofst _ _) v) 
   end.
 
 Lemma esubstP rho s t (e:spexpr t) :
@@ -490,11 +490,11 @@ Proof.
   by elim: e => //= [???? ->|????? -> ? ->|?????? -> ? -> ? ->|?? -> ? -> ? ->].
 Qed.
 
-Lemma ewrite_rvalP rho vm s t (rv:rval t) e: 
+Lemma ewrite_lvalP rho vm s t (rv:lval t) e: 
    (forall (x:var), ssem_spexpr rho s.[x]%mv = vm.[x]%vmap) ->
    forall (x:var),  
-     ssem_spexpr rho (ewrite_rval s rv e).[x]%mv =
-     (swrite_rval vm rv (ssem_spexpr rho e)).[x]%vmap.
+     ssem_spexpr rho (ewrite_lval s rv e).[x]%mv =
+     (swrite_lval vm rv (ssem_spexpr rho e)).[x]%vmap.
 Proof.
   elim: rv e s rho vm => [z | ?? r1 Hr1 r2 Hr2] e s rho vm Hrho x /=.
   + case: (z =P x)=> [<- | /eqP neq].
@@ -503,17 +503,17 @@ Proof.
   by apply Hr1=> ?;apply Hr2.
 Qed.
 
-Definition ewrite t (rv:rval t) e efv :=
+Definition ewrite t (rv:lval t) e efv :=
   {| v_fv := efv;
-     v_v := ewrite_rval vs0 rv e; |}.
+     v_v := ewrite_lval vs0 rv e; |}.
 
-Instance wf_ewrite t (rv:rval t) e xs: Ssv.Subset (sfv e) xs -> wf_vsubst (ewrite rv e xs).
+Instance wf_ewrite t (rv:lval t) e xs: Ssv.Subset (sfv e) xs -> wf_vsubst (ewrite rv e xs).
 Proof. 
   move=> Heq; constructor;rewrite /ewrite /=.
   + move=> x;have : Mv.dft vs0 x = Evar x by done.
     by elim: rv e vs0 {Heq} => //= ?? r1 Hr1 r2 Hr2 e s Hs;auto. 
   pose P vs := forall x : var,  Mv.indom x vs -> Ssv.Subset (sfv vs.[x]%mv) xs.
-  rewrite -/(P (ewrite_rval vs0 rv e)).
+  rewrite -/(P (ewrite_lval vs0 rv e)).
   have : P vs0.
   + by move=> x;rewrite (negbTE (Mv.indom0 _ x)).
   elim: rv e vs0 Heq => [z | ??? Hr1 ? Hr2] e sv /= Hsub Hsv x.
@@ -523,16 +523,16 @@ Proof.
   by apply Hr1;rewrite ?sfv_op1 //;apply Hr2;rewrite ?sfv_op2.
 Qed.
 
-Lemma indom_ewrite_rval s t(i:rval t) v x : 
-   Mv.indom x (ewrite_rval s i v) <->  Sv.In x (vrv i) \/ Mv.indom x s.
+Lemma indom_ewrite_lval s t(i:lval t) v x : 
+   Mv.indom x (ewrite_lval s i v) <->  Sv.In x (vrv i) \/ Mv.indom x s.
 Proof.
   elim:i v s => [y | ?? r1 Hr1 r2 Hr2] v s /=.
   + by rewrite Mv.indom_setP vrv_var SvD.F.singleton_iff -(rwP orP) -(rwP eqP).
   rewrite vrv_pair Sv.union_spec Hr1 Hr2;tauto.
 Qed.
 
-Lemma ewrite_rval_nin t (r:rval t) e s y : 
-   ~ Sv.In y (vrv r) -> (ewrite_rval s r e).[y]%mv = s.[y]%mv.
+Lemma ewrite_lval_nin t (r:lval t) e s y : 
+   ~ Sv.In y (vrv r) -> (ewrite_lval s r e).[y]%mv = s.[y]%mv.
 Proof.
   elim: r e s => //= [x | ?? r1 Hr1 r2 Hr2] e s.
   + by rewrite vrv_var Sv.singleton_spec=> /eqP ?;rewrite Mv.setP_neq // eq_sym.
@@ -540,16 +540,16 @@ Proof.
   rewrite Hr1 ?Hr2;auto. 
 Qed.
 
-Lemma fv_ewrite y t (i:rval t) e s:
-   Sv.In y (vrv i) -> Sv.Subset (fv (ewrite_rval s i e).[y]%mv) (fv e).
+Lemma fv_ewrite y t (i:lval t) e s:
+   Sv.In y (vrv i) -> Sv.Subset (fv (ewrite_lval s i e).[y]%mv) (fv e).
 Proof.
   elim: i e s => //= [x | ?? r1 Hr1 r2 Hr2] e s.
   + by rewrite vrv_var Sv.singleton_spec => ->;rewrite Mv.setP_eq.
   rewrite vrv_pair Sv.union_spec.
   case : (SvP.MP.In_dec y (vrv r1))=> Hin1.
-  + have := Hr1 (Eapp1 (Ofst _ _) e) (ewrite_rval s r2 (Eapp1 (Osnd _ _) e)) Hin1.
+  + have := Hr1 (Eapp1 (Ofst _ _) e) (ewrite_lval s r2 (Eapp1 (Osnd _ _) e)) Hin1.
     SvD.fsetdec.       
-  move=> [] // Hin2;rewrite ewrite_rval_nin //.
+  move=> [] // Hin2;rewrite ewrite_lval_nin //.
   have := Hr2 (Eapp1 (Osnd _ _) e) s Hin2; SvD.fsetdec. 
 Qed.
 

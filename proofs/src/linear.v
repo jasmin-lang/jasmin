@@ -63,9 +63,9 @@ Definition is_label (lbl: label) (i:linstr) : bool :=
 Record lfundef ta tr := LFundef {
  lfd_stk_size : Z;                            
  lfd_nstk : Ident.ident;                           
- lfd_arg  : rval ta;
+ lfd_arg  : lval ta;
  lfd_body : lcmd;
- lfd_res  : rval tr
+ lfd_res  : lval tr
 }.
 
 (* --------------------------------------------------------------------------- *)
@@ -121,11 +121,11 @@ Inductive lsem_fd ta tr (fd:lfundef ta tr) (va:st2ty ta)
     let c := fd.(lfd_body) in
     (forall vm0 : vmap, all_empty_arr vm0 ->
        exists vm2 m2' cs,
-       let vm1 := write_rval vm0 (S.vstk fd.(lfd_nstk)) p.1 in
-       let vm1 := write_rval vm1 (lfd_arg fd) va in
+       let vm1 := write_lval vm0 (S.vstk fd.(lfd_nstk)) p.1 in
+       let vm1 := write_lval vm1 (lfd_arg fd) va in
        [/\ lsem c {| lmem := p.2; lvm := vm1; lc := c |} 
                 {| lmem := m2'; lvm := vm2; lc := Lreturn :: cs |},
-       vr = sem_rval vm2 (lfd_res fd) &
+       vr = sem_lval vm2 (lfd_res fd) &
        m2 = free_stack m2' p.1 fd.(lfd_stk_size)]) ->             
     is_full_array vr ->
     lsem_fd fd va m1 m2 vr.
@@ -250,7 +250,7 @@ Section CAT.
   Let Hcall : forall ta tr x (f:S.fundef ta tr) a, Pf f -> Pi (S.Ccall x f a).
   Proof. by []. Qed.
 
-  Let Hfunc : forall ta tr nstk sz (x:rval ta) c (re:rval tr), 
+  Let Hfunc : forall ta tr nstk sz (x:lval ta) c (re:lval tr), 
     Pc c -> Pf (S.FunDef nstk sz x c re).
   Proof. by []. Qed.
 
@@ -658,7 +658,7 @@ Section PROOF.
   Let Hcall : forall ta tr x (f:S.fundef ta tr) a, Pf f -> Pi (S.Ccall x f a).
   Proof. by []. Qed.
 
-  Let Hfunc : forall ta tr nstk sz (x:rval ta) c (re:rval tr), 
+  Let Hfunc : forall ta tr nstk sz (x:lval ta) c (re:lval tr), 
     Pc c -> Pf (S.FunDef nstk sz x c re).
   Proof. by []. Qed.
 

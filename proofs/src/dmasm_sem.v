@@ -308,18 +308,18 @@ Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
 Definition write_vars xs vs s := 
   fold2 ErrType write_var xs vs s.
 
-Definition write_rval (l:rval) (v:value) (s:estate) : exec estate :=
+Definition write_lval (l:lval) (v:value) (s:estate) : exec estate :=
   match l with 
-  | Rnone _ => ok s
-  | Rvar x => write_var x v s
-  | Rmem x e =>  
+  | Lnone _ => ok s
+  | Lvar x => write_var x v s
+  | Lmem x e =>  
     Let vx := get_var (evm s) x >>= to_word in
     Let ve := sem_pexpr s e >>= to_word in
     let p := wadd vx ve in (* should we add the size of value, i.e vx + sz * se *)
     Let w := to_word v in
     Let m :=  write_mem s.(emem) p w in
     ok {|emem := m;  evm := s.(evm) |}
-  | Raset x i =>
+  | Laset x i =>
     Let (n,t) := s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let v := to_word v in
@@ -328,8 +328,8 @@ Definition write_rval (l:rval) (v:value) (s:estate) : exec estate :=
     ok ({| emem := s.(emem); evm := vm |})
   end.
  
-Definition write_rvals (s:estate) xs vs := 
-   fold2 ErrType write_rval xs vs s.
+Definition write_lvals (s:estate) xs vs := 
+   fold2 ErrType write_lval xs vs s.
 
 Fixpoint app_sopn ts : sem_prod ts values -> values -> exec values := 
   match ts return sem_prod ts values -> values -> exec values with
@@ -408,12 +408,12 @@ with sem_I : estate -> instr -> estate -> Prop :=
     sem_I s1 (MkI ii i) s2
 
 with sem_i : estate -> instr_r -> estate -> Prop :=
-| Eassgn s1 s2 (x:rval) tag e:
-    (Let v := sem_pexpr s1 e in write_rval x v s1) = ok s2 -> 
+| Eassgn s1 s2 (x:lval) tag e:
+    (Let v := sem_pexpr s1 e in write_lval x v s1) = ok s2 -> 
     sem_i s1 (Cassgn x tag e) s2
 
 | Eopn s1 s2 o xs es:
-    sem_pexprs s1 es >>= sem_sopn o >>= (write_rvals s1 xs) = ok s2 ->
+    sem_pexprs s1 es >>= sem_sopn o >>= (write_lvals s1 xs) = ok s2 ->
     sem_i s1 (Copn xs o es) s2
 
 | Eif_true s1 s2 e c1 c2 :
@@ -445,7 +445,7 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
 | Ecall s1 m2 s2 ii xs f args vargs vs : 
     sem_pexprs s1 args = ok vargs ->
     sem_call s1.(emem) f vargs m2 vs ->
-    write_rvals {|emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->
+    write_lvals {|emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->
     sem_i s1 (Ccall ii xs f args) s2
 
 with sem_for : var_i -> seq Z -> estate -> cmd -> estate -> Prop :=
@@ -493,12 +493,12 @@ Section SEM_IND.
   Hypothesis HmkI : forall (ii : instr_info) (i : instr_r) (s1 s2 : estate),
     sem_i s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
 
-  Hypothesis Hasgn : forall (s1 s2 : estate) (x : rval) (tag : assgn_tag) (e : pexpr),
-    Let v := sem_pexpr s1 e in write_rval x v s1 = Ok error s2 ->
+  Hypothesis Hasgn : forall (s1 s2 : estate) (x : lval) (tag : assgn_tag) (e : pexpr),
+    Let v := sem_pexpr s1 e in write_lval x v s1 = Ok error s2 ->
     Pi_r s1 (Cassgn x tag e) s2.
 
-  Hypothesis Hopn : forall (s1 s2 : estate) (o : sopn) (xs : rvals) (es : pexprs),
-    Let x := Let x := sem_pexprs s1 es in sem_sopn o x in write_rvals s1 xs x = Ok error s2 -> 
+  Hypothesis Hopn : forall (s1 s2 : estate) (o : sopn) (xs : lvals) (es : pexprs),
+    Let x := Let x := sem_pexprs s1 es in sem_sopn o x in write_lvals s1 xs x = Ok error s2 -> 
     Pi_r s1 (Copn xs o es) s2.
 
   Hypothesis Hif_true : forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
@@ -534,11 +534,11 @@ Section SEM_IND.
     sem_for i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
 
   Hypothesis Hcall : forall (s1 : estate) (m2 : mem) (s2 : estate) 
-         (ii : inline_info) (xs : rvals) 
+         (ii : inline_info) (xs : lvals) 
          (fn : funname) (args : pexprs) (vargs vs : seq value),
     sem_pexprs s1 args = Ok error vargs ->
     sem_call (emem s1) fn vargs m2 vs -> Pfun (emem s1) fn vargs m2 vs ->
-    write_rvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
+    write_lvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
     Pi_r s1 (Ccall ii xs fn args) s2.
 
   Hypothesis Hproc : forall (m1 m2 : mem) (fn:funname) (f : fundef) (vargs : seq value)
@@ -659,8 +659,8 @@ Proof.
   by move=> z Hz;rewrite Fv.setP_neq //;apply /eqP; SvD.fsetdec.
 Qed.
 
-Lemma vrvP (x:rval) v s1 s2 : 
-  write_rval x v s1 = ok s2 -> 
+Lemma vrvP (x:lval) v s1 s2 : 
+  write_lval x v s1 = ok s2 -> 
   s1.(evm) = s2.(evm) [\ vrv x].
 Proof. 
   case x => /= [ _ [<-] | ? /vrvP_var| y e| y e] //.
@@ -674,7 +674,7 @@ Proof.
 Qed.
 
 Lemma vrvsP xs vs s1 s2 :
-  write_rvals s1 xs vs = ok s2 -> 
+  write_lvals s1 xs vs = ok s2 -> 
   s1.(evm) = s2.(evm) [\ vrvs xs].
 Proof.
   elim: xs vs s1 s2 => [|x xs Hrec] [|v vs] s1 s2 //=.
@@ -753,7 +753,7 @@ Proof. by move=> s1 s2 Heq vm1 ? <- vm2 ? <-;split;apply: eq_onI;rewrite Heq. Qe
 
 Lemma disjoint_eq_on s r s1 s2 v: 
   disjoint s (vrv r) ->
-  write_rval r v s1 = ok s2 ->
+  write_lval r v s1 = ok s2 ->
   s1.(evm) =[s] s2.(evm).
 Proof.
   move=> Hd /vrvP H z Hnin;apply H.
@@ -762,7 +762,7 @@ Qed.
 
 Lemma disjoint_eq_ons s r s1 s2 v: 
   disjoint s (vrvs r) ->
-  write_rvals s1 r v = ok s2 ->
+  write_lvals s1 r v = ok s2 ->
   s1.(evm) =[s] s2.(evm).
 Proof.
   move=> Hd /vrvsP H z Hnin;apply H.
@@ -831,13 +831,13 @@ Proof.
   by apply: eq_onI Hvm2;SvD.fsetdec. 
 Qed.
 
-Lemma write_rval_eq_on X x v s1 s2 vm1 : 
+Lemma write_lval_eq_on X x v s1 s2 vm1 : 
   Sv.Subset (read_rv x) X ->
-  write_rval x v s1 = ok s2 ->
+  write_lval x v s1 = ok s2 ->
   evm s1 =[X] vm1 ->
   exists vm2 : vmap,
    evm s2 =[Sv.union (vrv x) X] vm2 /\
-   write_rval x v {|emem:= emem s1; evm := vm1|} = ok {|emem:= emem s2; evm := vm2|}.
+   write_lval x v {|emem:= emem s1; evm := vm1|} = ok {|emem:= emem s2; evm := vm2|}.
 Proof.
   case:x => [vi | x | x e | x e ] /=.
   + by move=> ? [<-] ?;exists vm1.
@@ -863,18 +863,18 @@ Proof.
   by exists vm2'. 
 Qed.
 
-Lemma write_rvals_eq_on X xs vs s1 s2 vm1 :
+Lemma write_lvals_eq_on X xs vs s1 s2 vm1 :
   Sv.Subset (read_rvs xs) X ->
-  write_rvals s1 xs vs = ok s2 ->
+  write_lvals s1 xs vs = ok s2 ->
   evm s1 =[X] vm1 ->
   exists vm2 : vmap,
     evm s2 =[Sv.union (vrvs xs) X] vm2 /\
-    write_rvals {|emem:= emem s1; evm := vm1|} xs vs = ok {|emem:= emem s2; evm := vm2|}.
+    write_lvals {|emem:= emem s1; evm := vm1|} xs vs = ok {|emem:= emem s2; evm := vm2|}.
 Proof.
   elim: xs vs X s1 s2 vm1 => [ | x xs Hrec] [ | v vs] //= X s1 s2 vm1.
   + by move=> _ [<-] ?;exists vm1.
   rewrite read_rvs_cons => Hsub.
-  apply: rbindP => s1' Hw Hws /(write_rval_eq_on _ Hw) [ |vm1' [Hvm1' ->]].
+  apply: rbindP => s1' Hw Hws /(write_lval_eq_on _ Hw) [ |vm1' [Hvm1' ->]].
   + by SvD.fsetdec.
   have [ |vm2 [Hvm2 /= ->]]:= Hrec _ _ _ _ _ _ Hws Hvm1';first by SvD.fsetdec.
   by exists vm2;split => //;rewrite vrvs_cons;apply: eq_onI Hvm2;SvD.fsetdec.
@@ -1210,9 +1210,9 @@ Qed.
 Lemma write_uincl s1 s2 vm1 r v1 v2:
   vm_uincl s1.(evm) vm1 ->
   value_uincl v1 v2 ->
-  write_rval r v1 s1 = ok s2 ->
+  write_lval r v1 s1 = ok s2 ->
   exists vm2, 
-    write_rval r v2 (Estate (emem s1) vm1) = ok (Estate (emem s2) vm2) /\ 
+    write_lval r v2 (Estate (emem s1) vm1) = ok (Estate (emem s2) vm2) /\ 
     vm_uincl s2.(evm) vm2.
 Proof.
   move=> Hvm1 Hv;case:r => [xi | x | x p | x p] /=.
@@ -1238,9 +1238,9 @@ Qed.
 Lemma writes_uincl s1 s2 vm1 r v1 v2:
   vm_uincl s1.(evm) vm1 ->
   List.Forall2 value_uincl v1 v2 ->
-  write_rvals s1 r v1 = ok s2 ->
+  write_lvals s1 r v1 = ok s2 ->
   exists vm2, 
-    write_rvals (Estate (emem s1) vm1) r v2 = ok (Estate (emem s2) vm2) /\ 
+    write_lvals (Estate (emem s1) vm1) r v2 = ok (Estate (emem s2) vm2) /\ 
     vm_uincl s2.(evm) vm2.
 Proof.
   elim: r v1 v2 s1 s2 vm1 => [ | r rs Hrec] ?? s1 s2 vm1 Hvm1 /= [] //=. 
@@ -1250,10 +1250,10 @@ Proof.
   by move=> /(Hrec _ _ _ _ _ Hvm2 Hforall).
 Qed.
 
-Lemma write_vars_rvals xs vs s1: 
-  write_vars xs vs s1 = write_rvals s1 [seq Rvar i | i <- xs] vs.
+Lemma write_vars_lvals xs vs s1: 
+  write_vars xs vs s1 = write_lvals s1 [seq Lvar i | i <- xs] vs.
 Proof.
-  rewrite /write_vars /write_rvals.
+  rewrite /write_vars /write_lvals.
   elim: xs vs s1 => [ | x xs Hrec] [ | v vs] //= s1.
   by case: write_var => //=.
 Qed.
@@ -1329,7 +1329,7 @@ Local Lemma HmkI ii i s1 s2 : sem_i p s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i
 Proof. by move=> _ Hi vm1 /Hi [vm2 []] Hsi ?;exists vm2. Qed.
 
 Local Lemma Hasgn s1 s2 x tag e :
-  Let v := sem_pexpr s1 e in write_rval x v s1 = ok s2 ->
+  Let v := sem_pexpr s1 e in write_lval x v s1 = ok s2 ->
   Pi_r s1 (Cassgn x tag e) s2.
 Proof.
   move=> Hs2 vm1 Hvm1;apply:rbindP Hs2 => z /(sem_pexpr_uincl Hvm1) [] z' [] Hz' Hz.
@@ -1339,7 +1339,7 @@ Qed.
 
 Local Lemma Hopn s1 s2 o xs es:
   Let x := Let x := sem_pexprs s1 es in sem_sopn o x in 
-  write_rvals s1 xs x = ok s2 -> Pi_r s1 (Copn xs o es) s2.
+  write_lvals s1 xs x = ok s2 -> Pi_r s1 (Copn xs o es) s2.
 Proof.
   move=> H vm1 Hvm1; apply: rbindP H => rs;apply: rbindP => vs.
   move=> /(sem_pexprs_uincl Hvm1) [] vs' [] H1 H2.
@@ -1428,7 +1428,7 @@ Local Lemma Hcall s1 m2 s2 ii xs fn args vargs vs :
   sem_pexprs s1 args = ok vargs ->
   sem_call p (emem s1) fn vargs m2 vs ->
   Pfun (emem s1) fn vargs m2 vs ->
-  write_rvals {| emem := m2; evm := evm s1 |} xs vs = ok s2 ->
+  write_lvals {| emem := m2; evm := evm s1 |} xs vs = ok s2 ->
   Pi_r s1 (Ccall ii xs fn args) s2.
 Proof.
   move=> Hargs Hcall Hfd Hxs vm1 Hvm1.

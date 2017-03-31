@@ -175,23 +175,23 @@ Module CBEA.
   Definition check_e (e1 e2:pexpr) m := 
     if check_eb m e1 e2 then cok m else cerror (Cerr_arr_exp e1 e2). 
 
-  Definition check_rval (r1 r2:rval) m := 
+  Definition check_lval (r1 r2:lval) m := 
     match r1, r2 with 
-    | Rnone _, Rnone _ => cok m
-    | Rvar x1, Rvar x2 => 
+    | Lnone _, Lnone _ => cok m
+    | Lvar x1, Lvar x2 => 
       if check_var m x1 x2 then cok m 
       else cerror (Cerr_arr_exp_v r1 r2)
-    | Rmem x1 e1, Rmem x2 e2 =>
+    | Lmem x1 e1, Lmem x2 e2 =>
       if check_var m x1 x2 && check_eb m e1 e2 then cok m
       else cerror (Cerr_arr_exp_v r1 r2)
-    | Raset x1 e1, Rvar x2 =>
+    | Laset x1 e1, Lvar x2 =>
       if vtype x2 == sword then 
         match is_const e1 with 
         | Some n1 => cok (M.set_arr x1 n1 (vname x2) m)
         | None    => cerror (Cerr_arr_exp_v r1 r2)
         end
       else cerror (Cerr_arr_exp_v r1 r2)
-    | Raset x1 e1, Raset x2 e2 =>
+    | Laset x1 e1, Laset x2 e2 =>
       if check_var m x1 x2 && check_eb m e1 e2 then cok m
       else cerror (Cerr_arr_exp_v r1 r2)
     | _, _ => cerror (Cerr_arr_exp_v r1 r2)
@@ -278,13 +278,13 @@ Module CBEA.
     by rewrite !Fv.setP_neq //;apply /eqP => H;subst;apply Hin;rewrite H.
   Qed.
 
-  Lemma check_rvalP r1 r1' x1 x2 s1 s1' vm1 v1 v2 :
-    check_rval x1 x2 r1 = ok r1' ->
+  Lemma check_lvalP r1 r1' x1 x2 s1 s1' vm1 v1 v2 :
+    check_lval x1 x2 r1 = ok r1' ->
     eq_alloc r1 s1.(evm) vm1 ->
     value_uincl v1 v2 ->
-    write_rval x1 v1 s1 = ok s1' ->
+    write_lval x1 v1 s1 = ok s1' ->
     exists vm1', 
-      write_rval x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1') /\
+      write_lval x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1') /\
       eq_alloc r1' s1'.(evm) vm1'.
   Proof.
     case: x1 x2 => [vi1 | x1 | x1 e1 | x1 e1] [vi2 | x2 | x2 e2 | x2 e2] //=.

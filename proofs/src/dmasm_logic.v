@@ -134,7 +134,7 @@ Qed.
 
 (* Base commands *)
 Lemma hoare_assgn (P: hpred) x tag e ii:
-  hoare (fun s1 => forall p w, ssem_pexpr s1 e = ok p -> swrite_rval x p s1 = ok w -> P w) [:: MkI ii (Cassgn x tag e)] P.
+  hoare (fun s1 => forall p w, ssem_pexpr s1 e = ok p -> swrite_lval x p s1 = ok w -> P w) [:: MkI ii (Cassgn x tag e)] P.
 Proof.
   move=> s s' Hs Hp.
   move: (ssem_iV Hs)=> {Hs}Hs.
@@ -144,7 +144,7 @@ Proof.
 Qed.
 
 Lemma hoare_opn (P: hpred) xs o es ii:
-  hoare (fun s1 => forall p r w, ssem_pexprs s1 es = ok p -> ssem_sopn o p = ok r -> swrite_rvals s1 xs r = ok w -> P w)
+  hoare (fun s1 => forall p r w, ssem_pexprs s1 es = ok p -> ssem_sopn o p = ok r -> swrite_lvals s1 xs r = ok w -> P w)
         [:: MkI ii (Copn xs o es)] P.
 Proof.
   move=> s s' Hs Hp.
@@ -178,11 +178,11 @@ Definition a := Var sword "a".
 Definition b := Var sword "b".
 Definition c := Var sword "c".
 Definition m := svmap0.[a <- I64.repr 3].[b <- I64.repr 2]%vmap.
-Definition p : cmd := [:: MkI xH (Copn [:: Rnone xH; Rvar (VarI c xH)] Oaddcarry [:: Pvar (VarI a xH); Pvar (VarI b xH); Pbool false])].
+Definition p : cmd := [:: MkI xH (Copn [:: Lnone xH; Lvar (VarI c xH)] Oaddcarry [:: Pvar (VarI a xH); Pvar (VarI b xH); Pbool false])].
 
 Lemma example1: hoare (fun s => s.(sevm) = m) p (fun s => s.(sevm).[c]%vmap = I64.repr 5).
 Proof.
-have H := (@hoare_opn (fun s : sestate => ((sevm s).[c])%vmap = I64.repr 5) [:: Rnone xH; Rvar (VarI c xH)] Oaddcarry [:: Pvar (VarI a xH); Pvar (VarI b xH); Pbool false] xH).
+have H := (@hoare_opn (fun s : sestate => ((sevm s).[c])%vmap = I64.repr 5) [:: Lnone xH; Lvar (VarI c xH)] Oaddcarry [:: Pvar (VarI a xH); Pvar (VarI b xH); Pbool false] xH).
 apply: (hoare_conseq _ _ H)=> //.
 move=> s /= Hm p r w.
 rewrite /ssem_pexprs /= Hm.
@@ -218,7 +218,7 @@ Lemma hoare_call Pf Qf x (f:funname) e (Q:hpred) ii ic:
        Pf s.(semem) vargs /\
        forall m' vres s',
          Qf m' vres ->
-         swrite_rvals {| semem := m'; sevm := sevm s |} x vres = ok s' ->
+         swrite_lvals {| semem := m'; sevm := sevm s |} x vres = ok s' ->
          Q s')
     [:: MkI ii (Ccall ic x f e)]
     Q.
@@ -234,7 +234,7 @@ Qed.
 
 (*
 (* -------------------------------------------------------------------- *)
-Lemma hoare_for0 (i:rval sword) dir (e1 e2:pexpr sword) c Q:
+Lemma hoare_for0 (i:lval sword) dir (e1 e2:pexpr sword) c Q:
   hoare (fun s => Q s /\ (ssem_pexpr (sevm s) e2 < ssem_pexpr (sevm s) e1)%Z) 
         [::Cfor i (dir,e1,e2) c]
         Q.
@@ -245,21 +245,21 @@ by move: H0; rewrite /wrange Z.leb_antisym h.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma hoare_for_base_x (i : rval sword) (ws : seq.seq word) I c :
+Lemma hoare_for_base_x (i : lval sword) (ws : seq.seq word) I c :
   (forall j : word, hoare
-     (fun s => [/\ I s, ssem_rval s.(sevm) i = j & j \in ws])
+     (fun s => [/\ I s, ssem_lval s.(sevm) i = j & j \in ws])
      c
-     (fun s => [/\ I s & ssem_rval s.(sevm) i = j]))
+     (fun s => [/\ I s & ssem_lval s.(sevm) i = j]))
 
   -> (forall s1 s2, s1.(sevm) = s2.(sevm) [\vrv i] -> I s1 -> I s2)
   -> forall s1 s2, ssem_for i ws s1 c s2 -> I s1 ->
-      [/\ I s2 & ssem_rval s2.(sevm) i = last (ssem_rval s1.(sevm) i) ws].
+      [/\ I s2 & ssem_lval s2.(sevm) i = last (ssem_lval s1.(sevm) i) ws].
 Proof.
 move=> hc Iindep s1 s2 h; elim: h hc Iindep => //=.
 move=> {s1 s2 i ws c} i w ws c s1 s2 s3 sc hfor ih hc Idp Is1.
 move: sc; set s1' := (X in ssem X) => sc.
 case: (hc w _ _ sc); first (split; first last).
-+ by rewrite inE eqxx. + by rewrite ssem_swrite_rval.
++ by rewrite inE eqxx. + by rewrite ssem_swrite_lval.
 + by apply: Idp Is1 => x Sx; rewrite swrite_nin.
 case/ih => // => [j s'1 s'2 /hc {hc}hc [? ? j_ws]|].
 + by apply/hc; split=> //; rewrite inE j_ws orbT.
@@ -271,13 +271,13 @@ Qed.
 (* Definition incr dir (i : word) := 
   if dir is UpTo then i+1 else i-1.
 
-Lemma hoare_for_base (i:rval sword) dir (e1 e2:pexpr sword) I cmd:
+Lemma hoare_for_base (i:lval sword) dir (e1 e2:pexpr sword) I cmd:
   donotdep (vrv i) e1 ->
   donotdep (vrv i) e2 ->
 
   (forall (w1 w2 j : word),
     hoare
-      (fun s => [/\ I s, ssem_rval s.(sevm) i = j, w1 <= j <= w2
+      (fun s => [/\ I s, ssem_lval s.(sevm) i = j, w1 <= j <= w2
               , ssem_pexpr s.(sevm) e1 = w1
               & ssem_pexpr s.(sevm) e2 = w2])
 
@@ -286,8 +286,8 @@ Lemma hoare_for_base (i:rval sword) dir (e1 e2:pexpr sword) I cmd:
       (fun s => 
          let w  := if dir is UpTo then w2 else w1 in
          let i1 := if j == w then j else incr dir j in
-         let s' := {|semem := s.(semem); sevm := swrite_rval s.(sevm) i i1|} in
-         [/\ I s', ssem_rval s.(sevm) i = j
+         let s' := {|semem := s.(semem); sevm := swrite_lval s.(sevm) i i1|} in
+         [/\ I s', ssem_lval s.(sevm) i = j
           , ssem_pexpr s'.(sevm) e1 = w1
           & ssem_pexpr s'.(sevm) e2 = w2]))
 
@@ -298,7 +298,7 @@ Lemma hoare_for_base (i:rval sword) dir (e1 e2:pexpr sword) I cmd:
        let w1 := ssem_pexpr s.(sevm) e1 in
        let w2 := ssem_pexpr s.(sevm) e2 in
        let i0 := if dir is UpTo then w1 else w2 in
-       let s' := {|semem := s.(semem); sevm := swrite_rval s.(sevm) i i0|} in
+       let s' := {|semem := s.(semem); sevm := swrite_lval s.(sevm) i i0|} in
        I s' /\ w1 <= w2)
 
     [:: Cfor i (dir, e1, e2) cmd ]
@@ -306,7 +306,7 @@ Lemma hoare_for_base (i:rval sword) dir (e1 e2:pexpr sword) I cmd:
     (fun s => 
        let w1 := ssem_pexpr s.(sevm) e1 in
        let w2 := ssem_pexpr s.(sevm) e2 in
-       I s /\ ssem_rval s.(sevm) i = if dir is UpTo then w2 else w1).
+       I s /\ ssem_lval s.(sevm) i = if dir is UpTo then w2 else w1).
 Proof. Admitted.
 *)
 
@@ -318,15 +318,15 @@ Proof. Admitted.
 Definition f2h (pm:pmap) (sm:smap) f : hpred := 
   fun se => ssem_sform {|pm := pm; sm := sm; vm := se.(sevm) |} f.
 
-Definition wp_assign {t1} (rv:rval t1) (e:pexpr t1) (s:pvsubst) := 
+Definition wp_assign {t1} (rv:lval t1) (e:pexpr t1) (s:pvsubst) := 
   osubst (ewrite rv (p2sp e) Ssv.empty) s.
   
-Instance wf_wp_assign (s:pvsubst) {Hs:wf_vsubst s} t (rv:rval t) e: wf_vsubst (wp_assign rv e s).
+Instance wf_wp_assign (s:pvsubst) {Hs:wf_vsubst s} t (rv:lval t) e: wf_vsubst (wp_assign rv e s).
 Proof.
   by rewrite /wp_assign;apply wf_osubst=> //;apply /wf_ewrite;rewrite sfv_p2sp.
 Qed.
 
-Lemma hoare_asgn pm sm {t1} (rv:rval t1) (e:pexpr t1) f (s:pvsubst) {Hs:wf_vsubst s}:
+Lemma hoare_asgn pm sm {t1} (rv:lval t1) (e:pexpr t1) f (s:pvsubst) {Hs:wf_vsubst s}:
   hoare (f2h pm sm (fsubst (wp_assign rv e s) f))
         [:: assgn rv e] 
         (f2h pm sm (fsubst s f)).
@@ -341,7 +341,7 @@ Proof.
   apply (eq_on_trans H1);constructor=> //.
   rewrite /ewrite /ssubst /rho/= => ??.
   rewrite !Fv.get0. apply eq_on_fv;constructor=> //= ??;rewrite Fv.get0.
-  by rewrite (@ewrite_rvalP rho (vm rho)) //= sem_p2sp.
+  by rewrite (@ewrite_lvalP rho (vm rho)) //= sem_p2sp.
 Qed.
 
 Definition wp_bcmd bc s := 
@@ -466,10 +466,10 @@ Qed.
 
 (* Call *)
 
-Definition init_st m t (rv:rval t) (v:sst2ty t) := 
-  {| semem := m; sevm := swrite_rval svmap0 rv v |}.
+Definition init_st m t (rv:lval t) (v:sst2ty t) := 
+  {| semem := m; sevm := swrite_lval svmap0 rv v |}.
 
-Definition f2fpred pm sm P t (rv:rval t) := 
+Definition f2fpred pm sm P t (rv:lval t) := 
   fun m (v:sst2ty t)  => f2h pm sm P (init_st m rv v).
  
 Record shoaref pm sm t tr Pf (f:fundef t tr) Qf := {
@@ -478,7 +478,7 @@ Record shoaref pm sm t tr Pf (f:fundef t tr) Qf := {
   sh_Qf : Sv.subset (ffv Qf) (vrv f.(fd_res));
 }.
   
-Definition wp_call t tr (x:rval tr) (f:fundef t tr) (e:pexpr t)
+Definition wp_call t tr (x:lval tr) (f:fundef t tr) (e:pexpr t)
    (Pf Qf Q:sform) := 
   let id := fresh_svar (Ssv.union (sffv Qf) (sffv Q)) in
   let v  := SVar tr id in
@@ -487,9 +487,9 @@ Definition wp_call t tr (x:rval tr) (f:fundef t tr) (e:pexpr t)
   let qf := fsubst (ewrite f.(fd_res) v (Ssv.singleton v)) Qf in
   f_and p1 (f_forall v (f_imp qf q)).
 
-Lemma swrite_dep t (rv:rval t) (v:sst2ty t) z s1 s2:
+Lemma swrite_dep t (rv:lval t) (v:sst2ty t) z s1 s2:
   Sv.In z (vrv rv) ->
-  ((swrite_rval s1 rv v).[z])%vmap = ((swrite_rval s2 rv v).[z])%vmap.
+  ((swrite_lval s1 rv v).[z])%vmap = ((swrite_lval s2 rv v).[z])%vmap.
 Proof.
   elim: rv v s1 s2 => /= [x | ?? r1 Hr1 r2 Hr2] v s1 s2;rewrite ?vrv_var ?vrv_pair=> Hin.
   by have <- : x = z;[SvD.fsetdec | rewrite !Fv.setP_eq].
@@ -509,7 +509,7 @@ Proof.
   + apply: iffRL H1;rewrite /f2fpred /init_st /f2h /=. 
     have wf_e := wf_ewrite (fd_arg f) (SsvP.MP.subset_equal (@sfv_p2sp _ e)).
     rewrite fsubstP;apply feq_on_fv=> //;constructor=> //= ??.
-    rewrite Fv.get0 (@ewrite_rvalP rho (vm rho)) // sem_p2sp /=.
+    rewrite Fv.get0 (@ewrite_lvalP rho (vm rho)) // sem_p2sp /=.
     apply swrite_dep;have /Sv.subset_spec := sh_Pf Hf;SvD.fsetdec. 
   move=> m' v. have /= {H2} := H2 v.
   set x' := SVar _ _. 
@@ -518,7 +518,7 @@ Proof.
   + apply H2;apply: iffRL HQf;rewrite /f2fpred /init_st /f2h /=.
     have wf_e := wf_ewrite (fd_res f) (SsvP.MP.subset_equal (sfv_svar x')).
     rewrite fsubstP;apply feq_on_fv=> //;constructor=> //= z ?.
-    + rewrite Fv.get0 (@ewrite_rvalP rho' (vm rho')) //= Msv.setP_eq. 
+    + rewrite Fv.get0 (@ewrite_lvalP rho' (vm rho')) //= Msv.setP_eq. 
       by apply swrite_dep;have /Sv.subset_spec := sh_Qf Hf;SvD.fsetdec. 
     rewrite Msv.get0 Msv.setP_neq //. 
     apply /eqP=> Heq. apply (@fresh_svarP tr (Ssv.union (sffv Qf) (sffv Q))). 
@@ -526,14 +526,14 @@ Proof.
   apply: iffRL; rewrite /f2fpred /init_st /f2h /=.
   have wf_e := wf_ewrite x (SsvP.MP.subset_equal (sfv_svar x')).
   rewrite fsubstP;apply feq_on_fv=> //;constructor=> //= z ?.
-  + by rewrite Fv.get0 (@ewrite_rvalP rho' (vm rho')) //= Msv.setP_eq. 
+  + by rewrite Fv.get0 (@ewrite_lvalP rho' (vm rho')) //= Msv.setP_eq. 
   rewrite Msv.get0 Msv.setP_neq //. 
   by apply /eqP=> Heq;apply (@fresh_svarP tr (Ssv.union (sffv Qf) (sffv Q)));SsvD.fsetdec. 
 Qed.
 
-Lemma swrite_rval_ssem x t (rv:rval t) s s': 
+Lemma swrite_lval_ssem x t (rv:lval t) s s': 
   Sv.In x (vrv rv) ->
- (swrite_rval s' rv (ssem_rval s rv)).[x]%vmap = s.[x]%vmap.
+ (swrite_lval s' rv (ssem_lval s rv)).[x]%vmap = s.[x]%vmap.
 Proof.
   elim: rv s' => [w | ?? r1 Hr1 r2 Hr2] s' /=;rewrite ?vrv_var ?vrv_pair=> Hin.
   have <- : w = x by SvD.fsetdec.
@@ -559,7 +559,7 @@ Proof.
     apply iffRL; apply feq_on_fv=> //;constructor=> //= x Hin.
     by apply swrite_dep;SvD.fsetdec.
   constructor=> //= x Hin. 
-  by apply swrite_rval_ssem;SvD.fsetdec.
+  by apply swrite_lval_ssem;SvD.fsetdec.
 Qed.
 
 (* Loop *)
@@ -589,7 +589,7 @@ Fixpoint gen_mod_rec (m:list var) (s:pvsubst) (f:sform) :=
 Definition gen_mod m s f := 
   gen_mod_rec (Sv.elements m) {|v_fv := Ssv.union s.(v_fv) (sffv f); v_v := s.(v_v)|} f.
 
-Definition pre_for dir (i:rval sword) (e1 e2:spexpr sword) c I Q := 
+Definition pre_for dir (i:lval sword) (e1 e2:spexpr sword) c I Q := 
   let fvi := vrv i in
   let fv1 := fv e1 in
   let fv2 := fv e2 in
@@ -605,7 +605,7 @@ Definition pre_for dir (i:rval sword) (e1 e2:spexpr sword) c I Q :=
                (gen_mod modc (ewrite i eend Ssv.empty) (f_imp I Q))))
   else None.
 
-Definition post_for_body (I:sform) dir (e1 e2:spexpr sword) id0 (i:rval sword) :=
+Definition post_for_body (I:sform) dir (e1 e2:spexpr sword) id0 (i:lval sword) :=
   let i0  := SVar sword id0 in
   let vi := 
     sif (seq i0 (if dir is UpTo then e2 else e1))
@@ -729,12 +729,12 @@ Proof.
   by rewrite SvD.F.elements_iff.
 Qed.
   
-Lemma shoare_for pm (sm:smap) fi (i : rval sword) dir (e1 e2 : pexpr sword) c P I Q c1 id0 I' Q':
+Lemma shoare_for pm (sm:smap) fi (i : lval sword) dir (e1 e2 : pexpr sword) c P I Q c1 id0 I' Q':
   wp_for dir i e1 e2 c I Q = Some ((id0,I'),Q') ->
   (forall (v0:word), 
      let i0  := SVar sword id0 in
      let sm0 := sm.[i0 <- v0]%msv in
-      hoare (f2h pm sm0 (f_and I (f_eq (p2sp (rval2pe i)) i0))) c (f2h pm sm0 I')) ->
+      hoare (f2h pm sm0 (f_and I (f_eq (p2sp (lval2pe i)) i0))) c (f2h pm sm0 I')) ->
   hoare P c1 (f2h pm sm Q') -> 
   hoare P (rcons c1 (Cfor fi i (dir,e1,e2) c)) (f2h pm sm Q).
 Proof.
@@ -750,31 +750,31 @@ Proof.
   match type of Hc1 with
   | hoare _ _ (f2h _ _ (f_and ?X1 (f_and ?X2 ?X3))) => 
     set lee := X1; set I0 := X2; set IQ := X3 end.
-  set Eqi := f_eq (p2sp (rval2pe i)) e.
+  set Eqi := f_eq (p2sp (lval2pe i)) e.
   apply (@hoare_conseq (f2h pm sm (f_and (f_and lee I0) IQ))
           (f2h pm sm (f_and (f_and I Eqi) IQ))).
   + by move=> s;rewrite /f2h /=;tauto.
   + move=> s [[HI HEqi]] /gen_mod_imp. as_subgoal.
-    + rewrite /ewrite /= => x Hx;apply /negP=> /indom_ewrite_rval.
+    + rewrite /ewrite /= => x Hx;apply /negP=> /indom_ewrite_lval.
       by rewrite /vs0 (negbTE (Mv.indom0 _ _)) => -[] //;SvD.fsetdec.
     rewrite /f2h;set rho := {| pm := pm; sm := sm; vm := sevm s |}.
     rewrite fsubstP (@feq_on_fv (f_imp I Q) _ rho) //.
     + by move=> H;apply H.
     constructor => // z Hz /=.
-    rewrite Fv.get0 (@ewrite_rvalP rho (sevm s));last by move=> ?;rewrite Mv.get0.
-    have -> : ssem_spexpr rho e = ssem_rval (sevm s) i.
-    + by move: HEqi;rewrite /Eqi /f_eq /= seqP => /eqP <-;rewrite sem_p2sp ssem_rval2pe.
-    by rewrite swrite_ssem_rval.
+    rewrite Fv.get0 (@ewrite_lvalP rho (sevm s));last by move=> ?;rewrite Mv.get0.
+    have -> : ssem_spexpr rho e = ssem_lval (sevm s) i.
+    + by move: HEqi;rewrite /Eqi /f_eq /= seqP => /eqP <-;rewrite sem_p2sp ssem_lval2pe.
+    by rewrite swrite_ssem_lval.
   apply hoare_notmod;rewrite -/ssem_sform.
   + move=> s1 s2 Hs;apply feq_on_fv=> //=;constructor => z Hz //=.
     apply Hs;rewrite write_c_cons write_i_for write_c_nil.
     case : (SvP.MP.In_dec z (fv e)).
     + rewrite /e;case dir;SvD.fsetdec.
     move=> Hze; move: Hz=> /fv_gen_mod [].
-    + move=> y;rewrite /ewrite /= => /indom_ewrite_rval.
+    + move=> y;rewrite /ewrite /= => /indom_ewrite_lval.
       rewrite (negbTE (Mv.indom0 _ _)) => -[] // Hin.
       by have := @fv_ewrite y _ i e vs0 Hin; SvD.fsetdec.
-    rewrite indom_ewrite_rval (negbTE (Mv.indom0 _ _)) !Sv.union_spec=> H1 H2 _ [] => //;
+    rewrite indom_ewrite_lval (negbTE (Mv.indom0 _ _)) !Sv.union_spec=> H1 H2 _ [] => //;
       last by SvD.fsetdec.
     by move=> [] ?;[apply H2|apply H1];auto.  
   
@@ -782,11 +782,11 @@ Proof.
   + move=> s /=. rewrite /f_and sleP /I0 /= !sem_p2sp /= => -[] [] ? HI0 _;split=>//.
     move:HI0;apply iffRL;rewrite fsubstP /f2h /=.
     apply feq_on_fv=> //=;constructor=> // z Hz /=.
-    rewrite Fv.get0 (@ewrite_rvalP _ (sevm s)).
+    rewrite Fv.get0 (@ewrite_lvalP _ (sevm s)).
     + by case dir;rewrite sem_p2sp. 
     by move=> x;rewrite Mv.get0. 
   + move=> s /= [H1 H2];split => //.
-    by rewrite seqP /= sem_p2sp ssem_rval2pe /e;case: (dir) H2;rewrite sem_p2sp=> /eqP.
+    by rewrite seqP /= sem_p2sp ssem_lval2pe /e;case: (dir) H2;rewrite sem_p2sp=> /eqP.
   + move=> s1 s2 Heq;rewrite -(@sem_p2sp _ e1 {|pm:= pm;sm:=sm;vm:=s1|})
                              -(@sem_p2sp _ e1 {|pm:= pm;sm:=sm;vm:=s2|}).
     by apply eq_on_fv;constructor => //= x Hin;apply Heq;SvD.fsetdec.
@@ -797,7 +797,7 @@ Proof.
   move=> w1 w2 i0 {Hc1}.
   apply (@hoare_conseq (fun s : sestate =>
       (f2h pm sm I s /\ w1 <= i0 <= w2) /\
-      (ssem_rval (sevm s) i = i0 /\ ssem_pexpr (sevm s) e1 = w1 /\ ssem_pexpr (sevm s) e2 = w2))
+      (ssem_lval (sevm s) i = i0 /\ ssem_pexpr (sevm s) e1 = w1 /\ ssem_pexpr (sevm s) e2 = w2))
       (fun s : sestate =>
       (let i1 :=
          if i0 == match dir with
@@ -806,9 +806,9 @@ Proof.
                   end
          then i0
          else incr dir i0 in
-       let s' := {| semem := semem s; sevm := swrite_rval (sevm s) i i1 |} in
+       let s' := {| semem := semem s; sevm := swrite_lval (sevm s) i i1 |} in
        f2h pm sm I s') /\
-       (ssem_rval (sevm s) i = i0 /\ 
+       (ssem_lval (sevm s) i = i0 /\ 
         ssem_pexpr (sevm s) e1 = w1 /\ ssem_pexpr (sevm s) e2 = w2))).
   + by move=> s [] ?????;split;split.
   + move=> s [] /= ? [] Hi0 [Hw1 Hw2];split=> //;split => //.
@@ -821,23 +821,23 @@ Proof.
     by apply swrite_nin;SvD.fsetdec.
   apply hoare_notmod.
   + move=> s1 s2 Hs.
-    rewrite -!ssem_rval2pe.
-    rewrite -!(sem_p2sp (rval2pe i) {|pm:=pm; sm:= sm; vm:= _|})
+    rewrite -!ssem_lval2pe.
+    rewrite -!(sem_p2sp (lval2pe i) {|pm:=pm; sm:= sm; vm:= _|})
        -!(sem_p2sp e2 {|pm:=pm; sm:= sm; vm:= _|})
        -!(sem_p2sp e1 {|pm:=pm; sm:= sm; vm:= _|}). 
     set st1 := {| pm := pm; sm := sm; vm := sevm s1 |}.
     set st2 := {| pm := pm; sm := sm; vm := sevm s2 |}.
-    rewrite (@eq_on_fv _ (p2sp (rval2pe i)) st1 st2)
+    rewrite (@eq_on_fv _ (p2sp (lval2pe i)) st1 st2)
            ?(@eq_on_fv _ (p2sp e1) st1 st2) ?(@eq_on_fv _ (p2sp e2) st1 st2) //. 
     + by constructor=> //= x Hx;apply Hs;SvD.fsetdec.
     + by constructor=> //= x Hx;apply Hs;SvD.fsetdec.
-    by constructor=> //= x Hx;apply Hs;move: Hx; rewrite fv_rval2pe;SvD.fsetdec.
+    by constructor=> //= x Hx;apply Hs;move: Hx; rewrite fv_lval2pe;SvD.fsetdec.
   apply: hoare_conseq (Hc i0) => s /=.
   + move=> [] [] HI ? [] ? [] ??;rewrite /f2h /= seqP /= Msv.setP_eq;split.
     + apply: iffRL HI;apply feq_on_fv => //=;constructor => x Hx //=.
       rewrite Msv.setP_neq //;apply /eqP => ?;subst.
       by apply: fresh_svarP Hx.
-    by apply /eqP;rewrite sem_p2sp /= ssem_rval2pe.
+    by apply /eqP;rewrite sem_p2sp /= ssem_lval2pe.
   rewrite /post_for_body.
   apply iffLR.
   set i' := (SVar sword (fresh_svar (sffv I))).
@@ -856,7 +856,7 @@ Proof.
     by apply SsvP.MP.union_subset_3 => //;apply SsvP.MP.union_subset_3.
   have wfe' := @wf_ewrite _ i (sif k1 i' k2) (Ssv.singleton i') Hsub.
   rewrite /f2h fsubstP;apply feq_on_fv=> //=;constructor => /= x Hx.
-  + rewrite Fv.get0 (@ewrite_rvalP _ (sevm s)) /k1 /k2 /i'.
+  + rewrite Fv.get0 (@ewrite_lvalP _ (sevm s)) /k1 /k2 /i'.
     + by rewrite sifP /= seqP /= Msv.setP_eq;case dir;rewrite sem_p2sp /= Msv.setP_eq.
     by move=> ?;rewrite Mv.get0.
   rewrite Msv.get0 Msv.setP_neq //;apply /eqP=> ?;subst x.

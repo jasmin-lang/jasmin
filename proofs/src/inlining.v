@@ -43,7 +43,7 @@ Local Open Scope seq_scope.
 (* ** inlining
  * -------------------------------------------------------------------- *)
 
-Definition assgn_tuple iinfo (xs:rvals) (es:pexprs) :=
+Definition assgn_tuple iinfo (xs:lvals) (es:pexprs) :=
   let assgn xe := MkI iinfo (Cassgn xe.1 AT_rename xe.2) in
   map assgn (zip xs es).
 
@@ -58,7 +58,7 @@ Definition check_rename iinfo f fd1 fd2 (s:Sv.t) :=
   let s2 := read_es (map Pvar fd2.(f_res)) in
 (*  let s2 := read_c_rec s2 fd2.(f_body) in *)
   let s2 := write_c_rec s2 fd2.(f_body) in
-  let s2 := vrvs_rec s2 (map Rvar fd2.(f_params)) in
+  let s2 := vrvs_rec s2 (map Lvar fd2.(f_params)) in
   if disjoint s s2 then ciok tt 
   else cierror iinfo (Cerr_inline s s2).
 
@@ -96,7 +96,7 @@ Fixpoint inline_i (p:prog) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
         Let fd := get_fun p iinfo f in 
         let fd' := rename_fd fd in
         Let _ := check_rename iinfo f fd fd' (Sv.union (vrvs xs) X) in
-        ciok (X,  assgn_tuple iinfo (map Rvar fd'.(f_params)) es ++ 
+        ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) es ++ 
                   (fd'.(f_body) ++ assgn_tuple iinfo xs (map Pvar fd'.(f_res))))
       else ciok (X, [::i])        
     end
@@ -288,11 +288,11 @@ Section SUBSET.
   
 End SUBSET.
 
-Lemma assgn_tuple_Rvar p ii (xs:seq var_i) es vs s s' :
-  let xs := map Rvar xs in
+Lemma assgn_tuple_Lvar p ii (xs:seq var_i) es vs s s' :
+  let xs := map Lvar xs in
   disjoint (vrvs xs) (read_es es) ->  
   sem_pexprs s es = ok vs ->
-  write_rvals s xs vs = ok s' ->
+  write_lvals s xs vs = ok s' ->
   sem p s (assgn_tuple ii xs es) s'.
 Proof.
   rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
@@ -317,7 +317,7 @@ Lemma assgn_tuple_Pvar p ii xs rxs vs s s' :
   let es := map Pvar rxs in
   disjoint (vrvs xs) (read_es es) -> 
   mapM (fun x : var_i => get_var (evm s) x) rxs = ok vs ->
-  write_rvals s xs vs = ok s' ->
+  write_lvals s xs vs = ok s' ->
   sem p s (assgn_tuple ii xs es) s'.
 Proof.
   rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
@@ -369,8 +369,8 @@ Section WF.
     by move=> Hwf; apply: rbindP => vm /(wf_write_var Hwf) -/Hrec H/H.
   Qed.
   
-  Lemma wf_write_rval x ve s1 s2 :
-    wf_vm (evm s1) -> write_rval x ve s1 = ok s2 -> wf_vm (evm s2).
+  Lemma wf_write_lval x ve s1 s2 :
+    wf_vm (evm s1) -> write_lval x ve s1 = ok s2 -> wf_vm (evm s2).
   Proof.
     case: x => [vi|v|v e|v e] /= Hwf.
     + by move=> [<-]. + by apply wf_write_var. + by t_rbindP => -[<-].
@@ -379,11 +379,11 @@ Section WF.
     by apply:rbindP=>? Hset [<-] /=;apply: wf_set_var Hset.
   Qed.
   
-  Lemma wf_write_rvals xs vs s1 s2 :
-    wf_vm (evm s1) -> write_rvals s1 xs vs = ok s2 -> wf_vm (evm s2).
+  Lemma wf_write_lvals xs vs s1 s2 :
+    wf_vm (evm s1) -> write_lvals s1 xs vs = ok s2 -> wf_vm (evm s2).
   Proof.
     elim: xs vs s1 => [ | x xs Hrec] [ | v vs] s1 //= Hwf => [[<-]//| ].
-    apply: rbindP => s1' /(wf_write_rval Hwf);apply Hrec.
+    apply: rbindP => s1' /(wf_write_lval Hwf);apply Hrec.
   Qed.
 
   Lemma wf_sem p s1 c s2 :
@@ -398,9 +398,9 @@ Section WF.
     + by move=> s1 s2 H;sinversion H.
     + by move=> i c Hi Hc s1 s2 H;sinversion H => /(Hi _ _ H3);apply Hc.
     + move=> x t e s1 s2 H;sinversion H.
-      by apply:rbindP H5 => v ? Hw ?; apply: wf_write_rval Hw.
+      by apply:rbindP H5 => v ? Hw ?; apply: wf_write_lval Hw.
     + move=> xs o es s1 s2 H;sinversion H. 
-      by apply:rbindP H5 => ?? Hw ?;apply: wf_write_rvals Hw.
+      by apply:rbindP H5 => ?? Hw ?;apply: wf_write_lvals Hw.
     + by move=> e c1 c2 Hc1 Hc2 s1 s2 H;sinversion H;[apply Hc1 | apply Hc2].
     + move=> i dir lo hi c Hc s1 s2 H;sinversion H.
       elim: H9 Hc => // ???? ???? Hw Hsc Hsf Hrec Hc.
@@ -410,7 +410,7 @@ Section WF.
       move=> ?????? Hsc Hsw Hrec [??];subst.
       by move=> /(Hc _ _ Hsc);apply Hrec.
     move=> i xs f es s1 s2 H;sinversion H=> Hwf.
-    by apply: wf_write_rvals H8.
+    by apply: wf_write_lvals H8.
   Qed. 
 
   Lemma wf_vm_uincl vm : wf_vm vm -> vm_uincl vmap0 vm.
@@ -480,7 +480,7 @@ Section PROOF.
   Proof. by move=> _ Hi ??? /Hi. Qed.
 
   Local Lemma Hassgn s1 s2 x tag e :
-    Let v := sem_pexpr s1 e in write_rval x v s1 = Ok error s2 ->
+    Let v := sem_pexpr s1 e in write_lval x v s1 = Ok error s2 ->
     Pi_r s1 (Cassgn x tag e) s2.
   Proof.
     case: s1 s2 => sm1 svm1 [sm2 svm2].
@@ -488,23 +488,23 @@ Section PROOF.
     rewrite read_i_assgn => Hwf Hvm.
     have /read_e_eq_on H: svm1 =[read_e e] vm1 by apply: eq_onI Hvm;SvD.fsetdec.
     rewrite H in Hse.
-    have [ | vm2 [/=Hvm2 Hw']]:= write_rval_eq_on _ Hw Hvm; first by SvD.fsetdec.
-    have /(_ Hwf):= wf_write_rval _ Hw'.
+    have [ | vm2 [/=Hvm2 Hw']]:= write_lval_eq_on _ Hw Hvm; first by SvD.fsetdec.
+    have /(_ Hwf):= wf_write_lval _ Hw'.
     exists vm2;split=>//; first by apply: eq_onI Hvm2;SvD.fsetdec.   
     by apply: sem_seq1;constructor;constructor;rewrite Hse.
   Qed.
 
   Local Lemma Hopn s1 s2 o xs es : 
     Let x := Let x := sem_pexprs s1 es in sem_sopn o x
-    in write_rvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
+    in write_lvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
   Proof.
     case: s1 s2 => sm1 svm1 [sm2 svm2].
     apply: rbindP => ve Hse Hw ii X1 X2 c' [] <- <- vm1.
     rewrite read_i_opn => Hwf Hvm.
     have /read_es_eq_on H: svm1 =[read_es es] vm1 by apply: eq_onI Hvm;SvD.fsetdec.
     rewrite H in Hse.
-    have [ | vm2 [Hvm2 Hw']]:= write_rvals_eq_on _ Hw Hvm; first by SvD.fsetdec.
-    have /(_ Hwf):= wf_write_rvals _ Hw'.
+    have [ | vm2 [Hvm2 Hw']]:= write_lvals_eq_on _ Hw Hvm; first by SvD.fsetdec.
+    have /(_ Hwf):= wf_write_lvals _ Hw'.
     exists vm2;split=>//; first by apply: eq_onI Hvm2;SvD.fsetdec.   
     by apply: sem_seq1;constructor;constructor;rewrite Hse.
   Qed.
@@ -621,15 +621,15 @@ Section PROOF.
     sem_pexprs s1 args = Ok error vargs ->
     sem_call p (emem s1) fn vargs m2 vs ->
     Pfun (emem s1) fn vargs m2 vs ->
-    write_rvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
+    write_lvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
     Pi_r s1 (Ccall ii xs fn args) s2.
   Proof.
     case:s1 => sm1 svm1 /= Hes Hsc Hfun Hw ii' X1 X2 c' /=;case:ii;last first.
     + move=> [<- <-] vm1 Hwf1 Hvm1. 
-      have [|vm2 /= [Hvm2 Hxs]]:= write_rvals_eq_on _ Hw Hvm1.
+      have [|vm2 /= [Hvm2 Hxs]]:= write_lvals_eq_on _ Hw Hvm1.
       + by rewrite read_i_call;SvD.fsetdec.
       exists vm2;split.
-      + by apply: wf_write_rvals Hxs.
+      + by apply: wf_write_lvals Hxs.
       + by apply: eq_onI Hvm2;rewrite read_i_call;SvD.fsetdec.
       apply sem_seq1;constructor;eapply Ecall;eauto.
       symmetry;rewrite -Hes;apply read_es_eq_on with Sv.empty.
@@ -643,7 +643,7 @@ Section PROOF.
     move=> {H0 H1 H2 Hfd' Hfd Hcheckf Hsc Hinline}.
     move: Hdisj; rewrite read_i_call vrvs_recE write_c_recE.
     move: Hvs Hwv Hbody;set rfd := rename_fd _ => Hvs Hwv Hbody Hdisjoint Hvm1.
-    rewrite write_vars_rvals in Hwv.
+    rewrite write_vars_lvals in Hwv.
     have [||/= vm1' [Wvm1' Uvm1']]:= @writes_uincl _ _ vm1 _ vargs vargs _ _ Hwv.
     + by apply wf_vm_uincl. + by apply List_Forall2_refl.
     have [vm3 [Hsem' Uvm3]]:= sem_uincl Uvm1' Hbody.
@@ -656,12 +656,12 @@ Section PROOF.
         by move: Hdisjoint;rewrite /disjoint /is_true !Sv.is_empty_spec;SvD.fsetdec.
       move=> z Hz;apply (writeP Hsem').
       by move: Hdisjoint;rewrite /disjoint /is_true !Sv.is_empty_spec;SvD.fsetdec.
-    have [|vm4 [/= Hvm4 Hw']]:= write_rvals_eq_on _ Hw Heqvm;first by SvD.fsetdec.
+    have [|vm4 [/= Hvm4 Hw']]:= write_lvals_eq_on _ Hw Heqvm;first by SvD.fsetdec.
     exists vm4;split.
-    + by apply: wf_write_rvals Hw';apply: (wf_sem Hsem');apply: wf_write_rvals Wvm1'.
+    + by apply: wf_write_lvals Hw';apply: (wf_sem Hsem');apply: wf_write_lvals Wvm1'.
     + by apply: eq_onI Hvm4;SvD.fsetdec.
     apply sem_app with {| emem := emem s1'; evm := vm1' |}.
-    + apply: assgn_tuple_Rvar Wvm1'.
+    + apply: assgn_tuple_Lvar Wvm1'.
       + by move: Hdisjoint;rewrite /disjoint /is_true !Sv.is_empty_spec;SvD.fsetdec.
       have /read_es_eq_on -/(_ sm1) <- // : svm1 =[read_es args] vm1.
       by apply: eq_onI Hvm1;SvD.fsetdec.
