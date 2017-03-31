@@ -225,28 +225,92 @@ Inductive texpr : stype → Type :=
 .
 
 Section SEM_TEXPR.
-  Context (m: sestate).
+  Context (m: mem) (s: env).
   Fixpoint sem_texpr ty (e: texpr ty) : ssem_t ty :=
     match e in texpr ty return ssem_t ty with
     | Tconst z => z
     | Tbool b => b
     | Tcast e => I64.repr (sem_texpr sint e)
-    | Tvar x => (sevm m).[x]
+    | Tvar x => s.[x]
     | Tget n x e =>
-      let a := (sevm m).[{| vtype := sarr n; vname := x |}] in
+      let a := s.[{| vtype := sarr n; vname := x |}] in
       let i := sem_texpr sint e in
       FArray.get a i
     | Tload x e =>
-      let w1 := (sevm m).[{| vtype := sword; vname := x |}] in
+      let w1 := s.[{| vtype := sword; vname := x |}] in
       let w2 := sem_texpr sword e in
-      let w := read_mem (semem m) (I64.add w1 w2) in
+      let w := read_mem m (I64.add w1 w2) in
       w
     | Tnot e => negb (sem_texpr sbool e)
     | Tapp2 op e1 e2 =>
       let v1 := sem_texpr (op2_type_i op) e1 in
       let v2 := sem_texpr (op2_type_i op) e2 in
       sem_texpr_sop2 op v1 v2
-    end%vmap.
+    end%mv.
 End SEM_TEXPR.
+
+Lemma sem_texpr_m (m: mem) (s s': env) :
+  env_ext s s' →
+  ∀ ty e, sem_texpr m s ty e = sem_texpr m s' ty e.
+Proof.
+  move=> E ty e.
+  elim: e => //; simpl; congruence.
+Qed.
+
+Definition stype_eq_dec (ty ty': stype) : { ty = ty' } + { True } :=
+  match ty, ty' with
+  | sword, sword => left Logic.eq_refl
+  | sbool, sbool => left Logic.eq_refl
+  | sint, sint => left Logic.eq_refl
+  | sarr n, sarr n' =>
+    match Pos.eq_dec n n' with
+    | left EQ => left (f_equal sarr EQ)
+    | right _ => right I
+    end
+  | _, _ => right I
+  end.
+
+Fixpoint type_check_pexpr (e: pexpr) (ty: stype) : option (texpr ty) :=
+  match e with
+  | Pconst z => match ty with sint => Some (Tconst z) | _ => None end
+  | Pbool b => match ty with sbool => Some (Tbool b) | _ => None end
+  | Pcast p =>
+    match type_check_pexpr p sint with
+    | Some tp => match ty with sword => Some (Tcast tp) | _ => None end
+    | None => None end
+  | Pvar x =>
+    match stype_eq_dec (vtype x) ty with
+    | left EQ => Some (eq_rect _ _ (Tvar x) _ EQ)
+    | right _ => None
+    end
+  | Pget x i =>
+    match x with
+    | {| v_var := Var (sarr n) t |} =>
+    match type_check_pexpr i sint with
+    | Some ti => match ty with sword => Some (Tget n t ti) | _ => None end
+    | None => None end
+    | _ => None end
+  | Pload x i =>
+    match x with
+    | {| v_var := Var sword p |} =>
+    match type_check_pexpr i sword with
+    | Some ti => match ty with sword => Some (Tload p ti) | _ => None end
+    | None => None end
+    | _ => None end
+  | Pnot p =>
+    match type_check_pexpr p sbool with
+    | Some tp => match ty with sbool => Some (Tnot tp) | _ => None end
+    | None => None end
+  | Papp2 op p q =>
+    match type_check_pexpr p (op2_type_i op) with
+    | Some tp =>
+    match type_check_pexpr q (op2_type_i op) with
+    | Some tq =>
+      match stype_eq_dec (op2_type_o op) ty with
+      | left EQ => Some (eq_rect _ _ (Tapp2 op tp tq) _ EQ)
+      | _ => None end
+    | None => None end
+    | None => None end
+  end.
 
 End WEAKEST_PRECONDITION.
