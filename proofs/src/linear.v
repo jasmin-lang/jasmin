@@ -122,8 +122,10 @@ Inductive lsem (c:lcmd) : lstate -> lstate -> Prop:=
 | LSem0 : forall s, lsem c s s
 | LSem1 : forall s1 s2 s3, lsem1 c s1 s2 -> lsem c s2 s3 -> lsem c s1 s3.
 
-Inductive lsem_fd (fd: lfundef) m1 m2 m2' vm2 va vr s1 s2 : Prop := 
-| LSem_fd : forall p cs ii,
+Check S.sem_call.
+
+Inductive lsem_fd m1 (fd: lfundef) va m2 vr : Prop := 
+| LSem_fd : forall p cs ii vm2 m2' s1 s2,
     alloc_stack m1 fd.(lfd_stk_size) = ok p ->
     let c := fd.(lfd_body) in
     write_var  (S.vstk fd.(lfd_nstk)) p.1 (Estate p.2 vmap0) = ok s1 ->
@@ -133,7 +135,7 @@ Inductive lsem_fd (fd: lfundef) m1 m2 m2' vm2 va vr s1 s2 : Prop :=
     mapM (fun (x:var_i) => get_var vm2 x) fd.(lfd_res) = ok vr ->
     m2 = free_stack m2' p.1 fd.(lfd_stk_size) ->
     List.Forall is_full_array vr ->
-    lsem_fd fd m1 m2 m2' vm2 va vr s1 s2.
+    lsem_fd m1 fd va m2 vr.
 
 Lemma lsem_trans s2 s1 s3 c : 
   lsem c s1 s2 -> lsem c s2 s3 -> lsem c s1 s3.
@@ -208,21 +210,26 @@ Definition linear_fd (fd:S.sfundef) :=
    (fun p => ok
      (LFundef (S.sf_stk_sz fd) (S.sf_stk_id fd) (S.sf_params fd) p.2 (S.sf_res fd))).
 
-(*
 Section CAT.
 
-  Let Pi (i:S.instr) := 
+  Let Pi (i:instr) := 
     forall lbl l , 
      linear_i i lbl l = 
      linear_i i lbl [::] >>= (fun (p:label*lcmd) => Ok unit (p.1, p.2 ++ l)).
 
-  Let Pc (c:Scmd) := 
+  Let Pr (i:instr_r) :=
+    forall ii, Pi (MkI ii i).
+
+  Let Pc (c:cmd) := 
     forall lbl l , 
      linear_c linear_i c lbl l = 
      linear_c linear_i c lbl [::] >>= 
        (fun (p:label*lcmd) => Ok unit (p.1, p.2 ++ l)).
 
-  Let Pf ta tr (fd:S.fundef ta tr) := True.
+  Let Pf (fd:fundef) := True.
+
+  Let HmkI: forall i ii, Pr i -> Pi (MkI ii i).
+  Proof. by []. Qed.  
 
   Let Hskip : Pc [::].
   Proof. by []. Qed.
@@ -232,14 +239,17 @@ Section CAT.
     move=> i c Hi Hc lbl l /=.
     rewrite Hc !bindA;apply bind_eq => //= p.
     by rewrite Hi (Hi p.1 p.2) bindA;apply bind_eq => //= p';rewrite catA.
- Qed.
+  Qed.
 
-  Let Hbcmd : forall bc,  Pi (S.Cbcmd bc).
-  Proof. by move=>[? x e|x e|e1 e2] lbl l. Qed.
+  Let Hassgn : forall x t e, Pr (Cassgn x t e).
+  Proof. by []. Qed.
 
-  Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (S.Cif e c1 c2).
+  Let Hopn : forall xs o es, Pr (Copn xs o es).
+  Proof. by []. Qed.
+
+  Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Proof.
-    move=> e c1 c2 Hc1 Hc2 lbl l /=.
+    move=> e c1 c2 Hc1 Hc2 ii lbl l /=.
     case Heq1: (c1)=> [|i1 l1].
     + by rewrite Hc2 (Hc2 _ [::_]) !bindA;apply bind_eq => //= p;rewrite -catA.
     rewrite -Heq1=> {Heq1 i1 l1};case Heq2: (c2)=> [|i2 l2].
@@ -250,37 +260,36 @@ Section CAT.
     by rewrite -!catA /= -catA.
   Qed.
 
-  Let Hwhile : forall e c, Pc c -> Pi (S.Cwhile e c).
-  Proof.
-    move=> e c Hc lbl l /=.
-    by rewrite Hc (Hc _ [::_;_]) !bindA;apply bind_eq => //= p;rewrite -!catA.
-  Qed.
-     
-  Let Hcall : forall ta tr x (f:S.fundef ta tr) a, Pf f -> Pi (S.Ccall x f a).
+  Let Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir, lo, hi) c).
   Proof. by []. Qed.
 
-  Let Hfunc : forall ta tr nstk sz (x:lval ta) c (re:lval tr), 
-    Pc c -> Pf (S.FunDef nstk sz x c re).
+  Let Hwhile : forall e c, Pc c -> Pr (Cwhile e c).
+  Proof.
+    move=> e c Hc ii lbl l /=.
+    by rewrite Hc (Hc _ [::_;_]) !bindA;apply bind_eq => //= p;rewrite -!catA.
+  Qed.
+
+  Let Hcall : forall i xs f es, Pr (Ccall i xs f es).
   Proof. by []. Qed.
 
   Lemma linear_i_nil i lbl l :
      linear_i i lbl l = 
      linear_i i lbl [::] >>= (fun (p:label*lcmd) => Ok unit (p.1, p.2 ++ l)).
   Proof. 
-    apply (@S.instr_rect2 Pi Pc Pf Hskip Hseq Hbcmd Hif Hwhile Hcall Hfunc).
+    apply (@instr_Rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
   Qed.
 
   Lemma linear_c_nil c lbl l :
      linear_c linear_i c lbl l = 
      linear_c linear_i c lbl [::] >>= (fun (p:label*lcmd) => Ok unit (p.1, p.2 ++ l)).
   Proof. 
-    apply (@S.cmd_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hwhile Hcall Hfunc).
+    apply (@cmd_rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
   Qed.
 
 End CAT.
 
 Definition valid min max lc :=
-  all (fun i => match i with 
+  all (fun (i: linstr) => let (ii, ir) := i in match ir with
        | Llabel  lbl => ((min <=? lbl) && (lbl <? max))%positive
        | Lgoto   lbl => ((min <=? lbl) && (lbl <? max))%positive
        | Lcond _ lbl => ((min <=? lbl) && (lbl <? max))%positive
@@ -296,8 +305,8 @@ Lemma valid_le_min min2 min1 max lc :
   valid min2 max lc ->
   valid min1 max lc.
 Proof.
-  by move=> Hle1;apply sub_all=> -[|lbl|lbl|e lbl|] //= /andP [] Hle2 ->;
-   rewrite (Pos_leb_trans Hle1 Hle2).
+  by move=> Hle1; apply: sub_all=> -[ii [| |lbl|lbl|e lbl|]] //= /andP [] Hle2 ->;
+  rewrite (Pos_leb_trans Hle1 Hle2).
 Qed.
 
 Lemma valid_le_max max2 max1 min lc : 
@@ -305,7 +314,7 @@ Lemma valid_le_max max2 max1 min lc :
   valid min max1 lc ->
   valid min max2 lc.
 Proof.
-  by move=> Hle1;apply sub_all=> -[|lbl|lbl|e lbl|] //= /andP [] -> Hlt1 /=;
+  by move=> Hle1; apply sub_all=> -[ii [| |lbl|lbl|e lbl|]] //= /andP [] -> Hlt1 /=;
    rewrite (Pos_lt_leb_trans Hlt1 Hle1).
 Qed.
 
@@ -330,17 +339,18 @@ Lemma lsem_cat_tl c2 c1 s1 s2 : lsem c1 s1 s2 ->
 Proof.
   elim=> [s|{s1}{s2} s1 s2 s3 Hsem1 _];first by constructor.
   apply: LSem1.
-  case: Hsem1 => {s1 s2 s3}. 
-  + by move=> [m1 vm1 c] s2 bc cs /= -> Heq2 /=; apply LSem_bcmd with bc.
-  + move=> [m1 vm1 c] lbl cs /= -> /=.
-    by apply: (@LSem_lbl (c1++c2) _ lbl (cs++c2)).
-  + move=> [m1 vm1 c] lbl cs cs' /= -> Heq2.
-    apply: (@LSem_goto (c1 ++ c2) _ lbl (cs++c2) (cs'++c2)) => //=.
+  case: Hsem1 => {s1 s2 s3}.
+  + by move=> [m1 vm1 c] s2 ii x tag e cs /= -> Heq2 /=; by apply: LSem_assgn.
+  + move=> [m1 vm1 c] s2 ii xs o es cs /= -> Heq2 /=; by apply: LSem_opn.
+  + move=> [m1 vm1 c] ii lbl cs /= -> /=.
+    by apply: (@LSem_lbl (c1++c2) _ _ lbl (cs++c2)).
+  + move=> [m1 vm1 c] ii lbl cs cs' /= -> Heq2.
+    apply: (@LSem_goto (c1 ++ c2) _ _ lbl (cs++c2) (cs'++c2)) => //=.
     by apply: find_label_cat_tl.
-  move=> cond [m1 vm1 c] e lbl cs cs' /= -> Heq1 Heq2.
+  move=> cond ii [m1 vm1 c] e lbl cs cs' /= -> Heq1 Heq2.
   have -> : (if cond then cs' else cs) ++ c2 = if cond then cs'++c2 else cs++c2. 
   + by case cond.
-  apply: (@LSem_cond (c1 ++ c2) cond _ e lbl (cs++c2) (cs'++c2)) => //=.
+  apply: (@LSem_cond (c1 ++ c2) cond _ _ e lbl (cs++c2) (cs'++c2)) => //=.
   by apply find_label_cat_tl.
 Qed.
 
@@ -349,13 +359,14 @@ Lemma valid_find_label p1 p2 c c' lbl:
   find_label lbl c = Some c' ->
   valid p1 p2 c'.
 Proof.
-  elim: c => //= -[b| lbl'|lbl'|e lbl'|] l Hrec //= /andP[_ H];
+  elim: c => //= -[ii [| b| lbl'|lbl'|e lbl'|]] l Hrec //= /andP[_ H];
     move:(H) => /Hrec H' //.
   by case:ifP => [_[]<-|_].
 Qed.
 
-Definition is_jump lbl (i:linstr) := 
- match i with
+Definition is_jump lbl (i:linstr) :=
+ let (ii, ir) := i in
+ match ir with
  | Lgoto lbl' => lbl == lbl'
  | Lcond _ lbl' => lbl == lbl'
  | _ => false
@@ -369,7 +380,7 @@ Proof.
   have Hdisj' :  ~~ has (is_label lbl) c1.
   + by move: Hdisj;apply contra=> ->;rewrite orbC.
   have {Hrec}Hrec := Hrec Hdisj'.
-  case:i Hdisj=> [b|lbl'|lbl'|e lbl'|] //=;case:ifP => //= /eqP ?.
+  case:i Hdisj=> [ii [|b|lbl'|lbl'|e lbl'|]] //=;case:ifP => //= /eqP ?.
 Qed.
 
 Definition disjoint_lbl c1 c2 := 
@@ -402,19 +413,21 @@ Proof.
   + by constructor.
   have [Hv1' Hsem1']: disjoint_lbl c1 (lc s2) /\ lsem1 (c1 ++ c2) s1 s2.
   + case: Hsem1 Hdisjc=> {Hrec s1 s2 s3}.
-    + move=> [m1 vm1 c] s2 bc cs /= -> Heq2 /= H;split=>//.
-      by apply LSem_bcmd with bc.
-    + move=> [m1 vm1 c] lbl cs /= -> /= H;split => //.
-      by apply: (@LSem_lbl (c1++c2) _ lbl cs).
-    + move=> [m1 vm1 c] lbl cs cs' /= -> Hf H;split.
+    + move=> [m1 vm1 c] s2 ii x tag e cs /= -> Heq2 /= H;split=> //.
+      by apply: LSem_assgn.
+    + move=> [m1 vm1 c] s2 ii xs o es cs /= -> Heq2 /= H;split=> //.
+      by apply: LSem_opn.
+    + move=> [m1 vm1 c] ii lbl cs /= -> /= H;split => //.
+      by apply: (@LSem_lbl (c1++c2) _ _ lbl cs).
+    + move=> [m1 vm1 c] ii lbl cs cs' /= -> Hf H;split.
       + by apply: disjoint_find_label Hf.
-      apply: (@LSem_goto (c1 ++ c2) _ lbl cs cs')=> //.
+      apply: (@LSem_goto (c1 ++ c2) _ _ lbl cs cs')=> //.
       rewrite find_label_cat_hd //.
       by apply:contra (H lbl)=> /= ->;rewrite eq_refl.
-    move=> cond [m1 vm1 c] e lbl cs cs' /= -> Hcond Hf H;split.
+    move=> cond ii [m1 vm1 c] e lbl cs cs' /= -> Hcond Hf H;split.
     + case:cond {Hcond};first by apply: disjoint_find_label Hf.
       by apply: disjoint_lbl_cons H.
-    apply: (@LSem_cond (c1 ++ c2) cond _ e lbl cs cs')=> //.
+    apply: (@LSem_cond (c1 ++ c2) cond _ _ e lbl cs cs')=> //.
     rewrite find_label_cat_hd //.                     
     by apply:contra (H lbl)=> /= ->;rewrite eq_refl.   
   by apply: (LSem1 Hsem1');apply Hrec.
@@ -432,7 +445,8 @@ Lemma valid_has c lbl p1 p2 :
   ((p1 <=? lbl) && (lbl <? p2))%positive.
 Proof.
   elim: c => //= i c Hrec /andP[] H /Hrec.
-  by case: i H=>[b| lbl'|lbl'|e lbl'|] //=;case:eqP => [->|].
+  by case: i H=>[ii [| |lbl'|lbl'|e lbl'|]] //=;
+  rewrite {2}/is_label /=; case: eqP=> [->|].
 Qed.
 
 Lemma valid_disjoint p1 p2 p3 p4 c1 c2 : 
@@ -463,21 +477,36 @@ Proof. by move=> H; apply (LSem1 H); apply LSem0. Qed.
 
 Section PROOF.
 
-  Let Pi (i:S.instr) := 
+  Variable SP: S.sprog.
+
+  Let Pi (i:instr) := 
     forall lbl lbli li, linear_i i lbl [::] = Ok unit (lbli, li) ->
     [/\ (lbl <=? lbli)%positive,
      valid lbl lbli li & 
-     forall s1 s2, S.sem_i s1 i s2 -> 
+     forall s1 s2, S.sem_I SP s1 i s2 -> 
        lsem li (of_estate s1 li) (of_estate s2 [::])].
 
-  Let Pc (c:Scmd) := 
+  Let Pi_r (i:instr_r) :=
+    forall ii lbl lbli li, linear_i (MkI ii i) lbl [::] = Ok unit (lbli, li) ->
+    [/\ (lbl <=? lbli)%positive,
+     valid lbl lbli li & 
+     forall s1 s2, S.sem_i SP s1 i s2 -> 
+       lsem li (of_estate s1 li) (of_estate s2 [::])].
+
+  Let Pc (c:cmd) := 
     forall lbl lblc lc, linear_c linear_i c lbl [::] = Ok unit (lblc, lc) ->
     [/\ (lbl <=? lblc)%positive,
      valid lbl lblc lc & 
-     forall s1 s2, S.sem s1 c s2 -> 
+     forall s1 s2, S.sem SP s1 c s2 -> 
        lsem lc (of_estate s1 lc) (of_estate s2 [::])].
 
-  Let Pf ta tr (fd:S.fundef ta tr) := True.
+  Let HmkI : forall i ii, Pi_r i -> Pi (MkI ii i).
+  Proof.
+    move=> i ii Hi_r lbl lbli li Hli.
+    move: Hi_r=> /(_ ii lbl lbli li Hli) [H1 H2 H3]; split=> //.
+    move=> s1 s2 Hs.
+    by sinversion Hs; apply: H3.
+  Qed.
 
   Let Hskip : Pc [::].
   Proof. 
@@ -507,16 +536,23 @@ Section PROOF.
     by apply: Hc H5.
   Qed.
 
-  Let Hbcmd : forall bc,  Pi (S.Cbcmd bc).
-  Proof. 
-    move=> [? x e|x e|e1 e2] lbl lbl' l' [] <- <-;rewrite Pos.leb_refl;split=>// 
-     -[m1 vm1] s2 H;inversion H;clear H;subst;apply LSem_step;
-     eapply LSem_bcmd=> /=;eauto.
+  Let Hassgn : forall x e tag, Pi_r (Cassgn x e tag).
+  Proof.
+    move=> x e tag ii lbl lbl' l' [] <- <-;rewrite Pos.leb_refl;split=>//.
+    move=> -[m1 vm1] s2 H;inversion H;clear H;subst;apply LSem_step.
+    eapply LSem_assgn=> /=; eauto.
+  Qed.
+
+  Let Hopn : forall xs o es, Pi_r (Copn xs o es).
+  Proof.
+    move=> x e tag ii lbl lbl' l' [] <- <-;rewrite Pos.leb_refl;split=>//.
+    move=> -[m1 vm1] s2 H;inversion H;clear H;subst;apply LSem_step.
+    eapply LSem_opn=> /=; eauto.
   Qed.
  
-  Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi (S.Cif e c1 c2).
+  Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi_r (Cif e c1 c2).
   Proof.
-    move=> e c1 c2 Hc1 Hc2 lbl lbl' l' => /=.
+    move=> e c1 c2 Hc1 Hc2 ii lbl lbl' l' => /=.
     case Heq1: (c1)=> [|i1 l1].
     + subst;rewrite linear_c_nil;case Heq: linear_c => [[lbl2 lc2]|] //= [] <- <-.
       have Hlen := le_next lbl.
@@ -525,6 +561,9 @@ Section PROOF.
       + rewrite /= valid_cat Pos.leb_refl (valid_le_min Hlen Hv2) /= Pos.leb_refl.
         by rewrite (Pos_lt_leb_trans (lt_next _) Hle).
       move=> [m1 vm1] s2 H;inversion H;clear H;subst.
+      admit.
+      admit.
+   (*
       apply LSem1 with (of_estate {| emem := m1; evm := vm1 |}
                           (if cond then [::] else lc2 ++ [:: Llabel lbl])).
       + apply LSem_cond with e lbl=>//=.
@@ -541,6 +580,7 @@ Section PROOF.
       move=> /(@lsem_cat_tl [:: Llabel lbl]) Hsem.
       apply (lsem_trans Hsem);case s2 => m2 vm2.
       by apply LSem_step;apply LSem_lbl with lbl.
+    *)
     rewrite -Heq1 => {Heq1 l1 i1};case Heq2: c2 => [|i2 l2].
     + subst;rewrite linear_c_nil;case Heq: linear_c => [[lbl1 lc1]|] //= [] <- <-.
       have Hlen := le_next lbl.
@@ -549,6 +589,9 @@ Section PROOF.
       + rewrite /= valid_cat Pos.leb_refl (valid_le_min Hlen Hv1) /= Pos.leb_refl.
         by rewrite (Pos_lt_leb_trans (lt_next _) Hle).
       move=> [m1 vm1] s2 H;inversion H;clear H;subst.
+      admit.
+      admit.
+      (*
       apply LSem1 with (of_estate {| emem := m1; evm := vm1 |}
                           (if (negb cond) then [::] else lc1 ++ [:: Llabel lbl])).
       + apply LSem_cond with (enot e) lbl=>//=;first by rewrite H5.
@@ -564,6 +607,7 @@ Section PROOF.
       move=> /(@lsem_cat_tl [:: Llabel lbl]) Hsem.
       apply (lsem_trans Hsem);case s2 => m2 vm2.
       by apply LSem_step;apply LSem_lbl with lbl.
+      *)
     rewrite -Heq2 => {Heq2 l2 i2}.
     rewrite linear_c_nil;case Heq1: linear_c => [[lbl1 lc1]|] //=.
     rewrite linear_c_nil;case Heq2: linear_c => [[lbl2 lc2]|] //= [] <- <-.
@@ -579,6 +623,9 @@ Section PROOF.
       rewrite (Pos_lt_leb_trans (lt_next _) L2lbl2).  
       by rewrite (valid_le_min _ Hv2) // (valid_le_max Hle2 (valid_le_min lblL2 Hv1)).
     move=> [m1 vm1] s2 H;inversion H;clear H;subst.
+    admit.
+    admit.
+    (*
     apply LSem1 with (of_estate {| emem := m1; evm := vm1 |}
                         (if cond then lc1 ++ [:: Llabel (next_lbl lbl)]
                          else  
@@ -618,11 +665,15 @@ Section PROOF.
       by rewrite H Pos.leb_antisym lt_next /= => /(_ isT).
     apply /negP=> H;have := @valid_has _ (next_lbl lbl) _ _ Hv2.
     by rewrite H Pos.leb_antisym (Pos_lt_leb_trans (lt_next _) Hle1) /= => /(_ isT).
-  Qed.
+    *)
+  Admitted.
 
-  Let Hwhile : forall e c, Pc c -> Pi (S.Cwhile e c).
+  Let Hfor : forall v dir lo hi c, Pc c -> Pi_r (Cfor v (dir, lo, hi) c).
+  Proof. by []. Qed.
+
+  Let Hwhile : forall e c, Pc c -> Pi_r (Cwhile e c).
   Proof.
-    move=> e c Hc lbl lbli li /=;rewrite linear_c_nil.
+    move=> e c Hc ii lbl lbli li /=;rewrite linear_c_nil.
     case Heq:linear_c => [[lblc lc]|] //= [] ??;subst lbli li.
     have leL1 := le_next lbl; have leL2 := le_next (next_lbl lbl).
     have lblL2 := Pos_leb_trans leL1 leL2.
@@ -632,13 +683,18 @@ Section PROOF.
       rewrite (Pos_lt_leb_trans (lt_next _) Hle).        
       by rewrite (Pos_lt_leb_trans (lt_next _) (Pos_leb_trans leL2 Hle)).
     move=> s1 s2 H;inversion H;clear H;subst.
-    apply LSem1 with (of_estate s1 [::Lcond e (next_lbl lbl)]).
+    apply LSem1 with (of_estate s1 [::MkLI ii (Lcond e (next_lbl lbl))]).
     + eapply LSem_goto=> /=;eauto.
-      case: eqP => H. 
+      rewrite /is_label /=.
+      case: eqP => H.
       + by have := lt_next lbl;rewrite Pos.ltb_antisym -H Pos.leb_refl.
       rewrite find_label_cat_hd /= ?eq_refl //.
+      rewrite /is_label /=.
+      case: eqP => //.
       apply /negP=> H1;have := @valid_has _ lbl _ _ Hv.
       by rewrite H1 Pos.leb_antisym (Pos_lt_leb_trans (lt_next _) leL2) /= => /(_ isT).
+    admit.
+    (*
     elim: H4 Hs=> {Hc c e s1 s2} [[m1 vm1] e c He|[m1 vm1] s2 s3 e c He Hsc Hsw Hrec] Hc;
       set C1 := lc ++ [:: Llabel lbl; Lcond e (next_lbl lbl)];
       set C2 := [:: Lgoto lbl, Llabel (next_lbl lbl) & C1].
@@ -662,38 +718,40 @@ Section PROOF.
     move=> /(@lsem_cat_tl [:: Llabel lbl; Lcond e (next_lbl lbl)]).
     rewrite /= -/C2 => H;apply: (lsem_trans H);apply LSem_step.
     eapply LSem_lbl=> /=;eauto.
-  Qed.
-     
-  Let Hcall : forall ta tr x (f:S.fundef ta tr) a, Pf f -> Pi (S.Ccall x f a).
-  Proof. by []. Qed.
+    *)
+  Admitted.
 
-  Let Hfunc : forall ta tr nstk sz (x:lval ta) c (re:lval tr), 
-    Pc c -> Pf (S.FunDef nstk sz x c re).
+  Let Hcall : forall i xs f es, Pi_r (Ccall i xs f es).
   Proof. by []. Qed.
 
   Lemma linear_cP c lbl lblc lc:
     linear_c linear_i c lbl [::] = Ok unit (lblc, lc) ->
     [/\ (lbl <=? lblc)%positive,
      valid lbl lblc lc & 
-     forall s1 s2, S.sem s1 c s2 -> 
+     forall s1 s2, S.sem SP s1 c s2 -> 
        lsem lc (of_estate s1 lc) (of_estate s2 [::])].
   Proof.
-    apply (@S.cmd_rect Pi Pc Pf Hskip Hseq Hbcmd Hif Hwhile Hcall Hfunc).
+    apply (@cmd_rect Pi_r Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
   Qed.
 
-  Lemma linear_fdP ta tr (fd:S.fundef ta tr) (lfd:lfundef ta tr) :
-    linear_fd fd = Ok unit lfd ->
+  Lemma linear_fdP fn (fd: S.sfundef) (lfd: lfundef) :
+    S.get_fundef SP fn = Some fd ->
+    linear_fd fd = ok lfd ->
     forall m1 va m2 vr, 
-    S.sem_call m1 fd va m2 vr -> lsem_fd lfd va m1 m2 vr.
+    S.sem_call SP m1 fn va m2 vr -> lsem_fd m1 lfd va m2 vr.
   Proof.
-    rewrite /linear_fd linear_c_nil;case Heq: linear_c => [[lblc lc]|] //= [] <-.
-    move=> m1 va m2 vr H;sinversion H;sinversion H0.
-    econstructor;eauto => //= vm0 Hvm0.
+    rewrite /linear_fd linear_c_nil.
+    case Heq: linear_c=> [[lblc lc]|] //= Hfd [] <-.
+    move=> m1 va m2 vr H.
+    sinversion H.
+    have: Some sf = Some fd by rewrite -Hfd.
+    move=> [] Heq'; subst sf.
+    econstructor;eauto=> //=.
     have [_ _ H] := linear_cP Heq.
-    case: (H7 vm0 Hvm0)=> vm2 /= [] m2' [] /H /= /(@lsem_cat_tl [:: Lreturn]) /= Hs Hr Hm2.
-    by exists vm2, m2', [::].
+    move: H4=> /H /(@lsem_cat_tl [:: MkLI xH Lreturn]) Hs.
+    exact: Hs.
   Qed.
 
 End PROOF.   
-*)
+
 
