@@ -131,28 +131,12 @@ Proof.
     apply ok_inj in N'. subst.
     eexists. split. congruence.
     auto.
-  - move=> H'.
-    move: (slet_inv H') => [n [Tx H]]. clear H'.
+  - move=> /slet_inv [n [Tx H]].
     exists n, Tx.
-    case: (bindW H) => vi H' K'. clear H.
-    exists vi.
-    case: (bindW H') => vj H Hj. clear H'.
-    apply sto_int_inv in Hj. subst.
-    case: (bindW K') => w K L'. clear K'.
-    apply sto_word_inv in K. subst.
-    case: (bindW L') => vm' L N. clear L'.
-    apply ok_inj in N. subst.
-    case: (bindW L) => q L' N. clear L.
-    apply ok_inj in N. subst.
-    exists w.
-    apply (conj H). clear H.
-    apply (conj Logic.eq_refl).
-    simpl. f_equal. f_equal.
-    destruct x as [x xi]; simpl.
-    destruct x as [ty x]; simpl.
-    simpl in *. subst. simpl in *.
-    apply ok_inj in L'.
-    auto.
+    apply: rbindP H=> vi;apply: rbindP => vj Hi /sto_int_inv H;subst vj.
+    apply: rbindP => w /sto_word_inv ->;apply: rbindP => vm' L [<-].
+    exists vi, w;split=> //;split=>//=;f_equal;f_equal.
+    by case: x Tx L=>  -[ty x] xi /= ?;subst ty => /= -[] <-.
 Qed.
 
 Definition hpred : Type :=
@@ -361,8 +345,8 @@ Lemma sem_texpr_m (m: mem) (s s': env) :
   env_ext s s' →
   ∀ ty e, sem_texpr m s ty e = sem_texpr m s' ty e.
 Proof.
-  move=> E ty e.
-  elim: e => //; simpl; congruence.
+  move=> E ty e. 
+  elim: e => //=;congruence.
 Qed.
 
 Definition stype_eq_dec (ty ty': stype) : { ty = ty' } + { True } :=
