@@ -132,6 +132,7 @@ Module S.
     sem s2 (sf_body sf) {| emem := m2'; evm := vm2 |} ->
     mapM (fun (x:var_i) => get_var vm2 x) sf.(sf_res) = ok vres ->
     m2 = free_stack m2' p.1 (sf_stk_sz sf) ->
+    List.Forall is_full_array vres ->
     sem_call m1 fn vargs m2 vres.
 
   End SEM.
@@ -1578,4 +1579,5 @@ Proof.
     case Heq2: (read_mem m2' w) => [w'|];last by rewrite (read_mem_error Heq2).
     have : valid_addr m2' w by apply /readV;exists w'.
     by rewrite Hvalw Hbound orbC /= => /readV [w1];rewrite Heq1.
+  by [].
 Qed.
