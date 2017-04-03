@@ -34,6 +34,7 @@ Require Import JMeq ZArith.
 
 Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr.
 Require Import memory dmasm_sem stack_alloc.
+Import Memory.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -46,8 +47,8 @@ Local Open Scope seq_scope.
 Definition label := positive.
 
 Inductive linstr_r := 
-  | Lassgn : rval -> assgn_tag -> pexpr -> linstr_r
-  | Lopn   : rvals -> sopn -> pexprs -> linstr_r
+  | Lassgn : lval -> assgn_tag -> pexpr -> linstr_r
+  | Lopn   : lvals -> sopn -> pexprs -> linstr_r
   | Llabel : label -> linstr_r
   | Lgoto  : label -> linstr_r
   | Lcond  : pexpr -> label -> linstr_r
@@ -96,20 +97,24 @@ Definition of_estate (s:estate) c := Lstate s.(emem) s.(evm) c.
 Definition setc (s:lstate) c :=  Lstate s.(lmem) s.(lvm) c.
 
 Inductive lsem1 (c:lcmd) : lstate -> lstate -> Prop:=
-| LSem_bcmd : forall s1 s2 bc cs, 
-    s1.(lc) = Lbcmd bc :: cs ->
-    sem_bcmd (to_estate s1) bc = ok s2 -> 
+| LSem_assgn : forall s1 s2 ii x tag e cs,
+    s1.(lc) = MkLI ii (Lassgn x tag e) :: cs ->
+    (Let v := sem_pexpr (to_estate s1) e in write_lval x v (to_estate s1)) = ok s2 ->
     lsem1 c s1 (of_estate s2 cs)
-| LSem_lbl : forall s1 lbl cs, 
-    s1.(lc) = Llabel lbl :: cs ->
+| LSem_opn : forall s1 s2 ii xs o es cs,
+    s1.(lc) = MkLI ii (Lopn xs o es) :: cs ->
+    sem_pexprs (to_estate s1) es >>= sem_sopn o >>= (write_lvals (to_estate s1) xs) = ok s2 ->
+    lsem1 c s1 (of_estate s2 cs)
+| LSem_lbl : forall s1 ii lbl cs,
+    s1.(lc) = MkLI ii (Llabel lbl) :: cs ->
     lsem1 c s1 (setc s1 cs)
-| LSem_goto : forall s1 lbl cs cs',
-    s1.(lc) = Lgoto lbl :: cs ->
+| LSem_goto : forall s1 ii lbl cs cs',
+    s1.(lc) = MkLI ii (Lgoto lbl) :: cs ->
     find_label lbl c = Some cs' ->
     lsem1 c s1 (setc s1 cs')
-| LSem_cond : forall cond s1 e lbl cs cs', 
-    s1.(lc) = Lcond e lbl :: cs ->
-    sem_pexpr s1.(lvm) e = ok cond ->
+| LSem_cond : forall cond ii s1 e lbl cs cs', 
+    s1.(lc) = MkLI ii (Lcond e lbl) :: cs ->
+    sem_pexpr (to_estate s1) e >>= to_bool = ok cond ->
     find_label lbl c = Some cs' ->
     lsem1 c s1 (setc s1 (if cond then cs' else cs)).
 
@@ -117,21 +122,18 @@ Inductive lsem (c:lcmd) : lstate -> lstate -> Prop:=
 | LSem0 : forall s, lsem c s s
 | LSem1 : forall s1 s2 s3, lsem1 c s1 s2 -> lsem c s2 s3 -> lsem c s1 s3.
 
-Inductive lsem_fd ta tr (fd:lfundef ta tr) (va:st2ty ta)
-   m1 m2 (vr:st2ty tr) : Prop := 
-| LSem_fd : forall p, 
+Inductive lsem_fd (fd: lfundef) m1 m2 m2' vm2 va vr s1 s2 : Prop := 
+| LSem_fd : forall p cs ii,
     alloc_stack m1 fd.(lfd_stk_size) = ok p ->
     let c := fd.(lfd_body) in
-    (forall vm0 : vmap, all_empty_arr vm0 ->
-       exists vm2 m2' cs,
-       let vm1 := write_lval vm0 (S.vstk fd.(lfd_nstk)) p.1 in
-       let vm1 := write_lval vm1 (lfd_arg fd) va in
-       [/\ lsem c {| lmem := p.2; lvm := vm1; lc := c |} 
-                {| lmem := m2'; lvm := vm2; lc := Lreturn :: cs |},
-       vr = sem_lval vm2 (lfd_res fd) &
-       m2 = free_stack m2' p.1 fd.(lfd_stk_size)]) ->             
-    is_full_array vr ->
-    lsem_fd fd va m1 m2 vr.
+    write_var  (S.vstk fd.(lfd_nstk)) p.1 (Estate p.2 vmap0) = ok s1 ->
+    write_vars fd.(lfd_arg) va s1 = ok s2 ->
+    lsem c (of_estate s2 c)
+           {| lmem := m2'; lvm := vm2; lc := (MkLI ii Lreturn) :: cs |} ->
+    mapM (fun (x:var_i) => get_var vm2 x) fd.(lfd_res) = ok vr ->
+    m2 = free_stack m2' p.1 fd.(lfd_stk_size) ->
+    List.Forall is_full_array vr ->
+    lsem_fd fd m1 m2 m2' vm2 va vr s1 s2.
 
 Lemma lsem_trans s2 s1 s3 c : 
   lsem c s1 s2 -> lsem c s2 s3 -> lsem c s1 s3.
@@ -143,16 +145,16 @@ Proof. by elim=> //= {s1 s2} s1 s2 s4 H1 H2 Hrec/Hrec;apply : LSem1. Qed.
 Notation "c1 ';;' c2" :=  (c2 >>= (fun p => c1 p.1 p.2))
    (at level 26, right associativity).
 
-Notation "c1 '>;' c2" :=  (c2 >>= (fun p => Ok unit (p.1, c1 :: p.2)))
+Notation "c1 '>;' c2" :=  (c2 >>= (fun p => ok (p.1, c1 :: p.2)))
    (at level 26, right associativity).
 
 Section LINEAR_C.
 
-  Variable linear_i : S.instr -> label -> lcmd -> result unit (label * lcmd).
+  Variable linear_i : instr -> label -> lcmd -> result unit (label * lcmd).
 
-  Fixpoint linear_c (c:Scmd) (lbl:label) (lc:lcmd) := 
+  Fixpoint linear_c (c:cmd) (lbl:label) (lc:lcmd) := 
     match c with
-    | [::] => Ok unit (lbl, lc)
+    | [::] => ok (lbl, lc)
     | i::c => 
       linear_i i ;; linear_c c lbl lc
     end.
@@ -161,54 +163,58 @@ End LINEAR_C.
 
 Definition next_lbl lbl := (lbl + 1)%positive.
 
-Definition enot (e:pexpr sbool) := Papp1 Onot e.
+Print MkI.
 
-Fixpoint linear_i (i:S.instr) (lbl:label) (lc:lcmd) := 
-  match i with
-  | S.Cbcmd bc => Ok unit (lbl, Lbcmd bc :: lc)
+Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
+  let (ii, ir) := i in
+  match ir with
+  | Cassgn x tag e => ok (lbl, MkLI ii (Lassgn x tag e) :: lc)
+  | Copn xs o es => ok (lbl, MkLI ii (Lopn xs o es) :: lc)
 
-  | S.Cif e [::] c2 =>
+  | Cif e [::] c2 =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
-    Lcond e L1 >; linear_c linear_i c2 lbl (Llabel L1::lc)
+    MkLI ii (Lcond e L1) >; linear_c linear_i c2 lbl (MkLI ii (Llabel L1) :: lc)
 
-  | S.Cif e c1 [::] =>
+  | Cif e c1 [::] =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
-    Lcond (enot e) L1 >; linear_c linear_i c1 lbl (Llabel L1::lc)
+    MkLI ii (Lcond (Pnot e) L1) >; linear_c linear_i c1 lbl (MkLI ii (Llabel L1) :: lc)
 
-  | S.Cif e c1 c2 =>
+  | Cif e c1 c2 =>
     let L1 := lbl in
     let L2 := next_lbl L1 in
     let lbl := next_lbl L2 in
-    Lcond e L1 >; linear_c linear_i c2 ;; Lgoto L2 >; 
-    Llabel L1 >; linear_c linear_i c1 lbl (Llabel L2:: lc)
+    MkLI ii (Lcond e L1) >; linear_c linear_i c2 ;; MkLI ii (Lgoto L2) >;
+    MkLI ii (Llabel L1) >; linear_c linear_i c1 lbl (MkLI ii (Llabel L2) :: lc)
 
-  | S.Cwhile e c =>
+  | Cwhile e c =>
     let L1 := lbl in
     let L2 := next_lbl L1 in
     let lbl := next_lbl L2 in
-    Lgoto L1 >; 
-    Llabel L2 >; 
-    linear_c linear_i c lbl 
-    (Llabel L1:: Lcond e L2 :: lc)
+    MkLI ii (Lgoto L1) >;
+    MkLI ii (Llabel L2) >;
+    linear_c linear_i c lbl
+    (MkLI ii (Llabel L1) :: MkLI ii (Lcond e L2) :: lc)
+
+  | Cfor _ _ _ => Error tt
     
-  | S.Ccall _ _ _ _ _ => Error tt
+  | Ccall _ _ _ _ => Error tt
 
   end.
 
-Definition linear_fd ta tr (fd:S.fundef ta tr) := 
-  (linear_c linear_i (S.fd_body fd) 1%positive [::Lreturn]) >>=
-   (fun p => Ok unit 
-     (LFundef (S.fd_stk_size fd) (S.fd_nstk fd) (S.fd_arg fd) p.2 (S.fd_res fd))).
+Definition linear_fd (fd:S.sfundef) :=
+  (linear_c linear_i (S.sf_body fd) 1%positive [:: MkLI xH Lreturn]) >>=
+   (fun p => ok
+     (LFundef (S.sf_stk_sz fd) (S.sf_stk_id fd) (S.sf_params fd) p.2 (S.sf_res fd))).
 
+(*
 Section CAT.
 
   Let Pi (i:S.instr) := 
     forall lbl l , 
      linear_i i lbl l = 
      linear_i i lbl [::] >>= (fun (p:label*lcmd) => Ok unit (p.1, p.2 ++ l)).
-
 
   Let Pc (c:Scmd) := 
     forall lbl l , 
@@ -689,5 +695,5 @@ Section PROOF.
   Qed.
 
 End PROOF.   
-
+*)
 
