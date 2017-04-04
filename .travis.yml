@@ -1,0 +1,14 @@
+sudo: required
+dist: trusty
+language: coq
+branches:
+  only:
+  - master
+services:
+- docker
+before_install:
+- docker pull strubpy/coq:ssr-1.6.1
+script:
+- >-
+  docker run -v $PWD:/home/ci/jasmin strubpy/coq:ssr-1.6.1
+  sh -c "opam config exec -- make -C jasmin/proofs"
