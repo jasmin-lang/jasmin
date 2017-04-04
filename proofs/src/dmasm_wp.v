@@ -493,6 +493,121 @@ Proof.
     eauto using ssem_sop2_inv.
 Qed.
 
+Definition has_pointer_type (x: var) : { vtype x = sword } + { True } :=
+  match vtype x with
+  | sword => left Logic.eq_refl
+  | _ => right I
+  end.
+
+Definition has_array_type (x: var) : { n | vtype x = sarr n } + { True } :=
+  match vtype x with
+  | sarr n => inleft (exist _ n Logic.eq_refl)
+  | _ => inright I
+  end.
+
+Definition post_assgn (x: lval) {ty} (w: ssem_t ty) (f: formula) (m: mem) (s: env) : Prop :=
+  match x with
+  | Lnone _ => projT1 f m s
+  | Lvar {| v_var := x |} =>
+    match stype_eq_dec ty (vtype x) with
+    | left EQ =>
+      let v : ssem_t (vtype x) := eq_rect _ _ w _ EQ in projT1 f m (s.[x <- v])%mv
+    | right _ => False
+    end
+  | Lmem {| v_var := x |} e =>
+    match has_pointer_type x with
+    | left Tx =>
+    match type_check_pexpr e sword with
+    | Some te =>
+    match stype_eq_dec ty sword with
+    | left EQ =>
+      ∀ i m',
+      sem_texpr m s sword te = i →
+      let v := eq_rect _ _ w _ EQ in
+      write_mem m (I64.add (eq_rect _ _ (s.[x])%mv _ Tx) i) v = m' →
+      projT1 f m' s
+    | right _ => False end
+    | None => False end
+    | right _ => False end
+  | Laset x e =>
+    match has_array_type x with
+    | inleft (exist n Tx as Tx') =>
+    match type_check_pexpr e sint with
+    | Some te =>
+    match stype_eq_dec ty sword with
+    | left EQ =>
+      ∀ i,
+      let t := eq_rect _ _  s.[x]%mv _ Tx in
+      sem_texpr m s sint te = i →
+      let v := eq_rect _ _ w _ EQ in
+      let a : ssem_t (vtype x) := eq_rect _ _ (FArray.set t i v) _ (Logic.eq_sym Tx) in
+      projT1 f m (s.[x <- a])%mv
+    | right _ => False end
+    | None => False end
+    | inright _ => False end
+  end.
+
+Definition type_of_pexpr (e: pexpr) : stype :=
+  match e with
+  | Pconst _ => sint
+  | Pbool _ | Pnot _ => sbool
+  | Pcast _
+  | Pget _ _
+  | Pload _ _
+    => sword
+  | Pvar {| v_var := x |} => vtype x
+  | Papp2 op _ _ => op2_type_o op
+  end.
+
+Lemma post_assgn_m { s s' } :
+  env_ext s s' →
+  ∀ x ty (v: ssem_t ty) f m,
+  post_assgn x v f m s →
+  post_assgn x v f m s'.
+Proof.
+  move=> E [ x | [x xn] | [x xn] e | x e ] ty v f m /=.
+  - (* Lnone *) by apply (projT2 f m).
+  - (* Lvar *)
+    case: stype_eq_dec => // Te.
+    apply (projT2 f m). auto.
+    subst. simpl. apply env_ext_set, env_ext_sym, E.
+  - (* Lmem *)
+    case: has_pointer_type => // Ty.
+    case (type_check_pexpr e _) eqn: Te; auto.
+    case: stype_eq_dec => // ?; subst.
+    move=> /= H ? ? ? ?; subst.
+    rewrite (projT2 f). apply: H; auto.
+    repeat (f_equal; auto using sem_texpr_m, env_ext_sym).
+    auto using env_ext_sym.
+  - (* Laset *)
+    case: has_array_type => // [[n Tx]].
+    case (type_check_pexpr e _) eqn: Te; auto.
+    case: stype_eq_dec => // ?; subst.
+    move=> /= H ? ?; subst.
+    rewrite (projT2 f). apply: H; auto. auto.
+    rewrite (sem_texpr_m _ _ _ E) E.
+    apply env_ext_set, env_ext_sym, E.
+Qed.
+
+Definition wp_assgn (x: lval) (e: pexpr) (f: formula) : formula.
+  refine (
+  let ty := type_of_pexpr e in
+  match type_check_pexpr e ty with
+  | Some te =>
+    existT _ (
+    λ m s,
+    ∀ v, sem_texpr m s ty te = v → post_assgn x v f m s
+    ) _
+  | None => ffalse
+  end).
+Proof.
+  abstract (
+  apply: formula_m => m s s' E X v Hv;
+  specialize (X v); apply: (post_assgn_m E); apply: X; rewrite <- Hv;
+  eauto using sem_texpr_m
+  ).
+Defined.
+
 Definition wp_set (x: var) (e: pexpr) (f: formula) : formula.
   refine
   match type_check_pexpr e (vtype x) with
@@ -509,12 +624,6 @@ Proof.
   rewrite (projT2 f m); [| reflexivity | apply env_ext_set, env_ext_sym, E ];
   apply X; etransitivity; [ apply sem_texpr_m, E | exact V ]).
 Defined.
-
-Definition has_array_type (x: var) : { n | vtype x = sarr n } + { True } :=
-  match vtype x with
-  | sarr n => inleft (exist _ n Logic.eq_refl)
-  | _ => inright I
-  end.
 
 Definition wp_aset (x: var) (e e': pexpr) (f: formula) : formula.
   refine
@@ -548,12 +657,6 @@ Proof.
   ).
 Defined.
 
-Definition has_pointer_type (x: var) : { vtype x = sword } + { True } :=
-  match vtype x with
-  | sword => left Logic.eq_refl
-  | _ => right I
-  end.
-
 Definition wp_store (x: var) (e e': pexpr) (f: formula) : formula.
   refine
   match has_pointer_type x with
@@ -584,14 +687,6 @@ Proof.
   exact (X Hi Hv Hm')).
 Defined.
 
-Definition wp_assgn (x: lval) : pexpr → formula → formula :=
-  match x with
-  | Lnone _ => λ _, id
-  | Lvar x => wp_set x
-  | Lmem x i => wp_store x i
-  | Laset x i => wp_aset x i
-  end.
-
 Lemma eq_rect_eq {K} (T T1 T2: K) F (x1: F T1) (x2: F T2) (H1: T1 = T) (H2: T2 = T):
   (∀ E, x1 = eq_rect _ _ x2 _ E) →
   eq_rect T1 F x1 T H1 = eq_rect T2 F x2 T H2.
@@ -602,71 +697,66 @@ Qed.
 Lemma wp_assgn_sound prg ii x e tg f :
   hoare prg ⟦wp_assgn x e f⟧ [:: MkI ii (Cassgn x tg e)] ⟦f⟧.
 Proof.
-  move=> s s1 /ssem_inv [s' [H' /ssem_inv]] ->.
-  case: (ssem_I_inv H') => v [ii' [/MkI_inj [? ?]]]. clear H'. subst ii' v.
-  case: x => [ xi | x | x e' | x e' ] /ssem_i_inv [v [Hv /swrite_lval_inv]].
+  move=> [m vm] s1 /ssem_inv [s' [/ssem_I_inv [i' [ii' [/MkI_inj [? <-]] /ssem_i_inv [v [Hv Hs']]]] /ssem_inv ->]]; subst ii'.
+  unfold wp_assgn.
+  case (type_check_pexpr _ _) eqn: EQ. 2: apply: ffalse_denote.
+  move: (type_check_pexprP EQ _ _ _ Hv) => R /=.
+  specialize (R _ (λ x, Logic.eq_sym (Mv.get0 _ x))).
+  case: x Hs' => [ xi | [x xn] | [x xn] e' | x e' ] /swrite_lval_inv.
   - (* Lnone *)
-    move=> ->; exact id.
-  - (* Lval *)
-    move=> [ v' [Hvv' ?] ]; subst s'.
-    simpl. unfold wp_set.
-    destruct s as [ m s ].
-    case (type_check_pexpr _ _) eqn: EQ. 2: apply: ffalse_denote.
-    move: (type_check_pexprP EQ _ _ _ Hv) => R.
+    move=> -> H; apply: H; eauto.
+  - (* Lvar *)
+    move=> /= [ v' [Hvv' ?] ] /(_ _ Logic.eq_refl); subst s'.
+    case: stype_eq_dec => // Te.
+    unfold formula_denote; simpl.
+    apply (projT2 f m). reflexivity.
+    apply: env_ext_empty.
+    move=> y.
+    case: (x =P y).
+    move=> <-. rewrite ! (Fv.setP_eq, Mv.setP_eq).
+    move: Te v' Hvv'. intros ().
+    move=> v' Hvv' /=.
+    apply: ok_inj. etransitivity. symmetry. apply: Hvv'. auto.
+    move=> NE. rewrite ! (Fv.setP_neq, Mv.setP_neq) //; case: eqP => //.
+  - (* Lmem *)
+    move=> [Tx [vx [ve [w [Hvx [Hve [? ?]]]]]]] /(_ _ Logic.eq_refl) /=; subst.
+    case: has_pointer_type => // Tx'.
+    case (type_check_pexpr e' _) eqn: Te'. 2: easy.
+    case: stype_eq_dec => // Te /(_ _ _ Logic.eq_refl) /(_ Logic.eq_refl) /=.
+    unfold formula_denote; simpl.
+    apply (projT2 f). 2: apply: env_ext_empty; reflexivity.
+    f_equal. f_equal.
+    rewrite Mv.get0.
+    apply eq_rect_eq. clear. move=> E.
+    by move: (Eqdep_dec.UIP_dec dmasm_type.stype_eq_dec E Logic.eq_refl) ->.
+    move: (type_check_pexprP Te' _ _ _ Hve) => Re.
+    apply: ok_inj; apply Re. auto.
+    simpl in *.
+    clear Tx'. revert Tx. generalize (vtype x). clear x. intros s ->.
+    destruct (type_of_pexpr e) => //.
+    move: (Eqdep_dec.UIP_dec dmasm_type.stype_eq_dec Te Logic.eq_refl) ->. simpl.
+    apply ok_inj in R. subst. auto.
+  - (* Laset *)
+    move=> [ n [ Tx [ vi [ w [ Hvi [? ?]]]]]] /(_ _ Logic.eq_refl); simpl in *; subst.
+    case: has_array_type => // [[n' Tx']].
+    case (type_check_pexpr e' _) eqn: Te'. 2: easy.
+    case: stype_eq_dec => // Te /(_ _ Logic.eq_refl).
     unfold formula_denote. simpl.
-    move=> X.
-    rewrite (projT2 f m). 2: reflexivity. apply X. clear X.
-    Focus 2.
+    apply (projT2 f). reflexivity.
+    apply: env_ext_empty.
     move=> y. rewrite Mv.get0.
     case: (v_var x =P y).
-    move=> <-. rewrite ! (Fv.setP_eq, Mv.setP_eq). reflexivity.
-    move=> NE. rewrite ! (Fv.setP_neq, Mv.setP_neq) //; case: eqP => //.
-    apply: ok_inj. etransitivity. 2: apply Hvv'.
-    symmetry. apply R.
-    auto.
-  - (* Lmem *)
-    move=> [Tx [vx [ve [w [Hvx [Hve [? ?]]]]]]]; subst.
-    destruct s as [m vm].
-    simpl. unfold wp_store.
-    case: has_pointer_type => [ Tx' | _ ]. 2: apply: ffalse_denote.
-    case (type_check_pexpr _ _) eqn: Te'. 2: apply: ffalse_denote.
-    move: (type_check_pexprP Te' _ _ _ Hve) => Re'.
-    case (type_check_pexpr e _) eqn: Te. 2: apply: ffalse_denote.
-    move: (type_check_pexprP Te _ _ _ Hv) => Re.
-    unfold formula_denote. simpl.
-    move=> X.
-    simpl in *.
-    eapply X; clear X; eauto. f_equal. f_equal.
-    clear. destruct x as [ [xt x] xi ]; simpl in *; subst.
-    move: (Eqdep_dec.UIP_dec dmasm_type.stype_eq_dec Tx' Logic.eq_refl) ->.
-    reflexivity.
-    symmetry; refine (ok_inj _ _ (Re' _ _)).
-    apply Mv.get0.
-    symmetry; refine (ok_inj _ _ (Re _ _)).
-    apply Mv.get0.
-  - (* Laset *)
-    move=> [ n [ Tx [ vi [ w [ Hvi [? ?]]]]]]. simpl in *. subst.
-    unfold wp_aset.
-    case: has_array_type => [ [n' Tx'] | _ ]. 2: apply: ffalse_denote.
-    case (type_check_pexpr e' _) eqn: Te'. 2: apply: ffalse_denote.
-    case (type_check_pexpr e _) eqn: Te. 2: apply: ffalse_denote.
-    unfold formula_denote. simpl.
-    move=> X.
-    destruct s as (m, vm).
-    rewrite (projT2 f m). 2: reflexivity. apply X; clear X.
-    move: (type_check_pexprP Te' _ _ _ Hvi) => R'.
-    apply (@ok_inj error). rewrite <- R' by apply Mv.get0. reflexivity.
-    move: (type_check_pexprP Te _ _ _ Hv) => R.
-    apply (@ok_inj error). rewrite <- R by apply Mv.get0. reflexivity.
-    clear X.
-    move=> y. rewrite Mv.get0. simpl.
-    case: (v_var x =P y).
     move=> <-. rewrite ! (Fv.setP_eq, Mv.setP_eq, Mv.get0).
-    apply eq_rect_eq. clear.
+    move: (type_check_pexprP Te' _ _ _ Hvi) => /(_ _ (λ x, Logic.eq_sym (Mv.get0 _ x))) Re.
+    apply ok_inj in Re. subst.
+    apply eq_rect_eq.
     assert (n = n'). congruence. subst n'. move=> E.
     move: (Eqdep_dec.UIP_dec dmasm_type.stype_eq_dec E Logic.eq_refl) ->. simpl. f_equal.
     apply eq_rect_eq. clear. move=> E.
     move: (Eqdep_dec.UIP_dec dmasm_type.stype_eq_dec E Logic.eq_refl) ->. reflexivity.
+    destruct (type_of_pexpr e) => //.
+    move: (Eqdep_dec.UIP_dec dmasm_type.stype_eq_dec Te Logic.eq_refl) ->. simpl.
+    apply ok_inj in R. subst. auto.
     move=> NE. rewrite ! (Fv.setP_neq, Mv.setP_neq) //; case: eqP => //.
 Qed.
 
