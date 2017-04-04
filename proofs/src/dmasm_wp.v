@@ -685,4 +685,113 @@ Proof.
     move=> NE. rewrite ! (Fv.setP_neq, Mv.setP_neq) //; case: eqP => //.
 Qed.
 
+Definition formula_equiv (P Q: formula) : Prop :=
+  ∀ m s, projT1 P m s ↔ projT1 Q m s.
+
+Local Infix "≡" := formula_equiv (at level 80) : msem_scope.
+Local Notation "(≡)" := (formula_equiv) (at level 8) : msem_scope.
+
+Instance formula_equivE : Equivalence (≡).
+Proof.
+  constructor.
+  move=> f m s; tauto.
+  move=> f f' H m s. specialize (H m s). tauto.
+  move=> x y z Hxy Hyz m s. specialize (Hxy m s). specialize (Hyz m s). tauto.
+Qed.
+
+Definition wp_if (e: pexpr) (wp_c1 wp_c2: formula → formula) (post: formula) : formula.
+  refine
+  match type_check_pexpr e sbool with
+  | Some te =>
+    existT _ (
+      λ m s,
+      ∀ Q,
+      post ≡ Q →
+      (sem_texpr m s sbool te = true → projT1 (wp_c1 Q) m s) ∧
+      (sem_texpr m s sbool te = false → projT1 (wp_c2 Q) m s)
+    ) _
+  | None => ffalse
+  end.
+Proof.
+  abstract (
+  apply formula_m;
+  move=> m s s' E X Q HQ;
+  specialize (X Q HQ);
+  (split; [ destruct X as [ X _ ] | destruct X as [ _ X ] ]);
+  move=> Hb;
+  [ rewrite (projT2 (wp_c1 Q) m) | rewrite (projT2 (wp_c2 Q) m) ];
+  (reflexivity || apply env_ext_sym, E || apply X);
+  rewrite (sem_texpr_m _ _ _ E);
+  exact Hb).
+Defined.
+
+Lemma wp_if_sound prg ii e c1 wp_c1 c2 wp_c2 f :
+  (∀ f, hoare prg ⟦wp_c1 f⟧ c1 ⟦f⟧) →
+  (∀ f, hoare prg ⟦wp_c2 f⟧ c2 ⟦f⟧) →
+  hoare prg ⟦wp_if e wp_c1 wp_c2 f ⟧ [:: MkI ii (Cif e c1 c2) ] ⟦f⟧.
+Proof.
+  move=> WP1 WP2 .
+  move=> s s1 /ssem_inv [s' [H' /ssem_inv]] ->.
+  case: (ssem_I_inv H') => v [ii' [/MkI_inj [? ?]]]. clear H'. subst ii' v.
+  move=> / ssem_i_inv [ b [ Hb REC ] ].
+  unfold wp_if.
+  case (type_check_pexpr e _) eqn: EQ. 2: apply ffalse_denote.
+  destruct s as (m, vm).
+  move: (type_check_pexprP EQ _ _ _ Hb) => Y /= X.
+  move: (X f ltac:(reflexivity)) => [X1 X2]. clear X.
+  destruct b.
+    refine (WP1 _ _ _ REC _).
+    apply X1; clear X1 X2.
+    apply (@ok_inj error); symmetry; apply Y. auto.
+  refine (WP2 _ _ _ REC _).
+  apply X2; clear X1 X2.
+  apply (@ok_inj error); symmetry; apply Y. auto.
+Qed.
+
+Definition wp_if' (e: pexpr) (wp_c1 wp_c2: formula → formula) (Q: formula) : formula.
+  refine
+  match type_check_pexpr e sbool with
+  | Some te =>
+    existT _ (
+      λ m s,
+      (sem_texpr m s sbool te = true → projT1 (wp_c1 Q) m s) ∧
+      (sem_texpr m s sbool te = false → projT1 (wp_c2 Q) m s)
+    ) _
+  | None => ffalse
+  end.
+Proof.
+  abstract (
+  apply formula_m;
+  move=> m s s' E X;
+  (split; [ destruct X as [ X _ ] | destruct X as [ _ X ] ]);
+  move=> Hb;
+  [ rewrite (projT2 (wp_c1 Q) m) | rewrite (projT2 (wp_c2 Q) m) ];
+  (reflexivity || apply env_ext_sym, E || apply X);
+  rewrite (sem_texpr_m _ _ _ E);
+  exact Hb).
+Defined.
+
+Lemma wp_if'_sound prg ii e c1 wp_c1 c2 wp_c2 f :
+  (∀ f, hoare prg ⟦wp_c1 f⟧ c1 ⟦f⟧) →
+  (∀ f, hoare prg ⟦wp_c2 f⟧ c2 ⟦f⟧) →
+  hoare prg ⟦wp_if' e wp_c1 wp_c2 f ⟧ [:: MkI ii (Cif e c1 c2) ] ⟦f⟧.
+Proof.
+  move=> WP1 WP2 .
+  move=> s s1 /ssem_inv [s' [H' /ssem_inv]] ->.
+  case: (ssem_I_inv H') => v [ii' [/MkI_inj [? ?]]]. clear H'. subst ii' v.
+  move=> / ssem_i_inv [ b [ Hb REC ] ].
+  unfold wp_if'.
+  case (type_check_pexpr e _) eqn: EQ. 2: apply ffalse_denote.
+  destruct s as (m, vm).
+  move: (type_check_pexprP EQ _ _ _ Hb) => Y /= X.
+  move: X => [X1 X2].
+  destruct b.
+    refine (WP1 _ _ _ REC _).
+    apply X1; clear X1 X2.
+    apply (@ok_inj error); symmetry; apply Y. auto.
+  refine (WP2 _ _ _ REC _).
+  apply X2; clear X1 X2.
+  apply (@ok_inj error); symmetry; apply Y. auto.
+Qed.
+
 End WEAKEST_PRECONDITION.
