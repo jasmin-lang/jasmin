@@ -112,17 +112,26 @@ Inductive lsem1 (c:lcmd) : lstate -> lstate -> Prop:=
     s1.(lc) = MkLI ii (Lgoto lbl) :: cs ->
     find_label lbl c = Some cs' ->
     lsem1 c s1 (setc s1 cs')
+(*
 | LSem_cond : forall cond ii s1 e lbl cs cs', 
     s1.(lc) = MkLI ii (Lcond e lbl) :: cs ->
     sem_pexpr (to_estate s1) e >>= to_bool = ok cond ->
     find_label lbl c = Some cs' ->
     lsem1 c s1 (setc s1 (if cond then cs' else cs)).
+*)
+| LSem_condTrue : forall ii s1 e lbl cs cs',
+    s1.(lc) = MkLI ii (Lcond e lbl) :: cs ->
+    sem_pexpr (to_estate s1) e >>= to_bool = ok true ->
+    find_label lbl c = Some cs' ->
+    lsem1 c s1 (setc s1 cs')
+| LSem_condFalse : forall ii s1 e lbl cs,
+    s1.(lc) = MkLI ii (Lcond e lbl) :: cs ->
+    sem_pexpr (to_estate s1) e >>= to_bool = ok false ->
+    lsem1 c s1 (setc s1 cs).
 
 Inductive lsem (c:lcmd) : lstate -> lstate -> Prop:=
 | LSem0 : forall s, lsem c s s
 | LSem1 : forall s1 s2 s3, lsem1 c s1 s2 -> lsem c s2 s3 -> lsem c s1 s3.
-
-Check S.sem_call.
 
 Inductive lsem_fd m1 (fd: lfundef) va m2 vr : Prop := 
 | LSem_fd : forall p cs ii vm2 m2' s1 s2,
@@ -347,11 +356,11 @@ Proof.
   + move=> [m1 vm1 c] ii lbl cs cs' /= -> Heq2.
     apply: (@LSem_goto (c1 ++ c2) _ _ lbl (cs++c2) (cs'++c2)) => //=.
     by apply: find_label_cat_tl.
-  move=> cond ii [m1 vm1 c] e lbl cs cs' /= -> Heq1 Heq2.
-  have -> : (if cond then cs' else cs) ++ c2 = if cond then cs'++c2 else cs++c2. 
-  + by case cond.
-  apply: (@LSem_cond (c1 ++ c2) cond _ _ e lbl (cs++c2) (cs'++c2)) => //=.
-  by apply find_label_cat_tl.
+  + move=> ii [m1 vm1 c] e lbl cs cs' /= -> Heq1 Heq2.
+    apply: (@LSem_condTrue (c1 ++ c2) _ _ e lbl (cs++c2) (cs'++c2))=> //.
+    by apply: find_label_cat_tl.
+  + move=> ii [m1 vm1 c] e lbl cs /= -> Heq1.
+    apply: (@LSem_condFalse (c1 ++ c2) _ _ e lbl (cs++c2))=> //.
 Qed.
 
 Lemma valid_find_label p1 p2 c c' lbl: 
@@ -424,12 +433,14 @@ Proof.
       apply: (@LSem_goto (c1 ++ c2) _ _ lbl cs cs')=> //.
       rewrite find_label_cat_hd //.
       by apply:contra (H lbl)=> /= ->;rewrite eq_refl.
-    move=> cond ii [m1 vm1 c] e lbl cs cs' /= -> Hcond Hf H;split.
-    + case:cond {Hcond};first by apply: disjoint_find_label Hf.
-      by apply: disjoint_lbl_cons H.
-    apply: (@LSem_cond (c1 ++ c2) cond _ _ e lbl cs cs')=> //.
-    rewrite find_label_cat_hd //.                     
-    by apply:contra (H lbl)=> /= ->;rewrite eq_refl.   
+    + move=> ii [m1 vm1 c] e lbl cs cs' /= -> Hcond Hf H; split.
+      by apply: disjoint_find_label Hf.
+      apply: (@LSem_condTrue (c1 ++ c2) _ _ e lbl cs cs')=> //.
+      rewrite find_label_cat_hd //.
+      by apply: contra (H lbl)=> /= ->;rewrite eq_refl.
+    + move=> ii [m1 vm1 c] e lbl cs /= -> Hcond H; split.
+      apply: disjoint_lbl_cons H.
+      apply: (@LSem_condFalse (c1 ++ c2) _ _ e lbl cs)=> //.
   by apply: (LSem1 Hsem1');apply Hrec.
 Qed.
 
@@ -552,7 +563,7 @@ Section PROOF.
  
   Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi_r (Cif e c1 c2).
   Proof.
-    move=> e c1 c2 Hc1 Hc2 ii lbl lbl' l' => /=.
+    move=> e c1 c2 Hc1 Hc2 ii lbl lbl' l' /=.
     case Heq1: (c1)=> [|i1 l1].
     + subst;rewrite linear_c_nil;case Heq: linear_c => [[lbl2 lc2]|] //= [] <- <-.
       have Hlen := le_next lbl.
@@ -561,26 +572,27 @@ Section PROOF.
       + rewrite /= valid_cat Pos.leb_refl (valid_le_min Hlen Hv2) /= Pos.leb_refl.
         by rewrite (Pos_lt_leb_trans (lt_next _) Hle).
       move=> [m1 vm1] s2 H;inversion H;clear H;subst.
-      admit.
-      admit.
-   (*
-      apply LSem1 with (of_estate {| emem := m1; evm := vm1 |}
-                          (if cond then [::] else lc2 ++ [:: Llabel lbl])).
-      + apply LSem_cond with e lbl=>//=.
-        rewrite find_label_cat_hd //= ?eq_refl //.
-        apply /negP=> H; have := @valid_has _ lbl _ _ Hv2;rewrite H=> /(_ isT) /andP[].
+      + apply: LSem1.
+        apply: LSem_condTrue=> //.
+        rewrite -cat_cons.
+        rewrite find_label_cat_hd.
+        by rewrite /= /is_label /= eq_refl.
+        apply /negP=> H.
+        rewrite /= in H.
+        have := @valid_has _ lbl _ _ Hv2; rewrite H=> /(_ isT) /andP[].
         by rewrite Pos.leb_antisym lt_next.
-      case:cond H5 H6=> H5 H6.
-      + inversion H6;clear H6;subst;apply LSem0.
-      have {Hs2}Hs2:= Hs2 _ _ H6.
-      have Hvc : valid lbl (next_lbl lbl) [::Lcond e lbl].
-      + by rewrite /= Pos.leb_refl lt_next.
-      have Hd: disjoint_lbl [:: Lcond e lbl] lc2 by move=> ?.
-      have /(_ (erefl _)):= @lsem_cat_hd [::Lcond e lbl] lc2 _ _ Hd _ Hs2.
-      move=> /(@lsem_cat_tl [:: Llabel lbl]) Hsem.
-      apply (lsem_trans Hsem);case s2 => m2 vm2.
-      by apply LSem_step;apply LSem_lbl with lbl.
-    *)
+        sinversion H6.
+        apply: LSem0.
+      + apply: LSem1.
+        apply: LSem_condFalse=> //.
+        have {Hs2}Hs2:= Hs2 _ _ H6.
+        have Hvc : valid lbl (next_lbl lbl) [:: MkLI ii (Lcond e lbl)].
+        + by rewrite /= Pos.leb_refl lt_next.
+        have Hd: disjoint_lbl [:: MkLI ii (Lcond e lbl)] lc2 by move=> ?.
+        have /(_ (erefl _)):= @lsem_cat_hd [:: MkLI ii (Lcond e lbl)] lc2 _ _ Hd _ Hs2.
+        move=> /(@lsem_cat_tl [:: MkLI ii (Llabel lbl)]) Hsem.
+        apply (lsem_trans Hsem);case s2 => m2 vm2.
+        by apply LSem_step;apply: LSem_lbl.
     rewrite -Heq1 => {Heq1 l1 i1};case Heq2: c2 => [|i2 l2].
     + subst;rewrite linear_c_nil;case Heq: linear_c => [[lbl1 lc1]|] //= [] <- <-.
       have Hlen := le_next lbl.
@@ -589,25 +601,27 @@ Section PROOF.
       + rewrite /= valid_cat Pos.leb_refl (valid_le_min Hlen Hv1) /= Pos.leb_refl.
         by rewrite (Pos_lt_leb_trans (lt_next _) Hle).
       move=> [m1 vm1] s2 H;inversion H;clear H;subst.
-      admit.
-      admit.
-      (*
-      apply LSem1 with (of_estate {| emem := m1; evm := vm1 |}
-                          (if (negb cond) then [::] else lc1 ++ [:: Llabel lbl])).
-      + apply LSem_cond with (enot e) lbl=>//=;first by rewrite H5.
-        rewrite find_label_cat_hd //= ?eq_refl //.
-        apply /negP=> H; have := @valid_has _ lbl _ _ Hv1;rewrite H=> /(_ isT) /andP[].
+      + apply: LSem1.
+        apply: LSem_condFalse=> //.
+        by rewrite /= H5.
+        have {Hs1}Hs1:= Hs1 _ _ H6.
+        have Hvc : valid lbl (next_lbl lbl) [:: MkLI ii (Lcond (Pnot e) lbl)].
+        + by rewrite /= Pos.leb_refl lt_next.
+        have Hd: disjoint_lbl [:: MkLI ii (Lcond (Pnot e) lbl)] lc1 by move=> ?.
+        have /(_ (erefl _)):= @lsem_cat_hd [:: MkLI ii (Lcond (Pnot e) lbl)] lc1 _ _ Hd _ Hs1.
+        move=> /(@lsem_cat_tl [:: MkLI ii (Llabel lbl)]) Hsem.
+        apply (lsem_trans Hsem);case s2 => m2 vm2.
+        by apply LSem_step;apply: LSem_lbl.
+      + apply: LSem1.
+        apply: LSem_condTrue=> //.
+        by rewrite /= H5.
+        rewrite -cat_cons find_label_cat_hd //=.
+        by rewrite /is_label /= eq_refl.
+        apply/negP=> H.
+        have := @valid_has _ lbl _ _ Hv1; rewrite H=> /(_ isT) /andP[].
         by rewrite Pos.leb_antisym lt_next.
-      case:cond H5 H6=> H5 H6 /=;last by inversion H6;clear H6;subst;apply LSem0.
-      have {Hs1}Hs1:= Hs1 _ _ H6.
-      have Hvc : valid lbl (next_lbl lbl) [::Lcond (enot e) lbl].
-      + by rewrite /= Pos.leb_refl lt_next.
-      have Hd: disjoint_lbl [:: Lcond (enot e) lbl] lc1 by move=> ?.
-      have /(_ (erefl _)):= @lsem_cat_hd [::Lcond (enot e) lbl] lc1 _ _ Hd _ Hs1.
-      move=> /(@lsem_cat_tl [:: Llabel lbl]) Hsem.
-      apply (lsem_trans Hsem);case s2 => m2 vm2.
-      by apply LSem_step;apply LSem_lbl with lbl.
-      *)
+        sinversion H6.
+        apply: LSem0.
     rewrite -Heq2 => {Heq2 l2 i2}.
     rewrite linear_c_nil;case Heq1: linear_c => [[lbl1 lc1]|] //=.
     rewrite linear_c_nil;case Heq2: linear_c => [[lbl2 lc2]|] //= [] <- <-.
@@ -623,50 +637,41 @@ Section PROOF.
       rewrite (Pos_lt_leb_trans (lt_next _) L2lbl2).  
       by rewrite (valid_le_min _ Hv2) // (valid_le_max Hle2 (valid_le_min lblL2 Hv1)).
     move=> [m1 vm1] s2 H;inversion H;clear H;subst.
-    admit.
-    admit.
-    (*
-    apply LSem1 with (of_estate {| emem := m1; evm := vm1 |}
-                        (if cond then lc1 ++ [:: Llabel (next_lbl lbl)]
-                         else  
-                          lc2 ++ [:: Lgoto (next_lbl lbl), Llabel lbl
-                                  & lc1 ++ [:: Llabel (next_lbl lbl)]])).
-    + apply LSem_cond with e lbl=>//=.
-      rewrite find_label_cat_hd /= ?eq_refl //.
-      apply /negP => H; have := @valid_has _ lbl _ _ Hv2;rewrite H=> /(_ isT) /andP[].
-      have Hlt := Pos_leb_trans leL2 Hle1.
-      by rewrite Pos.leb_antisym (Pos_lt_leb_trans(lt_next _)(Pos_leb_trans leL2 Hle1)).
-    case:cond H5 H6=> H5 H6.
-    + have {Hs1}Hs1 := Hs1 _ _ H6.
+    + apply LSem1 with (of_estate {| emem := m1; evm := vm1 |} (lc1 ++ [:: MkLI ii (Llabel (next_lbl lbl))])).
+      + apply: LSem_condTrue=> //=.
+        rewrite find_label_cat_hd /= /is_label /= ?eq_refl //.
+        apply /negP => H; have := @valid_has _ lbl _ _ Hv2;rewrite H=> /(_ isT) /andP[].
+        have Hlt := Pos_leb_trans leL2 Hle1.
+        by rewrite Pos.leb_antisym (Pos_lt_leb_trans(lt_next _)(Pos_leb_trans leL2 Hle1)).
+      have {Hs1}Hs1 := Hs1 _ _ H6.
       have Hd: 
-        disjoint_lbl ([:: Lcond e lbl]++lc2++[:: Lgoto (next_lbl lbl); Llabel lbl]) lc1.
+        disjoint_lbl ([:: MkLI ii (Lcond e lbl)]++lc2++[:: MkLI ii (Lgoto (next_lbl lbl)); MkLI ii (Llabel lbl)]) lc1.
       + rewrite !disjoint_cat_l;split;first by move=> ?.
         split;first by apply: valid_disjoint Hv2 Hv1;rewrite Pos.leb_refl orbC.
-        move=> lbl0 /=;rewrite orbF;case:eqP=> //= ?;subst lbl0.
+        move=> lbl0 /=;rewrite orbF /is_label /=;case:eqP=> //= ?;subst lbl0.
         apply /negP => H; have := @valid_has _ lbl _ _ Hv1;rewrite H orbT.
         move=> /(_ isT) /andP[];rewrite Pos.leb_antisym. 
         by rewrite (Pos_lt_leb_trans (lt_next _) leL2).
       have /(_ (erefl _)):= lsem_cat_hd Hd _ Hs1.
-      move=> /(@lsem_cat_tl [:: Llabel (next_lbl lbl)]) /=.
+      move=> /(@lsem_cat_tl [:: MkLI ii (Llabel (next_lbl lbl))]) /=.
       rewrite -!catA /= => Hsem; apply (lsem_trans Hsem).
-      by apply LSem_step;apply LSem_lbl with (next_lbl lbl).
-    apply lsem_trans with (of_estate s2 [:: Lgoto (next_lbl lbl), Llabel lbl
-                                          & lc1 ++ [:: Llabel (next_lbl lbl)]]).
-    + have := Hs2 _ _ H6.  
-      move=> /(@lsem_cat_tl [:: Lgoto (next_lbl lbl), Llabel lbl
-                              & lc1 ++ [:: Llabel (next_lbl lbl)]]) /= H.
-      by have /= /(_ [::Lcond e lbl]) H0:= lsem_cat_hd _ _ H;apply H0.
-    apply LSem_step. eapply LSem_goto=> /=;eauto.
-    rewrite find_label_cat_hd /=.
-    + case: eqP => Heq. 
-      + by have := lt_next lbl;rewrite Pos.ltb_antisym Heq Pos.leb_refl.
-      rewrite find_label_cat_hd /= ?eq_refl //.
-      apply /negP=> H;have := @valid_has _ (next_lbl lbl) _ _ Hv1.
-      by rewrite H Pos.leb_antisym lt_next /= => /(_ isT).
-    apply /negP=> H;have := @valid_has _ (next_lbl lbl) _ _ Hv2.
-    by rewrite H Pos.leb_antisym (Pos_lt_leb_trans (lt_next _) Hle1) /= => /(_ isT).
-    *)
-  Admitted.
+      by apply LSem_step;apply: LSem_lbl.
+    + apply LSem1 with (of_estate {| emem := m1; evm := vm1 |} (lc2 ++ [:: MkLI ii (Lgoto (next_lbl lbl)), MkLI ii (Llabel lbl) & lc1 ++ [:: MkLI ii (Llabel (next_lbl lbl))]])).
+      + apply: LSem_condFalse=> //.
+      apply lsem_trans with (of_estate s2 [:: MkLI ii (Lgoto (next_lbl lbl)), MkLI ii (Llabel lbl) & lc1 ++ [:: MkLI ii (Llabel (next_lbl lbl))]]).
+      + have := Hs2 _ _ H6.
+        move=> /(@lsem_cat_tl [:: MkLI ii (Lgoto (next_lbl lbl)), MkLI ii (Llabel lbl) & lc1 ++ [:: MkLI ii (Llabel (next_lbl lbl))]]) /= H.
+        by have /= /(_ [:: MkLI ii (Lcond e lbl)]) H0:= lsem_cat_hd _ _ H;apply H0.
+      apply LSem_step. eapply LSem_goto=> /=;eauto.
+      rewrite find_label_cat_hd /= /is_label /=.
+      + case: eqP => Heq. 
+        + by have := lt_next lbl;rewrite Pos.ltb_antisym Heq Pos.leb_refl.
+        rewrite find_label_cat_hd /= /is_label /= ?eq_refl //.
+        apply /negP=> H;have := @valid_has _ (next_lbl lbl) _ _ Hv1.
+        by rewrite H Pos.leb_antisym lt_next /= => /(_ isT).
+      apply /negP=> H;have := @valid_has _ (next_lbl lbl) _ _ Hv2.
+      by rewrite H Pos.leb_antisym (Pos_lt_leb_trans (lt_next _) Hle1) /= => /(_ isT).
+  Qed.
 
   Let Hfor : forall v dir lo hi c, Pc c -> Pi_r (Cfor v (dir, lo, hi) c).
   Proof. by []. Qed.
@@ -682,44 +687,45 @@ Section PROOF.
     + rewrite /= valid_cat /= Pos.leb_refl leL1 (valid_le_min _ Hv) //.
       rewrite (Pos_lt_leb_trans (lt_next _) Hle).        
       by rewrite (Pos_lt_leb_trans (lt_next _) (Pos_leb_trans leL2 Hle)).
-    move=> s1 s2 H;inversion H;clear H;subst.
-    apply LSem1 with (of_estate s1 [::MkLI ii (Lcond e (next_lbl lbl))]).
-    + eapply LSem_goto=> /=;eauto.
-      rewrite /is_label /=.
-      case: eqP => H.
-      + by have := lt_next lbl;rewrite Pos.ltb_antisym -H Pos.leb_refl.
-      rewrite find_label_cat_hd /= ?eq_refl //.
-      rewrite /is_label /=.
-      case: eqP => //.
-      apply /negP=> H1;have := @valid_has _ lbl _ _ Hv.
-      by rewrite H1 Pos.leb_antisym (Pos_lt_leb_trans (lt_next _) leL2) /= => /(_ isT).
-    admit.
-    (*
-    elim: H4 Hs=> {Hc c e s1 s2} [[m1 vm1] e c He|[m1 vm1] s2 s3 e c He Hsc Hsw Hrec] Hc;
-      set C1 := lc ++ [:: Llabel lbl; Lcond e (next_lbl lbl)];
-      set C2 := [:: Lgoto lbl, Llabel (next_lbl lbl) & C1].
-    + apply LSem_step. 
-      apply (@LSem_cond C2 false 
-        (of_estate {| emem := m1; evm := vm1 |} [:: Lcond e (next_lbl lbl)])
-        e (next_lbl lbl) [::] C1 (erefl _) He).
-      by rewrite /= eq_refl.
-    apply lsem_trans with (of_estate {| emem := m1; evm := vm1 |} C1).  
-    + apply LSem_step.
-      apply (@LSem_cond C2 true 
-              (of_estate {| emem := m1; evm := vm1 |} [:: Lcond e (next_lbl lbl)])
-              e (next_lbl lbl) [::] C1 (erefl _) He).
-      by rewrite /= eq_refl.
-    have := Hrec Hc;rewrite -/C2;apply lsem_trans.
-    have Hd : disjoint_lbl [:: Lgoto lbl; Llabel (next_lbl lbl)] lc.
-    + move=> lbl0 /=;rewrite orbF;case: eqP => //= ?;subst.
-      apply /negP=> H;have := @valid_has _ (next_lbl lbl) _ _ Hv.
-      by rewrite H Pos.leb_antisym lt_next /= orbC => /(_ isT). 
-    have /(_ (erefl _)):= lsem_cat_hd Hd _ (Hc _ _ Hsc).
-    move=> /(@lsem_cat_tl [:: Llabel lbl; Lcond e (next_lbl lbl)]).
-    rewrite /= -/C2 => H;apply: (lsem_trans H);apply LSem_step.
-    eapply LSem_lbl=> /=;eauto.
-    *)
-  Admitted.
+    move=> s1 s2 H.
+    + apply LSem1 with (of_estate s1 [::MkLI ii (Lcond e (next_lbl lbl))]).
+      + eapply LSem_goto=> /=;eauto.
+        rewrite /is_label /=.
+        case: eqP => H'.
+        + by have := lt_next lbl;rewrite Pos.ltb_antisym -H' Pos.leb_refl.
+        rewrite find_label_cat_hd /= ?eq_refl //.
+        rewrite /is_label /=.
+        case: eqP => //.
+        apply /negP=> H1;have := @valid_has _ lbl _ _ Hv.
+        by rewrite H1 Pos.leb_antisym (Pos_lt_leb_trans (lt_next _) leL2) /= => /(_ isT).
+    set C1 := lc ++ [:: MkLI ii (Llabel lbl); MkLI ii (Lcond e (next_lbl lbl))];
+    set C2 := [:: MkLI ii (Lgoto lbl), MkLI ii (Llabel (next_lbl lbl)) & C1].
+    elim: _ {-1}_ _ / H Hs (erefl (Cwhile e c))=> // {s1 s2}.
+    + move=> s1 s2 s3 e0 c0 He Hsem Hsemi IH Hs [] He' Hc'.
+      subst e0; subst c0.
+      apply: LSem1.
+      apply: LSem_condTrue=> //.
+      rewrite /= /to_estate /=.
+      by case: s1 He Hsem.
+      by rewrite /= /is_label /= eq_refl.
+      apply: lsem_trans.
+      have Hd : disjoint_lbl [:: MkLI ii (Lgoto lbl); MkLI ii (Llabel (next_lbl lbl))] lc.
+      + move=> lbl0 /=;rewrite orbF /is_label /=;case: eqP => //= ?;subst.
+        apply /negP=> H;have := @valid_has _ (next_lbl lbl) _ _ Hv.
+        by rewrite H Pos.leb_antisym lt_next /= orbC => /(_ isT).
+      have /(_ (erefl _)):= lsem_cat_hd Hd _ (Hs _ _ Hsem).
+      move=> /(@lsem_cat_tl [:: MkLI ii (Llabel lbl); MkLI ii (Lcond e (next_lbl lbl))]).
+      rewrite /= -/C2 => H.
+      apply: (lsem_trans H);apply: LSem_step.
+      eapply LSem_lbl=> /=; eauto.
+      exact: IH.
+    + move=> s e0 c0 He Hs [] He' Hc'; subst e0; subst c0.
+      apply: LSem1.
+      apply: LSem_condFalse=> //.
+      rewrite /= /to_estate /=.
+      by case: s He.
+      apply: LSem0.
+  Qed.
 
   Let Hcall : forall i xs f es, Pi_r (Ccall i xs f es).
   Proof. by []. Qed.
@@ -752,6 +758,4 @@ Section PROOF.
     exact: Hs.
   Qed.
 
-End PROOF.   
-
-
+End PROOF.

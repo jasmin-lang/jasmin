@@ -27,6 +27,7 @@ COQFILES := \
 	src/dead_code.v \
 	src/array_expansion.v \
 	src/stack_alloc.v \
+	src/linear.v \
 	src/zmod_setoid.v \
 	src/dmasm_Ssem.v \
 	src/dmasm_Ssem_props.v \
@@ -42,9 +43,6 @@ COQFILES := \
 	src/proof_add.v \
 	src/proof_4limb_add_25519.v \
 	src/proof_4limb_mul_25519.v
-
-#	src/linear.v \
-
 
 #	src/symbolic_expr.v \
 	src/symbolic_expr_opt.v
