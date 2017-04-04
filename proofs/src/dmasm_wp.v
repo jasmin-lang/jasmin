@@ -18,31 +18,6 @@ Import dmasm_Ssem.
 Import memory.
 Import UnsafeMemory.
 
-Lemma ssem_inv { prg s c s' } :
-  ssem prg s c s' →
-  match c with
-  | [::] => s' = s
-  | i :: c' => ∃ si, ssem_I prg s i si ∧ ssem prg si c' s'
-end.
-Proof. case; eauto. Qed.
-
-Lemma ssem_I_inv { prg s i s' } :
-  ssem_I prg s i s' →
-  ∃ i' ii, i = MkI ii i' ∧ ssem_i prg s i' s'.
-Proof. case; eauto. Qed.
-
-Lemma ssem_i_inv { prg s i s' } :
-  ssem_i prg s i s' →
-  match i with
-  | Cassgn x tg e => ∃ v, ssem_pexpr s e = ok v ∧ swrite_lval x v s = ok s'
-  | _ => True
-  end.
-Proof.
-  case; eauto.
-  clear.
-  move=> s s' x _ e H. case: (bindW H). eauto.
-Qed.
-
 Definition MkI_inj {ii i ii' i'} (H: MkI ii i = MkI ii' i') :
   ii = ii' ∧ i = i' :=
   let 'Logic.eq_refl := H in conj Logic.eq_refl Logic.eq_refl.
@@ -87,6 +62,36 @@ Proof.
   exists n, Logic.eq_refl. exact E.
 Qed.
 
+Lemma ssem_inv { prg s c s' } :
+  ssem prg s c s' →
+  match c with
+  | [::] => s' = s
+  | i :: c' => ∃ si, ssem_I prg s i si ∧ ssem prg si c' s'
+end.
+Proof. case; eauto. Qed.
+
+Lemma ssem_I_inv { prg s i s' } :
+  ssem_I prg s i s' →
+  ∃ i' ii, i = MkI ii i' ∧ ssem_i prg s i' s'.
+Proof. case; eauto. Qed.
+
+Lemma ssem_i_inv { prg s i s' } :
+  ssem_i prg s i s' →
+  match i with
+  | Cassgn x tg e => ∃ v, ssem_pexpr s e = ok v ∧ swrite_lval x v s = ok s'
+  | Cif e c1 c2 => ∃ b : bool, ssem_pexpr s e = ok (SVbool b) ∧ ssem prg s (if b then c1 else c2) s'
+  | _ => True
+  end.
+Proof.
+  case; eauto; clear.
+  - (* Cassgn *)
+  move=> s s' x _ e; apply: rbindP; eauto.
+  - (* Cif true *)
+  move=> s s' e c1 c2; apply: rbindP => v Hv /sto_bool_inv ?; subst v; eauto.
+  - (* Cif false *)
+  move=> s s' e c1 c2; apply: rbindP => v Hv /sto_bool_inv ?; subst v; eauto.
+Qed.
+
 Lemma swrite_lval_inv {x v s s'} :
   swrite_lval x v s = ok s' →
   match x with
@@ -107,30 +112,16 @@ end%vmap.
 Proof.
   destruct x as [ vi | x | x e | x i ].
   - move=> H; apply ok_inj in H; auto.
-  - move=> H'.
-    case: (bindW H') => vm H K. clear H'.
-    apply ok_inj in K; subst s'.
-    case: (bindW H) => v' X E. clear H.
-    exists v'. apply (conj X).
-    f_equal.
-    apply ok_inj in E. symmetry. exact E.
-  - move=> H'.
-    case: (bindW H') => vx H K'. clear H'.
-    apply sto_word_inv in H.
-    unfold sget_var in H. simpl in *.
-    destruct x as [x xi]; simpl.
-    destruct x as [ty x]; simpl.
-    simpl in *.
-    destruct ty; move=> //. simpl in *.
-    exists Logic.eq_refl, vx. simpl.
-    case: (bindW K') => ve H' K. clear K'.
-    case: (bindW H') => ve' L M. clear H'.
-    apply sto_word_inv in M. subst ve'. exists ve.
-    case: (bindW K) => w N N'. clear K.
-    apply sto_word_inv in N. subst.
-    apply ok_inj in N'. subst.
-    eexists. split. congruence.
-    auto.
+  - apply: rbindP => vm H K; apply ok_inj in K; subst s'.
+    revert H; apply: rbindP => v' H X; apply ok_inj in X; subst vm; eauto.
+  - apply: rbindP => vx /sto_word_inv H.
+    apply: rbindP => ve.
+    apply: rbindP => ve' He /sto_word_inv ?; subst ve'.
+    apply: rbindP => w /sto_word_inv -> X; apply ok_inj in X; subst s'.
+    unfold sget_var in H.
+    destruct x as [[() x] xi]; move=> //.
+    exists Logic.eq_refl, vx, ve, w.
+    split. simpl in *. congruence. auto.
   - move=> /slet_inv [n [Tx H]].
     exists n, Tx.
     apply: rbindP H=> vi;apply: rbindP => vj Hi /sto_int_inv H;subst vj.
