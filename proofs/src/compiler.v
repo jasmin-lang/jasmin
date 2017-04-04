@@ -29,9 +29,7 @@ From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
 Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr memory dmasm_sem.
 Require Import compiler_util allocation inlining unrolling constant_prop dead_code.
-Require Import array_expansion.
-
-(*Require Import stack_alloc linear. *)
+Require Import array_expansion stack_alloc linear.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -55,19 +53,19 @@ Definition unroll_loop (p:prog) := unroll Loop.nb p.
 
 Section COMPILER.
 
-(*Variable expand: forall ta tr, fundef ta tr -> fundef ta tr.
-Variable ralloc: forall ta tr, fundef ta tr -> fundef ta tr.
-Variable stk_alloc : forall ta tr, fundef ta tr -> seq.seq (var * Z) * S.fundef ta tr. *)
-
-Variable rename_fd : fundef -> fundef.
-Variable expand_fd : fundef -> fundef.
-Variable alloc_fd  : fundef -> fundef.
+Variable rename_fd    : fundef -> fundef.
+Variable expand_fd    : fundef -> fundef.
+Variable alloc_fd     : fundef -> fundef.
+Variable stk_alloc_fd : fundef -> seq (var * Z) * S.sfundef.
 
 Definition expand_prog (p:prog) := 
-  map (fun f => (f.1, expand_fd f.2)) p.
+  List.map (fun f => (f.1, expand_fd f.2)) p.
 
 Definition alloc_prog (p:prog) := 
-    map (fun f => (f.1, alloc_fd f.2)) p.
+  List.map (fun f => (f.1, alloc_fd f.2)) p.
+
+Definition stk_alloc_prog (p:prog) : S.sprog * (seq (seq (var * Z))) :=
+  List.split (List.map (fun f => let (x, y) := stk_alloc_fd f.2 in ((f.1, y), x)) p).
 
 Definition compile_prog (p:prog) := 
   Let p := inline_prog rename_fd p in
@@ -76,87 +74,72 @@ Definition compile_prog (p:prog) :=
   Let _ := CheckExpansion.check_prog p pe in
   let pa := alloc_prog pe in
   Let _ := CheckAllocReg.check_prog pe pa in
-  (* dead_code to clean nop assignment *)                 
+  (* dead_code to clean nop assignment *)   
+  Let pd := dead_code_prog pa in
   (* stack_allocation                  *)
-  (* linearisation                     *)
-  (* asm                               *)
-  cfok pa.
-
-(*
-    
-Definition compile_fd (ffd:funname * fundef ta tr) :=
-  let fdrn := rename fd in
-  if CheckAllocReg.check_fd fd fdrn then
-    check_inline_fd fdrn >>= (fun _ =>
-    unroll nb_loop (inline_fd fdrn) >>= (fun fd =>
-    let fdea := expand fd in                                           
-    if CheckExpansion.check_fd fd fdea then
-      let fda := ralloc fdea in
-       if CheckAllocReg.check_fd fdea fda then
-         let (l, fds) := stk_alloc fda in
-         if stack_alloc.check_fd l fda fds then 
-           linear_fd fds >>= (fun lfd =>
-             if lfd.(lfd_stk_size) == S.fd_stk_size fds then Ok unit lfd 
-             else Error tt)
-         else Error tt
-       else Error tt
-    else Error tt))
-  else Error tt.
+  let (ps, l) := stk_alloc_prog pd in
+  if stack_alloc.check_prog pd ps l then
+    (* linearisation                     *)
+    Let pl := linear_prog ps in
+    (* asm                               *)
+    cfok pl
+  else cferror Ferr_neqprog.
 
 Section PROOF.
 
-Lemma unroll1P ta tr (fd fd':fundef ta tr) mem va mem' vr:
-  unroll1 fd = Ok unit fd' ->
-  sem_call mem fd  va mem' vr ->
-  sem_call mem fd' va mem' vr.
+Lemma unroll1P (fn: funname) (p p':prog) mem va mem' vr:
+  unroll1 p = ok p' ->
+  sem_call p  mem fn va mem' vr ->
+  sem_call p' mem fn va mem' vr.
 Proof.
   rewrite /unroll1=> Heq Hsem.
-  have := dead_code_callP (const_prop_call (unroll_call fd)) mem mem' va vr.
-  rewrite Heq=> H;apply H=> {H}.
-  by apply const_prop_callP;apply unroll_callP.
+  apply: (dead_code_callP Heq).
+  apply: const_prop_callP.
+  exact: unroll_callP.
 Qed.
 
-Lemma unrollP ta tr (fd fd':fundef ta tr) mem va mem' vr:
-  unroll nb_loop fd = Ok unit fd' ->
-  sem_call mem fd  va mem' vr ->
-  sem_call mem fd' va mem' vr.
+Lemma unrollP (fn: funname) (p p': prog) mem va mem' vr:
+  unroll Loop.nb p = ok p' ->
+  sem_call p mem  fn va mem' vr ->
+  sem_call p' mem fn va mem' vr.
 Proof.
-  elim: nb_loop fd => /= [fd [] ->//|n Hn fd].
-  case Heq: unroll1=> [fd1|] //=.
-  case:ifP => [_ [] -> | _ Hu Hs] //.
-  by apply (Hn fd1) => //;apply: unroll1P Hs.
+  elim: Loop.nb p=> /= [p //|n Hn] p.
+  apply: rbindP=> z Hz.
+  case: ifP=> [_ [] ->|_ Hu Hs] //.
+  apply: (Hn z) =>//.
+  exact: unroll1P Hs.
 Qed.
 
-Opaque nb_loop.
+Opaque Loop.nb.
 
-Lemma compile_fdP ta tr (fd:fundef ta tr) (fd':lfundef ta tr)mem va mem' vr:
-  compile_fd fd = Ok unit fd' ->
-  sem_call mem fd va mem' vr ->
-  (exists p, alloc_stack mem (lfd_stk_size fd') = ok p) ->
-  lsem_fd fd' va mem mem' vr.
+Lemma compile_progP (p: prog) (lp: lprog) mem fn va mem' vr:
+  compile_prog p = cfok lp ->
+  sem_call p mem fn va mem' vr ->
+  uniq [seq x.1 | x <- p] ->
+  (*(exists p, alloc_stack mem (lfd_stk_size fd') = ok p) ->*)
+  lsem_fd lp mem fn va mem' vr.
 Proof.
-  rewrite /compile_fd.
-  case Hrn:  CheckAllocReg.check_fd => //=.
-  case Hinl: check_inline_fd => [s|] //=.
-  case Hunr: unroll => [fdu|] //=.
-  case Hea:  CheckExpansion.check_fd => //=.
-  case Hra:  CheckAllocReg.check_fd => //=.
-  case stk_alloc => [l fds] //=.
-  case Hsa: stack_alloc.check_fd => //=.
-  case Hlfd:linear_fd => [lfd|] //=. 
-  case:eqP => [ Heq| //] [] <- Hsem;rewrite Heq=> Hex.
-  apply: (linear_fdP Hlfd).
-  apply: (stack_alloc.check_fdP Hsa) Hex.
-  apply: (CheckAllocReg.check_fdP Hra).
-  apply: (CheckExpansion.check_fdP Hea). 
-  apply: (unrollP Hunr).
-  apply: inlineP Hinl.
-  by apply: CheckAllocReg.check_fdP Hsem.
-Qed.
+  rewrite /compile_prog.
+  apply: rbindP=> p0 Hp0.
+  apply: rbindP=> p1 Hp1.
+  apply: rbindP=> -[] He.
+  apply: rbindP=> -[] He'.
+  apply: rbindP=> pd Hpd.
+  case Hps: (stk_alloc_prog pd)=> [ps l].
+  case Hps': (check_prog pd ps l)=> //.
+  apply: rbindP=> pl Hpl [] <-.
+  move=> Hcall Huniq.
+  apply: (linear_fdP Hpl).
+  apply: stack_alloc.check_progP.
+  exact: Hps'=> //.
+  apply: (dead_code_callP Hpd).
+  apply: (CheckAllocReg.alloc_callP He').
+  apply: (CheckExpansion.alloc_callP He).
+  apply: (unrollP Hp1).
+  apply: (inline_callP _ Hp0)=> //.
+  admit.
+Admitted.
 
 End PROOF.
-*)
 
 End COMPILER.
-
-    

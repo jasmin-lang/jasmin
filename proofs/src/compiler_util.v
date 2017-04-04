@@ -27,6 +27,7 @@ Inductive error_msg :=
   | Cerr_arr_exp  : pexpr -> pexpr -> error_msg 
   | Cerr_arr_exp_v: lval -> lval -> error_msg 
   | Cerr_stk_alloc: string -> error_msg
+  | Cerr_linear   : string -> error_msg
 
 with fun_error   := 
   | Ferr_in_body  : funname -> funname -> (instr_info * error_msg) -> fun_error

@@ -30,10 +30,10 @@ Require Import Setoid Morphisms.
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import JMeq ZArith.
+Require Import ZArith.
 
 Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr.
-Require Import memory dmasm_sem stack_alloc.
+Require Import memory dmasm_sem stack_alloc compiler_util.
 Import Memory.
 
 Set Implicit Arguments.
@@ -71,6 +71,25 @@ Record lfundef := LFundef {
  lfd_body : lcmd;
  lfd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)
 }.
+
+Definition lprog := seq (funname * lfundef).
+
+Definition dummy_lfundef :=
+ {| lfd_stk_size := 0;
+    lfd_nstk := ""%string;
+    lfd_arg := [::];
+    lfd_body := [::];
+    lfd_res := [::] |}.
+
+Section SEM.
+
+Variable P: lprog.
+
+Definition get_lfundef f :=
+  let pos := find (fun ffd => f == fst ffd) P in
+  if pos <= size P then
+    Some (snd (nth (xH,dummy_lfundef) P pos))
+  else None.
 
 (* --------------------------------------------------------------------------- *)
 (* Semantic                                                                    *)
@@ -112,13 +131,6 @@ Inductive lsem1 (c:lcmd) : lstate -> lstate -> Prop:=
     s1.(lc) = MkLI ii (Lgoto lbl) :: cs ->
     find_label lbl c = Some cs' ->
     lsem1 c s1 (setc s1 cs')
-(*
-| LSem_cond : forall cond ii s1 e lbl cs cs', 
-    s1.(lc) = MkLI ii (Lcond e lbl) :: cs ->
-    sem_pexpr (to_estate s1) e >>= to_bool = ok cond ->
-    find_label lbl c = Some cs' ->
-    lsem1 c s1 (setc s1 (if cond then cs' else cs)).
-*)
 | LSem_condTrue : forall ii s1 e lbl cs cs',
     s1.(lc) = MkLI ii (Lcond e lbl) :: cs ->
     sem_pexpr (to_estate s1) e >>= to_bool = ok true ->
@@ -133,8 +145,9 @@ Inductive lsem (c:lcmd) : lstate -> lstate -> Prop:=
 | LSem0 : forall s, lsem c s s
 | LSem1 : forall s1 s2 s3, lsem1 c s1 s2 -> lsem c s2 s3 -> lsem c s1 s3.
 
-Inductive lsem_fd m1 (fd: lfundef) va m2 vr : Prop := 
-| LSem_fd : forall p cs ii vm2 m2' s1 s2,
+Inductive lsem_fd m1 fn va m2 vr : Prop := 
+| LSem_fd : forall p cs fd ii vm2 m2' s1 s2,
+    get_lfundef fn = Some fd ->
     alloc_stack m1 fd.(lfd_stk_size) = ok p ->
     let c := fd.(lfd_body) in
     write_var  (S.vstk fd.(lfd_nstk)) p.1 (Estate p.2 vmap0) = ok s1 ->
@@ -144,7 +157,7 @@ Inductive lsem_fd m1 (fd: lfundef) va m2 vr : Prop :=
     mapM (fun (x:var_i) => get_var vm2 x) fd.(lfd_res) = ok vr ->
     m2 = free_stack m2' p.1 fd.(lfd_stk_size) ->
     List.Forall is_full_array vr ->
-    lsem_fd m1 fd va m2 vr.
+    lsem_fd m1 fn va m2 vr.
 
 Lemma lsem_trans s2 s1 s3 c : 
   lsem c s1 s2 -> lsem c s2 s3 -> lsem c s1 s3.
@@ -161,11 +174,11 @@ Notation "c1 '>;' c2" :=  (c2 >>= (fun p => ok (p.1, c1 :: p.2)))
 
 Section LINEAR_C.
 
-  Variable linear_i : instr -> label -> lcmd -> result unit (label * lcmd).
+  Variable linear_i : instr -> label -> lcmd -> ciexec (label * lcmd).
 
   Fixpoint linear_c (c:cmd) (lbl:label) (lc:lcmd) := 
     match c with
-    | [::] => ok (lbl, lc)
+    | [::] => ciok (lbl, lc)
     | i::c => 
       linear_i i ;; linear_c c lbl lc
     end.
@@ -173,8 +186,6 @@ Section LINEAR_C.
 End LINEAR_C.
 
 Definition next_lbl lbl := (lbl + 1)%positive.
-
-Print MkI.
 
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
@@ -208,23 +219,32 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
     linear_c linear_i c lbl
     (MkLI ii (Llabel L1) :: MkLI ii (Lcond e L2) :: lc)
 
-  | Cfor _ _ _ => Error tt
+  | Cfor _ _ _ => cierror ii (Cerr_linear "for found in linear")
     
-  | Ccall _ _ _ _ => Error tt
+  | Ccall _ _ _ _ => cierror ii (Cerr_linear "call found in linear")
 
   end.
 
-Definition linear_fd (fd:S.sfundef) :=
-  (linear_c linear_i (S.sf_body fd) 1%positive [:: MkLI xH Lreturn]) >>=
-   (fun p => ok
-     (LFundef (S.sf_stk_sz fd) (S.sf_stk_id fd) (S.sf_params fd) p.2 (S.sf_res fd))).
+End SEM.
+
+Definition linear_fd (fd: funname * S.sfundef) :=
+  Let fd' := add_finfo fd.1 fd.1 (linear_c linear_i (S.sf_body fd.2) 1%positive [:: MkLI xH Lreturn]) in
+  cfok (LFundef (S.sf_stk_sz fd.2) (S.sf_stk_id fd.2) (S.sf_params fd.2) fd'.2 (S.sf_res fd.2)).
+
+Definition linear_ffd (ffd: funname * S.sfundef) (p: cfexec lprog) :=
+  Let p := p in
+  Let fd := linear_fd ffd in
+  cfok ((ffd.1, fd) :: p).
+
+Definition linear_prog (sp: S.sprog) :=
+  foldr linear_ffd (cfok [::]) sp.
 
 Section CAT.
 
   Let Pi (i:instr) := 
     forall lbl l , 
      linear_i i lbl l = 
-     linear_i i lbl [::] >>= (fun (p:label*lcmd) => Ok unit (p.1, p.2 ++ l)).
+     linear_i i lbl [::] >>= (fun (p:label*lcmd) => ok (p.1, p.2 ++ l)).
 
   Let Pr (i:instr_r) :=
     forall ii, Pi (MkI ii i).
@@ -233,7 +253,7 @@ Section CAT.
     forall lbl l , 
      linear_c linear_i c lbl l = 
      linear_c linear_i c lbl [::] >>= 
-       (fun (p:label*lcmd) => Ok unit (p.1, p.2 ++ l)).
+       (fun (p:label*lcmd) => ok (p.1, p.2 ++ l)).
 
   Let Pf (fd:fundef) := True.
 
@@ -283,14 +303,14 @@ Section CAT.
 
   Lemma linear_i_nil i lbl l :
      linear_i i lbl l = 
-     linear_i i lbl [::] >>= (fun (p:label*lcmd) => Ok unit (p.1, p.2 ++ l)).
+     linear_i i lbl [::] >>= (fun (p:label*lcmd) => ok (p.1, p.2 ++ l)).
   Proof. 
     apply (@instr_Rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
   Qed.
 
   Lemma linear_c_nil c lbl l :
      linear_c linear_i c lbl l = 
-     linear_c linear_i c lbl [::] >>= (fun (p:label*lcmd) => Ok unit (p.1, p.2 ++ l)).
+     linear_c linear_i c lbl [::] >>= (fun (p:label*lcmd) => ok (p.1, p.2 ++ l)).
   Proof. 
     apply (@cmd_rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
   Qed.
@@ -488,27 +508,29 @@ Proof. by move=> H; apply (LSem1 H); apply LSem0. Qed.
 
 Section PROOF.
 
-  Variable SP: S.sprog.
+  Variable p: S.sprog.
+  Variable p': lprog.
+  Hypothesis linear_ok : linear_prog p = ok p'.
 
   Let Pi (i:instr) := 
-    forall lbl lbli li, linear_i i lbl [::] = Ok unit (lbli, li) ->
+    forall lbl lbli li, linear_i i lbl [::] = ok (lbli, li) ->
     [/\ (lbl <=? lbli)%positive,
      valid lbl lbli li & 
-     forall s1 s2, S.sem_I SP s1 i s2 -> 
+     forall s1 s2, S.sem_I p s1 i s2 -> 
        lsem li (of_estate s1 li) (of_estate s2 [::])].
 
   Let Pi_r (i:instr_r) :=
-    forall ii lbl lbli li, linear_i (MkI ii i) lbl [::] = Ok unit (lbli, li) ->
+    forall ii lbl lbli li, linear_i (MkI ii i) lbl [::] = ok (lbli, li) ->
     [/\ (lbl <=? lbli)%positive,
      valid lbl lbli li & 
-     forall s1 s2, S.sem_i SP s1 i s2 -> 
+     forall s1 s2, S.sem_i p s1 i s2 -> 
        lsem li (of_estate s1 li) (of_estate s2 [::])].
 
   Let Pc (c:cmd) := 
-    forall lbl lblc lc, linear_c linear_i c lbl [::] = Ok unit (lblc, lc) ->
+    forall lbl lblc lc, linear_c linear_i c lbl [::] = ok (lblc, lc) ->
     [/\ (lbl <=? lblc)%positive,
      valid lbl lblc lc & 
-     forall s1 s2, S.sem SP s1 c s2 -> 
+     forall s1 s2, S.sem p s1 c s2 -> 
        lsem lc (of_estate s1 lc) (of_estate s2 [::])].
 
   Let HmkI : forall i ii, Pi_r i -> Pi (MkI ii i).
@@ -731,31 +753,76 @@ Section PROOF.
   Proof. by []. Qed.
 
   Lemma linear_cP c lbl lblc lc:
-    linear_c linear_i c lbl [::] = Ok unit (lblc, lc) ->
+    linear_c linear_i c lbl [::] = ok (lblc, lc) ->
     [/\ (lbl <=? lblc)%positive,
      valid lbl lblc lc & 
-     forall s1 s2, S.sem SP s1 c s2 -> 
+     forall s1 s2, S.sem p s1 c s2 -> 
        lsem lc (of_estate s1 lc) (of_estate s2 [::])].
   Proof.
     apply (@cmd_rect Pi_r Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
   Qed.
 
-  Lemma linear_fdP fn (fd: S.sfundef) (lfd: lfundef) :
-    S.get_fundef SP fn = Some fd ->
-    linear_fd fd = ok lfd ->
-    forall m1 va m2 vr, 
-    S.sem_call SP m1 fn va m2 vr -> lsem_fd m1 lfd va m2 vr.
+  (* TODO: this is ugly, but here because of error annotations we cannot use get_map_prog;
+     maybe some mapM-like construct would make it less ugly though *)
+  Lemma fun_p' f fn: S.get_fundef p fn = Some f ->
+    exists f', linear_fd (fn, f) = ok f' /\ get_lfundef p' fn = Some f'.
   Proof.
-    rewrite /linear_fd linear_c_nil.
-    case Heq: linear_c=> [[lblc lc]|] //= Hfd [] <-.
-    move=> m1 va m2 vr H.
+    move=> Hfun.
+    have := linear_ok.
+    rewrite /linear_prog.
+    elim: p p' Hfun=> //= fh fl IH q Hfun Hlin.
+    move: fh Hfun Hlin=> [fhn fhd] Hfun Hlin.
+    rewrite {1}/linear_ffd in Hlin.
+    (**)
+    case: (boolP (fn == fhn)) Hfun.
+    + move=> /eqP ->.
+      rewrite /S.get_fundef /= eq_refl /==> [] []<-.
+      case: (foldr linear_ffd (cfok [::]) fl) Hlin=> // p1 /=.
+      rewrite /cfok.
+      apply: rbindP=> c Hc []<-.
+      exists c; split.
+      rewrite /add_finfo /= in Hc.
+      by case: (linear_fd (fn, fhd)) Hc=> // a []->.
+      by rewrite /get_lfundef /= eq_refl.
+    + move=> /negPf Hneq Hfun.
+      rewrite /cfok in Hlin.
+      move: Hlin; apply: rbindP=> p1 Hp1 /= Hlin.
+      have [||p2 [Hp2 Hp2']] := (IH p1)=> //.
+      rewrite /S.get_fundef /= Hneq /= in Hfun.
+      exact: Hfun.
+      exists p2; split=> //.
+      move: Hlin; apply: rbindP=> c Hc [] <-.
+      rewrite /get_lfundef /= Hneq /=.
+      exact: Hp2'.
+  Qed.
+
+  Lemma linear_fdP:
+    forall fn m1 va m2 vr,
+    S.sem_call p m1 fn va m2 vr -> lsem_fd p' m1 fn va m2 vr.
+  Proof.
+    move=> fn m1 va m2 vr H.
     sinversion H.
-    have: Some sf = Some fd by rewrite -Hfd.
-    move=> [] Heq'; subst sf.
-    econstructor;eauto=> //=.
+    move: (fun_p' H0)=> [f' [Hf'1 Hf'2]].
+    have Hf'3 := Hf'1.
+    apply: rbindP Hf'3=> [l Hc] [] Hf'3.
+    rewrite /add_finfo in Hc.
+    case Heq: linear_c Hc=> [[lblc lc]|] //= [] Hl.
+    rewrite linear_c_nil in Heq.
+    apply: rbindP Heq=> [[lblc' lc']] Heq [] Hz1 Hz2.
     have [_ _ H] := linear_cP Heq.
     move: H4=> /H /(@lsem_cat_tl [:: MkLI xH Lreturn]) Hs.
+    rewrite -Hf'3 in Hf'2.
+    apply: LSem_fd.
+    exact: Hf'2.
+    exact: H1.
+    exact: H2.
+    exact: H3.
+    rewrite -Hl /=.
+    rewrite /= Hz2 in Hs.
     exact: Hs.
+    exact: H5.
+    rewrite //.
+    exact: H7.
   Qed.
 
 End PROOF.

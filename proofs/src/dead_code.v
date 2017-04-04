@@ -156,11 +156,9 @@ Qed.
 
 Section PROOF.
 
-  Variable p : prog.
+  Variables p p' : prog.
 
-  Variable p' : prog.
-
-  Parameter dead_code_ok : dead_code_prog p = ok p'.
+  Hypothesis dead_code_ok : dead_code_prog p = ok p'.
 
   Let Pi_r (s:estate) (i:instr_r) (s':estate) :=
     forall ii s2,
@@ -637,8 +635,7 @@ Section PROOF.
     sem_call p mem fn va mem' vr ->
     sem_call p' mem fn va mem' vr.
   Proof.
-    apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
-             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
+    apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 
 End PROOF.

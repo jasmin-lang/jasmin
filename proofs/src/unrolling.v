@@ -242,7 +242,7 @@ Section PROOF.
     exact: Hres.
   Qed.
 
-  Lemma const_prop_callP f mem mem' va vr:
+  Lemma unroll_callP f mem mem' va vr:
     sem_call p mem f va mem' vr ->
     sem_call p' mem f va mem' vr.
   Proof.
