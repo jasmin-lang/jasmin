@@ -32,6 +32,7 @@ COQFILES := \
 	src/dmasm_Ssem_props.v \
 	src/dmasm_logic.v \
 	src/dmasm_wp.v \
+	src/dmasm_wp_while.v \
 	src/equiv_sem.v \
 	src/compiler.v \
 	src/extraction.v \
