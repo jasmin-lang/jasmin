@@ -1579,8 +1579,8 @@ Proof.
   by [].
 Qed.
 
-Definition alloc_ok (SP: S.sprog) m1 :=
-  forall fn fd, S.get_fundef SP fn = Some fd ->
+Definition alloc_ok SP fn m1 :=
+  forall fd, S.get_fundef SP fn = Some fd ->
   exists p, Memory.alloc_stack m1 (S.sf_stk_sz fd) = ok p.
 
 Definition check_prog (P: prog) (SP: S.sprog) (ll: seq (seq (var * Z))) :=
@@ -1619,7 +1619,7 @@ Lemma check_progP (P: prog) (SP: S.sprog) l fn:
   check_prog P SP l ->
   forall m1 va m1' vr, 
     sem_call P m1 fn va m1' vr ->
-    alloc_ok SP m1 ->
+    alloc_ok SP fn m1 ->
     S.sem_call SP m1 fn va m1' vr.
 Proof.
   move=> Hcheck m1 va m1' vr H Halloc.
@@ -1631,5 +1631,5 @@ Proof.
   exact: Hl'.
   exact: H.
   rewrite /alloc_ok in Halloc.
-  exact: (Halloc _ _ Hfd').
+  exact: (Halloc _ Hfd').
 Qed.

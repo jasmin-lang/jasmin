@@ -116,7 +116,7 @@ Lemma compile_progP (p: prog) (lp: lprog) mem fn va mem' vr:
   compile_prog p = cfok lp ->
   sem_call p mem fn va mem' vr ->
   uniq [seq x.1 | x <- p] ->
-  (*(exists p, alloc_stack mem (lfd_stk_size fd') = ok p) ->*)
+  (forall fn f, get_lfundef lp fn = Some f -> exists p, Memory.alloc_stack mem (lfd_stk_size f) = ok p) ->
   lsem_fd lp mem fn va mem' vr.
 Proof.
   rewrite /compile_prog.
@@ -128,7 +128,7 @@ Proof.
   case Hps: (stk_alloc_prog pd)=> [ps l].
   case Hps': (check_prog pd ps l)=> //.
   apply: rbindP=> pl Hpl [] <-.
-  move=> Hcall Huniq.
+  move=> Hcall Huniq Halloc.
   apply: (linear_fdP Hpl).
   apply: stack_alloc.check_progP.
   exact: Hps'=> //.
@@ -137,8 +137,12 @@ Proof.
   apply: (CheckExpansion.alloc_callP He).
   apply: (unrollP Hp1).
   apply: (inline_callP _ Hp0)=> //.
-  admit.
-Admitted.
+  rewrite /alloc_ok=> fd Hfd.
+  move: (fun_p' Hpl Hfd)=> [f' [Hf'1 Hf'2]].
+  apply: rbindP Hf'1=> [fn' Hfn'] [] Hf'.
+  have := Halloc _ _ Hf'2.
+  by rewrite -Hf' /=.
+Qed.
 
 End PROOF.
 
