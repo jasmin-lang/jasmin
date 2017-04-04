@@ -548,6 +548,18 @@ Definition type_of_pexpr (e: pexpr) : stype :=
   | Papp2 op _ _ => op2_type_o op
   end.
 
+Definition default_texpr (ty: stype') : texpr ty :=
+  match ty with
+  | sbool' => Tbool true
+  | sint' => Tconst 42
+  end.
+
+Definition texpr_of_pexpr (ty: stype') (pe: pexpr) : texpr ty :=
+  match type_check_pexpr pe ty with
+  | Some te => te
+  | None => default_texpr ty
+  end.
+
 Lemma post_assgn_m { s s' } :
   env_ext s s' →
   ∀ x ty (v: ssem_t ty) f m,
