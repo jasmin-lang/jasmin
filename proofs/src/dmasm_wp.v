@@ -340,18 +340,7 @@ Proof.
   elim: e => //=;congruence.
 Qed.
 
-Definition stype_eq_dec (ty ty': stype) : { ty = ty' } + { True } :=
-  match ty, ty' with
-  | sword, sword => left Logic.eq_refl
-  | sbool, sbool => left Logic.eq_refl
-  | sint, sint => left Logic.eq_refl
-  | sarr n, sarr n' =>
-    match Pos.eq_dec n n' with
-    | left EQ => left (f_equal sarr EQ)
-    | right _ => right I
-    end
-  | _, _ => right I
-  end.
+Scheme Equality for stype.
 
 Fixpoint type_check_pexpr (e: pexpr) (ty: stype) : option (texpr ty) :=
   match e with
