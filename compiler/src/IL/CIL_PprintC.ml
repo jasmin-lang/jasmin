@@ -165,7 +165,7 @@ let rec pp_instr_r fmt instr =
     F.fprintf fmt "Ccall %a [:: %a] %a [:: %a]"
       pp_inline inl
       (pp_clist "; " pp_rval) rvs
-      pp_pos fname
+      pp_var_name fname
       (pp_clist "; " pp_pexpr) pes
 
 
@@ -188,7 +188,7 @@ let pp_fundef fmt fd =
 
 let pp_named_fun fmt nf =
   let (fn,fd) = pair_of_cpair nf in
-  F.fprintf fmt "(%a, %a)" pp_pos fn pp_fundef fd
+  F.fprintf fmt "(%a, %a)" pp_var_name fn pp_fundef fd
 
 let prefix = "Require Import dmasm_sem.
 Import dmasm_type.

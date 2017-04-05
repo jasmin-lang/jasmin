@@ -181,14 +181,18 @@ let pop_u64_of_sop2 sop =
   | DE.Osub -> Pminus
   | _       -> failwith "pop_u64_of_sop2: cannot map operation to pop_u64"
   
-let cvar_of_var v =
-  let vname = string0_of_string (string_of_int v.Var.num) in
+let cvar_of_var hr v =
+  let vname = string0_of_string
+      (if hr then
+         (Vname.to_string v.Var.name)
+       else
+         (string_of_int v.Var.num)) in
   let vtype = cty_of_ty v.Var.ty in
   { DV.Var.vname = Obj.magic vname; DV.Var.vtype = vtype }
 
-let cvar_i_of_var cvi v =
+let cvar_i_of_var cvi hr v =
   let k = CVI.add_varg cvi v in
-  DE.{v_info = pos_of_int k; v_var = cvar_of_var v}
+  DE.{v_info = pos_of_int k; v_var = cvar_of_var hr v}
 
 let var_of_cvar cvar (name,stor,uloc,dloc) =
   let num = int_of_string (string_of_string0 (Obj.magic cvar.DV.Var.vname)) in
@@ -205,11 +209,11 @@ let var_of_cvar_i cvi vi =
   let varg = CVI.get_varg cvi vi.DE.v_info in
   var_of_cvar vi.DE.v_var varg
 
-let rec cpexpr_of_pexpr cvi pe =
-  let cpe = cpexpr_of_pexpr cvi in
+let rec cpexpr_of_pexpr cvi hr pe =
+  let cpe = cpexpr_of_pexpr cvi hr in
   match pe with
   | Patom(Pvar(v))     ->
-    DE.Pvar(cvar_i_of_var cvi v)
+    DE.Pvar(cvar_i_of_var cvi hr v)
   | Pbinop(po,pe1,pe2) ->
     DE.Papp2(sop2_of_pop_u64 po,cpe pe1,cpe pe2) 
   | Pconst bi ->
@@ -252,9 +256,9 @@ let mk_cmp cop cpe1 cpe2 =
 
 let mk_eq = mk_cmp DE.Oeq
 
-let rec cpexpr_of_pcond cvi pc =
-  let cpc = cpexpr_of_pcond cvi in
-  let cpe = cpexpr_of_pexpr cvi in
+let rec cpexpr_of_pcond cvi hr pc =
+  let cpc = cpexpr_of_pcond cvi hr in
+  let cpe = cpexpr_of_pexpr cvi hr in
   match pc with
   | Pbool(b)          -> DE.Pbool(cbool_of_bool b)
   | Pnot(pc)          -> mk_not(cpc pc)
@@ -305,8 +309,8 @@ let rec pcond_of_cpexpr vat pe =
   |Pload(_) -> failwith "pcond_pexpr: unsuppported operator"
 
 
-let cpexpr_of_fcond cvi {fc_neg; fc_var} =
-  let cpe_v = cpexpr_of_pexpr cvi (Patom(Pvar(fc_var))) in
+let cpexpr_of_fcond cvi hr {fc_neg; fc_var} =
+  let cpe_v = cpexpr_of_pexpr cvi hr (Patom(Pvar(fc_var))) in
   (if fc_neg then DE.Pnot(cpe_v) else cpe_v)
 
 let fcond_of_cpexpr cvi cpe =
@@ -325,33 +329,33 @@ let fcond_of_cpexpr cvi cpe =
 (* ** Sources and destinations
  * ------------------------------------------------------------------------ *)
 
-let rval_of_sdest cvi sd =
+let rval_of_sdest cvi hr sd =
   match sd.d_idx with
   | None ->
     let k = CVI.add_darg cvi sd in
-    DE.Lvar({DE.v_info=pos_of_int k;DE.v_var=cvar_of_var sd.d_var})
+    DE.Lvar({DE.v_info=pos_of_int k;DE.v_var=cvar_of_var hr sd.d_var})
   | Some(idx) ->
     let cpe =
       match idx with
-      | Ipexpr(pe) -> cpexpr_of_pexpr cvi pe
-      | Ivar(v)    -> cpexpr_of_pexpr cvi (Patom(Pvar(v)))
+      | Ipexpr(pe) -> cpexpr_of_pexpr cvi hr pe
+      | Ivar(v)    -> cpexpr_of_pexpr cvi hr (Patom(Pvar(v)))
     in
     let k = CVI.add_darg cvi sd in
-    DE.Laset({DE.v_info=pos_of_int k;DE.v_var=cvar_of_var sd.d_var}, cpe)
+    DE.Laset({DE.v_info=pos_of_int k;DE.v_var=cvar_of_var hr sd.d_var}, cpe)
 
-let rval_of_rdest cvi rd =
+let rval_of_rdest cvi hr rd =
   match rd with
-  | Sdest(sd)  -> rval_of_sdest cvi sd
+  | Sdest(sd)  -> rval_of_sdest cvi hr sd
   | Mem(sd,pe) ->
     if sd.d_idx<>None then (
       failwith "rval_of_rdest: memory base pointer cannot be array"
     ) else (
       let k = CVI.add_darg cvi sd in
-      DE.Lmem(DE.{v_info=pos_of_int k; v_var=cvar_of_var sd.d_var}, cpexpr_of_pexpr cvi pe)
+      DE.Lmem(DE.{v_info=pos_of_int k; v_var=cvar_of_var hr sd.d_var}, cpexpr_of_pexpr cvi hr pe)
     )
-let rval_of_dest cvi d =
+let rval_of_dest cvi hr d =
   match d with
-  | Rdest(rd) -> rval_of_rdest cvi rd
+  | Rdest(rd) -> rval_of_rdest cvi hr rd
   | Ignore(l) ->
     let k = CVI.add_iloc cvi l in
     DE.Lnone(pos_of_int k)
@@ -400,20 +404,20 @@ let dest_of_rval cvi rv =
     Ignore(l)
   | _ -> Rdest(rdest_of_rval cvi rv)
 
-let cpexpr_of_src cvi s =
-  let cpe = cpexpr_of_pexpr cvi in
+let cpexpr_of_src cvi hr s =
+  let cpe = cpexpr_of_pexpr cvi hr in
   match s with
   | Imm(_,pe) -> cpe pe
   | Src(Sdest(d)) ->
     let k = CVI.add_darg cvi d in
-    let v = {DE.v_info=pos_of_int k; DE.v_var=cvar_of_var d.d_var} in
+    let v = {DE.v_info=pos_of_int k; DE.v_var=cvar_of_var hr d.d_var} in
     begin match d.d_idx with
     | None -> DE.Pvar(v)
     | Some(idx) ->
       let cpe =
         match idx with
-        | Ipexpr(pe) -> cpexpr_of_pexpr cvi pe
-        | Ivar(v)    -> cpexpr_of_pexpr cvi (Patom(Pvar(v)))
+        | Ipexpr(pe) -> cpexpr_of_pexpr cvi hr pe
+        | Ivar(v)    -> cpexpr_of_pexpr cvi hr (Patom(Pvar(v)))
       in
       DE.Pget(v,cpe)
     end
@@ -486,18 +490,18 @@ let assgn_type_of_atag = function
   | DE.AT_rename -> Eq
   | DE.AT_inline -> Inl
 
-let rec cinstr_of_base_instr cvi lbi =
+let rec cinstr_of_base_instr cvi hr lbi =
   let k = CVI.add_iloc cvi lbi.L.l_loc in
   match lbi.L.l_val with
   | Assgn(d,s,aty) ->
     let atag = atag_of_assgn_type aty in
-    let rd = rval_of_dest cvi d in
-    let es = cpexpr_of_src cvi s in
+    let rd = rval_of_dest cvi hr d in
+    let es = cpexpr_of_src cvi hr s in
     Some(k,DE.Cassgn(rd,atag,es))
 
   | Op(o,ds,ss) ->
-    let ds = List.map ~f:(rval_of_dest cvi) ds in
-    let ss  = List.map ~f:(cpexpr_of_src cvi) ss in
+    let ds = List.map ~f:(rval_of_dest cvi hr) ds in
+    let ss  = List.map ~f:(cpexpr_of_src cvi hr) ss in
     let sopn = sopn_of_op o in
     Some(k, DE.Copn(clist_of_list ds, sopn, clist_of_list ss))
     
@@ -505,20 +509,25 @@ let rec cinstr_of_base_instr cvi lbi =
     None
 
   | Call(fname,ds,ss,di) ->
-    let fun_id = pos_of_int @@ CVI.add_fname cvi fname in
-    let rvals = List.map ~f:(rval_of_dest cvi) ds in
-    let args  = List.map ~f:(cpexpr_of_src cvi) ss in
+    let fun_id =
+      if hr then
+        Obj.magic (string0_of_string (Fname.to_string fname))
+      else
+        pos_of_int @@ CVI.add_fname cvi fname
+    in
+    let rvals = List.map ~f:(rval_of_dest cvi hr) ds in
+    let args  = List.map ~f:(cpexpr_of_src cvi hr) ss in
     let inl = if di=DoInline then DE.InlineFun else DE.DoNotInline in
     Some(k,DE.Ccall(inl,clist_of_list rvals,fun_id,clist_of_list args))
 
-and cinstr_of_linstr cvi linstr =
+and cinstr_of_linstr cvi hr linstr =
   let loc = linstr.L.l_loc in
   let ci =
     match linstr.L.l_val with
     | Block(lbis,oinfo) ->
       assert(oinfo=None);
       let conv_bi lbi =
-        match cinstr_of_base_instr cvi lbi with
+        match cinstr_of_base_instr cvi hr lbi with
         | None       -> []
         | Some(k,ci) -> [ DE.MkI (pos_of_int k,ci) ]
       in
@@ -527,29 +536,29 @@ and cinstr_of_linstr cvi linstr =
     | If(cond,s1,s2,oinfo) ->
       let k = CVI.add_iloc cvi loc in
       assert(oinfo=None);
-      let cmd1 = cmd_of_stmt cvi s1 in
-      let cmd2 = cmd_of_stmt cvi s2 in
+      let cmd1 = cmd_of_stmt cvi hr s1 in
+      let cmd2 = cmd_of_stmt cvi hr s2 in
       let cpe = match cond with
         | Fcond(fc) ->
           CVI.add_ifcond cvi k true;
-          cpexpr_of_fcond cvi fc
+          cpexpr_of_fcond cvi hr fc
         | Pcond(pc) ->
           CVI.add_ifcond cvi k false;
-          cpexpr_of_pcond cvi pc
+          cpexpr_of_pcond cvi hr pc
       in
       [ DE.MkI (pos_of_int k, DE.Cif(cpe,cmd1,cmd2)) ]
 
     | For(sd,pe_lb,pe_ub,s,oinfo) ->
       assert(oinfo=None && sd.d_idx=None);
-      let v = cvar_of_var sd.d_var in
+      let v = cvar_of_var hr sd.d_var in
       let ki = CVI.add_iloc cvi loc in
       let kv = CVI.add_darg cvi sd in
-      let cmd = cmd_of_stmt cvi s in
+      let cmd = cmd_of_stmt cvi hr s in
       let cvar_i = DE.{v_info=pos_of_int kv; v_var=v} in
       (* FIXME: we do not distinguish DownTo/UpTo in Ocaml *)
       let rng =
-        cpair_of_pair (cpair_of_pair (DE.UpTo,cpexpr_of_pexpr cvi pe_lb),
-                       cpexpr_of_pexpr cvi pe_ub)
+        cpair_of_pair (cpair_of_pair (DE.UpTo,cpexpr_of_pexpr cvi hr pe_lb),
+                       cpexpr_of_pexpr cvi hr pe_ub)
       in
       [ DE.MkI (pos_of_int ki, DE.Cfor(cvar_i,rng,cmd)) ]
 
@@ -557,14 +566,14 @@ and cinstr_of_linstr cvi linstr =
       assert(oinfo=None);
       if (wt=DoWhile) then failwith "conversion to coq does not support do-while";
       let k = CVI.add_iloc cvi loc in
-      let cmd = cmd_of_stmt cvi s in
-      let cpe = cpexpr_of_fcond cvi fc in
+      let cmd = cmd_of_stmt cvi hr s in
+      let cpe = cpexpr_of_fcond cvi hr fc in
       [ DE.MkI (pos_of_int k, DE.Cwhile(cpe,cmd)) ]
   in
   ci
 
-and cmd_of_stmt cvi s =
-  clist_of_list @@ List.concat_map ~f:(cinstr_of_linstr cvi) s
+and cmd_of_stmt cvi hr s =
+  clist_of_list @@ List.concat_map ~f:(cinstr_of_linstr cvi hr) s
 
 let base_instr_of_cassgn cvi rval atag pe =
   match pe with
@@ -640,11 +649,11 @@ let rec instr_of_cinstr cvi lci =
 and stmt_of_cmd cvi c =
    List.map ~f:(instr_of_cinstr cvi) (list_of_clist c)
 
-let cfundef_of_fundef cvi fd =
+let cfundef_of_fundef cvi hr fd =
   let k = CVI.add_fdinfo cvi fd in
-  let cmd = cmd_of_stmt cvi fd.f_body  in
-  let params = List.map ~f:(cvar_i_of_var cvi) fd.f_arg in
-  let res = List.map ~f:(cvar_i_of_var cvi) fd.f_ret in
+  let cmd = cmd_of_stmt cvi hr fd.f_body in
+  let params = List.map ~f:(cvar_i_of_var cvi hr) fd.f_arg in
+  let res = List.map ~f:(cvar_i_of_var cvi hr) fd.f_ret in
   DE.{ f_iinfo  = pos_of_int k;
        f_params = clist_of_list params;
        f_body   = cmd;
@@ -668,7 +677,7 @@ let apply_cert_transform _fname modul ~f =
   let cvi = CVI.mk () in
   (* F.printf "calling inlining\n%!"; *)
   let conv_nf nf =
-    let cfd = cfundef_of_fundef cvi nf.nf_func in
+    let cfd = cfundef_of_fundef cvi false nf.nf_func in
     let k = CVI.add_fname cvi nf.nf_name in
     cpair_of_pair (pos_of_int k,cfd)
   in
@@ -722,9 +731,9 @@ let print_coq_modul filename modul =
   let modul = { modul with mod_funcs = IL_Iter.sort_call_graph modul.mod_funcs } in
   let cvi = CVI.mk () in
   let conv_nf nf =
-    let cfd = cfundef_of_fundef cvi nf.nf_func in
-    let k = CVI.add_fname cvi nf.nf_name in
-    cpair_of_pair (pos_of_int k,cfd)
+    let cfd = cfundef_of_fundef cvi true nf.nf_func in
+    let k = string0_of_string (Fname.to_string nf.nf_name) in
+    cpair_of_pair (Obj.magic k, cfd)
   in
   let cfds = List.rev_map ~f:conv_nf modul.mod_funcs in
   let prog = clist_of_list cfds in

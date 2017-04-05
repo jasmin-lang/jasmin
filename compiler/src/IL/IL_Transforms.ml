@@ -306,7 +306,7 @@ let apply_transform trafos (modul0 : unit modul) =
          let cvi = CVI.mk () in
          let conv func =
            { func with
-             f_body = stmt_of_cmd cvi (cmd_of_stmt cvi func.f_body); }
+             f_body = stmt_of_cmd cvi (cmd_of_stmt cvi false func.f_body); }
          in
          let m1 = map_func m0 fn ~f:conv in
          if not (equal_modul m0 m1) then (
