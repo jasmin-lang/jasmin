@@ -30,9 +30,9 @@ open Core_kernel.Std
 open CIL_Utils
 open Compiler_util
 open Util
-open Dmasm_expr
-open Dmasm_type
-open Dmasm_var
+open Expr
+open Type
+open Var
 
 module F   = Format
 
@@ -190,15 +190,15 @@ let pp_named_fun fmt nf =
   let (fn,fd) = pair_of_cpair nf in
   F.fprintf fmt "(%a, %a)" pp_var_name fn pp_fundef fd
 
-let prefix = "Require Import dmasm_sem.
-Import dmasm_type.
-Import dmasm_expr.
-Import dmasm_var.
-Import seq.
-
-Open Scope string_scope.
-Open Scope positive_scope.
-
+let prefix = "Require Import sem. \
+Import type. \
+Import expr. \
+Import var. \
+Import seq. \
+\
+Open Scope string_scope. \
+Open Scope positive_scope. \
+\
 Definition program := "
 
 let pp_prog fmt prog =

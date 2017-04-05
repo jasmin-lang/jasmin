@@ -29,11 +29,7 @@
 open Core_kernel.Std
 open Arith
 
-module F  = Format
-module DE = Dmasm_expr
-module DU = Dmasm_utils
-module DT = Dmasm_type
-module DV = Dmasm_var
+module T = Type
 module Lex = ParserUtil.Lexing
 module HT = Hashtbl
 
@@ -122,8 +118,8 @@ let cpair_of_pair xy =
 let pair_of_cpair cp =
 	cp
 
-let sword = DT.Coq_sword
-let sbool = DT.Coq_sbool
-let sint  = DT.Coq_sint
+let sword = T.Coq_sword
+let sbool = T.Coq_sbool
+let sint  = T.Coq_sint
 
-let sarr i = DT.Coq_sarr(pos_of_bi i)
+let sarr i = T.Coq_sarr(pos_of_bi i)

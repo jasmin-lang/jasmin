@@ -29,7 +29,7 @@ Require ExtrOcamlBasic.
 
 Cd  "../compiler/src/CIL/".
 
-Extraction Blacklist String List Nat.
+Extraction Blacklist String List Nat Var.
 
 Separate Extraction compiler.
 

@@ -30,9 +30,9 @@ open Core_kernel.Std
 open CIL_Utils
 open Compiler_util
 open Util
-open Dmasm_expr
-open Dmasm_type
-open Dmasm_var
+open Expr
+open Type
+open Var0
 
 module F   = Format
 module Lex = ParserUtil.Lexing
