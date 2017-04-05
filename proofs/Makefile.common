@@ -8,7 +8,7 @@ TOP     = $(dir $(lastword $(MAKEFILE_LIST)))
 COQMAKE = $(MAKE) -f Makefile.coq
 
 # --------------------------------------------------------------------
-all: config build quick
+all: config build
 
 # --------------------------------------------------------------------
 Makefile.coq: Makefile
