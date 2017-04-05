@@ -119,7 +119,7 @@ Proof.
     apply: rbindP => ve' He /sto_word_inv ?; subst ve'.
     apply: rbindP => w /sto_word_inv -> X; apply ok_inj in X; subst s'.
     unfold sget_var in H.
-    destruct x as [[() x] xi]; move=> //.
+    case: x H=> [[[] x] xi] //.
     exists Logic.eq_refl, vx, ve, w.
     split. simpl in *. congruence. auto.
   - move=> /slet_inv [n [Tx H]].
