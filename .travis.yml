@@ -6,9 +6,12 @@ branches:
   - master
 services:
 - docker
+env:
+- TARGETS=coq
+- TARGETS=compiler
 before_install:
-- docker pull strubpy/coq:ssr-1.6.1
+- docker pull jasminlang/test-box
 script:
 - >-
-  docker run -v $PWD:/home/ci/jasmin strubpy/coq:ssr-1.6.1
-  sh -c "opam config exec -- make -C jasmin/proofs"
+  docker run -v $PWD:/home/ci/jasmin jasminlang/test-box
+  sh -c "opam config exec -- make -C jasmin/travis check-${TARGET}"
