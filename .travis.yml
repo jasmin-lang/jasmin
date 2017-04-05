@@ -7,8 +7,8 @@ branches:
 services:
 - docker
 env:
-- TARGETS=coq
-- TARGETS=compiler
+- TARGET=coq
+- TARGET=compiler
 before_install:
 - docker pull jasminlang/test-box
 script:
