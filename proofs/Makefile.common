@@ -1,14 +1,14 @@
 # -*- Makefile -*-
 
 # --------------------------------------------------------------------
-.PHONY: all config build clean distclean __always__
+.PHONY: all config build quick clean distclean __always__
 .SUFFIXES:
 
 TOP     = $(dir $(lastword $(MAKEFILE_LIST)))
 COQMAKE = $(MAKE) -f Makefile.coq
 
 # --------------------------------------------------------------------
-all: config build
+all: config build quick
 
 # --------------------------------------------------------------------
 Makefile.coq: Makefile
@@ -20,6 +20,8 @@ config: sub-config this-config Makefile.coq
 
 build: sub-build this-build
 
+quick: sub-quick this-quick
+
 clean: sub-clean this-clean
 
 distclean: sub-distclean this-distclean
@@ -29,6 +31,9 @@ distclean: sub-distclean this-distclean
 
 this-build::
 	+$(COQMAKE)
+
+this-quick::
+	+$(COQMAKE) quick
 
 this-distclean:: this-clean
 	rm -f Makefile.coq
