@@ -15,7 +15,7 @@ default:
 	@true
 
 docker:
-	docker build -t $(DNAME)/test-box \
+	docker build -t $(DNAME)/test-box:latest \
 	  --build-arg COQVERSION=$(COQV) \
 	  --build-arg SSRVERSION=$(SSRV) \
 	  --build-arg SSRPACKAGES="$(SSRP:%=coq-mathcomp-%)" \
@@ -29,5 +29,6 @@ check-coq:
 
 check-compiler:
 	cd $(ROOT)/../compiler && opam pin add -n jasmin .
+	opam install depext && opam depext jasmin
 	opam install --deps-only jasmin
 	$(MAKE) -C "$(ROOT)/../compiler"
