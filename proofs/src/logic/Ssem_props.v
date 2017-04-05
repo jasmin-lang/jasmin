@@ -29,8 +29,8 @@
 Require Import JMeq ZArith Setoid Morphisms.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple finfun.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import gen_map word dmasm_utils dmasm_type dmasm_var dmasm_expr memory
-               dmasm_sem dmasm_Ssem.
+Require Import gen_map word utils type var expr memory
+               sem Ssem.
 
 Import GRing.Theory.
 Set Implicit Arguments.

@@ -32,8 +32,8 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import ZArith.
 
-Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr.
-Require Import memory dmasm_sem stack_alloc compiler_util.
+Require Import strings word utils type var expr.
+Require Import memory sem stack_alloc compiler_util.
 Import Memory.
 
 Set Implicit Arguments.

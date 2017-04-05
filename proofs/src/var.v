@@ -29,7 +29,7 @@
 Require Import Setoid Morphisms.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import strings dmasm_utils gen_map dmasm_type.
+Require Import strings utils gen_map type.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

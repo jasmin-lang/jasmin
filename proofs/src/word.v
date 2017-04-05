@@ -29,7 +29,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import ZArith dmasm_utils.
+Require Import ZArith utils.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

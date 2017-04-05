@@ -1,4 +1,4 @@
-Require dmasm_Ssem.
+Require Ssem.
 
 Import Utf8.
 Import Morphisms.
@@ -9,12 +9,12 @@ Import seq.
 Import ZArith.
 Local Open Scope Z_scope.
 
-Import dmasm_utils.
-Import dmasm_type.
-Import dmasm_var.
-Import dmasm_expr.
-Import dmasm_sem.
-Import dmasm_Ssem.
+Import utils.
+Import type.
+Import var.
+Import expr.
+Import sem.
+Import Ssem.
 Import memory.
 Import UnsafeMemory.
 
@@ -729,13 +729,13 @@ Proof.
     f_equal. f_equal.
     rewrite Mv.get0.
     apply eq_rect_eq. clear. move=> E.
-    by move: (Eqdep_dec.UIP_dec dmasm_type.stype_eq_dec E Logic.eq_refl) ->.
+    by move: (Eqdep_dec.UIP_dec type.stype_eq_dec E Logic.eq_refl) ->.
     move: (type_check_pexprP Te' _ _ _ Hve) => Re.
     apply: ok_inj; apply Re. auto.
     simpl in *.
     clear Tx'. revert Tx. generalize (vtype x). clear x. intros s ->.
     destruct (type_of_pexpr e) => //.
-    move: (Eqdep_dec.UIP_dec dmasm_type.stype_eq_dec Te Logic.eq_refl) ->. simpl.
+    move: (Eqdep_dec.UIP_dec type.stype_eq_dec Te Logic.eq_refl) ->. simpl.
     apply ok_inj in R. subst. auto.
   - (* Laset *)
     move=> [ n [ Tx [ vi [ w [ Hvi [? ?]]]]]] /(_ _ Logic.eq_refl); simpl in *; subst.
@@ -752,11 +752,11 @@ Proof.
     apply ok_inj in Re. subst.
     apply eq_rect_eq.
     assert (n = n'). congruence. subst n'. move=> E.
-    move: (Eqdep_dec.UIP_dec dmasm_type.stype_eq_dec E Logic.eq_refl) ->. simpl. f_equal.
+    move: (Eqdep_dec.UIP_dec type.stype_eq_dec E Logic.eq_refl) ->. simpl. f_equal.
     apply eq_rect_eq. clear. move=> E.
-    move: (Eqdep_dec.UIP_dec dmasm_type.stype_eq_dec E Logic.eq_refl) ->. reflexivity.
+    move: (Eqdep_dec.UIP_dec type.stype_eq_dec E Logic.eq_refl) ->. reflexivity.
     destruct (type_of_pexpr e) => //.
-    move: (Eqdep_dec.UIP_dec dmasm_type.stype_eq_dec Te Logic.eq_refl) ->. simpl.
+    move: (Eqdep_dec.UIP_dec type.stype_eq_dec Te Logic.eq_refl) ->. simpl.
     apply ok_inj in R. subst. auto.
     move=> NE. rewrite ! (Fv.setP_neq, Mv.setP_neq) //; case: eqP => //.
 Qed.

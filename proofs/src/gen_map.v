@@ -27,7 +27,7 @@
 Require Import FMaps FMapAVL.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import dmasm_utils.
+Require Import utils.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

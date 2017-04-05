@@ -32,8 +32,8 @@ From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import  ZArith.
 
 Require Import Coq.Logic.Eqdep_dec.
-Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr 
-               memory dmasm_sem.
+Require Import strings word utils type var expr 
+               memory sem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

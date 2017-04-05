@@ -30,8 +30,8 @@ Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
-Require Import strings word dmasm_utils dmasm_type dmasm_var dmasm_expr 
-               memory dmasm_sem compiler_util allocation.
+Require Import strings word utils type var expr 
+               memory sem compiler_util allocation.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

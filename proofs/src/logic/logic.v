@@ -32,8 +32,8 @@ From mathcomp Require Import seq tuple finfun.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import JMeq ZArith Setoid Morphisms.
 
-Require Import word dmasm_utils dmasm_type dmasm_var dmasm_expr.
-Require Import memory dmasm_sem dmasm_Ssem dmasm_Ssem_props.
+Require Import word utils type var expr.
+Require Import memory sem Ssem Ssem_props.
 (*Require Import symbolic_expr symbolic_expr_opt.*)
 
 Set Implicit Arguments.

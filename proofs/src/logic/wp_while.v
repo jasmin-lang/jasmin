@@ -3,8 +3,8 @@ From mathcomp Require Import all_ssreflect.
 
 Require Import Morphisms ZArith.
 
-Require Import dmasm_utils dmasm_type dmasm_var.
-Require Import dmasm_expr dmasm_sem dmasm_Ssem dmasm_wp.
+Require Import utils type var.
+Require Import expr sem Ssem wp.
 Require Import memory.
 
 Import UnsafeMemory.

@@ -1,4 +1,4 @@
 ((coq-mode .
    ((coq-load-path .
-       (("." "Arithmetica") ("3rdparty" "Arithmetica"))))
+       (("." "Jasmin") ("3rdparty" "Jasmin") ("logic" "Jasmin") ("compiler" "Jasmin"))))
 ))

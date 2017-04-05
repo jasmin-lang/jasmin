@@ -27,7 +27,7 @@
 Require Import ZArith.
 Require Export String.
 From mathcomp Require Import ssreflect eqtype ssrbool choice ssrfun seq.
-Require Import dmasm_utils gen_map.
+Require Import utils gen_map.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
