@@ -1,7 +1,7 @@
 # -*- Makefile -*-
 
 # --------------------------------------------------------------------
-NAME     := Arithmetica
+NAME     := Jasmin
 SUBDIRS  :=
 INCFLAGS := -R src $(NAME) -R src/3rdparty $(NAME)
 COQFILES := \
@@ -35,18 +35,7 @@ COQFILES := \
 	src/dmasm_wp_while.v \
 	src/equiv_sem.v \
 	src/compiler.v \
-	src/extraction.v \
-
-
-#	src/proof_utils.v \
-	src/proof_sem.v \
-	src/proof_add.v \
-	src/proof_4limb_add_25519.v \
-	src/proof_4limb_mul_25519.v
-
-#	src/symbolic_expr.v \
-	src/symbolic_expr_opt.v
-
+	src/extraction.v
 
 include Makefile.common
 
@@ -67,7 +56,7 @@ this-distclean::
 .PHONY: count dist
 
 # --------------------------------------------------------------------
-DISTDIR = arithmetica.v
+DISTDIR = jasmin
 TAROPT  = --posix --owner=0 --group=0
 
 dist:
