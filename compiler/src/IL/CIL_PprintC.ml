@@ -32,7 +32,7 @@ open Compiler_util
 open Util
 open Expr
 open Type
-open Var
+open Var0
 
 module F   = Format
 
