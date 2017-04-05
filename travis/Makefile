@@ -2,7 +2,7 @@
 
 # --------------------------------------------------------------------
 DNAME := jasminlang
-COQV  := 8.5.3
+COQV  ?= 8.5.3
 SSRV  := 1.6.1
 SSRP  := algebra
 ROOT  := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
@@ -15,14 +15,14 @@ default:
 	@true
 
 docker:
-	docker build -t $(DNAME)/test-box:latest \
+	docker build -t $(DNAME)/test-box:$(COQV)-$(SSRV) \
 	  --build-arg COQVERSION=$(COQV) \
 	  --build-arg SSRVERSION=$(SSRV) \
 	  --build-arg SSRPACKAGES="$(SSRP:%=coq-mathcomp-%)" \
 	  docker/
 
 publish:
-	docker push $(DNAME)/test-box:latest
+	docker push $(DNAME)/test-box:$(COQV)-$(SSRV)
 
 check-coq:
 	$(MAKE) -C "$(ROOT)/../proofs"

@@ -7,11 +7,11 @@ branches:
 services:
 - docker
 env:
-- TARGET=coq
-- TARGET=compiler
+- COQV=8.5.3-1.6.1 TARGET=coq
+- COQV=8.5.3-1.6.1 TARGET=compiler
 before_install:
-- docker pull jasminlang/test-box
+- docker pull jasminlang/test-box:${COQV}
 script:
 - >-
-  docker run -v $PWD:/home/ci/jasmin jasminlang/test-box
+  docker run -v $PWD:/home/ci/jasmin jasminlang/test-box:${COQV}
   sh -c "opam config exec -- make -C jasmin/travis check-${TARGET}"
