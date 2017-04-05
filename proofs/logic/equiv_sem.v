@@ -80,8 +80,8 @@ Definition svalue_uincl (v: value) (sv: svalue) :=
   match v, sv with
   | Vbool b1, SVbool b2 => b1 = b2
   | Vint n1, SVint n2   => n1 = n2
-  | Varr n1 t1, SVarr n2 t2 =>
-    n1 = n2 /\ (forall i v, Array.get t1 i = ok v -> FArray.get t2 i = v)
+  | Varr _ t1, SVarr t2 =>
+    forall i v, Array.get t1 i = ok v -> FArray.get t2 i = v
   | Vword w1, SVword w2 => w1 = w2
   | _, _ => False
   end.
@@ -91,8 +91,8 @@ Lemma of_sval_uincl v v' t z:
   of_val t v = ok z ->
   exists z', of_sval t v' = ok z' /\ sval_uincl z z'.
 Proof.
-  case: v v'=> [b | n | n a | w] [b' | n' | n' a' | w'] //=; try (by case: t z=> //= z -> []->; exists z).
-  move=> [<- H].
+  case: v v'=> [b | n | n a | w] [b' | n' | a' | w'] //=; try (by case: t z=> //= z -> []->; exists z).
+  move=> H.
   case: t z => //= p z.
   case: (CEDecStype.pos_dec n p)=> // H' [<-].
   exists a'; split=> //.
@@ -180,7 +180,7 @@ Proof.
     by case: (svalue_uincl_int Hvu Hto) => ??;subst; exists (SVword (I64.repr z)).
   + move=> ?; eexists; split=> //; exact: sget_var_uincl.
   + have := Hu2 x;case x => -[xt xn] xi /= H H';move: H' H.
-    apply: on_arr_varP=> /= n t -> /= /(sget_var_uincl Hu2) /= [_ Hsame].
+    apply: on_arr_varP=> /= n t -> /= /(sget_var_uincl Hu2) /= Hsame.
     apply: rbindP => z;apply: rbindP => vp /Hp [] vp' [] Hvp' Hvu /(svalue_uincl_int Hvu) [Hvp1 Hvp2].
     apply: rbindP=> w Hw [] <- /= ?.
     rewrite Hvp' Hvp2 /=.
@@ -363,7 +363,7 @@ Proof.
     by have := (Hvm0 x); rewrite /= /seval_uincl Ha'.
   move=> /(SArray_set_uincl Hvm0').
   move=> [] t' [H1 Ht];apply: rbindP=> vm'.
-  have Hut: svalue_uincl (Varr t) (SVarr n t') by split.
+  have Hut: svalue_uincl (Varr t) (SVarr t') by auto.
   move=> /(sset_var_uincl Hvm0 Hut) /= [vm2' [Hvm2' ?]] [] <- /=.
   rewrite /son_arr_var /= H1 /=.
   rewrite /sset_var /= in Hvm2'.

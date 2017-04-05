@@ -45,20 +45,30 @@ Open Scope string_scope.
 (* ** Type interpretation
  * -------------------------------------------------------------------- *)
 
-Definition ssem_t (t : stype) : Type :=
+Variant sstype : Type := ssbool | ssint | ssarr | ssword.
+
+Coercion sstype_of_stype (ty: stype) : sstype :=
+  match ty with
+  | sbool => ssbool
+  | sint => ssint
+  | sarr _ => ssarr
+  | sword => ssword
+  end.
+
+Definition ssem_t (t : sstype) : Type :=
   match t with
-  | sbool  => bool
-  | sint   => Z
-  | sarr n => FArray.array word
-  | sword  => word
+  | ssbool  => bool
+  | ssint   => Z
+  | ssarr => FArray.array word
+  | ssword  => word
   end.
 
 Definition sdflt_val st : ssem_t st :=
   match st with
-  | sbool         => false
-  | sint          => Z0
-  | sarr n        => FArray.cnst (n2w 0)
-  | sword         => I64.repr Z0
+  | ssbool         => false
+  | ssint          => Z0
+  | ssarr        => FArray.cnst (n2w 0)
+  | ssword         => I64.repr Z0
   end.
 
 (* ** Values
@@ -67,7 +77,7 @@ Definition sdflt_val st : ssem_t st :=
 Inductive svalue : Type :=
   | SVbool :> bool -> svalue
   | SVint  :> Z    -> svalue
-  | SVarr  : forall n : positive, FArray.array word -> svalue
+  | SVarr  : FArray.array word -> svalue
   | SVword :> word -> svalue.
 
 Definition svalues := seq svalue.
@@ -86,7 +96,7 @@ Definition sto_int v :=
 
 Definition sto_arr v :=
   match v with
-  | SVarr n t => ok t
+  | SVarr t => ok t
   | _         => type_error
   end.
 
@@ -98,18 +108,18 @@ Definition sto_word v :=
 
 Definition of_sval t : svalue -> exec (ssem_t t) :=
   match t return svalue -> exec (ssem_t t) with
-  | sbool  => sto_bool
-  | sint   => sto_int
-  | sarr n => sto_arr
-  | sword  => sto_word
+  | ssbool  => sto_bool
+  | ssint   => sto_int
+  | ssarr => sto_arr
+  | ssword  => sto_word
   end.
 
 Definition to_sval t : ssem_t t -> svalue :=
   match t return ssem_t t -> svalue with
-  | sbool  => SVbool
-  | sint   => SVint
-  | sarr n => @SVarr n
-  | sword  => SVword
+  | ssbool  => SVbool
+  | ssint   => SVint
+  | ssarr => SVarr
+  | ssword  => SVword
   end.
 
 (* ** Variable map
@@ -250,8 +260,8 @@ Arguments sapp_sopn ts o l:clear implicits.
 Definition spval t1 t2 (p: ssem_t t1 * ssem_t t2) :=
   [::to_sval p.1; to_sval p.2].
 
-Notation soww o  := (sapp_sopn [::sword] (fun x => [::SVword (o x)])).
-Notation sowww o := (sapp_sopn [:: sword; sword] (fun x y => [::SVword (o x y)])).
+Notation soww o  := (sapp_sopn [::ssword] (fun x => [::SVword (o x)])).
+Notation sowww o := (sapp_sopn [:: ssword; ssword] (fun x y => [::SVword (o x y)])).
 
 Definition ssem_sopn (o:sopn) : svalues -> exec svalues :=
   match o with
@@ -263,13 +273,13 @@ Definition ssem_sopn (o:sopn) : svalues -> exec svalues :=
   | Olsl  => sowww I64.shl
   | Omuli => sowww (fun x y => let (h,l) := wumul x y in l) (* FIXME: check imul INTEL manual *)
   | Oif   =>
-    sapp_sopn [::sbool; sword; sword] (fun b x y => [::SVword (if b then x else y)])
+    sapp_sopn [::ssbool; ssword; ssword] (fun b x y => [::SVword (if b then x else y)])
   | Omulu =>
-    sapp_sopn [::sword; sword] (fun x y => @spval sword sword (wumul x y))
+    sapp_sopn [::ssword; ssword] (fun x y => @spval sword sword (wumul x y))
   | Oaddcarry =>
-    sapp_sopn [::sword; sword; sbool] (fun x y c => @spval sbool sword (waddcarry x y c))
+    sapp_sopn [::ssword; ssword; ssbool] (fun x y c => @spval sbool sword (waddcarry x y c))
   | Osubcarry =>
-    sapp_sopn [::sword; sword; sbool] (fun x y c => @spval sbool sword (wsubcarry x y c))
+    sapp_sopn [::ssword; ssword; ssbool] (fun x y c => @spval sbool sword (wsubcarry x y c))
   end.
 
 (* ** Instructions
