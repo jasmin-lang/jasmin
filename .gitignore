@@ -23,6 +23,7 @@ test_jasmin.rs
 target
 
 Makefile.coq
+Makefile.coq.bak
 
 /ssreflect/*.v
 /ssreflect/*.ml*

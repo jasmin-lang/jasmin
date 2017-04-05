@@ -1,32 +1,34 @@
--R src Jasmin
--R src/3rdparty Jasmin
+-R 3rdparty Jasmin
+-R compiler Jasmin
+-R logic Jasmin
+-R lang Jasmin
 
-src/3rdparty/Coqlib.v
-src/3rdparty/Integers.v
-src/3rdparty/ssrring.v
-src/compiler/allocation.v
-src/compiler/array_expansion.v
-src/compiler/compiler_util.v
-src/compiler/compiler.v
-src/compiler/constant_prop.v
-src/compiler/dead_code.v
-src/compiler/inlining.v
-src/compiler/linear.v
-src/compiler/stack_alloc.v
-src/compiler/unrolling.v
-src/logic/equiv_sem.v
-src/logic/logic.v
-src/logic/Ssem.v
-src/logic/Ssem_props.v
-src/logic/wp.v
-src/logic/wp_while.v
-src/expr.v
-src/extraction.v
-src/gen_map.v
-src/memory.v
-src/sem.v
-src/strings.v
-src/type.v
-src/utils.v
-src/var.v
-src/word.v
+3rdparty/Coqlib.v
+3rdparty/Integers.v
+3rdparty/ssrring.v
+compiler/allocation.v
+compiler/array_expansion.v
+compiler/compiler_util.v
+compiler/compiler.v
+compiler/constant_prop.v
+compiler/dead_code.v
+compiler/inlining.v
+compiler/linear.v
+compiler/stack_alloc.v
+compiler/unrolling.v
+logic/equiv_sem.v
+logic/logic.v
+logic/Ssem.v
+logic/Ssem_props.v
+logic/wp.v
+logic/wp_while.v
+lang/expr.v
+lang/extraction.v
+lang/gen_map.v
+lang/memory.v
+lang/sem.v
+lang/strings.v
+lang/type.v
+lang/utils.v
+lang/var.v
+lang/word.v

@@ -18,7 +18,7 @@
 Require Import Eqdep_dec.
 Require Import Zquot.
 Require Import Zwf.
-Require Import Coqlib.
+From Jasmin Require Import Coqlib.
 
 (** * Comparisons *)
 
