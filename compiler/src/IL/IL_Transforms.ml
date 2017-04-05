@@ -66,7 +66,10 @@ type transform =
   | LocalSSA of Fname.t
   | RegisterAlloc of Fname.t * int
   | InlineCalls of cert * Fname.t
-  | UnrollLoopsCert of Fname.t
+  | UnrollCert of Fname.t
+  | ConstPropCert of Fname.t
+  | DeadCodeCert of Fname.t
+  | UnrollLoopCert of Fname.t
   | RegisterLiveness of Fname.t
   | RemoveEqConstrs of Fname.t
   | RenumberIdents of renumber_opt
@@ -162,7 +165,10 @@ let ptrafo =
     ; (string "expand" >> fname >>= fun fname ->
        pmap >>= fun pm -> return (MacroExpand(fname,pm)))
     ; (string "cert_inline" >> fname >>= fun fname -> return (InlineCalls(Cert,fname)))
-    ; (string "cert_unroll" >> fname >>= fun fname -> return (UnrollLoopsCert(fname)))
+    ; (string "cert_unroll_loop" >> fname >>= fun fname -> return (UnrollLoopCert(fname)))
+    ; (string "cert_unroll" >> fname >>= fun fname -> return (UnrollCert(fname)))
+    ; (string "cert_const_prop" >> fname >>= fun fname -> return (ConstPropCert(fname)))
+    ; (string "cert_dead_code" >> fname >>= fun fname -> return (DeadCodeCert(fname)))
     ; (string "inline" >> fname >>= fun fname -> return (InlineCalls(NonCert,fname))) ]
 
 let parse_trafo s =
@@ -261,8 +267,20 @@ let apply_transform trafos (modul0 : unit modul) =
         ~f:(fun () -> Cert.inline_calls_modul fn m)
     in
     let unroll_cert fn m =
-      notify "unrolling all for loops (certified)" fn
-        ~f:(fun () -> Cert.unroll_loops_modul fn m)
+      notify "unroll loops once (certified)" fn
+        ~f:(fun () -> Cert.unroll_modul fn m)
+    in
+    let const_prop_cert fn m =
+      notify "propagating constants (certified)" fn
+        ~f:(fun () -> Cert.const_prop_modul fn m)
+    in
+    let dead_code_cert fn m =
+      notify "removing dead code (certified)" fn
+        ~f:(fun () -> Cert.dead_code_modul fn m)
+    in
+    let unroll_loop_cert fn m =
+      notify "unroll loops until finding a fixpoint (certified)" fn
+        ~f:(fun () -> Cert.unroll_loop_modul fn m)
     in
     let arr_exp fn m =
       notify "expanding register arrays" fn
@@ -367,7 +385,10 @@ let apply_transform trafos (modul0 : unit modul) =
     match trafo with
     | InlineCalls(NonCert,fn)   -> map_module modul {f = fun m -> inline fn m}
     | InlineCalls(Cert,fn)      -> map_module modul {f = fun m -> inline_cert fn m}
-    | UnrollLoopsCert(fn)       -> map_module modul {f = fun m -> unroll_cert fn m}
+    | UnrollCert(fn)            -> map_module modul {f = fun m -> unroll_cert fn m}
+    | ConstPropCert(fn)         -> map_module modul {f = fun m -> const_prop_cert fn m}
+    | DeadCodeCert(fn)          -> map_module modul {f = fun m -> dead_code_cert fn m}
+    | UnrollLoopCert(fn)        -> map_module modul {f = fun m -> unroll_loop_cert fn m}
     | ArrayExpand(fn)           -> map_module modul {f = fun m -> arr_exp fn m}
     | ArrayAssignExpand(fn)     -> map_module modul {f = fun m -> array_expand_modul fn m}
     | StripComments(fn)         -> map_module modul {f = fun m -> strip_comments fn m}

@@ -707,24 +707,17 @@ let inline_calls_modul fname modul =
   in
   apply_cert_transform fname modul ~f:(Inlining.inline_prog rename_fd)
 
-(* unroll all loops in the given module *)
-let unroll_loops_modul fname modul =
-  let macro_expand prog =
-    F.printf "Coq before unrolling:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog;
-    match Compiler.unroll_loop prog with
-    | DU.Error(e)  -> failwith_ "unrolling loops failed with %a" pp_fun_error e
-    | DU.Ok(prog) ->
-      F.printf "Coq after unrolling:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog;
-      let prog = Constant_prop.const_prop_prog prog in
-      F.printf "Coq after constant propagation:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog;
-      begin match Dead_code.dead_code_prog prog with
-      | DU.Error(e) -> failwith_ "dead-code elimination failed with %a" pp_fun_error e
-      | DU.Ok(prog) ->
-        F.printf "Coq after dead code elimination:@\n@\n@[<v 0>%a@]@\n%!" pp_prog prog;
-        DU.Ok(prog)
-      end
-  in
-  apply_cert_transform fname modul ~f:macro_expand
+let unroll_modul fname modul =
+  apply_cert_transform fname modul ~f:(fun p -> Compiler_util.cfok @@ Unrolling.unroll_prog p)
+
+let const_prop_modul fname modul =
+  apply_cert_transform fname modul ~f:(fun p -> Compiler_util.cfok @@ Constant_prop.const_prop_prog p)
+
+let dead_code_modul fname modul =
+  apply_cert_transform fname modul ~f:Dead_code.dead_code_prog
+
+let unroll_loop_modul fname modul =
+  apply_cert_transform fname modul ~f:Compiler.unroll_loop
 
 (* print in Coq concrete syntax *)
 let print_coq_modul filename modul =
