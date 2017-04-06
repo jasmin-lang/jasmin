@@ -602,6 +602,14 @@ Lemma write_i_call ii xs f es :
   write_i (Ccall ii xs f es) = vrvs xs.
 Proof. done. Qed.
 
+(* -------------------------------------------------------------------- *)
+Hint Rewrite write_c_nil write_c_cons : write_c.
+Hint Rewrite write_i_assgn write_i_opn write_i_if : write_i.
+Hint Rewrite write_i_while write_i_for write_i_call : write_i.
+Hint Rewrite vrv_none vrv_var : vrv.
+
+Ltac writeN := autorewrite with write_c write_i vrv.
+
 (* ** Compute read variables
  * -------------------------------------------------------------------- *)
 

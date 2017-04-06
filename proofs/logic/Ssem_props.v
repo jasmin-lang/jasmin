@@ -25,14 +25,112 @@
 
 (* --------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect.
-Require Import Setoid Morphisms.
+Require Import Setoid Morphisms ZArith.
 Require Import gen_map word utils type var expr memory sem Ssem.
+
+Import UnsafeMemory.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Local Open Scope svmap_scope.
+
+(* -------------------------------------------------------------------- *)
+Scheme _ssem_Ind      := Induction for ssem      Sort Prop
+with   _ssem_i_Ind    := Induction for ssem_i    Sort Prop
+with   _ssem_I_Ind    := Induction for ssem_I    Sort Prop
+with   _ssem_for_Ind  := Induction for ssem_for  Sort Prop
+with   _ssem_call_Ind := Induction for ssem_call Sort Prop.
+
+Section SsemInd.
+
+Variables (p : prog).
+Variables
+  (Pc   : sestate -> cmd -> sestate -> Prop)
+  (Pi_r : sestate -> instr_r -> sestate -> Prop)
+  (Pi   : sestate -> instr -> sestate -> Prop)
+  (Pfor : var -> seq Z -> sestate -> cmd -> sestate -> Prop)
+  (Pfun : mem -> funname -> seq svalue -> mem -> seq svalue -> Prop).
+
+Hypothesis Inil : forall s, Pc s [::] s.
+
+Hypothesis Icons : forall s1 s2 s3 i c,
+     ssem_I p s1 i s2 -> Pi s1 i s2
+  -> ssem p s2 c s3 -> Pc s2 c s3
+  -> Pc s1 (i :: c) s3.
+
+Hypothesis ImkI : forall ii i s1 s2,
+  ssem_i p s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
+
+Hypothesis Iasgn : forall s1 s2 x tag e,
+  Let v := ssem_pexpr s1 e in swrite_lval x v s1 = ok s2 ->
+  Pi_r s1 (Cassgn x tag e) s2.
+
+Hypothesis Iopn : forall s1 s2 o xs es,
+     Let x :=
+       Let x := ssem_pexprs s1 es in ssem_sopn o x
+     in swrite_lvals s1 xs x = ok s2
+  -> Pi_r s1 (Copn xs o es) s2.
+
+Hypothesis Iif_true : forall s1 s2 e c1 c2,
+  Let x := ssem_pexpr s1 e in sto_bool x = ok true ->
+  ssem p s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+
+Hypothesis Iif_false : forall s1 s2 e c1 c2,
+  Let x := ssem_pexpr s1 e in sto_bool x = ok false ->
+  ssem p s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+
+Hypothesis Iwhile_true : forall s1 s2 s3 e c,
+     Let x := ssem_pexpr s1 e in sto_bool x = ok true
+  -> ssem p s1 c s2 -> Pc s1 c s2
+  -> ssem_i p s2 (Cwhile e c) s3 -> Pi_r s2 (Cwhile e c) s3
+  -> Pi_r s1 (Cwhile e c) s3.
+
+Hypothesis Iwhile_false : forall s e c,
+     Let x := ssem_pexpr s e in sto_bool x = ok false
+  -> Pi_r s (Cwhile e c) s.
+
+Hypothesis Ifor : forall s1 s2 (i : var_i) d lo hi c vlo vhi,
+     Let x := ssem_pexpr s1 lo in sto_int x = ok vlo
+  -> Let x := ssem_pexpr s1 hi in sto_int x = ok vhi
+  -> ssem_for p i (wrange d vlo vhi) s1 c s2
+  -> Pfor i (wrange d vlo vhi) s1 c s2
+  -> Pi_r s1 (Cfor i (d, lo, hi) c) s2.
+
+Hypothesis Ifor_nil : forall s i c, Pfor i [::] s c s.
+
+Hypothesis Ifor_cons : forall s1 s1' s2 s3 i (w : Z) ws c,
+     swrite_var i w s1 = ok s1'
+  -> ssem p s1' c s2 -> Pc s1' c s2
+  -> ssem_for p i ws s2 c s3 -> Pfor i ws s2 c s3
+  -> Pfor i (w :: ws) s1 c s3.
+
+Hypothesis Icall : forall s1 (m2 : mem) s2 ii xs fn args vargs vs,
+     ssem_pexprs s1 args = ok vargs
+  -> ssem_call p s1.(semem) fn vargs m2 vs
+  -> Pfun s1.(semem) fn vargs m2 vs
+  -> swrite_lvals {| semem := m2; sevm := s1.(sevm) |} xs vs = ok s2
+  -> Pi_r s1 (Ccall ii xs fn args) s2.
+
+Hypothesis Iproc : forall m1 m2 fn f vargs s1 vm2 vres,
+     get_fundef p fn = Some f
+  -> swrite_vars (f_params f) vargs {| semem := m1; sevm := svmap0 |} = ok s1
+  -> ssem p s1 (f_body f) {| semem := m2; sevm := vm2 |}
+  -> Pc s1 (f_body f) {| semem := m2; sevm := vm2 |}
+  -> [seq sget_var vm2 x | x : var_i <- f_res f] = vres
+  -> Pfun m1 fn vargs m2 vres.
+
+Lemma ssem_Ind s1 c s2 : ssem p s1 c s2 -> Pc s1 c s2.
+Proof.
+by apply/(@_ssem_Ind p
+           (fun s1 c s2 _ => Pc s1 c s2)
+           (fun s1 i s2 _ => Pi_r s1 i s2)
+           (fun s1 i s2 _ => Pi s1 i s2)
+           (fun x sz s1 c s2 _ => Pfor x sz s1 c s2)
+           (fun m f l m' l' _  => Pfun m f l m' l')); auto.
+Qed.
+End SsemInd.
 
 (* --------------------------------------------------------------------- *)
 Lemma surj_SEstate s : {| semem := semem s; sevm := sevm s |} = s.
@@ -57,24 +155,32 @@ Lemma svmap_eq_except_sym vm1 vm2 s :
   vm1 = vm2 [\s] -> vm2 = vm1 [\s].
 Proof. by move=> heq x xin; rewrite heq. Qed.
 
-Global Instance equiv_vmap_eq_except s : Equivalence (svmap_eq_except s).
+Global Instance equiv_svmap_eq_except s : Equivalence (svmap_eq_except s).
 Proof. constructor=> //.
 + by move=> ??; apply: svmap_eq_except_sym.
 + by move=> ???; apply: svmap_eq_except_trans.
 Qed.
 
-Global Instance vmap_eq_except_impl :
+Global Instance svmap_eq_except_impl :
   Proper (Sv.Subset ==> eq ==> eq ==> Basics.impl) svmap_eq_except.
 Proof.
 by move=> s1 s2 h vm1 ? <- vm2 ? <-; apply: svmap_eq_except_subset.
 Qed.
 
-Global Instance vmap_eq_except_m :
+Global Instance svmap_eq_except_m :
   Proper (Sv.Equal ==> eq ==> eq ==> iff) svmap_eq_except.
 Proof.
 move=> s1 s2 heq vm1 ? <- vm2 ? <-; split;
   by apply: svmap_eq_except_subset; rewrite heq.
 Qed.
+
+Lemma svmap_eq_exceptL vm1 vm2 s1 s2 :
+  vm1 = vm2 [\s1] -> vm1 = vm2 [\Sv.union s1 s2].
+Proof. by apply/svmap_eq_except_subset/SvP.MP.union_subset_1. Qed.
+
+Lemma svmap_eq_exceptR vm1 vm2 s1 s2 :
+  vm1 = vm2 [\s2] -> vm1 = vm2 [\Sv.union s1 s2].
+Proof. by apply/svmap_eq_except_subset/SvP.MP.union_subset_2. Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma swrite_var_eqmem vi v s s' :
@@ -85,6 +191,7 @@ move=> x hx; rewrite Fv.setP_neq //; apply/negP => /eqP.
 by SvD.fsetdec.
 Qed.
 
+(* -------------------------------------------------------------------- *)
 Lemma vrvP r v s s' :
   swrite_lval r v s = ok s' -> s.(sevm) = s'.(sevm) [\ vrv r].
 Proof. case: r => /=.
@@ -97,38 +204,40 @@ Proof. case: r => /=.
   by rewrite Fv.setP_neq //; apply/eqP; SvD.fsetdec.
 Qed.
 
-Lemma writeP P c s1 s2 : ssem P s1 c s2 -> s1.(sevm) = s2.(sevm) [\ write_c c].
-Proof. Admitted.
-
-(*
-  apply (@cmd_rect
-           (fun i => forall s1 s2,
-                       ssem_i s1 i s2 -> s1.(sevm) = s2.(sevm) [\ write_i i])
-           (fun c => forall s1 s2, 
-                       ssem s1 c s2 -> s1.(sevm) = s2.(sevm) [\ write_c c])
-           (fun _ _ _ => True)) => /= {c s1 s2}
-    [ |i c1 Hi Hc1|bc|e c1 c2 Hc1 Hc2|x rn c Hc|e c Hc|?? x f a _|//] s1 s2 Hsem;
-    inversion Hsem=>{Hsem};subst=> // z.
-  + rewrite write_c_cons => Hz;rewrite (Hi _ _ H2) ?(Hc1 _ _ H4) //; SvD.fsetdec. 
-  + rewrite write_i_bcmd;case: bc H1 => //= [? r p | r p | ??].
-    + by move=> [] <- /=;apply vrvP.
-    + by case read_mem => //= w [] <-;apply vrvP.
-    by case write_mem => //= ? [] <-.
-  + by rewrite write_i_if=> ?;apply Hc1=> //; SvD.fsetdec. 
-  + by rewrite write_i_if=> ?;apply Hc2=> //; SvD.fsetdec. 
-  + rewrite write_i_for.
-    elim: H4 Hc => {w1 w2 e1 e2 dir s1 s2 c} //.
-    move=> v w ws c s1 s2 s3 sc _ ih h hc.
-    have/ih := hc => -/(_ h) <-; rewrite -(h _ _ sc); last by SvD.fsetdec.
-    by rewrite -vrvP //; SvD.fsetdec.
-  + rewrite write_i_while.
-    elim: H3 Hc => {s1 s2 e c} //.
-    move=> s1 s2 s3 e c ? sc ? ih h hc.
-    by have/ih := hc => -/(_ h) <-; rewrite -(h _ _ sc); SvD.fsetdec.
-  by rewrite write_i_call=> Hin; move: H3 H4=> [] ?;subst=> -[] [] ?;subst;apply vrvP.  
+(* -------------------------------------------------------------------- *)
+Lemma vrvsP rs vs s s' : swrite_lvals s rs vs = ok s' ->
+  s.(sevm) = s'.(sevm) [\ vrvs rs].
+Proof.
+elim: rs vs s => [|r rs ih] [|v vs] s //= => [[->]//|].
+elim/rbindP=> si /vrvP h1 {ih}/ih h2; rewrite vrvs_cons.
+by transitivity (sevm si);
+  [apply: svmap_eq_exceptL | apply: svmap_eq_exceptR].
 Qed.
-Admitted.
-*)
+
+(* -------------------------------------------------------------------- *)
+Lemma writeP p c s1 s2 :
+  ssem p s1 c s2 -> s1.(sevm) = s2.(sevm) [\ write_c c].
+Proof.
+eapply (@ssem_Ind p
+  (fun s1 c s2 => sevm s1 = sevm s2 [\write_c c])
+  (fun s1 i s2 => sevm s1 = sevm s2 [\write_i i])
+  (fun s1 i s2 => sevm s1 = sevm s2 [\write_I i])
+  (fun x sz s1 c s2 => sevm s1 = sevm s2 [\Sv.add x (write_c c)])
+  (fun _ _ _ _ _ => True)) => // {s1 s2 c}.
++ move=> s1 s2 s3 i c _ hi _ hc; writeN; transitivity (sevm s2).
+  by apply: svmap_eq_exceptL. by apply: svmap_eq_exceptR.
++ by move=> s1 s2 x tg e; t_xrbindP=> z _ /vrvP h; writeN.
++ by move=> s1 s2 o xs es; t_xrbindP=> vs vs'; writeN=> _ _ /vrvsP.
++ by move=> s1 s2 e c1 c2 _ _; writeN; apply/svmap_eq_exceptL.
++ by move=> s1 s2 e c1 c2 _ _; writeN; apply/svmap_eq_exceptR.
++ by move=> s1 s2 s3 e c; writeN=> _ _ h1 _ h2; transitivity (sevm s2).
++ move=> s1 s2 x d lo hi c vlo vhi; writeN=> _ _ h.
+  by rewrite SvP.MP.add_union_singleton.
++ move=> s1 s1' s2 s3 x w ws c /swrite_var_eqmem h1 _ h2 _ h3.
+  transitivity (sevm s2) => //; rewrite SvP.MP.add_union_singleton.
+  by transitivity (sevm s1'); [apply: svmap_eq_exceptL | apply: svmap_eq_exceptR].
++ by move=> s1 m s2 ii xs fn args vargs vs okv _ _ /vrvsP /=; writeN.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 (* Properties on swrite_lval                                                  *)
