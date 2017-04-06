@@ -53,7 +53,6 @@ module L = ParserUtil.Lexing
 %token SHREQ SHLEQ XOREQ OREQ
 %token COLON
 %token LARROW
-%token DOLLAR
 
 %token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
 %token T_BOOL
@@ -69,7 +68,7 @@ module L = ParserUtil.Lexing
 %token EXCL DOTDOT COMMA
 %token SHR SHL XOR OR
 
-%token REG STACK INLINE CONST
+%token REG STACK INLINE PARAM
 
 %token FOR WHILE DO WHEN
 %token IN
@@ -80,22 +79,15 @@ module L = ParserUtil.Lexing
 %token FALSE
 %token PUB
 %token MUT
-%token VAREXCL
 %token INLEXCL
-%token CODEEXCL
 %token DECL
 %token FN
 %token RETURN
 
 %token MEM
 
-%token <int> BCAST
-
 %token <string * string> NID
 %token <string> INT
-%token <string> RUST_ATTRIBUTE
-%token <string> RUST_SECTION
-%token EXTERN_JASMIN
 
 %nonassoc EXCL
 %left LAND
@@ -170,10 +162,7 @@ param:
 
 src :
 | d=rdest               { Src(d) }
-| i=BCAST LPAREN pe = pexpr RPAREN
-  { assert (i=64 || i=1);
-    Imm(i,pe) } (* FIXME: fixed 64*)
-(*| i=INT                 { Imm(64,Pconst(Arith.parse_big_int i)) }*)
+| i=INT                 { Imm(64,Pconst(Arith.parse_big_int i)) }
 
 (* ** Index expressions and conditions
  * -------------------------------------------------------------------- *)
@@ -353,15 +342,14 @@ utype :
 typ :
 | ut = utype                               { Bty(U(ut)) }
 | T_INT                                    { Bty(Int) }
-| LBRACK ut=utype SEMICOLON d=dexpr RBRACK { Arr(U(ut),d) }
+| ut=utype LBRACK d=dexpr RBRACK           { Arr(U(ut),d) }
 | T_BOOL                                   { Bty(Bool) }
 
 stor_typ :
-| sto=storage LPAREN ty=typ RPAREN { (sto,ty) }
+| sto=storage ty=typ { (sto,ty) }
 
 %inline typed_vars_stor :
-| vs=loc(var) COLON st=stor_typ
-    { (fst vs, snd vs, st) }
+| st=stor_typ vs=loc(var) { (fst vs, snd vs, st) }
 
 %inline storage:
 | REG    { Reg    }
@@ -392,24 +380,19 @@ func_decl :
                 dp_is_pub=pub<>None;
                 dp_arg_ty=args }) } 
 
-%inline rust_sec:
-| _rs=RUST_SECTION {  }
-
 %inline code_sec:
-| CODEEXCL LCBRACE is = instr*  RCBRACE { is }
+| is = instr* { is }
 
 %inline var_sec:
-| VAREXCL LCBRACE ds = terminated_list(SEMICOLON,typed_vars_stor) RCBRACE
-  { ds }
+| ds = terminated_list(SEMICOLON,typed_vars_stor) { ds }
 
 %inline func_body :
 | LCBRACE
-    vs  = var_sec?
-    _rs = rust_sec?
-    is  = code_sec?
+    vs  = var_sec
+    is  = code_sec
     lret = loc(return?)
   RCBRACE
-    { (Util.get_opt [] vs,Util.get_opt [] is,(fst lret, Util.get_opt [] (snd lret))) }
+    { (vs,is,(fst lret, Util.get_opt [] (snd lret))) }
 
 func :
 | pub=PUB? FN lname=loc(NID)
@@ -428,18 +411,15 @@ func :
               })
     }
 
+typed_params :
+| vs=separated_nonempty_list(COMMA,NID) COLON t=typ EQ pe=pexpr
+    { Std.List.map ~f:(fun v -> (v,t,pe)) vs }
+
 param_or_func :
 | lf=func
     { [ lf ] }
-| CONST lnid=loc(NID) COLON t=typ EQ pe=pexpr SEMICOLON
-    { [ (fst lnid, Dparams([(snd lnid,t,pe)])) ] }
-    (* FIXME: we should assert type=usize here *)
-| ra=loc(RUST_ATTRIBUTE)
-    { [(fst ra, Drust_attr(snd ra))] }
-| rs=loc(RUST_SECTION)
-    { [(fst rs, Drust_sec(snd rs))] }
-| EXTERN_JASMIN
-    { [] }
+| PARAM lps=loc(typed_params) SEMICOLON
+    { [ (fst lps, Dparams(snd lps)) ] }
 | fd=func_decl
     { [ fd ] }
 

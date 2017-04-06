@@ -53,14 +53,14 @@ rule lex = parse
 
   | ":"     { COLON }
 
-  | "b8"    { T_U8   }
-  | "b16"   { T_U16  }
-  | "b32"   { T_U32  }
-  | "b64"   { T_U64  }
-  | "b128"  { T_U128 }
-  | "b256"  { T_U256 }
-  | "b1"    { T_BOOL }
-  | "uint"  { T_INT  }
+  | "u8"    { T_U8   }
+  | "u16"   { T_U16  }
+  | "u32"   { T_U32  }
+  | "u64"   { T_U64  }
+  | "u128"  { T_U128 }
+  | "u256"  { T_U256 }
+  | "bool"  { T_BOOL }
+  | "int"   { T_INT  }
 
   | "_"     { UNDERSCORE }
 
@@ -97,10 +97,10 @@ rule lex = parse
   | "^"     { XOR }
   | "|"     { OR }
 
-  | "reg!"   { REG }
-  | "stack!" { STACK }
-  | "inline!" { INLINE }
-  | "const"  { CONST }
+  | "reg"   { REG }
+  | "stack" { STACK }
+  | "inline" { INLINE }
+  | "param"  { PARAM }
   | "MEM"    { MEM }
 
   | "for"              { FOR      }
@@ -113,14 +113,10 @@ rule lex = parse
   | "else" blank+ "if" { ELIF     }
   | "pub"              { PUB      }
   | "mut"              { MUT      }
-  | "var!"             { VAREXCL  }
   | "inl!"             { INLEXCL  }
   | "decl!"            { DECL     }
-  | "code!"            { CODEEXCL }
   | "fn"               { FN       }
   | "return"           { RETURN   }
-  | "b" (['0'-'9']+ as i) "!"
-    { BCAST(int_of_string i)   }
 
   | ('-'? ['0'-'9']+) as s { INT(s) }
   | ("0x" ['0'-'9' 'a'-'f' '_']+) as s { INT(s) }
@@ -131,28 +127,6 @@ rule lex = parse
 
   | ['a'-'z' '_']['a'-'z' 'A'-'Z' '_' '0'-'9']* as s
     { NID(s,"") }
-
-  | "#![" (['a'-'z' '_' 'A'-'Z' '_' '0'-'9' ')' '(']+ as s) "]"
-    { RUST_ATTRIBUTE(s) }
-
-  | "rust!" blank* "{"
-    { RUST_SECTION (rust_sec (Buffer.create 100) 0 lexbuf) }
-
-  | "#[macro_use]" blank+ "extern" blank+ "crate" blank+ "jasmin" blank* ";"
-    { EXTERN_JASMIN }
-
-and rust_sec buf opened = parse
-  | "}"   { if opened=0 then (
-              Buffer.contents buf
-            ) else (
-              Buffer.add_char buf '}';
-              rust_sec buf (opened - 1) lexbuf
-            ) }
-  | "{"   { Buffer.add_char buf '{'; rust_sec buf (opened + 1) lexbuf }
-  | _     { Buffer.add_string buf (Lexing.lexeme lexbuf); rust_sec buf opened lexbuf }
-  | "/*"  { comment lexbuf; rust_sec buf opened lexbuf }
-  | "//"  { line_comment lexbuf; rust_sec buf opened lexbuf }
-  | eof   { raise (Error "end-of-file inside rust! { .. }") }
 
 and comment = parse
   | "*/"        { () }
