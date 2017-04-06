@@ -23,12 +23,10 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-(* * Syntax and semantics of the dmasm source language *)
-
 (* ** Imports and settings *)
 
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import strings word dmasm_utils dmasm_type dmasm_var.
+Require Import strings word utils type var.
 Require Import ZArith.
 
 Set Implicit Arguments.
@@ -196,6 +194,4 @@ Parameter free_stackP : forall m sz,
   frame_size m (top_stack m) = Some sz -> 
   free_stack_spec m sz (free_stack m sz).
 
-
-
-
+End Memory.
