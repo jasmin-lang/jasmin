@@ -190,8 +190,6 @@ let mk_modul pfs =
     List.filter_map ~f:(function (l,Dparams(ps)) -> Some(l,ps) | _ -> None) pfs
     |> List.concat_map ~f:(fun (l,ps) -> List.map ~f:(fun p -> (l,p)) ps)
     |> List.map ~f:(fun (l,(n,t,pe)) ->
-                      if t<>Bty(Int) then
-                        P.failparse l "only int constants supported";
                       ({ (mk_param (l,n)) with Param.ty = t }, pe))
   in
   let rust_attrs =
