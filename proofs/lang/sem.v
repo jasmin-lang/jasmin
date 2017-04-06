@@ -37,6 +37,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Local Open Scope Z_scope.
+
 (* ** Interpretation of types
  * -------------------------------------------------------------------- *)
 
@@ -381,13 +383,9 @@ Section SEM.
 Variable P:prog.
 
 Definition wrange d (n1 n2 : Z) :=
-  if (n1 <? n2)%Z then 
-    let idxs := mkseq (fun n => n1 + Z.of_nat n)%Z (Z.to_nat (n2 - n1)) in
-    match d with
-    | UpTo   => idxs
-    | DownTo => rev idxs
-    end
-  else [::].
+  let n := Z.to_nat (n2 - n1) in
+  let r := [seq (n1 + Z.of_nat i)%Z | i <- iota 0 n] in
+  if d is UpTo then r else rev r.
 
 Definition sem_range (s : estate) (r : range) :=
   let: (d,pe1,pe2) := r in
@@ -603,6 +601,30 @@ Section SEM_IND.
     end.
 
 End SEM_IND. 
+
+(* -------------------------------------------------------------------- *)
+Lemma size_wrange d z1 z2 :
+  size (wrange d z1 z2) = Z.to_nat (z2 - z1).
+Proof. by case: d => /=; rewrite ?size_rev size_map size_iota. Qed.
+
+Lemma nth_wrange z0 d z1 z2 n : (n < Z.to_nat (z2 - z1))%nat ->
+  nth z0 (wrange d z1 z2) n =
+    if   d is UpTo
+    then z1 + Z.of_nat n
+    else z2 - Z.of_nat n.+1.
+Proof.
+case: d => ltn /=.
++ by rewrite (nth_map 0%nat) ?size_iota ?nth_iota.
+rewrite nth_rev ?size_map ?size_iota //.
+have lt: (Z.to_nat (z2 - z1) - n.+1 < Z.to_nat (z2 - z1))%nat.
++ by case: (Z.to_nat _) ltn => // k; rewrite subSS sub_ord_proof.
+have ltz: 0 <= z2 - z1 by case: {lt} (z2 - z1) ltn.
+rewrite (nth_map 0%nat) ?size_iota ?nth_iota //= add0n.
+rewrite -[Z.pos _]/(Z.of_nat n.+1) -{1}[n.+1]Nat2Z.id -Z_to_nat_subn //.
+rewrite Z2Nat.id; [omega|apply/Zle_minus_le_0].
++ by move/leP/Nat2Z.inj_le: ltn; rewrite Z2Nat.id.
++ by move/leP/Nat2Z.inj_le: ltn; rewrite Z2Nat.id.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 

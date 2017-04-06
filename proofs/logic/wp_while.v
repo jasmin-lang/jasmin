@@ -110,3 +110,22 @@ have {Ps} Ps2: P z s2; first apply: (h 0%nat _ s1') => //=.
   by apply: (eqs s) => //; apply/swrite_var_eqmem/oks1'.
 by apply: (ih _ s2) => //= n ltnsz; apply/(h n.+1).
 Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma hoare_for_to
+   prg z (x : var_i) lo hi vlo vhi (P : Z -> sestate -> Prop) c
+:
+   (forall s1 s2 z, s1.(sevm) = s2.(sevm) [\ Sv.singleton x] ->
+      P z s1 -> P z s2)
+-> (forall i, vlo <= i < vhi ->
+      hoare prg
+        (fun s => P i s /\ sget_var s.(sevm) x = i) c (P (i+1)))
+-> hoare prg
+     (fun s => [/\ P vlo s
+        , eval_texpr s (texpr_of_pexpr sint' lo) = vlo
+        & eval_texpr s (texpr_of_pexpr sint' hi) = vhi])
+     [:: MkI z (Cfor x (UpTo, lo, hi) c)]
+     (P vhi).
+Proof.
+move=> eqs h s1 s2 /ssem_inv1 sh [hP eqlo eqhi].
+Abort.
