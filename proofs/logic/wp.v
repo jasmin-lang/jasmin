@@ -28,6 +28,9 @@ Definition Some_inj {A} (a a': A) (H: Some a = Some a') : a = a' :=
 Definition ok_inj {E A} (a a': A) (H: Ok E a = ok a') : a = a' :=
   let 'Logic.eq_refl := H in Logic.eq_refl.
 
+Definition Error_inj {E A} (a a': E) (H: @Error E A a = Error a') : a = a' :=
+  let 'Logic.eq_refl := H in Logic.eq_refl.
+
 Lemma of_sval_to_sval ty x :
   of_sval ty (to_sval x) = ok x.
 Proof. by move: x; case ty. Qed.
@@ -49,8 +52,8 @@ Proof. case: x => // i' H; apply ok_inj in H. congruence. Qed.
 
 Lemma sto_arr_inv x a :
   sto_arr x = ok a →
-  ∃ n, x = SVarr n a.
-Proof. case: x => // n a' H;apply ok_inj in H. exists n; congruence. Qed.
+  x = SVarr a.
+Proof. case: x => // a' H;apply ok_inj in H. congruence. Qed.
 
 Lemma slet_inv {A s x} {f: _ → _ → exec A} {y} :
   SLet (n, t) := s.[x] in f n t = ok y →
@@ -296,7 +299,7 @@ Definition sem_texpr_sop2 op : ssem_t (op2_type_i op) → ssem_t (op2_type_i op)
   | Oge => Z.geb
   end.
 
-Inductive texpr : stype → Type :=
+Inductive texpr : sstype → Type :=
 | Tconst : Z → texpr sint
 | Tbool : bool → texpr sbool
 | Tcast : texpr sint → texpr sword
@@ -340,18 +343,18 @@ Proof.
   elim: e => //=;congruence.
 Qed.
 
-Scheme Equality for stype.
+Scheme Equality for sstype.
 
-Fixpoint type_check_pexpr (e: pexpr) (ty: stype) : option (texpr ty) :=
+Fixpoint type_check_pexpr (e: pexpr) (ty: sstype) : option (texpr ty) :=
   match e with
-  | Pconst z => match ty with sint => Some (Tconst z) | _ => None end
-  | Pbool b => match ty with sbool => Some (Tbool b) | _ => None end
+  | Pconst z => match ty with ssint => Some (Tconst z) | _ => None end
+  | Pbool b => match ty with ssbool => Some (Tbool b) | _ => None end
   | Pcast p =>
-    match type_check_pexpr p sint with
-    | Some tp => match ty with sword => Some (Tcast tp) | _ => None end
+    match type_check_pexpr p ssint with
+    | Some tp => match ty with ssword => Some (Tcast tp) | _ => None end
     | None => None end
   | Pvar x =>
-    match stype_eq_dec (vtype x) ty with
+    match sstype_eq_dec (vtype x) ty with
     | left EQ => Some (eq_rect _ _ (Tvar x) _ EQ)
     | right _ => None
     end
@@ -359,38 +362,38 @@ Fixpoint type_check_pexpr (e: pexpr) (ty: stype) : option (texpr ty) :=
     match x with
     | {| v_var := Var (sarr n) t |} =>
     match type_check_pexpr i sint with
-    | Some ti => match ty with sword => Some (Tget n t ti) | _ => None end
+    | Some ti => match ty with ssword => Some (Tget n t ti) | _ => None end
     | None => None end
     | _ => None end
   | Pload x i =>
     match x with
     | {| v_var := Var sword p |} =>
     match type_check_pexpr i sword with
-    | Some ti => match ty with sword => Some (Tload p ti) | _ => None end
+    | Some ti => match ty with ssword => Some (Tload p ti) | _ => None end
     | None => None end
     | _ => None end
   | Pnot p =>
     match type_check_pexpr p sbool with
-    | Some tp => match ty with sbool => Some (Tnot tp) | _ => None end
+    | Some tp => match ty with ssbool => Some (Tnot tp) | _ => None end
     | None => None end
   | Papp2 op p q =>
     match type_check_pexpr p (op2_type_i op) with
     | Some tp =>
     match type_check_pexpr q (op2_type_i op) with
     | Some tq =>
-      match stype_eq_dec (op2_type_o op) ty with
+      match sstype_eq_dec (op2_type_o op) ty with
       | left EQ => Some (eq_rect _ _ (Tapp2 op tp tq) _ EQ)
       | _ => None end
     | None => None end
     | None => None end
   end.
 
-Lemma ssem_sop2_inv op vp vq v :
-  ssem_sop2 op vp vq = ok v →
+Lemma ssem_sop2_ex op vp vq :
   ∀ p q,
     of_sval (op2_type_i op) vp = ok p →
     of_sval (op2_type_i op) vq = ok q →
-    of_sval (op2_type_o op) v = ok (sem_texpr_sop2 op p q).
+    ∃ v, ssem_sop2 op vp vq = ok v ∧
+         of_sval _ v = ok (sem_texpr_sop2 op p q).
 Proof.
   case: op; simpl; intros;
     repeat
@@ -398,88 +401,115 @@ Proof.
       | H : ?a = ?b |- _ => subst a || subst b
       | H : sto_bool _ = ok _ |- _ => apply sto_bool_inv in H
       | H : sto_int _ = ok _ |- _ => apply sto_int_inv in H
-      | H : _ = ok _ |- _ => apply ok_inj in H
-      end; reflexivity.
+      end;
+    try (eexists; split; reflexivity).
 Qed.
 
-Lemma type_check_pexprP {e ty te} :
-  type_check_pexpr e ty = Some te →
-  ∀ m s v,
-  ssem_pexpr (SEstate m s) e = ok v →
-  ∀ s',
-  (∀ x, s.[x]%vmap = s'.[x]%mv) →
-  of_sval _ v = ok (sem_texpr m s' ty te).
+Lemma of_sval_inj x ty ty' v v' :
+  of_sval ty x = ok v →
+  of_sval ty' x = ok v' →
+  ∃ E : ty' = ty, v = eq_rect _ _ v' _ E.
 Proof.
-  elim: e ty te.
-  - move=> z [] // te H; apply Some_inj in H; subst.
-    move=> m s v H; apply ok_inj in H; subst v.
-    reflexivity.
-  - move=> b [] // te H; apply Some_inj in H; subst.
-    move=> m s v H; apply ok_inj in H; subst v.
-    reflexivity.
-  - move=> p IHp ty te; simpl.
-    move: (IHp sint); clear IHp.
-    case: (type_check_pexpr p _) => // tp IHp.
-    move: te. case: ty => // te H; apply Some_inj in H; subst.
-    specialize (IHp _ Logic.eq_refl).
-    move=> m s v.
-    apply: rbindP => vp; apply: rbindP => ip Ep /sto_int_inv ?; subst ip.
-    move=> H; apply ok_inj in H; subst.
-    move=> s' E. simpl.
-    specialize (IHp _ _ _ Ep _ E).
-    apply sto_int_inv in IHp. congruence.
-  - move=> v ty te. simpl. case: stype_eq_dec => //.
-    move=> EQ H; apply Some_inj in H; subst.
-    move=> m s v' H; apply ok_inj in H; subst v'.
-    move=> s' E. simpl. unfold sget_var. rewrite E.
-    apply of_sval_to_sval.
-  - move=> [[]] // [] // n t vi e IH ty te /=.
-    move: (IH sint). clear IH.
-    case: (type_check_pexpr _ _) => // tt IH.
-    specialize (IH _ Logic.eq_refl).
-    move: te. case: ty => // te H; apply Some_inj in H; subst.
-    move=> m s v; apply: rbindP => vp; apply: rbindP => i Ei /sto_int_inv ?; subst i.
-    move=> H; apply ok_inj in H; subst.
-    move=> s' E /=.
-    specialize (IH _ _ _ Ei _ E).
-    apply sto_int_inv in IH.
-    congruence.
-  - move=> [[]] // [] // x xi p IHp ty te; simpl.
-    move: (IHp sword); clear IHp.
-    case: (type_check_pexpr p _) => // tp IHp.
-    specialize (IHp _ Logic.eq_refl).
-    move: te. case: ty => // te H; apply Some_inj in H; subst.
-    move=> m s v; apply: rbindP => vp; apply: rbindP => ip Ep /sto_word_inv ?; subst ip.
-    move=> H; apply ok_inj in H; subst.
-    move=> s' E /=.
-    specialize (IHp _ _ _ Ep _ E).
-    apply ok_inj in IHp; subst vp.
-    congruence.
-  - move=> p IHp ty te /=.
-    move: (IHp sbool); clear IHp.
-    case: (type_check_pexpr p _) => // tp IHp.
-    move: te. case: ty => // te H; apply Some_inj in H; subst.
-    specialize (IHp _ Logic.eq_refl).
-    move=> m s v; apply: rbindP => vp; apply: rbindP => ip Ep /sto_bool_inv ?; subst ip.
-    move=> H; apply ok_inj in H; subst.
-    move=> s' E /=.
-    specialize (IHp _ _ _ Ep _ E).
-    apply sto_bool_inv in IHp. congruence.
-  - move=> op p IHp q IHq ty te /=.
-    move: (IHp (op2_type_i op)). clear IHp.
-    case: (type_check_pexpr p _) => // tp IHp.
-    specialize (IHp _ Logic.eq_refl).
-    move: (IHq (op2_type_i op)). clear IHq.
-    case: (type_check_pexpr q _) => // tq IHq.
-    specialize (IHq _ Logic.eq_refl).
-    case (stype_eq_dec _ _) => // EQ. subst ty.
-    move=> H; apply Some_inj in H; subst te.
-    move=> m s v; apply: rbindP => vp Ep; apply: rbindP => vq Eq.
-    move=> H.
-    move=> s' E /=.
-    specialize (IHp _ _ _ Ep _ E).
-    specialize (IHq _ _ _ Eq _ E).
-    eauto using ssem_sop2_inv.
+  case: ty v ty' v' => v [] v' H H';
+  repeat match goal with
+  | H : ?a = ?b |- _ => subst a || subst b
+  | H : _ |- _ => apply sto_bool_inv in H
+  | H : _ |- _ => apply sto_int_inv in H
+  | H : _ |- _ => apply sto_word_inv in H
+  end; move=> //;
+  try (exists Logic.eq_refl; simpl; congruence).
+Qed.
+
+Lemma of_sval_error x ty v ty' :
+  of_sval ty x = ok v →
+  ty ≠ ty' →
+  of_sval ty' x = type_error.
+Proof.
+  case: ty v ty' => v [] H // _;
+  repeat match goal with
+  | H : ?a = ?b |- _ => subst a || subst b
+  | H : _ |- _ => apply sto_bool_inv in H
+  | H : _ |- _ => apply sto_int_inv in H
+  | H : _ |- _ => apply sto_word_inv in H
+  | H : _ |- _ => apply sto_arr_inv in H
+  end; move=> //.
+Qed.
+
+Lemma ssem_sop2_error_1 op vp exn :
+    of_sval (op2_type_i op) vp = Error exn →
+    ∀ vq, ∃ exn', ssem_sop2 op vp vq = Error exn'.
+Proof.
+  case: op; case: vp=> //= q Hq vq;
+  try (eexists; reflexivity).
+Qed.
+
+Lemma ssem_sop2_error_2 op vp vq exn :
+  ∀ p,
+    of_sval (op2_type_i op) vp = ok p →
+    of_sval (op2_type_i op) vq = Error exn →
+    ∃ exn', ssem_sop2 op vp vq = Error exn'.
+Proof.
+  case: op => /= p Hp; case: vq => /= q Hq;
+  repeat match goal with
+  | H : ?a = ?b |- _ => subst a || subst b
+  | H : _ = Error _ |- _ => apply Error_inj in H
+  | H : _ |- _ => apply sto_bool_inv in H
+  | H : _ |- _ => apply sto_int_inv in H
+  | H : _ |- _ => apply sto_word_inv in H
+  | H : _ |- _ => apply sto_arr_inv in H
+  end; move=> //=;
+  try (eexists; reflexivity).
+Qed.
+
+Lemma type_check_pexprP m s e ty :
+  match type_check_pexpr e ty with
+  | Some te =>
+  ∃ v,
+  ssem_pexpr (SEstate m s) e = ok v ∧
+  of_sval _ v = ok (sem_texpr m (Mv.empty (λ x, s.[x])%vmap) ty te)
+  | None => ∃ exn, Let v := ssem_pexpr (SEstate m s) e in of_sval ty v = Error exn
+  end.
+Proof.
+  elim: e ty => /=.
+  - move=> z [] //=; eauto; eexists; reflexivity.
+  - move=> b [] //=; eauto; eexists; reflexivity.
+  - move=> p /(_ sint); case: (type_check_pexpr _ _).
+    + move=> tp [vp [Ep /sto_int_inv ?]]; subst vp; move=> [] //=; try rewrite Ep; simpl; eauto; eexists; reflexivity.
+    + case=> exn -> /=; eauto.
+  - move=> [[xt x] xi] ty /=. case: sstype_eq_dec.
+    + move=> EQ /=. subst.
+       eexists. split. eauto. unfold sget_var, of_sval; simpl.
+       case: xt => //.
+    + unfold sget_var, of_sval. case: ty; case: xt => //=; eexists; reflexivity.
+  - move=> [[]] [] //=; eauto. move=> n x vi e /(_ ssint).
+    unfold son_arr_var.
+    case: (type_check_pexpr _ _).
+    + move=> te [vp [Ep /sto_int_inv ?]]; subst vp; case=> //=; rewrite Ep; simpl; eauto; eexists; reflexivity.
+    + case=> exn -> /=; eauto.
+  - move=> [[]] [] //=; eauto. move=> x xi p /(_ ssword) /=.
+    case: (type_check_pexpr p _).
+    + move=> tp [v [Ep /sto_word_inv ?]]; subst v; case=> //=; rewrite Ep; simpl; eauto; eexists; reflexivity.
+    + case=> exn -> /=; eauto.
+  - move=> p /(_ ssbool); case: (type_check_pexpr p _).
+    + move=> tp [v [Ep /sto_bool_inv ?]]; subst v; case=>//=; rewrite Ep; simpl; eauto; eexists; reflexivity.
+    + case=> exn -> /=; eauto.
+  - move=> op p /(_ (op2_type_i op)); case: (type_check_pexpr _ _).
+    + move=> tp [vp [Ep IHp]] q /(_ (op2_type_i op)); rewrite Ep.
+      case: (type_check_pexpr _ _).
+      * move=> tq [vq [Eq IHq]] ty; rewrite Eq.
+        case: (ssem_sop2_ex _ _ _ _ _ IHp IHq) => v [Ev Hv].
+        case: sstype_eq_dec.
+        move=> ?; subst; simpl; eauto.
+        simpl. rewrite Ev => /of_sval_error /=.
+        move=> H; erewrite H; eauto; eexists; reflexivity.
+      * move=> /= [exn]. case: ssem_pexpr => /=.
+        move=> vq /= Eq ty.
+        case: (ssem_sop2_error_2 _ _ _ _ _ IHp Eq) => exn' -> /=; eauto.
+        move=> ? [] ->; eauto.
+    + case=> exn.
+      case: (ssem_pexpr _ p) => [ vp | [] ] //= Ep q _ ty; eauto.
+      case: (ssem_pexpr _ q)=> [ vq | [] ] //= ; eauto.
+      case: (ssem_sop2_error_1 _ _ _ Ep vq) => exn' -> /=; eauto.
 Qed.
 
 Definition has_pointer_type (x: var) : { vtype x = sword } + { True } :=
@@ -494,11 +524,14 @@ Definition has_array_type (x: var) : { n | vtype x = sarr n } + { True } :=
   | _ => inright I
   end.
 
+Definition vtype_eq_sarr x n (E: vtype x = sarr n) : ssarr = vtype x.
+Proof. by rewrite E. Defined.
+
 Definition post_assgn (x: lval) {ty} (w: ssem_t ty) (f: formula) (m: mem) (s: env) : Prop :=
   match x with
   | Lnone _ => projT1 f m s
   | Lvar {| v_var := x |} =>
-    match stype_eq_dec ty (vtype x) with
+    match sstype_eq_dec ty (vtype x) with
     | left EQ =>
       let v : ssem_t (vtype x) := eq_rect _ _ w _ EQ in projT1 f m (s.[x <- v])%mv
     | right _ => False
@@ -508,7 +541,7 @@ Definition post_assgn (x: lval) {ty} (w: ssem_t ty) (f: formula) (m: mem) (s: en
     | left Tx =>
     match type_check_pexpr e sword with
     | Some te =>
-    match stype_eq_dec ty sword with
+    match sstype_eq_dec ty sword with
     | left EQ =>
       ∀ i m',
       sem_texpr m s sword te = i →
@@ -523,13 +556,13 @@ Definition post_assgn (x: lval) {ty} (w: ssem_t ty) (f: formula) (m: mem) (s: en
     | inleft (exist n Tx as Tx') =>
     match type_check_pexpr e sint with
     | Some te =>
-    match stype_eq_dec ty sword with
+    match sstype_eq_dec ty sword with
     | left EQ =>
       ∀ i,
       let t := eq_rect _ _  s.[x]%mv _ Tx in
       sem_texpr m s sint te = i →
       let v := eq_rect _ _ w _ EQ in
-      let a : ssem_t (vtype x) := eq_rect _ _ (FArray.set t i v) _ (Logic.eq_sym Tx) in
+      let a : ssem_t (vtype x) := eq_rect _ _ (FArray.set t i v) _ (vtype_eq_sarr _ _ Tx) in
       projT1 f m (s.[x <- a])%mv
     | right _ => False end
     | None => False end
@@ -560,6 +593,10 @@ Definition texpr_of_pexpr (ty: stype') (pe: pexpr) : texpr ty :=
   | None => default_texpr ty
   end.
 
+Definition eval_texpr (s: sestate) {ty} (e: texpr ty) : ssem_t ty :=
+  let 'SEstate m vm := s in
+  sem_texpr m (Mv.empty (λ x, (vm).[x])%vmap) ty e.
+
 Lemma post_assgn_m { s s' } :
   env_ext s s' →
   ∀ x ty (v: ssem_t ty) f m,
@@ -569,13 +606,13 @@ Proof.
   move=> E [ x | [x xn] | [x xn] e | x e ] ty v f m /=.
   - (* Lnone *) by apply (projT2 f m).
   - (* Lvar *)
-    case: stype_eq_dec => // Te.
+    case: sstype_eq_dec => // Te.
     apply (projT2 f m). auto.
     subst. simpl. apply env_ext_set, env_ext_sym, E.
   - (* Lmem *)
     case: has_pointer_type => // Ty.
     case (type_check_pexpr e _) eqn: Te; auto.
-    case: stype_eq_dec => // ?; subst.
+    case: sstype_eq_dec => // ?; subst.
     move=> /= H ? ? ? ?; subst.
     rewrite (projT2 f). apply: H; auto.
     repeat (f_equal; auto using sem_texpr_m, env_ext_sym).
@@ -583,7 +620,7 @@ Proof.
   - (* Laset *)
     case: has_array_type => // [[n Tx]].
     case (type_check_pexpr e _) eqn: Te; auto.
-    case: stype_eq_dec => // ?; subst.
+    case: sstype_eq_dec => // ?; subst.
     move=> /= H ? ?; subst.
     rewrite (projT2 f). apply: H; auto. auto.
     rewrite (sem_texpr_m _ _ _ E) E.
@@ -630,9 +667,9 @@ Definition wp_aset (x: var) (e e': pexpr) (f: formula) : formula.
   refine
   match has_array_type x with
   | inleft (exist n Tx as Tx') =>
-  match type_check_pexpr e sint with
+  match type_check_pexpr e ssint with
   | Some te =>
-  match type_check_pexpr e' sword with
+  match type_check_pexpr e' ssword with
   | Some te' =>
     existT _ (
     λ m s,
@@ -640,7 +677,7 @@ Definition wp_aset (x: var) (e e': pexpr) (f: formula) : formula.
       let t := eq_rect _ _  s.[x]%mv _ Tx in
       sem_texpr m s sint te = i →
       sem_texpr m s sword te' = v →
-      let a : ssem_t (vtype x) := eq_rect _ _ (FArray.set t i v) _ (Logic.eq_sym Tx) in
+      let a : ssem_t (vtype x) := eq_rect _ _ (FArray.set t i v) _ (vtype_eq_sarr _ _ Tx) in
       projT1 f m (s.[x <- a])%mv) _
   | None => ffalse end
   | None => ffalse end
@@ -700,15 +737,15 @@ Lemma wp_assgn_sound prg ii x e tg f :
 Proof.
   move=> [m vm] s1 /ssem_inv [s' [/ssem_I_inv [i' [ii' [/MkI_inj [? <-]] /ssem_i_inv [v [Hv Hs']]]] /ssem_inv ->]]; subst ii'.
   unfold wp_assgn.
-  case (type_check_pexpr _ _) eqn: EQ. 2: apply: ffalse_denote.
-  move: (type_check_pexprP EQ _ _ _ Hv) => R /=.
-  specialize (R _ (λ x, Logic.eq_sym (Mv.get0 _ x))).
+  generalize (type_check_pexprP m vm e (type_of_pexpr e)).
+  case: (type_check_pexpr _ _). 2: intro; apply: ffalse_denote.
+  move=> te [w' [Hw' R]] /=.
   case: x Hs' => [ xi | [x xn] | [x xn] e' | x e' ] /swrite_lval_inv.
   - (* Lnone *)
     move=> -> H; apply: H; eauto.
   - (* Lvar *)
     move=> /= [ v' [Hvv' ?] ] /(_ _ Logic.eq_refl); subst s'.
-    case: stype_eq_dec => // Te.
+    case: sstype_eq_dec => // Te.
     unfold formula_denote; simpl.
     apply (projT2 f m). reflexivity.
     apply: env_ext_empty.
@@ -717,47 +754,48 @@ Proof.
     move=> <-. rewrite ! (Fv.setP_eq, Mv.setP_eq).
     move: Te v' Hvv'. intros ().
     move=> v' Hvv' /=.
-    apply: ok_inj. etransitivity. symmetry. apply: Hvv'. auto.
+    apply: ok_inj. etransitivity. symmetry. apply: Hvv'. congruence.
     move=> NE. rewrite ! (Fv.setP_neq, Mv.setP_neq) //; case: eqP => //.
   - (* Lmem *)
     move=> [Tx [vx [ve [w [Hvx [Hve [? ?]]]]]]] /(_ _ Logic.eq_refl) /=; subst.
     case: has_pointer_type => // Tx'.
     case (type_check_pexpr e' _) eqn: Te'. 2: easy.
-    case: stype_eq_dec => // Te /(_ _ _ Logic.eq_refl) /(_ Logic.eq_refl) /=.
+    case: sstype_eq_dec => // Te /(_ _ _ Logic.eq_refl) /(_ Logic.eq_refl) /=.
     unfold formula_denote; simpl.
     apply (projT2 f). 2: apply: env_ext_empty; reflexivity.
     f_equal. f_equal.
     rewrite Mv.get0.
-    apply eq_rect_eq. clear. move=> E.
-    by move: (Eqdep_dec.UIP_dec type.stype_eq_dec E Logic.eq_refl) ->.
-    move: (type_check_pexprP Te' _ _ _ Hve) => Re.
-    apply: ok_inj; apply Re. auto.
+    apply (eq_rect_eq _ _ _ (λ t, ssem_t (sstype_of_stype t))). clear. move=> E.
+    by move: (Eqdep_dec.UIP_dec stype_eq_dec E Logic.eq_refl) ->.
+    generalize (type_check_pexprP m vm e' ssword); rewrite Te'.
+    case=> v' [Hv' /sto_word_inv ?]; subst v'.
+    congruence.
     simpl in *.
     clear Tx'. revert Tx. generalize (vtype x). clear x. intros s ->.
     destruct (type_of_pexpr e) => //.
-    move: (Eqdep_dec.UIP_dec type.stype_eq_dec Te Logic.eq_refl) ->. simpl.
-    apply ok_inj in R. subst. auto.
+    move: (Eqdep_dec.UIP_dec sstype_eq_dec Te Logic.eq_refl) ->. simpl.
+    apply sto_word_inv in R. subst. congruence.
   - (* Laset *)
     move=> [ n [ Tx [ vi [ w [ Hvi [? ?]]]]]] /(_ _ Logic.eq_refl); simpl in *; subst.
     case: has_array_type => // [[n' Tx']].
     case (type_check_pexpr e' _) eqn: Te'. 2: easy.
-    case: stype_eq_dec => // Te /(_ _ Logic.eq_refl).
+    case: sstype_eq_dec => // Te /(_ _ Logic.eq_refl).
     unfold formula_denote. simpl.
     apply (projT2 f). reflexivity.
     apply: env_ext_empty.
     move=> y. rewrite Mv.get0.
     case: (v_var x =P y).
     move=> <-. rewrite ! (Fv.setP_eq, Mv.setP_eq, Mv.get0).
-    move: (type_check_pexprP Te' _ _ _ Hvi) => /(_ _ (λ x, Logic.eq_sym (Mv.get0 _ x))) Re.
-    apply ok_inj in Re. subst.
-    apply eq_rect_eq.
-    assert (n = n'). congruence. subst n'. move=> E.
-    move: (Eqdep_dec.UIP_dec type.stype_eq_dec E Logic.eq_refl) ->. simpl. f_equal.
-    apply eq_rect_eq. clear. move=> E.
-    move: (Eqdep_dec.UIP_dec type.stype_eq_dec E Logic.eq_refl) ->. reflexivity.
+    generalize (type_check_pexprP m vm e' ssint); rewrite Te'.
+    case=> q [Re /sto_int_inv ?]; subst q.
+    rewrite Re in Hvi. apply ok_inj in Hvi.
+    assert (n = n'). congruence. subst n'.
+    case: x Tx Tx' => [[xn ty] xi] /= Tx Tx'. subst. simpl.
+    move: (Eqdep_dec.UIP_dec stype_eq_dec Tx' Logic.eq_refl) ->. simpl.
     destruct (type_of_pexpr e) => //.
-    move: (Eqdep_dec.UIP_dec type.stype_eq_dec Te Logic.eq_refl) ->. simpl.
-    apply ok_inj in R. subst. auto.
+    move: (Eqdep_dec.UIP_dec sstype_eq_dec Te Logic.eq_refl) ->. simpl.
+    f_equal. congruence.
+    apply sto_word_inv in R. congruence.
     move=> NE. rewrite ! (Fv.setP_neq, Mv.setP_neq) //; case: eqP => //.
 Qed.
 
@@ -813,15 +851,17 @@ Proof.
   unfold wp_if.
   case (type_check_pexpr e _) eqn: EQ. 2: apply ffalse_denote.
   destruct s as (m, vm).
-  move: (type_check_pexprP EQ _ _ _ Hb) => Y /= X.
+  generalize (type_check_pexprP m vm e ssbool); rewrite EQ.
+  case=> v [Y /sto_bool_inv ?] /= X; subst v.
+  rewrite Y in Hb; apply ok_inj in Hb.
   move: (X f ltac:(reflexivity)) => [X1 X2]. clear X.
   destruct b.
     refine (WP1 _ _ _ REC _).
     apply X1; clear X1 X2.
-    apply (@ok_inj error); symmetry; apply Y. auto.
+    congruence.
   refine (WP2 _ _ _ REC _).
   apply X2; clear X1 X2.
-  apply (@ok_inj error); symmetry; apply Y. auto.
+  congruence.
 Qed.
 
 Definition wp_if' (e: pexpr) (wp_c1 wp_c2: formula → formula) (Q: formula) : formula.
@@ -859,15 +899,17 @@ Proof.
   unfold wp_if'.
   case (type_check_pexpr e _) eqn: EQ. 2: apply ffalse_denote.
   destruct s as (m, vm).
-  move: (type_check_pexprP EQ _ _ _ Hb) => Y /= X.
+  generalize (type_check_pexprP m vm e ssbool); rewrite EQ.
+  case=> v [Y /sto_bool_inv ?] /= X; subst v.
+  rewrite Y in Hb; apply ok_inj in Hb.
   move: X => [X1 X2].
   destruct b.
     refine (WP1 _ _ _ REC _).
     apply X1; clear X1 X2.
-    apply (@ok_inj error); symmetry; apply Y. auto.
+    congruence.
   refine (WP2 _ _ _ REC _).
   apply X2; clear X1 X2.
-  apply (@ok_inj error); symmetry; apply Y. auto.
+  congruence.
 Qed.
 
 End WEAKEST_PRECONDITION.
