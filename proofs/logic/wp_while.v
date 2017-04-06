@@ -4,7 +4,7 @@ From mathcomp Require Import all_ssreflect.
 Require Import Morphisms ZArith.
 
 Require Import utils type var.
-Require Import expr sem Ssem wp.
+Require Import expr sem Ssem Ssem_props wp.
 Require Import memory.
 
 Import UnsafeMemory.
@@ -16,6 +16,7 @@ Unset Printing Implicit Defensive.
 Unset SsrOldRewriteGoalsOrder.
 
 Local Open Scope Z_scope.
+Local Open Scope svmap_scope.
 
 (* -------------------------------------------------------------------- *)
 Hint Resolve 0 SEskip.
@@ -84,3 +85,23 @@ Lemma hoare_while_seq prg z P I c0 e c :
 -> hoare prg P (rcons c0 (MkI z (Cwhile e c)))
          (fun s => I s /\ ~~ e2b s e).
 Proof. by move=> h0 h; apply: (hoare_rcons h0); apply: hoare_while. Qed.
+
+(* -------------------------------------------------------------------- *)
+Definition hoare_for prg x zs P c Q :=
+  forall s s', ssem_for prg x zs s c s' -> P s -> Q s.
+
+Local Notation "s `_ n" := (nth 0 s n).
+
+Lemma hoare_genfor prg x zs (P : Z -> sestate -> Prop) c :
+   (forall s1 s2 z, s1.(sevm) = s2.(sevm) [\ Sv.singleton x] ->
+      P z s1 -> P z s2)
+-> (forall n, (n.+1 < size zs)%nat ->
+      hoare prg
+        (fun s => P zs`_n s /\ sget_var s.(sevm) x = SVint zs`_n)
+        c (P zs`_n.+1))
+-> hoare_for prg x zs (P (head 0 zs)) c (P (last 0 zs)).
+Proof.
+move=> eqs h s s' C; elim: C h eqs => {x c s zs} // s1 s1' s2 s3 x z zs c.
+move=> hwr h1 hfor ih h eqs /= Ps1; have Ps1': P z s1'.
++ apply: (eqs s1) => //.
+Abort.

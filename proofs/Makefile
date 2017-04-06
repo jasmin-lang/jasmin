@@ -1,7 +1,7 @@
 # -*- Makefile -*-
 
 # --------------------------------------------------------------------
-SUBDIRS  :=
+SUBDIRS :=
 
 include Makefile.common
 

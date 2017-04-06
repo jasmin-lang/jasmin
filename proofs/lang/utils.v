@@ -130,7 +130,21 @@ Lemma rbindP eT aT rT (e:result eT aT) (body:aT -> result eT rT) v (P:Type):
   e >>= body = Ok _ v -> P.
 Proof. by case: e=> //= a H /H H';apply H'. Qed.
 
-Ltac t_rbindP := repeat (apply:rbindP => ??).
+Ltac t_rbindP := do? (apply: rbindP => ??).
+
+Ltac t_xrbindP :=
+  match goal with
+  | [ |- Result.bind _ _ = Ok _ _ -> _ ] =>
+      let y := fresh "y" in
+      let h := fresh "h" in
+      apply: rbindP=> y; t_xrbindP=> h;
+      t_xrbindP; move: y h
+  | [ |- ok _ = ok _ -> _ ] =>
+      case; t_xrbindP
+  | [ |- _ -> _ ] =>
+      let h := fresh "h" in move=> h; t_xrbindP; move: h
+  | _ => idtac
+  end.
 
 Fixpoint mapM eT aT bT (f : aT -> result eT bT) (xs : seq aT) : result eT (seq bT) :=
   match xs with

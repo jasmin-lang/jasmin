@@ -124,6 +124,7 @@ Definition to_sval t : ssem_t t -> svalue :=
 
 (* ** Variable map
  * -------------------------------------------------------------------- *)
+Delimit Scope svmap_scope with svmap.
 
 Notation svmap    := (Fv.t ssem_t).
 Notation svmap0   := (@Fv.empty ssem_t (fun x => sdflt_val x.(vtype))).

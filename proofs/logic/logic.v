@@ -34,11 +34,12 @@ Require Import JMeq ZArith Setoid Morphisms.
 
 Require Import word utils type var expr.
 Require Import memory sem Ssem Ssem_props.
-(*Require Import symbolic_expr symbolic_expr_opt.*)
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+Local Open Scope svmap_scope.
 
 Section SEM.
 (* -------------------------------------------------------------------------- *)
@@ -116,7 +117,7 @@ Lemma hoare_notmod (P P' Q:hpred) c:
   hoare (fun s => P s /\ P' s) c (fun s => Q s /\ P' s).
 Proof.
   move=> Hd Hc s s' Hsem [HP HP'];split;first by apply (Hc _ _ Hsem).
-  by rewrite -(@Hd s s') //;apply: (@writeP pr).
+  by rewrite -(@Hd s s') //; apply: (@writeP pr).
 Qed.
 
 (* Skip *)
