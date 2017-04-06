@@ -25,6 +25,7 @@ logic/wp_while.v
 lang/expr.v
 lang/extraction.v
 lang/gen_map.v
+lang/low_memory.v
 lang/memory.v
 lang/sem.v
 lang/strings.v
