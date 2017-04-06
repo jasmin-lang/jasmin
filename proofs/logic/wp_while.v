@@ -88,20 +88,25 @@ Proof. by move=> h0 h; apply: (hoare_rcons h0); apply: hoare_while. Qed.
 
 (* -------------------------------------------------------------------- *)
 Definition hoare_for prg x zs P c Q :=
-  forall s s', ssem_for prg x zs s c s' -> P s -> Q s.
+  forall s s', ssem_for prg x zs s c s' -> P s -> Q s'.
 
 Local Notation "s `_ n" := (nth 0 s n).
 
-Lemma hoare_genfor prg x zs (P : Z -> sestate -> Prop) c :
+Lemma hoare_genfor prg (x : var) z0 zs (P : Z -> sestate -> Prop) c :
    (forall s1 s2 z, s1.(sevm) = s2.(sevm) [\ Sv.singleton x] ->
       P z s1 -> P z s2)
--> (forall n, (n.+1 < size zs)%nat ->
+-> (forall n, (n < size zs)%nat ->
       hoare prg
-        (fun s => P zs`_n s /\ sget_var s.(sevm) x = SVint zs`_n)
-        c (P zs`_n.+1))
--> hoare_for prg x zs (P (head 0 zs)) c (P (last 0 zs)).
+        (fun s => P (z0 :: zs)`_n s /\ sget_var s.(sevm) x = SVint zs`_n)
+        c (P (z0 :: zs)`_n.+1))
+-> hoare_for prg x zs (P z0) c (P (last z0 zs)).
 Proof.
-move=> eqs h s s' C; elim: C h eqs => {x c s zs} // s1 s1' s2 s3 x z zs c.
-move=> hwr h1 hfor ih h eqs /= Ps1; have Ps1': P z s1'.
-+ apply: (eqs s1) => //.
-Abort.
+move=> eqs h s s' C; elim: zs z0 s h C => [|z zs ih] z0 s /= h.
++ by elim/sfor_nilI.
+move=> C; elim/sfor_consI: C eqs ih h => {x}.
+move=> s1' s2 i oks1' h1 h2 eqs ih h Ps.
+have {Ps} Ps2: P z s2; first apply: (h 0%nat _ s1') => //=.
++ rewrite (swrite_sget_var oks1'); split=> //.
+  by apply: (eqs s) => //; apply/swrite_var_eqmem/oks1'.
+by apply: (ih _ s2) => //= n ltnsz; apply/(h n.+1).
+Qed.

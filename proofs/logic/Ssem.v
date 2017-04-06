@@ -122,6 +122,14 @@ Definition to_sval t : ssem_t t -> svalue :=
   | ssword  => SVword
   end.
 
+Definition sval_sstype (s : svalue) :=
+  match s with
+  | SVbool _ => ssbool
+  | SVint  _ => ssint
+  | SVarr  a => ssarr
+  | SVword _ => ssword
+  end.
+
 (* ** Variable map
  * -------------------------------------------------------------------- *)
 Delimit Scope svmap_scope with svmap.
@@ -375,6 +383,21 @@ Definition ok_inj {E A} (a a': A) (H: Ok E a = ok a') : a = a' :=
 
 Definition Error_inj {E A} (a a': E) (H: @Error E A a = Error a') : a = a' :=
   let 'Logic.eq_refl := H in Logic.eq_refl.
+
+Lemma sval_sstype_to_sval sst (z : ssem_t sst) :
+  sval_sstype (to_sval z) = sst.
+Proof. by case: sst z. Qed.
+
+Lemma sval_sstype_of_sval sst (z : svalue) y :
+  of_sval sst z = ok y -> sval_sstype z = sst.
+Proof. by case: sst y z => y []. Qed.
+
+Lemma of_sval_inj sst z1 z2 :
+     sval_sstype z1 = sst
+  -> sval_sstype z2 = sst
+  -> of_sval sst z1 = of_sval sst z2
+  -> z1 = z2.
+Proof. by case: sst; case: z2; case: z1 => //= x1 x2 _ _ [->]. Qed.
 
 Lemma of_sval_to_sval ty x :
   of_sval ty (to_sval x) = ok x.

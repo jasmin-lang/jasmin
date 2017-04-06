@@ -37,6 +37,13 @@ Unset Printing Implicit Defensive.
 Local Open Scope svmap_scope.
 
 (* -------------------------------------------------------------------- *)
+Derive Inversion_clear sfor_nilI with
+  (forall p x P c Q, ssem_for p x [::] P c Q) Sort Prop.
+  
+Derive Inversion_clear sfor_consI with
+  (forall p x z zs P c Q, ssem_for p x (z :: zs) P c Q) Sort Prop.
+
+(* -------------------------------------------------------------------- *)
 Scheme _ssem_Ind      := Induction for ssem      Sort Prop
 with   _ssem_i_Ind    := Induction for ssem_i    Sort Prop
 with   _ssem_I_Ind    := Induction for ssem_I    Sort Prop
@@ -192,6 +199,18 @@ by SvD.fsetdec.
 Qed.
 
 (* -------------------------------------------------------------------- *)
+Lemma swrite_sget_var i z s s' :
+  swrite_var i z s = ok s' -> sget_var s'.(sevm) i = z.
+Proof.
+elim/rbindP=> si; elim/rbindP=> y h [<-] [<-] /= {si}.
+rewrite /sget_var Fv.setP_eq; move: (_ (vtype _)) y h.
+move=> sst y h; apply: (@of_sval_inj sst).
++ by apply/sval_sstype_to_sval.
++ by apply: (sval_sstype_of_sval h).
++ by rewrite of_sval_to_sval h.
+Qed.
+
+(* -------------------------------------------------------------------- *)
 Lemma vrvP r v s s' :
   swrite_lval r v s = ok s' -> s.(sevm) = s'.(sevm) [\ vrv r].
 Proof. case: r => /=.
@@ -238,41 +257,3 @@ eapply (@ssem_Ind p
   by transitivity (sevm s1'); [apply: svmap_eq_exceptL | apply: svmap_eq_exceptR].
 + by move=> s1 m s2 ii xs fn args vargs vs okv _ _ /vrvsP /=; writeN.
 Qed.
-
-(* -------------------------------------------------------------------------- *)
-(* Properties on swrite_lval                                                  *)
-(* -------------------------------------------------------------------------- *)
-
-(*
-Lemma swrite_nin t (rv:lval) (v:svalue) z s:
-  ~Sv.In z (vrv rv) ->
-  ((swrite_lval s rv v).[z])%vmap = s.[z]%vmap.
-Proof.
-  elim: rv v s => /= [x | ??? Hr1 ? Hr2] v s;rewrite ?vrv_var ?vrv_pair => Hin.
-  + by rewrite Fv.setP_neq //;apply /eqP; SvD.fsetdec.
-  rewrite Hr1 ?Hr2 //;SvD.fsetdec.
-Qed.
-
-Lemma ssem_swrite_lval s (r:lval sword) w: 
-  ssem_lval (swrite_lval s r w) r = w.
-Proof. by case H : sword / r w => //= ?;rewrite Fv.setP_eq. Qed.
-
-Lemma swrite_ssem_lval s (r:lval sword): swrite_lval s r (ssem_lval s r) = s.
-Proof.
-  apply Fv.map_ext=> x1;case H : sword / (r) => [ x2 | ] //=. 
-  case: (x2 =P x1) => [ -> | /eqP ? ];first by rewrite Fv.setP_eq. 
-  by rewrite Fv.setP_neq.   
-Qed.
-
-Lemma ssem_lval2pe t (i:lval t) s: ssem_pexpr s (lval2pe i) = ssem_lval s i.
-Proof. by elim: i => //= ??? -> ? ->. Qed.
-
-(* -------------------------------------------------------------------------- *)
-(* Properties on donotdep                                                     *)
-(* -------------------------------------------------------------------------- *)
-
-Definition donotdep  (s : Sv.t) t (e:pexpr t) := 
-  forall s1 s2, s1 = s2 [\ s] -> ssem_pexpr s1 e = ssem_pexpr s2 e.
-
-End SEM.
-*)
