@@ -31,7 +31,7 @@ Lemma dup (P : Prop) : P -> dupI P.
 Proof. by move=> hP; constructor. Qed.
 
 (* -------------------------------------------------------------------- *)
-Notation e2b s e := (ssem_pexpr s e = ok strue).
+Notation e2b s e := (eval_texpr s (texpr_of_pexpr sbool' e)).
 
 (* -------------------------------------------------------------------- *)
 Lemma ssem_app_inv prg s c1 c2 s' :
@@ -62,23 +62,25 @@ Proof. by move=> h1 h2; rewrite -cats1; apply: (@hoare_seq _ R). Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma hoare_while prg z I e c :
-   hoare prg (fun s => I s /\ ssem_pexpr s e = ok strue) c I
+   hoare prg (fun s => I s /\ e2b s e) c I
 -> hoare prg I [:: MkI z (Cwhile e c)]
-         (fun s => I s /\ ssem_pexpr s e = ok sfalse).
+         (fun s => I s /\ ~~ e2b s e).
 Proof.
 move=> h s s' /ssem_inv1; move: {-2}(Cwhile _ _) (erefl (Cwhile e c)).
 move=> ir eq C; elim: C eq => // {s}; last first.
 + move=> s e' c' hlet [<- _] Is; split=> //.
-  by elim/rbindP: hlet=> v -> /sto_bool_inv ->.
+  elim/rbindP: hlet => v he' /sto_bool_inv hv; subst v.
+  by move: he' => /texpr_of_pexpr_bool ->.
 move=> s1 s2 s3 e' c' hlet hc' _ ih [eqe eqc] Is1; subst e' c'.
 apply/ih/(h s1) => //; split=> //; elim/rbindP: hlet.
-by move=> v -> /sto_bool_inv ->.
+move=> v he' /sto_bool_inv ?; subst v.
+by move: he' => /texpr_of_pexpr_bool ->.
 Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma hoare_while_seq prg z P I c0 e c :
    hoare prg P c0 I
--> hoare prg (fun s => I s /\ ssem_pexpr s e = ok strue) c I
+-> hoare prg (fun s => I s /\ e2b s e) c I
 -> hoare prg P (rcons c0 (MkI z (Cwhile e c)))
-         (fun s => I s /\ ssem_pexpr s e = ok sfalse).
+         (fun s => I s /\ ~~ e2b s e).
 Proof. by move=> h0 h; apply: (hoare_rcons h0); apply: hoare_while. Qed.

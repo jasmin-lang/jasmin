@@ -597,6 +597,19 @@ Definition eval_texpr (s: sestate) {ty} (e: texpr ty) : ssem_t ty :=
   let 'SEstate m vm := s in
   sem_texpr m (Mv.empty (λ x, (vm).[x])%vmap) ty e.
 
+Lemma texpr_of_pexpr_bool s e b :
+  ssem_pexpr s e = ok (SVbool b) →
+  eval_texpr s (texpr_of_pexpr sbool' e) = b.
+Proof.
+  destruct s as [m vm].
+  move=> h.
+  unfold texpr_of_pexpr.
+  generalize (type_check_pexprP m vm e (stype_of_stype' sbool')).
+  rewrite h; clear h.
+  case: type_check_pexpr => /= [ te [v [Ev /sto_bool_inv Hv]] | [exn Hv] ];
+  congruence.
+Qed.
+
 Lemma post_assgn_m { s s' } :
   env_ext s s' →
   ∀ x ty (v: ssem_t ty) f m,
