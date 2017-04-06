@@ -53,6 +53,7 @@ module L = ParserUtil.Lexing
 %token SHREQ SHLEQ XOREQ OREQ
 %token COLON
 %token LARROW
+%token DOLLAR
 
 %token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
 %token T_BOOL
@@ -161,8 +162,10 @@ param:
 
 
 src :
-| d=rdest               { Src(d) }
-| i=INT                 { Imm(64,Pconst(Arith.parse_big_int i)) }
+| d=rdest                      { Src(d) }
+| DOLLAR p=param               { Imm(64,Patom(Pparam(p)))              } (* FIXME: fixed for 64 *)
+| DOLLAR LPAREN i=pexpr RPAREN { Imm(64,i)                             } (* FIXME: fixed for 64 *)
+| i=INT                        { Imm(64,Pconst(Arith.parse_big_int i)) }
 
 (* ** Index expressions and conditions
  * -------------------------------------------------------------------- *)
@@ -329,7 +332,7 @@ block :
  * -------------------------------------------------------------------- *)
 
 return :
-| RETURN ret=tuple(var) { ret }
+| RETURN ret=tuple(var) SEMICOLON { ret }
 
 utype :
 | T_U8   {   8 }

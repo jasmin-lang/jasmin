@@ -96,6 +96,7 @@ rule lex = parse
   | "<<"    { SHL }
   | "^"     { XOR }
   | "|"     { OR }
+  | "$"     { DOLLAR }
 
   | "reg"   { REG }
   | "stack" { STACK }
