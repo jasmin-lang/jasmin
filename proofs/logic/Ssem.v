@@ -361,3 +361,118 @@ with ssem_call : mem -> funname -> seq svalue -> mem -> seq svalue -> Prop :=
     ssem_call m1 fn vargs m2 vres.
 
 End SEM.
+
+Definition MkI_inj {ii i ii' i'} (H: MkI ii i = MkI ii' i') :
+  ii = ii' ∧ i = i' :=
+  let 'Logic.eq_refl := H in conj Logic.eq_refl Logic.eq_refl.
+
+Definition Some_inj {A} (a a': A) (H: Some a = Some a') : a = a' :=
+  let 'Logic.eq_refl := H in Logic.eq_refl.
+
+Definition ok_inj {E A} (a a': A) (H: Ok E a = ok a') : a = a' :=
+  let 'Logic.eq_refl := H in Logic.eq_refl.
+
+Definition Error_inj {E A} (a a': E) (H: @Error E A a = Error a') : a = a' :=
+  let 'Logic.eq_refl := H in Logic.eq_refl.
+
+Lemma of_sval_to_sval ty x :
+  of_sval ty (to_sval x) = ok x.
+Proof. by move: x; case ty. Qed.
+
+Lemma sto_word_inv x i :
+  sto_word x = ok i →
+  x = i.
+Proof. case: x => // i' H; apply ok_inj in H. congruence. Qed.
+
+Lemma sto_int_inv x i :
+  sto_int x = ok i →
+  x = i.
+Proof. case: x => // i' H; apply ok_inj in H. congruence. Qed.
+
+Lemma sto_bool_inv x b :
+  sto_bool x = ok b →
+  x = b.
+Proof. case: x => // i' H; apply ok_inj in H. congruence. Qed.
+
+Lemma sto_arr_inv x a :
+  sto_arr x = ok a →
+  x = SVarr a.
+Proof. case: x => // a' H;apply ok_inj in H. congruence. Qed.
+
+Lemma slet_inv {A s x} {f: _ → _ → exec A} {y} :
+  SLet (n, t) := s.[x] in f n t = ok y →
+  ∃ n (Tx: vtype x = sarr n), f n (eq_rect _ _ (sevm s).[x]%vmap _ Tx) = ok y.
+Proof.
+  unfold son_arr_var.
+  generalize ((sevm s).[x])%vmap.
+  case: (vtype x) => // n t E.
+  exists n, Logic.eq_refl. exact E.
+Qed.
+
+Lemma ssem_inv { prg s c s' } :
+  ssem prg s c s' →
+  match c with
+  | [::] => s' = s
+  | i :: c' => ∃ si, ssem_I prg s i si ∧ ssem prg si c' s'
+end.
+Proof. case; eauto. Qed.
+
+Lemma ssem_I_inv { prg s i s' } :
+  ssem_I prg s i s' →
+  ∃ i' ii, i = MkI ii i' ∧ ssem_i prg s i' s'.
+Proof. case; eauto. Qed.
+
+Lemma ssem_i_inv { prg s i s' } :
+  ssem_i prg s i s' →
+  match i with
+  | Cassgn x tg e => ∃ v, ssem_pexpr s e = ok v ∧ swrite_lval x v s = ok s'
+  | Cif e c1 c2 => ∃ b : bool, ssem_pexpr s e = ok (SVbool b) ∧ ssem prg s (if b then c1 else c2) s'
+  | _ => True
+  end.
+Proof.
+  case; eauto; clear.
+  - (* Cassgn *)
+  move=> s s' x _ e; apply: rbindP; eauto.
+  - (* Cif true *)
+  move=> s s' e c1 c2; apply: rbindP => v Hv /sto_bool_inv ?; subst v; eauto.
+  - (* Cif false *)
+  move=> s s' e c1 c2; apply: rbindP => v Hv /sto_bool_inv ?; subst v; eauto.
+Qed.
+
+Lemma swrite_lval_inv {x v s s'} :
+  swrite_lval x v s = ok s' →
+  match x with
+  | Lnone _ => s' = s
+  | Lvar x => ∃ v', of_sval (vtype x) v = ok v' ∧
+                    s' = {| semem := semem s ; sevm := (sevm s).[ x <- v' ] |}
+  | Lmem x e =>
+    ∃ (Tx: vtype x = sword),
+    ∃ vx ve w: word, eq_rect _ _ ((sevm s).[ x ]) _ Tx = vx ∧ ssem_pexpr s e = ok (SVword ve) ∧ v = w ∧
+               s' = {| semem := write_mem (semem s) (I64.add vx ve) w ; sevm := sevm s |}
+  | Laset x i =>
+    ∃ n (Tx: vtype x = sarr n) (vi : Z) (w: word),
+  ssem_pexpr s i = ok (SVint vi) ∧
+  v = w ∧
+  let q := FArray.set (eq_rect (vtype x) ssem_t ((sevm s).[x]) (sarr n) Tx) vi w in
+  s' = {| semem := semem s ; sevm := (sevm s).[x <- eq_rect _ _ q _ (Logic.eq_sym Tx)] |}
+end%vmap.
+Proof.
+  destruct x as [ vi | x | x e | x i ].
+  - move=> H; apply ok_inj in H; auto.
+  - apply: rbindP => vm H K; apply ok_inj in K; subst s'.
+    revert H; apply: rbindP => v' H X; apply ok_inj in X; subst vm; eauto.
+  - apply: rbindP => vx /sto_word_inv H.
+    apply: rbindP => ve.
+    apply: rbindP => ve' He /sto_word_inv ?; subst ve'.
+    apply: rbindP => w /sto_word_inv -> X; apply ok_inj in X; subst s'.
+    unfold sget_var in H.
+    case: x H=> [[[] x] xi] //.
+    exists Logic.eq_refl, vx, ve, w.
+    split. simpl in *. congruence. auto.
+  - move=> /slet_inv [n [Tx H]].
+    exists n, Tx.
+    apply: rbindP H=> vi;apply: rbindP => vj Hi /sto_int_inv H;subst vj.
+    apply: rbindP => w /sto_word_inv ->;apply: rbindP => vm' L [<-].
+    exists vi, w;split=> //;split=>//=;f_equal;f_equal.
+    by case: x Tx L=>  -[ty x] xi /= ?;subst ty => /= -[] <-.
+Qed.
