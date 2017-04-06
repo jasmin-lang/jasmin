@@ -25,8 +25,14 @@
 
 module PU = ParserUtil
 
-let modul =
+let rust =
   PU.wrap_error
     (fun sbuf ->
       try  IL_Parser.modul IL_Lexer.lex sbuf
       with IL_Parser.Error -> raise(PU.ParserError))
+
+let modul =
+  PU.wrap_error
+    (fun sbuf ->
+      try  IL_MilParser.modul IL_MilLexer.lex sbuf
+      with IL_MilParser.Error -> raise(PU.ParserError))

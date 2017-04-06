@@ -278,35 +278,33 @@ let rec cpexpr_of_pcond cvi hr pc =
 let rec pcond_of_cpexpr vat pe =
   let pcp = pcond_of_cpexpr vat in
   let pep = pexpr_of_cpexpr vat in
-  let open E in
   match pe with
-  | E.Pbool(cb) -> IL_Lang.Pbool(bool_of_cbool cb)
-  | E.Pnot(cpc) ->
-    IL_Lang.Pnot(pcp cpc)
-  | Papp2((Oand|Oor) as o,cpc1,cpc2) ->
+  | E.Pbool(cb) -> Pbool(bool_of_cbool cb)
+  | E.Pnot(cpc) -> Pnot(pcp cpc)
+  | E.Papp2((E.Oand|E.Oor) as o,cpc1,cpc2) ->
     Pbop(sop2_to_bop o,pcp cpc1, pcp cpc2)
-  | E.Papp2((Oeq|Oneq|Olt|Ole|Ogt|Oge) as cop,cpe1,cpe2) ->
+  | E.Papp2((E.Oeq|E.Oneq|E.Olt|E.Ole|E.Ogt|E.Oge) as cop,cpe1,cpe2) ->
     let pe1 = pep cpe1 in
     let pe2 = pep cpe2 in
     begin match cop with
-    | Oeq  -> Pcmp(Peq,pe1,pe2)
-    | Oneq -> Pcmp(Pneq,pe1,pe2)
-    | Olt  -> Pcmp(Plt,pe1,pe2)
-    | Ole  -> Pcmp(Ple,pe1,pe2)
-    | Ogt  -> Pcmp(Pgt,pe1,pe2)
-    | Oge  -> Pcmp(Pge,pe1,pe2)
-    | Oand
-    | Oor
-    | Omul
-    | Oadd
-    | Osub -> failwith "impossible"
+    | E.Oeq  -> Pcmp(Peq,pe1,pe2)
+    | E.Oneq -> Pcmp(Pneq,pe1,pe2)
+    | E.Olt  -> Pcmp(Plt,pe1,pe2)
+    | E.Ole  -> Pcmp(Ple,pe1,pe2)
+    | E.Ogt  -> Pcmp(Pgt,pe1,pe2)
+    | E.Oge  -> Pcmp(Pge,pe1,pe2)
+    | E.Oand
+    | E.Oor
+    | E.Omul
+    | E.Oadd
+    | E.Osub -> failwith "impossible"
     end
-  | Papp2((Oadd|Omul|Osub), _, _)
-  |Pconst _
-  |Pcast _
-  |Pvar _
-  |Pget(_, _)
-  |Pload(_) -> failwith "pcond_pexpr: unsuppported operator"
+  | E.Papp2((E.Oadd|E.Omul|E.Osub), _, _)
+  | E.Pconst _
+  | E.Pcast _
+  | E.Pvar _
+  | E.Pget(_, _)
+  | E.Pload(_) -> failwith "pcond_pexpr: unsuppported operator"
 
 
 let cpexpr_of_fcond cvi hr {fc_neg; fc_var} =
