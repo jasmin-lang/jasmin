@@ -36,21 +36,6 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope Z_scope.
 
-(* -------------------------------------------------------------------- *)
-Lemma Z_to_nat_subn z1 z2 : 0 <= z1 -> 0 <= z2 -> z2 <= z1 ->
-  Z.to_nat (z1 - z2) = (Z.to_nat z1 - Z.to_nat z2)%nat.
-Proof.
-case: z1 z2 => [|n1|n1] [|n2|n2] //=; try by rewrite /Z.le.
-+ by move=> _ _ _; rewrite subn0.
-move=> _ _; rewrite -[_ <= _]/(n2 <= n1)%positive => le.
-have := Z.pos_sub_discr n1 n2; case: Z.pos_sub => /=.
-+ by move=> ->; rewrite subnn.
-+ move=> p ->; rewrite Pos2Nat.inj_add.
-  by rewrite -[plus _ _]/(addn _ _) addnC addnK.
-+ move=> p ->; apply/esym/eqP; rewrite subn_eq0.
-  by rewrite Pos2Nat.inj_add leq_addr.
-Qed.
-
 (* ** Result monad
  * -------------------------------------------------------------------- *)
 
@@ -402,6 +387,23 @@ Proof. move=> /P_leP ? /P_ltP ?;apply /P_ltP;omega. Qed.
 
 Lemma pos_eqP : Equality.axiom Pos.eqb. 
 Proof. by move=> p1 p2;apply:(iffP idP);rewrite -Pos.eqb_eq. Qed.
+
+Lemma Z_to_nat_subn z1 z2 : 0 <= z1 -> 0 <= z2 -> z2 <= z1 ->
+  Z.to_nat (z1 - z2) = (Z.to_nat z1 - Z.to_nat z2)%nat.
+Proof.
+case: z1 z2 => [|n1|n1] [|n2|n2] //=; try by rewrite /Z.le.
++ by move=> _ _ _; rewrite subn0.
+move=> _ _; rewrite -[_ <= _]/(n2 <= n1)%positive => le.
+have := Z.pos_sub_discr n1 n2; case: Z.pos_sub => /=.
++ by move=> ->; rewrite subnn.
++ move=> p ->; rewrite Pos2Nat.inj_add.
+  by rewrite -[plus _ _]/(addn _ _) addnC addnK.
++ move=> p ->; apply/esym/eqP; rewrite subn_eq0.
+  by rewrite Pos2Nat.inj_add leq_addr.
+Qed.
+
+Lemma Z_to_nat_le0 z : z <= 0 -> Z.to_nat z = 0%N.
+Proof. by rewrite /Z.to_nat; case: z => //=; rewrite /Z.le. Qed.
 
 Definition pos_eqMixin := EqMixin pos_eqP.
 Canonical  pos_eqType  := EqType positive pos_eqMixin.

@@ -6,6 +6,7 @@ Require Import Morphisms ZArith.
 Require Import utils type var.
 Require Import expr sem Ssem Ssem_props wp.
 Require Import memory.
+Require Import Psatz.
 
 Import UnsafeMemory.
 
@@ -114,18 +115,32 @@ Qed.
 (* -------------------------------------------------------------------- *)
 Lemma hoare_for_to
    prg z (x : var_i) lo hi vlo vhi (P : Z -> sestate -> Prop) c
-:
-   (forall s1 s2 z, s1.(sevm) = s2.(sevm) [\ Sv.singleton x] ->
+:  vlo < vhi
+->  (forall s1 s2 z, s1.(sevm) = s2.(sevm) [\ Sv.singleton x] ->
       P z s1 -> P z s2)
 -> (forall i, vlo <= i < vhi ->
       hoare prg
-        (fun s => P i s /\ sget_var s.(sevm) x = i) c (P (i+1)))
+        (fun s => P (i-1) s /\ sget_var s.(sevm) x = i) c (P i))
 -> hoare prg
-     (fun s => [/\ P vlo s
+     (fun s => [/\ P (vlo-1) s
         , eval_texpr s (texpr_of_pexpr sint' lo) = vlo
         & eval_texpr s (texpr_of_pexpr sint' hi) = vhi])
      [:: MkI z (Cfor x (UpTo, lo, hi) c)]
-     (P vhi).
+     (P (vhi-1)).
 Proof.
-move=> eqs h s1 s2 /ssem_inv1 sh [hP eqlo eqhi].
-Abort.
+move=> lt eqs h s1 s2 /ssem_inv1 sh [hP eqlo eqhi].
+pose s := wrange UpTo vlo vhi; rewrite -(last_wrange_up_ne (vlo-1) lt).
+apply: (@hoare_genfor prg x (vlo-1) (wrange UpTo vlo vhi) P c);
+  try eassumption; last first.
++ sinversion sh; move: H6 H7; t_xrbindP.
+  move=> slo hlo /sto_int_inv ? shi hhi /sto_int_inv ?; subst.
+  move/texpr_of_pexpr_int: hhi => ->.
+  by move/texpr_of_pexpr_int: hlo => ->.
+rewrite size_wrange wrange_cons // => n lt_n_sz s'1 s'2.
+rewrite !nth_wrange //; try apply/leP/Nat2Z.inj_le.
++ by move/leP/Nat2Z.inj_le: lt_n_sz; rewrite !Z2Nat.id; lia.
++ by move/leP/Nat2Z.inj_le: lt_n_sz; rewrite !Z2Nat.id; lia.
+rewrite [_+Z.of_nat _.+1](_ : _ = vlo + Z.of_nat n); first lia.
+rewrite [_-1+_](_ : _ = vlo + Z.of_nat n- 1); first lia.
+apply: h; move/leP/Nat2Z.inj_le: lt_n_sz; rewrite Z2Nat.id; lia.
+Qed.
