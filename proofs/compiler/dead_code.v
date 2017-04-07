@@ -129,16 +129,8 @@ Definition dead_code_fd (fd: fundef) :=
     ciok (MkFun ii params c.2 res)
   end.
 
-Definition dead_code_ffd (ffd:funname * fundef) (p:cfexec prog) :=
-  Let p := p in
-  match ffd with
-  | (f, fd) =>
-    let fd' := dead_code_fd fd in
-    Let c := add_finfo f f fd' in
-    cfok ((f, c) :: p)
-  end.
-
-Definition dead_code_prog (p:prog) := foldr dead_code_ffd (cfok [::]) p.
+Definition dead_code_prog (p: prog) : cfexec prog :=
+  map_cfprog dead_code_fd p.
 
 Lemma write_memP (x:lval) v m1 m2 vm1 vm2:
   ~~ write_mem x -> 
@@ -548,40 +540,6 @@ Section PROOF.
     exact: Hvm2'.
   Qed.
 
-  (* TODO: this is ugly, but here because of error annotations we cannot use get_map_prog;
-     maybe some mapM-like construct would make it less ugly though *)
-  Lemma fun_p' f fn: get_fundef p fn = Some f ->
-    exists f', dead_code_fd f = ok f' /\ get_fundef p' fn = Some f'.
-  Proof.
-    move=> Hfun.
-    have := dead_code_ok.
-    rewrite /dead_code_prog.
-    elim: p p' Hfun=> //= fh fl IH q Hfun Hdead.
-    move: fh Hfun Hdead=> [fhn fhd] Hfun Hdead.
-    rewrite {1}/dead_code_ffd in Hdead.
-    (**)
-    case: (boolP (fn == fhn)) Hfun.
-    + move=> /eqP ->.
-      rewrite /get_fundef /= eq_refl /==> [] []<-.
-      case: (foldr dead_code_ffd (cfok [::]) fl) Hdead=> // p1 /=.
-      rewrite /cfok.
-      apply: rbindP=> c Hc []<-.
-      exists c; split.
-      rewrite /add_finfo /= in Hc.
-      by case: (dead_code_fd fhd) Hc=> // a []->.
-      by rewrite /= eq_refl.
-    + move=> /negPf Hneq Hfun.
-      rewrite /cfok in Hdead.
-      move: Hdead; apply: rbindP=> p1 Hp1 /= Hdead.
-      have [||p2 [Hp2 Hp2']] := (IH p1)=> //.
-      rewrite /get_fundef /= Hneq /= in Hfun.
-      exact: Hfun.
-      exists p2; split=> //.
-      move: Hdead; apply: rbindP=> c Hc [] <-.
-      rewrite /get_fundef /= Hneq /=.
-      exact: Hp2'.
-  Qed.
-
   Local Lemma Hproc m1 m2 fn f vargs s1 vm2 vres:
     get_fundef p fn = Some f ->
     write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
@@ -592,8 +550,7 @@ Section PROOF.
     Pfun m1 fn vargs m2 vres.
   Proof.
     move=> Hfun Hw Hsem Hc Hres Hfull.
-    have Hfun' := fun_p' Hfun.
-    move: Hfun'=> [f' [Hf'1 Hf'2]].
+    have [f' [Hf'1 Hf'2]] := get_map_cfprog dead_code_ok Hfun.
     case: f Hf'1 Hfun Hw Hsem Hc Hres=> ?? /= c res Hf'1 Hfun Hw Hsem Hc Hres.
     case: f' Hf'1 Hf'2=> ?? c' f'_res Hf'1 Hf'2.
     case Hd: (dead_code_c dead_code_i c (read_es [seq Pvar i | i <- res])) Hf'1 =>// [[sv sc]] /= Heq.

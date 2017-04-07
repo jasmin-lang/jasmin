@@ -184,9 +184,9 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
     by rewrite eq_refl /=;split;[apply /He11|apply /He12].
   Qed.
 
-  Definition eqMixin := Equality.Mixin eq_axiom.
+  Definition pexpr_eqMixin := Equality.Mixin eq_axiom.
   Module Exports.
-  Canonical eqType  := Eval hnf in EqType pexpr eqMixin.
+  Canonical pexpr_eqType  := Eval hnf in EqType pexpr pexpr_eqMixin.
   End Exports.
 End Eq_pexpr.
 Export Eq_pexpr.Exports.
@@ -248,7 +248,6 @@ Canonical  dir_eqType      := Eval hnf in EqType dir dir_eqMixin.
 Definition range := (dir * pexpr * pexpr)%type.
 
 Definition instr_info := positive.
-Definition dummy_iinfo := xH.
 
 Inductive assgn_tag := 
   | AT_keep    (* normal assignment *)
@@ -311,9 +310,6 @@ Record fundef := MkFun {
 }.
 
 Definition prog := seq (funname * fundef).
-
-Definition dummy_fundef := 
- {|f_iinfo := dummy_iinfo; f_params := [::]; f_body := [::]; f_res := [::] |}. 
 
 Definition instr_d (i:instr) := 
   match i with
@@ -421,20 +417,43 @@ Qed.
 Definition fundef_eqMixin     := Equality.Mixin fundef_eq_axiom.
 Canonical  fundef_eqType      := Eval hnf in EqType fundef fundef_eqMixin.
 
-Definition get_fundef p f := 
-  let pos := find (fun ffd => f == fst ffd) p in
-  if pos < size p then
-    Some (snd (nth (xH,dummy_fundef) p pos))
-  else None.
+Definition get_fundef {T} (p: seq (funname * T)) (f: funname) :=
+  nth None [seq some (snd x) | x <- p] (find (fun ffd => f == fst ffd) p).
 
-Definition map_prog (F:fundef -> fundef) := map (fun (f:funname * fundef) => (f.1, F f.2)).
+Definition map_prog {T1} {T2} (F: T1 -> T2) := map (fun (f:funname * T1) => (f.1, F f.2)).
 
-Lemma get_map_prog F p fn : 
+Lemma get_map_prog {T1} {T2} (F: T1 -> T2) p fn :
   get_fundef (map_prog F p) fn = omap F (get_fundef p fn).
 Proof.
-  rewrite /get_fundef /map_prog size_map find_map. 
-  set F1 := (F1 in find F1 _);case: ifPn => // Hlt.
-  rewrite (nth_map (1%positive, dummy_fundef)) //.
+  rewrite /get_fundef /map_prog.
+  rewrite -map_comp /funcomp /=.
+  rewrite find_map /preim /=.
+  case: (ltnP (find [pred x | fn == x.1] p) (size p)).
+  + move=> ltn.
+    rewrite -(nth_map _ None) ?size_map //.
+    by rewrite -map_comp /funcomp /=.
+  + move=> leq.
+    by rewrite !nth_default // size_map.
+Qed.
+
+Lemma get_fundef_cons {T} (fnd: funname * T) p fn: 
+  get_fundef (fnd :: p) fn = if fn == fnd.1 then Some fnd.2 else get_fundef p fn.
+Proof.
+  rewrite /get_fundef;case:ifP => /=; by case: ifPn.
+Qed.
+
+Lemma get_fundef_in {T} p f (fd: T) : get_fundef p f = Some fd -> f \in [seq x.1 | x <- p].
+Proof.
+  by elim: p => //= [f' fd'] Hrec;rewrite get_fundef_cons in_cons;case: ifP.
+Qed.
+
+Lemma get_fundef_in' {T: eqType} p fn (fd: T):
+  get_fundef p fn = Some fd -> (fn, fd) \in p.
+Proof.
+elim: p=> //= [[fn' fd'] l'] IH; rewrite get_fundef_cons /= in_cons.
+case: ifP=> //.
++ by move=> /eqP -> [] <-; rewrite eq_refl.
++ by move=> _ /IH ->; rewrite orbT.
 Qed.
 
 Section RECT.

@@ -42,38 +42,40 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
+Record sfundef := MkSFun {
+  sf_iinfo  : instr_info;
+  sf_stk_sz : Z;
+  sf_stk_id : Ident.ident; 
+  sf_params : seq var_i;
+  sf_body   : cmd;
+  sf_res    : seq var_i;
+}.
+
+Definition sfundef_beq fd1 fd2 :=
+  match fd1, fd2 with
+  | MkSFun ii1 sz1 id1 p1 c1 r1, MkSFun ii2 sz2 id2 p2 c2 r2 =>
+    (ii1 == ii2) && (sz1 == sz2) && (id1 == id2) &&
+    (p1 == p2) && (c1 == c2) && (r1 == r2)
+  end.
+
+Lemma sfundef_eq_axiom : Equality.axiom sfundef_beq.
+Proof.
+  move=> [i1 s1 id1 p1 c1 r1] [i2 s2 id2 p2 c2 r2] /=.
+  apply (@equivP ((i1 == i2) && (s1 == s2) && (id1 == id2) && (p1 == p2) && (c1 == c2) && (r1 == r2)));first by apply idP.
+  by split=> [/andP[]/andP[]/andP[]/andP[]/andP[] | []] /eqP->/eqP->/eqP->/eqP->/eqP->/eqP->.
+Qed.
+
+Definition sfundef_eqMixin   := Equality.Mixin sfundef_eq_axiom.
+Canonical  sfundef_eqType      := Eval hnf in EqType sfundef sfundef_eqMixin.
+
+Definition sprog := seq (funname * sfundef).
+
 Module S.
-
-  Record sfundef := MkSFun {
-    sf_iinfo  : instr_info;
-    sf_stk_sz : Z;
-    sf_stk_id : Ident.ident; 
-    sf_params : seq var_i;
-    sf_body   : cmd;
-    sf_res    : seq var_i;
-  }.
-
-  Definition sprog := seq (funname * sfundef).
-
   Notation vstk nstk := {|v_var := {|vtype := sword; vname := nstk|}; v_info := xH|}.
-
-  Definition dummy_sfundef := 
-    {| sf_iinfo := dummy_iinfo; 
-       sf_stk_sz := 0;
-       sf_stk_id := ""%string;
-       sf_params := [::]; 
-       sf_body := [::]; 
-       sf_res := [::] |}.
 
   Section SEM.
 
   Variable P:sprog.
-
-  Definition get_fundef f := 
-    let pos := find (fun ffd => f == fst ffd) P in
-    if pos < size P then
-      Some (snd (nth (xH,dummy_sfundef) P pos))
-    else None.
 
   Import Memory.
 
@@ -125,7 +127,7 @@ Module S.
 
   with sem_call : mem -> funname -> seq value -> mem -> seq value -> Prop :=
   | EcallRun m1 m2 fn sf vargs s1 s2 m2' vm2 vres p:
-    get_fundef fn = Some sf ->
+    get_fundef P fn = Some sf ->
     alloc_stack m1 (sf_stk_sz sf) = ok p ->
     write_var  (vstk (sf_stk_id sf)) p.1 (Estate p.2 vmap0) = ok s1 ->
     write_vars (sf_params sf) vargs s1 = ok s2 ->
@@ -136,9 +138,7 @@ Module S.
     sem_call m1 fn vargs m2 vres.
 
   End SEM.
-
 End S.
-
 
 Definition map := (Mvar.t Z * Ident.ident)%type.
 
@@ -265,7 +265,7 @@ Definition valid_map (m:map) (stk_size:Z) :=
 
 Section PROOF.
   Variable P: prog.
-  Variable SP: S.sprog.
+  Variable SP: sprog.
 
   Variable m:map.
   Variable stk_size : Z.
@@ -1481,22 +1481,22 @@ Qed.
 Import Memory.
 
 Definition check_fd (l:list (var * Z))
-    (fd: fundef) (fd': S.sfundef) :=
-  match init_map (S.sf_stk_sz fd') (S.sf_stk_id fd') l with 
+    (fd: fundef) (fd': sfundef) :=
+  match init_map (sf_stk_sz fd') (sf_stk_id fd') l with 
   | Ok m =>
-     all2 (check_var m) (f_params fd) (S.sf_params fd') &&
-     all2 (check_var m) (f_res fd) (S.sf_res fd') &&
-     all2 (check_i m) (f_body fd) (S.sf_body fd')
+     all2 (check_var m) (f_params fd) (sf_params fd') &&
+     all2 (check_var m) (f_res fd) (sf_res fd') &&
+     all2 (check_i m) (f_body fd) (sf_body fd')
   | _ => false
   end.
 
-Lemma check_fdP (P: prog) (SP: S.sprog) l fn fn' fd fd':
+Lemma check_fdP (P: prog) (SP: sprog) l fn fn' fd fd':
   get_fundef P fn = Some fd ->
-  S.get_fundef SP fn' = Some fd' ->
+  get_fundef SP fn' = Some fd' ->
   check_fd l fd fd' ->
   forall m1 va m1' vr, 
     sem_call P m1 fn va m1' vr ->
-    (exists p, Memory.alloc_stack m1 (S.sf_stk_sz fd') = ok p) ->
+    (exists p, Memory.alloc_stack m1 (sf_stk_sz fd') = ok p) ->
     S.sem_call SP m1 fn' va m1' vr.
 Proof.
   move=> get Sget.
@@ -1508,13 +1508,13 @@ Proof.
   move: Hf=> [] Hf.
   subst f.
   have [/= Hv Hestk] := init_mapP Halloc Hinit.
-  have Hstk: stk_ok pstk (S.sf_stk_sz fd').
+  have Hstk: stk_ok pstk (sf_stk_sz fd').
     by move: Halloc=> /alloc_stackP [].
-  have Hval'': valid m (S.sf_stk_sz fd') pstk {| emem := m1; evm := vmap0 |} {| emem := m2; evm := vmap0.[{| vtype := sword; vname := S.sf_stk_id fd' |} <- ok pstk] |}.
+  have Hval'': valid m (sf_stk_sz fd') pstk {| emem := m1; evm := vmap0 |} {| emem := m2; evm := vmap0.[{| vtype := sword; vname := sf_stk_id fd' |} <- ok pstk] |}.
     move: Halloc=> /alloc_stackP [] Ha1 Ha2 Ha3 Ha4.
     split=> //=.
     + move=> x.
-      case Heq: (x == {| vtype := sword; vname := S.sf_stk_id fd' |}).
+      case Heq: (x == {| vtype := sword; vname := sf_stk_id fd' |}).
       + move: Heq=> /eqP -> /=.
         rewrite /is_vstk /vstk.
         by rewrite Hestk eq_refl.
@@ -1563,7 +1563,7 @@ Proof.
   + move: Hv2'=> [] _ _ _ Heqvm _.
     by rewrite -(check_varsP Hr Heqvm) /= H3.
   + apply eq_memP=> w.
-    pose sz := S.sf_stk_sz fd'.
+    pose sz := sf_stk_sz fd'.
     have -> := @free_stackP m2' (free_stack m2' pstk sz) pstk sz (erefl _) w.
     case Hv2' => /=;rewrite /disjoint_stk => Hdisj Hmem Hvalw _ _.
     move: (Hdisj w) (Hmem w) (Hvalw w)=> {Hdisj Hmem Hvalw} Hdisjw Hmemw Hvalw.
@@ -1580,42 +1580,33 @@ Proof.
 Qed.
 
 Definition alloc_ok SP fn m1 :=
-  forall fd, S.get_fundef SP fn = Some fd ->
-  exists p, Memory.alloc_stack m1 (S.sf_stk_sz fd) = ok p.
+  forall fd, get_fundef SP fn = Some fd ->
+  exists p, Memory.alloc_stack m1 (sf_stk_sz fd) = ok p.
 
-Definition check_prog (P: prog) (SP: S.sprog) (ll: seq (seq (var * Z))) :=
+(* TODO: generalize + move *)
+Lemma all2P (s1: prog) (s2: seq (funname * sfundef * seq (var * Z))) f:
+  all2 f s1 s2 ->
+  forall x, x \in s1 -> exists y, y \in s2 /\ f x y.
+Admitted.
+
+(* TODO: generalize + move *)
+Definition check_prog (P: prog) (SP: sprog) (ll: seq (seq (var * Z))) :=
   all2 (fun f s => let '(sf, l) := s in (f.1 == sf.1) && check_fd l f.2 sf.2) P (zip SP ll).
 
 Lemma check_prog_def P SP fn fd l:
   check_prog P SP l ->
   get_fundef P fn = Some fd ->
-  exists fd' l', S.get_fundef SP fn = Some fd' /\ check_fd l' fd fd'.
+  exists fd' l', get_fundef SP fn = Some fd' /\ check_fd l' fd fd'.
 Proof.
-  elim: P SP l=> // [[fn1 fd1] P] IH SP l Hc Hf.
-  case: SP IH Hc=> [IH Habs|[fn2 fd2] SP IH Hc].
-  + rewrite /check_prog /= in Habs.
-    by case: l IH Habs.
-  + case: l IH Hc=> // [lh la] IH Hc.
-    rewrite /check_prog /= -[all2 _ _ _]/(check_prog _ _ _) in Hc.
-    move: Hc=> /andP [/andP [Hfn Hfd] Hp].
-    case Heq: (fn == fn1).
-    + move: Heq=> /eqP Heq.
-      subst fn.
-      exists fd2, lh; split.
-      by rewrite /S.get_fundef /= Hfn /=.
-      rewrite /get_fundef /= eq_refl /= in Hf.
-      by move: Hf=> [] <-.
-    + rewrite /S.get_fundef /=.
-      rewrite (eqP Hfn) in Heq.
-      rewrite Heq /=.
-      rewrite -[if _ then _ else _]/(S.get_fundef _ _).
-      apply: IH=> //.
-      exact: Hp.
-      rewrite /get_fundef /= (eqP Hfn) Heq in Hf.
-      exact: Hf.
-Qed.
+  move=> Hcheck H.
+  have/mapP [x [Hx Hfn]] := (get_fundef_in H).
+  move: Hcheck=> /all2P /(_ _ Hx) [[[fn' fd'] l'] /= [Hy /andP [/eqP Hy' Hy'']]].
+  exists fd', l'; split.
+  admit.
+  admit.
+Admitted.
 
-Lemma check_progP (P: prog) (SP: S.sprog) l fn:
+Lemma check_progP (P: prog) (SP: sprog) l fn:
   check_prog P SP l ->
   forall m1 va m1' vr, 
     sem_call P m1 fn va m1' vr ->

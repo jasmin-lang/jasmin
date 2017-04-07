@@ -1314,18 +1314,6 @@ Proof.
   by case: get_var => //= v;rewrite Hrec.
 Qed.
 
-Lemma get_fundef_cons fnd p fn: 
-  get_fundef (fnd :: p) fn = if fn == fnd.1 then Some fnd.2 else get_fundef p fn.
-Proof.
-  rewrite /get_fundef;case:ifP => /=; by case: ifPn => //= ?;rewrite ltnS => ->.
-Qed.
-
-Lemma get_fundef_in p f fd : get_fundef p f = Some fd -> f \in [seq x.1 | x <- p].
-Proof.
-  by elim: p => //= [f' fd'] Hrec;rewrite get_fundef_cons in_cons;case: ifP.
-Qed.
-
-
 Section UNDEFINCL.
 
 Variable (p:prog).

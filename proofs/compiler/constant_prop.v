@@ -959,10 +959,10 @@ Section PROOF.
     List.Forall is_full_array vres -> 
     Pfun m1 fn vargs m2 vres.
   Proof.
-    case: f=> fi fparams fc fres /= Hget Hw _ Hc Hres Hfull. 
-    have := (@get_map_prog const_prop_fun p fn);rewrite Hget /=.
+    case: f=> fi fparams fc fres /= Hget Hw _ Hc Hres Hfull.
+    have := (@get_map_prog _ _ const_prop_fun p fn);rewrite Hget /=.
     have : valid_cpm (evm s1) empty_cpm by move=> x n;rewrite Mvar.get0.
-    by move=> /Hc [];case: const_prop;econstructor;eauto.
+    move=> /Hc [];case: const_prop;econstructor;eauto.
   Qed.
 
   Lemma const_prop_callP f mem mem' va vr: 

@@ -56,7 +56,7 @@ Section COMPILER.
 Variable rename_fd    : fundef -> fundef.
 Variable expand_fd    : fundef -> fundef.
 Variable alloc_fd     : fundef -> fundef.
-Variable stk_alloc_fd : fundef -> seq (var * Z) * S.sfundef.
+Variable stk_alloc_fd : fundef -> seq (var * Z) * sfundef.
 
 Definition expand_prog (p:prog) := 
   List.map (fun f => (f.1, expand_fd f.2)) p.
@@ -64,7 +64,7 @@ Definition expand_prog (p:prog) :=
 Definition alloc_prog (p:prog) := 
   List.map (fun f => (f.1, alloc_fd f.2)) p.
 
-Definition stk_alloc_prog (p:prog) : S.sprog * (seq (seq (var * Z))) :=
+Definition stk_alloc_prog (p:prog) : sprog * (seq (seq (var * Z))) :=
   List.split (List.map (fun f => let (x, y) := stk_alloc_fd f.2 in ((f.1, y), x)) p).
 
 Definition compile_prog (p:prog) := 
@@ -116,7 +116,7 @@ Lemma compile_progP (p: prog) (lp: lprog) mem fn va mem' vr:
   compile_prog p = cfok lp ->
   sem_call p mem fn va mem' vr ->
   uniq [seq x.1 | x <- p] ->
-  (forall fn f, get_lfundef lp fn = Some f -> exists p, Memory.alloc_stack mem (lfd_stk_size f) = ok p) ->
+  (forall fn f, get_fundef lp fn = Some f -> exists p, Memory.alloc_stack mem (lfd_stk_size f) = ok p) ->
   lsem_fd lp mem fn va mem' vr.
 Proof.
   rewrite /compile_prog.
@@ -138,7 +138,7 @@ Proof.
   apply: (unrollP Hp1).
   apply: (inline_callP _ Hp0)=> //.
   rewrite /alloc_ok=> fd Hfd.
-  move: (fun_p' Hpl Hfd)=> [f' [Hf'1 Hf'2]].
+  move: (get_map_cfprog Hpl Hfd)=> [f' [Hf'1 Hf'2]].
   apply: rbindP Hf'1=> [fn' Hfn'] [] Hf'.
   have := Halloc _ _ Hf'2.
   by rewrite -Hf' /=.

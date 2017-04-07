@@ -158,6 +158,41 @@ Fixpoint mapM eT aT bT (f : aT -> result eT bT) (xs : seq aT) : result eT (seq b
       Ok eT [:: y & ys]
   end.
 
+Lemma mapMP {eT} {aT bT: eqType} (f: aT -> result eT bT) (s: seq aT) (s': seq bT) y:
+  mapM f s = ok s' ->
+  reflect (exists2 x, x \in s & f x = ok y) (y \in s').
+Proof.
+elim: s s' => /= [s' [] <-|x s IHs s']; first by right; case.
+apply: rbindP=> y0 Hy0.
+apply: rbindP=> ys Hys []<-.
+have IHs' := (IHs _ Hys).
+rewrite /= in_cons eq_sym; case Hxy: (y0 == y).
+  by left; exists x; [rewrite mem_head | rewrite -(eqP Hxy)].
+apply: (iffP IHs')=> [[x' Hx' <-]|[x' Hx' Dy]].
+  by exists x'; first by apply: predU1r.
+rewrite -Dy.
+case/predU1P: Hx'=> [Hx|].
++ exfalso.
+  move: Hxy=> /negP Hxy.
+  apply: Hxy.
+  rewrite Hx Hy0 in Dy.
+  by move: Dy=> [] ->.
++ by exists x'.
+Qed.
+
+Lemma mapM_in {eT} {aT bT: eqType} (f: aT -> result eT bT) (s: seq aT) (s': seq bT) x:
+  mapM f s = ok s' ->
+  x \in s -> exists y, y \in s' /\ f x = ok y.
+Proof.
+elim: s s'=> // a l /= IH s'.
+apply: rbindP=> y Hy.
+apply: rbindP=> ys Hys []<-.
+case/predU1P=> [|Hl].
++ by move=> ->; exists y; split; rewrite ?mem_head.
++ move: (IH _ Hys Hl)=> [y0 [Hy0 Hy0']]; exists y0; split=> //.
+  by rewrite in_cons Hy0 orbT.
+Qed.
+
 Fixpoint foldM eT aT bT (f : aT -> bT -> result eT bT) (acc : bT) (l : seq aT) :=
   match l with
   | [::]         => Ok eT acc

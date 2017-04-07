@@ -234,9 +234,8 @@ Section PROOF.
     Pfun m1 fn vargs m2 vres.
   Proof.
     case: f=> fi fparams fc fres /= Hget Hw _ Hc Hres Hfull.
-    have := (@get_map_prog unroll_fun p fn); rewrite Hget /= => Hget'.
     apply: EcallRun=> //.
-    exact: Hget'.
+    by rewrite get_map_prog Hget.
     exact: Hw.
     exact: Hc.
     exact: Hres.

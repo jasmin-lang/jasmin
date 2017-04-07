@@ -54,7 +54,59 @@ Inductive linstr_r :=
   | Lcond  : pexpr -> label -> linstr_r
   | Lreturn: linstr_r.
 
-Record linstr : Type :=  MkLI { li_ii : instr_info; li_i : linstr_r }.
+Record linstr : Type := MkLI { li_ii : instr_info; li_i : linstr_r }.
+
+Definition linstr_r_beq i1 i2 :=
+  match i1, i2 with
+  | Lassgn x1 tag1 e1, Lassgn x2 tag2 e2 =>
+     (tag1 == tag2) && (x1 == x2) && (e1 == e2)
+  | Lopn x1 o1 e1, Lopn x2 o2 e2 =>
+     (x1 == x2) && (o1 == o2) && (e1 == e2)
+  | Llabel l1, Llabel l2 => l1 == l2
+  | Lgoto l1, Lgoto l2 => l1 == l2
+  | Lcond e1 l1, Lcond e2 l2 => (e1 == e2) && (l1 == l2)
+  | Lreturn, Lreturn => true
+  | _, _ => false
+  end.
+
+Definition linstr_beq i1 i2 :=
+  match i1, i2 with
+  | MkLI if1 i1, MkLI if2 i2 => (if1 == if2) && (linstr_r_beq i1 i2)
+  end.
+
+Lemma linstr_r_eq_axiom : Equality.axiom linstr_r_beq.
+Proof.
+  rewrite /Equality.axiom.
+  move=> [x1 t1 e1|x1 o1 e1|l1|l1|e1 l1|] [x2 t2 e2|x2 o2 e2|l2|l2|e2 l2|] //=; try by right.
+  + apply (@equivP ((t1 == t2) && (x1 == x2) && (e1 == e2)));first by apply idP.
+    split=> [/andP [] /andP [] /eqP-> /eqP-> /eqP-> | [] <- <- <- ] //.
+    by rewrite !eq_refl.
+  + apply (@equivP ((x1 == x2) && (o1 == o2) && (e1 == e2)));first by apply idP.
+    split=> [/andP [] /andP [] /eqP-> /eqP-> /eqP-> | [] <- <- <- ] //.
+    by rewrite !eq_refl.
+  + apply (@equivP (l1 == l2)); first by apply idP.
+    split=> [/eqP->|[] <-] //.
+  + apply (@equivP (l1 == l2)); first by apply idP.
+    split=> [/eqP->|[] <-] //.
+  + apply (@equivP ((e1 == e2) && (l1 == l2))); first by apply idP.
+    split=> [/andP [] /eqP-> /eqP->|[] <- <-] //.
+    by rewrite !eq_refl.
+  + by left.
+Qed.
+
+Definition linstr_r_eqMixin     := Equality.Mixin linstr_r_eq_axiom.
+Canonical  linstr_r_eqType      := Eval hnf in EqType linstr_r linstr_r_eqMixin.
+
+Lemma linstr_eq_axiom : Equality.axiom linstr_beq.
+Proof. 
+  move=> [ii1 r1] [ii2 r2] /=.
+  apply (@equivP ((ii1 == ii2) /\ linstr_r_beq r1 r2)); first by apply andP.
+  split=> [[] /eqP-> /linstr_r_eq_axiom ->|[] <- <-] //.
+  split=> //; by apply/linstr_r_eq_axiom.
+Qed.
+
+Definition linstr_eqMixin     := Equality.Mixin linstr_eq_axiom.
+Canonical  linstr_eqType      := Eval hnf in EqType linstr linstr_eqMixin.
 
 Definition lcmd := seq linstr.
 
@@ -72,24 +124,28 @@ Record lfundef := LFundef {
  lfd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)
 }.
 
-Definition lprog := seq (funname * lfundef).
+Definition lfundef_beq fd1 fd2 :=
+  match fd1, fd2 with
+  | LFundef sz1 id1 p1 c1 r1, LFundef sz2 id2 p2 c2 r2 =>
+    (sz1 == sz2) && (id1 == id2) &&
+    (p1 == p2) && (c1 == c2) && (r1 == r2)
+  end.
 
-Definition dummy_lfundef :=
- {| lfd_stk_size := 0;
-    lfd_nstk := ""%string;
-    lfd_arg := [::];
-    lfd_body := [::];
-    lfd_res := [::] |}.
+Lemma lfundef_eq_axiom : Equality.axiom lfundef_beq.
+Proof.
+  move=> [s1 id1 p1 c1 r1] [s2 id2 p2 c2 r2] /=.
+  apply (@equivP ((s1 == s2) && (id1 == id2) && (p1 == p2) && (c1 == c2) && (r1 == r2)));first by apply idP.
+  by split=> [/andP[]/andP[]/andP[]/andP[] | []] /eqP->/eqP->/eqP->/eqP->/eqP->.
+Qed.
+
+Definition lfundef_eqMixin   := Equality.Mixin lfundef_eq_axiom.
+Canonical  lfundef_eqType      := Eval hnf in EqType lfundef lfundef_eqMixin.
+
+Definition lprog := seq (funname * lfundef).
 
 Section SEM.
 
 Variable P: lprog.
-
-Definition get_lfundef f :=
-  let pos := find (fun ffd => f == fst ffd) P in
-  if pos <= size P then
-    Some (snd (nth (xH,dummy_lfundef) P pos))
-  else None.
 
 (* --------------------------------------------------------------------------- *)
 (* Semantic                                                                    *)
@@ -147,7 +203,7 @@ Inductive lsem (c:lcmd) : lstate -> lstate -> Prop:=
 
 Inductive lsem_fd m1 fn va m2 vr : Prop := 
 | LSem_fd : forall p cs fd ii vm2 m2' s1 s2,
-    get_lfundef fn = Some fd ->
+    get_fundef P fn = Some fd ->
     alloc_stack m1 fd.(lfd_stk_size) = ok p ->
     let c := fd.(lfd_body) in
     write_var  (S.vstk fd.(lfd_nstk)) p.1 (Estate p.2 vmap0) = ok s1 ->
@@ -227,17 +283,12 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
 
 End SEM.
 
-Definition linear_fd (fd: funname * S.sfundef) :=
-  Let fd' := add_finfo fd.1 fd.1 (linear_c linear_i (S.sf_body fd.2) 1%positive [:: MkLI xH Lreturn]) in
-  cfok (LFundef (S.sf_stk_sz fd.2) (S.sf_stk_id fd.2) (S.sf_params fd.2) fd'.2 (S.sf_res fd.2)).
+Definition linear_fd (fd: sfundef) :=
+  Let fd' := linear_c linear_i (sf_body fd) 1%positive [:: MkLI xH Lreturn] in
+  ok (LFundef (sf_stk_sz fd) (sf_stk_id fd) (sf_params fd) fd'.2 (sf_res fd)).
 
-Definition linear_ffd (ffd: funname * S.sfundef) (p: cfexec lprog) :=
-  Let p := p in
-  Let fd := linear_fd ffd in
-  cfok ((ffd.1, fd) :: p).
-
-Definition linear_prog (sp: S.sprog) :=
-  foldr linear_ffd (cfok [::]) sp.
+Definition linear_prog (p: sprog) : cfexec lprog :=
+  map_cfprog linear_fd p.
 
 Section CAT.
 
@@ -508,7 +559,7 @@ Proof. by move=> H; apply (LSem1 H); apply LSem0. Qed.
 
 Section PROOF.
 
-  Variable p: S.sprog.
+  Variable p: sprog.
   Variable p': lprog.
   Hypothesis linear_ok : linear_prog p = ok p'.
 
@@ -762,47 +813,15 @@ Section PROOF.
     apply (@cmd_rect Pi_r Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
   Qed.
 
-  (* TODO: this is ugly, but here because of error annotations we cannot use get_map_prog;
-     maybe some mapM-like construct would make it less ugly though *)
-  Lemma fun_p' f fn: S.get_fundef p fn = Some f ->
-    exists f', linear_fd (fn, f) = ok f' /\ get_lfundef p' fn = Some f'.
-  Proof.
-    move=> Hfun.
-    have := linear_ok.
-    rewrite /linear_prog.
-    elim: p p' Hfun=> //= fh fl IH q Hfun Hlin.
-    move: fh Hfun Hlin=> [fhn fhd] Hfun Hlin.
-    rewrite {1}/linear_ffd in Hlin.
-    (**)
-    case: (boolP (fn == fhn)) Hfun.
-    + move=> /eqP ->.
-      rewrite /S.get_fundef /= eq_refl /==> [] []<-.
-      case: (foldr linear_ffd (cfok [::]) fl) Hlin=> // p1 /=.
-      rewrite /cfok.
-      apply: rbindP=> c Hc []<-.
-      exists c; split.
-      rewrite /add_finfo /= in Hc.
-      by case: (linear_fd (fn, fhd)) Hc=> // a []->.
-      by rewrite /get_lfundef /= eq_refl.
-    + move=> /negPf Hneq Hfun.
-      rewrite /cfok in Hlin.
-      move: Hlin; apply: rbindP=> p1 Hp1 /= Hlin.
-      have [||p2 [Hp2 Hp2']] := (IH p1)=> //.
-      rewrite /S.get_fundef /= Hneq /= in Hfun.
-      exact: Hfun.
-      exists p2; split=> //.
-      move: Hlin; apply: rbindP=> c Hc [] <-.
-      rewrite /get_lfundef /= Hneq /=.
-      exact: Hp2'.
-  Qed.
-
   Lemma linear_fdP:
     forall fn m1 va m2 vr,
     S.sem_call p m1 fn va m2 vr -> lsem_fd p' m1 fn va m2 vr.
   Proof.
     move=> fn m1 va m2 vr H.
     sinversion H.
-    move: (fun_p' H0)=> [f' [Hf'1 Hf'2]].
+    have H0' := linear_ok.
+    rewrite /linear_prog in H0'.
+    have [f' [Hf'1 Hf'2]] := (get_map_cfprog H0' H0).
     have Hf'3 := Hf'1.
     apply: rbindP Hf'3=> [l Hc] [] Hf'3.
     rewrite /add_finfo in Hc.

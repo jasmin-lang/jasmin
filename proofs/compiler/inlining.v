@@ -190,11 +190,11 @@ Proof.
   rewrite !get_fundef_cons /=;case: eqP => [? [?]| Hne].
   + subst f1 fd';exists fd1;split=>//.
     apply: inline_incl Hinl => f0 fd0;rewrite get_fundef_cons /=.
-    case: eqP => // -> /get_fundef_in H.
+    case: eqP => // -> H; have := (get_fundef_in H)=> {H}H.
     by move: Hf1;rewrite (inline_prog_fst Hp1) H.
   move=> /(Hrec   _ Huniq Hp1) [fd [? H]];exists fd;split=>//.
   apply: inline_incl H => f0 fd0;rewrite get_fundef_cons /=.
-  case: eqP => // -> /get_fundef_in H.
+  case: eqP => // -> H; have := (get_fundef_in H)=> {H}H.
   by move: Hf1;rewrite (inline_prog_fst Hp1) H.
 Qed.
 
@@ -211,11 +211,11 @@ Proof.
   rewrite !get_fundef_cons /=;case: eqP => [? [?]| Hne].
   + subst f1 fd1;exists fd1';split=>//.
     apply: inline_incl Hinl => f0 fd0;rewrite get_fundef_cons /=.
-    case: eqP => // -> /get_fundef_in H.
+    case: eqP => // -> H; have := (get_fundef_in H)=> {H}H.
     by move: Hf1;rewrite (inline_prog_fst Hp1) H.
   move=> /(Hrec   _ Huniq Hp1) [fd' [? H]];exists fd';split=>//.
   apply: inline_incl H => f0 fd0;rewrite get_fundef_cons /=.
-  case: eqP => // -> /get_fundef_in H.
+  case: eqP => // -> H; have := (get_fundef_in H)=> {H}H.
   by move: Hf1;rewrite (inline_prog_fst Hp1) H.
 Qed.
 

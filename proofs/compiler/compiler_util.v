@@ -82,7 +82,52 @@ Lemma add_infunP A a ii (e:cfexec A) (P:Prop):
   (e = ok a -> P) -> 
   add_infun ii e = ok a -> P.
 Proof. by case: e=> //= a' H [] Heq;apply H;rewrite Heq. Qed.
- 
+
+Definition map_cfprog {T1 T2} (F: T1 -> ciexec T2) :=
+  mapM (fun (f:funname * T1) => Let x := add_finfo f.1 f.1 (F f.2) in cfok (f.1, x)).
+
+(* Note: this lemma cannot be extended to mapM because it needs the names to be conserved *)
+Lemma map_cfprog_get {T1 T2} F p p' fn (f: T1) (f': T2):
+  map_cfprog F p = ok p' ->
+  get_fundef p fn = Some f ->
+  F f = ok f' ->
+  get_fundef p' fn = Some f'.
+Proof.
+  elim: p p'=> // -[fn1 fd1] pl IH p'.
+  rewrite /map_cfprog /= -/(map_cfprog _ _).
+  apply: rbindP=> -[fn1' fd1']; apply: rbindP=> fd1'' Hfd1 [] Hfn1 Hfd1''.
+  subst fn1'; subst fd1''.
+  apply: rbindP=> pl' Hpl' [] <-.
+  rewrite get_fundef_cons /=.
+  case: ifP.
+  + move=> /eqP Hfn.
+    subst fn1=> -[] Hf.
+    subst fd1=> Hf'.
+    rewrite Hf' in Hfd1.
+    move: Hfd1=> -[] ->.
+    by rewrite get_fundef_cons /= eq_refl.
+  + move=> Hfn Hf Hf'.
+    rewrite get_fundef_cons /= Hfn.
+    exact: IH.
+Qed.
+
+Lemma get_map_cfprog {T1 T2: eqType} (F: T1 -> ciexec T2) p p' fn f:
+  map_cfprog F p = ok p' ->
+  get_fundef p fn = Some f ->
+  exists f', F f = ok f' /\ get_fundef p' fn = Some f'.
+Proof.
+  move=> Hmap H.
+  have Hp := (get_fundef_in' H).
+  move: (mapM_in Hmap Hp)=> [[fn' fd'] /= [Hfd Hok]].
+  apply: rbindP Hok=> f' Hf' [] Hfn' Hfd'.
+  subst fn'; subst fd'.
+  have Hf: F f = ok f'.
+    rewrite /add_finfo in Hf'.
+    by case: (F f) Hf'=> // a []<-.
+  exists f'; split=> //.
+  exact: (map_cfprog_get Hmap H).
+Qed.
+
 Module Type LoopCounter.
   Parameter nb  : nat.
   Parameter nbP : nb = (nb.-1).+1.
