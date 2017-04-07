@@ -384,8 +384,10 @@ Variable P:prog.
 
 Definition wrange d (n1 n2 : Z) :=
   let n := Z.to_nat (n2 - n1) in
-  let r := [seq (n1 + Z.of_nat i)%Z | i <- iota 0 n] in
-  if d is UpTo then r else rev r.
+  match d with
+  | UpTo   => [seq (n1 + Z.of_nat i)%Z | i <- iota 0 n]
+  | DownTo => [seq (n2 - Z.of_nat i)%Z | i <- iota 0 n]
+  end.
 
 Definition sem_range (s : estate) (r : range) :=
   let: (d,pe1,pe2) := r in
@@ -611,22 +613,11 @@ Lemma nth_wrange z0 d z1 z2 n : (n < Z.to_nat (z2 - z1))%nat ->
   nth z0 (wrange d z1 z2) n =
     if   d is UpTo
     then z1 + Z.of_nat n
-    else z2 - Z.of_nat n.+1.
+    else z2 - Z.of_nat n.
 Proof.
-case: d => ltn /=.
-+ by rewrite (nth_map 0%nat) ?size_iota ?nth_iota.
-rewrite nth_rev ?size_map ?size_iota //.
-have lt: (Z.to_nat (z2 - z1) - n.+1 < Z.to_nat (z2 - z1))%nat.
-+ by case: (Z.to_nat _) ltn => // k; rewrite subSS sub_ord_proof.
-have ltz: 0 <= z2 - z1 by case: {lt} (z2 - z1) ltn.
-rewrite (nth_map 0%nat) ?size_iota ?nth_iota //= add0n.
-rewrite -[Z.pos _]/(Z.of_nat n.+1) -{1}[n.+1]Nat2Z.id -Z_to_nat_subn //.
-rewrite Z2Nat.id; [omega|apply/Zle_minus_le_0].
-+ by move/leP/Nat2Z.inj_le: ltn; rewrite Z2Nat.id.
-+ by move/leP/Nat2Z.inj_le: ltn; rewrite Z2Nat.id.
+case: d => ltn /=;
+  by rewrite (nth_map 0%nat) ?size_iota ?nth_iota.
 Qed.
-
-
 
 Lemma last_wrange_up_ne z0 lo hi :
   lo < hi -> last z0 (wrange UpTo lo hi) = hi - 1.
