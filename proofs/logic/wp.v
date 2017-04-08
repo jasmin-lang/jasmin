@@ -224,7 +224,7 @@ Lemma sem_texpr_m (m: mem) (s s': env) :
   env_ext s s' →
   ∀ ty e, sem_texpr m s ty e = sem_texpr m s' ty e.
 Proof.
-  move=> E ty e. 
+  move=> E ty e.
   elim: e => //=;congruence.
 Qed.
 
@@ -290,6 +290,7 @@ Proof.
     try (eexists; split; reflexivity).
 Qed.
 
+(*
 Lemma of_sval_inj x ty ty' v v' :
   of_sval ty x = ok v →
   of_sval ty' x = ok v' →
@@ -304,6 +305,7 @@ Proof.
   end; move=> //;
   try (exists Logic.eq_refl; simpl; congruence).
 Qed.
+*)
 
 Lemma of_sval_error x ty v ty' :
   of_sval ty x = ok v →
@@ -564,19 +566,27 @@ Proof.
   subst. exact (λ H, H Logic.eq_refl).
 Qed.
 
-Lemma wp_assgn_sound prg ii x e tg f :
-  hoare prg ⟦wp_assgn x e f⟧ [:: MkI ii (Cassgn x tg e)] ⟦f⟧.
+Lemma of_sval_inv ty v w :
+  of_sval ty v = ok w →
+  v = to_sval w.
 Proof.
-  move=> [m vm] s1 /ssem_inv [s' [/ssem_I_inv [i' [ii' [/MkI_inj [? <-]] /ssem_i_inv [v [Hv Hs']]]] /ssem_inv ->]]; subst ii'.
-  unfold wp_assgn.
-  generalize (type_check_pexprP m vm e (type_of_pexpr e)).
-  case: (type_check_pexpr _ _). 2: intro; apply: ffalse_denote.
-  move=> te [w' [Hw' R]] /=.
-  case: x Hs' => [ xi | [x xn] | [x xn] e' | x e' ] /swrite_lval_inv.
+  case: ty w.
+  - move => b /sto_bool_inv; exact: id.
+  - move => i /sto_int_inv; exact: id.
+  - move => a /sto_arr_inv; exact: id.
+  - move => w /sto_word_inv; exact: id.
+Qed.
+
+Lemma post_assgn_sound x ty (v: ssem_t ty) m vm s' f:
+  swrite_lval x (to_sval v) (SEstate m vm) = ok s' →
+  (post_assgn x v f m (Mv.empty (λ x, vm.[x])%vmap)) →
+  ⟦f⟧ s'.
+Proof.
+  case: x => [ xi | [x xn] | [x xn] e' | x e' ] /swrite_lval_inv.
   - (* Lnone *)
     move=> -> H; apply: H; eauto.
   - (* Lvar *)
-    move=> /= [ v' [Hvv' ?] ] /(_ _ Logic.eq_refl); subst s'.
+    move=> /= [ v' [Hvv' ?] ]; subst s'.
     case: sstype_eq_dec => // Te.
     unfold formula_denote; simpl.
     apply (projT2 f m). reflexivity.
@@ -584,17 +594,16 @@ Proof.
     move=> y.
     case: (x =P y).
     move=> <-. rewrite ! (Fv.setP_eq, Mv.setP_eq).
-    move: Te v' Hvv'. intros ().
-    move=> v' Hvv' /=.
-    apply: ok_inj. etransitivity. symmetry. apply: Hvv'. congruence.
+    subst; rewrite of_sval_to_sval in Hvv'; apply ok_inj in Hvv'; auto.
     move=> NE. rewrite ! (Fv.setP_neq, Mv.setP_neq) //; case: eqP => //.
   - (* Lmem *)
-    move=> [Tx [vx [ve [w [Hvx [Hve [? ?]]]]]]] /(_ _ Logic.eq_refl) /=; subst.
+    move=> [Tx [vx [ve [w [Hvx [Hve [Hv ?]]]]]]] /=; subst.
     case: has_pointer_type => // Tx'.
     case (type_check_pexpr e' _) eqn: Te'. 2: easy.
     case: sstype_eq_dec => // Te /(_ _ _ Logic.eq_refl) /(_ Logic.eq_refl) /=.
     unfold formula_denote; simpl.
     apply (projT2 f). 2: apply: env_ext_empty; reflexivity.
+    subst. inversion Hv. clear Hv. subst. simpl.
     f_equal. f_equal.
     rewrite Mv.get0.
     apply (eq_rect_eq _ _ _ (λ t, ssem_t (sstype_of_stype t))). clear. move=> E.
@@ -602,16 +611,12 @@ Proof.
     generalize (type_check_pexprP m vm e' ssword); rewrite Te'.
     case=> v' [Hv' /sto_word_inv ?]; subst v'.
     congruence.
-    simpl in *.
-    clear Tx'. revert Tx. generalize (vtype x). clear x. intros s ->.
-    destruct (type_of_pexpr e) => //.
-    move: (Eqdep_dec.UIP_dec sstype_eq_dec Te Logic.eq_refl) ->. simpl.
-    apply sto_word_inv in R. subst. congruence.
   - (* Laset *)
-    move=> [ n [ Tx [ vi [ w [ Hvi [? ?]]]]]] /(_ _ Logic.eq_refl); simpl in *; subst.
+    move=> [ n [ Tx [ vi [ w [ Hvi [Hv ?]]]]]]; simpl in *; subst.
     case: has_array_type => // [[n' Tx']].
     case (type_check_pexpr e' _) eqn: Te'. 2: easy.
     case: sstype_eq_dec => // Te /(_ _ Logic.eq_refl).
+    subst. inversion_clear Hv.
     unfold formula_denote. simpl.
     apply (projT2 f). reflexivity.
     apply: env_ext_empty.
@@ -624,11 +629,23 @@ Proof.
     assert (n = n'). congruence. subst n'.
     case: x Tx Tx' => [[xn ty] xi] /= Tx Tx'. subst. simpl.
     move: (Eqdep_dec.UIP_dec stype_eq_dec Tx' Logic.eq_refl) ->. simpl.
-    destruct (type_of_pexpr e) => //.
-    move: (Eqdep_dec.UIP_dec sstype_eq_dec Te Logic.eq_refl) ->. simpl.
-    f_equal. congruence.
-    apply sto_word_inv in R. congruence.
+    congruence.
     move=> NE. rewrite ! (Fv.setP_neq, Mv.setP_neq) //; case: eqP => //.
+Qed.
+
+Lemma wp_assgn_sound prg ii x e tg f :
+  hoare prg ⟦wp_assgn x e f⟧ [:: MkI ii (Cassgn x tg e)] ⟦f⟧.
+Proof.
+  move=> [m vm] s1 /ssem_inv [s' [/ssem_I_inv [i' [ii' [/MkI_inj [? <-]] /ssem_i_inv [v [Hv Hs']]]] /ssem_inv ->]]; subst ii'.
+  unfold wp_assgn.
+  generalize (type_check_pexprP m vm e (type_of_pexpr e)).
+  case: (type_check_pexpr _ _). 2: intro; apply: ffalse_denote.
+  move=> te [w' [Hw' R]] /=.
+  assert (w' = v) by congruence; clear Hw'; subst w'.
+  clear Hv.
+  move: te R Hs'; move: (type_of_pexpr e). clear e.
+  move=> ty te /of_sval_inv -> Hs' /(_ _ Logic.eq_refl).
+  exact: post_assgn_sound.
 Qed.
 
 Definition sopn_type (op: sopn) : seq sstype * seq sstype :=
