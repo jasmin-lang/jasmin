@@ -33,3 +33,4 @@ lang/type.v
 lang/utils.v
 lang/var.v
 lang/word.v
+lang/prog_notation.v

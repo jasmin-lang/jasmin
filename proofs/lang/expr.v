@@ -125,7 +125,7 @@ Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
 | Pcast  : pexpr -> pexpr              (* int -> word *)
-| Pvar   : var_i -> pexpr
+| Pvar   :> var_i -> pexpr
 | Pget   : var_i -> pexpr -> pexpr 
 | Pload  : var_i -> pexpr -> pexpr 
 | Pnot   : pexpr -> pexpr 
@@ -200,6 +200,8 @@ Variant lval : Type :=
 | Lmem `(var_i) `(pexpr)
 | Laset `(var_i) `(pexpr)
 .
+
+Coercion Lvar : var_i >-> lval.
 
 Notation lvals := (seq lval).
 

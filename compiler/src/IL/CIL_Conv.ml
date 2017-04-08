@@ -452,14 +452,18 @@ let sopn_of_carry_op cop =
   | O_Add -> E.Oaddcarry
   | O_Sub -> E.Osubcarry
 
-let sopn_of_op o =
+let sopn_of_op o ss =
   match o with
-  | ThreeOp(top) -> sopn_of_three_op top
-  | Umul         -> E.Omulu
-  | Carry(cop)   -> sopn_of_carry_op cop
-  | Cmov(neg)    -> assert(not neg); E.Oif
-  | Shift(Left)  -> E.Olsl
-  | Shift(Right) -> E.Olsr
+  | ThreeOp(top) -> sopn_of_three_op top, ss
+  | Umul         -> E.Omulu, ss
+  | Carry(cop)   -> sopn_of_carry_op cop, ss
+  | Cmov(neg)    -> 
+    let ss = 
+      if neg then E.Pnot (List.hd_exn ss) :: (List.tl_exn ss) 
+      else ss in
+    E.Oif, ss 
+  | Shift(Left)  -> E.Olsl, ss
+  | Shift(Right) -> E.Olsr, ss
 
 let op_of_sopn top =
   match top with
@@ -500,7 +504,7 @@ let rec cinstr_of_base_instr cvi hr lbi =
   | Op(o,ds,ss) ->
     let ds = List.map ~f:(rval_of_dest cvi hr) ds in
     let ss  = List.map ~f:(cpexpr_of_src cvi hr) ss in
-    let sopn = sopn_of_op o in
+    let sopn, ss = sopn_of_op o ss in
     Some(k, E.Copn(clist_of_list ds, sopn, clist_of_list ss))
     
   | Comment(_s) ->
@@ -729,11 +733,21 @@ let print_coq_modul filename modul =
   let cfds = List.rev_map ~f:conv_nf modul.mod_funcs in
   let prog = clist_of_list cfds in
 
+  let vars = IL_Iter.vars_modul modul.mod_funcs in
+  let vars = 
+    Var.Set.fold vars ~init:Var.Set.empty ~f:(fun s v ->
+      let v = { v with Var.uloc = Lex.dummy_loc;
+                       Var.dloc = Lex.dummy_loc;
+                       Var.num  = 0;
+                       Var.stor = Reg} in
+      Var.Set.add s v) in
+  let vars = Var.Set.elements vars in
+  let vars = List.map vars (cvar_of_var true) in
   (* Trick to direct the output of F.printf to a file *)
   let file = open_out filename in
   let shell = Unix.dup Unix.stdout in
   Unix.dup2 (Unix.descr_of_out_channel file) Unix.stdout;
-  F.printf "@[<v 0>%a@]@\n%!" CIL_PprintC.pp_prog prog;
+  F.printf "@[<v 0>%a@]@\n%!" CIL_PprintC.(pp_prog NoInfo vars) prog;
   F.print_flush ();
   Out_channel.close file;
   Unix.dup2 shell Unix.stdout;
