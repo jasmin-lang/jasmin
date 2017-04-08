@@ -631,6 +631,224 @@ Proof.
     move=> NE. rewrite ! (Fv.setP_neq, Mv.setP_neq) //; case: eqP => //.
 Qed.
 
+Definition sopn_type (op: sopn) : seq sstype * seq sstype :=
+  match op with
+  | Olnot => ([:: ssword ], [:: ssword])
+  | (Oxor | Oland | Olor | Olsr | Olsl | Omuli)
+    => ([:: ssword ; ssword ], [:: ssword ])
+  | Omulu => ([:: ssword ; ssword ], [:: ssword ; ssword ])
+  | Oif => ([:: ssbool ; ssword ; ssword ], [:: ssword])
+  | (Oaddcarry | Osubcarry) => ([:: ssword ; ssword ; ssbool ], [:: ssbool ; ssword ])
+  end.
+
+Definition sopn_type_i op := fst (sopn_type op).
+Definition sopn_type_o op := snd (sopn_type op).
+
+Section STYPES_DENOTE.
+  Context (f: sstype → Type).
+  Fixpoint stypes_denote (ts: seq sstype) : Type :=
+    match ts with
+    | [::] => unit
+    | [:: ty] => f ty
+    | ty :: ts' => f ty * stypes_denote ts'
+    end.
+
+  Definition stype_cons ty tys (x: f ty)
+    : stypes_denote tys → stypes_denote (ty :: tys) :=
+    match tys with
+    | [::] => λ _, x
+    | _ => pair x
+    end.
+
+End STYPES_DENOTE.
+
+Arguments stype_cons {f ty tys} _ _.
+
+Section STYPES_DENOTE_MAP.
+  Context (f g: sstype → Type).
+  Context (q: ∀ t, f t → g t).
+
+  Fixpoint stypes_denote_map_aux ty t {struct t}
+    : stypes_denote f (ty :: t) → stypes_denote g (ty :: t) :=
+    match t return stypes_denote f (ty :: t) → stypes_denote g (ty :: t) with
+    | [::] => q ty
+    | ty' :: tys => λ a, let '(x, xs) := a in (q ty x, stypes_denote_map_aux ty' tys xs)
+    end.
+
+  Definition stypes_denote_map t : stypes_denote f t → stypes_denote g t :=
+    match t with
+    | [::] => id
+    | ty :: tys => stypes_denote_map_aux ty tys
+    end.
+
+End STYPES_DENOTE_MAP.
+
+Section STYPES_DENOTE_MAP_M.
+  Context (f g: sstype → Type).
+  Context (q q': ∀ t, f t → g t).
+
+  Context (E: ∀ t (x: f t), q t x = q' t x).
+
+  Lemma stypes_denote_map_aux_m ty t args :
+    stypes_denote_map_aux f g q ty t args = stypes_denote_map_aux f g q' ty t args.
+  Proof.
+    elim: t ty args => //= ty tys ih ty' [x xs] /=; f_equal; auto.
+    case: tys ih xs => //=.
+  Qed.
+
+  Lemma stypes_denote_map_m tys args :
+    stypes_denote_map f g q tys args = stypes_denote_map f g q' tys args.
+  Proof.
+    case: tys args => //. exact: stypes_denote_map_aux_m.
+  Qed.
+
+End STYPES_DENOTE_MAP_M.
+
+Definition uncurry {A B C} (f: A → B → C) (p: A * B) : C :=
+  let '(a, b) := p in f a b.
+
+Definition eval_sopn (op: sopn) :
+  stypes_denote ssem_t (sopn_type_i op) → stypes_denote ssem_t (sopn_type_o op) :=
+  match op
+  return stypes_denote _ (sopn_type_i op) → stypes_denote _ (sopn_type_o op)
+  with
+  | Olnot => I64.not
+  | Oxor => uncurry I64.xor
+  | Oland => uncurry I64.and
+  | Olor => uncurry I64.or
+  | Olsr => uncurry I64.shru
+  | Olsl => uncurry I64.shl
+  | Oif => λ a, let '(b, (x, y)) := a in if b then x else y
+  | Omulu => uncurry word.wumul
+  | Omuli => λ a, let '(x, y) := a in snd (word.wumul x y)
+  | Oaddcarry => λ a, let '(x, (y, c)) := a in word.waddcarry x y c
+  | Osubcarry => λ a, let '(x, (y, c)) := a in word.wsubcarry x y c
+  end.
+
+Fixpoint type_check_pexprs (pes: seq pexpr) (tys: seq sstype)
+  : option (stypes_denote texpr tys) :=
+  match pes, tys return option (stypes_denote texpr tys) with
+  | [::], [::] => Some tt
+  | pe :: pes', ty :: tys' =>
+    match type_check_pexpr pe ty with
+    | Some te =>
+      match type_check_pexprs pes' tys' with
+      | Some tes => Some (stype_cons te tes)
+      | None => None end
+    | None => None end
+  | _, _ => None
+  end.
+
+Section WP_OPN.
+
+  Context (m: mem) (vm: env).
+  Context (op: sopn).
+
+  Fixpoint wp_opn_aux_rec (ty: sstype) (tys: seq sstype) :
+    (stypes_denote ssem_t (ty :: tys) → Prop) →
+    Prop :=
+    match tys
+    return (stypes_denote ssem_t (ty :: tys) → Prop) → Prop
+    with
+    | [::] => λ P, ∀ v, P v
+    | ty' :: tys' => λ P, ∀ v : ssem_t ty, wp_opn_aux_rec ty' tys' (λ q, P (v, q))
+    end.
+
+  Definition wp_opn_aux_aux spec :
+    (stypes_denote ssem_t spec → Prop) →
+    (stypes_denote ssem_t spec → Prop) → Prop :=
+    match spec with
+    | [::] => λ E P, P tt
+    | ty :: tys => λ E P, wp_opn_aux_rec ty tys (λ e, E e → P e)
+    end.
+
+  Definition wp_opn_aux
+    (vargs: stypes_denote ssem_t (sopn_type_i op)) :
+    (stypes_denote ssem_t (sopn_type_o op) → Prop) →
+    Prop :=
+    wp_opn_aux_aux _ (λ e, eval_sopn op vargs = e).
+
+  Fixpoint post_opn_aux (d: lval) (dst: lvals) ty tys
+    : stypes_denote ssem_t (ty :: tys) → formula → formula.
+    refine
+    match dst, tys return stypes_denote _ (ty :: tys) → _ → _ with
+    | [::], [::] => λ v, λ f, existT _ (post_assgn d v f) _
+    | d' :: dst', ty' :: tys' =>
+      λ a, let '(v, vs) := a in
+           λ f,
+           existT _ (post_assgn d v (post_opn_aux d' dst' ty' tys' vs f)) _
+    | _, _ => λ _ _, ffalse
+    end.
+  Proof.
+    clear; abstract (
+    apply: formula_m => m s s' E;
+    exact: post_assgn_m).
+    clear; (
+    apply: formula_m => m s s' E;
+    exact: post_assgn_m).
+  Defined.
+
+  Definition post_opn dst tys : stypes_denote ssem_t tys → formula → formula :=
+    match dst, tys return stypes_denote ssem_t tys → _ → _ with
+    | [::], [::] => λ _, id
+    | d :: dst, ty :: tys => post_opn_aux d dst ty tys
+    | _, _ => λ _ _, ffalse
+    end.
+
+End WP_OPN.
+
+Lemma wp_opn_aux_rec_m tys :
+  ∀ ty
+  (f f' : stypes_denote ssem_t (ty :: tys) → Prop),
+  (∀ q : stypes_denote ssem_t (ty :: tys), f q ↔ f' q) →
+  wp_opn_aux_rec ty tys f →
+  wp_opn_aux_rec ty tys f'.
+Proof.
+  elim: tys => [ | ty' tys' ih ] ty f f' E X v.
+  apply E, X.
+  exact: (ih ty' (λ q, f (v, q)) (λ q, f' (v, q))).
+Qed.
+
+Lemma wp_opn_aux_aux_m spec :
+  ∀ P (f f' : stypes_denote ssem_t spec → Prop),
+  (∀ q : stypes_denote ssem_t spec, f q ↔ f' q) →
+  wp_opn_aux_aux spec P f →
+  wp_opn_aux_aux spec P f'.
+Proof.
+  case spec => [ | ty tys ] P f f' E.
+  + apply E.
+  apply: wp_opn_aux_rec_m.
+  move=> q; split; move=> h p; apply E, h, p.
+Qed.
+
+Lemma wp_opn_aux_m op targs f f' :
+  (∀ q, f q ↔ f' q) →
+  wp_opn_aux op targs f →
+  wp_opn_aux op targs f'.
+Proof. exact: wp_opn_aux_aux_m. Qed.
+
+Definition wp_opn (dst: lvals) (op: sopn) (args: pexprs) (post: formula) : formula.
+  refine
+  match type_check_pexprs args (sopn_type_i op) with
+  | Some targs =>
+    existT _ (
+    λ m vm,
+    let vargs := stypes_denote_map texpr ssem_t (sem_texpr m vm) _ targs in
+      wp_opn_aux op vargs (λ res, projT1 (post_opn dst _ res post) m vm)
+    ) _
+  | None => ffalse
+  end.
+Proof.
+  abstract (
+  apply: formula_m => /= m s s' E X;
+  erewrite stypes_denote_map_m by (apply sem_texpr_m, env_ext_sym, E);
+  apply: wp_opn_aux_m; [ | exact: X];
+  move=> q /=;
+  set f := post_opn _ _ _ _;
+  rewrite (projT2 f m) => //;
+  reflexivity).
+Defined.
+
 Definition formula_equiv (P Q: formula) : Prop :=
   ∀ m s, projT1 P m s ↔ projT1 Q m s.
 
