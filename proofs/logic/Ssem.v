@@ -450,6 +450,7 @@ Lemma ssem_i_inv { prg s i s' } :
   ssem_i prg s i s' →
   match i with
   | Cassgn x tg e => ∃ v, ssem_pexpr s e = ok v ∧ swrite_lval x v s = ok s'
+  | Copn xs op es => ∃ args vs, ssem_pexprs s es = ok args ∧ ssem_sopn op args = ok vs ∧ swrite_lvals s xs vs = ok s'
   | Cif e c1 c2 => ∃ b : bool, ssem_pexpr s e = ok (SVbool b) ∧ ssem prg s (if b then c1 else c2) s'
   | _ => True
   end.
@@ -457,6 +458,8 @@ Proof.
   case; eauto; clear.
   - (* Cassgn *)
   move=> s s' x _ e; apply: rbindP; eauto.
+  - (* Copn *)
+  move=> s s' xs op es; apply: rbindP => vs; apply: rbindP; eauto.
   - (* Cif true *)
   move=> s s' e c1 c2; apply: rbindP => v Hv /sto_bool_inv ?; subst v; eauto.
   - (* Cif false *)
