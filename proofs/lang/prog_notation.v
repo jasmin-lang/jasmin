@@ -86,8 +86,8 @@ Notation "x := e1 >> e2" :=
 
 Notation "x := e1 ?  e2 : e3 " := 
   (Copn (Cons lval x%L nil) Oif 
-        (Cons pexpr e1 (Cons pexpr e2 (Cons pexpr e3 nil))))
-   (at level 70, e1 at level 0, e2 at level 0, e3 at level 0) : prog_scope. 
+        (Cons pexpr e1%E (Cons pexpr e2%E (Cons pexpr e3%E nil))))
+   (at level 70, e1 at level 0, e2 at level 0, e3 at level 200) : prog_scope. 
 
 Notation "x := e1 * e2" := 
   (Copn (Cons lval x%L nil) Omuli 
@@ -139,22 +139,27 @@ Notation "{ x1 ; x2 ; .. ; xn }" :=
 Notation "'If' e 'then' c1 'else' c2" := 
   (Cif e%E c1%P c2%P)
   (at level 200, right associativity, format
-      "'[v   ' 'If'  e 'then' '/' c1 '/' 'else' '/' c2 ']'") : prog_scope.
+      "'[v   ' 'If'  e  'then' '/' c1 '/' 'else' '/' c2 ']'") : prog_scope.
+
+Notation "'If' e 'then' c1" := 
+  (Cif e%E c1%P (Nil instr))
+  (at level 200, right associativity, format
+      "'[v   ' 'If'  e  'then' '/' c1 ']'") : prog_scope.
 
 Notation "'While' e 'do' c" := 
   (Cwhile e%E c%P)
   (at level 200, right associativity, format
-      "'[v   ' 'While'  e 'do' '/' c ']'") : prog_scope.
+      "'[v   ' 'While'  e  'do' '/' c ']'") : prog_scope.
 
 Notation "'For' i 'from' e1 'to' e2 'do' c" := 
   (Cfor i (@pair _ pexpr (@pair dir pexpr UpTo e1%E) e2%E) c)
   (at level 200, right associativity, format
-      "'[v   ' 'For'  i 'from' e1 'to' e2 'do' '/' c ']'") : prog_scope.
+      "'[v   ' 'For'  i  'from'  e1  'to'  e2  'do' '/' c ']'") : prog_scope.
 
 Notation "'For' i 'from' e2 'downto' e1 'do' c" := 
   (Cfor i (@pair _ pexpr (@pair dir pexpr DownTo e1%E) e2%E) c)
   (at level 200, right associativity, format
-      "'[v   ' 'For'  i 'from' e2 'downto' e1 'do' '/' c ']'") : prog_scope.
+      "'[v   ' 'For'  i  'from'  e2  'downto'  e1  'do' '/' c ']'") : prog_scope.
 
 (* FIXME Notation for Ccall *)
 
@@ -173,16 +178,20 @@ Notation ya := ((VarI (Var (sarr 4) "ya") 1%positive)).
 Open Scope prog_scope.
 Open Scope Z_scope.
 
-
+Check (x := x ? (x + x) : x).
 
 Definition program := [::
   ("add",
   MkFun 2%positive [:: x; ya] {
   1 :@ y.[i] ::= 0;
   2 :@ For i from 0 to 4 do {::
-  3 :@   y.[i] ::= 0 }
+  3 :@   y.[i] ::= 0 
+       };
+  If x then {:: x ::= x }
   }%P
   [::])].
+
+Print program.
 
 Definition program1 := [::
   ("add",

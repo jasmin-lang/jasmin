@@ -89,6 +89,11 @@ let pp_atag fmt inl =
     | AT_inline -> "AT_inline"
     | AT_rename -> "AT_rename")
 
+let pp_ass_tag fmt = function
+  | AT_keep   -> F.fprintf fmt "::="
+  | AT_rename -> F.fprintf fmt ":r="
+  | AT_inline -> F.fprintf fmt ":i="
+   
 let pp_sop2 fmt sop2 =
   pp_string fmt
     (match sop2 with
@@ -103,6 +108,19 @@ let pp_sop2 fmt sop2 =
     | Ole  -> "Ole"
     | Ogt  -> "Ogt"
     | Oge  -> "Oge")
+
+let infix_sop2 = function
+  | Oand -> "&&"
+  | Oor  -> "||"
+  | Oadd -> "+"
+  | Omul -> "*"
+  | Osub -> "-"
+  | Oeq  -> "=="
+  | Oneq -> "!="
+  | Olt  -> "<"
+  | Ole  -> "<="
+  | Ogt  -> ">"
+  | Oge  -> ">="
 
 let pp_sopn fmt sopn =
   pp_string fmt
@@ -142,33 +160,38 @@ let pp_var_info withinfo fmt vi =
     in
     F.fprintf fmt "%s" x
   
-      
-
 let pp_pexpr withinfo =
   let rec pp_pexpr fmt pe = 
     match pe with
-    | Pconst(cz)          -> F.fprintf fmt "(Pconst %a)" pp_coqZ cz
-    | Pbool(b)            -> F.fprintf fmt "(Pbool %a)" pp_cbool b
+    | Pconst(cz)          -> F.fprintf fmt "%a" pp_coqZ cz
+    | Pbool(b)            -> F.fprintf fmt "%a" pp_cbool b
     | Pcast(pe)           -> F.fprintf fmt "(Pcast %a)" pp_pexpr pe
     | Pvar(vi)            -> F.fprintf fmt "%a" (pp_var_info withinfo) vi
     | Pget(vi,pe)         -> 
-      F.fprintf fmt "(Pget %a %a)" (pp_var_info withinfo) vi pp_pexpr pe
+      F.fprintf fmt "%a.[%a]" (pp_var_info withinfo) vi pp_pexpr pe
     | Pload(vi,pe)        -> 
-      F.fprintf fmt "(Pload %a %a)" (pp_var_info withinfo) vi pp_pexpr pe
-    | Pnot(pe)            -> F.fprintf fmt "(Pnot %a)" pp_pexpr pe
+      F.fprintf fmt "@[<hov 2>(load@ %a@ %a)@]" 
+        (pp_var_info withinfo) vi pp_pexpr pe
+    | Pnot(pe)            -> F.fprintf fmt "~~ %a" pp_pexpr pe
     | Papp2(sop2,pe1,pe2) -> 
-      F.fprintf fmt "(Papp2 %a %a %a)" pp_sop2 sop2 pp_pexpr pe1 pp_pexpr pe2
-  in pp_pexpr
+      Format.fprintf fmt "@[<hov 2>(%a %s@ %a)@]" 
+        pp_pexpr pe1 (infix_sop2 sop2) pp_pexpr pe2
+  in 
+  pp_pexpr
 
 let pp_rval withinfo fmt rv =
   match rv with
-  | Lnone(i)     -> F.fprintf fmt "(Lnone %a)" pp_pos i
+  | Lnone(i)     -> 
+    let i = int_of_pos i in
+    if i = 1 then Format.fprintf fmt "__"
+    else Format.fprintf fmt "#_ %i" i 
   | Lvar(vi)     -> 
-    F.fprintf fmt "(Lvar %a)" (pp_var_info withinfo) vi
+    pp_var_info withinfo fmt vi
   | Lmem(vi,pe)  -> 
-    F.fprintf fmt "(Lmem %a %a)" (pp_var_info withinfo) vi (pp_pexpr withinfo) pe
+    F.fprintf fmt "@[<hov 2>store %a@ %a@]" 
+      (pp_var_info withinfo) vi (pp_pexpr withinfo) pe
   | Laset(vi,pe) -> 
-    F.fprintf fmt "(Laset %a %a)" (pp_var_info withinfo) vi (pp_pexpr withinfo) pe
+    F.fprintf fmt "%a.[%a]" (pp_var_info withinfo) vi (pp_pexpr withinfo) pe
 
 let pp_ret_type withinfo fmt res =
   F.fprintf fmt "[:: %a]" (pp_clist "; " (pp_var_info withinfo) ) res
@@ -176,11 +199,17 @@ let pp_ret_type withinfo fmt res =
 let pp_range withinfo fmt rng =
   let (dlb,ub) = pair_of_cpair rng in
   let (dir,lb) = pair_of_cpair dlb in
-  F.fprintf fmt "(%s, %a, %a)"
-    (match dir with UpTo -> "UpTo" | DownTo -> "DownTo")
-    (pp_pexpr withinfo) lb
-    (pp_pexpr withinfo) ub
+  match dir with
+  | UpTo -> 
+    F.fprintf fmt "%a to %a" (pp_pexpr withinfo) lb (pp_pexpr withinfo) ub
+  | DownTo ->
+    F.fprintf fmt "%a downto %a" (pp_pexpr withinfo) ub (pp_pexpr withinfo) lb
 
+let dotdot = function
+  | [_] -> "::"
+  | _ -> ""
+
+  
 let rec pp_instr_r withinfo fmt instr =
   let pp_rval = pp_rval withinfo in
   let pp_pexpr = pp_pexpr withinfo in
@@ -188,18 +217,59 @@ let rec pp_instr_r withinfo fmt instr =
   let pp_var_info = pp_var_info withinfo in
   match instr with
   | Cassgn(rv,atag,pe) ->
-    F.fprintf fmt "@[Cassgn@ %a@ %a@ %a@]" pp_rval rv pp_atag atag pp_pexpr pe
+    F.fprintf fmt "@[%a %a@ %a@]"
+      pp_rval rv pp_ass_tag atag pp_pexpr pe
   | Copn(rvs,sopn,pes) ->
-    F.fprintf fmt "@[Copn [:: %a]@ %a@ [:: %a]@]" 
-      (pp_clist "; " pp_rval) rvs pp_sopn sopn (pp_clist "; " pp_pexpr) pes
+    begin match sopn, rvs, pes with
+    | Olnot, [x], [e] -> 
+      F.fprintf fmt "@[ %a :=@ ! %a@]" pp_rval x pp_pexpr e
+    | Oxor, [x], [e1; e2] ->
+      F.fprintf fmt "@[ %a :=@ %a ^ %a @]" pp_rval x pp_pexpr e1 pp_pexpr e2
+    | Oland, [x], [e1; e2] ->
+      F.fprintf fmt "@[ %a :=@ %a & %a @]" pp_rval x pp_pexpr e1 pp_pexpr e2
+    | Olor, [x], [e1; e2] ->
+      F.fprintf fmt "@[ %a :=@ %a | %a @]" pp_rval x pp_pexpr e1 pp_pexpr e2
+    | Olsl, [x], [e1; e2] ->
+      F.fprintf fmt "@[ %a :=@ %a << %a @]" pp_rval x pp_pexpr e1 pp_pexpr e2
+    | Olsr, [x], [e1; e2] ->
+      F.fprintf fmt "@[ %a :=@ %a >> %a @]" pp_rval x pp_pexpr e1 pp_pexpr e2
+    | Oif, [x], [e1; e2; e3] ->
+      F.fprintf fmt "@[ %a :=@ %a ? %a : %a@]" 
+        pp_rval x pp_pexpr e1 pp_pexpr e2 pp_pexpr e3 
+    | Omuli, [x], [e1; e2] ->
+      F.fprintf fmt "@[ %a :=@ %a * %a @]" pp_rval x pp_pexpr e1 pp_pexpr e2
+    | Omulu, [x1; x2], [e1; e2] ->
+      F.fprintf fmt "@[ [p %a, %a] :=@ %a * %a @]" 
+        pp_rval x1 pp_rval x2 pp_pexpr e1 pp_pexpr e2
+    | Oaddcarry, [x1; x2], [e1; e2; c] ->
+      F.fprintf fmt "@[ [p %a, %a] :=@ ++(%a, %a, %a) @]" 
+        pp_rval x1 pp_rval x2 pp_pexpr e1 pp_pexpr e2 pp_pexpr c
+    | Osubcarry, [x1; x2], [e1; e2; c] ->
+      F.fprintf fmt "@[ [p %a, %a] :=@ --(%a, %a, %a) @]" 
+        pp_rval x1 pp_rval x2 pp_pexpr e1 pp_pexpr e2 pp_pexpr c
+    | _, _, _ -> 
+      F.fprintf fmt "@[Copn [:: %a]@ %a [:: %a]@]"
+        (pp_clist ";@ " pp_rval) rvs 
+        pp_sopn sopn
+        (pp_clist ";@ " pp_pexpr) pes 
+    end    
   | Cif(pe,instrs_if,instrs_else) ->
-    F.fprintf fmt "@[<hov 2>Cif %a[::@ @[<v 0>%a@]@ ] [::@ @[<v 0>%a@]]@]"
-      pp_pexpr pe pp_instrs instrs_if pp_instrs instrs_else
+    begin match instrs_else with
+    | [] ->
+      F.fprintf fmt "@[<v>If %a then {%s@   @[<v>%a@]@ }@]"
+        pp_pexpr pe (dotdot instrs_if) pp_instrs instrs_if 
+    | _ ->
+      F.fprintf fmt 
+        "@[<v>If %a then {%s@   @[<v>%a@]@ } else {%s@   @[<v>%a@]@ }@]"
+        pp_pexpr pe (dotdot instrs_if) pp_instrs instrs_if 
+        (dotdot instrs_else) pp_instrs instrs_else
+    end 
   | Cfor(vi,rng,instrs) ->
-    F.fprintf fmt "@[<hov 2>Cfor %a %a [::@ @[<v 0>%a@]@ ]@]"
-      pp_var_info vi (pp_range withinfo) rng pp_instrs instrs
+    F.fprintf fmt "@[<v>For %a from %a do {%s@   @[<v>%a@]@ }@]"
+      pp_var_info vi (pp_range withinfo) rng (dotdot instrs) pp_instrs instrs
   | Cwhile(pe,instrs) ->
-    F.fprintf fmt "@[<hov 2>Cwhile %a [::@ @[<v 0>%a@]@ ]@]" pp_pexpr pe pp_instrs instrs
+    F.fprintf fmt "@[<v>While %a do {%s@   @[<v>%a@]@ }@]"
+      pp_pexpr pe (dotdot instrs) pp_instrs instrs
   | Ccall(inl,rvs,fname,pes) ->
     F.fprintf fmt "@[Ccall %a [:: %a] %a [:: %a]@]"
       pp_inline inl
@@ -210,19 +280,21 @@ let rec pp_instr_r withinfo fmt instr =
 
 and pp_instr withinfo fmt instr =
   let MkI(iinfo,instr) = instr in
-  F.fprintf fmt "MkI %a (%a)"
-    (pp_minfo (fun fmt -> pp_pos fmt (if withinfo <> NoInfo then iinfo else Coq_xH))) ()
-    (pp_instr_r withinfo) instr
+  if withinfo = NoInfo then pp_instr_r withinfo fmt instr
+  else
+    F.fprintf fmt "@[<hov 2>%a :@@@ %a@]"
+      pp_pos iinfo (pp_instr_r withinfo) instr
 
 and pp_instrs withinfo fmt instrs =
-  pp_clist ";@\n" (pp_instr withinfo) fmt instrs
+  pp_clist ";@ " (pp_instr withinfo) fmt instrs
 
 let pp_fundef withinfo fmt fd =
   let { f_iinfo ; f_params ; f_body ; f_res } = fd in
-  F.fprintf fmt "@[<v>MkFun %a @[[:: %a]@] [::@ @[<v>%a@]]@ %a@]"
+  F.fprintf fmt "@[<v>MkFun %a @[[:: %a]@] {%s@   @[<v>%a@]@ }%%P@ %a@]"
     pp_pos f_iinfo
     (pp_clist ";@ " (pp_var_info withinfo)) f_params
-    (pp_clist ";@ " (pp_instr withinfo)) f_body
+    (dotdot f_body)
+    (pp_instrs withinfo) f_body
     (pp_ret_type withinfo) f_res
 
 let pp_named_fun withinfo fmt nf =
@@ -230,12 +302,11 @@ let pp_named_fun withinfo fmt nf =
   F.fprintf fmt "@[<v>(%a,@ %a)@]" pp_var_name fn (pp_fundef withinfo) fd
 
 let pp_prefix fmt () = 
-  F.fprintf fmt "@[<v>Require Import sem.@ ";
+  F.fprintf fmt "@[<v>From mathcomp Require Import all_ssreflect.@ ";
+  F.fprintf fmt "Require Import prog_notation sem.@ ";
   F.fprintf fmt "Import ZArith type expr var seq.@ @ ";
   F.fprintf fmt "Open Scope string_scope.@ ";
-  F.fprintf fmt "Open Scope Z_scope.@ @ @]"
-
-
+  F.fprintf fmt "Open Scope Z_scope.@ @ @ @]"
 
 let pp_prog withinfo vars fmt prog =
   let itbl = H.create 101 in
@@ -262,12 +333,4 @@ let pp_prog withinfo vars fmt prog =
       (pp_clist ";@ @ " (pp_named_fun withinfo)) prog
 
 
-(*
-Delimit Scope prog_scope with P.
-Notation "x ':==' e" := 
-  (MkI 1%positive (Cassgn x AT_keep e)) (at level 42) : prog_scope.
-Open Scope prog_scope.
 
-Notation "x .[ n ]" := (Pget x n) : prog_scope.
-Notation "vm .[ k  <- v ]" := (@Fv.set _ vm k v) : vmap_scope.
-*)
