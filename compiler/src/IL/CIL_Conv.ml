@@ -452,18 +452,28 @@ let sopn_of_carry_op cop =
   | O_Add -> E.Oaddcarry
   | O_Sub -> E.Osubcarry
 
-let sopn_of_op o ss =
+let sopn_of_op o ds ss =
   match o with
-  | ThreeOp(top) -> sopn_of_three_op top, ss
-  | Umul         -> E.Omulu, ss
-  | Carry(cop)   -> sopn_of_carry_op cop, ss
+  | ThreeOp(top) -> sopn_of_three_op top, ds, ss
+  | Umul         -> E.Omulu, ds, ss
+  | Carry(cop)   -> 
+    let ds = 
+      match ds with 
+      | [ _ ] -> E.Lnone(pos_of_int 1) :: ds
+      | _     -> ds in
+    let ss = 
+      match ss with
+      | [x;y] -> [x;y;E.Pbool (cbool_of_bool false)]
+      | _     -> ss in
+    sopn_of_carry_op cop, ds, ss
   | Cmov(neg)    -> 
     let ss = 
       if neg then E.Pnot (List.hd_exn ss) :: (List.tl_exn ss) 
       else ss in
-    E.Oif, ss 
-  | Shift(Left)  -> E.Olsl, ss
-  | Shift(Right) -> E.Olsr, ss
+    E.Oif, ds, ss 
+  (* FIXME there is two case Shift can return the extra bit *)
+  | Shift(Left)  -> E.Olsl, ds, ss
+  | Shift(Right) -> E.Olsr, ds, ss
 
 let op_of_sopn top =
   match top with
@@ -504,7 +514,7 @@ let rec cinstr_of_base_instr cvi hr lbi =
   | Op(o,ds,ss) ->
     let ds = List.map ~f:(rval_of_dest cvi hr) ds in
     let ss  = List.map ~f:(cpexpr_of_src cvi hr) ss in
-    let sopn, ss = sopn_of_op o ss in
+    let sopn, ds, ss = sopn_of_op o ds ss in
     Some(k, E.Copn(clist_of_list ds, sopn, clist_of_list ss))
     
   | Comment(_s) ->
