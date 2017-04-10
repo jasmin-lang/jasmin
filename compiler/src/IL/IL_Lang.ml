@@ -247,7 +247,7 @@ type dir      = Left   | Right                [@@deriving compare,sexp]
 type carry_op = O_Add  | O_Sub                [@@deriving compare,sexp]
 type three_op = O_Imul | O_And | O_Xor | O_Or [@@deriving compare,sexp]
 
- type op =
+type op =
   | ThreeOp of three_op
   | Umul
   | Carry   of carry_op
@@ -353,7 +353,7 @@ type 'info modul = {
   mod_funcs           : 'info named_func list;
   mod_rust_sections   : string list;
   mod_rust_attributes : string list;
-  mod_params          : (Param.t * pexpr) list;
+  mod_params          : (Param.t * dexpr) list;
   mod_funprotos       : named_proto list;
 } [@@deriving compare,sexp]
 

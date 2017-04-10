@@ -512,3 +512,153 @@ let map_dests_modul ~f modul fname =
 
 let map_dests_modul_all ~f modul =
   List.map ~f:(map_dests_named_func ~f) modul
+
+
+
+(**  ----------------------------------------------------------------- *)
+
+module Mp = Param.Map
+
+let psubst_param tbl p = 
+  match Mp.find tbl p with 
+  | None -> Patom p 
+  | Some e -> e 
+
+let rec pexpr_of_dexpr e = 
+  match e with
+  | Patom p         -> Patom (Pparam p)
+  | Pbinop(o,e1,e2) -> Pbinop(o, pexpr_of_dexpr e1, pexpr_of_dexpr e2)
+  | Pconst i        -> Pconst i
+
+let rec psubst_dexpr tbl e =
+  match e with
+  | Patom p         -> psubst_param tbl p
+  | Pbinop(o,e1,e2) -> Pbinop(o, psubst_dexpr tbl e1, psubst_dexpr tbl e2)
+  | Pconst _        -> e
+
+let psubst_ty tbl ty =
+  match ty with
+  | Param.Bty _        -> ty
+  | Param.Arr (ty, e) -> Param.Arr(ty, psubst_dexpr tbl e)
+  | Param.TInvalid    -> ty
+
+let psubst_var tbl v =
+  { v with Var.ty = psubst_ty tbl v.Var.ty }
+
+let rec psubst_pexpr tbl e =
+  match e with
+  | Patom (Pparam p) -> pexpr_of_dexpr (psubst_param tbl p)
+  | Patom (Pvar x)   -> Patom (Pvar (psubst_var tbl x))
+  | Pbinop (o,e1,e2) -> Pbinop(o, psubst_pexpr tbl e1, psubst_pexpr tbl e2)
+  | Pconst _         -> e 
+
+let rec psubst_pcond tbl e =
+  match e with
+  | Pbool _ -> e
+  | Pnot e  -> Pnot (psubst_pcond tbl e)
+  | Pbop(o,e1,e2) -> Pbop(o,psubst_pcond tbl e1, psubst_pcond tbl e2)
+  | Pcmp(o,e1,e2) -> Pcmp(o,psubst_pexpr tbl e1, psubst_pexpr tbl e2)
+
+let psubst_idx tbl = function
+  | Ipexpr e -> Ipexpr (psubst_pexpr tbl e)
+  | Ivar   x -> Ivar   (psubst_var tbl x)
+
+let psubst_sdest tbl d = 
+  { d with d_var = psubst_var tbl d.d_var;
+           d_idx = Option.map ~f:(psubst_idx tbl) d.d_idx }
+
+let psubst_rdest tbl d =
+  match d with
+  | Mem(s,e) -> Mem(psubst_sdest tbl s, psubst_pexpr tbl e)
+  | Sdest s  -> Sdest (psubst_sdest tbl s)
+
+let psubst_dest tbl d = 
+  match d with
+  | Ignore _ -> d
+  | Rdest r  -> Rdest (psubst_rdest tbl r)
+
+let psubst_src tbl s = 
+  match s with
+  | Src s -> Src (psubst_rdest tbl s)
+  | Imm(i, e) -> Imm(i, psubst_pexpr tbl e)
+
+let psubst_fcond tbl f = 
+  {f with fc_var = psubst_var tbl f.fc_var}
+
+let psubst_fcond_or_pcond tbl = function
+  | Fcond f -> Fcond (psubst_fcond tbl f)
+  | Pcond p -> Pcond (psubst_pcond tbl p)
+
+let psubst_binstr tbl = function
+  | Assgn(d,s,t) -> Assgn(psubst_dest tbl d, psubst_src tbl s, t)
+  | Op(o,d,s) -> 
+    Op(o, List.map ~f:(psubst_dest tbl) d, List.map ~f:(psubst_src tbl) s)
+  | Call(fn, d, s, t) ->
+    Call(fn, List.map ~f:(psubst_dest tbl) d, List.map ~f:(psubst_src tbl) s, t)
+  | Comment s -> Comment s
+
+let rec psubst_instr tbl = function
+  | Block(c,i) -> 
+    let f i = { i with L.l_val = psubst_binstr tbl i.L.l_val } in
+    Block(List.map ~f c, i)
+  | If(t,c1,c2,i) ->
+    If(psubst_fcond_or_pcond tbl t,
+       psubst_instrs tbl c1, psubst_instrs tbl c2, i) 
+  | For(x,e1,e2,c,i) ->
+    For(psubst_sdest tbl x, psubst_pexpr tbl e1, psubst_pexpr tbl e2,
+        psubst_instrs tbl c, i)
+  | While(wt,t,c,i) ->
+    While(wt,psubst_fcond tbl t, psubst_instrs tbl c, i)
+
+and psubst_instrs tbl c = 
+  let f i = { i with L.l_val = psubst_instr tbl i.L.l_val } in
+  List.map ~f c
+
+let psubst_func tbl f =
+  {f with f_body = psubst_instrs tbl f.f_body;
+          f_arg = List.map ~f:(psubst_var tbl) f.f_arg;
+          f_ret = List.map ~f:(psubst_var tbl) f.f_ret }
+
+let psubst_nfunc tbl f = 
+  { f with nf_func = psubst_func tbl f.nf_func }
+
+let psubst_tinfo tbl (stor, ty) = (stor, psubst_ty tbl ty)
+
+let psubst_proto tbl proto = 
+  { proto with np_arg_ty = List.map ~f:(psubst_tinfo tbl) proto.np_arg_ty;
+               np_ret_ty = List.map ~f:(psubst_tinfo tbl) proto.np_ret_ty; }
+
+let psubst_modul modul = 
+  let tbl = 
+    List.fold_left modul.mod_params 
+      ~init:Mp.empty 
+      ~f:(fun m (p,e) -> Mp.add m ~key:p ~data:e) in
+  let noparams e = 
+    try 
+      IL_Iter.iter_params_dexpr ~f:(fun _ -> raise Not_found) e; true
+    with Not_found -> false in
+  let rec aux tbl n = 
+    assert (0 <= n);
+    if Mp.for_all tbl ~f:noparams then tbl 
+    else
+      let tbl = Mp.map tbl ~f:(psubst_dexpr tbl) in
+      aux tbl (n-1) in
+  let tbl = aux tbl (List.length modul.mod_params) in
+
+  { modul with
+    mod_funcs = List.map ~f:(psubst_nfunc tbl) modul.mod_funcs;
+    mod_params = [];
+    mod_funprotos = List.map ~f:(psubst_proto tbl) modul.mod_funprotos;
+  }
+
+
+
+      
+
+  
+   
+  
+
+
+
+

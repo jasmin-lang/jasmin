@@ -370,7 +370,7 @@ let pp_func ?pp_info ~pp_types fmt nf =
 
 let pp_param_entry ~pp_types fmt (p,pe) =
   F.fprintf fmt "const %a : %a = %a;@\n@\n"
-    Param.pp p (pp_ty ~pp_types) p.ty (pp_pexpr ~pp_types) pe
+    Param.pp p (pp_ty ~pp_types) p.ty (pp_dexpr ~pp_types) pe
 
 let pp_modul ?pp_info ~pp_types fmt modul =
   (*

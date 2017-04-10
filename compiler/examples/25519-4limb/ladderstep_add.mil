@@ -1,6 +1,6 @@
 // * Implementation of montgomery ladder for curve25519
 
-/* param rem_p : u64 = 38; /* 2^(4*64) mod p      */ */
+param rem_p : u64 = 38; /* 2^(4*64) mod p      */ 
 
 // ** addition
 // ************************************************************************
@@ -20,7 +20,7 @@ fn add(x : reg u64[4], ya : stack u64[4]) -> reg u64[4] {
   }
 
   add0 = 0;
-  add1 = 38;
+  add1 = rem_p;
   add1 = add0 if !cf;
 
   for i in  (0..4) {

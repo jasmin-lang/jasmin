@@ -386,7 +386,7 @@ func :
 param_or_func :
 | lf=func
     { [ lf ] }
-| CONST lnid=loc(NID) COLON t=typ EQ pe=pexpr SEMICOLON
+| CONST lnid=loc(NID) COLON t=typ EQ pe=dexpr SEMICOLON
     { [ (fst lnid, Dparams([(snd lnid,t,pe)])) ] }
     (* FIXME: we should assert type=usize here *)
 | ra=loc(RUST_ATTRIBUTE)

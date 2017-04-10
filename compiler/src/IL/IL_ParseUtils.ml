@@ -76,7 +76,7 @@ type dfunc = {
 type decl_item =
   | Dproto of dproto
   | Dfun of dfunc
-  | Dparams    of ((string * string) * ty * pexpr) list
+  | Dparams    of ((string * string) * ty * dexpr) list
   | Drust_attr of string
   | Drust_sec  of string
 

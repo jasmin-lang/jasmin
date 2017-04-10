@@ -415,7 +415,7 @@ func :
     }
 
 typed_params :
-| vs=separated_nonempty_list(COMMA,NID) COLON t=typ EQ pe=pexpr
+| vs=separated_nonempty_list(COMMA,NID) COLON t=typ EQ pe=dexpr
     { Std.List.map ~f:(fun v -> (v,t,pe)) vs }
 
 param_or_func :

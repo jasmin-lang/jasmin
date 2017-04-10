@@ -61,6 +61,7 @@ type cert = NonCert | Cert
 type transform =
   | MergeBlocks of Fname.t option
   | MacroExpand of Fname.t * value Pname.Table.t
+  | ParamsExpand 
   | ArrayAssignExpand of Fname.t
   | ArrayExpand of Fname.t
   | LocalSSA of Fname.t
@@ -162,8 +163,10 @@ let ptrafo =
        return (RegisterAlloc(fn,l)))
     ; string "asm" >> char '[' >> asm_lang >>= (fun l -> char ']' >>$ (Asm(l)))
     ; (string "coq" >> (bracketed ident) >>= fun filename -> return (PrintCoq filename))
+
     ; (string "expand" >> fname >>= fun fname ->
        pmap >>= fun pm -> return (MacroExpand(fname,pm)))
+    ; (string "params_expand" >>$ ParamsExpand)
     ; (string "cert_inline" >> fname >>= fun fname -> return (InlineCalls(Cert,fname)))
     ; (string "cert_unroll_loop" >> fname >>= fun fname -> return (UnrollLoopCert(fname)))
     ; (string "cert_unroll" >> fname >>= fun fname -> return (UnrollCert(fname)))
@@ -349,6 +352,10 @@ let apply_transform trafos (modul0 : unit modul) =
       notify "type checking module" all_fn
         ~f:(fun () -> IL_Typing.typecheck_modul m; m)
     in
+    let p_expand m = 
+      notify "expanding params" all_fn ~f:(fun () -> IL_Map.psubst_modul m)
+    in
+
     let register_alloc fn _n _m =
       notify "performing register allocation" fn
         ~f:(fun () -> undefined () (*reg_alloc_modul (min 15 n) m fn*))
@@ -371,6 +378,7 @@ let apply_transform trafos (modul0 : unit modul) =
       notify "expanding macros" fn
         ~f:(fun () -> macro_expand_modul map m fn)
     in
+      
     let merge_blocks ofn m =
       match ofn with
       | None     ->
@@ -394,8 +402,9 @@ let apply_transform trafos (modul0 : unit modul) =
     | StripComments(fn)         -> map_module modul {f = fun m -> strip_comments fn m}
     | RemoveEqConstrs(fn)       -> map_module modul {f = fun m -> remove_eq_constrs fn m}
     | RegisterAlloc(fn,n)       -> map_module modul {f = fun m -> register_alloc fn n m}
-    | MacroExpand(fn,map)       -> map_module modul {f = fun m -> macro_expand fn map m}
+    | MacroExpand(fn,map)       -> map_module modul {f = fun m -> macro_expand fn map m}    
     | Type                      -> map_module modul {f = fun m -> typecheck m}
+    | ParamsExpand              -> map_module modul {f = fun m -> p_expand m}
     | RenumberIdents(rno)       -> map_module modul {f = fun m -> renumber_idents rno m}
     | MergeBlocks(ofn)          -> map_module modul {f = fun m -> merge_blocks ofn m}
     | RegisterLiveness(fn)      -> register_liveness fn modul
