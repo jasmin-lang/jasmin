@@ -296,7 +296,7 @@ let typecheck_modul modul =
   params_consistent_modul (pp_ty ~pp_types:false) modul;
   let fptable = 
     Fname.Table.of_alist_exn (List.map ~f:(fun np -> (np.np_name, np))
-                                (IL_stdlib.std_protos () @ modul.mod_funprotos))
+                                ((*IL_stdlib.std_protos () @*) modul.mod_funprotos))
   in
   let ftable =
     Fname.Table.of_alist_exn (List.map ~f:(fun nf -> (nf.nf_name, nf.nf_func)) modul.mod_funcs)
