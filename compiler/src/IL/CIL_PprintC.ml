@@ -172,7 +172,7 @@ let pp_pexpr withinfo =
     | Pload(vi,pe)        -> 
       F.fprintf fmt "@[<hov 2>(load@ %a@ %a)@]" 
         (pp_var_info withinfo) vi pp_pexpr pe
-    | Pnot(pe)            -> F.fprintf fmt "~~ %a" pp_pexpr pe
+    | Pnot(pe)            -> F.fprintf fmt "(~~ %a)" pp_pexpr pe
     | Papp2(sop2,pe1,pe2) -> 
       Format.fprintf fmt "@[<hov 2>(%a %s@ %a)@]" 
         pp_pexpr pe1 (infix_sop2 sop2) pp_pexpr pe2

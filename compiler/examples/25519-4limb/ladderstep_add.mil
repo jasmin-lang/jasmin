@@ -11,7 +11,7 @@ fn add(x : reg u64[4], ya : stack u64[4]) -> reg u64[4] {
   reg u64 add0;
   reg u64 add1;
   reg bool cf;
-  inline u64 i;
+  inline int i;
 
   for i in (0..4) {
     y[i] = ya[i];
