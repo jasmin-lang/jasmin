@@ -6,6 +6,7 @@
 3rdparty/Coqlib.v
 3rdparty/Integers.v
 3rdparty/ssrring.v
+3rdparty/ssrify.v
 compiler/allocation.v
 compiler/array_expansion.v
 compiler/compiler_util.v
