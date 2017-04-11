@@ -225,15 +225,6 @@ Section PROOF.
     exists x, r = (Lvar x) /\ e = (Pvar x).
   Proof. by case: r e => //= x1 [] //= x2 /eqP <-;exists x1. Qed.
 
-  (* TODO: move *)
-  Lemma of_val_to_val vt (v: sem_t vt): of_val vt (to_val v) = ok v.
-  Proof.
-    elim: vt v=> // n v /=.
-    have ->: CEDecStype.pos_dec n n = left (erefl n).
-      by elim: n {v}=> // p0 /= ->.
-    by [].
-  Qed.
-
   Local Lemma Hassgn s1 s2 x tag e :
     Let v := sem_pexpr s1 e in write_lval x v s1 = Ok error s2 ->
     Pi_r s1 (Cassgn x tag e) s2.

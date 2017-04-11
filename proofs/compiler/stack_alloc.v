@@ -891,17 +891,6 @@ Section PROOF.
             by rewrite Heq.
   Qed.
 
-  (* TODO: move *)
-  Lemma arr_set_ok n (a: Array.array n word) i v t:
-    Array.set a i v = ok t ->
-    0 <= i < Z.pos n.
-  Proof.
-    rewrite /Array.set.
-    case Hind: ((0 <=? i) && (i <? Z.pos n))=> // _.
-    move: Hind=> /andP [H1 H2].
-    split; [by apply/Z.leb_le|by apply/Z.ltb_lt].
-  Qed.
-
   Lemma check_arr_stkW (vi vi': var_i) (s1 s2: estate) v e e':
     check_arr_stk m vi e vi' e' -> valid s1 s2 -> forall s1', write_lval (Laset vi e) v s1 = ok s1' ->
     exists s2', write_lval (Lmem vi' e') v s2 = ok s2' /\ valid s1' s2'.
@@ -937,7 +926,7 @@ Section PROOF.
       have Hvmem: valid_addr (emem s2) (I64.add pstk (I64.repr (get + i))).
         rewrite add_repr_r [get + i]Z.add_comm.
         apply (get_valid_arr Hv Hget).
-        exact: (arr_set_ok Ht).
+        exact: (Array.setP_inv Ht).
       have Hmem: exists m', write_mem (emem s2) (I64.add pstk (I64.repr (get + i))) v0 = ok m'.
         by apply/writeV.
       move: Hmem=> [m' Hm'].
@@ -951,7 +940,7 @@ Section PROOF.
         suff ->: I64.add pstk (I64.repr (get + i)) == w = false=> //.
         rewrite add_repr_r.
         apply/negP=> /eqP Habs.
-        have Hi' := (arr_set_ok Ht).
+        have Hi' := (Array.setP_inv Ht).
         have := (get_valid_arepr Hget Hi').
         rewrite [get + i]Z.add_comm in Habs.
         rewrite Habs.
@@ -1022,7 +1011,7 @@ Section PROOF.
                 rewrite [_ + (off + _)](get_valid_arepr Hget).
                 rewrite [_ + (i + _)](get_valid_arepr Hget).
                 rewrite Habs //.
-                exact: (arr_set_ok Htback).
+                exact: (Array.setP_inv Htback).
                 rewrite Hvi in Heq.
                 move: Heq=> [] -> _ //.
               rewrite FArray.setP_neq.
@@ -1054,12 +1043,12 @@ Section PROOF.
                 rewrite (get_valid_arepr Hget') //.
                 rewrite [i + get]Z.add_comm.
                 by apply/eqP.
-                exact: (arr_set_ok Ht).
+                exact: (Array.setP_inv Ht).
               have Habs: get + i != getx + off.
                 apply: (var_stk_diff_off_both Hget Hget')=> //.
                 by rewrite -Hvi Heq.
                 rewrite Htypex //.
-                exact: (arr_set_ok Ht).
+                exact: (Array.setP_inv Ht).
                 exact: Hoff.
               move: Heq''=> /eqP Heq''.
               by rewrite [getx + off]Z.add_comm Heq'' in Habs.
@@ -1083,11 +1072,11 @@ Section PROOF.
             rewrite (get_valid_wrepr Hget').
             rewrite [i + get]Z.add_comm.
             by apply/eqP.
-            exact: (arr_set_ok Ht).
+            exact: (Array.setP_inv Ht).
           have Habs: get + i != getx.
             apply: (var_stk_diff_off_l Hget Hget')=> //.
             rewrite vtype_diff //= Htypex //.
-            exact: (arr_set_ok Ht).
+            exact: (Array.setP_inv Ht).
           by rewrite Heq' eq_refl in Habs.
           by rewrite Hvi vtype_diff.
     move: He'=> /orP [/orP [He'|He']|He'].
@@ -1583,28 +1572,7 @@ Definition alloc_ok SP fn m1 :=
   forall fd, get_fundef SP fn = Some fd ->
   exists p, Memory.alloc_stack m1 (sf_stk_sz fd) = ok p.
 
-(* TODO: generalize + move *)
-Lemma all2P (s1: prog) (s2: seq (funname * sfundef * seq (var * Z))) f:
-  all2 f s1 s2 ->
-  forall x, x \in s1 -> exists y, y \in s2 /\ f x y.
-Admitted.
-
-(* TODO: generalize + move *)
-Definition check_prog (P: prog) (SP: sprog) (ll: seq (seq (var * Z))) :=
-  all2 (fun f s => let '(sf, l) := s in (f.1 == sf.1) && check_fd l f.2 sf.2) P (zip SP ll).
-
-Lemma check_prog_def P SP fn fd l:
-  check_prog P SP l ->
-  get_fundef P fn = Some fd ->
-  exists fd' l', get_fundef SP fn = Some fd' /\ check_fd l' fd fd'.
-Proof.
-  move=> Hcheck H.
-  have/mapP [x [Hx Hfn]] := (get_fundef_in H).
-  move: Hcheck=> /all2P /(_ _ Hx) [[[fn' fd'] l'] /= [Hy /andP [/eqP Hy' Hy'']]].
-  exists fd', l'; split.
-  admit.
-  admit.
-Admitted.
+Definition check_prog P SP ll := all_prog P SP ll check_fd.
 
 Lemma check_progP (P: prog) (SP: sprog) l fn:
   check_prog P SP l ->
@@ -1615,7 +1583,7 @@ Lemma check_progP (P: prog) (SP: sprog) l fn:
 Proof.
   move=> Hcheck m1 va m1' vr H Halloc.
   have H' := H; sinversion H'.
-  move: (check_prog_def Hcheck H0)=> [fd' [l' [Hfd' Hl']]].
+  move: (all_progP Hcheck H0)=> [fd' [l' [Hfd' Hl']]].
   apply: check_fdP=> //.
   exact: H0.
   exact: Hfd'.

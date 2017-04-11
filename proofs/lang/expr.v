@@ -458,6 +458,33 @@ case: ifP=> //.
 + by move=> _ /IH ->; rewrite orbT.
 Qed.
 
+Definition all_prog {aT bT cT} (s1: seq (funname * aT)) (s2: seq (funname * bT)) (ll: seq cT) f :=
+  (size s1 == size s2) && all2 (fun fs a => let '(fd1, fd2) := fs in (fd1.1 == fd2.1) && f a fd1.2 fd2.2) (zip s1 s2) ll.
+
+Lemma all_progP {aT bT cT} (s1: seq (funname * aT)) (s2: seq (funname * bT)) (l: seq cT) f:
+  all_prog s1 s2 l f ->
+  forall fn fd, get_fundef s1 fn = Some fd ->
+  exists fd' l', get_fundef s2 fn = Some fd' /\ f l' fd fd'.
+Proof.
+elim: s1 s2 l=> // [[fn fd] p IH] [|[fn' fd'] p'] // [|lh la] //.
++ by rewrite /all_prog /= andbF.
++ move=> /andP [/= Hs /andP [/andP [/eqP Hfn Hfd] Hall]].
+  move=> fn0 fd0.
+  rewrite get_fundef_cons /=.
+  case: ifP=> /eqP Hfn0.
+  + move=> [] <-.
+    exists fd', lh.
+    rewrite -Hfn Hfn0 get_fundef_cons /= eq_refl; split=> //.
+  + move=> H.
+    have [|fd'' [l' [IH1 IH2]]] := (IH p' la _ _ _ H).
+    apply/andP; split.
+    by rewrite -eqSS.
+    exact: Hall.
+    exists fd'', l'; split=> //.
+    rewrite get_fundef_cons /= -Hfn.
+    by case: ifP=> // /eqP.
+Qed.
+
 Section RECT.
   Variables (Pr:instr_r -> Type) (Pi:instr -> Type) (Pc : cmd -> Type).
   Hypothesis Hmk  : forall i ii, Pr i -> Pi (MkI ii i).
@@ -696,6 +723,9 @@ Proof.
   elim: e s => //= [v | v e He | v e He | o e1 He1 e2 He2] s;
    rewrite /read_e /= ?He ?He1 ?He2; by SvD.fsetdec.
 Qed.
+
+Lemma read_e_var (x:var_i) : Sv.Equal (read_e (Pvar x)) (Sv.singleton x).
+Proof. rewrite /read_e /=;SvD.fsetdec. Qed.
 
 Lemma read_esE es s : Sv.Equal (read_es_rec s es) (Sv.union (read_es es) s).
 Proof.

@@ -93,6 +93,16 @@ Module Array.
   Lemma getP_empty T s x w: get (@empty T s) x <> ok w.
   Proof. by rewrite /get/empty;case:ifP. Qed.
 
+  Lemma setP_inv T s (a:array s T) x v t:
+    set a x v = ok t ->
+    0 <= x < Z.pos s.
+  Proof.
+    rewrite /set.
+    case Hind: ((0 <=? x) && (x <? Z.pos s))=> // _.
+    move: Hind=> /andP [H1 H2].
+    split; [by apply/Z.leb_le|by apply/Z.ltb_lt].
+  Qed.
+
   (* FIXME *)
   Axiom eq_ext : forall T s (t1 t2:array s T), (forall x, get t1 x = get t2 x) -> t1 = t2.
 
@@ -177,6 +187,14 @@ Definition to_val t : sem_t t -> value :=
   | sarr n => @Varr n
   | sword  => Vword
   end.
+
+Lemma of_val_to_val vt (v: sem_t vt): of_val vt (to_val v) = ok v.
+Proof.
+  elim: vt v=> // n v /=.
+  have ->: CEDecStype.pos_dec n n = left (erefl n).
+    by elim: n {v}=> // p0 /= ->.
+  by [].
+Qed.
 
 (* ** Variable map
  * -------------------------------------------------------------------- *)

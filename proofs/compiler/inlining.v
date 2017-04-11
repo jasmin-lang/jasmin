@@ -309,10 +309,6 @@ Proof.
   rewrite read_esE => y Hy;rewrite Fv.setP_neq //;apply/eqP;SvD.fsetdec.
 Qed.
 
-(* TODO move *)
-Lemma read_e_var (x:var_i) : Sv.Equal (read_e (Pvar x)) (Sv.singleton x).
-Proof. rewrite /read_e /=;SvD.fsetdec. Qed.
-
 Lemma assgn_tuple_Pvar p ii xs rxs vs s s' :
   let es := map Pvar rxs in
   disjoint (vrvs xs) (read_es es) -> 
