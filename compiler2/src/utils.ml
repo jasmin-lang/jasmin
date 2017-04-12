@@ -268,6 +268,11 @@ let iter (op : 'a -> 'a) (x : 'a) =
   let rec doit x = doit (op x) in doit x
 
 (* -------------------------------------------------------------------- *)
+module Uniq = struct
+  let gen () = Oo.id (object end)
+end
+
+(* -------------------------------------------------------------------- *)
 module OneShot : sig
   type t
 
