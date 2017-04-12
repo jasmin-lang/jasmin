@@ -1,0 +1,9 @@
+S src
+
+B _build/src
+
+PKG batteries
+PKG menhirLib
+
+FLG -rectypes
+FLG -w Y -w Z -w -23 -w +28 -w +33
