@@ -17,6 +17,7 @@ compiler/inlining.v
 compiler/linear.v
 compiler/stack_alloc.v
 compiler/unrolling.v
+compiler/x86.v
 logic/equiv_sem.v
 logic/logic.v
 logic/Ssem.v
