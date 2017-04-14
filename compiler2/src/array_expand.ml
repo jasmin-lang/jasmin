@@ -106,7 +106,7 @@ let init_stk fc =
     size := pos + n;
     (v,pos) in
   let alloc = List.map init_var vars in
-  alloc, size, tbl
+  alloc, !size, tbl
 
 let load_stack ws loc e = 
    Pload (ws, L.mk_loc loc vstack, cast64 e)
