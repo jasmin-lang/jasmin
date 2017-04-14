@@ -25,7 +25,13 @@ type op2 =
   | Ogt
   | Oge
 
-type word_size = int
+type word_size = 
+  | W8
+  | W16
+  | W32
+  | W64
+  | W128
+  | W256
 
 type base_ty =
   | Bool
@@ -51,7 +57,7 @@ type 'ty gvar_i = 'ty gvar L.located
 
 type 'expr gty =
   | Bty of base_ty
-  | Arr of base_ty * 'expr (* Arr(n,de): array of n-bit integers with dim. *)
+  | Arr of word_size * 'expr (* Arr(n,de): array of n-bit integers with dim. *)
            (* invariant only Const variable can be used in expression *)
            (* the type of the expression is [Int] *)
 
@@ -66,6 +72,13 @@ type 'ty gexpr =
   | Papp2  of op2 * 'ty gexpr * 'ty gexpr
 
 type 'ty gexprs = 'ty gexpr list
+
+val u8   : 'e gty
+val u16  : 'e gty
+val u32  : 'e gty
+val u64  : 'e gty
+val u128 : 'e gty
+val u256 : 'e gty
 
 (* ------------------------------------------------------------------------ *)
 type dir      = Left   | Right
@@ -178,6 +191,7 @@ module Mpv : Map.S  with type key = pvar
 type ty    = int gty
 type var   = ty gvar
 type var_i = ty gvar_i
+type lval  = ty glval
 type expr  = ty gexpr
 
 type 'info instr = (ty,'info) ginstr
@@ -223,3 +237,38 @@ module Sf : Set.S  with type elt = funname
 module Mf : Map.S  with type key = funname
 module Hf : Hash.S with type key = funname
 
+(* -------------------------------------------------------------------- *)
+(* used variables                                                       *) 
+
+val vars_e  : expr -> Sv.t
+val vars_i  : 'info instr -> Sv.t 
+val vars_c  : 'info stmt  -> Sv.t 
+val vars_fc : 'info func  -> Sv.t 
+
+(* -------------------------------------------------------------------- *)
+(* Functions on types                                                   *)
+
+val int_of_ws : word_size -> int
+val size_of_ws : word_size -> int
+
+val is_ty_arr : 'e gty -> bool
+val array_kind : ty -> word_size * int
+val ws_of_ty   : ty -> word_size
+
+(* -------------------------------------------------------------------- *)
+(* Functions on variables                                               *)
+
+val vstack : var 
+
+val is_stack_var : var -> bool
+val is_reg_arr   : var -> bool
+
+
+(* -------------------------------------------------------------------- *)
+(* Functions over expressions                                           *)
+
+val ( ++ ) : expr -> expr -> expr 
+val ( ** ) : expr -> expr -> expr 
+val cnst   : B.zint -> expr 
+val icnst  : int -> expr 
+val cast64 : expr -> expr 

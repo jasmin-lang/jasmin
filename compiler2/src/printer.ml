@@ -5,12 +5,12 @@ module B = Bigint
 
 let pp_btype fmt = function
   | Bool -> F.fprintf fmt "bool"
-  | U i  -> F.fprintf fmt "U%i" i
+  | U i  -> F.fprintf fmt "U%i" (int_of_ws i)
   | Int  -> F.fprintf fmt "int"
 
 let pp_gtype pp_size fmt = function
   | Bty ty -> pp_btype fmt ty
-  | Arr(ty,e) -> F.fprintf fmt "%a[%a]" pp_btype ty pp_size e
+  | Arr(ws,e) -> F.fprintf fmt "%a[%a]" pp_btype (U ws) pp_size e
 
 let pp_var_i pp_var fmt v = pp_var fmt v.L.pl_desc 
 

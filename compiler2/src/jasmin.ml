@@ -4,3 +4,4 @@ module B = Bigint
 module P = Prog
 module S = Subst
 module PP = Printer 
+module AE = Array_expand

@@ -26,7 +26,13 @@ type op2 =
   | Ogt
   | Oge
 
-type word_size = int
+type word_size = 
+  | W8
+  | W16
+  | W32
+  | W64
+  | W128
+  | W256
 
 type base_ty =
   | Bool
@@ -52,7 +58,7 @@ type 'ty gvar_i = 'ty gvar L.located
 
 type 'expr gty =
   | Bty of base_ty
-  | Arr of base_ty * 'expr (* Arr(n,de): array of n-bit integers with dim. *)
+  | Arr of word_size * 'expr (* Arr(n,de): array of n-bit integers with dim. *)
            (* invariant only Const variable can be used in expression *)
            (* the type of the expression is [Int] *)
 
@@ -67,6 +73,13 @@ type 'ty gexpr =
   | Papp2  of op2 * 'ty gexpr * 'ty gexpr
 
 type 'ty gexprs = 'ty gexpr list
+
+let u8   = Bty (U W8)
+let u16  = Bty (U W16)
+let u32  = Bty (U W32)
+let u64  = Bty (U W64)
+let u128 = Bty (U W128)
+let u256 = Bty (U W256)
 
 (* ------------------------------------------------------------------------ *)
 type dir      = Left   | Right
@@ -187,6 +200,7 @@ module Mpv : Map.S with type key = pvar = Map.Make (PV)
 type ty    = int gty
 type var   = ty gvar
 type var_i = ty gvar_i
+type lval  = ty glval
 type  expr = ty gexpr
 
 type 'info instr = (ty,'info) ginstr
@@ -225,3 +239,102 @@ module Sf = Set.Make (F)
 module Mf = Map.Make (F)
 module Hf = Hash.Make(F)
 
+(* -------------------------------------------------------------------- *)
+(* used variables                                                       *) 
+
+let rec rvars_e s = function
+  | Pconst _ | Pbool _ -> s
+  | Pcast(_,e)     -> rvars_e s e
+  | Pvar x         -> Sv.add (L.unloc x) s
+  | Pget(x,e)      -> rvars_e (Sv.add (L.unloc x) s) e
+  | Pload(_,x,e)   -> rvars_e (Sv.add (L.unloc x) s) e
+  | Pnot e         -> rvars_e s e
+  | Papp2(_,e1,e2) -> rvars_e (rvars_e s e1) e2
+
+let rvars_es s es = List.fold_left rvars_e s es
+
+let rec rvars_lv s = function
+ | Lnone _      -> s
+ | Lvar x       -> Sv.add (L.unloc x) s
+ | Lmem (_,x,e) -> rvars_e (Sv.add (L.unloc x) s) e
+ | Laset (x,e)  -> rvars_e (Sv.add (L.unloc x) s) e
+
+let rvars_lvs s lvs = List.fold_left rvars_lv s lvs
+
+let rec rvars_i s i = 
+  match i.i_desc with
+  | Cblock c       -> rvars_c s c
+  | Cassgn(x,_,e)  -> rvars_e (rvars_lv s x) e
+  | Copn(x,_,e)    -> rvars_es (rvars_lvs s x) e
+  | Cif(e,c1,c2)   -> rvars_c (rvars_c (rvars_e s e) c1) c2
+  | Cfor(x,(_,e1,e2), c) ->
+    rvars_c (rvars_e (rvars_e (Sv.add (L.unloc x) s) e1) e2) c
+  | Cwhile(e,c)    -> rvars_c (rvars_e s e) c
+  | Ccall(_,x,_,e) -> rvars_es (rvars_lvs s x) e
+
+and rvars_c s c =  List.fold_left rvars_i s c
+
+
+let vars_e e = rvars_e Sv.empty e
+let vars_i i = rvars_i Sv.empty i
+let vars_c c = rvars_c Sv.empty c
+
+let vars_fc fc = 
+  let s = List.fold_left (fun s v -> Sv.add v s) Sv.empty fc.f_args in
+  let s = List.fold_left (fun s v -> Sv.add (L.unloc v) s) s fc.f_ret in
+  rvars_c s fc.f_body
+
+(* -------------------------------------------------------------------- *)
+(* Functions on types                                                   *)
+
+let int_of_ws = function
+  | W8   -> 8    
+  | W16  -> 16 
+  | W32  -> 32 
+  | W64  -> 64 
+  | W128 -> 128
+  | W256 -> 256 
+
+let size_of_ws = function
+  | W8   -> 1
+  | W16  -> 2
+  | W32  -> 4
+  | W64  -> 8
+  | W128 -> 16
+  | W256 -> 32
+
+let is_ty_arr = function
+  | Arr _ -> true
+  | _     -> false
+
+let array_kind = function
+  | Arr(ws, n) -> ws, n
+  | _ -> assert false 
+
+let ws_of_ty = function
+  | Bty (U ws) -> ws
+  | _ -> assert false 
+
+(* -------------------------------------------------------------------- *)
+(* Functions over variables                                             *)
+
+let vstack = V.mk "stk" Reg u64 L._dummy
+
+let is_stack_var v = v.v_kind = Stack 
+
+let is_reg_arr v = 
+  v.v_kind = Reg && is_ty_arr v.v_ty
+
+(* -------------------------------------------------------------------- *)
+(* Functions over expressions                                           *)
+
+let ( ++ ) e1 e2 = 
+  Papp2(Oadd, e1, e2)
+
+let ( ** ) e1 e2 = 
+  Papp2(Omul, e1, e2)
+
+let cnst i = Pconst i
+let icnst i = cnst (B.of_int i)
+
+let cast64 e = Pcast (W64, e)

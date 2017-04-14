@@ -1,7 +1,7 @@
 open Prog
 module L = Location
 
-let rec subst_e (f: pvar_i -> 'ty gexpr) e =
+let rec subst_e (f: 'ty1 gvar_i -> 'ty2 gexpr) e =
   match e with
   | Pconst c -> Pconst c
   | Pbool b  -> Pbool b
@@ -151,5 +151,29 @@ let isubst_prog (prog:'info pprog) =
 let remove_params (prog : 'info pprog) : 'info prog = 
   isubst_prog (psubst_prog prog)
 
+
+ 
+(* ---------------------------------------------------------------- *) 
+(* Rename all variable using fresh variable                         *)
+
+let csubst_v () =
+  let subst = ref Mv.empty in
+  let rec aux v =
+    let v_ = v.L.pl_desc in
+      try Mv.find v_ !subst 
+      with Not_found -> 
+        let e = Pvar { v with L.pl_desc = V.clone v_ } in
+        subst := Mv.add v_ e !subst;
+        e in
+    aux 
+
+let clone_func fc = 
+  let subst_v = csubst_v () in
+  let dov v = L.unloc (subst_vdest subst_v (L.mk_loc L._dummy v)) in
+  { fc with
+    f_args = List.map dov fc.f_args;
+    f_body = subst_c subst_v fc.f_body;
+    f_ret  = List.map (subst_vdest subst_v) fc.f_ret 
+  } 
 
   
