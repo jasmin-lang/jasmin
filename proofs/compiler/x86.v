@@ -574,3 +574,43 @@ Definition assemble_fd (fd: lfundef) :=
 
 Definition assemble_prog (p: lprog) : cfexec xprog :=
   map_cfprog assemble_fd p.
+
+Section PROOF.
+  Variable p: lprog.
+  Variable p': xprog.
+  Hypothesis assemble_ok : assemble_prog p = ok p'.
+
+  Definition incl_regmap (vm: vmap) (rm: regmap) :=
+    forall x ii r, reg_of_var_i ii x = ciok r ->
+    get_var vm x = ok (Vword (RegMap.get rm r)).
+
+  Lemma assemble_cP lc xc:
+    assemble_c lc = ok xc ->
+    forall m vm rm m' vm', lsem lc (Lstate m vm lc) (Lstate m' vm' [::]) ->
+    incl_regmap vm rm ->
+    exists rm', xsem xc (X86State m rm xc) (X86State m' rm' [::]).
+  Proof.
+  Admitted.
+
+  Lemma assemble_fdP:
+    forall fn m1 va m2 vr,
+    lsem_fd p m1 fn (map Vword va) m2 (map Vword vr) -> xsem_fd p' m1 fn va m2 vr.
+  Proof.
+    move=> fn m1 va m2 vr H.
+    sinversion H.
+    have H0' := assemble_ok.
+    rewrite /assemble_prog in H0'.
+    have [f' [Hf'1 Hf'2]] : exists f', assemble_fd fd = ok f' /\ get_fundef p' fn = Some f'.
+      admit. (* get_map_cfprog: need an eqType.. *)
+    apply: rbindP Hf'1=> z Hz.
+    case: (reg_of_string _)=> // sp.
+    apply: rbindP=> arg Harg.
+    apply: rbindP=> res Hres.
+    move=> [] Hf'.
+    rewrite -{}Hf' in Hf'2.
+    apply: (XSem_fd Hf'2 H1)=> //=.
+    admit.
+    admit.
+    admit.
+  Admitted.
+End PROOF.
