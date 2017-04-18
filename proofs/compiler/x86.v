@@ -34,6 +34,7 @@ Require Import ZArith.
 
 Require Import strings word utils type var expr.
 Require Import low_memory memory sem linear compiler_util.
+Import Memory.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -41,16 +42,21 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope seq_scope.
 
-(* TODO: int8 etc. have been replaced with word/nat, compiler may crash *)
-
-Definition port_number := nat.
-Definition interrupt_type := nat.
 Definition selector := nat.
 
-(* TODO: this is x86-32 registers *)
 Inductive register : Set :=
     RAX | RCX | RDX | RBX | RSP | RBP | RSI | RDI
   | R8  | R9  | R10 | R11 | R12 | R13 | R14 | R15.
+
+Scheme Equality for register.
+Definition register_eqP : Equality.axiom register_eq_dec.
+Proof.
+  move=> x y.
+  case: register_eq_dec=> H; [exact: ReflectT|exact: ReflectF].
+Qed.
+
+Definition register_eqMixin := EqMixin register_eqP.
+Canonical  register_eqType := EqType register register_eqMixin.
 
 Definition reg_of_string (s: string) :=
   match s with
@@ -74,6 +80,15 @@ Definition reg_of_string (s: string) :=
   end.
 
 Inductive scale : Set := Scale1 | Scale2 | Scale4 | Scale8.
+
+Definition word_of_scale (s: scale) :=
+  I64.repr (match s with
+  | Scale1 => 1
+  | Scale2 => 2
+  | Scale4 => 4
+  | Scale8 => 8
+  end).
+
 Inductive rflag : Set := CF | PF | AF | ZF | SF | OF.
 
 Definition rflag_of_string (s: string) :=
@@ -335,17 +350,135 @@ Inductive instr : Set :=
 
 Definition cmd := seq instr.
 
+(* ** Semantics of the assembly *
+ * -------------------------------------------------------------------- *)
+
+Definition is_label (lbl: label) (i:instr) : bool :=
+  match i with
+  | LABEL lbl' => lbl == lbl'
+  | _ => false
+  end.
+
+Fixpoint find_label (lbl: label) (c: cmd) {struct c} : option cmd :=
+  match c with
+  | nil => None
+  | i1 :: il => if is_label lbl i1 then Some il else find_label lbl il
+  end.
+
+Module RegMap.
+  Definition map := register -> word.
+
+  Definition get (m: map) (x: register) := m x.
+
+  Definition set (m: map) (x: register) (y: word) :=
+    fun z => if (x == z) then y else m x.
+End RegMap.
+
+Notation regmap := RegMap.map.
+
+Definition regmap0 : regmap := fun x => I64.repr 0.
+
+Record x86_state := X86State {
+  xmem : mem;
+  xreg : regmap;
+  xc : cmd
+}.
+
+Definition setc (s:x86_state) c := X86State s.(xmem) s.(xreg) c.
+
+Definition decode_addr (s: x86_state) (a: address) : word :=
+  let (disp, base, ind) := a in
+  match base, ind with
+  | None, None => disp
+  | Some r, None => I64.add disp (RegMap.get s.(xreg) r)
+  | None, Some (sc, r) => I64.add disp (I64.mul (word_of_scale sc) (RegMap.get s.(xreg) r))
+  | Some r1, Some (sc, r2) =>
+     I64.add disp (I64.add (RegMap.get s.(xreg) r1) (I64.mul (word_of_scale sc) (RegMap.get s.(xreg) r2)))
+  end.
+
+Definition write_op (o: operand) (w: word) (s: x86_state) :=
+  match o with
+  | Imm_op v => type_error
+  | Reg_op r => ok {| xmem := s.(xmem); xreg := RegMap.set s.(xreg) r w; xc := s.(xc) |}
+  | Address_op a =>
+     let p := decode_addr s a in
+     Let m := write_mem s.(xmem) p w in
+     ok {| xmem := m; xreg := s.(xreg); xc := s.(xc) |}
+  end.
+
+Definition write_ops xs vs s := fold2 ErrType write_op xs vs s.
+
+Definition read_op (s: x86_state) (o: operand) :=
+  match o with
+  | Imm_op v => ok v
+  | Reg_op r => ok (RegMap.get s.(xreg) r)
+  | Address_op a =>
+     let p := decode_addr s a in
+     Let m := read_mem s.(xmem) p in
+     ok m
+  end.
+
+Inductive xsem1 (c:cmd) : x86_state -> x86_state -> Prop :=
+| XSem_LABEL s1 lbl cs:
+    s1.(xc) = (LABEL lbl) :: cs ->
+    xsem1 c s1 (setc s1 cs)
+| XSem_JMP s1 lbl cs cs':
+    s1.(xc) = (JMP lbl) :: cs ->
+    find_label lbl c = Some cs' ->
+    xsem1 c s1 (setc s1 cs')
+| XSem_MOV s1 dst src cs w s2:
+    s1.(xc) = (MOV U64 dst src) :: cs ->
+    read_op s1 src = ok w ->
+    write_op dst w s1 = ok s2 ->
+    xsem1 c s1 (setc s2 cs).
+
+Inductive xsem (c:cmd) : x86_state -> x86_state -> Prop:=
+| XSem0 : forall s, xsem c s s
+| XSem1 : forall s1 s2 s3, xsem1 c s1 s2 -> xsem c s2 s3 -> xsem c s1 s3.
+
+Record xfundef := XFundef {
+ xfd_stk_size : Z;
+ xfd_nstk : register;
+ xfd_arg  : seq register;
+ xfd_body : cmd;
+ xfd_res  : seq register;
+}.
+
+Definition xprog := seq (funname * xfundef).
+
+Inductive xsem_fd P m1 fn va m2 vr : Prop := 
+| XSem_fd : forall p cs fd vm2 m2' s1 s2,
+    get_fundef P fn = Some fd ->
+    alloc_stack m1 fd.(xfd_stk_size) = ok p ->
+    let c := fd.(xfd_body) in
+    write_op  (Reg_op fd.(xfd_nstk)) p.1 (X86State p.2 regmap0 [::]) = ok s1 ->
+    write_ops (map Reg_op fd.(xfd_arg)) va s1 = ok s2 ->
+    xsem c s2 {| xmem := m2'; xreg := vm2; xc := cs |} ->
+    mapM (fun r => read_op {| xmem := m2'; xreg := vm2; xc := cs |} (Reg_op r)) fd.(xfd_res) = ok vr ->
+    m2 = free_stack m2' p.1 fd.(xfd_stk_size) ->
+    xsem_fd P m1 fn va m2 vr.
+
+(* ** Conversion to assembly *
+ * -------------------------------------------------------------------- *)
+
 Definition rflag_of_var_i (v: var_i) :=
   match v with
   | VarI (Var sbool s) _ => rflag_of_string s
   | _ => None
   end.
 
-Definition reg_of_var_i (v: var_i) :=
+Definition reg_of_var_i ii (v: var_i) :=
   match v with
-  | VarI (Var sword s) _ => reg_of_string s
-  | _ => None
+  | VarI (Var sword s) _ =>
+     match (reg_of_string s) with
+     | Some r => ciok r
+     | None => cierror ii (Cerr_assembler "Invalid register name")
+     end
+  | _ => cierror ii (Cerr_assembler "Invalid register type")
   end.
+
+Fixpoint reg_of_vars_i ii (vs: list var_i) :=
+  mapM (reg_of_var_i ii) vs.
 
 Definition assemble_cond ii (e: pexpr) :=
   match e with
@@ -386,17 +519,12 @@ Definition operand_of_lval ii (l: lval) :=
   match l with
   | Lnone _ => cierror ii (Cerr_assembler "Lnone not implemented")
   | Lvar v =>
-     match (reg_of_var_i v) with
-     | Some s => ciok (Reg_op s)
-     | None => cierror ii (Cerr_assembler "Invalid register in Lvar")
-     end
+     Let s := reg_of_var_i ii v in
+     ciok (Reg_op s)
   | Lmem v e =>
-     match (reg_of_var_i v) with
-     | Some s =>
-         Let w := word_of_pexpr ii e in
-         ciok (Address_op (mkAddress w (Some s) None))
-     | None => cierror ii (Cerr_assembler "Invalid register in Lvar")
-     end
+     Let s := reg_of_var_i ii v in
+     Let w := word_of_pexpr ii e in
+     ciok (Address_op (mkAddress w (Some s) None))
   | Laset v e => cierror ii (Cerr_assembler "Laset not handled in assembler")
   end.
 
@@ -406,17 +534,12 @@ Definition operand_of_pexpr ii (e: pexpr) :=
      Let w := word_of_int ii z in
      ciok (Imm_op w)
   | Pvar v =>
-     match (reg_of_var_i v) with
-     | Some s => ciok (Reg_op s)
-     | None => cierror ii (Cerr_assembler "Invalid register in pexpr")
-     end
+     Let s := reg_of_var_i ii v in
+     ciok (Reg_op s)
   | Pload v e =>
-     match (reg_of_var_i v) with
-     | Some s =>
-         Let w := word_of_pexpr ii e in
-         ciok (Address_op (mkAddress w (Some s) None))
-     | None => cierror ii (Cerr_assembler "Invalid register in Lvar")
-     end
+     Let s := reg_of_var_i ii v in
+     Let w := word_of_pexpr ii e in
+     ciok (Address_op (mkAddress w (Some s) None))
   | _ => cierror ii (Cerr_assembler "Invalid pexpr")
   end.
 
@@ -439,19 +562,15 @@ Definition assemble_i (li: linstr) : ciexec instr :=
 Definition assemble_c (lc: lcmd) : ciexec cmd :=
   mapM assemble_i lc.
 
-Record afundef := AFundef {
- afd_stk_size : Z;
- afd_nstk : Ident.ident;
- afd_arg  : seq var_i;
- afd_body : cmd;
- afd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)
-}.
-
-Definition aprog := seq (funname * afundef).
-
 Definition assemble_fd (fd: lfundef) :=
   Let fd' := assemble_c (lfd_body fd) in
-  ok (AFundef (lfd_stk_size fd) (lfd_nstk fd) (lfd_arg fd) fd' (lfd_res fd)).
+  match (reg_of_string (lfd_nstk fd)) with
+  | Some sp =>
+    Let arg := reg_of_vars_i xH (lfd_arg fd) in
+    Let res := reg_of_vars_i xH (lfd_res fd) in
+    ciok (XFundef (lfd_stk_size fd) sp arg fd' res)
+  | None => cierror xH (Cerr_assembler "Invalid stack pointer")
+  end.
 
-Definition assemble_prog (p: lprog) : cfexec aprog :=
+Definition assemble_prog (p: lprog) : cfexec xprog :=
   map_cfprog assemble_fd p.
