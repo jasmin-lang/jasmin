@@ -120,9 +120,12 @@ Instance constant_formula_m (P: Prop) : Proper (@eq mem ==> env_ext ==> iff) (λ
 Example ftrue: formula := existT _ (λ _ _, True) _.
 Example ffalse: formula := existT _ (λ _ _, False) _.
 
+Notation "'mv_of_fv' s" := (Mv.empty (λ x, s.[x])%vmap) (at level 10).
+Notation "'fv_of_mv' s" := (Fv.empty (λ x, s.[x])%mv) (at level 10).
+
 Definition formula_of_hpred (P: hpred) : formula.
 Proof.
-  refine (existT _ (λ (m: mem) (s: env), P {| semem := m ; sevm := Fv.empty (λ x, s.[x])%mv |}) _).
+  refine (existT _ (λ (m: mem) (s: env), P {| semem := m ; sevm := fv_of_mv s |}) _).
   apply formula_m.
   move=> m s s' E H.
   refine (eq_ind _ P H _ _).
@@ -133,7 +136,7 @@ Defined.
 Notation "⟨ P ⟩" := (formula_of_hpred P) : msem_scope.
 
 Definition formula_denote (f: formula) : hpred :=
-  λ s, projT1 f (semem s) (Mv.empty (λ x, (sevm s).[x])%vmap).
+  λ s, projT1 f (semem s) (mv_of_fv (sevm s)).
 
 Notation "⟦ f ⟧" := (formula_denote f) : msem_scope.
 
@@ -353,7 +356,7 @@ Lemma type_check_pexprP m s e ty :
   | Some te =>
   ∃ v,
   ssem_pexpr (SEstate m s) e = ok v ∧
-  of_sval _ v = ok (sem_texpr m (Mv.empty (λ x, s.[x])%vmap) ty te)
+  of_sval _ v = ok (sem_texpr m (mv_of_fv s) ty te)
   | None => ∃ exn, Let v := ssem_pexpr (SEstate m s) e in of_sval ty v = Error exn
   end.
 Proof.
@@ -482,7 +485,7 @@ Definition texpr_of_pexpr (ty: stype') (pe: pexpr) : texpr ty :=
 
 Definition eval_texpr (s: sestate) {ty} (e: texpr ty) : ssem_t ty :=
   let 'SEstate m vm := s in
-  sem_texpr m (Mv.empty (λ x, (vm).[x])%vmap) ty e.
+  sem_texpr m (mv_of_fv vm) ty e.
 
 Lemma texpr_of_pexpr_bool s e b :
   ssem_pexpr s e = ok (SVbool b) →
@@ -579,7 +582,7 @@ Qed.
 
 Lemma post_assgn_sound x ty (v: ssem_t ty) m vm s' f:
   swrite_lval x (to_sval v) (SEstate m vm) = ok s' →
-  (post_assgn x v f m (Mv.empty (λ x, vm.[x])%vmap)) →
+  (post_assgn x v f m (mv_of_fv vm)) →
   ⟦f⟧ s'.
 Proof.
   case: x => [ xi | [x xn] | [x xn] e' | x e' ] /swrite_lval_inv.
