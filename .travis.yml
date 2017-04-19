@@ -6,6 +6,9 @@ branches:
   - master
 services:
 - docker
+notifications:
+  email:
+  - jasmin+ci@framalistes.org
 env:
 - COQV=8.5.3-1.6.1 TARGET=coq
 - COQV=8.5.3-1.6.1 TARGET=compiler

@@ -295,7 +295,7 @@ func :
 | FN lname=loc(NID)
     args = parens_tuple(arg_def)
     rty  = ret_ty?
-    defs  = func_body
+    defs = func_body
     { () }
 
 (* -------------------------------------------------------------------- *)
