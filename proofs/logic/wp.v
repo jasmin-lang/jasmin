@@ -1137,4 +1137,53 @@ Proof.
   congruence.
 Qed.
 
+Definition wp_rec : cmd → formula → formula :=
+  Eval lazy beta delta [cmd_rect instr_Rect list_rect wp_assgn wp_opn wp_opn_aux] in
+  @cmd_rect
+    (λ _, instr_info → formula → formula)
+    (λ _, formula → formula)
+    (λ _, formula → formula)
+    (* instr_r *)
+    (λ i ii wpi, wpi ii)
+    (* nil *)
+    (λ Q, Q)
+    (* seq *)
+    (λ i c wpi wpc Q, wpi (wpc Q))
+    (* Cassgn *)
+    (λ x _ e ii, wp_assgn x e)
+    (* Copn *)
+    (λ xs o es ii, wp_opn xs o es)
+    (* Cif *)
+    (λ e c1 c2 wp1 wp2 ii, wp_if' e wp1 wp2)
+    (* Cfor *)
+    (λ v dr lo hi b wpb ii Q, ffalse)
+    (* Cwhile *)
+    (λ e c wpc ii Q, ffalse)
+    (* Ccall *)
+    (λ ii xs f es ii Q, ffalse).
+
+Lemma wp_rec_sound prg c f :
+  hoare prg ⟦wp_rec c f⟧ c ⟦f⟧.
+Proof.
+  set Pr := λ i : instr_r, ∀ ii f, hoare prg ⟦wp_rec [:: MkI ii i] f ⟧ [:: MkI ii i ] ⟦f⟧.
+  set Pi := λ i : instr, ∀ f, hoare prg ⟦ wp_rec [:: i] f⟧ [:: i] ⟦f⟧.
+  set Pc := λ c : cmd, ∀ f, hoare prg ⟦wp_rec c f⟧ c ⟦f⟧.
+  refine (@cmd_rect Pr Pi Pc _ _ _ _ _ _ _ _ _ c f); clear.
+  - by move=> i ii H //.
+  - by move=> f; apply: hoare_skip_core.
+  - move=> i c Hi Hc f.
+    apply: hoare_cons.
+    + 2: apply Hc.
+    exact: Hi.
+  - by move=> x t e ii f; apply: wp_assgn_sound.
+  - by move=> xs op es ii f; apply: wp_opn_sound.
+  - move=> e c1 c2 H1 H2 ii f.
+    apply: wp_if'_sound.
+    + exact: H1.
+    exact: H2.
+  - by move=> v dr lo hi c Hc ii f s s' H; apply: ffalse_denote.
+  - by move=> e c Hc ii f s s' H; apply: ffalse_denote.
+  - by move=> i xs fn es ii f s s' H; apply: ffalse_denote.
+Qed.
+
 End WEAKEST_PRECONDITION.
