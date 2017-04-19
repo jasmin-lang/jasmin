@@ -3,7 +3,7 @@
 # --------------------------------------------------------------------
 OCAMLBUILD_JOBS  ?= 2
 OCAMLBUILD_BIN   ?= ocamlbuild
-OCAMLBUILD_EXTRA ?= 
+OCAMLBUILD_EXTRA ?=
 OCAMLBUILD_OPTS  := -use-ocamlfind -j $(OCAMLBUILD_JOBS)
 
 # In Emacs, use classic display to enable error jumping.
@@ -35,21 +35,21 @@ define do-build
 endef
 
 byte:
-	$(call do-build,jasmin.byte)
+	$(call do-build,entry/jasminc.byte)
 
 native:
-	$(call do-build,jasmin.native)
+	$(call do-build,entry/jasminc.native)
 
 install: build
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
-	$(INSTALL) -m 0755 -T jasmin.native $(DESTDIR)$(BINDIR)/jasmin
+	$(INSTALL) -m 0755 -T jasminc.native $(DESTDIR)$(BINDIR)/jasminc
 
 uninstall:
-	rm -f $(DESTDIR)$(BINDIR)/jasmin
+	rm -f $(DESTDIR)$(BINDIR)/jasminc
 
 clean:
 	$(OCAMLBUILD) -clean
-	rm -f jasmin.native jasmin.byte
+	rm -f jasminc.native jasminc.byte
 
 # --------------------------------------------------------------------
 %.inferred.mli:

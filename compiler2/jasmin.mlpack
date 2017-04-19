@@ -1,0 +1,12 @@
+src/Array_expand
+src/Bigint
+src/BigintCore
+src/Lexer
+src/Location
+src/Parseio
+src/Parser
+src/Printer
+src/Prog
+src/Subst
+src/Syntax
+src/Utils

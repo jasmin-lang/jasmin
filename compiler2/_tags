@@ -5,6 +5,14 @@ true : warn_Z, warn_Y, warn_+28, warn_-23, warn_+33, warn_-58, warn_-3
 true : -traverse
 true : bin_annot
 
-<src> : include
-<src/*.{ml,mli}> : package(batteries, menhirLib, zarith)
-<src/*.{native,byte}> : package(batteries, menhirLib, zarith)
+# --------------------------------------------------------------------
+<.>     : include
+<src>   : traverse
+<entry> : traverse
+
+# --------------------------------------------------------------------
+<src/*.{ml,mli}>: package(batteries, menhirLib, zarith)
+<src/*.cmx>: for-pack(Jasmin)
+
+# --------------------------------------------------------------------
+<entry/*>: package(batteries, menhirLib, zarith)
