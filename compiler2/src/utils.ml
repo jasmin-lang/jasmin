@@ -1,7 +1,8 @@
 (* -------------------------------------------------------------------- *)
-module Map = BatMap
-module Set = BatSet
+module Map  = BatMap
+module Set  = BatSet
 module Hash = BatHashtbl
+
 (* -------------------------------------------------------------------- *)
 exception Unexpected
 
