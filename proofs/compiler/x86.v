@@ -575,14 +575,58 @@ Definition assemble_fd (fd: lfundef) :=
 Definition assemble_prog (p: lprog) : cfexec xprog :=
   map_cfprog assemble_fd p.
 
-Section PROOF.
-  Variable p: lprog.
-  Variable p': xprog.
-  Hypothesis assemble_ok : assemble_prog p = ok p'.
+(*
+Section RECT.
+  Variables (Pr:linstr_r -> Type) (Pi:linstr -> Type) (Pc : lcmd -> Type).
+  Hypothesis Hmk  : forall i ii, Pr i -> Pi (MkLI ii i).
+  Hypothesis Hnil : Pc [::].
+  Hypothesis Hcons: forall i c, Pi i -> Pc c -> Pc (i::c).
+  Hypothesis Hasgn: forall x t e, Pr (Lassgn x t e).
+  Hypothesis Hopn : forall xs o es, Pr (Lopn xs o es).
+  Hypothesis Hlbl : forall l, Pr (Llabel l).
+  Hypothesis Hgoto: forall l, Pr (Lgoto l).
+  Hypothesis Hcond: forall e l, Pr (Lcond e l).
+  Hypothesis Hret : Pr Lreturn.
+
+  Definition linstr_r_Rect (i:linstr_r) : Pr i :=
+    match i return Pr i with
+    | Lassgn x t e => Hasgn x t e
+    | Lopn xs o es => Hopn xs o es
+    | Llabel l => Hlbl l
+    | Lgoto l => Hgoto l
+    | Lcond e l => Hcond e l
+    | Lreturn => Hret
+    end.
+
+  Definition linstr_Rect (i:linstr) : Pi i :=
+    match i return Pi i with
+    | MkLI ii i => @Hmk i ii (linstr_r_Rect i)
+    end.
+
+  Fixpoint lcmd_rect (c:lcmd) : Pc c :=
+    match c return Pc c with
+    | [::] => Hnil
+    | i::c => @Hcons i c (linstr_Rect i) (lcmd_rect c)
+    end.
+End RECT.
+*)
+
+Section PROOF_CMD.
+  Variable c: lcmd.
+  Variable c': cmd.
+  Hypothesis assemble_ok : assemble_c c = ok c'.
 
   Definition incl_regmap (vm: vmap) (rm: regmap) :=
     forall x ii r, reg_of_var_i ii x = ciok r ->
     get_var vm x = ok (Vword (RegMap.get rm r)).
+
+  Definition incl_st (ls: lstate) (xs: x86_state) :=
+    ls.(lmem) = xs.(xmem) /\ incl_regmap ls.(lvm) xs.(xreg) /\ assemble_c ls.(lc) = ok xs.(xc).
+
+(*
+  Definition Pr (i_r: linstr_r) := forall s1 s2 s1',
+    incl_st s1 s1' ->
+    lsem1 c s1 s2 -> exists s2', xsem1 c' s1' s2'.
 
   Lemma assemble_cP lc xc:
     assemble_c lc = ok xc ->
@@ -590,7 +634,99 @@ Section PROOF.
     incl_regmap vm rm ->
     exists rm', xsem xc (X86State m rm xc) (X86State m' rm' [::]).
   Proof.
+    elim: lc=> //=.
+    + rewrite /assemble_c /= => -[] <- m vm rm m' vm' H.
+      sinversion H.
   Admitted.
+*)
+
+  Lemma pexpr_same s s' e v ii op:
+    incl_st s s' ->
+    sem_pexpr (to_estate s) e = ok v ->
+    operand_of_pexpr ii e = ok op ->
+    exists w, v = Vword w /\ read_op s' op = ok w.
+  Proof.
+    move=> Hincl.
+    case: e=> //= [[] //| |].
+    + move=> z.
+      apply: rbindP=> z0.
+      apply: rbindP=> /= x [] <- {x} [] <- {z0} []<- {v}.
+      apply: rbindP=> w /= Hw []<- /=.
+      exists (I64.repr z); split=> //.
+      rewrite /word_of_int in Hw.
+      move: Hw.
+      by case: ifP=> // _ []<-.
+    + move=> v0 Hv.
+      move: Hincl=> [_ [Hreg _]].
+      apply: rbindP=> s0 /Hreg Hv' []<- /=.
+      rewrite Hv' in Hv.
+      move: Hv=> []<-.
+      eexists=> //.
+    + move=> v0 p.
+      apply: rbindP=> w1.
+      apply: rbindP=> x1 Hx1 Hw1.
+      apply: rbindP=> w2.
+      apply: rbindP=> x2 Hx2 Hw2.
+      apply: rbindP=> w Hw []<-.
+      apply: rbindP=> s0 Hs0.
+      apply: rbindP=> w0 Hw0 []<-.
+      exists w; split=> //=.
+      move: Hincl=> [<- [Hreg _]].
+      case: p Hx2 Hw0=> // -[] // z /= Hx2 Hw0.
+      rewrite (Hreg _ _ _ Hs0) in Hx1.
+      move: Hx1=> [] Hx1.
+      subst x1.
+      move: Hw1=> []->.
+      move: Hx2=> [] Hx2.
+      rewrite -{}Hx2 {x2} in Hw2.
+      rewrite /word_of_int in Hw0.
+      move: Hw0.
+      case: ifP=> // _ []<-.
+      move: Hw2=> [] ->.
+      by rewrite I64.add_commut Hw.
+  Qed.
+
+  Lemma assemble_iP:
+    forall s1 s2 s1', incl_st s1 s1' ->
+    lsem1 c s1 s2 -> exists s2', xsem1 c' s1' s2' /\ incl_st s2 s2'.
+  Proof.
+    move=> s1 s2 s1' Hincl Hsem.
+    have [Hmem [Hreg Hc]] := Hincl.
+    sinversion Hsem.
+    + apply: rbindP H0=> v Hv Hw.
+      rewrite H /= /assemble_c /= in Hc.
+      apply: rbindP Hc=> y; apply: rbindP=> dst Hdst.
+      apply: rbindP=> src Hsrc [] <-.
+      rewrite -/(assemble_c _).
+      apply: rbindP=> ys Hys [] Hxc.
+      have [w [Hw1 Hw2]] := (pexpr_same Hincl Hv Hsrc).
+      admit.
+    + admit.
+    + admit.
+    + admit.
+    + admit.
+    + admit.
+  Admitted.
+
+  Lemma assemble_cP:
+    forall s1 s2 s1', incl_st s1 s1' ->
+    lsem c s1 s2 -> exists s2', xsem c' s1' s2'.
+  Proof.
+    move=> s1 s2 s1' Hincl H.
+    move: s1' Hincl.
+    induction H.
+    + move=> s1'; exists s1'=> //; exact: XSem0.
+    + move=> s1' Hincl; have [s2' [Hs2'1 Hs2'2]] := (assemble_iP Hincl H).
+      have [s3' Hs3'] := (IHlsem _ Hs2'2).
+      exists s3'.
+      apply: XSem1; [exact: Hs2'1|exact: Hs3'].
+  Qed.
+End PROOF_CMD.
+
+Section PROOF.
+  Variable p: lprog.
+  Variable p': xprog.
+  Hypothesis assemble_ok : assemble_prog p = ok p'.
 
   Lemma assemble_fdP:
     forall fn m1 va m2 vr,
