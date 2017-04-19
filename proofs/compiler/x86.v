@@ -23,7 +23,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-(* * Syntax and semantics of the dmasm source language *)
+(* * Syntax and semantics of the x86_64 target language *)
 
 (* ** Imports and settings *)
 Require Import Setoid Morphisms.
@@ -34,6 +34,7 @@ Require Import ZArith.
 
 Require Import strings word utils type var expr.
 Require Import low_memory memory sem linear compiler_util.
+Import Ascii.
 Import Memory.
 
 Set Implicit Arguments.
@@ -44,7 +45,7 @@ Local Open Scope seq_scope.
 
 Definition selector := nat.
 
-Inductive register : Set :=
+Variant register : Set :=
     RAX | RCX | RDX | RBX | RSP | RBP | RSI | RDI
   | R8  | R9  | R10 | R11 | R12 | R13 | R14 | R15.
 
@@ -58,66 +59,129 @@ Qed.
 Definition register_eqMixin := EqMixin register_eqP.
 Canonical  register_eqType := EqType register register_eqMixin.
 
-Definition reg_of_string (s: string) :=
+Definition string_of_register (r: register) : string :=
+  match r with
+  | RAX => "RAX"
+  | RCX => "RCX"
+  | RDX => "RDX"
+  | RBX => "RBX"
+  | RSP => "RSP"
+  | RBP => "RBP"
+  | RSI => "RSI"
+  | RDI => "RDI"
+  | R8 => "R8"
+  | R9 => "R9"
+  | R10 => "R10"
+  | R11 => "R11"
+  | R12 => "R12"
+  | R13 => "R13"
+  | R14 => "R14"
+  | R15 => "R15"
+  end%string.
+
+Definition reg_of_string (s: string) : option register :=
   match s with
-  | "RAX"%string => Some RAX
-  | "RCX"%string => Some RCX
-  | "RDX"%string => Some RDX
-  | "RBX"%string => Some RBX
-  | "RSP"%string => Some RSP
-  | "RBP"%string => Some RBP
-  | "RSI"%string => Some RSI
-  | "RDI"%string => Some RDI
-  | "R8"%string => Some R8
-  | "R9"%string => Some R9
-  | "R10"%string => Some R10
-  | "R11"%string => Some R11
-  | "R12"%string => Some R12
-  | "R13"%string => Some R13
-  | "R14"%string => Some R14
-  | "R15"%string => Some R15
-  | _ => None
+  | String c0 tl =>
+    if ascii_dec c0 "R" then
+    match tl with
+    | String c1 tl =>
+      match tl with
+      | EmptyString =>
+        if ascii_dec c1 "8" then Some R8 else
+        if ascii_dec c1 "9" then Some R9 else
+        None
+      | String c2 tl =>
+        match tl with
+        | EmptyString =>
+          if ascii_dec c2 "X" then if ascii_dec c1 "A" then Some RAX else
+          if ascii_dec c1 "B" then Some RBX else
+          if ascii_dec c1 "C" then Some RCX else
+          if ascii_dec c1 "D" then Some RDX else
+          None else
+          if ascii_dec c2 "P" then if ascii_dec c1 "S" then Some RSP else
+          if ascii_dec c1 "B" then Some RBP else
+          None else
+          if ascii_dec c2 "I" then if ascii_dec c1 "S" then Some RSI else
+          if ascii_dec c1 "D" then Some RDI else
+          None else
+          if ascii_dec c1 "1" then
+            if ascii_dec c2 "0" then Some R10 else
+            if ascii_dec c2 "1" then Some R11 else
+            if ascii_dec c2 "2" then Some R12 else
+            if ascii_dec c2 "3" then Some R13 else
+            if ascii_dec c2 "4" then Some R14 else
+            if ascii_dec c2 "5" then Some R15 else
+            None else
+          None
+        | String _ _ => None
+        end
+      end
+    | EmptyString => None
+    end
+    else None
+  | EmptyString => None
   end.
 
-Inductive scale : Set := Scale1 | Scale2 | Scale4 | Scale8.
+(* Sanity check *)
+Lemma reg_of_string_of_register r : reg_of_string (string_of_register r) = Some r.
+Proof. by case: r. Qed.
+
+Variant scale : Set := Scale1 | Scale2 | Scale4 | Scale8.
 
 Definition word_of_scale (s: scale) :=
-  I64.repr (match s with
+  I64.repr match s with
   | Scale1 => 1
   | Scale2 => 2
   | Scale4 => 4
   | Scale8 => 8
-  end).
+  end.
 
-Inductive rflag : Set := CF | PF | AF | ZF | SF | OF.
+Variant rflag : Set := CF | PF | AF | ZF | SF | OF.
+
+Definition string_of_rflag (r: rflag) : string :=
+  match r with
+  | CF => "CF"
+  | PF => "PF"
+  | AF => "AF"
+  | ZF => "ZF"
+  | SF => "SF"
+  | OF => "OF"
+  end%string.
 
 Definition rflag_of_string (s: string) :=
   match s with
-  | "CF"%string => Some CF
-  | "PF"%string => Some PF
-  | "AF"%string => Some AF
-  | "ZF"%string => Some ZF
-  | "SF"%string => Some SF
-  | "OF"%string => Some OF
+  | String c0 (String c1 EmptyString) =>
+    if ascii_dec c1 "F" then
+      if ascii_dec c0 "C" then Some CF else
+      if ascii_dec c0 "P" then Some PF else
+      if ascii_dec c0 "A" then Some AF else
+      if ascii_dec c0 "Z" then Some ZF else
+      if ascii_dec c0 "S" then Some SF else
+      if ascii_dec c0 "O" then Some OF else
+      None else
+    None
   | _ => None
   end.
 
+Lemma rflag_of_string_of_rflag r : rflag_of_string (string_of_rflag r) = Some r.
+Proof. by case: r. Qed.
+
 Record address : Set := mkAddress {
-  addrDisp : word ; 
-  addrBase : option register ; 
+  addrDisp : word ;
+  addrBase : option register ;
   addrIndex : option (scale * register)
 }.
 
-Inductive operand : Set := 
+Variant operand : Set :=
 | Imm_op : word -> operand
 | Reg_op : register -> operand
 | Address_op : address -> operand.
 
-Inductive reg_or_immed : Set := 
+Variant reg_or_immed : Set :=
 | Reg_ri : register -> reg_or_immed
 | Imm_ri : nat -> reg_or_immed.
 
-Inductive condition_type : Set :=
+Variant condition_type : Set :=
 | O_ct (* overflow *)
 | NO_ct (* not overflow *)
 | B_ct (* below, not above or equal *)
@@ -142,13 +206,13 @@ Inductive condition_type : Set :=
    to the same set of eight 80-bit registers as FPU registers *)
 Definition mmx_register := nat.
 
-Inductive mmx_granularity : Set :=
+Variant mmx_granularity : Set :=
 | MMX_8                         (* 8 bits *)
 | MMX_16                        (* 16 bits *)
 | MMX_32                        (* 32 bits *)
 | MMX_64.                       (* 64 bits *)
 
-Inductive mmx_operand : Set := 
+Variant mmx_operand : Set :=
 | GP_Reg_op : register -> mmx_operand
 | MMX_Addr_op : address -> mmx_operand
 | MMX_Reg_op : mmx_register -> mmx_operand
@@ -159,19 +223,19 @@ Inductive mmx_operand : Set :=
 Definition sse_register := nat.
 
 (*mmreg means mmx register. *)
-Inductive mxcsr: Set := FZ | Rpos | Rneg | RZ | RN | PM | UM | OM | ZM | DM | IM | DAZ | PE | UE |
+Variant mxcsr: Set := FZ | Rpos | Rneg | RZ | RN | PM | UM | OM | ZM | DM | IM | DAZ | PE | UE |
 			 OE | ZE | DE | IE.
 
-Inductive sse_operand : Set := 
+Variant sse_operand : Set :=
 | SSE_XMM_Reg_op : sse_register -> sse_operand
-| SSE_MM_Reg_op : mmx_register -> sse_operand 
+| SSE_MM_Reg_op : mmx_register -> sse_operand
 | SSE_Addr_op : address -> sse_operand
 | SSE_GP_Reg_op : register -> sse_operand (*r32 in manual*)
 | SSE_Imm_op : word -> sse_operand.
 
 (* The list of all instructions *)
 
-Inductive instr : Set :=
+Variant instr : Set :=
 (* "High-level" assembly-specific instructions *)
 | LABEL : label -> instr
 
@@ -299,7 +363,7 @@ Inductive instr : Set :=
 | DIVPS : forall (op1 op2: sse_operand), instr
 | DIVSS : forall (op1 op2: sse_operand), instr
 | LDMXCSR : forall (op1: sse_operand), instr
-| MAXPS : forall (op1 op2: sse_operand), instr 
+| MAXPS : forall (op1 op2: sse_operand), instr
 | MAXSS : forall (op1 op2: sse_operand), instr
 | MINPS : forall (op1 op2: sse_operand), instr
 | MINSS : forall (op1 op2: sse_operand), instr
@@ -418,7 +482,7 @@ Definition read_op (s: x86_state) (o: operand) :=
      ok m
   end.
 
-Inductive xsem1 (c:cmd) : x86_state -> x86_state -> Prop :=
+Variant xsem1 (c:cmd) : x86_state -> x86_state -> Prop :=
 | XSem_LABEL s1 lbl cs:
     s1.(xc) = (LABEL lbl) :: cs ->
     xsem1 c s1 (setc s1 cs)
@@ -446,7 +510,7 @@ Record xfundef := XFundef {
 
 Definition xprog := seq (funname * xfundef).
 
-Inductive xsem_fd P m1 fn va m2 vr : Prop := 
+Variant xsem_fd P m1 fn va m2 vr : Prop :=
 | XSem_fd : forall p cs fd vm2 m2' s1 s2,
     get_fundef P fn = Some fd ->
     alloc_stack m1 fd.(xfd_stk_size) = ok p ->

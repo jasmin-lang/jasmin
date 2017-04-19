@@ -26,6 +26,9 @@
 Require Import compiler.
 
 Require ExtrOcamlBasic.
+Require ExtrOcamlString.
+
+Extraction Inline ssrbool.is_left.
 
 Cd  "../compiler/src/CIL/".
 
