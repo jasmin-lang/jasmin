@@ -2,13 +2,14 @@
   open Utils
   open Parser
 
-  exception Error of string
+  module L = Location
 
-  let unterminated_comment () =
-    raise (Error "unterminated comment")
+  let unterminated_comment loc =
+    raise (Syntax.ParseError (loc, Some "unterminated comment"))
 
-  let invalid_char (c : char) =
-    raise (Error (Printf.sprintf "invalid char: `%c'" c))
+  let invalid_char loc (c : char) =
+    let msg = Printf.sprintf "invalid char: `%c'" c in
+    raise (Syntax.ParseError (loc, Some msg))
 
   let _keywords = [
     "u8"    , T_U8   ;
@@ -33,8 +34,6 @@
     "in"    , IN     ;
     "if"    , IF     ;
     "else"  , ELSE   ;
-    "pub"   , PUB    ;
-    "mut"   , MUT    ;
     "fn"    , FN     ;
     "return", RETURN ;
   ]
@@ -43,8 +42,8 @@
 }
 
 (* -------------------------------------------------------------------- *)
-let blank    = [' ' '\t' '\r' '\n']
-let newline  = '\n'
+let blank    = [' ' '\t' '\r']
+let newline  = ['\n']
 let digit    = ['0'-'9']
 let hexdigit = ['0'-'9' 'a'-'f' 'A'-'F']
 let lower    = ['a'-'z']
@@ -55,10 +54,13 @@ let ident    = idletter (idletter | digit)*
 
 (* -------------------------------------------------------------------- *)
 rule main = parse
+  | newline { Lexing.new_line lexbuf; main lexbuf }
   | blank+  { main lexbuf }
 
   | "/*" { comment 0 lexbuf; main lexbuf }
-  | "//" _* (newline | eof) { main lexbuf }
+
+  | "//" [^'\n']* newline { Lexing.new_line lexbuf; main lexbuf }
+  | "//" [^'\n']* eof     { main lexbuf }
 
   | ('-'? digit+) as s
       { INT (Bigint.of_string s) }
@@ -85,10 +87,10 @@ rule main = parse
   | "*="    { MULEQ      }
   | "-="    { MINUSEQ    }
   | "&="    { BANDEQ     }
-  | "<="    { LEQ        }
-  | "<"     { LESS       }
-  | ">="    { GEQ        }
-  | ">"     { GREATER    }
+  | "<="    { LE         }
+  | "<"     { LT         }
+  | ">="    { GE         }
+  | ">"     { GT         }
   | ".."    { DOTDOT     }
   | ","     { COMMA      }
   | ">>="   { SHREQ      }
@@ -109,13 +111,13 @@ rule main = parse
   | "|"     { OR         }
   | "$"     { DOLLAR     }
 
-  | _ as c  { invalid_char c }
+  | _ as c  { invalid_char (L.of_lexbuf lexbuf) c }
   | eof     { EOF }
 
 (* -------------------------------------------------------------------- *)
 and comment lvl = parse
-  | "*/"        { if lvl <= 0 then () else comment (lvl-1) lexbuf }
-  | "/*"        { comment (lvl+1) lexbuf }
-  | _+          { comment lvl lexbuf }
-  | newline     { Lexing.new_line lexbuf; comment lvl lexbuf }
-  | eof         { unterminated_comment () }
+  | "*/"             { if lvl <= 0 then () else comment (lvl-1) lexbuf }
+  | "/*"             { comment (lvl+1) lexbuf }
+  | newline          { Lexing.new_line lexbuf; comment lvl lexbuf }
+  | [^'\n']          { comment lvl lexbuf }
+  | eof              { unterminated_comment (L.of_lexbuf lexbuf) }

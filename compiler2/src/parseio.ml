@@ -17,7 +17,7 @@ let lexbuf_from_channel = fun name channel ->
 
 (* -------------------------------------------------------------------- *)
 let parserfun_entry =
-    MenhirLib.Convert.Simplified.traditional2revised P.modul
+    MenhirLib.Convert.Simplified.traditional2revised P.module_
 
 (* -------------------------------------------------------------------- *)
 let lexer (lexbuf : L.lexbuf) =

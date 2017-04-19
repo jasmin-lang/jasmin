@@ -13,6 +13,7 @@ true : bin_annot
 # --------------------------------------------------------------------
 <src/*.{ml,mli}>: package(batteries, menhirLib, zarith)
 <src/*.cmx>: for-pack(Jasmin)
+<src/parser.ml>: warn_-26
 
 # --------------------------------------------------------------------
 <entry/*>: package(batteries, menhirLib, zarith)
