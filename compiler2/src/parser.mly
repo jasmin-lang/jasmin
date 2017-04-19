@@ -3,9 +3,6 @@
   module S = Syntax
 %}
 
-/*
-(* ** Tokens *) */
-
 %token EOF
 
 %token LBRACK RBRACK LCBRACE RCBRACE LPAREN RPAREN
@@ -39,7 +36,6 @@
 %token IN
 %token IF
 %token ELSE
-%token ELIF
 %token TRUE
 %token FALSE
 %token FN
@@ -50,6 +46,7 @@
 %token <string> NID
 %token <Bigint.zint> INT
 
+%nonassoc EXCL
 %left LAND
 %left LOR
 %left MINUS PLUS
@@ -214,7 +211,10 @@ control_instr :
 | lc=loc(call) SEMICOLON
     { () }
 
-| IF c=pcond_or_fcond i1s=block ies=celse_if* mi2s=celse?
+| IF c=pcond_or_fcond i1s=block
+    { () }
+
+| IF c=pcond_or_fcond i1s=block ELSE i2s=block
     { () }
 
 | FOR cv=sdest IN LPAREN ce1=pexpr DOTDOT ce2=pexpr RPAREN is=block
@@ -224,14 +224,6 @@ control_instr :
     { () }
 
 | DO is=block WHILE fc=fcond SEMICOLON
-    { () }
-
-celse_if :
-| ELIF c=pcond_or_fcond is=block
-    { () }
-
-celse :
-| ELSE is=block
     { () }
 
 (* ** Instructions, blocks, and statements
@@ -285,22 +277,19 @@ arg_def :
 | lst=loc(stor_typ)
     { () }
 
-%inline code_sec:
+code_sec:
 | is = instr* { () }
 
-%inline var_sec:
+var_sec:
 | ds = terminated_list(SEMICOLON, typed_vars_stor) { () }
 
-%inline func_body :
+func_body :
 | LCBRACE
-    vs  = var_sec
-    is  = code_sec
-    lret = loc(return?)
+    vs   = var_sec
+    is   = code_sec
+    lret = loc(option(RETURN ret=tuple(var) SEMICOLON { () }))
   RCBRACE
     { () }
-
-return :
-| RETURN ret=tuple(var) SEMICOLON { ret }
 
 func :
 | FN lname=loc(NID)
