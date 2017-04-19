@@ -847,13 +847,16 @@ Lemma wp_opn_aux_m op targs f f' :
   wp_opn_aux op targs f'.
 Proof. exact: wp_opn_aux_aux_m. Qed.
 
+Definition sem_texprs m vm tys tes : stypes_denote ssem_t tys :=
+  stypes_denote_map texpr ssem_t (sem_texpr m vm) tys tes.
+
 Definition wp_opn (dst: lvals) (op: sopn) (args: pexprs) (post: formula) : formula.
   refine
   match type_check_pexprs args (sopn_type_i op) with
   | Some targs =>
     existT _ (
     λ m vm,
-    let vargs := stypes_denote_map texpr ssem_t (sem_texpr m vm) _ targs in
+    let vargs := sem_texprs m vm _ targs in
       wp_opn_aux op vargs (λ res, projT1 (post_opn dst _ res post) m vm)
     ) _
   | None => ffalse
@@ -861,6 +864,7 @@ Definition wp_opn (dst: lvals) (op: sopn) (args: pexprs) (post: formula) : formu
 Proof.
   abstract (
   apply: formula_m => /= m s s' E X;
+  unfold sem_texprs;
   erewrite stypes_denote_map_m by (apply sem_texpr_m, env_ext_sym, E);
   apply: wp_opn_aux_m; [ | exact: X];
   move=> q /=;
@@ -868,6 +872,157 @@ Proof.
   rewrite (projT2 f m) => //;
   reflexivity).
 Defined.
+
+Fixpoint of_svalues_rec ty tys (v: svalue) (vs: svalues) : exec (stypes_denote ssem_t (ty :: tys)) :=
+    match tys return exec (stypes_denote ssem_t (ty :: tys)) with
+    | [::] => match vs with [::] => of_sval ty v | _ => type_error end
+    | ty' :: tys' =>
+      match vs with
+      | [::] => type_error
+      | v' :: vs' =>
+        Let w := of_sval ty v in
+        Let ws := of_svalues_rec ty' tys' v' vs' in
+        ok (w, ws)
+      end
+    end.
+
+Definition of_svalues (tys: seq sstype) (vs: svalues) : exec (stypes_denote ssem_t tys) :=
+  match tys return exec (stypes_denote ssem_t tys) with
+  | [::] => match vs with [::] => ok tt | _ => type_error end
+  | ty :: tys' => match vs with [::] => type_error | v :: vs' => of_svalues_rec ty tys' v vs' end
+  end.
+
+Definition pair_eq_inv {A B} (a a': A) (b b': B) (H: (a, b) = (a', b')) : a = a' ∧ b = b' :=
+  let 'Logic.eq_refl := H in conj Logic.eq_refl Logic.eq_refl.
+
+Lemma post_opn_sound xs oty res m vm s' f :
+  swrite_lvals {| semem := m ; sevm := vm |} xs res = ok s' →
+  ∀ res', of_svalues oty res = ok res' →
+  projT1 (post_opn xs oty res' f) m (mv_of_fv vm) →
+  ⟦f⟧ s'.
+Proof.
+  case: xs res => [ | x xs ] [ | v vs ] //.
+  move=> H; apply ok_inj in H; subst s'.
+  case: oty => //.
+  apply: rbindP.
+  case: oty => // ty tys. unfold post_opn, of_svalues.
+  elim: tys m vm ty v vs x xs => [ | ty' tys' IH ] m vm ty v [ | v' vs] x [ | x' xs] // si Hsi.
+  move=> REC res' H.
+  apply of_sval_inv in H. subst v.
+  apply ok_inj in REC. subst si.
+  exact: post_assgn_sound.
+  case: si Hsi => m' vm' Hsi.
+  apply: rbindP => si' Hsi' REC [w res'] H.
+  move: H. apply: rbindP => w' H.
+  apply of_sval_inv in H. subst v.
+  apply: rbindP => ws REC' H.
+  apply ok_inj, pair_eq_inv in H; destruct H; subst w' ws.
+  specialize (IH _ _ _ _ _ _ _ _ Hsi' REC _ REC').
+  move=> H; eapply post_assgn_sound in H; eauto.
+  exact: IH.
+Qed.
+
+Lemma type_check_pexprs_ok pes tys tes m vm vs :
+  type_check_pexprs pes tys = Some tes →
+  ssem_pexprs {| semem := m ; sevm := vm |} pes = ok vs →
+  of_svalues tys vs = ok (sem_texprs m (mv_of_fv vm) _ tes).
+Proof.
+  case: pes tys tes vs => [ | pe pes ] [ | ty tys ] // tes.
+  by move=> [] // H; apply Some_inj in H; subst.
+  move=> [ _ | v vs ].
+  apply: rbindP => v Hv.
+  apply: rbindP => vs Hvs H; apply ok_inj in H; discriminate.
+  unfold of_svalues.
+  elim: pes pe ty tys tes v vs => [ | pe' pes IH ] pe ty tys tes' v vs' /=;
+  generalize (type_check_pexprP m vm pe ty);
+  case: type_check_pexpr => // te [v' [Hpe Hv']];
+  case: tys tes' => //.
+  move=> tes' H; apply Some_inj in H; subst tes'.
+  apply: rbindP => w Hw H; apply ok_inj in H; inversion H; clear H. subst w vs'.
+  simpl in *. congruence.
+  move=> ty' tys tes'.
+  generalize (type_check_pexprP m vm pe' ty').
+  case_eq (type_check_pexpr pe' ty') => // te' Hte' [w [Hpe' Hw]].
+  case_eq (type_check_pexprs pes tys) => // tes Htes H; apply Some_inj in H; subst tes'.
+  unfold ssem_pexprs; unfold mapM. rewrite Hpe Hpe'. simpl.
+  fold mapM. fold (ssem_pexprs {| semem := m ; sevm := vm |} pes).
+  case_eq (ssem_pexprs {| semem := m ; sevm := vm |} pes) => // tes' Htes' H; apply ok_inj in H.
+  inversion H; clear H; subst v' vs'.
+  rewrite Hv'. simpl.
+  specialize (IH pe' ty' tys (stype_cons te' tes) w).
+  simpl in IH. rewrite Hte' Htes in IH.
+  specialize (λ vs, IH vs Logic.eq_refl).
+  unfold ssem_pexprs in IH. simpl in IH.
+  fold (ssem_pexprs {| semem := m ; sevm := vm |} pes) in IH.
+  rewrite Hpe' Htes' in IH. simpl in IH.
+  specialize (IH _ Logic.eq_refl).
+  rewrite IH. simpl. auto.
+Qed.
+
+Lemma wp_opn_aux_aux_sound tys P Q :
+  wp_opn_aux_aux tys P Q →
+  P ⊂ Q.
+Proof.
+  case: tys P Q => [ | ty tys ] P Q.
+  move=> H [] _; exact: H.
+  elim: tys ty P Q => [ | ty' tys IH ] ty P Q //.
+  move=> H [v vs].
+  exact: (IH ty' (λ q, P (v, q)) (λ q, Q (v, q))).
+Qed.
+
+Definition SVword_inj a b (H: SVword a = SVword b) : a = b :=
+  let 'Logic.eq_refl := H in Logic.eq_refl.
+
+Definition SVbool_inj a b (H: SVbool a = SVbool b) : a = b :=
+  let 'Logic.eq_refl := H in Logic.eq_refl.
+
+Lemma ssem_sopn_inv op vargs vargs' res :
+  let ity := sopn_type_i op in
+  let oty := sopn_type_o op in
+  of_svalues ity vargs = ok vargs' →
+  ssem_sopn op vargs = ok res →
+  of_svalues oty res = ok (eval_sopn op vargs').
+Proof.
+  case: op vargs' => /=;
+  repeat match goal with
+  | |- _ → _ => intro
+  | H : SVword ?a = SVword ?b |- _ => apply SVword_inj in H
+  | H : SVbool ?a = SVbool ?b |- _ => apply SVbool_inj in H
+  | H : type_error = ok _ |- _ => refine (let 'Logic.eq_refl := H in I)
+  | H : sto_word _ = ok _ |- _ => apply sto_word_inv in H
+  | H : sto_bool _ = ok _ |- _ => apply sto_bool_inv in H
+  | H : Let _ := _ in _ = ok _ |- _ => apply bindW in H
+  | H : match ?a with _ => _ end = ok _ |- _ => destruct a
+  | H : ok _ = ok _ |- _ => apply ok_inj in H
+  | H : ?a = ?b |- _ => subst a || subst b
+  | H : ex2 _ _ |- _ => destruct H
+  end; auto.
+Qed.
+
+Lemma wp_opn_sound prg ii xs op args f :
+  hoare prg ⟦wp_opn xs op args f⟧ [:: MkI ii (Copn xs op args)] ⟦f⟧.
+Proof.
+  move=> [m vm] s1 /ssem_inv[s' [/ssem_I_inv [i' [ii' [/MkI_inj [? <-]] /ssem_i_inv [vargs [res [Hargs [Hvs Hs']]]]]] /ssem_inv ->]]; subst ii'.
+  unfold wp_opn.
+  case (type_check_pexprs _ _) as [ targs | ] eqn: EQ. 2: apply ffalse_denote.
+  move: (type_check_pexprs_ok _ _ _ _ _ _ EQ Hargs) => Htargs.
+  simpl.
+  unfold wp_opn_aux.
+  set vm' := mv_of_fv _. fold vm' in Htargs.
+  set ity := sopn_type_i _. fold ity in targs, Htargs, EQ.
+  set oty := sopn_type_o _.
+  set vargs' := sem_texprs _ _ _ _. fold vargs' in Htargs.
+  move=> H.
+  move: (ssem_sopn_inv _ _ _ _ Htargs Hvs) => X.
+  fold oty in X.
+  refine (post_opn_sound xs oty res m vm _ f Hs' _ X _).
+  fold vm'.
+  move: H.
+  set f' :=(λ res : stypes_denote ssem_t oty, projT1 (post_opn xs oty res f) m vm').
+  fold (f' (eval_sopn op vargs')).
+  set res' := eval_sopn _ _.
+  move=> H; exact: (wp_opn_aux_aux_sound _ (eq res') f' H).
+Qed.
 
 Definition formula_equiv (P Q: formula) : Prop :=
   ∀ m s, projT1 P m s ↔ projT1 Q m s.
