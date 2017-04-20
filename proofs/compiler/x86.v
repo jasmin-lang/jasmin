@@ -127,6 +127,13 @@ Definition reg_of_string (s: string) : option register :=
 Lemma reg_of_string_of_register r : reg_of_string (string_of_register r) = Some r.
 Proof. by case: r. Qed.
 
+Lemma reg_of_string_inj s1 s2 r :
+  reg_of_string s1 = Some r ->
+  reg_of_string s2 = Some r ->
+  s1 = s2.
+Proof.
+Admitted.
+
 Variant scale : Set := Scale1 | Scale2 | Scale4 | Scale8.
 
 Definition word_of_scale (s: scale) :=
@@ -436,7 +443,7 @@ Module RegMap.
   Definition get (m: map) (x: register) := m x.
 
   Definition set (m: map) (x: register) (y: word) :=
-    fun z => if (x == z) then y else m x.
+    fun z => if (z == x) then y else m z.
 End RegMap.
 
 Notation regmap := RegMap.map.
@@ -528,7 +535,7 @@ Variant xsem_fd P m1 fn va m2 vr : Prop :=
     get_fundef P fn = Some fd ->
     alloc_stack m1 fd.(xfd_stk_size) = ok p ->
     let c := fd.(xfd_body) in
-    write_op  (Reg_op fd.(xfd_nstk)) p.1 (X86State p.2 regmap0 [::]) = ok s1 ->
+    write_op  (Reg_op fd.(xfd_nstk)) p.1 (X86State p.2 regmap0 c) = ok s1 ->
     write_ops (map Reg_op fd.(xfd_arg)) va s1 = ok s2 ->
     xsem c s2 {| xmem := m2'; xreg := vm2; xc := cs |} ->
     mapM (fun r => read_op {| xmem := m2'; xreg := vm2; xc := cs |} (Reg_op r)) fd.(xfd_res) = ok vr ->
@@ -544,7 +551,7 @@ Definition rflag_of_var_i (v: var_i) :=
   | _ => None
   end.
 
-Definition reg_of_var_i ii (v: var_i) :=
+Definition reg_of_var ii (v: var_i) :=
   match v with
   | VarI (Var sword s) _ =>
      match (reg_of_string s) with
@@ -554,8 +561,31 @@ Definition reg_of_var_i ii (v: var_i) :=
   | _ => cierror ii (Cerr_assembler "Invalid register type")
   end.
 
-Fixpoint reg_of_vars_i ii (vs: list var_i) :=
-  mapM (reg_of_var_i ii) vs.
+Lemma reg_of_var_ii ii1 ii2 v1 v2 r:
+  v_var v1 = v_var v2 -> reg_of_var ii1 v1 = ok r -> reg_of_var ii2 v2 = ok r.
+Proof.
+  rewrite /reg_of_var.
+  move: v1=> [[[] vn1] vt1] //.
+  move: v2=> [[[] vn2] vt2] //.
+  move=> [] <-.
+  by case: (reg_of_string vn1).
+Qed.
+
+Lemma reg_of_var_inj ii v1 v2 r:
+  reg_of_var ii v1 = ok r ->
+  reg_of_var ii v2 = ok r ->
+  v_var v1 = v_var v2.
+Proof.
+  rewrite /reg_of_var.
+  move: v1=> [[[] vn1] vt1] //.
+  move: v2=> [[[] vn2] vt2] //.
+  case H1: (reg_of_string vn1)=> [r'1|//] []<-.
+  case H2: (reg_of_string vn2)=> [r'2|//] [] H; subst r'2.
+  by rewrite (reg_of_string_inj H1 H2).
+Qed.
+
+Definition reg_of_vars ii (vs: seq var_i) :=
+  mapM (reg_of_var ii) vs.
 
 Definition assemble_cond ii (e: pexpr) :=
   match e with
@@ -596,10 +626,10 @@ Definition operand_of_lval ii (l: lval) :=
   match l with
   | Lnone _ => cierror ii (Cerr_assembler "Lnone not implemented")
   | Lvar v =>
-     Let s := reg_of_var_i ii v in
+     Let s := reg_of_var ii v in
      ciok (Reg_op s)
   | Lmem v e =>
-     Let s := reg_of_var_i ii v in
+     Let s := reg_of_var ii v in
      Let w := word_of_pexpr ii e in
      ciok (Address_op (mkAddress w (Some s) None))
   | Laset v e => cierror ii (Cerr_assembler "Laset not handled in assembler")
@@ -611,10 +641,10 @@ Definition operand_of_pexpr ii (e: pexpr) :=
      Let w := word_of_int ii z in
      ciok (Imm_op w)
   | Pvar v =>
-     Let s := reg_of_var_i ii v in
+     Let s := reg_of_var ii v in
      ciok (Reg_op s)
   | Pload v e =>
-     Let s := reg_of_var_i ii v in
+     Let s := reg_of_var ii v in
      Let w := word_of_pexpr ii e in
      ciok (Address_op (mkAddress w (Some s) None))
   | _ => cierror ii (Cerr_assembler "Invalid pexpr")
@@ -643,8 +673,8 @@ Definition assemble_fd (fd: lfundef) :=
   Let fd' := assemble_c (lfd_body fd) in
   match (reg_of_string (lfd_nstk fd)) with
   | Some sp =>
-    Let arg := reg_of_vars_i xH (lfd_arg fd) in
-    Let res := reg_of_vars_i xH (lfd_res fd) in
+    Let arg := reg_of_vars xH (lfd_arg fd) in
+    Let res := reg_of_vars xH (lfd_res fd) in
     ciok (XFundef (lfd_stk_size fd) sp arg fd' res)
   | None => cierror xH (Cerr_assembler "Invalid stack pointer")
   end.
@@ -652,70 +682,47 @@ Definition assemble_fd (fd: lfundef) :=
 Definition assemble_prog (p: lprog) : cfexec xprog :=
   map_cfprog assemble_fd p.
 
-(*
-Section RECT.
-  Variables (Pr:linstr_r -> Type) (Pi:linstr -> Type) (Pc : lcmd -> Type).
-  Hypothesis Hmk  : forall i ii, Pr i -> Pi (MkLI ii i).
-  Hypothesis Hnil : Pc [::].
-  Hypothesis Hcons: forall i c, Pi i -> Pc c -> Pc (i::c).
-  Hypothesis Hasgn: forall x t e, Pr (Lassgn x t e).
-  Hypothesis Hopn : forall xs o es, Pr (Lopn xs o es).
-  Hypothesis Hlbl : forall l, Pr (Llabel l).
-  Hypothesis Hgoto: forall l, Pr (Lgoto l).
-  Hypothesis Hcond: forall e l, Pr (Lcond e l).
-  Hypothesis Hret : Pr Lreturn.
-
-  Definition linstr_r_Rect (i:linstr_r) : Pr i :=
-    match i return Pr i with
-    | Lassgn x t e => Hasgn x t e
-    | Lopn xs o es => Hopn xs o es
-    | Llabel l => Hlbl l
-    | Lgoto l => Hgoto l
-    | Lcond e l => Hcond e l
-    | Lreturn => Hret
-    end.
-
-  Definition linstr_Rect (i:linstr) : Pi i :=
-    match i return Pi i with
-    | MkLI ii i => @Hmk i ii (linstr_r_Rect i)
-    end.
-
-  Fixpoint lcmd_rect (c:lcmd) : Pc c :=
-    match c return Pc c with
-    | [::] => Hnil
-    | i::c => @Hcons i c (linstr_Rect i) (lcmd_rect c)
-    end.
-End RECT.
-*)
-
 Section PROOF_CMD.
   Variable c: lcmd.
   Variable c': cmd.
   Hypothesis assemble_ok : assemble_c c = ok c'.
 
   Definition incl_regmap (vm: vmap) (rm: regmap) :=
-    forall x ii r, reg_of_var_i ii x = ciok r ->
+    forall x ii r, reg_of_var ii x = ciok r ->
     get_var vm x = ok (Vword (RegMap.get rm r)).
 
   Definition incl_st (ls: lstate) (xs: x86_state) :=
     ls.(lmem) = xs.(xmem) /\ incl_regmap ls.(lvm) xs.(xreg) /\ assemble_c ls.(lc) = ok xs.(xc).
 
-(*
-  Definition Pr (i_r: linstr_r) := forall s1 s2 s1',
-    incl_st s1 s1' ->
-    lsem1 c s1 s2 -> exists s2', xsem1 c' s1' s2'.
-
-  Lemma assemble_cP lc xc:
-    assemble_c lc = ok xc ->
-    forall m vm rm m' vm', lsem lc (Lstate m vm lc) (Lstate m' vm' [::]) ->
-    incl_regmap vm rm ->
-    exists rm', xsem xc (X86State m rm xc) (X86State m' rm' [::]).
-  Proof.
-    elim: lc=> //=.
-    + rewrite /assemble_c /= => -[] <- m vm rm m' vm' H.
-      sinversion H.
+  Lemma find_label_same lbl cs:
+    linear.find_label lbl c = Some cs ->
+    exists cs', find_label lbl c' = Some cs' /\ assemble_c cs = ok cs'.
   Admitted.
-*)
+
+  Lemma mem_addr_same ls xs (v0: var_i) s0 p ii w0 w1 w2 x1 x2:
+    incl_st ls xs ->
+    get_var (lvm ls) v0 = ok x1 ->
+    to_word x1 = ok w1 ->
+    sem_pexpr (to_estate ls) p = ok x2 ->
+    to_word x2 = ok w2 ->
+    reg_of_var ii v0 = ok s0 ->
+    word_of_pexpr ii p = ok w0 ->
+    I64.add w1 w2 = I64.add w0 (RegMap.get (xreg xs) s0).
+  Proof.
+    move=> [_ [Hreg _]] Hx1 Hw1 Hx2 Hw2 Hs0 Hw0.
+    case: p Hx2 Hw0=> // -[] // z /= Hx2 Hw0.
+    rewrite (Hreg _ _ _ Hs0) in Hx1.
+    move: Hx1=> [] Hx1.
+    subst x1.
+    move: Hw1=> []->.
+    move: Hx2=> [] Hx2.
+    rewrite -{}Hx2 {x2} in Hw2.
+    rewrite /word_of_int in Hw0.
+    move: Hw0.
+    case: ifP=> // _ []<-.
+    move: Hw2=> [] ->.
+    by rewrite I64.add_commut.
+  Qed.
 
   Lemma pexpr_same s s' e v ii op:
     incl_st s s' ->
@@ -748,19 +755,89 @@ Section PROOF_CMD.
       apply: rbindP=> s0 Hs0.
       apply: rbindP=> w0 Hw0 []<-.
       exists w; split=> //=.
-      move: Hincl=> [<- [Hreg _]].
-      case: p Hx2 Hw0=> // -[] // z /= Hx2 Hw0.
-      rewrite (Hreg _ _ _ Hs0) in Hx1.
-      move: Hx1=> [] Hx1.
-      subst x1.
-      move: Hw1=> []->.
-      move: Hx2=> [] Hx2.
-      rewrite -{}Hx2 {x2} in Hw2.
-      rewrite /word_of_int in Hw0.
-      move: Hw0.
-      case: ifP=> // _ []<-.
-      move: Hw2=> [] ->.
-      by rewrite I64.add_commut Hw.
+      have Hincl' := Hincl.
+      move: Hincl'=> [<- [Hreg _]].
+      by rewrite -(mem_addr_same Hincl Hx1 Hw1 Hx2 Hw2 Hs0) // Hw.
+  Qed.
+
+  Lemma write_var_same w ls s' xs s v ii:
+    incl_st ls xs ->
+    write_var v (Vword w) (to_estate ls) = ok s' ->
+    reg_of_var ii v = ok s ->
+    exists xs', write_op (Reg_op s) w xs = ok xs' /\ incl_st (of_estate s' ls.(lc)) xs'.
+  Proof.
+    move=> Hincl Hw Hs; move: Hw.
+    rewrite /write_var.
+    apply: rbindP=> vm.
+    apply: rbindP=> v0 Hv0 []<- []<-.
+    eexists; split; eauto; split=> /=.
+    by move: Hincl=> [? _].
+    split; last by move: Hincl=> [_ [_ ?]].
+    move=> x ii0 r Hr.
+    case Heq: (v_var x == v_var v).
+    + move: Heq=> /eqP Heq.
+      rewrite Heq.
+      rewrite /get_var Fv.setP_eq /=.
+      rewrite /RegMap.set /RegMap.get /=.
+      rewrite (reg_of_var_ii _ Heq Hr) in Hs.
+      move: Hs=> -[] <-.
+      rewrite eq_refl.
+      by case: (vtype v) v0 Hv0=> // v0 /= []<-.
+    + rewrite /get_var Fv.setP_neq /=.
+      rewrite -/(get_var _ _).
+      move: Hincl=> [_ [/(_ x ii0 r Hr) -> _]].
+      rewrite /RegMap.get /RegMap.set /=.
+      suff ->: (r == s) = false=> //.
+      apply/eqP=> Hrs; subst r.
+      have Hx: v_var x = x by [].
+      have Hr' := @reg_of_var_ii ii0 ii x x s Hx Hr.
+      move: Heq=> /eqP Habs; apply: Habs.
+      rewrite (reg_of_var_inj Hs Hr') //.
+      by rewrite eq_sym Heq.
+  Qed.
+
+  Lemma write_vars_same w ls s' xs s (v: seq var_i) ii:
+    incl_st ls xs ->
+    write_vars v [seq (Vword i) | i <- w] (to_estate ls) = ok s' ->
+    reg_of_vars ii v = ok s ->
+    exists xs', write_ops (List.map Reg_op s) w xs = ok xs' /\ incl_st (of_estate s' ls.(lc)) xs'.
+  Proof.
+    elim: v w ls s xs=> [|va vl IH] [|wa wl] ls s xs Hincl //=.
+    + move=> []<-.
+      rewrite /reg_of_vars /= => -[]<-.
+      by exists xs; split.
+    + apply: rbindP=> x Ha Hl.
+      rewrite /reg_of_vars /=.
+      apply: rbindP=> y Hy.
+      rewrite -/(reg_of_vars _ _).
+      apply: rbindP=> ys Hys []<-.
+      have [xs' [Hxs'1 Hxs'2]] := write_var_same Hincl Ha Hy.
+      have Hx: x = to_estate (of_estate x ls.(lc)) by case: x Ha Hl Hxs'2.
+      rewrite Hx in Hl.
+      have [xs'' [Hxs''1 /= Hxs''2]] := IH _ _ _ _ Hxs'2 Hl Hys.
+      exists xs''; repeat split=> //.
+      move: Hxs'1=> -[] ->.
+      exact: Hxs''1.
+  Qed.
+
+  Lemma lval_same ls s' xs l w op ii:
+    incl_st ls xs ->
+    write_lval l (Vword w) (to_estate ls) = ok s' ->
+    operand_of_lval ii l = ok op ->
+    exists xs', write_op op w xs = ok xs' /\ incl_st (of_estate s' ls.(lc)) xs'.
+  Proof.
+    move=> Hincl.
+    case: l=> // [v|v e] /=.
+    + move=> Hw.
+      apply: rbindP=> s Hs []<-.
+      exact: (write_var_same Hincl Hw Hs).
+    + apply: rbindP=> w1; apply: rbindP=> x1 Hx1 Hw1.
+      apply: rbindP=> w2; apply: rbindP=> x2 Hx2 Hw2.
+      apply: rbindP=> m Hm []<-.
+      apply: rbindP=> s Hs; apply: rbindP=> w0 Hw0 []<- /=.
+      rewrite -(mem_addr_same Hincl Hx1 Hw1 Hx2 Hw2 Hs) //.
+      move: Hincl=> [<- [Hr Hc]]; rewrite Hm /=.
+      by eexists; split; eauto; split.
   Qed.
 
   Lemma assemble_iP:
@@ -777,26 +854,43 @@ Section PROOF_CMD.
       rewrite -/(assemble_c _).
       apply: rbindP=> ys Hys [] Hxc.
       have [w [Hw1 Hw2]] := (pexpr_same Hincl Hv Hsrc).
-      admit.
-    + admit.
-    + admit.
-    + admit.
-    + admit.
-    + admit.
+      rewrite Hw1 in Hw.
+      have [xs' [Hxs'1 Hxs'2]] := lval_same Hincl Hw Hdst; eexists; split.
+      apply: XSem_MOV; eauto.
+      repeat split=> //=.
+      by move: Hxs'2=> [? _].
+      by move: Hxs'2=> [_ [? _]].
+    + admit. (* Lopn: TODO *)
+    + rewrite H /= /assemble_c /= in Hc.
+      apply: rbindP Hc=> ys Hys [] Hc.
+      eexists; split; eauto.
+      apply: XSem_LABEL.
+      by rewrite -Hc.
+      by split.
+    + rewrite H /= /assemble_c /= in Hc.
+      apply: rbindP Hc=> ys Hys [] Hc.
+      have [cs'' [Hcs''1 Hcs''2]] := find_label_same H0.
+      eexists; split; eauto.
+      apply: XSem_JMP.
+      by rewrite -Hc.
+      exact: Hcs''1.
+      by repeat split.
+    + admit. (* Lcond true: TODO *)
+    + admit. (* Lcond false: TODO *)
   Admitted.
 
   Lemma assemble_cP:
     forall s1 s2 s1', incl_st s1 s1' ->
-    lsem c s1 s2 -> exists s2', xsem c' s1' s2'.
+    lsem c s1 s2 -> exists s2', xsem c' s1' s2' /\ incl_st s2 s2'.
   Proof.
     move=> s1 s2 s1' Hincl H.
     move: s1' Hincl.
     elim H using lsem_ind; clear -assemble_ok.
-    + move=> s s1'; exists s1'=> //; exact: XSem0.
+    + move=> s s1'; exists s1'=> //; split=> //; exact: XSem0.
     + move=> s1 s2 s3 H _ IH s1' Hincl; have [s2' [Hs2'1 Hs2'2]] := (assemble_iP Hincl H).
-      have [s3' Hs3'] := (IH _ Hs2'2).
-      exists s3'.
-      apply: XSem1; [exact: Hs2'1|exact: Hs3'].
+      have [s3' [Hs3'1 Hs3'2]] := (IH _ Hs2'2).
+      exists s3'; split=> //.
+      apply: XSem1; [exact: Hs2'1|exact: Hs3'1].      
   Qed.
 End PROOF_CMD.
 
@@ -815,15 +909,34 @@ Section PROOF.
     rewrite /assemble_prog in H0'.
     have [f' [Hf'1 Hf'2]] : exists f', assemble_fd fd = ok f' /\ get_fundef p' fn = Some f'.
       admit. (* get_map_cfprog: need an eqType.. *)
-    apply: rbindP Hf'1=> z Hz.
-    case: (reg_of_string _)=> // sp.
+    apply: rbindP Hf'1=> c' Hc'.
+    case Hsp: (reg_of_string _)=> [sp|//].
     apply: rbindP=> arg Harg.
     apply: rbindP=> res Hres.
     move=> [] Hf'.
     rewrite -{}Hf' in Hf'2.
-    apply: (XSem_fd Hf'2 H1)=> //=.
-    admit.
-    admit.
-    admit.
+    have Hs: {| emem := p0.2; evm := vmap0 |} = to_estate (Lstate p0.2 vmap0 c) by [].
+    rewrite Hs in H2.
+    have Hsp': reg_of_var ii {| v_var := {| vtype := sword; vname := lfd_nstk fd |}; v_info := 1%positive |} = ok sp.
+      by rewrite /= Hsp.
+    have Hincl0: incl_st {| lmem := p0.2; lvm := vmap0; lc := c |} {| xmem := p0.2; xreg := regmap0; xc := c' |}.
+      repeat split=> //=.
+      move=> x ii0 r Hr.
+      admit. (* incl_regmap should be changed? *)
+    have [xs1 /= [[] Hxs11 Hxs12]] := write_var_same Hincl0 H2 Hsp'.
+    have Hs1: s1 = to_estate (of_estate s1 c).
+      by case: s1 H3 H2 Hxs12.
+    rewrite Hs1 in H3.
+    have [xs2 /= [Hxs21 Hxs22]] := write_vars_same Hxs12 H3 Harg.
+    have [xs3 /= [Hxs31 Hxs32]] := assemble_cP Hc' Hxs22 H4.
+    have Hres': mapM (fun r => read_op xs3 (Reg_op r)) res = ok vr.
+      admit.
+    move: xs3 Hxs31 Hxs32 Hres'=> [xmem3 xreg3 xc3] Hxs31 Hxs32 Hres' /=.
+    apply: (XSem_fd Hf'2 H1)=> /=.
+    by rewrite -Hxs11.
+    exact: Hxs21.
+    exact: Hxs31.
+    exact: Hres'.
+    by move: Hxs32=> [] /= ->.
   Admitted.
 End PROOF.
