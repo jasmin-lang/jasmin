@@ -36,6 +36,7 @@ Require Import strings word utils type var expr.
 Require Import low_memory memory sem linear compiler_util.
 Import Ascii.
 Import Memory.
+Import Relations.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -482,23 +483,35 @@ Definition read_op (s: x86_state) (o: operand) :=
      ok m
   end.
 
-Variant xsem1 (c:cmd) : x86_state -> x86_state -> Prop :=
+Section XSEM.
+
+Context (c: cmd).
+
+Variant xsem1 : x86_state -> x86_state -> Prop :=
 | XSem_LABEL s1 lbl cs:
     s1.(xc) = (LABEL lbl) :: cs ->
-    xsem1 c s1 (setc s1 cs)
+    xsem1 s1 (setc s1 cs)
 | XSem_JMP s1 lbl cs cs':
     s1.(xc) = (JMP lbl) :: cs ->
     find_label lbl c = Some cs' ->
-    xsem1 c s1 (setc s1 cs')
+    xsem1 s1 (setc s1 cs')
 | XSem_MOV s1 dst src cs w s2:
     s1.(xc) = (MOV U64 dst src) :: cs ->
     read_op s1 src = ok w ->
     write_op dst w s1 = ok s2 ->
-    xsem1 c s1 (setc s2 cs).
+    xsem1 s1 (setc s2 cs).
 
-Inductive xsem (c:cmd) : x86_state -> x86_state -> Prop:=
-| XSem0 : forall s, xsem c s s
-| XSem1 : forall s1 s2 s3, xsem1 c s1 s2 -> xsem c s2 s3 -> xsem c s1 s3.
+Definition xsem : relation x86_state := clos_refl_trans _ xsem1.
+
+Definition XSem0 s : xsem s s := rt_refl _ _ s.
+
+Definition XSem1 s2 s1 s3 :
+  xsem1 s1 s2 ->
+  xsem s2 s3 ->
+  xsem s1 s3.
+Proof. by move=> H; apply: rt_trans; apply: rt_step. Qed.
+
+End XSEM.
 
 Record xfundef := XFundef {
  xfd_stk_size : Z;
