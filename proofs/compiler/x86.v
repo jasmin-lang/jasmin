@@ -127,12 +127,23 @@ Definition reg_of_string (s: string) : option register :=
 Lemma reg_of_string_of_register r : reg_of_string (string_of_register r) = Some r.
 Proof. by case: r. Qed.
 
+Definition Some_inj {A: Type} {a b: A} (H: Some b = Some a) : b = a :=
+  let 'Logic.eq_refl := H in Logic.eq_refl.
+
 Lemma reg_of_string_inj s1 s2 r :
   reg_of_string s1 = Some r ->
   reg_of_string s2 = Some r ->
   s1 = s2.
 Proof.
-Admitted.
+  unfold reg_of_string; move=> A B; rewrite <- A in B.
+  repeat match goal with
+  | |- ?a = ?a => exact Logic.eq_refl
+  | H : ?a = ?b |- _ => subst a || subst b || refine (let 'Logic.eq_refl := H in I)
+  | H : Some _ = Some _ |- _ => apply Some_inj in H
+  | H : (if is_left ?a then _ else _) = Some _ |- _ => destruct a; simpl in *
+  | H : match ?a with _ => _ end = Some _ |- _ => destruct a; simpl in H
+  end.
+Qed.
 
 Variant scale : Set := Scale1 | Scale2 | Scale4 | Scale8.
 
