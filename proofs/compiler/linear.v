@@ -54,7 +54,7 @@ Variant linstr_r :=
   | Llabel : label -> linstr_r
   | Lgoto  : label -> linstr_r
   | Lcond  : pexpr -> label -> linstr_r
-  | Lreturn: linstr_r.
+.
 
 Record linstr : Type := MkLI { li_ii : instr_info; li_i : linstr_r }.
 
@@ -67,7 +67,6 @@ Definition linstr_r_beq i1 i2 :=
   | Llabel l1, Llabel l2 => l1 == l2
   | Lgoto l1, Lgoto l2 => l1 == l2
   | Lcond e1 l1, Lcond e2 l2 => (e1 == e2) && (l1 == l2)
-  | Lreturn, Lreturn => true
   | _, _ => false
   end.
 
@@ -79,7 +78,7 @@ Definition linstr_beq i1 i2 :=
 Lemma linstr_r_eq_axiom : Equality.axiom linstr_r_beq.
 Proof.
   rewrite /Equality.axiom.
-  move=> [x1 t1 e1|x1 o1 e1|l1|l1|e1 l1|] [x2 t2 e2|x2 o2 e2|l2|l2|e2 l2|] //=; try by right.
+  move=> [x1 t1 e1|x1 o1 e1|l1|l1|e1 l1] [x2 t2 e2|x2 o2 e2|l2|l2|e2 l2] //=; try by right.
   + apply (@equivP ((t1 == t2) && (x1 == x2) && (e1 == e2)));first by apply idP.
     split=> [/andP [] /andP [] /eqP-> /eqP-> /eqP-> | [] <- <- <- ] //.
     by rewrite !eq_refl.
@@ -93,7 +92,6 @@ Proof.
   + apply (@equivP ((e1 == e2) && (l1 == l2))); first by apply idP.
     split=> [/andP [] /eqP-> /eqP->|[] <- <-] //.
     by rewrite !eq_refl.
-  + by left.
 Qed.
 
 Definition linstr_r_eqMixin     := Equality.Mixin linstr_r_eq_axiom.
@@ -154,7 +152,7 @@ Variable P: lprog.
 
 Lemma is_labelP i lbl: reflect (i.(li_i) = Llabel lbl) (is_label lbl i).
 Proof.
-  case:i => ii [||l|||] //=;try by constructor.
+  case:i => ii [||l||] //=;try by constructor.
   by apply:(equivP (_ =P _));split=> [|[]] ->.
 Qed.
 
@@ -179,7 +177,7 @@ describes the execution of the first instruction.
 
 Therefore, [lsem c s] represents all states reachable from [s] by partial executions of [c].
 A maximal execution (i.e., terminated without error) is caracterized by the fact that
-the reached state has [Lreturn] as first instruction.
+the reached state has no instruction left to execute.
 *)
 Section LSEM.
 
@@ -234,14 +232,14 @@ Qed.
 End LSEM.
 
 Inductive lsem_fd m1 fn va m2 vr : Prop :=
-| LSem_fd : forall p cs fd ii vm2 m2' s1 s2,
+| LSem_fd : forall p fd vm2 m2' s1 s2,
     get_fundef P fn = Some fd ->
     alloc_stack m1 fd.(lfd_stk_size) = ok p ->
     let c := fd.(lfd_body) in
     write_var  (S.vstk fd.(lfd_nstk)) p.1 (Estate p.2 vmap0) = ok s1 ->
     write_vars fd.(lfd_arg) va s1 = ok s2 ->
     lsem c (of_estate s2 c)
-           {| lmem := m2'; lvm := vm2; lc := (MkLI ii Lreturn) :: cs |} ->
+           {| lmem := m2'; lvm := vm2; lc := [::] |} ->
     mapM (fun (x:var_i) => get_var vm2 x) fd.(lfd_res) = ok vr ->
     m2 = free_stack m2' p.1 fd.(lfd_stk_size) ->
     List.Forall is_full_array vr ->
@@ -316,7 +314,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
 End SEM.
 
 Definition linear_fd (fd: sfundef) :=
-  Let fd' := linear_c linear_i (sf_body fd) 1%positive [:: MkLI xH Lreturn] in
+  Let fd' := linear_c linear_i (sf_body fd) 1%positive [::] in
   ok (LFundef (sf_stk_sz fd) (sf_stk_id fd) (sf_params fd) fd'.2 (sf_res fd)).
 
 Definition linear_prog (p: sprog) : cfexec lprog :=
@@ -417,7 +415,7 @@ Lemma valid_le_min min2 min1 max lc :
   valid min2 max lc ->
   valid min1 max lc.
 Proof.
-  by move=> Hle1; apply: sub_all=> -[ii [| |lbl|lbl|e lbl|]] //= /andP [] Hle2 ->;
+  by move=> Hle1; apply: sub_all=> -[ii [| |lbl|lbl|e lbl]] //= /andP [] Hle2 ->;
   rewrite (Pos_leb_trans Hle1 Hle2).
 Qed.
 
@@ -426,7 +424,7 @@ Lemma valid_le_max max2 max1 min lc :
   valid min max1 lc ->
   valid min max2 lc.
 Proof.
-  by move=> Hle1; apply sub_all=> -[ii [| |lbl|lbl|e lbl|]] //= /andP [] -> Hlt1 /=;
+  by move=> Hle1; apply sub_all=> -[ii [| |lbl|lbl|e lbl]] //= /andP [] -> Hlt1 /=;
    rewrite (Pos_lt_leb_trans Hlt1 Hle1).
 Qed.
 
@@ -472,7 +470,7 @@ Lemma valid_find_label p1 p2 c c' lbl:
   find_label lbl c = Some c' ->
   valid p1 p2 c'.
 Proof.
-  elim: c => //= -[ii [| b| lbl'|lbl'|e lbl'|]] l Hrec //= /andP[_ H];
+  elim: c => //= -[ii [| b| lbl'|lbl'|e lbl']] l Hrec //= /andP[_ H];
     move:(H) => /Hrec H' //.
   by case:ifP => [_[]<-|_].
 Qed.
@@ -493,7 +491,7 @@ Proof.
   have Hdisj' :  ~~ has (is_label lbl) c1.
   + by move: Hdisj;apply contra=> ->;rewrite orbC.
   have {Hrec}Hrec := Hrec Hdisj'.
-  case:i Hdisj=> [ii [|b|lbl'|lbl'|e lbl'|]] //=;case:ifP => //= /eqP ?.
+  case:i Hdisj=> [ii [|b|lbl'|lbl'|e lbl']] //=;case:ifP => //= /eqP ?.
 Qed.
 
 Definition disjoint_lbl c1 c2 :=
@@ -561,7 +559,7 @@ Lemma valid_has c lbl p1 p2 :
   ((p1 <=? lbl) && (lbl <? p2))%positive.
 Proof.
   elim: c => //= i c Hrec /andP[] H /Hrec.
-  by case: i H=>[ii [| |lbl'|lbl'|e lbl'|]] //=;
+  by case: i H=>[ii [| |lbl'|lbl'|e lbl']] //=;
   rewrite {2}/is_label /=; case: eqP=> [->|].
 Qed.
 
@@ -862,7 +860,7 @@ Section PROOF.
     rewrite linear_c_nil in Heq.
     apply: rbindP Heq=> [[lblc' lc']] Heq [] Hz1 Hz2.
     have [_ _ H] := linear_cP Heq.
-    move: H4=> /H /(@lsem_cat_tl [:: MkLI xH Lreturn]) Hs.
+    move: H4=> /H /(@lsem_cat_tl [::]) Hs.
     rewrite -Hf'3 in Hf'2.
     apply: LSem_fd.
     exact: Hf'2.

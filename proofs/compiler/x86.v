@@ -663,7 +663,6 @@ Definition assemble_i (li: linstr) : ciexec instr :=
   | Lcond e l =>
      Let cond := assemble_cond ii e in
      ciok (Jcc cond l)
-  | Lreturn => ciok (LABEL xH)
   end.
 
 Definition assemble_c (lc: lcmd) : ciexec cmd :=
@@ -899,6 +898,7 @@ Section PROOF.
   Variable p': xprog.
   Hypothesis assemble_ok : assemble_prog p = ok p'.
 
+  (*
   Lemma assemble_fdP:
     forall fn m1 va m2 vr,
     lsem_fd p m1 fn (map Vword va) m2 (map Vword vr) -> xsem_fd p' m1 fn va m2 vr.
@@ -939,4 +939,6 @@ Section PROOF.
     exact: Hres'.
     by move: Hxs32=> [] /= ->.
   Admitted.
+*)
+
 End PROOF.
