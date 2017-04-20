@@ -71,34 +71,15 @@ let bi_of_coqZ z =
   | BinNums.Z0 -> Big_int.zero_big_int
   | BinNums.Zpos p -> bi_of_pos p
 
-let ascii_of_char x =
-  let x = int_of_char x in
-  let bit i = x lsr (7 - i) land 1 = 1 in
-  Ascii.Ascii(bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7)
-
-let char_of_ascii c =
-  let Ascii.Ascii(b7, b6, b5, b4, b3, b2, b1, b0) = c in
-  let cv b i = if b then 1 lsl i else 0 in
-  let i =
-    (cv b7 7) + (cv b6 6) + (cv b5 5) + (cv b4 4) + (cv b3 3) + (cv b2 2) + (cv b1 1) + (cv b0 0)
-  in
-  char_of_int i
-
 let string0_of_string s =
-  let s0 = ref String0.EmptyString in
+  let s0 = ref [] in
   for i = String.length s - 1 downto 0 do
-    s0 := String0.String (ascii_of_char s.[i], !s0)
+    s0 := s.[i] :: !s0
   done;
   !s0
 
 let string_of_string0 s0 =
-  let rec go acc s0 =
-    match s0 with
-    | String0.EmptyString   -> List.rev acc
-    | String0.String (c,s0) ->
-      go ((char_of_ascii c)::acc) s0
-  in
-  String.of_char_list (go [] s0)
+	String.of_char_list s0
 
 let cbool_of_bool b =
 	b
