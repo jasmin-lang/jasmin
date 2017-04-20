@@ -778,10 +778,10 @@ Section PROOF_CMD.
   Proof.
     move=> s1 s2 s1' Hincl H.
     move: s1' Hincl.
-    induction H.
-    + move=> s1'; exists s1'=> //; exact: XSem0.
-    + move=> s1' Hincl; have [s2' [Hs2'1 Hs2'2]] := (assemble_iP Hincl H).
-      have [s3' Hs3'] := (IHlsem _ Hs2'2).
+    elim H using lsem_ind; clear -assemble_ok.
+    + move=> s s1'; exists s1'=> //; exact: XSem0.
+    + move=> s1 s2 s3 H _ IH s1' Hincl; have [s2' [Hs2'1 Hs2'2]] := (assemble_iP Hincl H).
+      have [s3' Hs3'] := (IH _ Hs2'2).
       exists s3'.
       apply: XSem1; [exact: Hs2'1|exact: Hs3'].
   Qed.
