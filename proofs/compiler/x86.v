@@ -698,8 +698,9 @@ Section PROOF_CMD.
   Hypothesis assemble_ok : assemble_c c = ok c'.
 
   Definition incl_regmap (vm: vmap) (rm: regmap) :=
-    forall x ii r, reg_of_var ii x = ciok r ->
-    get_var vm x = ok (Vword (RegMap.get rm r)).
+    forall x ii r v, reg_of_var ii x = ciok r ->
+    get_var vm x = ok v ->
+    Vword (RegMap.get rm r) = v.
 
   Definition incl_st (ls: lstate) (xs: x86_state) :=
     ls.(lmem) = xs.(xmem) /\ incl_regmap ls.(lvm) xs.(xreg) /\ assemble_c ls.(lc) = ok xs.(xc).
@@ -721,9 +722,7 @@ Section PROOF_CMD.
   Proof.
     move=> [_ [Hreg _]] Hx1 Hw1 Hx2 Hw2 Hs0 Hw0.
     case: p Hx2 Hw0=> // -[] // z /= Hx2 Hw0.
-    rewrite (Hreg _ _ _ Hs0) in Hx1.
-    move: Hx1=> [] Hx1.
-    subst x1.
+    have Hx1' := Hreg _ _ _ _ Hs0 Hx1; subst x1.
     move: Hw1=> []->.
     move: Hx2=> [] Hx2.
     rewrite -{}Hx2 {x2} in Hw2.
@@ -752,9 +751,8 @@ Section PROOF_CMD.
       by case: ifP=> // _ []<-.
     + move=> v0 Hv.
       move: Hincl=> [_ [Hreg _]].
-      apply: rbindP=> s0 /Hreg Hv' []<- /=.
-      rewrite Hv' in Hv.
-      move: Hv=> []<-.
+      apply: rbindP=> s0 /Hreg /(_ Hv) Hv' []<- /=.
+      subst v.
       eexists=> //.
     + move=> v0 p.
       apply: rbindP=> w1.
@@ -783,7 +781,7 @@ Section PROOF_CMD.
     eexists; split; eauto; split=> /=.
     by move: Hincl=> [? _].
     split; last by move: Hincl=> [_ [_ ?]].
-    move=> x ii0 r Hr.
+    move=> x ii0 r v' Hr.
     case Heq: (v_var x == v_var v).
     + move: Heq=> /eqP Heq.
       rewrite Heq.
@@ -792,10 +790,10 @@ Section PROOF_CMD.
       rewrite (reg_of_var_ii _ Heq Hr) in Hs.
       move: Hs=> -[] <-.
       rewrite eq_refl.
-      by case: (vtype v) v0 Hv0=> // v0 /= []<-.
+      by case: (vtype v) v0 Hv0=> // v0 /= []<- []<-.
     + rewrite /get_var Fv.setP_neq /=.
-      rewrite -/(get_var _ _).
-      move: Hincl=> [_ [/(_ x ii0 r Hr) -> _]].
+      rewrite -/(get_var _ _)=> Hv'.
+      move: Hincl=> [_ [/(_ x ii0 r _ Hr Hv') Hv _]].
       rewrite /RegMap.get /RegMap.set /=.
       suff ->: (r == s) = false=> //.
       apply/eqP=> Hrs; subst r.
@@ -848,6 +846,30 @@ Section PROOF_CMD.
       rewrite -(mem_addr_same Hincl Hx1 Hw1 Hx2 Hw2 Hs) //.
       move: Hincl=> [<- [Hr Hc]]; rewrite Hm /=.
       by eexists; split; eauto; split.
+  Qed.
+
+  Lemma read_vars_same res rres ls xs vr:
+    incl_st ls xs ->
+    reg_of_vars 1%positive res = ok rres ->
+    mapM (fun x : var_i => get_var ls.(lvm) x) res = ok [seq (Vword i) | i <- vr] ->
+    mapM (fun r => read_op xs (Reg_op r)) rres = ok vr.
+  Proof.
+    move=> Hincl.
+    elim: res rres vr=> [|a l IH] rres vr /=.
+    + rewrite /reg_of_vars /= => -[]<- [] /=.
+      by move: vr=> [].
+    + rewrite /reg_of_vars /=.
+      apply: rbindP=> y Hy.
+      rewrite -/(reg_of_vars _ _).
+      apply: rbindP=> ys Hys -[]<-.
+      apply: rbindP=> y0 Hy0.
+      apply: rbindP=> ys0 Hys0 [].
+      move: vr IH=> [] // va vl IH /= [] Hva Hvl.
+      move: Hincl=> [_ [/(_ a _ _ _ Hy Hy0) Hy' _]].
+      rewrite Hvl in Hys0.
+      rewrite (IH _ _ Hys Hys0) /=.
+      rewrite Hva in Hy'.
+      by move: Hy'=> -[]<-.
   Qed.
 
   Lemma assemble_iP:
@@ -909,7 +931,6 @@ Section PROOF.
   Variable p': xprog.
   Hypothesis assemble_ok : assemble_prog p = ok p'.
 
-  (*
   Lemma assemble_fdP:
     forall fn m1 va m2 vr,
     lsem_fd p m1 fn (map Vword va) m2 (map Vword vr) -> xsem_fd p' m1 fn va m2 vr.
@@ -928,20 +949,22 @@ Section PROOF.
     rewrite -{}Hf' in Hf'2.
     have Hs: {| emem := p0.2; evm := vmap0 |} = to_estate (Lstate p0.2 vmap0 c) by [].
     rewrite Hs in H2.
-    have Hsp': reg_of_var ii {| v_var := {| vtype := sword; vname := lfd_nstk fd |}; v_info := 1%positive |} = ok sp.
+    have Hsp': reg_of_var xH {| v_var := {| vtype := sword; vname := lfd_nstk fd |}; v_info := 1%positive |} = ok sp.
       by rewrite /= Hsp.
     have Hincl0: incl_st {| lmem := p0.2; lvm := vmap0; lc := c |} {| xmem := p0.2; xreg := regmap0; xc := c' |}.
       repeat split=> //=.
-      move=> x ii0 r Hr.
-      admit. (* incl_regmap should be changed? *)
+      move=> x ii0 r v Hr Habs; exfalso.
+      rewrite /get_var /vmap0 in Habs.
+      apply: rbindP Habs=> v' Habs _.
+      rewrite /Fv.empty /Fv.get /= /undef_addr in Habs.
+      by move: x Hr v' Habs=> [[[] vn] vi] //=.
     have [xs1 /= [[] Hxs11 Hxs12]] := write_var_same Hincl0 H2 Hsp'.
     have Hs1: s1 = to_estate (of_estate s1 c).
       by case: s1 H3 H2 Hxs12.
     rewrite Hs1 in H3.
     have [xs2 /= [Hxs21 Hxs22]] := write_vars_same Hxs12 H3 Harg.
     have [xs3 /= [Hxs31 Hxs32]] := assemble_cP Hc' Hxs22 H4.
-    have Hres': mapM (fun r => read_op xs3 (Reg_op r)) res = ok vr.
-      admit.
+    have Hres' := (read_vars_same Hxs32 Hres H5).
     move: xs3 Hxs31 Hxs32 Hres'=> [xmem3 xreg3 xc3] Hxs31 Hxs32 Hres' /=.
     apply: (XSem_fd Hf'2 H1)=> /=.
     by rewrite -Hxs11.
@@ -950,6 +973,5 @@ Section PROOF.
     exact: Hres'.
     by move: Hxs32=> [] /= ->.
   Admitted.
-*)
 
 End PROOF.
