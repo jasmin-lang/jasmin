@@ -180,17 +180,17 @@ case/predU1P: Hx'=> [Hx|].
 + by exists x'.
 Qed.
 
-Lemma mapM_in {eT} {aT bT: eqType} (f: aT -> result eT bT) (s: seq aT) (s': seq bT) x:
+Lemma mapM_In {aT bT eT} (f: aT -> result eT bT) (s: seq aT) (s': seq bT) x:
   mapM f s = ok s' ->
-  x \in s -> exists y, y \in s' /\ f x = ok y.
+  List.In x s -> exists y, List.In y s' /\ f x = ok y.
 Proof.
 elim: s s'=> // a l /= IH s'.
 apply: rbindP=> y Hy.
 apply: rbindP=> ys Hys []<-.
-case/predU1P=> [|Hl].
-+ by move=> ->; exists y; split; rewrite ?mem_head.
-+ move: (IH _ Hys Hl)=> [y0 [Hy0 Hy0']]; exists y0; split=> //.
-  by rewrite in_cons Hy0 orbT.
+case.
++ by move=> <-; exists y; split=> //; left.
++ move=> Hl; move: (IH _ Hys Hl)=> [y0 [Hy0 Hy0']].
+  by exists y0; split=> //; right.
 Qed.
 
 Fixpoint foldM eT aT bT (f : aT -> bT -> result eT bT) (acc : bT) (l : seq aT) :=

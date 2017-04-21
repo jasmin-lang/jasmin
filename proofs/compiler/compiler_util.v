@@ -112,14 +112,14 @@ Proof.
     exact: IH.
 Qed.
 
-Lemma get_map_cfprog {T1 T2: eqType} (F: T1 -> ciexec T2) p p' fn f:
+Lemma get_map_cfprog {T1 T2} (F: T1 -> ciexec T2) p p' fn f:
   map_cfprog F p = ok p' ->
   get_fundef p fn = Some f ->
   exists f', F f = ok f' /\ get_fundef p' fn = Some f'.
 Proof.
   move=> Hmap H.
   have Hp := (get_fundef_in' H).
-  move: (mapM_in Hmap Hp)=> [[fn' fd'] /= [Hfd Hok]].
+  move: (mapM_In Hmap Hp)=> [[fn' fd'] /= [Hfd Hok]].
   apply: rbindP Hok=> f' Hf' [] Hfn' Hfd'.
   subst fn'; subst fd'.
   have Hf: F f = ok f'.

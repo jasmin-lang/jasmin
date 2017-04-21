@@ -449,13 +449,13 @@ Proof.
   by elim: p => //= [f' fd'] Hrec;rewrite get_fundef_cons in_cons;case: ifP.
 Qed.
 
-Lemma get_fundef_in' {T: eqType} p fn (fd: T):
-  get_fundef p fn = Some fd -> (fn, fd) \in p.
+Lemma get_fundef_in' {T} p fn (fd: T):
+  get_fundef p fn = Some fd -> List.In (fn, fd) p.
 Proof.
-elim: p=> //= [[fn' fd'] l'] IH; rewrite get_fundef_cons /= in_cons.
+elim: p=> //= [[fn' fd'] l'] IH; rewrite get_fundef_cons /=.
 case: ifP=> //.
-+ by move=> /eqP -> [] <-; rewrite eq_refl.
-+ by move=> _ /IH ->; rewrite orbT.
++ by move=> /eqP -> [] <-; left.
++ by move=> _ /IH H; right.
 Qed.
 
 Definition all_prog {aT bT cT} (s1: seq (funname * aT)) (s2: seq (funname * bT)) (ll: seq cT) f :=

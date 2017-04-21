@@ -185,6 +185,16 @@ Definition rflag_of_string (s: string) :=
 Lemma rflag_of_string_of_rflag r : rflag_of_string (string_of_rflag r) = Some r.
 Proof. by case: r. Qed.
 
+Scheme Equality for rflag.
+Definition rflag_eqP : Equality.axiom rflag_eq_dec.
+Proof.
+  move=> x y.
+  case: rflag_eq_dec=> H; [exact: ReflectT|exact: ReflectF].
+Qed.
+
+Definition rflag_eqMixin := EqMixin rflag_eqP.
+Canonical  rflag_eqType := EqType rflag rflag_eqMixin.
+
 Record address : Set := mkAddress {
   addrDisp : word ;
   addrBase : option register ;
@@ -449,11 +459,11 @@ Fixpoint find_label (lbl: label) (c: cmd) {struct c} : option cmd :=
   end.
 
 Module RegMap.
-  Definition map := register -> word.
+  Definition map := register + rflag -> word.
 
-  Definition get (m: map) (x: register) := m x.
+  Definition get (m: map) (x: register + rflag) := m x.
 
-  Definition set (m: map) (x: register) (y: word) :=
+  Definition set (m: map) (x: register + rflag) (y: word) :=
     fun z => if (z == x) then y else m z.
 End RegMap.
 
@@ -473,16 +483,16 @@ Definition decode_addr (s: x86_state) (a: address) : word :=
   let (disp, base, ind) := a in
   match base, ind with
   | None, None => disp
-  | Some r, None => I64.add disp (RegMap.get s.(xreg) r)
-  | None, Some (sc, r) => I64.add disp (I64.mul (word_of_scale sc) (RegMap.get s.(xreg) r))
+  | Some r, None => I64.add disp (RegMap.get s.(xreg) (inl r))
+  | None, Some (sc, r) => I64.add disp (I64.mul (word_of_scale sc) (RegMap.get s.(xreg) (inl r)))
   | Some r1, Some (sc, r2) =>
-     I64.add disp (I64.add (RegMap.get s.(xreg) r1) (I64.mul (word_of_scale sc) (RegMap.get s.(xreg) r2)))
+     I64.add disp (I64.add (RegMap.get s.(xreg) (inl r1)) (I64.mul (word_of_scale sc) (RegMap.get s.(xreg) (inl r2))))
   end.
 
 Definition write_op (o: operand) (w: word) (s: x86_state) :=
   match o with
   | Imm_op v => type_error
-  | Reg_op r => ok {| xmem := s.(xmem); xreg := RegMap.set s.(xreg) r w; xc := s.(xc) |}
+  | Reg_op r => ok {| xmem := s.(xmem); xreg := RegMap.set s.(xreg) (inl r) w; xc := s.(xc) |}
   | Address_op a =>
      let p := decode_addr s a in
      Let m := write_mem s.(xmem) p w in
@@ -494,7 +504,7 @@ Definition write_ops xs vs s := fold2 ErrType write_op xs vs s.
 Definition read_op (s: x86_state) (o: operand) :=
   match o with
   | Imm_op v => ok v
-  | Reg_op r => ok (RegMap.get s.(xreg) r)
+  | Reg_op r => ok (RegMap.get s.(xreg) (inl r))
   | Address_op a =>
      let p := decode_addr s a in
      Let m := read_mem s.(xmem) p in
@@ -692,6 +702,38 @@ Definition assemble_fd (fd: lfundef) :=
 Definition assemble_prog (p: lprog) : cfexec xprog :=
   map_cfprog assemble_fd p.
 
+Lemma find_label_same c c' lbl cs:
+  assemble_c c = ok c' ->
+  linear.find_label lbl c = Some cs ->
+  exists cs', find_label lbl c' = Some cs' /\ assemble_c cs = ok cs'.
+Proof.
+  move=> Hc.
+  elim: c c' Hc=> //= a l IH [|a' l'] // Hc.
+  + rewrite /assemble_c /= in Hc.
+    apply: rbindP Hc=> y Hy.
+    by apply: rbindP.
+  + rewrite /assemble_c /= in Hc.
+    apply: rbindP Hc=> y Hy.
+    rewrite -/(assemble_c _).
+    apply: rbindP=> ys Hys -[]<- <-.
+    case: ifP=> // H.
+    + move=> -[]<-.
+      exists ys; split=> //.
+      move: a Hy H=> [ii [] //] l0 /= []<- /eqP -> /=.
+      by rewrite eq_refl.
+    + move=> Hfind.
+      have [cs' [Hcs'1 Hcs'2]] := (IH _ Hys Hfind).
+      exists cs'; split=> //=.
+      rewrite /linear.is_label in H.
+      move: a Hy H=> [ii [lv t e|l0|l0|l0|e l0] //=] Hy H.
+      + case: y Hy=> //= l0.
+        by apply: rbindP=> dst Hdst; apply: rbindP=> src Hsrc.
+      + by case: y Hy=> //= l1 []<-; rewrite H.
+      + by case: y Hy.
+      + case: y Hy=> //= l1.
+        by apply: rbindP=> cond Hcond.
+Qed.
+
 Section PROOF_CMD.
   Variable c: lcmd.
   Variable c': cmd.
@@ -700,15 +742,10 @@ Section PROOF_CMD.
   Definition incl_regmap (vm: vmap) (rm: regmap) :=
     forall x ii r v, reg_of_var ii x = ciok r ->
     get_var vm x = ok v ->
-    Vword (RegMap.get rm r) = v.
+    Vword (RegMap.get rm (inl r)) = v.
 
   Definition incl_st (ls: lstate) (xs: x86_state) :=
     ls.(lmem) = xs.(xmem) /\ incl_regmap ls.(lvm) xs.(xreg) /\ assemble_c ls.(lc) = ok xs.(xc).
-
-  Lemma find_label_same lbl cs:
-    linear.find_label lbl c = Some cs ->
-    exists cs', find_label lbl c' = Some cs' /\ assemble_c cs = ok cs'.
-  Admitted.
 
   Lemma mem_addr_same ls xs (v0: var_i) s0 p ii w0 w1 w2 x1 x2:
     incl_st ls xs ->
@@ -718,7 +755,7 @@ Section PROOF_CMD.
     to_word x2 = ok w2 ->
     reg_of_var ii v0 = ok s0 ->
     word_of_pexpr ii p = ok w0 ->
-    I64.add w1 w2 = I64.add w0 (RegMap.get (xreg xs) s0).
+    I64.add w1 w2 = I64.add w0 (RegMap.get (xreg xs) (inl s0)).
   Proof.
     move=> [_ [Hreg _]] Hx1 Hw1 Hx2 Hw2 Hs0 Hw0.
     case: p Hx2 Hw0=> // -[] // z /= Hx2 Hw0.
@@ -795,12 +832,10 @@ Section PROOF_CMD.
       rewrite -/(get_var _ _)=> Hv'.
       move: Hincl=> [_ [/(_ x ii0 r _ Hr Hv') Hv _]].
       rewrite /RegMap.get /RegMap.set /=.
-      suff ->: (r == s) = false=> //.
-      apply/eqP=> Hrs; subst r.
+      case: eqP=> // -[] Hr'; subst r.
       have Hx: v_var x = x by [].
       have Hr' := @reg_of_var_ii ii0 ii x x s Hx Hr.
-      move: Heq=> /eqP Habs; apply: Habs.
-      rewrite (reg_of_var_inj Hs Hr') //.
+      by rewrite (reg_of_var_inj Hs Hr') eq_refl in Heq.
       by rewrite eq_sym Heq.
   Qed.
 
@@ -901,7 +936,7 @@ Section PROOF_CMD.
       by split.
     + rewrite H /= /assemble_c /= in Hc.
       apply: rbindP Hc=> ys Hys [] Hc.
-      have [cs'' [Hcs''1 Hcs''2]] := find_label_same H0.
+      have [cs'' [Hcs''1 Hcs''2]] := find_label_same assemble_ok H0.
       eexists; split; eauto.
       apply: XSem_JMP.
       by rewrite -Hc.
@@ -939,8 +974,7 @@ Section PROOF.
     sinversion H.
     have H0' := assemble_ok.
     rewrite /assemble_prog in H0'.
-    have [f' [Hf'1 Hf'2]] : exists f', assemble_fd fd = ok f' /\ get_fundef p' fn = Some f'.
-      admit. (* get_map_cfprog: need an eqType.. *)
+    have [f' [Hf'1 Hf'2]] := get_map_cfprog H0' H0.
     apply: rbindP Hf'1=> c' Hc'.
     case Hsp: (reg_of_string _)=> [sp|//].
     apply: rbindP=> arg Harg.
@@ -972,6 +1006,6 @@ Section PROOF.
     exact: Hxs31.
     exact: Hres'.
     by move: Hxs32=> [] /= ->.
-  Admitted.
+  Qed.
 
 End PROOF.

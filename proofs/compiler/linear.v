@@ -58,56 +58,6 @@ Variant linstr_r :=
 
 Record linstr : Type := MkLI { li_ii : instr_info; li_i : linstr_r }.
 
-Definition linstr_r_beq i1 i2 :=
-  match i1, i2 with
-  | Lassgn x1 tag1 e1, Lassgn x2 tag2 e2 =>
-     (tag1 == tag2) && (x1 == x2) && (e1 == e2)
-  | Lopn x1 o1 e1, Lopn x2 o2 e2 =>
-     (x1 == x2) && (o1 == o2) && (e1 == e2)
-  | Llabel l1, Llabel l2 => l1 == l2
-  | Lgoto l1, Lgoto l2 => l1 == l2
-  | Lcond e1 l1, Lcond e2 l2 => (e1 == e2) && (l1 == l2)
-  | _, _ => false
-  end.
-
-Definition linstr_beq i1 i2 :=
-  match i1, i2 with
-  | MkLI if1 i1, MkLI if2 i2 => (if1 == if2) && (linstr_r_beq i1 i2)
-  end.
-
-Lemma linstr_r_eq_axiom : Equality.axiom linstr_r_beq.
-Proof.
-  rewrite /Equality.axiom.
-  move=> [x1 t1 e1|x1 o1 e1|l1|l1|e1 l1] [x2 t2 e2|x2 o2 e2|l2|l2|e2 l2] //=; try by right.
-  + apply (@equivP ((t1 == t2) && (x1 == x2) && (e1 == e2)));first by apply idP.
-    split=> [/andP [] /andP [] /eqP-> /eqP-> /eqP-> | [] <- <- <- ] //.
-    by rewrite !eq_refl.
-  + apply (@equivP ((x1 == x2) && (o1 == o2) && (e1 == e2)));first by apply idP.
-    split=> [/andP [] /andP [] /eqP-> /eqP-> /eqP-> | [] <- <- <- ] //.
-    by rewrite !eq_refl.
-  + apply (@equivP (l1 == l2)); first by apply idP.
-    split=> [/eqP->|[] <-] //.
-  + apply (@equivP (l1 == l2)); first by apply idP.
-    split=> [/eqP->|[] <-] //.
-  + apply (@equivP ((e1 == e2) && (l1 == l2))); first by apply idP.
-    split=> [/andP [] /eqP-> /eqP->|[] <- <-] //.
-    by rewrite !eq_refl.
-Qed.
-
-Definition linstr_r_eqMixin     := Equality.Mixin linstr_r_eq_axiom.
-Canonical  linstr_r_eqType      := Eval hnf in EqType linstr_r linstr_r_eqMixin.
-
-Lemma linstr_eq_axiom : Equality.axiom linstr_beq.
-Proof.
-  move=> [ii1 r1] [ii2 r2] /=.
-  apply (@equivP ((ii1 == ii2) /\ linstr_r_beq r1 r2)); first by apply andP.
-  split=> [[] /eqP-> /linstr_r_eq_axiom ->|[] <- <-] //.
-  split=> //; by apply/linstr_r_eq_axiom.
-Qed.
-
-Definition linstr_eqMixin     := Equality.Mixin linstr_eq_axiom.
-Canonical  linstr_eqType      := Eval hnf in EqType linstr linstr_eqMixin.
-
 Definition lcmd := seq linstr.
 
 Definition is_label (lbl: label) (i:linstr) : bool :=
@@ -123,23 +73,6 @@ Record lfundef := LFundef {
  lfd_body : lcmd;
  lfd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)
 }.
-
-Definition lfundef_beq fd1 fd2 :=
-  match fd1, fd2 with
-  | LFundef sz1 id1 p1 c1 r1, LFundef sz2 id2 p2 c2 r2 =>
-    (sz1 == sz2) && (id1 == id2) &&
-    (p1 == p2) && (c1 == c2) && (r1 == r2)
-  end.
-
-Lemma lfundef_eq_axiom : Equality.axiom lfundef_beq.
-Proof.
-  move=> [s1 id1 p1 c1 r1] [s2 id2 p2 c2 r2] /=.
-  apply (@equivP ((s1 == s2) && (id1 == id2) && (p1 == p2) && (c1 == c2) && (r1 == r2)));first by apply idP.
-  by split=> [/andP[]/andP[]/andP[]/andP[] | []] /eqP->/eqP->/eqP->/eqP->/eqP->.
-Qed.
-
-Definition lfundef_eqMixin   := Equality.Mixin lfundef_eq_axiom.
-Canonical  lfundef_eqType      := Eval hnf in EqType lfundef lfundef_eqMixin.
 
 Definition lprog := seq (funname * lfundef).
 
