@@ -566,8 +566,8 @@ Definition read_op (s: x86_state) (o: operand) :=
      ok m
   end.
 
-Definition eval_cond (s: x86_state) (c: condition_type) :=
-  let 'get := RflagMap.get s.(xrf) in
+Definition eval_cond (rm: rflagmap) (c: condition_type) :=
+  let 'get := RflagMap.get rm in
   match c with
   | O_ct => get OF
   | NO_ct => ~~ get OF
@@ -601,12 +601,12 @@ Variant xsem1 : x86_state -> x86_state -> Prop :=
     xsem1 s1 (setc s1 cs')
 | XSem_Jcc_true s1 cond lbl cs cs':
     s1.(xc) = (Jcc cond lbl) :: cs ->
-    eval_cond s1 cond = true ->
+    eval_cond s1.(xrf) cond = true ->
     find_label lbl c = Some cs' ->
     xsem1 s1 (setc s1 cs')
 | XSem_Jcc_false s1 cond lbl cs:
     s1.(xc) = (Jcc cond lbl) :: cs ->
-    eval_cond s1 cond = false ->
+    eval_cond s1.(xrf) cond = false ->
     xsem1 s1 (setc s1 cs)
 | XSem_MOV s1 dst src cs w s2:
     s1.(xc) = (MOV U64 dst src) :: cs ->
@@ -666,6 +666,15 @@ Definition reg_of_var ii (v: var_i) :=
      end
   | _ => cierror ii (Cerr_assembler "Invalid register type")
   end.
+
+Lemma cond_reg_of_var_disj ii v x r cf:
+  reg_of_var ii v = ok r ->
+  cond_flag_of_var_i x = Some cf ->
+  ~ (v_var x = v_var v).
+Proof.
+  move: v=> [[[] vn] vi] //=.
+  move: x=> [[[] vn'] vi'] //=.
+Qed.
 
 Lemma reg_of_var_ii ii1 ii2 v1 v2 r:
   v_var v1 = v_var v2 -> reg_of_var ii1 v1 = ok r -> reg_of_var ii2 v2 = ok r.
@@ -853,8 +862,15 @@ Section PROOF_CMD.
     get_var vm x = ok v ->
     Vword (RegMap.get rm r) = v.
 
+  Definition incl_rflagmap (vm: vmap) (rm: rflagmap) :=
+    forall x cond v ii, assemble_cond ii (Pvar x) = ciok cond ->
+    get_var vm x = ok v ->
+    Vbool (eval_cond rm cond) = v.
+
   Definition incl_st (ls: lstate) (xs: x86_state) :=
-    ls.(lmem) = xs.(xmem) /\ incl_regmap ls.(lvm) xs.(xreg) /\ assemble_c ls.(lc) = ok xs.(xc).
+    ls.(lmem) = xs.(xmem) /\ incl_regmap ls.(lvm) xs.(xreg)
+                          /\ incl_rflagmap ls.(lvm) xs.(xrf)
+                          /\ assemble_c ls.(lc) = ok xs.(xc).
 
   Lemma mem_addr_same ls xs (v0: var_i) s0 p ii w0 w1 w2 x1 x2:
     incl_st ls xs ->
@@ -921,30 +937,40 @@ Section PROOF_CMD.
     exists xs', write_op (Reg_op s) w xs = ok xs' /\ incl_st (of_estate s' ls.(lc)) xs'.
   Proof.
     move=> Hincl Hw Hs; move: Hw.
+    have [Hmem [Hreg [Hrf Hc]]] := Hincl.
     rewrite /write_var.
     apply: rbindP=> vm.
     apply: rbindP=> v0 Hv0 []<- []<-.
-    eexists; split; eauto; split=> /=.
-    by move: Hincl=> [? _].
-    split; last by move: Hincl=> [_ [_ ?]].
-    move=> x ii0 r v' Hr.
+    eexists; split; eauto; repeat split=> //=.
+    + move=> x ii0 r v' Hr.
+      case Heq: (v_var x == v_var v).
+      + move: Heq=> /eqP Heq.
+        rewrite Heq.
+        rewrite /get_var Fv.setP_eq /=.
+        rewrite /RegMap.set /RegMap.get /=.
+        rewrite (reg_of_var_ii _ Heq Hr) in Hs.
+        move: Hs=> -[] <-.
+        rewrite eq_refl.
+        by case: (vtype v) v0 Hv0=> // v0 /= []<- []<-.
+      + rewrite /get_var Fv.setP_neq /=.
+        rewrite -/(get_var _ _)=> Hv'.
+        move: Hincl=> [_ [/(_ x ii0 r _ Hr Hv') Hv _]].
+        rewrite /RegMap.get /RegMap.set /=.
+        case: eqP=> // Hr'; subst r.
+        have Hx: v_var x = x by [].
+        have Hr' := @reg_of_var_ii ii0 ii x x s Hx Hr.
+        by rewrite (reg_of_var_inj Hs Hr') eq_refl in Heq.
+        by rewrite eq_sym Heq.
+    move=> x cf v' ii0 Hcf.
     case Heq: (v_var x == v_var v).
-    + move: Heq=> /eqP Heq.
-      rewrite Heq.
-      rewrite /get_var Fv.setP_eq /=.
-      rewrite /RegMap.set /RegMap.get /=.
-      rewrite (reg_of_var_ii _ Heq Hr) in Hs.
-      move: Hs=> -[] <-.
-      rewrite eq_refl.
-      by case: (vtype v) v0 Hv0=> // v0 /= []<- []<-.
-    + rewrite /get_var Fv.setP_neq /=.
-      rewrite -/(get_var _ _)=> Hv'.
-      move: Hincl=> [_ [/(_ x ii0 r _ Hr Hv') Hv _]].
-      rewrite /RegMap.get /RegMap.set /=.
-      case: eqP=> // -[] Hr'; subst r.
-      have Hx: v_var x = x by [].
-      have Hr' := @reg_of_var_ii ii0 ii x x s Hx Hr.
-      by rewrite (reg_of_var_inj Hs Hr') eq_refl in Heq.
+    + move: Heq=> /eqP Heq; exfalso.
+      rewrite /assemble_cond in Hcf.
+      case Hcf': (cond_flag_of_var_i x)=> [a|//].
+      exact: (cond_reg_of_var_disj Hs Hcf').
+      by rewrite Hcf' in Hcf.
+    + rewrite /get_var Fv.setP_neq /= -/(get_var _ _).
+      move=> Hv'.
+      exact: (Hrf _ _ _ _ Hcf).
       by rewrite eq_sym Heq.
   Qed.
 
@@ -1021,7 +1047,7 @@ Section PROOF_CMD.
     lsem1 c s1 s2 -> exists s2', xsem1 c' s1' s2' /\ incl_st s2 s2'.
   Proof.
     move=> s1 s2 s1' Hincl Hsem.
-    have [Hmem [Hreg Hc]] := Hincl.
+    have [Hmem [Hreg [Hrf Hc]]] := Hincl.
     sinversion Hsem.
     + apply: rbindP H0=> v Hv Hw.
       rewrite H /= /assemble_c /= in Hc.
@@ -1037,6 +1063,7 @@ Section PROOF_CMD.
         repeat split=> //=.
         by move: Hxs'2=> [? _].
         by move: Hxs'2=> [_ [? _]].
+        by move: Hxs'2=> [_ [_ [? _]]].
       + rewrite /assemble_cond_assgn.
         move: x H Hw {Hdst}=> [] // vc Hvc /= Hw.
         move: e Hv Hvc=> [] // s [] // v1 [] // v2 /=.
@@ -1066,7 +1093,9 @@ Section PROOF_CMD.
       exists (X86State s1'.(xmem) s1'.(xreg) s1'.(xrf) cs''); split=> //=.
       apply: XSem_Jcc_true.
       by rewrite -Hi.
-      admit.
+      move: e Hcond H0 {H}=> [] // v Hv /=.
+      apply: rbindP=> -[] // b Hb []<-.
+      by move: Hrf=> /(_ v _ _ _ Hv Hb) []<-.
       exact: Hcs''1.
     + rewrite H /= /assemble_c /= in Hc.
       apply: rbindP Hc=> y.
@@ -1075,8 +1104,10 @@ Section PROOF_CMD.
       exists (X86State s1'.(xmem) s1'.(xreg) s1'.(xrf) ys); split=> //.
       apply: XSem_Jcc_false.
       by rewrite -Hi.
-      admit.
-  Admitted.
+      move: e Hcond H0 {H}=> [] // v Hv /=.
+      apply: rbindP=> -[] // b Hb []<-.
+      by move: Hrf=> /(_ v _ _ _ Hv Hb) []<-.
+  Qed.
 
   Lemma assemble_cP:
     forall s1 s2 s1', incl_st s1 s1' ->
@@ -1092,6 +1123,18 @@ Section PROOF_CMD.
       apply: XSem1; [exact: Hs2'1|exact: Hs3'1].      
   Qed.
 End PROOF_CMD.
+
+(* TODO: move *)
+Lemma get_var_vmap0 x v:
+  (vtype x == sbool) || (vtype x == sint) || (vtype x == sword) ->
+  ~ get_var vmap0 x = ok v.
+Proof.
+  move=> Ht.
+  rewrite /get_var /vmap0.
+  apply: rbindP=> v' Habs _.
+  rewrite /Fv.empty /Fv.get /= /undef_addr {v} in Habs.
+  by move: x v' Habs Ht=> [[] vx] vn.
+Qed.
 
 Section PROOF.
   Variable p: lprog.
@@ -1119,11 +1162,12 @@ Section PROOF.
       by rewrite /= Hsp.
     have Hincl0: incl_st {| lmem := p0.2; lvm := vmap0; lc := c |} {| xmem := p0.2; xreg := regmap0; xrf := rflagmap0; xc := c' |}.
       repeat split=> //=.
-      move=> x ii0 r v Hr Habs; exfalso.
-      rewrite /get_var /vmap0 in Habs.
-      apply: rbindP Habs=> v' Habs _.
-      rewrite /Fv.empty /Fv.get /= /undef_addr in Habs.
-      by move: x Hr v' Habs=> [[[] vn] vi] //=.
+      move=> x ii r v Hr Habs; exfalso.
+      apply: (get_var_vmap0 _ Habs).
+      by move: x Hr Habs=> [[[] vn] vi].
+      move=> x cond v ii Hcond Habs; exfalso.
+      apply: (get_var_vmap0 _ Habs).
+      by move: x Hcond Habs=> [[[] vn] vi].
     have [xs1 /= [[] Hxs11 Hxs12]] := write_var_same Hincl0 H2 Hsp'.
     have Hs1: s1 = to_estate (of_estate s1 c).
       by case: s1 H3 H2 Hxs12.
