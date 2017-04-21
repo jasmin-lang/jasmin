@@ -24,13 +24,10 @@
     "stack" , STACK  ;
     "inline", INLINE ;
     "param" , PARAM  ;
-    "MEM"   , MEM    ;
     "true"  , TRUE   ;
     "false" , FALSE  ;
     "for"   , FOR    ;
-    "when"  , WHEN   ;
     "while" , WHILE  ;
-    "do"    , DO     ;
     "in"    , IN     ;
     "if"    , IF     ;
     "else"  , ELSE   ;
@@ -77,9 +74,8 @@ rule main = parse
   | "}"     { RCBRACE    }
   | "("     { LPAREN     }
   | ")"     { RPAREN     }
-  | "->"    { LARROW     }
-  | ":"     { COLON      }
   | "_"     { UNDERSCORE }
+  | "->"    { LARROW     }
   | "="     { EQ         }
   | "=="    { EQEQ       }
   | "!="    { INEQ       }
@@ -104,7 +100,7 @@ rule main = parse
   | "&&"    { LAND       }
   | "||"    { LOR        }
   | ";"     { SEMICOLON  }
-  | "!"     { EXCL       }
+  | "!"     { BANG       }
   | ">>"    { SHR        }
   | "<<"    { SHL        }
   | "^"     { XOR        }

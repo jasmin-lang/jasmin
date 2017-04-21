@@ -35,23 +35,25 @@ type word_size =
 
 type base_ty =
   | Bool
-  | U   of word_size (* U(n): unsigned n-bit integer *)
   | Int              (* Unbounded integer for pexpr *)
+  | U   of word_size (* U(n): unsigned n-bit integer *)
+
   [@@deriving compare,sexp]
 
 type v_kind =
   | Const         (* global parameter  *)
   | Stack         (* stack variable    *)
   | Reg           (* register variable *)
+
   [@@deriving compare,sexp]
 
 type 'ty gvar = private {
-    v_name : Name.t;
-    v_id   : uid;
-    v_kind : v_kind;
-    v_ty   : 'ty;
-    v_dloc : L.t   (* location where declared *)
-  }
+  v_name : Name.t;
+  v_id   : uid;
+  v_kind : v_kind;
+  v_ty   : 'ty;
+  v_dloc : L.t   (* location where declared *)
+}
 
 type 'ty gvar_i = 'ty gvar L.located
 
@@ -109,9 +111,9 @@ type inline_info =
   | NoInline
 
 type funname = private {
-    f_name : Name.t;
-    f_id   : uid;
-  }
+  f_name : Name.t;
+  f_id   : uid;
+}
 
 type range_dir = UpTo | DownTo
 type 'ty grange = range_dir * 'ty gexpr * 'ty gexpr
@@ -126,10 +128,10 @@ type ('ty,'info) ginstr_r =
   | Ccall  of inline_info * 'ty glvals * funname * 'ty gexprs
 
 and ('ty,'info) ginstr = {
-    i_desc : ('ty,'info) ginstr_r;
-    i_loc  : L.t;
-    i_info : 'info;
-  }
+  i_desc : ('ty,'info) ginstr_r;
+  i_loc  : L.t;
+  i_info : 'info;
+}
 
 and ('ty,'info) gstmt = ('ty,'info) ginstr list
 

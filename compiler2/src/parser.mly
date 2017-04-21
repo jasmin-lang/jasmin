@@ -1,6 +1,8 @@
 %{
   module L = Location
   module S = Syntax
+
+  open Syntax
 %}
 
 %token EOF
@@ -12,14 +14,12 @@
 %token PLUSEQ MINUSEQ BANDEQ MULEQ
 %token LT LE GT GE
 %token SHREQ SHLEQ XOREQ OREQ
-%token COLON
 %token LARROW
 %token DOLLAR
+%token UNDERSCORE
 
 %token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
 %token T_BOOL
-
-%token UNDERSCORE
 
 %token STAR
 %token BAND
@@ -27,12 +27,13 @@
 %token PLUS
 %token LAND LOR
 %token SEMICOLON
-%token EXCL DOTDOT COMMA
+%token BANG DOTDOT COMMA
 %token SHR SHL XOR OR
 
 %token REG STACK INLINE PARAM
 
-%token FOR WHILE DO WHEN
+%token FOR
+%token WHILE
 %token IN
 %token IF
 %token ELSE
@@ -41,294 +42,244 @@
 %token FN
 %token RETURN
 
-%token MEM
-
 %token <string> NID
 %token <Bigint.zint> INT
 
-%nonassoc EXCL
+%nonassoc BANG
 %left LAND
 %left LOR
 %left MINUS PLUS
 %left STAR
 
-%type <unit> module_
+%type <Syntax.pprogram> module_
 
 %start module_
 
 %%
 
-(* ** Sources and destinations
- * -------------------------------------------------------------------- *)
-
-%inline dest_get:
-| pe=brackets(pexpr) { () }
-
-%inline sdest_noloc :
-| v=var idx=dest_get? { () }
-
-%inline sdest :
-| ld=loc(sdest_noloc) { () }
-
-%inline rdest :
-| sd=sdest { () }
-| MEM LBRACK ptr=sdest PLUS pe=pexpr RBRACK { () }
-
-%inline dest :
-| l = loc(UNDERSCORE) { () }
-| rd = rdest          { () }
-
-param:
-| lid=loc(NID) { () }
-
-src :
-| d=rdest                      { () }
-| DOLLAR p=param               { () }
-| DOLLAR LPAREN i=pexpr RPAREN { () }
-| i=INT                        { () }
-
-(* ** Index expressions and conditions
- * -------------------------------------------------------------------- *)
-
-%inline pbinop :
-| PLUS   { () }
-| STAR  { () }
-| MINUS { () }
-
-%inline pcondop :
-| EQEQ { () }
-| INEQ { () }
-| LT   { () }
-| LE   { () }
-| GT   { () }
-| GE   { () }
+%inline ident:
+| x=loc(NID) { x }
 
 var:
-| lid=loc(NID) { () }
+| x=ident { x }
 
-dexpr :
-| p=param                    { () }
-| i=INT                      { () }
-| e1=dexpr o=pbinop e2=dexpr { () }
-| LPAREN e1=dexpr RPAREN     { () }
-
-pexpr :
-| v=var                        { () }
-| i=INT                        { () }
-| e1=pexpr o=pbinop e2=pexpr   { () }
-| LPAREN e1=pexpr RPAREN       { () }
-
-%inline pbop :
-| LAND { () }
-| LOR  { () }
-
-pcond :
-| TRUE                        { () }
-| FALSE                       { () }
-| EXCL c=pcond                { () }
-| c1=pcond o=pbop c2=pcond    { () }
-| LPAREN c = pcond RPAREN     { () }
-| c1=pexpr o=pcondop c2=pexpr { () }
-
-
-%inline fcond :
-| e=EXCL? v=var { () }
-
-pcond_or_fcond :
-| pc=pcond   { () }
-| v=var      { () }
-| EXCL v=var { () }
-
-(* -------------------------------------------------------------------- *)
-binop:
-| PLUS { () }
-| MINUS{ () }
-| SHR  { () }
-| SHL  { () }
-| BAND { () }
-| XOR  { () }
-| STAR { () }
-| OR   { () }
-
-opeq:
-| PLUSEQ  { () }
-| MINUSEQ { () }
-| SHREQ   { () }
-| SHLEQ   { () }
-| BANDEQ  { () }
-| XOREQ   { () }
-| OREQ    { () }
-| MULEQ   { () }
-
-(* ** Base instructions
+(* ** Type expressions
  * -------------------------------------------------------------------- *)
 
-%inline assgn_rhs_eq:
-| s=src
-    { () }
+utype:
+| T_U8   { `W8   }
+| T_U16  { `W16  }
+| T_U32  { `W32  }
+| T_U64  { `W64  }
+| T_U128 { `W128 }
+| T_U256 { `W256 }
 
-%inline assgn_rhs_mv:
-| s=src
-    { () }
+ptype_:
+| T_BOOL
+    { TBool }
 
-| s=src IF e=EXCL? cf=rdest
-    { () }
+| T_INT
+    { TInt }
 
-| s1=src op=binop s2=src
-    { () }
+| ut=utype
+    { TWord ut }
 
-| s1=src op1=binop s2=src op2=binop s3=src
-    { () }
+| ut=utype d=brackets(pexpr)
+    { TArray (ut, d) }
 
-| fname=NID args=parens_tuple(src)
-    { () }
+(* ** Index expressions
+ * -------------------------------------------------------------------- *)
 
-%inline opeq_rhs:
-| s  = src                  { () }
-| s2 = src op2=binop s3=src { () }
+%inline peop1:
+| BANG  { `Not }
 
-%inline base_instr :
-| ds=tuple1(dest) EQ rhs=assgn_rhs_mv SEMICOLON
-    { () }
+%inline peop2:
+| PLUS  { `Add  }
+| MINUS { `Sub  }
+| STAR  { `Mul  }
+| LAND  { `And  }
+| LOR   { `Or   }
+| BAND  { `BAnd }
+| OR    { `BOr  }
+| XOR   { `BXOr }
+| SHL   { `Shl  }
+| SHR   { `Shr  }
+| EQEQ  { `Eq   }
+| INEQ  { `Neq  }
+| LT    { `Lt   }
+| LE    { `Le   }
+| GT    { `Gt   }
+| GE    { `Ge   }
 
-| WHEN _fc=fcond LCBRACE ds=tuple1(dest) EQ rhs=assgn_rhs_mv RCBRACE SEMICOLON
-    { () }
+pexpr_r:
+| v=var
+    { PEVar v }
 
-| ds=tuple1(dest) COLON EQ rhs=assgn_rhs_eq SEMICOLON
-    { () }
+| v=var i=brackets(pexpr)
+    { PEGet (v, i) }
 
-| ds=tuple1(dest) op=opeq rhs=opeq_rhs SEMICOLON
-    { () }
+| DOLLAR v=ident
+    { PEParam v }
+
+| TRUE
+    { PEBool true }
+
+| FALSE
+    { PEBool false }
+
+| i=INT
+    { PEInt i }
+
+| o=peop1 e=pexpr
+    { PEOp1 (o, e) }
+
+| e1=pexpr o=peop2 e2=pexpr
+    { PEOp2 (o, (e1, e2)) }
+
+| e=parens(pexpr)
+    { PEParens e }
+
+pexpr:
+| e=loc(pexpr_r) { e }
+
+(* -------------------------------------------------------------------- *)
+peqop:
+| EQ      { `Raw }
+| PLUSEQ  { `Add }
+| MINUSEQ { `Sub }
+| SHREQ   { `ShR }
+| SHLEQ   { `ShL }
+| BANDEQ  { `And }
+| XOREQ   { `XOr }
+| OREQ    { `Or  }
+| MULEQ   { `Mul }
+
+(* ** Left value
+ * -------------------------------------------------------------------- *)
+
+(* FIXME: missing syntax for Lmem *)
+plvalue_r:
+| UNDERSCORE
+    { PLIgnore }
+
+| x=var
+    { PLVar x }
+
+| x=var i=brackets(pexpr)
+    { PLArray (x, i) }
+
+plvalue:
+| x=loc(plvalue_r) { x }
 
 (* ** Control instructions
  * -------------------------------------------------------------------- *)
 
-%inline call :
-| fname=NID args=parens_tuple(src)
-    { () }
- 
-control_instr :
-| lc=loc(call) SEMICOLON
-    { () }
+pinstr_r:
+| x=tuple1(plvalue) o=peqop e=pexpr SEMICOLON
+    { PIAssign (x, o, e, None) }
 
-| IF c=pcond_or_fcond i1s=block
-    { () }
+| x=tuple1(plvalue) o=peqop e=pexpr IF c=pexpr SEMICOLON
+    { PIAssign (x, o, e, Some c) }
 
-| IF c=pcond_or_fcond i1s=block ELSE i2s=block
-    { () }
+| fname=ident args=parens_tuple(pexpr) SEMICOLON
+    { PICall (fname, args) }
 
-| FOR cv=sdest IN LPAREN ce1=pexpr DOTDOT ce2=pexpr RPAREN is=block
-    { () }
+| IF c=pexpr i1s=pblock
+    { PIIf (c, i1s, None) }
 
-| WHILE fc=fcond is=block
-    { () }
+| IF c=pexpr i1s=pblock ELSE i2s=pblock
+    { PIIf (c, i1s, Some i2s) }
 
-| DO is=block WHILE fc=fcond SEMICOLON
-    { () }
+| FOR v=var IN LPAREN ce1=pexpr DOTDOT ce2=pexpr RPAREN is=pblock
+    { PIFor (v, (ce1, ce2), is) }
 
-(* ** Instructions, blocks, and statements
- * -------------------------------------------------------------------- *)
+| WHILE b=pexpr is=pblock
+    { PIWhile (b, is) }
 
-%inline instr :
-| lbi = loc(base_instr)    { () }
-| lci = loc(control_instr) { () }
+pinstr:
+| i=loc(pinstr_r) { i }
 
-block :
-| LCBRACE stmt=instr* RCBRACE { () }
+pblock_r:
+| s=braces(pinstr*) { s }
+
+pblock:
+| s=loc(pblock_r) { s }
 
 (* ** Function definitions
  * -------------------------------------------------------------------- *)
 
-utype :
-| T_U8   {   8 }
-| T_U16  {  16 }
-| T_U32  {  32 }
-| T_U64  {  64 }
-| T_U128 { 128 }
-| T_U256 { 256 }
+stor_type:
+| sto=storage ty=ptype_ { (sto, ty) }
 
-typ :
-| ut=utype                   { () }
-| T_INT                      { () }
-| ut=utype d=brackets(dexpr) { () }
-| T_BOOL                     { () }
+storage:
+| REG    { `Reg    }
+| STACK  { `Stack  }
+| INLINE { `Inline }
 
-stor_typ :
-| sto=storage ty=typ { () }
+pvardecl :
+| ty=stor_type v=var { (ty, v) }
 
-%inline typed_vars_stor :
-| st=stor_typ vs=loc(var) { () }
-
-%inline storage:
-| REG    { () }
-| STACK  { () }
-| INLINE { () }
-
-ret_ty :
-| LARROW tys=tuple(loc(stor_typ)) { tys }
-
-%inline typed_vars_stor_var :
-| st=stor_typ v=var { () }
-
-arg_def :
-| ltv=loc(typed_vars_stor_var)
-    { () }
-
-| lst=loc(stor_typ)
-    { () }
-
-code_sec:
-| is = instr* { () }
-
-var_sec:
-| ds = terminated_list(SEMICOLON, typed_vars_stor) { () }
-
-func_body :
+pfunbody :
 | LCBRACE
-    vs   = var_sec
-    is   = code_sec
-    lret = loc(option(RETURN ret=tuple(var) SEMICOLON { () }))
+    vs = postfix(pvardecl, SEMICOLON)*
+    is = pinstr*
+    rt = option(RETURN vs=tuple(var) SEMICOLON { vs })
   RCBRACE
-    { () }
+    { { pdb_vars  = vs;
+        pdb_instr = is;
+        pdb_ret   = rt; } }
 
-func :
-| FN lname=loc(NID)
-    args = parens_tuple(arg_def)
-    rty  = ret_ty?
-    defs = func_body
-    { () }
+pfundef:
+| FN
+    name = ident
+    args = parens_tuple(st=stor_type v=var? { (st, v) })
+    rty  = prefix(LARROW, tuple(stor_type))?
+    body = pfunbody
+
+  { { pdf_name = name;
+      pdf_args = args;
+      pdf_rty  = rty ;
+      pdf_body = body; } }
 
 (* -------------------------------------------------------------------- *)
-typed_params :
-| t=typ vs=separated_nonempty_list(COMMA, NID) EQ pe=dexpr
-    { () }
-
-(* -------------------------------------------------------------------- *)
-topparam:
-| PARAM lps=loc(typed_params) SEMICOLON { () }
+pparam:
+| PARAM ty=ptype_ xs=plist1(ident, COMMA) EQ pe=pexpr SEMICOLON
+    { { ppa_ty = ty; ppa_names = xs; ppa_init = pe; } }
 
 (* -------------------------------------------------------------------- *)
 top:
-| func     { () }
-| topparam { () }
+| x=pfundef { S.PFundef x }
+| x=pparam  { S.PParam  x }
 
 (* -------------------------------------------------------------------- *)
 module_:
 | pfs=top* EOF
-    { () }
+    { pfs }
 
 | error
    { S.parse_error (L.make $startpos $endpos) }
 
 (* -------------------------------------------------------------------- *)
+%inline plist1(X, S):
+| s=separated_nonempty_list(S, X) { s }
+
 %inline loc(X):
 | x=X { L.mk_loc (L.make $startpos $endpos) x }
+
+%inline prefix(S, X):
+| S x=X { x } 
+
+%inline postfix(X, S):
+| x=X S { x }
 
 %inline parens(X):
 | x=delimited(LPAREN, X, RPAREN) { x }
 
 %inline brackets(X):
 | x=delimited(LBRACK, X, RBRACK) { x }
+
+%inline braces(X):
+| x=delimited(LCBRACE, X, RCBRACE) { x }
 
 %inline angles(X):
 | x=delimited(LT, X, GT) { x }
@@ -353,7 +304,3 @@ module_:
 
 %inline brackets_tuple(X):
 | s=brackets(rtuple(X)) { s }
-
-terminated_list(S, X):
-| x=X S xs=terminated_list(S, X) { x :: xs }
-| { [] }
