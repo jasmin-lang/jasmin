@@ -157,34 +157,6 @@ Definition word_of_scale (s: scale) :=
 
 Variant rflag : Set := CF | PF | AF | ZF | SF | OF.
 
-Definition string_of_rflag (r: rflag) : string :=
-  match r with
-  | CF => "CF"
-  | PF => "PF"
-  | AF => "AF"
-  | ZF => "ZF"
-  | SF => "SF"
-  | OF => "OF"
-  end%string.
-
-Definition rflag_of_string (s: string) :=
-  match s with
-  | String c0 (String c1 EmptyString) =>
-    if ascii_dec c1 "F" then
-      if ascii_dec c0 "C" then Some CF else
-      if ascii_dec c0 "P" then Some PF else
-      if ascii_dec c0 "A" then Some AF else
-      if ascii_dec c0 "Z" then Some ZF else
-      if ascii_dec c0 "S" then Some SF else
-      if ascii_dec c0 "O" then Some OF else
-      None else
-    None
-  | _ => None
-  end.
-
-Lemma rflag_of_string_of_rflag r : rflag_of_string (string_of_rflag r) = Some r.
-Proof. by case: r. Qed.
-
 Scheme Equality for rflag.
 Definition rflag_eqP : Equality.axiom rflag_eq_dec.
 Proof.
@@ -194,6 +166,77 @@ Qed.
 
 Definition rflag_eqMixin := EqMixin rflag_eqP.
 Canonical  rflag_eqType := EqType rflag rflag_eqMixin.
+
+(* Pseudo-registers used in the intermediate language *)
+Variant cond_flag : Set := EQ | CARRY | LTU | LTS | LEU | LES | GTU | GTS | GEU | GES.
+
+Definition string_of_cond_flag (c: cond_flag) : string :=
+  match c with
+  | EQ => "EQ"
+  | CARRY => "CARRY"
+  | LTU => "LTU"
+  | LTS => "LTS"
+  | LEU => "LEU"
+  | LES => "LES"
+  | GTU => "GTU"
+  | GTS => "GTS"
+  | GEU => "GEU"
+  | GES => "GES"
+  end.
+
+Definition cond_flag_of_string (s: string) :=
+  match s with
+  | String c0 (String c1 tl) =>
+    match tl with
+    | String c2 tl =>
+      match tl with
+      | String c3 (String c4 EmptyString) =>
+        if (ascii_dec c0 "C" && ascii_dec c1 "A" && ascii_dec c2 "R"
+         && ascii_dec c3 "R" && ascii_dec c4 "Y") then Some CARRY
+        else None
+      | EmptyString =>
+        if ascii_dec c0 "L" then
+          if ascii_dec c1 "T" then
+            if ascii_dec c2 "U" then Some LTU
+            else if ascii_dec c2 "S" then Some LTS
+            else None
+          else if ascii_dec c1 "E" then
+            if ascii_dec c2 "U" then Some LEU
+            else if ascii_dec c2 "S" then Some LES
+            else None
+          else None
+        else if ascii_dec c0 "G" then
+          if ascii_dec c1 "T" then
+            if ascii_dec c2 "U" then Some GTU
+            else if ascii_dec c2 "S" then Some GTS
+            else None
+          else if ascii_dec c1 "E" then
+            if ascii_dec c2 "U" then Some GEU
+            else if ascii_dec c2 "S" then Some GES
+            else None
+          else None
+        else None
+      | _ => None
+      end
+    | EmptyString =>
+      if (ascii_dec c0 "E" && ascii_dec c1 "Q") then Some EQ
+      else None
+    end
+  | _ => None
+  end.
+
+Lemma cond_flag_of_string_of_cond_flag r : cond_flag_of_string (string_of_cond_flag r) = Some r.
+Proof. by case: r. Qed.
+
+Scheme Equality for cond_flag.
+Definition cond_flag_eqP : Equality.axiom cond_flag_eq_dec.
+Proof.
+  move=> x y.
+  case: cond_flag_eq_dec=> H; [exact: ReflectT|exact: ReflectF].
+Qed.
+
+Definition cond_flag_eqMixin := EqMixin cond_flag_eqP.
+Canonical  cond_flag_eqType := EqType cond_flag cond_flag_eqMixin.
 
 Record address : Set := mkAddress {
   addrDisp : word ;
@@ -459,44 +502,56 @@ Fixpoint find_label (lbl: label) (c: cmd) {struct c} : option cmd :=
   end.
 
 Module RegMap.
-  Definition map := register + rflag -> word.
+  Definition map := register -> word.
 
-  Definition get (m: map) (x: register + rflag) := m x.
+  Definition get (m: map) (x: register) := m x.
 
-  Definition set (m: map) (x: register + rflag) (y: word) :=
+  Definition set (m: map) (x: register) (y: word) :=
     fun z => if (z == x) then y else m z.
 End RegMap.
 
+Module RflagMap.
+  Definition map := rflag -> bool.
+
+  Definition get (m: map) (x: rflag) := m x.
+
+  Definition set (m: map) (x: rflag) (y: bool) :=
+    fun z => if (z == x) then y else m z.
+End RflagMap.
+
 Notation regmap := RegMap.map.
+Notation rflagmap := RflagMap.map.
 
 Definition regmap0 : regmap := fun x => I64.repr 0.
+Definition rflagmap0 : rflagmap := fun x => false.
 
 Record x86_state := X86State {
   xmem : mem;
   xreg : regmap;
+  xrf : rflagmap;
   xc : cmd
 }.
 
-Definition setc (s:x86_state) c := X86State s.(xmem) s.(xreg) c.
+Definition setc (s:x86_state) c := X86State s.(xmem) s.(xreg) s.(xrf) c.
 
 Definition decode_addr (s: x86_state) (a: address) : word :=
   let (disp, base, ind) := a in
   match base, ind with
   | None, None => disp
-  | Some r, None => I64.add disp (RegMap.get s.(xreg) (inl r))
-  | None, Some (sc, r) => I64.add disp (I64.mul (word_of_scale sc) (RegMap.get s.(xreg) (inl r)))
+  | Some r, None => I64.add disp (RegMap.get s.(xreg) r)
+  | None, Some (sc, r) => I64.add disp (I64.mul (word_of_scale sc) (RegMap.get s.(xreg) r))
   | Some r1, Some (sc, r2) =>
-     I64.add disp (I64.add (RegMap.get s.(xreg) (inl r1)) (I64.mul (word_of_scale sc) (RegMap.get s.(xreg) (inl r2))))
+     I64.add disp (I64.add (RegMap.get s.(xreg) r1) (I64.mul (word_of_scale sc) (RegMap.get s.(xreg) r2)))
   end.
 
 Definition write_op (o: operand) (w: word) (s: x86_state) :=
   match o with
   | Imm_op v => type_error
-  | Reg_op r => ok {| xmem := s.(xmem); xreg := RegMap.set s.(xreg) (inl r) w; xc := s.(xc) |}
+  | Reg_op r => ok {| xmem := s.(xmem); xreg := RegMap.set s.(xreg) r w; xrf := s.(xrf); xc := s.(xc) |}
   | Address_op a =>
      let p := decode_addr s a in
      Let m := write_mem s.(xmem) p w in
-     ok {| xmem := m; xreg := s.(xreg); xc := s.(xc) |}
+     ok {| xmem := m; xreg := s.(xreg); xrf := s.(xrf); xc := s.(xc) |}
   end.
 
 Definition write_ops xs vs s := fold2 ErrType write_op xs vs s.
@@ -504,11 +559,32 @@ Definition write_ops xs vs s := fold2 ErrType write_op xs vs s.
 Definition read_op (s: x86_state) (o: operand) :=
   match o with
   | Imm_op v => ok v
-  | Reg_op r => ok (RegMap.get s.(xreg) (inl r))
+  | Reg_op r => ok (RegMap.get s.(xreg) r)
   | Address_op a =>
      let p := decode_addr s a in
      Let m := read_mem s.(xmem) p in
      ok m
+  end.
+
+Definition eval_cond (s: x86_state) (c: condition_type) :=
+  let 'get := RflagMap.get s.(xrf) in
+  match c with
+  | O_ct => get OF
+  | NO_ct => ~~ get OF
+  | B_ct => get CF
+  | NB_ct => ~~ get CF
+  | E_ct => get ZF
+  | NE_ct => ~~ get ZF
+  | BE_ct => get CF || get ZF
+  | NBE_ct => ~~ get CF && ~~ get ZF
+  | S_ct => get SF
+  | NS_ct => ~~ get SF
+  | P_ct => get PF
+  | NP_ct => ~~ get PF
+  | L_ct => get SF != get OF
+  | NL_ct => get SF == get OF
+  | LE_ct => get ZF || (get SF != get OF)
+  | NLE_ct => get ZF && (get SF == get OF)
   end.
 
 Section XSEM.
@@ -523,6 +599,15 @@ Variant xsem1 : x86_state -> x86_state -> Prop :=
     s1.(xc) = (JMP lbl) :: cs ->
     find_label lbl c = Some cs' ->
     xsem1 s1 (setc s1 cs')
+| XSem_Jcc_true s1 cond lbl cs cs':
+    s1.(xc) = (Jcc cond lbl) :: cs ->
+    eval_cond s1 cond = true ->
+    find_label lbl c = Some cs' ->
+    xsem1 s1 (setc s1 cs')
+| XSem_Jcc_false s1 cond lbl cs:
+    s1.(xc) = (Jcc cond lbl) :: cs ->
+    eval_cond s1 cond = false ->
+    xsem1 s1 (setc s1 cs)
 | XSem_MOV s1 dst src cs w s2:
     s1.(xc) = (MOV U64 dst src) :: cs ->
     read_op s1 src = ok w ->
@@ -552,23 +637,23 @@ Record xfundef := XFundef {
 Definition xprog := seq (funname * xfundef).
 
 Variant xsem_fd P m1 fn va m2 vr : Prop :=
-| XSem_fd : forall p cs fd vm2 m2' s1 s2,
+| XSem_fd : forall p cs fd vm2 rf m2' s1 s2,
     get_fundef P fn = Some fd ->
     alloc_stack m1 fd.(xfd_stk_size) = ok p ->
     let c := fd.(xfd_body) in
-    write_op  (Reg_op fd.(xfd_nstk)) p.1 (X86State p.2 regmap0 c) = ok s1 ->
+    write_op  (Reg_op fd.(xfd_nstk)) p.1 (X86State p.2 regmap0 rflagmap0 c) = ok s1 ->
     write_ops (map Reg_op fd.(xfd_arg)) va s1 = ok s2 ->
-    xsem c s2 {| xmem := m2'; xreg := vm2; xc := cs |} ->
-    mapM (fun r => read_op {| xmem := m2'; xreg := vm2; xc := cs |} (Reg_op r)) fd.(xfd_res) = ok vr ->
+    xsem c s2 {| xmem := m2'; xreg := vm2; xrf := rf; xc := cs |} ->
+    mapM (fun r => read_op {| xmem := m2'; xreg := vm2; xrf := rf; xc := cs |} (Reg_op r)) fd.(xfd_res) = ok vr ->
     m2 = free_stack m2' p.1 fd.(xfd_stk_size) ->
     xsem_fd P m1 fn va m2 vr.
 
 (* ** Conversion to assembly *
  * -------------------------------------------------------------------- *)
 
-Definition rflag_of_var_i (v: var_i) :=
+Definition cond_flag_of_var_i (v: var_i) :=
   match v with
-  | VarI (Var sbool s) _ => rflag_of_string s
+  | VarI (Var sbool s) _ => cond_flag_of_string s
   | _ => None
   end.
 
@@ -611,24 +696,39 @@ Definition reg_of_vars ii (vs: seq var_i) :=
 Definition assemble_cond ii (e: pexpr) :=
   match e with
   | Pvar v =>
-    match (rflag_of_var_i v) with
-    | Some CF => ciok B_ct
-    | Some PF => ciok P_ct
-    | Some ZF => ciok E_ct
-    | Some SF => ciok S_ct
-    | Some OF => ciok O_ct
-    | _ => cierror ii (Cerr_assembler "branching variable is not a valid rflag")
-    end
-  | Pnot (Pvar v) =>
-    match (rflag_of_var_i v) with
-    | Some CF => ciok NB_ct
-    | Some PF => ciok NP_ct
-    | Some ZF => ciok NE_ct
-    | Some SF => ciok NS_ct
-    | Some OF => ciok NO_ct
-    | _ => cierror ii (Cerr_assembler "branching variable is not a valid rflag")
+    match (cond_flag_of_var_i v) with
+    | Some EQ => ciok E_ct
+    | Some CARRY => ciok B_ct
+    | Some LTU => ciok B_ct
+    | Some LTS => ciok L_ct
+    | Some LEU => ciok BE_ct
+    | Some LES => ciok LE_ct
+    | Some GTU => ciok NBE_ct
+    | Some GTS => ciok NLE_ct
+    | Some GEU => ciok NB_ct
+    | Some GES => ciok NL_ct
+    | None => cierror ii (Cerr_assembler "branching variable is not a valid cond_flag")
     end
   | _ => cierror ii (Cerr_assembler "invalid branching")
+  end.
+
+Definition assemble_cond_assgn ii (l: lval) (e: pexpr) : ciexec instr :=
+  match l with
+  | Lvar vc =>
+    match e with
+    | Papp2 o (Pvar v1) (Pvar v2) =>
+      Let r1 := reg_of_var ii v1 in
+      Let r2 := reg_of_var ii v2 in
+      match (cond_flag_of_var_i vc) with
+      | Some rc =>
+        match l, o with
+        | _, _ => cierror ii (Cerr_assembler "op not handled in condition")
+        end
+      | None => cierror ii (Cerr_assembler "invalid condition flag in LHS")
+      end
+    | _ => cierror ii (Cerr_assembler "invalid RHS in condition")
+    end
+  | _ => cierror ii (Cerr_assembler "invalid LHS in condition")
   end.
 
 Definition word_of_int ii (z: Z) :=
@@ -675,9 +775,12 @@ Definition assemble_i (li: linstr) : ciexec instr :=
   let (ii, i) := li in
   match i with
   | Lassgn l _ e =>
-     Let dst := operand_of_lval ii l in
-     Let src := operand_of_pexpr ii e in
-     ciok (MOV U64 dst src)
+     match (operand_of_lval ii l) with
+     | Ok dst =>
+       Let src := operand_of_pexpr ii e in
+       ciok (MOV U64 dst src)
+     | Error _ => assemble_cond_assgn ii l e
+     end
   | Lopn l o p => cierror ii (Cerr_assembler "opn")
   | Llabel l => ciok (LABEL l)
   | Lgoto l => ciok (JMP l)
@@ -727,7 +830,13 @@ Proof.
       rewrite /linear.is_label in H.
       move: a Hy H=> [ii [lv t e|l0|l0|l0|e l0] //=] Hy H.
       + case: y Hy=> //= l0.
-        by apply: rbindP=> dst Hdst; apply: rbindP=> src Hsrc.
+        case: (operand_of_lval _ _)=> // [a|_].
+        by apply: rbindP=> dst Hdst.
+        rewrite /assemble_cond_assgn.
+        move: lv=> [] // vi.
+        move: e=> [] // _ [] // v [] // v'.
+        apply: rbindP=> _ _; apply: rbindP=> _ _.
+        by case: (cond_flag_of_var_i vi).
       + by case: y Hy=> //= l1 []<-; rewrite H.
       + by case: y Hy.
       + case: y Hy=> //= l1.
@@ -742,7 +851,7 @@ Section PROOF_CMD.
   Definition incl_regmap (vm: vmap) (rm: regmap) :=
     forall x ii r v, reg_of_var ii x = ciok r ->
     get_var vm x = ok v ->
-    Vword (RegMap.get rm (inl r)) = v.
+    Vword (RegMap.get rm r) = v.
 
   Definition incl_st (ls: lstate) (xs: x86_state) :=
     ls.(lmem) = xs.(xmem) /\ incl_regmap ls.(lvm) xs.(xreg) /\ assemble_c ls.(lc) = ok xs.(xc).
@@ -755,7 +864,7 @@ Section PROOF_CMD.
     to_word x2 = ok w2 ->
     reg_of_var ii v0 = ok s0 ->
     word_of_pexpr ii p = ok w0 ->
-    I64.add w1 w2 = I64.add w0 (RegMap.get (xreg xs) (inl s0)).
+    I64.add w1 w2 = I64.add w0 (RegMap.get (xreg xs) s0).
   Proof.
     move=> [_ [Hreg _]] Hx1 Hw1 Hx2 Hw2 Hs0 Hw0.
     case: p Hx2 Hw0=> // -[] // z /= Hx2 Hw0.
@@ -916,18 +1025,25 @@ Section PROOF_CMD.
     sinversion Hsem.
     + apply: rbindP H0=> v Hv Hw.
       rewrite H /= /assemble_c /= in Hc.
-      apply: rbindP Hc=> y; apply: rbindP=> dst Hdst.
-      apply: rbindP=> src Hsrc [] <-.
-      rewrite -/(assemble_c _).
-      apply: rbindP=> ys Hys [] Hxc.
-      have [w [Hw1 Hw2]] := (pexpr_same Hincl Hv Hsrc).
-      rewrite Hw1 in Hw.
-      have [xs' [Hxs'1 Hxs'2]] := lval_same Hincl Hw Hdst; eexists; split.
-      apply: XSem_MOV; eauto.
-      repeat split=> //=.
-      by move: Hxs'2=> [? _].
-      by move: Hxs'2=> [_ [? _]].
-    + admit. (* Lopn: TODO *)
+      apply: rbindP Hc=> y.
+      case Hdst: (operand_of_lval ii x)=> [dst|].
+      + apply: rbindP=> src Hsrc [] <-.
+        rewrite -/(assemble_c _).
+        apply: rbindP=> ys Hys [] Hxc.
+        have [w [Hw1 Hw2]] := (pexpr_same Hincl Hv Hsrc).
+        rewrite Hw1 in Hw.
+        have [xs' [Hxs'1 Hxs'2]] := lval_same Hincl Hw Hdst; eexists; split.
+        apply: XSem_MOV; eauto.
+        repeat split=> //=.
+        by move: Hxs'2=> [? _].
+        by move: Hxs'2=> [_ [? _]].
+      + rewrite /assemble_cond_assgn.
+        move: x H Hw {Hdst}=> [] // vc Hvc /= Hw.
+        move: e Hv Hvc=> [] // s [] // v1 [] // v2 /=.
+        apply: rbindP=> v1' Hv1'; apply: rbindP=> v2' Hv2' Hv Hcs.
+        apply: rbindP=> r1 Hr1; apply: rbindP=> r2 Hr2.
+        case Hcond: (cond_flag_of_var_i vc)=> //.
+    + by rewrite H /= /assemble_c /= in Hc. (* Lopn: TODO *)
     + rewrite H /= /assemble_c /= in Hc.
       apply: rbindP Hc=> ys Hys [] Hc.
       eexists; split; eauto.
@@ -942,8 +1058,24 @@ Section PROOF_CMD.
       by rewrite -Hc.
       exact: Hcs''1.
       by repeat split.
-    + admit. (* Lcond true: TODO *)
-    + admit. (* Lcond false: TODO *)
+    + rewrite H /= /assemble_c /= in Hc.
+      apply: rbindP Hc=> y.
+      apply: rbindP=> cond Hcond []<-.
+      apply: rbindP=> ys Hys [] Hi.
+      have [cs'' [Hcs''1 Hcs''2]] := find_label_same assemble_ok H1.
+      exists (X86State s1'.(xmem) s1'.(xreg) s1'.(xrf) cs''); split=> //=.
+      apply: XSem_Jcc_true.
+      by rewrite -Hi.
+      admit.
+      exact: Hcs''1.
+    + rewrite H /= /assemble_c /= in Hc.
+      apply: rbindP Hc=> y.
+      apply: rbindP=> cond Hcond []<-.
+      apply: rbindP=> ys Hys [] Hi.
+      exists (X86State s1'.(xmem) s1'.(xreg) s1'.(xrf) ys); split=> //.
+      apply: XSem_Jcc_false.
+      by rewrite -Hi.
+      admit.
   Admitted.
 
   Lemma assemble_cP:
@@ -985,7 +1117,7 @@ Section PROOF.
     rewrite Hs in H2.
     have Hsp': reg_of_var xH {| v_var := {| vtype := sword; vname := lfd_nstk fd |}; v_info := 1%positive |} = ok sp.
       by rewrite /= Hsp.
-    have Hincl0: incl_st {| lmem := p0.2; lvm := vmap0; lc := c |} {| xmem := p0.2; xreg := regmap0; xc := c' |}.
+    have Hincl0: incl_st {| lmem := p0.2; lvm := vmap0; lc := c |} {| xmem := p0.2; xreg := regmap0; xrf := rflagmap0; xc := c' |}.
       repeat split=> //=.
       move=> x ii0 r v Hr Habs; exfalso.
       rewrite /get_var /vmap0 in Habs.
@@ -999,7 +1131,7 @@ Section PROOF.
     have [xs2 /= [Hxs21 Hxs22]] := write_vars_same Hxs12 H3 Harg.
     have [xs3 /= [Hxs31 Hxs32]] := assemble_cP Hc' Hxs22 H4.
     have Hres' := (read_vars_same Hxs32 Hres H5).
-    move: xs3 Hxs31 Hxs32 Hres'=> [xmem3 xreg3 xc3] Hxs31 Hxs32 Hres' /=.
+    move: xs3 Hxs31 Hxs32 Hres'=> [xmem3 xreg3 xrf3 xc3] Hxs31 Hxs32 Hres' /=.
     apply: (XSem_fd Hf'2 H1)=> /=.
     by rewrite -Hxs11.
     exact: Hxs21.
