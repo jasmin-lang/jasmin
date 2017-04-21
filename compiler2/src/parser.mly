@@ -7,49 +7,78 @@
 
 %token EOF
 
-%token LBRACK RBRACK LCBRACE RCBRACE LPAREN RPAREN
+%token LBRACKET
+%token RBRACKET
+%token LBRACE
+%token RBRACE
+%token LPAREN
+%token RPAREN
+
+%token T_BOOL
+%token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
+
+%token AT
+%token AMP
+%token AMPAMP
+%token AMPEQ
+%token BANG
+%token BANGEQ
+%token COLONEQ
+%token COMMA
+%token DOLLAR
+%token DOTDOT
+%token ELSE
 %token EQ
 %token EQEQ
-%token INEQ
-%token PLUSEQ MINUSEQ BANDEQ MULEQ
-%token LT LE GT GE
-%token SHREQ SHLEQ XOREQ OREQ
-%token LARROW
-%token DOLLAR
-%token UNDERSCORE
-
-%token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
-%token T_BOOL
-
-%token STAR
-%token BAND
-%token MINUS
-%token PLUS
-%token LAND LOR
-%token SEMICOLON
-%token BANG DOTDOT COMMA
-%token SHR SHL XOR OR
-
-%token REG STACK INLINE PARAM
-
-%token FOR
-%token WHILE
-%token IN
-%token IF
-%token ELSE
-%token TRUE
 %token FALSE
 %token FN
+%token FOR
+%token GE
+%token GT
+%token GTGT
+%token GTGTEQ
+%token HAT
+%token HATEQ
+%token IF
+%token IN
+%token INLINE
+%token LE
+%token LT
+%token LTLT
+%token LTLTEQ
+%token MINUS
+%token MINUSEQ
+%token PARAM
+%token PIPE
+%token PIPEEQ
+%token PIPEPIPE
+%token PLUS
+%token PLUSEQ
+%token RARROW
+%token REG
 %token RETURN
+%token SEMICOLON
+%token STACK
+%token STAR
+%token STAREQ
+%token TRUE
+%token UNDERSCORE
+%token WHILE
 
 %token <string> NID
 %token <Bigint.zint> INT
 
-%nonassoc BANG
-%left LAND
-%left LOR
-%left MINUS PLUS
+%left PIPEPIPE
+%left AMPAMP
+%left PIPE
+%left HAT
+%left AMP
+%left EQEQ BANGEQ
+%left LE GE LT GT
+%left LTLT GTGT
+%left PLUS MINUS
 %left STAR
+%nonassoc BANG
 
 %type <Syntax.pprogram> module_
 
@@ -94,22 +123,22 @@ ptype_:
 | BANG  { `Not }
 
 %inline peop2:
-| PLUS  { `Add  }
-| MINUS { `Sub  }
-| STAR  { `Mul  }
-| LAND  { `And  }
-| LOR   { `Or   }
-| BAND  { `BAnd }
-| OR    { `BOr  }
-| XOR   { `BXOr }
-| SHL   { `Shl  }
-| SHR   { `Shr  }
-| EQEQ  { `Eq   }
-| INEQ  { `Neq  }
-| LT    { `Lt   }
-| LE    { `Le   }
-| GT    { `Gt   }
-| GE    { `Ge   }
+| PLUS     { `Add  }
+| MINUS    { `Sub  }
+| STAR     { `Mul  }
+| AMPAMP   { `And  }
+| PIPEPIPE { `Or   }
+| AMP      { `BAnd }
+| PIPE     { `BOr  }
+| HAT      { `BXor }
+| LTLT     { `Shl  }
+| GTGT     { `Shr  }
+| EQEQ     { `Eq   }
+| BANGEQ   { `Neq  }
+| LT       { `Lt   }
+| LE       { `Le   }
+| GT       { `Gt   }
+| GE       { `Ge   }
 
 pexpr_r:
 | v=var
@@ -147,12 +176,12 @@ peqop:
 | EQ      { `Raw }
 | PLUSEQ  { `Add }
 | MINUSEQ { `Sub }
-| SHREQ   { `ShR }
-| SHLEQ   { `ShL }
-| BANDEQ  { `And }
-| XOREQ   { `XOr }
-| OREQ    { `Or  }
-| MULEQ   { `Mul }
+| STAREQ  { `Mul }
+| GTGTEQ  { `ShR }
+| LTLTEQ  { `ShL }
+| AMPEQ   { `And }
+| HATEQ   { `XOr }
+| PIPEEQ  { `Or  }
 
 (* ** Left value
  * -------------------------------------------------------------------- *)
@@ -168,6 +197,9 @@ plvalue_r:
 | x=var i=brackets(pexpr)
     { PLArray (x, i) }
 
+| AT LBRACKET v=var PLUS e=pexpr RBRACKET
+    { PLMem (v, e) }
+
 plvalue:
 | x=loc(plvalue_r) { x }
 
@@ -175,11 +207,11 @@ plvalue:
  * -------------------------------------------------------------------- *)
 
 pinstr_r:
-| x=tuple1(plvalue) o=peqop e=pexpr SEMICOLON
-    { PIAssign (x, o, e, None) }
+| x=tuple1(plvalue) o=peqop e=pexpr c=prefix(IF, pexpr)? SEMICOLON
+    { PIAssign (x, o, e, c) }
 
-| x=tuple1(plvalue) o=peqop e=pexpr IF c=pexpr SEMICOLON
-    { PIAssign (x, o, e, Some c) }
+| x=tuple1(plvalue) COLONEQ e=pexpr c=prefix(IF, pexpr)? SEMICOLON
+    { PIMove (x, e, c) }
 
 | fname=ident args=parens_tuple(pexpr) SEMICOLON
     { PICall (fname, args) }
@@ -220,11 +252,11 @@ pvardecl :
 | ty=stor_type v=var { (ty, v) }
 
 pfunbody :
-| LCBRACE
+| LBRACE
     vs = postfix(pvardecl, SEMICOLON)*
     is = pinstr*
     rt = option(RETURN vs=tuple(var) SEMICOLON { vs })
-  RCBRACE
+  RBRACE
     { { pdb_vars  = vs;
         pdb_instr = is;
         pdb_ret   = rt; } }
@@ -233,7 +265,7 @@ pfundef:
 | FN
     name = ident
     args = parens_tuple(st=stor_type v=var? { (st, v) })
-    rty  = prefix(LARROW, tuple(stor_type))?
+    rty  = prefix(RARROW, tuple(stor_type))?
     body = pfunbody
 
   { { pdf_name = name;
@@ -276,10 +308,10 @@ module_:
 | x=delimited(LPAREN, X, RPAREN) { x }
 
 %inline brackets(X):
-| x=delimited(LBRACK, X, RBRACK) { x }
+| x=delimited(LBRACKET, X, RBRACKET) { x }
 
 %inline braces(X):
-| x=delimited(LCBRACE, X, RCBRACE) { x }
+| x=delimited(LBRACE, X, RBRACE) { x }
 
 %inline angles(X):
 | x=delimited(LT, X, GT) { x }

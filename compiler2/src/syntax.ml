@@ -16,9 +16,9 @@ type pident = string L.located
 type peop1 = [ `Not ]
 
 type peop2 = [
-  `Add | `Sub | `Mul | `And | `Or  | `Eq  | `Neq |
-  `Lt  | `Le  | `Gt  | `Ge 
-  ]
+  `Add | `Sub | `Mul | `And | `Or  | `BAnd | `BOr | `BXor |
+  `Shr | `Shl | `Eq  | `Neq | `Lt  | `Le   | `Gt  | `Ge 
+]
 
 (* -------------------------------------------------------------------- *)
 type pexpr_r =
@@ -48,6 +48,7 @@ type plvalue_r =
   | PLIgnore
   | PLVar   of pident
   | PLArray of pident * pexpr
+  | PLMem   of pident * pexpr
 
 and plvalue = plvalue_r L.located
 
@@ -59,6 +60,7 @@ type peqop = [
 (* -------------------------------------------------------------------- *)
 type pinstr_r =
   | PIAssign of plvalue list * peqop * pexpr * pexpr option
+  | PIMove   of plvalue list * pexpr * pexpr option
   | PIIf     of pexpr * pblock * pblock option
   | PIFor    of pident * (pexpr pair) * pblock
   | PIWhile  of pexpr * pblock

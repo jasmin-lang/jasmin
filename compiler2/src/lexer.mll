@@ -18,21 +18,23 @@
     "u64"   , T_U64  ;
     "u128"  , T_U128 ;
     "u256"  , T_U256 ;
+
     "bool"  , T_BOOL ;
     "int"   , T_INT  ;
-    "reg"   , REG    ;
-    "stack" , STACK  ;
+
+    "else"  , ELSE   ;
+    "false" , FALSE  ;
+    "fn"    , FN     ;
+    "for"   , FOR    ;
+    "if"    , IF     ;
+    "in"    , IN     ;
     "inline", INLINE ;
     "param" , PARAM  ;
-    "true"  , TRUE   ;
-    "false" , FALSE  ;
-    "for"   , FOR    ;
-    "while" , WHILE  ;
-    "in"    , IN     ;
-    "if"    , IF     ;
-    "else"  , ELSE   ;
-    "fn"    , FN     ;
+    "reg"   , REG    ;
     "return", RETURN ;
+    "stack" , STACK  ;
+    "true"  , TRUE   ;
+    "while" , WHILE  ;
   ]
 
   let keywords = Hash.of_enum (List.enum _keywords)
@@ -68,44 +70,47 @@ rule main = parse
   | ident+ as s
       { odfl (NID s) (Hash.find_option keywords s) }
 
-  | "["     { LBRACK     }
-  | "]"     { RBRACK     }
-  | "{"     { LCBRACE    }
-  | "}"     { RCBRACE    }
+  | "["     { LBRACKET   }
+  | "]"     { RBRACKET   }
+  | "{"     { LBRACE     }
+  | "}"     { RBRACE     }
   | "("     { LPAREN     }
   | ")"     { RPAREN     }
   | "_"     { UNDERSCORE }
-  | "->"    { LARROW     }
-  | "="     { EQ         }
-  | "=="    { EQEQ       }
-  | "!="    { INEQ       }
-  | "+="    { PLUSEQ     }
-  | "*="    { MULEQ      }
-  | "-="    { MINUSEQ    }
-  | "&="    { BANDEQ     }
+  | "->"    { RARROW     }
+  | "@"     { AT         }
+  | ","     { COMMA      }
+  | ";"     { SEMICOLON  }
+  | "$"     { DOLLAR     }
+  | ".."    { DOTDOT     }
   | "<="    { LE         }
   | "<"     { LT         }
   | ">="    { GE         }
   | ">"     { GT         }
-  | ".."    { DOTDOT     }
-  | ","     { COMMA      }
-  | ">>="   { SHREQ      }
-  | "<<="   { SHLEQ      }
-  | "^="    { XOREQ      }
-  | "|="    { OREQ       }
+  | "!"     { BANG       }
+  | "+"     { PLUS       }
   | "-"     { MINUS      }
   | "*"     { STAR       }
-  | "+"     { PLUS       }
-  | "&"     { BAND       }
-  | "&&"    { LAND       }
-  | "||"    { LOR        }
-  | ";"     { SEMICOLON  }
-  | "!"     { BANG       }
-  | ">>"    { SHR        }
-  | "<<"    { SHL        }
-  | "^"     { XOR        }
-  | "|"     { OR         }
-  | "$"     { DOLLAR     }
+  | "|"     { PIPE       }
+  | "&"     { AMP        }
+  | "^"     { HAT        }
+  | "&&"    { AMPAMP     }
+  | "||"    { PIPEPIPE   }
+  | ">>"    { GTGT       }
+  | "<<"    { LTLT       }
+  | ":="    { COLONEQ    }
+  | "="     { EQ         }
+  | "=="    { EQEQ       }
+  | "!="    { BANGEQ     }
+  | "+="    { PLUSEQ     }
+  | "-="    { MINUSEQ    }
+  | "*="    { STAREQ     }
+  | "|="    { PIPEEQ     }
+  | "&="    { AMPEQ      }
+  | "^="    { HATEQ      }
+  | "^="    { HATEQ      }
+  | ">>="   { GTGTEQ     }
+  | "<<="   { LTLTEQ     }
 
   | _ as c  { invalid_char (L.of_lexbuf lexbuf) c }
   | eof     { EOF }

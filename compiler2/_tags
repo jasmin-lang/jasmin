@@ -1,5 +1,5 @@
 # --------------------------------------------------------------------
-true : use_menhir, menhir_explain, menhir_table, menhir_trace
+true : use_menhir, menhir_explain, menhir_table
 true : debug
 true : warn_Z, warn_Y, warn_+28, warn_-23, warn_+33, warn_-58, warn_-3
 true : -traverse
