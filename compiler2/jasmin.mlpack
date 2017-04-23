@@ -9,4 +9,5 @@ src/Printer
 src/Prog
 src/Subst
 src/Syntax
+src/Typing
 src/Utils

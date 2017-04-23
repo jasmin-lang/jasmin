@@ -81,7 +81,6 @@ rule main = parse
   | "@"     { AT         }
   | ","     { COMMA      }
   | ";"     { SEMICOLON  }
-  | "$"     { DOLLAR     }
   | ".."    { DOTDOT     }
   | "<="    { LE         }
   | "<"     { LT         }

@@ -10,7 +10,8 @@ let parse_error ?msg loc =
   raise (ParseError (loc, msg))
 
 (* -------------------------------------------------------------------- *)
-type pident = string L.located
+type symbol = string
+type pident = symbol L.located
 
 (* -------------------------------------------------------------------- *)
 type peop1 = [ `Not ]
@@ -23,7 +24,6 @@ type peop2 = [
 (* -------------------------------------------------------------------- *)
 type pexpr_r =
   | PEParens of pexpr
-  | PEParam  of pident
   | PEVar    of pident
   | PEGet    of pident * pexpr
   | PEBool   of bool
@@ -34,8 +34,9 @@ type pexpr_r =
 and pexpr = pexpr_r L.located
 
 (* -------------------------------------------------------------------- *)
-type wsize = [ `W8 | `W16 | `W32 | `W64 | `W128 | `W256 ]
-type ptype = TBool | TInt | TWord of wsize | TArray of wsize * pexpr
+type wsize   = [ `W8 | `W16 | `W32 | `W64 | `W128 | `W256 ]
+type ptype_r = TBool | TInt | TWord of wsize | TArray of wsize * pexpr
+type ptype   = ptype_r L.located
 
 (* -------------------------------------------------------------------- *)
 type pstorage = [ `Reg | `Stack | `Inline ]

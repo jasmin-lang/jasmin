@@ -25,7 +25,6 @@
 %token BANGEQ
 %token COLONEQ
 %token COMMA
-%token DOLLAR
 %token DOTDOT
 %token ELSE
 %token EQ
@@ -103,7 +102,7 @@ utype:
 | T_U128 { `W128 }
 | T_U256 { `W256 }
 
-ptype_:
+ptype_r:
 | T_BOOL
     { TBool }
 
@@ -115,6 +114,9 @@ ptype_:
 
 | ut=utype d=brackets(pexpr)
     { TArray (ut, d) }
+
+ptype:
+| x=loc(ptype_r) { x }
 
 (* ** Index expressions
  * -------------------------------------------------------------------- *)
@@ -146,9 +148,6 @@ pexpr_r:
 
 | v=var i=brackets(pexpr)
     { PEGet (v, i) }
-
-| DOLLAR v=ident
-    { PEParam v }
 
 | TRUE
     { PEBool true }
@@ -241,7 +240,7 @@ pblock:
  * -------------------------------------------------------------------- *)
 
 stor_type:
-| sto=storage ty=ptype_ { (sto, ty) }
+| sto=storage ty=ptype { (sto, ty) }
 
 storage:
 | REG    { `Reg    }
@@ -275,7 +274,7 @@ pfundef:
 
 (* -------------------------------------------------------------------- *)
 pparam:
-| PARAM ty=ptype_ xs=plist1(ident, COMMA) EQ pe=pexpr SEMICOLON
+| PARAM ty=ptype xs=plist1(ident, COMMA) EQ pe=pexpr SEMICOLON
     { { ppa_ty = ty; ppa_names = xs; ppa_init = pe; } }
 
 (* -------------------------------------------------------------------- *)
