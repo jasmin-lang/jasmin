@@ -49,7 +49,8 @@ jasmin.mlpack: __force__
 CIL:
 	rm -f CIL/*.{ml,mli}
 	$(MAKE) -C ../proofs
-	cp ../proofs/lang/ocaml/*.{ml,mli} CIL/
+	cp ../proofs/lang/ocaml/*.ml  CIL/
+	cp ../proofs/lang/ocaml/*.mli CIL/
 
 install: build
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
