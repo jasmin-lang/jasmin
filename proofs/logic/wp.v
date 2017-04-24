@@ -659,6 +659,7 @@ Definition sopn_type (op: sopn) : seq sstype * seq sstype :=
   | Omulu => ([:: ssword ; ssword ], [:: ssword ; ssword ])
   | Oif => ([:: ssbool ; ssword ; ssword ], [:: ssword])
   | (Oaddcarry | Osubcarry) => ([:: ssword ; ssword ; ssbool ], [:: ssbool ; ssword ])
+  | (Oleu | Oltu | Ogeu | Ogtu | Oles | Olts | Oges | Ogts | Oeqw) => ([:: ssword; ssword], [:: ssbool])
   end.
 
 Definition sopn_type_i op := fst (sopn_type op).
@@ -743,6 +744,15 @@ Definition eval_sopn (op: sopn) :
   | Omuli => λ a, let '(x, y) := a in snd (word.wumul x y)
   | Oaddcarry => λ a, let '(x, (y, c)) := a in word.waddcarry x y c
   | Osubcarry => λ a, let '(x, (y, c)) := a in word.wsubcarry x y c
+  | Oleu => uncurry (fun x y => I64.ltu x y || I64.eq x y)
+  | Oltu => uncurry I64.ltu
+  | Ogeu => uncurry (fun x y => I64.ltu y x || I64.eq x y)
+  | Ogtu => uncurry (fun x y => I64.ltu y x)
+  | Oles => uncurry (fun x y => I64.lt x y || I64.eq x y)
+  | Olts => uncurry I64.lt
+  | Oges => uncurry (fun x y => I64.lt y x || I64.eq x y)
+  | Ogts => uncurry (fun x y => I64.lt y x)
+  | Oeqw => uncurry I64.eq
   end.
 
 Fixpoint type_check_pexprs (pes: seq pexpr) (tys: seq sstype)

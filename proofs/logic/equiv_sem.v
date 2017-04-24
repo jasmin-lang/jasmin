@@ -236,11 +236,25 @@ Proof.
   by move=> ??????;t_rbindP.
 Qed.
 
+Lemma svuincl_owwb o vs vs' v :
+  List.Forall2 svalue_uincl vs vs' ->
+  (owwb o) vs = ok v ->
+  exists v' : svalues,
+     (sowwb o) vs' = ok v' /\ List.Forall2 svalue_uincl v v'.
+Proof.
+  move=> [] //= v1 v1' ?? Hv [] //=; first by apply: rbindP.
+  move=> ???? Hv' [] //=.
+  + apply: rbindP => z /(svalue_uincl_word Hv) [] _ ->.
+    apply: rbindP => z' /(svalue_uincl_word Hv') [] _ -> [] <- /=.
+    by eexists;split;eauto;constructor.
+  by move=> ??????;t_rbindP.
+Qed.
+
 Lemma svuincl_sem_opn o vs vs' v :
   List.Forall2 svalue_uincl vs vs' -> sem_sopn o vs = ok v ->
   exists v', ssem_sopn o vs' = ok v' /\ List.Forall2 svalue_uincl v v'.
 Proof.
-  rewrite /sem_sopn /ssem_sopn;case: o;eauto using svuincl_oww, svuincl_owww.
+  rewrite /sem_sopn /ssem_sopn;case: o;eauto using svuincl_oww, svuincl_owww, svuincl_owwb.
   + move=> [] //= v1 v1' ?? Hv1 [] //=; first by apply: rbindP.
     move=> v2 v2' ?? Hv2 [];first by t_rbindP.
     move=> v3 v3' ?? Hv3 [].

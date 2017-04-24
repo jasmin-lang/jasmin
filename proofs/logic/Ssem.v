@@ -271,6 +271,7 @@ Definition spval t1 t2 (p: ssem_t t1 * ssem_t t2) :=
 
 Notation soww o  := (sapp_sopn [::ssword] (fun x => [::SVword (o x)])).
 Notation sowww o := (sapp_sopn [:: ssword; ssword] (fun x y => [::SVword (o x y)])).
+Notation sowwb o := (sapp_sopn [:: ssword; ssword] (fun x y => [::SVbool (o x y)])).
 
 Definition ssem_sopn (o:sopn) : svalues -> exec svalues :=
   match o with
@@ -289,6 +290,15 @@ Definition ssem_sopn (o:sopn) : svalues -> exec svalues :=
     sapp_sopn [::ssword; ssword; ssbool] (fun x y c => @spval sbool sword (waddcarry x y c))
   | Osubcarry =>
     sapp_sopn [::ssword; ssword; ssbool] (fun x y c => @spval sbool sword (wsubcarry x y c))
+  | Oleu => sowwb (fun x y => I64.ltu x y || I64.eq x y)
+  | Oltu => sowwb I64.ltu
+  | Ogeu => sowwb (fun x y => I64.ltu y x || I64.eq x y)
+  | Ogtu => sowwb (fun x y => I64.ltu y x)
+  | Oles => sowwb (fun x y => I64.lt x y || I64.eq x y)
+  | Olts => sowwb I64.lt
+  | Oges => sowwb (fun x y => I64.lt y x || I64.eq x y)
+  | Ogts => sowwb (fun x y => I64.lt y x)
+  | Oeqw => sowwb I64.eq
   end.
 
 (* ** Instructions

@@ -74,7 +74,16 @@ Inductive sopn : Set :=
 | Omulu     : sopn                  (* cpu   : [sword; sword]        -> [sword;sword] *)
 | Omuli     : sopn                  (* cpu   : [sword; sword]        -> [sword]       *)
 | Oaddcarry : sopn                  (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
-| Osubcarry : sopn.                 (* cpu   : [sword; sword; sbool] -> [sbool;sword] *) 
+| Osubcarry : sopn                  (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
+| Oleu      : sopn                  (* cpu   : sword -> sword -> sbool *)
+| Oltu      : sopn                  (* cpu   : sword -> sword -> sbool *)
+| Ogeu      : sopn                  (* cpu   : sword -> sword -> sbool *)
+| Ogtu      : sopn                  (* cpu   : sword -> sword -> sbool *)
+| Oles      : sopn                  (* cpu   : sword -> sword -> sbool *)
+| Olts      : sopn                  (* cpu   : sword -> sword -> sbool *)
+| Oges      : sopn                  (* cpu   : sword -> sword -> sbool *)
+| Ogts      : sopn                  (* cpu   : sword -> sword -> sbool *)
+| Oeqw      : sopn.                 (* cpu   : sword -> sword -> sbool *)
 
 Scheme Equality for sop2.
 (* Definition sop2_beq : sop2 -> sop2 -> bool *)

@@ -373,6 +373,7 @@ Definition pval t1 t2 (p: sem_t t1 * sem_t t2) :=
 
 Notation oww o  := (app_sopn [::sword] (fun x => [::Vword (o x)])).
 Notation owww o := (app_sopn [:: sword; sword] (fun x y => [::Vword (o x y)])).
+Notation owwb o := (app_sopn [:: sword; sword] (fun x y => [::Vbool (o x y)])).
 
 Definition sem_sopn (o:sopn) :  values -> exec values :=
   match o with
@@ -391,6 +392,15 @@ Definition sem_sopn (o:sopn) :  values -> exec values :=
     app_sopn [::sword; sword; sbool] (fun x y c => @pval sbool sword (waddcarry x y c))
   | Osubcarry =>
     app_sopn [::sword; sword; sbool] (fun x y c => @pval sbool sword (wsubcarry x y c))
+  | Oleu => owwb (fun x y => I64.ltu x y || I64.eq x y)
+  | Oltu => owwb I64.ltu
+  | Ogeu => owwb (fun x y => I64.ltu y x || I64.eq x y)
+  | Ogtu => owwb (fun x y => I64.ltu y x)
+  | Oles => owwb (fun x y => I64.lt x y || I64.eq x y)
+  | Olts => owwb I64.lt
+  | Oges => owwb (fun x y => I64.lt y x || I64.eq x y)
+  | Ogts => owwb (fun x y => I64.lt y x)
+  | Oeqw => owwb I64.eq
   end.
 
 (* ** Instructions
@@ -1181,11 +1191,25 @@ Proof.
   by move=> ??????;t_rbindP.
 Qed.
 
+Lemma vuincl_owwb o vs vs' v :
+  List.Forall2 value_uincl vs vs' ->
+  (owwb o) vs = ok v ->
+  exists v' : values,
+    (owwb o) vs' = ok v' /\ List.Forall2 value_uincl v v'.
+Proof.
+  move=> [] //= v1 v1' ?? Hv [] //=; first by apply: rbindP.
+  move=> ???? Hv' [] //=.
+  + apply: rbindP => z /(value_uincl_word Hv) [] _ ->.
+    apply: rbindP => z' /(value_uincl_word Hv') [] _ -> [] <- /=.
+    by eexists;split;eauto;constructor.
+  by move=> ??????;t_rbindP.
+Qed.
+
 Lemma vuincl_sem_opn o vs vs' v : 
   List.Forall2 value_uincl vs vs' -> sem_sopn o vs = ok v ->
   exists v', sem_sopn o vs' = ok v' /\ List.Forall2  value_uincl v v'.
 Proof.
-  rewrite /sem_sopn;case: o;eauto using vuincl_oww, vuincl_owww.
+  rewrite /sem_sopn;case: o;eauto using vuincl_oww, vuincl_owww, vuincl_owwb.
   + move=> [] //= v1 v1' ?? Hv1 [] //=; first by apply: rbindP.
     move=> v2 v2' ?? Hv2 [];first by t_rbindP.
     move=> v3 v3' ?? Hv3 [].
