@@ -36,7 +36,7 @@ open CIL_Pprint
 
 module F = Format
 module E = Expr
-module U = Utils
+module U = Utils0
 module T = Type
 module V = Var0
 module Lex = ParserUtil.Lexing
