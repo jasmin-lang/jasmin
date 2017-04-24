@@ -22,7 +22,9 @@ let main () =
     let ast   = BatFile.with_file_in fname ast in
     let _ast  = J.Typing.tt_program J.Typing.Env.empty ast in
 
-    Printf.eprintf "parsed & typed\n%!"
+    Printf.eprintf "parsed & typed\n%!";
+    ignore (J.Conv.cprogram_of_program : _ -> _);
+    ()
 
   with
   | UsageError ->
