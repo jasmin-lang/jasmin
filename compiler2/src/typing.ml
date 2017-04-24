@@ -165,5 +165,19 @@ let tt_type (env : Env.env) (pty : S.ptype) : P.pty =
       P.Arr (tt_ws ws, fst (tt_expr ~mode:`Type env e))
 
 (* -------------------------------------------------------------------- *)
-let tt_param (env : Env.env) (pp : S.pparam) : Env.env =
+let tt_param (env : Env.env) (pp : S.pparam) : Env.env * (P.pvar * P.pexpr) =
   assert false
+
+(* -------------------------------------------------------------------- *)
+let tt_fundef (env : Env.env) (pf : S.pfundef) : Env.env * unit P.pfunc =
+  assert false
+
+(* -------------------------------------------------------------------- *)
+let tt_item (env : Env.env) (pt : S.pitem) : Env.env * unit P.pmod_item =
+  match pt with
+  | S.PParam  pp -> snd_map (fun x -> P.MIparam x) (tt_param  env pp)
+  | S.PFundef pf -> snd_map (fun x -> P.MIfun   x) (tt_fundef env pf)
+
+(* -------------------------------------------------------------------- *)
+let tt_program (env : Env.env) (pm : S.pprogram) : Env.env * unit P.pprog =
+  List.map_fold tt_item env pm
