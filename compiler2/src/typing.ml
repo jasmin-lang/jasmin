@@ -103,7 +103,29 @@ let check_ty (ety : typattern) (loc, ty) =
   | _ -> rs_tyerror ~loc (InvalidType (ty, ety))
 
 (* -------------------------------------------------------------------- *)
-let check_sig _ _ = ()
+let loc_of_tuples base locs =
+  match base with
+  | Some (`Force loc) ->
+      loc
+  | Some (`IfEmpty _) when List.is_empty locs ->
+      List.fold_left L.merge L._dummy locs
+  | None ->
+      List.fold_left L.merge L._dummy locs
+  | Some (`IfEmpty loc) ->
+      loc
+
+(* -------------------------------------------------------------------- *)
+let check_sig ?loc (sig_ : P.pty list) (given : (L.t * P.pty) list) =
+  let loc () = loc_of_tuples loc (List.map fst given) in
+
+  let n1, n2 = (List.length sig_, List.length given) in
+
+  if n1 <> n2 then
+    rs_tyerror ~loc:(loc ()) (InvalidArgC (n1, n2));
+  List.iter2 (fun ty1 (loc, ty2) ->
+    if ty1 <> ty2 then
+      rs_tyerror ~loc (TypeMismatch (ty1, ty2)))
+    sig_ given
 
 (* -------------------------------------------------------------------- *)
 let tt_as_bool = check_ty TPBool
@@ -262,13 +284,14 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
 
     | PICall (f, args) ->
         let f = tt_fun env f in
-        let args, sig_ =
+        let args, argsty =
           let for1 arg =
             snd_map (fun ty -> (L.loc arg, ty))
                     (tt_expr ~mode:`Expr env arg)
           in List.split (List.map for1 args) in
 
-        check_sig f.P.f_args sig_;
+        check_sig ~loc:(`Force (L.loc pi))
+          (List.map (fun x -> x.P.v_ty) f.P.f_args) argsty;
         P.Ccall (P.NoInline, [], f.P.f_name, args)
 
   in { P.i_desc = instr; P.i_loc = L.loc pi; P.i_info = (); }
@@ -299,7 +322,8 @@ let tt_fundef (env : Env.env) (pf : S.pfundef) : Env.env * unit P.pfunc =
       P.f_body = fst body;
       P.f_ret  = snd body; } in
 
-  check_sig rty (List.map (fun (_, x) -> (L.loc x, L.unloc x)));
+  check_sig ~loc:(`IfEmpty (L.loc pf.S.pdf_name)) rty
+    (List.map (fun x -> (L.loc x, (L.unloc x).P.v_ty)) fdef.P.f_ret);
   (Env.Funs.push fdef env, fdef)
 
 (* -------------------------------------------------------------------- *)
