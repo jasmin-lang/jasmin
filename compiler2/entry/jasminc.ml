@@ -20,9 +20,9 @@ let main () =
     let fname = Sys.argv.(1) in
     let ast   = J.Parseio.parse_program ~name:fname in
     let ast   = BatFile.with_file_in fname ast in
+    let _ast  = J.Typing.tt_program J.Typing.Env.empty ast in
 
-    ignore (ast : J.Syntax.pprogram);
-    Printf.eprintf "parsed\n%!"
+    Printf.eprintf "parsed & typed\n%!"
 
   with
   | UsageError ->

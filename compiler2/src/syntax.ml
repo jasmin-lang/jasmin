@@ -74,9 +74,9 @@ and pblock = pblock_r L.located
 
 (* -------------------------------------------------------------------- *)
 type pparam = {
-  ppa_ty    : ptype;
-  ppa_names : pident list;
-  ppa_init  : pexpr;
+  ppa_ty   : ptype;
+  ppa_name : pident;
+  ppa_init : pexpr;
 }
 
 (* -------------------------------------------------------------------- *)

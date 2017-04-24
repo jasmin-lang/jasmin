@@ -274,8 +274,8 @@ pfundef:
 
 (* -------------------------------------------------------------------- *)
 pparam:
-| PARAM ty=ptype xs=plist1(ident, COMMA) EQ pe=pexpr SEMICOLON
-    { { ppa_ty = ty; ppa_names = xs; ppa_init = pe; } }
+| PARAM ty=ptype x=ident EQ pe=pexpr SEMICOLON
+    { { ppa_ty = ty; ppa_name = x; ppa_init = pe; } }
 
 (* -------------------------------------------------------------------- *)
 top:
