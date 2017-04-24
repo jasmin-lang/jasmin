@@ -29,10 +29,11 @@ end
 type typattern = TPBool | TPInt | TPWord | TPArray
 
 type tyerror =
-  | UnknownVar  of S.symbol
-  | InvalidType of P.pty * typattern
-  | InvOpInExpr of [ `Op2 of S.peop2 ]
-  | NoOperator  of [ `Op2 of S.peop2 ] * P.pty list
+  | UnknownVar   of S.symbol
+  | InvalidType  of P.pty * typattern
+  | TypeMismatch of P.pty pair
+  | InvOpInExpr  of [ `Op2 of S.peop2 ]
+  | NoOperator   of [ `Op2 of S.peop2 ] * P.pty list
 
 exception TyError of L.t * tyerror
 
@@ -166,7 +167,16 @@ let tt_type (env : Env.env) (pty : S.ptype) : P.pty =
 
 (* -------------------------------------------------------------------- *)
 let tt_param (env : Env.env) (pp : S.pparam) : Env.env * (P.pvar * P.pexpr) =
-  assert false
+  let ty = tt_type env pp.ppa_ty in
+  let pe, ety = tt_expr ~mode:`Param env pp.ppa_init in
+
+  if ty <> ety then
+    rs_tyerror ~loc:(L.loc pp.ppa_init) (TypeMismatch (ty, ety));
+  
+  let x = P.PV.mk (L.unloc pp.ppa_name) P.Const ty (L.loc pp.ppa_name) in
+  let env = Env.push (L.unloc pp.ppa_name) x env in
+
+  (env, (x, pe))
 
 (* -------------------------------------------------------------------- *)
 let tt_fundef (env : Env.env) (pf : S.pfundef) : Env.env * unit P.pfunc =
