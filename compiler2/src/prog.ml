@@ -44,6 +44,7 @@ type v_kind =
   | Const         (* global parameter  *)
   | Stack         (* stack variable    *)
   | Reg           (* register variable *)
+  | Inline        (* inline variable   *)
   [@@deriving compare,sexp]
 
 type 'ty gvar = {

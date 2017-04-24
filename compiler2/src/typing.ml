@@ -12,12 +12,12 @@ module Env : sig
   val empty : env
 
   module Vars : sig
-    val push  : S.symbol -> P.pvar -> env -> env
+    val push  : P.pvar -> env -> env
     val find  : S.symbol -> env -> P.pvar option
   end
 
   module Funs : sig
-    val push  : S.symbol -> unit P.pfunc -> env -> env
+    val push  : unit P.pfunc -> env -> env
     val find  : S.symbol -> env -> unit P.pfunc option
   end
 end = struct
@@ -30,16 +30,17 @@ end = struct
     { e_vars = Map.empty; e_funs = Map.empty; }
 
   module Vars = struct
-    let push (x : S.symbol) (v : P.pvar) (env : env) =
-      { env with e_vars = Map.add x v env.e_vars; }
+    let push (v : P.pvar) (env : env) =
+      { env with e_vars = Map.add v.P.v_name v env.e_vars; }
 
     let find (x : S.symbol) (env : env) =
       Map.Exceptionless.find x env.e_vars
   end
 
   module Funs = struct
-    let push (x : S.symbol) (v : unit P.pfunc) (env : env) =
-      { env with e_funs = Map.add x v env.e_funs; }
+    let push (v : unit P.pfunc) (env : env) =
+      let name = v.P.f_name.P.f_name in
+      { env with e_funs = Map.add name v env.e_funs; }
 
     let find (x : S.symbol) (env : env) =
       Map.Exceptionless.find x env.e_funs
@@ -73,6 +74,13 @@ let tt_ws (ws : S.wsize) =
   | `W64  -> P.W64
   | `W128 -> P.W128
   | `W256 -> P.W256
+
+(* -------------------------------------------------------------------- *)
+let tt_sto (sto : S.pstorage) : P.v_kind =
+  match sto with
+  | `Inline -> P.Inline
+  | `Reg    -> P.Reg
+  | `Stack  -> P.Stack
 
 (* -------------------------------------------------------------------- *)
 let tt_var (env : Env.env) { L.pl_desc = x; L.pl_loc = lc; } =
@@ -187,6 +195,22 @@ let tt_type (env : Env.env) (pty : S.ptype) : P.pty =
       P.Arr (tt_ws ws, fst (tt_expr ~mode:`Type env e))
 
 (* -------------------------------------------------------------------- *)
+let tt_vardecl (env : Env.env) ((sto, xty), x) =
+  let { L.pl_desc = x; L.pl_loc = xlc; } = x in
+  let (sto, xty) = (tt_sto sto, tt_type env xty) in
+  P.PV.mk x sto xty xlc
+
+(* -------------------------------------------------------------------- *)
+let tt_vardecls_push (env : Env.env) pxs =
+  let xs  = List.map (tt_vardecl env) pxs in
+  let env = List.fold_left ((^~) Env.Vars.push) env xs in
+  (env, xs)
+
+(* -------------------------------------------------------------------- *)
+let tt_vardecl_push (env : Env.env) px =
+  snd_map as_seq1 (tt_vardecls_push env [px])
+
+(* -------------------------------------------------------------------- *)
 let tt_param (env : Env.env) (pp : S.pparam) : Env.env * (P.pvar * P.pexpr) =
   let ty = tt_type env pp.ppa_ty in
   let pe, ety = tt_expr ~mode:`Param env pp.S.ppa_init in
@@ -195,35 +219,29 @@ let tt_param (env : Env.env) (pp : S.pparam) : Env.env * (P.pvar * P.pexpr) =
     rs_tyerror ~loc:(L.loc pp.ppa_init) (TypeMismatch (ty, ety));
   
   let x = P.PV.mk (L.unloc pp.ppa_name) P.Const ty (L.loc pp.ppa_name) in
-  let env = Env.Vars.push (L.unloc pp.ppa_name) x env in
+  let env = Env.Vars.push x env in
 
   (env, (x, pe))
 
 (* -------------------------------------------------------------------- *)
-let tt_fundef (env : Env.env) (pf : S.pfundef) : Env.env * unit P.pfunc =
-  
+let tt_funbody (env : Env.env) (pb : S.pfunbody) =
+  let env, _ = tt_vardecls_push env pb.pdb_vars in
+  ([], List.map (tt_var env) (odfl [] pb.pdb_ret))
 
-  assert false
-
-(*
 (* -------------------------------------------------------------------- *)
-type pfundef = {
-  pdf_name : pident;
-  pdf_args : (pstotype * pident option) list;
-  pdf_rty  : pstotype list option;
-  pdf_body : pfunbody;
-}
- *)
+let tt_fundef (env : Env.env) (pf : S.pfundef) : Env.env * unit P.pfunc =
+  let envb, args = tt_vardecls_push env pf.pdf_args in
+  let rty  = omap (List.map (tt_type env |- snd)) pf.pdf_rty in
+  let body = tt_funbody envb pf.pdf_body in
 
-(*
-type ('ty,'info) gfunc = {
-    f_cc   : call_conv;
-    f_name : funname;
-    f_args : 'ty gvar list;
-    f_body : ('ty,'info) gstmt;
-    f_ret  : 'ty gvar_i list
-  }
- *)
+  let fdef =
+    { P.f_cc   = P.Export;
+      P.f_name = P.F.mk (L.unloc pf.pdf_name);
+      P.f_args = args;
+      P.f_body = fst body;
+      P.f_ret  = assert false; } in
+
+  (Env.Funs.push fdef env, fdef)
 
 (* -------------------------------------------------------------------- *)
 let tt_item (env : Env.env) (pt : S.pitem) : Env.env * unit P.pmod_item =
