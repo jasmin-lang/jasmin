@@ -721,11 +721,11 @@ Definition assemble_cond ii (e: pexpr) :=
   | _ => cierror ii (Cerr_assembler "invalid branching")
   end.
 
-Definition assemble_cond_assgn ii (l: lval) (e: pexpr) : ciexec instr :=
+Definition assemble_cond_opn ii (l: lval) (o: sopn) (e: pexprs) : ciexec instr :=
   match l with
   | Lvar vc =>
     match e with
-    | Papp2 o (Pvar v1) (Pvar v2) =>
+    | (Pvar v1) :: (Pvar v2) :: [::] =>
       Let r1 := reg_of_var ii v1 in
       Let r2 := reg_of_var ii v2 in
       match (cond_flag_of_var_i vc) with
@@ -784,13 +784,14 @@ Definition assemble_i (li: linstr) : ciexec instr :=
   let (ii, i) := li in
   match i with
   | Lassgn l _ e =>
-     match (operand_of_lval ii l) with
-     | Ok dst =>
-       Let src := operand_of_pexpr ii e in
-       ciok (MOV U64 dst src)
-     | Error _ => assemble_cond_assgn ii l e
+     Let dst := operand_of_lval ii l in
+     Let src := operand_of_pexpr ii e in
+     ciok (MOV U64 dst src)
+  | Lopn l o p =>
+     match l with
+     | [:: a] => assemble_cond_opn ii a o p
+     | _ => cierror ii (Cerr_assembler "not handling no/two lval for condition Copn")
      end
-  | Lopn l o p => cierror ii (Cerr_assembler "opn")
   | Llabel l => ciok (LABEL l)
   | Lgoto l => ciok (JMP l)
   | Lcond e l =>
@@ -814,6 +815,27 @@ Definition assemble_fd (fd: lfundef) :=
 Definition assemble_prog (p: lprog) : cfexec xprog :=
   map_cfprog assemble_fd p.
 
+Lemma is_label_same a y lbl:
+  assemble_i a = ok y ->
+  linear.is_label lbl a = false ->
+  is_label lbl y = false.
+Proof.
+  rewrite /linear.is_label.
+  move: y=> -[] // l.
+  move: a=> -[ii [lv t e|lv s e|l0|l0|e l0] //=].
+  + apply: rbindP=> dst Hdst.
+    by apply: rbindP=> src Hsrc.
+  + move: lv=> -[] // a [] //.
+    rewrite /assemble_cond_opn.
+    move: a=> -[] // v.
+    move: e=> -[] // [] // v1 [] // [] // v2 [] //.
+    apply: rbindP=> z1 Hz1.
+    apply: rbindP=> z2 Hz2.
+    case: (cond_flag_of_var_i v)=> //.
+  + by move=> [] <-.
+  + apply: rbindP=> //.
+Qed.
+
 Lemma find_label_same c c' lbl cs:
   assemble_c c = ok c' ->
   linear.find_label lbl c = Some cs ->
@@ -836,20 +858,7 @@ Proof.
     + move=> Hfind.
       have [cs' [Hcs'1 Hcs'2]] := (IH _ Hys Hfind).
       exists cs'; split=> //=.
-      rewrite /linear.is_label in H.
-      move: a Hy H=> [ii [lv t e|l0|l0|l0|e l0] //=] Hy H.
-      + case: y Hy=> //= l0.
-        case: (operand_of_lval _ _)=> // [a|_].
-        by apply: rbindP=> dst Hdst.
-        rewrite /assemble_cond_assgn.
-        move: lv=> [] // vi.
-        move: e=> [] // _ [] // v [] // v'.
-        apply: rbindP=> _ _; apply: rbindP=> _ _.
-        by case: (cond_flag_of_var_i vi).
-      + by case: y Hy=> //= l1 []<-; rewrite H.
-      + by case: y Hy.
-      + case: y Hy=> //= l1.
-        by apply: rbindP=> cond Hcond.
+      by rewrite (is_label_same Hy).
 Qed.
 
 Section PROOF_CMD.
@@ -1052,25 +1061,26 @@ Section PROOF_CMD.
     + apply: rbindP H0=> v Hv Hw.
       rewrite H /= /assemble_c /= in Hc.
       apply: rbindP Hc=> y.
-      case Hdst: (operand_of_lval ii x)=> [dst|].
-      + apply: rbindP=> src Hsrc [] <-.
-        rewrite -/(assemble_c _).
-        apply: rbindP=> ys Hys [] Hxc.
-        have [w [Hw1 Hw2]] := (pexpr_same Hincl Hv Hsrc).
-        rewrite Hw1 in Hw.
-        have [xs' [Hxs'1 Hxs'2]] := lval_same Hincl Hw Hdst; eexists; split.
-        apply: XSem_MOV; eauto.
-        repeat split=> //=.
-        by move: Hxs'2=> [? _].
-        by move: Hxs'2=> [_ [? _]].
-        by move: Hxs'2=> [_ [_ [? _]]].
-      + rewrite /assemble_cond_assgn.
-        move: x H Hw {Hdst}=> [] // vc Hvc /= Hw.
-        move: e Hv Hvc=> [] // s [] // v1 [] // v2 /=.
-        apply: rbindP=> v1' Hv1'; apply: rbindP=> v2' Hv2' Hv Hcs.
-        apply: rbindP=> r1 Hr1; apply: rbindP=> r2 Hr2.
-        case Hcond: (cond_flag_of_var_i vc)=> //.
-    + by rewrite H /= /assemble_c /= in Hc. (* Lopn: TODO *)
+      apply: rbindP=> dst Hdst.
+      apply: rbindP=> src Hsrc []<-.
+      apply: rbindP=> ys Hys [] Hxc.
+      have [w [Hw1 Hw2]] := pexpr_same Hincl Hv Hsrc.
+      rewrite Hw1 in Hw.
+      have [xs' [Hxs'1 Hxs'2]] := lval_same Hincl Hw Hdst; eexists; split.
+      apply: XSem_MOV; eauto.
+      repeat split=> //=.
+      by move: Hxs'2=> [? _].
+      by move: Hxs'2=> [_ [? _]].
+      by move: Hxs'2=> [_ [_ [? _]]].
+    + rewrite H /= /assemble_c /= in Hc.
+      apply: rbindP Hc=> y.
+      apply: rbindP H0=> v Hv Hw.
+      move: xs H Hv Hw=> -[] // a [] //= H Hv Hw.
+      rewrite /assemble_cond_opn.
+      move: a H Hw=> [] // vc Hvc /= Hw.
+      move: es Hv Hvc=> [] // [] // v1 [] // [] // v2 [] // Hv Hvc.
+      apply: rbindP=> z1 Hz1; apply: rbindP=> z2 Hz2.
+      case: (cond_flag_of_var_i vc)=> //.
     + rewrite H /= /assemble_c /= in Hc.
       apply: rbindP Hc=> ys Hys [] Hc.
       eexists; split; eauto.
