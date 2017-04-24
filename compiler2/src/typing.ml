@@ -52,10 +52,12 @@ type typattern = TPBool | TPInt | TPWord | TPArray
 
 type tyerror =
   | UnknownVar   of S.symbol
+  | UnknownFun   of S.symbol
   | InvalidType  of P.pty * typattern
   | TypeMismatch of P.pty pair
   | InvOpInExpr  of [ `Op2 of S.peop2 ]
   | NoOperator   of [ `Op2 of S.peop2 ] * P.pty list
+  | InvalidArgC  of int * int
 
 exception TyError of L.t * tyerror
 
@@ -87,6 +89,10 @@ let tt_var (env : Env.env) { L.pl_desc = x; L.pl_loc = lc; } =
   Env.Vars.find x env |> oget ~exn:(tyerror lc (UnknownVar x))
 
 (* -------------------------------------------------------------------- *)
+let tt_fun (env : Env.env) { L.pl_desc = x; L.pl_loc = lc; } =
+  Env.Funs.find x env |> oget ~exn:(tyerror lc (UnknownFun x))
+
+(* -------------------------------------------------------------------- *)
 let check_ty (ety : typattern) (loc, ty) =
   match ety, ty with
   | TPBool , P.Bty P.Bool  -> ()
@@ -95,6 +101,9 @@ let check_ty (ety : typattern) (loc, ty) =
   | TPArray, P.Arr _       -> ()
 
   | _ -> rs_tyerror ~loc (InvalidType (ty, ety))
+
+(* -------------------------------------------------------------------- *)
+let check_sig _ _ = ()
 
 (* -------------------------------------------------------------------- *)
 let tt_as_bool = check_ty TPBool
@@ -224,14 +233,63 @@ let tt_param (env : Env.env) (pp : S.pparam) : Env.env * (P.pvar * P.pexpr) =
   (env, (x, pe))
 
 (* -------------------------------------------------------------------- *)
+let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr = 
+  let instr =
+    match L.unloc pi with
+    | PIAssign _ ->
+        assert false
+
+    | PIMove _ ->
+        assert false
+
+    | PIIf (c, st, sf) ->
+        let c  = fst (tt_expr ~mode:`Expr ~expect:TPBool env c) in
+        let st = tt_block env st in
+        let sf = odfl [] (omap (tt_block env) sf) in
+        P.Cif (c, st, sf)
+
+    | PIFor ({ pl_loc = lx } as x, (i1, i2), s) ->
+        let i1   = fst (tt_expr env ~mode:`Expr ~expect:TPInt i1) in
+        let i2   = fst (tt_expr env ~mode:`Expr ~expect:TPInt i2) in
+        let vx   = tt_var env x in
+        let s    = check_ty TPInt (lx, vx.P.v_ty); tt_block env s in
+        P.Cfor (L.mk_loc lx vx, (P.UpTo, i1, i2), s)
+
+    | PIWhile (c, s) ->
+        let c = fst (tt_expr ~mode:`Expr ~expect:TPBool env c) in
+        let s = tt_block env s in
+        P.Cwhile (c, s)
+
+    | PICall (f, args) ->
+        let f = tt_fun env f in
+        let args, sig_ =
+          let for1 arg =
+            snd_map (fun ty -> (L.loc arg, ty))
+                    (tt_expr ~mode:`Expr env arg)
+          in List.split (List.map for1 args) in
+
+        check_sig f.P.f_args sig_;
+        P.Ccall (P.NoInline, [], f.P.f_name, args)
+
+  in { P.i_desc = instr; P.i_loc = L.loc pi; P.i_info = (); }
+
+(* -------------------------------------------------------------------- *)
+and tt_block (env : Env.env) (pb : S.pblock) =
+  List.map (tt_instr env) (L.unloc pb)
+
+(* -------------------------------------------------------------------- *)
 let tt_funbody (env : Env.env) (pb : S.pfunbody) =
-  let env, _ = tt_vardecls_push env pb.pdb_vars in
-  ([], List.map (tt_var env) (odfl [] pb.pdb_ret))
+  let env = fst (tt_vardecls_push env pb.pdb_vars) in
+  let ret =
+    let for1 x = L.mk_loc (L.loc x) (tt_var env x) in
+    List.map for1 (odfl [] pb.pdb_ret)
+
+  in ([], ret)
 
 (* -------------------------------------------------------------------- *)
 let tt_fundef (env : Env.env) (pf : S.pfundef) : Env.env * unit P.pfunc =
   let envb, args = tt_vardecls_push env pf.pdf_args in
-  let rty  = omap (List.map (tt_type env |- snd)) pf.pdf_rty in
+  let rty  = odfl [] (omap (List.map (tt_type env |- snd)) pf.pdf_rty) in
   let body = tt_funbody envb pf.pdf_body in
 
   let fdef =
@@ -239,8 +297,9 @@ let tt_fundef (env : Env.env) (pf : S.pfundef) : Env.env * unit P.pfunc =
       P.f_name = P.F.mk (L.unloc pf.pdf_name);
       P.f_args = args;
       P.f_body = fst body;
-      P.f_ret  = assert false; } in
+      P.f_ret  = snd body; } in
 
+  check_sig rty (List.map (fun (_, x) -> (L.loc x, L.unloc x)));
   (Env.Funs.push fdef env, fdef)
 
 (* -------------------------------------------------------------------- *)
