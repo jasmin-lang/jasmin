@@ -155,7 +155,7 @@ Definition word_of_scale (s: scale) :=
   | Scale8 => 8
   end.
 
-Variant rflag : Set := CF | PF | AF | ZF | SF | OF.
+Variant rflag : Set := CF | PF | ZF | SF | OF | DF.
 
 Scheme Equality for rflag.
 Definition rflag_eqP : Equality.axiom rflag_eq_dec.
@@ -533,6 +533,7 @@ Record x86_state := X86State {
 }.
 
 Definition setc (s:x86_state) c := X86State s.(xmem) s.(xreg) s.(xrf) c.
+Definition setrflags (s:x86_state) rf := X86State s.(xmem) s.(xreg) rf s.(xc).
 
 Definition decode_addr (s: x86_state) (a: address) : word :=
   let (disp, base, ind) := a in
@@ -567,7 +568,7 @@ Definition read_op (s: x86_state) (o: operand) :=
   end.
 
 Definition eval_cond (rm: rflagmap) (c: condition_type) :=
-  let 'get := RflagMap.get rm in
+  let get := RflagMap.get rm in
   match c with
   | O_ct => get OF
   | NO_ct => ~~ get OF
@@ -586,6 +587,22 @@ Definition eval_cond (rm: rflagmap) (c: condition_type) :=
   | LE_ct => get ZF || (get SF != get OF)
   | NLE_ct => get ZF && (get SF == get OF)
   end.
+
+Definition SUB_rflags (s: x86_state) (o1 o2: operand) : exec rflagmap :=
+  Let w1 := read_op s o1 in
+  Let w2 := read_op s o2 in
+  let sub := I64.sub w1 w2 in
+  ok (fun rf =>
+  match rf with
+  | OF => I64.signed sub != w1 - w2
+  | CF => I64.unsigned sub != w1 - w2
+  | SF => I64.signed sub <? 0
+  | PF => (I64.and sub I64.one) == I64.one
+  | ZF => sub == I64.zero
+  | _ => RflagMap.get s.(xrf) rf
+  end)%Z.
+
+Definition CMP_rflags := SUB_rflags.
 
 Section XSEM.
 
@@ -612,7 +629,11 @@ Variant xsem1 : x86_state -> x86_state -> Prop :=
     s1.(xc) = (MOV U64 dst src) :: cs ->
     read_op s1 src = ok w ->
     write_op dst w s1 = ok s2 ->
-    xsem1 s1 (setc s2 cs).
+    xsem1 s1 (setc s2 cs)
+| XSem_CMP s1 dst src rf cs:
+    s1.(xc) = (CMP U64 dst src) :: cs ->
+    CMP_rflags s1 dst src = ok rf ->
+    xsem1 s1 (setc (setrflags s1 rf) cs).
 
 Definition xsem : relation x86_state := clos_refl_trans _ xsem1.
 
@@ -721,25 +742,6 @@ Definition assemble_cond ii (e: pexpr) :=
   | _ => cierror ii (Cerr_assembler "invalid branching")
   end.
 
-Definition assemble_cond_opn ii (l: lval) (o: sopn) (e: pexprs) : ciexec instr :=
-  match l with
-  | Lvar vc =>
-    match e with
-    | (Pvar v1) :: (Pvar v2) :: [::] =>
-      Let r1 := reg_of_var ii v1 in
-      Let r2 := reg_of_var ii v2 in
-      match (cond_flag_of_var_i vc) with
-      | Some rc =>
-        match l, o with
-        | _, _ => cierror ii (Cerr_assembler "op not handled in condition")
-        end
-      | None => cierror ii (Cerr_assembler "invalid condition flag in LHS")
-      end
-    | _ => cierror ii (Cerr_assembler "invalid RHS in condition")
-    end
-  | _ => cierror ii (Cerr_assembler "invalid LHS in condition")
-  end.
-
 Definition word_of_int ii (z: Z) :=
   if (I64.signed (I64.repr z) == z) then
     ciok (I64.repr z)
@@ -778,6 +780,26 @@ Definition operand_of_pexpr ii (e: pexpr) :=
      Let w := word_of_pexpr ii e in
      ciok (Address_op (mkAddress w (Some s) None))
   | _ => cierror ii (Cerr_assembler "Invalid pexpr")
+  end.
+
+Definition assemble_cond_opn ii (l: lval) (o: sopn) (e: pexprs) : ciexec instr :=
+  match l with
+  | Lvar vc =>
+    match e with
+    | [ :: e1; e2 ] =>
+      Let o1 := operand_of_pexpr ii e1 in
+      Let o2 := operand_of_pexpr ii e2 in
+      match (cond_flag_of_var_i vc) with
+      | Some rc =>
+        match rc, o with
+        | LTU, Oltu => ciok (CMP U64 o1 o2)
+        | _, _ => cierror ii (Cerr_assembler "op not handled in condition")
+        end
+      | None => cierror ii (Cerr_assembler "invalid condition flag in LHS")
+      end
+    | _ => cierror ii (Cerr_assembler "invalid RHS in condition")
+    end
+  | _ => cierror ii (Cerr_assembler "invalid LHS in condition")
   end.
 
 Definition assemble_i (li: linstr) : ciexec instr :=
@@ -828,10 +850,12 @@ Proof.
   + move: lv=> -[] // a [] //.
     rewrite /assemble_cond_opn.
     move: a=> -[] // v.
-    move: e=> -[] // [] // v1 [] // [] // v2 [] //.
+    move: e=> -[] // e1 [] // e2 [] //.
     apply: rbindP=> z1 Hz1.
     apply: rbindP=> z2 Hz2.
     case: (cond_flag_of_var_i v)=> //.
+    move=> [] //.
+    by move: s=> [].
   + by move=> [] <-.
   + apply: rbindP=> //.
 Qed.
@@ -859,6 +883,33 @@ Proof.
       have [cs' [Hcs'1 Hcs'2]] := (IH _ Hys Hfind).
       exists cs'; split=> //=.
       by rewrite (is_label_same Hy).
+Qed.
+
+(* TODO: move *)
+Lemma get_var_set_diff vm vm' x1 x2 w:
+  set_var vm x1 w = ok vm' ->
+  x1 <> x2 ->
+  get_var vm x2 = get_var vm' x2.
+Proof.
+  move=> Hset Hneq.
+  rewrite /get_var.
+  suff ->: (vm.[x2] = vm'.[x2])%vmap=> //.
+  apply: rbindP Hset=> z Hz []<-.
+  rewrite Fv.setP_neq //.
+  by apply/eqP.
+Qed.
+
+Lemma get_var_set_same vm vm' x w:
+  set_var vm x w = ok vm' ->
+  get_var vm' x = ok w.
+Proof.
+  apply: rbindP=> z Hz []<-.
+  rewrite /get_var.
+  rewrite Fv.setP_eq /=.
+  move: x w z Hz=> [[]] //; try (by move=> vn [] z /= z0 // []<-).
+  move=> p vn [] //= n a z.
+  case Hle: (CEDecStype.pos_dec n p)=> [Heq|//].
+  by subst p=> /= -[]<-.
 Qed.
 
 Section PROOF_CMD.
@@ -1078,9 +1129,53 @@ Section PROOF_CMD.
       move: xs H Hv Hw=> -[] // a [] //= H Hv Hw.
       rewrite /assemble_cond_opn.
       move: a H Hw=> [] // vc Hvc /= Hw.
-      move: es Hv Hvc=> [] // [] // v1 [] // [] // v2 [] // Hv Hvc.
+      move: es Hv Hvc=> [] // e1 [] // e2 [] // Hv Hvc.
       apply: rbindP=> z1 Hz1; apply: rbindP=> z2 Hz2.
-      case: (cond_flag_of_var_i vc)=> //.
+      case Hc: (cond_flag_of_var_i vc)=> [a|//].
+      move: a Hc=> [] // Hc.
+      move: o Hv Hvc=> -[] // Hv Hvc []<-.
+      apply: rbindP=> ys Hys.
+      move=> -[] Hxc.
+      apply: rbindP Hv=> vs.
+      rewrite /sem_pexprs /mapM /=.
+      apply: rbindP=> v1 Hv1.
+      apply: rbindP=> ys0; apply: rbindP=> v2 Hv2 []<- []<-.
+      apply: rbindP=> w1 Hw1; apply: rbindP=> w2 Hw2 [] Hv; subst v.
+      have [w1' [Hw1'1 Hw1'2]] := pexpr_same Hincl Hv1 Hz1.
+      have [w2' [Hw2'1 Hw2'2]] := pexpr_same Hincl Hv2 Hz2.
+      apply: rbindP Hw=> w'.
+      apply: rbindP=> z Hz -[]<- []<-.
+      eexists; split; eauto.
+      apply: XSem_CMP.
+      by rewrite -Hxc.
+      rewrite /CMP_rflags /SUB_rflags Hw1'2 Hw2'2 //.
+      repeat split=> //=.
+      + move=> x' ii0 r v Hr Hv.
+        apply: Hreg.
+        exact: Hr.
+        rewrite (get_var_set_diff Hz) //.
+        exact: (cond_reg_of_var_disj Hr Hc).
+      + move=> v.
+        case Heq: (v_var v == v_var vc).
+        + move: Heq=> /eqP Heq /= cond v' ii0.
+          have ->: cond_flag_of_var_i v = cond_flag_of_var_i vc.
+            rewrite /cond_flag_of_var_i.
+            by move: v vc {Hc} Hvc Hz Heq=> [vv vi] [vcv vci] /= Hvc Hz ->.
+          rewrite Hc=> -[]<- Hv.
+          rewrite /eval_cond /RflagMap.get.
+          rewrite Hw1'1 /= in Hw1; move: Hw1=> -[] Hw1; subst w1'.
+          rewrite Hw2'1 /= in Hw2; move: Hw2=> -[] Hw2; subst w2'.
+          have Hv': get_var z v = get_var z vc.
+            by rewrite /get_var Heq.
+          rewrite Hv' in Hv.
+          have := get_var_set_same Hz; rewrite Hv; move=> -[]->.
+          admit.
+        + move=> cond v0 ii0 Hcond Hv0.
+          have Hv: get_var (lvm s1) v = ok v0.
+            rewrite (get_var_set_diff Hz) //.
+            by apply/eqP; rewrite eq_sym Heq.
+          have <- := Hrf v cond v0 ii0 Hcond Hv.
+          admit.
     + rewrite H /= /assemble_c /= in Hc.
       apply: rbindP Hc=> ys Hys [] Hc.
       eexists; split; eauto.
@@ -1117,7 +1212,7 @@ Section PROOF_CMD.
       move: e Hcond H0 {H}=> [] // v Hv /=.
       apply: rbindP=> -[] // b Hb []<-.
       by move: Hrf=> /(_ v _ _ _ Hv Hb) []<-.
-  Qed.
+  Admitted.
 
   Lemma assemble_cP:
     forall s1 s2 s1', incl_st s1 s1' ->
