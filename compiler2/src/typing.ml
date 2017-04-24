@@ -286,8 +286,14 @@ let tt_param (env : Env.env) (pp : S.pparam) : Env.env * (P.pvar * P.pexpr) =
 let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr = 
   let instr =
     match L.unloc pi with
-    | PIAssign _ ->
+    | PIAssign (ls, eqop, e, None) ->
         rs_tyerror ~loc:(L.loc pi) Unsupported
+
+    | PIAssign (ls, eqop, e, Some c) ->
+        let cpi = S.PIAssign (ls, eqop, e, None) in
+        let i = tt_instr env (L.mk_loc (L.loc pi) cpi) in
+        let c = fst (tt_expr ~mode:`Expr ~expect:TPBool env c) in
+        P.Cif (c, [i], [])
 
     | PIMove _ ->
         rs_tyerror ~loc:(L.loc pi) Unsupported
