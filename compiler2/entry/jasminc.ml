@@ -31,12 +31,17 @@ let main () =
       usage ~status:1 ()
 
   | J.Syntax.ParseError (loc, None) ->
-      Printf.eprintf "%s: parse error\n%!"
+      Format.eprintf "%s: parse error\n%!"
         (J.Location.tostring loc)
 
   | J.Syntax.ParseError (loc, Some msg) ->
-      Printf.eprintf "%s: parse error: %s\n%!"
+      Format.eprintf "%s: parse error: %s\n%!"
         (J.Location.tostring loc) msg
+
+  | J.Typing.TyError (loc, code) ->
+      Format.eprintf "%s: typing error: %a\n%!"
+        (J.Location.tostring loc)
+        J.Typing.pp_tyerror code
 
 (* -------------------------------------------------------------------- *)
 let () = main ()

@@ -20,7 +20,7 @@ fn add(reg u64[4] x, stack u64[4] ya) -> reg u64[4] {
   }
 
   add0 = 0;
-  add1 = $rem_p;
+  add1 = rem_p;
   add1 = add0 if !cf;
 
   for i in (0..4) {

@@ -58,6 +58,7 @@ type tyerror =
   | InvOpInExpr  of [ `Op2 of S.peop2 ]
   | NoOperator   of [ `Op2 of S.peop2 ] * P.pty list
   | InvalidArgC  of int * int
+  | Unsupported
 
 exception TyError of L.t * tyerror
 
@@ -66,6 +67,33 @@ let tyerror ~loc (code : tyerror) =
 
 let rs_tyerror ~loc (code : tyerror) =
   raise (tyerror ~loc code)
+
+(* -------------------------------------------------------------------- *)
+let pp_tyerror fmt (code : tyerror) =
+  match code with
+  | UnknownVar x ->
+      Format.fprintf fmt "unknown variable: `%s'" x
+
+  | UnknownFun x ->
+      Format.fprintf fmt "unknown function: `%s'" x
+
+  | InvalidType _ | TypeMismatch _ ->
+      Format.fprintf fmt "invalid type"
+
+  | InvOpInExpr _ ->
+      Format.fprintf fmt
+        "this operator is not allowed in expressions"
+
+  | NoOperator _ ->
+      Format.fprintf fmt
+        "not operators for these types"
+
+  | InvalidArgC (n1, n2) ->
+      Format.fprintf fmt
+        "invalid argument count (%d / %d)" n1 n2
+
+  | Unsupported ->
+      Format.fprintf fmt "unsupported"
 
 (* -------------------------------------------------------------------- *)
 let tt_ws (ws : S.wsize) =
@@ -259,10 +287,10 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
   let instr =
     match L.unloc pi with
     | PIAssign _ ->
-        assert false
+        rs_tyerror ~loc:(L.loc pi) Unsupported
 
     | PIMove _ ->
-        assert false
+        rs_tyerror ~loc:(L.loc pi) Unsupported
 
     | PIIf (c, st, sf) ->
         let c  = fst (tt_expr ~mode:`Expr ~expect:TPBool env c) in
@@ -305,9 +333,9 @@ let tt_funbody (env : Env.env) (pb : S.pfunbody) =
   let env = fst (tt_vardecls_push env pb.pdb_vars) in
   let ret =
     let for1 x = L.mk_loc (L.loc x) (tt_var env x) in
-    List.map for1 (odfl [] pb.pdb_ret)
-
-  in ([], ret)
+    List.map for1 (odfl [] pb.pdb_ret) in
+  let bdy = List.map (tt_instr env) pb.S.pdb_instr in
+  (bdy, ret)
 
 (* -------------------------------------------------------------------- *)
 let tt_fundef (env : Env.env) (pf : S.pfundef) : Env.env * unit P.pfunc =
