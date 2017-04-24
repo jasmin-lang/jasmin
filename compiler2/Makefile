@@ -22,13 +22,13 @@ LIBDIR := $(PREFIX)/lib/jasmin
 SHRDIR := $(PREFIX)/share/jasmin
 
 # --------------------------------------------------------------------
-.PHONY: all build byte native install uninstal
+.PHONY: all build byte native CIL install uninstall
 .PHONY: %.ml %.mli %.inferred.mli
 
 all: build
 	@true
 
-build: native
+build: CIL native
 
 define do-build
 	$(OCAMLBUILD) "$(1)"
@@ -39,6 +39,11 @@ byte:
 
 native:
 	$(call do-build,entry/jasminc.native)
+
+CIL:
+	( echo '# GENERATED - EDIT jasmin.mlpack.in'; \
+	  cat jasmin.mlpack.in; \
+	  ls -1 CIL/*.ml* | sed 's/\..*$$//' | sort -u ) > jasmin.mlpack 
 
 install: build
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)

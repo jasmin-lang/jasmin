@@ -168,7 +168,7 @@ let tt_type (env : Env.env) (pty : S.ptype) : P.pty =
 (* -------------------------------------------------------------------- *)
 let tt_param (env : Env.env) (pp : S.pparam) : Env.env * (P.pvar * P.pexpr) =
   let ty = tt_type env pp.ppa_ty in
-  let pe, ety = tt_expr ~mode:`Param env pp.ppa_init in
+  let pe, ety = tt_expr ~mode:`Param env pp.S.ppa_init in
 
   if ty <> ety then
     rs_tyerror ~loc:(L.loc pp.ppa_init) (TypeMismatch (ty, ety));
