@@ -22,13 +22,13 @@ LIBDIR := $(PREFIX)/lib/jasmin
 SHRDIR := $(PREFIX)/share/jasmin
 
 # --------------------------------------------------------------------
-.PHONY: all build byte native CIL install uninstall
+.PHONY: all build byte native CIL install uninstall __force__
 .PHONY: %.ml %.mli %.inferred.mli
 
 all: build
 	@true
 
-build: CIL native
+build: jasmin.mlpack native
 
 define do-build
 	$(OCAMLBUILD) "$(1)"
@@ -40,11 +40,16 @@ byte:
 native:
 	$(call do-build,entry/jasminc.native)
 
-CIL:
+jasmin.mlpack: __force__
 	( echo '# GENERATED - EDIT jasmin.mlpack.in'; \
 	  cat jasmin.mlpack.in; \
 	  echo "$(wildcard CIL/*.ml*)" | tr ' ' '\n' | sed 's/\..*$$//' | sort -u ) \
 	> jasmin.mlpack 
+
+CIL:
+	rm -f CIL/*.{ml,mli}
+	$(MAKE) -C ../proofs
+	cp ../proofs/lang/ocaml/*.{ml,mli} CIL/
 
 install: build
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)

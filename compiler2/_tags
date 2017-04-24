@@ -16,7 +16,7 @@ true : bin_annot
 <src/*.cmx>: for-pack(Jasmin)
 
 <CIL/*.cmx>: for-pack(Jasmin)
-<CIL/*.{ml,mli}>: warn_-33
+<CIL/*.{ml,mli}>: warn_-20, warn_-33
 
 # --------------------------------------------------------------------
 <entry/*>: package(batteries, menhirLib, zarith)

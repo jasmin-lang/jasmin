@@ -30,10 +30,10 @@ Require ExtrOcamlString.
 
 Extraction Inline ssrbool.is_left.
 
-Cd  "../compiler/src/CIL/".
+Cd  "lang/ocaml".
 
 Extraction Blacklist String List Nat Utils Var.
 
 Separate Extraction compiler.
 
-Cd  "../../../proofs/".
+Cd  "../..".
