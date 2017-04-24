@@ -43,7 +43,8 @@ native:
 CIL:
 	( echo '# GENERATED - EDIT jasmin.mlpack.in'; \
 	  cat jasmin.mlpack.in; \
-	  echo "$(wildcard CIL/*.ml*)" | sed 's/\..*$$//' | sort -u ) > jasmin.mlpack 
+	  echo "$(wildcard CIL/*.ml*)" | tr ' ' '\n' | sed 's/\..*$$//' | sort -u ) \
+	> jasmin.mlpack 
 
 install: build
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
