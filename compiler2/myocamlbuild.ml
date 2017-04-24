@@ -41,7 +41,8 @@ let _ = dispatch begin function
        flag ["ocaml"; "pkg_threads"; "link"] (S[A "-thread"]);
 
        (* libs <-> src *)
-       Pathname.define_context "entry" ["."]
+       Pathname.define_context "entry" ["."];
+       Pathname.define_context "src" ["CIL"]
 
    | _ -> ()
 end
