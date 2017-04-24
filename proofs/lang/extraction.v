@@ -32,7 +32,7 @@ Extraction Inline ssrbool.is_left.
 
 Cd  "../compiler/src/CIL/".
 
-Extraction Blacklist String List Nat Var.
+Extraction Blacklist String List Nat Utils Var.
 
 Separate Extraction compiler.
 
