@@ -39,4 +39,4 @@ check-compiler2:
 	cd $(ROOT)/../compiler2 && opam pin add -n jasmin .
 	opam install depext && opam depext jasmin
 	opam install --deps-only jasmin
-	$(MAKE) -C "$(ROOT)/../compiler2 CIL build"
+	$(MAKE) -C "$(ROOT)/../compiler2" CIL build

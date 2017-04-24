@@ -10,19 +10,40 @@ module Env : sig
   type env
 
   val empty : env
-  val push  : S.symbol -> P.pvar -> env -> env
-  val find  : S.symbol -> env -> P.pvar option
+
+  module Vars : sig
+    val push  : S.symbol -> P.pvar -> env -> env
+    val find  : S.symbol -> env -> P.pvar option
+  end
+
+  module Funs : sig
+    val push  : S.symbol -> unit P.pfunc -> env -> env
+    val find  : S.symbol -> env -> unit P.pfunc option
+  end
 end = struct
-  type env = Env of (S.symbol, P.pvar) Map.t
+  type env = {
+    e_vars : (S.symbol, P.pvar) Map.t;
+    e_funs : (S.symbol, unit P.pfunc) Map.t;
+    }
 
   let empty : env =
-    Env Map.empty
+    { e_vars = Map.empty; e_funs = Map.empty; }
 
-  let push (x : S.symbol) (v : P.pvar) (Env env : env) =
-    Env (Map.add  x v env)
+  module Vars = struct
+    let push (x : S.symbol) (v : P.pvar) (env : env) =
+      { env with e_vars = Map.add x v env.e_vars; }
 
-  let find (x : S.symbol) (Env env : env) =
-    Map.Exceptionless.find x env
+    let find (x : S.symbol) (env : env) =
+      Map.Exceptionless.find x env.e_vars
+  end
+
+  module Funs = struct
+    let push (x : S.symbol) (v : unit P.pfunc) (env : env) =
+      { env with e_funs = Map.add x v env.e_funs; }
+
+    let find (x : S.symbol) (env : env) =
+      Map.Exceptionless.find x env.e_funs
+  end
 end
 
 (* -------------------------------------------------------------------- *)
@@ -55,7 +76,7 @@ let tt_ws (ws : S.wsize) =
 
 (* -------------------------------------------------------------------- *)
 let tt_var (env : Env.env) { L.pl_desc = x; L.pl_loc = lc; } =
-  Env.find x env |> oget ~exn:(tyerror lc (UnknownVar x))
+  Env.Vars.find x env |> oget ~exn:(tyerror lc (UnknownVar x))
 
 (* -------------------------------------------------------------------- *)
 let check_ty (ety : typattern) (loc, ty) =
@@ -174,13 +195,35 @@ let tt_param (env : Env.env) (pp : S.pparam) : Env.env * (P.pvar * P.pexpr) =
     rs_tyerror ~loc:(L.loc pp.ppa_init) (TypeMismatch (ty, ety));
   
   let x = P.PV.mk (L.unloc pp.ppa_name) P.Const ty (L.loc pp.ppa_name) in
-  let env = Env.push (L.unloc pp.ppa_name) x env in
+  let env = Env.Vars.push (L.unloc pp.ppa_name) x env in
 
   (env, (x, pe))
 
 (* -------------------------------------------------------------------- *)
 let tt_fundef (env : Env.env) (pf : S.pfundef) : Env.env * unit P.pfunc =
+  
+
   assert false
+
+(*
+(* -------------------------------------------------------------------- *)
+type pfundef = {
+  pdf_name : pident;
+  pdf_args : (pstotype * pident option) list;
+  pdf_rty  : pstotype list option;
+  pdf_body : pfunbody;
+}
+ *)
+
+(*
+type ('ty,'info) gfunc = {
+    f_cc   : call_conv;
+    f_name : funname;
+    f_args : 'ty gvar list;
+    f_body : ('ty,'info) gstmt;
+    f_ret  : 'ty gvar_i list
+  }
+ *)
 
 (* -------------------------------------------------------------------- *)
 let tt_item (env : Env.env) (pt : S.pitem) : Env.env * unit P.pmod_item =

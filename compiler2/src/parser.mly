@@ -263,7 +263,7 @@ pfunbody :
 pfundef:
 | FN
     name = ident
-    args = parens_tuple(st=stor_type v=var? { (st, v) })
+    args = parens_tuple(st=stor_type v=var { (st, v) })
     rty  = prefix(RARROW, tuple(stor_type))?
     body = pfunbody
 

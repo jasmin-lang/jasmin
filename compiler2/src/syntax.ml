@@ -89,7 +89,7 @@ type pfunbody = {
 (* -------------------------------------------------------------------- *)
 type pfundef = {
   pdf_name : pident;
-  pdf_args : (pstotype * pident option) list;
+  pdf_args : (pstotype * pident) list;
   pdf_rty  : pstotype list option;
   pdf_body : pfunbody;
 }
