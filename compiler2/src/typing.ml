@@ -48,16 +48,31 @@ end = struct
 end
 
 (* -------------------------------------------------------------------- *)
+let loc_of_tuples base locs =
+  match base with
+  | Some (`Force loc) ->
+      loc
+  | Some (`IfEmpty _) when List.is_empty locs ->
+      List.fold_left L.merge L._dummy locs
+  | None ->
+      List.fold_left L.merge L._dummy locs
+  | Some (`IfEmpty loc) ->
+      loc
+
+(* -------------------------------------------------------------------- *)
 type typattern = TPBool | TPInt | TPWord | TPArray
 
 type tyerror =
-  | UnknownVar   of S.symbol
-  | UnknownFun   of S.symbol
-  | InvalidType  of P.pty * typattern
-  | TypeMismatch of P.pty pair
-  | InvOpInExpr  of [ `Op2 of S.peop2 ]
-  | NoOperator   of [ `Op2 of S.peop2 ] * P.pty list
-  | InvalidArgC  of int * int
+  | UnknownVar          of S.symbol
+  | UnknownFun          of S.symbol
+  | InvalidType         of P.pty * typattern
+  | TypeMismatch        of P.pty pair
+  | InvOpInExpr         of [ `Op2 of S.peop2 ]
+  | NoOperator          of [ `Op2 of S.peop2 ] * P.pty list
+  | InvalidArgCount     of int * int
+  | LvalueWithNoBaseTy
+  | EqOpWithNoLValue
+  | InvalidLRValue
   | Unsupported
 
 exception TyError of L.t * tyerror
@@ -88,9 +103,21 @@ let pp_tyerror fmt (code : tyerror) =
       Format.fprintf fmt
         "not operators for these types"
 
-  | InvalidArgC (n1, n2) ->
+  | InvalidArgCount (n1, n2) ->
       Format.fprintf fmt
         "invalid argument count (%d / %d)" n1 n2
+
+  | LvalueWithNoBaseTy ->
+      Format.fprintf fmt
+        "lvalues must have a base type"
+
+  | EqOpWithNoLValue ->
+      Format.fprintf fmt
+        "operator-assign requires a lvalue"
+
+  | InvalidLRValue ->
+      Format.fprintf fmt
+        "this lvalue cannot act as a rvalue"
 
   | Unsupported ->
       Format.fprintf fmt "unsupported"
@@ -131,16 +158,9 @@ let check_ty (ety : typattern) (loc, ty) =
   | _ -> rs_tyerror ~loc (InvalidType (ty, ety))
 
 (* -------------------------------------------------------------------- *)
-let loc_of_tuples base locs =
-  match base with
-  | Some (`Force loc) ->
-      loc
-  | Some (`IfEmpty _) when List.is_empty locs ->
-      List.fold_left L.merge L._dummy locs
-  | None ->
-      List.fold_left L.merge L._dummy locs
-  | Some (`IfEmpty loc) ->
-      loc
+let check_ty_eq ~loc ty1 ty2 =
+  if ty1 <> ty2 then
+    rs_tyerror ~loc (TypeMismatch (ty1, ty2))
 
 (* -------------------------------------------------------------------- *)
 let check_sig ?loc (sig_ : P.pty list) (given : (L.t * P.pty) list) =
@@ -149,10 +169,9 @@ let check_sig ?loc (sig_ : P.pty list) (given : (L.t * P.pty) list) =
   let n1, n2 = (List.length sig_, List.length given) in
 
   if n1 <> n2 then
-    rs_tyerror ~loc:(loc ()) (InvalidArgC (n1, n2));
-  List.iter2 (fun ty1 (loc, ty2) ->
-    if ty1 <> ty2 then
-      rs_tyerror ~loc (TypeMismatch (ty1, ty2)))
+    rs_tyerror ~loc:(loc ()) (InvalidArgCount (n1, n2));
+  List.iter2
+    (fun ty1 (loc, ty2) -> check_ty_eq ~loc ty1 ty2)
     sig_ given
 
 (* -------------------------------------------------------------------- *)
@@ -181,15 +200,28 @@ let op2_of_pop2 (op : S.peop2) =
   | `Or   -> Some P.Oor
   | `BAnd -> None
   | `BOr  -> None
-  | `BXor -> None
-  | `Shr  -> None
-  | `Shl  -> None
+  | `BXOr -> None
+  | `ShR  -> None
+  | `ShL  -> None
   | `Eq   -> Some P.Oeq
   | `Neq  -> Some P.Oneq
   | `Lt   -> Some P.Olt
   | `Le   -> Some P.Ole
   | `Gt   -> Some P.Ogt
   | `Ge   -> Some P.Oge
+
+(* -------------------------------------------------------------------- *)
+let peop2_of_eqop (eqop : S.peqop) =
+  match eqop with
+  | `Raw  -> None
+  | `Add  -> Some `Add
+  | `Sub  -> Some `Sub
+  | `Mul  -> Some `Mul
+  | `ShR  -> Some `ShR
+  | `ShL  -> Some `ShL
+  | `BAnd -> Some `BAnd
+  | `BXOr -> Some `BXOr
+  | `BOr  -> Some `BOr
 
 (* -------------------------------------------------------------------- *)
 let tt_op2 ((ty1, ty2) : P.pty pair) { L.pl_desc = pop; L.pl_loc = loc } =
@@ -204,7 +236,7 @@ let tt_op2 ((ty1, ty2) : P.pty pair) { L.pl_desc = pop; L.pl_loc = loc } =
       (op, P.Bty P.Bool)
 
   | (P.Oeq | P.Oneq), (P.Bty sty1, P.Bty sty2) when sty1 = sty2 -> 
-      (op, ty1)
+      (op, P.Bty P.Bool)
 
   | (P.Olt | P.Ole | P.Ogt | P.Oge), (P.Bty P.Int, P.Bty P.Int) -> 
       (op, P.Bty P.Bool)
@@ -213,6 +245,8 @@ let tt_op2 ((ty1, ty2) : P.pty pair) { L.pl_desc = pop; L.pl_loc = loc } =
 
 (* -------------------------------------------------------------------- *)
 let tt_expr ~mode ?expect (env : Env.env) =
+  ignore mode;                  (* FIXME *)
+
   let rec aux ?expect (pe : S.pexpr) : (P.pexpr * P.pty) =
     let e, ety =
       match L.unloc pe with
@@ -292,49 +326,85 @@ let tt_param (env : Env.env) (pp : S.pparam) : Env.env * (P.pvar * P.pexpr) =
 let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
   match pl with
   | S.PLIgnore ->
-      P.Lnone loc
+      (P.Lnone loc, None)
 
   | S.PLVar x ->
-      P.Lvar (L.mk_loc loc (tt_var env x))
+      let x = tt_var env x in
+      (P.Lvar (L.mk_loc loc x), Some x.P.v_ty)
 
   | S.PLArray ({ pl_loc = xlc } as x, pi) ->
       let x  = tt_var env x in
       let i  = fst (tt_expr env ~mode:`InExpr ~expect:TPInt pi) in
-      let _  = tt_as_array (xlc, x.P.v_ty) in
-      P.Laset (L.mk_loc xlc x, i)
+      let ty = tt_as_array (xlc, x.P.v_ty) in
+      (P.Laset (L.mk_loc xlc x, i), Some ty)
 
   | S.PLMem ({ pl_loc = xlc } as x, pe) ->
       let x = tt_var env x in
       let e = fst (tt_expr env ~mode:`InExpr ~expect:TPInt pe) in
       let w = tt_as_word (xlc, x.P.v_ty) in
-      P.Lmem (w, L.mk_loc xlc x, e)
+      (P.Lmem (w, L.mk_loc xlc x, e), Some (P.Bty (P.U w)))
+
+(* -------------------------------------------------------------------- *)
+let tt_expr_of_lvalue ((loc, lv) : L.t * P.pty P.glval) =
+  match lv with
+  | P.Lvar x ->
+      P.Pvar x
+  | P.Laset (x, i) ->
+      P.Pget (x, i)
+  | P.Lmem (ws, x, e) ->
+      P.Pload (ws, x, e)
+  | _ -> rs_tyerror ~loc InvalidLRValue
 
 (* -------------------------------------------------------------------- *)
 type opsrc = [
-  | `NoOp  of P.pexpr
-  | `BinOp of S.peop2 * P.pexpr pair
-  | `TriOp of S.peop2 pair * P.pexpr tuple2
+  | `NoOp  of (P.pexpr * P.pty)
+  | `BinOp of S.peop2 * (P.pexpr * P.pty) pair
+  | `TriOp of S.peop2 pair * (P.pexpr * P.pty) tuple3
 ]
 
-let tt_opsrc (env : Env.env) (pe : S.pexpr) =
+type eqop = S.peop2 * (P.pexpr * P.pty)
+
+let tt_opsrc (env : Env.env) (eqop : eqop option) (pe : S.pexpr) : opsrc =
   let fore = tt_expr env ~mode:`Expr in
 
-    match L.unloc pe with
-    | S.PEOp2 (op, (pe1, pe2)) -> begin
+    match L.unloc pe, eqop with
+    | S.PEOp2 (op, (pe1, pe2)), None -> begin
         match L.unloc pe2 with
         | S.PEOp2 (op', (pe2, pe3)) ->
             `TriOp ((op, op'), (fore pe1, fore pe2, fore pe3))
-        | _ -> `BinOp (op, (fore pe1, fore pe2))
+        | _ ->
+            `BinOp (op, (fore pe1, fore pe2))
       end
-    | _ -> `NoOp (fore pe)
+
+    | S.PEOp2 (op, (pe2, pe3)), Some (eqop, e1) ->
+        `TriOp ((eqop, op), (e1, fore pe2, fore pe3))
+
+    | _, Some (eqop, e1) ->
+        `BinOp (eqop, (e1, fore pe))
+
+    | _, None ->
+        `NoOp (fore pe)
 
 (* -------------------------------------------------------------------- *)
 let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr = 
   let instr =
     match L.unloc pi with
-    | PIAssign (ls, eqop, e, None) ->
-        let _lv  = List.map (tt_lvalue env) ls in
-        let _src = tt_opsrc env e in assert false
+    | PIAssign (ls, eqop, e, None) -> begin
+        let lvs = List.map (fun lv -> (L.loc lv, tt_lvalue env lv)) ls in
+        let eqop = peop2_of_eqop eqop |> omap (fun eqop ->
+          if List.is_empty lvs then
+            rs_tyerror ~loc:(L.loc pi) EqOpWithNoLValue;
+          let (lv, lvty), lvc = snd (List.hd lvs), L.loc (List.hd ls) in
+          (eqop, (tt_expr_of_lvalue (lvc, lv), oget lvty))) in
+        let src = tt_opsrc env eqop e in
+
+        match lvs, src with
+        | [lvc, (lv, lvty)], `NoOp (e, ety) ->
+            lvty |> oiter (check_ty_eq ~loc:lvc ety);
+            P.Cassgn (lv, AT_keep, e)
+
+        | _ -> rs_tyerror ~loc:(L.loc pi) Unsupported
+      end
 
     | PIAssign (ls, eqop, e, Some c) ->
         let cpi = S.PIAssign (ls, eqop, e, None) in

@@ -17,8 +17,8 @@ type pident = symbol L.located
 type peop1 = [ `Not ]
 
 type peop2 = [
-  `Add | `Sub | `Mul | `And | `Or  | `BAnd | `BOr | `BXor |
-  `Shr | `Shl | `Eq  | `Neq | `Lt  | `Le   | `Gt  | `Ge 
+  `Add | `Sub | `Mul | `And | `Or  | `BAnd | `BOr | `BXOr |
+  `ShR | `ShL | `Eq  | `Neq | `Lt  | `Le   | `Gt  | `Ge 
 ]
 
 (* -------------------------------------------------------------------- *)
@@ -55,7 +55,7 @@ and plvalue = plvalue_r L.located
 
 (* -------------------------------------------------------------------- *)
 type peqop = [
-  `Raw | `Add | `Sub | `ShR | `ShL | `And | `XOr | `Or  | `Mul
+  `Raw | `Add | `Sub | `ShR | `ShL | `BAnd | `BXOr | `BOr  | `Mul
 ]
 
 (* -------------------------------------------------------------------- *)

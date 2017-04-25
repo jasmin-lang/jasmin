@@ -132,9 +132,9 @@ ptype:
 | PIPEPIPE { `Or   }
 | AMP      { `BAnd }
 | PIPE     { `BOr  }
-| HAT      { `BXor }
-| LTLT     { `Shl  }
-| GTGT     { `Shr  }
+| HAT      { `BXOr }
+| LTLT     { `ShL  }
+| GTGT     { `ShR  }
 | EQEQ     { `Eq   }
 | BANGEQ   { `Neq  }
 | LT       { `Lt   }
@@ -172,15 +172,15 @@ pexpr:
 
 (* -------------------------------------------------------------------- *)
 peqop:
-| EQ      { `Raw }
-| PLUSEQ  { `Add }
-| MINUSEQ { `Sub }
-| STAREQ  { `Mul }
-| GTGTEQ  { `ShR }
-| LTLTEQ  { `ShL }
-| AMPEQ   { `And }
-| HATEQ   { `XOr }
-| PIPEEQ  { `Or  }
+| EQ      { `Raw  }
+| PLUSEQ  { `Add  }
+| MINUSEQ { `Sub  }
+| STAREQ  { `Mul  }
+| GTGTEQ  { `ShR  }
+| LTLTEQ  { `ShL  }
+| AMPEQ   { `BAnd }
+| HATEQ   { `BXOr }
+| PIPEEQ  { `BOr  }
 
 (* ** Left value
  * -------------------------------------------------------------------- *)
