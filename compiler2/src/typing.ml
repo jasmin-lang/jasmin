@@ -403,6 +403,14 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
             lvty |> oiter (check_ty_eq ~loc:lvc ety);
             P.Cassgn (lv, AT_keep, e)
 
+        | lvs, `BinOp (`Add, ((e1, _), (e2, _))) ->
+            P.Copn (List.map (fst |- snd) lvs,
+                    P.Carry P.O_Add, [e1; e2; P.Pbool false])
+
+        | lvs, `TriOp ((`Add, `Add), ((e1, _), (e2, _), (e3, _))) ->
+            P.Copn (List.map (fst |- snd) lvs,
+                    P.Carry P.O_Add, [e1; e2; e3])
+
         | _ -> rs_tyerror ~loc:(L.loc pi) Unsupported
       end
 
