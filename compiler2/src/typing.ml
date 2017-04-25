@@ -166,6 +166,12 @@ let tt_as_array ((loc, ty) : L.t * P.pty) : P.pty =
   | _ -> rs_tyerror ~loc (InvalidType (ty, TPArray))
 
 (* -------------------------------------------------------------------- *)
+let tt_as_word ((loc, ty) : L.t * P.pty) : P.word_size =
+  match ty with
+  | P.Bty (P.U ws) -> ws
+  | _ -> rs_tyerror ~loc (InvalidType (ty, TPArray))
+
+(* -------------------------------------------------------------------- *)
 let op2_of_pop2 (op : S.peop2) =
   match op with
   | `Add  -> Some P.Oadd
@@ -283,11 +289,52 @@ let tt_param (env : Env.env) (pp : S.pparam) : Env.env * (P.pvar * P.pexpr) =
   (env, (x, pe))
 
 (* -------------------------------------------------------------------- *)
+let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
+  match pl with
+  | S.PLIgnore ->
+      P.Lnone loc
+
+  | S.PLVar x ->
+      P.Lvar (L.mk_loc loc (tt_var env x))
+
+  | S.PLArray ({ pl_loc = xlc } as x, pi) ->
+      let x  = tt_var env x in
+      let i  = fst (tt_expr env ~mode:`InExpr ~expect:TPInt pi) in
+      let _  = tt_as_array (xlc, x.P.v_ty) in
+      P.Laset (L.mk_loc xlc x, i)
+
+  | S.PLMem ({ pl_loc = xlc } as x, pe) ->
+      let x = tt_var env x in
+      let e = fst (tt_expr env ~mode:`InExpr ~expect:TPInt pe) in
+      let w = tt_as_word (xlc, x.P.v_ty) in
+      P.Lmem (w, L.mk_loc xlc x, e)
+
+(* -------------------------------------------------------------------- *)
+type opsrc = [
+  | `NoOp  of P.pexpr
+  | `BinOp of S.peop2 * P.pexpr pair
+  | `TriOp of S.peop2 pair * P.pexpr tuple2
+]
+
+let tt_opsrc (env : Env.env) (pe : S.pexpr) =
+  let fore = tt_expr env ~mode:`Expr in
+
+    match L.unloc pe with
+    | S.PEOp2 (op, (pe1, pe2)) -> begin
+        match L.unloc pe2 with
+        | S.PEOp2 (op', (pe2, pe3)) ->
+            `TriOp ((op, op'), (fore pe1, fore pe2, fore pe3))
+        | _ -> `BinOp (op, (fore pe1, fore pe2))
+      end
+    | _ -> `NoOp (fore pe)
+
+(* -------------------------------------------------------------------- *)
 let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr = 
   let instr =
     match L.unloc pi with
     | PIAssign (ls, eqop, e, None) ->
-        rs_tyerror ~loc:(L.loc pi) Unsupported
+        let _lv  = List.map (tt_lvalue env) ls in
+        let _src = tt_opsrc env e in assert false
 
     | PIAssign (ls, eqop, e, Some c) ->
         let cpi = S.PIAssign (ls, eqop, e, None) in
