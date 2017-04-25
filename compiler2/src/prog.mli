@@ -242,7 +242,9 @@ module Hf : Hash.S with type key = funname
 (* -------------------------------------------------------------------- *)
 (* used variables                                                       *) 
 
+val rvars_lv : Sv.t -> lval -> Sv.t
 val vars_e  : expr -> Sv.t
+val vars_es : expr list -> Sv.t
 val vars_i  : 'info instr -> Sv.t 
 val vars_c  : 'info stmt  -> Sv.t 
 val vars_fc : 'info func  -> Sv.t 

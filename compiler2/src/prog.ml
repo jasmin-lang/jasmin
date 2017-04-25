@@ -277,6 +277,7 @@ and rvars_c s c =  List.fold_left rvars_i s c
 
 
 let vars_e e = rvars_e Sv.empty e
+let vars_es es = rvars_es Sv.empty es
 let vars_i i = rvars_i Sv.empty i
 let vars_c c = rvars_c Sv.empty c
 
