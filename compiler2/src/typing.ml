@@ -158,9 +158,18 @@ let check_ty (ety : typattern) (loc, ty) =
   | _ -> rs_tyerror ~loc (InvalidType (ty, ety))
 
 (* -------------------------------------------------------------------- *)
-let check_ty_eq ~loc ty1 ty2 =
-  if ty1 <> ty2 then
-    rs_tyerror ~loc (TypeMismatch (ty1, ty2))
+let check_ty_eq ~loc ~(from : P.pty) ~(to_ : P.pty) =
+  if from <> to_ then
+    rs_tyerror ~loc (TypeMismatch (from, to_))
+
+let check_ty_assign ~loc ~(from : P.pty) ~(to_ : P.pty) =
+  if from <> to_ then begin
+    match from, to_ with
+    | P.Bty P.Int, P.Bty (P.U ws) ->
+        (fun e -> (P.Pcast (ws, e)))
+    | _, _ ->
+        rs_tyerror ~loc (TypeMismatch (from, to_))
+  end else (fun (e : P.pexpr) -> e)
 
 (* -------------------------------------------------------------------- *)
 let check_sig ?loc (sig_ : P.pty list) (given : (L.t * P.pty) list) =
@@ -171,7 +180,7 @@ let check_sig ?loc (sig_ : P.pty list) (given : (L.t * P.pty) list) =
   if n1 <> n2 then
     rs_tyerror ~loc:(loc ()) (InvalidArgCount (n1, n2));
   List.iter2
-    (fun ty1 (loc, ty2) -> check_ty_eq ~loc ty1 ty2)
+    (fun ty1 (loc, ty2) -> check_ty_eq ~loc ~from:ty2 ~to_:ty1)
     sig_ given
 
 (* -------------------------------------------------------------------- *)
@@ -400,8 +409,10 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
 
         match lvs, src with
         | [lvc, (lv, lvty)], `NoOp (e, ety) ->
-            lvty |> oiter (check_ty_eq ~loc:lvc ety);
-            P.Cassgn (lv, AT_keep, e)
+            let e =  lvty
+              |> omap (fun ty -> check_ty_assign ~loc:lvc ~from:ety ~to_:ty e)
+              |> odfl e
+            in P.Cassgn (lv, AT_keep, e)
 
         | lvs, `BinOp (`Add, ((e1, _), (e2, _))) ->
             P.Copn (List.map (fst |- snd) lvs,
