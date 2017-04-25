@@ -438,6 +438,10 @@ let tt_opsrc (env : Env.env) (eqop : eqoparg_r option) (pe : S.pexpr) : opsrc =
         `NoOp (fore pe)
 
 (* -------------------------------------------------------------------- *)
+let carry_op = function
+  | `Add -> P.Oaddcarry
+  | `Sub -> P.Osubcarry
+
 let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
   let instr =
     match L.unloc pi with
@@ -457,13 +461,13 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
               |> odfl e
             in P.Cassgn (lv, AT_keep, e)
 
-        | lvs, `BinOp ((`Add | `Sub), es) ->
+        | lvs, `BinOp ((`Add | `Sub) as o, es) ->
             let (lc1, e1, ety1), (lc2, e2, ety2) = es in
             check_ty_eq ~loc:lc2 ~to_:ety1 ~from:ety2;
             let _ws1 = tt_as_word (lc1, ety1) in
             let _ws2 = tt_as_word (lc2, ety2) in
             let lvs = check_sig_lvs [P.Bty P.Bool; ety1] lvs in
-            P.Copn (lvs, P.Carry P.O_Add, [e1; e2; P.Pbool false])
+            P.Copn (lvs, carry_op o, [e1; e2; P.Pbool false])
 
         | lvs, `TriOp (((`Add | `Sub) as op1, op2), es) when op1 = op2 ->
             let (lc1, e1, ety1), (lc2, e2, ety2), (lc3, e3, ety3) = es in
@@ -472,7 +476,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
             let _ws2 = tt_as_word (lc2, ety2) in
             let _    = tt_as_bool (lc3, ety3) in
             let lvs  = check_sig_lvs [P.Bty P.Bool; ety1] lvs in
-            P.Copn (lvs, P.Carry P.O_Add, [e1; e2; e3])
+            P.Copn (lvs, carry_op op1, [e1; e2; e3])
 
         | _ -> rs_tyerror ~loc:(L.loc pi) Unsupported
       end

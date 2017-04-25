@@ -8,6 +8,7 @@ module Name : sig
 end
 
 type uid
+val int_of_uid : uid -> int
 
 (* ------------------------------------------------------------------------ *)
 type op2 =
@@ -83,15 +84,28 @@ val u128 : 'e gty
 val u256 : 'e gty
 
 (* ------------------------------------------------------------------------ *)
-type dir      = Left   | Right
-type carry_op = O_Add  | O_Sub
-type three_op = O_Imul | O_And | O_Xor | O_Or
 
 type op =
-  | ThreeOp of three_op
-  | Umul
-  | Carry   of carry_op
-  | Shift   of dir
+  | Olnot
+  | Oxor
+  | Oland
+  | Olor
+  | Olsr
+  | Olsl
+  | Oif
+  | Omulu
+  | Omuli
+  | Oaddcarry
+  | Osubcarry
+  | Oleu
+  | Oltu
+  | Ogeu
+  | Ogtu
+  | Oles
+  | Olts
+  | Oges
+  | Ogts
+  | Oeqw
 
 type assgn_tag =
   | AT_keep   (* compile to move *)
