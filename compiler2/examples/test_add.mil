@@ -1,0 +1,46 @@
+
+fn test() -> inline int {
+
+  inline int i;
+  inline int j;
+
+  
+  j = 0;
+  for i in (0..4) {
+    j = j + i;
+  }
+
+  return j;
+}
+
+fn test() -> inline u64 {
+
+  inline int i;
+  inline u64 j;
+
+  
+  j = 0;
+  for i in (0..4) {
+    j = j + i;
+  }
+
+  return j;
+}
+
+
+fn test() -> reg u64 {
+
+  inline int i;
+  reg u64 j;
+
+  
+  j = 0;
+  i = 0;
+  while (j <= 12) {
+    j = j + i;
+    i += 1;
+  }
+
+  return j;
+}
+
