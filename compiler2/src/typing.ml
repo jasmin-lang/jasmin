@@ -24,7 +24,7 @@ end = struct
   type env = {
     e_vars : (S.symbol, P.pvar) Map.t;
     e_funs : (S.symbol, unit P.pfunc) Map.t;
-    }
+  }
 
   let empty : env =
     { e_vars = Map.empty; e_funs = Map.empty; }
@@ -71,6 +71,7 @@ type tyerror =
   | NoOperator          of [ `Op2 of S.peop2 ] * P.pty list
   | InvalidArgCount     of int * int
   | LvalueWithNoBaseTy
+  | LvalueTooWide
   | EqOpWithNoLValue
   | InvalidLRValue
   | Unsupported
@@ -110,6 +111,10 @@ let pp_tyerror fmt (code : tyerror) =
   | LvalueWithNoBaseTy ->
       Format.fprintf fmt
         "lvalues must have a base type"
+
+  | LvalueTooWide ->
+      Format.fprintf fmt
+        "lvalues tuple too wide"
 
   | EqOpWithNoLValue ->
       Format.fprintf fmt
@@ -182,6 +187,23 @@ let check_sig ?loc (sig_ : P.pty list) (given : (L.t * P.pty) list) =
   List.iter2
     (fun ty1 (loc, ty2) -> check_ty_eq ~loc ~from:ty2 ~to_:ty1)
     sig_ given
+
+(* -------------------------------------------------------------------- *)
+let check_sig_lvs ?loc sig_ lvs =
+  let loc () = loc_of_tuples loc (List.map fst lvs) in
+
+  let nsig_ = List.length sig_ in
+  let nlvs  = List.length lvs  in
+
+  if nlvs > nsig_ then
+    rs_tyerror ~loc:(loc ()) LvalueTooWide;
+
+  List.iter2
+    (fun ty (loc, (_, lty)) -> lty
+       |> oiter (fun lty -> check_ty_eq ~loc ~from:ty ~to_:lty))
+    (List.drop (nsig_ - nlvs) sig_) lvs;
+
+  List.map (fst |- snd) lvs
 
 (* -------------------------------------------------------------------- *)
 let tt_as_bool = check_ty TPBool
@@ -365,16 +387,19 @@ let tt_expr_of_lvalue ((loc, lv) : L.t * P.pty P.glval) =
   | _ -> rs_tyerror ~loc InvalidLRValue
 
 (* -------------------------------------------------------------------- *)
+type eqoparg   = (L.t * P.pexpr * P.pty)
+type eqoparg_r = S.peop2 * eqoparg
+
 type opsrc = [
-  | `NoOp  of (P.pexpr * P.pty)
-  | `BinOp of S.peop2 * (P.pexpr * P.pty) pair
-  | `TriOp of S.peop2 pair * (P.pexpr * P.pty) tuple3
+  | `NoOp  of eqoparg
+  | `BinOp of S.peop2 * eqoparg pair
+  | `TriOp of S.peop2 pair * eqoparg tuple3
 ]
 
-type eqop = S.peop2 * (P.pexpr * P.pty)
-
-let tt_opsrc (env : Env.env) (eqop : eqop option) (pe : S.pexpr) : opsrc =
-  let fore = tt_expr env ~mode:`Expr in
+(* -------------------------------------------------------------------- *)
+let tt_opsrc (env : Env.env) (eqop : eqoparg_r option) (pe : S.pexpr) : opsrc =
+  let fore pe =
+    let e, ty = tt_expr env ~mode:`Expr pe in (L.loc pe, e, ty) in
 
     match L.unloc pe, eqop with
     | S.PEOp2 (op, (pe1, pe2)), None -> begin
@@ -403,24 +428,33 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
         let eqop = peop2_of_eqop eqop |> omap (fun eqop ->
           if List.is_empty lvs then
             rs_tyerror ~loc:(L.loc pi) EqOpWithNoLValue;
-          let (lv, lvty), lvc = snd (List.hd lvs), L.loc (List.hd ls) in
-          (eqop, (tt_expr_of_lvalue (lvc, lv), oget lvty))) in
+          let (lv, lvty), lvc = snd (List.last lvs), L.loc (List.last ls) in
+          (eqop, (lvc, tt_expr_of_lvalue (lvc, lv), oget lvty))) in
         let src = tt_opsrc env eqop e in
 
         match lvs, src with
-        | [lvc, (lv, lvty)], `NoOp (e, ety) ->
+        | [_, (lv, lvty)], `NoOp (lve, e, ety) ->
             let e =  lvty
-              |> omap (fun ty -> check_ty_assign ~loc:lvc ~from:ety ~to_:ty e)
+              |> omap (fun ty -> check_ty_assign ~loc:lve ~from:ety ~to_:ty e)
               |> odfl e
             in P.Cassgn (lv, AT_keep, e)
 
-        | lvs, `BinOp (`Add, ((e1, _), (e2, _))) ->
-            P.Copn (List.map (fst |- snd) lvs,
-                    P.Carry P.O_Add, [e1; e2; P.Pbool false])
+        | lvs, `BinOp ((`Add | `Sub), es) ->
+            let (lc1, e1, ety1), (lc2, e2, ety2) = es in
+            check_ty_eq ~loc:lc2 ~to_:ety1 ~from:ety2;
+            let _ws1 = tt_as_word (lc1, ety1) in
+            let _ws2 = tt_as_word (lc2, ety2) in
+            let lvs = check_sig_lvs [P.Bty P.Bool; ety1] lvs in
+            P.Copn (lvs, P.Carry P.O_Add, [e1; e2; P.Pbool false])
 
-        | lvs, `TriOp ((`Add, `Add), ((e1, _), (e2, _), (e3, _))) ->
-            P.Copn (List.map (fst |- snd) lvs,
-                    P.Carry P.O_Add, [e1; e2; e3])
+        | lvs, `TriOp (((`Add | `Sub) as op1, op2), es) when op1 = op2 ->
+            let (lc1, e1, ety1), (lc2, e2, ety2), (lc3, e3, ety3) = es in
+            check_ty_eq ~loc:lc2 ~to_:ety1 ~from:ety2;
+            let _ws1 = tt_as_word (lc1, ety1) in
+            let _ws2 = tt_as_word (lc2, ety2) in
+            let _    = tt_as_bool (lc3, ety3) in
+            let lvs  = check_sig_lvs [P.Bty P.Bool; ety1] lvs in
+            P.Copn (lvs, P.Carry P.O_Add, [e1; e2; e3])
 
         | _ -> rs_tyerror ~loc:(L.loc pi) Unsupported
       end
