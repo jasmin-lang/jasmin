@@ -255,24 +255,43 @@ let peop2_of_eqop (eqop : S.peqop) =
   | `BOr  -> Some `BOr
 
 (* -------------------------------------------------------------------- *)
-let tt_op2 ((ty1, ty2) : P.pty pair) { L.pl_desc = pop; L.pl_loc = loc } =
+
+let max_ty ty1 ty2 = 
+  match ty1, ty2 with
+  | P.Int, P.Int -> Some P.Int
+  | P.Int, P.U _ -> Some ty2
+  | P.U _, P.Int -> Some ty1
+  | P.U _, P.U _ when ty1 = ty2 -> Some ty1
+  | _, _     -> None  
+
+let cast e ety ty = 
+  match ety, ty with
+  | P.Int, P.Int -> e
+  | P.Int, P.U w -> P.Pcast(w, e)
+  | P.U w1, P.U w2 when w1 = w2 -> e
+  | _ -> assert false
+
+let tt_op2 (e1,ty1) (e2,ty2) { L.pl_desc = pop; L.pl_loc = loc } =
   let op = op2_of_pop2 pop in
-  let op = op |> oget ~exn:(tyerror ~loc (InvOpInExpr (`Op2 pop))) in
+  let exn = tyerror ~loc (InvOpInExpr (`Op2 pop)) in
+  let op = op |> oget ~exn in
+  let e1, e2, ty = 
+    match op, (ty1, ty2) with
+    | (P.Oadd | P.Osub | P.Omul), (P.Bty P.Int, P.Bty P.Int) -> 
+      (e1, e2, P.Bty P.Int)
 
-  match op, (ty1, ty2) with
-  | (P.Oadd | P.Osub | P.Omul), (P.Bty P.Int, P.Bty P.Int) ->
-      (op, P.Bty P.Int)
+    | (P.Oand | P.Oor), (P.Bty P.Bool, P.Bty P.Bool) -> 
+      (e1, e2, P.Bty P.Bool)
 
-  | (P.Oand | P.Oor), (P.Bty P.Bool, P.Bty P.Bool) ->
-      (op, P.Bty P.Bool)
+    | (P.Oeq | P.Oneq | P.Olt | P.Ole | P.Ogt | P.Oge),  
+      (P.Bty sty1, P.Bty sty2) -> 
+      let sty = max_ty sty1 sty2 in
+      let sty = sty |> oget ~exn in
+      (cast e1 sty1 sty, cast e2 sty2 sty, P.Bty P.Bool)
 
-  | (P.Oeq | P.Oneq), (P.Bty sty1, P.Bty sty2) when sty1 = sty2 ->
-      (op, P.Bty P.Bool)
-
-  | (P.Olt | P.Ole | P.Ogt | P.Oge), (P.Bty P.Int, P.Bty P.Int) ->
-      (op, P.Bty P.Bool)
-
-  | _ -> rs_tyerror ~loc (NoOperator (`Op2 pop, [ty1; ty2]))
+    | _ -> rs_tyerror ~loc (NoOperator (`Op2 pop, [ty1; ty2])) in
+  
+  (P.Papp2 (op, e1, e2), ty) 
 
 (* -------------------------------------------------------------------- *)
 let tt_expr ~mode ?expect (env : Env.env) =
@@ -303,11 +322,10 @@ let tt_expr ~mode ?expect (env : Env.env) =
           (P.Pnot (fst (aux ~expect:TPBool pe)), P.Bty P.Bool)
 
       | S.PEOp2 (pop, (pe1, pe2)) ->
-          let e1, ty1 = aux pe1 in
-          let e2, ty2 = aux pe2 in
-          let op, ty  = tt_op2 (ty1, ty2) (L.mk_loc (L.loc pe) pop) in
-          (P.Papp2 (op, e1, e2), ty) in
-
+          let et1 = aux pe1 in
+          let et2 = aux pe2 in
+          tt_op2 et1 et2 (L.mk_loc (L.loc pe) pop) in
+       
     expect |> oiter
       (fun expect -> check_ty expect (L.loc pe, ety));
     (e, ety)
