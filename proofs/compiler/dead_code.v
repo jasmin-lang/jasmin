@@ -23,15 +23,12 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-(* * Prove properties about semantics of dmasm input language *)
-
 (* ** Imports and settings *)
-Require Import JMeq ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
-Require Import Coq.Logic.Eqdep_dec.
 Require Import strings word utils type var expr memory sem
                compiler_util.
+Import ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

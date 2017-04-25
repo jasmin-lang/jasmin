@@ -23,17 +23,15 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-(* * Syntax and semantics of the dmasm source language *)
-
 (* ** Imports and settings *)
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import seq tuple finfun.
 From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import JMeq ZArith Setoid Morphisms.
 
 Require Import word utils type var expr.
 Require Import memory sem Ssem Ssem_props.
+Import ZArith Setoid Morphisms.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

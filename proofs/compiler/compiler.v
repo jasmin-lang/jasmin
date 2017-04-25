@@ -23,11 +23,10 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import x86.
-Import Coq.Logic.Eqdep_dec.
+Import ZArith Coq.Logic.Eqdep_dec.
 Import strings word utils type var expr memory sem.
 Require Import compiler_util allocation inlining unrolling constant_prop dead_code.
 Require Import array_expansion stack_alloc linear.
