@@ -18,7 +18,7 @@ type peop1 = [ `Not ]
 
 type peop2 = [
   `Add | `Sub | `Mul | `And | `Or  | `BAnd | `BOr | `BXOr |
-  `ShR | `ShL | `Eq  | `Neq | `Lt  | `Le   | `Gt  | `Ge 
+  `ShR | `ShL | `Eq  | `Neq | `Lt  | `Le   | `Gt  | `Ge
 ]
 
 (* -------------------------------------------------------------------- *)

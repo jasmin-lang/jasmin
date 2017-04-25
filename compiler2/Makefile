@@ -44,7 +44,7 @@ jasmin.mlpack: __force__
 	( echo '# GENERATED - EDIT jasmin.mlpack.in'; \
 	  cat jasmin.mlpack.in; \
 	  echo "$(wildcard CIL/*.ml*)" | tr ' ' '\n' | sed 's/\..*$$//' | sort -u ) \
-	> jasmin.mlpack 
+	> jasmin.mlpack
 
 CIL:
 	rm -f CIL/*.{ml,mli}

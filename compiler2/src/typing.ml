@@ -229,16 +229,16 @@ let tt_op2 ((ty1, ty2) : P.pty pair) { L.pl_desc = pop; L.pl_loc = loc } =
   let op = op |> oget ~exn:(tyerror ~loc (InvOpInExpr (`Op2 pop))) in
 
   match op, (ty1, ty2) with
-  | (P.Oadd | P.Osub | P.Omul), (P.Bty P.Int, P.Bty P.Int) -> 
+  | (P.Oadd | P.Osub | P.Omul), (P.Bty P.Int, P.Bty P.Int) ->
       (op, P.Bty P.Int)
 
-  | (P.Oand | P.Oor), (P.Bty P.Bool, P.Bty P.Bool) -> 
+  | (P.Oand | P.Oor), (P.Bty P.Bool, P.Bty P.Bool) ->
       (op, P.Bty P.Bool)
 
-  | (P.Oeq | P.Oneq), (P.Bty sty1, P.Bty sty2) when sty1 = sty2 -> 
+  | (P.Oeq | P.Oneq), (P.Bty sty1, P.Bty sty2) when sty1 = sty2 ->
       (op, P.Bty P.Bool)
 
-  | (P.Olt | P.Ole | P.Ogt | P.Oge), (P.Bty P.Int, P.Bty P.Int) -> 
+  | (P.Olt | P.Ole | P.Ogt | P.Oge), (P.Bty P.Int, P.Bty P.Int) ->
       (op, P.Bty P.Bool)
 
   | _ -> rs_tyerror ~loc (NoOperator (`Op2 pop, [ty1; ty2]))
@@ -252,25 +252,25 @@ let tt_expr ~mode ?expect (env : Env.env) =
       match L.unloc pe with
       | S.PEParens pe ->
           aux ?expect pe
-  
+
       | S.PEBool b ->
           (P.Pbool b, P.Bty P.Bool)
-  
+
       | S.PEInt i ->
           (P.Pconst i, P.Bty P.Int)
-  
+
       | S.PEVar ({ L.pl_loc = lc; } as x) ->
            tt_var env x |> (fun x -> (P.Pvar (L.mk_loc lc x), x.P.v_ty))
-  
+
       | S.PEGet ({ L.pl_loc = xlc } as x, pi) ->
           let x  = tt_var env x in
           let i  = aux ~expect:TPInt pi in
           let ty = tt_as_array (xlc, x.P.v_ty) in
           (P.Pget (L.mk_loc xlc x, fst i), ty)
-  
+
       | S.PEOp1 (`Not, pe) ->
           (P.Pnot (fst (aux ~expect:TPBool pe)), P.Bty P.Bool)
-  
+
       | S.PEOp2 (pop, (pe1, pe2)) ->
           let e1, ty1 = aux pe1 in
           let e2, ty2 = aux pe2 in
@@ -316,7 +316,7 @@ let tt_param (env : Env.env) (pp : S.pparam) : Env.env * (P.pvar * P.pexpr) =
 
   if ty <> ety then
     rs_tyerror ~loc:(L.loc pp.ppa_init) (TypeMismatch (ty, ety));
-  
+
   let x = P.PV.mk (L.unloc pp.ppa_name) P.Const ty (L.loc pp.ppa_name) in
   let env = Env.Vars.push x env in
 
@@ -386,7 +386,7 @@ let tt_opsrc (env : Env.env) (eqop : eqop option) (pe : S.pexpr) : opsrc =
         `NoOp (fore pe)
 
 (* -------------------------------------------------------------------- *)
-let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr = 
+let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
   let instr =
     match L.unloc pi with
     | PIAssign (ls, eqop, e, None) -> begin

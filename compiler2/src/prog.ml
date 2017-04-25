@@ -26,7 +26,7 @@ type op2 =
   | Ogt
   | Oge
 
-type word_size = 
+type word_size =
   | W8
   | W16
   | W32
@@ -241,7 +241,7 @@ module Mf = Map.Make (F)
 module Hf = Hash.Make(F)
 
 (* -------------------------------------------------------------------- *)
-(* used variables                                                       *) 
+(* used variables                                                       *)
 
 let rec rvars_e s = function
   | Pconst _ | Pbool _ -> s
@@ -262,7 +262,7 @@ let rec rvars_lv s = function
 
 let rvars_lvs s lvs = List.fold_left rvars_lv s lvs
 
-let rec rvars_i s i = 
+let rec rvars_i s i =
   match i.i_desc with
   | Cblock c       -> rvars_c s c
   | Cassgn(x,_,e)  -> rvars_e (rvars_lv s x) e
@@ -281,7 +281,7 @@ let vars_es es = rvars_es Sv.empty es
 let vars_i i = rvars_i Sv.empty i
 let vars_c c = rvars_c Sv.empty c
 
-let vars_fc fc = 
+let vars_fc fc =
   let s = List.fold_left (fun s v -> Sv.add v s) Sv.empty fc.f_args in
   let s = List.fold_left (fun s v -> Sv.add (L.unloc v) s) s fc.f_ret in
   rvars_c s fc.f_body
@@ -290,12 +290,12 @@ let vars_fc fc =
 (* Functions on types                                                   *)
 
 let int_of_ws = function
-  | W8   -> 8    
-  | W16  -> 16 
-  | W32  -> 32 
-  | W64  -> 64 
+  | W8   -> 8
+  | W16  -> 16
+  | W32  -> 32
+  | W64  -> 64
   | W128 -> 128
-  | W256 -> 256 
+  | W256 -> 256
 
 let size_of_ws = function
   | W8   -> 1
@@ -311,29 +311,29 @@ let is_ty_arr = function
 
 let array_kind = function
   | Arr(ws, n) -> ws, n
-  | _ -> assert false 
+  | _ -> assert false
 
 let ws_of_ty = function
   | Bty (U ws) -> ws
-  | _ -> assert false 
+  | _ -> assert false
 
 (* -------------------------------------------------------------------- *)
 (* Functions over variables                                             *)
 
 let vstack = V.mk "stk" Reg u64 L._dummy
 
-let is_stack_var v = v.v_kind = Stack 
+let is_stack_var v = v.v_kind = Stack
 
-let is_reg_arr v = 
+let is_reg_arr v =
   v.v_kind = Reg && is_ty_arr v.v_ty
 
 (* -------------------------------------------------------------------- *)
 (* Functions over expressions                                           *)
 
-let ( ++ ) e1 e2 = 
+let ( ++ ) e1 e2 =
   Papp2(Oadd, e1, e2)
 
-let ( ** ) e1 e2 = 
+let ( ** ) e1 e2 =
   Papp2(Omul, e1, e2)
 
 let cnst i = Pconst i

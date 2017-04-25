@@ -298,7 +298,7 @@ module_:
 | x=X { L.mk_loc (L.make $startpos $endpos) x }
 
 %inline prefix(S, X):
-| S x=X { x } 
+| S x=X { x }
 
 %inline postfix(X, S):
 | x=X S { x }

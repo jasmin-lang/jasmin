@@ -1,7 +1,7 @@
 (* -------------------------------------------------------------------- *)
 module Set  : sig include module type of BatSet end
 module Map  : sig include module type of BatMap end
-module Hash : sig include module type of BatHashtbl end 
+module Hash : sig include module type of BatHashtbl end
 
 (* -------------------------------------------------------------------- *)
 exception Unexpected

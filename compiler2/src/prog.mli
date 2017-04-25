@@ -25,7 +25,7 @@ type op2 =
   | Ogt
   | Oge
 
-type word_size = 
+type word_size =
   | W8
   | W16
   | W32
@@ -240,14 +240,14 @@ module Mf : Map.S  with type key = funname
 module Hf : Hash.S with type key = funname
 
 (* -------------------------------------------------------------------- *)
-(* used variables                                                       *) 
+(* used variables                                                       *)
 
 val rvars_lv : Sv.t -> lval -> Sv.t
 val vars_e  : expr -> Sv.t
 val vars_es : expr list -> Sv.t
-val vars_i  : 'info instr -> Sv.t 
-val vars_c  : 'info stmt  -> Sv.t 
-val vars_fc : 'info func  -> Sv.t 
+val vars_i  : 'info instr -> Sv.t
+val vars_c  : 'info stmt  -> Sv.t
+val vars_fc : 'info func  -> Sv.t
 
 (* -------------------------------------------------------------------- *)
 (* Functions on types                                                   *)
@@ -262,7 +262,7 @@ val ws_of_ty   : ty -> word_size
 (* -------------------------------------------------------------------- *)
 (* Functions on variables                                               *)
 
-val vstack : var 
+val vstack : var
 
 val is_stack_var : var -> bool
 val is_reg_arr   : var -> bool
@@ -271,8 +271,8 @@ val is_reg_arr   : var -> bool
 (* -------------------------------------------------------------------- *)
 (* Functions over expressions                                           *)
 
-val ( ++ ) : expr -> expr -> expr 
-val ( ** ) : expr -> expr -> expr 
-val cnst   : B.zint -> expr 
-val icnst  : int -> expr 
-val cast64 : expr -> expr 
+val ( ++ ) : expr -> expr -> expr
+val ( ** ) : expr -> expr -> expr
+val cnst   : B.zint -> expr
+val icnst  : int -> expr
+val cast64 : expr -> expr

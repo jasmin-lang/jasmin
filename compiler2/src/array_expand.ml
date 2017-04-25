@@ -4,27 +4,27 @@ open Prog
 
 
 let check_not_reg_arr v =
-   assert (not (is_reg_arr (L.unloc v))) 
+   assert (not (is_reg_arr (L.unloc v)))
    (* FIXME: raise an error message, v contain the location *)
 
 let get_reg_arr tbl v e =
   let v_ = L.unloc v in
   match e with
-  | Pconst i -> 
+  | Pconst i ->
     begin
       let i = B.to_int i in
       try (Hv.find tbl v_).(i)
-      with Not_found -> assert false 
+      with Not_found -> assert false
     end
-  | _        -> assert false 
+  | _        -> assert false
     (* FIXME: raise an error message, v contain the location *)
 
-let init_tbl fc = 
+let init_tbl fc =
   let tbl = Hv.create 107 in
-  let init_var v = 
+  let init_var v =
     let ws, sz = array_kind v.v_ty in
     let ty = Bty (U ws) in
-    let vi i = 
+    let vi i =
       V.mk (v.v_name ^ "#" ^ string_of_int i) Reg ty v.v_dloc in
     let t = Array.init sz vi in
     Hv.add tbl v t in
@@ -35,10 +35,10 @@ let init_tbl fc =
 let rec arrexp_e tbl e =
   match e with
   | Pconst _ | Pbool _ -> e
-  | Pvar x -> check_not_reg_arr x; e 
+  | Pvar x -> check_not_reg_arr x; e
 
   | Pget (x,e) ->
-    if is_reg_arr (L.unloc x) then 
+    if is_reg_arr (L.unloc x) then
       let v = get_reg_arr tbl x e in
       Pvar (L.mk_loc (L.loc x) v)
     else Pget(x, arrexp_e tbl e)
@@ -48,7 +48,7 @@ let rec arrexp_e tbl e =
   | Pnot  e        -> Pnot(arrexp_e tbl e)
   | Papp2(o,e1,e2) -> Papp2(o,arrexp_e tbl e1, arrexp_e tbl e2)
 
-let arrexp_lv tbl lv = 
+let arrexp_lv tbl lv =
   match lv with
   | Laset(x,e) ->
     if is_reg_arr (L.unloc x) then
@@ -63,11 +63,11 @@ let arrexp_es  tbl = List.map (arrexp_e tbl)
 let arrexp_lvs tbl = List.map (arrexp_lv tbl)
 
 let rec arrexp_i tbl i =
-  let i_desc = 
+  let i_desc =
     match i.i_desc with
     | Cblock c -> Cblock (arrexp_c tbl c)
     | Cassgn(x,t,e) -> Cassgn(arrexp_lv tbl x, t, arrexp_e tbl e)
-    | Copn(x,o,e)   -> Copn(arrexp_lvs tbl x, o, arrexp_es tbl e) 
+    | Copn(x,o,e)   -> Copn(arrexp_lvs tbl x, o, arrexp_es tbl e)
     | Cif(e,c1,c2)  -> Cif(arrexp_e tbl e, arrexp_c tbl c1, arrexp_c tbl c2)
     | Cfor(i,(d,e1,e2),c) ->
       Cfor(i, (d, arrexp_e tbl e1, arrexp_e tbl e2), arrexp_c tbl c)
@@ -78,7 +78,7 @@ let rec arrexp_i tbl i =
 
 and arrexp_c tbl c = List.map (arrexp_i tbl) c
 
-let arrexp_func fc = 
+let arrexp_func fc =
   List.iter (fun v -> check_not_reg_arr (L.mk_loc L._dummy v)) fc.f_args;
   List.iter check_not_reg_arr fc.f_ret;
   let tbl = init_tbl fc in
@@ -89,16 +89,16 @@ let arrexp_prog prog = List.map arrexp_func prog
 (* -------------------------------------------------------------- *)
 (* Perform stack allocation                                       *)
 
-let init_stk fc = 
+let init_stk fc =
   let vars = Sv.elements (Sv.filter is_stack_var (vars_fc fc)) in
   (* FIXME: For the moment we assume that all variable are 64 bits *)
   let size = ref 0 in
   let tbl = Hv.create 107 in
-  let init_var v = 
-    let n = 
+  let init_var v =
+    let n =
       match v.v_ty with
       | Bty (U W64)  -> size_of_ws W64
-      | Arr (W64, n) -> n * size_of_ws W64 
+      | Arr (W64, n) -> n * size_of_ws W64
       | _            -> assert false in
     let pos = !size in
     let bpos = B.of_int pos in
@@ -108,17 +108,17 @@ let init_stk fc =
   let alloc = List.map init_var vars in
   alloc, !size, tbl
 
-let load_stack ws loc e = 
+let load_stack ws loc e =
    Pload (ws, L.mk_loc loc vstack, cast64 e)
 
-let store_stack ws loc e = 
+let store_stack ws loc e =
    Lmem (ws, L.mk_loc loc vstack, cast64 e)
 
 let rec astk_e tbl e =
   match e with
   | Pconst _ | Pbool _ -> e
 
-  | Pvar x -> 
+  | Pvar x ->
     let x_ = L.unloc x in
     let loc = L.loc x in
     if is_stack_var x_ then
@@ -141,7 +141,7 @@ let rec astk_e tbl e =
   | Pnot  e        -> Pnot(astk_e tbl e)
   | Papp2(o,e1,e2) -> Papp2(o, astk_e tbl e1, astk_e tbl e2)
 
-let astk_lv tbl lv = 
+let astk_lv tbl lv =
   match lv with
   | Laset(x,e) when is_stack_var (L.unloc x) ->
     let x_ = L.unloc x in
@@ -152,7 +152,7 @@ let astk_lv tbl lv =
 
   | Laset _ ->  assert false (* FIXME: ERROR MSG *)
 
-  | Lvar x       -> 
+  | Lvar x       ->
     let x_ = L.unloc x in
     let loc = L.loc x in
     if is_stack_var x_ then
@@ -170,11 +170,11 @@ let astk_es  tbl = List.map (astk_e tbl)
 let astk_lvs tbl = List.map (astk_lv tbl)
 
 let rec astk_i tbl i =
-  let i_desc = 
+  let i_desc =
     match i.i_desc with
     | Cblock c        -> Cblock (astk_c tbl c)
     | Cassgn(x,t,e)   -> Cassgn(astk_lv tbl x, t, astk_e tbl e)
-    | Copn(x,o,e)     -> Copn(astk_lvs tbl x, o, astk_es tbl e) 
+    | Copn(x,o,e)     -> Copn(astk_lvs tbl x, o, astk_es tbl e)
     | Cif(e,c1,c2)    -> Cif(astk_e tbl e, astk_c tbl c1, astk_c tbl c2)
     | Cfor(i,(d,e1,e2),c) ->
       Cfor(i, (d, astk_e tbl e1, astk_e tbl e2), astk_c tbl c)
@@ -185,16 +185,13 @@ let rec astk_i tbl i =
 
 and astk_c tbl c = List.map (astk_i tbl) c
 
-let check_stack_var v = 
+let check_stack_var v =
   assert (not (is_stack_var (L.unloc v)))
 
-let astk_func fc = 
+let astk_func fc =
   List.iter (fun v -> check_stack_var (L.mk_loc L._dummy v)) fc.f_args;
   List.iter check_stack_var fc.f_ret;
   let alloc, sz, tbl = init_stk fc in
   alloc, sz, { fc with f_body = astk_c tbl fc.f_body }
 
 let astk_prog prog = List.map astk_func prog
-
- 
- 
