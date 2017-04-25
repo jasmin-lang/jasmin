@@ -257,7 +257,7 @@ let rvars_es s es = List.fold_left rvars_e s es
 let rec rvars_lv s = function
  | Lnone _      -> s
  | Lvar x       -> Sv.add (L.unloc x) s
- | Lmem (_,x,e) -> rvars_e (Sv.add (L.unloc x) s) e
+ | Lmem (_,x,e)
  | Laset (x,e)  -> rvars_e (Sv.add (L.unloc x) s) e
 
 let rvars_lvs s lvs = List.fold_left rvars_lv s lvs

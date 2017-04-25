@@ -1,16 +1,16 @@
 open Prog
 
-let read_lv s = function
-  | Lvar _ -> s
-  | x      -> rvars_lv s x
-
+(* Updates [s_o] to hold which variables are live before a write_lval. *)
 let dep_lv s_o x =
   match x with
   | Lvar x -> Sv.remove (L.unloc x) s_o
   | _      -> rvars_lv s_o x
 
-(* Not sure it is correct in same variable occur multiple time in
-   xs *)
+(* Variables live before a write_lvals:
+	this is tricky when a variable occurs several times,
+	sometimes written, sometimes read;
+	this correctly reflects the semantics which writes ℓ-values from left to right.
+ *)
 let dep_lvs s_o xs =
   List.fold_left dep_lv s_o xs
 
@@ -18,7 +18,7 @@ let rec live_i i s_o =
   let s_i, d = live_d i.i_desc s_o in
   s_i, { i_desc = d; i_loc = i.i_loc; i_info = (s_i, s_o); }
 
-and live_d d (s_o:Sv.t) =
+and live_d d (s_o: Sv.t) =
   match d with
   | Cblock c ->
     let s_i, c = live_c c s_o in
@@ -35,7 +35,7 @@ and live_d d (s_o:Sv.t) =
   | Cif(e,c1,c2) ->
     let s1, c1 = live_c c1 s_o in
     let s2, c2 = live_c c2 s_o in
-    (Sv.union (vars_e e) (Sv.union s1 s2), Cif(e,c1,c2))
+    Sv.union (vars_e e) (Sv.union s1 s2), Cif(e, c1, c2)
 
   | Cfor _ -> assert false (* Should have been removed before *)
 
@@ -52,14 +52,12 @@ and live_d d (s_o:Sv.t) =
     s_i, Ccall(ii,xs,f,es)
 
 and live_c c s_o =
-  let s_o = ref s_o in
-  let doi i =
-    let s_i, i = live_i i !s_o in
-    s_o := s_i;
-    i in
-  let c = List.map doi c in
-  !s_o, c
-
+  List.fold_right
+    (fun i (s_o, c) ->
+      let s_i, i = live_i i s_o in
+      (s_i, i :: c))
+    c
+    (s_o, [])
 
 let live_fd fd =
   let s_o = Sv.of_list (List.map L.unloc fd.f_ret) in
