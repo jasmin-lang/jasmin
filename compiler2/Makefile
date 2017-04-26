@@ -22,7 +22,7 @@ LIBDIR := $(PREFIX)/lib/jasmin
 SHRDIR := $(PREFIX)/share/jasmin
 
 # --------------------------------------------------------------------
-.PHONY: all build byte native CIL install uninstall __force__
+.PHONY: all build byte native CIL install uninstall tests __force__
 .PHONY: %.ml %.mli %.inferred.mli
 
 all: build
@@ -47,7 +47,7 @@ jasmin.mlpack: __force__
 	> jasmin.mlpack
 
 CIL:
-	rm -f CIL/*.{ml,mli}
+	rm -f CIL/*.ml CIL/*.mli
 	$(MAKE) -C ../proofs
 	cp ../proofs/lang/ocaml/*.ml  CIL/
 	cp ../proofs/lang/ocaml/*.mli CIL/
@@ -58,6 +58,11 @@ install: build
 
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/jasminc
+
+tests: native
+	for i in examples/*.mil; do \
+	  echo "*** $$i" >&2 && ./jasminc.native $$i; \
+	done
 
 clean:
 	$(OCAMLBUILD) -clean
