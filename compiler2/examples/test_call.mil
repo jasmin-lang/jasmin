@@ -1,0 +1,20 @@
+fn add (reg u64 x, reg u64 y) -> reg u64 {
+   reg bool c;
+   reg u64 z;
+   z = x + y;
+   return z;
+}
+
+fn addc (reg u64 x, reg u64 y) -> (reg bool, reg u64) {
+   reg bool c;
+   reg u64 z;
+   (c, z) = x + y;
+   return (c, z);
+}
+
+fn main() -> () {
+   reg bool c;
+   reg u64 z;
+   (c, z) = addc(0, 0);
+   z = add(0,z);
+}
