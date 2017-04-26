@@ -238,7 +238,9 @@ let check_sig_lvs ?loc ~canrem sig_ lvs =
        |> oiter (fun lty -> check_ty_eq ~loc ~from:ty ~to_:lty))
     (List.drop (nsig_ - nlvs) sig_) lvs;
 
-  List.map (fst |- snd) lvs
+  let pad = List.make (nsig_ - nlvs) (P.Lnone L._dummy) in
+
+  pad @ (List.map (fst |- snd) lvs)
 
 (* -------------------------------------------------------------------- *)
 let tt_as_bool = check_ty TPBool
