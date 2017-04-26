@@ -13,7 +13,7 @@ fn add(reg u64[4] x, stack u64[4] ya) -> reg u64[4] {
   reg bool cf;
   inline int i;
 
-  for i in (0..4) {
+  for i = 0 to 4 {
     y[i] = ya[i];
     if   (i == 0) { cf, x[0] += y[0]; }
     else         { cf, x[i] += y[i] + cf; }
@@ -23,7 +23,7 @@ fn add(reg u64[4] x, stack u64[4] ya) -> reg u64[4] {
   add1 = rem_p;
   add1 = add0 if !cf;
 
-  for i in (0..4) {
+  for i = 0 to 4 {
     if (i == 0) {
       cf, x[0] += add1;
     } else {

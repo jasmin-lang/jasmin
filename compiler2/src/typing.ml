@@ -30,6 +30,7 @@ type tyerror =
   | InvalidArgCount     of int * int
   | LvalueWithNoBaseTy
   | LvalueTooWide
+  | LvalueTooNarrow
   | EqOpWithNoLValue
   | InvalidLRValue
   | Unsupported
@@ -74,6 +75,10 @@ let pp_tyerror fmt (code : tyerror) =
   | LvalueTooWide ->
       Format.fprintf fmt
         "lvalues tuple too wide"
+
+  | LvalueTooNarrow ->
+      Format.fprintf fmt
+        "lvalues tuple too narrow"
 
   | EqOpWithNoLValue ->
       Format.fprintf fmt
@@ -198,7 +203,7 @@ let check_sig ?loc (sig_ : P.pty list) (given : (L.t * P.pty) list) =
     sig_ given
 
 (* -------------------------------------------------------------------- *)
-let check_sig_lvs ?loc sig_ lvs =
+let check_sig_lvs ?loc ~canrem sig_ lvs =
   let loc () = loc_of_tuples loc (List.map fst lvs) in
 
   let nsig_ = List.length sig_ in
@@ -206,6 +211,8 @@ let check_sig_lvs ?loc sig_ lvs =
 
   if nlvs > nsig_ then
     rs_tyerror ~loc:(loc ()) LvalueTooWide;
+  if not canrem && nlvs < nsig_ then
+    rs_tyerror ~loc:(loc ()) LvalueTooNarrow;
 
   List.iter2
     (fun ty (loc, (_, lty)) -> lty
@@ -264,26 +271,27 @@ let peop2_of_eqop (eqop : S.peqop) =
   | `BOr  -> Some `BOr
 
 (* -------------------------------------------------------------------- *)
-
 let max_ty ty1 ty2 = 
   match ty1, ty2 with
   | P.Int, P.Int -> Some P.Int
   | P.Int, P.U _ -> Some ty2
   | P.U _, P.Int -> Some ty1
   | P.U _, P.U _ when ty1 = ty2 -> Some ty1
-  | _, _     -> None  
+  | _    , _     -> None  
 
 let cast e ety ty = 
   match ety, ty with
-  | P.Int, P.Int -> e
-  | P.Int, P.U w -> P.Pcast(w, e)
+  | P.Int , P.Int -> e
+  | P.Int , P.U w -> P.Pcast (w, e)
   | P.U w1, P.U w2 when w1 = w2 -> e
   | _ -> assert false
 
-let tt_op2 (e1,ty1) (e2,ty2) { L.pl_desc = pop; L.pl_loc = loc } =
-  let op = op2_of_pop2 pop in
+(* -------------------------------------------------------------------- *)
+let tt_op2 (e1, ty1) (e2, ty2) { L.pl_desc = pop; L.pl_loc = loc } =
+  let op  = op2_of_pop2 pop in
   let exn = tyerror ~loc (InvOpInExpr (`Op2 pop)) in
-  let op = op |> oget ~exn in
+  let op  = op |> oget ~exn in
+
   let e1, e2, ty = 
     match op, (ty1, ty2) with
     | (P.Oadd | P.Osub | P.Omul), (P.Bty P.Int, P.Bty P.Int) -> 
@@ -499,7 +507,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
             let (lc1, e1, ety1), (lc2, e2, ety2) = es in
             let _ws1 = tt_as_word (lc1, ety1) in
             let e2   = check_ty_assign ~loc:lc2 ~from:ety2 ~to_:ety1 e2 in
-            let lvs = check_sig_lvs [P.Bty P.Bool; ety1] lvs in
+            let lvs = check_sig_lvs ~canrem:true [P.Bty P.Bool; ety1] lvs in
             P.Copn (lvs, carry_op o, [e1; e2; P.Pbool false])
 
         | lvs, `NoScalOp (`TriOp (((`Add | `Sub) as op1, op2), es)) when op1 = op2 ->
@@ -507,7 +515,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
             let _ws1 = tt_as_word (lc1, ety1) in
             let e2   = check_ty_assign ~loc:lc2 ~from:ety2 ~to_:ety1 e2 in
             let _    = tt_as_bool (lc3, ety3) in
-            let lvs  = check_sig_lvs [P.Bty P.Bool; ety1] lvs in
+            let lvs  = check_sig_lvs ~canrem:true [P.Bty P.Bool; ety1] lvs in
             P.Copn (lvs, carry_op op1, [e1; e2; e3])
 
         | _ -> rs_tyerror ~loc:(L.loc pi) Unsupported
@@ -518,9 +526,6 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
         let i = tt_instr env (L.mk_loc (L.loc pi) cpi) in
         let c = fst (tt_expr ~mode:`Expr ~expect:TPBool env c) in
         P.Cif (c, [i], [])
-
-    | PIMove _ ->
-        rs_tyerror ~loc:(L.loc pi) Unsupported
 
     | PIIf (c, st, sf) ->
         let c  = fst (tt_expr ~mode:`Expr ~expect:TPBool env c) in
@@ -533,7 +538,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
         let i2   = fst (tt_expr env ~mode:`Expr ~expect:TPInt i2) in
         let vx   = tt_var env x in
         let s    = check_ty TPInt (lx, vx.P.v_ty); tt_block env s in
-        let d    = match odfl `Up d with `Down -> P.DownTo | `Up -> P.UpTo in
+        let d    = match d with `Down -> P.DownTo | `Up -> P.UpTo in
         P.Cfor (L.mk_loc lx vx, (d, i1, i2), s)
 
     | PIWhile (c, s) ->
@@ -541,8 +546,18 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
         let s = tt_block env s in
         P.Cwhile (c, s)
 
-    | PICall (f, args) ->
+    | PICall (ls, f, args) ->
         let f = tt_fun env f in
+
+        let lvs =
+          let doit ls =
+            let for1 lv = (L.loc lv, tt_lvalue env lv) in
+              let lvs = List.map for1 ls in
+              let rty = List.map (fun x -> (L.unloc x).P.v_ty) f.P.f_ret in
+              check_sig_lvs ~canrem:false rty lvs
+          in odfl [] (omap doit ls)
+        in
+
         let args, argsty =
           let for1 arg =
             snd_map (fun ty -> (L.loc arg, ty))
@@ -551,7 +566,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
 
         check_sig ~loc:(`Force (L.loc pi))
           (List.map (fun x -> x.P.v_ty) f.P.f_args) argsty;
-        P.Ccall (P.NoInline, [], f.P.f_name, args)
+        P.Ccall (P.NoInline, lvs, f.P.f_name, args)
 
   in { P.i_desc = instr; P.i_loc = L.loc pi; P.i_info = (); }
 

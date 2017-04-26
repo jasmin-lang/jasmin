@@ -22,17 +22,18 @@
     "bool"  , T_BOOL ;
     "int"   , T_INT  ;
 
+    "downto", DOWNTO ;
     "else"  , ELSE   ;
     "false" , FALSE  ;
     "fn"    , FN     ;
     "for"   , FOR    ;
     "if"    , IF     ;
-    "in"    , IN     ;
     "inline", INLINE ;
     "param" , PARAM  ;
     "reg"   , REG    ;
     "return", RETURN ;
     "stack" , STACK  ;
+    "to"    , TO     ;
     "true"  , TRUE   ;
     "while" , WHILE  ;
   ]
@@ -81,7 +82,6 @@ rule main = parse
   | "@"     { AT         }
   | ","     { COMMA      }
   | ";"     { SEMICOLON  }
-  | ".."    { DOTDOT     }
   | "<="    { LE         }
   | "<"     { LT         }
   | ">="    { GE         }
@@ -97,7 +97,6 @@ rule main = parse
   | "||"    { PIPEPIPE   }
   | ">>"    { GTGT       }
   | "<<"    { LTLT       }
-  | ":="    { COLONEQ    }
   | "="     { EQ         }
   | "=="    { EQEQ       }
   | "!="    { BANGEQ     }

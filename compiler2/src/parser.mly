@@ -23,9 +23,8 @@
 %token AMPEQ
 %token BANG
 %token BANGEQ
-%token COLONEQ
 %token COMMA
-%token DOTDOT
+%token DOWNTO
 %token ELSE
 %token EQ
 %token EQEQ
@@ -39,7 +38,6 @@
 %token HAT
 %token HATEQ
 %token IF
-%token IN
 %token INLINE
 %token LE
 %token LT
@@ -60,6 +58,7 @@
 %token STACK
 %token STAR
 %token STAREQ
+%token TO
 %token TRUE
 %token UNDERSCORE
 %token WHILE
@@ -209,11 +208,11 @@ pinstr_r:
 | x=tuple1(plvalue) o=peqop e=pexpr c=prefix(IF, pexpr)? SEMICOLON
     { PIAssign (x, o, e, c) }
 
-| x=tuple1(plvalue) COLONEQ e=pexpr c=prefix(IF, pexpr)? SEMICOLON
-    { PIMove (x, e, c) }
-
 | fname=ident args=parens_tuple(pexpr) SEMICOLON
-    { PICall (fname, args) }
+    { PICall (None, fname, args) }
+
+| x=tuple1(plvalue) fname=ident args=parens_tuple(pexpr) SEMICOLON
+    { PICall (Some x, fname, args) }
 
 | IF c=pexpr i1s=pblock
     { PIIf (c, i1s, None) }
@@ -221,9 +220,11 @@ pinstr_r:
 | IF c=pexpr i1s=pblock ELSE i2s=pblock
     { PIIf (c, i1s, Some i2s) }
 
-| FOR v=var d=option(MINUS { `Down } | PLUS { `Up }) IN
-    LPAREN ce1=pexpr DOTDOT ce2=pexpr RPAREN is=pblock
-    { PIFor (v, (d, ce1, ce2), is) }
+| FOR v=var EQ ce1=pexpr TO ce2=pexpr is=pblock
+    { PIFor (v, (`Up, ce1, ce2), is) }
+
+| FOR v=var EQ ce1=pexpr DOWNTO ce2=pexpr is=pblock
+    { PIFor (v, (`Down, ce1, ce2), is) }
 
 | WHILE b=pexpr is=pblock
     { PIWhile (b, is) }

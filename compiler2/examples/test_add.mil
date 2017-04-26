@@ -6,7 +6,7 @@ fn test1() -> inline int {
 
   
   j = 0;
-  for i in (0..4) {
+  for i = 0 to 4 {
     j = j + i;
   }
 
@@ -20,7 +20,7 @@ fn test2() -> inline u64 {
 
   
   j = 0;
-  for i in (0..4) {
+  for i = 0 to 4 {
     j = j + i;
   }
 

@@ -59,11 +59,10 @@ type peqop = [
 (* -------------------------------------------------------------------- *)
 type pinstr_r =
   | PIAssign of plvalue list * peqop * pexpr * pexpr option
-  | PIMove   of plvalue list * pexpr * pexpr option
   | PIIf     of pexpr * pblock * pblock option
-  | PIFor    of pident * (fordir option * pexpr * pexpr) * pblock
+  | PIFor    of pident * (fordir * pexpr * pexpr) * pblock
   | PIWhile  of pexpr * pblock
-  | PICall   of pident * pexpr list
+  | PICall   of plvalue list option * pident * pexpr list
 
 and pblock_r = pinstr list
 and fordir   = [ `Down | `Up ]
