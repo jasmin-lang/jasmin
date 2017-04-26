@@ -19,7 +19,7 @@ let pp_btype fmt = function
   | Int  -> F.fprintf fmt "int"
 
 (* -------------------------------------------------------------------- *)
-let pp_gtype pp_size fmt = function
+let pp_gtype (pp_size:F.formatter -> 'size -> unit) fmt = function
   | Bty ty -> pp_btype fmt ty
   | Arr(ws,e) -> F.fprintf fmt "%a[%a]" pp_btype (U ws) pp_size e
 
@@ -81,8 +81,27 @@ let pp_glvs pp_var fmt lvs =
   | _   -> F.fprintf fmt "(@[%a@])" (pp_list ",@ " (pp_glv pp_var)) lvs
 
 (* -------------------------------------------------------------------- *)
-let pp_opn _o =
-  "FIXME"
+let pp_opn = function
+  | Olnot     -> "#lnot"   
+  | Oxor      -> "#xor"
+  | Oland     -> "#land"
+  | Olor      -> "#lor"
+  | Olsr      -> "#lsr"
+  | Olsl      -> "#lsl"
+  | Oif       -> "#if"
+  | Omulu     -> "#mulu"
+  | Omuli     -> "#muli"
+  | Oaddcarry -> "#addcarry"
+  | Osubcarry -> "#subcarry"
+  | Oleu      -> "#leu"
+  | Oltu      -> "#ltu"
+  | Ogeu      -> "#geu"
+  | Ogtu      -> "#gtu"
+  | Oles      -> "#les"
+  | Olts      -> "#lts"
+  | Oges      -> "#ges"
+  | Ogts      -> "#gts"
+  | Oeqw      -> "#eqw"     
 
 (* -------------------------------------------------------------------- *)
 let rec pp_gi pp_var fmt i =
@@ -127,4 +146,83 @@ and pp_gc pp_var fmt c =
 
 (* -------------------------------------------------------------------- *)
 and pp_cblock pp_var fmt c =
-  F.fprintf fmt "{@   %a@ }@]" (pp_gc pp_var) c
+  F.fprintf fmt "{@   %a@ }" (pp_gc pp_var) c
+
+(* -------------------------------------------------------------------- *)
+
+let pp_kind = function
+  | Const  -> "Const"
+  | Stack  -> "Stack"
+  | Reg    -> "Reg"
+  | Inline -> "Inline"
+
+let pp_ty_decl (pp_size:F.formatter -> 'size -> unit) fmt v =
+  F.fprintf fmt "%s %a" (pp_kind v.v_kind) (pp_gtype pp_size) v.v_ty
+  
+let pp_var_decl pp_var pp_size fmt v = 
+  F.fprintf fmt "%a %a" (pp_ty_decl pp_size) v pp_var v
+
+let pp_gfun (pp_size:F.formatter -> 'size -> unit) pp_var fmt fd =  
+  let pp_vd =  pp_var_decl pp_var pp_size in
+(*  let locals = locals fd in *)
+  let ret = List.map L.unloc fd.f_ret in
+  let pp_ret fmt () =
+    F.fprintf fmt "return @[(%a)@];"
+      (pp_list ",@ " pp_var) ret in
+
+  F.fprintf fmt "@[<v>fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@]@ }@]" 
+   fd.f_name.fn_name
+   (pp_list ",@ " pp_vd) fd.f_args
+   (pp_list ",@ " (pp_ty_decl pp_size)) ret 
+(*   (pp_list ";@ " pp_vd) (Sv.elements locals) *)
+   (pp_gc pp_var) fd.f_body
+   pp_ret ()
+
+
+let pp_pitem pp_var = 
+  let pp_size = pp_ge pp_var in
+  let aux fmt = function
+    | MIfun fd -> pp_gfun pp_size pp_var fmt fd
+    | MIparam (x,e) ->
+      F.fprintf fmt "%a = %a" 
+        (pp_var_decl pp_var pp_size) x
+        (pp_ge pp_var) e in
+  aux
+
+let pp_pprog fmt p = 
+  let pp_var fmt x = F.fprintf fmt "%s" x.v_name in
+  Format.fprintf fmt "@[<v>%a@]"
+    (pp_list "@ @ " (pp_pitem pp_var)) (List.rev p)
+
+
+let pp_fun pp_var fmt fd =  
+  let pp_size fmt i = F.fprintf fmt "%i" i in
+  let pp_vd =  pp_var_decl pp_var pp_size in
+  let locals = locals fd in 
+  let ret = List.map L.unloc fd.f_ret in
+  let pp_ret fmt () =
+    F.fprintf fmt "return @[(%a)@];"
+      (pp_list ",@ " pp_var) ret in
+
+  F.fprintf fmt "@[<v>fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a@]@ }@]" 
+   fd.f_name.fn_name
+   (pp_list ",@ " pp_vd) fd.f_args
+   (pp_list ",@ " (pp_ty_decl pp_size)) ret 
+   (pp_list ";@ " pp_vd) (Sv.elements locals) 
+   (pp_gc pp_var) fd.f_body
+   pp_ret ()
+
+let pp_prog ~debug fmt p = 
+  let pp_var = 
+    if debug then 
+      fun fmt x -> F.fprintf fmt "%s.%i" x.v_name (int_of_uid x.v_id) 
+    else
+      fun fmt x -> F.fprintf fmt "%s" x.v_name 
+  in
+  Format.fprintf fmt "@[<v>%a@]"
+     (pp_list "@ @ " (pp_fun pp_var)) (List.rev p)
+  
+
+
+    
+                

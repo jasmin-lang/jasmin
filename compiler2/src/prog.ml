@@ -186,6 +186,8 @@ module GV = struct
   let hash v = v.v_id
 
   let is_glob v = v.v_kind = Const
+
+  let is_local v = not (is_glob v)
 end
 
 (* ------------------------------------------------------------------------ *)
@@ -297,10 +299,18 @@ let vars_es es = rvars_es Sv.empty es
 let vars_i i = rvars_i Sv.empty i
 let vars_c c = rvars_c Sv.empty c
 
+let params fc = 
+  List.fold_left (fun s v -> Sv.add v s) Sv.empty fc.f_args
+
 let vars_fc fc =
-  let s = List.fold_left (fun s v -> Sv.add v s) Sv.empty fc.f_args in
+  let s = params fc in
   let s = List.fold_left (fun s v -> Sv.add (L.unloc v) s) s fc.f_ret in
   rvars_c s fc.f_body
+
+let locals fc = 
+  let s1 = params fc in
+  let s2 = Sv.diff (vars_fc fc) s1 in
+  Sv.filter V.is_local s2 
 
 (* -------------------------------------------------------------------- *)
 (* Functions on types                                                   *)

@@ -22,8 +22,10 @@ let main () =
     let ast   = BatFile.with_file_in fname ast in
     let _, pprog  = J.Typing.tt_program J.Typing.Env.empty ast in
     Printf.eprintf "parsed & typed\n%!";
+    Format.eprintf "%a@." J.Printer.pp_pprog pprog;
     let prog = J.Subst.remove_params pprog in
     Printf.eprintf "params removed \n%!";
+    Format.eprintf "%a@." (J.Printer.pp_prog ~debug:true) prog;
     let _tbl, _cprog = J.Conv.cprog_of_prog prog in
      Printf.eprintf "translated to coq \n%!";
     ()
