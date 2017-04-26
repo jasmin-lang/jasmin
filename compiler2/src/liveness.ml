@@ -63,6 +63,7 @@ let live_fd fd =
   let s_o = Sv.of_list (List.map L.unloc fd.f_ret) in
   let _, c = live_c fd.f_body s_o in
   {
+    f_loc  = fd.f_loc;
     f_cc   = fd.f_cc  ;
     f_name = fd.f_name;
     f_args = fd.f_args;

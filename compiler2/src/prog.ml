@@ -156,6 +156,7 @@ type call_conv =
   | Internal   (* internal function that should be inlined *)
 
 type ('ty,'info) gfunc = {
+    f_loc  : L.t;
     f_cc   : call_conv;
     f_name : funname;
     f_args : 'ty gvar list;

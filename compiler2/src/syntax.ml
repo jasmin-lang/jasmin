@@ -98,4 +98,4 @@ type pfundef = {
 type pitem = PFundef of pfundef | PParam of pparam
 
 (* -------------------------------------------------------------------- *)
-type pprogram = pitem list
+type pprogram = pitem L.located list

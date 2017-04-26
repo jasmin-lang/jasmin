@@ -1,0 +1,18 @@
+(* -------------------------- *)
+
+apres inlining il y a des affectations de la forme 
+   x = y 
+avec x et y des tableaux.
+On peut faire une etape d'allocation de registre pour virer ces 
+affections trivial. (si les deux tableaux sont de meme type 
+i.e tout les deux Reg ou tout les deux Stack)
+
+Si ca permet pas de les virer il faut introduire 
+des copier explicite et montrer la correction de cet algo
+
+(* -------------------------- *)
+
+Apres inlining on peut (il faut) virer des fonctions de l'environement:
+  prouver la transformation 
+
+

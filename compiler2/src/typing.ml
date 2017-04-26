@@ -6,48 +6,6 @@ module S = Syntax
 module P = Prog
 
 (* -------------------------------------------------------------------- *)
-module Env : sig
-  type env
-
-  val empty : env
-
-  module Vars : sig
-    val push  : P.pvar -> env -> env
-    val find  : S.symbol -> env -> P.pvar option
-  end
-
-  module Funs : sig
-    val push  : unit P.pfunc -> env -> env
-    val find  : S.symbol -> env -> unit P.pfunc option
-  end
-end = struct
-  type env = {
-    e_vars : (S.symbol, P.pvar) Map.t;
-    e_funs : (S.symbol, unit P.pfunc) Map.t;
-  }
-
-  let empty : env =
-    { e_vars = Map.empty; e_funs = Map.empty; }
-
-  module Vars = struct
-    let push (v : P.pvar) (env : env) =
-      { env with e_vars = Map.add v.P.v_name v env.e_vars; }
-
-    let find (x : S.symbol) (env : env) =
-      Map.Exceptionless.find x env.e_vars
-  end
-
-  module Funs = struct
-    let push (v : unit P.pfunc) (env : env) =
-      let name = v.P.f_name.P.f_name in
-      { env with e_funs = Map.add name v env.e_funs; }
-
-    let find (x : S.symbol) (env : env) =
-      Map.Exceptionless.find x env.e_funs
-  end
-end
-
-(* -------------------------------------------------------------------- *)
 let loc_of_tuples base locs =
   match base with
   | Some (`Force loc) ->
@@ -75,6 +33,7 @@ type tyerror =
   | EqOpWithNoLValue
   | InvalidLRValue
   | Unsupported
+  | DuplicateFun        of S.symbol * L.t
 
 exception TyError of L.t * tyerror
 
@@ -126,6 +85,56 @@ let pp_tyerror fmt (code : tyerror) =
 
   | Unsupported ->
       Format.fprintf fmt "unsupported"
+
+  | DuplicateFun (f, loc) ->
+    Format.fprintf fmt "The function %s is already declared at %s"
+                   f (L.tostring loc)
+    
+
+(* -------------------------------------------------------------------- *)
+module Env : sig
+  type env
+
+  val empty : env
+
+  module Vars : sig
+    val push  : P.pvar -> env -> env
+    val find  : S.symbol -> env -> P.pvar option
+  end
+
+  module Funs : sig
+    val push  : unit P.pfunc -> env -> env
+    val find  : S.symbol -> env -> unit P.pfunc option
+  end
+end = struct
+  type env = {
+    e_vars : (S.symbol, P.pvar) Map.t;
+    e_funs : (S.symbol, unit P.pfunc) Map.t;
+  }
+
+  let empty : env =
+    { e_vars = Map.empty; e_funs = Map.empty; }
+
+  module Vars = struct
+    let push (v : P.pvar) (env : env) =
+      { env with e_vars = Map.add v.P.v_name v env.e_vars; }
+
+    let find (x : S.symbol) (env : env) =
+      Map.Exceptionless.find x env.e_vars
+  end
+
+  module Funs = struct
+    let find (x : S.symbol) (env : env) =
+      Map.Exceptionless.find x env.e_funs
+
+    let push (v : unit P.pfunc) (env : env) =
+      let name = v.P.f_name.P.f_name in
+      match find name env with 
+      | None -> { env with e_funs = Map.add name v env.e_funs; }
+      | Some fd -> rs_tyerror ~loc:v.P.f_loc (DuplicateFun(name, fd.P.f_loc))
+
+  end
+end
 
 (* -------------------------------------------------------------------- *)
 let tt_ws (ws : S.wsize) =
@@ -359,7 +368,7 @@ let tt_vardecl_push (env : Env.env) px =
   snd_map as_seq1 (tt_vardecls_push env [px])
 
 (* -------------------------------------------------------------------- *)
-let tt_param (env : Env.env) (pp : S.pparam) : Env.env * (P.pvar * P.pexpr) =
+let tt_param (env : Env.env) _loc (pp : S.pparam) : Env.env * (P.pvar * P.pexpr) =
   let ty = tt_type env pp.ppa_ty in
   let pe, ety = tt_expr ~mode:`Param env pp.S.ppa_init in
 
@@ -536,13 +545,14 @@ let tt_funbody (env : Env.env) (pb : S.pfunbody) =
   (bdy, ret)
 
 (* -------------------------------------------------------------------- *)
-let tt_fundef (env : Env.env) (pf : S.pfundef) : Env.env * unit P.pfunc =
+let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
   let envb, args = tt_vardecls_push env pf.pdf_args in
   let rty  = odfl [] (omap (List.map (tt_type env |- snd)) pf.pdf_rty) in
   let body = tt_funbody envb pf.pdf_body in
 
   let fdef =
-    { P.f_cc   = P.Export;
+    { P.f_loc = loc;
+      P.f_cc   = P.Export;
       P.f_name = P.F.mk (L.unloc pf.pdf_name);
       P.f_args = args;
       P.f_body = fst body;
@@ -553,11 +563,12 @@ let tt_fundef (env : Env.env) (pf : S.pfundef) : Env.env * unit P.pfunc =
   (Env.Funs.push fdef env, fdef)
 
 (* -------------------------------------------------------------------- *)
-let tt_item (env : Env.env) (pt : S.pitem) : Env.env * unit P.pmod_item =
-  match pt with
-  | S.PParam  pp -> snd_map (fun x -> P.MIparam x) (tt_param  env pp)
-  | S.PFundef pf -> snd_map (fun x -> P.MIfun   x) (tt_fundef env pf)
+let tt_item (env : Env.env) pt : Env.env * unit P.pmod_item =
+  match L.unloc pt with
+  | S.PParam  pp -> snd_map (fun x -> P.MIparam x) (tt_param  env (L.loc pt) pp)
+  | S.PFundef pf -> snd_map (fun x -> P.MIfun   x) (tt_fundef env (L.loc pt) pf)
 
 (* -------------------------------------------------------------------- *)
 let tt_program (env : Env.env) (pm : S.pprogram) : Env.env * unit P.pprog =
-  List.map_fold tt_item env pm
+  let env, l = List.map_fold tt_item env pm in
+  env, List.rev l
