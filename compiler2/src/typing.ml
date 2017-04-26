@@ -139,7 +139,7 @@ end = struct
       Map.Exceptionless.find x env.e_funs
 
     let push (v : unit P.pfunc) (env : env) =
-      let name = v.P.f_name.P.f_name in
+      let name = v.P.f_name.P.fn_name in
       match find name env with 
       | None -> { env with e_funs = Map.add name v env.e_funs; }
       | Some fd -> rs_tyerror ~loc:v.P.f_loc (DuplicateFun(name, fd.P.f_loc))

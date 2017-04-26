@@ -119,7 +119,7 @@ let rec pp_gi pp_var fmt i =
 
   | Ccall(_ii, x, f, e) -> (* FIXME ii *)
     F.fprintf fmt "@[<hov 2> %a =@ %s(%a);@]"
-      (pp_glvs pp_var) x f.f_name (pp_ges pp_var) e
+      (pp_glvs pp_var) x f.fn_name (pp_ges pp_var) e
 
 (* -------------------------------------------------------------------- *)
 and pp_gc pp_var fmt c =

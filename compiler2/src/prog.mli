@@ -125,8 +125,8 @@ type inline_info =
   | NoInline
 
 type funname = private {
-  f_name : Name.t;
-  f_id   : uid;
+  fn_name : Name.t;
+  fn_id   : uid;
 }
 
 type range_dir = UpTo | DownTo

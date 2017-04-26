@@ -126,8 +126,8 @@ type inline_info =
   | NoInline
 
 type funname = {
-    f_name : Name.t;
-    f_id   : uid;
+    fn_name : Name.t;
+    fn_id   : uid;
   }
 
 type range_dir = UpTo | DownTo
@@ -240,16 +240,16 @@ module Hv = Hash.Make (V)
 (* Function name                                                            *)
 
 module F = struct
-  let mk f_name =
-    { f_name; f_id = Uniq.gen (); }
+  let mk fn_name =
+    { fn_name; fn_id = Uniq.gen (); }
 
   type t = funname
 
-  let compare f1 f2 = f1.f_id - f2.f_id
+  let compare f1 f2 = f1.fn_id - f2.fn_id
 
-  let equal f1 f2 = f1.f_id = f2.f_id
+  let equal f1 f2 = f1.fn_id = f2.fn_id
 
-  let hash f = f.f_id
+  let hash f = f.fn_id
 end
 
 module Sf = Set.Make (F)
