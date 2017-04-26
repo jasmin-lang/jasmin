@@ -3,13 +3,14 @@ src/Bigint
 src/BigintCore
 src/Conv
 src/Lexer
+src/Liveness
 src/Location
 src/Parseio
 src/Parser
 src/Printer
 src/Prog
+src/Regalloc
 src/Subst
 src/Syntax
 src/Typing
 src/Utils
-src/Liveness
