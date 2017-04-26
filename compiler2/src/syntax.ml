@@ -1,8 +1,6 @@
 (* -------------------------------------------------------------------- *)
 module L = Location
 
-open Utils
-
 (* -------------------------------------------------------------------- *)
 exception ParseError of Location.t * string option
 
@@ -63,11 +61,12 @@ type pinstr_r =
   | PIAssign of plvalue list * peqop * pexpr * pexpr option
   | PIMove   of plvalue list * pexpr * pexpr option
   | PIIf     of pexpr * pblock * pblock option
-  | PIFor    of pident * (pexpr pair) * pblock
+  | PIFor    of pident * (fordir option * pexpr * pexpr) * pblock
   | PIWhile  of pexpr * pblock
   | PICall   of pident * pexpr list
 
 and pblock_r = pinstr list
+and fordir   = [ `Down | `Up ]
 
 and pinstr = pinstr_r L.located
 and pblock = pblock_r L.located

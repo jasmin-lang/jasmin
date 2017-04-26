@@ -528,12 +528,13 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
         let sf = odfl [] (omap (tt_block env) sf) in
         P.Cif (c, st, sf)
 
-    | PIFor ({ pl_loc = lx } as x, (i1, i2), s) ->
+    | PIFor ({ pl_loc = lx } as x, (d, i1, i2), s) ->
         let i1   = fst (tt_expr env ~mode:`Expr ~expect:TPInt i1) in
         let i2   = fst (tt_expr env ~mode:`Expr ~expect:TPInt i2) in
         let vx   = tt_var env x in
         let s    = check_ty TPInt (lx, vx.P.v_ty); tt_block env s in
-        P.Cfor (L.mk_loc lx vx, (P.UpTo, i1, i2), s)
+        let d    = match odfl `Up d with `Down -> P.DownTo | `Up -> P.UpTo in
+        P.Cfor (L.mk_loc lx vx, (d, i1, i2), s)
 
     | PIWhile (c, s) ->
         let c = fst (tt_expr ~mode:`Expr ~expect:TPBool env c) in

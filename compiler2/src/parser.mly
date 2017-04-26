@@ -221,8 +221,9 @@ pinstr_r:
 | IF c=pexpr i1s=pblock ELSE i2s=pblock
     { PIIf (c, i1s, Some i2s) }
 
-| FOR v=var IN LPAREN ce1=pexpr DOTDOT ce2=pexpr RPAREN is=pblock
-    { PIFor (v, (ce1, ce2), is) }
+| FOR v=var d=option(MINUS { `Down } | PLUS { `Up }) IN
+    LPAREN ce1=pexpr DOTDOT ce2=pexpr RPAREN is=pblock
+    { PIFor (v, (d, ce1, ce2), is) }
 
 | WHILE b=pexpr is=pblock
     { PIWhile (b, is) }
