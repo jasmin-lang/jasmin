@@ -31,8 +31,14 @@ let bi_of_z z =
   | BinNums.Z0     -> B.zero
   | BinNums.Zpos p -> bi_of_pos p
 
+let bi_of_nat n =
+  bi_of_z (BinInt.Z.of_nat n)
+
 let pos_of_int i = pos_of_bi (B.of_int i)
 let int_of_pos p = B.to_int (bi_of_pos p)
+
+let int64_of_bi bi = Integers.Int64.repr (z_of_bi bi)
+let bi_of_int64 z  = bi_of_z (Integers.Int64.signed z) 
 
 (* ------------------------------------------------------------------------ *)
 
