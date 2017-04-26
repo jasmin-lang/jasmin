@@ -28,13 +28,14 @@ type tyerror =
   | InvOpInExpr         of [ `Op2 of S.peop2 ]
   | NoOperator          of [ `Op2 of S.peop2 ] * P.pty list
   | InvalidArgCount     of int * int
+  | DuplicateFun        of S.symbol * L.t
   | LvalueWithNoBaseTy
   | LvalueTooWide
   | LvalueTooNarrow
   | EqOpWithNoLValue
   | InvalidLRValue
+  | CallNotAllowed
   | Unsupported
-  | DuplicateFun        of S.symbol * L.t
 
 exception TyError of L.t * tyerror
 
@@ -68,6 +69,11 @@ let pp_tyerror fmt (code : tyerror) =
       Format.fprintf fmt
         "invalid argument count (%d / %d)" n1 n2
 
+  | DuplicateFun (f, loc) ->
+      Format.fprintf fmt
+        "The function %s is already declared at %s"
+        f (L.tostring loc)
+
   | LvalueWithNoBaseTy ->
       Format.fprintf fmt
         "lvalues must have a base type"
@@ -88,12 +94,12 @@ let pp_tyerror fmt (code : tyerror) =
       Format.fprintf fmt
         "this lvalue cannot act as a rvalue"
 
+  | CallNotAllowed ->
+      Format.fprintf fmt
+        "function calls not allowed at that point"
+
   | Unsupported ->
       Format.fprintf fmt "unsupported"
-
-  | DuplicateFun (f, loc) ->
-    Format.fprintf fmt "The function %s is already declared at %s"
-                   f (L.tostring loc)
     
 
 (* -------------------------------------------------------------------- *)
@@ -200,6 +206,19 @@ let check_sig ?loc (sig_ : P.pty list) (given : (L.t * P.pty) list) =
     rs_tyerror ~loc:(loc ()) (InvalidArgCount (n1, n2));
   List.iter2
     (fun ty1 (loc, ty2) -> check_ty_eq ~loc ~from:ty2 ~to_:ty1)
+    sig_ given
+
+(* -------------------------------------------------------------------- *)
+let check_sig_call ?loc (sig_ : P.pty list) (given : (L.t * P.pexpr * P.pty) list) =
+  let loc () = loc_of_tuples loc (List.map proj3_1 given) in
+
+  let n1, n2 = (List.length sig_, List.length given) in
+
+  if n1 <> n2 then
+    rs_tyerror ~loc:(loc ()) (InvalidArgCount (n1, n2));
+  List.map2
+    (fun ty1 (loc, e, ty2) ->
+      check_ty_assign ~loc ~from:ty2 ~to_:ty1 e)
     sig_ given
 
 (* -------------------------------------------------------------------- *)
@@ -329,6 +348,9 @@ let tt_expr ~mode ?expect (env : Env.env) =
       | S.PEVar ({ L.pl_loc = lc; } as x) ->
            tt_var env x |> (fun x -> (P.Pvar (L.mk_loc lc x), x.P.v_ty))
 
+      | S.PECall _ ->
+          rs_tyerror ~loc:(L.loc pe) CallNotAllowed
+
       | S.PEGet ({ L.pl_loc = xlc } as x, pi) ->
           let x  = tt_var env x in
           let i  = aux ~expect:TPInt pi in
@@ -342,7 +364,7 @@ let tt_expr ~mode ?expect (env : Env.env) =
           let et1 = aux pe1 in
           let et2 = aux pe2 in
           tt_op2 et1 et2 (L.mk_loc (L.loc pe) pop) in
-       
+      
     expect |> oiter
       (fun expect -> check_ty expect (L.loc pe, ety));
     (e, ety)
@@ -462,6 +484,28 @@ let carry_op = function
 let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
   let instr =
     match L.unloc pi with
+    | PIAssign (ls, `Raw, { pl_desc = PECall (f, args) }, None) ->
+        let f = tt_fun env f in
+
+        let lvs =
+          let doit ls =
+            let for1 lv = (L.loc lv, tt_lvalue env lv) in
+              let lvs = List.map for1 ls in
+              let rty = List.map (fun x -> (L.unloc x).P.v_ty) f.P.f_ret in
+              check_sig_lvs ~canrem:false rty lvs
+          in match ls with [] -> [] | _ -> doit ls
+        in
+
+        let args =
+          let for1 arg =
+            let e, ety = tt_expr ~mode:`Expr env arg in
+            (L.loc arg, e, ety)
+          in List.map for1 args in
+        let args =
+          check_sig_call ~loc:(`Force (L.loc pi))
+            (List.map (fun x -> x.P.v_ty) f.P.f_args) args
+        in P.Ccall (P.NoInline, lvs, f.P.f_name, args)
+
     | PIAssign (ls, eqop, pe, None) -> begin
         let lvs = List.map (fun lv -> (L.loc lv, tt_lvalue env lv)) ls in
 
@@ -545,28 +589,6 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
         let c = fst (tt_expr ~mode:`Expr ~expect:TPBool env c) in
         let s = tt_block env s in
         P.Cwhile (c, s)
-
-    | PICall (ls, f, args) ->
-        let f = tt_fun env f in
-
-        let lvs =
-          let doit ls =
-            let for1 lv = (L.loc lv, tt_lvalue env lv) in
-              let lvs = List.map for1 ls in
-              let rty = List.map (fun x -> (L.unloc x).P.v_ty) f.P.f_ret in
-              check_sig_lvs ~canrem:false rty lvs
-          in odfl [] (omap doit ls)
-        in
-
-        let args, argsty =
-          let for1 arg =
-            snd_map (fun ty -> (L.loc arg, ty))
-                    (tt_expr ~mode:`Expr env arg)
-          in List.split (List.map for1 args) in
-
-        check_sig ~loc:(`Force (L.loc pi))
-          (List.map (fun x -> x.P.v_ty) f.P.f_args) argsty;
-        P.Ccall (P.NoInline, lvs, f.P.f_name, args)
 
   in { P.i_desc = instr; P.i_loc = L.loc pi; P.i_info = (); }
 

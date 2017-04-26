@@ -166,6 +166,9 @@ pexpr_r:
 | e=parens(pexpr)
     { PEParens e }
 
+| f=var args=parens_tuple(pexpr)
+    { PECall (f, args) }
+
 pexpr:
 | e=loc(pexpr_r) { e }
 
@@ -208,11 +211,10 @@ pinstr_r:
 | x=tuple1(plvalue) o=peqop e=pexpr c=prefix(IF, pexpr)? SEMICOLON
     { PIAssign (x, o, e, c) }
 
-| fname=ident args=parens_tuple(pexpr) SEMICOLON
-    { PICall (None, fname, args) }
-
-| x=tuple1(plvalue) fname=ident args=parens_tuple(pexpr) SEMICOLON
-    { PICall (Some x, fname, args) }
+| fc=loc(f=var args=parens_tuple(pexpr) { (f, args) })
+    c=prefix(IF, pexpr)? SEMICOLON
+    { let { L.pl_loc = loc; L.pl_desc = (f, args) } = fc in
+      PIAssign ([], `Raw, L.mk_loc loc (PECall (f, args)), c) }
 
 | IF c=pexpr i1s=pblock
     { PIIf (c, i1s, None) }

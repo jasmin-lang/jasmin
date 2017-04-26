@@ -26,6 +26,7 @@ type pexpr_r =
   | PEGet    of pident * pexpr
   | PEBool   of bool
   | PEInt    of Bigint.zint
+  | PECall   of pident * pexpr list
   | PEOp1    of peop1 * pexpr
   | PEOp2    of peop2 * (pexpr * pexpr)
 
@@ -62,7 +63,6 @@ type pinstr_r =
   | PIIf     of pexpr * pblock * pblock option
   | PIFor    of pident * (fordir * pexpr * pexpr) * pblock
   | PIWhile  of pexpr * pblock
-  | PICall   of plvalue list option * pident * pexpr list
 
 and pblock_r = pinstr list
 and fordir   = [ `Down | `Up ]
