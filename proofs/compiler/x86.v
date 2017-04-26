@@ -219,7 +219,8 @@ Definition cond_flag_of_string (s: string) :=
       | _ => None
       end
     | EmptyString =>
-      if (ascii_dec c0 "E" && ascii_dec c1 "Q") then Some EQ
+      if ascii_dec c0 "E" then if ascii_dec c1 "Q" then Some EQ
+      else None
       else None
     end
   | _ => None

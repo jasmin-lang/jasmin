@@ -55,7 +55,7 @@ let conflicts_in (i: Sv.t) (k: C.t -> 'a -> 'a) : 'a -> 'a =
       let rec inner a =
         function
         | [] -> a
-        | y :: ys -> inner (k (C.norm (x, y)) a) ys
+        | y :: ys -> inner (k (x, y) a) ys
       in
       loop (inner a xs) xs
   in
@@ -79,3 +79,49 @@ let collect_conflicts (f: (Sv.t * Sv.t) func) : Sc.t =
   and collect_instr c { i_desc ; i_info } = collect_instr_r (add c i_info) i_desc
   and collect_stmt c s = List.fold_left collect_instr c s in
   collect_stmt Sc.empty f.f_body
+
+module X64 =
+struct
+
+  let rax = V.mk "RAX" Reg (Bty (U W64)) L._dummy
+  let rbx = V.mk "RBX" Reg (Bty (U W64)) L._dummy
+  let rcx = V.mk "RCX" Reg (Bty (U W64)) L._dummy
+  let rdx = V.mk "RDX" Reg (Bty (U W64)) L._dummy
+  let rsp = V.mk "RSP" Reg (Bty (U W64)) L._dummy
+  let rbp = V.mk "RBP" Reg (Bty (U W64)) L._dummy
+  let rsi = V.mk "RSI" Reg (Bty (U W64)) L._dummy
+  let rdi = V.mk "RDI" Reg (Bty (U W64)) L._dummy
+  let r8 = V.mk "R8" Reg (Bty (U W64)) L._dummy
+  let r9 = V.mk "R9" Reg (Bty (U W64)) L._dummy
+  let r10 = V.mk "R10" Reg (Bty (U W64)) L._dummy
+  let r11 = V.mk "R11" Reg (Bty (U W64)) L._dummy
+  let r12 = V.mk "R12" Reg (Bty (U W64)) L._dummy
+  let r13 = V.mk "R13" Reg (Bty (U W64)) L._dummy
+  let r14 = V.mk "R14" Reg (Bty (U W64)) L._dummy
+  let r15 = V.mk "R15" Reg (Bty (U W64)) L._dummy
+
+  let allocatable = [
+      rax; rbx; rcx; rdx;
+      rsp; rbp; rsi; rdi;
+      r8; r9; r10; r11; r12; r13; r14; r15
+    ]
+
+  let f_c = V.mk "CF" Reg (Bty Bool) L._dummy
+  let f_d = V.mk "DF" Reg (Bty Bool) L._dummy
+  let f_o = V.mk "OF" Reg (Bty Bool) L._dummy
+  let f_p = V.mk "PF" Reg (Bty Bool) L._dummy
+  let f_s = V.mk "SF" Reg (Bty Bool) L._dummy
+  let f_z = V.mk "ZF" Reg (Bty Bool) L._dummy
+
+end
+
+type allocation = (var, var) Hashtbl.t
+
+let allocate_forced_registers (f: 'info func) (a: allocation) : allocation =
+  a
+
+let regalloc (f: 'info func) : 'info func =
+  let f = fill_in_missing_names f in
+  let lf = Liveness.live_fd f in
+  let conflicts = collect_conflicts lf in
+  f
