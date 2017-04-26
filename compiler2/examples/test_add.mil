@@ -1,5 +1,5 @@
 
-fn test() -> inline int {
+fn test1() -> inline int {
 
   inline int i;
   inline int j;
@@ -13,7 +13,7 @@ fn test() -> inline int {
   return j;
 }
 
-fn test() -> inline u64 {
+fn test2() -> inline u64 {
 
   inline int i;
   inline u64 j;
@@ -28,7 +28,7 @@ fn test() -> inline u64 {
 }
 
 
-fn test() -> reg u64 {
+fn test3() -> reg u64 {
 
   inline int i;
   reg u64 j;
