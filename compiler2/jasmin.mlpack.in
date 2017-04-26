@@ -7,6 +7,7 @@ src/Liveness
 src/Location
 src/Parseio
 src/Parser
+src/Ppasm
 src/Printer
 src/Prog
 src/Regalloc
