@@ -26,8 +26,11 @@ let main () =
     let prog = J.Subst.remove_params pprog in
     Printf.eprintf "params removed \n%!";
     Format.eprintf "%a@." (J.Printer.pp_prog ~debug:true) prog;
+    Format.eprintf "EXTRACTED COQ PROGRAM@.";
+    Format.eprintf "%a@." J.Coq_printer.pp_prog prog;
     let _tbl, _cprog = J.Conv.cprog_of_prog prog in
-     Printf.eprintf "translated to coq \n%!";
+    Printf.eprintf "translated to coq \n%!";
+   (* Format.eprintf "%a@." (J.Coq_printer.pp_prog J.Coq_printer.NoInfo) *)
     ()
 
   with

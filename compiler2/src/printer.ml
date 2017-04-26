@@ -13,6 +13,12 @@ let rec pp_list sep pp fmt xs =
     | x :: xs -> Format.fprintf fmt "%a%(%)%a" pp x sep pp_list xs
 
 (* -------------------------------------------------------------------- *)
+
+let pp_bool fmt b = 
+  if b then F.fprintf fmt "true"
+  else F.fprintf fmt "false"
+
+(* -------------------------------------------------------------------- *)
 let pp_btype fmt = function
   | Bool -> F.fprintf fmt "bool"
   | U i  -> F.fprintf fmt "U%i" (int_of_ws i)

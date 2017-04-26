@@ -3,10 +3,12 @@ open Prog
 
 type 'info coq_tbl
 
+
 val bi_of_nat : Datatypes.nat -> Bigint.zint
 
 val pos_of_int : int -> BinNums.positive
 val int_of_pos : BinNums.positive -> int
+val bi_of_z    : BinNums.coq_Z -> B.zint
 
 val pos_of_bi : Bigint.zint -> BinNums.positive
 val bi_of_pos : BinNums.positive -> Bigint.zint
