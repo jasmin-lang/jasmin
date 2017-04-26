@@ -454,35 +454,58 @@ let carry_op = function
 let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
   let instr =
     match L.unloc pi with
-    | PIAssign (ls, eqop, e, None) -> begin
+    | PIAssign (ls, eqop, pe, None) -> begin
         let lvs = List.map (fun lv -> (L.loc lv, tt_lvalue env lv)) ls in
-        let eqop = peop2_of_eqop eqop |> omap (fun eqop ->
-          if List.is_empty lvs then
-            rs_tyerror ~loc:(L.loc pi) EqOpWithNoLValue;
-          let (lv, lvty), lvc = snd (List.last lvs), L.loc (List.last ls) in
-          (eqop, (lvc, tt_expr_of_lvalue (lvc, lv), oget lvty))) in
-        let src = tt_opsrc env eqop e in
+
+        let src =
+          match lvs, eqop with
+          | [_, (_, Some (P.Bty P.Int | P.Bty P.Bool))], ((`Raw | `Add | `Sub) as eqop) ->
+              let e, ty = tt_expr ~mode:`Expr env pe in
+              `ScalOp (eqop, L.loc pe, e, ty)
+
+          | _ ->
+            let eqop = peop2_of_eqop eqop |> omap (fun eqop ->
+              if List.is_empty lvs then
+                rs_tyerror ~loc:(L.loc pi) EqOpWithNoLValue;
+              let (lv, lvty), lvc = snd (List.last lvs), L.loc (List.last ls) in
+              let lve = tt_expr_of_lvalue (lvc, lv) in
+              (eqop, (lvc, lve, oget lvty))) in
+            `NoScalOp (tt_opsrc env eqop pe)
+        in
 
         match lvs, src with
-        | [_, (lv, lvty)], `NoOp (lve, e, ety) ->
-            let e =  lvty
+        | [lvc, (lv, lvty)], `ScalOp (eqop, lce, e, ety) ->
+            let e, ety =
+              match eqop with
+              | `Raw ->
+                  (e, ety)
+              | (`Add | `Sub) as eqop ->
+                  let lve = tt_expr_of_lvalue (lvc, lv) in
+                  check_ty_eq ~loc:lvc ~from:(oget lvty) ~to_:(P.Bty P.Int);
+                  check_ty_eq ~loc:lce ~from:ety ~to_:(P.Bty P.Int);
+                  P.Papp2 (oget (op2_of_pop2 eqop), lve, e), (P.Bty P.Int)
+            in
+            lvty |> oiter
+              (fun ty -> check_ty_eq ~loc:lce ~from:ety ~to_:ty);
+            P.Cassgn (lv, AT_keep, e)
+
+        | [_, (lv, lvty)], `NoScalOp (`NoOp (lve, e, ety)) ->
+            let e = lvty
               |> omap (fun ty -> check_ty_assign ~loc:lve ~from:ety ~to_:ty e)
               |> odfl e
             in P.Cassgn (lv, AT_keep, e)
 
-        | lvs, `BinOp ((`Add | `Sub) as o, es) ->
+        | lvs, `NoScalOp (`BinOp ((`Add | `Sub) as o, es)) ->
             let (lc1, e1, ety1), (lc2, e2, ety2) = es in
-            check_ty_eq ~loc:lc2 ~to_:ety1 ~from:ety2;
             let _ws1 = tt_as_word (lc1, ety1) in
-            let _ws2 = tt_as_word (lc2, ety2) in
+            let e2   = check_ty_assign ~loc:lc2 ~from:ety2 ~to_:ety1 e2 in
             let lvs = check_sig_lvs [P.Bty P.Bool; ety1] lvs in
             P.Copn (lvs, carry_op o, [e1; e2; P.Pbool false])
 
-        | lvs, `TriOp (((`Add | `Sub) as op1, op2), es) when op1 = op2 ->
+        | lvs, `NoScalOp (`TriOp (((`Add | `Sub) as op1, op2), es)) when op1 = op2 ->
             let (lc1, e1, ety1), (lc2, e2, ety2), (lc3, e3, ety3) = es in
-            check_ty_eq ~loc:lc2 ~to_:ety1 ~from:ety2;
             let _ws1 = tt_as_word (lc1, ety1) in
-            let _ws2 = tt_as_word (lc2, ety2) in
+            let e2   = check_ty_assign ~loc:lc2 ~from:ety2 ~to_:ety1 e2 in
             let _    = tt_as_bool (lc3, ety3) in
             let lvs  = check_sig_lvs [P.Bty P.Bool; ety1] lvs in
             P.Copn (lvs, carry_op op1, [e1; e2; e3])
