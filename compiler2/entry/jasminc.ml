@@ -1,37 +1,75 @@
 (* -------------------------------------------------------------------- *)
 module J = Jasmin
 
-open Jasmin.Utils
-
 (* -------------------------------------------------------------------- *)
 exception UsageError
 
-(*-------------------------------------------------------------------- *)
-let usage ?status () =
-  Printf.eprintf "Usage: jasminc [filename]\n%!";
-  oiter (fun i -> exit i) status
+(*--------------------------------------------------------------------- *)
+let infile = ref ""
+let outfile = ref ""
+let typeonly = ref false
+let debug = ref false  
+let coqfile = ref ""
+let coqonly = ref false
+
+let set_coqonly s = 
+  coqfile := s;
+  coqonly := true
+
+let options = [
+    "-o"       , Arg.Set_string outfile, "[filename]: name of the output file";
+    "-typeonly", Arg.Set typeonly      , ": stop after typechecking";
+    "-debug"   , Arg.Set debug         , ": print debug information";
+    "-coq"     , Arg.Set_string coqfile, "[filename]: generate the corresponding coq file";
+    "-coqonly" , Arg.String set_coqonly, "[filename]: generate the corresponding coq file, and exit"
+  ]
+
+let usage_msg = "Usage : jasminc [option] filename"
+                 
+let parse () = 
+  let error () = raise UsageError in
+  let set_in s = 
+    if !infile <> "" then error();
+    infile := s  in
+  Arg.parse options set_in usage_msg;
+  if !infile = "" then error()
 
 (* -------------------------------------------------------------------- *)
 let main () =
   try
-    if Array.length Sys.argv - 1 <> 1 then
-      raise UsageError;
 
-    let fname = Sys.argv.(1) in
+    parse();
+
+    let fname = !infile in
     let ast   = J.Parseio.parse_program ~name:fname in
     let ast   = BatFile.with_file_in fname ast in
     let _, pprog  = J.Typing.tt_program J.Typing.Env.empty ast in
-    Printf.eprintf "parsed & typed\n%!";
-    Format.eprintf "%a@." J.Printer.pp_pprog pprog;
+    if !debug then begin 
+      Printf.eprintf "parsed & typed\n%!";
+      Format.eprintf "%a@." J.Printer.pp_pprog pprog
+    end;
+    if !typeonly then exit 0;
+   
     let prog = J.Subst.remove_params pprog in
-    Printf.eprintf "params removed \n%!";
-    Format.eprintf "%a@." (J.Printer.pp_prog ~debug:true) prog;
-    Format.eprintf "EXTRACTED COQ PROGRAM@.";
-    Format.eprintf "%a@." J.Coq_printer.pp_prog prog;
+    if !debug then begin
+      Printf.eprintf "params removed \n%!";
+      Format.eprintf "%a@." (J.Printer.pp_prog ~debug:true) prog
+    end;
+
+    (* Generate the coq program if needed *)
+    if !coqfile <> "" then begin
+      let out = open_out !coqfile in
+      let fmt = Format.formatter_of_out_channel out in
+      Format.fprintf fmt "%a@." J.Coq_printer.pp_prog prog;
+      close_out out;
+      if !debug then Format.eprintf "coq program extracted@."
+    end; 
+
+    if !coqonly then exit 0;
 
     (* Now call the coq compiler *)
     let tbl, cprog = J.Conv.cprog_of_prog prog in
-    Printf.eprintf "translated to coq \n%!";
+    if !debug then Printf.eprintf "translated to coq \n%!";
 
     let fdef_of_cfdef fn cfd = J.Conv.fdef_of_cfdef tbl (fn,cfd) in
     let cfdef_of_fdef fd = snd (J.Conv.cfdef_of_fdef tbl fd) in
@@ -45,9 +83,11 @@ let main () =
     let alloc_fd  _fn cfd = cfd (* FIXME *) in
     let stk_alloc_fd _fn _cfd = assert false in
     let print_prog s cp = 
-      let p = J.Conv.prog_of_cprog tbl cp in
-      Format.eprintf "After %s@." (J.Conv.string_of_string0 s);
-      Format.eprintf "%a@." (J.Printer.pp_prog ~debug:true) p;
+      if !debug then begin
+        let p = J.Conv.prog_of_cprog tbl cp in
+        Format.eprintf "After %s@." (J.Conv.string_of_string0 s);
+        Format.eprintf "%a@." (J.Printer.pp_prog ~debug:true) p
+      end;
       cp
     in
     
@@ -59,7 +99,8 @@ let main () =
 
   with
   | UsageError ->
-      usage ~status:1 ()
+     Arg.usage options usage_msg;
+     exit 1;
 
   | J.Syntax.ParseError (loc, None) ->
       Format.eprintf "%s: parse error\n%!"
