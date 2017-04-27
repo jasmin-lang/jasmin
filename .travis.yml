@@ -12,7 +12,6 @@ notifications:
 env:
 - COQV=8.5.3-1.6.1 TARGET=coq
 - COQV=8.5.3-1.6.1 TARGET=compiler
-- COQV=8.5.3-1.6.1 TARGET=compiler2
 - COQV=8.6-1.6.1   TARGET=coq
 before_install:
 - docker pull jasminlang/test-box:${COQV}

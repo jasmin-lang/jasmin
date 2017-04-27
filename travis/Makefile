@@ -8,7 +8,7 @@ SSRP  := algebra
 ROOT  := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 # --------------------------------------------------------------------
-.PHONY: default publish check-coq check-compile docker
+.PHONY: default publish check-coq check-compiler docker
 
 # --------------------------------------------------------------------
 default:
