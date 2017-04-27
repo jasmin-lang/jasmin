@@ -70,7 +70,7 @@ Definition get_fun (p:prog) iinfo (f:funname) :=
 
 Section INLINE.
 
-Variable rename_fd : fundef -> fundef.
+Variable rename_fd : funname -> fundef -> fundef.
 
 Fixpoint inline_i (p:prog) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) := 
   match i with
@@ -94,7 +94,7 @@ Fixpoint inline_i (p:prog) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
       let X := Sv.union (read_i ir) X in
       if inline is InlineFun then
         Let fd := get_fun p iinfo f in 
-        let fd' := rename_fd fd in
+        let fd' := rename_fd f fd in
         Let _ := check_rename iinfo f fd fd' (Sv.union (vrvs xs) X) in
         ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) es ++ 
                   (fd'.(f_body) ++ assgn_tuple iinfo xs (map Pvar fd'.(f_res))))

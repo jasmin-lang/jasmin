@@ -53,29 +53,45 @@ Definition unroll_loop (p:prog) := unroll Loop.nb p.
 
 Section COMPILER.
 
-Variable rename_fd    : fundef -> fundef.
-Variable expand_fd    : fundef -> fundef.
-Variable alloc_fd     : fundef -> fundef.
-Variable stk_alloc_fd : fundef -> seq (var * Z) * sfundef.
+Variable rename_fd    : funname -> fundef -> fundef.
+Variable expand_fd    : funname -> fundef -> fundef.
+Variable alloc_fd     : funname -> fundef -> fundef.
+Variable stk_alloc_fd : funname -> fundef -> seq (var * Z) * sfundef.
+Variable print_prog   : string -> prog -> prog.
+
+Hypothesis print_progP : forall s p, print_prog s p = p.
 
 Definition expand_prog (p:prog) := 
-  List.map (fun f => (f.1, expand_fd f.2)) p.
+  List.map (fun f => (f.1, expand_fd f.1 f.2)) p.
 
 Definition alloc_prog (p:prog) := 
-  List.map (fun f => (f.1, alloc_fd f.2)) p.
+  List.map (fun f => (f.1, alloc_fd f.1 f.2)) p.
 
 Definition stk_alloc_prog (p:prog) : sprog * (seq (seq (var * Z))) :=
-  List.split (List.map (fun f => let (x, y) := stk_alloc_fd f.2 in ((f.1, y), x)) p).
+  List.split (List.map (fun f => let (x, y) := stk_alloc_fd f.1 f.2 in ((f.1, y), x)) p).
 
 Definition compile_prog (p:prog) := 
   Let p := inline_prog rename_fd p in
+  let p := print_prog "inlining" p in      
+  (* FIXME: we should remove unused fonctions after inlining *)      
   Let p := unroll Loop.nb p in
+  let p := print_prog "unrolling" p in      
+  (* FIXME we should perform a step of register allocation to 
+     remove assignment of the form x = y introduced by inlining.
+     This is particulary true we x and y are Reg array.
+     Then we should use dead_code to clean nop assignment.
+     If we still have x = y where x and y are Reg array, 
+     we should fail or replace it by a sequence of assgnment.
+  *)     
   let pe := expand_prog p in
+  let pe := print_prog "array expansion" pe in 
   Let _ := CheckExpansion.check_prog p pe in
   let pa := alloc_prog pe in
+  let pa := print_prog "register allocation" pa in 
   Let _ := CheckAllocReg.check_prog pe pa in
   (* dead_code to clean nop assignment *)   
   Let pd := dead_code_prog pa in
+  let pd := print_prog "dead_code" pd in 
   (* stack_allocation                  *)
   let (ps, l) := stk_alloc_prog pd in
   if stack_alloc.check_prog pd ps l then
@@ -124,11 +140,11 @@ Lemma compile_progP (p: prog) (lp: lprog) mem fn va mem' vr:
   lsem_fd lp mem fn va mem' vr.
 Proof.
   rewrite /compile_prog.
-  apply: rbindP=> p0 Hp0.
-  apply: rbindP=> p1 Hp1.
+  apply: rbindP=> p0 Hp0. rewrite !print_progP.
+  apply: rbindP=> p1 Hp1. rewrite !print_progP.
   apply: rbindP=> -[] He.
   apply: rbindP=> -[] He'.
-  apply: rbindP=> pd Hpd.
+  apply: rbindP=> pd Hpd. rewrite !print_progP.
   case Hps: (stk_alloc_prog pd)=> [ps l].
   case Hps': (check_prog pd ps l)=> //.
   apply: rbindP=> pl Hpl [] <-.
