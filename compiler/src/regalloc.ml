@@ -80,6 +80,42 @@ let collect_conflicts (f: (Sv.t * Sv.t) func) : Sc.t =
   and collect_stmt c s = List.fold_left collect_instr c s in
   collect_stmt Sc.empty f.f_body
 
+let collect_variables (f: 'info func) : (var, int) Hashtbl.t * int =
+  let fresh, total =
+    let count = ref 0 in
+    (fun () ->
+    let n = !count in
+    incr count;
+    n),
+    (fun () -> !count)
+  in
+  let tbl : (var, int) Hashtbl.t = Hashtbl.create 97 in
+  let get (v: var) : unit =
+    if v.v_kind = Reg then
+    if not (Hashtbl.mem tbl v)
+    then
+      let n = fresh () in
+      Hashtbl.add tbl v n
+  in
+  let collect_sv = Sv.iter get in
+  let collect_lv lv = rvars_lv Sv.empty lv |> collect_sv in
+  let collect_lvs lvs = List.fold_left rvars_lv Sv.empty lvs |> collect_sv in
+  let collect_expr e = vars_e e |> collect_sv in
+  let collect_exprs es = vars_es es |> collect_sv in
+  let rec collect_instr_r =
+    function
+    | Cblock s -> collect_stmt s
+    | Cassgn (lv, _, e) -> collect_lv lv; collect_expr e
+    | Ccall (_, lvs, _, es)
+    | Copn (lvs, _, es) -> collect_lvs lvs; collect_exprs es
+    | Cwhile (s1, e, s2)
+    | Cif (e, s1, s2) -> collect_expr e; collect_stmt s1; collect_stmt s2
+    | Cfor _ -> assert false
+  and collect_instr { i_desc } = collect_instr_r i_desc
+  and collect_stmt s = List.iter collect_instr s in
+  collect_stmt f.f_body;
+  tbl, total ()
+
 module X64 =
 struct
 
