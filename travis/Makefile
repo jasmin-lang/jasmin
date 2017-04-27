@@ -31,13 +31,4 @@ check-compiler:
 	cd $(ROOT)/../compiler && opam pin add -n jasmin .
 	opam install depext && opam depext jasmin
 	opam install --deps-only jasmin
-	$(MAKE) -C "$(ROOT)/../proofs"
-	cp $(ROOT)/../proofs/lang/ocaml/*.ml  $(ROOT)/../compiler/src/CIL/
-	cp $(ROOT)/../proofs/lang/ocaml/*.mli $(ROOT)/../compiler/src/CIL/
-	$(MAKE) -C "$(ROOT)/../compiler"
-
-check-compiler2:
-	cd $(ROOT)/../compiler2 && opam pin add -n jasmin .
-	opam install depext && opam depext jasmin
-	opam install --deps-only jasmin
-	$(MAKE) -C "$(ROOT)/../compiler2" CIL build tests
+	$(MAKE) -C "$(ROOT)/../compiler" CIL build tests

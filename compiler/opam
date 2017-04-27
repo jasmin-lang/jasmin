@@ -1,24 +1,24 @@
 opam-version: "1.2"
 name: "jasmin"
 version: "0.1"
-maintainer: "Benedikt Schmidt <beschmi@gmail.com>"
-authors: [ "Benedikt Schmidt <beschmi@gmail.com>" ]
-homepage: ""
-bug-reports: ""
+maintainer: "Jasmin Team <jasmin@example.com>"
+authors: [ "Jasmin Team <jasmin@example.com>" ]
+homepage: "http://jasmin-lang.github.io/"
+bug-reports: "https://github.com/jasmin-lang/jasmin/issues"
 license: ""
 build: [
-  [make]
+  make "build"
 ]
-install: [make "install"]
-remove: [make "uninstall"]
+install: [
+  make "PREFIX=%{prefix}%" "install"
+]
+remove: [
+  make "PREFIX=%{prefix}%" "uninstall"
+]
 depends: [
+  "batteries" {>= "2.3"}
+  "menhir" {>= "20160825"}
+  "zarith"
+  "ocamlbuild"
   "ocamlfind"
-  "ocamlgraph"
-  "core"
-  "ctypes"
-  "ctypes-foreign"
-  "menhir"
-  "mparser"
-  "ounit"
-  "ppx_jane"
 ]

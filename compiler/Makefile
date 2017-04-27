@@ -1,79 +1,81 @@
-OCAMLBUILD=ocamlbuild
-MENHIRFLAGS=-use-menhir -menhir "menhir -v --explain --strict"
-FINDLIBFLAGS=-use-ocamlfind -classic-display
-CFLAGS=-cflags "-w +a-e-9-45-44"
-COREFLAGS=-pkg core \
-    -tag short_paths \
-    -cflags -strict-sequence
+# -*- Makefile -*-
 
+# --------------------------------------------------------------------
+OCAMLBUILD_JOBS  ?= 2
+OCAMLBUILD_BIN   ?= ocamlbuild
+OCAMLBUILD_EXTRA ?=
+OCAMLBUILD_OPTS  := -use-ocamlfind -j $(OCAMLBUILD_JOBS)
 
-UNAME_S := $(shell uname -s)
-ifeq ($(UNAME_S),Linux)
-  CLIBFLAGS=-lflags -cclib,-Xlinker,-cclib,--no-as-needed,-cclib,-Lc_src,-cclib,-larith,-cclib,-Xlinker,-cclib,-rpath,-cclib,`pwd`/_build/c_src
+# In Emacs, use classic display to enable error jumping.
+ifeq ($(shell echo $$TERM), dumb)
+ OCAMLBUILD_OPTS += -classic-display
 endif
-ifeq ($(UNAME_S),Darwin)
-  CLIBFLAGS=-lflags -cclib,-Lc_src,-cclib,-larith
-endif
+OCAMLBUILD_OPTS += $(OCAMLBUILD_EXTRA)
 
-OCAMLBUILDFLAGS= $(CFLAGS) $(COREFLAGS) $(FINDLIBFLAGS) $(MENHIRFLAGS)
+OCAMLBUILD := $(OCAMLBUILD_BIN) $(OCAMLBUILD_OPTS)
+INSTALL    := scripts/install-sh
 
-###########################################################################
-# main targets
+# --------------------------------------------------------------------
+PREFIX ?= /usr/local
+BINDIR := $(PREFIX)/bin
+LIBDIR := $(PREFIX)/lib/jasmin
+SHRDIR := $(PREFIX)/share/jasmin
 
-.PHONY: all jasminc clean doc \
-  run_tests run-run_tests tests
+# --------------------------------------------------------------------
+.PHONY: all build byte native CIL install uninstall tests __force__
+.PHONY: %.ml %.mli %.inferred.mli
 
-all: jasminc
+all: build
+	@true
 
-unit-tests: run-run_tests test-arith
+build: jasmin.mlpack native
 
-jasminc:
-	$(OCAMLBUILD) $(OCAMLBUILDFLAGS) src/Main/jasminc.native
+define do-build
+	$(OCAMLBUILD) "$(1)"
+endef
+
+byte:
+	$(call do-build,entry/jasminc.byte)
+
+native:
+	$(call do-build,entry/jasminc.native)
+
+jasmin.mlpack: __force__
+	( echo '# GENERATED - EDIT jasmin.mlpack.in'; \
+	  cat jasmin.mlpack.in; \
+	  echo "$(wildcard CIL/*.ml*)" | tr ' ' '\n' | sed 's/\..*$$//' | sort -u ) \
+	> jasmin.mlpack
+
+CIL:
+	rm -f CIL/*.ml CIL/*.mli
+	$(MAKE) -C ../proofs
+	cp ../proofs/lang/ocaml/*.ml  CIL/
+	cp ../proofs/lang/ocaml/*.mli CIL/
+
+install: build
+	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
+	$(INSTALL) -m 0755 -T jasminc.native $(DESTDIR)$(BINDIR)/jasminc
+
+uninstall:
+	rm -f $(DESTDIR)$(BINDIR)/jasminc
+
+tests: native
+	for i in examples/*.mil; do \
+	  echo "*** $$i" >&2 && ./jasminc.native $$i; \
+	done
 
 clean:
-	-@rm jasminc.native
 	$(OCAMLBUILD) -clean
+	rm -f jasminc.native jasminc.byte
 
-doc:
-	cd doc && make
-
-###########################################################################
-# Targets for development and testing
-
-test-conv:
-	$(OCAMLBUILD) $(OCAMLBUILDFLAGS) src/Test/Tests_Conv.native
-	./Tests_Conv.native
-
-demo: jasmin
-	./scripts/demo.sh
-
-
-
-run_tests:
-	test -d _build/c_src || mkdir -p _build/c_src
-	gcc -shared -o _build/c_src/libarith.so \
-	  c_src/arith.c
-	gcc -o _build/c_src/mont_amd64_64 \
-	  c_src/arith.c \
-	  c_src/mont_amd64_64.c \
-	  c_src/ladderstep_amd64_64_consts.s \
-	  c_src/ladderstep_amd64_64.s \
-	  c_src/work_cswap_amd64_64.s
-	$(OCAMLBUILD) $(OCAMLBUILDFLAGS) $(CLIBFLAGS) src/Main/run_tests.native
-
-run-run_tests: run_tests
-	./run_tests.native
-
-tests: jasminc
-	./scripts/run_tests.sh
-
-test-arith:
-	gcc -DTEST c_src/arith.c -o t_arith
-	./t_arith
-
-test-curve25519-rust: jasminc
-	./jasminc.native ../examples/curve25519/src/scalarmult.rs -t "typecheck,print[original][rust]"
-
+# --------------------------------------------------------------------
 %.inferred.mli:
-	ocamlbuild $(OCAMLBUILDFLAGS) src/$@ && cat _build/src/$@
+	@$(call do-core-build,src/$@) && cat _build/src/$@
 
+# --------------------------------------------------------------------
+%.ml:
+	$(call do-core-build,src/$*.cmo)
+
+# --------------------------------------------------------------------
+%.mli:
+	$(call do-core-build,src/$*.cmi)

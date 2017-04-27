@@ -1,14 +1,13 @@
-S src/Asm
-S src/IL
-S src/Tests
-S src/Main
-S src/Util
+S src
+S CIL
+S entry
 
-B _build/src/Asm
-B _build/src/IL
-B _build/src/Tests
-B _build/src/Main
-B _build/src/Util
-B _build/src/CIL
+B _build
+B _build/entry
 
-PKG num core mparser ctypes.foreign oUnit ocamlgraph ppx_jane
+PKG batteries
+PKG menhirLib
+PKG zarith
+
+FLG -rectypes
+FLG -w Y -w Z -w -23 -w +28 -w +33 -w -40 -w 58
