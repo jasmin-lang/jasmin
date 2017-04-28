@@ -16,7 +16,7 @@ remove: [
   make "PREFIX=%{prefix}%" "uninstall"
 ]
 depends: [
-  "batteries" {>= "2.3"}
+  "batteries" {>= "2.6"}
   "menhir" {>= "20160825"}
   "zarith"
   "ocamlbuild"
