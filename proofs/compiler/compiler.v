@@ -23,13 +23,11 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
-From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
-Require Import x86.
-Import ZArith Coq.Logic.Eqdep_dec.
-Import strings word utils type var expr memory sem.
-Require Import compiler_util allocation inlining unrolling constant_prop dead_code.
-Require Import array_expansion stack_alloc linear.
+From mathcomp Require Import all_ssreflect.
+Require Import (* x86 *) expr.
+Import ZArith. 
+Require Import compiler_util allocation inline unrolling
+   constant_prop dead_code array_expansion stack_alloc linear.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -99,8 +97,8 @@ Definition compile_prog (p:prog) :=
     cfok pl
   else cferror Ferr_neqprog.
 
-Definition compile_prog_to_x86 (p: prog) : result fun_error xprog :=
+(*Definition compile_prog_to_x86 (p: prog) : result fun_error xprog :=
   Let lp := compile_prog p in
-  assemble_prog lp.
+  assemble_prog lp. *)
 
 End COMPILER.

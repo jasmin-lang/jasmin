@@ -26,16 +26,12 @@
 (* * Syntax and semantics of the linear language *)
 
 (* ** Imports and settings *)
-Require Import Setoid Morphisms.
 
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
-From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import ZArith.
-Require Import Utf8.
-Import Relations.
+From mathcomp Require Import all_ssreflect.
+Require Import ZArith Utf8.
+        Import Relations.
+Require Import sem compiler_util stack_alloc stack_sem linear.
 
-Require Import strings word utils type var expr.
-Require Import memory sem stack_alloc stack_sem compiler_util linear.
 Import Memory.
 
 Set Implicit Arguments.

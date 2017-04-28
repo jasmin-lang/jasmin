@@ -28,15 +28,13 @@
 (* ** Imports and settings *)
 Require Import Setoid Morphisms.
 
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
-From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import ZArith.
-Require Import Utf8.
-Import Relations.
+From mathcomp Require Import all_ssreflect.
+Require Import ZArith Utf8. 
+        Import Relations.
 
-Require Import strings word utils type var expr.
-Require Import memory sem stack_alloc stack_sem compiler_util linear linear_sem.
-Import Memory.
+Require Import sem compiler_util stack_alloc stack_sem.
+Require Export linear linear_sem.
+        Import Memory.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

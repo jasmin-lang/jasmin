@@ -24,11 +24,8 @@
  * ----------------------------------------------------------------------- *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
-From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
-Require Import Coq.Logic.Eqdep_dec.
-Require Import strings word utils type var expr.
-Import ZArith Morphisms Classes.RelationClasses.
+From mathcomp Require Import all_ssreflect.
+Require Import expr ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

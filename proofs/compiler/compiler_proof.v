@@ -23,15 +23,13 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
-From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
-Require Import x86.
-Import ZArith Coq.Logic.Eqdep_dec.
-Import strings word utils type var expr memory sem.
-Require Import compiler_util allocation inline_proof 
-               unrolling_proof constant_prop_proof dead_code_proof.
-Require Import array_expansion stack_alloc stack_sem stack_alloc_proof 
-               linear linear_sem linear_proof compiler.
+From mathcomp Require Import all_ssreflect.
+(* Require Import x86. *)
+Require Import sem compiler_util compiler.
+Require Import allocation inline_proof 
+               unrolling_proof constant_prop_proof dead_code_proof
+               array_expansion stack_alloc_proof 
+               linear_proof compiler.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

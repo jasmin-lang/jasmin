@@ -24,11 +24,9 @@
  * ----------------------------------------------------------------------- *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
-From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
-Require Import strings word utils type var expr memory sem.
-Require Import allocation compiler_util.
-Import ZArith.
+From mathcomp Require Import all_ssreflect all_algebra.
+Require Import sem allocation.
+Require Import compiler_util ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

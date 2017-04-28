@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect.
-Require Import ZArith var expr type.
+Require Import expr.
 
 Delimit Scope expr_scope with E.
 Delimit Scope lval_scope with L.

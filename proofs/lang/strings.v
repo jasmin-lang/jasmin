@@ -26,7 +26,7 @@
 (* -------------------------------------------------------------------- *)
 Require Import ZArith.
 Require Export String.
-From mathcomp Require Import ssreflect eqtype ssrbool choice ssrfun seq.
+From mathcomp Require Import all_ssreflect.
 Require Import utils gen_map.
 
 Set Implicit Arguments.

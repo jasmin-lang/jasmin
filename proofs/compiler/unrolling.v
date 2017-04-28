@@ -27,17 +27,13 @@
 
 (* ** Imports and settings *)
 
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
-From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
-Require Import ZArith.
-Require Import strings word utils type var expr 
-               memory sem compiler_util.
+From mathcomp Require Import all_ssreflect.
+Require Import ZArith expr compiler_util.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Local Open Scope vmap_scope.
 Local Open Scope seq_scope.
 
 (* ** unrolling

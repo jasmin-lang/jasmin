@@ -24,17 +24,15 @@
  * ----------------------------------------------------------------------- *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
-From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
-Require Import strings word utils type var expr
-               memory sem compiler_util.
-Import ZArith Setoid Morphisms Coq.Logic.Eqdep_dec.
+From mathcomp Require Import all_ssreflect all_algebra.
+Require Import sem.
+Require Import compiler_util ZArith. 
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Local Open Scope vmap.
+Local Open Scope vmap. 
 Local Open Scope seq_scope.
 
 Module Type CheckB.

@@ -26,10 +26,10 @@
 (* * Syntax and semantics of the dmasm source language *)
 
 (* ** Imports and settings *)
-Require Import ZArith Setoid Morphisms.
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
-From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import strings word utils type var.
+Require Export ZArith Setoid Morphisms.
+From mathcomp Require Import all_ssreflect all_algebra.
+Require Export strings word utils type var.
+Import ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -257,6 +257,14 @@ Definition dir_eqMixin     := Equality.Mixin dir_eq_axiom.
 Canonical  dir_eqType      := Eval hnf in EqType dir dir_eqMixin.
 
 Definition range := (dir * pexpr * pexpr)%type.
+
+Definition wrange d (n1 n2 : Z) :=
+  let n := Z.to_nat (n2 - n1) in
+  match d with
+  | UpTo   => [seq (Z.add n1 (Z.of_nat i)) | i <- iota 0 n]
+  | DownTo => [seq (Z.sub n2 (Z.of_nat i)) | i <- iota 0 n]
+  end.
+
 
 Definition instr_info := positive.
 

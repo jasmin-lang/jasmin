@@ -26,12 +26,9 @@
 (* * Syntax and semantics of the dmasm source language *)
 
 (* ** Imports and settings *)
-Require Import Setoid Morphisms.
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
-From mathcomp Require Import choice fintype eqtype div seq zmodp.
+From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith Psatz.
-
-Require Import strings word utils type var expr memory.
+Require Export expr memory.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -409,13 +406,6 @@ Definition sem_sopn (o:sopn) :  values -> exec values :=
 Section SEM. 
 
 Variable P:prog.
-
-Definition wrange d (n1 n2 : Z) :=
-  let n := Z.to_nat (n2 - n1) in
-  match d with
-  | UpTo   => [seq (n1 + Z.of_nat i)%Z | i <- iota 0 n]
-  | DownTo => [seq (n2 - Z.of_nat i)%Z | i <- iota 0 n]
-  end.
 
 Definition sem_range (s : estate) (r : range) :=
   let: (d,pe1,pe2) := r in

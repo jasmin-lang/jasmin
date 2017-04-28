@@ -27,11 +27,9 @@
 
 (* ** Imports and settings *)
 Require Import ZArith.
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
-From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
-Require Import Coq.Logic.Eqdep_dec.
-Require Import strings word utils type var expr 
-               memory sem compiler_util allocation inline.
+From mathcomp Require Import all_ssreflect all_algebra.
+Require Import sem allocation compiler_util.
+Require Export inline.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

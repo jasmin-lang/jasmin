@@ -26,8 +26,7 @@
 
 
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
-From mathcomp Require Import choice fintype eqtype div seq zmodp.
+From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith gen_map utils.
 
 Set Implicit Arguments.

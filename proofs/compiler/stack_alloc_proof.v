@@ -26,13 +26,10 @@
 (* * Prove properties about semantics of dmasm input language *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
-From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
-Require Import Coq.Logic.Eqdep_dec.
-Require Import strings word utils type var expr memory sem stack_alloc stack_sem.
+From mathcomp Require Import all_ssreflect.
+Require Import sem compiler_util.
+Require Export stack_alloc stack_sem.
 
-Require Import compiler_util.
-Require Import ZArith.
 Require Import Psatz.
 
 Set Implicit Arguments.

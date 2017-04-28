@@ -1,7 +1,6 @@
 Require Import ZArith Setoid Morphisms.
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
-From mathcomp Require Import choice fintype eqtype div seq zmodp.
-Require Import strings word utils type var expr.
+From mathcomp Require Import all_ssreflect all_algebra.
+Require Import expr.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

@@ -27,12 +27,6 @@ compiler/stack_alloc_proof.v
 compiler/unrolling.v
 compiler/unrolling_proof.v
 compiler/x86.v
-logic/equiv_sem.v
-logic/logic.v
-logic/Ssem.v
-logic/Ssem_props.v
-logic/wp.v
-logic/wp_while.v
 lang/expr.v
 lang/extraction.v
 lang/gen_map.v
@@ -45,3 +39,9 @@ lang/utils.v
 lang/var.v
 lang/word.v
 lang/prog_notation.v
+logic/equiv_sem.v
+logic/logic.v
+logic/Ssem.v
+logic/Ssem_props.v
+logic/wp.v
+logic/wp_while.v

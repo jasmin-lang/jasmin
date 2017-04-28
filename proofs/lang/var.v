@@ -27,8 +27,7 @@
 
 (* ** Imports and settings *)
 Require Import Setoid Morphisms.
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
-From mathcomp Require Import choice fintype eqtype div seq zmodp.
+From mathcomp Require Import all_ssreflect all_algebra.
 Require Import strings utils gen_map type.
 
 Set Implicit Arguments.

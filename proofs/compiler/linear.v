@@ -26,17 +26,13 @@
 (* * Syntax and semantics of the linear language *)
 
 (* ** Imports and settings *)
-Require Import Setoid Morphisms.
 
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg tuple.
-From mathcomp Require Import choice fintype eqtype div seq zmodp.
+From mathcomp Require Import all_ssreflect.
 Require Import ZArith.
 Require Import Utf8.
 Import Relations.
 
-Require Import strings word utils type var expr.
-Require Import memory stack_alloc compiler_util.
-Import Memory.
+Require Import expr compiler_util stack_alloc.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -143,8 +139,6 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Ccall _ _ _ _ => cierror ii (Cerr_linear "call found in linear")
 
   end.
-
-
 
 Definition linear_fd (fd: sfundef) :=
   Let fd' := linear_c linear_i (sf_body fd) 1%positive [::] in
