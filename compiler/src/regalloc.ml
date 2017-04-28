@@ -28,6 +28,42 @@ let fill_in_missing_names (f: 'info func) : 'info func =
   let f_body = fill_stmt f.f_body in
   { f with f_body }
 
+let x86_equality_constraints (tbl: (var, int) Hashtbl.t) (k: int -> int -> unit)
+    (lvs: 'ty glvals) (op: op) (es: 'ty gexprs) : unit =
+  let merge v w =
+    try
+      let i = Hashtbl.find tbl (L.unloc v) in
+      let j = Hashtbl.find tbl (L.unloc w) in
+      k i j
+    with Not_found -> ()
+  in
+  match op, lvs, es with
+  | Olnot, [ Lvar v ], [ Pvar w]
+  | (Oxor | Oland | Olor | Olsr | Olsl), Lvar v :: _, Pvar w :: _
+    (* TODO: add more constraints *)
+    -> merge v w
+  | _, _, _ -> ()
+
+let collect_equality_constraints (tbl: (var, int) Hashtbl.t) (nv: int)
+    (f: 'info func) : Puf.t =
+  let p = ref (Puf.create nv) in
+  let add x y = p := Puf.union !p x y in
+  let rec collect_instr_r =
+    function
+    | Cblock s
+    | Cfor (_, _, s)
+      -> collect_stmt s
+    | Copn (lvs, op, es) -> x86_equality_constraints tbl add lvs op es
+    | Cassgn _
+    | Ccall _
+      -> ()
+    | Cwhile (s1, _, s2)
+    | Cif (_, s1, s2) -> collect_stmt s1; collect_stmt s2
+  and collect_instr { i_desc } = collect_instr_r i_desc
+  and collect_stmt s = List.iter collect_instr s in
+  collect_stmt f.f_body;
+  !p
+
 module C =
 struct
   type t = V.t * V.t
@@ -159,5 +195,7 @@ let allocate_forced_registers (f: 'info func) (a: allocation) : allocation =
 let regalloc (f: 'info func) : 'info func =
   let f = fill_in_missing_names f in
   let lf = Liveness.live_fd f in
+  let vars, nv = collect_variables f in
+  let eqc = collect_equality_constraints vars nv f in
   let conflicts = collect_conflicts lf in
   f
