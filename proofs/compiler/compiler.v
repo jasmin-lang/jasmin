@@ -59,8 +59,6 @@ Variable alloc_fd     : funname -> fundef -> fundef.
 Variable stk_alloc_fd : funname -> fundef -> seq (var * Z) * sfundef.
 Variable print_prog   : string -> prog -> prog.
 
-Hypothesis print_progP : forall s p, print_prog s p = p.
-
 Definition expand_prog (p:prog) := 
   List.map (fun f => (f.1, expand_fd f.1 f.2)) p.
 
@@ -104,66 +102,5 @@ Definition compile_prog (p:prog) :=
 Definition compile_prog_to_x86 (p: prog) : result fun_error xprog :=
   Let lp := compile_prog p in
   assemble_prog lp.
-
-Section PROOF.
-
-Lemma unroll1P (fn: funname) (p p':prog) mem va mem' vr:
-  unroll1 p = ok p' ->
-  sem_call p  mem fn va mem' vr ->
-  sem_call p' mem fn va mem' vr.
-Proof.
-  rewrite /unroll1=> Heq Hsem.
-  apply: (dead_code_callP Heq).
-  apply: const_prop_callP.
-  exact: unroll_callP.
-Qed.
-
-Lemma unrollP (fn: funname) (p p': prog) mem va mem' vr:
-  unroll Loop.nb p = ok p' ->
-  sem_call p mem  fn va mem' vr ->
-  sem_call p' mem fn va mem' vr.
-Proof.
-  elim: Loop.nb p=> /= [p //|n Hn] p.
-  apply: rbindP=> z Hz.
-  case: ifP=> [_ [] ->|_ Hu Hs] //.
-  apply: (Hn z) =>//.
-  exact: unroll1P Hs.
-Qed.
-
-Opaque Loop.nb.
-
-Lemma compile_progP (p: prog) (lp: lprog) mem fn va mem' vr:
-  compile_prog p = cfok lp ->
-  sem_call p mem fn va mem' vr ->
-  uniq [seq x.1 | x <- p] ->
-  (forall fn f, get_fundef lp fn = Some f -> exists p, Memory.alloc_stack mem (lfd_stk_size f) = ok p) ->
-  lsem_fd lp mem fn va mem' vr.
-Proof.
-  rewrite /compile_prog.
-  apply: rbindP=> p0 Hp0. rewrite !print_progP.
-  apply: rbindP=> p1 Hp1. rewrite !print_progP.
-  apply: rbindP=> -[] He.
-  apply: rbindP=> -[] He'.
-  apply: rbindP=> pd Hpd. rewrite !print_progP.
-  case Hps: (stk_alloc_prog pd)=> [ps l].
-  case Hps': (check_prog pd ps l)=> //.
-  apply: rbindP=> pl Hpl [] <-.
-  move=> Hcall Huniq Halloc.
-  apply: (linear_fdP Hpl).
-  apply: stack_alloc.check_progP.
-  exact: Hps'=> //.
-  apply: (dead_code_callP Hpd).
-  apply: (CheckAllocReg.alloc_callP He').
-  apply: (CheckExpansion.alloc_callP He).
-  apply: (unrollP Hp1).
-  apply: (inline_callP _ Hp0)=> //.
-  rewrite /alloc_ok=> fd Hfd.
-  move: (get_map_cfprog Hpl Hfd)=> [f' [Hf'1 Hf'2]].
-  apply: rbindP Hf'1=> [fn' Hfn'] [] Hf'.
-  have := Halloc _ _ Hf'2.
-  by rewrite -Hf' /=.
-Qed.
-
-End PROOF.
 
 End COMPILER.

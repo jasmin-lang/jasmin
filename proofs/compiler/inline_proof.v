@@ -31,7 +31,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
 Require Import strings word utils type var expr 
-               memory sem compiler_util allocation.
+               memory sem compiler_util allocation inline.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -40,87 +40,17 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
-(* ** inlining
- * -------------------------------------------------------------------- *)
-
-Definition assgn_tuple iinfo (xs:lvals) (es:pexprs) :=
-  let assgn xe := MkI iinfo (Cassgn xe.1 AT_rename xe.2) in
-  map assgn (zip xs es).
-
-Definition inline_c (inline_i: instr -> Sv.t -> ciexec (Sv.t * cmd)) c s := 
-  foldr (fun i r =>
-    Let r := r in
-    Let ri := inline_i i r.1 in
-    ciok (ri.1, ri.2 ++ r.2)) (ciok (s,[::])) c.
-
-Definition check_rename iinfo f fd1 fd2 (s:Sv.t) := 
-  Let _ := add_infun iinfo (CheckAllocReg.check_fundef (f,fd1) (f,fd2) tt) in
-  let s2 := read_es (map Pvar fd2.(f_res)) in
-  let s2 := write_c_rec s2 fd2.(f_body) in
-  let s2 := vrvs_rec s2 (map Lvar fd2.(f_params)) in
-  if disjoint s s2 then ciok tt 
-  else cierror iinfo (Cerr_inline s s2).
-
-Definition get_fun (p:prog) iinfo (f:funname) :=
-  match get_fundef p f with
-  | Some fd => ciok fd 
-  | None    => cierror iinfo (Cerr_unknown_fun f "inlining")
-  end.
-
 Section INLINE.
 
 Variable rename_fd : funname -> fundef -> fundef.
 
-Fixpoint inline_i (p:prog) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) := 
-  match i with
-  | MkI iinfo ir =>
-    match ir with 
-    | Cassgn x t e => ciok (Sv.union (read_i ir) X, [::i])
-    | Copn xs o es => ciok (Sv.union (read_i ir) X, [::i])
-    | Cif e c1 c2  =>
-      Let c1 := inline_c (inline_i p) c1 X in
-      Let c2 := inline_c (inline_i p) c2 X in
-      ciok (read_e_rec (Sv.union c1.1 c2.1) e, [::MkI iinfo (Cif e c1.2 c2.2)])
-    | Cfor x (d,lo,hi) c =>
-      let X := Sv.union (read_i ir) X in
-      Let c := inline_c (inline_i p) c X in
-      ciok (X, [::MkI iinfo (Cfor x (d, lo, hi) c.2)])
-    | Cwhile c e c' =>
-      let X := Sv.union (read_i ir) X in
-      Let c := inline_c (inline_i p) c X in
-      Let c' := inline_c (inline_i p) c' X in
-      ciok (X, [::MkI iinfo (Cwhile c.2 e c'.2)])
-    | Ccall inline xs f es =>
-      let X := Sv.union (read_i ir) X in
-      if inline is InlineFun then
-        Let fd := get_fun p iinfo f in 
-        let fd' := rename_fd f fd in
-        Let _ := check_rename iinfo f fd fd' (Sv.union (vrvs xs) X) in
-        ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) es ++ 
-                  (fd'.(f_body) ++ assgn_tuple iinfo xs (map Pvar fd'.(f_res))))
-      else ciok (X, [::i])        
-    end
-  end.
-
-Definition inline_fd (p:prog) (fd:fundef) :=
-  match fd with 
-  | MkFun ii params c res =>
-    let s := read_es (map Pvar res) in
-    Let c := inline_c (inline_i p) c s in
-    ok (MkFun ii params c.2 res)
-  end.
-
-Definition inline_fd_cons (ffd:funname * fundef) (p:cfexec prog) :=
-  Let p := p in 
-  let f := ffd.1 in
-  Let fd := add_finfo f f (inline_fd p ffd.2) in
-  cfok ((f,fd)::p).
-
-Definition inline_prog (p:prog) := foldr inline_fd_cons (cfok [::]) p.
-
 Lemma get_funP p ii f fd : 
   get_fun p ii f = ok fd -> get_fundef p f = Some fd.
 Proof. by rewrite /get_fun;case:get_fundef => // ? [->]. Qed.
+
+Local Notation inline_i' := (inline_i rename_fd).
+Local Notation inline_fd' := (inline_fd rename_fd).
+Local Notation inline_prog' := (inline_prog rename_fd).
 
 Section INCL.
 
@@ -130,14 +60,14 @@ Section INCL.
     get_fundef p f = Some fd -> get_fundef p' f = Some fd.
 
   Let Pi i := forall X1 c' X2,
-    inline_i p  i X2 = ok (X1, c') ->
-    inline_i p' i X2 = ok (X1, c').
+    inline_i' p  i X2 = ok (X1, c') ->
+    inline_i' p' i X2 = ok (X1, c').
 
   Let Pr i := forall ii, Pi (MkI ii i).
 
   Let Pc c :=  forall X1 c' X2, 
-    inline_c (inline_i p)  c X2 = ok (X1, c') ->
-    inline_c (inline_i p') c X2 = ok (X1, c').
+    inline_c (inline_i' p)  c X2 = ok (X1, c') ->
+    inline_c (inline_i' p') c X2 = ok (X1, c').
  
   Lemma inline_c_incl c : Pc c.
   Proof.
@@ -161,8 +91,8 @@ Section INCL.
   Qed.
 
   Lemma inline_incl fd fd' :
-    inline_fd p fd = ok fd' ->
-    inline_fd p' fd = ok fd'.
+    inline_fd' p fd = ok fd' ->
+    inline_fd' p' fd = ok fd'.
   Proof.
     by case: fd => fi fp fb fr /=;apply: rbindP => -[??] /inline_c_incl -> [<-].
   Qed.
@@ -170,7 +100,7 @@ Section INCL.
 End INCL. 
 
 Lemma inline_prog_fst p p' :
-  inline_prog p = ok p' ->
+  inline_prog' p = ok p' ->
   [seq x.1 | x <- p] = [seq x.1 | x <- p'].
 Proof.
   elim: p p' => [ ?[<-] | [f fd] p Hrec p'] //=. 
@@ -179,9 +109,9 @@ Qed.
 
 Lemma inline_progP p p' f fd' :
   uniq [seq x.1 | x <- p] ->
-  inline_prog p = ok p' ->
+  inline_prog' p = ok p' ->
   get_fundef p' f = Some fd' ->
-  exists fd, get_fundef p f = Some fd /\ inline_fd p' fd = ok fd'.
+  exists fd, get_fundef p f = Some fd /\ inline_fd' p' fd = ok fd'.
 Proof.
   elim: p p' => [ | [f1 fd1] p Hrec] p' /=. 
   + by move=> _ [<-].
@@ -201,9 +131,9 @@ Qed.
 
 Lemma inline_progP' p p' f fd :
   uniq [seq x.1 | x <- p] ->
-  inline_prog p = ok p' ->
+  inline_prog' p = ok p' ->
   get_fundef p f = Some fd ->
-  exists fd', get_fundef p' f = Some fd' /\ inline_fd p' fd = ok fd'.
+  exists fd', get_fundef p' f = Some fd' /\ inline_fd' p' fd = ok fd'.
 Proof.
   elim: p p' => [ | [f1 fd1] p Hrec] p' //. 
   rewrite /= => /andP [] Hf1 Huniq.
@@ -220,19 +150,18 @@ Proof.
   by move: Hf1;rewrite (inline_prog_fst Hp1) H.
 Qed.
 
-
 Section SUBSET.
 
   Variable p : prog.  
 
   Let Pi i := forall X2 Xc,
-    inline_i p i X2 = ok Xc -> Sv.Equal Xc.1 (Sv.union (read_I i) X2).
+    inline_i' p i X2 = ok Xc -> Sv.Equal Xc.1 (Sv.union (read_I i) X2).
 
   Let Pr i := forall ii, Pi (MkI ii i).
 
   Let Pc c := 
     forall X2 Xc,
-      inline_c (inline_i p) c X2 = ok Xc -> Sv.Equal Xc.1 (Sv.union (read_c c) X2).
+      inline_c (inline_i' p) c X2 = ok Xc -> Sv.Equal Xc.1 (Sv.union (read_c c) X2).
 
   Local Lemma Smk    : forall i ii, Pr i -> Pi (MkI ii i).
   Proof. done. Qed.
@@ -285,7 +214,7 @@ Section SUBSET.
     by apply (@instr_r_Rect Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall).
   Qed.
   
-  Lemma inline_I_subset i : Pi i.
+  Lemma inline_i'_subset i : Pi i.
   Proof.
     by apply (@instr_Rect Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall).
   Qed.
@@ -434,29 +363,29 @@ Section PROOF.
 
   Hypothesis uniq_funname : uniq [seq x.1 | x <- p].
 
-  Hypothesis Hp : inline_prog p = ok p'.
+  Hypothesis Hp : inline_prog' p = ok p'.
 
   Let Pi_r s1 (i:instr_r) s2:= 
-    forall ii X1 X2 c', inline_i p' (MkI ii i) X2 = ok (X1, c') ->
+    forall ii X1 X2 c', inline_i' p' (MkI ii i) X2 = ok (X1, c') ->
     forall vm1, wf_vm vm1 -> evm s1 =[X1] vm1 -> 
     exists vm2, [/\ wf_vm vm2, evm s2 =[X2] vm2 &
        sem p' (Estate (emem s1) vm1) c' (Estate (emem s2) vm2)].
 
   Let Pi s1 (i:instr) s2:= 
-    forall X1 X2 c', inline_i p' i X2 = ok (X1, c') ->
+    forall X1 X2 c', inline_i' p' i X2 = ok (X1, c') ->
     forall vm1, wf_vm vm1 -> evm s1 =[X1] vm1 -> 
     exists vm2, [/\ wf_vm vm2, evm s2 =[X2] vm2 &
       sem p' (Estate (emem s1) vm1) c' (Estate (emem s2) vm2)].
 
   Let Pc s1 (c:cmd) s2:= 
-    forall X1 X2 c', inline_c (inline_i p') c X2 = ok (X1, c') ->
+    forall X1 X2 c', inline_c (inline_i' p') c X2 = ok (X1, c') ->
     forall vm1, wf_vm vm1 -> evm s1 =[X1] vm1 -> 
     exists vm2, [/\ wf_vm vm2, evm s2 =[X2] vm2 &
       sem p' (Estate (emem s1) vm1) c' (Estate (emem s2) vm2)].
 
   Let Pfor (i:var_i) vs s1 c s2 :=
     forall X1 X2 c', 
-    inline_c (inline_i p') c X2 = ok (X1, c') ->
+    inline_c (inline_i' p') c X2 = ok (X1, c') ->
     Sv.Equal X1 X2 ->
     forall vm1, wf_vm vm1 -> evm s1 =[X1] vm1 -> 
     exists vm2, [/\ wf_vm vm2, evm s2 =[X2] vm2 &

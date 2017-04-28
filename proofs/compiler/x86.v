@@ -33,7 +33,7 @@ From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import ZArith.
 
 Require Import strings word utils type var expr.
-Require Import low_memory memory sem linear compiler_util.
+Require Import low_memory memory sem linear linear_sem compiler_util.
 Import Ascii.
 Import Memory.
 Import Relations.
