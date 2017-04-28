@@ -169,6 +169,15 @@ let normalize_variables (tbl: (var, int) Hashtbl.t) (eqc: Puf.t) : (var, int) Ha
     Hashtbl.iter (fun v n -> Hashtbl.add r v (Puf.find eqc n)) tbl;
     r
 
+type allocation = var IntMap.t
+
+exception AlreadyAllocated
+
+let allocate_one (x: int) (r: var) (a: allocation) : allocation =
+  if IntMap.mem x a
+  then raise AlreadyAllocated
+  else IntMap.add x r a
+
 module X64 =
 struct
 
@@ -202,12 +211,33 @@ struct
   let f_s = V.mk "SF" Reg (Bty Bool) L._dummy
   let f_z = V.mk "ZF" Reg (Bty Bool) L._dummy
 
+  let forced_registers (vars: (var, int) Hashtbl.t)
+      (lvs: 'ty glvals) (op: op) (es: 'ty gexprs)
+      (a: allocation) : allocation =
+    match op, lvs, es with
+    | _, _, _ -> a (* TODO *)
+
 end
 
-type allocation = var IntMap.t
-
-let allocate_forced_registers (f: 'info func) (a: allocation) : allocation =
-  a
+let allocate_forced_registers (vars: (var, int) Hashtbl.t)
+    (f: 'info func) (a: allocation) : allocation =
+  (* TODO: consider calling conventions for arguments and returned values *)
+  let rec alloc_instr_r a =
+    function
+    | Cblock s
+    | Cfor (_, _, s)
+      -> alloc_stmt a s
+    | Copn (lvs, op, es) -> X64.forced_registers vars lvs op es a
+    | Cwhile (s1, _, s2)
+    | Cif (_, s1, s2)
+        -> alloc_stmt (alloc_stmt a s1) s2
+    | Cassgn _
+      -> a
+    | Ccall _ -> a (* TODO *)
+  and alloc_instr a { i_desc } = alloc_instr_r a i_desc
+  and alloc_stmt a s = List.fold_left alloc_instr a s
+  in
+  alloc_stmt a f.f_body
 
 let regalloc (f: 'info func) : 'info func =
   let f = fill_in_missing_names f in
@@ -216,4 +246,5 @@ let regalloc (f: 'info func) : 'info func =
   let eqc = collect_equality_constraints vars nv f in
   let vars = normalize_variables vars eqc in
   let conflicts = collect_conflicts vars lf in
+  let a = allocate_forced_registers vars f IntMap.empty in
   f
