@@ -79,7 +79,6 @@ rule main = parse
   | ")"     { RPAREN     }
   | "_"     { UNDERSCORE }
   | "->"    { RARROW     }
-  | "@"     { AT         }
   | ","     { COMMA      }
   | ";"     { SEMICOLON  }
   | "<="    { LE         }

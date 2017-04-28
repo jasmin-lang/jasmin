@@ -20,10 +20,14 @@ type peop2 = [
 ]
 
 (* -------------------------------------------------------------------- *)
+type wsize = [ `W8 | `W16 | `W32 | `W64 | `W128 | `W256 ]
+
+(* -------------------------------------------------------------------- *)
 type pexpr_r =
   | PEParens of pexpr
   | PEVar    of pident
   | PEGet    of pident * pexpr
+  | PEFetch  of ptype option * pident * pexpr
   | PEBool   of bool
   | PEInt    of Bigint.zint
   | PECall   of pident * pexpr list
@@ -33,9 +37,8 @@ type pexpr_r =
 and pexpr = pexpr_r L.located
 
 (* -------------------------------------------------------------------- *)
-type wsize   = [ `W8 | `W16 | `W32 | `W64 | `W128 | `W256 ]
-type ptype_r = TBool | TInt | TWord of wsize | TArray of wsize * pexpr
-type ptype   = ptype_r L.located
+and ptype_r = TBool | TInt | TWord of wsize | TArray of wsize * pexpr
+and ptype   = ptype_r L.located
 
 (* -------------------------------------------------------------------- *)
 type pstorage = [ `Reg | `Stack | `Inline ]
@@ -48,7 +51,7 @@ type plvalue_r =
   | PLIgnore
   | PLVar   of pident
   | PLArray of pident * pexpr
-  | PLMem   of pident * pexpr
+  | PLMem   of ptype option * pident * pexpr
 
 and plvalue = plvalue_r L.located
 

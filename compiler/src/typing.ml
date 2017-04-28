@@ -29,6 +29,7 @@ type tyerror =
   | NoOperator          of [ `Op2 of S.peop2 ] * P.pty list
   | InvalidArgCount     of int * int
   | DuplicateFun        of S.symbol * L.t
+  | InvalidCast         of P.pty pair
   | LvalueWithNoBaseTy
   | LvalueTooWide
   | LvalueTooNarrow
@@ -56,6 +57,9 @@ let pp_tyerror fmt (code : tyerror) =
 
   | InvalidType _ | TypeMismatch _ ->
       Format.fprintf fmt "invalid type"
+
+  | InvalidCast _ ->
+      Format.fprintf fmt "invalid cast"
 
   | InvOpInExpr _ ->
       Format.fprintf fmt
@@ -100,7 +104,6 @@ let pp_tyerror fmt (code : tyerror) =
 
   | Unsupported ->
       Format.fprintf fmt "unsupported"
-    
 
 (* -------------------------------------------------------------------- *)
 module Env : sig
@@ -332,7 +335,7 @@ let tt_op2 (e1, ty1) (e2, ty2) { L.pl_desc = pop; L.pl_loc = loc } =
   (P.Papp2 (op, e1, e2), ty) 
 
 (* -------------------------------------------------------------------- *)
-let tt_expr ~mode ?expect (env : Env.env) =
+let rec tt_expr ~mode ?expect (env : Env.env) =
   ignore mode;                  (* FIXME *)
 
   let rec aux ?expect (pe : S.pexpr) : (P.pexpr * P.pty) =
@@ -349,6 +352,19 @@ let tt_expr ~mode ?expect (env : Env.env) =
 
       | S.PEVar ({ L.pl_loc = lc; } as x) ->
            tt_var env x |> (fun x -> (P.Pvar (L.mk_loc lc x), x.P.v_ty))
+
+      | S.PEFetch (ct, ({ pl_loc = xlc } as x), po) ->
+          let x  = tt_var env x in
+          let o  = fst (tt_expr env ~mode:`InExpr ~expect:TPInt po) in
+          let w  = tt_as_word (xlc, x.P.v_ty) in
+          let ct = ct |> omap (fun st ->
+            let sty = tt_as_word (L.loc st, tt_type env st) in
+            if sty < w then
+              let sty, w = P.Bty (P.U sty), P.Bty (P.U w) in
+              rs_tyerror ~loc:(L.loc st) (InvalidCast (sty, w))
+            else sty) |> odfl w in
+
+          (P.Pload (ct, L.mk_loc xlc x, o), P.Bty (P.U ct))
 
       | S.PECall _ ->
           rs_tyerror ~loc:(L.loc pe) CallNotAllowed
@@ -374,7 +390,7 @@ let tt_expr ~mode ?expect (env : Env.env) =
   in fun pe -> aux ?expect pe
 
 (* -------------------------------------------------------------------- *)
-let tt_type (env : Env.env) (pty : S.ptype) : P.pty =
+and tt_type (env : Env.env) (pty : S.ptype) : P.pty =
   match L.unloc pty with
   | S.TBool     -> P.Bty P.Bool
   | S.TInt      -> P.Bty P.Int
@@ -428,11 +444,18 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
       let ty = tt_as_array (xlc, x.P.v_ty) in
       (P.Laset (L.mk_loc xlc x, i), Some ty)
 
-  | S.PLMem ({ pl_loc = xlc } as x, pe) ->
-      let x = tt_var env x in
-      let e = fst (tt_expr env ~mode:`InExpr ~expect:TPInt pe) in
-      let w = tt_as_word (xlc, x.P.v_ty) in
-      (P.Lmem (w, L.mk_loc xlc x, e), Some (P.Bty (P.U w)))
+  | S.PLMem (st, ({ pl_loc = xlc } as x), pe) ->
+      let x  = tt_var env x in
+      let e  = fst (tt_expr env ~mode:`InExpr ~expect:TPInt pe) in
+      let w  = tt_as_word (xlc, x.P.v_ty) in
+      let st = st |> omap (fun st ->
+        let sty = tt_as_word (L.loc st, tt_type env st) in
+        if sty < w then
+          let sty, w = P.Bty (P.U sty), P.Bty (P.U w) in
+          rs_tyerror ~loc:(L.loc st) (InvalidCast (sty, w))
+        else sty) |> odfl w in
+
+      (P.Lmem (st, L.mk_loc xlc x, e), Some (P.Bty (P.U st)))
 
 (* -------------------------------------------------------------------- *)
 let tt_expr_of_lvalue ((loc, lv) : L.t * P.pty P.glval) =

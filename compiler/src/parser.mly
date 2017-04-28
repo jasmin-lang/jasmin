@@ -17,7 +17,6 @@
 %token T_BOOL
 %token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
 
-%token AT
 %token AMP
 %token AMPAMP
 %token AMPEQ
@@ -157,6 +156,9 @@ pexpr_r:
 | i=INT
     { PEInt i }
 
+| ct=parens(ptype)? LBRACKET v=var PLUS e=pexpr RBRACKET
+    { PEFetch (ct, v, e) }
+
 | o=peop1 e=pexpr
     { PEOp1 (o, e) }
 
@@ -198,8 +200,8 @@ plvalue_r:
 | x=var i=brackets(pexpr)
     { PLArray (x, i) }
 
-| AT LBRACKET v=var PLUS e=pexpr RBRACKET
-    { PLMem (v, e) }
+| ct=parens(ptype)? LBRACKET v=var PLUS e=pexpr RBRACKET
+    { PLMem (ct, v, e) }
 
 plvalue:
 | x=loc(plvalue_r) { x }
