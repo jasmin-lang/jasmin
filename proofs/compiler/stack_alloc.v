@@ -109,15 +109,17 @@ Module S.
     sem s1 c2 s2 ->
     sem_i s1 (Cif e c1 c2) s2
 
-  | Ewhile_true s1 s2 s3 e c :
-    sem_pexpr s1 e >>= to_bool = ok true ->
+  | Ewhile_true s1 s2 s3 s4 c e c' :
     sem s1 c s2 ->
-    sem_i s2 (Cwhile e c) s3 ->
-    sem_i s1 (Cwhile e c) s3
+    sem_pexpr s2 e >>= to_bool = ok true ->
+    sem s2 c' s3 ->
+    sem_i s3 (Cwhile c e c') s4 ->
+    sem_i s1 (Cwhile c e c') s4
 
-  | Ewhile_false s e c :
-    sem_pexpr s e >>= to_bool = ok false ->
-    sem_i s (Cwhile e c) s
+  | Ewhile_false s1 s2 c e c' :
+    sem s1 c s2 ->
+    sem_pexpr s2 e >>= to_bool = ok false ->
+    sem_i s1 (Cwhile c e c') s2
 
   | Ecall s1 m2 s2 ii xs f args vargs vs :
     sem_pexprs s1 args = ok vargs ->
@@ -245,7 +247,7 @@ Fixpoint check_i (m: map) (i1 i2: instr) : bool :=
   | Cassgn r1 _ e1, Cassgn r2 _ e2 => check_lval m r1 r2 && check_e m e1 e2
   | Copn rs1 o1 e1, Copn rs2 o2 e2 => all2 (check_lval m) rs1 rs2 && (o1 == o2) && all2 (check_e m) e1 e2
   | Cif e1 c1 c1', Cif e2 c2 c2' => check_e m e1 e2 && all2 (check_i m) c1 c2 && all2 (check_i m) c1' c2'
-  | Cwhile e1 c1, Cwhile e2 c2 => check_e m e1 e2 && all2 (check_i m) c1 c2
+  | Cwhile c1 e1 c1', Cwhile c2 e2 c2' => all2 (check_i m) c1 c2 && check_e m e1 e2 && all2 (check_i m) c1' c2'
   | _, _ => false
   end.
 
@@ -1352,32 +1354,36 @@ Section PROOF.
     by rewrite (check_eP He Hvalid Hv).
   Qed.
 
-  Local Lemma Hwhile_true s1 s2 s3 e c :
-    Let x := sem_pexpr s1 e in to_bool x = ok true ->
+  Local Lemma Hwhile_true s1 s2 s3 s4 c e c' :
     sem P s1 c s2 -> Pc s1 c s2 ->
-    sem_i P s2 (Cwhile e c) s3 -> Pi_r s2 (Cwhile e c) s3 -> Pi_r s1 (Cwhile e c) s3.
+    Let x := sem_pexpr s2 e in to_bool x = ok true ->
+    sem P s2 c' s3 -> Pc s2 c' s3 ->
+    sem_i P s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 -> Pi_r s1 (Cwhile c e c') s4.
   Proof.
-    apply: rbindP=> v Hv Htrue ? Hc ? Hwhile ii1 ii2 i2 Hi2 s1' Hvalid.
-    case: i2 Hi2=> //= e' c' /andP [He Hi].
-    move: (Hc _ Hi _ Hvalid)=> [s2' [Hsem' Hvalid']].
-    have [|s3' [Hsem'' Hvalid'']] := (Hwhile ii1 ii2 (Cwhile e' c') _ _ Hvalid').
-    by rewrite /= He Hi.
+    move=> _ Hc.
+    apply: rbindP=> v Hv Htrue ? Hc' ? Hwhile ii1 ii2 i2 Hi2 s1' Hvalid.
+    case: i2 Hi2=> //= c2 e2 c2' /andP [/andP [Hc2 He2] Hc2'].
+    move: (Hc _ Hc2 _ Hvalid)=> [s2' [Hsem' Hvalid']].
+    move: (Hc' _ Hc2' _ Hvalid')=> [s2'' [Hsem'' Hvalid'']].
+    have [|s3' [Hsem''' Hvalid''']] := (Hwhile ii1 ii2 (Cwhile c2 e2 c2') _ _ Hvalid'').
+    by rewrite /= Hc2 He2 Hc2'.
     exists s3'; split=> //.
-    apply: S.Ewhile_true.
-    by rewrite (check_eP He Hvalid Hv).
-    exact: Hsem'.
-    exact: Hsem''.
+    apply: S.Ewhile_true; eauto.
+    by rewrite (check_eP He2 Hvalid' Hv).
   Qed.
 
-  Local Lemma Hwhile_false s e c :
-    Let x := sem_pexpr s e in to_bool x = ok false ->
-    Pi_r s (Cwhile e c) s.
+  Local Lemma Hwhile_false s1 s2 c e c' :
+    sem P s1 c s2 -> Pc s1 c s2 ->
+    Let x := sem_pexpr s2 e in to_bool x = ok false ->
+    Pi_r s1 (Cwhile c e c') s2.
   Proof.
+    move=> _ Hc.
     apply: rbindP=> v Hv Hfalse ii1 ii2 i2 Hi2 s1' Hvalid.
-    case: i2 Hi2=> //= e' c' /andP [He _].
-    exists s1'; split=> //.
-    apply: S.Ewhile_false.
-    by rewrite (check_eP He Hvalid Hv).
+    case: i2 Hi2=> //= c2 e2 c2' /andP [/andP [Hc2 He2] _].
+    move: (Hc _ Hc2 _ Hvalid)=> [s2' [Hsem' Hvalid']].
+    exists s2'; split=> //.
+    apply: S.Ewhile_false; eauto.
+    by rewrite (check_eP He2 Hvalid' Hv).
   Qed.
 
   Local Lemma Hfor s1 s2 (i:var_i) d lo hi c vlo vhi :
@@ -1542,13 +1548,7 @@ Proof.
         by rewrite /Fv.get /= in Habs.
   move: (check_varsW Hp Hval'' H1)=> [s2 [Hs2 Hv2]].
   have [[m2' vm2'] [Hs2' Hv2']] := check_cP SP Hstk Hv H2 Hi Hv2.
-  apply: S.EcallRun.
-  + exact: Sget.
-  + exact: Halloc.
-  + rewrite //.
-  + rewrite /=.
-    exact: Hs2.
-  + exact: Hs2'.
+  apply: S.EcallRun; eauto=> //.
   + move: Hv2'=> [] _ _ _ Heqvm _.
     by rewrite -(check_varsP Hr Heqvm) /= H3.
   + apply eq_memP=> w.
@@ -1565,7 +1565,6 @@ Proof.
     case Heq2: (read_mem m2' w) => [w'|];last by rewrite (read_mem_error Heq2).
     have : valid_addr m2' w by apply /readV;exists w'.
     by rewrite Hvalw Hbound orbC /= => /readV [w1];rewrite Heq1.
-  by [].
 Qed.
 
 Definition alloc_ok SP fn m1 :=
@@ -1584,11 +1583,5 @@ Proof.
   move=> Hcheck m1 va m1' vr H Halloc.
   have H' := H; sinversion H'.
   move: (all_progP Hcheck H0)=> [fd' [l' [Hfd' Hl']]].
-  apply: check_fdP=> //.
-  exact: H0.
-  exact: Hfd'.
-  exact: Hl'.
-  exact: H.
-  rewrite /alloc_ok in Halloc.
-  exact: (Halloc _ Hfd').
+  by apply: check_fdP=> //; eauto.
 Qed.

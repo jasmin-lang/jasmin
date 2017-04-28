@@ -229,14 +229,14 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
     MkLI ii (Lcond e L1) >; linear_c linear_i c2 ;; MkLI ii (Lgoto L2) >;
     MkLI ii (Llabel L1) >; linear_c linear_i c1 lbl (MkLI ii (Llabel L2) :: lc)
 
-  | Cwhile e c =>
+  | Cwhile c e c' =>
     let L1 := lbl in
     let L2 := next_lbl L1 in
     let lbl := next_lbl L2 in
     MkLI ii (Lgoto L1) >;
     MkLI ii (Llabel L2) >;
-    linear_c linear_i c lbl
-    (MkLI ii (Llabel L1) :: MkLI ii (Lcond e L2) :: lc)
+    linear_c linear_i c' ;; MkLI ii (Llabel L1) >; linear_c linear_i c lbl
+    (MkLI ii (Lcond e L2) :: lc)
 
   | Cfor _ _ _ => cierror ii (Cerr_linear "for found in linear")
 
@@ -306,10 +306,11 @@ Section CAT.
   Let Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir, lo, hi) c).
   Proof. by []. Qed.
 
-  Let Hwhile : forall e c, Pc c -> Pr (Cwhile e c).
+  Let Hwhile : forall c e c', Pc c -> Pc c' -> Pr (Cwhile c e c').
   Proof.
-    move=> e c Hc ii lbl l /=.
-    by rewrite Hc (Hc _ [::_;_]) !bindA;apply bind_eq => //= p;rewrite -!catA.
+    move=> c e c' Hc Hc' ii lbl l /=.
+    rewrite Hc (Hc _ [:: _]) !bindA; apply bind_eq => //= p.
+    by rewrite Hc' (Hc' _ (_ :: _)) !bindA; apply bind_eq=> //= p'; rewrite -catA /= -catA /=.
   Qed.
 
   Let Hcall : forall i xs f es, Pr (Ccall i xs f es).
@@ -519,6 +520,17 @@ Proof.
   by move: (H2 lbl);rewrite H H'.
 Qed.
 
+Lemma disjoint_cat_r c1 c2 c :
+  disjoint_lbl c (c1++c2) <-> (disjoint_lbl c c1 /\ disjoint_lbl c c2).
+Proof.
+  rewrite /disjoint_lbl;split.
+  + move=> H1;split=> lbl;have := H1 lbl;rewrite has_cat;apply contra=>/andP[]->->//.
+    by rewrite orbC.
+  move=> [H1 H2] lbl;rewrite has_cat;apply /negP => /andP[] H /orP[]H'.
+  + by move: (H1 lbl);rewrite H H'.
+  by move: (H2 lbl);rewrite H H'.
+Qed.
+
 Definition LSem_step c s1 s2 : lsem1 c s1 s2 -> lsem c s1 s2 := rt_step _ _ s1 s2.
 
 Section PROOF.
@@ -713,19 +725,32 @@ Section PROOF.
   Let Hfor : forall v dir lo hi c, Pc c -> Pi_r (Cfor v (dir, lo, hi) c).
   Proof. by []. Qed.
 
-  Let Hwhile : forall e c, Pc c -> Pi_r (Cwhile e c).
+  Let Hwhile : forall c e c', Pc c -> Pc c' -> Pi_r (Cwhile c e c').
   Proof.
-    move=> e c Hc ii lbl lbli li /=;rewrite linear_c_nil.
-    case Heq:linear_c => [[lblc lc]|] //= [] ??;subst lbli li.
+    move=> c e c' Hc Hc' ii lbl lbli li /=;rewrite linear_c_nil.
+    case Heqc: linear_c => [[lblc lc]|] //=.
+    have {Hc}[Hle1 Hvc Hc]:= Hc _ _ _ Heqc.
+    rewrite linear_c_nil.
+    case Heq:linear_c => [[lblc' lc']|] //= [] ??;subst lbli li.
     have leL1 := le_next lbl; have leL2 := le_next (next_lbl lbl).
     have lblL2 := Pos_leb_trans leL1 leL2.
-    have {Heq} [Hle Hv Hs]:= Hc _ _ _ Heq;split.
-    + by apply: (Pos_leb_trans lblL2 Hle).
+    have lblcL2 := Pos_leb_trans lblL2 Hle1.
+    have {Heq} [Hle Hv Hs]:= Hc' _ _ _ Heq;split.
+    + apply: (Pos_leb_trans lblL2).
+      by apply: (Pos_leb_trans Hle1).
     + rewrite /= valid_cat /= Pos.leb_refl leL1 (valid_le_min _ Hv) //.
-      rewrite (Pos_lt_leb_trans (lt_next _) Hle).
-      by rewrite (Pos_lt_leb_trans (lt_next _) (Pos_leb_trans leL2 Hle)).
+      rewrite (Pos_lt_leb_trans (lt_next _)).
+      rewrite (Pos_lt_leb_trans _ Hle) /=.
+      rewrite valid_cat /= leL1 /=.
+      rewrite (valid_le_max Hle) /=.
+      rewrite (Pos_lt_leb_trans (lt_next _)) //.
+      rewrite (Pos_leb_trans Hle1) //.
+      rewrite (valid_le_min _ Hvc) //.
+      rewrite (Pos_lt_leb_trans (lt_next _)) //.
+      rewrite (Pos_leb_trans _ Hle) //.
+      rewrite (Pos_leb_trans leL2 Hle1) //.
     move=> s1 s2 H.
-    + apply lsem_step with (of_estate s1 [::MkLI ii (Lcond e (next_lbl lbl))]).
+    + apply lsem_step with (of_estate s1 (lc ++ [::MkLI ii (Lcond e (next_lbl lbl))])).
       + eapply LSem_goto=> /=;eauto.
         rewrite /is_label /=.
         case: eqP => H'.
@@ -734,33 +759,79 @@ Section PROOF.
         rewrite /is_label /=.
         case: eqP => //.
         apply /negP=> H1;have := @valid_has _ lbl _ _ Hv.
-        by rewrite H1 Pos.leb_antisym (Pos_lt_leb_trans (lt_next _) leL2) /= => /(_ isT).
-    set C1 := lc ++ [:: MkLI ii (Llabel lbl); MkLI ii (Lcond e (next_lbl lbl))];
+        rewrite H1 Pos.leb_antisym.
+        by rewrite (Pos_lt_leb_trans (Pos_lt_leb_trans (lt_next _) leL2) Hle1) /= => /(_ isT).
+    (* Start induction after the first goto (at the first location where the loop will come back) *)
+    set C1 := lc' ++ (MkLI ii (Llabel lbl) :: lc) ++ [:: MkLI ii (Lcond e (next_lbl lbl))];
     set C2 := [:: MkLI ii (Lgoto lbl), MkLI ii (Llabel (next_lbl lbl)) & C1].
-    elim: _ {-1}_ _ / H Hs (erefl (Cwhile e c))=> // {s1 s2}.
-    + move=> s1 s2 s3 e0 c0 He Hsem Hsemi IH Hs [] He' Hc'.
-      subst e0; subst c0.
+    elim: _ {-1}_ _ / H Hs (erefl (Cwhile c e c'))=> // {s1 s2}.
+    + move=> s1 s2 s3 s4 c0 e0 c'0 Hsem0 He Hsem Hsemi IH Hs [] ???; subst c0; subst e0; subst c'0.
+      apply (@lsem_trans (of_estate s2 [ :: MkLI ii (Lcond e (next_lbl lbl))])).
+      + have Hd: disjoint_lbl
+          [:: {| li_ii := ii; li_i := Lgoto lbl |}, {| li_ii := ii; li_i := Llabel (next_lbl lbl) |}
+          & lc' ++ [:: {| li_ii := ii; li_i := Llabel lbl |}]] lc.
+          rewrite -cat1s -[_ :: (lc' ++ _)]cat1s.
+          rewrite !disjoint_cat_l; repeat split=> //.
+          + move=> lbl0 /=;rewrite orbF /is_label /=; case: eqP=> //= ?;subst.
+            apply /negP=> H; have := @valid_has _ (next_lbl lbl) _ _ Hvc.
+            by rewrite H Pos.leb_antisym (lt_next _) orbT=> /(_ isT).
+          + apply: (valid_disjoint _ Hv Hvc).
+            by rewrite Pos.leb_refl /= orbT.
+          + move=> lbl0 /=; rewrite orbF /is_label /=; case: eqP=> //= ?;subst.
+            apply/negP=> H; have := @valid_has _ lbl _ _ Hvc.
+            by rewrite H Pos.leb_antisym (Pos_lt_leb_trans (lt_next _) leL2) orbT=> /(_ isT).
+        have /(_ (erefl _)) := lsem_cat_hd Hd _ (Hc _ _ Hsem0).
+        move=> /(lsem_cat_tl [:: MkLI ii (Lcond e (next_lbl lbl))]) /=.
+        have ->: [:: {| li_ii := ii; li_i := Lgoto lbl |}, {| li_ii := ii; li_i := Llabel (next_lbl lbl) |} & ((lc' ++ [:: {| li_ii := ii; li_i := Llabel lbl |}]) ++ lc) ++ [:: {| li_ii := ii; li_i := Lcond e (next_lbl lbl) |}]] = C2.
+          rewrite /C2.
+          congr [:: _, _ & _].
+          rewrite /C1 !catA.
+          by rewrite -!catA cat1s.
+        move=> Hsem'; apply: Hsem'.
       apply: lsem_step.
       apply: LSem_condTrue=> //.
       rewrite /= /to_estate /=.
-      by case: s1 He Hsem.
+      by case: s2 He Hsem Hsem0.
       by rewrite /= /is_label /= eq_refl.
       apply: lsem_trans.
-      have Hd : disjoint_lbl [:: MkLI ii (Lgoto lbl); MkLI ii (Llabel (next_lbl lbl))] lc.
+      have Hd : disjoint_lbl [:: MkLI ii (Lgoto lbl); MkLI ii (Llabel (next_lbl lbl))] lc'.
       + move=> lbl0 /=;rewrite orbF /is_label /=;case: eqP => //= ?;subst.
         apply /negP=> H;have := @valid_has _ (next_lbl lbl) _ _ Hv.
-        by rewrite H Pos.leb_antisym lt_next /= orbC => /(_ isT).
+        rewrite H Pos.leb_antisym.
+        by rewrite (Pos_lt_leb_trans (lt_next _) Hle1) /= orbT => /(_ isT).
       have /(_ (erefl _)):= lsem_cat_hd Hd _ (Hs _ _ Hsem).
-      move=> /(@lsem_cat_tl [:: MkLI ii (Llabel lbl); MkLI ii (Lcond e (next_lbl lbl))]).
+      move=> /(@lsem_cat_tl ((MkLI ii (Llabel lbl)) :: lc ++ [:: MkLI ii (Lcond e (next_lbl lbl))])).
       rewrite /= -/C2 => H.
       apply: (lsem_trans H);apply: LSem_step.
       eapply LSem_lbl=> /=; eauto.
       exact: IH.
-    + move=> s e0 c0 He Hs [] He' Hc'; subst e0; subst c0.
+    + move=> s1 s2 c0 e0 c0' Hs0 He Hs [] ???; subst e0 c0 c0'.
+      apply (@lsem_trans (of_estate s2 [ :: MkLI ii (Lcond e (next_lbl lbl))])).
+      + have Hd: disjoint_lbl
+          [:: {| li_ii := ii; li_i := Lgoto lbl |}, {| li_ii := ii; li_i := Llabel (next_lbl lbl) |}
+          & lc' ++ [:: {| li_ii := ii; li_i := Llabel lbl |}]] lc.
+          rewrite -cat1s -[_ :: (lc' ++ _)]cat1s.
+          rewrite !disjoint_cat_l; repeat split=> //.
+          + move=> lbl0 /=;rewrite orbF /is_label /=; case: eqP=> //= ?;subst.
+            apply /negP=> H; have := @valid_has _ (next_lbl lbl) _ _ Hvc.
+            by rewrite H Pos.leb_antisym (lt_next _) orbT=> /(_ isT).
+          + apply: (valid_disjoint _ Hv Hvc).
+            by rewrite Pos.leb_refl /= orbT.
+          + move=> lbl0 /=; rewrite orbF /is_label /=; case: eqP=> //= ?;subst.
+            apply/negP=> H; have := @valid_has _ lbl _ _ Hvc.
+            by rewrite H Pos.leb_antisym (Pos_lt_leb_trans (lt_next _) leL2) orbT=> /(_ isT).
+        have /(_ (erefl _)) := lsem_cat_hd Hd _ (Hc _ _ Hs0).
+        move=> /(lsem_cat_tl [:: MkLI ii (Lcond e (next_lbl lbl))]) /=.
+        have ->: [:: {| li_ii := ii; li_i := Lgoto lbl |}, {| li_ii := ii; li_i := Llabel (next_lbl lbl) |} & ((lc' ++ [:: {| li_ii := ii; li_i := Llabel lbl |}]) ++ lc) ++ [:: {| li_ii := ii; li_i := Lcond e (next_lbl lbl) |}]] = C2.
+          rewrite /C2.
+          congr [:: _, _ & _].
+          rewrite /C1 !catA.
+          by rewrite -!catA cat1s.
+        move=> Hsem'; apply: Hsem'.
       apply: lsem_step.
       apply: LSem_condFalse=> //.
       rewrite /= /to_estate /=.
-      by case: s He.
+      by case: s2 He Hs0.
       exact: rt_refl.
   Qed.
 
@@ -795,17 +866,10 @@ Section PROOF.
     have [_ _ H] := linear_cP Heq.
     move: H4=> /H /(@lsem_cat_tl [::]) Hs.
     rewrite -Hf'3 in Hf'2.
-    apply: LSem_fd.
-    exact: Hf'2.
-    exact: H1.
-    exact: H2.
-    exact: H3.
+    apply: LSem_fd; eauto=> /=.
     rewrite -Hl /=.
     rewrite /= Hz2 in Hs.
     exact: Hs.
-    exact: H5.
-    rewrite //.
-    exact: H7.
   Qed.
 
 End PROOF.

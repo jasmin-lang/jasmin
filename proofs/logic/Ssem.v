@@ -339,15 +339,17 @@ with ssem_i : sestate -> instr_r -> sestate -> Prop :=
     ssem s1 c2 s2 ->
     ssem_i s1 (Cif e c1 c2) s2
 
-| SEwhile_true s1 s2 s3 e c :
-    ssem_pexpr s1 e >>= sto_bool = ok true ->
+| SEwhile_true s1 s2 s3 s4 c e c' :
     ssem s1 c s2 ->
-    ssem_i s2 (Cwhile e c) s3 ->
-    ssem_i s1 (Cwhile e c) s3
+    ssem_pexpr s2 e >>= sto_bool = ok true ->
+    ssem s2 c' s3 ->
+    ssem_i s3 (Cwhile c e c') s4 ->
+    ssem_i s1 (Cwhile c e c') s4
 
-| SEwhile_false s e c :
-    ssem_pexpr s e >>= sto_bool = ok false ->
-    ssem_i s (Cwhile e c) s
+| SEwhile_false s1 s2 c e c' :
+    ssem s1 c s2 ->
+    ssem_pexpr s2 e >>= sto_bool = ok false ->
+    ssem_i s1 (Cwhile c e c') s2
 
 | SEfor s1 s2 (i:var_i) d lo hi c vlo vhi :
     ssem_pexpr s1 lo >>= sto_int = ok vlo ->

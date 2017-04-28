@@ -63,6 +63,7 @@ Lemma hoare_rcons prg R P Q c i :
 Proof. by move=> h1 h2; rewrite -cats1; apply: (@hoare_seq _ R). Qed.
 
 (* -------------------------------------------------------------------- *)
+(*
 Lemma hoare_while prg z I e c :
    hoare prg (fun s => I s /\ e2b s e) c I
 -> hoare prg I [:: MkI z (Cwhile e c)]
@@ -86,7 +87,7 @@ Lemma hoare_while_seq prg z P I c0 e c :
 -> hoare prg P (rcons c0 (MkI z (Cwhile e c)))
          (fun s => I s /\ ~~ e2b s e).
 Proof. by move=> h0 h; apply: (hoare_rcons h0); apply: hoare_while. Qed.
-
+*)
 (* -------------------------------------------------------------------- *)
 Definition hoare_for prg x zs P c Q :=
   forall s s', ssem_for prg x zs s c s' -> P s -> Q s'.

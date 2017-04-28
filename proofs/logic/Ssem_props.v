@@ -88,15 +88,17 @@ Hypothesis Iif_false : forall s1 s2 e c1 c2,
   Let x := ssem_pexpr s1 e in sto_bool x = ok false ->
   ssem p s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
 
-Hypothesis Iwhile_true : forall s1 s2 s3 e c,
-     Let x := ssem_pexpr s1 e in sto_bool x = ok true
-  -> ssem p s1 c s2 -> Pc s1 c s2
-  -> ssem_i p s2 (Cwhile e c) s3 -> Pi_r s2 (Cwhile e c) s3
-  -> Pi_r s1 (Cwhile e c) s3.
+Hypothesis Iwhile_true : forall s1 s2 s3 s4 c e c',
+     ssem p s1 c s2 -> Pc s1 c s2
+  -> Let x := ssem_pexpr s2 e in sto_bool x = ok true
+  -> ssem p s2 c' s3 -> Pc s2 c' s3
+  -> ssem_i p s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4
+  -> Pi_r s1 (Cwhile c e c') s4.
 
-Hypothesis Iwhile_false : forall s e c,
-     Let x := ssem_pexpr s e in sto_bool x = ok false
-  -> Pi_r s (Cwhile e c) s.
+Hypothesis Iwhile_false : forall s1 s2 c e c',
+     ssem p s1 c s2 -> Pc s1 c s2
+  -> Let x := ssem_pexpr s2 e in sto_bool x = ok false
+  -> Pi_r s1 (Cwhile c e c') s2.
 
 Hypothesis Ifor : forall s1 s2 (i : var_i) d lo hi c vlo vhi,
      Let x := ssem_pexpr s1 lo in sto_int x = ok vlo
@@ -249,7 +251,9 @@ eapply (@ssem_Ind p
 + by move=> s1 s2 o xs es; t_xrbindP=> vs vs'; writeN=> _ _ /vrvsP.
 + by move=> s1 s2 e c1 c2 _ _; writeN; apply/svmap_eq_exceptL.
 + by move=> s1 s2 e c1 c2 _ _; writeN; apply/svmap_eq_exceptR.
-+ by move=> s1 s2 s3 e c; writeN=> _ _ h1 _ h2; transitivity (sevm s2).
++ move=> s1 s2 s3 s4 c e c'; writeN=> _ h1 _ _ h2 _ h3; transitivity (sevm s3) =>//.
+  by transitivity (sevm s2); [apply: svmap_eq_exceptL | apply: svmap_eq_exceptR].
++ by move=> s1 s2 c e c'; writeN=> _ h1 _; apply: svmap_eq_exceptL.
 + move=> s1 s2 x d lo hi c vlo vhi; writeN=> _ _ h.
   by rewrite SvP.MP.add_union_singleton.
 + move=> s1 s1' s2 s3 x w ws c /swrite_var_eqmem h1 _ h2 _ h3.

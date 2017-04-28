@@ -484,26 +484,30 @@ Proof.
   by apply SEif_false;rewrite // H1.
 Qed.
 
-Local Lemma Hwhile_true s1 s2 s3 e c :
-  Let x := sem_pexpr s1 e in to_bool x = ok true ->
+Local Lemma Hwhile_true s1 s2 s3 s4 c e c' :
   sem p s1 c s2 -> Pc s1 c s2 ->
-  sem_i p s2 (Cwhile e c) s3 -> Pi_r s2 (Cwhile e c) s3 -> Pi_r s1 (Cwhile e c) s3.
+  Let x := sem_pexpr s2 e in to_bool x = ok true ->
+  sem p s2 c' s3 -> Pc s2 c' s3 ->
+  sem_i p s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 -> Pi_r s1 (Cwhile c e c') s4.
 Proof.
-  move=> H _ Hc _ Hw vm1 Hvm1;apply: rbindP H => v.
-  move=> /(ssem_pexpr_uincl Hvm1) [] v' [] H1 H2.
+  move=> _ Hc H _ Hc' _ Hw vm1 Hvm1;apply: rbindP H => v.
+  have [vm2 [Hs2 Hvm2]] := Hc _ Hvm1.
+  move=> /(ssem_pexpr_uincl Hvm2) [] v' [] H1 H2.
   move=> /(svalue_uincl_bool H2) [] ??;subst.
-  have [vm2 [H3 /Hw [vm3] [??]]]:= Hc _ Hvm1;exists vm3;split => //.
+  have [vm3 [H4 /Hw [vm4] [??]]]:= Hc' _ Hvm2;exists vm4;split => //.
   by eapply SEwhile_true;eauto;rewrite H1.
 Qed.
 
-Local Lemma Hwhile_false s e c :
-  Let x := sem_pexpr s e in to_bool x = ok false ->
-  Pi_r s (Cwhile e c) s.
+Local Lemma Hwhile_false s1 s2 c e c' :
+  sem p s1 c s2 -> Pc s1 c s2 ->
+  Let x := sem_pexpr s2 e in to_bool x = ok false ->
+  Pi_r s1 (Cwhile c e c') s2.
 Proof.
-  move=> H vm1 Hvm1;apply: rbindP H=> v.
-  move=> /(ssem_pexpr_uincl Hvm1) [] v' [] H1 H2.
+  move=> _ Hc H vm1 Hvm1; apply: rbindP H => v.
+  have [vm2 [Hs2 Hvm2]] := Hc _ Hvm1.
+  move=> /(ssem_pexpr_uincl Hvm2) [] v' [] H1 H2.
   move=> /(svalue_uincl_bool H2) [] ??;subst.
-  by exists vm1;split=> //;apply SEwhile_false;rewrite H1.
+  by exists vm2;split=> //;apply: SEwhile_false=> //;rewrite H1.
 Qed.
 
 Local Lemma Hfor s1 s2 (i : var_i) d lo hi c (vlo vhi : Z) :

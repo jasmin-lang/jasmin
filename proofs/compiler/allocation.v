@@ -144,10 +144,12 @@ Fixpoint check_i iinfo i1 i2 r :=
           fold2 (iinfo,cmd2_error) check_I c1 c2 in
       loop iinfo check_c Loop.nb rhi 
     else cierror iinfo (Cerr_neqdir salloc)
-  | Cwhile e1 c1, Cwhile e2 c2 =>
+  | Cwhile c1 e1 c1', Cwhile c2 e2 c2' =>
     let check_c r :=
-      add_iinfo iinfo (check_e e1 e2 r) >>= 
-      fold2 (iinfo,cmd2_error) check_I c1 c2 in
+      Let r := fold2 (iinfo,cmd2_error) check_I c1 c2 r in
+      Let re := add_iinfo iinfo (check_e e1 e2 r) in
+      Let r' := fold2 (iinfo,cmd2_error) check_I c1' c2' re in
+      ok (M.merge r' re) in
      loop iinfo check_c Loop.nb r
   | _, _ => cierror iinfo (Cerr_neqinstr i1 i2 salloc)
   end
@@ -345,38 +347,50 @@ Section PROOF.
     apply: (M.incl_trans H2); apply M.merge_incl_l.
   Qed.
     
-  Local Lemma Hwhile_true s1 s2 s3 e c:
-    Let x := sem_pexpr s1 e in to_bool x = Ok error true ->
+  Local Lemma Hwhile_true s1 s2 s3 s4 c e c':
     sem p1 s1 c s2 -> Pc s1 c s2 ->
-    sem_i p1 s2 (Cwhile e c) s3 -> Pi_r s2 (Cwhile e c) s3 -> 
-    Pi_r s1 (Cwhile e c) s3.
+    Let x := sem_pexpr s2 e in to_bool x = Ok error true ->
+    sem p1 s2 c' s3 -> Pc s2 c' s3 ->
+    sem_i p1 s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 -> 
+    Pi_r s1 (Cwhile c e c') s4.
   Proof.
-    case: s1 => sm1 svm1.
-    apply: rbindP => ve Hve Hto _ Hc _ Hrec ii r1 [] //= e2 c2 r2 vm1 Hvm1.
-    move=> Hloop;have [r2' []]:= loopP Hloop;apply: rbindP => r3;apply: add_iinfoP.
-    move=> He Hc0; move: (Hc0) => /Hc{Hc}Hc Hincl.
-    have := eq_alloc_incl Hincl Hvm1.
-    move=> /(check_eP He) [] /Hc [vm2 [Hvm2 Hc2]] /(_ _ _ Hve) [ve' ] [Hve' Uve] Hr2.
-    have : check_i ii (Cwhile e c) (Cwhile e2 c2) r2 = ok r2.
-    + by rewrite /= Loop.nbP /= He /= Hc0 /= Hr2.
-    have /Hrec H := eq_alloc_incl Hr2 Hvm2.
-    move=> /H [vm3] [] ? Hw;exists vm3;split => //.
-    apply: Ewhile_true;eauto;rewrite Hve' /=.
-    by have [_ ->]:= value_uincl_bool Uve Hto.
+    case: s2 => sm2 svm2 _ Hc Hse _ Hc' _ Hw ii r1 [] //= c2 e2 c2' r2 vm1 Hvm1.
+    move=> /loopP [r3] [];apply: rbindP => r4 Hr4;apply: rbindP => r5.
+    apply: add_iinfoP => Hr5.
+    apply: rbindP => r6 Hr6 [?] Hr2r1 Hr2r3;subst r3.
+    have Hr2vm1 := eq_alloc_incl Hr2r1 Hvm1.
+    have [vm2 /= [Hr4vm2 Hsc2]]:= Hc _ _ _ _ _ Hr2vm1 Hr4.
+    apply: rbindP Hse => z He Hto.
+    have [Hr5vm2 /(_ _ _ He) [v2 [Hv2]] ] := check_eP Hr5 Hr4vm2.
+    move=> /value_uincl_bool -/(_ _ Hto) [??];subst z v2.
+    have [vm3 [Hr6vm3 Hsc2']] := Hc' _ _ _ _ _ Hr5vm2 Hr6. 
+    have /Hw : check_i ii (Cwhile c e c') (Cwhile c2 e2 c2') r2 = ok r2.
+    + by rewrite /= Loop.nbP /= Hr4 /= Hr5 /= Hr6 /= Hr2r3.  
+    move=> /(_ vm3) [| vm4 [Hr2vm4 Hsw]].
+    + apply: eq_alloc_incl Hr6vm3.
+      by apply: (M.incl_trans Hr2r3); apply: M.merge_incl_l.
+    exists vm4;split => //.
+    by apply: (Ewhile_true Hsc2) Hsc2' Hsw;rewrite Hv2.
   Qed.
 
-  Local Lemma Hwhile_false s e c:
-    Let x := sem_pexpr s e in to_bool x = Ok error false ->
-    Pi_r s (Cwhile e c) s.
+  Local Lemma Hwhile_false s1 s2 c e c':
+    sem p1 s1 c s2 -> Pc s1 c s2 ->
+    Let x := sem_pexpr s2 e in to_bool x = Ok error false ->
+    Pi_r s1 (Cwhile c e c') s2.
   Proof.
-    case s=> m vm.
-    apply: rbindP => ve Hve Hto ii r1 [] //= e2 c2 r2 vm1 Hvm1.
-    move=> Hloop;have [r2' []]:= loopP Hloop;apply: rbindP => r3;apply: add_iinfoP.
-    move=> He _ Hincl;move /eq_alloc_incl : (Hincl) => /(_ _ _ Hvm1) -/(check_eP He) [] Hr3.
-    move=> /(_ _ _ Hve) [ve'] [] Hve' Uve;exists vm1;split.
-    + by apply: eq_alloc_incl Hvm1.
-    apply: Ewhile_false;eauto;rewrite Hve' /=.
-    by have [_ ->]:= value_uincl_bool Uve Hto.
+    case: s2 => sm2 svm2 _ Hc Hse ii r1 [] //= c2 e2 c2' r2 vm1 Hvm1.
+    move=> /loopP [r3] [];apply: rbindP => r4 Hr4;apply: rbindP => r5.
+    apply: add_iinfoP => Hr5.
+    apply: rbindP => r6 Hr6 [?] Hr2r1 Hr2r3;subst r3.
+    have Hr2vm1 := eq_alloc_incl Hr2r1 Hvm1.
+    have [vm2 /= [Hr4vm2 Hsc2]]:= Hc _ _ _ _ _ Hr2vm1 Hr4.
+    apply: rbindP Hse => z He Hto.
+    have [Hr5vm2 /(_ _ _ He) [v2 [Hv2]] ] := check_eP Hr5 Hr4vm2.
+    move=> /value_uincl_bool -/(_ _ Hto) [??];subst z v2.
+    exists vm2;split.
+    + apply: eq_alloc_incl Hr5vm2.
+      by apply: (M.incl_trans Hr2r3); apply: M.merge_incl_r.
+    by apply: Ewhile_false;rewrite // Hv2.
   Qed.
  
   Local Lemma Hfor s1 s2 (i:var_i) d lo hi c vlo vhi :

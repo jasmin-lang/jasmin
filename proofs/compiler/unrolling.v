@@ -64,7 +64,7 @@ Fixpoint unroll_i (i:instr) : cmd :=
       flatten cs 
     | _, _       => [:: MkI ii (Cfor i (dir, low, hi) c') ]
     end     
-  | Cwhile e c   => [:: MkI ii (Cwhile e (unroll_cmd unroll_i c)) ]
+  | Cwhile c e c'  => [:: MkI ii (Cwhile (unroll_cmd unroll_i c) e (unroll_cmd unroll_i c')) ]
   | Ccall _ _ _ _  => [:: i ]
   end.
 
@@ -147,14 +147,14 @@ Section PROOF.
     by apply: sem_seq1; apply: EmkI; apply: Eif_false.
   Qed.
 
-  Local Lemma Hwhile_true s1 s2 s3 e c :
-    Let x := sem_pexpr s1 e in to_bool x = ok true ->
+  Local Lemma Hwhile_true s1 s2 s3 s4 c e c' :
     sem p s1 c s2 -> Pc s1 c s2 ->
-    sem_i p s2 (Cwhile e c) s3 -> Pi_r s2 (Cwhile e c) s3 -> Pi_r s1 (Cwhile e c) s3.
+    Let x := sem_pexpr s2 e in to_bool x = ok true ->
+    sem p s2 c' s3 -> Pc s2 c' s3 ->
+    sem_i p s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 -> Pi_r s1 (Cwhile c e c') s4.
   Proof.
-    move=> Hb Hsc Hc Hsi Hi ii.
-    apply: sem_seq1; apply: EmkI; apply: Ewhile_true=> //.
-    apply: Hc.
+    move=> Hsc Hc Hb Hsc' Hc' Hsi Hi ii.
+    apply: sem_seq1; apply: EmkI; apply: Ewhile_true=> //; eauto=> /=.
     move: Hi=> /(_ ii) Hi.
     sinversion Hi.
     sinversion H2.
@@ -162,11 +162,12 @@ Section PROOF.
     apply: H5.
   Qed.
 
-  Local Lemma Hwhile_false s e c :
-    Let x := sem_pexpr s e in to_bool x = ok false ->
-    Pi_r s (Cwhile e c) s.
+  Local Lemma Hwhile_false s1 s2 c e c' :
+    sem p s1 c s2 -> Pc s1 c s2 ->
+    Let x := sem_pexpr s2 e in to_bool x = ok false ->
+    Pi_r s1 (Cwhile c e c') s2.
   Proof.
-   move=> Hb ii.
+   move=> Hsc Hc Hb ii.
    by apply: sem_seq1; apply: EmkI; apply: Ewhile_false.
   Qed.
 

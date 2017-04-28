@@ -1168,7 +1168,7 @@ Definition wp_rec : cmd → formula → formula :=
     (* Cfor *)
     (λ v dr lo hi b wpb ii Q, ffalse)
     (* Cwhile *)
-    (λ e c wpc ii Q, ffalse)
+    (λ c e c' wpc wpc' ii Q, ffalse)
     (* Ccall *)
     (λ ii xs f es ii Q, ffalse).
 
@@ -1192,7 +1192,7 @@ Proof.
     + exact: H1.
     exact: H2.
   - by move=> v dr lo hi c Hc ii f s s' H; apply: ffalse_denote.
-  - by move=> e c Hc ii f s s' H; apply: ffalse_denote.
+  - by move=> c e c' Hc Hc' ii f s s' H; apply: ffalse_denote.
   - by move=> i xs fn es ii f s s' H; apply: ffalse_denote.
 Qed.
 

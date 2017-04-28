@@ -454,15 +454,17 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     sem s1 c2 s2 ->
     sem_i s1 (Cif e c1 c2) s2
 
-| Ewhile_true s1 s2 s3 e c :
-    sem_pexpr s1 e >>= to_bool = ok true ->
+| Ewhile_true s1 s2 s3 s4 c e c' :
     sem s1 c s2 ->
-    sem_i s2 (Cwhile e c) s3 ->
-    sem_i s1 (Cwhile e c) s3
+    sem_pexpr s2 e >>= to_bool = ok true ->
+    sem s2 c' s3 ->
+    sem_i s3 (Cwhile c e c') s4 ->
+    sem_i s1 (Cwhile c e c') s4
 
-| Ewhile_false s e c :
-    sem_pexpr s e >>= to_bool = ok false ->
-    sem_i s (Cwhile e c) s
+| Ewhile_false s1 s2 c e c' :
+    sem s1 c s2 ->
+    sem_pexpr s2 e >>= to_bool = ok false ->
+    sem_i s1 (Cwhile c e c') s2
 
 | Efor s1 s2 (i:var_i) d lo hi c vlo vhi :
     sem_pexpr s1 lo >>= to_int = ok vlo ->
@@ -537,14 +539,16 @@ Section SEM_IND.
     Let x := sem_pexpr s1 e in to_bool x = Ok error false ->
     sem s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
 
-  Hypothesis Hwhile_true : forall (s1 s2 s3 : estate) (e : pexpr) (c : cmd),
-    Let x := sem_pexpr s1 e in to_bool x = Ok error true ->
+  Hypothesis Hwhile_true : forall (s1 s2 s3 s4 : estate) (c : cmd) (e : pexpr) (c' : cmd),
     sem s1 c s2 -> Pc s1 c s2 ->
-    sem_i s2 (Cwhile e c) s3 -> Pi_r s2 (Cwhile e c) s3 -> Pi_r s1 (Cwhile e c) s3.
+    Let x := sem_pexpr s2 e in to_bool x = Ok error true ->
+    sem s2 c' s3 -> Pc s2 c' s3 ->
+    sem_i s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 -> Pi_r s1 (Cwhile c e c') s4.
 
-  Hypothesis Hwhile_false : forall (s : estate) (e : pexpr) (c : cmd),
-    Let x := sem_pexpr s e in to_bool x = Ok error false ->
-    Pi_r s (Cwhile e c) s.
+  Hypothesis Hwhile_false : forall (s1 s2 : estate) (c : cmd) (e : pexpr) (c' : cmd),
+    sem s1 c s2 -> Pc s1 c s2 ->
+    Let x := sem_pexpr s2 e in to_bool x = Ok error false ->
+    Pi_r s1 (Cwhile c e c') s2.
 
   Hypothesis Hfor : forall (s1 s2 : estate) (i : var_i) (d : dir) 
          (lo hi : pexpr) (c : cmd) (vlo vhi : Z),
@@ -596,10 +600,11 @@ Section SEM_IND.
       @Hif_true s1 s2 e1 c1 c2 e2 s0 (@sem_Ind s1 c1 s2 s0)
     | @Eif_false s1 s2 e1 c1 c2 e2 s0 => 
       @Hif_false s1 s2 e1 c1 c2 e2 s0 (@sem_Ind s1 c2 s2 s0)
-    | @Ewhile_true s1 s2 s3 e1 c e2 s0 s4 =>
-      @Hwhile_true s1 s2 s3 e1 c e2 s0 (@sem_Ind s1 c s2 s0) s4 
-      (@sem_i_Ind s2 (Cwhile e1 c) s3 s4)
-    | @Ewhile_false s0 e1 c e2 => @Hwhile_false s0 e1 c e2
+    | @Ewhile_true s1 s2 s3 s4 c e1 c' s0 e2 s5 s6 =>
+      @Hwhile_true s1 s2 s3 s4 c e1 c' s0 (@sem_Ind s1 c s2 s0) e2 s5 (@sem_Ind s2 c' s3 s5) s6
+          (@sem_i_Ind s3 (Cwhile c e1 c') s4 s6)
+    | @Ewhile_false s1 s2 c e1 c' s0 e2 =>
+      @Hwhile_false s1 s2 c e1 c' s0 (@sem_Ind s1 c s2 s0) e2
     | @Efor s1 s2 i0 d lo hi c vlo vhi e1 e2 s0 =>
       @Hfor s1 s2 i0 d lo hi c vlo vhi e1 e2 s0
         (@sem_for_Ind i0 (wrange d vlo vhi) s1 c s2 s0)
@@ -779,7 +784,10 @@ Proof.
     by rewrite write_i_opn;apply (vrvsP Hw).
   + by move=> s1 s2 e c1 c2 _ _ Hrec z;rewrite write_i_if => Hnin;apply Hrec;SvD.fsetdec.
   + by move=> s1 s2 e c1 c2 _ _ Hrec z;rewrite write_i_if => Hnin;apply Hrec;SvD.fsetdec.
-  + by move=> s1 s2 s3 e c _ _ Hc _ Hw z Hnin; rewrite Hc ?Hw.
+  + by move=> s1 s2 s3 s4 c e c' _ Hc _ _ Hc' _ Hw z Hnin; rewrite Hc ?Hc' ?Hw //;
+    move: Hnin; rewrite write_i_while; SvD.fsetdec.
+  + move=> s1 s2 c e c' _ Hc _ z Hnin; rewrite Hc //.
+    by move: Hnin; rewrite write_i_while; SvD.fsetdec.
   + by move=> s1 s2 i d lo hi c vlo vhi _ _ _ Hrec z;rewrite write_i_for;apply Hrec.
   + move=> s1 s1' s2 s3 i w ws c Hw _ Hc _ Hf z Hnin.
     by rewrite (vrvP_var Hw) ?Hc ?Hf //;SvD.fsetdec.
@@ -1450,26 +1458,30 @@ Proof.
   by apply Eif_false;rewrite // H1.
 Qed.
 
-Local Lemma Hwhile_true s1 s2 s3 e c :
-  Let x := sem_pexpr s1 e in to_bool x = ok true ->
+Local Lemma Hwhile_true s1 s2 s3 s4 c e c' :
   sem p s1 c s2 -> Pc s1 c s2 ->
-  sem_i p s2 (Cwhile e c) s3 -> Pi_r s2 (Cwhile e c) s3 -> Pi_r s1 (Cwhile e c) s3.
+  Let x := sem_pexpr s2 e in to_bool x = ok true ->
+  sem p s2 c' s3 -> Pc s2 c' s3 ->
+  sem_i p s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 -> Pi_r s1 (Cwhile c e c') s4.
 Proof.
-  move=> H _ Hc _ Hw vm1 Hvm1;apply: rbindP H => v.
-  move=> /(sem_pexpr_uincl Hvm1) [] v' [] H1 H2.
+  move=> _ Hc H _ Hc' _ Hw vm1 Hvm1;apply: rbindP H => v.
+  have [vm2 [Hs2 Hvm2]] := Hc _ Hvm1.
+  move=> /(sem_pexpr_uincl Hvm2) [] v' [] H1 H2.
   move=> /(value_uincl_bool H2) [] ??;subst. 
-  have [vm2 [H3 /Hw [vm3] [??]]]:= Hc _ Hvm1;exists vm3;split => //.
+  have [vm3 [H4 /Hw [vm4] [??]]]:= Hc' _ Hvm2;exists vm4;split => //.
   by eapply Ewhile_true;eauto;rewrite H1.
 Qed.
   
-Local Lemma Hwhile_false s e c :
-  Let x := sem_pexpr s e in to_bool x = ok false ->
-  Pi_r s (Cwhile e c) s.
+Local Lemma Hwhile_false s1 s2 c e c' :
+  sem p s1 c s2 -> Pc s1 c s2 ->
+  Let x := sem_pexpr s2 e in to_bool x = ok false ->
+  Pi_r s1 (Cwhile c e c') s2.
 Proof.
-  move=> H vm1 Hvm1;apply: rbindP H=> v.
-  move=> /(sem_pexpr_uincl Hvm1) [] v' [] H1 H2.
-  move=> /(value_uincl_bool H2) [] ??;subst. 
-  by exists vm1;split=> //;apply Ewhile_false;rewrite H1.
+  move=> _ Hc H vm1 Hvm1; apply: rbindP H => v.
+  have [vm2 [Hs2 Hvm2]] := Hc _ Hvm1.
+  move=> /(sem_pexpr_uincl Hvm2) [] v' [] H1 H2.
+  move=> /(value_uincl_bool H2) [] ??;subst.
+  by exists vm2;split=> //;apply: Ewhile_false=> //;rewrite H1.
 Qed.
  
 Local Lemma Hfor s1 s2 (i : var_i) d lo hi c (vlo vhi : Z) :

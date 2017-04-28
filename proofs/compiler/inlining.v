@@ -56,7 +56,6 @@ Definition inline_c (inline_i: instr -> Sv.t -> ciexec (Sv.t * cmd)) c s :=
 Definition check_rename iinfo f fd1 fd2 (s:Sv.t) := 
   Let _ := add_infun iinfo (CheckAllocReg.check_fundef (f,fd1) (f,fd2) tt) in
   let s2 := read_es (map Pvar fd2.(f_res)) in
-(*  let s2 := read_c_rec s2 fd2.(f_body) in *)
   let s2 := write_c_rec s2 fd2.(f_body) in
   let s2 := vrvs_rec s2 (map Lvar fd2.(f_params)) in
   if disjoint s s2 then ciok tt 
@@ -86,10 +85,11 @@ Fixpoint inline_i (p:prog) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
       let X := Sv.union (read_i ir) X in
       Let c := inline_c (inline_i p) c X in
       ciok (X, [::MkI iinfo (Cfor x (d, lo, hi) c.2)])
-    | Cwhile e c =>
+    | Cwhile c e c' =>
       let X := Sv.union (read_i ir) X in
       Let c := inline_c (inline_i p) c X in
-      ciok (X, [::MkI iinfo (Cwhile e c.2)])
+      Let c' := inline_c (inline_i p) c' X in
+      ciok (X, [::MkI iinfo (Cwhile c.2 e c'.2)])
     | Ccall inline xs f es =>
       let X := Sv.union (read_i ir) X in
       if inline is InlineFun then
@@ -152,8 +152,9 @@ Section INCL.
       by apply: rbindP => -[Xc2 c2'] /Hc2 -> /= [] <- <-.
     + move=> i dir lo hi c Hc ii X1 c0 X2 /=.
       by apply: rbindP => -[Xc c'] /Hc -> /=.     
-    + move=> e c Hc ii X1 c0 X2 /=.
-      by apply: rbindP => -[Xc c'] /Hc -> /=.   
+    + move=> c e c' Hc Hc' ii X1 c0 X2 /=.
+      apply: rbindP => -[Xc1 c1] /Hc -> /=.
+      by apply: rbindP => -[Xc1' c1'] /Hc' -> /=.
     move=> i xs f es ii X1 c' X2 /=.
     case: i => //;apply: rbindP => fd /get_funP -/Incl.
     by rewrite /get_fun => ->.
@@ -262,8 +263,11 @@ Section SUBSET.
   Local Lemma Sfor   : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
   Proof. by move=> i d lo hi c Hc ii X2 Xc;apply:rbindP => Xc' /Hc ? [<-]. Qed.
 
-  Local Lemma Swhile : forall e c, Pc c -> Pr (Cwhile e c).
-  Proof. by move=> e c Hc ii X2 Xc;apply:rbindP=> Xc' /Hc ? [<-]. Qed.
+  Local Lemma Swhile : forall c e c', Pc c -> Pc c' -> Pr (Cwhile c e c').
+  Proof.
+    move=> c e c' Hc Hc' ii X2 Xc;apply:rbindP=> Xc' /Hc ?.
+    by apply: rbindP=> Hc'' /Hc' ? [<-].
+  Qed.
 
   Local Lemma Scall  : forall i xs f es, Pr (Ccall i xs f es).
   Proof. 
@@ -401,10 +405,13 @@ Section WF.
     + move=> i dir lo hi c Hc s1 s2 H;sinversion H.
       elim: H9 Hc => // ???? ???? Hw Hsc Hsf Hrec Hc.
       by move=> /wf_write_var -/(_ _ _ _ Hw) -/(Hc _ _ Hsc);apply: Hrec Hc.
-    + move=> e c Hc s1 s2 H.
-      move: {1 2}(Cwhile e c) H (refl_equal (Cwhile e c))=> i;elim=> //=.
-      move=> ?????? Hsc Hsw Hrec [??];subst.
-      by move=> /(Hc _ _ Hsc);apply Hrec.
+    + move=> c e c' Hc Hc' s1 s2 H.
+      move: {1 2}(Cwhile c e c') H (refl_equal (Cwhile c e c'))=> i;elim=> //=.
+      move=> ??????? Hsc ? Hsc' Hsw Hrec [???];subst.
+      move=> /(Hc _ _ Hsc).
+      by move=> /(Hc' _ _ Hsc'); apply Hrec.
+    + move=> ????? Hsc ? [???];subst.
+      exact: (Hc _ _ Hsc).
     move=> i xs f es s1 s2 H;sinversion H=> Hwf.
     by apply: wf_write_lvals H8.
   Qed. 
@@ -535,39 +542,47 @@ Section PROOF.
     by rewrite Hse.
   Qed.
     
-  Local Lemma Hwhile_true s1 s2 s3 e c:
-    Let x := sem_pexpr s1 e in to_bool x = Ok error true ->
+  Local Lemma Hwhile_true s1 s2 s3 s4 c e c':
     sem p s1 c s2 -> Pc s1 c s2 ->
-    sem_i p s2 (Cwhile e c) s3 -> Pi_r s2 (Cwhile e c) s3 -> 
-    Pi_r s1 (Cwhile e c) s3.
+    Let x := sem_pexpr s2 e in to_bool x = Ok error true ->
+    sem p s2 c' s3 -> Pc s2 c' s3 ->
+    sem_i p s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 -> 
+    Pi_r s1 (Cwhile c e c') s4.
   Proof.
-    case: s1 => sm1 svm1.
-    apply: rbindP => ve Hse Hto Hsc Hc _ Hw ii X1 X2 c' Hi.
-    apply: rbindP (Hi)=> -[Xc c2] Hic [??] vm1;subst.
-    have := inline_i_subset Hi;rewrite read_Ii /= => Hx1 Hwf Hvm1.
-    move: (Hvm1);rewrite read_i_while => Hvm1'.
-    have [ | vm2 [Hwf2 Hvm2 Hc2]]:= Hc _ _ _ Hic vm1 Hwf.
-    + have /= ->:= inline_c_subset Hic;apply: eq_onI Hvm1.
-      by rewrite read_i_while;SvD.fsetdec.
-    have [vm3 [Hw3 Hv3 Hw2]]:= Hw _ _ _ _ Hi _ Hwf2 Hvm2.
-    exists vm3;split=>//;apply sem_seq1;constructor.
-    eapply Ewhile_true;eauto.
-    + have /read_e_eq_on <-: svm1 =[read_e e] vm1 by apply: eq_onI Hvm1';SvD.fsetdec.
-      by rewrite Hse.
-    by sinversion Hw2;sinversion H2;sinversion H4.
+    case: s1 => sm1 svm1 Hsc Hc Hse Hsc' Hc' _ Hw ii X1 X2 cw Hi.
+    move: (Hi) => /=;set X3 := Sv.union _ _;apply: rbindP => -[Xc c1] Hc1.
+    apply: rbindP => -[Xc' c1'] Hc1' [] ??;subst X1 cw => vm1 Hwf Hvm1.
+    case : (Hc _ _ _ Hc1 _ Hwf) => [| vm2 [Hwf2 Hvm2 Hsc1]].
+    + apply: eq_onI Hvm1; have /= -> := inline_c_subset Hc1.
+      by rewrite /X3 read_i_while;SvD.fsetdec.
+    case : (Hc' _ _ _ Hc1' _ Hwf2) => [| vm3 [Hwf3 Hvm3 Hsc2]].
+    + apply: eq_onI Hvm2; have /= -> := inline_c_subset Hc1'.
+      by rewrite /X3 read_i_while;SvD.fsetdec.
+    have [vm4 [Hwf4 Hvm4 Hsw]]:= Hw _ _ _ _ Hi _ Hwf3 Hvm3.
+    exists vm4;split => //;apply sem_seq1;constructor.
+    sinversion Hsw; sinversion H4;sinversion H2.
+    apply: (Ewhile_true Hsc1) Hsc2 H4.
+    have /read_e_eq_on <- : (evm s2) =[read_e e] vm2. 
+    + by apply: eq_onI Hvm2;rewrite /X3 read_i_while;SvD.fsetdec.
+    by case: (s2) Hse.
   Qed.
 
-  Local Lemma Hwhile_false s e c:
-    Let x := sem_pexpr s e in to_bool x = Ok error false ->
-    Pi_r s (Cwhile e c) s.
+  Local Lemma Hwhile_false s1 s2 c e c':
+    sem p s1 c s2 -> Pc s1 c s2 ->
+    Let x := sem_pexpr s2 e in to_bool x = Ok error false ->
+    Pi_r s1 (Cwhile c e c') s2.
   Proof.
-    case: s => sm1 svm1.
-    apply: rbindP => ve Hve Hto ii X1 X2 c' /=.
-    apply: rbindP => -[Xc c2] ? [] <- <- vm1;rewrite read_i_while => Hwf Hvm1.
-    exists vm1;split=>//;first by apply: eq_onI Hvm1;SvD.fsetdec.
-    apply sem_seq1;constructor;apply Ewhile_false.
-    have /read_e_eq_on <-: svm1 =[read_e e] vm1 by apply: eq_onI Hvm1;SvD.fsetdec.
-    by rewrite Hve.
+    case: s1 s2 => sm1 svm1 [sm2 svm2] Hsc Hc Hse ii X1 X2 cw /=.
+    set X3 := Sv.union _ _;apply: rbindP => -[Xc c1] Hc1.
+    apply: rbindP => -[Xc' c1'] Hc1' [] ??;subst X1 cw => vm1 Hwf Hvm1.
+    case : (Hc _ _ _ Hc1 _ Hwf) => [| vm2 [Hwf2 Hvm2 Hsc1]].
+    + apply: eq_onI Hvm1; have /= -> := inline_c_subset Hc1.
+      by rewrite /X3 read_i_while;SvD.fsetdec.
+    exists vm2;split=>//. 
+    + by apply: eq_onI Hvm2;rewrite /X3;SvD.fsetdec.
+    apply sem_seq1;constructor;apply Ewhile_false => //.
+    have /read_e_eq_on <- //: svm2 =[read_e e] vm2.
+    apply: eq_onI Hvm2;rewrite /X3 read_i_while;SvD.fsetdec.
   Qed.
  
   Local Lemma Hfor s1 s2 (i:var_i) d lo hi c vlo vhi :
