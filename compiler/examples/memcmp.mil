@@ -1,0 +1,18 @@
+fn memcmp(reg u64 p, reg u64 q, reg u64 n) -> reg bool {
+reg bool r;
+reg u64 i;
+reg u64 a;
+reg u64 b;
+reg u64 pi;
+reg u64 qi;
+r = true;
+i = 0;
+while (i < n) {
+pi = p + i;
+ a = [pi + 0];
+ b = [qi + 0];
+ r = false if a != b;
+i += 1;
+}
+return r;
+}
