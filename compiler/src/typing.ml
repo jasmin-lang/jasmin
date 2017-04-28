@@ -610,10 +610,11 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
         let d    = match d with `Down -> P.DownTo | `Up -> P.UpTo in
         P.Cfor (L.mk_loc lx vx, (d, i1, i2), s)
 
-    | PIWhile (c, s) ->
+    | PIWhile (s1, c, s2) ->
         let c = fst (tt_expr ~mode:`Expr ~expect:TPBool env c) in
-        let s = tt_block env s in
-        P.Cwhile (c, s)
+        let s1 = omap_dfl (tt_block env) [] s1 in
+        let s2 = omap_dfl (tt_block env) [] s2 in
+        P.Cwhile (s1, c, s2)
 
   in { P.i_desc = instr; P.i_loc = L.loc pi; P.i_info = (); }
 

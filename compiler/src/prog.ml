@@ -139,7 +139,7 @@ type ('ty,'info) ginstr_r =
   | Copn   of 'ty glvals * op * 'ty gexprs
   | Cif    of 'ty gexpr * ('ty,'info) gstmt * ('ty,'info) gstmt
   | Cfor   of 'ty gvar_i * 'ty grange * ('ty,'info) gstmt
-  | Cwhile of 'ty gexpr * ('ty,'info) gstmt
+  | Cwhile of ('ty,'info) gstmt * 'ty gexpr * ('ty,'info) gstmt
   | Ccall  of inline_info * 'ty glvals * funname * 'ty gexprs
 
 and ('ty,'info) ginstr = {
@@ -288,7 +288,7 @@ let rec rvars_i s i =
   | Cif(e,c1,c2)   -> rvars_c (rvars_c (rvars_e s e) c1) c2
   | Cfor(x,(_,e1,e2), c) ->
     rvars_c (rvars_e (rvars_e (Sv.add (L.unloc x) s) e1) e2) c
-  | Cwhile(e,c)    -> rvars_c (rvars_e s e) c
+  | Cwhile(c,e,c')    -> rvars_c (rvars_e (rvars_c s c') e) c
   | Ccall(_,x,_,e) -> rvars_es (rvars_lvs s x) e
 
 and rvars_c s c =  List.fold_left rvars_i s c

@@ -71,7 +71,8 @@ let rec arrexp_i tbl i =
     | Cif(e,c1,c2)  -> Cif(arrexp_e tbl e, arrexp_c tbl c1, arrexp_c tbl c2)
     | Cfor(i,(d,e1,e2),c) ->
       Cfor(i, (d, arrexp_e tbl e1, arrexp_e tbl e2), arrexp_c tbl c)
-    | Cwhile(e,c)   -> Cwhile(arrexp_e tbl e, arrexp_c tbl c)
+    | Cwhile(c, e, c') -> 
+      Cwhile(arrexp_c tbl c, arrexp_e tbl e, arrexp_c tbl c')
     | Ccall(ii,x,f,e) -> Ccall(ii, arrexp_lvs tbl x, f, arrexp_es tbl e)
   in
   { i with i_desc }
@@ -178,7 +179,7 @@ let rec astk_i tbl i =
     | Cif(e,c1,c2)    -> Cif(astk_e tbl e, astk_c tbl c1, astk_c tbl c2)
     | Cfor(i,(d,e1,e2),c) ->
       Cfor(i, (d, astk_e tbl e1, astk_e tbl e2), astk_c tbl c)
-    | Cwhile(e,c)     -> Cwhile(astk_e tbl e, astk_c tbl c)
+    | Cwhile(c, e, c') -> Cwhile(astk_c tbl c, astk_e tbl e, astk_c tbl c')
     | Ccall(ii,x,f,e) -> Ccall(ii, astk_lvs tbl x, f, astk_es tbl e)
   in
   { i with i_desc }

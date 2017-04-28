@@ -138,9 +138,17 @@ let rec pp_gi pp_var fmt i =
       (pp_gvar_i pp_var) i (pp_ge pp_var) e1 dir (pp_ge pp_var) e2
       (pp_gc pp_var) c
 
-  | Cwhile(e, c) ->
-    F.fprintf fmt "@[<v>while (%a) {@   %a@ }@]"
-      (pp_ge pp_var) e (pp_gc pp_var) c
+  | Cwhile([], e, c) ->
+    F.fprintf fmt "@[<v>while (%a) %a@]"
+      (pp_ge pp_var) e (pp_cblock pp_var) c
+
+  | Cwhile(c, e, []) ->
+    F.fprintf fmt "@[<v>while %a (%a)@]"
+      (pp_cblock pp_var) c (pp_ge pp_var) e 
+
+  | Cwhile(c, e, c') ->
+    F.fprintf fmt "@[<v>while %a %a %a@]"
+      (pp_cblock pp_var) c (pp_ge pp_var) e (pp_cblock pp_var) c'
 
   | Ccall(_ii, x, f, e) -> (* FIXME ii *)
     F.fprintf fmt "@[<hov 2> %a =@ %s(%a);@]"

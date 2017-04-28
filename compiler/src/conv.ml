@@ -342,8 +342,9 @@ and cinstr_r_of_instr_r tbl p i tl =
     let c = cstmt_of_stmt tbl c [] in
     let ir = C.Cfor(x,d,c) in
     C.MkI(p, ir) :: tl
-  | Cwhile(e,c) ->
-    let ir = C.Cwhile([], cexpr_of_expr tbl e, cstmt_of_stmt tbl c []) in
+  | Cwhile(c, e, c') ->
+    let ir = C.Cwhile(cstmt_of_stmt tbl c [], cexpr_of_expr tbl e, 
+                      cstmt_of_stmt tbl c' []) in
     C.MkI(p,ir) :: tl
   | Ccall(ii, x, f, e) ->
     let ii = cii_of_ii ii in
@@ -380,11 +381,9 @@ and instr_r_of_cinstr_r tbl = function
     let c = stmt_of_cstmt tbl c in
     Cfor(x,d,c)
 
-  | Cwhile([], e,c) ->
-    Cwhile(expr_of_cexpr tbl e, stmt_of_cstmt tbl c)
+  | Cwhile(c, e, c') ->
+    Cwhile(stmt_of_cstmt tbl c, expr_of_cexpr tbl e, stmt_of_cstmt tbl c')
   
-  | Cwhile _ -> assert false
-
   | Ccall(ii, x, f, e) ->
     let ii = ii_of_cii ii in
     Ccall(ii, lval_of_clvals tbl x, fun_of_cfun tbl f, expr_of_cexprs tbl e)

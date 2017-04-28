@@ -21,7 +21,7 @@ let fill_in_missing_names (f: 'info func) : 'info func =
     | Copn (lvs, op, es) -> Copn (fill_lvs lvs, op, es)
     | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
     | Cfor _ -> assert false
-    | Cwhile (e, s) -> Cwhile (e, fill_stmt s)
+    | Cwhile (s, e, s') -> Cwhile (fill_stmt s, e, fill_stmt s')
     | Ccall (i, lvs, f, es) -> Ccall (i, fill_lvs lvs, f, es)
   and fill_instr i = { i with i_desc = fill_instr_r i.i_desc }
   and fill_stmt s = List.map fill_instr s in
@@ -67,13 +67,13 @@ let collect_conflicts (f: (Sv.t * Sv.t) func) : Sc.t =
   let rec collect_instr_r c =
     function
     | Cblock s
-    | Cfor (_, _, s)
-    | Cwhile (_, s)
+    | Cfor (_, _, s)  
       -> collect_stmt c s
     | Cassgn _
     | Copn _
     | Ccall _
       -> c
+    | Cwhile (s1, _, s2)
     | Cif (_, s1, s2)
       -> collect_stmt (collect_stmt c s1) s2
   and collect_instr c { i_desc ; i_info } = collect_instr_r (add c i_info) i_desc

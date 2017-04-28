@@ -39,13 +39,17 @@ and live_d d (s_o: Sv.t) =
 
   | Cfor _ -> assert false (* Should have been removed before *)
 
-  | Cwhile(e,c) ->
+  | Cwhile(c,e,c') ->
+    let ve = (vars_e e) in
     let rec loop s_o =
-      let s_i, c = live_c c s_o in
-      if Sv.subset s_i s_o then s_o, c
+      (* loop (c; if e then c' else exit) *)
+      let s_i', c' = live_c c' s_o in
+      let s_o' = Sv.union ve s_i' in
+      let s_i, c = live_c c s_o' in
+      if Sv.subset s_i s_o then s_o, (c,c')
       else loop (Sv.union s_i s_o) in
-    let s_i, c = loop (Sv.union (vars_e e) s_o) in
-    s_i, Cwhile(e,c)
+    let s_i, (c,c') = loop s_o in
+    s_i, Cwhile(c, e, c')
 
   | Ccall(ii,xs,f,es) ->
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in

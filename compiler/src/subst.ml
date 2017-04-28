@@ -36,7 +36,8 @@ let rec subst_i f i =
     | Cif(e,c1,c2)  -> Cif(subst_e f e, subst_c f c1, subst_c f c2)
     | Cfor(x,(d,e1,e2),c) ->
         Cfor(subst_vdest f x, (d, subst_e f e1, subst_e f e2), subst_c f c)
-    | Cwhile(e, c)  -> Cwhile(subst_e f e, subst_c f c)
+    | Cwhile(c, e, c') -> 
+      Cwhile(subst_c f c, subst_e f e, subst_c f c')
     | Ccall(ii,x,fn,e) -> Ccall(ii,subst_lvals f x, fn, subst_es f e) in
   { i with i_desc }
 

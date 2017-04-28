@@ -229,9 +229,12 @@ let rec pp_instr_r fmt instr =
   | Cfor(vi,rng,instrs) ->
     F.fprintf fmt "@[<v>For %a from %a do {%s@   @[<v>%a@]@ }@]"
       pp_vari vi pp_range rng (dotdot instrs) pp_instrs instrs
-  | Cwhile(pe,instrs) ->
-    F.fprintf fmt "@[<v>While %a do {%s@   @[<v>%a@]@ }@]"
-      pp_pexpr pe (dotdot instrs) pp_instrs instrs
+  | Cwhile(c, pe, c') ->
+    F.fprintf fmt 
+      "@[<v>While {%s@   @[<v>%a@]@ } in %a do {%s@   @[<v>%a@]@ }@]"
+      (dotdot c) pp_instrs c
+      pp_pexpr pe 
+      (dotdot c') pp_instrs c'
   | Ccall(inl,rvs,fname,pes) ->
     F.fprintf fmt "@[Ccall %a [:: %a] %a [:: %a]@]"
       pp_inline inl
