@@ -8,11 +8,11 @@ exception UsageError
 let infile = ref ""
 let outfile = ref ""
 let typeonly = ref false
-let debug = ref false  
+let debug = ref false
 let coqfile = ref ""
 let coqonly = ref false
 
-let set_coqonly s = 
+let set_coqonly s =
   coqfile := s;
   coqonly := true
 
@@ -25,10 +25,10 @@ let options = [
   ]
 
 let usage_msg = "Usage : jasminc [option] filename"
-                 
-let parse () = 
+
+let parse () =
   let error () = raise UsageError in
-  let set_in s = 
+  let set_in s =
     if !infile <> "" then error();
     infile := s  in
   Arg.parse options set_in usage_msg;
@@ -44,12 +44,12 @@ let main () =
     let ast   = J.Parseio.parse_program ~name:fname in
     let ast   = BatFile.with_file_in fname ast in
     let _, pprog  = J.Typing.tt_program J.Typing.Env.empty ast in
-    if !debug then begin 
+    if !debug then begin
       Printf.eprintf "parsed & typed\n%!";
       Format.eprintf "%a@." J.Printer.pp_pprog pprog
     end;
     if !typeonly then exit 0;
-   
+
     let prog = J.Subst.remove_params pprog in
     if !debug then begin
       Printf.eprintf "params removed \n%!";
@@ -63,7 +63,7 @@ let main () =
       Format.fprintf fmt "%a@." J.Coq_printer.pp_prog prog;
       close_out out;
       if !debug then Format.eprintf "coq program extracted@."
-    end; 
+    end;
 
     if !coqonly then exit 0;
 
@@ -73,16 +73,16 @@ let main () =
 
     let fdef_of_cfdef fn cfd = J.Conv.fdef_of_cfdef tbl (fn,cfd) in
     let cfdef_of_fdef fd = snd (J.Conv.cfdef_of_fdef tbl fd) in
-    let apply trans fn cfd = 
+    let apply trans fn cfd =
       let fd = fdef_of_cfdef fn cfd in
       let fd = trans fd in
       cfdef_of_fdef fd in
 
     let rename_fd = apply J.Subst.clone_func in
     let expand_fd = apply J.Array_expand.arrexp_func in
-    let alloc_fd  _fn cfd = cfd (* FIXME *) in
+    let alloc_fd  = apply J.Regalloc.regalloc in
     let stk_alloc_fd _fn _cfd = assert false in
-    let print_prog s cp = 
+    let print_prog s cp =
       if !debug then begin
         let p = J.Conv.prog_of_cprog tbl cp in
         Format.eprintf "After %s@." (J.Conv.string_of_string0 s);
@@ -90,9 +90,9 @@ let main () =
       end;
       cp
     in
-    
-    let _ = 
-      J.Compiler.compile_prog_to_x86 
+
+    let _ =
+      J.Compiler.compile_prog_to_x86
         rename_fd expand_fd alloc_fd stk_alloc_fd print_prog
         cprog in
     ()
