@@ -239,6 +239,37 @@ let allocate_forced_registers (vars: (var, int) Hashtbl.t)
   in
   alloc_stmt a f.f_body
 
+exception Conflict
+
+let greedy_allocation (vars: (var, int) Hashtbl.t) (nv: int) (cnf: conflicts)
+    (a: allocation) : allocation =
+  let a = ref a in
+  for i = 0 to nv - 1 do
+    if not (IntMap.mem i !a) then (
+      let c =
+        get_conflicts i cnf |>
+        IntSet.elements |>
+        List.map (fun k -> try Some (IntMap.find k !a) with Not_found -> None)
+      in
+      let has_no_conflict v = not (List.mem (Some v) c) in
+      match List.filter has_no_conflict X64.allocatable with
+      | x :: _ -> a := IntMap.add i x !a
+      | _ -> raise Conflict
+    )
+  done;
+  !a
+
+let subst_of_allocation (vars: (var, int) Hashtbl.t)
+    (a: allocation) (v: var_i) : expr =
+  let m = L.loc v in
+  let v = L.unloc v in
+  let q x = L.mk_loc m x in
+  try
+    let i = Hashtbl.find vars v in
+    let w = IntMap.find i a in
+    Pvar (q w)
+  with Not_found -> Pvar (q v)
+
 let regalloc (f: 'info func) : 'info func =
   let f = fill_in_missing_names f in
   let lf = Liveness.live_fd f in
@@ -246,5 +277,8 @@ let regalloc (f: 'info func) : 'info func =
   let eqc = collect_equality_constraints vars nv f in
   let vars = normalize_variables vars eqc in
   let conflicts = collect_conflicts vars lf in
-  let a = allocate_forced_registers vars f IntMap.empty in
-  f
+  let a =
+    allocate_forced_registers vars f IntMap.empty |>
+    greedy_allocation vars nv conflicts |>
+    subst_of_allocation vars
+  in Subst.subst_func a f
