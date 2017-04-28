@@ -43,6 +43,14 @@ let rec subst_i f i =
 
 and subst_c f c = List.map (subst_i f) c
 
+let subst_func f fc =
+  let dov v = L.unloc (subst_vdest f (L.mk_loc L._dummy v)) in
+  { fc with
+    f_args = List.map dov fc.f_args;
+    f_body = subst_c f fc.f_body;
+    f_ret  = List.map (subst_vdest f) fc.f_ret
+  }
+
 (* ---------------------------------------------------------------- *)
 
 let psubst_ty f ty =
@@ -157,6 +165,8 @@ let remove_params (prog : 'info pprog) : 'info prog =
 (* ---------------------------------------------------------------- *)
 (* Rename all variable using fresh variable                         *)
 
+(* FIXME: Benjamin: do not discard location data *)
+
 let csubst_v () =
   let subst = ref Mv.empty in
   let rec aux v =
@@ -170,9 +180,4 @@ let csubst_v () =
 
 let clone_func fc =
   let subst_v = csubst_v () in
-  let dov v = L.unloc (subst_vdest subst_v (L.mk_loc L._dummy v)) in
-  { fc with
-    f_args = List.map dov fc.f_args;
-    f_body = subst_c subst_v fc.f_body;
-    f_ret  = List.map (subst_vdest subst_v) fc.f_ret
-  }
+  subst_func subst_v fc
