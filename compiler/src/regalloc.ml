@@ -64,26 +64,24 @@ let collect_equality_constraints (tbl: (var, int) Hashtbl.t) (nv: int)
   collect_stmt f.f_body;
   !p
 
-module C =
-struct
-  type t = V.t * V.t
+(* Conflicting variables: variables that may be live simultaneously
+   and thus must be allocated to distinct registers.
 
-  let norm ((u, v) as x : t) : t =
-    if V.compare u v < 0 then (v, u) else x
+   The set of conflicts is represented by a map from variables to
+   the set of variables they are conflicting with.
+   Variables are represented by their equivalence class
+   (equality constraints mandated by the architecture).
+*)
+module IntSet = Set.Make (BatInt)
+module IntMap = Map.Make (BatInt)
 
-  let compare x x' =
-    let (u, v) = norm x in
-    let (u', v') = norm x' in
-    match V.compare u u' with
-    | 0 -> V.compare v v'
-    | n -> n
+type conflicts = IntSet.t IntMap.t
 
-end
+let get_conflicts (v: int) (c: conflicts) : IntSet.t =
+  IntMap.find_default IntSet.empty v c
 
-module Sc = Set.Make (C)
-
-let conflicts_in (i: Sv.t) (k: C.t -> 'a -> 'a) : 'a -> 'a =
-  let e = Sv.elements i |> List.sort V.compare in
+let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
+  let e = Sv.elements i in
   let rec loop a =
     function
     | [] -> a
@@ -91,19 +89,33 @@ let conflicts_in (i: Sv.t) (k: C.t -> 'a -> 'a) : 'a -> 'a =
       let rec inner a =
         function
         | [] -> a
-        | y :: ys -> inner (k (x, y) a) ys
+        | y :: ys -> inner (k x y a) ys
       in
       loop (inner a xs) xs
   in
   fun a -> loop a e
 
-let collect_conflicts (f: (Sv.t * Sv.t) func) : Sc.t =
-  let add (c: Sc.t) ((i, _): (Sv.t * Sv.t)) : Sc.t =
-    conflicts_in i Sc.add c in
+exception BadConflict of var * var
+
+let collect_conflicts (tbl: (var, int) Hashtbl.t) (f: (Sv.t * Sv.t) func) : conflicts =
+  let add_one_aux (v: int) (w: int) (c: conflicts) : conflicts =
+      let x = get_conflicts v c in
+      IntMap.add v (IntSet.add w x) c
+  in
+  let add_one (v: var) (w: var) (c: conflicts) : conflicts =
+    try
+      let i = Hashtbl.find tbl v in
+      let j = Hashtbl.find tbl w in
+      if i = j then raise (BadConflict (v, w));
+      c |> add_one_aux i j |> add_one_aux j i
+    with Not_found -> c
+  in
+  let add (c: conflicts) ((i, _): (Sv.t * Sv.t)) : conflicts =
+    conflicts_in i add_one c in
   let rec collect_instr_r c =
     function
     | Cblock s
-    | Cfor (_, _, s)  
+    | Cfor (_, _, s)
       -> collect_stmt c s
     | Cassgn _
     | Copn _
@@ -114,7 +126,7 @@ let collect_conflicts (f: (Sv.t * Sv.t) func) : Sc.t =
       -> collect_stmt (collect_stmt c s1) s2
   and collect_instr c { i_desc ; i_info } = collect_instr_r (add c i_info) i_desc
   and collect_stmt c s = List.fold_left collect_instr c s in
-  collect_stmt Sc.empty f.f_body
+  collect_stmt (IntMap.empty) f.f_body
 
 let collect_variables (f: 'info func) : (var, int) Hashtbl.t * int =
   let fresh, total =
@@ -152,6 +164,11 @@ let collect_variables (f: 'info func) : (var, int) Hashtbl.t * int =
   collect_stmt f.f_body;
   tbl, total ()
 
+let normalize_variables (tbl: (var, int) Hashtbl.t) (eqc: Puf.t) : (var, int) Hashtbl.t =
+    let r = Hashtbl.create 97 in
+    Hashtbl.iter (fun v n -> Hashtbl.add r v (Puf.find eqc n)) tbl;
+    r
+
 module X64 =
 struct
 
@@ -187,7 +204,7 @@ struct
 
 end
 
-type allocation = (var, var) Hashtbl.t
+type allocation = var IntMap.t
 
 let allocate_forced_registers (f: 'info func) (a: allocation) : allocation =
   a
@@ -197,5 +214,6 @@ let regalloc (f: 'info func) : 'info func =
   let lf = Liveness.live_fd f in
   let vars, nv = collect_variables f in
   let eqc = collect_equality_constraints vars nv f in
-  let conflicts = collect_conflicts lf in
+  let vars = normalize_variables vars eqc in
+  let conflicts = collect_conflicts vars lf in
   f
