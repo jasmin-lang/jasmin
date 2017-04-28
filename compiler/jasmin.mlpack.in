@@ -2,6 +2,7 @@ src/Array_expand
 src/Bigint
 src/BigintCore
 src/Conv
+src/Coq_printer
 src/Lexer
 src/Liveness
 src/Location
@@ -9,8 +10,8 @@ src/Parseio
 src/Parser
 src/Ppasm
 src/Printer
-src/Coq_printer
 src/Prog
+src/Puf
 src/Regalloc
 src/Subst
 src/Syntax
