@@ -27,6 +27,8 @@ compiler/stack_alloc_proof.v
 compiler/unrolling.v
 compiler/unrolling_proof.v
 compiler/x86.v
+compiler/x86_sem.v
+compiler/x86_proof.v
 lang/expr.v
 lang/extraction.v
 lang/gen_map.v

@@ -138,8 +138,6 @@ Inductive value : Type :=
 
 Definition values := seq value.
 
-Definition type_error {t} := @Error _ t ErrType.
-
 Definition to_bool v :=
   match v with
   | Vbool b => ok b
@@ -1053,7 +1051,7 @@ Lemma value_uincl_int ve ve' z :
   value_uincl ve ve' -> to_int ve = ok z -> ve = z /\ ve' = z.
 Proof. by case:ve ve' => //= z0 [] //= z1 -> [] ->. Qed.
 
-Lemma value_uincl_word ve ve' w :
+Lemma value_uincl_word ve ve' (w:word) :
   value_uincl ve ve' -> to_word ve = ok w -> ve = w /\ ve' = w.
 Proof. by case:ve ve' => //= z0 [] //= z1 -> [] ->. Qed.
 

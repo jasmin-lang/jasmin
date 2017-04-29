@@ -72,13 +72,14 @@ let collect_equality_constraints (tbl: (var, int) Hashtbl.t) (nv: int)
    Variables are represented by their equivalence class
    (equality constraints mandated by the architecture).
 *)
-module IntSet = Set.Make (BatInt)
-module IntMap = Map.Make (BatInt)
+module IntSet = Sint 
+module IntMap = Mint 
 
 type conflicts = IntSet.t IntMap.t
 
 let get_conflicts (v: int) (c: conflicts) : IntSet.t =
-  IntMap.find_default IntSet.empty v c
+  try IntMap.find v c
+  with Not_found -> IntSet.empty 
 
 let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   let e = Sv.elements i in

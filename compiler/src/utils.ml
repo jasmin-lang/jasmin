@@ -3,6 +3,9 @@ module Map    = BatMap
 module Set    = BatSet
 module Hash   = BatHashtbl
 
+module Sint = Set.Make (BatInt)
+module Mint = Map.Make (BatInt)
+
 (* -------------------------------------------------------------------- *)
 exception Unexpected
 

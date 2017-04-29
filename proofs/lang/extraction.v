@@ -34,6 +34,6 @@ Cd  "lang/ocaml".
 
 Extraction Blacklist String List Nat Utils Var.
 
-Separate Extraction compiler.
+Separate Extraction utils compiler.
 
 Cd  "../..".

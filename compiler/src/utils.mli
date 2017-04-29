@@ -3,6 +3,10 @@ module Set  : sig include module type of BatSet end
 module Map  : sig include module type of BatMap end
 module Hash : sig include module type of BatHashtbl end
 
+module Sint : Set.S with type elt = int 
+module Mint : Map.S with type key = int 
+
+
 (* -------------------------------------------------------------------- *)
 exception Unexpected
 

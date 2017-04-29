@@ -24,7 +24,7 @@
  * ----------------------------------------------------------------------- *)
 
 From mathcomp Require Import all_ssreflect.
-Require Import (* x86 *) expr.
+Require Import x86 expr.
 Import ZArith. 
 Require Import compiler_util allocation inline unrolling
    constant_prop dead_code array_expansion stack_alloc linear.
@@ -97,8 +97,8 @@ Definition compile_prog (p:prog) :=
     cfok pl
   else cferror Ferr_neqprog.
 
-(*Definition compile_prog_to_x86 (p: prog) : result fun_error xprog :=
+Definition compile_prog_to_x86 (p: prog) : result fun_error xprog :=
   Let lp := compile_prog p in
-  assemble_prog lp. *)
+  assemble_prog lp. 
 
 End COMPILER.
