@@ -20,6 +20,12 @@ val bi_of_z : BinNums.coq_Z -> Bigint.zint
 val int64_of_bi : Bigint.zint -> Integers.Int64.int
 val bi_of_int64 : Integers.Int64.int -> Bigint.zint
 
+
+(* -------------------------------------------------------------------- *)
+val vari_of_cvari : 'a coq_tbl -> Expr.var_i -> var L.located
+
+val fun_of_cfun : 'info coq_tbl -> BinNums.positive -> funname
+val get_iinfo   : 'info coq_tbl -> BinNums.positive -> L.t * 'info
 val cfdef_of_fdef : 'info coq_tbl -> 'info func -> BinNums.positive * Expr.fundef
 val fdef_of_cfdef : 'info coq_tbl -> BinNums.positive * Expr.fundef -> 'info func
 

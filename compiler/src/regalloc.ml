@@ -78,8 +78,7 @@ module IntMap = Mint
 type conflicts = IntSet.t IntMap.t
 
 let get_conflicts (v: int) (c: conflicts) : IntSet.t =
-  try IntMap.find v c
-  with Not_found -> IntSet.empty 
+  IntMap.find_default IntSet.empty v c
 
 let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   let e = Sv.elements i in
@@ -282,4 +281,4 @@ let regalloc (f: 'info func) : 'info func =
     allocate_forced_registers vars f IntMap.empty |>
     greedy_allocation vars nv conflicts |>
     subst_of_allocation vars
-  in Subst.subst_func a f
+  in Subst.gsubst_func a f

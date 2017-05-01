@@ -51,27 +51,36 @@ Definition unroll_loop (p:prog) := unroll Loop.nb p.
 
 Section COMPILER.
 
-Variable rename_fd    : funname -> fundef -> fundef.
-Variable expand_fd    : funname -> fundef -> fundef.
-Variable alloc_fd     : funname -> fundef -> fundef.
-Variable stk_alloc_fd : funname -> fundef -> seq (var * Z) * sfundef.
-Variable print_prog   : string -> prog -> prog.
+Record compiler_params := {
+  rename_fd    : funname -> fundef -> fundef;
+  expand_fd    : funname -> fundef -> fundef;
+  var_alloc_fd : funname -> fundef -> fundef;
+  reg_alloc_fd : funname -> fundef -> fundef;
+  stk_alloc_fd : funname -> fundef -> seq (var * Z) * sfundef;
+  print_prog   : string -> prog -> prog;
+}.
+
+Variable cparams : compiler_params.
 
 Definition expand_prog (p:prog) := 
-  List.map (fun f => (f.1, expand_fd f.1 f.2)) p.
+  List.map (fun f => (f.1, cparams.(expand_fd) f.1 f.2)) p.
 
-Definition alloc_prog (p:prog) := 
-  List.map (fun f => (f.1, alloc_fd f.1 f.2)) p.
+Definition var_alloc_prog (p:prog) := 
+  List.map (fun f => (f.1, cparams.(var_alloc_fd) f.1 f.2)) p.
+
+Definition reg_alloc_prog (p:prog) := 
+  List.map (fun f => (f.1, cparams.(reg_alloc_fd) f.1 f.2)) p.
 
 Definition stk_alloc_prog (p:prog) : sprog * (seq (seq (var * Z))) :=
-  List.split (List.map (fun f => let (x, y) := stk_alloc_fd f.1 f.2 in ((f.1, y), x)) p).
+  List.split 
+    (List.map (fun f => let (x, y) := cparams.(stk_alloc_fd) f.1 f.2 in ((f.1, y), x)) p).
 
 Definition compile_prog (p:prog) := 
-  Let p := inline_prog rename_fd p in
-  let p := print_prog "inlining" p in      
+  Let p := inline_prog cparams.(rename_fd) p in
+  let p := cparams.(print_prog) "inlining" p in      
   (* FIXME: we should remove unused fonctions after inlining *)      
   Let p := unroll Loop.nb p in
-  let p := print_prog "unrolling" p in      
+  let p := cparams.(print_prog) "unrolling" p in      
   (* FIXME we should perform a step of register allocation to 
      remove assignment of the form x = y introduced by inlining.
      This is particulary true we x and y are Reg array.
@@ -79,15 +88,22 @@ Definition compile_prog (p:prog) :=
      If we still have x = y where x and y are Reg array, 
      we should fail or replace it by a sequence of assgnment.
   *)     
-  let pe := expand_prog p in
-  let pe := print_prog "array expansion" pe in 
-  Let _ := CheckExpansion.check_prog p pe in
-  let pa := alloc_prog pe in
-  let pa := print_prog "register allocation" pa in 
+  let pv := var_alloc_prog p in
+  let pv := cparams.(print_prog) "variable allocation" pv in
+  Let _ := CheckAllocReg.check_prog p pv in
+
+  Let pv := dead_code_prog pv in                
+  let pv := cparams.(print_prog) "dead_code variable allocation" pv in
+ 
+  let pe := expand_prog pv in
+  let pe := cparams.(print_prog) "array expansion" pe in 
+  Let _ := CheckExpansion.check_prog pv pe in
+  let pa := reg_alloc_prog pe in
+  let pa := cparams.(print_prog) "register allocation" pa in 
   Let _ := CheckAllocReg.check_prog pe pa in
   (* dead_code to clean nop assignment *)   
   Let pd := dead_code_prog pa in
-  let pd := print_prog "dead_code" pd in 
+  let pd := cparams.(print_prog) "dead_code" pd in 
   (* stack_allocation                  *)
   let (ps, l) := stk_alloc_prog pd in
   if stack_alloc.check_prog pd ps l then

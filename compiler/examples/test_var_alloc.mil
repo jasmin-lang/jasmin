@@ -1,0 +1,49 @@
+fn test () -> () 
+{
+  stack u64 x1;
+  stack u64 x2;
+  stack u64[2] t1;
+  stack u64[2] t2;
+
+  x1    = 0;
+  t1[0] = 0;
+  t1[1] = 0;
+
+  x2    = 0;
+  t2[0] = 0;
+  t2[1] = 0;
+
+}
+
+fn test1 () -> stack u64[2]  
+{
+  stack u64[2] t1;
+  stack u64[2] t2;
+  stack u64[2] t3;
+
+  t1[0] = 0;
+  t1[1] = 0;
+
+  t2    = t1;
+  t3    = t1;
+  return t2;
+}
+
+fn init (stack u64[2] t1) -> stack u64[2]  
+{
+  t1[0] = 0;
+  t1[1] = 0;
+  return t1;
+}
+
+fn test2 () -> stack u64[2]  
+{
+  stack u64[2] t1;
+  t1 = init(t1);
+  t1 = init(t1);
+  return t1;
+}
+
+
+
+

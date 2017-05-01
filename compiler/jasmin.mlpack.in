@@ -13,6 +13,7 @@ src/Printer
 src/Prog
 src/Puf
 src/Regalloc
+src/Varalloc
 src/Subst
 src/Syntax
 src/Typing

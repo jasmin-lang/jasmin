@@ -37,13 +37,9 @@ Unset Printing Implicit Defensive.
 
 Section PROOF.
 
-Variable rename_fd    : funname -> fundef -> fundef.
-Variable expand_fd    : funname -> fundef -> fundef.
-Variable alloc_fd     : funname -> fundef -> fundef.
-Variable stk_alloc_fd : funname -> fundef -> seq (var * Z) * sfundef.
-Variable print_prog   : string -> prog -> prog.
+Variable cparams : compiler_params.
 
-Hypothesis print_progP : forall s p, print_prog s p = p.
+Hypothesis print_progP : forall s p, cparams.(print_prog) s p = p.
 
 Lemma unroll1P (fn: funname) (p p':prog) mem va mem' vr:
   unroll1 p = ok p' ->
@@ -70,11 +66,8 @@ Qed.
 
 Opaque Loop.nb.
 
-Local Notation compile_prog' := 
-  (compile_prog rename_fd expand_fd alloc_fd stk_alloc_fd print_prog).
-
 Lemma compile_progP (p: prog) (lp: lprog) mem fn va mem' vr:
-  compile_prog' p = cfok lp ->
+  compile_prog cparams p = cfok lp ->
   sem_call p mem fn va mem' vr ->
   uniq [seq x.1 | x <- p] ->
   (forall fn f, get_fundef lp fn = Some f -> exists p, Memory.alloc_stack mem (lfd_stk_size f) = ok p) ->
@@ -83,6 +76,8 @@ Proof.
   rewrite /compile_prog.
   apply: rbindP=> p0 Hp0. rewrite !print_progP.
   apply: rbindP=> p1 Hp1. rewrite !print_progP.
+  apply: rbindP=> -[] Hv.
+  apply: rbindP=> dv Hdv. rewrite !print_progP.
   apply: rbindP=> -[] He.
   apply: rbindP=> -[] He'.
   apply: rbindP=> pd Hpd. rewrite !print_progP.
@@ -96,6 +91,8 @@ Proof.
   apply: (dead_code_callP Hpd).
   apply: (CheckAllocReg.alloc_callP He').
   apply: (CheckExpansion.alloc_callP He).
+  apply: (dead_code_callP Hdv).
+  apply: (CheckAllocReg.alloc_callP Hv).
   apply: (unrollP Hp1).
   apply: (inline_callP _ Hp0)=> //.
   rewrite /alloc_ok=> fd Hfd.
