@@ -210,7 +210,9 @@ type ty    = int gty
 type var   = ty gvar
 type var_i = ty gvar_i
 type lval  = ty glval
+type lvals = ty glval list
 type expr  = ty gexpr
+type exprs = ty gexpr list
 
 type 'info instr = (ty,'info) ginstr
 type 'info stmt  = (ty,'info) gstmt
