@@ -125,8 +125,8 @@ Section PROOF.
   Proof. move=> _ Hi. exact: Hi. Qed.
 
   Lemma check_nop_spec (r:lval) (e:pexpr): check_nop r e ->
-    exists x, r = (Lvar x) /\ e = (Pvar x).
-  Proof. by case: r e => //= x1 [] //= x2 /eqP <-;exists x1. Qed.
+    exists x i1 i2, r = (Lvar (VarI x i1)) /\ e = (Pvar(VarI x i2)).
+  Proof. by case: r e => //= -[x1 i1] [] //= -[x2 i2] /= /eqP <-;exists x1, i1, i2. Qed.
 
   Local Lemma Hassgn s1 s2 x tag e :
     Let v := sem_pexpr s1 e in write_lval x v s1 = Ok error s2 ->
@@ -145,7 +145,7 @@ Section PROOF.
         case: ifPn=> Hnop /=.
         + move=> vm1' Hvm.
           have Hs: {| emem := m1; evm := vm1 |} = {| emem := m2; evm := vm2 |}.
-            move: (check_nop_spec Hnop)=> {Hnop} [x0 [Hx He]];subst x e.
+            move: (check_nop_spec Hnop)=> {Hnop} [x0 [i1 [i2 [Hx He]]]];subst x e.
             rewrite /write_var /set_var /= in Hw. 
             case: (bindW Hv)=> v' Hv' {Hv} []Hv.
             have Hv'2 := (@of_val_to_val (vtype x0) v').

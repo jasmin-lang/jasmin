@@ -77,7 +77,7 @@ Definition write_mem (r:lval) : bool :=
 
 Definition check_nop (rv:lval) (e:pexpr) :=
   match rv, e with
-  | Lvar x1, Pvar x2 => x1 == x2
+  | Lvar x1, Pvar x2 => x1.(v_var) == x2.(v_var)
   | _, _ => false
   end.
  
