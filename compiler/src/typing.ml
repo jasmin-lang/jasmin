@@ -529,7 +529,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
         let args =
           check_sig_call ~loc:(`Force (L.loc pi))
             (List.map (fun x -> x.P.v_ty) f.P.f_args) args
-        in P.Ccall (P.NoInline, lvs, f.P.f_name, args)
+        in P.Ccall (P.DoInline, lvs, f.P.f_name, args)
 
     | PIAssign (ls, eqop, pe, None) -> begin
         let lvs = List.map (fun lv -> (L.loc lv, tt_lvalue env lv)) ls in
