@@ -49,7 +49,8 @@ Notation "i ':@' x" := (MkI i x%P) (at level 0, x at level 200): prog_scope.
 
 (* Cassign *)
 Notation "x ::= e" := (Cassgn x%L AT_keep e%E)   (at level 70) : prog_scope.
-Notation "x :r= e" := (Cassgn x%L AT_rename e%E) (at level 70) : prog_scope.
+Notation "x :a= e" := (Cassgn x%L AT_rename_arg e%E) (at level 70) : prog_scope.
+Notation "x :r= e" := (Cassgn x%L AT_rename_res e%E) (at level 70) : prog_scope.
 Notation "x :i= e" := (Cassgn x%L AT_inline e%E) (at level 70) : prog_scope.
 
 (* Copn *)

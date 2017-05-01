@@ -219,12 +219,12 @@ Section SUBSET.
   
 End SUBSET.
 
-Lemma assgn_tuple_Lvar p ii (xs:seq var_i) es vs s s' :
+Lemma assgn_tuple_Lvar p ii (xs:seq var_i) flag es vs s s' :
   let xs := map Lvar xs in
   disjoint (vrvs xs) (read_es es) ->  
   sem_pexprs s es = ok vs ->
   write_lvals s xs vs = ok s' ->
-  sem p s (assgn_tuple ii xs es) s'.
+  sem p s (assgn_tuple ii xs flag es) s'.
 Proof.
   rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
   elim: xs es vs s s' => [ | x xs Hrec] [ | e es] [ | v vs] s s' //=.
@@ -240,12 +240,12 @@ Proof.
   rewrite read_esE => y Hy;rewrite Fv.setP_neq //;apply/eqP;SvD.fsetdec.
 Qed.
 
-Lemma assgn_tuple_Pvar p ii xs rxs vs s s' :
+Lemma assgn_tuple_Pvar p ii xs flag rxs vs s s' :
   let es := map Pvar rxs in
   disjoint (vrvs xs) (read_es es) -> 
   mapM (fun x : var_i => get_var (evm s) x) rxs = ok vs ->
   write_lvals s xs vs = ok s' ->
-  sem p s (assgn_tuple ii xs es) s'.
+  sem p s (assgn_tuple ii xs flag es) s'.
 Proof.
   rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
   have : evm s = evm s [\vrvs xs] by done.

@@ -109,7 +109,8 @@ type op =
 
 type assgn_tag =
   | AT_keep   (* compile to move *)
-  | AT_rename (* use as equality constraint in reg-alloc and compile to no-op *)
+  | AT_rename_arg (* use as equality constraint in reg-alloc and compile to no-op *)
+  | AT_rename_res (* use as equality constraint in reg-alloc and compile to no-op *)
   | AT_unroll (* result of unfolding loops, must be remove in next pass *)
 
 type 'ty glval =

@@ -50,9 +50,10 @@ let pp_inline fmt = function
   | NoInline -> F.fprintf fmt "DoNotInline"
 
 let pp_ass_tag fmt = function
-  | AT_keep   -> F.fprintf fmt "::="
-  | AT_rename -> F.fprintf fmt ":r="
-  | AT_unroll -> F.fprintf fmt ":i="
+  | AT_keep       -> F.fprintf fmt "::="
+  | AT_rename_arg -> F.fprintf fmt ":a="
+  | AT_rename_res -> F.fprintf fmt ":r="
+  | AT_unroll     -> F.fprintf fmt ":i="
    
 let infix_sop2 = function
   | Oand -> "&&"

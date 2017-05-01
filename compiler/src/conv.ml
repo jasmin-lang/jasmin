@@ -260,14 +260,16 @@ let expr_of_cexprs tbl es = List.map (expr_of_cexpr tbl) es
 (* ------------------------------------------------------------------------ *)
 
 let cat_of_at = function
-  | AT_keep   -> C.AT_keep
-  | AT_rename -> C.AT_rename
-  | AT_unroll -> C.AT_inline
+  | AT_keep       -> C.AT_keep
+  | AT_rename_arg -> C.AT_rename_arg
+  | AT_rename_res -> C.AT_rename_res
+  | AT_unroll     -> C.AT_inline
 
 let at_of_cat = function
-  | C.AT_keep   -> AT_keep
-  | C.AT_rename -> AT_rename
-  | C.AT_inline -> AT_unroll
+  | C.AT_keep       -> AT_keep
+  | C.AT_rename_arg -> AT_rename_arg
+  | C.AT_rename_res -> AT_rename_res
+  | C.AT_inline     -> AT_unroll
 
 (* ------------------------------------------------------------------------ *)
 

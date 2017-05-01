@@ -269,9 +269,10 @@ Definition wrange d (n1 n2 : Z) :=
 Definition instr_info := positive.
 
 Inductive assgn_tag := 
-  | AT_keep    (* normal assignment *)
-  | AT_rename  (* equality constraint introduced by inline ... *)
-  | AT_inline. (* assignment to be removed later : introduce by unrolling ... *) 
+  | AT_keep       (* normal assignment *)
+  | AT_rename_arg (* equality constraint introduced by inline, argument assignment *)
+  | AT_rename_res (* equality constraint introduced by inline, result assignment   *)
+  | AT_inline.    (* assignment to be removed later : introduce by unrolling ...   *) 
 
 Scheme Equality for assgn_tag.
 

@@ -40,8 +40,8 @@ Local Open Scope seq_scope.
 (* ** inlining
  * -------------------------------------------------------------------- *)
 
-Definition assgn_tuple iinfo (xs:lvals) (es:pexprs) :=
-  let assgn xe := MkI iinfo (Cassgn xe.1 AT_rename xe.2) in
+Definition assgn_tuple iinfo (xs:lvals) flags (es:pexprs) :=
+  let assgn xe := MkI iinfo (Cassgn xe.1 flags xe.2) in
   map assgn (zip xs es).
 
 Definition inline_c (inline_i: instr -> Sv.t -> ciexec (Sv.t * cmd)) c s := 
@@ -93,8 +93,8 @@ Fixpoint inline_i (p:prog) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
         Let fd := get_fun p iinfo f in 
         let fd' := rename_fd f fd in
         Let _ := check_rename iinfo f fd fd' (Sv.union (vrvs xs) X) in
-        ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) es ++ 
-                  (fd'.(f_body) ++ assgn_tuple iinfo xs (map Pvar fd'.(f_res))))
+        ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename_arg es ++ 
+                  (fd'.(f_body) ++ assgn_tuple iinfo xs AT_rename_res (map Pvar fd'.(f_res))))
       else ciok (X, [::i])        
     end
   end.

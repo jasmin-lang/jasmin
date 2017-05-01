@@ -16,3 +16,18 @@ Apres inlining on peut (il faut) virer des fonctions de l'environement:
   prouver la transformation 
 
 
+(* -------------------------- *) 
+Gestion des egalites introduites par l'inlining:
+  Si les king des variables sont compatibles on propage en arriere 
+  les variables du resultat:
+  
+  c; x :r= y  ----> c{ y <- x }; y := y;
+
+  ensuite on fait une allocation pour minimiser les variables de stack.
+
+  ensuite on fait deadcode.
+
+  ensuite on remplace les equations de la forme x = y avec x et y 
+  des variables array par des x[i] = y[i]
+
+   
