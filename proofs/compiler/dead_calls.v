@@ -29,7 +29,7 @@ Definition c_calls (c : Sp.t) (cmd : cmd) :=
   foldl i_calls c cmd.
 
 (* -------------------------------------------------------------------- *)
-Fixpoint dead_calls (c : Sp.t) (p : prog) {struct p} :=
+Fixpoint dead_calls (c : Sp.t) (p : prog) {struct p} : prog :=
   if p is (f, fd) :: p then
     if Sp.mem f c then
       (f, fd) :: dead_calls (c_calls c fd.(f_body)) p
@@ -39,4 +39,3 @@ Fixpoint dead_calls (c : Sp.t) (p : prog) {struct p} :=
 (* -------------------------------------------------------------------- *)
 Definition dead_calls_seq (c : seq funname) (p : prog) :=
   dead_calls (foldl (fun f c => Sp.add c f) Sp.empty c) p.
-
