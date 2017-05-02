@@ -16,6 +16,8 @@ compiler/constant_prop.v
 compiler/constant_prop_proof.v
 compiler/dead_code.v
 compiler/dead_code_proof.v
+compiler/dead_calls.v
+compiler/dead_calls_proof.v
 compiler/inline.v
 compiler/inline_proof.v
 compiler/linear.v

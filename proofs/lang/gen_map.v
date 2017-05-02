@@ -24,7 +24,7 @@
  * ----------------------------------------------------------------------- *)
 
 (* ** Imports and settings *)
-Require Import FMaps FMapAVL.
+Require Import FMaps FMapAVL FSetAVL.
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import utils.
 
@@ -516,3 +516,8 @@ Module Smake (T:CmpType).
   Include (MSetAVL.Make Ordered).
 End Smake.
 
+Module PosSet.
+  Module Sp  := Smake CmpPos.
+  Module SpP := MSetEqProperties.EqProperties Sp.
+  Module SpD := MSetDecide.WDecide Sp.
+End PosSet.
