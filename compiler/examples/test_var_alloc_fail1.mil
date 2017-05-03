@@ -1,0 +1,22 @@
+fn init (reg u64[2] t1) -> reg u64[2]  
+{
+  t1[0] = 0;
+  t1[1] = 0;
+  return t1;
+}
+
+fn test3 () -> reg u64[2]  
+{
+  reg u64[2] t1;
+  reg u64[2] t2;
+  t2 = init(t1);
+  t1 = init(t1);
+  return t1;
+}
+
+
+
+
+
+
+

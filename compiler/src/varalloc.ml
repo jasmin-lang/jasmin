@@ -54,11 +54,21 @@ and rm_uninitialized_c init c =
       init', i::r) (init, []) c in
   init', List.rev r
       
+let pp_info fmt (s1, s2) = 
+  Format.fprintf fmt "before: %a; after %a@ "
+    (Printer.pp_list " " (Printer.pp_var ~debug:true)) (Sv.elements s1)
+    (Printer.pp_list " " (Printer.pp_var ~debug:true)) (Sv.elements s2)
+
 let live_init_fd fd = 
   let fd = live_fd fd in
+(*  Format.eprintf "liveness done@.";
+  Format.eprintf "%a@." (Printer.pp_ifunc ~debug:true pp_info) fd; *)
   let init = Sv.of_list fd.f_args in
   let _, f_body = rm_uninitialized_c init fd.f_body in
-  { fd with f_body }
+  let fd = { fd with f_body } in
+(*  Format.eprintf "after rm uninitialized @.";
+  Format.eprintf "%a@." (Printer.pp_ifunc ~debug:true pp_info) fd; *)
+  fd
 
 let merge_class cf s = 
   let add_conflict x cf = 
@@ -91,29 +101,97 @@ and conflicts_c cf c =
   List.fold_left conflicts_i cf c
   
 let alloc_stack_fd fd =
-  Format.eprintf "variable allocation@.";
+  Format.eprintf "stack variables re-allocation@.";
   (* collect all stack variables occuring in fd *)
   let vars = Sv.filter (fun v -> v.v_kind = Stack) (vars_fc fd) in
   let vars = Sv.elements vars in
   (* liveness analysis *)
   let fd' = live_init_fd fd in
-  Format.eprintf "liveness done@.";
+(*  Format.eprintf "liveness done@."; *)
   (* compute the dependency graph *)
   let cf = conflicts_c Mv.empty fd'.f_body in
-  let pp_var =  Printer.pp_var ~debug:true in
+(*  let pp_var =  Printer.pp_var ~debug:true in
   Mv.iter (fun x s ->
       Format.eprintf "%a -> %a@."
         pp_var x (Printer.pp_list ", " pp_var) (Sv.elements s)) cf;
-  Format.eprintf "dependency done@.";
+  Format.eprintf "dependency done@."; *)
   (* allocated variables *)
   let ma = ref Mv.empty in
   let alloc x = 
     let cx = Mv.find_default Sv.empty x cf in
     let test y = x.v_ty = y.v_ty && not (Sv.mem y cx) in
     let x' = List.find test vars in
-    Format.eprintf "%a allocated in %a@." 
-                   pp_var x pp_var x';
+(*    Format.eprintf "%a allocated in %a@." 
+                   pp_var x pp_var x'; *)
     ma := Mv.add x x' !ma in
   List.iter alloc vars;
-  Format.eprintf "allocation done@.";
+(*  Format.eprintf "allocation done@."; *)
   vsubst_func !ma fd
+
+(* --------------------------------------------------------------------- *)
+
+let is_same = function
+  | AT_keep | AT_unroll -> false 
+  | AT_rename_arg | AT_rename_res -> true
+
+let rec get_repr m x = 
+  if Mv.mem x m then get_repr m (Mv.find x m) 
+  else x
+
+let normalize_repr m = 
+  Mv.mapi (fun x _ -> get_repr m x) m
+
+let set_same loc (cf, m as cfm) x y = 
+  let rx = get_repr m (L.unloc x) in
+  let ry = get_repr m (L.unloc y) in
+  if V.equal rx ry then cfm
+  else 
+    let xc = Mv.find_default Sv.empty rx cf in
+    let yc = Mv.find_default Sv.empty ry cf in
+    if Sv.mem ry xc then 
+      hierror "at %a: cannot remove introduced assignment %a = %a"
+        L.pp_loc loc 
+        (Printer.pp_var ~debug:true) (L.unloc x) 
+        (Printer.pp_var ~debug:true) (L.unloc y);
+(*    Format.eprintf "alloc %a in %a@." 
+     (Printer.pp_var ~debug:true) rx (Printer.pp_var ~debug:true) ry; *)
+    merge_class cf (Sv.union xc yc), Mv.add rx ry m
+
+
+  
+let rec same_i cfm i = 
+  match i.i_desc with
+  | Cassgn (Lvar x, tag ,Pvar y) when is_same tag && kind_i x = kind_i y ->
+    set_same i.i_loc cfm x y 
+  | Cassgn (_, tag, _) when is_same tag ->
+    hierror "at %a: cannot remove assignment %a@\nintroduced by inlining"
+        L.pp_loc i.i_loc 
+        (Printer.pp_instr ~debug:true) i 
+  | Cassgn _                            -> cfm
+  | Copn (_, _, _) | Ccall (_, _, _, _) -> cfm
+  | Cblock c       | Cfor( _, _, c)     -> same_c cfm c 
+  | Cif(_, c1, c2) | Cwhile(c1, _, c2)  -> same_c (same_c cfm c1) c2
+
+and same_c cfm c = List.fold_left same_i cfm c
+
+let merge_var_inline_fd fd = 
+(*  Format.eprintf "merge variables introduced by inlining@."; *)
+  (* liveness analysis *)
+  let fd' = live_fd fd in
+(*  Format.eprintf "liveness done@."; *)
+  (* compute the dependency graph *)
+  let cf = conflicts_c Mv.empty fd'.f_body in
+(*  let pp_var =  Printer.pp_var ~debug:true in
+  Mv.iter (fun x s ->
+      Format.eprintf "%a -> %a@."
+        pp_var x (Printer.pp_list ", " pp_var) (Sv.elements s)) cf;
+  Format.eprintf "dependency done@."; *)
+  (* compute the set of variables that should be merged *)
+  let (_,ma) = same_c (cf,Mv.empty) fd.f_body in
+  let ma = normalize_repr ma in
+(*  Format.eprintf "assignment done @.";
+  Mv.iter (fun x y -> 
+      Format.eprintf "%a -> %a@." pp_var x pp_var y) ma;
+  Format.eprintf "merge variables done@."; *)
+  vsubst_func ma fd
+

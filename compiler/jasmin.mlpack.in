@@ -18,3 +18,4 @@ src/Subst
 src/Syntax
 src/Typing
 src/Utils
+src/Main_compiler

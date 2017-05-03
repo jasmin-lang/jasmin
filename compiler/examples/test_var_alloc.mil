@@ -44,6 +44,17 @@ fn test2 () -> stack u64[2]
   return t1;
 }
 
+fn test3 () -> stack u64[2]  
+{
+  reg u64[2] t1;
+  t1 = init(t1);
+  t1 = init(t1);
+  return t1;
+}
+
+
+
+
 
 
 

@@ -77,29 +77,33 @@ Proof.
   apply: rbindP=> p0 Hp0. rewrite !print_progP.
   apply: rbindP=> p1 Hp1. rewrite !print_progP.
   apply: rbindP=> -[] Hv.
-  apply: rbindP=> dv Hdv. rewrite !print_progP.
+  apply: rbindP=> pv Hpv. rewrite !print_progP.
+  apply: rbindP=> -[] Hps.
+  apply: rbindP=> ps' Hps'. rewrite !print_progP.
   apply: rbindP=> -[] He.
   apply: rbindP=> -[] He'.
   apply: rbindP=> pd Hpd. rewrite !print_progP.
-  case Hps: (stk_alloc_prog _ pd)=> [ps l].
-  case Hps': (check_prog pd ps l)=> //.
+  case Hpstk: (stk_alloc_prog _ pd)=> [pstk l].
+  case Hpstk': (check_prog pd pstk l)=> //.
   apply: rbindP=> pl Hpl [] <-.
   move=> Hcall Huniq Halloc.
   apply: (linear_fdP Hpl).
-  apply: stack_alloc_proof.check_progP.
-  exact: Hps'=> //.
+  have : alloc_ok pstk fn mem.
+  + rewrite /alloc_ok=> fd Hfd.
+    move: (get_map_cfprog Hpl Hfd)=> [f' [Hf'1 Hf'2]].
+    apply: rbindP Hf'1=> [fn' Hfn'] [] Hf'.
+    have := Halloc _ _ Hf'2.
+    by rewrite -Hf' /=.
+  apply: (stack_alloc_proof.check_progP Hpstk').
   apply: (dead_code_callP Hpd).
   apply: (CheckAllocReg.alloc_callP He').
   apply: (CheckExpansion.alloc_callP He).
-  apply: (dead_code_callP Hdv).
+  apply: (dead_code_callP Hps').
+  apply: (CheckAllocReg.alloc_callP Hps).
+  apply: (dead_code_callP Hpv).
   apply: (CheckAllocReg.alloc_callP Hv).
   apply: (unrollP Hp1).
   apply: (inline_callP _ Hp0)=> //.
-  rewrite /alloc_ok=> fd Hfd.
-  move: (get_map_cfprog Hpl Hfd)=> [f' [Hf'1 Hf'2]].
-  apply: rbindP Hf'1=> [fn' Hfn'] [] Hf'.
-  have := Halloc _ _ Hf'2.
-  by rewrite -Hf' /=.
 Qed.
 
 End PROOF.
