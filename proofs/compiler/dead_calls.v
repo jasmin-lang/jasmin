@@ -30,13 +30,11 @@ Definition c_calls (c : Sp.t) (cmd : cmd) :=
 
 (* -------------------------------------------------------------------- *)
 Fixpoint dead_calls (c : Sp.t) (p : prog) {struct p} : prog :=
-  if uniq (map fst p) then
-    if p is (f, fd) :: p then
-      if Sp.mem f c then
-        (f, fd) :: dead_calls (c_calls c fd.(f_body)) p
-      else dead_calls c p
-    else [::]
-  else p.
+  if p is (f, fd) :: p then
+    if Sp.mem f c then
+      (f, fd) :: dead_calls (c_calls c fd.(f_body)) p
+    else dead_calls c p
+  else [::].
 
 (* -------------------------------------------------------------------- *)
 Definition dead_calls_seq (c : seq funname) (p : prog) :=
