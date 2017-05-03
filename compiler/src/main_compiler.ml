@@ -161,9 +161,13 @@ and pp_comp_ferr tbl fmt = function
 let eprint step pp_prog p = 
   if List.mem step !print_list then
     let (_, msg) = print_strings step in
-    Format.eprintf "(* --------------------------------------------------------- *)@.";
+    Format.eprintf 
+"(* -------------------------------------------------------------------- *)@.";
     Format.eprintf "(* After %s *)@.@." msg;
     Format.eprintf "%a@.@.@." pp_prog p               
+
+(* -------------------------------------------------------------------- *)
+(* stack allocation                                                     *)
 
 (* -------------------------------------------------------------------- *)
 let main () =
@@ -202,6 +206,13 @@ let main () =
       let fd = fdef_of_cfdef fn cfd in
       let fd = trans fd in
       cfdef_of_fdef fd in
+
+    let stk_alloc_fd fn cfd = 
+      let fd = fdef_of_cfdef fn cfd in
+      let alloc, sz, fd = Array_expand.stk_alloc_func fd in
+      fd in
+      
+      
     let pp_cprog fmt cp = 
       let p = Conv.prog_of_cprog tbl cp in
       Printer.pp_prog ~debug:true fmt p in

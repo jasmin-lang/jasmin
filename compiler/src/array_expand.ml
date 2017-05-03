@@ -189,10 +189,10 @@ and astk_c tbl c = List.map (astk_i tbl) c
 let check_stack_var v =
   assert (not (is_stack_var (L.unloc v)))
 
-let astk_func fc =
+let stk_alloc_func fc =
   List.iter (fun v -> check_stack_var (L.mk_loc L._dummy v)) fc.f_args;
   List.iter check_stack_var fc.f_ret;
   let alloc, sz, tbl = init_stk fc in
   alloc, sz, { fc with f_body = astk_c tbl fc.f_body }
 
-let astk_prog prog = List.map astk_func prog
+let stk_alloc_prog prog = List.map stk_alloc_func prog

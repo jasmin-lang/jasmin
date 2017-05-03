@@ -8,10 +8,20 @@ val pp_info : Format.formatter -> Sv.t * Sv.t -> unit
 
 val merge_class : Sv.t Mv.t -> Sv.t -> Sv.t Mv.t
 
-val conflicts : ('info, Sv.t * Sv.t) gfunc -> Sv.t Mv.t
+type conflicts = Sv.t Mv.t
 
-val normalize_repr : Mv.key Mv.t -> Mv.key Mv.t
+val conflicts : (Sv.t * Sv.t) func -> conflicts
+
+type var_classes 
+
+val init_classes : conflicts -> var_classes
+
+val normalize_repr : var_classes -> var Mv.t
 
 exception SetSameConflict
 
-val set_same : Sv.t Mv.t * Mv.key Mv.t -> Mv.key L.located -> Mv.key L.located -> Sv.t Mv.t * Mv.key Mv.t
+val set_same : var_classes -> var -> var -> var_classes 
+
+val get_conflict : var_classes -> var -> Sv.t
+
+

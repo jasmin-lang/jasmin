@@ -111,28 +111,40 @@ let rec conflicts_i cf i =
 and conflicts_c cf c =
   List.fold_left conflicts_i cf c
 
+
+type conflicts = Sv.t Mv.t
+
 let conflicts f =
-  (* TODO: function arguments should conflict *)
-  conflicts_c Mv.empty f.f_body
+  let ca = Sv.of_list f.f_args in
+  let cr = Sv.of_list (List.map L.unloc f.f_ret) in
+  let cf = merge_class Mv.empty ca in
+  let cf = merge_class cf cr in
+  conflicts_c cf f.f_body
+
+type var_classes = conflicts * var Mv.t
+
+let init_classes cf = cf, Mv.empty
+
+let get_conflict (cf,_) x = 
+  Mv.find_default Sv.empty x cf 
+
+exception SetSameConflict
 
 let rec get_repr m x =
   if Mv.mem x m then get_repr m (Mv.find x m)
   else x
 
-let normalize_repr m =
+let normalize_repr (_c,m) =
   Mv.mapi (fun x _ -> get_repr m x) m
 
 exception SetSameConflict
 
 let set_same (cf, m as cfm) x y =
-  let rx = get_repr m (L.unloc x) in
-  let ry = get_repr m (L.unloc y) in
+  let rx = get_repr m x in
+  let ry = get_repr m y in
   if V.equal rx ry then cfm
   else
     let xc = Mv.find_default Sv.empty rx cf in
     let yc = Mv.find_default Sv.empty ry cf in
-    if Sv.mem ry xc then
-      raise SetSameConflict;
-(*    Format.eprintf "alloc %a in %a@."
-     (Printer.pp_var ~debug:true) rx (Printer.pp_var ~debug:true) ry; *)
+    if Sv.mem ry xc then raise SetSameConflict;
     merge_class cf (Sv.union xc yc), Mv.add rx ry m
