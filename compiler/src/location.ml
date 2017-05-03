@@ -49,6 +49,9 @@ let tostring (p : t) =
   in
     Printf.sprintf "%s: %s" p.loc_fname spos
 
+let pp_loc fmt (p:t) = 
+  Format.fprintf fmt "%s" (tostring p)
+
 let merge (p1 : t) (p2 : t) =
   { loc_fname = p1.loc_fname;
     loc_start = min p1.loc_start p2.loc_start;
@@ -98,3 +101,6 @@ let set_oloc oloc f x =
   match oloc with
   | None     -> f x
   | Some loc -> set_loc loc f x
+
+
+

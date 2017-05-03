@@ -19,6 +19,7 @@ val _dummy    : t
 val make      : position -> position -> t
 val of_lexbuf : lexbuf -> t
 val tostring  : t -> string
+val pp_loc    : Format.formatter -> t -> unit
 val merge     : t -> t -> t
 val mergeall  : t list -> t
 val isdummy   : t -> bool
