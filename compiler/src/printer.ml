@@ -116,10 +116,11 @@ let pp_tag = function
   | AT_rename_res -> ":r"
   | AT_unroll     -> ":i"
 
-let rec pp_gi pp_var fmt i =
+let rec pp_gi pp_info pp_var fmt i =
+  F.fprintf fmt "%a" pp_info i.i_info;
   match i.i_desc with
   | Cblock c ->
-    F.fprintf fmt "@[<v>%a@]" (pp_cblock pp_var) c
+    F.fprintf fmt "@[<v>{@   @[<v>%a@]@ }@]" (pp_cblock pp_info pp_var) c
 
   | Cassgn(x , t, e) ->
     F.fprintf fmt "@[<hov 2>%a %s=@ %a;@]" 
@@ -132,42 +133,44 @@ let rec pp_gi pp_var fmt i =
 
   | Cif(e, c, []) ->
     F.fprintf fmt "@[<v>if %a %a@]"
-      (pp_ge pp_var) e (pp_cblock pp_var) c
+      (pp_ge pp_var) e (pp_cblock pp_info pp_var) c
 
   | Cif(e, c1, c2) ->
     F.fprintf fmt "@[<v>if %a %a else %a@]"
-      (pp_ge pp_var) e (pp_cblock pp_var) c1 (pp_cblock pp_var) c2
+      (pp_ge pp_var) e (pp_cblock pp_info pp_var) c1 
+      (pp_cblock pp_info pp_var) c2
 
   | Cfor(i, (dir, lo, hi), c) ->
     let dir, e1, e2 =
       if dir = UpTo then "to", lo, hi else "downto", hi, lo in
     F.fprintf fmt "@[<v>for %a = @[%a %s@ %a] %a@]"
       (pp_gvar_i pp_var) i (pp_ge pp_var) e1 dir (pp_ge pp_var) e2
-      (pp_gc pp_var) c
+      (pp_gc pp_info pp_var) c
 
   | Cwhile([], e, c) ->
     F.fprintf fmt "@[<v>while (%a) %a@]"
-      (pp_ge pp_var) e (pp_cblock pp_var) c
+      (pp_ge pp_var) e (pp_cblock pp_info pp_var) c
 
   | Cwhile(c, e, []) ->
     F.fprintf fmt "@[<v>while %a (%a)@]"
-      (pp_cblock pp_var) c (pp_ge pp_var) e 
+      (pp_cblock pp_info pp_var) c (pp_ge pp_var) e 
 
   | Cwhile(c, e, c') ->
     F.fprintf fmt "@[<v>while %a %a %a@]"
-      (pp_cblock pp_var) c (pp_ge pp_var) e (pp_cblock pp_var) c'
+      (pp_cblock pp_info pp_var) c (pp_ge pp_var) e 
+      (pp_cblock pp_info pp_var) c'
 
   | Ccall(_ii, x, f, e) -> (* FIXME ii *)
     F.fprintf fmt "@[<hov 2> %a =@ %s(%a);@]"
       (pp_glvs pp_var) x f.fn_name (pp_ges pp_var) e
 
 (* -------------------------------------------------------------------- *)
-and pp_gc pp_var fmt c =
-  F.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_gi pp_var)) c
+and pp_gc pp_info pp_var fmt c =
+  F.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_gi pp_info pp_var)) c
 
 (* -------------------------------------------------------------------- *)
-and pp_cblock pp_var fmt c =
-  F.fprintf fmt "{@   %a@ }" (pp_gc pp_var) c
+and pp_cblock pp_info pp_var fmt c =
+  F.fprintf fmt "{@   %a@ }" (pp_gc pp_info pp_var) c
 
 (* -------------------------------------------------------------------- *)
 
@@ -183,7 +186,7 @@ let pp_ty_decl (pp_size:F.formatter -> 'size -> unit) fmt v =
 let pp_var_decl pp_var pp_size fmt v = 
   F.fprintf fmt "%a %a" (pp_ty_decl pp_size) v pp_var v
 
-let pp_gfun (pp_size:F.formatter -> 'size -> unit) pp_var fmt fd =  
+let pp_gfun pp_info (pp_size:F.formatter -> 'size -> unit) pp_var fmt fd =  
   let pp_vd =  pp_var_decl pp_var pp_size in
 (*  let locals = locals fd in *)
   let ret = List.map L.unloc fd.f_ret in
@@ -196,14 +199,15 @@ let pp_gfun (pp_size:F.formatter -> 'size -> unit) pp_var fmt fd =
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_size)) ret 
 (*   (pp_list ";@ " pp_vd) (Sv.elements locals) *)
-   (pp_gc pp_var) fd.f_body
+   (pp_gc pp_info pp_var) fd.f_body
    pp_ret ()
 
+let pp_noinfo _ _ = () 
 
 let pp_pitem pp_var = 
   let pp_size = pp_ge pp_var in
   let aux fmt = function
-    | MIfun fd -> pp_gfun pp_size pp_var fmt fd
+    | MIfun fd -> pp_gfun pp_noinfo pp_size pp_var fmt fd
     | MIparam (x,e) ->
       F.fprintf fmt "%a = %a" 
         (pp_var_decl pp_var pp_size) x
@@ -216,7 +220,7 @@ let pp_pprog fmt p =
     (pp_list "@ @ " (pp_pitem pp_var)) (List.rev p)
 
 
-let pp_fun pp_var fmt fd =  
+let pp_fun ?(pp_info=pp_noinfo) pp_var fmt fd =  
   let pp_size fmt i = F.fprintf fmt "%i" i in
   let pp_vd =  pp_var_decl pp_var pp_size in
   let locals = locals fd in 
@@ -230,7 +234,7 @@ let pp_fun pp_var fmt fd =
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_size)) ret 
    (pp_list ";@ " pp_vd) (Sv.elements locals) 
-   (pp_gc pp_var) fd.f_body
+   (pp_gc pp_info pp_var) fd.f_body
    pp_ret ()
 
 let pp_var ~debug = 
@@ -238,6 +242,33 @@ let pp_var ~debug =
       fun fmt x -> F.fprintf fmt "%s.%i" x.v_name (int_of_uid x.v_id) 
     else
       fun fmt x -> F.fprintf fmt "%s" x.v_name 
+
+
+let pp_instr ~debug fmt i =
+  let pp_var = pp_var ~debug in
+  pp_gi pp_noinfo pp_var fmt i
+
+let pp_stmt ~debug fmt i =
+  let pp_var = pp_var ~debug in
+  pp_gc pp_noinfo pp_var fmt i
+
+let pp_ifunc ~debug pp_info fmt fd = 
+  let pp_var = pp_var ~debug in
+  pp_fun ~pp_info pp_var fmt fd 
+
+let pp_func ~debug fmt fd = 
+  let pp_var = pp_var ~debug in
+  pp_fun pp_var fmt fd 
+
+let pp_prog ~debug fmt p = 
+  let pp_var = pp_var ~debug in
+  Format.fprintf fmt "@[<v>%a@]"
+     (pp_list "@ @ " (pp_fun pp_var)) (List.rev p)
+
+let pp_iprog ~debug pp_info fmt p = 
+  let pp_var = pp_var ~debug in
+  Format.fprintf fmt "@[<v>%a@]"
+     (pp_list "@ @ " (pp_fun ~pp_info pp_var)) (List.rev p)
 
 let pp_prog ~debug fmt p = 
   let pp_var = pp_var ~debug in
