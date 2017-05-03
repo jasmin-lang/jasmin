@@ -1,0 +1,6 @@
+fn f(reg u64 a, reg u64 b) -> reg u64 {
+reg u64 x;
+reg bool c;
+(c, x) = a + b;
+return x;
+}
