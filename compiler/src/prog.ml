@@ -84,6 +84,9 @@ let u64  = Bty (U W64)
 let u128 = Bty (U W128)
 let u256 = Bty (U W256)
 
+let kind_i v = (L.unloc v).v_kind
+let ty_i v = (L.unloc v).v_ty
+
 (* ------------------------------------------------------------------------ *)
 
 type op =

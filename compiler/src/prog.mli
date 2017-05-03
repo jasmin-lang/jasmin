@@ -243,6 +243,10 @@ module Mv : Map.S  with type key = var
 module Hv : Hash.S with type key = var
 
 (* -------------------------------------------------------------------- *)
+val kind_i : 'ty gvar_i -> v_kind
+val ty_i   : 'ty gvar_i -> 'ty
+
+(* -------------------------------------------------------------------- *)
 module F : sig
   val mk : Name.t -> funname
 
