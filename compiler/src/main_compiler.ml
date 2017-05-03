@@ -154,7 +154,9 @@ and pp_comp_ferr tbl fmt = function
   | Compiler_util.Ferr_neqprog  -> 
     Format.fprintf fmt "program not equal"
   | Compiler_util.Ferr_loop     ->
-      Format.fprintf fmt "loop iterator to small" 
+    Format.fprintf fmt "loop iterator to small" 
+  | Compiler_util.Ferr_uniqfun ->
+    Format.fprintf fmt "two function declarations with the same name" 
 
 (* -------------------------------------------------------------------- *)
 

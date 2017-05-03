@@ -39,3 +39,7 @@ Fixpoint dead_calls (c : Sp.t) (p : prog) {struct p} : prog :=
 (* -------------------------------------------------------------------- *)
 Definition dead_calls_seq (c : seq funname) (p : prog) :=
   dead_calls (foldl (fun f c => Sp.add c f) Sp.empty c) p.
+
+Definition dead_calls_err (c : seq funname) (p : prog) :=
+  if ~~(uniq (map fst p)) then cferror Ferr_uniqfun 
+  else ok (dead_calls (foldl (fun f c => Sp.add c f) Sp.empty c) p).

@@ -33,7 +33,8 @@ with fun_error   :=
   | Ferr_in_body  : funname -> funname -> (instr_info * error_msg) -> fun_error
   | Ferr_neqfun   : funname -> funname -> fun_error
   | Ferr_neqprog  : fun_error
-  | Ferr_loop     : fun_error.
+  | Ferr_loop     : fun_error
+  | Ferr_uniqfun  : fun_error.
 
 
 Notation instr_error := (instr_info * error_msg)%type.

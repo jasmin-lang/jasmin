@@ -194,3 +194,12 @@ Admitted.
 Lemma dead_calls_ok (f : Sp.t) (p : prog) : uniq (map fst p) ->
   pg_compat_call f p (dead_calls f p).
 Proof. Admitted.
+
+(* -------------------------------------------------------------------- *)
+Lemma dead_calls_err (s : seq funname) (p p': prog) : 
+  dead_calls_err s p = Ok _ p' ->
+  forall f m args m' res, f \in s -> 
+    sem_call p  m f args m' res ->
+    sem_call p' m f args m' res.
+Proof. Admitted.
+
