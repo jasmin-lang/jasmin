@@ -8,19 +8,67 @@ let typeonly = ref false
 let debug = ref false
 let coqfile = ref ""
 let coqonly = ref false
+let print_list = ref []
 
 let set_coqonly s =
   coqfile := s;
   coqonly := true
+
+let poptions = [
+    Compiler.Typing                      
+  ; Compiler.ParamsExpansion             
+  ; Compiler.Inlining                    
+  ; Compiler.RemoveUnusedFunction        
+  ; Compiler.Unrolling                   
+  ; Compiler.AllocInlineAssgn            
+  ; Compiler.DeadCode_AllocInlineAssgn   
+  ; Compiler.ShareStackVariable          
+  ; Compiler.DeadCode_ShareStackVariable 
+  ; Compiler.RegArrayExpansion           
+  ; Compiler.LowerInstruction            
+  ; Compiler.RegAllocation               
+  ; Compiler.DeadCode_RegAllocation      
+  ; Compiler.StackAllocation             
+  ; Compiler.Linearisation                 
+  ; Compiler.Assembly ]    
+
+let set_printing p () = 
+  print_list := p :: !print_list
+
+let set_all_print () = 
+  print_list := poptions
+
+let print_strings = function
+  | Compiler.Typing                      -> "typing"  , "typing"
+  | Compiler.ParamsExpansion             -> "cstexp"  , "constant expansion"
+  | Compiler.Inlining                    -> "inline"  , "inlining"
+  | Compiler.RemoveUnusedFunction        -> "rmfunc"  , "remove unused function"
+  | Compiler.Unrolling                   -> "unroll"  , "unrolling"
+  | Compiler.AllocInlineAssgn            -> "valloc"  , "inlined variables allocation"
+  | Compiler.DeadCode_AllocInlineAssgn   -> "vallocd" , "dead code after inlined variables allocation"
+  | Compiler.ShareStackVariable          -> "vshare"  , "sharing of stack variables"
+  | Compiler.DeadCode_ShareStackVariable -> "vshared" , "dead code after sharing of stack variables"
+  | Compiler.RegArrayExpansion           -> "arrexp"  , "expansion of register arrays"
+  | Compiler.LowerInstruction            -> "lowering", "lowering of instructions"
+  | Compiler.RegAllocation               -> "ralloc"  , "register allocation"
+  | Compiler.DeadCode_RegAllocation      -> "rallocd" , "dead code after register allocation"
+  | Compiler.StackAllocation             -> "stkalloc", "stack allocation"
+  | Compiler.Linearisation               -> "linear"  , "linearisation"
+  | Compiler.Assembly                    -> "asm"     , "generation of assembly"
+
+let print_option p = 
+  let s, msg = print_strings p in
+  ("-p"^s, Arg.Unit (set_printing p), "print program after "^msg)
 
 let options = [
     "-o"       , Arg.Set_string outfile, "[filename]: name of the output file";
     "-typeonly", Arg.Set typeonly      , ": stop after typechecking";
     "-debug"   , Arg.Set debug         , ": print debug information";
     "-coq"     , Arg.Set_string coqfile, "[filename]: generate the corresponding coq file";
-    "-coqonly" , Arg.String set_coqonly, "[filename]: generate the corresponding coq file, and exit"
-  ]
-
+    "-coqonly" , Arg.String set_coqonly, "[filename]: generate the corresponding coq file, and exit";
+    "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps"
+  ] @  List.map print_option poptions    
+              
 let usage_msg = "Usage : jasminc [option] filename"
 
 let parse () =
@@ -109,6 +157,15 @@ and pp_comp_ferr tbl fmt = function
       Format.fprintf fmt "loop iterator to small" 
 
 (* -------------------------------------------------------------------- *)
+
+let eprint step pp_prog p = 
+  if List.mem step !print_list then
+    let (_, msg) = print_strings step in
+    Format.eprintf "(* --------------------------------------------------------- *)@.";
+    Format.eprintf "(* After %s *)@.@." msg;
+    Format.eprintf "%a@.@.@." pp_prog p               
+
+(* -------------------------------------------------------------------- *)
 let main () =
   try
 
@@ -117,18 +174,13 @@ let main () =
     let fname = !infile in
     let ast   = Parseio.parse_program ~name:fname in
     let ast   = BatFile.with_file_in fname ast in
+
     let _, pprog  = Typing.tt_program Typing.Env.empty ast in
-    if !debug then begin
-      Printf.eprintf "parsed & typed\n%!";
-      Format.eprintf "%a@." Printer.pp_pprog pprog
-    end;
+    eprint Compiler.Typing Printer.pp_pprog pprog;
     if !typeonly then exit 0;
 
     let prog = Subst.remove_params pprog in
-    if !debug then begin
-      Printf.eprintf "params removed \n%!";
-      Format.eprintf "%a@." (Printer.pp_prog ~debug:true) prog
-    end;
+    eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
     (* Generate the coq program if needed *)
     if !coqfile <> "" then begin
@@ -138,7 +190,6 @@ let main () =
       close_out out;
       if !debug then Format.eprintf "coq program extracted@."
     end;
-
     if !coqonly then exit 0;
 
     (* Now call the coq compiler *)
@@ -151,32 +202,20 @@ let main () =
       let fd = fdef_of_cfdef fn cfd in
       let fd = trans fd in
       cfdef_of_fdef fd in
+    let pp_cprog fmt cp = 
+      let p = Conv.prog_of_cprog tbl cp in
+      Printer.pp_prog ~debug:true fmt p in
 
-    let rename_fd = apply Subst.clone_func in
-    let expand_fd = apply Array_expand.arrexp_func in
-    let var_alloc_fd  = apply Varalloc.merge_var_inline_fd in
-    let share_stk_fd  = apply Varalloc.alloc_stack_fd in
-    let reg_alloc_fd  = apply Regalloc.regalloc in
-    let stk_alloc_fd _fn _cfd = assert false in
-    let print_prog s cp =
-      if !debug then begin
-        let p = Conv.prog_of_cprog tbl cp in
-        Format.eprintf "After %s@." (Conv.string_of_string0 s);
-        Format.eprintf "%a@." Printer.pp_cprog cp;
-        Format.eprintf "%a@." (Printer.pp_prog ~debug:true) p
-      end;
-      cp
-    in
- 
     let cparams = {
-      Compiler.rename_fd    = rename_fd;
-      Compiler.expand_fd    = expand_fd;
-      Compiler.var_alloc_fd = var_alloc_fd;
-      Compiler.share_stk_fd = share_stk_fd;
-      Compiler.reg_alloc_fd = reg_alloc_fd;
-      Compiler.stk_alloc_fd = stk_alloc_fd;
-      Compiler.print_prog   = print_prog;
+      Compiler.rename_fd    = apply Subst.clone_func;
+      Compiler.expand_fd    = apply Array_expand.arrexp_func;
+      Compiler.var_alloc_fd = apply Varalloc.merge_var_inline_fd;
+      Compiler.share_stk_fd = apply Varalloc.alloc_stack_fd;
+      Compiler.reg_alloc_fd = apply Regalloc.regalloc;
+      Compiler.stk_alloc_fd = (fun _fn _cfd -> assert false);
+      Compiler.print_prog   = (fun s p -> eprint s pp_cprog p; p); 
     } in
+
     begin match 
       Compiler.compile_prog_to_x86 cparams
         cprog with

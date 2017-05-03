@@ -77,3 +77,8 @@ let live_fd fd =
   }
 
 let liveness prog = List.map live_fd prog
+
+let pp_info fmt (s1, s2) = 
+  Format.fprintf fmt "before: %a; after %a@ "
+    (Printer.pp_list " " (Printer.pp_var ~debug:true)) (Sv.elements s1)
+    (Printer.pp_list " " (Printer.pp_var ~debug:true)) (Sv.elements s2)

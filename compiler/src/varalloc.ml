@@ -54,11 +54,6 @@ and rm_uninitialized_c init c =
       init', i::r) (init, []) c in
   init', List.rev r
       
-let pp_info fmt (s1, s2) = 
-  Format.fprintf fmt "before: %a; after %a@ "
-    (Printer.pp_list " " (Printer.pp_var ~debug:true)) (Sv.elements s1)
-    (Printer.pp_list " " (Printer.pp_var ~debug:true)) (Sv.elements s2)
-
 let live_init_fd fd = 
   let fd = live_fd fd in
 (*  Format.eprintf "liveness done@.";
@@ -101,7 +96,6 @@ and conflicts_c cf c =
   List.fold_left conflicts_i cf c
   
 let alloc_stack_fd fd =
-  Format.eprintf "stack variables re-allocation@.";
   (* collect all stack variables occuring in fd *)
   let vars = Sv.filter (fun v -> v.v_kind = Stack) (vars_fc fd) in
   let vars = Sv.elements vars in

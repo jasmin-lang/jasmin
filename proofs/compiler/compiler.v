@@ -52,6 +52,8 @@ Definition unroll_loop (p:prog) := unroll Loop.nb p.
 Section COMPILER.
 
 Variant compiler_step := 
+  | Typing                      : compiler_step
+  | ParamsExpansion             : compiler_step
   | Inlining                    : compiler_step
   | RemoveUnusedFunction        : compiler_step
   | Unrolling                   : compiler_step
