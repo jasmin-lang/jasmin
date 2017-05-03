@@ -1,3 +1,5 @@
+open Prog
+
 (* -------------------------------------------------------------------- *)
 exception UsageError
 
@@ -169,9 +171,6 @@ let eprint step pp_prog p =
     Format.eprintf "%a@.@.@." pp_prog p               
 
 (* -------------------------------------------------------------------- *)
-(* stack allocation                                                     *)
-
-(* -------------------------------------------------------------------- *)
 let main () =
   try
 
@@ -204,13 +203,17 @@ let main () =
 
     let fdef_of_cfdef fn cfd = Conv.fdef_of_cfdef tbl (fn,cfd) in
     let cfdef_of_fdef fd = snd (Conv.cfdef_of_fdef tbl fd) in
-    let apply trans fn cfd =
+    let apply msg trans fn cfd =
+      if !debug then Format.eprintf "START %s@." msg;
       let fd = fdef_of_cfdef fn cfd in
+      if !debug then Format.eprintf "back to ocaml@.";
       let fd = trans fd in
       cfdef_of_fdef fd in
 
     let stk_alloc_fd fn cfd = 
       let fd = fdef_of_cfdef fn cfd in
+      if !debug then Format.eprintf "START stack alloc@." ;
+    
       let alloc, sz, fd = Array_expand.stk_alloc_func fd in
       let alloc = 
         let trans (v,i) = Conv.cvar_of_var tbl v, Conv.z_of_int i in
@@ -227,24 +230,27 @@ let main () =
         Stack_alloc.sf_res    = cfd.Expr.f_res; } in
       alloc, sfd
     in
-      
+
     let pp_cprog fmt cp = 
       let p = Conv.prog_of_cprog tbl cp in
       Printer.pp_prog ~debug:true fmt p in
 
     let cparams = {
-      Compiler.rename_fd    = apply Subst.clone_func;
-      Compiler.expand_fd    = apply Array_expand.arrexp_func;
-      Compiler.var_alloc_fd = apply Varalloc.merge_var_inline_fd;
-      Compiler.share_stk_fd = apply Varalloc.alloc_stack_fd;
-      Compiler.reg_alloc_fd = apply Regalloc.regalloc;
+      Compiler.rename_fd    = apply "rename_fd" Subst.clone_func;
+      Compiler.expand_fd    = apply "arr exp" Array_expand.arrexp_func;
+      Compiler.var_alloc_fd = apply "var alloc" Varalloc.merge_var_inline_fd;
+      Compiler.share_stk_fd = apply "share stk" Varalloc.alloc_stack_fd;
+      Compiler.reg_alloc_fd = apply "reg alloc" Regalloc.regalloc;
       Compiler.stk_alloc_fd = stk_alloc_fd;
       Compiler.print_prog   = (fun s p -> eprint s pp_cprog p; p); 
     } in
 
+    let entries = 
+      let ep = List.filter (fun fd -> fd.f_cc = Export) prog in
+      List.map (fun fd -> Conv.cfun_of_fun tbl fd.f_name) ep in
+
     begin match 
-      Compiler.compile_prog_to_x86 cparams
-        cprog with
+      Compiler.compile_prog_to_x86 cparams entries cprog with
     | Utils0.Error e -> 
       Utils.hierror "compilation error %a@.PLEASE REPORT"
          (pp_comp_ferr tbl) e

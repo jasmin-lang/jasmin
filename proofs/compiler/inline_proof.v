@@ -639,4 +639,13 @@ Section PROOF.
 
 End PROOF.
 
+Lemma inline_call_errP p p' f mem mem' va vr: 
+  inline_prog_err rename_fd p = ok p' ->
+  sem_call p mem f va mem' vr -> 
+  sem_call p' mem f va mem' vr.
+Proof.
+  rewrite /inline_prog_err;case:ifP => //= Hu Hi.
+  apply: (inline_callP Hu Hi).
+Qed.
+
 End INLINE.

@@ -36,6 +36,7 @@
     "to"    , TO     ;
     "true"  , TRUE   ;
     "while" , WHILE  ;
+    "export", EXPORT ;
   ]
 
   let keywords = Hash.of_enum (List.enum _keywords)

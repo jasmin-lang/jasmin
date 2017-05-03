@@ -26,7 +26,7 @@
 From mathcomp Require Import all_ssreflect.
 Require Import x86 expr.
 Import ZArith. 
-Require Import compiler_util allocation inline unrolling
+Require Import compiler_util allocation inline dead_calls unrolling
    constant_prop dead_code array_expansion stack_alloc linear.
 
 Set Implicit Arguments.
@@ -97,11 +97,12 @@ Definition stk_alloc_prog (p:prog) : sprog * (seq (seq (var * Z))) :=
   List.split 
     (List.map (fun f => let (x, y) := cparams.(stk_alloc_fd) f.1 f.2 in ((f.1, y), x)) p).
 
-Definition compile_prog (p:prog) := 
-  Let p := inline_prog cparams.(rename_fd) p in
+Definition compile_prog (entries : seq funname) (p:prog) := 
+  Let p := inline_prog_err cparams.(rename_fd) p in
   let p := cparams.(print_prog) Inlining p in      
- 
-  (* FIXME: we should remove unused fonctions after inlining *)      
+
+  Let p := dead_calls_err entries p in
+  let p := cparams.(print_prog) RemoveUnusedFunction p in 
 
   Let p := unroll Loop.nb p in
   let p := cparams.(print_prog) Unrolling p in      
@@ -137,8 +138,8 @@ Definition compile_prog (p:prog) :=
     cfok pl
   else cferror Ferr_neqprog.
 
-Definition compile_prog_to_x86 (p: prog) : result fun_error xprog :=
-  Let lp := compile_prog p in
+Definition compile_prog_to_x86 entries (p: prog): result fun_error xprog :=
+  Let lp := compile_prog entries p in
   assemble_prog lp. 
 
 End COMPILER.

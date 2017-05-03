@@ -631,15 +631,21 @@ let tt_funbody (env : Env.env) (pb : S.pfunbody) =
   let bdy = List.map (tt_instr env) pb.S.pdb_instr in
   (bdy, ret)
 
+let tt_call_conv = function
+  | None         -> P.Internal
+  | Some `Inline -> P.Internal
+  | Some `Export -> P.Export 
+
+
+  
 (* -------------------------------------------------------------------- *)
 let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
   let envb, args = tt_vardecls_push env pf.pdf_args in
   let rty  = odfl [] (omap (List.map (tt_type env |- snd)) pf.pdf_rty) in
   let body = tt_funbody envb pf.pdf_body in
-
   let fdef =
     { P.f_loc = loc;
-      P.f_cc   = P.Export;
+      P.f_cc   = tt_call_conv pf.pdf_cc;
       P.f_name = P.F.mk (L.unloc pf.pdf_name);
       P.f_args = args;
       P.f_body = fst body;
@@ -659,3 +665,14 @@ let tt_item (env : Env.env) pt : Env.env * unit P.pmod_item =
 let tt_program (env : Env.env) (pm : S.pprogram) : Env.env * unit P.pprog =
   let env, l = List.map_fold tt_item env pm in
   env, List.rev l
+
+
+(* FIXME : 
+   - Les fonctions exportees doivent pas avoir de tableau en argument,
+     rendre au plus un argument (pas un tableau).  
+   - Verifier les kind dans les applications de fonctions
+*)
+
+   
+   
+    

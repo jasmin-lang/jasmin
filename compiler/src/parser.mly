@@ -61,6 +61,7 @@
 %token TRUE
 %token UNDERSCORE
 %token WHILE
+%token EXPORT
 
 %token <string> NID
 %token <Bigint.zint> INT
@@ -266,14 +267,19 @@ pfunbody :
         pdb_instr = is;
         pdb_ret   = rt; } }
 
+call_conv :
+| EXPORT { `Export }
+| INLINE { `Inline }
+
 pfundef:
-| FN
+| cc=call_conv? FN
     name = ident
     args = parens_tuple(st=stor_type v=var { (st, v) })
     rty  = prefix(RARROW, tuple(stor_type))?
     body = pfunbody
 
-  { { pdf_name = name;
+  { { pdf_cc   = cc;
+      pdf_name = name;
       pdf_args = args;
       pdf_rty  = rty ;
       pdf_body = body; } }

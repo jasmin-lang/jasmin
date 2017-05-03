@@ -26,7 +26,7 @@
 From mathcomp Require Import all_ssreflect.
 Require Import x86_proof.
 Require Import sem compiler_util compiler.
-Require Import allocation inline_proof 
+Require Import allocation inline_proof dead_calls_proof
                unrolling_proof constant_prop_proof dead_code_proof
                array_expansion stack_alloc_proof 
                linear_proof compiler.
@@ -66,15 +66,17 @@ Qed.
 
 Opaque Loop.nb.
 
-Lemma compile_progP (p: prog) (lp: lprog) mem fn va mem' vr:
-  compile_prog cparams p = cfok lp ->
+Lemma compile_progP entries (p: prog) (lp: lprog) mem fn va mem' vr:
+  compile_prog cparams entries p = cfok lp ->
+  fn \in entries ->
   sem_call p mem fn va mem' vr ->
-  uniq [seq x.1 | x <- p] ->
-  (forall fn f, get_fundef lp fn = Some f -> exists p, Memory.alloc_stack mem (lfd_stk_size f) = ok p) ->
+  (forall f, get_fundef lp fn = Some f -> 
+     exists p, Memory.alloc_stack mem (lfd_stk_size f) = ok p) ->
   lsem_fd lp mem fn va mem' vr.
 Proof.
   rewrite /compile_prog.
   apply: rbindP=> p0 Hp0. rewrite !print_progP.
+  apply: rbindP=> pca Hpca. rewrite !print_progP.
   apply: rbindP=> p1 Hp1. rewrite !print_progP.
   apply: rbindP=> -[] Hv.
   apply: rbindP=> pv Hpv. rewrite !print_progP.
@@ -86,13 +88,13 @@ Proof.
   case Hpstk: (stk_alloc_prog _ pd)=> [pstk l].
   case Hpstk': (check_prog pd pstk l)=> //.
   apply: rbindP=> pl Hpl [] <-.
-  move=> Hcall Huniq Halloc.
+  move=> Hin Hcall Halloc.
   apply: (linear_fdP Hpl).
   have : alloc_ok pstk fn mem.
   + rewrite /alloc_ok=> fd Hfd.
     move: (get_map_cfprog Hpl Hfd)=> [f' [Hf'1 Hf'2]].
     apply: rbindP Hf'1=> [fn' Hfn'] [] Hf'.
-    have := Halloc _ _ Hf'2.
+    have := Halloc _ Hf'2.
     by rewrite -Hf' /=.
   apply: (stack_alloc_proof.check_progP Hpstk').
   apply: (dead_code_callP Hpd).
@@ -103,7 +105,8 @@ Proof.
   apply: (dead_code_callP Hpv).
   apply: (CheckAllocReg.alloc_callP Hv).
   apply: (unrollP Hp1).
-  apply: (inline_callP _ Hp0)=> //.
+  apply: (dead_calls_errP Hpca) => //.
+  by apply: (inline_call_errP Hp0).
 Qed.
 
 End PROOF.

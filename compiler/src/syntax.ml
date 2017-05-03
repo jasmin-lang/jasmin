@@ -88,7 +88,13 @@ type pfunbody = {
 }
 
 (* -------------------------------------------------------------------- *)
+type pcall_conv = [
+  | `Export
+  | `Inline
+]
+
 type pfundef = {
+  pdf_cc   : pcall_conv option; 
   pdf_name : pident;
   pdf_args : (pstotype * pident) list;
   pdf_rty  : pstotype list option;

@@ -113,6 +113,11 @@ Definition inline_fd_cons (ffd:funname * fundef) (p:cfexec prog) :=
   Let fd := add_finfo f f (inline_fd p ffd.2) in
   cfok ((f,fd)::p).
 
-Definition inline_prog (p:prog) := foldr inline_fd_cons (cfok [::]) p.
+Definition inline_prog (p:prog) := 
+  foldr inline_fd_cons (cfok [::]) p.
+
+Definition inline_prog_err (p:prog) := 
+  if uniq [seq x.1 | x <- p] then inline_prog (p:prog)
+  else cferror Ferr_uniqfun.
 
 End INLINE.

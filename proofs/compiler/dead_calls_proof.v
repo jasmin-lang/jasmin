@@ -162,7 +162,7 @@ Local Hint Resolve pg_compat_for_body.
 Local Hint Constructors sem sem_I sem_i sem_for sem_call.
 
 (* -------------------------------------------------------------------- *)
-Lemma ok p m f args m' res fd p' :
+Lemma _ok p m f args m' res fd p' :
      pg_compat_call (c_Calls fd.(f_body)) p p'
   -> sem_call ((f, fd) :: p ) m f args m' res
   -> sem_call ((f, fd) :: p') m f args m' res.
@@ -196,8 +196,8 @@ Lemma dead_calls_ok (f : Sp.t) (p : prog) : uniq (map fst p) ->
 Proof. Admitted.
 
 (* -------------------------------------------------------------------- *)
-Lemma dead_calls_err (s : seq funname) (p p': prog) : 
-  dead_calls_err s p = Ok _ p' ->
+Lemma dead_calls_errP (s : seq funname) (p p': prog) : 
+  dead_calls_err s p = ok p' ->
   forall f m args m' res, f \in s -> 
     sem_call p  m f args m' res ->
     sem_call p' m f args m' res.
