@@ -309,3 +309,9 @@ module Parray : sig
   val exists : ('a -> bool) -> 'a t -> bool
   val for_all : ('a -> bool) -> 'a t -> bool
 end
+
+(* -------------------------------------------------------------------- *)
+
+exception HiError of string
+
+val hierror : ('a, Format.formatter, unit, 'b) format4 -> 'a

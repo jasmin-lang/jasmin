@@ -703,3 +703,17 @@ module Os = struct
   let listdir (dir : string) =
     BatEnum.fold (fun xs x -> x :: xs) [] (BatSys.files_of dir)
 end
+
+
+(* -------------------------------------------------------------------- *)
+exception HiError of string
+
+let hierror fmt =
+  let buf  = Buffer.create 127 in
+  let bfmt = Format.formatter_of_buffer buf in
+
+  Format.kfprintf
+    (fun _ ->
+      Format.pp_print_flush bfmt ();
+      raise (HiError (Buffer.contents buf)))
+    bfmt fmt
