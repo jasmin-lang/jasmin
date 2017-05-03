@@ -40,6 +40,7 @@ let x86_equality_constraints (tbl: (var, int) Hashtbl.t) (k: int -> int -> unit)
   match op, lvs, es with
   | Olnot, [ Lvar v ], [ Pvar w]
   | (Oxor | Oland | Olor | Olsr | Olsl), Lvar v :: _, Pvar w :: _
+  | Oaddcarry, [ _ ; Lvar v ], Pvar w :: _
     (* TODO: add more constraints *)
     -> merge v w
   | _, _, _ -> ()
@@ -72,8 +73,8 @@ let collect_equality_constraints (tbl: (var, int) Hashtbl.t) (nv: int)
    Variables are represented by their equivalence class
    (equality constraints mandated by the architecture).
 *)
-module IntSet = Sint 
-module IntMap = Mint 
+module IntSet = Sint
+module IntMap = Mint
 
 type conflicts = IntSet.t IntMap.t
 
@@ -204,6 +205,15 @@ struct
       r8; r9; r10; r11; r12; r13; r14; r15
     ]
 
+  let arguments = [
+    rdi; rsi; rdx; rcx;
+    r8; r9
+  ]
+
+  let ret = [
+    rax; rdx
+  ]
+
   let f_c = V.mk "CF" Reg (Bty Bool) L._dummy
   let f_d = V.mk "DF" Reg (Bty Bool) L._dummy
   let f_o = V.mk "OF" Reg (Bty Bool) L._dummy
@@ -214,14 +224,27 @@ struct
   let forced_registers (vars: (var, int) Hashtbl.t)
       (lvs: 'ty glvals) (op: op) (es: 'ty gexprs)
       (a: allocation) : allocation =
+    let f x = Hashtbl.find vars (L.unloc x) in
     match op, lvs, es with
+    | Oaddcarry, Lvar cf  :: _, _ -> allocate_one (f cf) f_c a
     | _, _, _ -> a (* TODO *)
 
 end
 
 let allocate_forced_registers (vars: (var, int) Hashtbl.t)
     (f: 'info func) (a: allocation) : allocation =
-  (* TODO: consider calling conventions for arguments and returned values *)
+  let alloc_from_list rs q a vs =
+    let f x = Hashtbl.find vars (q x) in
+    List.fold_left (fun (vs, a) p ->
+        match vs with
+        | v :: vs -> (vs, allocate_one (f p) v a)
+        | [] -> failwith "Regalloc: dame…")
+      (rs, a)
+      vs
+    |> snd
+  in
+  let alloc_args = alloc_from_list X64.arguments identity in
+  let alloc_ret = alloc_from_list X64.ret L.unloc in
   let rec alloc_instr_r a =
     function
     | Cblock s
@@ -237,6 +260,8 @@ let allocate_forced_registers (vars: (var, int) Hashtbl.t)
   and alloc_instr a { i_desc } = alloc_instr_r a i_desc
   and alloc_stmt a s = List.fold_left alloc_instr a s
   in
+  let a = alloc_args a f.f_args in
+  let a = alloc_ret a f.f_ret in
   alloc_stmt a f.f_body
 
 exception Conflict

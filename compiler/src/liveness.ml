@@ -125,8 +125,8 @@ type var_classes = conflicts * var Mv.t
 
 let init_classes cf = cf, Mv.empty
 
-let get_conflict (cf,_) x = 
-  Mv.find_default Sv.empty x cf 
+let get_conflict (cf,_) x =
+  Mv.find_default Sv.empty x cf
 
 exception SetSameConflict
 
