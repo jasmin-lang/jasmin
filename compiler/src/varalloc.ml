@@ -65,26 +65,6 @@ let live_init_fd fd =
   Format.eprintf "%a@." (Printer.pp_ifunc ~debug:true pp_info) fd; *)
   fd
 
-let merge_class cf s =
-  let add_conflict x cf =
-    Mv.modify_opt x (fun s' -> Some (Sv.union (Sv.remove x s) (odfl Sv.empty s'))) cf
-  in
-  Sv.fold add_conflict s cf
-
-let rec conflicts_i cf i =
-  let (s1, s2) = i.i_info in
-  let cf = merge_class cf s1 in
-
-  match i.i_desc with
-  | Cassgn _ | Copn _ | Ccall _ ->
-    merge_class cf s2
-  | Cblock c | Cfor( _, _, c) ->
-    conflicts_c (merge_class cf s2) c
-  | Cif(_, c1, c2) | Cwhile(c1, _, c2) ->
-    conflicts_c (conflicts_c (merge_class cf s2) c1) c2
-and conflicts_c cf c =
-  List.fold_left conflicts_i cf c
-
 let alloc_stack_fd fd =
   (* collect all stack variables occuring in fd *)
   let vars = Sv.filter (fun v -> v.v_kind = Stack) (vars_fc fd) in
@@ -93,7 +73,7 @@ let alloc_stack_fd fd =
   let fd' = live_init_fd fd in
 (*  Format.eprintf "liveness done@."; *)
   (* compute the dependency graph *)
-  let cf = conflicts_c Mv.empty fd'.f_body in
+  let cf = conflicts fd' in
 (*  let pp_var =  Printer.pp_var ~debug:true in
   Mv.iter (fun x s ->
       Format.eprintf "%a -> %a@."
@@ -164,7 +144,7 @@ let merge_var_inline_fd fd =
   let fd' = live_fd fd in
 (*  Format.eprintf "liveness done@."; *)
   (* compute the dependency graph *)
-  let cf = conflicts_c Mv.empty fd'.f_body in
+  let cf = conflicts fd' in
 (*  let pp_var =  Printer.pp_var ~debug:true in
   Mv.iter (fun x s ->
       Format.eprintf "%a -> %a@."

@@ -1,3 +1,4 @@
+open Utils
 open Prog
 
 (* Updates [s_o] to hold which variables are live before a write_lval. *)
@@ -90,3 +91,27 @@ let pp_info fmt (s1, s2) =
   Format.fprintf fmt "before: %a; after %a@ "
     (Printer.pp_list " " (Printer.pp_var ~debug:true)) (Sv.elements s1)
     (Printer.pp_list " " (Printer.pp_var ~debug:true)) (Sv.elements s2)
+
+let merge_class cf s =
+  let add_conflict x cf =
+    Mv.modify_opt x (fun s' -> Some (Sv.union (Sv.remove x s) (odfl Sv.empty s'))) cf
+  in
+  Sv.fold add_conflict s cf
+
+let rec conflicts_i cf i =
+  let (s1, s2) = i.i_info in
+  let cf = merge_class cf s1 in
+
+  match i.i_desc with
+  | Cassgn _ | Copn _ | Ccall _ ->
+    merge_class cf s2
+  | Cblock c | Cfor( _, _, c) ->
+    conflicts_c (merge_class cf s2) c
+  | Cif(_, c1, c2) | Cwhile(c1, _, c2) ->
+    conflicts_c (conflicts_c (merge_class cf s2) c1) c2
+and conflicts_c cf c =
+  List.fold_left conflicts_i cf c
+
+let conflicts f =
+  (* TODO: function arguments should conflict *)
+  conflicts_c Mv.empty f.f_body
