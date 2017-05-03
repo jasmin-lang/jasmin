@@ -114,3 +114,25 @@ and conflicts_c cf c =
 let conflicts f =
   (* TODO: function arguments should conflict *)
   conflicts_c Mv.empty f.f_body
+
+let rec get_repr m x =
+  if Mv.mem x m then get_repr m (Mv.find x m)
+  else x
+
+let normalize_repr m =
+  Mv.mapi (fun x _ -> get_repr m x) m
+
+exception SetSameConflict
+
+let set_same (cf, m as cfm) x y =
+  let rx = get_repr m (L.unloc x) in
+  let ry = get_repr m (L.unloc y) in
+  if V.equal rx ry then cfm
+  else
+    let xc = Mv.find_default Sv.empty rx cf in
+    let yc = Mv.find_default Sv.empty ry cf in
+    if Sv.mem ry xc then
+      raise SetSameConflict;
+(*    Format.eprintf "alloc %a in %a@."
+     (Printer.pp_var ~debug:true) rx (Printer.pp_var ~debug:true) ry; *)
+    merge_class cf (Sv.union xc yc), Mv.add rx ry m

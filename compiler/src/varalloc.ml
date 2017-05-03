@@ -98,30 +98,13 @@ let is_same = function
   | AT_keep | AT_unroll -> false
   | AT_rename_arg | AT_rename_res -> true
 
-let rec get_repr m x =
-  if Mv.mem x m then get_repr m (Mv.find x m)
-  else x
-
-let normalize_repr m =
-  Mv.mapi (fun x _ -> get_repr m x) m
-
-let set_same loc (cf, m as cfm) x y =
-  let rx = get_repr m (L.unloc x) in
-  let ry = get_repr m (L.unloc y) in
-  if V.equal rx ry then cfm
-  else
-    let xc = Mv.find_default Sv.empty rx cf in
-    let yc = Mv.find_default Sv.empty ry cf in
-    if Sv.mem ry xc then
+let set_same loc cfm x y =
+  try set_same cfm x y
+  with SetSameConflict ->
       hierror "at %a: cannot remove introduced assignment %a = %a"
         L.pp_loc loc
         (Printer.pp_var ~debug:true) (L.unloc x)
-        (Printer.pp_var ~debug:true) (L.unloc y);
-(*    Format.eprintf "alloc %a in %a@."
-     (Printer.pp_var ~debug:true) rx (Printer.pp_var ~debug:true) ry; *)
-    merge_class cf (Sv.union xc yc), Mv.add rx ry m
-
-
+        (Printer.pp_var ~debug:true) (L.unloc y)
 
 let rec same_i cfm i =
   match i.i_desc with
