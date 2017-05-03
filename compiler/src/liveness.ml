@@ -1,4 +1,3 @@
-open Utils
 open Prog
 
 (* Updates [s_o] to hold which variables are live before a write_lval. *)
@@ -94,7 +93,7 @@ let pp_info fmt (s1, s2) =
 
 let merge_class cf s =
   let add_conflict x cf =
-    Mv.modify_opt x (fun s' -> Some (Sv.union (Sv.remove x s) (odfl Sv.empty s'))) cf
+    Mv.modify_def Sv.empty x (Sv.union (Sv.remove x s)) cf
   in
   Sv.fold add_conflict s cf
 
