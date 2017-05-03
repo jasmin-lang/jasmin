@@ -15,20 +15,6 @@ fn test () -> ()
 
 }
 
-fn test1 () -> stack u64[2]  
-{
-  stack u64[2] t1;
-  stack u64[2] t2;
-  stack u64[2] t3;
-
-  t1[0] = 0;
-  t1[1] = 0;
-
-  t2    = t1;
-  t3    = t1;
-  return t2;
-}
-
 fn init (stack u64[2] t1) -> stack u64[2]  
 {
   t1[0] = 0;

@@ -8,6 +8,7 @@ val string_of_string0 : 'a (* coq string *) -> string
 val bi_of_nat : Datatypes.nat -> Bigint.zint
 
 val pos_of_int : int -> BinNums.positive
+val z_of_int   : int -> BinNums.coq_Z
 val int_of_pos : BinNums.positive -> int
 val bi_of_z    : BinNums.coq_Z -> B.zint
 
@@ -21,7 +22,9 @@ val int64_of_bi : Bigint.zint -> Integers.Int64.int
 val bi_of_int64 : Integers.Int64.int -> Bigint.zint
 
 
+
 (* -------------------------------------------------------------------- *)
+val cvar_of_var : 'a coq_tbl -> var -> Var0.Var.var
 val vari_of_cvari : 'a coq_tbl -> Expr.var_i -> var L.located
 
 val fun_of_cfun : 'info coq_tbl -> BinNums.positive -> funname

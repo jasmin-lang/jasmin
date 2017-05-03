@@ -210,8 +210,21 @@ let main () =
     let stk_alloc_fd fn cfd = 
       let fd = fdef_of_cfdef fn cfd in
       let alloc, sz, fd = Array_expand.stk_alloc_func fd in
-      fd in
-      
+      let alloc = 
+        let trans (v,i) = Conv.cvar_of_var tbl v, Conv.z_of_int i in
+        List.map trans alloc in
+      let sz = Conv.z_of_int sz in
+      let cfd = cfdef_of_fdef fd in
+      let sfd = { 
+        Stack_alloc.sf_iinfo  = cfd.Expr.f_iinfo;
+        Stack_alloc.sf_stk_sz = sz;
+        Stack_alloc.sf_stk_id = 
+          Var0.Var.vname (Conv.cvar_of_var tbl Prog.vstack);
+        Stack_alloc.sf_params = cfd.Expr.f_params;
+        Stack_alloc.sf_body   = cfd.Expr.f_body;
+        Stack_alloc.sf_res    = cfd.Expr.f_res; } in
+      alloc, sfd
+    in
       
     let pp_cprog fmt cp = 
       let p = Conv.prog_of_cprog tbl cp in
@@ -223,7 +236,7 @@ let main () =
       Compiler.var_alloc_fd = apply Varalloc.merge_var_inline_fd;
       Compiler.share_stk_fd = apply Varalloc.alloc_stack_fd;
       Compiler.reg_alloc_fd = apply Regalloc.regalloc;
-      Compiler.stk_alloc_fd = (fun _fn _cfd -> assert false);
+      Compiler.stk_alloc_fd = stk_alloc_fd;
       Compiler.print_prog   = (fun s p -> eprint s pp_cprog p; p); 
     } in
 

@@ -31,6 +31,8 @@ let bi_of_z z =
   | BinNums.Z0     -> B.zero
   | BinNums.Zpos p -> bi_of_pos p
 
+let z_of_int i = z_of_bi (B.of_int i)
+
 let bi_of_nat n =
   bi_of_z (BinInt.Z.of_nat n)
 
