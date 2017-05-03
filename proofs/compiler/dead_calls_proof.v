@@ -189,3 +189,8 @@ apply: (@sem_call_Ind p Pc Pi PI Pf PC);
 + admit.
 + admit.
 Admitted.
+
+(* -------------------------------------------------------------------- *)
+Lemma dead_calls_ok (f : Sp.t) (p : prog) :
+  pg_compat_call f p (dead_calls f p).
+Proof. Admitted.
