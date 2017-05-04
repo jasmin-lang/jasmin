@@ -484,9 +484,9 @@ Definition eval_instr (i : asm) s : x86_result :=
   | BSF    o1 o2    => eval_BSF o1 o2 s
   | BSR    o1 o2    => eval_BSR o1 o2 s
   | SHL    o ir     => eval_SHL o ir s
-  | SHR    o ir     => eval_SHL o ir s
-  | SAL    o ir     => eval_SHL o ir s
-  | SAR    o ir     => eval_SHL o ir s
+  | SHR    o ir     => eval_SHR o ir s
+  | SAL    o ir     => eval_SAL o ir s
+  | SAR    o ir     => eval_SAR o ir s
   end.
 
 (* -------------------------------------------------------------------- *)
