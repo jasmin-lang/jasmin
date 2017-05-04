@@ -149,6 +149,9 @@ Module RflagMap.
 
   Definition set (m : map) (x : rflag) (y : bool) :=
     fun z => if (z == x) then y else m z.
+
+  Definition update (m : map) (f : rflag -> option bool) :=
+    fun rf => odflt (m rf) (f rf).
 End RflagMap.
 
 (* -------------------------------------------------------------------- *)
@@ -172,6 +175,22 @@ Definition st_write_reg (r : register) (w : word) (s : x86_state) :=
   {| xmem := s.(xmem);
      xreg := RegMap.set s.(xreg) r w;
      xrf  := s.(xrf);
+     xc   := s.(xc);
+     xip  := s.(xip); |}.
+
+(* -------------------------------------------------------------------- *)
+Definition st_set_rflags (rf : rflag) (b : bool) (s : x86_state) :=
+  {| xmem := s.(xmem);
+     xreg := s.(xreg);
+     xrf  := RflagMap.set s.(xrf) rf b;
+     xc   := s.(xc);
+     xip  := s.(xip); |}.
+
+(* -------------------------------------------------------------------- *)
+Definition st_update_rflags f (s : x86_state) :=
+  {| xmem := s.(xmem);
+     xreg := s.(xreg);
+     xrf  := RflagMap.update s.(xrf) f;
      xc   := s.(xc);
      xip  := s.(xip); |}.
 
@@ -227,7 +246,7 @@ Definition read_oprd (o : oprd) (s : x86_state) :=
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_cond (c: condt) (rm: rflagmap) :=
+Definition eval_cond (c : condt) (rm : rflagmap) :=
   let get := RflagMap.get rm in
   match c with
   | O_ct   => get OF
@@ -249,6 +268,49 @@ Definition eval_cond (c: condt) (rm: rflagmap) :=
   end.
 
 (* -------------------------------------------------------------------- *)
+Definition aslabel (a : asm) :=
+  if a is LABEL lbl then Some lbl else None.
+
+(* -------------------------------------------------------------------- *)
+Definition find_label (lbl : label) (a : seq asm) :=
+  let idx := seq.index (Some lbl) [seq aslabel i | i <- a] in
+  if idx < size a then ok idx else type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition SF_of_word (w : word) :=
+  (I64.and w I64.one) != I64.zero.
+
+(* -------------------------------------------------------------------- *)
+Definition PF_of_word (w : word) :=
+  (I64.signed w <? 0)%Z.
+
+(* -------------------------------------------------------------------- *)
+Definition ZF_of_word (w : word) :=
+  I64.eq w I64.zero.
+
+(* -------------------------------------------------------------------- *)
+Definition rflags_of_bwop (w : word) := fun rf =>
+  match rf with
+  | OF => Some false
+  | CF => Some false
+  | SF => Some (SF_of_word w)
+  | PF => Some (PF_of_word w)
+  | ZF => Some (ZF_of_word w)
+  | _  => None
+  end.
+
+(* -------------------------------------------------------------------- *)
+Definition rflags_of_aluop (w : word) (v : Z) := fun rf =>
+  match rf with
+  | OF => Some (I64.signed   w != v)
+  | CF => Some (I64.unsigned w != v)
+  | SF => Some (SF_of_word w)
+  | PF => Some (PF_of_word w)
+  | ZF => Some (ZF_of_word w)
+  | _  => None
+  end.
+
+(* -------------------------------------------------------------------- *)
 Notation x86_result := (result error x86_state).
 
 Implicit Types (ct : condt) (s : x86_state) (o : oprd) (ir : ireg).
@@ -260,15 +322,23 @@ Definition eval_MOV o1 o2 s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_CMOVcc ct o1 o2 s : x86_result :=
-  type_error.
+  if eval_cond ct s.(xrf) then eval_MOV o1 o2 s else ok s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_ADD o1 o2 s : x86_result :=
-  type_error.
+  Let v1 := read_oprd o1 s in
+  Let v2 := read_oprd o2 s in
+  let v  := I64.add v1 v2 in
+  Let s  := write_oprd o1 v s in
+  ok (st_update_rflags (rflags_of_aluop v (v1 + v2)%Z) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SUB o1 o2 s : x86_result :=
-  type_error.
+  Let v1 := read_oprd o1 s in
+  Let v2 := read_oprd o2 s in
+  let v  := I64.sub v1 v2 in
+  Let s  := write_oprd o1 v s in
+  ok (st_update_rflags (rflags_of_aluop v (v1 - v2)%Z) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_MUL o s : x86_result :=
@@ -303,8 +373,9 @@ Definition eval_DEC o s : x86_result :=
   type_error.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_SETcc ct  o s : x86_result :=
-  type_error.
+Definition eval_SETcc ct o s : x86_result :=
+  let b := eval_cond ct s.(xrf) in
+  write_oprd o (if b then I64.one else I64.zero) s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_LEA o1 o2 s : x86_result :=
@@ -312,27 +383,45 @@ Definition eval_LEA o1 o2 s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_TEST o1 o2 s : x86_result :=
-  type_error.
+  Let v1 := read_oprd o1 s in
+  Let v2 := read_oprd o2 s in
+  let v  := I64.and v1 v2 in
+  ok (st_update_rflags (rflags_of_bwop v) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_CMP o1 o2 s : x86_result :=
-  type_error.
+  Let v1 := read_oprd o1 s in
+  Let v2 := read_oprd o2 s in
+  let v  := I64.sub v1 v2 in
+  ok (st_update_rflags (rflags_of_aluop v (v1 - v2)%Z) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_AND o1 o2 s : x86_result :=
-  type_error.
+  Let v1 := read_oprd o1 s in
+  Let v2 := read_oprd o2 s in
+  let v  := I64.and v1 v2 in
+  Let s  := write_oprd o1 v s in
+  ok (st_update_rflags (rflags_of_bwop v) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_OR o1 o2 s : x86_result :=
-  type_error.
+  Let v1 := read_oprd o1 s in
+  Let v2 := read_oprd o2 s in
+  let v  := I64.or v1 v2 in
+  Let s  := write_oprd o1 v s in
+  ok (st_update_rflags (rflags_of_bwop v) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_XOR o1 o2 s : x86_result :=
-  type_error.
+  Let v1 := read_oprd o1 s in
+  Let v2 := read_oprd o2 s in
+  let v  := I64.xor v1 v2 in
+  Let s  := write_oprd o1 v s in
+  ok (st_update_rflags (rflags_of_bwop v) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_NOT o s : x86_result :=
-  type_error.
+  Let v := read_oprd o s in write_oprd o v s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_BSF o1 o2 s : x86_result :=
@@ -360,11 +449,11 @@ Definition eval_SAR o ir s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_JMP lbl s : x86_result :=
-  type_error.
+  Let ip := find_label lbl s.(xc) in ok (st_write_ip ip s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_Jcc lbl ct s : x86_result :=
-  type_error.
+  if eval_cond ct s.(xrf) then eval_JMP lbl s else ok s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_instr (i : asm) s : x86_result :=
