@@ -278,11 +278,11 @@ Definition find_label (lbl : label) (a : seq asm) :=
 
 (* -------------------------------------------------------------------- *)
 Definition SF_of_word (w : word) :=
-  (I64.and w I64.one) != I64.zero.
+  (I64.signed w <? 0)%Z.
 
 (* -------------------------------------------------------------------- *)
 Definition PF_of_word (w : word) :=
-  (I64.signed w <? 0)%Z.
+  (I64.and w I64.one) != I64.zero.
 
 (* -------------------------------------------------------------------- *)
 Definition ZF_of_word (w : word) :=
