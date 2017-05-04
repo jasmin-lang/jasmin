@@ -152,12 +152,13 @@ Qed.
 Remark ffalse_denote (P: Prop) s : ⟦ ffalse ⟧ s → P.
 Proof. easy. Qed.
 
-Variant stype' : Type := sint' | sbool'.
+Variant stype' : Type := sint' | sbool' | sword'.
 
 Definition stype_of_stype' (ty: stype') : stype :=
   match ty with
-  | sint' => sint
+  | sint'  => sint
   | sbool' => sbool
+  | sword' => sword
   end.
 
 Local Coercion stype_of_stype' : stype' >-> stype.
@@ -166,7 +167,11 @@ Definition op2_type (op: sop2) : stype' * stype' :=
   match op with
   | (Oand | Oor ) => (sbool', sbool')
   | (Oadd | Omul | Osub) => (sint', sint')
-  | (Oeq | Oneq | Olt | Ole | Ogt | Oge) => (sint', sbool')
+  | (Oeq ty| Oneq ty| Olt ty| Ole ty| Ogt ty| Oge ty) =>
+    match ty with
+    | Cmp_int => (sint', sbool')
+    | _       => (sword', sbool')
+    end
   end.
 
 Definition op2_type_i op := fst (op2_type op).
@@ -179,12 +184,24 @@ Definition sem_texpr_sop2 op : ssem_t (op2_type_i op) → ssem_t (op2_type_i op)
   | Oadd => Z.add
   | Omul => Z.mul
   | Osub => Z.sub
-  | Oeq => Z.eqb
-  | Oneq => λ x y, negb (Z.eqb x y)
-  | Olt => Z.ltb
-  | Ole => Z.leb
-  | Ogt => Z.gtb
-  | Oge => Z.geb
+  | Oeq  Cmp_int => Z.eqb
+  | Oeq  Cmp_uw  => weq
+  | Oeq  Cmp_sw  => weq
+  | Oneq Cmp_int => λ x y, negb (Z.eqb x y)
+  | Oneq Cmp_uw  => λ x y, negb (weq x y)
+  | Oneq Cmp_sw  => λ x y, negb (weq x y)
+  | Olt  Cmp_int => Z.ltb
+  | Olt  Cmp_uw  => wult
+  | Olt  Cmp_sw  => wslt
+  | Ole  Cmp_int => Z.leb
+  | Ole  Cmp_uw  => wule
+  | Ole  Cmp_sw  => wsle
+  | Ogt  Cmp_int => Z.gtb
+  | Ogt  Cmp_uw  => λ x y, wult y x
+  | Ogt  Cmp_sw  => λ x y, wslt y x
+  | Oge  Cmp_int => Z.geb
+  | Oge  Cmp_uw  => λ x y, wule y x
+  | Oge  Cmp_sw  => λ x y, wsle y x
   end.
 
 Inductive texpr : sstype → Type :=
@@ -283,12 +300,13 @@ Lemma ssem_sop2_ex op vp vq :
     ∃ v, ssem_sop2 op vp vq = ok v ∧
          of_sval _ v = ok (sem_texpr_sop2 op p q).
 Proof.
-  case: op; simpl; intros;
+  case: op => [|||||[]|[]|[]|[]|[]|[]] /=;intros;
     repeat
       match goal with
       | H : ?a = ?b |- _ => subst a || subst b
       | H : sto_bool _ = ok _ |- _ => apply sto_bool_inv in H
       | H : sto_int _ = ok _ |- _ => apply sto_int_inv in H
+      | H : sto_word _ = ok _ |- _ => apply sto_word_inv in H
       end;
     try (eexists; split; reflexivity).
 Qed.
@@ -329,7 +347,7 @@ Lemma ssem_sop2_error_1 op vp exn :
     of_sval (op2_type_i op) vp = Error exn →
     ∀ vq, ∃ exn', ssem_sop2 op vp vq = Error exn'.
 Proof.
-  case: op; case: vp=> //= q Hq vq;
+  case: op => [|||||[]|[]|[]|[]|[]|[]]; case: vp=> //= q Hq vq;
   try (eexists; reflexivity).
 Qed.
 
@@ -339,7 +357,7 @@ Lemma ssem_sop2_error_2 op vp vq exn :
     of_sval (op2_type_i op) vq = Error exn →
     ∃ exn', ssem_sop2 op vp vq = Error exn'.
 Proof.
-  case: op => /= p Hp; case: vq => /= q Hq;
+  case: op => [|||||[]|[]|[]|[]|[]|[]] /= p Hp; case: vq => /= q Hq;
   repeat match goal with
   | H : ?a = ?b |- _ => subst a || subst b
   | H : _ = Error _ |- _ => apply Error_inj in H
@@ -474,7 +492,8 @@ Definition type_of_pexpr (e: pexpr) : stype :=
 Definition default_texpr (ty: stype') : texpr ty :=
   match ty with
   | sbool' => Tbool true
-  | sint' => Tconst 42
+  | sint' =>  Tconst 42
+  | sword' => Tcast (Tconst 999)
   end.
 
 Definition texpr_of_pexpr (ty: stype') (pe: pexpr) : texpr ty :=

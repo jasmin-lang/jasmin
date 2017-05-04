@@ -33,18 +33,23 @@ let pp_gtype (pp_size:F.formatter -> 'size -> unit) fmt = function
 let pp_gvar_i pp_var fmt v = pp_var fmt (L.unloc v)
 
 (* -------------------------------------------------------------------- *)
+
+let string_of_cmp_ty = function
+  | Cmp_uw _ -> "u"
+  | _        -> ""
+
 let string_of_op2 = function
-  | Oand  -> "&&"
-  | Oor   -> "||"
-  | Oadd  -> "+"
-  | Omul  -> "*"
-  | Osub  -> "-"
-  | Oeq   -> "=="
-  | Oneq  -> "!="
-  | Olt   -> "<"
-  | Ole   -> "<="
-  | Ogt   -> ">"
-  | Oge   -> ">="
+  | Oand   -> "&&"
+  | Oor    -> "||"
+  | Oadd   -> "+"
+  | Omul   -> "*"
+  | Osub   -> "-"
+  | Oeq  _ -> "=="
+  | Oneq _ -> "!="
+  | Olt  k -> "<"  ^ string_of_cmp_ty k
+  | Ole  k -> "<=" ^ string_of_cmp_ty k
+  | Ogt  k -> ">"  ^ string_of_cmp_ty k
+  | Oge  k -> ">=" ^ string_of_cmp_ty k
 
 (* -------------------------------------------------------------------- *)
 let pp_ge pp_var =
@@ -280,6 +285,11 @@ let pp_prog ~debug fmt p =
 
 let pp_cprog fmt p =
   let open Expr in
+  let string_cmp_ty = function
+    | Cmp_int -> "i"
+    | Cmp_uw  -> "u"
+    | Cmp_sw  -> "s" in
+
   let pp_pos fmt n = 
     Format.fprintf fmt "%a" B.pp_print (Conv.bi_of_pos n) in
   let pp_var fmt v = 
@@ -292,12 +302,12 @@ let pp_cprog fmt p =
     | Oadd -> "+"
     | Omul -> "*"
     | Osub -> "-"
-    | Oeq  -> "=="
-    | Oneq -> "!="
-    | Olt  -> "<"
-    | Ole  -> "<="
-    | Ogt  -> ">"
-    | Oge  -> ">="
+    | Oeq  k -> "==" ^ string_cmp_ty k 
+    | Oneq k -> "!=" ^ string_cmp_ty k 
+    | Olt  k -> "<"  ^ string_cmp_ty k 
+    | Ole  k -> "<=" ^ string_cmp_ty k 
+    | Ogt  k -> ">"  ^ string_cmp_ty k 
+    | Oge  k -> ">=" ^ string_cmp_ty k 
   in
   let rec pp_expr fmt = function
     | Pconst z -> Format.fprintf fmt "%a" B.pp_print (Conv.bi_of_z z) 

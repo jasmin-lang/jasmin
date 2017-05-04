@@ -13,6 +13,19 @@ type uid = int
 let int_of_uid i = i
 
 (* ------------------------------------------------------------------------ *)
+type word_size =
+  | W8
+  | W16
+  | W32
+  | W64
+  | W128
+  | W256
+
+type cmp_ty =
+  | Cmp_int 
+  | Cmp_uw  of word_size
+  | Cmp_sw  of word_size
+
 type op2 =
   | Oand    (* const : sbool -> sbool -> sbool *)
   | Oor     (* const : sbool -> sbool -> sbool *)
@@ -21,20 +34,12 @@ type op2 =
   | Omul    (* const : sint -> sint -> sint *)
   | Osub    (* const : sint -> sint -> sint *)
 
-  | Oeq     (* Polymorphic operation on sint and U *)
-  | Oneq
-  | Olt
-  | Ole
-  | Ogt
-  | Oge
-
-type word_size =
-  | W8
-  | W16
-  | W32
-  | W64
-  | W128
-  | W256
+  | Oeq     of cmp_ty 
+  | Oneq    of cmp_ty 
+  | Olt     of cmp_ty 
+  | Ole     of cmp_ty 
+  | Ogt     of cmp_ty 
+  | Oge     of cmp_ty 
 
 type base_ty =
   | Bool
@@ -372,3 +377,20 @@ let cnst i = Pconst i
 let icnst i = cnst (B.of_int i)
 
 let cast64 e = Pcast (W64, e)
+
+(* -------------------------------------------------------------------- *)
+(* Functions over lvalue                                                *)
+
+let expr_of_lval = function
+  | Lnone _         -> None
+  | Lvar x          -> Some (Pvar x)
+  | Lmem (ws, x, e) -> Some (Pload(ws,x,e))
+  | Laset (x, e)    -> Some (Pget(x,e))
+
+(* -------------------------------------------------------------------- *)
+(* Functions over instruction                                           *)
+
+let destruct_move i = 
+  match i.i_desc with
+  | Cassgn(x, tag, e) -> x, tag, e
+  | _                 -> assert false

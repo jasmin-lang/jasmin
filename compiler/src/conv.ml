@@ -140,31 +140,44 @@ let vari_of_cvari tbl v =
   L.mk_loc loc (var_of_cvar tbl v.C.v_var)
 
 (* ------------------------------------------------------------------------ *)
+
+let ccmp_of_cmp = function
+  | Cmp_int    -> C.Cmp_int
+  | Cmp_uw W64 -> C.Cmp_uw
+  | Cmp_uw _   -> assert false
+  | Cmp_sw W64 -> C.Cmp_sw
+  | Cmp_sw _   -> assert false
+
+let cmp_of_ccmp = function
+  | C.Cmp_int -> Cmp_int
+  | C.Cmp_uw  -> Cmp_uw W64
+  | C.Cmp_sw  -> Cmp_sw W64
+
 let cop_of_op = function
-  | Oand -> C.Oand
-  | Oor  -> C.Oor
-  | Oadd -> C.Oadd
-  | Omul -> C.Omul
-  | Osub -> C.Osub
-  | Oeq  -> C.Oeq
-  | Oneq -> C.Oneq
-  | Olt  -> C.Olt
-  | Ole  -> C.Ole
-  | Ogt  -> C.Ogt
-  | Oge  -> C.Oge
+  | Oand    -> C.Oand
+  | Oor     -> C.Oor
+  | Oadd    -> C.Oadd
+  | Omul    -> C.Omul
+  | Osub    -> C.Osub
+  | Oeq  ty -> C.Oeq  (ccmp_of_cmp ty)
+  | Oneq ty -> C.Oneq (ccmp_of_cmp ty)
+  | Olt  ty -> C.Olt  (ccmp_of_cmp ty)
+  | Ole  ty -> C.Ole  (ccmp_of_cmp ty)
+  | Ogt  ty -> C.Ogt  (ccmp_of_cmp ty)
+  | Oge  ty -> C.Oge  (ccmp_of_cmp ty)
 
 let op_of_cop = function
-  | C.Oand -> Oand
-  | C.Oor  -> Oor
-  | C.Oadd -> Oadd
-  | C.Omul -> Omul
-  | C.Osub -> Osub
-  | C.Oeq  -> Oeq
-  | C.Oneq -> Oneq
-  | C.Olt  -> Olt
-  | C.Ole  -> Ole
-  | C.Ogt  -> Ogt
-  | C.Oge  -> Oge
+  | C.Oand    -> Oand
+  | C.Oor     -> Oor
+  | C.Oadd    -> Oadd
+  | C.Omul    -> Omul
+  | C.Osub    -> Osub
+  | C.Oeq  ty -> Oeq  (cmp_of_ccmp ty)
+  | C.Oneq ty -> Oneq (cmp_of_ccmp ty)
+  | C.Olt  ty -> Olt  (cmp_of_ccmp ty)
+  | C.Ole  ty -> Ole  (cmp_of_ccmp ty)
+  | C.Ogt  ty -> Ogt  (cmp_of_ccmp ty)
+  | C.Oge  ty -> Oge  (cmp_of_ccmp ty)
 
 (* ------------------------------------------------------------------------ *)
 

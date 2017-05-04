@@ -38,6 +38,21 @@ Local Open Scope Z_scope.
 (* ** Smart constructors                                                      *)
 (* -------------------------------------------------------------------------- *)
 
+(* FIXME move this *)
+Fixpoint eq_expr e e' := 
+  match e, e' with
+  | Pconst z      , Pconst z'         => z == z'
+  | Pbool  b      , Pbool  b'         => b == b'
+  (* FIXME if e1, e2 = Pconst we can compute the cast *)
+  | Pcast  e      , Pcast  e'         => eq_expr e e' 
+  | Pvar   x      , Pvar   x'         => v_var x == v_var x'
+  | Pget   x e    , Pget   x' e'      => (v_var x == v_var x') && eq_expr e e' 
+  | Pload  x e    , Pload  x' e'      => (v_var x == v_var x') && eq_expr e e' 
+  | Pnot   e      , Pnot   e'         => eq_expr e e'
+  | Papp2  o e1 e2, Papp2  o' e1' e2' => (o == o') && eq_expr e1 e1' && eq_expr e2 e2'
+  | _             , _                 => false
+  end.
+
 Definition snot (e:pexpr) : pexpr := 
   match e with
   | Pbool b => negb b
@@ -91,65 +106,54 @@ Definition smul e1 e2:=
   | _, _ => Papp2 Omul e1 e2
   end.
 
-Definition s_eq e1 e2 := 
-  match is_const e1, is_const e2 with
-  | Some n1, Some n2 => Pbool (n1 == n2)
-  | _, _             => 
-    if (e1 == e2) then Pbool true else Papp2 Oeq e1 e2
-  end.
+(* FIXME: improve optimisation for word *)
+Definition s_eq ty e1 e2 := 
+  if eq_expr e1 e2 then Pbool true else Papp2 (Oeq ty) e1 e2.
 
-Definition sneq e1 e2 := 
-  match is_const e1, is_const e2 with
-  | Some n1, Some n2 => Pbool (n1 != n2)
-  | _, _             => 
-    if (e1 == e2) then Pbool false else Papp2 Oneq e1 e2
-  end.
+Definition sneq ty e1 e2 := 
+  if eq_expr e1 e2 then Pbool false else Papp2 (Oneq ty) e1 e2.
 
-Definition slt e1 e2 := 
-  match is_const e1, is_const e2 with
+Definition slt ty e1 e2 := 
+  if eq_expr e1 e2 then Pbool false 
+  else match is_const e1, is_const e2 with
   | Some n1, Some n2 => Pbool (n1 <? n2)%Z
-  | _        , _         => 
-    if (e1 == e2) then Pbool false 
-    else Papp2 Olt e1 e2 
+  | _      , _       => Papp2 (Olt ty) e1 e2 
   end.
 
-Definition sle e1 e2 := 
-  match is_const e1, is_const e2 with
+Definition sle ty e1 e2 := 
+  if eq_expr e1 e2 then Pbool true 
+  else match is_const e1, is_const e2 with
   | Some n1, Some n2 => Pbool (n1 <=? n2)%Z
-  | _        , _     => 
-    if (e1 == e2) then Pbool true
-    else Papp2 Ole e1 e2 
+  | _      , _       => Papp2 (Ole ty) e1 e2 
   end.
 
-Definition sgt e1 e2 := 
-  match is_const e1, is_const e2 with
+Definition sgt ty e1 e2 := 
+  if eq_expr e1 e2 then Pbool false 
+  else match is_const e1, is_const e2 with
   | Some n1, Some n2 => Pbool (n1 >? n2)%Z
-  | _        , _         => 
-    if (e1 == e2) then Pbool false 
-    else Papp2 Ogt e1 e2 
+  | _      , _       => Papp2 (Ogt ty) e1 e2 
   end.
 
-Definition sge e1 e2 := 
-  match is_const e1, is_const e2 with
+Definition sge ty e1 e2 := 
+  if eq_expr e1 e2 then Pbool true 
+  else match is_const e1, is_const e2 with
   | Some n1, Some n2 => Pbool (n1 >=? n2)%Z
-  | _        , _     => 
-    if (e1 == e2) then Pbool true
-    else Papp2 Oge e1 e2 
+  | _      , _       => Papp2 (Oge ty) e1 e2 
   end.
 
 Definition s_op2 o e1 e2 := 
   match o with 
-  | Oand        => sand e1 e2 
-  | Oor         => sor  e1 e2
-  | Oadd        => sadd e1 e2
-  | Osub        => ssub e1 e2
-  | Omul        => smul e1 e2
-  | Oeq         => s_eq e1 e2
-  | Oneq        => sneq e1 e2
-  | Olt         => slt  e1 e2
-  | Ole         => sle  e1 e2
-  | Ogt         => sgt  e1 e2
-  | Oge         => sge  e1 e2
+  | Oand    => sand e1 e2 
+  | Oor     => sor  e1 e2
+  | Oadd    => sadd e1 e2
+  | Osub    => ssub e1 e2
+  | Omul    => smul e1 e2
+  | Oeq  ty => s_eq ty e1 e2
+  | Oneq ty => sneq ty e1 e2
+  | Olt  ty => slt  ty e1 e2
+  | Ole  ty => sle  ty e1 e2
+  | Ogt  ty => sgt  ty e1 e2
+  | Oge  ty => sge  ty e1 e2
   end.
 
 (* ** constant propagation 

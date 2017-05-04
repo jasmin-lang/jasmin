@@ -111,69 +111,88 @@ Proof.
   by rewrite /sem_op2_i /mk_sem_sop2 [Z.mul]lock /= -lock Z.mul_1_r.
 Qed.
 
-Lemma s_eqP e1 e2 : Papp2 Oeq e1 e2 =E s_eq e1 e2.
+Lemma eq_exprP s e1 e2 : eq_expr e1 e2 -> sem_pexpr s e1 = sem_pexpr s e2. 
 Proof.
-  rewrite /s_eq;case: (is_constP e1) => [n1| {e1} e1].
-  + case: (is_constP e2) => [n2 ?? <- //| {e2} e2].
-    case:eqP => [-> rho v /=| _];last by auto.
-    by case: sem_pexpr => //= -[] z //=;rewrite /sem_op2_ib /mk_sem_sop2 /= Z.eqb_refl.
-  case: eqP => [-> rho v /= |_];last by auto.
-  by case:sem_pexpr => //= -[] z //=;rewrite /sem_op2_ib /mk_sem_sop2 /= Z.eqb_refl.
+  elim: e1 e2=> [z  | b  | e He | x  | x e He | x e He | e  He | o e1 He1 e2 He2]
+                [z' | b' | e'   | x' | x' e'  | x' e'  | e' | o' e1' e2'] //=. 
+  + by move=> /eqP ->.   + by move=> /eqP ->.
+  + by move=> /He ->.    + by move=> /eqP ->.
+  + by move=> /andP [] /eqP -> /He ->.
+  + by move=> /andP [] /eqP -> /He ->.
+  + by move=> /He ->.   
+  by move=> /andP[]/andP[] /eqP -> /He1 -> /He2 ->.
 Qed.
 
-Lemma sneqP e1 e2 : Papp2 Oneq e1 e2 =E sneq e1 e2.
+Lemma mk_sem_sop2_b b t (o:sem_t t -> sem_t t -> bool) :
+   (forall v, o v v = b) ->
+   forall v v', @mk_sem_sop2 t t sbool o v v = ok v' -> v' = Vbool b.
 Proof.
-  rewrite /sneq;case: (is_constP e1) => [n1| {e1} e1].
-  + case: (is_constP e2) => [n2 ?? <- //| {e2} e2].
-    case:eqP => [-> rho v /=| _];last by auto.
-    by case: sem_pexpr => //= -[] z //=;rewrite /sem_op2_ib /mk_sem_sop2 /= Z.eqb_refl.
-  case: eqP => [-> rho v /= |_];last by auto.
-  by case:sem_pexpr => //= -[] z //=;rewrite /sem_op2_ib /mk_sem_sop2 /= Z.eqb_refl.
+  by move=> Ho v v';apply: rbindP=> z -> [];rewrite Ho => ->.
+Qed.
+  
+Lemma s_eqP ty e1 e2 : Papp2 (Oeq ty) e1 e2 =E s_eq ty e1 e2.
+Proof.
+  rewrite /s_eq;case:ifP => [ /eq_exprP Hs s v /=| _ ];last by auto.
+  rewrite Hs;case: sem_pexpr => //= ve.
+  by case: ty => /(@mk_sem_sop2_b true) -> // ?;
+    rewrite (Z.eqb_refl, weq_refl).
 Qed.
 
-Lemma sltP e1 e2 : Papp2 Olt e1 e2 =E slt e1 e2.
+Lemma sneqP ty e1 e2 : Papp2 (Oneq ty) e1 e2 =E sneq ty e1 e2.
 Proof.
-  rewrite /slt;case: (is_constP e1) => [n1| {e1} e1].
-  + case: (is_constP e2) => [n2 ?? <- //| {e2} e2].
-    case:eqP => [-> rho v /=| _];last by auto.
-    by case: sem_pexpr => //= -[] z //=; rewrite /sem_op2_ib /mk_sem_sop2 /= Z.ltb_irrefl. 
-  case: eqP => [-> rho v /= |_];last by auto.
-  by case:sem_pexpr => //= -[] z //=;rewrite /sem_op2_ib /mk_sem_sop2 /= Z.ltb_irrefl. 
+  rewrite /sneq;case:ifP => [ /eq_exprP Hs s v /=| _ ];last by auto.
+  rewrite Hs;case: sem_pexpr => //= ve.
+  by case: ty => /(@mk_sem_sop2_b false) -> // ?;
+    rewrite (Z.eqb_refl, weq_refl).
 Qed.
 
-Lemma sleP e1 e2 : Papp2 Ole e1 e2 =E sle e1 e2.
+Lemma sltP ty e1 e2 : Papp2 (Olt ty) e1 e2 =E slt ty e1 e2.
 Proof.
-  rewrite /sle;case: (is_constP e1) => [n1| {e1} e1].
-  + case: (is_constP e2) => [n2 ?? <- //| {e2} e2].
-    case:eqP => [-> rho v /=| _];last by auto.
-    by case: sem_pexpr => //= -[] z //=;rewrite /sem_op2_ib /mk_sem_sop2 /= Z.leb_refl.
-  case: eqP => [-> rho v /= |_];last by auto.
-  by case:sem_pexpr => //= -[] z //=;rewrite /sem_op2_ib /mk_sem_sop2 /= Z.leb_refl.
+  rewrite /slt;case:ifP => [ /eq_exprP Hs s v /=| _ ].
+  + rewrite Hs;apply: rbindP => v' -> /=.
+    by case: ty =>  /(@mk_sem_sop2_b false) -> // ?;
+      rewrite (Z.ltb_irrefl, wslt_irrefl, wult_irrefl).
+  case: (is_constP e1) => [n1| {e1} e1];last by auto.
+  case: (is_constP e2) => [n2 ?? /=| {e2} e2];last by auto.
+  by case: ty.
 Qed.
 
-Lemma sgtP e1 e2 : Papp2 Ogt e1 e2 =E sgt e1 e2.
+Lemma sleP ty e1 e2 : Papp2 (Ole ty) e1 e2 =E sle ty e1 e2.
 Proof.
-  rewrite /sgt;case: (is_constP e1) => [n1| {e1} e1].
-  + case: (is_constP e2) => [n2 ?? <- //=| {e2} e2].
-    case:eqP => [-> rho v /=| _];last by auto.
-    by case: sem_pexpr => //= -[] z //=; rewrite /sem_op2_ib /mk_sem_sop2 /= Z.gtb_ltb Z.ltb_irrefl.
-  case: eqP => [-> rho v /= |_];last by auto.
-  by case:sem_pexpr => //= -[] z //=;rewrite /sem_op2_ib /mk_sem_sop2 /= Z.gtb_ltb Z.ltb_irrefl. 
+  rewrite /sle; case:ifP => [ /eq_exprP Hs s v /=| _ ].
+  + rewrite Hs;apply: rbindP => v' -> /=.
+    by case: ty =>  /(@mk_sem_sop2_b true) -> // ?;
+      rewrite (Z.leb_refl, wsle_refl, wule_refl).
+  case: (is_constP e1) => [n1| {e1} e1];last by auto.
+  case: (is_constP e2) => [n2 ?? /=| {e2} e2];last by auto.
+  by case: ty.
 Qed.
 
-Lemma sgeP e1 e2 : Papp2 Oge e1 e2 =E sge e1 e2.
+Lemma sgtP ty e1 e2 : Papp2 (Ogt ty) e1 e2 =E sgt ty e1 e2.
 Proof.
-  rewrite /sge;case: (is_constP e1) => [n1| {e1} e1].
-  + case: (is_constP e2) => [n2| {e2} e2];first by move=> ?? <-.
-    case:eqP => [-> rho v /=| _];last by auto.
-    by case: sem_pexpr => //= -[] z //=;rewrite /sem_op2_ib /mk_sem_sop2 /= Z.geb_leb Z.leb_refl.
-  case: eqP => [-> rho v /= |_];last by auto.
-  by case:sem_pexpr => //= -[] z //=;rewrite /sem_op2_ib /mk_sem_sop2 /= Z.geb_leb Z.leb_refl.
+  rewrite /sgt;case:ifP => [ /eq_exprP Hs s v /=| _ ].
+  + rewrite Hs;apply: rbindP => v' -> /=.
+    by case: ty =>  /(@mk_sem_sop2_b false) -> // ?;
+      rewrite ?Z.gtb_ltb (Z.ltb_irrefl, wslt_irrefl, wult_irrefl).
+  case: (is_constP e1) => [n1| {e1} e1];last by auto.
+  case: (is_constP e2) => [n2 ?? /=| {e2} e2];last by auto.
+  by case: ty.
+Qed.
+
+Lemma sgeP ty e1 e2 : Papp2 (Oge ty) e1 e2 =E sge ty e1 e2.
+Proof.
+  rewrite /sge; case:ifP => [ /eq_exprP Hs s v /=| _ ].
+  + rewrite Hs;apply: rbindP => v' -> /=.
+    by case: ty =>  /(@mk_sem_sop2_b true) -> // ?;
+      rewrite ?Z.geb_leb (Z.leb_refl, wsle_refl, wule_refl).
+  case: (is_constP e1) => [n1| {e1} e1];last by auto.
+  case: (is_constP e2) => [n2 ?? /=| {e2} e2];last by auto.
+  by case: ty.
 Qed.
 
 Lemma s_op2P o e1 e2 : Papp2 o e1 e2 =E s_op2 o e1 e2.
 Proof.
-  case: o;auto using sandP, sorP, saddP, smulP, ssubP, s_eqP, sneqP, sltP, sleP, sgtP, sgeP.
+  case: o;eauto using sandP, sorP, saddP, smulP, ssubP, s_eqP, sneqP, sltP, sleP, sgtP, sgeP.
 Qed.
 
 Definition valid_cpm (vm: vmap)  (m:cpm) := 

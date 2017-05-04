@@ -45,6 +45,11 @@ Unset Printing Implicit Defensive.
    - cpu-op: CPU instructions such as addition with carry
 *)
 
+Variant cmp_kind := 
+  | Cmp_int
+  | Cmp_sw
+  | Cmp_uw.
+
 Inductive sop2 : Set :=
 | Oand  : sop2                      (* const : sbool -> sbool -> sbool *)
 | Oor   : sop2                      (* const : sbool -> sbool -> sbool *)
@@ -53,12 +58,12 @@ Inductive sop2 : Set :=
 | Omul  : sop2                      (* const : sint -> sint -> sint *)
 | Osub  : sop2                      (* const : sint -> sint -> sint *)
 
-| Oeq   : sop2                      (* const : sint -> sint -> sbool *)
-| Oneq  : sop2                      (* const : sint -> sint -> sbool *)
-| Olt   : sop2                      (* const : sint -> sint -> sbool *)
-| Ole   : sop2                      (* const : sint -> sint -> sbool *)
-| Ogt   : sop2                      (* const : sint -> sint -> sbool *)
-| Oge   : sop2.                     (* const : sint -> sint -> sbool *)
+| Oeq   : cmp_kind -> sop2          
+| Oneq  : cmp_kind -> sop2          
+| Olt   : cmp_kind -> sop2          
+| Ole   : cmp_kind -> sop2          
+| Ogt   : cmp_kind -> sop2          
+| Oge   : cmp_kind -> sop2.         
 
 Inductive sopn : Set :=
 | Olnot : sopn                      (* cpu : sword -> sword *) 

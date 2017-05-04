@@ -10,6 +10,19 @@ end
 type uid
 val int_of_uid : uid -> int
 
+type word_size =
+  | W8
+  | W16
+  | W32
+  | W64
+  | W128
+  | W256
+
+type cmp_ty =
+  | Cmp_int 
+  | Cmp_uw  of word_size
+  | Cmp_sw  of word_size
+
 (* ------------------------------------------------------------------------ *)
 type op2 =
   | Oand    (* const : sbool -> sbool -> sbool *)
@@ -19,20 +32,12 @@ type op2 =
   | Omul    (* const : sint -> sint -> sint *)
   | Osub    (* const : sint -> sint -> sint *)
 
-  | Oeq     (* Polymorphic operation on sint and U *)
-  | Oneq
-  | Olt
-  | Ole
-  | Ogt
-  | Oge
-
-type word_size =
-  | W8
-  | W16
-  | W32
-  | W64
-  | W128
-  | W256
+  | Oeq     of cmp_ty 
+  | Oneq    of cmp_ty 
+  | Olt     of cmp_ty 
+  | Ole     of cmp_ty 
+  | Ogt     of cmp_ty 
+  | Oge     of cmp_ty 
 
 type base_ty =
   | Bool
@@ -299,3 +304,15 @@ val ( ** ) : expr -> expr -> expr
 val cnst   : B.zint -> expr
 val icnst  : int -> expr
 val cast64 : expr -> expr
+
+(* -------------------------------------------------------------------- *)
+(* Functions over lvalue                                                *)
+
+val expr_of_lval : 'ty glval -> 'ty gexpr option
+
+(* -------------------------------------------------------------------- *)
+(* Functions over instruction                                           *)
+
+val destruct_move : ('ty, 'info) ginstr -> 'ty glval * assgn_tag * 'ty gexpr
+
+

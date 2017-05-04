@@ -262,24 +262,39 @@ let tt_as_word ((loc, ty) : L.t * P.pty) : P.word_size =
   | _ -> rs_tyerror ~loc (InvalidType (ty, TPArray))
 
 (* -------------------------------------------------------------------- *)
+let pop2_for_expr (op : S.peop2) = 
+  match op with
+  | `Add  | `Sub  | `Mul  | `And | `Or        
+  | `Eq   | `Neq  | `Lt   | `Le  | `Gt  | `Ge -> true
+  | `BAnd | `BOr  | `BXOr | `ShR | `ShL       -> false 
+
 let op2_of_pop2 (op : S.peop2) =
   match op with
-  | `Add  -> Some P.Oadd
-  | `Sub  -> Some P.Osub
-  | `Mul  -> Some P.Omul
-  | `And  -> Some P.Oand
-  | `Or   -> Some P.Oor
-  | `BAnd -> None
-  | `BOr  -> None
-  | `BXOr -> None
-  | `ShR  -> None
-  | `ShL  -> None
-  | `Eq   -> Some P.Oeq
-  | `Neq  -> Some P.Oneq
-  | `Lt   -> Some P.Olt
-  | `Le   -> Some P.Ole
-  | `Gt   -> Some P.Ogt
-  | `Ge   -> Some P.Oge
+  | `Add  -> P.Oadd
+  | `Sub  -> P.Osub
+  | `Mul  -> P.Omul
+  | `And  -> P.Oand
+  | `Or   -> P.Oor
+  | `BAnd | `BOr  | `BXOr | `ShR | `ShL      
+  | `Eq   | `Neq  | `Lt   | `Le  | `Gt  | `Ge -> assert false 
+
+let cmp_of_ty exn sign ty = 
+  match sign, ty with
+  | `Sign  , P.Int  -> P.Cmp_int
+  | `Sign  , P.U ws -> P.Cmp_sw ws
+  | `Unsign, P.U ws -> P.Cmp_uw ws
+  | _      , _      -> raise exn
+ 
+let cmp_of_pop2 exn ty (op : S.peop2) =
+  match op with
+  | `Add  | `Sub  | `Mul  | `And | `Or 
+  | `BAnd | `BOr  | `BXOr | `ShR | `ShL -> raise exn
+  | `Eq   -> P.Oeq  (cmp_of_ty exn `Sign ty)
+  | `Neq  -> P.Oneq (cmp_of_ty exn `Sign ty)
+  | `Lt   -> P.Olt  (cmp_of_ty exn `Sign ty)
+  | `Le   -> P.Ole  (cmp_of_ty exn `Sign ty)
+  | `Gt   -> P.Ogt  (cmp_of_ty exn `Sign ty)
+  | `Ge   -> P.Oge  (cmp_of_ty exn `Sign ty)
 
 (* -------------------------------------------------------------------- *)
 let peop2_of_eqop (eqop : S.peqop) =
@@ -312,23 +327,25 @@ let cast e ety ty =
 
 (* -------------------------------------------------------------------- *)
 let tt_op2 (e1, ty1) (e2, ty2) { L.pl_desc = pop; L.pl_loc = loc } =
-  let op  = op2_of_pop2 pop in
   let exn = tyerror ~loc (InvOpInExpr (`Op2 pop)) in
-  let op  = op |> oget ~exn in
+  if pop2_for_expr pop then raise exn;
 
-  let e1, e2, ty = 
-    match op, (ty1, ty2) with
-    | (P.Oadd | P.Osub | P.Omul), (P.Bty P.Int, P.Bty P.Int) -> 
-      (e1, e2, P.Bty P.Int)
+  let op, e1, e2, ty = 
+    match pop, (ty1, ty2) with
+    | (`Add | `Sub | `Mul), (P.Bty P.Int, P.Bty P.Int) -> 
+      (op2_of_pop2 pop, e1, e2, P.Bty P.Int)
 
-    | (P.Oand | P.Oor), (P.Bty P.Bool, P.Bty P.Bool) -> 
-      (e1, e2, P.Bty P.Bool)
+    | (`And | `Or), (P.Bty P.Bool, P.Bty P.Bool) -> 
+      (op2_of_pop2 pop, e1, e2, P.Bty P.Bool)
 
-    | (P.Oeq | P.Oneq | P.Olt | P.Ole | P.Ogt | P.Oge),  
+    | (`Eq | `Neq | `Lt | `Le | `Gt | `Ge),  
       (P.Bty sty1, P.Bty sty2) -> 
       let sty = max_ty sty1 sty2 in
       let sty = sty |> oget ~exn in
-      (cast e1 sty1 sty, cast e2 sty2 sty, P.Bty P.Bool)
+      
+      let exn = tyerror ~loc (NoOperator (`Op2 pop, [ty1; ty2])) in
+      let op = cmp_of_pop2 exn sty pop in
+      (op, cast e1 sty1 sty, cast e2 sty2 sty, P.Bty P.Bool)
 
     | _ -> rs_tyerror ~loc (NoOperator (`Op2 pop, [ty1; ty2])) in
   
@@ -560,7 +577,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
                   let lve = tt_expr_of_lvalue (lvc, lv) in
                   check_ty_eq ~loc:lvc ~from:(oget lvty) ~to_:(P.Bty P.Int);
                   check_ty_eq ~loc:lce ~from:ety ~to_:(P.Bty P.Int);
-                  P.Papp2 (oget (op2_of_pop2 eqop), lve, e), (P.Bty P.Int)
+                  P.Papp2 (op2_of_pop2 eqop, lve, e), (P.Bty P.Int)
             in
             lvty |> oiter
               (fun ty -> check_ty_eq ~loc:lce ~from:ety ~to_:ty);

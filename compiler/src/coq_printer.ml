@@ -55,18 +55,24 @@ let pp_ass_tag fmt = function
   | AT_rename_res -> F.fprintf fmt ":r="
   | AT_unroll     -> F.fprintf fmt ":i="
    
+let string_cmp_ty = function
+  | Cmp_int    -> "i"
+  | Cmp_uw W64 -> "u"
+  | Cmp_sw W64 -> "s"
+  | _          -> assert false 
+
 let infix_sop2 = function
   | Oand -> "&&"
   | Oor  -> "||"
   | Oadd -> "+"
   | Omul -> "*"
   | Osub -> "-"
-  | Oeq  -> "=="
-  | Oneq -> "!="
-  | Olt  -> "<"
-  | Ole  -> "<="
-  | Ogt  -> ">"
-  | Oge  -> ">="
+  | Oeq  k -> "==" ^ string_cmp_ty k
+  | Oneq k -> "!=" ^ string_cmp_ty k
+  | Olt  k -> "<"  ^ string_cmp_ty k
+  | Ole  k -> "<=" ^ string_cmp_ty k
+  | Ogt  k -> ">"  ^ string_cmp_ty k
+  | Oge  k -> ">=" ^ string_cmp_ty k
 
 let pp_sopn fmt sopn =
   F.fprintf fmt "%s"

@@ -61,8 +61,13 @@ Definition wumul (x y: word) :=
   let n := I64.unsigned x * I64.unsigned y in
   (I64.repr (Z.quot n I64.modulus), I64.repr n).
   
-Definition wle (x y:word) := I64.unsigned x <=? I64.unsigned y.
-Definition wlt (x y:word) := I64.unsigned x <? I64.unsigned y.
+Definition weq (x y:word) := I64.unsigned x =? I64.unsigned y.
+
+Definition wsle (x y:word) := I64.signed x <=? I64.signed y.
+Definition wslt (x y:word) := I64.signed x <? I64.signed y.
+
+Definition wule (x y:word) := I64.unsigned x <=? I64.unsigned y.
+Definition wult (x y:word) := I64.unsigned x <? I64.unsigned y.
 
 Lemma lt_unsigned x: (I64.modulus <=? I64.unsigned x)%Z = false.
 Proof. by rewrite Z.leb_gt;case: (I64.unsigned_range x). Qed.
@@ -72,6 +77,21 @@ Proof. by rewrite Z.leb_le;case: (I64.unsigned_range x). Qed.
 
 Lemma unsigned0 : I64.unsigned (I64.repr 0) = 0%Z.
 Proof. by rewrite I64.unsigned_repr. Qed.
+
+Lemma weq_refl x : weq x x.
+Proof. by rewrite /weq Z.eqb_refl. Qed.
+
+Lemma wsle_refl x : wsle x x.
+Proof. by rewrite /wsle Z.leb_refl. Qed.
+
+Lemma wule_refl x : wule x x.
+Proof. by rewrite /wule Z.leb_refl. Qed.
+
+Lemma wslt_irrefl x : wslt x x = false.
+Proof. by rewrite /wslt Z.ltb_irrefl. Qed.
+
+Lemma wult_irrefl x : wult x x = false.
+Proof. by rewrite /wult Z.ltb_irrefl. Qed.
 
 (* ** Coercion to nat 
  * -------------------------------------------------------------------- *)
@@ -91,7 +111,7 @@ Notation tobase := I64.Z_mod_modulus (only parsing).
 Lemma reqP n1 n2: reflect (I64.repr n1 = I64.repr n2) (tobase n1 == tobase n2).
 Proof. by apply ueqP. Qed.
 
-Definition iword_eqb (n1 n2:iword) := 
+(*Definition iword_eqb (n1 n2:iword) := 
   (tobase n1 =? tobase n2).
 
 Definition iword_ltb (n1 n2:iword) : bool:= 
@@ -128,10 +148,11 @@ Proof. by []. Qed.
 
 Lemma iword_lebP (n1 n2:iword) : iword_leb n1 n2 = wle (I64.repr n1) (I64.repr n2).
 Proof. by []. Qed.
-
+*)
 Lemma urepr n : I64.unsigned (I64.repr n) = I64.Z_mod_modulus n.
 Proof. done. Qed.
 
+(*
 Lemma repr_mod n : I64.repr (I64.Z_mod_modulus n) = I64.repr n.
 Proof. by apply: reqP;rewrite !I64.Z_mod_modulus_eq Zmod_mod. Qed.
 
@@ -158,6 +179,4 @@ Lemma iword_subcarryP (n1 n2:iword) c :
   let r := iword_subcarry n1 n2 c in
   (r.1, I64.repr r.2) = wsubcarry (I64.repr n1) (I64.repr n2) c.
 Proof. by rewrite /iword_subcarry /wsubcarry !urepr /= repr_mod. Qed.
-
-
-
+*)

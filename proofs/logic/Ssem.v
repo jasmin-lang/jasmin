@@ -157,22 +157,33 @@ Definition mk_ssem_sop2 t1 t2 tr (o:ssem_t t1 -> ssem_t t2 -> ssem_t tr) v1 v2 :
 Definition ssem_op2_b  := @mk_ssem_sop2 sbool sbool sbool.
 Definition ssem_op2_i  := @mk_ssem_sop2 sint  sint  sint.
 Definition ssem_op2_ib := @mk_ssem_sop2 sint  sint  sbool.
+Definition ssem_op2_wb := @mk_ssem_sop2 sword sword sbool.
 
 Definition ssem_sop2 (o:sop2) :=
   match o with
-  | Oand => ssem_op2_b andb
+  | Oand => ssem_op2_b andb     
   | Oor  => ssem_op2_b orb
 
   | Oadd => ssem_op2_i Z.add
   | Omul => ssem_op2_i Z.mul
   | Osub => ssem_op2_i Z.sub
 
-  | Oeq  => ssem_op2_ib Z.eqb
-  | Oneq => ssem_op2_ib (fun x y => negb (Z.eqb x y))
-  | Olt  => ssem_op2_ib Z.ltb
-  | Ole  => ssem_op2_ib Z.leb
-  | Ogt  => ssem_op2_ib Z.gtb
-  | Oge  => ssem_op2_ib Z.geb
+  | Oeq Cmp_int  => ssem_op2_ib Z.eqb
+  | Oeq _        => ssem_op2_wb weq 
+  | Oneq Cmp_int => ssem_op2_ib (fun x y => negb (Z.eqb x y))
+  | Oneq _       => ssem_op2_wb (fun x y => negb (weq x y))
+  | Olt Cmp_int  => ssem_op2_ib Z.ltb
+  | Ole Cmp_int  => ssem_op2_ib Z.leb
+  | Ogt Cmp_int  => ssem_op2_ib Z.gtb
+  | Oge Cmp_int  => ssem_op2_ib Z.geb
+  | Olt Cmp_sw   => ssem_op2_wb wslt
+  | Ole Cmp_sw   => ssem_op2_wb wsle
+  | Ogt Cmp_sw   => ssem_op2_wb (fun x y => wslt y x)
+  | Oge Cmp_sw   => ssem_op2_wb (fun x y => wsle y x)
+  | Olt Cmp_uw   => ssem_op2_wb wult
+  | Ole Cmp_uw   => ssem_op2_wb wule
+  | Ogt Cmp_uw   => ssem_op2_wb (fun x y => wult y x)
+  | Oge Cmp_uw   => ssem_op2_wb (fun x y => wule y x)
   end.
 
 Import UnsafeMemory.

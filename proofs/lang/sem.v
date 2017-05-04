@@ -235,6 +235,7 @@ Definition mk_sem_sop2 t1 t2 tr (o:sem_t t1 -> sem_t t2 -> sem_t tr) v1 v2 :=
 Definition sem_op2_b  := @mk_sem_sop2 sbool sbool sbool.
 Definition sem_op2_i  := @mk_sem_sop2 sint  sint  sint.
 Definition sem_op2_ib := @mk_sem_sop2 sint  sint  sbool.
+Definition sem_op2_wb := @mk_sem_sop2 sword sword sbool.
 
 Definition sem_sop2 (o:sop2) :=
   match o with
@@ -245,12 +246,22 @@ Definition sem_sop2 (o:sop2) :=
   | Omul => sem_op2_i Z.mul
   | Osub => sem_op2_i Z.sub
 
-  | Oeq  => sem_op2_ib Z.eqb
-  | Oneq => sem_op2_ib (fun x y => negb (Z.eqb x y))
-  | Olt  => sem_op2_ib Z.ltb
-  | Ole  => sem_op2_ib Z.leb
-  | Ogt  => sem_op2_ib Z.gtb
-  | Oge  => sem_op2_ib Z.geb
+  | Oeq Cmp_int  => sem_op2_ib Z.eqb
+  | Oeq _        => sem_op2_wb weq 
+  | Oneq Cmp_int => sem_op2_ib (fun x y => negb (Z.eqb x y))
+  | Oneq _       => sem_op2_wb (fun x y => negb (weq x y))
+  | Olt Cmp_int  => sem_op2_ib Z.ltb
+  | Ole Cmp_int  => sem_op2_ib Z.leb
+  | Ogt Cmp_int  => sem_op2_ib Z.gtb
+  | Oge Cmp_int  => sem_op2_ib Z.geb
+  | Olt Cmp_sw   => sem_op2_wb wslt
+  | Ole Cmp_sw   => sem_op2_wb wsle
+  | Ogt Cmp_sw   => sem_op2_wb (fun x y => wslt y x)
+  | Oge Cmp_sw   => sem_op2_wb (fun x y => wsle y x)
+  | Olt Cmp_uw   => sem_op2_wb wult
+  | Ole Cmp_uw   => sem_op2_wb wule
+  | Ogt Cmp_uw   => sem_op2_wb (fun x y => wult y x)
+  | Oge Cmp_uw   => sem_op2_wb (fun x y => wule y x)
   end.
 
 Import Memory.
@@ -1114,12 +1125,23 @@ Proof.
   by exists (o z1 z2). 
 Qed.
 
+Lemma vuincl_sem_op2_wb o ve1 ve1' ve2 ve2' v1 : 
+  value_uincl ve1 ve1' -> value_uincl ve2 ve2' -> sem_op2_wb o ve1 ve2 = ok v1 ->
+  exists v2 : value, sem_op2_wb o ve1' ve2' = ok v2 /\ value_uincl v1 v2.
+Proof.
+  rewrite /sem_op2_wb /= /mk_sem_sop2 => Hvu1 Hvu2.
+  apply: rbindP => z1 /(value_uincl_word Hvu1) [] _ ->.
+  apply: rbindP => z2 /(value_uincl_word Hvu2) [] _ -> [] <- /=.
+  by exists (o z1 z2). 
+Qed.
+
 Lemma vuincl_sem_sop2 o ve1 ve1' ve2 ve2' v1 :
   value_uincl ve1 ve1' -> value_uincl ve2 ve2' ->
   sem_sop2 o ve1 ve2 = ok v1 ->
   exists v2 : value, sem_sop2 o ve1' ve2' = ok v2 /\ value_uincl v1 v2.
 Proof.
-  case:o => /=;eauto using vuincl_sem_op2_i, vuincl_sem_op2_b, vuincl_sem_op2_ib.
+  case:o => [|||||[]|[]|[]|[]|[]|[]]/=;
+   eauto using vuincl_sem_op2_i, vuincl_sem_op2_b, vuincl_sem_op2_ib, vuincl_sem_op2_wb.
 Qed.
 
 Lemma sem_pexpr_uincl s1 vm2 e v1:
