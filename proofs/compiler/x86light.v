@@ -41,16 +41,31 @@ Variant ireg : Type :=
 | Reg_ir of register.
 
 (* -------------------------------------------------------------------- *)
-Variant condfg : Type :=
-  EQ | CARRY | LTU | LTS | LEU | LES | GTU | GTS | GEU | GES.
+Variant condt : Type :=
+| O_ct                  (* overflow *)
+| NO_ct                 (* not overflow *)
+| B_ct                  (* below, not above or equal *)
+| NB_ct                 (* not below, above or equal *)
+| E_ct                  (* equal, zero *)
+| NE_ct                 (* not equal, not zero *)
+| BE_ct                 (* below or equal, not above *)
+| NBE_ct                (* not below or equal, above *)
+| S_ct                  (* sign *)
+| NS_ct                 (* not sign *)
+| P_ct                  (* parity, parity even *)
+| NP_ct                 (* not parity, parity odd *)
+| L_ct                  (* less than, not greater than or equal to *)
+| NL_ct                 (* not less than, greater than or equal to *)
+| LE_ct                 (* less than or equal to, not greater than *)
+| NLE_ct                (* not less than or equal to, greater than *).
 
 (* -------------------------------------------------------------------- *)
 Variant asm : Type :=
 | LABEL of positive
 
   (* Data transfert *)
-| MOV    of          oprd & oprd   (* copy *)
-| CMOVcc of condfg & oprd & oprd   (* conditional copy *)
+| MOV    of         oprd & oprd    (* copy *)
+| CMOVcc of condt & oprd & oprd    (* conditional copy *)
 
   (* Arithmetic *)
 | ADD    of oprd & oprd            (* add unsigned / signed *)
@@ -68,7 +83,7 @@ Variant asm : Type :=
 | DEC    of oprd                   (* decrement *)
 
   (* Flag *)
-| SETcc  of condfg & oprd          (* Set byte on condition *)
+| SETcc  of condt & oprd           (* Set byte on condition *)
 
   (* Pointer arithmetic *)
 | LEA    of oprd & oprd            (* Load Effective Address *)
@@ -79,7 +94,7 @@ Variant asm : Type :=
 
   (* Jumps *)
 | JMP    of label                  (* Unconditional jump *)
-| Jcc    of label                  (* Conditional jump *)
+| Jcc    of label & condt          (* Conditional jump *)
 
   (* Bitwise logical instruction *)
 | AND    of oprd & oprd            (* bit-wise and *)
@@ -102,7 +117,7 @@ Variant asm : Type :=
 Scheme Equality for register.
 Scheme Equality for rflag.
 Scheme Equality for scale.
-Scheme Equality for condfg.
+Scheme Equality for condt.
 
 Definition reg_eqMixin := comparableClass register_eq_dec.
 Canonical reg_eqType := EqType register reg_eqMixin.
@@ -113,8 +128,8 @@ Canonical rflag_eqType := EqType rflag rflag_eqMixin.
 Definition scale_eqMixin := comparableClass scale_eq_dec.
 Canonical scale_eqType := EqType scale scale_eqMixin.
 
-Definition condfg_eqMixin := comparableClass condfg_eq_dec.
-Canonical condfg_eqType := EqType condfg condfg_eqMixin.
+Definition condt_eqMixin := comparableClass condt_eq_dec.
+Canonical condt_eqType := EqType condt condt_eqMixin.
 
 (* -------------------------------------------------------------------- *)
 Module RegMap.
