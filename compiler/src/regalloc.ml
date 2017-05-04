@@ -96,23 +96,24 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   in
   fun a -> loop a e
 
-exception BadConflict of var * var
-
 let collect_conflicts (tbl: (var, int) Hashtbl.t) (f: (Sv.t * Sv.t) func) : conflicts =
   let add_one_aux (v: int) (w: int) (c: conflicts) : conflicts =
       let x = get_conflicts v c in
       IntMap.add v (IntSet.add w x) c
   in
-  let add_one (v: var) (w: var) (c: conflicts) : conflicts =
+  let add_one loc (v: var) (w: var) (c: conflicts) : conflicts =
     try
       let i = Hashtbl.find tbl v in
       let j = Hashtbl.find tbl w in
-      if i = j then raise (BadConflict (v, w));
+      if i = j then hierror "%a: bad conflict between %a and %a"
+          L.pp_loc loc
+          (Printer.pp_var ~debug:true) v
+          (Printer.pp_var ~debug:true) w;
       c |> add_one_aux i j |> add_one_aux j i
     with Not_found -> c
   in
-  let add (c: conflicts) ((i, _): (Sv.t * Sv.t)) : conflicts =
-    conflicts_in i add_one c in
+  let add (c: conflicts) loc ((i, _): (Sv.t * Sv.t)) : conflicts =
+    conflicts_in i (add_one loc) c in
   let rec collect_instr_r c =
     function
     | Cblock s
@@ -125,9 +126,9 @@ let collect_conflicts (tbl: (var, int) Hashtbl.t) (f: (Sv.t * Sv.t) func) : conf
     | Cwhile (s1, _, s2)
     | Cif (_, s1, s2)
       -> collect_stmt (collect_stmt c s1) s2
-  and collect_instr c { i_desc ; i_info } = collect_instr_r (add c i_info) i_desc
+  and collect_instr c { i_desc ; i_loc ; i_info } = collect_instr_r (add c i_loc i_info) i_desc
   and collect_stmt c s = List.fold_left collect_instr c s in
-  collect_stmt (IntMap.empty) f.f_body
+  collect_stmt IntMap.empty f.f_body
 
 let collect_variables (f: 'info func) : (var, int) Hashtbl.t * int =
   let fresh, total =
@@ -270,7 +271,7 @@ let allocate_forced_registers (vars: (var, int) Hashtbl.t)
 
 exception Conflict
 
-let greedy_allocation (vars: (var, int) Hashtbl.t) (nv: int) (cnf: conflicts)
+let greedy_allocation (nv: int) (cnf: conflicts)
     (a: allocation) : allocation =
   let a = ref a in
   for i = 0 to nv - 1 do
@@ -308,6 +309,6 @@ let regalloc (f: 'info func) : 'info func =
   let conflicts = collect_conflicts vars lf in
   let a =
     allocate_forced_registers vars f IntMap.empty |>
-    greedy_allocation vars nv conflicts |>
+    greedy_allocation nv conflicts |>
     subst_of_allocation vars
   in Subst.gsubst_func a f

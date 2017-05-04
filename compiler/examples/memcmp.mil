@@ -1,3 +1,4 @@
+export
 fn memcmp(reg u64 p, reg u64 q, reg u64 n) -> reg bool {
 reg bool r;
 reg u64 i;
@@ -9,6 +10,7 @@ r = true;
 i = 0;
 while (i < n) {
 pi = p + i;
+qi = q + i;
  a = [pi + 0];
  b = [qi + 0];
  r = false if a != b;
