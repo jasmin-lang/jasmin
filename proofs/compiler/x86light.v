@@ -311,6 +311,16 @@ Definition rflags_of_aluop (w : word) (v : Z) := fun rf =>
   end.
 
 (* -------------------------------------------------------------------- *)
+Definition rflags_of_aluop_nocf (w : word) (v : Z) := fun rf =>
+  match rf with
+  | OF => Some (I64.signed   w != v)
+  | SF => Some (SF_of_word w)
+  | PF => Some (PF_of_word w)
+  | ZF => Some (ZF_of_word w)
+  | _  => None
+  end.
+
+(* -------------------------------------------------------------------- *)
 Notation x86_result := (result error x86_state).
 
 Implicit Types (ct : condt) (s : x86_state) (o : oprd) (ir : ireg).
@@ -358,19 +368,35 @@ Definition eval_IDIV o s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_ADC o1 o2 s : x86_result :=
-  type_error.
+  Let v1 := read_oprd o1 s in
+  Let v2 := read_oprd o2 s in
+  let c  := if RflagMap.get s.(xrf) CF then I64.one else I64.zero in
+  let v  := I64.add_carry v1 v2 c in
+  Let s  := write_oprd o1 v s in
+  ok (st_update_rflags (rflags_of_aluop v (v1 + v2 + c)%Z) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SBB o1 o2 s : x86_result :=
-  type_error.
+  Let v1 := read_oprd o1 s in
+  Let v2 := read_oprd o2 s in
+  let c  := if RflagMap.get s.(xrf) CF then I64.one else I64.zero in
+  let v  := I64.sub_borrow v1 v2 c in
+  Let s  := write_oprd o1 v s in
+  ok (st_update_rflags (rflags_of_aluop v (v1 - (v2 + c))%Z) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_INC o s : x86_result :=
-  type_error.
+  Let w := read_oprd o s in
+  let v := I64.add w I64.one in
+  Let s := write_oprd o v s in
+  ok (st_update_rflags (rflags_of_aluop_nocf v (w + 1)%Z) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_DEC o s : x86_result :=
-  type_error.
+  Let w := read_oprd o s in
+  let v := I64.sub w I64.one in
+  Let s := write_oprd o v s in
+  ok (st_update_rflags (rflags_of_aluop_nocf v (w - 1)%Z) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SETcc ct o s : x86_result :=
