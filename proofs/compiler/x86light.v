@@ -163,7 +163,8 @@ Record x86_state := X86State {
   xmem : mem;
   xreg : regmap;
   xrf  : rflagmap;
-  xc   : cmd;
+  xc   : seq asm;
+  xip  : nat;
 }.
 
 (* -------------------------------------------------------------------- *)
@@ -171,7 +172,8 @@ Definition st_write_reg (r : register) (w : word) (s : x86_state) :=
   {| xmem := s.(xmem);
      xreg := RegMap.set s.(xreg) r w;
      xrf  := s.(xrf);
-     xc   := s.(xc); |}.
+     xc   := s.(xc);
+     xip  := s.(xip); |}.
 
 (* -------------------------------------------------------------------- *)
 Definition st_write_mem (l : word) (w : word) (s : x86_state) :=
@@ -179,7 +181,16 @@ Definition st_write_mem (l : word) (w : word) (s : x86_state) :=
   {| xmem := m;
      xreg := s.(xreg);
      xrf  := s.(xrf);
-     xc   := s.(xc); |}.
+     xc   := s.(xc);
+     xip  := s.(xip); |}.
+
+(* -------------------------------------------------------------------- *)
+Definition st_write_ip (ip : nat) (s : x86_state) :=
+  {| xmem := s.(xmem);
+     xreg := s.(xreg);
+     xrf  := s.(xrf);
+     xc   := s.(xc);
+     xip  := ip; |}. 
 
 (* -------------------------------------------------------------------- *)
 Coercion word_of_scale (s : scale) : word :=
@@ -214,3 +225,161 @@ Definition read_oprd (o : oprd) (s : x86_state) :=
   | Reg_op r => ok (RegMap.get s.(xreg) r)
   | Adr_op a => read_mem s.(xmem) (decode_addr s a)
   end.
+
+(* -------------------------------------------------------------------- *)
+Notation x86_result := (result error x86_state).
+
+Implicit Types (ct : condt) (s : x86_state) (o : oprd) (ir : ireg).
+Implicit Types (lbl : label).
+
+(* -------------------------------------------------------------------- *)
+Definition eval_MOV o1 o2 s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_CMOVcc ct o1 o2 s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_ADD o1 o2 s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_SUB o1 o2 s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_MUL o s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_IMUL o1 (o2 : option oprd) (n : option nat) s : x86_result  :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_DIV o s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_IDIV o s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_ADC o1 o2 s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_SBB o1 o2 s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_INC o s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_DEC o s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_SETcc ct  o s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_LEA o1 o2 s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_TEST o1 o2 s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_CMP o1 o2 s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_AND o1 o2 s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_OR o1 o2 s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_XOR o1 o2 s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_NOT o s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_BSF o1 o2 s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_BSR o1 o2 s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_SHL o ir s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_SHR o ir s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_SAL o ir s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_SAR o ir s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_JMP lbl s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_Jcc lbl ct s : x86_result :=
+  type_error.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_instr (i : asm) s : x86_result :=
+  match i with
+  | LABEL  _        => ok s
+  | MOV    o1 o2    => eval_MOV o1 o2 s
+  | CMOVcc ct o1 o2 => eval_CMOVcc ct o1 o2 s
+  | ADD    o1 o2    => eval_ADD o1 o2 s
+  | SUB    o1 o2    => eval_SUB o1 o2 s
+  | MUL    o        => eval_MUL o s
+  | IMUL   o1 o2 n  => eval_IMUL o1 o2 n s
+  | DIV    o        => eval_DIV o s
+  | IDIV   o        => eval_IDIV o s
+  | ADC    o1 o2    => eval_ADC o1 o2 s
+  | SBB    o1 o2    => eval_SBB o1 o2 s
+  | INC    o        => eval_INC o s
+  | DEC    o        => eval_DEC o s
+  | SETcc  ct o     => eval_SETcc ct o s
+  | LEA    o1 o2    => eval_LEA o1 o2 s
+  | TEST   o1 o2    => eval_TEST o1 o2 s
+  | CMP    o1 o2    => eval_CMP o1 o2 s
+  | JMP    lbl      => eval_JMP lbl s
+  | Jcc    lbl ct   => eval_Jcc lbl ct s
+  | AND    o1 o2    => eval_ADD o1 o2 s
+  | OR     o1 o2    => eval_OR o1 o2 s
+  | XOR    o1 o2    => eval_XOR o1 o2 s
+  | NOT    o        => eval_NOT o s
+  | BSF    o1 o2    => eval_BSF o1 o2 s
+  | BSR    o1 o2    => eval_BSR o1 o2 s
+  | SHL    o ir     => eval_SHL o ir s
+  | SHR    o ir     => eval_SHL o ir s
+  | SAL    o ir     => eval_SHL o ir s
+  | SAR    o ir     => eval_SHL o ir s
+  end.
+
+(* -------------------------------------------------------------------- *)
+Definition fetch_and_eval s :=
+  if nth None (map some s.(xc)) s.(xip) is Some i then
+    eval_instr i (st_write_ip s.(xip).+1 s)
+  else type_error.
