@@ -236,9 +236,13 @@ let allocate_forced_registers (vars: (var, int) Hashtbl.t)
   let alloc_from_list rs q a vs =
     let f x = Hashtbl.find vars (q x) in
     List.fold_left (fun (vs, a) p ->
-        match vs with
-        | v :: vs -> (vs, allocate_one (f p) v a)
-        | [] -> failwith "Regalloc: dame…")
+        match f p with
+        | r ->
+          begin match vs with
+          | v :: vs -> (vs, allocate_one r v a)
+          | [] -> failwith "Regalloc: dame…"
+          end
+        | exception Not_found -> (vs, a))
       (rs, a)
       vs
     |> snd
