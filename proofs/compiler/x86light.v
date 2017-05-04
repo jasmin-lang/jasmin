@@ -227,6 +227,28 @@ Definition read_oprd (o : oprd) (s : x86_state) :=
   end.
 
 (* -------------------------------------------------------------------- *)
+Definition eval_cond (c: condt) (rm: rflagmap) :=
+  let get := RflagMap.get rm in
+  match c with
+  | O_ct   => get OF
+  | NO_ct  => ~~ get OF
+  | B_ct   => get CF
+  | NB_ct  => ~~ get CF
+  | E_ct   => get ZF
+  | NE_ct  => ~~ get ZF
+  | BE_ct  => get CF || get ZF
+  | NBE_ct => ~~ get CF && ~~ get ZF
+  | S_ct   => get SF
+  | NS_ct  => ~~ get SF
+  | P_ct   => get PF
+  | NP_ct  => ~~ get PF
+  | L_ct   => get SF != get OF
+  | NL_ct  => get SF == get OF
+  | LE_ct  => get ZF || (get SF != get OF)
+  | NLE_ct => get ZF && (get SF == get OF)
+  end.
+
+(* -------------------------------------------------------------------- *)
 Notation x86_result := (result error x86_state).
 
 Implicit Types (ct : condt) (s : x86_state) (o : oprd) (ir : ireg).
