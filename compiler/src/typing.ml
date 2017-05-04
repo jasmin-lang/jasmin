@@ -590,11 +590,16 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
         | _ -> rs_tyerror ~loc:(L.loc pi) Unsupported
       end
 
-    | PIAssign (ls, eqop, e, Some c) ->
+   | PIAssign (ls, eqop, e, Some c) ->
+        let loc = L.loc pi in
+        if peop2_of_eqop eqop <> None then rs_tyerror ~loc Unsupported;
         let cpi = S.PIAssign (ls, eqop, e, None) in
-        let i = tt_instr env (L.mk_loc (L.loc pi) cpi) in
+        let i = tt_instr env (L.mk_loc loc cpi) in
+        let x, _, e = P.destruct_move i in
+        let e' = 
+          ofdfl (fun _ -> rs_tyerror ~loc Unsupported) (P.expr_of_lval x) in
         let c = fst (tt_expr ~mode:`Expr ~expect:TPBool env c) in
-        P.Cif (c, [i], [])
+        P.Copn ([x], P.Oif, [c; e; e']) 
 
     | PIIf (c, st, sf) ->
         let c  = fst (tt_expr ~mode:`Expr ~expect:TPBool env c) in
