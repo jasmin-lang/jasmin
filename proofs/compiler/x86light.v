@@ -1,6 +1,6 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect.
-(* ------- *) Require Import low_memory memory expr sem.
+(* ------- *) Require Import memory low_memory expr sem.
 (* ------- *) (* - *) Import Memory.
 
 Set   Implicit Arguments.
@@ -150,3 +150,52 @@ Record x86_state := X86State {
   xrf  : rflagmap;
   xc   : cmd;
 }.
+
+(* -------------------------------------------------------------------- *)
+Definition st_write_reg (r : register) (w : word) (s : x86_state) :=
+  {| xmem := s.(xmem);
+     xreg := RegMap.set s.(xreg) r w;
+     xrf  := s.(xrf);
+     xc   := s.(xc); |}.
+
+(* -------------------------------------------------------------------- *)
+Definition st_write_mem (l : word) (w : word) (s : x86_state) :=
+  Let m := write_mem s.(xmem) l w in ok
+  {| xmem := m;
+     xreg := s.(xreg);
+     xrf  := s.(xrf);
+     xc   := s.(xc); |}.
+
+(* -------------------------------------------------------------------- *)
+Coercion word_of_scale (s : scale) : word :=
+  I64.repr match s with
+  | Scale1 => 1
+  | Scale2 => 2
+  | Scale4 => 4
+  | Scale8 => 8
+  end.
+
+(* -------------------------------------------------------------------- *)
+Definition decode_addr (s : x86_state) (a : address) : word := nosimpl (
+  let: disp   := a.(ad_disp) in
+  let: base   := odflt I64.zero (omap (RegMap.get s.(xreg)) a.(ad_base)) in
+  let: scale  := odflt I64.one  (omap word_of_scale a.(ad_scale)) in
+  let: offset := odflt I64.zero (omap (RegMap.get s.(xreg)) a.(ad_offset)) in
+
+  I64.add disp (I64.add base (I64.mul scale offset))).
+
+(* -------------------------------------------------------------------- *)
+Definition write_oprd (o : oprd) (w : word) (s : x86_state) :=
+  match o with
+  | Imm_op v => type_error
+  | Reg_op r => ok (st_write_reg r w s)
+  | Adr_op a => st_write_mem (decode_addr s a) w s
+  end.
+
+(* -------------------------------------------------------------------- *)
+Definition read_oprd (o : oprd) (s : x86_state) :=
+  match o with
+  | Imm_op v => ok v
+  | Reg_op r => ok (RegMap.get s.(xreg) r)
+  | Adr_op a => read_mem s.(xmem) (decode_addr s a)
+  end.
