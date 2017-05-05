@@ -327,6 +327,14 @@ Implicit Types (ct : condt) (s : x86_state) (o : oprd) (ir : ireg).
 Implicit Types (lbl : label).
 
 (* -------------------------------------------------------------------- *)
+Definition wordbit (w : word) (i : nat) :=
+  I64.and (I64.shr w (I64.repr (Z.of_nat i))) I64.one != I64.zero.
+
+(* -------------------------------------------------------------------- *)
+Definition word2bits (w : word) : seq bool :=
+  [seq wordbit w i | i <- iota 0 I64.wordsize].
+
+(* -------------------------------------------------------------------- *)
 Definition eval_MOV o1 o2 s : x86_result :=
   type_error.
 
@@ -451,11 +459,19 @@ Definition eval_NOT o s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_BSF o1 o2 s : x86_result :=
-  type_error.
+  Let v := read_oprd o2 s in
+  let b := word2bits v in
+  let i := find (pred1 true) b in
+  Let s := write_oprd o1 (I64.repr (Z.of_nat i)) s in
+  ok (st_set_rflags ZF (ZF_of_word v) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_BSR o1 o2 s : x86_result :=
-  type_error.
+  Let v := read_oprd o2 s in
+  let b := word2bits v in
+  let i := I64.wordsize.-1 - find (pred1 true) (rev b) in
+  Let s := write_oprd o1 (I64.repr (Z.of_nat i)) s in
+  ok (st_set_rflags ZF (ZF_of_word v) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SHL o ir s : x86_result :=
