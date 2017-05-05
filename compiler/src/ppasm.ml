@@ -1,5 +1,5 @@
 (* -------------------------------------------------------------------- *)
-open Utils
+(*open Utils
 open Bigint.Notations
 
 (* -------------------------------------------------------------------- *)
@@ -691,3 +691,4 @@ let pp_instr (i : X86.instr) =
       Printf.sprintf "\t%.*s" iwidth s
   | `Instr (s, args) ->
       Printf.sprintf "\t%.*s\r%s" iwidth s (String.join ", " args)
+ *)
