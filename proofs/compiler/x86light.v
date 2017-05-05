@@ -174,7 +174,7 @@ Notation regmap   := RegMap.map.
 Notation rflagmap := RflagMap.map.
 
 Definition regmap0   : regmap   := fun x => I64.repr 0.
-Definition rflagmap0 : rflagmap := fun x => Some false.
+Definition rflagmap0 : rflagmap := fun x => None.
 
 (* -------------------------------------------------------------------- *)
 Record x86_state := X86State {
