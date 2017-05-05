@@ -176,9 +176,10 @@ type allocation = var IntMap.t
 exception AlreadyAllocated
 
 let allocate_one (x: int) (r: var) (a: allocation) : allocation =
-  if IntMap.mem x a
-  then raise AlreadyAllocated
-  else IntMap.add x r a
+  match IntMap.find x a with
+  | r' when r' = r -> a
+  | _ -> raise AlreadyAllocated
+  | exception Not_found -> IntMap.add x r a
 
 module X64 =
 struct
@@ -227,7 +228,9 @@ struct
       (a: allocation) : allocation =
     let f x = Hashtbl.find vars (L.unloc x) in
     match op, lvs, es with
-    | Oaddcarry, Lvar cf  :: _, _ -> allocate_one (f cf) f_c a
+    | Oaddcarry, Lvar cf  :: _, _ :: _ :: x :: _ ->
+      allocate_one (f cf) f_c
+        (match x with Pvar x -> allocate_one (f x) f_c a | _ -> a)
     | _, _, _ -> a (* TODO *)
 
 end

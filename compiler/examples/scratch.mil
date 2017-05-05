@@ -7,3 +7,14 @@ reg bool c;
 r = x;
 return r;
 }
+
+export
+fn g(reg u64 x, reg u64 y) -> reg u64 {
+reg bool b;
+reg bool c;
+reg u64 r;
+r = 42;
+b, r += x;
+c, r += y + b;
+return r;
+}
