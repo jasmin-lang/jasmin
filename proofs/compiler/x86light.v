@@ -20,7 +20,7 @@ Definition msb (w : word) := (I64.signed w <? 0)%Z.
 Definition lsb (w : word) := (I64.and w I64.one) != I64.zero.
 
 (* -------------------------------------------------------------------- *)
-Parameter shift_mask : word.
+Parameter shift_mask : word.    (* TO BE DEFINED *)
 
 (* ==================================================================== *)
 Definition label := positive.
