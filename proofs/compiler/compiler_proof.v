@@ -24,7 +24,6 @@
  * ----------------------------------------------------------------------- *)
 
 From mathcomp Require Import all_ssreflect.
-Require Import x86_proof.
 Require Import sem compiler_util compiler.
 Require Import allocation inline_proof dead_calls_proof
                unrolling_proof constant_prop_proof dead_code_proof
