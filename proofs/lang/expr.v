@@ -88,7 +88,9 @@ Inductive sopn : Set :=
 | Olts      : sopn                  (* cpu   : sword -> sword -> sbool *)
 | Oges      : sopn                  (* cpu   : sword -> sword -> sbool *)
 | Ogts      : sopn                  (* cpu   : sword -> sword -> sbool *)
-| Oeqw      : sopn.                 (* cpu   : sword -> sword -> sbool *)
+| Oeqw      : sopn                  (* cpu   : sword -> sword -> sbool *)
+
+| Ox86_cmp  : sopn.                 (* cpu   : sword -> sword -> sbool * sbool * sbool * sbool * sbool *)
 
 Scheme Equality for sop2.
 (* Definition sop2_beq : sop2 -> sop2 -> bool *)

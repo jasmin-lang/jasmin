@@ -679,6 +679,7 @@ Definition sopn_type (op: sopn) : seq sstype * seq sstype :=
   | Oif => ([:: ssbool ; ssword ; ssword ], [:: ssword])
   | (Oaddcarry | Osubcarry) => ([:: ssword ; ssword ; ssbool ], [:: ssbool ; ssword ])
   | (Oleu | Oltu | Ogeu | Ogtu | Oles | Olts | Oges | Ogts | Oeqw) => ([:: ssword; ssword], [:: ssbool])
+  | Ox86_cmp => ([:: ssword; ssword], [:: ssbool; ssbool; ssbool; ssbool; ssbool])
   end.
 
 Definition sopn_type_i op := fst (sopn_type op).
@@ -772,6 +773,7 @@ Definition eval_sopn (op: sopn) :
   | Oges => uncurry (fun x y => I64.lt y x || I64.eq x y)
   | Ogts => uncurry (fun x y => I64.lt y x)
   | Oeqw => uncurry I64.eq
+  | Ox86_cmp => uncurry x86_cmp
   end.
 
 Fixpoint type_check_pexprs (pes: seq pexpr) (tys: seq sstype)

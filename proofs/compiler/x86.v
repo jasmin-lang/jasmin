@@ -165,7 +165,7 @@ Definition word_of_pexpr ii e :=
   | _ => cierror ii (Cerr_assembler "Invalid integer constant")
   end.
 
-Definition operand_of_lval ii (l: lval) :=
+Definition oprd_of_lval ii (l: lval) :=
   match l with
   | Lnone _ => cierror ii (Cerr_assembler "Lnone not implemented")
   | Lvar v =>
@@ -178,7 +178,7 @@ Definition operand_of_lval ii (l: lval) :=
   | Laset v e => cierror ii (Cerr_assembler "Laset not handled in assembler")
   end.
 
-Definition operand_of_pexpr ii (e: pexpr) :=
+Definition oprd_of_pexpr ii (e: pexpr) :=
   match e with
   | Pcast (Pconst z) =>
      Let w := word_of_int ii z in
@@ -258,15 +258,34 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
 
 Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
   match o with
-  | _ => cierror ii (Cerr_assembler "Opn: TODO")
+  | Ox86_cmp =>
+    match l with
+    | [:: Lvar vof; Lvar vsf; Lvar vzf; Lvar vpf; Lvar vcf] =>
+      Let rof := rflag_of_var ii vof in
+      Let rsf := rflag_of_var ii vsf in
+      Let rzf := rflag_of_var ii vzf in
+      Let rpf := rflag_of_var ii vpf in
+      Let rcf := rflag_of_var ii vcf in
+      if ((rof == OF) && (rsf == SF) && (rzf == ZF) && (rpf == PF) && (rcf == OF)) then
+        match e with
+        | [:: e1; e2] =>
+          Let o1 := oprd_of_pexpr ii e1 in
+          Let o2 := oprd_of_pexpr ii e2 in
+          ciok (CMP o1 o2)
+        | _ => cierror ii (Cerr_assembler "Invalid number of pexprs for Ox86_cmp")
+        end
+      else cierror ii (Cerr_assembler "Invalid registers in lval for Ox86_cmp")
+    | _ => cierror ii (Cerr_assembler "Invalid number of lvals for Ox86_cmp")
+    end
+  | _ => cierror ii (Cerr_assembler "Unhandled sopn")
   end.
 
 Definition assemble_i (li: linstr) : ciexec asm :=
   let (ii, i) := li in
   match i with
   | Lassgn l _ e =>
-     Let dst := operand_of_lval ii l in
-     Let src := operand_of_pexpr ii e in
+     Let dst := oprd_of_lval ii l in
+     Let src := oprd_of_pexpr ii e in
      ciok (MOV dst src)
   | Lopn l o p => assemble_opn ii l o p
   | Llabel l => ciok (LABEL l)

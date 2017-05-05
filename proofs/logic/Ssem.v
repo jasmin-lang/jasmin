@@ -283,6 +283,8 @@ Definition spval t1 t2 (p: ssem_t t1 * ssem_t t2) :=
 Notation soww o  := (sapp_sopn [::ssword] (fun x => [::SVword (o x)])).
 Notation sowww o := (sapp_sopn [:: ssword; ssword] (fun x y => [::SVword (o x y)])).
 Notation sowwb o := (sapp_sopn [:: ssword; ssword] (fun x y => [::SVbool (o x y)])).
+Notation soww_rflags o := (sapp_sopn [:: ssword; ssword] (fun x y =>
+  let '(r1, (r2, (r3, (r4, r5)))) := o x y in [:: SVbool r1; SVbool r2; SVbool r3; SVbool r4; SVbool r5])).
 
 Definition ssem_sopn (o:sopn) : svalues -> exec svalues :=
   match o with
@@ -310,6 +312,8 @@ Definition ssem_sopn (o:sopn) : svalues -> exec svalues :=
   | Oges => sowwb (fun x y => I64.lt y x || I64.eq x y)
   | Ogts => sowwb (fun x y => I64.lt y x)
   | Oeqw => sowwb I64.eq
+
+  | Ox86_cmp => soww_rflags x86_cmp
   end.
 
 (* ** Instructions

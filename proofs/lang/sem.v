@@ -380,6 +380,30 @@ Definition pval t1 t2 (p: sem_t t1 * sem_t t2) :=
 Notation oww o  := (app_sopn [::sword] (fun x => [::Vword (o x)])).
 Notation owww o := (app_sopn [:: sword; sword] (fun x y => [::Vword (o x y)])).
 Notation owwb o := (app_sopn [:: sword; sword] (fun x y => [::Vbool (o x y)])).
+Notation oww_rflags o := (app_sopn [:: sword; sword] (fun x y =>
+  let '(r1, (r2, (r3, (r4, r5)))) := o x y in [:: Vbool r1; Vbool r2; Vbool r3; Vbool r4; Vbool r5])).
+
+Definition msb (w : word) := (I64.signed w <? 0)%Z.
+Definition lsb (w : word) := (I64.and w I64.one) != I64.zero.
+
+Definition SF_of_word (w : word) :=
+  msb w.
+
+Definition PF_of_word (w : word) :=
+  lsb w.
+
+Definition ZF_of_word (w : word) :=
+  I64.eq w I64.zero.
+
+Definition rflags_of_bwop (w : word) :=
+  (false, (SF_of_word w, (ZF_of_word w, (PF_of_word w, false)))).
+
+Definition rflags_of_aluop (w : word) (v : Z) :=
+  (I64.signed w != v, (SF_of_word w, (ZF_of_word w,
+   (PF_of_word w, I64.unsigned w != v)))).
+
+Definition x86_cmp (x y: word) :=
+  rflags_of_aluop (I64.sub x y) (x - y)%Z.
 
 Definition sem_sopn (o:sopn) :  values -> exec values :=
   match o with
@@ -407,6 +431,8 @@ Definition sem_sopn (o:sopn) :  values -> exec values :=
   | Oges => owwb (fun x y => I64.lt y x || I64.eq x y)
   | Ogts => owwb (fun x y => I64.lt y x)
   | Oeqw => owwb I64.eq
+
+  | Ox86_cmp => oww_rflags x86_cmp
   end.
 
 (* ** Instructions
@@ -1223,11 +1249,26 @@ Proof.
   by move=> ??????;t_rbindP.
 Qed.
 
+Lemma vuincl_oww_rflags o vs vs' v :
+  List.Forall2 value_uincl vs vs' ->
+  (oww_rflags o) vs = ok v ->
+  exists v' : values,
+    (oww_rflags o) vs' = ok v' /\ List.Forall2 value_uincl v v'.
+Proof.
+  move=> [] //= v1 v1' ?? Hv [] //=; first by apply: rbindP.
+  move=> ???? Hv' [] //=.
+  + apply: rbindP => z /(value_uincl_word Hv) [] _ ->.
+    apply: rbindP => z' /(value_uincl_word Hv') [] _ -> [] <- /=.
+    eexists;split;eauto.
+    elim: (o z z')=> s1 [] s2 [] s3 [] s4 s5; repeat constructor.
+  by move=> ??????;t_rbindP.
+Qed.
+
 Lemma vuincl_sem_opn o vs vs' v : 
   List.Forall2 value_uincl vs vs' -> sem_sopn o vs = ok v ->
   exists v', sem_sopn o vs' = ok v' /\ List.Forall2  value_uincl v v'.
 Proof.
-  rewrite /sem_sopn;case: o;eauto using vuincl_oww, vuincl_owww, vuincl_owwb.
+  rewrite /sem_sopn;case: o;eauto using vuincl_oww, vuincl_owww, vuincl_owwb, vuincl_oww_rflags.
   + move=> [] //= v1 v1' ?? Hv1 [] //=; first by apply: rbindP.
     move=> v2 v2' ?? Hv2 [];first by t_rbindP.
     move=> v3 v3' ?? Hv3 [].
