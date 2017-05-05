@@ -8,6 +8,21 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (* -------------------------------------------------------------------- *)
+Definition wordbit (w : word) (i : nat) :=
+  I64.and (I64.shr w (I64.repr (Z.of_nat i))) I64.one != I64.zero.
+
+(* -------------------------------------------------------------------- *)
+Definition word2bits (w : word) : seq bool :=
+  [seq wordbit w i | i <- iota 0 I64.wordsize].
+
+(* -------------------------------------------------------------------- *)
+Definition msb (w : word) := (I64.signed w <? 0)%Z.
+Definition lsb (w : word) := (I64.and w I64.one) != I64.zero.
+
+(* -------------------------------------------------------------------- *)
+Parameter shift_mask : word.
+
+(* ==================================================================== *)
 Definition label := positive.
 
 (* -------------------------------------------------------------------- *)
@@ -246,6 +261,13 @@ Definition read_oprd (o : oprd) (s : x86_state) :=
   end.
 
 (* -------------------------------------------------------------------- *)
+Definition read_ireg (ir : ireg) (s : x86_state) :=
+  match ir with
+  | Imm_ir v => v
+  | Reg_ir r => RegMap.get s.(xreg) r
+  end.
+
+(* -------------------------------------------------------------------- *)
 Definition eval_cond (c : condt) (rm : rflagmap) :=
   let get := RflagMap.get rm in
   match c with
@@ -278,11 +300,11 @@ Definition find_label (lbl : label) (a : seq asm) :=
 
 (* -------------------------------------------------------------------- *)
 Definition SF_of_word (w : word) :=
-  (I64.signed w <? 0)%Z.
+  msb w.
 
 (* -------------------------------------------------------------------- *)
 Definition PF_of_word (w : word) :=
-  (I64.and w I64.one) != I64.zero.
+  lsb w.
 
 (* -------------------------------------------------------------------- *)
 Definition ZF_of_word (w : word) :=
@@ -325,14 +347,6 @@ Notation x86_result := (result error x86_state).
 
 Implicit Types (ct : condt) (s : x86_state) (o : oprd) (ir : ireg).
 Implicit Types (lbl : label).
-
-(* -------------------------------------------------------------------- *)
-Definition wordbit (w : word) (i : nat) :=
-  I64.and (I64.shr w (I64.repr (Z.of_nat i))) I64.one != I64.zero.
-
-(* -------------------------------------------------------------------- *)
-Definition word2bits (w : word) : seq bool :=
-  [seq wordbit w i | i <- iota 0 I64.wordsize].
 
 (* -------------------------------------------------------------------- *)
 Definition eval_MOV o1 o2 s : x86_result :=
@@ -475,19 +489,64 @@ Definition eval_BSR o1 o2 s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SHL o ir s : x86_result :=
-  type_error.
+  Let v := read_oprd o s in
+  let i := I64.and (read_ireg ir s) shift_mask in
+
+  if i == I64.zero then ok s else
+    let rc := msb (I64.shl v (I64.sub i I64.one)) in
+    let r  := I64.shl v i in
+    Let s  := write_oprd o r s in
+    ok (st_update_rflags (fun rf =>
+          match rf with
+          | OF => Some false
+          | CF => Some rc
+          | SF => Some (SF_of_word r)
+          | PF => Some (PF_of_word r)
+          | ZF => Some (ZF_of_word r)
+          | _  => None
+          end) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SHR o ir s : x86_result :=
-  type_error.
+  Let v := read_oprd o s in
+  let i := I64.and (read_ireg ir s) shift_mask in
+
+  if i == I64.zero then ok s else
+    let rc := lsb (I64.shru v (I64.sub i I64.one)) in
+    let r  := I64.shru v i in
+    Let s  := write_oprd o r s in
+    ok (st_update_rflags (fun rf =>
+          match rf with
+          | OF => Some false
+          | CF => Some rc
+          | SF => Some (SF_of_word r)
+          | PF => Some (PF_of_word r)
+          | ZF => Some (ZF_of_word r)
+          | _  => None
+          end) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SAL o ir s : x86_result :=
-  type_error.
+  eval_SHL o ir s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SAR o ir s : x86_result :=
-  type_error.
+  Let v := read_oprd o s in
+  let i := I64.and (read_ireg ir s) shift_mask in
+
+  if i == I64.zero then ok s else
+    let rc := lsb (I64.shr v (I64.sub i I64.one)) in
+    let r  := I64.shr v i in
+    Let s  := write_oprd o r s in
+    ok (st_update_rflags (fun rf =>
+          match rf with
+          | OF => Some false
+          | CF => Some rc
+          | SF => Some (SF_of_word r)
+          | PF => Some (PF_of_word r)
+          | ZF => Some (ZF_of_word r)
+          | _  => None
+          end) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_JMP lbl s : x86_result :=
