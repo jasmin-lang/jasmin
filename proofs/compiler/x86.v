@@ -266,7 +266,7 @@ Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
       Let rzf := rflag_of_var ii vzf in
       Let rpf := rflag_of_var ii vpf in
       Let rcf := rflag_of_var ii vcf in
-      if ((rof == OF) && (rsf == SF) && (rzf == ZF) && (rpf == PF) && (rcf == OF)) then
+      if ((rof == OF) && (rsf == SF) && (rzf == ZF) && (rpf == PF) && (rcf == CF)) then
         match e with
         | [:: e1; e2] =>
           Let o1 := oprd_of_pexpr ii e1 in
