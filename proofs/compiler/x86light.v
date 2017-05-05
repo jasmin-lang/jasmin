@@ -37,10 +37,11 @@ Variant rflag : Type := CF | PF | ZF | SF | OF | DF.
 Variant scale : Type := Scale1 | Scale2 | Scale4 | Scale8.
 
 (* -------------------------------------------------------------------- *)
+(* disp + base + scale × offset *)
 Record address : Type := mkAddress {
   ad_disp   : word;
   ad_base   : option register;
-  ad_scale  : option scale;
+  ad_scale  : scale;
   ad_offset : option register;
 }.
 
@@ -124,7 +125,7 @@ Variant asm : Type :=
   (* Bit shifts *)
 | SHL    of oprd & ireg            (* unsigned / left  *)
 | SHR    of oprd & ireg            (* unsigned / right *)
-| SAL    of oprd & ireg            (*   signed / left  *)
+| SAL    of oprd & ireg            (*   signed / left; synonym of SHL *)
 | SAR    of oprd & ireg            (*   signed / right *)
 .
 
@@ -239,7 +240,7 @@ Coercion word_of_scale (s : scale) : word :=
 Definition decode_addr (s : x86_state) (a : address) : word := nosimpl (
   let: disp   := a.(ad_disp) in
   let: base   := odflt I64.zero (omap (RegMap.get s.(xreg)) a.(ad_base)) in
-  let: scale  := odflt I64.one  (omap word_of_scale a.(ad_scale)) in
+  let: scale  := word_of_scale a.(ad_scale) in
   let: offset := odflt I64.zero (omap (RegMap.get s.(xreg)) a.(ad_offset)) in
 
   I64.add disp (I64.add base (I64.mul scale offset))).
@@ -286,7 +287,7 @@ Definition eval_cond (c : condt) (rm : rflagmap) :=
   | L_ct   => get SF != get OF
   | NL_ct  => get SF == get OF
   | LE_ct  => get ZF || (get SF != get OF)
-  | NLE_ct => get ZF && (get SF == get OF)
+  | NLE_ct => ~~ get ZF && (get SF == get OF)
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -350,7 +351,8 @@ Implicit Types (lbl : label).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_MOV o1 o2 s : x86_result :=
-  type_error.
+  Let v := read_oprd o2 s in
+  write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_CMOVcc ct o1 o2 s : x86_result :=

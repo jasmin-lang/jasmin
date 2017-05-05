@@ -174,7 +174,7 @@ Definition operand_of_lval ii (l: lval) :=
   | Lmem v e =>
      Let s := reg_of_var ii v in
      Let w := word_of_pexpr ii e in
-     ciok (Adr_op (mkAddress w (Some s) None None))
+     ciok (Adr_op (mkAddress w (Some s) Scale1 None))
   | Laset v e => cierror ii (Cerr_assembler "Laset not handled in assembler")
   end.
 
@@ -189,7 +189,7 @@ Definition operand_of_pexpr ii (e: pexpr) :=
   | Pload v e =>
      Let s := reg_of_var ii v in
      Let w := word_of_pexpr ii e in
-     ciok (Adr_op (mkAddress w (Some s) None None))
+     ciok (Adr_op (mkAddress w (Some s) Scale1 None))
   | _ => cierror ii (Cerr_assembler "Invalid pexpr")
   end.
 
