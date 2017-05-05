@@ -8,9 +8,9 @@ let rec gsubst_e (f: 'ty1 gvar_i -> 'ty2 gexpr) e =
   | Pcast(ws,e) -> Pcast(ws, gsubst_e f e)
   | Pvar v -> f v
   | Pget (v,e) -> Pget(gsubst_vdest f v, gsubst_e f e)
-  | Pload (ws, v, e) -> Pload(ws, gsubst_vdest f v, gsubst_e f e)
-  | Pnot e -> Pnot(gsubst_e f e)
-  | Papp2(o,e1,e2) -> Papp2 (o, gsubst_e f e1, gsubst_e f e2)
+  | Pload (ws, v, e) -> Pload (ws, gsubst_vdest f v, gsubst_e f e)
+  | Papp1 (o, e)     -> Papp1 (o, gsubst_e f e)
+  | Papp2 (o, e1, e2)-> Papp2 (o, gsubst_e f e1, gsubst_e f e2)
 
 and gsubst_vdest f v =
   match f v with
@@ -106,9 +106,9 @@ let psubst_prog (prog:'info pprog) =
 
 let int_of_op2 o i1 i2 =
   match o with
-  | Oadd  -> B.add i1 i2
-  | Omul  -> B.mul i1 i2
-  | Osub  -> B.sub i1 i2
+  | Oadd Op_int -> B.add i1 i2
+  | Omul Op_int -> B.mul i1 i2
+  | Osub Op_int -> B.sub i1 i2
   | _     -> assert false
 
 let rec int_of_expr e =
@@ -117,7 +117,7 @@ let rec int_of_expr e =
   | Papp2 (o, e1, e2) ->
       int_of_op2 o (int_of_expr e1) (int_of_expr e2)
   | Pbool _ | Pcast _ | Pvar _
-  | Pget _ | Pload _ | Pnot _ -> assert false
+  | Pget _ | Pload _ | Papp1 _ -> assert false
 
 
 let isubst_ty = function

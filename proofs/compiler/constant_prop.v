@@ -74,36 +74,97 @@ Definition sor e1 e2 :=
   | _, _       => Papp2 Oor e1 e2 
   end.
 
-Definition sadd e1 e2:= 
+Definition is_wconst e :=
+  match e with
+  | Pcast e => is_const e
+  | _       => None
+  end.
+
+Definition wconst n:= Pcast (Pconst n).
+
+Definition sadd_int e1 e2 := 
   match is_const e1, is_const e2 with
   | Some n1, Some n2 => Pconst (n1 + n2)
   | Some n, _ => 
-    if (n == 0)%Z then e2 else Papp2 Oadd e1 e2
+    if (n == 0)%Z then e2 else Papp2 (Oadd Op_int) e1 e2
   | _, Some n => 
-    if (n == 0)%Z then e1 else Papp2 Oadd e1 e2
-  | _, _ => Papp2 Oadd e1 e2
+    if (n == 0)%Z then e1 else Papp2 (Oadd Op_int) e1 e2
+  | _, _ => Papp2 (Oadd Op_int) e1 e2
   end.
 
-Definition ssub e1 e2 := 
+Definition sadd_w e1 e2 := 
+  match is_wconst e1, is_wconst e2 with
+  | Some n1, Some n2 => 
+    wconst (iword_add n1 n2)
+  | Some n, _ => 
+    if (tobase n == 0)%Z then e2 else Papp2 (Oadd Op_w) e1 e2
+  | _, Some n => 
+    if (tobase n == 0)%Z then e1 else Papp2 (Oadd Op_w) e1 e2
+  | _, _ => Papp2 (Oadd Op_w) e1 e2
+  end.
+
+Definition sadd ty :=
+  match ty with
+  | Op_int => sadd_int
+  | Op_w   => sadd_w
+  end.
+
+Definition ssub_int e1 e2 := 
   match is_const e1, is_const e2 with
   | Some n1, Some n2 => Pconst (n1 - n2)
   | _, Some n => 
-    if (n == 0)%Z then e1 else Papp2 Osub e1 e2
-  | _, _ => Papp2 Osub e1 e2
+    if (n == 0)%Z then e1 else Papp2 (Osub Op_int) e1 e2
+  | _, _ => Papp2 (Osub Op_int) e1 e2
   end.
 
-Definition smul e1 e2:= 
+Definition ssub_w e1 e2 := 
+  match is_wconst e1, is_wconst e2 with
+  | Some n1, Some n2 => wconst (iword_sub n1 n2)
+  | _, Some n => 
+    if (tobase n == 0)%Z then e1 else Papp2 (Osub Op_w) e1 e2
+  | _, _ => Papp2 (Osub Op_w) e1 e2
+  end.
+
+Definition ssub ty := 
+  match ty with
+  | Op_int => ssub_int
+  | Op_w   => ssub_w
+  end.
+
+Definition smul_int e1 e2 := 
   match is_const e1, is_const e2 with
   | Some n1, Some n2 => Pconst (n1 * n2)
   | Some n, _ => 
     if (n == 0)%Z then Pconst 0
     else if (n == 1)%Z then e2 
-    else Papp2 Omul e1 e2
+    else Papp2 (Omul Op_int) e1 e2
   | _, Some n => 
     if (n == 0)%Z then Pconst 0
     else if (n == 1)%Z then e1
-    else Papp2 Omul e1 e2
-  | _, _ => Papp2 Omul e1 e2
+    else Papp2 (Omul Op_int) e1 e2
+  | _, _ => Papp2 (Omul Op_int) e1 e2
+  end.
+
+Definition smul_w e1 e2 := 
+  match is_wconst e1, is_wconst e2 with
+  | Some n1, Some n2 => wconst (iword_mul n1 n2)
+  | Some n, _ => 
+    let n := tobase n in
+    if (n == 0)%Z then wconst 0
+    else if (n == 1)%Z then e2 
+    else Papp2 (Omul Op_w) (wconst n) e2
+  | _, Some n => 
+    let n := tobase n in
+    if (n == 0)%Z then wconst 0
+    else if (n == 1)%Z then e1
+    else Papp2 (Omul Op_w) e1 (wconst n)
+  | _, _ => Papp2 (Omul Op_w) e1 e2
+  end.
+
+Definition smul ty := 
+  match ty with
+  | Op_int => smul_int
+  | Op_w   => smul_w
   end.
 
 (* FIXME: improve optimisation for word *)
@@ -145,9 +206,9 @@ Definition s_op2 o e1 e2 :=
   match o with 
   | Oand    => sand e1 e2 
   | Oor     => sor  e1 e2
-  | Oadd    => sadd e1 e2
-  | Osub    => ssub e1 e2
-  | Omul    => smul e1 e2
+  | Oadd ty => sadd ty e1 e2
+  | Osub ty => ssub ty e1 e2
+  | Omul ty => smul ty e1 e2
   | Oeq  ty => s_eq ty e1 e2
   | Oneq ty => sneq ty e1 e2
   | Olt  ty => slt  ty e1 e2

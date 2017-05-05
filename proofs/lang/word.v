@@ -111,7 +111,7 @@ Notation tobase := I64.Z_mod_modulus (only parsing).
 Lemma reqP n1 n2: reflect (I64.repr n1 = I64.repr n2) (tobase n1 == tobase n2).
 Proof. by apply ueqP. Qed.
 
-(*Definition iword_eqb (n1 n2:iword) := 
+Definition iword_eqb (n1 n2:iword) := 
   (tobase n1 =? tobase n2).
 
 Definition iword_ltb (n1 n2:iword) : bool:= 
@@ -140,19 +140,20 @@ Definition iword_subcarry (n1 n2:iword) (c:bool) : (bool * iword) :=
   let n := tobase n1 - tobase n2 - Zofb c in
   (n <? 0, tobase n).
 
+Definition iword_mul (n1 n2:iword) : iword := tobase (n1 * n2).
+
 Lemma iword_eqbP (n1 n2:iword) : iword_eqb n1 n2 = (I64.repr n1 == I64.repr n2).
 Proof. by []. Qed.
 
-Lemma iword_ltbP (n1 n2:iword) : iword_ltb n1 n2 = wlt (I64.repr n1) (I64.repr n2).
+Lemma iword_ltbP (n1 n2:iword) : iword_ltb n1 n2 = wult (I64.repr n1) (I64.repr n2).
 Proof. by []. Qed.
 
-Lemma iword_lebP (n1 n2:iword) : iword_leb n1 n2 = wle (I64.repr n1) (I64.repr n2).
+Lemma iword_lebP (n1 n2:iword) : iword_leb n1 n2 = wule (I64.repr n1) (I64.repr n2).
 Proof. by []. Qed.
-*)
+
 Lemma urepr n : I64.unsigned (I64.repr n) = I64.Z_mod_modulus n.
 Proof. done. Qed.
 
-(*
 Lemma repr_mod n : I64.repr (I64.Z_mod_modulus n) = I64.repr n.
 Proof. by apply: reqP;rewrite !I64.Z_mod_modulus_eq Zmod_mod. Qed.
 
@@ -179,4 +180,10 @@ Lemma iword_subcarryP (n1 n2:iword) c :
   let r := iword_subcarry n1 n2 c in
   (r.1, I64.repr r.2) = wsubcarry (I64.repr n1) (I64.repr n2) c.
 Proof. by rewrite /iword_subcarry /wsubcarry !urepr /= repr_mod. Qed.
-*)
+
+Lemma iword_mulP (n1 n2:iword) : 
+  I64.repr (iword_mul n1 n2) = I64.mul (I64.repr n1) (I64.repr n2).
+Proof.
+  apply: reqP;rewrite /iword_mul /I64.mul !urepr.
+  by rewrite !I64.Z_mod_modulus_eq Zmod_mod Zmult_mod.
+Qed.

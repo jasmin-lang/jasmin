@@ -153,12 +153,29 @@ let cmp_of_ccmp = function
   | C.Cmp_uw  -> Cmp_uw W64
   | C.Cmp_sw  -> Cmp_sw W64
 
+let coty_of_oty = function
+  | Op_int   -> C.Op_int
+  | Op_w W64 -> C.Op_w
+  | Op_w _   -> assert false
+
+let oty_of_coty = function
+  | C.Op_int -> Op_int
+  | C.Op_w   -> Op_w W64
+
 let cop_of_op = function
   | Oand    -> C.Oand
   | Oor     -> C.Oor
-  | Oadd    -> C.Oadd
-  | Omul    -> C.Omul
-  | Osub    -> C.Osub
+
+  | Oadd ty -> C.Oadd (coty_of_oty ty)
+  | Omul ty -> C.Omul (coty_of_oty ty)
+  | Osub ty -> C.Osub (coty_of_oty ty)
+
+  | Oland   -> assert false 
+  | Olor    -> assert false
+  | Olxor   -> assert false 
+  | Olsr    -> assert false 
+  | Olsl    -> assert false 
+
   | Oeq  ty -> C.Oeq  (ccmp_of_cmp ty)
   | Oneq ty -> C.Oneq (ccmp_of_cmp ty)
   | Olt  ty -> C.Olt  (ccmp_of_cmp ty)
@@ -169,9 +186,9 @@ let cop_of_op = function
 let op_of_cop = function
   | C.Oand    -> Oand
   | C.Oor     -> Oor
-  | C.Oadd    -> Oadd
-  | C.Omul    -> Omul
-  | C.Osub    -> Osub
+  | C.Oadd ty -> Oadd (oty_of_coty ty)
+  | C.Omul ty -> Omul (oty_of_coty ty)
+  | C.Osub ty -> Osub (oty_of_coty ty)
   | C.Oeq  ty -> Oeq  (cmp_of_ccmp ty)
   | C.Oneq ty -> Oneq (cmp_of_ccmp ty)
   | C.Olt  ty -> Olt  (cmp_of_ccmp ty)
@@ -190,7 +207,8 @@ let rec cexpr_of_expr tbl = function
   | Pget (x,e)        -> C.Pget (cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Pload (W64, x, e) -> C.Pload(cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Pload _           -> assert false
-  | Pnot e            -> C.Pnot (cexpr_of_expr tbl e)
+  | Papp1 (Obnot, e)  -> C.Pnot (cexpr_of_expr tbl e)
+  | Papp1 (Ownot _, _)-> assert false 
   | Papp2 (o, e1, e2) -> C.Papp2(cop_of_op o, cexpr_of_expr tbl e1, cexpr_of_expr tbl e2)
 
 let rec expr_of_cexpr tbl = function
@@ -200,7 +218,7 @@ let rec expr_of_cexpr tbl = function
   | C.Pvar x            -> Pvar (vari_of_cvari tbl x)
   | C.Pget (x,e)        -> Pget (vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Pload (x, e)      -> Pload(W64, vari_of_cvari tbl x, expr_of_cexpr tbl e)
-  | C.Pnot e            -> Pnot (expr_of_cexpr tbl e)
+  | C.Pnot e            -> Papp1(Obnot, expr_of_cexpr tbl e)
   | C.Papp2 (o, e1, e2) -> Papp2(op_of_cop o, expr_of_cexpr tbl e1, expr_of_cexpr tbl e2)
 
 (* ------------------------------------------------------------------------ *)

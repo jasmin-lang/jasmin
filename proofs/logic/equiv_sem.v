@@ -158,6 +158,16 @@ Proof.
   by exists (o z1 z2).
 Qed.
 
+Lemma svuincl_sem_op2_w o ve1 ve1' ve2 ve2' v1 :
+  svalue_uincl ve1 ve1' -> svalue_uincl ve2 ve2' -> sem_op2_w o ve1 ve2 = ok v1 ->
+  exists v2 : svalue, ssem_op2_w o ve1' ve2' = ok v2 /\ svalue_uincl v1 v2.
+Proof.
+  rewrite /sem_op2_i /= /mk_sem_sop2 => Hvu1 Hvu2.
+  apply: rbindP => z1 /(svalue_uincl_word Hvu1) [] _ ->.
+  apply: rbindP => z2 /(svalue_uincl_word Hvu2) [] _ -> [] <- /=.
+  by exists (SVword (o z1 z2)).
+Qed.
+
 Lemma svuincl_sem_op2_ib o ve1 ve1' ve2 ve2' v1 :
   svalue_uincl ve1 ve1' -> svalue_uincl ve2 ve2' -> sem_op2_ib o ve1 ve2 = ok v1 ->
   exists v2 : svalue, ssem_op2_ib o ve1' ve2' = ok v2 /\ svalue_uincl v1 v2.
@@ -206,8 +216,9 @@ Proof.
     by case: (svalue_uincl_bool Hvu Hto) => ??;subst => /=;exists (~~b).
   apply: rbindP => ve1 /He1 [] ve1' [] -> Hvu1.
   apply: rbindP => ve2 /He2 [] ve2' [] -> Hvu2 {He1 He2}.
-  case:o=> [|||||[]|[]|[]|[]|[]|[]] => /=;
-    eauto using svuincl_sem_op2_i, svuincl_sem_op2_b, svuincl_sem_op2_ib, svuincl_sem_op2_wb.
+  case:o=> [||[]|[]|[]|[]|[]|[]|[]|[]|[]] => /=;
+    eauto using svuincl_sem_op2_i, svuincl_sem_op2_w, 
+                svuincl_sem_op2_b, svuincl_sem_op2_ib, svuincl_sem_op2_wb.
 Qed.
 
 Lemma ssem_pexprs_uincl s ss es vs1:

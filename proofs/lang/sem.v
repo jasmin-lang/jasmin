@@ -234,6 +234,7 @@ Definition mk_sem_sop2 t1 t2 tr (o:sem_t t1 -> sem_t t2 -> sem_t tr) v1 v2 :=
 
 Definition sem_op2_b  := @mk_sem_sop2 sbool sbool sbool.
 Definition sem_op2_i  := @mk_sem_sop2 sint  sint  sint.
+Definition sem_op2_w  := @mk_sem_sop2 sword sword sword.
 Definition sem_op2_ib := @mk_sem_sop2 sint  sint  sbool.
 Definition sem_op2_wb := @mk_sem_sop2 sword sword sbool.
 
@@ -242,9 +243,12 @@ Definition sem_sop2 (o:sop2) :=
   | Oand => sem_op2_b andb     
   | Oor  => sem_op2_b orb
 
-  | Oadd => sem_op2_i Z.add
-  | Omul => sem_op2_i Z.mul
-  | Osub => sem_op2_i Z.sub
+  | Oadd Op_int  => sem_op2_i Z.add
+  | Oadd Op_w    => sem_op2_w I64.add
+  | Omul Op_int  => sem_op2_i Z.mul
+  | Omul Op_w    => sem_op2_w I64.mul
+  | Osub Op_int  => sem_op2_i Z.sub
+  | Osub Op_w    => sem_op2_w I64.sub
 
   | Oeq Cmp_int  => sem_op2_ib Z.eqb
   | Oeq _        => sem_op2_wb weq 
@@ -1141,6 +1145,16 @@ Proof.
   by exists (o z1 z2). 
 Qed.
 
+Lemma vuincl_sem_op2_w o ve1 ve1' ve2 ve2' v1 : 
+  value_uincl ve1 ve1' -> value_uincl ve2 ve2' -> sem_op2_w o ve1 ve2 = ok v1 ->
+  exists v2 : value, sem_op2_w o ve1' ve2' = ok v2 /\ value_uincl v1 v2.
+Proof.
+  rewrite /sem_op2_w /= /mk_sem_sop2 => Hvu1 Hvu2.
+  apply: rbindP => z1 /(value_uincl_word Hvu1) [] _ ->.
+  apply: rbindP => z2 /(value_uincl_word Hvu2) [] _ -> [] <- /=.
+  by exists (Vword (o z1 z2)). 
+Qed.
+
 Lemma vuincl_sem_op2_ib o ve1 ve1' ve2 ve2' v1 : 
   value_uincl ve1 ve1' -> value_uincl ve2 ve2' -> sem_op2_ib o ve1 ve2 = ok v1 ->
   exists v2 : value, sem_op2_ib o ve1' ve2' = ok v2 /\ value_uincl v1 v2.
@@ -1166,8 +1180,9 @@ Lemma vuincl_sem_sop2 o ve1 ve1' ve2 ve2' v1 :
   sem_sop2 o ve1 ve2 = ok v1 ->
   exists v2 : value, sem_sop2 o ve1' ve2' = ok v2 /\ value_uincl v1 v2.
 Proof.
-  case:o => [|||||[]|[]|[]|[]|[]|[]]/=;
-   eauto using vuincl_sem_op2_i, vuincl_sem_op2_b, vuincl_sem_op2_ib, vuincl_sem_op2_wb.
+  case:o => [||[]|[]|[]|[]|[]|[]|[]|[]|[]]/=;
+   eauto using vuincl_sem_op2_i, vuincl_sem_op2_w, vuincl_sem_op2_b, vuincl_sem_op2_ib, 
+    vuincl_sem_op2_wb.
 Qed.
 
 Lemma sem_pexpr_uincl s1 vm2 e v1:

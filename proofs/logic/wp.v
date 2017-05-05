@@ -166,7 +166,11 @@ Local Coercion stype_of_stype' : stype' >-> stype.
 Definition op2_type (op: sop2) : stype' * stype' :=
   match op with
   | (Oand | Oor ) => (sbool', sbool')
-  | (Oadd | Omul | Osub) => (sint', sint')
+  | (Oadd ty| Omul ty| Osub ty) => 
+    match ty with 
+    | Op_int => (sint', sint')
+    | Op_w   => (sword', sword')
+    end
   | (Oeq ty| Oneq ty| Olt ty| Ole ty| Ogt ty| Oge ty) =>
     match ty with
     | Cmp_int => (sint', sbool')
@@ -181,9 +185,12 @@ Definition sem_texpr_sop2 op : ssem_t (op2_type_i op) → ssem_t (op2_type_i op)
   match op with
   | Oand => andb
   | Oor => orb
-  | Oadd => Z.add
-  | Omul => Z.mul
-  | Osub => Z.sub
+  | Oadd Op_int  => Z.add
+  | Omul Op_int  => Z.mul
+  | Osub Op_int  => Z.sub
+  | Oadd Op_w    => I64.add
+  | Omul Op_w    => I64.mul
+  | Osub Op_w    => I64.sub
   | Oeq  Cmp_int => Z.eqb
   | Oeq  Cmp_uw  => weq
   | Oeq  Cmp_sw  => weq
@@ -300,7 +307,7 @@ Lemma ssem_sop2_ex op vp vq :
     ∃ v, ssem_sop2 op vp vq = ok v ∧
          of_sval _ v = ok (sem_texpr_sop2 op p q).
 Proof.
-  case: op => [|||||[]|[]|[]|[]|[]|[]] /=;intros;
+  case: op => [||[]|[]|[]|[]|[]|[]|[]|[]|[]] /=;intros;
     repeat
       match goal with
       | H : ?a = ?b |- _ => subst a || subst b
@@ -347,7 +354,7 @@ Lemma ssem_sop2_error_1 op vp exn :
     of_sval (op2_type_i op) vp = Error exn →
     ∀ vq, ∃ exn', ssem_sop2 op vp vq = Error exn'.
 Proof.
-  case: op => [|||||[]|[]|[]|[]|[]|[]]; case: vp=> //= q Hq vq;
+  case: op => [||[]|[]|[]|[]|[]|[]|[]|[]|[]]; case: vp=> //= q Hq vq;
   try (eexists; reflexivity).
 Qed.
 
@@ -357,7 +364,7 @@ Lemma ssem_sop2_error_2 op vp vq exn :
     of_sval (op2_type_i op) vq = Error exn →
     ∃ exn', ssem_sop2 op vp vq = Error exn'.
 Proof.
-  case: op => [|||||[]|[]|[]|[]|[]|[]] /= p Hp; case: vq => /= q Hq;
+  case: op => [||[]|[]|[]|[]|[]|[]|[]|[]|[]] /= p Hp; case: vq => /= q Hq;
   repeat match goal with
   | H : ?a = ?b |- _ => subst a || subst b
   | H : _ = Error _ |- _ => apply Error_inj in H

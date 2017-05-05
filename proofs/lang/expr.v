@@ -50,13 +50,17 @@ Variant cmp_kind :=
   | Cmp_sw
   | Cmp_uw.
 
+Variant op_kind := 
+  | Op_int 
+  | Op_w.
+
 Inductive sop2 : Set :=
 | Oand  : sop2                      (* const : sbool -> sbool -> sbool *)
 | Oor   : sop2                      (* const : sbool -> sbool -> sbool *)
 
-| Oadd  : sop2                      (* const : sint -> sint -> sint *)
-| Omul  : sop2                      (* const : sint -> sint -> sint *)
-| Osub  : sop2                      (* const : sint -> sint -> sint *)
+| Oadd  : op_kind -> sop2                      
+| Omul  : op_kind -> sop2                      
+| Osub  : op_kind -> sop2                      
 
 | Oeq   : cmp_kind -> sop2          
 | Oneq  : cmp_kind -> sop2          

@@ -45,7 +45,7 @@ let rec arrexp_e tbl e =
 
   | Pcast(ws,e)    -> Pcast(ws, arrexp_e tbl e)
   | Pload(ws,x,e)  -> Pload(ws,x,arrexp_e tbl e)
-  | Pnot  e        -> Pnot(arrexp_e tbl e)
+  | Papp1 (o, e)   -> Papp1(o, arrexp_e tbl e)
   | Papp2(o,e1,e2) -> Papp2(o,arrexp_e tbl e1, arrexp_e tbl e2)
 
 let arrexp_lv tbl lv =
@@ -139,7 +139,7 @@ let rec astk_e tbl e =
 
   | Pcast(ws,e)    -> Pcast(ws, astk_e tbl e)
   | Pload(ws,x,e)  -> Pload(ws,x, astk_e tbl e)
-  | Pnot  e        -> Pnot(astk_e tbl e)
+  | Papp1(o,e)     -> Papp1(o, astk_e tbl e)
   | Papp2(o,e1,e2) -> Papp2(o, astk_e tbl e1, astk_e tbl e2)
 
 let astk_lv tbl lv =

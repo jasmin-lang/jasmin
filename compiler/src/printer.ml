@@ -41,15 +41,26 @@ let string_of_cmp_ty = function
 let string_of_op2 = function
   | Oand   -> "&&"
   | Oor    -> "||"
-  | Oadd   -> "+"
-  | Omul   -> "*"
-  | Osub   -> "-"
+  | Oadd _ -> "+"
+  | Omul _ -> "*"
+  | Osub _ -> "-"
+
+  | Oland  -> "&"
+  | Olor   -> "|"
+  | Olxor  -> "^"
+  | Olsr   -> ">>"
+  | Olsl   -> "<<"
+
   | Oeq  _ -> "=="
   | Oneq _ -> "!="
   | Olt  k -> "<"  ^ string_of_cmp_ty k
   | Ole  k -> "<=" ^ string_of_cmp_ty k
   | Ogt  k -> ">"  ^ string_of_cmp_ty k
   | Oge  k -> ">=" ^ string_of_cmp_ty k
+
+let pp_op1 = function
+  | Ownot _ -> "!"
+  | Obnot   -> "~"
 
 (* -------------------------------------------------------------------- *)
 let pp_ge pp_var =
@@ -63,8 +74,8 @@ let pp_ge pp_var =
   | Pload(ws,x,e) ->
       F.fprintf fmt "@[(load %a@ %a@ %a)@]"
                 pp_btype (U ws) pp_var_i x pp_expr e
-  | Pnot e        ->
-      F.fprintf fmt "(~ %a)" pp_expr e
+  | Papp1(o, e) ->
+      F.fprintf fmt "@[(%s@ %a)@]" (pp_op1 o) pp_expr e
   | Papp2(op,e1,e2) ->
       F.fprintf fmt "@[(%a %s@ %a)@]"
                 pp_expr e1 (string_of_op2 op) pp_expr e2 in
@@ -299,9 +310,9 @@ let pp_cprog fmt p =
   let pp_op2 = function
     | Oand -> "&&" 
     | Oor  -> "||"
-    | Oadd -> "+"
-    | Omul -> "*"
-    | Osub -> "-"
+    | Oadd _ -> "+"
+    | Omul _ -> "*"
+    | Osub _ -> "-"
     | Oeq  k -> "==" ^ string_cmp_ty k 
     | Oneq k -> "!=" ^ string_cmp_ty k 
     | Olt  k -> "<"  ^ string_cmp_ty k 

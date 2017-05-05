@@ -64,9 +64,16 @@ let string_cmp_ty = function
 let infix_sop2 = function
   | Oand -> "&&"
   | Oor  -> "||"
-  | Oadd -> "+"
-  | Omul -> "*"
-  | Osub -> "-"
+  | Oadd _ -> "+"
+  | Omul _ -> "*"
+  | Osub _ -> "-"
+
+  | Oland  -> "&"
+  | Olor   -> "|"
+  | Olxor  -> "^"
+  | Olsr   -> ">>"
+  | Olsl   -> "<<"
+
   | Oeq  k -> "==" ^ string_cmp_ty k
   | Oneq k -> "!=" ^ string_cmp_ty k
   | Olt  k -> "<"  ^ string_cmp_ty k
@@ -140,6 +147,11 @@ let pp_funname fmt fn =
   let x = try Hashtbl.find fun_tbl fn with Not_found -> assert false in
   F.fprintf fmt "%s" x
 
+let pp_op1 = function
+  | Obnot     -> "~~"
+  | Ownot W64 -> "!"
+  | Ownot _   -> assert false
+  
 let rec pp_pexpr fmt = function
   | Pconst i       -> F.fprintf fmt "%s" (B.to_string i)
   | Pbool b        -> F.fprintf fmt "%a" pp_bool b
@@ -151,7 +163,7 @@ let rec pp_pexpr fmt = function
   | Pload(W64, vi, pe) -> 
     F.fprintf fmt "@[<hov 2>(load@ %a@ %a)@]" pp_vari vi pp_pexpr pe
   | Pload _        ->  assert false
-  | Pnot(pe)       -> F.fprintf fmt "(~~ %a)" pp_pexpr pe
+  | Papp1(o, pe)  -> F.fprintf fmt "(%s %a)" (pp_op1 o) pp_pexpr pe
   | Papp2(o, e1, e2)-> 
     Format.fprintf fmt "@[<hov 2>(%a %s@ %a)@]" 
         pp_pexpr e1 (infix_sop2 o) pp_pexpr e2

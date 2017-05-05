@@ -156,6 +156,7 @@ Definition mk_ssem_sop2 t1 t2 tr (o:ssem_t t1 -> ssem_t t2 -> ssem_t tr) v1 v2 :
 
 Definition ssem_op2_b  := @mk_ssem_sop2 sbool sbool sbool.
 Definition ssem_op2_i  := @mk_ssem_sop2 sint  sint  sint.
+Definition ssem_op2_w  := @mk_ssem_sop2 sword sword sword.
 Definition ssem_op2_ib := @mk_ssem_sop2 sint  sint  sbool.
 Definition ssem_op2_wb := @mk_ssem_sop2 sword sword sbool.
 
@@ -164,9 +165,12 @@ Definition ssem_sop2 (o:sop2) :=
   | Oand => ssem_op2_b andb     
   | Oor  => ssem_op2_b orb
 
-  | Oadd => ssem_op2_i Z.add
-  | Omul => ssem_op2_i Z.mul
-  | Osub => ssem_op2_i Z.sub
+  | Oadd Op_int  => ssem_op2_i Z.add
+  | Oadd Op_w    => ssem_op2_w I64.add
+  | Osub Op_int  => ssem_op2_i Z.sub
+  | Osub Op_w    => ssem_op2_w I64.sub
+  | Omul Op_int  => ssem_op2_i Z.mul
+  | Omul Op_w    => ssem_op2_w I64.mul
 
   | Oeq Cmp_int  => ssem_op2_ib Z.eqb
   | Oeq _        => ssem_op2_wb weq 

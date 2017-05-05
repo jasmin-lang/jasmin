@@ -297,10 +297,10 @@ Section PROOF.
       case: (_ && _) Hw=> //.
     move: Het=> /orP; case.
     move=> /orP; case.
-    + case: e2=> // -[] // [] // [] // ofs' e2' /andP [/eqP <- He].
+    + case: e2=> // -[] // [] // [] // [] // ofs' e2' /andP [/eqP <- He].
       rewrite /= (Hcheck _ _ He Hx) /=.
       by rewrite /sem_op2_i /mk_sem_sop2 /= Hx'.
-    + case: e2=> // -[] // [] // e2' [] // ofs' /andP [/eqP <- He].
+    + case: e2=> // -[] // [] // [] // e2' [] // ofs' /andP [/eqP <- He].
       rewrite /= (Hcheck _ _ He Hx) /=.
       rewrite /sem_op2_i /mk_sem_sop2 /= Hx' /=.
       rewrite [i + ofs]Z.add_comm //.
@@ -872,11 +872,11 @@ Section PROOF.
           by rewrite Heq' eq_refl in Habs.
           by rewrite Hvi vtype_diff.
     move: He'=> /orP [/orP [He'|He']|He'].
-    + case: e' He'=> // [] [] // [] // [] // z e' /andP [/eqP <- {z} He].
+    + case: e' He'=> // -[] // [] // [] // [] // z e' /andP [/eqP <- {z} He].
       rewrite /=.
       rewrite (check_eP He Hv Hvali) /= /sem_op2_i /mk_sem_sop2 /= Hi /=.
       exact: Hall.
-    + case: e' He'=> // [][] // [] // e' [] // z.
+    + case: e' He'=> // -[] // [] // [] // e' [] // z.
       move=> /andP [/eqP <- {z} He].
       rewrite /= (check_eP He Hv Hvali) /= /sem_op2_i /mk_sem_sop2 /= Hi /=.
       rewrite [i + get]Z.add_comm.

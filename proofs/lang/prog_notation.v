@@ -14,9 +14,14 @@ Notation load := Pload.
 
 Notation "e1 && e2" := (Papp2 Oand e1 e2) : expr_scope.
 Notation "e1 || e2" := (Papp2 Oor  e1 e2) : expr_scope.
-Notation "e1 + e2"  := (Papp2 Oadd e1 e2) : expr_scope.
-Notation "e1 - e2"  := (Papp2 Osub e1 e2) : expr_scope.
-Notation "e1 * e2"  := (Papp2 Omul e1 e2) : expr_scope.
+
+Notation "e1 +i e2"  := (Papp2 (Oadd Op_int) e1 e2) (at level 50, left associativity) : expr_scope.
+Notation "e1 -i e2"  := (Papp2 (Osub Op_int) e1 e2) (at level 50, left associativity) : expr_scope.
+Notation "e1 *i e2"  := (Papp2 (Omul Op_int) e1 e2) (at level 40, left associativity) : expr_scope.
+
+Notation "e1 +w e2"  := (Papp2 (Oadd Op_w) e1 e2) (at level 50, left associativity) : expr_scope.
+Notation "e1 -w e2"  := (Papp2 (Osub Op_w) e1 e2) (at level 50, left associativity) : expr_scope.
+Notation "e1 *w e2"  := (Papp2 (Omul Op_w) e1 e2) (at level 40, left associativity) : expr_scope.
 
 Notation "e1 ==i e2" := (Papp2 (Oeq  Cmp_int) e1 e2) (at level 70, no associativity) : expr_scope.
 Notation "e1 !=i e2" := (Papp2 (Oneq Cmp_int) e1 e2) (at level 70, no associativity) : expr_scope.

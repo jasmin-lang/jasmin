@@ -23,14 +23,28 @@ type cmp_ty =
   | Cmp_uw  of word_size
   | Cmp_sw  of word_size
 
+type op_ty =
+  | Op_int 
+  | Op_w  of word_size
+
 (* ------------------------------------------------------------------------ *)
+type op1 =
+  | Ownot of word_size  
+  | Obnot 
+
 type op2 =
   | Oand    (* const : sbool -> sbool -> sbool *)
   | Oor     (* const : sbool -> sbool -> sbool *)
 
-  | Oadd    (* const : sint -> sint -> sint *)
-  | Omul    (* const : sint -> sint -> sint *)
-  | Osub    (* const : sint -> sint -> sint *)
+  | Oadd    of op_ty
+  | Omul    of op_ty
+  | Osub    of op_ty
+
+  | Oland  
+  | Olor
+  | Olxor
+  | Olsr
+  | Olsl 
 
   | Oeq     of cmp_ty 
   | Oneq    of cmp_ty 
@@ -76,18 +90,19 @@ type 'ty gexpr =
   | Pvar   of 'ty gvar_i
   | Pget   of 'ty gvar_i * 'ty gexpr
   | Pload  of word_size * 'ty gvar_i * 'ty gexpr
-  | Pnot   of 'ty gexpr
+  | Papp1  of op1 * 'ty gexpr
   | Papp2  of op2 * 'ty gexpr * 'ty gexpr
 
 type 'ty gexprs = 'ty gexpr list
 
-val u8   : 'e gty
-val u16  : 'e gty
-val u32  : 'e gty
-val u64  : 'e gty
-val u128 : 'e gty
-val u256 : 'e gty
-
+val u8    : 'e gty
+val u16   : 'e gty
+val u32   : 'e gty
+val u64   : 'e gty
+val u128  : 'e gty
+val u256  : 'e gty
+val tint  : 'e gty
+val tbool : 'e gty
 (* ------------------------------------------------------------------------ *)
 
 type op =

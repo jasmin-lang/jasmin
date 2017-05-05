@@ -26,13 +26,27 @@ type cmp_ty =
   | Cmp_uw  of word_size
   | Cmp_sw  of word_size
 
+type op_ty =
+  | Op_int 
+  | Op_w  of word_size
+
+type op1 =
+  | Ownot of word_size  
+  | Obnot 
+
 type op2 =
   | Oand    (* const : sbool -> sbool -> sbool *)
   | Oor     (* const : sbool -> sbool -> sbool *)
 
-  | Oadd    (* const : sint -> sint -> sint *)
-  | Omul    (* const : sint -> sint -> sint *)
-  | Osub    (* const : sint -> sint -> sint *)
+  | Oadd    of op_ty
+  | Omul    of op_ty
+  | Osub    of op_ty
+
+  | Oland  
+  | Olor
+  | Olxor
+  | Olsr
+  | Olsl 
 
   | Oeq     of cmp_ty 
   | Oneq    of cmp_ty 
@@ -77,7 +91,7 @@ type 'ty gexpr =
   | Pvar   of 'ty gvar_i
   | Pget   of 'ty gvar_i * 'ty gexpr
   | Pload  of word_size * 'ty gvar_i * 'ty gexpr
-  | Pnot   of 'ty gexpr
+  | Papp1  of op1 * 'ty gexpr
   | Papp2  of op2 * 'ty gexpr * 'ty gexpr
 
 type 'ty gexprs = 'ty gexpr list
@@ -88,6 +102,8 @@ let u32  = Bty (U W32)
 let u64  = Bty (U W64)
 let u128 = Bty (U W128)
 let u256 = Bty (U W256)
+let tbool = Bty Bool
+let tint  = Bty Int
 
 let kind_i v = (L.unloc v).v_kind
 let ty_i v = (L.unloc v).v_ty
@@ -278,7 +294,7 @@ let rec rvars_e s = function
   | Pvar x         -> Sv.add (L.unloc x) s
   | Pget(x,e)      -> rvars_e (Sv.add (L.unloc x) s) e
   | Pload(_,x,e)   -> rvars_e (Sv.add (L.unloc x) s) e
-  | Pnot e         -> rvars_e s e
+  | Papp1(_, e)    -> rvars_e s e
   | Papp2(_,e1,e2) -> rvars_e (rvars_e s e1) e2
 
 let rvars_es s es = List.fold_left rvars_e s es
@@ -368,10 +384,10 @@ let is_reg_arr v =
 (* Functions over expressions                                           *)
 
 let ( ++ ) e1 e2 =
-  Papp2(Oadd, e1, e2)
+  Papp2(Oadd Op_int, e1, e2)
 
 let ( ** ) e1 e2 =
-  Papp2(Omul, e1, e2)
+  Papp2(Omul Op_int, e1, e2)
 
 let cnst i = Pconst i
 let icnst i = cnst (B.of_int i)

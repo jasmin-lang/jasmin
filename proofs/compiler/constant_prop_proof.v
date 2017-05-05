@@ -80,26 +80,62 @@ Proof.
   by case:b2;case: sem_pexpr => //= -[] //= b [] <-;rewrite ?orbT ?orbF.
 Qed.
 
-Lemma saddP e1 e2 : Papp2 Oadd e1 e2 =E sadd e1 e2.
+Lemma sadd_intP e1 e2 : Papp2 (Oadd Op_int) e1 e2 =E sadd_int e1 e2.
 Proof.
-  rewrite /sadd. case: (is_constP e1) => [n1| {e1} e1];
+  rewrite /sadd_int; case: (is_constP e1) => [n1| {e1} e1];
     case: (is_constP e2) => [n2| {e2} e2] rho v //=.
   + by case: eqP => [-> | //];case: sem_pexpr => //= -[].
   case: eqP => [-> | //];case: sem_pexpr => //= -[] //= z <-.
   by rewrite /sem_op2_i /mk_sem_sop2 /= Z.add_0_r.
 Qed.
 
-Lemma ssubP e1 e2 : Papp2 Osub e1 e2 =E ssub e1 e2.
+Lemma is_wconstP e : is_reflect wconst e (is_wconst e).
 Proof.
-  rewrite /ssub. case: (is_constP e1) => [n1| {e1} e1];
+  case e => //=;auto using Is_reflect_none.
+  move=> e1; case: (is_constP e1);auto using Is_reflect_none.
+  move=> z;apply: Is_reflect_some.
+Qed.
+
+Lemma sadd_wP e1 e2 : Papp2 (Oadd Op_w) e1 e2 =E sadd_w e1 e2.
+Proof.
+  rewrite /sadd_w; case: (is_wconstP e1) => [n1| {e1} e1];
+    case: (is_wconstP e2) => [n2| {e2} e2] rho v //=.
+  + by rewrite /sem_op2_w /mk_sem_sop2 /= iword_addP.
+  + case:ifP => [/eqP Heq | //].
+    apply:rbindP=> v2 ->;rewrite -repr_mod Heq /sem_op2_w /mk_sem_sop2 /=.
+    by case: v2 => //= w2;rewrite I64.add_zero_l => -[<-].
+  case:ifP => [/eqP Heq | //].
+  apply:rbindP=> v1 ->;rewrite -repr_mod Heq /sem_op2_w /mk_sem_sop2 /=.
+  by case: v1 => //= w1;rewrite I64.add_zero => -[<-].
+Qed.
+
+Lemma saddP ty e1 e2 : Papp2 (Oadd ty) e1 e2 =E sadd ty e1 e2.
+Proof. by case:ty;auto using sadd_intP, sadd_wP. Qed.
+
+Lemma ssub_intP e1 e2 : Papp2 (Osub Op_int) e1 e2 =E ssub_int e1 e2.
+Proof.
+  rewrite /ssub_int. case: (is_constP e1) => [n1| {e1} e1];
     case: (is_constP e2) => [n2| {e2} e2] rho v //=.
   case: eqP => [-> | //];case: sem_pexpr => //= -[] //= z <-.
   by rewrite /sem_op2_i /mk_sem_sop2 /= Z.sub_0_r.
 Qed.
 
-Lemma smulP e1 e2 : Papp2 Omul e1 e2 =E smul e1 e2.
+Lemma ssub_wP e1 e2 : Papp2 (Osub Op_w) e1 e2 =E ssub_w e1 e2.
 Proof.
-  rewrite /smul. case: (is_constP e1) => [n1| {e1} e1];
+  rewrite /ssub_w; case: (is_wconstP e1) => [n1| {e1} e1];
+    case: (is_wconstP e2) => [n2| {e2} e2] rho v //=.
+  + by rewrite /sem_op2_w /mk_sem_sop2 /= iword_subP.
+  case:ifP => [/eqP Heq | //].
+  apply:rbindP=> v1 ->;rewrite -repr_mod Heq /sem_op2_w /mk_sem_sop2 /=.
+  by case: v1 => //= w1;rewrite I64.sub_zero_l => -[<-].
+Qed.
+
+Lemma ssubP ty e1 e2 : Papp2 (Osub ty) e1 e2 =E ssub ty e1 e2.
+Proof. by case:ty;auto using ssub_intP, ssub_wP. Qed.
+
+Lemma smul_intP e1 e2 : Papp2 (Omul Op_int) e1 e2 =E smul_int e1 e2.
+Proof.
+  rewrite /smul_int. case: (is_constP e1) => [n1| {e1} e1];
     case: (is_constP e2) => [n2| {e2} e2] rho v //=.
   + case:eqP => [->|_]; first by  case: sem_pexpr => //= -[].
     case:eqP => [->|//];case: sem_pexpr => //= -[] //= z <-.
@@ -110,6 +146,28 @@ Proof.
   case:eqP => [->|//];case: sem_pexpr => //= -[] //= z.
   by rewrite /sem_op2_i /mk_sem_sop2 [Z.mul]lock /= -lock Z.mul_1_r.
 Qed.
+
+Lemma smul_wP e1 e2 : Papp2 (Omul Op_w) e1 e2 =E smul_w e1 e2.
+Proof.
+  rewrite /smul_w; case: (is_wconstP e1) => [n1| {e1} e1];
+    case: (is_wconstP e2) => [n2| {e2} e2] rho v //=.
+  + by rewrite /sem_op2_w /mk_sem_sop2 /= iword_mulP.
+  + case:ifP => [/eqP Heq | _].
+    + apply:rbindP=> v2 _;rewrite -repr_mod Heq /sem_op2_w /mk_sem_sop2 /=.
+      by apply:rbindP => ? _;rewrite I64.mul_commut I64.mul_zero.
+    case:ifP => [/eqP Heq | //=];last by rewrite repr_mod.
+    apply:rbindP=> v2 ->;rewrite -repr_mod Heq /sem_op2_w /mk_sem_sop2 /=.
+    by case: v2 => //= w2; rewrite I64.mul_commut I64.mul_one.
+  case:ifP => [/eqP Heq | _].
+  + apply:rbindP=> v1 _;rewrite -repr_mod Heq /sem_op2_w /mk_sem_sop2 /=.
+    by apply:rbindP => ? _;rewrite I64.mul_zero.
+  case:ifP => [/eqP Heq | //=];last by rewrite repr_mod.
+  apply:rbindP=> v1 ->;rewrite -repr_mod Heq /sem_op2_w /mk_sem_sop2 /=.
+  by case: v1 => //= w1; rewrite I64.mul_one.
+Qed.
+
+Lemma smulP ty e1 e2 : Papp2 (Omul ty) e1 e2 =E smul ty e1 e2.
+Proof. by case:ty;auto using smul_intP, smul_wP. Qed.
 
 Lemma eq_exprP s e1 e2 : eq_expr e1 e2 -> sem_pexpr s e1 = sem_pexpr s e2. 
 Proof.

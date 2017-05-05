@@ -31,6 +31,7 @@ type pexpr_r =
   | PEBool   of bool
   | PEInt    of Bigint.zint
   | PECall   of pident * pexpr list
+  | PEPrim   of pident * pexpr list
   | PEOp1    of peop1 * pexpr
   | PEOp2    of peop2 * (pexpr * pexpr)
 

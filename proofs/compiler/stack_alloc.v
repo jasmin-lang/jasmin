@@ -121,11 +121,11 @@ Definition check_arr_stk' check_e (m:map) (x1:var_i) (e1:pexpr) (x2:var_i) (e2:p
     match Mvar.get m.1 x1 with
     | Some ofs =>
       match e2 with
-      | Pcast (Papp2 Oadd (Pconst ofs') e2') => (ofs == ofs') && check_e m e1 e2'
+      | Pcast (Papp2 (Oadd Op_int) (Pconst ofs') e2') => (ofs == ofs') && check_e m e1 e2'
       | _ => false
       end ||
       match e2 with
-      | Pcast (Papp2 Oadd e2' (Pconst ofs')) => (ofs == ofs') && check_e m e1 e2'
+      | Pcast (Papp2 (Oadd Op_int) e2' (Pconst ofs')) => (ofs == ofs') && check_e m e1 e2'
       | _ => false
       end ||
       match e1 with
@@ -174,8 +174,6 @@ Fixpoint check_i (m: map) (i1 i2: instr) : bool :=
   | Cwhile c1 e1 c1', Cwhile c2 e2 c2' => all2 (check_i m) c1 c2 && check_e m e1 e2 && all2 (check_i m) c1' c2'
   | _, _ => false
   end.
-
-Import Memory.
 
 Definition check_fd (l:list (var * Z))
     (fd: fundef) (fd': sfundef) :=
