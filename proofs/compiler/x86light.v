@@ -292,7 +292,6 @@ Definition eval_cond (c : condt) (rm : rflagmap) :=
       Let cf := get CF in
       Let zf := get ZF in ok (~~ cf && ~~ zf)
 
-
   | L_ct =>
       Let sf  := get SF in
       Let of_ := get OF in ok (sf != of_)
@@ -507,7 +506,7 @@ Definition eval_SHL o ir s : x86_result :=
     Let s  := write_oprd o r s in
     ok (st_update_rflags (fun rf =>
           match rf with
-          | OF => Some (Some (msb r (+) rc))
+          | OF => if i == I64.one then Some (Some (msb r (+) rc)) else None
           | CF => Some (Some rc)
           | SF => Some (Some (SF_of_word r))
           | PF => Some (Some (PF_of_word r))
@@ -526,7 +525,7 @@ Definition eval_SHR o ir s : x86_result :=
     Let s  := write_oprd o r s in
     ok (st_update_rflags (fun rf =>
           match rf with
-          | OF => Some (Some (msb v))
+          | OF => if i == I64.one then Some (Some (msb v)) else None
           | CF => Some (Some rc)
           | SF => Some (Some (SF_of_word r))
           | PF => Some (Some (PF_of_word r))
@@ -549,7 +548,7 @@ Definition eval_SAR o ir s : x86_result :=
     Let s  := write_oprd o r s in
     ok (st_update_rflags (fun rf =>
           match rf with
-          | OF => Some (Some false)
+          | OF => if i == I64.one then Some (Some false) else None
           | CF => Some (Some rc)
           | SF => Some (Some (SF_of_word r))
           | PF => Some (Some (PF_of_word r))
