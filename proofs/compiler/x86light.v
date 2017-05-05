@@ -118,10 +118,6 @@ Variant asm : Type :=
 | XOR    of oprd & oprd            (* bit-wise xor *)
 | NOT    of oprd                   (* bit-wise not *)
 
-  (* Bit scan *)
-| BSF    of oprd & oprd            (* forward *)
-| BSR    of oprd & oprd            (* reverse *)
-
   (* Bit shifts *)
 | SHL    of oprd & ireg            (* unsigned / left  *)
 | SHR    of oprd & ireg            (* unsigned / right *)
@@ -159,14 +155,17 @@ End RegMap.
 
 (* -------------------------------------------------------------------- *)
 Module RflagMap.
-  Definition map := rflag -> bool.
+  Definition map := rflag -> option bool.
 
   Definition get (m : map) (x : rflag) := m x.
 
   Definition set (m : map) (x : rflag) (y : bool) :=
+    fun z => if (z == x) then Some y else m z.
+
+  Definition oset (m : map) (x : rflag) (y : option bool) :=
     fun z => if (z == x) then y else m z.
 
-  Definition update (m : map) (f : rflag -> option bool) :=
+  Definition update (m : map) (f : rflag -> option (option bool)) :=
     fun rf => odflt (m rf) (f rf).
 End RflagMap.
 
@@ -175,7 +174,7 @@ Notation regmap   := RegMap.map.
 Notation rflagmap := RflagMap.map.
 
 Definition regmap0   : regmap   := fun x => I64.repr 0.
-Definition rflagmap0 : rflagmap := fun x => false.
+Definition rflagmap0 : rflagmap := fun x => Some false.
 
 (* -------------------------------------------------------------------- *)
 Record x86_state := X86State {
@@ -270,24 +269,47 @@ Definition read_ireg (ir : ireg) (s : x86_state) :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_cond (c : condt) (rm : rflagmap) :=
-  let get := RflagMap.get rm in
+  let get rf :=
+    if RflagMap.get rm rf is Some b then ok b else type_error in
+
   match c with
   | O_ct   => get OF
-  | NO_ct  => ~~ get OF
+  | NO_ct  => Let b := get OF in ok (~~ b)
   | B_ct   => get CF
-  | NB_ct  => ~~ get CF
+  | NB_ct  => Let b := get CF in ok (~~ b)
   | E_ct   => get ZF
-  | NE_ct  => ~~ get ZF
-  | BE_ct  => get CF || get ZF
-  | NBE_ct => ~~ get CF && ~~ get ZF
+  | NE_ct  => Let b := get ZF in ok (~~ b)
   | S_ct   => get SF
-  | NS_ct  => ~~ get SF
+  | NS_ct  => Let b := get SF in ok (~~ b)
   | P_ct   => get PF
-  | NP_ct  => ~~ get PF
-  | L_ct   => get SF != get OF
-  | NL_ct  => get SF == get OF
-  | LE_ct  => get ZF || (get SF != get OF)
-  | NLE_ct => ~~ get ZF && (get SF == get OF)
+  | NP_ct  => Let b := get PF in ok (~~ b)
+
+  | BE_ct =>
+      Let cf := get CF in
+      Let zf := get ZF in ok (cf || zf)
+
+  | NBE_ct =>
+      Let cf := get CF in
+      Let zf := get ZF in ok (~~ cf && ~~ zf)
+
+
+  | L_ct =>
+      Let sf  := get SF in
+      Let of_ := get OF in ok (sf != of_)
+
+  | NL_ct =>
+      Let sf  := get SF in
+      Let of_ := get OF in ok (sf == of_)
+
+  | LE_ct =>
+      Let zf  := get ZF in
+      Let sf  := get SF in
+      Let of_ := get OF in ok (zf || (sf != of_))
+
+  | NLE_ct =>
+      Let zf  := get ZF in
+      Let sf  := get SF in
+      Let of_ := get OF in ok (~~ zf && (sf == of_))
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -314,33 +336,33 @@ Definition ZF_of_word (w : word) :=
 (* -------------------------------------------------------------------- *)
 Definition rflags_of_bwop (w : word) := fun rf =>
   match rf with
-  | OF => Some false
-  | CF => Some false
-  | SF => Some (SF_of_word w)
-  | PF => Some (PF_of_word w)
-  | ZF => Some (ZF_of_word w)
-  | _  => None
+  | OF => Some (Some false)
+  | CF => Some (Some false)
+  | SF => Some (Some (SF_of_word w))
+  | PF => Some (Some (PF_of_word w))
+  | ZF => Some (Some (ZF_of_word w))
+  | _  => Some None
   end.
 
 (* -------------------------------------------------------------------- *)
 Definition rflags_of_aluop (w : word) (v : Z) := fun rf =>
   match rf with
-  | OF => Some (I64.signed   w != v)
-  | CF => Some (I64.unsigned w != v)
-  | SF => Some (SF_of_word w)
-  | PF => Some (PF_of_word w)
-  | ZF => Some (ZF_of_word w)
-  | _  => None
+  | OF => Some (Some (I64.signed   w != v))
+  | CF => Some (Some (I64.unsigned w != v))
+  | SF => Some (Some (SF_of_word w))
+  | PF => Some (Some (PF_of_word w))
+  | ZF => Some (Some (ZF_of_word w))
+  | _  => Some None
   end.
 
 (* -------------------------------------------------------------------- *)
 Definition rflags_of_aluop_nocf (w : word) (v : Z) := fun rf =>
   match rf with
-  | OF => Some (I64.signed   w != v)
-  | SF => Some (SF_of_word w)
-  | PF => Some (PF_of_word w)
-  | ZF => Some (ZF_of_word w)
-  | _  => None
+  | OF => Some (Some (I64.signed w != v))
+  | SF => Some (Some (SF_of_word w))
+  | PF => Some (Some (PF_of_word w))
+  | ZF => Some (Some (ZF_of_word w))
+  | _  => Some None
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -356,7 +378,8 @@ Definition eval_MOV o1 o2 s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_CMOVcc ct o1 o2 s : x86_result :=
-  if eval_cond ct s.(xrf) then eval_MOV o1 o2 s else ok s.
+  Let b := eval_cond ct s.(xrf) in
+  if b then eval_MOV o1 o2 s else ok s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_ADD o1 o2 s : x86_result :=
@@ -424,7 +447,7 @@ Definition eval_DEC o s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SETcc ct o s : x86_result :=
-  let b := eval_cond ct s.(xrf) in
+  Let b := eval_cond ct s.(xrf) in
   write_oprd o (if b then I64.one else I64.zero) s.
 
 (* -------------------------------------------------------------------- *)
@@ -474,22 +497,6 @@ Definition eval_NOT o s : x86_result :=
   Let v := read_oprd o s in write_oprd o v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_BSF o1 o2 s : x86_result :=
-  Let v := read_oprd o2 s in
-  let b := word2bits v in
-  let i := find (pred1 true) b in
-  Let s := write_oprd o1 (I64.repr (Z.of_nat i)) s in
-  ok (st_set_rflags ZF (ZF_of_word v) s).
-
-(* -------------------------------------------------------------------- *)
-Definition eval_BSR o1 o2 s : x86_result :=
-  Let v := read_oprd o2 s in
-  let b := word2bits v in
-  let i := I64.wordsize.-1 - find (pred1 true) (rev b) in
-  Let s := write_oprd o1 (I64.repr (Z.of_nat i)) s in
-  ok (st_set_rflags ZF (ZF_of_word v) s).
-
-(* -------------------------------------------------------------------- *)
 Definition eval_SHL o ir s : x86_result :=
   Let v := read_oprd o s in
   let i := I64.and (read_ireg ir s) shift_mask in
@@ -500,12 +507,12 @@ Definition eval_SHL o ir s : x86_result :=
     Let s  := write_oprd o r s in
     ok (st_update_rflags (fun rf =>
           match rf with
-          | OF => Some (msb r (+) rc)
-          | CF => Some rc
-          | SF => Some (SF_of_word r)
-          | PF => Some (PF_of_word r)
-          | ZF => Some (ZF_of_word r)
-          | _  => None
+          | OF => Some (Some (msb r (+) rc))
+          | CF => Some (Some rc)
+          | SF => Some (Some (SF_of_word r))
+          | PF => Some (Some (PF_of_word r))
+          | ZF => Some (Some (ZF_of_word r))
+          | _  => Some None
           end) s).
 
 (* -------------------------------------------------------------------- *)
@@ -519,12 +526,12 @@ Definition eval_SHR o ir s : x86_result :=
     Let s  := write_oprd o r s in
     ok (st_update_rflags (fun rf =>
           match rf with
-          | OF => Some (msb v)
-          | CF => Some rc
-          | SF => Some (SF_of_word r)
-          | PF => Some (PF_of_word r)
-          | ZF => Some (ZF_of_word r)
-          | _  => None
+          | OF => Some (Some (msb v))
+          | CF => Some (Some rc)
+          | SF => Some (Some (SF_of_word r))
+          | PF => Some (Some (PF_of_word r))
+          | ZF => Some (Some (ZF_of_word r))
+          | _  => Some None
           end) s).
 
 (* -------------------------------------------------------------------- *)
@@ -542,12 +549,12 @@ Definition eval_SAR o ir s : x86_result :=
     Let s  := write_oprd o r s in
     ok (st_update_rflags (fun rf =>
           match rf with
-          | OF => Some false
-          | CF => Some rc
-          | SF => Some (SF_of_word r)
-          | PF => Some (PF_of_word r)
-          | ZF => Some (ZF_of_word r)
-          | _  => None
+          | OF => Some (Some false)
+          | CF => Some (Some rc)
+          | SF => Some (Some (SF_of_word r))
+          | PF => Some (Some (PF_of_word r))
+          | ZF => Some (Some (ZF_of_word r))
+          | _  => Some None
           end) s).
 
 (* -------------------------------------------------------------------- *)
@@ -556,7 +563,8 @@ Definition eval_JMP lbl s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_Jcc lbl ct s : x86_result :=
-  if eval_cond ct s.(xrf) then eval_JMP lbl s else ok s.
+  Let b := eval_cond ct s.(xrf) in
+  if b then eval_JMP lbl s else ok s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_instr (i : asm) s : x86_result :=
@@ -584,8 +592,6 @@ Definition eval_instr (i : asm) s : x86_result :=
   | OR     o1 o2    => eval_OR o1 o2 s
   | XOR    o1 o2    => eval_XOR o1 o2 s
   | NOT    o        => eval_NOT o s
-  | BSF    o1 o2    => eval_BSF o1 o2 s
-  | BSR    o1 o2    => eval_BSR o1 o2 s
   | SHL    o ir     => eval_SHL o ir s
   | SHR    o ir     => eval_SHR o ir s
   | SAL    o ir     => eval_SAL o ir s
