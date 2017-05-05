@@ -517,7 +517,7 @@ Definition eval_SHR o ir s : x86_result :=
     Let s  := write_oprd o r s in
     ok (st_update_rflags (fun rf =>
           match rf with
-          | OF => Some (msb r)
+          | OF => Some (msb v)
           | CF => Some rc
           | SF => Some (SF_of_word r)
           | PF => Some (PF_of_word r)
