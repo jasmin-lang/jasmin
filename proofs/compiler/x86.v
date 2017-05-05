@@ -481,7 +481,7 @@ Definition reg_of_var ii (v: var_i) :=
   | VarI (Var sword s) _ =>
      match (reg_of_string s) with
      | Some r => ciok r
-     | None => cierror ii (Cerr_assembler "Invalid register name")
+     | None => cierror ii (Cerr_assembler ("Invalid register name: " ++ s))
      end
   | _ => cierror ii (Cerr_assembler "Invalid register type")
   end.
