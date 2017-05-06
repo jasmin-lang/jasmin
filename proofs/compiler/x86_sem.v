@@ -344,10 +344,10 @@ Definition rflags_of_bwop (w : word) := fun rf =>
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition rflags_of_aluop (w : word) (v : Z) := fun rf =>
+Definition rflags_of_aluop (w : word) (vu vs : Z) := fun rf =>
   match rf with
-  | OF => Some (Some (I64.signed   w != v))
-  | CF => Some (Some (I64.unsigned w != v))
+  | OF => Some (Some (I64.signed   w != vs))
+  | CF => Some (Some (I64.unsigned w != vu))
   | SF => Some (Some (SF_of_word w))
   | PF => Some (Some (PF_of_word w))
   | ZF => Some (Some (ZF_of_word w))
@@ -355,9 +355,9 @@ Definition rflags_of_aluop (w : word) (v : Z) := fun rf =>
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition rflags_of_aluop_nocf (w : word) (v : Z) := fun rf =>
+Definition rflags_of_aluop_nocf (w : word) (vs : Z) := fun rf =>
   match rf with
-  | OF => Some (Some (I64.signed w != v))
+  | OF => Some (Some (I64.signed w != vs))
   | SF => Some (Some (SF_of_word w))
   | PF => Some (Some (PF_of_word w))
   | ZF => Some (Some (ZF_of_word w))
@@ -385,16 +385,20 @@ Definition eval_ADD o1 o2 s : x86_result :=
   Let v1 := read_oprd o1 s in
   Let v2 := read_oprd o2 s in
   let v  := I64.add v1 v2 in
+  let vu := (I64.unsigned v1 + I64.unsigned v2)%Z in
+  let vs := (I64.signed   v1 + I64.signed   v2)%Z in
   Let s  := write_oprd o1 v s in
-  ok (st_update_rflags (rflags_of_aluop v (v1 + v2)%Z) s).
+  ok (st_update_rflags (rflags_of_aluop v vu vs) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SUB o1 o2 s : x86_result :=
   Let v1 := read_oprd o1 s in
   Let v2 := read_oprd o2 s in
   let v  := I64.sub v1 v2 in
+  let vu := (I64.unsigned v1 - I64.unsigned v2)%Z in
+  let vs := (I64.signed   v1 - I64.signed   v2)%Z in
   Let s  := write_oprd o1 v s in
-  ok (st_update_rflags (rflags_of_aluop v (v1 - v2)%Z) s).
+  ok (st_update_rflags (rflags_of_aluop v vu vs) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_MUL o s : x86_result :=
@@ -418,8 +422,10 @@ Definition eval_ADC o1 o2 s : x86_result :=
   Let v2 := read_oprd o2 s in
   let c  := if RflagMap.get s.(xrf) CF then I64.one else I64.zero in
   let v  := I64.add_carry v1 v2 c in
+  let vu := (I64.unsigned v1 + I64.unsigned v2 + (c : Z))%Z in
+  let vs := (I64.signed   v1 + I64.signed   v2 + (c : Z))%Z in
   Let s  := write_oprd o1 v s in
-  ok (st_update_rflags (rflags_of_aluop v (v1 + v2 + c)%Z) s).
+  ok (st_update_rflags (rflags_of_aluop v vu vs) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SBB o1 o2 s : x86_result :=
@@ -427,22 +433,26 @@ Definition eval_SBB o1 o2 s : x86_result :=
   Let v2 := read_oprd o2 s in
   let c  := if RflagMap.get s.(xrf) CF then I64.one else I64.zero in
   let v  := I64.sub_borrow v1 v2 c in
+  let vu := (I64.unsigned v1 - (I64.unsigned v2 + (c : Z)))%Z in
+  let vs := (I64.signed   v1 - (I64.signed   v2 + (c : Z)))%Z in
   Let s  := write_oprd o1 v s in
-  ok (st_update_rflags (rflags_of_aluop v (v1 - (v2 + c))%Z) s).
+  ok (st_update_rflags (rflags_of_aluop v vu vs) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_INC o s : x86_result :=
-  Let w := read_oprd o s in
-  let v := I64.add w I64.one in
-  Let s := write_oprd o v s in
-  ok (st_update_rflags (rflags_of_aluop_nocf v (w + 1)%Z) s).
+  Let w  := read_oprd o s in
+  let v  := I64.add w I64.one in
+  let vs := (I64.signed w + 1)%Z in
+  Let s  := write_oprd o v s in
+  ok (st_update_rflags (rflags_of_aluop_nocf v vs) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_DEC o s : x86_result :=
-  Let w := read_oprd o s in
-  let v := I64.sub w I64.one in
-  Let s := write_oprd o v s in
-  ok (st_update_rflags (rflags_of_aluop_nocf v (w - 1)%Z) s).
+  Let w  := read_oprd o s in
+  let v  := I64.sub w I64.one in
+  let vs := (I64.signed w - 1)%Z in
+  Let s  := write_oprd o v s in
+  ok (st_update_rflags (rflags_of_aluop_nocf v vs) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SETcc ct o s : x86_result :=
@@ -465,7 +475,9 @@ Definition eval_CMP o1 o2 s : x86_result :=
   Let v1 := read_oprd o1 s in
   Let v2 := read_oprd o2 s in
   let v  := I64.sub v1 v2 in
-  ok (st_update_rflags (rflags_of_aluop v (v1 - v2)%Z) s).
+  let vu := (I64.unsigned v1 - I64.unsigned v2)%Z in
+  let vs := (I64.signed   v1 - I64.signed   v2)%Z in
+  ok (st_update_rflags (rflags_of_aluop v vu vs) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_AND o1 o2 s : x86_result :=
