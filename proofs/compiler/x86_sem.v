@@ -87,8 +87,7 @@ Variant asm : Type :=
 | ADD    of oprd & oprd            (* add unsigned / signed *)
 | SUB    of oprd & oprd            (* sub unsigned / signed *)
 | MUL    of oprd                   (* mul unsigned *)
-| IMUL   of oprd & option oprd & option nat
-                                   (* mul   signed *)
+| IMUL   of oprd                   (* mul   signed *)
 | DIV    of oprd                   (* div unsigned *)
 | IDIV   of oprd                   (* div   signed *)
 
@@ -155,26 +154,30 @@ End RegMap.
 
 (* -------------------------------------------------------------------- *)
 Module RflagMap.
-  Definition map := rflag -> option bool.
+  Variant rflagv := Def of bool | Undef.
+
+  Definition map := rflag -> rflagv.
 
   Definition get (m : map) (x : rflag) := m x.
 
   Definition set (m : map) (x : rflag) (y : bool) :=
-    fun z => if (z == x) then Some y else m z.
+    fun z => if (z == x) then Def y else m z.
 
-  Definition oset (m : map) (x : rflag) (y : option bool) :=
+  Definition oset (m : map) (x : rflag) (y : rflagv) :=
     fun z => if (z == x) then y else m z.
 
-  Definition update (m : map) (f : rflag -> option (option bool)) :=
+  Definition update (m : map) (f : rflag -> option rflagv) :=
     fun rf => odflt (m rf) (f rf).
 End RflagMap.
 
 (* -------------------------------------------------------------------- *)
 Notation regmap   := RegMap.map.
 Notation rflagmap := RflagMap.map.
+Notation Def      := RflagMap.Def.
+Notation Undef    := RflagMap.Undef.
 
 Definition regmap0   : regmap   := fun x => I64.repr 0.
-Definition rflagmap0 : rflagmap := fun x => None.
+Definition rflagmap0 : rflagmap := fun x => Undef.
 
 (* -------------------------------------------------------------------- *)
 Record x86_state := X86State {
@@ -192,6 +195,10 @@ Definition st_write_reg (r : register) (w : word) (s : x86_state) :=
      xrf  := s.(xrf);
      xc   := s.(xc);
      xip  := s.(xip); |}.
+
+(* -------------------------------------------------------------------- *)
+Definition st_get_rflag (rf : rflag) (s : x86_state) :=
+  if RflagMap.get s.(xrf) rf is Def b then ok b else type_error.
 
 (* -------------------------------------------------------------------- *)
 Definition st_set_rflags (rf : rflag) (b : bool) (s : x86_state) :=
@@ -270,7 +277,7 @@ Definition read_ireg (ir : ireg) (s : x86_state) :=
 (* -------------------------------------------------------------------- *)
 Definition eval_cond (c : condt) (rm : rflagmap) :=
   let get rf :=
-    if RflagMap.get rm rf is Some b then ok b else type_error in
+    if RflagMap.get rm rf is Def b then ok b else type_error in
 
   match c with
   | O_ct   => get OF
@@ -335,33 +342,33 @@ Definition ZF_of_word (w : word) :=
 (* -------------------------------------------------------------------- *)
 Definition rflags_of_bwop (w : word) := fun rf =>
   match rf with
-  | OF => Some (Some false)
-  | CF => Some (Some false)
-  | SF => Some (Some (SF_of_word w))
-  | PF => Some (Some (PF_of_word w))
-  | ZF => Some (Some (ZF_of_word w))
-  | _  => Some None
+  | OF => Some (Def false)
+  | CF => Some (Def false)
+  | SF => Some (Def (SF_of_word w))
+  | PF => Some (Def (PF_of_word w))
+  | ZF => Some (Def (ZF_of_word w))
+  | _  => None
   end.
 
 (* -------------------------------------------------------------------- *)
 Definition rflags_of_aluop (w : word) (vu vs : Z) := fun rf =>
   match rf with
-  | OF => Some (Some (I64.signed   w != vs))
-  | CF => Some (Some (I64.unsigned w != vu))
-  | SF => Some (Some (SF_of_word w))
-  | PF => Some (Some (PF_of_word w))
-  | ZF => Some (Some (ZF_of_word w))
-  | _  => Some None
+  | OF => Some (Def (I64.signed   w != vs))
+  | CF => Some (Def (I64.unsigned w != vu))
+  | SF => Some (Def (SF_of_word w))
+  | PF => Some (Def (PF_of_word w))
+  | ZF => Some (Def (ZF_of_word w))
+  | _  => None
   end.
 
 (* -------------------------------------------------------------------- *)
 Definition rflags_of_aluop_nocf (w : word) (vs : Z) := fun rf =>
   match rf with
-  | OF => Some (Some (I64.signed w != vs))
-  | SF => Some (Some (SF_of_word w))
-  | PF => Some (Some (PF_of_word w))
-  | ZF => Some (Some (ZF_of_word w))
-  | _  => Some None
+  | OF => Some (Def (I64.signed w != vs))
+  | SF => Some (Def (SF_of_word w))
+  | PF => Some (Def (PF_of_word w))
+  | ZF => Some (Def (ZF_of_word w))
+  | _  => None
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -405,7 +412,7 @@ Definition eval_MUL o s : x86_result :=
   type_error.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_IMUL o1 (o2 : option oprd) (n : option nat) s : x86_result  :=
+Definition eval_IMUL o1 s : x86_result  :=
   type_error.
 
 (* -------------------------------------------------------------------- *)
@@ -420,7 +427,8 @@ Definition eval_IDIV o s : x86_result :=
 Definition eval_ADC o1 o2 s : x86_result :=
   Let v1 := read_oprd o1 s in
   Let v2 := read_oprd o2 s in
-  let c  := if RflagMap.get s.(xrf) CF then I64.one else I64.zero in
+  Let c  := st_get_rflag CF s in
+  let c  := if c then I64.one else I64.zero in
   let v  := I64.add_carry v1 v2 c in
   let vu := (I64.unsigned v1 + I64.unsigned v2 + (c : Z))%Z in
   let vs := (I64.signed   v1 + I64.signed   v2 + (c : Z))%Z in
@@ -431,7 +439,8 @@ Definition eval_ADC o1 o2 s : x86_result :=
 Definition eval_SBB o1 o2 s : x86_result :=
   Let v1 := read_oprd o1 s in
   Let v2 := read_oprd o2 s in
-  let c  := if RflagMap.get s.(xrf) CF then I64.one else I64.zero in
+  Let c  := st_get_rflag CF s in
+  let c  := if c then I64.one else I64.zero in
   let v  := I64.sub_borrow v1 v2 c in
   let vu := (I64.unsigned v1 - (I64.unsigned v2 + (c : Z)))%Z in
   let vs := (I64.signed   v1 - (I64.signed   v2 + (c : Z)))%Z in
@@ -518,12 +527,14 @@ Definition eval_SHL o ir s : x86_result :=
     Let s  := write_oprd o r s in
     ok (st_update_rflags (fun rf =>
           match rf with
-          | OF => if i == I64.one then Some (Some (msb r (+) rc)) else None
-          | CF => Some (Some rc)
-          | SF => Some (Some (SF_of_word r))
-          | PF => Some (Some (PF_of_word r))
-          | ZF => Some (Some (ZF_of_word r))
-          | _  => Some None
+          | OF => Some (if i == I64.one
+                  then Def (msb r (+) rc)
+                  else Undef)
+          | CF => Some (Def rc)
+          | SF => Some (Def (SF_of_word r))
+          | PF => Some (Def (PF_of_word r))
+          | ZF => Some (Def (ZF_of_word r))
+          | _  => None
           end) s).
 
 (* -------------------------------------------------------------------- *)
@@ -537,12 +548,14 @@ Definition eval_SHR o ir s : x86_result :=
     Let s  := write_oprd o r s in
     ok (st_update_rflags (fun rf =>
           match rf with
-          | OF => if i == I64.one then Some (Some (msb v)) else None
-          | CF => Some (Some rc)
-          | SF => Some (Some (SF_of_word r))
-          | PF => Some (Some (PF_of_word r))
-          | ZF => Some (Some (ZF_of_word r))
-          | _  => Some None
+          | OF => Some (if i == I64.one
+                  then Def (msb v)
+                  else Undef)
+          | CF => Some (Def rc)
+          | SF => Some (Def (SF_of_word r))
+          | PF => Some (Def (PF_of_word r))
+          | ZF => Some (Def (ZF_of_word r))
+          | _  => None
           end) s).
 
 (* -------------------------------------------------------------------- *)
@@ -560,12 +573,12 @@ Definition eval_SAR o ir s : x86_result :=
     Let s  := write_oprd o r s in
     ok (st_update_rflags (fun rf =>
           match rf with
-          | OF => if i == I64.one then Some (Some false) else None
-          | CF => Some (Some rc)
-          | SF => Some (Some (SF_of_word r))
-          | PF => Some (Some (PF_of_word r))
-          | ZF => Some (Some (ZF_of_word r))
-          | _  => Some None
+          | OF => Some (if i == I64.one then Def false else Undef)
+          | CF => Some (Def rc)
+          | SF => Some (Def (SF_of_word r))
+          | PF => Some (Def (PF_of_word r))
+          | ZF => Some (Def (ZF_of_word r))
+          | _  => None
           end) s).
 
 (* -------------------------------------------------------------------- *)
@@ -586,7 +599,7 @@ Definition eval_instr (i : asm) s : x86_result :=
   | ADD    o1 o2    => eval_ADD o1 o2 s
   | SUB    o1 o2    => eval_SUB o1 o2 s
   | MUL    o        => eval_MUL o s
-  | IMUL   o1 o2 n  => eval_IMUL o1 o2 n s
+  | IMUL   o        => eval_IMUL o s
   | DIV    o        => eval_DIV o s
   | IDIV   o        => eval_IDIV o s
   | ADC    o1 o2    => eval_ADC o1 o2 s
