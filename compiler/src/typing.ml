@@ -520,12 +520,56 @@ let prim_sig p =
   | P.Omulu     -> [P.u64  ; P.u64], [P.u64; P.u64]
   | P.Oaddcarry -> [P.tbool; P.u64], [P.u64; P.u64; P.tbool]
   | P.Osubcarry -> [P.tbool; P.u64], [P.u64; P.u64; P.tbool]
-  | _           -> assert false
+  | Ox86_CMOVcc  
+  | Ox86_ADD     
+  | Ox86_SUB     
+  | Ox86_MUL     
+  | Ox86_IMUL    
+  | Ox86_DIV     
+  | Ox86_IDIV    
+  | Ox86_ADC     
+  | Ox86_SBB     
+  | Ox86_INC     
+  | Ox86_DEC     
+  | Ox86_SETcc   
+  | Ox86_LEA     
+  | Ox86_TEST    
+  | Ox86_CMP     
+  | Ox86_AND     
+  | Ox86_OR      
+  | Ox86_XOR     
+  | Ox86_NOT     
+  | Ox86_SHL     
+  | Ox86_SHR     
+  | Ox86_SAR
+    -> (* FIXME *) assert false
 
 let prim_string = 
-  [ "mulu", P.Omulu;
-    "addc", P.Oaddcarry;
-    "subc", P.Osubcarry
+  [ "mulu"      , P.Omulu;
+    "addc"      , P.Oaddcarry;
+    "subc"      , P.Osubcarry;
+    "x86_CMOVcc", P.Ox86_CMOVcc;  
+    "x86_ADD"   , P.Ox86_ADD;     
+    "x86_SUB"   , P.Ox86_SUB;     
+    "x86_MUL"   , P.Ox86_MUL;     
+    "x86_IMUL"  , P.Ox86_IMUL;    
+    "x86_DIV"   , P.Ox86_DIV;     
+    "x86_IDIV"  , P.Ox86_IDIV;    
+    "x86_ADC"   , P.Ox86_ADC;     
+    "x86_SBB"   , P.Ox86_SBB;     
+    "x86_INC"   , P.Ox86_INC;     
+    "x86_DEC"   , P.Ox86_DEC;     
+    "x86_SETcc" , P.Ox86_SETcc;   
+    "x86_LEA"   , P.Ox86_LEA;     
+    "x86_TEST"  , P.Ox86_TEST;    
+    "x86_CMP"   , P.Ox86_CMP;     
+    "x86_AND"   , P.Ox86_AND;     
+    "x86_OR"    , P.Ox86_OR;      
+    "x86_XOR"   , P.Ox86_XOR;     
+    "x86_NOT"   , P.Ox86_NOT;     
+    "x86_SHL"   , P.Ox86_SHL;     
+    "x86_SHR"   , P.Ox86_SHR;     
+    "x86_SAR"   , P.Ox86_SAR; 
   ]
  
 let tt_prim id =

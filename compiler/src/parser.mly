@@ -17,6 +17,7 @@
 %token T_BOOL
 %token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
 
+%token SHARP
 %token AMP
 %token AMPAMP
 %token AMPEQ
@@ -152,6 +153,8 @@ ptype:
 | GTs      { `Gts  }
 | GEs      { `Ges  }
 
+prim:
+| SHARP x=ident { x }
 
 pexpr_r:
 | v=var
@@ -183,6 +186,9 @@ pexpr_r:
 
 | f=var args=parens_tuple(pexpr)
     { PECall (f, args) }
+
+| f=prim args=parens_tuple(pexpr)
+    { PEPrim (f, args) }
 
 pexpr:
 | e=loc(pexpr_r) { e }

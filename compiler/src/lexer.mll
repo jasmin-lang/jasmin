@@ -37,6 +37,7 @@
     "true"  , TRUE   ;
     "while" , WHILE  ;
     "export", EXPORT ;
+    "_"     , UNDERSCORE;
   ]
 
   let keywords = Hash.of_enum (List.enum _keywords)
@@ -51,7 +52,7 @@ let lower    = ['a'-'z']
 let upper    = ['A'-'Z']
 let letter   = (lower | upper)
 let idletter = letter | '_'
-let ident    = (letter (idletter | digit)* )  | ('_' (idletter | digit)+)
+let ident    = idletter (idletter | digit)* 
 
 (* -------------------------------------------------------------------- *)
 rule main = parse
@@ -72,13 +73,13 @@ rule main = parse
   | ident+ as s
       { odfl (NID s) (Hash.find_option keywords s) }
 
+  | "#"     { SHARP      } 
   | "["     { LBRACKET   }
   | "]"     { RBRACKET   }
   | "{"     { LBRACE     }
   | "}"     { RBRACE     }
   | "("     { LPAREN     }
   | ")"     { RPAREN     }
-  | "_"     { UNDERSCORE }
   | "->"    { RARROW     }
   | ","     { COMMA      }
   | ";"     { SEMICOLON  }
