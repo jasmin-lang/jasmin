@@ -366,7 +366,7 @@ Definition rflags_of_aluop (w : word) (vu vs : Z) := fun rf =>
   | SF => Some (Def (SF_of_word w))
   | PF => Some (Def (PF_of_word w))
   | ZF => Some (Def (ZF_of_word w))
-  | DF  => None
+  | DF => None
   end.
 
 (* -------------------------------------------------------------------- *)
