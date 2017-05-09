@@ -170,11 +170,12 @@ let cop_of_op = function
   | Omul ty -> C.Omul (coty_of_oty ty)
   | Osub ty -> C.Osub (coty_of_oty ty)
 
-  | Oland   -> assert false 
-  | Olor    -> assert false
-  | Olxor   -> assert false 
-  | Olsr    -> assert false 
-  | Olsl    -> assert false 
+  | Oland   -> C.Oland
+  | Olor    -> C.Olor
+  | Olxor   -> C.Olxor 
+  | Olsr    -> C.Olsr
+  | Olsl    -> C.Olsl
+  | Oasr    -> C.Oasr
 
   | Oeq  ty -> C.Oeq  (ccmp_of_cmp ty)
   | Oneq ty -> C.Oneq (ccmp_of_cmp ty)
@@ -189,12 +190,29 @@ let op_of_cop = function
   | C.Oadd ty -> Oadd (oty_of_coty ty)
   | C.Omul ty -> Omul (oty_of_coty ty)
   | C.Osub ty -> Osub (oty_of_coty ty)
+
+  | C.Oland   -> Oland
+  | C.Olor    -> Olor
+  | C.Olxor   -> Olxor 
+  | C.Olsr    -> Olsr
+  | C.Olsl    -> Olsl
+  | C.Oasr    -> Oasr
+
   | C.Oeq  ty -> Oeq  (cmp_of_ccmp ty)
   | C.Oneq ty -> Oneq (cmp_of_ccmp ty)
   | C.Olt  ty -> Olt  (cmp_of_ccmp ty)
   | C.Ole  ty -> Ole  (cmp_of_ccmp ty)
   | C.Ogt  ty -> Ogt  (cmp_of_ccmp ty)
   | C.Oge  ty -> Oge  (cmp_of_ccmp ty)
+
+let op1_of_cop1 = function
+  | C.Olnot -> Olnot W64
+  | C.Onot  -> Onot
+
+let cop1_of_op1 = function
+  | Olnot W64 -> C.Olnot
+  | Olnot _   -> assert false
+  | Onot      -> C.Onot
 
 (* ------------------------------------------------------------------------ *)
 
@@ -207,9 +225,11 @@ let rec cexpr_of_expr tbl = function
   | Pget (x,e)        -> C.Pget (cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Pload (W64, x, e) -> C.Pload(cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Pload _           -> assert false
-  | Papp1 (Obnot, e)  -> C.Pnot (cexpr_of_expr tbl e)
-  | Papp1 (Ownot _, _)-> assert false 
+  | Papp1 (o, e)      -> C.Papp1(cop1_of_op1 o, cexpr_of_expr tbl e)
   | Papp2 (o, e1, e2) -> C.Papp2(cop_of_op o, cexpr_of_expr tbl e1, cexpr_of_expr tbl e2)
+  | Pif   (e, e1, e2)  -> C.Pif(cexpr_of_expr tbl e, 
+                                cexpr_of_expr tbl e1,
+                                cexpr_of_expr tbl e2) 
 
 let rec expr_of_cexpr tbl = function
   | C.Pconst z          -> Pconst (bi_of_z z)
@@ -218,54 +238,68 @@ let rec expr_of_cexpr tbl = function
   | C.Pvar x            -> Pvar (vari_of_cvari tbl x)
   | C.Pget (x,e)        -> Pget (vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Pload (x, e)      -> Pload(W64, vari_of_cvari tbl x, expr_of_cexpr tbl e)
-  | C.Pnot e            -> Papp1(Obnot, expr_of_cexpr tbl e)
+  | C.Papp1 (o, e)      -> Papp1(op1_of_cop1 o, expr_of_cexpr tbl e)
   | C.Papp2 (o, e1, e2) -> Papp2(op_of_cop o, expr_of_cexpr tbl e1, expr_of_cexpr tbl e2)
+  | C.Pif   (e, e1, e2) -> Pif(expr_of_cexpr tbl e, 
+                               expr_of_cexpr tbl e1,
+                               expr_of_cexpr tbl e2) 
+
 
 (* ------------------------------------------------------------------------ *)
 
 let copn_of_opn = function
-  | Olnot     -> C.Olnot
-  | Oxor      -> C.Oxor
-  | Oland     -> C.Oland
-  | Olor      -> C.Olor
-  | Olsr      -> C.Olsr
-  | Olsl      -> C.Olsl
-  | Oif       -> C.Oif
-  | Omulu     -> C.Omulu
-  | Omuli     -> C.Omuli
-  | Oaddcarry -> C.Oaddcarry
-  | Osubcarry -> C.Osubcarry
-  | Oleu      -> C.Oleu
-  | Oltu      -> C.Oltu
-  | Ogeu      -> C.Ogeu
-  | Ogtu      -> C.Ogtu
-  | Oles      -> C.Oles
-  | Olts      -> C.Olts
-  | Oges      -> C.Oges
-  | Ogts      -> C.Ogts
-  | Oeqw      -> C.Oeqw
+  | Omulu        -> C.Omulu       
+  | Oaddcarry    -> C.Oaddcarry   
+  | Osubcarry    -> C.Osubcarry   
+  | Ox86_CMOVcc  -> C.Ox86_CMOVcc 
+  | Ox86_ADD     -> C.Ox86_ADD    
+  | Ox86_SUB     -> C.Ox86_SUB    
+  | Ox86_MUL     -> C.Ox86_MUL    
+  | Ox86_IMUL    -> C.Ox86_IMUL   
+  | Ox86_DIV     -> C.Ox86_DIV    
+  | Ox86_IDIV    -> C.Ox86_IDIV   
+  | Ox86_ADC     -> C.Ox86_ADC    
+  | Ox86_SBB     -> C.Ox86_SBB    
+  | Ox86_INC     -> C.Ox86_INC    
+  | Ox86_DEC     -> C.Ox86_DEC    
+  | Ox86_SETcc   -> C.Ox86_SETcc  
+  | Ox86_LEA     -> C.Ox86_LEA    
+  | Ox86_TEST    -> C.Ox86_TEST   
+  | Ox86_CMP     -> C.Ox86_CMP    
+  | Ox86_AND     -> C.Ox86_AND    
+  | Ox86_OR      -> C.Ox86_OR     
+  | Ox86_XOR     -> C.Ox86_XOR    
+  | Ox86_NOT     -> C.Ox86_NOT    
+  | Ox86_SHL     -> C.Ox86_SHL    
+  | Ox86_SHR     -> C.Ox86_SHR    
+  | Ox86_SAR     -> C.Ox86_SAR    
 
 let opn_of_copn = function
-  | C.Olnot     -> Olnot
-  | C.Oxor      -> Oxor
-  | C.Oland     -> Oland
-  | C.Olor      -> Olor
-  | C.Olsr      -> Olsr
-  | C.Olsl      -> Olsl
-  | C.Oif       -> Oif
-  | C.Omulu     -> Omulu
-  | C.Omuli     -> Omuli
-  | C.Oaddcarry -> Oaddcarry
-  | C.Osubcarry -> Osubcarry
-  | C.Oleu      -> Oleu
-  | C.Oltu      -> Oltu
-  | C.Ogeu      -> Ogeu
-  | C.Ogtu      -> Ogtu
-  | C.Oles      -> Oles
-  | C.Olts      -> Olts
-  | C.Oges      -> Oges
-  | C.Ogts      -> Ogts
-  | C.Oeqw      -> Oeqw
+  | C.Omulu        -> Omulu       
+  | C.Oaddcarry    -> Oaddcarry   
+  | C.Osubcarry    -> Osubcarry   
+  | C.Ox86_CMOVcc  -> Ox86_CMOVcc 
+  | C.Ox86_ADD     -> Ox86_ADD    
+  | C.Ox86_SUB     -> Ox86_SUB    
+  | C.Ox86_MUL     -> Ox86_MUL    
+  | C.Ox86_IMUL    -> Ox86_IMUL   
+  | C.Ox86_DIV     -> Ox86_DIV    
+  | C.Ox86_IDIV    -> Ox86_IDIV   
+  | C.Ox86_ADC     -> Ox86_ADC    
+  | C.Ox86_SBB     -> Ox86_SBB    
+  | C.Ox86_INC     -> Ox86_INC    
+  | C.Ox86_DEC     -> Ox86_DEC    
+  | C.Ox86_SETcc   -> Ox86_SETcc  
+  | C.Ox86_LEA     -> Ox86_LEA    
+  | C.Ox86_TEST    -> Ox86_TEST   
+  | C.Ox86_CMP     -> Ox86_CMP    
+  | C.Ox86_AND     -> Ox86_AND    
+  | C.Ox86_OR      -> Ox86_OR     
+  | C.Ox86_XOR     -> Ox86_XOR    
+  | C.Ox86_NOT     -> Ox86_NOT    
+  | C.Ox86_SHL     -> Ox86_SHL    
+  | C.Ox86_SHR     -> Ox86_SHR    
+  | C.Ox86_SAR     -> Ox86_SAR    
 
 (* ------------------------------------------------------------------------ *)
 

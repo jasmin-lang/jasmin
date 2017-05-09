@@ -29,8 +29,8 @@ type op_ty =
 
 (* ------------------------------------------------------------------------ *)
 type op1 =
-  | Ownot of word_size  
-  | Obnot 
+  | Olnot of word_size  
+  | Onot 
 
 type op2 =
   | Oand    (* const : sbool -> sbool -> sbool *)
@@ -45,6 +45,7 @@ type op2 =
   | Olxor
   | Olsr
   | Olsl 
+  | Oasr
 
   | Oeq     of cmp_ty 
   | Oneq    of cmp_ty 
@@ -92,6 +93,7 @@ type 'ty gexpr =
   | Pload  of word_size * 'ty gvar_i * 'ty gexpr
   | Papp1  of op1 * 'ty gexpr
   | Papp2  of op2 * 'ty gexpr * 'ty gexpr
+  | Pif    of 'ty gexpr * 'ty gexpr * 'ty gexpr
 
 type 'ty gexprs = 'ty gexpr list
 
@@ -106,26 +108,34 @@ val tbool : 'e gty
 (* ------------------------------------------------------------------------ *)
 
 type op =
-  | Olnot
-  | Oxor
-  | Oland
-  | Olor
-  | Olsr
-  | Olsl
-  | Oif
-  | Omulu
-  | Omuli
-  | Oaddcarry
-  | Osubcarry
-  | Oleu
-  | Oltu
-  | Ogeu
-  | Ogtu
-  | Oles
-  | Olts
-  | Oges
-  | Ogts
-  | Oeqw
+(* Generic operation *)
+| Omulu        
+| Oaddcarry    
+| Osubcarry    
+(* Low level x86 operations *)
+| Ox86_CMOVcc  
+| Ox86_ADD     
+| Ox86_SUB     
+| Ox86_MUL     
+| Ox86_IMUL    
+| Ox86_DIV     
+| Ox86_IDIV    
+| Ox86_ADC     
+| Ox86_SBB     
+| Ox86_INC     
+| Ox86_DEC     
+| Ox86_SETcc   
+| Ox86_LEA     
+| Ox86_TEST    
+| Ox86_CMP     
+| Ox86_AND     
+| Ox86_OR      
+| Ox86_XOR     
+| Ox86_NOT     
+| Ox86_SHL     
+| Ox86_SHR     
+| Ox86_SAR     
+
 
 type assgn_tag =
   | AT_keep   (* compile to move *)

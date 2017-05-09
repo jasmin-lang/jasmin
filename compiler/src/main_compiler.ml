@@ -99,6 +99,9 @@ let rec pp_comp_err tbl fmt = function
   | Compiler_util.Cerr_fold2 s ->
     Format.fprintf fmt "fold2 error in %s"
       (Conv.string_of_string0 s)
+  | Compiler_util.Cerr_neqop1(_, _, s) ->
+    Format.fprintf fmt "op1 not equal in %s"
+      (Conv.string_of_string0 s)
   | Compiler_util.Cerr_neqop2(_, _, s) ->
     Format.fprintf fmt "op2 not equal in %s"
       (Conv.string_of_string0 s)

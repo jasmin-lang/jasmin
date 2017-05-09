@@ -73,6 +73,7 @@ let infix_sop2 = function
   | Olxor  -> "^"
   | Olsr   -> ">>"
   | Olsl   -> "<<"
+  | Oasr   -> assert false
 
   | Oeq  k -> "==" ^ string_cmp_ty k
   | Oneq k -> "!=" ^ string_cmp_ty k
@@ -80,32 +81,36 @@ let infix_sop2 = function
   | Ole  k -> "<=" ^ string_cmp_ty k
   | Ogt  k -> ">"  ^ string_cmp_ty k
   | Oge  k -> ">=" ^ string_cmp_ty k
+  
 
 let pp_sopn fmt sopn =
   F.fprintf fmt "%s"
     (match sopn with
-    | Olnot     -> "Olnot"
-    | Oxor      -> "Oxor"
-    | Oland     -> "Oland"
-    | Olor      -> "Olor"
-    | Olsr      -> "Olsr"
-    | Olsl      -> "Olsl"
-    | Oif       -> "Oif"
-    | Omulu     -> "Omulu"
-    | Omuli     -> "Omuli"
-    | Oaddcarry -> "Oaddcarry"
-    | Osubcarry -> "Osubcarry"
-    | Oleu      -> "Oleu"
-    | Oltu      -> "Oltu"
-    | Ogeu      -> "Ogeu"
-    | Ogtu      -> "Ogtu"
-    | Oles      -> "Oles"
-    | Olts      -> "Olts"
-    | Oges      -> "Oges"
-    | Ogts      -> "Ogts"
-    | Oeqw      -> "Oeqw"  
-    )
-
+     | Omulu        -> "Omulu"           
+     | Oaddcarry    -> "Oaddcarry"    
+     | Osubcarry    -> "Osubcarry"    
+     | Ox86_CMOVcc  -> "Ox86_CMOVcc"  
+     | Ox86_ADD     -> "Ox86_ADD"     
+     | Ox86_SUB     -> "Ox86_SUB"     
+     | Ox86_MUL     -> "Ox86_MUL"     
+     | Ox86_IMUL    -> "Ox86_IMUL"    
+     | Ox86_DIV     -> "Ox86_DIV"     
+     | Ox86_IDIV    -> "Ox86_IDIV"    
+     | Ox86_ADC     -> "Ox86_ADC"     
+     | Ox86_SBB     -> "Ox86_SBB"     
+     | Ox86_INC     -> "Ox86_INC"     
+     | Ox86_DEC     -> "Ox86_DEC"     
+     | Ox86_SETcc   -> "Ox86_SETcc"   
+     | Ox86_LEA     -> "Ox86_LEA"     
+     | Ox86_TEST    -> "Ox86_TEST"    
+     | Ox86_CMP     -> "Ox86_CMP"     
+     | Ox86_AND     -> "Ox86_AND"     
+     | Ox86_OR      -> "Ox86_OR"      
+     | Ox86_XOR     -> "Ox86_XOR"     
+     | Ox86_NOT     -> "Ox86_NOT"     
+     | Ox86_SHL     -> "Ox86_SHL"     
+     | Ox86_SHR     -> "Ox86_SHR"     
+     | Ox86_SAR     -> "Ox86_SAR")     
 
 let count = ref 0 
 let vars_tbl = Hv.create 101
@@ -148,9 +153,9 @@ let pp_funname fmt fn =
   F.fprintf fmt "%s" x
 
 let pp_op1 = function
-  | Obnot     -> "~~"
-  | Ownot W64 -> "!"
-  | Ownot _   -> assert false
+  | Onot     -> "~~"
+  | Olnot W64 -> "~!"
+  | Olnot _   -> assert false
   
 let rec pp_pexpr fmt = function
   | Pconst i       -> F.fprintf fmt "%s" (B.to_string i)
@@ -166,8 +171,10 @@ let rec pp_pexpr fmt = function
   | Papp1(o, pe)  -> F.fprintf fmt "(%s %a)" (pp_op1 o) pp_pexpr pe
   | Papp2(o, e1, e2)-> 
     Format.fprintf fmt "@[<hov 2>(%a %s@ %a)@]" 
-        pp_pexpr e1 (infix_sop2 o) pp_pexpr e2
-
+      pp_pexpr e1 (infix_sop2 o) pp_pexpr e2
+  | Pif(e,e1,e2) ->
+    Format.fprintf fmt "(@[<hov 2>Pif %a@ %a@ %a@])"
+      pp_pexpr e pp_pexpr e1 pp_pexpr e2
 
 let pp_rval fmt rv =
   match rv with
@@ -201,39 +208,10 @@ let rec pp_instr_r fmt instr =
     F.fprintf fmt "@[%a %a@ %a@]"
       pp_rval rv pp_ass_tag atag pp_pexpr pe
   | Copn(rvs,sopn,pes) ->
-    begin match sopn, rvs, pes with
-    | Olnot, [x], [e] -> 
-      F.fprintf fmt "@[ %a :=@ ! %a@]" pp_rval x pp_pexpr e
-    | Oxor, [x], [e1; e2] ->
-      F.fprintf fmt "@[ %a :=@ %a ^ %a @]" pp_rval x pp_pexpr e1 pp_pexpr e2
-    | Oland, [x], [e1; e2] ->
-      F.fprintf fmt "@[ %a :=@ %a & %a @]" pp_rval x pp_pexpr e1 pp_pexpr e2
-    | Olor, [x], [e1; e2] ->
-      F.fprintf fmt "@[ %a :=@ %a | %a @]" pp_rval x pp_pexpr e1 pp_pexpr e2
-    | Olsl, [x], [e1; e2] ->
-      F.fprintf fmt "@[ %a :=@ %a << %a @]" pp_rval x pp_pexpr e1 pp_pexpr e2
-    | Olsr, [x], [e1; e2] ->
-      F.fprintf fmt "@[ %a :=@ %a >> %a @]" pp_rval x pp_pexpr e1 pp_pexpr e2
-    | Oif, [x], [e1; e2; e3] ->
-      F.fprintf fmt "@[ %a :=@ %a ? %a : %a@]" 
-        pp_rval x pp_pexpr e1 pp_pexpr e2 pp_pexpr e3 
-    | Omuli, [x], [e1; e2] ->
-      F.fprintf fmt "@[ %a :=@ %a * %a @]" pp_rval x pp_pexpr e1 pp_pexpr e2
-    | Omulu, [x1; x2], [e1; e2] ->
-      F.fprintf fmt "@[ [p %a, %a] :=@ %a * %a @]" 
-        pp_rval x1 pp_rval x2 pp_pexpr e1 pp_pexpr e2
-    | Oaddcarry, [x1; x2], [e1; e2; c] ->
-      F.fprintf fmt "@[ [p %a, %a] :=@ ++(%a, %a, %a) @]" 
-        pp_rval x1 pp_rval x2 pp_pexpr e1 pp_pexpr e2 pp_pexpr c
-    | Osubcarry, [x1; x2], [e1; e2; c] ->
-      F.fprintf fmt "@[ [p %a, %a] :=@ --(%a, %a, %a) @]" 
-        pp_rval x1 pp_rval x2 pp_pexpr e1 pp_pexpr e2 pp_pexpr c
-    | _, _, _ -> 
       F.fprintf fmt "@[Copn [:: %a]@ %a [:: %a]@]"
         (pp_list ";@ " pp_rval) rvs 
         pp_sopn sopn
         (pp_list ";@ " pp_pexpr) pes 
-    end    
   | Cif(pe,instrs_if,instrs_else) ->
     begin match instrs_else with
     | [] ->

@@ -50,6 +50,7 @@ let string_of_op2 = function
   | Olxor  -> "^"
   | Olsr   -> ">>"
   | Olsl   -> "<<"
+  | Oasr   -> ">>s" 
 
   | Oeq  _ -> "=="
   | Oneq _ -> "!="
@@ -59,8 +60,8 @@ let string_of_op2 = function
   | Oge  k -> ">=" ^ string_of_cmp_ty k
 
 let pp_op1 = function
-  | Ownot _ -> "!"
-  | Obnot   -> "~"
+  | Olnot _ -> "!"
+  | Onot    -> "~"
 
 (* -------------------------------------------------------------------- *)
 let pp_ge pp_var =
@@ -72,13 +73,17 @@ let pp_ge pp_var =
   | Pvar v      -> pp_var_i fmt v
   | Pget(x,e)   -> F.fprintf fmt "%a[%a]" pp_var_i x pp_expr e
   | Pload(ws,x,e) ->
-      F.fprintf fmt "@[(load %a@ %a@ %a)@]"
-                pp_btype (U ws) pp_var_i x pp_expr e
+    F.fprintf fmt "@[(load %a@ %a@ %a)@]"
+      pp_btype (U ws) pp_var_i x pp_expr e
   | Papp1(o, e) ->
-      F.fprintf fmt "@[(%s@ %a)@]" (pp_op1 o) pp_expr e
+    F.fprintf fmt "@[(%s@ %a)@]" (pp_op1 o) pp_expr e
   | Papp2(op,e1,e2) ->
-      F.fprintf fmt "@[(%a %s@ %a)@]"
-                pp_expr e1 (string_of_op2 op) pp_expr e2 in
+    F.fprintf fmt "@[(%a %s@ %a)@]"
+      pp_expr e1 (string_of_op2 op) pp_expr e2 
+  | Pif(e,e1,e2) -> 
+    F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
+      pp_expr e pp_expr e1  pp_expr e2 
+  in
   pp_expr
 
 (* -------------------------------------------------------------------- *)
@@ -104,26 +109,31 @@ let pp_glvs pp_var fmt lvs =
 
 (* -------------------------------------------------------------------- *)
 let pp_opn = function
-  | Olnot     -> "#lnot"   
-  | Oxor      -> "#xor"
-  | Oland     -> "#land"
-  | Olor      -> "#lor"
-  | Olsr      -> "#lsr"
-  | Olsl      -> "#lsl"
-  | Oif       -> "#if"
-  | Omulu     -> "#mulu"
-  | Omuli     -> "#muli"
-  | Oaddcarry -> "#addcarry"
-  | Osubcarry -> "#subcarry"
-  | Oleu      -> "#leu"
-  | Oltu      -> "#ltu"
-  | Ogeu      -> "#geu"
-  | Ogtu      -> "#gtu"
-  | Oles      -> "#les"
-  | Olts      -> "#lts"
-  | Oges      -> "#ges"
-  | Ogts      -> "#gts"
-  | Oeqw      -> "#eqw"     
+  | Omulu        -> "#mulu"      
+  | Oaddcarry    -> "#addc"  
+  | Osubcarry    -> "#subc"  
+  | Ox86_CMOVcc  -> "#x86_CMOVcc"
+  | Ox86_ADD     -> "#x86_ADD"   
+  | Ox86_SUB     -> "#x86_SUB"   
+  | Ox86_MUL     -> "#x86_MUL"   
+  | Ox86_IMUL    -> "#x86_IMUL"  
+  | Ox86_DIV     -> "#x86_DIV"   
+  | Ox86_IDIV    -> "#x86_IDIV"  
+  | Ox86_ADC     -> "#x86_ADC"   
+  | Ox86_SBB     -> "#x86_SBB"   
+  | Ox86_INC     -> "#x86_INC"   
+  | Ox86_DEC     -> "#x86_DEC"   
+  | Ox86_SETcc   -> "#x86_SETcc" 
+  | Ox86_LEA     -> "#x86_LEA"   
+  | Ox86_TEST    -> "#x86_TEST"  
+  | Ox86_CMP     -> "#x86_CMP"   
+  | Ox86_AND     -> "#x86_AND"   
+  | Ox86_OR      -> "#x86_OR"    
+  | Ox86_XOR     -> "#x86_XOR"   
+  | Ox86_NOT     -> "#x86_NOT"   
+  | Ox86_SHL     -> "#x86_SHL"   
+  | Ox86_SHR     -> "#x86_SHR"   
+  | Ox86_SAR     -> "#x86_SAR"   
 
 (* -------------------------------------------------------------------- *)
 let pp_tag = function
@@ -294,6 +304,7 @@ let pp_prog ~debug fmt p =
 
 (* ----------------------------------------------------------------------- *)
 
+(*
 let pp_cprog fmt p =
   let open Expr in
   let string_cmp_ty = function
@@ -319,6 +330,13 @@ let pp_cprog fmt p =
     | Ole  k -> "<=" ^ string_cmp_ty k 
     | Ogt  k -> ">"  ^ string_cmp_ty k 
     | Oge  k -> ">=" ^ string_cmp_ty k 
+    | Oland  -> "&"
+    | Olor   -> "|"
+    | Olxor  -> "^"
+    | Olsr   -> ">>"
+    | Olsl   -> "<<"
+    | Oasr   -> ">>s"
+    
   in
   let rec pp_expr fmt = function
     | Pconst z -> Format.fprintf fmt "%a" B.pp_print (Conv.bi_of_z z) 
@@ -327,9 +345,12 @@ let pp_cprog fmt p =
     | Pvar  v  -> pp_vari fmt v
     | Pget(v,e) -> Format.fprintf fmt "%a[%a]" pp_vari v pp_expr e
     | Pload(v,e) -> Format.fprintf fmt "(load %a %a)" pp_vari v pp_expr e
-    | Pnot e    -> Format.fprintf fmt "(!%a)" pp_expr e
+    | Papp1(_o, e) -> Format.fprintf fmt "(! %a)" pp_expr e
     | Papp2(o,e1,e2) -> 
-      Format.fprintf fmt "(%a %s %a)" pp_expr e1 (pp_op2 o) pp_expr e2 in
+      Format.fprintf fmt "(%a %s %a)" pp_expr e1 (pp_op2 o) pp_expr e2 
+    | Pif (e,e1,e2) ->
+      Format.fprintf fmt "(%a ? %a : %a)" pp_expr e pp_expr e1 pp_expr e2 
+  in
 
   let pp_exprs fmt = Format.fprintf fmt "@[%a@]" (pp_list ",@ " pp_expr) in
 
@@ -402,7 +423,7 @@ let pp_cprog fmt p =
       pp_cmd fd.f_body 
       pp_res fd.f_res in
   Format.fprintf fmt "@[<v>%a@]" (pp_list "@ @ " pp_cfun) p
-  
+ *)  
     
 
     

@@ -411,10 +411,10 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
 
   | S.PEOp1 (`Not, pe) ->
     let e, ty = tt_expr ~mode env pe in
-    if ty = P.tbool then Papp1(P.Obnot, e), P.tbool
+    if ty = P.tbool then Papp1(P.Onot, e), P.tbool
     else 
       let ws = tt_as_word (L.loc pe, ty) in
-      Papp1(P.Ownot ws, e), P.Bty (P.U ws)
+      Papp1(P.Olnot ws, e), P.Bty (P.U ws)
 
   | S.PEOp2 (pop, (pe1, pe2)) ->
     let et1 = tt_expr ~mode env pe1 in
@@ -632,7 +632,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
       let e' = 
         ofdfl (fun _ -> rs_tyerror ~loc Unsupported) (P.expr_of_lval x) in
       let c = tt_expr_bool env cp in
-      P.Copn ([x], P.Oif, [c; e; e']) 
+      P.Cassgn (x, AT_keep, Pif (c, e, e'))
 
     | PIIf (cp, st, sf) ->
         let c  = tt_expr_bool env cp in
