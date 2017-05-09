@@ -27,7 +27,7 @@
 
 (* ** Imports and abbreviations *)
 open Prog
-open Printer 
+open Printer
 
 module F   = Format
 
@@ -36,7 +36,7 @@ module F   = Format
 
 let pp_bty fmt = function
   | Bool  -> F.fprintf fmt "sbool"
-  | U W64 -> F.fprintf fmt "sword" 
+  | U W64 -> F.fprintf fmt "sword"
   | U _   -> assert false
   | Int   -> F.fprintf fmt "sint"
 
@@ -54,12 +54,12 @@ let pp_ass_tag fmt = function
   | AT_rename_arg -> F.fprintf fmt ":a="
   | AT_rename_res -> F.fprintf fmt ":r="
   | AT_unroll     -> F.fprintf fmt ":i="
-   
+
 let string_cmp_ty = function
   | Cmp_int    -> "i"
   | Cmp_uw W64 -> "u"
   | Cmp_sw W64 -> "s"
-  | _          -> assert false 
+  | _          -> assert false
 
 let infix_sop2 = function
   | Oand -> "&&"
@@ -81,74 +81,74 @@ let infix_sop2 = function
   | Ole  k -> "<=" ^ string_cmp_ty k
   | Ogt  k -> ">"  ^ string_cmp_ty k
   | Oge  k -> ">=" ^ string_cmp_ty k
-  
+
 
 let pp_sopn fmt sopn =
   F.fprintf fmt "%s"
     (match sopn with
-     | Omulu        -> "Omulu"           
-     | Oaddcarry    -> "Oaddcarry"    
-     | Osubcarry    -> "Osubcarry"    
-     | Ox86_CMOVcc  -> "Ox86_CMOVcc"  
-     | Ox86_ADD     -> "Ox86_ADD"     
-     | Ox86_SUB     -> "Ox86_SUB"     
-     | Ox86_MUL     -> "Ox86_MUL"     
-     | Ox86_IMUL    -> "Ox86_IMUL"    
-     | Ox86_DIV     -> "Ox86_DIV"     
-     | Ox86_IDIV    -> "Ox86_IDIV"    
-     | Ox86_ADC     -> "Ox86_ADC"     
-     | Ox86_SBB     -> "Ox86_SBB"     
-     | Ox86_INC     -> "Ox86_INC"     
-     | Ox86_DEC     -> "Ox86_DEC"     
-     | Ox86_SETcc   -> "Ox86_SETcc"   
-     | Ox86_LEA     -> "Ox86_LEA"     
-     | Ox86_TEST    -> "Ox86_TEST"    
-     | Ox86_CMP     -> "Ox86_CMP"     
-     | Ox86_AND     -> "Ox86_AND"     
-     | Ox86_OR      -> "Ox86_OR"      
-     | Ox86_XOR     -> "Ox86_XOR"     
-     | Ox86_NOT     -> "Ox86_NOT"     
-     | Ox86_SHL     -> "Ox86_SHL"     
-     | Ox86_SHR     -> "Ox86_SHR"     
-     | Ox86_SAR     -> "Ox86_SAR")     
+     | Omulu        -> "Omulu"
+     | Oaddcarry    -> "Oaddcarry"
+     | Osubcarry    -> "Osubcarry"
+     | Ox86_CMOVcc  -> "Ox86_CMOVcc"
+     | Ox86_ADD     -> "Ox86_ADD"
+     | Ox86_SUB     -> "Ox86_SUB"
+     | Ox86_MUL     -> "Ox86_MUL"
+     | Ox86_IMUL    -> "Ox86_IMUL"
+     | Ox86_DIV     -> "Ox86_DIV"
+     | Ox86_IDIV    -> "Ox86_IDIV"
+     | Ox86_ADC     -> "Ox86_ADC"
+     | Ox86_SBB     -> "Ox86_SBB"
+     | Ox86_INC     -> "Ox86_INC"
+     | Ox86_DEC     -> "Ox86_DEC"
+     | Ox86_SETcc   -> "Ox86_SETcc"
+     | Ox86_LEA     -> "Ox86_LEA"
+     | Ox86_TEST    -> "Ox86_TEST"
+     | Ox86_CMP     -> "Ox86_CMP"
+     | Ox86_AND     -> "Ox86_AND"
+     | Ox86_OR      -> "Ox86_OR"
+     | Ox86_XOR     -> "Ox86_XOR"
+     | Ox86_NOT     -> "Ox86_NOT"
+     | Ox86_SHL     -> "Ox86_SHL"
+     | Ox86_SHR     -> "Ox86_SHR"
+     | Ox86_SAR     -> "Ox86_SAR")
 
-let count = ref 0 
+let count = ref 0
 let vars_tbl = Hv.create 101
-let fun_tbl  = Hashtbl.create 101 
+let fun_tbl  = Hashtbl.create 101
 let string_tbl = Hashtbl.create 101
 let flist = ref []
 let vlist = ref []
 
-let reset () = 
+let reset () =
   count := 0;
   Hv.clear vars_tbl;
   Hashtbl.clear fun_tbl;
   Hashtbl.clear string_tbl;
   flist := [];
   vlist := []
-                
+
 let new_count () =
   incr count; !count
 
-let fresh_string s = 
-  let fs = 
-    if Hashtbl.mem string_tbl s then 
-      let rec aux n = 
+let fresh_string s =
+  let fs =
+    if Hashtbl.mem string_tbl s then
+      let rec aux n =
         let s = s ^ (string_of_int n) in
-        if Hashtbl.mem string_tbl s then aux (n+1) 
+        if Hashtbl.mem string_tbl s then aux (n+1)
         else s in
-      aux 0 
+      aux 0
     else s in
   Hashtbl.add string_tbl fs ();
-  fs 
-           
+  fs
+
 let pp_var fmt v =
   let x = try Hv.find vars_tbl v with Not_found -> assert false in
   F.fprintf fmt "%s" x
 
 let pp_vari fmt v = pp_var fmt (L.unloc v)
 
-let pp_funname fmt fn = 
+let pp_funname fmt fn =
   let x = try Hashtbl.find fun_tbl fn with Not_found -> assert false in
   F.fprintf fmt "%s" x
 
@@ -156,21 +156,21 @@ let pp_op1 = function
   | Onot     -> "~~"
   | Olnot W64 -> "~!"
   | Olnot _   -> assert false
-  
+
 let rec pp_pexpr fmt = function
   | Pconst i       -> F.fprintf fmt "%s" (B.to_string i)
   | Pbool b        -> F.fprintf fmt "%a" pp_bool b
   | Pcast(W64, pe) -> F.fprintf fmt "(Pcast %a)" pp_pexpr pe
   | Pcast _        -> assert false
   | Pvar vi        -> F.fprintf fmt "%a" pp_vari vi
-  | Pget(vi, pe)   -> 
+  | Pget(vi, pe)   ->
     F.fprintf fmt "%a.[%a]" pp_vari vi pp_pexpr pe
-  | Pload(W64, vi, pe) -> 
+  | Pload(W64, vi, pe) ->
     F.fprintf fmt "@[<hov 2>(load@ %a@ %a)@]" pp_vari vi pp_pexpr pe
   | Pload _        ->  assert false
   | Papp1(o, pe)  -> F.fprintf fmt "(%s %a)" (pp_op1 o) pp_pexpr pe
-  | Papp2(o, e1, e2)-> 
-    Format.fprintf fmt "@[<hov 2>(%a %s@ %a)@]" 
+  | Papp2(o, e1, e2)->
+    Format.fprintf fmt "@[<hov 2>(%a %s@ %a)@]"
       pp_pexpr e1 (infix_sop2 o) pp_pexpr e2
   | Pif(e,e1,e2) ->
     Format.fprintf fmt "(@[<hov 2>Pif %a@ %a@ %a@])"
@@ -180,7 +180,7 @@ let pp_rval fmt rv =
   match rv with
   | Lnone _  -> Format.fprintf fmt "__"
   | Lvar vi  -> pp_vari fmt vi
-  | Lmem(W64, vi,pe) -> 
+  | Lmem(W64, vi,pe) ->
     F.fprintf fmt "@[<hov 2>store %a@ %a@]" pp_vari vi pp_pexpr pe
   | Lmem _   -> assert false
   | Laset(vi,pe) -> F.fprintf fmt "%a.[%a]" pp_vari vi pp_pexpr pe
@@ -191,7 +191,7 @@ let pp_ret_type fmt res =
 
 let pp_range fmt (dir, e1, e2) =
   match dir with
-  | UpTo -> 
+  | UpTo ->
     F.fprintf fmt "%a to %a" pp_pexpr e1 pp_pexpr e2
   | DownTo ->
     F.fprintf fmt "%a downto %a" pp_pexpr e2 pp_pexpr e1
@@ -209,28 +209,28 @@ let rec pp_instr_r fmt instr =
       pp_rval rv pp_ass_tag atag pp_pexpr pe
   | Copn(rvs,sopn,pes) ->
       F.fprintf fmt "@[Copn [:: %a]@ %a [:: %a]@]"
-        (pp_list ";@ " pp_rval) rvs 
+        (pp_list ";@ " pp_rval) rvs
         pp_sopn sopn
-        (pp_list ";@ " pp_pexpr) pes 
+        (pp_list ";@ " pp_pexpr) pes
   | Cif(pe,instrs_if,instrs_else) ->
     begin match instrs_else with
     | [] ->
       F.fprintf fmt "@[<v>If %a then {%s@   @[<v>%a@]@ }@]"
-        pp_pexpr pe (dotdot instrs_if) pp_instrs instrs_if 
+        pp_pexpr pe (dotdot instrs_if) pp_instrs instrs_if
     | _ ->
-      F.fprintf fmt 
+      F.fprintf fmt
         "@[<v>If %a then {%s@   @[<v>%a@]@ } else {%s@   @[<v>%a@]@ }@]"
-        pp_pexpr pe (dotdot instrs_if) pp_instrs instrs_if 
+        pp_pexpr pe (dotdot instrs_if) pp_instrs instrs_if
         (dotdot instrs_else) pp_instrs instrs_else
-    end 
+    end
   | Cfor(vi,rng,instrs) ->
     F.fprintf fmt "@[<v>For %a from %a do {%s@   @[<v>%a@]@ }@]"
       pp_vari vi pp_range rng (dotdot instrs) pp_instrs instrs
   | Cwhile(c, pe, c') ->
-    F.fprintf fmt 
+    F.fprintf fmt
       "@[<v>While {%s@   @[<v>%a@]@ } in %a do {%s@   @[<v>%a@]@ }@]"
       (dotdot c) pp_instrs c
-      pp_pexpr pe 
+      pp_pexpr pe
       (dotdot c') pp_instrs c'
   | Ccall(inl,rvs,fname,pes) ->
     F.fprintf fmt "@[Ccall %a [:: %a] %a [:: %a]@]"
@@ -240,8 +240,8 @@ let rec pp_instr_r fmt instr =
       (pp_list "; " pp_pexpr) pes
 
 
-and pp_instr fmt instr = 
-  pp_instr_r fmt instr.i_desc 
+and pp_instr fmt instr =
+  pp_instr_r fmt instr.i_desc
 
 and pp_instrs fmt instrs =
   pp_list ";@ " pp_instr fmt instrs
@@ -253,11 +253,11 @@ let preprocess fd =
   Hashtbl.add fun_tbl fd.f_name s;
   let vars = vars_fc fd in
   let vtbl = Hashtbl.create 101 in
-  let add_var v = 
-    let s = 
+  let add_var v =
+    let s =
       try Hashtbl.find vtbl (v.v_name, v.v_ty)
       with Not_found ->
-        let s = fresh_string v.v_name in 
+        let s = fresh_string v.v_name in
         Hashtbl.add vtbl (v.v_name, v.v_ty) s;
         vlist := (s, v.v_ty) :: !vlist;
         s in
@@ -266,7 +266,7 @@ let preprocess fd =
 
 
 let pp_fundef fmt fd =
-  F.fprintf fmt 
+  F.fprintf fmt
    "@[<v>MkFun 1%%positive @[[:: %a]@] {%s@   @[<v>%a@]@ }%%P@ %a@]"
     (pp_list ";@ " pp_var) fd.f_args
     (dotdot fd.f_body)
@@ -276,19 +276,19 @@ let pp_fundef fmt fd =
 let pp_named_fun fmt fd =
   F.fprintf fmt "@[<v>(%a,@ %a)@]" pp_funname fd.f_name pp_fundef fd
 
-let pp_prefix fmt () = 
+let pp_prefix fmt () =
   F.fprintf fmt "@[<v>From mathcomp Require Import all_ssreflect.@ ";
   F.fprintf fmt "Require Import prog_notation sem.@ ";
   F.fprintf fmt "Import ZArith type expr var seq.@ @ ";
   F.fprintf fmt "Open Scope string_scope.@ ";
   F.fprintf fmt "Open Scope Z_scope.@ @ @ @]"
 
-let pp_notation fmt () = 
-  let pp_fun fmt (s,i) = 
-    F.fprintf fmt "Notation %s = %i%%positive" s i in
-  let pp_var fmt (s, ty) = 
-    F.fprintf fmt 
-     "Notation %s = (VarI {vtype := %a; vname = \"%s\" } 1%%positive)."
+let pp_notation fmt () =
+  let pp_fun fmt (s,i) =
+    F.fprintf fmt "Notation %s := %i%%positive." s i in
+  let pp_var fmt (s, ty) =
+    F.fprintf fmt
+     "Notation %s := (VarI {| vtype := %a; vname := \"%s\" |} 1%%positive)."
      s pp_ty ty s in
   F.fprintf fmt "@[<v>%a@ %a@ @ @]"
     (pp_list "@ " pp_fun) !flist
