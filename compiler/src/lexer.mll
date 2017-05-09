@@ -51,7 +51,7 @@ let lower    = ['a'-'z']
 let upper    = ['A'-'Z']
 let letter   = (lower | upper)
 let idletter = letter | '_'
-let ident    = idletter (idletter | digit)*
+let ident    = (letter (idletter | digit)* )  | ('_' (idletter | digit)+)
 
 (* -------------------------------------------------------------------- *)
 rule main = parse

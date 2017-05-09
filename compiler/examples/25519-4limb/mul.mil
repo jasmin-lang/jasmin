@@ -26,7 +26,7 @@ fn mul(reg u64[4] zp, reg u64[4] xp, reg u64[4] yp0) {
     } else {
       cf, z[j] += l;
       z[j+1] = 0;
-      z[j+1] += h + cf;
+      _ , z[j+1] += h + cf;
     }
   }
 
@@ -38,13 +38,13 @@ fn mul(reg u64[4] zp, reg u64[4] xp, reg u64[4] yp0) {
       cf, z[i+j] += l;
       if j == 0 {
         hprev = 0;
-        hprev += h + cf;
+        _, hprev += h + cf;
       } else {
-        h += 0 + cf;
+        _, h += 0 + cf;
         cf, z[i+j] += hprev;
         if 1 <= j && j < n - 1 {
           hprev = 0;
-          hprev += h + cf;
+          _, hprev += h + cf;
         } else { // j = n - 1 
           z[i+j+1] = 0;
           cf, z[i+j+1] += h + cf;
@@ -63,10 +63,10 @@ fn mul(reg u64[4] zp, reg u64[4] xp, reg u64[4] yp0) {
       hprev = 0;
       hprev += h + cf;
     } else {
-      h += 0 + cf;
+      _, h += 0 + cf;
       cf, z[i] += hprev;
       hprev = 0;
-      hprev += h + cf;
+      _, hprev += h + cf;
     }
   }
 
