@@ -38,12 +38,17 @@ let x86_equality_constraints (tbl: (var, int) Hashtbl.t) (k: int -> int -> unit)
     with Not_found -> ()
   in
   match op, lvs, es with
-  (* TODO : FIXME *)
- (* | Olnot, [ Lvar v ], [ Pvar w]
-  | (Oxor | Oland | Olor | Olsr | Olsl), Lvar v :: _, Pvar w :: _
-  | Oaddcarry, [ _ ; Lvar v ], Pvar w :: _ 
+  | (Oaddcarry | Osubcarry),
+    [ _ ; Lvar v ], Pvar w :: _
+  | (Ox86_ADD | Ox86_SUB | Ox86_ADC | Ox86_SBB),
+    [ _ ; _ ; _ ; _ ; _ ; Lvar v ], Pvar w :: _
+  | (Ox86_INC | Ox86_DEC),
+    [ _ ; _ ; _ ; _ ; Lvar v ], Pvar w :: _
+  | (Ox86_AND | Ox86_OR | Ox86_XOR),
+    [ _ ; _ ; _ ; _ ; _ ; Lvar v ], Pvar w :: _
     (* TODO: add more constraints *)
-    -> merge v w *)
+    (* TODO: SHL, SHR, SAR *)
+    -> merge v w
   | _, _, _ -> ()
 
 let collect_equality_constraints (tbl: (var, int) Hashtbl.t) (nv: int)
@@ -229,9 +234,32 @@ struct
       (a: allocation) : allocation =
     let f x = Hashtbl.find vars (L.unloc x) in
     match op, lvs, es with
-    | Oaddcarry, Lvar cf  :: _, _ :: _ :: x :: _ ->
+    | (Ox86_ADD | Ox86_SUB | Ox86_AND | Ox86_OR | Ox86_XOR),
+      [ Lvar oF ; Lvar cF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], _ ->
+      a |>
+      allocate_one (f oF) f_o |>
+      allocate_one (f cF) f_c |>
+      allocate_one (f sF) f_s |>
+      allocate_one (f pF) f_p |>
+      allocate_one (f zF) f_z
+    | (Ox86_ADC | Ox86_SBB),
+      [ Lvar oF ; Lvar cF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], [ _ ; _ ; cF' ] ->
+      (match cF' with Pvar cF' -> allocate_one (f cF') f_c a | _ -> a) |>
+      allocate_one (f oF) f_o |>
+      allocate_one (f cF) f_c |>
+      allocate_one (f sF) f_s |>
+      allocate_one (f pF) f_p |>
+      allocate_one (f zF) f_z
+    | (Ox86_INC | Ox86_DEC),
+      [ Lvar oF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], _ ->
+      a |>
+      allocate_one (f oF) f_o |>
+      allocate_one (f sF) f_s |>
+      allocate_one (f pF) f_p |>
+      allocate_one (f zF) f_z
+    | (Oaddcarry | Osubcarry), Lvar cf  :: _, _ :: _ :: x :: _ ->
+      (match x with Pvar x -> allocate_one (f x) f_c a | _ -> a) |>
       allocate_one (f cf) f_c
-        (match x with Pvar x -> allocate_one (f x) f_c a | _ -> a)
     | _, _, _ -> a (* TODO *)
 
 end
