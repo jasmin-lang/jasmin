@@ -13,7 +13,7 @@ def _run(filename):
 
     _log("### Testing `%s':" % (filename,))
     try:
-        rc = sp.call(['./jasminc.native', filename])
+        rc = sp.call(['./jasminc.native', '-typeonly', filename])
         success = (rc == 0)
     except OSError as e:
         _log("### Cannot start jasmin: %s" % (e,))
