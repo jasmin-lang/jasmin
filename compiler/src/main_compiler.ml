@@ -262,24 +262,27 @@ let main () =
 
   with
   | Utils.HiError s ->
-    Format.eprintf "%s\n%!" s
+      Format.eprintf "%s\n%!" s; exit 1
 
   | UsageError ->
-     Arg.usage options usage_msg;
-     exit 1;
+      Arg.usage options usage_msg;
+      exit 1;
 
   | Syntax.ParseError (loc, None) ->
       Format.eprintf "%s: parse error\n%!"
-        (Location.tostring loc)
+        (Location.tostring loc);
+      exit 1
 
   | Syntax.ParseError (loc, Some msg) ->
       Format.eprintf "%s: parse error: %s\n%!"
-        (Location.tostring loc) msg
+        (Location.tostring loc) msg;
+      exit 1
 
   | Typing.TyError (loc, code) ->
       Format.eprintf "%s: typing error: %a\n%!"
         (Location.tostring loc)
-        Typing.pp_tyerror code
+        Typing.pp_tyerror code;
+      exit 1
 
 (* -------------------------------------------------------------------- *)
 let () = main ()
