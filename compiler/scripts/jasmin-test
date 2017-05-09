@@ -9,8 +9,8 @@ def _run(filename):
 
     print >>sys.stderr, "### Testing `%s':" % (filename,)
     try:
-        rc = sp.call(['jasminc.native', filename])
-        success = (rc = 0)
+        rc = sp.call(['./jasminc.native', filename])
+        success = (rc == 0)
     except OSError as e:
         print >>sys.stderr, "### Cannot start jasmin: %s" % (e,)
     print >>sys.stderr, "### End testing `%s':" % (filename,)

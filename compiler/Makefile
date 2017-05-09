@@ -48,7 +48,7 @@ jasmin.mlpack: __force__
 
 CIL:
 	rm -f CIL/*.ml CIL/*.mli
-	$(MAKE) -C ../proofs
+	$(MAKE) -C ../proofs extraction
 	cp ../proofs/lang/ocaml/*.ml  CIL/
 	cp ../proofs/lang/ocaml/*.mli CIL/
 
@@ -60,7 +60,7 @@ uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/jasminc
 
 tests: native
-	scripts/test-jasmin examples/*.mil
+	scripts/jasmin-test examples/*.mil
 
 clean:
 	$(OCAMLBUILD) -clean
