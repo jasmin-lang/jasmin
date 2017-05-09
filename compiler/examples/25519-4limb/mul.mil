@@ -42,7 +42,7 @@ fn mul(reg u64[4] zp, reg u64[4] xp, reg u64[4] yp0) {
       } else {
         _, h += 0 + cf;
         cf, z[i+j] += hprev;
-        if 1 <= j && j < n - 1 {
+        if 1 <= j && j < 4 - 1 {
           hprev = 0;
           _, hprev += h + cf;
         } else { // j = n - 1 
@@ -56,12 +56,12 @@ fn mul(reg u64[4] zp, reg u64[4] xp, reg u64[4] yp0) {
   // reduction from 8 limbs to 4 limbs 
   c38 = 38;
   for i = 0 to 4 {
-    rax = z[n + i];
+    rax = z[4 + i];
     h, l = rax * c38;
     cf, z[i] += l;
     if i == 0 {
       hprev = 0;
-      hprev += h + cf;
+      _, hprev += h + cf;
     } else {
       _, h += 0 + cf;
       cf, z[i] += hprev;
@@ -78,7 +78,7 @@ fn mul(reg u64[4] zp, reg u64[4] xp, reg u64[4] yp0) {
   }
 
   zero = 0;
-  zero += 0 + cf;
+  _, zero += 0 + cf;
 
   l = zero * 38;
   z[0] += l;
