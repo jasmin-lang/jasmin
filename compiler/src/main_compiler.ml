@@ -262,11 +262,11 @@ let main () =
 
   with
   | Utils.HiError s ->
-    Format.eprintf "%s\n%!" s
+      Format.eprintf "%s\n%!" s; exit 1
 
   | UsageError ->
-     Arg.usage options usage_msg;
-     exit 1;
+      Arg.usage options usage_msg;
+      exit 1;
 
   | Syntax.ParseError (loc, None) ->
       Format.eprintf "%s: parse error\n%!"

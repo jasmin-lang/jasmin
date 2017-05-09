@@ -27,8 +27,9 @@ def _check(filenames):
 
     if errors:
         print >>sys.stderr
-        print >>sys.stderr, \
-            "Failing files: %s" % (", ".join(errors))
+        print >>sys.stderr, '### Failing files (%d)' % (len(errors),)
+        for errf in errors:
+            print >>sys.stderr, '### %s' % (errf,)
 
     sys.exit(1 if errors else 0)
 
