@@ -25,15 +25,15 @@
 
 From mathcomp Require Import all_ssreflect.
 Require Import x86 expr.
-Import ZArith. 
+Import ZArith.
 Require Import compiler_util allocation inline dead_calls unrolling
-   constant_prop dead_code array_expansion stack_alloc linear.
+   constant_prop dead_code array_expansion lowering stack_alloc linear.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition unroll1 (p:prog) := 
+Definition unroll1 (p:prog) :=
   let p := unroll_prog p in
   let p := const_prop_prog p in
   dead_code_prog p.
@@ -41,9 +41,9 @@ Definition unroll1 (p:prog) :=
 Fixpoint unroll (n:nat) (p:prog) :=
   match n with
   | O   => cferror Ferr_loop
-  | S n => 
+  | S n =>
     Let p' := unroll1 p in
-    if p == p' then cfok p 
+    if p == p' then cfok p
     else unroll n p'
   end.
 
@@ -51,7 +51,7 @@ Definition unroll_loop (p:prog) := unroll Loop.nb p.
 
 Section COMPILER.
 
-Variant compiler_step := 
+Variant compiler_step :=
   | Typing                      : compiler_step
   | ParamsExpansion             : compiler_step
   | Inlining                    : compiler_step
@@ -73,7 +73,7 @@ Record compiler_params := {
   rename_fd    : funname -> fundef -> fundef;
   expand_fd    : funname -> fundef -> fundef;
   var_alloc_fd : funname -> fundef -> fundef;
-  share_stk_fd : funname -> fundef -> fundef; 
+  share_stk_fd : funname -> fundef -> fundef;
   reg_alloc_fd : funname -> fundef -> fundef;
   stk_alloc_fd : funname -> fundef -> seq (var * Z) * sfundef;
   print_prog   : compiler_step -> prog -> prog;
@@ -81,53 +81,55 @@ Record compiler_params := {
 
 Variable cparams : compiler_params.
 
-Definition expand_prog (p:prog) := 
+Definition expand_prog (p:prog) :=
   List.map (fun f => (f.1, cparams.(expand_fd) f.1 f.2)) p.
 
-Definition var_alloc_prog (p:prog) := 
+Definition var_alloc_prog (p:prog) :=
   List.map (fun f => (f.1, cparams.(var_alloc_fd) f.1 f.2)) p.
 
-Definition share_stack_prog (p:prog) := 
+Definition share_stack_prog (p:prog) :=
   List.map (fun f => (f.1, cparams.(share_stk_fd) f.1 f.2)) p.
 
-Definition reg_alloc_prog (p:prog) := 
+Definition reg_alloc_prog (p:prog) :=
   List.map (fun f => (f.1, cparams.(reg_alloc_fd) f.1 f.2)) p.
 
 Definition stk_alloc_prog (p:prog) : sprog * (seq (seq (var * Z))) :=
-  List.split 
+  List.split
     (List.map (fun f => let (x, y) := cparams.(stk_alloc_fd) f.1 f.2 in ((f.1, y), x)) p).
 
-Definition compile_prog (entries : seq funname) (p:prog) := 
+Definition compile_prog (entries : seq funname) (p:prog) :=
   Let p := inline_prog_err cparams.(rename_fd) p in
-  let p := cparams.(print_prog) Inlining p in      
+  let p := cparams.(print_prog) Inlining p in
 
   Let p := dead_calls_err entries p in
-  let p := cparams.(print_prog) RemoveUnusedFunction p in 
+  let p := cparams.(print_prog) RemoveUnusedFunction p in
 
   Let p := unroll Loop.nb p in
-  let p := cparams.(print_prog) Unrolling p in      
-   
+  let p := cparams.(print_prog) Unrolling p in
+
   let pv := var_alloc_prog p in
   let pv := cparams.(print_prog) AllocInlineAssgn pv in
   Let _ := CheckAllocReg.check_prog p pv in
-  Let pv := dead_code_prog pv in                
+  Let pv := dead_code_prog pv in
   let pv := cparams.(print_prog) DeadCode_AllocInlineAssgn pv in
- 
+
   let ps := share_stack_prog pv in
   let ps := cparams.(print_prog) ShareStackVariable ps in
   Let _ := CheckAllocReg.check_prog pv ps in
-  Let ps := dead_code_prog ps in                
+  Let ps := dead_code_prog ps in
   let ps := cparams.(print_prog) DeadCode_ShareStackVariable ps in
 
   let pe := expand_prog ps in
-  let pe := cparams.(print_prog) RegArrayExpansion pe in 
+  let pe := cparams.(print_prog) RegArrayExpansion pe in
   Let _ := CheckExpansion.check_prog ps pe in
 
-  let pa := reg_alloc_prog pe in
-  let pa := cparams.(print_prog) RegAllocation pa in 
-  Let _ := CheckAllocReg.check_prog pe pa in
+  let pl := lower_instruction_set_prog pe in
+
+  let pa := reg_alloc_prog pl in
+  let pa := cparams.(print_prog) RegAllocation pa in
+  Let _ := CheckAllocReg.check_prog pl pa in
   Let pd := dead_code_prog pa in
-  let pd := cparams.(print_prog) DeadCode_RegAllocation pd in 
+  let pd := cparams.(print_prog) DeadCode_RegAllocation pd in
 
   (* stack_allocation                    *)
   let (ps, l) := stk_alloc_prog pd in
@@ -140,6 +142,6 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
 
 Definition compile_prog_to_x86 entries (p: prog): result fun_error xprog :=
   Let lp := compile_prog entries p in
-  assemble_prog lp. 
+  assemble_prog lp.
 
 End COMPILER.
