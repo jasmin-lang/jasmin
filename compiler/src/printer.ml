@@ -240,6 +240,11 @@ let pp_pitem pp_var =
         (pp_ge pp_var) e in
   aux
 
+let pp_ptype = 
+  let pp_var fmt x = F.fprintf fmt "%s" x.v_name in
+  let pp_size = pp_ge pp_var in
+  pp_gtype pp_size
+
 let pp_pprog fmt p = 
   let pp_var fmt x = F.fprintf fmt "%s" x.v_name in
   Format.fprintf fmt "@[<v>%a@]"

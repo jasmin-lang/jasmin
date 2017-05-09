@@ -86,6 +86,11 @@ rule main = parse
   | "<"     { LT         }
   | ">="    { GE         }
   | ">"     { GT         }
+  | "<=s"   { LEs        }
+  | "<s"    { LTs        }
+  | ">=s"   { GEs        }
+  | ">s"    { GTs        }
+
   | "!"     { BANG       }
   | "+"     { PLUS       }
   | "-"     { MINUS      }
@@ -96,6 +101,7 @@ rule main = parse
   | "&&"    { AMPAMP     }
   | "||"    { PIPEPIPE   }
   | ">>"    { GTGT       }
+  | ">>s"   { GTGTs      }
   | "<<"    { LTLT       }
   | "="     { EQ         }
   | "=="    { EQEQ       }
@@ -108,6 +114,7 @@ rule main = parse
   | "^="    { HATEQ      }
   | "^="    { HATEQ      }
   | ">>="   { GTGTEQ     }
+  | ">>s="  { GTGTsEQ    }
   | "<<="   { LTLTEQ     }
 
   | _ as c  { invalid_char (L.of_lexbuf lexbuf) c }

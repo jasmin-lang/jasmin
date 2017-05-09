@@ -57,9 +57,13 @@ let pp_tyerror fmt (code : tyerror) =
   | UnknownFun x ->
       Format.fprintf fmt "unknown function: `%s'" x
 
-  | InvalidType _ | TypeMismatch _ ->
-      Format.fprintf fmt "invalid type"
-
+  | InvalidType _ ->  Format.fprintf fmt "invalid type"
+  
+  | TypeMismatch (t1,t2) -> 
+    Format.fprintf fmt 
+      "the expression has type %a instead of %a"
+      Printer.pp_ptype t1 Printer.pp_ptype t2 
+      
   | InvalidCast _ ->
       Format.fprintf fmt "invalid cast"
 
@@ -67,9 +71,10 @@ let pp_tyerror fmt (code : tyerror) =
       Format.fprintf fmt
         "this operator is not allowed in expressions"
 
-  | NoOperator _ ->
+  | NoOperator (_, ts) ->
       Format.fprintf fmt
-        "not operators for these types"
+        "not operators for these types %a"
+        (Printer.pp_list " * " Printer.pp_ptype) ts 
 
   | InvalidArgCount (n1, n2) ->
       Format.fprintf fmt
@@ -263,7 +268,7 @@ let check_sig_lvs ?loc sig_ lvs =
   List.iter2
     (fun ty (loc, _, lty) -> lty
       |> oiter (fun lty -> check_ty_eq ~loc ~from:ty ~to_:lty))
-    (List.drop (nsig_ - nlvs) sig_) lvs;
+     sig_ lvs;
 
   List.map (fun (_,lv,_) -> lv) lvs
 
@@ -284,17 +289,19 @@ let tt_as_word ((loc, ty) : L.t * P.pty) : P.word_size =
   | _ -> rs_tyerror ~loc (InvalidType (ty, TPWord))
 
 (* -------------------------------------------------------------------- *)
-let pop2_for_expr (op : S.peop2) = 
-  match op with
-  | `Add  | `Sub  | `Mul  | `And | `Or        
-  | `Eq   | `Neq  | `Lt   | `Le  | `Gt  | `Ge -> true
-  | `BAnd | `BOr  | `BXOr | `ShR | `ShL       -> false 
 
 let op_of_ty exn ty = 
   match ty with
   | P.Bty P.Int    -> P.Op_int
   | P.Bty (P.U ws) -> P.Op_w ws
   | _              -> raise exn
+
+let cmp_of_ty exn sign ty = 
+  match sign, ty with
+  | _      , P.Bty P.Int    -> P.Cmp_int
+  | `Sign  , P.Bty (P.U ws) -> P.Cmp_sw ws
+  | `Unsign, P.Bty (P.U ws) -> P.Cmp_uw ws
+  | _      , _              -> raise exn
 
 let op2_of_pop2 exn ty (op : S.peop2) =
   match op with
@@ -303,26 +310,22 @@ let op2_of_pop2 exn ty (op : S.peop2) =
   | `Mul  -> P.Omul (op_of_ty exn ty)
   | `And  -> P.Oand
   | `Or   -> P.Oor
-  | `BAnd | `BOr  | `BXOr | `ShR | `ShL      
-  | `Eq   | `Neq  | `Lt   | `Le  | `Gt  | `Ge -> raise exn
-
-let cmp_of_ty exn sign ty = 
-  match sign, ty with
-  | `Sign  , P.Bty P.Int    -> P.Cmp_int
-  | `Sign  , P.Bty (P.U ws) -> P.Cmp_sw ws
-  | `Unsign, P.Bty (P.U ws) -> P.Cmp_uw ws
-  | _      , _              -> raise exn
- 
-let cmp_of_pop2 exn ty (op : S.peop2) =
-  match op with
-  | `Add  | `Sub  | `Mul  | `And | `Or 
-  | `BAnd | `BOr  | `BXOr | `ShR | `ShL -> raise exn
-  | `Eq   -> P.Oeq  (cmp_of_ty exn `Sign ty)
-  | `Neq  -> P.Oneq (cmp_of_ty exn `Sign ty)
-  | `Lt   -> P.Olt  (cmp_of_ty exn `Sign ty)
-  | `Le   -> P.Ole  (cmp_of_ty exn `Sign ty)
-  | `Gt   -> P.Ogt  (cmp_of_ty exn `Sign ty)
-  | `Ge   -> P.Oge  (cmp_of_ty exn `Sign ty)
+  | `BAnd -> P.Oland 
+  | `BOr  -> P.Olor 
+  | `BXOr -> P.Olxor 
+  | `ShR  -> P.Olsr 
+  | `ShL  -> P.Olsl      
+  | `Asr  -> P.Oasr 
+  | `Eq   -> P.Oeq  (cmp_of_ty exn `Unsign ty)
+  | `Neq  -> P.Oneq (cmp_of_ty exn `Unsign ty)
+  | `Lt   -> P.Olt  (cmp_of_ty exn `Unsign ty)
+  | `Le   -> P.Ole  (cmp_of_ty exn `Unsign ty)  
+  | `Gt   -> P.Ogt  (cmp_of_ty exn `Unsign ty)  
+  | `Ge   -> P.Oge  (cmp_of_ty exn `Unsign ty)
+  | `Lts  -> P.Olt  (cmp_of_ty exn `Sign ty)
+  | `Les  -> P.Ole  (cmp_of_ty exn `Sign ty)  
+  | `Gts  -> P.Ogt  (cmp_of_ty exn `Sign ty)  
+  | `Ges  -> P.Oge  (cmp_of_ty exn `Sign ty)
 
 (* -------------------------------------------------------------------- *)
 let peop2_of_eqop (eqop : S.peqop) =
@@ -333,6 +336,7 @@ let peop2_of_eqop (eqop : S.peqop) =
   | `Mul  -> Some `Mul
   | `ShR  -> Some `ShR
   | `ShL  -> Some `ShL
+  | `Asr  -> Some `Asr
   | `BAnd -> Some `BAnd
   | `BXOr -> Some `BXOr
   | `BOr  -> Some `BOr
@@ -355,27 +359,26 @@ let cast loc e ety ty =
 (* -------------------------------------------------------------------- *)
 let tt_op2 (loc1, (e1, ty1)) (loc2, (e2, ty2))
            { L.pl_desc = pop; L.pl_loc = loc } =
-  let exn = tyerror ~loc (InvOpInExpr (`Op2 pop)) in
-  if pop2_for_expr pop then raise exn;
+
   let exn = tyerror ~loc (NoOperator (`Op2 pop, [ty1; ty2])) in
 
   let op, e1, e2, ty = 
-    match pop with
-    | (`Add | `Sub | `Mul) -> 
+    match pop with  
+    | (`Add | `Sub | `Mul | `BAnd | `BOr | `BXOr | `ShR | `ShL | `Asr ) -> 
       let ty = max_ty ty1 ty2 |> oget ~exn in
       let op = op2_of_pop2 exn ty pop in
       (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, ty)
 
-    | (`And | `Or) when ty1 = P.tbool && ty2 = P.tbool -> 
+    | (`And | `Or) -> 
+      if not (ty1 = P.tbool && ty2 = P.tbool) then raise exn; 
       (op2_of_pop2 Not_found P.tbool pop, e1, e2, P.tbool)
-
-    | (`Eq | `Neq | `Lt | `Le | `Gt | `Ge) -> 
+   
+    | (`Eq | `Neq | `Lt | `Le | `Gt | `Ge | `Lts | `Les | `Gts | `Ges ) -> 
       let ty = max_ty ty1 ty2 |> oget ~exn in
-      let op = cmp_of_pop2 exn ty pop in
-      (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, P.tbool)
+      let op = op2_of_pop2 exn ty pop in
+         (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, P.tbool)
 
-    | _ -> rs_tyerror ~loc (NoOperator (`Op2 pop, [ty1; ty2])) in
-  
+  in
   (P.Papp2 (op, e1, e2), ty) 
 
 (* -------------------------------------------------------------------- *)
@@ -510,7 +513,7 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
 (* -------------------------------------------------------------------- *)
 
 let f_sig f =
-  List.map (fun v -> v.P.v_ty) f.P.f_args, List.map P.ty_i f.P.f_ret
+  List.map P.ty_i f.P.f_ret, List.map (fun v -> v.P.v_ty) f.P.f_args
 
 let prim_sig p = 
   match p with 
@@ -547,8 +550,9 @@ let prim_of_op exn loc o =
     x - y - c -> addc x y c 
     x * y     -> umul *)
 
-let prim_of_pe exn pe = 
+let prim_of_pe pe = 
   let loc = L.loc pe in
+  let exn = tyerror ~loc Unsupported in
   match L.unloc pe with
   | S.PEOp2 (o, (pe1, pe2)) ->
     let desc = 
@@ -612,7 +616,14 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
       let e, ety = tt_expr ~mode:`AllVar env pe in
       let e = vty |> omap_dfl (cast (L.loc pe) e ety) e in
       Cassgn(v, AT_keep, e)
-
+   
+    | PIAssign(ls, `Raw, pe, None) ->
+      (* Try to match addc, subc, mulu *)
+      let pe = prim_of_pe pe in
+      let loc = L.loc pi in
+      let i = L.mk_loc loc (S.PIAssign(ls, `Raw, pe, None)) in
+      (tt_instr env i).P.i_desc
+      
     | S.PIAssign(ls, eqop, pe, None) ->
       let op = oget (peop2_of_eqop eqop) in
       let loc = L.loc pi in

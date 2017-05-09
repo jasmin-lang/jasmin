@@ -30,16 +30,22 @@
 %token FALSE
 %token FN
 %token FOR
-%token GE
+%token GE 
+%token GEs
 %token GT
+%token GTs
 %token GTGT
+%token GTGTs
 %token GTGTEQ
+%token GTGTsEQ
 %token HAT
 %token HATEQ
 %token IF
 %token INLINE
 %token LE
+%token LEs
 %token LT
+%token LTs
 %token LTLT
 %token LTLTEQ
 %token MINUS
@@ -72,8 +78,8 @@
 %left HAT
 %left AMP
 %left EQEQ BANGEQ
-%left LE GE LT GT
-%left LTLT GTGT
+%left LE LEs GE GEs LT LTs GT GTs
+%left LTLT GTGT GTGTs
 %left PLUS MINUS
 %left STAR
 %nonassoc BANG
@@ -134,12 +140,18 @@ ptype:
 | HAT      { `BXOr }
 | LTLT     { `ShL  }
 | GTGT     { `ShR  }
+| GTGTs    { `Asr  }
 | EQEQ     { `Eq   }
 | BANGEQ   { `Neq  }
 | LT       { `Lt   }
 | LE       { `Le   }
 | GT       { `Gt   }
 | GE       { `Ge   }
+| LTs      { `Lts  }
+| LEs      { `Les  }
+| GTs      { `Gts  }
+| GEs      { `Ges  }
+
 
 pexpr_r:
 | v=var
@@ -182,6 +194,7 @@ peqop:
 | MINUSEQ { `Sub  }
 | STAREQ  { `Mul  }
 | GTGTEQ  { `ShR  }
+| GTGTsEQ { `Asr  }
 | LTLTEQ  { `ShL  }
 | AMPEQ   { `BAnd }
 | HATEQ   { `BXOr }

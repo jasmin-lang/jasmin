@@ -16,7 +16,8 @@ type peop1 = [ `Not ]
 
 type peop2 = [
   `Add | `Sub | `Mul | `And | `Or  | `BAnd | `BOr | `BXOr |
-  `ShR | `ShL | `Eq  | `Neq | `Lt  | `Le   | `Gt  | `Ge
+  `ShR | `ShL | `Asr | `Eq  | `Neq | `Lt  | `Le   | `Gt  | `Ge | 
+  `Lts  | `Les   | `Gts  | `Ges
 ]
 
 (* -------------------------------------------------------------------- *)
@@ -58,7 +59,7 @@ and plvalue = plvalue_r L.located
 
 (* -------------------------------------------------------------------- *)
 type peqop = [
-  `Raw | `Add | `Sub | `ShR | `ShL | `BAnd | `BXOr | `BOr  | `Mul
+  `Raw | `Add | `Sub | `ShR | `Asr | `ShL | `BAnd | `BXOr | `BOr  | `Mul
 ]
 
 (* -------------------------------------------------------------------- *)
