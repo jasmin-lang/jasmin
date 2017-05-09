@@ -60,9 +60,7 @@ uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/jasminc
 
 tests: native
-	for i in examples/*.mil; do \
-	  echo "*** $$i" >&2 && ./jasminc.native $$i; \
-	done
+	scripts/test-jasmin examples/*.mil
 
 clean:
 	$(OCAMLBUILD) -clean
