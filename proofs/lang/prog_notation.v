@@ -8,7 +8,8 @@ Delimit Scope prog_scope with P.
 (* ----------------------------------------------------------- *)
 (* Expression                                                  *)
 
-Notation "~~ e" := (Pnot e) : expr_scope.
+Notation "~~ e" := (Papp1 Onot e) : expr_scope.
+Notation "~! e"  := (Papp1 Olnot e) (at level 35, right associativity) : expr_scope.
 Notation "x .[ n ]" := (Pget x n) : expr_scope.
 Notation load := Pload. 
 
@@ -44,6 +45,18 @@ Notation "e1 <=s e2" := (Papp2 (Ole  Cmp_sw) e1 e2) (at level 70, no associativi
 Notation "e1 >s e2"  := (Papp2 (Ogt  Cmp_sw) e1 e2) (at level 70, no associativity) : expr_scope.
 Notation "e1 >=s e2" := (Papp2 (Oge  Cmp_sw) e1 e2) (at level 70, no associativity) : expr_scope.
 
+Notation "e1 ^^ e2" := (Papp2 Olxor e1 e2) (at level 60) : expr_scope. 
+
+Notation "e1 & e2" := (Papp2 Oland e1 e2) (at level 40) : expr_scope. 
+
+Notation "e1 | e2" := (Papp2 Olor e1 e2) (at level 50) : expr_scope.
+
+Notation "e1 << e2" := (Papp2 Olsl e1 e2) (at level 35) : expr_scope.
+ 
+Notation "e1 >> e2" := (Papp2 Olsr e1 e2) (at level 35) : expr_scope.
+
+Notation "e1 ?  e2 : e3 " := (Pif e1 e2 e3) (at level 70) : expr_scope.
+
 (* ----------------------------------------------------------- *)
 (* lval                                                        *) 
 
@@ -73,47 +86,6 @@ Notation "x :a= e" := (Cassgn x%L AT_rename_arg e%E) (at level 70) : prog_scope.
 Notation "x :r= e" := (Cassgn x%L AT_rename_res e%E) (at level 70) : prog_scope.
 Notation "x :i= e" := (Cassgn x%L AT_inline e%E) (at level 70) : prog_scope.
 
-(* Copn *)
-Arguments Copn _%L _ _%E.
- 
-Notation " x := ! e" := 
-  (Copn (Cons lval x%L nil) Olnot (Cons pexpr e nil))
-  (at level 70) : prog_scope. 
-
-Notation "x := e1 ^ e2" := 
-  (Copn (Cons lval x%L nil) Oxor 
-        (Cons pexpr e1%E (Cons pexpr e2%E nil)))
-  (at level 70, e1 at level 0, e2 at level 0) : prog_scope. 
-
-Notation "x := e1 & e2" := 
-  (Copn (Cons lval x%L nil) Oland 
-        (Cons pexpr e1%E (Cons pexpr e2%E nil)))
-  (at level 70, e1 at level 0, e2 at level 0) : prog_scope. 
-
-Notation "x := e1 | e2" := 
-  (Copn (Cons lval x%L nil) Olor 
-        (Cons pexpr e1%E (Cons pexpr e2%E nil)))
-  (at level 70, e1 at level 0, e2 at level 0) : prog_scope. 
-
-Notation "x := e1 << e2" := 
-  (Copn (Cons lval x%L nil) Olsl
-        (Cons pexpr e1%E (Cons pexpr e2%E nil)))
-  (at level 70, e1 at level 0, e2 at level 0) : prog_scope. 
-
-Notation "x := e1 >> e2" := 
-  (Copn (Cons lval x%L nil) Olsr
-        (Cons pexpr e1%E (Cons pexpr e2%E nil)))
-  (at level 70, e1 at level 0, e2 at level 0) : prog_scope. 
-
-Notation "x := e1 ?  e2 : e3 " := 
-  (Copn (Cons lval x%L nil) Oif 
-        (Cons pexpr e1%E (Cons pexpr e2%E (Cons pexpr e3%E nil))))
-   (at level 70, e1 at level 0, e2 at level 0, e3 at level 200) : prog_scope. 
-
-Notation "x := e1 * e2" := 
-  (Copn (Cons lval x%L nil) Omuli 
-        (Cons pexpr e1%E (Cons pexpr e2%E nil)))
-  (at level 70, e1 at level 0, e2 at level 0) : prog_scope.
 
 Notation "'[p' x , y ] := e1 * e2" := 
   (Copn (Cons lval x%L (Cons lval y%L nil)) Omulu 

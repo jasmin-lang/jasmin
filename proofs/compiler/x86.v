@@ -205,7 +205,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     | PF => ok P_ct
     | DF => cierror ii (Cerr_assembler "Cannot branch on DF")
     end
-  | Pnot (Pvar v) =>
+  | Papp1 Onot (Pvar v) =>
     Let r := rflag_of_var ii v in
     match r with
     | OF => ok NO_ct
@@ -221,7 +221,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     if ((r1 == CF) && (r2 == ZF)) then
       ok BE_ct
     else cierror ii (Cerr_assembler "Invalid condition")
-  | Papp2 Oand (Pnot (Pvar v1)) (Pnot (Pvar v2)) =>
+  | Papp2 Oand (Papp1 Onot (Pvar v1)) (Papp1 Onot (Pvar v2)) =>
     Let r1 := rflag_of_var ii v1 in
     Let r2 := rflag_of_var ii v2 in
     if ((r1 == CF) && (r2 == ZF)) then
@@ -258,7 +258,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
 
 Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
   match o with
-  | Ox86_cmp =>
+  | Ox86_CMP =>
     match l with
     | [:: Lvar vof; Lvar vsf; Lvar vzf; Lvar vpf; Lvar vcf] =>
       Let rof := rflag_of_var ii vof in

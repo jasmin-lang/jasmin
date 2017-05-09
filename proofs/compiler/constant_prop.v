@@ -48,16 +48,17 @@ Fixpoint eq_expr e e' :=
   | Pvar   x      , Pvar   x'         => v_var x == v_var x'
   | Pget   x e    , Pget   x' e'      => (v_var x == v_var x') && eq_expr e e' 
   | Pload  x e    , Pload  x' e'      => (v_var x == v_var x') && eq_expr e e' 
-  | Pnot   e      , Pnot   e'         => eq_expr e e'
+  | Papp1  o e    , Papp1  o' e'      => (o == o') && eq_expr e e'
   | Papp2  o e1 e2, Papp2  o' e1' e2' => (o == o') && eq_expr e1 e1' && eq_expr e2 e2'
+  | Pif    e e1 e2, Pif    e' e1' e2' => eq_expr e e' && eq_expr e1 e1' && eq_expr e2 e2'
   | _             , _                 => false
   end.
 
-Definition snot (e:pexpr) : pexpr := 
+Definition snot_bool (e:pexpr) := 
   match e with
-  | Pbool b => negb b
-  | Pnot  e => e 
-  | _       => Pnot e
+  | Pbool b      => negb b
+  | Papp1 Onot e => e 
+  | _            => Papp1 Onot e
   end.
 
 Definition sand e1 e2 := 
@@ -81,6 +82,17 @@ Definition is_wconst e :=
   end.
 
 Definition wconst n:= Pcast (Pconst n).
+
+(* FIXME improve this *)
+Definition snot_w e := Papp1 Olnot e.
+
+Definition s_op1 o e := 
+  match o with
+  | Onot  => snot_bool e 
+  | Olnot => snot_w e
+  end.
+
+(* ------------------------------------------------------------------------ *)
 
 Definition sadd_int e1 e2 := 
   match is_const e1, is_const e2 with
@@ -202,6 +214,16 @@ Definition sge ty e1 e2 :=
   | _      , _       => Papp2 (Oge ty) e1 e2 
   end.
 
+
+(* FIXME: Improve this *)
+
+Definition sland e1 e2 := Papp2 Oland e1 e2.
+Definition slor  e1 e2 := Papp2 Olor  e1 e2.
+Definition slxor e1 e2 := Papp2 Olxor e1 e2.
+Definition slsr  e1 e2 := Papp2 Olsr  e1 e2.
+Definition slsl  e1 e2 := Papp2 Olsl  e1 e2.
+Definition sasr  e1 e2 := Papp2 Oasr  e1 e2.
+
 Definition s_op2 o e1 e2 := 
   match o with 
   | Oand    => sand e1 e2 
@@ -215,6 +237,18 @@ Definition s_op2 o e1 e2 :=
   | Ole  ty => sle  ty e1 e2
   | Ogt  ty => sgt  ty e1 e2
   | Oge  ty => sge  ty e1 e2
+  | Oland   => sland e1 e2
+  | Olor    => slor  e1 e2
+  | Olxor   => slxor e1 e2 
+  | Olsr    => slsr  e1 e2
+  | Olsl    => slsl  e1 e2
+  | Oasr    => sasr  e1 e2
+  end.
+
+Definition s_if e e1 e2 := 
+  match is_bool e with
+  | Some b => if b then e1 else e2
+  | None   => Pif e e1 e2
   end.
 
 (* ** constant propagation 
@@ -224,14 +258,15 @@ Local Notation cpm := (Mvar.t Z).
 
 Fixpoint const_prop_e (m:cpm) e :=
   match e with
-  | Pconst _  => e
-  | Pbool  _  => e
-  | Pcast e   => Pcast (const_prop_e m e)
-  | Pvar  x   => if Mvar.get m x is Some n then Pconst n else e
-  | Pget  x e => Pget x (const_prop_e m e)
-  | Pload x e => Pload x (const_prop_e m e)
-  | Pnot  e   => snot e
+  | Pconst _      => e
+  | Pbool  _      => e
+  | Pcast e       => Pcast (const_prop_e m e)
+  | Pvar  x       => if Mvar.get m x is Some n then Pconst n else e
+  | Pget  x e     => Pget x (const_prop_e m e)
+  | Pload x e     => Pload x (const_prop_e m e)
+  | Papp1 o e     => s_op1 o (const_prop_e m e)
   | Papp2 o e1 e2 => s_op2 o (const_prop_e m e1)  (const_prop_e m e2)
+  | Pif e e1 e2   => s_if (const_prop_e m e) (const_prop_e m e1) (const_prop_e m e2)
   end.
 
 Definition empty_cpm : cpm := @Mvar.empty Z.

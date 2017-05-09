@@ -57,13 +57,25 @@ Proof. by move=> ???. Qed.
 
 Hint Immediate eeq_refl.
 
-Lemma snotP e : Pnot e =E snot e.
+Lemma snot_boolP e : Papp1 Onot e =E snot_bool e.
 Proof. 
   case: e=> //=;try auto; first by move=> ??.
+  move=> []; last by auto.
   move=> p rho v /=;rewrite /eqok.
-  case: sem_pexpr => //= a; case: a => //= b; by rewrite negbK.
+  apply: rbindP => w;apply:rbindP => w' /= ->.
+  apply: rbindP => /= b Hb [<-]. 
+  rewrite /sem_op1_b /mk_sem_sop1 /= negbK => [<-].
+  by case: w' Hb => //= ? [<-].
 Qed.
 
+Lemma snot_wP e : Papp1 Olnot e =E snot_w e.
+Proof. auto. Qed.
+
+Lemma s_op1P o e : Papp1 o e =E s_op1 o e.
+Proof. case: o;auto using snot_boolP, snot_wP. Qed.
+
+
+(* * -------------------------------------------------------------------- *)
 Lemma sandP e1 e2 : Papp2 Oand e1 e2 =E sand e1 e2.
 Proof.
   rewrite /sand. case: is_boolP => [b1 rho v /=| {e1} e1]. 
@@ -169,16 +181,18 @@ Qed.
 Lemma smulP ty e1 e2 : Papp2 (Omul ty) e1 e2 =E smul ty e1 e2.
 Proof. by case:ty;auto using smul_intP, smul_wP. Qed.
 
+(* FIXME: move this *)
 Lemma eq_exprP s e1 e2 : eq_expr e1 e2 -> sem_pexpr s e1 = sem_pexpr s e2. 
 Proof.
-  elim: e1 e2=> [z  | b  | e He | x  | x e He | x e He | e  He | o e1 He1 e2 He2]
-                [z' | b' | e'   | x' | x' e'  | x' e'  | e' | o' e1' e2'] //=. 
+  elim: e1 e2=> [z  | b  | e He | x  | x e He | x e He | o e  He | o e1 He1 e2 He2 | e He e1 He1 e2 He2]
+                [z' | b' | e'   | x' | x' e'  | x' e'  | o' e' | o' e1' e2' | e' e1' e2'] //=. 
   + by move=> /eqP ->.   + by move=> /eqP ->.
   + by move=> /He ->.    + by move=> /eqP ->.
   + by move=> /andP [] /eqP -> /He ->.
   + by move=> /andP [] /eqP -> /He ->.
-  + by move=> /He ->.   
-  by move=> /andP[]/andP[] /eqP -> /He1 -> /He2 ->.
+  + by move=> /andP[]/eqP -> /He ->.   
+  + by move=> /andP[]/andP[] /eqP -> /He1 -> /He2 ->.
+  by move=> /andP[]/andP[] /He -> /He1 -> /He2 ->.
 Qed.
 
 Lemma mk_sem_sop2_b b t (o:sem_t t -> sem_t t -> bool) :
@@ -248,9 +262,23 @@ Proof.
   by case: ty.
 Qed.
 
+Lemma slandP e1 e2 : Papp2 Oland e1 e2 =E sland e1 e2. Proof. auto. Qed.
+Lemma slorP e1 e2  : Papp2 Olor  e1 e2 =E slor  e1 e2. Proof. auto. Qed.
+Lemma slxorP e1 e2 : Papp2 Olxor e1 e2 =E slxor e1 e2. Proof. auto. Qed.
+Lemma slslP e1 e2  : Papp2 Olsl  e1 e2 =E slsl  e1 e2. Proof. auto. Qed.
+Lemma slsrP e1 e2  : Papp2 Olsr  e1 e2 =E slsr  e1 e2. Proof. auto. Qed.
+Lemma sasrP e1 e2  : Papp2 Oasr  e1 e2 =E sasr  e1 e2. Proof. auto. Qed.
+
 Lemma s_op2P o e1 e2 : Papp2 o e1 e2 =E s_op2 o e1 e2.
 Proof.
-  case: o;eauto using sandP, sorP, saddP, smulP, ssubP, s_eqP, sneqP, sltP, sleP, sgtP, sgeP.
+  case: o;eauto using sandP, sorP, saddP, smulP, ssubP, s_eqP, sneqP, sltP, sleP, sgtP, sgeP,
+      slandP, slorP, slxorP, slslP, slsrP, sasrP.
+Qed.
+
+Lemma s_ifP e e1 e2 : Pif e e1 e2 =E s_if e e1 e2.
+Proof.
+  rewrite /s_if;case: is_boolP => [b | ];last by auto.
+  by case: b => ?? /=.
 Qed.
 
 Definition valid_cpm (vm: vmap)  (m:cpm) := 
@@ -261,16 +289,20 @@ Lemma const_prop_eP (e:pexpr) s (m:cpm):
   e =[s] const_prop_e m e.
 Proof.
   move=> Hvalid;rewrite /eqok.
-  elim: e=> [z | b | e He | x | x e He | x e He | e He | e e1 He1 e2 He2] v //=.
+  elim: e=> [z | b | e He | x | x e He | x e He | o e He | o e1 He1 e2 He2 | e He e1 He1 e2 He2] v //=.
   + by case Heq: sem_pexpr => [ve|] //=;rewrite (He _ Heq).
   + by case Heq: Mvar.get => [n|] //=;rewrite (Hvalid _ _ Heq).
   + apply:on_arr_varP;rewrite /on_arr_var => n t ? -> /=.
     by apply: rbindP => ?;apply: rbindP => ? /He -> /= ->.  
   + apply:rbindP => w -> /=.
     by case Heq: sem_pexpr => [ve|] //=;rewrite (He _ Heq).
-  + by apply snotP.
-  move=> H;apply /s_op2P;move: H => /=.
-  by apply:rbindP => ve1 /He1 ->;apply:rbindP => ve2 /He2 ->. 
+  + move=> H;apply /s_op1P;move: H => /=.
+    by apply:rbindP => ve1 /He ->.
+  + move=> H;apply /s_op2P;move: H => /=.
+    by apply:rbindP => ve1 /He1 ->;apply:rbindP => ve2 /He2 ->.
+  move=> H;apply /s_ifP;move: H => /=.
+  apply:rbindP => b;apply:rbindP => w /He -> /= -> /=.
+  by case: b;auto.
 Qed.
 
 Definition eqoks (e1 e2:seq pexpr) st := 
@@ -409,7 +441,9 @@ Proof.
   + by move=> ?;rewrite Hm.
   + by move=> ?? ->.
   + by move=> ?? ->.
-  by move=> ?? -> ? ->.
+  + by move=> ?? ->.
+  + by move=> ?? -> ? ->.
+  by move=> ? -> ? -> ? ->.
 Qed.
 
 Instance const_prop_rv_m : 

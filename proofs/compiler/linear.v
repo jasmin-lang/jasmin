@@ -116,7 +116,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Cif e c1 [::] =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
-    MkLI ii (Lcond (Pnot e) L1) >; linear_c linear_i c1 lbl (MkLI ii (Llabel L1) :: lc)
+    MkLI ii (Lcond (Papp1 Onot e) L1) >; linear_c linear_i c1 lbl (MkLI ii (Llabel L1) :: lc)
 
   | Cif e c1 c2 =>
     let L1 := lbl in
@@ -137,7 +137,6 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Cfor _ _ _ => cierror ii (Cerr_linear "for found in linear")
 
   | Ccall _ _ _ _ => cierror ii (Cerr_linear "call found in linear")
-
   end.
 
 Definition linear_fd (fd: sfundef) :=
