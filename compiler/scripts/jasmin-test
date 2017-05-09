@@ -1,19 +1,23 @@
-#! /usr/bin/env python2
+#! /usr/bin/env python3
 
 # --------------------------------------------------------------------
 import sys, os, subprocess as sp
 
 # --------------------------------------------------------------------
+def _log(msg = ''):
+    print(msg, file = sys.stderr)
+
+# --------------------------------------------------------------------
 def _run(filename):
     success = False
 
-    print >>sys.stderr, "### Testing `%s':" % (filename,)
+    _log("### Testing `%s':" % (filename,))
     try:
         rc = sp.call(['./jasminc.native', filename])
         success = (rc == 0)
     except OSError as e:
-        print >>sys.stderr, "### Cannot start jasmin: %s" % (e,)
-    print >>sys.stderr, "### End testing `%s':" % (filename,)
+        _log("### Cannot start jasmin: %s" % (e,))
+    _log("### End testing `%s':" % (filename,))
 
     return success
 
@@ -26,13 +30,13 @@ def _check(filenames):
             errors.append(filename)
 
     if errors:
-        print >>sys.stderr
-        print >>sys.stderr, '### Failing files (%d)' % (len(errors),)
+        _log()
+        _log('### Failing files (%d)' % (len(errors)))
         for errf in errors:
-            print >>sys.stderr, '### %s' % (errf,)
+            _log('### %s' % (errf,))
 
     sys.exit(1 if errors else 0)
 
 # --------------------------------------------------------------------
 if __name__ == '__main__':
-  _check(sys.argv[1:])
+    _check(sys.argv[1:])
