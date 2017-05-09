@@ -38,11 +38,12 @@ let x86_equality_constraints (tbl: (var, int) Hashtbl.t) (k: int -> int -> unit)
     with Not_found -> ()
   in
   match op, lvs, es with
-  | Olnot, [ Lvar v ], [ Pvar w]
+  (* TODO : FIXME *)
+ (* | Olnot, [ Lvar v ], [ Pvar w]
   | (Oxor | Oland | Olor | Olsr | Olsl), Lvar v :: _, Pvar w :: _
-  | Oaddcarry, [ _ ; Lvar v ], Pvar w :: _
+  | Oaddcarry, [ _ ; Lvar v ], Pvar w :: _ 
     (* TODO: add more constraints *)
-    -> merge v w
+    -> merge v w *)
   | _, _, _ -> ()
 
 let collect_equality_constraints (tbl: (var, int) Hashtbl.t) (nv: int)

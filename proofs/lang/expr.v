@@ -54,47 +54,75 @@ Variant op_kind :=
   | Op_int 
   | Op_w.
 
-Inductive sop2 : Set :=
-| Oand  : sop2                      (* const : sbool -> sbool -> sbool *)
-| Oor   : sop2                      (* const : sbool -> sbool -> sbool *)
+Variant sop1 := 
+| Onot  
+| Olnot.
 
-| Oadd  : op_kind -> sop2                      
-| Omul  : op_kind -> sop2                      
-| Osub  : op_kind -> sop2                      
+Variant sop2 :=
+| Oand                        (* const : sbool -> sbool -> sbool *)
+| Oor                         (* const : sbool -> sbool -> sbool *)
 
-| Oeq   : cmp_kind -> sop2          
-| Oneq  : cmp_kind -> sop2          
-| Olt   : cmp_kind -> sop2          
-| Ole   : cmp_kind -> sop2          
-| Ogt   : cmp_kind -> sop2          
-| Oge   : cmp_kind -> sop2.         
+| Oadd  of op_kind
+| Omul  of op_kind
+| Osub  of op_kind
+
+| Oland
+| Olor
+| Olxor 
+| Olsr
+| Olsl 
+| Oasr
+
+| Oeq   of cmp_kind          
+| Oneq  of cmp_kind          
+| Olt   of cmp_kind          
+| Ole   of cmp_kind          
+| Ogt   of cmp_kind          
+| Oge   of cmp_kind.         
 
 Inductive sopn : Set :=
-| Olnot : sopn                      (* cpu : sword -> sword *) 
+(* Generic operation *)
+| Omulu        (* cpu   : [sword; sword]        -> [sword;sword] *)
+| Oaddcarry    (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
+| Osubcarry    (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
 
-| Oxor  : sopn                      (* cpu   : sword -> sword -> sword *)
-| Oland : sopn                      (* cpu   : sword -> sword -> sword *)
-| Olor  : sopn                      (* cpu   : sword -> sword -> sword *)
-| Olsr  : sopn                      (* cpu   : sword -> sword -> sword *)
-| Olsl  : sopn                      (* cpu   : sword -> sword -> sword *)
+(* Low level x86 operations *)
+| Ox86_CMOVcc  (* conditional copy *)
+| Ox86_ADD     (* add unsigned / signed *)
+| Ox86_SUB     (* sub unsigned / signed *)
+| Ox86_MUL     (* mul unsigned *)
+| Ox86_IMUL    (* excat multiplication *)
+| Ox86_DIV     (* div unsigned *)
+| Ox86_IDIV    (* div   signed *)
+| Ox86_ADC     (* add with carry *)
+| Ox86_SBB     (* sub with borrow *)
+| Ox86_INC     (* increment *)
+| Ox86_DEC     (* decrement *)
+| Ox86_SETcc   (* Set byte on condition *)
+| Ox86_LEA     (* Load Effective Address *)
+| Ox86_TEST    (* Bit-wise logical and CMP *)
+| Ox86_CMP     (* Signed sub CMP *)
+| Ox86_AND     (* bit-wise and *)
+| Ox86_OR      (* bit-wise or  *)
+| Ox86_XOR     (* bit-wise xor *)
+| Ox86_NOT     (* bit-wise not *)
+| Ox86_SHL     (* unsigned / left  *)
+| Ox86_SHR     (* unsigned / right *)
+| Ox86_SAR     (*   signed / right *)
+.
 
-| Oif   : sopn                      (* cpu  : sbool -> sword -> sword -> sword *)
+Scheme Equality for sop1.
+(* Definition sop1_beq : sop1 -> sop1 -> bool *)
 
-| Omulu     : sopn                  (* cpu   : [sword; sword]        -> [sword;sword] *)
-| Omuli     : sopn                  (* cpu   : [sword; sword]        -> [sword]       *)
-| Oaddcarry : sopn                  (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
-| Osubcarry : sopn                  (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
-| Oleu      : sopn                  (* cpu   : sword -> sword -> sbool *)
-| Oltu      : sopn                  (* cpu   : sword -> sword -> sbool *)
-| Ogeu      : sopn                  (* cpu   : sword -> sword -> sbool *)
-| Ogtu      : sopn                  (* cpu   : sword -> sword -> sbool *)
-| Oles      : sopn                  (* cpu   : sword -> sword -> sbool *)
-| Olts      : sopn                  (* cpu   : sword -> sword -> sbool *)
-| Oges      : sopn                  (* cpu   : sword -> sword -> sbool *)
-| Ogts      : sopn                  (* cpu   : sword -> sword -> sbool *)
-| Oeqw      : sopn                  (* cpu   : sword -> sword -> sbool *)
+Lemma sop1_eq_axiom : Equality.axiom sop1_beq. 
+Proof. 
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_sop1_dec_bl.
+  by apply: internal_sop1_dec_lb.
+Qed.
 
-| Ox86_cmp  : sopn.                 (* cpu   : sword -> sword -> sbool * sbool * sbool * sbool * sbool *)
+Definition sop1_eqMixin     := Equality.Mixin sop1_eq_axiom.
+Canonical  sop1_eqType      := Eval hnf in EqType sop1 sop1_eqMixin.
 
 Scheme Equality for sop2.
 (* Definition sop2_beq : sop2 -> sop2 -> bool *)
@@ -148,8 +176,9 @@ Inductive pexpr : Type :=
 | Pvar   :> var_i -> pexpr
 | Pget   : var_i -> pexpr -> pexpr 
 | Pload  : var_i -> pexpr -> pexpr 
-| Pnot   : pexpr -> pexpr 
-| Papp2  : sop2 -> pexpr -> pexpr -> pexpr.
+| Papp1  : sop1 -> pexpr -> pexpr 
+| Papp2  : sop2 -> pexpr -> pexpr -> pexpr
+| Pif    : pexpr -> pexpr -> pexpr -> pexpr.
 
 Notation pexprs := (seq pexpr).
 
@@ -177,16 +206,20 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
   | Pvar   x1   , Pvar   x2    => (x1 == x2)
   | Pget   x1 e1, Pget   x2 e2 => (x1 == x2) && eqb e1 e2
   | Pload  x1 e1, Pload  x2 e2 => (x1 == x2) && eqb e1 e2 
-  | Pnot   e1   , Pnot   e2    => eqb e1 e2 
+  | Papp1 o1 e1 , Papp1  o2 e2 => (o1 == o2) && eqb e1 e2 
   | Papp2 o1 e11 e12, Papp2 o2 e21 e22  =>  
      (o1 == o2) && eqb e11 e21 && eqb e12 e22
+  | Pif t1 e11 e12, Pif t2 e21 e22  =>  
+     eqb t1 t2 && eqb e11 e21 && eqb e12 e22
   | _, _ => false
   end.
 
   Lemma eq_axiom : Equality.axiom eqb. 
   Proof. 
-    elim => [n1|b1|e1 He1|x1|x1 e1 He1|x1 e1 He1|e1 He1|o1 e11 He11 e12 He12] 
-            [n2|b2|e2|x2|x2 e2|x2 e2|e2|o2 e21 e22] /=;try by constructor.
+    elim => [n1|b1|e1 He1|x1|x1 e1 He1|x1 e1 He1
+            |o1 e1 He1|o1 e11 He11 e12 He12 | t1 Ht1 e11 He11 e12 He12] 
+            [n2|b2|e2|x2|x2 e2|x2 e2|o2 e2|o2 e21 e22 | t2 e21 e22] /=;
+        try by constructor.
     + apply (@equivP (n1 = n2));first by apply: eqP.
       by split => [->|[]->].
     + apply (@equivP (b1 = b2));first by apply: eqP.
@@ -198,10 +231,14 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
       by split=> [ [] /eqP -> /He1 -> | [] -> <- ] //;split => //;apply /He1.
     + apply (@equivP ((x1 == x2) /\ eqb e1 e2));first by apply andP.
       by split=> [ [] /eqP -> /He1 -> | [] -> <- ] //;split => //;apply /He1.
-    + by apply: (equivP (He1 e2)); split => [->|[]->].
-    apply (@equivP (((o1 == o2) && eqb e11 e21) /\ eqb e12 e22));first by apply andP.
-    split=> [ []/andP[]/eqP-> /He11 -> /He12->| [] <- <- <- ] //.
-    by rewrite eq_refl /=;split;[apply /He11|apply /He12].
+    + apply (@equivP ((o1 == o2) /\ eqb e1 e2));first by apply andP.
+      by split=> [ [] /eqP -> /He1 -> | [] -> <- ] //;split => //;apply /He1.
+    + apply (@equivP (((o1 == o2) && eqb e11 e21) /\ eqb e12 e22));first by apply andP.
+      split=> [ []/andP[]/eqP-> /He11 -> /He12->| [] <- <- <- ] //.
+      by rewrite eq_refl /=;split;[apply /He11|apply /He12].
+    apply (@equivP ((eqb t1 t2 && eqb e11 e21) /\ eqb e12 e22));first by apply andP.
+    split=> [ []/andP[]/Ht1 -> /He11 -> /He12->| [] <- <- <- ] //.
+    by split;[apply /andP;split|]; [apply /Ht1 | apply /He11 | apply /He12].
   Qed.
 
   Definition pexpr_eqMixin := Equality.Mixin eq_axiom.
@@ -696,14 +733,15 @@ Ltac writeN := autorewrite with write_c write_i vrv.
 
 Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t := 
   match e with
-  | Pconst _        => s
-  | Pbool  _        => s
-  | Pcast  e        => read_e_rec s e 
-  | Pvar   x        => Sv.add x s 
-  | Pget   x e      => read_e_rec (Sv.add x s) e
-  | Pload  x e      => read_e_rec (Sv.add x s) e
-  | Pnot   e        => read_e_rec s e 
-  | Papp2  op e1 e2 => read_e_rec (read_e_rec s e2) e1
+  | Pconst _       => s
+  | Pbool  _       => s
+  | Pcast  e       => read_e_rec s e 
+  | Pvar   x       => Sv.add x s 
+  | Pget   x e     => read_e_rec (Sv.add x s) e
+  | Pload  x e     => read_e_rec (Sv.add x s) e
+  | Papp1  _ e     => read_e_rec s e 
+  | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
+  | Pif    t e1 e2 => read_e_rec (read_e_rec (read_e_rec s e2) e1) t
   end.
 
 Definition read_e := read_e_rec Sv.empty.
@@ -754,7 +792,7 @@ Definition read_c := read_c_rec Sv.empty.
 
 Lemma read_eE e s : Sv.Equal (read_e_rec s e) (Sv.union (read_e e) s).
 Proof.
-  elim: e s => //= [v | v e He | v e He | o e1 He1 e2 He2] s;
+  elim: e s => //= [v | v e He | v e He | o e1 He1 e2 He2 | e He e1 He1 e2 He2] s;
    rewrite /read_e /= ?He ?He1 ?He2; by SvD.fsetdec.
 Qed.
 

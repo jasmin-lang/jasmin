@@ -161,9 +161,11 @@ Module CBEA.
       | _ => false
       end
     | Pload x1 e1, Pload x2 e2 => check_var m x1 x2 && check_eb m e1 e2
-    | Pnot     e1, Pnot     e2 => check_eb m e1 e2
+    | Papp1 o1 e1, Papp1 o2 e2 => (o1 == o2) && check_eb m e1 e2
     | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>    
       (o1 == o2) && check_eb m e11 e21 && check_eb m e12 e22
+    | Pif e e1 e2, Pif e' e1' e2' =>
+      check_eb m e e' && check_eb m e1 e1' && check_eb m e2 e2'      
     | _, _ => false
     end.
 
@@ -210,8 +212,8 @@ Module CBEA.
     exists v2, sem_pexpr {|emem := m1; evm:= vm2 |} e2 = ok v2 /\ value_uincl v1 v2.
   Proof.
     move=> Hrn; elim: e1 e2 v1 =>
-     [ z1 | b1 | e1 He1 | x1 | x1 e1 He1 | x1 e1 He1 | e1 He1 | o1 e11 He11 e12 He12]
-     [ z2 | b2 | e2 | x2 | x2 e2 | x2 e2 | e2 | o2 e21 e22] //= v1.
+     [ z1 | b1 | e1 He1 | x1 | x1 e1 He1 | x1 e1 He1 | o1 e1 He1 | o1 e11 He11 e12 He12 | e He e11 He11 e12 He12]
+     [ z2 | b2 | e2 | x2 | x2 e2 | x2 e2 | o2 e2 | o2 e21 e22 | e' e21 e22] //= v1.
     + by move=> /eqP <- [<-];eauto. + by move=> /eqP <- [<-];eauto.
     + move=> /He1 H;apply rbindP => ?;apply: rbindP => ? /H [v2 [-> Hu]].
       by move=> /(value_uincl_int Hu) [_ ->] /= ->;eauto.
@@ -235,11 +237,14 @@ Module CBEA.
       apply: rbindP => vx1 /(check_varP Hrn Hcv) [vx2 [->]].
       move=> /value_uincl_word H/H{H} [_ ->];apply: rbindP => w2.
       by apply: rbindP => ve1 /Hce [ve2 [->]] /value_uincl_word H/H [_ ->] /=;exists v1.
-    + move=> /He1 H;apply: rbindP => b;apply: rbindP => ve1 /H [ve2 [->]] /=.
-      by move=> /value_uincl_bool H1/H1 [_ ->] [<-] /=;exists (~~b).
-    move=> /andP[]/andP[]/eqP <- /He11 He1 /He12 He2.
-    apply: rbindP => ? /He1 [? [-> ?]] /=;apply: rbindP => ? /He2 [? [-> ?]].
-    by apply vuincl_sem_sop2.
+    + move=> /andP[]/eqP <- /He1 H;apply: rbindP => ve1 /H [ve2 [->]].
+      by apply vuincl_sem_sop1.
+    + move=> /andP[]/andP[]/eqP <- /He11 He1 /He12 He2.
+      apply: rbindP => ? /He1 [? [-> ?]] /=;apply: rbindP => ? /He2 [? [-> ?]].
+      by apply vuincl_sem_sop2.
+    move=> /andP[]/andP[]/He{He}He /He11{He11}He11 /He12{He12}He12.
+    apply: rbindP => b;apply: rbindP => w /He [ve [->]] /=.
+    by move=> /value_uincl_bool H/H [_ ->] /=;case: (b);auto.
   Qed.
 
   Lemma check_eP e1 e2 r re vm1 vm2 :

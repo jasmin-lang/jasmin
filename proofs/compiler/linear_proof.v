@@ -446,20 +446,22 @@ Section PROOF.
         by rewrite (Pos_lt_leb_trans (lt_next _) Hle).
       move=> [m1 vm1] s2 H;inversion H;clear H;subst.
       + apply: lsem_step.
-        apply: LSem_condFalse=> //.
-        by rewrite /= H5.
+        apply: LSem_condFalse=> //=.
+        move: H5;apply:rbindP => w -> /=.
+        by rewrite /sem_op1_b /= /mk_sem_sop1 /= => ->.
         have {Hs1}Hs1:= Hs1 _ _ H6.
-        have Hvc : valid lbl (next_lbl lbl) [:: MkLI ii (Lcond (Pnot e) lbl)].
+        have Hvc : valid lbl (next_lbl lbl) [:: MkLI ii (Lcond (Papp1 Onot e) lbl)].
         + by rewrite /= Pos.leb_refl lt_next.
-        have Hd: disjoint_lbl [:: MkLI ii (Lcond (Pnot e) lbl)] lc1 by move=> ?.
-        have /(_ (erefl _)):= @lsem_cat_hd [:: MkLI ii (Lcond (Pnot e) lbl)] lc1 _ _ Hd _ Hs1.
+        have Hd: disjoint_lbl [:: MkLI ii (Lcond (Papp1 Onot e) lbl)] lc1 by move=> ?.
+        have /(_ (erefl _)):= @lsem_cat_hd [:: MkLI ii (Lcond (Papp1 Onot e) lbl)] lc1 _ _ Hd _ Hs1.
         move=> /(@lsem_cat_tl [:: MkLI ii (Llabel lbl)]) Hsem.
         apply (lsem_trans Hsem);case s2 => m2 vm2.
         by apply LSem_step;apply: LSem_lbl.
       + apply: lsem_step.
-        apply: LSem_condTrue=> //.
-        by rewrite /= H5.
-        rewrite -cat_cons find_label_cat_hd //=.
+        apply: LSem_condTrue=> //=.
+        move: H5;apply:rbindP => w -> /=.
+        by rewrite /sem_op1_b /= /mk_sem_sop1 /= => ->.
+        rewrite find_label_cat_hd //=.
         by rewrite /is_label /= eq_refl.
         apply/negP=> H.
         have := @valid_has _ lbl _ _ Hv1; rewrite H=> /(_ isT) /andP[].

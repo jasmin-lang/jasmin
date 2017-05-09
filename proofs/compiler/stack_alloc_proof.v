@@ -316,7 +316,8 @@ Section PROOF.
     move=> He Hv; move: He.
     have Hvm: eq_vm (evm s1) (evm s2).
       by move: Hv=> -[].
-    elim: e1 e2 v=> [c1|c1|e1 IH|v1|v1 e1 IH|v1 e1 IH|e1 IH|o1 e1 H1 e1' H1'] e2 v; try (by case: e2=> //= c2 /eqP ->).
+    elim: e1 e2 v=> [c1|c1|e1 IH|v1|v1 e1 IH|v1 e1 IH|o1 e1 IH|o1 e1 H1 e1' H1' | e He e1 H1 e1' H1'] e2 v;
+       try (by case: e2=> //= c2 /eqP ->).
     + case: e2=> //= e2 He.
       apply: rbindP=> z.
       apply: rbindP=> x Hx Hz []<-.
@@ -355,14 +356,14 @@ Section PROOF.
         move: Hv=> -[] _ -> //.
         apply/readV; exists w; exact: Hw.
       by rewrite Hw'.
-    + case: e2=> // e2 /= He.
-      apply: rbindP=> b.
-      apply: rbindP=> x Hx Hb []<-.
-      by rewrite (IH _ _ He Hx) /= Hb.
+    + case: e2=> // o2 e2 /= /andP []/eqP <- /IH He.
+      by apply: rbindP=> b /He ->.
     + case: e2=> // o2 e2 e2' /= /andP [/andP [/eqP -> /H1 He] /H1' He'].
       apply: rbindP=> v1 Hv1.
       apply: rbindP=> v2 Hv2 <-.
       by rewrite (He _ Hv1) (He' _ Hv2).
+    case: e2 => // e' e2 e2' /= /andP[] /andP[] /He{He}He /H1{H1}H1 /H1'{H1'}H1'.
+    by apply: rbindP => b;apply: rbindP => w /He -> /= -> /=;case:b;auto.
   Qed.
 
   Lemma check_esP (es es': pexprs) (s1 s2: estate) vs :

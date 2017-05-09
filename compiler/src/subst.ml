@@ -11,6 +11,7 @@ let rec gsubst_e (f: 'ty1 gvar_i -> 'ty2 gexpr) e =
   | Pload (ws, v, e) -> Pload (ws, gsubst_vdest f v, gsubst_e f e)
   | Papp1 (o, e)     -> Papp1 (o, gsubst_e f e)
   | Papp2 (o, e1, e2)-> Papp2 (o, gsubst_e f e1, gsubst_e f e2)
+  | Pif   (e, e1, e2)-> Pif(gsubst_e f e, gsubst_e f e1, gsubst_e f e2)
 
 and gsubst_vdest f v =
   match f v with
@@ -117,7 +118,7 @@ let rec int_of_expr e =
   | Papp2 (o, e1, e2) ->
       int_of_op2 o (int_of_expr e1) (int_of_expr e2)
   | Pbool _ | Pcast _ | Pvar _
-  | Pget _ | Pload _ | Papp1 _ -> assert false
+  | Pget _ | Pload _ | Papp1 _ | Pif _ -> assert false
 
 
 let isubst_ty = function

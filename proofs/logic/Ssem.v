@@ -149,10 +149,23 @@ Definition sset_var (m:svmap) x v :=
 
 Definition ssem_prod ts tr := lprod (map ssem_t ts) tr.
 
+Definition mk_ssem_sop1 t1 tr (o:ssem_t t1 -> ssem_t tr) v1 :=
+  Let v1 := of_sval t1 v1 in
+  ok (@to_sval tr (o v1)).
+
 Definition mk_ssem_sop2 t1 t2 tr (o:ssem_t t1 -> ssem_t t2 -> ssem_t tr) v1 v2 :=
   Let v1 := of_sval t1 v1 in
   Let v2 := of_sval t2 v2 in
   ok (@to_sval tr (o v1 v2)).
+
+Definition ssem_op1_b  := @mk_ssem_sop1 sbool sbool.
+Definition ssem_op1_w  := @mk_ssem_sop1 sword sword.
+
+Definition ssem_sop1 (o:sop1) := 
+  match o with
+  | Onot   => ssem_op1_b negb
+  | Olnot  => ssem_op1_w I64.not
+  end.
 
 Definition ssem_op2_b  := @mk_ssem_sop2 sbool sbool sbool.
 Definition ssem_op2_i  := @mk_ssem_sop2 sint  sint  sint.
@@ -171,6 +184,13 @@ Definition ssem_sop2 (o:sop2) :=
   | Osub Op_w    => ssem_op2_w I64.sub
   | Omul Op_int  => ssem_op2_i Z.mul
   | Omul Op_w    => ssem_op2_w I64.mul
+
+  | Oland        => ssem_op2_w I64.and
+  | Olor         => ssem_op2_w I64.or
+  | Olxor        => ssem_op2_w I64.xor
+  | Olsr         => ssem_op2_w sem_lsr 
+  | Olsl         => ssem_op2_w sem_lsl
+  | Oasr         => ssem_op2_w sem_asr 
 
   | Oeq Cmp_int  => ssem_op2_ib Z.eqb
   | Oeq _        => ssem_op2_wb weq 
@@ -223,13 +243,17 @@ Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : exec svalue :=
     Let w2 := ssem_pexpr s e >>= sto_word in
     let w := read_mem s.(semem) (I64.add w1 w2) in
     ok (@to_sval sword w)
-  | Pnot e =>
-    Let b := ssem_pexpr s e >>= sto_bool in
-    ok (SVbool (negb b))
+  | Papp1 o e =>
+    Let v := ssem_pexpr s e in
+    ssem_sop1 o v
   | Papp2 o e1 e2 =>
     Let v1 := ssem_pexpr s e1 in
     Let v2 := ssem_pexpr s e2 in
     ssem_sop2 o v1 v2
+  | Pif e e1 e2 =>
+    Let b  := ssem_pexpr s e >>= sto_bool in
+    if b then ssem_pexpr s e1
+    else ssem_pexpr s e2
   end.
 
 Definition ssem_pexprs s := mapM (ssem_pexpr s).
@@ -264,14 +288,14 @@ Definition swrite_lval (l:lval) (v:svalue) (s:sestate) : exec sestate :=
 Definition swrite_lvals (s:sestate) xs vs :=
    fold2 ErrType swrite_lval xs vs s.
 
-Fixpoint sapp_sopn ts : ssem_prod ts svalues -> svalues -> exec svalues :=
-  match ts return ssem_prod ts svalues -> svalues -> exec svalues with
-  | [::] => fun (o:svalues) (vs:svalues) =>
+Fixpoint sapp_sopn ts : ssem_prod ts (exec svalues) -> svalues -> exec svalues :=
+  match ts return ssem_prod ts (exec svalues) -> svalues -> exec svalues with
+  | [::] => fun (o:exec svalues) (vs:svalues) =>
     match vs with
-    | [::] => ok o
+    | [::] => o
     | _    => type_error
     end
-  | t::ts => fun (o:ssem_t t -> ssem_prod ts svalues) (vs:svalues) =>
+  | t::ts => fun (o:ssem_t t -> ssem_prod ts (exec svalues)) (vs:svalues) =>
     match vs with
     | [::]  => type_error
     | v::vs =>
@@ -281,14 +305,51 @@ Fixpoint sapp_sopn ts : ssem_prod ts svalues -> svalues -> exec svalues :=
   end.
 Arguments sapp_sopn ts o l:clear implicits.
 
+Notation sapp_b   o := (sapp_sopn [:: ssbool] o).
+Notation sapp_w   o := (sapp_sopn [:: ssword] o).
+Notation sapp_ww  o := (sapp_sopn [:: ssword; ssword] o).
+Notation sapp_wwb o := (sapp_sopn [:: ssword; ssword; ssbool] o).
+Notation sapp_bww o := (sapp_sopn [:: ssbool; ssword; ssword] o).
+
 Definition spval t1 t2 (p: ssem_t t1 * ssem_t t2) :=
   [::to_sval p.1; to_sval p.2].
-
+(*
 Notation soww o  := (sapp_sopn [::ssword] (fun x => [::SVword (o x)])).
 Notation sowww o := (sapp_sopn [:: ssword; ssword] (fun x y => [::SVword (o x y)])).
 Notation sowwb o := (sapp_sopn [:: ssword; ssword] (fun x y => [::SVbool (o x y)])).
 Notation soww_rflags o := (sapp_sopn [:: ssword; ssword] (fun x y =>
   let '(r1, (r2, (r3, (r4, r5)))) := o x y in [:: SVbool r1; SVbool r2; SVbool r3; SVbool r4; SVbool r5])).
+*)
+Definition sem_sopn (o:sopn) :  svalues -> exec svalues :=
+  match o with
+  | Omulu     => sapp_ww  (fun x y => ok (@spval ssword ssword (wumul x y)))
+  | Oaddcarry => sapp_wwb (fun x y c => ok (@spval ssbool ssword (waddcarry x y c)))
+  | Osubcarry => sapp_wwb (fun x y c => ok (@spval ssbool ssword (wsubcarry x y c)))
+
+  (* Low level x86 operations *)
+  | Ox86_CMOVcc  => sapp_bww x86_CMOCcc
+  | Ox86_ADD     => sapp_ww x86_add
+  | Ox86_SUB     => sapp_ww x86_sub
+  | Ox86_MUL     => (fun _ => type_error)
+  | Ox86_IMUL    => (fun _ => type_error)
+  | Ox86_DIV     => (fun _ => type_error)
+  | Ox86_IDIV    => (fun _ => type_error)
+  | Ox86_ADC     => sapp_wwb x86_adc
+  | Ox86_SBB     => sapp_wwb x86_sbb
+  | Ox86_INC     => sapp_w   x86_inc 
+  | Ox86_DEC     => sapp_w   x86_dec 
+  | Ox86_SETcc   => sapp_b   x86_setcc
+  | Ox86_LEA     => (fun _ => type_error)
+  | Ox86_TEST    => sapp_ww x86_test
+  | Ox86_CMP     => sapp_ww x86_cmp 
+  | Ox86_AND     => sapp_ww x86_and
+  | Ox86_OR      => sapp_ww x86_or
+  | Ox86_XOR     => sapp_ww x86_xor
+  | Ox86_NOT     => sapp_w  x86_not
+  | Ox86_SHL     => (fun _ => type_error)
+  | Ox86_SHR     => (fun _ => type_error)
+  | Ox86_SAR     => (fun _ => type_error)
+  end.
 
 Definition ssem_sopn (o:sopn) : svalues -> exec svalues :=
   match o with
