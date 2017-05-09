@@ -23,6 +23,7 @@ compiler/inline_proof.v
 compiler/linear.v
 compiler/linear_sem.v
 compiler/linear_proof.v
+compiler/lowering.v
 compiler/stack_alloc.v
 compiler/stack_sem.v
 compiler/stack_alloc_proof.v
