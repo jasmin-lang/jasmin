@@ -8,6 +8,14 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (* -------------------------------------------------------------------- *)
+Definition dwordu (hi lo : word) :=
+  (I64.unsigned hi * I64.modulus + I64.unsigned lo)%Z.
+
+(* -------------------------------------------------------------------- *)
+Definition dwords (hi lo : word) :=
+  (I64.signed hi * I64.modulus + I64.unsigned lo)%Z.
+
+(* -------------------------------------------------------------------- *)
 Definition wordbit (w : word) (i : nat) :=
   I64.and (I64.shr w (I64.repr (Z.of_nat i))) I64.one != I64.zero.
 
@@ -347,7 +355,7 @@ Definition rflags_of_bwop (w : word) := fun rf =>
   | SF => Some (Def (SF_of_word w))
   | PF => Some (Def (PF_of_word w))
   | ZF => Some (Def (ZF_of_word w))
-  | _  => None
+  | DF => None
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -358,17 +366,33 @@ Definition rflags_of_aluop (w : word) (vu vs : Z) := fun rf =>
   | SF => Some (Def (SF_of_word w))
   | PF => Some (Def (PF_of_word w))
   | ZF => Some (Def (ZF_of_word w))
-  | _  => None
+  | DF  => None
   end.
 
 (* -------------------------------------------------------------------- *)
 Definition rflags_of_aluop_nocf (w : word) (vs : Z) := fun rf =>
   match rf with
+  | CF => None
   | OF => Some (Def (I64.signed w != vs))
   | SF => Some (Def (SF_of_word w))
   | PF => Some (Def (PF_of_word w))
   | ZF => Some (Def (ZF_of_word w))
-  | _  => None
+  | DF => None
+  end.
+
+(* --------------------------------------------------------------------- *)
+Definition rflags_of_mul (ov : bool) := fun rf =>
+  match rf with
+  | SF | ZF | PF => Some Undef
+  | OF | CF => Some (Def ov)
+  | DF => None
+  end.
+
+(* --------------------------------------------------------------------- *)
+Definition rflags_of_div := fun rf =>
+  match rf with
+  | SF | ZF | PF | OF | CF => Some Undef
+  | DF => None
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -409,19 +433,63 @@ Definition eval_SUB o1 o2 s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_MUL o s : x86_result :=
-  type_error.
+  let v1 := RegMap.get s.(xreg) RAX in
+  Let v2 := read_oprd o s in
+  let lo := I64.mul v1 v2 in
+  let hi := I64.mulhu v1 v2 in
+  let ov := dwordu hi lo in
+  let ov := (ov >? I64.max_unsigned)%Z in
+  let s  := st_write_reg RAX lo s in
+  let s  := st_write_reg RDX lo s in
+  ok (st_update_rflags (rflags_of_mul ov) s).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_IMUL o1 s : x86_result  :=
-  type_error.
+Definition eval_IMUL o s : x86_result  :=
+  let v1 := RegMap.get s.(xreg) RAX in
+  Let v2 := read_oprd o s in
+  let lo := I64.mul v1 v2 in
+  let hi := I64.mulhs v1 v2 in
+  let ov := dwords hi lo in
+  let ov := (ov <? I64.min_signed)%Z || (ov >? I64.max_unsigned)%Z in
+  let s  := st_write_reg RAX lo s in
+  let s  := st_write_reg RDX lo s in
+  ok (st_update_rflags (rflags_of_mul ov) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_DIV o s : x86_result :=
-  type_error.
+  let hi := RegMap.get s.(xreg) RDX in
+  let lo := RegMap.get s.(xreg) RAX in
+  let dd := dwordu hi lo in
+  Let dv := read_oprd o s in
+  let dv := I64.unsigned dv in
+  let q  := (dd  /  dv)%Z in
+  let r  := (dd mod dv)%Z in
+  let ov := (q >? I64.max_unsigned)%Z in
+
+  if (dv == 0)%Z || ov then type_error else
+
+  let s := st_write_reg RAX (I64.repr q) s in
+  let s := st_write_reg RDX (I64.repr r) s in
+
+  ok (st_update_rflags rflags_of_div s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_IDIV o s : x86_result :=
-  type_error.
+  let hi := RegMap.get s.(xreg) RDX in
+  let lo := RegMap.get s.(xreg) RAX in
+  let dd := dwords hi lo in
+  Let dv := read_oprd o s in
+  let dv := I64.signed dv in
+  let q  := (Z.quot dd dv)%Z in
+  let r  := (Z.rem  dd dv)%Z in
+  let ov := (q <? I64.min_signed)%Z || (q >? I64.max_signed)%Z in
+
+  if (dv == 0)%Z || ov then type_error else
+
+  let s := st_write_reg RAX (I64.repr q) s in
+  let s := st_write_reg RDX (I64.repr r) s in
+
+  ok (st_update_rflags rflags_of_div s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_ADC o1 o2 s : x86_result :=
@@ -470,7 +538,14 @@ Definition eval_SETcc ct o s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_LEA o1 o2 s : x86_result :=
-  type_error.
+  Let addr :=
+    match o2 with
+    | Imm_op w => ok w
+    | Adr_op a => ok (decode_addr s a)
+    | _        => type_error
+    end in
+
+  write_oprd o1 addr s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_TEST o1 o2 s : x86_result :=
