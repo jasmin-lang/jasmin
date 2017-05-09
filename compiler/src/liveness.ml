@@ -128,8 +128,6 @@ let init_classes cf = cf, Mv.empty
 let get_conflict (cf,_) x =
   Mv.find_default Sv.empty x cf
 
-exception SetSameConflict
-
 let rec get_repr m x =
   if Mv.mem x m then get_repr m (Mv.find x m)
   else x
