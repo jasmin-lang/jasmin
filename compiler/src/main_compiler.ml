@@ -204,6 +204,15 @@ let main () =
     let tbl, cprog = Conv.cprog_of_prog prog in
     if !debug then Printf.eprintf "translated to coq \n%!";
 
+    let lowering_vars = Lowering.(
+        let b n = Conv.fresh_cvar tbl n (Bty Bool) in
+        { fresh_OF = b "OF"
+        ; fresh_CF = b "CF"
+        ; fresh_SF = b "SF"
+        ; fresh_PF = b "PF"
+        ; fresh_ZF = b "ZF"
+        }) in
+
     let fdef_of_cfdef fn cfd = Conv.fdef_of_cfdef tbl (fn,cfd) in
     let cfdef_of_fdef fd = snd (Conv.cfdef_of_fdef tbl fd) in
     let apply msg trans fn cfd =
@@ -245,6 +254,7 @@ let main () =
       Compiler.share_stk_fd = apply "share stk" Varalloc.alloc_stack_fd;
       Compiler.reg_alloc_fd = apply "reg alloc" Regalloc.regalloc;
       Compiler.stk_alloc_fd = stk_alloc_fd;
+      Compiler.lowering_vars = lowering_vars;
       Compiler.print_prog   = (fun s p -> eprint s pp_cprog p; p);
     } in
 
