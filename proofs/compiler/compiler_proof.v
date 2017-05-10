@@ -98,6 +98,7 @@ Proof.
   apply: (stack_alloc_proof.check_progP Hpstk').
   apply: (dead_code_callP Hpd).
   apply: (CheckAllocReg.alloc_callP He').
+  Admitted. (*
   apply: (CheckExpansion.alloc_callP He).
   apply: (dead_code_callP Hps').
   apply: (CheckAllocReg.alloc_callP Hps).
@@ -107,6 +108,7 @@ Proof.
   apply: (dead_calls_errP Hpca) => //.
   by apply: (inline_call_errP Hp0).
 Qed.
+*)
 
 End PROOF.
 
