@@ -103,7 +103,7 @@ let pp_ges pp_var fmt es =
 (* -------------------------------------------------------------------- *)
 let pp_glvs pp_var fmt lvs =
   match lvs with
-  | [] -> assert false
+  | [] -> F.fprintf fmt "()"
   | [x] -> pp_glv pp_var fmt x
   | _   -> F.fprintf fmt "(@[%a@])" (pp_list ",@ " (pp_glv pp_var)) lvs
 
@@ -170,7 +170,7 @@ let rec pp_gi pp_info pp_var fmt i =
   | Cfor(i, (dir, lo, hi), c) ->
     let dir, e1, e2 =
       if dir = UpTo then "to", lo, hi else "downto", hi, lo in
-    F.fprintf fmt "@[<v>for %a = @[%a %s@ %a] %a@]"
+    F.fprintf fmt "@[<v>for %a = @[%a %s@ %a@] %a@]"
       (pp_gvar_i pp_var) i (pp_ge pp_var) e1 dir (pp_ge pp_var) e2
       (pp_gc pp_info pp_var) c
 
