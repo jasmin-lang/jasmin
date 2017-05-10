@@ -233,6 +233,9 @@ struct
       (lvs: 'ty glvals) (op: op) (es: 'ty gexprs)
       (a: allocation) : allocation =
     let f x = Hashtbl.find vars (L.unloc x) in
+    let mallocate_one x y a =
+      match x with Pvar x -> allocate_one (f x) y a | _ -> a
+    in
     match op, lvs, es with
     | (Ox86_ADD | Ox86_SUB | Ox86_AND | Ox86_OR | Ox86_XOR),
       [ Lvar oF ; Lvar cF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], _ ->
@@ -244,7 +247,8 @@ struct
       allocate_one (f zF) f_z
     | (Ox86_ADC | Ox86_SBB),
       [ Lvar oF ; Lvar cF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], [ _ ; _ ; cF' ] ->
-      (match cF' with Pvar cF' -> allocate_one (f cF') f_c a | _ -> a) |>
+      a |>
+      mallocate_one cF' f_c |>
       allocate_one (f oF) f_o |>
       allocate_one (f cF) f_c |>
       allocate_one (f sF) f_s |>
@@ -257,8 +261,22 @@ struct
       allocate_one (f sF) f_s |>
       allocate_one (f pF) f_p |>
       allocate_one (f zF) f_z
+    | (Ox86_SHL | Ox86_SHR | Ox86_SAR),
+      [ Lvar oF ; Lvar cF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], [ oF' ; cF' ; sF' ; pF' ; zF' ; _ ; _ ] ->
+      a |>
+      mallocate_one oF' f_o |>
+      mallocate_one cF' f_c |>
+      mallocate_one sF' f_s |>
+      mallocate_one pF' f_p |>
+      mallocate_one zF' f_z |>
+      allocate_one (f oF) f_o |>
+      allocate_one (f cF) f_c |>
+      allocate_one (f sF) f_s |>
+      allocate_one (f pF) f_p |>
+      allocate_one (f zF) f_z
     | (Oaddcarry | Osubcarry), Lvar cf  :: _, _ :: _ :: x :: _ ->
-      (match x with Pvar x -> allocate_one (f x) f_c a | _ -> a) |>
+      a |>
+      mallocate_one x f_c |>
       allocate_one (f cf) f_c
     | _, _, _ -> a (* TODO *)
 
