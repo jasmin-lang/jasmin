@@ -119,6 +119,10 @@ let var_of_cvar tbl cv =
   try Hashtbl.find tbl.var cv
   with Not_found -> assert false
 
+let fresh_cvar tbl n ty =
+  let v = V.mk n Reg ty L._dummy in
+  cvar_of_var tbl v
+
 (* ------------------------------------------------------------------------ *)
 
 let get_loc tbl p =
