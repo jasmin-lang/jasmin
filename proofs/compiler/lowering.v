@@ -43,10 +43,36 @@ Context (fv: fresh_vars).
 Definition var_info_of_lval (x: lval) : var_info :=
   match x with Lnone i => i | Lvar x | Lmem x _ | Laset x _ => v_info x end.
 
-Definition lower_pexpr (pe: pexpr) : seq instr_r * pexpr :=
-  ([::], pe).
+Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
+  let f := Lnone vi in
+  let fr n := {| v_var := n fv ; v_info := vi |} in
+  match pe with
+  | Papp2 op x y =>
+    match op with
+    | Oeq (Cmp_sw | Cmp_uw) =>
+      ([:: Copn [:: f ; f ; f ; f ; Lvar (fr fresh_ZF) ] Ox86_CMP [:: x ; y ] ], Pvar (fr fresh_ZF))
+    | Oneq (Cmp_sw | Cmp_uw) =>
+      ([:: Copn [:: f ; f ; f ; f ; Lvar (fr fresh_ZF) ] Ox86_CMP [:: x ; y ] ], Papp1 Onot (Pvar (fr fresh_ZF)))
+    | Olt Cmp_sw =>
+      ([:: Copn [:: Lvar (fr fresh_OF) ; f ; Lvar (fr fresh_SF) ; f ; f ] Ox86_CMP [:: x ; y ] ],
+       Pif (Pvar (fr fresh_SF)) (Pvar (fr fresh_OF)) (Papp1 Onot (Pvar (fr fresh_OF))))
+    | Olt Cmp_su =>
+      ([:: Copn [:: f ; Lvar (fr fresh_CF) ; f ; f ; f ] Ox86_CMP [:: x ; y ] ], Pvar (fr fresh_CF))
+    | Ole Cmp_sw =>
+      ([:: Copn [:: Lvar (fr fresh_OF) ; f ; Lvar (fr fresh_SF) ; f ; Lvar (fr fresh_ZF) ] Ox86_CMP [:: x ; y ] ],
+       Papp2 Oor (Pvar (fr fresh_ZF))
+             (Pif (Pvar (fr fresh_SF)) (Pvar (fr fresh_OF)) (Papp1 Onot (Pvar (fr fresh_OF)))))
+    | Ole Cmp_uw =>
+      ([:: Copn [:: f ; Lvar (fr fresh_CF) ; f ; f ; Lvar (fr fresh_ZF) ] Ox86_CMP [:: x ; y ] ],
+       Papp2 Oor (Pvar (fr fresh_CF)) (Pvar (fr fresh_ZF)))
+    (* TODO: Ogt Oge *)
+    | _ => ([::], pe)
+    end
+  | _ => ([::], pe)
+  end.
 
 (* Lowering of Cassgn
+TODO: Pif → CMOVcc
 *)
 
 Definition lower_cassgn  (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
@@ -131,11 +157,11 @@ Definition lower_instruction_set_cmd (c: cmd) : cmd :=
     lower_cassgn
     lower_copn
     (λ e _ _ c1 c2,
-     let '(pre, e) := lower_pexpr e in
+     let '(pre, e) := lower_condition xH e in
      rcons pre (Cif e c1 c2))
     (λ v d lo hi _ c, [:: Cfor v (d, lo, hi) c ])
     (λ _ e _ c c',
-     let '(pre, e) := lower_pexpr e in
+     let '(pre, e) := lower_condition xH e in
      [:: Cwhile (c ++ map (MkI xH) pre) e c' ])
     (λ ii xs f es, [:: Ccall ii xs f es])
     c
