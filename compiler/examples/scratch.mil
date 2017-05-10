@@ -18,3 +18,36 @@ b, r += x;
 c, r += y + b;
 return r;
 }
+
+export
+fn h(reg u64 x) -> reg u64 {
+reg u64 r;
+r = x;
+r += 1;
+r += x;
+return r;
+}
+
+export
+fn i(reg u64 x) -> reg u64 {
+reg bool c;
+reg u64 r;
+reg u64 z;
+_, x = x + x;
+c, _ = x + x;
+z = 0;
+r = x;
+_, r += z + c;
+return r;
+}
+
+export
+fn j(reg u64 x) -> reg u64 {
+reg u64 y;
+reg bool b;
+y = x << 2;
+x = y >> 1;
+y = x >>s 1;
+b, y = y + 1;
+return y;
+}
