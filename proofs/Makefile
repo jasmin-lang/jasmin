@@ -13,7 +13,7 @@ install:
 
 extraction:
 	rm -f lang/ocaml/*.ml rm -f lang/ocaml/*.mli
-	touch lang/extraction.v && $(MAKE)
+	touch lang/extraction.v && $(MAKE) -f Makefile.coq lang/extraction.vo
 
 # --------------------------------------------------------------------
 this-clean::
