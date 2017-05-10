@@ -1,0 +1,16 @@
+fn f(reg u64[1] x) {
+reg u64[1] y;
+reg u64 r;
+inline int i;
+
+for i = 0 to 1 {
+y[0] = x[0];
+}
+}
+
+export
+fn main(reg u64 p) {
+reg u64[1] x;
+x[0] = [p + 0];
+f(x);
+}
