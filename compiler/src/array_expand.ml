@@ -4,8 +4,10 @@ open Prog
 
 
 let check_not_reg_arr v =
-   assert (not (is_reg_arr (L.unloc v)))
-   (* FIXME: raise an error message, v contain the location *)
+  if is_reg_arr (L.unloc v)
+  then Utils.hierror "%a: variable %a is an array"
+      L.pp_loc (L.loc v)
+      (Printer.pp_var ~debug:true) (L.unloc v)
 
 let get_reg_arr tbl v e =
   let v_ = L.unloc v in
@@ -72,7 +74,7 @@ let rec arrexp_i tbl i =
     | Cif(e,c1,c2)  -> Cif(arrexp_e tbl e, arrexp_c tbl c1, arrexp_c tbl c2)
     | Cfor(i,(d,e1,e2),c) ->
       Cfor(i, (d, arrexp_e tbl e1, arrexp_e tbl e2), arrexp_c tbl c)
-    | Cwhile(c, e, c') -> 
+    | Cwhile(c, e, c') ->
       Cwhile(arrexp_c tbl c, arrexp_e tbl e, arrexp_c tbl c')
     | Ccall(ii,x,f,e) -> Ccall(ii, arrexp_lvs tbl x, f, arrexp_es tbl e)
   in
