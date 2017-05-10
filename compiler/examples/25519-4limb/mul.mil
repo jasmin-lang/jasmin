@@ -89,3 +89,21 @@ fn mul(reg u64[4] zp, reg u64[4] xp, reg u64[4] yp0) {
 
 }
 
+export
+fn main(reg u64 z, reg u64 x, reg u64 y) {
+reg u64[4] zp;
+reg u64[4] xp;
+reg u64[4] yp;
+inline int i;
+
+for i = 0 to 3 {
+	xp[i] = [x + i];
+	yp[i] = [y + i];
+}
+
+mul(zp, xp, yp);
+
+for i = 0 to 3 {
+	[z + i] = zp[i];
+}
+}
