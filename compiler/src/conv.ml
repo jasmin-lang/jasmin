@@ -40,7 +40,7 @@ let pos_of_int i = pos_of_bi (B.of_int i)
 let int_of_pos p = B.to_int (bi_of_pos p)
 
 let int64_of_bi bi = Integers.Int64.repr (z_of_bi bi)
-let bi_of_int64 z  = bi_of_z (Integers.Int64.signed z) 
+let bi_of_int64 z  = bi_of_z (Integers.Int64.signed z)
 
 (* ------------------------------------------------------------------------ *)
 
@@ -172,7 +172,7 @@ let cop_of_op = function
 
   | Oland   -> C.Oland
   | Olor    -> C.Olor
-  | Olxor   -> C.Olxor 
+  | Olxor   -> C.Olxor
   | Olsr    -> C.Olsr
   | Olsl    -> C.Olsl
   | Oasr    -> C.Oasr
@@ -193,7 +193,7 @@ let op_of_cop = function
 
   | C.Oland   -> Oland
   | C.Olor    -> Olor
-  | C.Olxor   -> Olxor 
+  | C.Olxor   -> Olxor
   | C.Olsr    -> Olsr
   | C.Olsl    -> Olsl
   | C.Oasr    -> Oasr
@@ -227,9 +227,9 @@ let rec cexpr_of_expr tbl = function
   | Pload _           -> assert false
   | Papp1 (o, e)      -> C.Papp1(cop1_of_op1 o, cexpr_of_expr tbl e)
   | Papp2 (o, e1, e2) -> C.Papp2(cop_of_op o, cexpr_of_expr tbl e1, cexpr_of_expr tbl e2)
-  | Pif   (e, e1, e2)  -> C.Pif(cexpr_of_expr tbl e, 
+  | Pif   (e, e1, e2)  -> C.Pif(cexpr_of_expr tbl e,
                                 cexpr_of_expr tbl e1,
-                                cexpr_of_expr tbl e2) 
+                                cexpr_of_expr tbl e2)
 
 let rec expr_of_cexpr tbl = function
   | C.Pconst z          -> Pconst (bi_of_z z)
@@ -240,66 +240,68 @@ let rec expr_of_cexpr tbl = function
   | C.Pload (x, e)      -> Pload(W64, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Papp1 (o, e)      -> Papp1(op1_of_cop1 o, expr_of_cexpr tbl e)
   | C.Papp2 (o, e1, e2) -> Papp2(op_of_cop o, expr_of_cexpr tbl e1, expr_of_cexpr tbl e2)
-  | C.Pif   (e, e1, e2) -> Pif(expr_of_cexpr tbl e, 
+  | C.Pif   (e, e1, e2) -> Pif(expr_of_cexpr tbl e,
                                expr_of_cexpr tbl e1,
-                               expr_of_cexpr tbl e2) 
+                               expr_of_cexpr tbl e2)
 
 
 (* ------------------------------------------------------------------------ *)
 
 let copn_of_opn = function
-  | Omulu        -> C.Omulu       
-  | Oaddcarry    -> C.Oaddcarry   
-  | Osubcarry    -> C.Osubcarry   
-  | Ox86_CMOVcc  -> C.Ox86_CMOVcc 
-  | Ox86_ADD     -> C.Ox86_ADD    
-  | Ox86_SUB     -> C.Ox86_SUB    
-  | Ox86_MUL     -> C.Ox86_MUL    
-  | Ox86_IMUL    -> C.Ox86_IMUL   
-  | Ox86_DIV     -> C.Ox86_DIV    
-  | Ox86_IDIV    -> C.Ox86_IDIV   
-  | Ox86_ADC     -> C.Ox86_ADC    
-  | Ox86_SBB     -> C.Ox86_SBB    
-  | Ox86_INC     -> C.Ox86_INC    
-  | Ox86_DEC     -> C.Ox86_DEC    
-  | Ox86_SETcc   -> C.Ox86_SETcc  
-  | Ox86_LEA     -> C.Ox86_LEA    
-  | Ox86_TEST    -> C.Ox86_TEST   
-  | Ox86_CMP     -> C.Ox86_CMP    
-  | Ox86_AND     -> C.Ox86_AND    
-  | Ox86_OR      -> C.Ox86_OR     
-  | Ox86_XOR     -> C.Ox86_XOR    
-  | Ox86_NOT     -> C.Ox86_NOT    
-  | Ox86_SHL     -> C.Ox86_SHL    
-  | Ox86_SHR     -> C.Ox86_SHR    
-  | Ox86_SAR     -> C.Ox86_SAR    
+  | Omulu        -> C.Omulu
+  | Oaddcarry    -> C.Oaddcarry
+  | Osubcarry    -> C.Osubcarry
+  | Ox86_MOV  -> C.Ox86_MOV
+  | Ox86_CMOVcc  -> C.Ox86_CMOVcc
+  | Ox86_ADD     -> C.Ox86_ADD
+  | Ox86_SUB     -> C.Ox86_SUB
+  | Ox86_MUL     -> C.Ox86_MUL
+  | Ox86_IMUL    -> C.Ox86_IMUL
+  | Ox86_DIV     -> C.Ox86_DIV
+  | Ox86_IDIV    -> C.Ox86_IDIV
+  | Ox86_ADC     -> C.Ox86_ADC
+  | Ox86_SBB     -> C.Ox86_SBB
+  | Ox86_INC     -> C.Ox86_INC
+  | Ox86_DEC     -> C.Ox86_DEC
+  | Ox86_SETcc   -> C.Ox86_SETcc
+  | Ox86_LEA     -> C.Ox86_LEA
+  | Ox86_TEST    -> C.Ox86_TEST
+  | Ox86_CMP     -> C.Ox86_CMP
+  | Ox86_AND     -> C.Ox86_AND
+  | Ox86_OR      -> C.Ox86_OR
+  | Ox86_XOR     -> C.Ox86_XOR
+  | Ox86_NOT     -> C.Ox86_NOT
+  | Ox86_SHL     -> C.Ox86_SHL
+  | Ox86_SHR     -> C.Ox86_SHR
+  | Ox86_SAR     -> C.Ox86_SAR
 
 let opn_of_copn = function
-  | C.Omulu        -> Omulu       
-  | C.Oaddcarry    -> Oaddcarry   
-  | C.Osubcarry    -> Osubcarry   
-  | C.Ox86_CMOVcc  -> Ox86_CMOVcc 
-  | C.Ox86_ADD     -> Ox86_ADD    
-  | C.Ox86_SUB     -> Ox86_SUB    
-  | C.Ox86_MUL     -> Ox86_MUL    
-  | C.Ox86_IMUL    -> Ox86_IMUL   
-  | C.Ox86_DIV     -> Ox86_DIV    
-  | C.Ox86_IDIV    -> Ox86_IDIV   
-  | C.Ox86_ADC     -> Ox86_ADC    
-  | C.Ox86_SBB     -> Ox86_SBB    
-  | C.Ox86_INC     -> Ox86_INC    
-  | C.Ox86_DEC     -> Ox86_DEC    
-  | C.Ox86_SETcc   -> Ox86_SETcc  
-  | C.Ox86_LEA     -> Ox86_LEA    
-  | C.Ox86_TEST    -> Ox86_TEST   
-  | C.Ox86_CMP     -> Ox86_CMP    
-  | C.Ox86_AND     -> Ox86_AND    
-  | C.Ox86_OR      -> Ox86_OR     
-  | C.Ox86_XOR     -> Ox86_XOR    
-  | C.Ox86_NOT     -> Ox86_NOT    
-  | C.Ox86_SHL     -> Ox86_SHL    
-  | C.Ox86_SHR     -> Ox86_SHR    
-  | C.Ox86_SAR     -> Ox86_SAR    
+  | C.Omulu        -> Omulu
+  | C.Oaddcarry    -> Oaddcarry
+  | C.Osubcarry    -> Osubcarry
+  | C.Ox86_MOV  -> Ox86_MOV
+  | C.Ox86_CMOVcc  -> Ox86_CMOVcc
+  | C.Ox86_ADD     -> Ox86_ADD
+  | C.Ox86_SUB     -> Ox86_SUB
+  | C.Ox86_MUL     -> Ox86_MUL
+  | C.Ox86_IMUL    -> Ox86_IMUL
+  | C.Ox86_DIV     -> Ox86_DIV
+  | C.Ox86_IDIV    -> Ox86_IDIV
+  | C.Ox86_ADC     -> Ox86_ADC
+  | C.Ox86_SBB     -> Ox86_SBB
+  | C.Ox86_INC     -> Ox86_INC
+  | C.Ox86_DEC     -> Ox86_DEC
+  | C.Ox86_SETcc   -> Ox86_SETcc
+  | C.Ox86_LEA     -> Ox86_LEA
+  | C.Ox86_TEST    -> Ox86_TEST
+  | C.Ox86_CMP     -> Ox86_CMP
+  | C.Ox86_AND     -> Ox86_AND
+  | C.Ox86_OR      -> Ox86_OR
+  | C.Ox86_XOR     -> Ox86_XOR
+  | C.Ox86_NOT     -> Ox86_NOT
+  | C.Ox86_SHL     -> Ox86_SHL
+  | C.Ox86_SHR     -> Ox86_SHR
+  | C.Ox86_SAR     -> Ox86_SAR
 
 (* ------------------------------------------------------------------------ *)
 
@@ -412,7 +414,7 @@ and cinstr_r_of_instr_r tbl p i tl =
     let ir = C.Cfor(x,d,c) in
     C.MkI(p, ir) :: tl
   | Cwhile(c, e, c') ->
-    let ir = C.Cwhile(cstmt_of_stmt tbl c [], cexpr_of_expr tbl e, 
+    let ir = C.Cwhile(cstmt_of_stmt tbl c [], cexpr_of_expr tbl e,
                       cstmt_of_stmt tbl c' []) in
     C.MkI(p,ir) :: tl
   | Ccall(ii, x, f, e) ->
@@ -452,7 +454,7 @@ and instr_r_of_cinstr_r tbl = function
 
   | Cwhile(c, e, c') ->
     Cwhile(stmt_of_cstmt tbl c, expr_of_cexpr tbl e, stmt_of_cstmt tbl c')
-  
+
   | Ccall(ii, x, f, e) ->
     let ii = ii_of_cii ii in
     Ccall(ii, lval_of_clvals tbl x, fun_of_cfun tbl f, expr_of_cexprs tbl e)

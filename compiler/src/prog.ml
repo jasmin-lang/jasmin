@@ -22,17 +22,17 @@ type word_size =
   | W256
 
 type cmp_ty =
-  | Cmp_int 
+  | Cmp_int
   | Cmp_uw  of word_size
   | Cmp_sw  of word_size
 
 type op_ty =
-  | Op_int 
+  | Op_int
   | Op_w  of word_size
 
 type op1 =
-  | Olnot of word_size  
-  | Onot 
+  | Olnot of word_size
+  | Onot
 
 type op2 =
   | Oand    (* const : sbool -> sbool -> sbool *)
@@ -42,19 +42,19 @@ type op2 =
   | Omul    of op_ty
   | Osub    of op_ty
 
-  | Oland  
+  | Oland
   | Olor
   | Olxor
   | Olsr
-  | Olsl 
+  | Olsl
   | Oasr
 
-  | Oeq     of cmp_ty 
-  | Oneq    of cmp_ty 
-  | Olt     of cmp_ty 
-  | Ole     of cmp_ty 
-  | Ogt     of cmp_ty 
-  | Oge     of cmp_ty 
+  | Oeq     of cmp_ty
+  | Oneq    of cmp_ty
+  | Olt     of cmp_ty
+  | Ole     of cmp_ty
+  | Ogt     of cmp_ty
+  | Oge     of cmp_ty
 
 type base_ty =
   | Bool
@@ -114,32 +114,33 @@ let ty_i v = (L.unloc v).v_ty
 
 type op =
 (* Generic operation *)
-| Omulu        
-| Oaddcarry    
-| Osubcarry    
+| Omulu
+| Oaddcarry
+| Osubcarry
 (* Low level x86 operations *)
-| Ox86_CMOVcc  
-| Ox86_ADD     
-| Ox86_SUB     
-| Ox86_MUL     
-| Ox86_IMUL    
-| Ox86_DIV     
-| Ox86_IDIV    
-| Ox86_ADC     
-| Ox86_SBB     
-| Ox86_INC     
-| Ox86_DEC     
-| Ox86_SETcc   
-| Ox86_LEA     
-| Ox86_TEST    
-| Ox86_CMP     
-| Ox86_AND     
-| Ox86_OR      
-| Ox86_XOR     
-| Ox86_NOT     
-| Ox86_SHL     
-| Ox86_SHR     
-| Ox86_SAR     
+| Ox86_MOV
+| Ox86_CMOVcc
+| Ox86_ADD
+| Ox86_SUB
+| Ox86_MUL
+| Ox86_IMUL
+| Ox86_DIV
+| Ox86_IDIV
+| Ox86_ADC
+| Ox86_SBB
+| Ox86_INC
+| Ox86_DEC
+| Ox86_SETcc
+| Ox86_LEA
+| Ox86_TEST
+| Ox86_CMP
+| Ox86_AND
+| Ox86_OR
+| Ox86_XOR
+| Ox86_NOT
+| Ox86_SHL
+| Ox86_SHR
+| Ox86_SAR
 
 
 
@@ -338,7 +339,7 @@ let vars_es es = rvars_es Sv.empty es
 let vars_i i = rvars_i Sv.empty i
 let vars_c c = rvars_c Sv.empty c
 
-let params fc = 
+let params fc =
   List.fold_left (fun s v -> Sv.add v s) Sv.empty fc.f_args
 
 let vars_fc fc =
@@ -346,10 +347,10 @@ let vars_fc fc =
   let s = List.fold_left (fun s v -> Sv.add (L.unloc v) s) s fc.f_ret in
   rvars_c s fc.f_body
 
-let locals fc = 
+let locals fc =
   let s1 = params fc in
   let s2 = Sv.diff (vars_fc fc) s1 in
-  Sv.filter V.is_local s2 
+  Sv.filter V.is_local s2
 
 (* -------------------------------------------------------------------- *)
 (* Functions on types                                                   *)
@@ -418,7 +419,7 @@ let expr_of_lval = function
 (* -------------------------------------------------------------------- *)
 (* Functions over instruction                                           *)
 
-let destruct_move i = 
+let destruct_move i =
   match i.i_desc with
   | Cassgn(x, tag, e) -> x, tag, e
   | _                 -> assert false

@@ -45,17 +45,17 @@ Unset Printing Implicit Defensive.
    - cpu-op: CPU instructions such as addition with carry
 *)
 
-Variant cmp_kind := 
+Variant cmp_kind :=
   | Cmp_int
   | Cmp_sw
   | Cmp_uw.
 
-Variant op_kind := 
-  | Op_int 
+Variant op_kind :=
+  | Op_int
   | Op_w.
 
-Variant sop1 := 
-| Onot  
+Variant sop1 :=
+| Onot
 | Olnot.
 
 Variant sop2 :=
@@ -68,25 +68,26 @@ Variant sop2 :=
 
 | Oland
 | Olor
-| Olxor 
+| Olxor
 | Olsr
-| Olsl 
+| Olsl
 | Oasr
 
-| Oeq   of cmp_kind          
-| Oneq  of cmp_kind          
-| Olt   of cmp_kind          
-| Ole   of cmp_kind          
-| Ogt   of cmp_kind          
-| Oge   of cmp_kind.         
+| Oeq   of cmp_kind
+| Oneq  of cmp_kind
+| Olt   of cmp_kind
+| Ole   of cmp_kind
+| Ogt   of cmp_kind
+| Oge   of cmp_kind.
 
-Inductive sopn : Set :=
+Variant sopn : Set :=
 (* Generic operation *)
 | Omulu        (* cpu   : [sword; sword]        -> [sword;sword] *)
 | Oaddcarry    (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
 | Osubcarry    (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
 
 (* Low level x86 operations *)
+| Ox86_MOV	(* copy *)
 | Ox86_CMOVcc  (* conditional copy *)
 | Ox86_ADD     (* add unsigned / signed *)
 | Ox86_SUB     (* sub unsigned / signed *)
@@ -114,8 +115,8 @@ Inductive sopn : Set :=
 Scheme Equality for sop1.
 (* Definition sop1_beq : sop1 -> sop1 -> bool *)
 
-Lemma sop1_eq_axiom : Equality.axiom sop1_beq. 
-Proof. 
+Lemma sop1_eq_axiom : Equality.axiom sop1_beq.
+Proof.
   move=> x y;apply:(iffP idP).
   + by apply: internal_sop1_dec_bl.
   by apply: internal_sop1_dec_lb.
@@ -127,8 +128,8 @@ Canonical  sop1_eqType      := Eval hnf in EqType sop1 sop1_eqMixin.
 Scheme Equality for sop2.
 (* Definition sop2_beq : sop2 -> sop2 -> bool *)
 
-Lemma sop2_eq_axiom : Equality.axiom sop2_beq. 
-Proof. 
+Lemma sop2_eq_axiom : Equality.axiom sop2_beq.
+Proof.
   move=> x y;apply:(iffP idP).
   + by apply: internal_sop2_dec_bl.
   by apply: internal_sop2_dec_lb.
@@ -139,8 +140,8 @@ Canonical  sop2_eqType      := Eval hnf in EqType sop2 sop2_eqMixin.
 
 Scheme Equality for sopn.
 (* Definition sopn_beq : sopn -> sopn -> bool *)
-Lemma sopn_eq_axiom : Equality.axiom sopn_beq. 
-Proof. 
+Lemma sopn_eq_axiom : Equality.axiom sopn_beq.
+Proof.
   move=> x y;apply:(iffP idP).
   + by apply: internal_sopn_dec_bl.
   by apply: internal_sopn_dec_lb.
@@ -156,7 +157,7 @@ Definition var_info := positive.
 
 Record var_i := VarI {
   v_var :> var;
-  v_info : var_info 
+  v_info : var_info
 }.
 
 Record var_attr := VarA {
@@ -174,22 +175,22 @@ Inductive pexpr : Type :=
 | Pbool  :> bool -> pexpr
 | Pcast  : pexpr -> pexpr              (* int -> word *)
 | Pvar   :> var_i -> pexpr
-| Pget   : var_i -> pexpr -> pexpr 
-| Pload  : var_i -> pexpr -> pexpr 
-| Papp1  : sop1 -> pexpr -> pexpr 
+| Pget   : var_i -> pexpr -> pexpr
+| Pload  : var_i -> pexpr -> pexpr
+| Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
 | Pif    : pexpr -> pexpr -> pexpr -> pexpr.
 
 Notation pexprs := (seq pexpr).
 
-Definition var_i_beq x1 x2 := 
+Definition var_i_beq x1 x2 :=
   match x1, x2 with
   | VarI x1 i1, VarI x2 i2 => (x1 == x2) && (i1 == i2)
   end.
 
-Lemma var_i_eq_axiom : Equality.axiom var_i_beq. 
+Lemma var_i_eq_axiom : Equality.axiom var_i_beq.
 Proof.
-  move=> [x xi] [y yi] /=. 
+  move=> [x xi] [y yi] /=.
   apply (@equivP ((x == y) /\ (xi == yi)));first by apply: andP.
   by split => -[] => [/eqP -> /eqP| -> ] ->.
 Qed.
@@ -200,24 +201,24 @@ Canonical  var_i_eqType      := Eval hnf in EqType var_i var_i_eqMixin.
 Module Eq_pexpr.
 Fixpoint eqb (e1 e2:pexpr) : bool :=
   match e1, e2 with
-  | Pconst n1   , Pconst n2    => n1 == n2 
+  | Pconst n1   , Pconst n2    => n1 == n2
   | Pbool  b1   , Pbool  b2    => b1 == b2
   | Pcast  e1   , Pcast  e2    => eqb e1 e2
   | Pvar   x1   , Pvar   x2    => (x1 == x2)
   | Pget   x1 e1, Pget   x2 e2 => (x1 == x2) && eqb e1 e2
-  | Pload  x1 e1, Pload  x2 e2 => (x1 == x2) && eqb e1 e2 
-  | Papp1 o1 e1 , Papp1  o2 e2 => (o1 == o2) && eqb e1 e2 
-  | Papp2 o1 e11 e12, Papp2 o2 e21 e22  =>  
+  | Pload  x1 e1, Pload  x2 e2 => (x1 == x2) && eqb e1 e2
+  | Papp1 o1 e1 , Papp1  o2 e2 => (o1 == o2) && eqb e1 e2
+  | Papp2 o1 e11 e12, Papp2 o2 e21 e22  =>
      (o1 == o2) && eqb e11 e21 && eqb e12 e22
-  | Pif t1 e11 e12, Pif t2 e21 e22  =>  
+  | Pif t1 e11 e12, Pif t2 e21 e22  =>
      eqb t1 t2 && eqb e11 e21 && eqb e12 e22
   | _, _ => false
   end.
 
-  Lemma eq_axiom : Equality.axiom eqb. 
-  Proof. 
+  Lemma eq_axiom : Equality.axiom eqb.
+  Proof.
     elim => [n1|b1|e1 He1|x1|x1 e1 He1|x1 e1 He1
-            |o1 e1 He1|o1 e11 He11 e12 He12 | t1 Ht1 e11 He11 e12 He12] 
+            |o1 e1 He1|o1 e11 He11 e12 He12 | t1 Ht1 e11 He11 e12 He12]
             [n2|b2|e2|x2|x2 e2|x2 e2|o2 e2|o2 e21 e22 | t2 e21 e22] /=;
         try by constructor.
     + apply (@equivP (n1 = n2));first by apply: eqP.
@@ -268,12 +269,12 @@ Definition lval_beq (x1:lval) (x2:lval) :=
   | Lvar  x1   , Lvar  x2    => x1 == x2
   | Lmem  x1 e1, Lmem  x2 e2 => (x1 == x2) && (e1 == e2)
   | Laset x1 e1, Laset x2 e2 => (x1 == x2) && (e1 == e2)
-  | _          , _           => false   
+  | _          , _           => false
   end.
 
 Lemma lval_eq_axiom : Equality.axiom lval_beq.
-Proof. 
-  case=> [i1|x1|x1 e1|x1 e1] [i2|x2|x2 e2|x2 e2] /=;try by constructor. 
+Proof.
+  case=> [i1|x1|x1 e1|x1 e1] [i2|x2|x2 e2|x2 e2] /=;try by constructor.
   + apply (@equivP (i1 = i2));first by apply: eqP.
     by split => [->|[]->].
   + apply (@equivP (x1 = x2));first by apply: eqP.
@@ -287,15 +288,15 @@ Qed.
 Definition lval_eqMixin     := Equality.Mixin lval_eq_axiom.
 Canonical  lval_eqType      := Eval hnf in EqType lval lval_eqMixin.
 
-(* ** Instructions 
+(* ** Instructions
  * -------------------------------------------------------------------- *)
 
 Inductive dir := UpTo | DownTo.
 
 Scheme Equality for dir.
 
-Lemma dir_eq_axiom : Equality.axiom dir_beq. 
-Proof. 
+Lemma dir_eq_axiom : Equality.axiom dir_beq.
+Proof.
   move=> x y;apply:(iffP idP).
   + by apply: internal_dir_dec_bl.
   by apply: internal_dir_dec_lb.
@@ -316,16 +317,16 @@ Definition wrange d (n1 n2 : Z) :=
 
 Definition instr_info := positive.
 
-Inductive assgn_tag := 
+Inductive assgn_tag :=
   | AT_keep       (* normal assignment *)
   | AT_rename_arg (* equality constraint introduced by inline, argument assignment *)
   | AT_rename_res (* equality constraint introduced by inline, result assignment   *)
-  | AT_inline.    (* assignment to be removed later : introduce by unrolling ...   *) 
+  | AT_inline.    (* assignment to be removed later : introduce by unrolling ...   *)
 
 Scheme Equality for assgn_tag.
 
-Lemma assgn_tag_eq_axiom : Equality.axiom assgn_tag_beq. 
-Proof. 
+Lemma assgn_tag_eq_axiom : Equality.axiom assgn_tag_beq.
+Proof.
   move=> x y;apply:(iffP idP).
   + by apply: internal_assgn_tag_dec_bl.
   by apply: internal_assgn_tag_dec_lb.
@@ -338,14 +339,14 @@ Canonical  assgn_tag_eqType      := Eval hnf in EqType assgn_tag assgn_tag_eqMix
 
 Definition funname := positive.
 
-Inductive inline_info := 
+Inductive inline_info :=
   | InlineFun
   | DoNotInline.
 
 Scheme Equality for inline_info.
 
-Lemma inline_info_eq_axiom : Equality.axiom inline_info_beq. 
-Proof. 
+Lemma inline_info_eq_axiom : Equality.axiom inline_info_beq.
+Proof.
   move=> x y;apply:(iffP idP).
   + by apply: internal_inline_info_dec_bl.
   by apply: internal_inline_info_dec_lb.
@@ -357,10 +358,10 @@ Canonical  inline_info_eqType      := Eval hnf in EqType inline_info inline_info
 (* -------------------------------------------------------------------- *)
 
 
-Inductive instr_r := 
+Inductive instr_r :=
 | Cassgn : lval -> assgn_tag -> pexpr -> instr_r
 | Copn   : lvals -> sopn -> pexprs -> instr_r
- 
+
 | Cif    : pexpr -> seq instr -> seq instr  -> instr_r
 | Cfor   : var_i -> range -> seq instr -> instr_r
 | Cwhile : seq instr -> pexpr -> seq instr -> instr_r
@@ -379,14 +380,14 @@ Record fundef := MkFun {
 
 Definition prog := seq (funname * fundef).
 
-Definition instr_d (i:instr) := 
+Definition instr_d (i:instr) :=
   match i with
   | MkI i _ => i
   end.
 
-Fixpoint instr_r_beq i1 i2 := 
+Fixpoint instr_r_beq i1 i2 :=
   match i1, i2 with
-  | Cassgn x1 tag1 e1, Cassgn x2 tag2 e2 => 
+  | Cassgn x1 tag1 e1, Cassgn x2 tag2 e2 =>
      (tag1 == tag2) && (x1 == x2) && (e1 == e2)
   | Copn x1 o1 e1, Copn x2 o2 e2 =>
      (x1 == x2) && (o1 == o2) && (e1 == e2)
@@ -396,13 +397,13 @@ Fixpoint instr_r_beq i1 i2 :=
     (i1 == i2) && (dir1 == dir2) && (lo1 == lo2) && (hi1 == hi2) && all2 instr_beq c1 c2
   | Cwhile c1 e1 c1' , Cwhile c2 e2 c2' =>
     all2 instr_beq c1 c2 && (e1 == e2) && all2 instr_beq c1' c2'
-  | Ccall ii1 x1 f1 arg1, Ccall ii2 x2 f2 arg2 => 
+  | Ccall ii1 x1 f1 arg1, Ccall ii2 x2 f2 arg2 =>
     (ii1 == ii2) && (x1==x2) && (f1 == f2) && (arg1 == arg2)
-  | _, _ => false 
+  | _, _ => false
   end
-with instr_beq i1 i2 := 
+with instr_beq i1 i2 :=
   match i1, i2 with
-  | MkI if1 i1, MkI if2 i2 => (if1 == if2) && (instr_r_beq i1 i2) 
+  | MkI if1 i1, MkI if2 i2 => (if1 == if2) && (instr_r_beq i1 i2)
   end.
 
 Section ALL2.
@@ -421,7 +422,7 @@ End ALL2.
 
 Section EQI.
   Variable Heq : forall (x y:instr_r), reflect (x=y) (instr_r_beq x y).
-  
+
   Lemma instr_eq_axiom_ : Equality.axiom instr_beq.
   Proof.
     move=> [ii1 ir1] [ii2 ir2].
@@ -431,9 +432,9 @@ Section EQI.
 End EQI.
 
 Lemma instr_r_eq_axiom : Equality.axiom instr_r_beq.
-Proof. 
+Proof.
   rewrite /Equality.axiom.
-  fix Hrec 1;case => 
+  fix Hrec 1;case =>
     [x1 t1 e1|x1 o1 e1|e1 c11 c12|x1 [[dir1 lo1] hi1] c1|c1 e1 c1'|ii1 x1 f1 arg1]
     [x2 t2 e2|x2 o2 e2|e2 c21 c22|x2 [[dir2 lo2] hi2] c2|c2 e2 c2'|ii2 x2 f2 arg2] /=;
   try by constructor.
@@ -444,15 +445,15 @@ Proof.
     split=> [/andP [] /andP [] /eqP-> /eqP-> /eqP-> | [] <- <- <- ] //.
     by rewrite !eq_refl.
   + apply (@equivP ((e1 == e2) && (all2 instr_beq c11 c21) && (all2 instr_beq c12 c22)));
-      first by apply idP. 
-    have H := reflect_all2 (instr_eq_axiom_ Hrec).    
+      first by apply idP.
+    have H := reflect_all2 (instr_eq_axiom_ Hrec).
     split=> [/andP[]/andP[]| []] /eqP -> /H -> /H -> //.
   + apply (@equivP  ((x1 == x2) && (dir1 == dir2) && (lo1 == lo2) && (hi1 == hi2) &&
-      all2 instr_beq c1 c2)); first by apply idP. 
-    have H := reflect_all2 (instr_eq_axiom_ Hrec).    
+      all2 instr_beq c1 c2)); first by apply idP.
+    have H := reflect_all2 (instr_eq_axiom_ Hrec).
     split=> [/andP[]/andP[]/andP[]/andP[]| []] /eqP->/eqP->/eqP->/eqP->/H-> //.
-  + apply (@equivP  (all2 instr_beq c1 c2 && (e1 == e2) && all2 instr_beq c1' c2')); first by apply idP. 
-    have H := reflect_all2 (instr_eq_axiom_ Hrec).    
+  + apply (@equivP  (all2 instr_beq c1 c2 && (e1 == e2) && all2 instr_beq c1' c2')); first by apply idP.
+    have H := reflect_all2 (instr_eq_axiom_ Hrec).
     split=> [/andP[]/andP[]/H->/eqP->/H-> | []/H->/eqP->/H->] //.
   apply (@equivP ((ii1 == ii2) && (x1 == x2) && (f1 == f2) && (arg1 == arg2)));first by apply idP.
   by split=> [/andP[]/andP[]/andP[]| []]/eqP->/eqP->/eqP->/eqP->.
@@ -461,22 +462,22 @@ Qed.
 Definition instr_r_eqMixin     := Equality.Mixin instr_r_eq_axiom.
 Canonical  instr_r_eqType      := Eval hnf in EqType instr_r instr_r_eqMixin.
 
-Lemma instr_eq_axiom : Equality.axiom instr_beq. 
-Proof. 
+Lemma instr_eq_axiom : Equality.axiom instr_beq.
+Proof.
   apply: instr_eq_axiom_ instr_r_eq_axiom .
 Qed.
 
 Definition instr_eqMixin     := Equality.Mixin instr_eq_axiom.
 Canonical  instr_eqType      := Eval hnf in EqType instr instr_eqMixin.
 
-Definition fundef_beq fd1 fd2 := 
+Definition fundef_beq fd1 fd2 :=
   match fd1, fd2 with
   | MkFun ii1 x1 c1 r1, MkFun ii2 x2 c2 r2 =>
     (ii1 == ii2) && (x1 == x2) && (c1 == c2) && (r1 == r2)
   end.
 
-Lemma fundef_eq_axiom : Equality.axiom fundef_beq. 
-Proof. 
+Lemma fundef_eq_axiom : Equality.axiom fundef_beq.
+Proof.
   move=> [i1 p1 c1 r1] [i2 p2 c2 r2] /=.
   apply (@equivP ((i1 == i2) && (p1 == p2) && (c1 == c2) && (r1 == r2)));first by apply idP.
   by split=> [/andP[]/andP[]/andP[] | []] /eqP->/eqP->/eqP->/eqP->.
@@ -504,7 +505,7 @@ Proof.
     by rewrite !nth_default // size_map.
 Qed.
 
-Lemma get_fundef_cons {T} (fnd: funname * T) p fn: 
+Lemma get_fundef_cons {T} (fnd: funname * T) p fn:
   get_fundef (fnd :: p) fn = if fn == fnd.1 then Some fnd.2 else get_fundef p fn.
 Proof.
   rewrite /get_fundef;case:ifP => /=; by case: ifPn.
@@ -575,7 +576,7 @@ Section RECT.
 
   Fixpoint instr_Rect (i:instr) : Pi i :=
     match i return Pi i with
-    | MkI ii i => @Hmk i ii (instr_r_Rect i) 
+    | MkI ii i => @Hmk i ii (instr_r_Rect i)
     end
   with instr_r_Rect (i:instr_r) : Pr i :=
     match i return Pr i with
@@ -584,13 +585,13 @@ Section RECT.
     | Cif e c1 c2  => @Hif e c1 c2 (cmd_rect_aux instr_Rect c1) (cmd_rect_aux instr_Rect c2)
     | Cfor i (dir,lo,hi) c => @Hfor i dir lo hi c (cmd_rect_aux instr_Rect c)
     | Cwhile c e c'   => @Hwhile c e c' (cmd_rect_aux instr_Rect c) (cmd_rect_aux instr_Rect c')
-    | Ccall ii xs f es => @Hcall ii xs f es 
+    | Ccall ii xs f es => @Hcall ii xs f es
     end.
 
   Definition cmd_rect := cmd_rect_aux instr_Rect.
 
 End RECT.
- 
+
 (* ** Compute written variables
  * -------------------------------------------------------------------- *)
 
@@ -607,7 +608,7 @@ Definition vrvs_rec s (rv:lvals) := foldl vrv_rec s rv.
 Definition vrv := (vrv_rec Sv.empty).
 Definition vrvs := (vrvs_rec Sv.empty).
 
-Fixpoint write_i_rec s i := 
+Fixpoint write_i_rec s i :=
   match i with
   | Cassgn x _ _    => vrv_rec s x
   | Copn xs _ _     => vrvs_rec s xs
@@ -616,7 +617,7 @@ Fixpoint write_i_rec s i :=
   | Cwhile c _ c'   => foldl write_I_rec (foldl write_I_rec s c') c
   | Ccall _ x _ _   => vrvs_rec s x
   end
-with write_I_rec s i := 
+with write_I_rec s i :=
   match i with
   | MkI _ i => write_i_rec s i
   end.
@@ -631,7 +632,7 @@ Definition write_c c := write_c_rec Sv.empty c.
 
 Instance vrv_rec_m : Proper (Sv.Equal ==> eq ==> Sv.Equal) vrv_rec.
 Proof.
-  move=> s1 s2 Hs x r ->;case:r => //= [v | v _];SvD.fsetdec. 
+  move=> s1 s2 Hs x r ->;case:r => //= [v | v _];SvD.fsetdec.
 Qed.
 
 Lemma vrv_none i : vrv (Lnone i) = Sv.empty.
@@ -667,7 +668,7 @@ Proof.
   apply (@cmd_rect
            (fun i => forall s, Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)))
            (fun i => forall s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)))
-           (fun c => forall s, Sv.Equal (foldl write_I_rec s c) (Sv.union s (write_c c)))) => 
+           (fun c => forall s, Sv.Equal (foldl write_I_rec s c) (Sv.union s (write_c c)))) =>
      /= {c s}
     [ i ii Hi | | i c Hi Hc | x t e | xs o es | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | c e c' Hc Hc' | ii xs f es] s;
@@ -686,16 +687,16 @@ Lemma write_c_nil : write_c [::] = Sv.empty.
 Proof. done. Qed.
 
 Lemma write_c_cons i c: Sv.Equal (write_c (i::c)) (Sv.union (write_I i) (write_c c)).
-Proof. rewrite {1}/write_c /= write_c_recE write_I_recE;SvD.fsetdec. Qed. 
+Proof. rewrite {1}/write_c /= write_c_recE write_I_recE;SvD.fsetdec. Qed.
 
-Lemma write_c_app c1 c2 : 
+Lemma write_c_app c1 c2 :
   Sv.Equal (write_c (c1 ++ c2)) (Sv.union (write_c c1) (write_c c2)).
 Proof. by elim: c1 => //= i c1 Hrec;rewrite !write_c_cons;SvD.fsetdec. Qed.
 
-Lemma write_i_assgn x tag e : write_i (Cassgn x tag e) = vrv x. 
+Lemma write_i_assgn x tag e : write_i (Cassgn x tag e) = vrv x.
 Proof. done. Qed.
 
-Lemma write_i_opn xs o es : write_i (Copn xs o es) = vrvs xs. 
+Lemma write_i_opn xs o es : write_i (Copn xs o es) = vrvs xs.
 Proof. done. Qed.
 
 Lemma write_i_if e c1 c2 :
@@ -731,15 +732,15 @@ Ltac writeN := autorewrite with write_c write_i vrv.
 (* ** Compute read variables
  * -------------------------------------------------------------------- *)
 
-Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t := 
+Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   match e with
   | Pconst _       => s
   | Pbool  _       => s
-  | Pcast  e       => read_e_rec s e 
-  | Pvar   x       => Sv.add x s 
+  | Pcast  e       => read_e_rec s e
+  | Pvar   x       => Sv.add x s
   | Pget   x e     => read_e_rec (Sv.add x s) e
   | Pload  x e     => read_e_rec (Sv.add x s) e
-  | Papp1  _ e     => read_e_rec s e 
+  | Papp1  _ e     => read_e_rec s e
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
   | Pif    t e1 e2 => read_e_rec (read_e_rec (read_e_rec s e2) e1) t
   end.
@@ -747,7 +748,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
 Definition read_e := read_e_rec Sv.empty.
 Definition read_es_rec := foldl read_e_rec.
 Definition read_es := read_es_rec Sv.empty.
-         
+
 Definition read_rv_rec  (s:Sv.t) (r:lval) :=
   match r with
   | Lnone _   => s
@@ -764,10 +765,10 @@ Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
   match i with
   | Cassgn x _ e => read_rv_rec (read_e_rec s e) x
   | Copn xs _ es => read_es_rec (read_rvs_rec s xs) es
-  | Cif b c1 c2 => 
+  | Cif b c1 c2 =>
     let s := foldl read_I_rec s c1 in
     let s := foldl read_I_rec s c2 in
-    read_e_rec s b 
+    read_e_rec s b
   | Cfor x (dir, e1, e2) c =>
     let s := foldl read_I_rec s c in
     read_e_rec (read_e_rec s e2) e1
@@ -778,10 +779,10 @@ Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
   | Ccall _ xs _ es => read_es_rec (read_rvs_rec s xs) es
   end
 with read_I_rec (s:Sv.t) (i:instr) : Sv.t :=
-  match i with 
+  match i with
   | MkI _ i => read_i_rec s i
   end.
-              
+
 Definition read_c_rec := foldl read_I_rec.
 
 Definition read_i := read_i_rec Sv.empty.
@@ -804,7 +805,7 @@ Proof.
   elim: es s => [ | e es Hes] s;rewrite /read_es /= ?Hes ?read_eE;SvD.fsetdec.
 Qed.
 
-Lemma read_es_cons e es : 
+Lemma read_es_cons e es :
   Sv.Equal (read_es (e :: es)) (Sv.union (read_e e) (read_es es)).
 Proof. by rewrite /read_es /= !read_esE read_eE;SvD.fsetdec. Qed.
 
@@ -841,10 +842,10 @@ Proof.
 Qed.
 
 Lemma read_IE s i : Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)).
-Proof. by apply (read_cE s [:: i]). Qed.  
+Proof. by apply (read_cE s [:: i]). Qed.
 
 Lemma read_iE s i : Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)).
-Proof. by apply (read_IE s (MkI 1%positive i)). Qed. 
+Proof. by apply (read_IE s (MkI 1%positive i)). Qed.
 
 Lemma read_c_nil : read_c [::] = Sv.empty.
 Proof. done. Qed.
@@ -856,7 +857,7 @@ Lemma read_i_assgn x tag e :
   Sv.Equal (read_i (Cassgn x tag e)) (Sv.union (read_rv x) (read_e e)).
 Proof. rewrite /read_i /= read_rvE read_eE;SvD.fsetdec. Qed.
 
-Lemma read_i_opn xs o es: 
+Lemma read_i_opn xs o es:
   Sv.Equal (read_i (Copn xs o es)) (Sv.union (read_rvs xs) (read_es es)).
 Proof. by rewrite /read_i /= read_esE read_rvsE;SvD.fsetdec. Qed.
 
@@ -867,14 +868,14 @@ Proof.
 Qed.
 
 Lemma read_i_for x dir lo hi c :
-   Sv.Equal (read_i (Cfor x (dir, lo, hi) c)) 
+   Sv.Equal (read_i (Cfor x (dir, lo, hi) c))
             (Sv.union (read_e lo) (Sv.union (read_e hi) (read_c c))).
 Proof.
   rewrite /read_i /= -/read_c_rec !read_eE read_cE;SvD.fsetdec.
 Qed.
 
 Lemma read_i_while c e c' :
-   Sv.Equal (read_i (Cwhile c e c')) 
+   Sv.Equal (read_i (Cwhile c e c'))
             (Sv.union (read_c c) (Sv.union (read_e e) (read_c c'))).
 Proof.
   rewrite /read_i /= -/read_c_rec !read_eE read_cE;SvD.fsetdec.
@@ -890,19 +891,19 @@ Proof. by done. Qed.
 (* ** Some smart constructors
  * -------------------------------------------------------------------------- *)
 
-Fixpoint is_const (e:pexpr) := 
+Fixpoint is_const (e:pexpr) :=
   match e with
   | Pconst n => Some n
   | _        => None
   end.
 
 Definition is_bool (e:pexpr) :=
-  match e with 
-  | Pbool b => Some b 
-  | _ => None 
+  match e with
+  | Pbool b => Some b
+  | _ => None
   end.
 
-Inductive is_reflect (A:Type) (P:A -> pexpr) : pexpr -> option A -> Prop := 
+Inductive is_reflect (A:Type) (P:A -> pexpr) : pexpr -> option A -> Prop :=
  | Is_reflect_some : forall a, is_reflect P (P a) (Some a)
  | Is_reflect_none : forall e, is_reflect P e None.
 

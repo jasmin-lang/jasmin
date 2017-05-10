@@ -89,6 +89,7 @@ let pp_sopn fmt sopn =
      | Omulu        -> "Omulu"
      | Oaddcarry    -> "Oaddcarry"
      | Osubcarry    -> "Osubcarry"
+     | Ox86_MOV  -> "Ox86_MOV"
      | Ox86_CMOVcc  -> "Ox86_CMOVcc"
      | Ox86_ADD     -> "Ox86_ADD"
      | Ox86_SUB     -> "Ox86_SUB"

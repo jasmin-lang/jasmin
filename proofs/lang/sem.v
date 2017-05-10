@@ -479,6 +479,9 @@ Definition vbools bs : exec values := ok (List.map Vbool bs).
 (* FIXME: MOVE in word *)
 Definition b_to_w (b:bool) := if b then I64.one else I64.zero.
 (* -------------------------------------------------------------------- *)
+Definition x86_MOV (x:word) : exec values :=
+  ok [:: Vword x].
+
 Definition x86_CMOVcc (b:bool) (x y:word) : exec values :=
   ok [:: Vword (if b then x else y)].
 
@@ -568,6 +571,7 @@ Definition sem_sopn (o:sopn) :  values -> exec values :=
   | Osubcarry => app_wwb (fun x y c => ok (@pval sbool sword (wsubcarry x y c)))
 
   (* Low level x86 operations *)
+  | Ox86_MOV	=> app_w x86_MOV
   | Ox86_CMOVcc  => app_bww x86_CMOVcc
   | Ox86_ADD     => app_ww x86_add
   | Ox86_SUB     => app_ww x86_sub
