@@ -55,17 +55,32 @@ Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
       ([:: Copn [:: f ; f ; f ; f ; Lvar (fr fresh_ZF) ] Ox86_CMP [:: x ; y ] ], Papp1 Onot (Pvar (fr fresh_ZF)))
     | Olt Cmp_sw =>
       ([:: Copn [:: Lvar (fr fresh_OF) ; f ; Lvar (fr fresh_SF) ; f ; f ] Ox86_CMP [:: x ; y ] ],
-       Pif (Pvar (fr fresh_SF)) (Pvar (fr fresh_OF)) (Papp1 Onot (Pvar (fr fresh_OF))))
+       Pif (Pvar (fr fresh_SF)) (Papp1 Onot (Pvar (fr fresh_OF))) (Pvar (fr fresh_OF)))
     | Olt Cmp_su =>
       ([:: Copn [:: f ; Lvar (fr fresh_CF) ; f ; f ; f ] Ox86_CMP [:: x ; y ] ], Pvar (fr fresh_CF))
     | Ole Cmp_sw =>
       ([:: Copn [:: Lvar (fr fresh_OF) ; f ; Lvar (fr fresh_SF) ; f ; Lvar (fr fresh_ZF) ] Ox86_CMP [:: x ; y ] ],
        Papp2 Oor (Pvar (fr fresh_ZF))
-             (Pif (Pvar (fr fresh_SF)) (Pvar (fr fresh_OF)) (Papp1 Onot (Pvar (fr fresh_OF)))))
+             (Pif (Pvar (fr fresh_SF)) (Papp1 Onot (Pvar (fr fresh_OF))) (Pvar (fr fresh_OF))))
     | Ole Cmp_uw =>
       ([:: Copn [:: f ; Lvar (fr fresh_CF) ; f ; f ; Lvar (fr fresh_ZF) ] Ox86_CMP [:: x ; y ] ],
        Papp2 Oor (Pvar (fr fresh_CF)) (Pvar (fr fresh_ZF)))
-    (* TODO: Ogt Oge *)
+    | Ogt Cmp_sw =>
+      ([:: Copn [:: Lvar (fr fresh_OF) ; f ; Lvar (fr fresh_SF) ; f ; Lvar (fr fresh_ZF) ] Ox86_CMP [:: x ; y ] ],
+       Papp2 Oand
+             (Papp1 Onot (Pvar (fr fresh_ZF)))
+             (Pif (Pvar (fr fresh_SF)) (Pvar (fr fresh_OF)) (Papp1 Onot (Pvar (fr fresh_OF)))))
+    | Ogt Cmp_uw =>
+      ([:: Copn [:: f ; Lvar (fr fresh_CF) ; f ; f ; Lvar (fr fresh_ZF) ] Ox86_CMP [:: x ; y ] ],
+       Papp2 Oand
+             (Papp1 Onot (Pvar (fr fresh_CF)))
+             (Papp1 Onot (Pvar (fr fresh_ZF))))
+    | Oge Cmp_sw =>
+      ([:: Copn [:: Lvar (fr fresh_OF) ; f ; Lvar (fr fresh_SF) ; f ; f ] Ox86_CMP [:: x ; y ] ],
+             (Pif (Pvar (fr fresh_SF)) (Pvar (fr fresh_OF)) (Papp1 Onot (Pvar (fr fresh_OF)))))
+    | Oge Cmp_uw =>
+      ([:: Copn [:: f ; Lvar (fr fresh_CF) ; f ; f ; f ] Ox86_CMP [:: x ; y ] ],
+       Papp1 Onot (Pvar (fr fresh_CF)))
     | _ => ([::], pe)
     end
   | _ => ([::], pe)

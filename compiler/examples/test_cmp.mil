@@ -8,5 +8,9 @@ if (x <= y) { r = 3; }
 if (x <=s y) { r = 4; }
 if (x == y) { r = 5; }
 if (x != y) { r = 6; }
+if (x > y) { r = 7; }
+if (x >s y) { r = 8; }
+if (x >= y) { r = 9; }
+if (x >=s y) { r = 0xa; }
 return r;
 }
