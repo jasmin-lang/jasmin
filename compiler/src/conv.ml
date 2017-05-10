@@ -127,7 +127,7 @@ let fresh_cvar tbl n ty =
 
 let get_loc tbl p =
   try Hashtbl.find tbl.vari (int_of_pos p)
-  with Not_found -> assert false
+  with Not_found -> L._dummy
 
 let set_loc tbl loc =
   let n = new_count tbl in
