@@ -124,6 +124,7 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
   Let _ := CheckExpansion.check_prog ps pe in
 
   let pl := lower_instruction_set_prog pe in
+  let pl := cparams.(print_prog) LowerInstruction pl in
 
   let pa := reg_alloc_prog pl in
   let pa := cparams.(print_prog) RegAllocation pa in
