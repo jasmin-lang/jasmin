@@ -1,0 +1,671 @@
+// * Implementation of montgomery ladder for curve25519
+
+param int rem_p = 38; /* 2^(4*64) mod p      */
+
+// ** addition
+// ************************************************************************
+
+fn add(reg u64[4] x, stack u64[4] ya) -> reg u64[4] {
+
+  reg u64[4] y;
+  reg u64    add0;
+  reg u64    add1;
+  reg bool   cf;
+  inline int i;
+
+  for i = 0 to 4 {
+    y[i] = ya[i];
+    if   (i == 0) { cf, x[0] += y[0]; }
+    else          { cf, x[i] += y[i] + cf; }
+  }
+
+  add0 = 0;
+  add1 = rem_p;
+  add1 = add0 if !cf;
+
+  for i = 0 to 4 {
+    if (i == 0) {
+      cf, x[0] += add1;
+    } else {
+      cf, x[i] += add0 + cf;
+    }
+  }
+
+  add0 = add1 if cf;
+  x[0] += add0;
+
+  return x;
+}
+
+// ** subtraction
+// ************************************************************************
+
+fn sub(reg u64[4] x, stack u64[4] ya) -> reg u64[4] {
+
+  reg u64[4] y;
+  reg u64 sub0;
+  reg u64 sub1;
+  reg bool cf;
+  inline int i;
+
+  for i =  0 to 4 {
+    y[i] = ya[i];
+    if (i == 0) {
+      cf, x[0] -= y[0];
+    } else {
+      cf, x[i] -= y[i] - cf;
+    }
+  }
+
+  sub0  = 0;
+  sub1 = rem_p;
+  sub1 = sub0 if !cf;
+
+  for i =  0 to 4 {
+    if (i == 0) {
+      cf, x[0] -= sub1;
+    } else {
+      cf, x[i] -= sub0 - cf;
+    }
+  }
+
+  sub0 = sub1 if cf;
+  x[0] -= sub0;
+
+  return x;
+}
+
+// ** reduction from 8 limbs to 4 limbs
+// ************************************************************************
+
+fn reduce(reg u64[8] z_in) -> reg u64[4] {
+  reg u64 crem_p;
+  reg u64 rax;
+  reg u64 l;
+  reg u64 h;
+  reg u64 hprev;
+  reg u64 zero;
+  reg u64[8] z;
+  reg u64[4] z_out;
+  reg bool cf;
+  inline int i;
+
+  // FIXME: check if this is really required 
+  for i = 0 to 8 { z[i] = z_in[i]; }
+
+  crem_p = rem_p;
+  for i = 0 to 4 {
+    rax = z[4 + i];
+    h, l = rax * crem_p;
+    cf, z[i] += l;
+    if (i == 0) {
+      hprev = 0;
+      hprev += h + cf;
+    } else {
+      h += 0 + cf;
+      cf, z[i] += hprev;
+      hprev = 0;
+      hprev += h + cf;
+    }
+  }
+
+  l = hprev * rem_p;
+  cf, z[0] += l;
+
+  for i = 1 to 4 {
+    cf, z[i] += 0 + cf;
+  }
+
+  zero = 0;
+  zero += 0 + cf;
+
+  l = zero * rem_p;
+  z[0] += l;
+
+  // FIXME: check if this is really required 
+  for i = 0 to 4 { z_out[i] = z[i]; }
+
+  return z_out;
+}
+
+// ** multiplication
+// ************************************************************************
+
+fn mul(stack u64[4] xa, stack u64[4] ya) -> reg u64[4] {
+
+  reg u64[8] z;
+  reg u64[4] r;
+  reg u64[4] x;
+  reg u64[4] y;
+  reg u64 h;
+  reg u64 l;
+  reg u64 hprev;
+  reg bool cf;
+  inline int i;
+  inline int j;
+
+  x[0] = xa[0];
+  for j = 0 to 4 {
+    y[j] = ya[j];
+    h, l = y[j] * x[0];
+
+    if (j == 0) {
+      z[0] = l;
+      z[1] = h;
+    } else {
+      cf, z[j] += l;
+      z[j + 1] = 0;
+      z[j + 1] += h + cf;
+    }
+  }
+
+  for i = 1to 4 {
+    x[i] = xa[i];
+    for j = 0 to 4 {
+      y[j] = ya[j];
+      h, l = y[j] * x[i];
+      cf, z[i+j] += l;
+      if (j == 0) {
+        hprev = 0;
+        hprev += h + cf;
+      } else {
+        h += 0 + cf;
+        cf, z[i+j] += hprev;
+        if (1 <= j && j < 4 - 1) {
+          hprev = 0;
+          hprev += h + cf;
+        } else { /* j = 4 */
+          z[i + j + 1] = 0;
+          cf, z[i + j + 1] += h + cf;
+        }
+      }
+    }
+  }
+
+  r = reduce(z);
+
+  //for i = 0 to 4 { r[i] = z[i]; }
+  return r;
+}
+
+// ** squaring
+// ************************************************************************
+
+fn square(stack u64[4] xa) -> reg u64[4] {
+
+  reg u64[8] z;
+  reg u64[4] r;
+  reg u64[5] t;
+  reg u64 rax;
+  reg u64 rdx;
+  reg bool cf;
+
+  z[7] = 0;
+
+  /*   2*x01 + 2*x02 + 2*x03 + 2*x12 + 2*x13 + 2*x23
+     + x00 + x11 + x22 + x33 */
+
+  rax = xa[1];
+  rdx, rax = rax * xa[0];
+  z[1] = rax;
+  z[2] = rdx;
+
+  rax = xa[2];
+  rdx, rax = rax * xa[1];
+  z[3] = rax;
+  z[4] = rdx;
+
+  rax = xa[3];
+  rdx, rax = rax * xa[2];
+  z[5] = rax;
+  z[6] = rdx;
+
+  /*   [2*]x01 + 2*x02 + 2*x03 + [2*]x12 + 2*x13 + [2*]x23
+     + x00 + x11 + x22 + x33 */
+
+  rax = xa[2];
+  rdx, rax = rax * xa[0];
+  cf, z[2] += rax;
+  cf, z[3] += rdx + cf;
+      z[4] += 0   + cf;
+
+  rax = xa[3];
+  rdx, rax = rax * xa[1];
+  cf, z[4] += rax;
+  cf, z[5] += rdx + cf;
+      z[6] += 0   + cf;
+
+  /*   [2*]x01 + [2*]x02 + 2*x03 + [2*]x12 + [2*]x13 + [2*]x23
+     + x00 + x11 + x22 + x33 */
+
+  rax = xa[3];
+  rdx, rax = rax * xa[0];
+  cf, z[3] += rax;
+  cf, z[4] += rdx + cf;
+  cf, z[5] += 0   + cf;
+      z[6] += 0   + cf;
+
+  /*   x01 + x02 + x03 + x12 + x13 + x23
+     + x00 + x11 + x22 + x33 */
+
+  /* set z<1..2n+1> = 2*z<1..2n+1> since
+     we have summed all x_i*x_j with i<>j
+     so far and these occur twice */
+  cf, z[1] += z[1];
+  cf, z[2] += z[2] + cf;
+  cf, z[3] += z[3] + cf;
+  cf, z[4] += z[4] + cf;
+  cf, z[5] += z[5] + cf;
+  cf, z[6] += z[6] + cf;
+  cf, z[7] += z[7] + cf;
+
+  /* x00 + x11 + x22 + x33 */
+
+  rax = xa[0];
+  rdx, rax = rax * xa[0];
+  z[0] = rax;
+  t[0] = rdx;
+
+  rax = xa[1];
+  rdx, rax = rax * xa[1];
+  t[1] = rax;
+  t[2] = rdx;
+
+  rax = xa[2];
+  rdx, rax = rax * xa[2];
+  t[3] = rax;
+  t[4] = rdx;
+
+  cf, z[1] += t[0];
+  cf, z[2] += t[1] + cf;
+  cf, z[3] += t[2] + cf;
+  cf, z[4] += t[3] + cf;
+  cf, z[5] += t[4] + cf;
+  cf, z[6] += 0 + cf;
+      z[7] += 0 + cf;
+
+  rax = xa[3];
+  rdx, rax = rax * xa[3];
+  cf, z[6] += rax;
+      z[7] += rdx + cf;
+
+  r = reduce(z);
+
+  // FIXME: maybe an equality constraint is enough here
+  //for i = 0 to 4 { r[i] = z[i]; }
+
+  return r;
+}
+
+// ** ladderstep
+// ************************************************************************
+
+fn ladderstep(stack u64[4] x1p, stack u64[4] x2p, stack u64[4] z2p, stack u64[4] x3p, stack u64[4] z3p)
+    -> (stack u64[4] , stack u64[4] , stack u64[4] , stack u64[4]) {
+
+  reg u64[4] t1;
+  reg u64[4] t2;
+  reg u64[4] t7;
+  reg u64[4] t6;
+  reg u64[4] t5;
+  reg u64[4] t3;
+  reg u64[4] t4;
+  reg u64[4] t9;
+  reg u64[4] t8;
+  stack u64[4] t1p;
+  stack u64[4] t2p;
+  stack u64[4] t7p;
+  stack u64[4] t6p;
+  stack u64[4] t5p;
+  stack u64[4] t3p;
+  stack u64[4] t4p;
+  stack u64[4] t9p;
+  reg u64[4] w1;
+  reg u64[4] w2;
+  reg u64[4] w3;
+  reg u64[4] w4;
+  reg u64[4] w5;
+  reg u64[4] w6;
+  reg u64[4] w7;
+  stack u64[4] c121666p;
+
+  c121666p[0] = 121666;
+  c121666p[1] = 0;
+  c121666p[2] = 0;
+  c121666p[3] = 0;
+
+  // workp mapping: 0 -> x1p, 1 -> x2p, 2 -> z2p, 3 -> x3p, 4 -> z3p
+  t1      = x2p;
+  t2      = t1;
+  t1      = add(t1,z2p);
+  t2      = sub(t2,z2p);
+  t1p     = t1;
+  t2p     = t2;
+  t7      = square(t2p);
+  t7p     = t7;
+  t6      = square(t1p);
+  t6p     = t6;
+  t5      = t6;
+  t5      = sub(t5,t7p);
+  t5p     = t5;
+  t3      = x3p;
+  t4      = t3;
+  t3      = add(t3,z3p);
+  t4      = sub(t4,z3p);
+  t3p     = t3;
+  t4p     = t4;
+  t9      = mul(t3p,t2p);
+  t9p     = t9;
+  t8      = mul(t4p,t1p);
+  w1      = t8;
+  w1      = add(w1,t9p);
+
+  t8      = sub(t8,t9p);
+  x3p     = w1;
+  z3p     = t8;
+  w2      = square(x3p);
+  x3p     = w2;
+  w3      = square(z3p);
+  z3p     = w3;
+  w4      = mul(z3p,x1p);
+  z3p     = w4;
+  w5      = mul(t6p,t7p);
+  x2p     = w5;
+  w6      = mul(t5p,c121666p);
+  w6      = add(w6,t7p);
+  z2p     = w6;
+  w7      = mul(z2p,t5p);
+  z2p     = w7;
+
+  return x2p, z2p, x3p, z3p;
+}
+
+// ** cswap
+// ************************************************************************
+
+// FIXME: compare with OpenSSL, this is a translation from C
+fn cswap(stack u64[4] x2p, stack u64[4] z2p, stack u64[4] x3p, stack u64[4] z3p, reg u64 swap)
+    -> (stack u64[4] , stack u64[4] , stack u64[4] , stack u64[4]) {
+
+  reg u64 tmp1;
+  reg u64 tmp2;
+  reg u64 mask;
+  inline int i;
+
+  mask = swap * 0xffffffffffffffff;
+
+  for i = 0 to 4 {
+    tmp1   = x2p[i];
+    tmp1  ^= x3p[i];
+    tmp1  &= mask;
+    tmp2   = x2p[i];
+    tmp2  ^= tmp1;
+    x2p[i] = tmp2;
+
+    tmp2   = x3p[i];
+    tmp2  ^= tmp1;
+    x3p[i] = tmp2;
+
+    tmp1   = z2p[i];
+    tmp1  ^= z3p[i];
+    tmp1  &= mask;
+    tmp2   = z2p[i];
+    tmp2  ^= tmp1;
+    z2p[i] = tmp2;
+    tmp2   = z3p[i];
+    tmp2  ^= tmp1;
+    z3p[i] = tmp2;
+  }
+  return x2p, z2p, x3p, z3p;
+}
+
+// ** montgomery ladder
+// ************************************************************************
+
+fn mladder(stack u64[4] xr, stack u64[4] sp) -> (stack u64[4], stack u64[4]) {
+
+  stack u64    s;
+  reg u64      tmp1;
+  reg u64      tmp2;
+  reg u64      bit;
+  reg u64      swap;
+  stack u64    prevbit;
+  stack u64[4] x1;
+  stack u64[4] x2;
+  stack u64[4] z2;
+  stack u64[4] x3;
+  stack u64[4] z3;
+  reg u64      i;
+  reg u64      j;
+  stack u64    i_s; // store value on stack
+  stack u64    j_s; // store value on stack
+  reg bool     cf;
+
+  prevbit = 0;
+  x1 = xr;
+  x2[0] = 1; x2[1] = 0; x2[2] = 0; x2[3] = 0;
+  z2[0] = 0; z2[1] = 0; z2[2] = 0; z2[3] = 0;
+  x3 = xr;
+  z3[0] = 1; z3[1] = 0; z3[2] = 0; z3[3] = 0;
+
+  i = 3;
+  while {
+    tmp1 = sp[i];
+    i_s = i; 
+    s = tmp1;
+    j = 63;
+    while {
+      tmp2 = s;
+      bit = tmp2 >> j;
+      j_s = j; 
+      bit = bit & 1;
+      swap = prevbit;
+      swap ^= bit;
+      prevbit = bit;
+      x2,z2,x3,z3 = cswap(x2,z2,x3,z3,swap);
+      x2,z2,x3,z3 = ladderstep(x1,x2,z2,x3,z3);
+      j = j_s;
+      cf,j -= 1;  // returns cf=1 for input j=0
+    } (!cf)
+    i = i_s;
+    cf,i -= 1; // returns cf=1 for input i=0
+  } (!cf)
+  swap = prevbit;
+  x2,z2,x3,z3 = cswap(x2,z2,x3,z3,swap);
+  return x2, z2;
+}
+
+// ** inversion
+// ************************************************************************
+
+fn squarea(stack u64[4] x) -> stack u64[4] {
+  reg u64[4] r;
+  stack u64[4] ra;
+
+  r = square(x);
+  ra = r;
+  return ra;
+}
+
+fn mula(stack u64[4] x, stack u64[4] y) -> stack u64[4] {
+  reg u64[4] r;
+  stack u64[4] ra;
+
+  r = mul(x,y);
+  ra = r;
+  return ra;
+}
+
+fn invert(stack u64[4] xa) -> stack u64[4] {
+  stack u64[4] ra;
+  stack u64[4] z2;
+  stack u64[4] t;
+  stack u64[4] z9;
+  stack u64[4] z11;
+  stack u64[4] z2_5_0;
+  stack u64[4] z2_10_0;
+  stack u64[4] z2_20_0;
+  stack u64[4] z2_50_0;
+  stack u64[4] z2_100_0;
+  inline int i;
+
+  z2 = squarea(xa);                   /* 2 */
+  t = squarea(z2);                    /* 4 */
+  t = squarea(t);                     /* 8 */
+  z9 = mula(t,xa);                    /* 9 */
+  z11 = mula(z9,z2);                  /* 11 */
+  t = squarea(z11);                   /* 22 */
+  z2_5_0 = mula(t,z9);                /* 2^5 - 2^0 = 31 */
+
+  t = squarea(z2_5_0);                /* 2^6 - 2^1 */
+  for i = 1 to 5 { t = squarea(t); }   /* 2^20 - 2^10 */
+  z2_10_0 = mula(t,z2_5_0);           /* 2^10 - 2^0 */
+
+  t = squarea(z2_10_0);               /* 2^11 - 2^1 */
+  for i = 1 to 10 { t = squarea(t); }  /* 2^20 - 2^10 */
+  z2_20_0 = mula(t,z2_10_0);          /* 2^20 - 2^0 */
+
+  t = squarea(z2_20_0);               /* 2^21 - 2^1 */
+  for i = 1 to 20 { t = squarea(t); }  /* 2^40 - 2^20 */
+  t = mula(t,z2_20_0);                /* 2^40 - 2^0 */
+
+  t = squarea(t);                     /* 2^41 - 2^1 */
+  for i = 1 to 10 { t = squarea(t); }  /* 2^50 - 2^10 */
+  z2_50_0 = mula(t,z2_10_0);          /* 2^50 - 2^0 */
+
+  t = squarea(z2_50_0);               /* 2^51 - 2^1 */
+  for i = 1 to 50 { t = squarea(t); }  /* 2^100 - 2^50 */
+  z2_100_0 = mula(t,z2_50_0);         /* 2^100 - 2^0 */
+
+  t= squarea(z2_100_0);               /* 2^101 - 2^1 */
+  for i = 1 to 100 { t = squarea(t); } /* 2^200 - 2^100 */
+  t = mula(t,z2_100_0);               /* 2^200 - 2^0 */
+
+  t = squarea(t);                     /* 2^201 - 2^1 */
+  for i = 1 to 50 { t = squarea(t); }  /* 2^250 - 2^50 */
+  t = mula(t,z2_50_0);                /* 2^250 - 2^0 */
+
+  t = squarea(t);                     /* 2^251 - 2^1 */
+  t = squarea(t);                     /* 2^252 - 2^2 */
+  t = squarea(t);                     /* 2^253 - 2^3 */
+
+  t = squarea(t);                     /* 2^254 - 2^4 */
+
+  t = squarea(t);                     /* 2^255 - 2^5 */
+  ra = mula(t,z11);                   /* 2^255 - 21 */
+
+  return ra;
+}
+
+// ** unpack_point
+// ************************************************************************
+
+fn unpack_point(reg u64 xp) -> stack u64[4] {
+  stack u64[4] xa;
+  reg u64 x3;
+
+  xa[0] = [xp + 0*8];
+  xa[1] = [xp + 1*8];
+  xa[2] = [xp + 2*8];
+  x3    = [xp + 3*8];
+  x3    = x3 & 0x7fffffffffffffff;
+  xa[3] = x3;
+
+  return xa;
+}
+
+// ** unpack_secret
+// ************************************************************************
+
+fn unpack_secret(reg u64 sp) -> stack u64[4] {
+  stack u64[4] sa;
+  reg u64 si;
+
+  si    = [sp + 0*8];
+  si    = si & 0xfffffffffffffff8;
+  sa[0] = si;
+  sa[1] = MEM[sp + 1*8];
+  sa[2] = MEM[sp + 2*8];
+  si    = MEM[sp + 3*8];
+  si    = si & 0x7fffffffffffffff;
+  si    = si | 0x4000000000000000;
+  sa[3] = si;
+  return sa;
+}
+
+// ** freeze
+// ************************************************************************
+
+fn freeze(reg u64[4] xa) -> reg u64[4] {
+  reg u64[4] r;
+  reg u64[4] t;
+  reg u64 two63;
+  reg bool cf;
+
+  r = xa;
+  t = r;
+  two63 = 1;
+  two63 <<= 63;
+  cf, t[0] += 19;
+  cf, t[1] += 0     + cf;
+  cf, t[2] += 0     + cf;
+  cf, t[3] += two63 + cf;
+  r[0] = t[0] if cf;
+  r[1] = t[1] if cf;
+  r[2] = t[2] if cf;
+  r[3] = t[3] if cf;
+  t[0] = r[0];
+  t[1] = r[1];
+  t[2] = r[2];
+  t[3] = r[3];
+  cf, t[0] += 19;
+  cf, t[1] += 0     + cf;
+  cf, t[2] += 0     + cf;
+  cf, t[3] += two63 + cf;
+  r[0] = t[0] if cf;
+  r[1] = t[1] if cf;
+  r[2] = t[2] if cf;
+  r[3] = t[3] if cf;
+  xa[0] = r[0];
+  xa[1] = r[1];
+  xa[2] = r[2];
+  xa[3] = r[3];
+  return xa;
+}
+
+// ** pack
+// ************************************************************************
+
+/* assumes input x reduced below 2^255 */
+fn pack(reg u64 rp, reg u64[4] xa) {
+  inline int i;
+
+  xa = freeze(xa);
+  for i = 0 to 4 {
+    [rp + (i*8)] = xa[i];
+  }
+}
+
+// ** scalar multiplication
+// ************************************************************************
+
+export fn scalarmult( reg u64 rp /* address to store result  */
+                    , reg u64 sp /* address of secret scalar */
+                    , reg u64 pp /* address of point         */) {
+  stack u64[4] sa;
+  stack u64[4] xa;
+  stack u64[4] za;
+  stack u64[4] zia;
+  stack u64 rp_s;
+  reg u64[4] r;
+
+  rp_s = rp; // FIXME: really required?
+  sa = unpack_secret(sp);
+  xa = unpack_point(pp);
+  xa, za = mladder(xa,sa);
+  zia = invert(za);
+  r = mul(xa,zia);
+  rp = rp_s;
+  pack(rp,r);
+}
+
