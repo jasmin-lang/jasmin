@@ -137,7 +137,23 @@ let pp_imr (ws : rsize) (op : X86_sem.ireg) =
 
 (* -------------------------------------------------------------------- *)
 let pp_ct (ct : X86_sem.condt) =
-  ""
+  match ct with
+  | O_ct   -> "o"
+  | NO_ct  -> "no"
+  | B_ct   -> "b"
+  | NB_ct  -> "nb"
+  | E_ct   -> "e"
+  | NE_ct  -> "ne"
+  | BE_ct  -> "be"
+  | NBE_ct -> "nbe"
+  | S_ct   -> "s"
+  | NS_ct  -> "ns"
+  | P_ct   -> "p"
+  | NP_ct  -> "np"
+  | L_ct   -> "l"
+  | NL_ct  -> "nl"
+  | LE_ct  -> "le"
+  | NLE_ct -> "nle"
 
 (* -------------------------------------------------------------------- *)
 let pp_iname (ws : rsize) (name : string) =
