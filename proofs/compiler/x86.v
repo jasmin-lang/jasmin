@@ -215,42 +215,49 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     | PF => ok NP_ct
     | DF => cierror ii (Cerr_assembler "Cannot branch on ~~ DF")
     end
-  | Papp2 Oor (Pvar v1) (Pvar v2) =>
-    Let r1 := rflag_of_var ii v1 in
-    Let r2 := rflag_of_var ii v2 in
-    if ((r1 == CF) && (r2 == ZF)) then
+  | Papp2 Oor (Pvar vcf) (Pvar vzf) =>
+    Let rcf := rflag_of_var ii vcf in
+    Let rzf := rflag_of_var ii vzf in
+    if ((rcf == CF) && (rzf == ZF)) then
       ok BE_ct
     else cierror ii (Cerr_assembler "Invalid condition")
-  | Papp2 Oand (Papp1 Onot (Pvar v1)) (Papp1 Onot (Pvar v2)) =>
-    Let r1 := rflag_of_var ii v1 in
-    Let r2 := rflag_of_var ii v2 in
-    if ((r1 == CF) && (r2 == ZF)) then
+  | Papp2 Oand (Papp1 Onot (Pvar vcf)) (Papp1 Onot (Pvar vzf)) =>
+    Let rcf := rflag_of_var ii vcf in
+    Let rzf := rflag_of_var ii vzf in
+    if ((rcf == CF) && (rzf == ZF)) then
       ok NBE_ct
     else cierror ii (Cerr_assembler "Invalid condition")
-  | Papp2 (Oneq _) (Pvar v1) (Pvar v2) =>
-    Let r1 := rflag_of_var ii v1 in
-    Let r2 := rflag_of_var ii v2 in
-    if ((r1 == SF) && (r2 == OF)) then
+  | Pif (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2) =>
+    Let rsf := rflag_of_var ii vsf in
+    Let rof1 := rflag_of_var ii vof1 in
+    Let rof2 := rflag_of_var ii vof2 in
+    if ((rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok L_ct
     else cierror ii (Cerr_assembler "Invalid condition")
-  | Papp2 (Oeq _) (Pvar v1) (Pvar v2) =>
-    Let r1 := rflag_of_var ii v1 in
-    Let r2 := rflag_of_var ii v2 in
-    if ((r1 == SF) && (r2 == OF)) then
+  | Pif (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2)) =>
+    Let rsf := rflag_of_var ii vsf in
+    Let rof1 := rflag_of_var ii vof1 in
+    Let rof2 := rflag_of_var ii vof2 in
+    if ((rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok NL_ct
     else cierror ii (Cerr_assembler "Invalid condition")
-  | Papp2 Oor (Pvar v1) (Papp2 (Oneq _) (Pvar v2) (Pvar v3)) =>
-    Let r1 := rflag_of_var ii v1 in
-    Let r2 := rflag_of_var ii v2 in
-    Let r3 := rflag_of_var ii v3 in
-    if ((r1 == ZF) && (r2 == SF) && (r3 == OF)) then
+  | Papp2 Oor (Pvar vzf)
+          (Pif (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2)) =>
+    Let rzf := rflag_of_var ii vzf in
+    Let rsf := rflag_of_var ii vsf in
+    Let rof1 := rflag_of_var ii vof1 in
+    Let rof2 := rflag_of_var ii vof2 in
+    if ((rzf == ZF) && (rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok LE_ct
     else cierror ii (Cerr_assembler "Invalid condition")
-  | Papp2 Oand (Pvar v1) (Papp2 (Oeq _) (Pvar v2) (Pvar v3)) =>
-    Let r1 := rflag_of_var ii v1 in
-    Let r2 := rflag_of_var ii v2 in
-    Let r3 := rflag_of_var ii v3 in
-    if ((r1 == ZF) && (r2 == SF) && (r3 == OF)) then
+  | Papp2 Oand
+             (Papp1 Onot (Pvar vzf))
+             (Pif (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2))) =>
+    Let rzf := rflag_of_var ii vzf in
+    Let rsf := rflag_of_var ii vsf in
+    Let rof1 := rflag_of_var ii vof1 in
+    Let rof2 := rflag_of_var ii vof2 in
+    if ((rzf == ZF) && (rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok NLE_ct
     else cierror ii (Cerr_assembler "Invalid condition")
   | _ => cierror ii (Cerr_assembler "Invalid condition")
@@ -260,13 +267,13 @@ Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
   match o with
   | Ox86_CMP =>
     match l with
-    | [:: Lvar vof; Lvar vsf; Lvar vzf; Lvar vpf; Lvar vcf] =>
+    | [:: Lvar vof; Lvar vcf; Lvar vsf; Lvar vpf; Lvar vzf] =>
       Let rof := rflag_of_var ii vof in
-      Let rsf := rflag_of_var ii vsf in
-      Let rzf := rflag_of_var ii vzf in
-      Let rpf := rflag_of_var ii vpf in
       Let rcf := rflag_of_var ii vcf in
-      if ((rof == OF) && (rsf == SF) && (rzf == ZF) && (rpf == PF) && (rcf == CF)) then
+      Let rsf := rflag_of_var ii vsf in
+      Let rpf := rflag_of_var ii vpf in
+      Let rzf := rflag_of_var ii vzf in
+      if ((rof == OF) && (rcf == CF) && (rsf == SF) && (rpf == PF) && (rzf == ZF)) then
         match e with
         | [:: e1; e2] =>
           Let o1 := oprd_of_pexpr ii e1 in
@@ -284,6 +291,7 @@ Definition assemble_i (li: linstr) : ciexec asm :=
   let (ii, i) := li in
   match i with
   | Lassgn l _ e =>
+     (* TODO: this is useless since lowering doesn't leave Lassgn; might remove at some point *)
      Let dst := oprd_of_lval ii l in
      Let src := oprd_of_pexpr ii e in
      ciok (MOV dst src)
