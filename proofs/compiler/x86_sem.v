@@ -147,6 +147,42 @@ Canonical rflag_eqType := EqType rflag rflag_eqMixin.
 Definition scale_eqMixin := comparableClass scale_eq_dec.
 Canonical scale_eqType := EqType scale scale_eqMixin.
 
+Definition address_beq (addr1: address) addr2 :=
+  match addr1, addr2 with
+  | mkAddress d1 b1 s1 o1, mkAddress d2 b2 s2 o2 =>
+    (d1 == d2) && (b1 == b2) && (s1 == s2) && (o1 == o2)
+  end.
+
+Lemma address_eq_axiom : Equality.axiom address_beq.
+Proof.
+  move=> [d1 b1 s1 o1] [d2 b2 s2 o2].
+  apply (@equivP (((d1 == d2) && (b1 == b2) && (s1 == s2)) /\ (o1 == o2)))=> /=.
+  apply: andP.
+  split.
+  by move=> [/andP [/andP [/eqP->/eqP->]/eqP->]/eqP->].
+  by move=> -[]<- <- <- <-; rewrite !eq_refl /=.
+Qed.
+
+Definition address_eqMixin := Equality.Mixin address_eq_axiom.
+Canonical address_eqType := EqType address address_eqMixin.
+
+Definition oprd_beq (op1: oprd) op2 :=
+  match op1, op2 with
+  | Imm_op w1, Imm_op w2 => w1 == w2
+  | Reg_op r1, Reg_op r2 => r1 == r2
+  | Adr_op a1, Adr_op a2 => a1 == a2
+  | _, _ => false
+  end.
+
+Lemma oprd_eq_axiom : Equality.axiom oprd_beq.
+Proof.
+  move=> [x1|x1|x1] [x2|x2|x2] /=; try (by constructor);
+  (apply (@equivP (x1 = x2)); [by apply: eqP|by split=> [->|[]->]]).
+Qed.
+
+Definition oprd_eqMixin := Equality.Mixin oprd_eq_axiom.
+Canonical oprd_eqType := EqType oprd oprd_eqMixin.
+
 Definition condt_eqMixin := comparableClass condt_eq_dec.
 Canonical condt_eqType := EqType condt condt_eqMixin.
 
