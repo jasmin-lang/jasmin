@@ -26,7 +26,7 @@
 From mathcomp Require Import all_ssreflect.
 Require Import x86 expr.
 Import ZArith.
-Require Import compiler_util allocation inline dead_calls unrolling
+Require Import low_memory compiler_util allocation inline dead_calls unrolling
    constant_prop dead_code array_expansion lowering stack_alloc linear.
 
 Set Implicit Arguments.
