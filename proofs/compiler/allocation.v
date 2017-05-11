@@ -867,7 +867,7 @@ Module CBAreg.
     end.
      
   Definition eq_alloc (r:M.t) (vm1 vm2:vmap) := 
-    [/\ vm_uincl vmap0 vm2,
+    [/\ vm_uincl vmap0 vm2, 
         (forall x, ~Sv.In x (M.mset r) -> vm1.[x] = undef_addr x.(vtype)) &
         (forall x id,  M.get r x = Some id -> eval_uincl vm1.[x] vm2.[Var (vtype x) id])].
   
@@ -879,7 +879,7 @@ Module CBAreg.
     eq_alloc r1 vm vm' -> 
     eq_alloc r2 vm vm'.
   Proof. 
-    move=> /M.inclP [Hi Hsub] [Huincl epa eqa];split=>//.
+    move=> /M.inclP [Hi Hsub] [ Huincl epa eqa];split=>//.
     + by move=> x Hx;apply epa;SvD.fsetdec.
     move=> x id /Hi;apply eqa. 
   Qed.
@@ -897,21 +897,23 @@ Module CBAreg.
     + case: eqP => //= ? [<-];subst id => Hea;split=>//.
       case: Hea => _ _ /(_ _ _ Hget) Hev v1 {Hget} Hget.    
       case: x1 x2 Ht Hget Hev=> [[xt1 xn1] ii1] [[xt2 xn2] ii2] /= <-.
-      rewrite /get_var;apply: rbindP => /= z -> [<-].
-      case: (vm2.[_])%vmap => //= z' Hz;exists (to_val z');split => //=.
-      by rewrite -to_val_uincl.
-    case: ifPn => //= /Sv_memP Hnot [] <- [Hvm0 Hset Huincl];split;first split=>//.
+      rewrite /get_var;apply: on_vuP => /= [t | ] -> <- /=.
+      + case: (vm2.[_])%vmap => //= z' Hz';exists (to_val z');split => //=.
+        by rewrite -to_val_uincl.
+      case: (vm2.[_])%vmap => //= [ v' _ | e <-];last by eauto.
+      by exists (to_val v');rewrite type_of_to_val.
+    case: ifPn => //= /Sv_memP Hnot [] <- [ Hvm0 Hset Huincl];split;first split=>//.
     + by move=> x;rewrite M.setP_mset => ?;apply Hset;SvD.fsetdec.
     + move=> x id;case : ((v_var x1) =P x) => [<- | /eqP Hne].
       + rewrite M.setP_eq => -[<-].
-        by rewrite (Hset _ Hnot) /=;apply: (Hvm0 {| vtype := vtype x1; vname := vname x2 |}).
+        rewrite (Hset _ Hnot) /=.
+        apply: (Hvm0 {| vtype := vtype x1; vname := vname x2 |}).
       by move=> /(M.setP_neq Hne) [??];apply Huincl.
-    move=> v1;rewrite /get_var.
-    rewrite (Hset _ Hnot) /=.
-    case: x2 Ht => [[xt2 xn2] ?] /= <-.
-    case: (vtype x1) => //= p [<-].
-    have := Hvm0 {| vtype := sarr p; vname := xn2 |};rewrite /vmap0 /=.
-    by case: (vm2.[_])%vmap => //= a Ha; exists (Varr a).
+    move=> v1;rewrite /get_var (Hset _ Hnot) /=.
+    case: x2 Ht (Hvm0 x2) => [[xt2 xn2] ?] /= <-.
+    case: (vtype x1) => //=;
+      try by move=> H [<-];case: (vm2.[_]) H => //= [? _ | e <-];eauto.
+    by move=> p H [<-]; case: (vm2.[_]) H => //= a Ha;exists (Varr a).
   Qed.
 
   Lemma check_eP e1 e2 r re vm1 vm2 :
@@ -961,6 +963,31 @@ Module CBAreg.
     by move=> /value_uincl_bool H/H{H} [? ->] /=;case: (b);auto.
   Qed.
 
+  Lemma eq_alloc_set x1 (v1 v2:exec (sem_t (vtype x1))) r xn2 vm1 vm2  : 
+    eq_alloc r vm1 vm2 ->
+    eval_uincl v1 v2 ->
+    ((exists v', v2 = ok v') \/ v2 = undef_error) ->  
+    eq_alloc (M.set r x1 xn2) vm1.[x1 <- apply_undef v1] 
+                              vm2.[{| vtype := vtype x1; vname := xn2 |} <- apply_undef v2].
+  Proof.
+    move=> [Hvm0 Hin Hget] Hu; set x2 := {|vtype := _ |};split.
+    + move=> z;case (x2 =P z) => [<- | /eqP Hne].
+      + rewrite Fv.setP_eq /vmap0 Fv.get0 /x2 /=.
+        case: H => [[v']|] ?;subst v2 => //= {x2}.
+        case: (vtype x1) (v') => //= p v2' i v H.
+        by have := Array.getP_empty H.
+      by rewrite Fv.setP_neq.
+    + move=> z;rewrite M.setP_mset => Hnin.
+      by rewrite Fv.setP_neq;[apply Hin|apply /eqP];SvD.fsetdec.
+    move=> x id;case: (x1 =P x) => [<- | /eqP Hne].
+    + rewrite M.setP_eq => -[<-];rewrite !Fv.setP_eq.
+      case: H => [[v'] | ] ?;subst v2.
+      + by case: v1 Hu => [v1 | []] //= _; apply: eval_uincl_undef.
+      by case: v1 Hu => //= -[].
+    move=> /(M.setP_neq Hne) [] Hx1 Hid;rewrite !Fv.setP_neq //;first by apply Hget.
+    by apply /eqP => -[] _ /Hid.
+  Qed.
+
   Lemma check_varP r1 r1' vm1 vm2 vm1' x1 x2 v1 v2 :
     eq_alloc r1 vm1 vm2 ->
     check_var x1 x2 r1 = ok r1' ->
@@ -970,23 +997,19 @@ Module CBAreg.
       set_var vm2 x2 v2 = ok vm2' /\ eq_alloc r1' vm1' vm2'.
   Proof.
     rewrite /check_var;case: eqP => //= Ht Hea [<-].
-    apply: rbindP => v1' Hv1' [<-] Hu.
-    have [v2' [Hv2' Hu']]:= of_val_uincl Hu Hv1'.
-    case: x2 Ht => -[xt2 xn2] _ /= <-.
-    exists (vm2.[{| vtype := vtype x1; vname := xn2 |} <- ok v2']);split.
-    + by rewrite /set_var /= Hv2'.
-    case: Hea => Hvm0 Hin Hget; set x2 := {|vtype := _ |};split.
-    + move=> z;case (x2 =P z) => [<- | /eqP Hne].
-      + rewrite Fv.setP_eq /vmap0 Fv.get0 /x2 /= => {Hu' Hv2'}.
-        case: (vtype x1) v2' => //= p v2' i v H.
-        by have := Array.getP_empty H.
-      by rewrite Fv.setP_neq.
-    + move=> z;rewrite M.setP_mset => Hnin.
-      by rewrite Fv.setP_neq;[apply Hin|apply /eqP];SvD.fsetdec.
-    move=> x id;case: ((v_var x1) =P x) => [<- | /eqP Hne].
-    + by rewrite M.setP_eq => -[<-];rewrite !Fv.setP_eq.
-    move=> /(M.setP_neq Hne) [] Hx1 Hid;rewrite !Fv.setP_neq //;first by apply Hget.
-    by apply /eqP => -[] _ /Hid.
+    apply: on_vuP.
+    + move=> v1' Hv1' [<-] Hu.
+      have [v2' [Hv2' Hu']]:= of_val_uincl Hu Hv1'.
+      case: x2 Ht => -[xt2 xn2] _ /= <-.
+      exists (vm2.[{| vtype := vtype x1; vname := xn2 |} <- ok v2']);split.
+      + by rewrite /set_var /= Hv2'.
+      apply: (@eq_alloc_set x1 (ok v1') (ok v2')) => //; by eauto.
+    move=> /of_val_error -> /= <-.
+    rewrite /set_var;case: x1 x2 Ht => [[t1 xn1] ii1] [[t2 xn2] ii2] /= <- /eqP -> /=. 
+    set x1 := {|vname := xn1|}.
+    have [[ v'] -> | -> ] /=:= of_val_type_of v2;eexists;split;eauto.
+    + apply: (@eq_alloc_set x1 undef_error (ok v'))=> //; by eauto.
+    apply: (@eq_alloc_set x1 undef_error undef_error)=> //; by eauto.
   Qed.
 
   Lemma check_lvalP r1 r1' x1 x2 s1 s1' vm1 v1 v2 :

@@ -235,9 +235,15 @@ Proof.
   apply: rbindP => s1 Hw Hws. 
   apply Eseq with s1;first by constructor;constructor;rewrite Hse.
   apply : Hrec Hws;first by SvD.fsetdec.
-  apply:rbindP Hw => vm;apply: rbindP => z ? [<-] [<-] /=.
-  rewrite -Hses=> {Hse Hses};case:s => sm svm /=. apply read_es_eq_on with Sv.empty.
-  rewrite read_esE => y Hy;rewrite Fv.setP_neq //;apply/eqP;SvD.fsetdec.
+  apply:rbindP Hw => vm;apply: on_vuP.
+  + move=> z ? <- [<-] /=.
+    rewrite -Hses=> {Hse Hses};case:s => sm svm /=. 
+    apply read_es_eq_on with Sv.empty.
+    by rewrite read_esE => y Hy;rewrite Fv.setP_neq //;apply/eqP;SvD.fsetdec.
+  move=> ? <- [<-] /=.
+  rewrite -Hses=> {Hse Hses};case:s => sm svm /=. 
+  apply read_es_eq_on with Sv.empty.
+  by rewrite read_esE => y Hy;rewrite Fv.setP_neq //;apply/eqP;SvD.fsetdec.
 Qed.
 
 Lemma assgn_tuple_Pvar p ii xs flag rxs vs s s' :
@@ -265,20 +271,26 @@ Proof.
   by move=> y Hy;rewrite Heqe //;apply (vrvP Hw);SvD.fsetdec.
 Qed.
 
+(* FIXME : MOVE THIS, this should be an invariant in vmap *)
 Section WF.
 
   Definition wf_vm (vm:vmap) := 
     forall x,
       match vm.[x], vtype x with
-      | Error _, sarr n => False
-      | _, _            => True
+      | Ok _   , _      => True
+      | Error ErrAddrUndef, sarr _ => False
+      | Error ErrAddrUndef, _ => True
+      | _, _ => false
       end.
 
   Lemma wf_set_var x ve vm1 vm2 :
     wf_vm vm1 -> set_var vm1 x ve = ok vm2 -> wf_vm vm2.
   Proof.
-    move=> Hwf;apply: rbindP => v ? [<-] /= z.
-    case: (x =P z) => [ <- | /eqP Hne];first by rewrite Fv.setP_eq.
+    move=> Hwf;apply: on_vuP => [v | ] ? <- /= z.
+    + case: (x =P z) => [ <- | /eqP Hne];first by rewrite Fv.setP_eq.
+      by rewrite Fv.setP_neq //;apply (Hwf z).
+    case: (x =P z) => [ <- | /eqP Hne].
+    + by rewrite Fv.setP_eq; case (vtype x).
     by rewrite Fv.setP_neq //;apply (Hwf z).
   Qed.
   
@@ -346,8 +358,8 @@ Section WF.
   Lemma wf_vm_uincl vm : wf_vm vm -> vm_uincl vmap0 vm.
   Proof.
     move=> Hwf x;have := Hwf x;rewrite /vmap0 Fv.get0.
-    case: vm.[x];case:(vtype x) => //=.
-    by move=> ????? H;have := Array.getP_empty H.
+    case: vm.[x] => [a _ | ];first by apply eval_uincl_undef.
+    move=> [] //=;case:(vtype x) => //=.
   Qed.
   
   Lemma wf_vmap0 : wf_vm vmap0.

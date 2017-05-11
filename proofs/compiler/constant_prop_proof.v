@@ -65,7 +65,7 @@ Proof.
   apply: rbindP => w;apply:rbindP => w' /= ->.
   apply: rbindP => /= b Hb [<-]. 
   rewrite /sem_op1_b /mk_sem_sop1 /= negbK => [<-].
-  by case: w' Hb => //= ? [<-].
+  by case: w' Hb => //= [? [->] | []].
 Qed.
 
 Lemma snot_wP e : Papp1 Olnot e =E snot_w e.
@@ -74,31 +74,48 @@ Proof. auto. Qed.
 Lemma s_op1P o e : Papp1 o e =E s_op1 o e.
 Proof. case: o;auto using snot_boolP, snot_wP. Qed.
 
-
 (* * -------------------------------------------------------------------- *)
+
+(* TODO: MOVE THIS *)
+Lemma of_val_bool v b: of_val sbool v = ok b -> v = Vbool b.
+Proof. by case v=> //= [? [->] | []]. Qed.
+
+Lemma of_val_int v z: of_val sint v = ok z -> v = Vint z.
+Proof. by case v=> //= [? [->] | []]. Qed.
+
+Lemma of_val_word v w: of_val sword v = ok w -> v = Vword w.
+Proof. by case v=> //= [? [->] | []]. Qed.
+
 Lemma sandP e1 e2 : Papp2 Oand e1 e2 =E sand e1 e2.
 Proof.
   rewrite /sand. case: is_boolP => [b1 rho v /=| {e1} e1]. 
-  + by case:b1;case: sem_pexpr => //= -[].
+  + apply: rbindP=> v2' /= He2;apply:rbindP=> ? [<-]. 
+    by apply: rbindP => b2 /of_val_bool Hb2 [<-];subst v2';case:b1.
   case: is_boolP => [b2 rho v /=|{e2}e2];last by auto using eeq_refl.
-  by case:b2;case: sem_pexpr => //= -[] //= b [] <-;rewrite ?andbT ?andbF.
+  apply: rbindP => v1 Hv1;apply:rbindP=> b1 /of_val_bool ?;subst v1 => /= -[<-].
+  by case:b2;rewrite ?andbT ?andbF.
 Qed.
 
 Lemma sorP e1 e2 : Papp2 Oor e1 e2 =E sor e1 e2.
 Proof.
   rewrite /sor. case: is_boolP => [b1 rho v /=| {e1} e1]. 
-  + by case:b1;case: sem_pexpr => //= -[].
+  + apply: rbindP=> v2' /= He2;apply:rbindP=> ? [<-]. 
+    by apply: rbindP => b2 /of_val_bool Hb2 [<-];subst v2';case:b1.
   case: is_boolP => [b2 rho v /=|{e2}e2];last by auto using eeq_refl.
-  by case:b2;case: sem_pexpr => //= -[] //= b [] <-;rewrite ?orbT ?orbF.
+  apply: rbindP => v1 Hv1;apply:rbindP=> b1 /of_val_bool ?;subst v1 => /= -[<-].
+  by case:b2;rewrite ?orbT ?orbF.
 Qed.
 
 Lemma sadd_intP e1 e2 : Papp2 (Oadd Op_int) e1 e2 =E sadd_int e1 e2.
 Proof.
   rewrite /sadd_int; case: (is_constP e1) => [n1| {e1} e1];
     case: (is_constP e2) => [n2| {e2} e2] rho v //=.
-  + by case: eqP => [-> | //];case: sem_pexpr => //= -[].
-  case: eqP => [-> | //];case: sem_pexpr => //= -[] //= z <-.
-  by rewrite /sem_op2_i /mk_sem_sop2 /= Z.add_0_r.
+  + apply: rbindP => v2 Hv2; rewrite /sem_op2_i /mk_sem_sop2 /=.
+    apply: rbindP => z2 /of_val_int ? /=;subst v2=> [<-].
+    by case: eqP => [-> // | /= _];rewrite Hv2.
+  apply: rbindP => v1 Hv1;rewrite /sem_op2_i /mk_sem_sop2 /=.
+  apply: rbindP => z1 /of_val_int ? /=;subst v1=> [<-].
+  by case: eqP => [-> // | /= _];rewrite Hv1 //= Z.add_0_r.
 Qed.
 
 Lemma is_wconstP e : is_reflect wconst e (is_wconst e).
@@ -115,10 +132,10 @@ Proof.
   + by rewrite /sem_op2_w /mk_sem_sop2 /= iword_addP.
   + case:ifP => [/eqP Heq | //].
     apply:rbindP=> v2 ->;rewrite -repr_mod Heq /sem_op2_w /mk_sem_sop2 /=.
-    by case: v2 => //= w2;rewrite I64.add_zero_l => -[<-].
+    by apply: rbindP => w2 /of_val_word ?;subst v2;rewrite I64.add_zero_l => -[<-].
   case:ifP => [/eqP Heq | //].
   apply:rbindP=> v1 ->;rewrite -repr_mod Heq /sem_op2_w /mk_sem_sop2 /=.
-  by case: v1 => //= w1;rewrite I64.add_zero => -[<-].
+  by apply: rbindP => w1 /of_val_word ?;subst v1;rewrite I64.add_zero.
 Qed.
 
 Lemma saddP ty e1 e2 : Papp2 (Oadd ty) e1 e2 =E sadd ty e1 e2.
@@ -128,8 +145,9 @@ Lemma ssub_intP e1 e2 : Papp2 (Osub Op_int) e1 e2 =E ssub_int e1 e2.
 Proof.
   rewrite /ssub_int. case: (is_constP e1) => [n1| {e1} e1];
     case: (is_constP e2) => [n2| {e2} e2] rho v //=.
-  case: eqP => [-> | //];case: sem_pexpr => //= -[] //= z <-.
-  by rewrite /sem_op2_i /mk_sem_sop2 /= Z.sub_0_r.
+  apply: rbindP => v1 Hv1;rewrite /sem_op2_i /mk_sem_sop2 /=. 
+  apply: rbindP => z1 /of_val_int ? /=;subst v1=> [<-].
+  by case: eqP => [-> | /= _];rewrite Hv1 ?Z.sub_0_r.
 Qed.
 
 Lemma ssub_wP e1 e2 : Papp2 (Osub Op_w) e1 e2 =E ssub_w e1 e2.
@@ -139,7 +157,7 @@ Proof.
   + by rewrite /sem_op2_w /mk_sem_sop2 /= iword_subP.
   case:ifP => [/eqP Heq | //].
   apply:rbindP=> v1 ->;rewrite -repr_mod Heq /sem_op2_w /mk_sem_sop2 /=.
-  by case: v1 => //= w1;rewrite I64.sub_zero_l => -[<-].
+  by apply: rbindP => w1 /of_val_word ?;subst v1 => [<-];rewrite I64.sub_zero_l.
 Qed.
 
 Lemma ssubP ty e1 e2 : Papp2 (Osub ty) e1 e2 =E ssub ty e1 e2.
@@ -149,14 +167,15 @@ Lemma smul_intP e1 e2 : Papp2 (Omul Op_int) e1 e2 =E smul_int e1 e2.
 Proof.
   rewrite /smul_int. case: (is_constP e1) => [n1| {e1} e1];
     case: (is_constP e2) => [n2| {e2} e2] rho v //=.
-  + case:eqP => [->|_]; first by  case: sem_pexpr => //= -[].
-    case:eqP => [->|//];case: sem_pexpr => //= -[] //= z <-.
-    by rewrite /sem_op2_i /mk_sem_sop2 [Z.mul]lock /= -lock Z.mul_1_l.
-  case:eqP => [->|_].
-  + case: sem_pexpr => //= -[] //= z.
-    by rewrite /sem_op2_i /mk_sem_sop2 /= Z.mul_0_r.
-  case:eqP => [->|//];case: sem_pexpr => //= -[] //= z.
-  by rewrite /sem_op2_i /mk_sem_sop2 [Z.mul]lock /= -lock Z.mul_1_r.
+  + apply: rbindP => v2 Hv2. rewrite /sem_op2_i /mk_sem_sop2 /=.
+    apply: rbindP => z2 /of_val_int ?;subst v2.
+    case:eqP => [-> //|_]; case:eqP => [-> | _ /=];last by rewrite Hv2.
+    by rewrite Z.mul_1_l => -[<-].
+  apply: rbindP => v1 Hv1. rewrite /sem_op2_i /mk_sem_sop2 /=.
+  apply: rbindP => z1 /of_val_int ?;subst v1.
+  case:eqP => [->|_] <-;first by rewrite  Z.mul_0_r.
+  case:eqP => [-> | _ /=];first by rewrite Z.mul_1_r.
+  by rewrite Hv1.
 Qed.
 
 Lemma smul_wP e1 e2 : Papp2 (Omul Op_w) e1 e2 =E smul_w e1 e2.
@@ -169,13 +188,12 @@ Proof.
       by apply:rbindP => ? _;rewrite I64.mul_commut I64.mul_zero.
     case:ifP => [/eqP Heq | //=];last by rewrite repr_mod.
     apply:rbindP=> v2 ->;rewrite -repr_mod Heq /sem_op2_w /mk_sem_sop2 /=.
-    by case: v2 => //= w2; rewrite I64.mul_commut I64.mul_one.
-  case:ifP => [/eqP Heq | _].
-  + apply:rbindP=> v1 _;rewrite -repr_mod Heq /sem_op2_w /mk_sem_sop2 /=.
-    by apply:rbindP => ? _;rewrite I64.mul_zero.
-  case:ifP => [/eqP Heq | //=];last by rewrite repr_mod.
-  apply:rbindP=> v1 ->;rewrite -repr_mod Heq /sem_op2_w /mk_sem_sop2 /=.
-  by case: v1 => //= w1; rewrite I64.mul_one.
+    apply: rbindP => w2 /of_val_word ?;subst v2.
+    by rewrite I64.mul_commut I64.mul_one.
+  apply:rbindP => v1 Hv1;rewrite /sem_op2_w /mk_sem_sop2 /=.
+  apply:rbindP => w1 /of_val_word ?;subst v1;rewrite -repr_mod.
+  case:ifP => [/eqP -> | _] <-;first by rewrite I64.mul_zero.
+  by case:ifP => [/eqP -> | /= _]; rewrite ?Hv1 ?I64.mul_one.
 Qed.
 
 Lemma smulP ty e1 e2 : Papp2 (Omul ty) e1 e2 =E smul ty e1 e2.
@@ -323,8 +341,9 @@ Lemma remove_cpm1P x v m s1 s1' :
   valid_cpm (evm s1') (Mvar.remove m x).
 Proof.
   move=> Hw Hv z n;rewrite Mvar.removeP;case: ifPn => //= ? /Hv.
-  move: Hw;apply: rbindP => vm;apply: rbindP => w ? [<-] [<-].
-  by rewrite /get_var /=;rewrite Fv.setP_neq.
+  move: Hw;apply: rbindP => vm;apply: on_vuP => [ w ? <- [<-] | ].
+  + by rewrite /get_var /= Fv.setP_neq.
+  by move=> ? <- [<-] /=;rewrite /get_var /= Fv.setP_neq.
 Qed.
 
 Lemma add_cpmP s1 s1' m x e tag v : 

@@ -239,9 +239,15 @@ Proof. by case: v => [a | []] Hfv Hfu //= [];[apply: Hfv | apply Hfu]. Qed.
 Definition get_var (m:vmap) x :=
   on_vu (@to_val (vtype x)) (Vundef (vtype x)) (m.[x]%vmap).
 
-Definition set_var (m:vmap) x v : exec vmap:=
-  on_vu (fun v => m.[x<-ok v]%vmap) (m.[x<-Error ErrAddrUndef]%vmap)
+Definition set_var (m:vmap) x v : exec vmap :=
+  on_vu (fun v => m.[x<-ok v]%vmap) (m.[x<-undef_addr x.(vtype)]%vmap)
     (of_val (vtype x) v).
+
+Definition apply_undef t (v : exec (sem_t t)) := 
+  match v with 
+  | Error ErrAddrUndef => undef_addr t
+  | _                  => v
+  end.
 
 Definition is_full_array v :=
   match v with
@@ -716,7 +722,7 @@ Definition sem_sopn (o:sopn) :  values -> exec values :=
   | Osubcarry    => app_wwb (fun x y c => ok (@pval sbool sword (wsubcarry x y c)))
 
   (* Low level x86 operations *)
-  | Ox86_MOV	 => app_w x86_MOV
+  | Ox86_MOV	 => app_w    x86_MOV
   | Ox86_CMOVcc  => app_bww  x86_CMOVcc
   | Ox86_ADD     => app_ww   x86_add
   | Ox86_SUB     => app_ww   x86_sub
@@ -1239,7 +1245,7 @@ Proof.
   + exists (vm1'.[x <- ok t])%vmap;split => // z Hin.
     case: (x =P z) => [<- | /eqP Hxz];first by rewrite !Fv.setP_eq.
     by rewrite !Fv.setP_neq ?Hvm1 //;move/eqP:Hxz; SvD.fsetdec.
-  exists (vm1'.[x <- Error ErrAddrUndef])%vmap;split => // z Hin.
+  exists (vm1'.[x <- undef_addr (vtype x)])%vmap;split => // z Hin.
   case: (x =P z) => [<- | /eqP Hxz];first by rewrite !Fv.setP_eq.
   by rewrite !Fv.setP_neq ?Hvm1 //;move/eqP:Hxz; SvD.fsetdec.
 Qed.
@@ -1640,6 +1646,11 @@ Proof.
   by rewrite /= eq_refl. 
 Qed.
 
+Lemma eval_uincl_undef t v : eval_uincl (undef_addr t) (ok v).
+Proof.
+  by case: t v => //= p v i w H; have := Array.getP_empty H.
+Qed.
+
 Lemma set_var_uincl vm1 vm1' vm2 x v v' :
   vm_uincl vm1 vm1' ->
   value_uincl v v' ->
@@ -1655,7 +1666,7 @@ Proof.
   set x := {|vtype := _ |}.
   case: (of_val_type_of v') => [ [v1 ->] | ->] <-;eexists;split;eauto.
   + move=> z /=;case: (x =P z) => [<- |/eqP ? ].
-    + by rewrite !Fv.setP_eq.
+    + rewrite !Fv.setP_eq;apply: eval_uincl_undef.
     by rewrite !Fv.setP_neq.
   move=> z /=;case: (x =P z) => [<- |/eqP ? ].
   + by rewrite !Fv.setP_eq.

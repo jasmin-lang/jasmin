@@ -200,9 +200,11 @@ Module CBEA.
     get_var vm1 x1 = ok v1 ->
     exists v2, get_var vm2 x2 = ok v2 /\ value_uincl v1 v2.
   Proof.
-    move=> [Hee _] /andP[]/eqP <- /Sv_memP /Hee Hin.
-    rewrite /get_var;apply: rbindP => z Hz;move: Hin;rewrite Hz /=.
-    by case: vm2.[x1] => // z' ? [<-];exists (to_val z');split=>//=; rewrite -to_val_uincl.
+    move=> [Hee _] /andP[]/eqP <- /Sv_memP /Hee Hin Hget;move: Hin;rewrite /get_var.
+    apply: on_vuP Hget=> [z | ]-> ?;subst v1.
+    + by case: vm2.[x1] => //= a Ha; exists (to_val a);rewrite -to_val_uincl.
+    case: vm2.[x1] => [a Ha | e <-] /=;last by eauto.
+    by exists (to_val a);rewrite type_of_to_val.
   Qed.
 
   Lemma check_ebP e1 e2 r m1 v1 vm1 vm2: 
@@ -257,6 +259,31 @@ Module CBEA.
     by rewrite /check_e;case:ifP => //= /check_ebP H [<-] Hea;split=>// m v1;apply: H.
   Qed.
 
+(* FIXME: MOVE *)
+  Lemma eval_uincl_apply_undef t (v1 v2 : exec (sem_t t)): 
+    eval_uincl v1 v2 -> 
+    eval_uincl (apply_undef v1) (apply_undef v2).
+  Proof.
+    case:v1 v2=> [v1 | []] [v2 | e2] //=; try by move=> <-.
+    by move=> _; apply eval_uincl_undef.
+  Qed.
+
+  Lemma eq_alloc_set x1 (v1 v2:exec (sem_t (vtype x1))) r vm1 vm2  : 
+    ~ Sv.In x1 (M.allocated r) ->
+    eq_alloc r vm1 vm2 ->
+    eval_uincl v1 v2 ->
+    eq_alloc r vm1.[x1 <- apply_undef v1] 
+               vm2.[x1 <- apply_undef v2].
+  Proof.
+    move=> Hin [] Hu Hget Huv;split.
+    + move=> x Hx; case:( x1 =P x) => [<-|/eqP Hne].
+      + by rewrite !Fv.setP_eq;apply eval_uincl_apply_undef.
+      by rewrite !Fv.setP_neq //;apply: Hu.
+    move=> x n id H;have := Hget _ _ _ H;have [{H}]:= M.Valid H.
+    case:x => //= -[] //= p xn ?? [t ?];exists t.
+    by rewrite !Fv.setP_neq //;apply /eqP => H;subst;apply Hin.
+  Qed.
+
   Lemma check_rvarP (x1 x2:var_i) r1 vm1 v1 v2 s1 s1' : 
     check_var r1 x1 x2 ->
     eq_alloc r1 (evm s1) vm1 ->
@@ -269,13 +296,14 @@ Module CBEA.
   Proof.
     move=> /andP[]/eqP Heq /Sv_memP Hin [] Hu Hget Huv.
     rewrite /write_var/set_var /=;apply:rbindP => vm1'.
-    apply: rbindP => v1';rewrite -Heq => /(of_val_uincl Huv) [v2' [->]] /= Hv' [<-] [<-] /=.
-    eexists;split;eauto;split=> /=.
-    + move=> x Hx; case:( (v_var x1)=P x) => [<-|/eqP Hne];first by rewrite !Fv.setP_eq.      
-      by rewrite !Fv.setP_neq //;apply Hu;have /eqP := Hne;SvD.fsetdec.
-    move=> x n id H;have := Hget _ _ _ H;have [{H}]:= M.Valid H.
-    case:x => //= -[] //= p xn ?? [t ?];exists t.
-    by rewrite !Fv.setP_neq //;apply /eqP => H;subst;apply Hin;rewrite H.
+    apply: on_vuP => [v1' | ];rewrite -Heq.
+    + move=> /(of_val_uincl Huv) [v2' [->]] /= Hv' [<-] [<-] /=.
+      by eexists;split;eauto; apply: (@eq_alloc_set x1 (ok v1') (ok v2')).
+    move=> /of_val_error ?;subst v1 => <- [] <-.
+    have := of_val_type_of v2; move /eqP: Huv => <- [[v'] | ] -> /=;
+      eexists;split;eauto.
+    + by apply (@eq_alloc_set x1 undef_error (ok v')).
+    by apply (@eq_alloc_set x1 undef_error undef_error).
   Qed.
 
   Lemma check_lvalP r1 r1' x1 x2 s1 s1' vm1 v1 v2 :
@@ -304,32 +332,36 @@ Module CBEA.
       apply: rbindP => w /(value_uincl_word Huv) [??];subst => {Huv}.
       apply: rbindP => t' Ht';apply: rbindP => vm1' Hset [<-] /=.
       case: x1 x2 Htx1 Htx2 Hget Hset => -[xt1 xn1] ? [[xt2 xn2] ?]/= -> ->.
-      rewrite /get_var/set_var/=;apply:rbindP => t'' Hget Heq.
-      pose p := fun ov => if ov is Ok v then v = Varr t else True.
-      have : p error (ok (Varr t)) by done. 
-      rewrite -Heq /= => /Varr_inj [_ ?] {p Heq};subst t''.
-      have [-> /= [<-]]: CEDecStype.pos_dec n n = left (erefl n).
-      + by elim: n {t Ht' t' Hget}=> // p0 /= ->.
-      case Hea => Hina Hgeta. 
-      exists vm1.[{| vtype := sword; vname := xn2 |} <- ok w];split=>//;split.
-      + move=> x /= Hx;rewrite !Fv.setP_neq;
-         [by apply Hina;SvD.fsetdec | |];apply /eqP; SvD.fsetdec. 
-      move=> x n0 id.
-      case: (({| vtype := sarr n; vname := xn1 |}, i) =P (x, n0)).
-      + move=> [<- <-]; rewrite Ma.setP_eq => -[?] /=;subst id;exists t'.
-        rewrite !Fv.setP_eq;split=>//.
-        by move: Ht';rewrite /Array.set /Array.get;case:ifP=> // ? [<-];rewrite FArray.setP_eq.
-      move=> Hne;move: (Hne) => /eqP /Ma.setP_neq H/H [] Hgetx.
-      case: ({| vtype := sarr n; vname := xn1 |} =P x).
-      + move=> ?;subst;have /= [t2 [Ht2 Hget2]] := Hgeta _ _ _ Hgetx.
-        exists t';rewrite Fv.setP_eq;split=>//;rewrite Fv.setP_neq;
+      rewrite /get_var/set_var/=;apply:on_vuP.
+      + move=> t'' Hget Heq.
+        pose p := fun ov => if ov is Ok v then v = Varr t else True.
+        have : p error (ok (Varr t)) by done. 
+        rewrite -Heq /= => /Varr_inj [_ ?] {p Heq};subst t''.
+        have [-> /= [<-]]: CEDecStype.pos_dec n n = left (erefl n).
+        + by elim: n {t Ht' t' Hget}=> // p0 /= ->.
+        case Hea => Hina Hgeta. 
+        exists vm1.[{| vtype := sword; vname := xn2 |} <- ok w];split=>//;split.
+        + move=> x /= Hx;rewrite !Fv.setP_neq;
+          [by apply Hina;SvD.fsetdec | |];apply /eqP; SvD.fsetdec. 
+        move=> x n0 id.
+        case: (({| vtype := sarr n; vname := xn1 |}, i) =P (x, n0)).
+        + move=> [<- <-]; rewrite Ma.setP_eq => -[?] /=;subst id;exists t'.
+          rewrite !Fv.setP_eq;split=>//.
+          by move: Ht';rewrite /Array.set /Array.get;
+            case:ifP=> // ? [<-];rewrite FArray.setP_eq.
+        move=> Hne;move: (Hne) => /eqP /Ma.setP_neq H/H [] Hgetx.
+        case: ({| vtype := sarr n; vname := xn1 |} =P x).
+        + move=> ?;subst;have /= [t2 [Ht2 Hget2]] := Hgeta _ _ _ Hgetx.
+          exists t';rewrite Fv.setP_eq;split=>//;rewrite Fv.setP_neq;
           last by apply /eqP => -[] /b.
-        move: Ht2 Ht';rewrite Hget -Hget2=> -[?];subst t2.
-        rewrite /Array.set/Array.get;case:ifP=>// _ -[<-];case:ifP =>// _.
-        by rewrite FArray.setP_neq //;apply /eqP => Heq;apply Hne;rewrite Heq.
-      have {Hgetx} := Hgeta _ _ _ Hgetx.
-      case:x Hne {H} =>-[]//= p xn Hne [t'' [??]] /eqP ?;exists t''.
-      by rewrite !Fv.setP_neq //;apply /eqP=> -[] /b.
+          move: Ht2 Ht';rewrite Hget -Hget2=> -[?];subst t2.
+          rewrite /Array.set/Array.get;case:ifP=>// _ -[<-];case:ifP =>// _.
+          by rewrite FArray.setP_neq //;apply /eqP => Heq;apply Hne;rewrite Heq.
+        have {Hgetx} := Hgeta _ _ _ Hgetx.
+        case:x Hne {H} =>-[]//= p xn Hne [t'' [??]] /eqP ?;exists t''.
+        by rewrite !Fv.setP_neq //;apply /eqP=> -[] /b.
+      have -> //= : CEDecStype.pos_dec n n = left (erefl n).
+      by elim: n {t Ht' t'}=> // p0 /= ->.
     case:ifP=>//=/andP[] Hca Hce [<-] Hea Hvu.
     apply: on_arr_varP;rewrite /on_arr_var => n t Htx1 /(check_varP Hea Hca) [v3 [->]] /=.
     case: v3=> //= n0 t' [? Ht];subst n0.
