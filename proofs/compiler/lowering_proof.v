@@ -74,16 +74,81 @@ Section PROOF.
     sem_i p s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
   Proof. move=> _ Hi; exact: Hi. Qed.
 
-  Local Lemma Hassgn s1 s2 x tag e :
-    Let v := sem_pexpr s1 e in write_lval x v s1 = Ok error s2 ->
-    Pi_r s1 (Cassgn x tag e) s2.
+  Local Lemma Hassgn s1 s2 l tag e :
+    Let v := sem_pexpr s1 e in write_lval l v s1 = Ok error s2 ->
+    Pi_r s1 (Cassgn l tag e) s2.
   Proof.
+    apply: rbindP=> v Hv Hw ii /=.
+    elim: e Hv=> [z|b|e He|x|x e He|x e He|o e He|o e1 He1 e2 He2|e He e1 He1 e2 He2] Hv; try (
+    apply: sem_seq1; apply: EmkI; apply: Eassgn; by rewrite Hv).
+    + admit.
+    + admit.
+    + admit.
+    + admit.
+    + move: o Hv=> [] /= Hv.
+      + apply: sem_seq1; apply: EmkI; apply: Eassgn=> /=.
+        by rewrite Hv.
+      apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
+      apply: rbindP Hv=> z Hz Hv.
+      apply: rbindP Hv=> z0 Hz0 []Hv.
+      move: z Hz Hz0=> [] //=.
+      + move=> z Hz []Hz0; subst z.
+        by rewrite /sem_pexprs /= Hz /= Hv Hw.
+      move=> [] //.
+    + move: o Hv=> [| |[]|[]|[]| | | | | | |k|k|k|k|k|k] Hv; try (
+        by apply: sem_seq1; apply: EmkI; apply: Eassgn; rewrite Hv).
+      + admit.
+      + apply: sem_seq1; apply: EmkI; apply: Eopn.
+        rewrite /= in Hv.
+        apply: rbindP Hv=> v1 Hv1; apply: rbindP=> v2 Hv2.
+        apply: rbindP=> z1 Hz1.
+        apply: rbindP=> z2 Hz2 []Hv.
+        move: v1 Hv1 Hz1=> [] //; last by move=> [].
+        move=> w1 Hw1 []Hz1.
+        move: v2 Hv2 Hz2=> [] //; last by move=> [].
+        move=> w2 Hw2 []Hz2.
+        by rewrite /sem_pexprs /= Hw1 /= Hw2 /= Hz1 Hz2 Hv Hw.
+      + admit.
+      + apply: sem_seq1; apply: EmkI; apply: Eopn.
+        rewrite /= in Hv.
+        apply: rbindP Hv=> v1 Hv1; apply: rbindP=> v2 Hv2.
+        apply: rbindP=> z1 Hz1.
+        apply: rbindP=> z2 Hz2 []Hv.
+        move: v1 Hv1 Hz1=> [] //; last by move=> [].
+        move=> w1 Hw1 []Hz1.
+        move: v2 Hv2 Hz2=> [] //; last by move=> [].
+        move=> w2 Hw2 []Hz2.
+        by rewrite /sem_pexprs /= Hw1 /= Hw2 /= Hz1 Hz2 Hv Hw.
+      + admit.
+      + admit.
+      + admit.
+      + admit.
+      + admit.
+      + admit.
+      + admit.
   Admitted.
 
   Local Lemma Hopn s1 s2 o xs es :
     Let x := Let x := sem_pexprs s1 es in sem_sopn o x
     in write_lvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
   Proof.
+    apply: rbindP=> v; apply: rbindP=> x Hx Hv Hs2 ii.
+    move: o Hv=> [] Hv.
+    + apply: sem_seq1; apply: EmkI; apply: Eopn.
+      move: x Hx Hv=> [] // x1 [].
+      + move=> _; apply: rbindP=> //.
+      move=> x2 [] //.
+      + move=> Hes.
+        apply: rbindP=> z1 Hz1.
+        apply: rbindP=> z2 Hz2 []Hv.
+        move: x1 Hes Hz1=> [] //; last by move=> [].
+        move=> w1 Hes []Hz1; subst.
+        move: x2 Hes Hz2=> [] //; last by move=> [].
+        move=> w2 Hes []Hz2; subst.
+        by rewrite Hes.
+      move=> ?? _; apply: rbindP=> z _; apply: rbindP=> //.
+    + admit.
+    (* ... *)
   Admitted.
 
   Local Lemma Hif_true s1 s2 e c1 c2 :
