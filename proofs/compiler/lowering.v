@@ -56,7 +56,7 @@ Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
     | Olt Cmp_sw =>
       ([:: Copn [:: Lvar (fr fresh_OF) ; f ; Lvar (fr fresh_SF) ; f ; f ] Ox86_CMP [:: x ; y ] ],
        Pif (Pvar (fr fresh_SF)) (Papp1 Onot (Pvar (fr fresh_OF))) (Pvar (fr fresh_OF)))
-    | Olt Cmp_su =>
+    | Olt Cmp_uw =>
       ([:: Copn [:: f ; Lvar (fr fresh_CF) ; f ; f ; f ] Ox86_CMP [:: x ; y ] ], Pvar (fr fresh_CF))
     | Ole Cmp_sw =>
       ([:: Copn [:: Lvar (fr fresh_OF) ; f ; Lvar (fr fresh_SF) ; f ; Lvar (fr fresh_ZF) ] Ox86_CMP [:: x ; y ] ],
@@ -95,6 +95,7 @@ Definition lower_cassgn  (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
   let f := Lnone vi in
   let copn o a := [:: Copn [:: x ] o [:: a] ] in
   let fopn o a b := [:: Copn [:: f ; f ; f ; f ; f ; x ] o [:: a ; b ] ] in
+  let mul o a b := [:: Copn [:: f ; f ; f ; f ; f ; f ; x ] o [:: a ; b ] ] in
   let inc o a := [:: Copn [:: f ; f ; f ; f ; x ] o [:: a ] ] in
   let shift o a b :=
       let fr n := Pvar {| v_var := n fv ; v_info := vi |} in
@@ -122,7 +123,7 @@ Definition lower_cassgn  (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
       | Pcast (Pconst (-1)), y | y, Pcast (Pconst (-1)) => inc Ox86_INC y
       | _, _ => fopn Ox86_SUB a b
       end
-    | Omul Op_w => fopn Ox86_MUL a b
+    | Omul Op_w => mul Ox86_MUL a b
     | Oland => fopn Ox86_AND a b
     | Olor => fopn Ox86_OR a b
     | Olxor => fopn Ox86_XOR a b
