@@ -165,34 +165,33 @@ Definition lower_copn (xs: lvals) (op: sopn) (es: pexprs) : seq instr_r :=
   | _ => [:: Copn xs op es]
   end.
 
-Definition lower_instruction_set_cmd (c: cmd) : cmd :=
-  @cmd_rect (λ _, seq instr_r) (λ _, cmd) (λ _, cmd)
-    (λ _ ii, map (MkI ii))
-    [::]
-    (λ _ _, cat)
-    lower_cassgn
-    lower_copn
-    (λ e _ _ c1 c2,
-     let '(pre, e) := lower_condition xH e in
-     rcons pre (Cif e c1 c2))
-    (λ v d lo hi _ c, [:: Cfor v (d, lo, hi) c ])
-    (λ _ e _ c c',
-     let '(pre, e) := lower_condition xH e in
-     [:: Cwhile (c ++ map (MkI xH) pre) e c' ])
-    (λ ii xs f es, [:: Ccall ii xs f es])
-    c
-.
+Definition lower_cmd (lower_i: instr -> cmd) (c:cmd) : cmd :=
+  List.fold_right (fun i c' => lower_i i ++ c') [::] c.
 
-Definition lower_instruction_set_fd (fd: fundef) : fundef :=
+Fixpoint lower_i (i:instr) : cmd :=
+  let (ii, ir) := i in
+  map (MkI ii)
+  match ir with
+  | Cassgn l t e => lower_cassgn l t e
+  | Copn   l o e => lower_copn l o e
+  | Cif e c1 c2  =>
+     let '(pre, e) := lower_condition xH e in
+     rcons pre (Cif e (lower_cmd lower_i c1) (lower_cmd lower_i c2))
+  | Cfor v (d, lo, hi) c =>
+     [:: Cfor v (d, lo, hi) (lower_cmd lower_i c)]
+  | Cwhile c e c' =>
+     let '(pre, e) := lower_condition xH e in
+     [:: Cwhile ((lower_cmd lower_i c) ++ map (MkI xH) pre) e (lower_cmd lower_i c')]
+  | _ => [:: ir]
+  end.
+
+Definition lower_fd (fd: fundef) : fundef :=
   {| f_iinfo := f_iinfo fd;
      f_params := f_params fd;
-     f_body := lower_instruction_set_cmd (f_body fd);
+     f_body := lower_cmd lower_i (f_body fd);
      f_res := f_res fd
   |}.
 
-Definition lower_instruction_set_prog (p: prog) : prog :=
-  map
-    (λ x, let '(n, d) := x in (n, lower_instruction_set_fd d))
-    p.
+Definition lower_prog (p: prog) := map_prog lower_fd p.
 
 End LOWERING.
