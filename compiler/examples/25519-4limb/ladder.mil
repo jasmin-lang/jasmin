@@ -48,7 +48,7 @@ fn sub(reg u64[4] x, stack u64[4] ya) -> reg u64[4] {
   reg bool cf;
   inline int i;
 
-  for i =  0 to 4 {
+  for i = 0 to 4 {
     y[i] = ya[i];
     if (i == 0) {
       cf, x[0] -= y[0];
@@ -61,7 +61,7 @@ fn sub(reg u64[4] x, stack u64[4] ya) -> reg u64[4] {
   sub1 = rem_p;
   sub1 = sub0 if !cf;
 
-  for i =  0 to 4 {
+  for i = 0 to 4 {
     if (i == 0) {
       cf, x[0] -= sub1;
     } else {
@@ -435,41 +435,31 @@ fn mladder(stack u64[4] xr, stack u64[4] sp) -> (stack u64[4], stack u64[4]) {
   stack u64[4] z2;
   stack u64[4] x3;
   stack u64[4] z3;
-  reg u64      i;
-  reg u64      j;
-  stack u64    i_s; // store value on stack
-  stack u64    j_s; // store value on stack
+  inline int   i;
+  inline int   j;
   reg bool     cf;
 
   prevbit = 0;
   x1 = xr;
   x2[0] = 1; x2[1] = 0; x2[2] = 0; x2[3] = 0;
   z2[0] = 0; z2[1] = 0; z2[2] = 0; z2[3] = 0;
-  x3 = xr;
+  x1 = xr;
   z3[0] = 1; z3[1] = 0; z3[2] = 0; z3[3] = 0;
 
-  i = 3;
-  while {
+  for i = 3 downto (-1) {
     tmp1 = sp[i];
-    i_s = i; 
     s = tmp1;
-    j = 63;
-    while {
+    for j = 63 downto (-1) {
       tmp2 = s;
       bit = tmp2 >> j;
-      j_s = j; 
       bit = bit & 1;
       swap = prevbit;
       swap ^= bit;
       prevbit = bit;
       x2,z2,x3,z3 = cswap(x2,z2,x3,z3,swap);
       x2,z2,x3,z3 = ladderstep(x1,x2,z2,x3,z3);
-      j = j_s;
-      cf,j -= 1;  // returns cf=1 for input j=0
-    } (!cf)
-    i = i_s;
-    cf,i -= 1; // returns cf=1 for input i=0
-  } (!cf)
+    }
+  }
   swap = prevbit;
   x2,z2,x3,z3 = cswap(x2,z2,x3,z3,swap);
   return x2, z2;
