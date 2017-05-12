@@ -42,32 +42,43 @@ Section PROOF.
   Variable p : prog.
   Variable fv : fresh_vars.
 
+  Definition fvars := Sv.add fv.(fresh_OF) (Sv.add fv.(fresh_CF) (Sv.add fv.(fresh_SF) (Sv.add fv.(fresh_PF) (Sv.singleton fv.(fresh_ZF))))).
+
   Definition p' := lower_prog fv p.
 
-  Let Pi_r (s:estate) (i:instr_r) (s':estate) :=
-    forall ii, sem p' s (lower_i fv (MkI ii i)) s'.
+  Definition eq_exc_fresh s1 s2 :=
+    s1.(emem) = s2.(emem) /\ s1.(evm) = s2.(evm) [\ fvars].
 
   Let Pi (s:estate) (i:instr) (s':estate) :=
-    sem p' s (lower_i fv i) s'.
+    forall s1, eq_exc_fresh s1 s ->
+      exists s1', sem p' s1 (lower_i fv i) s1' /\ eq_exc_fresh s1' s'.
+
+  Let Pi_r (s:estate) (i:instr_r) (s':estate) :=
+    forall ii, Pi s (MkI ii i) s'.
 
   Let Pc (s:estate) (c:cmd) (s':estate) :=
-    sem p' s (lower_cmd (lower_i fv) c) s'.
+    forall s1, eq_exc_fresh s1 s ->
+      exists s1', sem p' s1 (lower_cmd (lower_i fv) c) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pfor (i:var_i) vs s c s' :=
-    sem_for p' i vs s (lower_cmd (lower_i fv) c) s'.
+    forall s1, eq_exc_fresh s1 s ->
+      exists s1', sem_for p' i vs s1 (lower_cmd (lower_i fv) c) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pfun m1 fn vargs m2 vres :=
     sem_call p' m1 fn vargs m2 vres.
 
   Local Lemma Hskip s : Pc s [::] s.
-  Proof. exact: Eskip. Qed.
+  Proof. move=> s1 [H1 H2]; exists s1; repeat split=> //; exact: Eskip. Qed.
 
   Local Lemma Hcons s1 s2 s3 i c :
     sem_I p s1 i s2 ->
     Pi s1 i s2 -> sem p s2 c s3 -> Pc s2 c s3 -> Pc s1 (i :: c) s3.
   Proof.
-    move=> Hsi Hi Hsc Hc.
-    exact: (sem_app Hi Hc).
+    move=> Hsi Hi Hsc Hc s1' Hs1'.
+    have [s2' [Hs2'1 Hs2'2]] := Hi _ Hs1'.
+    have [s3' [Hs3'1 Hs3'2]] := Hc _ Hs2'2.
+    exists s3'; repeat split=> //.
+    exact: (sem_app Hs2'1 Hs3'1).
   Qed.
 
   Local Lemma HmkI ii i s1 s2 :
@@ -126,62 +137,86 @@ Section PROOF.
     case Heq: (vm.[_])=> [a|[]] //; by move=> -[]<-.
   Qed.
 
+  Lemma sem_pexpr_same e v s1 s1':
+    eq_exc_fresh s1' s1 ->
+    sem_pexpr s1 e = ok v ->
+    sem_pexpr s1' e = ok v.
+  Admitted. (* Requires the fact that fresh variables don't appear in e *)
+
+  Lemma sem_pexprs_same es v s1 s1':
+    eq_exc_fresh s1' s1 ->
+    sem_pexprs s1 es = ok v ->
+    sem_pexprs s1' es = ok v.
+  Admitted. (* Requires the fact that fresh variables don't appear in e *)
+
+  Lemma write_lval_same s1 s1' s2 l v:
+    eq_exc_fresh s1' s1 ->
+    write_lval l v s1 = ok s2 ->
+    exists s2', write_lval l v s1' = ok s2' /\ eq_exc_fresh s2' s2.
+  Admitted. (* Same as above *)
+
+  Lemma write_lvals_same s1 s1' s2 ls vs:
+    eq_exc_fresh s1' s1 ->
+    write_lvals s1 ls vs = ok s2 ->
+    exists s2', write_lvals s1' ls vs = ok s2' /\ eq_exc_fresh s2' s2.
+  Admitted. (* Same as above *)
+
   Local Lemma Hassgn s1 s2 l tag e :
     Let v := sem_pexpr s1 e in write_lval l v s1 = Ok error s2 ->
     Pi_r s1 (Cassgn l tag e) s2.
   Proof.
-    apply: rbindP=> v Hv Hw ii /=.
-    move: e Hv=> [z|b|e|x|x e|x e|o e|o e1 e2|e e1 e2] Hv; try (
-    apply: sem_seq1; apply: EmkI; apply: Eassgn; by rewrite Hv).
-    + move: e Hv=> [z|b|e|x|x e|x e|o e|o e1 e2|e e1 e2] Hv; try (
-      apply: sem_seq1; apply: EmkI; apply: Eassgn; by rewrite Hv).
-      apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
-      move: Hv=> -[]->; by rewrite Hw.
-    + move: x Hv=> [[vt vn] vi] Hv.
-      move: vt Hv=> [| |n|] Hv; try (apply: sem_seq1; apply: EmkI; apply: Eassgn; by rewrite Hv).
-      rewrite /=.
-      apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
-      rewrite /= in Hv.
-      rewrite /sem_pexprs /= Hv /=.
-      have [| |w Hw'] := write_lval_undef Hw.
+    apply: rbindP=> v Hv Hw ii /= s1' Hs1'.
+    have Hv' := sem_pexpr_same Hs1' Hv; have [s2' [Hw' Hs2']] := write_lval_same Hs1' Hw.
+    move: e Hv Hv'=> [z|b|e|x|x e|x e|o e|o e1 e2|e e1 e2] Hv Hv'; try (
+      exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eassgn; by rewrite Hv').
+    + move: e Hv Hv'=> [z|b|e|x|x e|x e|o e|o e1 e2|e e1 e2] Hv Hv'; try (
+      exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eassgn; by rewrite Hv').
+      exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
+      move: Hv'=> -[]->; by rewrite Hw'.
+    + move: x Hv Hv'=> [[vt vn] vi] Hv Hv'.
+      move: vt Hv Hv'=> [| |n|] Hv Hv'; try (exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eassgn; by rewrite Hv').
+      exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
+      rewrite /= in Hv'.
+      rewrite /sem_pexprs /= Hv' /=.
+      have [| |w Hw''] := write_lval_undef Hw'.
       admit. (* TODO: no Lnone *)
       exact: type_of_get_var Hv.
-      by subst v; rewrite /= Hw.
-    + apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
-      rewrite /sem_pexprs /mapM Hv /=.
-      move: Hv=> /=.
+      by subst v; rewrite /= Hw'.
+    + exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
+      rewrite /sem_pexprs /mapM Hv' /=.
+      move: Hv'=> /=.
       apply: on_arr_varP=> n t Ht _.
       t_xrbindP=> y h _ _ w _ Hvw; subst=> /=.
-      by rewrite Hw.
-    + apply: sem_seq1; apply: EmkI; apply: Eopn.
-      rewrite /sem_pexprs /mapM Hv /=.
-      move: Hv=> /=.
-      by t_xrbindP=> ?????????? Hv; subst=> /=; rewrite Hw.
-    + move: o Hv=> [] /= Hv.
-      + apply: sem_seq1; apply: EmkI; apply: Eassgn=> /=.
-        by rewrite Hv.
-      apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
-      move: Hv; rewrite /sem_op1_w /mk_sem_sop1.
-      t_xrbindP=> /= -[//|//|//|/= z Hz z0 []<- Hv|[] //].
-      by rewrite /sem_pexprs /= Hz /= Hv Hw.
-    + move: o Hv=> [| |[]|[]|[]| | | | | | |[]|k|[]|k|k|k] Hv; try (
-        by apply: sem_seq1; apply: EmkI; apply: Eassgn; rewrite Hv); try (
-        apply: sem_seq1; apply: EmkI; apply: Eopn;
-        by move: Hv=> /sem_op2_w_dec [z1 [z2 [Hv ->]]] /=; rewrite Hv Hw).
+      by rewrite Hw'.
+    + exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
+      rewrite /sem_pexprs /mapM Hv' /=.
+      move: Hv'=> /=.
+      by t_xrbindP=> ?????????? Hv'; subst=> /=; rewrite Hw'.
+    + move: o Hv Hv'=> [] /= Hv Hv'.
+      + exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eassgn=> /=.
+        by rewrite Hv'.
+      exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
+      move: Hv'; rewrite /sem_op1_w /mk_sem_sop1.
+      t_xrbindP=> /= -[//|//|//|/= z Hz z0 []<- Hv'|[] //].
+      by rewrite /sem_pexprs /= Hz /= Hv' Hw'.
+    + move: o Hv Hv'=> [| |[]|[]|[]| | | | | | |[]|k|[]|k|k|k] Hv Hv'; try (
+        by exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eassgn; rewrite Hv'); try (
+        exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn;
+        by move: Hv'=> /sem_op2_w_dec [z1 [z2 [Hv' ->]]] /=; rewrite Hv' Hw').
       + admit.
       + admit.
-      + apply: sem_seq1; apply: EmkI; apply: Eopn.
-        rewrite /= in Hv.
-        move: Hv=> /sem_op2_w_dec [z1 [z2 [Hv Hz]]].
-        rewrite /sem_pexprs /= -[Let y4 := sem_pexpr s1 e1 in _]/(sem_pexprs s1 [:: e1; e2]) {}Hz /=.
+      + exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
+        rewrite /= in Hv'.
+        move: Hv'=> /sem_op2_w_dec [z1 [z2 [Hv' Hz]]].
+        rewrite /sem_pexprs /= -[Let y4 := sem_pexpr s1' e1 in _]/(sem_pexprs s1' [:: e1; e2]) {}Hz /=.
         admit.
       + admit. (* Same as above *)
       + admit. (* Same as above *)
-      + apply: sem_seq1; apply: EmkI; apply: Eopn.
-        rewrite /= in Hv.
-        move: Hv=> /sem_op2_wb_dec [z1 [z2 [Hv ->]]] /=.
-        suff ->: Vbool (ZF_of_word (I64.sub z1 z2)) = v by rewrite Hw.
-          rewrite -Hv /ZF_of_word /weq.
+      + exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
+        rewrite /= in Hv'.
+        move: Hv'=> /sem_op2_wb_dec [z1 [z2 [Hv' ->]]] /=.
+        suff ->: Vbool (ZF_of_word (I64.sub z1 z2)) = v by rewrite Hw'.
+          rewrite -Hv' /ZF_of_word /weq.
           admit. (* I64.eq (I64.sub z1 z2) I64.zero = (z1 =? z2)%Z *)
       + admit. (* Similar to shifts *)
       + admit. (* Again *)
@@ -191,25 +226,62 @@ Section PROOF.
     Let x := Let x := sem_pexprs s1 es in sem_sopn o x
     in write_lvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
   Proof.
-    apply: rbindP=> v; apply: rbindP=> x Hx Hv Hs2 ii.
+    apply: rbindP=> v; apply: rbindP=> x Hx Hv Hw ii s1' Hs1'.
+    have Hx' := sem_pexprs_same Hs1' Hx; have [s2' [Hw' Hs2']] := write_lvals_same Hs1' Hw.
     move: o Hv=> [] Hv; try (
-      apply: sem_seq1; apply: EmkI; apply: Eopn;
-      rewrite Hx /=; rewrite /= in Hv; by rewrite Hv).
+      exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn;
+      rewrite Hx' /=; rewrite /= in Hv; by rewrite Hv).
     + admit.
     + admit.
+  Admitted.
+
+  Lemma lower_condition_corr ii i e e' s1:
+    (i, e') = lower_condition fv 1%positive e ->
+    forall s1', eq_exc_fresh s1' s1 -> exists s2',
+    sem p' s1' (map (MkI ii) i) s2' /\ eq_exc_fresh s2' s1 /\ sem_pexpr s2' e' = sem_pexpr s1' e.
   Admitted.
 
   Local Lemma Hif_true s1 s2 e c1 c2 :
     Let x := sem_pexpr s1 e in to_bool x = Ok error true ->
     sem p s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
   Proof.
-  Admitted.
+    move=> Hx _ Hc ii /= s1' Hs1' /=.
+    set x := lower_condition _ _ _.
+    have Hcond: x = lower_condition fv xH e by [].
+    move: x Hcond=> [i e'] Hcond.
+    have [s2' [Hs2'1 [Hs2'2 Hs2'3]]] := lower_condition_corr ii Hcond Hs1'.
+    have [s3' [Hs3'1 Hs3'2]] := Hc _ Hs2'2.
+    exists s3'; split=> //.
+    rewrite -cats1.
+    rewrite map_cat.
+    apply: (sem_app Hs2'1).
+    apply: sem_seq1; apply: EmkI; apply: Eif_true.
+    rewrite Hs2'3.
+    apply: rbindP Hx=> z Hz <-.
+    by rewrite (sem_pexpr_same Hs1' Hz).
+    exact: Hs3'1.
+  Qed.
 
   Local Lemma Hif_false s1 s2 e c1 c2 :
     Let x := sem_pexpr s1 e in to_bool x = Ok error false ->
     sem p s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
   Proof.
-  Admitted.
+    move=> Hx _ Hc ii /= s1' Hs1' /=.
+    set x := lower_condition _ _ _.
+    have Hcond: x = lower_condition fv xH e by [].
+    move: x Hcond=> [i e'] Hcond.
+    have [s2' [Hs2'1 [Hs2'2 Hs2'3]]] := lower_condition_corr ii Hcond Hs1'.
+    have [s3' [Hs3'1 Hs3'2]] := Hc _ Hs2'2.
+    exists s3'; split=> //.
+    rewrite -cats1.
+    rewrite map_cat.
+    apply: (sem_app Hs2'1).
+    apply: sem_seq1; apply: EmkI; apply: Eif_false.
+    rewrite Hs2'3.
+    apply: rbindP Hx=> z Hz <-.
+    by rewrite (sem_pexpr_same Hs1' Hz).
+    exact: Hs3'1.
+  Qed.
 
   Local Lemma Hwhile_true s1 s2 s3 s4 c e c' :
     sem p s1 c s2 -> Pc s1 c s2 ->
@@ -217,14 +289,45 @@ Section PROOF.
     sem p s2 c' s3 -> Pc s2 c' s3 ->
     sem_i p s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 -> Pi_r s1 (Cwhile c e c') s4.
   Proof.
-  Admitted.
+    move=> _ Hc Hx _ Hc' _ Hwhile ii s1' Hs1' /=.
+    set x := lower_condition _ _ _.
+    have Hcond: x = lower_condition fv xH e by [].
+    move: x Hcond=> [i e'] Hcond.
+    have [s2' [Hs2'1 Hs2'2]] := Hc _ Hs1'.
+    have [s3' [Hs3'1 [Hs3'2 Hs3'3]]] := lower_condition_corr xH Hcond Hs2'2.
+    have [s4' [Hs4'1 Hs4'2]] := Hc' _ Hs3'2.
+    have [s5' [Hs5'1 Hs5'2]] := Hwhile ii _ Hs4'2.
+    exists s5'; split=> //.
+    apply: sem_seq1; apply: EmkI; apply: Ewhile_true.
+    apply: (sem_app Hs2'1 Hs3'1).
+    apply: rbindP Hx=> z Hz <-.
+    by rewrite Hs3'3 (sem_pexpr_same Hs2'2 Hz).
+    exact: Hs4'1.
+    rewrite /= -Hcond in Hs5'1.
+    rewrite {1}/map /= in Hs5'1.
+    sinversion Hs5'1.
+    sinversion H4.
+    sinversion H2.
+    exact: H4.
+  Qed.
 
   Local Lemma Hwhile_false s1 s2 c e c' :
     sem p s1 c s2 -> Pc s1 c s2 ->
     Let x := sem_pexpr s2 e in to_bool x = ok false ->
     Pi_r s1 (Cwhile c e c') s2.
   Proof.
-  Admitted.
+    move=> _ Hc Hx ii s1' Hs1' /=.
+    set x := lower_condition _ _ _.
+    have Hcond: x = lower_condition fv xH e by [].
+    move: x Hcond=> [i e'] Hcond.
+    have [s2' [Hs2'1 Hs2'2]] := Hc _ Hs1'.
+    have [s3' [Hs3'1 [Hs3'2 Hs3'3]]] := lower_condition_corr xH Hcond Hs2'2.
+    exists s3'; split=> //.
+    apply: sem_seq1; apply: EmkI; apply: Ewhile_false.
+    exact: (sem_app Hs2'1 Hs3'1).
+    apply: rbindP Hx=> z Hz <-.
+    by rewrite Hs3'3 (sem_pexpr_same Hs2'2 Hz).
+  Qed.
 
   Local Lemma Hfor s1 s2 (i:var_i) d lo hi c vlo vhi :
     Let x := sem_pexpr s1 lo in to_int x = Ok error vlo ->
@@ -232,20 +335,33 @@ Section PROOF.
     sem_for p i (wrange d vlo vhi) s1 c s2 ->
     Pfor i (wrange d vlo vhi) s1 c s2 -> Pi_r s1 (Cfor i (d, lo, hi) c) s2.
   Proof.
-    move=> Hlo Hhi _ Hfor ii /=.
-    apply: sem_seq1; apply: EmkI.
-    apply: Efor; eauto.
+    move=> Hlo Hhi _ Hfor ii s1' Hs1' /=.
+    have [s2' [Hs2'1 Hs2'2]] := Hfor _ Hs1'.
+    exists s2'; split=> //.
+    apply: sem_seq1; apply: EmkI; apply: Efor; eauto.
+    apply: rbindP Hlo=> zlo Hzlo.
+    by rewrite (sem_pexpr_same Hs1' Hzlo).
+    apply: rbindP Hhi=> zhi Hzhi.
+    by rewrite (sem_pexpr_same Hs1' Hzhi).
   Qed.
 
   Local Lemma Hfor_nil s i c: Pfor i [::] s c s.
-  Proof. exact: EForDone. Qed.
+  Proof. move=> s' Hs'; exists s'; split=> //; exact: EForDone. Qed.
 
   Local Lemma Hfor_cons s1 s1' s2 s3 (i : var_i) (w:Z) (ws:seq Z) c :
     write_var i w s1 = Ok error s1' ->
     sem p s1' c s2 ->
     Pc s1' c s2 ->
     sem_for p i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
-  Proof. move=> ?????; apply: EForOne; eauto. Qed.
+  Proof.
+    move=> Hw _ Hc _ Hfor s1'' Hs1''.
+    have Hw1: write_lval (Lvar i) w s1 = ok s1' by exact: Hw.
+    have [s2'' [Hs2''1 Hs2''2]] := write_lval_same Hs1'' Hw1.
+    have [s3'' [Hs3''1 Hs3''2]] := Hc _ Hs2''2.
+    have [s4'' [Hs4''1 Hs4''2]] := Hfor _ Hs3''2.
+    exists s4''; split=> //.
+    by apply: EForOne; eauto.
+  Qed.
 
   Local Lemma Hcall s1 m2 s2 ii xs fn args vargs vs:
     sem_pexprs s1 args = Ok error vargs ->
@@ -254,9 +370,16 @@ Section PROOF.
     write_lvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
     Pi_r s1 (Ccall ii xs fn args) s2.
   Proof.
-    move=> ????? /=.
-    apply: sem_seq1; apply: EmkI.
-    apply: Ecall; eauto.
+    move=> Harg _ Hfun Hret ii' s1' Hs1'.
+    have Heq: eq_exc_fresh {| emem := m2; evm := evm s1' |} {| emem := m2; evm := evm s1 |}.
+      split=> //=.
+      by move: Hs1'=> [].
+    have [s2' [Hs2'1 Hs2'2]] := write_lvals_same Heq Hret.
+    exists s2'; split=> //.
+    apply: sem_seq1; apply: EmkI; apply: Ecall; eauto.
+    rewrite (sem_pexprs_same Hs1' Harg) //.
+    move: Hs1'=> [-> _].
+    exact: Hfun.
   Qed.
 
   Local Lemma Hproc m1 m2 fn f vargs s1 vm2 vres:
@@ -268,9 +391,8 @@ Section PROOF.
     List.Forall is_full_array vres ->
     Pfun m1 fn vargs m2 vres.
   Proof.
-    move=> Hget ?????.
-    apply: EcallRun=> //; first (by rewrite get_map_prog Hget); eauto.
-  Qed.
+    move=> Hget Harg _ Hc ??.
+  Admitted.
 
   Lemma lower_callP f mem mem' va vr:
     sem_call p mem f va mem' vr ->
