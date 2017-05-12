@@ -240,7 +240,7 @@ Proof.
     rewrite -Hses=> {Hse Hses};case:s => sm svm /=. 
     apply read_es_eq_on with Sv.empty.
     by rewrite read_esE => y Hy;rewrite Fv.setP_neq //;apply/eqP;SvD.fsetdec.
-  move=> ? <- [<-] /=.
+  case:ifP => //= _ ? [<-] [<-] /=.
   rewrite -Hses=> {Hse Hses};case:s => sm svm /=. 
   apply read_es_eq_on with Sv.empty.
   by rewrite read_esE => y Hy;rewrite Fv.setP_neq //;apply/eqP;SvD.fsetdec.
@@ -286,7 +286,7 @@ Section WF.
   Lemma wf_set_var x ve vm1 vm2 :
     wf_vm vm1 -> set_var vm1 x ve = ok vm2 -> wf_vm vm2.
   Proof.
-    move=> Hwf;apply: on_vuP => [v | ] ? <- /= z.
+    move=> Hwf;apply: set_varP => [v | _ ] ? <- /= z.
     + case: (x =P z) => [ <- | /eqP Hne];first by rewrite Fv.setP_eq.
       by rewrite Fv.setP_neq //;apply (Hwf z).
     case: (x =P z) => [ <- | /eqP Hne].

@@ -158,11 +158,12 @@ Section PROOF.
         + move=> Hwf vm1' Hvm.
           have Hs: {| emem := m1; evm := vm1 |} = {| emem := m2; evm := vm2 |}.
           + move: (check_nop_spec Hnop)=> {Hnop} [x0 [i1 [i2 [Hx He]]]];subst x e.
-            move: Hw;rewrite /= /write_var /set_var /=.
-            apply: on_vuP Hv => /= [t|] Hx0 ?;subst v.
+            move: Hw;rewrite /= /write_var/set_var /=.
+            apply: on_vuP Hv => /= [t|] Hx0 => [|[]] ?;subst v.
             + rewrite of_val_to_val /= => -[<-] <-;f_equal;apply: Fv.map_ext=> z.
               by case: (x0 =P z) => [<-|/eqP Hne];rewrite ?Fv.setP_eq ?Fv.setP_neq.
-            rewrite of_val_undef eq_refl /= => -[<-] <-;f_equal;apply: Fv.map_ext=> z.
+            rewrite of_val_undef eq_refl /=;case:ifP => //= _ [<-] <-.
+            f_equal;apply: Fv.map_ext=> z.
             case: (x0 =P z) => [<-|/eqP Hne];rewrite ?Fv.setP_eq ?Fv.setP_neq //.
             by have := Hwf x0;rewrite Hx0;case (vtype x0).
           exists vm1'; split.

@@ -343,7 +343,7 @@ Proof.
   move=> Hw Hv z n;rewrite Mvar.removeP;case: ifPn => //= ? /Hv.
   move: Hw;apply: rbindP => vm;apply: on_vuP => [ w ? <- [<-] | ].
   + by rewrite /get_var /= Fv.setP_neq.
-  by move=> ? <- [<-] /=;rewrite /get_var /= Fv.setP_neq.
+  by case: ifP => //= _ ? [<-] [<-] /=;rewrite /get_var /= Fv.setP_neq.
 Qed.
 
 Lemma add_cpmP s1 s1' m x e tag v : 

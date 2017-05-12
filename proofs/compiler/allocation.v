@@ -897,7 +897,7 @@ Module CBAreg.
     + case: eqP => //= ? [<-];subst id => Hea;split=>//.
       case: Hea => _ _ /(_ _ _ Hget) Hev v1 {Hget} Hget.    
       case: x1 x2 Ht Hget Hev=> [[xt1 xn1] ii1] [[xt2 xn2] ii2] /= <-.
-      rewrite /get_var;apply: on_vuP => /= [t | ] -> <- /=.
+      rewrite /get_var;apply: on_vuP => /= [t | ] -> => [<- | [<-]] /=.
       + case: (vm2.[_])%vmap => //= z' Hz';exists (to_val z');split => //=.
         by rewrite -to_val_uincl.
       case: (vm2.[_])%vmap => //= [ v' _ | e <-];last by eauto.
@@ -950,13 +950,13 @@ Module CBAreg.
       by exists v1.
     + case: eqP => // <-. move=> H /(He1 _ _ _ _ H) [Hea Hse1];split=>//.
       move=> m v1;apply:rbindP => v /Hse1 [v1'] [-> U1].
-      by apply vuincl_sem_sop1.
+      by move=> /(vuincl_sem_sop1 U1);exists v1.
     + case: eqP => // <-;apply:rbindP => r' Hs1 Hs2 Hea.
       have [Hea' Hse1]:= He11 _ _ _ _ Hs1 Hea.  
       have [? Hse2]:= He12 _ _ _ _ Hs2 Hea';split=>// m v.
       apply: rbindP => v1 /Hse1 [v1' [-> U1]].
       apply: rbindP => v2 /Hse2 [v2' [-> U2]].
-      by apply vuincl_sem_sop2.
+      by move=> /(vuincl_sem_sop2 U1 U2);exists v.
     apply: rbindP => r1;apply: rbindP => r' /He Hr' /He11 Hr1 /He12 Hr2 {He He11 He12}.
     move=> /Hr'{Hr'}[] /Hr1{Hr1}[] /Hr2{Hr2}[] Hre Hs2 Hs1 Hs;split=>// m v1.
     apply:rbindP => b;apply:rbindP => w /Hs [w'] [->] /=.
@@ -997,15 +997,15 @@ Module CBAreg.
       set_var vm2 x2 v2 = ok vm2' /\ eq_alloc r1' vm1' vm2'.
   Proof.
     rewrite /check_var;case: eqP => //= Ht Hea [<-].
-    apply: on_vuP.
+    apply: set_varP.
     + move=> v1' Hv1' [<-] Hu.
       have [v2' [Hv2' Hu']]:= of_val_uincl Hu Hv1'.
       case: x2 Ht => -[xt2 xn2] _ /= <-.
       exists (vm2.[{| vtype := vtype x1; vname := xn2 |} <- ok v2']);split.
       + by rewrite /set_var /= Hv2'.
       apply: (@eq_alloc_set x1 (ok v1') (ok v2')) => //; by eauto.
-    move=> /of_val_error -> /= <-.
-    rewrite /set_var;case: x1 x2 Ht => [[t1 xn1] ii1] [[t2 xn2] ii2] /= <- /eqP -> /=. 
+    rewrite /set_var;case: x1 x2 Ht => [[t1 xn1] ii1] [[t2 xn2] ii2] /= <-. 
+    move=> /negbTE -> /of_val_error -> <- /eqP -> /=.
     set x1 := {|vname := xn1|}.
     have [[ v'] -> | -> ] /=:= of_val_type_of v2;eexists;split;eauto.
     + apply: (@eq_alloc_set x1 undef_error (ok v'))=> //; by eauto.

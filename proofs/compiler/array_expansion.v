@@ -201,7 +201,7 @@ Module CBEA.
     exists v2, get_var vm2 x2 = ok v2 /\ value_uincl v1 v2.
   Proof.
     move=> [Hee _] /andP[]/eqP <- /Sv_memP /Hee Hin Hget;move: Hin;rewrite /get_var.
-    apply: on_vuP Hget=> [z | ]-> ?;subst v1.
+    apply: on_vuP Hget => [z ->|->[]] ?;subst v1.
     + by case: vm2.[x1] => //= a Ha; exists (to_val a);rewrite -to_val_uincl.
     case: vm2.[x1] => [a Ha | e <-] /=;last by eauto.
     by exists (to_val a);rewrite type_of_to_val.
@@ -240,10 +240,10 @@ Module CBEA.
       move=> /value_uincl_word H/H{H} [_ ->];apply: rbindP => w2.
       by apply: rbindP => ve1 /Hce [ve2 [->]] /value_uincl_word H/H [_ ->] /=;exists v1.
     + move=> /andP[]/eqP <- /He1 H;apply: rbindP => ve1 /H [ve2 [->]].
-      by apply vuincl_sem_sop1.
+      by move=> /vuincl_sem_sop1 U /U;exists v1.
     + move=> /andP[]/andP[]/eqP <- /He11 He1 /He12 He2.
-      apply: rbindP => ? /He1 [? [-> ?]] /=;apply: rbindP => ? /He2 [? [-> ?]].
-      by apply vuincl_sem_sop2.
+      apply: rbindP => ? /He1 [? [-> U1]] /=;apply: rbindP => ? /He2 [? [-> U2]].
+      by move=> /(vuincl_sem_sop2 U1 U2);exists v1.
     move=> /andP[]/andP[]/He{He}He /He11{He11}He11 /He12{He12}He12.
     apply: rbindP => b;apply: rbindP => w /He [ve [->]] /=.
     by move=> /value_uincl_bool H/H [_ ->] /=;case: (b);auto.
@@ -295,11 +295,11 @@ Module CBEA.
      eq_alloc r1 (evm s1') vm1'.
   Proof.
     move=> /andP[]/eqP Heq /Sv_memP Hin [] Hu Hget Huv.
-    rewrite /write_var/set_var /=;apply:rbindP => vm1'.
-    apply: on_vuP => [v1' | ];rewrite -Heq.
+    rewrite /write_var /=;apply:rbindP => vm1'.
+    apply: set_varP => [v1' | ];rewrite -Heq /set_var.
     + move=> /(of_val_uincl Huv) [v2' [->]] /= Hv' [<-] [<-] /=.
       by eexists;split;eauto; apply: (@eq_alloc_set x1 (ok v1') (ok v2')).
-    move=> /of_val_error ?;subst v1 => <- [] <-.
+    move=> /negbTE -> /of_val_error ?;subst v1 => <- [] <-.
     have := of_val_type_of v2; move /eqP: Huv => <- [[v'] | ] -> /=;
       eexists;split;eauto.
     + by apply (@eq_alloc_set x1 undef_error (ok v')).
