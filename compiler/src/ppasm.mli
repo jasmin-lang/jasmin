@@ -1,5 +1,5 @@
 (* -------------------------------------------------------------------- *)
-exception InvalidRegSize of Low_memory.wsize
+exception InvalidRegSize of Word.wsize
 
 (* -------------------------------------------------------------------- *)
 val pp_instr : X86_sem.asm -> string

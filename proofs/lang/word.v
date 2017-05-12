@@ -187,3 +187,58 @@ Proof.
   apply: reqP;rewrite /iword_mul /I64.mul !urepr.
   by rewrite !I64.Z_mod_modulus_eq Zmod_mod Zmult_mod.
 Qed.
+
+
+(* --------------------------------------------------------------------------- *)
+
+Module Wordsize_16.
+  Definition wordsize : nat := 16.
+  Lemma wordsize_not_zero : wordsize <> 0%nat.
+  Proof. done. Qed.
+End Wordsize_16.
+
+Module Wordsize_128.
+  Definition wordsize : nat := 128.
+  Lemma wordsize_not_zero : wordsize <> 0%nat.
+  Proof. done. Qed.
+End Wordsize_128.
+
+Module Wordsize_256.
+  Definition wordsize : nat := 256.
+  Lemma wordsize_not_zero : wordsize <> 0%nat.
+  Proof. done. Qed.
+End Wordsize_256.
+
+Module I8 := Integers.Byte.
+Module I16 := Integers.Make Wordsize_16.
+Module I32 := Integers.Int.
+Module I128 := Integers.Make Wordsize_128.
+Module I256 := Integers.Make Wordsize_256.
+
+Inductive wsize := 
+  | U8 
+  | U16
+  | U32 
+  | U64
+  | U128
+  | U256.
+
+Definition i_wsize (s:wsize) := 
+  match s with
+  | U8     => I8.int
+  | U16    => I16.int
+  | U32    => I32.int
+  | U64    => I64.int
+  | U128   => I128.int
+  | U256   => I256.int
+  end.
+
+Definition wsize_size (s:wsize) := 
+  match s with
+  | U8     => 1%Z
+  | U16    => 2%Z
+  | U32    => 4%Z
+  | U64    => 8%Z
+  | U128   => 16%Z
+  | U256   => 32%Z
+  end.
