@@ -516,10 +516,12 @@ let f_sig f =
   List.map P.ty_i f.P.f_ret, List.map (fun v -> v.P.v_ty) f.P.f_args
 
 let prim_sig p =
+  let open P in
   match p with
-  | P.Omulu     -> [P.u64  ; P.u64], [P.u64; P.u64]
-  | P.Oaddcarry -> [P.tbool; P.u64], [P.u64; P.u64; P.tbool]
-  | P.Osubcarry -> [P.tbool; P.u64], [P.u64; P.u64; P.tbool]
+  | Omulu     -> [u64  ; u64], [u64; u64]
+  | Oaddcarry -> [tbool; u64], [u64; u64; tbool]
+  | Osubcarry -> [tbool; u64], [u64; u64; tbool]
+  | Ox86_CMP -> [tbool; tbool; tbool; tbool; tbool], [u64; u64]
   | Ox86_MOV
   | Ox86_CMOVcc
   | Ox86_ADD
@@ -535,7 +537,6 @@ let prim_sig p =
   | Ox86_SETcc
   | Ox86_LEA
   | Ox86_TEST
-  | Ox86_CMP
   | Ox86_AND
   | Ox86_OR
   | Ox86_XOR
