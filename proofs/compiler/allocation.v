@@ -752,15 +752,17 @@ Module CBAreg.
 
   Definition empty := empty_s Sv.empty.
 
+  Definition merge_aux m1 m2 := 
+    Mvar.map2 (fun x ox ox' =>
+      match ox, ox' with
+      | Some idx, Some idx' => if idx == idx' then Some idx else None 
+      | Some idx, None      => if ~~(Sv.mem x (mset m2)) then Some idx else None
+      | None, Some idx      => if ~~(Sv.mem x (mset m1)) then Some idx else None
+      | None, None          => None
+      end) (Mv.mvar m1.(mv)) (Mv.mvar m2.(mv)).
+    
   Definition merge m1 m2 := 
-    let mv := 
-      Mvar.map2 (fun x ox ox' =>
-        match ox, ox' with
-        | Some idx, Some idx' => if idx == idx' then Some idx else None 
-        | Some idx, None      => if ~~(Sv.mem x (mset m2)) then Some idx else None
-        | None, Some idx      => if ~~(Sv.mem x (mset m1)) then Some idx else None
-        | None, None          => None
-        end) (Mv.mvar m1.(mv)) (Mv.mvar m2.(mv)) in
+    let mv := merge_aux m1 m2 in
     Mvar.fold (fun x idx m => set m x idx) mv (empty_s (Sv.union (mset m1) (mset m2))).
 
   Lemma get0 x : get empty x = None.
@@ -777,12 +779,55 @@ Module CBAreg.
   Lemma setP_mset m x id : mset (set m x id) = Sv.add x (mset m).
   Proof. by []. Qed.
 
-(*  Lemma mergeP m1 m2 x id : 
-    get (merge m1 m2) x = Some id -> get m1 x = Some id /\ get m2 x = Some id.
-  Proof. apply Mv.mergeP. Qed.
+  Lemma merge_auxP m1 m2 x id : 
+    Mvar.get (merge_aux m1 m2) x = Some id ->
+      get m1 x = Some id /\ get m2 x = Some id \/
+      get m1 x = Some id /\ ~Sv.In x (mset m2) \/
+      get m2 x = Some id /\ ~Sv.In x (mset m1).
+  Proof.
+    rewrite /merge_aux Mvar.map2P //. 
+    rewrite /get /Mv.get;case: Mvar.get => [id1 |];case: Mvar.get => [id2 |];
+      last by tauto.
+    + case:ifPn => // /eqP ->;tauto.
+    + case:ifPn => // /Sv_memP;tauto.
+    case:ifPn => // /Sv_memP;tauto.
+  Qed.
 
-  Lemma mergeP_mset m1 m2 : mset (merge m1 m2) = Sv.union (mset m1) (mset m2).
-  Proof. by []. Qed. *)
+  Lemma mergeP m1 m2 x id : 
+    get (merge m1 m2) x = Some id ->
+      get m1 x = Some id /\ get m2 x = Some id \/
+      get m1 x = Some id /\ ~Sv.In x (mset m2) \/
+      get m2 x = Some id /\ ~Sv.In x (mset m1).
+  Proof. 
+    rewrite /merge Mvar.foldP. set f := (f in foldl f).
+    pose P := fun m => 
+      get m x = Some id -> 
+       get m1 x = Some id /\ get m2 x = Some id \/
+       get m1 x = Some id /\ ~Sv.In x (mset m2) \/
+       get m2 x = Some id /\ ~Sv.In x (mset m1).
+    have H : forall (l:list (var * Ident.ident)) m, 
+      (forall p, p \in l -> Mvar.get (merge_aux m1 m2) p.1 = Some p.2) ->
+      P m -> P (foldl f m l).
+    + elim=> [|p l Hrec] //= m Hl Hm;apply Hrec.
+      + by move=> ? H;apply Hl;rewrite in_cons H orbC.
+      rewrite /f /P.
+      have /Hl -/merge_auxP Hp := mem_head p l.
+      case: (p.1 =P x) => [<- | /eqP ne];first by rewrite setP_eq => [<-].
+      move=> /(setP_neq ne) [??];by apply Hm.      
+    apply H;first by move=> p /Mvar.elementsP.
+    by rewrite /P /get Mv.get0.
+  Qed.
+
+ 
+  Lemma mergeP_mset m1 m2 : Sv.Subset (Sv.union (mset m1) (mset m2)) (mset (merge m1 m2)).
+  Proof. 
+    rewrite /merge Mvar.foldP. set f := (f in foldl f).
+    pose P := fun m => Sv.Subset (Sv.union (mset m1) (mset m2)) (mset m).
+    have : P (empty_s (Sv.union (mset m1) (mset m2))). 
+    + by rewrite /P /empty_s.
+    elim : Mvar.elements (empty_s _) => //= -[x idx] l Hl m Hm.
+    apply Hl;move:Hm;rewrite /f /P setP_mset /=;SvD.fsetdec.
+  Qed.
 
   Definition incl m1 m2 :=
     Sv.subset (mset m2) (mset m1) &&
@@ -794,47 +839,41 @@ Module CBAreg.
        | None     => true
        end) (mset m2).
 
-(*  
   Lemma inclP m1 m2 : 
-    reflect ((forall x id, get m1 x = Some id -> get m2 x = Some id) /\
+    reflect ((forall x id, Sv.In x (mset m2) -> get m1 x = Some id -> get m2 x = Some id) /\
              Sv.Subset (mset m2) (mset m1))
             (incl m1 m2).
   Proof.
-    rewrite /incl; apply (equivP andP).
+    rewrite /incl andbC; apply (equivP andP).
     match goal with |- (is_true ?A /\ _) <-> (?B /\ _) => have : reflect B A end.
-    + apply Mv.inclP.
+    + apply: (equivP idP).
+      rewrite /is_true -SvD.F.for_all_iff;split => [ H x id| H x] /H;
+        rewrite /get /Mv.get.
+      + by move=> H1 H2;move: H1; rewrite H2 => /eqP.
+      by case: Mvar.get => // idx /(_ _ (refl_equal _)) /eqP.
     by move=> /rwP ->;rewrite SvD.F.subset_iff.
   Qed.    
-*)
-  Lemma incl_refl r : incl r r.
-  Admitted.
 
-(*  Proof. by apply/inclP;split. Qed. *)
+  Lemma incl_refl r : incl r r.
+  Proof. by apply/inclP;split. Qed.
 
   Lemma incl_trans r2 r1 r3 : incl r1 r2 -> incl r2 r3 -> incl r1 r3.
-Admitted.
-(*
   Proof. 
     move=> /inclP [H1 H3] /inclP [H2 H4];apply/inclP;split;last by SvD.fsetdec.
-    by move=> x id /H1 /H2. 
+    by move=> x id Hin Hget;apply H2 => //;apply H1 => //;SvD.fsetdec.
   Qed.
-*)
+
   Lemma merge_incl_l r1 r2 : incl (merge r1 r2) r1.
-Admitted.
-(*
-  Proof. 
-    apply/inclP;split;first by move=> x id /mergeP []. 
-    rewrite (mergeP_mset r1 r2);SvD.fsetdec.
+  Proof.
+    apply/inclP;split;first by move=> x idx Hin /mergeP;tauto.
+    by have := @mergeP_mset r1 r2;SvD.fsetdec.
   Qed.
-*)
+
   Lemma merge_incl_r r1 r2 : incl (merge r1 r2) r2.
-Admitted.
-(*
-  Proof. 
-    apply/inclP;split;first by move=> x id /mergeP []. 
-    rewrite (mergeP_mset r1 r2);SvD.fsetdec.
+  Proof.
+    apply/inclP;split;first by move=> x idx Hin /mergeP;tauto.
+    by have := @mergeP_mset r1 r2;SvD.fsetdec.
   Qed.
-*)
 
   End M.
 
@@ -900,14 +939,13 @@ Admitted.
     M.incl r2 r1 -> 
     eq_alloc r1 vm vm' -> 
     eq_alloc r2 vm vm'.
-(* 
   Proof. 
     move=> /M.inclP [Hi Hsub] [ Huincl epa eqa];split=>//.
     + by move=> x Hx;apply epa;SvD.fsetdec.
-    move=> x id /Hi;apply eqa. 
+    move=> x id.
+    case: (Sv_memP x (M.mset r1))=> [ /Hi H /H /eqa // | /epa -> _].
+    apply: (Huincl {| vtype := vtype x; vname := id |}).
   Qed.
-*)
-Admitted.
 
   Lemma check_vP x1 x2 r re vm1 vm2 : 
     check_v x1 x2 r = ok re ->
