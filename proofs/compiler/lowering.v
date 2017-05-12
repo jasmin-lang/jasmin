@@ -40,11 +40,15 @@ Record fresh_vars : Type :=
 
 Context (fv: fresh_vars).
 
-Definition var_info_of_lval (x: lval) : var_info :=
-  match x with Lnone i => i | Lvar x | Lmem x _ | Laset x _ => v_info x end.
+Definition var_info_of_lval (x: lval) : var_info * stype :=
+  match x with 
+  | Lnone i t => (i, t)
+  | Lvar x    => (v_info x, vtype x)
+  | Lmem x _ | Laset x _ => (v_info x, sword)
+  end.
 
 Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
-  let f := Lnone vi in
+  let f := Lnone vi sbool in
   let fr n := {| v_var := n fv ; v_info := vi |} in
   match pe with
   | Papp2 op x y =>
@@ -91,8 +95,8 @@ TODO: Pif → CMOVcc
 *)
 
 Definition lower_cassgn  (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
-  let vi := var_info_of_lval x in
-  let f := Lnone vi in
+  let (vi,_) := var_info_of_lval x in
+  let f := Lnone vi sbool in
   let copn o a := [:: Copn [:: x ] o [:: a] ] in
   let fopn o a b := [:: Copn [:: f ; f ; f ; f ; f ; x ] o [:: a ; b ] ] in
   let mul o a b := [:: Copn [:: f ; f ; f ; f ; f ; f ; x ] o [:: a ; b ] ] in
@@ -144,15 +148,17 @@ Definition lower_cassgn  (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
 … = #addc(?, ?, c) → ADC
 *)
 
+Definition Lnone_b vi := Lnone vi sbool.
+
 Definition lower_addcarry (sub: bool) (xs: lvals) (es: pexprs) : seq instr_r :=
   match xs, es with
   | [:: cf ; r ], [:: x ; y ; Pbool false ] =>
-    let vi := var_info_of_lval r in
-    [:: Copn [:: Lnone vi ; cf ; Lnone vi ; Lnone vi ; Lnone vi ; r ]
+    let (vi,_) := var_info_of_lval r in
+    [:: Copn [:: Lnone_b vi; cf ; Lnone_b vi ; Lnone_b vi ; Lnone_b vi ; r ]
         (if sub then Ox86_SUB else Ox86_ADD) [:: x ; y ] ]
   | [:: cf ; r ], [:: _ ; _ ; Pvar cfi ] =>
     let vi := v_info cfi in
-    [:: Copn [:: Lnone vi ; cf ; Lnone vi ; Lnone vi ; Lnone vi ; r ]
+    [:: Copn [:: Lnone_b vi ; cf ; Lnone_b vi ; Lnone_b vi ; Lnone_b vi ; r ]
         (if sub then Ox86_SBB else Ox86_ADC) es ]
   | _, _ => [:: Copn xs (if sub then Osubcarry else Oaddcarry) es ]
   end.

@@ -434,9 +434,13 @@ Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
 Definition write_vars xs vs s :=
   fold2 ErrType write_var xs vs s.
 
+Definition write_none (s:estate) ty v := 
+  on_vu (fun v => s) (if ty == sword then type_error else ok s) 
+          (of_val ty v).
+  
 Definition write_lval (l:lval) (v:value) (s:estate) : exec estate :=
   match l with
-  | Lnone _ => ok s
+  | Lnone _ ty => write_none s ty v 
   | Lvar x => write_var x v s
   | Lmem x e =>
     Let vx := get_var (evm s) x >>= to_word in
@@ -1093,11 +1097,22 @@ Proof.
   by apply: set_varP => [t | _]=> ? <- [<-] z Hz; rewrite Fv.setP_neq //;apply /eqP; SvD.fsetdec.
 Qed.
 
+Lemma write_noneP s s' ty v: 
+  write_none s ty v = ok s' -> 
+  s' = s /\
+  ((exists u, of_val ty v = ok u) \/ of_val ty v = Error ErrAddrUndef /\ ty <> sword).
+Proof. 
+  apply: on_vuP => [u ? -> | ?]. 
+  + by split => //;left;exists u.
+  by case:ifPn => // /eqP ? [->]; split => //; right.
+Qed.
+
 Lemma vrvP (x:lval) v s1 s2 :
   write_lval x v s1 = ok s2 ->
   s1.(evm) = s2.(evm) [\ vrv x].
 Proof.
-  case x => /= [ _ [<-] | ? /vrvP_var| y e| y e] //.
+  case x => /= [ _ ty | ? /vrvP_var| y e| y e] //.
+  + by move=> /write_noneP [->]. 
   + by t_rbindP => -[<-].
   apply: on_arr_varP => n t; case:y => -[] ty yn yi /= -> Hy.
   apply: rbindP => we;apply: rbindP => ve He Hve.
@@ -1284,8 +1299,9 @@ Lemma write_lval_eq_on X x v s1 s2 vm1 :
    evm s2 =[Sv.union (vrv x) X] vm2 /\
    write_lval x v {|emem:= emem s1; evm := vm1|} = ok {|emem:= emem s2; evm := vm2|}.
 Proof.
-  case:x => [vi | x | x e | x e ] /=.
-  + by move=> ? [<-] ?;exists vm1.
+  case:x => [vi ty | x | x e | x e ] /=.
+  + move=> ? /write_noneP [->];rewrite /write_none=> H ?;exists vm1;split=>//.
+    by case:H => [[u ->] | [-> /eqP /negbTE ->]]. 
   + move=> _ Hw /(write_var_eq_on Hw) [vm2 [Hvm2 Hx]];exists vm2;split=>//.
     by apply: eq_onI Hvm2;SvD.fsetdec.
   + rewrite read_eE => Hsub Hsem Hvm;move:Hsem.
@@ -1716,6 +1732,19 @@ Proof.
   by move=> /(write_var_uincl Hvm Hv) [] vm2 [] -> Hvm2 /(Hrec _ _ _ _ Hvm2 Hvs).
 Qed.
 
+Lemma uincl_write_none s2 v1 v2 s s' t : 
+  value_uincl v1 v2 ->
+  write_none s t v1 = ok s' ->
+  write_none s2 t v2 = ok s2.
+Proof.
+  move=> Hv /write_noneP [_] H;rewrite /write_none.
+  case:H.
+  + by move=> [u] /(of_val_uincl Hv) [u' [-> _]].
+  move=> []/of_val_error ? /eqP /negbTE ->;subst v1.
+  move: Hv => /= /eqP ->. 
+  by case: (of_val_type_of v2) => [[?]|] ->.
+Qed.
+
 Lemma write_uincl s1 s2 vm1 r v1 v2:
   vm_uincl s1.(evm) vm1 ->
   value_uincl v1 v2 ->
@@ -1724,8 +1753,9 @@ Lemma write_uincl s1 s2 vm1 r v1 v2:
     write_lval r v2 (Estate (emem s1) vm1) = ok (Estate (emem s2) vm2) /\
     vm_uincl s2.(evm) vm2.
 Proof.
-  move=> Hvm1 Hv;case:r => [xi | x | x p | x p] /=.
-  + by move=> [] <-;exists vm1.
+  move=> Hvm1 Hv;case:r => [xi ty | x | x p | x p] /=.
+  + move=> H; have [-> _]:= write_noneP H.
+    by rewrite (uincl_write_none _ Hv H);exists vm1.
   + by apply write_var_uincl.
   + apply: rbindP => vx1; apply: rbindP => vx /(get_var_uincl Hvm1) [vx2 [-> Hvx]].
     move=> /(value_uincl_word Hvx) [] _ -> {Hvx vx} /=.

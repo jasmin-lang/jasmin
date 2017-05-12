@@ -1043,23 +1043,24 @@ Admitted.
     exists s2', write_lval r2 v' s2 = ok s2' /\ valid s1' s2'.
   Proof.
     move=> Hr Hv Hu; move: Hr.
-    case: r1=> [vi|vi|vi e|vi e].
-    + case: r2=> // vi' /= _ s1' -[]<-.
-      exists s2; split=> //.
+    case: r1=> [vi t |vi|vi e|vi e].
+    + case: r2=> // vi' t' /= /eqP -> s1' H.
+      have [-> _]:= write_noneP H.
+      by rewrite (uincl_write_none _ Hu H); exists s2.      
     + case: r2=> // [vi'|vi' e].
-      move=> /check_varW /(_ Hv) H s1' Hw.
-      move: (H _ _ Hu _ Hw)=> [s2' Hs2']; exists s2'=> //.
+      + move=> /check_varW /(_ Hv) H s1' Hw.
+        by move: (H _ _ Hu _ Hw)=> [s2' Hs2']; exists s2'.
       rewrite /write_lval /=.
-    + move=> /check_var_stkW /(_ Hv) H s1' Hw.
-      move: (H _ _ Hu _ Hw)=> [s2' Hs2']; exists s2'=> //.
+      move=> /check_var_stkW /(_ Hv) H s1' Hw.
+      by move: (H _ _ Hu _ Hw)=> [s2' Hs2']; exists s2'.
     + case: r2=> // vi' e'.
       move=> /andP [Hvar He] s1' Hw.
-      move: (check_memW Hvar He Hv Hu Hw)=> [s2' Hs2']; exists s2'=> //.
-    + case: r2=> // vi' e'.
-      move=> /check_arr_stkW /(_ Hv) H s1' Hw.
-      move: (H _ _ Hu _ Hw)=> [s2' Hs2']; exists s2'=> //.
-    + move=> /andP [Hvar He] s1' Hw.
-      move: (check_arrW Hvar He Hv Hu Hw)=> [s2' Hs2']; exists s2'=> //.
+      by move: (check_memW Hvar He Hv Hu Hw)=> [s2' Hs2']; exists s2'.
+    case: r2=> // vi' e'.
+    move=> /check_arr_stkW /(_ Hv) H s1' Hw.
+    move: (H _ _ Hu _ Hw)=> [s2' Hs2']; exists s2'=> //.
+    move=> /andP [Hvar He] s1' Hw.
+    move: (check_arrW Hvar He Hv Hu Hw)=> [s2' Hs2']; exists s2'=> //.
   Qed.
 
   Lemma check_lvalsP (r1 r2: lvals) vs vs' (s1 s2: estate) :

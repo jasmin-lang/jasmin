@@ -2,16 +2,16 @@ open Utils
 open Prog
 
 let fill_in_missing_names (f: 'info func) : 'info func =
-  let fresh_name : L.t -> ty gvar_i =
+  let fresh_name : L.t -> ty -> ty gvar_i =
     let count = ref 0 in
-    fun loc ->
+    fun loc ty ->
       let n = Printf.sprintf " %d" !count in
       incr count;
-      L.mk_loc loc (V.mk n Reg (Bty Bool) L._dummy)
+      L.mk_loc loc (V.mk n Reg ty L._dummy)
   in
   let fill_lv =
     function
-    | Lnone p -> Lvar (fresh_name p)
+    | Lnone(p, ty) -> Lvar (fresh_name p ty)
     | x -> x in
   let fill_lvs lvs = List.map fill_lv lvs in
   let rec fill_instr_r =
@@ -361,4 +361,4 @@ let regalloc (f: 'info func) : 'info func =
     allocate_forced_registers vars f IntMap.empty |>
     greedy_allocation nv conflicts |>
     subst_of_allocation vars
-  in Subst.gsubst_func a f
+  in Subst.gsubst_func (fun ty -> ty) a f

@@ -151,7 +151,7 @@ type assgn_tag =
   | AT_unroll (* result of unfolding loops, must be remove in next pass *)
 
 type 'ty glval =
- | Lnone of L.t
+ | Lnone of L.t * 'ty
  | Lvar  of 'ty gvar_i
  | Lmem  of word_size * 'ty gvar_i * 'ty gexpr
  | Laset of 'ty gvar_i * 'ty gexpr

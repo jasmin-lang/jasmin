@@ -267,7 +267,7 @@ Definition swrite_vars xs vs s :=
 
 Definition swrite_lval (l:lval) (v:svalue) (s:sestate) : exec sestate :=
   match l with
-  | Lnone _ => ok s
+  | Lnone _ _ => ok s
   | Lvar x => swrite_var x v s
   | Lmem x e =>
     Let vx := sto_word (sget_var (sevm s) x) in
@@ -566,7 +566,7 @@ Qed.
 Lemma swrite_lval_inv {x v s s'} :
   swrite_lval x v s = ok s' →
   match x with
-  | Lnone _ => s' = s
+  | Lnone _ _ => s' = s
   | Lvar x => ∃ v', of_sval (vtype x) v = ok v' ∧
                     s' = {| semem := semem s ; sevm := (sevm s).[ x <- v' ] |}
   | Lmem x e =>

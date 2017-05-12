@@ -174,7 +174,9 @@ Module CBEA.
 
   Definition check_lval (r1 r2:lval) m := 
     match r1, r2 with 
-    | Lnone _, Lnone _ => cok m
+    | Lnone _ t1, Lnone _ t2 => 
+      if t1 == t2 then cok m
+      else cerror (Cerr_arr_exp_v r1 r2)
     | Lvar x1, Lvar x2 => 
       if check_var m x1 x2 then cok m 
       else cerror (Cerr_arr_exp_v r1 r2)
@@ -315,8 +317,10 @@ Module CBEA.
       write_lval x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1') /\
       eq_alloc r1' s1'.(evm) vm1'.
   Proof.
-    case: x1 x2 => [vi1 | x1 | x1 e1 | x1 e1] [vi2 | x2 | x2 e2 | x2 e2] //=.
-    + by move=> [<-] ?? [<-];exists vm1.
+    case: x1 x2 => [vi1 t1 | x1 | x1 e1 | x1 e1] [vi2 t2 | x2 | x2 e2 | x2 e2] //=.
+    + case:ifP => //= /eqP <- [<-].
+      move=> Heqa Hv H; have [-> _]:= write_noneP H.
+      by rewrite (uincl_write_none _ Hv H);exists vm1.
     + by case:ifP=>//= Hc [<-];apply check_rvarP.
     + case:ifP=>//= /andP[] Hcx Hce [<-] Hea Hu.
       apply: rbindP=> z1;apply:rbindP => vx1 /(check_varP Hea Hcx) [vx1' [->]] /=.        

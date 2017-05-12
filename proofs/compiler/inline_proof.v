@@ -311,8 +311,8 @@ Section WF.
   Lemma wf_write_lval x ve s1 s2 :
     wf_vm (evm s1) -> write_lval x ve s1 = ok s2 -> wf_vm (evm s2).
   Proof.
-    case: x => [vi|v|v e|v e] /= Hwf.
-    + by move=> [<-]. + by apply wf_write_var. + by t_rbindP => -[<-].
+    case: x => [vi t|v|v e|v e] /= Hwf.
+    + by move=> /write_noneP [->]. + by apply wf_write_var. + by t_rbindP => -[<-].
     apply: on_arr_varP => n t ? ?.   
     apply:rbindP => ??;apply:rbindP => ??;apply:rbindP => ??.
     by apply:rbindP=>? Hset [<-] /=;apply: wf_set_var Hset.

@@ -270,7 +270,7 @@ let check_sig_lvs ?loc sig_ lvs =
       |> oiter (fun lty -> check_ty_eq ~loc ~from:ty ~to_:lty))
      sig_ lvs;
 
-  List.map (fun (_,lv,_) -> lv) lvs
+  List.map2 (fun ty (_,flv,_) -> flv ty) sig_ lvs
 
 (* -------------------------------------------------------------------- *)
 let tt_as_bool = check_ty TPBool
@@ -489,18 +489,18 @@ let tt_param (env : Env.env) _loc (pp : S.pparam) : Env.env * (P.pvar * P.pexpr)
 let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
   match pl with
   | S.PLIgnore ->
-    loc, P.Lnone loc, None
+    loc, (fun ty -> P.Lnone(loc,ty)) , None
 
   | S.PLVar x ->
     let x = tt_var `AllVar env x in
-    loc, P.Lvar (L.mk_loc loc x), Some x.P.v_ty
+    loc, (fun _ -> P.Lvar (L.mk_loc loc x)), Some x.P.v_ty
 
   | S.PLArray ({ pl_loc = xlc } as x, pi) ->
     let x  = tt_var `AllVar env x in
     let ty = tt_as_array (xlc, x.P.v_ty) in
     let i,ity  = tt_expr env ~mode:`AllVar pi in
     check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
-    loc, P.Laset (L.mk_loc xlc x, i), Some ty
+    loc, (fun _ -> P.Laset (L.mk_loc xlc x, i)), Some ty
 
   | S.PLMem (ct, ({ pl_loc = xlc } as x), po) ->
     let x = tt_var `AllVar env x in
@@ -508,7 +508,7 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     let e = tt_expr_cast64 ~mode:`AllVar env po in
     let ct = ct |>
                omap_dfl (fun st -> tt_as_word (L.loc st, tt_type env st)) W64 in
-    loc, P.Lmem (ct, L.mk_loc xlc x, e), Some (P.Bty (P.U ct))
+    loc, (fun _ -> P.Lmem (ct, L.mk_loc xlc x, e)), Some (P.Bty (P.U ct))
 
 (* -------------------------------------------------------------------- *)
 
@@ -658,10 +658,10 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
       P.Copn(lvs, p, es)
 
     | PIAssign([lv], `Raw, pe, None) ->
-      let _, v, vty = tt_lvalue env lv in
+      let _, flv, vty = tt_lvalue env lv in
       let e, ety = tt_expr ~mode:`AllVar env pe in
       let e = vty |> omap_dfl (cast (L.loc pe) e ety) e in
-      Cassgn(v, AT_keep, e)
+      Cassgn(flv ety, AT_keep, e)
 
     | PIAssign(ls, `Raw, pe, None) ->
       (* Try to match addc, subc, mulu *)

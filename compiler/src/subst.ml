@@ -18,37 +18,37 @@ and gsubst_vdest f v =
   | Pvar v -> v
   | _      -> assert false
 
-let gsubst_lval f lv =
+let gsubst_lval fty f lv =
   match lv with
-  | Lnone i     -> Lnone i
+  | Lnone(i,ty) -> Lnone(i, fty ty)
   | Lvar v      -> Lvar (gsubst_vdest f v)
   | Lmem(w,v,e) -> Lmem(w, gsubst_vdest f v, gsubst_e f e)
   | Laset(v,e)  -> Laset(gsubst_vdest f v, gsubst_e f e)
 
-let gsubst_lvals f = List.map (gsubst_lval f)
+let gsubst_lvals fty f  = List.map (gsubst_lval fty f)
 let gsubst_es f = List.map (gsubst_e f)
 
-let rec gsubst_i f i =
+let rec gsubst_i fty f i =
   let i_desc =
     match i.i_desc with
-    | Cblock c      -> Cblock (gsubst_c f c)
-    | Cassgn(x,t,e) -> Cassgn(gsubst_lval f x, t, gsubst_e f e)
-    | Copn(x,o,e)   -> Copn(gsubst_lvals f x, o, gsubst_es f e)
-    | Cif(e,c1,c2)  -> Cif(gsubst_e f e, gsubst_c f c1, gsubst_c f c2)
+    | Cblock c      -> Cblock (gsubst_c fty f c)
+    | Cassgn(x,t,e) -> Cassgn(gsubst_lval fty f x, t, gsubst_e f e)
+    | Copn(x,o,e)   -> Copn(gsubst_lvals fty f x, o, gsubst_es f e)
+    | Cif(e,c1,c2)  -> Cif(gsubst_e f e, gsubst_c fty f c1, gsubst_c fty f c2)
     | Cfor(x,(d,e1,e2),c) ->
-        Cfor(gsubst_vdest f x, (d, gsubst_e f e1, gsubst_e f e2), gsubst_c f c)
+        Cfor(gsubst_vdest f x, (d, gsubst_e f e1, gsubst_e f e2), gsubst_c fty f c)
     | Cwhile(c, e, c') -> 
-      Cwhile(gsubst_c f c, gsubst_e f e, gsubst_c f c')
-    | Ccall(ii,x,fn,e) -> Ccall(ii, gsubst_lvals f x, fn, gsubst_es f e) in
+      Cwhile(gsubst_c fty f c, gsubst_e f e, gsubst_c fty f c')
+    | Ccall(ii,x,fn,e) -> Ccall(ii, gsubst_lvals fty f x, fn, gsubst_es f e) in
   { i with i_desc }
 
-and gsubst_c f c = List.map (gsubst_i f) c
+and gsubst_c fty f c = List.map (gsubst_i fty f) c
 
-let gsubst_func f fc =
+let gsubst_func fty f fc =
   let dov v = L.unloc (gsubst_vdest f (L.mk_loc L._dummy v)) in
   { fc with
     f_args = List.map dov fc.f_args;
-    f_body = gsubst_c f fc.f_body;
+    f_body = gsubst_c fty f fc.f_body;
     f_ret  = List.map (gsubst_vdest f) fc.f_ret
   }
 
@@ -77,7 +77,6 @@ let psubst_v subst =
     match e with
     | Pvar x -> Pvar {x with L.pl_loc = L.loc v}
     | _      -> e in
-
   aux
 
 let psubst_prog (prog:'info pprog) =
@@ -91,12 +90,13 @@ let psubst_prog (prog:'info pprog) =
     | MIfun fc :: items ->
         let p = aux items in
         let subst_v = psubst_v !subst in
+        let subst_ty = psubst_ty subst_v in
         let dov v =
           L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
         let fc = {
             fc with
             f_args = List.map dov fc.f_args;
-            f_body = gsubst_c subst_v fc.f_body;
+            f_body = gsubst_c subst_ty subst_v fc.f_body;
             f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret
           } in
         MIfun(fc)::p in
@@ -152,7 +152,7 @@ let isubst_prog (prog:'info pprog) =
       let fc = {
           fc with
           f_args = List.map dov fc.f_args;
-          f_body = gsubst_c subst_v fc.f_body;
+          f_body = gsubst_c isubst_ty subst_v fc.f_body;
           f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret
         } in
       fc in
@@ -185,7 +185,7 @@ let csubst_v () =
 
 let clone_func fc =
   let subst_v = csubst_v () in
-  gsubst_func subst_v fc
+  gsubst_func (fun ty -> ty) subst_v fc
 
 
 (* ---------------------------------------------------------------- *)
@@ -202,11 +202,11 @@ let vsubst_ve s v = Pvar (vsubst_vi s v)
 let vsubst_e  s = gsubst_e  (vsubst_ve s)
 let vsubst_es s = gsubst_es (vsubst_ve s) 
 
-let vsubst_lval  s = gsubst_lval  (vsubst_ve s)
-let vsubst_lvals s = gsubst_lvals (vsubst_ve s)
+let vsubst_lval  s = gsubst_lval  (fun ty -> ty) (vsubst_ve s)
+let vsubst_lvals s = gsubst_lvals (fun ty -> ty) (vsubst_ve s)
 
-let vsubst_i s = gsubst_i (vsubst_ve s)
-let vsubst_c s = gsubst_c (vsubst_ve s)
+let vsubst_i s = gsubst_i (fun ty -> ty) (vsubst_ve s)
+let vsubst_c s = gsubst_c (fun ty -> ty) (vsubst_ve s)
 
-let vsubst_func s = gsubst_func (vsubst_ve s)
+let vsubst_func s = gsubst_func (fun ty -> ty) (vsubst_ve s)
 

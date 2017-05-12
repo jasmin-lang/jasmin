@@ -285,7 +285,7 @@ Definition remove_cpm (m:cpm) (s:Sv.t): cpm :=
 
 Definition const_prop_rv (m:cpm) (rv:lval) : cpm * lval := 
   match rv with 
-  | Lnone _   => (m, rv)
+  | Lnone _ _ => (m, rv)
   | Lvar  x   => (Mvar.remove m x, rv)
     (* TODO : FIXME should we do more on x, in particular if x is a known value *)
   | Lmem  x e => (m, Lmem x (const_prop_e m e))

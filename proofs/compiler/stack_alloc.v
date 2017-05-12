@@ -158,7 +158,7 @@ Definition check_arr_stk := check_arr_stk' (* check_e *).
 
 Definition check_lval (m:map) (r1 r2:lval) := 
   match r1, r2 with
-  | Lnone _, Lnone _ => true
+  | Lnone _ t1, Lnone _ t2 => t1 == t2
   | Lvar x1, Lvar x2 => check_var m x1 x2
   | Lvar x1, Lmem x2 e2 => check_var_stk m x1 x2 e2
   | Lmem x1 e1, Lmem x2 e2 => check_var m x1 x2 && check_e m e1 e2

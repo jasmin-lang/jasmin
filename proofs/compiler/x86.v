@@ -167,7 +167,7 @@ Definition word_of_pexpr ii e :=
 
 Definition oprd_of_lval ii (l: lval) :=
   match l with
-  | Lnone _ => cierror ii (Cerr_assembler "Lnone not implemented")
+  | Lnone _ _ => cierror ii (Cerr_assembler "Lnone not implemented")
   | Lvar v =>
      Let s := reg_of_var ii v in
      ciok (Reg_op s)

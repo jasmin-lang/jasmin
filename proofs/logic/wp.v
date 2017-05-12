@@ -528,7 +528,7 @@ Proof. by rewrite E. Defined.
 
 Definition post_assgn (x: lval) {ty} (w: ssem_t ty) (f: formula) (m: mem) (s: env) : Prop :=
   match x with
-  | Lnone _ => projT1 f m s
+  | Lnone _ _ => projT1 f m s
   | Lvar {| v_var := x |} =>
     match sstype_eq_dec ty (vtype x) with
     | left EQ =>
@@ -631,7 +631,7 @@ Lemma post_assgn_m { s s' } :
   post_assgn x v f m s →
   post_assgn x v f m s'.
 Proof.
-  move=> E [ x | [x xn] | [x xn] e | x e ] ty v f m /=.
+  move=> E [ x t | [x xn] | [x xn] e | x e ] ty v f m /=.
   - (* Lnone *) by apply (projT2 f m).
   - (* Lvar *)
     case: sstype_eq_dec => // Te.
@@ -697,7 +697,7 @@ Lemma post_assgn_sound x ty (v: ssem_t ty) m vm s' f:
   (post_assgn x v f m (mv_of_fv vm)) →
   ⟦f⟧ s'.
 Proof.
-  case: x => [ xi | [x xn] | [x xn] e' | x e' ] /swrite_lval_inv.
+  case: x => [ xi t | [x xn] | [x xn] e' | x e' ] /swrite_lval_inv.
   - (* Lnone *)
     move=> -> H; apply: H; eauto.
   - (* Lvar *)

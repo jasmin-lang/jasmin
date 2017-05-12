@@ -378,8 +378,8 @@ Lemma const_prop_rvP s1 s2 m x v:
   valid_cpm (evm s2) (const_prop_rv m x).1 /\
   write_lval (const_prop_rv m x).2 v s1 = ok s2.
 Proof.
-  case:x => [ii | x | x p | x p] /= Hv.
-  + by move=> [<-].
+  case:x => [ii t | x | x p | x p] /= Hv.
+  + by move=> H; have [??]:= write_noneP H; subst s2.
   + by move=> H;split=>//;apply: remove_cpm1P H Hv.
   + apply: rbindP => z Hz;rewrite Hz /=.
     apply: rbindP => z'.

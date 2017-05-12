@@ -253,11 +253,10 @@ Export Eq_pexpr.Exports.
  * -------------------------------------------------------------------- *)
 
 Variant lval : Type :=
-| Lnone `(var_info)
+| Lnone `(var_info) `(stype)
 | Lvar `(var_i)
 | Lmem `(var_i) `(pexpr)
-| Laset `(var_i) `(pexpr)
-.
+| Laset `(var_i) `(pexpr).
 
 Coercion Lvar : var_i >-> lval.
 
@@ -265,7 +264,7 @@ Notation lvals := (seq lval).
 
 Definition lval_beq (x1:lval) (x2:lval) :=
   match x1, x2 with
-  | Lnone i1   , Lnone i2    => i1 == i2
+  | Lnone i1 t1, Lnone i2 t2 => (i1 == i2) && (t1 == t2)
   | Lvar  x1   , Lvar  x2    => x1 == x2
   | Lmem  x1 e1, Lmem  x2 e2 => (x1 == x2) && (e1 == e2)
   | Laset x1 e1, Laset x2 e2 => (x1 == x2) && (e1 == e2)
@@ -274,9 +273,9 @@ Definition lval_beq (x1:lval) (x2:lval) :=
 
 Lemma lval_eq_axiom : Equality.axiom lval_beq.
 Proof.
-  case=> [i1|x1|x1 e1|x1 e1] [i2|x2|x2 e2|x2 e2] /=;try by constructor.
-  + apply (@equivP (i1 = i2));first by apply: eqP.
-    by split => [->|[]->].
+  case=> [i1 t1|x1|x1 e1|x1 e1] [i2 t2|x2|x2 e2|x2 e2] /=;try by constructor.
+  + apply (@equivP ((i1 == i2) /\ t1 == t2));first by apply andP.
+    by split=> [ [] /eqP -> /eqP -> | [] -> <- ] //.
   + apply (@equivP (x1 = x2));first by apply: eqP.
     by split => [->|[]->].
   + apply (@equivP ((x1 == x2) /\ e1 == e2));first by apply andP.
@@ -597,7 +596,7 @@ End RECT.
 
 Definition vrv_rec (s:Sv.t) (rv:lval) :=
   match rv with
-  | Lnone _    => s
+  | Lnone _ _  => s
   | Lvar  x    => Sv.add x s
   | Lmem  _ _  => s
   | Laset x _  => Sv.add x s
@@ -635,7 +634,7 @@ Proof.
   move=> s1 s2 Hs x r ->;case:r => //= [v | v _];SvD.fsetdec.
 Qed.
 
-Lemma vrv_none i : vrv (Lnone i) = Sv.empty.
+Lemma vrv_none i t: vrv (Lnone i t) = Sv.empty.
 Proof. by []. Qed.
 
 Lemma vrv_var x: Sv.Equal (vrv (Lvar x)) (Sv.singleton x).
@@ -751,7 +750,7 @@ Definition read_es := read_es_rec Sv.empty.
 
 Definition read_rv_rec  (s:Sv.t) (r:lval) :=
   match r with
-  | Lnone _   => s
+  | Lnone _ _ => s
   | Lvar  _   => s
   | Lmem  x e => read_e_rec (Sv.add x s) e
   | Laset x e => read_e_rec (Sv.add x s) e

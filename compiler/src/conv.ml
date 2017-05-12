@@ -310,14 +310,14 @@ let opn_of_copn = function
 (* ------------------------------------------------------------------------ *)
 
 let clval_of_lval tbl = function
-  | Lnone loc      -> C.Lnone (set_loc tbl loc)
+  | Lnone(loc, ty) -> C.Lnone (set_loc tbl loc, cty_of_ty ty)
   | Lvar x         -> C.Lvar  (cvari_of_vari tbl x)
   | Lmem (W64,x,e) -> C.Lmem  (cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Lmem _         -> assert false
   | Laset(x,e)     -> C.Laset (cvari_of_vari tbl x, cexpr_of_expr tbl e)
 
 let lval_of_clval tbl = function
-  | C.Lnone p    -> Lnone (get_loc tbl p)
+  | C.Lnone(p,ty)-> Lnone (get_loc tbl p, ty_of_cty ty)
   | C.Lvar x     -> Lvar (vari_of_cvari tbl x)
   | C.Lmem(x,e)  -> Lmem (W64, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Laset(x,e) -> Laset (vari_of_cvari tbl x, expr_of_cexpr tbl e)
