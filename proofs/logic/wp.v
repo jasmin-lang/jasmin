@@ -1322,4 +1322,37 @@ Proof.
   - by move=> i xs fn es ii f s s' H; apply: ffalse_denote.
 Qed.
 
+Lemma hoare_by_wp prg (P: hpred) c Q :
+  P ⊂ ⟦wp_rec c ⟨Q⟩⟧ →
+  hoare prg P c Q.
+Proof.
+  move=> E.
+  eapply hoare_conseq. exact E. 2: apply wp_rec_sound.
+  apply formula_of_hpred_denote.
+Qed.
+
 End WEAKEST_PRECONDITION.
+
+Ltac find_in_map_set m x :=
+  match m with
+  | @Mv.set _ ?m' ?y ?v =>
+    let t := constr: (x == y) in
+    let d := eval vm_compute in t in
+    match d with
+    | true => constr:(v)
+    | false => find_in_map_set m' x
+    end
+  end.
+
+Ltac mv_get_set :=
+  repeat
+  match goal with
+  | H : context[ @Mv.get ?to ?m ?x ] |- _ =>
+    let v := find_in_map_set m x in
+    change (@Mv.get to m x) with v in H
+  | |- context[ @Mv.get ?to ?m ?x ] =>
+    let v := find_in_map_set m x in
+    change (@Mv.get to m x) with v
+  end.
+
+Tactic Notation "post_wp" := simpl; unfold Fv.get; simpl; intros; mv_get_set.
