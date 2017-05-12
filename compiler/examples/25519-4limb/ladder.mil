@@ -100,12 +100,12 @@ fn reduce(reg u64[8] z_in) -> reg u64[4] {
     cf, z[i] += l;
     if (i == 0) {
       hprev = 0;
-      hprev += h + cf;
+      _ , hprev += h + cf;
     } else {
-      h += 0 + cf;
+      _, h += 0 + cf;
       cf, z[i] += hprev;
       hprev = 0;
-      hprev += h + cf;
+      _, hprev += h + cf;
     }
   }
 
@@ -117,7 +117,7 @@ fn reduce(reg u64[8] z_in) -> reg u64[4] {
   }
 
   zero = 0;
-  zero += 0 + cf;
+  _, zero += 0 + cf;
 
   l = zero * rem_p;
   z[0] += l;
@@ -155,7 +155,7 @@ fn mul(stack u64[4] xa, stack u64[4] ya) -> reg u64[4] {
     } else {
       cf, z[j] += l;
       z[j + 1] = 0;
-      z[j + 1] += h + cf;
+      _, z[j + 1] += h + cf;
     }
   }
 
@@ -167,13 +167,13 @@ fn mul(stack u64[4] xa, stack u64[4] ya) -> reg u64[4] {
       cf, z[i+j] += l;
       if (j == 0) {
         hprev = 0;
-        hprev += h + cf;
+        _, hprev += h + cf;
       } else {
-        h += 0 + cf;
+        _, h += 0 + cf;
         cf, z[i+j] += hprev;
         if (1 <= j && j < 4 - 1) {
           hprev = 0;
-          hprev += h + cf;
+          _, hprev += h + cf;
         } else { /* j = 4 */
           z[i + j + 1] = 0;
           cf, z[i + j + 1] += h + cf;
@@ -227,13 +227,13 @@ fn square(stack u64[4] xa) -> reg u64[4] {
   rdx, rax = rax * xa[0];
   cf, z[2] += rax;
   cf, z[3] += rdx + cf;
-      z[4] += 0   + cf;
+      _, z[4] += 0   + cf;
 
   rax = xa[3];
   rdx, rax = rax * xa[1];
   cf, z[4] += rax;
   cf, z[5] += rdx + cf;
-      z[6] += 0   + cf;
+   _, z[6] += 0   + cf;
 
   /*   [2*]x01 + [2*]x02 + 2*x03 + [2*]x12 + [2*]x13 + [2*]x23
      + x00 + x11 + x22 + x33 */
@@ -243,7 +243,7 @@ fn square(stack u64[4] xa) -> reg u64[4] {
   cf, z[3] += rax;
   cf, z[4] += rdx + cf;
   cf, z[5] += 0   + cf;
-      z[6] += 0   + cf;
+   _, z[6] += 0   + cf;
 
   /*   x01 + x02 + x03 + x12 + x13 + x23
      + x00 + x11 + x22 + x33 */
@@ -282,12 +282,12 @@ fn square(stack u64[4] xa) -> reg u64[4] {
   cf, z[4] += t[3] + cf;
   cf, z[5] += t[4] + cf;
   cf, z[6] += 0 + cf;
-      z[7] += 0 + cf;
+   _, z[7] += 0 + cf;
 
   rax = xa[3];
   rdx, rax = rax * xa[3];
   cf, z[6] += rax;
-      z[7] += rdx + cf;
+   _, z[7] += rdx + cf;
 
   r = reduce(z);
 
@@ -584,9 +584,9 @@ fn unpack_secret(reg u64 sp) -> stack u64[4] {
   si    = [sp + 0*8];
   si    = si & 0xfffffffffffffff8;
   sa[0] = si;
-  sa[1] = MEM[sp + 1*8];
-  sa[2] = MEM[sp + 2*8];
-  si    = MEM[sp + 3*8];
+  sa[1] = [sp + 1*8];
+  sa[2] = [sp + 2*8];
+  si    = [sp + 3*8];
   si    = si & 0x7fffffffffffffff;
   si    = si | 0x4000000000000000;
   sa[3] = si;
