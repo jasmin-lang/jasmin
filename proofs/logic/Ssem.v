@@ -327,7 +327,7 @@ Definition sem_sopn (o:sopn) :  svalues -> exec svalues :=
   | Osubcarry => sapp_wwb (fun x y c => ok (@spval ssbool ssword (wsubcarry x y c)))
 
   (* Low level x86 operations *)
-  | Ox86_CMOVcc  => sapp_bww x86_CMOCcc
+  (* | Ox86_CMOVcc  => sapp_bww x86_CMOVcc
   | Ox86_ADD     => sapp_ww x86_add
   | Ox86_SUB     => sapp_ww x86_sub
   | Ox86_MUL     => (fun _ => type_error)
@@ -349,10 +349,13 @@ Definition sem_sopn (o:sopn) :  svalues -> exec svalues :=
   | Ox86_SHL     => (fun _ => type_error)
   | Ox86_SHR     => (fun _ => type_error)
   | Ox86_SAR     => (fun _ => type_error)
+*)
+  | _ => fun _ => type_error
   end.
 
 Definition ssem_sopn (o:sopn) : svalues -> exec svalues :=
   match o with
+    (*
   | Olnot => soww I64.not
   | Oxor  => sowww I64.xor
   | Oland => sowww I64.and
@@ -379,6 +382,8 @@ Definition ssem_sopn (o:sopn) : svalues -> exec svalues :=
   | Oeqw => sowwb I64.eq
 
   | Ox86_cmp => soww_rflags x86_cmp
+*)
+  | _ => λ _, type_error
   end.
 
 (* ** Instructions

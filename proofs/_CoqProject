@@ -44,5 +44,5 @@ lang/utils.v
 lang/var.v
 lang/word.v
 lang/prog_notation.v
-
-
+logic/Ssem.v
+logic/wp.v
