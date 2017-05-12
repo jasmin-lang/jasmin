@@ -144,12 +144,12 @@ let rec pp_comp_err tbl fmt = function
       (Conv.string_of_string0 s)
 
 and pp_comp_ferr tbl fmt = function
-  | Compiler_util.Ferr_in_body(f1,f2,(_ii, err_msg)) ->
+  | Compiler_util.Ferr_in_body(f1,f2,(ii, err_msg)) ->
     let f1 = Conv.fun_of_cfun tbl f1 in
     let f2 = Conv.fun_of_cfun tbl f2 in
-      (* let (i_loc, _) = Conv.get_iinfo tbl ii in *)
-    Format.fprintf fmt "in functions %s and %s at position s: %a"
-      f1.fn_name f2.fn_name (* (Prog.L.tostring i_loc)  *)
+    let (i_loc, _) = Conv.get_iinfo tbl ii in 
+    Format.fprintf fmt "in functions %s and %s at position %s: %a"
+      f1.fn_name f2.fn_name (Prog.L.tostring i_loc)  
       (pp_comp_err tbl) err_msg
   | Compiler_util.Ferr_neqfun(f1,f2) ->
     let f1 = Conv.fun_of_cfun tbl f1 in
@@ -232,6 +232,10 @@ let main () =
         List.map trans alloc in
       let sz = Conv.z_of_int sz in
       let cfd = cfdef_of_fdef fd in
+
+      Format.eprintf "Stack alloc done:@.%a@."
+        (Printer.pp_func ~debug:true) fd; 
+
       let sfd = {
         Stack_alloc.sf_iinfo  = cfd.Expr.f_iinfo;
         Stack_alloc.sf_stk_sz = sz;

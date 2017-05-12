@@ -397,10 +397,14 @@ let is_reg_arr v =
 (* Functions over expressions                                           *)
 
 let ( ++ ) e1 e2 =
-  Papp2(Oadd Op_int, e1, e2)
-
+  match e1, e2 with
+  | Pconst n1, Pconst n2 -> Pconst (B.add n1 n2)
+  | _, _                 -> Papp2(Oadd Op_int, e1, e2)
+  
 let ( ** ) e1 e2 =
-  Papp2(Omul Op_int, e1, e2)
+  match e1, e2 with
+  | Pconst n1, Pconst n2 -> Pconst (B.mul n1 n2)
+  | _, _                 -> Papp2(Omul Op_int, e1, e2)
 
 let cnst i = Pconst i
 let icnst i = cnst (B.of_int i)

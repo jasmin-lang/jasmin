@@ -78,6 +78,7 @@ Record compiler_params := {
   reg_alloc_fd : funname -> fundef -> fundef;
   stk_alloc_fd : funname -> fundef -> seq (var * Z) * sfundef;
   print_prog   : compiler_step -> prog -> prog;
+(*  print_linear : lprog -> lprog; *)
 }.
 
 Variable cparams : compiler_params.

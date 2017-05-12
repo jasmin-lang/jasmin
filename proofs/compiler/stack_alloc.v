@@ -30,7 +30,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssrint ssralg.
 From mathcomp Require Import choice fintype eqtype div seq zmodp finset.
 Require Import Coq.Logic.Eqdep_dec.
 Require Import strings word utils type var expr memory.
-
+Require Import constant_prop.
 Require Import compiler_util.
 Require Import ZArith.
 
@@ -73,8 +73,8 @@ Definition map := (Mvar.t Z * Ident.ident)%type.
 
 Definition size_of (t:stype) := 
   match t with
-  | sword  => ok 1%Z
-  | sarr n => ok (Zpos n)
+  | sword  => ok 8%Z
+  | sarr n => ok (8 * (Zpos n))%Z
   | _      => cerror (Cerr_stk_alloc "size_of")
   end.
 
@@ -116,22 +116,24 @@ Definition is_arr_type (t:stype) :=
   | _      => false
   end.
 
-Definition check_arr_stk' check_e (m:map) (x1:var_i) (e1:pexpr) (x2:var_i) (e2:pexpr) :=
+Definition is_addr_ofs (*check_e *) ofs e1 e2 := 
+(*  match e2 with
+  | Papp2 (Oadd Op_w) ofs' (Papp2 (Omul Op_w) scale (Pcast e2')) => 
+    match is_wconst ofs', is_wconst scale with
+    | Some zofs, Some zscale => (ofs == zofs) && (zscale == 8%Z) && check_e e1 e2'
+    | _, _                   => false
+    end 
+  | _ => *) 
+    match is_const e1, is_wconst e2 with
+    | Some i, Some zofs => (ofs + 8*i)%Z == zofs
+    | _, _              => false
+    end
+(*  end *).
+
+Definition check_arr_stk' (* check_e *) (m:map) (x1:var_i) (e1:pexpr) (x2:var_i) (e2:pexpr) :=
   is_vstk m x2 && is_arr_type (vtype x1) &&
     match Mvar.get m.1 x1 with
-    | Some ofs =>
-      match e2 with
-      | Pcast (Papp2 (Oadd Op_int) (Pconst ofs') e2') => (ofs == ofs') && check_e m e1 e2'
-      | _ => false
-      end ||
-      match e2 with
-      | Pcast (Papp2 (Oadd Op_int) e2' (Pconst ofs')) => (ofs == ofs') && check_e m e1 e2'
-      | _ => false
-      end ||
-      match e1 with
-      | Pconst n => e2 == Pcast (Pconst (ofs + n)) 
-      | _        => false
-      end
+    | Some ofs => is_addr_ofs (* (check_e m) *) ofs e1 e2
     | _ => false
     end.
 
@@ -143,7 +145,7 @@ Fixpoint check_e (m:map) (e1 e2: pexpr) :=
   | Pvar   x1, Pvar   x2 => check_var m x1 x2 
   | Pvar   x1, Pload x2 e2 => check_var_stk m x1 x2 e2
   | Pget  x1 e1, Pget x2 e2 => check_var m x1 x2 && check_e m e1 e2
-  | Pget  x1 e1, Pload x2 e2 => check_arr_stk' check_e m x1 e1 x2 e2
+  | Pget  x1 e1, Pload x2 e2 => check_arr_stk' (* check_e *) m x1 e1 x2 e2
   | Pload x1 e1, Pload x2 e2 => check_var m x1 x2 && check_e m e1 e2
   | Papp1 o1 e1, Papp1 o2 e2 => (o1 == o2) && check_e m e1 e2 
   | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
@@ -152,7 +154,7 @@ Fixpoint check_e (m:map) (e1 e2: pexpr) :=
   | _, _ => false
   end.
 
-Definition check_arr_stk := check_arr_stk' check_e.
+Definition check_arr_stk := check_arr_stk' (* check_e *). 
 
 Definition check_lval (m:map) (r1 r2:lval) := 
   match r1, r2 with
