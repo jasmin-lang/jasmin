@@ -74,58 +74,117 @@ Section PROOF.
     sem_i p s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
   Proof. move=> _ Hi; exact: Hi. Qed.
 
+  Lemma sem_op2_w_dec v e1 e2 s f:
+    Let v1 := sem_pexpr s e1 in (Let v2 := sem_pexpr s e2 in sem_op2_w f v1 v2) = ok v ->
+    exists z1 z2, Vword (f z1 z2) = v /\ sem_pexprs s [:: e1; e2] = ok [:: Vword z1; Vword z2].
+  Proof.
+    t_xrbindP=> v1 Hv1 v2 Hv2; rewrite /sem_op2_w /mk_sem_sop2.
+    t_xrbindP=> z1 Hz1 z2 Hz2 Hv.
+    move: v1 Hv1 Hz1=> [] //; last by move=> [].
+    move=> w1 Hw1 []Hz1; subst w1.
+    move: v2 Hv2 Hz2=> [] //; last by move=> [].
+    move=> w2 Hw2 []Hz1; subst w2.
+    rewrite /sem_pexprs /= Hw1 /= Hw2 /=; eexists; eexists; eauto.
+  Qed.
+
+  Lemma sem_op2_wb_dec v e1 e2 s f:
+    Let v1 := sem_pexpr s e1 in (Let v2 := sem_pexpr s e2 in sem_op2_wb f v1 v2) = ok v ->
+    exists z1 z2, Vbool (f z1 z2) = v /\ sem_pexprs s [:: e1; e2] = ok [:: Vword z1; Vword z2].
+  Proof.
+    t_xrbindP=> v1 Hv1 v2 Hv2; rewrite /sem_op2_wb /mk_sem_sop2.
+    t_xrbindP=> z1 Hz1 z2 Hz2 Hv.
+    move: v1 Hv1 Hz1=> [] //; last by move=> [].
+    move=> w1 Hw1 []Hz1; subst w1.
+    move: v2 Hv2 Hz2=> [] //; last by move=> [].
+    move=> w2 Hw2 []Hz1; subst w2.
+    rewrite /sem_pexprs /= Hw1 /= Hw2 /=; eexists; eexists; eauto.
+  Qed.
+
+  Lemma write_lval_undef l v s1 s2:
+    write_lval l v s1 = ok s2 ->
+    (if l is Lnone _ then False else True) ->
+    type_of_val v = sword ->
+    exists w, v = Vword w.
+  Proof.
+    move=> Hw Hnone Ht.
+    rewrite /type_of_val in Ht.
+    case: v Ht Hw=> //=.
+    + move=> w _ _; by exists w.
+    move=> s ->.
+    move: l Hnone=> [] //=.
+    + by move=> [[[| |n|] // vn] vi].
+    + move=> [[[| |n|] // vn] vi] e; t_xrbindP=> //.
+    + move=> [[[| |n|] // vn] vi] e _; apply: on_arr_varP=> //.
+      move=> ????; t_xrbindP=> //.
+  Qed.
+
+  Lemma type_of_get_var vm vn v:
+    get_var vm {| vtype := sword; vname := vn |} = ok v ->
+    type_of_val v = sword.
+  Proof.
+    rewrite /get_var /on_vu.
+    case Heq: (vm.[_])=> [a|[]] //; by move=> -[]<-.
+  Qed.
+
   Local Lemma Hassgn s1 s2 l tag e :
     Let v := sem_pexpr s1 e in write_lval l v s1 = Ok error s2 ->
     Pi_r s1 (Cassgn l tag e) s2.
   Proof.
     apply: rbindP=> v Hv Hw ii /=.
-    elim: e Hv=> [z|b|e He|x|x e He|x e He|o e He|o e1 He1 e2 He2|e He e1 He1 e2 He2] Hv; try (
+    move: e Hv=> [z|b|e|x|x e|x e|o e|o e1 e2|e e1 e2] Hv; try (
     apply: sem_seq1; apply: EmkI; apply: Eassgn; by rewrite Hv).
-    + admit.
-    + admit.
-    + admit.
-    + admit.
+    + move: e Hv=> [z|b|e|x|x e|x e|o e|o e1 e2|e e1 e2] Hv; try (
+      apply: sem_seq1; apply: EmkI; apply: Eassgn; by rewrite Hv).
+      apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
+      move: Hv=> -[]->; by rewrite Hw.
+    + move: x Hv=> [[vt vn] vi] Hv.
+      move: vt Hv=> [| |n|] Hv; try (apply: sem_seq1; apply: EmkI; apply: Eassgn; by rewrite Hv).
+      rewrite /=.
+      apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
+      rewrite /= in Hv.
+      rewrite /sem_pexprs /= Hv /=.
+      have [| |w Hw'] := write_lval_undef Hw.
+      admit. (* TODO: no Lnone *)
+      exact: type_of_get_var Hv.
+      by subst v; rewrite /= Hw.
+    + apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
+      rewrite /sem_pexprs /mapM Hv /=.
+      move: Hv=> /=.
+      apply: on_arr_varP=> n t Ht _.
+      t_xrbindP=> y h _ _ w _ Hvw; subst=> /=.
+      by rewrite Hw.
+    + apply: sem_seq1; apply: EmkI; apply: Eopn.
+      rewrite /sem_pexprs /mapM Hv /=.
+      move: Hv=> /=.
+      by t_xrbindP=> ?????????? Hv; subst=> /=; rewrite Hw.
     + move: o Hv=> [] /= Hv.
       + apply: sem_seq1; apply: EmkI; apply: Eassgn=> /=.
         by rewrite Hv.
       apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
-      apply: rbindP Hv=> z Hz Hv.
-      apply: rbindP Hv=> z0 Hz0 []Hv.
-      move: z Hz Hz0=> [] //=.
-      + move=> z Hz []Hz0; subst z.
-        by rewrite /sem_pexprs /= Hz /= Hv Hw.
-      move=> [] //.
-    + move: o Hv=> [| |[]|[]|[]| | | | | | |k|k|k|k|k|k] Hv; try (
-        by apply: sem_seq1; apply: EmkI; apply: Eassgn; rewrite Hv).
+      move: Hv; rewrite /sem_op1_w /mk_sem_sop1.
+      t_xrbindP=> /= -[//|//|//|/= z Hz z0 []<- Hv|[] //].
+      by rewrite /sem_pexprs /= Hz /= Hv Hw.
+    + move: o Hv=> [| |[]|[]|[]| | | | | | |[]|k|[]|k|k|k] Hv; try (
+        by apply: sem_seq1; apply: EmkI; apply: Eassgn; rewrite Hv); try (
+        apply: sem_seq1; apply: EmkI; apply: Eopn;
+        by move: Hv=> /sem_op2_w_dec [z1 [z2 [Hv ->]]] /=; rewrite Hv Hw).
+      + admit.
       + admit.
       + apply: sem_seq1; apply: EmkI; apply: Eopn.
         rewrite /= in Hv.
-        apply: rbindP Hv=> v1 Hv1; apply: rbindP=> v2 Hv2.
-        apply: rbindP=> z1 Hz1.
-        apply: rbindP=> z2 Hz2 []Hv.
-        move: v1 Hv1 Hz1=> [] //; last by move=> [].
-        move=> w1 Hw1 []Hz1.
-        move: v2 Hv2 Hz2=> [] //; last by move=> [].
-        move=> w2 Hw2 []Hz2.
-        by rewrite /sem_pexprs /= Hw1 /= Hw2 /= Hz1 Hz2 Hv Hw.
-      + admit.
+        move: Hv=> /sem_op2_w_dec [z1 [z2 [Hv Hz]]].
+        rewrite /sem_pexprs /= -[Let y4 := sem_pexpr s1 e1 in _]/(sem_pexprs s1 [:: e1; e2]) {}Hz /=.
+        admit.
+      + admit. (* Same as above *)
+      + admit. (* Same as above *)
       + apply: sem_seq1; apply: EmkI; apply: Eopn.
         rewrite /= in Hv.
-        apply: rbindP Hv=> v1 Hv1; apply: rbindP=> v2 Hv2.
-        apply: rbindP=> z1 Hz1.
-        apply: rbindP=> z2 Hz2 []Hv.
-        move: v1 Hv1 Hz1=> [] //; last by move=> [].
-        move=> w1 Hw1 []Hz1.
-        move: v2 Hv2 Hz2=> [] //; last by move=> [].
-        move=> w2 Hw2 []Hz2.
-        by rewrite /sem_pexprs /= Hw1 /= Hw2 /= Hz1 Hz2 Hv Hw.
-      + admit.
-      + admit.
-      + admit.
-      + admit.
-      + admit.
-      + admit.
-      + admit.
+        move: Hv=> /sem_op2_wb_dec [z1 [z2 [Hv ->]]] /=.
+        suff ->: Vbool (ZF_of_word (I64.sub z1 z2)) = v by rewrite Hw.
+          rewrite -Hv /ZF_of_word /weq.
+          admit. (* I64.eq (I64.sub z1 z2) I64.zero = (z1 =? z2)%Z *)
+      + admit. (* Similar to shifts *)
+      + admit. (* Again *)
   Admitted.
 
   Local Lemma Hopn s1 s2 o xs es :
@@ -133,22 +192,11 @@ Section PROOF.
     in write_lvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
   Proof.
     apply: rbindP=> v; apply: rbindP=> x Hx Hv Hs2 ii.
-    move: o Hv=> [] Hv.
-    + apply: sem_seq1; apply: EmkI; apply: Eopn.
-      move: x Hx Hv=> [] // x1 [].
-      + move=> _; apply: rbindP=> //.
-      move=> x2 [] //.
-      + move=> Hes.
-        apply: rbindP=> z1 Hz1.
-        apply: rbindP=> z2 Hz2 []Hv.
-        move: x1 Hes Hz1=> [] //; last by move=> [].
-        move=> w1 Hes []Hz1; subst.
-        move: x2 Hes Hz2=> [] //; last by move=> [].
-        move=> w2 Hes []Hz2; subst.
-        by rewrite Hes.
-      move=> ?? _; apply: rbindP=> z _; apply: rbindP=> //.
+    move: o Hv=> [] Hv; try (
+      apply: sem_seq1; apply: EmkI; apply: Eopn;
+      rewrite Hx /=; rewrite /= in Hv; by rewrite Hv).
     + admit.
-    (* ... *)
+    + admit.
   Admitted.
 
   Local Lemma Hif_true s1 s2 e c1 c2 :
