@@ -39,7 +39,7 @@ Local Open Scope Z_scope.
 (* ** Result monad
  * -------------------------------------------------------------------- *)
 
-Inductive result (E : Type) (A : Type) : Type :=
+Variant result (E : Type) (A : Type) : Type :=
 | Ok of A
 | Error of E.
 
