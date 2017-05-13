@@ -109,11 +109,11 @@ let pp_address (ws : rsize) (addr : X86_sem.address) =
 
 (* -------------------------------------------------------------------- *)
 let pp_imm (imm : Bigint.zint) =
-  Format.sprintf "$%s" (Bigint.to_string imm)
+  Format.sprintf "%s" (Bigint.to_string imm)
 
 (* -------------------------------------------------------------------- *)
 let pp_label (lbl : Linear.label) =
-  Format.sprintf "$%s" (string_of_label lbl)
+  Format.sprintf "%s" (string_of_label lbl)
 
 (* -------------------------------------------------------------------- *)
 let pp_opr (ws : rsize) (op : X86_sem.oprd) =
@@ -158,7 +158,7 @@ let pp_ct (ct : X86_sem.condt) =
 
 (* -------------------------------------------------------------------- *)
 let pp_iname (ws : rsize) (name : string) =
-  Printf.sprintf "%s%s" (pp_instr_rsize ws) name
+  Printf.sprintf "%s%s" name (pp_instr_rsize ws)
 
 (* -------------------------------------------------------------------- *)
 let pp_instr (i : X86_sem.asm) =
@@ -214,7 +214,7 @@ let pp_instr (i : X86_sem.asm) =
       `Instr (pp_iname rs "test", [pp_opr rs op1; pp_opr rs op2])
 
   | Jcc (label, ct) ->
-      let iname = Printf.sprintf "jmp%s" (pp_ct ct) in
+      let iname = Printf.sprintf "j%s" (pp_ct ct) in
       `Instr (iname, [pp_label label])
 
   | JMP label ->
@@ -259,4 +259,4 @@ let pp_instr (i : X86_sem.asm) =
   | `Instr (s, []) ->
       Printf.sprintf "\t%.*s" iwidth s
   | `Instr (s, args) ->
-      Printf.sprintf "\t%.*s\r%s" iwidth s (String.join ", " args)
+      Printf.sprintf "\t%.*s\t%s" iwidth s (String.join ", " args)
