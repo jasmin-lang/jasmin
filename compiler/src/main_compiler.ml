@@ -147,9 +147,9 @@ and pp_comp_ferr tbl fmt = function
   | Compiler_util.Ferr_in_body(f1,f2,(ii, err_msg)) ->
     let f1 = Conv.fun_of_cfun tbl f1 in
     let f2 = Conv.fun_of_cfun tbl f2 in
-    let (i_loc, _) = Conv.get_iinfo tbl ii in 
+    let (i_loc, _) = Conv.get_iinfo tbl ii in
     Format.fprintf fmt "in functions %s and %s at position %s: %a"
-      f1.fn_name f2.fn_name (Prog.L.tostring i_loc)  
+      f1.fn_name f2.fn_name (Prog.L.tostring i_loc)
       (pp_comp_err tbl) err_msg
   | Compiler_util.Ferr_neqfun(f1,f2) ->
     let f1 = Conv.fun_of_cfun tbl f1 in
@@ -234,7 +234,7 @@ let main () =
       let cfd = cfdef_of_fdef fd in
 
       Format.eprintf "Stack alloc done:@.%a@."
-        (Printer.pp_func ~debug:true) fd; 
+        (Printer.pp_func ~debug:true) fd;
 
       let sfd = {
         Stack_alloc.sf_iinfo  = cfd.Expr.f_iinfo;
@@ -271,7 +271,20 @@ let main () =
     | Utils0.Error e ->
       Utils.hierror "compilation error %a@.PLEASE REPORT"
          (pp_comp_ferr tbl) e
-    | _ -> ()
+    | Utils0.Ok asm ->
+      if !outfile <> "" then begin
+        let out = open_out !outfile in
+        let fmt = Format.formatter_of_out_channel out in
+        Format.fprintf fmt "\t.globl\t_main@._main:@.\tpushq\t%%rax@.";
+        List.iter
+          (fun (_, d) ->
+             List.iter (fun i -> Format.fprintf fmt "%s@." (Ppasm.pp_instr i))
+               d.X86.xfd_body)
+          asm;
+        Format.fprintf fmt "\tmovl\t%%eax, %%edi@.\tcallq\t_exit@.";
+        close_out out;
+        if !debug then Format.eprintf "assembly listing written@."
+      end
     end
 
   with

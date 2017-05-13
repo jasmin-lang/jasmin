@@ -109,11 +109,11 @@ let pp_address (ws : rsize) (addr : X86_sem.address) =
 
 (* -------------------------------------------------------------------- *)
 let pp_imm (imm : Bigint.zint) =
-  Format.sprintf "%s" (Bigint.to_string imm)
+  Format.sprintf "$%s" (Bigint.to_string imm)
 
 (* -------------------------------------------------------------------- *)
 let pp_label (lbl : Linear.label) =
-  Format.sprintf "%s" (string_of_label lbl)
+  Format.sprintf "$%s" (string_of_label lbl)
 
 (* -------------------------------------------------------------------- *)
 let pp_opr (ws : rsize) (op : X86_sem.oprd) =
@@ -259,4 +259,4 @@ let pp_instr (i : X86_sem.asm) =
   | `Instr (s, []) ->
       Printf.sprintf "\t%.*s" iwidth s
   | `Instr (s, args) ->
-      Printf.sprintf "\t%.*s\t%s" iwidth s (String.join ", " args)
+      Printf.sprintf "\t%.*s\t%s" iwidth s (String.join ", " (List.rev args))
