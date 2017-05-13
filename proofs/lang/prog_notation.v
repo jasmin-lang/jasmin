@@ -62,7 +62,7 @@ Notation "e1 ?  e2 : e3 " := (Pif e1 e2 e3) (at level 70) : expr_scope.
 
 Arguments Lmem _ _%E.
 Arguments Laset _ _%E.
-Arguments Lnone _%positive.
+Arguments Lnone _%positive _.
 
 Notation "'#_'" := Lnone (at level 0): lval_scope. 
 Notation "'__'" := (#_ 1)%L (at level 200): lval_scope. 
