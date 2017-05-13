@@ -103,17 +103,24 @@ let empty_tbl () = {
 
 (* ------------------------------------------------------------------------ *)
 
-let cvar_of_var tbl v =
+let gen_cvar_of_var with_uid tbl v =
   try Hv.find tbl.cvar v
   with Not_found ->
-    let s = v.v_name ^ "." ^ (string_of_int (int_of_uid v.v_id)) in
+    let s = 
+      if with_uid then 
+        v.v_name ^ "." ^ (string_of_int (int_of_uid v.v_id))
+      else v.v_name in
     let cv = {
       Var.vtype = cty_of_ty v.v_ty;
       Var.vname = string0_of_string s
     } in
     Hv.add tbl.cvar v cv;
+    assert (not (Hashtbl.mem tbl.var cv));
     Hashtbl.add tbl.var cv v;
     cv
+
+let cvar_of_var tbl v = gen_cvar_of_var true tbl v
+let cvar_of_reg tbl v = gen_cvar_of_var false tbl v
 
 let var_of_cvar tbl cv =
   try Hashtbl.find tbl.var cv
@@ -503,6 +510,17 @@ let fdef_of_cfdef tbl (fn, fd) =
 
 let cprog_of_prog p =
   let tbl = empty_tbl () in
+  (* First add registers *)
+  List.iter 
+    (fun x -> ignore (cvar_of_reg tbl x))
+    Regalloc.X64.all_registers;
+  Format.eprintf "Register string@.";
+  List.iter (fun x ->
+      let cv = cvar_of_var tbl x in
+      Format.eprintf "%s " (string_of_string0 cv.Var.vname))
+    Regalloc.X64.all_registers;
+  Format.eprintf "@.";
+    
   tbl, List.map (cfdef_of_fdef tbl) p
 
 let prog_of_cprog tbl p =

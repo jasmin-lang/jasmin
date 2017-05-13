@@ -186,7 +186,7 @@ Definition oprd_of_pexpr ii (e: pexpr) :=
   | Pvar v =>
      Let s := reg_of_var ii v in
      ciok (Reg_op s)
-  | Pload v e =>
+  | Pload v e => (* FIXME: can we recognize more expression for e ? *)
      Let s := reg_of_var ii v in
      Let w := word_of_pexpr ii e in
      ciok (Adr_op (mkAddress w (Some s) Scale1 None))
@@ -337,6 +337,36 @@ Definition assemble_shift ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
   | _ => cierror ii (Cerr_assembler "Wrong number of pexprs in shift operator")
   end.
 
+Definition string_of_sopn o : string := 
+  match o with 
+  | Omulu       => "Omulu      " 
+  | Oaddcarry   => "Oaddcarry  "
+  | Osubcarry   => "Osubcarry  "
+  | Ox86_MOV    => "Ox86_MOV   "
+  | Ox86_CMOVcc => "Ox86_CMOVcc"
+  | Ox86_ADD    => "Ox86_ADD   "
+  | Ox86_SUB    => "Ox86_SUB   "
+  | Ox86_MUL    => "Ox86_MUL   "
+  | Ox86_IMUL   => "Ox86_IMUL  "
+  | Ox86_DIV    => "Ox86_DIV   "
+  | Ox86_IDIV   => "Ox86_IDIV  "
+  | Ox86_ADC    => "Ox86_ADC   "
+  | Ox86_SBB    => "Ox86_SBB   "
+  | Ox86_INC    => "Ox86_INC   "
+  | Ox86_DEC    => "Ox86_DEC   "
+  | Ox86_SETcc  => "Ox86_SETcc "
+  | Ox86_LEA    => "Ox86_LEA   "
+  | Ox86_TEST   => "Ox86_TEST  "
+  | Ox86_CMP    => "Ox86_CMP   "
+  | Ox86_AND    => "Ox86_AND   "
+  | Ox86_OR     => "Ox86_OR    "
+  | Ox86_XOR    => "Ox86_XOR   "
+  | Ox86_NOT    => "Ox86_NOT   "
+  | Ox86_SHL    => "Ox86_SHL   "
+  | Ox86_SHR    => "Ox86_SHR   "
+  | Ox86_SAR    => "Ox86_SAR   " 
+  end.
+
 Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
   match o with
   | Ox86_CMP | Ox86_ADD | Ox86_ADC | Ox86_SUB | Ox86_SBB (*| Ox86_MUL TODO *)
@@ -375,7 +405,7 @@ Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
       end
     | _ => cierror ii (Cerr_assembler "Invalid number of lval in Ox86_DEC/INC")
     end
-  | _ => cierror ii (Cerr_assembler "Unhandled sopn")
+  | _ => cierror ii (Cerr_assembler (String.append "Unhandled sopn " (string_of_sopn o)))
   end.
 
 Definition assemble_i (li: linstr) : ciexec asm :=

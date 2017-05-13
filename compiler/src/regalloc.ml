@@ -229,6 +229,10 @@ struct
   let f_s = V.mk "SF" Reg (Bty Bool) L._dummy
   let f_z = V.mk "ZF" Reg (Bty Bool) L._dummy
 
+  let flags = [f_c; f_d; f_o; f_p; f_s; f_z]
+
+  let all_registers = allocatable @ flags
+
   let forced_registers (vars: (var, int) Hashtbl.t)
       (lvs: 'ty glvals) (op: op) (es: 'ty gexprs)
       (a: allocation) : allocation =
