@@ -113,7 +113,7 @@ let pp_imm (imm : Bigint.zint) =
 
 (* -------------------------------------------------------------------- *)
 let pp_label (lbl : Linear.label) =
-  Format.sprintf "$%s" (string_of_label lbl)
+  Format.sprintf "%s" (string_of_label lbl)
 
 (* -------------------------------------------------------------------- *)
 let pp_opr (ws : rsize) (op : X86_sem.oprd) =
