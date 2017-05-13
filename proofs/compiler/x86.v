@@ -405,6 +405,15 @@ Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
       end
     | _ => cierror ii (Cerr_assembler "Invalid number of lval in Ox86_DEC/INC")
     end
+  | Ox86_MOV =>
+    match l, e with
+    | [::l], [:: e] =>
+      Let ol := oprd_of_lval ii l in
+      Let or := oprd_of_pexpr ii e in
+      ciok (MOV ol or)
+    | _, _ =>
+      cierror ii (Cerr_assembler "Invalid number of lval or pexpr in Ox86_DEC/INC")
+    end
   | _ => cierror ii (Cerr_assembler (String.append "Unhandled sopn " (string_of_sopn o)))
   end.
 

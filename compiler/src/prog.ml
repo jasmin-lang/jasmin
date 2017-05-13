@@ -386,8 +386,6 @@ let ws_of_ty = function
 (* -------------------------------------------------------------------- *)
 (* Functions over variables                                             *)
 
-let vstack = V.mk "stk" Reg u64 L._dummy
-
 let is_stack_var v = v.v_kind = Stack
 
 let is_reg_arr v =

@@ -201,7 +201,7 @@ let main () =
     if !coqonly then exit 0;
 
     (* Now call the coq compiler *)
-    let tbl, cprog = Conv.cprog_of_prog prog in
+    let tbl, cprog = Conv.cprog_of_prog () prog in
     if !debug then Printf.eprintf "translated to coq \n%!";
 
     let lowering_vars = Lowering.(
@@ -240,7 +240,7 @@ let main () =
         Stack_alloc.sf_iinfo  = cfd.Expr.f_iinfo;
         Stack_alloc.sf_stk_sz = sz;
         Stack_alloc.sf_stk_id =
-          Var0.Var.vname (Conv.cvar_of_var tbl Prog.vstack);
+          Var0.Var.vname (Conv.cvar_of_var tbl Array_expand.vstack);
         Stack_alloc.sf_params = cfd.Expr.f_params;
         Stack_alloc.sf_body   = cfd.Expr.f_body;
         Stack_alloc.sf_res    = cfd.Expr.f_res; } in

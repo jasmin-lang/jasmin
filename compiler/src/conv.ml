@@ -75,6 +75,7 @@ let ty_of_cty = function
 (* ------------------------------------------------------------------------ *)
 
 type 'info coq_tbl = {
+     dft_info      : 'info;
      mutable count : int;
      var           : (Var.var, var) Hashtbl.t;
      cvar          : Var.var Hv.t;
@@ -90,12 +91,13 @@ let new_count tbl =
   tbl.count <- n + 1;
   n
 
-let empty_tbl () = {
-    count = 1;
-    var   = Hashtbl.create 101;
-    cvar  = Hv.create 101;
-    vari  = Hashtbl.create 1000;
-    iinfo = Hashtbl.create 1000;
+let empty_tbl info = {
+    dft_info = info;
+    count    = 1;
+    var      = Hashtbl.create 101;
+    cvar     = Hv.create 101;
+    vari     = Hashtbl.create 1000;
+    iinfo    = Hashtbl.create 1000;
     funname  = Hashtbl.create 101;
     cfunname = Hashtbl.create 101;
     finfo    = Hashtbl.create 101;
@@ -394,7 +396,9 @@ let set_iinfo tbl loc ii =
 
 let get_iinfo tbl n =
   try Hashtbl.find tbl.iinfo (int_of_pos n)
-  with Not_found -> assert false
+  with Not_found -> 
+    Format.eprintf "WARNING: CAN NOT FIND IINFO %i@." (int_of_pos n);
+    L._dummy, tbl.dft_info
 
 let rec cinstr_of_instr tbl i c =
   let n = set_iinfo tbl i.i_loc i.i_info in
@@ -508,8 +512,8 @@ let fdef_of_cfdef tbl (fn, fd) =
     f_ret  = List.map (vari_of_cvari tbl) fd.C.f_res;
   }
 
-let cprog_of_prog p =
-  let tbl = empty_tbl () in
+let cprog_of_prog info p =
+  let tbl = empty_tbl info in
   (* First add registers *)
   List.iter 
     (fun x -> ignore (cvar_of_reg tbl x))

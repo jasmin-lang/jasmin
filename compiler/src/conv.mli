@@ -35,7 +35,7 @@ val get_iinfo   : 'info coq_tbl -> BinNums.positive -> L.t * 'info
 val cfdef_of_fdef : 'info coq_tbl -> 'info func -> BinNums.positive * Expr.fundef
 val fdef_of_cfdef : 'info coq_tbl -> BinNums.positive * Expr.fundef -> 'info func
 
-val cprog_of_prog : 'info prog -> 'info coq_tbl * Expr.prog
+val cprog_of_prog : 'info -> 'info prog -> 'info coq_tbl * Expr.prog
 val prog_of_cprog : 'info coq_tbl -> Expr.prog -> 'info prog
 
 val fresh_cvar : 'info coq_tbl -> string -> ty -> Var0.Var.var

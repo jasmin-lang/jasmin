@@ -112,6 +112,8 @@ let init_stk fc =
   let alloc = List.map init_var vars in
   alloc, !size, tbl
 
+let vstack = Regalloc.X64.rsp
+
 let load_stack ws loc e =
    Pload (ws, L.mk_loc loc vstack, cast64 e)
 

@@ -316,8 +316,6 @@ val ws_of_ty   : ty -> word_size
 (* -------------------------------------------------------------------- *)
 (* Functions on variables                                               *)
 
-val vstack : var
-
 val is_stack_var : var -> bool
 val is_reg_arr   : var -> bool
 

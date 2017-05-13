@@ -1,5 +1,7 @@
 open Prog
 
+val vstack : var
+
 val arrexp_func : 'info func -> 'info func
 val arrexp_prog : 'info prog -> 'info prog
 
