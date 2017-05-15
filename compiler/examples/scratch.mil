@@ -53,3 +53,21 @@ b, y = y + 1;
 r = y;
 return r;
 }
+
+export
+fn k(reg u64 x) -> reg u64 {
+reg u64 a;
+reg u64 b;
+reg u64 c;
+reg u64 d;
+reg u64 e;
+a = 0;
+b = 1;
+c = 2;
+d = 3;
+e = a;
+e += b;
+e += c;
+e += d;
+return e;
+}
