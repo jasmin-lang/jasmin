@@ -275,6 +275,17 @@ struct
       a |>
       mallocate_one x f_c |>
       allocate_one (f cf) f_c
+    | Ox86_MUL,
+      [ Lvar oF ; Lvar cF ; Lvar sF ; Lvar pF ; Lvar zF ; Lvar hi ; Lvar lo ], x :: _ ->
+      a |>
+      mallocate_one x rax |>
+      allocate_one (f oF) f_o |>
+      allocate_one (f cF) f_c |>
+      allocate_one (f sF) f_s |>
+      allocate_one (f pF) f_p |>
+      allocate_one (f zF) f_z |>
+      allocate_one (f hi) rdx |>
+      allocate_one (f lo) rax
     | _, _, _ -> a (* TODO *)
 
 end
