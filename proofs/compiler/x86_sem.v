@@ -252,7 +252,7 @@ Definition st_write_ip (ip : nat) (s : x86_state) :=
      xreg := s.(xreg);
      xrf  := s.(xrf);
      xc   := s.(xc);
-     xip  := ip; |}. 
+     xip  := ip; |}.
 
 (* -------------------------------------------------------------------- *)
 Coercion word_of_scale (s : scale) : word :=
