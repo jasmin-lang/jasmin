@@ -16,6 +16,21 @@ let rs : rsize = `U64
 exception InvalidRegSize of LM.wsize
 
 (* -------------------------------------------------------------------- *)
+let iwidth = 4
+
+let pp_gen (fmt : Format.formatter) = function
+  | `Label lbl ->
+      Format.fprintf fmt "%s:" lbl
+  | `Instr (s, []) ->
+      Format.fprintf fmt "\t%-.*s" iwidth s
+  | `Instr (s, args) ->
+      Format.fprintf fmt "\t%-.*s\t%s"
+        iwidth s (String.join ", " (List.rev args))
+
+let pp_gens (fmt : Format.formatter) xs =
+  List.iter (Format.fprintf fmt "%a\n%!" pp_gen) xs
+
+(* -------------------------------------------------------------------- *)
 let string_of_label (p : Linear.label) =
   Printf.sprintf "L%d" (Conv.int_of_pos p)
 
@@ -250,13 +265,26 @@ let pp_instr (i : X86_sem.asm) =
       `Instr (pp_iname rs "shr", [pp_opr rs op; pp_imr rs ir])
 
 (* -------------------------------------------------------------------- *)
-let iwidth = 10
+let pp_instr (fmt : Format.formatter) (i : X86_sem.asm) =
+  pp_gen fmt (pp_instr i)
 
-let pp_instr (i : X86_sem.asm) =
-  match pp_instr i with
-  | `Label lbl ->
-      Printf.sprintf "%s:" lbl
-  | `Instr (s, []) ->
-      Printf.sprintf "\t%.*s" iwidth s
-  | `Instr (s, args) ->
-      Printf.sprintf "\t%.*s\t%s" iwidth s (String.join ", " (List.rev args))
+(* -------------------------------------------------------------------- *)
+let pp_instrs (fmt : Format.formatter) (is : X86_sem.asm list) =
+  List.iter (Format.fprintf fmt "%a\n%!" pp_instr) is
+
+(* -------------------------------------------------------------------- *)
+let pp_prog (fmt : Format.formatter) (asm : X86.xprog) =
+  let prelude = [
+    `Instr (".globl", ["_main"]);
+    `Label "_main";
+    `Instr ("pushq", ["%rax"]);
+  ]
+
+  and epilog = [
+    `Instr ("movl", ["%rax"; "%rdi"]);
+    `Instr ("callq", ["t_exit"]);
+  ] in
+
+  pp_gens fmt prelude;
+  List.iter (fun (_, d) -> pp_instrs fmt d.X86.xfd_body)  asm;
+  pp_gens fmt epilog
