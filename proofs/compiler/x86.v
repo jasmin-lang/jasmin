@@ -275,71 +275,69 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
   end.
 
 Definition assemble_fopn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
-  match e with
-  | [:: e1; e2] =>
-    Let o1 := oprd_of_pexpr ii e1 in
-    Let o2 := oprd_of_pexpr ii e2 in
-    match o with
-    | Ox86_CMP =>
-      match l with
-      | [::] => ciok (CMP o1 o2)
-      | _ => cierror ii (Cerr_assembler "Too many lvals in Ox86_CMP")
-      end
-    | _ =>
-      match l with
-      | [:: l] =>
-        Let ol := oprd_of_lval ii l in
-        if (o1 == ol) then
-          ciok (match o with
-          | Ox86_ADD => ADD
-          | Ox86_ADC => ADC
-          | Ox86_SUB => SUB
-          | Ox86_SBB => SBB
-          (* TODO: | Ox86_MUL => MUL *)
-          | Ox86_AND => AND
-          | Ox86_OR  => OR
-          | Ox86_XOR | _ => XOR
-          end o1 o2)
-        else
-          cierror ii (Cerr_assembler "Last lval & first rval of arithmetic ops should be the same")
-      | _ => cierror ii (Cerr_assembler "Wrong number of lvals in arithmetic operator")
-      end
-    end
-  | _ => cierror ii (Cerr_assembler "Wrong number of pexprs in fopn")
-  end.
-
-Definition assemble_shift ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
-  match e with
-  | [:: Pvar vof; Pvar vcf; Pvar vsf; Pvar vpf; Pvar vzf; e1; e2] =>
-    Let rof := rflag_of_var ii vof in
-    Let rcf := rflag_of_var ii vcf in
-    Let rsf := rflag_of_var ii vsf in
-    Let rpf := rflag_of_var ii vpf in
-    Let rzf := rflag_of_var ii vzf in
-    Let o1 := oprd_of_pexpr ii e1 in
-    Let o2 := ireg_of_pexpr ii e2 in
-    if ((rof == OF) && (rcf == CF) && (rsf == SF) && (rpf == PF) && (rzf == ZF)) then
-      match l with
-      | [:: l] =>
-        Let ol := oprd_of_lval ii l in
-        if (o1 == ol) then
-          ciok (match o with
-          | Ox86_SHR => SHR
-          | Ox86_SHL => SHL
-          | Ox86_SAR | _ => SAR
-          end o1 o2)
-        else
-          cierror ii (Cerr_assembler "lval & rval of shift should be the same")
-      | _ => cierror ii (Cerr_assembler "Wrong number of lvals in shift operator")
-      end
-    else
-      cierror ii (Cerr_assembler "Wrong rflags in lval of shift operator")
-  | _ => cierror ii (Cerr_assembler "Wrong number of pexprs in shift operator")
+  match o with
+  | Ox86_CMP =>
+    match e, l with
+    | [:: e1; e2], [::] =>
+      Let o1 := oprd_of_pexpr ii e1 in
+      Let o2 := oprd_of_pexpr ii e2 in
+      ciok (CMP o1 o2)
+    | _, _ => cierror ii (Cerr_assembler ("wrong arguments / outputs for operator " ++ string_of_sopn o)) end
+  | (Ox86_ADD | Ox86_SUB | Ox86_AND | Ox86_OR | Ox86_XOR) =>
+    match e, l with
+    | [:: e1; e2], [:: x ] =>
+      Let o1 := oprd_of_pexpr ii e1 in
+      Let o2 := oprd_of_pexpr ii e2 in
+      Let ox := oprd_of_lval ii x in
+      if (o1 != ox) then cierror ii (Cerr_assembler ("First [rl]val should be the same for " ++ string_of_sopn o)) else
+      ciok (match o with
+            | Ox86_ADD => ADD
+            | Ox86_SUB => SUB
+            | _ => (* assert false *) ADD
+            end o1 o2)
+    | _, _ => cierror ii (Cerr_assembler ("wrong arguments / outputs for operator " ++ string_of_sopn o)) end
+  | (Ox86_ADC | Ox86_SBB) =>
+    match e, l with
+    | [:: e1; e2; Pvar ecf], [:: x ] =>
+      Let o1 := oprd_of_pexpr ii e1 in
+      Let o2 := oprd_of_pexpr ii e2 in
+      Let rcf := rflag_of_var ii ecf in
+      Let ox := oprd_of_lval ii x in
+      if (rcf != CF) then cierror ii (Cerr_assembler ("Carry flag in wrong register for " ++ string_of_sopn o)) else
+      if (o1 != ox) then cierror ii (Cerr_assembler ("First [rl]val should be the same for " ++ string_of_sopn o)) else
+      ciok (match o with
+            | Ox86_ADC => ADC
+            | Ox86_SBB => SBB
+            | _ => (* assert false *) ADD
+            end o1 o2)
+    | _, _ => cierror ii (Cerr_assembler ("wrong arguments / outputs for operator " ++ string_of_sopn o)) end
+  | (Ox86_SHL | Ox86_SHR | Ox86_SAR) =>
+    match e, l with
+    | [:: e1; e2], [:: x ] =>
+      Let o1 := oprd_of_pexpr ii e1 in
+      Let o2 := ireg_of_pexpr ii e2 in
+      Let ox := oprd_of_lval ii x in
+      if (o1 != ox) then cierror ii (Cerr_assembler ("First [rl]val should be the same for " ++ string_of_sopn o)) else
+      ciok (match o with
+            | Ox86_SHL => SHL
+            | Ox86_SHR => SHR
+            | Ox86_SAR => SAR
+            | _ => (* assert false *) SAR
+            end o1 o2)
+    | _, _ => cierror ii (Cerr_assembler ("wrong arguments / outputs for operator " ++ string_of_sopn o)) end
+  | Ox86_MUL =>
+    match e, l with
+    | [:: e1; e2], [:: lo ; hi ] =>
+      (* TODO: check constraints *)
+      Let o2 := oprd_of_pexpr ii e2 in
+      ok (MUL o2)
+    | _, _ => cierror ii (Cerr_assembler ("wrong arguments / outputs for operator " ++ string_of_sopn o)) end
+  | _ => cierror ii (Cerr_assembler ("TODO: assemble operator " ++ string_of_sopn o))
   end.
 
 Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
   match o with
-  | Ox86_CMP | Ox86_ADD | Ox86_ADC | Ox86_SUB | Ox86_SBB (*| Ox86_MUL TODO *)
+  | Ox86_CMP | Ox86_ADD | Ox86_ADC | Ox86_SUB | Ox86_SBB | Ox86_MUL
   | Ox86_AND | Ox86_OR  | Ox86_XOR | Ox86_SHR | Ox86_SHL | Ox86_SAR =>
     match l with
     | (Lvar vof) :: (Lvar vcf) :: (Lvar vsf) :: (Lvar vpf) :: (Lvar vzf) :: l =>
@@ -349,11 +347,7 @@ Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
       Let rpf := rflag_of_var ii vpf in
       Let rzf := rflag_of_var ii vzf in
       if ((rof == OF) && (rcf == CF) && (rsf == SF) && (rpf == PF) && (rzf == ZF)) then
-        match o with
-        | Ox86_CMP | Ox86_ADD | Ox86_ADC | Ox86_SUB | Ox86_SBB
-        | Ox86_MUL | Ox86_AND | Ox86_OR  | Ox86_XOR => assemble_fopn ii l o e
-        | Ox86_SHR | Ox86_SHL | Ox86_SAR | _ => assemble_shift ii l o e
-        end
+      assemble_fopn ii l o e
       else cierror ii (Cerr_assembler "Invalid registers in lvals")
     | _ => cierror ii (Cerr_assembler "Invalid number of lvals")
     end
