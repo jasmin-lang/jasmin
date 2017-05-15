@@ -209,7 +209,7 @@ struct
 
   let allocatable = [
       rax; rbx; rcx; rdx;
-      rsp; rbp; rsi; rdi;
+      rbp; rsi; rdi;
       r8; r9; r10; r11; r12; r13; r14; r15
     ]
 
@@ -231,7 +231,7 @@ struct
 
   let flags = [f_c; f_d; f_o; f_p; f_s; f_z]
 
-  let all_registers = allocatable @ flags
+  let all_registers = rsp :: allocatable @ flags
 
   let forced_registers (vars: (var, int) Hashtbl.t)
       (lvs: 'ty glvals) (op: op) (es: 'ty gexprs)
