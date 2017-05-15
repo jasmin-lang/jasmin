@@ -39,36 +39,6 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope seq_scope.
 
-Definition string_of_sopn o : string := 
-  match o with 
-  | Omulu       => "Omulu      " 
-  | Oaddcarry   => "Oaddcarry  "
-  | Osubcarry   => "Osubcarry  "
-  | Ox86_MOV    => "Ox86_MOV   "
-  | Ox86_CMOVcc => "Ox86_CMOVcc"
-  | Ox86_ADD    => "Ox86_ADD   "
-  | Ox86_SUB    => "Ox86_SUB   "
-  | Ox86_MUL    => "Ox86_MUL   "
-  | Ox86_IMUL   => "Ox86_IMUL  "
-  | Ox86_DIV    => "Ox86_DIV   "
-  | Ox86_IDIV   => "Ox86_IDIV  "
-  | Ox86_ADC    => "Ox86_ADC   "
-  | Ox86_SBB    => "Ox86_SBB   "
-  | Ox86_INC    => "Ox86_INC   "
-  | Ox86_DEC    => "Ox86_DEC   "
-  | Ox86_SETcc  => "Ox86_SETcc "
-  | Ox86_LEA    => "Ox86_LEA   "
-  | Ox86_TEST   => "Ox86_TEST  "
-  | Ox86_CMP    => "Ox86_CMP   "
-  | Ox86_AND    => "Ox86_AND   "
-  | Ox86_OR     => "Ox86_OR    "
-  | Ox86_XOR    => "Ox86_XOR   "
-  | Ox86_NOT    => "Ox86_NOT   "
-  | Ox86_SHL    => "Ox86_SHL   "
-  | Ox86_SHR    => "Ox86_SHR   "
-  | Ox86_SAR    => "Ox86_SAR   " 
-  end.
-
 Definition string_of_register (r: register) : string :=
   match r with
   | RAX => "RAX"
