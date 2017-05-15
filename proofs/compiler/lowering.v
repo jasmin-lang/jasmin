@@ -46,6 +46,12 @@ Definition var_info_of_lval (x: lval) : var_info :=
   | Lvar x | Lmem x _ | Laset x _ => v_info x
   end.
 
+Definition stype_of_lval (x: lval) : stype :=
+  match x with
+  | Lnone _ t => t
+  | Lvar v | Lmem v _ | Laset v _ => v.(vtype)
+  end.
+
 Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
   let f := Lnone vi sbool in
   let fr n := {| v_var := n fv ; v_info := vi |} in
@@ -159,9 +165,11 @@ Definition lower_cassgn  (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
     end
 
   | Pif e e1 e2 => 
-    let (l, e) := lower_condition vi e in
-    l ++ [:: Copn [:: x] Ox86_CMOVcc [:: e; e1; e2]]
-    
+    if (stype_of_lval x == sword) then
+      let (l, e) := lower_condition vi e in
+      l ++ [:: Copn [:: x] Ox86_CMOVcc [:: e; e1; e2]]
+    else
+      [:: Cassgn x tg (Pif e e1 e2) ]
   | _ => [:: Cassgn x tg e ]
   end.
 

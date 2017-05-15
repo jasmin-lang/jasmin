@@ -1085,7 +1085,14 @@ Module CBAreg.
     apply: rbindP => r1;apply: rbindP => r' /He Hr' /He11 Hr1 /He12 Hr2 {He He11 He12}.
     move=> /Hr'{Hr'}[] /Hr1{Hr1}[] /Hr2{Hr2}[] Hre Hs2 Hs1 Hs;split=>// m v1.
     apply:rbindP => b;apply:rbindP => w /Hs [w'] [->] /=.
-    by move=> /value_uincl_bool H/H{H} [? ->] /=;case: (b);auto.
+    move=> /value_uincl_bool H/H{H} [? ->] /=.
+    t_xrbindP=> v2 Hv2 v3 Hv3.
+    have [v2' [-> Hv2']] := Hs1 _ _ Hv2.
+    have [v3' [-> Hv3']] := Hs2 _ _ Hv3.
+    case Ht: (_ == _)=> // -[]<- /=.
+    rewrite -(type_of_val_uincl Hv2') -(type_of_val_uincl Hv3') Ht.
+    eexists; split=> //.
+    by case: (b).
   Qed.
 
   Lemma eq_alloc_set x1 (v1 v2:exec (sem_t (vtype x1))) r xn2 vm1 vm2  : 

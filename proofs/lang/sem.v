@@ -417,9 +417,13 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     Let v2 := sem_pexpr s e2 in
     sem_sop2 o v1 v2
   | Pif e e1 e2 =>
-    Let b  := sem_pexpr s e >>= to_bool in
-    if b then sem_pexpr s e1
-    else sem_pexpr s e2
+    Let b := sem_pexpr s e >>= to_bool in
+    Let v1 := sem_pexpr s e1 in
+    Let v2 := sem_pexpr s e2 in
+    if (type_of_val v1 == type_of_val v2) then
+      ok (if b then v1 else v2)
+    else
+      type_error
   end.
 
 Definition sem_pexprs s := mapM (sem_pexpr s).
@@ -1546,6 +1550,14 @@ Proof.
   by have [z' [-> /= <- ]]:= of_val_uincl Hu Hz.
 Qed.
 
+Lemma type_of_val_uincl v1 v2:
+  value_uincl v1 v2 ->
+  type_of_val v1 = type_of_val v2.
+Proof.
+  move: v1 v2=> [b|z|n a|w|s] [b'|z'|n' a'|w'|s'] //=; try by apply/eqP.
+  by move=> [-> _].
+Qed.
+
 Lemma sem_pexpr_uincl s1 vm2 e v1:
   vm_uincl s1.(evm) vm2 ->
   sem_pexpr s1 e = ok v1 ->
@@ -1574,7 +1586,12 @@ Proof.
     by exists v1.
   apply: rbindP => b;apply:rbindP => wb /He [] ve' [] -> Hue'.
   move=> /value_uincl_bool -/(_ _ Hue') [??];subst wb ve' => /=.
-  by case : (b);auto.
+  apply: rbindP=> v2 /He1 [] v2' [] -> Hv2'.
+  apply: rbindP=> v3 /He2 [] v3' [] -> Hv3'.
+  case Ht: (type_of_val _ == _)=> // -[]<- /=.
+  rewrite -(type_of_val_uincl Hv2') -(type_of_val_uincl Hv3') Ht.
+  eexists; split=> //.
+  by case: (b).
 Qed.
 
 Lemma sem_pexprs_uincl s1 vm2 es vs1:

@@ -370,8 +370,13 @@ Section PROOF.
       apply: rbindP=> v2 /He' [v2' []] -> /Hu1 Hu2 /Hu2 /= ->. 
       by exists v.
     case: e2 => // e' e2 e2' /= /andP[] /andP[] /He{He}He /H1{H1}H1 /H1'{H1'}H1'.
-    apply: rbindP => b;apply: rbindP => w /He [b' [->]] /value_uincl_bool. 
-    by move=>  H /H [??];subst w b'=> /=; case:ifP => _;auto.
+    apply: rbindP => b;apply: rbindP => w /He [b' [->]] /value_uincl_bool.
+    move=> H /H [??];subst w b'=> /=.
+    t_xrbindP=> v1 /H1 [] v1' [] -> Hv1' v2 /H1' [] v2' [] -> Hv2'.
+    case Ht: (type_of_val _ == _)=> // -[]<- /=.
+    rewrite -(type_of_val_uincl Hv1') -(type_of_val_uincl Hv2') Ht.
+    eexists; split=> //.
+    by case: (b).
   Qed.
 
   Lemma check_esP (es es': pexprs) (s1 s2: estate) vs :

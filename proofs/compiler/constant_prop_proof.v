@@ -282,7 +282,10 @@ Qed.
 Lemma s_ifP e e1 e2 : Pif e e1 e2 =E s_if e e1 e2.
 Proof.
   rewrite /s_if;case: is_boolP => [b | ];last by auto.
-  by case: b => ?? /=.
+  move=> ?? /=.
+  t_xrbindP=> v1 Hv1 v2 Hv2.
+  case: (_ == _)=> // -[]<-.
+  by case: (b).
 Qed.
 
 Definition valid_cpm (vm: vmap)  (m:cpm) := 
@@ -306,7 +309,7 @@ Proof.
     by apply:rbindP => ve1 /He1 ->;apply:rbindP => ve2 /He2 ->.
   move=> H;apply /s_ifP;move: H => /=.
   apply:rbindP => b;apply:rbindP => w /He -> /= -> /=.
-  by case: b;auto.
+  by t_xrbindP=> v1 /He1 -> v2 /He2 ->.
 Qed.
 
 Definition eqoks (e1 e2:seq pexpr) st := 

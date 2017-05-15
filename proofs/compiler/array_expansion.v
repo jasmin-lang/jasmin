@@ -248,7 +248,13 @@ Module CBEA.
       by move=> /(vuincl_sem_sop2 U1 U2);exists v1.
     move=> /andP[]/andP[]/He{He}He /He11{He11}He11 /He12{He12}He12.
     apply: rbindP => b;apply: rbindP => w /He [ve [->]] /=.
-    by move=> /value_uincl_bool H/H [_ ->] /=;case: (b);auto.
+    move=> /value_uincl_bool H/H [_ ->] /=.
+    apply: rbindP=> v2 /He11 [] v2' [] -> Hv2'.
+    apply: rbindP=> v3 /He12 [] v3' [] -> Hv3'.
+    case Ht: (type_of_val _ == _)=> // -[]<- /=.
+    rewrite -(type_of_val_uincl Hv2') -(type_of_val_uincl Hv3') Ht.
+    eexists; split=> //.
+    by case: (b).
   Qed.
 
   Lemma check_eP e1 e2 r re vm1 vm2 :
