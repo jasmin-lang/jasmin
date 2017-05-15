@@ -272,14 +272,16 @@ let main () =
       Utils.hierror "compilation error %a@.PLEASE REPORT"
          (pp_comp_ferr tbl) e
     | Utils0.Ok asm ->
-      if !outfile <> "" then begin
-        let out = open_out !outfile in
+      if !outfile <> "" || List.mem Compiler.Assembly !print_list then begin
+        let out, close_out = 
+          if !outfile <> "" then open_out !outfile, close_out 
+          else Pervasives.stdout, fun _ -> () in 
         let fmt = Format.formatter_of_out_channel out in
         Format.fprintf fmt "\t.globl\t_main@._main:@.\tpushq\t%%rax@.";
         List.iter
           (fun (_, d) ->
-             List.iter (fun i -> Format.fprintf fmt "%s@." (Ppasm.pp_instr i))
-               d.X86.xfd_body)
+            List.iter (fun i -> Format.fprintf fmt "%s@." (Ppasm.pp_instr i))
+            d.X86.xfd_body)
           asm;
         Format.fprintf fmt "\tmovl\t%%eax, %%edi@.\tcallq\t_exit@.";
         close_out out;
