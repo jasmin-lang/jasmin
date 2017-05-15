@@ -161,19 +161,45 @@ Section PROOF.
     exists s2', write_lvals s1' ls vs = ok s2' /\ eq_exc_fresh s2' s2.
   Admitted. (* Same as above *)
 
+  Lemma inc_dec_classifyP a b:
+    match inc_dec_classify a b with
+    | Inc y => (a = y /\ b = Pcast (Pconst 1)) \/ (a = Pcast (Pconst 1) /\ b = y)
+    | Dec y => (a = y /\ b = Pcast (Pconst (-1))) \/ (a = Pcast (Pconst (-1)) /\ b = y)
+    | None => True
+    end.
+  Proof.
+    rewrite /inc_dec_classify.
+    move: a b=> -[z|bv|[[//|z|z]|bv|e|x|x e|x e|o e|o e1 e2|e e1 e2]|x|x e|x e|o e|o e1 e2|e e1 e2] [z'|bv'|[[//|[//|//|]|[//|//|]]|bv'|e'|x'|x' e'|x' e'|o' e'|o' e1' e2'|e' e1' e2']|x'|x' e'|x' e'|o' e'|o' e1' e2'|e' e1' e2'] //; try (by left; split); try (
+    by move: z=> [] //; right; split); try (
+    by move: z=> [z|z|]; left; split).
+    move: z=> [z|z|]; try (by left; split); by right; split.
+  Qed.
+
+  Lemma assgn_keep s1' s2' e l tag ii s2 v:
+    write_lval l v s1' = ok s2' ->
+    eq_exc_fresh s2' s2 ->
+    sem_pexpr s1' e = ok v ->
+    exists s1'0 : estate,
+      sem p' s1' [:: MkI ii (Cassgn l tag e)] s1'0 /\
+      eq_exc_fresh s1'0 s2.
+  Proof.
+    move=> Hw' Hs2' Hv'.
+    exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eassgn.
+    by rewrite Hv' /=.
+  Qed.
+
   Local Lemma Hassgn s1 s2 l tag e :
     Let v := sem_pexpr s1 e in write_lval l v s1 = Ok error s2 ->
     Pi_r s1 (Cassgn l tag e) s2.
   Proof.
     apply: rbindP=> v Hv Hw ii /= s1' Hs1'.
     have Hv' := sem_pexpr_same Hs1' Hv; have [s2' [Hw' Hs2']] := write_lval_same Hs1' Hw.
-    move: e Hv Hv'=> [z|b|e|x|x e|x e|o e|o e1 e2|e e1 e2] Hv Hv'; try (
-      exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eassgn; by rewrite Hv').
-    + move: e Hv Hv'=> [z|b|e|x|x e|x e|o e|o e1 e2|e e1 e2] Hv Hv'; try (
-      exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eassgn; by rewrite Hv').
+    have Ha := assgn_keep tag ii Hw' Hs2' Hv'.
+    move: e Hv Hv' Ha=> [z|b|e|x|x e|x e|o e|o e1 e2|e e1 e2] Hv Hv' Ha //.
+    + move: e Hv Hv' Ha=> [z|b|e|x|x e|x e|o e|o e1 e2|e e1 e2] Hv Hv' Ha //.
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
       move: Hv'=> -[]->; by rewrite Hw'.
-    + move: x Hv Hv'=> [[vt vn] vi] Hv Hv'.
+    + move: x Hv Hv' {Ha}=> [[vt vn] vi] Hv Hv'.
       move: vt Hv Hv'=> [| |n|] Hv Hv'; try (exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eassgn; by rewrite Hv').
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
       rewrite /= in Hv'.
@@ -191,18 +217,22 @@ Section PROOF.
       rewrite /sem_pexprs /mapM Hv' /=.
       move: Hv'=> /=.
       by t_xrbindP=> ?????????? Hv'; subst=> /=; rewrite Hw'.
-    + move: o Hv Hv'=> [] /= Hv Hv'.
+    + move: o Hv Hv' {Ha}=> [] /= Hv Hv'.
       + exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eassgn=> /=.
         by rewrite Hv'.
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
       move: Hv'; rewrite /sem_op1_w /mk_sem_sop1.
       t_xrbindP=> /= -[//|//|//|/= z Hz z0 []<- Hv'|[] //].
       by rewrite /sem_pexprs /= Hz /= Hv' Hw'.
-    + move: o Hv Hv'=> [| |[]|[]|[]| | | | | | |[]|k|[]|k|k|k] Hv Hv'; try (
+    + move: o Hv Hv' {Ha}=> [| |[]|[]|[]| | | | | | |[]|k|[]|k|k|k] Hv Hv'; try (
         by exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eassgn; rewrite Hv'); try (
         exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn;
         by move: Hv'=> /sem_op2_w_dec [z1 [z2 [Hv' ->]]] /=; rewrite Hv' Hw').
-      + admit.
+      + rewrite /=.
+        case Heq: (inc_dec_classify e1 e2)=> [y|y|].
+        + admit. 
+        + admit.
+        + admit.
       + admit.
       + exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
         rewrite /= in Hv'.
@@ -219,6 +249,7 @@ Section PROOF.
           admit. (* I64.eq (I64.sub z1 z2) I64.zero = (z1 =? z2)%Z *)
       + admit. (* Similar to shifts *)
       + admit. (* Again *)
+      + admit. (* Pif *)
   Admitted.
 
   Local Lemma Hopn s1 s2 o xs es :
@@ -390,8 +421,21 @@ Section PROOF.
     List.Forall is_full_array vres ->
     Pfun m1 fn vargs m2 vres.
   Proof.
-    move=> Hget Harg _ Hc ??.
-  Admitted.
+    move=> Hget Harg _ Hc Hres ?.
+    have H: eq_exc_fresh s1 s1 by [].
+    have [[m1' vm1'] [Hs1'1 [/= Hs1'2 Hs1'3]]] := Hc _ H; subst m1'.
+    apply: EcallRun=> //.
+    rewrite get_map_prog Hget //.
+    exact: Harg.
+    exact: Hs1'1.
+    rewrite /=.
+    have ->: vm1' = evm {| emem := m2; evm := vm1' |} by [].
+    rewrite -sem_pexprs_get_var.
+    have H': vm2 = evm {| emem := m2; evm := vm2 |} by [].
+    rewrite {}H' in Hres.
+    rewrite -sem_pexprs_get_var in Hres.
+    exact: (sem_pexprs_same _ Hres).
+  Qed.
 
   Lemma lower_callP f mem mem' va vr:
     sem_call p mem f va mem' vr ->

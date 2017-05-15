@@ -23,9 +23,9 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
+From mathcomp Require Import all_ssreflect.
 Require Import Utf8.
 Require Import expr.
-Import seq.
 
 Section LOWERING.
 
@@ -92,6 +92,18 @@ Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
 (* Lowering of Cassgn
 *)
 
+Variant inc_dec : Type :=
+  | Inc of pexpr
+  | Dec of pexpr
+  | None.
+
+Definition inc_dec_classify (a: pexpr) (b: pexpr) :=
+  match a, b with
+  | Pcast (Pconst 1), y | y, Pcast (Pconst 1) => Inc y
+  | Pcast (Pconst (-1)), y | y, Pcast (Pconst (-1)) => Dec y
+  | _, _ => None
+  end.
+
 Definition lower_cassgn  (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
   let vi := var_info_of_lval x in
   let f := Lnone vi sbool in
@@ -111,16 +123,16 @@ Definition lower_cassgn  (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
   | Papp2 op a b =>
     match op with
     | Oadd Op_w =>
-      match a, b with
-      | Pcast (Pconst 1), y | y, Pcast (Pconst 1) => inc Ox86_INC y
-      | Pcast (Pconst (-1)), y | y, Pcast (Pconst (-1)) => inc Ox86_DEC y
-      | _, _ => fopn Ox86_ADD a b (* TODO: lea *)
+      match inc_dec_classify a b with
+      | Inc y => inc Ox86_INC y
+      | Dec y => inc Ox86_DEC y
+      | None => fopn Ox86_ADD a b (* TODO: lea *)
       end
     | Osub Op_w =>
-      match a, b with
-      | Pcast (Pconst 1), y | y, Pcast (Pconst 1) => inc Ox86_DEC y
-      | Pcast (Pconst (-1)), y | y, Pcast (Pconst (-1)) => inc Ox86_INC y
-      | _, _ => fopn Ox86_SUB a b
+      match b with
+      | Pcast (Pconst (-1)) => inc Ox86_INC a
+      | Pcast (Pconst 1) => inc Ox86_DEC a
+      | _ => fopn Ox86_SUB a b
       end
     | Omul Op_w => mul Ox86_MUL a b
     | Oland => fopn Ox86_AND a b
