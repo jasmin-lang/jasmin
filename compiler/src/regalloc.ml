@@ -169,6 +169,7 @@ let collect_variables (f: 'info func) : (var, int) Hashtbl.t * int =
   and collect_instr { i_desc } = collect_instr_r i_desc
   and collect_stmt s = List.iter collect_instr s in
   collect_stmt f.f_body;
+  List.iter get f.f_args;
   tbl, total ()
 
 let normalize_variables (tbl: (var, int) Hashtbl.t) (eqc: Puf.t) : (var, int) Hashtbl.t =
