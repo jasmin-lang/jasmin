@@ -186,11 +186,20 @@ Definition lower_addcarry (sub: bool) (xs: lvals) (es: pexprs) : seq instr_r :=
   | _, _ => [:: Copn xs (if sub then Osubcarry else Oaddcarry) es ]
   end.
 
+Definition lower_mulu (xs: lvals) (es: pexprs) : seq instr_r :=
+  match xs, es with
+  | [:: r1; r2 ], [:: x ; y ] =>
+    let vi := var_info_of_lval r2 in
+    let f := Lnone_b vi in
+    [:: Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] Ox86_MUL es ]
+  | _, _ => [:: Copn xs Omulu es ]
+  end.
+
 Definition lower_copn (xs: lvals) (op: sopn) (es: pexprs) : seq instr_r :=
   match op with
   | Oaddcarry => lower_addcarry false xs es
   | Osubcarry => lower_addcarry true xs es
-  | Omulu (* TODO *)
+  | Omulu => lower_mulu xs es
   | _ => [:: Copn xs op es]
   end.
 
