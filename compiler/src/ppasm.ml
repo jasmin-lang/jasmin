@@ -282,7 +282,7 @@ let pp_prog (fmt : Format.formatter) (asm : X86.xprog) =
 
   and epilog = [
     `Instr ("movl", ["%eax"; "%edi"]);
-    `Instr ("callq", ["t_exit"]);
+    `Instr ("callq", ["_exit"]);
   ] in
 
   pp_gens fmt prelude;
