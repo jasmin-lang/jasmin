@@ -33,10 +33,10 @@ fn i(reg u64 x) -> reg u64 {
 reg bool c;
 reg u64 r;
 reg u64 z;
+r = x;
 _, x = x + x;
 c, _ = x + x;
 z = 0;
-r = x;
 _, r += z + c;
 return r;
 }
