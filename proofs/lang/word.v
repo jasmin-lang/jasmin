@@ -246,7 +246,9 @@ Definition wsize_size (s:wsize) :=
 
 (* -------------------------------------------------------------------*)
 
-Parameter x86_shift_mask : word.
+Definition x86_shift_mask : word :=
+  (* FIXME *)
+  I64.mone.
 
 Definition b_to_w (b:bool) := if b then I64.one else I64.zero.
 
