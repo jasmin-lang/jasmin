@@ -163,12 +163,27 @@ Definition smul ty :=
   | Op_w   => smul_w
   end.
 
-(* FIXME: improve optimisation for word *)
 Definition s_eq ty e1 e2 := 
-  if eq_expr e1 e2 then Pbool true else Papp2 (Oeq ty) e1 e2.
+  if eq_expr e1 e2 then Pbool true 
+  else 
+    match ty with
+    | Cmp_int =>
+      match is_const e1, is_const e2 with
+      | Some i1, Some i2 => Pbool (i1 == i2)
+      | _, _             => Papp2 (Oeq ty) e1 e2
+      end 
+    | Cmp_sw | Cmp_uw =>
+      match is_wconst e1, is_wconst e2 with
+      | Some i1, Some i2 => Pbool (iword_eqb i1 i2)
+      | _, _             => Papp2 (Oeq ty) e1 e2
+      end
+    end.
 
 Definition sneq ty e1 e2 := 
-  if eq_expr e1 e2 then Pbool false else Papp2 (Oneq ty) e1 e2.
+  match is_bool (s_eq ty e1 e2) with
+  | Some b => Pbool (~~ b)
+  | None      => Papp2 (Oneq ty) e1 e2
+  end.
 
 Definition slt ty e1 e2 := 
   if eq_expr e1 e2 then Pbool false 

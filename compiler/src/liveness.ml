@@ -137,6 +137,25 @@ let normalize_repr (_c,m) =
 
 exception SetSameConflict
 
+let pp_map fmt m = 
+  Mv.iter (fun v1 v2 -> 
+      Format.fprintf fmt "%a ----> %a@." 
+         (Printer.pp_var ~debug:true) v1 (Printer.pp_var ~debug:true) v2)
+      m 
+
+let merge_class1 cf rx xc ry yc = 
+  (* ajoute x dans les conflits de y *)
+  let add_conflict x y cf =
+    Mv.modify_def Sv.empty y (Sv.add x) cf 
+  in
+  let cf = Sv.fold (add_conflict rx) yc cf in
+  let cf = Sv.fold (add_conflict ry) xc cf in
+  let c = Sv.union xc yc in
+  let cf = Mv.add rx c cf in
+  let cf = Mv.add ry c cf in
+  cf
+
+
 let set_same (cf, m as cfm) x y =
   let rx = get_repr m x in
   let ry = get_repr m y in
@@ -144,5 +163,17 @@ let set_same (cf, m as cfm) x y =
   else
     let xc = Mv.find_default Sv.empty rx cf in
     let yc = Mv.find_default Sv.empty ry cf in
-    if Sv.mem ry xc then raise SetSameConflict;
-    merge_class cf (Sv.union xc yc), Mv.add rx ry m
+    if Sv.mem rx yc then 
+      begin 
+        let pp_v = Printer.pp_var ~debug:true in
+        Format.eprintf "map:@.%a@.@."
+          pp_map m;    
+        Format.eprintf "x = %a --> %a; y = %a --> %a@."
+           pp_v x pp_v rx pp_v y pp_v ry;
+        Format.eprintf "rx = %a@."
+           (Printer.pp_list " " pp_v) (Sv.elements xc);
+        Format.eprintf "ry = %a@."
+           (Printer.pp_list " " pp_v) (Sv.elements yc);
+        raise SetSameConflict
+      end;
+    merge_class1 cf rx xc ry yc, Mv.add rx ry m

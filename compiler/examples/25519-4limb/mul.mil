@@ -1,6 +1,5 @@
-fn mul(reg u64[4] zp, reg u64[4] xp, reg u64[4] yp0) {
-
-  reg u64[4] yp;
+fn mul( reg u64[4] xp, reg u64[4] yp) -> reg u64[4] {
+  reg u64[4] zp;
   reg u64[8] z;
   reg u64[4] x;
   reg u64[4] y;
@@ -14,8 +13,6 @@ fn mul(reg u64[4] zp, reg u64[4] xp, reg u64[4] yp0) {
   inline int i;
   inline int j;
 
-  yp = yp0;
-  
   x[0] = xp[0];
   for j = 1 to 4 {
     y[j] = yp[j];
@@ -86,6 +83,7 @@ fn mul(reg u64[4] zp, reg u64[4] xp, reg u64[4] yp0) {
   for i = 0 to 4 {
     zp[i] = z[i];
   }
+  return zp;
 
 }
 
@@ -96,14 +94,14 @@ reg u64[4] xp;
 reg u64[4] yp;
 inline int i;
 
-for i = 0 to 3 {
-	xp[i] = [x + i];
-	yp[i] = [y + i];
+for i = 0 to 4 {
+	xp[i] = [x + 8*i];
+	yp[i] = [y + 8*i];
 }
 
-mul(zp, xp, yp);
+zp = mul(xp, yp);
 
-for i = 0 to 3 {
-	[z + i] = zp[i];
+for i = 0 to 4 {
+	[z + 8*i] = zp[i];
 }
 }

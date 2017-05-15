@@ -208,18 +208,31 @@ Qed.
   
 Lemma s_eqP ty e1 e2 : Papp2 (Oeq ty) e1 e2 =E s_eq ty e1 e2.
 Proof.
-  rewrite /s_eq;case:ifP => [ /eq_exprP Hs s v /=| _ ];last by auto.
-  rewrite Hs;case: sem_pexpr => //= ve.
-  by case: ty => /(@mk_sem_sop2_b true) -> // ?;
-    rewrite (Z.eqb_refl, weq_refl).
+  rewrite /s_eq;case:ifP => [ /eq_exprP Hs s v /=| _ ].
+  + rewrite Hs;case: sem_pexpr => //= ve.
+    by case: ty => /(@mk_sem_sop2_b true) -> // ?; rewrite (Z.eqb_refl, weq_refl).
+  case: ty. 
+  + case: (is_constP e1) => [n1| {e1} e1];
+    case: (is_constP e2) => [n2| {e2} e2] rho v //=.
+  + case: (is_wconstP e1) => [n1| {e1} e1];
+    case: (is_wconstP e2) => [n2| {e2} e2] rho v //=.
+  + case: (is_wconstP e1) => [n1| {e1} e1];
+    case: (is_wconstP e2) => [n2| {e2} e2] rho v //=.
 Qed.
 
 Lemma sneqP ty e1 e2 : Papp2 (Oneq ty) e1 e2 =E sneq ty e1 e2.
 Proof.
-  rewrite /sneq;case:ifP => [ /eq_exprP Hs s v /=| _ ];last by auto.
-  rewrite Hs;case: sem_pexpr => //= ve.
-  by case: ty => /(@mk_sem_sop2_b false) -> // ?;
-    rewrite (Z.eqb_refl, weq_refl).
+  rewrite /sneq /s_eq.
+  case:ifP => [ /eq_exprP Hs s v /=| _ ].
+  + rewrite Hs;case: sem_pexpr => //= ve.
+    by case: ty => /(@mk_sem_sop2_b false) -> // ?; rewrite (Z.eqb_refl, weq_refl).
+  case: ty. 
+  + case: (is_constP e1) => [n1| {e1} e1];
+    case: (is_constP e2) => [n2| {e2} e2] rho v //=.
+  + case: (is_wconstP e1) => [n1| {e1} e1];
+    case: (is_wconstP e2) => [n2| {e2} e2] rho v //=.
+  + case: (is_wconstP e1) => [n1| {e1} e1];
+    case: (is_wconstP e2) => [n2| {e2} e2] rho v //=.
 Qed.
 
 Lemma sltP ty e1 e2 : Papp2 (Olt ty) e1 e2 =E slt ty e1 e2.

@@ -5,7 +5,7 @@ param int rem_p = 2; /* 2^(4*64) mod p      */
 // ** addition
 // ************************************************************************
 
-export fn add(reg u64[4] x, stack u64[4] ya) -> reg u64[4] {
+fn add(reg u64[4] x, stack u64[4] ya) -> reg u64[4] {
 
   reg u64[4] y;
   reg u64 add0;
@@ -37,3 +37,19 @@ export fn add(reg u64[4] x, stack u64[4] ya) -> reg u64[4] {
   return x;
 }
 
+export fn eadd(reg u64 ad, reg u64 ax, reg u64 ay) {
+  reg   u64[4] x;
+  stack u64[4] y;
+  inline int i;
+  for i = 0 to 4 {
+    x[i] = [ax + 8*i];
+  }
+  for i = 0 to 4 {
+    y[i] = [ay + 8*i];
+  } 
+  x = add(x, y);
+  for i = 0 to 4 {
+    [ad + 8 * i] = x[i];
+  }
+
+}

@@ -276,6 +276,10 @@ let pp_var ~debug =
       fun fmt x -> F.fprintf fmt "%s" x.v_name
 
 
+let pp_expr ~debug fmt e =
+  let pp_var = pp_var ~debug in
+  pp_ge pp_var fmt e
+
 let pp_instr ~debug fmt i =
   let pp_var = pp_var ~debug in
   pp_gi pp_noinfo pp_var fmt i

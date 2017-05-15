@@ -129,8 +129,11 @@ let rec pp_comp_err tbl fmt = function
      (Conv.string_of_string0 s)
   | Compiler_util.Cerr_in_fun f ->
     (pp_comp_ferr tbl) fmt f
-  | Compiler_util.Cerr_arr_exp _ ->
-    Format.fprintf fmt "err arr exp"
+  | Compiler_util.Cerr_arr_exp (e1, e2) ->
+    Format.fprintf fmt "err arr exp %a and %a"
+      (Printer.pp_expr ~debug:true) (Conv.expr_of_cexpr tbl e1)
+      (Printer.pp_expr ~debug:true) (Conv.expr_of_cexpr tbl e2)
+                   
   | Compiler_util.Cerr_arr_exp_v _ ->
     Format.fprintf fmt "err arr exp: lval"
   | Compiler_util.Cerr_stk_alloc s ->
