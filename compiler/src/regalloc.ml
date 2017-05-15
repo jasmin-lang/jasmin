@@ -207,9 +207,11 @@ struct
   let r15 = V.mk "R15" Reg (Bty (U W64)) L._dummy
 
   let allocatable = [
-      rax; rbx; rcx; rdx;
-      rbp; rsi; rdi;
-      r8; r9; r10; r11; r12; r13; r14; r15
+      rax; rcx; rdx;
+      rsi; rdi;
+      r8; r9; r10; r11;
+      rbx;
+      r12; r13; r14; r15
     ]
 
   let arguments = [
@@ -221,6 +223,10 @@ struct
     rax; rdx
   ]
 
+  let reserved = [
+    rsp; rbp
+  ]
+
   let f_c = V.mk "CF" Reg (Bty Bool) L._dummy
   let f_d = V.mk "DF" Reg (Bty Bool) L._dummy
   let f_o = V.mk "OF" Reg (Bty Bool) L._dummy
@@ -230,7 +236,7 @@ struct
 
   let flags = [f_c; f_d; f_o; f_p; f_s; f_z]
 
-  let all_registers = rsp :: allocatable @ flags
+  let all_registers = reserved @ allocatable @ flags
 
   let forced_registers (vars: (var, int) Hashtbl.t)
       (lvs: 'ty glvals) (op: op) (es: 'ty gexprs)
