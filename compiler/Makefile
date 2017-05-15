@@ -25,6 +25,8 @@ SHRDIR := $(PREFIX)/share/jasmin
 .PHONY: all build byte native CIL install uninstall tests __force__
 .PHONY: %.ml %.mli %.inferred.mli
 
+.PRECIOUS: _c_build/%.s _c_build/%.o
+
 all: build
 	@true
 
