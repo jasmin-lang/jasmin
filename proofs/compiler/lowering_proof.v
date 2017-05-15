@@ -161,18 +161,28 @@ Section PROOF.
     exists s2', write_lvals s1' ls vs = ok s2' /\ eq_exc_fresh s2' s2.
   Admitted. (* Same as above *)
 
-  Lemma inc_dec_classifyP a b:
-    match inc_dec_classify a b with
-    | Inc y => (a = y /\ b = Pcast (Pconst 1)) \/ (a = Pcast (Pconst 1) /\ b = y)
-    | Dec y => (a = y /\ b = Pcast (Pconst (-1))) \/ (a = Pcast (Pconst (-1)) /\ b = y)
-    | None => True
+  Lemma add_inc_dec_classifyP a b:
+    match add_inc_dec_classify a b with
+    | AddInc y => (a = y /\ b = Pcast (Pconst 1)) \/ (a = Pcast (Pconst 1) /\ b = y)
+    | AddDec y => (a = y /\ b = Pcast (Pconst (-1))) \/ (a = Pcast (Pconst (-1)) /\ b = y)
+    | AddNone => True
     end.
   Proof.
-    rewrite /inc_dec_classify.
+    rewrite /add_inc_dec_classify.
     move: a b=> -[z|bv|[[//|z|z]|bv|e|x|x e|x e|o e|o e1 e2|e e1 e2]|x|x e|x e|o e|o e1 e2|e e1 e2] [z'|bv'|[[//|[//|//|]|[//|//|]]|bv'|e'|x'|x' e'|x' e'|o' e'|o' e1' e2'|e' e1' e2']|x'|x' e'|x' e'|o' e'|o' e1' e2'|e' e1' e2'] //; try (by left; split); try (
     by move: z=> [] //; right; split); try (
     by move: z=> [z|z|]; left; split).
     move: z=> [z|z|]; try (by left; split); by right; split.
+  Qed.
+
+  Lemma sub_inc_dec_classifyP e:
+    match sub_inc_dec_classify e with
+    | SubInc => e = Pcast (Pconst (-1))
+    | SubDec => e = Pcast (Pconst 1)
+    | SubNone => True
+    end.
+  Proof.
+    by move: e=> [] // [] // [] // [].
   Qed.
 
   Lemma assgn_keep s1' s2' e l tag ii s2 v:
@@ -196,9 +206,11 @@ Section PROOF.
     have Hv' := sem_pexpr_same Hs1' Hv; have [s2' [Hw' Hs2']] := write_lval_same Hs1' Hw.
     have Ha := assgn_keep tag ii Hw' Hs2' Hv'.
     move: e Hv Hv' Ha=> [z|b|e|x|x e|x e|o e|o e1 e2|e e1 e2] Hv Hv' Ha //.
+    (* Pcast *)
     + move: e Hv Hv' Ha=> [z|b|e|x|x e|x e|o e|o e1 e2|e e1 e2] Hv Hv' Ha //.
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
       move: Hv'=> -[]->; by rewrite Hw'.
+    (* Pvar *)
     + move: x Hv Hv' {Ha}=> [[vt vn] vi] Hv Hv'.
       move: vt Hv Hv'=> [| |n|] Hv Hv'; try (exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eassgn; by rewrite Hv').
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
@@ -207,16 +219,19 @@ Section PROOF.
       have [|w Hw''] := write_lval_undef Hw'.
       exact: type_of_get_var Hv.
       by subst v; rewrite /= Hw'.
+    (* Pget *)
     + exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
       rewrite /sem_pexprs /mapM Hv' /=.
       move: Hv'=> /=.
       apply: on_arr_varP=> n t Ht _.
       t_xrbindP=> y h _ _ w _ Hvw; subst=> /=.
       by rewrite Hw'.
+    (* Pload *)
     + exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
       rewrite /sem_pexprs /mapM Hv' /=.
       move: Hv'=> /=.
       by t_xrbindP=> ?????????? Hv'; subst=> /=; rewrite Hw'.
+    (* Papp1 *)
     + move: o Hv Hv' {Ha}=> [] /= Hv Hv'.
       + exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eassgn=> /=.
         by rewrite Hv'.
@@ -224,16 +239,67 @@ Section PROOF.
       move: Hv'; rewrite /sem_op1_w /mk_sem_sop1.
       t_xrbindP=> /= -[//|//|//|/= z Hz z0 []<- Hv'|[] //].
       by rewrite /sem_pexprs /= Hz /= Hv' Hw'.
+    (* Papp2 *)
     + move: o Hv Hv' {Ha}=> [| |[]|[]|[]| | | | | | |[]|k|[]|k|k|k] Hv Hv'; try (
         by exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eassgn; rewrite Hv'); try (
         exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn;
         by move: Hv'=> /sem_op2_w_dec [z1 [z2 [Hv' ->]]] /=; rewrite Hv' Hw').
+      (* Oadd *)
       + rewrite /=.
-        case Heq: (inc_dec_classify e1 e2)=> [y|y|].
-        + admit. 
-        + admit.
-        + admit.
-      + admit.
+        have := add_inc_dec_classifyP e1 e2.
+        case: (add_inc_dec_classify e1 e2)=> [y|y|].
+        (* AddInc *)
+        + case=> [[??]|[??]]; subst.
+          + exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
+            rewrite /= /sem_op2_w /mk_sem_sop2 in Hv'.
+            move: Hv'; t_xrbindP=> [] //= z Hz v1 Hv1 v2 []<- Hv'.
+            rewrite /sem_pexprs /= Hz /= Hv1 /=.
+            by rewrite Hv' Hw'.
+          + exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
+            rewrite /= /sem_op2_w /mk_sem_sop2 in Hv'.
+            move: Hv'; t_xrbindP=> [] //= z Hz v1 []<- v2 Hv2 Hv'.
+            rewrite /sem_pexprs /= Hz /= Hv2 /= I64.add_commut.
+            by rewrite Hv' Hw'.
+        (* AddDec *)
+        + case=> [[??]|[??]]; subst.
+          + exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
+            rewrite /= /sem_op2_w /mk_sem_sop2 in Hv'.
+            move: Hv'; t_xrbindP=> [] //= z Hz v1 Hv1 v2 []<- Hv'.
+            rewrite /sem_pexprs /= Hz /= Hv1 /=.
+            by rewrite I64.sub_add_opp /I64.one I64.neg_repr /= Hv' Hw'.
+          + exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
+            rewrite /= /sem_op2_w /mk_sem_sop2 in Hv'.
+            move: Hv'; t_xrbindP=> [] //= z Hz v1 []<- v2 Hv2 Hv'.
+            rewrite /sem_pexprs /= Hz /= Hv2 /= I64.sub_add_opp.
+            by rewrite /I64.one I64.neg_repr /= I64.add_commut Hv' Hw'.
+        (* AddNone *)
+        + move=> _.
+          exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
+          move: Hv'=> /sem_op2_w_dec [z1 [z2 [Hv' ->]]] /=.
+          by rewrite Hv' Hw'.
+      (* Osub *)
+      + rewrite /=; have := sub_inc_dec_classifyP e2.
+        case: (sub_inc_dec_classify e2).
+        (* SubInc *)
+        + move=> H; subst.
+          exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
+          rewrite /= /sem_op2_w /mk_sem_sop2 in Hv'.
+          move: Hv'; t_xrbindP=> [] //= z Hz v1 Hv1 v2 []<- Hv'.
+          rewrite /sem_pexprs /= Hz /= Hv1 /=.
+          rewrite I64.sub_add_opp I64.neg_repr /= in Hv'.
+          by rewrite Hv' Hw'.
+        (* SubDec *)
+        + move=> H; subst.
+          exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
+          rewrite /= /sem_op2_w /mk_sem_sop2 in Hv'.
+          move: Hv'; t_xrbindP=> [] //= z Hz v1 Hv1 v2 []<- Hv'.
+          rewrite /sem_pexprs /= Hz /= Hv1 /=.
+          by rewrite Hv' Hw'.
+        (* SubNone *)
+        + move=> _.
+          exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
+          move: Hv'=> /sem_op2_w_dec [z1 [z2 [Hv' ->]]] /=.
+          by rewrite Hv' Hw'.
       + exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
         rewrite /= in Hv'.
         move: Hv'=> /sem_op2_w_dec [z1 [z2 [Hv' Hz]]].

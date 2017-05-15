@@ -92,16 +92,28 @@ Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
 (* Lowering of Cassgn
 *)
 
-Variant inc_dec : Type :=
-  | Inc of pexpr
-  | Dec of pexpr
-  | None.
+Variant add_inc_dec : Type :=
+  | AddInc of pexpr
+  | AddDec of pexpr
+  | AddNone.
 
-Definition inc_dec_classify (a: pexpr) (b: pexpr) :=
+Definition add_inc_dec_classify (a: pexpr) (b: pexpr) :=
   match a, b with
-  | Pcast (Pconst 1), y | y, Pcast (Pconst 1) => Inc y
-  | Pcast (Pconst (-1)), y | y, Pcast (Pconst (-1)) => Dec y
-  | _, _ => None
+  | Pcast (Pconst 1), y | y, Pcast (Pconst 1) => AddInc y
+  | Pcast (Pconst (-1)), y | y, Pcast (Pconst (-1)) => AddDec y
+  | _, _ => AddNone
+  end.
+
+Variant sub_inc_dec : Type :=
+  | SubInc
+  | SubDec
+  | SubNone.
+
+Definition sub_inc_dec_classify (e: pexpr) :=
+  match e with
+  | Pcast (Pconst (-1)) => SubInc
+  | Pcast (Pconst 1) => SubDec
+  | _ => SubNone
   end.
 
 Definition lower_cassgn  (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
@@ -123,16 +135,16 @@ Definition lower_cassgn  (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
   | Papp2 op a b =>
     match op with
     | Oadd Op_w =>
-      match inc_dec_classify a b with
-      | Inc y => inc Ox86_INC y
-      | Dec y => inc Ox86_DEC y
-      | None => fopn Ox86_ADD a b (* TODO: lea *)
+      match add_inc_dec_classify a b with
+      | AddInc y => inc Ox86_INC y
+      | AddDec y => inc Ox86_DEC y
+      | AddNone => fopn Ox86_ADD a b (* TODO: lea *)
       end
     | Osub Op_w =>
-      match b with
-      | Pcast (Pconst (-1)) => inc Ox86_INC a
-      | Pcast (Pconst 1) => inc Ox86_DEC a
-      | _ => fopn Ox86_SUB a b
+      match sub_inc_dec_classify b with
+      | SubInc => inc Ox86_INC a
+      | SubDec => inc Ox86_DEC a
+      | SubNone => fopn Ox86_SUB a b
       end
     | Omul Op_w => mul Ox86_MUL a b
     | Oland => fopn Ox86_AND a b
