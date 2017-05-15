@@ -176,10 +176,10 @@ Definition to_word v :=
   | _            => type_error
   end.
 
-Definition type_of_val (v:value) := 
+Definition type_of_val (v:value) :=
   match v with
   | Vbool _    => sbool
-  | Vint  _    => sint 
+  | Vint  _    => sint
   | Varr  n _  => sarr n
   | Vword _    => sword
   | Vundef t   => t
@@ -229,7 +229,7 @@ Definition on_vu t r (fv: t -> r) (fu:exec r) (v:exec t) : exec r :=
   | Error ErrAddrUndef => fu
   | Error e            => Error e
   end.
-  
+
 Lemma on_vuP T R (fv: T -> R) (fu: exec R) (v:exec T) r P:
   (forall t, v = ok t -> fv t = r -> P) ->
   (v = Error ErrAddrUndef -> fu = ok r -> P) ->
@@ -241,15 +241,15 @@ Definition get_var (m:vmap) x :=
 
 (* We do not allows to assign to a variable of type word an undef value *)
 Definition set_var (m:vmap) x v : exec vmap :=
-  on_vu (fun v => m.[x<-ok v]%vmap) 
-        (if x.(vtype) == sword then type_error 
+  on_vu (fun v => m.[x<-ok v]%vmap)
+        (if x.(vtype) == sword then type_error
          else ok m.[x<-undef_addr x.(vtype)]%vmap)
         (of_val (vtype x) v).
 
 Lemma set_varP (m m':vmap) x v P :
    (forall t, of_val (vtype x) v = ok t -> m.[x <- ok t]%vmap = m' -> P) ->
-   ( x.(vtype) != sword -> 
-     of_val (vtype x) v = Error ErrAddrUndef -> 
+   ( x.(vtype) != sword ->
+     of_val (vtype x) v = Error ErrAddrUndef ->
      m.[x<-undef_addr x.(vtype)]%vmap = m' -> P) ->
    set_var m x v = ok m' -> P.
 Proof.
@@ -258,8 +258,8 @@ Proof.
   by move=> neq /(H2 neq) H [].
 Qed.
 
-Definition apply_undef t (v : exec (sem_t t)) := 
-  match v with 
+Definition apply_undef t (v : exec (sem_t t)) :=
+  match v with
   | Error ErrAddrUndef => undef_addr t
   | _                  => v
   end.
@@ -431,13 +431,13 @@ Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
 Definition write_vars xs vs s :=
   fold2 ErrType write_var xs vs s.
 
-Definition write_none (s:estate) ty v := 
-  on_vu (fun v => s) (if ty == sword then type_error else ok s) 
+Definition write_none (s:estate) ty v :=
+  on_vu (fun v => s) (if ty == sword then type_error else ok s)
           (of_val ty v).
-  
+
 Definition write_lval (l:lval) (v:value) (s:estate) : exec estate :=
   match l with
-  | Lnone _ ty => write_none s ty v 
+  | Lnone _ ty => write_none s ty v
   | Lvar x => write_var x v s
   | Lmem x e =>
     Let vx := get_var (evm s) x >>= to_word in
@@ -505,15 +505,15 @@ Definition rflags_of_aluop (w : word) (vu vs : Z) :=
 (*  OF; CF ;SF; PF; ZF  *)
 Definition rflags_of_mul (ov : bool) :=
   (*  OF      ; CF                    *)
-  [:: Vbool ov;  Vbool ov; 
+  [:: Vbool ov;  Vbool ov;
   (*  SF      ; PF       ; ZF         *)
      undef_b  ; undef_b   ; undef_b ].
 
 (* -------------------------------------------------------------------- *)
 
-Definition rflags_of_div := 
+Definition rflags_of_div :=
   (*  OF      ; CF                    *)
-  [:: undef_b  ; undef_b  ; 
+  [:: undef_b  ; undef_b  ;
   (*  SF      ; PF       ; ZF         *)
       undef_b  ; undef_b   ; undef_b ].
 
@@ -558,14 +558,14 @@ Definition x86_sub (v1 v2 : word) :=
     (I64.unsigned v1 - I64.unsigned v2)%Z
     (I64.signed   v1 - I64.signed   v2)%Z.
 
-Definition x86_mul (v1 v2:word): exec values := 
+Definition x86_mul (v1 v2:word): exec values :=
   let lo := I64.mul v1 v2 in
   let hi := I64.mulhu v1 v2 in
   let ov := dwordu hi lo in
   let ov := (ov >? I64.max_unsigned)%Z in
   ok (rflags_of_mul ov ++ [::Vword hi; Vword lo]).
 
-Definition x86_imul (v1 v2:word) : exec values:= 
+Definition x86_imul (v1 v2:word) : exec values:=
   let lo := I64.mul v1 v2 in
   let hi := I64.mulhs v1 v2 in
   let ov := dwords hi lo in
@@ -620,7 +620,7 @@ Definition x86_dec (w:word) :=
 
 Definition x86_setcc (b:bool) : exec values := ok [:: Vword (b_to_w b)].
 
-Definition check_scale (s:Z) := 
+Definition check_scale (s:Z) :=
   (s == 1%Z) || (s == 2%Z) || (s == 4%Z) || (s == 8%Z).
 
 Definition x86_lea (disp base:word) (scale:word) (offset:word) : exec values :=
@@ -659,7 +659,7 @@ Definition x86_shl (v i: word) : exec values :=
   else
     let rc := msb (I64.shl v (I64.sub i I64.one)) in
     let r  := I64.shl v i in
-    let OF :=  
+    let OF :=
       if i == I64.one then Vbool (msb r (+) rc)
       else undef_b in
     let CF := Vbool rc in
@@ -677,7 +677,7 @@ Definition x86_shr (v i: word) : exec values :=
     let rc := lsb (I64.shru v (I64.sub i I64.one)) in
     let r  := I64.shru v i in
 
-    let OF :=  
+    let OF :=
       if i == I64.one then Vbool (msb r)
       else undef_b in
     let CF := Vbool rc in
@@ -695,7 +695,7 @@ Definition x86_sar (v i: word) : exec values :=
     let rc := lsb (I64.shr v (I64.sub i I64.one)) in
     let r  := I64.shr v i in
 
-    let OF :=  
+    let OF :=
       if i == I64.one then Vbool false
       else undef_b in
     let CF := Vbool rc in
@@ -1075,12 +1075,12 @@ Proof.
   by apply: set_varP => [t | _]=> ? <- [<-] z Hz; rewrite Fv.setP_neq //;apply /eqP; SvD.fsetdec.
 Qed.
 
-Lemma write_noneP s s' ty v: 
-  write_none s ty v = ok s' -> 
+Lemma write_noneP s s' ty v:
+  write_none s ty v = ok s' ->
   s' = s /\
   ((exists u, of_val ty v = ok u) \/ of_val ty v = Error ErrAddrUndef /\ ty <> sword).
-Proof. 
-  apply: on_vuP => [u ? -> | ?]. 
+Proof.
+  apply: on_vuP => [u ? -> | ?].
   + by split => //;left;exists u.
   by case:ifPn => // /eqP ? [->]; split => //; right.
 Qed.
@@ -1090,7 +1090,7 @@ Lemma vrvP (x:lval) v s1 s2 :
   s1.(evm) = s2.(evm) [\ vrv x].
 Proof.
   case x => /= [ _ ty | ? /vrvP_var| y e| y e] //.
-  + by move=> /write_noneP [->]. 
+  + by move=> /write_noneP [->].
   + by t_rbindP => -[<-].
   apply: on_arr_varP => n t; case:y => -[] ty yn yi /= -> Hy.
   apply: rbindP => we;apply: rbindP => ve He Hve.
@@ -1279,7 +1279,7 @@ Lemma write_lval_eq_on X x v s1 s2 vm1 :
 Proof.
   case:x => [vi ty | x | x e | x e ] /=.
   + move=> ? /write_noneP [->];rewrite /write_none=> H ?;exists vm1;split=>//.
-    by case:H => [[u ->] | [-> /eqP /negbTE ->]]. 
+    by case:H => [[u ->] | [-> /eqP /negbTE ->]].
   + move=> _ Hw /(write_var_eq_on Hw) [vm2 [Hvm2 Hx]];exists vm2;split=>//.
     by apply: eq_onI Hvm2;SvD.fsetdec.
   + rewrite read_eE => Hsub Hsem Hvm;move:Hsem.
@@ -1397,16 +1397,16 @@ Proof.
   f_equal;auto using is_full_array_uincl.
 Qed.
 
-Lemma of_val_undef t t': 
-  of_val t (Vundef t') = 
+Lemma of_val_undef t t':
+  of_val t (Vundef t') =
     if t == t' then undef_error else type_error.
-Proof. 
-  case: t t' => //= [[] | [] | | []] //. 
+Proof.
+  case: t t' => //= [[] | [] | | []] //.
   move=> p [] // p';case:eqP => [-> | ];first by rewrite eq_refl.
   by case: eqP => // -[] ->.
 Qed.
 
-Lemma of_val_undef_ok t t' v: 
+Lemma of_val_undef_ok t t' v:
   of_val t (Vundef t') <> ok v.
 Proof. by rewrite of_val_undef;case:ifP. Qed.
 
@@ -1430,22 +1430,22 @@ Proof. by case: t z z'=> //=;tauto. Qed.
 
 Lemma value_uincl_int ve ve' z :
   value_uincl ve ve' -> to_int ve = ok z -> ve = z /\ ve' = z.
-Proof. 
+Proof.
   case:ve ve' => //=;last by move=> [].
-  by move=> z0 [] //= z1 -> [] ->. 
+  by move=> z0 [] //= z1 -> [] ->.
 Qed.
 
 Lemma value_uincl_word ve ve' (w:word) :
   value_uincl ve ve' -> to_word ve = ok w -> ve = w /\ ve' = w.
-Proof. 
+Proof.
   case:ve ve' => //=;last by move=> [].
   by move=> z0 [] //= z1 -> [] ->. Qed.
 
 Lemma value_uincl_bool ve ve' b :
   value_uincl ve ve' -> to_bool ve = ok b -> ve = b /\ ve' = b.
-Proof. 
+Proof.
   case:ve ve' => //=;last by move=>[].
-  by move=> z0 [] //= z1 -> [] ->. 
+  by move=> z0 [] //= z1 -> [] ->.
 Qed.
 
 (* TODO: MOVE *)
@@ -1571,7 +1571,7 @@ Proof.
     by exists v1.
   + apply: rbindP => ve1 /He1 [] ve1' [] -> /vuincl_sem_sop2 Hvu1.
     apply: rbindP => ve2 /He2 [] ve2' [] -> /Hvu1 Hvu2 /Hvu2.
-    by exists v1. 
+    by exists v1.
   apply: rbindP => b;apply:rbindP => wb /He [] ve' [] -> Hue'.
   move=> /value_uincl_bool -/(_ _ Hue') [??];subst wb ve' => /=.
   by case : (b);auto.
@@ -1625,18 +1625,18 @@ Proof.
 Qed.
 
 (* TODO : MOVE *)
-Lemma of_val_error t v: 
+Lemma of_val_error t v:
   of_val t v = undef_error -> v = Vundef t.
 Proof.
   case: t v => [||p|] [] //=.
   + by move=> []. + by move=> [].
   + by move=> n a;case: CEDecStype.pos_dec => [? | ] //;subst p.
-  + by move=> [] // p';case: eqP => [-> | ]. 
+  + by move=> [] // p';case: eqP => [-> | ].
   by move=> [].
 Qed.
 
-Lemma of_val_type_of v : 
-  (exists v', of_val (type_of_val v) v = ok v') \/ 
+Lemma of_val_type_of v :
+  (exists v', of_val (type_of_val v) v = ok v') \/
   of_val (type_of_val v) v =  Error ErrAddrUndef.
 Proof.
   case: v => //=;try by left;eauto.
@@ -1644,7 +1644,7 @@ Proof.
     + by move=> ??;left;eauto.
     by move=> b /(_ b (refl_equal _)) /eqP.
   move=> [||p|];right;try done.
-  by rewrite /= eq_refl. 
+  by rewrite /= eq_refl.
 Qed.
 
 Lemma eval_uincl_undef t v : eval_uincl (undef_addr t) (ok v).
@@ -1710,7 +1710,7 @@ Proof.
   by move=> /(write_var_uincl Hvm Hv) [] vm2 [] -> Hvm2 /(Hrec _ _ _ _ Hvm2 Hvs).
 Qed.
 
-Lemma uincl_write_none s2 v1 v2 s s' t : 
+Lemma uincl_write_none s2 v1 v2 s s' t :
   value_uincl v1 v2 ->
   write_none s t v1 = ok s' ->
   write_none s2 t v2 = ok s2.
@@ -1719,7 +1719,7 @@ Proof.
   case:H.
   + by move=> [u] /(of_val_uincl Hv) [u' [-> _]].
   move=> []/of_val_error ? /eqP /negbTE ->;subst v1.
-  move: Hv => /= /eqP ->. 
+  move: Hv => /= /eqP ->.
   by case: (of_val_type_of v2) => [[?]|] ->.
 Qed.
 
@@ -2016,15 +2016,15 @@ Qed.
 
 End UNDEFINCL.
 
-Lemma eq_exprP s e1 e2 : eq_expr e1 e2 -> sem_pexpr s e1 = sem_pexpr s e2. 
+Lemma eq_exprP s e1 e2 : eq_expr e1 e2 -> sem_pexpr s e1 = sem_pexpr s e2.
 Proof.
   elim: e1 e2=> [z  | b  | e He | x  | x e He | x e He | o e  He | o e1 He1 e2 He2 | e He e1 He1 e2 He2]
-                [z' | b' | e'   | x' | x' e'  | x' e'  | o' e' | o' e1' e2' | e' e1' e2'] //=. 
+                [z' | b' | e'   | x' | x' e'  | x' e'  | o' e' | o' e1' e2' | e' e1' e2'] //=.
   + by move=> /eqP ->.   + by move=> /eqP ->.
   + by move=> /He ->.    + by move=> /eqP ->.
   + by move=> /andP [] /eqP -> /He ->.
   + by move=> /andP [] /eqP -> /He ->.
-  + by move=> /andP[]/eqP -> /He ->.   
+  + by move=> /andP[]/eqP -> /He ->.
   + by move=> /andP[]/andP[] /eqP -> /He1 -> /He2 ->.
   by move=> /andP[]/andP[] /He -> /He1 -> /He2 ->.
 Qed.
