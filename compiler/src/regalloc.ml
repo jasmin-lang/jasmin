@@ -288,6 +288,14 @@ struct
       allocate_one (f zF) f_z |>
       allocate_one (f hi) rdx |>
       allocate_one (f lo) rax
+    | Ox86_IMUL64,
+      [ Lvar oF ; Lvar cF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], _ ->
+      a |>
+      allocate_one (f oF) f_o |>
+      allocate_one (f cF) f_c |>
+      allocate_one (f sF) f_s |>
+      allocate_one (f pF) f_p |>
+      allocate_one (f zF) f_z
     | _, _, _ -> a (* TODO *)
 
 end

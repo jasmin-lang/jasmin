@@ -118,6 +118,7 @@ let pp_opn = function
   | Ox86_SUB     -> "#x86_SUB"
   | Ox86_MUL     -> "#x86_MUL"
   | Ox86_IMUL    -> "#x86_IMUL"
+  | Ox86_IMUL64	-> "#x86_IMUL64"
   | Ox86_DIV     -> "#x86_DIV"
   | Ox86_IDIV    -> "#x86_IDIV"
   | Ox86_ADC     -> "#x86_ADC"

@@ -93,6 +93,7 @@ Variant sopn : Set :=
 | Ox86_SUB     (* sub unsigned / signed *)
 | Ox86_MUL     (* mul unsigned *)
 | Ox86_IMUL    (* excat multiplication *)
+| Ox86_IMUL64    (* truncated multiplication *)
 | Ox86_DIV     (* div unsigned *)
 | Ox86_IDIV    (* div   signed *)
 | Ox86_ADC     (* add with carry *)
@@ -161,6 +162,7 @@ Definition string_of_sopn o : string :=
   | Ox86_SUB    => "Ox86_SUB   "
   | Ox86_MUL    => "Ox86_MUL   "
   | Ox86_IMUL   => "Ox86_IMUL  "
+  | Ox86_IMUL64   => "Ox86_IMUL64  "
   | Ox86_DIV    => "Ox86_DIV   "
   | Ox86_IDIV   => "Ox86_IDIV  "
   | Ox86_ADC    => "Ox86_ADC   "

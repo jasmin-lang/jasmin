@@ -576,6 +576,13 @@ Definition x86_imul (v1 v2:word) : exec values:=
   let ov := (ov <? I64.min_signed)%Z || (ov >? I64.max_unsigned)%Z in
   ok (rflags_of_mul ov ++ [::Vword hi; Vword lo]).
 
+Definition x86_imul64 (v1 v2:word) : exec values:=
+  let lo := I64.mul v1 v2 in
+  let hi := I64.mulhs v1 v2 in
+  let ov := dwords hi lo in
+  let ov := (ov <? I64.min_signed)%Z || (ov >? I64.max_unsigned)%Z in
+  ok (rflags_of_mul ov ++ [::Vword lo]).
+
 Definition x86_div (hi lo dv:word) : exec values:=
   let dd := dwordu hi lo in
   let dv := I64.unsigned dv in
@@ -729,6 +736,7 @@ Definition sem_sopn (o:sopn) :  values -> exec values :=
   | Ox86_SUB     => app_ww   x86_sub
   | Ox86_MUL     => app_ww   x86_mul
   | Ox86_IMUL    => app_ww   x86_imul
+  | Ox86_IMUL64    => app_ww   x86_imul64
   | Ox86_DIV     => app_www  x86_div
   | Ox86_IDIV    => app_www  x86_idiv
   | Ox86_ADC     => app_wwb  x86_adc
