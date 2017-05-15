@@ -16,6 +16,9 @@ let rs : rsize = `U64
 exception InvalidRegSize of LM.wsize
 
 (* -------------------------------------------------------------------- *)
+let mangle (x : string) = "_" ^ x
+
+(* -------------------------------------------------------------------- *)
 let iwidth = 4
 
 let pp_gen (fmt : Format.formatter) = function
@@ -25,7 +28,7 @@ let pp_gen (fmt : Format.formatter) = function
       Format.fprintf fmt "\t%-.*s" iwidth s
   | `Instr (s, args) ->
       Format.fprintf fmt "\t%-.*s\t%s"
-        iwidth s (String.join ", " (List.rev args))
+        iwidth s (String.join ", " args)
 
 let pp_gens (fmt : Format.formatter) xs =
   List.iter (Format.fprintf fmt "%a\n%!" pp_gen) xs
@@ -33,6 +36,10 @@ let pp_gens (fmt : Format.formatter) xs =
 (* -------------------------------------------------------------------- *)
 let string_of_label (p : Linear.label) =
   Printf.sprintf "L%d" (Conv.int_of_pos p)
+
+(* -------------------------------------------------------------------- *)
+let string_of_funname (p : Expr.funname) =
+  Printf.sprintf "F%d" (Conv.int_of_pos p)
 
 (* -------------------------------------------------------------------- *)
 type lreg =
@@ -182,11 +189,11 @@ let pp_instr (i : X86_sem.asm) =
       `Label (string_of_label lbl)
 
   | MOV (op1, op2) ->
-      `Instr (pp_iname rs "mov", [pp_opr rs op1; pp_opr rs op2])
+      `Instr (pp_iname rs "mov", [pp_opr rs op2; pp_opr rs op1])
 
   | CMOVcc (ct, op1, op2) ->
       let iname = Printf.sprintf "cmov%s" (pp_ct ct) in
-      `Instr (pp_iname rs iname, [pp_opr rs op1; pp_opr rs op2])
+      `Instr (pp_iname rs iname, [pp_opr rs op2; pp_opr rs op1])
 
   | SETcc (ct, op) ->
       let iname = Printf.sprintf "set%s" (pp_ct ct) in
@@ -199,16 +206,16 @@ let pp_instr (i : X86_sem.asm) =
       `Instr (pp_iname rs "dec", [pp_opr rs op])
 
   | ADD (op1, op2) ->
-      `Instr (pp_iname rs "add", [pp_opr rs op1; pp_opr rs op2])
+      `Instr (pp_iname rs "add", [pp_opr rs op2; pp_opr rs op1])
 
   | SUB (op1, op2) ->
-      `Instr (pp_iname rs "sub", [pp_opr rs op1; pp_opr rs op2])
+      `Instr (pp_iname rs "sub", [pp_opr rs op2; pp_opr rs op1])
 
   | ADC (op1, op2) ->
-      `Instr (pp_iname rs "adc", [pp_opr rs op1; pp_opr rs op2])
+      `Instr (pp_iname rs "adc", [pp_opr rs op2; pp_opr rs op1])
 
   | SBB (op1, op2) ->
-      `Instr (pp_iname rs "sbb", [pp_opr rs op1; pp_opr rs op2])
+      `Instr (pp_iname rs "sbb", [pp_opr rs op2; pp_opr rs op1])
 
   | MUL op ->
       `Instr (pp_iname rs "mul", [pp_opr rs op])
@@ -223,10 +230,10 @@ let pp_instr (i : X86_sem.asm) =
       `Instr (pp_iname rs "idiv", [pp_opr rs op])
 
   | CMP (op1, op2) ->
-      `Instr (pp_iname rs "cmp", [pp_opr rs op1; pp_opr rs op2])
+      `Instr (pp_iname rs "cmp", [pp_opr rs op2; pp_opr rs op1])
 
   | TEST (op1, op2) ->
-      `Instr (pp_iname rs "test", [pp_opr rs op1; pp_opr rs op2])
+      `Instr (pp_iname rs "test", [pp_opr rs op2; pp_opr rs op1])
 
   | Jcc (label, ct) ->
       let iname = Printf.sprintf "j%s" (pp_ct ct) in
@@ -238,31 +245,31 @@ let pp_instr (i : X86_sem.asm) =
 
   | LEA (op1, op2) ->
       (* Correct? *)
-      `Instr (pp_iname rs "lea", [pp_opr rs op1; pp_opr rs op2])
+      `Instr (pp_iname rs "lea", [pp_opr rs op2; pp_opr rs op1])
 
   | NOT op ->
       `Instr (pp_iname rs "not", [pp_opr rs op])
 
   | AND (op1, op2) ->
-      `Instr (pp_iname rs "and", [pp_opr rs op1; pp_opr rs op2])
+      `Instr (pp_iname rs "and", [pp_opr rs op2; pp_opr rs op1])
 
   | OR (op1, op2) ->
-      `Instr (pp_iname rs "or", [pp_opr rs op1; pp_opr rs op2])
+      `Instr (pp_iname rs "or", [pp_opr rs op2; pp_opr rs op1])
 
   | XOR (op1, op2) ->
-      `Instr (pp_iname rs "xor", [pp_opr rs op1; pp_opr rs op2])
+      `Instr (pp_iname rs "xor", [pp_opr rs op2; pp_opr rs op1])
 
   | SAL (op, ir) ->
-      `Instr (pp_iname rs "sar", [pp_opr rs op; pp_imr rs ir])
+      `Instr (pp_iname rs "sar", [pp_imr rs ir; pp_opr rs op])
 
   | SAR (op, ir) ->
-      `Instr (pp_iname rs "sar", [pp_opr rs op; pp_imr rs ir])
+      `Instr (pp_iname rs "sar", [pp_imr rs ir; pp_opr rs op])
 
   | SHL (op, ir) ->
-      `Instr (pp_iname rs "shl", [pp_opr rs op; pp_imr rs ir])
+      `Instr (pp_iname rs "shl", [pp_imr rs ir; pp_opr rs op])
 
   | SHR (op, ir) ->
-      `Instr (pp_iname rs "shr", [pp_opr rs op; pp_imr rs ir])
+      `Instr (pp_iname rs "shr", [pp_imr rs ir; pp_opr rs op])
 
 (* -------------------------------------------------------------------- *)
 let pp_instr (fmt : Format.formatter) (i : X86_sem.asm) =
@@ -275,16 +282,29 @@ let pp_instrs (fmt : Format.formatter) (is : X86_sem.asm list) =
 (* -------------------------------------------------------------------- *)
 let pp_prog (fmt : Format.formatter) (asm : X86.xprog) =
   let prelude = [
-    `Instr (".globl", ["_main"]);
+    `Instr (".globl", [mangle "main"]);
     `Label "_main";
-    `Instr ("pushq", ["%rax"]);
-  ]
-
-  and epilog = [
-    `Instr ("movl", ["%eax"; "%edi"]);
-    `Instr ("callq", ["_exit"]);
+    `Instr ("pushq", ["%rbp"]);
+    `Instr ("movq" , ["%rsp"; "%rbp"]);
+    `Instr ("movl" , ["$0"; "%edi"]);
+    `Instr ("callq", [mangle "exit"]);
   ] in
 
   pp_gens fmt prelude;
-  List.iter (fun (_, d) -> pp_instrs fmt d.X86.xfd_body)  asm;
-  pp_gens fmt epilog
+  List.iter (fun (name, d) ->
+      let stsz = Conv.bi_of_z d.X86.xfd_stk_size in
+
+      pp_gens fmt [
+        `Label (mangle (string_of_funname name));
+        `Instr ("pushq", ["%rbp"]);
+        `Instr ("movq" , ["%rsp"; "%rbp"])];
+      if not (Bigint.equal stsz Bigint.zero) then begin
+        pp_gens fmt [
+          `Instr ("subq" , [pp_imm stsz; "%rsp"])];
+      end;
+      pp_instrs fmt d.X86.xfd_body;
+      pp_gens fmt [
+        `Instr ("leave", []);
+        `Instr ("ret", []);
+      ])
+    asm
