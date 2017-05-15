@@ -651,11 +651,12 @@ Definition x86_xor (v1 v2: word) :=
 Definition x86_not (v:word) : exec values:=
   ok [:: Vword (I64.not v)].
 
-Definition x86_shl (OF CF SF PF ZF:bool) (v i: word) : exec values :=
+Definition x86_shl (v i: word) : exec values :=
   let i := I64.and i x86_shift_mask in
-  if i == I64.zero then 
-    ok (map Vbool [:: OF; CF; SF; PF; ZF] ++ [::Vword v])
-  else 
+  if i == I64.zero then
+    let u := Vundef sbool in
+    ok [:: u; u; u; u; u; Vword v]
+  else
     let rc := msb (I64.shl v (I64.sub i I64.one)) in
     let r  := I64.shl v i in
     let OF :=  
@@ -667,11 +668,12 @@ Definition x86_shl (OF CF SF PF ZF:bool) (v i: word) : exec values :=
     let ZF := Vbool (ZF_of_word r) in
     ok [:: OF; CF; SF; PF; ZF; Vword r].
 
-Definition x86_shr (OF CF SF PF ZF:bool) (v i: word) : exec values :=
+Definition x86_shr (v i: word) : exec values :=
   let i := I64.and i x86_shift_mask in
-  if i == I64.zero then 
-    ok (map Vbool [:: OF; CF; SF; PF; ZF] ++ [::Vword v])
-  else 
+  if i == I64.zero then
+    let u := Vundef sbool in
+    ok [:: u; u; u; u; u; Vword v]
+  else
     let rc := lsb (I64.shru v (I64.sub i I64.one)) in
     let r  := I64.shru v i in
 
@@ -684,11 +686,12 @@ Definition x86_shr (OF CF SF PF ZF:bool) (v i: word) : exec values :=
     let ZF := Vbool (ZF_of_word r) in
     ok [:: OF; CF; SF; PF; ZF; Vword r].
 
-Definition x86_sar (OF CF SF PF ZF:bool) (v i: word) : exec values :=
+Definition x86_sar (v i: word) : exec values :=
   let i := I64.and i x86_shift_mask in
-  if i == I64.zero then 
-    ok (map Vbool [:: OF; CF; SF; PF; ZF] ++ [::Vword v])
-  else 
+  if i == I64.zero then
+    let u := Vundef sbool in
+    ok [:: u; u; u; u; u; Vword v]
+  else
     let rc := lsb (I64.shr v (I64.sub i I64.one)) in
     let r  := I64.shr v i in
 
@@ -708,8 +711,6 @@ Notation app_www o := (app_sopn [:: sword; sword; sword] o).
 Notation app_wwb o := (app_sopn [:: sword; sword; sbool] o).
 Notation app_bww o := (app_sopn [:: sbool; sword; sword] o).
 Notation app_w4 o  := (app_sopn [:: sword; sword; sword; sword] o).
-Notation app_b5w2 o := 
-  (app_sopn [:: sbool; sbool; sbool; sbool; sbool; sword; sword] o).
 
 Definition sem_sopn (o:sopn) :  values -> exec values :=
   match o with
@@ -738,9 +739,9 @@ Definition sem_sopn (o:sopn) :  values -> exec values :=
   | Ox86_OR      => app_ww   x86_or
   | Ox86_XOR     => app_ww   x86_xor
   | Ox86_NOT     => app_w    x86_not
-  | Ox86_SHL     => app_b5w2 x86_shl
-  | Ox86_SHR     => app_b5w2 x86_shr
-  | Ox86_SAR     => app_b5w2 x86_sar
+  | Ox86_SHL     => app_ww x86_shl
+  | Ox86_SHR     => app_ww x86_shr
+  | Ox86_SAR     => app_ww x86_sar
   end.
 
 (* ** Instructions

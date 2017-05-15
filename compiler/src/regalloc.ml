@@ -40,14 +40,13 @@ let x86_equality_constraints (tbl: (var, int) Hashtbl.t) (k: int -> int -> unit)
   match op, lvs, es with
   | (Oaddcarry | Osubcarry),
     [ _ ; Lvar v ], Pvar w :: _
-  | (Ox86_ADD | Ox86_SUB | Ox86_ADC | Ox86_SBB),
+  | (Ox86_ADD | Ox86_SUB | Ox86_ADC | Ox86_SBB
+    | Ox86_SHL | Ox86_SHR | Ox86_SAR
+    | Ox86_AND | Ox86_OR | Ox86_XOR),
     [ _ ; _ ; _ ; _ ; _ ; Lvar v ], Pvar w :: _
   | (Ox86_INC | Ox86_DEC),
     [ _ ; _ ; _ ; _ ; Lvar v ], Pvar w :: _
-  | (Ox86_AND | Ox86_OR | Ox86_XOR),
-    [ _ ; _ ; _ ; _ ; _ ; Lvar v ], Pvar w :: _
     (* TODO: add more constraints *)
-    (* TODO: SHL, SHR, SAR *)
     -> merge v w
   | _, _, _ -> ()
 
@@ -241,7 +240,8 @@ struct
       match x with Pvar x -> allocate_one (f x) y a | _ -> a
     in
     match op, lvs, es with
-    | (Ox86_ADD | Ox86_SUB | Ox86_AND | Ox86_OR | Ox86_XOR | Ox86_CMP),
+    | (Ox86_ADD | Ox86_SUB | Ox86_AND | Ox86_OR | Ox86_XOR | Ox86_CMP
+      | Ox86_SHL | Ox86_SHR | Ox86_SAR),
       Lvar oF :: Lvar cF :: Lvar sF :: Lvar pF :: Lvar zF :: _, _ ->
       a |>
       allocate_one (f oF) f_o |>
@@ -262,19 +262,6 @@ struct
       [ Lvar oF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], _ ->
       a |>
       allocate_one (f oF) f_o |>
-      allocate_one (f sF) f_s |>
-      allocate_one (f pF) f_p |>
-      allocate_one (f zF) f_z
-    | (Ox86_SHL | Ox86_SHR | Ox86_SAR),
-      [ Lvar oF ; Lvar cF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], [ oF' ; cF' ; sF' ; pF' ; zF' ; _ ; _ ] ->
-      a |>
-      mallocate_one oF' f_o |>
-      mallocate_one cF' f_c |>
-      mallocate_one sF' f_s |>
-      mallocate_one pF' f_p |>
-      mallocate_one zF' f_z |>
-      allocate_one (f oF) f_o |>
-      allocate_one (f cF) f_c |>
       allocate_one (f sF) f_s |>
       allocate_one (f pF) f_p |>
       allocate_one (f zF) f_z
