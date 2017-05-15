@@ -328,9 +328,12 @@ let allocate_forced_registers (vars: (var, int) Hashtbl.t)
   let a = alloc_ret a f.f_ret in
   alloc_stmt a f.f_body
 
-exception Conflict
+let find_vars (vars: (var, int) Hashtbl.t) (n: int) : var list =
+  Hashtbl.fold (fun v m i -> if n = m then v :: i else i) vars []
 
-let greedy_allocation (nv: int) (cnf: conflicts)
+let greedy_allocation
+    (vars: (var, int) Hashtbl.t)
+    (nv: int) (cnf: conflicts)
     (a: allocation) : allocation =
   let a = ref a in
   for i = 0 to nv - 1 do
@@ -343,7 +346,7 @@ let greedy_allocation (nv: int) (cnf: conflicts)
       let has_no_conflict v = not (List.mem (Some v) c) in
       match List.filter has_no_conflict X64.allocatable with
       | x :: _ -> a := IntMap.add i x !a
-      | _ -> raise Conflict
+      | _ -> hierror "Register allocation: no more register to allocate %a" Printer.(pp_list "; " (pp_var ~debug:true)) (find_vars vars i)
     )
   done;
   !a
@@ -368,6 +371,6 @@ let regalloc (f: 'info func) : 'info func =
   let conflicts = collect_conflicts vars lf in
   let a =
     allocate_forced_registers vars f IntMap.empty |>
-    greedy_allocation nv conflicts |>
+    greedy_allocation vars nv conflicts |>
     subst_of_allocation vars
   in Subst.gsubst_func (fun ty -> ty) a f
