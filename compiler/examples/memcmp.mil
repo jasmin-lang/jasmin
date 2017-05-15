@@ -1,19 +1,19 @@
 export
-fn memcmp(reg u64 p, reg u64 q, reg u64 n) -> reg bool {
-reg bool r;
+fn memcmp(reg u64 p, reg u64 q, reg u64 n) -> reg u64 {
+reg u64 r;
 reg u64 i;
 reg u64 a;
 reg u64 b;
 reg u64 pi;
 reg u64 qi;
-r = true;
+r = 1;
 i = 0;
 while (i < n) {
-pi = p + i;
-qi = q + i;
+pi = p; pi += i;
+qi = q; qi += i;
  a = [pi + 0];
  b = [qi + 0];
- r = false if a != b;
+ r = 0 if a != b;
 i += 1;
 }
 return r;
