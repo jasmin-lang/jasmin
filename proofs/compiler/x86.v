@@ -412,7 +412,21 @@ Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
       Let or := oprd_of_pexpr ii e in
       ciok (MOV ol or)
     | _, _ =>
-      cierror ii (Cerr_assembler "Invalid number of lval or pexpr in Ox86_DEC/INC")
+      cierror ii (Cerr_assembler "Invalid number of lval or pexpr in Ox86_MOV")
+    end
+  | Ox86_CMOVcc =>
+    match l, e with
+    | [::l], [:: c; e1; e2] =>
+      Let ol := oprd_of_lval ii l in
+      Let or := oprd_of_pexpr ii e1 in 
+      Let oc  := assemble_cond ii c in
+      Let ol' := oprd_of_pexpr ii e2 in
+      if ol == ol' then 
+        ciok (CMOVcc oc ol or)
+      else
+        cierror ii (Cerr_assembler "lval & rval of Ox86_MOVcc should be the same")
+    | _, _ => 
+      cierror ii (Cerr_assembler "Invalid number of lval or pexpr in Ox86_MOVcc")
     end
   | _ => cierror ii (Cerr_assembler (String.append "Unhandled sopn " (string_of_sopn o)))
   end.

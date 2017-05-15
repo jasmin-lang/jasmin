@@ -139,6 +139,10 @@ Definition lower_cassgn  (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
     | _ => [:: Cassgn x tg e ]
     end
 
+  | Pif e e1 e2 => 
+    let (l, e) := lower_condition vi e in
+    l ++ [:: Copn [:: x] Ox86_CMOVcc [:: e; e1; e2]]
+    
   | _ => [:: Cassgn x tg e ]
   end.
 
