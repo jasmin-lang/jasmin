@@ -231,27 +231,27 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     Let rzf := rflag_of_var ii vzf in
     if ((rcf == CF) && (rzf == ZF)) then
       ok BE_ct
-    else cierror ii (Cerr_assembler "Invalid condition")
+    else cierror ii (Cerr_assembler "Invalid condition (BE)")
   | Papp2 Oand (Papp1 Onot (Pvar vcf)) (Papp1 Onot (Pvar vzf)) =>
     Let rcf := rflag_of_var ii vcf in
     Let rzf := rflag_of_var ii vzf in
     if ((rcf == CF) && (rzf == ZF)) then
       ok NBE_ct
-    else cierror ii (Cerr_assembler "Invalid condition")
+    else cierror ii (Cerr_assembler "Invalid condition (NBE)")
   | Pif (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2) =>
     Let rsf := rflag_of_var ii vsf in
     Let rof1 := rflag_of_var ii vof1 in
     Let rof2 := rflag_of_var ii vof2 in
     if ((rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok L_ct
-    else cierror ii (Cerr_assembler "Invalid condition")
+    else cierror ii (Cerr_assembler "Invalid condition (L)")
   | Pif (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2)) =>
     Let rsf := rflag_of_var ii vsf in
     Let rof1 := rflag_of_var ii vof1 in
     Let rof2 := rflag_of_var ii vof2 in
     if ((rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok NL_ct
-    else cierror ii (Cerr_assembler "Invalid condition")
+    else cierror ii (Cerr_assembler "Invalid condition (NL)")
   | Papp2 Oor (Pvar vzf)
           (Pif (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2)) =>
     Let rzf := rflag_of_var ii vzf in
@@ -260,7 +260,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     Let rof2 := rflag_of_var ii vof2 in
     if ((rzf == ZF) && (rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok LE_ct
-    else cierror ii (Cerr_assembler "Invalid condition")
+    else cierror ii (Cerr_assembler "Invalid condition (LE)")
   | Papp2 Oand
              (Papp1 Onot (Pvar vzf))
              (Pif (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2))) =>
@@ -270,8 +270,8 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     Let rof2 := rflag_of_var ii vof2 in
     if ((rzf == ZF) && (rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok NLE_ct
-    else cierror ii (Cerr_assembler "Invalid condition")
-  | _ => cierror ii (Cerr_assembler "Invalid condition")
+    else cierror ii (Cerr_assembler "Invalid condition (NLE)")
+  | _ => cierror ii (Cerr_assembler "Invalid condition (no match)")
   end.
 
 Definition assemble_fopn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=

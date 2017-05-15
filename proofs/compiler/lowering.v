@@ -40,11 +40,10 @@ Record fresh_vars : Type :=
 
 Context (fv: fresh_vars).
 
-Definition var_info_of_lval (x: lval) : var_info * stype :=
+Definition var_info_of_lval (x: lval) : var_info :=
   match x with 
-  | Lnone i t => (i, t)
-  | Lvar x    => (v_info x, vtype x)
-  | Lmem x _ | Laset x _ => (v_info x, sword)
+  | Lnone i t => i
+  | Lvar x | Lmem x _ | Laset x _ => v_info x
   end.
 
 Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
@@ -94,11 +93,11 @@ Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
 *)
 
 Definition lower_cassgn  (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
-  let (vi,_) := var_info_of_lval x in
+  let vi := var_info_of_lval x in
   let f := Lnone vi sbool in
   let copn o a := [:: Copn [:: x ] o [:: a] ] in
   let fopn o a b := [:: Copn [:: f ; f ; f ; f ; f ; x ] o [:: a ; b ] ] in
-  let mul o a b := [:: Copn [:: f ; f ; f ; f ; f ; f ; x ] o [:: a ; b ] ] in
+  let mul o a b := [:: Copn [:: f ; f ; f ; f ; f ; Lnone vi sword (* hi *) ; x ] o [:: a ; b ] ] in
   let inc o a := [:: Copn [:: f ; f ; f ; f ; x ] o [:: a ] ] in
   let shift o a b :=
       let fr n := Pvar {| v_var := n fv ; v_info := vi |} in
@@ -156,7 +155,7 @@ Definition Lnone_b vi := Lnone vi sbool.
 Definition lower_addcarry (sub: bool) (xs: lvals) (es: pexprs) : seq instr_r :=
   match xs, es with
   | [:: cf ; r ], [:: x ; y ; Pbool false ] =>
-    let (vi,_) := var_info_of_lval r in
+    let vi := var_info_of_lval r in
     [:: Copn [:: Lnone_b vi; cf ; Lnone_b vi ; Lnone_b vi ; Lnone_b vi ; r ]
         (if sub then Ox86_SUB else Ox86_ADD) [:: x ; y ] ]
   | [:: cf ; r ], [:: _ ; _ ; Pvar cfi ] =>
