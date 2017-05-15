@@ -6,6 +6,7 @@ module Hash : sig include module type of BatHashtbl end
 module Sint : Set.S with type elt = int 
 module Mint : Map.S with type key = int 
 
+module Option : sig include module type of BatOption end
 
 (* -------------------------------------------------------------------- *)
 exception Unexpected

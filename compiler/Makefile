@@ -59,12 +59,25 @@ install: build
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/jasminc
 
+_c_build: __force__
+	[ -e $@ ] || mkdir $@
+
+lib%.a: _c_build/%.o
+	rm -f $@ && ar r $@ $< && ranlib $@
+
+_c_build/%.o: _c_build/%.s
+	gcc -c -o $@ $<
+
+_c_build/%.s: examples/%.mil _c_build jasminc.native
+	./jasminc.native $< -o $@
+
 tests: native
 	scripts/jasmin-test examples/*.mil
 
 clean:
-	$(OCAMLBUILD) -clean
-	rm -f jasminc.native jasminc.byte
+	$(OCAMLBUILD) -clean -classic-display
+	rm -rf _c_build
+	rm -f jasminc.native jasminc.byte lib*.a
 
 # --------------------------------------------------------------------
 %.inferred.mli:

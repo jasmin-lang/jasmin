@@ -1,4 +1,3 @@
-
 (* -------------------------------------------------------------------- *)
 open Utils
 open Bigint.Notations
@@ -280,31 +279,90 @@ let pp_instrs (fmt : Format.formatter) (is : X86_sem.asm list) =
   List.iter (Format.fprintf fmt "%a\n%!" pp_instr) is
 
 (* -------------------------------------------------------------------- *)
-let pp_prog (fmt : Format.formatter) (asm : X86.xprog) =
-  let prelude = [
-    `Instr (".globl", [mangle "main"]);
-    `Label "_main";
-    `Instr ("pushq", ["%rbp"]);
-    `Instr ("movq" , ["%rsp"; "%rbp"]);
-    `Instr ("movl" , ["$0"; "%edi"]);
-    `Instr ("callq", [mangle "exit"]);
-  ] in
+type rset = X86_sem.register Set.t
 
-  pp_gens fmt prelude;
-  List.iter (fun (name, d) ->
-      let stsz = Conv.bi_of_z d.X86.xfd_stk_size in
+let reg_of_oprd (op : X86_sem.oprd) =
+  match op with
+  | Imm_op _  -> None
+  | Adr_op _  -> None
+  | Reg_op r -> Some r
+
+let wregs_of_instr (c : rset) (i : X86_sem.asm) =
+  match i with
+  | LABEL _ | Jcc  _ | JMP _
+  | CMP   _ | TEST _ -> c
+
+  | LEA    (op, _)
+  | SETcc  (_, op)
+  | INC    (op)
+  | DEC    (op)
+  | NOT    (op)
+  | MOV    (op, _)
+  | CMOVcc (_, op, _)
+  | ADD    (op, _)
+  | SUB    (op, _)
+  | ADC    (op, _)
+  | SBB    (op, _)
+  | AND    (op, _)
+  | OR     (op, _)
+  | XOR    (op, _)
+  | SAL    (op, _)
+  | SAR    (op, _)
+  | SHL    (op, _)
+  | SHR    (op, _) ->
+      Option.map_default (fun r -> Set.add r c) c (reg_of_oprd op)
+
+  | MUL  _
+  | IMUL _
+  | DIV  _
+  | IDIV _ ->
+      List.fold_right Set.add [X86_sem.RAX; X86_sem.RDX] c
+
+(* -------------------------------------------------------------------- *)
+let wregs_of_instrs (c : rset) (is : X86_sem.asm list) =
+  List.fold_left wregs_of_instr c is
+
+(* -------------------------------------------------------------------- *)
+let wregs_of_fundef (c : rset) (f : X86.xfundef) =
+  let c = wregs_of_instrs c f.X86.xfd_body in
+  List.fold_right Set.add f.X86.xfd_res c
+
+(* -------------------------------------------------------------------- *)
+let x86_64_callee_save = [
+  X86_sem.RDI;
+  X86_sem.RSI;
+  X86_sem.RBP;
+  X86_sem.RBX;
+  X86_sem.RSP;
+  X86_sem.R12;
+  X86_sem.R13;
+  X86_sem.R14;
+  X86_sem.R15;
+]
+
+let pp_prog (fmt : Format.formatter) (asm : X86.xprog) =
+  List.iter (fun (n, _) -> pp_gens fmt
+    [`Instr (".globl", [mangle (string_of_funname n)])])
+    asm;
+
+  List.iter (fun (n, d) ->
+      let stsz  = Conv.bi_of_z d.X86.xfd_stk_size in
+      let wregs = wregs_of_fundef Set.empty d in
+      let wregs = List.fold_right Set.remove [X86_sem.RBP; X86_sem.RSP] wregs in
+      let wregs = List.filter (fun x -> Set.mem x wregs) x86_64_callee_save in
 
       pp_gens fmt [
-        `Label (mangle (string_of_funname name));
+        `Label (mangle (string_of_funname n));
         `Instr ("pushq", ["%rbp"]);
         `Instr ("movq" , ["%rsp"; "%rbp"])];
-      if not (Bigint.equal stsz Bigint.zero) then begin
-        pp_gens fmt [
-          `Instr ("subq" , [pp_imm stsz; "%rsp"])];
-      end;
+      List.iter (fun r ->
+        pp_gens fmt [`Instr ("pushq", [pp_register `U64 r])])
+        wregs;
+      if not (Bigint.equal stsz Bigint.zero) then
+        pp_gens fmt [`Instr ("subq", [pp_imm stsz; "%rsp"])];
       pp_instrs fmt d.X86.xfd_body;
-      pp_gens fmt [
-        `Instr ("leave", []);
-        `Instr ("ret", []);
-      ])
+      List.iter (fun r ->
+        pp_gens fmt [`Instr ("popq", [pp_register `U64 r])])
+        wregs;
+      pp_gens fmt [`Instr ("leave", []); `Instr ("ret", [])])
     asm
