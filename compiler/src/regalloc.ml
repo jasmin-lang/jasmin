@@ -210,6 +210,7 @@ struct
       rax; rcx; rdx;
       rsi; rdi;
       r8; r9; r10; r11;
+      rbp;
       rbx;
       r12; r13; r14; r15
     ]
@@ -224,7 +225,7 @@ struct
   ]
 
   let reserved = [
-    rsp; rbp
+    rsp
   ]
 
   let f_c = V.mk "CF" Reg (Bty Bool) L._dummy
