@@ -150,6 +150,36 @@ Qed.
 Definition sopn_eqMixin     := Equality.Mixin sopn_eq_axiom.
 Canonical  sopn_eqType      := Eval hnf in EqType sopn sopn_eqMixin.
 
+Definition string_of_sopn o : string :=
+  match o with
+  | Omulu       => "Omulu      "
+  | Oaddcarry   => "Oaddcarry  "
+  | Osubcarry   => "Osubcarry  "
+  | Ox86_MOV    => "Ox86_MOV   "
+  | Ox86_CMOVcc => "Ox86_CMOVcc"
+  | Ox86_ADD    => "Ox86_ADD   "
+  | Ox86_SUB    => "Ox86_SUB   "
+  | Ox86_MUL    => "Ox86_MUL   "
+  | Ox86_IMUL   => "Ox86_IMUL  "
+  | Ox86_DIV    => "Ox86_DIV   "
+  | Ox86_IDIV   => "Ox86_IDIV  "
+  | Ox86_ADC    => "Ox86_ADC   "
+  | Ox86_SBB    => "Ox86_SBB   "
+  | Ox86_INC    => "Ox86_INC   "
+  | Ox86_DEC    => "Ox86_DEC   "
+  | Ox86_SETcc  => "Ox86_SETcc "
+  | Ox86_LEA    => "Ox86_LEA   "
+  | Ox86_TEST   => "Ox86_TEST  "
+  | Ox86_CMP    => "Ox86_CMP   "
+  | Ox86_AND    => "Ox86_AND   "
+  | Ox86_OR     => "Ox86_OR    "
+  | Ox86_XOR    => "Ox86_XOR   "
+  | Ox86_NOT    => "Ox86_NOT   "
+  | Ox86_SHL    => "Ox86_SHL   "
+  | Ox86_SHR    => "Ox86_SHR   "
+  | Ox86_SAR    => "Ox86_SAR   "
+  end.
+
 (* ** Expressions
  * -------------------------------------------------------------------- *)
 (* Used only by the ocaml compiler *)
@@ -915,19 +945,17 @@ Proof. by case: e=>*;constructor. Qed.
 
 (* --------------------------------------------------------------------- *)
 (* Test the equality of two expressions modulo variable info              *)
-Fixpoint eq_expr e e' := 
+Fixpoint eq_expr e e' :=
   match e, e' with
   | Pconst z      , Pconst z'         => z == z'
   | Pbool  b      , Pbool  b'         => b == b'
   (* FIXME if e1, e2 = Pconst we can compute the cast *)
-  | Pcast  e      , Pcast  e'         => eq_expr e e' 
+  | Pcast  e      , Pcast  e'         => eq_expr e e'
   | Pvar   x      , Pvar   x'         => v_var x == v_var x'
-  | Pget   x e    , Pget   x' e'      => (v_var x == v_var x') && eq_expr e e' 
-  | Pload  x e    , Pload  x' e'      => (v_var x == v_var x') && eq_expr e e' 
+  | Pget   x e    , Pget   x' e'      => (v_var x == v_var x') && eq_expr e e'
+  | Pload  x e    , Pload  x' e'      => (v_var x == v_var x') && eq_expr e e'
   | Papp1  o e    , Papp1  o' e'      => (o == o') && eq_expr e e'
   | Papp2  o e1 e2, Papp2  o' e1' e2' => (o == o') && eq_expr e1 e1' && eq_expr e2 e2'
   | Pif    e e1 e2, Pif    e' e1' e2' => eq_expr e e' && eq_expr e1 e1' && eq_expr e2 e2'
   | _             , _                 => false
   end.
-
-
