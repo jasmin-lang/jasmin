@@ -199,20 +199,6 @@ Qed.
 Lemma smulP ty e1 e2 : Papp2 (Omul ty) e1 e2 =E smul ty e1 e2.
 Proof. by case:ty;auto using smul_intP, smul_wP. Qed.
 
-(* FIXME: move this *)
-Lemma eq_exprP s e1 e2 : eq_expr e1 e2 -> sem_pexpr s e1 = sem_pexpr s e2. 
-Proof.
-  elim: e1 e2=> [z  | b  | e He | x  | x e He | x e He | o e  He | o e1 He1 e2 He2 | e He e1 He1 e2 He2]
-                [z' | b' | e'   | x' | x' e'  | x' e'  | o' e' | o' e1' e2' | e' e1' e2'] //=. 
-  + by move=> /eqP ->.   + by move=> /eqP ->.
-  + by move=> /He ->.    + by move=> /eqP ->.
-  + by move=> /andP [] /eqP -> /He ->.
-  + by move=> /andP [] /eqP -> /He ->.
-  + by move=> /andP[]/eqP -> /He ->.   
-  + by move=> /andP[]/andP[] /eqP -> /He1 -> /He2 ->.
-  by move=> /andP[]/andP[] /He -> /He1 -> /He2 ->.
-Qed.
-
 Lemma mk_sem_sop2_b b t (o:sem_t t -> sem_t t -> bool) :
    (forall v, o v v = b) ->
    forall v v', @mk_sem_sop2 t t sbool o v v = ok v' -> v' = Vbool b.

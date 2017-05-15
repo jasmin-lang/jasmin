@@ -1,34 +1,11 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect.
-(* ------- *) Require Import memory low_memory expr sem.
+(* ------- *) Require Import memory word expr sem.
 (* ------- *) (* - *) Import Memory.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-(* -------------------------------------------------------------------- *)
-Definition dwordu (hi lo : word) :=
-  (I64.unsigned hi * I64.modulus + I64.unsigned lo)%Z.
-
-(* -------------------------------------------------------------------- *)
-Definition dwords (hi lo : word) :=
-  (I64.signed hi * I64.modulus + I64.unsigned lo)%Z.
-
-(* -------------------------------------------------------------------- *)
-Definition wordbit (w : word) (i : nat) :=
-  I64.and (I64.shr w (I64.repr (Z.of_nat i))) I64.one != I64.zero.
-
-(* -------------------------------------------------------------------- *)
-Definition word2bits (w : word) : seq bool :=
-  [seq wordbit w i | i <- iota 0 I64.wordsize].
-
-(* -------------------------------------------------------------------- *)
-Definition msb (w : word) := (I64.signed w <? 0)%Z.
-Definition lsb (w : word) := (I64.and w I64.one) != I64.zero.
-
-(* -------------------------------------------------------------------- *)
-Parameter shift_mask : word.    (* TO BE DEFINED *)
 
 (* ==================================================================== *)
 Definition label := positive.
@@ -630,7 +607,7 @@ Definition eval_NOT o s : x86_result :=
 (* -------------------------------------------------------------------- *)
 Definition eval_SHL o ir s : x86_result :=
   Let v := read_oprd o s in
-  let i := I64.and (read_ireg ir s) shift_mask in
+  let i := I64.and (read_ireg ir s) x86_shift_mask in
 
   if i == I64.zero then ok s else
     let rc := msb (I64.shl v (I64.sub i I64.one)) in
@@ -651,7 +628,7 @@ Definition eval_SHL o ir s : x86_result :=
 (* -------------------------------------------------------------------- *)
 Definition eval_SHR o ir s : x86_result :=
   Let v := read_oprd o s in
-  let i := I64.and (read_ireg ir s) shift_mask in
+  let i := I64.and (read_ireg ir s) x86_shift_mask in
 
   if i == I64.zero then ok s else
     let rc := lsb (I64.shru v (I64.sub i I64.one)) in
@@ -676,7 +653,7 @@ Definition eval_SAL o ir s : x86_result :=
 (* -------------------------------------------------------------------- *)
 Definition eval_SAR o ir s : x86_result :=
   Let v := read_oprd o s in
-  let i := I64.and (read_ireg ir s) shift_mask in
+  let i := I64.and (read_ireg ir s) x86_shift_mask in
 
   if i == I64.zero then ok s else
     let rc := lsb (I64.shr v (I64.sub i I64.one)) in

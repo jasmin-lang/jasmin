@@ -91,7 +91,6 @@ Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
   end.
 
 (* Lowering of Cassgn
-TODO: Pif → CMOVcc
 *)
 
 Definition lower_cassgn  (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=

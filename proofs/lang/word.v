@@ -242,3 +242,27 @@ Definition wsize_size (s:wsize) :=
   | U128   => 16%Z
   | U256   => 32%Z
   end.
+
+
+(* -------------------------------------------------------------------*)
+
+Parameter x86_shift_mask : word.
+
+Definition b_to_w (b:bool) := if b then I64.one else I64.zero.
+
+Definition dwordu (hi lo : word) :=
+  (I64.unsigned hi * I64.modulus + I64.unsigned lo)%Z.
+
+Definition dwords (hi lo : word) :=
+  (I64.signed hi * I64.modulus + I64.unsigned lo)%Z.
+
+Definition wordbit (w : word) (i : nat) :=
+  I64.and (I64.shr w (I64.repr (Z.of_nat i))) I64.one != I64.zero.
+
+Definition word2bits (w : word) : seq bool :=
+  [seq wordbit w i | i <- iota 0 I64.wordsize].
+
+Definition msb (w : word) := (I64.signed w <? 0)%Z.
+Definition lsb (w : word) := (I64.and w I64.one) != I64.zero.
+
+

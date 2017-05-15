@@ -298,19 +298,16 @@ Definition sem_op2_w  := @mk_sem_sop2 sword sword sword.
 Definition sem_op2_ib := @mk_sem_sop2 sint  sint  sbool.
 Definition sem_op2_wb := @mk_sem_sop2 sword sword sbool.
 
-(* FIXME: MOVE in word, share with x86 *)
-Parameter shift_mask : word.
-
 Definition sem_lsr (v i:word) :=
-  let i := I64.and i shift_mask in
+  let i := I64.and i x86_shift_mask in
   if i == I64.zero then v else I64.shru v i.
 
 Definition sem_lsl (v i:word) :=
-  let i := I64.and i shift_mask in
+  let i := I64.and i x86_shift_mask in
   if i == I64.zero then v else I64.shl v i.
 
 Definition sem_asr (v i:word) :=
-  let i := I64.and i shift_mask in
+  let i := I64.and i x86_shift_mask in
   if i == I64.zero then v else I64.shr v i.
 
 Definition sem_sop1 (o:sop1) :=
@@ -480,26 +477,6 @@ Arguments app_sopn ts o l:clear implicits.
 
 Definition pval t1 t2 (p: sem_t t1 * sem_t t2) :=
   [::to_val p.1; to_val p.2].
-
-(* FIXME: MOVE in word and share with x86_sem *)
-Definition b_to_w (b:bool) := if b then I64.one else I64.zero.
-
-Definition dwordu (hi lo : word) :=
-  (I64.unsigned hi * I64.modulus + I64.unsigned lo)%Z.
-
-Definition dwords (hi lo : word) :=
-  (I64.signed hi * I64.modulus + I64.unsigned lo)%Z.
-
-Definition wordbit (w : word) (i : nat) :=
-  I64.and (I64.shr w (I64.repr (Z.of_nat i))) I64.one != I64.zero.
-
-Definition word2bits (w : word) : seq bool :=
-  [seq wordbit w i | i <- iota 0 I64.wordsize].
-
-Definition msb (w : word) := (I64.signed w <? 0)%Z.
-Definition lsb (w : word) := (I64.and w I64.one) != I64.zero.
-
-(* END FIXME *)
 
 Definition SF_of_word (w : word) :=
   msb w.
@@ -675,7 +652,7 @@ Definition x86_not (v:word) : exec values:=
   ok [:: Vword (I64.not v)].
 
 Definition x86_shl (OF CF SF PF ZF:bool) (v i: word) : exec values :=
-  let i := I64.and i shift_mask in
+  let i := I64.and i x86_shift_mask in
   if i == I64.zero then 
     ok (map Vbool [:: OF; CF; SF; PF; ZF] ++ [::Vword v])
   else 
@@ -691,7 +668,7 @@ Definition x86_shl (OF CF SF PF ZF:bool) (v i: word) : exec values :=
     ok [:: OF; CF; SF; PF; ZF; Vword r].
 
 Definition x86_shr (OF CF SF PF ZF:bool) (v i: word) : exec values :=
-  let i := I64.and i shift_mask in
+  let i := I64.and i x86_shift_mask in
   if i == I64.zero then 
     ok (map Vbool [:: OF; CF; SF; PF; ZF] ++ [::Vword v])
   else 
@@ -708,7 +685,7 @@ Definition x86_shr (OF CF SF PF ZF:bool) (v i: word) : exec values :=
     ok [:: OF; CF; SF; PF; ZF; Vword r].
 
 Definition x86_sar (OF CF SF PF ZF:bool) (v i: word) : exec values :=
-  let i := I64.and i shift_mask in
+  let i := I64.and i x86_shift_mask in
   if i == I64.zero then 
     ok (map Vbool [:: OF; CF; SF; PF; ZF] ++ [::Vword v])
   else 
@@ -2038,3 +2015,15 @@ Qed.
 
 End UNDEFINCL.
 
+Lemma eq_exprP s e1 e2 : eq_expr e1 e2 -> sem_pexpr s e1 = sem_pexpr s e2. 
+Proof.
+  elim: e1 e2=> [z  | b  | e He | x  | x e He | x e He | o e  He | o e1 He1 e2 He2 | e He e1 He1 e2 He2]
+                [z' | b' | e'   | x' | x' e'  | x' e'  | o' e' | o' e1' e2' | e' e1' e2'] //=. 
+  + by move=> /eqP ->.   + by move=> /eqP ->.
+  + by move=> /He ->.    + by move=> /eqP ->.
+  + by move=> /andP [] /eqP -> /He ->.
+  + by move=> /andP [] /eqP -> /He ->.
+  + by move=> /andP[]/eqP -> /He ->.   
+  + by move=> /andP[]/andP[] /eqP -> /He1 -> /He2 ->.
+  by move=> /andP[]/andP[] /He -> /He1 -> /He2 ->.
+Qed.

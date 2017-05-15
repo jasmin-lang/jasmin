@@ -913,3 +913,21 @@ Proof. by case e=> *;constructor. Qed.
 Lemma is_constP e : is_reflect Pconst e (is_const e).
 Proof. by case: e=>*;constructor. Qed.
 
+(* --------------------------------------------------------------------- *)
+(* Test the equality of two expressions modulo variable info              *)
+Fixpoint eq_expr e e' := 
+  match e, e' with
+  | Pconst z      , Pconst z'         => z == z'
+  | Pbool  b      , Pbool  b'         => b == b'
+  (* FIXME if e1, e2 = Pconst we can compute the cast *)
+  | Pcast  e      , Pcast  e'         => eq_expr e e' 
+  | Pvar   x      , Pvar   x'         => v_var x == v_var x'
+  | Pget   x e    , Pget   x' e'      => (v_var x == v_var x') && eq_expr e e' 
+  | Pload  x e    , Pload  x' e'      => (v_var x == v_var x') && eq_expr e e' 
+  | Papp1  o e    , Papp1  o' e'      => (o == o') && eq_expr e e'
+  | Papp2  o e1 e2, Papp2  o' e1' e2' => (o == o') && eq_expr e1 e1' && eq_expr e2 e2'
+  | Pif    e e1 e2, Pif    e' e1' e2' => eq_expr e e' && eq_expr e1 e1' && eq_expr e2 e2'
+  | _             , _                 => false
+  end.
+
+
