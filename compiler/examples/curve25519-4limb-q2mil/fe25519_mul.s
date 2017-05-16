@@ -1,7 +1,7 @@
-.text
-.p2align 5
-.globl _crypto_scalarmult_curve25519_amd64_64_fe25519_mul
-.globl crypto_scalarmult_curve25519_amd64_64_fe25519_mul
+	.text
+	.p2align	5
+	.globl	_crypto_scalarmult_curve25519_amd64_64_fe25519_mul
+	.globl	crypto_scalarmult_curve25519_amd64_64_fe25519_mul
 _crypto_scalarmult_curve25519_amd64_64_fe25519_mul:
 crypto_scalarmult_curve25519_amd64_64_fe25519_mul:
 	pushq	%rbp
@@ -12,152 +12,152 @@ crypto_scalarmult_curve25519_amd64_64_fe25519_mul:
 	pushq	%r14
 	pushq	%r15
 	movq	%rdx, %rcx
-	movq	$0, %r8
-	movq	$0, %r9
-	movq	$0, %r10
-	movq	$0, %r11
-	movq	(%rsi), %rbp
-	movq	(%rcx), %rax
-	mulq	%rbp
-	movq	%rax, %rbx
-	movq	%rdx, %r12
-	movq	8(%rcx), %rax
-	mulq	%rbp
-	addq	%rax, %r12
+	movq	$0, %rbp
+	movq	$0, %r12
 	movq	$0, %r13
-	adcq	%rdx, %r13
-	movq	16(%rcx), %rax
-	mulq	%rbp
-	addq	%rax, %r13
 	movq	$0, %r14
-	adcq	%rdx, %r14
-	movq	24(%rcx), %rax
-	mulq	%rbp
-	addq	%rax, %r14
-	adcq	%rdx, %r8
-	movq	8(%rsi), %rbp
+	movq	(%rsi), %r8
 	movq	(%rcx), %rax
-	mulq	%rbp
-	addq	%rax, %r12
-	movq	$0, %r15
-	adcq	%rdx, %r15
+	mulq	%r8
+	movq	%rax, %r15
+	movq	%rdx, %r9
 	movq	8(%rcx), %rax
-	mulq	%rbp
-	addq	%rax, %r13
-	adcq	$0, %rdx
-	addq	%r15, %r13
-	movq	$0, %r15
-	adcq	%rdx, %r15
-	movq	16(%rcx), %rax
-	mulq	%rbp
-	addq	%rax, %r14
-	adcq	$0, %rdx
-	addq	%r15, %r14
-	movq	$0, %r15
-	adcq	%rdx, %r15
-	movq	24(%rcx), %rax
-	mulq	%rbp
-	addq	%rax, %r8
-	adcq	$0, %rdx
-	addq	%r15, %r8
-	adcq	%rdx, %r9
-	movq	16(%rsi), %rbp
-	movq	(%rcx), %rax
-	mulq	%rbp
-	addq	%rax, %r13
-	movq	$0, %r15
-	adcq	%rdx, %r15
-	movq	8(%rcx), %rax
-	mulq	%rbp
-	addq	%rax, %r14
-	adcq	$0, %rdx
-	addq	%r15, %r14
-	movq	$0, %r15
-	adcq	%rdx, %r15
-	movq	16(%rcx), %rax
-	mulq	%rbp
-	addq	%rax, %r8
-	adcq	$0, %rdx
-	addq	%r15, %r8
-	movq	$0, %r15
-	adcq	%rdx, %r15
-	movq	24(%rcx), %rax
-	mulq	%rbp
+	mulq	%r8
 	addq	%rax, %r9
-	adcq	$0, %rdx
-	addq	%r15, %r9
+	movq	$0, %r10
 	adcq	%rdx, %r10
+	movq	16(%rcx), %rax
+	mulq	%r8
+	addq	%rax, %r10
+	movq	$0, %r11
+	adcq	%rdx, %r11
+	movq	24(%rcx), %rax
+	mulq	%r8
+	addq	%rax, %r11
+	adcq	%rdx, %rbp
+	movq	8(%rsi), %r8
+	movq	(%rcx), %rax
+	mulq	%r8
+	addq	%rax, %r9
+	movq	$0, %rbx
+	adcq	%rdx, %rbx
+	movq	8(%rcx), %rax
+	mulq	%r8
+	addq	%rax, %r10
+	adcq	$0, %rdx
+	addq	%rbx, %r10
+	movq	$0, %rbx
+	adcq	%rdx, %rbx
+	movq	16(%rcx), %rax
+	mulq	%r8
+	addq	%rax, %r11
+	adcq	$0, %rdx
+	addq	%rbx, %r11
+	movq	$0, %rbx
+	adcq	%rdx, %rbx
+	movq	24(%rcx), %rax
+	mulq	%r8
+	addq	%rax, %rbp
+	adcq	$0, %rdx
+	addq	%rbx, %rbp
+	adcq	%rdx, %r12
+	movq	16(%rsi), %r8
+	movq	(%rcx), %rax
+	mulq	%r8
+	addq	%rax, %r10
+	movq	$0, %rbx
+	adcq	%rdx, %rbx
+	movq	8(%rcx), %rax
+	mulq	%r8
+	addq	%rax, %r11
+	adcq	$0, %rdx
+	addq	%rbx, %r11
+	movq	$0, %rbx
+	adcq	%rdx, %rbx
+	movq	16(%rcx), %rax
+	mulq	%r8
+	addq	%rax, %rbp
+	adcq	$0, %rdx
+	addq	%rbx, %rbp
+	movq	$0, %rbx
+	adcq	%rdx, %rbx
+	movq	24(%rcx), %rax
+	mulq	%r8
+	addq	%rax, %r12
+	adcq	$0, %rdx
+	addq	%rbx, %r12
+	adcq	%rdx, %r13
 	movq	24(%rsi), %rsi
 	movq	(%rcx), %rax
 	mulq	%rsi
-	addq	%rax, %r14
-	movq	$0, %r15
-	adcq	%rdx, %r15
+	addq	%rax, %r11
+	movq	$0, %r8
+	adcq	%rdx, %r8
 	movq	8(%rcx), %rax
 	mulq	%rsi
-	addq	%rax, %r8
+	addq	%rax, %rbp
 	adcq	$0, %rdx
-	addq	%r15, %r8
-	movq	$0, %r15
-	adcq	%rdx, %r15
+	addq	%r8, %rbp
+	movq	$0, %r8
+	adcq	%rdx, %r8
 	movq	16(%rcx), %rax
 	mulq	%rsi
-	addq	%rax, %r9
+	addq	%rax, %r12
 	adcq	$0, %rdx
-	addq	%r15, %r9
-	movq	$0, %r15
-	adcq	%rdx, %r15
+	addq	%r8, %r12
+	movq	$0, %r8
+	adcq	%rdx, %r8
 	movq	24(%rcx), %rax
 	mulq	%rsi
-	addq	%rax, %r10
+	addq	%rax, %r13
 	adcq	$0, %rdx
-	addq	%r15, %r10
-	adcq	%rdx, %r11
-	movq	%r8, %rax
+	addq	%r8, %r13
+	adcq	%rdx, %r14
+	movq	%rbp, %rax
 	movq	$38, %rcx
 	mulq	%rcx
-	movq	%rax, %r8
-	movq	%r9, %rax
-	movq	%rdx, %r9
-	movq	$38, %rcx
-	mulq	%rcx
-	addq	%rax, %r9
-	movq	%r10, %rax
-	movq	$0, %r10
-	adcq	%rdx, %r10
-	movq	$38, %rcx
-	mulq	%rcx
-	addq	%rax, %r10
-	movq	%r11, %rax
-	movq	$0, %r11
-	adcq	%rdx, %r11
-	movq	$38, %rcx
-	mulq	%rcx
-	addq	%rax, %r11
+	movq	%rax, %rcx
+	movq	%r12, %rax
+	movq	%rdx, %rsi
+	movq	$38, %rdx
+	mulq	%rdx
+	addq	%rax, %rsi
+	movq	%r13, %rax
+	movq	$0, %r8
+	adcq	%rdx, %r8
+	movq	$38, %rdx
+	mulq	%rdx
+	addq	%rax, %r8
+	movq	%r14, %rax
+	movq	$0, %rbp
+	adcq	%rdx, %rbp
+	movq	$38, %rdx
+	mulq	%rdx
+	addq	%rax, %rbp
 	movq	$0, %rax
 	adcq	%rdx, %rax
-	addq	%r8, %rbx
-	adcq	%r9, %r12
-	adcq	%r10, %r13
-	adcq	%r11, %r14
+	addq	%rcx, %r15
+	adcq	%rsi, %r9
+	adcq	%r8, %r10
+	adcq	%rbp, %r11
 	movq	$0, %rcx
 	adcq	%rcx, %rax
 	imulq	$38, %rax, %rax
-	addq	%rax, %rbx
-	adcq	%rcx, %r12
-	adcq	%rcx, %r13
-	adcq	%rcx, %r14
+	addq	%rax, %r15
+	adcq	%rcx, %r9
+	adcq	%rcx, %r10
+	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rcx
-	addq	%rcx, %rbx
-	movq	%r12, 8(%rdi)
-	movq	%r13, 16(%rdi)
-	movq	%r14, 24(%rdi)
-	movq	%rbx, (%rdi)
-  popq %r15
-  popq %r14
-  popq %r13
-  popq %r12
+	imulq	$38, %rcx, %rax
+	addq	%rax, %r15
+	movq	%r9, 8(%rdi)
+	movq	%r10, 16(%rdi)
+	movq	%r11, 24(%rdi)
+	movq	%r15, (%rdi)
+	popq	%r15
+	popq	%r14
+	popq	%r13
+	popq	%r12
 	popq	%rbx
 	popq	%rsi
 	popq	%rbp

@@ -1,7 +1,10 @@
-	.globl	_F1
-_F1:
+	.text
+	.p2align	5
+	.globl	_crypto_scalarmult_curve25519_amd64_64_work_cswap
+	.globl	crypto_scalarmult_curve25519_amd64_64_work_cswap
+_crypto_scalarmult_curve25519_amd64_64_work_cswap:
+crypto_scalarmult_curve25519_amd64_64_work_cswap:
 	pushq	%rbp
-	movq	%rsp, %rbp
 	cmpq	$1, %rsi
 	movq	(%rdi), %rax
 	movq	64(%rdi), %rcx
@@ -59,5 +62,5 @@ _F1:
 	cmoveq	%rdx, %rcx
 	movq	%rax, 56(%rdi)
 	movq	%rcx, 120(%rdi)
-	leave
+	popq	%rbp
 	ret 

@@ -382,7 +382,7 @@ let subst_of_allocation (vars: (var, int) Hashtbl.t)
     Pvar (q w)
   with Not_found -> Pvar (q v)
 
-let regalloc (f: 'info func) : 'info func =
+let regalloc (f: 'info func) : unit func =
   let f = fill_in_missing_names f in
   let f = Ssa.split_live_ranges f in
   let lf = Liveness.live_fd f in
