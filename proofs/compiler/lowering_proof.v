@@ -293,7 +293,13 @@ Section PROOF.
     | LowerInc o a =>
       exists b1 b2 b3 b4, Let x := sem_pexprs s [:: a] in sem_sopn o x = ok [:: Vbool b1; Vbool b2; Vbool b3; Vbool b4; v]
     | LowerFopn o a b =>
-      exists b1 b2 b3 b4 b5, Let x := sem_pexprs s [:: a; b] in sem_sopn o x = ok [:: Vbool b1; Vbool b2; Vbool b3; Vbool b4; Vbool b5; v]
+      Let x := Let x := sem_pexprs s [:: a; b] in sem_sopn o x
+      in write_lvals s
+       [:: Lnone (var_info_of_lval l) sbool;
+           Lnone (var_info_of_lval l) sbool;
+           Lnone (var_info_of_lval l) sbool;
+           Lnone (var_info_of_lval l) sbool;
+           Lnone (var_info_of_lval l) sbool; l] x = ok s'
     | LowerEq a b =>
       exists b1 b2 b3 b4, Let x := sem_pexprs s [:: a; b] in sem_sopn Ox86_CMP x = ok [:: Vbool b1; Vbool b2; Vbool b3; Vbool b4; v]
     | LowerLt a b =>
@@ -321,7 +327,7 @@ Section PROOF.
       apply: rbindP Hv=> w /= -> []<- //.
     + move: o=> [| |[]|[]|[]| | | | | | |[]|k|[]|k|k|k] //.
       (* Oadd Op_w *)
-      + move=> /sem_op2_w_dec [z1 [z2 [<- Hv]]].
+      + move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 Hv]]]; subst v.
         have := add_inc_dec_classifyP Hv.
         case: (add_inc_dec_classify e1 e2)=> [y|y|//].
         (* AddInc *)
@@ -333,14 +339,12 @@ Section PROOF.
           move=> [w [-> <-]] /=.
           rewrite /x86_dec /rflags_of_aluop_nocf_w /flags_w /=; eauto.
         (* AddNone *)
-        + rewrite Hv /= /x86_add /rflags_of_aluop_w /flags_w /= =>_.
-          eexists; eauto.
+        + by rewrite Hv /= Hw.
       (* Omul Op_w *)
-      + move=> /sem_op2_w_dec [z1 [z2 [<- Hv]]]; rewrite Hv /=.
-        rewrite /x86_imul64 /=.
-        admit. (* TODO: find a workaround for undef_b *)
+      + move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 ->]]] /=; subst v.
+        by rewrite Hw.
       (* Osub Op_w *)
-      + move=> /sem_op2_w_dec [z1 [z2 [<- Hv]]].
+      + move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 Hv]]]; subst v.
         have := sub_inc_dec_classifyP e2.
         case: (sub_inc_dec_classify e2)=> [He2|He2|//]; try subst e2.
         (* SubInc *)
@@ -355,24 +359,28 @@ Section PROOF.
           apply: rbindP Hv=> z -> /= []-> <- /=.
           rewrite /x86_dec /rflags_of_aluop_nocf_w /flags_w /=; eauto.
         (* SubNone *)
-        + move=> _.
-          rewrite Hv /= /x86_sub /rflags_of_aluop_w /flags_w /=.
-          eexists; eauto.
-      + move=> /sem_op2_w_dec [z1 [z2 [<- ->]]] /=.
-        rewrite /x86_and /rflags_of_bwop_w /flags_w /=.
-        eexists; eauto.
-      + move=> /sem_op2_w_dec [z1 [z2 [<- ->]]] /=.
-        rewrite /x86_or /rflags_of_bwop_w /flags_w /=.
-        eexists; eauto.
-      + move=> /sem_op2_w_dec [z1 [z2 [<- ->]]] /=.
-        rewrite /x86_xor /rflags_of_bwop_w /flags_w /=.
-        eexists; eauto.
-      + move=> /sem_op2_w_dec [z1 [z2 [<- ->]]] /=.
-        rewrite /x86_shr; admit.
-      + move=> /sem_op2_w_dec [z1 [z2 [<- ->]]] /=.
-        rewrite /x86_shl; admit.
-      + move=> /sem_op2_w_dec [z1 [z2 [<- ->]]] /=.
-        rewrite /x86_sar; admit.
+        + by rewrite Hv /= Hw.
+      + by move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 ->]]] /=; subst v; rewrite Hw.
+      + by move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 ->]]] /=; subst v; rewrite Hw.
+      + by move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 ->]]] /=; subst v; rewrite Hw.
+      + move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 ->]]] /=; subst v.
+        rewrite /x86_shr /=.
+        rewrite /sem_lsr in Hw.
+        case: (_ == _) Hw=> /= Hw.
+        + by rewrite Hw.
+        + by case: (_ == _) Hw=> Hw; rewrite /= Hw.
+      + move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 ->]]] /=; subst v.
+        rewrite /x86_shl /=.
+        rewrite /sem_lsl in Hw.
+        case: (_ == _) Hw=> /= Hw.
+        + by rewrite Hw.
+        + by case: (_ == _) Hw=> Hw; rewrite /= Hw.
+      + move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 ->]]] /=; subst v.
+        rewrite /x86_sar /=.
+        rewrite /sem_asr in Hw.
+        case: (_ == _) Hw=> /= Hw.
+        + by rewrite Hw.
+        + by case: (_ == _) Hw=> Hw; rewrite /= Hw.
       + move=> /sem_op2_wb_dec [z1 [z2 [<- ->]]] /=.
         rewrite /x86_cmp /vbools /=.
         suff ->: weq z1 z2 = ZF_of_word (I64.sub z1 z2); eauto.
@@ -416,9 +424,8 @@ Section PROOF.
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
       by rewrite H /= Hw'.
     (* LowerFopn *)
-    + move=> o e1 e2 [v1 [v2 [v3 [v4 [v5 H]]]]].
-      exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
-      by rewrite H /= Hw'.
+    + move=> o e1 e2 H.
+      by exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
     (* LowerEq *)
     + move=> e1 e2 [b1 [b2 [b3 [b4 H]]]].
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
@@ -462,7 +469,7 @@ Section PROOF.
       exists s2'; split=> //.
       apply: sem_seq1; apply: EmkI; apply: Eassgn.
       by rewrite Hv'.
-  Admitted.
+  Qed.
 
   Local Lemma Hopn s1 s2 o xs es :
     Let x := Let x := sem_pexprs s1 es in sem_sopn o x
