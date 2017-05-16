@@ -135,51 +135,48 @@ Variant lower_cassgn_t : Type :=
   | LowerAssgn.
 
 Definition lower_cassgn_classify e x : lower_cassgn_t :=
-  if (stype_of_lval x == sword) then
-    match e with
-    | Pcast (Pconst _)
-    | Pvar {| v_var := {| vtype := sword |} |}
-    | Pget _ _
-    | Pload _ _
-      => LowerMov
+  match e with
+  | Pcast (Pconst _)
+  | Pvar {| v_var := {| vtype := sword |} |}
+  | Pget _ _
+  | Pload _ _
+    => LowerMov
 
-    | Papp1 Olnot a => LowerCopn Ox86_NOT a
+  | Papp1 Olnot a => LowerCopn Ox86_NOT a
 
-    | Papp2 op a b =>
-      match op with
-      | Oadd Op_w =>
-        match add_inc_dec_classify a b with
-        | AddInc y => LowerInc Ox86_INC y
-        | AddDec y => LowerInc Ox86_DEC y
-        | AddNone => LowerFopn Ox86_ADD a b (* TODO: lea *)
-        end
-      | Osub Op_w =>
-        match sub_inc_dec_classify b with
-        | SubInc => LowerInc Ox86_INC a
-        | SubDec => LowerInc Ox86_DEC a
-        | SubNone => LowerFopn Ox86_SUB a b
-        end
-      | Omul Op_w => LowerFopn Ox86_IMUL64 a b
-      | Oland => LowerFopn Ox86_AND a b
-      | Olor => LowerFopn Ox86_OR a b
-      | Olxor => LowerFopn Ox86_XOR a b
-      | Olsr => LowerFopn Ox86_SHR a b
-      | Olsl => LowerFopn Ox86_SHL a b
-      | Oasr => LowerFopn Ox86_SAR a b
-      | Oeq (Cmp_sw | Cmp_uw) => LowerEq a b
-      | Olt Cmp_uw => LowerLt a b
-      | _ => LowerAssgn
+  | Papp2 op a b =>
+    match op with
+    | Oadd Op_w =>
+      match add_inc_dec_classify a b with
+      | AddInc y => LowerInc Ox86_INC y
+      | AddDec y => LowerInc Ox86_DEC y
+      | AddNone => LowerFopn Ox86_ADD a b (* TODO: lea *)
       end
-
-    | Pif e e1 e2 => 
-      if (stype_of_lval x == sword) then
-        LowerIf e e1 e2
-      else
-        LowerAssgn
+    | Osub Op_w =>
+      match sub_inc_dec_classify b with
+      | SubInc => LowerInc Ox86_INC a
+      | SubDec => LowerInc Ox86_DEC a
+      | SubNone => LowerFopn Ox86_SUB a b
+      end
+    | Omul Op_w => LowerFopn Ox86_IMUL64 a b
+    | Oland => LowerFopn Ox86_AND a b
+    | Olor => LowerFopn Ox86_OR a b
+    | Olxor => LowerFopn Ox86_XOR a b
+    | Olsr => LowerFopn Ox86_SHR a b
+    | Olsl => LowerFopn Ox86_SHL a b
+    | Oasr => LowerFopn Ox86_SAR a b
+    | Oeq (Cmp_sw | Cmp_uw) => LowerEq a b
+    | Olt Cmp_uw => LowerLt a b
     | _ => LowerAssgn
     end
-  else
-    LowerAssgn.
+
+  | Pif e e1 e2 => 
+    if (stype_of_lval x == sword) then
+      LowerIf e e1 e2
+    else
+      LowerAssgn
+  | _ => LowerAssgn
+  end.
 
 Definition lower_cassgn (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
   let vi := var_info_of_lval x in
