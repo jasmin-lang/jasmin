@@ -1,0 +1,32 @@
+export
+fn f(reg u64 x, reg u64 y) -> reg u64 {
+reg u64[2] r;
+reg u64 q;
+reg u64 t;
+reg u64[2] i;
+i[0] = x;
+i[1] = y;
+r[0], r[1] = i[0] * i[1];
+q = r[0] + r[1];
+t = q;
+return t;
+}
+
+export
+fn g(reg u64 x) -> reg u64 {
+reg u64 r;
+r = x;
+r *= 38;
+return r;
+}
+
+export
+fn h(reg u64 x) -> reg u64 {
+reg u64 y;
+reg u64 hi;
+reg u64 lo;
+x = y;
+hi, lo = y * 38;
+lo += hi;
+return lo;
+}
