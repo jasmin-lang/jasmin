@@ -1,7 +1,10 @@
-	.globl	_F1
-_F1:
+.text
+.p2align 5
+.globl _crypto_scalarmult_curve25519_amd64_64_ladderstep
+.globl crypto_scalarmult_curve25519_amd64_64_ladderstep
+_crypto_scalarmult_curve25519_amd64_64_ladderstep:
+crypto_scalarmult_curve25519_amd64_64_ladderstep:
 	pushq	%rbp
-	movq	%rsp, %rbp
 	pushq	%rsi
 	pushq	%rbx
 	pushq	%r12
@@ -1304,11 +1307,12 @@ _F1:
 	movq	%r12, 72(%rdi)
 	movq	%r14, 80(%rdi)
 	movq	%r15, 88(%rdi)
-	popq	%rsi
-	popq	%rbx
-	popq	%r12
-	popq	%r13
-	popq	%r14
+	addq	$224, %rsp
 	popq	%r15
-	leave
+	popq	%r14
+	popq	%r13
+	popq	%r12
+	popq	%rbx
+	popq	%rsi
+  popq  %rbp
 	ret 

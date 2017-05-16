@@ -1,7 +1,10 @@
-	.globl	_F1
-_F1:
+.text
+.p2align 5
+.globl _crypto_scalarmult_curve25519_amd64_64_fe25519_mul
+.globl crypto_scalarmult_curve25519_amd64_64_fe25519_mul
+_crypto_scalarmult_curve25519_amd64_64_fe25519_mul:
+crypto_scalarmult_curve25519_amd64_64_fe25519_mul:
 	pushq	%rbp
-	movq	%rsp, %rbp
 	pushq	%rsi
 	pushq	%rbx
 	pushq	%r12
@@ -151,11 +154,11 @@ _F1:
 	movq	%r13, 16(%rdi)
 	movq	%r14, 24(%rdi)
 	movq	%rbx, (%rdi)
-	popq	%rsi
+  popq %r15
+  popq %r14
+  popq %r13
+  popq %r12
 	popq	%rbx
-	popq	%r12
-	popq	%r13
-	popq	%r14
-	popq	%r15
-	leave
+	popq	%rsi
+	popq	%rbp
 	ret 
