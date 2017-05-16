@@ -1,6 +1,7 @@
 export
 fn add1(reg u64 arg) -> reg u64 {
 reg u64 z;
-z = arg + 1;
+z  = arg;
+z += 1;
 return z;
 }
