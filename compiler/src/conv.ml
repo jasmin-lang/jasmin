@@ -108,8 +108,8 @@ let empty_tbl info = {
 let gen_cvar_of_var with_uid tbl v =
   try Hv.find tbl.cvar v
   with Not_found ->
-    let s = 
-      if with_uid then 
+    let s =
+      if with_uid then
         v.v_name ^ "." ^ (string_of_int (int_of_uid v.v_id))
       else v.v_name in
     let cv = {
@@ -398,7 +398,7 @@ let set_iinfo tbl loc ii =
 
 let get_iinfo tbl n =
   try Hashtbl.find tbl.iinfo (int_of_pos n)
-  with Not_found -> 
+  with Not_found ->
     Format.eprintf "WARNING: CAN NOT FIND IINFO %i@." (int_of_pos n);
     L._dummy, tbl.dft_info
 
@@ -517,7 +517,7 @@ let fdef_of_cfdef tbl (fn, fd) =
 let cprog_of_prog info p =
   let tbl = empty_tbl info in
   (* First add registers *)
-  List.iter 
+  List.iter
     (fun x -> ignore (cvar_of_reg tbl x))
     Regalloc.X64.all_registers;
   Format.eprintf "Register string@.";
@@ -526,7 +526,7 @@ let cprog_of_prog info p =
       Format.eprintf "%s " (string_of_string0 cv.Var.vname))
     Regalloc.X64.all_registers;
   Format.eprintf "@.";
-    
+
   tbl, List.map (cfdef_of_fdef tbl) p
 
 let prog_of_cprog tbl p =
