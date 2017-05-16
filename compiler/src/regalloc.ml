@@ -187,6 +187,11 @@ let allocate_one (x: int) (r: var) (a: allocation) : allocation =
   | _ -> raise AlreadyAllocated
   | exception Not_found -> IntMap.add x r a
 
+let conflicting_registers (i: int) (cnf: conflicts) (a: allocation) : var option list =
+  get_conflicts i cnf |>
+  IntSet.elements |>
+  List.map (fun k -> try Some (IntMap.find k a) with Not_found -> None)
+
 module X64 =
 struct
 
@@ -240,67 +245,77 @@ struct
 
   let all_registers = reserved @ allocatable @ flags
 
-  let forced_registers (vars: (var, int) Hashtbl.t)
+  let forced_registers (vars: (var, int) Hashtbl.t) (cnf: conflicts)
       (lvs: 'ty glvals) (op: op) (es: 'ty gexprs)
       (a: allocation) : allocation =
     let f x = Hashtbl.find vars (L.unloc x) in
+    let allocate_one x y a =
+      let i = f x in
+      let c = conflicting_registers i cnf a in
+      if List.mem (Some y) c
+      then (
+        let pv = Printer.pp_var ~debug:true in
+        hierror "Register allocation: variable %a must be allocated to conflicting register %a" pv (L.unloc x) pv y
+      );
+      allocate_one i y a
+    in
     let mallocate_one x y a =
-      match x with Pvar x -> allocate_one (f x) y a | _ -> a
+      match x with Pvar x -> allocate_one x y a | _ -> a
     in
     match op, lvs, es with
     | (Ox86_ADD | Ox86_SUB | Ox86_AND | Ox86_OR | Ox86_XOR | Ox86_CMP
       | Ox86_SHL | Ox86_SHR | Ox86_SAR),
       Lvar oF :: Lvar cF :: Lvar sF :: Lvar pF :: Lvar zF :: _, _ ->
       a |>
-      allocate_one (f oF) f_o |>
-      allocate_one (f cF) f_c |>
-      allocate_one (f sF) f_s |>
-      allocate_one (f pF) f_p |>
-      allocate_one (f zF) f_z
+      allocate_one oF f_o |>
+      allocate_one cF f_c |>
+      allocate_one sF f_s |>
+      allocate_one pF f_p |>
+      allocate_one zF f_z
     | (Ox86_ADC | Ox86_SBB),
       [ Lvar oF ; Lvar cF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], [ _ ; _ ; cF' ] ->
       a |>
       mallocate_one cF' f_c |>
-      allocate_one (f oF) f_o |>
-      allocate_one (f cF) f_c |>
-      allocate_one (f sF) f_s |>
-      allocate_one (f pF) f_p |>
-      allocate_one (f zF) f_z
+      allocate_one oF f_o |>
+      allocate_one cF f_c |>
+      allocate_one sF f_s |>
+      allocate_one pF f_p |>
+      allocate_one zF f_z
     | (Ox86_INC | Ox86_DEC),
       [ Lvar oF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], _ ->
       a |>
-      allocate_one (f oF) f_o |>
-      allocate_one (f sF) f_s |>
-      allocate_one (f pF) f_p |>
-      allocate_one (f zF) f_z
+      allocate_one oF f_o |>
+      allocate_one sF f_s |>
+      allocate_one pF f_p |>
+      allocate_one zF f_z
     | (Oaddcarry | Osubcarry), Lvar cf  :: _, _ :: _ :: x :: _ ->
       a |>
       mallocate_one x f_c |>
-      allocate_one (f cf) f_c
+      allocate_one cf f_c
     | Ox86_MUL,
       [ Lvar oF ; Lvar cF ; Lvar sF ; Lvar pF ; Lvar zF ; Lvar hi ; Lvar lo ], x :: _ ->
       a |>
       mallocate_one x rax |>
-      allocate_one (f oF) f_o |>
-      allocate_one (f cF) f_c |>
-      allocate_one (f sF) f_s |>
-      allocate_one (f pF) f_p |>
-      allocate_one (f zF) f_z |>
-      allocate_one (f hi) rdx |>
-      allocate_one (f lo) rax
+      allocate_one oF f_o |>
+      allocate_one cF f_c |>
+      allocate_one sF f_s |>
+      allocate_one pF f_p |>
+      allocate_one zF f_z |>
+      allocate_one hi rdx |>
+      allocate_one lo rax
     | Ox86_IMUL64,
       [ Lvar oF ; Lvar cF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], _ ->
       a |>
-      allocate_one (f oF) f_o |>
-      allocate_one (f cF) f_c |>
-      allocate_one (f sF) f_s |>
-      allocate_one (f pF) f_p |>
-      allocate_one (f zF) f_z
+      allocate_one oF f_o |>
+      allocate_one cF f_c |>
+      allocate_one sF f_s |>
+      allocate_one pF f_p |>
+      allocate_one zF f_z
     | _, _, _ -> a (* TODO *)
 
 end
 
-let allocate_forced_registers (vars: (var, int) Hashtbl.t)
+let allocate_forced_registers (vars: (var, int) Hashtbl.t) (cnf: conflicts)
     (f: 'info func) (a: allocation) : allocation =
   let alloc_from_list rs q a vs =
     let f x = Hashtbl.find vars (q x) in
@@ -323,7 +338,7 @@ let allocate_forced_registers (vars: (var, int) Hashtbl.t)
     | Cblock s
     | Cfor (_, _, s)
       -> alloc_stmt a s
-    | Copn (lvs, op, es) -> X64.forced_registers vars lvs op es a
+    | Copn (lvs, op, es) -> X64.forced_registers vars cnf lvs op es a
     | Cwhile (s1, _, s2)
     | Cif (_, s1, s2)
         -> alloc_stmt (alloc_stmt a s1) s2
@@ -347,11 +362,7 @@ let greedy_allocation
   let a = ref a in
   for i = 0 to nv - 1 do
     if not (IntMap.mem i !a) then (
-      let c =
-        get_conflicts i cnf |>
-        IntSet.elements |>
-        List.map (fun k -> try Some (IntMap.find k !a) with Not_found -> None)
-      in
+      let c = conflicting_registers i cnf !a in
       let has_no_conflict v = not (List.mem (Some v) c) in
       match List.filter has_no_conflict X64.allocatable with
       | x :: _ -> a := IntMap.add i x !a
@@ -379,7 +390,7 @@ let regalloc (f: 'info func) : 'info func =
   let vars = normalize_variables vars eqc in
   let conflicts = collect_conflicts vars lf in
   let a =
-    allocate_forced_registers vars f IntMap.empty |>
+    allocate_forced_registers vars conflicts f IntMap.empty |>
     greedy_allocation vars nv conflicts |>
     subst_of_allocation vars
   in Subst.gsubst_func (fun ty -> ty) a f
