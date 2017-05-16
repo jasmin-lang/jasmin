@@ -210,12 +210,12 @@ let main () =
     let lowering_vars = Lowering.(
         let f ty n = Conv.fresh_cvar tbl n ty in
         let b = f tbool in
-        { fresh_OF = b "OF"
-        ; fresh_CF = b "CF"
-        ; fresh_SF = b "SF"
-        ; fresh_PF = b "PF"
-        ; fresh_ZF = b "ZF"
-        ; fresh_multiplicand = f u64 "multiplicand"
+        { fresh_OF = (b "OF").vname
+        ; fresh_CF = (b "CF").vname
+        ; fresh_SF = (b "SF").vname
+        ; fresh_PF = (b "PF").vname
+        ; fresh_ZF = (b "ZF").vname
+        ; fresh_multiplicand = (f u64 "multiplicand").vname
         }) in
 
     let fdef_of_cfdef fn cfd = Conv.fdef_of_cfdef tbl (fn,cfd) in

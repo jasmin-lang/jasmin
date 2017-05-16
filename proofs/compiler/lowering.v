@@ -31,13 +31,13 @@ Section LOWERING.
 
 Record fresh_vars : Type :=
   {
-    fresh_OF : ident;
-    fresh_CF : ident;
-    fresh_SF : ident;
-    fresh_PF : ident;
-    fresh_ZF : ident;
+    fresh_OF : Equality.sort Ident.ident;
+    fresh_CF : Equality.sort Ident.ident;
+    fresh_SF : Equality.sort Ident.ident;
+    fresh_PF : Equality.sort Ident.ident;
+    fresh_ZF : Equality.sort Ident.ident;
 
-    fresh_multiplicand : ident;
+    fresh_multiplicand : Equality.sort Ident.ident;
   }.
 
 Context (fv: fresh_vars).
