@@ -119,14 +119,26 @@ let pp_scale (scale : X86_sem.scale) =
 (* -------------------------------------------------------------------- *)
 let pp_address (ws : rsize) (addr : X86_sem.address) =
   let disp = Conv.bi_of_int64 addr.ad_disp in
-  let disp = if disp =^ Bigint.zero then None else Some disp in
-  let disp = omap Bigint.to_string disp in
-  let base = omap (pp_register ws) addr.ad_base in
-  let off  = omap (pp_register ws) addr.ad_offset in
-  let mult = pp_scale addr.ad_scale in
+  let base = addr.ad_base in
+  let off  = addr.ad_offset in
+  let scal = addr.ad_scale in
 
-  Printf.sprintf "%s(%s,%s,%s)"
-    (odfl "" disp) (odfl "" base) (odfl "" off) mult
+  if Option.is_none base && Option.is_none off then
+    Bigint.to_string disp
+  else begin
+    let disp = if disp =^ Bigint.zero then None else Some disp in
+    let disp = odfl "" (omap Bigint.to_string disp) in
+    let base = odfl "" (omap (pp_register ws) base) in
+    let off  = omap (pp_register ws) off in
+
+    match off, scal with
+    | None, _ ->
+        Printf.sprintf "%s(%s)" disp base
+    | Some off, Scale1 ->
+        Printf.sprintf "%s(%s,%s)" disp base off
+    | Some off, _ ->
+        Printf.sprintf "%s(%s,%s,%s)" disp base off (pp_scale scal)
+  end
 
 (* -------------------------------------------------------------------- *)
 let pp_imm (imm : Bigint.zint) =
