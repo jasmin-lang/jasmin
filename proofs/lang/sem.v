@@ -731,7 +731,14 @@ Definition sem_sopn (o:sopn) :  values -> exec values :=
 
   (* Low level x86 operations *)
   | Ox86_MOV	 => app_w    x86_MOV
-  | Ox86_CMOVcc  => app_bww  x86_CMOVcc
+  | Ox86_CMOVcc  => (fun v => match v with
+    | [:: v1; v2; v3] =>
+      Let b := to_bool v1 in
+      if b then
+        Let w2 := to_word v2 in ok [:: Vword w2]
+      else
+        Let w3 := to_word v3 in ok [:: Vword w3]
+    | _ => type_error end)
   | Ox86_ADD     => app_ww   x86_add
   | Ox86_SUB     => app_ww   x86_sub
   | Ox86_MUL     => app_ww   x86_mul
@@ -1638,7 +1645,26 @@ Lemma vuincl_sem_opn o vs vs' v :
   List.Forall2 value_uincl vs vs' -> sem_sopn o vs = ok v ->
   exists v', sem_sopn o vs' = ok v' /\ List.Forall2  value_uincl v v'.
 Proof.
-  by rewrite /sem_sopn;case: o => //;try apply vuincl_sopn.
+  rewrite /sem_sopn;case: o => //;try apply vuincl_sopn=> //.
+  move: vs=> [] // vs1 [] // vs2 [] // vs3 [] //.
+  move: vs'=> [|vs'1].
+  + move=> Hu; sinversion Hu.
+  move=> [|vs'2].
+  + move=> Hu; sinversion Hu; sinversion H4.
+  move=> [|vs'3].
+  + move=> Hu; sinversion Hu; sinversion H4; sinversion H6.
+  move=> [//|].
+  + move=> H; sinversion H; sinversion H5; sinversion H6.
+    apply: rbindP=> b /(value_uincl_bool H3) [] _ ->.
+    case: (b)=> /=.
+    + apply: rbindP=> v2 /(value_uincl_word H2) [] _ -> []<-.
+      eexists; split=> //.
+      apply: List.Forall2_cons=> //.
+    + apply: rbindP=> v3 /(value_uincl_word H4) [] _ -> []<-.
+      eexists; split=> //.
+      apply: List.Forall2_cons=> //.
+  move=> a l H.
+  sinversion H; sinversion H5; sinversion H6; sinversion H7.
 Qed.
 
 Lemma set_vm_uincl vm vm' x z z' :

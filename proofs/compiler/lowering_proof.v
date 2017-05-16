@@ -398,6 +398,7 @@ Section PROOF.
         suff ->: Vbool (I64.unsigned (I64.sub z1 z2) != (I64.unsigned z1 - I64.unsigned z2)%Z) = v by rewrite Hw'.
         rewrite -Hv' /wult.
         admit. (* I64.sub z1 z2 != (z1 - z2) = (z1 <? z2)%Z *)
+    (* Pif *)
     + rewrite /=.
       case Ht: (_ == _)=> //.
       + set x := lower_condition _ _ _.
@@ -422,7 +423,11 @@ Section PROOF.
           move: Ht=> /eqP Ht.
           have Hvt := write_lval_word Ht Hw'.
           have [w Hvw] := write_lval_undef Hw' Hvt; subst.
-          admit.
+          move: b Hw Hv Hw' Hb Hvt Hvw=> [] Hw Hv Hw' Hb Hvt Hvm.
+          + move: v1 Hv1 Hteq Hw Hv Hw' Hvt Hvm=> [] // v1 Hv1 Hteq Hw Hv Hw' Hvt Hvm.
+            by rewrite /= Hw'.
+          + move: v2 Hv2 Hteq Hw Hv Hw' Hvt Hvm=> [] // v2 Hv2 Hteq Hw Hv Hw' Hvt Hvm.
+            by rewrite /= Hw'.
         by move: b' Hb=> [].
   Admitted.
 
