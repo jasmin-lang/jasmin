@@ -1,0 +1,11 @@
+export
+fn f(reg u64 x) -> reg u64 {
+reg u64 r;
+reg u64 y;
+r = 0;
+y = 1;
+_, y = y * x; // y is forced to RAX
+y = r; // r conflicts with y
+r = x;
+return r; // r is forced to RAX
+}
