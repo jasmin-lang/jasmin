@@ -1,0 +1,9 @@
+export
+fn f(reg u64 x) -> reg u64 {
+reg bool eqf;
+reg u64 r;
+eqf = x == 0;
+r = 0;
+r = 1 if eqf;
+return r;
+}
