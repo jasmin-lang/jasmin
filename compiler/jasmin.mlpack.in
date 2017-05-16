@@ -6,6 +6,7 @@ src/Coq_printer
 src/Lexer
 src/Liveness
 src/Location
+src/Main_compiler
 src/Parseio
 src/Parser
 src/Ppasm
@@ -13,9 +14,9 @@ src/Printer
 src/Prog
 src/Puf
 src/Regalloc
-src/Varalloc
+src/Ssa
 src/Subst
 src/Syntax
 src/Typing
 src/Utils
-src/Main_compiler
+src/Varalloc

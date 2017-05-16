@@ -384,6 +384,7 @@ let subst_of_allocation (vars: (var, int) Hashtbl.t)
 
 let regalloc (f: 'info func) : 'info func =
   let f = fill_in_missing_names f in
+  let f = Ssa.split_live_ranges f in
   let lf = Liveness.live_fd f in
   let vars, nv = collect_variables f in
   let eqc = collect_equality_constraints vars nv f in
@@ -394,3 +395,4 @@ let regalloc (f: 'info func) : 'info func =
     greedy_allocation vars nv conflicts |>
     subst_of_allocation vars
   in Subst.gsubst_func (fun ty -> ty) a f
+   |> Ssa.remove_phi_nodes
