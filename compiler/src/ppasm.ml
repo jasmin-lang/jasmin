@@ -373,16 +373,17 @@ let pp_prog (fmt : Format.formatter) (asm : X86.xprog) =
 
       pp_gens fmt [
         `Label (mangle (string_of_funname n));
-        `Instr ("pushq", ["%rbp"]);
-        `Instr ("movq" , ["%rsp"; "%rbp"])];
+        `Instr ("pushq", ["%rbp"])];
       List.iter (fun r ->
         pp_gens fmt [`Instr ("pushq", [pp_register `U64 r])])
         wregs;
       if not (Bigint.equal stsz Bigint.zero) then
         pp_gens fmt [`Instr ("subq", [pp_imm stsz; "%rsp"])];
       pp_instrs fmt d.X86.xfd_body;
+      if not (Bigint.equal stsz Bigint.zero) then
+        pp_gens fmt [`Instr ("addq", [pp_imm stsz; "%rsp"])];
       List.iter (fun r ->
         pp_gens fmt [`Instr ("popq", [pp_register `U64 r])])
-        wregs;
-      pp_gens fmt [`Instr ("leave", []); `Instr ("ret", [])])
+        (List.rev wregs);
+      pp_gens fmt [`Instr ("popq", ["%rbp"]); `Instr ("ret", [])])
     asm
