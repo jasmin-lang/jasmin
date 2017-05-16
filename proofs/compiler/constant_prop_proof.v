@@ -118,13 +118,6 @@ Proof.
   by case: eqP => [-> // | /= _];rewrite Hv1 //= Z.add_0_r.
 Qed.
 
-Lemma is_wconstP e : is_reflect wconst e (is_wconst e).
-Proof.
-  case e => //=;auto using Is_reflect_none.
-  move=> e1; case: (is_constP e1);auto using Is_reflect_none.
-  move=> z;apply: Is_reflect_some.
-Qed.
-
 Lemma sadd_wP e1 e2 : Papp2 (Oadd Op_w) e1 e2 =E sadd_w e1 e2.
 Proof.
   rewrite /sadd_w; case: (is_wconstP e1) => [n1| {e1} e1];

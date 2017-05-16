@@ -59,14 +59,6 @@ Definition sor e1 e2 :=
   | _, _       => Papp2 Oor e1 e2 
   end.
 
-Definition is_wconst e :=
-  match e with
-  | Pcast e => is_const e
-  | _       => None
-  end.
-
-Definition wconst n:= Pcast (Pconst n).
-
 (* FIXME improve this *)
 Definition snot_w e := Papp1 Olnot e.
 

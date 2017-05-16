@@ -934,6 +934,14 @@ Definition is_bool (e:pexpr) :=
   | _ => None
   end.
 
+Definition wconst n:= Pcast (Pconst n).
+
+Definition is_wconst e :=
+  match e with
+  | Pcast e => is_const e
+  | _       => None
+  end.
+
 Inductive is_reflect (A:Type) (P:A -> pexpr) : pexpr -> option A -> Prop :=
  | Is_reflect_some : forall a, is_reflect P (P a) (Some a)
  | Is_reflect_none : forall e, is_reflect P e None.
@@ -944,6 +952,13 @@ Proof. by case e=> *;constructor. Qed.
 
 Lemma is_constP e : is_reflect Pconst e (is_const e).
 Proof. by case: e=>*;constructor. Qed.
+
+Lemma is_wconstP e : is_reflect wconst e (is_wconst e).
+Proof.
+  case e => //=;auto using Is_reflect_none.
+  move=> e1; case: (is_constP e1);auto using Is_reflect_none.
+  move=> z;apply: Is_reflect_some.
+Qed.
 
 (* --------------------------------------------------------------------- *)
 (* Test the equality of two expressions modulo variable info              *)
