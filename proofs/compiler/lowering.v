@@ -31,13 +31,13 @@ Section LOWERING.
 
 Record fresh_vars : Type :=
   {
-    fresh_OF : var;
-    fresh_CF : var;
-    fresh_SF : var;
-    fresh_PF : var;
-    fresh_ZF : var;
+    fresh_OF : ident;
+    fresh_CF : ident;
+    fresh_SF : ident;
+    fresh_PF : ident;
+    fresh_ZF : ident;
 
-    fresh_multiplicand : var;
+    fresh_multiplicand : ident;
   }.
 
 Context (fv: fresh_vars).
@@ -54,47 +54,72 @@ Definition stype_of_lval (x: lval) : stype :=
   | Lvar v | Lmem v _ | Laset v _ => v.(vtype)
   end.
 
-Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
-  let f := Lnone vi sbool in
-  let fr n := {| v_var := n fv ; v_info := vi |} in
-  match pe with
+Variant lower_cond_t : Type :=
+  | CondVar of var_i
+  | CondNotVar of var_i
+  | CondNeq of var_i & var_i
+  | CondOrNeq of var_i & var_i & var_i
+  | CondOr of var_i & var_i
+  | CondAndNotNeq of var_i & var_i & var_i
+  | CondAndNot of var_i & var_i.
+
+Definition lower_cond_classify vi (e: pexpr) :=
+  let nil := Lnone vi sbool in
+  let fr n := {| v_var := {| vtype := sbool; vname := n fv |} ; v_info := vi |} in
+  let vof := fr fresh_OF in
+  let vcf := fr fresh_CF in
+  let vsf := fr fresh_SF in
+  let vpf := fr fresh_PF in
+  let vzf := fr fresh_ZF in
+  let lof := Lvar vof in
+  let lcf := Lvar vcf in
+  let lsf := Lvar vsf in
+  let lpf := Lvar vpf in
+  let lzf := Lvar vzf in
+  match e with
   | Papp2 op x y =>
     match op with
     | Oeq (Cmp_sw | Cmp_uw) =>
-      ([:: Copn [:: f ; f ; f ; f ; Lvar (fr fresh_ZF) ] Ox86_CMP [:: x ; y ] ], Pvar (fr fresh_ZF))
+      Some ([:: nil ; nil ; nil ; nil ; lzf ], CondVar vzf, x, y)
     | Oneq (Cmp_sw | Cmp_uw) =>
-      ([:: Copn [:: f ; f ; f ; f ; Lvar (fr fresh_ZF) ] Ox86_CMP [:: x ; y ] ], Papp1 Onot (Pvar (fr fresh_ZF)))
+      Some ([:: nil ; nil ; nil ; nil ; lzf ], CondNotVar vzf, x, y)
     | Olt Cmp_sw =>
-      ([:: Copn [:: Lvar (fr fresh_OF) ; f ; Lvar (fr fresh_SF) ; f ; f ] Ox86_CMP [:: x ; y ] ],
-       Pif (Pvar (fr fresh_SF)) (Papp1 Onot (Pvar (fr fresh_OF))) (Pvar (fr fresh_OF)))
+      Some ([:: lof ; nil ; lsf ; nil ; nil ], CondNeq vsf vof, x, y)
     | Olt Cmp_uw =>
-      ([:: Copn [:: f ; Lvar (fr fresh_CF) ; f ; f ; f ] Ox86_CMP [:: x ; y ] ], Pvar (fr fresh_CF))
+      Some ([:: nil ; lcf ; nil ; nil ; nil ], CondVar vcf, x, y)
     | Ole Cmp_sw =>
-      ([:: Copn [:: Lvar (fr fresh_OF) ; f ; Lvar (fr fresh_SF) ; f ; Lvar (fr fresh_ZF) ] Ox86_CMP [:: x ; y ] ],
-       Papp2 Oor (Pvar (fr fresh_ZF))
-             (Pif (Pvar (fr fresh_SF)) (Papp1 Onot (Pvar (fr fresh_OF))) (Pvar (fr fresh_OF))))
+      Some ([:: lof ; nil ; lsf ; nil ; lzf ], CondOrNeq vzf vsf vof, x, y)
     | Ole Cmp_uw =>
-      ([:: Copn [:: f ; Lvar (fr fresh_CF) ; f ; f ; Lvar (fr fresh_ZF) ] Ox86_CMP [:: x ; y ] ],
-       Papp2 Oor (Pvar (fr fresh_CF)) (Pvar (fr fresh_ZF)))
+      Some ([:: nil ; lcf ; nil ; nil ; lzf ], CondOr vcf vzf, x, y)
     | Ogt Cmp_sw =>
-      ([:: Copn [:: Lvar (fr fresh_OF) ; f ; Lvar (fr fresh_SF) ; f ; Lvar (fr fresh_ZF) ] Ox86_CMP [:: x ; y ] ],
-       Papp2 Oand
-             (Papp1 Onot (Pvar (fr fresh_ZF)))
-             (Pif (Pvar (fr fresh_SF)) (Pvar (fr fresh_OF)) (Papp1 Onot (Pvar (fr fresh_OF)))))
+      Some ([:: lof ; nil ; lsf ; nil ; lzf ], CondAndNotNeq vzf vsf vof, x, y)
     | Ogt Cmp_uw =>
-      ([:: Copn [:: f ; Lvar (fr fresh_CF) ; f ; f ; Lvar (fr fresh_ZF) ] Ox86_CMP [:: x ; y ] ],
-       Papp2 Oand
-             (Papp1 Onot (Pvar (fr fresh_CF)))
-             (Papp1 Onot (Pvar (fr fresh_ZF))))
+      Some ([:: nil ; lcf ; nil ; nil ; lzf ], CondAndNot vcf vzf, x, y)
     | Oge Cmp_sw =>
-      ([:: Copn [:: Lvar (fr fresh_OF) ; f ; Lvar (fr fresh_SF) ; f ; f ] Ox86_CMP [:: x ; y ] ],
-             (Pif (Pvar (fr fresh_SF)) (Pvar (fr fresh_OF)) (Papp1 Onot (Pvar (fr fresh_OF)))))
+      Some ([:: lof ; nil ; lsf ; nil ; nil ], CondNeq vsf vof, x, y)
     | Oge Cmp_uw =>
-      ([:: Copn [:: f ; Lvar (fr fresh_CF) ; f ; f ; f ] Ox86_CMP [:: x ; y ] ],
-       Papp1 Onot (Pvar (fr fresh_CF)))
-    | _ => ([::], pe)
+      Some ([:: nil ; lcf ; nil ; nil ; nil ], CondNotVar vcf, x, y)
+    | _ => None
     end
-  | _ => ([::], pe)
+  | _ => None
+  end.
+
+Definition neq_f v1 v2 := Pif (Pvar v1) (Papp1 Onot (Pvar v2)) (Pvar v2).
+
+Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
+  match lower_cond_classify vi pe with
+  | Some (l, r, x, y) =>
+    ([:: Copn l Ox86_CMP [:: x; y] ],
+    match r with
+    | CondVar v => Pvar v
+    | CondNotVar v => Papp1 Onot (Pvar v)
+    | CondNeq v1 v2 => neq_f v1 v2
+    | CondOrNeq v1 v2 v3 => Papp2 Oor v1 (neq_f v2 v3)
+    | CondOr v1 v2 => Papp2 Oor v1 v2
+    | CondAndNotNeq v1 v2 v3 => Papp2 Oand (Papp1 Onot v1) (neq_f v2 v3)
+    | CondAndNot v1 v2 => Papp2 Oand (Papp1 Onot (Pvar v1)) (Papp1 Onot (Pvar v2))
+    end)
+  | None => ([::], pe)
   end.
 
 (* Lowering of Cassgn
@@ -205,17 +230,22 @@ Definition lower_cassgn (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
 
 Definition Lnone_b vi := Lnone vi sbool.
 
-Definition lower_addcarry (sub: bool) (xs: lvals) (es: pexprs) : seq instr_r :=
+Definition lower_addcarry_classify (sub: bool) (xs: lvals) (es: pexprs) :=
   match xs, es with
   | [:: cf ; r ], [:: x ; y ; Pbool false ] =>
     let vi := var_info_of_lval r in
-    [:: Copn [:: Lnone_b vi; cf ; Lnone_b vi ; Lnone_b vi ; Lnone_b vi ; r ]
-        (if sub then Ox86_SUB else Ox86_ADD) [:: x ; y ] ]
+    Some (vi, if sub then Ox86_SUB else Ox86_ADD, [:: x ; y ], cf, r)
   | [:: cf ; r ], [:: _ ; _ ; Pvar cfi ] =>
     let vi := v_info cfi in
-    [:: Copn [:: Lnone_b vi ; cf ; Lnone_b vi ; Lnone_b vi ; Lnone_b vi ; r ]
-        (if sub then Ox86_SBB else Ox86_ADC) es ]
-  | _, _ => [:: Copn xs (if sub then Osubcarry else Oaddcarry) es ]
+    Some (vi, (if sub then Ox86_SBB else Ox86_ADC), es, cf, r)
+  | _, _ => None
+  end.
+
+Definition lower_addcarry (sub: bool) (xs: lvals) (es: pexprs) : seq instr_r :=
+  match lower_addcarry_classify sub xs es with
+  | Some (vi, o, es, cf, r) =>
+    [:: Copn [:: Lnone_b vi; cf ; Lnone_b vi ; Lnone_b vi ; Lnone_b vi ; r ] o es ]
+  | None => [:: Copn xs (if sub then Osubcarry else Oaddcarry) es ]
   end.
 
 Definition lower_mulu (xs: lvals) (es: pexprs) : seq instr_r :=
@@ -225,12 +255,12 @@ Definition lower_mulu (xs: lvals) (es: pexprs) : seq instr_r :=
     let f := Lnone_b vi in
     match is_wconst x with
     | Some _ =>
-      let c := {| v_var := fresh_multiplicand fv ; v_info := vi |} in
+      let c := {| v_var := {| vtype := sword; vname := fresh_multiplicand fv |} ; v_info := vi |} in
       [:: Copn [:: Lvar c ] Ox86_MOV [:: x ] ; Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] Ox86_MUL [:: y ; Pvar c ] ]
     | None =>
     match is_wconst y with
     | Some _ =>
-      let c := {| v_var := fresh_multiplicand fv ; v_info := vi |} in
+      let c := {| v_var := {| vtype := sword; vname := fresh_multiplicand fv |} ; v_info := vi |} in
       [:: Copn [:: Lvar c ] Ox86_MOV [:: y ] ; Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] Ox86_MUL [:: x ; Pvar c ] ]
     | None => [:: Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] Ox86_MUL es ]
     end end
