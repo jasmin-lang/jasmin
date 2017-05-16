@@ -127,7 +127,7 @@ Definition lower_cassgn  (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
   let f := Lnone vi sbool in
   let copn o a := [:: Copn [:: x ] o [:: a] ] in
   let fopn o a b := [:: Copn [:: f ; f ; f ; f ; f ; x ] o [:: a ; b ] ] in
-  let mul o a b := [:: Copn [:: f ; f ; f ; f ; f ; Lnone vi sword (* hi *) ; x ] o [:: a ; b ] ] in
+  let mul o a b := [:: Copn [:: f ; f ; f ; f ; f ; x ] o [:: a ; b ] ] in
   let inc o a := [:: Copn [:: f ; f ; f ; f ; x ] o [:: a ] ] in
   match e with
   | Pcast (Pconst _)
@@ -152,7 +152,7 @@ Definition lower_cassgn  (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
       | SubDec => inc Ox86_DEC a
       | SubNone => fopn Ox86_SUB a b
       end
-    | Omul Op_w => mul Ox86_MUL a b
+    | Omul Op_w => mul Ox86_IMUL64 a b
     | Oland => fopn Ox86_AND a b
     | Olor => fopn Ox86_OR a b
     | Olxor => fopn Ox86_XOR a b
