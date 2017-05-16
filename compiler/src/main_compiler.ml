@@ -208,12 +208,14 @@ let main () =
     if !debug then Printf.eprintf "translated to coq \n%!";
 
     let lowering_vars = Lowering.(
-        let b n = Conv.fresh_cvar tbl n (Bty Bool) in
+        let f ty n = Conv.fresh_cvar tbl n ty in
+        let b = f tbool in
         { fresh_OF = b "OF"
         ; fresh_CF = b "CF"
         ; fresh_SF = b "SF"
         ; fresh_PF = b "PF"
         ; fresh_ZF = b "ZF"
+        ; fresh_multiplicand = f u64 "multiplicand"
         }) in
 
     let fdef_of_cfdef fn cfd = Conv.fdef_of_cfdef tbl (fn,cfd) in

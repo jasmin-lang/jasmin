@@ -36,6 +36,8 @@ Record fresh_vars : Type :=
     fresh_SF : var;
     fresh_PF : var;
     fresh_ZF : var;
+
+    fresh_multiplicand : var;
   }.
 
 Context (fv: fresh_vars).
@@ -199,7 +201,17 @@ Definition lower_mulu (xs: lvals) (es: pexprs) : seq instr_r :=
   | [:: r1; r2 ], [:: x ; y ] =>
     let vi := var_info_of_lval r2 in
     let f := Lnone_b vi in
-    [:: Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] Ox86_MUL es ]
+    match is_wconst x with
+    | Some _ =>
+      let c := {| v_var := fresh_multiplicand fv ; v_info := vi |} in
+      [:: Copn [:: Lvar c ] Ox86_MOV [:: x ] ; Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] Ox86_MUL [:: y ; Pvar c ] ]
+    | None =>
+    match is_wconst y with
+    | Some _ =>
+      let c := {| v_var := fresh_multiplicand fv ; v_info := vi |} in
+      [:: Copn [:: Lvar c ] Ox86_MOV [:: y ] ; Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] Ox86_MUL [:: x ; Pvar c ] ]
+    | None => [:: Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] Ox86_MUL es ]
+    end end
   | _, _ => [:: Copn xs Omulu es ]
   end.
 
