@@ -334,11 +334,16 @@ Definition assemble_fopn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
     | _, _ => cierror ii (Cerr_assembler ("wrong arguments / outputs for operator " ++ string_of_sopn o)) end
   | Ox86_IMUL64 =>
     match e, l with
-    | [:: e1; e2], [:: hi ] =>
+    | [:: e1; e2], [:: x ] =>
       (* TODO: check constraints *)
+      Let d := oprd_of_lval ii x in
       Let o1 := oprd_of_pexpr ii e1 in
+      match is_wconst e2 with
+      | Some c => ok (IMUL64_imm d o1 (I64.repr c))
+      | None =>
       Let o2 := oprd_of_pexpr ii e2 in
       ok (IMUL64 o1 o2)
+      end
     | _, _ => cierror ii (Cerr_assembler ("wrong arguments / outputs for operator " ++ string_of_sopn o)) end
   | _ => cierror ii (Cerr_assembler ("TODO: assemble operator " ++ string_of_sopn o))
   end.

@@ -15,8 +15,7 @@ return t;
 export
 fn g(reg u64 x) -> reg u64 {
 reg u64 r;
-r = x;
-r *= 38;
+r = x * 38;
 return r;
 }
 
