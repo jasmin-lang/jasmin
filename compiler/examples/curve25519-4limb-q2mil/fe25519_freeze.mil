@@ -1,0 +1,53 @@
+export fn crypto_scalarmult_curve25519_amd64_64_fe25519_freeze(reg u64 rp){
+	 reg bool cf;
+	 reg u64 r0;
+	 reg u64 r1;
+	 reg u64 r2;
+	 reg u64 r3;
+	 reg u64 t0;
+	 reg u64 t1;
+	 reg u64 t2;
+	 reg u64 t3;
+	 reg u64 two63;
+
+	r0 = [rp + 0*8];
+	r1 = [rp + 1*8];
+	r2 = [rp + 2*8];
+	r3 = [rp + 3*8];
+
+	t0 = r0;
+	t1 = r1;
+	t2 = r2;
+	t3 = r3;
+
+	two63 = 1;
+	two63 <<= 63;
+
+	cf, t0 += 19;
+	cf, t1 += 0 + cf;
+	cf, t2 += 0 + cf;
+	cf, t3 += two63 + cf;
+	r0 = t0 if cf;
+	r1 = t1 if cf;
+	r2 = t2 if cf;
+	r3 = t3 if cf;
+	t0 = r0;
+	t1 = r1;
+	t2 = r2;
+	t3 = r3;
+	cf, t0 += 19;
+	cf, t1 += 0 + cf;
+	cf, t2 += 0 + cf;
+	cf, t3 += two63 + cf;
+	r0 = t0 if cf;
+	r1 = t1 if cf;
+	r2 = t2 if cf;
+	r3 = t3 if cf;
+	[rp + 0*8] = r0;
+	[rp + 1*8] = r1;
+	[rp + 2*8] = r2;
+	[rp + 3*8] = r3;
+	return;
+}
+
+
