@@ -10,19 +10,19 @@ val remove_params : 'info pprog -> 'info prog
 val clone_func : 'info func -> 'info func
 
 (* ---------------------------------------------------------------- *)
-(* Perform a substitution of variable by variable                   *) 
+(* Perform a substitution of variable by variable                   *)
 
-type vsubst = var Mv.t 
+type vsubst = var Mv.t
 
-val vsubst_v : vsubst -> var -> var 
+val vsubst_v : vsubst -> var -> var
 
-val vsubst_vi : vsubst -> var_i -> var_i 
-  
-val vsubst_e  : vsubst -> expr  -> expr 
-val vsubst_es : vsubst -> exprs -> exprs 
+val vsubst_vi : vsubst -> var_i -> var_i
 
-val vsubst_lval  : vsubst -> lval  -> lval 
-val vsubst_lvals : vsubst -> lvals -> lvals 
+val vsubst_e  : vsubst -> expr  -> expr
+val vsubst_es : vsubst -> exprs -> exprs
+
+val vsubst_lval  : vsubst -> lval  -> lval
+val vsubst_lvals : vsubst -> lvals -> lvals
 
 val vsubst_i : vsubst -> 'info instr -> 'info instr
 val vsubst_c : vsubst -> 'info stmt  -> 'info stmt
