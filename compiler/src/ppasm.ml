@@ -37,8 +37,8 @@ let string_of_label (p : Linear.label) =
   Printf.sprintf "L%d" (Conv.int_of_pos p)
 
 (* -------------------------------------------------------------------- *)
-let string_of_funname (p : Expr.funname) =
-  Printf.sprintf "F%d" (Conv.int_of_pos p)
+let string_of_funname tbl (p : Expr.funname) : string =
+  (Conv.fun_of_cfun tbl p).fn_name
 
 (* -------------------------------------------------------------------- *)
 type lreg =
@@ -360,9 +360,11 @@ let x86_64_callee_save = [
   X86_sem.R15;
 ]
 
-let pp_prog (fmt : Format.formatter) (asm : X86.xprog) =
+let pp_prog (tbl: 'info Conv.coq_tbl) (fmt : Format.formatter) (asm : X86.xprog) =
+  pp_gens fmt [`Instr (".text", []); `Instr (".p2align", ["5"])];
   List.iter (fun (n, _) -> pp_gens fmt
-    [`Instr (".globl", [mangle (string_of_funname n)])])
+    [`Instr (".globl", [mangle (string_of_funname tbl n)]);
+     `Instr (".globl", [string_of_funname tbl n])])
     asm;
 
   List.iter (fun (n, d) ->
@@ -372,7 +374,8 @@ let pp_prog (fmt : Format.formatter) (asm : X86.xprog) =
       let wregs = List.filter (fun x -> Set.mem x wregs) x86_64_callee_save in
 
       pp_gens fmt [
-        `Label (mangle (string_of_funname n));
+        `Label (mangle (string_of_funname tbl n));
+        `Label (string_of_funname tbl n);
         `Instr ("pushq", ["%rbp"])];
       List.iter (fun r ->
         pp_gens fmt [`Instr ("pushq", [pp_register `U64 r])])

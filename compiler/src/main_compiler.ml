@@ -280,10 +280,10 @@ let main () =
       if !outfile <> "" then begin
         BatFile.with_file_out !outfile (fun out ->
           let fmt = BatFormat.formatter_of_out_channel out in
-          Format.fprintf fmt "%a%!" Ppasm.pp_prog asm);
+          Format.fprintf fmt "%a%!" (Ppasm.pp_prog tbl) asm);
           if !debug then Format.eprintf "assembly listing written@."
       end else if List.mem Compiler.Assembly !print_list then
-          Format.printf "%a%!" Ppasm.pp_prog asm
+          Format.printf "%a%!" (Ppasm.pp_prog tbl) asm
     end
   with
   | Utils.HiError s ->
