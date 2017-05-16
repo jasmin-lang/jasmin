@@ -262,12 +262,76 @@ Section PROOF.
       admit. (* I64.eq (I64.sub z1 z2) I64.zero = (z1 =? z2)%Z *)
   Admitted.
 
+  Lemma lower_cassgn_classifyP e l s s' v (Hs: sem_pexpr s e = ok v)
+      (Hw: write_lval l v s = ok s'):
+    match lower_cassgn_classify e l with
+    | LowerMov =>
+      exists w, v = Vword w
+    | LowerCopn o a =>
+      Let x := sem_pexprs s [:: a] in sem_sopn o x = ok [:: v]
+    | LowerInc o a =>
+      Let x := sem_pexprs s [:: a] in sem_sopn o x = ok [:: v]
+    | _ => True
+    end.
+  Proof.
+    rewrite /lower_cassgn_classify.
+    case Ht: (_ == _)=> //.
+    move: e Hs=> [z|b|e|x|x e|x e|o e|o e1 e2|e e1 e2] //.
+    + move: e=> [z'|b'|e'|x'|x' e'|x' e'|o' e'|o' e1' e2'|e' e1' e2'] //.
+      by move=> []<-; exists (I64.repr z').
+    + move: x=> [[[] vn] vi] // Hs.
+      have [|w Hw'] := write_lval_undef Hw.
+      exact: type_of_get_var Hs.
+      by exists w.
+    + rewrite /=; apply: on_arr_varP=> n t _ _.
+      by t_xrbindP=> y h _ _ w _ Hvw; exists w.
+    + by rewrite /=; t_xrbindP=> ???????? w ? <-; exists w.
+    + move: o=> [] //=.
+      apply: rbindP=> v1 Hv1 Hv.
+      rewrite /sem_pexprs /= Hv1 /=.
+      rewrite /sem_op1_w /mk_sem_sop1 in Hv.
+      apply: rbindP Hv=> w /= -> []<- //.
+    + move: o=> [| |[]|[]|[]| | | | | | |[]|k|[]|k|k|k] //.
+      admit.
+      admit.
+  Admitted.
+
   Local Lemma Hassgn s1 s2 l tag e :
     Let v := sem_pexpr s1 e in write_lval l v s1 = Ok error s2 ->
     Pi_r s1 (Cassgn l tag e) s2.
   Proof.
     apply: rbindP=> v Hv Hw ii /= s1' Hs1'.
     have Hv' := sem_pexpr_same Hs1' Hv; have [s2' [Hw' Hs2']] := write_lval_same Hs1' Hw.
+    rewrite /= /lower_cassgn.
+    have := lower_cassgn_classifyP Hv' Hw'.
+    case: (lower_cassgn_classify e l).
+    (* LowerMov *)
+    + move=> [vw Hvw].
+      exists s2'; split=> //.
+      apply: sem_seq1; apply: EmkI; apply: Eopn.
+      by rewrite /= /sem_pexprs /= Hv' /= Hvw /= -Hvw Hw'.
+    (* LowerCopn *)
+    + move=> o e' H.
+      exists s2'; split=> //.
+      apply: sem_seq1; apply: EmkI; apply: Eopn.
+      by rewrite H /= Hw'.
+    (* LowerInc *)
+    + move=> o e' H.
+      exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
+      admit.
+    (* LowerFopn *)
+    + admit.
+    (* LowerEq *)
+    + admit.
+    (* LowerLt *)
+    + admit.
+    (* LowerIf *)
+    + admit.
+    + move=> _.
+      exists s2'; split=> //.
+      apply: sem_seq1; apply: EmkI; apply: Eassgn.
+      by rewrite Hv'.
+    (*
     have Ha := assgn_keep tag ii Hw' Hs2' Hv'.
     move: e Hv Hv' Ha=> [z|b|e|x|x e|x e|o e|o e1 e2|e e1 e2] Hv Hv' Ha //.
     (* Pcast *)
@@ -275,8 +339,7 @@ Section PROOF.
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
       move: Hv'=> -[]->; by rewrite Hw'.
     (* Pvar *)
-    + move: x Hv Hv' {Ha}=> [[vt vn] vi] Hv Hv'.
-      move: vt Hv Hv'=> [| |n|] Hv Hv'; try (exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eassgn; by rewrite Hv').
+    + move: x Hv Hv' Ha=> [[[| |n|] vn] vi] Hv Hv' Ha //.
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
       rewrite /= in Hv'.
       rewrite /sem_pexprs /= Hv' /=.
@@ -450,6 +513,7 @@ Section PROOF.
           + move: v2 Hv2 Hteq Hw Hv Hw' Hvt Hvw=> [] // v2 Hv2 Hteq Hw Hv Hw' Hvt Hvm.
             by rewrite /= Hw'.
         by move: b0 Hb=> [].
+    *)
   Admitted.
 
   Local Lemma Hopn s1 s2 o xs es :

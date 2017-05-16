@@ -124,55 +124,80 @@ Definition sub_inc_dec_classify (e: pexpr) :=
   | _ => SubNone
   end.
 
-Definition lower_cassgn  (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
+Variant lower_cassgn_t : Type :=
+  | LowerMov
+  | LowerCopn of sopn & pexpr
+  | LowerInc of sopn & pexpr
+  | LowerFopn of sopn & pexpr & pexpr
+  | LowerEq of pexpr & pexpr
+  | LowerLt of pexpr & pexpr
+  | LowerIf of pexpr & pexpr & pexpr
+  | LowerAssgn.
+
+Definition lower_cassgn_classify e x : lower_cassgn_t :=
+  if (stype_of_lval x == sword) then
+    match e with
+    | Pcast (Pconst _)
+    | Pvar {| v_var := {| vtype := sword |} |}
+    | Pget _ _
+    | Pload _ _
+      => LowerMov
+
+    | Papp1 Olnot a => LowerCopn Ox86_NOT a
+
+    | Papp2 op a b =>
+      match op with
+      | Oadd Op_w =>
+        match add_inc_dec_classify a b with
+        | AddInc y => LowerInc Ox86_INC y
+        | AddDec y => LowerInc Ox86_DEC y
+        | AddNone => LowerFopn Ox86_ADD a b (* TODO: lea *)
+        end
+      | Osub Op_w =>
+        match sub_inc_dec_classify b with
+        | SubInc => LowerInc Ox86_INC a
+        | SubDec => LowerInc Ox86_DEC a
+        | SubNone => LowerFopn Ox86_SUB a b
+        end
+      | Omul Op_w => LowerFopn Ox86_IMUL64 a b
+      | Oland => LowerFopn Ox86_AND a b
+      | Olor => LowerFopn Ox86_OR a b
+      | Olxor => LowerFopn Ox86_XOR a b
+      | Olsr => LowerFopn Ox86_SHR a b
+      | Olsl => LowerFopn Ox86_SHL a b
+      | Oasr => LowerFopn Ox86_SAR a b
+      | Oeq (Cmp_sw | Cmp_uw) => LowerEq a b
+      | Olt Cmp_uw => LowerLt a b
+      | _ => LowerAssgn
+      end
+
+    | Pif e e1 e2 => 
+      if (stype_of_lval x == sword) then
+        LowerIf e e1 e2
+      else
+        LowerAssgn
+    | _ => LowerAssgn
+    end
+  else
+    LowerAssgn.
+
+Definition lower_cassgn (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
   let vi := var_info_of_lval x in
   let f := Lnone vi sbool in
   let copn o a := [:: Copn [:: x ] o [:: a] ] in
   let fopn o a b := [:: Copn [:: f ; f ; f ; f ; f ; x ] o [:: a ; b ] ] in
-  let mul o a b := [:: Copn [:: f ; f ; f ; f ; f ; x ] o [:: a ; b ] ] in
   let inc o a := [:: Copn [:: f ; f ; f ; f ; x ] o [:: a ] ] in
-  match e with
-  | Pcast (Pconst _)
-  | Pvar {| v_var := {| vtype := sword |} |}
-  | Pget _ _
-  | Pload _ _
-    => copn Ox86_MOV e
-
-  | Papp1 Olnot a => copn Ox86_NOT a
-
-  | Papp2 op a b =>
-    match op with
-    | Oadd Op_w =>
-      match add_inc_dec_classify a b with
-      | AddInc y => inc Ox86_INC y
-      | AddDec y => inc Ox86_DEC y
-      | AddNone => fopn Ox86_ADD a b (* TODO: lea *)
-      end
-    | Osub Op_w =>
-      match sub_inc_dec_classify b with
-      | SubInc => inc Ox86_INC a
-      | SubDec => inc Ox86_DEC a
-      | SubNone => fopn Ox86_SUB a b
-      end
-    | Omul Op_w => mul Ox86_IMUL64 a b
-    | Oland => fopn Ox86_AND a b
-    | Olor => fopn Ox86_OR a b
-    | Olxor => fopn Ox86_XOR a b
-    | Olsr => fopn Ox86_SHR a b
-    | Olsl => fopn Ox86_SHL a b
-    | Oasr => fopn Ox86_SAR a b
-    | Oeq (Cmp_sw | Cmp_uw) => [:: Copn [:: f ; f ; f ; f ; x ] Ox86_CMP [:: a ; b ] ]
-    | Olt Cmp_uw => [:: Copn [:: f ; x ; f ; f ; f ] Ox86_CMP [:: a ; b ] ]
-    | _ => [:: Cassgn x tg e ]
-    end
-
-  | Pif e e1 e2 => 
-    if (stype_of_lval x == sword) then
-      let (l, e) := lower_condition vi e in
-      l ++ [:: Copn [:: x] Ox86_CMOVcc [:: e; e1; e2]]
-    else
-      [:: Cassgn x tg (Pif e e1 e2) ]
-  | _ => [:: Cassgn x tg e ]
+  match lower_cassgn_classify e x with
+  | LowerMov => copn Ox86_MOV e
+  | LowerCopn o e => copn o e
+  | LowerInc o e => inc o e
+  | LowerFopn o e1 e2 => fopn o e1 e2
+  | LowerEq a b => [:: Copn [:: f ; f ; f ; f ; x ] Ox86_CMP [:: a ; b ] ]
+  | LowerLt a b => [:: Copn [:: f ; x ; f ; f ; f ] Ox86_CMP [:: a ; b ] ]
+  | LowerIf e e1 e2 =>
+     let (l, e) := lower_condition vi e in
+     l ++ [:: Copn [:: x] Ox86_CMOVcc [:: e; e1; e2]]
+  | LowerAssgn => [:: Cassgn x tg e]
   end.
 
 (* Lowering of Oaddcarry
