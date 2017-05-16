@@ -74,6 +74,7 @@ Variant asm : Type :=
 | MUL    of oprd                   (* mul unsigned *)
 | IMUL   of oprd                   (* mul   signed *)
 | IMUL64	of oprd & oprd	(* mul truncated *)
+| IMUL64_imm of oprd & oprd & word (* mul by immediate, truncated *)
 | DIV    of oprd                   (* div unsigned *)
 | IDIV   of oprd                   (* div   signed *)
 
@@ -471,6 +472,8 @@ Definition eval_IMUL o s : x86_result  :=
 
 Definition eval_IMUL64 o1 o2 s : x86_result  := type_error.
 
+Definition eval_IMUL64_imm o1 o2 (i: word) s : x86_result  := type_error.
+
 (* -------------------------------------------------------------------- *)
 Definition eval_DIV o s : x86_result :=
   let hi := RegMap.get s.(xreg) RDX in
@@ -692,6 +695,7 @@ Definition eval_instr (i : asm) s : x86_result :=
   | MUL    o        => eval_MUL o s
   | IMUL   o        => eval_IMUL o s
   | IMUL64 o1 o2 => eval_IMUL64 o1 o2 s
+  | IMUL64_imm o1 o2 imm => eval_IMUL64_imm o1 o2 imm s
   | DIV    o        => eval_DIV o s
   | IDIV   o        => eval_IDIV o s
   | ADC    o1 o2    => eval_ADC o1 o2 s
