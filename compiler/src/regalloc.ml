@@ -127,8 +127,11 @@ let collect_conflicts (tbl: (var, int) Hashtbl.t) (f: (Sv.t * Sv.t) func) : conf
       c |> add_one_aux i j |> add_one_aux j i
     with Not_found -> c
   in
-  let add (c: conflicts) loc ((i, _): (Sv.t * Sv.t)) : conflicts =
-    conflicts_in i (add_one loc) c in
+  let add (c: conflicts) loc ((i, j): (Sv.t * Sv.t)) : conflicts =
+    c
+    |> conflicts_in i (add_one loc)
+    |> conflicts_in j (add_one loc)
+  in
   let rec collect_instr_r c =
     function
     | Cblock s
