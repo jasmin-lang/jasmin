@@ -54,15 +54,24 @@ Definition stype_of_lval (x: lval) : stype :=
   | Lvar v | Lmem v _ | Laset v _ => v.(vtype)
   end.
 
+Variant lower_cond1 :=
+  | CondVar
+  | CondNotVar.
+
+Variant lower_cond2 :=
+  | CondEq
+  | CondNeq
+  | CondOr
+  | CondAndNot.
+
+Variant lower_cond3 :=
+  | CondOrNeq
+  | CondAndNotEq.
+
 Variant lower_cond_t : Type :=
-  | CondVar of var_i
-  | CondNotVar of var_i
-  | CondEq of var_i & var_i
-  | CondNeq of var_i & var_i
-  | CondOr of var_i & var_i
-  | CondAndNot of var_i & var_i
-  | CondOrNeq of var_i & var_i & var_i
-  | CondAndNotEq of var_i & var_i & var_i.
+  | Cond1 of lower_cond1 & var_i
+  | Cond2 of lower_cond2 & var_i & var_i
+  | Cond3 of lower_cond3 & var_i & var_i & var_i.
 
 Definition lower_cond_classify vi (e: pexpr) :=
   let nil := Lnone vi sbool in
@@ -81,25 +90,25 @@ Definition lower_cond_classify vi (e: pexpr) :=
   | Papp2 op x y =>
     match op with
     | Oeq (Cmp_sw | Cmp_uw) =>
-      Some ([:: nil ; nil ; nil ; nil ; lzf ], CondVar vzf, x, y)
+      Some ([:: nil ; nil ; nil ; nil ; lzf ], Cond1 CondVar vzf, x, y)
     | Oneq (Cmp_sw | Cmp_uw) =>
-      Some ([:: nil ; nil ; nil ; nil ; lzf ], CondNotVar vzf, x, y)
+      Some ([:: nil ; nil ; nil ; nil ; lzf ], Cond1 CondNotVar vzf, x, y)
     | Olt Cmp_sw =>
-      Some ([:: lof ; nil ; lsf ; nil ; nil ], CondNeq vsf vof, x, y)
+      Some ([:: lof ; nil ; lsf ; nil ; nil ], Cond2 CondNeq vsf vof, x, y)
     | Olt Cmp_uw =>
-      Some ([:: nil ; lcf ; nil ; nil ; nil ], CondVar vcf, x, y)
+      Some ([:: nil ; lcf ; nil ; nil ; nil ], Cond1 CondVar vcf, x, y)
     | Ole Cmp_sw =>
-      Some ([:: lof ; nil ; lsf ; nil ; lzf ], CondOrNeq vzf vsf vof, x, y)
+      Some ([:: lof ; nil ; lsf ; nil ; lzf ], Cond3 CondOrNeq vzf vsf vof, x, y)
     | Ole Cmp_uw =>
-      Some ([:: nil ; lcf ; nil ; nil ; lzf ], CondOr vcf vzf, x, y)
+      Some ([:: nil ; lcf ; nil ; nil ; lzf ], Cond2 CondOr vcf vzf, x, y)
     | Ogt Cmp_sw =>
-      Some ([:: lof ; nil ; lsf ; nil ; lzf ], CondAndNotEq vzf vsf vof, x, y)
+      Some ([:: lof ; nil ; lsf ; nil ; lzf ], Cond3 CondAndNotEq vzf vsf vof, x, y)
     | Ogt Cmp_uw =>
-      Some ([:: nil ; lcf ; nil ; nil ; lzf ], CondAndNot vcf vzf, x, y)
+      Some ([:: nil ; lcf ; nil ; nil ; lzf ], Cond2 CondAndNot vcf vzf, x, y)
     | Oge Cmp_sw =>
-      Some ([:: lof ; nil ; lsf ; nil ; nil ], CondEq vsf vof, x, y)
+      Some ([:: lof ; nil ; lsf ; nil ; nil ], Cond2 CondEq vsf vof, x, y)
     | Oge Cmp_uw =>
-      Some ([:: nil ; lcf ; nil ; nil ; nil ], CondNotVar vcf, x, y)
+      Some ([:: nil ; lcf ; nil ; nil ; nil ], Cond1 CondNotVar vcf, x, y)
     | _ => None
     end
   | _ => None
@@ -113,14 +122,14 @@ Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
   | Some (l, r, x, y) =>
     ([:: Copn l Ox86_CMP [:: x; y] ],
     match r with
-    | CondVar v => Pvar v
-    | CondNotVar v => Papp1 Onot (Pvar v)
-    | CondEq v1 v2 => eq_f v1 v2
-    | CondNeq v1 v2 => neq_f v1 v2
-    | CondOr v1 v2 => Papp2 Oor v1 v2
-    | CondAndNot v1 v2 => Papp2 Oand (Papp1 Onot (Pvar v1)) (Papp1 Onot (Pvar v2))
-    | CondOrNeq v1 v2 v3 => Papp2 Oor v1 (neq_f v2 v3)
-    | CondAndNotEq v1 v2 v3 => Papp2 Oand (Papp1 Onot v1) (eq_f v2 v3)
+    | Cond1 CondVar v => Pvar v
+    | Cond1 CondNotVar v => Papp1 Onot (Pvar v)
+    | Cond2 CondEq v1 v2 => eq_f v1 v2
+    | Cond2 CondNeq v1 v2 => neq_f v1 v2
+    | Cond2 CondOr v1 v2 => Papp2 Oor v1 v2
+    | Cond2 CondAndNot v1 v2 => Papp2 Oand (Papp1 Onot (Pvar v1)) (Papp1 Onot (Pvar v2))
+    | Cond3 CondOrNeq v1 v2 v3 => Papp2 Oor v1 (neq_f v2 v3)
+    | Cond3 CondAndNotEq v1 v2 v3 => Papp2 Oand (Papp1 Onot v1) (eq_f v2 v3)
     end)
   | None => ([::], pe)
   end.
