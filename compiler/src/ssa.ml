@@ -50,7 +50,7 @@ let ir (m: names) (x: var) (y: var) : unit instr =
   { i_desc ; i_info = () ; i_loc = L._dummy }
 
 let split_live_ranges (f: 'info func) : unit func =
-  let f = Liveness.live_fd f in
+  let f = Liveness.live_fd false f in
   let rec instr_r (li: Sv.t) (lo: Sv.t) (m: names) =
     function
     | Cblock s -> let m, s = stmt m s in m, Cblock s

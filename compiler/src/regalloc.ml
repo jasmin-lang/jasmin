@@ -385,7 +385,7 @@ let subst_of_allocation (vars: (var, int) Hashtbl.t)
 let regalloc (f: 'info func) : unit func =
   let f = fill_in_missing_names f in
   let f = Ssa.split_live_ranges f in
-  let lf = Liveness.live_fd f in
+  let lf = Liveness.live_fd true f in
   let vars, nv = collect_variables f in
   let eqc = collect_equality_constraints vars nv f in
   let vars = normalize_variables vars eqc in

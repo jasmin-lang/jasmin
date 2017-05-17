@@ -55,10 +55,10 @@ and rm_uninitialized_c init c =
   init', List.rev r
 
 let live_init_fd fd =
-  let fd = live_fd fd in
+  let fd = live_fd false fd in
   let init = Sv.of_list fd.f_args in
   let _, f_body = rm_uninitialized_c init fd.f_body in
-  { fd with f_body } 
+  { fd with f_body }
 
 let alloc_stack_fd fd =
   (* collect all stack variables occuring in fd *)
@@ -113,8 +113,8 @@ and same_c cfm c = List.fold_left same_i cfm c
 let merge_var_inline_fd fd =
 (*  Format.eprintf "merge variables introduced by inlining@."; *)
   (* liveness analysis *)
-  let fd' = live_fd fd in
-  Format.eprintf "liveness done@."; 
+  let fd' = live_fd false fd in
+  Format.eprintf "liveness done@.";
   let pp_info fmt (c1, c2) =
     let pp_set fmt c = 
       Format.fprintf fmt "{%a}" 
