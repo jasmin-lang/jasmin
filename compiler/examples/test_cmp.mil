@@ -1,6 +1,8 @@
 export
 fn f(reg u64 x, reg u64 y) -> reg u64 {
+reg u64 u;
 reg u64 r;
+u = x;
 r = 0;
 if (x < y) { r = 1; }
 if (x <s y) { r = 2; }
@@ -12,5 +14,6 @@ if (x > y) { r = 7; }
 if (x >s y) { r = 8; }
 if (x >= y) { r = 9; }
 if (x >=s y) { r = 0xa; }
-return r;
+u += r;
+return u;
 }

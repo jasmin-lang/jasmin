@@ -3,7 +3,7 @@ export fn test1() -> inline int {
   inline int i;
   inline int j;
 
-  
+
   j = 0;
   for i = 0 to 4 {
     j = j + i;
@@ -17,7 +17,7 @@ export fn test2() -> inline u64 {
   inline int i;
   inline u64 j;
 
-  
+
   j = 0;
   for i = 0 to 4 {
     j = j + i;
@@ -29,10 +29,10 @@ export fn test2() -> inline u64 {
 
 export fn test3() -> reg u64 {
 
-  inline int i;
+  reg u64 i;
   reg u64 j;
 
-  
+
   j = 0;
   i = 0;
   while (j <= 12) {
@@ -42,4 +42,3 @@ export fn test3() -> reg u64 {
 
   return j;
 }
-

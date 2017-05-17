@@ -9,3 +9,15 @@ y = r; // r conflicts with y
 r = x;
 return r; // r is forced to RAX
 }
+
+export
+fn g(reg u64 x) -> reg u64 {
+reg u64 r;
+reg bool cf;
+r = 0;
+while (x < 12) {
+cf, x += 1;
+r = 1 if !cf;
+}
+return r;
+}
