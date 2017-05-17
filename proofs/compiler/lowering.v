@@ -57,11 +57,12 @@ Definition stype_of_lval (x: lval) : stype :=
 Variant lower_cond_t : Type :=
   | CondVar of var_i
   | CondNotVar of var_i
+  | CondEq of var_i & var_i
   | CondNeq of var_i & var_i
-  | CondOrNeq of var_i & var_i & var_i
   | CondOr of var_i & var_i
-  | CondAndNotNeq of var_i & var_i & var_i
-  | CondAndNot of var_i & var_i.
+  | CondAndNot of var_i & var_i
+  | CondOrNeq of var_i & var_i & var_i
+  | CondAndNotEq of var_i & var_i & var_i.
 
 Definition lower_cond_classify vi (e: pexpr) :=
   let nil := Lnone vi sbool in
@@ -92,11 +93,11 @@ Definition lower_cond_classify vi (e: pexpr) :=
     | Ole Cmp_uw =>
       Some ([:: nil ; lcf ; nil ; nil ; lzf ], CondOr vcf vzf, x, y)
     | Ogt Cmp_sw =>
-      Some ([:: lof ; nil ; lsf ; nil ; lzf ], CondAndNotNeq vzf vsf vof, x, y)
+      Some ([:: lof ; nil ; lsf ; nil ; lzf ], CondAndNotEq vzf vsf vof, x, y)
     | Ogt Cmp_uw =>
       Some ([:: nil ; lcf ; nil ; nil ; lzf ], CondAndNot vcf vzf, x, y)
     | Oge Cmp_sw =>
-      Some ([:: lof ; nil ; lsf ; nil ; nil ], CondNeq vsf vof, x, y)
+      Some ([:: lof ; nil ; lsf ; nil ; nil ], CondEq vsf vof, x, y)
     | Oge Cmp_uw =>
       Some ([:: nil ; lcf ; nil ; nil ; nil ], CondNotVar vcf, x, y)
     | _ => None
@@ -104,6 +105,7 @@ Definition lower_cond_classify vi (e: pexpr) :=
   | _ => None
   end.
 
+Definition eq_f  v1 v2 := Pif (Pvar v1) (Pvar v2) (Papp1 Onot (Pvar v2)).
 Definition neq_f v1 v2 := Pif (Pvar v1) (Papp1 Onot (Pvar v2)) (Pvar v2).
 
 Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
@@ -113,11 +115,12 @@ Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
     match r with
     | CondVar v => Pvar v
     | CondNotVar v => Papp1 Onot (Pvar v)
+    | CondEq v1 v2 => eq_f v1 v2
     | CondNeq v1 v2 => neq_f v1 v2
-    | CondOrNeq v1 v2 v3 => Papp2 Oor v1 (neq_f v2 v3)
     | CondOr v1 v2 => Papp2 Oor v1 v2
-    | CondAndNotNeq v1 v2 v3 => Papp2 Oand (Papp1 Onot v1) (neq_f v2 v3)
     | CondAndNot v1 v2 => Papp2 Oand (Papp1 Onot (Pvar v1)) (Papp1 Onot (Pvar v2))
+    | CondOrNeq v1 v2 v3 => Papp2 Oor v1 (neq_f v2 v3)
+    | CondAndNotEq v1 v2 v3 => Papp2 Oand (Papp1 Onot v1) (eq_f v2 v3)
     end)
   | None => ([::], pe)
   end.

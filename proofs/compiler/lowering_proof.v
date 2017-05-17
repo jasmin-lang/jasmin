@@ -298,7 +298,7 @@ Section PROOF.
     case Ht: (lower_cond_classify fv ii e)=> [[[[l r] x] y]|] //.
     move: e Ht=> [] // o e1 e2 Ht He.
     exists e1, e2, o; split=> //.
-    move: r Ht=> [v|v|v1 v2|v1 v2 v3|v1 v2|v1 v2 v3|v1 v2] //.
+    move: r Ht=> [v|v|v1 v2|v1 v2|v1 v2|v1 v2|v1 v2 v3|v1 v2 v3] //.
     + move: o He=> [] // [] // He []????; subst.
       + move: He=> /sem_op2_wb_dec [z1 [z2 [<- ->]]]; exists z1, z2, weq; split=> //; exists fv.(fresh_ZF); repeat split=> //=.
         + suff ->: ZF_of_word (I64.sub z1 z2) = weq z1 z2 by [].
@@ -328,7 +328,7 @@ Section PROOF.
     case Ht: (lower_cond_classify fv ii' e) Hcond=> [[[[l r] x] y]|] Hcond.
     + move=> [e1 [e2 [o [?]]]]; subst e.
       move: Hcond=> [] Hi He'; subst e' i.
-      move: r Ht=> [v|v|v1 v2|v1 v2 v3|v1 v2|v1 v2 v3|v1 v2] Ht.
+      move: r Ht=> [v|v|v1 v2|v1 v2|v1 v2|v1 v2|v1 v2 v3|v1 v2 v3] Ht.
       + move=> [z1 [z2 [f [He1e2 [fvar [Hz [Hw [Hin Hfvar]]]]]]]].
         exists {| emem := emem s1'; evm := (evm s1').[vbool fvar <- ok (f z1 z2)] |}; repeat split=> /=.
         apply: sem_seq1; apply: EmkI; apply: Eopn.
@@ -353,6 +353,7 @@ Section PROOF.
           apply/eqP=> Habs; subst var.
           exact: Hvar.
         + by rewrite /get_var /on_vu -Hfvar Fv.setP_eq -Hz.
+    + admit.
     + admit.
     + admit.
     + admit.
