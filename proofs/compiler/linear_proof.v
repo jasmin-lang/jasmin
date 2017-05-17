@@ -328,6 +328,175 @@ Qed.
 
 Definition LSem_step c s1 s2 : lsem1 c s1 s2 -> lsem c s1 s2 := rt_step _ _ s1 s2.
 
+(* TODO: move *)
+Lemma sem_op1_b_dec v s e f:
+  Let v1 := sem_pexpr s e in sem_op1_b f v1 = ok v ->
+  exists z, Vbool (f z) = v /\ sem_pexpr s e = ok (Vbool z).
+Proof.
+  rewrite /sem_op1_b /mk_sem_sop1.
+  t_xrbindP=> -[] //.
+  + by move=> b -> b1 []<- <-; exists b; split.
+  + by move=> [] //.
+Qed.
+
+Lemma sem_op2_b_dec v s e1 e2 f:
+  Let v1 := sem_pexpr s e1 in (Let v2 := sem_pexpr s e2 in sem_op2_b f v1 v2) = ok v ->
+  exists z1 z2, Vbool (f z1 z2) = v /\ sem_pexpr s e1 = ok (Vbool z1) /\ sem_pexpr s e2 = ok (Vbool z2).
+Proof.
+  t_xrbindP=> v1 Hv1 v2 Hv2; rewrite /sem_op2_b /mk_sem_sop2.
+  t_xrbindP=> z1 Hz1 z2 Hz2 Hv.
+  move: v1 Hv1 Hz1=> [] //; last by move=> [].
+  move=> w1 Hw1 []Hz1; subst w1.
+  move: v2 Hv2 Hz2=> [] //; last by move=> [].
+  move=> w2 Hw2 []Hz1; subst w2.
+  rewrite /sem_pexprs /= Hw1 /= Hw2 /=; eexists; eexists; eauto.
+Qed.
+
+Lemma sem_op1_w_dec v s e f:
+  Let v1 := sem_pexpr s e in sem_op1_w f v1 = ok v ->
+  exists z, Vword (f z) = v /\ sem_pexpr s e = ok (Vword z).
+Proof.
+  t_xrbindP=> v1 Hv1; rewrite /sem_op1_w /mk_sem_sop1.
+  t_xrbindP=> z1 Hz1 Hv.
+  move: v1 Hv1 Hz1=> [] //; last by move=> [].
+  move=> w1 Hw1 []Hz1; subst w1; eauto.
+Qed.
+
+(*
+Lemma snot_spec s e v b:
+  sem_pexpr s e = ok v →
+  to_bool v = ok b →
+  sem_pexpr s (snot e) = sem_pexpr s (Papp1 Onot e).
+Proof.
+  elim: e v b=> [] //.
+  + move=> [] e He //= v b.
+    move=> /sem_op1_b_dec [z [<- ->]] /= []Hz.
+    rewrite /sem_op1_b /mk_sem_sop1 /=.
+    by move: z Hz=> [].
+  + move=> [] //.
+    + move=> e1 He1 e2 He2 v b /sem_op2_b_dec [z1 [z2 [Hz [Hz1 Hz2]]]] Hv.
+      have /= He1' := He1 _ z1 Hz1 (erefl _); rewrite He1' Hz1 /= Hz2 /=.
+      have /= He2' := He2 _ z2 Hz2 (erefl _); rewrite He2' Hz2 /=.
+      rewrite /sem_op2_b /mk_sem_sop2 /sem_op1_b /mk_sem_sop1 /=.
+      by rewrite negb_and.
+    + move=> e1 He1 e2 He2 v b /sem_op2_b_dec [z1 [z2 [Hz [Hz1 Hz2]]]] Hv.
+      have /= He1' := He1 _ z1 Hz1 (erefl _); rewrite He1' Hz1 /= Hz2 /=.
+      have /= He2' := He2 _ z2 Hz2 (erefl _); rewrite He2' Hz2 /=.
+      rewrite /sem_op2_b /mk_sem_sop2 /sem_op1_b /mk_sem_sop1 /=.
+      by rewrite negb_or.
+    + move=> e _ e1 He1 e2 He2 v b /=.
+      t_xrbindP=> c cv Hcv Hc v1 Hv1 v2 Hv2.
+      case Ht: (_ == _)=> // -[]<- Hb.
+      rewrite Hcv /= Hc /=.
+      rewrite Hv1 /= Hv2 /= Ht /=.
+      admit.
+Admitted.
+*)
+
+
+(*
+  elim: e v=> [z|b1|e He|x|x e He|x e He|o e He|o e1 He1 e2 He2|e He e1 He1 e2 He2] //.
+  + move=> [] //.
+  + by move=> [] //= b0 []<- []<-.
+  + move=> [] // ? /=; by t_xrbindP.
+  + move=> [] //.
+    + by move=> b0 /= -> []-> /=.
+    + by move=> [].
+  + by move=> [] // ? /=; apply: on_arr_varP=> ????; t_xrbindP.
+  + by move=> [] // ? /=; t_xrbindP.
+  + move: o=> [] //=.
+    + by move=> v /sem_op1_b_dec [z [<- ->]] []<-; move: z=> [].
+    + by move=> v /sem_op1_w_dec [z [<- _]].
+  + move: o=> [| |[]|[]|[]| | | | | | |[]|k|[]|k|k|k] /=.
+    + admit.
+    + admit.
+    + auto.
+    + rewrite /sem_op2_i /mk_sem_sop2.
+*)
+
+Lemma snot_spec s e v:
+  sem_pexpr s e = ok v ->
+  type_of_val v = sbool ->
+  sem_pexpr s (snot e) = sem_pexpr s (Papp1 Onot e).
+Proof.
+  elim: e v=> //.
+  + move=> [] // e He v /sem_op1_b_dec /= [z [<- ->]] /= _.
+    by move: z=> [].
+  + move=> [] // e1 He1 e2 He2 v /sem_op2_b_dec /= [z1 [z2 [Hz [Hz1 Hz2]]]] _.
+    + rewrite (He1 _ Hz1) // (He2 _ Hz2) //= Hz1 Hz2 /=.
+      rewrite /sem_op2_b /sem_op1_b /mk_sem_sop2 /mk_sem_sop1 /=.
+      by rewrite negb_and.
+    + rewrite (He1 _ Hz1) // (He2 _ Hz2) //= Hz1 Hz2 /=.
+      rewrite /sem_op2_b /sem_op1_b /mk_sem_sop2 /mk_sem_sop1 /=.
+      by rewrite negb_or.
+  + move=> e _ e1 He1 e2 He2 v /=.
+    t_xrbindP=> b bv Hbv Hb b1 Hb1 b2 Hb2.
+    case Ht: (_ == _)=> // -[]<- Hv.
+    rewrite Hbv /= Hb /=.
+    move: Ht=> /eqP Ht.
+    have H1: type_of_val b1 = sbool.
+      by move: b Hb Hv=> [] // _ <-.
+    have H2: type_of_val b2 = sbool.
+      by move: b Hb Hv=> [] // _ <-.
+    move=> {Hv} {Ht}.
+    rewrite (He1 _ Hb1) //= (He2 _ Hb2) // Hb1 /= Hb2 /=.
+    rewrite H1 H2 eq_refl /=.
+    admit.
+Admitted.
+
+(*
+Lemma snot_spec s e v:
+  sem_pexpr s (Papp1 Onot e) = ok v ->
+  sem_pexpr s (snot e) = ok v.
+Proof.
+  elim: e v=> [] //.
+  + move=> [] // e _ v.
+    apply: rbindP=> v1 /sem_op1_b_dec [/= b [<- ->]] <-.
+    by move: b=> [].
+  + move=> [] //.
+    + move=> e1 He1 e2 He2 v /=.
+      apply: rbindP=> v1 /sem_op2_b_dec /= [z1 [z2 [Hz [Hz1 Hz2]]]] Hv.
+      move: He1=> /(_ (~~ z1)) /=; rewrite Hz1 /= /sem_op1_b /mk_sem_sop1 /= => He1.
+      rewrite He1 //=.
+      move: He2=> /(_ (~~ z2)) /=; rewrite Hz2 /= /sem_op1_b /mk_sem_sop1 /= => He2.
+      rewrite He2 //=.
+      rewrite -Hz /sem_op1_b /mk_sem_sop1 /= in Hv.
+      rewrite /sem_op2_b /mk_sem_sop2 /= -Hv; congr ok.
+      by rewrite negb_and.
+    + move=> e1 He1 e2 He2 v /=.
+      apply: rbindP=> v1 /sem_op2_b_dec /= [z1 [z2 [Hz [Hz1 Hz2]]]] Hv.
+      move: He1=> /(_ (~~ z1)) /=; rewrite Hz1 /= /sem_op1_b /mk_sem_sop1 /= => He1.
+      rewrite He1 //=.
+      move: He2=> /(_ (~~ z2)) /=; rewrite Hz2 /= /sem_op1_b /mk_sem_sop1 /= => He2.
+      rewrite He2 //=.
+      rewrite -Hz /sem_op1_b /mk_sem_sop1 /= in Hv.
+      rewrite /sem_op2_b /mk_sem_sop2 /= -Hv; congr ok.
+      by rewrite negb_or.
+    + move=> e _ e1 He1 e2 He2 v /=.
+      t_xrbindP=> out b bv Hbv Hb b1 Hb1 b2 Hb2.
+      case Ht: (_ == _)=> // -[]<- Hv.
+      rewrite Hbv /= Hb /=.
+      move: Ht=> /eqP Ht.
+      have H1: exists bb1, b1 = Vbool bb1.
+        case: b Hb Hv=> ? /=; rewrite /sem_op1_b /mk_sem_sop1; apply: rbindP=> z /= Hz _.
+        + exists z; move: b1 Hb1 Ht Hz=> [] // b _ _ [].
+          + by move=> ->.
+          + by move: b=> [].
+        + admit.
+      have [bb1 Hbb1] := H1.
+      have [bb2 Hbb2] : exists bb2, b2 = Vbool bb2 by admit.
+      move: He1=> /(_ (~~ bb1)) /=.
+      rewrite Hb1 /= /sem_op1_b /mk_sem_sop1 /= Hbb1 /= => He1.
+      rewrite He1 //=.
+      move: He2=> /(_ (~~ bb2)) /=.
+      rewrite Hb2 /= /sem_op1_b /mk_sem_sop1 /= Hbb2 /= => He2.
+      rewrite He2 //=.
+      rewrite /sem_op1_b /mk_sem_sop1 in Hv; move: Hv.
+      apply: rbindP=> /= z Hz []<-.
+      move: b Hz Hb=> []; by rewrite ?Hbb1 ?Hbb2=> -[]<-.
+Admitted.
+*)
+
 Section PROOF.
 
   Variable p:  sprog.
@@ -447,20 +616,22 @@ Section PROOF.
       move=> [m1 vm1] s2 H;inversion H;clear H;subst.
       + apply: lsem_step.
         apply: LSem_condFalse=> //=.
-        move: H5;apply:rbindP => w -> /=.
-        by rewrite /sem_op1_b /= /mk_sem_sop1 /= => ->.
+        apply: rbindP H5=> -[] // w H1 //.
+        + by rewrite (snot_spec H1) //= H1 /= => -[]->.
+        by move: w H1=> [].
         have {Hs1}Hs1:= Hs1 _ _ H6.
         have Hvc : valid lbl (next_lbl lbl) [:: MkLI ii (Lcond (Papp1 Onot e) lbl)].
         + by rewrite /= Pos.leb_refl lt_next.
-        have Hd: disjoint_lbl [:: MkLI ii (Lcond (Papp1 Onot e) lbl)] lc1 by move=> ?.
-        have /(_ (erefl _)):= @lsem_cat_hd [:: MkLI ii (Lcond (Papp1 Onot e) lbl)] lc1 _ _ Hd _ Hs1.
+        have Hd: disjoint_lbl [:: MkLI ii (Lcond (snot e) lbl)] lc1 by move=> ?.
+        have /(_ (erefl _)):= @lsem_cat_hd [:: MkLI ii (Lcond (snot e) lbl)] lc1 _ _ Hd _ Hs1.
         move=> /(@lsem_cat_tl [:: MkLI ii (Llabel lbl)]) Hsem.
         apply (lsem_trans Hsem);case s2 => m2 vm2.
         by apply LSem_step;apply: LSem_lbl.
       + apply: lsem_step.
         apply: LSem_condTrue=> //=.
-        move: H5;apply:rbindP => w -> /=.
-        by rewrite /sem_op1_b /= /mk_sem_sop1 /= => ->.
+        apply: rbindP H5=> -[] // w H1 //.
+        + by rewrite (snot_spec H1) //= H1 /= => -[]->.
+        by move: w H1=> [].
         rewrite find_label_cat_hd //=.
         by rewrite /is_label /= eq_refl.
         apply/negP=> H.

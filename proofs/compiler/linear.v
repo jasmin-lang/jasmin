@@ -102,6 +102,16 @@ End LINEAR_C.
 
 Definition next_lbl lbl := (lbl + 1)%positive.
 
+Fixpoint snot e :=
+  match e with
+  | Papp1 Onot e => e
+  | Papp2 Oand e1 e2 => Papp2 Oor (snot e1) (snot e2)
+  | Papp2 Oor e1 e2 => Papp2 Oand (snot e1) (snot e2)
+  | Pif e e1 e2 => Pif e (snot e1) (snot e2)
+  | Pbool b => Pbool (~~ b)
+  | _ => Papp1 Onot e
+  end.
+
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
@@ -116,7 +126,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Cif e c1 [::] =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
-    MkLI ii (Lcond (Papp1 Onot e) L1) >; linear_c linear_i c1 lbl (MkLI ii (Llabel L1) :: lc)
+    MkLI ii (Lcond (snot e) L1) >; linear_c linear_i c1 lbl (MkLI ii (Llabel L1) :: lc)
 
   | Cif e c1 c2 =>
     let L1 := lbl in
