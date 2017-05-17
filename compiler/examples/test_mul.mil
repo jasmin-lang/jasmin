@@ -24,7 +24,7 @@ fn h(reg u64 x) -> reg u64 {
 reg u64 y;
 reg u64 hi;
 reg u64 lo;
-x = y;
+y = x;
 hi, lo = y * 38;
 lo += hi;
 return lo;
