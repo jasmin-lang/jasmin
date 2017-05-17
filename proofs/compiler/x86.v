@@ -345,12 +345,20 @@ Definition assemble_fopn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
       ok (IMUL64 o1 o2)
       end
     | _, _ => cierror ii (Cerr_assembler (AsmErr_string ("wrong arguments / outputs for operator " ++ string_of_sopn o))) end
+  | Ox86_NEG =>
+    match e, l with
+    | [:: e ], [:: x ] =>
+      (* TODO: check constraints *)
+      Let d := oprd_of_lval ii x in
+      Let o := oprd_of_pexpr ii e in
+      ok (NEG o)
+    | _, _ => cierror ii (Cerr_assembler (AsmErr_string ("wrong arguments / outputs for operator " ++ string_of_sopn o))) end
   | _ => cierror ii (Cerr_assembler (AsmErr_string ("TODO: assemble operator " ++ string_of_sopn o)))
   end.
 
 Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
   match o with
-  | Ox86_CMP | Ox86_ADD | Ox86_ADC | Ox86_SUB | Ox86_SBB
+  | Ox86_CMP | Ox86_ADD | Ox86_ADC | Ox86_SUB | Ox86_SBB | Ox86_NEG
   | Ox86_MUL | Ox86_IMUL64
   | Ox86_AND | Ox86_OR  | Ox86_XOR | Ox86_SHR | Ox86_SHL | Ox86_SAR =>
     match l with

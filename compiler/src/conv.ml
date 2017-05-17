@@ -221,11 +221,14 @@ let op_of_cop = function
 let op1_of_cop1 = function
   | C.Olnot -> Olnot W64
   | C.Onot  -> Onot
+  | C.Oneg -> Oneg W64
 
 let cop1_of_op1 = function
   | Olnot W64 -> C.Olnot
   | Olnot _   -> assert false
   | Onot      -> C.Onot
+  | Oneg W64 -> C.Oneg
+  | Oneg _   -> assert false
 
 (* ------------------------------------------------------------------------ *)
 
@@ -275,6 +278,7 @@ let copn_of_opn = function
   | Ox86_IDIV    -> C.Ox86_IDIV
   | Ox86_ADC     -> C.Ox86_ADC
   | Ox86_SBB     -> C.Ox86_SBB
+  | Ox86_NEG	-> C.Ox86_NEG
   | Ox86_INC     -> C.Ox86_INC
   | Ox86_DEC     -> C.Ox86_DEC
   | Ox86_SETcc   -> C.Ox86_SETcc
@@ -304,6 +308,7 @@ let opn_of_copn = function
   | C.Ox86_IDIV    -> Ox86_IDIV
   | C.Ox86_ADC     -> Ox86_ADC
   | C.Ox86_SBB     -> Ox86_SBB
+  | C.Ox86_NEG	-> Ox86_NEG
   | C.Ox86_INC     -> Ox86_INC
   | C.Ox86_DEC     -> Ox86_DEC
   | C.Ox86_SETcc   -> Ox86_SETcc

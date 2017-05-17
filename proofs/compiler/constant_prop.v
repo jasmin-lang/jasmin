@@ -45,6 +45,9 @@ Definition snot_bool (e:pexpr) :=
   | _            => Papp1 Onot e
   end.
 
+(* FIXME: make this smart constructor smarter *)
+Definition sneg (e: pexpr) := Papp1 Oneg e.
+
 Definition sand e1 e2 := 
   match is_bool e1, is_bool e2 with
   | Some b, _ => if b then e2 else false
@@ -66,6 +69,7 @@ Definition s_op1 o e :=
   match o with
   | Onot  => snot_bool e 
   | Olnot => snot_w e
+  | Oneg => sneg e
   end.
 
 (* ------------------------------------------------------------------------ *)

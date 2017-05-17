@@ -62,6 +62,7 @@ let string_of_op2 = function
 let pp_op1 = function
   | Olnot _ -> "!"
   | Onot    -> "~"
+  | Oneg _ -> "-"
 
 (* -------------------------------------------------------------------- *)
 let pp_ge pp_var =
@@ -123,6 +124,7 @@ let pp_opn = function
   | Ox86_IDIV    -> "#x86_IDIV"
   | Ox86_ADC     -> "#x86_ADC"
   | Ox86_SBB     -> "#x86_SBB"
+  | Ox86_NEG	-> "#x86_NEG"
   | Ox86_INC     -> "#x86_INC"
   | Ox86_DEC     -> "#x86_DEC"
   | Ox86_SETcc   -> "#x86_SETcc"

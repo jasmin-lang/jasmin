@@ -354,8 +354,8 @@ Section PROOF.
       Let x := sem_pexprs s [:: a] in sem_sopn o x = ok [:: v]
     | LowerInc o a =>
       exists b1 b2 b3 b4, Let x := sem_pexprs s [:: a] in sem_sopn o x = ok [:: Vbool b1; Vbool b2; Vbool b3; Vbool b4; v]
-    | LowerFopn o a b =>
-      Let x := Let x := sem_pexprs s [:: a; b] in sem_sopn o x
+    | LowerFopn o e =>
+      Let x := Let x := sem_pexprs s e in sem_sopn o x
       in write_lvals s
        [:: Lnone (var_info_of_lval l) sbool;
            Lnone (var_info_of_lval l) sbool;
@@ -386,6 +386,7 @@ Section PROOF.
       rewrite /sem_pexprs /= Hv1 /=.
       rewrite /sem_op1_w /mk_sem_sop1 in Hv.
       apply: rbindP Hv=> w /= -> []<- //.
+    + admit.
     + move: o=> [| |[]|[]|[]| | | | | | |[]|k|[]|k|k|k] //.
       (* Oadd Op_w *)
       + move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 Hv]]]; subst v.
@@ -486,7 +487,7 @@ Section PROOF.
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
       by rewrite H /= Hw'.
     (* LowerFopn *)
-    + move=> o e1 e2 H.
+    + move=> o a H.
       by exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
     (* LowerEq *)
     + move=> e1 e2 [b1 [b2 [b3 [b4 H]]]].

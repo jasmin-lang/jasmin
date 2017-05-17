@@ -33,6 +33,7 @@ type op_ty =
 type op1 =
   | Olnot of word_size
   | Onot
+  | Oneg of word_size
 
 type op2 =
   | Oand    (* const : sbool -> sbool -> sbool *)
@@ -129,6 +130,7 @@ type op =
 | Ox86_IDIV
 | Ox86_ADC
 | Ox86_SBB
+| Ox86_NEG
 | Ox86_INC
 | Ox86_DEC
 | Ox86_SETcc

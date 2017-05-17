@@ -165,7 +165,7 @@ Variant lower_cassgn_t : Type :=
   | LowerMov
   | LowerCopn of sopn & pexpr
   | LowerInc of sopn & pexpr
-  | LowerFopn of sopn & pexpr & pexpr
+  | LowerFopn of sopn & list pexpr
   | LowerEq of pexpr & pexpr
   | LowerLt of pexpr & pexpr
   | LowerIf of pexpr & pexpr & pexpr
@@ -180,6 +180,7 @@ Definition lower_cassgn_classify e x : lower_cassgn_t :=
     => LowerMov
 
   | Papp1 Olnot a => LowerCopn Ox86_NOT a
+  | Papp1 Oneg a => LowerFopn Ox86_NEG [:: a]
 
   | Papp2 op a b =>
     match op with
@@ -187,21 +188,21 @@ Definition lower_cassgn_classify e x : lower_cassgn_t :=
       match add_inc_dec_classify a b with
       | AddInc y => LowerInc Ox86_INC y
       | AddDec y => LowerInc Ox86_DEC y
-      | AddNone => LowerFopn Ox86_ADD a b (* TODO: lea *)
+      | AddNone => LowerFopn Ox86_ADD [:: a ; b ] (* TODO: lea *)
       end
     | Osub Op_w =>
       match sub_inc_dec_classify b with
       | SubInc => LowerInc Ox86_INC a
       | SubDec => LowerInc Ox86_DEC a
-      | SubNone => LowerFopn Ox86_SUB a b
+      | SubNone => LowerFopn Ox86_SUB [:: a ; b ]
       end
-    | Omul Op_w => LowerFopn Ox86_IMUL64 a b
-    | Oland => LowerFopn Ox86_AND a b
-    | Olor => LowerFopn Ox86_OR a b
-    | Olxor => LowerFopn Ox86_XOR a b
-    | Olsr => LowerFopn Ox86_SHR a b
-    | Olsl => LowerFopn Ox86_SHL a b
-    | Oasr => LowerFopn Ox86_SAR a b
+    | Omul Op_w => LowerFopn Ox86_IMUL64 [:: a ; b ]
+    | Oland => LowerFopn Ox86_AND [:: a ; b ]
+    | Olor => LowerFopn Ox86_OR [:: a ; b ]
+    | Olxor => LowerFopn Ox86_XOR [:: a ; b ]
+    | Olsr => LowerFopn Ox86_SHR [:: a ; b ]
+    | Olsl => LowerFopn Ox86_SHL [:: a ; b ]
+    | Oasr => LowerFopn Ox86_SAR [:: a ; b ]
     | Oeq (Cmp_sw | Cmp_uw) => LowerEq a b
     | Olt Cmp_uw => LowerLt a b
     | _ => LowerAssgn
@@ -219,13 +220,13 @@ Definition lower_cassgn (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
   let vi := var_info_of_lval x in
   let f := Lnone vi sbool in
   let copn o a := [:: Copn [:: x ] o [:: a] ] in
-  let fopn o a b := [:: Copn [:: f ; f ; f ; f ; f ; x ] o [:: a ; b ] ] in
+  let fopn o a := [:: Copn [:: f ; f ; f ; f ; f ; x ] o a ] in
   let inc o a := [:: Copn [:: f ; f ; f ; f ; x ] o [:: a ] ] in
   match lower_cassgn_classify e x with
   | LowerMov => copn Ox86_MOV e
   | LowerCopn o e => copn o e
   | LowerInc o e => inc o e
-  | LowerFopn o e1 e2 => fopn o e1 e2
+  | LowerFopn o es => fopn o es
   | LowerEq a b => [:: Copn [:: f ; f ; f ; f ; x ] Ox86_CMP [:: a ; b ] ]
   | LowerLt a b => [:: Copn [:: f ; x ; f ; f ; f ] Ox86_CMP [:: a ; b ] ]
   | LowerIf e e1 e2 =>

@@ -56,7 +56,9 @@ Variant op_kind :=
 
 Variant sop1 :=
 | Onot
-| Olnot.
+| Olnot
+| Oneg
+.
 
 Variant sop2 :=
 | Oand                        (* const : sbool -> sbool -> sbool *)
@@ -98,6 +100,7 @@ Variant sopn : Set :=
 | Ox86_IDIV    (* div   signed *)
 | Ox86_ADC     (* add with carry *)
 | Ox86_SBB     (* sub with borrow *)
+| Ox86_NEG	(* negation *)
 | Ox86_INC     (* increment *)
 | Ox86_DEC     (* decrement *)
 | Ox86_SETcc   (* Set byte on condition *)
@@ -167,6 +170,7 @@ Definition string_of_sopn o : string :=
   | Ox86_IDIV   => "Ox86_IDIV  "
   | Ox86_ADC    => "Ox86_ADC   "
   | Ox86_SBB    => "Ox86_SBB   "
+  | Ox86_NEG	=> "Ox86_NEG	"
   | Ox86_INC    => "Ox86_INC   "
   | Ox86_DEC    => "Ox86_DEC   "
   | Ox86_SETcc  => "Ox86_SETcc "

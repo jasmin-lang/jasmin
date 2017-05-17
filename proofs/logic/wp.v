@@ -166,7 +166,8 @@ Local Coercion stype_of_stype' : stype' >-> stype.
 Definition op1_type (op: sop1) : stype' * stype' :=
   match op with
   | Onot => (sbool', sbool')
-  | Olnot => (sword', sword')
+  | Olnot | Oneg
+    => (sword', sword')
   end.
 
 Definition op1_type_i op := fst (op1_type op).
@@ -176,6 +177,7 @@ Definition sem_texpr_sop1 op : ssem_t (op1_type_i op) → ssem_t (op1_type_o op)
   match op with
   | Onot => negb
   | Olnot => I64.not
+  | Oneg => I64.neg
   end.
 
 Definition op2_type (op: sop2) : stype' * stype' :=

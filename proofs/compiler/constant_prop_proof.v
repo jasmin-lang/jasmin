@@ -60,7 +60,7 @@ Hint Immediate eeq_refl.
 Lemma snot_boolP e : Papp1 Onot e =E snot_bool e.
 Proof. 
   case: e=> //=;try auto; first by move=> ??.
-  move=> []; last by auto.
+  move=> []; auto.
   move=> p rho v /=;rewrite /eqok.
   apply: rbindP => w;apply:rbindP => w' /= ->.
   apply: rbindP => /= b Hb [<-]. 

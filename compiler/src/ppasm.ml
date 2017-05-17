@@ -210,6 +210,9 @@ let pp_instr (i : X86_sem.asm) =
       let iname = Printf.sprintf "set%s" (pp_ct ct) in
       `Instr (pp_iname rs iname, [pp_opr rs op])
 
+  | NEG op ->
+      `Instr (pp_iname rs "neg", [pp_opr rs op])
+
   | INC op ->
       `Instr (pp_iname rs "inc", [pp_opr rs op])
 
@@ -312,6 +315,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
 
   | LEA    (op, _)
   | SETcc  (_, op)
+  | NEG	(op)
   | INC    (op)
   | DEC    (op)
   | NOT    (op)

@@ -81,6 +81,8 @@ Variant asm : Type :=
 | ADC    of oprd & oprd            (* add with carry *)
 | SBB    of oprd & oprd            (* sub with borrow *)
 
+| NEG	of oprd	(* negation *)
+
 | INC    of oprd                   (* increment *)
 | DEC    of oprd                   (* decrement *)
 
@@ -535,6 +537,19 @@ Definition eval_SBB o1 o2 s : x86_result :=
   ok (st_update_rflags (rflags_of_aluop v vu vs) s).
 
 (* -------------------------------------------------------------------- *)
+Definition eval_NEG o s : x86_result :=
+  Let w  := read_oprd o s in
+  let v  := I64.neg w in
+  let vs := (- I64.signed w)%Z in
+  Let s  := write_oprd o v s in
+  ok (st_update_rflags (
+          fun rf =>
+          match rf with
+          | CF => Some (Def (negb (I64.eq w I64.zero)))
+          | _ => rflags_of_aluop_nocf v vs rf
+          end) s).
+
+(* -------------------------------------------------------------------- *)
 Definition eval_INC o s : x86_result :=
   Let w  := read_oprd o s in
   let v  := I64.add w I64.one in
@@ -700,6 +715,7 @@ Definition eval_instr (i : asm) s : x86_result :=
   | IDIV   o        => eval_IDIV o s
   | ADC    o1 o2    => eval_ADC o1 o2 s
   | SBB    o1 o2    => eval_SBB o1 o2 s
+  | NEG    o        => eval_NEG o s
   | INC    o        => eval_INC o s
   | DEC    o        => eval_DEC o s
   | SETcc  ct o     => eval_SETcc ct o s

@@ -129,6 +129,7 @@ ptype:
 
 %inline peop1:
 | BANG  { `Not }
+| MINUS  { `Neg }
 
 %inline peop2:
 | PLUS     { `Add  }

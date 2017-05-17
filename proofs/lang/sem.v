@@ -314,6 +314,7 @@ Definition sem_sop1 (o:sop1) :=
   match o with
   | Onot   => sem_op1_b negb
   | Olnot  => sem_op1_w I64.not
+  | Oneg  => sem_op1_w I64.neg
   end.
 
 Definition sem_sop2 (o:sop2) :=
@@ -618,6 +619,14 @@ Definition x86_sbb (v1 v2 : word) (c:bool) :=
     (I64.unsigned v1 - (I64.unsigned v2 + c))%Z
     (I64.signed   v1 - (I64.signed   v2 + c))%Z.
 
+Definition x86_neg (w:word) :=
+  let vs := (- I64.signed w)%Z in
+  let v := I64.neg w in
+  flags_w
+  [:: I64.signed   v != vs; negb (I64.eq w I64.zero);
+      SF_of_word v; PF_of_word v; ZF_of_word v ]
+  v.
+
 Definition x86_inc (w:word) :=
   rflags_of_aluop_nocf_w
     (I64.add w I64.one)
@@ -747,6 +756,7 @@ Definition sem_sopn (o:sopn) :  values -> exec values :=
   | Ox86_IDIV    => app_www  x86_idiv
   | Ox86_ADC     => app_wwb  x86_adc
   | Ox86_SBB     => app_wwb  x86_sbb
+  | Ox86_NEG	=> app_w	x86_neg
   | Ox86_INC     => app_w    x86_inc
   | Ox86_DEC     => app_w    x86_dec
   | Ox86_SETcc   => app_b    x86_setcc
@@ -1560,6 +1570,7 @@ Lemma vuincl_sem_sop1 o ve1 ve1' v1 :
 Proof.
   case: o;rewrite /= /sem_op1_b /sem_op1_w /mk_sem_sop1 => Hu;
     apply: rbindP => z Hz [] <-.
+  + by have [z' [-> /= <- ]]:= of_val_uincl Hu Hz.
   + by have [z' [-> /= <- ]]:= of_val_uincl Hu Hz.
   by have [z' [-> /= <- ]]:= of_val_uincl Hu Hz.
 Qed.

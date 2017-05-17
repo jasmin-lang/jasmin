@@ -165,6 +165,7 @@ Definition ssem_sop1 (o:sop1) :=
   match o with
   | Onot   => ssem_op1_b negb
   | Olnot  => ssem_op1_w I64.not
+  | Oneg => ssem_op1_w I64.neg
   end.
 
 Definition ssem_op2_b  := @mk_ssem_sop2 sbool sbool sbool.

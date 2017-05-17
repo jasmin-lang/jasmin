@@ -412,12 +412,19 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
     P.Pget (L.mk_loc xlc x, i), ty
 
-  | S.PEOp1 (`Not, pe) ->
+  | S.PEOp1 (op, pe) ->
     let e, ty = tt_expr ~mode env pe in
+
+    begin match op with
+    | `Not ->
     if ty = P.tbool then Papp1(P.Onot, e), P.tbool
     else
       let ws = tt_as_word (L.loc pe, ty) in
       Papp1(P.Olnot ws, e), P.Bty (P.U ws)
+    | `Neg ->
+      let ws = tt_as_word (L.loc pe, ty) in
+      Papp1(P.Oneg ws, e), P.(Bty (U ws))
+    end
 
   | S.PEOp2 (pop, (pe1, pe2)) ->
     let et1 = tt_expr ~mode env pe1 in
@@ -533,6 +540,7 @@ let prim_sig p =
   | Ox86_IDIV
   | Ox86_ADC
   | Ox86_SBB
+  | Ox86_NEG
   | Ox86_INC
   | Ox86_DEC
   | Ox86_SETcc

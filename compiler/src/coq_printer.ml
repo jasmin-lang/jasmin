@@ -101,6 +101,7 @@ let pp_sopn fmt sopn =
      | Ox86_IDIV    -> "Ox86_IDIV"
      | Ox86_ADC     -> "Ox86_ADC"
      | Ox86_SBB     -> "Ox86_SBB"
+     | Ox86_NEG	-> "Ox86_NEG"
      | Ox86_INC     -> "Ox86_INC"
      | Ox86_DEC     -> "Ox86_DEC"
      | Ox86_SETcc   -> "Ox86_SETcc"
@@ -159,6 +160,8 @@ let pp_op1 = function
   | Onot     -> "~~"
   | Olnot W64 -> "~!"
   | Olnot _   -> assert false
+  | Oneg W64 -> "~-"
+  | Oneg _   -> assert false
 
 let rec pp_pexpr fmt = function
   | Pconst i       -> F.fprintf fmt "%s" (B.to_string i)

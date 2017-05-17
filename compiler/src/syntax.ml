@@ -12,7 +12,7 @@ type symbol = string
 type pident = symbol L.located
 
 (* -------------------------------------------------------------------- *)
-type peop1 = [ `Not ]
+type peop1 = [ `Not | `Neg ]
 
 type peop2 = [
   `Add | `Sub | `Mul | `And | `Or  | `BAnd | `BOr | `BXOr |
