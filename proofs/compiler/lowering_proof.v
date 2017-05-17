@@ -581,7 +581,7 @@ Section PROOF.
         + move=> [] [] // Hx' []?????; subst.
           rewrite /sem_pexprs /= in Hx'; move: Hx'.
           t_xrbindP=> vx Hvx [] // vy' [] // false' [] // vy Hvy.
-          move=> []???[]??; subst.
+          move=> []???[]??; do! subst.
           move: Hbcf=> []?; subst bcf.
           rewrite /sem_pexprs /= Hvx /= Hvy /= Hw1 /= Hw2 /=.
           rewrite /= in Hw'.
