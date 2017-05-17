@@ -249,7 +249,7 @@ pinstr_r:
     { PIFor (v, (`Up, ce1, ce2), is) }
 
 | FOR v=var EQ ce1=pexpr DOWNTO ce2=pexpr is=pblock
-    { PIFor (v, (`Down, ce1, ce2), is) }
+    { PIFor (v, (`Down, ce2, ce1), is) }
 
 | WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock?
     { PIWhile (is1, b, is2) }
