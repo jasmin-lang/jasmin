@@ -9,6 +9,10 @@ Unset Printing Implicit Defensive.
 (* ** Compiler error 
  * -------------------------------------------------------------------------- *)
 
+Inductive asm_error :=
+  | AsmErr_string : string -> asm_error
+  | AsmErr_cond   : pexpr -> asm_error.
+
 Inductive error_msg :=
   | Cerr_varalloc : var_i -> var_i -> string -> error_msg
   | Cerr_inline   : Sv.t -> Sv.t -> error_msg
@@ -28,7 +32,7 @@ Inductive error_msg :=
   | Cerr_arr_exp_v: lval -> lval -> error_msg 
   | Cerr_stk_alloc: string -> error_msg
   | Cerr_linear   : string -> error_msg
-  | Cerr_assembler: string -> error_msg
+  | Cerr_assembler: asm_error -> error_msg
 
 with fun_error   := 
   | Ferr_in_body  : funname -> funname -> (instr_info * error_msg) -> fun_error

@@ -142,9 +142,15 @@ let rec pp_comp_err tbl fmt = function
   | Compiler_util.Cerr_linear s ->
     Format.fprintf fmt "linearisation error %s"
       (Conv.string_of_string0 s)
-  | Compiler_util.Cerr_assembler s ->
-    Format.fprintf fmt "assembler error %s"
-      (Conv.string_of_string0 s)
+  | Compiler_util.Cerr_assembler c ->
+    begin match c with
+    | Compiler_util.AsmErr_string s ->
+      Format.fprintf fmt "assembler error %s"
+        (Conv.string_of_string0 s)
+    | Compiler_util.AsmErr_cond e ->
+      Format.fprintf fmt "assembler error: invalid condition %a"
+        (Printer.pp_expr ~debug:true) (Conv.expr_of_cexpr tbl e)
+    end
 
 and pp_comp_ferr tbl fmt = function
   | Compiler_util.Ferr_in_body(f1,f2,(ii, err_msg)) ->
