@@ -420,10 +420,9 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     Let b := sem_pexpr s e >>= to_bool in
     Let v1 := sem_pexpr s e1 in
     Let v2 := sem_pexpr s e2 in
-    if (type_of_val v1 == type_of_val v2) then
-      ok (if b then v1 else v2)
-    else
-      type_error
+    Let _ := of_val (type_of_val v1) v1 in
+    Let _ := of_val (type_of_val v1) v2 in
+    ok (if b then v1 else v2)
   end.
 
 Definition sem_pexprs s := mapM (sem_pexpr s).
@@ -1603,8 +1602,10 @@ Proof.
   move=> /value_uincl_bool -/(_ _ Hue') [??];subst wb ve' => /=.
   apply: rbindP=> v2 /He1 [] v2' [] -> Hv2'.
   apply: rbindP=> v3 /He2 [] v3' [] -> Hv3'.
-  case Ht: (type_of_val _ == _)=> // -[]<- /=.
-  rewrite -(type_of_val_uincl Hv2') -(type_of_val_uincl Hv3') Ht.
+  t_xrbindP=> y2 Hy2 y3 Hy3 <- /=.
+  rewrite -(type_of_val_uincl Hv2').
+  have [? [-> _]] /= := of_val_uincl Hv2' Hy2.
+  have [? [-> _]] /= := of_val_uincl Hv3' Hy3.
   eexists; split=> //.
   by case: (b).
 Qed.

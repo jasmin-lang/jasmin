@@ -503,7 +503,7 @@ Section PROOF.
       move: x Hcond=> [i e'] Hcond.
       clear s2' Hw' Hs2'.
       rewrite /= in Hv'.
-      move: Hv'; t_xrbindP=> b bv Hbv Hb v1 Hv1 v2 Hv2 Hv'.
+      move: Hv'; t_xrbindP=> b bv Hbv Hb v1 Hv1 v2 Hv2 y1 Hy1 y2 Hy2 Hv'.
       have [s2' [Hs2'1 [Hs2'2 Hs2'3]]] := lower_condition_corr ii Hcond Hs1' Hbv.
       have [s3' [Hw' Hs3']] := write_lval_same Hs2'2 Hw.
       exists s3'; split=> //.
@@ -512,19 +512,15 @@ Section PROOF.
       exact: Hs2'1.
       apply: sem_seq1; apply: EmkI; apply: Eopn.
       move: bv Hbv Hb Hs2'3=> [] b0 Hb //=.
-      + move=> []Hb0 Hb'; subst b0.
-        case Hteq: (_ == _) in Hv'=> //.
-        move: Hv'=> []Hv'; subst v.
+      + move=> []Hb0 Hb'; subst b0 v.
         rewrite /sem_pexprs /= Hb' /=.
         have Heq' := (eq_exc_freshT Hs2'2 (eq_exc_freshS Hs1')).
         rewrite (sem_pexpr_same Heq' Hv1) (sem_pexpr_same Heq' Hv2) /=.
         have Hvt := write_lval_word Ht Hw'.
         have [w Hvw] := write_lval_undef Hw' Hvt; subst.
-        move: b Hw Hv Hw' Hb Hb' Hvt Hvw=> [] Hw Hv Hw' Hb Hb' Hvt Hvw.
-        + move: v1 Hv1 Hteq Hw Hv Hw' Hvt Hvw=> [] // v1 Hv1 Hteq Hw Hv Hw' Hvt Hvw.
-          by rewrite /= Hw'.
-        + move: v2 Hv2 Hteq Hw Hv Hw' Hvt Hvw=> [] // v2 Hv2 Hteq Hw Hv Hw' Hvt Hvm.
-          by rewrite /= Hw'.
+        case: ifP=> H.
+          by rewrite H in Hvw, Hw'; rewrite Hvw /= -Hvw Hw'.
+          by rewrite H in Hvw, Hw'; rewrite Hvw /= -Hvw Hw'.
       by move: b0 Hb=> [].
     (* LowerAssgn *)
     + move=> _.

@@ -373,8 +373,10 @@ Section PROOF.
     apply: rbindP => b;apply: rbindP => w /He [b' [->]] /value_uincl_bool.
     move=> H /H [??];subst w b'=> /=.
     t_xrbindP=> v1 /H1 [] v1' [] -> Hv1' v2 /H1' [] v2' [] -> Hv2'.
-    case Ht: (type_of_val _ == _)=> // -[]<- /=.
-    rewrite -(type_of_val_uincl Hv1') -(type_of_val_uincl Hv2') Ht.
+    t_xrbindP=> y2 Hy2 y3 Hy3 <- /=.
+    rewrite -(type_of_val_uincl Hv1').
+    have [? [-> _]] /= := of_val_uincl Hv1' Hy2.
+    have [? [-> _]] /= := of_val_uincl Hv2' Hy3.
     eexists; split=> //.
     by case: (b).
   Qed.

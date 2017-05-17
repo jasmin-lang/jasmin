@@ -251,8 +251,10 @@ Module CBEA.
     move=> /value_uincl_bool H/H [_ ->] /=.
     apply: rbindP=> v2 /He11 [] v2' [] -> Hv2'.
     apply: rbindP=> v3 /He12 [] v3' [] -> Hv3'.
-    case Ht: (type_of_val _ == _)=> // -[]<- /=.
-    rewrite -(type_of_val_uincl Hv2') -(type_of_val_uincl Hv3') Ht.
+    t_xrbindP=> y2 Hy2 y3 Hy3 <- /=.
+    rewrite -(type_of_val_uincl Hv2').
+    have [? [-> _]] /= := of_val_uincl Hv2' Hy2.
+    have [? [-> _]] /= := of_val_uincl Hv3' Hy3.
     eexists; split=> //.
     by case: (b).
   Qed.

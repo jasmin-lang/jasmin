@@ -1089,8 +1089,10 @@ Module CBAreg.
     t_xrbindP=> v2 Hv2 v3 Hv3.
     have [v2' [-> Hv2']] := Hs1 _ _ Hv2.
     have [v3' [-> Hv3']] := Hs2 _ _ Hv3.
-    case Ht: (_ == _)=> // -[]<- /=.
-    rewrite -(type_of_val_uincl Hv2') -(type_of_val_uincl Hv3') Ht.
+    t_xrbindP=> y2 Hy2 y3 Hy3 <- /=.
+    rewrite -(type_of_val_uincl Hv2').
+    have [? [-> _]] /= := of_val_uincl Hv2' Hy2.
+    have [? [-> _]] /= := of_val_uincl Hv3' Hy3.
     eexists; split=> //.
     by case: (b).
   Qed.

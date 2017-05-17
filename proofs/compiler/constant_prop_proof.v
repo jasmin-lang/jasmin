@@ -289,8 +289,7 @@ Lemma s_ifP e e1 e2 : Pif e e1 e2 =E s_if e e1 e2.
 Proof.
   rewrite /s_if;case: is_boolP => [b | ];last by auto.
   move=> ?? /=.
-  t_xrbindP=> v1 Hv1 v2 Hv2.
-  case: (_ == _)=> // -[]<-.
+  t_xrbindP=> v1 Hv1 v2 Hv2 y2 Hy2 y3 Hy3 <-.
   by case: (b).
 Qed.
 
@@ -315,7 +314,7 @@ Proof.
     by apply:rbindP => ve1 /He1 ->;apply:rbindP => ve2 /He2 ->.
   move=> H;apply /s_ifP;move: H => /=.
   apply:rbindP => b;apply:rbindP => w /He -> /= -> /=.
-  by t_xrbindP=> v1 /He1 -> v2 /He2 ->.
+  by t_xrbindP=> v1 /He1 -> v2 /He2 -> /= y1 -> y2 -> /= ->.
 Qed.
 
 Definition eqoks (e1 e2:seq pexpr) st := 
