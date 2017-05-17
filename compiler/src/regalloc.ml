@@ -50,7 +50,9 @@ let x86_equality_constraints (tbl: (var, int) Hashtbl.t) (k: int -> int -> unit)
     -> merge v w
   | _, _, _ -> ()
 
-let collect_equality_constraints (tbl: (var, int) Hashtbl.t) (nv: int)
+let collect_equality_constraints
+    copn_constraints
+    (tbl: (var, int) Hashtbl.t) (nv: int)
     (f: 'info func) : Puf.t =
   let p = ref (Puf.create nv) in
   let add x y = p := Puf.union !p x y in
@@ -59,7 +61,15 @@ let collect_equality_constraints (tbl: (var, int) Hashtbl.t) (nv: int)
     | Cblock s
     | Cfor (_, _, s)
       -> collect_stmt s
-    | Copn (lvs, op, es) -> x86_equality_constraints tbl add lvs op es
+    | Copn (lvs, op, es) -> copn_constraints tbl add lvs op es
+    | Cassgn (Lvar x, (AT_rename_arg | AT_rename_res | AT_phinode), Pvar y) ->
+      let i = try Hashtbl.find tbl (L.unloc x) with
+        Not_found ->
+          hierror "Regalloc: unknown variable %a"
+            (Printer.pp_var ~debug:true) (L.unloc x)
+      in
+      let j = Hashtbl.find tbl (L.unloc y) in
+      add i j
     | Cassgn _
     | Ccall _
       -> ()
@@ -135,7 +145,7 @@ let collect_conflicts (tbl: (var, int) Hashtbl.t) (f: (Sv.t * Sv.t) func) : conf
   and collect_stmt c s = List.fold_left collect_instr c s in
   collect_stmt IntMap.empty f.f_body
 
-let collect_variables (f: 'info func) : (var, int) Hashtbl.t * int =
+let collect_variables (allvars: bool) (f: 'info func) : (var, int) Hashtbl.t * int =
   let fresh, total =
     let count = ref 0 in
     (fun () ->
@@ -146,7 +156,7 @@ let collect_variables (f: 'info func) : (var, int) Hashtbl.t * int =
   in
   let tbl : (var, int) Hashtbl.t = Hashtbl.create 97 in
   let get (v: var) : unit =
-    if v.v_kind = Reg then
+    if allvars || v.v_kind = Reg then
     if not (Hashtbl.mem tbl v)
     then
       let n = fresh () in
@@ -386,13 +396,33 @@ let regalloc (f: 'info func) : unit func =
   let f = fill_in_missing_names f in
   let f = Ssa.split_live_ranges false f in
   let lf = Liveness.live_fd true f in
-  let vars, nv = collect_variables f in
-  let eqc = collect_equality_constraints vars nv f in
+  let vars, nv = collect_variables false f in
+  let eqc = collect_equality_constraints x86_equality_constraints vars nv f in
   let vars = normalize_variables vars eqc in
   let conflicts = collect_conflicts vars lf in
   let a =
     allocate_forced_registers vars conflicts f IntMap.empty |>
     greedy_allocation vars nv conflicts |>
+    subst_of_allocation vars
+  in Subst.gsubst_func (fun ty -> ty) a f
+   |> Ssa.remove_phi_nodes
+
+let reverse_varmap (vars: (var, int) Hashtbl.t) : var IntMap.t =
+  Hashtbl.fold (fun v i m -> IntMap.add i v m) vars IntMap.empty
+
+let split_live_ranges (f: 'info func) : unit func =
+  let f = Ssa.split_live_ranges true f in
+  (*
+  Format.eprintf "(* After split *)@.%a@."
+    (Printer.pp_func ~debug:true) f;
+  *)
+  (* let lf = Liveness.live_fd false f in *)
+  let vars, nv = collect_variables true f in
+  let eqc = collect_equality_constraints (fun _ _ _ _ _ -> ()) vars nv f in
+  let vars = normalize_variables vars eqc in
+  (* let _ = collect_conflicts vars lf in (* May fail *) *)
+  let a =
+    reverse_varmap vars |>
     subst_of_allocation vars
   in Subst.gsubst_func (fun ty -> ty) a f
    |> Ssa.remove_phi_nodes

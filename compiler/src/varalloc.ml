@@ -138,3 +138,5 @@ let merge_var_inline_fd fd =
   Format.eprintf "merge variables done@."; *)
   vsubst_func ma fd
 
+let merge_var_inline_fd fd =
+  Regalloc.split_live_ranges fd
