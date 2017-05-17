@@ -130,9 +130,9 @@ Definition xprog := seq (funname * xfundef).
 (* ** Conversion to assembly *
  * -------------------------------------------------------------------- *)
 
-Definition rflag_of_var ii (v: var_i) :=
+Definition rflag_of_var ii (v: var) :=
   match v with
-  | VarI (Var sbool s) _ =>
+  | Var sbool s =>
      match (rflag_of_string s) with
      | Some r => ciok r
      | None => cierror ii (Cerr_assembler (AsmErr_string ("Invalid rflag name: " ++ s)))
@@ -140,9 +140,9 @@ Definition rflag_of_var ii (v: var_i) :=
   | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid rflag type"))
   end.
 
-Definition reg_of_var ii (v: var_i) :=
+Definition reg_of_var ii (v: var) :=
   match v with
-  | VarI (Var sword s) _ =>
+  | Var sword s =>
      match (reg_of_string s) with
      | Some r => ciok r
      | None => cierror ii (Cerr_assembler (AsmErr_string ("Invalid register name: " ++ s)))
@@ -151,7 +151,7 @@ Definition reg_of_var ii (v: var_i) :=
   end.
 
 Definition reg_of_vars ii (vs: seq var_i) :=
-  mapM (reg_of_var ii) vs.
+  mapM (reg_of_var ii \o v_var) vs.
 
 Definition word_of_int ii (z: Z) :=
   if (I64.signed (I64.repr z) == z) then

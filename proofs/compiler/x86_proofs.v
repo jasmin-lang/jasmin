@@ -30,8 +30,69 @@ Lemma inj_drop {T : Type} (s : seq T) (n m : nat) :
 Proof. Admitted.
 
 (* -------------------------------------------------------------------- *)
-Parameter rflags_of_lvm : vmap -> rflagmap.
-Parameter regs_of_lvm : vmap -> regmap.
+Definition to_rbool (v : value) :=
+  match v with
+  | Vbool   b    => ok (Def b)
+  | Vundef sbool => ok Undef
+  | _            => type_error
+  end.
+
+(* -------------------------------------------------------------------- *)
+Definition rflags_of_lvm (vm : vmap) rf :=
+  forall x r, rflag_of_string x = Some r ->
+    match get_var vm {| vtype := sbool; vname := x |} with
+    | Ok v =>
+      match to_rbool v with
+      | Ok b => RflagMap.get rf r = b
+      | _    => False
+      end
+    | _ => False
+    end.
+
+(* -------------------------------------------------------------------- *)
+Definition regs_of_lvm (vm : vmap) (rf : regmap) :=
+  forall x r, reg_of_string x = Some r ->
+    match get_var vm {| vtype := sword; vname := x |} with
+    | Ok v =>
+        match to_word v with
+        | Ok    v => RegMap.get rf r = v
+        | Error _ => False
+        end
+    | Error _ => False
+    end. 
+
+(* -------------------------------------------------------------------- *)
+Lemma rflags_eq vm xf1 xf2 :
+     rflags_of_lvm vm xf1
+  -> rflags_of_lvm vm xf2
+  -> xf1 = xf2.
+Proof. Admitted.
+
+(* -------------------------------------------------------------------- *)
+Lemma regs_eq vm xr1 xr2 :
+     regs_of_lvm vm xr1
+  -> regs_of_lvm vm xr2
+  -> xr1 = xr2.
+Proof. Admitted.
+
+(* -------------------------------------------------------------------- *)
+Lemma inj_rflag_of_string s1 s2 rf :
+     rflag_of_string s1 = Some rf
+  -> rflag_of_string s2 = Some rf
+  -> s1 = s2.
+Proof. Admitted.
+
+(* -------------------------------------------------------------------- *)
+Lemma inj_rflag_of_var ii x y v :
+     rflag_of_var ii x = ok v
+  -> rflag_of_var ii y = ok v
+  -> x = y.
+Proof.
+case: x y => -[]// x [] []// y /=.
+case Ex: (rflag_of_string x) => [vx|] // -[?]; subst vx.
+case Ey: (rflag_of_string y) => [vy|] // -[?]; subst vy.
+by f_equal; apply: (inj_rflag_of_string Ex Ey).
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Inductive xs86_equiv (c : lcmd) (s : lstate) (xs : x86_state) :=
@@ -40,8 +101,8 @@ Inductive xs86_equiv (c : lcmd) (s : lstate) (xs : x86_state) :=
   & assemble_c c = ok xs.(xc)
   & assemble_c s.(lc) = ok (drop xs.(xip) xs.(xc))
   & xs.(xip) <= size xs.(xc)
-  & rflags_of_lvm s.(lvm) = xs.(xrf)
-  & regs_of_lvm s.(lvm) = xs.(xreg).
+  & rflags_of_lvm s.(lvm) xs.(xrf)
+  & regs_of_lvm s.(lvm) xs.(xreg).
 
 (* -------------------------------------------------------------------- *)
 Lemma xs86_equiv_cons li1 li c s xs :
@@ -66,7 +127,84 @@ Lemma xread_ok ii v e op c s xs :
 -> oprd_of_pexpr ii e = ok op
 -> sem_pexpr (to_estate s) e = ok v
 -> read_oprd op xs = to_word v.
-Proof. Admitted.
+Proof.
+move=> eqv; case: e => //.
++ case=> //= z; t_xrbindP => w; rewrite /word_of_int.
+  by case: ifP => // _ [<-] [<-] <-.
++ move=> x /=; t_xrbindP => r; case: x => -[vt x vi].
+  case: vt => //=; case E: reg_of_string => [r'|] //.
+  case=> <- [<-] /=; case: eqv => _ _ _ _ _ eqv ok_v.
+  move/(_ _ _ E): eqv; rewrite ok_v; case E': (to_word v) => [w|//].
+  by move=> <-.
+move=> x e /=; t_xrbindP => r1 ok_r1 w ok_w [<-].
+move=> z o ok_o ok_z z' o' ok_o' ok_z' res ok_res <- {v} /=.
+rewrite -ok_res; case: eqv => -> _ _ _ _ eqv; f_equal.
+rewrite /decode_addr /= I64.mul_zero I64.add_zero.
+rewrite I64.add_commut; f_equal.
++ case: x ok_r1 ok_o ok_z => -[] [] // x vi /=.
+  case E: reg_of_string => [r'|] // [<-] ok_o ok_z.
+  by move/(_ _ _ E): eqv; rewrite ok_o ok_z.
+case: e ok_w ok_o' => // -[] //= zw; rewrite /word_of_int.
+by case: ifPn => // _ [<-] [o'E]; move: ok_z'; rewrite -o'E => -[].
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma xgetflag_r ii c x rf v b s xs :
+     xs86_equiv c s xs
+  -> rflag_of_var ii x = ok rf
+  -> get_var s.(lvm) x = ok v
+  -> to_rbool v = ok b
+  -> RflagMap.get xs.(xrf) rf = b.
+Proof.
+case=> _ _ _ _ eqv _; case: x => -[] //= x.
+case E: rflag_of_string => [vx|] // -[<-] ok_v ok_b.
+by move/(_ _ _ E): eqv; rewrite ok_v ok_b.
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma xgetflag_ex ii c x rf v s xs :
+     xs86_equiv c s xs
+  -> rflag_of_var ii x = ok rf
+  -> get_var s.(lvm) x = ok v
+  -> exists2 b, to_rbool v = ok b
+                & RflagMap.get xs.(xrf) rf = b.
+Proof.
+case=> _ _ _ _ eqv _; case: x => -[] //= x.
+case E: rflag_of_string => [vx|] // ok_rf ok_v.
+Admitted.
+
+(* -------------------------------------------------------------------- *)
+Lemma xgetflag ii c x rf v b s xs :
+     xs86_equiv c s xs
+  -> rflag_of_var ii x = ok rf
+  -> get_var s.(lvm) x = ok v
+  -> to_bool v = ok b
+  -> RflagMap.get xs.(xrf) rf = Def b.
+Proof.
+move=> eqv ok_rf ok_v ok_b.
+rewrite (xgetflag_r (b := Def b) eqv ok_rf ok_v) //.
+by case: {ok_v} v ok_b => //= [? [<-]|] // [].
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma ok_sem_op1_b f v b :
+  sem_op1_b f v = ok b ->
+    exists2 vb, to_bool v = ok vb & b = Vbool (f vb).
+Proof.
+rewrite /sem_op1_b /mk_sem_sop1; t_xrbindP => /= vb ->.
+by move=> ok_b; exists vb.
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma ok_sem_op2_b f v1 v2 b :
+  sem_op2_b f v1 v2 = ok b ->
+    exists2 vb,
+        [/\ to_bool v1 = ok vb.1 & to_bool v2 = ok vb.2]
+      & b = Vbool (f vb.1 vb.2).
+Proof.
+rewrite /sem_op2_b /mk_sem_sop2; t_xrbindP.
+by move=> vb1 ok1 vb2 ok2 fE; exists (vb1, vb2).
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xeval_cond {ii e v c ct s xs} :
@@ -76,8 +214,66 @@ Lemma xeval_cond {ii e v c ct s xs} :
  -> eval_cond ct xs.(xrf) = to_bool v.
 Proof.
 move=> eqv; case: e => //.
-+ move=> x /=; case: (rflag_of_var _) => rf /=.
-  case: rf => // -[//<-] //=.
++ move=> x /=; t_xrbindP => r ok_r ok_ct ok_v.
+  have [vb h] := xgetflag_ex eqv ok_r ok_v.
+  case: {ok_r} r ok_ct h => // -[<-];
+    rewrite /eval_cond => ok_vb ->;
+    by case: {ok_v} v ok_vb => //= [b [<-//]|[]//[<-]].
++ do 2! case=> //; move=> x /=; t_xrbindP => r.
+  move=> ok_r ok_ct vx ok_vx ok_v.
+  have /ok_sem_op1_b[vb ok_vb vE] := ok_v.
+  have := xgetflag eqv ok_r ok_vx ok_vb => DE.
+  by case: {ok_r} r ok_ct DE => // -[<-] /= -> //=; rewrite vE.
++ case=> //; first do 3! case=> //; move=> x.
+  * case=> //; first do 2! case=> //; move=> y.
+    - move=> /=; t_xrbindP => r1 ok_r1 r2 ok_r2.
+      case: ifPn => // /andP[]; do 2! move/eqP=> ?; subst r1 r2.
+      case=> <- resx vx ok_vx ok_resx resy vy ok_vy ok_resy ok_v.
+      have /ok_sem_op1_b[rxb ok_rxb resxE] := ok_resx.
+      have /ok_sem_op1_b[ryb ok_ryb resyE] := ok_resy.
+      have := xgetflag eqv ok_r1 ok_vx ok_rxb => CFE.
+      have := xgetflag eqv ok_r2 ok_vy ok_ryb => ZFE.
+      rewrite /eval_cond; rewrite CFE ZFE /=; subst resx resy.
+      by move: ok_v; rewrite /sem_op2_b /mk_sem_sop2 /= => -[<-].
+    - case: y => // y; case=> // z; do 2! case=> //; case=> // t.
+      move=> /=; t_xrbindP => rx ok_rx ry ok_ry rz ok_rz rt ok_rt.
+      case: ifP => //; rewrite -!andbA => /and4P[].
+      do 4! move/eqP=> ?; subst rx ry rz rt => -[<-].
+      move=> vx resx ok_vx ok_resx res vy resy ok_vy ok_resy.
+      move=> vz ok_vz vt rest ok_vt ok_rest; case: ifPn => //.
+      move/eqP=> eqt_vz_vt [resE]; rewrite /sem_op2_b.
+      rewrite /mk_sem_sop2; t_xrbindP => a1 ok_a1 a2 ok_a2 <-.
+      have /ok_sem_op1_b[rxb ok_rxb vxE] := ok_resx; subst vx.
+      have /ok_sem_op1_b[rxt ok_rxt vtE] := ok_rest; subst vt.
+      have := xgetflag eqv ok_rx ok_vx ok_rxb => ZFE.
+      have := xgetflag eqv ok_ry ok_vy ok_resy => SFE.
+      have := xgetflag eqv ok_rt ok_vt ok_rxt => OFE.
+      admit.
+  * case: x => // x; case => // [y /=|].
+    - t_xrbindP=> rx ok_rx ry ok_ry; case: ifP => //.
+      case/andP; do 2! move/eqP=> ?; subst rx ry.
+      case=> <- vx ok_vx vy ok_vy ok_v.
+      have [[bx by_] /=] := ok_sem_op2_b ok_v => -[ok_bx ok_by] vE.
+      have ->/= := xgetflag eqv ok_rx ok_vx ok_bx.
+      have ->/= := xgetflag eqv ok_ry ok_vy ok_by.
+      by rewrite vE.
+    - case=> // y; do 2! case=> //; case=> // z; case=> //= t.
+      t_xrbindP=> rx ok_rx ry ok_ry rz ok_rz rt ok_rt.
+      case: ifP=> //; rewrite -!andbA => /and4P[].
+      do 4! move/eqP=> ?; subst rx ry rz rt => -[<-].
+      admit.
++ case=> // x [] // => [|[] // [] //] y.
+  * case=> // -[] // -[] // z /=; t_xrbindP.
+    move=> rx ok_rx ry ok_ry rz ok_rz.
+    case: ifPn => //; rewrite -!andbA => /and3P[].
+    do 3! move/eqP=> ?; subst rx ry rz.
+    have eq_xy: v_var y = v_var z.
+    - by apply/(inj_rflag_of_var ok_ry ok_rz).
+    case=> <- bvx vx ok_vx ok_bvx vy ok_vy.
+    move=> rvz vz ok_vz ok_rvz; case: ifP => // /eqP eqt -[<-].
+    have /ok_sem_op1_b[bvz ok_bvz ?] := ok_rvz; subst rvz.
+    admit.
+  * admit.
 Admitted.
 
 (* -------------------------------------------------------------------- *)
@@ -131,20 +327,21 @@ move=> eqv1 eqv2 h; case: h eqv1 eqv2 => {s1 s2}.
 + admit.
 + case=> lv vm [|_ _] //= ii lbl cs [-> ->].
   case: xs1 => xm xr xf xc ip -/dup[] [/= <-] ok_xc.
-  rewrite /assemble_c /=; t_xrbindP => sa ok_sa drop_xc le_ip_c <- <-.
+  rewrite /assemble_c /=; t_xrbindP => sa ok_sa drop_xc le_ip_c xfE xrE.
   move=> eqv1 eqv2; rewrite /fetch_and_eval /=; have lt_ip: ip < size xc.
   * by rewrite leqNgt; apply/negP=> /drop_oversize; rewrite -drop_xc.
   move: drop_xc; rewrite (drop_nth (LABEL lbl)) // => -[h tlaE].
   have {h} := congr1 some h; rewrite -(nth_map _ None) // => <- /=.
   congr ok; rewrite /st_write_ip /=; move: eqv2; rewrite /setc /=.
   case=> /= ->; rewrite ok_xc /assemble_c ok_sa => -[eq_xc] ok_sa2.
-  move=> le_ip2_c -> ->; move: ok_sa2; rewrite tlaE => -[].
+  move=> le_ip2_c /(rflags_eq xfE) -> /(regs_eq xrE) ->.
+  move: ok_sa2; rewrite tlaE => -[].
   rewrite eq_xc; move/inj_drop=> ->//; first by rewrite -eq_xc.
   by case: {+}xs2.
 + case=> [lv vm] [|_ _] //= ii lbl cs csf [-> ->] /=.
   move=> ok_csf; case: xs1 => xm xr xf xc ip -/dup[] [/= <-] ok_xc.
   rewrite /assemble_c /setc /=; t_xrbindP => tla ok_tla drop_xc.
-  move=> le_ip <- <- eqv1 eqv2; rewrite /fetch_and_eval /=.
+  move=> le_ip xfE xrE eqv1 eqv2; rewrite /fetch_and_eval /=.
   have lt_ip: ip < size xc; first (rewrite leqNgt; apply/negP).
   * by move/drop_oversize; rewrite -drop_xc.
   move: drop_xc; rewrite (drop_nth (JMP lbl)) // => -[h tlaE].
@@ -152,13 +349,14 @@ move=> eqv1 eqv2 h; case: h eqv1 eqv2 => {s1 s2}.
   rewrite /eval_JMP /st_write_ip /=.
   case: (xfind_label ok_csf ok_xc) => ip' [-> lt_ip' ok_tl] /=; congr ok.
   case: xs2 eqv2 => xm2 xr2 xf2 xc2 ip2 [/= ->].
-  rewrite ok_xc => -[<-] ok_drop le_ip2 <- <-; f_equal.
+  rewrite ok_xc => -[<-] ok_drop le_ip2.
+  move=> /(rflags_eq xfE) -> /(regs_eq xrE) ->; f_equal.
   by move: ok_drop; rewrite ok_tl => -[] => /inj_drop -> //; apply/ltnW. 
 + move=> ii [lv vm] [|i li] //= e lbl cst csf [-> ->] {li} /=.
   rewrite /to_estate /=; t_xrbindP=> v ok_v vl_v ok_csf.
   case: xs1 => xm xr xf xc ip -/dup[] [/= <-] ok_xc.
   rewrite /assemble_c /setc /=; t_xrbindP=> a ct ok_ct [ok_a] /=.
-  move=> tla ok_tla drop_xc le_ip <- <- eqv1 eqv2; rewrite /fetch_and_eval /=.
+  move=> tla ok_tla drop_xc le_ip xfE xrE eqv1 eqv2; rewrite /fetch_and_eval /=.
   have lt_ip: ip < size xc; first (rewrite leqNgt; apply/negP).
   * by move/drop_oversize; rewrite -drop_xc.
   move: drop_xc; rewrite (drop_nth a) // -{}ok_a => -[h tlaE].
@@ -167,13 +365,14 @@ move=> eqv1 eqv2 h; case: h eqv1 eqv2 => {s1 s2}.
   rewrite (xeval_cond eqv1 ok_ct ok_v) vl_v /= /st_write_ip /=.
   case: (xfind_label ok_csf ok_xc) => ip' [-> lt_ip' ok_tl] /=; congr ok.
   case: xs2 eqv2 => xm2 xr2 xf2 xc2 ip2 [/= ->].
-  rewrite ok_xc => -[<-] ok_drop le_ip2 <- <-; f_equal.
+  rewrite ok_xc => -[<-] ok_drop le_ip2.
+  move=> /(rflags_eq xfE) -> /(regs_eq xrE) ->; f_equal.
   by move: ok_drop; rewrite ok_tl => -[] => /inj_drop -> //; apply/ltnW. 
 + move=> ii [lv vm] [|i li] //= e lbl cs [-> ->] {li} /=.
   rewrite /to_estate /=; t_xrbindP => v ok_v ok_bv; rewrite /setc /=.
   case: xs1 => xm xr xf xc ip -/dup[] [/= <-] ok_xc.
   rewrite /assemble_c /setc /=; t_xrbindP=> a ct ok_ct [ok_a] /=.
-  move=> tla ok_tla drop_xc le_ip <- <- eqv1 eqv2; rewrite /fetch_and_eval /=.
+  move=> tla ok_tla drop_xc le_ip xfE xrE eqv1 eqv2; rewrite /fetch_and_eval /=.
   have lt_ip: ip < size xc; first (rewrite leqNgt; apply/negP).
   * by move/drop_oversize; rewrite -drop_xc. 
   move: drop_xc; rewrite (drop_nth a) // -{}ok_a => -[h tlaE].
@@ -181,31 +380,8 @@ move=> eqv1 eqv2 h; case: h eqv1 eqv2 => {s1 s2}.
   rewrite /st_write_ip /= /eval_Jcc /= /eval_JMP.
   rewrite (xeval_cond eqv1 ok_ct ok_v) ok_bv /= /st_write_ip /=.
   case: eqv2 => /= ->; rewrite ok_xc /assemble_c ok_tla.
-  case=> [eq_xc] [tlaE2] le_ip2 -> ->; congr ok.
+  case=> [eq_xc] [tlaE2] le_ip2.
+  move=> /(rflags_eq xfE) -> /(regs_eq xrE) ->; congr ok.
   move: tlaE2; rewrite tlaE eq_xc => /inj_drop -> //.
   + by rewrite -eq_xc. + by case: {+}xs2.
 Admitted.
-
-
-
-
-
-
-
-
-
- 
-
-
-  
-
-
-
-
-
-
-
-
-
-
-

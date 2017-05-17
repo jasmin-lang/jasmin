@@ -302,7 +302,7 @@ Definition read_ireg (ir : ireg) (s : x86_state) :=
 (* -------------------------------------------------------------------- *)
 Definition eval_cond (c : condt) (rm : rflagmap) :=
   let get rf :=
-    if RflagMap.get rm rf is Def b then ok b else type_error in
+    if RflagMap.get rm rf is Def b then ok b else undef_error in
 
   match c with
   | O_ct   => get OF
