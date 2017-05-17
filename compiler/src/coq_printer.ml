@@ -54,6 +54,7 @@ let pp_ass_tag fmt = function
   | AT_rename_arg -> F.fprintf fmt ":a="
   | AT_rename_res -> F.fprintf fmt ":r="
   | AT_unroll     -> F.fprintf fmt ":i="
+  | AT_phinode     -> F.fprintf fmt ":φ="
 
 let string_cmp_ty = function
   | Cmp_int    -> "i"
