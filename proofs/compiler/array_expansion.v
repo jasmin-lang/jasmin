@@ -172,7 +172,7 @@ Module CBEA.
   Definition check_e (e1 e2:pexpr) m := 
     if check_eb m e1 e2 then cok m else cerror (Cerr_arr_exp e1 e2). 
 
-  Definition check_lval (r1 r2:lval) m := 
+  Definition check_lval (e2:option pexpr) (r1 r2:lval) m := 
     match r1, r2 with 
     | Lnone _ t1, Lnone _ t2 => 
       if t1 == t2 then cok m
@@ -316,15 +316,17 @@ Module CBEA.
     by apply (@eq_alloc_set x1 undef_error undef_error).
   Qed.
 
-  Lemma check_lvalP r1 r1' x1 x2 s1 s1' vm1 v1 v2 :
-    check_lval x1 x2 r1 = ok r1' ->
+  Lemma check_lvalP r1 r1' x1 x2 oe2 s1 s1' vm1 v1 v2 :
+    check_lval oe2 x1 x2 r1 = ok r1' ->
     eq_alloc r1 s1.(evm) vm1 ->
     value_uincl v1 v2 ->
+    oapp (fun e2 => sem_pexpr (Estate s1.(emem) vm1) e2 = ok v2) true oe2 ->
     write_lval x1 v1 s1 = ok s1' ->
     exists vm1', 
       write_lval x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1') /\
       eq_alloc r1' s1'.(evm) vm1'.
   Proof.
+    move=> H1 H2 H3 _; move: H1 H2 H3.
     case: x1 x2 => [vi1 t1 | x1 | x1 e1 | x1 e1] [vi2 t2 | x2 | x2 e2 | x2 e2] //=.
     + case:ifP => //= /eqP <- [<-].
       move=> Heqa Hv H; have [-> _]:= write_noneP H.
