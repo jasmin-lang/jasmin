@@ -82,7 +82,7 @@ let alloc_stack_fd fd =
 
 let is_same = function
   | AT_keep | AT_unroll -> false
-  | AT_rename_arg | AT_rename_res -> true
+  | AT_rename_arg | AT_rename_res | AT_phinode -> true
 
 let set_same loc cfm x y =
   let x = L.unloc x in

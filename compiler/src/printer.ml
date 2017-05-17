@@ -143,6 +143,7 @@ let pp_tag = function
   | AT_rename_arg -> ":a"
   | AT_rename_res -> ":r"
   | AT_unroll     -> ":i"
+  | AT_phinode -> ":φ"
 
 let rec pp_gi pp_info pp_var fmt i =
   F.fprintf fmt "%a" pp_info i.i_info;

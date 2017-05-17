@@ -144,6 +144,7 @@ type assgn_tag =
   | AT_rename_arg (* use as equality constraint in reg-alloc and compile to no-op *)
   | AT_rename_res (* use as equality constraint in reg-alloc and compile to no-op *)
   | AT_unroll (* result of unfolding loops, must be remove in next pass *)
+  | AT_phinode (* renaming during SSA transformation *)
 
 type 'ty glval =
  | Lnone of L.t * 'ty
