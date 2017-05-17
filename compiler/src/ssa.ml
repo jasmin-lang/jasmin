@@ -9,15 +9,15 @@ let fresh_name (m: names) (x: var) : var * names =
   let y = V.clone x in
   y, Mv.add x y m
 
-let rename_lval ((m, xs): names * lval list) : lval -> names * lval list =
+let rename_lval (allvars: bool) ((m, xs): names * lval list) : lval -> names * lval list =
   function
-  | Lvar x when (L.unloc x).v_kind = Reg ->
+  | Lvar x when allvars || (L.unloc x).v_kind = Reg ->
     let y, m = fresh_name m (L.unloc x) in
     m, Lvar (L.mk_loc (L.loc x) y) :: xs
   | x -> m, Subst.vsubst_lval m x :: xs
 
-let rename_lvals (m: names) (xs: lval list) : names * lval list =
-  let m, ys = List.fold_left rename_lval (m, []) xs in
+let rename_lvals allvars (m: names) (xs: lval list) : names * lval list =
+  let m, ys = List.fold_left (rename_lval allvars) (m, []) xs in
   m, List.rev ys
 
 let written_vars_lvar (w: Sv.t) =
@@ -49,22 +49,22 @@ let ir (m: names) (x: var) (y: var) : unit instr =
   let i_desc = Cassgn (Lvar (v y), AT_phinode, Pvar (v x)) in
   { i_desc ; i_info = () ; i_loc = L._dummy }
 
-let split_live_ranges (f: 'info func) : unit func =
+let split_live_ranges (allvars: bool) (f: 'info func) : unit func =
   let f = Liveness.live_fd false f in
   let rec instr_r (li: Sv.t) (lo: Sv.t) (m: names) =
     function
     | Cblock s -> let m, s = stmt m s in m, Cblock s
     | Cassgn (x, tg, e) ->
       let e = rename_expr m e in
-      let m, y = rename_lval (m, []) x in
+      let m, y = rename_lval allvars (m, []) x in
       m, Cassgn (List.hd y, tg, e)
     | Copn (xs, op, es) ->
       let es = List.map (rename_expr m) es in
-      let m, ys = rename_lvals m xs in
+      let m, ys = rename_lvals allvars m xs in
       m, Copn (ys, op, es)
     | Ccall (ii, xs, n, es) ->
       let es = List.map (rename_expr m) es in
-      let m, ys = rename_lvals m xs in
+      let m, ys = rename_lvals allvars m xs in
       m, Ccall (ii, ys, n, es)
     | Cfor _ -> assert false
     | Cif (e, s1, s2) ->
