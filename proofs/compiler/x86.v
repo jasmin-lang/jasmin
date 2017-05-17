@@ -153,15 +153,11 @@ Definition reg_of_var ii (v: var) :=
 Definition reg_of_vars ii (vs: seq var_i) :=
   mapM (reg_of_var ii \o v_var) vs.
 
-Definition word_of_int ii (z: Z) :=
-  if (I64.signed (I64.repr z) == z) then
-    ciok (I64.repr z)
-  else
-    cierror ii (Cerr_assembler (AsmErr_string "Integer constant out of bounds")).
+Definition word_of_int (z: Z) := ciok (I64.repr z).
 
 Definition word_of_pexpr ii e :=
   match e with
-  | Pcast (Pconst z) => word_of_int ii z
+  | Pcast (Pconst z) => word_of_int z
   | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid integer constant"))
   end.
 
@@ -181,7 +177,7 @@ Definition oprd_of_lval ii (l: lval) :=
 Definition oprd_of_pexpr ii (e: pexpr) :=
   match e with
   | Pcast (Pconst z) =>
-     Let w := word_of_int ii z in
+     Let w := word_of_int z in
      ciok (Imm_op w)
   | Pvar v =>
      Let s := reg_of_var ii v in
@@ -196,7 +192,7 @@ Definition oprd_of_pexpr ii (e: pexpr) :=
 Definition ireg_of_pexpr ii (e: pexpr) :=
   match e with
   | Pcast (Pconst z) =>
-     Let w := word_of_int ii z in
+     Let w := word_of_int z in
      ciok (Imm_ir w)
   | Pvar v =>
      Let s := reg_of_var ii v in

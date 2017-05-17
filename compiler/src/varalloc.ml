@@ -55,10 +55,10 @@ and rm_uninitialized_c init c =
   init', List.rev r
 
 let live_init_fd fd =
-  let fd = live_fd false fd in
+  let fd = live_fd true fd in
   let init = Sv.of_list fd.f_args in
   let _, f_body = rm_uninitialized_c init fd.f_body in
-  { fd with f_body }
+  { fd with f_body } 
 
 let alloc_stack_fd fd =
   (* collect all stack variables occuring in fd *)
@@ -67,14 +67,31 @@ let alloc_stack_fd fd =
   (* liveness analysis *)
   let fd' = live_init_fd fd in
   let cf = conflicts fd' in
+
+  Format.eprintf "liveness done@.";
+  let pp_info fmt (c1, c2) =
+    let pp_set fmt c = 
+      Format.fprintf fmt "{%a}" 
+        (Printer.pp_list ", " (Printer.pp_var ~debug:true)) (Sv.elements c) in
+    Format.fprintf fmt "%a%a" pp_set c1 pp_set c2 in
+  Format.eprintf "%a" (Printer.pp_ifunc ~debug:true pp_info) fd';
+  let pp_var =  Printer.pp_var ~debug:true in
+  Mv.iter (fun x s ->
+      Format.eprintf "%a -> %a@."
+        pp_var x (Printer.pp_list ", " pp_var) (Sv.elements s)) cf;
+  Format.eprintf "dependency done@."; 
+
+
+
   (* allocated variables *)
   let cfm = ref (init_classes cf) in
   let alloc x =
     let cx = get_conflict !cfm x in
-    let test y = x.v_ty = y.v_ty && not (Sv.mem y cx) in
+    let test y = x.v_ty = y.v_ty && not (Sv.mem y cx) && 
+                   try ignore(set_same !cfm x y); true
+                   with SetSameConflict -> false in
     let x' = List.find test vars in
-    try cfm := set_same !cfm x x' 
-    with SetSameConflict -> assert false in
+    cfm := set_same !cfm x x' in
   List.iter alloc vars;
   vsubst_func (normalize_repr !cfm) fd
 
@@ -85,8 +102,6 @@ let is_same = function
   | AT_rename_arg | AT_rename_res | AT_phinode -> true
 
 let set_same loc cfm x y =
-  let x = L.unloc x in
-  let y = L.unloc y in
   try set_same cfm x y
   with SetSameConflict ->
     hierror "at %a: cannot remove introduced assignment %a = %a"
@@ -94,11 +109,10 @@ let set_same loc cfm x y =
        (Printer.pp_var ~debug:true) x
        (Printer.pp_var ~debug:true) y
 
-
 let rec same_i cfm i =
   match i.i_desc with
   | Cassgn (Lvar x, tag ,Pvar y) when is_same tag && kind_i x = kind_i y ->
-    set_same i.i_loc cfm x y
+    set_same i.i_loc cfm (L.unloc x) (L.unloc y)
   | Cassgn (_, tag, _) when is_same tag ->
     hierror "at %a: cannot remove assignment %a@\nintroduced by inlining"
         L.pp_loc i.i_loc

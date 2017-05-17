@@ -166,7 +166,7 @@ let set_same (cf, m as cfm) x y =
     let yc = Mv.find_default Sv.empty ry cf in
     if Sv.mem rx yc then 
       begin 
-        let pp_v = Printer.pp_var ~debug:true in
+(*        let pp_v = Printer.pp_var ~debug:true in
         Format.eprintf "map:@.%a@.@."
           pp_map m;    
         Format.eprintf "x = %a --> %a; y = %a --> %a@."
@@ -174,7 +174,7 @@ let set_same (cf, m as cfm) x y =
         Format.eprintf "rx = %a@."
            (Printer.pp_list " " pp_v) (Sv.elements xc);
         Format.eprintf "ry = %a@."
-           (Printer.pp_list " " pp_v) (Sv.elements yc);
+           (Printer.pp_list " " pp_v) (Sv.elements yc); *)
         raise SetSameConflict
       end;
     merge_class1 cf rx xc ry yc, Mv.add rx ry m
