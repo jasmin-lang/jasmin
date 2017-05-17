@@ -692,7 +692,7 @@ Definition eval_SAR o ir s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_JMP lbl s : x86_result :=
-  Let ip := find_label lbl s.(xc) in ok (st_write_ip ip s).
+  Let ip := find_label lbl s.(xc) in ok (st_write_ip ip.+1 s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_Jcc lbl ct s : x86_result :=

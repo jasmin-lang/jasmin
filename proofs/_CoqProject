@@ -32,6 +32,7 @@ compiler/unrolling.v
 compiler/unrolling_proof.v
 compiler/x86.v
 compiler/x86_sem.v
+compiler/x86_proofs.v
 lang/expr.v
 lang/extraction.v
 lang/gen_map.v
