@@ -5,20 +5,53 @@ type names = var Mv.t
 
 let rename_expr (m: names) (e: expr) : expr = Subst.vsubst_e m e
 
+let fresh_name (m: names) (x: var) : var * names =
+  let y = V.clone x in
+  y, Mv.add x y m
+
 let rename_lval ((m, xs): names * lval list) : lval -> names * lval list =
   function
   | Lvar x when (L.unloc x).v_kind = Reg ->
-    let y = V.clone (L.unloc x) in
-    Mv.add (L.unloc x) y m, Lvar (L.mk_loc (L.loc x) y) :: xs
+    let y, m = fresh_name m (L.unloc x) in
+    m, Lvar (L.mk_loc (L.loc x) y) :: xs
   | x -> m, Subst.vsubst_lval m x :: xs
 
 let rename_lvals (m: names) (xs: lval list) : names * lval list =
   let m, ys = List.fold_left rename_lval (m, []) xs in
   m, List.rev ys
 
+let written_vars_lvar (w: Sv.t) =
+  function
+  | Lvar x -> Sv.add (L.unloc x) w
+  | _ -> w
+
+let written_vars_lvars = List.fold_left written_vars_lvar
+
+let rec written_vars_instr_r w =
+  function
+  | Cblock s
+  | Cfor (_, _, s)
+    -> written_vars_stmt w s
+  | Cassgn (x, _, _) -> written_vars_lvar w x
+  | Copn (xs, _, _)
+  | Ccall (_, xs, _, _)
+    -> written_vars_lvars w xs
+  | Cif (_, s1, s2)
+  | Cwhile (s1, _, s2)
+    -> written_vars_stmt (written_vars_stmt w s1) s2
+and written_vars_instr w { i_desc } = written_vars_instr_r w i_desc
+and written_vars_stmt w s = List.fold_left written_vars_instr w s
+
+(* Adds rename intruction y = m[x] *)
+let ir (m: names) (x: var) (y: var) : unit instr =
+  let x = Mv.find x m in
+  let v u = L.mk_loc L._dummy u in
+  let i_desc = Cassgn (Lvar (v y), AT_rename_arg, Pvar (v x)) in
+  { i_desc ; i_info = () ; i_loc = L._dummy }
+
 let split_live_ranges (f: 'info func) : unit func =
   let f = Liveness.live_fd f in
-  let rec instr_r (m: names) =
+  let rec instr_r (li: Sv.t) (lo: Sv.t) (m: names) =
     function
     | Cblock s -> let m, s = stmt m s in m, Cblock s
     | Cassgn (x, tg, e) ->
@@ -34,8 +67,37 @@ let split_live_ranges (f: 'info func) : unit func =
       let m, ys = rename_lvals m xs in
       m, Ccall (ii, ys, n, es)
     | Cfor _ -> assert false
+    | Cif (e, s1, s2) ->
+      let os = written_vars_stmt (written_vars_stmt Sv.empty s1) s2 in
+      let e = rename_expr m e in
+      let m1, s1 = stmt m s1 in
+      let m2, s2 = stmt m s2 in
+      let m, tl1, tl2 =
+        Sv.fold (fun x ((m, tl1, tl2) as n) ->
+            if Sv.mem x lo
+            then
+              let y, m = fresh_name m x in
+              m, ir m1 x y :: tl1, ir m2 x y :: tl2
+            else n
+          ) os (m, [], [])
+      in
+      m, Cif (e, s1 @ tl1, s2 @ tl2)
+    | Cwhile (s1, e, s2) ->
+      let os = written_vars_stmt (written_vars_stmt Sv.empty s1) s2 in
+      let m1, s1 = stmt m s1 in
+      let e = rename_expr m1 e in
+      let m2, s2 = stmt m1 s2 in
+      let tl2 =
+        Sv.fold (fun x tl2 ->
+            if Sv.mem x li
+            then let y = Mv.find_default x x m in ir m2 x y :: tl2
+            else tl2
+          ) os []
+      in
+      m1, Cwhile (s1, e, s2 @ tl2)
   and instr (m, tl) i =
-    let m, i_desc = instr_r m i.i_desc in
+    let { i_desc ; i_info = (li, lo) } = i in
+    let m, i_desc = instr_r li lo m i_desc in
     m, { i with i_info = () ; i_desc } :: tl
   and stmt m s =
     let m, s = List.fold_left instr (m, []) s in
