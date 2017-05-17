@@ -240,14 +240,7 @@ move=> eqv; case: e => //.
       case: ifP => //; rewrite -!andbA => /and4P[].
       do 4! move/eqP=> ?; subst rx ry rz rt => -[<-].
       move=> vx resx ok_vx ok_resx res vy resy ok_vy ok_resy.
-      move=> vz ok_vz vt rest ok_vt ok_rest; case: ifPn => //.
-      move/eqP=> eqt_vz_vt [resE]; rewrite /sem_op2_b.
-      rewrite /mk_sem_sop2; t_xrbindP => a1 ok_a1 a2 ok_a2 <-.
-      have /ok_sem_op1_b[rxb ok_rxb vxE] := ok_resx; subst vx.
-      have /ok_sem_op1_b[rxt ok_rxt vtE] := ok_rest; subst vt.
-      have := xgetflag eqv ok_rx ok_vx ok_rxb => ZFE.
-      have := xgetflag eqv ok_ry ok_vy ok_resy => SFE.
-      have := xgetflag eqv ok_rt ok_vt ok_rxt => OFE.
+      move=> vz ok_vz vt rest ok_vt ok_rest.
       admit.
   * case: x => // x; case => // [y /=|].
     - t_xrbindP=> rx ok_rx ry ok_ry; case: ifP => //.
@@ -270,7 +263,7 @@ move=> eqv; case: e => //.
     have eq_xy: v_var y = v_var z.
     - by apply/(inj_rflag_of_var ok_ry ok_rz).
     case=> <- bvx vx ok_vx ok_bvx vy ok_vy.
-    move=> rvz vz ok_vz ok_rvz; case: ifP => // /eqP eqt -[<-].
+    move=> rvz vz ok_vz ok_rvz.
     have /ok_sem_op1_b[bvz ok_bvz ?] := ok_rvz; subst rvz.
     admit.
   * admit.
