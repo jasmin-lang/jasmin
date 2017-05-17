@@ -640,7 +640,23 @@ let tt_exprs_cast env les tys =
     let e, ety = tt_expr ~mode:`AllVar env le in
     cast (L.loc le) e ety ty) les tys
 
-
+let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (e: P.pty P.gexpr) : (P.pty, unit) P.ginstr_r =
+  match x with
+  | Lvar z ->
+    begin match (L.unloc z).v_ty with
+    | P.Arr (_, n) ->
+    begin match e with
+    | Pvar y ->
+        let i = L.mk_loc (L.loc z) (P.PV.mk "i" P.Inline (Bty Int) (L.loc z)) in
+        Cfor (i, (UpTo, Pconst P.B.zero, n), [
+            let i_desc = P.Cassgn (Laset (z, Pvar i), AT_keep, Pget (y, Pvar i)) in
+            { i_desc ; i_loc = L.loc z ; i_info = () }
+          ])
+    | _ -> hierror "Array copy"
+    end
+    | _ -> Cassgn (x, tg, e)
+    end
+  | _ -> Cassgn (x, tg, e)
 
 let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
   let instr =
@@ -663,7 +679,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
       let _, flv, vty = tt_lvalue env lv in
       let e, ety = tt_expr ~mode:`AllVar env pe in
       let e = vty |> omap_dfl (cast (L.loc pe) e ety) e in
-      Cassgn(flv ety, AT_keep, e)
+      cassgn_for (flv ety) AT_keep e
 
     | PIAssign(ls, `Raw, pe, None) ->
       (* Try to match addc, subc, mulu *)
