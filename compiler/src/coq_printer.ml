@@ -115,7 +115,8 @@ let pp_sopn fmt sopn =
      | Ox86_NOT     -> "Ox86_NOT"
      | Ox86_SHL     -> "Ox86_SHL"
      | Ox86_SHR     -> "Ox86_SHR"
-     | Ox86_SAR     -> "Ox86_SAR")
+     | Ox86_SAR     -> "Ox86_SAR"
+     | Ox86_SHLD    -> "Ox86_SHLD")
 
 let count = ref 0
 let vars_tbl = Hv.create 101

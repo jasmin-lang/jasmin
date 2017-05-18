@@ -111,6 +111,7 @@ Variant asm : Type :=
 | SHR    of oprd & ireg            (* unsigned / right *)
 | SAL    of oprd & ireg            (*   signed / left; synonym of SHL *)
 | SAR    of oprd & ireg            (*   signed / right *)
+| SHLD   of oprd & register & ireg (* unsigned (double) / left *)
 .
 
 (* -------------------------------------------------------------------- *)
@@ -694,6 +695,30 @@ Definition eval_SHL o ir s : x86_result :=
           end) s).
 
 (* -------------------------------------------------------------------- *)
+Definition eval_SHLD o1 r2 ir s : x86_result :=
+  Let v1 := read_oprd o1 s in
+  let v2 := s.(xreg) r2 in
+  let i := I64.and (read_ireg ir s) x86_shift_mask in
+
+  if i == I64.zero then ok s else
+    let rc := msb (I64.shl v1 (I64.sub i I64.one)) in
+    let r1  := I64.shl v1 i in
+    let r2 := I64.shr v2 (I64.sub (I64.repr I64.zwordsize) i) in
+    let r  := I64.or r1 r2 in
+    Let s  := write_oprd o1 r s in
+    ok (st_update_rflags (fun rf =>
+          match rf with
+          | OF => Some (if i == I64.one
+                  then Def (msb r (+) rc)
+                  else Undef)
+          | CF => Some (Def rc)
+          | SF => Some (Def (SF_of_word r))
+          | PF => Some (Def (PF_of_word r))
+          | ZF => Some (Def (ZF_of_word r))
+          | _  => None
+          end) s).
+
+(* -------------------------------------------------------------------- *)
 Definition eval_SHR o ir s : x86_result :=
   Let v := read_oprd o s in
   let i := I64.and (read_ireg ir s) x86_shift_mask in
@@ -777,6 +802,7 @@ Definition eval_instr (i : asm) s : x86_result :=
   | SHR    o ir     => eval_SHR o ir s
   | SAL    o ir     => eval_SAL o ir s
   | SAR    o ir     => eval_SAR o ir s
+  | SHLD   o1 o2 ir => eval_SHLD o1 o2 ir s
   end.
 
 (* -------------------------------------------------------------------- *)

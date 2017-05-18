@@ -392,10 +392,14 @@ Variant bincop :=
   | BC_ADC
   | BC_SBB.
 
-Variant shtop :=
+Variant shtop2 :=
   | ST_SHL
   | ST_SHR
   | ST_SAR.
+
+Variant shtop := 
+  | ST_OP2 of shtop2
+  | ST_SHLD.
 
 Variant alukind :=
   | LK_CMP
@@ -427,9 +431,10 @@ Definition kind_of_sopn (o : sopn) :=
   | Ox86_MUL    => OK_ALU LK_MUL
   | Ox86_IMUL64 => OK_ALU LK_IMUL
 
-  | Ox86_SHR    => OK_ALU (LK_SHT ST_SHR)
-  | Ox86_SHL    => OK_ALU (LK_SHT ST_SHL)
-  | Ox86_SAR    => OK_ALU (LK_SHT ST_SAR)
+  | Ox86_SHR    => OK_ALU (LK_SHT (ST_OP2 ST_SHR))
+  | Ox86_SHL    => OK_ALU (LK_SHT (ST_OP2 ST_SHL))
+  | Ox86_SAR    => OK_ALU (LK_SHT (ST_OP2 ST_SAR))
+  | Ox86_SHLD   => OK_ALU (LK_SHT ST_SHLD)
   | Ox86_DEC    => OK_CNT false
   | Ox86_INC    => OK_CNT true
   | Ox86_AND    => OK_ALU (LK_BINU BU_AND)
@@ -448,21 +453,22 @@ Definition kind_of_sopn (o : sopn) :=
 Definition string_of_aluk (o : alukind) :=
   let op :=
       match o with
-      | LK_SET0        => Oset0 
-      | LK_CMP         => Ox86_CMP   
-      | LK_BINU BU_ADD => Ox86_ADD   
-      | LK_BINC BC_ADC => Ox86_ADC   
-      | LK_BINU BU_SUB => Ox86_SUB   
-      | LK_BINC BC_SBB => Ox86_SBB   
-      | LK_BINU BU_AND => Ox86_AND
-      | LK_BINU BU_OR  => Ox86_OR
-      | LK_BINU BU_XOR => Ox86_XOR
-      | LK_NEG         => Ox86_NEG   
-      | LK_MUL         => Ox86_MUL   
-      | LK_IMUL        => Ox86_IMUL64
-      | LK_SHT ST_SHR  => Ox86_SHR   
-      | LK_SHT ST_SHL  => Ox86_SHL   
-      | LK_SHT ST_SAR  => Ox86_SAR   
+      | LK_SET0                 => Oset0 
+      | LK_CMP                  => Ox86_CMP   
+      | LK_BINU BU_ADD          => Ox86_ADD   
+      | LK_BINC BC_ADC          => Ox86_ADC   
+      | LK_BINU BU_SUB          => Ox86_SUB   
+      | LK_BINC BC_SBB          => Ox86_SBB   
+      | LK_BINU BU_AND          => Ox86_AND
+      | LK_BINU BU_OR           => Ox86_OR
+      | LK_BINU BU_XOR          => Ox86_XOR
+      | LK_NEG                  => Ox86_NEG   
+      | LK_MUL                  => Ox86_MUL   
+      | LK_IMUL                 => Ox86_IMUL64
+      | LK_SHT (ST_OP2 ST_SHR)  => Ox86_SHR   
+      | LK_SHT (ST_OP2 ST_SHL)  => Ox86_SHL   
+      | LK_SHT (ST_OP2 ST_SAR)  => Ox86_SAR   
+      | LK_SHT ST_SHLD          => Ox86_SHLD   
       end
 
   in string_of_sopn op.
@@ -600,21 +606,33 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
     end
 
   | LK_SHT sht =>
-    match as_pair e, as_singleton l with
-    | Some (e1, e2), Some x =>
+    match e, as_singleton l with
+    | e1 :: e2 :: l', Some x =>
       Let o1 := oprd_of_pexpr ii e1 in
       Let o2 := ireg_of_pexpr ii e2 in
       Let ox := oprd_of_lval ii x in
       if (o1 != ox) then
         cierror ii (Cerr_assembler (AsmErr_string
           ("First [rl]val should be the same for " ++ string_of_aluk o)))
-      else ciok (
-        match sht with
-        | ST_SHL => SHL
-        | ST_SHR => SHR
-        | ST_SAR => SAR
-        end o1 o2)
-
+      else match sht with
+      | ST_OP2 sht =>
+        (* FIXME if o2 is a register it should be CL *)
+        if l' == [::] then
+          ciok (match sht with
+                | ST_SHL => SHL
+                | ST_SHR => SHR
+                | ST_SAR => SAR
+                end o1 o2)
+        else cierror ii (Cerr_assembler (wrong_aluk o))
+      | ST_SHLD =>
+        match as_singleton l', o2 with
+        | Some e3, Reg_ir r2 => 
+           (* FIXME if o3 is a register it should be CL *)
+          Let o3 := ireg_of_pexpr ii e3 in
+          ciok (SHLD o1 r2 o3)
+        | _, _ => cierror ii (Cerr_assembler (wrong_aluk o))
+        end
+      end
     | _, _ =>
       cierror ii (Cerr_assembler (wrong_aluk o))
     end

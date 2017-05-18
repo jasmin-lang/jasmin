@@ -117,6 +117,7 @@ Variant sopn : Set :=
 | Ox86_SHL     (* unsigned / left  *)
 | Ox86_SHR     (* unsigned / right *)
 | Ox86_SAR     (*   signed / right *)
+| Ox86_SHLD    (* unsigned double-word / left  *)
 .
 
 Scheme Equality for sop1.
@@ -188,6 +189,7 @@ Definition string_of_sopn o : string :=
   | Ox86_SHL    => "Ox86_SHL   "
   | Ox86_SHR    => "Ox86_SHR   "
   | Ox86_SAR    => "Ox86_SAR   "
+  | Ox86_SHLD    => "Ox86_SHLD   "
   end.
 
 (* ** Expressions

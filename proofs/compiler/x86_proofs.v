@@ -444,9 +444,12 @@ case: i => ii /=; rewrite /is_label /=; case=> //=.
     - move=> b; case: as_triple => // -[[e1 e2] [] // e3].
       case: as_singleton => // l; t_xrbindP => ev1 _ ev2 _ ev3 _ vl _.
       by do 2! case: ifP => // _; case: b.
-    - move=> s; case: as_pair => // -[e1 e2].
+    - move=> s. case:es => // e1 [//|e2 l'].
       case: as_singleton => // l; t_xrbindP=> ev1 _ ev2 _ vl _.
-      by case: ifP => // _; case: s.
+      case: ifP => // _. 
+      case: s => [s | ].
+      + by case:ifP => //;case:s.
+      by case: as_singleton => //;case ev2 => // ??;t_xrbindP.
     - case: as_pair => // -[e1 e2]; case: as_pair => // -[l1 l2].
       by t_xrbindP => op1 _ op2 _ op3 _ op4 _; case: ifP.
     - case: as_pair => // -[e1 e2]; case: as_singleton => // l.
@@ -1206,18 +1209,24 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
         move/(_ (erefl _)); set xs' := st_update_rflags _ _ => eqv_s';
         case: (xwrite_ok eqv_s' okx ok_s2) => xs2 ok_xs2 eqv2; exists xs2 => //;
         by rewrite /st_get_rflag getcf /= ).
-    - move=> sh Eo /=; case Ees: as_pair => [[e1 e2]|//].
+    - move=> sh Eo /=;case: es ok_aout => // [e1 [//|e2 es']] ok_aout.
       case El1: as_singleton => [lv|//]; t_XrbindP.
       move=> op1 ok1 op2 o2 opl okl; case: eqP => //= ?; subst opl.
       have := as_singletonT El1 => ?; subst l => {El1}.
-      have := as_pairT Ees => ?; subst es => {Ees}.
       move: ok_aout; rewrite /sem_pexprs /=; t_XrbindP.
-      move=> v1 ok_v1 _ v2 ok_v2 <- ?; subst aout.
+      move=> v1 ok_v1 h0 v2 ok_v2 h3 ok_es' ??; subst h0 aout.
       case: (xread_ok eqv' ok1 ok_v1) => wv1 ok_wv1 ?; subst v1.
-      case: sh o Eo ok_vs => -[] // _ /=.
-      * admit.
-      * admit.
-      * admit.
+      case: sh Eo ok_vs => [sh | ].
+      + case:eqP ok_es' => // ?;subst es' => -[?];subst h3.
+        case:sh => Eo ok_vs -[?];subst a.
+        * admit.
+        * admit.
+        admit.
+      case Heq: as_singleton => //.
+      have := as_singletonT Heq => ?; subst es' => {Heq}.     
+      case: op2 o2 => // r Hr Hkindo Hsemo.
+      t_XrbindP => r3 ok_r3 ?;subst a.
+      admit.      
     - move=> Eo /=; case Ees: as_pair => [[e1 e2]|//].
       case El2: as_pair => [[x2 x1]|//]; t_xrbindP.
       move=> vx1 ok_vx1 vx2 ok_vx2 op1 ok_op1 op2 ok_op2.

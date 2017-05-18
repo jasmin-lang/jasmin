@@ -145,6 +145,7 @@ let pp_opn = function
   | Ox86_SHL     -> "#x86_SHL"
   | Ox86_SHR     -> "#x86_SHR"
   | Ox86_SAR     -> "#x86_SAR"
+  | Ox86_SHLD    -> "#x86_SHLD"
 
 (* -------------------------------------------------------------------- *)
 let pp_tag = function

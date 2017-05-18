@@ -143,7 +143,7 @@ type op =
 | Ox86_SHL
 | Ox86_SHR
 | Ox86_SAR
-
+| Ox86_SHLD
 
 type assgn_tag =
   | AT_keep   (* compile to move *)

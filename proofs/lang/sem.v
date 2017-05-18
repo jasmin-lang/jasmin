@@ -736,9 +736,27 @@ Definition x86_sar (v i: word) : exec values :=
   else
     let rc := lsb (I64.shr v (I64.sub i I64.one)) in
     let r  := I64.shr v i in
-
     let OF :=
       if i == I64.one then Vbool false
+      else undef_b in
+    let CF := Vbool rc in
+    let SF := Vbool (SF_of_word r) in
+    let PF := Vbool (PF_of_word r) in
+    let ZF := Vbool (ZF_of_word r) in
+    ok [:: OF; CF; SF; PF; ZF; Vword r].
+
+Definition x86_shld (v1 v2 i: word) : exec values :=
+  let i := I64.and i x86_shift_mask in
+  if i == I64.zero then
+    let u := Vundef sbool in
+    ok [:: u; u; u; u; u; Vword v1]
+  else
+    let rc := msb (I64.shl v1 (I64.sub i I64.one)) in
+    let r1 := I64.shl v1 i in
+    let r2 := I64.shr v2 (I64.sub (I64.repr I64.zwordsize) i) in
+    let r  := I64.or r1 r2 in
+    let OF :=
+      if i == I64.one then Vbool (msb r (+) rc)
       else undef_b in
     let CF := Vbool rc in
     let SF := Vbool (SF_of_word r) in
@@ -796,6 +814,7 @@ Definition sem_sopn (o:sopn) :  values -> exec values :=
   | Ox86_SHL     => app_ww x86_shl
   | Ox86_SHR     => app_ww x86_shr
   | Ox86_SAR     => app_ww x86_sar
+  | Ox86_SHLD    => app_www x86_shld
   end.
 
 (* ** Instructions
