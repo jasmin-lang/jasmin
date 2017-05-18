@@ -326,7 +326,11 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
 (* -------------------------------------------------------------------- *)
 Variant binuop :=
   | BU_ADD
-  | BU_SUB.
+  | BU_SUB
+  | BU_AND
+  | BU_OR
+  | BU_XOR
+.
 
 Variant bincop :=
   | BC_ADC
@@ -368,6 +372,9 @@ Definition kind_of_sopn (o : sopn) :=
   | Ox86_SAR    => OK_ALU (LK_SHT ST_SAR)
   | Ox86_DEC    => OK_CNT false
   | Ox86_INC    => OK_CNT true
+  | Ox86_AND    => OK_ALU (LK_BINU BU_AND)
+  | Ox86_OR    => OK_ALU (LK_BINU BU_OR)
+  | Ox86_XOR    => OK_ALU (LK_BINU BU_XOR)
   | Ox86_MOV    => OK_MOV
   | Ox86_CMOVcc => OK_MOVcc
   | _           => OK_None
@@ -381,6 +388,9 @@ Definition string_of_aluk (o : alukind) :=
       | LK_BINC BC_ADC => Ox86_ADC   
       | LK_BINU BU_SUB => Ox86_SUB   
       | LK_BINC BC_SBB => Ox86_SBB   
+      | LK_BINU BU_AND => Ox86_AND
+      | LK_BINU BU_OR => Ox86_OR
+      | LK_BINU BU_XOR => Ox86_XOR
       | LK_NEG         => Ox86_NEG   
       | LK_MUL         => Ox86_MUL   
       | LK_IMUL        => Ox86_IMUL64
@@ -474,6 +484,9 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
         ciok (match bin with
               | BU_ADD => ADD
               | BU_SUB => SUB
+              | BU_AND => AND
+              | BU_OR => OR
+              | BU_XOR => XOR
               end o1 o2)
 
     | _, _ =>
