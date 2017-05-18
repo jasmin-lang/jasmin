@@ -119,8 +119,7 @@ Lemma xread_ok ii v e op c s xs :
 -> read_oprd op xs = to_word v.
 Proof.
 move=> eqv; case: e => //.
-+ case=> //= z; t_xrbindP => w; rewrite /word_of_int.
-  by case: ifP => // _ [<-] [<-] <-.
++ by case=> //= z; t_xrbindP => -[<-] <-.
 + move=> x /=; t_xrbindP => r; case: x => -[vt x vi].
   case: vt => //=; case E: reg_of_string => [r'|] //.
   case=> <- [<-] /=; case: eqv => _ _ _ _ _ eqv ok_v.
@@ -135,7 +134,7 @@ rewrite I64.add_commut; f_equal.
   case E: reg_of_string => [r'|] // [<-] ok_o ok_z.
   by move/(_ _ _ E): eqv; rewrite ok_o ok_z.
 case: e ok_w ok_o' => // -[] //= zw; rewrite /word_of_int.
-by case: ifPn => // _ [<-] [o'E]; move: ok_z'; rewrite -o'E => -[].
+by case=> -> -[?]; subst o'; case: ok_z'.
 Qed.
 
 (* -------------------------------------------------------------------- *)
