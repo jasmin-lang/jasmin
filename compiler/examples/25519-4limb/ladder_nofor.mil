@@ -303,6 +303,7 @@ fn square(stack u64[4] xa) -> reg u64[4] {
 fn ladderstep(stack u64[4] x1p, stack u64[4] x2p, stack u64[4] z2p, stack u64[4] x3p, stack u64[4] z3p)
     -> (stack u64[4] , stack u64[4] , stack u64[4] , stack u64[4]) {
 
+
   reg u64[4] t1;
   reg u64[4] t2;
   reg u64[4] t7;
@@ -380,6 +381,18 @@ fn ladderstep(stack u64[4] x1p, stack u64[4] x2p, stack u64[4] z2p, stack u64[4]
   return x2p, z2p, x3p, z3p;
 }
 
+/*
+export fn ladderstep_exp() {
+  stack u64[4] x1p;
+  stack u64[4] x2p;
+  stack u64[4] z2p;
+  stack u64[4] x3p;
+  stack u64[4] z3p;
+
+  x2p, z2p, x3p, z3p = ladderstep(x1p,x2p,z2p,x3p,z3p);
+}
+*/
+
 // ** cswap
 // ************************************************************************
 
@@ -422,7 +435,7 @@ fn cswap(stack u64[4] x2p, stack u64[4] z2p, stack u64[4] x3p, stack u64[4] z3p,
 // ** montgomery ladder
 // ************************************************************************
 
-fn mladder(stack u64[4] xr, stack u64[4] sp) -> (stack u64[4], stack u64[4]) {
+fn mladder(stack u64[4] xr, reg u64 sp) -> (stack u64[4], stack u64[4]) {
 
   stack u64    s;
   reg u64      tmp1;
@@ -435,7 +448,7 @@ fn mladder(stack u64[4] xr, stack u64[4] sp) -> (stack u64[4], stack u64[4]) {
   stack u64[4] z2;
   stack u64[4] x3;
   stack u64[4] z3;
-  inline int   i;
+  reg u64      i;
   reg u64      j;
   reg bool     cf;
 
@@ -446,9 +459,9 @@ fn mladder(stack u64[4] xr, stack u64[4] sp) -> (stack u64[4], stack u64[4]) {
   x3 = xr;
   z3[0] = 1; z3[1] = 0; z3[2] = 0; z3[3] = 0;
 
-  j = 62;
-  for i = 3 downto (-1) {
-    tmp1 = sp[i];
+  j = 62; i = 3;
+  while (i >=s 0) {
+    tmp1 = [sp + 8*i];
     s = tmp1;
     while (j >=s 0) {
       tmp2 = s;
@@ -459,13 +472,11 @@ fn mladder(stack u64[4] xr, stack u64[4] sp) -> (stack u64[4], stack u64[4]) {
       prevbit = bit;
       x2,z2,x3,z3 = cswap(x2,z2,x3,z3,swap);
       x2,z2,x3,z3 = ladderstep(x1,x2,z2,x3,z3);
-      j = j - 1;
+      j -= 1;
     }
     j = 63;
+    i -= 1;
   }
-  /* We know lsb of secret keys are 0 */
-  //swap = prevbit;
-  //x2,z2,x3,z3 = cswap(x2,z2,x3,z3,swap);
   return x2, z2;
 }
 
@@ -571,9 +582,10 @@ fn unpack_point(reg u64 xp) -> stack u64[4] {
 // ** unpack_secret
 // ************************************************************************
 
-fn unpack_secret(reg u64 sp) -> stack u64[4] {
+fn unpack_secret(reg u64 sp) {
   stack u64[4] sa;
   reg u64 si;
+  inline int i;
 
   si    = [sp + 0*8];
   si    = si & 0xfffffffffffffff8;
@@ -584,7 +596,7 @@ fn unpack_secret(reg u64 sp) -> stack u64[4] {
   si    = si & 0x7fffffffffffffff;
   si    = si | 0x4000000000000000;
   sa[3] = si;
-  return sa;
+  for i = 0 to 4 { [sp + 8*i] = sa[i]; }
 }
 
 // ** freeze
@@ -630,7 +642,7 @@ fn freeze(reg u64[4] xa) -> reg u64[4] {
 // ** pack
 // ************************************************************************
 
-/* assumes input x reduced below 2^255 */
+// assumes input x reduced below 2^255 */
 fn pack(reg u64 rp, reg u64[4] xa) {
   inline int i;
 
@@ -643,20 +655,23 @@ fn pack(reg u64 rp, reg u64[4] xa) {
 // ** scalar multiplication
 // ************************************************************************
 
-export fn scalarmult( reg u64 rp /* address to store result  */
+  fn scalarmult( reg u64 rp /* address to store result  */
                     , reg u64 sp /* address of secret scalar */
                     , reg u64 pp /* address of point         */) {
-  stack u64[4] sa;
+  stack u64[4] save;
   stack u64[4] xa;
   stack u64[4] za;
   stack u64[4] zia;
   reg u64[4] r;
+  inline int i;
 
-  sa = unpack_secret(sp);
+  for i = 0 to 4 { save[i] = [sp + 8*i]; }
+  unpack_secret(sp);
   xa = unpack_point(pp);
-  xa, za = mladder(xa,sa);
+  xa, za = mladder(xa,sp);
   zia = invert(za);
   r = mul(xa,zia);
   pack(rp,r);
+  for i = 0 to 4 { [sp + 8*i] = save[i]; }
+ 
 }
-

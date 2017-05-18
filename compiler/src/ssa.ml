@@ -44,7 +44,7 @@ and written_vars_stmt w s = List.fold_left written_vars_instr w s
 
 (* Adds rename intruction y = m[x] *)
 let ir (m: names) (x: var) (y: var) : unit instr =
-  let x = Mv.find x m in
+  let x = Mv.find_default x x m in
   let v u = L.mk_loc L._dummy u in
   let i_desc = Cassgn (Lvar (v y), AT_phinode, Pvar (v x)) in
   { i_desc ; i_info = () ; i_loc = L._dummy }
