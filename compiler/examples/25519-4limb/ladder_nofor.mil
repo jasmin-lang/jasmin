@@ -334,7 +334,6 @@ fn ladderstep(stack u64[4] x1p, stack u64[4] x2p, stack u64[4] z2p, stack u64[4]
   c121666p[1] = 0;
   c121666p[2] = 0;
   c121666p[3] = 0;
-
   // workp mapping: 0 -> x1p, 1 -> x2p, 2 -> z2p, 3 -> x3p, 4 -> z3p
   t1      = x2p;
   t2      = t1;
@@ -377,6 +376,7 @@ fn ladderstep(stack u64[4] x1p, stack u64[4] x2p, stack u64[4] z2p, stack u64[4]
   z2p     = w6;
   w7      = mul(z2p,t5p);
   z2p     = w7;
+ 
 
   return x2p, z2p, x3p, z3p;
 }
@@ -450,6 +450,8 @@ fn mladder(stack u64[4] xr, reg u64 sp) -> (stack u64[4], stack u64[4]) {
   stack u64[4] z3;
   reg u64      i;
   reg u64      j;
+  stack u64    is;
+  stack u64    js;
   reg bool     cf;
 
   prevbit = 0;
@@ -461,9 +463,11 @@ fn mladder(stack u64[4] xr, reg u64 sp) -> (stack u64[4], stack u64[4]) {
 
   j = 62; i = 3;
   while (i >=s 0) {
+    is = i;
     tmp1 = [sp + 8*i];
     s = tmp1;
     while (j >=s 0) {
+      js = j;
       tmp2 = s;
       bit = tmp2 >> j;
       bit = bit & 1;
@@ -472,9 +476,11 @@ fn mladder(stack u64[4] xr, reg u64 sp) -> (stack u64[4], stack u64[4]) {
       prevbit = bit;
       x2,z2,x3,z3 = cswap(x2,z2,x3,z3,swap);
       x2,z2,x3,z3 = ladderstep(x1,x2,z2,x3,z3);
+      j=js;
       j -= 1;
     }
     j = 63;
+    i = is;
     i -= 1;
   }
   return x2, z2;
@@ -655,7 +661,7 @@ fn pack(reg u64 rp, reg u64[4] xa) {
 // ** scalar multiplication
 // ************************************************************************
 
-  fn scalarmult( reg u64 rp /* address to store result  */
+ export fn scalarmult( reg u64 rp /* address to store result  */
                     , reg u64 sp /* address of secret scalar */
                     , reg u64 pp /* address of point         */) {
   stack u64[4] save;
