@@ -117,6 +117,55 @@ Definition rflag_of_string (s: string) : option rflag :=
   | _ => None
   end.
 
+Definition string_of_rflag (rf : rflag) : string :=
+  match rf with
+ | CF => "CF"
+ | PF => "PF"
+ | ZF => "ZF"
+ | SF => "SF"
+ | OF => "OF"
+ | DF => "DF"
+ end.
+
+Lemma rflag_of_stringK : pcancel string_of_rflag rflag_of_string.
+Proof. by case. Qed.
+
+Lemma reg_of_stringK : pcancel string_of_register reg_of_string.
+Proof. by case. Qed.
+
+Definition Some_inj {A: Type} {a b: A} (H: Some b = Some a) : b = a :=
+  let 'Logic.eq_refl := H in Logic.eq_refl.
+
+Lemma inj_reg_of_string s1 s2 r :
+     reg_of_string s1 = Some r
+  -> reg_of_string s2 = Some r
+  -> s1 = s2.
+Proof.
+rewrite /reg_of_string; move=> A B; rewrite -A in B.
+repeat match goal with
+| |- ?a = ?a => exact Logic.eq_refl
+| H : ?a = ?b |- _ => subst a || subst b || refine (let 'Logic.eq_refl := H in I)
+| H : Some _ = Some _ |- _ => apply Some_inj in H
+| H : (if is_left ?a then _ else _) = Some _ |- _ => destruct a; simpl in *
+| H : match ?a with _ => _ end = Some _ |- _ => destruct a; simpl in H
+end.
+Qed.
+
+Lemma inj_rflag_of_string s1 s2 rf :
+     rflag_of_string s1 = Some rf
+  -> rflag_of_string s2 = Some rf
+  -> s1 = s2.
+Proof.
+rewrite /rflag_of_string; move=> A B; rewrite -A in B.
+repeat match goal with
+| |- ?a = ?a => exact Logic.eq_refl
+| H : ?a = ?b |- _ => subst a || subst b || refine (let 'Logic.eq_refl := H in I)
+| H : Some _ = Some _ |- _ => apply Some_inj in H
+| H : (if is_left ?a then _ else _) = Some _ |- _ => destruct a; simpl in *
+| H : match ?a with _ => _ end = Some _ |- _ => destruct a; simpl in H
+end.
+Qed.
+
 Record xfundef := XFundef {
  xfd_stk_size : Z;
  xfd_nstk : register;

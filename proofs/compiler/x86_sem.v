@@ -173,6 +173,10 @@ Module RegMap.
 
   Definition get (m : map) (x : register) := m x.
 
+  Axiom eq_regmap :
+    forall rg1 rg2,
+      (forall x, get rg1 x = get rg2 x) -> rg1 = rg2.
+
   Definition set (m : map) (x : register) (y : word) :=
     fun z => if (z == x) then y else m z.
 End RegMap.
@@ -184,6 +188,10 @@ Module RflagMap.
   Definition map := rflag -> rflagv.
 
   Definition get (m : map) (x : rflag) := m x.
+
+  Axiom eq_rfmap :
+    forall rf1 rf2,
+      (forall x, get rf1 x = get rf2 x) -> rf1 = rf2.
 
   Definition set (m : map) (x : rflag) (y : bool) :=
     fun z => if (z == x) then Def y else m z.

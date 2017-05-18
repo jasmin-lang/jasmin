@@ -1,6 +1,6 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect.
-(* ------- *) Require Import expr linear compiler_util low_memory.
+(* ------- *) Require Import utils expr linear compiler_util low_memory.
 (* ------- *) Require Import sem linear linear_sem x86 x86_sem.
 
 Set Implicit Arguments.
@@ -10,34 +10,10 @@ Unset Printing Implicit Defensive.
 Unset SsrOldRewriteGoalsOrder.
 
 (* -------------------------------------------------------------------- *)
-Variant dup_spec (P : Prop) :=
-| Dup of P & P.
-
-Lemma dup (P : Prop) : P -> dup_spec P.
-Proof. by move=> ?; split. Qed.
-
-(* -------------------------------------------------------------------- *)
-Lemma drop_add {T : Type} (s : seq T) (n m : nat) :
-  drop n (drop m s) = drop (n+m) s.
+Lemma get_var_type vm x v :
+  get_var vm x = ok v -> type_of_val v = vtype x.
 Proof.
-elim: s n m => // x s ih [|n] [|m] //;
-  by rewrite !(drop0, drop_cons, addn0, addnS).
-Qed.
-
-(* -------------------------------------------------------------------- *)
-Lemma inj_drop {T : Type} (s : seq T) (n m : nat) :
-  n <= size s -> m <= size s -> drop n s = drop m s -> n = m.
-Proof.
-elim: s n m => [|x s ih] //= n m.
-+ by rewrite !leqn0 => /eqP-> /eqP->.
-case: n m => [|n] [|m] //=; rewrite ?ltnS; first last.
-- by move=> len lem eq; congr _.+1; apply/ih.
-- move=> _ _ /(congr1 size) /eqP; rewrite eqn_leq => /andP[_].
-  rewrite size_drop => h; have := leq_trans h (leq_subr _ _).
-  by rewrite ltnn.
-- move=> _ _ /(congr1 size) /eqP; rewrite eqn_leq => /andP[h _].
-  rewrite size_drop in h; have := leq_trans h (leq_subr _ _).
-  by rewrite ltnn.
+by apply: on_vuP => [t ? <-|_ [<-]//]; apply: type_of_to_val.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -77,21 +53,24 @@ Lemma rflags_eq vm xf1 xf2 :
      rflags_of_lvm vm xf1
   -> rflags_of_lvm vm xf2
   -> xf1 = xf2.
-Proof. Admitted.
+Proof.
+move=> eq1 eq2; apply/RflagMap.eq_rfmap => rf.
+move/(_ (string_of_rflag rf) rf (rflag_of_stringK _)): eq2.
+move/(_ (string_of_rflag rf) rf (rflag_of_stringK _)): eq1.
+by case: get_var => // v; case: to_rbool => // a -> ->.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma regs_eq vm xr1 xr2 :
      regs_of_lvm vm xr1
   -> regs_of_lvm vm xr2
   -> xr1 = xr2.
-Proof. Admitted.
-
-(* -------------------------------------------------------------------- *)
-Lemma inj_rflag_of_string s1 s2 rf :
-     rflag_of_string s1 = Some rf
-  -> rflag_of_string s2 = Some rf
-  -> s1 = s2.
-Proof. Admitted.
+Proof.
+move=> eq1 eq2; apply/RegMap.eq_regmap => rf.
+move/(_ (string_of_register rf) rf (reg_of_stringK _)): eq2.
+move/(_ (string_of_register rf) rf (reg_of_stringK _)): eq1.
+by case: get_var => // v; case: to_word => // a -> ->.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma inj_rflag_of_var ii x y v :
@@ -181,8 +160,13 @@ Lemma xgetflag_ex ii c x rf v s xs :
                 & RflagMap.get xs.(xrf) rf = b.
 Proof.
 case=> _ _ _ _ eqv _; case: x => -[] //= x.
-case E: rflag_of_string => [vx|] // ok_rf ok_v.
-Admitted.
+case E: rflag_of_string => [vx|] // [<-] ok_v.
+have /= := get_var_type ok_v; case: v ok_v => //=.
++ move=> b ok_v _; exists (Def b) => //.
+  by move/(_ _ _ E): eqv; rewrite ok_v /=.
+case=> //= ok_v _; exists Undef => //.
+by move/(_ _ _ E): eqv; rewrite ok_v /=.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xgetflag ii c x rf v b s xs :

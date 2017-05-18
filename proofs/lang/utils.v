@@ -512,3 +512,34 @@ Qed.
  * -------------------------------------------------------------------- *)
 
 Ltac sinversion H := inversion H=>{H};subst.
+
+(* -------------------------------------------------------------------- *)
+Variant dup_spec (P : Prop) :=
+| Dup of P & P.
+
+Lemma dup (P : Prop) : P -> dup_spec P.
+Proof. by move=> ?; split. Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma drop_add {T : Type} (s : seq T) (n m : nat) :
+  drop n (drop m s) = drop (n+m) s.
+Proof.
+elim: s n m => // x s ih [|n] [|m] //;
+  by rewrite !(drop0, drop_cons, addn0, addnS).
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma inj_drop {T : Type} (s : seq T) (n m : nat) :
+  (n <= size s)%nat -> (m <= size s)%nat -> drop n s = drop m s -> n = m.
+Proof.
+elim: s n m => [|x s ih] //= n m.
++ by rewrite !leqn0 => /eqP-> /eqP->.
+case: n m => [|n] [|m] //=; rewrite ?ltnS; first last.
+- by move=> len lem eq; congr _.+1; apply/ih.
+- move=> _ _ /(congr1 size) /eqP; rewrite eqn_leq => /andP[_].
+  rewrite size_drop => h; have := leq_trans h (leq_subr _ _).
+  by rewrite ltnn.
+- move=> _ _ /(congr1 size) /eqP; rewrite eqn_leq => /andP[h _].
+  rewrite size_drop in h; have := leq_trans h (leq_subr _ _).
+  by rewrite ltnn.
+Qed.
