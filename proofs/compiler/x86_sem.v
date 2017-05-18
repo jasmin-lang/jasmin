@@ -443,8 +443,8 @@ Definition eval_ADD o1 o2 s : x86_result :=
   let v  := I64.add v1 v2 in
   let vu := (I64.unsigned v1 + I64.unsigned v2)%Z in
   let vs := (I64.signed   v1 + I64.signed   v2)%Z in
-  Let s  := write_oprd o1 v s in
-  ok (st_update_rflags (rflags_of_aluop v vu vs) s).
+  let s  := st_update_rflags (rflags_of_aluop v vu vs) s in
+  write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SUB o1 o2 s : x86_result :=
@@ -453,8 +453,8 @@ Definition eval_SUB o1 o2 s : x86_result :=
   let v  := I64.sub v1 v2 in
   let vu := (I64.unsigned v1 - I64.unsigned v2)%Z in
   let vs := (I64.signed   v1 - I64.signed   v2)%Z in
-  Let s  := write_oprd o1 v s in
-  ok (st_update_rflags (rflags_of_aluop v vu vs) s).
+  let s  := st_update_rflags (rflags_of_aluop v vu vs) s in
+  write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_MUL o s : x86_result :=
@@ -610,24 +610,24 @@ Definition eval_AND o1 o2 s : x86_result :=
   Let v1 := read_oprd o1 s in
   Let v2 := read_oprd o2 s in
   let v  := I64.and v1 v2 in
-  Let s  := write_oprd o1 v s in
-  ok (st_update_rflags (rflags_of_bwop v) s).
+  let s  := st_update_rflags (rflags_of_bwop v) s in
+  write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_OR o1 o2 s : x86_result :=
   Let v1 := read_oprd o1 s in
   Let v2 := read_oprd o2 s in
   let v  := I64.or v1 v2 in
-  Let s  := write_oprd o1 v s in
-  ok (st_update_rflags (rflags_of_bwop v) s).
+  let s  := st_update_rflags (rflags_of_bwop v) s in
+  write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_XOR o1 o2 s : x86_result :=
   Let v1 := read_oprd o1 s in
   Let v2 := read_oprd o2 s in
   let v  := I64.xor v1 v2 in
-  Let s  := write_oprd o1 v s in
-  ok (st_update_rflags (rflags_of_bwop v) s).
+  let s  := st_update_rflags (rflags_of_bwop v) s in
+  write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_NOT o s : x86_result :=
