@@ -18,7 +18,7 @@ export fn crypto_scalarmult_curve25519_amd64_51_fe25519_mul(reg u64 rp, reg u64 
 	 reg u64 r3;
 	 reg u64 r4;
 	 stack u64 rp_stack;
-	 reg u64 yp;
+   reg u64 yp;
 
 	rp_stack = rp;
 	yp = ypp;
@@ -130,18 +130,18 @@ export fn crypto_scalarmult_curve25519_amd64_51_fe25519_mul(reg u64 rp, reg u64 
 	cf, r3 += mulrax;
 	_, mulr31 += mulrdx + cf;
 	mulredmask = crypto_scalarmult_curve25519_amd64_51_REDMASK51;
-	mulr01, _ = (mulr01, r0) << 13;
+	_, _, _, _, _, mulr01 = X86_SHLD(mulr01, r0, 13);
 	r0 &= mulredmask;
-	mulr11, _ = (mulr11, r1) << 13;
+	_, _, _, _, _, mulr11 = X86_SHLD(mulr11, r1, 13);
 	r1 &= mulredmask;
 	r1 += mulr01;
-	mulr21, _ = (mulr21, r2) << 13;
+	_, _, _, _, _, mulr21 = X86_SHLD(mulr21, r2, 13);
 	r2 &= mulredmask;
 	r2 += mulr11;
-	mulr31, _ = (mulr31, r3) << 13;
+	_, _, _, _, _, mulr31 = X86_SHLD(mulr31, r3, 13);
 	r3 &= mulredmask;
 	r3 += mulr21;
-	mulr41, _ = (mulr41, r4) << 13;
+	_, _, _, _, _, mulr41 = X86_SHLD(mulr41, r4, 13);
 	r4 &= mulredmask;
 	r4 += mulr31;
 	mulr41 = mulr41 * 19;
