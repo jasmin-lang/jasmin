@@ -354,8 +354,7 @@ Variant binuop :=
   | BU_SUB
   | BU_AND
   | BU_OR
-  | BU_XOR
-.
+  | BU_XOR.
 
 Variant bincop :=
   | BC_ADC
@@ -398,7 +397,7 @@ Definition kind_of_sopn (o : sopn) :=
   | Ox86_DEC    => OK_CNT false
   | Ox86_INC    => OK_CNT true
   | Ox86_AND    => OK_ALU (LK_BINU BU_AND)
-  | Ox86_OR    => OK_ALU (LK_BINU BU_OR)
+  | Ox86_OR     => OK_ALU (LK_BINU BU_OR)
   | Ox86_XOR    => OK_ALU (LK_BINU BU_XOR)
   | Ox86_MOV    => OK_MOV
   | Ox86_CMOVcc => OK_MOVcc
@@ -510,7 +509,7 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
               | BU_ADD => ADD
               | BU_SUB => SUB
               | BU_AND => AND
-              | BU_OR => OR
+              | BU_OR  => OR
               | BU_XOR => XOR
               end o1 o2)
 

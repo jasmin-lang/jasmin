@@ -324,6 +324,15 @@ by case=> *; subst.
 Qed.
 
 (* -------------------------------------------------------------------- *)
+Lemma lvals_as_cnt_varsT xs x1 x2 x3 x4 l :
+     lvals_as_cnt_vars xs = Some (CNTVars x1 x2 x3 x4, l)
+  -> xs = [:: Lvar x1; Lvar x2; Lvar x3; Lvar x4; l].
+Proof.
+move: xs; do 4! case=> [|[] ?] //.
+by case=> //= ? [] // [*]; subst.
+Qed.
+
+(* -------------------------------------------------------------------- *)
 Lemma write_var_mem x v s1 s2 :
   write_lval (Lvar x) v s1 = ok s2 -> s1.(emem) = s2.(emem).
 Proof.
@@ -409,7 +418,7 @@ move=> eqv; case: e => //.
 move=> x e /=; t_xrbindP => r1 ok_r1 w ok_w [<-].
 move=> z o ok_o ok_z z' o' ok_o' ok_z' res ok_res <- {v} /=.
 exists res => //; rewrite -ok_res; case: eqv => -> _ _ _ _ eqv; f_equal.
-Admitted. (*
+(*
 rewrite /decode_addr /= I64.mul_zero I64.add_zero.
 rewrite I64.add_commut; f_equal.
 + case: x ok_r1 ok_o ok_z => -[] [] // x vi /=.
@@ -419,6 +428,7 @@ case: e ok_w ok_o' => // -[] //= zw; rewrite /word_of_int.
 by case=> -> -[?]; subst o'; case: ok_z'.
 Qed.
 *)
+Admitted.
 
 (* -------------------------------------------------------------------- *)
 Lemma xwrite_ok ii x (v : word) op c cs (s1 s2 : estate) xs1 :
@@ -530,13 +540,42 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
       case=> ?; subst vs; move/lvals_as_alu_varsT: El => ?; subst xs.
       apply: (xaluop eqv' _ ok_of ok_cf ok_sf ok_sp ok_zf) => //.
       by rewrite to_estateK.
-    - move=> bop _ /=. admit.
+    - move=> bop Eo /=; case Ees: as_pair => [[e1 e2]|//].
+      case El1: as_singleton => [x|//]; t_xrbindP.
+      move=> v1 ok1 v2 ok2 vx okx; case: eqP => //= ?; subst vx.
+      move/lvals_as_alu_varsT: El => ?; subst xs.
+      have := as_pairT Ees => ?; subst es => {Ees}.
+      move: ok_aout; rewrite /sem_pexprs /=; t_xrbindP.
+      move=> ve1 ok_ve1 _ ve2 ok_ve2 <- ?; subst aout.
+      have := eqv' => /xread_ok /(_ ok1 ok_ve1) => -[w1 ok_w1] ?; subst ve1.
+      have := eqv' => /xread_ok /(_ ok2 ok_ve2) => -[w2 ok_w2] ?; subst ve2.
+      case: o Eo ok_vs => //= -[<-] ok_vs [?]; subst a; move: ok_vs.
+      * case=> ?; subst vs => /=; rewrite /eval_ADD ok_w1 ok_w2 /=.
+        admit.
+      * case=> ?; subst vs => /=; rewrite /eval_SUB ok_w1 ok_w2 /=.
+        admit.
+      * case=> ?; subst vs => /=; rewrite /eval_AND ok_w1 ok_w2 /=.
+        admit.
+      * case=> ?; subst vs => /=; rewrite /eval_OR ok_w1 ok_w2 /=.
+        admit.
+      * case=> ?; subst vs => /=; rewrite /eval_XOR ok_w1 ok_w2 /=.
+        admit.
     - admit.
     - admit.
     - admit.
     - admit.
     - admit.
-  + admit.
+  + case El: lvals_as_cnt_vars => [[[v1 v2 v3 v4] ol]|//].
+    t_xrbindP=> opl okl; case Ees: as_singleton => [e|//].
+    t_xrbindP=> opr okr; case: eqP=> // ?; subst opr.
+    have := as_singletonT Ees => ?; subst es => {Ees}.
+    have := lvals_as_cnt_varsT El => ?; subst xs => {El}.
+    move: ok_aout; rewrite /sem_pexprs /=.
+    t_xrbindP => ve ok_ve ?; subst aout.
+    case=> ?; subst a => {aE}; case: b Eo ok_vs => /=.
+    * case: o => //= _; t_xrbindP => w ok_w /=.
+      rewrite /x86_inc /eval_INC. admit.
+    * admit.
   + case Exs: (as_singleton xs) => [x|] //.
     case Ees: (as_singleton es) => [e|] //.
     t_xrbindP=> // op1 ok_op1 op2 ok_op2 [?]; subst a => /=.
