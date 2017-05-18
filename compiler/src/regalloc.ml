@@ -51,6 +51,7 @@ let x86_equality_constraints (tbl: (var, int) Hashtbl.t) (k: int -> int -> unit)
   | _, _, _ -> ()
 
 let collect_equality_constraints
+    (msg: string)
     copn_constraints
     (tbl: (var, int) Hashtbl.t) (nv: int)
     (f: 'info func) : Puf.t =
@@ -65,7 +66,8 @@ let collect_equality_constraints
     | Cassgn (Lvar x, (AT_rename_arg | AT_rename_res | AT_phinode), Pvar y) ->
       let i = try Hashtbl.find tbl (L.unloc x) with
         Not_found ->
-          hierror "Regalloc: unknown variable %a"
+          hierror "%s: unknown variable %a"
+            msg
             (Printer.pp_var ~debug:true) (L.unloc x)
       in
       let j = Hashtbl.find tbl (L.unloc y) in
@@ -400,7 +402,7 @@ let regalloc (f: 'info func) : unit func =
   let f = Ssa.split_live_ranges false f in
   let lf = Liveness.live_fd true f in
   let vars, nv = collect_variables false f in
-  let eqc = collect_equality_constraints x86_equality_constraints vars nv f in
+  let eqc = collect_equality_constraints "Regalloc" x86_equality_constraints vars nv f in
   let vars = normalize_variables vars eqc in
   let conflicts = collect_conflicts vars lf in
   let a =
@@ -421,7 +423,7 @@ let split_live_ranges (f: 'info func) : unit func =
   *)
   (* let lf = Liveness.live_fd false f in *)
   let vars, nv = collect_variables true f in
-  let eqc = collect_equality_constraints (fun _ _ _ _ _ -> ()) vars nv f in
+  let eqc = collect_equality_constraints "Split live range" (fun _ _ _ _ _ -> ()) vars nv f in
   let vars = normalize_variables vars eqc in
   (* let _ = collect_conflicts vars lf in (* May fail *) *)
   let a =

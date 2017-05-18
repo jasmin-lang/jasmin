@@ -20,27 +20,28 @@ let rename_lvals allvars (m: names) (xs: lval list) : names * lval list =
   let m, ys = List.fold_left (rename_lval allvars) (m, []) xs in
   m, List.rev ys
 
-let written_vars_lvar (w: Sv.t) =
+let written_vars_lvar allvars (w: Sv.t) =
   function
-  | Lvar x -> Sv.add (L.unloc x) w
+  | Lvar x when allvars || (L.unloc x).v_kind = Reg ->
+    Sv.add (L.unloc x) w
   | _ -> w
 
-let written_vars_lvars = List.fold_left written_vars_lvar
+let written_vars_lvars allvars = List.fold_left (written_vars_lvar allvars)
 
-let rec written_vars_instr_r w =
+let rec written_vars_instr_r allvars w =
   function
   | Cblock s
   | Cfor (_, _, s)
-    -> written_vars_stmt w s
-  | Cassgn (x, _, _) -> written_vars_lvar w x
+    -> written_vars_stmt allvars w s
+  | Cassgn (x, _, _) -> written_vars_lvar allvars w x
   | Copn (xs, _, _)
   | Ccall (_, xs, _, _)
-    -> written_vars_lvars w xs
+    -> written_vars_lvars allvars w xs
   | Cif (_, s1, s2)
   | Cwhile (s1, _, s2)
-    -> written_vars_stmt (written_vars_stmt w s1) s2
-and written_vars_instr w { i_desc } = written_vars_instr_r w i_desc
-and written_vars_stmt w s = List.fold_left written_vars_instr w s
+    -> written_vars_stmt allvars (written_vars_stmt allvars w s1) s2
+and written_vars_instr allvars w { i_desc } = written_vars_instr_r allvars w i_desc
+and written_vars_stmt allvars w s = List.fold_left (written_vars_instr allvars) w s
 
 (* Adds rename intruction y = m[x] *)
 let ir (m: names) (x: var) (y: var) : unit instr =
@@ -68,7 +69,7 @@ let split_live_ranges (allvars: bool) (f: 'info func) : unit func =
       m, Ccall (ii, ys, n, es)
     | Cfor _ -> assert false
     | Cif (e, s1, s2) ->
-      let os = written_vars_stmt (written_vars_stmt Sv.empty s1) s2 in
+      let os = written_vars_stmt allvars (written_vars_stmt allvars Sv.empty s1) s2 in
       let e = rename_expr m e in
       let m1, s1 = stmt m s1 in
       let m2, s2 = stmt m s2 in
@@ -83,7 +84,7 @@ let split_live_ranges (allvars: bool) (f: 'info func) : unit func =
       in
       m, Cif (e, s1 @ tl1, s2 @ tl2)
     | Cwhile (s1, e, s2) ->
-      let os = written_vars_stmt (written_vars_stmt Sv.empty s1) s2 in
+      let os = written_vars_stmt allvars (written_vars_stmt allvars Sv.empty s1) s2 in
       let m1, s1 = stmt m s1 in
       let e = rename_expr m1 e in
       let m2, s2 = stmt m1 s2 in
