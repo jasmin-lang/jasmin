@@ -548,7 +548,29 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
     rewrite /eval_MOV; move: eqv' => /xread_ok /(_ ok_op2 ok_w) /=.
     case=> w' -> -[?]; subst w' => /=; apply: (xwrite_ok _ ok_op1 ok_s2).
     by split=> //=; rewrite /assemble_c ok_sa saE.
-  + admit.
+  + case Exs: (as_singleton xs) => [x|] //.
+    case Ees: (as_triple es) => [[[cb e1] e2]|] //=.
+    t_xrbindP => vx ok_x v1 ok1 ct ok_ct v2 ok2.
+    case: eqP=> // ?; subst v2 => -[?]; subst a.
+    have := as_tripleT Ees => ?; subst es => {Ees}.
+    have := as_singletonT Exs => ?; subst xs => {Exs}.
+    move: ok_aout; rewrite /sem_pexprs /=; t_xrbindP.
+    move=> vcb ok_cb _ vb1 ok_vb1 _ vb2 ok_vb2 <- <- ?.
+    subst aout; case: o Eo ok_vs => //= _.
+    t_xrbindP=> /= cond; case: vcb ok_cb => // [|[]//].
+    move=> b ok_b [?]; subst cond => ok_vs.
+    have /= := xeval_cond eqv' ok_ct ok_b.
+    rewrite /eval_CMOVcc => -> /=; case: b ok_vs ok_b => /=.
+    * t_xrbindP=> w ok_w ?; subst vs => ok_cb.
+      move: ok_wr => /=; t_xrbindP=> s2' ok_s2 ?; subst s2'.
+      rewrite /eval_MOV; move: eqv' => /xread_ok /(_ ok1 ok_vb1) /=.
+      case=> w' -> ?; subst vb1; case: ok_w=> ?; subst w' => /=.
+      apply: (xwrite_ok _ ok_x ok_s2).
+      by split=> //=; rewrite /assemble_c ok_sa saE.
+    * t_xrbindP=> w ok_w ?; subst vs => ok_cb.
+      move: ok_wr => /=; t_xrbindP=> s2' ok_s2 ?; subst s2'.
+      eexists; first by reflexivity. move=> {vb1 ok_vb1 e1 ok1}.
+      admit.
 + case=> lv vm [|_ _] //= ii lbl cs [-> ->].
   case: xs1 => xm xr xf xc ip -/dup[] [/= <-] ok_xc.
   rewrite /assemble_c /=; t_xrbindP => sa ok_sa drop_xc le_ip_c xfE xrE.

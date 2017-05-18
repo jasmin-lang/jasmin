@@ -415,6 +415,9 @@ Definition as_singleton (s : seq T) :=
 Definition as_pair (s : seq T) :=
   if s is [:: x; y] then Some (x, y) else None.
 
+Definition as_triple (s : seq T) :=
+  if s is [:: x; y; z] then Some (x, y, z) else None.
+
 Lemma as_unitP s : reflect (s = [::]) (as_unit s).
 Proof. by case: s => [|x s]; constructor. Qed.
 
@@ -425,6 +428,10 @@ Proof. by case: s => [|x' [|]] //= [->]. Qed.
 Lemma as_pairT s x y :
   as_pair s = Some (x, y) -> s = [:: x; y].
 Proof. by case: s => [|x' [|y' [|]]] //= [-> ->]. Qed.
+
+Lemma as_tripleT s x y z :
+  as_triple s = Some (x, y, z) -> s = [:: x; y; z].
+Proof. by case: s => [|x' [|y' [|z' [|]]]] //= [-> -> ->]. Qed.
 End AsN.
 
 (* -------------------------------------------------------------------- *)
@@ -592,8 +599,8 @@ Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
     end
 
   | OK_MOVcc =>
-    match l, e with
-    | [::l], [:: c; e1; e2] =>
+    match as_singleton l, as_triple e with
+    | Some l, Some (c, e1, e2) =>
       Let ol := oprd_of_lval ii l in
       Let or := oprd_of_pexpr ii e1 in 
       Let oc  := assemble_cond ii c in
