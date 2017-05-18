@@ -116,33 +116,6 @@ case: s=> /= lm lvm _ -> [/= -> eqc eqd]; split => //.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma xread_ok ii v e op c s xs :
-     xs86_equiv c s xs
-  -> oprd_of_pexpr ii e = ok op
-  -> sem_pexpr (to_estate s) e = ok v
-  -> exists2 w, read_oprd op xs = ok w & v = Vword w.
-Proof.
-move=> eqv; case: e => //.
-+ by case=> //= z [<-] [<-] /=; eexists.
-+ move=> x /=; t_xrbindP=> r; case: x => -[vt x vi].
-  case: vt => //=; case E: reg_of_string => [r'|] //.
-  case=> <- [<-] /=; case: eqv => _ _ _ _ _ eqv ok_v.
-  exists (RegMap.get (xreg xs) r') => //.
-  move/(_ _ _ E): eqv; rewrite ok_v; case E': (to_word v) => [w|//].
-  by move=> ->; case: {+}v E' => // [|[]//] ? [->].
-move=> x e /=; t_xrbindP => r1 ok_r1 w ok_w [<-].
-move=> z o ok_o ok_z z' o' ok_o' ok_z' res ok_res <- {v} /=.
-exists res => //; rewrite -ok_res; case: eqv => -> _ _ _ _ eqv; f_equal.
-rewrite /decode_addr /= I64.mul_zero I64.add_zero.
-rewrite I64.add_commut; f_equal.
-+ case: x ok_r1 ok_o ok_z => -[] [] // x vi /=.
-  case E: reg_of_string => [r'|] // [<-] ok_o ok_z.
-  by move/(_ _ _ E): eqv; rewrite ok_o ok_z.
-case: e ok_w ok_o' => // -[] //= zw; rewrite /word_of_int.
-by case=> -> -[?]; subst o'; case: ok_z'.
-Qed.
-
-(* -------------------------------------------------------------------- *)
 Lemma xgetflag_r ii c x rf v b s xs :
      xs86_equiv c s xs
   -> rflag_of_var ii x = ok rf
@@ -419,6 +392,50 @@ by rewrite /RflagMap.update /RflagMap.get /= eq_f.
 Qed.
 
 (* -------------------------------------------------------------------- *)
+Lemma xread_ok ii v e op c s xs :
+     xs86_equiv c s xs
+  -> oprd_of_pexpr ii e = ok op
+  -> sem_pexpr (to_estate s) e = ok v
+  -> exists2 w, read_oprd op xs = ok w & v = Vword w.
+Proof.
+move=> eqv; case: e => //.
++ by case=> //= z [<-] [<-] /=; eexists.
++ move=> x /=; t_xrbindP=> r; case: x => -[vt x vi].
+  case: vt => //=; case E: reg_of_string => [r'|] //.
+  case=> <- [<-] /=; case: eqv => _ _ _ _ _ eqv ok_v.
+  exists (RegMap.get (xreg xs) r') => //.
+  move/(_ _ _ E): eqv; rewrite ok_v; case E': (to_word v) => [w|//].
+  by move=> ->; case: {+}v E' => // [|[]//] ? [->].
+move=> x e /=; t_xrbindP => r1 ok_r1 w ok_w [<-].
+move=> z o ok_o ok_z z' o' ok_o' ok_z' res ok_res <- {v} /=.
+exists res => //; rewrite -ok_res; case: eqv => -> _ _ _ _ eqv; f_equal.
+rewrite /decode_addr /= I64.mul_zero I64.add_zero.
+rewrite I64.add_commut; f_equal.
++ case: x ok_r1 ok_o ok_z => -[] [] // x vi /=.
+  case E: reg_of_string => [r'|] // [<-] ok_o ok_z.
+  by move/(_ _ _ E): eqv; rewrite ok_o ok_z.
+case: e ok_w ok_o' => // -[] //= zw; rewrite /word_of_int.
+by case=> -> -[?]; subst o'; case: ok_z'.
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma xwrite_ok ii x (v : word) op c cs (s1 s2 : estate) xs1 :
+     xs86_equiv c (of_estate s1 cs) xs1
+  -> oprd_of_lval ii x = ok op
+  -> write_lval x v s1 = ok s2
+  -> exists2 xs2, write_oprd op v xs1 = ok xs2
+                & xs86_equiv c (of_estate s2 cs) xs2.
+Proof.
+move=> eqv; case: x => // [x|x e].
++ case: x => [[]] []//= x vix; case Ex: reg_of_string => [r|] //=.
+  case=> <- ok_s2 /=; eexists; first by reflexivity.
+  move: ok_s2; rewrite /write_var; t_xrbindP => vm /= ok_vm <-.
+  case: {+}eqv => /= m1E okc1 okd1 ip1E rf1E rg1E.
+  split=> //=. admit. admit.
++ admit.
+Admitted.
+
+(* -------------------------------------------------------------------- *)
 Lemma xaluop c s1 s2 xs1 ii (rof rcf rsf rpf rzf : var_i) vof vcf vsf vpf vzf :
      xs86_equiv c s1 xs1
   -> s1.(lc) = s2.(lc)
@@ -479,7 +496,8 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
   have {h} := congr1 some h; rewrite -(nth_map _ None) // => <- /=.
   rewrite /st_write_ip /eval_MOV /=; move/(xs86_equiv_cons _): eqv1 => /=.
   move/(_ _ _ (erefl _)) => /= /xread_ok /(_ ok_op2 ok_v) /=.
-  case=> w -> ?; subst v => /=. admit.
+  case=> w -> ?; subst v => /=; apply: (xwrite_ok _ ok_op1 ok_s2).
+  by split=> //=; rewrite /assemble_c ok_tla tlaE.
 + case=> lm vm [|_ _] //= s2 ii xs o es cs [-> ->] /=.
   rewrite /to_estate /=; t_xrbindP=> vs aout ok_aout ok_vs.
   move=> ok_wr; case: xs1 => xm xr xf xc ip -/dup[] [/= <-] ok_xc.
@@ -517,7 +535,19 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
     - admit.
     - admit.
   + admit.
-  + admit.
+  + case Exs: (as_singleton xs) => [x|] //.
+    case Ees: (as_singleton es) => [e|] //.
+    t_xrbindP=> // op1 ok_op1 op2 ok_op2 [?]; subst a => /=.
+    have := as_singletonT Ees => ?; subst es => {Ees}.
+    move: ok_aout; rewrite /sem_pexprs /=; t_xrbindP.
+    move=> v ok_v ?; subst aout; case: o Eo ok_vs => //= _.
+    t_xrbindP=> wv ok_wv /= -[?]; subst vs.
+    have := as_singletonT Exs => ?; subst xs => {Exs}.
+    move: ok_wr => /=; t_xrbindP => s2' ok_s2 ?; subst s2'.
+    case: v ok_v ok_wv => // [|[]//] w ok_w [?]; subst wv.
+    rewrite /eval_MOV; move: eqv' => /xread_ok /(_ ok_op2 ok_w) /=.
+    case=> w' -> -[?]; subst w' => /=; apply: (xwrite_ok _ ok_op1 ok_s2).
+    by split=> //=; rewrite /assemble_c ok_sa saE.
   + admit.
 + case=> lv vm [|_ _] //= ii lbl cs [-> ->].
   case: xs1 => xm xr xf xc ip -/dup[] [/= <-] ok_xc.
