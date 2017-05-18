@@ -236,20 +236,62 @@ Definition scale_of_z ii z :=
   | _ => cierror ii (Cerr_assembler (AsmErr_string "invalid scale"))
   end%Z.
 
-Definition addr_of_pexpr ii s (e: pexpr) :=
+(* s + e :
+   s + n
+   s + x
+   s + y + n
+   s + sc * y
+   s + sc * y + n *)
+
+Variant ofs := 
+  | Ofs_const of Z
+  | Ofs_var   of var_i
+  | Ofs_mul   of Z & var_i
+  | Ofs_add   of Z & var_i & Z
+  | Ofs_error.
+  
+Fixpoint addr_ofs e := 
   match e with
-  | Pcast (Pconst z) =>
+  | Pcast (Pconst z) => Ofs_const z
+  | Pvar  x          => Ofs_var x
+  | Papp2 (Omul Op_w) e1 e2 =>
+    match addr_ofs e1, addr_ofs e2 with
+    | Ofs_const n1, Ofs_const n2 => Ofs_const (n1 * n2)%Z
+    | Ofs_const sc, Ofs_var   x  => Ofs_mul sc x 
+    | Ofs_var   x , Ofs_const sc => Ofs_mul sc x      
+    | _           , _            => Ofs_error
+    end
+  | Papp2 (Oadd Op_w) e1 e2 =>
+    match addr_ofs e1, addr_ofs e2 with
+    | Ofs_const n1, Ofs_const n2 => Ofs_const (n1 + n2)%Z
+    | Ofs_const n , Ofs_var   x  => Ofs_add 1%Z x n
+    | Ofs_var   x , Ofs_const n  => Ofs_add 1%Z x n
+    | Ofs_mul sc x, Ofs_const n  => Ofs_add sc  x n
+    | Ofs_const n , Ofs_mul sc x => Ofs_add sc  x n
+    | _           , _            => Ofs_error
+    end
+  | _ => Ofs_error
+  end.
+
+Definition addr_of_pexpr ii s (e: pexpr) :=
+  match addr_ofs e with
+  | Ofs_const z => 
     Let n := word_of_int z in
     ciok (mkAddress n (Some s) Scale1 None)
-  | Papp2 (Omul Op_w) n (Pvar i) =>
-      Let r := reg_of_var ii i in
-      match is_wconst n with
-      | Some sc =>
-        Let n := scale_of_z ii sc in
-        ciok (mkAddress I64.zero (Some s) n (Some r))
-      | None => cierror ii (Cerr_assembler (AsmErr_string "Invalid address expression"))
-      end
-  | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid address expression"))
+  | Ofs_var x =>
+    Let x := reg_of_var ii x in
+    ciok (mkAddress I64.zero (Some s) Scale1 (Some x))
+  | Ofs_mul sc x =>
+    Let x := reg_of_var ii x in
+    Let sc := scale_of_z ii sc in
+    ciok (mkAddress I64.zero (Some s) sc (Some x))
+  | Ofs_add sc x z =>
+    Let x := reg_of_var ii x in
+    Let n := word_of_int z in
+    Let sc := scale_of_z ii sc in
+    ciok (mkAddress n (Some s) sc (Some x))
+  | Ofs_error =>
+    cierror ii (Cerr_assembler (AsmErr_string "Invalid address expression"))
   end.
 
 Definition oprd_of_pexpr ii (e: pexpr) :=
