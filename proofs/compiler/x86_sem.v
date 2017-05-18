@@ -529,8 +529,8 @@ Definition eval_ADC o1 o2 s : x86_result :=
   let v  := I64.add_carry v1 v2 c in
   let vu := (I64.unsigned v1 + I64.unsigned v2 + (c : Z))%Z in
   let vs := (I64.signed   v1 + I64.signed   v2 + (c : Z))%Z in
-  Let s  := write_oprd o1 v s in
-  ok (st_update_rflags (rflags_of_aluop v vu vs) s).
+  let s  := st_update_rflags (rflags_of_aluop v vu vs) s in
+  write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SBB o1 o2 s : x86_result :=
@@ -541,8 +541,8 @@ Definition eval_SBB o1 o2 s : x86_result :=
   let v  := I64.sub_borrow v1 v2 c in
   let vu := (I64.unsigned v1 - (I64.unsigned v2 + (c : Z)))%Z in
   let vs := (I64.signed   v1 - (I64.signed   v2 + (c : Z)))%Z in
-  Let s  := write_oprd o1 v s in
-  ok (st_update_rflags (rflags_of_aluop v vu vs) s).
+  let s  := st_update_rflags (rflags_of_aluop v vu vs) s in
+  write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_NEG o s : x86_result :=
