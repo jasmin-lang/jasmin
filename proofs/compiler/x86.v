@@ -227,6 +227,31 @@ Definition oprd_of_lval ii (l: lval) :=
   | Laset v e => cierror ii (Cerr_assembler (AsmErr_string "Laset not handled in assembler"))
   end.
 
+Definition scale_of_z ii z :=
+  match z with
+  | 1 => ok Scale1
+  | 2 => ok Scale2
+  | 4 => ok Scale4
+  | 8 => ok Scale8
+  | _ => cierror ii (Cerr_assembler (AsmErr_string "invalid scale"))
+  end%Z.
+
+Definition addr_of_pexpr ii s (e: pexpr) :=
+  match e with
+  | Pcast (Pconst z) =>
+    Let n := word_of_int z in
+    ciok (mkAddress n (Some s) Scale1 None)
+  | Papp2 (Omul Op_w) n (Pvar i) =>
+      Let r := reg_of_var ii i in
+      match is_wconst n with
+      | Some sc =>
+        Let n := scale_of_z ii sc in
+        ciok (mkAddress I64.zero (Some s) n (Some r))
+      | None => cierror ii (Cerr_assembler (AsmErr_string "Invalid address expression"))
+      end
+  | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid address expression"))
+  end.
+
 Definition oprd_of_pexpr ii (e: pexpr) :=
   match e with
   | Pcast (Pconst z) =>
@@ -237,8 +262,8 @@ Definition oprd_of_pexpr ii (e: pexpr) :=
      ciok (Reg_op s)
   | Pload v e => (* FIXME: can we recognize more expression for e ? *)
      Let s := reg_of_var ii v in
-     Let w := word_of_pexpr ii e in
-     ciok (Adr_op (mkAddress w (Some s) Scale1 None))
+     Let w := addr_of_pexpr ii s e in
+     ciok (Adr_op w)
   | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for oprd"))
   end.
 

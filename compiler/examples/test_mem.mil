@@ -1,0 +1,6 @@
+export
+fn f(reg u64 p, reg u64 i) -> reg u64 {
+reg u64 r;
+r = [p + 8 * i];
+return r;
+}
