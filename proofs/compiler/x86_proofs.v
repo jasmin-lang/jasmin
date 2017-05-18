@@ -113,11 +113,12 @@ Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xread_ok ii v e op c s xs :
-   xs86_equiv c s xs
--> oprd_of_pexpr ii e = ok op
--> sem_pexpr (to_estate s) e = ok v
--> read_oprd op xs = to_word v.
-Proof.
+     xs86_equiv c s xs
+  -> oprd_of_pexpr ii e = ok op
+  -> sem_pexpr (to_estate s) e = ok v
+  -> exists2 w, read_oprd op xs = ok w & v = Vword w.
+Proof. Admitted.
+(*
 move=> eqv; case: e => //.
 + by case=> //= z; t_xrbindP => -[<-] <-.
 + move=> x /=; t_xrbindP => r; case: x => -[vt x vi].
@@ -136,6 +137,7 @@ rewrite I64.add_commut; f_equal.
 case: e ok_w ok_o' => // -[] //= zw; rewrite /word_of_int.
 by case=> -> -[?]; subst o'; case: ok_z'.
 Qed.
+*)
 
 (* -------------------------------------------------------------------- *)
 Lemma xgetflag_r ii c x rf v b s xs :
@@ -207,6 +209,7 @@ Lemma xeval_cond {ii e v c ct s xs} :
  -> sem_pexpr (to_estate s) e = ok v
  -> eval_cond ct xs.(xrf) = to_bool v.
 Proof.
+(*
 move=> eqv; case: e => //.
 + move=> x /=; t_xrbindP => r ok_r ok_ct ok_v.
   have [vb h] := xgetflag_ex eqv ok_r ok_v.
@@ -306,7 +309,8 @@ move=> eqv; case: e => //.
     rewrite eq_sym eqbF_neg negbK; have := inj_rflag_of_var ok_y ok_z.
     move=> eq_yz; have {eq_yz} ?: vy = vz; [have := ok_vy|subst vy].
     - by rewrite eq_yz ok_vz => -[]. - by rewrite -ok_vby.
-Qed.
+*)
+Admitted.
 
 (* -------------------------------------------------------------------- *)
 Lemma xfind_label (c c' : lcmd) xc lbl :
@@ -355,8 +359,48 @@ move=> eqv1 eqv2 h; case: h eqv1 eqv2 => {s1 s2}.
   have {h} := congr1 some h; rewrite -(nth_map _ None) // => <- /=.
   rewrite /st_write_ip /eval_MOV /=; move/(xs86_equiv_cons _): eqv1 => /=.
   move/(_ _ _ (erefl _)) => /= /xread_ok /(_ ok_op2 ok_v) /=.
-  rewrite /st_write_ip /= => ->. admit.
-+ admit.
+  (*rewrite /st_write_ip /= => ->.*)  admit.
+
++ case=> lm vm [|_ _] //= s2 ii xs o es cs [-> ->] /=.
+  rewrite /to_estate /=; t_xrbindP=> vs aout ok_aout ok_vs.
+  move=> ok_wr; case: xs1 => xm xr xf xc ip -/dup[] [/= <-] ok_xc.
+  rewrite /assemble_c /=; t_xrbindP => a ok_a sa ok_sa drop_xc _.
+  move=> xfE xrE eqv1 eqv2; rewrite /fetch_and_eval /=.
+  have /xs86_equiv_cons := eqv1 => /(_ _ _ (erefl _)) /=.
+  rewrite /st_write_ip /= => eqv' {eqv1}; have lt_ip: ip < size xc.
+  * by rewrite leqNgt; apply/negP=> /drop_oversize; rewrite -drop_xc.
+  move: drop_xc; rewrite (drop_nth a) // => -[aE saE].
+  have := congr1 some aE; rewrite -(nth_map _ None) // => <- /=.
+  rewrite /st_write_ip /=; move: ok_a; rewrite /assemble_opn.
+  case Eo: kind_of_sopn => [ak||||] //.
+  * case El: lvals_as_alu_vars => [[[rof rcf rsf rsp rzf]] l|//].
+    t_xrbindP => of_ ok_of cf ok_cf sf ok_sf sp ok_sp zf ok_zf.
+    case: ifP => //; rewrite -!andbA => /and5P[].
+    do 5! move/eqP=> ?; subst of_ cf sf sp zf; case: ak Eo => Eo.
+    - rewrite /assemble_fopn; case Ee: as_pair => [[e1 e2]|//].
+      case: as_unit => //; t_xrbindP => op1 ok1 op2 ok2.
+      case=> ?; subst a => /=; rewrite /eval_CMP.
+      case: (as_pairT Ee) => ?; subst es => {Ee}; move: ok_aout.
+      rewrite /sem_pexprs /=; t_xrbindP => ev1 ok_ev1 _ ev2 ok_ev2 <-.
+      move=> ?; subst aout;
+        have := eqv' => /xread_ok /(_ ok1 ok_ev1) => -[w1 -> ?];
+        have := eqv' => /xread_ok /(_ ok2 ok_ev2) => -[w2 -> ?];
+        subst ev1 ev2 => /=.
+      admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+
+  + admit.
+  + admit.
+  + admit.
+
+
+
+
 + case=> lv vm [|_ _] //= ii lbl cs [-> ->].
   case: xs1 => xm xr xf xc ip -/dup[] [/= <-] ok_xc.
   rewrite /assemble_c /=; t_xrbindP => sa ok_sa drop_xc le_ip_c xfE xrE.
