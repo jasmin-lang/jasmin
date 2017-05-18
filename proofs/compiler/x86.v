@@ -403,6 +403,17 @@ Definition lvals_as_alu_vars (l : lvals) :=
   end.
 
 (* -------------------------------------------------------------------- *)
+Variant cnt_vars :=
+| CNTVars of var_i & var_i & var_i & var_i.
+
+Definition lvals_as_cnt_vars (l : lvals) :=
+  match l with
+  | [:: Lvar vof; Lvar vsf; Lvar vpf; Lvar vzf; l] =>
+      Some (CNTVars vof vsf vpf vzf, l)
+  | _ => None
+  end.
+
+(* -------------------------------------------------------------------- *)
 Section AsN.
 Context {T : Type}.
 
@@ -450,8 +461,8 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
     end
 
   | LK_BINU bin =>
-    match e, l with
-    | [:: e1; e2], [:: x ] =>
+    match as_pair e, as_singleton l with
+    | Some (e1, e2), Some x =>
       Let o1 := oprd_of_pexpr ii e1 in
       Let o2 := oprd_of_pexpr ii e2 in
       Let ox := oprd_of_lval ii x in
@@ -471,8 +482,8 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
     end
 
   | LK_BINC bin =>
-    match e, l with
-    | [:: e1; e2; Pvar ecf], [:: x ] =>
+    match as_triple e, as_singleton l with
+    | Some (e1, e2, Pvar ecf), Some x =>
       Let o1 := oprd_of_pexpr ii e1 in
       Let o2 := oprd_of_pexpr ii e2 in
       Let rcf := rflag_of_var ii ecf in
@@ -495,8 +506,8 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
     end
 
   | LK_SHT sht =>
-    match e, l with
-    | [:: e1; e2], [:: x ] =>
+    match as_pair e, as_singleton l with
+    | Some (e1, e2), Some x =>
       Let o1 := oprd_of_pexpr ii e1 in
       Let o2 := ireg_of_pexpr ii e2 in
       Let ox := oprd_of_lval ii x in
@@ -515,8 +526,8 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
     end
 
   | LK_MUL =>
-    match e, l with
-    | [:: e1; e2], [:: lo ; hi ] =>
+    match as_pair e, as_pair l with
+    | Some (e1, e2), Some (lo, hi) =>
       (* TODO: check constraints *)
       Let o2 := oprd_of_pexpr ii e2 in
       ok (MUL o2)
@@ -527,8 +538,8 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
     end
 
   | LK_IMUL =>
-    match e, l with
-    | [:: e1; e2], [:: x ] =>
+    match as_pair e, as_singleton l with
+    | Some (e1, e2), Some x =>
       (* TODO: check constraints *)
       Let d := oprd_of_lval ii x in
       Let o1 := oprd_of_pexpr ii e1 in
@@ -543,8 +554,8 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
         (AsmErr_string ("wrong arguments / outputs for operator " ++ string_of_aluk o))) end
 
   | LK_NEG =>
-    match e, l with
-    | [:: e ], [:: x ] =>
+    match as_singleton e, as_singleton l with
+    | Some e, Some x =>
       (* TODO: check constraints *)
       Let d := oprd_of_lval ii x in
       Let o := oprd_of_pexpr ii e in
@@ -573,11 +584,11 @@ Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
     end
 
   | OK_CNT inc =>
-    match l with
-    | [:: Lvar vof; Lvar vsf; Lvar vpf; Lvar vzf; l] =>
+    match lvals_as_cnt_vars l with
+    | Some (CNTVars vof vsf vpf vzf, l) =>
       Let ol := oprd_of_lval ii l in
-      match e with
-      | [:: e] =>
+      match as_singleton e with
+      | Some e =>
         Let or := oprd_of_pexpr ii e in
         if (or == ol) then
           ciok ((if inc then INC else DEC) or)
