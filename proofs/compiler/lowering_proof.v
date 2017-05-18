@@ -100,7 +100,13 @@ Section PROOF.
 
   Definition disj_fvars v := disjoint v fvars.
 
-  Parameters fvars_fresh: disj_fvars vars_p.
+  Parameter fvars_fresh: disj_fvars vars_p.
+
+  Parameter sf_neq_of: fv.(fresh_SF) != fv.(fresh_OF).
+  Parameter cf_neq_zf: fv.(fresh_CF) != fv.(fresh_ZF).
+  Parameter sf_neq_zf: fv.(fresh_SF) != fv.(fresh_ZF).
+  Parameter of_neq_zf: fv.(fresh_OF) != fv.(fresh_ZF).
+  Parameter of_neq_sf: fv.(fresh_OF) != fv.(fresh_SF).
 
   Global Instance disj_fvars_m : Proper (Sv.Equal ==> iff) disj_fvars.
   Proof.
@@ -461,6 +467,49 @@ Section PROOF.
   Lemma wule_not_wult z1 z2: wule z2 z1 = ~~ wult z1 z2.
   Admitted.
 
+  Lemma wult_not_wule z1 z2: wult z2 z1 = ~~ wule z1 z2.
+  Admitted.
+
+  Lemma wsle_not_wslt z1 z2: wsle z2 z1 = ~~ wslt z1 z2.
+  Admitted.
+
+  Lemma wslt_not_wsle z1 z2: wslt z2 z1 = ~~ wsle z1 z2.
+  Admitted.
+
+  Lemma wslt_sub z1 z2: wslt z1 z2 =
+   (msb (I64.sub z1 z2) != (I64.signed (I64.sub z1 z2) != (I64.signed z1 - I64.signed z2)%Z)).
+  Admitted.
+
+  Lemma wule_sub z1 z2: wule z1 z2 =
+   (I64.unsigned (I64.sub z1 z2) != (z1 - z2)%Z) || I64.eq (I64.sub z1 z2) I64.zero.
+  Admitted.
+
+  Lemma wsle_sub z1 z2: wsle z1 z2 =
+   I64.eq (I64.sub z1 z2) I64.zero || (msb (I64.sub z1 z2) != (I64.signed (I64.sub z1 z2) != (I64.signed z1 - I64.signed z2)%Z)).
+  Admitted.
+
+  Lemma setP_comm {to} (m: Fv.t to) x1 v1 x2 v2:
+    x1 != x2 ->
+    m.[x1 <- v1].[x2 <- v2] = m.[x2 <- v2].[x1 <- v1].
+  Proof.
+    move=> Hneq.
+    apply: Fv.map_ext=> y.
+    case Heq1: (y == x1); case Heq2: (y == x2).
+    + exfalso; move: Hneq=> /eqP; apply.
+      move: Heq1=> /eqP <-.
+      move: Heq2=> /eqP <- //.
+    + move: Heq1=> /eqP Heq1; subst y.
+      rewrite Fv.setP_eq Fv.setP_neq.
+      by rewrite Fv.setP_eq.
+      by rewrite eq_sym.
+    + move: Heq2=> /eqP Heq2; subst y.
+      by rewrite Fv.setP_eq Fv.setP_neq // Fv.setP_eq.
+    + move: Heq1=> /negbT Heq1.
+      move: Heq2=> /negbT Heq2.
+      rewrite eq_sym in Heq1; rewrite eq_sym in Heq2.
+      by rewrite !Fv.setP_neq.
+  Qed.
+
   Lemma lower_cond_classifyP ii e cond s1':
     sem_pexpr s1' e = ok cond ->
     match lower_cond_classify fv ii e with
@@ -484,6 +533,7 @@ Section PROOF.
             ok {| emem := emem s1'; evm := (evm s1').[vbool fv1 <- ok v1].[vbool fv2 <- ok v2] |} /\
           Sv.In (vbool fv1) fvars /\ Sv.In (vbool fv2) fvars /\
           vbool fv1 = x1 /\ vbool fv2 = x2 /\
+          fv1 != fv2 /\
           cond = Vbool match c with
           | CondEq => v1 == v2
           | CondNeq => v1 != v2
@@ -496,6 +546,7 @@ Section PROOF.
             ok {| emem := emem s1'; evm := (evm s1').[vbool fv1 <- ok v1].[vbool fv2 <- ok v2].[vbool fv3 <- ok v3] |} /\
           Sv.In (vbool fv1) fvars /\ Sv.In (vbool fv2) fvars /\ Sv.In (vbool fv3) fvars /\
           vbool fv1 = x1 /\ vbool fv2 = x2 /\ vbool fv3 = x3 /\
+          fv1 != fv2 /\ fv1 != fv3 /\ fv2 != fv3 /\
           cond = Vbool match c with
           | CondOrNeq => v1 || (v2 != v3)
           | CondAndNotEq => (~~ v1) && (v2 == v3)
@@ -538,10 +589,14 @@ Section PROOF.
       set vof := I64.signed (I64.sub z1 z2) != (I64.signed z1 - I64.signed z2)%Z.
       set vsf := SF_of_word (I64.sub z1 z2).
       exists vsf, vof, fv.(fresh_SF), fv.(fresh_OF); repeat split=> //=.
-      + admit. (* t.[x1 <- v1].[x2 <- v2] = t.[x2 <- v2].[x1 <- v1] *)
+      + rewrite setP_comm //.
+        have Hneq := sf_neq_of.
+        by apply/eqP=> -[] H; rewrite H eq_refl in Hneq.
       + rewrite /fvars /fv_sf; SvD.fsetdec.
       + rewrite /fvars /fv_of; SvD.fsetdec.
-      + rewrite -Hz1z2; admit.
+      + exact: sf_neq_of.
+      + rewrite -Hz1z2 /vsf /SF_of_word /vof wsle_not_wslt wslt_sub.
+        by rewrite Bool.negb_involutive.
     (* Cond2 CondNeq *)
     + move: o He=> [] // [] // He []?????; subst.
       move: He=> /sem_op2_wb_dec [z1 [z2 [Hz1z2 ->]]].
@@ -549,10 +604,13 @@ Section PROOF.
       set vof := I64.signed (I64.sub z1 z2) != (I64.signed z1 - I64.signed z2)%Z.
       set vsf := SF_of_word (I64.sub z1 z2).
       exists vsf, vof, fv.(fresh_SF), fv.(fresh_OF); repeat split=> //=.
-      + admit. (* t.[x1 <- v1].[x2 <- v2] = t.[x2 <- v2].[x1 <- v1] *)
+      + rewrite setP_comm //.
+        have Hneq := sf_neq_of.
+        by apply/eqP=> -[] H; rewrite H eq_refl in Hneq.
       + rewrite /fvars /fv_sf; SvD.fsetdec.
       + rewrite /fvars /fv_of; SvD.fsetdec.
-      + rewrite -Hz1z2; admit.
+      + exact: sf_neq_of.
+      + by rewrite -Hz1z2 /vsf /SF_of_word /vof wslt_sub.
     (* Cond2 CondOr *)
     + move: o He=> [] // [] // He []?????; subst.
       move: He=> /sem_op2_wb_dec [z1 [z2 [Hz1z2 ->]]].
@@ -562,7 +620,8 @@ Section PROOF.
       exists vcf, vzf, fv.(fresh_CF), fv.(fresh_ZF); repeat split=> //=.
       + rewrite /fvars /fv_cf; SvD.fsetdec.
       + rewrite /fvars /fv_zf; SvD.fsetdec.
-      + rewrite -Hz1z2; admit.
+      + exact: cf_neq_zf.
+      + by rewrite -Hz1z2 /vcf /vzf /ZF_of_word wule_sub.
     (* Cond2 CondAndNot *)
     + move: o He=> [] // [] // He []?????; subst.
       move: He=> /sem_op2_wb_dec [z1 [z2 [Hz1z2 ->]]].
@@ -572,7 +631,8 @@ Section PROOF.
       exists vcf, vzf, fv.(fresh_CF), fv.(fresh_ZF); repeat split=> //=.
       + rewrite /fvars /fv_cf; SvD.fsetdec.
       + rewrite /fvars /fv_zf; SvD.fsetdec.
-      + rewrite -Hz1z2; admit.
+      + exact: cf_neq_zf.
+      + by rewrite -Hz1z2 /vcf /vzf /ZF_of_word wult_not_wule wule_sub negb_or.
     (* Cond3 CondOrNeq *)
     + move: o He=> [] // [] // He []??????; subst.
       move: He=> /sem_op2_wb_dec [z1 [z2 [Hz1z2 ->]]].
@@ -581,11 +641,19 @@ Section PROOF.
       set vsf := SF_of_word (I64.sub z1 z2).
       set vzf := ZF_of_word (I64.sub z1 z2).
       exists vzf, vsf, vof, fv.(fresh_ZF), fv.(fresh_SF), fv.(fresh_OF); repeat split=> //=.
-      + admit.
+      + rewrite [_.[vbool (fresh_OF fv) <- _].[vbool (fresh_SF fv) <- _]]setP_comm.
+        rewrite setP_comm.
+        rewrite [_.[vbool (fresh_SF fv) <- _].[vbool (fresh_ZF fv) <- _]]setP_comm //.
+        by apply/eqP=> -[]Habs; have := sf_neq_zf; rewrite Habs eq_refl.
+        by apply/eqP=> -[]Habs; have := of_neq_zf; rewrite Habs eq_refl.
+        by apply/eqP=> -[]Habs; have := of_neq_sf; rewrite Habs eq_refl.
       + rewrite /fvars /fv_zf; SvD.fsetdec.
       + rewrite /fvars /fv_sf; SvD.fsetdec.
       + rewrite /fvars /fv_of; SvD.fsetdec.
-      + rewrite -Hz1z2; admit.
+      + rewrite eq_sym; exact: sf_neq_zf.
+      + rewrite eq_sym; exact: of_neq_zf.
+      + rewrite eq_sym; exact: of_neq_sf.
+      + by rewrite -Hz1z2 /vzf /ZF_of_word /vsf /SF_of_word /vof wsle_sub.
     (* Cond3 CondAndNotEq *)
     + move: o He=> [] // [] // He []??????; subst.
       move: He=> /sem_op2_wb_dec [z1 [z2 [Hz1z2 ->]]].
@@ -594,12 +662,20 @@ Section PROOF.
       set vsf := SF_of_word (I64.sub z1 z2).
       set vzf := ZF_of_word (I64.sub z1 z2).
       exists vzf, vsf, vof, fv.(fresh_ZF), fv.(fresh_SF), fv.(fresh_OF); repeat split=> //=.
-      + admit.
+      + rewrite [_.[vbool (fresh_OF fv) <- _].[vbool (fresh_SF fv) <- _]]setP_comm.
+        rewrite setP_comm.
+        rewrite [_.[vbool (fresh_SF fv) <- _].[vbool (fresh_ZF fv) <- _]]setP_comm //.
+        by apply/eqP=> -[]Habs; have := sf_neq_zf; rewrite Habs eq_refl.
+        by apply/eqP=> -[]Habs; have := of_neq_zf; rewrite Habs eq_refl.
+        by apply/eqP=> -[]Habs; have := of_neq_sf; rewrite Habs eq_refl.
       + rewrite /fvars /fv_zf; SvD.fsetdec.
       + rewrite /fvars /fv_sf; SvD.fsetdec.
       + rewrite /fvars /fv_of; SvD.fsetdec.
-      + rewrite -Hz1z2; admit.
-  Admitted.
+      + rewrite eq_sym; exact: sf_neq_zf.
+      + rewrite eq_sym; exact: of_neq_zf.
+      + rewrite eq_sym; exact: of_neq_sf.
+      + by rewrite -Hz1z2 /vzf /vsf /vof /ZF_of_word /SF_of_word wslt_not_wsle wsle_sub negb_or Bool.negb_involutive.
+  Qed.
 
   Lemma lower_condition_corr ii ii' i e e' s1 cond:
     (i, e') = lower_condition fv ii' e ->
@@ -632,7 +708,7 @@ Section PROOF.
           + by rewrite /= /get_var /on_vu -Hfvar Fv.setP_eq Hz.
           + by rewrite /= /get_var /on_vu -Hfvar Fv.setP_eq Hz.
       (* Cond2 *)
-      + move=> [b1 [b2 [fv1 [fv2 [Hw [Hin1 [Hin2 [Hfv1 [Hfv2 Hz]]]]]]]]].
+      + move=> [b1 [b2 [fv1 [fv2 [Hw [Hin1 [Hin2 [Hfv1 [Hfv2 [Hneq Hz]]]]]]]]]].
         exists {| emem := emem s1'; evm := ((evm s1').[vbool fv1 <- ok b1]).[vbool fv2 <- ok b2] |}; repeat split=> /=.
         apply: sem_seq1; apply: EmkI; apply: Eopn.
         rewrite He1e2.
@@ -645,18 +721,18 @@ Section PROOF.
         + move: c Hz Ht=> [] Hz Ht.
           + rewrite /= /get_var /on_vu -Hfv1 -Hfv2 Fv.setP_eq Fv.setP_neq ?Fv.setP_eq /= ?Hz.
             by case: b1 Hw Hz.
-            admit. (* fv2 != fv1 *)
+            by apply/eqP=> -[]Habs; rewrite Habs eq_refl in Hneq.
           + rewrite /= /get_var /on_vu -Hfv1 -Hfv2 Fv.setP_eq Fv.setP_neq ?Fv.setP_eq /= ?Hz.
             by case: b1 Hw Hz=> _ _; case: b2.
-            admit. (* fv2 != fv1 *)
+            by apply/eqP=> -[]Habs; rewrite Habs eq_refl in Hneq.
           + rewrite /= /get_var /on_vu -Hfv1 -Hfv2 Fv.setP_eq Fv.setP_neq ?Fv.setP_eq /= ?Hz.
             by case: b1 Hw Hz.
-            admit. (* fv2 != fv1 *)
+            by apply/eqP=> -[]Habs; rewrite Habs eq_refl in Hneq.
           + rewrite /= /get_var /on_vu -Hfv1 -Hfv2 Fv.setP_eq Fv.setP_neq ?Fv.setP_eq /= ?Hz.
             by case: b1 Hw Hz.
-            admit. (* fv2 != fv1 *)
+            by apply/eqP=> -[]Habs; rewrite Habs eq_refl in Hneq.
       (* Cond3 *)
-      + move=> [b1 [b2 [b3 [fv1 [fv2 [fv3 [Hw [Hin1 [Hin2 [Hin3 [Hfv1 [Hfv2 [Hfv3 Hz]]]]]]]]]]]]].
+      + move=> [b1 [b2 [b3 [fv1 [fv2 [fv3 [Hw [Hin1 [Hin2 [Hin3 [Hfv1 [Hfv2 [Hfv3 [Hneq1 [Hneq2 [Hneq3 Hz]]]]]]]]]]]]]]]].
         exists {| emem := emem s1'; evm := ((evm s1').[vbool fv1 <- ok b1]).[vbool fv2 <- ok b2].[vbool fv3 <- ok b3] |}; repeat split=> /=.
         + apply: sem_seq1; apply: EmkI; apply: Eopn.
           rewrite He1e2.
@@ -672,19 +748,19 @@ Section PROOF.
             rewrite Fv.setP_neq.
             rewrite Fv.setP_neq ?Fv.setP_eq /=.
             move: b1 b2 b3=> [] [] [] //.
-            admit. (* fv2 != fv1 *)
-            admit. (* fv3 != fv1 *)
-            admit. (* fv3 != fv2 *)
+            by apply/eqP=> -[]Habs; rewrite Habs eq_refl in Hneq1.
+            by apply/eqP=> -[]Habs; rewrite Habs eq_refl in Hneq2.
+            by apply/eqP=> -[]Habs; rewrite Habs eq_refl in Hneq3.
           + rewrite /= /get_var /on_vu -Hfv1 -Hfv2 -Hfv3 Fv.setP_eq Fv.setP_neq ?Fv.setP_eq.
             rewrite Fv.setP_neq.
             rewrite Fv.setP_neq ?Fv.setP_eq /=.
             move: b1 b2 b3=> [] [] [] //.
-            admit. (* fv2 != fv1 *)
-            admit. (* fv3 != fv1 *)
-            admit. (* fv3 != fv2 *)
+            by apply/eqP=> -[]Habs; rewrite Habs eq_refl in Hneq1.
+            by apply/eqP=> -[]Habs; rewrite Habs eq_refl in Hneq2.
+            by apply/eqP=> -[]Habs; rewrite Habs eq_refl in Hneq3.
     move: Hcond=> []-> -> _.
     exists s1'; split=> //=; exact: Eskip.
-  Admitted.
+  Qed.
 
   Lemma lower_cassgn_classifyP e l s s' v (Hs: sem_pexpr s e = ok v)
       (Hw: write_lval l v s = ok s'):
