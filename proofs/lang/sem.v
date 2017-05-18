@@ -856,7 +856,7 @@ with sem_call : mem -> funname -> seq value -> mem -> seq value -> Prop :=
     write_vars f.(f_params) vargs (Estate m1 vmap0) = ok s1 ->
     sem s1 f.(f_body) (Estate m2 vm2) ->
     mapM (fun (x:var_i) => get_var vm2 x) f.(f_res) = ok vres ->
-    List.Forall is_full_array vres ->
+    List.Forall is_full_array vres -> (* TODO: is this still needed? *)
     sem_call m1 fn vargs m2 vres.
 
 (* -------------------------------------------------------------------- *)

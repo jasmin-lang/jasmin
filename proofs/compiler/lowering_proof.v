@@ -76,6 +76,10 @@ Section PROOF.
 
   Definition vars_c c := Sv.union (read_c c) (write_c c).
 
+  Definition vars_lval l := Sv.union (read_rv l) (vrv l).
+
+  Definition vars_lvals ls := Sv.union (read_rvs ls) (vrvs ls).
+
   Lemma vars_c_cons i c:
     Sv.Equal (vars_c (i :: c)) (Sv.union (vars_I i) (vars_c c)).
   Proof.
@@ -107,8 +111,10 @@ Section PROOF.
     disj_fvars (Sv.union v1 v2) ->
     disj_fvars v1 /\ disj_fvars v2.
   Proof.
-    rewrite /disj_fvars /disjoint SvP.MP.union_inter_1=> H; split.
-  Admitted.
+    rewrite /disj_fvars /disjoint SvP.MP.union_inter_1=> /Sv.is_empty_spec H; split.
+    apply/Sv.is_empty_spec; SvD.fsetdec.
+    apply/Sv.is_empty_spec; SvD.fsetdec.
+  Qed.
 
   Lemma fvars_fun fn f:
     get_fundef p fn = Some f ->
@@ -226,8 +232,9 @@ Section PROOF.
     move=> Hdisj [/= ? Hvm]; subst mem2; split=> // x Hx.
     apply: Hvm=> Habs.
     rewrite /disj_fvars /disjoint in Hdisj.
-    admit.
-  Admitted.
+    move: Hdisj=> /Sv.is_empty_spec Hdisj.
+    SvD.fsetdec.
+  Qed.
 
   Lemma sem_pexpr_same e v s1 s1':
     disj_fvars (read_e e) ->
@@ -251,38 +258,81 @@ Section PROOF.
     by rewrite -(read_es_eq_on _ Hvm).
   Qed.
 
-  Lemma write_lval_eq_except s s1 s2 l v vm1:
-    disjoint (vrv l) s ->
-    write_lval l v s1 = ok s2 ->
-    evm s1 = vm1 [\ s] ->
-    exists vm2,
-      evm s2 = vm2 [\ s] /\
-      write_lval l v {| emem:= emem s1; evm := vm1 |} = ok {| emem:= emem s2; evm := vm2 |}.
-  Proof.
-  Admitted.
-
   Lemma write_lval_same s1 s1' s2 l v:
-    disj_fvars (vrv l) ->
+    disj_fvars (vars_lval l) ->
     eq_exc_fresh s1' s1 ->
     write_lval l v s1 = ok s2 ->
     exists s2', write_lval l v s1' = ok s2' /\ eq_exc_fresh s2' s2.
   Proof.
-    move: s1 s1'=> [mem vm1] [mem' vm2] Hdisj Heq.
+    move: s1 s1'=> [mem vm1] [mem' vm1'] Hdisj Heq.
     have [/= Hmem Hvm] := Heq; subst mem'=> H.
-    have [|vm3 /= [Hvm3 Hmem]] := write_lval_eq_except _ H (vmap_eq_exceptS Hvm).
-    rewrite /disj_fvars in Hdisj.
-    exact: Hdisj.
-    exists {| emem := emem s2; evm := vm3 |}; split=> //.
+    have Hsub': Sv.Subset (read_rv l) (Sv.diff (read_rv l) fvars).
+      rewrite /vars_lval in Hdisj.
+      move: Hdisj=> /disj_fvars_union [Hsub _].
+      rewrite /disj_fvars /disjoint in Hsub.
+      move=> x Hx.
+      move: Hsub=> /Sv.is_empty_spec Hsub.
+      SvD.fsetdec.
+    have Hvm': vm1' =[Sv.diff (read_rv l) fvars] vm1.
+      move=> x Hx.
+      apply: Hvm=> Habs.
+      SvD.fsetdec.
+    have [vm2' /= [Hvm2' Hmem2']] := write_lval_eq_on Hsub' H (eq_onS Hvm').
+    have Hvm2'': evm s2 =[vrv l] vm2'.
+      move=> x Hx.
+      rewrite Hvm2' //.
+      SvD.fsetdec.
+    exists {| emem := emem s2; evm := vm2' |}; split=> //.
     split=> //=.
-    exact: (vmap_eq_exceptS Hvm3).
+    have /= H1 := vrvP Hmem2'.
+    have /= H2 := vrvP H.
+    move=> x Hx.
+    case Hxvrv: (Sv.mem x (vrv l)).
+    + move: Hxvrv=> /Sv_memP Hxvrv.
+      rewrite Hvm2'' //.
+    + move: Hxvrv=> /Sv_memP Hxvrv.
+      rewrite -H1 //.
+      rewrite -H2 //.
+      rewrite -Hvm //.
   Qed.
 
   Lemma write_lvals_same s1 s1' s2 ls vs:
-    disj_fvars (vrvs ls) ->
+    disj_fvars (vars_lvals ls) ->
     eq_exc_fresh s1' s1 ->
     write_lvals s1 ls vs = ok s2 ->
     exists s2', write_lvals s1' ls vs = ok s2' /\ eq_exc_fresh s2' s2.
-  Admitted. (* Same as above *)
+  Proof.
+    move: s1 s1'=> [mem vm1] [mem' vm1'] Hdisj Heq.
+    have [/= Hmem Hvm] := Heq; subst mem'=> H.
+    have Hsub': Sv.Subset (read_rvs ls) (Sv.diff (read_rvs ls) fvars).
+      rewrite /vars_lvals in Hdisj.
+      move: Hdisj=> /disj_fvars_union [Hsub _].
+      rewrite /disj_fvars /disjoint in Hsub.
+      move=> x Hx.
+      move: Hsub=> /Sv.is_empty_spec Hsub.
+      SvD.fsetdec.
+    have Hvm': vm1' =[Sv.diff (read_rvs ls) fvars] vm1.
+      move=> x Hx.
+      apply: Hvm=> Habs.
+      SvD.fsetdec.
+    have [vm2' /= [Hvm2' Hmem2']] := write_lvals_eq_on Hsub' H (eq_onS Hvm').
+    have Hvm2'': evm s2 =[vrvs ls] vm2'.
+      move=> x Hx.
+      rewrite Hvm2' //.
+      SvD.fsetdec.
+    exists {| emem := emem s2; evm := vm2' |}; split=> //.
+    split=> //=.
+    have /= H1 := vrvsP Hmem2'.
+    have /= H2 := vrvsP H.
+    move=> x Hx.
+    case Hxvrv: (Sv.mem x (vrvs ls)).
+    + move: Hxvrv=> /Sv_memP Hxvrv.
+      rewrite Hvm2'' //.
+    + move: Hxvrv=> /Sv_memP Hxvrv.
+      rewrite -H1 //.
+      rewrite -H2 //.
+      rewrite -Hvm //.
+  Qed.
 
   Lemma add_inc_dec_classifyP' a b:
     match add_inc_dec_classify a b with
@@ -564,16 +614,18 @@ Section PROOF.
   Admitted.
 
   Lemma vars_I_assgn ii l tag e:
-    vars_I (MkI ii (Cassgn l tag e)) = Sv.union (vrv l) (read_e e).
-  Admitted.
+    Sv.Equal (vars_I (MkI ii (Cassgn l tag e))) (Sv.union (vars_lval l) (read_e e)).
+  Proof.
+    rewrite /vars_I read_Ii /read_i /write_I /= /vars_lval read_rvE.
+    SvD.fsetdec.
+  Qed.
 
   Local Lemma Hassgn s1 s2 l tag e :
     Let v := sem_pexpr s1 e in write_lval l v s1 = Ok error s2 ->
     Pi_r s1 (Cassgn l tag e) s2.
   Proof.
     apply: rbindP=> v Hv Hw ii /= Hdisj s1' Hs1'.
-    rewrite vars_I_assgn in Hdisj.
-    move: Hdisj=> /disj_fvars_union [Hdisjl Hdisje].
+    move: Hdisj; rewrite /disj_fvars vars_I_assgn -/(disj_fvars _)=> /disj_fvars_union [Hdisjl Hdisje].
     have Hv' := sem_pexpr_same Hdisje Hs1' Hv.
     have [s2' [Hw' Hs2']] := write_lval_same Hdisjl Hs1' Hw.
     rewrite /= /lower_cassgn.
@@ -641,15 +693,18 @@ Section PROOF.
   Qed.
 
   Lemma vars_I_opn ii xs o es:
-    vars_I (MkI ii (Copn xs o es)) = Sv.union (vrvs xs) (read_es es).
-  Admitted.
+    Sv.Equal (vars_I (MkI ii (Copn xs o es))) (Sv.union (vars_lvals xs) (read_es es)).
+  Proof.
+    rewrite /vars_I /read_I /= read_esE /write_I /= /vars_lvals.
+    SvD.fsetdec.
+  Qed.
 
   Local Lemma Hopn s1 s2 o xs es :
     Let x := Let x := sem_pexprs s1 es in sem_sopn o x
     in write_lvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
   Proof.
     apply: rbindP=> v; apply: rbindP=> x Hx Hv Hw ii Hdisj s1' Hs1'.
-    move: Hdisj; rewrite vars_I_opn=> /disj_fvars_union [Hdisjl Hdisje].
+    move: Hdisj; rewrite /disj_fvars vars_I_opn=> /disj_fvars_union [Hdisjl Hdisje].
     have Hx' := sem_pexprs_same Hdisje Hs1' Hx; have [s2' [Hw' Hs2']] := write_lvals_same Hdisjl Hs1' Hw.
     move: o Hv=> [] Hv; try (
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn;
@@ -703,9 +758,16 @@ Section PROOF.
     + admit.
   Admitted.
 
+  (* TODO: move *)
+  Lemma write_Ii ii i: write_I (MkI ii i) = write_i i.
+  Proof. by done. Qed.
+
   Lemma vars_I_if ii e c1 c2:
-    vars_I (MkI ii (Cif e c1 c2)) = Sv.union (read_e e) (Sv.union (vars_c c1) (vars_c c2)).
-  Admitted.
+    Sv.Equal (vars_I (MkI ii (Cif e c1 c2))) (Sv.union (read_e e) (Sv.union (vars_c c1) (vars_c c2))).
+  Proof.
+    rewrite /vars_I read_Ii read_i_if write_Ii write_i_if /vars_c.
+    SvD.fsetdec.
+  Qed.
 
   Local Lemma Hif_true s1 s2 e c1 c2 :
     Let x := sem_pexpr s1 e in to_bool x = Ok error true ->
@@ -713,7 +775,7 @@ Section PROOF.
   Proof.
     apply: rbindP=> z Hz Hzt.
     move=> _ Hc ii /= Hdisj s1' Hs1' /=.
-    move: Hdisj; rewrite vars_I_if=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
+    move: Hdisj; rewrite /disj_fvars vars_I_if=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
     have Hcond: x = lower_condition fv xH e by [].
     move: x Hcond=> [i e'] Hcond.
@@ -734,7 +796,7 @@ Section PROOF.
   Proof.
     apply: rbindP=> z Hz Hzf.
     move=> _ Hc ii /= Hdisj s1' Hs1' /=.
-    move: Hdisj; rewrite vars_I_if=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
+    move: Hdisj; rewrite /disj_fvars vars_I_if=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
     have Hcond: x = lower_condition fv xH e by [].
     move: x Hcond=> [i e'] Hcond.
@@ -750,8 +812,11 @@ Section PROOF.
   Qed.
 
   Lemma vars_I_while ii c e c':
-    vars_I (MkI ii (Cwhile c e c')) = Sv.union (read_e e) (Sv.union (vars_c c) (vars_c c')).
-  Admitted.
+    Sv.Equal (vars_I (MkI ii (Cwhile c e c'))) (Sv.union (read_e e) (Sv.union (vars_c c) (vars_c c'))).
+  Proof.
+    rewrite /vars_I read_Ii write_Ii read_i_while write_i_while /vars_c.
+    SvD.fsetdec.
+  Qed.
 
   Local Lemma Hwhile_true s1 s2 s3 s4 c e c' :
     sem p s1 c s2 -> Pc s1 c s2 ->
@@ -761,7 +826,7 @@ Section PROOF.
   Proof.
     move=> _ Hc.
     apply: rbindP=> z Hz Hzt _ Hc' _ Hwhile ii Hdisj s1' Hs1' /=.
-    have := Hdisj; rewrite vars_I_while=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
+    have := Hdisj; rewrite /disj_fvars vars_I_while=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
     have Hcond: x = lower_condition fv xH e by [].
     move: x Hcond=> [i e'] Hcond.
@@ -789,7 +854,7 @@ Section PROOF.
   Proof.
     move=> _ Hc.
     apply: rbindP=> z Hz Hzf ii Hdisj s1' Hs1' /=.
-    move: Hdisj; rewrite vars_I_while=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
+    move: Hdisj; rewrite /disj_fvars vars_I_while=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
     have Hcond: x = lower_condition fv xH e by [].
     move: x Hcond=> [i e'] Hcond.
@@ -802,8 +867,11 @@ Section PROOF.
   Qed.
 
   Lemma sem_I_for ii i d lo hi c:
-    vars_I (MkI ii (Cfor i (d, lo, hi) c)) = Sv.union (Sv.union (vars_c c) (Sv.singleton i)) (Sv.union (read_e lo) (read_e hi)).
-  Admitted.
+    Sv.Equal (vars_I (MkI ii (Cfor i (d, lo, hi) c))) (Sv.union (Sv.union (vars_c c) (Sv.singleton i)) (Sv.union (read_e lo) (read_e hi))).
+  Proof.
+    rewrite /vars_I read_Ii write_Ii read_i_for write_i_for /vars_c.
+    SvD.fsetdec.
+  Qed.
 
   Local Lemma Hfor s1 s2 (i:var_i) d lo hi c vlo vhi :
     Let x := sem_pexpr s1 lo in to_int x = Ok error vlo ->
@@ -812,7 +880,7 @@ Section PROOF.
     Pfor i (wrange d vlo vhi) s1 c s2 -> Pi_r s1 (Cfor i (d, lo, hi) c) s2.
   Proof.
     move=> Hlo Hhi _ Hfor ii Hdisj s1' Hs1' /=.
-    move: Hdisj; rewrite sem_I_for=> /disj_fvars_union [Hdisjc /disj_fvars_union [Hdisjlo Hdisjhi]].
+    move: Hdisj; rewrite /disj_fvars sem_I_for=> /disj_fvars_union [Hdisjc /disj_fvars_union [Hdisjlo Hdisjhi]].
     have [s2' [Hs2'1 Hs2'2]] := Hfor Hdisjc _ Hs1'.
     exists s2'; split=> //.
     apply: sem_seq1; apply: EmkI; apply: Efor; eauto.
@@ -835,9 +903,10 @@ Section PROOF.
     have := Hdisj=> /disj_fvars_union [Hdisjc Hdisji].
     have Hw1: write_lval (Lvar i) w s1 = ok s1' by exact: Hw.
     have [|s2'' [Hs2''1 Hs2''2]] := write_lval_same _ Hs1'' Hw1.
-    rewrite /=; have H: Sv.Equal (Sv.add i Sv.empty) (Sv.singleton i).
+    rewrite /=; have H: Sv.Equal (Sv.union Sv.empty (Sv.add i Sv.empty)) (Sv.singleton i).
       by SvD.fsetdec.
-    by move: Hdisji; rewrite /disj_fvars H.
+    rewrite /vars_lval /= /disj_fvars.
+    by move: Hdisji; rewrite /disj_fvars /vars_lval H.
     have [s3'' [Hs3''1 Hs3''2]] := Hc Hdisjc _ Hs2''2.
     have [s4'' [Hs4''1 Hs4''2]] := Hfor Hdisj _ Hs3''2.
     exists s4''; split=> //.
@@ -845,8 +914,11 @@ Section PROOF.
   Qed.
 
   Lemma vars_I_call ii ii' xs fn args:
-    vars_I (MkI ii (Ccall ii' xs fn args)) = Sv.union (vrvs xs) (read_es args).
-  Admitted.
+    Sv.Equal (vars_I (MkI ii (Ccall ii' xs fn args))) (Sv.union (vars_lvals xs) (read_es args)).
+  Proof.
+    rewrite /vars_I read_Ii write_Ii read_i_call write_i_call /vars_lvals.
+    SvD.fsetdec.
+  Qed.
 
   Local Lemma Hcall s1 m2 s2 ii xs fn args vargs vs:
     sem_pexprs s1 args = Ok error vargs ->
@@ -856,7 +928,7 @@ Section PROOF.
     Pi_r s1 (Ccall ii xs fn args) s2.
   Proof.
     move=> Harg _ Hfun Hret ii' Hdisj s1' Hs1'; move: Hdisj.
-    rewrite vars_I_call=> /disj_fvars_union [Hxs Hargs].
+    rewrite /disj_fvars vars_I_call=> /disj_fvars_union [Hxs Hargs].
     have Heq: eq_exc_fresh {| emem := m2; evm := evm s1' |} {| emem := m2; evm := evm s1 |}.
       split=> //=.
       by move: Hs1'=> [].
