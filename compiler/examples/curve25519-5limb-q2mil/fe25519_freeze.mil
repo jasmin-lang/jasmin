@@ -20,7 +20,7 @@ export fn crypto_scalarmult_curve25519_amd64_51_fe25519_freeze(reg u64 rp){
 	two51minus19 = two51minus1;
 	two51minus19 -= 18;
 	loop = 3;
-	do{
+	while(loop > 0){
 	t = r0;
 	t >>= 51;
 	r0 &= two51minus1;
@@ -42,7 +42,8 @@ export fn crypto_scalarmult_curve25519_amd64_51_fe25519_freeze(reg u64 rp){
 	r4 &= two51minus1;
 	t *= 19;
 	r0 += t;
-	}while((loop-=1) > 0);
+  loop = loop - 1;
+	}
 	t = 1;
 	//signed<? r0 - two51minus19 
 	t = loop if (r0 <s two51minus19); /*t = loop if signed<*/
