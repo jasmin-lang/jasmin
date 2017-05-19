@@ -3,11 +3,12 @@ open Prog
 
 
 
-let check_not_reg_arr v =
+let check_not_reg_arr msg v =
   if is_reg_arr (L.unloc v)
-  then Utils.hierror "%a: variable %a is an array"
+  then Utils.hierror "%a: variable %a is an array (%s)"
       L.pp_loc (L.loc v)
       (Printer.pp_var ~debug:true) (L.unloc v)
+      msg
 
 let get_reg_arr tbl v e =
   let v_ = L.unloc v in
@@ -37,7 +38,7 @@ let init_tbl fc =
 let rec arrexp_e tbl e =
   match e with
   | Pconst _ | Pbool _ -> e
-  | Pvar x -> check_not_reg_arr x; e
+  | Pvar x -> check_not_reg_arr "Pvar" x; e
 
   | Pget (x,e) ->
     if is_reg_arr (L.unloc x) then
@@ -58,7 +59,7 @@ let arrexp_lv tbl lv =
       let v = get_reg_arr tbl x e in
       Lvar (L.mk_loc (L.loc x) v)
     else Laset(x, arrexp_e tbl e)
-  | Lvar x       -> check_not_reg_arr x; lv
+  | Lvar x       -> check_not_reg_arr "Lvar" x; lv
   | Lnone _      -> lv
   | Lmem(ws,x,e) -> Lmem(ws,x,arrexp_e tbl e)
 
@@ -83,8 +84,8 @@ let rec arrexp_i tbl i =
 and arrexp_c tbl c = List.map (arrexp_i tbl) c
 
 let arrexp_func fc =
-  List.iter (fun v -> check_not_reg_arr (L.mk_loc L._dummy v)) fc.f_args;
-  List.iter check_not_reg_arr fc.f_ret;
+  List.iter (fun v -> check_not_reg_arr "function argument" (L.mk_loc L._dummy v)) fc.f_args;
+  List.iter (check_not_reg_arr "function return") fc.f_ret;
   let tbl = init_tbl fc in
   { fc with f_body = arrexp_c tbl fc.f_body }
 
