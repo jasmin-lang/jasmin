@@ -28,6 +28,7 @@ Require Import sem compiler_util compiler.
 Require Import allocation inline_proof dead_calls_proof
                unrolling_proof constant_prop_proof dead_code_proof
                array_expansion stack_alloc_proof 
+               lowering_proof
                linear_proof compiler.
 
 Set Implicit Arguments.
@@ -98,7 +99,7 @@ Proof.
   apply: (stack_alloc_proof.check_progP Hpstk').
   apply: (dead_code_callP Hpd).
   apply: (CheckAllocReg.alloc_callP He').
-  Admitted. (*
+  apply: lower_callP.
   apply: (CheckExpansion.alloc_callP He).
   apply: (dead_code_callP Hps').
   apply: (CheckAllocReg.alloc_callP Hps).
@@ -108,8 +109,5 @@ Proof.
   apply: (dead_calls_errP Hpca) => //.
   by apply: (inline_call_errP Hp0).
 Qed.
-*)
 
 End PROOF.
-
-

@@ -23,7 +23,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-(* * Prove properties about semantics of dmasm input language *)
+(* * Correctness proof of the lowering pass *)
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect.
