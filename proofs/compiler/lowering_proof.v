@@ -43,13 +43,14 @@ Section PROOF.
   Variable fv : fresh_vars.
 
   Definition vbool vn := {| vtype := sbool ; vname := vn |}.
+  Definition vword vn := {| vtype := sword ; vname := vn |}.
   Definition fv_of := vbool fv.(fresh_OF).
   Definition fv_cf := vbool fv.(fresh_CF).
   Definition fv_sf := vbool fv.(fresh_SF).
   Definition fv_pf := vbool fv.(fresh_PF).
   Definition fv_zf := vbool fv.(fresh_ZF).
 
-  Definition fvars := Sv.add fv_of (Sv.add fv_cf (Sv.add fv_sf (Sv.add fv_pf (Sv.singleton fv_zf)))).
+  Definition fvars := Sv.add (vword fv.(fresh_multiplicand)) (Sv.add fv_of (Sv.add fv_cf (Sv.add fv_sf (Sv.add fv_pf (Sv.singleton fv_zf))))).
 
   Definition p' := lower_prog fv p.
 
@@ -983,6 +984,23 @@ Section PROOF.
     by move: l=> [] // <-; eauto.
   Qed.
 
+  Lemma app_ww_dec f x v:
+    app_ww f x = ok v ->
+    exists w1 w2, x = [:: Vword w1; Vword w2] /\ f w1 w2 = ok v.
+  Proof.
+    move: x=> [] //= x1 l.
+    apply: rbindP=> w1.
+    move: x1=> [] // w; last first.
+    + by rewrite /=; move: w=> [].
+    move=> []Hw; subst w.
+    move: l=> [] // x2 l.
+    apply: rbindP=> w2.
+    move: x2=> [] // w; last first.
+    + by rewrite /=; move: w=> [].
+    move=> []Hw; subst w.
+    by move: l=> [] // <-; eauto.
+  Qed.
+
   Lemma add_overflow w1 w2:
     (I64.unsigned (I64.add w1 w2) != (w1 + w2)%Z) = (I64.modulus <=? w1 + w2)%Z.
   Admitted.
@@ -1007,6 +1025,16 @@ Section PROOF.
     I64.sub_borrow w1 w2 (b_to_w b) = I64.repr (w1 - w2 - Zofb b).
   Admitted.
 
+  Lemma sem_pexprs_dec2 s e1 e2 v1 v2:
+    sem_pexprs s [:: e1; e2] = ok [:: v1; v2] ->
+      sem_pexpr s e1 = ok v1 /\
+      sem_pexpr s e2 = ok v2.
+  Proof.
+    rewrite /sem_pexprs /=.
+    t_xrbindP=> v1' -> [] // v1'' [] // v2' -> []<- <- []<-.
+    by split.
+  Qed.
+
   Lemma sem_pexprs_dec3 s e1 e2 e3 v1 v2 v3:
     sem_pexprs s [:: e1; e2; e3] = ok [:: v1; v2; v3] ->
       sem_pexpr s e1 = ok v1 /\
@@ -1017,6 +1045,37 @@ Section PROOF.
     t_xrbindP=> v1' -> [] // v2' [] // v3' [] // v4' Hv4' [] // v5' [] // v6' Hv6' []<- []<- <- <- []<- <-.
     by split.
   Qed.
+
+  Lemma write_lvals_dec2_s s1 s2 v1 v2 xs:
+    write_lvals s1 xs [:: v1; v2] = ok s2 ->
+    exists x1 x2, xs = [:: x1; x2].
+  Proof.
+    move: xs=> [] // x1 [] //=.
+    + by apply: rbindP.
+    move=> x2 [] //; last first.
+    + by move=> x3 ? /=; t_xrbindP.
+    t_xrbindP=> s1' Hs1' s2' Hs2' /= []Hs2; subst s2'.
+    by eauto.
+  Qed.
+
+  Lemma sem_pexprs_dec2_s s es v1 v2:
+    sem_pexprs s es = ok [:: v1; v2] ->
+    exists e1 e2, es = [:: e1; e2].
+  Proof.
+    move: es=> [] // e1 [] //.
+    + by rewrite /sem_pexprs /=; apply: rbindP.
+    move=> e2 []; last first.
+    + move=> a l; rewrite /sem_pexprs /=; t_xrbindP=> ??????????.
+      by move=> <- <-.
+    rewrite /sem_pexprs /=.
+    t_xrbindP=> v1' Hv1' [] // v1'' [] // v2' Hv2' []??[]?; subst v1'' v1' v2'.
+    by eauto.
+  Qed.
+
+  (* TODO: is this even true? *)
+  Lemma mulhu_repr w1 w2:
+    I64.mulhu w1 w2 = I64.repr (w1 * w2 ÷ I64.modulus).
+  Admitted.
 
   Local Lemma Hopn s1 s2 o xs es :
     Let x := Let x := sem_pexprs s1 es in sem_sopn o x
@@ -1029,7 +1088,59 @@ Section PROOF.
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn;
       rewrite Hx' /=; rewrite /= in Hv; by rewrite Hv).
     (* Omulu *)
-    + admit.
+    + move: Hv=> /app_ww_dec [w1 [w2 [Hz []Hv]]]; subst x v.
+      move=> {Hx Hw}.
+      have [x1 [x2 ?]] := write_lvals_dec2_s Hw'; subst xs.
+      have [e1 [e2 ?]] := sem_pexprs_dec2_s Hx'; subst es.
+      rewrite /=.
+      case: (is_wconstP e1) Hx' Hdisje=> [n1|{e1} e1] Hx' Hdisje.
+      + have [[]? He2] := sem_pexprs_dec2 Hx'; subst w1.
+        set s2'' := {| emem := emem s1'; evm := (evm s1').[vword fv.(fresh_multiplicand) <- ok (I64.repr n1)] |}.
+        have Heq: eq_exc_fresh s2'' s1'.
+          split=> //.
+          rewrite /s2'' /= => x Hx.
+          rewrite Fv.setP_neq //.
+          apply/eqP=> Habs; apply: Hx; rewrite -Habs /fvars.
+          SvD.fsetdec.
+        have [s3'' [Hw'' Hs3'']] := write_lvals_same Hdisjl Heq Hw'.
+        have He2' := sem_pexpr_same Hdisje Heq He2.
+        eexists; split.
+        + apply: Eseq.
+          + by apply: EmkI; apply: Eopn.
+          + apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
+            rewrite /= /read_es /= in Hdisje.
+            rewrite /sem_pexprs /= He2' /=.
+            rewrite /get_var /on_vu /= Fv.setP_eq /=.
+            rewrite /= in Hw''.
+            rewrite mulhu_repr Z.mul_comm /I64.mul (Z.mul_comm w2).
+            exact: Hw''.
+        + exact: (eq_exc_freshT Hs3'' Hs2').
+      case: (is_wconstP e2) Hx' Hdisje=> [n2|{e2} e2] Hx' Hdisje.
+      + have [He1 []He2] := sem_pexprs_dec2 Hx'; subst w2.
+        set s2'' := {| emem := emem s1'; evm := (evm s1').[vword fv.(fresh_multiplicand) <- ok (I64.repr n2)] |}.
+        have Heq: eq_exc_fresh s2'' s1'.
+          split=> //.
+          rewrite /s2'' /= => x Hx.
+          rewrite Fv.setP_neq //.
+          apply/eqP=> Habs; apply: Hx; rewrite -Habs /fvars.
+          SvD.fsetdec.
+        have [s3'' [Hw'' Hs3'']] := write_lvals_same Hdisjl Heq Hw'.
+        have He1' := sem_pexpr_same Hdisje Heq He1.
+        eexists; split.
+        + apply: Eseq.
+          + by apply: EmkI; apply: Eopn.
+          + apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
+            rewrite /= /read_es /= in Hdisje.
+            rewrite /sem_pexprs /= He1' /=.
+            rewrite /get_var /on_vu /= Fv.setP_eq /=.
+            rewrite /= in Hw''.
+            rewrite mulhu_repr.
+            exact: Hw''.
+        + exact: (eq_exc_freshT Hs3'' Hs2').
+      exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
+      rewrite Hx' /=.
+      rewrite /= -mulhu_repr in Hw'.
+      exact: Hw'.
     (* Oaddcarry *)
     + rewrite /= /lower_addcarry.
       move: Hv=> /app_wwb_dec [w1 [w2 [b [Hz []Hv]]]]; subst x v.
@@ -1068,7 +1179,7 @@ Section PROOF.
           by rewrite /sem_pexprs /= Hw1 /= Hw2 /= Hb /= sub_borrow_underflow sub_borrow_repr.
       + apply: sem_seq1; apply: EmkI; apply: Eopn.
         by rewrite Hx'.
-  Admitted.
+  Qed.
 
   (* TODO: move *)
   Lemma write_Ii ii i: write_I (MkI ii i) = write_i i.
