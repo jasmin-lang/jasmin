@@ -171,6 +171,8 @@ and pp_comp_ferr tbl fmt = function
     Format.fprintf fmt "loop iterator to small"
   | Compiler_util.Ferr_uniqfun ->
     Format.fprintf fmt "two function declarations with the same name"
+  | Compiler_util.Ferr_lowering ->
+    Format.fprintf fmt "lowering check fails"
 
 (* -------------------------------------------------------------------- *)
 
