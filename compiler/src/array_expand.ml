@@ -1,14 +1,14 @@
 (* Replace register array by register *)
 open Prog
 
-
-
-let check_not_reg_arr msg v =
-  if is_reg_arr (L.unloc v)
-  then Utils.hierror "%a: variable %a is an array (%s)"
+let check_not_pred pmsg pred msg v =
+  if pred (L.unloc v)
+  then Utils.hierror "%a: variable %a is %s (%s)"
       L.pp_loc (L.loc v)
       (Printer.pp_var ~debug:true) (L.unloc v)
-      msg
+      pmsg msg
+
+let check_not_reg_arr = check_not_pred "an array" is_reg_arr
 
 let get_reg_arr tbl v e =
   let v_ = L.unloc v in
@@ -193,12 +193,12 @@ let rec astk_i tbl i =
 
 and astk_c tbl c = List.map (astk_i tbl) c
 
-let check_stack_var v =
-  assert (not (is_stack_var (L.unloc v)))
+let check_stack_var =
+  check_not_pred "in stack" is_stack_var
 
 let stk_alloc_func fc =
-  List.iter (fun v -> check_stack_var (L.mk_loc L._dummy v)) fc.f_args;
-  List.iter check_stack_var fc.f_ret;
+  List.iter (fun v -> check_stack_var "function argument" (L.mk_loc L._dummy v)) fc.f_args;
+  List.iter (check_stack_var "function return") fc.f_ret;
   let alloc, sz, tbl = init_stk fc in
   alloc, sz, { fc with f_body = astk_c tbl fc.f_body }
 
