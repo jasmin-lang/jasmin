@@ -562,16 +562,16 @@ Definition eval_INC o s : x86_result :=
   Let w  := read_oprd o s in
   let v  := I64.add w I64.one in
   let vs := (I64.signed w + 1)%Z in
-  Let s  := write_oprd o v s in
-  ok (st_update_rflags (rflags_of_aluop_nocf v vs) s).
+  let s  := st_update_rflags (rflags_of_aluop_nocf v vs) s in
+  write_oprd o v s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_DEC o s : x86_result :=
   Let w  := read_oprd o s in
   let v  := I64.sub w I64.one in
   let vs := (I64.signed w - 1)%Z in
-  Let s  := write_oprd o v s in
-  ok (st_update_rflags (rflags_of_aluop_nocf v vs) s).
+  let s  := st_update_rflags (rflags_of_aluop_nocf v vs) s in
+  write_oprd o v s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SETcc ct o s : x86_result :=

@@ -569,10 +569,12 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
       Let ox := oprd_of_lval ii x in
       if (rcf != CF) then
         cierror ii (Cerr_assembler
-          (AsmErr_string ("Carry flag in wrong register for " ++ string_of_aluk o))) else
+          (AsmErr_string
+             ("Carry flag in wrong register for " ++ string_of_aluk o))) else
       if (o1 != ox) then
         cierror ii (Cerr_assembler
-          (AsmErr_string ("First [rl]val should be the same for " ++ string_of_aluk o))) else
+          (AsmErr_string
+             ("First [rl]val should be the same for " ++ string_of_aluk o))) else
 
       ciok (match bin with
             | BC_ADC => ADC
@@ -666,6 +668,11 @@ Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
     match lvals_as_cnt_vars l with
     | Some (CNTVars vof vsf vpf vzf, l) =>
       Let ol := oprd_of_lval ii l in
+      Let rof := rflag_of_var ii vof in
+      Let rsf := rflag_of_var ii vsf in
+      Let rpf := rflag_of_var ii vpf in
+      Let rzf := rflag_of_var ii vzf in
+      if ((rof == OF) && (rsf == SF) && (rpf == PF) && (rzf == ZF)) then
       match as_singleton e with
       | Some e =>
         Let or := oprd_of_pexpr ii e in
@@ -675,6 +682,7 @@ Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
           cierror ii (Cerr_assembler (AsmErr_string "lval & rval of Ox86_DEC/INC should be the same"))
       | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid number of pexpr in Ox86_DEC/INC"))
       end
+      else cierror ii (Cerr_assembler (AsmErr_string "Invalid registers in lvals"))
     | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid number of lval in Ox86_DEC/INC"))
     end
 
