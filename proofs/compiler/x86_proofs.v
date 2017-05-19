@@ -174,6 +174,35 @@ by case: {ok_v} v ok_b => //= [? [<-]|] // [].
 Qed.
 
 (* -------------------------------------------------------------------- *)
+Lemma xgetreg_ex ii c x r v s xs :
+     xs86_equiv c s xs
+  -> reg_of_var ii x = ok r
+  -> get_var s.(lvm) x = ok v
+  -> exists2 w, to_word v = ok w
+                & RegMap.get xs.(xreg) r = w.
+Proof.
+case=> _ _ _ _ _ eqv; case: x => -[] //= x.
+case E: reg_of_string => [vx|] // [<-] ok_v.
+have /= := get_var_type ok_v; case: v ok_v => //=.
++ move=> w ok_v _; exists w => //.
+  by move/(_ _ _ E): eqv; rewrite ok_v /=.
++ by case=> // ok_ud _; move/(_ _ _ E): eqv; rewrite ok_ud.
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma xgetreg ii c x r v w s xs :
+     xs86_equiv c s xs
+  -> reg_of_var ii x = ok r
+  -> get_var s.(lvm) x = ok v
+  -> to_word v = ok w
+  -> RegMap.get xs.(xreg) r = w.
+Proof.
+case=> _ _ _ _ _ eqv; case: x => -[] //= x.
+case E: reg_of_string => [vx|] // -[<-] ok_v ok_w.
+by move/(_ _ _ E): eqv; rewrite ok_v ok_w.
+Qed.
+
+(* -------------------------------------------------------------------- *)
 Lemma ok_sem_op1_b f v b :
   sem_op1_b f v = ok b ->
     exists2 vb, to_bool v = ok vb & b = Vbool (f vb).
@@ -442,6 +471,96 @@ by rewrite /RflagMap.update /RflagMap.get /= eq_f.
 Qed.
 
 (* -------------------------------------------------------------------- *)
+Lemma xaddr_ofs_const s e v z :
+     sem_pexpr s e = ok v
+  -> addr_ofs e = Ofs_const z
+  -> to_word v = ok (I64.repr z).
+Proof.
+elim: e v z => //; first by case=> // z' _ v z -[<-] -[<-].
+case=> // -[]// p1 ih1 p2 ih2 v z; rewrite [X in X -> _]/=.
++ t_xrbindP=> v1 /ih1 {ih1}ih1 v2 /ih2 {ih2}ih2 ok_v /=.
+  case E1: addr_ofs => [z1||||] //;
+  case E2: addr_ofs => [z2||||] //.
+  case=> <-; move: ok_v; rewrite /sem_op2_w /mk_sem_sop2.
+  t_xrbindP=> w1 ok_w1 w2 ok_w2 ?; subst v; congr ok.
+  move: ok_w1 ok_w2 => /=; rewrite !(ih1 z1, ih2 z2) //.
+  by move=> [<-] [<-]; rewrite -iword_addP /iword_add repr_mod.
++ t_xrbindP=> v1 /ih1 {ih1}ih1 v2 /ih2 {ih2}ih2 ok_v /=.
+  case E1: addr_ofs => [z1||||] //;
+  case E2: addr_ofs => [z2||||] //.
+  case=> <-; move: ok_v; rewrite /sem_op2_w /mk_sem_sop2.
+  t_xrbindP=> w1 ok_w1 w2 ok_w2 ?; subst v; congr ok.
+  move: ok_w1 ok_w2 => /=; rewrite !(ih1 z1, ih2 z2) //.
+  by move=> [<-] [<-]; rewrite -iword_mulP /iword_mul repr_mod.
+Qed.
+
+Lemma xaddr_ofs_var c s xs ii e v r x :
+     xs86_equiv c s xs
+  -> sem_pexpr (to_estate s) e = ok v
+  -> reg_of_var ii (v_var x) = ok r
+  -> addr_ofs e = Ofs_var x
+  -> to_word v = ok (RegMap.get xs.(xreg) r).
+Proof.
+move=> eqv; case: e => // [[]//||]; last first.
++ case=> // -[]// e1 e2 /=; t_xrbindP=> v1 _ v2 _ _ _.
+  - by do! case: addr_ofs => //. - by do! case: addr_ofs => //.
+move=> y /= ok_v ok_r -[?]; subst y.
+by case: (xgetreg_ex eqv ok_r ok_v) => w -> ->.
+Qed.
+
+Lemma xaddr_ofs_mul c s xs ii e v r sc x1 x2 :
+     xs86_equiv c s xs
+  -> sem_pexpr (to_estate s) e = ok v
+  -> scale_of_z ii x1 = ok sc
+  -> reg_of_var ii (v_var x2) = ok r
+  -> addr_ofs e = Ofs_mul x1 x2
+  -> to_word v = ok (I64.mul (word_of_scale sc) (RegMap.get xs.(xreg) r)).
+Proof.
+move=> eqv; case: e => // [[]//|] -[]// -[]// e1 e2 /=.
++ by t_xrbindP=> v1 _ v2 _ _ _ _; do! case: addr_ofs => //.
+t_xrbindP=> v1 ok_v1 v2 ok_v2; rewrite /sem_op2_w.
+rewrite /mk_sem_sop2; t_xrbindP=> /= w1 ok_w1 w2 ok_w2.
+move=> ? ok_sc ok_r; subst v;
+  case E1: addr_ofs => [z1|x|||] //;
+  case E2: addr_ofs => [z2|y|||] //;
+  case=> ? ?; subst x1 x2; congr ok.
++ have := xaddr_ofs_var eqv ok_v2 ok_r E2; rewrite ok_w2.
+  case=> <-. admit.
++ have := xaddr_ofs_var eqv ok_v1 ok_r E1; rewrite ok_w1.
+  case=> <-. admit.
+Admitted.
+
+Lemma xaddr_ofs_add c s xs ii e v r w sc x1 x2 x3 :
+   xs86_equiv c s xs
+-> sem_pexpr (to_estate s) e = ok v
+-> scale_of_z ii x1 = ok sc
+-> reg_of_var ii (v_var x2) = ok r
+-> word_of_int x3 = ok w
+-> addr_ofs e = Ofs_add x1 x2 x3
+-> to_word v = ok (
+     I64.add w (I64.mul
+      (word_of_scale sc) (RegMap.get xs.(xreg) r))).
+Proof.
+move=> eqv; case: e => // [[]//|] -[]// -[]// e1 e2 /=; last first.
++ by t_xrbindP=> v1 _ v2 _ _ _ _; do! case: addr_ofs => //.
+t_xrbindP=> v1 ok_v1 v2 ok_v2; rewrite /sem_op2_w.
+rewrite /mk_sem_sop2; t_xrbindP=> /= w1 ok_w1 w2 ok_w2.
+move=> ? ok_v ok_sc ok_w; subst v;
+  case E1: addr_ofs => [z1|x|sc1 t1||] //;
+  case E2: addr_ofs => [z2|y|sc2 t2||] //;
+  case=> ? ? ?; subst x1 x2 x3.
++ case: ok_v=> <- /=; rewrite I64.mul_commut I64.mul_one.
+  have := xaddr_ofs_var eqv ok_v2 ok_sc E2; rewrite ok_w2.
+  have := xaddr_ofs_const ok_v1 E1; rewrite ok_w1.
+  by move=> [->] [->] /=; case: ok_w => <-.
++ admit.
++ case: ok_v=> <- /=; rewrite I64.mul_commut I64.mul_one.
+  have := xaddr_ofs_var eqv ok_v1 ok_sc E1; rewrite ok_w1.
+  have := xaddr_ofs_const ok_v2 E2; rewrite ok_w2.
+  by move=> [->] [->] /=; case: ok_w => <-; rewrite I64.add_commut.
++ admit.
+Admitted.
+
 Lemma xread_ok ii v e op c s xs :
      xs86_equiv c s xs
   -> oprd_of_pexpr ii e = ok op
@@ -450,38 +569,32 @@ Lemma xread_ok ii v e op c s xs :
 Proof.
 move=> eqv; case: e => //.
 + by case=> //= z [<-] [<-] /=; eexists.
-+ move=> x /=; t_xrbindP=> r; case: x => -[vt x vi].
-  case: vt => //=; case E: reg_of_string => [r'|] //.
-  case=> <- [<-] /=; case: eqv => _ _ _ _ _ eqv ok_v.
-  exists (RegMap.get (xreg xs) r') => //.
-  move/(_ _ _ E): eqv; rewrite ok_v; case E': (to_word v) => [w|//].
-  by move=> ->; case: {+}v E' => // [|[]//] ? [->].
++ move=> x; rewrite /oprd_of_pexpr /=; t_xrbindP.
+  move=> r ok_r -[<-] ok_v /=; eexists; first by reflexivity.
+  case: (xgetreg_ex eqv ok_r ok_v) => w ok_w ->.
+  by case: {+}v ok_w => // [|[]//] w' -[->].
 move=> x e /=; t_xrbindP => r1 ok_r1 w ok_w [<-].
 move=> z o ok_o ok_z z' o' ok_o' ok_z' res ok_res <- {v} /=.
-exists res => //; rewrite -ok_res; case: eqv => -> _ _ _ _ eqv.
-f_equal; case: e ok_w ok_o' => //.
-+ case=> //= z'' -[?] -[?]; subst w o'; rewrite /decode_addr /=.
-  rewrite I64.mul_zero I64.add_zero I64.add_commut; f_equal.
-  - case: x ok_r1 ok_o ok_z => -[] [] // x vi /=.
-    case E: reg_of_string => [r'|] // [<-] ok_o ok_z.
-    by move/(_ _ _ E): eqv; rewrite ok_o ok_z.
-  - by case: ok_z'.  
-+ case=> // -[] // e [] // v /=; t_xrbindP => r ok_r.
-  case: e => //= -[] //= z''; t_xrbindP => sc ok_sc.
-  case=> ?; subst w => vz'' ok_vz'' vv ok_vv.
-  rewrite /sem_op2_w /mk_sem_sop2; t_xrbindP => /=.
-  move=> wz'' ok_wz'' wv ok_wv ?; subst o'.
-  rewrite /decode_addr /= I64.add_zero_l; f_equal.
-  - case: x ok_r1 ok_o ok_z => -[] [] // x vi /=.
-    case E: reg_of_string => [r'|] // [<-] ok_o ok_z.
-    by move/(_ _ _ E): eqv; rewrite ok_o ok_z.
-  - case: ok_z' => ?; subst z'; f_equal; last first.
-      case: v ok_r ok_vv => -[] [] // v vi /=.
-      case E: reg_of_string => [r'|] // [<-] ok_vv.
-      by move/(_ _ _ E): eqv; rewrite ok_vv ok_wv.
-    case: vz'' ok_vz'' ok_wz'' => // w -[?]; subst w.
-    case=> <-; rewrite /word_of_scale; congr I64.repr.
-    by case: z'' ok_sc => //; do 5! case=> //; move=> <-.
+exists res => //; rewrite -ok_res; f_equal; first by case: eqv.
+move: ok_w; rewrite /addr_of_pexpr.
+case Ee: addr_ofs => [z''|y|y1 y2|v1 v2 v3|] //.
++ t_xrbindP=> w' -[?]; subst w' => -[<-]; rewrite /decode_addr /=.
+  rewrite I64.mul_commut I64.mul_one I64.add_zero.
+  rewrite (xgetreg eqv ok_r1 ok_o ok_z) I64.add_commut.
+  suff ->: z' = I64.repr z'' by [].
+  by rewrite (xaddr_ofs_const ok_o' Ee) in ok_z'; case: ok_z'.
++ t_xrbindP=> r ok_r -[<-]; rewrite /decode_addr /=.
+  rewrite I64.mul_commut I64.mul_one I64.add_zero_l.
+  rewrite (xgetreg eqv ok_r1 ok_o ok_z); f_equal.
+  by rewrite (xaddr_ofs_var eqv ok_o' ok_r Ee) in ok_z'; case: ok_z'.
++ t_xrbindP=> r ok_r sc ok_sc -[<-]; rewrite /decode_addr /=.
+  rewrite I64.add_zero_l (xgetreg eqv ok_r1 ok_o ok_z); f_equal.
+  by rewrite (xaddr_ofs_mul eqv ok_o' ok_sc ok_r Ee) in ok_z'; case: ok_z'.
++ t_xrbindP=> // r2 ok_r2 w3 ok_w3 sc ok_sc -[<-].
+  rewrite /decode_addr /= (xgetreg eqv ok_r1 ok_o ok_z).
+  rewrite -I64.add_assoc [I64.add w3 _]I64.add_commut I64.add_assoc.
+  rewrite (xaddr_ofs_add eqv ok_o' ok_sc ok_r2 ok_w3 Ee) in ok_z'.
+  by case: ok_z' => <-.
 Qed.
 
 (* -------------------------------------------------------------------- *)
