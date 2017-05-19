@@ -46,6 +46,8 @@ let x86_equality_constraints (tbl: (var, int) Hashtbl.t) (k: int -> int -> unit)
     [ _ ; _ ; _ ; _ ; _ ; Lvar v ], Pvar w :: _
   | (Ox86_INC | Ox86_DEC),
     [ _ ; _ ; _ ; _ ; Lvar v ], Pvar w :: _
+  | (Ox86_CMOVcc),
+    [ Lvar v ], [ _ ; _ ; Pvar w ]
     (* TODO: add more constraints *)
     -> merge v w
   | _, _, _ -> ()
