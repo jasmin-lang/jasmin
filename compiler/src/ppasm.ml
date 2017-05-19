@@ -78,8 +78,8 @@ let rsize_of_wsize (ws : LM.wsize) =
 let pp_instr_rsize (rs : rsize) =
   match rs with
   | `U8  -> "b"
-  | `U16 -> "s"
-  | `U32 -> "w"
+  | `U16 -> "w"
+  | `U32 -> "l"
   | `U64 -> "q"
 
 (* -------------------------------------------------------------------- *)
