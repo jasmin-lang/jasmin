@@ -464,9 +464,10 @@ Definition eval_MUL o s : x86_result :=
   let hi := I64.mulhu v1 v2 in
   let ov := dwordu hi lo in
   let ov := (ov >? I64.max_unsigned)%Z in
+  let s  := st_update_rflags (rflags_of_mul ov) s in
+  let s  := st_write_reg RDX hi s in
   let s  := st_write_reg RAX lo s in
-  let s  := st_write_reg RDX lo s in
-  ok (st_update_rflags (rflags_of_mul ov) s).
+  ok s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_IMUL o s : x86_result  :=

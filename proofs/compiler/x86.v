@@ -608,10 +608,14 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
 
   | LK_MUL =>
     match as_pair e, as_pair l with
-    | Some (e1, e2), Some (lo, hi) =>
-      (* TODO: check constraints *)
-      Let o2 := oprd_of_pexpr ii e2 in
-      ok (MUL o2)
+    | Some (e1, e2), Some (hi, lo) =>
+      Let rlo := oprd_of_lval ii lo in
+      Let rhi := oprd_of_lval ii hi in
+      Let o1  := oprd_of_pexpr ii e1 in
+      Let o2  := oprd_of_pexpr ii e2 in
+      if (rlo == Reg_op RAX) && (rhi == Reg_op RDX) && (o1 == Reg_op RAX) then
+        ok (MUL o2)
+      else cierror ii (Cerr_assembler (AsmErr_string ("wrong op/lvals for MUL")))
 
     | _, _ =>
       cierror ii (Cerr_assembler
@@ -621,9 +625,8 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
   | LK_IMUL =>
     match as_pair e, as_singleton l with
     | Some (e1, e2), Some x =>
-      (* TODO: check constraints *)
-      Let d := oprd_of_lval ii x in
-      Let o1 := oprd_of_pexpr ii e1 in
+      Let d   := oprd_of_lval ii x in
+      Let o1  := oprd_of_pexpr ii e1 in
       match is_wconst e2 with
       | Some c => ok (IMUL64_imm d o1 (I64.repr c))
       | None =>
