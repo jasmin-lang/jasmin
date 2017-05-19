@@ -132,17 +132,33 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
     let L1 := lbl in
     let L2 := next_lbl L1 in
     let lbl := next_lbl L2 in
-    MkLI ii (Lcond e L1) >; linear_c linear_i c2 ;; MkLI ii (Lgoto L2) >;
-    MkLI ii (Llabel L1) >; linear_c linear_i c1 lbl (MkLI ii (Llabel L2) :: lc)
+                           MkLI ii (Lcond e L1) >; 
+                           linear_c linear_i c2 ;; 
+                           MkLI ii (Lgoto L2) >;
+    MkLI ii (Llabel L1) >; linear_c linear_i c1 lbl 
+   (MkLI ii (Llabel L2) :: lc)
 
   | Cwhile c e c' =>
-    let L1 := lbl in
-    let L2 := next_lbl L1 in
-    let lbl := next_lbl L2 in
-    MkLI ii (Lgoto L1) >;
-    MkLI ii (Llabel L2) >;
-    linear_c linear_i c' ;; MkLI ii (Llabel L1) >; linear_c linear_i c lbl
-    (MkLI ii (Lcond e L2) :: lc)
+    match is_bool e with
+    | Some true =>
+      let L1 := lbl in
+      let lbl := next_lbl L1 in
+      MkLI ii (Llabel L1) >; linear_c linear_i c ;; 
+                             linear_c linear_i c' lbl 
+                             (MkLI ii (Lgoto L1) :: lc)
+
+    | Some false =>
+      linear_c linear_i c lbl lc
+
+    | None =>
+      let L1 := lbl in
+      let L2 := next_lbl L1 in
+      let lbl := next_lbl L2 in
+                             MkLI ii (Lgoto L1) >;
+      MkLI ii (Llabel L2) >; linear_c linear_i c' ;; 
+      MkLI ii (Llabel L1) >; linear_c linear_i c lbl
+                             (MkLI ii (Lcond e L2) :: lc)
+    end
 
   | Cfor _ _ _ => cierror ii (Cerr_linear "for found in linear")
 

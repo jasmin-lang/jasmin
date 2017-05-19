@@ -104,6 +104,10 @@ Section CAT.
   Let Hwhile : forall c e c', Pc c -> Pc c' -> Pr (Cwhile c e c').
   Proof.
     move=> c e c' Hc Hc' ii lbl l /=.
+    case: is_bool => [ [] | ].
+    + rewrite Hc' (Hc' _ [:: _]) !bindA;apply bind_eq => //= p.
+      by rewrite Hc (Hc _ ( _ ++ _)) !bindA;apply bind_eq => //= p';rewrite -catA /= -catA /=.
+    + by apply Hc.
     rewrite Hc (Hc _ [:: _]) !bindA; apply bind_eq => //= p.
     by rewrite Hc' (Hc' _ (_ :: _)) !bindA; apply bind_eq=> //= p'; rewrite -catA /= -catA /=.
   Qed.
@@ -600,10 +604,51 @@ Section PROOF.
   Let Hfor : forall v dir lo hi c, Pc c -> Pi_r (Cfor v (dir, lo, hi) c).
   Proof. by []. Qed.
 
+  Lemma lc_of_estate s lc : linear_sem.lc (of_estate s lc) = lc.
+  Proof. by case: s. Qed.
+
   Let Hwhile : forall c e c', Pc c -> Pc c' -> Pi_r (Cwhile c e c').
   Proof.
-    move=> c e c' Hc Hc' ii lbl lbli li /=;rewrite linear_c_nil.
-    case Heqc: linear_c => [[lblc lc]|] //=.
+    move=> c e c' Hc Hc' ii lbl lbli li /=.
+
+    case: is_boolP => [[] | {e} e].
+    + rewrite linear_c_nil; case Heqc': linear_c => [[lblc' lc']|] //=.
+      rewrite linear_c_nil.
+      case Heqc: linear_c => [[lblc lc]|] //= -[] ??; subst lbli li.
+      move: Heqc' Heqc => /Hc' [ Hlbl' Hvc' Hlc'] /Hc [ Hlbl Hvc Hlc];split.
+      + by apply: (Pos_leb_trans (le_next lbl));apply: Pos_leb_trans Hlbl.
+      + rewrite /= !valid_cat /= (Pos_lt_leb_trans (lt_next _)) ?Pos.leb_refl /= ?andbT;
+          last by apply: Pos_leb_trans Hlbl.
+        apply /andP;split.
+        + by apply: valid_le_min Hvc; apply: (Pos_leb_trans (le_next lbl)).
+        by apply: (valid_le_max Hlbl); apply: valid_le_min Hvc';apply le_next.
+      move=> s1 s2 Hsem.
+      apply lsem_step with 
+         (of_estate s1 (lc ++ lc' ++ [:: {| li_ii := ii; li_i := Lgoto lbl |}])).
+      + by apply: LSem_lbl.
+      elim: _ {-1}_ _ / Hsem (erefl (Cwhile c true c'))=> //= {s1 s2}.
+      + move=> s1 s2 s3 s4 c0 e0 c'0 H1 H2 H3 H4 Hrec [???];subst c0 e0 c'0.
+        move: H1 H3 H4 Hrec => {H2} /= /Hlc{Hlc}Hlc /Hlc'{Hlc'}Hlc' _ /(_ (refl_equal _)) Hrec.
+        eapply lsem_trans with (of_estate s3 [:: {| li_ii := ii; li_i := Lgoto lbl |}]).
+        + move=> {Hrec}.
+          have : lsem (lc ++ lc') (of_estate s1 (lc ++ lc')) (of_estate s3 [:: ]).
+          + apply lsem_trans with (of_estate s2 lc').
+            + by have /= := lsem_cat_tl lc' Hlc;case: (s1) (s2) => ?? [??].
+            have Hd : disjoint_lbl lc lc'.
+            + by apply: valid_disjoint Hvc Hvc'; rewrite Pos.leb_refl orbT.
+            by have := lsem_cat_hd Hd _ Hlc';rewrite lc_of_estate => /(_ (refl_equal _)).
+          have Hd : disjoint_lbl [:: {| li_ii := ii; li_i := Llabel lbl |} ] (lc ++ lc').
+          + apply: (@valid_disjoint lbl (next_lbl lbl) (next_lbl lbl) lblc)=>//=.
+            + by rewrite Pos.leb_refl. + by rewrite Pos.leb_refl lt_next.
+            by rewrite valid_cat (valid_le_min Hlbl' Hvc) (valid_le_max Hlbl Hvc').
+          move /(lsem_cat_hd Hd);rewrite lc_of_estate => /(_ (refl_equal _)).
+          move/(lsem_cat_tl [:: {| li_ii := ii; li_i := Lgoto lbl |}]);rewrite !catA.
+          by case: (s1) (s3) => ?? [??].
+        apply: lsem_step Hrec; apply: LSem_goto => //=.
+        by rewrite /is_label /= eq_refl.
+      by move=> ??? e0 ??? [???];subst e0 => //.
+    + by move=> /Hc [H1 H2 H3];split => // s1 s2 H;sinversion H=>//; apply H3.
+    rewrite linear_c_nil;case Heqc: linear_c => [[lblc lc]|] //=.
     have {Hc}[Hle1 Hvc Hc]:= Hc _ _ _ Heqc.
     rewrite linear_c_nil.
     case Heq:linear_c => [[lblc' lc']|] //= [] ??;subst lbli li.
