@@ -550,13 +550,14 @@ Definition eval_NEG o s : x86_result :=
   Let w  := read_oprd o s in
   let v  := I64.neg w in
   let vs := (- I64.signed w)%Z in
-  Let s  := write_oprd o v s in
-  ok (st_update_rflags (
+  let s  :=
+      st_update_rflags (
           fun rf =>
           match rf with
           | CF => Some (Def (negb (I64.eq w I64.zero)))
           | _ => rflags_of_aluop_nocf v vs rf
-          end) s).
+          end) s
+  in write_oprd o v s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_INC o s : x86_result :=

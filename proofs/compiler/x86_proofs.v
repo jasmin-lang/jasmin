@@ -9,6 +9,10 @@ Unset Printing Implicit Defensive.
 
 Unset SsrOldRewriteGoalsOrder.
 
+Local Open Scope string_scope. 
+
+Global Opaque String.append.
+
 (* -------------------------------------------------------------------- *)
 Lemma to_estateK c s: to_estate (of_estate s c) = s.
 Proof. by case: s. Qed.
@@ -372,7 +376,8 @@ case: i => ii /=; rewrite /is_label /=; case=> //=.
       by t_xrbindP => op1 _ op2 _ op3 _ op4 _; case: ifP.
     - case: as_pair => // -[e1 e2]; case: as_singleton => // l.
       by t_xrbindP => vl _ ve1 _; case: is_wconst => //; t_xrbindP.
-    - by case: as_singleton => // e; case: as_singleton => // l; t_xrbindP.
+    - case: as_singleton => // e; case: as_singleton => // l.
+      by t_xrbindP=> v _ ve _; case: eqP => //.
   * case: lvals_as_cnt_vars => // -[[v1 v2 v3 v4] ls].
     t_xrbindP => v _ bv1 _ bv2 _ bv3 _ bv4 _; case: ifP => // _.
     case: as_singleton => // ae; t_xrbindP=> vae _.
@@ -883,7 +888,29 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
       case: (xgetreg_ex eqv' ok_x ok1) => /= we1.
       by rewrite ok_w1 => -[?]; subst we1 => ->.
     - admit.
-    - admit.
+    - case: o ok_vs => //= ok_vs _;
+        case Ees: as_singleton => [e|] //;
+        case El1: as_singleton => [x|] //.
+(*
+      case: aout ok_aout ok_vs => //= v1 [] //= ok_v1 //.
+      t_xrbindP=> w1 ok_w1 ok_vs vx ok_vx ve ok_ve.
+      case: ifP => // /eqP ?; subst vx => -[?]; subst a.
+      have := as_singletonT Ees => ?; subst es => {Ees}; move: ok_v1.
+      rewrite /sem_pexprs /=; t_xrbindP => vbe ok_vbe ?; subst v1.
+      have := eqv' => /xread_ok /(_ ok_ve ok_vbe).
+      rewrite /eval_NEG; case=> w -> ?; subst vbe.
+      case: ok_w1=> ? /=; subst w1.
+      have := lvals_as_alu_varsT El => ?; subst xs => {El}.
+      have := as_singletonT El1 => ?; subst l => {El1}.
+      case: ok_vs => ?; subst vs; move: ok_wr.
+      move/(@write_lvals_rcons [:: _; _; _; _; _] [:: _; _; _; _; _]).
+      case=> s'1; rewrite -{1}[s'1](to_estateK cs) => ok_s'1 ok_s2.
+      have := (xaluop eqv' _ ok_of ok_cf ok_sf ok_sp ok_zf ok_s'1).
+      move/(_ (erefl _)); set xs' := st_update_rflags _ _ => ok_xs'.
+*)
+
+admit.
+
   + case El: lvals_as_cnt_vars => [[[xof xsf xpf xzf] ol]|//].
     t_xrbindP=> opl okl vof ok_of vsf ok_sf vpf ok_pf vzf ok_zf.
     case: ifP => //; rewrite -!andbA => /and4P[].

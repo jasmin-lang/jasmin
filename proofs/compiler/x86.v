@@ -648,10 +648,11 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
   | LK_NEG =>
     match as_singleton e, as_singleton l with
     | Some e, Some x =>
-      (* TODO: check constraints *)
       Let d := oprd_of_lval ii x in
       Let o := oprd_of_pexpr ii e in
-      ok (NEG o)
+      if d == o then ok (NEG o) else
+        cierror ii (Cerr_assembler
+          (AsmErr_string ("src/dst of NEG not identical")))
 
     | _, _ =>
       cierror ii (Cerr_assembler (wrong_aluk o))
