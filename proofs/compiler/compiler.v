@@ -125,23 +125,25 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
   let pe := cparams.(print_prog) RegArrayExpansion pe in
   Let _ := CheckExpansion.check_prog ps pe in
 
-  let pl := lower_prog cparams.(lowering_vars) pe in
-  let pl := cparams.(print_prog) LowerInstruction pl in
+  if (fvars_correct cparams.(lowering_vars) pe) then
+    let pl := lower_prog cparams.(lowering_vars) pe in
+    let pl := cparams.(print_prog) LowerInstruction pl in
 
-  let pa := reg_alloc_prog pl in
-  let pa := cparams.(print_prog) RegAllocation pa in
-  Let _ := CheckAllocReg.check_prog pl pa in
-  Let pd := dead_code_prog pa in
-  let pd := cparams.(print_prog) DeadCode_RegAllocation pd in
+    let pa := reg_alloc_prog pl in
+    let pa := cparams.(print_prog) RegAllocation pa in
+    Let _ := CheckAllocReg.check_prog pl pa in
+    Let pd := dead_code_prog pa in
+    let pd := cparams.(print_prog) DeadCode_RegAllocation pd in
 
-  (* stack_allocation                    *)
-  let (ps, l) := stk_alloc_prog pd in
-  if stack_alloc.check_prog pd ps l then
-    (* linearisation                     *)
-    Let pl := linear_prog ps in
-    (* asm                               *)
-    cfok pl
-  else cferror Ferr_neqprog.
+    (* stack_allocation                    *)
+    let (ps, l) := stk_alloc_prog pd in
+    if stack_alloc.check_prog pd ps l then
+      (* linearisation                     *)
+      Let pl := linear_prog ps in
+      (* asm                               *)
+      cfok pl
+    else cferror Ferr_neqprog
+  else cferror Ferr_lowering.
 
 Definition compile_prog_to_x86 entries (p: prog): result fun_error xprog :=
   Let lp := compile_prog entries p in

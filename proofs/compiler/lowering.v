@@ -40,7 +40,48 @@ Record fresh_vars : Type :=
     fresh_multiplicand : Equality.sort Ident.ident;
   }.
 
+Definition vars_I (i: instr) := Sv.union (read_I i) (write_I i).
+
+Definition vars_c c := Sv.union (read_c c) (write_c c).
+
+Definition vars_lval l := Sv.union (read_rv l) (vrv l).
+
+Definition vars_lvals ls := Sv.union (read_rvs ls) (vrvs ls).
+
+Fixpoint vars_l (l: seq var_i) :=
+  match l with
+  | [::] => Sv.empty
+  | h :: q => Sv.add h (vars_l q)
+  end.
+
+Definition vars_fd fd :=
+  Sv.union (vars_l fd.(f_params)) (Sv.union (vars_l fd.(f_res)) (vars_c fd.(f_body))).
+
+Definition vars_p (p: prog) :=
+  foldr (fun f x => let '(fn, fd) := f in Sv.union x (vars_fd fd)) Sv.empty p.
+
+Definition vbool vn := {| vtype := sbool ; vname := vn |}.
+Definition vword vn := {| vtype := sword ; vname := vn |}.
+
 Context (fv: fresh_vars).
+
+Definition fv_of := vbool fv.(fresh_OF).
+Definition fv_cf := vbool fv.(fresh_CF).
+Definition fv_sf := vbool fv.(fresh_SF).
+Definition fv_pf := vbool fv.(fresh_PF).
+Definition fv_zf := vbool fv.(fresh_ZF).
+
+Definition fvars := Sv.add (vword fv.(fresh_multiplicand)) (Sv.add fv_of (Sv.add fv_cf (Sv.add fv_sf (Sv.add fv_pf (Sv.singleton fv_zf))))).
+
+Definition disj_fvars v := disjoint v fvars.
+
+Definition fvars_correct p :=
+  disj_fvars (vars_p p) &&
+  (fv.(fresh_SF) != fv.(fresh_OF)) &&
+  (fv.(fresh_CF) != fv.(fresh_ZF)) &&
+  (fv.(fresh_SF) != fv.(fresh_ZF)) &&
+  (fv.(fresh_OF) != fv.(fresh_ZF)) &&
+  (fv.(fresh_OF) != fv.(fresh_SF)).
 
 Definition var_info_of_lval (x: lval) : var_info :=
   match x with 

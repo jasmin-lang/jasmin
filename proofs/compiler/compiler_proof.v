@@ -83,6 +83,7 @@ Proof.
   apply: rbindP=> -[] Hps.
   apply: rbindP=> ps' Hps'. rewrite !print_progP.
   apply: rbindP=> -[] He.
+  case Hlower: fvars_correct=> //.
   apply: rbindP=> -[] He'.
   apply: rbindP=> pd Hpd. rewrite !print_progP.
   case Hpstk: (stk_alloc_prog _ pd)=> [pstk l].
@@ -99,7 +100,7 @@ Proof.
   apply: (stack_alloc_proof.check_progP Hpstk').
   apply: (dead_code_callP Hpd).
   apply: (CheckAllocReg.alloc_callP He').
-  apply: lower_callP.
+  apply: (lower_callP Hlower).
   apply: (CheckExpansion.alloc_callP He).
   apply: (dead_code_callP Hps').
   apply: (CheckAllocReg.alloc_callP Hps).
