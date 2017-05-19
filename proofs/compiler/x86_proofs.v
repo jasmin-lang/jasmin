@@ -508,6 +508,11 @@ move=> y /= ok_v ok_r -[?]; subst y.
 by case: (xgetreg_ex eqv ok_r ok_v) => w -> ->.
 Qed.
 
+Lemma xscale_ok ii z sc :
+   scale_of_z ii z = ok sc
+-> I64.repr z = word_of_scale sc.
+Proof. by case: sc z; do! case=> //. Qed.
+
 Lemma xaddr_ofs_mul c s xs ii e v r sc x1 x2 :
      xs86_equiv c s xs
   -> sem_pexpr (to_estate s) e = ok v
@@ -524,11 +529,13 @@ move=> ? ok_sc ok_r; subst v;
   case E1: addr_ofs => [z1|x|||] //;
   case E2: addr_ofs => [z2|y|||] //;
   case=> ? ?; subst x1 x2; congr ok.
-+ have := xaddr_ofs_var eqv ok_v2 ok_r E2; rewrite ok_w2.
-  case=> <-. admit.
-+ have := xaddr_ofs_var eqv ok_v1 ok_r E1; rewrite ok_w1.
-  case=> <-. admit.
-Admitted.
++ have := xaddr_ofs_var eqv ok_v2 ok_r E2; rewrite ok_w2 => -[<-].
+  have := xaddr_ofs_const ok_v1 E1; rewrite ok_w1 => -[->].
+  by rewrite -(xscale_ok ok_sc).
++ have := xaddr_ofs_var eqv ok_v1 ok_r E1; rewrite ok_w1 => -[<-].
+  have := xaddr_ofs_const ok_v2 E2; rewrite ok_w2 => -[->].
+  by rewrite -(xscale_ok ok_sc) I64.mul_commut.
+Qed.
 
 Lemma xaddr_ofs_add c s xs ii e v r w sc x1 x2 x3 :
    xs86_equiv c s xs
@@ -545,22 +552,27 @@ move=> eqv; case: e => // [[]//|] -[]// -[]// e1 e2 /=; last first.
 + by t_xrbindP=> v1 _ v2 _ _ _ _; do! case: addr_ofs => //.
 t_xrbindP=> v1 ok_v1 v2 ok_v2; rewrite /sem_op2_w.
 rewrite /mk_sem_sop2; t_xrbindP=> /= w1 ok_w1 w2 ok_w2.
-move=> ? ok_v ok_sc ok_w; subst v;
+move=> ? ok_sc ok_r ok_w; subst v;
   case E1: addr_ofs => [z1|x|sc1 t1||] //;
   case E2: addr_ofs => [z2|y|sc2 t2||] //;
   case=> ? ? ?; subst x1 x2 x3.
-+ case: ok_v=> <- /=; rewrite I64.mul_commut I64.mul_one.
-  have := xaddr_ofs_var eqv ok_v2 ok_sc E2; rewrite ok_w2.
++ case: ok_sc => <- /=; rewrite I64.mul_commut I64.mul_one.
+  have := xaddr_ofs_var eqv ok_v2 ok_r E2; rewrite ok_w2.
   have := xaddr_ofs_const ok_v1 E1; rewrite ok_w1.
   by move=> [->] [->] /=; case: ok_w => <-.
-+ admit.
-+ case: ok_v=> <- /=; rewrite I64.mul_commut I64.mul_one.
-  have := xaddr_ofs_var eqv ok_v1 ok_sc E1; rewrite ok_w1.
++ have := xaddr_ofs_const ok_v1 E1; rewrite ok_w1 => -[->].
+  have := xaddr_ofs_mul eqv ok_v2 ok_sc ok_r E2.
+  by rewrite ok_w2 => -[<-]; case: ok_w => ->.
++ case: ok_sc=> <- /=; rewrite I64.mul_commut I64.mul_one.
+  have := xaddr_ofs_var eqv ok_v1 ok_r E1; rewrite ok_w1.
   have := xaddr_ofs_const ok_v2 E2; rewrite ok_w2.
   by move=> [->] [->] /=; case: ok_w => <-; rewrite I64.add_commut.
-+ admit.
-Admitted.
++ have := xaddr_ofs_const ok_v2 E2; rewrite ok_w2 => -[->].
+  have := xaddr_ofs_mul eqv ok_v1 ok_sc ok_r E1.
+  by rewrite ok_w1 => -[<-]; case: ok_w => ->; rewrite I64.add_commut.
+Qed.
 
+(*  -------------------------------------------------------------------- *)
 Lemma xread_ok ii v e op c s xs :
      xs86_equiv c s xs
   -> oprd_of_pexpr ii e = ok op
