@@ -28,7 +28,7 @@
 (* ** Imports and settings *)
 
 From mathcomp Require Import all_ssreflect.
-Require Import expr linear compiler_util low_memory x86_sem.
+(* ------- *) Require Import expr linear compiler_util low_memory x86_sem.
 
 Import Ascii.
 Import Relations.
@@ -37,9 +37,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Local Open Scope seq_scope.
-
-Definition string_of_register (r: register) : string :=
+(* -------------------------------------------------------------------- *)
+Definition string_of_register r :=
   match r with
   | RAX => "RAX"
   | RCX => "RCX"
@@ -49,8 +48,8 @@ Definition string_of_register (r: register) : string :=
   | RBP => "RBP"
   | RSI => "RSI"
   | RDI => "RDI"
-  | R8 => "R8"
-  | R9 => "R9"
+  | R8  => "R8"
+  | R9  => "R9"
   | R10 => "R10"
   | R11 => "R11"
   | R12 => "R12"
@@ -58,64 +57,6 @@ Definition string_of_register (r: register) : string :=
   | R14 => "R14"
   | R15 => "R15"
   end%string.
-
-Definition reg_of_string (s: string) : option register :=
-  match s with
-  | String c0 tl =>
-    if ascii_dec c0 "R" then
-    match tl with
-    | String c1 tl =>
-      match tl with
-      | EmptyString =>
-        if ascii_dec c1 "8" then Some R8 else
-        if ascii_dec c1 "9" then Some R9 else
-        None
-      | String c2 tl =>
-        match tl with
-        | EmptyString =>
-          if ascii_dec c2 "X" then if ascii_dec c1 "A" then Some RAX else
-          if ascii_dec c1 "B" then Some RBX else
-          if ascii_dec c1 "C" then Some RCX else
-          if ascii_dec c1 "D" then Some RDX else
-          None else
-          if ascii_dec c2 "P" then if ascii_dec c1 "S" then Some RSP else
-          if ascii_dec c1 "B" then Some RBP else
-          None else
-          if ascii_dec c2 "I" then if ascii_dec c1 "S" then Some RSI else
-          if ascii_dec c1 "D" then Some RDI else
-          None else
-          if ascii_dec c1 "1" then
-            if ascii_dec c2 "0" then Some R10 else
-            if ascii_dec c2 "1" then Some R11 else
-            if ascii_dec c2 "2" then Some R12 else
-            if ascii_dec c2 "3" then Some R13 else
-            if ascii_dec c2 "4" then Some R14 else
-            if ascii_dec c2 "5" then Some R15 else
-            None else
-          None
-        | String _ _ => None
-        end
-      end
-    | EmptyString => None
-    end
-    else None
-  | EmptyString => None
-  end.
-
-Definition rflag_of_string (s: string) : option rflag :=
-  match s with
-  | String c0 (String c1 EmptyString) =>
-    if ascii_dec c1 "F" then
-      if ascii_dec c0 "C" then Some CF else
-      if ascii_dec c0 "P" then Some PF else
-      if ascii_dec c0 "Z" then Some ZF else
-      if ascii_dec c0 "S" then Some SF else
-      if ascii_dec c0 "O" then Some OF else
-      if ascii_dec c0 "D" then Some DF else
-      None
-    else None
-  | _ => None
-  end.
 
 Definition string_of_rflag (rf : rflag) : string :=
   match rf with
@@ -125,51 +66,60 @@ Definition string_of_rflag (rf : rflag) : string :=
  | SF => "SF"
  | OF => "OF"
  | DF => "DF"
- end.
+ end%string.
 
+(* -------------------------------------------------------------------- *)
+Definition regs_strings :=
+  Eval compute in [seq (string_of_register x, x) | x <- registers].
+
+(* -------------------------------------------------------------------- *)
+Definition rflags_strings :=
+  Eval compute in [seq (string_of_rflag x, x) | x <- rflags].
+
+(* -------------------------------------------------------------------- *)
+Section Assoc.
+Variable (T : eqType) (U : Type).
+
+Fixpoint assoc (s : seq (T * U)) (x : T) : option U :=
+  if s is (y, v) :: s then
+    if x == y then Some v else assoc s x
+  else None.
+End Assoc.
+
+(* -------------------------------------------------------------------- *)
+Definition reg_of_string (s : string) :=
+  assoc regs_strings s.
+
+(* -------------------------------------------------------------------- *)
+Definition rflag_of_string (s : string) :=
+  assoc rflags_strings s.
+
+(* -------------------------------------------------------------------- *)
 Lemma rflag_of_stringK : pcancel string_of_rflag rflag_of_string.
 Proof. by case. Qed.
 
 Lemma reg_of_stringK : pcancel string_of_register reg_of_string.
 Proof. by case. Qed.
 
-Definition Some_inj {A: Type} {a b: A} (H: Some b = Some a) : b = a :=
-  let 'Logic.eq_refl := H in Logic.eq_refl.
+Lemma inj_string_of_rflag : injective string_of_rflag.
+Proof. by apply: (pcan_inj rflag_of_stringK). Qed.
+
+Lemma inj_string_of_register : injective string_of_register.
+Proof. by apply: (pcan_inj reg_of_stringK). Qed.
 
 Lemma inj_reg_of_string s1 s2 r :
      reg_of_string s1 = Some r
   -> reg_of_string s2 = Some r
   -> s1 = s2.
-Proof.
-(*
-rewrite /reg_of_string; move=> A B; rewrite -A in B.
-repeat match goal with
-| |- ?a = ?a => exact Logic.eq_refl
-| H : ?a = ?b |- _ => subst a || subst b || refine (let 'Logic.eq_refl := H in I)
-| H : Some _ = Some _ |- _ => apply Some_inj in H
-| H : (if is_left ?a then _ else _) = Some _ |- _ => destruct a; simpl in *
-| H : match ?a with _ => _ end = Some _ |- _ => destruct a; simpl in H
-end.
-*)
-Admitted.
+Proof. Admitted.
 
 Lemma inj_rflag_of_string s1 s2 rf :
      rflag_of_string s1 = Some rf
   -> rflag_of_string s2 = Some rf
   -> s1 = s2.
-Proof.
-(*
-rewrite /rflag_of_string; move=> A B; rewrite -A in B.
-repeat match goal with
-| |- ?a = ?a => exact Logic.eq_refl
-| H : ?a = ?b |- _ => subst a || subst b || refine (let 'Logic.eq_refl := H in I)
-| H : Some _ = Some _ |- _ => apply Some_inj in H
-| H : (if is_left ?a then _ else _) = Some _ |- _ => destruct a; simpl in *
-| H : match ?a with _ => _ end = Some _ |- _ => destruct a; simpl in H
-end.
-*)
-Admitted.
+Proof. Admitted.
 
+(* -------------------------------------------------------------------- *)
 Record xfundef := XFundef {
  xfd_stk_size : Z;
  xfd_nstk : register;

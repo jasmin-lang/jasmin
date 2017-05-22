@@ -131,34 +131,31 @@ Canonical scale_eqType := EqType scale scale_eqMixin.
 Definition address_beq (addr1: address) addr2 :=
   match addr1, addr2 with
   | mkAddress d1 b1 s1 o1, mkAddress d2 b2 s2 o2 =>
-    (d1 == d2) && (b1 == b2) && (s1 == s2) && (o1 == o2)
+    [&& d1 == d2, b1 == b2, s1 == s2 & o1 == o2]
   end.
 
 Lemma address_eq_axiom : Equality.axiom address_beq.
 Proof.
-  move=> [d1 b1 s1 o1] [d2 b2 s2 o2].
-  apply (@equivP (((d1 == d2) && (b1 == b2) && (s1 == s2)) /\ (o1 == o2)))=> /=.
-  apply: andP.
-  split.
-  by move=> [/andP [/andP [/eqP->/eqP->]/eqP->]/eqP->].
-  by move=> -[]<- <- <- <-; rewrite !eq_refl /=.
+case=> [d1 b1 s1 o1] [d2 b2 s2 o2]; apply: (iffP idP) => /=.
++ by case/and4P; do 4! move/eqP=> ->.
+by case; do 4! move=> ->; rewrite !eqxx.
 Qed.
 
 Definition address_eqMixin := Equality.Mixin address_eq_axiom.
 Canonical address_eqType := EqType address address_eqMixin.
 
-Definition oprd_beq (op1: oprd) op2 :=
+Definition oprd_beq (op1 op2 : oprd) :=
   match op1, op2 with
   | Imm_op w1, Imm_op w2 => w1 == w2
   | Reg_op r1, Reg_op r2 => r1 == r2
   | Adr_op a1, Adr_op a2 => a1 == a2
-  | _, _ => false
+  | _        , _         => false
   end.
 
 Lemma oprd_eq_axiom : Equality.axiom oprd_beq.
 Proof.
-  move=> [x1|x1|x1] [x2|x2|x2] /=; try (by constructor);
-  (apply (@equivP (x1 = x2)); [by apply: eqP|by split=> [->|[]->]]).
+case=> [w1|r1|a1] [w2|r2|a2] /=; try constructor => //;
+  by apply (equivP eqP); split=> [->|[]].
 Qed.
 
 Definition oprd_eqMixin := Equality.Mixin oprd_eq_axiom.
@@ -166,6 +163,50 @@ Canonical oprd_eqType := EqType oprd oprd_eqMixin.
 
 Definition condt_eqMixin := comparableClass condt_eq_dec.
 Canonical condt_eqType := EqType condt condt_eqMixin.
+
+(* -------------------------------------------------------------------- *)
+Definition registers :=
+  [:: RAX; RCX; RDX; RBX; RSP; RBP; RSI; RDI ;
+      R8 ; R9 ; R10; R11; R12; R13; R14; R15 ].
+
+Lemma registers_fin_axiom : Finite.axiom registers.
+Proof. by case. Qed.
+
+Definition reg_choiceMixin :=
+  PcanChoiceMixin (FinIsCount.pickleK registers_fin_axiom).
+Canonical reg_choiceType :=
+  Eval hnf in ChoiceType register reg_choiceMixin.
+
+Definition reg_countMixin :=
+  PcanCountMixin (FinIsCount.pickleK registers_fin_axiom).
+Canonical reg_countType :=
+  Eval hnf in CountType register reg_countMixin.
+
+Definition reg_finMixin :=
+  FinMixin registers_fin_axiom.
+Canonical reg_finType :=
+  Eval hnf in FinType register reg_finMixin.
+
+(* -------------------------------------------------------------------- *)
+Definition rflags := [:: CF; PF; ZF; SF; OF; DF].
+
+Lemma rflags_fin_axiom : Finite.axiom rflags.
+Proof. by case. Qed.
+
+Definition rflag_choiceMixin :=
+  PcanChoiceMixin (FinIsCount.pickleK rflags_fin_axiom).
+Canonical rflag_choiceType :=
+  Eval hnf in ChoiceType rflag rflag_choiceMixin.
+
+Definition rflag_countMixin :=
+  PcanCountMixin (FinIsCount.pickleK rflags_fin_axiom).
+Canonical rflag_countType :=
+  Eval hnf in CountType rflag rflag_countMixin.
+
+Definition rflag_finMixin :=
+  FinMixin rflags_fin_axiom.
+Canonical rflag_finType :=
+  Eval hnf in FinType rflag rflag_finMixin.
 
 (* -------------------------------------------------------------------- *)
 Module RegMap.

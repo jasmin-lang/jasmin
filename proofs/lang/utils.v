@@ -36,6 +36,25 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope Z_scope.
 
+(* -------------------------------------------------------------------- *)
+Module FinIsCount.
+Section FinIsCount.
+Variable (T : eqType) (enum : seq T) (A : Finite.axiom enum).
+
+Definition pickle (x : T) :=
+  seq.index x enum.
+
+Definition unpickle (n : nat) :=
+  nth None [seq some x | x <- enum] n.
+
+Definition pickleK : pcancel pickle unpickle.
+Proof.
+move=> x; have xE: x \in enum by apply/count_memPn; rewrite (A x).
+by rewrite /pickle /unpickle (nth_map x) ?(nth_index, index_mem).
+Qed.
+End FinIsCount.
+End FinIsCount.
+
 (* ** Result monad
  * -------------------------------------------------------------------- *)
 
