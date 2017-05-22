@@ -216,7 +216,7 @@ Qed.
 Lemma vrvP r v s s' :
   swrite_lval r v s = ok s' -> s.(sevm) = s'.(sevm) [\ vrv r].
 Proof. case: r => /=.
-+ by move=> vi [->].
++ by move=> _ _ [->].
 + by move=> vi /swrite_var_eqmem; rewrite SvP.MP.singleton_equal_add.
 + by move=> vi e; t_xrbindP => *; subst.
 + move=> vi pe /slet_inv[p [eq]]; t_xrbindP=> z v' /=.
