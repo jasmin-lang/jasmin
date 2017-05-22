@@ -14,6 +14,37 @@ Local Open Scope string_scope.
 Global Opaque String.append.
 
 (* -------------------------------------------------------------------- *)
+Lemma to_bool_ok v b : to_bool v = ok b -> v = Vbool b.
+Proof. by case: v => //= [b' [->]|[]]. Qed.
+
+Lemma to_word_ok v w : to_word v = ok w -> v = Vword w.
+Proof. by case: v => //= [w' [->]|[]]. Qed.
+
+Ltac t_XrbindP :=
+  match goal with
+  | [ |- Result.bind _ _ = Ok _ _ -> _ ] =>
+      let y := fresh "y" in
+      let h := fresh "h" in
+      apply: rbindP=> y; t_XrbindP=> h;
+      t_XrbindP; try move: h; try move: y
+  | [ |- ok _ = ok _ -> _ ] =>
+      case; t_XrbindP
+  | [ |- ciok _ = ok _ -> _ ] =>
+      case; t_XrbindP
+  | [ |- to_word ?w = ok _ -> _ ] =>
+      let h := fresh "h" in
+      move/to_word_ok => h; subst w; t_XrbindP
+  | [ |- to_bool ?w = ok _ -> _ ] =>
+      let h := fresh "h" in
+      move/to_bool_ok => h; subst w; t_XrbindP
+  | [ |- _ -> _ ] =>
+      let h := fresh "h" in move=> h; t_XrbindP; move: h
+  | _ => idtac
+  end.
+
+Ltac findok := eexists; first by reflexivity.
+
+(* -------------------------------------------------------------------- *)
 Lemma to_estateK c s: to_estate (of_estate s c) = s.
 Proof. by case: s. Qed.
 
@@ -630,14 +661,16 @@ Lemma xwrite_ok ii x (v : word) op c cs (s1 s2 : estate) xs1 :
   -> exists2 xs2, write_oprd op v xs1 = ok xs2
                 & xs86_equiv c (of_estate s2 cs) xs2.
 Proof.
-move=> eqv; case: x => // [x|x e].
-+ case: x => [[]] []//= x vix; case Ex: reg_of_string => [r|] //=.
-  case=> <- ok_s2 /=; eexists; first by reflexivity.
-  move: ok_s2; rewrite /write_var; t_xrbindP => vm /= ok_vm <-.
-  case: {+}eqv => /= m1E okc1 okd1 ip1E rf1E rg1E.
-  split=> //=. admit. admit.
-+ admit.
-Admitted.
+move=> eqv; case: x => // [x|x e] /=.
++ t_XrbindP=> r ok_r /esym opE ok_s2; subst op => /=.
+  by findok; apply: (xwrite_var_reg eqv ok_r); rewrite !to_estateK.
+t_XrbindP=> r ok_r w ok_w /esym opE vx ok_vx ve ok_ve m ok_m.
+move=> ?; subst s2 => /=; case: e ok_w ok_ve => // -[] //=.
+move=> z -[?] -[?]; subst w ve op => /=; rewrite /decode_addr /=.
+rewrite I64.mul_commut I64.mul_one I64.add_zero I64.add_commut.
+rewrite /st_write_mem (xgetreg eqv ok_r ok_vx (erefl _)).
+by case: {+}eqv => <- okc okd ipE rfE rgE; rewrite ok_m /=; findok.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xaluop c s1 s2 xs1 ii (rof rcf rsf rpf rzf : var_i) vof vcf vsf vpf vzf :
