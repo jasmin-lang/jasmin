@@ -445,6 +445,17 @@ Proof.
   try (eexists; reflexivity).
 Qed.
 
+Lemma of_sval_has_type ty s v :
+  of_sval ty s = ok v →
+  ty = type_of_sval s.
+Proof.
+  case: ty v => v /= V.
+  apply sto_bool_inv in V; subst; reflexivity.
+  apply sto_int_inv in V; subst; reflexivity.
+  apply sto_arr_inv in V; subst; reflexivity.
+  apply sto_word_inv in V; subst; reflexivity.
+Qed.
+
 Lemma type_check_pexprP m s e ty :
   match type_check_pexpr e ty with
   | Some te =>
@@ -502,16 +513,37 @@ Proof.
       case: (ssem_pexpr _ q)=> [ vq | [] ] //= ; eauto.
       case: (ssem_sop2_error_1 _ _ _ Ep vq) => exn' -> /=; eauto.
   - move=> b /(_ ssbool); case: (type_check_pexpr _ _).
-    + move=> tb [v [Eb /sto_bool_inv ?]]; subst v; rewrite Eb.
-      2: case=> exn -> /=; eauto; fail.
-      move=> p hp q hq ty.
-      move:(hp ty) (hq ty) => {hp hq}.
+    2: case=> exn -> /=; eauto; fail.
+    move=> tb [v [Eb /sto_bool_inv ?]]; subst v; rewrite Eb {Eb}.
+    move=> p hp q hq ty.
+    move:(hp ty) (hq ty) => {hp hq}.
+    case: (type_check_pexpr _ _).
+    + move=> tp [vp [Ep IHp]]; rewrite Ep.
+      pose proof of_sval_has_type _ _ _ IHp; subst ty.
       case: (type_check_pexpr _ _).
-      * move=> tp [vp [Ep IHp]]; rewrite Ep.
-        case: (type_check_pexpr _ _).
-          move=> tq [vq [Eq IHq]] /=; rewrite Eq.
-          case: (sem_texpr _ _ _ tb); eauto.
-Admitted.
+      * move=> tq [vq [Eq IHq]] /=; rewrite Eq IHp /= IHq /=.
+        eexists; split; first reflexivity.
+        by case: (sem_texpr _ _ _ tb).
+      * case=> exn /=.
+        case: (ssem_pexpr _ q) => [ vq | ] /=; eauto.
+        rewrite IHp; move=> -> /=; eauto.
+    + case=> exn.
+      case: (ssem_pexpr _ p) => /= [ vp Ep | ]; eauto.
+      case: (of_sval (type_of_sval vp) vp) => /= [ _ | ].
+      2: move=> exn' _; case: ssem_pexpr => /=; eauto.
+      case: (type_check_pexpr _ _).
+      * move=> tq [vq [Eq IHq]] /=. rewrite Eq /=.
+        pose proof of_sval_has_type _ _ _ IHq; subst ty.
+        destruct (of_sval (type_of_sval vp) vq) eqn: X.
+        2: simpl; eauto.
+        exfalso.
+        rewrite <- (of_sval_has_type _ _ _ X) in Ep. clear -Ep.
+        case: vp Ep => //=.
+      * case=> exn'.
+        case: (ssem_pexpr _ q) => /= [ vq Eq | ]; eauto.
+        case: (of_sval _ _) => [_|] /=; last by eauto.
+        by case: (sem_texpr _ _ _ tb); eauto.
+Qed.
 
 Definition has_pointer_type (x: var) : { vtype x = sword } + { True } :=
   match vtype x with
