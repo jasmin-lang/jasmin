@@ -106,6 +106,14 @@ Definition sto_word v :=
   | _        => type_error
   end.
 
+Definition type_of_sval (v: svalue) :=
+  match v with
+  | SVbool _    => ssbool
+  | SVint  _    => ssint
+  | SVarr _  => ssarr
+  | SVword _    => ssword
+  end.
+
 Definition of_sval t : svalue -> exec (ssem_t t) :=
   match t return svalue -> exec (ssem_t t) with
   | ssbool  => sto_bool
@@ -253,8 +261,11 @@ Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : exec svalue :=
     ssem_sop2 o v1 v2
   | Pif e e1 e2 =>
     Let b  := ssem_pexpr s e >>= sto_bool in
-    if b then ssem_pexpr s e1
-    else ssem_pexpr s e2
+    Let v1 := ssem_pexpr s e1 in
+    Let v2 := ssem_pexpr s e2 in
+    Let _ := of_sval (type_of_sval v1) v1 in
+    Let _ := of_sval (type_of_sval v1) v2 in
+    ok (if b then v1 else v2)
   end.
 
 Definition ssem_pexprs s := mapM (ssem_pexpr s).

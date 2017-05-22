@@ -570,7 +570,7 @@ Definition post_assgn (x: lval) {ty} (w: ssem_t ty) (f: formula) (m: mem) (s: en
     | inright _ => False end
   end.
 
-Definition type_of_pexpr (e: pexpr) : stype :=
+Fixpoint type_of_pexpr (e: pexpr) : stype :=
   match e with
   | Pconst _ => sint
   | Pbool _ => sbool
@@ -581,7 +581,7 @@ Definition type_of_pexpr (e: pexpr) : stype :=
   | Pvar {| v_var := x |} => vtype x
   | Papp1 op _ => op1_type_o op
   | Papp2 op _ _ => op2_type_o op
-  | Pif _ _ _ => sword
+  | Pif _ e _ => type_of_pexpr e
   end.
 
 Definition default_texpr (ty: stype') : texpr ty :=
