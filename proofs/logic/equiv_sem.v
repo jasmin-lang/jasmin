@@ -30,7 +30,8 @@ From mathcomp Require Import choice fintype eqtype div seq zmodp.
 Require Import strings word utils.
 Require Import type var expr.
 Require Import memory sem Ssem Ssem_props.
-Require Import ZArith.
+Import ZArith.
+Import Utf8.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -83,15 +84,45 @@ Definition svalue_uincl (v: value) (sv: svalue) :=
   | Varr _ t1, SVarr t2 =>
     forall i v, Array.get t1 i = ok v -> FArray.get t2 i = v
   | Vword w1, SVword w2 => w1 = w2
+  | Vundef _, _ => True
   | _, _ => False
   end.
+
+Lemma to_int_inv x i :
+  to_int x = ok i →
+  x = i.
+Proof.
+  case: x => // ? H.
+    apply ok_inj in H; congruence.
+  elim (@of_val_undef_ok sint _ _ H).
+Qed.
+
+Lemma to_word_inv x w :
+  to_word x = ok w →
+  x = w.
+Proof.
+  case: x => // ? H.
+    apply ok_inj in H; congruence.
+  elim (@of_val_undef_ok sword _ _ H).
+Qed.
+
+Lemma to_bool_inv x b :
+  to_bool x = ok b →
+  x = b.
+Proof.
+  case: x => // ? H.
+    apply ok_inj in H; congruence.
+  elim (@of_val_undef_ok sbool _ _ H).
+Qed.
 
 Lemma of_sval_uincl v v' t z:
   svalue_uincl v v' ->
   of_val t v = ok z ->
-  exists z', of_sval t v' = ok z' /\ sval_uincl z z'.
+  exists z', of_sval t v' = ok z' /\ sval_uincl z z' ∧ type_of_sval v' = t.
 Proof.
-  case: v v'=> [b | n | n a | w] [b' | n' | a' | w'] //=; try (by case: t z=> //= z -> []->; exists z).
+  case: v v'=> [b | n | n a | w | ty] [b' | n' | a' | w'] //=;
+    try (by case: t z=> //= z -> []->; exists z);
+    try (move=> _ H; elim (of_val_undef_ok H); fail);
   move=> H.
   case: t z => //= p z.
   case: (CEDecStype.pos_dec n p)=> // H' [<-].
@@ -101,27 +132,35 @@ Qed.
 
 Lemma svalue_uincl_int ve ve' z :
   svalue_uincl ve ve' -> to_int ve = ok z -> ve = z /\ ve' = z.
-Proof. by case:ve ve' => //= z0 [] //= z1 -> [] ->. Qed.
+Proof.
+  move=> h t; case: (@of_sval_uincl ve ve' sint z h t) => /= z' [t' q].
+  apply sto_int_inv in t'; apply to_int_inv in t. intuition congruence.
+Qed.
 
 Lemma svalue_uincl_word ve ve' w :
   svalue_uincl ve ve' -> to_word ve = ok w -> ve = w /\ ve' = w.
-Proof. by case:ve ve' => //= z0 [] //= z1 -> [] ->. Qed.
+Proof.
+  move=> h t; case: (@of_sval_uincl ve ve' sword w h t) => /= z' [t' q].
+  apply sto_word_inv in t'; apply to_word_inv in t. intuition congruence.
+Qed.
 
 Lemma svalue_uincl_bool ve ve' b :
   svalue_uincl ve ve' -> to_bool ve = ok b -> ve = b /\ ve' = b.
-Proof. by case:ve ve' => //= z0 [] //= z1 -> [] ->. Qed.
+Proof.
+  move=> h t; case: (@of_sval_uincl ve ve' sbool b h t) => /= z' [t' q].
+  apply sto_bool_inv in t'; apply to_bool_inv in t. intuition congruence.
+Qed.
 
 Lemma sget_var_uincl x vm1 vm2 v1:
   svm_uincl vm1 vm2 ->
   get_var vm1 x = ok v1 ->
   svalue_uincl v1 (sget_var vm2 x).
 Proof.
-move=> /(_ x) H.
-rewrite /seval_uincl in H.
-apply: rbindP=> z H' [] <-.
-rewrite {}H' in H.
-move: x z H=> [vi vt] /= z H.
-by case: vi z H.
+move=> /(_ x); rewrite /seval_uincl; move=> H P; move: P H.
+apply: on_vuP => [ y | ] ->.
+case: x y => vi vt /= z <- /=.
+by case: vi z.
+by move=> H; apply ok_inj in H; subst.
 Qed.
 
 Lemma sget_vars_uincl (xs:seq var_i) vm1 vm2 vs1:
@@ -188,12 +227,41 @@ Proof.
   by exists (o z1 z2).
 Qed.
 
+Lemma svuincl_sem_op1_b o w w' r :
+  svalue_uincl w w' → sem_op1_b o w = ok r →
+  ∃ r' : svalue, ssem_op1_b o w' = ok r' ∧ svalue_uincl r r'.
+Proof.
+  move=> H.
+  apply: rbindP => b Hb; apply to_bool_inv in Hb; subst.
+  move=> Hr; apply ok_inj in Hr; subst.
+  case: w' H => // b' <- {b'}.
+  by exists (o b).
+Qed.
+
+Lemma svuincl_sem_op1_w o w w' r :
+  svalue_uincl w w' → sem_op1_w o w = ok r →
+  ∃ r' : svalue, ssem_op1_w o w' = ok r' ∧ svalue_uincl r r'.
+Proof.
+  move=> H.
+  apply: rbindP => b Hb; apply to_word_inv in Hb; subst.
+  move=> Hr; apply ok_inj in Hr; subst.
+  case: w' H => // b' <- {b'}.
+  by exists (SVword (o b)).
+Qed.
+
+Lemma svuincl_sem_op1 o w w' r :
+  svalue_uincl w w' → sem_sop1 o w = ok r →
+  ∃ r' : svalue, ssem_sop1 o w' = ok r' ∧ svalue_uincl r r'.
+Proof.
+  case: o => /=; eauto using svuincl_sem_op1_b, svuincl_sem_op1_w.
+Qed.
+
 Lemma ssem_pexpr_uincl s ss e v1:
   sestate_uincl s ss ->
   sem_pexpr s e = ok v1 ->
   exists v2, ssem_pexpr ss e = ok v2 /\ svalue_uincl v1 v2.
 Proof.
-  move=> [Hu1 Hu2]; elim: e v1=>//= [z | b | e He | x | x p Hp | x p Hp | e Hp | o e1 He1 e2 He2] v1.
+  move=> [Hu1 Hu2]; elim: e v1=>//= [z | b | e He | x | x p Hp | x p Hp | o e He | o e1 He1 e2 He2| eb Heb e1 He1 e2 He2 ] v1.
   + by move=> [] <-;exists z.
   + by move=> [] <-;exists b.
   + apply: rbindP => z;apply: rbindP => ve /He [] ve' [] -> Hvu Hto [] <-.
@@ -212,13 +280,22 @@ Proof.
     rewrite -Hu1 /=.
     case: (svalue_uincl_word Hvu Hto) => ??;subst.
     by apply rbindP => w /= /mem2smem_read -> [] <-;exists w.
-  + apply: rbindP => b;apply: rbindP => vx /Hp [] vp' [] -> Hvu Hto [] <-.
-    by case: (svalue_uincl_bool Hvu Hto) => ??;subst => /=;exists (~~b).
-  apply: rbindP => ve1 /He1 [] ve1' [] -> Hvu1.
-  apply: rbindP => ve2 /He2 [] ve2' [] -> Hvu2 {He1 He2}.
-  case:o=> [||[]|[]|[]|[]|[]|[]|[]|[]|[]] => /=;
+  + apply: rbindP => w /He {He} [] w' [] ->; apply svuincl_sem_op1.
+  + apply: rbindP => ve1 /He1 [] ve1' [] -> Hvu1.
+    apply: rbindP => ve2 /He2 [] ve2' [] -> Hvu2 {He1 He2}.
+    case:o=> [||[]|[]|[]|||||||[]|[]|[]|[]|[]|[]] => /=;
     eauto using svuincl_sem_op2_i, svuincl_sem_op2_w, 
                 svuincl_sem_op2_b, svuincl_sem_op2_ib, svuincl_sem_op2_wb.
+  + apply: rbindP => b; apply: rbindP => ? /Heb {Heb} [] b' [] -> h.
+    move=> Q; apply to_bool_inv in Q; subst.
+    apply: rbindP => w1 /He1 {He1} [] w1' [] -> h1.
+    apply: rbindP => w2 /He2 {He2} [] w2' [] -> h2.
+    apply: rbindP => z1 Z1; apply: rbindP => z2 Z2.
+    move=> Q; apply ok_inj in Q; subst.
+    case: b' h => // b' <- {b'} /=.
+    exists (if b then w1' else w2'); split; last by case: b.
+    case: (of_sval_uincl h1 Z1) => x1 [] X1 [] _ ->; rewrite X1 /=.
+    case: (of_sval_uincl h2 Z2) => x2 [] -> _ //.
 Qed.
 
 Lemma ssem_pexprs_uincl s ss es vs1:
