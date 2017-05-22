@@ -454,12 +454,69 @@ by t_xrbindP=> s h /ih <-; apply (@write_var_mem x v).
 Qed.
 
 (* -------------------------------------------------------------------- *)
+Lemma get_set_var x v vm1 vm2 :
+  set_var vm1 x v = ok vm2 -> get_var vm2 x = ok v.
+Proof. Admitted.
+
+(* -------------------------------------------------------------------- *)
+Lemma get_set_var_ne x y v vm1 vm2 : x <> y ->
+  set_var vm1 x v = ok vm2 -> get_var vm2 y = get_var vm1 y.
+Proof. Admitted.
+
+(* -------------------------------------------------------------------- *)
+Lemma get_write_var x v s1 s2 :
+  write_var x v s1 = ok s2 -> get_var s2.(evm) x = ok v.
+Proof.
+rewrite /write_var; t_XrbindP => vm ok_vm <-.
+by apply: (get_set_var ok_vm).
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma get_write_var_ne x y v s1 s2 : x.(v_var) <> y ->
+  write_var x v s1 = ok s2 -> get_var s2.(evm) y = get_var s1.(evm) y.
+Proof.
+move=> ne_xy; rewrite /write_var; t_XrbindP => vm ok_vm <-.
+by apply (get_set_var_ne ne_xy ok_vm).
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma rflag_of_var_name ii x rf :
+  rflag_of_var ii x = ok rf ->
+  rflag_of_string x.(vname) = Some rf.
+Proof.
+case: x => //; case=> // x /=.
+by case: rflag_of_string => // => rf' -[->].
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma rflag_get_set rfm rf b :
+  RflagMap.get (RflagMap.set rfm rf b) rf = Def b.
+Proof. by rewrite /RflagMap.get /RflagMap.set eqxx. Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma rflag_get_set_ne rfm rf1 rf2 b : rf1 != rf2 ->
+  RflagMap.get (RflagMap.set rfm rf1 b) rf2 = RflagMap.get rfm rf2.
+Proof. by rewrite /RflagMap.get /RflagMap.set eq_sym => /negbTE ->. Qed.
+
+(* -------------------------------------------------------------------- *)
 Lemma xwrite_var_rf x b ii rf s1 s2 xs1 :
      rflag_of_var ii (v_var x) = ok rf
   -> rflags_of_lvm s1.(lvm) xs1
   -> write_var x (Vbool b) (to_estate s1) = ok (to_estate s2)
   -> rflags_of_lvm s2.(lvm) (RflagMap.set xs1 rf b).
-Proof. Admitted.
+Proof.
+move=> /= ok_rf ok_xs1 ok_s2 s rf' ok_rf'; set y := Var _ _.
+case: (x.(v_var) =P y) => [eq_xy|]; first subst y.
++ rewrite -eq_xy (get_write_var ok_s2) /=.
+  have := rflag_of_var_name ok_rf; rewrite eq_xy /=.
+  by rewrite ok_rf' => -[->]; rewrite rflag_get_set.
++ move=> ne_xy; rewrite (get_write_var_ne ne_xy ok_s2).
+  move/(_ _ _ ok_rf'): ok_xs1; rewrite -/y /=.
+  case ok_vy: get_var => [vy|//]; case: to_rbool => // _ <-.
+  rewrite rflag_get_set_ne //; move/eqP: ne_xy; apply: contraNneq.
+  move=> ?; subst rf'; apply/eqP; apply: (inj_rflag_of_var ok_rf).
+  by rewrite /y /= ok_rf'.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xwrite_var_reg ii x reg w cs s1 s2 xs :
