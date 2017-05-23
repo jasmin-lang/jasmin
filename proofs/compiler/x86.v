@@ -23,12 +23,10 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-(* * Syntax and semantics of the x86_64 target language *)
-
-(* ** Imports and settings *)
-
+(* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect.
-(* ------- *) Require Import expr linear compiler_util low_memory x86_sem.
+(* ------- *) Require Import xseq expr linear compiler_util.
+(* ------- *) Require Import low_memory x86_sem.
 
 Import Ascii.
 Import Relations.
@@ -72,19 +70,17 @@ Definition string_of_rflag (rf : rflag) : string :=
 Definition regs_strings :=
   Eval compute in [seq (string_of_register x, x) | x <- registers].
 
+Lemma regs_stringsE : regs_strings =
+  [seq (string_of_register x, x) | x <- registers].
+Proof. by []. Qed.
+
 (* -------------------------------------------------------------------- *)
 Definition rflags_strings :=
   Eval compute in [seq (string_of_rflag x, x) | x <- rflags].
 
-(* -------------------------------------------------------------------- *)
-Section Assoc.
-Variable (T : eqType) (U : Type).
-
-Fixpoint assoc (s : seq (T * U)) (x : T) : option U :=
-  if s is (y, v) :: s then
-    if x == y then Some v else assoc s x
-  else None.
-End Assoc.
+Lemma rflags_stringsE : rflags_strings =
+  [seq (string_of_rflag x, x) | x <- rflags].
+Proof. by []. Qed.
 
 (* -------------------------------------------------------------------- *)
 Definition reg_of_string (s : string) :=
@@ -107,17 +103,19 @@ Proof. by apply: (pcan_inj rflag_of_stringK). Qed.
 Lemma inj_string_of_register : injective string_of_register.
 Proof. by apply: (pcan_inj reg_of_stringK). Qed.
 
+(* -------------------------------------------------------------------- *)
 Lemma inj_reg_of_string s1 s2 r :
      reg_of_string s1 = Some r
   -> reg_of_string s2 = Some r
   -> s1 = s2.
-Proof. Admitted.
+Proof. by rewrite /reg_of_string !regs_stringsE; apply: inj_assoc. Qed.
 
+(* -------------------------------------------------------------------- *)
 Lemma inj_rflag_of_string s1 s2 rf :
      rflag_of_string s1 = Some rf
   -> rflag_of_string s2 = Some rf
   -> s1 = s2.
-Proof. Admitted.
+Proof. by rewrite /rflag_of_string !rflags_stringsE; apply: inj_assoc. Qed.
 
 (* -------------------------------------------------------------------- *)
 Record xfundef := XFundef {
@@ -141,6 +139,7 @@ Definition invalid_register (s: string) : asm_error :=
 
 Global Opaque invalid_rflag invalid_register.
 
+(* -------------------------------------------------------------------- *)
 Definition rflag_of_var ii (v: var) :=
   match v with
   | Var sbool s =>
@@ -151,6 +150,7 @@ Definition rflag_of_var ii (v: var) :=
   | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid rflag type"))
   end.
 
+(* -------------------------------------------------------------------- *)
 Definition reg_of_var ii (v: var) :=
   match v with
   | Var sword s =>
@@ -161,20 +161,25 @@ Definition reg_of_var ii (v: var) :=
   | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid register type"))
   end.
 
+(* -------------------------------------------------------------------- *)
 Definition reg_of_vars ii (vs: seq var_i) :=
   mapM (reg_of_var ii \o v_var) vs.
 
+(* -------------------------------------------------------------------- *)
 Definition word_of_int (z: Z) := ciok (I64.repr z).
 
+(* -------------------------------------------------------------------- *)
 Definition word_of_pexpr ii e :=
   match e with
   | Pcast (Pconst z) => word_of_int z
   | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid integer constant"))
   end.
 
+(* -------------------------------------------------------------------- *)
 Definition oprd_of_lval ii (l: lval) :=
   match l with
-  | Lnone _ _ => cierror ii (Cerr_assembler (AsmErr_string "Lnone not implemented"))
+  | Lnone _ _ =>
+     cierror ii (Cerr_assembler (AsmErr_string "Lnone not implemented"))
   | Lvar v =>
      Let s := reg_of_var ii v in
      ciok (Reg_op s)
@@ -182,9 +187,11 @@ Definition oprd_of_lval ii (l: lval) :=
      Let s := reg_of_var ii v in
      Let w := word_of_pexpr ii e in
      ciok (Adr_op (mkAddress w (Some s) Scale1 None))
-  | Laset v e => cierror ii (Cerr_assembler (AsmErr_string "Laset not handled in assembler"))
+  | Laset v e =>
+     cierror ii (Cerr_assembler (AsmErr_string "Laset not handled in assembler"))
   end.
 
+(* -------------------------------------------------------------------- *)
 Definition scale_of_z ii z :=
   match z with
   | 1 => ok Scale1
@@ -208,6 +215,7 @@ Variant ofs :=
   | Ofs_add   of Z & var_i & Z
   | Ofs_error.
   
+(* -------------------------------------------------------------------- *)
 Fixpoint addr_ofs e := 
   match e with
   | Pcast (Pconst z) => Ofs_const z
@@ -231,6 +239,7 @@ Fixpoint addr_ofs e :=
   | _ => Ofs_error
   end.
 
+(* -------------------------------------------------------------------- *)
 Definition addr_of_pexpr ii s (e: pexpr) :=
   match addr_ofs e with
   | Ofs_const z => 
@@ -252,6 +261,7 @@ Definition addr_of_pexpr ii s (e: pexpr) :=
     cierror ii (Cerr_assembler (AsmErr_string "Invalid address expression"))
   end.
 
+(* -------------------------------------------------------------------- *)
 Definition oprd_of_pexpr ii (e: pexpr) :=
   match e with
   | Pcast (Pconst z) =>
@@ -267,6 +277,7 @@ Definition oprd_of_pexpr ii (e: pexpr) :=
   | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for oprd"))
   end.
 
+(* -------------------------------------------------------------------- *)
 Definition ireg_of_pexpr ii (e: pexpr) :=
   match e with
   | Pcast (Pconst z) =>
@@ -278,6 +289,7 @@ Definition ireg_of_pexpr ii (e: pexpr) :=
   | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for ireg"))
   end.
 
+(* -------------------------------------------------------------------- *)
 Definition assemble_cond ii (e: pexpr) : ciexec condt :=
   match e with
   | Pvar v =>
@@ -290,6 +302,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     | PF => ok P_ct
     | DF => cierror ii (Cerr_assembler (AsmErr_string "Cannot branch on DF"))
     end
+
   | Papp1 Onot (Pvar v) =>
     Let r := rflag_of_var ii v in
     match r with
@@ -300,18 +313,21 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     | PF => ok NP_ct
     | DF => cierror ii (Cerr_assembler (AsmErr_string "Cannot branch on ~~ DF"))
     end
+
   | Papp2 Oor (Pvar vcf) (Pvar vzf) =>
     Let rcf := rflag_of_var ii vcf in
     Let rzf := rflag_of_var ii vzf in
     if ((rcf == CF) && (rzf == ZF)) then
       ok BE_ct
     else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (BE)"))
+
   | Papp2 Oand (Papp1 Onot (Pvar vcf)) (Papp1 Onot (Pvar vzf)) =>
     Let rcf := rflag_of_var ii vcf in
     Let rzf := rflag_of_var ii vzf in
     if ((rcf == CF) && (rzf == ZF)) then
       ok NBE_ct
     else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NBE)"))
+
   | Pif (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2) =>
     Let rsf := rflag_of_var ii vsf in
     Let rof1 := rflag_of_var ii vof1 in
@@ -319,6 +335,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     if ((rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok L_ct
     else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (L)"))
+
   | Pif (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2)) =>
     Let rsf := rflag_of_var ii vsf in
     Let rof1 := rflag_of_var ii vof1 in
@@ -326,6 +343,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     if ((rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok NL_ct
     else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NL)"))
+
   | Papp2 Oor (Pvar vzf)
           (Pif (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2)) =>
     Let rzf := rflag_of_var ii vzf in
@@ -335,6 +353,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     if ((rzf == ZF) && (rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok LE_ct
     else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (LE)"))
+
   | Papp2 Oand
              (Papp1 Onot (Pvar vzf))
              (Pif (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2))) =>
@@ -345,6 +364,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     if ((rzf == ZF) && (rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok NLE_ct
     else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NLE)"))
+
   | _ => cierror ii (Cerr_assembler (AsmErr_cond e))
   end.
 
@@ -479,6 +499,7 @@ Lemma as_tripleT s x y z :
 Proof. by case: s => [|x' [|y' [|z' [|]]]] //= [-> -> ->]. Qed.
 End AsN.
 
+(* -------------------------------------------------------------------- *)
 Definition wrong_aluk o : asm_error :=
   AsmErr_string ("wrong arguments / outputs for operator " ++ string_of_aluk o).
 
@@ -506,8 +527,8 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
       Let ox := oprd_of_lval ii x in
 
       if (o1 != ox) then
-        cierror ii (Cerr_assembler
-          (AsmErr_string ("First [rl]val should be the same for " ++ string_of_aluk o)))
+        cierror ii (Cerr_assembler (AsmErr_string
+          ("First [rl]val should be the same for " ++ string_of_aluk o)))
       else
         ciok (match bin with
               | BU_ADD => ADD
@@ -528,10 +549,12 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
       Let o2 := oprd_of_pexpr ii e2 in
       Let rcf := rflag_of_var ii ecf in
       Let ox := oprd_of_lval ii x in
+
       if (rcf != CF) then
         cierror ii (Cerr_assembler
           (AsmErr_string
              ("Carry flag in wrong register for " ++ string_of_aluk o))) else
+
       if (o1 != ox) then
         cierror ii (Cerr_assembler
           (AsmErr_string
@@ -553,13 +576,14 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
       Let o2 := ireg_of_pexpr ii e2 in
       Let ox := oprd_of_lval ii x in
       if (o1 != ox) then
-        cierror ii (Cerr_assembler
-          (AsmErr_string ("First [rl]val should be the same for " ++ string_of_aluk o))) else
-      ciok (match sht with
-            | ST_SHL => SHL
-            | ST_SHR => SHR
-            | ST_SAR => SAR
-            end o1 o2)
+        cierror ii (Cerr_assembler (AsmErr_string
+          ("First [rl]val should be the same for " ++ string_of_aluk o)))
+      else ciok (
+        match sht with
+        | ST_SHL => SHL
+        | ST_SHR => SHR
+        | ST_SAR => SAR
+        end o1 o2)
 
     | _, _ =>
       cierror ii (Cerr_assembler (wrong_aluk o))
@@ -609,6 +633,7 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
     end
   end.
 
+(* -------------------------------------------------------------------- *)
 Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
   match kind_of_sopn o with
   | OK_ALU aluk =>
@@ -619,10 +644,12 @@ Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
       Let rsf := rflag_of_var ii vsf in
       Let rpf := rflag_of_var ii vpf in
       Let rzf := rflag_of_var ii vzf in
-      if ((rof == OF) && (rcf == CF) && (rsf == SF) && (rpf == PF) && (rzf == ZF)) then
-      assemble_fopn ii l aluk e
+      if ((rof == OF) && (rcf == CF) && (rsf == SF) && (rpf == PF) && (rzf == ZF))
+      then assemble_fopn ii l aluk e
       else cierror ii (Cerr_assembler (AsmErr_string "Invalid registers in lvals"))
-    | None => cierror ii (Cerr_assembler (AsmErr_string "Invalid number of lvals"))
+
+    | None =>
+        cierror ii (Cerr_assembler (AsmErr_string "Invalid number of lvals"))
     end
 
   | OK_CNT inc =>
@@ -640,11 +667,15 @@ Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
         if (or == ol) then
           ciok ((if inc then INC else DEC) or)
         else
-          cierror ii (Cerr_assembler (AsmErr_string "lval & rval of Ox86_DEC/INC should be the same"))
-      | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid number of pexpr in Ox86_DEC/INC"))
-      end
-      else cierror ii (Cerr_assembler (AsmErr_string "Invalid registers in lvals"))
-    | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid number of lval in Ox86_DEC/INC"))
+          cierror ii (Cerr_assembler
+            (AsmErr_string "lval & rval of Ox86_DEC/INC should be the same"))
+      | _ => cierror ii (Cerr_assembler
+            (AsmErr_string "Invalid number of pexpr in Ox86_DEC/INC"))
+      end else
+        cierror ii (Cerr_assembler (AsmErr_string "Invalid registers in lvals"))
+    | _ =>
+      cierror ii (Cerr_assembler
+        (AsmErr_string "Invalid number of lval in Ox86_DEC/INC"))
     end
 
   | OK_MOV =>
@@ -653,8 +684,10 @@ Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
       Let ol := oprd_of_lval ii l in
       Let or := oprd_of_pexpr ii e in
       ciok (MOV ol or)
+
     | _, _ =>
-      cierror ii (Cerr_assembler (AsmErr_string "Invalid number of lval or pexpr in Ox86_MOV"))
+      cierror ii (Cerr_assembler
+        (AsmErr_string "Invalid number of lval or pexpr in Ox86_MOV"))
     end
 
   | OK_MOVcc =>
@@ -664,46 +697,63 @@ Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
       Let or := oprd_of_pexpr ii e1 in 
       Let oc  := assemble_cond ii c in
       Let ol' := oprd_of_pexpr ii e2 in
-      if ol == ol' then 
-        ciok (CMOVcc oc ol or)
+      if   ol == ol'
+      then ciok (CMOVcc oc ol or)
       else
-        cierror ii (Cerr_assembler (AsmErr_string "lval & rval of Ox86_MOVcc should be the same"))
+        cierror ii (Cerr_assembler
+          (AsmErr_string "lval & rval of Ox86_MOVcc should be the same"))
+
     | _, _ => 
-      cierror ii (Cerr_assembler (AsmErr_string "Invalid number of lval or pexpr in Ox86_MOVcc"))
+      cierror ii (Cerr_assembler
+        (AsmErr_string "Invalid number of lval or pexpr in Ox86_MOVcc"))
     end
+
   | OK_None =>
-    cierror ii (Cerr_assembler (AsmErr_string (String.append "Unhandled sopn " (string_of_sopn o))))
+    cierror ii (Cerr_assembler
+      (AsmErr_string (String.append "Unhandled sopn " (string_of_sopn o))))
   end.
 
+(* -------------------------------------------------------------------- *)
 Definition assemble_i (li: linstr) : ciexec asm :=
   let (ii, i) := li in
   match i with
   | Lassgn l _ e =>
-     (* TODO: this is useless since lowering doesn't leave Lassgn; might remove at some point *)
      Let dst := oprd_of_lval ii l in
      Let src := oprd_of_pexpr ii e in
      ciok (MOV dst src)
-  | Lopn l o p => assemble_opn ii l o p
-  | Llabel l => ciok (LABEL l)
-  | Lgoto l => ciok (JMP l)
+
+  | Lopn l o p =>
+      assemble_opn ii l o p
+
+  | Llabel l =>
+      ciok (LABEL l)
+
+  | Lgoto l =>
+      ciok (JMP l)
+
   | Lcond e l =>
-     Let cond := assemble_cond ii e in
-     ciok (Jcc l cond)
+      Let cond := assemble_cond ii e in
+      ciok (Jcc l cond)
   end.
 
+(* -------------------------------------------------------------------- *)
 Definition assemble_c (lc: lcmd) : ciexec (seq asm) :=
   mapM assemble_i lc.
 
+(* -------------------------------------------------------------------- *)
 Definition assemble_fd (fd: lfundef) :=
   Let fd' := assemble_c (lfd_body fd) in
+
   match (reg_of_string (lfd_nstk fd)) with
   | Some sp =>
-    Let arg := reg_of_vars xH (lfd_arg fd) in
-    Let res := reg_of_vars xH (lfd_res fd) in
-    ciok (XFundef (lfd_stk_size fd) sp arg fd' res)
-  | None => cierror xH (Cerr_assembler (AsmErr_string "Invalid stack pointer"))
+      Let arg := reg_of_vars xH (lfd_arg fd) in
+      Let res := reg_of_vars xH (lfd_res fd) in
+      ciok (XFundef (lfd_stk_size fd) sp arg fd' res)
+
+  | None =>
+      cierror xH (Cerr_assembler (AsmErr_string "Invalid stack pointer"))
   end.
 
+(* -------------------------------------------------------------------- *)
 Definition assemble_prog (p: lprog) : cfexec xprog :=
   map_cfprog assemble_fd p.
-
