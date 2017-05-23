@@ -3,28 +3,9 @@
 
 fn sub(reg u64[1] x) -> reg u64[1] {
 
-  inline int i;
-
-  for i = 0 to 1 {
-    x[i] += 0;
-  }
+    x[0] += 0;
 
   return x;
-}
-
-// ** multiplication
-// ************************************************************************
-
-fn mul(stack u64[1] xa) -> reg u64[1] {
-
-  reg u64[1] r;
-  inline int i;
-
-for i = 0 to 1 {
-r[i] = xa[i];
-}
-
-  return r;
 }
 
 // ** ladderstep
@@ -36,8 +17,8 @@ fn ladderstep(stack u64[1] x3p)
   reg u64[1] t3;
   reg u64[1] t8;
 
-  t8      = mul(x3p);
-  x3p      = t8;
+  t8[0]      = x3p[0];
+  x3p[0]      = t8[0];
 
   _      = sub(t8);
  
