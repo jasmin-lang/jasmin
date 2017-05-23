@@ -74,7 +74,7 @@ Definition sdflt_val st : ssem_t st :=
 (* ** Values
   * -------------------------------------------------------------------- *)
 
-Inductive svalue : Type :=
+Variant svalue : Type :=
   | SVbool :> bool -> svalue
   | SVint  :> Z    -> svalue
   | SVarr  : FArray.array word -> svalue

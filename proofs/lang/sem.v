@@ -130,7 +130,7 @@ Definition rdflt_ (t : stype) e (r : result e (sem_t t)) : sem_t t :=
 (* ** Values
   * -------------------------------------------------------------------- *)
 
-Inductive value : Type :=
+Variant value : Type :=
   | Vbool  :> bool -> value
   | Vint   :> Z    -> value
   | Varr   : forall n, Array.array n word -> value
