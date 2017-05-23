@@ -64,6 +64,24 @@ Definition to_rbool (v : value) :=
   end.
 
 (* -------------------------------------------------------------------- *)
+Lemma uniq_regs_rflags_strings :
+  uniq ([seq v.1 | v <- regs_strings  ] ++
+        [seq v.1 | v <- rflags_strings] ).
+Proof. by []. Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma mem_regs_strings_rflags (x : string) :
+     x    \in [seq v.1 | v <-   regs_strings]
+  -> x \notin [seq v.1 | v <- rflags_strings].
+Proof. by apply/allP: x. Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma mem_rflags_strings_regs (x : string) :
+     x    \in [seq v.1 | v <- rflags_strings]
+  -> x \notin [seq v.1 | v <-   regs_strings].
+Proof. by apply/allP: x. Qed.
+
+(* -------------------------------------------------------------------- *)
 Definition rflags_of_lvm (vm : vmap) rf :=
   forall x r, rflag_of_string x = Some r ->
     match get_var vm {| vtype := sbool; vname := x |} with
@@ -501,6 +519,22 @@ by case: rflag_of_string => // => rf' -[->].
 Qed.
 
 (* -------------------------------------------------------------------- *)
+Definition iserror {E A : Type} (v : result E A) :=
+  if v is Error _ then true else false.
+
+(* -------------------------------------------------------------------- *)
+Lemma rflag_of_var_regN ii x rf :
+     rflag_of_var ii x = ok rf
+  -> iserror (reg_of_var ii x).
+Proof. by case: x => // -[]. Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma reg_of_var_rflagN ii x rf :
+     reg_of_var ii x = ok rf
+  -> iserror (rflag_of_var ii x).
+Proof. by case: x => // -[]. Qed.
+
+(* -------------------------------------------------------------------- *)
 Lemma rflag_get_set rfm rf b :
   RflagMap.get (RflagMap.set rfm rf b) rf = Def b.
 Proof. by rewrite /RflagMap.get /RflagMap.set eqxx. Qed.
@@ -528,6 +562,20 @@ case: (x.(v_var) =P y) => [eq_xy|]; first subst y.
   rewrite rflag_get_set_ne //; move/eqP: ne_xy; apply: contraNneq.
   move=> ?; subst rf'; apply/eqP; apply: (inj_rflag_of_var ok_rf).
   by rewrite /y /= ok_rf'.
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma xwrite_var_rfN x v ii s1 s2 rfmap :
+     iserror (rflag_of_var ii (v_var x))
+  -> rflags_of_lvm s1.(evm) rfmap
+  -> write_var x v s1 = ok s2
+  -> rflags_of_lvm s2.(evm) rfmap.
+Proof.
+move=> ko_x ok_rm ok_s2 s rf' ok_rf'; rewrite (get_write_var_ne _ ok_s2).
++ case: {ok_s2} x ko_x => -[[] // x vix] /=; case: (x =P s) => [->|].
+  * by rewrite ok_rf'.
+  * by move=> ne_xs _ [].
++ by apply: ok_rm.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -570,12 +618,48 @@ case: (x.(v_var) =P y) => [eq_xy|]; first subst y.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma xswrite_var_reg ii x reg w cs s1 s2 xs :
-     xs86_equiv cs s1 xs
+Lemma xwrite_var_regN x v ii s1 s2 rfmap :
+     iserror (reg_of_var ii (v_var x))
+  -> regs_of_lvm s1.(evm) rfmap
+  -> write_var x v s1 = ok s2
+  -> regs_of_lvm s2.(evm) rfmap.
+Proof.
+move=> ko_x ok_rm ok_s2 s rf' ok_rf'; rewrite (get_write_var_ne _ ok_s2).
++ case: {ok_s2} x ko_x => -[[] // x vix] /=; case: (x =P s) => [->|].
+  * by rewrite ok_rf'.
+  * by move=> ne_xs _ [].
++ by apply: ok_rm.
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma xswrite_var_reg ii x reg w c cs s1 s2 xs :
+     xs86_equiv c (of_estate s1 cs) xs
   -> reg_of_var ii (v_var x) = ok reg
-  -> write_var x (Vword w) (to_estate s1) = ok (to_estate s2)
-  -> xs86_equiv cs s2 (st_write_reg reg w xs).
-Proof. Admitted.
+  -> write_var x (Vword w) s1 = ok s2
+  -> xs86_equiv c (of_estate s2 cs) (st_write_reg reg w xs).
+Proof.
+case=> /= xsE okc okd ipE rfE rgE ok_reg ok_s2; split=> //=.
++ move: ok_s2; rewrite /write_var; t_XrbindP.
+  by move=> _ _ <- /=; rewrite -xsE.
++ apply: (xwrite_var_rfN (ii := ii) _ rfE ok_s2).
+  by apply/reg_of_var_rflagN/ok_reg.
++ by apply: (xwrite_var_reg ok_reg rgE).
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma xswrite_var_rflat ii x rf b c cs s1 s2 xs :
+     xs86_equiv c (of_estate s1 cs) xs
+  -> rflag_of_var ii (v_var x) = ok rf
+  -> write_var x (Vbool b) s1 = ok s2
+  -> xs86_equiv c (of_estate s2 cs) (st_set_rflags rf b xs).
+Proof.
+case=> /= xsE okc okd ipE rfE rgE ok_rf ok_s2; split=> //=.
++ move: ok_s2; rewrite /write_var; t_XrbindP.
+  by move=> _ _ <- /=; rewrite -xsE.
++ by apply (xwrite_var_rf ok_rf rfE).
++ apply: (xwrite_var_regN (ii := ii) _ rgE ok_s2).
+  by apply/rflag_of_var_regN/ok_rf.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Variant RFI_t := RFI of var_i & rflag & bool.
@@ -771,7 +855,7 @@ Lemma xwrite_ok ii x (v : word) op c cs (s1 s2 : estate) xs1 :
 Proof.
 move=> eqv; case: x => // [x|x e] /=.
 + t_XrbindP=> r ok_r /esym opE ok_s2; subst op => /=.
-  by findok; apply: (xswrite_var_reg eqv ok_r); rewrite !to_estateK.
+  by findok; apply: (xswrite_var_reg eqv ok_r).
 t_XrbindP=> r ok_r w ok_w /esym opE vx ok_vx ve ok_ve m ok_m.
 move=> ?; subst s2 => /=; case: e ok_w ok_ve => // -[] //=.
 move=> z -[?] -[?]; subst w ve op => /=; rewrite /decode_addr /=.
@@ -1021,7 +1105,7 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
       move: ok_s'1; rewrite -[s'1](to_estateK cs) => ok_s'1.
       have := (xmul eqv' _ ok_of ok_cf ok_sf ok_sp ok_zf ok_s'1).
       move/(_ (erefl _)); set xs' := st_update_rflags _ _ => eqv_s'1.
-      have := xswrite_var_reg eqv_s'1 ok_y2; rewrite to_estateK => h.
+      have := xswrite_var_reg eqv_s'1 ok_y2 => h.
       move: ok_s'2; rewrite -{1}[s'2](to_estateK cs) => /h {h}h.
       have := xswrite_var_reg h ok_y1; rewrite to_estateK => {h}h.
       move: ok_s2; rewrite -{1}[s2](to_estateK cs) => /h {h}h.
