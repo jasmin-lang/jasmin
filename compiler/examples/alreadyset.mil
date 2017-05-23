@@ -1,47 +1,16 @@
-// ** subtraction
-// ************************************************************************
-
-fn sub(reg u64[1] x) -> reg u64[1] {
-
-    x[0] += 0;
-
-  return x;
+fn sub(reg u64[1] x) {
+x[0] += 0;
 }
 
-// ** ladderstep
-// ************************************************************************
+export
+fn scalarmult() {
+  stack u64[1] x;
+  reg u64[1] y;
 
-fn ladderstep(stack u64[1] x3p)
-    -> (stack u64[1]) {
-
-  reg u64[1] t3;
-  reg u64[1] t8;
-
-  t8[0]      = x3p[0];
-  x3p[0]      = t8[0];
-
-  _      = sub(t8);
- 
-  return x3p;
-}
-
-// ** montgomery ladder
-// ************************************************************************
-
-fn mladder(stack u64[1] xr) {
-
-    while (true) {
-      xr = ladderstep(xr);
-    }
-}
-
-// ** scalar multiplication
-// ************************************************************************
-
- export fn scalarmult() {
-  stack u64[1] xa;
-
-  xa[0] = 0;
-  mladder(xa);
- 
+  x[0] = 0;
+  while (true) {
+    y[0] = x[0];
+    x[0] = y[0];
+    sub(y);
+  }
 }
