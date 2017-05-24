@@ -4,29 +4,23 @@ This repository contains the following subdirectories:
 
 - compiler/ : Compiler from jasmin-lang to assembly.
 - proofs/ : Coq implementations of compiler passes / checkers.
-- rust-lib/ : Rust library (and macros) for compiling jasmin-lang with `rustc`. 
-- examples/ : Example implementations (curve25519).
 
 # Dependencies
 
-- Rust nightly (tested with rustup)
-- Coq, ssreflect, Ocaml (tested with opam)
+- For the compiler: check compiler/README.md
+- For the proofs:
+  + Coq (tested with 8.5.3 and 8.6)
+  + SSReflect (tested with 1.6.1)
 
 # Testing
 
-1. Compile Coq theories and extract modules for compiler:
-   - `$ cd proofs` 
-   - `$ make`
-2. Compile and test compiler
+1. To compile and test the compiler:
    - `$ cd compiler`
+   - `$ make CIL build`
+   - `$ make tests`
+2. To compile Coq proofs:
+   - `$ cd proofs`
    - `$ make`
-   - `$ ./scripts/run_tests.py`
-3. Compile and test rust support library:
-   - `$ cd rust-lib`
-   - `$ cargo test --release`
-4. Compile and test example with Rust compiler:
-   - `$ cd examples/curve25519`
-   - `$ cargo test --release`
 
 # License
 
