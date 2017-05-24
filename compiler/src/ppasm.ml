@@ -234,14 +234,16 @@ let pp_instr (i : X86_sem.asm) =
   | MUL op ->
       `Instr (pp_iname rs "mul", [pp_opr rs op])
 
-  | IMUL op ->
+  | IMUL (op, None) ->
       `Instr (pp_iname rs "imul", [pp_opr rs op])
 
-  | IMUL64 (op1, op2) ->
-      `Instr (pp_iname rs "imul", [pp_opr rs op2; pp_opr rs op1])
+  | IMUL (op1, Some (op2, None)) ->
+      `Instr (pp_iname rs "imul",
+              [pp_opr rs op2; pp_opr rs op1])
 
-  | IMUL64_imm (op1, op2, i) ->
-      `Instr (pp_iname rs "imul", [pp_imm (Conv.bi_of_int64 i); pp_opr rs op2; pp_opr rs op1])
+  | IMUL (op1, Some (op2, Some i)) ->
+      `Instr (pp_iname rs "imul",
+              [pp_imm (Conv.bi_of_int64 i); pp_opr rs op2; pp_opr rs op1])
 
   | DIV op ->
       `Instr (pp_iname rs "div", [pp_opr rs op])
@@ -325,8 +327,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | SUB    (op, _)
   | ADC    (op, _)
   | SBB    (op, _)
-  | IMUL64 (op, _)
-  | IMUL64_imm (op, _, _)
+  | IMUL   (op, Some _)
   | AND    (op, _)
   | OR     (op, _)
   | XOR    (op, _)
@@ -337,7 +338,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
       Option.map_default (fun r -> Set.add r c) c (reg_of_oprd op)
 
   | MUL  _
-  | IMUL _
+  | IMUL (_, None)
   | DIV  _
   | IDIV _ ->
       List.fold_right Set.add [X86_sem.RAX; X86_sem.RDX] c
