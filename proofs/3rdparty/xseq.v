@@ -14,6 +14,11 @@ Fixpoint assoc (s : seq (T * U)) (x : T) : option U :=
   if s is (y, v) :: s then
     if x == y then Some v else assoc s x
   else None.
+
+Lemma assoc_cat (s1 s2: seq (T * U)) x :
+  assoc (s1 ++ s2) x =
+    if assoc s1 x is Some _ then assoc s1 x else assoc s2 x.
+Proof. by elim: s1 => [|[t u] s1 ih] //=; case: eqP. Qed.
 End Assoc.
 
 (* -------------------------------------------------------------------- *)

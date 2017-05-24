@@ -210,38 +210,26 @@ Canonical rflag_finType :=
 
 (* -------------------------------------------------------------------- *)
 Module RegMap.
-  Definition map := register -> word.
+  Definition map := {ffun register -> word}.
 
-  Definition get (m : map) (x : register) := m x.
-
-  Axiom eq_regmap :
-    forall rg1 rg2,
-      (forall x, get rg1 x = get rg2 x) -> rg1 = rg2.
-
-  Definition set (m : map) (x : register) (y : word) :=
-    fun z => if (z == x) then y else m z.
+  Definition set (m : map) (x : register) (y : word) : map :=
+    [ffun z => if (z == x) then y else m z].
 End RegMap.
 
 (* -------------------------------------------------------------------- *)
 Module RflagMap.
   Variant rflagv := Def of bool | Undef.
 
-  Definition map := rflag -> rflagv.
+  Definition map := {ffun rflag -> rflagv}.
 
-  Definition get (m : map) (x : rflag) := m x.
+  Definition set (m : map) (x : rflag) (y : bool) : map :=
+    [ffun z => if (z == x) then Def y else m z].
 
-  Axiom eq_rfmap :
-    forall rf1 rf2,
-      (forall x, get rf1 x = get rf2 x) -> rf1 = rf2.
+  Definition oset (m : map) (x : rflag) (y : rflagv) : map :=
+    [ffun z => if (z == x) then y else m z].
 
-  Definition set (m : map) (x : rflag) (y : bool) :=
-    fun z => if (z == x) then Def y else m z.
-
-  Definition oset (m : map) (x : rflag) (y : rflagv) :=
-    fun z => if (z == x) then y else m z.
-
-  Definition update (m : map) (f : rflag -> option rflagv) :=
-    fun rf => odflt (m rf) (f rf).
+  Definition update (m : map) (f : rflag -> option rflagv) : map :=
+    [ffun rf => odflt (m rf) (f rf)].
 End RflagMap.
 
 (* -------------------------------------------------------------------- *)
@@ -250,8 +238,8 @@ Notation rflagmap := RflagMap.map.
 Notation Def      := RflagMap.Def.
 Notation Undef    := RflagMap.Undef.
 
-Definition regmap0   : regmap   := fun x => I64.repr 0.
-Definition rflagmap0 : rflagmap := fun x => Undef.
+Definition regmap0   : regmap   := [ffun x => I64.repr 0].
+Definition rflagmap0 : rflagmap := [ffun x => Undef].
 
 (* -------------------------------------------------------------------- *)
 Record x86_state := X86State {
@@ -272,7 +260,7 @@ Definition st_write_reg (r : register) (w : word) (s : x86_state) :=
 
 (* -------------------------------------------------------------------- *)
 Definition st_get_rflag (rf : rflag) (s : x86_state) :=
-  if RflagMap.get s.(xrf) rf is Def b then ok b else type_error.
+  if s.(xrf) rf is Def b then ok b else type_error.
 
 (* -------------------------------------------------------------------- *)
 Definition st_set_rflags (rf : rflag) (b : bool) (s : x86_state) :=
@@ -319,9 +307,9 @@ Coercion word_of_scale (s : scale) : word :=
 (* -------------------------------------------------------------------- *)
 Definition decode_addr (s : x86_state) (a : address) : word := nosimpl (
   let: disp   := a.(ad_disp) in
-  let: base   := odflt I64.zero (omap (RegMap.get s.(xreg)) a.(ad_base)) in
+  let: base   := odflt I64.zero (omap (s.(xreg)) a.(ad_base)) in
   let: scale  := word_of_scale a.(ad_scale) in
-  let: offset := odflt I64.zero (omap (RegMap.get s.(xreg)) a.(ad_offset)) in
+  let: offset := odflt I64.zero (omap (s.(xreg)) a.(ad_offset)) in
 
   I64.add disp (I64.add base (I64.mul scale offset))).
 
@@ -337,7 +325,7 @@ Definition write_oprd (o : oprd) (w : word) (s : x86_state) :=
 Definition read_oprd (o : oprd) (s : x86_state) :=
   match o with
   | Imm_op v => ok v
-  | Reg_op r => ok (RegMap.get s.(xreg) r)
+  | Reg_op r => ok (s.(xreg) r)
   | Adr_op a => read_mem s.(xmem) (decode_addr s a)
   end.
 
@@ -345,13 +333,13 @@ Definition read_oprd (o : oprd) (s : x86_state) :=
 Definition read_ireg (ir : ireg) (s : x86_state) :=
   match ir with
   | Imm_ir v => v
-  | Reg_ir r => RegMap.get s.(xreg) r
+  | Reg_ir r => s.(xreg) r
   end.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_cond (c : condt) (rm : rflagmap) :=
   let get rf :=
-    if RflagMap.get rm rf is Def b then ok b else undef_error in
+    if rm rf is Def b then ok b else undef_error in
 
   match c with
   | O_ct   => get OF
@@ -499,7 +487,7 @@ Definition eval_SUB o1 o2 s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_MUL o s : x86_result :=
-  let v1 := RegMap.get s.(xreg) RAX in
+  let v1 := s.(xreg) RAX in
   Let v2 := read_oprd o s in
   let lo := I64.mul v1 v2 in
   let hi := I64.mulhu v1 v2 in
@@ -512,7 +500,7 @@ Definition eval_MUL o s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_IMUL o s : x86_result  :=
-  let v1 := RegMap.get s.(xreg) RAX in
+  let v1 := s.(xreg) RAX in
   Let v2 := read_oprd o s in
   let lo := I64.mul v1 v2 in
   let hi := I64.mulhs v1 v2 in
@@ -528,8 +516,8 @@ Definition eval_IMUL64_imm o1 o2 (i: word) s : x86_result  := type_error.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_DIV o s : x86_result :=
-  let hi := RegMap.get s.(xreg) RDX in
-  let lo := RegMap.get s.(xreg) RAX in
+  let hi := s.(xreg) RDX in
+  let lo := s.(xreg) RAX in
   let dd := dwordu hi lo in
   Let dv := read_oprd o s in
   let dv := I64.unsigned dv in
@@ -546,8 +534,8 @@ Definition eval_DIV o s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_IDIV o s : x86_result :=
-  let hi := RegMap.get s.(xreg) RDX in
-  let lo := RegMap.get s.(xreg) RAX in
+  let hi := s.(xreg) RDX in
+  let lo := s.(xreg) RAX in
   let dd := dwords hi lo in
   Let dv := read_oprd o s in
   let dv := I64.signed dv in

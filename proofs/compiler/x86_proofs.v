@@ -1,6 +1,6 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect.
-(* ------- *) Require Import utils expr linear compiler_util low_memory.
+(* ------- *) Require Import xseq utils expr linear compiler_util low_memory.
 (* ------- *) Require Import sem linear linear_sem x86 x86_sem.
 
 Set Implicit Arguments.
@@ -45,6 +45,14 @@ Ltac t_XrbindP :=
 Ltac findok := eexists; first by reflexivity.
 
 (* -------------------------------------------------------------------- *)
+Lemma eq_regmapP (rg1 rg2 : RegMap.map) : (rg1 =1 rg2) <-> (rg1 = rg2).
+Proof. by apply: ffunP. Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma eq_rfmapP (rf1 rf2 : RflagMap.map) : (rf1 =1 rf2) <-> (rf1 = rf2).
+Proof. by apply: ffunP. Qed.
+
+(* -------------------------------------------------------------------- *)
 Lemma to_estateK c s: to_estate (of_estate s c) = s.
 Proof. by case: s. Qed.
 
@@ -82,12 +90,12 @@ Lemma mem_rflags_strings_regs (x : string) :
 Proof. by apply/allP: x. Qed.
 
 (* -------------------------------------------------------------------- *)
-Definition rflags_of_lvm (vm : vmap) rf :=
+Definition rflags_of_lvm (vm : vmap) (rf : rflagmap) :=
   forall x r, rflag_of_string x = Some r ->
     match get_var vm {| vtype := sbool; vname := x |} with
     | Ok v =>
       match to_rbool v with
-      | Ok b => RflagMap.get rf r = b
+      | Ok b => rf r = b
       | _    => False
       end
     | _ => False
@@ -99,7 +107,7 @@ Definition regs_of_lvm (vm : vmap) (rf : regmap) :=
     match get_var vm {| vtype := sword; vname := x |} with
     | Ok v =>
         match to_word v with
-        | Ok    v => RegMap.get rf r = v
+        | Ok    v => rf r = v
         | Error _ => False
         end
     | Error _ => False
@@ -111,7 +119,7 @@ Lemma rflags_eq vm xf1 xf2 :
   -> rflags_of_lvm vm xf2
   -> xf1 = xf2.
 Proof.
-move=> eq1 eq2; apply/RflagMap.eq_rfmap => rf.
+move=> eq1 eq2. apply/eq_rfmapP => rf.
 move/(_ (string_of_rflag rf) rf (rflag_of_stringK _)): eq2.
 move/(_ (string_of_rflag rf) rf (rflag_of_stringK _)): eq1.
 by case: get_var => // v; case: to_rbool => // a -> ->.
@@ -123,7 +131,7 @@ Lemma regs_eq vm xr1 xr2 :
   -> regs_of_lvm vm xr2
   -> xr1 = xr2.
 Proof.
-move=> eq1 eq2; apply/RegMap.eq_regmap => rf.
+move=> eq1 eq2; apply/eq_regmapP => rf.
 move/(_ (string_of_register rf) rf (reg_of_stringK _)): eq2.
 move/(_ (string_of_register rf) rf (reg_of_stringK _)): eq1.
 by case: get_var => // v; case: to_word => // a -> ->.
@@ -201,7 +209,7 @@ Lemma xgetflag_r ii c x rf v b s xs :
   -> rflag_of_var ii x = ok rf
   -> get_var s.(lvm) x = ok v
   -> to_rbool v = ok b
-  -> RflagMap.get xs.(xrf) rf = b.
+  -> xs.(xrf) rf = b.
 Proof.
 case=> _ _ _ _ eqv _; case: x => -[] //= x.
 case E: rflag_of_string => [vx|] // -[<-] ok_v ok_b.
@@ -213,8 +221,7 @@ Lemma xgetflag_ex ii c x rf v s xs :
      xs86_equiv c s xs
   -> rflag_of_var ii x = ok rf
   -> get_var s.(lvm) x = ok v
-  -> exists2 b, to_rbool v = ok b
-                & RflagMap.get xs.(xrf) rf = b.
+  -> exists2 b, to_rbool v = ok b & xs.(xrf) rf = b.
 Proof.
 case=> _ _ _ _ eqv _; case: x => -[] //= x.
 case E: rflag_of_string => [vx|] // [<-] ok_v.
@@ -231,7 +238,7 @@ Lemma xgetflag ii c x rf v b s xs :
   -> rflag_of_var ii x = ok rf
   -> get_var s.(lvm) x = ok v
   -> to_bool v = ok b
-  -> RflagMap.get xs.(xrf) rf = Def b.
+  -> xs.(xrf) rf = Def b.
 Proof.
 move=> eqv ok_rf ok_v ok_b.
 rewrite (xgetflag_r (b := Def b) eqv ok_rf ok_v) //.
@@ -243,8 +250,7 @@ Lemma xgetreg_ex ii c x r v s xs :
      xs86_equiv c s xs
   -> reg_of_var ii x = ok r
   -> get_var s.(lvm) x = ok v
-  -> exists2 w, to_word v = ok w
-                & RegMap.get xs.(xreg) r = w.
+  -> exists2 w, to_word v = ok w & xs.(xreg) r = w.
 Proof.
 case=> _ _ _ _ _ eqv; case: x => -[] //= x.
 case E: reg_of_string => [vx|] // [<-] ok_v.
@@ -260,7 +266,7 @@ Lemma xgetreg ii c x r v w s xs :
   -> reg_of_var ii x = ok r
   -> get_var s.(lvm) x = ok v
   -> to_word v = ok w
-  -> RegMap.get xs.(xreg) r = w.
+  -> xs.(xreg) r = w.
 Proof.
 case=> _ _ _ _ _ eqv; case: x => -[] //= x.
 case E: reg_of_string => [vx|] // -[<-] ok_v ok_w.
@@ -536,13 +542,13 @@ Proof. by case: x => // -[]. Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma rflag_get_set rfm rf b :
-  RflagMap.get (RflagMap.set rfm rf b) rf = Def b.
-Proof. by rewrite /RflagMap.get /RflagMap.set eqxx. Qed.
+  (RflagMap.set rfm rf b) rf = Def b.
+Proof. by rewrite /RflagMap.set ffunE eqxx. Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma rflag_get_set_ne rfm rf1 rf2 b : rf1 != rf2 ->
-  RflagMap.get (RflagMap.set rfm rf1 b) rf2 = RflagMap.get rfm rf2.
-Proof. by rewrite /RflagMap.get /RflagMap.set eq_sym => /negbTE ->. Qed.
+  (RflagMap.set rfm rf1 b) rf2 = rfm rf2.
+Proof. by rewrite /RflagMap.set ffunE eq_sym => /negbTE ->. Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xwrite_var_rf x b ii rf s1 s2 rfmap :
@@ -589,13 +595,13 @@ Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma reg_get_set rgm rg w :
-  RegMap.get (RegMap.set rgm rg w) rg = w.
-Proof. by rewrite /RegMap.get /RegMap.set eqxx. Qed.
+  (RegMap.set rgm rg w) rg = w.
+Proof. by rewrite /RegMap.set ffunE eqxx. Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma reg_get_set_ne rgm rg1 rg2 w : rg1 != rg2 ->
-  RegMap.get (RegMap.set rgm rg1 w) rg2 = RegMap.get rgm rg2.
-Proof. by rewrite /RegMap.get /RegMap.set eq_sym => /negbTE ->. Qed.
+  (RegMap.set rgm rg1 w) rg2 = rgm rg2.
+Proof. by rewrite /RegMap.set ffunE eq_sym => /negbTE ->. Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xwrite_var_reg ii x reg w s1 s2 rgmap :
@@ -668,6 +674,7 @@ Definition rfi2var  rfi := let: RFI v _  _ := rfi in Lvar v.
 Definition rfi2rf   rfi := let: RFI _ rf _ := rfi in rf.
 Definition rfi2bool rfi := let: RFI _ _  v := rfi in v.
 Definition rfi2val  rfi := let: RFI _ _  v := rfi in Vbool v.
+Definition rfi2upd  rfi := (rfi2rf rfi, rfi2bool rfi).
 
 (* -------------------------------------------------------------------- *)
 Definition is_rf_map ii xrs :=
@@ -678,32 +685,58 @@ Definition is_rf_map ii xrs :=
           else false) xrs.
 
 (* -------------------------------------------------------------------- *)
+Lemma rfmap_update0 rfm : RflagMap.update rfm (fun _ => None) = rfm.
+Proof. by apply/eq_rfmapP=> r; rewrite /RflagMap.update ffunE. Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma rfmap_update_of_sets upd (rfm : rflagmap) :
+    foldl (fun rfm v => RflagMap.set rfm v.1 v.2) rfm upd
+  = RflagMap.update rfm (fun rf => omap Def (assoc (rev upd) rf)).
+Proof.
+set F := fun _ _ => _; elim: upd rfm => [|[r b] upd ih] rfm /=.
++ by rewrite rfmap_update0.
+rewrite rev_cons -cats1 ih; apply/eq_rfmapP=> rf.
+rewrite /RflagMap.update !ffunE /= assoc_cat /=.
+by case: (assoc (rev upd) rf) => //; case: eqP.
+Qed.
+
+(* -------------------------------------------------------------------- *)
 Lemma xwrite_vars_rf xrs ii s1 s2 xs1 :
      is_rf_map ii xrs
-  -> uniq (map rfi2rf xrs)
-  -> write_lvals (to_estate s1)
-       (map rfi2var xrs) (map rfi2val xrs) = ok (to_estate s2)
-  -> rflags_of_lvm s2.(lvm) (RflagMap.update xs1 (fun rf =>
-       let j := seq.index rf (map rfi2rf xrs) in
-       if j < size xrs then
-         Some (Def (nth false (map rfi2bool xrs) j))
-       else None)).
-Proof. Admitted.
+  -> rflags_of_lvm s1.(evm) xs1
+  -> write_lvals s1 (map rfi2var xrs) (map rfi2val xrs) = ok s2
+  -> rflags_of_lvm s2.(evm) (RflagMap.update xs1 (fun rf =>
+       omap Def (assoc (rev [seq rfi2upd v | v <- xrs]) rf))).
+Proof.
+rewrite -rfmap_update_of_sets; elim/last_ind: xrs s2 xs1.
++ by move=> /= xs1 s2 _ ? -[<-].
+move=> xrs [x r b] ih s2 xs1; rewrite /is_rf_map all_rcons.
+rewrite  -/(is_rf_map _ _) => /andP[].
+case Ex: rflag_of_var => [rf|//] /eqP-> ok_xrs ok_xs1 ok_s2.
+move: ok_s2; rewrite 2!map_rcons => /write_lvals_rcons /=.
+case=> s' /ih -/(_ _ ok_xrs ok_xs1) {ih}ih ok_s2.
+by rewrite map_rcons -cats1 foldl_cat; apply: (xwrite_var_rf Ex ih).
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xwrite_vars_rf_regN xrs ii s1 s2 xs1 :
-     is_rf_map ii xrs
-  -> write_lvals (to_estate s1)
-       (map rfi2var xrs) (map rfi2val xrs) = ok (to_estate s2)
-  -> regs_of_lvm s2.(lvm) xs1.
-Proof. Admitted.
+     regs_of_lvm s1.(evm) xs1
+  -> is_rf_map ii xrs
+  -> write_lvals s1 (map rfi2var xrs) (map rfi2val xrs) = ok s2
+  -> regs_of_lvm s2.(evm) xs1.
+Proof.
+elim: xrs s1 => [|[x r b] xrs ih] s1 rg1E /=; first by move=> _ [<-].
+case ok_x: rflag_of_var => [rf|//] /andP[/eqP _ /ih {ih}ih].
+t_XrbindP=> s' ok_s' ok_s2; have := rflag_of_var_regN ok_x.
+by move=> /xwrite_var_regN /(_ rg1E ok_s') /ih; apply.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma eq_update_rf f1 f2 rfm :
   f1 =1 f2 -> RflagMap.update rfm f1 = RflagMap.update rfm f2.
 Proof.
-move=> eq_f; apply/RflagMap.eq_rfmap => rf /=.
-by rewrite /RflagMap.update /RflagMap.get /= eq_f.
+move=> eq_f; apply/eq_rfmapP => rf /=.
+by rewrite /RflagMap.update !ffunE /= eq_f.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -735,7 +768,7 @@ Lemma xaddr_ofs_var c s xs ii e v r x :
   -> sem_pexpr (to_estate s) e = ok v
   -> reg_of_var ii (v_var x) = ok r
   -> addr_ofs e = Ofs_var x
-  -> to_word v = ok (RegMap.get xs.(xreg) r).
+  -> to_word v = ok (xs.(xreg) r).
 Proof.
 move=> eqv; case: e => // [[]//||]; last first.
 + case=> // -[]// e1 e2 /=; t_xrbindP=> v1 _ v2 _ _ _.
@@ -755,7 +788,7 @@ Lemma xaddr_ofs_mul c s xs ii e v r sc x1 x2 :
   -> scale_of_z ii x1 = ok sc
   -> reg_of_var ii (v_var x2) = ok r
   -> addr_ofs e = Ofs_mul x1 x2
-  -> to_word v = ok (I64.mul (word_of_scale sc) (RegMap.get xs.(xreg) r)).
+  -> to_word v = ok (I64.mul (word_of_scale sc) (xs.(xreg) r)).
 Proof.
 move=> eqv; case: e => // [[]//|] -[]// -[]// e1 e2 /=.
 + by t_xrbindP=> v1 _ v2 _ _ _ _; do! case: addr_ofs => //.
@@ -780,9 +813,7 @@ Lemma xaddr_ofs_add c s xs ii e v r w sc x1 x2 x3 :
 -> reg_of_var ii (v_var x2) = ok r
 -> word_of_int x3 = ok w
 -> addr_ofs e = Ofs_add x1 x2 x3
--> to_word v = ok (
-     I64.add w (I64.mul
-      (word_of_scale sc) (RegMap.get xs.(xreg) r))).
+-> to_word v = ok (I64.add w (I64.mul (word_of_scale sc) (xs.(xreg) r))).
 Proof.
 move=> eqv; case: e => // [[]//|] -[]// -[]// e1 e2 /=; last first.
 + by t_xrbindP=> v1 _ v2 _ _ _ _; do! case: addr_ofs => //.
@@ -899,12 +930,16 @@ have rfi: is_rf_map ii xrs.
 have := eqv1 => -[/= /esym m1E okc1 okd1 ip1E rf1E rg1E]; split => //=.
 + by rewrite m1E.
 + by rewrite -eq_lc okd1.
-+ have := xwrite_vars_rf rf1 rfi (erefl _) h.
-  set rfm1 := RflagMap.update _ _;
++ have E1: s1.(lvm) = (to_estate s1).(evm) by case: {+}s1.
+  have E2: s2.(lvm) = (to_estate s2).(evm) by case: {+}s2.
+  move: rf1E; rewrite {}E1 {}E2 => /(xwrite_vars_rf rfi).
+  move/(_ _ h); set rfm1 := RflagMap.update _ _.
   set rfm2 := RflagMap.update _ _.
   suff ->: rfm1 = rfm2 by done.
   by apply: eq_update_rf; case.
-+ by apply: (xwrite_vars_rf_regN _ rfi h).
++ have E1: s1.(lvm) = (to_estate s1).(evm) by case: {+}s1.
+  have E2: s2.(lvm) = (to_estate s2).(evm) by case: {+}s2.
+  by move: rg1E; rewrite E1 E2 => /xwrite_vars_rf_regN /(_ rfi h).
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -940,12 +975,16 @@ have rfi: is_rf_map ii xrs.
 have := eqv1 => -[/= /esym m1E okc1 okd1 ip1E rf1E rg1E]; split => //=.
 + by rewrite m1E.
 + by rewrite -eq_lc okd1.
-+ have := xwrite_vars_rf rf1 rfi (erefl _) h.
-  set rfm1 := RflagMap.update _ _;
++ have E1: s1.(lvm) = (to_estate s1).(evm) by case: {+}s1.
+  have E2: s2.(lvm) = (to_estate s2).(evm) by case: {+}s2.
+  move: rf1E; rewrite {}E1 {}E2 => /(xwrite_vars_rf rfi).
+  move/(_ _ h); set rfm1 := RflagMap.update _ _.
   set rfm2 := RflagMap.update _ _.
   suff ->: rfm1 = rfm2 by done.
   by apply: eq_update_rf; case.
-+ by apply: (xwrite_vars_rf_regN _ rfi h).
++ have E1: s1.(lvm) = (to_estate s1).(evm) by case: {+}s1.
+  have E2: s2.(lvm) = (to_estate s2).(evm) by case: {+}s2.
+  by move: rg1E; rewrite E1 E2 => /xwrite_vars_rf_regN /(_ rfi h).
 Qed.
 
 (* -------------------------------------------------------------------- *)
