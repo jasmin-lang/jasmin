@@ -72,9 +72,8 @@ Variant asm : Type :=
 | ADD    of oprd & oprd            (* add unsigned / signed *)
 | SUB    of oprd & oprd            (* sub unsigned / signed *)
 | MUL    of oprd                   (* mul unsigned *)
-| IMUL   of oprd                   (* mul   signed *)
-| IMUL64	of oprd & oprd	(* mul truncated *)
-| IMUL64_imm of oprd & oprd & word (* mul by immediate, truncated *)
+| IMUL   of oprd & option (oprd * option word)
+                                   (* mul signed with truncation *)
 | DIV    of oprd                   (* div unsigned *)
 | IDIV   of oprd                   (* div   signed *)
 
@@ -499,20 +498,21 @@ Definition eval_MUL o s : x86_result :=
   ok s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_IMUL o s : x86_result  :=
-  let v1 := s.(xreg) RAX in
-  Let v2 := read_oprd o s in
-  let lo := I64.mul v1 v2 in
-  let hi := I64.mulhs v1 v2 in
-  let ov := dwords hi lo in
-  let ov := (ov <? I64.min_signed)%Z || (ov >? I64.max_unsigned)%Z in
-  let s  := st_write_reg RAX lo s in
-  let s  := st_write_reg RDX lo s in
-  ok (st_update_rflags (rflags_of_mul ov) s).
+Definition eval_IMUL o1 (o2 : option (oprd * option word)) s : x86_result  :=
+  match o2 with
+  | None =>
+      let v1 := s.(xreg) RAX in
+      Let v2 := read_oprd o1 s in
+      let lo := I64.mul v1 v2 in
+      let hi := I64.mulhs v1 v2 in
+      let ov := dwords hi lo in
+      let ov := (ov <? I64.min_signed)%Z || (ov >? I64.max_unsigned)%Z in
+      let s  := st_write_reg RAX lo s in
+      let s  := st_write_reg RDX lo s in
+      ok (st_update_rflags (rflags_of_mul ov) s)
 
-Definition eval_IMUL64 o1 o2 s : x86_result  := type_error.
-
-Definition eval_IMUL64_imm o1 o2 (i: word) s : x86_result  := type_error.
+  | _ => type_error
+  end.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_DIV o s : x86_result :=
@@ -747,9 +747,7 @@ Definition eval_instr (i : asm) s : x86_result :=
   | ADD    o1 o2    => eval_ADD o1 o2 s
   | SUB    o1 o2    => eval_SUB o1 o2 s
   | MUL    o        => eval_MUL o s
-  | IMUL   o        => eval_IMUL o s
-  | IMUL64 o1 o2 => eval_IMUL64 o1 o2 s
-  | IMUL64_imm o1 o2 imm => eval_IMUL64_imm o1 o2 imm s
+  | IMUL   o1 o2i   => eval_IMUL o1 o2i s
   | DIV    o        => eval_DIV o s
   | IDIV   o        => eval_IDIV o s
   | ADC    o1 o2    => eval_ADC o1 o2 s
