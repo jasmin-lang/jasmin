@@ -72,6 +72,14 @@ Definition to_rbool (v : value) :=
   end.
 
 (* -------------------------------------------------------------------- *)
+Definition of_rbool (v : RflagMap.rflagv) :=
+  if v is Def b then Vbool b else Vundef sbool.
+
+(* -------------------------------------------------------------------- *)
+Lemma to_rboolK rfv : to_rbool (of_rbool rfv) = ok rfv.
+Proof. by case: rfv. Qed.
+
+(* -------------------------------------------------------------------- *)
 Lemma uniq_regs_rflags_strings :
   uniq ([seq v.1 | v <- regs_strings  ] ++
         [seq v.1 | v <- rflags_strings] ).
@@ -546,9 +554,39 @@ Lemma rflag_get_set rfm rf b :
 Proof. by rewrite /RflagMap.set ffunE eqxx. Qed.
 
 (* -------------------------------------------------------------------- *)
+Lemma rflag_get_oset rfm rf b :
+  (RflagMap.oset rfm rf b) rf = b.
+Proof. by rewrite /RflagMap.oset ffunE eqxx. Qed.
+
+(* -------------------------------------------------------------------- *)
 Lemma rflag_get_set_ne rfm rf1 rf2 b : rf1 != rf2 ->
   (RflagMap.set rfm rf1 b) rf2 = rfm rf2.
 Proof. by rewrite /RflagMap.set ffunE eq_sym => /negbTE ->. Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma rflag_get_oset_ne rfm rf1 rf2 b : rf1 != rf2 ->
+  (RflagMap.oset rfm rf1 b) rf2 = rfm rf2.
+Proof. by rewrite /RflagMap.oset ffunE eq_sym => /negbTE ->. Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma xwrite_var_orf x b ii rf s1 s2 rfmap :
+     rflag_of_var ii (v_var x) = ok rf
+  -> rflags_of_lvm s1.(evm) rfmap
+  -> write_var x (of_rbool b) s1 = ok s2
+  -> rflags_of_lvm s2.(evm) (RflagMap.oset rfmap rf b).
+Proof.
+move=> ok_rf ok_rm ok_s2 s rf' ok_rf'; set y := Var _ _.
+case: (x.(v_var) =P y) => [eq_xy|]; first subst y.
++ rewrite -eq_xy (get_write_var ok_s2) /=.
+  have := rflag_of_var_name ok_rf; rewrite eq_xy /=.
+  by rewrite ok_rf' => -[->] /=; rewrite to_rboolK rflag_get_oset.
++ move=> ne_xy; rewrite (get_write_var_ne ne_xy ok_s2).
+  move/(_ _ _ ok_rf'): ok_rm; rewrite -/y /=.
+  case ok_vy: get_var => [vy|//]; case: to_rbool => // _ <-.
+  rewrite rflag_get_oset_ne //; move/eqP: ne_xy; apply: contraNneq.
+  move=> ?; subst rf'; apply/eqP; apply: (inj_rflag_of_var ok_rf).
+  by rewrite /y /= ok_rf'.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xwrite_var_rf x b ii rf s1 s2 rfmap :
@@ -556,19 +594,7 @@ Lemma xwrite_var_rf x b ii rf s1 s2 rfmap :
   -> rflags_of_lvm s1.(evm) rfmap
   -> write_var x (Vbool b) s1 = ok s2
   -> rflags_of_lvm s2.(evm) (RflagMap.set rfmap rf b).
-Proof.
-move=> ok_rf ok_rm ok_s2 s rf' ok_rf'; set y := Var _ _.
-case: (x.(v_var) =P y) => [eq_xy|]; first subst y.
-+ rewrite -eq_xy (get_write_var ok_s2) /=.
-  have := rflag_of_var_name ok_rf; rewrite eq_xy /=.
-  by rewrite ok_rf' => -[->]; rewrite rflag_get_set.
-+ move=> ne_xy; rewrite (get_write_var_ne ne_xy ok_s2).
-  move/(_ _ _ ok_rf'): ok_rm; rewrite -/y /=.
-  case ok_vy: get_var => [vy|//]; case: to_rbool => // _ <-.
-  rewrite rflag_get_set_ne //; move/eqP: ne_xy; apply: contraNneq.
-  move=> ?; subst rf'; apply/eqP; apply: (inj_rflag_of_var ok_rf).
-  by rewrite /y /= ok_rf'.
-Qed.
+Proof. by apply: (xwrite_var_orf (b := Def b)). Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xwrite_var_rfN x v ii s1 s2 rfmap :
@@ -668,14 +694,22 @@ case=> /= xsE okc okd ipE rfE rgE ok_rf ok_s2; split=> //=.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Variant RFI_t := RFI of var_i & rflag & bool.
+Variant RFI_t := RFI of var_i & rflag & RflagMap.rflagv.
 
 Definition rfi2var  rfi := let: RFI v _  _ := rfi in v.
 Definition rfi2lval rfi := let: RFI v _  _ := rfi in Lvar v.
 Definition rfi2rf   rfi := let: RFI _ rf _ := rfi in rf.
-Definition rfi2bool rfi := let: RFI _ _  v := rfi in v.
-Definition rfi2val  rfi := let: RFI _ _  v := rfi in Vbool v.
-Definition rfi2upd  rfi := (rfi2rf rfi, rfi2bool rfi).
+Definition rfi2rfv  rfi := let: RFI _ _  v := rfi in v.
+Definition rfi2val  rfi := of_rbool (rfi2rfv rfi).
+Definition rfi2upd  rfi := (rfi2rf rfi, rfi2rfv rfi).
+
+(* -------------------------------------------------------------------- *)
+Definition pred_of_rfi ii (rfi : RFI_t) :=
+  rflag_of_var ii (rfi2var rfi) = ok (rfi2rf rfi).
+
+(* -------------------------------------------------------------------- *)
+Definition pred_of_rfis ii (rfis : seq RFI_t) :=
+  foldl and True (map (pred_of_rfi ii) rfis).
 
 (* -------------------------------------------------------------------- *)
 Definition is_rf_map ii xrs :=
@@ -691,8 +725,8 @@ Proof. by apply/eq_rfmapP=> r; rewrite /RflagMap.update ffunE. Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma rfmap_update_of_sets upd (rfm : rflagmap) :
-    foldl (fun rfm v => RflagMap.set rfm v.1 v.2) rfm upd
-  = RflagMap.update rfm (fun rf => omap Def (assoc (rev upd) rf)).
+    foldl (fun rfm v => RflagMap.oset rfm v.1 v.2) rfm upd
+  = RflagMap.update rfm (fun rf => assoc (rev upd) rf).
 Proof.
 set F := fun _ _ => _; elim: upd rfm => [|[r b] upd ih] rfm /=.
 + by rewrite rfmap_update0.
@@ -707,7 +741,7 @@ Lemma xwrite_vars_rf xrs ii s1 s2 xs1 :
   -> rflags_of_lvm s1.(evm) xs1
   -> write_lvals s1 (map rfi2lval xrs) (map rfi2val xrs) = ok s2
   -> rflags_of_lvm s2.(evm) (RflagMap.update xs1 (fun rf =>
-       omap Def (assoc (rev [seq rfi2upd v | v <- xrs]) rf))).
+       assoc (rev [seq rfi2upd v | v <- xrs]) rf)).
 Proof.
 rewrite -rfmap_update_of_sets; elim/last_ind: xrs s2 xs1.
 + by move=> /= xs1 s2 _ ? -[<-].
@@ -716,7 +750,7 @@ rewrite  -/(is_rf_map _ _) => /andP[].
 case Ex: rflag_of_var => [rf|//] /eqP-> ok_xrs ok_xs1 ok_s2.
 move: ok_s2; rewrite 2!map_rcons => /write_lvals_rcons /=.
 case=> s' /ih -/(_ _ ok_xrs ok_xs1) {ih}ih ok_s2.
-by rewrite map_rcons -cats1 foldl_cat; apply: (xwrite_var_rf Ex ih).
+by rewrite map_rcons -cats1 foldl_cat /=; apply: (xwrite_var_orf Ex ih).
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -901,14 +935,6 @@ by case: {+}eqv => <- okc okd ipE rfE rgE; rewrite ok_m /=; findok.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Definition pred_of_rfi ii (rfi : RFI_t) :=
-  rflag_of_var ii (rfi2var rfi) = ok (rfi2rf rfi).
-
-(* -------------------------------------------------------------------- *)
-Definition pred_of_rfis ii (rfis : seq RFI_t) :=
-  foldl and True (map (pred_of_rfi ii) rfis).
-
-(* -------------------------------------------------------------------- *)
 Lemma xflagsok ii rfi c s1 s2 xs1 :
      xs86_equiv c s1 xs1
   -> s1.(lc) = s2.(lc)
@@ -917,7 +943,7 @@ Lemma xflagsok ii rfi c s1 s2 xs1 :
   -> write_lvals (to_estate s1) (map rfi2lval rfi) (map rfi2val rfi)
        = ok (to_estate s2)
   -> xs86_equiv c s2 (st_update_rflags (fun rf =>
-       omap Def (assoc (rev [seq rfi2upd v | v <- rfi]) rf)) xs1).
+       assoc (rev [seq rfi2upd v | v <- rfi]) rf) xs1).
 Proof.
 move=> eqv eq_lc ok_rfi ok_rfis h; pose vs := map rfi2val rfi.
 have eq_mem: (to_estate s1).(emem) = (to_estate s2).(emem).
@@ -957,8 +983,8 @@ Lemma xaluop c s1 s2 xs1 ii (rof rcf rsf rpf rzf : var_i) vof vcf vsf vpf vzf :
               end) xs1).
 Proof.
 move=> eqv eq_lc h1 h2 h3 h4 h5 ok_s2; pose xrs := [::
-  RFI rof OF vof; RFI rcf CF vcf;
-  RFI rsf SF vsf; RFI rpf PF vpf; RFI rzf ZF vzf].
+  RFI rof OF (Def vof); RFI rcf CF (Def vcf);
+  RFI rsf SF (Def vsf); RFI rpf PF (Def vpf); RFI rzf ZF (Def vzf)].
 have ok_xrs: pred_of_rfis ii xrs by do! split.
 have := xflagsok eqv eq_lc _ ok_xrs ok_s2.
 set u1 := st_update_rflags _ _; set u2 := st_update_rflags _ _.
@@ -990,7 +1016,8 @@ Lemma xaluop_nocf c s1 s2 xs1 ii (rof rsf rpf rzf : var_i) vof vsf vpf vzf :
               end) xs1).
 Proof.
 move=> eqv eq_lc h1 h2 h3 h4 ok_s2; pose xrs := [::
-  RFI rof OF vof; RFI rsf SF vsf; RFI rpf PF vpf; RFI rzf ZF vzf].
+  RFI rof OF (Def vof); RFI rsf SF (Def vsf);
+  RFI rpf PF (Def vpf); RFI rzf ZF (Def vzf)].
 have ok_xrs: pred_of_rfis ii xrs by do! split.
 have := xflagsok eqv eq_lc _ ok_xrs ok_s2.
 set u1 := st_update_rflags _ _; set u2 := st_update_rflags _ _.
@@ -1018,7 +1045,18 @@ Lemma xmul c s1 s2 xs1 ii (rof rcf rsf rpf rzf : var_i) b :
               | OF | CF => Some (Def b)
               | DF => None
               end) xs1).
-Proof. Admitted.
+Proof.
+move=> eqv eq_lc h1 h2 h3 h4 h5 ok_s2; pose xrs := [::
+  RFI rof OF (Def b); RFI rcf CF (Def b);
+  RFI rsf SF Undef  ; RFI rpf PF Undef  ;
+  RFI rzf ZF Undef  ].
+have ok_xrs: pred_of_rfis ii xrs by do! split.
+have := xflagsok eqv eq_lc _ ok_xrs ok_s2.
+set u1 := st_update_rflags _ _; set u2 := st_update_rflags _ _.
+suff ->: u2 = u1 by apply; rewrite /is_rf_map /= !(h1, h2, h3, h4, h5).
+congr X86State; apply/eq_rfmapP => rf.
+by rewrite /RflagMap.update !ffunE; case: rf.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma reg_oprd_of_lvalI ii x reg :
