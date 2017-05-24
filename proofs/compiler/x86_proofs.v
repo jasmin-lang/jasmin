@@ -1155,26 +1155,24 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
     - case: o ok_vs => //= ok_vs _;
         case Ees: as_singleton => [e|] //;
         case El1: as_singleton => [x|] //.
-(*
-      case: aout ok_aout ok_vs => //= v1 [] //= ok_v1 //.
-      t_xrbindP=> w1 ok_w1 ok_vs vx ok_vx ve ok_ve.
-      case: ifP => // /eqP ?; subst vx => -[?]; subst a.
-      have := as_singletonT Ees => ?; subst es => {Ees}; move: ok_v1.
-      rewrite /sem_pexprs /=; t_xrbindP => vbe ok_vbe ?; subst v1.
-      have := eqv' => /xread_ok /(_ ok_ve ok_vbe).
-      rewrite /eval_NEG; case=> w -> ?; subst vbe.
-      case: ok_w1=> ? /=; subst w1.
+      t_XrbindP=> op1 ok_op1 op2 ok_op2; case: eqP => // op2E.
+      subst op2 => -[?]; subst a => {aE}.
+      have := as_singletonT Ees => ?; subst es => {Ees}.
+      move: ok_aout; rewrite /sem_pexprs /=; t_XrbindP => ve ok_ve.
+      move=> ?; subst aout; move: ok_vs; t_xrbindP => w.
+      move/to_word_ok=> ?; subst ve => -[?]; subst vs.
       have := lvals_as_alu_varsT El => ?; subst xs => {El}.
-      have := as_singletonT El1 => ?; subst l => {El1}.
-      case: ok_vs => ?; subst vs; move: ok_wr.
+      have := as_singletonT El1 => ?; subst l => {El1}; move: ok_wr.
       move/(@write_lvals_rcons [:: _; _; _; _; _] [:: _; _; _; _; _]).
-      case=> s'1; rewrite -{1}[s'1](to_estateK cs) => ok_s'1 ok_s2.
-      have := (xaluop eqv' _ ok_of ok_cf ok_sf ok_sp ok_zf ok_s'1).
+      case=> s' ok_s' ok_s2; have := eqv' => /xread_ok /(_ ok_op2 ok_ve).
+      case=> we ok_w -[?]; subst we; rewrite /eval_NEG ok_w /=.
+      move: ok_s'; rewrite -{1}[s'](to_estateK cs) => ok_s'.
+      have := (xaluop eqv' _ ok_of ok_cf ok_sf ok_sp ok_zf ok_s').
       move/(_ (erefl _)); set xs' := st_update_rflags _ _ => ok_xs'.
-*)
-
-admit.
-
+      have := xwrite_ok ok_xs' ok_op1 ok_s2 => -[xs'' ok_xs'' eqv''].
+      exists xs'' => //; rewrite -ok_xs''; congr write_oprd.
+      rewrite /xs' /st_update_rflags /=; f_equal => //.
+      by apply/eq_rfmapP=> rf; rewrite /RflagMap.update !ffunE; case: rf.
   + case El: lvals_as_cnt_vars => [[[xof xsf xpf xzf] ol]|//].
     t_xrbindP=> opl okl vof ok_of vsf ok_sf vpf ok_pf vzf ok_zf.
     case: ifP => //; rewrite -!andbA => /and4P[].
