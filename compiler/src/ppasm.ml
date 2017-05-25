@@ -282,16 +282,16 @@ let pp_instr (i : X86_sem.asm) =
       `Instr (pp_iname rs "xor", [pp_opr rs op2; pp_opr rs op1])
 
   | SAL (op, ir) ->
-      `Instr (pp_iname rs "sar", [pp_imr rs ir; pp_opr rs op])
+      `Instr (pp_iname rs "sar", [pp_imr `U8 ir; pp_opr rs op])
 
   | SAR (op, ir) ->
-      `Instr (pp_iname rs "sar", [pp_imr rs ir; pp_opr rs op])
+      `Instr (pp_iname rs "sar", [pp_imr `U8 ir; pp_opr rs op])
 
   | SHL (op, ir) ->
-      `Instr (pp_iname rs "shl", [pp_imr rs ir; pp_opr rs op])
+      `Instr (pp_iname rs "shl", [pp_imr `U8 ir; pp_opr rs op])
 
   | SHR (op, ir) ->
-      `Instr (pp_iname rs "shr", [pp_imr rs ir; pp_opr rs op])
+      `Instr (pp_iname rs "shr", [pp_imr `U8 ir; pp_opr rs op])
 
 (* -------------------------------------------------------------------- *)
 let pp_instr (fmt : Format.formatter) (i : X86_sem.asm) =
