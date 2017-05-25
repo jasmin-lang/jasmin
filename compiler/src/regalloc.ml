@@ -280,8 +280,17 @@ struct
       match x with Pvar x -> allocate_one x y a | _ -> a
     in
     match op, lvs, es with
+    | (Ox86_SHL | Ox86_SHR | Ox86_SAR),
+      Lvar oF :: Lvar cF :: Lvar sF :: Lvar pF :: Lvar zF :: _, _ :: x :: _ ->
+      a |>
+      mallocate_one x rcx |>
+      allocate_one oF f_o |>
+      allocate_one cF f_c |>
+      allocate_one sF f_s |>
+      allocate_one pF f_p |>
+      allocate_one zF f_z
     | (Ox86_ADD | Ox86_SUB | Ox86_AND | Ox86_OR | Ox86_XOR | Ox86_CMP
-      | Ox86_SHL | Ox86_SHR | Ox86_SAR | Ox86_NEG),
+      | Ox86_NEG),
       Lvar oF :: Lvar cF :: Lvar sF :: Lvar pF :: Lvar zF :: _, _ ->
       a |>
       allocate_one oF f_o |>
