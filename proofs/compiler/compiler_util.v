@@ -9,7 +9,7 @@ Unset Printing Implicit Defensive.
 (* ** Compiler error 
  * -------------------------------------------------------------------------- *)
 
-Inductive asm_error :=
+Variant asm_error :=
   | AsmErr_string : string -> asm_error
   | AsmErr_cond   : pexpr -> asm_error.
 
