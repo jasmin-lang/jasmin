@@ -29,6 +29,7 @@
 Require Import Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import strings utils gen_map type.
+Require Import Utf8.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -445,10 +446,27 @@ Qed.
 
 Definition disjoint s1 s2 := Sv.is_empty (Sv.inter s1 s2).
 
-Instance disjoint_m : 
+Instance disjoint_m :
   Proper (Sv.Equal ==> Sv.Equal ==> eq) disjoint.
 Proof.
   by move => s1 s1' Heq1 s2 s2' Heq2;rewrite /disjoint Heq1 Heq2.
+Qed.
+
+Instance disjoint_sym : Symmetric disjoint.
+Proof.
+  move=> x y h; rewrite/disjoint.
+  erewrite SvD.F.is_empty_m. exact h.
+  SvD.fsetdec.
+Qed.
+
+Lemma disjoint_w x x' y :
+  Sv.Subset x x' →
+  disjoint x' y →
+  disjoint x y.
+Proof.
+  move=> le e; apply SvD.F.is_empty_iff in e.
+  apply SvD.F.is_empty_iff.
+  SvD.fsetdec.
 Qed.
 
 (* Non dependant map *)
