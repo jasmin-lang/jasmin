@@ -487,12 +487,6 @@ Definition MkI_inj {ii i ii' i'} (H: MkI ii i = MkI ii' i') :
 Definition Some_inj {A} (a a': A) (H: Some a = Some a') : a = a' :=
   let 'Logic.eq_refl := H in Logic.eq_refl.
 
-Definition ok_inj {E A} (a a': A) (H: Ok E a = ok a') : a = a' :=
-  let 'Logic.eq_refl := H in Logic.eq_refl.
-
-Definition Error_inj {E A} (a a': E) (H: @Error E A a = Error a') : a = a' :=
-  let 'Logic.eq_refl := H in Logic.eq_refl.
-
 Lemma sval_sstype_to_sval sst (z : ssem_t sst) :
   sval_sstype (to_sval z) = sst.
 Proof. by case: sst z. Qed.
