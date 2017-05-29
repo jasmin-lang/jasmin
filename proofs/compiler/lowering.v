@@ -206,7 +206,7 @@ Variant lower_cassgn_t : Type :=
   | LowerMov
   | LowerCopn of sopn & pexpr
   | LowerInc of sopn & pexpr
-  | LowerFopn of sopn & list pexpr
+  | LowerFopn of sopn & list pexpr & Z
   | LowerEq of pexpr & pexpr
   | LowerLt of pexpr & pexpr
   | LowerIf of pexpr & pexpr & pexpr
@@ -221,7 +221,7 @@ Definition lower_cassgn_classify e x : lower_cassgn_t :=
     => LowerMov
 
   | Papp1 Olnot a => LowerCopn Ox86_NOT a
-  | Papp1 Oneg a => LowerFopn Ox86_NEG [:: a]
+  | Papp1 Oneg a => LowerFopn Ox86_NEG [:: a] 0
 
   | Papp2 op a b =>
     match op with
@@ -229,21 +229,21 @@ Definition lower_cassgn_classify e x : lower_cassgn_t :=
       match add_inc_dec_classify a b with
       | AddInc y => LowerInc Ox86_INC y
       | AddDec y => LowerInc Ox86_DEC y
-      | AddNone => LowerFopn Ox86_ADD [:: a ; b ] (* TODO: lea *)
+      | AddNone => LowerFopn Ox86_ADD [:: a ; b ] I32.modulus (* TODO: lea *)
       end
     | Osub Op_w =>
       match sub_inc_dec_classify b with
       | SubInc => LowerInc Ox86_INC a
       | SubDec => LowerInc Ox86_DEC a
-      | SubNone => LowerFopn Ox86_SUB [:: a ; b ]
+      | SubNone => LowerFopn Ox86_SUB [:: a ; b ] I32.modulus
       end
-    | Omul Op_w => LowerFopn Ox86_IMUL64 [:: a ; b ]
-    | Oland => LowerFopn Ox86_AND [:: a ; b ]
-    | Olor => LowerFopn Ox86_OR [:: a ; b ]
-    | Olxor => LowerFopn Ox86_XOR [:: a ; b ]
-    | Olsr => LowerFopn Ox86_SHR [:: a ; b ]
-    | Olsl => LowerFopn Ox86_SHL [:: a ; b ]
-    | Oasr => LowerFopn Ox86_SAR [:: a ; b ]
+    | Omul Op_w => LowerFopn Ox86_IMUL64 [:: a ; b ] I32.modulus
+    | Oland => LowerFopn Ox86_AND [:: a ; b ] I32.modulus
+    | Olor => LowerFopn Ox86_OR [:: a ; b ] I32.modulus
+    | Olxor => LowerFopn Ox86_XOR [:: a ; b ] I32.modulus
+    | Olsr => LowerFopn Ox86_SHR [:: a ; b ] I8.modulus
+    | Olsl => LowerFopn Ox86_SHL [:: a ; b ] I8.modulus
+    | Oasr => LowerFopn Ox86_SAR [:: a ; b ] I8.modulus
     | Oeq (Cmp_sw | Cmp_uw) => LowerEq a b
     | Olt Cmp_uw => LowerLt a b
     | _ => LowerAssgn
@@ -257,17 +257,56 @@ Definition lower_cassgn_classify e x : lower_cassgn_t :=
   | _ => LowerAssgn
   end.
 
+Definition Lnone_b vi := Lnone vi sbool.
+
+Variant opn_5flags_cases_t (a: pexprs) (m: Z) : Type :=
+| Opn5f_large_immed x y n z `(a = x :: y :: z) `(y = wconst n)
+| Opn5f_other.
+
+Arguments Opn5f_large_immed [a m] {x y n z} _ _.
+Arguments Opn5f_other [a m].
+
+Lemma is_reflect_some {A P e a} (H: @is_reflect A P e (Some a)) : e = P a.
+Proof.
+  set (d e m := match m with None => True | Some a => e = P a end).
+  change (d e (Some a)).
+  case H; simpl; auto.
+Qed.
+
+Definition opn_5flags_cases (a: pexprs) (m: Z) : opn_5flags_cases_t a m :=
+  match a with
+  | x :: y :: z =>
+    match is_wconst y as u return is_reflect wconst y u → _ with
+    | None => λ _, Opn5f_other
+    | Some n =>
+      λ W,
+      if let h := m / 2 in if -h <=? n then n <? h else false
+      then Opn5f_other
+      else Opn5f_large_immed erefl (is_reflect_some W)
+    end%Z (is_wconstP y)
+  | _ => Opn5f_other end.
+
+Definition opn_5flags (immed_bound: Z) (vi: var_info)
+           (cf: lval) (x: lval) (o: sopn) (a: pexprs) : seq instr_r :=
+  let f := Lnone_b vi in
+  let fopn o a := [:: Copn [:: f ; cf ; f ; f ; f ; x ] o a ] in
+  match opn_5flags_cases a immed_bound with
+  | Opn5f_large_immed x y n z _ _ =>
+    let c := {| v_var := {| vtype := sword; vname := fresh_multiplicand fv |} ; v_info := vi |} in
+    Copn [:: Lvar c ] Ox86_MOV [:: y] :: fopn o (x :: Pvar c :: z)
+  | Opn5f_other => fopn o a
+  end.
+
 Definition lower_cassgn (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
   let vi := var_info_of_lval x in
-  let f := Lnone vi sbool in
+  let f := Lnone_b vi in
   let copn o a := [:: Copn [:: x ] o [:: a] ] in
-  let fopn o a := [:: Copn [:: f ; f ; f ; f ; f ; x ] o a ] in
   let inc o a := [:: Copn [:: f ; f ; f ; f ; x ] o [:: a ] ] in
   match lower_cassgn_classify e x with
   | LowerMov => copn Ox86_MOV e
   | LowerCopn o e => copn o e
   | LowerInc o e => inc o e
-  | LowerFopn o es => fopn o es
+  | LowerFopn o es m => opn_5flags m vi f x o es
   | LowerEq a b => [:: Copn [:: f ; f ; f ; f ; x ] Ox86_CMP [:: a ; b ] ]
   | LowerLt a b => [:: Copn [:: f ; x ; f ; f ; f ] Ox86_CMP [:: a ; b ] ]
   | LowerIf e e1 e2 =>
@@ -282,8 +321,6 @@ Definition lower_cassgn (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
 … = #addc(?, ?, c) → ADC
 *)
 
-Definition Lnone_b vi := Lnone vi sbool.
-
 Definition lower_addcarry_classify (sub: bool) (xs: lvals) (es: pexprs) :=
   match xs, es with
   | [:: cf ; r ], [:: x ; y ; Pbool false ] =>
@@ -297,8 +334,7 @@ Definition lower_addcarry_classify (sub: bool) (xs: lvals) (es: pexprs) :=
 
 Definition lower_addcarry (sub: bool) (xs: lvals) (es: pexprs) : seq instr_r :=
   match lower_addcarry_classify sub xs es with
-  | Some (vi, o, es, cf, r) =>
-    [:: Copn [:: Lnone_b vi; cf ; Lnone_b vi ; Lnone_b vi ; Lnone_b vi ; r ] o es ]
+  | Some (vi, o, es, cf, r) => opn_5flags I32.modulus vi cf r o es
   | None => [:: Copn xs (if sub then Osubcarry else Oaddcarry) es ]
   end.
 
