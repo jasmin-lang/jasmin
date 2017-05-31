@@ -260,6 +260,10 @@ let main () =
       alloc, sfd
     in
 
+    let is_var_in_memory cv : bool =
+      let v = Conv.vari_of_cvari tbl cv |> L.unloc in
+      v.v_kind = Stack in
+
     let pp_cprog fmt cp =
       let p = Conv.prog_of_cprog tbl cp in
       Printer.pp_prog ~debug:true fmt p in
@@ -272,6 +276,7 @@ let main () =
       Compiler.reg_alloc_fd = apply "reg alloc" Regalloc.regalloc;
       Compiler.stk_alloc_fd = stk_alloc_fd;
       Compiler.lowering_vars = lowering_vars;
+      Compiler.is_var_in_memory = is_var_in_memory;
       Compiler.print_prog   = (fun s p -> eprint s pp_cprog p; p);
     } in
 

@@ -203,7 +203,7 @@ Definition sub_inc_dec_classify (e: pexpr) :=
   end.
 
 Variant lower_cassgn_t : Type :=
-  | LowerMov
+  | LowerMov of bool (* whether it needs a intermediate register *)
   | LowerCopn of sopn & pexpr
   | LowerInc of sopn & pexpr
   | LowerFopn of sopn & list pexpr & Z
@@ -212,13 +212,23 @@ Variant lower_cassgn_t : Type :=
   | LowerIf of pexpr & pexpr & pexpr
   | LowerAssgn.
 
+Context (is_var_in_memory : var_i → bool).
+
+Definition is_lval_in_memory (x: lval) : bool :=
+  match x with
+  | Lnone _ _ => false
+  | Lvar v
+  | Laset v _
+    => is_var_in_memory v
+  | Lmem _ _ => true
+  end.
+
 Definition lower_cassgn_classify e x : lower_cassgn_t :=
   match e with
-  | Pcast (Pconst _)
-  | Pvar {| v_var := {| vtype := sword |} |}
-  | Pget _ _
-  | Pload _ _
-    => LowerMov
+  | Pcast (Pconst _) => LowerMov false
+  | Pget v _
+  | Pvar ({| v_var := {| vtype := sword |} |} as v) => LowerMov (if is_var_in_memory v then is_lval_in_memory x else false)
+  | Pload _ _ => LowerMov (is_lval_in_memory x)
 
   | Papp1 Olnot a => LowerCopn Ox86_NOT a
   | Papp1 Oneg a => LowerFopn Ox86_NEG [:: a] 0
@@ -303,7 +313,12 @@ Definition lower_cassgn (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
   let copn o a := [:: Copn [:: x ] o [:: a] ] in
   let inc o a := [:: Copn [:: f ; f ; f ; f ; x ] o [:: a ] ] in
   match lower_cassgn_classify e x with
-  | LowerMov => copn Ox86_MOV e
+  | LowerMov b =>
+    if b
+    then
+      let c := {| v_var := {| vtype := sword; vname := fresh_multiplicand fv |} ; v_info := vi |} in
+      [:: Copn [:: Lvar c] Ox86_MOV [:: e ] ; Copn [:: x ] Ox86_MOV [:: Pvar c ] ]
+    else copn Ox86_MOV e
   | LowerCopn o e => copn o e
   | LowerInc o e => inc o e
   | LowerFopn o es m => opn_5flags m vi f x o es

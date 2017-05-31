@@ -28,6 +28,7 @@ Require Import x86 expr.
 Import ZArith.
 Require Import low_memory compiler_util allocation inline dead_calls unrolling
    constant_prop dead_code array_expansion lowering stack_alloc linear.
+Import Utf8.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -75,6 +76,7 @@ Record compiler_params := {
   var_alloc_fd : funname -> fundef -> fundef;
   share_stk_fd : funname -> fundef -> fundef;
   lowering_vars : fresh_vars;
+  is_var_in_memory : var_i → bool;
   reg_alloc_fd : funname -> fundef -> fundef;
   stk_alloc_fd : funname -> fundef -> seq (var * Z) * sfundef;
   print_prog   : compiler_step -> prog -> prog;
@@ -126,7 +128,7 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
   Let _ := CheckExpansion.check_prog ps pe in
 
   if (fvars_correct cparams.(lowering_vars) pe) then
-    let pl := lower_prog cparams.(lowering_vars) pe in
+    let pl := lower_prog cparams.(lowering_vars) cparams.(is_var_in_memory) pe in
     let pl := cparams.(print_prog) LowerInstruction pl in
 
     let pa := reg_alloc_prog pl in

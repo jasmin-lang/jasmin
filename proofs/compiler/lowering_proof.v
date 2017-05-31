@@ -42,6 +42,7 @@ Section PROOF.
 
   Variable p : prog.
   Variable fv : fresh_vars.
+  Context (is_var_in_memory: var_i → bool).
 
   Hypothesis fvars_correct: fvars_correct fv p.
 
@@ -84,7 +85,7 @@ Section PROOF.
   Local Hint Resolve of_in_fv cf_in_fv sf_in_fv pf_in_fv zf_in_fv multiplicand_in_fv.
 
   Local
-  Definition p' := lower_prog fv p.
+  Definition p' := lower_prog fv is_var_in_memory p.
 
   Definition eq_exc_fresh s1 s2 :=
     s1.(emem) = s2.(emem) /\ s1.(evm) = s2.(evm) [\ fvars].
@@ -143,7 +144,7 @@ Section PROOF.
   Let Pi (s:estate) (i:instr) (s':estate) :=
     disj_fvars (vars_I i) ->
     forall s1, eq_exc_fresh s1 s ->
-      exists s1', sem p' s1 (lower_i fv i) s1' /\ eq_exc_fresh s1' s'.
+      exists s1', sem p' s1 (lower_i fv is_var_in_memory i) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pi_r (s:estate) (i:instr_r) (s':estate) :=
     forall ii, Pi s (MkI ii i) s'.
@@ -151,12 +152,12 @@ Section PROOF.
   Let Pc (s:estate) (c:cmd) (s':estate) :=
     disj_fvars (vars_c c) ->
     forall s1, eq_exc_fresh s1 s ->
-      exists s1', sem p' s1 (lower_cmd (lower_i fv) c) s1' /\ eq_exc_fresh s1' s'.
+      exists s1', sem p' s1 (lower_cmd (lower_i fv is_var_in_memory) c) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pfor (i:var_i) vs s c s' :=
     disj_fvars (Sv.union (vars_c c) (Sv.singleton i)) ->
     forall s1, eq_exc_fresh s1 s ->
-      exists s1', sem_for p' i vs s1 (lower_cmd (lower_i fv) c) s1' /\ eq_exc_fresh s1' s'.
+      exists s1', sem_for p' i vs s1 (lower_cmd (lower_i fv is_var_in_memory) c) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pfun m1 fn vargs m2 vres :=
     sem_call p' m1 fn vargs m2 vres.
@@ -738,8 +739,8 @@ Section PROOF.
 
   Lemma lower_cassgn_classifyP e l s s' v (Hs: sem_pexpr s e = ok v)
       (Hw: write_lval l v s = ok s'):
-    match lower_cassgn_classify e l with
-    | LowerMov =>
+    match lower_cassgn_classify is_var_in_memory e l with
+    | LowerMov _ =>
       exists w, v = Vword w
     | LowerCopn o a =>
       Let x := sem_pexprs s [:: a] in sem_sopn o x = ok [:: v]
@@ -917,12 +918,23 @@ Section PROOF.
     have [s2' [Hw' Hs2']] := write_lval_same Hdisjl Hs1' Hw.
     rewrite /= /lower_cassgn.
     have := lower_cassgn_classifyP Hv' Hw'.
-    case: (lower_cassgn_classify e l).
+    case: (lower_cassgn_classify is_var_in_memory e l).
     (* LowerMov *)
-    + move=> [vw Hvw].
-      exists s2'; split=> //.
-      apply: sem_seq1; apply: EmkI; apply: Eopn.
-      by rewrite /= /sem_pexprs /= Hv' /= Hvw /= -Hvw Hw'.
+    + move=> b [vw Hvw]; subst v.
+      case: b.
+      * set ℓ := {|
+                  emem := emem s1';
+                  evm := (evm s1').[{| vtype := sword; vname := fresh_multiplicand fv |} <- ok vw] |}.
+        assert (eq_exc_fresh ℓ s1') as dℓ.
+        by subst ℓ; apply (conj (erefl _)); apply vmap_eq_except_set.
+        case: (write_lval_same Hdisjl dℓ Hw') => ℓ' [ hℓ' dℓ' ].
+        eexists; split.
+          repeat econstructor. by rewrite/sem_pexprs/=Hv'.
+          by rewrite/sem_pexprs/=/get_var/on_vu Fv.setP_eq/=hℓ'.
+        by eauto using eq_exc_freshT.
+      * exists s2'; split=> //.
+        apply: sem_seq1; apply: EmkI; apply: Eopn.
+        by rewrite /= /sem_pexprs /= Hv' /= Hw'.
     (* LowerCopn *)
     + move=> o e' H.
       exists s2'; split=> //.

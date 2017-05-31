@@ -1,6 +1,8 @@
 export
 fn f(reg u64 p, reg u64 i) -> reg u64 {
 reg u64 r;
+stack u64 x;
 r = [p + 8 * i];
+x = [p + 8 * i];
 return r;
 }
