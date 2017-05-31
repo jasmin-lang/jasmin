@@ -80,6 +80,12 @@ Definition check_nop (rv:lval) (e:pexpr) :=
   | Lvar x1, Pvar x2 => x1.(v_var) == x2.(v_var)
   | _, _ => false
   end.
+
+Definition check_nop_opn (xs:lvals) (o: sopn) (es:pexprs) :=
+  match xs, o, es with
+  | [:: x], Ox86_MOV, [:: e] => check_nop x e
+  | _, _, _ => false
+  end.
  
 Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) := 
   let (ii,ir) := i in
@@ -92,8 +98,9 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
       else ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
     else   ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
   
-  | Copn xs _ es =>
-    ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
+  | Copn xs o es =>
+    if check_nop_opn xs o es then ciok (s, [::])
+    else ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
 
   | Cif b c1 c2 => 
     Let sc1 := dead_code_c dead_code_i c1 s in

@@ -191,12 +191,51 @@ Section PROOF.
         by apply: eq_onS; apply: eq_onI Hvm; SvD.fsetdec.
   Qed.
 
+  Lemma check_nop_opn_spec (xs:lvals) (o:sopn) (es:pexprs): check_nop_opn xs o es ->
+    exists x i1 i2, xs = [:: Lvar (VarI x i1)] /\ o = Ox86_MOV /\ es = [:: Pvar (VarI x i2)].
+  Proof.
+    move: xs=> [] // rv [] //.
+    move: o=> [] //.
+    move: es=> [] // e [] //= /check_nop_spec [x [i1 [i2 [??]]]]; subst e rv.
+    by exists x, i1, i2.
+  Qed.
+
   Local Lemma Hopn s1 s2 o xs es :
     Let x := Let x := sem_pexprs s1 es in sem_sopn o x
     in write_lvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
   Proof.
-    apply: rbindP=> x; apply: rbindP=> x0 Hexpr Hopn Hw.
-    rewrite /Pi_r /==> ii s0 Hwf vm1' Hvm.
+    apply: rbindP=> v; apply: rbindP=> x0 Hexpr Hopn Hw.
+    rewrite /Pi_r /==> ii s0.
+    case: ifPn.
+    + move=> /check_nop_opn_spec [x [i1 [i2 [?[??]]]]]; subst xs o es=> /=.
+      move=> Hwf vm1' Hvm.
+      have Hs: s1 = s2.
+      + move: x0 Hexpr Hopn=> [] // x0 [] //=.
+        rewrite /sem_pexprs /= => Hexpr Hopn.
+        move: v Hopn Hw=> [] // v [] // /=.
+        apply: rbindP=> w Hw []?; subst v.
+        rewrite /write_var/set_var /=.
+        apply: rbindP=> x1.
+        rewrite /get_var in Hexpr; apply: rbindP Hexpr=> z.
+        apply: on_vuP=> /= [t|] Hx0 => [|[]] ?; subst z.
+        + move=> []?; subst x0.
+          rewrite /to_word in Hw; move: Hw.
+          case Ht2: (to_val t)=> [| | |w'|tt] //; last by move: tt Ht2=> [].
+          move=> []?; subst w.
+          move: x t Ht2 Hx0=> [[] xn] //= t []? Ht []<- []<-; subst w'.
+          rewrite -{}Ht /=; clear.
+          move: s1=> [mem vm] /=; congr (_ _).
+          apply: Fv.map_ext=> z.
+          set x0 := {| vtype := sword; vname := xn |}.
+          case: (x0 =P z) => [<-|/eqP Hne];rewrite ?Fv.setP_eq ?Fv.setP_neq //.
+        move=> []?; subst x0; rewrite /= in Hw.
+        by move: x Hx0 Hw=> [[]]//.
+        move=> ???; by apply: rbindP.
+        move=> ???; by apply: rbindP.
+      subst s2.
+      exists vm1'; split=> //.
+      exact: Eskip.
+    move=> _ /= Hwf vm1' Hvm.
     move: Hvm; rewrite read_esE read_rvsE=> Hvm.
     have [|vm2 [Hvm2 Hvm2']] := write_lvals_eq_on _ Hw Hvm; first by SvD.fsetdec.
     exists vm2; split.
