@@ -25,12 +25,7 @@ dist:
 	rm -rf jasmin jasmin.tar.gz
 	./scripts/distribution $(DISTDIR) MANIFEST
 	rm -rf jasmin/proofs/logic
-	$(SED) -i \
-	  -e "s/Inria/<Anonymized>/i" \
-		-e "s/IMDEA Software Institute/<Anonymized>/i" \
-	  -e "s,http://jasmin-lang.github.io/,http://example.com,i" \
-	  -e "s,https://github.com/jasmin-lang/jasmin/issues,http://example.com,i" \
-	  jasmin/proofs/*/*.v jasmin/compiler/src/*.ml* jasmin/compiler/opam
+	if [ -x scripts/anonymize ]; then SED=$(SED) scripts/anonymize; fi
 	$(SED) -i -e "/logic/d" jasmin/proofs/_CoqProject
 	tar czf jasmin.tar.gz jasmin && rm -rf jasmin
 
