@@ -469,16 +469,16 @@ Section PROOF.
   Admitted.
 
   Lemma wule_not_wult z1 z2: wule z2 z1 = ~~ wult z1 z2.
-  Admitted.
+  Proof. exact: Z.leb_antisym. Qed.
 
   Lemma wult_not_wule z1 z2: wult z2 z1 = ~~ wule z1 z2.
-  Admitted.
+  Proof. exact: Z.ltb_antisym. Qed.
 
   Lemma wsle_not_wslt z1 z2: wsle z2 z1 = ~~ wslt z1 z2.
-  Admitted.
+  Proof. exact: Z.leb_antisym. Qed.
 
   Lemma wslt_not_wsle z1 z2: wslt z2 z1 = ~~ wsle z1 z2.
-  Admitted.
+  Proof. exact: Z.ltb_antisym. Qed.
 
   Lemma wslt_sub z1 z2: wslt z1 z2 =
    (msb (I64.sub z1 z2) != (I64.signed (I64.sub z1 z2) != (I64.signed z1 - I64.signed z2)%Z)).

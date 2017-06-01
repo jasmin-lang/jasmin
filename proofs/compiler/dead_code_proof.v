@@ -200,6 +200,37 @@ Section PROOF.
     by exists x, i1, i2.
   Qed.
 
+  Lemma set_get_word vm1 vm2 xn v:
+    let x := {| vtype := sword; vname := xn |} in
+    get_var vm1 x = ok v ->
+    set_var vm1 x v = ok vm2 ->
+    vm1 = vm2.
+  Proof.
+    rewrite /get_var /set_var.
+    apply: on_vuP=> [t|] Hr; last first.
+    + move=> []<- //.
+    move=> <- /= []<-; rewrite -Hr; clear.
+    apply: Fv.map_ext=> z.
+    set x0 := {| vtype := _; vname := xn |}.
+    case: (x0 =P z) => [<-|/eqP Hne];rewrite ?Fv.setP_eq ?Fv.setP_neq //.
+  Qed.
+
+  Lemma get_var_word w x vm:
+    get_var vm x = ok (Vword w) ->
+    vtype x = sword.
+  Proof.
+    move: x=> [vt vn]; rewrite /=.
+    rewrite /get_var /on_vu.
+    case Hv: vm.[_]=> /= [v|[] //] []H.
+    by move: vt v Hv H=> [].
+  Qed.
+
+  Lemma to_word_ok x w:
+    to_word x = ok w -> x = Vword w.
+  Proof.
+    by move: x=> [] // => [|[]] // w0 []<-.
+  Qed.
+
   Local Lemma Hopn s1 s2 o xs es :
     Let x := Let x := sem_pexprs s1 es in sem_sopn o x
     in write_lvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
@@ -211,26 +242,15 @@ Section PROOF.
       move=> Hwf vm1' Hvm.
       have Hs: s1 = s2.
       + move: x0 Hexpr Hopn=> [] // x0 [] //=.
-        rewrite /sem_pexprs /= => Hexpr Hopn.
-        move: v Hopn Hw=> [] // v [] // /=.
-        apply: rbindP=> w Hw []?; subst v.
-        rewrite /write_var/set_var /=.
-        apply: rbindP=> x1.
-        rewrite /get_var in Hexpr; apply: rbindP Hexpr=> z.
-        apply: on_vuP=> /= [t|] Hx0 => [|[]] ?; subst z.
-        + move=> []?; subst x0.
-          rewrite /to_word in Hw; move: Hw.
-          case Ht2: (to_val t)=> [| | |w'|tt] //; last by move: tt Ht2=> [].
-          move=> []?; subst w.
-          move: x t Ht2 Hx0=> [[] xn] //= t []? Ht []<- []<-; subst w'.
-          rewrite -{}Ht /=; clear.
-          move: s1=> [mem vm] /=; congr (_ _).
-          apply: Fv.map_ext=> z.
-          set x0 := {| vtype := sword; vname := xn |}.
-          case: (x0 =P z) => [<-|/eqP Hne];rewrite ?Fv.setP_eq ?Fv.setP_neq //.
-        move=> []?; subst x0; rewrite /= in Hw.
-        by move: x Hx0 Hw=> [[]]//.
-        move=> ???; by apply: rbindP.
+        rewrite /sem_pexprs /=.
+        apply: rbindP=> z Hexpr []?; subst z.
+        apply: rbindP=> v0 /to_word_ok Hv0 []?; subst v x0.
+        rewrite /= /write_var in Hw.
+        apply: rbindP Hw=> z; apply: rbindP=> vm Hvm' []<- []<-.
+        move: s1 Hwf Hvm Hexpr Hvm'=> [mem1 vm1] /= Hwf Hvm Hexpr Hvm'; f_equal.
+        have := get_var_word Hexpr.
+        move: x Hexpr Hvm'=> [[] xn] //= Hexpr Hvm' _.
+        exact: (set_get_word Hexpr Hvm').
         move=> ???; by apply: rbindP.
       subst s2.
       exists vm1'; split=> //.
