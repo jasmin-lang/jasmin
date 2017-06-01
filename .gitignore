@@ -28,3 +28,6 @@ Makefile.coq.bak
 /ssreflect/*.v
 /ssreflect/*.ml*
 /ssreflect-tmp/
+
+/jasmin/
+/jasmin.tar.gz

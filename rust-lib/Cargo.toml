@@ -1,7 +1,0 @@
-[package]
-name = "jasmin"
-version = "0.1.0"
-authors = ["Benedikt Schmidt <beschmi@gmail.com>"]
-
-[dependencies]
-extprim = "*"
