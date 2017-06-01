@@ -8,6 +8,7 @@
 3rdparty/ssrring.v
 3rdparty/ssrify.v
 3rdparty/xseq.v
+3rdparty/ssrZ.v
 compiler/allocation.v
 compiler/array_expansion.v
 compiler/compiler_util.v
