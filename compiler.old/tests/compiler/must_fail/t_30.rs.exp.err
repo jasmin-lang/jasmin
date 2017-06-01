@@ -1,3 +1,0 @@
-tests/compiler/must_fail/t_30.mil:14:10: 14:11 error: all parameters must be given for macro expansion
-      x[$n - 1] -= 1;
-         ^^

@@ -1,3 +1,0 @@
-tests/compiler/must_fail/t_29.mil:9:3: 9:8 error: call to unknown function bar_
-  bar_();
-  ^^^^^^

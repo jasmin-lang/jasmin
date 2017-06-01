@@ -1,6 +1,0 @@
-tests/compiler/must_fail/t_12.rs:1:8: 1:9 error: variable x declared twice
-fn foo(x : stack! (b64)) {
-       ^^
-tests/compiler/must_fail/t_12.rs:3:9: 3:10 error: <-- also declared here
-        x: stack! (b64);
-        ^^

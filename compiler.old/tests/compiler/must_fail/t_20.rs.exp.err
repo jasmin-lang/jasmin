@@ -1,6 +1,0 @@
-tests/compiler/must_fail/t_20.rs:18:9: 18:10 error: type mismatch (got b1, expected b64)
-        x = bar();
-        ^^
-tests/compiler/must_fail/t_20.rs:15:9: 15:10 error: <-- declared here
-        x : reg! (b1);
-        ^^

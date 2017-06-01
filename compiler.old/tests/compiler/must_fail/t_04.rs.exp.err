@@ -1,3 +1,0 @@
-tests/compiler/must_fail/t_04.rs:3:11: 3:12 error: parse error
-        _x[i] : inline! (b1);
-          ^^

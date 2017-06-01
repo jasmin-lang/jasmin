@@ -1,6 +1,0 @@
-tests/compiler/must_fail/t_08.rs:1:8: 1:9 error: duplicated argument name
-fn foo(x: stack! (b64), x: stack! (b64)) {
-       ^^
-tests/compiler/must_fail/t_08.rs:1:25: 1:26 error: <-- also used here
-fn foo(x: stack! (b64), x: stack! (b64)) {
-                        ^^

@@ -1,3 +1,0 @@
-tests/compiler/must_fail/t_23.rs:5:18: 5:32 error: variable undef_var_param undeclared
-        x = b64!(undef_var_param);
-                 ^^^^^^^^^^^^^^^

@@ -1,5 +1,0 @@
-   Compiling test_jasmin v0.1.0 (file:///Users/beschmi/git/jasmin/compiler/tests/build)
-    Finished debug [unoptimized + debuginfo] target(s) in REMOVED_TIME
-     Running target/debug/deps/test_jasmin-2d9df3cd2a86189e
-   Doc-tests test_jasmin
-Processed file tests/compiler/ok/t_01.rs
