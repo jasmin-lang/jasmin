@@ -2,6 +2,7 @@ compiler/src/CIL/*.ml
 compiler/src/CIL/*.mli
 *.d
 *.o
+*.s
 *.a
 *.cm[ioxa]
 *.cmx[as]
