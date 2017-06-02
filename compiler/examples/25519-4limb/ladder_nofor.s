@@ -270,8 +270,8 @@ L17:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 416(%rsp)
 	movq	%r10, 424(%rsp)
 	movq	%r14, 432(%rsp)
@@ -367,8 +367,8 @@ L17:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 224(%rsp)
 	movq	%r10, 232(%rsp)
 	movq	%r14, 240(%rsp)
@@ -569,8 +569,8 @@ L17:
 	adcq	%rcx, %rbx
 	adcq	%rcx, %r12
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 160(%rsp)
 	movq	%rbp, 168(%rsp)
 	movq	%rbx, 176(%rsp)
@@ -708,8 +708,8 @@ L17:
 	adcq	%rcx, %rbx
 	adcq	%rcx, %r12
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, %rax
 	movq	%rbp, %rcx
 	movq	%rbx, %rdx
@@ -839,8 +839,8 @@ L17:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 64(%rsp)
 	movq	%r10, 72(%rsp)
 	movq	%r14, 80(%rsp)
@@ -936,8 +936,8 @@ L17:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 352(%rsp)
 	movq	%r10, 360(%rsp)
 	movq	%r14, 368(%rsp)
@@ -1075,8 +1075,8 @@ L17:
 	adcq	%rcx, %rbx
 	adcq	%rcx, %r12
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 352(%rsp)
 	movq	%rbp, 360(%rsp)
 	movq	%rbx, 368(%rsp)
@@ -1262,8 +1262,8 @@ L17:
 	adcq	%rcx, %rbx
 	adcq	%rcx, %r12
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 288(%rsp)
 	movq	%rbp, 296(%rsp)
 	movq	%rbx, 304(%rsp)
@@ -1401,8 +1401,8 @@ L17:
 	adcq	%rcx, %rbx
 	adcq	%rcx, %r12
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 448(%rsp)
 	movq	%rbp, 456(%rsp)
 	movq	%rbx, 464(%rsp)
@@ -1507,8 +1507,8 @@ L17:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 160(%rsp)
 	movq	%r10, 168(%rsp)
 	movq	%r14, 176(%rsp)
@@ -1604,8 +1604,8 @@ L17:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%r10, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -1701,8 +1701,8 @@ L17:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%r10, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -1840,8 +1840,8 @@ L17:
 	adcq	%rcx, %rbx
 	adcq	%rcx, %r12
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 192(%rsp)
 	movq	%rbp, 200(%rsp)
 	movq	%rbx, 208(%rsp)
@@ -1979,8 +1979,8 @@ L17:
 	adcq	%rcx, %rbx
 	adcq	%rcx, %r12
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 32(%rsp)
 	movq	%rbp, 40(%rsp)
 	movq	%rbx, 48(%rsp)
@@ -2076,8 +2076,8 @@ L17:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%r10, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -2215,8 +2215,8 @@ L17:
 	adcq	%rcx, %rbx
 	adcq	%rcx, %r12
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 64(%rsp)
 	movq	%rbp, 72(%rsp)
 	movq	%rbx, 80(%rsp)
@@ -2312,8 +2312,8 @@ L17:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%r10, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -2415,8 +2415,8 @@ L13:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r9
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%rbp, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -2558,8 +2558,8 @@ L13:
 	adcq	%rcx, %rbx
 	adcq	%rcx, %r12
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 256(%rsp)
 	movq	%rbp, 264(%rsp)
 	movq	%rbx, 272(%rsp)
@@ -2655,8 +2655,8 @@ L13:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%r10, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -2758,8 +2758,8 @@ L11:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r9
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%rbp, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -2901,8 +2901,8 @@ L11:
 	adcq	%rcx, %rbx
 	adcq	%rcx, %r12
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 224(%rsp)
 	movq	%rbp, 232(%rsp)
 	movq	%rbx, 240(%rsp)
@@ -2998,8 +2998,8 @@ L11:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%r10, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -3101,8 +3101,8 @@ L9:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r9
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%rbp, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -3244,8 +3244,8 @@ L9:
 	adcq	%rcx, %rbx
 	adcq	%rcx, %r12
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%rbp, 328(%rsp)
 	movq	%rbx, 336(%rsp)
@@ -3341,8 +3341,8 @@ L9:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%r10, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -3444,8 +3444,8 @@ L7:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r9
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%rbp, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -3587,8 +3587,8 @@ L7:
 	adcq	%rcx, %rbx
 	adcq	%rcx, %r12
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 128(%rsp)
 	movq	%rbp, 136(%rsp)
 	movq	%rbx, 144(%rsp)
@@ -3684,8 +3684,8 @@ L7:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%r10, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -3787,8 +3787,8 @@ L5:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r9
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%rbp, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -3930,8 +3930,8 @@ L5:
 	adcq	%rcx, %rbx
 	adcq	%rcx, %r12
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 352(%rsp)
 	movq	%rbp, 360(%rsp)
 	movq	%rbx, 368(%rsp)
@@ -4027,8 +4027,8 @@ L5:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%r10, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -4130,8 +4130,8 @@ L3:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r9
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%rbp, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -4273,8 +4273,8 @@ L3:
 	adcq	%rcx, %rbx
 	adcq	%rcx, %r12
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%rbp, 328(%rsp)
 	movq	%rbx, 336(%rsp)
@@ -4370,8 +4370,8 @@ L3:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%r10, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -4473,8 +4473,8 @@ L1:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r9
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%rbp, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -4616,8 +4616,8 @@ L1:
 	adcq	%rcx, %rbx
 	adcq	%rcx, %r12
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%rbp, 328(%rsp)
 	movq	%rbx, 336(%rsp)
@@ -4713,8 +4713,8 @@ L1:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%r10, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -4810,8 +4810,8 @@ L1:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%r10, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -4907,8 +4907,8 @@ L1:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%r10, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -5004,8 +5004,8 @@ L1:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%r10, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -5101,8 +5101,8 @@ L1:
 	adcq	%rcx, %r14
 	adcq	%rcx, %r11
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 320(%rsp)
 	movq	%r10, 328(%rsp)
 	movq	%r14, 336(%rsp)
@@ -5240,8 +5240,8 @@ L1:
 	adcq	%rcx, %rbx
 	adcq	%rcx, %r12
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, 288(%rsp)
 	movq	%rbp, 296(%rsp)
 	movq	%rbx, 304(%rsp)
@@ -5379,8 +5379,8 @@ L1:
 	adcq	%rcx, %rbx
 	adcq	%rcx, %r12
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rcx, %rcx
+	addq	%rcx, %r15
 	movq	%r15, %r10
 	movq	%rbp, %r11
 	movq	%rbx, %rbp
