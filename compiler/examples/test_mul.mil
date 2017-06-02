@@ -29,3 +29,11 @@ hi, lo = y * 38;
 lo += hi;
 return lo;
 }
+
+export
+fn i(reg u64 x) -> reg u64 {
+reg u64 y;
+y = x;
+y *= 0xffffffffffffffff;
+return y;
+}
