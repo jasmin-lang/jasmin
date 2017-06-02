@@ -453,6 +453,8 @@ case: i => ii /=; rewrite /is_label /=; case=> //=.
       by t_xrbindP => vl _ ve1 _; case: is_wconst => //; t_xrbindP; case: eqP.
     - case: as_singleton => // e; case: as_singleton => // l.
       by t_xrbindP=> v _ ve _; case: eqP => //.
+    - case: es => //;case: as_singleton => // l.
+      by t_xrbindP.
   * case: lvals_as_cnt_vars => // -[[v1 v2 v3 v4] ls].
     t_xrbindP => v _ bv1 _ bv2 _ bv3 _ bv4 _; case: ifP => // _.
     case: as_singleton => // ae; t_xrbindP=> vae _.
@@ -1234,6 +1236,26 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
       exists xs'' => //; rewrite -ok_xs''; congr write_oprd.
       rewrite /xs' /st_update_rflags /=; f_equal => //.
       by apply/eq_rfmapP=> rf; rewrite /RflagMap.update !ffunE; case: rf.
+    case: o ok_vs => //=;case: es ok_aout => //= -[<-] [?] _;subst vs.
+    case El': as_singleton => [de|] //.
+    have := as_singletonT El' => ?; subst l => {El'}.
+    apply: rbindP => d Hd [?];subst a => //=.
+    have := lvals_as_alu_varsT El => ?; subst xs => {El}.
+    rewrite /eval_XOR.
+    move/(@write_lvals_rcons [:: _; _; _; _; _] [:: _; _; _; _; _]): ok_wr => [s' ok_s' ok_s2].
+    move: ok_s'; rewrite -{1}[s'](to_estateK cs) => ok_s'.
+    have := (xaluop eqv' _ ok_of ok_cf ok_sf ok_sp ok_zf ok_s').
+    move/(_ (erefl _)); set xs' := st_update_rflags _ _ => ok_xs'.
+    have := xwrite_ok ok_xs' Hd ok_s2 => -[xs'' ok_xs'' eqv''].
+    have [w -> /=] : exists w, 
+      read_oprd d {| xmem := lm; xreg := xr; xrf := xf; xc := xc; xip := ip.+1 |} = ok w.
+    + move: ok_xs'';rewrite  /=;case: (d) => //= [r _ | a];first by exists (xr r).
+      have <- : (decode_addr xs' a) = 
+                (decode_addr {| xmem := lm; xreg := xr; xrf := xf; xc := xc; xip := ip.+1 |} a) by case: a.
+      apply: rbindP => mem Hmem _;apply /Memory.readV.
+      by apply /Memory.writeV;exists mem;eauto.
+    rewrite I64.xor_idem.
+    by exists xs'' => //; rewrite -ok_xs''; congr write_oprd.
   + case El: lvals_as_cnt_vars => [[[xof xsf xpf xzf] ol]|//].
     t_xrbindP=> opl okl vof ok_of vsf ok_sf vpf ok_pf vzf ok_zf.
     case: ifP => //; rewrite -!andbA => /and4P[].

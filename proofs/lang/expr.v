@@ -90,7 +90,8 @@ Variant sopn : Set :=
 | Osubcarry    (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
 
 (* Low level x86 operations *)
-| Ox86_MOV	(* copy *)
+| Oset0        (* set register + flags to 0 (implemented using XOR x x) *)
+| Ox86_MOV     (* copy *)
 | Ox86_CMOVcc  (* conditional copy *)
 | Ox86_ADD     (* add unsigned / signed *)
 | Ox86_SUB     (* sub unsigned / signed *)
@@ -160,6 +161,7 @@ Definition string_of_sopn o : string :=
   | Omulu       => "Omulu      "
   | Oaddcarry   => "Oaddcarry  "
   | Osubcarry   => "Osubcarry  "
+  | Oset0       => "Oset0      "
   | Ox86_MOV    => "Ox86_MOV   "
   | Ox86_CMOVcc => "Ox86_CMOVcc"
   | Ox86_ADD    => "Ox86_ADD   "

@@ -270,18 +270,19 @@ let copn_of_opn = function
   | Omulu        -> C.Omulu
   | Oaddcarry    -> C.Oaddcarry
   | Osubcarry    -> C.Osubcarry
-  | Ox86_MOV  -> C.Ox86_MOV
+  | Oset0        -> C.Oset0
+  | Ox86_MOV     -> C.Ox86_MOV
   | Ox86_CMOVcc  -> C.Ox86_CMOVcc
   | Ox86_ADD     -> C.Ox86_ADD
   | Ox86_SUB     -> C.Ox86_SUB
   | Ox86_MUL     -> C.Ox86_MUL
   | Ox86_IMUL    -> C.Ox86_IMUL
-  | Ox86_IMUL64	-> C.Ox86_IMUL64
+  | Ox86_IMUL64	 -> C.Ox86_IMUL64
   | Ox86_DIV     -> C.Ox86_DIV
   | Ox86_IDIV    -> C.Ox86_IDIV
   | Ox86_ADC     -> C.Ox86_ADC
   | Ox86_SBB     -> C.Ox86_SBB
-  | Ox86_NEG	-> C.Ox86_NEG
+  | Ox86_NEG	 -> C.Ox86_NEG
   | Ox86_INC     -> C.Ox86_INC
   | Ox86_DEC     -> C.Ox86_DEC
   | Ox86_SETcc   -> C.Ox86_SETcc
@@ -300,18 +301,19 @@ let opn_of_copn = function
   | C.Omulu        -> Omulu
   | C.Oaddcarry    -> Oaddcarry
   | C.Osubcarry    -> Osubcarry
-  | C.Ox86_MOV  -> Ox86_MOV
+  | C.Oset0        -> Oset0
+  | C.Ox86_MOV     -> Ox86_MOV
   | C.Ox86_CMOVcc  -> Ox86_CMOVcc
   | C.Ox86_ADD     -> Ox86_ADD
   | C.Ox86_SUB     -> Ox86_SUB
   | C.Ox86_MUL     -> Ox86_MUL
   | C.Ox86_IMUL    -> Ox86_IMUL
-  | C.Ox86_IMUL64	-> Ox86_IMUL64
+  | C.Ox86_IMUL64  -> Ox86_IMUL64
   | C.Ox86_DIV     -> Ox86_DIV
   | C.Ox86_IDIV    -> Ox86_IDIV
   | C.Ox86_ADC     -> Ox86_ADC
   | C.Ox86_SBB     -> Ox86_SBB
-  | C.Ox86_NEG	-> Ox86_NEG
+  | C.Ox86_NEG	   -> Ox86_NEG
   | C.Ox86_INC     -> Ox86_INC
   | C.Ox86_DEC     -> Ox86_DEC
   | C.Ox86_SETcc   -> Ox86_SETcc

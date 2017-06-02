@@ -744,6 +744,9 @@ Definition sem_sopn (o:sopn) :  values -> exec values :=
   | Omulu        => app_ww  (fun x y => ok (@pval sword sword (wumul x y)))
   | Oaddcarry    => app_wwb (fun x y c => ok (@pval sbool sword (waddcarry x y c)))
   | Osubcarry    => app_wwb (fun x y c => ok (@pval sbool sword (wsubcarry x y c)))
+  | Oset0        => app_sopn [::]
+    (let vf := Vbool false in
+     ok [:: vf; vf; vf; vf; Vbool true; Vword (I64.repr 0)])
 
   (* Low level x86 operations *)
   | Ox86_MOV	 => app_w    x86_MOV

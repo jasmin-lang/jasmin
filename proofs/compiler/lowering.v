@@ -318,7 +318,11 @@ Definition lower_cassgn (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
     then
       let c := {| v_var := {| vtype := sword; vname := fresh_multiplicand fv |} ; v_info := vi |} in
       [:: Copn [:: Lvar c] Ox86_MOV [:: e ] ; Copn [:: x ] Ox86_MOV [:: Pvar c ] ]
-    else copn Ox86_MOV e
+    else 
+      (* IF e is 0 then use Oset0 instruction *)
+      if (e == Pcast (Pconst 0)) && ~~ is_lval_in_memory x then
+        [:: Copn [:: f ; f ; f ; f ; f ; x] Oset0 [::] ]
+      else copn Ox86_MOV e
   | LowerCopn o e => copn o e
   | LowerInc o e => inc o e
   | LowerFopn o es m => opn_5flags m vi f x o es

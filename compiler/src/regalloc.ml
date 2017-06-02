@@ -292,7 +292,7 @@ struct
       allocate_one pF f_p |>
       allocate_one zF f_z
     | (Ox86_ADD | Ox86_SUB | Ox86_AND | Ox86_OR | Ox86_XOR | Ox86_CMP
-      | Ox86_NEG),
+      | Ox86_NEG | Oset0),
       Lvar oF :: Lvar cF :: Lvar sF :: Lvar pF :: Lvar zF :: _, _ ->
       a |>
       allocate_one oF f_o |>

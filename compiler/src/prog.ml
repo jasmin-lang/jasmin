@@ -119,6 +119,7 @@ type op =
 | Omulu
 | Oaddcarry
 | Osubcarry
+| Oset0
 (* Low level x86 operations *)
 | Ox86_MOV
 | Ox86_CMOVcc

@@ -933,8 +933,11 @@ Section PROOF.
           by rewrite/sem_pexprs/=/get_var/on_vu Fv.setP_eq/=hℓ'.
         by eauto using eq_exc_freshT.
       * exists s2'; split=> //.
-        apply: sem_seq1; apply: EmkI; apply: Eopn.
-        by rewrite /= /sem_pexprs /= Hv' /= Hw'.
+        case: ifP => [/andP [] /eqP ?? | _ ];first last.
+        - apply: sem_seq1; apply: EmkI; apply: Eopn.
+          by rewrite /= /sem_pexprs /= Hv' /= Hw'.
+        subst e;apply: sem_seq1; apply: EmkI; apply: Eopn.
+        by move: Hv' => [?];subst vw; rewrite /sem_pexprs /= Hw'.
     (* LowerCopn *)
     + move=> o e' H.
       exists s2'; split=> //.

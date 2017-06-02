@@ -528,8 +528,9 @@ let prim_sig p =
   | Omulu     -> [u64  ; u64], [u64; u64]
   | Oaddcarry -> [tbool; u64], [u64; u64; tbool]
   | Osubcarry -> [tbool; u64], [u64; u64; tbool]
-  | Ox86_CMP -> [tbool; tbool; tbool; tbool; tbool], [u64; u64]
-  | Ox86_MOV
+  | Oset0     -> [tbool; tbool; tbool; tbool; tbool; u64], []
+  | Ox86_CMP  -> [tbool; tbool; tbool; tbool; tbool], [u64; u64]
+  | Ox86_MOV  -> [u64], [u64]
   | Ox86_CMOVcc
   | Ox86_ADD
   | Ox86_SUB
@@ -559,12 +560,14 @@ let prim_string =
   [ "mulu"      , P.Omulu;
     "addc"      , P.Oaddcarry;
     "subc"      , P.Osubcarry;
+    "set0"      , P.Oset0;
+    "x86_MOV"   , P.Ox86_MOV;
     "x86_CMOVcc", P.Ox86_CMOVcc;
     "x86_ADD"   , P.Ox86_ADD;
     "x86_SUB"   , P.Ox86_SUB;
     "x86_MUL"   , P.Ox86_MUL;
     "x86_IMUL"  , P.Ox86_IMUL;
-    "x86_IMUL64"	, P.Ox86_IMUL64;
+    "x86_IMUL64", P.Ox86_IMUL64;
     "x86_DIV"   , P.Ox86_DIV;
     "x86_IDIV"  , P.Ox86_IDIV;
     "x86_ADC"   , P.Ox86_ADC;

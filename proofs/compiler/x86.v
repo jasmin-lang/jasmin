@@ -392,7 +392,8 @@ Variant alukind :=
   | LK_SHT  of shtop
   | LK_MUL
   | LK_IMUL
-  | LK_NEG.
+  | LK_NEG
+  | LK_SET0.
 
 Variant opkind :=
   | OK_ALU of alukind
@@ -403,6 +404,7 @@ Variant opkind :=
 
 Definition kind_of_sopn (o : sopn) :=
   match o with
+  | Oset0       => OK_ALU LK_SET0
   | Ox86_CMP    => OK_ALU LK_CMP
   | Ox86_ADD    => OK_ALU (LK_BINU BU_ADD)
   | Ox86_ADC    => OK_ALU (LK_BINC BC_ADC)
@@ -427,13 +429,14 @@ Definition kind_of_sopn (o : sopn) :=
 Definition string_of_aluk (o : alukind) :=
   let op :=
       match o with
+      | LK_SET0        => Oset0 
       | LK_CMP         => Ox86_CMP   
       | LK_BINU BU_ADD => Ox86_ADD   
       | LK_BINC BC_ADC => Ox86_ADC   
       | LK_BINU BU_SUB => Ox86_SUB   
       | LK_BINC BC_SBB => Ox86_SBB   
       | LK_BINU BU_AND => Ox86_AND
-      | LK_BINU BU_OR => Ox86_OR
+      | LK_BINU BU_OR  => Ox86_OR
       | LK_BINU BU_XOR => Ox86_XOR
       | LK_NEG         => Ox86_NEG   
       | LK_MUL         => Ox86_MUL   
@@ -634,6 +637,16 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
     | _, _ =>
       cierror ii (Cerr_assembler (wrong_aluk o))
     end
+  | LK_SET0 =>
+    match e, as_singleton l with
+    | [::], Some x =>
+      Let d := oprd_of_lval ii x in
+      ok (XOR d d)
+
+    | _, _ =>
+      cierror ii (Cerr_assembler (wrong_aluk o))
+    end
+      
   end.
 
 (* -------------------------------------------------------------------- *)
