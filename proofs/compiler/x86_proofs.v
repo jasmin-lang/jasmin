@@ -450,7 +450,7 @@ case: i => ii /=; rewrite /is_label /=; case=> //=.
     - case: as_pair => // -[e1 e2]; case: as_pair => // -[l1 l2].
       by t_xrbindP => op1 _ op2 _ op3 _ op4 _; case: ifP.
     - case: as_pair => // -[e1 e2]; case: as_singleton => // l.
-      by t_xrbindP => vl _ ve1 _; case: is_wconst => //; t_xrbindP.
+      by t_xrbindP => vl _ ve1 _; case: is_wconst => //; t_xrbindP; case: eqP.
     - case: as_singleton => // e; case: as_singleton => // l.
       by t_xrbindP=> v _ ve _; case: eqP => //.
   * case: lvals_as_cnt_vars => // -[[v1 v2 v3 v4] ls].

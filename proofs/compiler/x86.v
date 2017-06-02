@@ -612,7 +612,10 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
       match is_wconst e2 with
       | Some c => ok (IMUL d (Some (o1, Some (I64.repr c))))
       | None =>
-          Let o2 := oprd_of_pexpr ii e2 in ok (IMUL o1 (Some (o2, None)))
+          Let o2 := oprd_of_pexpr ii e2 in
+          if o1 == d then
+            ok (IMUL o1 (Some (o2, None)))
+          else cierror ii (Cerr_assembler (AsmErr_string ("wrong op/lvals for IMUL")))
       end
 
     | _, _ =>
