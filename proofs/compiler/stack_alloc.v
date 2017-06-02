@@ -144,6 +144,7 @@ Fixpoint check_e (m:map) (e1 e2: pexpr) :=
   | Pcast  e1, Pcast  e2 => check_e m e1 e2 
   | Pvar   x1, Pvar   x2 => check_var m x1 x2 
   | Pvar   x1, Pload x2 e2 => check_var_stk m x1 x2 e2
+  | Pglobal g1, Pglobal g2 => g1 == g2
   | Pget  x1 e1, Pget x2 e2 => check_var m x1 x2 && check_e m e1 e2
   | Pget  x1 e1, Pload x2 e2 => check_arr_stk' (* check_e *) m x1 e1 x2 e2
   | Pload x1 e1, Pload x2 e2 => check_var m x1 x2 && check_e m e1 e2

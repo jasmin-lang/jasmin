@@ -154,6 +154,15 @@ let vari_of_cvari tbl v =
 
 (* ------------------------------------------------------------------------ *)
 
+let cglobal_of_global (g: Name.t) : C.global =
+  string0_of_string g
+
+let global_of_cglobal (g: C.global) : Name.t =
+  string_of_string0 g
+
+
+(* ------------------------------------------------------------------------ *)
+
 let ccmp_of_cmp = function
   | Cmp_int    -> C.Cmp_int
   | Cmp_uw W64 -> C.Cmp_uw
@@ -241,6 +250,7 @@ let rec cexpr_of_expr tbl = function
   | Pcast (W64, e)    -> C.Pcast (cexpr_of_expr tbl e)
   | Pcast _           -> assert false
   | Pvar x            -> C.Pvar (cvari_of_vari tbl x)
+  | Pglobal g -> C.Pglobal (cglobal_of_global g)
   | Pget (x,e)        -> C.Pget (cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Pload (W64, x, e) -> C.Pload(cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Pload _           -> assert false
@@ -255,6 +265,7 @@ let rec expr_of_cexpr tbl = function
   | C.Pbool  b          -> Pbool  b
   | C.Pcast  e          -> Pcast (W64, expr_of_cexpr tbl e)
   | C.Pvar x            -> Pvar (vari_of_cvari tbl x)
+  | C.Pglobal g -> Pglobal (global_of_cglobal g)
   | C.Pget (x,e)        -> Pget (vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Pload (x, e)      -> Pload(W64, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Papp1 (o, e)      -> Papp1(op1_of_cop1 o, expr_of_cexpr tbl e)

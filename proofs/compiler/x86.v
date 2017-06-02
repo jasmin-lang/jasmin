@@ -270,6 +270,8 @@ Definition oprd_of_pexpr ii (e: pexpr) :=
   | Pvar v =>
      Let s := reg_of_var ii v in
      ciok (Reg_op s)
+  | Pglobal g =>
+    ciok (Glo_op g)
   | Pload v e => (* FIXME: can we recognize more expression for e ? *)
      Let s := reg_of_var ii v in
      Let w := addr_of_pexpr ii s e in

@@ -42,8 +42,12 @@ Local Notation cpm := (Mvar.t Z).
 (* ** proofs
  * -------------------------------------------------------------------- *)
 
+Section GLOB_DEFS.
+
+Context (gd: glob_defs).
+
 Definition eqok (e1 e2:pexpr) st := 
-  forall v, sem_pexpr st e1 = ok v -> sem_pexpr st e2 = ok v.
+  forall v, sem_pexpr gd st e1 = ok v -> sem_pexpr gd st e2 = ok v.
 
 Notation "e1 '=[' st ']' e2" := (eqok e1 e2 st)
  (at level 70, no associativity).
@@ -301,7 +305,7 @@ Lemma const_prop_eP (e:pexpr) s (m:cpm):
   e =[s] const_prop_e m e.
 Proof.
   move=> Hvalid;rewrite /eqok.
-  elim: e=> [z | b | e He | x | x e He | x e He | o e He | o e1 He1 e2 He2 | e He e1 He1 e2 He2] v //=.
+  elim: e=> [z | b | e He | x | g | x e He | x e He | o e He | o e1 He1 e2 He2 | e He e1 He1 e2 He2] v //=.
   + by case Heq: sem_pexpr => [ve|] //=;rewrite (He _ Heq).
   + by case Heq: Mvar.get => [n|] //=;rewrite (Hvalid _ _ Heq).
   + apply:on_arr_varP;rewrite /on_arr_var => n t ? -> /=.
@@ -318,11 +322,11 @@ Proof.
 Qed.
 
 Definition eqoks (e1 e2:seq pexpr) st := 
-  forall v, sem_pexprs st e1 = ok v -> sem_pexprs st e2 = ok v.
+  forall v, sem_pexprs gd st e1 = ok v -> sem_pexprs gd st e2 = ok v.
 
 Lemma const_prop_esP es s m vs: 
   valid_cpm (evm s) m ->
-  sem_pexprs s es = ok vs -> sem_pexprs s (map (const_prop_e m) es) = ok vs.
+  sem_pexprs gd s es = ok vs -> sem_pexprs gd s (map (const_prop_e m) es) = ok vs.
 Proof.
   move=> Hv;elim: es vs => //= e es Hrec /= vs.
   rewrite /sem_pexprs /=;apply : rbindP => v /(const_prop_eP Hv) ->.
@@ -341,8 +345,8 @@ Proof.
 Qed.
 
 Lemma add_cpmP s1 s1' m x e tag v : 
-  sem_pexpr s1 e = ok v -> 
-  write_lval x v s1 = ok s1' ->
+  sem_pexpr gd s1 e = ok v ->
+  write_lval gd x v s1 = ok s1' ->
   valid_cpm (evm s1') m -> 
   valid_cpm (evm s1') (add_cpm m x tag e).
 Proof.
@@ -368,9 +372,9 @@ Qed.
 
 Lemma const_prop_rvP s1 s2 m x v: 
   valid_cpm (evm s1) m ->
-  write_lval x v s1 = Ok error s2 ->
+  write_lval gd x v s1 = Ok error s2 ->
   valid_cpm (evm s2) (const_prop_rv m x).1 /\
-  write_lval (const_prop_rv m x).2 v s1 = ok s2.
+  write_lval gd (const_prop_rv m x).2 v s1 = ok s2.
 Proof.
   case:x => [ii t | x | x p | x p] /= Hv.
   + by move=> H; have [??]:= write_noneP H; subst s2.
@@ -389,9 +393,9 @@ Qed.
 
 Lemma const_prop_rvsP s1 s2 m x v: 
   valid_cpm (evm s1) m ->
-  write_lvals s1 x v = Ok error s2 ->
+  write_lvals gd s1 x v = Ok error s2 ->
   valid_cpm (evm s2) (const_prop_rvs m x).1 /\
-  write_lvals s1 (const_prop_rvs m x).2 v = ok s2.
+  write_lvals gd s1 (const_prop_rvs m x).2 v = ok s2.
 Proof.
   elim: x v m s1 s2 => [ | x xs Hrec] [ | v vs] //= m s1 s2 Hm.
   + by move=> [<-].
@@ -440,10 +444,12 @@ Proof.
 Qed.
 
 Lemma remove_cpmP s s' m x v: 
-  write_lval x v s = ok s' ->
+  write_lval gd x v s = ok s' ->
   valid_cpm (evm s) m ->
   valid_cpm (evm s') (remove_cpm m (vrv x)).
 Proof. move=> Hw Hv; apply: (valid_cpm_rm _ Hv);eapply vrvP;eauto. Qed.
+
+End GLOB_DEFS.
 
 Instance const_prop_e_m : 
   Proper (@Mvar_eq Z ==> eq ==> eq) const_prop_e.
@@ -633,6 +639,7 @@ Qed.
 Section PROOF.
 
   Variable p:prog.
+  Context (gd: glob_defs).
 
   Let p' := const_prop_prog p.
 
@@ -640,35 +647,35 @@ Section PROOF.
     forall m, 
       valid_cpm s.(evm) m ->
       valid_cpm s'.(evm) (const_prop_i m i).1 /\
-      sem p' s (const_prop_i m i).2 s'.
+      sem p' gd s (const_prop_i m i).2 s'.
 
   Let Pi_r s (i:instr_r) s':= 
     forall m ii, 
       valid_cpm s.(evm) m ->
       valid_cpm s'.(evm) (const_prop_ir m ii i).1 /\
-      sem p' s (const_prop_ir m ii i).2 s'.
+      sem p' gd s (const_prop_ir m ii i).2 s'.
 
   Let Pc s (c:cmd) s':= 
     forall m, 
       valid_cpm s.(evm) m ->
       valid_cpm s'.(evm) (const_prop const_prop_i m c).1 /\
-      sem p' s (const_prop const_prop_i m c).2 s'.
+      sem p' gd s (const_prop const_prop_i m c).2 s'.
 
   Let Pfor (i:var_i) vs s c s' :=
     forall m, 
       Mvar_eq m (remove_cpm m (Sv.union (Sv.singleton i) (write_c c))) ->
       valid_cpm s.(evm) m ->
-      sem_for p' i vs s (const_prop const_prop_i m c).2 s'.
+      sem_for p' gd i vs s (const_prop const_prop_i m c).2 s'.
 
   Let Pfun (mem:Memory.mem) fn vargs (mem':Memory.mem) vres :=
-    sem_call p' mem fn vargs mem' vres.
+    sem_call p' gd mem fn vargs mem' vres.
 
   Local Lemma Hskip s: Pc s [::] s.
   Proof. move=> m /= ?;split=>//; constructor. Qed.
 
   Local Lemma Hcons s1 s2 s3 i c :
-    sem_I p s1 i s2 ->
-    Pi s1 i s2 -> sem p s2 c s3 -> Pc s2 c s3 -> Pc s1 (i :: c) s3.
+    sem_I p gd s1 i s2 ->
+    Pi s1 i s2 -> sem p gd s2 c s3 -> Pc s2 c s3 -> Pc s1 (i :: c) s3.
   Proof.
     move=> _ Hi _ Hc m /Hi [] /=.
     case: const_prop_i => m' i' /Hc [].
@@ -677,11 +684,11 @@ Section PROOF.
   Qed.
 
   Local Lemma HmkI ii i s1 s2 :
-    sem_i p s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
+    sem_i p gd s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
   Proof. by move=> _ Hi m /(Hi _ ii). Qed.
  
   Local Lemma Hassgn s1 s2 x tag e :
-    Let v := sem_pexpr s1 e in write_lval x v s1 = Ok error s2 ->
+    Let v := sem_pexpr gd s1 e in write_lval gd x v s1 = Ok error s2 ->
     Pi_r s1 (Cassgn x tag e) s2.
   Proof.
     apply: rbindP => v He Hw m ii /= Hm. 
@@ -691,8 +698,8 @@ Section PROOF.
   Qed.
 
   Local Lemma Hopn s1 s2 o xs es : 
-    Let x := Let x := sem_pexprs s1 es in sem_sopn o x
-    in write_lvals s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
+    Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x
+    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
   Proof.
     move=> H m ii Hm; apply: rbindP H => vs.
     apply: rbindP => ves Hes Ho Hw;move: (Hes) (Hw).
@@ -702,8 +709,8 @@ Section PROOF.
   Qed.
 
   Local Lemma Hif_true s1 s2 e c1 c2 :
-    Let x := sem_pexpr s1 e in to_bool x = Ok error true ->
-    sem p s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+    Let x := sem_pexpr gd s1 e in to_bool x = Ok error true ->
+    sem p gd s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
   Proof.
     move => He _ Hc1 m ii Hm.
     apply: rbindP He => v /(const_prop_eP Hm) He /=.
@@ -715,8 +722,8 @@ Section PROOF.
   Qed.
 
   Local Lemma Hif_false s1 s2 e c1 c2 :
-    Let x := sem_pexpr s1 e in to_bool x = Ok error false ->
-    sem p s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+    Let x := sem_pexpr gd s1 e in to_bool x = Ok error false ->
+    sem p gd s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
   Proof.
     move => He _ Hc2 m ii Hm.
     apply: rbindP He => v /(const_prop_eP Hm) He /=.
@@ -728,18 +735,18 @@ Section PROOF.
   Qed.
 
   (* TODO: move this *)    
-  Lemma sem_seq1_iff (P : prog) (i : instr) (s1 s2 : estate):
-     sem_I P s1 i s2 <-> sem P s1 [:: i] s2.
+  Lemma sem_seq1_iff (P : prog) GD (i : instr) (s1 s2 : estate):
+     sem_I P GD s1 i s2 <-> sem P GD s1 [:: i] s2.
   Proof.
     split=> [ | H]; first by apply sem_seq1.
     by sinversion H;sinversion H5. 
   Qed.
 
   Local Lemma Hwhile_true s1 s2 s3 s4 c e c':
-    sem p s1 c s2 -> Pc s1 c s2 ->
-    Let x := sem_pexpr s2 e in to_bool x = Ok error true ->
-    sem p s2 c' s3 -> Pc s2 c' s3 ->
-    sem_i p s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 -> 
+    sem p gd s1 c s2 -> Pc s1 c s2 ->
+    Let x := sem_pexpr gd s2 e in to_bool x = Ok error true ->
+    sem p gd s2 c' s3 -> Pc s2 c' s3 ->
+    sem_i p gd s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 ->
     Pi_r s1 (Cwhile c e c') s4.
   Proof.
     move=> Hc1 Hc He Hc1' Hc' Hw1 Hw m ii Hm.
@@ -748,11 +755,11 @@ Section PROOF.
     case Heq1: const_prop => [m'' c0] /=.
     case Heq2: const_prop => [m_ c0'] /=;split.
     + apply: valid_cpm_rm Hm.
-      by apply (@write_iP p); apply: (Ewhile_true Hc1) Hc1' Hw1;rewrite He. 
-    set W := (W in sem _ _ W _). 
+      by apply (@write_iP p gd); apply: (Ewhile_true Hc1) Hc1' Hw1;rewrite He.
+    set W := (W in sem _ _ _ W _).
     have Hsem: forall s1 s4, 
-      sem p' s1 [:: MkI ii (Cwhile c0 (const_prop_e m' e) c0')] s4 <->
-      sem p' s1 W s4.
+      sem p' gd s1 [:: MkI ii (Cwhile c0 (const_prop_e m' e) c0')] s4 <->
+      sem p' gd s1 W s4.
     + move=> ??;rewrite /W;case:is_boolP => // -[] //=.
       rewrite -sem_seq1_iff;split=> H.
       + by sinversion H;sinversion H4.
@@ -788,8 +795,8 @@ Section PROOF.
   Qed.
 
   Local Lemma Hwhile_false s1 s2 c e c':
-    sem p s1 c s2 -> Pc s1 c s2 ->
-    Let x := sem_pexpr s2 e in to_bool x = Ok error false ->
+    sem p gd s1 c s2 -> Pc s1 c s2 ->
+    Let x := sem_pexpr gd s2 e in to_bool x = Ok error false ->
     Pi_r s1 (Cwhile c e c') s2.
   Proof.
     move=> Hc1 Hc He m ii Hm.
@@ -801,10 +808,10 @@ Section PROOF.
     + apply: valid_cpm_rm Hm;rewrite /ww write_i_while.
       by apply: vmap_eq_exceptI (writeP Hc1);SvD.fsetdec.
     case Heq2: const_prop => [m_  c0'] /=;split=>//.
-    set W := (W in sem _ _ W _). 
+    set W := (W in sem _ _ _ W _).
     have Hsem: forall s1 s4, 
-      sem p' s1 [:: MkI ii (Cwhile c0 (const_prop_e m' e) c0')] s4 <->
-      sem p' s1 W s4.
+      sem p' gd s1 [:: MkI ii (Cwhile c0 (const_prop_e m' e) c0')] s4 <->
+      sem p' gd s1 W s4.
     + move=> ??;rewrite /W;case:is_boolP => // -[] //=.
       rewrite -sem_seq1_iff;split=> H.
       + by sinversion H;sinversion H4.
@@ -816,9 +823,9 @@ Section PROOF.
   Qed.
  
   Local Lemma Hfor s1 s2 (i:var_i) d lo hi c vlo vhi :
-    Let x := sem_pexpr s1 lo in to_int x = Ok error vlo ->
-    Let x := sem_pexpr s1 hi in to_int x = Ok error vhi ->
-    sem_for p i (wrange d vlo vhi) s1 c s2 ->
+    Let x := sem_pexpr gd s1 lo in to_int x = Ok error vlo ->
+    Let x := sem_pexpr gd s1 hi in to_int x = Ok error vhi ->
+    sem_for p gd i (wrange d vlo vhi) s1 c s2 ->
     Pfor i (wrange d vlo vhi) s1 c s2 -> Pi_r s1 (Cfor i (d, lo, hi) c) s2.
   Proof.
     move=> Hlo Hhi Hc Hfor m ii Hm /=.
@@ -828,7 +835,7 @@ Section PROOF.
     + by have := remove_cpm2 m ww; rewrite /m' /ww write_i_for => ->.
     have := Hfor _ Heqm Hm'1.      
     case Heq1: const_prop => [m'' c'] /= Hsem;split.
-    + by apply: valid_cpm_rm Hm;apply (@write_iP p);econstructor;eauto.
+    + by apply: valid_cpm_rm Hm;apply (@write_iP p gd);econstructor;eauto.
     apply sem_seq1;constructor;econstructor.
     + by apply: rbindP Hlo => v /(const_prop_eP Hm) -> /=;eauto.
     + by apply: rbindP Hhi => v /(const_prop_eP Hm) -> /=;eauto.
@@ -840,9 +847,9 @@ Section PROOF.
 
   Local Lemma Hfor_cons s1 s1' s2 s3 (i : var_i) (w:Z) (ws:seq Z) c :
     write_var i w s1 = Ok error s1' ->
-    sem p s1' c s2 ->
+    sem p gd s1' c s2 ->
     Pc s1' c s2 ->
-    sem_for p i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
+    sem_for p gd i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
   Proof.
     move => Hw Hsemc Hc Hsemf Hf m Heqm Hm.
     have Hm' : valid_cpm (evm s1') m.
@@ -860,10 +867,10 @@ Section PROOF.
   Qed.
 
   Local Lemma Hcall s1 m2 s2 ii xs fn args vargs vs:
-    sem_pexprs s1 args = Ok error vargs ->
-    sem_call p (emem s1) fn vargs m2 vs ->
+    sem_pexprs gd s1 args = Ok error vargs ->
+    sem_call p gd (emem s1) fn vargs m2 vs ->
     Pfun (emem s1) fn vargs m2 vs ->
-    write_lvals {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
+    write_lvals gd {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
     Pi_r s1 (Ccall ii xs fn args) s2.
   Proof.
     move=> Hargs Hcall Hfun Hvs m ii' Hm.
@@ -876,7 +883,7 @@ Section PROOF.
   Local Lemma Hproc m1 m2 fn f vargs s1 vm2 vres: 
     get_fundef p fn = Some f ->
     write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
-    sem p s1 (f_body f) {| emem := m2; evm := vm2 |} -> 
+    sem p gd s1 (f_body f) {| emem := m2; evm := vm2 |} ->
     Pc s1 (f_body f) {| emem := m2; evm := vm2 |} ->
     mapM (fun x : var_i => get_var vm2 x) (f_res f) = ok vres ->
     List.Forall is_full_array vres -> 
@@ -888,11 +895,11 @@ Section PROOF.
     move=> /Hc [];case: const_prop;econstructor;eauto.
   Qed.
 
-  Lemma const_prop_callP f mem mem' va vr: 
-    sem_call p mem f va mem' vr -> 
-    sem_call p' mem f va mem' vr.
+  Lemma const_prop_callP f mem mem' va vr:
+    sem_call p gd mem f va mem' vr ->
+    sem_call p' gd mem f va mem' vr.
   Proof.
-    apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    apply (@sem_call_Ind p gd Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 

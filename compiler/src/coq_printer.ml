@@ -171,6 +171,7 @@ let rec pp_pexpr fmt = function
   | Pcast(W64, pe) -> F.fprintf fmt "(Pcast %a)" pp_pexpr pe
   | Pcast _        -> assert false
   | Pvar vi        -> F.fprintf fmt "%a" pp_vari vi
+  | Pglobal g -> F.fprintf fmt "(Pglobal %s)" g
   | Pget(vi, pe)   ->
     F.fprintf fmt "%a.[%a]" pp_vari vi pp_pexpr pe
   | Pload(W64, vi, pe) ->

@@ -69,6 +69,7 @@ type v_kind =
   | Stack         (* stack variable    *)
   | Reg           (* register variable *)
   | Inline        (* inline variable   *)
+  | Global (* global (in memory) constant *)
   [@@deriving compare,sexp]
 
 type 'ty gvar = {
@@ -92,6 +93,7 @@ type 'ty gexpr =
   | Pbool  of bool
   | Pcast  of word_size * 'ty gexpr
   | Pvar   of 'ty gvar_i
+  | Pglobal of Name.t
   | Pget   of 'ty gvar_i * 'ty gexpr
   | Pload  of word_size * 'ty gvar_i * 'ty gexpr
   | Papp1  of op1 * 'ty gexpr
@@ -210,6 +212,7 @@ type ('ty,'info) gfunc = {
 type ('ty,'info) gmod_item =
   | MIfun   of ('ty,'info) gfunc
   | MIparam of ('ty gvar * 'ty gexpr)
+  | MIglobal of 'ty gvar * 'ty gexpr
 
 type ('ty,'info) gprog = ('ty,'info) gmod_item list
    (* first declaration occur at the end (i.e reverse order) *)
@@ -307,7 +310,7 @@ module Hf = Hash.Make(F)
 (* used variables                                                       *)
 
 let rec rvars_e s = function
-  | Pconst _ | Pbool _ -> s
+  | Pconst _ | Pbool _ | Pglobal _ -> s
   | Pcast(_,e)     -> rvars_e s e
   | Pvar x         -> Sv.add (L.unloc x) s
   | Pget(x,e)      -> rvars_e (Sv.add (L.unloc x) s) e

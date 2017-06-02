@@ -48,6 +48,7 @@ Module S.
   Section SEM.
 
   Variable P:sprog.
+  Context (gd: glob_defs).
 
   Import Memory.
 
@@ -64,39 +65,39 @@ Module S.
 
   with sem_i : estate -> instr_r -> estate -> Prop :=
   | Eassgn s1 s2 (x:lval) tag e:
-    (Let v := sem_pexpr s1 e in write_lval x v s1) = ok s2 ->
+    (Let v := sem_pexpr gd s1 e in write_lval gd x v s1) = ok s2 ->
     sem_i s1 (Cassgn x tag e) s2
 
   | Eopn s1 s2 o xs es:
-    sem_pexprs s1 es >>= sem_sopn o >>= (write_lvals s1 xs) = ok s2 ->
+    sem_pexprs gd s1 es >>= sem_sopn o >>= (write_lvals gd s1 xs) = ok s2 ->
     sem_i s1 (Copn xs o es) s2
 
   | Eif_true s1 s2 e c1 c2 :
-    sem_pexpr s1 e >>= to_bool = ok true ->
+    sem_pexpr gd s1 e >>= to_bool = ok true ->
     sem s1 c1 s2 ->
     sem_i s1 (Cif e c1 c2) s2
 
   | Eif_false s1 s2 e c1 c2 :
-    sem_pexpr s1 e >>= to_bool = ok false ->
+    sem_pexpr gd s1 e >>= to_bool = ok false ->
     sem s1 c2 s2 ->
     sem_i s1 (Cif e c1 c2) s2
 
   | Ewhile_true s1 s2 s3 s4 c e c' :
     sem s1 c s2 ->
-    sem_pexpr s2 e >>= to_bool = ok true ->
+    sem_pexpr gd s2 e >>= to_bool = ok true ->
     sem s2 c' s3 ->
     sem_i s3 (Cwhile c e c') s4 ->
     sem_i s1 (Cwhile c e c') s4
 
   | Ewhile_false s1 s2 c e c' :
     sem s1 c s2 ->
-    sem_pexpr s2 e >>= to_bool = ok false ->
+    sem_pexpr gd s2 e >>= to_bool = ok false ->
     sem_i s1 (Cwhile c e c') s2
 
   | Ecall s1 m2 s2 ii xs f args vargs vs :
-    sem_pexprs s1 args = ok vargs ->
+    sem_pexprs gd s1 args = ok vargs ->
     sem_call s1.(emem) f vargs m2 vs ->
-    write_lvals {|emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->
+    write_lvals gd {|emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->
     sem_i s1 (Ccall ii xs f args) s2
 
   with sem_call : mem -> funname -> seq value -> mem -> seq value -> Prop :=

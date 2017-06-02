@@ -209,11 +209,22 @@ Definition var_info_to_attr (vi: var_info) :=
   | _ => VarA false
   end.
 
+Record global := Global { ident_of_global:> Ident.ident }.
+
+Definition global_beq (g1 g2: global) : bool := g1 == g2.
+
+Lemma global_eq_axiom : Equality.axiom global_beq.
+Proof. move=>[g1][g2]; rewrite/global_beq/=; case: eqP; constructor; congruence. Qed.
+
+Definition global_eqMixin := Equality.Mixin global_eq_axiom.
+Canonical global_eqType := Eval hnf in EqType global global_eqMixin.
+
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
 | Pcast  : pexpr -> pexpr              (* int -> word *)
 | Pvar   :> var_i -> pexpr
+| Pglobal :> global -> pexpr
 | Pget   : var_i -> pexpr -> pexpr
 | Pload  : var_i -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
@@ -244,6 +255,7 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
   | Pbool  b1   , Pbool  b2    => b1 == b2
   | Pcast  e1   , Pcast  e2    => eqb e1 e2
   | Pvar   x1   , Pvar   x2    => (x1 == x2)
+  | Pglobal g1, Pglobal g2 => g1 == g2
   | Pget   x1 e1, Pget   x2 e2 => (x1 == x2) && eqb e1 e2
   | Pload  x1 e1, Pload  x2 e2 => (x1 == x2) && eqb e1 e2
   | Papp1 o1 e1 , Papp1  o2 e2 => (o1 == o2) && eqb e1 e2
@@ -256,9 +268,9 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
 
   Lemma eq_axiom : Equality.axiom eqb.
   Proof.
-    elim => [n1|b1|e1 He1|x1|x1 e1 He1|x1 e1 He1
+    elim => [n1|b1|e1 He1|x1|g1|x1 e1 He1|x1 e1 He1
             |o1 e1 He1|o1 e11 He11 e12 He12 | t1 Ht1 e11 He11 e12 He12]
-            [n2|b2|e2|x2|x2 e2|x2 e2|o2 e2|o2 e21 e22 | t2 e21 e22] /=;
+            [n2|b2|e2|x2|g2|x2 e2|x2 e2|o2 e2|o2 e21 e22 | t2 e21 e22] /=;
         try by constructor.
     + apply (@equivP (n1 = n2));first by apply: eqP.
       by split => [->|[]->].
@@ -266,6 +278,8 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
       by split => [->|[]->].
     + by apply: (equivP (He1 e2)); split => [->|[]->].
     + apply (@equivP (x1 = x2));first by apply: eqP.
+      by split => [->|[]->].
+    + apply (@equivP (g1 = g2));first by apply: eqP.
       by split => [->|[]->].
     + apply (@equivP ((x1 == x2) /\ eqb e1 e2));first by apply andP.
       by split=> [ [] /eqP -> /He1 -> | [] -> <- ] //;split => //;apply /He1.
@@ -776,6 +790,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Pbool  _       => s
   | Pcast  e       => read_e_rec s e
   | Pvar   x       => Sv.add x s
+  | Pglobal _ => s
   | Pget   x e     => read_e_rec (Sv.add x s) e
   | Pload  x e     => read_e_rec (Sv.add x s) e
   | Papp1  _ e     => read_e_rec s e
@@ -949,7 +964,7 @@ Definition is_wconst e :=
   | _       => None
   end.
 
-Inductive is_reflect (A:Type) (P:A -> pexpr) : pexpr -> option A -> Prop :=
+Variant is_reflect (A:Type) (P:A -> pexpr) : pexpr -> option A -> Prop :=
  | Is_reflect_some : forall a, is_reflect P (P a) (Some a)
  | Is_reflect_none : forall e, is_reflect P e None.
 
@@ -976,6 +991,7 @@ Fixpoint eq_expr e e' :=
   (* FIXME if e1, e2 = Pconst we can compute the cast *)
   | Pcast  e      , Pcast  e'         => eq_expr e e'
   | Pvar   x      , Pvar   x'         => v_var x == v_var x'
+  | Pglobal g, Pglobal g' => g == g'
   | Pget   x e    , Pget   x' e'      => (v_var x == v_var x') && eq_expr e e'
   | Pload  x e    , Pload  x' e'      => (v_var x == v_var x') && eq_expr e e'
   | Papp1  o e    , Papp1  o' e'      => (o == o') && eq_expr e e'

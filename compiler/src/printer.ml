@@ -73,6 +73,7 @@ let pp_ge pp_var =
   | Pbool  b    -> F.fprintf fmt "%b" b
   | Pcast(ws,e) -> F.fprintf fmt "(%a)%a" pp_btype (U ws) pp_expr e
   | Pvar v      -> pp_var_i fmt v
+  | Pglobal g -> F.fprintf fmt "%s" g
   | Pget(x,e)   -> F.fprintf fmt "%a[%a]" pp_var_i x pp_expr e
   | Pload(ws,x,e) ->
     F.fprintf fmt "@[(load %a@ %a@ %a)@]"
@@ -212,6 +213,7 @@ let pp_kind = function
   | Stack  -> "Stack"
   | Reg    -> "Reg"
   | Inline -> "Inline"
+  | Global -> "Global"
 
 let pp_ty_decl (pp_size:F.formatter -> 'size -> unit) fmt v =
   F.fprintf fmt "%s %a" (pp_kind v.v_kind) (pp_gtype pp_size) v.v_ty
@@ -241,6 +243,7 @@ let pp_pitem pp_var =
   let pp_size = pp_ge pp_var in
   let aux fmt = function
     | MIfun fd -> pp_gfun pp_noinfo pp_size pp_var fmt fd
+    | MIglobal (x, e)
     | MIparam (x,e) ->
       F.fprintf fmt "%a = %a"
         (pp_var_decl pp_var pp_size) x

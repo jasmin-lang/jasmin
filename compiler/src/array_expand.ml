@@ -37,7 +37,7 @@ let init_tbl fc =
 
 let rec arrexp_e tbl e =
   match e with
-  | Pconst _ | Pbool _ -> e
+  | Pconst _ | Pbool _ | Pglobal _ -> e
   | Pvar x -> check_not_reg_arr "Pvar" x; e
 
   | Pget (x,e) ->
@@ -123,7 +123,7 @@ let store_stack ws loc e =
 
 let rec astk_e tbl e =
   match e with
-  | Pconst _ | Pbool _ -> e
+  | Pconst _ | Pbool _ | Pglobal _ -> e
 
   | Pvar x ->
     let x_ = L.unloc x in

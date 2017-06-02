@@ -28,6 +28,8 @@ let pp_gen (fmt : Format.formatter) = function
   | `Instr (s, args) ->
       Format.fprintf fmt "\t%-.*s\t%s"
         iwidth s (String.join ", " args)
+  | `Data e ->
+    Format.fprintf fmt "\t.8byte\t%s" e
 
 let pp_gens (fmt : Format.formatter) xs =
   List.iter (Format.fprintf fmt "%a\n%!" pp_gen) xs
@@ -149,10 +151,24 @@ let pp_label (lbl : Linear.label) =
   Format.sprintf "%s" (string_of_label lbl)
 
 (* -------------------------------------------------------------------- *)
+let pp_glo (g: Expr.global) =
+  Format.sprintf "%s(%%rip)" (Conv.string_of_string0 g)
+
+(* -------------------------------------------------------------------- *)
+let pp_param (e: Prog.pexpr) : string =
+  let open Prog in
+  match e with
+  | Pcast (W64, Pconst z) -> Bigint.to_string z
+  | _ -> "TODO"
+
+(* -------------------------------------------------------------------- *)
 let pp_opr (ws : rsize) (op : X86_sem.oprd) =
   match op with
   | Imm_op imm ->
       pp_imm (Conv.bi_of_int64 imm)
+
+  | Glo_op g ->
+    pp_glo g
 
   | Reg_op reg ->
       pp_register ws reg
@@ -306,7 +322,8 @@ type rset = X86_sem.register Set.t
 
 let reg_of_oprd (op : X86_sem.oprd) =
   match op with
-  | Imm_op _  -> None
+  | Imm_op _
+  | Glo_op _
   | Adr_op _  -> None
   | Reg_op r -> Some r
 
@@ -365,7 +382,7 @@ let x86_64_callee_save = [
   X86_sem.R15;
 ]
 
-let pp_prog (tbl: 'info Conv.coq_tbl) (fmt : Format.formatter) (asm : X86.xprog) =
+let pp_prog (tbl: 'info Conv.coq_tbl) (gd: (Prog.pvar * Prog.pexpr) list) (fmt : Format.formatter) (asm : X86.xprog) =
   pp_gens fmt [`Instr (".text", []); `Instr (".p2align", ["5"])];
   List.iter (fun (n, _) -> pp_gens fmt
     [`Instr (".globl", [mangle (string_of_funname tbl n)]);
@@ -395,3 +412,9 @@ let pp_prog (tbl: 'info Conv.coq_tbl) (fmt : Format.formatter) (asm : X86.xprog)
         (List.rev wregs);
       pp_gens fmt [`Instr ("popq", ["%rbp"]); `Instr ("ret", [])])
     asm
+    ; List.iter (fun (n, d) ->
+      pp_gens fmt [
+        `Label n.Prog.v_name;
+        `Data (pp_param d)
+      ]
+    ) gd

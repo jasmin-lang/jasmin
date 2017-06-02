@@ -96,7 +96,7 @@ type pcall_conv = [
 ]
 
 type pfundef = {
-  pdf_cc   : pcall_conv option; 
+  pdf_cc   : pcall_conv option;
   pdf_name : pident;
   pdf_args : (pstotype * pident) list;
   pdf_rty  : pstotype list option;
@@ -104,7 +104,11 @@ type pfundef = {
 }
 
 (* -------------------------------------------------------------------- *)
+type pglobal = { pgd_name: pident ; pgd_val: pexpr }
+
+(* -------------------------------------------------------------------- *)
 type pitem = PFundef of pfundef | PParam of pparam
+  | PGlobal of pglobal
 
 (* -------------------------------------------------------------------- *)
 type pprogram = pitem L.located list
