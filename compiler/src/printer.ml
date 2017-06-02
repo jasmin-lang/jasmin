@@ -63,6 +63,7 @@ let pp_op1 = function
   | Olnot _ -> "!"
   | Onot    -> "~"
   | Oneg _ -> "-"
+  | Oarr_init _ -> "array_init"
 
 (* -------------------------------------------------------------------- *)
 let pp_ge pp_var =

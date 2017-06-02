@@ -50,6 +50,7 @@ let print_strings = function
   | Compiler.DeadCode_AllocInlineAssgn   -> "vallocd" , "dead code after inlined variables allocation"
   | Compiler.ShareStackVariable          -> "vshare"  , "sharing of stack variables"
   | Compiler.DeadCode_ShareStackVariable -> "vshared" , "dead code after sharing of stack variables"
+  | Compiler.RemoveArrInit               -> "rmarrinit", "remove array init"
   | Compiler.RegArrayExpansion           -> "arrexp"  , "expansion of register arrays"
   | Compiler.LowerInstruction            -> "lowering", "lowering of instructions"
   | Compiler.RegAllocation               -> "ralloc"  , "register allocation"

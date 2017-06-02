@@ -222,6 +222,7 @@ let op1_of_cop1 = function
   | C.Olnot -> Olnot W64
   | C.Onot  -> Onot
   | C.Oneg -> Oneg W64
+  | C.Oarr_init -> Oarr_init W64
 
 let cop1_of_op1 = function
   | Olnot W64 -> C.Olnot
@@ -229,6 +230,8 @@ let cop1_of_op1 = function
   | Onot      -> C.Onot
   | Oneg W64 -> C.Oneg
   | Oneg _   -> assert false
+  | Oarr_init W64 -> C.Oarr_init
+  | Oarr_init _   -> assert false
 
 (* ------------------------------------------------------------------------ *)
 

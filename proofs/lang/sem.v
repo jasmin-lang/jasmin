@@ -310,11 +310,19 @@ Definition sem_asr (v i:word) :=
   let i := I64.and i x86_shift_mask in
   if i == I64.zero then v else I64.shr v i.
 
+Definition sem_arr_init (v:value) := 
+  Let n := to_int v in 
+  match n with
+  | Zpos p => ok (Varr (Array.empty p))
+  | _      => type_error
+  end.
+
 Definition sem_sop1 (o:sop1) :=
   match o with
   | Onot   => sem_op1_b negb
   | Olnot  => sem_op1_w I64.not
-  | Oneg  => sem_op1_w I64.neg
+  | Oneg   => sem_op1_w I64.neg
+  | Oarr_init => sem_arr_init
   end.
 
 Definition sem_sop2 (o:sop2) :=
@@ -1572,7 +1580,8 @@ Proof.
     apply: rbindP => z Hz [] <-.
   + by have [z' [-> /= <- ]]:= of_val_uincl Hu Hz.
   + by have [z' [-> /= <- ]]:= of_val_uincl Hu Hz.
-  by have [z' [-> /= <- ]]:= of_val_uincl Hu Hz.
+  + by have [z' [-> /= <- ]]:= of_val_uincl Hu Hz.
+  by rewrite /sem_arr_init; have [_ ->]:= value_uincl_int Hu Hz.
 Qed.
 
 Lemma type_of_val_uincl v1 v2:

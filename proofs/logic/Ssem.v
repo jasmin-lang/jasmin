@@ -169,11 +169,16 @@ Definition mk_ssem_sop2 t1 t2 tr (o:ssem_t t1 -> ssem_t t2 -> ssem_t tr) v1 v2 :
 Definition ssem_op1_b  := @mk_ssem_sop1 sbool sbool.
 Definition ssem_op1_w  := @mk_ssem_sop1 sword sword.
 
+Definition ssem_arr_init (v:svalue) := 
+  Let n := sto_int v in 
+  ok (SVarr (FArray.cnst I64.zero)).
+
 Definition ssem_sop1 (o:sop1) := 
   match o with
-  | Onot   => ssem_op1_b negb
-  | Olnot  => ssem_op1_w I64.not
-  | Oneg => ssem_op1_w I64.neg
+  | Onot      => ssem_op1_b negb
+  | Olnot     => ssem_op1_w I64.not
+  | Oneg      => ssem_op1_w I64.neg
+  | Oarr_init => ssem_arr_init
   end.
 
 Definition ssem_op2_b  := @mk_ssem_sop2 sbool sbool sbool.

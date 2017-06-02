@@ -32,6 +32,7 @@ type op1 =
   | Olnot of word_size
   | Onot
   | Oneg of word_size
+  | Oarr_init of word_size
 
 type op2 =
   | Oand    (* const : sbool -> sbool -> sbool *)

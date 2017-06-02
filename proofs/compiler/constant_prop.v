@@ -69,7 +69,8 @@ Definition s_op1 o e :=
   match o with
   | Onot  => snot_bool e 
   | Olnot => snot_w e
-  | Oneg => sneg e
+  | Oneg  => sneg e
+  | Oarr_init => Papp1 Oarr_init e
   end.
 
 (* ------------------------------------------------------------------------ *)

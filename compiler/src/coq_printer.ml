@@ -162,6 +162,7 @@ let pp_op1 = function
   | Olnot _   -> assert false
   | Oneg W64 -> "~-"
   | Oneg _   -> assert false
+  | Oarr_init _ -> assert false (* FIXME *)
 
 let rec pp_pexpr fmt = function
   | Pconst i       -> F.fprintf fmt "%s" (B.to_string i)

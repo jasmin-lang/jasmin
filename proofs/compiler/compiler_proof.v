@@ -102,6 +102,7 @@ Proof.
   apply: (CheckAllocReg.alloc_callP He').
   apply: (lower_callP _ Hlower).
   apply: (CheckExpansion.alloc_callP He).
+  apply : remove_init_fdP .
   apply: (dead_code_callP Hps').
   apply: (CheckAllocReg.alloc_callP Hps).
   apply: (dead_code_callP Hpv).

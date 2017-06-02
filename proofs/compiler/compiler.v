@@ -63,6 +63,7 @@ Variant compiler_step :=
   | ShareStackVariable          : compiler_step
   | DeadCode_ShareStackVariable : compiler_step
   | RegArrayExpansion           : compiler_step
+  | RemoveArrInit               : compiler_step
   | LowerInstruction            : compiler_step
   | RegAllocation               : compiler_step
   | DeadCode_RegAllocation      : compiler_step
@@ -123,9 +124,12 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
   Let ps := dead_code_prog ps in
   let ps := cparams.(print_prog) DeadCode_ShareStackVariable ps in
 
-  let pe := expand_prog ps in
+  let pr := remove_init_prog ps in
+  let pr := cparams.(print_prog) RemoveArrInit pr in
+  
+  let pe := expand_prog pr in
   let pe := cparams.(print_prog) RegArrayExpansion pe in
-  Let _ := CheckExpansion.check_prog ps pe in
+  Let _ := CheckExpansion.check_prog pr pe in
 
   if (fvars_correct cparams.(lowering_vars) pe) then
     let pl := lower_prog cparams.(lowering_vars) cparams.(is_var_in_memory) pe in

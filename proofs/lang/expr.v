@@ -58,6 +58,7 @@ Variant sop1 :=
 | Onot
 | Olnot
 | Oneg
+| Oarr_init 
 .
 
 Variant sop2 :=

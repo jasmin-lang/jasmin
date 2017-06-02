@@ -152,6 +152,8 @@ Qed.
 Remark ffalse_denote (P: Prop) s : ⟦ ffalse ⟧ s → P.
 Proof. easy. Qed.
 
+(*Print sstype.
+
 Variant stype' : Type := sint' | sbool' | sword'.
 
 Definition stype_of_stype' (ty: stype') : stype :=
@@ -162,12 +164,13 @@ Definition stype_of_stype' (ty: stype') : stype :=
   end.
 
 Local Coercion stype_of_stype' : stype' >-> stype.
-
-Definition op1_type (op: sop1) : stype' * stype' :=
+*)
+Definition op1_type (op: sop1) : sstype * sstype :=
   match op with
-  | Onot => (sbool', sbool')
+  | Onot => (ssbool, ssbool)
   | Olnot | Oneg
-    => (sword', sword')
+    => (ssword, ssword)
+  | Oarr_init => (ssint, ssarr)
   end.
 
 Definition op1_type_i op := fst (op1_type op).
@@ -178,21 +181,22 @@ Definition sem_texpr_sop1 op : ssem_t (op1_type_i op) → ssem_t (op1_type_o op)
   | Onot => negb
   | Olnot => I64.not
   | Oneg => I64.neg
+  | Oarr_init => fun _ => (FArray.cnst I64.zero)
   end.
 
-Definition op2_type (op: sop2) : stype' * stype' :=
+Definition op2_type (op: sop2) : sstype * sstype :=
   match op with
-  | (Oand | Oor ) => (sbool', sbool')
+  | (Oand | Oor ) => (ssbool, ssbool)
   | (Oadd ty| Omul ty| Osub ty) => 
     match ty with 
-    | Op_int => (sint', sint')
-    | Op_w   => (sword', sword')
+    | Op_int => (ssint, ssint)
+    | Op_w   => (ssword, ssword)
     end
-  | (Oland | Olor | Olxor | Olsr | Olsl | Oasr) => (sword', sword')
+  | (Oland | Olor | Olxor | Olsr | Olsl | Oasr) => (ssword, ssword)
   | (Oeq ty| Oneq ty| Olt ty| Ole ty| Ogt ty| Oge ty) =>
     match ty with
-    | Cmp_int => (sint', sbool')
-    | _       => (sword', sbool')
+    | Cmp_int => (ssint, ssbool)
+    | _       => (ssword, ssbool)
     end
   end.
 
@@ -357,6 +361,7 @@ Proof.
       | H : ?a = ?b |- _ => subst a || subst b
       | H : sto_bool _ = ok _ |- _ => apply sto_bool_inv in H
       | H : sto_word _ = ok _ |- _ => apply sto_word_inv in H
+      | H : sto_int _ = ok _ |- _ => apply sto_int_inv in H
       end;
     try (eexists; split; reflexivity).
 Qed.
@@ -602,7 +607,7 @@ Definition post_assgn (x: lval) {ty} (w: ssem_t ty) (f: formula) (m: mem) (s: en
     | inright _ => False end
   end.
 
-Fixpoint type_of_pexpr (e: pexpr) : stype :=
+Fixpoint type_of_pexpr (e: pexpr) : sstype :=
   match e with
   | Pconst _ => sint
   | Pbool _ => sbool
@@ -616,14 +621,15 @@ Fixpoint type_of_pexpr (e: pexpr) : stype :=
   | Pif _ e _ => type_of_pexpr e
   end.
 
-Definition default_texpr (ty: stype') : texpr ty :=
+Definition default_texpr (ty: sstype) : texpr ty :=
   match ty with
-  | sbool' => Tbool true
-  | sint' =>  Tconst 42
-  | sword' => Tcast (Tconst 999)
+  | ssbool => Tbool true
+  | ssint  => Tconst 42
+  | ssword => Tcast (Tconst 999)
+  | ssarr  => Tapp1 Oarr_init (Tconst 666)  
   end.
 
-Definition texpr_of_pexpr (ty: stype') (pe: pexpr) : texpr ty :=
+Definition texpr_of_pexpr (ty: sstype) (pe: pexpr) : texpr ty :=
   match type_check_pexpr pe ty with
   | Some te => te
   | None => default_texpr ty
@@ -635,12 +641,12 @@ Definition eval_texpr (s: sestate) {ty} (e: texpr ty) : ssem_t ty :=
 
 Lemma texpr_of_pexpr_bool s e b :
   ssem_pexpr s e = ok (SVbool b) →
-  eval_texpr s (texpr_of_pexpr sbool' e) = b.
+  eval_texpr s (texpr_of_pexpr ssbool e) = b.
 Proof.
   destruct s as [m vm].
   move=> h.
   unfold texpr_of_pexpr.
-  generalize (type_check_pexprP m vm e (stype_of_stype' sbool')).
+  generalize (type_check_pexprP m vm e ssbool).
   rewrite h; clear h.
   case: type_check_pexpr => /= [ te [v [Ev /sto_bool_inv Hv]] | [exn Hv] ];
   congruence.
@@ -648,12 +654,12 @@ Qed.
 
 Lemma texpr_of_pexpr_int s e b :
   ssem_pexpr s e = ok (SVint b) →
-  eval_texpr s (texpr_of_pexpr sint' e) = b.
+  eval_texpr s (texpr_of_pexpr ssint e) = b.
 Proof.
   destruct s as [m vm].
   move=> h.
   unfold texpr_of_pexpr.
-  generalize (type_check_pexprP m vm e (stype_of_stype' sint')).
+  generalize (type_check_pexprP m vm e ssint).
   rewrite h; clear h.
   case: type_check_pexpr => /= [ te [v [Ev /sto_int_inv Hv]] | [exn Hv] ];
   congruence.

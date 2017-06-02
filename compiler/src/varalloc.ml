@@ -69,7 +69,7 @@ let alloc_stack_fd fd =
   let cf = conflicts fd' in
 
   Format.eprintf "liveness done@.";
-  let pp_info fmt (c1, c2) =
+(*  let pp_info fmt (c1, c2) =
     let pp_set fmt c = 
       Format.fprintf fmt "{%a}" 
         (Printer.pp_list ", " (Printer.pp_var ~debug:true)) (Sv.elements c) in
@@ -79,7 +79,7 @@ let alloc_stack_fd fd =
   Mv.iter (fun x s ->
       Format.eprintf "%a -> %a@."
         pp_var x (Printer.pp_list ", " pp_var) (Sv.elements s)) cf;
-  Format.eprintf "dependency done@."; 
+  Format.eprintf "dependency done@."; *)
 
 
 
@@ -128,21 +128,22 @@ let merge_var_inline_fd fd =
 (*  Format.eprintf "merge variables introduced by inlining@."; *)
   (* liveness analysis *)
   let fd' = live_fd false fd in
-  Format.eprintf "liveness done@.";
+(*  Format.eprintf "liveness done@.";
   let pp_info fmt (c1, c2) =
     let pp_set fmt c = 
       Format.fprintf fmt "{%a}" 
         (Printer.pp_list ", " (Printer.pp_var ~debug:true)) (Sv.elements c) in
     Format.fprintf fmt "%a%a" pp_set c1 pp_set c2 in
   Format.eprintf "%a" (Printer.pp_ifunc ~debug:true pp_info) fd';
+ *)
 
   (* compute the dependency graph *)
   let cf = conflicts fd' in
-  let pp_var =  Printer.pp_var ~debug:true in
+(*  let pp_var =  Printer.pp_var ~debug:true in
   Mv.iter (fun x s ->
       Format.eprintf "%a -> %a@."
         pp_var x (Printer.pp_list ", " pp_var) (Sv.elements s)) cf;
-  Format.eprintf "dependency done@."; 
+  Format.eprintf "dependency done@."; *)
   (* compute the set of variables that should be merged *)
   let cfm = same_c (init_classes cf) fd.f_body in
   let ma = normalize_repr cfm in
