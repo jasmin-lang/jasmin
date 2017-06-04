@@ -202,14 +202,27 @@ Definition sub_inc_dec_classify (e: pexpr) :=
   | _ => SubNone
   end.
 
+(* -------------------------------------------------------------------- *)
+
+(* disp + base + scale * offset *)
+Record lea := MkLea { 
+  lea_disp   : word;               
+  lea_base   : option var_i;
+  lea_scale  : word;
+  lea_offset : option var_i;
+}.
+
+(* -------------------------------------------------------------------- *)
+
 Variant lower_cassgn_t : Type :=
-  | LowerMov of bool (* whether it needs a intermediate register *)
+  | LowerMov  of bool (* whether it needs a intermediate register *)
   | LowerCopn of sopn & pexpr
-  | LowerInc of sopn & pexpr
+  | LowerInc  of sopn & pexpr
+  | LowerLea  of lea
   | LowerFopn of sopn & list pexpr & Z
-  | LowerEq of pexpr & pexpr
-  | LowerLt of pexpr & pexpr
-  | LowerIf of pexpr & pexpr & pexpr
+  | LowerEq   of pexpr & pexpr
+  | LowerLt   of pexpr & pexpr
+  | LowerIf   of pexpr & pexpr & pexpr
   | LowerAssgn.
 
 Context (is_var_in_memory : var_i → bool).
@@ -222,6 +235,79 @@ Definition is_lval_in_memory (x: lval) : bool :=
     => is_var_in_memory v
   | Lmem _ _ => true
   end.
+
+(* -------------------------------------------------------------------- *)
+
+Definition lea_const z := MkLea z   None     I64.one None.
+
+Definition lea_var   x := MkLea I64.zero (Some x) I64.one None.
+
+Definition mkLea d b sc o := 
+  if sc == I64.zero then MkLea d b I64.one None
+  else MkLea d b sc o.
+  
+Definition lea_mul l1 l2 := 
+  match l1, l2 with 
+  | MkLea d1 b1 sc1 o1, MkLea d2 b2 sc2 o2 =>
+    let d := I64.mul d1 d2 in
+    match b1, o1, b2, o2 with
+    | None  , None  , None  , None   => Some (lea_const d)
+    | Some _, None  , None  , None   => Some (mkLea d None d2 b1)
+    | None  , None  , Some _, None   => Some (mkLea d None d1 b2)
+    | None  , Some _, None  , None   => Some (mkLea d None (I64.mul d2 sc1) o1)
+    | None  , None  , None  , Some _ => Some (mkLea d None (I64.mul d1 sc2) o2)
+    | _     , _     , _     , _      => None
+    end
+  end.
+ 
+Definition lea_add l1 l2 := 
+  match l1, l2 with 
+  | MkLea d1 b1 sc1 o1, MkLea d2 b2 sc2 o2 =>
+    let disp := I64.add d1 d2 in
+    match b1, o1    , b2    , o2    with
+    | None  , None  , _     , _      => Some (mkLea disp b2 sc2 o2)
+    | _     , _     , None  , None   => Some (mkLea disp b1 sc1 o1)
+    | Some _, None  , _     , None   => Some (mkLea disp b1 I64.one b2) 
+    | Some _, None  , None  , Some _ => Some (mkLea disp b1 sc2 o2)
+    | None  , Some _, Some _, None   => Some (mkLea disp b2 sc1 o1)
+    | None  , Some _, None  , Some _ =>
+      if sc1 == I64.one then Some (mkLea disp o1 sc2 o2)
+      else if sc2 == I64.one then Some (mkLea disp o2 sc1 o1)
+      else None
+    | _     , _     , _     , _      => None
+    end
+  end.
+
+Fixpoint mk_lea e := 
+  match e with
+  | Pcast (Pconst z) => Some (lea_const (I64.repr z))
+  | Pvar  x          => Some (lea_var x)
+  | Papp2 (Omul Op_w) e1 e2 =>
+    match mk_lea e1, mk_lea e2 with
+    | Some l1, Some l2 => lea_mul l1 l2
+    | _      , _       => None
+    end
+  | Papp2 (Oadd Op_w) e1 e2 =>
+    match mk_lea e1, mk_lea e2 with
+    | Some l1, Some l2 => lea_add l1 l2
+    | _      , _       => None
+    end
+  | _ => None
+  end.
+
+Definition is_lea x e := 
+  if ~~ is_lval_in_memory x then
+    match mk_lea e with 
+    | Some (MkLea d b sc o) => 
+      let check o := match o with Some x => ~~(is_var_in_memory x) | None => true end in
+      (* FIXME: check that d is not to big *)
+      if check_scale sc && check b && check o then  Some (MkLea d b sc o)
+      else None
+    | None => None
+    end
+  else None.
+
+(* -------------------------------------------------------------------- *)
 
 Definition lower_cassgn_classify e x : lower_cassgn_t :=
   match e with
@@ -239,7 +325,11 @@ Definition lower_cassgn_classify e x : lower_cassgn_t :=
       match add_inc_dec_classify a b with
       | AddInc y => LowerInc Ox86_INC y
       | AddDec y => LowerInc Ox86_DEC y
-      | AddNone => LowerFopn Ox86_ADD [:: a ; b ] I32.modulus (* TODO: lea *)
+      | AddNone => 
+        match is_lea x e with 
+        | Some l => LowerLea l
+        | _      => LowerFopn Ox86_ADD [:: a ; b ] I32.modulus 
+        end
       end
     | Osub Op_w =>
       match sub_inc_dec_classify b with
@@ -247,7 +337,11 @@ Definition lower_cassgn_classify e x : lower_cassgn_t :=
       | SubDec => LowerInc Ox86_DEC a
       | SubNone => LowerFopn Ox86_SUB [:: a ; b ] I32.modulus
       end
-    | Omul Op_w => LowerFopn Ox86_IMUL64 [:: a ; b ] I32.modulus
+    | Omul Op_w => 
+      match is_lea x e with 
+      | Some l => LowerLea l
+      | _      => LowerFopn Ox86_IMUL64 [:: a ; b ] I32.modulus 
+      end
     | Oland => LowerFopn Ox86_AND [:: a ; b ] I32.modulus
     | Olor => LowerFopn Ox86_OR [:: a ; b ] I32.modulus
     | Olxor => LowerFopn Ox86_XOR [:: a ; b ] I32.modulus
@@ -326,12 +420,18 @@ Definition lower_cassgn (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
   | LowerCopn o e => copn o e
   | LowerInc o e => inc o e
   | LowerFopn o es m => opn_5flags m vi f x o es
+  | LowerLea (MkLea d b sc o) => 
+    let d := wconst (I64.unsigned d) in
+    let sc := wconst (I64.unsigned sc) in
+    let b := oapp Pvar (wconst 0) b in
+    let o := oapp Pvar (wconst 0) o in
+    [:: Copn [::x] Ox86_LEA [:: d; b; sc; o] ]
   | LowerEq a b => [:: Copn [:: f ; f ; f ; f ; x ] Ox86_CMP [:: a ; b ] ]
   | LowerLt a b => [:: Copn [:: f ; x ; f ; f ; f ] Ox86_CMP [:: a ; b ] ]
   | LowerIf e e1 e2 =>
      let (l, e) := lower_condition vi e in
      l ++ [:: Copn [:: x] Ox86_CMOVcc [:: e; e1; e2]]
-  | LowerAssgn => [:: Cassgn x tg e]
+  | LowerAssgn => [:: Cassgn x tg e]    
   end.
 
 (* Lowering of Oaddcarry

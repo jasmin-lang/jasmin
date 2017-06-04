@@ -665,9 +665,6 @@ Definition x86_dec (w:word) :=
 
 Definition x86_setcc (b:bool) : exec values := ok [:: Vword (b_to_w b)].
 
-Definition check_scale (s:Z) :=
-  (s == 1%Z) || (s == 2%Z) || (s == 4%Z) || (s == 8%Z).
-
 Definition x86_lea (disp base:word) (scale:word) (offset:word) : exec values :=
   if check_scale scale then
     ok [::Vword (I64.add disp (I64.add base (I64.mul (I64.repr scale) offset)))]

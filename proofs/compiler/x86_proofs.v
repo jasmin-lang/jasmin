@@ -433,7 +433,7 @@ case: a E => //= pa E [paE]; move: Nlbl E; rewrite paE.
 case: i => ii /=; rewrite /is_label /=; case=> //=.
 + by move=> lv _ p _; case: oprd_of_lval => //= ?; case: oprd_of_pexpr.
 + move=> lv op es _; rewrite /assemble_opn.
-  case: kind_of_sopn => [ak|b|||] //.
+  case: kind_of_sopn => [ak|b||||] //.
   * case: lvals_as_alu_vars => // -[[v1 v2 v3 v4 v5] ls].
     t_xrbindP=> r1 _ r2 _ r3 _ r4 _ r5 _; case: ifP => // _.
     rewrite /assemble_fopn; case: ak => //.
@@ -462,6 +462,7 @@ case: i => ii /=; rewrite /is_label /=; case=> //=.
   * by case: as_singleton => // l; case: as_singleton => // e; t_xrbindP.
   * case: as_singleton => // l; case: as_triple => // -[[e1 e2] e3].
     by t_xrbindP=> vl _ v1 _ v2 _ v3 _; case: ifP.
++ by case: as_singleton => // ?; case: as_quadruple => // [[[[]]]]????; t_xrbindP.
 + by move=> lbl2 /eqP nq [[/esym]].
 + by move=> p l _; case: assemble_cond.
 Qed.
@@ -1083,6 +1084,35 @@ case: e => //= x; last by move=> e; t_xrbindP.
 Qed.
 
 (* -------------------------------------------------------------------- *)
+Lemma word_of_pexprP gd ii e w s : 
+  word_of_pexpr ii e = ok w ->
+  sem_pexpr gd s e = ok (Vword w).
+Proof. by case: e => // -[] //= z [<-]. Qed.
+
+Lemma oreg_of_pexprP gd ii lm vm e xr r w : 
+  regs_of_lvm vm xr ->
+  oreg_of_pexpr ii e = ok r ->
+  sem_pexpr gd {| emem := lm; evm := vm |} e = ok (Vword w) ->
+  (odflt I64.zero (omap xr r)) = w.
+Proof.
+  case: e => //= [ []// z| x] Hvm.
+  + by case: eqP => //= -> [<-] [<-].
+  apply: rbindP => r';case: x => -[[] xn] ? //=.
+  case Heq: reg_of_string => [r1|] // -[<-] [<-] /= Hget.
+  by have := Hvm _ _ Heq;rewrite Hget.   
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma scale_of_zP ii wsc sc :
+  scale_of_z ii (I64.unsigned wsc) = ok sc -> 
+  (word_of_scale sc) = wsc.
+Proof.
+  move=> H;apply /eqP;case: wsc H => z;rewrite /scale_of_z /=.
+  by case:z => //= -[||? [<-]]// [||? [<-]]// [||? [<-]]// [||? [<-]].
+Qed.
+  
+(* -------------------------------------------------------------------- *)
+
 Lemma assemble_i_ok (c : lcmd) gd (s1 s2 : lstate) (xs1 : x86_state) :
      xs86_equiv c s1 xs1
   -> lsem1 c gd s1 s2
@@ -1113,7 +1143,7 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
   move: drop_xc; rewrite (drop_nth a) // => -[aE saE].
   have := congr1 some aE; rewrite -(nth_map _ None) // => <- /=.
   rewrite /st_write_ip /=; move: ok_a; rewrite /assemble_opn.
-  case Eo: kind_of_sopn => [ak|b|||] //.
+  case Eo: kind_of_sopn => [ak|b||||] //.
   * case El: lvals_as_alu_vars => [[[rof rcf rsf rsp rzf]] l|//].
     t_xrbindP => of_ ok_of cf ok_cf sf ok_sf sp ok_sp zf ok_zf.
     case: ifP => //; rewrite -!andbA => /and5P[].
@@ -1317,6 +1347,23 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
       move: ok_wr => /=; t_xrbindP=> s2' ok_s2 ?; subst s2'.
       eexists; first by reflexivity. move=> {vb1 ok_vb1 e1 ok1}.
       admit.
+  case Exs: (as_singleton xs) => [x|] //.
+  case Ees: (as_quadruple es) => [[[[d b] sc] off]|] //=.
+  have := as_quadrupleT Ees => ?; subst es => {Ees}.
+  have := as_singletonT Exs => ?; subst xs => {Exs}.
+  t_xrbindP => wd Hd rb Hb wsc Hwsc sc' Hsc' ro Hoff ds Hx [<-].
+  case: o Eo ok_vs => //= _.
+  move: ok_aout; rewrite /sem_pexprs /=; t_xrbindP.
+  move=> vd sd ? vb sb ? vsc ssc ? voff soff <- <- <- <-.
+  have := word_of_pexprP gd {| emem := lm; evm := vm |} Hd.
+  have := word_of_pexprP gd {| emem := lm; evm := vm |} Hwsc.
+  rewrite ssc sd => -[->] [->]/=;t_xrbindP => wb /to_word_ok Hwb woff /to_word_ok Hwoff.
+  rewrite /eval_LEA /x86_lea;case:ifP => //= Hscale [?];subst vs vb voff.
+  rewrite /decode_addr /= (oreg_of_pexprP xrE Hb sb) (oreg_of_pexprP xrE Hoff soff).
+  rewrite I64.repr_unsigned in ok_wr.
+  have ?:= scale_of_zP Hsc';subst wsc.
+  move: ok_wr;apply: rbindP => s2' ok_wr [?];subst s2'.
+  by apply: (xwrite_ok _ Hx ok_wr); split => //=;rewrite /assemble_c ok_sa saE.
 + case=> lv vm [|_ _] //= ii lbl cs [-> ->].
   case: xs1 => xm xr xf xc ip -/dup[] [/= <-] ok_xc.
   rewrite /assemble_c /=; t_xrbindP => sa ok_sa drop_xc le_ip_c xfE xrE.

@@ -738,6 +738,127 @@ Section PROOF.
   Lemma read_es_swap x y : Sv.Equal (read_es [:: x ; y ]) (read_es [:: y ; x ]).
   Proof. by rewrite ! read_es_cons; SvD.fsetdec. Qed.
 
+  (* ---------------------------------------------------------- *)
+
+  Definition sem_lea vm l := 
+    Let base := 
+      oapp (fun (x:var_i) => get_var vm x >>= to_word) (ok I64.zero) l.(lea_base) in
+    Let offset := 
+      oapp (fun (x:var_i) => get_var vm x >>= to_word) (ok I64.zero) l.(lea_offset) in
+    ok (I64.add l.(lea_disp) (I64.add base (I64.mul l.(lea_scale) offset))).
+
+  Lemma lea_constP w vm : sem_lea vm (lea_const w) = ok w.
+  Proof. by rewrite /sem_lea /lea_const /= I64.add_zero. Qed.
+
+  Lemma lea_varP x vm : sem_lea vm (lea_var x) = get_var vm x >>= to_word.
+  Proof. 
+    rewrite /sem_lea /lea_var /=. 
+    case: (Let _ := get_var _ _ in _) => //= w.
+    by rewrite I64.add_zero I64.add_zero_l. 
+  Qed.
+
+  Lemma mkLeaP d b sc o vm w : 
+    sem_lea vm (MkLea d b sc o) = ok w ->
+    sem_lea vm (mkLea d b sc o) = ok w.
+  Proof.
+    rewrite /mkLea;case:eqP=>//= ->;rewrite /sem_lea /=;apply: rbindP => w1 -> /=.
+    by apply: rbindP => w2 _;rewrite I64.mul_zero I64.mul_commut I64.mul_zero.
+  Qed.
+
+  Lemma lea_mulP l1 l2 w1 w2 l vm :
+    sem_lea vm l1 = ok w1 -> sem_lea vm l2 = ok w2 -> 
+    lea_mul l1 l2 = Some l ->
+    sem_lea vm l = ok (I64.mul w1 w2).
+  Proof.
+    case: l1 l2 => d1 [b1|] sc1 [o1|] [d2 [b2|] sc2 [o2|]] //=; rewrite {1 2}/sem_lea /=.
+    + apply: rbindP => wb1 Hb1 [<-] [<-] [<-];apply mkLeaP;rewrite /sem_lea /= Hb1 /=.
+      by rewrite !I64.mul_zero !I64.add_zero I64.add_zero_l 
+           I64.mul_add_distr_l (I64.mul_commut wb1).
+    + apply: rbindP => wo1 Ho1 [<-] [<-] [<-];apply mkLeaP;rewrite /sem_lea /= Ho1 /=.
+      by rewrite !I64.mul_zero !I64.add_zero !I64.add_zero_l
+           I64.mul_add_distr_l (I64.mul_commut (I64.mul sc1 _)) I64.mul_assoc.
+    + move=> [<-];apply: rbindP => wb2 Hb2 [<-] [<-];apply mkLeaP;rewrite /sem_lea /= Hb2 /=.
+      by rewrite !I64.mul_zero !I64.add_zero !I64.add_zero_l I64.mul_add_distr_r.
+    + move=> [<-];apply: rbindP => wo2 Ho2 [<-] [<-];apply mkLeaP;rewrite /sem_lea /= Ho2 /=.
+      by rewrite !I64.mul_zero !I64.add_zero !I64.add_zero_l I64.mul_add_distr_r I64.mul_assoc.
+    move=> [<-] [<-] [<-]. rewrite !I64.mul_zero !I64.add_zero_l !I64.add_zero.
+    by apply lea_constP.
+  Qed.
+ 
+  Lemma I64_mul_one_l x : I64.mul I64.one x = x.
+  Proof. by rewrite I64.mul_commut I64.mul_one. Qed.
+ 
+  Definition I64_simpl := 
+    (I64.mul_zero, I64.mul_one, I64_mul_one_l,I64.add_zero, I64.add_zero_l).
+
+  Lemma lea_addP l1 l2 w1 w2 l vm :
+    sem_lea vm l1 = ok w1 -> sem_lea vm l2 = ok w2 -> 
+    lea_add l1 l2 = Some l ->
+    sem_lea vm l = ok (I64.add w1 w2).
+  Proof.
+    case: l1 l2 => d1 [b1|] sc1 [o1|] [d2 [b2|] sc2 [o2|]] //=; rewrite {1 2}/sem_lea /=.
+    + apply: rbindP => wb1 Hb1; apply: rbindP => wo1 Ho1 [<-] [<-] [<-]; 
+        apply mkLeaP;rewrite /sem_lea /= Hb1 /= Ho1 /= !I64_simpl.
+      by rewrite !I64.add_assoc;do 2 f_equal;rewrite I64.add_commut I64.add_assoc.
+    + apply: rbindP => wb1 Hb1 [<-]; apply: rbindP => wb2 Hb2 [<-] [<-]; 
+        apply mkLeaP;rewrite /sem_lea /= Hb1 /= Hb2 /= (I64.mul_commut I64.one) !I64_simpl.
+      rewrite !I64.add_assoc;do 2 f_equal;rewrite I64.add_commut I64.add_assoc;f_equal.
+      by rewrite I64.add_commut.
+    + apply: rbindP => wb1 Hb1 [<-]; apply: rbindP => wo2 Ho2 [<-] [<-]; 
+        apply mkLeaP;rewrite /sem_lea /= Hb1 /= Ho2 /= !I64_simpl !I64.add_assoc.
+      by do 2 f_equal; rewrite I64.add_commut I64.add_assoc;f_equal; rewrite I64.add_commut.
+    + by apply: rbindP => zb Hb [<-] [<-] [<-];apply mkLeaP;
+       rewrite /sem_lea /= Hb /= !I64_simpl !I64.add_assoc;do 2 f_equal;rewrite I64.add_commut.
+    + apply: rbindP => zoff1 Hoff1 [<-]; apply: rbindP => zb2 Hb2 [<-] [<-];apply mkLeaP.
+      rewrite /sem_lea /= Hoff1 /= Hb2 /= !I64_simpl !I64.add_assoc.
+      by rewrite (I64.add_commut (I64.mul _ _)) !I64.add_assoc. 
+    + apply: rbindP => zo1 Ho1 [<-];apply: rbindP => zo2 Ho2 [<-].
+      case:eqP => [-> | _].
+      + move=> [<-];apply mkLeaP;rewrite /sem_lea /= Ho1 /= Ho2 /= !I64_simpl !I64.add_assoc.
+        by do 2 f_equal; rewrite -!I64.add_assoc (I64.add_commut d2).  
+      case:eqP => //= -> [<-];apply mkLeaP;rewrite /sem_lea /= Ho1 /= Ho2 /= !I64_simpl.
+      rewrite !I64.add_assoc;do 2 f_equal.
+      by rewrite (I64.add_commut (I64.mul _ _)) !I64.add_assoc. 
+    + apply: rbindP => zo1 Ho1 [<-] [<-] [<-];apply mkLeaP;rewrite /sem_lea /= Ho1 /=.
+      by rewrite !I64_simpl !I64.add_assoc;do 2 f_equal;rewrite I64.add_commut.
+    + move=> [<-];apply: rbindP => zb2 Hb2;apply: rbindP => zo2 Ho2 [<-] [<-].  
+      by apply mkLeaP; rewrite /sem_lea /= Hb2 /= Ho2 /= !I64_simpl !I64.add_assoc.
+    + move=> [<-];apply: rbindP => zb2 Hb2 [<-] [<-];apply mkLeaP.
+      by rewrite /sem_lea /= Hb2 /= !I64_simpl I64.add_assoc.
+    + move=> [<-];apply:rbindP=> zo2 Ho2 [<-] [<-];apply mkLeaP.
+      by rewrite /sem_lea /= Ho2 /= !I64_simpl I64.add_assoc.
+    by move=> [<-] [<-] [<-];apply mkLeaP;rewrite /sem_lea /= !I64_simpl.
+  Qed.
+
+  (* TODO Move *)
+  Lemma to_wordP v w : to_word v = ok w -> v = w.
+  Proof. by case: v => //= [? [] <-| []]. Qed.
+
+  Lemma mk_leaP s e l w : 
+    mk_lea e = Some l ->
+    sem_pexpr gd s e = ok (Vword w) ->
+    sem_lea (evm s) l = ok w.
+  Proof.
+    elim: e l w => //= [[] //= z _ | x | [] //= [] //= e1 He1 e2 He2] l w.
+    + by move=> [<-] [<-];apply lea_constP.
+    + by move=> [<-];rewrite lea_varP => ->.
+    + case Heq1: mk_lea => [l1|]//;case Heq2: mk_lea => [l2|]// Hadd.
+      t_xrbindP => v1 Hv1 v2 Hv2; rewrite /sem_op2_w /mk_sem_sop2 /=.
+      t_xrbindP => w1 /to_wordP ? w2 /to_wordP ?;subst v1 v2 => <-.
+      by apply: lea_addP (He1 _ _ Heq1 Hv1) (He2 _ _ Heq2 Hv2) Hadd.
+    case Heq1: mk_lea => [l1|]//;case Heq2: mk_lea => [l2|]// Hmul.
+    t_xrbindP => v1 Hv1 v2 Hv2; rewrite /sem_op2_w /mk_sem_sop2 /=.
+    t_xrbindP => w1 /to_wordP ? w2 /to_wordP ?;subst v1 v2 => <-.
+    by apply: lea_mulP (He1 _ _ Heq1 Hv1) (He2 _ _ Heq2 Hv2) Hmul.  
+  Qed.
+
+  Lemma is_leaP f x e l : is_lea f x e = Some l ->
+    mk_lea e = Some l /\ check_scale l.(lea_scale).
+  Proof. 
+    rewrite /is_lea;case: mk_lea => [[d b sc o]|] //;case: ifP=> //.
+    case: ifP => // /andP [] /andP [] ? _ _ _ [] <-;split => //=. 
+  Qed.
+
   Lemma lower_cassgn_classifyP e l s s' v (Hs: sem_pexpr gd s e = ok v)
       (Hw: write_lval gd l v s = ok s'):
     match lower_cassgn_classify is_var_in_memory e l with
@@ -761,6 +882,8 @@ Section PROOF.
     | LowerLt a b =>
       exists b1 b2 b3 b4, Let x := sem_pexprs gd s [:: a; b] in sem_sopn Ox86_CMP x = ok [:: Vbool b1; v; Vbool b2; Vbool b3; Vbool b4]
     | LowerIf a e1 e2 => e = Pif a e1 e2 /\ stype_of_lval l = sword
+    | LowerLea l => 
+      exists w, v = Vword w /\ sem_lea (evm s) l = ok w /\ check_scale l.(lea_scale)
     | LowerAssgn => True
     end.
   Proof.
@@ -796,14 +919,24 @@ Section PROOF.
         + rewrite /sem_pexprs /=.
           move=> [w [-> <-]] /=.
           rewrite /x86_dec /rflags_of_aluop_nocf_w /flags_w /=; eauto.
+        + move=> _;case Heq: is_lea => [lea|].  
+          (* LEA *)
+          have [/mk_leaP -/(_ s (I64.add z1 z2))] := is_leaP Heq.
+          apply: rbindP Hv => /= v1 -> /=;t_xrbindP => ? v2 -> /= <- ? [] ?;subst v1 v2.
+          move=> /(_ (refl_equal _)) ?;eexists;eauto.
         (* AddNone *)
         + split.
           rewrite read_es_cons {2}/read_e /= !read_eE. SvD.fsetdec.
           by rewrite Hv /= Hw.
-      (* Omul Op_w *)
-      + move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 ->]]] /=; subst v.
+      (* Omul Op_w *)        
+      + move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 Hv]]]; subst v.
+        case Heq: is_lea => [lea|]. 
+        (* LEA *)
+        + have [/mk_leaP -/(_ s (I64.mul z1 z2))]:= is_leaP Heq.
+          apply: rbindP Hv => /= v1 -> /=;t_xrbindP => ? v2 -> /= <- ? [] ?;subst v1 v2.
+          move=> /(_ (refl_equal _)) ?;eexists;eauto. 
         split. by rewrite read_es_swap.
-        by rewrite Hw.
+        by rewrite Hv /= Hw.
       (* Osub Op_w *)
       + move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 Hv]]]; subst v.
         have := sub_inc_dec_classifyP e2.
@@ -948,6 +1081,19 @@ Section PROOF.
     + move=> o e' [b1 [b2 [b3 [b4 H]]]].
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
       by rewrite H /= Hw'.
+    (* LowerLea *)
+    + move=> [d b sc o] /= [w [? [Hslea Hsc]]];subst v;exists s2';split => //. 
+      apply: sem_seq1; apply: EmkI; apply: Eopn.
+      move: Hslea; rewrite /sem_lea /sem_pexprs /=. 
+      case: b => [b|] /=;case: o => [o|] /=;t_xrbindP.
+      + move=> zb vb -> Hvb zo vo -> Hvo ? /=;subst w;rewrite Hvb /= Hvo /=.
+        by rewrite /x86_lea !I64.repr_unsigned Hsc /= Hw'.
+      + move=> zb vb -> Hvb ? /=;subst w;rewrite Hvb /=.
+        by rewrite /x86_lea !I64.repr_unsigned Hsc /= Hw'.
+      + move=> zo vo -> Hvo ? /=;subst w;rewrite Hvo /=.
+        by rewrite /x86_lea !I64.repr_unsigned Hsc /= Hw'.
+      move=> ? /=;subst w.
+      by rewrite /x86_lea !I64.repr_unsigned Hsc /= Hw'. 
     (* LowerFopn *)
     + set vi := var_info_of_lval _.
       move=> o a m [] LE. t_xrbindP => ys xs hxs hys hs2.
