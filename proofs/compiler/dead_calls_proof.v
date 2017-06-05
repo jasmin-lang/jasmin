@@ -101,29 +101,6 @@ elim: p c => [|[f fd] p ih] c //=; case: ifPn => _; last first.
 rewrite eqxx; exact: ih.
 Qed.
 
-(* -------------------------------------------------------------------- *)
-Section PgCompat.
-Variables (c : Sp.t) (p p' : prog).
-
-Definition pg_compat_cmd :=
-  forall m cmd m', sem p m cmd m' -> sem p' m cmd m'.
-
-Definition pg_compat_Instr :=
-  forall m i m', sem_I p m i m' -> sem_I p' m i m'.
-
-Definition pg_compat_instr :=
-  forall m i m', sem_i p m i m' -> sem_i p' m i m'.
-
-Definition pg_compat_for :=
-  forall v rg m cmd m',
-    sem_for p v rg m cmd m' -> sem_for p' v rg m cmd m'.
-
-Definition pg_compat_call :=
-  forall m f args m' res, Sp.In f c ->
-    sem_call p  m f args m' res ->
-    sem_call p' m f args m' res.
-End PgCompat.
-
 Lemma subseq_in {T: eqType} (s: seq T) s' x: subseq s s' -> x \in s -> x \in s'.
 Proof.
 elim: s' s=> [|a' l' IH] s //=.
@@ -209,12 +186,40 @@ Section PROOF.
   Hypothesis p_uniq: uniq (map fst p).
   Definition p' := dead_calls f p.
 
-  Definition def_incl sv :=
+  Definition def_incl sv (p': prog) :=
     forall x : positive, Sp.In x sv -> exists fd, get_fundef p' x = Some fd.
 
-  Lemma call_stbl fn fd:
-    get_fundef p' fn = Some fd -> def_incl (c_Calls fd.(f_body)).
+  Lemma def_incl_cons x a l: def_incl x l -> def_incl x (a :: l).
   Proof.
+    move=> H y Hy.
+    rewrite get_fundef_cons.
+    case: ifP=> _.
+    + by exists a.2.
+    exact: H.
+  Qed.
+
+  Lemma def_incl_dead y l x fd: get_fundef l x = Some fd -> def_incl y (dead_calls y l).
+  Admitted.
+
+  Lemma call_stbl fn fd:
+    get_fundef p' fn = Some fd -> def_incl (c_Calls fd.(f_body)) p'.
+  Proof.
+    rewrite /p'.
+    elim: p fn f=> // -[fn0 fd0] l IH /= fn f0.
+    case: ifP=> Hin.
+    + rewrite get_fundef_cons /=.
+      case: ifP.
+      + move=> /eqP?[]?; subst fn0 fd0.
+        have Hbla: forall y l, def_incl y (dead_calls y l) by admit.
+        apply: def_incl_cons.
+        have := (Hbla (c_Calls (f_body fd)) l).
+        Fail rewrite c_callsE.
+        admit.
+      move=> _ H.
+      apply: def_incl_cons.
+      exact: (IH _ _ H).
+    move=> H.
+    exact: (IH _ _ H).
   Admitted.
 
   Lemma def_incl_union a b:
@@ -391,128 +396,6 @@ Section PROOF.
     exact: get_dead_calls.
   Qed.
 End PROOF.
-
-(* -------------------------------------------------------------------- *)
-(*
-Lemma pg_compat_sub c1 c2 p p' : Sp.Subset c2 c1 ->
-     pg_compat_call c1 p p'
-  -> pg_compat_call c2 p p'.
-Proof.
-by move=> lt h m f args m' res f_in_c2 /h; apply; SpD.fsetdec.
-Qed.
-
-Lemma pg_compat_cmd_consl i c p p' :
-     pg_compat_call (c_Calls (i :: c)) p p'
-  -> pg_compat_call (i_Calls i) p p'.
-Proof.
-by apply: pg_compat_sub; rewrite CallsE; SpD.fsetdec.
-Qed.
-
-Lemma pg_compat_cmd_consr i c p p' :
-     pg_compat_call (c_Calls (i :: c)) p p'
-  -> pg_compat_call (c_Calls c) p p'.
-Proof.
-by apply: pg_compat_sub; rewrite CallsE; SpD.fsetdec.
-Qed.
-
-Lemma pg_compat_while_pre c e c' p p' :
-     pg_compat_call (i_Calls_r (Cwhile c e c')) p p'
-  -> pg_compat_call (c_Calls c) p p'.
-Proof.
-by apply: pg_compat_sub; rewrite CallsE; SpD.fsetdec.
-Qed.
-
-Lemma pg_compat_while_post c e c' p p' :
-     pg_compat_call (i_Calls_r (Cwhile c e c')) p p'
-  -> pg_compat_call (c_Calls c') p p'.
-Proof.
-by apply: pg_compat_sub; rewrite CallsE; SpD.fsetdec.
-Qed.
-
-Lemma pg_compat_for_body v rg c p p' :
-     pg_compat_call (i_Calls_r (Cfor v rg c)) p p'
-  -> pg_compat_call (c_Calls c) p p'.
-Proof.
-by apply: pg_compat_sub; rewrite CallsE; SpD.fsetdec.
-Qed.
-
-(* -------------------------------------------------------------------- *)
-Local Hint Resolve pg_compat_cmd_consl pg_compat_cmd_consr.
-Local Hint Resolve pg_compat_while_pre pg_compat_while_post.
-Local Hint Resolve pg_compat_for_body.
-Local Hint Constructors sem sem_I sem_i sem_for sem_call.
-
-(* -------------------------------------------------------------------- *)
-Lemma __ok p m f args m' res fd p' :
-     pg_compat_call (c_Calls fd.(f_body)) p p'
-  -> sem_call ((f, fd) :: p ) m f args m' res
-  -> sem_call ((f, fd) :: p') m f args m' res.
-Proof.
-move=> Hcompat Hcall.
-sinversion Hcall.
-apply: (EcallRun _ H0 _ H2)=> //.
-rewrite get_fundef_cons /= eq_refl.
-by rewrite get_fundef_cons /= eq_refl in H.
-admit.
-Admitted.
-
-Lemma _ok p m f args m' res fd p' :
-     pg_compat_call (c_Calls fd.(f_body)) p p'
-  -> sem_call ((f, fd) :: p ) m f args m' res
-  -> sem_call ((f, fd) :: p') m f args m' res.
-Proof.
-pose Pc m c m' :=
-     pg_compat_call (c_Calls c) p p'
-  -> sem p m c m' -> sem p' m c m'.
-pose PI m i m' :=
-     pg_compat_call (i_Calls i) p p'
-  -> sem_I p m i m' -> sem_I p' m i m'.
-pose Pi m i m' :=
-     pg_compat_call (i_Calls_r i) p p'
-  -> sem_i p m i m' -> sem_i p' m i m'.
-pose Pf v rg m c m' :=
-     pg_compat_call (c_Calls c) p p'
-  -> sem_for p v rg m c m' -> sem_for p' v rg m c m'.
-pose PC m f args m' res :=
-     pg_compat_call (c_Calls fd.(f_body)) p p'
-  -> sem_call ((f, fd) :: p ) m f args m' res
-  -> sem_call ((f, fd) :: p') m f args m' res.
-apply: (@sem_call_Ind p Pc Pi PI Pf PC);
-  rewrite {}/Pc {}/Pi {}/PI {}/Pf {}/PC; try by eauto 7.
-+ move=> ?????????.
-  move=> Hargs Hcall _ Hres Hcompat Hi.
-  apply: (Ecall _ Hargs _ Hres).
-  apply: Hcompat=> //.
-  rewrite CallsE; SpD.fsetdec.
-+ move=> ???????? Hget Hargs ? IH Hres ? Hcompat Hcall.
-  admit.
-  apply: EcallRun.
-  rewrite get_fundef_cons /= eq_refl //.
-  admit.
-  apply: (EcallRun _ Hargs _ Hres)=> //.
-  rewrite get_fundef_cons /= eq_refl.
-+ admit.
-Admitted.
-
-(* -------------------------------------------------------------------- *)
-Lemma dead_calls_ok (f : Sp.t) (p : prog) : uniq (map fst p) ->
-  pg_compat_call f p (dead_calls f p).
-Proof.
-elim: p=> [|[fn fd] l IH] Huniq //=.
-case: ifP=> Hmem.
-+ move=> m e args m' res e_in_f Hcall.
-  case/boolP: (e == fn)=> /eqP.
-  + move=> ?; subst e.
-    apply: (_ok _ Hcall).
-    admit. (* using IH *)
-  admit.
-move=> m e args m' res e_in_f Hcall.
-apply: IH=> //.
-admit.
-  have := _ok _ Hcall.
-  apply: _ok.
-Print dead_calls.
-*)
 
 Lemma foldl_compat x y l (x_eq_y: Sp.Equal x y):
   Sp.Equal (foldl (fun f c => Sp.add c f) x l)
