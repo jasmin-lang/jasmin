@@ -222,26 +222,26 @@ Section PROOF.
     exact: (IH _ _ H).
   Admitted.
 
-  Lemma def_incl_union a b:
-    def_incl (Sp.union a b) -> def_incl a /\ def_incl b.
+  Lemma def_incl_union a b q:
+    def_incl (Sp.union a b) q -> def_incl a q /\ def_incl b q.
   Proof.
     split=> x Hx; apply: H; SpD.fsetdec.
   Qed.
 
   Let Pi (s:estate) (i:instr) (s':estate) :=
-    def_incl (i_Calls i) -> sem_I p s i s' -> sem_I p' s i s'.
+    def_incl (i_Calls i) p' -> sem_I p s i s' -> sem_I p' s i s'.
 
   Let Pi_r (s:estate) (i:instr_r) (s':estate) :=
-    def_incl (i_Calls_r i) -> sem_i p s i s' -> sem_i p' s i s'.
+    def_incl (i_Calls_r i) p' -> sem_i p s i s' -> sem_i p' s i s'.
 
   Let Pc (s:estate) (c:cmd) (s':estate) :=
-    def_incl (c_Calls c) -> sem p s c s' -> sem p' s c s'.
+    def_incl (c_Calls c) p' -> sem p s c s' -> sem p' s c s'.
 
   Let Pfor (i:var_i) vs s c s' :=
-    def_incl (c_Calls c) -> sem_for p i vs s c s' -> sem_for p' i vs s c s'.
+    def_incl (c_Calls c) p' -> sem_for p i vs s c s' -> sem_for p' i vs s c s'.
 
   Let Pfun m1 fn vargs m2 vres :=
-    def_incl (Sp.singleton fn) -> sem_call p m1 fn vargs m2 vres -> sem_call p' m1 fn vargs m2 vres.
+    def_incl (Sp.singleton fn) p' -> sem_call p m1 fn vargs m2 vres -> sem_call p' m1 fn vargs m2 vres.
 
   Local Lemma Hskip s : Pc s [::] s.
   Proof. move=> _ _; exact: Eskip. Qed.
