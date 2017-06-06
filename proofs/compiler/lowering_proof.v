@@ -922,7 +922,8 @@ Section PROOF.
         + move=> _;case Heq: is_lea => [lea|].  
           (* LEA *)
           have [/mk_leaP -/(_ s (I64.add z1 z2))] := is_leaP Heq.
-          apply: rbindP Hv => /= v1 -> /=;t_xrbindP => ? v2 -> /= <- ? [] ?;subst v1 v2.
+          apply: rbindP Hv => /= v1 -> /=. rewrite /sem_pexprs /=.
+          t_xrbindP => ? v2 -> /= <- ? [] ?;subst v1 v2.
           move=> /(_ (refl_equal _)) ?;eexists;eauto.
         (* AddNone *)
         + split.
@@ -933,8 +934,9 @@ Section PROOF.
         case Heq: is_lea => [lea|]. 
         (* LEA *)
         + have [/mk_leaP -/(_ s (I64.mul z1 z2))]:= is_leaP Heq.
-          apply: rbindP Hv => /= v1 -> /=;t_xrbindP => ? v2 -> /= <- ? [] ?;subst v1 v2.
-          move=> /(_ (refl_equal _)) ?;eexists;eauto. 
+          apply: rbindP Hv => /= v1 -> /=. rewrite /sem_pexprs /=.
+          t_xrbindP => ? v2 -> /= <- ? [] ?;subst v1 v2.
+          move=> /(_ (refl_equal _)) ?;eexists;eauto.
         split. by rewrite read_es_swap.
         by rewrite Hv /= Hw.
       (* Osub Op_w *)
