@@ -10,7 +10,7 @@ RUN \
 	apt-get -q -y dist-upgrade; \
 	apt-get -q -y install sudo m4 rsync git python3; \
 	apt-get -q -y --no-install-recommends install ocaml-nox opam aspcud; \
-	apt-get -q -y clean
+	apt-get -q -y clean; pip3 install pyyaml
 
 COPY sudo-ci /etc/sudoers.d/ci
 
