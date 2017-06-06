@@ -29,6 +29,7 @@
 Require Export ZArith Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Export strings word utils type var.
+Require Import xseq.
 Import ZArith.
 
 Set Implicit Arguments.
@@ -539,43 +540,24 @@ Definition fundef_eqMixin     := Equality.Mixin fundef_eq_axiom.
 Canonical  fundef_eqType      := Eval hnf in EqType fundef fundef_eqMixin.
 
 Definition get_fundef {T} (p: seq (funname * T)) (f: funname) :=
-  nth None [seq some (snd x) | x <- p] (find (fun ffd => f == fst ffd) p).
+  assoc p f.
 
 Definition map_prog {T1} {T2} (F: T1 -> T2) := map (fun (f:funname * T1) => (f.1, F f.2)).
 
 Lemma get_map_prog {T1} {T2} (F: T1 -> T2) p fn :
   get_fundef (map_prog F p) fn = omap F (get_fundef p fn).
-Proof.
-  rewrite /get_fundef /map_prog.
-  rewrite -map_comp /funcomp /=.
-  rewrite find_map /preim /=.
-  case: (ltnP (find [pred x | fn == x.1] p) (size p)).
-  + move=> ltn.
-    rewrite -(nth_map _ None) ?size_map //.
-    by rewrite -map_comp /funcomp /=.
-  + move=> leq.
-    by rewrite !nth_default // size_map.
-Qed.
+Proof. exact: assoc_map. Qed.
 
 Lemma get_fundef_cons {T} (fnd: funname * T) p fn:
   get_fundef (fnd :: p) fn = if fn == fnd.1 then Some fnd.2 else get_fundef p fn.
-Proof.
-  rewrite /get_fundef;case:ifP => /=; by case: ifPn.
-Qed.
+Proof. by case: fnd. Qed.
 
 Lemma get_fundef_in {T} p f (fd: T) : get_fundef p f = Some fd -> f \in [seq x.1 | x <- p].
-Proof.
-  by elim: p => //= [f' fd'] Hrec;rewrite get_fundef_cons in_cons;case: ifP.
-Qed.
+Proof. by rewrite/get_fundef; apply: assoc_mem_dom'. Qed.
 
 Lemma get_fundef_in' {T} p fn (fd: T):
   get_fundef p fn = Some fd -> List.In (fn, fd) p.
-Proof.
-elim: p=> //= [[fn' fd'] l'] IH; rewrite get_fundef_cons /=.
-case: ifP=> //.
-+ by move=> /eqP -> [] <-; left.
-+ by move=> _ /IH H; right.
-Qed.
+Proof. exact: assoc_mem'. Qed.
 
 Definition all_prog {aT bT cT} (s1: seq (funname * aT)) (s2: seq (funname * bT)) (ll: seq cT) f :=
   (size s1 == size s2) && all2 (fun fs a => let '(fd1, fd2) := fs in (fd1.1 == fd2.1) && f a fd1.2 fd2.2) (zip s1 s2) ll.
@@ -589,18 +571,17 @@ elim: s1 s2 l=> // [[fn fd] p IH] [|[fn' fd'] p'] // [|lh la] //.
 + by rewrite /all_prog /= andbF.
 + move=> /andP [/= Hs /andP [/andP [/eqP Hfn Hfd] Hall]].
   move=> fn0 fd0.
-  rewrite get_fundef_cons /=.
   case: ifP=> /eqP Hfn0.
   + move=> [] <-.
     exists fd', lh.
-    rewrite -Hfn Hfn0 get_fundef_cons /= eq_refl; split=> //.
+    rewrite -Hfn Hfn0 /= eq_refl; split=> //.
   + move=> H.
     have [|fd'' [l' [IH1 IH2]]] := (IH p' la _ _ _ H).
     apply/andP; split.
     by rewrite -eqSS.
     exact: Hall.
     exists fd'', l'; split=> //.
-    rewrite get_fundef_cons /= -Hfn.
+    rewrite /= -Hfn.
     by case: ifP=> // /eqP.
 Qed.
 

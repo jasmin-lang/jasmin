@@ -166,7 +166,6 @@ Lemma get_dead_calls p fn f f0:
   get_fundef (dead_calls f p) fn = Some f0.
 Proof.
   elim: p f=> [] // -[fn0 fd0] l IH /= f Hin.
-  rewrite get_fundef_cons /=.
   case: ifP.
   + move=> /eqP?[]?; subst fn0 f0.
     move: Hin=> /SpD.F.mem_1 ->.

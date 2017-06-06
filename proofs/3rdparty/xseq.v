@@ -1,6 +1,7 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import ssreflect eqtype ssrbool ssrfun ssrnat.
 From mathcomp Require Export seq.
+Require Import Utf8.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -21,15 +22,35 @@ Lemma assoc_cat (s1 s2: seq (T * U)) x :
 Proof. by elim: s1 => [|[t u] s1 ih] //=; case: eqP. Qed.
 End Assoc.
 
-(* -------------------------------------------------------------------- *)
-Section AssocInj.
-Variables (T U : eqType).
-
-Lemma assocE (s : seq (T * U)) (x : T) : assoc s x =
+Lemma assocE (T: eqType) U (s : seq (T * U)) (x : T) : assoc s x =
   nth None [seq Some v.2 | v <- s] (seq.index x [seq v.1 | v <- s]).
 Proof.
 by elim: s => // [[/= u v] s ih]; rewrite [x==u]eq_sym; case: eqP.
 Qed.
+
+Lemma assoc_mem' (T: eqType) U (s: seq (T * U)) x w :
+  assoc s x = Some w → List.In (x, w) s.
+Proof.
+  elim: s => // [ [t u] s ] ih /=; case: eqP; last by auto.
+  by move => a b; apply Some_inj in b; left; f_equal.
+Qed.
+
+Lemma InP (T: eqType) (s: seq T) m :
+  reflect (List.In m s) (m \in s).
+Proof.
+  elim: s. by constructor.
+  move => a s ih. rewrite in_cons.
+  case: (@eqP _ m a). by constructor; left.
+  case ih; constructor. by right. simpl; intuition.
+Qed.
+
+Lemma assoc_mem_dom' (T: eqType) U (s : seq (T * U)) x w :
+  assoc s x = Some w -> x \in [seq v.1 | v <- s].
+Proof. move => h; apply assoc_mem' in h. apply (rwP (InP _ _)), List.in_map_iff. eexists; split. 2: eassumption. reflexivity. Qed.
+
+(* -------------------------------------------------------------------- *)
+Section AssocInj.
+Variables (T U: eqType).
 
 Lemma assocP (s : seq (T * U)) (x : T) (w : U) : uniq (map fst s) ->
   reflect (assoc s x = Some w) ((x, w) \in s).
@@ -84,3 +105,15 @@ Proof.
 by move=> uq_s; apply: assoc_inj; rewrite -map_comp map_inj_uniq.
 Qed.
 End InjAssoc.
+
+(* -------------------------------------------------------------------- *)
+Section AssocMap.
+Context (T: eqType) (U V: Type) (f: U → V).
+
+Lemma assoc_map m (n: T) :
+  assoc [seq (x.1, f x.2) | x <- m] n = omap f (assoc m n).
+Proof.
+  by elim: m n => // [[q r] m] ih n /=; case: eqP.
+Qed.
+
+End AssocMap.
