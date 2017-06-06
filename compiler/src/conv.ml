@@ -542,14 +542,7 @@ let cprog_of_prog info p =
   List.iter
     (fun x -> ignore (cvar_of_reg tbl x))
     Regalloc.X64.all_registers;
-  Format.eprintf "Register string@.";
-  List.iter (fun x ->
-      let cv = cvar_of_var tbl x in
-      Format.eprintf "%s " (string_of_string0 cv.Var.vname))
-    Regalloc.X64.all_registers;
-  Format.eprintf "@.";
-
-  tbl, List.map (cfdef_of_fdef tbl) p
+   tbl, List.map (cfdef_of_fdef tbl) p
 
 let prog_of_cprog tbl p =
   List.map (fdef_of_cfdef tbl) p

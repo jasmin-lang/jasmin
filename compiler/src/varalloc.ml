@@ -68,7 +68,7 @@ let alloc_stack_fd fd =
   let fd' = live_init_fd fd in
   let cf = conflicts fd' in
 
-  Format.eprintf "liveness done@.";
+(*  Format.eprintf "liveness done@."; *)
 (*  let pp_info fmt (c1, c2) =
     let pp_set fmt c = 
       Format.fprintf fmt "{%a}" 

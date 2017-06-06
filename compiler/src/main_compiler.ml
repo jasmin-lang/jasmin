@@ -247,8 +247,8 @@ let main () =
       let sz = Conv.z_of_int sz in
       let cfd = cfdef_of_fdef fd in
 
-      Format.eprintf "Stack alloc done:@.%a@."
-        (Printer.pp_func ~debug:true) fd;
+     (* Format.eprintf "Stack alloc done:@.%a@."
+        (Printer.pp_func ~debug:true) fd; *)
 
       let sfd = {
         Stack_alloc.sf_iinfo  = cfd.Expr.f_iinfo;
