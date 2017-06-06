@@ -28,8 +28,8 @@ fn sub(reg u64[5] x, stack u64[5] ya) -> reg u64[5] {
 
   for i = 1 to 5 {
      tmp1 = 0xFFFFFFFFFFFFE;
-     x[0] += tmp1;
-     x[0] -= ya[0];
+     x[i] += tmp1;
+     x[i] -= ya[i];
   }
 
   return x;
@@ -337,7 +337,7 @@ fn ladderstep(stack u64[5] x1p, stack u64[5] x2p, stack u64[5] z2p, stack u64[5]
   w7      = mul(z2p,t5p);
   z2p     = w7;
 
- 
+
   return x2p, z2p, x3p, z3p;
 }
 
@@ -707,7 +707,7 @@ fn pack(reg u64 rp, stack u64[5] xa) {
 
 // tests: NOT BEING EXPORTED
 
- fn test_ladderstep( reg u64 x1pp
+export fn test_ladderstep( reg u64 x1pp
                          , reg u64 x2pp
                          , reg u64 z2pp
                          , reg u64 x3pp
@@ -725,11 +725,11 @@ fn pack(reg u64 rp, stack u64[5] xa) {
    reg u64 buf;
    inline int i;
 
-   for i = 0 to 5 { buf = [x1pp +8*i]; x1p[i] = buf; }
-   for i = 0 to 5 { buf = [x2pp +8*i]; x2p[i] = buf; }
-   for i = 0 to 5 { buf = [z2pp +8*i]; z2p[i] = buf; }
-   for i = 0 to 5 { buf = [x3pp +8*i]; x3p[i] = buf; }
-   for i = 0 to 5 { buf = [z3pp +8*i]; z3p[i] = buf; }
+   x1p = unpack_point(x1pp);
+   x2p = unpack_point(x2pp);
+   z2p = unpack_point(z2pp);
+   x3p = unpack_point(x3pp);
+   z3p = unpack_point(z3pp);
 
    r1,r2,r3,r4 = ladderstep(x1p,x2p,z2p,x3p,z3p);
 
@@ -758,8 +758,7 @@ fn pack(reg u64 rp, stack u64[5] xa) {
   for i = 0 to 5 { buf = rh[i]; [rp + 32 + 8*i] = buf; }
 }
 
-
-export fn test_mul(reg u64 rp, reg u64 xap, reg u64 yap) {
+ fn test_mul(reg u64 rp, reg u64 xap, reg u64 yap) {
    reg u64[5] res;
    stack u64[5] ress;
    stack u64[5] xa; 
