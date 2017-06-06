@@ -17,7 +17,7 @@ find:compiler/src:*.mly
 compiler/entry/jasminc.ml
 compiler/src/LICENSE.puf
 compiler/scripts/install-sh
-compiler/scripts/jasmin-test
+compiler/scripts/runtest
 compiler/Makefile
 compiler/jasmin.mlpack.in
 compiler/myocamlbuild.ml
