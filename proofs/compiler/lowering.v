@@ -340,7 +340,11 @@ Definition lower_cassgn_classify e x : lower_cassgn_t :=
     | Omul Op_w => 
       match is_lea x e with 
       | Some l => LowerLea l
-      | _      => LowerFopn Ox86_IMUL64 [:: a ; b ] I32.modulus 
+      | _      => 
+        match is_wconst a with
+        | Some _ => LowerFopn Ox86_IMUL64 [:: b ; a ] I32.modulus
+        | _      => LowerFopn Ox86_IMUL64 [:: a ; b ] I32.modulus 
+        end 
       end
     | Oland => LowerFopn Ox86_AND [:: a ; b ] I32.modulus
     | Olor => LowerFopn Ox86_OR [:: a ; b ] I32.modulus
