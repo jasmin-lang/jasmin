@@ -68,7 +68,7 @@ install: build
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/jasminc
 
-check: build
+tests: build
 	$(CHECK) $(CHECKCATS)
 
 clean:
