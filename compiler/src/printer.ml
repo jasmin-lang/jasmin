@@ -255,6 +255,14 @@ let pp_ptype =
   let pp_size = pp_ge pp_var in
   pp_gtype pp_size
 
+let pp_plval = 
+  let pp_var fmt x = F.fprintf fmt "%s" x.v_name in
+  pp_glv pp_var 
+
+let pp_pexpr =
+  let pp_var fmt x = F.fprintf fmt "%s" x.v_name in
+  pp_ge pp_var 
+
 let pp_pprog fmt p =
   let pp_var fmt x = F.fprintf fmt "%s" x.v_name in
   Format.fprintf fmt "@[<v>%a@]"

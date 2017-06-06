@@ -242,6 +242,7 @@ module PV : sig
 end
 
 module Mpv : Map.S  with type key = pvar
+module Spv : Set.S  with type elt = pvar
 
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)

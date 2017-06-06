@@ -258,7 +258,7 @@ module PV = struct
 end
 
 module Mpv : Map.S with type key = pvar = Map.Make (PV)
-
+module Spv = Set.Make  (PV)
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)
 

@@ -39,6 +39,7 @@ type tyerror =
   | PrimNotAllowed
   | Unsupported
   | UnknownPrim         of S.symbol
+  | ReturnLocalStack    of S.symbol
 
 exception TyError of L.t * tyerror
 
@@ -116,8 +117,10 @@ let pp_tyerror fmt (code : tyerror) =
   | Unsupported ->
       Format.fprintf fmt "unsupported"
   | UnknownPrim s ->
-    Format.fprintf fmt "unknown primitive: `%s'" s
+      Format.fprintf fmt "unknown primitive: `%s'" s
 
+  | ReturnLocalStack v ->
+      Format.fprintf fmt "can not return the local stack variable %s" v
 
 (* -------------------------------------------------------------------- *)
 module Env : sig
@@ -690,6 +693,36 @@ let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (e: P.pty P.gexpr) : (P.pty,
     end
   | _ -> Cassgn (x, tg, e)
 
+let check_call loc doInline lvs f es = 
+  if doInline = P.DoInline then
+    let warning x y z = 
+      Format.eprintf "Warning: at %a, variables %s and %s will be merged to %s@."
+                     P.L.pp_loc loc x.P.v_name y.P.v_name z.P.v_name in
+      
+    let m_xy = ref P.Mpv.empty in
+    let m_yx = ref P.Mpv.empty in
+    let add_var x y m =
+      m := 
+        P.Mpv.modify_opt x (fun o ->
+          match o with
+          | Some y' -> if not (P.PV.equal y y') then warning x y y';o
+          | None    -> Some y) !m in
+    let check_arg x e = 
+      match e with
+      | P.Pvar y -> let y = P.L.unloc y in add_var x y m_xy; add_var y x m_yx 
+      | _      -> 
+        Format.eprintf "Warning: the argument %a is not a variable@." 
+          Printer.pp_pexpr e                         
+    in
+    List.iter2 check_arg f.P.f_args es;
+    let check_res x l = 
+      match l with
+      | P.Lvar y -> let x = P.L.unloc x in let y = P.L.unloc y in add_var x y m_xy; add_var y x m_yx 
+      | _        -> Format.eprintf "Warning: the lval %a is not a variable@." 
+                      Printer.pp_plval l
+    in
+    List.iter2 check_res f.P.f_ret lvs
+    
 let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
   let instr =
     match L.unloc pi with
@@ -698,6 +731,8 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
       let tlvs, tes = f_sig f in
       let lvs = tt_lvalues env ls tlvs in
       let es  = tt_exprs_cast env args tes in
+      let doInline = P.DoInline in
+      check_call (L.loc pi) doInline lvs f es;
       P.Ccall (P.DoInline, lvs, f.P.f_name, es)
 
     | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
@@ -785,6 +820,15 @@ let tt_call_conv = function
 
 
 (* -------------------------------------------------------------------- *)
+let check_return_stack fd = 
+  let args = P.Spv.of_list fd.P.f_args in
+  let check vi = 
+    let v = P.L.unloc vi in
+    if v.P.v_kind = Stack && not (P.Spv.mem v args) then 
+      rs_tyerror ~loc:(P.L.loc vi) (ReturnLocalStack v.P.v_name)
+  in
+  List.iter check fd.P.f_ret
+      
 let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
   let envb, args = tt_vardecls_push env pf.pdf_args in
   let rty  = odfl [] (omap (List.map (tt_type env |- snd)) pf.pdf_rty) in
@@ -799,6 +843,7 @@ let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
 
   check_sig ~loc:(`IfEmpty (L.loc pf.S.pdf_name)) rty
     (List.map (fun x -> (L.loc x, (L.unloc x).P.v_ty)) fdef.P.f_ret);
+  check_return_stack fdef;
   (Env.Funs.push fdef env, fdef)
 
 (* -------------------------------------------------------------------- *)
