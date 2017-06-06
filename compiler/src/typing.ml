@@ -30,6 +30,7 @@ type tyerror =
   | InvalidArgCount     of int * int
   | DuplicateFun        of S.symbol * L.t
   | InvalidCast         of P.pty pair
+  | InvalidGlobal of S.symbol
   | LvalueWithNoBaseTy
   | LvalueTooWide
   | LvalueTooNarrow
@@ -67,6 +68,9 @@ let pp_tyerror fmt (code : tyerror) =
 
   | InvalidCast _ ->
       Format.fprintf fmt "invalid cast"
+
+  | InvalidGlobal g ->
+      Format.fprintf fmt "invalid use of a global name: ‘%s’" g
 
   | InvOpInExpr _ ->
       Format.fprintf fmt
@@ -204,13 +208,13 @@ type tt_mode = [
   ]
 
 (* -------------------------------------------------------------------- *)
-let tt_var (mode:tt_mode) (env : Env.env) { L.pl_desc = x; L.pl_loc = lc; } =
+let tt_var ?(allow_global = false) (mode:tt_mode) (env : Env.env) { L.pl_desc = x; L.pl_loc = lc; } =
   let v =
     match Env.Vars.find x env with
     | Some v -> v
     | None ->
       match Env.Globals.find x env with
-      | Some v -> v
+      | Some v -> if allow_global then v else rs_tyerror ~loc:lc (InvalidGlobal x)
       | None -> rs_tyerror ~loc:lc (UnknownVar x)
   in
   if mode = `OnlyParam && match v.P.v_kind with P.Const | P.Global -> false | _ -> true then
@@ -417,7 +421,7 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     P.Pconst i, P.tint
 
   | S.PEVar ({ L.pl_loc = lc; } as x) ->
-    let x = tt_var mode env x in
+    let x = tt_var ~allow_global:true mode env x in
     (if x.P.v_kind = P.Global then P.Pglobal x.P.v_name else
     P.Pvar (L.mk_loc lc x)), x.P.v_ty
 
