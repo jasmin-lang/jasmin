@@ -54,19 +54,41 @@ let x86_equality_constraints (tbl: (var, int) Hashtbl.t) (k: int -> int -> unit)
     -> merge v w
   | _, _, _ -> ()
 
+(* Set of instruction information for each variable equivalence class. *)
+type trace = (int, i_loc list) Hashtbl.t
+
+let pp_trace (i: int) fmt (tr: trace) =
+  let j = try Hashtbl.find tr i with Not_found -> [] in
+  Format.fprintf fmt "\t%a"
+    Printer.(pp_list "@.\t" pp_iloc) j
+
+let normalize_trace (eqc: Puf.t) (tr: i_loc list array) : trace =
+  let tbl = Hashtbl.create 97 in
+  let old i = try Hashtbl.find tbl i with Not_found -> [] in
+  let union x y = List.sort_uniq compare (List.rev_append x y) in
+  Array.iteri (fun i s ->
+      let j = Puf.find eqc i in
+      Hashtbl.replace tbl j (union s (old j))
+  ) tr;
+  tbl
+
 let collect_equality_constraints
     (msg: string)
     copn_constraints
     (tbl: (var, int) Hashtbl.t) (nv: int)
-    (f: 'info func) : Puf.t =
+    (f: 'info func) : Puf.t * trace =
   let p = ref (Puf.create nv) in
-  let add x y = p := Puf.union !p x y in
-  let rec collect_instr_r =
+  let tr = Array.make nv [] in
+  let add ii x y =
+      tr.(x) <- ii :: tr.(x);
+      p := Puf.union !p x y
+  in
+  let rec collect_instr_r ii =
     function
     | Cblock s
     | Cfor (_, _, s)
       -> collect_stmt s
-    | Copn (lvs, op, es) -> copn_constraints tbl add lvs op es
+    | Copn (lvs, op, es) -> copn_constraints tbl (add ii) lvs op es
     | Cassgn (Lvar x, (AT_rename_arg | AT_rename_res | AT_phinode), Pvar y) ->
       let i = try Hashtbl.find tbl (L.unloc x) with
         Not_found ->
@@ -75,16 +97,17 @@ let collect_equality_constraints
             (Printer.pp_var ~debug:true) (L.unloc x)
       in
       let j = Hashtbl.find tbl (L.unloc y) in
-      add i j
+      add ii  i j
     | Cassgn _
     | Ccall _
       -> ()
     | Cwhile (s1, _, s2)
     | Cif (_, s1, s2) -> collect_stmt s1; collect_stmt s2
-  and collect_instr { i_desc } = collect_instr_r i_desc
+  and collect_instr { i_desc ; i_loc } = collect_instr_r i_loc i_desc
   and collect_stmt s = List.iter collect_instr s in
   collect_stmt f.f_body;
-  !p
+  let eqc = !p in
+  eqc, normalize_trace eqc tr
 
 (* Conflicting variables: variables that may be live simultaneously
    and thus must be allocated to distinct registers.
@@ -117,7 +140,7 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   in
   fun a -> loop a e
 
-let collect_conflicts (tbl: (var, int) Hashtbl.t) (f: (Sv.t * Sv.t) func) : conflicts =
+let collect_conflicts (tbl: (var, int) Hashtbl.t) (tr: trace) (f: (Sv.t * Sv.t) func) : conflicts =
   let add_one_aux (v: int) (w: int) (c: conflicts) : conflicts =
       let x = get_conflicts v c in
       IntMap.add v (IntSet.add w x) c
@@ -126,10 +149,11 @@ let collect_conflicts (tbl: (var, int) Hashtbl.t) (f: (Sv.t * Sv.t) func) : conf
     try
       let i = Hashtbl.find tbl v in
       let j = Hashtbl.find tbl w in
-      if i = j then hierror "%a: bad conflict between %a and %a"
+      if i = j then hierror "%a: conflicting variables %a and %a must be merged due to:@.%a"
           Printer.pp_iloc loc
           (Printer.pp_var ~debug:true) v
-          (Printer.pp_var ~debug:true) w;
+          (Printer.pp_var ~debug:true) w
+          (pp_trace i) tr;
       c |> add_one_aux i j |> add_one_aux j i
     with Not_found -> c
   in
@@ -150,7 +174,7 @@ let collect_conflicts (tbl: (var, int) Hashtbl.t) (f: (Sv.t * Sv.t) func) : conf
     | Cwhile (s1, _, s2)
     | Cif (_, s1, s2)
       -> collect_stmt (collect_stmt c s1) s2
-  and collect_instr c { i_desc ; i_loc ; i_info } = 
+  and collect_instr c { i_desc ; i_loc ; i_info } =
     collect_instr_r (add c i_loc i_info) i_desc
   and collect_stmt c s = List.fold_left collect_instr c s in
   collect_stmt IntMap.empty f.f_body
@@ -416,9 +440,9 @@ let regalloc (f: 'info func) : unit func =
   let f = Ssa.split_live_ranges false f in
   let lf = Liveness.live_fd true f in
   let vars, nv = collect_variables false f in
-  let eqc = collect_equality_constraints "Regalloc" x86_equality_constraints vars nv f in
+  let eqc, tr = collect_equality_constraints "Regalloc" x86_equality_constraints vars nv f in
   let vars = normalize_variables vars eqc in
-  let conflicts = collect_conflicts vars lf in
+  let conflicts = collect_conflicts vars tr lf in
   let a =
     allocate_forced_registers vars conflicts f IntMap.empty |>
     greedy_allocation vars nv conflicts |>
@@ -437,9 +461,9 @@ let split_live_ranges (f: 'info func) : unit func =
   *)
   (* let lf = Liveness.live_fd false f in *)
   let vars, nv = collect_variables true f in
-  let eqc = collect_equality_constraints "Split live range" (fun _ _ _ _ _ -> ()) vars nv f in
+  let eqc, _tr = collect_equality_constraints "Split live range" (fun _ _ _ _ _ -> ()) vars nv f in
   let vars = normalize_variables vars eqc in
-  (* let _ = collect_conflicts vars lf in (* May fail *) *)
+  (* let _ = collect_conflicts vars _tr lf in (* May fail *) *)
   let a =
     reverse_varmap vars |>
     subst_of_allocation vars
