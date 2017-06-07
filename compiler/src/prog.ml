@@ -178,6 +178,8 @@ type funname = {
 type range_dir = UpTo | DownTo
 type 'ty grange = range_dir * 'ty gexpr * 'ty gexpr
 
+type i_loc = L.t * L.t list 
+
 type ('ty,'info) ginstr_r =
   | Cblock of ('ty,'info) gstmt
   | Cassgn of 'ty glval * assgn_tag * 'ty gexpr
@@ -189,7 +191,7 @@ type ('ty,'info) ginstr_r =
 
 and ('ty,'info) ginstr = {
     i_desc : ('ty,'info) ginstr_r;
-    i_loc  : L.t;
+    i_loc  : i_loc;
     i_info : 'info;
   }
 
@@ -434,3 +436,4 @@ let destruct_move i =
   match i.i_desc with
   | Cassgn(x, tag, e) -> x, tag, e
   | _                 -> assert false
+

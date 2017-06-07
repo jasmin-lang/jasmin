@@ -158,8 +158,8 @@ and pp_comp_ferr tbl fmt = function
     let f1 = Conv.fun_of_cfun tbl f1 in
     let f2 = Conv.fun_of_cfun tbl f2 in
     let (i_loc, _) = Conv.get_iinfo tbl ii in
-    Format.fprintf fmt "in functions %s and %s at position %s: %a"
-      f1.fn_name f2.fn_name (Prog.L.tostring i_loc)
+    Format.fprintf fmt "in functions %s and %s at position %a: %a"
+      f1.fn_name f2.fn_name Printer.pp_iloc i_loc
       (pp_comp_err tbl) err_msg
   | Compiler_util.Ferr_neqfun(f1,f2) ->
     let f1 = Conv.fun_of_cfun tbl f1 in
@@ -269,8 +269,15 @@ let main () =
       let p = Conv.prog_of_cprog tbl cp in
       Printer.pp_prog ~debug:true fmt p in
 
+    let rename_fd ii fn cfd = 
+      let ii,_ = Conv.get_iinfo tbl ii in 
+      let doit fd = 
+        let fd = Subst.clone_func fd in
+        Subst.extend_iinfo ii fd in
+      apply "rename_fd" doit fn cfd in
+
     let cparams = {
-      Compiler.rename_fd    = apply "rename_fd" Subst.clone_func;
+      Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = apply "arr exp" Array_expand.arrexp_func;
       Compiler.var_alloc_fd = apply "var alloc" Varalloc.merge_var_inline_fd;
       Compiler.share_stk_fd = apply "share stk" Varalloc.alloc_stack_fd;

@@ -194,6 +194,28 @@ let clone_func fc =
   let subst_v = csubst_v () in
   gsubst_func (fun ty -> ty) subst_v fc
 
+(* ---------------------------------------------------------------- *)
+(* extend instruction info                                          *)
+
+let rec extend_iinfo_i pre i =
+  let i_desc = 
+    match i.i_desc with
+    | Cblock c -> Cblock (extend_iinfo_c pre c)
+    | Cassgn _ | Copn _ | Ccall _ -> i.i_desc 
+    | Cif(e,c1,c2) -> 
+      Cif(e, extend_iinfo_c pre c1, extend_iinfo_c pre c2)
+    | Cfor(x,r,c) -> 
+      Cfor(x,r, extend_iinfo_c pre c)
+    | Cwhile (c1, e, c2) -> 
+      Cwhile(extend_iinfo_c pre c1, e, extend_iinfo_c pre c2) in
+  let ii, l = i.i_loc in
+  let i_loc = ii, (l @ pre) in
+  { i with i_desc; i_loc }
+
+and extend_iinfo_c pre c = List.map (extend_iinfo_i pre) c
+
+let extend_iinfo (i,l) fd = 
+  { fd with f_body = extend_iinfo_c (i::l) fd.f_body }
 
 (* ---------------------------------------------------------------- *)
 (* Perform a substitution of variable by variable                   *) 

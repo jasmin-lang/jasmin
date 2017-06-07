@@ -40,7 +40,7 @@ Local Open Scope seq_scope.
 
 Section INLINE.
 
-Variable rename_fd : funname -> fundef -> fundef.
+Variable rename_fd : instr_info -> funname -> fundef -> fundef.
 
 Lemma get_funP p ii f fd : 
   get_fun p ii f = ok fd -> get_fundef p f = Some fd.
@@ -650,7 +650,7 @@ Section PROOF.
     move=> /=;case: ifP => //= Hdisj _ [<- <-] vm1 Hwf1.
     move=> {H0 H1 H2 Hfd' Hfd Hcheckf Hsc Hinline}.
     move: Hdisj;rewrite read_i_call.
-    move: Hvs Hwv Hbody;set rfd := rename_fd _ => Hvs Hwv Hbody Hdisjoint Hvm1.
+    move: Hvs Hwv Hbody;set rfd := rename_fd _ _ => Hvs Hwv Hbody Hdisjoint Hvm1.
     rewrite (write_vars_lvals gd) in Hwv.
     have [||/= vm1' [Wvm1' Uvm1']]:= @writes_uincl gd _ _ vm1 _ vargs vargs _ _ Hwv.
     + by apply wf_vm_uincl. + by apply List_Forall2_refl.

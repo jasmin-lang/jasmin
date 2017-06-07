@@ -155,7 +155,7 @@ Fixpoint check_i iinfo i1 i2 r :=
 
 with check_I i1 i2 r := 
   match i1, i2 with
-  | MkI ii i1, MkI _ i2 => check_i ii i1 i2 r
+  | MkI _ i1, MkI ii i2 => check_i ii i1 i2 r
   end.
 
 Definition check_cmd iinfo := fold2 (iinfo,cmd2_error) check_I.

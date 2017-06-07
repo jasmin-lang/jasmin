@@ -689,7 +689,7 @@ let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (e: P.pty P.gexpr) : (P.pty,
         let i = L.mk_loc (L.loc z) (P.PV.mk "i" P.Inline (Bty Int) (L.loc z)) in
         Cfor (i, (UpTo, Pconst P.B.zero, n), [
             let i_desc = P.Cassgn (Laset (z, Pvar i), AT_keep, Pget (y, Pvar i)) in
-            { i_desc ; i_loc = L.loc z ; i_info = () }
+            { i_desc ; i_loc = L.loc z, [] ; i_info = () }
           ])
     | _ -> hierror "Array copy"
     end
@@ -697,11 +697,11 @@ let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (e: P.pty P.gexpr) : (P.pty,
     end
   | _ -> Cassgn (x, tg, e)
 
-let check_call loc doInline lvs f es = 
+let check_call loc doInline lvs f es =
   if doInline = P.DoInline then
-    let warning x y z = 
+    let warning x y y' = 
       Format.eprintf "Warning: at %a, variables %s and %s will be merged to %s@."
-                     P.L.pp_loc loc x.P.v_name y.P.v_name z.P.v_name in
+                     P.L.pp_loc loc y.P.v_name y'.P.v_name x.P.v_name in
       
     let m_xy = ref P.Mpv.empty in
     let m_yx = ref P.Mpv.empty in
@@ -715,15 +715,15 @@ let check_call loc doInline lvs f es =
       match e with
       | P.Pvar y -> let y = P.L.unloc y in add_var x y m_xy; add_var y x m_yx 
       | _      -> 
-        Format.eprintf "Warning: the argument %a is not a variable@." 
-          Printer.pp_pexpr e                         
+        Format.eprintf "Warning: at %a the argument %a is not a variable@." 
+          P.L.pp_loc loc Printer.pp_pexpr e                         
     in
     List.iter2 check_arg f.P.f_args es;
     let check_res x l = 
       match l with
       | P.Lvar y -> let x = P.L.unloc x in let y = P.L.unloc y in add_var x y m_xy; add_var y x m_yx 
-      | _        -> Format.eprintf "Warning: the lval %a is not a variable@." 
-                      Printer.pp_plval l
+      | _        -> Format.eprintf "Warning: at %a the lval %a is not a variable@." 
+                       P.L.pp_loc loc Printer.pp_plval l
     in
     List.iter2 check_res f.P.f_ret lvs
     
@@ -801,7 +801,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
         let s2 = omap_dfl (tt_block env) [] s2 in
         P.Cwhile (s1, c, s2)
 
-  in { P.i_desc = instr; P.i_loc = L.loc pi; P.i_info = (); }
+  in { P.i_desc = instr; P.i_loc = L.loc pi, []; P.i_info = (); }
 
 (* -------------------------------------------------------------------- *)
 and tt_block (env : Env.env) (pb : S.pblock) =

@@ -80,7 +80,7 @@ type 'info coq_tbl = {
      var           : (Var.var, var) Hashtbl.t;
      cvar          : Var.var Hv.t;
      vari          : (int, L.t) Hashtbl.t;
-     iinfo         : (int, L.t * 'info) Hashtbl.t;
+     iinfo         : (int, (L.t * L.t list) * 'info) Hashtbl.t;
      funname       : (funname, BinNums.positive) Hashtbl.t;
      cfunname      : (BinNums.positive, funname) Hashtbl.t;
      finfo         : (int, L.t * call_conv) Hashtbl.t;
@@ -422,7 +422,7 @@ let get_iinfo tbl n =
   try Hashtbl.find tbl.iinfo (int_of_pos n)
   with Not_found ->
     Format.eprintf "WARNING: CAN NOT FIND IINFO %i@." (int_of_pos n);
-    L._dummy, tbl.dft_info
+    (L._dummy, []), tbl.dft_info
 
 let rec cinstr_of_instr tbl i c =
   let n = set_iinfo tbl i.i_loc i.i_info in

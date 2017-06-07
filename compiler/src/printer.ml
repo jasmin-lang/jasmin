@@ -13,6 +13,10 @@ let rec pp_list sep pp fmt xs =
     | x :: xs -> Format.fprintf fmt "%a%(%)%a" pp x sep pp_list xs
 
 (* -------------------------------------------------------------------- *)
+let pp_iloc fmt (l,ls) = 
+  Format.fprintf fmt "@[<v>%a@]" (pp_list "from@ " L.pp_loc) (l::ls)
+
+(* -------------------------------------------------------------------- *)
 
 let pp_bool fmt b =
   if b then F.fprintf fmt "true"

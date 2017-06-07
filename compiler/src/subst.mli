@@ -9,6 +9,7 @@ val remove_params : 'info pprog -> (pvar * pexpr) list * 'info prog
 (* rename all variable using fresh variables *)
 val clone_func : 'info func -> 'info func
 
+val extend_iinfo : i_loc -> 'info func -> 'info func
 (* ---------------------------------------------------------------- *)
 (* Perform a substitution of variable by variable                   *)
 

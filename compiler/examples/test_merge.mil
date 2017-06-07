@@ -23,11 +23,12 @@ export fn main() -> reg u64 {
    w[0] = add(z1);
    z1 = add(z1);
 
- /*  z2 = add1(z1);
-   w[0] = add1(z1);
+   z2 = add1(z1);
+   /*w[0] = add1(z1);
    z1 = add1(z1); */
 
    z1 += w[0];
+   z1 += z2;
    return z1; 
 }
 

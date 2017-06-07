@@ -105,7 +105,7 @@ let set_same loc cfm x y =
   try set_same cfm x y
   with SetSameConflict ->
     hierror "at %a: cannot remove introduced assignment %a = %a"
-       L.pp_loc loc
+       Printer.pp_iloc loc
        (Printer.pp_var ~debug:true) x
        (Printer.pp_var ~debug:true) y
 
@@ -115,7 +115,7 @@ let rec same_i cfm i =
     set_same i.i_loc cfm (L.unloc x) (L.unloc y)
   | Cassgn (_, tag, _) when is_same tag ->
     hierror "at %a: cannot remove assignment %a@\nintroduced by inlining"
-        L.pp_loc i.i_loc
+        Printer.pp_iloc i.i_loc
         (Printer.pp_instr ~debug:true) i
   | Cassgn _                            -> cfm
   | Copn (_, _, _) | Ccall (_, _, _, _) -> cfm

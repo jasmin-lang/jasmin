@@ -72,7 +72,7 @@ Variant compiler_step :=
   | Assembly                    : compiler_step.
 
 Record compiler_params := {
-  rename_fd    : funname -> fundef -> fundef;
+  rename_fd    : instr_info -> funname -> fundef -> fundef;
   expand_fd    : funname -> fundef -> fundef;
   var_alloc_fd : funname -> fundef -> fundef;
   share_stk_fd : funname -> fundef -> fundef;
