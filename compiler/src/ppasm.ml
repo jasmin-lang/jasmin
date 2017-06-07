@@ -473,8 +473,10 @@ let pp_prog (tbl: 'info tbl) (gd: gd_t) (fmt : Format.formatter) (asm : X86.xpro
       let z = clamp (wsize_of_rsize rs) (constant_of_expr d) in
       pp_gens fmt [
         `Instr (".globl", [mangle n.Prog.v_name]);
+        `Instr (".globl", [n.Prog.v_name]);
         `Instr (".align", ["8"]);
         `Label (mangle n.Prog.v_name);
+        `Label n.Prog.v_name;
         `Instr (".quad", [Bigint.to_string z])
       ])
     gd
