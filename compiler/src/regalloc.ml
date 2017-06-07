@@ -55,14 +55,17 @@ let x86_equality_constraints (tbl: (var, int) Hashtbl.t) (k: int -> int -> unit)
   | _, _, _ -> ()
 
 (* Set of instruction information for each variable equivalence class. *)
-type trace = (int, i_loc list) Hashtbl.t
+type 'info trace = (int, 'info instr list) Hashtbl.t
 
-let pp_trace (i: int) fmt (tr: trace) =
+let pp_trace (i: int) fmt (tr: 'info trace) =
   let j = try Hashtbl.find tr i with Not_found -> [] in
-  Format.fprintf fmt "\t%a"
-    Printer.(pp_list "@.\t" pp_iloc) j
+  let pp_i fmt i = 
+    Format.fprintf fmt "@[%a at@ %a@]" 
+      (Printer.pp_instr ~debug:true) i 
+      Printer.pp_iloc i.i_loc in
+  Format.fprintf fmt "@[<v>%a@]" (Printer.pp_list "@ " pp_i) j
 
-let normalize_trace (eqc: Puf.t) (tr: i_loc list array) : trace =
+let normalize_trace (eqc: Puf.t) (tr: 'info instr list array) : 'info trace =
   let tbl = Hashtbl.create 97 in
   let old i = try Hashtbl.find tbl i with Not_found -> [] in
   let union x y = List.sort_uniq compare (List.rev_append x y) in
@@ -76,7 +79,7 @@ let collect_equality_constraints
     (msg: string)
     copn_constraints
     (tbl: (var, int) Hashtbl.t) (nv: int)
-    (f: 'info func) : Puf.t * trace =
+    (f: 'info func) : Puf.t * 'info trace =
   let p = ref (Puf.create nv) in
   let tr = Array.make nv [] in
   let add ii x y =
@@ -103,7 +106,7 @@ let collect_equality_constraints
       -> ()
     | Cwhile (s1, _, s2)
     | Cif (_, s1, s2) -> collect_stmt s1; collect_stmt s2
-  and collect_instr { i_desc ; i_loc } = collect_instr_r i_loc i_desc
+  and collect_instr ({ i_desc } as i) = collect_instr_r i i_desc
   and collect_stmt s = List.iter collect_instr s in
   collect_stmt f.f_body;
   let eqc = !p in
@@ -140,7 +143,7 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   in
   fun a -> loop a e
 
-let collect_conflicts (tbl: (var, int) Hashtbl.t) (tr: trace) (f: (Sv.t * Sv.t) func) : conflicts =
+let collect_conflicts (tbl: (var, int) Hashtbl.t) (tr: 'info trace) (f: (Sv.t * Sv.t) func) : conflicts =
   let add_one_aux (v: int) (w: int) (c: conflicts) : conflicts =
       let x = get_conflicts v c in
       IntMap.add v (IntSet.add w x) c

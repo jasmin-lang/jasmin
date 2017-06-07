@@ -52,6 +52,9 @@ let tostring (p : t) =
 let pp_loc fmt (p:t) = 
   Format.fprintf fmt "%s" (tostring p)
 
+let pp_sloc fmt (p:t) = 
+  Format.fprintf fmt "line %d" (fst p.loc_start)
+
 let merge (p1 : t) (p2 : t) =
   { loc_fname = p1.loc_fname;
     loc_start = min p1.loc_start p2.loc_start;
