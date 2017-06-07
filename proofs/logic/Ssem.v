@@ -240,6 +240,15 @@ Definition son_arr_var A (s: sestate) (x: var) (f: positive → FArray.array wor
 Notation "'SLet' ( n , t ) ':=' s '.[' x ']' 'in' body" :=
   (@son_arr_var _ s x (fun n (t:FArray.array word) => body)) (at level 25, s at level 0).
 
+Definition sget_global gd g : word :=
+  if get_global_word gd g is Some v
+  then v
+  else sdflt_val sword.
+
+Section SSEM_PEXPR.
+
+Context (gd: glob_defs).
+
 Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : exec svalue :=
   match e with
   | Pconst z => ok (SVint z)
@@ -248,6 +257,7 @@ Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : exec svalue :=
     Let z := ssem_pexpr s e >>= sto_int in
     ok (SVword (I64.repr z))
   | Pvar v => ok (sget_var s.(sevm) v)
+  | Pglobal g => ok (SVword (sget_global gd g))
   | Pget x e =>
       SLet (n,t) := s.[x] in
       Let i := ssem_pexpr s e >>= sto_int in
@@ -304,6 +314,8 @@ Definition swrite_lval (l:lval) (v:svalue) (s:sestate) : exec sestate :=
 
 Definition swrite_lvals (s:sestate) xs vs :=
    fold2 ErrType swrite_lval xs vs s.
+
+End SSEM_PEXPR.
 
 Fixpoint sapp_sopn ts : ssem_prod ts (exec svalues) -> svalues -> exec svalues :=
   match ts return ssem_prod ts (exec svalues) -> svalues -> exec svalues with
@@ -409,6 +421,7 @@ Definition ssem_sopn (o:sopn) : svalues -> exec svalues :=
 Section SEM.
 
 Variable P:prog.
+Context (gd: glob_defs).
 
 Inductive ssem : sestate -> cmd -> sestate -> Prop :=
 | SEskip s :
@@ -424,45 +437,45 @@ with ssem_I : sestate -> instr -> sestate -> Prop :=
 
 with ssem_i : sestate -> instr_r -> sestate -> Prop :=
 | SEassgn s1 s2 (x:lval) tag e:
-    (Let v := ssem_pexpr s1 e in swrite_lval x v s1) = ok s2 ->
+    (Let v := ssem_pexpr gd s1 e in swrite_lval gd x v s1) = ok s2 ->
     ssem_i s1 (Cassgn x tag e) s2
 
 | SEopn s1 s2 o xs es:
-    ssem_pexprs s1 es >>= ssem_sopn o >>= (swrite_lvals s1 xs) = ok s2 ->
+    ssem_pexprs gd s1 es >>= ssem_sopn o >>= (swrite_lvals gd s1 xs) = ok s2 ->
     ssem_i s1 (Copn xs o es) s2
 
 | SEif_true s1 s2 e c1 c2 :
-    ssem_pexpr s1 e >>= sto_bool = ok true ->
+    ssem_pexpr gd s1 e >>= sto_bool = ok true ->
     ssem s1 c1 s2 ->
     ssem_i s1 (Cif e c1 c2) s2
 
 | SEif_false s1 s2 e c1 c2 :
-    ssem_pexpr s1 e >>= sto_bool = ok false ->
+    ssem_pexpr gd s1 e >>= sto_bool = ok false ->
     ssem s1 c2 s2 ->
     ssem_i s1 (Cif e c1 c2) s2
 
 | SEwhile_true s1 s2 s3 s4 c e c' :
     ssem s1 c s2 ->
-    ssem_pexpr s2 e >>= sto_bool = ok true ->
+    ssem_pexpr gd s2 e >>= sto_bool = ok true ->
     ssem s2 c' s3 ->
     ssem_i s3 (Cwhile c e c') s4 ->
     ssem_i s1 (Cwhile c e c') s4
 
 | SEwhile_false s1 s2 c e c' :
     ssem s1 c s2 ->
-    ssem_pexpr s2 e >>= sto_bool = ok false ->
+    ssem_pexpr gd s2 e >>= sto_bool = ok false ->
     ssem_i s1 (Cwhile c e c') s2
 
 | SEfor s1 s2 (i:var_i) d lo hi c vlo vhi :
-    ssem_pexpr s1 lo >>= sto_int = ok vlo ->
-    ssem_pexpr s1 hi >>= sto_int = ok vhi ->
+    ssem_pexpr gd s1 lo >>= sto_int = ok vlo ->
+    ssem_pexpr gd s1 hi >>= sto_int = ok vhi ->
     ssem_for i (wrange d vlo vhi) s1 c s2 ->
     ssem_i s1 (Cfor i (d, lo, hi) c) s2
 
 | SEcall s1 m2 s2 ii xs f args vargs vs :
-    ssem_pexprs s1 args = ok vargs ->
+    ssem_pexprs gd s1 args = ok vargs ->
     ssem_call s1.(semem) f vargs m2 vs ->
-    swrite_lvals {|semem:= m2; sevm := s1.(sevm) |} xs vs = ok s2 ->
+    swrite_lvals gd {|semem:= m2; sevm := s1.(sevm) |} xs vs = ok s2 ->
     ssem_i s1 (Ccall ii xs f args) s2
 
 with ssem_for : var -> seq Z -> sestate -> cmd -> sestate -> Prop :=
@@ -541,25 +554,25 @@ Proof.
   exists n, Logic.eq_refl. exact E.
 Qed.
 
-Lemma ssem_inv { prg s c s' } :
-  ssem prg s c s' →
+Lemma ssem_inv { prg gd s c s' } :
+  ssem prg gd s c s' →
   match c with
   | [::] => s' = s
-  | i :: c' => ∃ si, ssem_I prg s i si ∧ ssem prg si c' s'
+  | i :: c' => ∃ si, ssem_I prg gd s i si ∧ ssem prg gd si c' s'
 end.
 Proof. case; eauto. Qed.
 
-Lemma ssem_I_inv { prg s i s' } :
-  ssem_I prg s i s' →
-  ∃ i' ii, i = MkI ii i' ∧ ssem_i prg s i' s'.
+Lemma ssem_I_inv { prg gd s i s' } :
+  ssem_I prg gd s i s' →
+  ∃ i' ii, i = MkI ii i' ∧ ssem_i prg gd s i' s'.
 Proof. case; eauto. Qed.
 
-Lemma ssem_i_inv { prg s i s' } :
-  ssem_i prg s i s' →
+Lemma ssem_i_inv { prg gd s i s' } :
+  ssem_i prg gd s i s' →
   match i with
-  | Cassgn x tg e => ∃ v, ssem_pexpr s e = ok v ∧ swrite_lval x v s = ok s'
-  | Copn xs op es => ∃ args vs, ssem_pexprs s es = ok args ∧ ssem_sopn op args = ok vs ∧ swrite_lvals s xs vs = ok s'
-  | Cif e c1 c2 => ∃ b : bool, ssem_pexpr s e = ok (SVbool b) ∧ ssem prg s (if b then c1 else c2) s'
+  | Cassgn x tg e => ∃ v, ssem_pexpr gd s e = ok v ∧ swrite_lval gd x v s = ok s'
+  | Copn xs op es => ∃ args vs, ssem_pexprs gd s es = ok args ∧ ssem_sopn op args = ok vs ∧ swrite_lvals gd s xs vs = ok s'
+  | Cif e c1 c2 => ∃ b : bool, ssem_pexpr gd s e = ok (SVbool b) ∧ ssem prg gd s (if b then c1 else c2) s'
   | _ => True
   end.
 Proof.
@@ -574,19 +587,19 @@ Proof.
   move=> s s' e c1 c2; apply: rbindP => v Hv /sto_bool_inv ?; subst v; eauto.
 Qed.
 
-Lemma swrite_lval_inv {x v s s'} :
-  swrite_lval x v s = ok s' →
+Lemma swrite_lval_inv {gd x v s s'} :
+  swrite_lval gd x v s = ok s' →
   match x with
   | Lnone _ _ => s' = s
   | Lvar x => ∃ v', of_sval (vtype x) v = ok v' ∧
                     s' = {| semem := semem s ; sevm := (sevm s).[ x <- v' ] |}
   | Lmem x e =>
     ∃ (Tx: vtype x = sword),
-    ∃ vx ve w: word, eq_rect _ _ ((sevm s).[ x ]) _ Tx = vx ∧ ssem_pexpr s e = ok (SVword ve) ∧ v = w ∧
+    ∃ vx ve w: word, eq_rect _ _ ((sevm s).[ x ]) _ Tx = vx ∧ ssem_pexpr gd s e = ok (SVword ve) ∧ v = w ∧
                s' = {| semem := write_mem (semem s) (I64.add vx ve) w ; sevm := sevm s |}
   | Laset x i =>
     ∃ n (Tx: vtype x = sarr n) (vi : Z) (w: word),
-  ssem_pexpr s i = ok (SVint vi) ∧
+  ssem_pexpr gd s i = ok (SVint vi) ∧
   v = w ∧
   let q := FArray.set (eq_rect (vtype x) ssem_t ((sevm s).[x]) (sarr n) Tx) vi w in
   s' = {| semem := semem s ; sevm := (sevm s).[x <- eq_rect _ _ q _ (Logic.eq_sym Tx)] |}

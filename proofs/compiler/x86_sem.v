@@ -33,6 +33,7 @@ Record address : Type := mkAddress {
 (* -------------------------------------------------------------------- *)
 Variant oprd : Type :=
 | Imm_op     of word
+| Glo_op of global
 | Reg_op     of register
 | Adr_op     of address.
 
@@ -146,6 +147,7 @@ Canonical address_eqType := EqType address address_eqMixin.
 Definition oprd_beq (op1 op2 : oprd) :=
   match op1, op2 with
   | Imm_op w1, Imm_op w2 => w1 == w2
+  | Glo_op g1, Glo_op g2 => g1 == g2
   | Reg_op r1, Reg_op r2 => r1 == r2
   | Adr_op a1, Adr_op a2 => a1 == a2
   | _        , _         => false
@@ -153,7 +155,7 @@ Definition oprd_beq (op1 op2 : oprd) :=
 
 Lemma oprd_eq_axiom : Equality.axiom oprd_beq.
 Proof.
-case=> [w1|r1|a1] [w2|r2|a2] /=; try constructor => //;
+case=> [w1| g1 |r1|a1] [w2| g2 |r2|a2] /=; try constructor => //;
   by apply (equivP eqP); split=> [->|[]].
 Qed.
 
@@ -240,6 +242,10 @@ Notation Undef    := RflagMap.Undef.
 Definition regmap0   : regmap   := [ffun x => I64.repr 0].
 Definition rflagmap0 : rflagmap := [ffun x => Undef].
 
+Section GLOB_DEFS.
+
+Context (gd: glob_defs).
+
 (* -------------------------------------------------------------------- *)
 Record x86_state := X86State {
   xmem : mem;
@@ -315,7 +321,8 @@ Definition decode_addr (s : x86_state) (a : address) : word := nosimpl (
 (* -------------------------------------------------------------------- *)
 Definition write_oprd (o : oprd) (w : word) (s : x86_state) :=
   match o with
-  | Imm_op v => type_error
+  | Glo_op _
+  | Imm_op _ => type_error
   | Reg_op r => ok (st_write_reg r w s)
   | Adr_op a => st_write_mem (decode_addr s a) w s
   end.
@@ -324,6 +331,7 @@ Definition write_oprd (o : oprd) (w : word) (s : x86_state) :=
 Definition read_oprd (o : oprd) (s : x86_state) :=
   match o with
   | Imm_op v => ok v
+  | Glo_op g => if get_global_word gd g is Some v then ok v else type_error
   | Reg_op r => ok (s.(xreg) r)
   | Adr_op a => read_mem s.(xmem) (decode_addr s a)
   end.
@@ -776,3 +784,5 @@ Definition fetch_and_eval s :=
   if nth None (map some s.(xc)) s.(xip) is Some i then
     eval_instr i (st_write_ip s.(xip).+1 s)
   else type_error.
+
+End GLOB_DEFS.

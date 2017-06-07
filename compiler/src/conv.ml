@@ -80,7 +80,7 @@ type 'info coq_tbl = {
      var           : (Var.var, var) Hashtbl.t;
      cvar          : Var.var Hv.t;
      vari          : (int, L.t) Hashtbl.t;
-     iinfo         : (int, L.t * 'info) Hashtbl.t;
+     iinfo         : (int, (L.t * L.t list) * 'info) Hashtbl.t;
      funname       : (funname, BinNums.positive) Hashtbl.t;
      cfunname      : (BinNums.positive, funname) Hashtbl.t;
      finfo         : (int, L.t * call_conv) Hashtbl.t;
@@ -151,6 +151,15 @@ let cvari_of_vari tbl v =
 let vari_of_cvari tbl v =
   let loc =  get_loc tbl v.C.v_info in
   L.mk_loc loc (var_of_cvar tbl v.C.v_var)
+
+(* ------------------------------------------------------------------------ *)
+
+let cglobal_of_global (g: Name.t) : C.global =
+  string0_of_string g
+
+let global_of_cglobal (g: C.global) : Name.t =
+  string_of_string0 g
+
 
 (* ------------------------------------------------------------------------ *)
 
@@ -241,6 +250,7 @@ let rec cexpr_of_expr tbl = function
   | Pcast (W64, e)    -> C.Pcast (cexpr_of_expr tbl e)
   | Pcast _           -> assert false
   | Pvar x            -> C.Pvar (cvari_of_vari tbl x)
+  | Pglobal g -> C.Pglobal (cglobal_of_global g)
   | Pget (x,e)        -> C.Pget (cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Pload (W64, x, e) -> C.Pload(cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Pload _           -> assert false
@@ -255,6 +265,7 @@ let rec expr_of_cexpr tbl = function
   | C.Pbool  b          -> Pbool  b
   | C.Pcast  e          -> Pcast (W64, expr_of_cexpr tbl e)
   | C.Pvar x            -> Pvar (vari_of_cvari tbl x)
+  | C.Pglobal g -> Pglobal (global_of_cglobal g)
   | C.Pget (x,e)        -> Pget (vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Pload (x, e)      -> Pload(W64, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Papp1 (o, e)      -> Papp1(op1_of_cop1 o, expr_of_cexpr tbl e)
@@ -270,18 +281,19 @@ let copn_of_opn = function
   | Omulu        -> C.Omulu
   | Oaddcarry    -> C.Oaddcarry
   | Osubcarry    -> C.Osubcarry
-  | Ox86_MOV  -> C.Ox86_MOV
+  | Oset0        -> C.Oset0
+  | Ox86_MOV     -> C.Ox86_MOV
   | Ox86_CMOVcc  -> C.Ox86_CMOVcc
   | Ox86_ADD     -> C.Ox86_ADD
   | Ox86_SUB     -> C.Ox86_SUB
   | Ox86_MUL     -> C.Ox86_MUL
   | Ox86_IMUL    -> C.Ox86_IMUL
-  | Ox86_IMUL64	-> C.Ox86_IMUL64
+  | Ox86_IMUL64	 -> C.Ox86_IMUL64
   | Ox86_DIV     -> C.Ox86_DIV
   | Ox86_IDIV    -> C.Ox86_IDIV
   | Ox86_ADC     -> C.Ox86_ADC
   | Ox86_SBB     -> C.Ox86_SBB
-  | Ox86_NEG	-> C.Ox86_NEG
+  | Ox86_NEG	 -> C.Ox86_NEG
   | Ox86_INC     -> C.Ox86_INC
   | Ox86_DEC     -> C.Ox86_DEC
   | Ox86_SETcc   -> C.Ox86_SETcc
@@ -300,18 +312,19 @@ let opn_of_copn = function
   | C.Omulu        -> Omulu
   | C.Oaddcarry    -> Oaddcarry
   | C.Osubcarry    -> Osubcarry
-  | C.Ox86_MOV  -> Ox86_MOV
+  | C.Oset0        -> Oset0
+  | C.Ox86_MOV     -> Ox86_MOV
   | C.Ox86_CMOVcc  -> Ox86_CMOVcc
   | C.Ox86_ADD     -> Ox86_ADD
   | C.Ox86_SUB     -> Ox86_SUB
   | C.Ox86_MUL     -> Ox86_MUL
   | C.Ox86_IMUL    -> Ox86_IMUL
-  | C.Ox86_IMUL64	-> Ox86_IMUL64
+  | C.Ox86_IMUL64  -> Ox86_IMUL64
   | C.Ox86_DIV     -> Ox86_DIV
   | C.Ox86_IDIV    -> Ox86_IDIV
   | C.Ox86_ADC     -> Ox86_ADC
   | C.Ox86_SBB     -> Ox86_SBB
-  | C.Ox86_NEG	-> Ox86_NEG
+  | C.Ox86_NEG	   -> Ox86_NEG
   | C.Ox86_INC     -> Ox86_INC
   | C.Ox86_DEC     -> Ox86_DEC
   | C.Ox86_SETcc   -> Ox86_SETcc
@@ -409,7 +422,7 @@ let get_iinfo tbl n =
   try Hashtbl.find tbl.iinfo (int_of_pos n)
   with Not_found ->
     Format.eprintf "WARNING: CAN NOT FIND IINFO %i@." (int_of_pos n);
-    L._dummy, tbl.dft_info
+    (L._dummy, []), tbl.dft_info
 
 let rec cinstr_of_instr tbl i c =
   let n = set_iinfo tbl i.i_loc i.i_info in
@@ -529,14 +542,7 @@ let cprog_of_prog info p =
   List.iter
     (fun x -> ignore (cvar_of_reg tbl x))
     Regalloc.X64.all_registers;
-  Format.eprintf "Register string@.";
-  List.iter (fun x ->
-      let cv = cvar_of_var tbl x in
-      Format.eprintf "%s " (string_of_string0 cv.Var.vname))
-    Regalloc.X64.all_registers;
-  Format.eprintf "@.";
-
-  tbl, List.map (cfdef_of_fdef tbl) p
+   tbl, List.map (cfdef_of_fdef tbl) p
 
 let prog_of_cprog tbl p =
   List.map (fdef_of_cfdef tbl) p

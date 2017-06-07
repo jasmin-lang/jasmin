@@ -2,9 +2,9 @@
 
 # --------------------------------------------------------------------
 DNAME := jasminlang
-COQV  ?= 8.5.3
-SSRV  := 1.6.1
-SSRP  := algebra
+COQV  ?= 8.6
+SSRV  ?= 1.6.1
+SSRP  ?= algebra
 ROOT  := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 # --------------------------------------------------------------------
@@ -31,4 +31,4 @@ check-compiler:
 	cd $(ROOT)/../compiler && opam pin add -n jasmin .
 	opam install depext && opam depext jasmin
 	opam install --deps-only jasmin
-	$(MAKE) -C "$(ROOT)/../compiler" CIL build tests
+	$(MAKE) -C "$(ROOT)/../compiler" CIL build tests-ci

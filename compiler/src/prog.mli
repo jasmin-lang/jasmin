@@ -68,6 +68,7 @@ type v_kind =
   | Stack         (* stack variable    *)
   | Reg           (* register variable *)
   | Inline        (* inline variable   *)
+  | Global (* global (in memory) constant *)
   [@@deriving compare,sexp]
 
 type 'ty gvar = private {
@@ -91,6 +92,7 @@ type 'ty gexpr =
   | Pbool  of bool
   | Pcast  of word_size * 'ty gexpr
   | Pvar   of 'ty gvar_i
+  | Pglobal of Name.t
   | Pget   of 'ty gvar_i * 'ty gexpr
   | Pload  of word_size * 'ty gvar_i * 'ty gexpr
   | Papp1  of op1 * 'ty gexpr
@@ -114,6 +116,7 @@ type op =
 | Omulu
 | Oaddcarry
 | Osubcarry
+| Oset0
 (* Low level x86 operations *)
 | Ox86_MOV
 | Ox86_CMOVcc
@@ -169,6 +172,8 @@ type funname = private {
 type range_dir = UpTo | DownTo
 type 'ty grange = range_dir * 'ty gexpr * 'ty gexpr
 
+type i_loc = L.t * L.t list
+
 type ('ty,'info) ginstr_r =
   | Cblock of ('ty,'info) gstmt
   | Cassgn of 'ty glval * assgn_tag * 'ty gexpr
@@ -180,7 +185,7 @@ type ('ty,'info) ginstr_r =
 
 and ('ty,'info) ginstr = {
   i_desc : ('ty,'info) ginstr_r;
-  i_loc  : L.t;
+  i_loc  : i_loc;
   i_info : 'info;
 }
 
@@ -203,6 +208,7 @@ type ('ty,'info) gfunc = {
 type ('ty,'info) gmod_item =
   | MIfun   of ('ty,'info) gfunc
   | MIparam of ('ty gvar * 'ty gexpr)
+  | MIglobal of 'ty gvar * 'ty gexpr
 
 type ('ty,'info) gprog = ('ty,'info) gmod_item list
    (* first declaration occur at the end (i.e reverse order) *)
@@ -238,6 +244,7 @@ module PV : sig
 end
 
 module Mpv : Map.S  with type key = pvar
+module Spv : Set.S  with type elt = pvar
 
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)

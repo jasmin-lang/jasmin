@@ -7,6 +7,7 @@ let rec gsubst_e (f: 'ty1 gvar_i -> 'ty2 gexpr) e =
   | Pbool b  -> Pbool b
   | Pcast(ws,e) -> Pcast(ws, gsubst_e f e)
   | Pvar v -> f v
+  | Pglobal g -> Pglobal g
   | Pget (v,e) -> Pget(gsubst_vdest f v, gsubst_e f e)
   | Pload (ws, v, e) -> Pload (ws, gsubst_vdest f v, gsubst_e f e)
   | Papp1 (o, e)     -> Papp1 (o, gsubst_e f e)
@@ -79,16 +80,20 @@ let psubst_v subst =
     | _      -> e in
   aux
 
-let psubst_prog (prog:'info pprog) =
+let psubst_prog (prog:'info pprog) : (pvar * pexpr) list * 'info pprog =
   let subst = ref (Mpv.empty : pexpr Mpv.t) in
   let rec aux = function
-    | [] -> []
+    | [] -> [], []
     | MIparam(v,e) :: items ->
-        let p = aux items in
+        let g, p = aux items in
         subst := Mpv.add v (gsubst_e (psubst_v !subst) e) !subst;
-        p
+        g, p
+    | MIglobal (v, e) :: items ->
+      let g, p = aux items in
+      let e = gsubst_e (psubst_v !subst) e in
+      (v, e) :: g, p
     | MIfun fc :: items ->
-        let p = aux items in
+        let g, p = aux items in
         let subst_v = psubst_v !subst in
         let subst_ty = psubst_ty subst_v in
         let dov v =
@@ -99,7 +104,7 @@ let psubst_prog (prog:'info pprog) =
             f_body = gsubst_c subst_ty subst_v fc.f_body;
             f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret
           } in
-        MIfun(fc)::p in
+        g, MIfun(fc)::p in
     aux prog
 
 (* ---------------------------------------------------------------- *)
@@ -117,7 +122,7 @@ let rec int_of_expr e =
   | Pconst i -> i
   | Papp2 (o, e1, e2) ->
       int_of_op2 o (int_of_expr e1) (int_of_expr e2)
-  | Pbool _ | Pcast _ | Pvar _
+  | Pbool _ | Pcast _ | Pvar _ | Pglobal _
   | Pget _ | Pload _ | Papp1 _ | Pif _ -> assert false
 
 
@@ -144,6 +149,7 @@ let isubst_prog (prog:'info pprog) =
     aux in
 
   let isubst_item = function
+    | MIglobal _
     | MIparam _ -> assert false
     | MIfun fc  ->
       let subst_v = isubst_v () in
@@ -163,8 +169,9 @@ let isubst_prog (prog:'info pprog) =
 (* ---------------------------------------------------------------- *)
 (* Remove parameter from program definition                         *)
 
-let remove_params (prog : 'info pprog) : 'info prog =
-  isubst_prog (psubst_prog prog)
+let remove_params (prog : 'info pprog) : _ * 'info prog =
+  let globals, prog = psubst_prog prog in
+  globals, isubst_prog prog
 
 
 
@@ -187,6 +194,28 @@ let clone_func fc =
   let subst_v = csubst_v () in
   gsubst_func (fun ty -> ty) subst_v fc
 
+(* ---------------------------------------------------------------- *)
+(* extend instruction info                                          *)
+
+let rec extend_iinfo_i pre i =
+  let i_desc = 
+    match i.i_desc with
+    | Cblock c -> Cblock (extend_iinfo_c pre c)
+    | Cassgn _ | Copn _ | Ccall _ -> i.i_desc 
+    | Cif(e,c1,c2) -> 
+      Cif(e, extend_iinfo_c pre c1, extend_iinfo_c pre c2)
+    | Cfor(x,r,c) -> 
+      Cfor(x,r, extend_iinfo_c pre c)
+    | Cwhile (c1, e, c2) -> 
+      Cwhile(extend_iinfo_c pre c1, e, extend_iinfo_c pre c2) in
+  let ii, l = i.i_loc in
+  let i_loc = ii, (l @ pre) in
+  { i with i_desc; i_loc }
+
+and extend_iinfo_c pre c = List.map (extend_iinfo_i pre) c
+
+let extend_iinfo (i,l) fd = 
+  { fd with f_body = extend_iinfo_c (i::l) fd.f_body }
 
 (* ---------------------------------------------------------------- *)
 (* Perform a substitution of variable by variable                   *) 

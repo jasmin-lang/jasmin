@@ -90,18 +90,19 @@ let pp_sopn fmt sopn =
      | Omulu        -> "Omulu"
      | Oaddcarry    -> "Oaddcarry"
      | Osubcarry    -> "Osubcarry"
-     | Ox86_MOV  -> "Ox86_MOV"
+     | Oset0        -> "Oset0"
+     | Ox86_MOV     -> "Ox86_MOV"
      | Ox86_CMOVcc  -> "Ox86_CMOVcc"
      | Ox86_ADD     -> "Ox86_ADD"
      | Ox86_SUB     -> "Ox86_SUB"
      | Ox86_MUL     -> "Ox86_MUL"
      | Ox86_IMUL    -> "Ox86_IMUL"
-     | Ox86_IMUL64	-> "Ox86_IMUL64"
+     | Ox86_IMUL64  -> "Ox86_IMUL64"
      | Ox86_DIV     -> "Ox86_DIV"
      | Ox86_IDIV    -> "Ox86_IDIV"
      | Ox86_ADC     -> "Ox86_ADC"
      | Ox86_SBB     -> "Ox86_SBB"
-     | Ox86_NEG	-> "Ox86_NEG"
+     | Ox86_NEG	    -> "Ox86_NEG"
      | Ox86_INC     -> "Ox86_INC"
      | Ox86_DEC     -> "Ox86_DEC"
      | Ox86_SETcc   -> "Ox86_SETcc"
@@ -170,6 +171,7 @@ let rec pp_pexpr fmt = function
   | Pcast(W64, pe) -> F.fprintf fmt "(Pcast %a)" pp_pexpr pe
   | Pcast _        -> assert false
   | Pvar vi        -> F.fprintf fmt "%a" pp_vari vi
+  | Pglobal g -> F.fprintf fmt "(Pglobal %s)" g
   | Pget(vi, pe)   ->
     F.fprintf fmt "%a.[%a]" pp_vari vi pp_pexpr pe
   | Pload(W64, vi, pe) ->

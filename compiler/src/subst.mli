@@ -4,11 +4,12 @@ open Prog
 val gsubst_func : ('ty1 -> 'ty2) -> ('ty1 gvar_i -> 'ty2 gexpr) -> ('ty1, 'info) gfunc -> ('ty2, 'info) gfunc
 
 (* replace parameter by their definition everywhere in the program *)
-val remove_params : 'info pprog -> 'info prog
+val remove_params : 'info pprog -> (pvar * pexpr) list * 'info prog
 
 (* rename all variable using fresh variables *)
 val clone_func : 'info func -> 'info func
 
+val extend_iinfo : i_loc -> 'info func -> 'info func
 (* ---------------------------------------------------------------- *)
 (* Perform a substitution of variable by variable                   *)
 

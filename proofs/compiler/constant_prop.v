@@ -258,6 +258,7 @@ Fixpoint const_prop_e (m:cpm) e :=
   | Pbool  _      => e
   | Pcast e       => Pcast (const_prop_e m e)
   | Pvar  x       => if Mvar.get m x is Some n then Pconst n else e
+  | Pglobal _ => e
   | Pget  x e     => Pget x (const_prop_e m e)
   | Pload x e     => Pload x (const_prop_e m e)
   | Papp1 o e     => s_op1 o (const_prop_e m e)

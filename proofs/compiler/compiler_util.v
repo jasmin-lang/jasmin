@@ -111,10 +111,8 @@ Proof.
     subst fn1=> -[] Hf.
     subst fd1=> Hf'.
     rewrite Hf' in Hfd1.
-    move: Hfd1=> -[] ->.
-    by rewrite get_fundef_cons /= eq_refl.
+    by move: Hfd1=> -[] ->.
   + move=> Hfn Hf Hf'.
-    rewrite get_fundef_cons /= Hfn.
     exact: IH.
 Qed.
 
@@ -145,6 +143,3 @@ Module Loop : LoopCounter.
   Lemma nbP : nb = (nb.-1).+1.
   Proof. done. Qed.
 End Loop.
-
-
-

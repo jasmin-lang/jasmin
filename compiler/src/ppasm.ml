@@ -9,6 +9,15 @@ module LM = Word
 type rsize = [ `U8 | `U16 | `U32 | `U64 ]
 
 (* -------------------------------------------------------------------- *)
+let bits_of_wsize = function
+  | Prog.W8   ->   8
+  | Prog.W16  ->  16
+  | Prog.W32  ->  32
+  | Prog.W64  ->  64
+  | Prog.W128 -> 128
+  | Prog.W256 -> 256
+
+(* -------------------------------------------------------------------- *)
 let rs : rsize = `U64
 
 (* -------------------------------------------------------------------- *)
@@ -16,6 +25,43 @@ exception InvalidRegSize of LM.wsize
 
 (* -------------------------------------------------------------------- *)
 let mangle (x : string) = "_" ^ x
+
+(* -------------------------------------------------------------------- *)
+exception NotAConstantExpr
+
+let clamp (sz : Prog.word_size) (z : Bigint.zint) =
+  Bigint.erem z (Bigint.lshift Bigint.one (bits_of_wsize sz))
+
+let rec constant_of_expr (e: Prog.pexpr) : Bigint.zint =
+  let open Prog in
+
+  match e with
+  | Prog.Pcast (sz, e) ->
+      clamp sz (constant_of_expr e)
+
+  | Pconst z ->
+      z
+
+  | Papp1 (Oneg ws, e) ->
+      Bigint.neg (clamp ws (constant_of_expr e))
+
+  | Papp2 (Oadd (Op_w ws), e1, e2) ->
+      let e1 = clamp ws (constant_of_expr e1) in
+      let e2 = clamp ws (constant_of_expr e2) in
+      clamp ws (Bigint.add e1 e2)
+
+  | Papp2 (Osub (Op_w ws), e1, e2) ->
+      let e1 = clamp ws (constant_of_expr e1) in
+      let e2 = clamp ws (constant_of_expr e2) in
+      clamp ws (Bigint.sub e1 e2)
+
+  | Papp2 (Omul (Op_w ws), e1, e2) ->
+      let e1 = clamp ws (constant_of_expr e1) in
+      let e2 = clamp ws (constant_of_expr e2) in
+      clamp ws (Bigint.mul e1 e2)
+
+  | _ ->
+      raise NotAConstantExpr
 
 (* -------------------------------------------------------------------- *)
 let iwidth = 4
@@ -73,6 +119,15 @@ let rsize_of_wsize (ws : LM.wsize) =
   | U32 -> `U32
   | U64 -> `U64
   | _   -> raise (InvalidRegSize ws)
+
+
+(* -------------------------------------------------------------------- *)
+let wsize_of_rsize (ws : rsize) =
+  match ws with
+  | `U8  -> Prog.W8
+  | `U16 -> Prog.W16
+  | `U32 -> Prog.W32
+  | `U64 -> Prog.W64
 
 (* -------------------------------------------------------------------- *)
 let pp_instr_rsize (rs : rsize) =
@@ -149,10 +204,17 @@ let pp_label (lbl : Linear.label) =
   Format.sprintf "%s" (string_of_label lbl)
 
 (* -------------------------------------------------------------------- *)
+let pp_global (g: Expr.global) =
+  Format.sprintf "%s(%s)" (Conv.string_of_string0 g) (pp_register `U64 RSI)
+
+(* -------------------------------------------------------------------- *)
 let pp_opr (ws : rsize) (op : X86_sem.oprd) =
   match op with
   | Imm_op imm ->
       pp_imm (Conv.bi_of_int64 imm)
+
+  | Glo_op g ->
+      pp_global g
 
   | Reg_op reg ->
       pp_register ws reg
@@ -306,7 +368,8 @@ type rset = X86_sem.register Set.t
 
 let reg_of_oprd (op : X86_sem.oprd) =
   match op with
-  | Imm_op _  -> None
+  | Imm_op _
+  | Glo_op _
   | Adr_op _  -> None
   | Reg_op r -> Some r
 
@@ -365,8 +428,15 @@ let x86_64_callee_save = [
   X86_sem.R15;
 ]
 
-let pp_prog (tbl: 'info Conv.coq_tbl) (fmt : Format.formatter) (asm : X86.xprog) =
-  pp_gens fmt [`Instr (".text", []); `Instr (".p2align", ["5"])];
+(* -------------------------------------------------------------------- *)
+type 'a tbl = 'a Conv.coq_tbl
+type  gd_t  = (Prog.pvar * Prog.pexpr) list
+
+let pp_prog (tbl: 'info tbl) (gd: gd_t) (fmt : Format.formatter) (asm : X86.xprog) =
+  pp_gens fmt
+    [`Instr (".text"   , []);
+     `Instr (".p2align", ["5"])];
+
   List.iter (fun (n, _) -> pp_gens fmt
     [`Instr (".globl", [mangle (string_of_funname tbl n)]);
      `Instr (".globl", [string_of_funname tbl n])])
@@ -394,4 +464,19 @@ let pp_prog (tbl: 'info Conv.coq_tbl) (fmt : Format.formatter) (asm : X86.xprog)
         pp_gens fmt [`Instr ("popq", [pp_register `U64 r])])
         (List.rev wregs);
       pp_gens fmt [`Instr ("popq", ["%rbp"]); `Instr ("ret", [])])
-    asm
+    asm;
+
+  if not (List.is_empty gd) then
+    pp_gens fmt [`Instr (".data", [])];
+
+  List.iter (fun (n, d) ->
+      let z = clamp (wsize_of_rsize rs) (constant_of_expr d) in
+      pp_gens fmt [
+        `Instr (".globl", [mangle n.Prog.v_name]);
+        `Instr (".globl", [n.Prog.v_name]);
+        `Instr (".align", ["8"]);
+        `Label (mangle n.Prog.v_name);
+        `Label n.Prog.v_name;
+        `Instr (".quad", [Bigint.to_string z])
+      ])
+    gd

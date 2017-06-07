@@ -29,6 +29,7 @@
 Require Export ZArith Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Export strings word utils type var.
+Require Import xseq.
 Import ZArith.
 
 Set Implicit Arguments.
@@ -90,7 +91,8 @@ Variant sopn : Set :=
 | Osubcarry    (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
 
 (* Low level x86 operations *)
-| Ox86_MOV	(* copy *)
+| Oset0        (* set register + flags to 0 (implemented using XOR x x) *)
+| Ox86_MOV     (* copy *)
 | Ox86_CMOVcc  (* conditional copy *)
 | Ox86_ADD     (* add unsigned / signed *)
 | Ox86_SUB     (* sub unsigned / signed *)
@@ -160,6 +162,7 @@ Definition string_of_sopn o : string :=
   | Omulu       => "Omulu      "
   | Oaddcarry   => "Oaddcarry  "
   | Osubcarry   => "Osubcarry  "
+  | Oset0       => "Oset0      "
   | Ox86_MOV    => "Ox86_MOV   "
   | Ox86_CMOVcc => "Ox86_CMOVcc"
   | Ox86_ADD    => "Ox86_ADD   "
@@ -207,11 +210,22 @@ Definition var_info_to_attr (vi: var_info) :=
   | _ => VarA false
   end.
 
+Record global := Global { ident_of_global:> Ident.ident }.
+
+Definition global_beq (g1 g2: global) : bool := g1 == g2.
+
+Lemma global_eq_axiom : Equality.axiom global_beq.
+Proof. move=>[g1][g2]; rewrite/global_beq/=; case: eqP; constructor; congruence. Qed.
+
+Definition global_eqMixin := Equality.Mixin global_eq_axiom.
+Canonical global_eqType := Eval hnf in EqType global global_eqMixin.
+
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
 | Pcast  : pexpr -> pexpr              (* int -> word *)
 | Pvar   :> var_i -> pexpr
+| Pglobal :> global -> pexpr
 | Pget   : var_i -> pexpr -> pexpr
 | Pload  : var_i -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
@@ -242,6 +256,7 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
   | Pbool  b1   , Pbool  b2    => b1 == b2
   | Pcast  e1   , Pcast  e2    => eqb e1 e2
   | Pvar   x1   , Pvar   x2    => (x1 == x2)
+  | Pglobal g1, Pglobal g2 => g1 == g2
   | Pget   x1 e1, Pget   x2 e2 => (x1 == x2) && eqb e1 e2
   | Pload  x1 e1, Pload  x2 e2 => (x1 == x2) && eqb e1 e2
   | Papp1 o1 e1 , Papp1  o2 e2 => (o1 == o2) && eqb e1 e2
@@ -254,9 +269,9 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
 
   Lemma eq_axiom : Equality.axiom eqb.
   Proof.
-    elim => [n1|b1|e1 He1|x1|x1 e1 He1|x1 e1 He1
+    elim => [n1|b1|e1 He1|x1|g1|x1 e1 He1|x1 e1 He1
             |o1 e1 He1|o1 e11 He11 e12 He12 | t1 Ht1 e11 He11 e12 He12]
-            [n2|b2|e2|x2|x2 e2|x2 e2|o2 e2|o2 e21 e22 | t2 e21 e22] /=;
+            [n2|b2|e2|x2|g2|x2 e2|x2 e2|o2 e2|o2 e21 e22 | t2 e21 e22] /=;
         try by constructor.
     + apply (@equivP (n1 = n2));first by apply: eqP.
       by split => [->|[]->].
@@ -264,6 +279,8 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
       by split => [->|[]->].
     + by apply: (equivP (He1 e2)); split => [->|[]->].
     + apply (@equivP (x1 = x2));first by apply: eqP.
+      by split => [->|[]->].
+    + apply (@equivP (g1 = g2));first by apply: eqP.
       by split => [->|[]->].
     + apply (@equivP ((x1 == x2) /\ eqb e1 e2));first by apply andP.
       by split=> [ [] /eqP -> /He1 -> | [] -> <- ] //;split => //;apply /He1.
@@ -523,43 +540,24 @@ Definition fundef_eqMixin     := Equality.Mixin fundef_eq_axiom.
 Canonical  fundef_eqType      := Eval hnf in EqType fundef fundef_eqMixin.
 
 Definition get_fundef {T} (p: seq (funname * T)) (f: funname) :=
-  nth None [seq some (snd x) | x <- p] (find (fun ffd => f == fst ffd) p).
+  assoc p f.
 
 Definition map_prog {T1} {T2} (F: T1 -> T2) := map (fun (f:funname * T1) => (f.1, F f.2)).
 
 Lemma get_map_prog {T1} {T2} (F: T1 -> T2) p fn :
   get_fundef (map_prog F p) fn = omap F (get_fundef p fn).
-Proof.
-  rewrite /get_fundef /map_prog.
-  rewrite -map_comp /funcomp /=.
-  rewrite find_map /preim /=.
-  case: (ltnP (find [pred x | fn == x.1] p) (size p)).
-  + move=> ltn.
-    rewrite -(nth_map _ None) ?size_map //.
-    by rewrite -map_comp /funcomp /=.
-  + move=> leq.
-    by rewrite !nth_default // size_map.
-Qed.
+Proof. exact: assoc_map. Qed.
 
 Lemma get_fundef_cons {T} (fnd: funname * T) p fn:
   get_fundef (fnd :: p) fn = if fn == fnd.1 then Some fnd.2 else get_fundef p fn.
-Proof.
-  rewrite /get_fundef;case:ifP => /=; by case: ifPn.
-Qed.
+Proof. by case: fnd. Qed.
 
 Lemma get_fundef_in {T} p f (fd: T) : get_fundef p f = Some fd -> f \in [seq x.1 | x <- p].
-Proof.
-  by elim: p => //= [f' fd'] Hrec;rewrite get_fundef_cons in_cons;case: ifP.
-Qed.
+Proof. by rewrite/get_fundef; apply: assoc_mem_dom'. Qed.
 
 Lemma get_fundef_in' {T} p fn (fd: T):
   get_fundef p fn = Some fd -> List.In (fn, fd) p.
-Proof.
-elim: p=> //= [[fn' fd'] l'] IH; rewrite get_fundef_cons /=.
-case: ifP=> //.
-+ by move=> /eqP -> [] <-; left.
-+ by move=> _ /IH H; right.
-Qed.
+Proof. exact: assoc_mem'. Qed.
 
 Definition all_prog {aT bT cT} (s1: seq (funname * aT)) (s2: seq (funname * bT)) (ll: seq cT) f :=
   (size s1 == size s2) && all2 (fun fs a => let '(fd1, fd2) := fs in (fd1.1 == fd2.1) && f a fd1.2 fd2.2) (zip s1 s2) ll.
@@ -573,18 +571,17 @@ elim: s1 s2 l=> // [[fn fd] p IH] [|[fn' fd'] p'] // [|lh la] //.
 + by rewrite /all_prog /= andbF.
 + move=> /andP [/= Hs /andP [/andP [/eqP Hfn Hfd] Hall]].
   move=> fn0 fd0.
-  rewrite get_fundef_cons /=.
   case: ifP=> /eqP Hfn0.
   + move=> [] <-.
     exists fd', lh.
-    rewrite -Hfn Hfn0 get_fundef_cons /= eq_refl; split=> //.
+    rewrite -Hfn Hfn0 /= eq_refl; split=> //.
   + move=> H.
     have [|fd'' [l' [IH1 IH2]]] := (IH p' la _ _ _ H).
     apply/andP; split.
     by rewrite -eqSS.
     exact: Hall.
     exists fd'', l'; split=> //.
-    rewrite get_fundef_cons /= -Hfn.
+    rewrite /= -Hfn.
     by case: ifP=> // /eqP.
 Qed.
 
@@ -774,6 +771,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Pbool  _       => s
   | Pcast  e       => read_e_rec s e
   | Pvar   x       => Sv.add x s
+  | Pglobal _ => s
   | Pget   x e     => read_e_rec (Sv.add x s) e
   | Pload  x e     => read_e_rec (Sv.add x s) e
   | Papp1  _ e     => read_e_rec s e
@@ -947,7 +945,7 @@ Definition is_wconst e :=
   | _       => None
   end.
 
-Inductive is_reflect (A:Type) (P:A -> pexpr) : pexpr -> option A -> Prop :=
+Variant is_reflect (A:Type) (P:A -> pexpr) : pexpr -> option A -> Prop :=
  | Is_reflect_some : forall a, is_reflect P (P a) (Some a)
  | Is_reflect_none : forall e, is_reflect P e None.
 
@@ -974,6 +972,7 @@ Fixpoint eq_expr e e' :=
   (* FIXME if e1, e2 = Pconst we can compute the cast *)
   | Pcast  e      , Pcast  e'         => eq_expr e e'
   | Pvar   x      , Pvar   x'         => v_var x == v_var x'
+  | Pglobal g, Pglobal g' => g == g'
   | Pget   x e    , Pget   x' e'      => (v_var x == v_var x') && eq_expr e e'
   | Pload  x e    , Pload  x' e'      => (v_var x == v_var x') && eq_expr e e'
   | Papp1  o e    , Papp1  o' e'      => (o == o') && eq_expr e e'

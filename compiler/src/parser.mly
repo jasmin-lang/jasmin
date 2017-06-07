@@ -310,9 +310,15 @@ pparam:
     { { ppa_ty = ty; ppa_name = x; ppa_init = pe; } }
 
 (* -------------------------------------------------------------------- *)
+pglobal:
+| pgd_name=ident EQ pgd_val=pexpr SEMICOLON
+  { { pgd_name ; pgd_val  } }
+
+(* -------------------------------------------------------------------- *)
 top:
 | x=pfundef { S.PFundef x }
 | x=pparam  { S.PParam  x }
+| x=pglobal  { S.PGlobal  x }
 
 (* -------------------------------------------------------------------- *)
 module_:

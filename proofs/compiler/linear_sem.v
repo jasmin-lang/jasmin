@@ -66,16 +66,16 @@ the reached state has no instruction left to execute.
 *)
 Section LSEM.
 
-Context (c: lcmd).
+Context (c: lcmd) (gd: glob_defs).
 
 Variant lsem1 : lstate -> lstate -> Prop:=
 | LSem_assgn : forall s1 s2 ii x tag e cs,
     s1.(lc) = MkLI ii (Lassgn x tag e) :: cs ->
-    (Let v := sem_pexpr (to_estate s1) e in write_lval x v (to_estate s1)) = ok s2 ->
+    (Let v := sem_pexpr gd (to_estate s1) e in write_lval gd x v (to_estate s1)) = ok s2 ->
     lsem1 s1 (of_estate s2 cs)
 | LSem_opn : forall s1 s2 ii xs o es cs,
     s1.(lc) = MkLI ii (Lopn xs o es) :: cs ->
-    sem_pexprs (to_estate s1) es >>= sem_sopn o >>= (write_lvals (to_estate s1) xs) = ok s2 ->
+    sem_pexprs gd (to_estate s1) es >>= sem_sopn o >>= (write_lvals gd (to_estate s1) xs) = ok s2 ->
     lsem1 s1 (of_estate s2 cs)
 | LSem_lbl : forall s1 ii lbl cs,
     s1.(lc) = MkLI ii (Llabel lbl) :: cs ->
@@ -86,12 +86,12 @@ Variant lsem1 : lstate -> lstate -> Prop:=
     lsem1 s1 (setc s1 cs')
 | LSem_condTrue : forall ii s1 e lbl cs cs',
     s1.(lc) = MkLI ii (Lcond e lbl) :: cs ->
-    sem_pexpr (to_estate s1) e >>= to_bool = ok true ->
+    sem_pexpr gd (to_estate s1) e >>= to_bool = ok true ->
     find_label lbl c = Some cs' ->
     lsem1 s1 (setc s1 cs')
 | LSem_condFalse : forall ii s1 e lbl cs,
     s1.(lc) = MkLI ii (Lcond e lbl) :: cs ->
-    sem_pexpr (to_estate s1) e >>= to_bool = ok false ->
+    sem_pexpr gd (to_estate s1) e >>= to_bool = ok false ->
     lsem1 s1 (setc s1 cs).
 
 Definition lsem : relation lstate := clos_refl_trans lstate lsem1.
@@ -116,22 +116,22 @@ Qed.
 
 End LSEM.
 
-Inductive lsem_fd m1 fn va m2 vr : Prop :=
+Inductive lsem_fd gd m1 fn va m2 vr : Prop :=
 | LSem_fd : forall p fd vm2 m2' s1 s2,
     get_fundef P fn = Some fd ->
     alloc_stack m1 fd.(lfd_stk_size) = ok p ->
     let c := fd.(lfd_body) in
     write_var  (S.vstk fd.(lfd_nstk)) p.1 (Estate p.2 vmap0) = ok s1 ->
     write_vars fd.(lfd_arg) va s1 = ok s2 ->
-    lsem c (of_estate s2 c)
+    lsem c gd (of_estate s2 c)
            {| lmem := m2'; lvm := vm2; lc := [::] |} ->
     mapM (fun (x:var_i) => get_var vm2 x) fd.(lfd_res) = ok vr ->
     m2 = free_stack m2' p.1 fd.(lfd_stk_size) ->
     List.Forall is_full_array vr ->
-    lsem_fd m1 fn va m2 vr.
+    lsem_fd gd m1 fn va m2 vr.
 
-Definition lsem_trans s2 s1 s3 c :
-  lsem c s1 s2 -> lsem c s2 s3 -> lsem c s1 s3 :=
+Definition lsem_trans gd s2 s1 s3 c :
+  lsem c gd s1 s2 -> lsem c gd s2 s3 -> lsem c gd s1 s3 :=
   rt_trans _ _ s1 s2 s3.
 
 End SEM.

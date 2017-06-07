@@ -1,0 +1,6 @@
+export fn set0() -> reg u64 {
+reg u64 r;
+r = 0;
+r = #x86_MOV(0);
+return r;
+}

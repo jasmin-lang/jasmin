@@ -127,7 +127,7 @@ let collect_conflicts (tbl: (var, int) Hashtbl.t) (f: (Sv.t * Sv.t) func) : conf
       let i = Hashtbl.find tbl v in
       let j = Hashtbl.find tbl w in
       if i = j then hierror "%a: bad conflict between %a and %a"
-          L.pp_loc loc
+          Printer.pp_iloc loc
           (Printer.pp_var ~debug:true) v
           (Printer.pp_var ~debug:true) w;
       c |> add_one_aux i j |> add_one_aux j i
@@ -150,7 +150,8 @@ let collect_conflicts (tbl: (var, int) Hashtbl.t) (f: (Sv.t * Sv.t) func) : conf
     | Cwhile (s1, _, s2)
     | Cif (_, s1, s2)
       -> collect_stmt (collect_stmt c s1) s2
-  and collect_instr c { i_desc ; i_loc ; i_info } = collect_instr_r (add c i_loc i_info) i_desc
+  and collect_instr c { i_desc ; i_loc ; i_info } = 
+    collect_instr_r (add c i_loc i_info) i_desc
   and collect_stmt c s = List.fold_left collect_instr c s in
   collect_stmt IntMap.empty f.f_body
 
@@ -292,7 +293,7 @@ struct
       allocate_one pF f_p |>
       allocate_one zF f_z
     | (Ox86_ADD | Ox86_SUB | Ox86_AND | Ox86_OR | Ox86_XOR | Ox86_CMP
-      | Ox86_NEG),
+      | Ox86_NEG | Oset0),
       Lvar oF :: Lvar cF :: Lvar sF :: Lvar pF :: Lvar zF :: _, _ ->
       a |>
       allocate_one oF f_o |>

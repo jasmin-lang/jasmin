@@ -7,7 +7,10 @@ val pp_list :
 
 val pp_bool : Format.formatter -> bool -> unit
 
+val pp_iloc : Format.formatter -> i_loc -> unit 
 val pp_ptype : Format.formatter -> pty -> unit
+val pp_plval : Format.formatter -> pty glval -> unit
+val pp_pexpr : Format.formatter -> pexpr -> unit
 val pp_pprog : Format.formatter -> 'info pprog -> unit
 
 val pp_var   : debug:bool -> Format.formatter -> var -> unit

@@ -76,7 +76,7 @@ Definition get_fun (p:prog) iinfo (f:funname) :=
 
 Section INLINE.
 
-Variable rename_fd : funname -> fundef -> fundef.
+Variable rename_fd : instr_info -> funname -> fundef -> fundef.
 
 Definition dummy_info := xH.
 
@@ -116,7 +116,7 @@ Fixpoint inline_i (p:prog) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
       let X := Sv.union (read_i ir) X in
       if inline is InlineFun then
         Let fd := get_fun p iinfo f in 
-        let fd' := rename_fd f fd in
+        let fd' := rename_fd iinfo f fd in
         (* FIXME : locals is computed 2 times (one in check_rename) *)
         Let _ := check_rename iinfo f fd fd' (Sv.union (vrvs xs) X) in
         let init_array := array_init iinfo (locals fd') in                

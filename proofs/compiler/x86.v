@@ -270,6 +270,8 @@ Definition oprd_of_pexpr ii (e: pexpr) :=
   | Pvar v =>
      Let s := reg_of_var ii v in
      ciok (Reg_op s)
+  | Pglobal g =>
+    ciok (Glo_op g)
   | Pload v e => (* FIXME: can we recognize more expression for e ? *)
      Let s := reg_of_var ii v in
      Let w := addr_of_pexpr ii s e in
@@ -287,6 +289,16 @@ Definition ireg_of_pexpr ii (e: pexpr) :=
      Let s := reg_of_var ii v in
      ciok (Reg_ir s)
   | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for ireg"))
+  end.
+
+(* -------------------------------------------------------------------- *)
+Definition oreg_of_pexpr ii e := 
+  match e with 
+  | Pcast (Pconst z) => 
+    if z == 0%Z then ciok None 
+    else cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for oreg"))
+  | Pvar v           => Let r := reg_of_var ii v in ciok (Some r)
+  | _                => cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for oreg")) 
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -392,17 +404,20 @@ Variant alukind :=
   | LK_SHT  of shtop
   | LK_MUL
   | LK_IMUL
-  | LK_NEG.
+  | LK_NEG
+  | LK_SET0.
 
 Variant opkind :=
   | OK_ALU of alukind
   | OK_CNT of bool
   | OK_MOV
   | OK_MOVcc
+  | OK_LEA
   | OK_None.
 
 Definition kind_of_sopn (o : sopn) :=
   match o with
+  | Oset0       => OK_ALU LK_SET0
   | Ox86_CMP    => OK_ALU LK_CMP
   | Ox86_ADD    => OK_ALU (LK_BINU BU_ADD)
   | Ox86_ADC    => OK_ALU (LK_BINC BC_ADC)
@@ -411,6 +426,7 @@ Definition kind_of_sopn (o : sopn) :=
   | Ox86_NEG    => OK_ALU LK_NEG
   | Ox86_MUL    => OK_ALU LK_MUL
   | Ox86_IMUL64 => OK_ALU LK_IMUL
+
   | Ox86_SHR    => OK_ALU (LK_SHT ST_SHR)
   | Ox86_SHL    => OK_ALU (LK_SHT ST_SHL)
   | Ox86_SAR    => OK_ALU (LK_SHT ST_SAR)
@@ -421,19 +437,25 @@ Definition kind_of_sopn (o : sopn) :=
   | Ox86_XOR    => OK_ALU (LK_BINU BU_XOR)
   | Ox86_MOV    => OK_MOV
   | Ox86_CMOVcc => OK_MOVcc
-  | _           => OK_None
+  | Ox86_LEA    => OK_LEA
+  (* Not Implemented ... *)
+  | Ox86_IMUL | Ox86_DIV | Ox86_IDIV | Ox86_SETcc | Ox86_TEST | Ox86_NOT => OK_None
+  (* Should not be done *)
+  | Omulu | Oaddcarry | Osubcarry => OK_None
+  (*  | _           => OK_None *)
   end.
 
 Definition string_of_aluk (o : alukind) :=
   let op :=
       match o with
+      | LK_SET0        => Oset0 
       | LK_CMP         => Ox86_CMP   
       | LK_BINU BU_ADD => Ox86_ADD   
       | LK_BINC BC_ADC => Ox86_ADC   
       | LK_BINU BU_SUB => Ox86_SUB   
       | LK_BINC BC_SBB => Ox86_SBB   
       | LK_BINU BU_AND => Ox86_AND
-      | LK_BINU BU_OR => Ox86_OR
+      | LK_BINU BU_OR  => Ox86_OR
       | LK_BINU BU_XOR => Ox86_XOR
       | LK_NEG         => Ox86_NEG   
       | LK_MUL         => Ox86_MUL   
@@ -483,6 +505,9 @@ Definition as_pair (s : seq T) :=
 Definition as_triple (s : seq T) :=
   if s is [:: x; y; z] then Some (x, y, z) else None.
 
+Definition as_quadruple (s : seq T) :=
+  if s is [:: w; x; y; z] then Some (w, x, y, z) else None.
+
 Lemma as_unitP s : reflect (s = [::]) (as_unit s).
 Proof. by case: s => [|x s]; constructor. Qed.
 
@@ -497,6 +522,11 @@ Proof. by case: s => [|x' [|y' [|]]] //= [-> ->]. Qed.
 Lemma as_tripleT s x y z :
   as_triple s = Some (x, y, z) -> s = [:: x; y; z].
 Proof. by case: s => [|x' [|y' [|z' [|]]]] //= [-> -> ->]. Qed.
+
+Lemma as_quadrupleT s w x y z :
+  as_quadruple s = Some (w, x, y, z) -> s = [:: w; x; y; z].
+Proof. by case: s => [|w' [|x' [|y' [|z' [|]]]]] //= [-> -> -> ->]. Qed.
+
 End AsN.
 
 (* -------------------------------------------------------------------- *)
@@ -634,6 +664,16 @@ Definition assemble_fopn ii (l: lvals) (o: alukind) (e: pexprs) : ciexec asm :=
     | _, _ =>
       cierror ii (Cerr_assembler (wrong_aluk o))
     end
+  | LK_SET0 =>
+    match e, as_singleton l with
+    | [::], Some x =>
+      Let d := oprd_of_lval ii x in
+      ok (XOR d d)
+
+    | _, _ =>
+      cierror ii (Cerr_assembler (wrong_aluk o))
+    end
+      
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -711,6 +751,20 @@ Definition assemble_opn ii (l: lvals) (o: sopn) (e: pexprs) : ciexec asm :=
         (AsmErr_string "Invalid number of lval or pexpr in Ox86_MOVcc"))
     end
 
+  | OK_LEA => 
+    match as_singleton l, as_quadruple e with
+    | Some l, Some(d,b,sc,o) =>
+      Let d := word_of_pexpr ii d in
+      Let b := oreg_of_pexpr ii b in
+      Let sc := word_of_pexpr ii sc in
+      Let sc := scale_of_z ii (I64.unsigned sc) in
+      Let o := oreg_of_pexpr ii o in
+      Let l := oprd_of_lval ii l in
+      ciok (LEA l (Adr_op (mkAddress d b sc o)))
+    | _, _ =>   
+      cierror ii (Cerr_assembler
+        (AsmErr_string "Invalid number of lval or pexprs in Ox86_LEA"))
+    end
   | OK_None =>
     cierror ii (Cerr_assembler
       (AsmErr_string (String.append "Unhandled sopn " (string_of_sopn o))))

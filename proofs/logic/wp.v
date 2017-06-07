@@ -2,10 +2,7 @@ Require Ssem.
 
 Import Utf8.
 Import Morphisms.
-Import ssreflect.
-Import ssrbool.
-Import eqtype.
-Import seq.
+Import all_ssreflect.
 Import ZArith.
 Local Open Scope Z_scope.
 
@@ -27,11 +24,11 @@ Local Open Scope msem_scope.
 
 Section HOARE_LOGIC.
 
-Context (prg: prog).
+Context (prg: prog) (gd: glob_defs).
 
 Definition hoare (Pre: hpred) (c: cmd) (Post: hpred) : Prop :=
   ∀ s s' : sestate,
-    ssem prg s c s' →
+    ssem prg gd s c s' →
     Pre s → Post s'.
 
 Lemma hoare_conseq (P1 Q1: hpred) (c: cmd) (P2 Q2: hpred) :
@@ -56,8 +53,8 @@ Qed.
 Lemma hoare_assgn (P: hpred) ii x tag e :
   hoare
     (λ s, ∀ v s',
-        ssem_pexpr s e = ok v →
-        swrite_lval x v s = ok s' →
+        ssem_pexpr gd s e = ok v →
+        swrite_lval gd x v s = ok s' →
         P s')
     [:: MkI ii (Cassgn x tag e) ] P.
 Proof.
@@ -244,12 +241,15 @@ Inductive texpr : sstype → Type :=
 | Tbool : bool → texpr sbool
 | Tcast : texpr sint → texpr sword
 | Tvar x : texpr (vtype x)
+| Tglobal : global → texpr sword
 | Tget : positive → Ident.ident → texpr sint → texpr sword
 | Tload : Ident.ident → texpr sword → texpr sword
 | Tapp1 op : texpr (op1_type_i op) → texpr (op1_type_o op)
 | Tapp2 op (_ _: texpr (op2_type_i op)) : texpr (op2_type_o op)
 | Tif `(texpr sbool) ty (_ _: texpr ty) : texpr ty
 .
+
+Context (gd: glob_defs).
 
 Section SEM_TEXPR.
   Context (m: mem) (s: env).
@@ -259,6 +259,7 @@ Section SEM_TEXPR.
     | Tbool b => b
     | Tcast e => I64.repr (sem_texpr sint e)
     | Tvar x => s.[x]
+    | Tglobal g => odflt I64.zero (get_global_word gd g)
     | Tget n x e =>
       let a := s.[{| vtype := sarr n; vname := x |}] in
       let i := sem_texpr sint e in
@@ -306,6 +307,7 @@ Fixpoint type_check_pexpr (e: pexpr) (ty: sstype) : option (texpr ty) :=
     | left EQ => Some (eq_rect _ _ (Tvar x) _ EQ)
     | right _ => None
     end
+  | Pglobal g => match ty with ssword => Some (Tglobal g) | _ => None end
   | Pget x i =>
     match x with
     | {| v_var := Var (sarr n) t |} =>
@@ -465,9 +467,9 @@ Lemma type_check_pexprP m s e ty :
   match type_check_pexpr e ty with
   | Some te =>
   ∃ v,
-  ssem_pexpr (SEstate m s) e = ok v ∧
+  ssem_pexpr gd (SEstate m s) e = ok v ∧
   of_sval _ v = ok (sem_texpr m (mv_of_fv s) ty te)
-  | None => ∃ exn, Let v := ssem_pexpr (SEstate m s) e in of_sval ty v = Error exn
+  | None => ∃ exn, Let v := ssem_pexpr gd (SEstate m s) e in of_sval ty v = Error exn
   end.
 Proof.
   elim: e ty => /=.
@@ -481,6 +483,7 @@ Proof.
        eexists. split. eauto. unfold sget_var, of_sval; simpl.
        case: xt => //.
     + unfold sget_var, of_sval. case: ty; case: xt => //=; eexists; reflexivity.
+  - by move=> g []; eauto; exists ErrType.
   - move=> [[]] [] //=; eauto. move=> n x vi e /(_ ssint).
     unfold son_arr_var.
     case: (type_check_pexpr _ _).
@@ -498,7 +501,7 @@ Proof.
       simpl. rewrite Ev => /of_sval_error /=.
       move=> H; erewrite H; eauto; eexists; reflexivity.
     + case=> exn.
-      case: (ssem_pexpr _ p) => [ vp | [] ] //= Ep ty; eauto.
+      case: (ssem_pexpr _ _ p) => [ vp | [] ] //= Ep ty; eauto.
       case: (ssem_sop1_error _ _ _ Ep) => exn' -> /=; eauto.
   - move=> op p /(_ (op2_type_i op)); case: (type_check_pexpr _ _).
     + move=> tp [vp [Ep IHp]] q /(_ (op2_type_i op)); rewrite Ep.
@@ -514,8 +517,8 @@ Proof.
         case: (ssem_sop2_error_2 _ _ _ _ _ IHp Eq) => exn' -> /=; eauto.
         move=> ? [] ->; eauto.
     + case=> exn.
-      case: (ssem_pexpr _ p) => [ vp | [] ] //= Ep q _ ty; eauto.
-      case: (ssem_pexpr _ q)=> [ vq | [] ] //= ; eauto.
+      case: (ssem_pexpr _ _ p) => [ vp | [] ] //= Ep q _ ty; eauto.
+      case: (ssem_pexpr _ _ q)=> [ vq | [] ] //= ; eauto.
       case: (ssem_sop2_error_1 _ _ _ Ep vq) => exn' -> /=; eauto.
   - move=> b /(_ ssbool); case: (type_check_pexpr _ _).
     2: case=> exn -> /=; eauto; fail.
@@ -530,10 +533,10 @@ Proof.
         eexists; split; first reflexivity.
         by case: (sem_texpr _ _ _ tb).
       * case=> exn /=.
-        case: (ssem_pexpr _ q) => [ vq | ] /=; eauto.
+        case: (ssem_pexpr _ _ q) => [ vq | ] /=; eauto.
         rewrite IHp; move=> -> /=; eauto.
     + case=> exn.
-      case: (ssem_pexpr _ p) => /= [ vp Ep | ]; eauto.
+      case: (ssem_pexpr _ _ p) => /= [ vp Ep | ]; eauto.
       case: (of_sval (type_of_sval vp) vp) => /= [ _ | ].
       2: move=> exn' _; case: ssem_pexpr => /=; eauto.
       case: (type_check_pexpr _ _).
@@ -545,7 +548,7 @@ Proof.
         rewrite <- (of_sval_has_type _ _ _ X) in Ep. clear -Ep.
         case: vp Ep => //=.
       * case=> exn'.
-        case: (ssem_pexpr _ q) => /= [ vq Eq | ]; eauto.
+        case: (ssem_pexpr _ _ q) => /= [ vq Eq | ]; eauto.
         case: (of_sval _ _) => [_|] /=; last by eauto.
         by case: (sem_texpr _ _ _ tb); eauto.
 Qed.
@@ -614,6 +617,7 @@ Fixpoint type_of_pexpr (e: pexpr) : sstype :=
   | Pcast _
   | Pget _ _
   | Pload _ _
+  | Pglobal _
     => sword
   | Pvar {| v_var := x |} => vtype x
   | Papp1 op _ => op1_type_o op
@@ -640,7 +644,7 @@ Definition eval_texpr (s: sestate) {ty} (e: texpr ty) : ssem_t ty :=
   sem_texpr m (mv_of_fv vm) ty e.
 
 Lemma texpr_of_pexpr_bool s e b :
-  ssem_pexpr s e = ok (SVbool b) →
+  ssem_pexpr gd s e = ok (SVbool b) →
   eval_texpr s (texpr_of_pexpr ssbool e) = b.
 Proof.
   destruct s as [m vm].
@@ -653,7 +657,7 @@ Proof.
 Qed.
 
 Lemma texpr_of_pexpr_int s e b :
-  ssem_pexpr s e = ok (SVint b) →
+  ssem_pexpr gd s e = ok (SVint b) →
   eval_texpr s (texpr_of_pexpr ssint e) = b.
 Proof.
   destruct s as [m vm].
@@ -733,7 +737,7 @@ Proof.
 Qed.
 
 Lemma post_assgn_sound x ty (v: ssem_t ty) m vm s' f:
-  swrite_lval x (to_sval v) (SEstate m vm) = ok s' →
+  swrite_lval gd x (to_sval v) (SEstate m vm) = ok s' →
   (post_assgn x v f m (mv_of_fv vm)) →
   ⟦f⟧ s'.
 Proof.
@@ -789,7 +793,7 @@ Proof.
 Qed.
 
 Lemma wp_assgn_sound prg ii x e tg f :
-  hoare prg ⟦wp_assgn x e f⟧ [:: MkI ii (Cassgn x tg e)] ⟦f⟧.
+  hoare prg gd ⟦wp_assgn x e f⟧ [:: MkI ii (Cassgn x tg e)] ⟦f⟧.
 Proof.
   move=> [m vm] s1 /ssem_inv [s' [/ssem_I_inv [i' [ii' [/MkI_inj [? <-]] /ssem_i_inv [v [Hv Hs']]]] /ssem_inv ->]]; subst ii'.
   unfold wp_assgn.
@@ -1068,7 +1072,7 @@ Definition pair_eq_inv {A B} (a a': A) (b b': B) (H: (a, b) = (a', b')) : a = a'
   let 'Logic.eq_refl := H in conj Logic.eq_refl Logic.eq_refl.
 
 Lemma post_opn_sound xs oty res m vm s' f :
-  swrite_lvals {| semem := m ; sevm := vm |} xs res = ok s' →
+  swrite_lvals gd {| semem := m ; sevm := vm |} xs res = ok s' →
   ∀ res', of_svalues oty res = ok res' →
   projT1 (post_opn xs oty res' f) m (mv_of_fv vm) →
   ⟦f⟧ s'.
@@ -1096,7 +1100,7 @@ Qed.
 
 Lemma type_check_pexprs_ok pes tys tes m vm vs :
   type_check_pexprs pes tys = Some tes →
-  ssem_pexprs {| semem := m ; sevm := vm |} pes = ok vs →
+  ssem_pexprs gd {| semem := m ; sevm := vm |} pes = ok vs →
   of_svalues tys vs = ok (sem_texprs m (mv_of_fv vm) _ tes).
 Proof.
   case: pes tys tes vs => [ | pe pes ] [ | ty tys ] // tes.
@@ -1117,15 +1121,15 @@ Proof.
   case_eq (type_check_pexpr pe' ty') => // te' Hte' [w [Hpe' Hw]].
   case_eq (type_check_pexprs pes tys) => // tes Htes H; apply Some_inj in H; subst tes'.
   unfold ssem_pexprs; unfold mapM. rewrite Hpe Hpe'. simpl.
-  fold mapM. fold (ssem_pexprs {| semem := m ; sevm := vm |} pes).
-  case_eq (ssem_pexprs {| semem := m ; sevm := vm |} pes) => // tes' Htes' H; apply ok_inj in H.
+  fold mapM. fold (ssem_pexprs gd {| semem := m ; sevm := vm |} pes).
+  case_eq (ssem_pexprs gd {| semem := m ; sevm := vm |} pes) => // tes' Htes' H; apply ok_inj in H.
   inversion H; clear H; subst v' vs'.
   rewrite Hv'. simpl.
   specialize (IH pe' ty' tys (stype_cons te' tes) w).
   simpl in IH. rewrite Hte' Htes in IH.
   specialize (λ vs, IH vs Logic.eq_refl).
   unfold ssem_pexprs in IH. simpl in IH.
-  fold (ssem_pexprs {| semem := m ; sevm := vm |} pes) in IH.
+  fold (ssem_pexprs gd {| semem := m ; sevm := vm |} pes) in IH.
   rewrite Hpe' Htes' in IH. simpl in IH.
   specialize (IH _ Logic.eq_refl).
   rewrite IH. simpl. auto.
@@ -1174,7 +1178,7 @@ Qed.
 *)
 
 Lemma wp_opn_sound prg ii xs op args f :
-  hoare prg ⟦wp_opn xs op args f⟧ [:: MkI ii (Copn xs op args)] ⟦f⟧.
+  hoare prg gd ⟦wp_opn xs op args f⟧ [:: MkI ii (Copn xs op args)] ⟦f⟧.
 Proof.
 Admitted. (*
   move=> [m vm] s1 /ssem_inv[s' [/ssem_I_inv [i' [ii' [/MkI_inj [? <-]] /ssem_i_inv [vargs [res [Hargs [Hvs Hs']]]]]] /ssem_inv ->]]; subst ii'.
@@ -1241,9 +1245,9 @@ Proof.
 Defined.
 
 Lemma wp_if_sound prg ii e c1 wp_c1 c2 wp_c2 f :
-  (∀ f, hoare prg ⟦wp_c1 f⟧ c1 ⟦f⟧) →
-  (∀ f, hoare prg ⟦wp_c2 f⟧ c2 ⟦f⟧) →
-  hoare prg ⟦wp_if e wp_c1 wp_c2 f ⟧ [:: MkI ii (Cif e c1 c2) ] ⟦f⟧.
+  (∀ f, hoare prg gd ⟦wp_c1 f⟧ c1 ⟦f⟧) →
+  (∀ f, hoare prg gd ⟦wp_c2 f⟧ c2 ⟦f⟧) →
+  hoare prg gd ⟦wp_if e wp_c1 wp_c2 f ⟧ [:: MkI ii (Cif e c1 c2) ] ⟦f⟧.
 Proof.
   move=> WP1 WP2 .
   move=> s s1 /ssem_inv [s' [H' /ssem_inv]] ->.
@@ -1289,9 +1293,9 @@ Proof.
 Defined.
 
 Lemma wp_if'_sound prg ii e c1 wp_c1 c2 wp_c2 f :
-  (∀ f, hoare prg ⟦wp_c1 f⟧ c1 ⟦f⟧) →
-  (∀ f, hoare prg ⟦wp_c2 f⟧ c2 ⟦f⟧) →
-  hoare prg ⟦wp_if' e wp_c1 wp_c2 f ⟧ [:: MkI ii (Cif e c1 c2) ] ⟦f⟧.
+  (∀ f, hoare prg gd ⟦wp_c1 f⟧ c1 ⟦f⟧) →
+  (∀ f, hoare prg gd ⟦wp_c2 f⟧ c2 ⟦f⟧) →
+  hoare prg gd ⟦wp_if' e wp_c1 wp_c2 f ⟧ [:: MkI ii (Cif e c1 c2) ] ⟦f⟧.
 Proof.
   move=> WP1 WP2 .
   move=> s s1 /ssem_inv [s' [H' /ssem_inv]] ->.
@@ -1339,11 +1343,11 @@ Definition wp_rec : cmd → formula → formula :=
     (λ ii xs f es ii Q, ffalse).
 
 Lemma wp_rec_sound prg c f :
-  hoare prg ⟦wp_rec c f⟧ c ⟦f⟧.
+  hoare prg gd ⟦wp_rec c f⟧ c ⟦f⟧.
 Proof.
-  set Pr := λ i : instr_r, ∀ ii f, hoare prg ⟦wp_rec [:: MkI ii i] f ⟧ [:: MkI ii i ] ⟦f⟧.
-  set Pi := λ i : instr, ∀ f, hoare prg ⟦ wp_rec [:: i] f⟧ [:: i] ⟦f⟧.
-  set Pc := λ c : cmd, ∀ f, hoare prg ⟦wp_rec c f⟧ c ⟦f⟧.
+  set Pr := λ i : instr_r, ∀ ii f, hoare prg gd ⟦wp_rec [:: MkI ii i] f ⟧ [:: MkI ii i ] ⟦f⟧.
+  set Pi := λ i : instr, ∀ f, hoare prg gd ⟦ wp_rec [:: i] f⟧ [:: i] ⟦f⟧.
+  set Pc := λ c : cmd, ∀ f, hoare prg gd ⟦wp_rec c f⟧ c ⟦f⟧.
   refine (@cmd_rect Pr Pi Pc _ _ _ _ _ _ _ _ _ c f); clear.
   - by move=> i ii H //.
   - by move=> f; apply: hoare_skip_core.
@@ -1364,7 +1368,7 @@ Qed.
 
 Lemma hoare_by_wp prg (P: hpred) c Q :
   P ⊂ ⟦wp_rec c ⟨Q⟩⟧ →
-  hoare prg P c Q.
+  hoare prg gd P c Q.
 Proof.
   move=> E.
   eapply hoare_conseq. exact E. 2: apply wp_rec_sound.

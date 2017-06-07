@@ -38,10 +38,10 @@ Local Open Scope svmap_scope.
 
 (* -------------------------------------------------------------------- *)
 Derive Inversion_clear sfor_nilI with
-  (forall p x P c Q, ssem_for p x [::] P c Q) Sort Prop.
+  (forall p gd x P c Q, ssem_for p gd x [::] P c Q) Sort Prop.
   
 Derive Inversion_clear sfor_consI with
-  (forall p x z zs P c Q, ssem_for p x (z :: zs) P c Q) Sort Prop.
+  (forall p gd x z zs P c Q, ssem_for p gd x (z :: zs) P c Q) Sort Prop.
 
 (* -------------------------------------------------------------------- *)
 Scheme _ssem_Ind      := Induction for ssem      Sort Prop
@@ -53,6 +53,7 @@ with   _ssem_call_Ind := Induction for ssem_call Sort Prop.
 Section SsemInd.
 
 Variables (p : prog).
+Context (gd: glob_defs).
 Variables
   (Pc   : sestate -> cmd -> sestate -> Prop)
   (Pi_r : sestate -> instr_r -> sestate -> Prop)
@@ -63,47 +64,47 @@ Variables
 Hypothesis Inil : forall s, Pc s [::] s.
 
 Hypothesis Icons : forall s1 s2 s3 i c,
-     ssem_I p s1 i s2 -> Pi s1 i s2
-  -> ssem p s2 c s3 -> Pc s2 c s3
+     ssem_I p gd s1 i s2 -> Pi s1 i s2
+  -> ssem p gd s2 c s3 -> Pc s2 c s3
   -> Pc s1 (i :: c) s3.
 
 Hypothesis ImkI : forall ii i s1 s2,
-  ssem_i p s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
+  ssem_i p gd s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
 
 Hypothesis Iasgn : forall s1 s2 x tag e,
-  Let v := ssem_pexpr s1 e in swrite_lval x v s1 = ok s2 ->
+  Let v := ssem_pexpr gd s1 e in swrite_lval gd x v s1 = ok s2 ->
   Pi_r s1 (Cassgn x tag e) s2.
 
 Hypothesis Iopn : forall s1 s2 o xs es,
      Let x :=
-       Let x := ssem_pexprs s1 es in ssem_sopn o x
-     in swrite_lvals s1 xs x = ok s2
+       Let x := ssem_pexprs gd s1 es in ssem_sopn o x
+     in swrite_lvals gd s1 xs x = ok s2
   -> Pi_r s1 (Copn xs o es) s2.
 
 Hypothesis Iif_true : forall s1 s2 e c1 c2,
-  Let x := ssem_pexpr s1 e in sto_bool x = ok true ->
-  ssem p s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+  Let x := ssem_pexpr gd s1 e in sto_bool x = ok true ->
+  ssem p gd s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
 
 Hypothesis Iif_false : forall s1 s2 e c1 c2,
-  Let x := ssem_pexpr s1 e in sto_bool x = ok false ->
-  ssem p s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+  Let x := ssem_pexpr gd s1 e in sto_bool x = ok false ->
+  ssem p gd s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
 
 Hypothesis Iwhile_true : forall s1 s2 s3 s4 c e c',
-     ssem p s1 c s2 -> Pc s1 c s2
-  -> Let x := ssem_pexpr s2 e in sto_bool x = ok true
-  -> ssem p s2 c' s3 -> Pc s2 c' s3
-  -> ssem_i p s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4
+     ssem p gd s1 c s2 -> Pc s1 c s2
+  -> Let x := ssem_pexpr gd s2 e in sto_bool x = ok true
+  -> ssem p gd s2 c' s3 -> Pc s2 c' s3
+  -> ssem_i p gd s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4
   -> Pi_r s1 (Cwhile c e c') s4.
 
 Hypothesis Iwhile_false : forall s1 s2 c e c',
-     ssem p s1 c s2 -> Pc s1 c s2
-  -> Let x := ssem_pexpr s2 e in sto_bool x = ok false
+     ssem p gd s1 c s2 -> Pc s1 c s2
+  -> Let x := ssem_pexpr gd s2 e in sto_bool x = ok false
   -> Pi_r s1 (Cwhile c e c') s2.
 
 Hypothesis Ifor : forall s1 s2 (i : var_i) d lo hi c vlo vhi,
-     Let x := ssem_pexpr s1 lo in sto_int x = ok vlo
-  -> Let x := ssem_pexpr s1 hi in sto_int x = ok vhi
-  -> ssem_for p i (wrange d vlo vhi) s1 c s2
+     Let x := ssem_pexpr gd s1 lo in sto_int x = ok vlo
+  -> Let x := ssem_pexpr gd s1 hi in sto_int x = ok vhi
+  -> ssem_for p gd i (wrange d vlo vhi) s1 c s2
   -> Pfor i (wrange d vlo vhi) s1 c s2
   -> Pi_r s1 (Cfor i (d, lo, hi) c) s2.
 
@@ -111,28 +112,28 @@ Hypothesis Ifor_nil : forall s i c, Pfor i [::] s c s.
 
 Hypothesis Ifor_cons : forall s1 s1' s2 s3 i (w : Z) ws c,
      swrite_var i w s1 = ok s1'
-  -> ssem p s1' c s2 -> Pc s1' c s2
-  -> ssem_for p i ws s2 c s3 -> Pfor i ws s2 c s3
+  -> ssem p gd s1' c s2 -> Pc s1' c s2
+  -> ssem_for p gd i ws s2 c s3 -> Pfor i ws s2 c s3
   -> Pfor i (w :: ws) s1 c s3.
 
 Hypothesis Icall : forall s1 (m2 : mem) s2 ii xs fn args vargs vs,
-     ssem_pexprs s1 args = ok vargs
-  -> ssem_call p s1.(semem) fn vargs m2 vs
+     ssem_pexprs gd s1 args = ok vargs
+  -> ssem_call p gd s1.(semem) fn vargs m2 vs
   -> Pfun s1.(semem) fn vargs m2 vs
-  -> swrite_lvals {| semem := m2; sevm := s1.(sevm) |} xs vs = ok s2
+  -> swrite_lvals gd {| semem := m2; sevm := s1.(sevm) |} xs vs = ok s2
   -> Pi_r s1 (Ccall ii xs fn args) s2.
 
 Hypothesis Iproc : forall m1 m2 fn f vargs s1 vm2 vres,
      get_fundef p fn = Some f
   -> swrite_vars (f_params f) vargs {| semem := m1; sevm := svmap0 |} = ok s1
-  -> ssem p s1 (f_body f) {| semem := m2; sevm := vm2 |}
+  -> ssem p gd s1 (f_body f) {| semem := m2; sevm := vm2 |}
   -> Pc s1 (f_body f) {| semem := m2; sevm := vm2 |}
   -> [seq sget_var vm2 x | x : var_i <- f_res f] = vres
   -> Pfun m1 fn vargs m2 vres.
 
-Lemma ssem_Ind s1 c s2 : ssem p s1 c s2 -> Pc s1 c s2.
+Lemma ssem_Ind s1 c s2 : ssem p gd s1 c s2 -> Pc s1 c s2.
 Proof.
-by apply/(@_ssem_Ind p
+by apply/(@_ssem_Ind p gd
            (fun s1 c s2 _ => Pc s1 c s2)
            (fun s1 i s2 _ => Pi_r s1 i s2)
            (fun s1 i s2 _ => Pi s1 i s2)
@@ -213,8 +214,8 @@ move=> sst y h; apply: (@of_sval_inj sst).
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma vrvP r v s s' :
-  swrite_lval r v s = ok s' -> s.(sevm) = s'.(sevm) [\ vrv r].
+Lemma vrvP gd r v s s' :
+  swrite_lval gd r v s = ok s' -> s.(sevm) = s'.(sevm) [\ vrv r].
 Proof. case: r => /=.
 + by move=> _ _ [->].
 + by move=> vi /swrite_var_eqmem; rewrite SvP.MP.singleton_equal_add.
@@ -226,7 +227,7 @@ Proof. case: r => /=.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma vrvsP rs vs s s' : swrite_lvals s rs vs = ok s' ->
+Lemma vrvsP gd rs vs s s' : swrite_lvals gd s rs vs = ok s' ->
   s.(sevm) = s'.(sevm) [\ vrvs rs].
 Proof.
 elim: rs vs s => [|r rs ih] [|v vs] s //= => [[->]//|].
@@ -236,10 +237,10 @@ by transitivity (sevm si);
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma writeP p c s1 s2 :
-  ssem p s1 c s2 -> s1.(sevm) = s2.(sevm) [\ write_c c].
+Lemma writeP p gd c s1 s2 :
+  ssem p gd s1 c s2 -> s1.(sevm) = s2.(sevm) [\ write_c c].
 Proof.
-eapply (@ssem_Ind p
+eapply (@ssem_Ind p gd
   (fun s1 c s2 => sevm s1 = sevm s2 [\write_c c])
   (fun s1 i s2 => sevm s1 = sevm s2 [\write_i i])
   (fun s1 i s2 => sevm s1 = sevm s2 [\write_I i])

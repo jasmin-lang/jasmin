@@ -41,10 +41,10 @@ Variable cparams : compiler_params.
 
 Hypothesis print_progP : forall s p, cparams.(print_prog) s p = p.
 
-Lemma unroll1P (fn: funname) (p p':prog) mem va mem' vr:
+Lemma unroll1P (fn: funname) (p p':prog) gd mem va mem' vr:
   unroll1 p = ok p' ->
-  sem_call p  mem fn va mem' vr ->
-  sem_call p' mem fn va mem' vr.
+  sem_call p gd mem fn va mem' vr ->
+  sem_call p' gd mem fn va mem' vr.
 Proof.
   rewrite /unroll1=> Heq Hsem.
   apply: (dead_code_callP Heq).
@@ -52,10 +52,10 @@ Proof.
   exact: unroll_callP.
 Qed.
 
-Lemma unrollP (fn: funname) (p p': prog) mem va mem' vr:
+Lemma unrollP (fn: funname) (p p': prog) gd mem va mem' vr:
   unroll Loop.nb p = ok p' ->
-  sem_call p mem  fn va mem' vr ->
-  sem_call p' mem fn va mem' vr.
+  sem_call p gd mem  fn va mem' vr ->
+  sem_call p' gd mem fn va mem' vr.
 Proof.
   elim: Loop.nb p=> /= [p //|n Hn] p.
   apply: rbindP=> z Hz.
@@ -66,13 +66,13 @@ Qed.
 
 Opaque Loop.nb.
 
-Lemma compile_progP entries (p: prog) (lp: lprog) mem fn va mem' vr:
+Lemma compile_progP entries (p: prog) gd (lp: lprog) mem fn va mem' vr:
   compile_prog cparams entries p = cfok lp ->
   fn \in entries ->
-  sem_call p mem fn va mem' vr ->
+  sem_call p gd mem fn va mem' vr ->
   (forall f, get_fundef lp fn = Some f -> 
      exists p, Memory.alloc_stack mem (lfd_stk_size f) = ok p) ->
-  lsem_fd lp mem fn va mem' vr.
+  lsem_fd lp gd mem fn va mem' vr.
 Proof.
   rewrite /compile_prog.
   apply: rbindP=> p0 Hp0. rewrite !print_progP.

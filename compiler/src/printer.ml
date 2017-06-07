@@ -13,6 +13,10 @@ let rec pp_list sep pp fmt xs =
     | x :: xs -> Format.fprintf fmt "%a%(%)%a" pp x sep pp_list xs
 
 (* -------------------------------------------------------------------- *)
+let pp_iloc fmt (l,ls) = 
+  Format.fprintf fmt "@[<v>%a@]" (pp_list "from@ " L.pp_loc) (l::ls)
+
+(* -------------------------------------------------------------------- *)
 
 let pp_bool fmt b =
   if b then F.fprintf fmt "true"
@@ -73,6 +77,7 @@ let pp_ge pp_var =
   | Pbool  b    -> F.fprintf fmt "%b" b
   | Pcast(ws,e) -> F.fprintf fmt "(%a)%a" pp_btype (U ws) pp_expr e
   | Pvar v      -> pp_var_i fmt v
+  | Pglobal g -> F.fprintf fmt "%s" g
   | Pget(x,e)   -> F.fprintf fmt "%a[%a]" pp_var_i x pp_expr e
   | Pload(ws,x,e) ->
     F.fprintf fmt "@[(load %a@ %a@ %a)@]"
@@ -114,18 +119,19 @@ let pp_opn = function
   | Omulu        -> "#mulu"
   | Oaddcarry    -> "#addc"
   | Osubcarry    -> "#subc"
-  | Ox86_MOV  -> "#x86_MOV"
+  | Oset0        -> "#set0"
+  | Ox86_MOV     -> "#x86_MOV"
   | Ox86_CMOVcc  -> "#x86_CMOVcc"
   | Ox86_ADD     -> "#x86_ADD"
   | Ox86_SUB     -> "#x86_SUB"
   | Ox86_MUL     -> "#x86_MUL"
   | Ox86_IMUL    -> "#x86_IMUL"
-  | Ox86_IMUL64	-> "#x86_IMUL64"
+  | Ox86_IMUL64	 -> "#x86_IMUL64"
   | Ox86_DIV     -> "#x86_DIV"
   | Ox86_IDIV    -> "#x86_IDIV"
   | Ox86_ADC     -> "#x86_ADC"
   | Ox86_SBB     -> "#x86_SBB"
-  | Ox86_NEG	-> "#x86_NEG"
+  | Ox86_NEG	 -> "#x86_NEG"
   | Ox86_INC     -> "#x86_INC"
   | Ox86_DEC     -> "#x86_DEC"
   | Ox86_SETcc   -> "#x86_SETcc"
@@ -211,6 +217,7 @@ let pp_kind = function
   | Stack  -> "Stack"
   | Reg    -> "Reg"
   | Inline -> "Inline"
+  | Global -> "Global"
 
 let pp_ty_decl (pp_size:F.formatter -> 'size -> unit) fmt v =
   F.fprintf fmt "%s %a" (pp_kind v.v_kind) (pp_gtype pp_size) v.v_ty
@@ -240,6 +247,7 @@ let pp_pitem pp_var =
   let pp_size = pp_ge pp_var in
   let aux fmt = function
     | MIfun fd -> pp_gfun pp_noinfo pp_size pp_var fmt fd
+    | MIglobal (x, e)
     | MIparam (x,e) ->
       F.fprintf fmt "%a = %a"
         (pp_var_decl pp_var pp_size) x
@@ -250,6 +258,14 @@ let pp_ptype =
   let pp_var fmt x = F.fprintf fmt "%s" x.v_name in
   let pp_size = pp_ge pp_var in
   pp_gtype pp_size
+
+let pp_plval = 
+  let pp_var fmt x = F.fprintf fmt "%s" x.v_name in
+  pp_glv pp_var 
+
+let pp_pexpr =
+  let pp_var fmt x = F.fprintf fmt "%s" x.v_name in
+  pp_ge pp_var 
 
 let pp_pprog fmt p =
   let pp_var fmt x = F.fprintf fmt "%s" x.v_name in

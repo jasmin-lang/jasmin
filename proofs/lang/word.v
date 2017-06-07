@@ -267,4 +267,6 @@ Definition word2bits (w : word) : seq bool :=
 Definition msb (w : word) := (I64.signed w <? 0)%Z.
 Definition lsb (w : word) := (I64.and w I64.one) != I64.zero.
 
-
+(* -------------------------------------------------------------------*)
+Definition check_scale (s:Z) :=
+  (s == 1%Z) || (s == 2%Z) || (s == 4%Z) || (s == 8%Z).

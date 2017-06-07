@@ -153,6 +153,7 @@ Module CBEA.
     | Pbool    b1, Pbool    b2 => b1 == b2
     | Pcast    e1, Pcast    e2 => check_eb m e1 e2
     | Pvar     x1, Pvar     x2 => check_var m x1 x2
+    | Pglobal g1, Pglobal g2 => g1 == g2
     | Pget  x1 e1, Pget  x2 e2 => check_var m x1 x2 && check_eb m e1 e2
     | Pget  x1 e1, Pvar  x2    => 
       match is_const e1 with
@@ -209,19 +210,20 @@ Module CBEA.
     by exists (to_val a);rewrite type_of_to_val.
   Qed.
 
-  Lemma check_ebP e1 e2 r m1 v1 vm1 vm2: 
+  Lemma check_ebP gd e1 e2 r m1 v1 vm1 vm2:
     eq_alloc r vm1 vm2 ->
     check_eb r e1 e2 ->
-    sem_pexpr {|emem := m1; evm:= vm1|} e1 = ok v1 ->
-    exists v2, sem_pexpr {|emem := m1; evm:= vm2 |} e2 = ok v2 /\ value_uincl v1 v2.
+    sem_pexpr gd {|emem := m1; evm:= vm1|} e1 = ok v1 ->
+    exists v2, sem_pexpr gd {|emem := m1; evm:= vm2 |} e2 = ok v2 /\ value_uincl v1 v2.
   Proof.
     move=> Hrn; elim: e1 e2 v1 =>
-     [ z1 | b1 | e1 He1 | x1 | x1 e1 He1 | x1 e1 He1 | o1 e1 He1 | o1 e11 He11 e12 He12 | e He e11 He11 e12 He12]
-     [ z2 | b2 | e2 | x2 | x2 e2 | x2 e2 | o2 e2 | o2 e21 e22 | e' e21 e22] //= v1.
+     [ z1 | b1 | e1 He1 | x1 | g1 | x1 e1 He1 | x1 e1 He1 | o1 e1 He1 | o1 e11 He11 e12 He12 | e He e11 He11 e12 He12]
+     [ z2 | b2 | e2 | x2 | g2 | x2 e2 | x2 e2 | o2 e2 | o2 e21 e22 | e' e21 e22] //= v1.
     + by move=> /eqP <- [<-];eauto. + by move=> /eqP <- [<-];eauto.
     + move=> /He1 H;apply rbindP => ?;apply: rbindP => ? /H [v2 [-> Hu]].
       by move=> /(value_uincl_int Hu) [_ ->] /= ->;eauto.
     + by apply: check_varP.
+    + by move=> /eqP <- ->;eauto.
     + case: Hrn => Hmem Mget;case: x1 => -[xt1 xn1] x1i /=.
       case: is_constP => //= ze/andP[/eqP /Mget Hget /eqP Htx2].
       apply: on_arr_varP => n t /= Htx1.
@@ -259,12 +261,12 @@ Module CBEA.
     by case: (b).
   Qed.
 
-  Lemma check_eP e1 e2 r re vm1 vm2 :
+  Lemma check_eP gd e1 e2 r re vm1 vm2 :
     check_e e1 e2 r = ok re ->
     eq_alloc r vm1 vm2 ->
     eq_alloc re vm1 vm2 /\
-    forall m v1,  sem_pexpr (Estate m vm1) e1 = ok v1 ->
-    exists v2, sem_pexpr (Estate m vm2) e2 = ok v2 /\ value_uincl v1 v2.
+    forall m v1,  sem_pexpr gd (Estate m vm1) e1 = ok v1 ->
+    exists v2, sem_pexpr gd (Estate m vm2) e2 = ok v2 /\ value_uincl v1 v2.
   Proof.
     by rewrite /check_e;case:ifP => //= /check_ebP H [<-] Hea;split=>// m v1;apply: H.
   Qed.
@@ -316,14 +318,14 @@ Module CBEA.
     by apply (@eq_alloc_set x1 undef_error undef_error).
   Qed.
 
-  Lemma check_lvalP r1 r1' x1 x2 oe2 s1 s1' vm1 v1 v2 :
+  Lemma check_lvalP gd r1 r1' x1 x2 oe2 s1 s1' vm1 v1 v2 :
     check_lval oe2 x1 x2 r1 = ok r1' ->
     eq_alloc r1 s1.(evm) vm1 ->
     value_uincl v1 v2 ->
-    oapp (fun e2 => sem_pexpr (Estate s1.(emem) vm1) e2 = ok v2) true oe2 ->
-    write_lval x1 v1 s1 = ok s1' ->
+    oapp (fun e2 => sem_pexpr gd (Estate s1.(emem) vm1) e2 = ok v2) true oe2 ->
+    write_lval gd x1 v1 s1 = ok s1' ->
     exists vm1', 
-      write_lval x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1') /\
+      write_lval gd x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1') /\
       eq_alloc r1' s1'.(evm) vm1'.
   Proof.
     move=> H1 H2 H3 _; move: H1 H2 H3.
