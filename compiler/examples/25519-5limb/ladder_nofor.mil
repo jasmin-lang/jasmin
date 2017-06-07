@@ -268,7 +268,6 @@ fn iterated_square(stack u64[5] xa, stack u64 n) -> stack u64[5] {
 fn ladderstep(stack u64[5] x1p, stack u64[5] x2p, stack u64[5] z2p, stack u64[5] x3p, stack u64[5] z3p)
     -> (stack u64[5] , stack u64[5] , stack u64[5] , stack u64[5]) {
 
-
   reg u64[5] t1;
   reg u64[5] t2;
   reg u64[5] t7;
@@ -286,6 +285,7 @@ fn ladderstep(stack u64[5] x1p, stack u64[5] x2p, stack u64[5] z2p, stack u64[5]
   stack u64[5] t3p;
   stack u64[5] t4p;
   stack u64[5] t9p;
+  stack u64[5] t8p;
   reg u64[5] w1;
   reg u64[5] w2;
   reg u64[5] w3;
@@ -336,7 +336,6 @@ fn ladderstep(stack u64[5] x1p, stack u64[5] x2p, stack u64[5] z2p, stack u64[5]
   z2p     = w6;
   w7      = mul(z2p,t5p);
   z2p     = w7;
-
 
   return x2p, z2p, x3p, z3p;
 }
@@ -403,7 +402,6 @@ fn mladder(stack u64[5] xr, reg u64 sp) -> (stack u64[5], stack u64[5]) {
   x2[0] = 1; x2[1] = 0; x2[2] = 0; x2[3] = 0; x2[4] = 0;
   z2[0] = 0; z2[1] = 0; z2[2] = 0; z2[3] = 0; z2[4] = 0;
   z3[0] = 1; z3[1] = 0; z3[2] = 0; z3[3] = 0; z3[4] = 0;
-
 
   j = 62; i = 3; prevbit = 0;
   while {
@@ -545,44 +543,23 @@ fn unpack_point(reg u64 xp) -> stack u64[5] {
 // ************************************************************************
 
 fn unpack_secret(reg u64 sp) {
-  reg u64[5] xa;
-  reg u64 tmp1;
-  reg u64 tmp2;
-  reg u64 prev;
+  reg u64[4] sa;
+  reg u64 si;
+  reg u64 buf;
   inline int i;
 
-  tmp1 = [sp + 0*8]; 
-  prev = tmp1;
-  tmp1 &= 0x7fffffffffff8; // keep 51 bits
-  xa[0] = tmp1;
-  
-  for i = 1 to 4 {
-     tmp1 = prev;
-     tmp2 = [sp +     i*8];
-     prev = tmp2;
-     if (i == 1) {
-       tmp1 >>= 51; // already used 51
-       tmp2 <<= 13; // that leaves 13 
-     }
-     if (i == 2) {
-       tmp1 >>= 38; // already used (51-13)
-       tmp2 <<= 26; // that leaves 26
-     }     
-     if (i == 3) {
-       tmp1 >>= 25; // already used (51-26)
-       tmp2 <<= 39; // that leaves 39
-     }
-     tmp1 |= tmp2;
-     tmp1 &= 0x7ffffffffffff;
-     xa[i] = tmp1;
-  }
-
-  tmp1 = [sp + 3*8];
-  tmp1 >>= 12;
-  tmp1 |= 0x4000000000000;
-  xa[4] = tmp1;
-
-  for i = 0 to 5 { [sp + 8*i] = xa[i]; }
+  si    = [sp + 0*8];
+  si    = si & 0xfffffffffffffff8;
+  sa[0] = si;
+  sa[1] = [sp + 1*8];
+  sa[2] = [sp + 2*8];
+  si    = [sp + 3*8];
+  buf = 0x7fffffffffffffff;
+  si    = si & buf;
+  buf = 0x4000000000000000;
+  si    = si | buf;
+  sa[3] = si;
+  for i = 0 to 4 { [sp + 8*i] = sa[i]; }
 }
 
 // ** freeze
@@ -626,7 +603,7 @@ fn freeze(stack u64[5] xa) -> stack u64[5] {
   zero = 0;
 
   tmp = xa[0];
-  two51minus19 = 0x7ffffffffffe7;
+  two51minus19 = 0x7ffffffffffed;
   t = zero if (tmp < two51minus19);
 
   two51minus1 =  0x7ffffffffffff;
@@ -639,7 +616,7 @@ fn freeze(stack u64[5] xa) -> stack u64[5] {
   two51minus1 &= t;
   two51minus19 &= t;
   xa[0] -= two51minus19;
-  for i = 0 to 5 {
+  for i = 1 to 5 {
       xa[i] -= two51minus1;
   }
   return xa;
@@ -682,7 +659,7 @@ fn pack(reg u64 rp, stack u64[5] xa) {
 // ** scalar multiplication
 // ************************************************************************
 
-  fn scalarmult( reg u64 rp /* address to store result  */
+ export fn scalarmult( reg u64 rp /* address to store result  */
                     , reg u64 sp /* address of secret scalar */
                     , reg u64 pp /* address of point         */) {
   stack u64[5] save;
@@ -692,7 +669,7 @@ fn pack(reg u64 rp, stack u64[5] xa) {
   reg u64 buf;
   inline int i;
 
-  for i = 0 to 5 { buf = [sp + 8*i]; save[i] = buf; }
+  for i = 0 to 4 { buf = [sp + 8*i]; save[i] = buf; }
   unpack_secret(sp);
   xa = unpack_point(pp);
   xa, za = mladder(xa,sp);
@@ -700,14 +677,14 @@ fn pack(reg u64 rp, stack u64[5] xa) {
   r = mul(xa,za);
   pack(rp,r);
 
-  for i = 0 to 5 { buf = save[i]; [sp + 8*i] = buf; }
+  for i = 0 to 4 { buf = save[i]; [sp + 8*i] = buf; }
  
 }
 
 
 // tests: NOT BEING EXPORTED
 
-export fn test_ladderstep( reg u64 x1pp
+ fn test_ladderstep( reg u64 x1pp
                          , reg u64 x2pp
                          , reg u64 z2pp
                          , reg u64 x3pp
@@ -740,6 +717,7 @@ export fn test_ladderstep( reg u64 x1pp
    pack(r1p,r3);
    r1p += 32;
    pack(r1p,r4);
+ 
 }
 
  fn test_mladder( reg u64 rp 
@@ -747,15 +725,14 @@ export fn test_ladderstep( reg u64 x1pp
                       , reg u64 pp) {
 
   stack u64[5] p;
-  stack u64[5] rh;
-  stack u64[5] rl;
-  inline int i;
-  reg u64 buf;
+  stack u64[5] x;
+  stack u64[5] z;
 
-  for i = 0 to 5 { buf = [pp +8*i]; p[i] = buf; }
-  rh,rl = mladder(p,sp);
-  for i = 0 to 5 { buf = rl[i]; [rp + 0 + 8*i] = buf; }
-  for i = 0 to 5 { buf = rh[i]; [rp + 32 + 8*i] = buf; }
+  p = unpack_point(pp);
+  x,z = mladder(p,sp);
+  pack(rp,x);
+  rp += 32;
+  pack(rp,z);
 }
 
  fn test_mul(reg u64 rp, reg u64 xap, reg u64 yap) {
