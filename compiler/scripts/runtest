@@ -196,7 +196,7 @@ def _dump_report(config, results, out):
 
     opts = dict(default_flow_style = None, encoding = 'utf-8')
 
-    out.write(str(yaml.dump(aout, **opts), 'utf-8'))
+    out.write(str(yaml.dump(aout, **opts), 'ascii'))
 
 # --------------------------------------------------------------------
 def _run_test(config, options):
@@ -334,7 +334,7 @@ def _main():
         if options.report == '-':
             _dump_report(mainconfig, result, sys.stderr)
         else:
-            with open(options.report, 'wb') as output:
+            with open(options.report, 'wt') as output:
                 _dump_report(mainconfig, result, output)
 
     exit (2 if errors else 0)
