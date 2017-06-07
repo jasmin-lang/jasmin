@@ -18,7 +18,7 @@ INSTALL    := scripts/install-sh
 # --------------------------------------------------------------------
 JSJOBS    ?= 2
 CHECKPY   ?=
-CHECK     := $(CHECKPY) scripts/runtest --report=- --jobs="$(JSJOBS)"
+CHECK     := $(CHECKPY) scripts/runtest --jobs="$(JSJOBS)"
 CHECK     += config/tests.config
 CHECKCATS ?= all
 
@@ -69,7 +69,10 @@ uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/jasminc
 
 tests: build
-	$(CHECK) $(CHECKCATS)
+	$(CHECK) --report=report.log $(CHECKCATS)
+
+tests-ci: build
+	$(CHECK) --report=- $(CHECKCATS)
 
 clean:
 	$(OCAMLBUILD) -clean -classic-display
