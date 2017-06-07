@@ -19,20 +19,21 @@ export fn main() -> reg u64 {
    reg u64[1] w;
    z1 = 10;
 
-   z2 = add(z1);
+   z1 = z1 + 1;
+/*   z2 = add(z1);
    w[0] = add(z1);
-   z1 = add(z1);
+   z1 = add(z1); */
 
-   z2 = add1(z1);
+   z1 = add1(z1);
    /*w[0] = add1(z1);
    z1 = add1(z1); */
 
-   z1 += w[0];
+  /*  z1 += w[0]; */
    z1 += z2;
    return z1; 
 }
 
-export fn main1() -> reg u64 {
+/* export fn main1() -> reg u64 {
    reg u64 z1;
    reg u64 z2;
    stack u64[1] w;
@@ -48,6 +49,6 @@ export fn main1() -> reg u64 {
 
    z1 += w[0];
    return z1; 
-}
+} */
 
  
