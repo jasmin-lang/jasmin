@@ -205,7 +205,7 @@ let pp_label (lbl : Linear.label) =
 
 (* -------------------------------------------------------------------- *)
 let pp_global (ws : rsize) (g: Expr.global) =
-  Format.sprintf "%s(%s)" (Conv.string_of_string0 g) (pp_register ws RSI)
+  Format.sprintf "%s(%s)" (Conv.string_of_string0 g) (pp_register `U64 RSI)
 
 (* -------------------------------------------------------------------- *)
 let pp_opr (ws : rsize) (op : X86_sem.oprd) =
