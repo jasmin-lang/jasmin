@@ -15,7 +15,7 @@ fn add(reg u64[4] x, stack u64[4] ya) -> reg u64[4] {
     else          { cf, x[i] += ya[i] + cf; }
   }
 
-  add0 = 0;
+  add0 = #x86_MOV(0);
   add1 = rem_p;
   add1 = add0 if !cf;
 
@@ -52,7 +52,7 @@ fn sub(reg u64[4] x, stack u64[4] ya) -> reg u64[4] {
     }
   }
 
-  sub0  = 0;
+  sub0  = #x86_MOV(0);
   sub1 = rem_p;
   sub1 = sub0 if !cf;
 
@@ -103,12 +103,12 @@ fn reduce(reg u64[8] z) -> reg u64[4] {
 	cf, r[2] += l;
 
 	rax = z[7];
-	r[3] = 0;
+	r[3] = #x86_MOV(0);
 	_, r[3] += h + cf;
 	h, l = rax * r38;
 	cf, r[3] += l;
 
-	z8 = 0;
+	z8 = #x86_MOV(0);
 	_, z8  += h + cf;
 
 	cf, r[0] += z[0];
@@ -175,13 +175,13 @@ fn mul(stack u64[4] xa, stack u64[4] ya) -> reg u64[4] {
       h, l = y[j] * x[i];
       cf, z[i+j] += l;
       if (j == 0) {
-        hprev = 0;
+        hprev = #x86_MOV(0);
         _, hprev += h + cf;
       } else {
         _, h += 0 + cf;
         cf, z[i+j] += hprev;
         if (1 <= j && j < 4 - 1) {
-          hprev = 0;
+          hprev = #x86_MOV(0);
           _, hprev += h + cf;
         } else { /* j = 4 */
           cf, z[i + j + 1] += h + cf;
@@ -244,7 +244,7 @@ fn mul121666(stack u64[4] xa) -> reg u64[4] {
   cf, z[3] += 0 + cf;
 
   t1 = 38;
-  t2 = 0;
+  t2 = #x86_MOV(0);
   t1 = t2 if !cf;
   z[0] += t1;
 
@@ -581,7 +581,7 @@ fn cswap(stack u64[4] x2p, stack u64[4] z2p, stack u64[4] x3p, stack u64[4] z3p,
 // ** montgomery ladder
 // ************************************************************************
 
-fn mladder(stack u64[4] xr, reg u64 sp) -> (stack u64[4], stack u64[4]) {
+fn mladder(stack u64[4] x2, stack u64[4] z2, stack u64[4] xr, reg u64 sp) -> (stack u64[4], stack u64[4]) {
 
   stack u64    s;
   reg u64      tmp1;
@@ -590,9 +590,7 @@ fn mladder(stack u64[4] xr, reg u64 sp) -> (stack u64[4], stack u64[4]) {
   reg u64      swap;
   stack u64    prevbit;
   stack u64[4] x1;
-  stack u64[4] x2;
   reg u64[4] x2r;
-  stack u64[4] z2;
   stack u64[4] x3;
   stack u64[4] z3;
   reg u64      i;
@@ -603,12 +601,12 @@ fn mladder(stack u64[4] xr, reg u64 sp) -> (stack u64[4], stack u64[4]) {
   reg u64[4]   buf;
 
   buf = xr; x1 = buf; x3 = buf;
-  x2[0] = 1; x2[1] = 0; x2[2] = 0; x2[3] = 0;
-  z2[0] = 0; z2[1] = 0; z2[2] = 0; z2[3] = 0;
-  z3[0] = 1; z3[1] = 0; z3[2] = 0; z3[3] = 0;
+  x2[0] = 1; x2[1] = #x86_MOV(0); x2[2] = #x86_MOV(0); x2[3] = #x86_MOV(0);
+  z2[0] = #x86_MOV(0); z2[1] = #x86_MOV(0); z2[2] = #x86_MOV(0); z2[3] = #x86_MOV(0);
+  z3[0] = 1; z3[1] = #x86_MOV(0); z3[2] = #x86_MOV(0); z3[3] = #x86_MOV(0);
 
 
-  j = 62; i = 3; prevbit = 0;
+  j = 62; i = 3; prevbit = #x86_MOV(0);
   while {
     tmp1 = [sp + 8*i];
     is = i;
@@ -705,8 +703,7 @@ fn invert(stack u64[4] xa) -> stack u64[4] {
 // ** unpack_point
 // ************************************************************************
 
-fn unpack_point(reg u64 xp) -> stack u64[4] {
-  stack u64[4] xa;
+fn unpack_point(stack u64[4] xa, reg u64 xp) -> stack u64[4] {
   reg u64 x3;
   reg u64 buf;
 
@@ -804,6 +801,7 @@ fn pack(reg u64 rp, reg u64[4] xa) {
                     , reg u64 sp /* address of secret scalar */
                     , reg u64 pp /* address of point         */) {
   stack u64[4] save;
+  stack u64[4] xr;
   stack u64[4] xa;
   stack u64[4] za;
   reg u64[4] r;
@@ -812,8 +810,8 @@ fn pack(reg u64 rp, reg u64[4] xa) {
 
   for i = 0 to 4 { buf = [sp + 8*i]; save[i] = buf; }
   unpack_secret(sp);
-  xa = unpack_point(pp);
-  xa, za = mladder(xa,sp);
+  xr = unpack_point(xr,pp);
+  xa, za = mladder(xa,za,xr,sp);
   za = invert(za);
   r = mul(xa,za);
   pack(rp,r);
@@ -868,7 +866,7 @@ fn pack(reg u64 rp, reg u64[4] xa) {
   reg u64 buf;
 
   for i = 0 to 4 { buf = [pp +8*i]; p[i] = buf; }
-  rh,rl = mladder(p,sp);
+  rh,rl = mladder(rh,rl,p,sp);
   for i = 0 to 4 { buf = rl[i]; [rp + 0 + 8*i] = buf; }
   for i = 0 to 4 { buf = rh[i]; [rp + 32 + 8*i] = buf; }
 }

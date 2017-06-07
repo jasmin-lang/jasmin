@@ -378,7 +378,7 @@ fn cswap(stack u64[5] x2p, stack u64[5] z2p, stack u64[5] x3p, stack u64[5] z3p,
 // ** montgomery ladder
 // ************************************************************************
 
-fn mladder(stack u64[5] xr, reg u64 sp) -> (stack u64[5], stack u64[5]) {
+fn mladder(stack u64[5] x2, stack u64[5] z2, stack u64[5] xr, reg u64 sp) -> (stack u64[5], stack u64[5]) {
 
   stack u64    s;
   reg u64      tmp1;
@@ -387,8 +387,6 @@ fn mladder(stack u64[5] xr, reg u64 sp) -> (stack u64[5], stack u64[5]) {
   reg u64      swap;
   stack u64    prevbit;
   stack u64[5] x1;
-  stack u64[5] x2;
-  stack u64[5] z2;
   stack u64[5] x3;
   stack u64[5] z3;
   reg u64      i;
@@ -499,8 +497,7 @@ fn invert(stack u64[5] xa) -> stack u64[5] {
 // ** unpack_point
 // ************************************************************************
 
-fn unpack_point(reg u64 xp) -> stack u64[5] {
-  stack u64[5] xa;
+fn unpack_point(stack u64[5] xa, reg u64 xp) -> stack u64[5] {
   reg u64 tmp1;
   reg u64 tmp2;
   reg u64 prev;
@@ -663,6 +660,7 @@ fn pack(reg u64 rp, stack u64[5] xa) {
                     , reg u64 sp /* address of secret scalar */
                     , reg u64 pp /* address of point         */) {
   stack u64[5] save;
+  stack u64[5] xr;
   stack u64[5] xa;
   stack u64[5] za;
   reg u64[5] r;
@@ -671,8 +669,8 @@ fn pack(reg u64 rp, stack u64[5] xa) {
 
   for i = 0 to 4 { buf = [sp + 8*i]; save[i] = buf; }
   unpack_secret(sp);
-  xa = unpack_point(pp);
-  xa, za = mladder(xa,sp);
+  xr = unpack_point(xr,pp);
+  xa, za = mladder(xa,za,xr,sp);
   za = invert(za);
   r = mul(xa,za);
   pack(rp,r);
@@ -702,11 +700,11 @@ fn pack(reg u64 rp, stack u64[5] xa) {
    reg u64 buf;
    inline int i;
 
-   x1p = unpack_point(x1pp);
-   x2p = unpack_point(x2pp);
-   z2p = unpack_point(z2pp);
-   x3p = unpack_point(x3pp);
-   z3p = unpack_point(z3pp);
+   x1p = unpack_point(x1p,x1pp);
+   x2p = unpack_point(x2p,x2pp);
+   z2p = unpack_point(z2p,z2pp);
+   x3p = unpack_point(x3p,x3pp);
+   z3p = unpack_point(z3p,z3pp);
 
    r1,r2,r3,r4 = ladderstep(x1p,x2p,z2p,x3p,z3p);
 
@@ -728,8 +726,8 @@ fn pack(reg u64 rp, stack u64[5] xa) {
   stack u64[5] x;
   stack u64[5] z;
 
-  p = unpack_point(pp);
-  x,z = mladder(p,sp);
+  p = unpack_point(p,pp);
+  x,z = mladder(x,z,p,sp);
   pack(rp,x);
   rp += 32;
   pack(rp,z);
@@ -743,8 +741,8 @@ fn pack(reg u64 rp, stack u64[5] xa) {
    reg u64 buf;
    inline int i;
   
-    xa = unpack_point(xap);
-    ya = unpack_point(yap);
+    xa = unpack_point(xa,xap);
+    ya = unpack_point(ya,yap);
 
     res = mul(xa,ya); ress = res;
 
@@ -756,7 +754,7 @@ fn pack(reg u64 rp, stack u64[5] xa) {
      reg u64 buf;
      inline int i;
   
-     res = unpack_point(xap);
+     res = unpack_point(res,xap);
      //pack(rp,res);
     for i = 0 to 5 { buf = res[i]; [rp + 8*i] = buf; }
 
