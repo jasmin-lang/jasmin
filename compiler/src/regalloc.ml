@@ -59,9 +59,9 @@ type 'info trace = (int, 'info instr list) Hashtbl.t
 
 let pp_trace (i: int) fmt (tr: 'info trace) =
   let j = try Hashtbl.find tr i with Not_found -> [] in
-  let pp_i fmt i = 
-    Format.fprintf fmt "@[%a at@ %a@]" 
-      (Printer.pp_instr ~debug:true) i 
+  let pp_i fmt i =
+    Format.fprintf fmt "@[%a at@ %a@]"
+      (Printer.pp_instr ~debug:true) i
       Printer.pp_iloc i.i_loc in
   Format.fprintf fmt "@[<v>%a@]" (Printer.pp_list "@ " pp_i) j
 
@@ -311,7 +311,7 @@ struct
     in
     match op, lvs, es with
     | (Ox86_SHL | Ox86_SHR | Ox86_SAR),
-      Lvar oF :: Lvar cF :: Lvar sF :: Lvar pF :: Lvar zF :: _, _ :: x :: _ 
+      Lvar oF :: Lvar cF :: Lvar sF :: Lvar pF :: Lvar zF :: _, _ :: x :: _
     |  Ox86_SHLD,
       Lvar oF :: Lvar cF :: Lvar sF :: Lvar pF :: Lvar zF :: _, _ :: _ :: x :: _ ->
       a |>
@@ -321,8 +321,8 @@ struct
       allocate_one sF f_s |>
       allocate_one pF f_p |>
       allocate_one zF f_z
-        
-    | (Ox86_ADD | Ox86_SUB | Ox86_AND | Ox86_OR | Ox86_XOR | Ox86_CMP | 
+
+    | (Ox86_ADD | Ox86_SUB | Ox86_AND | Ox86_OR | Ox86_XOR | Ox86_CMP |
        Ox86_NEG | Oset0),
       Lvar oF :: Lvar cF :: Lvar sF :: Lvar pF :: Lvar zF :: _, _ ->
       a |>

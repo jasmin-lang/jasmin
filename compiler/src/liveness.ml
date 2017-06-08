@@ -25,7 +25,7 @@ let writev_lvals s lvs = List.fold_left writev_lval s lvs
 
 let is_trivial_move x e =
   match x, e with
-  | Lvar x, Pvar y -> kind_i x = kind_i y 
+  | Lvar x, Pvar y -> kind_i x = kind_i y
   | _              -> false
 
 let is_move_op = function
@@ -46,14 +46,14 @@ and live_d weak d (s_o: Sv.t) =
   | Cassgn(x,t,e) ->
 
     let s_i = Sv.union (vars_e e) (dep_lv s_o x) in
-    let s_o = 
-      if weak && not (is_trivial_move x e) then writev_lval s_o x 
+    let s_o =
+      if weak && not (is_trivial_move x e) then writev_lval s_o x
       else s_o in
     s_i, s_o, Cassgn(x,t,e)
 
   | Copn(xs,o,es) ->
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
-    let s_o = 
+    let s_o =
      if weak && not (is_move_op o && is_trivial_move (List.hd xs) (List.hd es))
      then writev_lvals s_o xs
      else s_o in
@@ -155,16 +155,16 @@ let normalize_repr (_c,m) =
 
 exception SetSameConflict
 
-let pp_map fmt m = 
-  Mv.iter (fun v1 v2 -> 
-      Format.fprintf fmt "%a ----> %a@." 
+let pp_map fmt m =
+  Mv.iter (fun v1 v2 ->
+      Format.fprintf fmt "%a ----> %a@."
          (Printer.pp_var ~debug:true) v1 (Printer.pp_var ~debug:true) v2)
-      m 
+      m
 
-let merge_class1 cf rx xc ry yc = 
+let merge_class1 cf rx xc ry yc =
   (* ajoute x dans les conflits de y *)
   let add_conflict x y cf =
-    Mv.modify_def Sv.empty y (Sv.add x) cf 
+    Mv.modify_def Sv.empty y (Sv.add x) cf
   in
   let cf = Sv.fold (add_conflict rx) yc cf in
   let cf = Sv.fold (add_conflict ry) xc cf in
@@ -181,11 +181,11 @@ let set_same (cf, m as cfm) x y =
   else
     let xc = Mv.find_default Sv.empty rx cf in
     let yc = Mv.find_default Sv.empty ry cf in
-    if Sv.mem rx yc then 
-      begin 
+    if Sv.mem rx yc then
+      begin
 (*        let pp_v = Printer.pp_var ~debug:true in
         Format.eprintf "map:@.%a@.@."
-          pp_map m;    
+          pp_map m;
         Format.eprintf "x = %a --> %a; y = %a --> %a@."
            pp_v x pp_v rx pp_v y pp_v ry;
         Format.eprintf "rx = %a@."
