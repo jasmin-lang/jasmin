@@ -38,27 +38,17 @@ fn sub(reg u64[5] x, stack u64[5] ya) -> reg u64[5] {
 // ** reduction from 10 limbs to 5 limbs
 // ************************************************************************
 
-fn SHLD13(reg u64 h, reg u64 l) -> reg u64 {
-   reg u64 t1;
-   reg u64 t2;
-   t1 = h;
-   t2 = l;
-   _, _, _, _, _, t1 = #x86_SHLD(t1,t2,13);
-   h = t1;
-   return h;
-}
-
 fn del_carry(reg u64[5] sh, stack u64[5] sl) -> reg u64[5] {
   reg u64[5] r;
   reg u64 t;
   inline int i;
 
   r[0] = sl[0];
-  sh[0] = SHLD13(sh[0],r[0]);
+  _, _, _, _, _, sh[0] = #x86_SHLD(sh[0],r[0],13);
   r[0] &= 0x7ffffffffffff;  
   for i = 0 to 4 {
       r[i+1] = sl[i+1];
-      sh[i+1] = SHLD13(sh[i+1],r[i+1]);
+      _, _, _, _, _, sh[i+1] = #x86_SHLD(sh[i+1],r[i+1],13);
       r[i+1] &= 0x7ffffffffffff;      
       r[i+1] += sh[i];
   }
@@ -663,6 +653,7 @@ fn pack(reg u64 rp, stack u64[5] xa) {
   stack u64[5] xr;
   stack u64[5] xa;
   stack u64[5] za;
+  stack u64[5] rs;
   reg u64[5] r;
   reg u64 buf;
   inline int i;
@@ -673,7 +664,8 @@ fn pack(reg u64 rp, stack u64[5] xa) {
   xa, za = mladder(xa,za,xr,sp);
   za = invert(za);
   r = mul(xa,za);
-  pack(rp,r);
+  rs = r;
+  pack(rp,rs);
 
   for i = 0 to 4 { buf = save[i]; [sp + 8*i] = buf; }
  
@@ -693,10 +685,6 @@ fn pack(reg u64 rp, stack u64[5] xa) {
    stack u64[5] z2p;
    stack u64[5] x3p;
    stack u64[5] z3p;
-   stack u64[5] r1;
-   stack u64[5] r2;
-   stack u64[5] r3;
-   stack u64[5] r4;
    reg u64 buf;
    inline int i;
 
@@ -706,15 +694,15 @@ fn pack(reg u64 rp, stack u64[5] xa) {
    x3p = unpack_point(x3p,x3pp);
    z3p = unpack_point(z3p,z3pp);
 
-   r1,r2,r3,r4 = ladderstep(x1p,x2p,z2p,x3p,z3p);
+   x2p,z2p,x3p,z3p = ladderstep(x1p,x2p,z2p,x3p,z3p);
 
-   pack(r1p,r1);
+   pack(r1p,x2p);
    r1p += 32;
-   pack(r1p,r2);
+   pack(r1p,z2p);
    r1p += 32;
-   pack(r1p,r3);
+   pack(r1p,x3p);
    r1p += 32;
-   pack(r1p,r4);
+   pack(r1p,z3p);
  
 }
 
