@@ -87,44 +87,44 @@ crypto_scalarmult_curve25519_amd64_51_fe25519_square:
 	andq	%rax, %rbx
 	shldq	$13, %r13, %r14
 	andq	%rax, %r13
-	addq	%r12, %r13
+	leaq	(%r13,%r12), %rdx
 	shldq	$13, %rcx, %r8
 	andq	%rax, %rcx
-	addq	%r14, %rcx
+	leaq	(%rcx,%r14), %rcx
 	shldq	$13, %r9, %r10
 	andq	%rax, %r9
-	addq	%r8, %r9
+	leaq	(%r9,%r8), %rsi
 	shldq	$13, %r11, %rbp
 	andq	%rax, %r11
-	addq	%r10, %r11
-	imulq	$19, %rbp, %rdx
-	addq	%rdx, %rbx
-	movq	%rbx, %rdx
-	shrq	$51, %rdx
-	addq	%r13, %rdx
-	andq	%rax, %rbx
-	movq	%rdx, %rsi
-	shrq	$51, %rdx
-	addq	%rcx, %rdx
-	andq	%rax, %rsi
-	movq	%rdx, %rcx
-	shrq	$51, %rdx
-	addq	%r9, %rdx
-	andq	%rax, %rcx
-	movq	%rdx, %r8
-	shrq	$51, %rdx
-	addq	%r11, %rdx
-	andq	%rax, %r8
+	leaq	(%r11,%r10), %r8
+	imulq	$19, %rbp, %rbp
+	leaq	(%rbx,%rbp), %r10
+	movq	%r10, %r9
+	shrq	$51, %r9
+	leaq	(%r9,%rdx), %rdx
+	andq	%rax, %r10
 	movq	%rdx, %r9
 	shrq	$51, %rdx
-	imulq	$19, %rdx, %rdx
-	addq	%rdx, %rbx
+	leaq	(%rdx,%rcx), %rcx
 	andq	%rax, %r9
-	movq	%rbx, (%rdi)
-	movq	%rsi, 8(%rdi)
-	movq	%rcx, 16(%rdi)
-	movq	%r8, 24(%rdi)
-	movq	%r9, 32(%rdi)
+	movq	%rcx, %rdx
+	shrq	$51, %rcx
+	leaq	(%rcx,%rsi), %rcx
+	andq	%rax, %rdx
+	movq	%rcx, %rsi
+	shrq	$51, %rcx
+	leaq	(%rcx,%r8), %rcx
+	andq	%rax, %rsi
+	movq	%rcx, %r8
+	shrq	$51, %rcx
+	imulq	$19, %rcx, %rcx
+	leaq	(%r10,%rcx), %rcx
+	andq	%rax, %r8
+	movq	%rcx, (%rdi)
+	movq	%r9, 8(%rdi)
+	movq	%rdx, 16(%rdi)
+	movq	%rsi, 24(%rdi)
+	movq	%r8, 32(%rdi)
 	popq	%r14
 	popq	%r13
 	popq	%r12

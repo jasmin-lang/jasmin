@@ -104,12 +104,12 @@ crypto_scalarmult_curve25519_amd64_64_fe25519_square:
 	adcq	%rdx, %rcx
 	adcq	%rdx, %r8
 	adcq	%rdx, %rdx
-	imulq	$38, %rdx, %rax
-	addq	%rax, %r15
+	imulq	$38, %rdx, %rdx
+	leaq	(%r15,%rdx), %rax
 	movq	%rbx, 8(%rdi)
 	movq	%rcx, 16(%rdi)
 	movq	%r8, 24(%rdi)
-	movq	%r15, (%rdi)
+	movq	%rax, (%rdi)
 	popq	%r15
 	popq	%r14
 	popq	%r13

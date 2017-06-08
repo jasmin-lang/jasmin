@@ -6,61 +6,61 @@ _crypto_scalarmult_curve25519_amd64_64_work_cswap:
 crypto_scalarmult_curve25519_amd64_64_work_cswap:
 	pushq	%rbp
 	cmpq	$1, %rsi
-	movq	(%rdi), %rax
-	movq	64(%rdi), %rcx
-	movq	%rax, %rdx
-	cmoveq	%rcx, %rax
+	movq	(%rdi), %rcx
+	movq	64(%rdi), %rdx
+	movq	%rcx, %rax
 	cmoveq	%rdx, %rcx
-	movq	%rax, (%rdi)
-	movq	%rcx, 64(%rdi)
-	movq	8(%rdi), %rax
-	movq	72(%rdi), %rcx
-	movq	%rax, %rdx
-	cmoveq	%rcx, %rax
+	cmoveq	%rax, %rdx
+	movq	%rcx, (%rdi)
+	movq	%rdx, 64(%rdi)
+	movq	8(%rdi), %rcx
+	movq	72(%rdi), %rdx
+	movq	%rcx, %rax
 	cmoveq	%rdx, %rcx
-	movq	%rax, 8(%rdi)
-	movq	%rcx, 72(%rdi)
-	movq	16(%rdi), %rax
-	movq	80(%rdi), %rcx
-	movq	%rax, %rdx
-	cmoveq	%rcx, %rax
+	cmoveq	%rax, %rdx
+	movq	%rcx, 8(%rdi)
+	movq	%rdx, 72(%rdi)
+	movq	16(%rdi), %rcx
+	movq	80(%rdi), %rdx
+	movq	%rcx, %rax
 	cmoveq	%rdx, %rcx
-	movq	%rax, 16(%rdi)
-	movq	%rcx, 80(%rdi)
-	movq	24(%rdi), %rax
-	movq	88(%rdi), %rcx
-	movq	%rax, %rdx
-	cmoveq	%rcx, %rax
+	cmoveq	%rax, %rdx
+	movq	%rcx, 16(%rdi)
+	movq	%rdx, 80(%rdi)
+	movq	24(%rdi), %rcx
+	movq	88(%rdi), %rdx
+	movq	%rcx, %rax
 	cmoveq	%rdx, %rcx
-	movq	%rax, 24(%rdi)
-	movq	%rcx, 88(%rdi)
-	movq	32(%rdi), %rax
-	movq	96(%rdi), %rcx
-	movq	%rax, %rdx
-	cmoveq	%rcx, %rax
+	cmoveq	%rax, %rdx
+	movq	%rcx, 24(%rdi)
+	movq	%rdx, 88(%rdi)
+	movq	32(%rdi), %rcx
+	movq	96(%rdi), %rdx
+	movq	%rcx, %rax
 	cmoveq	%rdx, %rcx
-	movq	%rax, 32(%rdi)
-	movq	%rcx, 96(%rdi)
-	movq	40(%rdi), %rax
-	movq	104(%rdi), %rcx
-	movq	%rax, %rdx
-	cmoveq	%rcx, %rax
+	cmoveq	%rax, %rdx
+	movq	%rcx, 32(%rdi)
+	movq	%rdx, 96(%rdi)
+	movq	40(%rdi), %rcx
+	movq	104(%rdi), %rdx
+	movq	%rcx, %rax
 	cmoveq	%rdx, %rcx
-	movq	%rax, 40(%rdi)
-	movq	%rcx, 104(%rdi)
-	movq	48(%rdi), %rax
-	movq	112(%rdi), %rcx
-	movq	%rax, %rdx
-	cmoveq	%rcx, %rax
+	cmoveq	%rax, %rdx
+	movq	%rcx, 40(%rdi)
+	movq	%rdx, 104(%rdi)
+	movq	48(%rdi), %rcx
+	movq	112(%rdi), %rdx
+	movq	%rcx, %rax
 	cmoveq	%rdx, %rcx
-	movq	%rax, 48(%rdi)
-	movq	%rcx, 112(%rdi)
-	movq	56(%rdi), %rax
-	movq	120(%rdi), %rcx
-	movq	%rax, %rdx
-	cmoveq	%rcx, %rax
+	cmoveq	%rax, %rdx
+	movq	%rcx, 48(%rdi)
+	movq	%rdx, 112(%rdi)
+	movq	56(%rdi), %rcx
+	movq	120(%rdi), %rdx
+	movq	%rcx, %rax
 	cmoveq	%rdx, %rcx
-	movq	%rax, 56(%rdi)
-	movq	%rcx, 120(%rdi)
+	cmoveq	%rax, %rdx
+	movq	%rcx, 56(%rdi)
+	movq	%rdx, 120(%rdi)
 	popq	%rbp
 	ret 

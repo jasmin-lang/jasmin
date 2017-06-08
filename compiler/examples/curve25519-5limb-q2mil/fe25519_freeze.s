@@ -20,24 +20,24 @@ L2:
 	movq	%rdx, %rcx
 	shrq	$51, %rcx
 	andq	%rbp, %rdx
-	addq	%rcx, %rsi
+	leaq	(%rsi,%rcx), %rsi
 	movq	%rsi, %rcx
 	shrq	$51, %rcx
 	andq	%rbp, %rsi
-	addq	%rcx, %r8
+	leaq	(%r8,%rcx), %r8
 	movq	%r8, %rcx
 	shrq	$51, %rcx
 	andq	%rbp, %r8
-	addq	%rcx, %r9
+	leaq	(%r9,%rcx), %r9
 	movq	%r9, %rcx
 	shrq	$51, %rcx
 	andq	%rbp, %r9
-	addq	%rcx, %r10
+	leaq	(%r10,%rcx), %r10
 	movq	%r10, %rcx
 	shrq	$51, %rcx
 	andq	%rbp, %r10
 	imulq	$19, %rcx, %rcx
-	addq	%rcx, %rdx
+	leaq	(%rdx,%rcx), %rdx
 	decq	%r11
 L1:
 	cmpq	$0, %r11

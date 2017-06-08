@@ -23,28 +23,28 @@ crypto_scalarmult_curve25519_amd64_64_ladderstep:
 	adcq	72(%rdi), %rcx
 	adcq	80(%rdi), %rdx
 	adcq	88(%rdi), %rsi
-	movq	$0, %r8
-	movq	$38, %r9
-	cmovnbq	%r8, %r9
-	addq	%r9, %rax
-	adcq	%r8, %rcx
-	adcq	%r8, %rdx
-	adcq	%r8, %rsi
-	cmovbq	%r9, %r8
+	movq	$0, %r9
+	movq	$38, %r8
+	cmovnbq	%r9, %r8
 	addq	%r8, %rax
+	adcq	%r9, %rcx
+	adcq	%r9, %rdx
+	adcq	%r9, %rsi
+	cmovbq	%r8, %r9
+	leaq	(%rax,%r9), %rax
 	subq	64(%rdi), %r10
 	sbbq	72(%rdi), %r11
 	sbbq	80(%rdi), %rbp
 	sbbq	88(%rdi), %rbx
-	movq	$0, %r8
-	movq	$38, %r9
-	cmovnbq	%r8, %r9
-	subq	%r9, %r10
-	sbbq	%r8, %r11
-	sbbq	%r8, %rbp
-	sbbq	%r8, %rbx
-	cmovbq	%r9, %r8
+	movq	$0, %r9
+	movq	$38, %r8
+	cmovnbq	%r9, %r8
 	subq	%r8, %r10
+	sbbq	%r9, %r11
+	sbbq	%r9, %rbp
+	sbbq	%r9, %rbx
+	cmovbq	%r8, %r9
+	subq	%r9, %r10
 	movq	%rax, (%rsp)
 	movq	%rcx, 8(%rsp)
 	movq	%rdx, 16(%rsp)
@@ -146,9 +146,9 @@ crypto_scalarmult_curve25519_amd64_64_ladderstep:
 	adcq	%rdx, %rcx
 	adcq	%rdx, %rsi
 	adcq	%rdx, %rdx
-	imulq	$38, %rdx, %rax
-	addq	%rax, %r14
-	movq	%r14, 64(%rsp)
+	imulq	$38, %rdx, %rdx
+	leaq	(%r14,%rdx), %rax
+	movq	%rax, 64(%rsp)
 	movq	%rbp, 72(%rsp)
 	movq	%rcx, 80(%rsp)
 	movq	%rsi, 88(%rsp)
@@ -245,29 +245,26 @@ crypto_scalarmult_curve25519_amd64_64_ladderstep:
 	adcq	%rdx, %rcx
 	adcq	%rdx, %rsi
 	adcq	%rdx, %rdx
-	imulq	$38, %rdx, %rax
-	addq	%rax, %r14
-	movq	%r14, 96(%rsp)
+	imulq	$38, %rdx, %rdx
+	leaq	(%r14,%rdx), %rax
+	movq	%rax, 96(%rsp)
 	movq	%rbp, 104(%rsp)
 	movq	%rcx, 112(%rsp)
 	movq	%rsi, 120(%rsp)
-	movq	%r14, %rax
 	movq	%rbp, %rdx
-	movq	%rcx, %rcx
-	movq	%rsi, %rsi
 	subq	64(%rsp), %rax
 	sbbq	72(%rsp), %rdx
 	sbbq	80(%rsp), %rcx
 	sbbq	88(%rsp), %rsi
-	movq	$0, %r8
-	movq	$38, %r9
-	cmovnbq	%r8, %r9
-	subq	%r9, %rax
-	sbbq	%r8, %rdx
-	sbbq	%r8, %rcx
-	sbbq	%r8, %rsi
-	cmovbq	%r9, %r8
+	movq	$0, %r9
+	movq	$38, %r8
+	cmovnbq	%r9, %r8
 	subq	%r8, %rax
+	sbbq	%r9, %rdx
+	sbbq	%r9, %rcx
+	sbbq	%r9, %rsi
+	cmovbq	%r8, %r9
+	subq	%r9, %rax
 	movq	%rax, 128(%rsp)
 	movq	%rdx, 136(%rsp)
 	movq	%rcx, 144(%rsp)
@@ -284,28 +281,28 @@ crypto_scalarmult_curve25519_amd64_64_ladderstep:
 	adcq	136(%rdi), %rcx
 	adcq	144(%rdi), %rdx
 	adcq	152(%rdi), %rsi
-	movq	$0, %r8
-	movq	$38, %r9
-	cmovnbq	%r8, %r9
-	addq	%r9, %rax
-	adcq	%r8, %rcx
-	adcq	%r8, %rdx
-	adcq	%r8, %rsi
-	cmovbq	%r9, %r8
+	movq	$0, %r9
+	movq	$38, %r8
+	cmovnbq	%r9, %r8
 	addq	%r8, %rax
+	adcq	%r9, %rcx
+	adcq	%r9, %rdx
+	adcq	%r9, %rsi
+	cmovbq	%r8, %r9
+	leaq	(%rax,%r9), %rax
 	subq	128(%rdi), %r10
 	sbbq	136(%rdi), %r11
 	sbbq	144(%rdi), %rbp
 	sbbq	152(%rdi), %rbx
-	movq	$0, %r8
-	movq	$38, %r9
-	cmovnbq	%r8, %r9
-	subq	%r9, %r10
-	sbbq	%r8, %r11
-	sbbq	%r8, %rbp
-	sbbq	%r8, %rbx
-	cmovbq	%r9, %r8
+	movq	$0, %r9
+	movq	$38, %r8
+	cmovnbq	%r9, %r8
 	subq	%r8, %r10
+	sbbq	%r9, %r11
+	sbbq	%r9, %rbp
+	sbbq	%r9, %rbx
+	cmovbq	%r8, %r9
+	subq	%r9, %r10
 	movq	%rax, 160(%rsp)
 	movq	%rcx, 168(%rsp)
 	movq	%rdx, 176(%rsp)
@@ -450,9 +447,9 @@ crypto_scalarmult_curve25519_amd64_64_ladderstep:
 	adcq	%rcx, %r8
 	adcq	%rcx, %r9
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r13
-	movq	%r13, 32(%rsp)
+	imulq	$38, %rcx, %rcx
+	leaq	(%r13,%rcx), %rax
+	movq	%rax, 32(%rsp)
 	movq	%rsi, 40(%rsp)
 	movq	%r8, 48(%rsp)
 	movq	%r9, 56(%rsp)
@@ -592,9 +589,9 @@ crypto_scalarmult_curve25519_amd64_64_ladderstep:
 	adcq	%rcx, %r8
 	adcq	%rcx, %r9
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r13
-	movq	%r13, %rax
+	imulq	$38, %rcx, %rcx
+	leaq	(%r13,%rcx), %rbx
+	movq	%rbx, %rax
 	movq	%rsi, %rcx
 	movq	%r8, %rdx
 	movq	%r9, %r10
@@ -602,29 +599,29 @@ crypto_scalarmult_curve25519_amd64_64_ladderstep:
 	sbbq	40(%rsp), %rcx
 	sbbq	48(%rsp), %rdx
 	sbbq	56(%rsp), %r10
-	movq	$0, %r11
-	movq	$38, %rbp
-	cmovnbq	%r11, %rbp
-	subq	%rbp, %rax
-	sbbq	%r11, %rcx
-	sbbq	%r11, %rdx
-	sbbq	%r11, %r10
-	cmovbq	%rbp, %r11
+	movq	$0, %rbp
+	movq	$38, %r11
+	cmovnbq	%rbp, %r11
 	subq	%r11, %rax
-	addq	32(%rsp), %r13
+	sbbq	%rbp, %rcx
+	sbbq	%rbp, %rdx
+	sbbq	%rbp, %r10
+	cmovbq	%r11, %rbp
+	subq	%rbp, %rax
+	addq	32(%rsp), %rbx
 	adcq	40(%rsp), %rsi
 	adcq	48(%rsp), %r8
 	adcq	56(%rsp), %r9
-	movq	$0, %r11
-	movq	$38, %rbp
-	cmovnbq	%r11, %rbp
-	addq	%rbp, %r13
-	adcq	%r11, %rsi
-	adcq	%r11, %r8
-	adcq	%r11, %r9
-	cmovbq	%rbp, %r11
-	addq	%r11, %r13
-	movq	%r13, 96(%rdi)
+	movq	$0, %rbp
+	movq	$38, %r11
+	cmovnbq	%rbp, %r11
+	addq	%r11, %rbx
+	adcq	%rbp, %rsi
+	adcq	%rbp, %r8
+	adcq	%rbp, %r9
+	cmovbq	%r11, %rbp
+	leaq	(%rbx,%rbp), %r11
+	movq	%r11, 96(%rdi)
 	movq	%rsi, 104(%rdi)
 	movq	%r8, 112(%rdi)
 	movq	%r9, 120(%rdi)
@@ -725,9 +722,9 @@ crypto_scalarmult_curve25519_amd64_64_ladderstep:
 	adcq	%rdx, %rcx
 	adcq	%rdx, %rsi
 	adcq	%rdx, %rdx
-	imulq	$38, %rdx, %rax
-	addq	%rax, %r14
-	movq	%r14, 96(%rdi)
+	imulq	$38, %rdx, %rdx
+	leaq	(%r14,%rdx), %rax
+	movq	%rax, 96(%rdi)
 	movq	%rbp, 104(%rdi)
 	movq	%rcx, 112(%rdi)
 	movq	%rsi, 120(%rdi)
@@ -824,9 +821,9 @@ crypto_scalarmult_curve25519_amd64_64_ladderstep:
 	adcq	%rdx, %rcx
 	adcq	%rdx, %rsi
 	adcq	%rdx, %rdx
-	imulq	$38, %rdx, %rax
-	addq	%rax, %r14
-	movq	%r14, 128(%rdi)
+	imulq	$38, %rdx, %rdx
+	leaq	(%r14,%rdx), %rax
+	movq	%rax, 128(%rdi)
 	movq	%rbp, 136(%rdi)
 	movq	%rcx, 144(%rdi)
 	movq	%rsi, 152(%rdi)
@@ -966,9 +963,9 @@ crypto_scalarmult_curve25519_amd64_64_ladderstep:
 	adcq	%rcx, %r8
 	adcq	%rcx, %r9
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r13
-	movq	%r13, 128(%rdi)
+	imulq	$38, %rcx, %rcx
+	leaq	(%r13,%rcx), %rax
+	movq	%rax, 128(%rdi)
 	movq	%rsi, 136(%rdi)
 	movq	%r8, 144(%rdi)
 	movq	%r9, 152(%rdi)
@@ -1108,9 +1105,9 @@ crypto_scalarmult_curve25519_amd64_64_ladderstep:
 	adcq	%rcx, %r8
 	adcq	%rcx, %r9
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r13
-	movq	%r13, 32(%rdi)
+	imulq	$38, %rcx, %rcx
+	leaq	(%r13,%rcx), %rax
+	movq	%rax, 32(%rdi)
 	movq	%rsi, 40(%rdi)
 	movq	%r8, 48(%rdi)
 	movq	%r9, 56(%rdi)
@@ -1132,35 +1129,33 @@ crypto_scalarmult_curve25519_amd64_64_ladderstep:
 	movq	152(%rsp), %rax
 	movq	$121666, %rdx
 	mulq	%rdx
-	movq	%rax, %rax
-	movq	%rdx, %rdx
 	addq	%rcx, %r8
 	adcq	%rsi, %r9
 	adcq	%rax, %r10
 	adcq	$0, %rdx
-	imulq	$38, %rdx, %rax
-	addq	%rax, %r11
+	imulq	$38, %rdx, %rdx
+	addq	%rdx, %r11
 	adcq	$0, %r8
 	adcq	$0, %r9
 	adcq	$0, %r10
-	movq	$38, %rax
-	movq	$0, %rcx
-	cmovnbq	%rcx, %rax
-	addq	%rax, %r11
-	addq	64(%rsp), %r11
+	movq	$38, %rcx
+	movq	$0, %rax
+	cmovnbq	%rax, %rcx
+	leaq	(%r11,%rcx), %rax
+	addq	64(%rsp), %rax
 	adcq	72(%rsp), %r8
 	adcq	80(%rsp), %r9
 	adcq	88(%rsp), %r10
-	movq	$0, %rax
+	movq	$0, %rdx
 	movq	$38, %rcx
-	cmovnbq	%rax, %rcx
-	addq	%rcx, %r11
-	adcq	%rax, %r8
-	adcq	%rax, %r9
-	adcq	%rax, %r10
-	cmovbq	%rcx, %rax
-	addq	%rax, %r11
-	movq	%r11, 64(%rdi)
+	cmovnbq	%rdx, %rcx
+	addq	%rcx, %rax
+	adcq	%rdx, %r8
+	adcq	%rdx, %r9
+	adcq	%rdx, %r10
+	cmovbq	%rcx, %rdx
+	leaq	(%rax,%rdx), %rax
+	movq	%rax, 64(%rdi)
 	movq	%r8, 72(%rdi)
 	movq	%r9, 80(%rdi)
 	movq	%r10, 88(%rdi)
@@ -1300,9 +1295,9 @@ crypto_scalarmult_curve25519_amd64_64_ladderstep:
 	adcq	%rcx, %r8
 	adcq	%rcx, %r9
 	adcq	%rcx, %rcx
-	imulq	$38, %rcx, %rax
-	addq	%rax, %r13
-	movq	%r13, 64(%rdi)
+	imulq	$38, %rcx, %rcx
+	leaq	(%r13,%rcx), %rax
+	movq	%rax, 64(%rdi)
 	movq	%rsi, 72(%rdi)
 	movq	%r8, 80(%rdi)
 	movq	%r9, 88(%rdi)

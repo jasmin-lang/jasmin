@@ -17,7 +17,7 @@ export fn crypto_scalarmult_curve25519_amd64_64_fe25519_square(reg u64 rp, reg u
 	 reg u64 squaret3;
 	 reg u64 squarezero;
 
-	squarer7 = 0;
+	squarer7 = #x86_MOV(0);
 	squarerax = [xp + 1*8];
 	squarerdx, squarerax = squarerax * [xp + 0*8];
 	r1 = squarerax;
@@ -83,22 +83,22 @@ export fn crypto_scalarmult_curve25519_amd64_64_fe25519_square(reg u64 rp, reg u
 	squarerdx, squarerax = squarerax * crypto_scalarmult_curve25519_amd64_64_38;
 	cf, squarer5 += squarerax;
 	squarerax = squarer6;
-	squarer6 = 0;
+	squarer6 = #x86_MOV(0);
 	_, squarer6 += squarerdx + cf;
 	squarerdx, squarerax = squarerax * crypto_scalarmult_curve25519_amd64_64_38;
 	cf, squarer6 += squarerax;
 	squarerax = squarer7;
-	squarer7 = 0;
+	squarer7 = #x86_MOV(0);
 	_, squarer7 += squarerdx + cf;
 	squarerdx, squarerax = squarerax * crypto_scalarmult_curve25519_amd64_64_38;
 	cf, squarer7 += squarerax;
-	squarer8 = 0;
+	squarer8 = #x86_MOV(0);
 	_, squarer8 += squarerdx + cf;
 	cf, r0 += squarer4;
 	cf, r1 += squarer5 + cf;
 	cf, r2 += squarer6 + cf;
 	cf, r3 += squarer7 + cf;
-	squarezero = 0;
+	squarezero = #x86_MOV(0);
 	_, squarer8 += squarezero + cf;
 	squarer8 *= 38;
 	cf, r0 += squarer8;
