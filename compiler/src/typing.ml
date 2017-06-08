@@ -702,7 +702,7 @@ let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (e: P.pty P.gexpr) : (P.pty,
 let check_call loc doInline lvs f es =
   if doInline = P.DoInline then
     let warning x y y' = 
-      Format.eprintf "Warning: at %a, variables %s and %s will be merged to %s@."
+      Format.eprintf "WARNING: at %a, variables %s and %s will be merged to %s@."
                      P.L.pp_loc loc y.P.v_name y'.P.v_name x.P.v_name in
       
     let m_xy = ref P.Mpv.empty in
@@ -717,15 +717,16 @@ let check_call loc doInline lvs f es =
       match e with
       | P.Pvar y -> let y = P.L.unloc y in add_var x y m_xy; add_var y x m_yx 
       | _      -> 
-        Format.eprintf "Warning: at %a the argument %a is not a variable@." 
+        Format.eprintf "WARNING: at %a the argument %a is not a variable, inlining will introduce an assigment@." 
           P.L.pp_loc loc Printer.pp_pexpr e                         
     in
     List.iter2 check_arg f.P.f_args es;
     let check_res x l = 
       match l with
       | P.Lvar y -> let x = P.L.unloc x in let y = P.L.unloc y in add_var x y m_xy; add_var y x m_yx 
-      | _        -> Format.eprintf "Warning: at %a the lval %a is not a variable@." 
-                       P.L.pp_loc loc Printer.pp_plval l
+      | _        -> 
+        Format.eprintf "WARNING: at %a the lval %a is not a variable, inlining will introduce an assigment@." 
+          P.L.pp_loc loc Printer.pp_plval l
     in
     List.iter2 check_res f.P.f_ret lvs
     
