@@ -2,6 +2,7 @@
 From mathcomp Require Import all_ssreflect.
 (* ------- *) Require Import expr compiler_util gen_map.
 (* ------- *) (* - *) Import PosSet.
+Import  Utf8.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -29,17 +30,18 @@ Definition c_calls (c : Sp.t) (cmd : cmd) :=
   foldl i_calls c cmd.
 
 (* -------------------------------------------------------------------- *)
-Fixpoint dead_calls (c : Sp.t) (p : prog) {struct p} : prog :=
-  if p is (f, fd) :: p then
-    if Sp.mem f c then
-      (f, fd) :: dead_calls (c_calls c fd.(f_body)) p
-    else dead_calls c p
-  else [::].
+Definition live_calls : Sp.t → prog → Sp.t :=
+  foldl (λ c x, let '(n, d) := x in if Sp.mem n c then c_calls c (f_body d) else c).
+
+Definition dead_calls (K: Sp.t) (p: prog) :=
+  filter (λ x, Sp.mem x.1 K) p.
+
+Definition dead_calls_err (c : Sp.t) (p : prog) : cfexec prog :=
+  let k := live_calls c p in
+  if Sp.subset (live_calls k p) k then
+  cfok (dead_calls k p)
+  else cferror Ferr_topo.
 
 (* -------------------------------------------------------------------- *)
-Definition dead_calls_seq (c : seq funname) (p : prog) :=
-  dead_calls (foldl (fun f c => Sp.add c f) Sp.empty c) p.
-
-Definition dead_calls_err (c : seq funname) (p : prog) :=
-  if ~~(uniq (map fst p)) then cferror Ferr_uniqfun 
-  else ok (dead_calls (foldl (fun f c => Sp.add c f) Sp.empty c) p).
+Definition dead_calls_err_seq (c : seq funname) (p : prog) : cfexec prog :=
+  dead_calls_err (foldl (fun f c => Sp.add c f) Sp.empty c) p.

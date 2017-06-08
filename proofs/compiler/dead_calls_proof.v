@@ -2,6 +2,7 @@
 From mathcomp Require Import all_ssreflect.
 (* ------- *) Require Import expr compiler_util sem gen_map dead_calls.
 (* ------- *) (* - *) Import PosSet.
+Import Utf8 xseq.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -91,158 +92,95 @@ apply (@cmd_rect
 + SpD.fsetdec.
 Qed.
 
+Instance live_calls_m : Proper (Sp.Equal ==> eq ==> Sp.Equal) live_calls.
+Proof.
+  move=> x y le p p' <- {p'}.
+  elim: p x y le => // [[n d] p] ih x y le /=.
+  rewrite <- le.
+  case: Sp.mem. 2: auto.
+  apply: ih.
+  rewrite ! c_callsE. SpD.fsetdec.
+Qed.
+
+Instance live_calls_mono : Proper (Sp.Subset ==> eq ==> Sp.Subset) live_calls.
+Proof.
+  move=> x y le p p' <- {p'}.
+  elim: p x y le => // [[n d] p] ih x y le /=.
+  case hm: Sp.mem. apply Sp.mem_spec in hm.
+  rewrite (SpD.F.mem_1 (le _ hm)). apply: ih. rewrite ! c_callsE. SpD.fsetdec.
+  case: Sp.mem. apply: ih. rewrite c_callsE. SpD.fsetdec.
+  auto.
+Qed.
+
+Lemma live_calls_subset c p :
+  Sp.Subset c (live_calls c p).
+Proof.
+  elim: p c => /=. SpD.fsetdec.
+  move=> [n d] p ih c.
+  case: Sp.mem => //.
+  etransitivity. 2: apply: ih.
+  rewrite c_callsE. SpD.fsetdec.
+Qed.
+
+Lemma live_calls_in K p fn fd :
+  Sp.In fn K →
+  get_fundef p fn = Some fd →
+  Sp.Subset (c_Calls (f_body fd)) (live_calls K p).
+Proof.
+  elim: p K fn fd => // [[n d] p] ih K fn fd hn /=.
+  case: eqP.
+  - move <- => {n} h; apply Some_inj in h; subst.
+    rewrite (SpD.F.mem_1 hn) c_callsE.
+    etransitivity. 2: apply: live_calls_subset. SpD.fsetdec.
+  - move => ne rec. specialize (ih _ _ _ hn rec).
+    case hm: Sp.mem => //.
+    etransitivity. exact: ih.
+    apply: live_calls_mono => //.
+    rewrite c_callsE. SpD.fsetdec.
+Qed.
+
 (* -------------------------------------------------------------------- *)
-Lemma dead_calls_subseq c p : subseq (dead_calls c p) p.
+Lemma get_dead_calls K p n d:
+  Sp.In n K →
+  get_fundef p n = Some d →
+  get_fundef (dead_calls K p) n = Some d.
 Proof.
-elim: p c => [|[f fd] p ih] c //=; case: ifPn => _; last first.
-+ case E: (dead_calls _ _) => [//|[f' fd'] p'].
-  case: ifPn => _; last by rewrite -E. have := ih c.
-  by rewrite E => /(subseq_trans _); apply; apply/subseq_cons.
-rewrite eqxx; exact: ih.
-Qed.
-
-Lemma subseq_in {T: eqType} (s: seq T) s' x: subseq s s' -> x \in s -> x \in s'.
-Proof.
-elim: s' s=> [|a' l' IH] s //=.
-+ by move=> /eqP ->.
-move: s IH=> [] // a l IH.
-case: ifP.
-+ move=> /eqP -> Hsub // H.
-  rewrite in_cons in H.
-  move: H=> /orP; case.
-  + move=> /eqP ->.
-    exact: mem_head.
-  + move=> /(IH _ Hsub) H.
-    by rewrite in_cons H orbT.
-move=> _ Hsub Hin.
-have H := IH _ Hsub Hin.
-by rewrite in_cons H orbT.
-Qed.
-
-Lemma get_same (p p': prog) fn fd fd':
-  uniq (map fst p) ->
-  subseq p' p ->
-  get_fundef p fn = Some fd ->
-  get_fundef p' fn = Some fd' ->
-  fd = fd'.
-Proof.
-  elim: p p'=> [] // -[fn0 fd0] l IH /= p' /andP [Hnot Huniq].
-  case: p' IH=> [] // [fn1 fd1] l1 IH.
-  case: ifP.
-  + move=> /eqP ->.
-    rewrite !get_fundef_cons /=.
-    case: ifP.
-    + by move=> _ _ []<- []<-.
-    move=> _ Hsub H0 H1.
-    exact: (IH _ _ Hsub).
-  move=> Hdiff Hsub.
-  move: Hdiff=> /eqP Hdiff.
-  rewrite !get_fundef_cons /=.
-  case: ifP.
-  + move=> /eqP? []?; subst fn fd.
-    move=> H.
-    exfalso; move: Hnot=> /negP; apply.
-    apply: subseq_in.
-    apply: map_subseq Hsub.
-    case: ifP H.
-    + move=> /eqP?[]?; subst fn1 fd1.
-      by rewrite /= in_cons eq_refl.
-    move=> _ Hget.
-    have Hin := get_fundef_in Hget.
-    by rewrite in_cons /= Hin orbT.
-  move=> _ H.
-  case: ifP.
-  + move=> /eqP? []?; subst fn fd'.
-    apply: (IH _ _ Hsub)=> //.
-    by rewrite get_fundef_cons /= eq_refl.
-  move=> Hneq H1.
-  apply: (IH _ _ Hsub H)=> //.
-  by rewrite get_fundef_cons /= Hneq.
-Qed.
-
-Lemma get_dead_calls p fn f f0:
-  Sp.In fn f ->
-  get_fundef p fn = Some f0 ->
-  get_fundef (dead_calls f p) fn = Some f0.
-Proof.
-  elim: p f=> [] // -[fn0 fd0] l IH /= f Hin.
-  case: ifP.
-  + move=> /eqP?[]?; subst fn0 f0.
-    move: Hin=> /SpD.F.mem_1 ->.
-    by rewrite get_fundef_cons /= eq_refl.
-  move=> Hneq H.
-  have Hin': Sp.In fn (c_calls f (f_body fd0)).
-    rewrite c_callsE; SpD.fsetdec.
-  case: ifP.
-  + move=> ?.
-    rewrite get_fundef_cons /= Hneq.
-    exact: IH.
-  move=> _; exact: IH.
+  move=> k a.
+  rewrite /get_fundef.
+  rewrite (assoc_filter (p:= λ x, Sp.mem x K)) => //.
+  apply SpD.F.mem_1, k.
 Qed.
 
 Section PROOF.
-  Variables (f : Sp.t) (p: prog).
+  Variables (K : Sp.t) (p: prog).
   Context (gd: glob_defs).
-  Hypothesis p_uniq: uniq (map fst p).
   Local
-  Definition p' := dead_calls f p.
+  Definition p' := dead_calls K p.
 
-  Definition def_incl sv (p': prog) :=
-    forall x : positive, Sp.In x sv -> exists fd, get_fundef p' x = Some fd.
+  Context (pfxp: Sp.Subset (live_calls K p) K).
 
-  Lemma def_incl_cons x a l: def_incl x l -> def_incl x (a :: l).
+  Definition def_incl sv : Prop := Sp.Subset sv K.
+
+  Lemma def_incl_union a b :
+    def_incl (Sp.union a b) → def_incl a ∧ def_incl b.
   Proof.
-    move=> H y Hy.
-    rewrite get_fundef_cons.
-    case: ifP=> _.
-    + by exists a.2.
-    exact: H.
-  Qed.
-
-  Lemma def_incl_dead y l x fd: get_fundef l x = Some fd -> def_incl y (dead_calls y l).
-  Admitted.
-
-  Lemma call_stbl fn fd:
-    get_fundef p' fn = Some fd -> def_incl (c_Calls fd.(f_body)) p'.
-  Proof.
-    rewrite /p'.
-    elim: p fn f=> // -[fn0 fd0] l IH /= fn f0.
-    case: ifP=> Hin.
-    + rewrite get_fundef_cons /=.
-      case: ifP.
-      + move=> /eqP?[]?; subst fn0 fd0.
-        have Hbla: forall y l, def_incl y (dead_calls y l) by admit.
-        apply: def_incl_cons.
-        have := (Hbla (c_Calls (f_body fd)) l).
-        Fail rewrite c_callsE.
-        admit.
-      move=> _ H.
-      apply: def_incl_cons.
-      exact: (IH _ _ H).
-    move=> H.
-    exact: (IH _ _ H).
-  Admitted.
-
-  Lemma def_incl_union a b q:
-    def_incl (Sp.union a b) q -> def_incl a q /\ def_incl b q.
-  Proof.
-    split=> x Hx; apply: H; SpD.fsetdec.
+    rewrite /def_incl; intuition SpD.fsetdec.
   Qed.
 
   Let Pi (s:estate) (i:instr) (s':estate) :=
-    def_incl (i_Calls i) p' -> sem_I p gd s i s' -> sem_I p' gd s i s'.
+    def_incl (i_Calls i) -> sem_I p gd s i s' -> sem_I p' gd s i s'.
 
   Let Pi_r (s:estate) (i:instr_r) (s':estate) :=
-    def_incl (i_Calls_r i) p' -> sem_i p gd s i s' -> sem_i p' gd s i s'.
+    def_incl (i_Calls_r i) -> sem_i p gd s i s' -> sem_i p' gd s i s'.
 
   Let Pc (s:estate) (c:cmd) (s':estate) :=
-    def_incl (c_Calls c) p' -> sem p gd s c s' -> sem p' gd s c s'.
+    def_incl (c_Calls c) -> sem p gd s c s' -> sem p' gd s c s'.
 
   Let Pfor (i:var_i) vs s c s' :=
-    def_incl (c_Calls c) p' -> sem_for p gd i vs s c s' -> sem_for p' gd i vs s c s'.
+    def_incl (c_Calls c) -> sem_for p gd i vs s c s' -> sem_for p' gd i vs s c s'.
 
   Let Pfun m1 fn vargs m2 vres :=
-    def_incl (Sp.singleton fn) p' -> sem_call p gd m1 fn vargs m2 vres -> sem_call p' gd m1 fn vargs m2 vres.
+    def_incl (Sp.singleton fn) -> sem_call p gd m1 fn vargs m2 vres -> sem_call p' gd m1 fn vargs m2 vres.
 
   Local Lemma Hskip s : Pc s [::] s.
   Proof. move=> _ _; exact: Eskip. Qed.
@@ -373,15 +311,18 @@ Section PROOF.
     Pfun m1 fn vargs m2 vres.
   Proof.
     move=> Hget Hvargs Hsem Hc Hvres Hfull Hin Hcall.
-    have [|fd' Hfd'] := Hin fn; first by SpD.fsetdec.
-    have H := (get_same p_uniq (dead_calls_subseq f p) Hget Hfd'); subst fd'.
+    have Hin' := Hin _ (SpD.F.singleton_2 erefl).
+    have Hfd := get_dead_calls Hin' Hget.
     apply: (EcallRun _ Hvargs _ Hvres Hfull)=> //.
     apply: Hc=> //.
-    apply: (call_stbl Hfd').
+    move=> n hn.
+    apply: pfxp.
+    move: Hget n hn.
+    exact: live_calls_in.
   Qed.
 
   Lemma dead_calls_callP fd mem mem' va vr:
-    Sp.In fd f ->
+    Sp.In fd K ->
     sem_call p gd mem fd va mem' vr ->
     sem_call p' gd mem fd va mem' vr.
   Proof.
@@ -390,12 +331,9 @@ Section PROOF.
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc)=> //.
     sinversion H.
     move=> {H1 H2 H3 H4} x Hx.
-    have ? : x = fd by SpD.fsetdec.
-    subst x=> {Hx}.
-    exists f0.
-    rewrite /p'.
-    exact: get_dead_calls.
+    SpD.fsetdec.
   Qed.
+
 End PROOF.
 
 Lemma foldl_compat x y l (x_eq_y: Sp.Equal x y):
@@ -418,15 +356,26 @@ apply: foldl_compat; SpD.fsetdec.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma dead_calls_errP (s : seq funname) (p p': prog) (gd: glob_defs) :
-  dead_calls_err s p = ok p' ->
-  forall f m args m' res, f \in s -> 
-    sem_call p gd m f args m' res ->
+Lemma dead_calls_errP (s : Sp.t) (p p': prog) (gd: glob_defs) :
+  dead_calls_err s p = cfok p' →
+  ∀ f m args m' res, Sp.In f s →
+    sem_call p gd m f args m' res →
     sem_call p' gd m f args m' res.
 Proof.
-rewrite /dead_calls_err; case: ifP=> // /negbFE H []<- f m args m' res fins Hcall.
+rewrite /dead_calls_err; case: ifP => // /SpD.F.subset_2 pfx [] <- f m args m' res fins Hcall.
 apply: dead_calls_callP=> //.
-elim: s fins=> // a l IH Hin.
-rewrite foldlE.
-rewrite in_cons in Hin; case/orP: Hin=> [/eqP ->|/IH Hin]; SpD.fsetdec.
+apply: live_calls_subset fins.
+Qed.
+
+Theorem dead_calls_err_seqP (s : seq funname) (p p': prog) (gd: glob_defs) :
+  dead_calls_err_seq s p = cfok p' →
+  ∀ f m args m' res, f \in s →
+    sem_call p gd m f args m' res →
+    sem_call p' gd m f args m' res.
+Proof.
+  rewrite /dead_calls_err_seq.
+  move=> h f m args m' res fins; apply: (dead_calls_errP h).
+  elim: {h} s fins=> // a l IH Hin.
+  rewrite foldlE.
+  rewrite in_cons in Hin; case/orP: Hin=> [/eqP ->|/IH Hin]; SpD.fsetdec.
 Qed.

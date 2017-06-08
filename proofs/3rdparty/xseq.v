@@ -7,6 +7,10 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Definition pair_inj {A B: Type} {a a': A} {b b': B} (e: (a, b) = (a', b')) :
+  a = a' ∧ b = b' :=
+  let 'Logic.eq_refl := e in conj Logic.eq_refl Logic.eq_refl.
+
 (* -------------------------------------------------------------------- *)
 Section Assoc.
 Variable (T : eqType) (U : Type).
@@ -35,6 +39,14 @@ Proof.
   by move => a b; apply Some_inj in b; left; f_equal.
 Qed.
 
+Lemma mem_assoc (T: eqType) U (s: seq (T * U)) x w :
+  List.In (x, w) s → ∃ w', assoc s x = Some w'.
+Proof.
+  elim: s => // [ [t u] s] ih [ /pair_inj [] -> -> | rec ] /=.
+  by rewrite eq_refl; eauto.
+  case: (_ == _); eauto.
+Qed.
+
 Lemma InP (T: eqType) (s: seq T) m :
   reflect (List.In m s) (m \in s).
 Proof.
@@ -42,6 +54,17 @@ Proof.
   move => a s ih. rewrite in_cons.
   case: (@eqP _ m a). by constructor; left.
   case ih; constructor. by right. simpl; intuition.
+Qed.
+
+Lemma mem_uniq_assoc (T: eqType) U (s: seq (T * U)) x w :
+  List.In (x, w) s → uniq (map fst s) → assoc s x = Some w.
+Proof.
+  elim: s => // [ [t u] s] ih [ /pair_inj [] -> -> | rec ] /andP [nr un] /=.
+  by rewrite eq_refl; eauto.
+  case: eqP; last by eauto.
+  fold (List.In (x, w) s) in rec.
+  apply (List.in_map fst), (rwP (InP _ _)) in rec.
+  move=> ?; subst. rewrite rec in nr. done.
 Qed.
 
 Lemma assoc_mem_dom' (T: eqType) U (s : seq (T * U)) x w :
@@ -117,3 +140,21 @@ Proof.
 Qed.
 
 End AssocMap.
+
+(* -------------------------------------------------------------------- *)
+Section AssocFilter.
+Context (T: eqType) (U: Type) (p: pred T).
+
+Lemma neq (x y: T) (n: x ≠ y) : x == y = false.
+Proof. by case: eqP. Qed.
+
+Lemma assoc_filter (m: seq (T * U)) (n: T) :
+  p n →
+  assoc [seq x <- m | p x.1] n = assoc m n.
+Proof.
+  elim: m n => // [[q r] m ] ih n hn /=; case: eqP.
+  + by move => <- {q}; rewrite hn /= eq_refl.
+  move=> ne; case: (p _); auto; rewrite /= neq; auto.
+Qed.
+
+End AssocFilter.
