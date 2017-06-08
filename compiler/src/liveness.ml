@@ -23,6 +23,15 @@ let writev_lval s = function
 
 let writev_lvals s lvs = List.fold_left writev_lval s lvs
 
+let is_trivial_move x e =
+  match x, e with
+  | Lvar x, Pvar y -> kind_i x = kind_i y 
+  | _              -> false
+
+let is_move_op = function
+  | Ox86_MOV -> true
+  | _        -> false
+
 (* When [weak] is true, the out live-set contains also the written variables. *)
 let rec live_i weak i s_o =
   let s_i, s_o, d = live_d weak i.i_desc s_o in
@@ -35,12 +44,20 @@ and live_d weak d (s_o: Sv.t) =
     s_i, s_o, Cblock c
 
   | Cassgn(x,t,e) ->
+
     let s_i = Sv.union (vars_e e) (dep_lv s_o x) in
-    s_i, (if weak then writev_lval s_o x else s_o), Cassgn(x,t,e)
+    let s_o = 
+      if weak && not (is_trivial_move x e) then writev_lval s_o x 
+      else s_o in
+    s_i, s_o, Cassgn(x,t,e)
 
   | Copn(xs,o,es) ->
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
-    s_i, (if weak then writev_lvals s_o xs else s_o), Copn(xs,o,es)
+    let s_o = 
+     if weak && not (is_move_op o && is_trivial_move (List.hd xs) (List.hd es))
+     then writev_lvals s_o xs
+     else s_o in
+    s_i, s_o, Copn(xs,o,es)
 
   | Cif(e,c1,c2) ->
     let s1, c1 = live_c weak c1 s_o in
