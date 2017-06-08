@@ -134,7 +134,6 @@ let rec pp_comp_err tbl fmt = function
     Format.fprintf fmt "err arr exp %a and %a"
       (Printer.pp_expr ~debug:true) (Conv.expr_of_cexpr tbl e1)
       (Printer.pp_expr ~debug:true) (Conv.expr_of_cexpr tbl e2)
-                   
   | Compiler_util.Cerr_arr_exp_v _ ->
     Format.fprintf fmt "err arr exp: lval"
   | Compiler_util.Cerr_stk_alloc s ->
@@ -172,6 +171,8 @@ and pp_comp_ferr tbl fmt = function
     Format.fprintf fmt "loop iterator to small"
   | Compiler_util.Ferr_uniqfun ->
     Format.fprintf fmt "two function declarations with the same name"
+  | Compiler_util.Ferr_topo ->
+    Format.fprintf fmt "program is not a topological sorting of the call-graph"
   | Compiler_util.Ferr_lowering ->
     Format.fprintf fmt "lowering check fails"
 

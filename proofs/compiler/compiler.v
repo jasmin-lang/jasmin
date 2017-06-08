@@ -106,7 +106,7 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
   Let p := inline_prog_err cparams.(rename_fd) p in
   let p := cparams.(print_prog) Inlining p in
 
-  Let p := dead_calls_err entries p in
+  Let p := dead_calls_err_seq entries p in
   let p := cparams.(print_prog) RemoveUnusedFunction p in
 
   Let p := unroll Loop.nb p in
