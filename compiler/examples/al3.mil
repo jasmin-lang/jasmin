@@ -1,0 +1,20 @@
+fn swap(reg u64[2] u) -> reg u64[2] {
+reg u64[2] z;
+z[1] = u[0];
+z[0] = u[1];
+return z;
+}
+
+export
+fn f() -> reg u64 {
+reg u64[2] x;
+reg u64[2] y;
+reg u64 r;
+x[1] = 1;
+x[0] = 0;
+
+y = swap(x);
+x = y;
+r = x[0];
+return r;
+}

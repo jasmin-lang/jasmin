@@ -504,11 +504,11 @@ let split_live_ranges (f: 'info func) : unit func =
   Format.eprintf "(* After split *)@.%a@."
     (Printer.pp_func ~debug:true) f;
   *)
-  (* let lf = Liveness.live_fd false f in *)
+  let lf = Liveness.live_fd false f in
   let vars, nv = collect_variables true f in
-  let eqc, _tr, _fr = collect_equality_constraints "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
+  let eqc, tr, _fr = collect_equality_constraints "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
   let vars = normalize_variables vars eqc in
-  (* let _ = collect_conflicts vars _tr lf in (* May fail *) *)
+  let _ = collect_conflicts vars tr lf in (* May fail *)
   let a =
     reverse_varmap vars |>
     subst_of_allocation vars
