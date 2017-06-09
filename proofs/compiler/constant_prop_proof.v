@@ -37,7 +37,7 @@ Unset Printing Implicit Defensive.
 Local Open Scope seq_scope.
 Local Open Scope vmap_scope.
 
-Local Notation cpm := (Mvar.t Z).
+Local Notation cpm := (Mvar.t const_v).
 
 (* ** proofs
  * -------------------------------------------------------------------- *)
@@ -297,8 +297,14 @@ Proof.
   by case: (b).
 Qed.
 
+Definition vconst c := 
+  match c with
+  | Cint z => Vint z
+  | Cword z => Vword (I64.repr z)
+  end.
+
 Definition valid_cpm (vm: vmap)  (m:cpm) := 
-  forall x n, Mvar.get m x = Some n -> get_var vm x = ok (Vint n).
+  forall x n, Mvar.get m x = Some n -> get_var vm x = ok (vconst n).
 
 Lemma const_prop_eP (e:pexpr) s (m:cpm):  
   valid_cpm (evm s) m ->
@@ -307,7 +313,7 @@ Proof.
   move=> Hvalid;rewrite /eqok.
   elim: e=> [z | b | e He | x | g | x e He | x e He | o e He | o e1 He1 e2 He2 | e He e1 He1 e2 He2] v //=.
   + by case Heq: sem_pexpr => [ve|] //=;rewrite (He _ Heq).
-  + by case Heq: Mvar.get => [n|] //=;rewrite (Hvalid _ _ Heq).
+  + by case Heq: Mvar.get => [n|] //=;rewrite (Hvalid _ _ Heq);case: (n).
   + apply:on_arr_varP;rewrite /on_arr_var => n t ? -> /=.
     by apply: rbindP => ?;apply: rbindP => ? /He -> /= ->.  
   + apply:rbindP => w -> /=.
@@ -352,10 +358,15 @@ Lemma add_cpmP s1 s1' m x e tag v :
 Proof.
   rewrite /add_cpm;case: x => [xi | x | x | x] //= He.
   case: tag => //.
-  case: is_constP He => //= n [<-].
+  case:e He => // [n | [] // n] /= [<-].
+  + case: x => -[] [] //= xn vi [] <- /= Hv z /= n0.
+    have := Hv z n0.
+    case: ({| vtype := sint; vname := xn |} =P z).
+    + move=> <- /=;rewrite Mvar.setP_eq=> ? -[] <-;by rewrite /get_var Fv.setP_eq.
+    by move=> /eqP Hneq;rewrite Mvar.setP_neq.
   case: x => -[] [] //= xn vi [] <- /= Hv z /= n0.
   have := Hv z n0.
-  case: ({| vtype := sint; vname := xn |} =P z).
+  case: ({| vtype := sword; vname := xn |} =P z).
   + move=> <- /=;rewrite Mvar.setP_eq=> ? -[] <-;by rewrite /get_var Fv.setP_eq.
   by move=> /eqP Hneq;rewrite Mvar.setP_neq.
 Qed.
@@ -452,7 +463,7 @@ Proof. move=> Hw Hv; apply: (valid_cpm_rm _ Hv);eapply vrvP;eauto. Qed.
 End GLOB_DEFS.
 
 Instance const_prop_e_m : 
-  Proper (@Mvar_eq Z ==> eq ==> eq) const_prop_e.
+  Proper (@Mvar_eq const_v ==> eq ==> eq) const_prop_e.
 Proof.
   move=> m1 m2 Hm e e' <- {e'}.
   elim: e => //=.
@@ -466,14 +477,14 @@ Proof.
 Qed.
 
 Instance const_prop_rv_m : 
-  Proper (@Mvar_eq Z ==> eq ==> RelationPairs.RelProd (@Mvar_eq Z) eq) const_prop_rv.
+  Proper (@Mvar_eq const_v ==> eq ==> RelationPairs.RelProd (@Mvar_eq const_v) eq) const_prop_rv.
 Proof.
   move=> m1 m2 Hm rv rv' <- {rv'}.
   by case: rv => [ v | v | v p | v p] //=;rewrite Hm.
 Qed.
 
 Instance const_prop_rvs_m : 
-  Proper (@Mvar_eq Z ==> eq ==> RelationPairs.RelProd (@Mvar_eq Z) eq) const_prop_rvs.
+  Proper (@Mvar_eq const_v ==> eq ==> RelationPairs.RelProd (@Mvar_eq const_v) eq) const_prop_rvs.
 Proof.
   move=> m1 m2 Hm rv rv' <- {rv'}.
   elim: rv m1 m2 Hm => //= rv rvs Hrec m1 m2 Hm.
@@ -485,15 +496,15 @@ Proof.
 Qed.
 
 Instance add_cpm_m : 
-  Proper (@Mvar_eq Z ==> eq ==> eq ==> eq ==> @Mvar_eq Z) add_cpm.
+  Proper (@Mvar_eq const_v ==> eq ==> eq ==> eq ==> @Mvar_eq const_v) add_cpm.
 Proof.
   move=> m1 m2 Hm x x' <- {x'} t t' <- {t'} e e' <- {e'}.
   case: x t => //= v [];rewrite ?Hm //.
-  by case: is_const => [n | ];rewrite Hm.
+  by case:e => //= [n | [] //= n];rewrite Hm.
 Qed.
 
 Instance merge_cpm_m : 
-  Proper (@Mvar_eq Z ==> @Mvar_eq Z ==> @Mvar_eq Z) merge_cpm.
+  Proper (@Mvar_eq const_v ==> @Mvar_eq const_v ==> @Mvar_eq const_v) merge_cpm.
 Proof.
   move=> m1 m2 Hm m1' m2' Hm' z;rewrite /merge_cpm.
   set f :=(X in Mvar.map2 X).
@@ -504,7 +515,7 @@ Proof.
 Qed.
 
 Instance remove_cpm_m : 
-  Proper (@Mvar_eq Z ==> Sv.Equal ==> @Mvar_eq Z) remove_cpm.
+  Proper (@Mvar_eq const_v ==> Sv.Equal ==> @Mvar_eq const_v) remove_cpm.
 Proof.
   move=> m1 m2 Hm s1 s2 Hs z.
   case: Mvar.get (remove_cpm_spec m1 s1 z) => [? |];
@@ -609,28 +620,28 @@ Section PROPER.
 End PROPER.
 
 Lemma const_prop_i_m : 
-  Proper (@Mvar_eq Z ==> eq ==> @Mvarc_eq Z) const_prop_i. 
+  Proper (@Mvar_eq const_v ==> eq ==> @Mvarc_eq const_v) const_prop_i. 
 Proof.
   move=> m1 m2 Hm i1 i2 <-.
   apply : (instr_Rect Wmk Wnil Wcons Wasgn Wopn Wif Wfor Wwhile Wcall i1) Hm.
 Qed.
 
 Lemma const_prop_i_r_m : 
-  Proper (@Mvar_eq Z ==> eq ==> eq ==> @Mvarc_eq Z) const_prop_ir. 
+  Proper (@Mvar_eq const_v ==> eq ==> eq ==> @Mvarc_eq const_v) const_prop_ir. 
 Proof.
   move=> m1 m2 Hm ii1 ii2 <- i1 i2 <-.
   apply : (instr_r_Rect Wmk Wnil Wcons Wasgn Wopn Wif Wfor Wwhile Wcall i1) Hm.
 Qed.
 
 Lemma const_prop_m : 
-  Proper (@Mvar_eq Z ==> eq ==> @Mvarc_eq Z) (const_prop const_prop_i). 
+  Proper (@Mvar_eq const_v ==> eq ==> @Mvarc_eq const_v) (const_prop const_prop_i). 
 Proof.
   move=> m1 m2 Hm c1 c2 <-.
   apply : (cmd_rect Wmk Wnil Wcons Wasgn Wopn Wif Wfor Wwhile Wcall c1) Hm.
 Qed.
 
 Lemma valid_cpm_m : 
-  Proper (eq ==> @Mvar_eq Z ==> iff) valid_cpm. 
+  Proper (eq ==> @Mvar_eq const_v ==> iff) valid_cpm. 
 Proof.
   move=> s? <- m m' Hm;split => H z n Hget;apply H.
   by rewrite Hm. by rewrite -Hm.

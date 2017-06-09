@@ -282,6 +282,9 @@ let main () =
       Format.eprintf "WARNING: at %a, %a@." Printer.pp_iloc loc Printer.pp_warning_msg msg;
       ii in
         
+    let inline_var x = 
+      let x = Conv.var_of_cvar tbl x in
+      x.v_kind = Inline in
       
     let cparams = {
       Compiler.rename_fd    = rename_fd;
@@ -293,7 +296,8 @@ let main () =
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;
       Compiler.print_prog   = (fun s p -> eprint s pp_cprog p; p);
-      Compiler.warning      = warning 
+      Compiler.warning      = warning;
+      Compiler.inline_var   = inline_var;
     } in
 
     let entries =

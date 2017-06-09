@@ -40,15 +40,16 @@ Local Open Scope seq_scope.
 
 Section INLINE.
 
+Context (inline_var: var -> bool).
 Variable rename_fd : instr_info -> funname -> fundef -> fundef.
 
 Lemma get_funP p ii f fd : 
   get_fun p ii f = ok fd -> get_fundef p f = Some fd.
 Proof. by rewrite /get_fun;case:get_fundef => // ? [->]. Qed.
 
-Local Notation inline_i' := (inline_i rename_fd).
-Local Notation inline_fd' := (inline_fd rename_fd).
-Local Notation inline_prog' := (inline_prog rename_fd).
+Local Notation inline_i' := (inline_i inline_var rename_fd).
+Local Notation inline_fd' := (inline_fd inline_var rename_fd).
+Local Notation inline_prog' := (inline_prog inline_var rename_fd).
 
 Section INCL.
 
@@ -224,7 +225,7 @@ Lemma assgn_tuple_Lvar p gd ii (xs:seq var_i) flag es vs s s' :
   disjoint (vrvs xs) (read_es es) ->  
   sem_pexprs gd s es = ok vs ->
   write_lvals gd s xs vs = ok s' ->
-  sem p gd s (assgn_tuple ii xs flag es) s'.
+  sem p gd s (assgn_tuple inline_var ii xs flag es) s'.
 Proof.
   rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
   elim: xs es vs s s' => [ | x xs Hrec] [ | e es] [ | v vs] s s' //=.
@@ -251,7 +252,7 @@ Lemma assgn_tuple_Pvar p gd ii xs flag rxs vs s s' :
   disjoint (vrvs xs) (read_es es) -> 
   mapM (fun x : var_i => get_var (evm s) x) rxs = ok vs ->
   write_lvals gd s xs vs = ok s' ->
-  sem p gd s (assgn_tuple ii xs flag es) s'.
+  sem p gd s (assgn_tuple inline_var ii xs flag es) s'.
 Proof.
   rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
   have : evm s = evm s [\vrvs xs] by done.
@@ -725,7 +726,7 @@ Section PROOF.
 End PROOF.
 
 Lemma inline_call_errP p p' gd f mem mem' va vr:
-  inline_prog_err rename_fd p = ok p' ->
+  inline_prog_err inline_var rename_fd p = ok p' ->
   sem_call p gd mem f va mem' vr ->
   sem_call p' gd mem f va mem' vr.
 Proof.

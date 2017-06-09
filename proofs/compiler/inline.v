@@ -40,8 +40,18 @@ Local Open Scope seq_scope.
 (* ** inlining
  * -------------------------------------------------------------------- *)
 
-Definition assgn_tuple iinfo (xs:lvals) flags (es:pexprs) :=
-  let assgn xe := MkI iinfo (Cassgn xe.1 flags xe.2) in
+Section INLINE.
+
+Context (inline_var: var -> bool).
+
+Definition get_flag (x:lval) flag := 
+  match x with
+  | Lvar x => if inline_var x then AT_inline else flag
+  | _      => flag
+  end.
+ 
+Definition assgn_tuple iinfo (xs:lvals) flag (es:pexprs) :=
+  let assgn xe := MkI iinfo (Cassgn xe.1 (get_flag xe.1 flag) xe.2) in
   map assgn (zip xs es).
 
 Definition inline_c (inline_i: instr -> Sv.t -> ciexec (Sv.t * cmd)) c s := 
@@ -74,7 +84,7 @@ Definition get_fun (p:prog) iinfo (f:funname) :=
   | None    => cierror iinfo (Cerr_unknown_fun f "inlining")
   end.
 
-Section INLINE.
+
 
 Variable rename_fd : instr_info -> funname -> fundef -> fundef.
 

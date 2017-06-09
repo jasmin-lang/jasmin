@@ -25,6 +25,7 @@ val bi_of_int64 : Integers.Int64.int -> Bigint.zint
 
 (* -------------------------------------------------------------------- *)
 val cvar_of_var : 'a coq_tbl -> var -> Var0.Var.var
+val var_of_cvar : 'a coq_tbl -> Var0.Var.var -> var
 val vari_of_cvari : 'a coq_tbl -> Expr.var_i -> var L.located
 
 val cexpr_of_expr : 'info coq_tbl -> expr -> Expr.pexpr

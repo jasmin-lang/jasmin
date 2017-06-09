@@ -250,14 +250,36 @@ Definition s_if e e1 e2 :=
 (* ** constant propagation 
  * -------------------------------------------------------------------- *)
 
-Local Notation cpm := (Mvar.t Z).
+Inductive const_v :=
+  | Cint of Z
+  | Cword of Z.
+ 
+Scheme Equality for const_v.
+
+Lemma const_v_eq_axiom : Equality.axiom const_v_beq.
+Proof.
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_const_v_dec_bl.
+  by apply: internal_const_v_dec_lb.
+Qed.
+
+Definition const_v_eqMixin     := Equality.Mixin const_v_eq_axiom.
+Canonical  const_v_eqType      := Eval hnf in EqType const_v const_v_eqMixin.
+
+Local Notation cpm := (Mvar.t const_v).
+
+Definition const v := 
+  match v with
+  | Cint z  => Pconst z
+  | Cword z => wconst z
+  end.
 
 Fixpoint const_prop_e (m:cpm) e :=
   match e with
   | Pconst _      => e
   | Pbool  _      => e
   | Pcast e       => Pcast (const_prop_e m e)
-  | Pvar  x       => if Mvar.get m x is Some n then Pconst n else e
+  | Pvar  x       => if Mvar.get m x is Some n then const n else e
   | Pglobal _ => e
   | Pget  x e     => Pget x (const_prop_e m e)
   | Pload x e     => Pload x (const_prop_e m e)
@@ -266,10 +288,10 @@ Fixpoint const_prop_e (m:cpm) e :=
   | Pif e e1 e2   => s_if (const_prop_e m e) (const_prop_e m e1) (const_prop_e m e2)
   end.
 
-Definition empty_cpm : cpm := @Mvar.empty Z.
+Definition empty_cpm : cpm := @Mvar.empty const_v.
 
 Definition merge_cpm : cpm -> cpm -> cpm := 
-  Mvar.map2 (fun _ (o1 o2: option Z) => 
+  Mvar.map2 (fun _ (o1 o2: option const_v) => 
    match o1, o2 with
    | Some n1, Some n2 => 
      if (n1 == n2)%Z then Some n1
@@ -301,7 +323,11 @@ Fixpoint const_prop_rvs (m:cpm) (rvs:lvals) : cpm * lvals :=
 Definition add_cpm (m:cpm) (rv:lval) tag e := 
   if rv is Lvar x then
     if tag is AT_inline then 
-      if is_const e is Some n then Mvar.set m x n else m 
+      match e with
+      | Pconst z =>  Mvar.set m x (Cint z)
+      | Pcast (Pconst z) =>  Mvar.set m x (Cword z)
+      | _ => m
+      end
     else m
   else m. 
                            

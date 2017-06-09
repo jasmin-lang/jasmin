@@ -77,6 +77,7 @@ Record compiler_params := {
   var_alloc_fd : funname -> fundef -> fundef;
   share_stk_fd : funname -> fundef -> fundef;
   lowering_vars : fresh_vars;
+  inline_var   : var -> bool;
   is_var_in_memory : var_i → bool;
   reg_alloc_fd : funname -> fundef -> fundef;
   stk_alloc_fd : funname -> fundef -> seq (var * Z) * sfundef;
@@ -104,7 +105,7 @@ Definition stk_alloc_prog (p:prog) : sprog * (seq (seq (var * Z))) :=
     (List.map (fun f => let (x, y) := cparams.(stk_alloc_fd) f.1 f.2 in ((f.1, y), x)) p).
 
 Definition compile_prog (entries : seq funname) (p:prog) :=
-  Let p := inline_prog_err cparams.(rename_fd) p in
+  Let p := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
   let p := cparams.(print_prog) Inlining p in
 
   Let p := dead_calls_err_seq entries p in
