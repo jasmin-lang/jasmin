@@ -371,7 +371,7 @@ let cat_of_at = function
   | AT_rename_arg -> C.AT_rename_arg
   | AT_rename_res -> C.AT_rename_res
   | AT_unroll     -> C.AT_inline
-  | AT_phinode -> assert false
+  | AT_phinode    -> assert false
 
 let at_of_cat = function
   | C.AT_keep       -> AT_keep
