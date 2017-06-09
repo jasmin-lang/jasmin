@@ -897,9 +897,9 @@ move=> eqv; case: e => //.
   move=> r ok_r -[<-] ok_v /=; eexists; first by reflexivity.
   case: (xgetreg_ex eqv ok_r ok_v) => w ok_w ->.
   by case: {+}v ok_w => // [|[]//] w' -[->].
-+ move=> g h; apply ok_inj in h; subst op.
-  rewrite/=/get_global.
-  case: (get_global_word _ _) => // v' h; apply ok_inj in h; subst; eauto.
++ move=> g h; apply ok_inj in h; subst op; rewrite /= /get_global.
+  case: (get_global_word _ _) => // v' h; apply ok_inj in h.
+  by subst; eauto.
 move=> x e /=; t_xrbindP => r1 ok_r1 w ok_w [<-].
 move=> z o ok_o ok_z z' o' ok_o' ok_z' res ok_res <- {v} /=.
 exists res => //; rewrite -ok_res; f_equal; first by case: eqv.
@@ -930,7 +930,12 @@ Lemma xread_ireg_ok gd ii v e op c s xs :
   -> ireg_of_pexpr ii e = ok op
   -> sem_pexpr gd (to_estate s) e = ok v
   -> exists2 w, read_ireg op xs = w & v = Vword w.
-Proof. Admitted.
+Proof.
+move=> eqv; case: e => // [[] // z|] /=.
++ by case=> [<-] [<-]; eauto.
+move=> x; t_xrbindP=> r ok_r [<-] ok_v.
+by case: (xgetreg_ex eqv ok_r ok_v) => w /to_word_ok -> <-; eauto.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xwrite_ok ii x (v : word) op c cs gd (s1 s2 : estate) xs1 :

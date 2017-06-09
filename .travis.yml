@@ -8,7 +8,7 @@ services:
 - docker
 notifications:
   email:
-  - jasmin+ci@framalistes.org
+  - false
 env:
 - COQV=8.6-1.6.1 TARGET=compiler
 - COQV=8.6-1.6.1 TARGET=coq
