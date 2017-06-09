@@ -30,7 +30,7 @@ type tyerror =
   | InvalidArgCount     of int * int
   | DuplicateFun        of S.symbol * L.t
   | InvalidCast         of P.pty pair
-  | InvalidGlobal of S.symbol
+  | InvalidGlobal       of S.symbol
   | LvalueWithNoBaseTy
   | LvalueTooWide
   | LvalueTooNarrow
@@ -41,6 +41,7 @@ type tyerror =
   | Unsupported
   | UnknownPrim         of S.symbol
   | ReturnLocalStack    of S.symbol
+  | BadVariableKind     of P.pvar_i * P.v_kind 
 
 exception TyError of L.t * tyerror
 
@@ -125,6 +126,10 @@ let pp_tyerror fmt (code : tyerror) =
 
   | ReturnLocalStack v ->
       Format.fprintf fmt "can not return the local stack variable %s" v
+  | BadVariableKind(x,kind) ->
+    Format.fprintf fmt "the variable %a has kind %a instead of %a"
+       Printer.pp_pvar (L.unloc x) Printer.pp_kind (P.kind_i x) Printer.pp_kind kind
+
 
 (* -------------------------------------------------------------------- *)
 module Env : sig
@@ -699,7 +704,41 @@ let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (e: P.pty P.gexpr) : (P.pty,
     end
   | _ -> Cassgn (x, tg, e)
 
+let warning loc msg =
+  Format.eprintf "WARNING: at %a, %(%)@." L.pp_loc loc msg
+
+let rec is_constant e = 
+  match e with 
+  | P.Pconst _ | P.Pbool _ -> true
+  | P.Pcast(_, e) -> is_constant e
+  | P.Pvar x  -> P.kind_i x = P.Const || P.kind_i x = P.Inline
+  | P.Pglobal _  | P.Pget _ | P.Pload _ -> false
+  | P.Papp1 (_, e) -> is_constant e
+  | P.Papp2 (_, e1, e2) -> is_constant e1 && is_constant e2
+  | P.Pif(e1, e2, e3)   -> is_constant e1 && is_constant e2 && is_constant e3
+
 let check_call loc doInline lvs f es =
+  (* Check that arguments have the same kind than parameters *)
+  let doarg x e = 
+    let loc = L.loc e in
+    let e   = L.unloc e in
+    let _ = 
+      match x.P.v_kind with
+      | P.Const -> assert false
+      | P.Global -> assert false
+      | P.Inline -> 
+        if not (is_constant e) then 
+          Format.eprintf 
+            "WARNING: at %a, the expression %a will not be evaluated to a constant expression, inlining will introduce an assigment@."
+            L.pp_loc loc Printer.pp_pexpr e
+      | (P.Stack | P.Reg) as k ->
+        match e with
+        | Pvar z -> if P.kind_i z <> k then rs_tyerror ~loc (BadVariableKind(z, k))
+        | _      -> () in
+    e in
+  let es = List.map2 doarg f.P.f_args es in
+
+  (* Extra check for inlining *)
   if doInline = P.DoInline then
     let warning x y y' = 
       Format.eprintf "WARNING: at %a, variables %s and %s will be merged to %s@."
@@ -739,7 +778,8 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
       let lvs = tt_lvalues env ls tlvs in
       let es  = tt_exprs_cast env args tes in
       let doInline = P.DoInline in
-      check_call (L.loc pi) doInline lvs f es;
+      let les = List.map2 (fun l e -> L.mk_loc (L.loc l) e) args es in
+      check_call (L.loc pi) doInline lvs f les;
       P.Ccall (P.DoInline, lvs, f.P.f_name, es)
 
     | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
@@ -843,7 +883,7 @@ let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
   let fdef =
     { P.f_loc = loc;
       P.f_cc   = tt_call_conv pf.pdf_cc;
-      P.f_name = P.F.mk (L.unloc pf.pdf_name);
+      P.f_name = P.F.mk (L.unloc pf.pdf_name); 
       P.f_args = args;
       P.f_body = fst body;
       P.f_ret  = snd body; } in

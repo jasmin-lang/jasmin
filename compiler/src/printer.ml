@@ -213,15 +213,15 @@ and pp_cblock pp_info pp_var fmt c =
 
 (* -------------------------------------------------------------------- *)
 
-let pp_kind = function
-  | Const  -> "Const"
-  | Stack  -> "Stack"
-  | Reg    -> "Reg"
-  | Inline -> "Inline"
-  | Global -> "Global"
+let pp_kind fmt = function
+  | Const  ->  F.fprintf fmt "Const"
+  | Stack  ->  F.fprintf fmt "Stack"
+  | Reg    ->  F.fprintf fmt "Reg"
+  | Inline ->  F.fprintf fmt "Inline"
+  | Global ->  F.fprintf fmt "Global"
 
 let pp_ty_decl (pp_size:F.formatter -> 'size -> unit) fmt v =
-  F.fprintf fmt "%s %a" (pp_kind v.v_kind) (pp_gtype pp_size) v.v_ty
+  F.fprintf fmt "%a %a" pp_kind v.v_kind (pp_gtype pp_size) v.v_ty
 
 let pp_var_decl pp_var pp_size fmt v =
   F.fprintf fmt "%a %a" (pp_ty_decl pp_size) v pp_var v
@@ -255,23 +255,21 @@ let pp_pitem pp_var =
         (pp_ge pp_var) e in
   aux
 
+let pp_pvar fmt x = F.fprintf fmt "%s" x.v_name 
+
 let pp_ptype =
-  let pp_var fmt x = F.fprintf fmt "%s" x.v_name in
-  let pp_size = pp_ge pp_var in
+  let pp_size = pp_ge pp_pvar in
   pp_gtype pp_size
 
 let pp_plval = 
-  let pp_var fmt x = F.fprintf fmt "%s" x.v_name in
-  pp_glv pp_var 
+  pp_glv pp_pvar 
 
 let pp_pexpr =
-  let pp_var fmt x = F.fprintf fmt "%s" x.v_name in
-  pp_ge pp_var 
+  pp_ge pp_pvar 
 
 let pp_pprog fmt p =
-  let pp_var fmt x = F.fprintf fmt "%s" x.v_name in
   Format.fprintf fmt "@[<v>%a@]"
-    (pp_list "@ @ " (pp_pitem pp_var)) (List.rev p)
+    (pp_list "@ @ " (pp_pitem pp_pvar)) (List.rev p)
 
 
 let pp_fun ?(pp_info=pp_noinfo) pp_var fmt fd =

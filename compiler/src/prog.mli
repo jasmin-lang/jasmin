@@ -68,7 +68,7 @@ type v_kind =
   | Stack         (* stack variable    *)
   | Reg           (* register variable *)
   | Inline        (* inline variable   *)
-  | Global (* global (in memory) constant *)
+  | Global        (* global (in memory) constant *)
   [@@deriving compare,sexp]
 
 type 'ty gvar = private {
