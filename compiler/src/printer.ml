@@ -334,6 +334,9 @@ let pp_prog ~debug fmt p =
 
 (* ----------------------------------------------------------------------- *)
 
+let pp_warning_msg fmt = function
+  | Compiler_util.Use_lea -> Format.fprintf fmt "LEA instruction is used"
+      
 (*
 let pp_cprog fmt p =
   let open Expr in

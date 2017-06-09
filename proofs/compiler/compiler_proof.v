@@ -100,7 +100,7 @@ Proof.
   apply: (stack_alloc_proof.check_progP Hpstk').
   apply: (dead_code_callP Hpd).
   apply: (CheckAllocReg.alloc_callP He').
-  apply: (lower_callP _ Hlower).
+  apply: (lower_callP _ _ Hlower).
   apply: (CheckExpansion.alloc_callP He).
   apply : remove_init_fdP .
   apply: (dead_code_callP Hps').

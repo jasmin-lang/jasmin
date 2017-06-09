@@ -704,9 +704,6 @@ let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (e: P.pty P.gexpr) : (P.pty,
     end
   | _ -> Cassgn (x, tg, e)
 
-let warning loc msg =
-  Format.eprintf "WARNING: at %a, %(%)@." L.pp_loc loc msg
-
 let rec is_constant e = 
   match e with 
   | P.Pconst _ | P.Pbool _ -> true

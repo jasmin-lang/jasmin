@@ -82,6 +82,7 @@ Record compiler_params := {
   stk_alloc_fd : funname -> fundef -> seq (var * Z) * sfundef;
   print_prog   : compiler_step -> prog -> prog;
 (*  print_linear : lprog -> lprog; *)
+  warning      : instr_info -> warning_msg -> instr_info
 }.
 
 Variable cparams : compiler_params.
@@ -132,7 +133,7 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
   Let _ := CheckExpansion.check_prog pr pe in
 
   if (fvars_correct cparams.(lowering_vars) pe) then
-    let pl := lower_prog cparams.(lowering_vars) cparams.(is_var_in_memory) pe in
+    let pl := lower_prog cparams.(warning) cparams.(lowering_vars) cparams.(is_var_in_memory) pe in
     let pl := cparams.(print_prog) LowerInstruction pl in
 
     let pa := reg_alloc_prog pl in

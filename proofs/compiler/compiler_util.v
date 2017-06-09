@@ -6,6 +6,12 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+(* ** Compiler warning  
+ * -------------------------------------------------------------------------- *)
+
+Variant warning_msg : Set := 
+  | Use_lea.
+
 (* ** Compiler error 
  * -------------------------------------------------------------------------- *)
 

@@ -795,12 +795,12 @@ Definition sem_sopn (o:sopn) :  values -> exec values :=
   | Ox86_SUB     => app_ww   x86_sub
   | Ox86_MUL     => app_ww   x86_mul
   | Ox86_IMUL    => app_ww   x86_imul
-  | Ox86_IMUL64    => app_ww   x86_imul64
+  | Ox86_IMUL64  => app_ww   x86_imul64
   | Ox86_DIV     => app_www  x86_div
   | Ox86_IDIV    => app_www  x86_idiv
   | Ox86_ADC     => app_wwb  x86_adc
   | Ox86_SBB     => app_wwb  x86_sbb
-  | Ox86_NEG	=> app_w	x86_neg
+  | Ox86_NEG     => app_w    x86_neg
   | Ox86_INC     => app_w    x86_inc
   | Ox86_DEC     => app_w    x86_dec
   | Ox86_SETcc   => app_b    x86_setcc
@@ -811,10 +811,10 @@ Definition sem_sopn (o:sopn) :  values -> exec values :=
   | Ox86_OR      => app_ww   x86_or
   | Ox86_XOR     => app_ww   x86_xor
   | Ox86_NOT     => app_w    x86_not
-  | Ox86_SHL     => app_ww x86_shl
-  | Ox86_SHR     => app_ww x86_shr
-  | Ox86_SAR     => app_ww x86_sar
-  | Ox86_SHLD    => app_www x86_shld
+  | Ox86_SHL     => app_ww   x86_shl
+  | Ox86_SHR     => app_ww   x86_shr
+  | Ox86_SAR     => app_ww   x86_sar
+  | Ox86_SHLD    => app_www  x86_shld
   end.
 
 (* ** Instructions

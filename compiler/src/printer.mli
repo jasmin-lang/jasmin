@@ -1,5 +1,7 @@
 open Prog
 
+val pp_warning_msg :  Format.formatter -> Compiler_util.warning_msg -> unit
+
 val pp_list :
    ('a, 'b, 'c, 'd, 'd, 'a) CamlinternalFormatBasics.format6 ->
    (Format.formatter -> 'e -> unit) ->

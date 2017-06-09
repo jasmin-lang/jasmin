@@ -25,7 +25,7 @@
 
 From mathcomp Require Import all_ssreflect.
 Require Import Utf8.
-Require Import expr.
+Require Import compiler_util expr.
 
 Section LOWERING.
 
@@ -39,6 +39,8 @@ Record fresh_vars : Type :=
 
     fresh_multiplicand : Equality.sort Ident.ident;
   }.
+
+Context (warning: instr_info -> warning_msg -> instr_info).
 
 Definition vars_I (i: instr) := Sv.union (read_I i) (write_I i).
 
@@ -322,13 +324,13 @@ Definition lower_cassgn_classify e x : lower_cassgn_t :=
   | Papp2 op a b =>
     match op with
     | Oadd Op_w =>
-      match add_inc_dec_classify a b with
-      | AddInc y => LowerInc Ox86_INC y
-      | AddDec y => LowerInc Ox86_DEC y
-      | AddNone => 
-        match is_lea x e with 
-        | Some l => LowerLea l
-        | _      => LowerFopn Ox86_ADD [:: a ; b ] I32.modulus 
+      match is_lea x e with
+      | Some l => LowerLea l
+      | None   =>
+        match add_inc_dec_classify a b with
+        | AddInc y => LowerInc Ox86_INC y
+        | AddDec y => LowerInc Ox86_DEC y
+        | AddNone  => LowerFopn Ox86_ADD [:: a ; b ] I32.modulus 
         end
       end
     | Osub Op_w =>
@@ -405,37 +407,40 @@ Definition opn_5flags (immed_bound: Z) (vi: var_info)
   | Opn5f_other => fopn o a
   end.
 
-Definition lower_cassgn (x: lval) (tg: assgn_tag) (e: pexpr) : seq instr_r :=
+Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (e: pexpr) : cmd :=
   let vi := var_info_of_lval x in
   let f := Lnone_b vi in
-  let copn o a := [:: Copn [:: x ] o [:: a] ] in
-  let inc o a := [:: Copn [:: f ; f ; f ; f ; x ] o [:: a ] ] in
+  let copn o a := [:: MkI ii (Copn [:: x ] o [:: a]) ] in
+  let inc o a := [:: MkI ii (Copn [:: f ; f ; f ; f ; x ] o [:: a ]) ] in
   match lower_cassgn_classify e x with
   | LowerMov b =>
     if b
     then
       let c := {| v_var := {| vtype := sword; vname := fresh_multiplicand fv |} ; v_info := vi |} in
-      [:: Copn [:: Lvar c] Ox86_MOV [:: e ] ; Copn [:: x ] Ox86_MOV [:: Pvar c ] ]
+      [:: MkI ii (Copn [:: Lvar c] Ox86_MOV [:: e ]) ; MkI ii (Copn [:: x ] Ox86_MOV [:: Pvar c ]) ]
     else 
       (* IF e is 0 then use Oset0 instruction *)
       if (e == Pcast (Pconst 0)) && ~~ is_lval_in_memory x then
-        [:: Copn [:: f ; f ; f ; f ; f ; x] Oset0 [::] ]
+        [:: MkI ii (Copn [:: f ; f ; f ; f ; f ; x] Oset0 [::]) ]
       else copn Ox86_MOV e
   | LowerCopn o e => copn o e
   | LowerInc o e => inc o e
-  | LowerFopn o es m => opn_5flags m vi f x o es
+  | LowerFopn o es m => map (MkI ii) (opn_5flags m vi f x o es)
   | LowerLea (MkLea d b sc o) => 
     let d := wconst (I64.unsigned d) in
     let sc := wconst (I64.unsigned sc) in
     let b := oapp Pvar (wconst 0) b in
     let o := oapp Pvar (wconst 0) o in
-    [:: Copn [::x] Ox86_LEA [:: d; b; sc; o] ]
-  | LowerEq a b => [:: Copn [:: f ; f ; f ; f ; x ] Ox86_CMP [:: a ; b ] ]
-  | LowerLt a b => [:: Copn [:: f ; x ; f ; f ; f ] Ox86_CMP [:: a ; b ] ]
+    (* This match is crasy but else extraction remove the call to warning *)
+    let ii := warning ii Use_lea in
+    [:: MkI ii (Copn [::x] Ox86_LEA [:: d; b; sc; o]) ]
+      
+  | LowerEq a b => [:: MkI ii (Copn [:: f ; f ; f ; f ; x ] Ox86_CMP [:: a ; b ]) ]
+  | LowerLt a b => [:: MkI ii (Copn [:: f ; x ; f ; f ; f ] Ox86_CMP [:: a ; b ]) ]
   | LowerIf e e1 e2 =>
      let (l, e) := lower_condition vi e in
-     l ++ [:: Copn [:: x] Ox86_CMOVcc [:: e; e1; e2]]
-  | LowerAssgn => [:: Cassgn x tg e]    
+     map (MkI ii) (l ++ [:: Copn [:: x] Ox86_CMOVcc [:: e; e1; e2]])
+  | LowerAssgn => [::  MkI ii (Cassgn x tg e)]    
   end.
 
 (* Lowering of Oaddcarry
@@ -493,19 +498,18 @@ Definition lower_cmd (lower_i: instr -> cmd) (c:cmd) : cmd :=
 
 Fixpoint lower_i (i:instr) : cmd :=
   let (ii, ir) := i in
-  map (MkI ii)
   match ir with
-  | Cassgn l t e => lower_cassgn l t e
-  | Copn   l o e => lower_copn l o e
+  | Cassgn l t e => lower_cassgn ii l t e
+  | Copn   l o e =>   map (MkI ii) (lower_copn l o e)
   | Cif e c1 c2  =>
      let '(pre, e) := lower_condition xH e in
-     rcons pre (Cif e (lower_cmd lower_i c1) (lower_cmd lower_i c2))
+       map (MkI ii) (rcons pre (Cif e (lower_cmd lower_i c1) (lower_cmd lower_i c2)))
   | Cfor v (d, lo, hi) c =>
-     [:: Cfor v (d, lo, hi) (lower_cmd lower_i c)]
+     [:: MkI ii (Cfor v (d, lo, hi) (lower_cmd lower_i c))]
   | Cwhile c e c' =>
      let '(pre, e) := lower_condition xH e in
-     [:: Cwhile ((lower_cmd lower_i c) ++ map (MkI xH) pre) e (lower_cmd lower_i c')]
-  | _ => [:: ir]
+       map (MkI ii) [:: Cwhile ((lower_cmd lower_i c) ++ map (MkI xH) pre) e (lower_cmd lower_i c')]
+  | _ =>   map (MkI ii) [:: ir]
   end.
 
 Definition lower_fd (fd: fundef) : fundef :=

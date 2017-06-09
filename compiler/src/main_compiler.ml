@@ -277,6 +277,12 @@ let main () =
         Subst.extend_iinfo ii fd in
       apply "rename_fd" doit fn cfd in
 
+    let warning ii msg = 
+      let loc,_ = Conv.get_iinfo tbl ii in
+      Format.eprintf "WARNING: at %a, %a@." Printer.pp_iloc loc Printer.pp_warning_msg msg;
+      ii in
+        
+      
     let cparams = {
       Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = apply "arr exp" Array_expand.arrexp_func;
@@ -287,6 +293,7 @@ let main () =
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;
       Compiler.print_prog   = (fun s p -> eprint s pp_cprog p; p);
+      Compiler.warning      = warning 
     } in
 
     let entries =

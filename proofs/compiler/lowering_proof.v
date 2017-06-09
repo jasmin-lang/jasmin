@@ -42,6 +42,7 @@ Section PROOF.
 
   Variable p : prog.
   Context (gd : glob_defs).
+  Context (warning: instr_info -> warning_msg -> instr_info).
   Variable fv : fresh_vars.
   Context (is_var_in_memory: var_i → bool).
 
@@ -85,8 +86,8 @@ Section PROOF.
   Local Hint Resolve sf_neq_of cf_neq_zf sf_neq_zf of_neq_zf of_neq_sf.
   Local Hint Resolve of_in_fv cf_in_fv sf_in_fv pf_in_fv zf_in_fv multiplicand_in_fv.
 
-  Local
-  Definition p' := lower_prog fv is_var_in_memory p.
+  Local 
+  Definition p' := lower_prog warning fv is_var_in_memory p.
 
   Definition eq_exc_fresh s1 s2 :=
     s1.(emem) = s2.(emem) /\ s1.(evm) = s2.(evm) [\ fvars].
@@ -145,7 +146,7 @@ Section PROOF.
   Let Pi (s:estate) (i:instr) (s':estate) :=
     disj_fvars (vars_I i) ->
     forall s1, eq_exc_fresh s1 s ->
-      exists s1', sem p' gd s1 (lower_i fv is_var_in_memory i) s1' /\ eq_exc_fresh s1' s'.
+      exists s1', sem p' gd s1 (lower_i warning fv is_var_in_memory i) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pi_r (s:estate) (i:instr_r) (s':estate) :=
     forall ii, Pi s (MkI ii i) s'.
@@ -153,12 +154,12 @@ Section PROOF.
   Let Pc (s:estate) (c:cmd) (s':estate) :=
     disj_fvars (vars_c c) ->
     forall s1, eq_exc_fresh s1 s ->
-      exists s1', sem p' gd s1 (lower_cmd (lower_i fv is_var_in_memory) c) s1' /\ eq_exc_fresh s1' s'.
+      exists s1', sem p' gd s1 (lower_cmd (lower_i warning fv is_var_in_memory) c) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pfor (i:var_i) vs s c s' :=
     disj_fvars (Sv.union (vars_c c) (Sv.singleton i)) ->
     forall s1, eq_exc_fresh s1 s ->
-      exists s1', sem_for p' gd i vs s1 (lower_cmd (lower_i fv is_var_in_memory) c) s1' /\ eq_exc_fresh s1' s'.
+      exists s1', sem_for p' gd i vs s1 (lower_cmd (lower_i warning fv is_var_in_memory) c) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pfun m1 fn vargs m2 vres :=
     sem_call p' gd m1 fn vargs m2 vres.
@@ -909,6 +910,12 @@ Section PROOF.
     + move: o=> [| |[]|[]|[]| | | | | | |[]|k|[]|k|k|k] //.
       (* Oadd Op_w *)
       + move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 Hv]]]; subst v.
+        case Heq: is_lea => [lea|].  
+        + (* LEA *)
+          have [/mk_leaP -/(_ s (I64.add z1 z2))] := is_leaP Heq.
+          apply: rbindP Hv => /= v1 -> /=. rewrite /sem_pexprs /=. 
+          t_xrbindP => ? v2 -> /= <- ? [] ?;subst v1 v2.
+          move=> /(_ (refl_equal _)) ?;eexists;eauto.
         have := add_inc_dec_classifyP Hv.
         case: (add_inc_dec_classify e1 e2)=> [y|y|//].
         (* AddInc *)
@@ -919,14 +926,8 @@ Section PROOF.
         + rewrite /sem_pexprs /=.
           move=> [w [-> <-]] /=.
           rewrite /x86_dec /rflags_of_aluop_nocf_w /flags_w /=; eauto.
-        + move=> _;case Heq: is_lea => [lea|].  
-          (* LEA *)
-          have [/mk_leaP -/(_ s (I64.add z1 z2))] := is_leaP Heq.
-          apply: rbindP Hv => /= v1 -> /=. rewrite /sem_pexprs /=. 
-          t_xrbindP => ? v2 -> /= <- ? [] ?;subst v1 v2.
-          move=> /(_ (refl_equal _)) ?;eexists;eauto.
         (* AddNone *)
-        + split.
+        + move=> _;split.
           rewrite read_es_cons {2}/read_e /= !read_eE. SvD.fsetdec.
           by rewrite Hv /= Hw.
       (* Omul Op_w *)        
@@ -1093,7 +1094,7 @@ Section PROOF.
       apply: sem_seq1; apply: EmkI; apply: Eopn.
       move: Hslea; rewrite /sem_lea /sem_pexprs /=. 
       case: b => [b|] /=;case: o => [o|] /=;t_xrbindP.
-      + move=> zb vb -> Hvb zo vo -> Hvo ? /=;subst w;rewrite Hvb /= Hvo /=.
+      + move=> zb vb -> Hvb zo vo -> Hvo ? /=;subst w. rewrite Hvb /= Hvo /=.
         by rewrite /x86_lea !I64.repr_unsigned Hsc /= Hw'.
       + move=> zb vb -> Hvb ? /=;subst w;rewrite Hvb /=.
         by rewrite /x86_lea !I64.repr_unsigned Hsc /= Hw'.
