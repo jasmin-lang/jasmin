@@ -1,6 +1,9 @@
 open Utils
 open Prog
 
+module IntSet = Sint
+module IntMap = Mint
+
 let fill_in_missing_names (f: 'info func) : 'info func =
   let fresh_name : L.t -> ty -> ty gvar_i =
     let count = ref 0 in
@@ -29,8 +32,9 @@ let fill_in_missing_names (f: 'info func) : 'info func =
   { f with f_body }
 
 let x86_equality_constraints (tbl: (var, int) Hashtbl.t) (k: int -> int -> unit)
+    (k': int -> int -> unit)
     (lvs: 'ty glvals) (op: op) (es: 'ty gexprs) : unit =
-  let merge v w =
+  let merge k v w =
     try
       let i = Hashtbl.find tbl (L.unloc v) in
       let j = Hashtbl.find tbl (L.unloc w) in
@@ -51,7 +55,9 @@ let x86_equality_constraints (tbl: (var, int) Hashtbl.t) (k: int -> int -> unit)
   | (Ox86_IMUL64),
     [ _ ; _ ; _ ; _ ; _ ; Lvar v ], [ Pvar w ; _ ]
     (* TODO: add more constraints *)
-    -> merge v w
+    -> merge k v w
+  | Ox86_MOV, [ Lvar x ], [ Pvar y ] when kind_i x = kind_i y ->
+    merge k' x y
   | _, _, _ -> ()
 
 (* Set of instruction information for each variable equivalence class. *)
@@ -75,23 +81,35 @@ let normalize_trace (eqc: Puf.t) (tr: 'info instr list array) : 'info trace =
   ) tr;
   tbl
 
+type friend = IntSet.t IntMap.t
+
+let get_friend (i: int) (f: friend) : IntSet.t =
+  IntMap.find_default IntSet.empty i f
+
+let set_friend i j (f: friend) : friend =
+  f
+  |> IntMap.modify_def (IntSet.singleton j) i (IntSet.add j)
+  |> IntMap.modify_def (IntSet.singleton i) j (IntSet.add i)
+
 let collect_equality_constraints
     (msg: string)
     copn_constraints
     (tbl: (var, int) Hashtbl.t) (nv: int)
-    (f: 'info func) : Puf.t * 'info trace =
+    (f: 'info func) : Puf.t * 'info trace * friend =
   let p = ref (Puf.create nv) in
   let tr = Array.make nv [] in
+  let fr = ref IntMap.empty in
   let add ii x y =
       tr.(x) <- ii :: tr.(x);
       p := Puf.union !p x y
   in
+  let addf x y = fr := set_friend x y !fr in
   let rec collect_instr_r ii =
     function
     | Cblock s
     | Cfor (_, _, s)
       -> collect_stmt s
-    | Copn (lvs, op, es) -> copn_constraints tbl (add ii) lvs op es
+    | Copn (lvs, op, es) -> copn_constraints tbl (add ii) addf lvs op es
     | Cassgn (Lvar x, (AT_rename_arg | AT_rename_res | AT_phinode), Pvar y) ->
       let i = try Hashtbl.find tbl (L.unloc x) with
         Not_found ->
@@ -101,6 +119,13 @@ let collect_equality_constraints
       in
       let j = Hashtbl.find tbl (L.unloc y) in
       add ii  i j
+    | Cassgn (Lvar x, _, Pvar y) when kind_i x = kind_i y ->
+      begin try
+        let i = Hashtbl.find tbl (L.unloc x) in
+        let j = Hashtbl.find tbl (L.unloc y) in
+        fr := set_friend i j !fr
+      with Not_found -> ()
+    end
     | Cassgn _
     | Ccall _
       -> ()
@@ -110,7 +135,7 @@ let collect_equality_constraints
   and collect_stmt s = List.iter collect_instr s in
   collect_stmt f.f_body;
   let eqc = !p in
-  eqc, normalize_trace eqc tr
+  eqc, normalize_trace eqc tr, !fr
 
 (* Conflicting variables: variables that may be live simultaneously
    and thus must be allocated to distinct registers.
@@ -120,8 +145,6 @@ let collect_equality_constraints
    Variables are represented by their equivalence class
    (equality constraints mandated by the architecture).
 *)
-module IntSet = Sint
-module IntMap = Mint
 
 type conflicts = IntSet.t IntMap.t
 
@@ -414,9 +437,21 @@ let allocate_forced_registers (vars: (var, int) Hashtbl.t) (cnf: conflicts)
 let find_vars (vars: (var, int) Hashtbl.t) (n: int) : var list =
   Hashtbl.fold (fun v m i -> if n = m then v :: i else i) vars []
 
+(* Returns a variable from [regs] that is allocated to a friend variable of [i]. Defaults to [dflt]. *)
+let get_friend_registers (dflt: var) (fr: friend) (a: allocation) (i: int) (regs: var list) : var =
+  let fregs =
+    get_friend i fr
+    |> IntSet.elements
+    |> List.map (fun k -> try Some (IntMap.find k a) with Not_found -> None)
+  in
+  try
+    List.find (fun r -> List.mem (Some r) fregs) regs
+  with Not_found -> dflt
+
 let greedy_allocation
     (vars: (var, int) Hashtbl.t)
     (nv: int) (cnf: conflicts)
+    (fr: friend)
     (a: allocation) : allocation =
   let a = ref a in
   for i = 0 to nv - 1 do
@@ -424,7 +459,9 @@ let greedy_allocation
       let c = conflicting_registers i cnf !a in
       let has_no_conflict v = not (List.mem (Some v) c) in
       match List.filter has_no_conflict X64.allocatable with
-      | x :: _ -> a := IntMap.add i x !a
+      | x :: regs ->
+        let y = get_friend_registers x fr !a i regs in
+        a := IntMap.add i y !a
       | _ -> hierror "Register allocation: no more register to allocate %a" Printer.(pp_list "; " (pp_var ~debug:true)) (find_vars vars i)
     )
   done;
@@ -448,12 +485,12 @@ let regalloc (f: 'info func) : unit func =
     (Printer.pp_func ~debug:true) f;
   let lf = Liveness.live_fd true f in
   let vars, nv = collect_variables false f in
-  let eqc, tr = collect_equality_constraints "Regalloc" x86_equality_constraints vars nv f in
+  let eqc, tr, fr = collect_equality_constraints "Regalloc" x86_equality_constraints vars nv f in
   let vars = normalize_variables vars eqc in
   let conflicts = collect_conflicts vars tr lf in
   let a =
     allocate_forced_registers vars conflicts f IntMap.empty |>
-    greedy_allocation vars nv conflicts |>
+    greedy_allocation vars nv conflicts fr |>
     subst_of_allocation vars
   in Subst.gsubst_func (fun ty -> ty) a f
    |> Ssa.remove_phi_nodes
@@ -469,7 +506,7 @@ let split_live_ranges (f: 'info func) : unit func =
   *)
   (* let lf = Liveness.live_fd false f in *)
   let vars, nv = collect_variables true f in
-  let eqc, _tr = collect_equality_constraints "Split live range" (fun _ _ _ _ _ -> ()) vars nv f in
+  let eqc, _tr, _fr = collect_equality_constraints "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
   let vars = normalize_variables vars eqc in
   (* let _ = collect_conflicts vars _tr lf in (* May fail *) *)
   let a =
