@@ -681,8 +681,7 @@ Definition eval_SHL o ir s : x86_result :=
   if i == I64.zero then ok s else
     let rc := msb (I64.shl v (I64.sub i I64.one)) in
     let r  := I64.shl v i in
-    Let s  := write_oprd o r s in
-    ok (st_update_rflags (fun rf =>
+    let s  := st_update_rflags (fun rf =>
           match rf with
           | OF => Some (if i == I64.one
                   then Def (msb r (+) rc)
@@ -692,7 +691,8 @@ Definition eval_SHL o ir s : x86_result :=
           | PF => Some (Def (PF_of_word r))
           | ZF => Some (Def (ZF_of_word r))
           | _  => None
-          end) s).
+          end) s
+  in write_oprd o r s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SHLD o1 r2 ir s : x86_result :=
@@ -702,11 +702,10 @@ Definition eval_SHLD o1 r2 ir s : x86_result :=
 
   if i == I64.zero then ok s else
     let rc := msb (I64.shl v1 (I64.sub i I64.one)) in
-    let r1  := I64.shl v1 i in
+    let r1 := I64.shl v1 i in
     let r2 := I64.shr v2 (I64.sub (I64.repr I64.zwordsize) i) in
     let r  := I64.or r1 r2 in
-    Let s  := write_oprd o1 r s in
-    ok (st_update_rflags (fun rf =>
+    let s  := st_update_rflags (fun rf =>
           match rf with
           | OF => Some (if i == I64.one
                   then Def (msb r (+) rc)
@@ -716,7 +715,8 @@ Definition eval_SHLD o1 r2 ir s : x86_result :=
           | PF => Some (Def (PF_of_word r))
           | ZF => Some (Def (ZF_of_word r))
           | _  => None
-          end) s).
+          end) s
+    in write_oprd o1 r s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SHR o ir s : x86_result :=
@@ -726,18 +726,18 @@ Definition eval_SHR o ir s : x86_result :=
   if i == I64.zero then ok s else
     let rc := lsb (I64.shru v (I64.sub i I64.one)) in
     let r  := I64.shru v i in
-    Let s  := write_oprd o r s in
-    ok (st_update_rflags (fun rf =>
+    let s  := st_update_rflags (fun rf =>
           match rf with
           | OF => Some (if i == I64.one
-                  then Def (msb v)
+                  then Def (msb r)
                   else Undef)
           | CF => Some (Def rc)
           | SF => Some (Def (SF_of_word r))
           | PF => Some (Def (PF_of_word r))
           | ZF => Some (Def (ZF_of_word r))
           | _  => None
-          end) s).
+          end) s
+    in write_oprd o r s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SAL o ir s : x86_result :=
@@ -751,8 +751,7 @@ Definition eval_SAR o ir s : x86_result :=
   if i == I64.zero then ok s else
     let rc := lsb (I64.shr v (I64.sub i I64.one)) in
     let r  := I64.shr v i in
-    Let s  := write_oprd o r s in
-    ok (st_update_rflags (fun rf =>
+    let s  := st_update_rflags (fun rf =>
           match rf with
           | OF => Some (if i == I64.one then Def false else Undef)
           | CF => Some (Def rc)
@@ -760,7 +759,8 @@ Definition eval_SAR o ir s : x86_result :=
           | PF => Some (Def (PF_of_word r))
           | ZF => Some (Def (ZF_of_word r))
           | _  => None
-          end) s).
+          end) s
+    in write_oprd o r s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_JMP lbl s : x86_result :=
