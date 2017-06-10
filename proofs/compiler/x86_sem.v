@@ -516,11 +516,30 @@ Definition eval_IMUL o1 (o2 : option (oprd * option word)) s : x86_result  :=
       let hi := I64.mulhs v1 v2 in
       let ov := dwords hi lo in
       let ov := (ov <? I64.min_signed)%Z || (ov >? I64.max_unsigned)%Z in
+      let s  := st_update_rflags (rflags_of_mul ov) s in
+      let s  := st_write_reg RDX hi s in
       let s  := st_write_reg RAX lo s in
-      let s  := st_write_reg RDX lo s in
-      ok (st_update_rflags (rflags_of_mul ov) s)
+      ok s
 
-  | _ => type_error
+  | Some (o2, None) =>
+      Let v1 := read_oprd o1 s in
+      Let v2 := read_oprd o2 s in
+      let lo := I64.mul v1 v2 in
+      let hi := I64.mulhs v1 v2 in
+      let ov := dwords hi lo in
+      let ov := (ov <? I64.min_signed)%Z || (ov >? I64.max_unsigned)%Z in
+      let s  := st_update_rflags (rflags_of_mul ov) s in
+      write_oprd o1 lo s
+
+   | Some (o2, Some v2) =>
+      Let v1 := read_oprd o2 s in
+      let lo := I64.mul v1 v2 in
+      let hi := I64.mulhs v1 v2 in
+      let ov := dwords hi lo in
+      let ov := (ov <? I64.min_signed)%Z || (ov >? I64.max_unsigned)%Z in
+      let s  := st_update_rflags (rflags_of_mul ov) s in
+      write_oprd o1 lo s
+
   end.
 
 (* -------------------------------------------------------------------- *)

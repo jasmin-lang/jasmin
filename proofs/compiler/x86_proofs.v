@@ -1612,7 +1612,33 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
       eexists; first by reflexivity.
       case: (xgetreg_ex eqv' ok_x ok1) => /= we1.
       by rewrite ok_w1 => -[?]; subst we1 => ->.
-    - admit.
+    - case: o ok_vs => //= ok_vs _;
+        case Ees: as_pair => [[e1 e2]|] //;
+        case El1: as_singleton => [x|] //.
+      have := as_pairT Ees => ?; subst es => {Ees}.
+      have := as_singletonT El1 => ?; subst l => {El1}.
+      have := lvals_as_alu_varsT El => ?; subst xs => {El}.
+      move: ok_aout; rewrite /sem_pexprs /=; t_XrbindP.
+      move=> ve1 ok1 _ ve2 ok2 <- ?; subst aout; move: ok_vs.
+      t_xrbindP => w1 /to_word_ok w1E w2 /to_word_ok w2E.
+      subst ve1 ve2 => ok_vs y ok_y op1 ok_op1.
+      case E: is_wconst => [z|]; t_XrbindP; last move=> o2 ok_op2.
+      + move=> ?; subst => {aE} /=; case: e2 ok2 E => //=.
+        case=> //= z' -[?] -[?]; subst w2 z'.
+        case: (xread_ok eqv' ok_op1 ok1) => _ -> -[<-] /=.
+        move: ok_vs ok_wr; rewrite /x86_imul64 => -[?]; subst vs.
+        set b1 := (X in _ _ _ (X :: _ :: _)); rewrite -/b1.
+        move/(@write_lvals_rcons _ [:: _; _; _; _; _] [:: _; _; _; _; _]).
+        case=> s' ok_s' ok_s2; apply: xwrite_ok; eauto.
+        by apply: xmul; last rewrite to_estateK; eauto.
+      + case: eqP => // ?; subst y => -[?]; subst a => {aE} /=.
+        case: (xread_ok eqv' ok_op1 ok1) => _ -> -[<-] /=.
+        case: (xread_ok eqv' ok_op2 ok2) => _ -> -[<-] /=.
+        move: ok_vs ok_wr; rewrite /x86_imul64 => -[?]; subst vs.
+        set b1 := (X in _ _ _ (X :: _ :: _)); rewrite -/b1.
+        move/(@write_lvals_rcons _ [:: _; _; _; _; _] [:: _; _; _; _; _]).
+        case=> s' ok_s' ok_s2; apply: xwrite_ok; eauto.
+        by apply: xmul; last rewrite to_estateK; eauto.
     - case: o ok_vs => //= ok_vs _;
         case Ees: as_singleton => [e|] //;
         case El1: as_singleton => [x|] //.
