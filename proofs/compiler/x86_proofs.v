@@ -881,13 +881,13 @@ Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xaddr_ofs_add c s xs gd ii e v r w sc x1 x2 x3 :
-   xs86_equiv c s xs
--> sem_pexpr gd (to_estate s) e = ok v
--> scale_of_z ii x1 = ok sc
--> reg_of_var ii (v_var x2) = ok r
--> word_of_int x3 = ok w
--> addr_ofs e = Ofs_add x1 x2 x3
--> to_word v = ok (I64.add w (I64.mul (word_of_scale sc) (xs.(xreg) r))).
+     xs86_equiv c s xs
+  -> sem_pexpr gd (to_estate s) e = ok v
+  -> scale_of_z ii x1 = ok sc
+  -> reg_of_var ii (v_var x2) = ok r
+  -> word_of_int x3 = ok w
+  -> addr_ofs e = Ofs_add x1 x2 x3
+  -> to_word v = ok (I64.add w (I64.mul (word_of_scale sc) (xs.(xreg) r))).
 Proof.
 move=> eqv; case: e => // [[]//|] -[]// -[]// e1 e2 /=; last first.
 + by t_xrbindP=> v1 _ v2 _ _ _ _; do! case: addr_ofs => //.
@@ -1192,6 +1192,9 @@ Proof. move=> eqs; case: e => // [[]//|x|].
     by move/reg_of_var_rflagN: ok_r1.   
 Qed.
 
+=======
+  
+>>>>>>> f331a15... 
 (* -------------------------------------------------------------------- *)
 Lemma write_rf_oprdN gd ii rf rfv (rfx : var_i) v e op s1 s2 :
      rflag_of_var ii rfx = ok rf
@@ -1212,6 +1215,9 @@ Proof. case: e => //= [[]//||].
   by rewrite ok1 /=; rewrite (sem_addr_indep _ _ s1 ok_a) ok2 /= ok3.
 *)
 Admitted.
+=======
+Proof. Admitted.
+>>>>>>> f331a15... 
 
 (* -------------------------------------------------------------------- *)
 Lemma write_rfs_oprdN gd ii rfs rfvs (rfxs : seq var_i) v e op s1 s2 :
@@ -1418,53 +1424,6 @@ by rewrite /RflagMap.update !ffunE; case: rf.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma reg_oprd_of_lvalI ii x reg :
-     oprd_of_lval ii x = ok (Reg_op reg)
-  -> exists2 vx, x = Lvar vx & reg_of_var ii vx = ok reg.
-Proof.
-case: x => //= x; last by move=> e; t_xrbindP.
-by t_xrbindP=> r' ok_r' -[?]; subst r'; exists x.
-Qed.
-
-(* -------------------------------------------------------------------- *)
-Lemma reg_oprd_of_pexprI ii e reg :
-     oprd_of_pexpr ii e = ok (Reg_op reg)
-  -> exists2 vx, e = Pvar vx & reg_of_var ii vx = ok reg.
-Proof.
-case: e => //= x; last by move=> e; t_xrbindP.
-+ by case: x.
-+ by t_xrbindP=> r' ok_r' -[?]; subst r'; exists x.
-Qed.
-
-(* -------------------------------------------------------------------- *)
-Lemma word_of_pexprP gd ii e w s : 
-  word_of_pexpr ii e = ok w ->
-  sem_pexpr gd s e = ok (Vword w).
-Proof. by case: e => // -[] //= z [<-]. Qed.
-
-Lemma oreg_of_pexprP gd ii lm vm e xr r w : 
-  regs_of_lvm vm xr ->
-  oreg_of_pexpr ii e = ok r ->
-  sem_pexpr gd {| emem := lm; evm := vm |} e = ok (Vword w) ->
-  (odflt I64.zero (omap xr r)) = w.
-Proof.
-  case: e => //= [ []// z| x] Hvm.
-  + by case: eqP => //= -> [<-] [<-].
-  apply: rbindP => r';case: x => -[[] xn] ? //=.
-  case Heq: reg_of_string => [r1|] // -[<-] [<-] /= Hget.
-  by have := Hvm _ _ Heq;rewrite Hget.   
-Qed.
-
-(* -------------------------------------------------------------------- *)
-Lemma scale_of_zP ii wsc sc :
-  scale_of_z ii (I64.unsigned wsc) = ok sc -> 
-  (word_of_scale sc) = wsc.
-Proof.
-  move=> H;apply /eqP;case: wsc H => z;rewrite /scale_of_z /=.
-  by case:z => //= -[||? [<-]]// [||? [<-]]// [||? [<-]]// [||? [<-]].
-Qed.
-  
-(* -------------------------------------------------------------------- *)
 Lemma assemble_i_ok (c : lcmd) gd (s1 s2 : lstate) (xs1 : x86_state) :
      xs86_equiv c s1 xs1
   -> lsem1 c gd s1 s2
@@ -1573,7 +1532,16 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
         * case: o Eo ok_vs => //= _; t_XrbindP.
           rewrite /eval_SHL ok_wv1 ok_wv2 /x86_shl.
           case: ifPn => /= _ -[?]; subst vs.
-          - admit.
+          - eexists; eauto; apply: xundef; eauto; rewrite to_estateK.
+            move/lvals_as_alu_varsT: El => ?; subst xs; move: ok_wr.
+            move/(@write_lvals_rcons _ [:: _; _; _; _; _] [:: _; _; _; _; _]).
+            case=> s' ok_s' ok_s2; suff ->: s2 = s' by [].
+            suff h: sem_pexpr gd s' e1 = ok (Vword wv1).
+            + by apply/esym; apply: (write_lvalK ok1 okl h).
+            pose rxs := [:: rof; rcf; rsf; rsp; rzf].
+            pose rfs := [:: OF ; CF ; SF ; PF ; ZF ].
+            apply: (write_rfs_oprdN (rfs := rfs) (rfxs := rxs) _ ok1 ok_v1 ok_s').
+            by move=> /=; do! f_equal.
           move/lvals_as_alu_varsT: El => ?; subst xs; move: ok_wr.
           move/(@write_lvals_rcons _ [:: _; _; _; _; _] [:: _; _; _; _; _]).
           case=> s' ok_s' ok_s2; apply: xwrite_ok; eauto.
@@ -1581,7 +1549,16 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
         * case: o Eo ok_vs => //= _; t_XrbindP.
           rewrite /eval_SHR ok_wv1 ok_wv2 /x86_shr.
           case: ifPn => /= _ -[?]; subst vs.
-          - admit.
+          - eexists; eauto; apply: xundef; eauto; rewrite to_estateK.
+            move/lvals_as_alu_varsT: El => ?; subst xs; move: ok_wr.
+            move/(@write_lvals_rcons _ [:: _; _; _; _; _] [:: _; _; _; _; _]).
+            case=> s' ok_s' ok_s2; suff ->: s2 = s' by [].
+            suff h: sem_pexpr gd s' e1 = ok (Vword wv1).
+            + by apply/esym; apply: (write_lvalK ok1 okl h).
+            pose rxs := [:: rof; rcf; rsf; rsp; rzf].
+            pose rfs := [:: OF ; CF ; SF ; PF ; ZF ].
+            apply: (write_rfs_oprdN (rfs := rfs) (rfxs := rxs) _ ok1 ok_v1 ok_s').
+            by move=> /=; do! f_equal.
           move/lvals_as_alu_varsT: El => ?; subst xs; move: ok_wr.
           move/(@write_lvals_rcons _ [:: _; _; _; _; _] [:: _; _; _; _; _]).
           case=> s' ok_s' ok_s2; apply: xwrite_ok; eauto.
@@ -1589,14 +1566,21 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
         * case: o Eo ok_vs => //= _; t_XrbindP.
           rewrite /eval_SAR ok_wv1 ok_wv2 /x86_sar.
           case: ifPn => /= _ -[?]; subst vs.
-          - admit.
+          - eexists; eauto; apply: xundef; eauto; rewrite to_estateK.
+            move/lvals_as_alu_varsT: El => ?; subst xs; move: ok_wr.
+            move/(@write_lvals_rcons _ [:: _; _; _; _; _] [:: _; _; _; _; _]).
+            case=> s' ok_s' ok_s2; suff ->: s2 = s' by [].
+            suff h: sem_pexpr gd s' e1 = ok (Vword wv1).
+            + by apply/esym; apply: (write_lvalK ok1 okl h).
+            pose rxs := [:: rof; rcf; rsf; rsp; rzf].
+            pose rfs := [:: OF ; CF ; SF ; PF ; ZF ].
+            apply: (write_rfs_oprdN (rfs := rfs) (rfxs := rxs) _ ok1 ok_v1 ok_s').
+            by move=> /=; do! f_equal.
           move/lvals_as_alu_varsT: El => ?; subst xs; move: ok_wr.
           move/(@write_lvals_rcons _ [:: _; _; _; _; _] [:: _; _; _; _; _]).
           case=> s' ok_s' ok_s2; apply: xwrite_ok; eauto.
           by apply: xsl; rewrite ?to_estateK; eauto.
-      + case Heq: as_singleton => //.
-        have := as_singletonT Heq => ?; subst es' => {Heq}.     
-        admit.
+      + admit.
     - move=> Eo /=; case Ees: as_pair => [[e1 e2]|//].
       case El2: as_pair => [[x2 x1]|//]; t_xrbindP.
       move=> vx1 ok_vx1 vx2 ok_vx2 op1 ok_op1 op2 ok_op2.
@@ -1747,7 +1731,9 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
     * t_xrbindP=> w ok_w ?; subst vs => ok_cb.
       move: ok_wr => /=; t_xrbindP=> s2' ok_s2 ?; subst s2'.
       eexists; first by reflexivity. move=> {vb1 ok_vb1 e1 ok1}.
-      admit.
+      suff ->: s2 = {| emem := lm; evm := vm; |} by [].
+      move/to_word_ok: ok_w => ?; subst vb2.
+      by apply/esym; apply: (write_lvalK ok2 ok_x ok_vb2).
   case Exs: (as_singleton xs) => [x|] //.
   case Ees: (as_quadruple es) => [[[[d b] sc] off]|] //=.
   have := as_quadrupleT Ees => ?; subst es => {Ees}.
