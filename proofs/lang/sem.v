@@ -2141,3 +2141,25 @@ Proof.
   + by move=> /andP[]/andP[] /eqP -> /He1 -> /He2 ->.
   by move=> /andP[]/andP[] /He -> /He1 -> /He2 ->.
 Qed.
+
+Lemma ok_inj E A (x y:A) : @Ok E A x = @Ok E A y -> x = y.
+Proof. by move=> []. Qed.
+
+Lemma to_val_inj t (v1 v2:sem_t t) : to_val v1 = to_val v2 -> v1 = v2.
+Proof.
+  by case: t v1 v2 => //= [ | | p | ] v1 v2 => [ []|[] |/Varr_inj1 |[] ] ->.
+Qed.
+
+Lemma to_val_undef  t (v:sem_t t) : to_val v <> Vundef t.
+Proof. by case: t v. Qed.
+
+Lemma vmap_eqP (lv1 lv2 : vmap) :
+  (lv1 = lv2) <-> (forall x, get_var lv1 x = get_var lv2 x).
+Proof.
+   split => [-> // | Hget];apply Fv.map_ext => x.
+   have := Hget x;rewrite /get_var /on_vu.
+   case: (lv1.[x])%vmap (lv2.[x])%vmap => [ v1 | []] [v2 | []] //.
+   + by move=> H; have {H} -> := to_val_inj (ok_inj H).
+   + by move=> H;have {H} /to_val_undef:= ok_inj H.
+   by move=> H; have {H}  /to_val_undef := ok_inj (Logic.eq_sym H). 
+Qed.
