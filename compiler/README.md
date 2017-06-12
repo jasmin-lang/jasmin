@@ -38,3 +38,11 @@ Opam can be easily installed from source or via your packages manager:
 See [https://opam.ocaml.org/doc/Install.html] for how to install opam.
 
 See [https://opam.ocaml.org/doc/Usage.html] for how to initialize opam
+
+Installing requirements using NIX
+--------------------------------------------------------------------
+
+Run `nix-shell` in the top-level directory. This will drop you in a
+shell with all required dependencies available.
+
+See [https://nixos.org/nix/] for how to install the NIX package manager.
