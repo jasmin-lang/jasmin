@@ -503,22 +503,51 @@ elim: xs s1 vs => [|x xs ih] s1 [|v vs] //= => [[->]|] //.
 by t_xrbindP=> s h /ih <-; apply (@write_var_mem gd x v).
 Qed.
 
+Lemma of_to_val t v w: of_val t v = ok w -> v = to_val w.
+Proof.
+case:t w => /=.
++ by apply: to_bool_ok.
++ by case: v => //= [ ??[->] | []].
++ case: v => //= [ | []//].
+  + by move=> n t p w; case: CEDecStype.pos_dec => // ?; subst p => /= -[->].
+  by move=> ???;case:ifP.
+by apply: to_word_ok.
+Qed.
+
 (* -------------------------------------------------------------------- *)
+(* TODO: move this *)
+Definition is_sarr t := 
+  match t with
+  | sarr _ => true
+  | _      => false
+  end.
+
 Lemma get_set_var x v vm1 vm2 :
+  ~~(is_sarr (vtype x)) ->
   set_var vm1 x v = ok vm2 -> get_var vm2 x = ok v.
-Proof. Admitted.
+Proof.
+rewrite /get_var=> His;apply: on_vuP=> [t /of_to_val -> <- | ].
++ by rewrite Fv.setP_eq.
+case:eqP => // Hw /of_val_error -> [<-]; rewrite Fv.setP_eq /=. 
+rewrite /undef_addr; case: vtype Hw His => //=.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma get_set_var_ne x y v vm1 vm2 : x <> y ->
   set_var vm1 x v = ok vm2 -> get_var vm2 y = get_var vm1 y.
-Proof. Admitted.
+Proof. 
+  rewrite /get_var=> /eqP neq;apply: on_vuP => [t ? <- | ].
+  + by rewrite Fv.setP_neq.    
+  by move=> ?;case:eqP => // Hw [<-];rewrite Fv.setP_neq.
+Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma get_write_var x v s1 s2 :
+Lemma get_write_var (x:var_i) v s1 s2 :
+  ~~(is_sarr (vtype x)) ->
   write_var x v s1 = ok s2 -> get_var s2.(evm) x = ok v.
 Proof.
-rewrite /write_var; t_XrbindP => vm ok_vm <-.
-by apply: (get_set_var ok_vm).
+rewrite /write_var => Htx; t_XrbindP => vm ok_vm <-.
+by apply: get_set_var ok_vm.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -583,7 +612,7 @@ Lemma xwrite_var_orf x b ii rf s1 s2 rfmap :
 Proof.
 move=> ok_rf ok_rm ok_s2 s rf' ok_rf'; set y := Var _ _.
 case: (x.(v_var) =P y) => [eq_xy|]; first subst y.
-+ rewrite -eq_xy (get_write_var ok_s2) /=.
++ rewrite -eq_xy (get_write_var _ ok_s2) /= ?eq_xy //.
   have := rflag_of_var_name ok_rf; rewrite eq_xy /=.
   by rewrite ok_rf' => -[->] /=; rewrite to_rboolK rflag_get_oset.
 + move=> ne_xy; rewrite (get_write_var_ne ne_xy ok_s2).
@@ -644,7 +673,7 @@ Lemma xwrite_var_reg ii x reg w s1 s2 rgmap :
 Proof.
 move=> ok_reg ok_rm ok_s2 s reg' ok_reg'; set y := Var _ _.
 case: (x.(v_var) =P y) => [eq_xy|]; first subst y.
-+ rewrite -eq_xy (get_write_var ok_s2) /=.
++ rewrite -eq_xy (get_write_var _ ok_s2) ?eq_xy //=.
   have := reg_of_var_name ok_reg; rewrite eq_xy /=.
   by rewrite ok_reg' => -[->]; rewrite reg_get_set.
 + move=> ne_xy; rewrite (get_write_var_ne ne_xy ok_s2).
