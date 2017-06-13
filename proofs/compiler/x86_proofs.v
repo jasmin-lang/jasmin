@@ -1192,9 +1192,6 @@ Proof. move=> eqs; case: e => // [[]//|x|].
     by move/reg_of_var_rflagN: ok_r1.   
 Qed.
 
-=======
-  
->>>>>>> f331a15... 
 (* -------------------------------------------------------------------- *)
 Lemma write_rf_oprdN gd ii rf rfv (rfx : var_i) v e op s1 s2 :
      rflag_of_var ii rfx = ok rf
@@ -1215,9 +1212,6 @@ Proof. case: e => //= [[]//||].
   by rewrite ok1 /=; rewrite (sem_addr_indep _ _ s1 ok_a) ok2 /= ok3.
 *)
 Admitted.
-=======
-Proof. Admitted.
->>>>>>> f331a15... 
 
 (* -------------------------------------------------------------------- *)
 Lemma write_rfs_oprdN gd ii rfs rfvs (rfxs : seq var_i) v e op s1 s2 :
