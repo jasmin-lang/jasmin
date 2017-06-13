@@ -64,6 +64,11 @@ by apply: on_vuP => [t ? <-|_ [<-]//]; apply: type_of_to_val.
 Qed.
 
 (* -------------------------------------------------------------------- *)
+Lemma reg_of_var_vtype ii x r :
+  reg_of_var ii x = ok r -> vtype x = sword.
+Proof. by case: x => -[]. Qed.
+
+(* -------------------------------------------------------------------- *)
 Definition to_rbool (v : value) :=
   match v with
   | Vbool   b    => ok (Def b)
@@ -1044,32 +1049,6 @@ by case: z => //= -[||? [<-]]// [||? [<-]]// [||? [<-]]// [||? [<-]].
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma write_lvalK gd ii lv e op s1 s2 v :
-     oprd_of_pexpr ii e = ok op
-  -> oprd_of_lval ii lv = ok op
-  -> sem_pexpr gd s1 e = ok v
-  -> write_lval gd lv v s1 = ok s2
-  -> s1 = s2.
-Proof.
-case: s1 s2 => [m1 lv1] [m2 lv2]; case: e => //=; first case=> //.
-+ by move=> z [<-] /imm_oprd_of_lvalI.
-+ move=> x; t_xrbindP => r ok_r [<-] /reg_oprd_of_lvalI.
-  case=> vx ?; subst lv => ok'_r ok_v /= /dup[h] /(@write_var_mem gd).
-  move=> /= ->; f_equal; apply/vmap_eqP=> y; move: h.
-  rewrite /write_var; t_xrbindP=> lv3 /= ok_lv2 _ ?; subst lv3.
-  have eqx: v_var x = vx by apply: (inj_reg_of_var ok_r ok'_r).
-  move: ok_lv2; rewrite -eqx; case: (v_var x =P y) => [<-|ne_xy].
-  - rewrite ok_v. admit.
-  - by move/(get_set_var_ne ne_xy) ->.
-+ by move=> g [<-] /glo_oprd_of_lvalI.
-+ move=> x p; t_XrbindP=> r ok_r a ok_a <- ok_lva w ok_w z ok_z.
-  move=> wv ok_wv <- /=; move: ok_lva; case: lv => // y.
-  - by rewrite /oprd_of_lval; t_xrbindP.
-  move=> p' /=; t_XrbindP=> r' ok_r' w' ok_w' aE wy ok_wy.
-  move=> wp' ok_wp' m3 ok_m2 ?; subst m3 => <-; f_equal.
-Admitted.
-
-(* -------------------------------------------------------------------- *)
 Lemma addr_Ofs_constE gd e z s :
   addr_ofs e = Ofs_const z -> sem_pexpr gd s e = ok (Vword (I64.repr z)).
 Proof.
@@ -1191,6 +1170,44 @@ Proof. move=> eqs; case: e => // [[]//|x|].
     rewrite (addr_Ofs_varE gd s1 E1) (addr_Ofs_varE gd s2 E1) eqs //.
     by move/reg_of_var_rflagN: ok_r1.   
 Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma write_lvalK gd ii lv e op s1 s2 v :
+     oprd_of_pexpr ii e = ok op
+  -> oprd_of_lval ii lv = ok op
+  -> sem_pexpr gd s1 e = ok v
+  -> write_lval gd lv v s1 = ok s2
+  -> s1 = s2.
+Proof.
+case: s1 s2 => [m1 lv1] [m2 lv2]; case: e => //=; first case=> //.
++ by move=> z [<-] /imm_oprd_of_lvalI.
++ move=> x; t_xrbindP => r ok_r [<-] /reg_oprd_of_lvalI.
+  case=> vx ?; subst lv => ok'_r ok_v /= /dup[h] /(@write_var_mem gd).
+  move=> /= ->; f_equal; apply/vmap_eqP=> y; move: h.
+  rewrite /write_var; t_xrbindP=> lv3 /= ok_lv2 _ ?; subst lv3.
+  have eqx: v_var x = vx by apply: (inj_reg_of_var ok_r ok'_r).
+  move: ok_lv2; rewrite -eqx; case: (v_var x =P y) => [<-|ne_xy].
+  - rewrite ok_v => /(get_set_var _) -> //.
+    by move/reg_of_var_vtype: ok_r => ->.
+  - by move/(get_set_var_ne ne_xy) ->.
++ by move=> g [<-] /glo_oprd_of_lvalI.
++ move=> x p; t_XrbindP=> r ok_r a ok_a <- ok_lva w ok_w z ok_z.
+  move=> wv ok_wv <- /=; move: ok_lva; case: lv => // y.
+  - by rewrite /oprd_of_lval; t_xrbindP.
+  move=> p' /=; t_XrbindP=> r' ok_r' w' ok_w' aE wy ok_wy.
+  move=> wp' ok_wp' m3 ok_m2 ?; subst m3 => <-; f_equal.
+  case: p' ok_w' ok_wp' => // -[] //= wv' -[?] [?]; subst w' wp'.
+  move: ok_a aE; rewrite /addr_of_pexpr.
+  case E: addr_ofs => [pz|t|sc t|sc t pz|//]; first last.
+  * by t_xrbindP=> ?????? [<-].
+  * by t_xrbindP=> ???? [<-].
+  * by t_xrbindP=> ?? [<-].
+  t_xrbindP=> pzw -[?] [<-] [eq_pz ?]; subst pzw r'; move: ok_z.
+  rewrite (addr_Ofs_constE _ _ E) => -[?]; subst z.
+  have [eqw]: @Ok error _ (Vword w) = ok (Vword wy).
+  * by rewrite -ok_w -ok_wy; f_equal; apply: (inj_reg_of_var ok_r ok_r').
+  rewrite {}eqw -{}eq_pz in ok_wv => {E}.
+Admitted.
 
 (* -------------------------------------------------------------------- *)
 Lemma write_rf_oprdN gd ii rf rfv (rfx : var_i) v e op s1 s2 :
