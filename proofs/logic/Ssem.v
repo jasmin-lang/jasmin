@@ -106,7 +106,7 @@ Definition sto_word v :=
   | _        => type_error
   end.
 
-Definition type_of_sval (v: svalue) :=
+Definition sval_sstype (v: svalue) : sstype :=
   match v with
   | SVbool _    => ssbool
   | SVint  _    => ssint
@@ -130,13 +130,11 @@ Definition to_sval t : ssem_t t -> svalue :=
   | ssword  => SVword
   end.
 
-Definition sval_sstype (s : svalue) :=
-  match s with
-  | SVbool _ => ssbool
-  | SVint  _ => ssint
-  | SVarr  a => ssarr
-  | SVword _ => ssword
-  end.
+Lemma of_sval_ex ty (s: svalue) :
+  ty = sval_sstype s →
+  ∃ v,
+  of_sval ty s = ok v ∧ to_sval v = s.
+Proof. move=>->; case: s => /=; eauto. Qed.
 
 (* ** Variable map
  * -------------------------------------------------------------------- *)
@@ -148,9 +146,11 @@ Notation svmap0   := (@Fv.empty ssem_t (fun x => sdflt_val x.(vtype))).
 Definition sget_var (m:svmap) x :=
   @to_sval (vtype x) (m.[x]%vmap).
 
-Definition sset_var (m:svmap) x v :=
-  Let v := @of_sval (vtype x) v in
-  ok (m.[x<-v]%vmap).
+Definition sset_var (m: svmap) x v :=
+  on_vu (λ v, m.[x <- v]%vmap)
+        (if x.(vtype) == sword then type_error
+         else ok m)
+        (of_sval (vtype x) v).
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
@@ -278,8 +278,8 @@ Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : exec svalue :=
     Let b  := ssem_pexpr s e >>= sto_bool in
     Let v1 := ssem_pexpr s e1 in
     Let v2 := ssem_pexpr s e2 in
-    Let _ := of_sval (type_of_sval v1) v1 in
-    Let _ := of_sval (type_of_sval v1) v2 in
+    Let _ := of_sval (sval_sstype v1) v1 in
+    Let _ := of_sval (sval_sstype v1) v2 in
     ok (if b then v1 else v2)
   end.
 
@@ -339,80 +339,78 @@ Notation sapp_w   o := (sapp_sopn [:: ssword] o).
 Notation sapp_ww  o := (sapp_sopn [:: ssword; ssword] o).
 Notation sapp_wwb o := (sapp_sopn [:: ssword; ssword; ssbool] o).
 Notation sapp_bww o := (sapp_sopn [:: ssbool; ssword; ssword] o).
+Notation sapp_www o := (sapp_sopn [:: ssword; ssword ; ssword ] o).
+Notation sapp_w4 o := (sapp_sopn [:: ssword; ssword ; ssword ; ssword ] o).
+
+Definition svalue_of_value (v: value) : svalue :=
+  match v with
+  | Vbool b => SVbool b
+  | Vint z => SVint z
+  | Varr n t => SVarr (λ x, match Array.get t x with Error _ => I64.zero | Ok e => e end)
+  | Vword w => SVword w
+  | Vundef ty =>
+    match ty with
+    | sbool => SVbool (dflt_val sbool)
+    | sint => SVint (dflt_val sint)
+    | sarr _ => SVarr (λ _, dflt_val sword)
+    | sword => SVword (dflt_val sword)
+    end
+  end.
+
+Definition svalues_of_values (vs: values) : svalues := map svalue_of_value vs.
+
+Notation w1 o := (λ x, Result.map svalues_of_values (o x)).
+Notation w2 o := (λ x y, Result.map svalues_of_values (o x y)).
+Notation w3 o := (λ x y z, Result.map svalues_of_values (o x y z)).
+Notation w4 o := (λ x y z w, Result.map svalues_of_values (o x y z w)).
 
 Definition spval t1 t2 (p: ssem_t t1 * ssem_t t2) :=
   [::to_sval p.1; to_sval p.2].
-(*
-Notation soww o  := (sapp_sopn [::ssword] (fun x => [::SVword (o x)])).
-Notation sowww o := (sapp_sopn [:: ssword; ssword] (fun x y => [::SVword (o x y)])).
-Notation sowwb o := (sapp_sopn [:: ssword; ssword] (fun x y => [::SVbool (o x y)])).
-Notation soww_rflags o := (sapp_sopn [:: ssword; ssword] (fun x y =>
-  let '(r1, (r2, (r3, (r4, r5)))) := o x y in [:: SVbool r1; SVbool r2; SVbool r3; SVbool r4; SVbool r5])).
-*)
-Definition sem_sopn (o:sopn) :  svalues -> exec svalues :=
+
+Definition ssem_sopn (o:sopn) :  svalues -> exec svalues :=
   match o with
   | Omulu     => sapp_ww  (fun x y => ok (@spval ssword ssword (wumul x y)))
   | Oaddcarry => sapp_wwb (fun x y c => ok (@spval ssbool ssword (waddcarry x y c)))
   | Osubcarry => sapp_wwb (fun x y c => ok (@spval ssbool ssword (wsubcarry x y c)))
+  | Oset0 =>
+    λ _,
+    (let vf := SVbool false in
+     ok [:: vf; vf; vf; vf; SVbool true; SVword (I64.repr 0)])
 
   (* Low level x86 operations *)
-  (* | Ox86_CMOVcc  => sapp_bww x86_CMOVcc
-  | Ox86_ADD     => sapp_ww x86_add
-  | Ox86_SUB     => sapp_ww x86_sub
-  | Ox86_MUL     => (fun _ => type_error)
-  | Ox86_IMUL    => (fun _ => type_error)
-  | Ox86_DIV     => (fun _ => type_error)
-  | Ox86_IDIV    => (fun _ => type_error)
-  | Ox86_ADC     => sapp_wwb x86_adc
-  | Ox86_SBB     => sapp_wwb x86_sbb
-  | Ox86_INC     => sapp_w   x86_inc 
-  | Ox86_DEC     => sapp_w   x86_dec 
-  | Ox86_SETcc   => sapp_b   x86_setcc
-  | Ox86_LEA     => (fun _ => type_error)
-  | Ox86_TEST    => sapp_ww x86_test
-  | Ox86_CMP     => sapp_ww x86_cmp 
-  | Ox86_AND     => sapp_ww x86_and
-  | Ox86_OR      => sapp_ww x86_or
-  | Ox86_XOR     => sapp_ww x86_xor
-  | Ox86_NOT     => sapp_w  x86_not
-  | Ox86_SHL     => (fun _ => type_error)
-  | Ox86_SHR     => (fun _ => type_error)
-  | Ox86_SAR     => (fun _ => type_error)
-*)
-  | _ => fun _ => type_error
-  end.
-
-Definition ssem_sopn (o:sopn) : svalues -> exec svalues :=
-  match o with
-    (*
-  | Olnot => soww I64.not
-  | Oxor  => sowww I64.xor
-  | Oland => sowww I64.and
-  | Olor  => sowww I64.or
-  | Olsr  => sowww I64.shru
-  | Olsl  => sowww I64.shl
-  | Omuli => sowww (fun x y => let (h,l) := wumul x y in l) (* FIXME: check imul INTEL manual *)
-  | Oif   =>
-    sapp_sopn [::ssbool; ssword; ssword] (fun b x y => [::SVword (if b then x else y)])
-  | Omulu =>
-    sapp_sopn [::ssword; ssword] (fun x y => @spval sword sword (wumul x y))
-  | Oaddcarry =>
-    sapp_sopn [::ssword; ssword; ssbool] (fun x y c => @spval sbool sword (waddcarry x y c))
-  | Osubcarry =>
-    sapp_sopn [::ssword; ssword; ssbool] (fun x y c => @spval sbool sword (wsubcarry x y c))
-  | Oleu => sowwb (fun x y => I64.ltu x y || I64.eq x y)
-  | Oltu => sowwb I64.ltu
-  | Ogeu => sowwb (fun x y => I64.ltu y x || I64.eq x y)
-  | Ogtu => sowwb (fun x y => I64.ltu y x)
-  | Oles => sowwb (fun x y => I64.lt x y || I64.eq x y)
-  | Olts => sowwb I64.lt
-  | Oges => sowwb (fun x y => I64.lt y x || I64.eq x y)
-  | Ogts => sowwb (fun x y => I64.lt y x)
-  | Oeqw => sowwb I64.eq
-
-  | Ox86_cmp => soww_rflags x86_cmp
-*)
-  | _ => λ _, type_error
+  | Ox86_MOV => sapp_w (w1 x86_MOV)
+  | Ox86_CMOVcc  => (fun v => match v with
+    | [:: v1; v2; v3] =>
+      Let b := sto_bool v1 in
+      if b then
+        Let w2 := sto_word v2 in ok [:: SVword w2]
+      else
+        Let w3 := sto_word v3 in ok [:: SVword w3]
+    | _ => type_error end)
+  | Ox86_ADD     => sapp_ww (w2 x86_add)
+  | Ox86_SUB     => sapp_ww (w2 x86_sub)
+  | Ox86_MUL     => sapp_ww   (w2 x86_mul)
+  | Ox86_IMUL    => sapp_ww   (w2 x86_imul)
+  | Ox86_IMUL64    => sapp_ww   (w2 x86_imul64)
+  | Ox86_DIV     => sapp_www  (w3 x86_div)
+  | Ox86_IDIV    => sapp_www  (w3 x86_idiv)
+  | Ox86_ADC     => sapp_wwb  (w3 x86_adc)
+  | Ox86_SBB     => sapp_wwb  (w3 x86_sbb)
+  | Ox86_NEG	=> sapp_w	(w1 x86_neg)
+  | Ox86_INC     => sapp_w    (w1 x86_inc)
+  | Ox86_DEC     => sapp_w    (w1 x86_dec)
+  | Ox86_SETcc   => sapp_b    (w1 x86_setcc)
+  | Ox86_LEA     => sapp_w4   (w4 x86_lea)
+  | Ox86_TEST    => sapp_ww   (w2 x86_test)
+  | Ox86_CMP     => sapp_ww   (w2 x86_cmp)
+  | Ox86_AND     => sapp_ww   (w2 x86_and)
+  | Ox86_OR      => sapp_ww   (w2 x86_or)
+  | Ox86_XOR     => sapp_ww   (w2 x86_xor)
+  | Ox86_NOT     => sapp_w    (w1 x86_not)
+  | Ox86_SHL     => sapp_ww (w2 x86_shl)
+  | Ox86_SHR     => sapp_ww (w2 x86_shr)
+  | Ox86_SAR     => sapp_ww (w2 x86_sar)
+  | Ox86_SHLD    => sapp_www  (w3 x86_shld)
   end.
 
 (* ** Instructions
@@ -587,12 +585,22 @@ Proof.
   move=> s s' e c1 c2; apply: rbindP => v Hv /sto_bool_inv ?; subst v; eauto.
 Qed.
 
+Lemma of_val_addr_undef ty v :
+  of_val ty v = Error ErrAddrUndef →
+  v = Vundef ty.
+Proof.
+  case: ty => //; case: v => //=; try by case => //.
+  + move=> n a p. case: CEDecStype.pos_dec => //.
+  case => //. move=> p p'; case: eqP => // -> //.
+Qed.
+
 Lemma swrite_lval_inv {gd x v s s'} :
   swrite_lval gd x v s = ok s' →
   match x with
   | Lnone _ _ => s' = s
-  | Lvar x => ∃ v', of_sval (vtype x) v = ok v' ∧
-                    s' = {| semem := semem s ; sevm := (sevm s).[ x <- v' ] |}
+  | Lvar x => (∃ v', of_sval (vtype x) v = ok v' ∧
+                    s' = {| semem := semem s ; sevm := (sevm s).[ x <- v' ] |})
+                ∨ of_sval (vtype x) v = Error ErrAddrUndef ∧ s' = s
   | Lmem x e =>
     ∃ (Tx: vtype x = sword),
     ∃ vx ve w: word, eq_rect _ _ ((sevm s).[ x ]) _ Tx = vx ∧ ssem_pexpr gd s e = ok (SVword ve) ∧ v = w ∧
@@ -608,7 +616,10 @@ Proof.
   destruct x as [ vi | x | x e | x i ].
   - move=> H; apply ok_inj in H; auto.
   - apply: rbindP => vm H K; apply ok_inj in K; subst s'.
-    revert H; apply: rbindP => v' H X; apply ok_inj in X; subst vm; eauto.
+    revert H; apply: on_vuP.
+    + move=> w -> <-; eauto.
+    + move=> ->; case: eqP => // ht k; apply ok_inj in k; subst; right; constructor; auto.
+      by case: s.
   - apply: rbindP => vx /sto_word_inv H.
     apply: rbindP => ve.
     apply: rbindP => ve' He /sto_word_inv ?; subst ve'.

@@ -38,9 +38,6 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (* -------------------------------------------------------------------- *)
-Axiom fe : forall {T U} (f g : T -> U), (forall x, f x = g x) -> f = g.
-
-(* -------------------------------------------------------------------- *)
 Fixpoint st2sst_ty {t : stype} :=
   match t return sem_t t -> ssem_t t with
   | sword     => fun v => v
@@ -84,7 +81,7 @@ Definition svalue_uincl (v: value) (sv: svalue) :=
   | Varr _ t1, SVarr t2 =>
     forall i v, Array.get t1 i = ok v -> FArray.get t2 i = v
   | Vword w1, SVword w2 => w1 = w2
-  | Vundef _, _ => True
+  | Vundef ty, _ => sstype_of_stype ty = sval_sstype sv
   | _, _ => False
   end.
 
@@ -118,7 +115,7 @@ Qed.
 Lemma of_sval_uincl v v' t z:
   svalue_uincl v v' ->
   of_val t v = ok z ->
-  exists z', of_sval t v' = ok z' /\ sval_uincl z z' ∧ type_of_sval v' = t.
+  exists z', of_sval t v' = ok z' /\ sval_uincl z z' ∧ sval_sstype v' = t.
 Proof.
   case: v v'=> [b | n | n a | w | ty] [b' | n' | a' | w'] //=;
     try (by case: t z=> //= z -> []->; exists z);
@@ -160,7 +157,9 @@ move=> /(_ x); rewrite /seval_uincl; move=> H P; move: P H.
 apply: on_vuP => [ y | ] ->.
 case: x y => vi vt /= z <- /=.
 by case: vi z.
-by move=> H; apply ok_inj in H; subst.
+move=> H _; apply ok_inj in H; subst.
+symmetry.
+exact: sval_sstype_to_sval.
 Qed.
 
 Lemma sget_vars_uincl (xs:seq var_i) vm1 vm2 vs1:
@@ -249,24 +248,68 @@ Proof.
   by exists (SVword (o b)).
 Qed.
 
+Lemma svuincl_sem_op1_a w w' r :
+  svalue_uincl w w' → sem_arr_init w = ok r →
+  ∃ r' : svalue, ssem_arr_init w' = ok r' ∧ svalue_uincl r r'.
+Proof.
+  move=> H.
+  apply: rbindP => b Hb; apply to_int_inv in Hb; subst.
+  case: b H => // b H Hr; apply ok_inj in Hr; subst.
+  case: w' H => // b' <- {b'}.
+  eexists. split. reflexivity.
+  move=> i v h; elim (Array.getP_empty h).
+Qed.
+
 Lemma svuincl_sem_op1 o w w' r :
   svalue_uincl w w' → sem_sop1 o w = ok r →
   ∃ r' : svalue, ssem_sop1 o w' = ok r' ∧ svalue_uincl r r'.
 Proof.
-  case: o => /=; eauto using svuincl_sem_op1_b, svuincl_sem_op1_w.
+  case: o => /=; eauto using svuincl_sem_op1_b, svuincl_sem_op1_w, svuincl_sem_op1_a.
 Qed.
+
+Section FORALL2.
+  Import List.
+  Context (A B: Type) (P: A → B → Prop).
+
+  Definition forall2_inv_left ma mb :
+    Forall2 P ma mb →
+    match ma with
+    | [::] => mb = [::]
+    | a :: ma' => ∃ b mb', mb = b :: mb' ∧ P a b ∧ Forall2 P ma' mb'
+  end.
+  Proof.
+    intros h.
+    set (d ma mb :=
+      match ma with [::] => mb = [::]
+      | a :: ma' => ∃ b mb', mb = b :: mb' ∧ P a b ∧ Forall2 P ma' mb' end).
+    change (d ma mb).
+    now destruct h; simpl; eauto.
+  Defined.
+
+  Definition forall2_sym ma mb :
+    Forall2 P ma mb →
+    Forall2 (λ b a, P a b) mb ma.
+  Proof. elim => //; eauto. Defined.
+
+End FORALL2.
+
+Section GLOB_DEFS.
+
+Context (gd: glob_defs).
 
 Lemma ssem_pexpr_uincl s ss e v1:
   sestate_uincl s ss ->
-  sem_pexpr s e = ok v1 ->
-  exists v2, ssem_pexpr ss e = ok v2 /\ svalue_uincl v1 v2.
+  sem_pexpr gd s e = ok v1 ->
+  exists v2, ssem_pexpr gd ss e = ok v2 /\ svalue_uincl v1 v2.
 Proof.
-  move=> [Hu1 Hu2]; elim: e v1=>//= [z | b | e He | x | x p Hp | x p Hp | o e He | o e1 He1 e2 He2| eb Heb e1 He1 e2 He2 ] v1.
+  move=> [Hu1 Hu2]; elim: e v1=>//= [z | b | e He | x | g | x p Hp | x p Hp | o e He | o e1 He1 e2 He2| eb Heb e1 He1 e2 He2 ] v1.
   + by move=> [] <-;exists z.
   + by move=> [] <-;exists b.
   + apply: rbindP => z;apply: rbindP => ve /He [] ve' [] -> Hvu Hto [] <-.
     by case: (svalue_uincl_int Hvu Hto) => ??;subst; exists (SVword (I64.repr z)).
   + move=> ?; eexists; split=> //; exact: sget_var_uincl.
+  + rewrite/get_global/sget_global; case: get_global_word => // v' h; apply ok_inj in h; subst.
+    by exists v'.
   + have := Hu2 x;case x => -[xt xn] xi /= H H';move: H' H.
     apply: on_arr_varP=> /= n t -> /= /(sget_var_uincl Hu2) /= Hsame.
     apply: rbindP => z;apply: rbindP => vp /Hp [] vp' [] Hvp' Hvu /(svalue_uincl_int Hvu) [Hvp1 Hvp2].
@@ -300,8 +343,8 @@ Qed.
 
 Lemma ssem_pexprs_uincl s ss es vs1:
   sestate_uincl s ss ->
-  sem_pexprs s es = ok vs1 ->
-  exists vs2, ssem_pexprs ss es = ok vs2 /\
+  sem_pexprs gd s es = ok vs1 ->
+  exists vs2, ssem_pexprs gd ss es = ok vs2 /\
               List.Forall2 svalue_uincl vs1 vs2.
 Proof.
   rewrite /sem_pexprs /ssem_pexprs; move=> Hvm;elim: es vs1 => [ | e es Hrec] vs1 /=.
@@ -310,95 +353,183 @@ Proof.
   by apply: rbindP => ys /Hrec [vs2 []] /= -> ? [] <- /=;eauto.
 Qed.
 
-Lemma svuincl_oww o vs vs' v :
-  List.Forall2 svalue_uincl vs vs' ->
-  (oww o) vs = ok v ->
-  exists v' : svalues,
-     (soww o) vs' = ok v' /\ List.Forall2 svalue_uincl v v'.
+Lemma svalue_of_value_uincl v :
+  svalue_uincl v (svalue_of_value v).
 Proof.
-  move=> [] //= v1 v1' ?? Hv [] //=;last by move=> ??????;apply: rbindP.
-  apply: rbindP => z /(svalue_uincl_word Hv) [] _ -> [] <- /=.
-  by eexists;split;eauto;constructor.
+  case: v => //.
+  + by move=> n a i w h; rewrite/FArray.get h.
+  by case.
 Qed.
 
-Lemma svuincl_owww o vs vs' v :
-  List.Forall2 svalue_uincl vs vs' ->
-  (owww o) vs = ok v ->
-  exists v' : svalues,
-     (sowww o) vs' = ok v' /\ List.Forall2 svalue_uincl v v'.
+Lemma svalues_of_values_uincl v :
+  List.Forall2 svalue_uincl v (svalues_of_values v).
 Proof.
-  move=> [] //= v1 v1' ?? Hv [] //=; first by apply: rbindP.
-  move=> ???? Hv' [] //=.
-  + apply: rbindP => z /(svalue_uincl_word Hv) [] _ ->.
-    apply: rbindP => z' /(svalue_uincl_word Hv') [] _ -> [] <- /=.
-    by eexists;split;eauto;constructor.
-  by move=> ??????;t_rbindP.
+  elim: v => [ | v vs ih ]; constructor; eauto using svalue_of_value_uincl.
 Qed.
 
-Lemma svuincl_owwb o vs vs' v :
-  List.Forall2 svalue_uincl vs vs' ->
-  (owwb o) vs = ok v ->
-  exists v' : svalues,
-     (sowwb o) vs' = ok v' /\ List.Forall2 svalue_uincl v v'.
+Lemma svuincl_app_w o vs vs' v :
+  List.Forall2 svalue_uincl vs vs' →
+  (app_w o) vs = ok v →
+  ∃ v', sapp_w (w1 o) vs' = ok v' ∧ List.Forall2 svalue_uincl v v'.
 Proof.
-  move=> [] //= v1 v1' ?? Hv [] //=; first by apply: rbindP.
-  move=> ???? Hv' [] //=.
-  + apply: rbindP => z /(svalue_uincl_word Hv) [] _ ->.
-    apply: rbindP => z' /(svalue_uincl_word Hv') [] _ -> [] <- /=.
-    by eexists;split;eauto;constructor.
-  by move=> ??????;t_rbindP.
+  case: vs => // x vs le; apply: rbindP => w /to_word_inv ?; subst x.
+  case: vs le => // /forall2_inv_left [w'] [q] [?] [le] /forall2_inv_left hq h; subst.
+  case: w' le => // w' /= ?; subst.
+  rewrite h. eexists. split. reflexivity.
+  exact: svalues_of_values_uincl.
 Qed.
 
-Lemma svuincl_oww_rflags o vs vs' v :
-  List.Forall2 svalue_uincl vs vs' ->
-  (oww_rflags o) vs = ok v ->
-  exists v' : svalues,
-    (soww_rflags o) vs' = ok v' /\ List.Forall2 svalue_uincl v v'.
+Lemma svuincl_app_b o vs vs' v :
+  List.Forall2 svalue_uincl vs vs' →
+  (app_b o) vs = ok v →
+  ∃ v', sapp_b (w1 o) vs' = ok v' ∧ List.Forall2 svalue_uincl v v'.
 Proof.
-  move=> [] //= v1 v1' ?? Hv [] //=; first by apply: rbindP.
-  move=> ???? Hv' [] //=.
-  + apply: rbindP => z /(svalue_uincl_word Hv) [] _ ->.
-    apply: rbindP => z' /(svalue_uincl_word Hv') [] _ -> [] <- /=.
-    eexists;split;eauto.
-    move: (o z z')=> [] s1 [] s2 [] s3 [] s4 s5; repeat constructor.
-  by move=> ??????;t_rbindP.
+  case: vs => // x vs le; apply: rbindP => w /to_bool_inv ?; subst x.
+  case: vs le => // /forall2_inv_left [w'] [q] [?] [le] /forall2_inv_left hq h; subst.
+  case: w' le => // w' /= ?; subst.
+  rewrite h. eexists. split. reflexivity.
+  exact: svalues_of_values_uincl.
+Qed.
+
+Lemma svuincl_app_ww o vs vs' v :
+  List.Forall2 svalue_uincl vs vs' →
+  (app_ww o) vs = ok v →
+  ∃ v', sapp_ww (w2 o) vs' = ok v' ∧ List.Forall2 svalue_uincl v v'.
+Proof.
+  case: vs => // x vs le; apply: rbindP => w /to_word_inv ?; subst x.
+  case: vs le => // x vs le; apply: rbindP => w' /to_word_inv ?; subst x.
+  case: vs le => // /forall2_inv_left [z] [q] [?] [le]
+                    /forall2_inv_left [z'] [x] [hq] [le']
+                    /forall2_inv_left hz' h; subst.
+  case: z le => // z /= ?; subst.
+  case: z' le' => // z' /= ?; subst.
+  rewrite h. eexists. split. reflexivity.
+  exact: svalues_of_values_uincl.
+Qed.
+
+Lemma svuincl_app_www o vs vs' v :
+  List.Forall2 svalue_uincl vs vs' →
+  (app_www o) vs = ok v →
+  ∃ v', sapp_www (w3 o) vs' = ok v' ∧ List.Forall2 svalue_uincl v v'.
+Proof.
+  case: vs => // x vs le; apply: rbindP => w /to_word_inv ?; subst x.
+  case: vs le => // x vs le; apply: rbindP => w' /to_word_inv ?; subst x.
+  case: vs le => // x vs le; apply: rbindP => w'' /to_word_inv ?; subst x.
+  case: vs le => // /forall2_inv_left [z] [q] [?] [le]
+                    /forall2_inv_left [z'] [x] [hq] [le']
+                    /forall2_inv_left [z''] [y] [hr] [le'']
+                    /forall2_inv_left hz' h; subst.
+  case: z le => // z /= ?; subst.
+  case: z' le' => // z' /= ?; subst.
+  case: z'' le'' => // z'' /= ?; subst.
+  rewrite h. eexists. split. reflexivity.
+  exact: svalues_of_values_uincl.
+Qed.
+
+Lemma svuincl_app_wwb o vs vs' v :
+  List.Forall2 svalue_uincl vs vs' →
+  (app_wwb o) vs = ok v →
+  ∃ v', sapp_wwb (w3 o) vs' = ok v' ∧ List.Forall2 svalue_uincl v v'.
+Proof.
+  case: vs => // x vs le; apply: rbindP => w /to_word_inv ?; subst x.
+  case: vs le => // x vs le; apply: rbindP => w' /to_word_inv ?; subst x.
+  case: vs le => // x vs le; apply: rbindP => w'' /to_bool_inv ?; subst x.
+  case: vs le => // /forall2_inv_left [z] [q] [?] [le]
+                    /forall2_inv_left [z'] [x] [hq] [le']
+                    /forall2_inv_left [z''] [y] [hr] [le'']
+                    /forall2_inv_left hz' h; subst.
+  case: z le => // z /= ?; subst.
+  case: z' le' => // z' /= ?; subst.
+  case: z'' le'' => // z'' /= ?; subst.
+  rewrite h. eexists. split. reflexivity.
+  exact: svalues_of_values_uincl.
+Qed.
+
+Lemma svuincl_app_w4 o vs vs' v :
+  List.Forall2 svalue_uincl vs vs' →
+  (app_w4 o) vs = ok v →
+  ∃ v', sapp_w4 (w4 o) vs' = ok v' ∧ List.Forall2 svalue_uincl v v'.
+Proof.
+  case: vs => // x vs le; apply: rbindP => w /to_word_inv ?; subst x.
+  case: vs le => // x vs le; apply: rbindP => w' /to_word_inv ?; subst x.
+  case: vs le => // x vs le; apply: rbindP => w'' /to_word_inv ?; subst x.
+  case: vs le => // x vs le; apply: rbindP => w''' /to_word_inv ?; subst x.
+  case: vs le => // /forall2_inv_left [z] [q] [?] [le]
+                    /forall2_inv_left [z'] [x] [hq] [le']
+                    /forall2_inv_left [z''] [y] [hr] [le'']
+                    /forall2_inv_left [z'''] [n] [hn] [le''']
+                    /forall2_inv_left hz' h; subst.
+  case: z le => // z /= ?; subst.
+  case: z' le' => // z' /= ?; subst.
+  case: z'' le'' => // z'' /= ?; subst.
+  case: z''' le''' => // z''' /= ?; subst.
+  rewrite h. eexists. split. reflexivity.
+  exact: svalues_of_values_uincl.
 Qed.
 
 Lemma svuincl_sem_opn o vs vs' v :
   List.Forall2 svalue_uincl vs vs' -> sem_sopn o vs = ok v ->
   exists v', ssem_sopn o vs' = ok v' /\ List.Forall2 svalue_uincl v v'.
 Proof.
-  rewrite /sem_sopn /ssem_sopn;case: o;eauto using svuincl_oww, svuincl_owww, svuincl_owwb, svuincl_oww_rflags.
-  + move=> [] //= v1 v1' ?? Hv1 [] //=; first by apply: rbindP.
-    move=> v2 v2' ?? Hv2 [];first by t_rbindP.
-    move=> v3 v3' ?? Hv3 [].
-    + apply: rbindP=> ? /(svalue_uincl_bool Hv1) [] _ ->.
-      apply: rbindP=> ? /(svalue_uincl_word Hv2) [] _ ->.
-      apply: rbindP=> ? /(svalue_uincl_word Hv3) [] _ -> [] <- /=.
-      by eexists;split;eauto;do 2 constructor.
-    by move=> ??????;t_rbindP.
-  + move=> [] //= v1 v1' ?? Hv [] //=; first by apply: rbindP.
-    move=> ???? Hv' [] //=.
-    + apply: rbindP => z /(svalue_uincl_word Hv) [] _ ->.
-      apply: rbindP => z' /(svalue_uincl_word Hv') [] _ -> [] <- /=.
-      by eexists;split;eauto;constructor => //;constructor.
-    by move=> ??????;t_rbindP.
-  + move=> [] //= v1 v1' ?? Hv1 [] //=; first by apply: rbindP.
-    move=> v2 v2' ?? Hv2 [];first by t_rbindP.
-    move=> v3 v3' ?? Hv3 [].
-    + apply: rbindP=> ? /(svalue_uincl_word Hv1) [] _ ->.
-      apply: rbindP=> ? /(svalue_uincl_word Hv2) [] _ ->.
-      apply: rbindP=> ? /(svalue_uincl_bool Hv3) [] _ -> [] <- /=.
-      by eexists;split;eauto;do 2 constructor.
-    by move=> ??????;t_rbindP.
-  + move=> [] //= v1 v1' ?? Hv1 [] //=; first by apply: rbindP.
-    move=> v2 v2' ?? Hv2 [];first by t_rbindP.
-    move=> v3 v3' ?? Hv3 [].
-    + apply: rbindP=> ? /(svalue_uincl_word Hv1) [] _ ->.
-      apply: rbindP=> ? /(svalue_uincl_word Hv2) [] _ ->.
-      apply: rbindP=> ? /(svalue_uincl_bool Hv3) [] _ -> [] <- /=.
-      by eexists;split;eauto;do 2 constructor.
-    by move=> ??????;t_rbindP.
+  rewrite /sem_sopn /ssem_sopn;
+    case: o;
+    eauto using svuincl_app_w, svuincl_app_b, svuincl_app_ww, svuincl_app_www, svuincl_app_wwb, svuincl_app_w4.
+  + move => x y; move: y x.
+    case: vs => // ? vs /=; apply: rbindP => x /to_word_inv ?; subst.
+    case: vs => // ? vs /=; apply: rbindP => y /to_word_inv ?; subst.
+    case: vs => // h; apply ok_inj in h; subst.
+    case/forall2_inv_left=> x' [q] [?] [hx]; subst.
+    case/forall2_inv_left=> y' [r] [?] [hy]; subst.
+    move/forall2_inv_left -> => {r}.
+    case: x' hx => //= x' hx; subst.
+    case: y' hy => //= y' hy; subst.
+    eexists; split. reflexivity.
+    case: (wumul x' y') => a b; rewrite/pval/spval/=. repeat constructor.
+  + move => x y; move: y x.
+    case: vs => // ? vs /=; apply: rbindP => x /to_word_inv ?; subst.
+    case: vs => // ? vs /=; apply: rbindP => y /to_word_inv ?; subst.
+    case: vs => // ? vs /=; apply: rbindP => z /to_bool_inv ?; subst.
+    case: vs => // h; apply ok_inj in h; subst.
+    case/forall2_inv_left=> x' [q] [?] [hx]; subst.
+    case/forall2_inv_left=> y' [t] [?] [hy]; subst.
+    case/forall2_inv_left=> z' [r] [?] [hz]; subst.
+    move/forall2_inv_left -> => {r}.
+    case: x' hx => //= x' hx; subst.
+    case: y' hy => //= y' hy; subst.
+    case: z' hz => //= z' hz; subst.
+    eexists; split. reflexivity.
+    case: (waddcarry x' y' z') => a b; rewrite/pval/spval/=. repeat constructor.
+  + move => x y; move: y x.
+    case: vs => // ? vs /=; apply: rbindP => x /to_word_inv ?; subst.
+    case: vs => // ? vs /=; apply: rbindP => y /to_word_inv ?; subst.
+    case: vs => // ? vs /=; apply: rbindP => z /to_bool_inv ?; subst.
+    case: vs => // h; apply ok_inj in h; subst.
+    case/forall2_inv_left=> x' [q] [?] [hx]; subst.
+    case/forall2_inv_left=> y' [t] [?] [hy]; subst.
+    case/forall2_inv_left=> z' [r] [?] [hz]; subst.
+    move/forall2_inv_left -> => {r}.
+    case: x' hx => //= x' hx; subst.
+    case: y' hy => //= y' hy; subst.
+    case: z' hz => //= z' hz; subst.
+    eexists; split. reflexivity.
+    case: (wsubcarry x' y' z') => a b; rewrite/pval/spval/=. repeat constructor.
+  + move => x y; move: y x.
+    case: vs => // h; apply ok_inj in h; subst v.
+    move/forall2_inv_left => h; subst.
+    eexists; split. reflexivity.
+    repeat constructor.
+  + move => x y; move: y x.
+    case: vs => // x [] // y [] // z [] //; apply: rbindP => b /to_bool_inv ?; subst.
+    move=> h /forall2_inv_left [b'] [q] [?] [hb]; subst.
+    case/forall2_inv_left=> y' [t] [?] [hy]; subst.
+    case/forall2_inv_left=> z' [r] [?] [hz]; subst.
+    move/forall2_inv_left -> => {r}.
+    case: b' hb => //= b' hb; subst.
+    case: b' h; apply: rbindP => w /to_word_inv ?; subst; move => h; apply ok_inj in h; subst.
+    * case: y' hy => //= y' hy; subst.
+      eexists; repeat constructor.
+    case: z' hz => //= z' hz; subst.
+    eexists; repeat constructor.
 Qed.
 
 Lemma sset_vm_uincl vm vm' x z z' :
@@ -416,8 +547,17 @@ Lemma sset_var_uincl vm1 vm1' vm2 x v v' :
   exists vm2', sset_var vm1' x v' = ok vm2' /\ svm_uincl vm2 vm2'.
 Proof.
   move=> Hvm Hv;rewrite /set_var /sset_var.
-  apply: rbindP=> z /(of_sval_uincl Hv) [z' [-> ?]] [] <- /=.
-  by exists (vm1'.[x <- z'])%vmap;split=>//; apply sset_vm_uincl.
+  apply: on_vuP.
+  + move=> z /(of_sval_uincl Hv) [z'] [->] [le] _ <- /=.
+    by exists (vm1'.[x <- z'])%vmap;split=>//; apply sset_vm_uincl.
+  move/of_val_addr_undef => ?; subst v.
+  case: eqP => // ht q; apply ok_inj in q; subst.
+  case: (of_sval_ex Hv) => w [->] hv' /=. subst.
+  eexists. split. reflexivity.
+  move=> y; case: (x =P y) => [ <- | /eqP ne ]; last by rewrite ! Fv.setP_neq.
+  rewrite ! Fv.setP_eq.
+  case: (vtype x) w ht {Hv} => //.
+  move=> p w _ i v h; elim (Array.getP_empty h).
 Qed.
 
 Lemma SArray_set_uincl n (a1:Array.array n word) (a2: FArray.array word) (a1':Array.array n word) i v:
@@ -460,12 +600,14 @@ Qed.
 Lemma swrite_uincl s1 s' ss1 r v1 v2:
   sestate_uincl s1 ss1 ->
   svalue_uincl v1 v2 ->
-  write_lval r v1 s1 = ok s' ->
+  write_lval gd r v1 s1 = ok s' ->
   exists ss',
-    swrite_lval r v2 ss1 = ok ss' /\ sestate_uincl s' ss'.
+    swrite_lval gd r v2 ss1 = ok ss' /\ sestate_uincl s' ss'.
 Proof.
-  move=> Hs1 Hv;case:r => [xi | x | x p | x p] /=.
-  + by move=> [] <-;exists ss1.
+  move=> Hs1 Hv;case:r => [xi ty | x | x p | x p] /=.
+  + apply: on_vuP.
+    * by move=> w1 h ?; subst; eauto.
+    * case: eqP => // ne h H; apply ok_inj in H; subst; eauto.
   + rewrite /write_var /swrite_var;apply: rbindP=> vm2 /=.
     move: Hs1=> [Hmem1 Hvm1].
     rewrite -Hmem1.
@@ -477,34 +619,26 @@ Proof.
     move: Hs1=> [Hmem1 Hvm1].
     rewrite -Hmem1.
     by apply: rbindP => m' /mem2smem_write <- [] <-; exists {| semem := mem_to_smem m'; sevm := sevm ss1 |}.
-  apply: on_arr_varP=> n a;case: x=> -[xt xn] xi /= -> /=.
-  apply: rbindP=> /= a' Ha' /= Ha.
-  have Hblabla: forall x x', ok x = ok x' -> x = x'. by move=> T T' x x'; case.
-  have := (Hblabla _ _ _ _ Ha).
-  move=> /Varr_inj1 {Hblabla} {Ha} <-.
-  apply: rbindP => i;apply: rbindP=> vp /(ssem_pexpr_uincl Hs1) [vp' [-> Hvp]].
-  move: Hs1=> [Hmem0 Hvm0].
-  move=>  /(svalue_uincl_int Hvp) [] _ -> /=.
-  apply: rbindP => v /(svalue_uincl_word Hv) [] _ -> /=.
-  apply: rbindP=> t; set x := {|vtype := _ |}.
-  have Hvm0': @sval_uincl (sarr n) a' ((sevm ss1).[x])%vmap.
-    by have := (Hvm0 x); rewrite /= /seval_uincl Ha'.
-  move=> /(SArray_set_uincl Hvm0').
-  move=> [] t' [H1 Ht];apply: rbindP=> vm'.
-  have Hut: svalue_uincl (Varr t) (SVarr t') by auto.
-  move=> /(sset_var_uincl Hvm0 Hut) /= [vm2' [Hvm2' ?]] [] <- /=.
-  rewrite /son_arr_var /= H1 /=.
-  rewrite /sset_var /= in Hvm2'.
-  move: Hvm2'=> [] ->.
-  by exists {| semem := semem ss1; sevm := vm2' |}.
+  case: s1 Hs1 => m vm /=.
+  case: ss1 => m' vm' Hs1.
+  case Hs1 => /= ? hvm; subst.
+  apply: on_arr_varP=> n a.
+  case: x=> -[xt xn] xi /= -> /= /(sget_var_uincl hvm) h.
+  t_xrbindP => ofs vp /(ssem_pexpr_uincl Hs1) [vp' [ -> Hvp ] ] /(svalue_uincl_int Hvp) [] ? ?; subst.
+  move=> w /(svalue_uincl_word Hv) [] ? ? a'; subst.
+  move=> /(SArray_set_uincl h) [] ? [] ? ha'; subst.
+  move=> res /(sset_var_uincl (v' := SVarr _) hvm).
+  move=>/(_ _ ha') [] res' [] hres' r ?; apply ok_inj in hres'; subst.
+  rewrite /son_arr_var /=.
+  by repeat econstructor.
 Qed.
 
 Lemma swrites_uincl s s' ss r v1 v2:
   sestate_uincl s ss ->
   List.Forall2 svalue_uincl v1 v2 ->
-  write_lvals s r v1 = ok s' ->
+  write_lvals gd s r v1 = ok s' ->
   exists ss',
-    swrite_lvals ss r v2 = ok ss' /\
+    swrite_lvals gd ss r v2 = ok ss' /\
     sestate_uincl s' ss'.
 Proof.
   elim: r v1 v2 s ss=> [|r rs Hrec] v1 v2 s ss Hs /= [] //=.
@@ -521,42 +655,42 @@ Variable (p:prog).
 
 Let Pc s1 c s2 :=
   forall ss1,
-    sestate_uincl s1 ss1 -> exists ss2, ssem p ss1 c ss2 /\ sestate_uincl s2 ss2.
+    sestate_uincl s1 ss1 -> exists ss2, ssem p gd ss1 c ss2 /\ sestate_uincl s2 ss2.
 
 Let Pi_r s1 c s2 :=
   forall ss1,
-    sestate_uincl s1 ss1 -> exists ss2, ssem_i p ss1 c ss2 /\ sestate_uincl s2 ss2.
+    sestate_uincl s1 ss1 -> exists ss2, ssem_i p gd ss1 c ss2 /\ sestate_uincl s2 ss2.
 
 Let Pi s1 c s2 :=
   forall ss1,
-    sestate_uincl s1 ss1 -> exists ss2, ssem_I p ss1 c ss2 /\ sestate_uincl s2 ss2.
+    sestate_uincl s1 ss1 -> exists ss2, ssem_I p gd ss1 c ss2 /\ sestate_uincl s2 ss2.
 
 Let Pfor i zs s1 c s2 :=
   forall ss1,
-    sestate_uincl s1 ss1 -> exists ss2, ssem_for p i zs ss1 c ss2 /\ sestate_uincl s2 ss2.
+    sestate_uincl s1 ss1 -> exists ss2, ssem_for p gd i zs ss1 c ss2 /\ sestate_uincl s2 ss2.
 
 Let Pfun m1 fd vargs m2 vres :=
   forall vargs', List.Forall2 svalue_uincl vargs vargs' ->
     exists vres',
-    ssem_call p (mem_to_smem m1) fd vargs' (mem_to_smem m2) vres' /\
+    ssem_call p gd (mem_to_smem m1) fd vargs' (mem_to_smem m2) vres' /\
     List.Forall2 svalue_uincl vres vres'.
 
 Local Lemma Hnil s : Pc s [::] s.
 Proof. by move=> vm1 Hvm1;exists vm1;split=> //;constructor. Qed.
 
 Local Lemma Hcons s1 s2 s3 i c :
-  sem_I p s1 i s2 -> Pi s1 i s2 ->
-  sem p s2 c s3 -> Pc s2 c s3 -> Pc s1 (i :: c) s3.
+  sem_I p gd s1 i s2 -> Pi s1 i s2 ->
+  sem p gd s2 c s3 -> Pc s2 c s3 -> Pc s1 (i :: c) s3.
 Proof.
   move=> _ Hi _ Hc vm1 /Hi [vm2 []] Hsi /Hc [vm3 []] Hsc ?.
   by exists vm3;split=>//;econstructor;eauto.
 Qed.
 
-Local Lemma HmkI ii i s1 s2 : sem_i p s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
+Local Lemma HmkI ii i s1 s2 : sem_i p gd s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
 Proof. by move=> _ Hi vm1 /Hi [vm2 []] Hsi ?;exists vm2. Qed.
 
 Local Lemma Hasgn s1 s2 x tag e :
-  Let v := sem_pexpr s1 e in write_lval x v s1 = ok s2 ->
+  Let v := sem_pexpr gd s1 e in write_lval gd x v s1 = ok s2 ->
   Pi_r s1 (Cassgn x tag e) s2.
 Proof.
   move=> Hs2 vm1 Hvm1;apply:rbindP Hs2 => z /(ssem_pexpr_uincl Hvm1) [] z' [] Hz' Hz.
@@ -565,8 +699,8 @@ Proof.
 Qed.
 
 Local Lemma Hopn s1 s2 o xs es:
-  Let x := Let x := sem_pexprs s1 es in sem_sopn o x in
-  write_lvals s1 xs x = ok s2 -> Pi_r s1 (Copn xs o es) s2.
+  Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x in
+  write_lvals gd s1 xs x = ok s2 -> Pi_r s1 (Copn xs o es) s2.
 Proof.
   move=> H vm1 Hvm1; apply: rbindP H => rs;apply: rbindP => vs.
   move=> /(ssem_pexprs_uincl Hvm1) [] vs' [] H1 H2.
@@ -577,8 +711,8 @@ Proof.
 Qed.
 
 Local Lemma Hif_true s1 s2 e c1 c2 :
-  Let x := sem_pexpr s1 e in to_bool x = ok true ->
-  sem p s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+  Let x := sem_pexpr gd s1 e in to_bool x = ok true ->
+  sem p gd s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
 Proof.
   move=> H _ Hc vm1 Hvm1;apply: rbindP H => v.
   move=> /(ssem_pexpr_uincl Hvm1) [] v' [] H1 H2.
@@ -588,8 +722,8 @@ Proof.
 Qed.
 
 Local Lemma Hif_false s1 s2 e c1 c2 :
-  Let x := sem_pexpr s1 e in to_bool x = ok false ->
-  sem p s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+  Let x := sem_pexpr gd s1 e in to_bool x = ok false ->
+  sem p gd s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
 Proof.
   move=> H _ Hc vm1 Hvm1;apply: rbindP H => v.
   move=> /(ssem_pexpr_uincl Hvm1) [] v' [] H1 H2.
@@ -599,10 +733,10 @@ Proof.
 Qed.
 
 Local Lemma Hwhile_true s1 s2 s3 s4 c e c' :
-  sem p s1 c s2 -> Pc s1 c s2 ->
-  Let x := sem_pexpr s2 e in to_bool x = ok true ->
-  sem p s2 c' s3 -> Pc s2 c' s3 ->
-  sem_i p s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 -> Pi_r s1 (Cwhile c e c') s4.
+  sem p gd s1 c s2 -> Pc s1 c s2 ->
+  Let x := sem_pexpr gd s2 e in to_bool x = ok true ->
+  sem p gd s2 c' s3 -> Pc s2 c' s3 ->
+  sem_i p gd s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 -> Pi_r s1 (Cwhile c e c') s4.
 Proof.
   move=> _ Hc H _ Hc' _ Hw vm1 Hvm1;apply: rbindP H => v.
   have [vm2 [Hs2 Hvm2]] := Hc _ Hvm1.
@@ -613,8 +747,8 @@ Proof.
 Qed.
 
 Local Lemma Hwhile_false s1 s2 c e c' :
-  sem p s1 c s2 -> Pc s1 c s2 ->
-  Let x := sem_pexpr s2 e in to_bool x = ok false ->
+  sem p gd s1 c s2 -> Pc s1 c s2 ->
+  Let x := sem_pexpr gd s2 e in to_bool x = ok false ->
   Pi_r s1 (Cwhile c e c') s2.
 Proof.
   move=> _ Hc H vm1 Hvm1; apply: rbindP H => v.
@@ -625,9 +759,9 @@ Proof.
 Qed.
 
 Local Lemma Hfor s1 s2 (i : var_i) d lo hi c (vlo vhi : Z) :
-  Let x := sem_pexpr s1 lo in to_int x = ok vlo ->
-  Let x := sem_pexpr s1 hi in to_int x = ok vhi ->
-  sem_for p i (wrange d vlo vhi) s1 c s2 ->
+  Let x := sem_pexpr gd s1 lo in to_int x = ok vlo ->
+  Let x := sem_pexpr gd s1 hi in to_int x = ok vhi ->
+  sem_for p gd i (wrange d vlo vhi) s1 c s2 ->
   Pfor i (wrange d vlo vhi) s1 c s2 ->
   Pi_r s1 (Cfor i (d, lo, hi) c) s2.
 Proof.
@@ -646,8 +780,8 @@ Proof. by move=> vm1 Hvm1;exists vm1;split=> //;constructor. Qed.
 
 Local Lemma Hfor_cons s1 s1' s2 s3 (i : var_i) (w : Z) (ws : seq Z) c :
   write_var i w s1 = ok s1' ->
-  sem p s1' c s2 -> Pc s1' c s2 ->
-  sem_for p i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
+  sem p gd s1' c s2 -> Pc s1' c s2 ->
+  sem_for p gd i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
 Proof.
   move=> Hi _ Hc _ Hf vm1 Hvm1.
   have [//|vm1' [Hi' /Hc]] := @swrite_var_uincl _ _ _ _ (SVint w) _ Hvm1 _ Hi.
@@ -656,10 +790,10 @@ Proof.
 Qed.
 
 Local Lemma Hcall s1 m2 s2 ii xs fn args vargs vs :
-  sem_pexprs s1 args = ok vargs ->
-  sem_call p (emem s1) fn vargs m2 vs ->
+  sem_pexprs gd s1 args = ok vargs ->
+  sem_call p gd (emem s1) fn vargs m2 vs ->
   Pfun (emem s1) fn vargs m2 vs ->
-  write_lvals {| emem := m2; evm := evm s1 |} xs vs = ok s2 ->
+  write_lvals gd {| emem := m2; evm := evm s1 |} xs vs = ok s2 ->
   Pi_r s1 (Ccall ii xs fn args) s2.
 Proof.
   move=> Hargs Hcall Hfd Hxs s Hs.
@@ -678,7 +812,7 @@ Qed.
 Local Lemma Hproc m1 m2 fn fd vargs s1 vm2 vres:
   get_fundef p fn = Some fd ->
   write_vars (f_params fd) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
-  sem p s1 (f_body fd) {| emem := m2; evm := vm2 |} ->
+  sem p gd s1 (f_body fd) {| emem := m2; evm := vm2 |} ->
   Pc s1 (f_body fd) {| emem := m2; evm := vm2 |} ->
   mapM (fun x : var_i => get_var vm2 x) (f_res fd) = ok vres ->
   List.Forall is_full_array vres ->
@@ -708,15 +842,17 @@ Qed.
 
 Lemma sem_uincl s1 c s2 ss1 :
   sestate_uincl s1 ss1 ->
-  sem p s1 c s2 ->
+  sem p gd s1 c s2 ->
   exists ss2,
-    ssem p ss1 c ss2 /\
+    ssem p gd ss1 c ss2 /\
     sestate_uincl s2 ss2.
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_Ind p Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
+    (@sem_Ind p gd Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
 End SEM.
+
+End GLOB_DEFS.

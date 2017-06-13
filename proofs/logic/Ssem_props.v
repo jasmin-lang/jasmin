@@ -196,22 +196,29 @@ Proof. by apply/svmap_eq_except_subset/SvP.MP.union_subset_2. Qed.
 Lemma swrite_var_eqmem vi v s s' :
   swrite_var vi v s = ok s' -> sevm s = sevm s' [\Sv.singleton vi].
 Proof.
-elim/rbindP => sv /=; elim/rbindP=> z /= _ [<-] [<- /=].
+apply: rbindP => sv /=; apply: on_vuP.
+move=> z _ <- h; apply ok_inj in h; subst s'.
 move=> x hx; rewrite Fv.setP_neq //; apply/negP => /eqP.
 by SvD.fsetdec.
+move=> h; case eqP => // ne k; apply ok_inj in k; subst.
+move=> k; apply ok_inj in k; subst.
+reflexivity.
 Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma swrite_sget_var i z s s' :
   swrite_var i z s = ok s' -> sget_var s'.(sevm) i = z.
 Proof.
-elim/rbindP=> si; elim/rbindP=> y h [<-] [<-] /= {si}.
+elim/rbindP=> si; elim/on_vuP.
+move => y h <- x; apply ok_inj in x; subst.
 rewrite /sget_var Fv.setP_eq; move: (_ (vtype _)) y h.
 move=> sst y h; apply: (@of_sval_inj sst).
 + by apply/sval_sstype_to_sval.
 + by apply: (sval_sstype_of_sval h).
 + by rewrite of_sval_to_sval h.
-Qed.
+move => h; case: eqP => // ne k; apply ok_inj in k; subst.
+move=> k; apply ok_inj in k; subst.
+Abort.
 
 (* -------------------------------------------------------------------- *)
 Lemma vrvP gd r v s s' :
@@ -221,9 +228,12 @@ Proof. case: r => /=.
 + by move=> vi /swrite_var_eqmem; rewrite SvP.MP.singleton_equal_add.
 + by move=> vi e; t_xrbindP => *; subst.
 + move=> vi pe /slet_inv[p [eq]]; t_xrbindP=> z v' /=.
-  move=> okv' okz w okw sv; apply: rbindP => e /= _ [<-] <- /=.
+  move=> okv' okz w okw sv; apply: on_vuP.
+  - move => /= e h <- <- /=.
   rewrite -SvP.MP.singleton_equal_add => x inx.
   by rewrite Fv.setP_neq //; apply/eqP; SvD.fsetdec.
+  - move=> h; case: eqP => // ne k ?; apply ok_inj in k; subst.
+    reflexivity.
 Qed.
 
 (* -------------------------------------------------------------------- *)

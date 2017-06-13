@@ -454,7 +454,7 @@ Qed.
 
 Lemma of_sval_has_type ty s v :
   of_sval ty s = ok v →
-  ty = type_of_sval s.
+  ty = sval_sstype s.
 Proof.
   case: ty v => v /= V.
   apply sto_bool_inv in V; subst; reflexivity.
@@ -537,12 +537,12 @@ Proof.
         rewrite IHp; move=> -> /=; eauto.
     + case=> exn.
       case: (ssem_pexpr _ _ p) => /= [ vp Ep | ]; eauto.
-      case: (of_sval (type_of_sval vp) vp) => /= [ _ | ].
+      case: (of_sval (sval_sstype vp) vp) => /= [ _ | ].
       2: move=> exn' _; case: ssem_pexpr => /=; eauto.
       case: (type_check_pexpr _ _).
       * move=> tq [vq [Eq IHq]] /=. rewrite Eq /=.
         pose proof of_sval_has_type _ _ _ IHq; subst ty.
-        destruct (of_sval (type_of_sval vp) vq) eqn: X.
+        destruct (of_sval (sval_sstype vp) vq) eqn: X.
         2: simpl; eauto.
         exfalso.
         rewrite <- (of_sval_has_type _ _ _ X) in Ep. clear -Ep.
@@ -745,16 +745,20 @@ Proof.
   - (* Lnone *)
     move=> -> H; apply: H; eauto.
   - (* Lvar *)
-    move=> /= [ v' [Hvv' ?] ]; subst s'.
-    case: sstype_eq_dec => // Te.
-    unfold formula_denote; simpl.
-    apply (projT2 f m). reflexivity.
-    apply: env_ext_empty.
-    move=> y.
-    case: (x =P y).
-    move=> <-. rewrite ! (Fv.setP_eq, Mv.setP_eq).
-    subst; rewrite of_sval_to_sval in Hvv'; apply ok_inj in Hvv'; auto.
-    move=> NE. rewrite ! (Fv.setP_neq, Mv.setP_neq) //; case: eqP => //.
+    case.
+    + move=> /= [ v' [Hvv' ?] ]; subst s'.
+      case: sstype_eq_dec => // Te.
+      unfold formula_denote; simpl.
+      apply (projT2 f m). reflexivity.
+      apply: env_ext_empty.
+      move=> y.
+      case: (x =P y).
+      move=> <-. rewrite ! (Fv.setP_eq, Mv.setP_eq).
+      subst; rewrite of_sval_to_sval in Hvv'; apply ok_inj in Hvv'; auto.
+      move=> NE. rewrite ! (Fv.setP_neq, Mv.setP_neq) //; case: eqP => //.
+    + case => /= he ?; subst s'.
+      case: sstype_eq_dec => // Te. exfalso.
+      by case: x Te he => xt xi /= <-; rewrite of_sval_to_sval.
   - (* Lmem *)
     move=> [Tx [vx [ve [w [Hvx [Hve [Hv ?]]]]]]] /=; subst.
     case: has_pointer_type => // Tx'.
