@@ -1467,7 +1467,7 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
         subst ev1 ev2 => /=; eexists; first by reflexivity.
       case: o Eo ok_vs => //= _.
       case=> ?; subst vs; move/lvals_as_alu_varsT: El => ?; subst xs.
-      apply: (xaluop eqv' _ ok_of ok_cf ok_sf ok_sp ok_zf) => //.
+      apply: (xaluop (gd := gd) eqv' _ ok_of ok_cf ok_sf ok_sp ok_zf) => //.
       by rewrite to_estateK.
     - move=> bop Eo /=; case Ees: as_pair => [[e1 e2]|//].
       case El1: as_singleton => [x|//]; t_xrbindP.
@@ -1528,7 +1528,7 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
         * case: o Eo ok_vs => //= _; t_XrbindP.
           rewrite /eval_SHL ok_wv1 ok_wv2 /x86_shl.
           case: ifPn => /= _ -[?]; subst vs.
-          - eexists; eauto; apply: xundef; eauto; rewrite to_estateK.
+          - eexists; eauto; apply: (xundef (gd := gd)); eauto; rewrite to_estateK.
             move/lvals_as_alu_varsT: El => ?; subst xs; move: ok_wr.
             move/(@write_lvals_rcons _ [:: _; _; _; _; _] [:: _; _; _; _; _]).
             case=> s' ok_s' ok_s2; suff ->: s2 = s' by [].
@@ -1545,7 +1545,7 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
         * case: o Eo ok_vs => //= _; t_XrbindP.
           rewrite /eval_SHR ok_wv1 ok_wv2 /x86_shr.
           case: ifPn => /= _ -[?]; subst vs.
-          - eexists; eauto; apply: xundef; eauto; rewrite to_estateK.
+          - eexists; eauto; apply: (xundef (gd := gd)); eauto; rewrite to_estateK.
             move/lvals_as_alu_varsT: El => ?; subst xs; move: ok_wr.
             move/(@write_lvals_rcons _ [:: _; _; _; _; _] [:: _; _; _; _; _]).
             case=> s' ok_s' ok_s2; suff ->: s2 = s' by [].
@@ -1562,9 +1562,9 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
         * case: o Eo ok_vs => //= _; t_XrbindP.
           rewrite /eval_SAR ok_wv1 ok_wv2 /x86_sar.
           case: ifPn => /= _ -[?]; subst vs.
-          - eexists; eauto; apply: xundef; eauto; rewrite to_estateK.
+          - eexists; eauto; apply: (xundef (gd := gd)); eauto; rewrite to_estateK.
             move/lvals_as_alu_varsT: El => ?; subst xs; move: ok_wr.
-            move/(@write_lvals_rcons _ [:: _; _; _; _; _] [:: _; _; _; _; _]).
+            move/(@write_lvals_rcons gd [:: _; _; _; _; _] [:: _; _; _; _; _]).
             case=> s' ok_s' ok_s2; suff ->: s2 = s' by [].
             suff h: sem_pexpr gd s' e1 = ok (Vword wv1).
             + by apply/esym; apply: (write_lvalK ok1 okl h).
@@ -1584,8 +1584,8 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
         move: ok_vs => /=; t_xrbindP => w /to_word_ok ?; subst ve.
         rewrite /eval_SHLD ok_wv1; case: (xread_ireg_ok eqv' ok_r' ok_ve).
         move=> _ -> [<-]; rewrite /x86_shld; case: eqP => //= _.
-        - case=> ?; subst vs; eexists; eauto; apply: xundef; eauto.
-          rewrite to_estateK; move: ok_wr.
+        - case=> ?; subst vs; eexists; eauto.
+          apply: (xundef (gd := gd)); eauto; rewrite to_estateK; move: ok_wr.
           move/(@write_lvals_rcons _ [:: _; _; _; _; _] [:: _; _; _; _; _]).
           case=> s' ok_s' ok_s2; suff ->: s2 = s' by [].
           suff h: sem_pexpr gd s' e1 = ok (Vword wv1).
@@ -1596,9 +1596,9 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
           by move=> /=; do! f_equal.
         case=> ?; subst vs; rewrite /read_ireg /= in ok_wv2.
         rewrite {}ok_wv2; move: ok_wr.
-        move/(@write_lvals_rcons _ [:: _; _; _; _; _] [:: _; _; _; _; _]).
+        move/(@write_lvals_rcons gd [:: _; _; _; _; _] [:: _; _; _; _; _]).
         case=> s' ok_s' ok_s2; apply: xwrite_ok; eauto.
-        by apply: xsl; rewrite ?to_estateK; eauto.
+        by apply: (xsl (gd := gd)); rewrite ?to_estateK; eauto.
     - move=> Eo /=; case Ees: as_pair => [[e1 e2]|//].
       case El2: as_pair => [[x2 x1]|//]; t_xrbindP.
       move=> vx1 ok_vx1 vx2 ok_vx2 op1 ok_op1 op2 ok_op2.
@@ -1816,4 +1816,5 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
   rewrite (xeval_cond eqv1 ok_ct ok_v) ok_bv /= /st_write_ip /=.
   eexists; first by reflexivity. split=> //=.
   by rewrite /assemble_c ok_tla tlaE.
-Admitted.
+Qed.
+
