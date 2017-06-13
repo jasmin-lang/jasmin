@@ -1208,10 +1208,12 @@ Proof. case: e => //= [[]//||].
   move=> ?; subst v; rewrite /write_var; t_xrbindP => vm2 ok_vm2.
   move=> <- /=; rewrite (get_set_var_ne _ ok_vm2) => [/esym eq_x|].
   - by move/reg_of_var_rflagN: ok_r; rewrite eq_x ok_rf.
-(*
-  by rewrite ok1 /=; rewrite (sem_addr_indep _ _ s1 ok_a) ok2 /= ok3.
-*)
-Admitted.
+  rewrite ok1 /=; rewrite (sem_addr_indep _ _ (s2 := s1) ok_a); last first.
+  - by rewrite ok2 /= ok3.
+  move=> y Nvary /=; case: (y =P rfx) => [?|]; first subst y.
+  - by rewrite ok_rf in Nvary.
+  by move=> ne_y; rewrite (get_set_var_ne _ ok_vm2) // => /esym.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma write_rfs_oprdN gd ii rfs rfvs (rfxs : seq var_i) v e op s1 s2 :
