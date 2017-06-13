@@ -1576,7 +1576,29 @@ move=> eqv1 h; case: h eqv1 => {s1 s2}.
           move/(@write_lvals_rcons _ [:: _; _; _; _; _] [:: _; _; _; _; _]).
           case=> s' ok_s' ok_s2; apply: xwrite_ok; eauto.
           by apply: xsl; rewrite ?to_estateK; eauto.
-      + admit.
+      + case: o => // _ ok_vs; move/lvals_as_alu_varsT: El => ?; subst xs.
+        case Ees': as_singleton => [e|//]; case: op2 ok2 ok_wv2 => //.
+        move=> r ok_r ok_wv2; t_XrbindP=> r' ok_r' ?; subst a => {aE}.
+        have := as_singletonT Ees' => ?; subst es' => {Ees'}.
+        move: ok_es' => /=; t_xrbindP => ve ok_ve ?; subst h3.
+        move: ok_vs => /=; t_xrbindP => w /to_word_ok ?; subst ve.
+        rewrite /eval_SHLD ok_wv1; case: (xread_ireg_ok eqv' ok_r' ok_ve).
+        move=> _ -> [<-]; rewrite /x86_shld; case: eqP => //= _.
+        - case=> ?; subst vs; eexists; eauto; apply: xundef; eauto.
+          rewrite to_estateK; move: ok_wr.
+          move/(@write_lvals_rcons _ [:: _; _; _; _; _] [:: _; _; _; _; _]).
+          case=> s' ok_s' ok_s2; suff ->: s2 = s' by [].
+          suff h: sem_pexpr gd s' e1 = ok (Vword wv1).
+          + by apply/esym; apply: (write_lvalK ok1 okl h).
+          pose rxs := [:: rof; rcf; rsf; rsp; rzf].
+          pose rfs := [:: OF ; CF ; SF ; PF ; ZF ].
+          apply: (write_rfs_oprdN (rfs := rfs) (rfxs := rxs) _ ok1 ok_v1 ok_s').
+          by move=> /=; do! f_equal.
+        case=> ?; subst vs; rewrite /read_ireg /= in ok_wv2.
+        rewrite {}ok_wv2; move: ok_wr.
+        move/(@write_lvals_rcons _ [:: _; _; _; _; _] [:: _; _; _; _; _]).
+        case=> s' ok_s' ok_s2; apply: xwrite_ok; eauto.
+        by apply: xsl; rewrite ?to_estateK; eauto.
     - move=> Eo /=; case Ees: as_pair => [[e1 e2]|//].
       case El2: as_pair => [[x2 x1]|//]; t_xrbindP.
       move=> vx1 ok_vx1 vx2 ok_vx2 op1 ok_op1 op2 ok_op2.

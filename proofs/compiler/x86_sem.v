@@ -726,7 +726,7 @@ Definition eval_SHLD o1 r2 ir s : x86_result :=
   let v2 := s.(xreg) r2 in
   let i := I64.and (read_ireg ir s) x86_shift_mask in
 
-  if i == I64.zero then ok s else
+  if i == I64.zero then ok (st_update_rflags all_undef s) else
     let rc := msb (I64.shl v1 (I64.sub i I64.one)) in
     let r1 := I64.shl v1 i in
     let r2 := I64.shr v2 (I64.sub (I64.repr I64.zwordsize) i) in
