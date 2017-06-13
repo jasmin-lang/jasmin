@@ -188,7 +188,7 @@ def _dump_report(config, results, out):
             subnode['success']    = result.success
             subnode['shouldpass'] = result.config.isvalid
             subnode['output']     = \
-                literal_unicode(str(result.stderr, 'ascii').rstrip('\r\n'))
+                literal_unicode(str(result.stderr).rstrip('\r\n'))
 
             node['details'].append(subnode)
 
