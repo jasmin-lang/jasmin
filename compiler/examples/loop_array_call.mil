@@ -1,0 +1,27 @@
+fn reduce() -> reg u64[1] {
+	reg u64[1] xa;
+	xa[0] = 0;
+	return xa;
+}
+
+fn iterated_square(reg u64[1] xa, stack u64 n) -> reg u64[1] {
+	reg bool cf;
+	while {
+		xa = reduce();
+		cf, n -= 1;
+	}(!cf)
+	return xa;
+}
+
+export fn iterated_square_export(reg u64 xap, reg u64 n) {
+
+	reg u64[1] xa;
+	stack u64 ns;
+
+	xa[0] = [xap + 0];
+
+	ns = n;
+	xa = iterated_square(xa, ns);
+
+	[xap + 0] = xa[0];
+}
