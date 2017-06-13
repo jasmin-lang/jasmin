@@ -1203,11 +1203,17 @@ case: s1 s2 => [m1 lv1] [m2 lv2]; case: e => //=; first case=> //.
   * by t_xrbindP=> ???? [<-].
   * by t_xrbindP=> ?? [<-].
   t_xrbindP=> pzw -[?] [<-] [eq_pz ?]; subst pzw r'; move: ok_z.
-  rewrite (addr_Ofs_constE _ _ E) => -[?]; subst z.
+  rewrite (addr_Ofs_constE _ _ E) => -[?]; subst z => {a p E}.
   have [eqw]: @Ok error _ (Vword w) = ok (Vword wy).
   * by rewrite -ok_w -ok_wy; f_equal; apply: (inj_reg_of_var ok_r ok_r').
-  rewrite {}eqw -{}eq_pz in ok_wv => {E}.
-Admitted.
+  rewrite {}eqw -{}eq_pz in ok_wv => {ok_r ok_r' y pz ok_wy ok_w w r}.
+  move: (I64.add _ _) ok_m2 ok_wv => {x lv1 lv2 wv' wy} w okw okr.
+  have vd: Memory.valid_addr m1 w by apply/Memory.readV; eauto.
+  apply: Memory.eq_memP => w'; case: (w =P w') => [<-|new].
+  * by move/Memory.writeP_eq: vd => /(_ wv); rewrite okw okr.
+  * move/Memory.writeP_neq: vd => /(_ _ _ new) -/(_ wv).
+    by rewrite okw /= => ->.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma write_rf_oprdN gd ii rf rfv (rfx : var_i) v e op s1 s2 :

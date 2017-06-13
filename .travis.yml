@@ -16,5 +16,5 @@ before_install:
 - docker pull jasminlang/test-box:${COQV}
 script:
 - >-
-  docker run -v $PWD:/home/ci/jasmin jasminlang/test-box:${COQV}
+  docker run -v $PWD:/home/ci/jasmin:rw jasminlang/test-box:${COQV}
   sh -c "opam config exec -- make -C jasmin/travis check-${TARGET}"
