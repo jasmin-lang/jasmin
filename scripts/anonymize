@@ -1,6 +1,6 @@
 #! /bin/bash
 
-${SED:-sed} -i \
+${SED:-sed} -ibak \
   -e "s/Inria/<Anonymized>/i" \
 	-e "s/IMDEA Software Institute/<Anonymized>/i" \
   -e "s,http://jasmin-lang.github.io/,http://example.com,i" \

@@ -5,10 +5,6 @@ DISTDIR := jasmin
 UNAME_S := $(shell uname -s)
 SED     := sed
 
-ifeq ($(UNAME_S),Darwin)
-  SED := gsed
-endif
-
 # --------------------------------------------------------------------
 .PHONY: all clean dist distcheck
 
