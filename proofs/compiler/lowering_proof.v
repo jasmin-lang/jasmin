@@ -30,6 +30,7 @@ From mathcomp Require Import all_ssreflect.
 Require Import ZArith sem compiler_util.
 Require Export lowering.
 Import Utf8.
+Require Import Psatz.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -465,10 +466,29 @@ Section PROOF.
   Qed.
 
   Lemma weq_sub z1 z2: weq z1 z2 = I64.eq (I64.sub z1 z2) I64.zero.
-  Admitted.
+  Proof.
+  case: z1 z2 => [z1 h1] [z2 h2]; rewrite /weq /I64.eq /I64.sub /=.
+  rewrite unsigned0 I64.unsigned_repr_eq; case: Coqlib.zeq => z_mod_12.
+  + have {h1 h2} lt_abs: (Z.abs (z1 - z2) < I64.modulus)%Z by lia.
+    have {z_mod_12} z_mod_abs: (Z.abs (z1 - z2) mod I64.modulus = 0)%Z.
+    * case: (Z.abs_spec (z1 - z2))  => [[_ ->//]|[_ ->]].
+      by apply/Z_mod_zero_opp.
+    have h := Z_div_mod_eq (Z.abs (z1 - z2)) _ I64.modulus_pos.
+    apply/eqP/Zminus_eq/Z.abs_0_iff; rewrite {}h z_mod_abs Z.add_0_r.
+    by apply/Z.eq_mul_0; right; apply: Zdiv_small; lia.
+  + by apply/Z.eqb_neq => eq; subst z2; rewrite Z.sub_diag Zmod_0_l in z_mod_12.
+  Qed.
 
   Lemma wult_sub z1 z2: wult z1 z2 = (I64.unsigned (I64.sub z1 z2) != (z1 - z2)%Z).
-  Admitted.
+  Proof.
+  case: z1 z2 => [z1 h1] [z2 h2]; rewrite /wult /I64.sub /=.
+  case/boolP: (z1 <? z2)%Z => [/Z.ltb_lt lt_z1_z2|].
+  + apply/esym/eqP=> eqsub; move/Z.lt_sub_0: lt_z1_z2.
+    rewrite -eqsub I64.unsigned_repr_eq; apply/Z.le_ngt.
+    by case (Z_mod_lt (z1 - z2) _ I64.modulus_pos).
+  + move/negbTE/Z.ltb_ge => le_z2_z1; apply/esym/negbTE.
+    rewrite negbK -(rwP eqP) I64.unsigned_repr_eq Zmod_small; lia.
+  Qed.
 
   Lemma wule_not_wult z1 z2: wule z2 z1 = ~~ wult z1 z2.
   Proof. exact: Z.leb_antisym. Qed.
@@ -484,6 +504,7 @@ Section PROOF.
 
   Lemma wslt_sub z1 z2: wslt z1 z2 =
    (msb (I64.sub z1 z2) != (I64.signed (I64.sub z1 z2) != (I64.signed z1 - I64.signed z2)%Z)).
+  Proof.
   Admitted.
 
   Lemma wule_sub z1 z2: wule z1 z2 =
