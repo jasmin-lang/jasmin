@@ -502,12 +502,44 @@ Section PROOF.
   Lemma wslt_not_wsle z1 z2: wslt z2 z1 = ~~ wsle z1 z2.
   Proof. exact: Z.ltb_antisym. Qed.
 
+Ltac elim_div :=
+   unfold Zdiv, Zmod;
+     match goal with
+       |  H : context[ Zdiv_eucl ?X ?Y ] |-  _ =>
+          generalize (Z_div_mod_full X Y) ; destruct (Zdiv_eucl X Y)
+       |  |-  context[ Zdiv_eucl ?X ?Y ] =>
+          generalize (Z_div_mod_full X Y) ; destruct (Zdiv_eucl X Y)
+     end; unfold Remainder.
+
   Lemma wslt_sub z1 z2: wslt z1 z2 =
    (msb (I64.sub z1 z2) !=
         (I64.signed (I64.sub z1 z2) != (I64.signed z1 - I64.signed z2)%Z)).
   Proof.
-  rewrite /msb /wslt.
-  Admitted.
+    clear.
+    rewrite /msb /wslt I64.sub_signed I64.signed_repr_eq.
+    move: (I64.signed_range z1) (I64.signed_range z2); rewrite/I64.min_signed/I64.max_signed.
+    move: (I64.signed z1) (I64.signed z2) => {z1 z2} x y.
+    set m := I64.modulus. vm_compute in m.
+    set h := I64.half_modulus. vm_compute in h.
+    move=> [xl xh] [yl yh].
+    have mz : m ≠ 0%Z by subst m; lia.
+    case: Coqlib.zlt; elim_div; case => //.
+    + move=> H D M.
+      case: D. 2: subst m; lia.
+      case => Hz0' _.
+      case: (Z.ltb_spec z0). lia.
+      move => _.
+      case: Z.ltb_spec => Hxy.
+      + case: (z0 =P _) => //. lia.
+      case: (z0 =P _) => //.
+      subst m h; lia.
+    move=> H []. 2: lia.
+    case => Hz0' Hz0m _.
+    rewrite (proj2 (Z.ltb_lt _ 0)). 2: lia.
+    case: Z.ltb_spec => Hxy.
+    case: ((z0  - m)%Z =P _) => //. subst h m. lia.
+    case: ((z0  - m)%Z =P _) => //. subst h m. lia.
+  Qed.
 
   Lemma Z_leb_eqVlt z1 z2 : ((z1 <=? z2) = ((z1 =? z2) || (z1 <? z2)))%Z.
   Proof.
