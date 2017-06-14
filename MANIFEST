@@ -25,6 +25,7 @@ compiler/myocamlbuild.ml
 compiler/_tags
 compiler/opam
 compiler/CIL/.keep
+compiler/config/tests.config
 
 # Tests
 find:compiler/examples:*.mil
