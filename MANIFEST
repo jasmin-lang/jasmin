@@ -1,6 +1,7 @@
 # --------------------------------------------------------------------
 Makefile
 MANIFEST
+default.nix
 
 # Proofs
 proofs/Makefile
