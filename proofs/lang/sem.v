@@ -29,6 +29,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import Psatz xseq.
 Require Export expr memory.
+Import Utf8.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -205,6 +206,11 @@ Proof.
     by elim: n {v}=> // p0 /= ->.
   by [].
 Qed.
+
+Lemma to_bool_inv x b :
+  to_bool x = ok b →
+  x = b.
+Proof. case: x => // i' H. apply ok_inj in H. congruence. by case: i' H. Qed.
 
 (* ** Variable map
  * -------------------------------------------------------------------- *)

@@ -30,7 +30,7 @@ From mathcomp Require Import all_ssreflect.
 Require Import ZArith sem compiler_util.
 Require Export lowering.
 Import Utf8.
-Require Import Psatz.
+Import Psatz.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -1404,11 +1404,6 @@ Section PROOF.
     by move => [] // [] //=; eauto 10.
     by move=> cfi [] //=; eauto 11.
   Qed.
-
-  Lemma to_bool_inv x b :
-    to_bool x = ok b →
-    x = b.
-  Proof. case: x => // i' H. apply ok_inj in H. congruence. by case: i' H. Qed.
 
   Lemma lower_addcarry_correct ii si so si' sub xs es x v :
     eq_exc_fresh si' si →
