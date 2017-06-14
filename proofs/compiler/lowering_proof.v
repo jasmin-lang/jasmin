@@ -1290,7 +1290,7 @@ Section PROOF.
 
   Lemma sub_underflow w1 w2:
     (I64.unsigned (I64.sub w1 w2) != (w1 - w2)%Z) = (w1 - w2 <? 0)%Z.
-  Proof.
+  Proof using.
   case: w1 w2 => [z1 h1] [z2 h2]; rewrite /I64.sub /=.
   case/boolP: (z1 - z2 <? 0)%Z.
   + move=> /Z.ltb_lt H.
