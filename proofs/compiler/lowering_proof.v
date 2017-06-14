@@ -1284,27 +1284,47 @@ Section PROOF.
     = (I64.modulus <=? w1 + w2 + Zofb b)%Z.
   Proof.
   case: w1 w2 => [z1 h1] [z2 h2]; rewrite add_carry_repr /= b_to_w_Zofb.
-  rewrite unsigned_overflow //.
-  case: b=> /=; rewrite ?I64.unsigned_one ?I64.unsigned_zero; lia.
+  rewrite unsigned_overflow //; case: b=> /=;
+    by rewrite ?I64.unsigned_one ?I64.unsigned_zero; lia.
   Qed.
 
   Lemma sub_underflow w1 w2:
     (I64.unsigned (I64.sub w1 w2) != (w1 - w2)%Z) = (w1 - w2 <? 0)%Z.
   Proof using.
   case: w1 w2 => [z1 h1] [z2 h2]; rewrite /I64.sub /=.
-  case/boolP: (z1 - z2 <? 0)%Z.
-  + move=> /Z.ltb_lt H.
-    (* need to find "unsigned_underflow" (case z < 0) *)
-    admit.
-  + rewrite -Z.leb_antisym=> /Z.leb_le H.
-    rewrite unsigned_overflow //.
-    apply/Z.leb_gt; lia.
-  Admitted.
+  have: (z1 - z2 < I64.modulus)%Z by lia.
+  have: (-I64.modulus < z1 - z2)%Z by lia.
+  move=> {h1 h2}; rewrite I64.unsigned_repr_eq.
+  move: (z1 - z2)%Z => {z1 z2} z hlo hhi.
+  case: (Z_le_dec 0 z) => [ge0_z|lt0_z].
+  + rewrite Z.mod_small // eqxx /=; apply/esym/negbTE.
+    by rewrite -Z.leb_antisym; apply/Z.leb_le.
+  + move/Z.lt_nge/Z.ltb_lt: (lt0_z) => ->; apply/negP.
+    by case/eqP/Z.mod_small_iff; lia.
+  Qed.
 
   Lemma sub_borrow_underflow w1 w2 b:
-    (I64.unsigned (sub_borrow w1 w2 (b_to_w b)) != (w1 - (w2 + b_to_w b))%Z) = (w1 - w2 - Zofb b <? 0)%Z.
-  Proof using.
-  Admitted.
+      (I64.unsigned (sub_borrow w1 w2 (b_to_w b)) != (w1 - (w2 + b_to_w b))%Z)
+    = (w1 - w2 - Zofb b <? 0)%Z.
+  Proof.
+  case: b => //=; last first.
+  + by rewrite /sub_borrow Z.sub_0_r Z.add_0_r sub_underflow.
+  case/boolP: (w2 + 1 =? I64.modulus)%Z; last first.
+  + move/eqP=> h; have {h}h: (w2 < I64.modulus - 1)%Z.
+    * by case: w2 h => z; set v := (_ - 1)%Z; rewrite /= {}/v; lia.
+    rewrite /sub_borrow -Z.sub_add_distr; set w := (w2 + _)%Z.
+    suff ->: w = I64.unsigned (I64.repr w) by rewrite sub_underflow.
+    rewrite I64.unsigned_repr_eq {}/w Z.mod_small //.
+    rewrite I64.unsigned_one; suff: (0 <= w2)%Z by lia.
+    by case: {h} w2=> /= *; lia.
+  rewrite /sub_borrow -!Z.sub_add_distr I64.unsigned_one.
+  move=> /eqP->; have ->: ((w1 - I64.modulus) <? 0)%Z.
+  + by apply/Z.ltb_lt; apply/Z.lt_sub_0; case: w1 => /= *; lia.
+  rewrite I64.unsigned_repr_eq Zminus_mod Z_mod_same_full.
+  rewrite Z.sub_0_r Zmod_mod Z.mod_small; last by case: w1 => /= *; lia.
+  have: (0 <> I64.modulus)%Z by have := I64.modulus_pos; lia.
+  by move=> ?; apply/eqP; lia.
+  Qed.
 
   Lemma sub_borrow_repr w1 w2 b:
     sub_borrow w1 w2 (b_to_w b) = I64.repr (w1 - w2 - Zofb b).
