@@ -40,7 +40,13 @@ Record fresh_vars : Type :=
     fresh_multiplicand : Equality.sort Ident.ident;
   }.
 
-Context (use_lea : bool).
+Record lowering_options : Type := 
+  { 
+    use_lea  : bool;
+    use_set0 : bool;
+  }.
+
+Context (options : lowering_options).
 
 Context (warning: instr_info -> warning_msg -> instr_info).
 
@@ -422,7 +428,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (e: pexpr) : c
       [:: MkI ii (Copn [:: Lvar c] Ox86_MOV [:: e ]) ; MkI ii (Copn [:: x ] Ox86_MOV [:: Pvar c ]) ]
     else 
       (* IF e is 0 then use Oset0 instruction *)
-      if (e == Pcast (Pconst 0)) && ~~ is_lval_in_memory x then
+      if (e == wconst 0) && ~~ is_lval_in_memory x && options.(use_set0) then
         [:: MkI ii (Copn [:: f ; f ; f ; f ; f ; x] Oset0 [::]) ]
       else copn Ox86_MOV e
   | LowerCopn o e => copn o e
@@ -436,7 +442,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (e: pexpr) : c
     let lea tt := 
       let ii := warning ii Use_lea in
       [:: MkI ii (Copn [::x] Ox86_LEA [:: de; b; sce; o]) ] in
-    if use_lea then lea tt
+    if options.(use_lea) then lea tt
     (* d + b + sc * o *)
     else 
       if d == I64.zero then 

@@ -42,7 +42,7 @@ Local Open Scope seq_scope.
 Section PROOF.
 
   Variable p : prog.
-  Context (gd : glob_defs) (use_lea: bool).
+  Context (gd : glob_defs) (options: lowering_options).
   Context (warning: instr_info -> warning_msg -> instr_info).
   Variable fv : fresh_vars.
   Context (is_var_in_memory: var_i → bool).
@@ -88,7 +88,7 @@ Section PROOF.
   Local Hint Resolve of_in_fv cf_in_fv sf_in_fv pf_in_fv zf_in_fv multiplicand_in_fv.
 
   Local 
-  Definition p' := lower_prog use_lea warning fv is_var_in_memory p.
+  Definition p' := lower_prog options warning fv is_var_in_memory p.
 
   Definition eq_exc_fresh s1 s2 :=
     s1.(emem) = s2.(emem) /\ s1.(evm) = s2.(evm) [\ fvars].
@@ -147,7 +147,7 @@ Section PROOF.
   Let Pi (s:estate) (i:instr) (s':estate) :=
     disj_fvars (vars_I i) ->
     forall s1, eq_exc_fresh s1 s ->
-      exists s1', sem p' gd s1 (lower_i use_lea warning fv is_var_in_memory i) s1' /\ eq_exc_fresh s1' s'.
+      exists s1', sem p' gd s1 (lower_i options warning fv is_var_in_memory i) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pi_r (s:estate) (i:instr_r) (s':estate) :=
     forall ii, Pi s (MkI ii i) s'.
@@ -155,12 +155,12 @@ Section PROOF.
   Let Pc (s:estate) (c:cmd) (s':estate) :=
     disj_fvars (vars_c c) ->
     forall s1, eq_exc_fresh s1 s ->
-      exists s1', sem p' gd s1 (lower_cmd (lower_i use_lea warning fv is_var_in_memory) c) s1' /\ eq_exc_fresh s1' s'.
+      exists s1', sem p' gd s1 (lower_cmd (lower_i options warning fv is_var_in_memory) c) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pfor (i:var_i) vs s c s' :=
     disj_fvars (Sv.union (vars_c c) (Sv.singleton i)) ->
     forall s1, eq_exc_fresh s1 s ->
-      exists s1', sem_for p' gd i vs s1 (lower_cmd (lower_i use_lea warning fv is_var_in_memory) c) s1' /\ eq_exc_fresh s1' s'.
+      exists s1', sem_for p' gd i vs s1 (lower_cmd (lower_i options warning fv is_var_in_memory) c) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pfun m1 fn vargs m2 vres :=
     sem_call p' gd m1 fn vargs m2 vres.
@@ -1119,7 +1119,7 @@ Ltac elim_div :=
       assert (eq_exc_fresh ℓ s) as e.
       by subst ℓ; apply (conj (erefl _)); apply vmap_eq_except_set.
       assert (disj_fvars (read_e x) ∧ disj_fvars (read_es z)) as dxz.
-      { clear - da. eapply disj_fvars_m in da.
+      { clear - da options. eapply disj_fvars_m in da.
         2: apply SvP.MP.equal_sym; eapply read_es_cons.
         apply disj_fvars_union in da;intuition. }
       case: dxz => dx dz.
@@ -1161,7 +1161,7 @@ Ltac elim_div :=
           by rewrite/sem_pexprs/=/get_var/on_vu Fv.setP_eq/=hℓ'.
         by eauto using eq_exc_freshT.
       * exists s2'; split=> //.
-        case: ifP => [/andP [] /eqP ?? | _ ];first last.
+        case: ifP => [/andP [] /andP [] /eqP ???| _ ];first last.
         - apply: sem_seq1; apply: EmkI; apply: Eopn.
           by rewrite /= /sem_pexprs /= Hv' /= Hw'.
         subst e;apply: sem_seq1; apply: EmkI; apply: Eopn.
@@ -1546,7 +1546,7 @@ Ltac elim_div :=
           split=> //.
           rewrite /s2'' /= => x Hx.
           rewrite Fv.setP_neq //.
-          apply/eqP=> Habs; apply: Hx; rewrite -Habs /fvars.
+          apply/eqP=> Habs; apply: Hx; rewrite -Habs /fvars /lowering.fvars.
           SvD.fsetdec.
         have [s3'' [Hw'' Hs3'']] := write_lvals_same Hdisjl Heq Hw'.
         have He1' := sem_pexpr_same Hdisje Heq He1.

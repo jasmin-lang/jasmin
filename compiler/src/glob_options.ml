@@ -8,6 +8,7 @@ let coqonly = ref false
 let print_list = ref []
 
 let lea = ref false
+let set0 = ref false
 
 let set_coqonly s =
   coqfile := s;
@@ -68,7 +69,10 @@ let options = [
     "-coqonly" , Arg.String set_coqonly, "[filename]: generate the corresponding coq file, and exit";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
     "-lea"     , Arg.Set lea           , ": use lea as much as possible (default is nolea)";
-    "-nolea"   , Arg.Clear lea         , ": try to use add and mul instead of lea"
+    "-nolea"   , Arg.Clear lea         , ": try to use add and mul instead of lea";
+    "-set0"     , Arg.Set set0          , ": use [xor x x] to set x to 0 (default is not)";
+    "-noset0"   , Arg.Clear set0        , ": do not use set0 option";
+
   ] @  List.map print_option poptions
 
 let usage_msg = "Usage : jasminc [option] filename"

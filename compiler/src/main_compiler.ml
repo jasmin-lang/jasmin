@@ -227,7 +227,8 @@ let main () =
       Compiler.print_prog   = (fun s p -> eprint s pp_cprog p; p);
       Compiler.warning      = warning;
       Compiler.inline_var   = inline_var;
-      Compiler.use_lea      = !Glob_options.lea;
+      Compiler.lowering_opt = Lowering.{ use_lea = !Glob_options.lea; 
+                                         use_set0 = !Glob_options.set0; };
     } in
 
     let entries =
