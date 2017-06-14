@@ -628,17 +628,21 @@ Definition x86_idiv (hi lo dv:word) : exec values :=
 
   ok (rflags_of_div ++ [:: Vword (I64.repr q); Vword (I64.repr r)]).
 
+Definition add_carry (x y c: I64.int) := I64.repr (x + y + c).
+
 Definition x86_adc (v1 v2 : word) (c:bool) :=
   let c := b_to_w c in
   rflags_of_aluop_w
-    (I64.add_carry v1 v2 c)
+    (add_carry v1 v2 c)
     (I64.unsigned v1 + I64.unsigned v2 + c)%Z
     (I64.signed   v1 + I64.signed   v2 + c)%Z.
+
+Definition sub_borrow (x y c: I64.int) := I64.repr (x - y - c).
 
 Definition x86_sbb (v1 v2 : word) (c:bool) :=
   let c := b_to_w c in
   rflags_of_aluop_w
-    (I64.sub_borrow v1 v2 c)
+    (sub_borrow v1 v2 c)
     (I64.unsigned v1 - (I64.unsigned v2 + c))%Z
     (I64.signed   v1 - (I64.signed   v2 + c))%Z.
 

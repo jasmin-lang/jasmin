@@ -1253,42 +1253,62 @@ Section PROOF.
     by move: l=> [] // <-; eauto.
   Qed.
 
+  Lemma unsigned_overflow (z: Z):
+    (0 <= z)%Z ->
+    (I64.unsigned (I64.repr z) != z) = (I64.modulus <=? z)%Z.
+  Proof.
+  move=> H.
+  rewrite /= I64.unsigned_repr_eq; apply/idP/idP.
+  * apply: contraR => /negbTE /Z.leb_gt lt; apply/eqP.
+    by rewrite Z.mod_small //; lia.
+  * apply: contraL => /eqP <-; apply/negbT/Z.leb_gt.
+    by case: (Z_mod_lt z _ I64.modulus_pos).
+  Qed.
+
   Lemma add_overflow w1 w2:
     (I64.unsigned (I64.add w1 w2) != (w1 + w2)%Z) = (I64.modulus <=? w1 + w2)%Z.
   Proof.
   case: w1 w2 => [z1 h1] [z2 h2]; rewrite /I64.add /=.
-  rewrite I64.unsigned_repr_eq; apply/idP/idP.
-  * apply: contraR => /negbTE /Z.leb_gt lt; apply/eqP.
-    by rewrite Z.mod_small //; lia.
-  * apply: contraL => /eqP <-; apply/negbT/Z.leb_gt.
-    by case: (Z_mod_lt (z1 + z2) _ I64.modulus_pos).
+  rewrite unsigned_overflow //; lia.
   Qed.
 
-  Lemma add_carry_overflow w1 w2 b:
-      (I64.unsigned (I64.add_carry w1 w2 (b_to_w b)) != (w1 + w2 + b_to_w b)%Z)
-    = (I64.modulus <=? w1 + w2 + Zofb b)%Z.
-  Proof.
-  Admitted.
+  Lemma b_to_w_Zofb b: Zofb b = I64.unsigned (b_to_w b).
+  Proof. by case: b. Qed.
 
   Lemma add_carry_repr w1 w2 b:
-    I64.add_carry w1 w2 (b_to_w b) = I64.repr (w1 + w2 + Zofb b).
-  Proof using.
-  Admitted.
+    add_carry w1 w2 (b_to_w b) = I64.repr (w1 + w2 + Zofb b).
+  Proof. by rewrite b_to_w_Zofb. Qed.
+
+  Lemma add_carry_overflow w1 w2 b:
+      (I64.unsigned (add_carry w1 w2 (b_to_w b)) != (w1 + w2 + b_to_w b)%Z)
+    = (I64.modulus <=? w1 + w2 + Zofb b)%Z.
+  Proof.
+  case: w1 w2 => [z1 h1] [z2 h2]; rewrite add_carry_repr /= b_to_w_Zofb.
+  rewrite unsigned_overflow //.
+  case: b=> /=; rewrite ?I64.unsigned_one ?I64.unsigned_zero; lia.
+  Qed.
 
   Lemma sub_underflow w1 w2:
     (I64.unsigned (I64.sub w1 w2) != (w1 - w2)%Z) = (w1 - w2 <? 0)%Z.
-  Proof using.
+  Proof.
+  case: w1 w2 => [z1 h1] [z2 h2]; rewrite /I64.sub /=.
+  case/boolP: (z1 - z2 <? 0)%Z.
+  + move=> /Z.ltb_lt H.
+    (* need to find "unsigned_underflow" (case z < 0) *)
+    admit.
+  + rewrite -Z.leb_antisym=> /Z.leb_le H.
+    rewrite unsigned_overflow //.
+    apply/Z.leb_gt; lia.
   Admitted.
 
   Lemma sub_borrow_underflow w1 w2 b:
-    (I64.unsigned (I64.sub_borrow w1 w2 (b_to_w b)) != (w1 - (w2 + b_to_w b))%Z) = (w1 - w2 - Zofb b <? 0)%Z.
+    (I64.unsigned (sub_borrow w1 w2 (b_to_w b)) != (w1 - (w2 + b_to_w b))%Z) = (w1 - w2 - Zofb b <? 0)%Z.
   Proof using.
   Admitted.
 
   Lemma sub_borrow_repr w1 w2 b:
-    I64.sub_borrow w1 w2 (b_to_w b) = I64.repr (w1 - w2 - Zofb b).
-  Proof using.
-  Admitted.
+    sub_borrow w1 w2 (b_to_w b) = I64.repr (w1 - w2 - Zofb b).
+  Proof. by case: b. Qed.
 
   Lemma sem_pexprs_dec2 s e1 e2 v1 v2:
     sem_pexprs gd s [:: e1; e2] = ok [:: v1; v2] ->
@@ -1340,7 +1360,12 @@ Section PROOF.
   (* TODO: is this even true? *)
   Lemma mulhu_repr w1 w2:
     I64.mulhu w1 w2 = I64.repr (w1 * w2 ÷ I64.modulus).
-  Admitted.
+  Proof.
+    rewrite /I64.mulhu.
+    case: w1 w2 => [z1 h1] [z2 h2] /=.
+    rewrite Zquot.Zquot_Zdiv_pos //.
+    apply: Z.mul_nonneg_nonneg; lia.
+  Qed.
 
   Lemma lower_addcarry_classifyP sub xs es :
     if lower_addcarry_classify sub xs es
@@ -1391,30 +1416,16 @@ Section PROOF.
         {
           clear - des hx hv C ho.
           case: C => [ [? [? [? ?]]] | [cfi [?[?[? ?]]]]]; subst; apply (conj des).
-          case: sub hv hx; rewrite/sem_sopn/app_sopn;
-          case: x => // x xs; t_xrbindP => vx hvx;
-          case: xs => // y xs; t_xrbindP => vy hvy;
-          case: xs => // z xs; t_xrbindP => vz hvz;
-          case: xs => // E; apply ok_inj in E; subst v;
-          case/sem_pexprs_dec3 => hx' [ hy' hz' ];
-          apply ok_inj in hz'; subst; apply ok_inj in hvz; subst;
-          (exists [:: x ; y ]; split; [ rewrite/sem_pexprs/= hx' /= hy' // |
-          rewrite hvx hvy]);
-          (eexists; split; [ reflexivity | ]);
-          move: ho => /=; t_xrbindP => s1 hs1 s2 hs2 ?; subst s2.
-          by rewrite Z.sub_0_r in hs1, hs2; rewrite sub_underflow hs1 /= hs2.
-          by rewrite Z.add_0_r in hs1, hs2; rewrite add_overflow hs1 /= hs2.
-          exists x; split; [ exact hx |]. clear hx.
-          case: sub hv; rewrite/sem_sopn/app_sopn;
-          case: x => // x xs; t_xrbindP => vx hvx;
-          case: xs => // y xs; t_xrbindP => vy hvy;
-          case: xs => // z xs; t_xrbindP => vz hvz;
-          case: xs => // E; apply ok_inj in E; subst v;
-          rewrite hvx hvy hvz;
-          (eexists; split; [ reflexivity | ]);
-          move: ho => /=; t_xrbindP => s1 hs1 s2 hs2 ?; subst s2.
-          by rewrite sub_borrow_underflow hs1 /= sub_borrow_repr hs2.
-          by rewrite add_carry_overflow hs1 /= add_carry_repr hs2.
+          + case: sub hv hx=> /app_wwb_dec [w1 [w2 [b [?[]?]]]]; subst x v=> /sem_pexprs_dec3 [hx [hy []?]]; subst b;
+            (exists [:: Vword w1; Vword w2]; split; [by rewrite /sem_pexprs /= hx /= hy|]);
+            (eexists; split=> //=).
+            + by rewrite /= Z.sub_0_r -sub_underflow in ho.
+            by rewrite /= Z.add_0_r -add_overflow in ho.
+          exists x; split; [ exact hx |]; clear hx.
+          case: sub hv=> /app_wwb_dec [w1 [w2 [b [?[]?]]]]; subst x v;
+          (eexists; split=> //=).
+          + by rewrite /= -sub_borrow_underflow -sub_borrow_repr in ho.
+          by rewrite /= -add_carry_overflow -add_carry_repr in ho.
         }
         clear C.
         case: D => des' [ xs' [ hxs' [ v' [hv' ho'] ] ] ].
