@@ -84,7 +84,7 @@ let pp_tyerror fmt (code : tyerror) =
 
   | InvalidArgCount (n1, n2) ->
       Format.fprintf fmt
-        "invalid argument count (%d / %d)" n1 n2
+        "invalid number of argument, %d are given, %d are expected" n1 n2
 
   | DuplicateFun (f, loc) ->
       Format.fprintf fmt
@@ -652,10 +652,11 @@ let prim_of_pe pe =
     let desc =
       match o with
       | (`Add | `Sub) as o1 ->
-        let pe2, pe3 =
-          match L.unloc pe2 with
-          | S.PEOp2(o2, (pe2, pe3)) when o1 = o2 -> pe2, pe3
-          | _ -> pe2, L.mk_loc (L.loc pe2) (S.PEBool false) in
+        let pe1, pe2, pe3 =
+          match L.unloc pe1, L.unloc pe2 with
+          | S.PEOp2(o2, (pe1, pe3)), _ when o1 = o2 -> pe1, pe3, pe2
+          | _, S.PEOp2(o2, (pe2, pe3)) when o1 = o2 -> pe1, pe2, pe3
+          | _, _ -> pe1, pe2, L.mk_loc (L.loc pe2) (S.PEBool false) in
         S.PEPrim(prim_of_op exn loc o, [pe1; pe2; pe3])
       | _  ->
         S.PEPrim(prim_of_op exn loc o, [pe1; pe2])
@@ -682,6 +683,11 @@ let tt_lvalues env ls tys =
   check_sig_lvs tys ls
 
 let tt_exprs_cast env les tys =
+  let loc () = loc_of_tuples None (List.map L.loc les) in
+  let n1 = List.length les in
+  let n2 = List.length tys in
+  if n1 <> n2 then 
+    rs_tyerror ~loc:(loc ()) (InvalidArgCount (n1, n2));
   List.map2 (fun le ty ->
     let e, ety = tt_expr ~mode:`AllVar env le in
     cast (L.loc le) e ety ty) les tys

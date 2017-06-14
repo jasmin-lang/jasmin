@@ -1,0 +1,15 @@
+export
+fn add1(reg u64 arg) -> reg u64 {
+reg u64 z;
+reg bool cf;
+z  = arg;
+_, z += z;
+cf, z = z + z;
+_, z += z + cf;
+_, z += z;
+_, z = z + z;
+cf, z = z + z;
+cf, z = z + z + cf;
+_, z = #addc(z,z,false);
+return z;
+}
