@@ -151,6 +151,13 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       linear_c linear_i c lbl lc
 
     | None =>
+      match c' with
+      | [::] =>
+      let L1 := lbl in
+      let lbl := next_lbl L1 in
+      MkLI ii (Llabel L1) >; linear_c linear_i c lbl
+                             (MkLI ii (Lcond e L1) :: lc)
+      | _ =>
       let L1 := lbl in
       let L2 := next_lbl L1 in
       let lbl := next_lbl L2 in
@@ -158,6 +165,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       MkLI ii (Llabel L2) >; linear_c linear_i c' ;; 
       MkLI ii (Llabel L1) >; linear_c linear_i c lbl
                              (MkLI ii (Lcond e L2) :: lc)
+      end
     end
 
   | Cfor _ _ _ => cierror ii (Cerr_linear "for found in linear")

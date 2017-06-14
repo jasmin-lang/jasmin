@@ -108,6 +108,9 @@ Section CAT.
     + rewrite Hc' (Hc' _ [:: _]) !bindA;apply bind_eq => //= p.
       by rewrite Hc (Hc _ ( _ ++ _)) !bindA;apply bind_eq => //= p';rewrite -catA /= -catA /=.
     + by apply Hc.
+    case: c' Hc' => [ _ | i c' ].
+    + by rewrite Hc (Hc _ [:: _]) !bindA; apply bind_eq => //= p; rewrite -catA.
+    move: (i :: c') => { i c' } c' Hc'.
     rewrite Hc (Hc _ [:: _]) !bindA; apply bind_eq => //= p.
     by rewrite Hc' (Hc' _ (_ :: _)) !bindA; apply bind_eq=> //= p'; rewrite -catA /= -catA /=.
   Qed.
@@ -649,6 +652,51 @@ Section PROOF.
         by rewrite /is_label /= eq_refl.
       by move=> ??? e0 ??? [???];subst e0 => //.
     + by move=> /Hc [H1 H2 H3];split => // s1 s2 H;sinversion H=>//; apply H3.
+    case: c' Hc' => [ _ | i c' ].
+    + {
+        set ι := MkLI ii.
+        rewrite linear_c_nil;case Heqc: linear_c => [[lblc lc]|] //= x; apply ok_inj in x.
+        case/xseq.pair_inj: x => ? ?; subst lbli li.
+        have {Hc}[Hle1 Hvc Hc]:= Hc _ _ _ Heqc.
+        have leL1 := le_next lbl.
+        have ltL1 := lt_next lbl.
+        have Hle2 := Pos_leb_trans leL1 Hle1.
+        have Hlt := Pos_lt_leb_trans ltL1 Hle1.
+        split => //.
+        rewrite /= valid_cat /= Pos.leb_refl Hlt (valid_le_min _ Hvc) //.
+        move=> s1 s2 H.
+        apply: lsem_step. exact: LSem_lbl.
+        set L := [:: ι (Llabel lbl) ].
+        set C := L ++ lc ++ [:: ι (Lcond e lbl)].
+        have HL : valid lbl (next_lbl lbl) L by rewrite/L/= Pos.leb_refl ltL1.
+        have Hd : disjoint_lbl L lc by apply: valid_disjoint _ HL Hvc; by rewrite Pos.leb_refl.
+        elim: _ {-1}_ _ / H (erefl (Cwhile c e [::])) => // { s1 s2 }.
+        + move => s1 s2 s3 s4 c0 e0 c'0 Hsem.
+          apply: rbindP => b He /to_bool_inv ?; subst b.
+          move => Hsem' Hsemi IH [] ? ? ?; subst c0 e0 c'0.
+          specialize (IH (erefl _)).
+          specialize (Hc _ _ Hsem).
+          inversion Hsem'; clear Hsem'; subst s3; subst.
+          apply: lsem_trans.
+          + move: (@lsem_cat_hd L _ _ (of_estate s1 lc) _ Hd (erefl _) Hc).
+            exact: (lsem_cat_tl [:: ι (Lcond e lbl)]).
+          apply: lsem_step.
+          + apply: LSem_condTrue => //=.
+             + by clear -He; case: s2 He => x y /= ->.
+             by rewrite/is_label/= eq_refl.
+          exact: IH.
+        move=> s1 s2 c0 e0 c'0 Hsem.
+        apply: rbindP => b He /to_bool_inv ?; subst b.
+        case => ? ? ?; subst c0 e0 c'0.
+        specialize (Hc _ _ Hsem).
+        apply: lsem_trans.
+        + move: (@lsem_cat_hd L _ _ (of_estate s1 lc) _ Hd (erefl _) Hc).
+          exact: (lsem_cat_tl [:: ι (Lcond e lbl)]).
+        apply: rt_step.
+        apply: LSem_condFalse => //=.
+         by clear -He; case: s2 He => x y /= ->.
+      }
+    move: (i :: c') => { i c' } c' Hc'.
     rewrite linear_c_nil;case Heqc: linear_c => [[lblc lc]|] //=.
     have {Hc}[Hle1 Hvc Hc]:= Hc _ _ _ Heqc.
     rewrite linear_c_nil.
