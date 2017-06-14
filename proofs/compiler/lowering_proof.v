@@ -42,7 +42,7 @@ Local Open Scope seq_scope.
 Section PROOF.
 
   Variable p : prog.
-  Context (gd : glob_defs).
+  Context (gd : glob_defs) (use_lea: bool).
   Context (warning: instr_info -> warning_msg -> instr_info).
   Variable fv : fresh_vars.
   Context (is_var_in_memory: var_i → bool).
@@ -88,7 +88,7 @@ Section PROOF.
   Local Hint Resolve of_in_fv cf_in_fv sf_in_fv pf_in_fv zf_in_fv multiplicand_in_fv.
 
   Local 
-  Definition p' := lower_prog warning fv is_var_in_memory p.
+  Definition p' := lower_prog use_lea warning fv is_var_in_memory p.
 
   Definition eq_exc_fresh s1 s2 :=
     s1.(emem) = s2.(emem) /\ s1.(evm) = s2.(evm) [\ fvars].
@@ -147,7 +147,7 @@ Section PROOF.
   Let Pi (s:estate) (i:instr) (s':estate) :=
     disj_fvars (vars_I i) ->
     forall s1, eq_exc_fresh s1 s ->
-      exists s1', sem p' gd s1 (lower_i warning fv is_var_in_memory i) s1' /\ eq_exc_fresh s1' s'.
+      exists s1', sem p' gd s1 (lower_i use_lea warning fv is_var_in_memory i) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pi_r (s:estate) (i:instr_r) (s':estate) :=
     forall ii, Pi s (MkI ii i) s'.
@@ -155,12 +155,12 @@ Section PROOF.
   Let Pc (s:estate) (c:cmd) (s':estate) :=
     disj_fvars (vars_c c) ->
     forall s1, eq_exc_fresh s1 s ->
-      exists s1', sem p' gd s1 (lower_cmd (lower_i warning fv is_var_in_memory) c) s1' /\ eq_exc_fresh s1' s'.
+      exists s1', sem p' gd s1 (lower_cmd (lower_i use_lea warning fv is_var_in_memory) c) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pfor (i:var_i) vs s c s' :=
     disj_fvars (Sv.union (vars_c c) (Sv.singleton i)) ->
     forall s1, eq_exc_fresh s1 s ->
-      exists s1', sem_for p' gd i vs s1 (lower_cmd (lower_i warning fv is_var_in_memory) c) s1' /\ eq_exc_fresh s1' s'.
+      exists s1', sem_for p' gd i vs s1 (lower_cmd (lower_i use_lea warning fv is_var_in_memory) c) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pfun m1 fn vargs m2 vres :=
     sem_call p' gd m1 fn vargs m2 vres.
@@ -1176,18 +1176,38 @@ Ltac elim_div :=
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
       by rewrite H /= Hw'.
     (* LowerLea *)
-    + move=> [d b sc o] /= [w [? [Hslea Hsc]]];subst v;exists s2';split => //. 
-      apply: sem_seq1; apply: EmkI; apply: Eopn.
-      move: Hslea; rewrite /sem_lea /sem_pexprs /=. 
-      case: b => [b|] /=;case: o => [o|] /=;t_xrbindP.
-      + move=> zb vb -> Hvb zo vo -> Hvo ? /=;subst w. rewrite Hvb /= Hvo /=.
-        by rewrite /x86_lea !I64.repr_unsigned Hsc /= Hw'.
-      + move=> zb vb -> Hvb ? /=;subst w;rewrite Hvb /=.
-        by rewrite /x86_lea !I64.repr_unsigned Hsc /= Hw'.
-      + move=> zo vo -> Hvo ? /=;subst w;rewrite Hvo /=.
-        by rewrite /x86_lea !I64.repr_unsigned Hsc /= Hw'.
-      move=> ? /=;subst w.
-      by rewrite /x86_lea !I64.repr_unsigned Hsc /= Hw'. 
+    + move=> [d b sc o] /= [w [? [Hslea Hsc]]];subst v;exists s2';split => //.
+      set ob := oapp Pvar (wconst 0) b; set oo := oapp Pvar (wconst 0) o.
+      have [wb [wo [Hwb Hwo Ew ]]]: exists wb wo, [/\ sem_pexpr gd s1' ob = ok (Vword wb),
+                               sem_pexpr gd s1' oo = ok (Vword wo) & 
+                               w = I64.add d (I64.add wb (I64.mul sc wo))].
+      + apply: rbindP Hslea => /= wb Hwb.
+        apply: rbindP => /= wo Hwo [?];exists wb, wo;split=>//.
+        + rewrite /ob;case: (b) Hwb => /= [x | [<-]] //.
+          by apply:rbindP => ? -> /to_wordP <-.
+        rewrite /oo;case: (o) Hwo => /= [x | [<-]] //.
+        by apply:rbindP => ? -> /to_wordP <-.
+      have Hlea : 
+        (Let x := sem_pexprs gd s1' [:: wconst d; oapp Pvar (wconst 0) b; wconst sc; oapp Pvar (wconst 0) o] in sem_sopn Ox86_LEA x) = ok [::Vword w].
+      + by rewrite /sem_pexprs /= Hwb Hwo /= /x86_lea !I64.repr_unsigned Hsc Ew.
+      have Hlea' : sem p' gd s1'
+                    [:: MkI (warning ii Use_lea) (Copn [:: l] Ox86_LEA [:: wconst d; oapp Pvar (wconst 0) b; wconst sc; oapp Pvar (wconst 0) o])] s2'.
+      + by apply: sem_seq1; apply: EmkI; apply: Eopn;rewrite Hlea /= Hw'.
+      case use_lea => //;subst w.
+      case: eqP => [ ? | _ ].
+      + subst d; case: eqP => [ ? | _].
+        + subst sc;apply sem_seq1;constructor;constructor.
+          by move: Hw';rewrite /sem_pexprs /= Hwb Hwo /= !I64_simpl => ->.
+        case: eqP => [ Eob | //].
+        apply sem_seq1;constructor;constructor.
+        move: Hwb Hw';rewrite /sem_pexprs /= Eob Hwo /= => -[?];subst wb.
+        by rewrite !I64_simpl I64.mul_commut !I64.repr_unsigned => ->.
+      case: eqP => [ Eoo | //]. 
+      case: eqP => [ Ed | _ ].
+      + subst d;apply sem_seq1;constructor;constructor.
+        by move: Hwo Hw';rewrite /sem_pexprs /= Hwb Eoo /= => -[<-];rewrite !I64_simpl I64.add_commut => ->.
+      apply sem_seq1;constructor;constructor.
+      by move: Hwo Hw';rewrite /sem_pexprs /= Hwb Eoo /= => -[<-];rewrite !I64_simpl I64.add_commut !I64.repr_unsigned => ->.   
     (* LowerFopn *)
     + set vi := var_info_of_lval _.
       move=> o a m [] LE. t_xrbindP => ys xs hxs hys hs2.

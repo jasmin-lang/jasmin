@@ -1,0 +1,75 @@
+(*--------------------------------------------------------------------- *)
+let infile = ref ""
+let outfile = ref ""
+let typeonly = ref false
+let debug = ref false
+let coqfile = ref ""
+let coqonly = ref false
+let print_list = ref []
+
+let lea = ref false
+
+let set_coqonly s =
+  coqfile := s;
+  coqonly := true
+
+let poptions = [
+    Compiler.Typing
+  ; Compiler.ParamsExpansion
+  ; Compiler.Inlining
+  ; Compiler.RemoveUnusedFunction
+  ; Compiler.Unrolling
+  ; Compiler.AllocInlineAssgn
+  ; Compiler.DeadCode_AllocInlineAssgn
+  ; Compiler.ShareStackVariable
+  ; Compiler.DeadCode_ShareStackVariable
+  ; Compiler.RegArrayExpansion
+  ; Compiler.LowerInstruction
+  ; Compiler.RegAllocation
+  ; Compiler.DeadCode_RegAllocation
+  ; Compiler.StackAllocation
+  ; Compiler.Linearisation
+  ; Compiler.Assembly ]
+
+let set_printing p () =
+  print_list := p :: !print_list
+
+let set_all_print () =
+  print_list := poptions
+
+let print_strings = function
+  | Compiler.Typing                      -> "typing"  , "typing"
+  | Compiler.ParamsExpansion             -> "cstexp"  , "constant expansion"
+  | Compiler.Inlining                    -> "inline"  , "inlining"
+  | Compiler.RemoveUnusedFunction        -> "rmfunc"  , "remove unused function"
+  | Compiler.Unrolling                   -> "unroll"  , "unrolling"
+  | Compiler.AllocInlineAssgn            -> "valloc"  , "inlined variables allocation"
+  | Compiler.DeadCode_AllocInlineAssgn   -> "vallocd" , "dead code after inlined variables allocation"
+  | Compiler.ShareStackVariable          -> "vshare"  , "sharing of stack variables"
+  | Compiler.DeadCode_ShareStackVariable -> "vshared" , "dead code after sharing of stack variables"
+  | Compiler.RemoveArrInit               -> "rmarrinit", "remove array init"
+  | Compiler.RegArrayExpansion           -> "arrexp"  , "expansion of register arrays"
+  | Compiler.LowerInstruction            -> "lowering", "lowering of instructions"
+  | Compiler.RegAllocation               -> "ralloc"  , "register allocation"
+  | Compiler.DeadCode_RegAllocation      -> "rallocd" , "dead code after register allocation"
+  | Compiler.StackAllocation             -> "stkalloc", "stack allocation"
+  | Compiler.Linearisation               -> "linear"  , "linearisation"
+  | Compiler.Assembly                    -> "asm"     , "generation of assembly"
+
+let print_option p =
+  let s, msg = print_strings p in
+  ("-p"^s, Arg.Unit (set_printing p), "print program after "^msg)
+
+let options = [
+    "-o"       , Arg.Set_string outfile, "[filename]: name of the output file";
+    "-typeonly", Arg.Set typeonly      , ": stop after typechecking";
+    "-debug"   , Arg.Set debug         , ": print debug information";
+    "-coq"     , Arg.Set_string coqfile, "[filename]: generate the corresponding coq file";
+    "-coqonly" , Arg.String set_coqonly, "[filename]: generate the corresponding coq file, and exit";
+    "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
+    "-lea"     , Arg.Set lea           , ": use lea as much as possible (default is nolea)";
+    "-nolea"   , Arg.Clear lea         , ": try to use add and mul instead of lea"
+  ] @  List.map print_option poptions
+
+let usage_msg = "Usage : jasminc [option] filename"
+

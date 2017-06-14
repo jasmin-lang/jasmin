@@ -40,6 +40,8 @@ Record fresh_vars : Type :=
     fresh_multiplicand : Equality.sort Ident.ident;
   }.
 
+Context (use_lea : bool).
+
 Context (warning: instr_info -> warning_msg -> instr_info).
 
 Definition vars_I (i: instr) := Sv.union (read_I i) (write_I i).
@@ -326,7 +328,7 @@ Definition lower_cassgn_classify e x : lower_cassgn_t :=
     | Oadd Op_w =>
       match is_lea x e with
       | Some l => LowerLea l
-      | None   =>
+      | None   => 
         match add_inc_dec_classify a b with
         | AddInc y => LowerInc Ox86_INC y
         | AddDec y => LowerInc Ox86_DEC y
@@ -427,13 +429,30 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (e: pexpr) : c
   | LowerInc o e => inc o e
   | LowerFopn o es m => map (MkI ii) (opn_5flags m vi f x o es)
   | LowerLea (MkLea d b sc o) => 
-    let d := wconst (I64.unsigned d) in
-    let sc := wconst (I64.unsigned sc) in
+    let de := wconst (I64.unsigned d) in
+    let sce := wconst (I64.unsigned sc) in
     let b := oapp Pvar (wconst 0) b in
     let o := oapp Pvar (wconst 0) o in
-    (* This match is crasy but else extraction remove the call to warning *)
-    let ii := warning ii Use_lea in
-    [:: MkI ii (Copn [::x] Ox86_LEA [:: d; b; sc; o]) ]
+    let lea tt := 
+      let ii := warning ii Use_lea in
+      [:: MkI ii (Copn [::x] Ox86_LEA [:: de; b; sce; o]) ] in
+    if use_lea then lea tt
+    (* d + b + sc * o *)
+    else 
+      if d == I64.zero then 
+        (* b + sc * o *)
+        if sc == I64.one then
+          (* b + o *)
+          [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] Ox86_ADD [:: b ; o])]
+        else if b == wconst 0 then
+          (* sc * o *)
+          [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] Ox86_IMUL64 [:: o; sce])]
+        else lea tt
+      else if o == wconst 0 then
+          (* d + b *)
+          if d == I64.one then inc Ox86_INC b
+          else [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] Ox86_ADD [:: b ; de])]
+      else lea tt
       
   | LowerEq a b => [:: MkI ii (Copn [:: f ; f ; f ; f ; x ] Ox86_CMP [:: a ; b ]) ]
   | LowerLt a b => [:: MkI ii (Copn [:: f ; x ; f ; f ; f ] Ox86_CMP [:: a ; b ]) ]
