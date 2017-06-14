@@ -481,8 +481,7 @@ let subst_of_allocation (vars: (var, int) Hashtbl.t)
 let regalloc (f: 'info func) : unit func =
   let f = fill_in_missing_names f in
   let f = Ssa.split_live_ranges false f in
-  Format.eprintf "(* After live range spliting *)@.%a@."
-    (Printer.pp_func ~debug:true) f;
+  Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
   let lf = Liveness.live_fd true f in
   let vars, nv = collect_variables false f in
   let eqc, tr, fr = collect_equality_constraints "Regalloc" x86_equality_constraints vars nv f in
@@ -500,8 +499,7 @@ let reverse_varmap (vars: (var, int) Hashtbl.t) : var IntMap.t =
 
 let split_live_ranges (f: 'info func) : unit func =
   let f = Ssa.split_live_ranges true f in
-  Format.eprintf "(* After split *)@.%a@."
-    (Printer.pp_func ~debug:true) f;
+  Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
   let lf = Liveness.live_fd false f in
   let vars, nv = collect_variables true f in
   let eqc, tr, _fr = collect_equality_constraints "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in

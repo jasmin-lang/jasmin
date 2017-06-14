@@ -58,6 +58,7 @@ Variant compiler_step :=
   | Inlining                    : compiler_step
   | RemoveUnusedFunction        : compiler_step
   | Unrolling                   : compiler_step
+  | Splitting                   : compiler_step
   | AllocInlineAssgn            : compiler_step
   | DeadCode_AllocInlineAssgn   : compiler_step
   | ShareStackVariable          : compiler_step

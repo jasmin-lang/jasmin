@@ -20,6 +20,7 @@ let poptions = [
   ; Compiler.Inlining
   ; Compiler.RemoveUnusedFunction
   ; Compiler.Unrolling
+  ; Compiler.Splitting
   ; Compiler.AllocInlineAssgn
   ; Compiler.DeadCode_AllocInlineAssgn
   ; Compiler.ShareStackVariable
@@ -39,23 +40,24 @@ let set_all_print () =
   print_list := poptions
 
 let print_strings = function
-  | Compiler.Typing                      -> "typing"  , "typing"
-  | Compiler.ParamsExpansion             -> "cstexp"  , "constant expansion"
-  | Compiler.Inlining                    -> "inline"  , "inlining"
-  | Compiler.RemoveUnusedFunction        -> "rmfunc"  , "remove unused function"
-  | Compiler.Unrolling                   -> "unroll"  , "unrolling"
-  | Compiler.AllocInlineAssgn            -> "valloc"  , "inlined variables allocation"
-  | Compiler.DeadCode_AllocInlineAssgn   -> "vallocd" , "dead code after inlined variables allocation"
-  | Compiler.ShareStackVariable          -> "vshare"  , "sharing of stack variables"
-  | Compiler.DeadCode_ShareStackVariable -> "vshared" , "dead code after sharing of stack variables"
-  | Compiler.RemoveArrInit               -> "rmarrinit", "remove array init"
-  | Compiler.RegArrayExpansion           -> "arrexp"  , "expansion of register arrays"
-  | Compiler.LowerInstruction            -> "lowering", "lowering of instructions"
-  | Compiler.RegAllocation               -> "ralloc"  , "register allocation"
-  | Compiler.DeadCode_RegAllocation      -> "rallocd" , "dead code after register allocation"
-  | Compiler.StackAllocation             -> "stkalloc", "stack allocation"
-  | Compiler.Linearisation               -> "linear"  , "linearisation"
-  | Compiler.Assembly                    -> "asm"     , "generation of assembly"
+  | Compiler.Typing                      -> "typing"   , "typing"
+  | Compiler.ParamsExpansion             -> "cstexp"   , "constant expansion"
+  | Compiler.Inlining                    -> "inline"   , "inlining"
+  | Compiler.RemoveUnusedFunction        -> "rmfunc"   , "remove unused function"
+  | Compiler.Unrolling                   -> "unroll"   , "unrolling"
+  | Compiler.Splitting                   -> "splitting", "liverange splitting"
+  | Compiler.AllocInlineAssgn            -> "valloc"   , "inlined variables allocation"
+  | Compiler.DeadCode_AllocInlineAssgn   -> "vallocd"  , "dead code after inlined variables allocation"
+  | Compiler.ShareStackVariable          -> "vshare"   , "sharing of stack variables"
+  | Compiler.DeadCode_ShareStackVariable -> "vshared"  , "dead code after sharing of stack variables"
+  | Compiler.RemoveArrInit               -> "rmarrinit" , "remove array init"
+  | Compiler.RegArrayExpansion           -> "arrexp"   , "expansion of register arrays"
+  | Compiler.LowerInstruction            -> "lowering" , "lowering of instructions"
+  | Compiler.RegAllocation               -> "ralloc"   , "register allocation"
+  | Compiler.DeadCode_RegAllocation      -> "rallocd"  , "dead code after register allocation"
+  | Compiler.StackAllocation             -> "stkalloc" , "stack allocation"
+  | Compiler.Linearisation               -> "linear"   , "linearisation"
+  | Compiler.Assembly                    -> "asm"      , "generation of assembly"
 
 let print_option p =
   let s, msg = print_strings p in
@@ -77,3 +79,13 @@ let options = [
 
 let usage_msg = "Usage : jasminc [option] filename"
 
+
+
+(* -------------------------------------------------------------------- *)
+let eprint step pp_prog p =
+  if List.mem step !print_list then
+    let (_, msg) = print_strings step in
+    Format.eprintf
+"(* -------------------------------------------------------------------- *)@.";
+    Format.eprintf "(* After %s *)@.@." msg;
+    Format.eprintf "%a@.@.@." pp_prog p

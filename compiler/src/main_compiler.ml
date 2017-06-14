@@ -106,16 +106,6 @@ and pp_comp_ferr tbl fmt = function
     Format.fprintf fmt "lowering check fails"
 
 (* -------------------------------------------------------------------- *)
-
-let eprint step pp_prog p =
-  if List.mem step !print_list then
-    let (_, msg) = print_strings step in
-    Format.eprintf
-"(* -------------------------------------------------------------------- *)@.";
-    Format.eprintf "(* After %s *)@.@." msg;
-    Format.eprintf "%a@.@.@." pp_prog p
-
-(* -------------------------------------------------------------------- *)
 let main () =
   try
 
