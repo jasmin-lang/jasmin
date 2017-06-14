@@ -503,17 +503,50 @@ Section PROOF.
   Proof. exact: Z.ltb_antisym. Qed.
 
   Lemma wslt_sub z1 z2: wslt z1 z2 =
-   (msb (I64.sub z1 z2) != (I64.signed (I64.sub z1 z2) != (I64.signed z1 - I64.signed z2)%Z)).
+   (msb (I64.sub z1 z2) !=
+        (I64.signed (I64.sub z1 z2) != (I64.signed z1 - I64.signed z2)%Z)).
   Proof.
+  rewrite /msb /wslt.
   Admitted.
+
+  Lemma Z_leb_eqVlt z1 z2 : ((z1 <=? z2) = ((z1 =? z2) || (z1 <? z2)))%Z.
+  Proof.
+  by apply/idP/orP; rewrite /is_true !(Z.leb_le, Z.ltb_lt, Z.eqb_eq); lia.
+  Qed.
 
   Lemma wule_sub z1 z2: wule z1 z2 =
-   (I64.unsigned (I64.sub z1 z2) != (z1 - z2)%Z) || I64.eq (I64.sub z1 z2) I64.zero.
-  Admitted.
+   (I64.unsigned (I64.sub z1 z2) != (z1 - z2)%Z)
+   || I64.eq (I64.sub z1 z2) I64.zero.
+  Proof. by rewrite -wult_sub -weq_sub /wule Z_leb_eqVlt orbC. Qed.
+
+  Lemma I64_eq z1 z2 : (z1 = z2) <-> (I64.intval z1 = I64.intval z2).
+  Proof.
+  case: z1 z2 => [z1 h1] [z2 h2] /=; split; first by case.
+  by move=> eq; apply: I64.mkint_eq.
+  Qed.
+
+  Lemma I64_signed_inj : injective I64.signed.
+  Proof.
+  case=> [z1 h1] [z2 h2] eq; apply/I64_eq => /=; move: eq.
+  by rewrite /I64.signed /=; do 2! case: Coqlib.zlt; lia.
+  Qed.
+
+  Lemma I64_unsigned_inj : injective I64.unsigned.
+  Proof. by case=> [z1 h1] [z2 h2] eq; apply/I64_eq. Qed.
+
+  Lemma weq_signed z1 z2 : weq z1 z2 = (I64.signed z1 =? I64.signed z2)%Z.
+  Proof. apply/idP/idP => /Z.eqb_eq.
+  * by move/I64_unsigned_inj=> ->; apply/Z.eqb_refl.
+  * by move/I64_signed_inj=> ->; apply/Z.eqb_refl.
+  Qed.
 
   Lemma wsle_sub z1 z2: wsle z1 z2 =
-   I64.eq (I64.sub z1 z2) I64.zero || (msb (I64.sub z1 z2) != (I64.signed (I64.sub z1 z2) != (I64.signed z1 - I64.signed z2)%Z)).
-  Admitted.
+   I64.eq (I64.sub z1 z2) I64.zero
+   || (msb (I64.sub z1 z2) !=
+           (I64.signed (I64.sub z1 z2) != (I64.signed z1 - I64.signed z2)%Z)).
+  Proof.
+  by rewrite -weq_sub -wslt_sub /wsle /wslt weq_signed Z_leb_eqVlt.
+  Qed.
 
   Lemma setP_comm {to} (m: Fv.t to) x1 v1 x2 v2:
     x1 != x2 ->
@@ -1222,12 +1255,19 @@ Section PROOF.
 
   Lemma add_overflow w1 w2:
     (I64.unsigned (I64.add w1 w2) != (w1 + w2)%Z) = (I64.modulus <=? w1 + w2)%Z.
-  Proof using.
-  Admitted.
+  Proof.
+  case: w1 w2 => [z1 h1] [z2 h2]; rewrite /I64.add /=.
+  rewrite I64.unsigned_repr_eq; apply/idP/idP.
+  * apply: contraR => /negbTE /Z.leb_gt lt; apply/eqP.
+    by rewrite Z.mod_small //; lia.
+  * apply: contraL => /eqP <-; apply/negbT/Z.leb_gt.
+    by case: (Z_mod_lt (z1 + z2) _ I64.modulus_pos).
+  Qed.
 
   Lemma add_carry_overflow w1 w2 b:
-    (I64.unsigned (I64.add_carry w1 w2 (b_to_w b)) != (w1 + w2 + b_to_w b)%Z) = (I64.modulus <=? w1 + w2 + Zofb b)%Z.
-  Proof using.
+      (I64.unsigned (I64.add_carry w1 w2 (b_to_w b)) != (w1 + w2 + b_to_w b)%Z)
+    = (I64.modulus <=? w1 + w2 + Zofb b)%Z.
+  Proof.
   Admitted.
 
   Lemma add_carry_repr w1 w2 b:
