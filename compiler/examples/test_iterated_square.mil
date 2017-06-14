@@ -1,0 +1,174 @@
+__38 = 38;
+
+fn reduce(reg u64[8] z) -> reg u64[4] {
+
+  reg u64[4] xa;
+  reg u64 rax;
+  reg u64 rdx;
+  reg u64 z8;
+  reg u64 r0;
+  reg bool cf;
+
+  rax = z[4];
+  rdx, rax = rax * __38;
+  xa[0] = rax;
+  xa[1] = rdx;
+
+  rax = z[5];
+  rdx, rax = rax * __38;
+  cf, xa[1] += rax;
+
+  xa[2] = #x86_MOV(0);
+  rax = z[6];
+  _, xa[2] += rdx + cf;
+  rdx, rax = rax * __38;
+  cf, xa[2] += rax;
+
+  xa[3] = #x86_MOV(0);
+  rax = z[7];
+  _, xa[3] += rdx + cf;
+  rdx, rax = rax * __38;
+  cf, xa[3] += rax;
+
+  z8 = #x86_MOV(0);
+  _, z8 += rdx + cf;
+
+  cf, xa[0] += z[0];
+  cf, xa[1] += z[1] + cf;
+  cf, xa[2] += z[2] + cf;
+  cf, xa[3] += z[3] + cf;
+
+  _, z8 += 0 + cf;
+  z8 *= 38;
+  r0 = #x86_MOV(0);
+
+  cf, xa[0] += z8;
+  cf, xa[1] += 0 + cf;
+  cf, xa[2] += 0 + cf;
+  cf, xa[3] += 0 + cf;
+
+  _, r0 += 0 + cf;
+  r0 *= 38;
+  xa[0] += r0;
+
+  return xa;
+}
+
+fn fresh () -> reg u64[8] {
+   reg u64[8] z;
+   return z;
+}
+
+fn iterated_square(reg u64[4] xa, stack u64 n) -> reg u64[4] {
+
+  reg u64[8] z;
+  reg u64[5] t;
+  reg u64 rax;
+  reg u64 rdx;
+  stack u64 t2s;
+  reg bool cf;
+
+  while {
+
+    rax = xa[1];
+    rdx, rax = rax * xa[0];
+    z = fresh();
+    z[1] = rax;
+    z[2] = rdx;
+
+    rax = xa[2];
+    rdx, rax = rax * xa[1];
+    z[3] = rax;
+    z[4] = rdx;
+
+    rax = xa[3];
+    rdx, rax = rax * xa[2];
+    z[5] = rax;
+    z[6] = rdx;
+    z[7] = #x86_MOV(0);
+
+    rax = xa[2];
+    rdx, rax = rax * xa[0];
+    cf, z[2] += rax;
+    cf, z[3] += rdx + cf;
+    _,  z[4] += 0   + cf;
+
+    rax = xa[3];
+    rdx, rax = rax * xa[1];
+    cf, z[4] += rax;
+    cf, z[5] += rdx + cf;
+    cf, z[6] += 0   + cf;
+
+    rax = xa[3];
+    rdx, rax = rax * xa[0];
+    cf, z[3] += rax;
+    cf, z[4] += rdx + cf;
+    cf, z[5] += 0   + cf;
+    cf, z[6] += 0   + cf;
+    _,  z[7] += 0   + cf;
+
+    cf, z[1] += z[1];
+    cf, z[2] += z[2] + cf;
+    cf, z[3] += z[3] + cf;
+    cf, z[4] += z[4] + cf;
+    cf, z[5] += z[5] + cf;
+    cf, z[6] += z[6] + cf;
+    _,  z[7] += z[7] + cf;
+
+    rax = xa[0];
+    rdx, rax = rax * xa[0];
+    z[0] = rax;
+    t[0] = rdx;
+
+    rax = xa[1];
+    rdx, rax = rax * xa[1];
+    t[1] = rax;
+    t2s = rdx; // spill
+
+    rax = xa[2];
+    rdx, rax = rax * xa[2];
+    t[3] = rax;
+    t[4] = rdx;
+
+    t[2] = t2s; // spill
+
+    cf, z[1] += t[0];
+    cf, z[2] += t[1] + cf;
+    cf, z[3] += t[2] + cf;
+    cf, z[4] += t[3] + cf;
+    cf, z[5] += t[4] + cf;
+    cf, z[6] += 0    + cf;
+    _,  z[7] += 0    + cf;
+
+    rax = xa[3];
+    rdx, rax = rax * xa[3];
+    cf, z[6] += rax;
+    _,  z[7] += rdx + cf;
+
+    xa = reduce(z);
+
+  cf, n -= 1;
+  }(!cf)
+
+  return xa;
+}
+
+export fn iterated_square_export(reg u64 xap, reg u64 n) {
+
+  reg u64[4] xa;
+  stack u64 ns;
+
+  xa[0] = [xap +  0];
+  xa[1] = [xap +  8];
+  xa[2] = [xap + 16];
+  xa[3] = [xap + 24];
+
+  ns = n;
+  xa = iterated_square(xa, ns);
+
+  [xap +  0] = xa[0];
+  [xap +  8] = xa[1];
+  [xap + 16] = xa[2];
+  [xap + 24] = xa[3];
+}
+

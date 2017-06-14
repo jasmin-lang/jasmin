@@ -45,7 +45,7 @@ Definition dead_code_c (dead_code_i: instr -> Sv.t -> ciexec (Sv.t * cmd))
 Section LOOP.
 
   Variable dead_code_c : Sv.t -> ciexec (Sv.t * cmd).
-  Variable dead_code_c2 : Sv.t -> ciexec (Sv.t * (cmd*cmd)).
+  Variable dead_code_c2 : Sv.t -> ciexec (Sv.t * (Sv.t * (cmd*cmd))).
   Variable ii : instr_info.
 
   Fixpoint loop (n:nat) (rx:Sv.t) (wx:Sv.t) (s:Sv.t) : ciexec (Sv.t * cmd) :=
@@ -58,15 +58,14 @@ Section LOOP.
       if Sv.subset s' s then ciok (s,c') 
       else loop n rx wx (Sv.union s s')
     end.
-
   
   Fixpoint wloop (n:nat) (s:Sv.t) : ciexec (Sv.t * (cmd * cmd)) :=
     match n with
     | O =>  cierror ii (Cerr_Loop "dead_code")
     | S n =>
       Let sc := dead_code_c2 s in
-      let: (s',c') := sc in
-      if Sv.subset s' s then ciok (s,c') 
+      let: (s',sic) := sc in
+      if Sv.subset s' s then ciok sic
       else wloop n (Sv.union s s')
     end.
 
@@ -116,13 +115,13 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
     ciok (read_e_rec (read_e_rec s e2) e1,[:: MkI ii (Cfor x (dir,e1,e2) c) ])
 
   | Cwhile c e c' =>
-    let se := read_e_rec s e in
-    let dobody s := 
-      Let sc2 := dead_code_c dead_code_i c' s in
-      let (s2, c2) := (sc2:Sv.t * cmd) in
-      Let sc1 := dead_code_c dead_code_i c (Sv.union se s2) in
-      let (s1, c1) := (sc1:Sv.t * cmd) in
-      ok (s1, (c1, c2)) in              
+    let dobody s_o := 
+      let s_o' := read_e_rec s_o e in
+      Let sci := dead_code_c dead_code_i c s_o' in
+      let: (s_i, c) := sci in 
+      Let sci' := dead_code_c dead_code_i c' s_i in
+      let: (s_i', c') := sci' in
+      ok (s_i', (s_i, (c,c'))) in
     Let sc := wloop dobody ii Loop.nb s in
     let: (s, (c,c')) := sc in
     ciok (s, [:: MkI ii (Cwhile c e c') ])

@@ -27,6 +27,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import sem compiler_util inline_proof.
 Require Export dead_code.
+Import Utf8.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -316,17 +317,18 @@ Section PROOF.
     by rewrite Hval.
   Qed.
 
-  Lemma wloopP f ii n sv0 sv1 sc1:
-    wloop f ii n sv0 = ok (sv1, sc1) -> Sv.Subset sv0 sv1 /\
-      exists sv2, f sv1 = ok (sv2, sc1) /\ Sv.Subset sv2 sv1.
+  Lemma wloopP f ii n s sic:
+    wloop f ii n s = ok sic →
+    ∃ si s', Sv.Subset s si ∧ f si = ok (s', sic) ∧ Sv.Subset s' si.
   Proof.
-    elim: n sv0=> // n IH sv0 /=.
-    apply: rbindP=> [[sv0' sc0']] Hone.
-    case: (boolP (Sv.subset sv0' sv0))=> /=.
-    + move=> /Sv.subset_spec Hsub.
-      rewrite /ciok=> [] [] Hsv Hsc;subst sv0 sc0';split=>//; exists sv0' => //.
-    move=> _ Hloop;case:(IH _ Hloop)=> [Hsub [sv2 [Hsv2 Hsv2']]].
-    by split;[ SvD.fsetdec | exists sv2].
+    clear.
+    elim: n s => // n ih s /=.
+    apply: rbindP => // [[s' sci]] h.
+    case: (boolP (Sv.subset _ _)) => //=.
+    + move=> /Sv.subset_spec Hsub k; apply ok_inj in k; subst.
+      exists s, s'; split; auto. SvD.fsetdec.
+    move=> _ hloop; case: (ih _ hloop) => si [si'] [Hsub] [h' le].
+    exists si, si'; split; auto. SvD.fsetdec.
   Qed.
 
   Local Lemma Hwhile_true s1 s2 s3 s4 c e c' :
@@ -338,15 +340,16 @@ Section PROOF.
     move=> Hsc Hc H Hsc' Hc' Hsw Hw ii /= sv0.
     set dobody := (X in wloop X).
     case Hloop: wloop => [[sv1 [c1 c1']] /=|//].
-    move: (wloopP Hloop) => [H1 [sv2 [H2 H2']]] Hwf vm1' Hvm.
+    move: (wloopP Hloop) => [sv2 [sv2' [H1 [H2 H2']]]] Hwf vm1' Hvm.
     apply: rbindP H2 => -[sv3 c2'] Hc2'.
-    set sv4 := (Sv.union _ _).
-    apply: rbindP => -[sv5 c2] Hc2 [???];subst sv5 c1 c1'.
-    have := Hc sv4;rewrite Hc2 => /(_ Hwf vm1') [|vm2' [Hvm2'1 Hvm2'2]].
+    set sv4 := read_e_rec _ _ in Hc2'.
+    apply: rbindP => -[ sv5 c2 ] Hc2 x; apply ok_inj in x.
+    repeat (case/xseq.pair_inj: x => ? x; subst).
+    have := Hc sv4; rewrite Hc2' => /(_ Hwf vm1') [|vm2' [Hvm2'1 Hvm2'2]].
     + by apply: eq_onI Hvm.
     have Hwf2 := wf_sem Hsc Hwf.
-    have := Hc' sv1;rewrite Hc2'=> /(_ Hwf2 vm2') [|vm3' [Hvm3'1 Hvm3'2]].
-    + apply: eq_onI Hvm2'1;rewrite /sv4;SvD.fsetdec.
+    have := Hc' sv1;rewrite Hc2=> /(_ Hwf2 vm2') [|vm3' [Hvm3'1 Hvm3'2]].
+    + apply: eq_onI Hvm2'1;rewrite /sv4 read_eE;SvD.fsetdec.
     have Hwf3 := wf_sem Hsc' Hwf2.
     have /= := Hw ii sv0;rewrite Hloop /= => /(_ Hwf3 _ Hvm3'1) [vm4' [Hvm4'1 Hvm4'2]].
     exists vm4';split => //.
@@ -354,7 +357,7 @@ Section PROOF.
     apply sem_seq1;constructor.
     apply: (Ewhile_true Hvm2'2) Hvm3'2 H6.
     have Hvm': vm2' =[read_e_rec sv0 e] evm s2.
-    + by apply: eq_onI (eq_onS Hvm2'1);rewrite /sv4;SvD.fsetdec.
+    + by apply: eq_onI (eq_onS Hvm2'1);rewrite /sv4 !read_eE; SvD.fsetdec.
     by rewrite (read_e_eq_on _ (emem s2) Hvm');case: (s2) H.
   Qed.
 
@@ -366,10 +369,11 @@ Section PROOF.
     move=> Hsc Hc H ii sv0 /=.
     set dobody := (X in wloop X).
     case Hloop: wloop => [[sv1 [c1 c1']] /=|//] Hwf vm1' Hvm.
-    move: (wloopP Hloop) => [H1 [sv2 [H2 H2']]].
-    apply: rbindP H2 => -[sv3 c2'] Hc2'.
-    set sv4 := (Sv.union _ _).
-    apply: rbindP => -[sv5 c2] Hc2 [???];subst sv5 c1 c1'.
+    move: (wloopP Hloop) => [sv2 [sv2' [H1 [H2 H2']]]].
+    apply: rbindP H2 => -[sv3 c2'] Hc2.
+    set sv4 := read_e_rec _ _ in Hc2.
+    apply: rbindP => -[sv5 c2] Hc2' x; apply ok_inj in x.
+    repeat (case/xseq.pair_inj: x => ? x; subst).
     have := Hc sv4;rewrite Hc2 => /(_ Hwf vm1') [|vm2' [Hvm2'1 Hvm2'2]].
     + by apply: eq_onI Hvm.
     exists vm2';split.
@@ -377,7 +381,7 @@ Section PROOF.
     apply sem_seq1;constructor.
     apply: (Ewhile_false _ Hvm2'2).
     have Hvm': vm2' =[read_e_rec sv0 e] (evm s2).
-    + by apply: eq_onS; apply: eq_onI Hvm2'1;rewrite /sv4;SvD.fsetdec.
+    + by apply: eq_onS; apply: eq_onI Hvm2'1;rewrite /sv4 !read_eE; SvD.fsetdec.
     by rewrite (read_e_eq_on _ _ Hvm');case: (s2) H.
   Qed.
 

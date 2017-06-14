@@ -600,11 +600,11 @@ Section PROPER.
     move=> Hc Hc' ii m1 m2 Heq /=.
     set ww1 := remove_cpm _ _;set ww2 := remove_cpm _ _. 
     have Hw: Mvar_eq ww1 ww2 by rewrite /ww1 /ww2 Heq.
-    move: (Hw) => /Hc; case: const_prop => ??; case: const_prop => ?? [].
+    move: (Hw) => /Hc; case: const_prop => m1' c1. case: const_prop => m2' c2 [].
+    rewrite /RelationPairs.RelCompFun /= => H ->.
+    move: (H) => /Hc'; case: const_prop => ?? ; case: const_prop => ?? [].
     rewrite /RelationPairs.RelCompFun /= => _ ->.
-    move: (Hw) => /Hc'; case: const_prop => ??; case: const_prop => ?? [].
-    rewrite /RelationPairs.RelCompFun /= => _ ->.
-    have -> : const_prop_e ww1 e = const_prop_e ww2 e by rewrite Hw.
+    have -> : const_prop_e m1' e = const_prop_e m2' e by rewrite H.
     by case: is_bool => //= ?; case:ifP.
   Qed.
 
@@ -764,45 +764,37 @@ Section PROOF.
     apply: rbindP He => v He /= Hv.
     set ww := write_i _;set m' := remove_cpm _ _.
     case Heq1: const_prop => [m'' c0] /=.
-    case Heq2: const_prop => [m_ c0'] /=;split.
-    + apply: valid_cpm_rm Hm.
-      by apply (@write_iP p gd); apply: (Ewhile_true Hc1) Hc1' Hw1;rewrite He.
-    set W := (W in sem _ _ _ W _).
-    have Hsem: forall s1 s4, 
-      sem p' gd s1 [:: MkI ii (Cwhile c0 (const_prop_e m' e) c0')] s4 <->
-      sem p' gd s1 W s4.
-    + move=> ??;rewrite /W;case:is_boolP => // -[] //=.
-      rewrite -sem_seq1_iff;split=> H.
-      + by sinversion H;sinversion H4.
-      by constructor;apply:Ewhile_false.
-    rewrite -Hsem.
-    apply sem_seq1;constructor.
-    have Hm'1 : valid_cpm (evm s1) m' by apply: valid_cpm_rm Hm.
-    case: (Hc m')=> //; rewrite Heq1 /= => _ Hc''.
-    have Hm'2 : valid_cpm (evm s2) m'.
-    + apply: valid_cpm_rm Hm;rewrite /ww write_i_while.
-      by apply: vmap_eq_exceptI (writeP Hc1);SvD.fsetdec.
-    case: (Hc' m')=> //; rewrite Heq2 /= => _ Hc'''.
-    case: (Hw m' ii). 
-    + apply: valid_cpm_rm Hm. rewrite /ww write_i_while -write_c_app.
-      by apply: (@writeP p);apply: sem_app Hc1 Hc1'.
-    move=> _ Hw'; apply Ewhile_true with s2 s3 => //.
-    + by move: He=> /(const_prop_eP Hm'2) ->.
-    have H1 := remove_cpm2 m ww; move: Hw'.
+    case Heq2: const_prop => [m_ c0'] /=.
+    have eq1_1 : evm s1 = evm s1 [\ww] by done.
+    have /Hc:= valid_cpm_rm eq1_1 Hm;rewrite -/m' Heq1 /= => -[Hm'' Hc0].
+    have := Hc' _ Hm'';rewrite Heq2 /= => -[_ Hc0'].
+    have eq1_3 : evm s1 = evm s3 [\ww].
+    + rewrite /ww write_i_while -write_c_app;apply: writeP.
+      by apply: sem_app;eauto.
+    have /Hw -/(_ ii) /=:= valid_cpm_rm eq1_3 Hm.
+    have H1 := remove_cpm2 m ww.
     have /= : Mvarc_eq (const_prop const_prop_i (remove_cpm m' (write_i (Cwhile c e c'))) c)
                (m'', c0).
     + by have := const_prop_m H1 (refl_equal c); rewrite Heq1.
-    case: const_prop  => ??.
-    have /= : Mvarc_eq (const_prop const_prop_i (remove_cpm m' (write_i (Cwhile c e c'))) c')
-               (m_, c0').
-    + by have := const_prop_m H1 (refl_equal c'); rewrite Heq2.
-    have -> /=: const_prop_e (remove_cpm m' (write_i (Cwhile c e c'))) e = 
-              const_prop_e m' e.
-    + by rewrite H1.
-    case: const_prop => ??.
-    move=> [] /=;rewrite /RelationPairs.RelCompFun /= => _ ->.
-    move=> [] /=;rewrite /RelationPairs.RelCompFun /= => _ ->.
-    by rewrite -Hsem -sem_seq1_iff => H;sinversion H.
+    case: const_prop  => m2'' c2 [].
+    rewrite /RelationPairs.RelCompFun /= => Hm2'' ->.
+    have /= : Mvarc_eq (const_prop const_prop_i m2'' c') (m_, c0').
+    + by have := const_prop_m Hm2'' (refl_equal c'); rewrite Heq2.
+    case: const_prop  => ? c2' [].
+    rewrite /RelationPairs.RelCompFun /= => _ -> -[Hs4 Hsem];split.
+    by apply (valid_cpm_m (refl_equal (evm s4)) Hm2'').
+    move: Hsem.
+    have -> : const_prop_e m2'' e = const_prop_e m'' e.
+    + by rewrite Hm2''.
+    have H :  forall e0, 
+      sem_pexpr gd s2 e0 = ok v ->
+      sem p' gd s3 [:: MkI ii (Cwhile c0 e0 c0')] s4 ->
+      sem p' gd s1 [:: MkI ii (Cwhile c0 e0 c0')] s4.
+    + move=> e0 He0 /sem_seq1_iff Hsw;apply:sem_seq1;constructor.
+      sinversion Hsw.
+      by apply: (Ewhile_true Hc0 _ Hc0' H4);rewrite He0.
+    have := const_prop_eP Hm'' He;case:is_boolP => [[ /H | ] |] //.
+    by move=> /= [?];subst v.
   Qed.
 
   Local Lemma Hwhile_false s1 s2 c e c':
@@ -814,23 +806,12 @@ Section PROOF.
     apply: rbindP He => v He /= Hv.
     set ww := write_i _;set m' := remove_cpm _ _.
     case Heq1: const_prop => [m'' c0] /=.
-    have Hm'1:  valid_cpm (evm s1) m' by apply: valid_cpm_rm Hm.
-    have Hm'2:  valid_cpm (evm s2) m'.
-    + apply: valid_cpm_rm Hm;rewrite /ww write_i_while.
-      by apply: vmap_eq_exceptI (writeP Hc1);SvD.fsetdec.
-    case Heq2: const_prop => [m_  c0'] /=;split=>//.
-    set W := (W in sem _ _ _ W _).
-    have Hsem: forall s1 s4, 
-      sem p' gd s1 [:: MkI ii (Cwhile c0 (const_prop_e m' e) c0')] s4 <->
-      sem p' gd s1 W s4.
-    + move=> ??;rewrite /W;case:is_boolP => // -[] //=.
-      rewrite -sem_seq1_iff;split=> H.
-      + by sinversion H;sinversion H4.
-      by constructor;apply:Ewhile_false.
-    rewrite -Hsem.    
-    apply sem_seq1;constructor;apply: Ewhile_false.
-    + by case (Hc m') => //;rewrite Heq1.
-    by move: He=> /(const_prop_eP Hm'2) ->.
+    case Heq2: const_prop => [m_ c0'] /=.
+    have eq1_1 : evm s1 = evm s1 [\ww] by done.
+    have /Hc:= valid_cpm_rm eq1_1 Hm;rewrite -/m' Heq1 /= => -[Hm'' Hc0];split => //.
+    have := const_prop_eP Hm'' He.
+    case:is_boolP => [ [ [?]| ] | e0 He0] //;first by subst v.
+    by apply: sem_seq1;constructor;apply: Ewhile_false => //;rewrite He0.
   Qed.
  
   Local Lemma Hfor s1 s2 (i:var_i) d lo hi c vlo vhi :

@@ -380,15 +380,15 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
 
   | Cwhile c e c' =>
     let m := remove_cpm m (write_i ir) in
-    let (_,c) := const_prop const_prop_i m c in
-    let (_,c') := const_prop const_prop_i m c' in
-    let e := const_prop_e m e in
+    let (m',c) := const_prop const_prop_i m c in
+    let e := const_prop_e m' e in
+    let (_,c') := const_prop const_prop_i m' c' in
     let cw := 
       match is_bool e with
       | Some false => c
       | _          => [:: MkI ii (Cwhile c e c')]
       end in
-    (m, cw)
+    (m', cw)
   | Ccall fi xs f es =>
     let es := map (const_prop_e m) es in
     let (m,xs) := const_prop_rvs m xs in

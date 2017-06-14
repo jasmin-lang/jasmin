@@ -500,10 +500,8 @@ let reverse_varmap (vars: (var, int) Hashtbl.t) : var IntMap.t =
 
 let split_live_ranges (f: 'info func) : unit func =
   let f = Ssa.split_live_ranges true f in
- (*
   Format.eprintf "(* After split *)@.%a@."
     (Printer.pp_func ~debug:true) f;
-  *)
   let lf = Liveness.live_fd false f in
   let vars, nv = collect_variables true f in
   let eqc, tr, _fr = collect_equality_constraints "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
