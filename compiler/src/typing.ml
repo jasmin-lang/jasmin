@@ -792,6 +792,15 @@ let check_call loc doInline lvs f es =
 let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
   let instr =
     match L.unloc pi with
+    | S.PIArrayInit ({ L.pl_loc = lc; } as x) ->
+      let x = tt_var ~allow_global:false `AllVar env x in
+      let xi = (L.mk_loc lc x) in
+      begin match x.P.v_ty with
+      | P.Arr(ws,e) -> P.Cassgn (Lvar xi, P.AT_unroll, P.Papp1(P.Oarr_init ws, e))
+      | _           -> rs_tyerror ~loc:lc (InvalidType( x.P.v_ty, TPArray))
+      end
+
+
     | S.PIAssign (ls, `Raw, { pl_desc = PECall (f, args) }, None) ->
       let f = tt_fun env f in
       let tlvs, tes = f_sig f in

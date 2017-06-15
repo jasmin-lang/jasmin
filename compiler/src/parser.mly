@@ -69,7 +69,7 @@
 %token UNDERSCORE
 %token WHILE
 %token EXPORT
-
+%token ARRAYINIT
 %token <string> NID
 %token <Bigint.zint> INT
 
@@ -231,6 +231,9 @@ plvalue:
  * -------------------------------------------------------------------- *)
 
 pinstr_r:
+| ARRAYINIT LPAREN x=var RPAREN SEMICOLON
+    { PIArrayInit x }
+
 | x=tuple1(plvalue) o=peqop e=pexpr c=prefix(IF, pexpr)? SEMICOLON
     { PIAssign (x, o, e, c) }
 

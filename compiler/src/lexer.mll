@@ -37,6 +37,7 @@
     "true"  , TRUE   ;
     "while" , WHILE  ;
     "export", EXPORT ;
+    "ArrayInit", ARRAYINIT;
     "_"     , UNDERSCORE;
   ]
 

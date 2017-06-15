@@ -54,11 +54,6 @@ fn reduce(reg u64[8] z) -> reg u64[4] {
   return xa;
 }
 
-fn fresh () -> reg u64[8] {
-   reg u64[8] z;
-   return z;
-}
-
 fn iterated_square(reg u64[4] xa, stack u64 n) -> reg u64[4] {
 
   reg u64[8] z;
@@ -69,10 +64,11 @@ fn iterated_square(reg u64[4] xa, stack u64 n) -> reg u64[4] {
   reg bool cf;
 
   while {
-
+    // nop but indique to the compiler that the previous value of z is not important
+    ArrayInit(z); 
+    //
     rax = xa[1];
     rdx, rax = rax * xa[0];
-    z = fresh();
     z[1] = rax;
     z[2] = rdx;
 
