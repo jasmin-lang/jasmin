@@ -10,6 +10,7 @@ _, z += z;
 _, z = z + z;
 cf, z = z + z;
 cf, z = z + z + cf;
-_, z = #addc(z,z,false);
+_, z = #adc(z,z,false);
+_,_,_,_,_,z = #x86_ADC(z,z,false);
 return z;
 }

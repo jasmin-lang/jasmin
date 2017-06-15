@@ -84,7 +84,7 @@ let pp_tyerror fmt (code : tyerror) =
 
   | InvalidArgCount (n1, n2) ->
       Format.fprintf fmt
-        "invalid number of argument, %d are given, %d are expected" n1 n2
+        "invalid number of arguments, %d are given, %d are expected" n1 n2
 
   | DuplicateFun (f, loc) ->
       Format.fprintf fmt
@@ -555,45 +555,53 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
 let f_sig f =
   List.map P.ty_i f.P.f_ret, List.map (fun v -> v.P.v_ty) f.P.f_args
 
+let b_5      = [P.tbool; P.tbool; P.tbool; P.tbool; P.tbool]
+let b_5u64   = [P.tbool; P.tbool; P.tbool; P.tbool; P.tbool; P.u64]
+let b_4u64   = [P.tbool; P.tbool; P.tbool; P.tbool; P.u64]
+let b_5u64_2 = [P.tbool; P.tbool; P.tbool; P.tbool; P.tbool; P.u64; P.u64]
+let u64_2b   = [P.u64; P.u64; P.tbool]
+let u64_2    = [P.u64; P.u64]
+let u64_3    = [P.u64; P.u64; P.u64]
+let u64_4    = [P.u64; P.u64; P.u64; P.u64]
+
 let prim_sig p =
   let open P in
   match p with
-  | Omulu     -> [u64  ; u64], [u64; u64]
-  | Oaddcarry -> [tbool; u64], [u64; u64; tbool]
-  | Osubcarry -> [tbool; u64], [u64; u64; tbool]
-  | Oset0     -> [tbool; tbool; tbool; tbool; tbool; u64], []
-  | Ox86_CMP  -> [tbool; tbool; tbool; tbool; tbool], [u64; u64]
-  | Ox86_MOV  -> [u64], [u64]
-  | Ox86_SHLD -> [tbool; tbool; tbool; tbool; tbool; u64], [u64; u64; u64 ]
-  | Ox86_CMOVcc
-  | Ox86_ADD
-  | Ox86_SUB
-  | Ox86_MUL
-  | Ox86_IMUL
-  | Ox86_IMUL64
-  | Ox86_DIV
-  | Ox86_IDIV
-  | Ox86_ADC
-  | Ox86_SBB
-  | Ox86_NEG
-  | Ox86_INC
-  | Ox86_DEC
-  | Ox86_SETcc
-  | Ox86_LEA
-  | Ox86_TEST
-  | Ox86_AND
-  | Ox86_OR
-  | Ox86_XOR
-  | Ox86_NOT
-  | Ox86_SHL
-  | Ox86_SHR
-  | Ox86_SAR
-    -> (* FIXME *) assert false
+  | Omulu       -> u64_2   , u64_2
+  | Oaddcarry   -> [tbool; u64], u64_2b
+  | Osubcarry   -> [tbool; u64], u64_2b
+  | Oset0       -> b_5u64  , []
+  | Ox86_CMP    -> b_5     , u64_2
+  | Ox86_TEST   -> b_5     , u64_2
+  | Ox86_MOV    -> [u64]   , [u64]
+  | Ox86_SHLD   -> b_5u64  , u64_3
+  | Ox86_CMOVcc -> [u64]   , [tbool; u64; u64]
+  | Ox86_ADD    -> b_5u64  , u64_2
+  | Ox86_SUB    -> b_5u64  , u64_2
+  | Ox86_MUL    -> b_5u64_2, u64_2
+  | Ox86_IMUL   -> b_5u64_2, u64_2
+  | Ox86_IMUL64 -> b_5u64  , u64_2
+  | Ox86_DIV    -> b_5u64_2, u64_3
+  | Ox86_IDIV   -> b_5u64_2, u64_3
+  | Ox86_ADC    -> b_5u64  , u64_2b
+  | Ox86_SBB    -> b_5u64  , u64_2b
+  | Ox86_NEG    -> b_5u64  , [u64]
+  | Ox86_INC    -> b_4u64  , [u64]
+  | Ox86_DEC    -> b_4u64  , [u64]
+  | Ox86_SETcc  -> [u64]   , [tbool]
+  | Ox86_LEA    -> [u64]   , u64_4 
+  | Ox86_AND    -> b_5u64  , u64_2
+  | Ox86_OR     -> b_5u64  , u64_2
+  | Ox86_XOR    -> b_5u64  , u64_2
+  | Ox86_NOT    -> [u64]   , [u64]
+  | Ox86_SHL    -> b_5u64  , u64_2
+  | Ox86_SHR    -> b_5u64  , u64_2   
+  | Ox86_SAR    -> b_5u64  , u64_2
 
 let prim_string =
   [ "mulu"      , P.Omulu;
-    "addc"      , P.Oaddcarry;
-    "subc"      , P.Osubcarry;
+    "adc"       , P.Oaddcarry;
+    "sbb"       , P.Osubcarry;
     "set0"      , P.Oset0;
     "x86_MOV"   , P.Ox86_MOV;
     "x86_CMOVcc", P.Ox86_CMOVcc;
