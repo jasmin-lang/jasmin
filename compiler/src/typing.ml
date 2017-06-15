@@ -686,8 +686,17 @@ let pexpr_of_plvalue exn l =
   | S.PLMem(ty,x,e) -> L.mk_loc (L.loc l) (S.PEFetch(ty,x,e))
 
 
-let tt_lvalues env ls tys =
-  let ls = List.map (tt_lvalue env) ls in
+let tt_lvalues env pls tys =
+  let ls = List.map (tt_lvalue env) pls in
+  let n1 = List.length ls in
+  let n2 = List.length tys in
+  let ls = 
+    if n1 < n2 then
+      let n = n2 - n1 in
+      let loc = loc_of_tuples None (List.map P.L.loc pls) in
+      Format.eprintf "WARNING: introduce %d _ lvalues at %a@." n P.L.pp_sloc loc;
+      List.make n (loc, (fun ty ->  P.Lnone(loc,ty)), None) @ ls
+    else ls in
   check_sig_lvs tys ls
 
 let tt_exprs_cast env les tys =
