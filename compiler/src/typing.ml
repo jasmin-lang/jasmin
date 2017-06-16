@@ -25,20 +25,16 @@ type tyerror =
   | UnknownFun          of S.symbol
   | InvalidType         of P.pty * typattern
   | TypeMismatch        of P.pty pair
-  | InvOpInExpr         of [ `Op2 of S.peop2 ]
   | NoOperator          of [ `Op2 of S.peop2 ] * P.pty list
   | InvalidArgCount     of int * int
+  | InvalidLvalCount    of int * int
   | DuplicateFun        of S.symbol * L.t
   | InvalidCast         of P.pty pair
   | InvalidGlobal       of S.symbol
-  | LvalueWithNoBaseTy
-  | LvalueTooWide
-  | LvalueTooNarrow
   | EqOpWithNoLValue
-  | InvalidLRValue
   | CallNotAllowed
   | PrimNotAllowed
-  | Unsupported
+  | Unsupported         of string
   | UnknownPrim         of S.symbol
   | ReturnLocalStack    of S.symbol
   | BadVariableKind     of P.pvar_i * P.v_kind 
@@ -52,6 +48,12 @@ let rs_tyerror ~loc (code : tyerror) =
   raise (tyerror ~loc code)
 
 (* -------------------------------------------------------------------- *)
+let pp_typat fmt = function
+  | TPBool  -> Format.fprintf fmt "bool"
+  | TPInt   -> Format.fprintf fmt "int"
+  | TPWord  -> Format.fprintf fmt "word (u8, u16, u32, u64)"
+  | TPArray -> Format.fprintf fmt "array"
+
 let pp_tyerror fmt (code : tyerror) =
   match code with
   | UnknownVar x ->
@@ -60,56 +62,44 @@ let pp_tyerror fmt (code : tyerror) =
   | UnknownFun x ->
       Format.fprintf fmt "unknown function: `%s'" x
 
-  | InvalidType _ ->  Format.fprintf fmt "invalid type"
+  | InvalidType (ty, p) -> 
+    Format.fprintf fmt "the expression as type %a instead of %a"
+       Printer.pp_ptype ty pp_typat p
 
   | TypeMismatch (t1,t2) ->
     Format.fprintf fmt
       "the expression has type %a instead of %a"
       Printer.pp_ptype t1 Printer.pp_ptype t2
 
-  | InvalidCast _ ->
-      Format.fprintf fmt "invalid cast"
+  | InvalidCast (t1,t2) ->
+    Format.fprintf fmt "can not implicitly cast %a into %a"
+      Printer.pp_ptype t1 Printer.pp_ptype t2        
 
   | InvalidGlobal g ->
       Format.fprintf fmt "invalid use of a global name: ‘%s’" g
 
-  | InvOpInExpr _ ->
+  | NoOperator (`Op2 o, ts) ->
       Format.fprintf fmt
-        "this operator is not allowed in expressions"
-
-  | NoOperator (_, ts) ->
-      Format.fprintf fmt
-        "not operators for these types %a"
+        "no operator %s for these types %a"
+        (S.string_of_peop2 o)
         (Printer.pp_list " * " Printer.pp_ptype) ts
 
   | InvalidArgCount (n1, n2) ->
       Format.fprintf fmt
-        "invalid number of arguments, %d are given, %d are expected" n1 n2
+        "invalid number of arguments, %d provided instead of %d" n1 n2
+
+  | InvalidLvalCount (n1, n2) ->
+      Format.fprintf fmt
+        "invalid number of lvalues, %d provided instead of %d" n1 n2
 
   | DuplicateFun (f, loc) ->
       Format.fprintf fmt
         "The function %s is already declared at %s"
         f (L.tostring loc)
 
-  | LvalueWithNoBaseTy ->
-      Format.fprintf fmt
-        "lvalues must have a base type"
-
-  | LvalueTooWide ->
-      Format.fprintf fmt
-        "lvalues tuple too wide"
-
-  | LvalueTooNarrow ->
-      Format.fprintf fmt
-        "lvalues tuple too narrow"
-
   | EqOpWithNoLValue ->
       Format.fprintf fmt
         "operator-assign requires a lvalue"
-
-  | InvalidLRValue ->
-      Format.fprintf fmt
-        "this lvalue cannot act as a rvalue"
 
   | CallNotAllowed ->
       Format.fprintf fmt
@@ -119,8 +109,8 @@ let pp_tyerror fmt (code : tyerror) =
       Format.fprintf fmt
         "primitive calls not allowed at that point"
 
-  | Unsupported ->
-      Format.fprintf fmt "unsupported"
+  | Unsupported s ->
+      Format.fprintf fmt "%s" s
   | UnknownPrim s ->
       Format.fprintf fmt "unknown primitive: `%s'" s
 
@@ -292,10 +282,8 @@ let check_sig_lvs ?loc sig_ lvs =
   let nsig_ = List.length sig_ in
   let nlvs  = List.length lvs  in
 
-  if nlvs > nsig_ then
-    rs_tyerror ~loc:(loc ()) LvalueTooWide;
-  if nlvs < nsig_ then
-    rs_tyerror ~loc:(loc ()) LvalueTooNarrow;
+  if nlvs <> nsig_ then 
+    rs_tyerror ~loc:(loc ()) (InvalidLvalCount(nlvs, nsig_));
 
   List.iter2
     (fun ty (loc, _, lty) -> lty
@@ -654,7 +642,7 @@ let prim_of_op exn loc o =
 
 let prim_of_pe pe =
   let loc = L.loc pe in
-  let exn = tyerror ~loc Unsupported in
+  let exn = tyerror ~loc (Unsupported "can not recognize the primitive") in
   match L.unloc pe with
   | S.PEOp2 (o, (pe1, pe2)) ->
     let desc =
@@ -843,12 +831,12 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
 
     | PIAssign (ls, eqop, e, Some cp) ->
       let loc = L.loc pi in
-      if peop2_of_eqop eqop <> None then rs_tyerror ~loc Unsupported;
+      let exn = Unsupported "if not allowed here" in
+      if peop2_of_eqop eqop <> None then rs_tyerror ~loc exn;
       let cpi = S.PIAssign (ls, eqop, e, None) in
       let i = tt_instr env (L.mk_loc loc cpi) in
       let x, _, e = P.destruct_move i in
-      let e' =
-        ofdfl (fun _ -> rs_tyerror ~loc Unsupported) (P.expr_of_lval x) in
+      let e' = ofdfl (fun _ -> rs_tyerror ~loc exn) (P.expr_of_lval x) in
       let c = tt_expr_bool env cp in
       P.Cassgn (x, AT_keep, Pif (c, e, e'))
 

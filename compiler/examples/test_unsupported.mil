@@ -1,0 +1,10 @@
+export fn f(reg u64 x) -> reg u64 {
+   reg u64 r;
+
+   _, x = x ^ x * x;
+
+   r = x;
+
+   return r;
+
+}
