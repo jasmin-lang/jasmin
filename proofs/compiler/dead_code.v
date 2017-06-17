@@ -86,6 +86,7 @@ Definition check_nop_opn (xs:lvals) (o: sopn) (es:pexprs) :=
   | _, _, _ => false
   end.
  
+Check has.
 Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) := 
   let (ii,ir) := i in
   match ir with
@@ -97,8 +98,12 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
       else ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
     else   ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
   
-  | Copn xs t o es =>
-    if check_nop_opn xs o es then ciok (s, [::])
+  | Copn xs tag o es =>
+    let w := vrvs xs in
+    if tag != AT_keep then 
+      if disjoint s w && negb (has write_mem xs) then ciok (s, [::])
+      else if check_nop_opn xs o es then ciok (s, [::])
+      else ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
     else ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
 
   | Cif b c1 c2 => 

@@ -706,7 +706,7 @@ let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (e: P.pty P.gexpr) : (P.pty,
     | Pvar y ->
         let i = L.mk_loc (L.loc z) (P.PV.mk "i" P.Inline (Bty Int) (L.loc z)) in
         Cfor (i, (UpTo, Pconst P.B.zero, n), [
-            let i_desc = P.Cassgn (Laset (z, Pvar i), AT_keep, Pget (y, Pvar i)) in
+            let i_desc = P.Cassgn (Laset (z, Pvar i), AT_none, Pget (y, Pvar i)) in
             { i_desc ; i_loc = L.loc z, [] ; i_info = () }
           ])
     | _ -> hierror "Array copy"
@@ -838,7 +838,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
       let x, _, e = P.destruct_move i in
       let e' = ofdfl (fun _ -> rs_tyerror ~loc exn) (P.expr_of_lval x) in
       let c = tt_expr_bool env cp in
-      P.Cassgn (x, AT_keep, Pif (c, e, e'))
+      P.Cassgn (x, AT_none, Pif (c, e, e'))
 
     | PIIf (cp, st, sf) ->
         let c  = tt_expr_bool env cp in
