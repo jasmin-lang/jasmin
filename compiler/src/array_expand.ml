@@ -71,7 +71,7 @@ let rec arrexp_i tbl i =
     match i.i_desc with
     | Cblock c -> Cblock (arrexp_c tbl c)
     | Cassgn(x,t,e) -> Cassgn(arrexp_lv tbl x, t, arrexp_e tbl e)
-    | Copn(x,o,e)   -> Copn(arrexp_lvs tbl x, o, arrexp_es tbl e)
+    | Copn(x,t,o,e)   -> Copn(arrexp_lvs tbl x, t, o, arrexp_es tbl e)
     | Cif(e,c1,c2)  -> Cif(arrexp_e tbl e, arrexp_c tbl c1, arrexp_c tbl c2)
     | Cfor(i,(d,e1,e2),c) ->
       Cfor(i, (d, arrexp_e tbl e1, arrexp_e tbl e2), arrexp_c tbl c)
@@ -182,7 +182,7 @@ let rec astk_i tbl i =
     match i.i_desc with
     | Cblock c        -> Cblock (astk_c tbl c)
     | Cassgn(x,t,e)   -> Cassgn(astk_lv tbl x, t, astk_e tbl e)
-    | Copn(x,o,e)     -> Copn(astk_lvs tbl x, o, astk_es tbl e)
+    | Copn(x,t,o,e)     -> Copn(astk_lvs tbl x, t, o, astk_es tbl e)
     | Cif(e,c1,c2)    -> Cif(astk_e tbl e, astk_c tbl c1, astk_c tbl c2)
     | Cfor(i,(d,e1,e2),c) ->
       Cfor(i, (d, astk_e tbl e1, astk_e tbl e2), astk_c tbl c)

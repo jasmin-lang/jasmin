@@ -21,7 +21,7 @@ let fill_in_missing_names (f: 'info func) : 'info func =
     function
     | Cblock s -> Cblock (fill_stmt s)
     | Cassgn (lv, tg, e) -> Cassgn (fill_lv lv, tg, e)
-    | Copn (lvs, op, es) -> Copn (fill_lvs lvs, op, es)
+    | Copn (lvs, tg, op, es) -> Copn (fill_lvs lvs, tg, op, es)
     | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
     | Cfor _ -> assert false
     | Cwhile (s, e, s') -> Cwhile (fill_stmt s, e, fill_stmt s')
@@ -109,8 +109,8 @@ let collect_equality_constraints
     | Cblock s
     | Cfor (_, _, s)
       -> collect_stmt s
-    | Copn (lvs, op, es) -> copn_constraints tbl (add ii) addf lvs op es
-    | Cassgn (Lvar x, (AT_rename_arg | AT_rename_res | AT_phinode), Pvar y) ->
+    | Copn (lvs, _, op, es) -> copn_constraints tbl (add ii) addf lvs op es
+    | Cassgn (Lvar x, (AT_rename | AT_phinode), Pvar y) ->
       let i = try Hashtbl.find tbl (L.unloc x) with
         Not_found ->
           hierror "%s: unknown variable %a"
@@ -232,7 +232,7 @@ let collect_variables (allvars: bool) (f: 'info func) : (var, int) Hashtbl.t * i
     | Cblock s -> collect_stmt s
     | Cassgn (lv, _, e) -> collect_lv lv; collect_expr e
     | Ccall (_, lvs, _, es)
-    | Copn (lvs, _, es) -> collect_lvs lvs; collect_exprs es
+    | Copn (lvs, _, _, es) -> collect_lvs lvs; collect_exprs es
     | Cwhile (s1, e, s2)
     | Cif (e, s1, s2) -> collect_expr e; collect_stmt s1; collect_stmt s2
     | Cfor _ -> assert false
@@ -420,7 +420,7 @@ let allocate_forced_registers (vars: (var, int) Hashtbl.t) (cnf: conflicts)
     | Cblock s
     | Cfor (_, _, s)
       -> alloc_stmt a s
-    | Copn (lvs, op, es) -> X64.forced_registers vars cnf lvs op es a
+    | Copn (lvs, _, op, es) -> X64.forced_registers vars cnf lvs op es a
     | Cwhile (s1, _, s2)
     | Cif (_, s1, s2)
         -> alloc_stmt (alloc_stmt a s1) s2
@@ -500,9 +500,9 @@ let reverse_varmap (vars: (var, int) Hashtbl.t) : var IntMap.t =
 let split_live_ranges (f: 'info func) : unit func =
   let f = Ssa.split_live_ranges true f in
   Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
-  let lf = Liveness.live_fd false f in
+(*  let lf = Liveness.live_fd false f in *)
   let vars, nv = collect_variables true f in
-  let eqc, tr, _fr = collect_equality_constraints "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
+  let eqc, _tr, _fr = collect_equality_constraints "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
   let vars = normalize_variables vars eqc in
 (*  let _ = collect_conflicts vars tr lf in (* May fail *) *)
   let a =

@@ -784,7 +784,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
       let x = tt_var ~allow_global:false `AllVar env x in
       let xi = (L.mk_loc lc x) in
       begin match x.P.v_ty with
-      | P.Arr(ws,e) -> P.Cassgn (Lvar xi, P.AT_unroll, P.Papp1(P.Oarr_init ws, e))
+      | P.Arr(ws,e) -> P.Cassgn (Lvar xi, P.AT_inline, P.Papp1(P.Oarr_init ws, e))
       | _           -> rs_tyerror ~loc:lc (InvalidType( x.P.v_ty, TPArray))
       end
 
@@ -804,13 +804,13 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
       let tlvs, tes = prim_sig p in
       let lvs = tt_lvalues env ls tlvs in
       let es  = tt_exprs_cast env args tes in
-      P.Copn(lvs, p, es)
+      P.Copn(lvs, AT_none, p, es)
 
     | PIAssign([lv], `Raw, pe, None) ->
       let _, flv, vty = tt_lvalue env lv in
       let e, ety = tt_expr ~mode:`AllVar env pe in
       let e = vty |> omap_dfl (cast (L.loc pe) e ety) e in
-      cassgn_for (flv ety) AT_keep e
+      cassgn_for (flv ety) AT_none e
 
     | PIAssign(ls, `Raw, pe, None) ->
       (* Try to match addc, subc, mulu *)

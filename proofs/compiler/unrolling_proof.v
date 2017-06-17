@@ -84,9 +84,9 @@ Section PROOF.
     by apply: sem_seq1; apply: EmkI; apply: Eassgn.
   Qed.
 
-  Local Lemma Hopn s1 s2 o xs es :
+  Local Lemma Hopn s1 s2 t o xs es :
     Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x
-    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
+    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs t o es) s2.
   Proof.
     move=> Hw ii.
     by apply: sem_seq1; apply: EmkI; apply: Eopn.

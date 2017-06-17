@@ -1100,14 +1100,14 @@ Ltac elim_div :=
       by case: eqP => // ?; subst.
   Qed.
 
-  Lemma opn_5flags_correct vi ii s a o cf r xs ys m s' :
+  Lemma opn_5flags_correct vi ii s a t o cf r xs ys m s' :
     disj_fvars (read_es a) →
     disj_fvars (vars_lvals [:: cf ; r ]) →
     sem_pexprs gd s a = ok xs →
     sem_sopn o xs = ok ys →
     write_lvals gd s [:: Lnone_b vi ; cf ; Lnone_b vi ; Lnone_b vi ; Lnone_b vi ; r] ys = ok s' →
     ∃ s'',
-    sem p' gd s [seq MkI ii i | i <- opn_5flags fv m vi cf r o a] s''
+    sem p' gd s [seq MkI ii i | i <- opn_5flags fv m vi cf r t o a] s''
     ∧ eq_exc_fresh s'' s'.
   Proof.
     move=> da dr hx hr hs; rewrite/opn_5flags.
@@ -1191,7 +1191,7 @@ Ltac elim_div :=
         (Let x := sem_pexprs gd s1' [:: wconst d; oapp Pvar (wconst 0) b; wconst sc; oapp Pvar (wconst 0) o] in sem_sopn Ox86_LEA x) = ok [::Vword w].
       + by rewrite /sem_pexprs /= Hwb Hwo /= /x86_lea !I64.repr_unsigned Hsc Ew.
       have Hlea' : sem p' gd s1'
-                    [:: MkI (warning ii Use_lea) (Copn [:: l] Ox86_LEA [:: wconst d; oapp Pvar (wconst 0) b; wconst sc; oapp Pvar (wconst 0) o])] s2'.
+                    [:: MkI (warning ii Use_lea) (Copn [:: l] tag Ox86_LEA [:: wconst d; oapp Pvar (wconst 0) b; wconst sc; oapp Pvar (wconst 0) o])] s2'.
       + by apply: sem_seq1; apply: EmkI; apply: Eopn;rewrite Hlea /= Hw'.
       case use_lea => //;subst w.
       case: eqP => [ ? | _ ].
@@ -1211,7 +1211,7 @@ Ltac elim_div :=
     (* LowerFopn *)
     + set vi := var_info_of_lval _.
       move=> o a m [] LE. t_xrbindP => ys xs hxs hys hs2.
-      case: (opn_5flags_correct ii m _ _ hxs hys hs2).
+      case: (opn_5flags_correct ii tag m _ _ hxs hys hs2).
       move: LE Hdisje. apply disjoint_w.
       exact Hdisjl.
       move=> s2'' []; eauto using eq_exc_freshT.
@@ -1259,8 +1259,8 @@ Ltac elim_div :=
       by rewrite Hv'.
   Qed.
 
-  Lemma vars_I_opn ii xs o es:
-    Sv.Equal (vars_I (MkI ii (Copn xs o es))) (Sv.union (vars_lvals xs) (read_es es)).
+  Lemma vars_I_opn ii xs t o es:
+    Sv.Equal (vars_I (MkI ii (Copn xs t o es))) (Sv.union (vars_lvals xs) (read_es es)).
   Proof.
     rewrite /vars_I /read_I /= read_esE /write_I /= /vars_lvals.
     SvD.fsetdec.
@@ -1457,7 +1457,7 @@ Ltac elim_div :=
     by move=> cfi [] //=; eauto 11.
   Qed.
 
-  Lemma lower_addcarry_correct ii si so si' sub xs es x v :
+  Lemma lower_addcarry_correct ii si so si' sub xs t es x v :
     eq_exc_fresh si' si →
     disj_fvars (vars_lvals xs) →
     disj_fvars (read_es es) →
@@ -1465,7 +1465,7 @@ Ltac elim_div :=
     sem_sopn (if sub then Osubcarry else Oaddcarry) x = ok v →
     write_lvals gd si' xs v = ok so →
     ∃ so',
-      sem p' gd si' (map (MkI ii) (lower_addcarry fv sub xs es)) so' ∧
+      sem p' gd si' (map (MkI ii) (lower_addcarry fv sub xs t es)) so' ∧
       eq_exc_fresh so' so.
     Proof.
       move=> hi dxs des hx hv ho.
@@ -1496,15 +1496,15 @@ Ltac elim_div :=
         }
         clear C.
         case: D => des' [ xs' [ hxs' [ v' [hv' ho'] ] ] ].
-        case: (opn_5flags_correct ii I32.modulus des' dxs hxs' hv' ho') => {hv' ho'} so'.
+        case: (opn_5flags_correct ii t I32.modulus des' dxs hxs' hv' ho') => {hv' ho'} so'.
         intuition eauto using eq_exc_freshT.
       + by repeat econstructor; rewrite hx/=hv.
     Qed.
     Opaque lower_addcarry.
 
-  Local Lemma Hopn s1 s2 o xs es :
+  Local Lemma Hopn s1 s2 t o xs es :
     Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x
-    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
+    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs t o es) s2.
   Proof.
     apply: rbindP=> v; apply: rbindP=> x Hx Hv Hw ii Hdisj s1' Hs1'.
     move: Hdisj; rewrite /disj_fvars /lowering.disj_fvars vars_I_opn=> /disj_fvars_union [Hdisjl Hdisje].
@@ -1566,10 +1566,10 @@ Ltac elim_div :=
       rewrite /= -mulhu_repr in Hw'.
       exact: Hw'.
     (* Oaddcarry *)
-    + case: (lower_addcarry_correct ii (sub:= false) Hs1' Hdisjl Hdisje Hx' Hv Hw').
+    + case: (lower_addcarry_correct ii t (sub:= false) Hs1' Hdisjl Hdisje Hx' Hv Hw').
       by intuition eauto using eq_exc_freshT.
     (* Osubcarry *)
-    + case: (lower_addcarry_correct ii (sub:= true) Hs1' Hdisjl Hdisje Hx' Hv Hw').
+    + case: (lower_addcarry_correct ii t (sub:= true) Hs1' Hdisjl Hdisje Hx' Hv Hw').
       by intuition eauto using eq_exc_freshT.
   Qed.
 

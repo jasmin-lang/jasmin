@@ -98,7 +98,7 @@ Definition array_init iinfo (X: Sv.t) :=
   let assgn x c := 
     match x.(vtype) with
     | sarr p => 
-      MkI iinfo (Cassgn (Lvar (mkdV x)) AT_rename_arg (arr_init p)) :: c
+      MkI iinfo (Cassgn (Lvar (mkdV x)) AT_rename (arr_init p)) :: c
     | _      => c
     end in
   Sv.fold assgn X [::].
@@ -107,8 +107,8 @@ Fixpoint inline_i (p:prog) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
   match i with
   | MkI iinfo ir =>
     match ir with 
-    | Cassgn x t e => ciok (Sv.union (read_i ir) X, [::i])
-    | Copn xs o es => ciok (Sv.union (read_i ir) X, [::i])
+    | Cassgn x _ e => ciok (Sv.union (read_i ir) X, [::i])
+    | Copn xs _ o es => ciok (Sv.union (read_i ir) X, [::i])
     | Cif e c1 c2  =>
       Let c1 := inline_c (inline_i p) c1 X in
       Let c2 := inline_c (inline_i p) c2 X in
@@ -130,10 +130,10 @@ Fixpoint inline_i (p:prog) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
         (* FIXME : locals is computed 2 times (one in check_rename) *)
         Let _ := check_rename iinfo f fd fd' (Sv.union (vrvs xs) X) in
         let init_array := array_init iinfo (locals fd') in                
-        ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename_arg es ++
+        ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename es ++
                   init_array ++ 
                   (fd'.(f_body) ++ 
-                  assgn_tuple iinfo xs AT_rename_res (map Pvar fd'.(f_res))))
+                  assgn_tuple iinfo xs AT_rename (map Pvar fd'.(f_res))))
       else ciok (X, [::i])        
     end
   end.
@@ -170,7 +170,7 @@ Fixpoint remove_init_i i :=
   | MkI ii ir =>
     match ir with
     | Cassgn x t e => if is_array_init e then [::] else [::i]
-    | Copn _ _ _   => [::i]
+    | Copn _ _ _ _   => [::i]
     | Cif e c1 c2  => 
       let c1 := foldr (fun i c => remove_init_i i ++ c) [::] c1 in
       let c2 := foldr (fun i c => remove_init_i i ++ c) [::] c2 in

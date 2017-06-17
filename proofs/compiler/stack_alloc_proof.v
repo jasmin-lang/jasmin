@@ -1192,13 +1192,13 @@ Section PROOF.
     apply: S.Eassgn;by rewrite He'.
   Qed.
 
-  Local Lemma Hopn s1 s2 o xs es :
+  Local Lemma Hopn s1 s2 t o xs es :
     Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x
-    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
+    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs t o es) s2.
   Proof.
     apply: rbindP=> vs.
     apply: rbindP=> w He Hop Hw ii1 ii2 i2 Hi2 s1' Hvalid.
-    case: i2 Hi2=> //= xs' o' es' /andP [/andP [Hlvals /eqP Ho] Hes].
+    case: i2 Hi2=> //= xs' t' o' es' /andP [/andP [Hlvals /eqP Ho] Hes].
     have [vs' [He' Uvv']] := (check_esP Hes Hvalid He);subst o'.
     have [w' [Hop' Uww']]:= vuincl_sem_opn Uvv' Hop.
     have [s2' [Hw' Hvalid']] := check_lvalsP Hlvals Hvalid Uww' Hw.

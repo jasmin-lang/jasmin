@@ -82,7 +82,7 @@ Section CAT.
   Let Hassgn : forall x t e, Pr (Cassgn x t e).
   Proof. by []. Qed.
 
-  Let Hopn : forall xs o es, Pr (Copn xs o es).
+  Let Hopn : forall xs t o es, Pr (Copn xs t o es).
   Proof. by []. Qed.
 
   Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
@@ -482,9 +482,9 @@ Section PROOF.
     eapply LSem_assgn=> /=; eauto.
   Qed.
 
-  Let Hopn : forall xs o es, Pi_r (Copn xs o es).
+  Let Hopn : forall xs t o es, Pi_r (Copn xs t o es).
   Proof.
-    move=> x e tag ii lbl lbl' l' [] <- <-;rewrite Pos.leb_refl;split=>//.
+    move=> x t' e tag ii lbl lbl' l' [] <- <-;rewrite Pos.leb_refl;split=>//.
     move=> -[m1 vm1] s2 H;inversion H;clear H;subst;apply LSem_step.
     eapply LSem_opn=> /=; eauto.
   Qed.

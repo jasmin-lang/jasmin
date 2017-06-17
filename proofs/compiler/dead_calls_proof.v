@@ -19,7 +19,7 @@ with i_Calls_r (i : instr_r) {struct i} : Sp.t :=
 
   match i with
   | Cassgn _  _  _    => Sp.empty
-  | Copn   _  _  _    => Sp.empty
+  | Copn   _  _  _  _ => Sp.empty
   | Cif    _  c1 c2   => Sp.union (c_Calls c1) (c_Calls c2)
   | Cfor   _  _  c1   => c_Calls c1
   | Cwhile c1 _  c2   => Sp.union (c_Calls c1) (c_Calls c2)
@@ -38,8 +38,8 @@ Lemma i_Calls_asgn lv tg e :
   i_Calls_r (Cassgn lv tg e) = Sp.empty.
 Proof. by []. Qed.
 
-Lemma i_Calls_opn lv op es :
-  i_Calls_r (Copn lv op es) = Sp.empty.
+Lemma i_Calls_opn lv t op es :
+  i_Calls_r (Copn lv t op es) = Sp.empty.
 Proof. by []. Qed.
 
 Lemma i_Calls_if e c1 c2 :
@@ -210,11 +210,11 @@ Section PROOF.
     move=> H _ _; exact: (Eassgn _ _ H).
   Qed.
 
-  Local Lemma Hopn s1 s2 o xs es :
+  Local Lemma Hopn s1 s2 t o xs es :
     Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x
-    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
+    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs t o es) s2.
   Proof.
-    move=> H _ _; exact: (Eopn _ H).
+    move=> H _ _; exact: (Eopn _ _ H).
   Qed.
 
   Local Lemma Hif_true s1 s2 e c1 c2 :

@@ -1181,8 +1181,8 @@ Admitted. (*
 Qed.
 *)
 
-Lemma wp_opn_sound prg ii xs op args f :
-  hoare prg gd ⟦wp_opn xs op args f⟧ [:: MkI ii (Copn xs op args)] ⟦f⟧.
+Lemma wp_opn_sound prg ii xs t op args f :
+  hoare prg gd ⟦wp_opn xs op args f⟧ [:: MkI ii (Copn xs t op args)] ⟦f⟧.
 Proof.
 Admitted. (*
   move=> [m vm] s1 /ssem_inv[s' [/ssem_I_inv [i' [ii' [/MkI_inj [? <-]] /ssem_i_inv [vargs [res [Hargs [Hvs Hs']]]]]] /ssem_inv ->]]; subst ii'.
@@ -1336,7 +1336,7 @@ Definition wp_rec : cmd → formula → formula :=
     (* Cassgn *)
     (λ x _ e ii, wp_assgn x e)
     (* Copn *)
-    (λ xs o es ii, wp_opn xs o es)
+    (λ xs t o es ii, wp_opn xs o es)
     (* Cif *)
     (λ e c1 c2 wp1 wp2 ii, wp_if' e wp1 wp2)
     (* Cfor *)

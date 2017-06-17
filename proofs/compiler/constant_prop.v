@@ -354,10 +354,11 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let m := add_cpm m x tag e in
     (m, [:: MkI ii (Cassgn x tag e)])
 
-  | Copn xs o es =>
+  | Copn xs t o es =>
+    (* TODO: Improve this *)
     let es := map (const_prop_e m) es in
     let (m,xs) := const_prop_rvs m xs in
-    (m, [:: MkI ii (Copn xs o es) ])
+    (m, [:: MkI ii (Copn xs t o es) ])
 
   | Cif b c1 c2 => 
     let b := const_prop_e m b in

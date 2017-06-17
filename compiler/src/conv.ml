@@ -367,17 +367,17 @@ let expr_of_cexprs tbl es = List.map (expr_of_cexpr tbl) es
 (* ------------------------------------------------------------------------ *)
 
 let cat_of_at = function
-  | AT_keep       -> C.AT_keep
-  | AT_rename_arg -> C.AT_rename_arg
-  | AT_rename_res -> C.AT_rename_res
-  | AT_unroll     -> C.AT_inline
-  | AT_phinode    -> assert false
+  | AT_none    -> C.AT_none
+  | AT_keep    -> C.AT_keep
+  | AT_rename  -> C.AT_rename
+  | AT_inline  -> C.AT_inline
+  | AT_phinode -> assert false
 
 let at_of_cat = function
-  | C.AT_keep       -> AT_keep
-  | C.AT_rename_arg -> AT_rename_arg
-  | C.AT_rename_res -> AT_rename_res
-  | C.AT_inline     -> AT_unroll
+  | C.AT_none   -> AT_none
+  | C.AT_keep   -> AT_keep
+  | C.AT_rename -> AT_rename
+  | C.AT_inline -> AT_inline
 
 (* ------------------------------------------------------------------------ *)
 
@@ -437,9 +437,9 @@ and cinstr_r_of_instr_r tbl p i tl =
     let ir  =
       C.Cassgn(clval_of_lval tbl x, cat_of_at t, cexpr_of_expr tbl e) in
     C.MkI(p, ir) :: tl
-  | Copn(x,o,e) ->
+  | Copn(x,t,o,e) ->
     let ir =
-      C.Copn(clval_of_lvals tbl x, copn_of_opn o, cexpr_of_exprs tbl e) in
+      C.Copn(clval_of_lvals tbl x, cat_of_at t, copn_of_opn o, cexpr_of_exprs tbl e) in
     C.MkI(p, ir) :: tl
 
   | Cif(e,c1,c2) ->
@@ -479,8 +479,8 @@ and instr_r_of_cinstr_r tbl = function
   | C.Cassgn(x,t,e) ->
     Cassgn(lval_of_clval tbl x, at_of_cat t, expr_of_cexpr tbl e)
 
-  | C.Copn(x,o,e) ->
-    Copn(lval_of_clvals tbl x, opn_of_copn o, expr_of_cexprs tbl e)
+  | C.Copn(x,t,o,e) ->
+    Copn(lval_of_clvals tbl x, at_of_cat t, opn_of_copn o, expr_of_cexprs tbl e)
 
   | C.Cif(e,c1,c2) ->
     let c1 = stmt_of_cstmt tbl c1 in

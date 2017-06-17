@@ -75,11 +75,11 @@ Hypothesis Iasgn : forall s1 s2 x tag e,
   Let v := ssem_pexpr gd s1 e in swrite_lval gd x v s1 = ok s2 ->
   Pi_r s1 (Cassgn x tag e) s2.
 
-Hypothesis Iopn : forall s1 s2 o xs es,
+Hypothesis Iopn : forall s1 s2 t o xs es,
      Let x :=
        Let x := ssem_pexprs gd s1 es in ssem_sopn o x
      in swrite_lvals gd s1 xs x = ok s2
-  -> Pi_r s1 (Copn xs o es) s2.
+  -> Pi_r s1 (Copn xs t o es) s2.
 
 Hypothesis Iif_true : forall s1 s2 e c1 c2,
   Let x := ssem_pexpr gd s1 e in sto_bool x = ok true ->
@@ -259,7 +259,7 @@ eapply (@ssem_Ind p gd
 + move=> s1 s2 s3 i c _ hi _ hc; writeN; transitivity (sevm s2).
   by apply: svmap_eq_exceptL. by apply: svmap_eq_exceptR.
 + by move=> s1 s2 x tg e; t_xrbindP=> z _ /vrvP h; writeN.
-+ by move=> s1 s2 o xs es; t_xrbindP=> vs vs'; writeN=> _ _ /vrvsP.
++ by move=> s1 s2 t o xs es; t_xrbindP=> vs vs'; writeN=> _ _ /vrvsP.
 + by move=> s1 s2 e c1 c2 _ _; writeN; apply/svmap_eq_exceptL.
 + by move=> s1 s2 e c1 c2 _ _; writeN; apply/svmap_eq_exceptR.
 + move=> s1 s2 s3 s4 c e c'; writeN=> _ h1 _ _ h2 _ h3; transitivity (sevm s3) =>//.

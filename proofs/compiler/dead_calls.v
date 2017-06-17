@@ -19,7 +19,7 @@ with i_calls_r (c : Sp.t) (i : instr_r) {struct i} : Sp.t :=
 
   match i with
   | Cassgn _  _  _    => c
-  | Copn   _  _  _    => c
+  | Copn   _  _  _  _ => c
   | Cif    _  c1 c2   => c_calls (c_calls c c1) c2
   | Cfor   _  _  c1   => c_calls c c1
   | Cwhile c1 _  c2   => c_calls (c_calls c c1) c2

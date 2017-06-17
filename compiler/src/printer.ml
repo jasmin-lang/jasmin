@@ -149,10 +149,10 @@ let pp_opn = function
 
 (* -------------------------------------------------------------------- *)
 let pp_tag = function
-  | AT_keep       -> ""
-  | AT_rename_arg -> ":a"
-  | AT_rename_res -> ":r"
-  | AT_unroll     -> ":i"
+  | AT_none    -> ""
+  | AT_keep    -> ":k"
+  | AT_rename  -> ":r"
+  | AT_inline  -> ":i"
   | AT_phinode -> ":φ"
 
 let rec pp_gi pp_info pp_var fmt i =
@@ -165,9 +165,9 @@ let rec pp_gi pp_info pp_var fmt i =
     F.fprintf fmt "@[<hov 2>%a %s=@ %a;@]"
       (pp_glv pp_var) x (pp_tag t) (pp_ge pp_var) e
 
-  | Copn(x, o, e) -> (* FIXME *)
-    F.fprintf fmt "@[<hov 2>%a =@ %s(%a);@]"
-       (pp_glvs pp_var) x (pp_opn o)
+  | Copn(x, t, o, e) -> (* FIXME *)
+    F.fprintf fmt "@[<hov 2>%a %s=@ %s(%a);@]"
+       (pp_glvs pp_var) x (pp_tag t) (pp_opn o)
        (pp_ges pp_var) e
 
   | Cif(e, c, []) ->

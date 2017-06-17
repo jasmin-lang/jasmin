@@ -26,7 +26,7 @@ let rec rm_uninitialized_i init i =
       init', Cblock c
     | Cassgn(x, _, _) ->
       init_lval init x, i.i_desc
-    | Copn(xs, _, _) | Ccall(_, xs, _, _) ->
+    | Copn(xs, _, _, _) | Ccall(_, xs, _, _) ->
       init_lvals init xs, i.i_desc
     | Cif(e, c1, c2) ->
       let init1, c1 = rm_uninitialized_c init c1 in
@@ -98,8 +98,8 @@ let alloc_stack_fd fd =
 (* --------------------------------------------------------------------- *)
 
 let is_same = function
-  | AT_keep | AT_unroll -> false
-  | AT_rename_arg | AT_rename_res | AT_phinode -> true
+  | AT_none | AT_keep | AT_inline -> false
+  | AT_rename | AT_phinode -> true
 
 let set_same loc cfm x y =
   try set_same cfm x y
@@ -117,10 +117,10 @@ let rec same_i cfm i =
     hierror "at %a: cannot remove assignment %a@\nintroduced by inlining"
         Printer.pp_iloc i.i_loc
         (Printer.pp_instr ~debug:true) i
-  | Cassgn _                            -> cfm
-  | Copn (_, _, _) | Ccall (_, _, _, _) -> cfm
-  | Cblock c       | Cfor( _, _, c)     -> same_c cfm c
-  | Cif(_, c1, c2) | Cwhile(c1, _, c2)  -> same_c (same_c cfm c1) c2
+  | Cassgn _                              -> cfm
+  | Copn (_, _,_, _) | Ccall (_, _, _, _) -> cfm
+  | Cblock c       | Cfor( _, _, c)       -> same_c cfm c
+  | Cif(_, c1, c2) | Cwhile(c1, _, c2)    -> same_c (same_c cfm c1) c2
 
 and same_c cfm c = List.fold_left same_i cfm c
 

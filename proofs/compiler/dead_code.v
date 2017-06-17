@@ -97,7 +97,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
       else ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
     else   ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
   
-  | Copn xs o es =>
+  | Copn xs t o es =>
     if check_nop_opn xs o es then ciok (s, [::])
     else ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
 

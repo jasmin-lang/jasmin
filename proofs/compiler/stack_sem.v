@@ -68,9 +68,9 @@ Module S.
     (Let v := sem_pexpr gd s1 e in write_lval gd x v s1) = ok s2 ->
     sem_i s1 (Cassgn x tag e) s2
 
-  | Eopn s1 s2 o xs es:
+  | Eopn s1 s2 t o xs es:
     sem_pexprs gd s1 es >>= sem_sopn o >>= (write_lvals gd s1 xs) = ok s2 ->
-    sem_i s1 (Copn xs o es) s2
+    sem_i s1 (Copn xs t o es) s2
 
   | Eif_true s1 s2 e c1 c2 :
     sem_pexpr gd s1 e >>= to_bool = ok true ->

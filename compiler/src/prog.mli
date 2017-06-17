@@ -146,10 +146,10 @@ type op =
 | Ox86_SHLD
 
 type assgn_tag =
-  | AT_keep   (* compile to move *)
-  | AT_rename_arg (* use as equality constraint in reg-alloc and compile to no-op *)
-  | AT_rename_res (* use as equality constraint in reg-alloc and compile to no-op *)
-  | AT_unroll (* result of unfolding loops, must be remove in next pass *)
+  | AT_none   (* The compiler can do what it want *)
+  | AT_keep   (* Assignment should be keep by the compiler *)
+  | AT_rename (* use as equality constraint in reg-alloc and compile to no-op *)
+  | AT_inline (* the assignement should be inline, and propagate *)
   | AT_phinode (* renaming during SSA transformation *)
 
 type 'ty glval =
@@ -177,7 +177,7 @@ type i_loc = L.t * L.t list
 type ('ty,'info) ginstr_r =
   | Cblock of ('ty,'info) gstmt
   | Cassgn of 'ty glval * assgn_tag * 'ty gexpr
-  | Copn   of 'ty glvals * op * 'ty gexprs
+  | Copn   of 'ty glvals * assgn_tag * op * 'ty gexprs
   | Cif    of 'ty gexpr * ('ty,'info) gstmt * ('ty,'info) gstmt
   | Cfor   of 'ty gvar_i * 'ty grange * ('ty,'info) gstmt
   | Cwhile of ('ty,'info) gstmt * 'ty gexpr * ('ty,'info) gstmt

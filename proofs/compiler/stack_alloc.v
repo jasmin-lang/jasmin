@@ -173,7 +173,7 @@ Fixpoint check_i (m: map) (i1 i2: instr) : bool :=
   let (_, ir2) := i2 in
   match ir1, ir2 with
   | Cassgn r1 _ e1, Cassgn r2 _ e2 => check_lval m r1 r2 && check_e m e1 e2
-  | Copn rs1 o1 e1, Copn rs2 o2 e2 => all2 (check_lval m) rs1 rs2 && (o1 == o2) && all2 (check_e m) e1 e2
+  | Copn rs1 _ o1 e1, Copn rs2 _ o2 e2 => all2 (check_lval m) rs1 rs2 && (o1 == o2) && all2 (check_e m) e1 e2
   | Cif e1 c1 c1', Cif e2 c2 c2' => check_e m e1 e2 && all2 (check_i m) c1 c2 && all2 (check_i m) c1' c2'
   | Cwhile c1 e1 c1', Cwhile c2 e2 c2' => all2 (check_i m) c1 c2 && check_e m e1 e2 && all2 (check_i m) c1' c2'
   | _, _ => false

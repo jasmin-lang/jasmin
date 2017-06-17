@@ -562,7 +562,7 @@ Section PROPER.
     by split => //=; rewrite /RelationPairs.RelCompFun /= Heq.
   Qed.
 
-  Local Lemma Wopn xs o es: Pr (Copn xs o es).
+  Local Lemma Wopn xs t o es: Pr (Copn xs t o es).
   Proof.
     move=> ii m1 m2 Heq /=;have := const_prop_rvs_m Heq (refl_equal xs).
     case: const_prop_rvs => ??;case: const_prop_rvs => ?? [].
@@ -708,9 +708,9 @@ Section PROOF.
     by apply sem_seq1;constructor;constructor;rewrite H.
   Qed.
 
-  Local Lemma Hopn s1 s2 o xs es : 
+  Local Lemma Hopn s1 s2 t o xs es : 
     Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x
-    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
+    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs t o es) s2.
   Proof.
     move=> H m ii Hm; apply: rbindP H => vs.
     apply: rbindP => ves Hes Ho Hw;move: (Hes) (Hw).

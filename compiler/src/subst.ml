@@ -34,7 +34,7 @@ let rec gsubst_i fty f i =
     match i.i_desc with
     | Cblock c      -> Cblock (gsubst_c fty f c)
     | Cassgn(x,t,e) -> Cassgn(gsubst_lval fty f x, t, gsubst_e f e)
-    | Copn(x,o,e)   -> Copn(gsubst_lvals fty f x, o, gsubst_es f e)
+    | Copn(x,t,o,e)   -> Copn(gsubst_lvals fty f x, t, o, gsubst_es f e)
     | Cif(e,c1,c2)  -> Cif(gsubst_e f e, gsubst_c fty f c1, gsubst_c fty f c2)
     | Cfor(x,(d,e1,e2),c) ->
         Cfor(gsubst_vdest f x, (d, gsubst_e f e1, gsubst_e f e2), gsubst_c fty f c)

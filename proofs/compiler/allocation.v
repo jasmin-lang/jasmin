@@ -132,7 +132,7 @@ Fixpoint check_i iinfo i1 i2 r :=
   match i1, i2 with
   | Cassgn x1 _ e1, Cassgn x2 _ e2 => 
     add_iinfo iinfo (check_e e1 e2 r >>= check_lval (Some e2) x1 x2)
-  | Copn xs1 o1 es1, Copn xs2 o2 es2 =>
+  | Copn xs1 _ o1 es1, Copn xs2 _ o2 es2 =>
     if o1 == o2 then
       add_iinfo iinfo (check_es es1 es2 r >>= check_lvals xs1 xs2)
     else cierror iinfo (Cerr_neqop o1 o2 salloc)
@@ -305,12 +305,12 @@ Section PROOF.
     by exists (ve2 :: ves2);split => //;constructor.
   Qed.
 
-  Local Lemma Hopn s1 s2 o xs es : 
+  Local Lemma Hopn s1 s2 t o xs es : 
     Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x
-    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
+    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs t o es) s2.
   Proof.
     apply: rbindP => v.
-    apply: rbindP => ves He Ho Hw ii r1 [] //= xs2 o2 es2 r2 vm1 Hvm1.
+    apply: rbindP => ves He Ho Hw ii r1 [] //= xs2 t' o2 es2 r2 vm1 Hvm1.
     case:ifPn => //= /eqP <-.
     apply: add_iinfoP.
     apply: rbindP => r1' /check_esP -/(_ _ _ Hvm1) [Hr1'] /(_ _ He) [v2 [He2 Hu2]].

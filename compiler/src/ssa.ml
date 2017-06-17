@@ -34,7 +34,7 @@ let rec written_vars_instr_r allvars w =
   | Cfor (_, _, s)
     -> written_vars_stmt allvars w s
   | Cassgn (x, _, _) -> written_vars_lvar allvars w x
-  | Copn (xs, _, _)
+  | Copn (xs, _, _, _)
   | Ccall (_, xs, _, _)
     -> written_vars_lvars allvars w xs
   | Cif (_, s1, s2)
@@ -59,10 +59,10 @@ let split_live_ranges (allvars: bool) (f: 'info func) : unit func =
       let e = rename_expr m e in
       let m, y = rename_lval allvars (m, []) x in
       m, Cassgn (List.hd y, tg, e)
-    | Copn (xs, op, es) ->
+    | Copn (xs, tg, op, es) ->
       let es = List.map (rename_expr m) es in
       let m, ys = rename_lvals allvars m xs in
-      m, Copn (ys, op, es)
+      m, Copn (ys, tg, op, es)
     | Ccall (ii, xs, n, es) ->
       let es = List.map (rename_expr m) es in
       let m, ys = rename_lvals allvars m xs in

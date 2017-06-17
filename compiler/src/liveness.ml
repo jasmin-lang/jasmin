@@ -51,13 +51,13 @@ and live_d weak d (s_o: Sv.t) =
       else s_o in
     s_i, s_o, Cassgn(x,t,e)
 
-  | Copn(xs,o,es) ->
+  | Copn(xs,t,o,es) ->
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
     let s_o =
      if weak && not (is_move_op o && is_trivial_move (List.hd xs) (List.hd es))
      then writev_lvals s_o xs
      else s_o in
-    s_i, s_o, Copn(xs,o,es)
+    s_i, s_o, Copn(xs,t,o,es)
 
   | Cif(e,c1,c2) ->
     let s1, c1 = live_c weak c1 s_o in

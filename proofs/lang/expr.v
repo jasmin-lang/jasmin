@@ -373,9 +373,9 @@ Definition wrange d (n1 n2 : Z) :=
 Definition instr_info := positive.
 
 Inductive assgn_tag :=
+  | AT_none       (* assignment introduced by the develloper that can be removed *)
   | AT_keep       (* assignment that should be keep *)
-  | AT_rename_arg (* equality constraint introduced by inline, argument assignment *)
-  | AT_rename_res (* equality constraint introduced by inline, result assignment   *)
+  | AT_rename     (* equality constraint introduced by inline *)
   | AT_inline.    (* assignment to be removed later : introduce by unrolling or inlining *)
 
 Scheme Equality for assgn_tag.
@@ -415,7 +415,7 @@ Canonical  inline_info_eqType      := Eval hnf in EqType inline_info inline_info
 
 Inductive instr_r :=
 | Cassgn : lval -> assgn_tag -> pexpr -> instr_r
-| Copn   : lvals -> sopn -> pexprs -> instr_r
+| Copn   : lvals -> assgn_tag -> sopn -> pexprs -> instr_r
 
 | Cif    : pexpr -> seq instr -> seq instr  -> instr_r
 | Cfor   : var_i -> range -> seq instr -> instr_r
@@ -444,8 +444,8 @@ Fixpoint instr_r_beq i1 i2 :=
   match i1, i2 with
   | Cassgn x1 tag1 e1, Cassgn x2 tag2 e2 =>
      (tag1 == tag2) && (x1 == x2) && (e1 == e2)
-  | Copn x1 o1 e1, Copn x2 o2 e2 =>
-     (x1 == x2) && (o1 == o2) && (e1 == e2)
+  | Copn x1 tag1 o1 e1, Copn x2 tag2 o2 e2 =>
+     (x1 == x2) && (tag1 == tag2) && (o1 == o2) && (e1 == e2)
   | Cif e1 c11 c12, Cif e2 c21 c22 =>
     (e1 == e2) && all2 instr_beq c11 c21 && all2 instr_beq c12 c22
   | Cfor i1 (dir1,lo1,hi1) c1, Cfor i2 (dir2,lo2,hi2) c2 =>
@@ -490,14 +490,14 @@ Lemma instr_r_eq_axiom : Equality.axiom instr_r_beq.
 Proof.
   rewrite /Equality.axiom.
   fix Hrec 1;case =>
-    [x1 t1 e1|x1 o1 e1|e1 c11 c12|x1 [[dir1 lo1] hi1] c1|c1 e1 c1'|ii1 x1 f1 arg1]
-    [x2 t2 e2|x2 o2 e2|e2 c21 c22|x2 [[dir2 lo2] hi2] c2|c2 e2 c2'|ii2 x2 f2 arg2] /=;
+    [x1 t1 e1|x1 t1 o1 e1|e1 c11 c12|x1 [[dir1 lo1] hi1] c1|c1 e1 c1'|ii1 x1 f1 arg1]
+    [x2 t2 e2|x2 t2 o2 e2|e2 c21 c22|x2 [[dir2 lo2] hi2] c2|c2 e2 c2'|ii2 x2 f2 arg2] /=;
   try by constructor.
   + apply (@equivP ((t1 == t2) && (x1 == x2) && (e1 == e2)));first by apply idP.
     split=> [/andP [] /andP [] /eqP-> /eqP-> /eqP-> | [] <- <- <- ] //.
     by rewrite !eq_refl.
-  + apply (@equivP ((x1 == x2) && (o1 == o2) && (e1 == e2)));first by apply idP.
-    split=> [/andP [] /andP [] /eqP-> /eqP-> /eqP-> | [] <- <- <- ] //.
+  + apply (@equivP ((x1 == x2) && (t1 == t2)&& (o1 == o2) && (e1 == e2)));first by apply idP.
+    split=> [/andP [] /andP [] /andP [] /eqP-> /eqP-> /eqP-> /eqP-> | [] <- <- <- <-] //.
     by rewrite !eq_refl.
   + apply (@equivP ((e1 == e2) && (all2 instr_beq c11 c21) && (all2 instr_beq c12 c22)));
       first by apply idP.
@@ -593,7 +593,7 @@ Section RECT.
   Hypothesis Hnil : Pc [::].
   Hypothesis Hcons: forall i c, Pi i -> Pc c -> Pc (i::c).
   Hypothesis Hasgn: forall x t e, Pr (Cassgn x t e).
-  Hypothesis Hopn : forall xs o es, Pr (Copn xs o es).
+  Hypothesis Hopn : forall xs t o es, Pr (Copn xs t o es).
   Hypothesis Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Hypothesis Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
   Hypothesis Hwhile : forall c e c', Pc c -> Pc c' -> Pr (Cwhile c e c').
@@ -616,7 +616,7 @@ Section RECT.
   with instr_r_Rect (i:instr_r) : Pr i :=
     match i return Pr i with
     | Cassgn x t e => Hasgn x t e
-    | Copn xs o es => Hopn xs o es
+    | Copn xs t o es => Hopn xs t o es
     | Cif e c1 c2  => @Hif e c1 c2 (cmd_rect_aux instr_Rect c1) (cmd_rect_aux instr_Rect c2)
     | Cfor i (dir,lo,hi) c => @Hfor i dir lo hi c (cmd_rect_aux instr_Rect c)
     | Cwhile c e c'   => @Hwhile c e c' (cmd_rect_aux instr_Rect c) (cmd_rect_aux instr_Rect c')
@@ -646,7 +646,7 @@ Definition vrvs := (vrvs_rec Sv.empty).
 Fixpoint write_i_rec s i :=
   match i with
   | Cassgn x _ _    => vrv_rec s x
-  | Copn xs _ _     => vrvs_rec s xs
+  | Copn xs _ _ _   => vrvs_rec s xs
   | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
   | Cwhile c _ c'   => foldl write_I_rec (foldl write_I_rec s c') c
@@ -705,7 +705,7 @@ Proof.
            (fun i => forall s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)))
            (fun c => forall s, Sv.Equal (foldl write_I_rec s c) (Sv.union s (write_c c)))) =>
      /= {c s}
-    [ i ii Hi | | i c Hi Hc | x t e | xs o es | e c1 c2 Hc1 Hc2
+    [ i ii Hi | | i c Hi Hc | x t e | xs t o es | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | c e c' Hc Hc' | ii xs f es] s;
     rewrite /write_I /write_i /write_c /=
     ?Hc1 ?Hc2 /write_c_rec ?Hc ?Hc' ?Hi -?vrv_recE -?vrvs_recE //;
@@ -731,7 +731,7 @@ Proof. by elim: c1 => //= i c1 Hrec;rewrite !write_c_cons;SvD.fsetdec. Qed.
 Lemma write_i_assgn x tag e : write_i (Cassgn x tag e) = vrv x.
 Proof. done. Qed.
 
-Lemma write_i_opn xs o es : write_i (Copn xs o es) = vrvs xs.
+Lemma write_i_opn xs t o es : write_i (Copn xs t o es) = vrvs xs.
 Proof. done. Qed.
 
 Lemma write_i_if e c1 c2 :
@@ -800,7 +800,7 @@ Definition read_rvs := read_rvs_rec Sv.empty.
 Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
   match i with
   | Cassgn x _ e => read_rv_rec (read_e_rec s e) x
-  | Copn xs _ es => read_es_rec (read_rvs_rec s xs) es
+  | Copn xs _ _ es => read_es_rec (read_rvs_rec s xs) es
   | Cif b c1 c2 =>
     let s := foldl read_I_rec s c1 in
     let s := foldl read_I_rec s c2 in
@@ -870,7 +870,7 @@ Proof.
            (fun i => forall s, Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)))
            (fun c => forall s, Sv.Equal (foldl read_I_rec s c) (Sv.union s (read_c c))))
            => /= {c s}
-   [ i ii Hi | | i c Hi Hc | x t e | xs o es | e c1 c2 Hc1 Hc2
+   [ i ii Hi | | i c Hi Hc | x t e | xs t o es | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | c e c' Hc Hc' | ii xs f es] s;
     rewrite /read_I /read_i /read_c /=
      ?read_rvE ?read_eE ?read_esE ?read_rvsE ?Hc2 ?Hc1 /read_c_rec ?Hc' ?Hc ?Hi //;
@@ -893,8 +893,8 @@ Lemma read_i_assgn x tag e :
   Sv.Equal (read_i (Cassgn x tag e)) (Sv.union (read_rv x) (read_e e)).
 Proof. rewrite /read_i /= read_rvE read_eE;SvD.fsetdec. Qed.
 
-Lemma read_i_opn xs o es:
-  Sv.Equal (read_i (Copn xs o es)) (Sv.union (read_rvs xs) (read_es es)).
+Lemma read_i_opn xs t o es:
+  Sv.Equal (read_i (Copn xs t o es)) (Sv.union (read_rvs xs) (read_es es)).
 Proof. by rewrite /read_i /= read_esE read_rvsE;SvD.fsetdec. Qed.
 
 Lemma read_i_if e c1 c2 :

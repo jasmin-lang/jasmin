@@ -698,9 +698,9 @@ Proof.
   by constructor;rewrite Hz' /= Hw.
 Qed.
 
-Local Lemma Hopn s1 s2 o xs es:
+Local Lemma Hopn s1 s2 t o xs es:
   Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x in
-  write_lvals gd s1 xs x = ok s2 -> Pi_r s1 (Copn xs o es) s2.
+  write_lvals gd s1 xs x = ok s2 -> Pi_r s1 (Copn xs t o es) s2.
 Proof.
   move=> H vm1 Hvm1; apply: rbindP H => rs;apply: rbindP => vs.
   move=> /(ssem_pexprs_uincl Hvm1) [] vs' [] H1 H2.

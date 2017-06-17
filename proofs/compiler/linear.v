@@ -116,7 +116,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
   | Cassgn x tag e => ok (lbl, MkLI ii (Lassgn x tag e) :: lc)
-  | Copn xs o es => ok (lbl, MkLI ii (Lopn xs o es) :: lc)
+  | Copn xs _ o es => ok (lbl, MkLI ii (Lopn xs o es) :: lc)
 
   | Cif e [::] c2 =>
     let L1 := lbl in

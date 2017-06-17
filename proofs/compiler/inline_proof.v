@@ -178,8 +178,8 @@ Section SUBSET.
   Local Lemma Sasgn  : forall x t e, Pr (Cassgn x t e).
   Proof. by move=> ??? ii X2 Xc /= [<-]. Qed.
 
-  Local Lemma Sopn   : forall xs o es, Pr (Copn xs o es).
-  Proof. by move=> ??? ii X2 Xc /= [<-]. Qed.
+  Local Lemma Sopn   : forall xs t o es, Pr (Copn xs t o es).
+  Proof. by move=> ???? ii X2 Xc /= [<-]. Qed.
 
   Local Lemma Sif    : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Proof. 
@@ -339,8 +339,8 @@ Section WF.
     + by move=> i c Hi Hc s1 s2 H;sinversion H => /(Hi _ _ H3);apply Hc.
     + move=> x t e s1 s2 H;sinversion H.
       by apply:rbindP H5 => v ? Hw ?; apply: wf_write_lval Hw.
-    + move=> xs o es s1 s2 H;sinversion H. 
-      by apply:rbindP H5 => ?? Hw ?;apply: wf_write_lvals Hw.
+    + move=> xs t o es s1 s2 H;sinversion H. 
+      by apply:rbindP H6 => ?? Hw ?;apply: wf_write_lvals Hw.
     + by move=> e c1 c2 Hc1 Hc2 s1 s2 H;sinversion H;[apply Hc1 | apply Hc2].
     + move=> i dir lo hi c Hc s1 s2 H;sinversion H.
       elim: H9 Hc => // ???? ???? Hw Hsc Hsf Hrec Hc.
@@ -438,9 +438,9 @@ Section PROOF.
     by apply: sem_seq1;constructor;constructor;rewrite Hse.
   Qed.
 
-  Local Lemma Hopn s1 s2 o xs es : 
+  Local Lemma Hopn s1 s2 t o xs es : 
     Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x
-    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs o es) s2.
+    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs t o es) s2.
   Proof.
     case: s1 s2 => sm1 svm1 [sm2 svm2].
     apply: rbindP => ve Hse Hw ii X1 X2 c' [] <- <- vm1.
@@ -818,9 +818,9 @@ Section REMOVE_INIT.
     by apply: wf_write_lval Hw.
   Qed.
   
-  Local Lemma Ropn s1 s2 o xs es:
+  Local Lemma Ropn s1 s2 t o xs es:
     Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x in
-    write_lvals gd s1 xs x = ok s2 -> Pi_r s1 (Copn xs o es) s2.
+    write_lvals gd s1 xs x = ok s2 -> Pi_r s1 (Copn xs t o es) s2.
   Proof.
     move=> H ii vm1 Hvm1; move: H;t_xrbindP => rs vs.
     move=> /(sem_pexprs_uincl Hvm1) [] vs' [] H1 H2.

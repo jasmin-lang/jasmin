@@ -48,7 +48,7 @@ Fixpoint unroll_i (i:instr) : cmd :=
   let (ii, ir) := i in
   match ir with
   | Cassgn _ _ _ => [:: i ]
-  | Copn   _ _ _ => [:: i ]
+  | Copn _ _ _ _ => [:: i ]
   | Cif b c1 c2  => [:: MkI ii (Cif b (unroll_cmd unroll_i c1) (unroll_cmd unroll_i c2)) ]
   | Cfor i (dir, low, hi) c => 
     let c' := unroll_cmd unroll_i c in

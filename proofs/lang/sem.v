@@ -855,9 +855,9 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     (Let v := sem_pexpr gd s1 e in write_lval gd x v s1) = ok s2 ->
     sem_i s1 (Cassgn x tag e) s2
 
-| Eopn s1 s2 o xs es:
+| Eopn s1 s2 t o xs es:
     sem_pexprs gd s1 es >>= sem_sopn o >>= (write_lvals gd s1 xs) = ok s2 ->
-    sem_i s1 (Copn xs o es) s2
+    sem_i s1 (Copn xs t o es) s2
 
 | Eif_true s1 s2 e c1 c2 :
     sem_pexpr gd s1 e >>= to_bool = ok true ->
@@ -942,9 +942,9 @@ Section SEM_IND.
     Let v := sem_pexpr gd s1 e in write_lval gd x v s1 = Ok error s2 ->
     Pi_r s1 (Cassgn x tag e) s2.
 
-  Hypothesis Hopn : forall (s1 s2 : estate) (o : sopn) (xs : lvals) (es : pexprs),
+  Hypothesis Hopn : forall (s1 s2 : estate) t (o : sopn) (xs : lvals) (es : pexprs),
     Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x in write_lvals gd s1 xs x = Ok error s2 ->
-    Pi_r s1 (Copn xs o es) s2.
+    Pi_r s1 (Copn xs t o es) s2.
 
   Hypothesis Hif_true : forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
     Let x := sem_pexpr gd s1 e in to_bool x = Ok error true ->
@@ -1010,7 +1010,7 @@ Section SEM_IND.
     Pi_r e i e0 :=
     match s in (sem_i e1 i0 e2) return (Pi_r e1 i0 e2) with
     | @Eassgn s1 s2 x tag e1 e2 => @Hasgn s1 s2 x tag e1 e2
-    | @Eopn s1 s2 o xs es e1 => @Hopn s1 s2 o xs es e1
+    | @Eopn s1 s2 t o xs es e1 => @Hopn s1 s2 t o xs es e1
     | @Eif_true s1 s2 e1 c1 c2 e2 s0 =>
       @Hif_true s1 s2 e1 c1 c2 e2 s0 (@sem_Ind s1 c1 s2 s0)
     | @Eif_false s1 s2 e1 c1 c2 e2 s0 =>
@@ -1206,7 +1206,7 @@ Proof.
     by rewrite Hi ?Hc //;SvD.fsetdec.
   + move=> s1 s2 x tag e; case: sem_pexpr => //= v Hw z.
     by rewrite write_i_assgn;apply (vrvP Hw).
-  + move=> s1 s2 o xs es; case: (Let _ := sem_pexprs _ _ _ in _) => //= vs Hw z.
+  + move=> s1 s2 t o xs es; case: (Let _ := sem_pexprs _ _ _ in _) => //= vs Hw z.
     by rewrite write_i_opn;apply (vrvsP Hw).
   + by move=> s1 s2 e c1 c2 _ _ Hrec z;rewrite write_i_if => Hnin;apply Hrec;SvD.fsetdec.
   + by move=> s1 s2 e c1 c2 _ _ Hrec z;rewrite write_i_if => Hnin;apply Hrec;SvD.fsetdec.
@@ -1961,9 +1961,9 @@ Proof.
   by constructor;rewrite Hz' /= Hw.
 Qed.
 
-Local Lemma Hopn s1 s2 o xs es:
+Local Lemma Hopn s1 s2 t o xs es:
   Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x in
-  write_lvals gd s1 xs x = ok s2 -> Pi_r s1 (Copn xs o es) s2.
+  write_lvals gd s1 xs x = ok s2 -> Pi_r s1 (Copn xs t o es) s2.
 Proof.
   move=> H vm1 Hvm1; apply: rbindP H => rs;apply: rbindP => vs.
   move=> /(sem_pexprs_uincl Hvm1) [] vs' [] H1 H2.

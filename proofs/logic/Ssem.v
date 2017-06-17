@@ -438,9 +438,9 @@ with ssem_i : sestate -> instr_r -> sestate -> Prop :=
     (Let v := ssem_pexpr gd s1 e in swrite_lval gd x v s1) = ok s2 ->
     ssem_i s1 (Cassgn x tag e) s2
 
-| SEopn s1 s2 o xs es:
+| SEopn s1 s2 t o xs es:
     ssem_pexprs gd s1 es >>= ssem_sopn o >>= (swrite_lvals gd s1 xs) = ok s2 ->
-    ssem_i s1 (Copn xs o es) s2
+    ssem_i s1 (Copn xs t o es) s2
 
 | SEif_true s1 s2 e c1 c2 :
     ssem_pexpr gd s1 e >>= sto_bool = ok true ->
@@ -569,7 +569,7 @@ Lemma ssem_i_inv { prg gd s i s' } :
   ssem_i prg gd s i s' →
   match i with
   | Cassgn x tg e => ∃ v, ssem_pexpr gd s e = ok v ∧ swrite_lval gd x v s = ok s'
-  | Copn xs op es => ∃ args vs, ssem_pexprs gd s es = ok args ∧ ssem_sopn op args = ok vs ∧ swrite_lvals gd s xs vs = ok s'
+  | Copn xs t op es => ∃ args vs, ssem_pexprs gd s es = ok args ∧ ssem_sopn op args = ok vs ∧ swrite_lvals gd s xs vs = ok s'
   | Cif e c1 c2 => ∃ b : bool, ssem_pexpr gd s e = ok (SVbool b) ∧ ssem prg gd s (if b then c1 else c2) s'
   | _ => True
   end.
@@ -578,7 +578,7 @@ Proof.
   - (* Cassgn *)
   move=> s s' x _ e; apply: rbindP; eauto.
   - (* Copn *)
-  move=> s s' xs op es; apply: rbindP => vs; apply: rbindP; eauto.
+  move=> s s' xs t op es; apply: rbindP => vs; apply: rbindP; eauto.
   - (* Cif true *)
   move=> s s' e c1 c2; apply: rbindP => v Hv /sto_bool_inv ?; subst v; eauto.
   - (* Cif false *)
