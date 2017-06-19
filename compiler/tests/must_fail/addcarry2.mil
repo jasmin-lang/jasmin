@@ -1,0 +1,12 @@
+/* Should fail because cf at line 9 correspond to the flag xf */
+export
+fn add1(reg u64 arg) -> reg u64 {
+reg u64 z;
+reg bool cf;
+z  = arg;
+cf, z = #adc(z,z,false);
+// of cf xf pf zf
+_,_,cf,_,_,z = #x86_ADC(z,z,cf);
+z = #x86_ADC(z,z,cf);
+return z;
+}

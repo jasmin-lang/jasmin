@@ -251,10 +251,16 @@ type allocation = var IntMap.t
 
 exception AlreadyAllocated
 
-let allocate_one (x: int) (r: var) (a: allocation) : allocation =
+let allocate_one loc (x_:var) (x: int) (r: var) (a: allocation) : allocation =
   match IntMap.find x a with
   | r' when r' = r -> a
-  | _ -> raise AlreadyAllocated
+  | r' -> 
+    hierror "at line %a: can not allocate %a into %a, the variable is already allocated in %a"
+       Printer.pp_iloc loc 
+       (Printer.pp_var ~debug:true) x_
+       (Printer.pp_var ~debug:true) r
+       (Printer.pp_var ~debug:true) r'
+
   | exception Not_found -> IntMap.add x r a
 
 let conflicting_registers (i: int) (cnf: conflicts) (a: allocation) : var option list =
@@ -315,7 +321,7 @@ struct
 
   let all_registers = reserved @ allocatable @ flags
 
-  let forced_registers (vars: (var, int) Hashtbl.t) (cnf: conflicts)
+  let forced_registers loc (vars: (var, int) Hashtbl.t) (cnf: conflicts)
       (lvs: 'ty glvals) (op: op) (es: 'ty gexprs)
       (a: allocation) : allocation =
     let f x = Hashtbl.find vars (L.unloc x) in
@@ -327,7 +333,7 @@ struct
         let pv = Printer.pp_var ~debug:true in
         hierror "Register allocation: variable %a must be allocated to conflicting register %a" pv (L.unloc x) pv y
       );
-      allocate_one i y a
+      allocate_one loc (L.unloc x) i y a
     in
     let mallocate_one x y a =
       match x with Pvar x -> allocate_one x y a | _ -> a
@@ -399,13 +405,13 @@ end
 
 let allocate_forced_registers (vars: (var, int) Hashtbl.t) (cnf: conflicts)
     (f: 'info func) (a: allocation) : allocation =
-  let alloc_from_list rs q a vs =
+  let alloc_from_list loc rs q a vs =
     let f x = Hashtbl.find vars (q x) in
     List.fold_left (fun (vs, a) p ->
         match f p with
         | r ->
           begin match vs with
-          | v :: vs -> (vs, allocate_one r v a)
+          | v :: vs -> (vs, allocate_one loc (q p) r v a)
           | [] -> failwith "Regalloc: dame…"
           end
         | exception Not_found -> (vs, a))
@@ -413,25 +419,26 @@ let allocate_forced_registers (vars: (var, int) Hashtbl.t) (cnf: conflicts)
       vs
     |> snd
   in
-  let alloc_args = alloc_from_list X64.arguments identity in
-  let alloc_ret = alloc_from_list X64.ret L.unloc in
-  let rec alloc_instr_r a =
+  let alloc_args loc = alloc_from_list loc X64.arguments identity in
+  let alloc_ret loc = alloc_from_list loc X64.ret L.unloc in
+  let rec alloc_instr_r loc a =
     function
     | Cblock s
     | Cfor (_, _, s)
       -> alloc_stmt a s
-    | Copn (lvs, _, op, es) -> X64.forced_registers vars cnf lvs op es a
+    | Copn (lvs, _, op, es) -> X64.forced_registers loc vars cnf lvs op es a
     | Cwhile (s1, _, s2)
     | Cif (_, s1, s2)
         -> alloc_stmt (alloc_stmt a s1) s2
     | Cassgn _
       -> a
     | Ccall _ -> a (* TODO *)
-  and alloc_instr a { i_desc } = alloc_instr_r a i_desc
+  and alloc_instr a { i_loc; i_desc } = alloc_instr_r i_loc a i_desc
   and alloc_stmt a s = List.fold_left alloc_instr a s
   in
-  let a = alloc_args a f.f_args in
-  let a = alloc_ret a f.f_ret in
+  let loc = (f.f_loc, []) in
+  let a = alloc_args loc a f.f_args in
+  let a = alloc_ret loc a f.f_ret in
   alloc_stmt a f.f_body
 
 let find_vars (vars: (var, int) Hashtbl.t) (n: int) : var list =

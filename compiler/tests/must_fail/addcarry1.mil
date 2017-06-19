@@ -1,0 +1,13 @@
+/* Should fail because cf is erase at line 9 and used at line 10 */
+export
+fn add1(reg u64 arg) -> reg u64 {
+reg u64 z;
+reg bool cf;
+z  = arg;
+cf, z = #adc(z,z,false);
+// of cf xf pf zf
+_,_,_,_,_,z = #x86_ADC(z,z,cf);
+z = #x86_ADC(z,z,cf);
+return z;
+}
+
