@@ -16,7 +16,7 @@ type peop1 = [ `Not | `Neg ]
 
 type peop2 = [
   `Add | `Sub | `Mul | `And | `Or  | `BAnd | `BOr | `BXOr |
-  `ShR | `ShL | `Asr | `Eq  | `Neq | `Lt  | `Le   | `Gt  | `Ge | 
+  `ShR | `ShL | `Asr | `Eq  | `Neq | `Lt  | `Le   | `Gt  | `Ge |
   `Lts  | `Les   | `Gts  | `Ges
 ]
 
@@ -39,7 +39,7 @@ let string_of_peop2 = function
   | `Gt   -> ">"
   | `Ge   -> ">="
   | `Lts  -> "<s"
-  | `Les  -> "<=s" 
+  | `Les  -> "<=s"
   | `Gts  -> ">s"
   | `Ges  -> ">=s"
 
@@ -78,7 +78,7 @@ type plvalue_r =
   | PLArray of pident * pexpr
   | PLMem   of ptype option * pident * pexpr
 
-and plvalue = plvalue_r L.located
+type plvalue = plvalue_r L.located
 
 (* -------------------------------------------------------------------- *)
 type peqop = [

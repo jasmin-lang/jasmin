@@ -115,6 +115,14 @@ let main () =
     let ast   = Parseio.parse_program ~name:fname in
     let ast   = BatFile.with_file_in fname ast in
 
+    if !latexfile <> "" then begin
+      let out = open_out !latexfile in
+      let fmt = Format.formatter_of_out_channel out in
+      Format.fprintf fmt "%a@." Latex_printer.pp_prog ast;
+      close_out out;
+      if !debug then Format.eprintf "Pretty printed to LATEX@."
+    end;
+
     let _, pprog  = Typing.tt_program Typing.Env.empty ast in
     eprint Compiler.Typing Printer.pp_pprog pprog;
     if !typeonly then exit 0;

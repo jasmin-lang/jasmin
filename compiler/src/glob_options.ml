@@ -1,6 +1,7 @@
 (*--------------------------------------------------------------------- *)
 let infile = ref ""
 let outfile = ref ""
+let latexfile = ref ""
 let typeonly = ref false
 let debug = ref false
 let coqfile = ref ""
@@ -67,6 +68,7 @@ let options = [
     "-o"       , Arg.Set_string outfile, "[filename]: name of the output file";
     "-typeonly", Arg.Set typeonly      , ": stop after typechecking";
     "-debug"   , Arg.Set debug         , ": print debug information";
+    "-latex"     , Arg.Set_string latexfile, "[filename]: generate the corresponding LATEX file";
     "-coq"     , Arg.Set_string coqfile, "[filename]: generate the corresponding coq file";
     "-coqonly" , Arg.String set_coqonly, "[filename]: generate the corresponding coq file, and exit";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
