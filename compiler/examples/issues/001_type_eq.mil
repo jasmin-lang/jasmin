@@ -1,0 +1,2 @@
+param int n = 0;
+fn f(reg u64[n] x) -> reg u64[n] { return x; }
