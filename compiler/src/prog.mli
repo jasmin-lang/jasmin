@@ -246,6 +246,10 @@ end
 module Mpv : Map.S  with type key = pvar
 module Spv : Set.S  with type elt = pvar
 
+
+val pty_equal : pty -> pty -> bool
+val pexpr_equal : pexpr -> pexpr -> bool
+
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)
 
@@ -350,5 +354,4 @@ val expr_of_lval : 'ty glval -> 'ty gexpr option
 (* Functions over instruction                                           *)
 
 val destruct_move : ('ty, 'info) ginstr -> 'ty glval * assgn_tag * 'ty gexpr
-
 
