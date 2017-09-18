@@ -6,31 +6,31 @@ via the opam OCaml packages manager.
 
   0. Optionally, switch to a dedicated compiler for Jasmin:
 
-        $> opam switch -A $OVERSION jasmin
+          $> opam switch -A $OVERSION jasmin
 
      where $OVERSION is a valid OCaml version (e.g. 4.02.1)
 
   1. Add the Jasmin OPAM package:
 
-        $> opam pin add -n jasmin .
+          $> opam pin add -n jasmin .
 
   3. Optionally, use opam to install the system dependencies:
 
-        $> opam install depext
-        $> opam depext jasmin
+          $> opam install depext
+          $> opam depext jasmin
 
   4. Install Jasmin dependencies:
 
-        $> opam install --deps-only jasmin
+          $> opam install --deps-only jasmin
 
 Opam can be easily installed from source or via your packages manager:
 
   * On Ubuntu and derivatives:
-  
+
         $> add-apt-repository ppa:avsm/ppa
         $> apt-get update
         $> apt-get install ocaml ocaml-native-compilers camlp4-extra opam
-        
+
   * On MacOSX using brew:
 
         $> brew install ocaml opam
