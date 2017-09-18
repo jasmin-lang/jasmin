@@ -232,7 +232,7 @@ let check_ty (ety : typattern) (loc, ty) =
 
 (* -------------------------------------------------------------------- *)
 let check_ty_eq ~loc ~(from : P.pty) ~(to_ : P.pty) =
-  if from <> to_ then
+  if not (P.pty_equal from to_) then
     rs_tyerror ~loc (TypeMismatch (from, to_))
 
 let check_ty_u64 ~loc ty =

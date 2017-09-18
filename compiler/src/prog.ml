@@ -6,6 +6,7 @@ module B = Bigint
 
 module Name = struct
   type t = string
+  let equal (n1:t) (n2:t) = n1 = n2
 end
 
 type uid = int
@@ -260,6 +261,30 @@ end
 
 module Mpv : Map.S with type key = pvar = Map.Make (PV)
 module Spv = Set.Make  (PV)
+
+(* ------------------------------------------------------------------------ *)
+
+let rec pty_equal t1 t2 = 
+  match t1, t2 with 
+  | Bty b1, Bty b2 -> b1 = b2
+  | Arr(b1, e1), Arr(b2, e2) -> 
+    (b1 = b2) && pexpr_equal e1 e2
+  | _, _ -> false
+
+and pexpr_equal e1 e2 = 
+ match e1, e2 with
+ | Pconst n1, Pconst n2 -> B.equal n1 n2
+ | Pbool b1, Pbool b2 -> b1 = b2
+ | Pcast (b1, e1), Pcast(b2, e2) -> b1 = b2 && pexpr_equal e1 e2
+ | Pvar v1, Pvar v2 -> PV.equal (L.unloc v1) (L.unloc v2)
+ | Pglobal n1, Pglobal n2 -> Name.equal n1 n2
+ | Pget(v1,e1), Pget(v2,e2) -> PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
+ | Pload(b1,v1,e1), Pload(b2,v2,e2) -> b1 = b2 && PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
+ | Papp1(o1,e1), Papp1(o2,e2) -> o1 = o2 && pexpr_equal e1 e2
+ | Papp2(o1,e11,e12), Papp2(o2,e21,e22) -> o1 = o2 &&  pexpr_equal e11 e21 && pexpr_equal e12 e22
+ | Pif(e11,e12,e13), Pif(e21,e22,e23) -> pexpr_equal e11 e21 && pexpr_equal e12 e22 && pexpr_equal e13 e23 
+ | _, _ -> false
+
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)
 
