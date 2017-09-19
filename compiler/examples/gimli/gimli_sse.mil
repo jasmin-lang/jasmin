@@ -1,0 +1,128 @@
+param int R=24;
+param int S=9;
+
+param int a=2;
+param int b=1;
+param int c=3;
+param int d=R;
+param int e=S;
+param int f=0;
+
+fn perm4x2(inline int p1,inline int p2, inline int p3, inline int p4) 
+       -> inline int {
+   inline int perm;
+   perm = p1<<6 + p2<<4 + p3<<2 + p4;
+   return perm;  
+}
+
+fn shift(reg u128 x,inline int bits) -> reg u128
+{
+  x = x <<[4*u32] bits;
+  return x;
+}
+
+fn rotate(reg u128 x,inline int bits) -> reg u128
+{
+  reg u128 t;
+  t = x;
+  t = t<<[4*u32] bits;
+  x = x>>[4*u32] (32 - bits);
+  x = x | t;
+  return x;
+}
+
+fn rotate24(reg u128 x) -> reg u128
+{
+  reg u128 t;
+  t =[16*u8] {12,15,14,13,8,11,10,9,4,7,6,5,0,3,2,1};
+  x = #x86_SSE_PSHUFB(x,t);
+  return x;
+}
+
+export fn gimli(reg u64 state)
+{
+  inline int perm;
+  inline int round;
+  inline int column;
+  reg u128 x;
+  reg u128 y;
+  reg u128 z;
+  reg u128 u;
+  reg u128 v;
+
+  x = (u128)[state + 16*0];
+  y = (u128)[state + 16*1];
+  z = (u128)[state + 16*2];
+
+  for round = 24 downto 0 {
+    x = rotate24(x);
+    y = rotate(y,e);
+    z = rotate(z,f);
+
+    u = x;
+    v = z;
+    v = shift(v,1);
+    x = z; 
+    x = x & y;
+    x = shift(x,2);
+    x = x ^ u;
+    x = x ^ v;
+    v = y;
+    y = u;
+    y = y | z;
+    y = shift(y,1);
+    y = y ^ u;
+    y = y ^ v;
+    u = u & v;
+    u = shift(u,3);
+    z = z ^ v;
+    z = z ^ u;
+
+    if (round % 4 == 0)
+     { 
+      // small swap: pattern s...s...s... etc.
+      x = #x86_SSE_PSHUFD(x,perm4x2(1,0,3,2));
+      u =[4*32] {0,0,0,0x9e377900+round};
+      x = x ^ u;
+    }
+    if ((round % 4) == 2) { 
+      // big swap: pattern ..S...S...S. etc.
+      x = #x86_SSE_PSHUFD(x,perm4x2(2,3,0,1));
+    }
+  }
+
+  (u128)[state + 16*0] = x;
+  (u128)[state + 16*1] = y;
+  (u128)[state + 16*2] = z;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
