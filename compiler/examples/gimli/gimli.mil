@@ -75,13 +75,7 @@ export fn gimli(reg u64 state)
       [state + 8 * column]       = z;
     }
 
-    if ((round == 24) ||
-        (round == 20) ||
-        (round == 16) ||
-        (round == 12) ||
-        (round == 8) ||
-        (round == 4))
-     { 
+    if ((round & 3) == 0) {
       // small swap: pattern s...s...s... etc.
       x = [state + 8*0];
       u = [state + 8*1];
@@ -93,13 +87,7 @@ export fn gimli(reg u64 state)
       [state + 8*2] = u;
       [state + 8*3] = x;
     }
-    if ((round == 22) ||
-        (round == 18) ||
-        (round == 14) ||
-        (round == 10) ||
-        (round == 6) ||
-        (round == 2)) 
-     { 
+    if ((round & 3) == 2) {
       // big swap: pattern ..S...S...S. etc.
       x = [state + 8*0];
       u = [state + 8*2];
