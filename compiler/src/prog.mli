@@ -42,7 +42,7 @@ type op2 =
   | Omul    of op_ty
   | Osub    of op_ty
 
-  | Oland
+  | Oland of op_ty
   | Olor
   | Olxor
   | Olsr

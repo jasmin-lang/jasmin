@@ -69,7 +69,7 @@ let infix_sop2 = function
   | Omul _ -> "*"
   | Osub _ -> "-"
 
-  | Oland  -> "&"
+  | Oland _ -> "&"
   | Olor   -> "|"
   | Olxor  -> "^"
   | Olsr   -> ">>"

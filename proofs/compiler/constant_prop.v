@@ -210,10 +210,27 @@ Definition sge ty e1 e2 :=
   | _      , _       => Papp2 (Oge ty) e1 e2 
   end.
 
+Definition sland_int e1 e2 :=
+  match is_const e1, is_const e2 with
+  | Some n1, Some n2 => Pconst (Z.land n1 n2)
+  | _, _ => Papp2 (Oland Op_int) e1 e2
+  end.
+
+Definition sland_w e1 e2 :=
+  match is_wconst e1, is_wconst e2 with
+  | Some n1, Some n2 => wconst (Z.land (I64.repr n1) (I64.repr n2))
+  (* TODO: could be improved when one operand is known *)
+  | _, _ => Papp2 (Oland Op_w) e1 e2
+  end.
+
+Definition sland ty :=
+  match ty with
+  | Op_int => sland_int
+  | Op_w => sland_w
+  end.
 
 (* FIXME: Improve this *)
 
-Definition sland e1 e2 := Papp2 Oland e1 e2.
 Definition slor  e1 e2 := Papp2 Olor  e1 e2.
 Definition slxor e1 e2 := Papp2 Olxor e1 e2.
 Definition slsr  e1 e2 := Papp2 Olsr  e1 e2.
@@ -233,7 +250,7 @@ Definition s_op2 o e1 e2 :=
   | Ole  ty => sle  ty e1 e2
   | Ogt  ty => sgt  ty e1 e2
   | Oge  ty => sge  ty e1 e2
-  | Oland   => sland e1 e2
+  | Oland ty => sland ty e1 e2
   | Olor    => slor  e1 e2
   | Olxor   => slxor e1 e2 
   | Olsr    => slsr  e1 e2

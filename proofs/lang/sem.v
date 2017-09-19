@@ -340,7 +340,8 @@ Definition sem_sop2 (o:sop2) :=
   | Osub Op_int  => sem_op2_i Z.sub
   | Osub Op_w    => sem_op2_w I64.sub
 
-  | Oland        => sem_op2_w I64.and
+  | Oland Op_int => sem_op2_i Z.land
+  | Oland Op_w => sem_op2_w I64.and
   | Olor         => sem_op2_w I64.or
   | Olxor        => sem_op2_w I64.xor
   | Olsr         => sem_op2_w sem_lsr
@@ -1611,7 +1612,7 @@ Lemma vuincl_sem_sop2 o ve1 ve1' ve2 ve2' v1 :
   sem_sop2 o ve1 ve2 = ok v1 ->
   sem_sop2 o ve1' ve2' = ok v1.
 Proof.
-  case:o => [||[]|[]|[]|||||||[]|[]|[]|[]|[]|[]]/=;
+  case:o => [||[]|[]|[]|[]||||||[]|[]|[]|[]|[]|[]]/=;
    eauto using vuincl_sem_op2_i, vuincl_sem_op2_w, vuincl_sem_op2_b, vuincl_sem_op2_ib,
     vuincl_sem_op2_wb.
 Qed.

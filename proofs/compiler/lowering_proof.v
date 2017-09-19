@@ -993,7 +993,7 @@ Ltac elim_div :=
       + move=> /sem_op1_w_dec [z [Hz Hv]].
         split. reflexivity.
         by rewrite /sem_pexprs /= Hv /= Hz Hw.
-    + move: o=> [| |[]|[]|[]| | | | | | |[]|k|[]|k|k|k] //.
+    + move: o=> [| |[]|[]|[]|[]| | | | | |[]|k|[]|k|k|k] //.
       (* Oadd Op_w *)
       + move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 Hv]]]; subst v.
         case Heq: is_lea => [lea|].  
@@ -1048,10 +1048,12 @@ Ltac elim_div :=
           rewrite /x86_dec /rflags_of_aluop_nocf_w /flags_w /=; eauto.
         (* SubNone *)
         + split. by rewrite read_es_swap. by rewrite Hv /= Hw.
+      (* Oland Op_w *)
       + move=> A. split. by rewrite read_es_swap. move: A.
-          by move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 ->]]] /=; subst v; rewrite Hw.
+        by case/sem_op2_w_dec => z1 [z2] [hv ->] /=; subst v; rewrite Hw.
+      (* Oland Op_int *)
       + move=> A. split. by rewrite read_es_swap. move: A.
-          by move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 ->]]] /=; subst v; rewrite Hw.
+        by case/sem_op2_w_dec => z1 [z2] [hv ->] /=; subst v; rewrite Hw.
       + move=> A. split. by rewrite read_es_swap. move: A.
           by move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 ->]]] /=; subst v; rewrite Hw.
       + move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 ->]]] /=; subst v.

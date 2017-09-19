@@ -49,7 +49,7 @@ let string_of_op2 = function
   | Omul _ -> "*"
   | Osub _ -> "-"
 
-  | Oland  -> "&"
+  | Oland _ -> "&"
   | Olor   -> "|"
   | Olxor  -> "^"
   | Olsr   -> ">>"

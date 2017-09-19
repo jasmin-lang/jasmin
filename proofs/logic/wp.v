@@ -184,12 +184,12 @@ Definition sem_texpr_sop1 op : ssem_t (op1_type_i op) → ssem_t (op1_type_o op)
 Definition op2_type (op: sop2) : sstype * sstype :=
   match op with
   | (Oand | Oor ) => (ssbool, ssbool)
-  | (Oadd ty| Omul ty| Osub ty) => 
+  | (Oadd ty| Omul ty| Osub ty | Oland ty) =>
     match ty with 
     | Op_int => (ssint, ssint)
     | Op_w   => (ssword, ssword)
     end
-  | (Oland | Olor | Olxor | Olsr | Olsl | Oasr) => (ssword, ssword)
+  | (Olor | Olxor | Olsr | Olsl | Oasr) => (ssword, ssword)
   | (Oeq ty| Oneq ty| Olt ty| Ole ty| Ogt ty| Oge ty) =>
     match ty with
     | Cmp_int => (ssint, ssbool)
@@ -210,7 +210,8 @@ Definition sem_texpr_sop2 op : ssem_t (op2_type_i op) → ssem_t (op2_type_i op)
   | Oadd Op_w    => I64.add
   | Omul Op_w    => I64.mul
   | Osub Op_w    => I64.sub
-  | Oland => I64.and
+  | Oland Op_int => Z.land
+  | Oland Op_w => I64.and
   | Olor => I64.or
   | Olxor => I64.xor
   | Olsr => sem_lsr
@@ -375,7 +376,7 @@ Lemma ssem_sop2_ex op vp vq :
     ∃ v, ssem_sop2 op vp vq = ok v ∧
          of_sval _ v = ok (sem_texpr_sop2 op p q).
 Proof.
-  case: op => [||[]|[]|[]|||||||[]|[]|[]|[]|[]|[]] /=;intros;
+  case: op => [||[]|[]|[]|[]||||||[]|[]|[]|[]|[]|[]] /=;intros;
     repeat
       match goal with
       | H : ?a = ?b |- _ => subst a || subst b
@@ -430,7 +431,7 @@ Lemma ssem_sop2_error_1 op vp exn :
     of_sval (op2_type_i op) vp = Error exn →
     ∀ vq, ∃ exn', ssem_sop2 op vp vq = Error exn'.
 Proof.
-  case: op => [||[]|[]|[]|||||||[]|[]|[]|[]|[]|[]]; case: vp=> //= q Hq vq;
+  case: op => [||[]|[]|[]|[]||||||[]|[]|[]|[]|[]|[]]; case: vp=> //= q Hq vq;
   try (eexists; reflexivity).
 Qed.
 
@@ -440,7 +441,7 @@ Lemma ssem_sop2_error_2 op vp vq exn :
     of_sval (op2_type_i op) vq = Error exn →
     ∃ exn', ssem_sop2 op vp vq = Error exn'.
 Proof.
-  case: op => [||[]|[]|[]|||||||[]|[]|[]|[]|[]|[]] /= p Hp; case: vq => /= q Hq;
+  case: op => [||[]|[]|[]|[]||||||[]|[]|[]|[]|[]|[]] /= p Hp; case: vq => /= q Hq;
   repeat match goal with
   | H : ?a = ?b |- _ => subst a || subst b
   | H : _ = Error _ |- _ => apply Error_inj in H

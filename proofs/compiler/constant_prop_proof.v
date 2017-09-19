@@ -276,7 +276,25 @@ Proof.
   by case: ty.
 Qed.
 
-Lemma slandP e1 e2 : Papp2 Oland e1 e2 =E sland e1 e2. Proof. auto. Qed.
+Lemma sland_intP e1 e2 : Papp2 (Oland Op_int) e1 e2 =E sland_int e1 e2.
+Proof.
+  rewrite/sland_int.
+  case: (is_constP e1) => [ v1 | ] ; last by move => ? ?.
+  by case: (is_constP e2) => ? ?.
+Qed.
+
+Lemma sland_wP e1 e2 : Papp2 (Oland Op_w) e1 e2 =E sland_w e1 e2.
+Proof.
+  rewrite/sland_w.
+  case: (is_wconstP e1) => [ v1 | ] ; last by move => ? ?.
+  case: (is_wconstP e2) => [ v2 | ] ; last by move => ? ?.
+  move => ϱ z /=; rewrite/sem_op2_w/mk_sem_sop2.
+  by t_xrbindP => y h; rewrite - (ok_inj h) => { y h } y h; rewrite - (ok_inj h) => { y h } <-.
+Qed.
+
+Lemma slandP ty e1 e2 : Papp2 (Oland ty) e1 e2 =E sland ty e1 e2.
+Proof. case: ty. exact: sland_intP. exact: sland_wP. Qed.
+
 Lemma slorP e1 e2  : Papp2 Olor  e1 e2 =E slor  e1 e2. Proof. auto. Qed.
 Lemma slxorP e1 e2 : Papp2 Olxor e1 e2 =E slxor e1 e2. Proof. auto. Qed.
 Lemma slslP e1 e2  : Papp2 Olsl  e1 e2 =E slsl  e1 e2. Proof. auto. Qed.
