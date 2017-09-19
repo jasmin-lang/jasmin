@@ -241,15 +241,6 @@ let check_ty_u64 ~loc ty =
 let check_ty_bool ~loc ty =
   check_ty_eq ~loc ~from:ty ~to_:P.tbool
 
-let check_ty_assign ~loc ~(from : P.pty) ~(to_ : P.pty) =
-  if from <> to_ then begin
-    match from, to_ with
-    | P.Bty P.Int, P.Bty (P.U ws) ->
-        (fun e -> (P.Pcast (ws, e)))
-    | _, _ ->
-        rs_tyerror ~loc (TypeMismatch (from, to_))
-  end else (fun (e : P.pexpr) -> e)
-
 (* -------------------------------------------------------------------- *)
 let check_sig ?loc (sig_ : P.pty list) (given : (L.t * P.pty) list) =
   let loc () = loc_of_tuples loc (List.map fst given) in
@@ -260,19 +251,6 @@ let check_sig ?loc (sig_ : P.pty list) (given : (L.t * P.pty) list) =
     rs_tyerror ~loc:(loc ()) (InvalidArgCount (n1, n2));
   List.iter2
     (fun ty1 (loc, ty2) -> check_ty_eq ~loc ~from:ty2 ~to_:ty1)
-    sig_ given
-
-(* -------------------------------------------------------------------- *)
-let check_sig_call ?loc (sig_ : P.pty list) (given : (L.t * P.pexpr * P.pty) list) =
-  let loc () = loc_of_tuples loc (List.map proj3_1 given) in
-
-  let n1, n2 = (List.length sig_, List.length given) in
-
-  if n1 <> n2 then
-    rs_tyerror ~loc:(loc ()) (InvalidArgCount (n1, n2));
-  List.map2
-    (fun ty1 (loc, e, ty2) ->
-      check_ty_assign ~loc ~from:ty2 ~to_:ty1 e)
     sig_ given
 
 (* -------------------------------------------------------------------- *)
