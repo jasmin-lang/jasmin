@@ -373,7 +373,7 @@ let max_ty ty1 ty2 =
 let cast loc e ety ty =
   match ety, ty with
   | P.Bty P.Int , P.Bty (P.U w) -> P.Pcast (w, e)
-  | _, _ when ety = ty -> e
+  | _, _ when P.pty_equal ety ty -> e
   | _  ->  rs_tyerror ~loc (InvalidCast(ety,ty))
 
 (* -------------------------------------------------------------------- *)
