@@ -75,11 +75,11 @@
 
 %left PIPEPIPE
 %left AMPAMP
+%left EQEQ BANGEQ
+%left LE LEs GE GEs LT LTs GT GTs
 %left PIPE
 %left HAT
 %left AMP
-%left EQEQ BANGEQ
-%left LE LEs GE GEs LT LTs GT GTs
 %left LTLT GTGT GTGTs
 %left PLUS MINUS
 %left STAR
