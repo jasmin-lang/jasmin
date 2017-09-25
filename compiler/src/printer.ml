@@ -51,7 +51,7 @@ let string_of_op2 = function
 
   | Oland _ -> "&"
   | Olor _ -> "|"
-  | Olxor  -> "^"
+  | Olxor _ -> "^"
   | Olsr   -> ">>"
   | Olsl   -> "<<"
   | Oasr   -> ">>s"

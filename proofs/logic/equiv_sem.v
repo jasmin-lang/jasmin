@@ -326,7 +326,7 @@ Proof.
   + apply: rbindP => w /He {He} [] w' [] ->; apply svuincl_sem_op1.
   + apply: rbindP => ve1 /He1 [] ve1' [] -> Hvu1.
     apply: rbindP => ve2 /He2 [] ve2' [] -> Hvu2 {He1 He2}.
-    case:o=> [||[]|[]|[]|[]|[]|||||[]|[]|[]|[]|[]|[]] => /=;
+    case:o=> [||[]|[]|[]|[]|[]|[]||||[]|[]|[]|[]|[]|[]] => /=;
     eauto using svuincl_sem_op2_i, svuincl_sem_op2_w, 
                 svuincl_sem_op2_b, svuincl_sem_op2_ib, svuincl_sem_op2_wb.
   + apply: rbindP => b; apply: rbindP => ? /Heb {Heb} [] b' [] -> h.

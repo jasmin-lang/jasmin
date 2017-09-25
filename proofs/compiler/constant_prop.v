@@ -231,10 +231,10 @@ Definition sbitw i z ty :=
 
 Definition sland := sbitw Oland Z.land.
 Definition slor := sbitw Olor Z.lor.
+Definition slxor := sbitw Olxor Z.lxor.
 
 (* FIXME: Improve this *)
 
-Definition slxor e1 e2 := Papp2 Olxor e1 e2.
 Definition slsr  e1 e2 := Papp2 Olsr  e1 e2.
 Definition slsl  e1 e2 := Papp2 Olsl  e1 e2.
 Definition sasr  e1 e2 := Papp2 Oasr  e1 e2.
@@ -254,7 +254,7 @@ Definition s_op2 o e1 e2 :=
   | Oge  ty => sge  ty e1 e2
   | Oland ty => sland ty e1 e2
   | Olor ty => slor ty e1 e2
-  | Olxor   => slxor e1 e2 
+  | Olxor ty => slxor ty e1 e2
   | Olsr    => slsr  e1 e2
   | Olsl    => slsl  e1 e2
   | Oasr    => sasr  e1 e2

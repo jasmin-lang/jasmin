@@ -71,7 +71,7 @@ let infix_sop2 = function
 
   | Oland _ -> "&"
   | Olor _ -> "|"
-  | Olxor  -> "^"
+  | Olxor _ -> "^"
   | Olsr   -> ">>"
   | Olsl   -> "<<"
   | Oasr   -> assert false

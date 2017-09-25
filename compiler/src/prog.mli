@@ -44,7 +44,7 @@ type op2 =
 
   | Oland of op_ty
   | Olor of op_ty
-  | Olxor
+  | Olxor of op_ty
   | Olsr
   | Olsl
   | Oasr

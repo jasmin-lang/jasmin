@@ -310,7 +310,7 @@ let op2_of_pop2 exn ty (op : S.peop2) =
   | `Or   -> P.Oor
   | `BAnd -> P.Oland (op_of_ty exn ty)
   | `BOr  -> P.Olor (op_of_ty exn ty)
-  | `BXOr -> P.Olxor
+  | `BXOr -> P.Olxor (op_of_ty exn ty)
   | `ShR  -> P.Olsr
   | `ShL  -> P.Olsl
   | `Asr  -> P.Oasr

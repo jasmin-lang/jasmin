@@ -358,7 +358,7 @@ Definition lower_cassgn_classify e x : lower_cassgn_t :=
       end
     | Oland Op_w => LowerFopn Ox86_AND [:: a ; b ] I32.modulus
     | Olor Op_w => LowerFopn Ox86_OR [:: a ; b ] I32.modulus
-    | Olxor => LowerFopn Ox86_XOR [:: a ; b ] I32.modulus
+    | Olxor Op_w => LowerFopn Ox86_XOR [:: a ; b ] I32.modulus
     | Olsr => LowerFopn Ox86_SHR [:: a ; b ] I8.modulus
     | Olsl => LowerFopn Ox86_SHL [:: a ; b ] I8.modulus
     | Oasr => LowerFopn Ox86_SAR [:: a ; b ] I8.modulus
