@@ -993,7 +993,7 @@ Ltac elim_div :=
       + move=> /sem_op1_w_dec [z [Hz Hv]].
         split. reflexivity.
         by rewrite /sem_pexprs /= Hv /= Hz Hw.
-    + move: o=> [| |[]|[]|[]|[]| | | | | |[]|k|[]|k|k|k] //.
+    + move: o=> [| |[]|[]|[]|[]|[]| | | | |[]|k|[]|k|k|k] //.
       (* Oadd Op_w *)
       + move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 Hv]]]; subst v.
         case Heq: is_lea => [lea|].  
@@ -1051,7 +1051,7 @@ Ltac elim_div :=
       (* Oland Op_w *)
       + move=> A. split. by rewrite read_es_swap. move: A.
         by case/sem_op2_w_dec => z1 [z2] [hv ->] /=; subst v; rewrite Hw.
-      (* Oland Op_int *)
+      (* Olor Op_w *)
       + move=> A. split. by rewrite read_es_swap. move: A.
         by case/sem_op2_w_dec => z1 [z2] [hv ->] /=; subst v; rewrite Hw.
       + move=> A. split. by rewrite read_es_swap. move: A.

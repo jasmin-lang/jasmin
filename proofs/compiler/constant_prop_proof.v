@@ -28,7 +28,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import sem.
 Require Export constant_prop.
 
-Import ZArith Morphisms Classes.RelationClasses.
+Import Utf8 ZArith Morphisms Classes.RelationClasses.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -276,26 +276,49 @@ Proof.
   by case: ty.
 Qed.
 
-Lemma sland_intP e1 e2 : Papp2 (Oland Op_int) e1 e2 =E sland_int e1 e2.
+Lemma sbitw_intP i (z: Z → Z → Z) e1 e2 :
+  (∀ (x y: Z) ϱ, Papp2 (i Op_int) x y =[ϱ]  z x y) →
+  Papp2 (i Op_int) e1 e2 =E sbitw_int i z e1 e2.
 Proof.
-  rewrite/sland_int.
+  rewrite/sbitw_int => h.
   case: (is_constP e1) => [ v1 | ] ; last by move => ? ?.
-  by case: (is_constP e2) => ? ?.
+  by case: (is_constP e2) => v ϱ.
 Qed.
 
-Lemma sland_wP e1 e2 : Papp2 (Oland Op_w) e1 e2 =E sland_w e1 e2.
+Lemma sbitw_wP i (z: Z → Z → Z) e1 e2 :
+  (∀ v1 v2, Papp2 (i Op_w) (wconst v1) (wconst v2) =E wconst (z (I64.repr v1) (I64.repr v2))) →
+  Papp2 (i Op_w) e1 e2 =E sbitw_w i z e1 e2.
 Proof.
-  rewrite/sland_w.
+  rewrite/sbitw_w => h.
   case: (is_wconstP e1) => [ v1 | ] ; last by move => ? ?.
-  case: (is_wconstP e2) => [ v2 | ] ; last by move => ? ?.
-  move => ϱ z /=; rewrite/sem_op2_w/mk_sem_sop2.
-  by t_xrbindP => y h; rewrite - (ok_inj h) => { y h } y h; rewrite - (ok_inj h) => { y h } <-.
+  by case: (is_wconstP e2) => [ v2 | ] ; last by move => ? ?.
+Qed.
+
+Lemma sbitwP i (z: Z → Z → Z) ty e1 e2 :
+  (∀ (x y: Z) ϱ, Papp2 (i Op_int) x y =[ϱ]  z x y) →
+  (∀ v1 v2, Papp2 (i Op_w) (wconst v1) (wconst v2) =E wconst (z (I64.repr v1) (I64.repr v2))) →
+  Papp2 (i ty) e1 e2 =E sbitw i z ty e1 e2.
+Proof.
+  move => hi hw.
+  case: ty. exact: sbitw_intP. exact: sbitw_wP.
 Qed.
 
 Lemma slandP ty e1 e2 : Papp2 (Oland ty) e1 e2 =E sland ty e1 e2.
-Proof. case: ty. exact: sland_intP. exact: sland_wP. Qed.
+Proof.
+  apply: sbitwP.
+  + by move => x y ϱ v /=.
+  move => v1 v2 ϱ v /=. rewrite/sem_op2_w/mk_sem_sop2.
+  by t_xrbindP => y h; rewrite - (ok_inj h) => { y h } y h; rewrite - (ok_inj h) => { y h } <-.
+Qed.
 
-Lemma slorP e1 e2  : Papp2 Olor  e1 e2 =E slor  e1 e2. Proof. auto. Qed.
+Lemma slorP ty e1 e2  : Papp2 (Olor ty) e1 e2 =E slor ty e1 e2.
+Proof.
+  apply: sbitwP.
+  + by move => x y ϱ v /=.
+  move => v1 v2 ϱ v /=. rewrite/sem_op2_w/mk_sem_sop2.
+  by t_xrbindP => y h; rewrite - (ok_inj h) => { y h } y h; rewrite - (ok_inj h) => { y h } <-.
+Qed.
+
 Lemma slxorP e1 e2 : Papp2 Olxor e1 e2 =E slxor e1 e2. Proof. auto. Qed.
 Lemma slslP e1 e2  : Papp2 Olsl  e1 e2 =E slsl  e1 e2. Proof. auto. Qed.
 Lemma slsrP e1 e2  : Papp2 Olsr  e1 e2 =E slsr  e1 e2. Proof. auto. Qed.

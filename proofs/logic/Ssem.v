@@ -201,7 +201,8 @@ Definition ssem_sop2 (o:sop2) :=
 
   | Oland Op_int => ssem_op2_i Z.land
   | Oland Op_w => ssem_op2_w I64.and
-  | Olor         => ssem_op2_w I64.or
+  | Olor Op_int => ssem_op2_i Z.lor
+  | Olor Op_w => ssem_op2_w I64.or
   | Olxor        => ssem_op2_w I64.xor
   | Olsr         => ssem_op2_w sem_lsr 
   | Olsl         => ssem_op2_w sem_lsl

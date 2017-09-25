@@ -193,7 +193,7 @@ let cop_of_op = function
   | Osub ty -> C.Osub (coty_of_oty ty)
 
   | Oland ty -> C.Oland (coty_of_oty ty)
-  | Olor    -> C.Olor
+  | Olor ty -> C.Olor (coty_of_oty ty)
   | Olxor   -> C.Olxor
   | Olsr    -> C.Olsr
   | Olsl    -> C.Olsl
@@ -214,7 +214,7 @@ let op_of_cop = function
   | C.Osub ty -> Osub (oty_of_coty ty)
 
   | C.Oland ty -> Oland (oty_of_coty ty)
-  | C.Olor    -> Olor
+  | C.Olor ty -> Olor (oty_of_coty ty)
   | C.Olxor   -> Olxor
   | C.Olsr    -> Olsr
   | C.Olsl    -> Olsl

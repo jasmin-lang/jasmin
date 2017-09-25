@@ -71,7 +71,7 @@ Variant sop2 :=
 | Osub  of op_kind
 
 | Oland of op_kind
-| Olor
+| Olor of op_kind
 | Olxor
 | Olsr
 | Olsl
