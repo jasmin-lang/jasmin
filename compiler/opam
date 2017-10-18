@@ -21,4 +21,7 @@ depends: [
   "zarith"
   "ocamlbuild"
   "ocamlfind"
+  "coq" {>= "8.6"}
+  "coq-mathcomp-ssreflect"
+  "coq-mathcomp-algebra"
 ]

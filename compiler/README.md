@@ -21,6 +21,9 @@ via the opam OCaml packages manager.
 
   4. Install Jasmin dependencies:
 
+
+          $> opam repo add coq-released https://coq.inria.fr/opam/released
+          $> opam repo add coq-extra-dev https://coq.inria.fr/opam/extra-dev
           $> opam install --deps-only jasmin
 
 Opam can be easily installed from source or via your packages manager:
