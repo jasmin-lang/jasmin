@@ -788,7 +788,12 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
       let _, flv, vty = tt_lvalue env lv in
       let e, ety = tt_expr ~mode:`AllVar env pe in
       let e = vty |> omap_dfl (cast (L.loc pe) e ety) e in
-      cassgn_for (flv ety) AT_none e
+      let v = flv ety in
+      let tg =
+        P.(match v with
+            | Lvar v -> (match kind_i v with Inline -> AT_inline | _ -> AT_none)
+            | _ -> AT_none) in
+      cassgn_for v tg e
 
     | PIAssign(ls, `Raw, pe, None) ->
       (* Try to match addc, subc, mulu *)
