@@ -1,4 +1,4 @@
-export fn test1() -> inline int {
+fn test1() -> inline int {
 
   inline int i;
   inline int j;
@@ -12,7 +12,7 @@ export fn test1() -> inline int {
   return j;
 }
 
-export fn test2() -> inline u64 {
+fn test2() -> inline u64 {
 
   inline int i;
   inline u64 j;
@@ -31,10 +31,11 @@ export fn test3() -> reg u64 {
 
   reg u64 i;
   reg u64 j;
+  inline int tmp;
 
-
-  j = 0;
-  i = 0;
+  tmp = test1();
+  j = tmp;
+  i = test2();
   while (j <= 12) {
     j = j + i;
     i += 1;
