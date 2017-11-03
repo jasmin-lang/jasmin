@@ -4,6 +4,13 @@ open Prog
 module IntSet = Sint
 module IntMap = Mint
 
+module VarMap = Hashtbl.Make
+    (struct
+      type t = var
+      let equal = ( = )
+      let hash { v_id }  = Hashtbl.hash v_id
+    end)
+
 let fill_in_missing_names (f: 'info func) : 'info func =
   let fresh_name : L.t -> ty -> ty gvar_i =
     let count = ref 0 in
@@ -31,13 +38,13 @@ let fill_in_missing_names (f: 'info func) : 'info func =
   let f_body = fill_stmt f.f_body in
   { f with f_body }
 
-let x86_equality_constraints (tbl: (var, int) Hashtbl.t) (k: int -> int -> unit)
+let x86_equality_constraints (tbl: int VarMap.t) (k: int -> int -> unit)
     (k': int -> int -> unit)
     (lvs: 'ty glvals) (op: op) (es: 'ty gexprs) : unit =
   let merge k v w =
     try
-      let i = Hashtbl.find tbl (L.unloc v) in
-      let j = Hashtbl.find tbl (L.unloc w) in
+      let i = VarMap.find tbl (L.unloc v) in
+      let j = VarMap.find tbl (L.unloc w) in
       k i j
     with Not_found -> ()
   in
@@ -94,7 +101,7 @@ let set_friend i j (f: friend) : friend =
 let collect_equality_constraints
     (msg: string)
     copn_constraints
-    (tbl: (var, int) Hashtbl.t) (nv: int)
+    (tbl: int VarMap.t) (nv: int)
     (f: 'info func) : Puf.t * 'info trace * friend =
   let p = ref (Puf.create nv) in
   let tr = Array.make nv [] in
@@ -111,18 +118,18 @@ let collect_equality_constraints
       -> collect_stmt s
     | Copn (lvs, _, op, es) -> copn_constraints tbl (add ii) addf lvs op es
     | Cassgn (Lvar x, (AT_rename | AT_phinode), Pvar y) ->
-      let i = try Hashtbl.find tbl (L.unloc x) with
+      let i = try VarMap.find tbl (L.unloc x) with
         Not_found ->
           hierror "%s: unknown variable %a"
             msg
             (Printer.pp_var ~debug:true) (L.unloc x)
       in
-      let j = Hashtbl.find tbl (L.unloc y) in
+      let j = VarMap.find tbl (L.unloc y) in
       add ii  i j
     | Cassgn (Lvar x, _, Pvar y) when kind_i x = kind_i y ->
       begin try
-        let i = Hashtbl.find tbl (L.unloc x) in
-        let j = Hashtbl.find tbl (L.unloc y) in
+        let i = VarMap.find tbl (L.unloc x) in
+        let j = VarMap.find tbl (L.unloc y) in
         fr := set_friend i j !fr
       with Not_found -> ()
     end
@@ -166,15 +173,15 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   in
   fun a -> loop a e
 
-let collect_conflicts (tbl: (var, int) Hashtbl.t) (tr: 'info trace) (f: (Sv.t * Sv.t) func) : conflicts =
+let collect_conflicts (tbl: int VarMap.t) (tr: 'info trace) (f: (Sv.t * Sv.t) func) : conflicts =
   let add_one_aux (v: int) (w: int) (c: conflicts) : conflicts =
       let x = get_conflicts v c in
       IntMap.add v (IntSet.add w x) c
   in
   let add_one loc (v: var) (w: var) (c: conflicts) : conflicts =
     try
-      let i = Hashtbl.find tbl v in
-      let j = Hashtbl.find tbl w in
+      let i = VarMap.find tbl v in
+      let j = VarMap.find tbl w in
       if i = j then hierror "%a: conflicting variables %a and %a must be merged due to:@.%a"
           Printer.pp_iloc loc
           (Printer.pp_var ~debug:true) v
@@ -205,7 +212,7 @@ let collect_conflicts (tbl: (var, int) Hashtbl.t) (tr: 'info trace) (f: (Sv.t * 
   and collect_stmt c s = List.fold_left collect_instr c s in
   collect_stmt IntMap.empty f.f_body
 
-let collect_variables (allvars: bool) (f: 'info func) : (var, int) Hashtbl.t * int =
+let collect_variables (allvars: bool) (f: 'info func) : int VarMap.t * int =
   let fresh, total =
     let count = ref 0 in
     (fun () ->
@@ -214,13 +221,13 @@ let collect_variables (allvars: bool) (f: 'info func) : (var, int) Hashtbl.t * i
     n),
     (fun () -> !count)
   in
-  let tbl : (var, int) Hashtbl.t = Hashtbl.create 97 in
+  let tbl : int VarMap.t = VarMap.create 97 in
   let get (v: var) : unit =
     if allvars || v.v_kind = Reg then
-    if not (Hashtbl.mem tbl v)
+    if not (VarMap.mem tbl v)
     then
       let n = fresh () in
-      Hashtbl.add tbl v n
+      VarMap.add tbl v n
   in
   let collect_sv = Sv.iter get in
   let collect_lv lv = rvars_lv Sv.empty lv |> collect_sv in
@@ -242,9 +249,9 @@ let collect_variables (allvars: bool) (f: 'info func) : (var, int) Hashtbl.t * i
   List.iter get f.f_args;
   tbl, total ()
 
-let normalize_variables (tbl: (var, int) Hashtbl.t) (eqc: Puf.t) : (var, int) Hashtbl.t =
-    let r = Hashtbl.create 97 in
-    Hashtbl.iter (fun v n -> Hashtbl.add r v (Puf.find eqc n)) tbl;
+let normalize_variables (tbl: int VarMap.t) (eqc: Puf.t) : int VarMap.t =
+    let r = VarMap.create 97 in
+    VarMap.iter (fun v n -> VarMap.add r v (Puf.find eqc n)) tbl;
     r
 
 type allocation = var IntMap.t
@@ -254,9 +261,9 @@ exception AlreadyAllocated
 let allocate_one loc (x_:var) (x: int) (r: var) (a: allocation) : allocation =
   match IntMap.find x a with
   | r' when r' = r -> a
-  | r' -> 
+  | r' ->
     hierror "at line %a: can not allocate %a into %a, the variable is already allocated in %a"
-       Printer.pp_iloc loc 
+       Printer.pp_iloc loc
        (Printer.pp_var ~debug:true) x_
        (Printer.pp_var ~debug:true) r
        (Printer.pp_var ~debug:true) r'
@@ -321,10 +328,10 @@ struct
 
   let all_registers = reserved @ allocatable @ flags
 
-  let forced_registers loc (vars: (var, int) Hashtbl.t) (cnf: conflicts)
+  let forced_registers loc (vars: int VarMap.t) (cnf: conflicts)
       (lvs: 'ty glvals) (op: op) (es: 'ty gexprs)
       (a: allocation) : allocation =
-    let f x = Hashtbl.find vars (L.unloc x) in
+    let f x = VarMap.find vars (L.unloc x) in
     let allocate_one x y a =
       let i = f x in
       let c = conflicting_registers i cnf a in
@@ -403,10 +410,10 @@ struct
 
 end
 
-let allocate_forced_registers (vars: (var, int) Hashtbl.t) (cnf: conflicts)
+let allocate_forced_registers (vars: int VarMap.t) (cnf: conflicts)
     (f: 'info func) (a: allocation) : allocation =
   let alloc_from_list loc rs q a vs =
-    let f x = Hashtbl.find vars (q x) in
+    let f x = VarMap.find vars (q x) in
     List.fold_left (fun (vs, a) p ->
         match f p with
         | r ->
@@ -441,8 +448,8 @@ let allocate_forced_registers (vars: (var, int) Hashtbl.t) (cnf: conflicts)
   let a = alloc_ret loc a f.f_ret in
   alloc_stmt a f.f_body
 
-let find_vars (vars: (var, int) Hashtbl.t) (n: int) : var list =
-  Hashtbl.fold (fun v m i -> if n = m then v :: i else i) vars []
+let find_vars (vars: int VarMap.t) (n: int) : var list =
+  VarMap.fold (fun v m i -> if n = m then v :: i else i) vars []
 
 (* Returns a variable from [regs] that is allocated to a friend variable of [i]. Defaults to [dflt]. *)
 let get_friend_registers (dflt: var) (fr: friend) (a: allocation) (i: int) (regs: var list) : var =
@@ -456,7 +463,7 @@ let get_friend_registers (dflt: var) (fr: friend) (a: allocation) (i: int) (regs
   with Not_found -> dflt
 
 let greedy_allocation
-    (vars: (var, int) Hashtbl.t)
+    (vars: int VarMap.t)
     (nv: int) (cnf: conflicts)
     (fr: friend)
     (a: allocation) : allocation =
@@ -474,13 +481,13 @@ let greedy_allocation
   done;
   !a
 
-let subst_of_allocation (vars: (var, int) Hashtbl.t)
+let subst_of_allocation (vars: int VarMap.t)
     (a: allocation) (v: var_i) : expr =
   let m = L.loc v in
   let v = L.unloc v in
   let q x = L.mk_loc m x in
   try
-    let i = Hashtbl.find vars v in
+    let i = VarMap.find vars v in
     let w = IntMap.find i a in
     Pvar (q w)
   with Not_found -> Pvar (q v)
@@ -501,8 +508,8 @@ let regalloc (f: 'info func) : unit func =
   in Subst.gsubst_func (fun ty -> ty) a f
    |> Ssa.remove_phi_nodes
 
-let reverse_varmap (vars: (var, int) Hashtbl.t) : var IntMap.t =
-  Hashtbl.fold (fun v i m -> IntMap.add i v m) vars IntMap.empty
+let reverse_varmap (vars: int VarMap.t) : var IntMap.t =
+  VarMap.fold (fun v i m -> IntMap.add i v m) vars IntMap.empty
 
 let split_live_ranges (f: 'info func) : unit func =
   let f = Ssa.split_live_ranges true f in
