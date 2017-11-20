@@ -1,3 +1,6 @@
+-arg -w
+-arg -parsing
+
 -R 3rdparty Jasmin
 -R compiler Jasmin
 -R logic Jasmin
