@@ -9,6 +9,7 @@ _, z += z + cf;
 _, z += z;
 _, z = z + z;
 cf, z = z + z;
+cf, z = z + z + false;
 cf, z = z + z + cf;
 cf, z = #adc(z,z,false);
 // of cf xf pf zf

@@ -361,14 +361,15 @@ struct
       allocate_one pF f_p |>
       allocate_one zF f_z
     | (Ox86_ADC | Ox86_SBB),
-      [ Lvar oF ; Lvar cF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], [ _ ; _ ; cF' ] ->
+      [ Lvar oF ; Lvar cF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], [ _ ; _ ; Pvar cF' ] ->
       a |>
-      mallocate_one cF' f_c |>
+      allocate_one cF' f_c |>
       allocate_one oF f_o |>
       allocate_one cF f_c |>
       allocate_one sF f_s |>
       allocate_one pF f_p |>
       allocate_one zF f_z
+    | (Ox86_ADC | Ox86_SBB), _, _ -> hierror "Congratulations: you found a compiler bug"
     | (Ox86_INC | Ox86_DEC),
       [ Lvar oF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], _ ->
       a |>
