@@ -237,7 +237,7 @@ Lemma on_vuP T R (fv: T -> R) (fu: exec R) (v:exec T) r P:
   (forall t, v = ok t -> fv t = r -> P) ->
   (v = Error ErrAddrUndef -> fu = ok r -> P) ->
   on_vu fv fu v = ok r -> P.
-Proof. by case: v => [a | []] Hfv Hfu //= [];[apply: Hfv | apply Hfu]. Qed.
+Proof. by case: v => [a | []] Hfv Hfu //=;[case; apply: Hfv | apply Hfu]. Qed.
 
 Definition get_var (m:vmap) x :=
   on_vu (@to_val (vtype x)) (ok (Vundef (vtype x))) (m.[x]%vmap).
@@ -1542,7 +1542,7 @@ Lemma get_var_uincl x vm1 vm2 v1:
   exists v2, get_var vm2 x = ok v2 /\ value_uincl v1 v2.
 Proof.
   move=> /(_ x);rewrite /get_var=> H; apply: on_vuP.
-  + move=> z1 Heq1 [] <-.
+  + move=> z1 Heq1 <-.
     move: H;rewrite Heq1=> {Heq1}.
     case: (vm2.[x])%vmap => //= z2 Hz2;exists (to_val z2);split=> //.
     by case: (vtype x) z1 z2 Hz2.
@@ -1625,7 +1625,7 @@ Lemma vuincl_sem_sop1 o ve1 ve1' v1 :
   sem_sop1 o ve1' = ok v1.
 Proof.
   case: o;rewrite /= /sem_op1_b /sem_op1_w /mk_sem_sop1 => Hu;
-    apply: rbindP => z Hz [] <-.
+    apply: rbindP => z Hz <-.
   + by have [z' [-> /= <- ]]:= of_val_uincl Hu Hz.
   + by have [z' [-> /= <- ]]:= of_val_uincl Hu Hz.
   + by have [z' [-> /= <- ]]:= of_val_uincl Hu Hz.
@@ -1780,7 +1780,7 @@ Lemma set_var_uincl vm1 vm1' vm2 x v v' :
   exists vm2', set_var vm1' x v' = ok vm2' /\ vm_uincl vm2 vm2'.
 Proof.
   (move=> Hvm Hv;apply set_varP;rewrite /set_var) => [t | /negbTE ->].
-  + move=> /(of_val_uincl Hv) [z' [-> ?]] [] <- /=.
+  + move=> /(of_val_uincl Hv) [z' [-> ?]] <- /=.
     by exists (vm1'.[x <- ok z'])%vmap;split=>//; apply set_vm_uincl.
   move=> /of_val_error Heq;move: Hv;rewrite Heq /= => /eqP.
   case: x Heq=> [ty xn] /= _ ->.

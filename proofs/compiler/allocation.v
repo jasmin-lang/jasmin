@@ -1406,7 +1406,7 @@ Module CBAreg.
   Proof.
     rewrite /check_var;case: eqP => //= Ht Hea [<-].
     apply: set_varP.
-    + move=> v1' Hv1' [<-] Hu.
+    + move=> v1' Hv1' <- Hu.
       have [v2' [Hv2' Hu']]:= of_val_uincl Hu Hv1'.
       case: x2 Ht => -[xt2 xn2] _ /= <-.
       exists (vm2.[{| vtype := vtype x1; vname := xn2 |} <- ok v2']);split.

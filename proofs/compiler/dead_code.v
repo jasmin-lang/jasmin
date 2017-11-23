@@ -86,7 +86,6 @@ Definition check_nop_opn (xs:lvals) (o: sopn) (es:pexprs) :=
   | _, _, _ => false
   end.
  
-Check has.
 Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) := 
   let (ii,ir) := i in
   match ir with

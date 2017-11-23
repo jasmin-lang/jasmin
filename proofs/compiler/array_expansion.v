@@ -309,7 +309,7 @@ Module CBEA.
     move=> /andP[]/eqP Heq /Sv_memP Hin [] Hu Hget Huv.
     rewrite /write_var /=;apply:rbindP => vm1'.
     apply: set_varP => [v1' | ];rewrite -Heq /set_var.
-    + move=> /(of_val_uincl Huv) [v2' [->]] /= Hv' [<-] [<-] /=.
+    + move=> /(of_val_uincl Huv) [v2' [->]] /= Hv' <- [<-] /=.
       by eexists;split;eauto; apply: (@eq_alloc_set x1 (ok v1') (ok v2')).
     move=> /negbTE -> /of_val_error ?;subst v1 => <- [] <-.
     have := of_val_type_of v2; move /eqP: Huv => <- [[v'] | ] -> /=;
@@ -353,8 +353,9 @@ Module CBEA.
         pose p := fun ov => if ov is Ok v then v = Varr t else True.
         have : p error (ok (Varr t)) by done. 
         rewrite -Heq /= => /Varr_inj [_ ?] {p Heq};subst t''.
-        have [-> /= [<-]]: CEDecStype.pos_dec n n = left (erefl n).
+        have ->: CEDecStype.pos_dec n n = left (erefl n).
         + by elim: n {t Ht' t' Hget}=> // p0 /= ->.
+        case => /= <-.
         case Hea => Hina Hgeta. 
         exists vm1.[{| vtype := sword; vname := xn2 |} <- ok w];split=>//;split.
         + move=> x /= Hx;rewrite !Fv.setP_neq;
