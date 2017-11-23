@@ -5,7 +5,7 @@
 -R compiler Jasmin
 -R logic Jasmin
 -R lang Jasmin
--R lang ssrmisc
+-R ssrmisc Jasmin
 
 ssrmisc/oseq.v
 3rdparty/Coqlib.v
