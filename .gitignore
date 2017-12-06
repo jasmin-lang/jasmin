@@ -19,6 +19,7 @@ _build
 *.run.err
 *.pyc
 *.native
+a.out
 .DS_Store
 test_jasmin.rs
 
