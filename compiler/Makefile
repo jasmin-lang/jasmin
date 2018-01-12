@@ -29,7 +29,7 @@ LIBDIR := $(PREFIX)/lib/jasmin
 SHRDIR := $(PREFIX)/share/jasmin
 
 # --------------------------------------------------------------------
-.PHONY: all build byte native CIL install uninstall tests __force__
+.PHONY: all build byte native CIL install uninstall tests dist __force__
 .PHONY: %.ml %.mli %.inferred.mli
 
 .PRECIOUS: _c_build/%.s _c_build/%.o
@@ -78,6 +78,18 @@ clean:
 	$(OCAMLBUILD) -clean -classic-display
 	rm -rf _c_build
 	rm -f jasminc.native jasminc.byte lib*.a
+
+HASH:=$(shell git show --no-patch --format=%H | head -c 8)
+
+dist: CIL
+	rm -rf jasmin
+	tar czf jasminc-$(HASH).tar.gz \
+		default.nix Makefile _tags jasmin.mlpack.in myocamlbuild.ml \
+		CIL src/*.mli src/*.ml src/*.mly src/*.mll entry/jasminc.ml
+	mkdir -p jasmin
+	(cd jasmin && tar xzf ../jasminc-$(HASH).tar.gz)
+	tar czf jasminc-$(HASH).tar.gz jasmin
+	rm -rf jasmin
 
 # --------------------------------------------------------------------
 _c_build: __force__
