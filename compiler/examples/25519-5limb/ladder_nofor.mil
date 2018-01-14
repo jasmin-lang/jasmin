@@ -734,7 +734,7 @@ fn pack(reg u64 rp, stack u64[5] xa) {
 
     res = mul(xa,ya); ress = res;
 
-    pack(rp,res);
+    pack(rp,ress);
 }
 
  fn test_unpack(reg u64 rp,reg u64 xap) {
@@ -746,4 +746,4 @@ fn pack(reg u64 rp, stack u64[5] xa) {
      //pack(rp,res);
     for i = 0 to 5 { buf = res[i]; [rp + 8*i] = buf; }
 
-} 
+}

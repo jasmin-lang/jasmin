@@ -27,6 +27,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect.
+From Coq.Unicode Require Import Utf8.
 Require Import ZArith Setoid Morphisms CMorphisms CRelationClasses.
 Require Integers.
 
@@ -185,6 +186,32 @@ Fixpoint mapM eT aT bT (f : aT -> result eT bT) (xs : seq aT) : result eT (seq b
       Ok eT [:: y & ys]
   end.
 
+Lemma mapM_size eT aT bT f xs ys :
+  @mapM eT aT bT f xs = ok ys ->
+  size xs = size ys.
+Proof.
+elim: xs ys.
+- by move => ys [<-].
+move => x xs ih ys /=; case: (f _) => //= y.
+by case: (mapM f xs) ih => //= ys' ih [] ?; subst; rewrite (ih _ erefl).
+Qed.
+
+Local Close Scope Z_scope.
+
+Lemma mapM_nth eT aT bT f xs ys d d' n :
+  @mapM eT aT bT f xs = ok ys ->
+  n < size xs ->
+  f (nth d xs n) = ok (nth d' ys n).
+Proof.
+elim: xs ys n.
+- by move => ys n [<-].
+move => x xs ih ys n /=; case h: (f _) => [ y | ] //=.
+case: (mapM f xs) ih => //= ys' /(_ _ _ erefl) ih [] <- {ys}.
+by case: n ih => // n /(_ n).
+Qed.
+
+Local Open Scope Z_scope.
+
 Lemma mapMP {eT} {aT bT: eqType} (f: aT -> result eT bT) (s: seq aT) (s': seq bT) y:
   mapM f s = ok s' ->
   reflect (exists2 x, x \in s & f x = ok y) (y \in s').
@@ -293,8 +320,29 @@ Definition req eT aT (f : aT -> aT -> Prop) (o1 o2 : result eT aT) :=
   | _ ,       _      => false
   end.
 
+Lemma List_Forall_inv A (P: A → Prop) m :
+  List.Forall P m →
+  match m with [::] => True | x :: m' => P x ∧ List.Forall P m' end.
+Proof. by case. Qed.
+
 Lemma List_Forall2_refl A (R:A->A->Prop) l : (forall a, R a a) -> List.Forall2 R l l.
 Proof. by move=> HR;elim: l => // a l Hrec;constructor. Qed.
+
+Lemma List_Forall2_inv_l A B (R: A → B → Prop) m n :
+  List.Forall2 R m n →
+  match m with
+  | [::] => n = [::]
+  | a :: m' => ∃ b n', n = b :: n' ∧ R a b ∧ List.Forall2 R m' n'
+  end.
+Proof. case; eauto. Qed.
+
+Lemma List_Forall2_inv_r A B (R: A → B → Prop) m n :
+  List.Forall2 R m n →
+  match n with
+  | [::] => m = [::]
+  | b :: n' => ∃ a m', m = a :: m' ∧ R a b ∧ List.Forall2 R m' n'
+  end.
+Proof. case; eauto. Qed.
 
 (* -------------------------------------------------------------------------- *)
 (* Operators to build comparison                                              *)

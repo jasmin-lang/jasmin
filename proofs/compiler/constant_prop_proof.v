@@ -757,14 +757,14 @@ Section PROOF.
   Qed.
 
   Local Lemma Hopn s1 s2 t o xs es : 
-    Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x
-    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs t o es) s2.
+    sem_sopn gd o s1 xs es = ok s2 ->
+    Pi_r s1 (Copn xs t o es) s2.
   Proof.
     move=> H m ii Hm; apply: rbindP H => vs.
     apply: rbindP => ves Hes Ho Hw;move: (Hes) (Hw).
     move=> /(const_prop_esP Hm) Hes' /(const_prop_rvsP Hm) [] /=.
     case: const_prop_rvs => m' rvs' /= ??;split=>//.
-    by apply sem_seq1;do 2 constructor;rewrite Hes' /= Ho.
+    by apply sem_seq1;do 2 constructor;rewrite /sem_sopn Hes' /= Ho.
   Qed.
 
   Local Lemma Hif_true s1 s2 e c1 c2 :

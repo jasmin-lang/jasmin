@@ -467,11 +467,11 @@ Proof.
   exact: svalues_of_values_uincl.
 Qed.
 
-Lemma svuincl_sem_opn o vs vs' v :
-  List.Forall2 svalue_uincl vs vs' -> sem_sopn o vs = ok v ->
+Lemma svuincl_exec_opn o vs vs' v :
+  List.Forall2 svalue_uincl vs vs' -> exec_sopn o vs = ok v ->
   exists v', ssem_sopn o vs' = ok v' /\ List.Forall2 svalue_uincl v v'.
 Proof.
-  rewrite /sem_sopn /ssem_sopn;
+  rewrite /exec_sopn /ssem_sopn;
     case: o;
     eauto using svuincl_app_w, svuincl_app_b, svuincl_app_ww, svuincl_app_www, svuincl_app_wwb, svuincl_app_w4.
   + move => x y; move: y x.
@@ -699,12 +699,12 @@ Proof.
 Qed.
 
 Local Lemma Hopn s1 s2 t o xs es:
-  Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x in
-  write_lvals gd s1 xs x = ok s2 -> Pi_r s1 (Copn xs t o es) s2.
+  sem_sopn gd o s1 xs es = ok s2 ->
+  Pi_r s1 (Copn xs t o es) s2.
 Proof.
   move=> H vm1 Hvm1; apply: rbindP H => rs;apply: rbindP => vs.
   move=> /(ssem_pexprs_uincl Hvm1) [] vs' [] H1 H2.
-  move=> /(svuincl_sem_opn H2) [] rs' [] H3 H4.
+  move=> /(svuincl_exec_opn H2) [] rs' [] H3 H4.
   move=> /(swrites_uincl Hvm1 H4) [] vm2 [] ??.
   exists vm2;split => //;constructor.
   by rewrite H1 /= H3.

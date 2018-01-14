@@ -1193,17 +1193,17 @@ Section PROOF.
   Qed.
 
   Local Lemma Hopn s1 s2 t o xs es :
-    Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x
-    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs t o es) s2.
+    sem_sopn gd o s1 xs es = ok s2 ->
+    Pi_r s1 (Copn xs t o es) s2.
   Proof.
     apply: rbindP=> vs.
     apply: rbindP=> w He Hop Hw ii1 ii2 i2 Hi2 s1' Hvalid.
     case: i2 Hi2=> //= xs' t' o' es' /andP [/andP [Hlvals /eqP Ho] Hes].
     have [vs' [He' Uvv']] := (check_esP Hes Hvalid He);subst o'.
-    have [w' [Hop' Uww']]:= vuincl_sem_opn Uvv' Hop.
+    have [w' [Hop' Uww']]:= vuincl_exec_opn Uvv' Hop.
     have [s2' [Hw' Hvalid']] := check_lvalsP Hlvals Hvalid Uww' Hw.
     exists s2'; split=> //.
-    by apply: S.Eopn;rewrite He' /= Hop'.
+    by apply: S.Eopn;rewrite /sem_sopn He' /= Hop'.
   Qed.
 
   Local Lemma Hif_true s1 s2 e c1 c2 :

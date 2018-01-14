@@ -99,6 +99,7 @@ Variant sopn : Set :=
 | Ox86_MUL     (* mul unsigned *)
 | Ox86_IMUL    (* excat multiplication *)
 | Ox86_IMUL64    (* truncated multiplication *)
+| Ox86_IMUL64imm   (* truncated multiplication by an immediate value *)
 | Ox86_DIV     (* div unsigned *)
 | Ox86_IDIV    (* div   signed *)
 | Ox86_ADC     (* add with carry *)
@@ -171,6 +172,7 @@ Definition string_of_sopn o : string :=
   | Ox86_MUL    => "Ox86_MUL   "
   | Ox86_IMUL   => "Ox86_IMUL  "
   | Ox86_IMUL64   => "Ox86_IMUL64  "
+  | Ox86_IMUL64imm   => "Ox86_IMUL64imm"
   | Ox86_DIV    => "Ox86_DIV   "
   | Ox86_IDIV   => "Ox86_IDIV  "
   | Ox86_ADC    => "Ox86_ADC   "
@@ -982,3 +984,24 @@ Fixpoint eq_expr e e' :=
   | Pif    e e1 e2, Pif    e' e1' e2' => eq_expr e e' && eq_expr e1 e1' && eq_expr e2 e2'
   | _             , _                 => false
   end.
+
+Lemma eq_expr_refl e : eq_expr e e.
+Proof.
+  by elim: e => //= [ ?? -> | ?? -> | ?? -> | ?? -> ? -> | ? -> ? -> ? -> ] //=;
+   rewrite eqxx.
+Qed.
+
+Definition eq_lval (x x': lval) : bool :=
+  match x, x' with
+  | Lnone _ ty,  Lnone _ ty' => ty == ty'
+  | Lvar v, Lvar v' => v_var v == v_var v'
+  | Lmem v e, Lmem v' e'
+  | Laset v e, Laset v' e'
+    => (v_var v == v_var v') && (eq_expr e e')
+  | _, _ => false
+  end.
+
+Lemma eq_lval_refl x : eq_lval x x.
+Proof.
+  by case: x => // [ i ty | x | x e | x e] /=; rewrite eqxx // eq_expr_refl.
+Qed.

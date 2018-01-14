@@ -98,6 +98,7 @@ let pp_sopn fmt sopn =
      | Ox86_MUL     -> "Ox86_MUL"
      | Ox86_IMUL    -> "Ox86_IMUL"
      | Ox86_IMUL64  -> "Ox86_IMUL64"
+     | Ox86_IMUL64imm -> "Ox86_IMUL64imm"
      | Ox86_DIV     -> "Ox86_DIV"
      | Ox86_IDIV    -> "Ox86_IDIV"
      | Ox86_ADC     -> "Ox86_ADC"

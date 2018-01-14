@@ -69,7 +69,7 @@ Module S.
     sem_i s1 (Cassgn x tag e) s2
 
   | Eopn s1 s2 t o xs es:
-    sem_pexprs gd s1 es >>= sem_sopn o >>= (write_lvals gd s1 xs) = ok s2 ->
+    sem_sopn gd o s1 xs es = ok s2 ->
     sem_i s1 (Copn xs t o es) s2
 
   | Eif_true s1 s2 e c1 c2 :

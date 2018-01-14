@@ -6,8 +6,10 @@
 -R logic Jasmin
 -R lang Jasmin
 -R ssrmisc Jasmin
+-R sandbox Jasmin
 
 ssrmisc/oseq.v
+sandbox/gensem.v
 3rdparty/Coqlib.v
 3rdparty/Integers.v
 3rdparty/ssrring.v
@@ -16,6 +18,7 @@ ssrmisc/oseq.v
 3rdparty/ssrZ.v
 compiler/allocation.v
 compiler/array_expansion.v
+compiler/asmgen.v
 compiler/compiler_util.v
 compiler/compiler.v
 compiler/compiler_proof.v
@@ -37,9 +40,11 @@ compiler/stack_sem.v
 compiler/stack_alloc_proof.v
 compiler/unrolling.v
 compiler/unrolling_proof.v
-compiler/x86.v
+compiler/x86_gen.v
+compiler/x86_instr.v
 compiler/x86_sem.v
-compiler/x86_proofs.v
+compiler/x86_variables.v
+compiler/x86_variables_proofs.v
 lang/expr.v
 lang/extraction.v
 lang/gen_map.v

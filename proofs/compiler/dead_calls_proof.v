@@ -211,8 +211,8 @@ Section PROOF.
   Qed.
 
   Local Lemma Hopn s1 s2 t o xs es :
-    Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x
-    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs t o es) s2.
+    sem_sopn gd o s1 xs es = ok s2 ->
+    Pi_r s1 (Copn xs t o es) s2.
   Proof.
     move=> H _ _; exact: (Eopn _ _ H).
   Qed.

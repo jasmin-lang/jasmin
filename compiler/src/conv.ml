@@ -289,6 +289,7 @@ let copn_of_opn = function
   | Ox86_MUL     -> C.Ox86_MUL
   | Ox86_IMUL    -> C.Ox86_IMUL
   | Ox86_IMUL64	 -> C.Ox86_IMUL64
+  | Ox86_IMUL64imm -> C.Ox86_IMUL64imm
   | Ox86_DIV     -> C.Ox86_DIV
   | Ox86_IDIV    -> C.Ox86_IDIV
   | Ox86_ADC     -> C.Ox86_ADC
@@ -321,6 +322,7 @@ let opn_of_copn = function
   | C.Ox86_MUL     -> Ox86_MUL
   | C.Ox86_IMUL    -> Ox86_IMUL
   | C.Ox86_IMUL64  -> Ox86_IMUL64
+  | C.Ox86_IMUL64imm  -> Ox86_IMUL64imm
   | C.Ox86_DIV     -> Ox86_DIV
   | C.Ox86_IDIV    -> Ox86_IDIV
   | C.Ox86_ADC     -> Ox86_ADC

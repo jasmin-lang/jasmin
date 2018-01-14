@@ -329,7 +329,7 @@ let pp_instr (i : X86_sem.asm) =
 
   | LEA (op1, op2) ->
       (* Correct? *)
-      `Instr (pp_iname rs "lea", [pp_opr rs op2; pp_opr rs op1])
+      `Instr (pp_iname rs "lea", [pp_opr rs op2; pp_register rs op1])
 
   | NOT op ->
       `Instr (pp_iname rs "not", [pp_opr rs op])
@@ -381,7 +381,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | LABEL _ | Jcc  _ | JMP _
   | CMP   _ | TEST _ -> c
 
-  | LEA    (op, _)
+  | LEA    (op, _) -> Set.add op c
   | SETcc  (_, op)
   | NEG	(op)
   | INC    (op)
@@ -415,9 +415,9 @@ let wregs_of_instrs (c : rset) (is : X86_sem.asm list) =
   List.fold_left wregs_of_instr c is
 
 (* -------------------------------------------------------------------- *)
-let wregs_of_fundef (c : rset) (f : X86.xfundef) =
-  let c = wregs_of_instrs c f.X86.xfd_body in
-  List.fold_right Set.add f.X86.xfd_res c
+let wregs_of_fundef (c : rset) (f : X86_sem.xfundef) =
+  let c = wregs_of_instrs c f.X86_sem.xfd_body in
+  List.fold_right Set.add f.X86_sem.xfd_res c
 
 (* -------------------------------------------------------------------- *)
 let x86_64_callee_save = [
@@ -436,7 +436,7 @@ let x86_64_callee_save = [
 type 'a tbl = 'a Conv.coq_tbl
 type  gd_t  = (Prog.pvar * Prog.pexpr) list
 
-let pp_prog (tbl: 'info tbl) (gd: gd_t) (fmt : Format.formatter) (asm : X86.xprog) =
+let pp_prog (tbl: 'info tbl) (gd: gd_t) (fmt : Format.formatter) (asm : X86_sem.xprog) =
   pp_gens fmt
     [`Instr (".text"   , []);
      `Instr (".p2align", ["5"])];
@@ -447,7 +447,7 @@ let pp_prog (tbl: 'info tbl) (gd: gd_t) (fmt : Format.formatter) (asm : X86.xpro
     asm;
 
   List.iter (fun (n, d) ->
-      let stsz  = Conv.bi_of_z d.X86.xfd_stk_size in
+      let stsz  = Conv.bi_of_z d.X86_sem.xfd_stk_size in
       let wregs = wregs_of_fundef Set.empty d in
       let wregs = List.fold_right Set.remove [X86_sem.RBP; X86_sem.RSP] wregs in
       let wregs = List.filter (fun x -> Set.mem x wregs) x86_64_callee_save in
@@ -461,7 +461,7 @@ let pp_prog (tbl: 'info tbl) (gd: gd_t) (fmt : Format.formatter) (asm : X86.xpro
         wregs;
       if not (Bigint.equal stsz Bigint.zero) then
         pp_gens fmt [`Instr ("subq", [pp_imm stsz; "%rsp"])];
-      pp_instrs fmt d.X86.xfd_body;
+      pp_instrs fmt d.X86_sem.xfd_body;
       if not (Bigint.equal stsz Bigint.zero) then
         pp_gens fmt [`Instr ("addq", [pp_imm stsz; "%rsp"])];
       List.iter (fun r ->

@@ -547,6 +547,7 @@ let prim_sig p =
   | Ox86_MUL    -> b_5u64_2, u64_2
   | Ox86_IMUL   -> b_5u64_2, u64_2
   | Ox86_IMUL64 -> b_5u64  , u64_2
+  | Ox86_IMUL64imm -> b_5u64  , u64_2
   | Ox86_DIV    -> b_5u64_2, u64_3
   | Ox86_IDIV   -> b_5u64_2, u64_3
   | Ox86_ADC    -> b_5u64  , u64_2b
@@ -576,6 +577,7 @@ let prim_string =
     "x86_MUL"   , P.Ox86_MUL;
     "x86_IMUL"  , P.Ox86_IMUL;
     "x86_IMUL64", P.Ox86_IMUL64;
+    "x86_IMUL64imm", P.Ox86_IMUL64imm;
     "x86_DIV"   , P.Ox86_DIV;
     "x86_IDIV"  , P.Ox86_IDIV;
     "x86_ADC"   , P.Ox86_ADC;

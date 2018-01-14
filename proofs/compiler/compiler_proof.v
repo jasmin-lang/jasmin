@@ -30,6 +30,8 @@ Require Import allocation inline_proof dead_calls_proof
                array_expansion stack_alloc_proof 
                lowering_proof
                linear_proof compiler.
+Import Utf8.
+Import x86_sem x86_gen.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -110,6 +112,24 @@ Proof.
   apply: (unrollP Hp1).
   apply: (dead_calls_err_seqP Hpca) => //.
   by apply: (inline_call_errP Hp0).
+Qed.
+
+Lemma compile_prog_to_x86P entries (p: prog) (gd: glob_defs) (xp: xprog) m fn va m' vr :
+  compile_prog_to_x86 cparams entries p = cfok xp ->
+  fn \in entries ->
+  sem_call p gd m fn va m' vr ->
+  (forall f, get_fundef xp fn = Some f ->
+     exists p, Memory.alloc_stack m (xfd_stk_size f) = ok p) ->
+  ∃ va' vr',
+    mapM to_word va = ok va' ∧
+    mapM to_word vr = ok vr' ∧
+  x86sem_fd xp gd m fn va' m' vr'.
+Proof.
+apply: rbindP=> lp hlp hxp hfn hsem hsafe.
+have hlsem := compile_progP hlp hfn hsem.
+apply: (assemble_fdP hxp (hlsem _)) => {hlsem} fd hfd.
+have [xfd [hxfd]] := get_map_cfprog hxp hfd.
+by move => /hsafe; rewrite (assemble_fd_stk_size hxfd).
 Qed.
 
 End PROOF.

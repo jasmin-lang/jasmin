@@ -439,8 +439,8 @@ Section PROOF.
   Qed.
 
   Local Lemma Hopn s1 s2 t o xs es : 
-    Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x
-    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs t o es) s2.
+    sem_sopn gd o s1 xs es = ok s2 ->
+    Pi_r s1 (Copn xs t o es) s2.
   Proof.
     case: s1 s2 => sm1 svm1 [sm2 svm2].
     apply: rbindP => ve Hse Hw ii X1 X2 c' [] <- <- vm1.
@@ -450,7 +450,7 @@ Section PROOF.
     have [ | vm2 [Hvm2 Hw']]:= write_lvals_eq_on _ Hw Hvm; first by SvD.fsetdec.
     have /(_ Hwf):= wf_write_lvals _ Hw'.
     exists vm2;split=>//; first by apply: eq_onI Hvm2;SvD.fsetdec.   
-    by apply: sem_seq1;constructor;constructor;rewrite Hse.
+    by apply: sem_seq1;constructor;constructor;rewrite /sem_sopn Hse.
   Qed.
 
   Local Lemma Hif_true s1 s2 e c1 c2 :
@@ -819,15 +819,15 @@ Section REMOVE_INIT.
   Qed.
   
   Local Lemma Ropn s1 s2 t o xs es:
-    Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x in
-    write_lvals gd s1 xs x = ok s2 -> Pi_r s1 (Copn xs t o es) s2.
+    sem_sopn gd o s1 xs es = ok s2 ->
+    Pi_r s1 (Copn xs t o es) s2.
   Proof.
-    move=> H ii vm1 Hvm1; move: H;t_xrbindP => rs vs.
+    move=> H ii vm1 Hvm1; move: H;rewrite /sem_sopn; t_xrbindP => rs vs.
     move=> /(sem_pexprs_uincl Hvm1) [] vs' [] H1 H2.
-    move=> /(vuincl_sem_opn H2) [] rs' [] H3 H4.
+    move=> /(vuincl_exec_opn H2) [] rs' [] H3 H4.
     move=> /(writes_uincl Hvm1 H4) [] vm2 [] Hw ?. 
     exists vm2;split => //=;last by apply: wf_write_lvals Hw.
-    by apply sem_seq1;constructor;constructor;rewrite H1 /= H3.
+    by apply sem_seq1;constructor;constructor;rewrite /sem_sopn H1 /= H3.
   Qed.
   
   Local Lemma Rif_true s1 s2 e c1 c2 :

@@ -757,8 +757,8 @@ Ltac elim_div :=
       + move=> [b [fvar [Hw [Hin [Hfvar Hz]]]]].
         exists {| emem := emem s1'; evm := (evm s1').[vbool fvar <- ok b] |}; repeat split=> /=.
         apply: sem_seq1; apply: EmkI; apply: Eopn.
-        rewrite He1e2.
-        rewrite [Let x := ok [:: Vword z1; Vword z2] in sem_sopn Ox86_CMP x]/= Hw //.
+        rewrite /sem_sopn He1e2.
+        rewrite [Let x := ok [:: Vword z1; Vword z2] in exec_sopn Ox86_CMP x]/= Hw //.
         + by move: Hs1'=> [].
         + move=> var Hvar; rewrite Fv.setP_neq.
           by move: Hs1'=> [_ /(_ var Hvar)].
@@ -771,8 +771,8 @@ Ltac elim_div :=
       + move=> [b1 [b2 [fv1 [fv2 [Hw [Hin1 [Hin2 [Hfv1 [Hfv2 [Hneq Hz]]]]]]]]]].
         exists {| emem := emem s1'; evm := ((evm s1').[vbool fv1 <- ok b1]).[vbool fv2 <- ok b2] |}; repeat split=> /=.
         apply: sem_seq1; apply: EmkI; apply: Eopn.
-        rewrite He1e2.
-        rewrite [Let x := ok [:: Vword z1; Vword z2] in sem_sopn Ox86_CMP x]/= Hw //.
+        rewrite /sem_sopn He1e2.
+        rewrite [Let x := ok [:: Vword z1; Vword z2] in exec_sopn Ox86_CMP x]/= Hw //.
         + by move: Hs1'=> [].
         + move=> var Hvar; rewrite !Fv.setP_neq.
           by move: Hs1'=> [_ /(_ var Hvar)].
@@ -795,8 +795,8 @@ Ltac elim_div :=
       + move=> [b1 [b2 [b3 [fv1 [fv2 [fv3 [Hw [Hin1 [Hin2 [Hin3 [Hfv1 [Hfv2 [Hfv3 [Hneq1 [Hneq2 [Hneq3 Hz]]]]]]]]]]]]]]]].
         exists {| emem := emem s1'; evm := ((evm s1').[vbool fv1 <- ok b1]).[vbool fv2 <- ok b2].[vbool fv3 <- ok b3] |}; repeat split=> /=.
         + apply: sem_seq1; apply: EmkI; apply: Eopn.
-          rewrite He1e2.
-          rewrite [Let x := ok [:: Vword z1; Vword z2] in sem_sopn Ox86_CMP x]/= Hw //.
+          rewrite /sem_sopn He1e2.
+          rewrite [Let x := ok [:: Vword z1; Vword z2] in exec_sopn Ox86_CMP x]/= Hw //.
         + by move: Hs1'=> [].
         + move=> var Hvar; rewrite !Fv.setP_neq.
           by move: Hs1'=> [_ /(_ var Hvar)].
@@ -952,12 +952,12 @@ Ltac elim_div :=
     | LowerMov _ =>
       exists w, v = Vword w
     | LowerCopn o a =>
-      Let x := sem_pexprs gd s [:: a] in sem_sopn o x = ok [:: v]
+      Let x := sem_pexprs gd s [:: a] in exec_sopn o x = ok [:: v]
     | LowerInc o a =>
-      exists b1 b2 b3 b4, Let x := sem_pexprs gd s [:: a] in sem_sopn o x = ok [:: Vbool b1; Vbool b2; Vbool b3; Vbool b4; v]
+      exists b1 b2 b3 b4, Let x := sem_pexprs gd s [:: a] in exec_sopn o x = ok [:: Vbool b1; Vbool b2; Vbool b3; Vbool b4; v]
     | LowerFopn o e' _ =>
       Sv.Subset (read_es e') (read_e e) ∧
-      Let x := Let x := sem_pexprs gd s e' in sem_sopn o x
+      Let x := Let x := sem_pexprs gd s e' in exec_sopn o x
       in write_lvals gd s
        [:: Lnone (var_info_of_lval l) sbool;
            Lnone (var_info_of_lval l) sbool;
@@ -965,9 +965,9 @@ Ltac elim_div :=
            Lnone (var_info_of_lval l) sbool;
            Lnone (var_info_of_lval l) sbool; l] x = ok s'
     | LowerEq a b =>
-      exists b1 b2 b3 b4, Let x := sem_pexprs gd s [:: a; b] in sem_sopn Ox86_CMP x = ok [:: Vbool b1; Vbool b2; Vbool b3; Vbool b4; v]
+      exists b1 b2 b3 b4, Let x := sem_pexprs gd s [:: a; b] in exec_sopn Ox86_CMP x = ok [:: Vbool b1; Vbool b2; Vbool b3; Vbool b4; v]
     | LowerLt a b =>
-      exists b1 b2 b3 b4, Let x := sem_pexprs gd s [:: a; b] in sem_sopn Ox86_CMP x = ok [:: Vbool b1; v; Vbool b2; Vbool b3; Vbool b4]
+      exists b1 b2 b3 b4, Let x := sem_pexprs gd s [:: a; b] in exec_sopn Ox86_CMP x = ok [:: Vbool b1; v; Vbool b2; Vbool b3; Vbool b4]
     | LowerIf a e1 e2 => e = Pif a e1 e2 /\ stype_of_lval l = sword
     | LowerLea l => 
       exists w, v = Vword w /\ sem_lea (evm s) l = ok w /\ check_scale l.(lea_scale)
@@ -1106,7 +1106,7 @@ Ltac elim_div :=
     disj_fvars (read_es a) →
     disj_fvars (vars_lvals [:: cf ; r ]) →
     sem_pexprs gd s a = ok xs →
-    sem_sopn o xs = ok ys →
+    exec_sopn o xs = ok ys →
     write_lvals gd s [:: Lnone_b vi ; cf ; Lnone_b vi ; Lnone_b vi ; Lnone_b vi ; r] ys = ok s' →
     ∃ s'',
     sem p' gd s [seq MkI ii i | i <- opn_5flags fv m vi cf r t o a] s''
@@ -1128,6 +1128,7 @@ Ltac elim_div :=
       case:(write_lvals_same _ e hs). exact dr.
       move=> s'' [] hs' e'.
       exists s''. refine (conj _ e'). repeat econstructor.
+      rewrite /sem_sopn /=.
       unfold sem_pexprs.
       revert hx. unfold sem_pexprs. simpl. t_xrbindP => y hy z' z1 hz1 ? ?; subst z' xs.
       fold (sem_pexprs gd s) in hz1.
@@ -1135,7 +1136,7 @@ Ltac elim_div :=
       unfold get_var, on_vu. rewrite Fv.setP_eq. simpl.
       unfold word. fold ℓ. fold (sem_pexprs gd ℓ).
       by rewrite (sem_pexprs_same dz e hz1) /= hr.
-    + exists s'. repeat econstructor. by rewrite hx /= hr.
+    + exists s'. repeat econstructor. by rewrite /sem_sopn hx /= hr.
   Qed.
 
   Local Lemma Hassgn s1 s2 l tag e :
@@ -1159,24 +1160,24 @@ Ltac elim_div :=
         by subst ℓ; apply (conj (erefl _)); apply vmap_eq_except_set.
         case: (write_lval_same Hdisjl dℓ Hw') => ℓ' [ hℓ' dℓ' ].
         eexists; split.
-          repeat econstructor. by rewrite/sem_pexprs/=Hv'.
-          by rewrite/sem_pexprs/=/get_var/on_vu Fv.setP_eq/=hℓ'.
+          repeat econstructor. by rewrite /sem_sopn /sem_pexprs/=Hv'.
+          by rewrite /sem_sopn /sem_pexprs/=/get_var/on_vu Fv.setP_eq/=hℓ'.
         by eauto using eq_exc_freshT.
       * exists s2'; split=> //.
         case: ifP => [/andP [] /andP [] /eqP ???| _ ];first last.
         - apply: sem_seq1; apply: EmkI; apply: Eopn.
-          by rewrite /= /sem_pexprs /= Hv' /= Hw'.
+          by rewrite /sem_sopn /= /sem_pexprs /= Hv' /= Hw'.
         subst e;apply: sem_seq1; apply: EmkI; apply: Eopn.
-        by move: Hv' => [?];subst vw; rewrite /sem_pexprs /= Hw'.
+        by move: Hv' => [?];subst vw; rewrite /sem_sopn /sem_pexprs /= Hw'.
     (* LowerCopn *)
     + move=> o e' H.
       exists s2'; split=> //.
       apply: sem_seq1; apply: EmkI; apply: Eopn.
-      by rewrite H /= Hw'.
+      by rewrite /sem_sopn H /= Hw'.
     (* LowerInc *)
     + move=> o e' [b1 [b2 [b3 [b4 H]]]].
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
-      by rewrite H /= Hw'.
+      by rewrite /sem_sopn H /= Hw'.
     (* LowerLea *)
     + move=> [d b sc o] /= [w [? [Hslea Hsc]]];subst v;exists s2';split => //.
       set ob := oapp Pvar (wconst 0) b; set oo := oapp Pvar (wconst 0) o.
@@ -1190,26 +1191,26 @@ Ltac elim_div :=
         rewrite /oo;case: (o) Hwo => /= [x | [<-]] //.
         by apply:rbindP => ? -> /to_wordP <-.
       have Hlea : 
-        (Let x := sem_pexprs gd s1' [:: wconst d; oapp Pvar (wconst 0) b; wconst sc; oapp Pvar (wconst 0) o] in sem_sopn Ox86_LEA x) = ok [::Vword w].
+        (Let x := sem_pexprs gd s1' [:: wconst d; oapp Pvar (wconst 0) b; wconst sc; oapp Pvar (wconst 0) o] in exec_sopn Ox86_LEA x) = ok [::Vword w].
       + by rewrite /sem_pexprs /= Hwb Hwo /= /x86_lea !I64.repr_unsigned Hsc Ew.
       have Hlea' : sem p' gd s1'
                     [:: MkI (warning ii Use_lea) (Copn [:: l] tag Ox86_LEA [:: wconst d; oapp Pvar (wconst 0) b; wconst sc; oapp Pvar (wconst 0) o])] s2'.
-      + by apply: sem_seq1; apply: EmkI; apply: Eopn;rewrite Hlea /= Hw'.
+      + by apply: sem_seq1; apply: EmkI; apply: Eopn;rewrite /sem_sopn Hlea /= Hw'.
       case use_lea => //;subst w.
       case: eqP => [ ? | _ ].
       + subst d; case: eqP => [ ? | _].
         + subst sc;apply sem_seq1;constructor;constructor.
-          by move: Hw';rewrite /sem_pexprs /= Hwb Hwo /= !I64_simpl => ->.
+          by move: Hw';rewrite /sem_sopn /sem_pexprs /= Hwb Hwo /= !I64_simpl => ->.
         case: eqP => [ Eob | //].
         apply sem_seq1;constructor;constructor.
-        move: Hwb Hw';rewrite /sem_pexprs /= Eob Hwo /= => -[?];subst wb.
+        move: Hwb Hw';rewrite /sem_sopn /sem_pexprs /= Eob Hwo /= => -[?];subst wb.
         by rewrite !I64_simpl I64.mul_commut !I64.repr_unsigned => ->.
       case: eqP => [ Eoo | //]. 
       case: eqP => [ Ed | _ ].
       + subst d;apply sem_seq1;constructor;constructor.
-        by move: Hwo Hw';rewrite /sem_pexprs /= Hwb Eoo /= => -[<-];rewrite !I64_simpl I64.add_commut => ->.
+        by move: Hwo Hw';rewrite /sem_sopn /sem_pexprs /= Hwb Eoo /= => -[<-];rewrite !I64_simpl I64.add_commut => ->.
       apply sem_seq1;constructor;constructor.
-      by move: Hwo Hw';rewrite /sem_pexprs /= Hwb Eoo /= => -[<-];rewrite !I64_simpl I64.add_commut !I64.repr_unsigned => ->.   
+      by move: Hwo Hw';rewrite /sem_sopn /sem_pexprs /= Hwb Eoo /= => -[<-];rewrite !I64_simpl I64.add_commut !I64.repr_unsigned => ->.
     (* LowerFopn *)
     + set vi := var_info_of_lval _.
       move=> o a m [] LE. t_xrbindP => ys xs hxs hys hs2.
@@ -1220,11 +1221,11 @@ Ltac elim_div :=
     (* LowerEq *)
     + move=> e1 e2 [b1 [b2 [b3 [b4 H]]]].
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
-      by rewrite H /= Hw'.
+      by rewrite /sem_sopn H /= Hw'.
     (* LowerLt *)
     + move=> e1 e2 [b1 [b2 [b3 [b4 H]]]].
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
-      by rewrite H /= Hw'.
+      by rewrite /sem_sopn H /= Hw'.
     (* LowerIf *)
     + move=> cond e1 e2 [He Ht]; subst e.
       set x := lower_condition _ _ _.
@@ -1242,7 +1243,7 @@ Ltac elim_div :=
       apply: sem_seq1; apply: EmkI; apply: Eopn.
       move: bv Hbv Hb Hs2'3=> [] b0 Hb //=.
       + move=> []Hb0 Hb'; subst b0 v.
-        rewrite /sem_pexprs /= Hb' /=.
+        rewrite /sem_sopn /sem_pexprs /= Hb' /=.
         have Heq' := (eq_exc_freshT Hs2'2 (eq_exc_freshS Hs1')).
         rewrite /read_e /= /disj_fvars /lowering.disj_fvars in Hdisje; move: Hdisje.
         rewrite read_eE read_eE -/(read_e _).
@@ -1464,7 +1465,7 @@ Ltac elim_div :=
     disj_fvars (vars_lvals xs) →
     disj_fvars (read_es es) →
     sem_pexprs gd si' es = ok x →
-    sem_sopn (if sub then Osubcarry else Oaddcarry) x = ok v →
+    exec_sopn (if sub then Osubcarry else Oaddcarry) x = ok v →
     write_lvals gd si' xs v = ok so →
     ∃ so',
       sem p' gd si' (map (MkI ii) (lower_addcarry fv sub xs t es)) so' ∧
@@ -1479,7 +1480,7 @@ Ltac elim_div :=
               ∃ x',
               sem_pexprs gd si' es' = ok x' ∧
               ∃ v',
-              sem_sopn op x' = ok v' ∧
+              exec_sopn op x' = ok v' ∧
               let f := Lnone_b vi in
               write_lvals gd si' [:: f ; cf ; f ; f ; f ; r ] v' = ok so) as D.
         {
@@ -1500,20 +1501,20 @@ Ltac elim_div :=
         case: D => des' [ xs' [ hxs' [ v' [hv' ho'] ] ] ].
         case: (opn_5flags_correct ii t I32.modulus des' dxs hxs' hv' ho') => {hv' ho'} so'.
         intuition eauto using eq_exc_freshT.
-      + by repeat econstructor; rewrite hx/=hv.
+      + by repeat econstructor; rewrite /sem_sopn hx/=hv.
     Qed.
     Opaque lower_addcarry.
 
   Local Lemma Hopn s1 s2 t o xs es :
-    Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x
-    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs t o es) s2.
+    sem_sopn gd o s1 xs es = ok s2 ->
+    Pi_r s1 (Copn xs t o es) s2.
   Proof.
     apply: rbindP=> v; apply: rbindP=> x Hx Hv Hw ii Hdisj s1' Hs1'.
     move: Hdisj; rewrite /disj_fvars /lowering.disj_fvars vars_I_opn=> /disj_fvars_union [Hdisjl Hdisje].
     have Hx' := sem_pexprs_same Hdisje Hs1' Hx; have [s2' [Hw' Hs2']] := write_lvals_same Hdisjl Hs1' Hw.
     move: o Hv=> [] Hv; try (
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn;
-      rewrite Hx' /=; rewrite /= in Hv; by rewrite Hv).
+      rewrite /sem_sopn Hx' /=; rewrite /= in Hv; by rewrite Hv).
     (* Omulu *)
     + move: Hv=> /app_ww_dec [w1 [w2 [Hz []Hv]]]; subst x v.
       move=> {Hx Hw}.
@@ -1535,7 +1536,7 @@ Ltac elim_div :=
           + by apply: EmkI; apply: Eopn.
           + apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
             rewrite /= /read_es /= in Hdisje.
-            rewrite /sem_pexprs /= He2' /=.
+            rewrite /sem_sopn /sem_pexprs /= He2' /=.
             rewrite /get_var /on_vu /= Fv.setP_eq /=.
             rewrite /= in Hw''.
             rewrite mulhu_repr Z.mul_comm /I64.mul (Z.mul_comm w2).
@@ -1557,14 +1558,14 @@ Ltac elim_div :=
           + by apply: EmkI; apply: Eopn.
           + apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
             rewrite /= /read_es /= in Hdisje.
-            rewrite /sem_pexprs /= He1' /=.
+            rewrite /sem_sopn /sem_pexprs /= He1' /=.
             rewrite /get_var /on_vu /= Fv.setP_eq /=.
             rewrite /= in Hw''.
             rewrite mulhu_repr.
             exact: Hw''.
         + exact: (eq_exc_freshT Hs3'' Hs2').
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
-      rewrite Hx' /=.
+      rewrite /sem_sopn Hx' /=.
       rewrite /= -mulhu_repr in Hw'.
       exact: Hw'.
     (* Oaddcarry *)

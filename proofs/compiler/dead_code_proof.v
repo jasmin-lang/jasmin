@@ -262,7 +262,7 @@ Section PROOF.
 
   Local Lemma Hopn_aux s0 ii xs t o es v vs s1 s2 :
     sem_pexprs gd s1 es = ok vs ->
-    sem_sopn o vs = ok v ->
+    exec_sopn o vs = ok v ->
     write_lvals gd s1 xs v = ok s2 ->
     wf_vm (evm s1) → ∀ vm1' : vmap,
     evm s1 =[read_es_rec (read_rvs_rec (Sv.diff s0 (vrvs xs)) xs) es]  vm1' → 
@@ -277,15 +277,15 @@ Section PROOF.
     + by apply: eq_onI Hvm2; SvD.fsetdec.
     econstructor;last by constructor.
     constructor; constructor.
-    rewrite (@read_es_eq_on gd es Sv.empty (emem s1) vm1' (evm s1)).
+    rewrite /sem_sopn (@read_es_eq_on gd es Sv.empty (emem s1) vm1' (evm s1)).
     + have ->: {| emem := emem s1; evm := evm s1 |} = s1 by case: (s1).
       by rewrite Hexpr /= Hopn /=; exact: Hvm2'.
     by rewrite read_esE; symmetry; apply: eq_onI Hvm;SvD.fsetdec.
   Qed.
 
   Local Lemma Hopn s1 s2 t o xs es :
-    Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x
-    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs t o es) s2.
+    sem_sopn gd o s1 xs es = ok s2 ->
+    Pi_r s1 (Copn xs t o es) s2.
   Proof.
     apply: rbindP=> v; apply: rbindP=> x0 Hexpr Hopn Hw.
     rewrite /Pi_r /= => ii s0.

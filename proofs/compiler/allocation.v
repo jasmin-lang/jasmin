@@ -306,17 +306,17 @@ Section PROOF.
   Qed.
 
   Local Lemma Hopn s1 s2 t o xs es : 
-    Let x := Let x := sem_pexprs gd s1 es in sem_sopn o x
-    in write_lvals gd s1 xs x = Ok error s2 -> Pi_r s1 (Copn xs t o es) s2.
+    sem_sopn gd o s1 xs es = ok s2 ->
+    Pi_r s1 (Copn xs t o es) s2.
   Proof.
     apply: rbindP => v.
     apply: rbindP => ves He Ho Hw ii r1 [] //= xs2 t' o2 es2 r2 vm1 Hvm1.
     case:ifPn => //= /eqP <-.
     apply: add_iinfoP.
     apply: rbindP => r1' /check_esP -/(_ _ _ Hvm1) [Hr1'] /(_ _ He) [v2 [He2 Hu2]].
-    have [v' [Ho' Hv] Hcxs]:= vuincl_sem_opn Hu2 Ho.
+    have [v' [Ho' Hv] Hcxs]:= vuincl_exec_opn Hu2 Ho.
     have /(_ _ Hr1') [vm2 [Hwv Hvm2]]:= check_lvalsP Hcxs _ Hv Hw.
-    by exists vm2;split=>//;constructor;rewrite He2 /= Ho'.
+    by exists vm2;split=>//;constructor;rewrite /sem_sopn He2 /= Ho'.
   Qed.
 
   Local Lemma Hif_true s1 s2 e c1 c2 :

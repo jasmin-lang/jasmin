@@ -62,12 +62,11 @@ Definition is_label (lbl: label) (i:linstr) : bool :=
   | _ => false
   end.
 
-Fixpoint find_label (lbl: label) (c: lcmd) {struct c} : option lcmd :=
-  match c with
-  | nil => None
-  | i1 :: il => if is_label lbl i1 then Some il else find_label lbl il
-  end.
-
+(* -------------------------------------------------------------------- *)
+Definition find_label (lbl : label) (c : seq linstr) :=
+  let idx := seq.find (is_label lbl) c in
+  if idx < size c then ok idx else type_error.
+  
 Record lfundef := LFundef {
  lfd_stk_size : Z;
  lfd_nstk : Ident.ident;
@@ -180,4 +179,50 @@ Definition linear_fd (fd: sfundef) :=
 Definition linear_prog (p: sprog) : cfexec lprog :=
   map_cfprog linear_fd p.
 
+Module Eq_linstr.
+  Definition eqb_r i1 i2 := 
+    match i1, i2 with 
+    | Lassgn lv1 t1 e1, Lassgn lv2 t2 e2 => (lv1 == lv2) && (t1 == t2) && (e1 == e2)
+    | Lopn lv1 o1 e1, Lopn lv2 o2 e2 => (lv1 == lv2) && (o1 == o2) && (e1 == e2)
+    | Llabel l1, Llabel l2 => l1 == l2
+    | Lgoto l1, Lgoto l2 => l1 == l2
+    | Lcond e1 l1, Lcond e2 l2 => (e1 == e2) && (l1 == l2)
+    | _, _ => false
+    end.
 
+  Lemma eqb_r_axiom : Equality.axiom eqb_r.
+  Proof.
+    case => [lv1 t1 e1|lv1 o1 e1|l1|l1|e1 l1] [lv2 t2 e2|lv2 o2 e2|l2|l2|e2 l2] //=;try by constructor.
+    + apply (@equivP (((lv1 == lv2) && (t1 == t2)) /\ e1 == e2 ));first by apply andP.
+      by split => [ [] /andP [] /eqP -> /eqP -> /eqP -> //| [] -> -> ->];rewrite !eqxx.
+    + apply (@equivP (((lv1 == lv2) && (o1 == o2)) /\ e1 == e2 ));first by apply andP.
+      by split => [ [] /andP [] /eqP -> /eqP -> /eqP -> //| [] -> -> ->];rewrite !eqxx.
+    + apply (@equivP (l1 = l2));first by apply eqP.
+      by split => [->|[]->].
+    + apply (@equivP (l1 = l2));first by apply eqP.
+      by split => [->|[]->].
+    apply (@equivP ((e1 == e2) /\ (l1 == l2)));first by apply andP.
+    by split => [ [] /eqP -> /eqP -> //| [] -> ->];rewrite !eqxx.
+  Qed.
+
+  Definition linstr_r_eqMixin := Equality.Mixin eqb_r_axiom.
+
+  Definition eqb i1 i2 := 
+    (li_ii i1 == li_ii i2) && (eqb_r (li_i i1) (li_i i2)).
+
+  Lemma eqb_axiom : Equality.axiom eqb.
+  Proof.
+    case=> [ii1 i1] [ii2 i2];rewrite /eqb /=.
+    apply (@equivP ((ii1 == ii2) /\ eqb_r i1 i2));first by apply andP.
+    split => [[]/eqP -> /eqb_r_axiom -> // | [] -> ->];rewrite eqxx;split => //.
+    by apply /eqb_r_axiom.
+  Qed.
+
+  Definition linstr_eqMixin := Equality.Mixin eqb_axiom.    
+
+  Module Exports.
+  Canonical linstr_r_eqType  := Eval hnf in EqType linstr_r linstr_r_eqMixin.
+  Canonical linstr_eqType  := Eval hnf in EqType linstr linstr_eqMixin.
+  End Exports.
+End Eq_linstr.
+Export Eq_linstr.Exports.
