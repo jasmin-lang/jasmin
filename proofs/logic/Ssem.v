@@ -404,6 +404,7 @@ Definition ssem_sopn (o:sopn) :  svalues -> exec svalues :=
   | Ox86_INC     => sapp_w    (w1 x86_inc)
   | Ox86_DEC     => sapp_w    (w1 x86_dec)
   | Ox86_SETcc   => sapp_b    (w1 x86_setcc)
+  | Ox86_BT   => sapp_ww    (w2 x86_bt)
   | Ox86_LEA     => sapp_w4   (w4 x86_lea)
   | Ox86_TEST    => sapp_ww   (w2 x86_test)
   | Ox86_CMP     => sapp_ww   (w2 x86_cmp)

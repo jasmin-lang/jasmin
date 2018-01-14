@@ -274,6 +274,18 @@ Qed.
 Definition SETcc_desc := make_instr_desc SETcc_gsc.
 
 (* ----------------------------------------------------------------------------- *)
+Lemma BT_gsc :
+  gen_sem_correct [:: TYoprd; TYireg] Ox86_BT
+     [:: F CF]
+     [:: E 0; E 1] [::] BT.
+Proof.
+  by move => o [i|r]; split => // gd m m'; rewrite /low_sem_aux /= /eval_BT /x86_bt;
+  t_xrbindP => b ? ? v -> <- <-; t_xrbindP => v' [<-] {v'} n [<-] <- [<-].
+Qed.
+
+Definition BT_desc := make_instr_desc BT_gsc.
+
+(* ----------------------------------------------------------------------------- *)
 
 Definition scale_of_z z :=
   match z with
@@ -557,6 +569,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_INC     => ok INC_desc
   | Ox86_DEC     => ok DEC_desc
   | Ox86_SETcc   => ok SETcc_desc
+  | Ox86_BT   => ok BT_desc
   | Ox86_LEA     => ok LEA_desc
   | Ox86_TEST    => ok TEST_desc
   | Ox86_CMP     => ok CMP_desc

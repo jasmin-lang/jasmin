@@ -672,6 +672,9 @@ Definition x86_dec (w:word) :=
 
 Definition x86_setcc (b:bool) : exec values := ok [:: Vword (b_to_w b)].
 
+Definition x86_bt (x y: word) : exec values :=
+  ok [:: Vbool (I64.and x (I64.shl I64.one y) != I64.zero) ].
+
 Definition x86_lea (disp base:word) (scale:word) (offset:word) : exec values :=
   if check_scale scale then
     ok [::Vword (I64.add disp (I64.add base (I64.mul (I64.repr scale) offset)))]
@@ -812,6 +815,7 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_INC     => app_w    x86_inc
   | Ox86_DEC     => app_w    x86_dec
   | Ox86_SETcc   => app_b    x86_setcc
+  | Ox86_BT => app_ww x86_bt
   | Ox86_LEA     => app_w4   x86_lea
   | Ox86_TEST    => app_ww   x86_test
   | Ox86_CMP     => app_ww   x86_cmp

@@ -557,6 +557,7 @@ let prim_sig p =
   | Ox86_INC    -> b_4u64  , [u64]
   | Ox86_DEC    -> b_4u64  , [u64]
   | Ox86_SETcc  -> [u64]   , [tbool]
+  | Ox86_BT -> [tbool], u64_2
   | Ox86_LEA    -> [u64]   , u64_4 
   | Ox86_AND    -> b_5u64  , u64_2
   | Ox86_OR     -> b_5u64  , u64_2
@@ -587,6 +588,7 @@ let prim_string =
     "x86_INC"   , Ox86_INC;
     "x86_DEC"   , Ox86_DEC;
     "x86_SETcc" , Ox86_SETcc;
+    "x86_BT"    , Ox86_BT;
     "x86_LEA"   , Ox86_LEA;
     "x86_TEST"  , Ox86_TEST;
     "x86_CMP"   , Ox86_CMP;

@@ -137,6 +137,7 @@ let pp_opn = function
   | Ox86_INC     -> "#x86_INC"
   | Ox86_DEC     -> "#x86_DEC"
   | Ox86_SETcc   -> "#x86_SETcc"
+  | Ox86_BT   -> "#x86_BT"
   | Ox86_LEA     -> "#x86_LEA"
   | Ox86_TEST    -> "#x86_TEST"
   | Ox86_CMP     -> "#x86_CMP"

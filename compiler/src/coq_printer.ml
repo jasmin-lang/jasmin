@@ -107,6 +107,7 @@ let pp_sopn fmt sopn =
      | Ox86_INC     -> "Ox86_INC"
      | Ox86_DEC     -> "Ox86_DEC"
      | Ox86_SETcc   -> "Ox86_SETcc"
+     | Ox86_BT   -> "Ox86_BT"
      | Ox86_LEA     -> "Ox86_LEA"
      | Ox86_TEST    -> "Ox86_TEST"
      | Ox86_CMP     -> "Ox86_CMP"

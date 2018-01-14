@@ -108,6 +108,7 @@ Variant sopn : Set :=
 | Ox86_INC     (* increment *)
 | Ox86_DEC     (* decrement *)
 | Ox86_SETcc   (* Set byte on condition *)
+| Ox86_BT   (* Bit test, sets CF *)
 | Ox86_LEA     (* Load Effective Address *)
 | Ox86_TEST    (* Bit-wise logical and CMP *)
 | Ox86_CMP     (* Signed sub CMP *)
@@ -181,6 +182,7 @@ Definition string_of_sopn o : string :=
   | Ox86_INC    => "Ox86_INC   "
   | Ox86_DEC    => "Ox86_DEC   "
   | Ox86_SETcc  => "Ox86_SETcc "
+  | Ox86_BT  => "Ox86_BT "
   | Ox86_LEA    => "Ox86_LEA   "
   | Ox86_TEST   => "Ox86_TEST  "
   | Ox86_CMP    => "Ox86_CMP   "
