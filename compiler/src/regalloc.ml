@@ -1,4 +1,5 @@
 open Utils
+open Expr
 open Prog
 
 module IntSet = Sint
@@ -33,7 +34,7 @@ let fill_in_missing_names (f: 'info func) : 'info func =
 
 let x86_equality_constraints (tbl: int Hv.t) (k: int -> int -> unit)
     (k': int -> int -> unit)
-    (lvs: 'ty glvals) (op: op) (es: 'ty gexprs) : unit =
+    (lvs: 'ty glvals) (op: sopn) (es: 'ty gexprs) : unit =
   let merge k v w =
     try
       let i = Hv.find tbl (L.unloc v) in
@@ -322,7 +323,7 @@ struct
   let all_registers = reserved @ allocatable @ flags
 
   let forced_registers loc (vars: int Hv.t) (cnf: conflicts)
-      (lvs: 'ty glvals) (op: op) (es: 'ty gexprs)
+      (lvs: 'ty glvals) (op: sopn) (es: 'ty gexprs)
       (a: allocation) : allocation =
     let f x = Hv.find vars (L.unloc x) in
     let allocate_one x y a =

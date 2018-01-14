@@ -86,7 +86,7 @@ let infix_sop2 = function
 
 let pp_sopn fmt sopn =
   F.fprintf fmt "%s"
-    (match sopn with
+    Expr.(match sopn with
      | Omulu        -> "Omulu"
      | Oaddcarry    -> "Oaddcarry"
      | Osubcarry    -> "Osubcarry"

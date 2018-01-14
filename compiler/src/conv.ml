@@ -277,74 +277,6 @@ let rec expr_of_cexpr tbl = function
 
 (* ------------------------------------------------------------------------ *)
 
-let copn_of_opn = function
-  | Omulu        -> C.Omulu
-  | Oaddcarry    -> C.Oaddcarry
-  | Osubcarry    -> C.Osubcarry
-  | Oset0        -> C.Oset0
-  | Ox86_MOV     -> C.Ox86_MOV
-  | Ox86_CMOVcc  -> C.Ox86_CMOVcc
-  | Ox86_ADD     -> C.Ox86_ADD
-  | Ox86_SUB     -> C.Ox86_SUB
-  | Ox86_MUL     -> C.Ox86_MUL
-  | Ox86_IMUL    -> C.Ox86_IMUL
-  | Ox86_IMUL64	 -> C.Ox86_IMUL64
-  | Ox86_IMUL64imm -> C.Ox86_IMUL64imm
-  | Ox86_DIV     -> C.Ox86_DIV
-  | Ox86_IDIV    -> C.Ox86_IDIV
-  | Ox86_ADC     -> C.Ox86_ADC
-  | Ox86_SBB     -> C.Ox86_SBB
-  | Ox86_NEG	 -> C.Ox86_NEG
-  | Ox86_INC     -> C.Ox86_INC
-  | Ox86_DEC     -> C.Ox86_DEC
-  | Ox86_SETcc   -> C.Ox86_SETcc
-  | Ox86_LEA     -> C.Ox86_LEA
-  | Ox86_TEST    -> C.Ox86_TEST
-  | Ox86_CMP     -> C.Ox86_CMP
-  | Ox86_AND     -> C.Ox86_AND
-  | Ox86_OR      -> C.Ox86_OR
-  | Ox86_XOR     -> C.Ox86_XOR
-  | Ox86_NOT     -> C.Ox86_NOT
-  | Ox86_SHL     -> C.Ox86_SHL
-  | Ox86_SHR     -> C.Ox86_SHR
-  | Ox86_SAR     -> C.Ox86_SAR
-  | Ox86_SHLD    -> C.Ox86_SHLD
-
-let opn_of_copn = function
-  | C.Omulu        -> Omulu
-  | C.Oaddcarry    -> Oaddcarry
-  | C.Osubcarry    -> Osubcarry
-  | C.Oset0        -> Oset0
-  | C.Ox86_MOV     -> Ox86_MOV
-  | C.Ox86_CMOVcc  -> Ox86_CMOVcc
-  | C.Ox86_ADD     -> Ox86_ADD
-  | C.Ox86_SUB     -> Ox86_SUB
-  | C.Ox86_MUL     -> Ox86_MUL
-  | C.Ox86_IMUL    -> Ox86_IMUL
-  | C.Ox86_IMUL64  -> Ox86_IMUL64
-  | C.Ox86_IMUL64imm  -> Ox86_IMUL64imm
-  | C.Ox86_DIV     -> Ox86_DIV
-  | C.Ox86_IDIV    -> Ox86_IDIV
-  | C.Ox86_ADC     -> Ox86_ADC
-  | C.Ox86_SBB     -> Ox86_SBB
-  | C.Ox86_NEG	   -> Ox86_NEG
-  | C.Ox86_INC     -> Ox86_INC
-  | C.Ox86_DEC     -> Ox86_DEC
-  | C.Ox86_SETcc   -> Ox86_SETcc
-  | C.Ox86_LEA     -> Ox86_LEA
-  | C.Ox86_TEST    -> Ox86_TEST
-  | C.Ox86_CMP     -> Ox86_CMP
-  | C.Ox86_AND     -> Ox86_AND
-  | C.Ox86_OR      -> Ox86_OR
-  | C.Ox86_XOR     -> Ox86_XOR
-  | C.Ox86_NOT     -> Ox86_NOT
-  | C.Ox86_SHL     -> Ox86_SHL
-  | C.Ox86_SHR     -> Ox86_SHR
-  | C.Ox86_SAR     -> Ox86_SAR
-  | C.Ox86_SHLD    -> Ox86_SHLD
-
-(* ------------------------------------------------------------------------ *)
-
 let clval_of_lval tbl = function
   | Lnone(loc, ty) -> C.Lnone (set_loc tbl loc, cty_of_ty ty)
   | Lvar x         -> C.Lvar  (cvari_of_vari tbl x)
@@ -441,7 +373,7 @@ and cinstr_r_of_instr_r tbl p i tl =
     C.MkI(p, ir) :: tl
   | Copn(x,t,o,e) ->
     let ir =
-      C.Copn(clval_of_lvals tbl x, cat_of_at t, copn_of_opn o, cexpr_of_exprs tbl e) in
+      C.Copn(clval_of_lvals tbl x, cat_of_at t, o, cexpr_of_exprs tbl e) in
     C.MkI(p, ir) :: tl
 
   | Cif(e,c1,c2) ->
@@ -482,7 +414,7 @@ and instr_r_of_cinstr_r tbl = function
     Cassgn(lval_of_clval tbl x, at_of_cat t, expr_of_cexpr tbl e)
 
   | C.Copn(x,t,o,e) ->
-    Copn(lval_of_clvals tbl x, at_of_cat t, opn_of_copn o, expr_of_cexprs tbl e)
+    Copn(lval_of_clvals tbl x, at_of_cat t, o, expr_of_cexprs tbl e)
 
   | C.Cif(e,c1,c2) ->
     let c1 = stmt_of_cstmt tbl c1 in

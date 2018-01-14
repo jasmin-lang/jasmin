@@ -29,7 +29,7 @@ let is_trivial_move x e =
   | _              -> false
 
 let is_move_op = function
-  | Ox86_MOV -> true
+  | Expr.Ox86_MOV -> true
   | _        -> false
 
 (* When [weak] is true, the out live-set contains also the written variables. *)

@@ -117,41 +117,6 @@ let ty_i v = (L.unloc v).v_ty
 
 (* ------------------------------------------------------------------------ *)
 
-type op =
-(* Generic operation *)
-| Omulu
-| Oaddcarry
-| Osubcarry
-| Oset0
-(* Low level x86 operations *)
-| Ox86_MOV
-| Ox86_CMOVcc
-| Ox86_ADD
-| Ox86_SUB
-| Ox86_MUL
-| Ox86_IMUL
-| Ox86_IMUL64
-| Ox86_IMUL64imm
-| Ox86_DIV
-| Ox86_IDIV
-| Ox86_ADC
-| Ox86_SBB
-| Ox86_NEG
-| Ox86_INC
-| Ox86_DEC
-| Ox86_SETcc
-| Ox86_LEA
-| Ox86_TEST
-| Ox86_CMP
-| Ox86_AND
-| Ox86_OR
-| Ox86_XOR
-| Ox86_NOT
-| Ox86_SHL
-| Ox86_SHR
-| Ox86_SAR
-| Ox86_SHLD
-
 type assgn_tag =
   | AT_none   (* The compiler can do what it want *)
   | AT_keep   (* Assignment should be keep by the compiler *)
@@ -184,7 +149,7 @@ type i_loc = L.t * L.t list
 type ('ty,'info) ginstr_r =
   | Cblock of ('ty,'info) gstmt
   | Cassgn of 'ty glval * assgn_tag * 'ty gexpr
-  | Copn   of 'ty glvals * assgn_tag * op * 'ty gexprs
+  | Copn   of 'ty glvals * assgn_tag * Expr.sopn * 'ty gexprs
   | Cif    of 'ty gexpr * ('ty,'info) gstmt * ('ty,'info) gstmt
   | Cfor   of 'ty gvar_i * 'ty grange * ('ty,'info) gstmt
   | Cwhile of ('ty,'info) gstmt * 'ty gexpr * ('ty,'info) gstmt
