@@ -115,6 +115,9 @@ Definition string_of_garg (g: garg) : string :=
   | Goprd o => "Goprd " ++ string_of_oprd o
   end.
 
+Definition typed_apply_garg_error {T} ii ty arg : ciexec T :=
+  cierror ii (Cerr_assembler (AsmErr_string ("TAG " ++ string_of_garg arg ++ ": "++ string_of_arg_ty ty))).
+
 Definition typed_apply_garg ii {T} (ty: arg_ty) (arg: garg) :
   (interp_ty ty → T) → ciexec T :=
     match ty, arg return (interp_ty ty → T) → ciexec T with
@@ -124,8 +127,11 @@ Definition typed_apply_garg ii {T} (ty: arg_ty) (arg: garg) :
     | TYireg, Goprd (Reg_op r)=> λ op, ok (op (Reg_ir r))
     | TYireg, Goprd (Imm_op w)=> λ op, ok (op (Imm_ir w))
     | TYimm, Goprd (Imm_op w)=> λ op, ok (op w)
-    | _, _ => λ _, cierror ii (Cerr_assembler (AsmErr_string ("TAG " ++ string_of_garg arg ++ ": "++ string_of_arg_ty ty)))
+    | _, _ => λ _, typed_apply_garg_error ii ty arg
     end.
+
+Definition typed_apply_gargs_error {T} ii : ciexec T :=
+  cierror ii (Cerr_assembler (AsmErr_string "TAGs")).
 
 Fixpoint typed_apply_gargs ii (tys: seq arg_ty) (iregs: seq garg)
   : interp_tys tys → ciexec asm :=
@@ -134,7 +140,7 @@ Fixpoint typed_apply_gargs ii (tys: seq arg_ty) (iregs: seq garg)
   | ty :: tys', ir :: iregs' => λ op,
                           @typed_apply_garg ii _ ty ir op >>=
                            @typed_apply_gargs ii tys' iregs'
-  | _, _ => λ _, cierror ii (Cerr_assembler (AsmErr_string "TAGs"))
+  | _, _ => λ _, typed_apply_gargs_error ii
   end.
 
 (* -------------------------------------------------------------------- *)
