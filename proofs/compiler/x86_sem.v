@@ -118,6 +118,7 @@ Variant asm : Type :=
 
   (* Flag *)
 | SETcc  of condt & oprd           (* Set byte on condition *)
+| BT of oprd & ireg              (* Bit test, sets result to CF *)
 
   (* Pointer arithmetic *)
 | LEA    of register & oprd        (* Load Effective Address *)
@@ -720,6 +721,13 @@ Definition eval_SETcc ct o s : x86_result :=
   write_oprd o (if b then I64.one else I64.zero) s.
 
 (* -------------------------------------------------------------------- *)
+Definition eval_BT o ir s : x86_result :=
+  Let v1 := read_oprd o s in
+  let v2 := read_ireg ir s in
+  let b  := I64.and v1 (I64.shl I64.one v2) != I64.zero in
+  ok (mem_set_rflags CF b s).
+
+(* -------------------------------------------------------------------- *)
 Definition eval_LEA r o2 s : x86_result :=
   Let addr :=
     match o2 with
@@ -853,6 +861,7 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | INC    o        => eval_INC o s
   | DEC    o        => eval_DEC o s
   | SETcc  ct o     => eval_SETcc ct o s
+  | BT o ir => eval_BT o ir s
   | LEA    o1 o2    => eval_LEA o1 o2 s
   | TEST   o1 o2    => eval_TEST o1 o2 s
   | CMP    o1 o2    => eval_CMP o1 o2 s

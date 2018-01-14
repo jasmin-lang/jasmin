@@ -272,6 +272,9 @@ let pp_instr (i : X86_sem.asm) =
       let iname = Printf.sprintf "set%s" (pp_ct ct) in
       `Instr (pp_iname rs iname, [pp_opr rs op])
 
+  | BT (op, ir) ->
+    `Instr (pp_iname rs "bt", [pp_imr `U8 ir; pp_opr rs op])
+
   | NEG op ->
       `Instr (pp_iname rs "neg", [pp_opr rs op])
 
@@ -379,7 +382,8 @@ let reg_of_oprd (op : X86_sem.oprd) =
 let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   match i with
   | LABEL _ | Jcc  _ | JMP _
-  | CMP   _ | TEST _ -> c
+  | CMP   _ | TEST _ | BT _
+    -> c
 
   | LEA    (op, _) -> Set.add op c
   | SETcc  (_, op)
