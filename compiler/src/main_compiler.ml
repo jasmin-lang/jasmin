@@ -212,13 +212,15 @@ let main () =
     let inline_var x = 
       let x = Conv.var_of_cvar tbl x in
       x.v_kind = Inline in
+
+    let translate_var = Conv.var_of_cvar tbl in
       
     let cparams = {
       Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = apply "arr exp" Array_expand.arrexp_func;
       Compiler.var_alloc_fd = apply "var alloc" Varalloc.merge_var_inline_fd;
       Compiler.share_stk_fd = apply "share stk" Varalloc.alloc_stack_fd;
-      Compiler.reg_alloc_fd = apply "reg alloc" Regalloc.regalloc;
+      Compiler.reg_alloc_fd = apply "reg alloc" (Regalloc.regalloc translate_var);
       Compiler.stk_alloc_fd = stk_alloc_fd;
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;

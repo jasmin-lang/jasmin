@@ -1,6 +1,7 @@
 open Utils
 open Expr
 open Prog
+open Asmgen
 
 module IntSet = Sint
 module IntMap = Mint
@@ -32,6 +33,44 @@ let fill_in_missing_names (f: 'info func) : 'info func =
   let f_body = fill_stmt f.f_body in
   { f with f_body }
 
+type arg_position = APout of int | APin of int
+
+let int_of_nat n =
+  let rec loop acc =
+    function
+    | Datatypes.O -> acc
+    | Datatypes.S n -> loop (1 + acc) n
+  in loop 0 n
+
+let find_equality_constraints (id: instr_desc) : arg_position list list =
+  let tbl : (int, arg_position list) Hashtbl.t = Hashtbl.create 17 in
+  let set n p =
+    let old = try Hashtbl.find tbl n with Not_found -> [] in
+    Hashtbl.replace tbl n (p :: old)
+  in
+  List.iteri (fun n ->
+      function
+      | ADImplicit _ -> ()
+      | ADExplicit (p, _) -> set (int_of_nat p) (APout n)) id.id_out;
+  List.iteri (fun n ->
+      function
+      | ADImplicit _ -> ()
+      | ADExplicit (p, _) -> set (int_of_nat p) (APin n)) id.id_in;
+  Hashtbl.fold
+    (fun _ apl res ->
+       match apl with
+       | [] | [ _ ] -> res
+       | _ -> apl :: res)
+    tbl []
+
+let find_var outs ins ap : _ option =
+  match ap with
+  | APout n -> (List.nth outs n |> function Lvar v -> Some v | _ -> None)
+  | APin n -> (List.nth ins n |> function Pvar v -> Some v | _ -> None)
+
+let desc_of_op op =
+  X86_instr.sopn_desc BinNums.Coq_xH op
+
 let x86_equality_constraints (tbl: int Hv.t) (k: int -> int -> unit)
     (k': int -> int -> unit)
     (lvs: 'ty glvals) (op: sopn) (es: 'ty gexprs) : unit =
@@ -42,24 +81,24 @@ let x86_equality_constraints (tbl: int Hv.t) (k: int -> int -> unit)
       k i j
     with Not_found -> ()
   in
-  match op, lvs, es with
-  | (Oaddcarry | Osubcarry),
-    [ _ ; Lvar v ], Pvar w :: _
-  | (Ox86_ADD | Ox86_SUB | Ox86_ADC | Ox86_SBB | Ox86_NEG
-    | Ox86_SHL | Ox86_SHR | Ox86_SAR | Ox86_SHLD
-    | Ox86_AND | Ox86_OR | Ox86_XOR),
-    [ _ ; _ ; _ ; _ ; _ ; Lvar v ], Pvar w :: _
-  | (Ox86_INC | Ox86_DEC),
-    [ _ ; _ ; _ ; _ ; Lvar v ], Pvar w :: _
-  | (Ox86_CMOVcc),
-    [ Lvar v ], [ _ ; _ ; Pvar w ]
-  | (Ox86_IMUL64),
-    [ _ ; _ ; _ ; _ ; _ ; Lvar v ], [ Pvar w ; _ ]
-    (* TODO: add more constraints *)
-    -> merge k v w
+  begin match op, lvs, es with
+  | (Oaddcarry | Osubcarry), [ _ ; Lvar v ], Pvar w :: _ -> merge k v w
   | Ox86_MOV, [ Lvar x ], [ Pvar y ] when kind_i x = kind_i y ->
     merge k' x y
-  | _, _, _ -> ()
+  | _, _, _ ->
+    begin match desc_of_op op with
+    | Ok id ->
+      find_equality_constraints id |>
+      List.iter (fun constr ->
+          constr |>
+          List.filter_map (find_var lvs es) |> function
+          | [] | [ _ ] -> ()
+          | x :: m ->
+            List.iter (merge k x) m
+        )
+    | _ -> assert false
+    end
+  end
 
 (* Set of instruction information for each variable equivalence class. *)
 type 'info trace = (int, 'info instr list) Hashtbl.t
@@ -322,7 +361,7 @@ struct
 
   let all_registers = reserved @ allocatable @ flags
 
-  let forced_registers loc (vars: int Hv.t) (cnf: conflicts)
+  let forced_registers translate_var loc (vars: int Hv.t) (cnf: conflicts)
       (lvs: 'ty glvals) (op: sopn) (es: 'ty gexprs)
       (a: allocation) : allocation =
     let f x = Hv.find vars (L.unloc x) in
@@ -339,73 +378,26 @@ struct
     let mallocate_one x y a =
       match x with Pvar x -> allocate_one x y a | _ -> a
     in
-    match op, lvs, es with
-    | (Ox86_SHL | Ox86_SHR | Ox86_SAR),
-      Lvar oF :: Lvar cF :: Lvar sF :: Lvar pF :: Lvar zF :: _, _ :: x :: _
-    |  Ox86_SHLD,
-      Lvar oF :: Lvar cF :: Lvar sF :: Lvar pF :: Lvar zF :: _, _ :: _ :: x :: _ ->
-      a |>
-      mallocate_one x rcx |>
-      allocate_one oF f_o |>
-      allocate_one cF f_c |>
-      allocate_one sF f_s |>
-      allocate_one pF f_p |>
-      allocate_one zF f_z
-
-    | (Ox86_ADD | Ox86_SUB | Ox86_AND | Ox86_OR | Ox86_XOR | Ox86_CMP |
-       Ox86_NEG | Oset0),
-      Lvar oF :: Lvar cF :: Lvar sF :: Lvar pF :: Lvar zF :: _, _ ->
-      a |>
-      allocate_one oF f_o |>
-      allocate_one cF f_c |>
-      allocate_one sF f_s |>
-      allocate_one pF f_p |>
-      allocate_one zF f_z
-    | (Ox86_ADC | Ox86_SBB),
-      [ Lvar oF ; Lvar cF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], [ _ ; _ ; Pvar cF' ] ->
-      a |>
-      allocate_one cF' f_c |>
-      allocate_one oF f_o |>
-      allocate_one cF f_c |>
-      allocate_one sF f_s |>
-      allocate_one pF f_p |>
-      allocate_one zF f_z
-    | (Ox86_ADC | Ox86_SBB), _, _ -> hierror "Congratulations: you found a compiler bug"
-    | (Ox86_INC | Ox86_DEC),
-      [ Lvar oF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], _ ->
-      a |>
-      allocate_one oF f_o |>
-      allocate_one sF f_s |>
-      allocate_one pF f_p |>
-      allocate_one zF f_z
-    | (Oaddcarry | Osubcarry), Lvar cf  :: _, _ :: _ :: x :: _ ->
-      a |>
-      mallocate_one x f_c |>
-      allocate_one cf f_c
-    | Ox86_MUL,
-      [ Lvar oF ; Lvar cF ; Lvar sF ; Lvar pF ; Lvar zF ; Lvar hi ; Lvar lo ], x :: _ ->
-      a |>
-      mallocate_one x rax |>
-      allocate_one oF f_o |>
-      allocate_one cF f_c |>
-      allocate_one sF f_s |>
-      allocate_one pF f_p |>
-      allocate_one zF f_z |>
-      allocate_one hi rdx |>
-      allocate_one lo rax
-    | Ox86_IMUL64,
-      [ Lvar oF ; Lvar cF ; Lvar sF ; Lvar pF ; Lvar zF ; _ ], _ ->
-      a |>
-      allocate_one oF f_o |>
-      allocate_one cF f_c |>
-      allocate_one sF f_s |>
-      allocate_one pF f_p |>
-      allocate_one zF f_z
-    | _, _, _ -> a (* TODO *)
-
+    begin match desc_of_op op with
+      | Ok id ->
+        let a =
+        List.fold_left2 (fun acc ad lv ->
+            begin match ad with
+            | ADImplicit v -> begin match lv with Lvar w -> allocate_one w (translate_var v) acc | _ -> assert false end
+            | ADExplicit _ -> acc
+            end) a id.id_out lvs
+          in
+        List.fold_left2 (fun acc ad e ->
+            begin match ad with
+            | ADImplicit v -> mallocate_one e (translate_var v) acc
+            | ADExplicit (_, Some r) -> mallocate_one e (translate_var (X86_variables.var_of_register r)) acc
+            | ADExplicit (_, None) -> acc
+            end) a id.id_in es
+      | _ -> assert false
+    end
 end
 
-let allocate_forced_registers (vars: int Hv.t) (cnf: conflicts)
+let allocate_forced_registers translate_var (vars: int Hv.t) (cnf: conflicts)
     (f: 'info func) (a: allocation) : allocation =
   let alloc_from_list loc rs q a vs =
     let f x = Hv.find vars (q x) in
@@ -428,7 +420,7 @@ let allocate_forced_registers (vars: int Hv.t) (cnf: conflicts)
     | Cblock s
     | Cfor (_, _, s)
       -> alloc_stmt a s
-    | Copn (lvs, _, op, es) -> X64.forced_registers loc vars cnf lvs op es a
+    | Copn (lvs, _, op, es) -> X64.forced_registers translate_var loc vars cnf lvs op es a
     | Cwhile (s1, _, s2)
     | Cif (_, s1, s2)
         -> alloc_stmt (alloc_stmt a s1) s2
@@ -487,7 +479,7 @@ let subst_of_allocation (vars: int Hv.t)
     Pvar (q w)
   with Not_found -> Pvar (q v)
 
-let regalloc (f: 'info func) : unit func =
+let regalloc translate_var (f: 'info func) : unit func =
   let f = fill_in_missing_names f in
   let f = Ssa.split_live_ranges false f in
   Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
@@ -497,7 +489,7 @@ let regalloc (f: 'info func) : unit func =
   let vars = normalize_variables vars eqc in
   let conflicts = collect_conflicts vars tr lf in
   let a =
-    allocate_forced_registers vars conflicts f IntMap.empty |>
+    allocate_forced_registers translate_var vars conflicts f IntMap.empty |>
     greedy_allocation vars nv conflicts fr |>
     subst_of_allocation vars
   in Subst.gsubst_func (fun ty -> ty) a f
