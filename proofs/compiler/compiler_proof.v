@@ -109,6 +109,7 @@ Proof.
   apply: (CheckAllocReg.alloc_callP Hps).
   apply: (dead_code_callP Hpv).
   apply: (CheckAllocReg.alloc_callP Hv).
+  apply: const_prop_callP.
   apply: (unrollP Hp1).
   apply: (dead_calls_err_seqP Hpca) => //.
   by apply: (inline_call_errP Hp0).

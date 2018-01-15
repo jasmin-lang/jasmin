@@ -25,7 +25,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect.
-Require Import expr ZArith.
+Require Import expr ZArith sem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -233,11 +233,14 @@ Definition sland := sbitw Oland Z.land.
 Definition slor := sbitw Olor Z.lor.
 Definition slxor := sbitw Olxor Z.lxor.
 
-(* FIXME: Improve this *)
+Definition slsr  e1 e2 := 
+  sbitw_w (fun _ => Olsr) sem_lsr e1 e2.
 
-Definition slsr  e1 e2 := Papp2 Olsr  e1 e2.
-Definition slsl  e1 e2 := Papp2 Olsl  e1 e2.
-Definition sasr  e1 e2 := Papp2 Oasr  e1 e2.
+Definition slsl  e1 e2 := 
+   sbitw_w (fun _ => Olsl) sem_lsl e1 e2.
+
+Definition sasr  e1 e2 := 
+  sbitw_w (fun _ => Oasr) sem_asr e1 e2.
 
 Definition s_op2 o e1 e2 := 
   match o with 

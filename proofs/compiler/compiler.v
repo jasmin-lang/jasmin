@@ -116,6 +116,9 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
   Let p := unroll Loop.nb p in
   let p := cparams.(print_prog) Unrolling p in
 
+  let p := const_prop_prog p in
+  let p := cparams.(print_prog) Unrolling p in
+  
   let pv := var_alloc_prog p in
   let pv := cparams.(print_prog) AllocInlineAssgn pv in
   Let _ := CheckAllocReg.check_prog p pv in

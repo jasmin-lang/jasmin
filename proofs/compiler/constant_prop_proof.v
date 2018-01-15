@@ -327,9 +327,32 @@ Proof.
   by t_xrbindP => y h; rewrite - (ok_inj h) => { y h } y h; rewrite - (ok_inj h) => { y h } <-.
 Qed.
 
-Lemma slslP e1 e2  : Papp2 Olsl  e1 e2 =E slsl  e1 e2. Proof. auto. Qed.
-Lemma slsrP e1 e2  : Papp2 Olsr  e1 e2 =E slsr  e1 e2. Proof. auto. Qed.
-Lemma sasrP e1 e2  : Papp2 Oasr  e1 e2 =E sasr  e1 e2. Proof. auto. Qed.
+Lemma slslP e1 e2  : Papp2 Olsl  e1 e2 =E slsl  e1 e2. 
+Proof. 
+  rewrite /slsl /sbitw_w => h.
+  case: (is_wconstP e1) => [ v1 | ] ; last by move => ? ?.
+  case: (is_wconstP e2) => [ v2 | ] ; last by move => ? ?.
+  move=> ϱ; rewrite /= /sem_op2_w/mk_sem_sop2;t_xrbindP => z1 [<-] z2 [<-] <-. 
+  by rewrite I64.repr_unsigned.
+Qed.
+
+Lemma slsrP e1 e2  : Papp2 Olsr  e1 e2 =E slsr  e1 e2.
+Proof. 
+  rewrite /slsr /sbitw_w => h.
+  case: (is_wconstP e1) => [ v1 | ] ; last by move => ? ?.
+  case: (is_wconstP e2) => [ v2 | ] ; last by move => ? ?.
+  move=> ϱ; rewrite /= /sem_op2_w/mk_sem_sop2;t_xrbindP => z1 [<-] z2 [<-] <-. 
+  by rewrite I64.repr_unsigned.
+Qed.
+
+Lemma sasrP e1 e2  : Papp2 Oasr  e1 e2 =E sasr  e1 e2. 
+Proof. 
+  rewrite /sasr /sbitw_w => h.
+  case: (is_wconstP e1) => [ v1 | ] ; last by move => ? ?.
+  case: (is_wconstP e2) => [ v2 | ] ; last by move => ? ?.
+  move=> ϱ; rewrite /= /sem_op2_w/mk_sem_sop2;t_xrbindP => z1 [<-] z2 [<-] <-. 
+  by rewrite I64.repr_unsigned.
+Qed.
 
 Lemma s_op2P o e1 e2 : Papp2 o e1 e2 =E s_op2 o e1 e2.
 Proof.
