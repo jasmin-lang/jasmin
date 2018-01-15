@@ -108,7 +108,7 @@ type pparam = {
 
 (* -------------------------------------------------------------------- *)
 type pfunbody = {
-  pdb_vars  : (pstotype * pident) list;
+  pdb_vars  : (pstotype * pident list) list;
   pdb_instr : pinstr list;
   pdb_ret   : pident list option;
 }

@@ -187,6 +187,13 @@ let pp_arg fmt (sty, x) =
     pp_sto_ty sty
     pp_var x
 
+let pp_args fmt (sty, xs) =
+  F.fprintf
+    fmt
+    "%a %a"
+    pp_sto_ty sty
+    (pp_list ", " pp_var) xs
+
 let pp_rty =
   pp_opt
     (fun fmt tys ->
@@ -264,7 +271,7 @@ and pp_block depth fmt blk =
   pp_inbraces depth (pp_list eol (pp_instr (depth + 1))) fmt (L.unloc blk)
 
 let pp_funbody fmt { pdb_vars ; pdb_instr ; pdb_ret } =
-  List.iter (fun d -> F.fprintf fmt "%a%a;" indent 1 pp_arg d; F.fprintf fmt eol) pdb_vars;
+  List.iter (fun d -> F.fprintf fmt "%a%a;" indent 1 pp_args d; F.fprintf fmt eol) pdb_vars;
   pp_list eol (pp_instr 1) fmt pdb_instr;
   pp_opt (
     fun fmt ret ->

@@ -1,9 +1,7 @@
 fn cswap(stack u64[4] x, stack u64[4] y, reg u64 swap)
 -> (stack u64[4] , stack u64[4]) {
 
-  reg u64 tmp1;
-  reg u64 tmp2;
-  reg u64 mask;
+  reg u64 tmp1, tmp2, mask;
   inline int i;
 
   mask = swap * 0xffffffffffffffff;
@@ -24,8 +22,7 @@ fn cswap(stack u64[4] x, stack u64[4] y, reg u64 swap)
 
 export
 fn swap4 (reg u64 xp, reg u64 yp, reg u64 swap, reg u64 sb) {
-stack u64[4] xc;
-stack u64[4] yc;
+stack u64[4] xc, yc;
 inline int i;
 
 for i = 0 to 4 {

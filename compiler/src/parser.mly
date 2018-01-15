@@ -278,7 +278,7 @@ storage:
 | INLINE { `Inline }
 
 pvardecl :
-| ty=stor_type v=var { (ty, v) }
+| ty=stor_type vs=rtuple1(var) { (ty, vs) }
 
 pfunbody :
 | LBRACE

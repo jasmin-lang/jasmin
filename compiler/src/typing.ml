@@ -864,7 +864,8 @@ and tt_block (env : Env.env) (pb : S.pblock) =
 
 (* -------------------------------------------------------------------- *)
 let tt_funbody (env : Env.env) (pb : S.pfunbody) =
-  let env = fst (tt_vardecls_push env pb.pdb_vars) in
+  let vars = List.(pb.pdb_vars |> map (fun (ty, vs) -> map (fun v -> (ty, v)) vs) |> flatten) in
+  let env = fst (tt_vardecls_push env vars) in
   let ret =
     let for1 x = L.mk_loc (L.loc x) (tt_var `AllVar env x) in
     List.map for1 (odfl [] pb.pdb_ret) in
