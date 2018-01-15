@@ -379,6 +379,7 @@ let reg_of_oprd (op : X86_sem.oprd) =
   | Adr_op _  -> None
   | Reg_op r -> Some r
 
+(* TODO: generate from instr_desc *)
 let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   match i with
   | LABEL _ | Jcc  _ | JMP _

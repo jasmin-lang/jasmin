@@ -352,9 +352,13 @@ Definition lower_cassgn_classify e x : lower_cassgn_t :=
       | Some l => LowerLea l
       | _      => 
         match is_wconst a with
-        | Some _ => LowerFopn Ox86_IMUL64 [:: b ; a ] I32.modulus
-        | _      => LowerFopn Ox86_IMUL64 [:: a ; b ] I32.modulus 
-        end 
+        | Some _ => LowerFopn Ox86_IMUL64imm [:: b ; a ] I32.modulus
+        | _      =>
+        match is_wconst b with
+        | Some _ => LowerFopn Ox86_IMUL64imm [:: a ; b ] I32.modulus
+        | _ => LowerFopn Ox86_IMUL64 [:: a ; b ] I32.modulus
+        end
+        end
       end
     | Oland Op_w => LowerFopn Ox86_AND [:: a ; b ] I32.modulus
     | Olor Op_w => LowerFopn Ox86_OR [:: a ; b ] I32.modulus
@@ -404,6 +408,11 @@ Definition opn_5flags_cases (a: pexprs) (m: Z) : opn_5flags_cases_t a m :=
     end%Z (is_wconstP y)
   | _ => Opn5f_other end.
 
+Definition opn_no_imm (op: sopn) : sopn :=
+  match op with
+  | Ox86_IMUL64imm => Ox86_IMUL64
+  | _ => op end.
+
 Definition opn_5flags (immed_bound: Z) (vi: var_info)
            (cf: lval) (x: lval) tg (o: sopn) (a: pexprs) : seq instr_r :=
   let f := Lnone_b vi in
@@ -411,7 +420,7 @@ Definition opn_5flags (immed_bound: Z) (vi: var_info)
   match opn_5flags_cases a immed_bound with
   | Opn5f_large_immed x y n z _ _ =>
     let c := {| v_var := {| vtype := sword; vname := fresh_multiplicand fv |} ; v_info := vi |} in
-    Copn [:: Lvar c ] tg Ox86_MOV [:: y] :: fopn o (x :: Pvar c :: z)
+    Copn [:: Lvar c ] tg Ox86_MOV [:: y] :: fopn (opn_no_imm o) (x :: Pvar c :: z)
   | Opn5f_other => fopn o a
   end.
 

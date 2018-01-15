@@ -1029,6 +1029,11 @@ Ltac elim_div :=
           apply: rbindP Hv => vz [?];subst vz. rewrite /sem_pexprs /=. 
           t_xrbindP => y v2 Hv2 ??;subst y z1 => -[?];subst v2.
           by rewrite Hv2 /= I64.mul_commut Hw.
+        case: is_wconstP Hv Heq => [z|{e2}e2] Hv Heq.
+        + split. by rewrite read_es_swap.
+          apply: rbindP Hv => v1 Hv1.
+          t_xrbindP => ? ? [<-] ? <- <- ? [?]; subst v1 z2.
+          by rewrite /sem_pexprs /= Hv1 /= Hw.
         split. by rewrite read_es_swap.
         by rewrite Hv /= Hw.
       (* Osub Op_w *)
@@ -1135,7 +1140,8 @@ Ltac elim_div :=
       rewrite (sem_pexpr_same dx e hy) /=.
       unfold get_var, on_vu. rewrite Fv.setP_eq. simpl.
       unfold word. fold ℓ. fold (sem_pexprs gd ℓ).
-      by rewrite (sem_pexprs_same dz e hz1) /= hr.
+      rewrite (sem_pexprs_same dz e hz1).
+      case: o hr => /=; try (move => -> //). discriminate.
     + exists s'. repeat econstructor. by rewrite /sem_sopn hx /= hr.
   Qed.
 
