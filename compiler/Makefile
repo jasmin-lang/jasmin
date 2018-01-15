@@ -56,7 +56,7 @@ jasmin.mlpack: __force__
 	> jasmin.mlpack
 
 CIL:
-	rm -f CIL/*.ml CIL/*.mli
+	rm -f CIL/*.ml CIL/*.mli ../proofs/extraction.vo
 	$(MAKE) -C ../proofs extraction
 	cp ../proofs/lang/ocaml/*.ml  CIL/
 	cp ../proofs/lang/ocaml/*.mli CIL/
