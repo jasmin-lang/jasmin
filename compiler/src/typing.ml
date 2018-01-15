@@ -362,8 +362,13 @@ let tt_op2 (loc1, (e1, ty1)) (loc2, (e2, ty2))
 
   let op, e1, e2, ty =
     match pop with
-    | (`Add | `Sub | `Mul | `BAnd | `BOr | `BXOr | `ShR | `ShL | `Asr ) ->
+    | (`Add | `Sub | `Mul | `BAnd | `BOr | `BXOr) ->
       let ty = max_ty ty1 ty2 |> oget ~exn in
+      let op = op2_of_pop2 exn ty pop in
+      (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, ty)
+
+    | `ShR | `ShL | `Asr ->
+      let ty = P.u64 in
       let op = op2_of_pop2 exn ty pop in
       (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, ty)
 
