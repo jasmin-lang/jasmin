@@ -2,8 +2,8 @@
 
 # --------------------------------------------------------------------
 DNAME := jasminlang
-COQV  ?= 8.6
-SSRV  ?= 1.6.1
+COQV  ?= 8.7.0
+SSRV  ?= 1.6.4
 SSRP  ?= algebra
 ROOT  := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
