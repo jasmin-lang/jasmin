@@ -73,10 +73,19 @@ Proof.
 Qed.
 
 Lemma snot_wP e : Papp1 Olnot e =E snot_w e.
-Proof. auto. Qed.
+Proof. 
+  rewrite /snot_w;case: (is_wconstP e) => [n1| {e} e] rho v //=.
+  by rewrite /sem_op1_w /mk_sem_sop1 /= => -[<-]; rewrite I64.repr_unsigned.
+Qed.
+
+Lemma snegP e : Papp1 Oneg e =E sneg e.
+Proof. 
+  rewrite /sneg;case: (is_wconstP e) => [n1| {e} e] rho v //=.
+  by rewrite /sem_op1_w /mk_sem_sop1 /= => -[<-]; rewrite I64.repr_unsigned.
+Qed.
 
 Lemma s_op1P o e : Papp1 o e =E s_op1 o e.
-Proof. case: o;auto using snot_boolP, snot_wP. Qed.
+Proof. case: o;auto using snot_boolP, snot_wP, snegP. Qed.
 
 (* * -------------------------------------------------------------------- *)
 

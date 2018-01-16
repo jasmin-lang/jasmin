@@ -45,9 +45,27 @@ Definition snot_bool (e:pexpr) :=
   | _            => Papp1 Onot e
   end.
 
-(* FIXME: make this smart constructor smarter *)
-Definition sneg (e: pexpr) := Papp1 Oneg e.
+Definition sneg (e:pexpr) := 
+  match is_wconst e with
+  | Some n => wconst (I64.neg (I64.repr n))
+  | None   => Papp1 Oneg e
+  end.
 
+Definition snot_w (e:pexpr) := 
+  match is_wconst e with
+  | Some n => wconst (I64.not (I64.repr n))
+  | None   => Papp1 Olnot e
+  end.
+
+Definition s_op1 o e := 
+  match o with
+  | Onot  => snot_bool e 
+  | Olnot => snot_w e
+  | Oneg  => sneg e
+  | Oarr_init => Papp1 Oarr_init e
+  end.
+
+(* ------------------------------------------------------------------------ *)
 Definition sand e1 e2 := 
   match is_bool e1, is_bool e2 with
   | Some b, _ => if b then e2 else false
@@ -60,17 +78,6 @@ Definition sor e1 e2 :=
   | Some b, _ => if b then Pbool true else e2
   | _, Some b => if b then Pbool true else e1
   | _, _       => Papp2 Oor e1 e2 
-  end.
-
-(* FIXME improve this *)
-Definition snot_w e := Papp1 Olnot e.
-
-Definition s_op1 o e := 
-  match o with
-  | Onot  => snot_bool e 
-  | Olnot => snot_w e
-  | Oneg  => sneg e
-  | Oarr_init => Papp1 Oarr_init e
   end.
 
 (* ------------------------------------------------------------------------ *)
