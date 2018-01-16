@@ -219,9 +219,12 @@ Definition low_sem_ad_in (xs : seq garg) (ad : arg_desc) : option argument :=
   | ADImplicit x => ssrfun.omap arg_of_reg_or_flag (compile_var x)
   | ADExplicit n None => ssrfun.omap arg_of_garg (onth xs n)
   | ADExplicit n (Some x) =>
-    let r1 := ssrfun.omap arg_of_garg (onth xs n) in
-    let r2 := Some (Aoprd (Reg_op x)) in
-    if r1 == r2 then r1 else None
+    (ssrfun.omap arg_of_garg (onth xs n) >>= λ r1,
+    match r1 with
+    | Aoprd (Reg_op y) => if x == y then Some r1 else None
+    | Aoprd _ => Some r1
+    | _ => None
+    end)%O
   end.
 
 Definition dest_of_reg_or_flag (d: register + rflag): destination :=

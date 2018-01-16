@@ -346,6 +346,12 @@ let pp_instr (i : X86_sem.asm) =
   | XOR (op1, op2) ->
       `Instr (pp_iname rs "xor", [pp_opr rs op2; pp_opr rs op1])
 
+  | ROR (op, ir) ->
+      `Instr (pp_iname rs "ror", [pp_imr `U8 ir; pp_opr rs op])
+
+  | ROL (op, ir) ->
+      `Instr (pp_iname rs "rol", [pp_imr `U8 ir; pp_opr rs op])
+
   | SAL (op, ir) ->
     assert false
 
@@ -402,6 +408,8 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | AND    (op, _)
   | OR     (op, _)
   | XOR    (op, _)
+  | ROR (op, _)
+  | ROL (op, _)
   | SAL    (op, _)
   | SAR    (op, _)
   | SHL    (op, _)

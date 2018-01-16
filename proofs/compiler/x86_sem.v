@@ -138,6 +138,8 @@ Variant asm : Type :=
 | NOT    of oprd                   (* bit-wise not *)
 
   (* Bit shifts *)
+| ROR of oprd & ireg (* rotation / right *)
+| ROL of oprd & ireg (* rotation / left *)
 | SHL    of oprd & ireg            (* unsigned / left  *)
 | SHR    of oprd & ireg            (* unsigned / right *)
 | SAL    of oprd & ireg            (*   signed / left; synonym of SHL *)
@@ -787,6 +789,38 @@ Definition eval_NOT o s : x86_result :=
   Let v := read_oprd o s in write_oprd o (I64.not v) s.
 
 (* -------------------------------------------------------------------- *)
+Definition eval_ROR o ir s : x86_result :=
+  Let v := read_oprd o s in
+  let i := I64.and (read_ireg ir s) x86_shift_mask in
+  if i == I64.zero then ok s else
+    let r := I64.or (I64.shr v i) (I64.shl v (I64.sub (I64.repr 64) i)) in
+    let cf := msb r in
+    let s :=
+        if i == I64.one then
+          let ro := cf != msb (I64.add r I64.mone) in (* FIXME: typo in the manual *)
+          mem_set_rflags OF ro s
+        else mem_unset_rflags OF s
+    in
+    let s := mem_set_rflags CF cf s in
+    write_oprd o r s.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_ROL o ir s : x86_result :=
+  Let v := read_oprd o s in
+  let i := I64.and (read_ireg ir s) x86_shift_mask in
+  if i == I64.zero then ok s else
+    let r := I64.or (I64.shl v i) (I64.shr v (I64.sub (I64.repr 64) i)) in
+    let cf := lsb r in
+    let s :=
+        if i == I64.one then
+          let ro := msb r != cf in
+          mem_set_rflags OF ro s
+        else mem_unset_rflags OF s
+    in
+    let s := mem_set_rflags CF cf s in
+    write_oprd o r s.
+
+(* -------------------------------------------------------------------- *)
 Definition eval_SHL o ir s : x86_result :=
   Let v := read_oprd o s in
   let i := I64.and (read_ireg ir s) x86_shift_mask in
@@ -874,6 +908,8 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | OR     o1 o2    => eval_OR o1 o2 s
   | XOR    o1 o2    => eval_XOR o1 o2 s
   | NOT    o        => eval_NOT o s
+  | ROR o ir => eval_ROR o ir s
+  | ROL o ir => eval_ROL o ir s
   | SHL    o ir     => eval_SHL o ir s
   | SHR    o ir     => eval_SHR o ir s
   | SAL    o ir     => eval_SAL o ir s
