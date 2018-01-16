@@ -350,7 +350,7 @@ Canonical  lval_eqType      := Eval hnf in EqType lval lval_eqMixin.
 (* ** Instructions
  * -------------------------------------------------------------------- *)
 
-Inductive dir := UpTo | DownTo.
+Variant dir := UpTo | DownTo.
 
 Scheme Equality for dir.
 
@@ -376,7 +376,7 @@ Definition wrange d (n1 n2 : Z) :=
 
 Definition instr_info := positive.
 
-Inductive assgn_tag :=
+Variant assgn_tag :=
   | AT_none       (* assignment introduced by the develloper that can be removed *)
   | AT_keep       (* assignment that should be keep *)
   | AT_rename     (* equality constraint introduced by inline *)
@@ -398,7 +398,7 @@ Canonical  assgn_tag_eqType      := Eval hnf in EqType assgn_tag assgn_tag_eqMix
 
 Definition funname := positive.
 
-Inductive inline_info :=
+Variant inline_info :=
   | InlineFun
   | DoNotInline.
 

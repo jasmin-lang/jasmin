@@ -215,7 +215,7 @@ Module I32 := Integers.Int.
 Module I128 := Integers.Make Wordsize_128.
 Module I256 := Integers.Make Wordsize_256.
 
-Inductive wsize := 
+Variant wsize :=
   | U8 
   | U16
   | U32 
