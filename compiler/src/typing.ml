@@ -354,6 +354,12 @@ let cast loc e ety ty =
   | _, _ when P.pty_equal ety ty -> e
   | _  ->  rs_tyerror ~loc (InvalidCast(ety,ty))
 
+let cast_word loc e ety =
+  match ety with
+  | P.Bty P.Int   -> P.Pcast (P.W64, e), P.W64
+  | P.Bty (P.U ws) -> e, ws
+  | _             ->  rs_tyerror ~loc (InvalidCast(ety,P.u64))
+
 (* -------------------------------------------------------------------- *)
 let tt_op2 (loc1, (e1, ty1)) (loc2, (e2, ty2))
            { L.pl_desc = pop; L.pl_loc = loc } =
@@ -417,17 +423,17 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     P.Pget (L.mk_loc xlc x, i), ty
 
   | S.PEOp1 (op, pe) ->
-    let e, ty = tt_expr ~mode env pe in
+    let e, ety = tt_expr ~mode env pe in
 
     begin match op with
     | `Not ->
-    if ty = P.tbool then Papp1(P.Onot, e), P.tbool
-    else
-      let ws = tt_as_word (L.loc pe, ty) in
-      Papp1(P.Olnot ws, e), P.Bty (P.U ws)
+      if ety = P.tbool then Papp1(P.Onot, e), P.tbool
+      else
+        let e, ws = cast_word (L.loc pe) e ety in
+        Papp1(P.Olnot ws, e), P.Bty (P.U ws)
     | `Neg ->
-      let ws = tt_as_word (L.loc pe, ty) in
-      Papp1(P.Oneg ws, e), P.(Bty (U ws))
+      let e, ws = cast_word (L.loc pe) e ety in
+      Papp1(P.Oneg ws, e), P.Bty (P.U ws)
     end
 
   | S.PEOp2 (pop, (pe1, pe2)) ->
