@@ -1,0 +1,11 @@
+param int n = 17;
+
+export fn f(reg u64 r1, reg u64 r2) -> reg u64 {
+reg u64 r;
+r1  = -3 + r1;   
+r1  = 2*r1 - 10;   
+r1  = r2 + 4 * r1 - 15;
+r1  = 2*r1 + - n;
+r   = r1;
+return r;
+}

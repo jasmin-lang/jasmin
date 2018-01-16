@@ -1,0 +1,9 @@
+param int rlog = 18;
+
+export fn reduce(reg u64 a) -> reg u64
+{
+  reg u64 u;
+  u = (1 << rlog) - 1 ;
+  return u;
+}
+
