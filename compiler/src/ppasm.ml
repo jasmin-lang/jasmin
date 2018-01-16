@@ -347,7 +347,7 @@ let pp_instr (i : X86_sem.asm) =
       `Instr (pp_iname rs "xor", [pp_opr rs op2; pp_opr rs op1])
 
   | SAL (op, ir) ->
-      `Instr (pp_iname rs "sar", [pp_imr `U8 ir; pp_opr rs op])
+    assert false
 
   | SAR (op, ir) ->
       `Instr (pp_iname rs "sar", [pp_imr `U8 ir; pp_opr rs op])
