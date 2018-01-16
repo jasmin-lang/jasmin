@@ -917,6 +917,17 @@ Ltac elim_div :=
     by move=> [<-] [<-] [<-];apply mkLeaP;rewrite /sem_lea /= !I64_simpl.
   Qed.
 
+  Lemma lea_subP l1 l2 w1 w2 l vm :
+    sem_lea vm l1 = ok w1 -> sem_lea vm l2 = ok w2 -> 
+    lea_sub l1 l2 = Some l ->
+    sem_lea vm l = ok (I64.sub w1 w2).
+  Proof.
+    case: l1 l2 => d1 b1 sc1 o1 [d2 [b2|] sc2 [o2|]] //=; rewrite {1 2}/sem_lea /=.
+    t_xrbindP => vb1 hb1 vo1 ho1 <- <- [<-] /=;apply mkLeaP.
+    rewrite /sem_lea /= hb1 ho1 /= !I64_simpl.
+    by rewrite !I64.sub_add_opp !I64.add_assoc (I64.add_commut (I64.neg d2)) I64.add_assoc.
+  Qed.
+
   (* TODO Move *)
   Lemma to_wordP v w : to_word v = ok w -> v = w.
   Proof. by case: v => //= [? [] <-| []]. Qed.
@@ -933,10 +944,14 @@ Ltac elim_div :=
       t_xrbindP => v1 Hv1 v2 Hv2; rewrite /sem_op2_w /mk_sem_sop2 /=.
       t_xrbindP => w1 /to_wordP ? w2 /to_wordP ?;subst v1 v2 => <-.
       by apply: lea_addP (He1 _ _ Heq1 Hv1) (He2 _ _ Heq2 Hv2) Hadd.
-    case Heq1: mk_lea => [l1|]//;case Heq2: mk_lea => [l2|]// Hmul.
+    + case Heq1: mk_lea => [l1|]//;case Heq2: mk_lea => [l2|]// Hmul.
+      t_xrbindP => v1 Hv1 v2 Hv2; rewrite /sem_op2_w /mk_sem_sop2 /=.
+      t_xrbindP => w1 /to_wordP ? w2 /to_wordP ?;subst v1 v2 => <-.
+      by apply: lea_mulP (He1 _ _ Heq1 Hv1) (He2 _ _ Heq2 Hv2) Hmul.  
+    case Heq1: mk_lea => [l1|]//;case Heq2: mk_lea => [l2|]// Hsub.
     t_xrbindP => v1 Hv1 v2 Hv2; rewrite /sem_op2_w /mk_sem_sop2 /=.
     t_xrbindP => w1 /to_wordP ? w2 /to_wordP ?;subst v1 v2 => <-.
-    by apply: lea_mulP (He1 _ _ Heq1 Hv1) (He2 _ _ Heq2 Hv2) Hmul.  
+    by apply: lea_subP (He1 _ _ Heq1 Hv1) (He2 _ _ Heq2 Hv2) Hsub.
   Qed.
 
   Lemma is_leaP f x e l : is_lea f x e = Some l ->
@@ -1038,6 +1053,12 @@ Ltac elim_div :=
         by rewrite Hv /= Hw.
       (* Osub Op_w *)
       + move=> /sem_op2_w_dec [z1 [z2 [Hz1z2 Hv]]]; subst v.
+        case Heq: is_lea => [lea|]. 
+        (* LEA *)
+        + have [/mk_leaP -/(_ s (I64.sub z1 z2))]:= is_leaP Heq.
+          apply: rbindP Hv => /= v1 -> /=. rewrite /sem_pexprs /=. 
+          t_xrbindP => ? v2 -> /= <- ? [] ?;subst v1 v2.
+          move=> /(_ (refl_equal _)) ?;eexists;eauto. 
         have := sub_inc_dec_classifyP e2.
         case: (sub_inc_dec_classify e2)=> [He2|He2|//]; try subst e2.
         (* SubInc *)

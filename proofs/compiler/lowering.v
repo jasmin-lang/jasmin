@@ -288,6 +288,16 @@ Definition lea_add l1 l2 :=
     end
   end.
 
+Definition lea_sub l1 l2 := 
+  match l1, l2 with
+  | MkLea d1 b1 sc1 o1, MkLea d2 b2 sc2 o2 =>
+    let disp := I64.sub d1 d2 in
+    match b2, o2 with
+    | None, None => Some (mkLea disp b1 sc1 o1)
+    | _   , _    => None
+    end
+  end.
+
 Fixpoint mk_lea e := 
   match e with
   | Pcast (Pconst z) => Some (lea_const (I64.repr z))
@@ -300,6 +310,11 @@ Fixpoint mk_lea e :=
   | Papp2 (Oadd Op_w) e1 e2 =>
     match mk_lea e1, mk_lea e2 with
     | Some l1, Some l2 => lea_add l1 l2
+    | _      , _       => None
+    end
+  | Papp2 (Osub Op_w) e1 e2 =>
+    match mk_lea e1, mk_lea e2 with
+    | Some l1, Some l2 => lea_sub l1 l2
     | _      , _       => None
     end
   | _ => None
@@ -342,10 +357,14 @@ Definition lower_cassgn_classify e x : lower_cassgn_t :=
         end
       end
     | Osub Op_w =>
-      match sub_inc_dec_classify b with
-      | SubInc => LowerInc Ox86_INC a
-      | SubDec => LowerInc Ox86_DEC a
-      | SubNone => LowerFopn Ox86_SUB [:: a ; b ] I32.modulus
+      match is_lea x e with
+      | Some l => LowerLea l 
+      | None   => 
+        match sub_inc_dec_classify b with
+        | SubInc => LowerInc Ox86_INC a
+        | SubDec => LowerInc Ox86_DEC a
+        | SubNone => LowerFopn Ox86_SUB [:: a ; b ] I32.modulus
+        end
       end
     | Omul Op_w => 
       match is_lea x e with 
