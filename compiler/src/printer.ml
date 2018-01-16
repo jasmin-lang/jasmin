@@ -1,5 +1,4 @@
 (* -------------------------------------------------------------------- *)
-open Expr
 open Prog
 
 module F = Format
@@ -18,7 +17,10 @@ let pp_iloc fmt (l,ls) =
   Format.fprintf fmt "@[%a@]" (pp_list " from@ " L.pp_sloc) (l::ls)
 
 (* -------------------------------------------------------------------- *)
+let pp_string0 fmt str =
+  F.fprintf fmt "%a" (pp_list "" F.pp_print_char) str
 
+(* -------------------------------------------------------------------- *)
 let pp_bool fmt b =
   if b then F.fprintf fmt "true"
   else F.fprintf fmt "false"
@@ -116,7 +118,9 @@ let pp_glvs pp_var fmt lvs =
   | _   -> F.fprintf fmt "(@[%a@])" (pp_list ",@ " (pp_glv pp_var)) lvs
 
 (* -------------------------------------------------------------------- *)
-let pp_opn = function
+let pp_opn =
+  let open Expr in
+  function
   | Omulu        -> "#mulu"
   | Oaddcarry    -> "#addc"
   | Osubcarry    -> "#subc"

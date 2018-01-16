@@ -17,46 +17,48 @@ let pp_var_i tbl fmt vi =
   let vi = Conv.vari_of_cvari tbl vi in
   Printer.pp_var ~debug:true fmt (Prog.L.unloc vi)
 
-let rec pp_comp_err tbl fmt = function
+let rec pp_comp_err tbl fmt =
+  let open Printer in
+  function
   | Compiler_util.Cerr_varalloc(x,y,msg) ->
-    Format.fprintf fmt "Variable allocation %a and %a: %s"
-     (pp_var_i tbl) x (pp_var_i tbl) y (Conv.string_of_string0 msg)
+    Format.fprintf fmt "Variable allocation %a and %a: %a"
+     (pp_var_i tbl) x (pp_var_i tbl) y pp_string0 msg
   | Compiler_util.Cerr_inline _ ->
     Format.fprintf fmt "Inlining error"
   | Compiler_util.Cerr_Loop s ->
-    Format.fprintf fmt "loop iterator to small in %s"
-      (Conv.string_of_string0 s)
+    Format.fprintf fmt "loop iterator to small in %a"
+      pp_string0 s
   | Compiler_util.Cerr_fold2 s ->
-    Format.fprintf fmt "fold2 error in %s"
-      (Conv.string_of_string0 s)
+    Format.fprintf fmt "fold2 error in %a"
+      pp_string0 s
   | Compiler_util.Cerr_neqop1(_, _, s) ->
-    Format.fprintf fmt "op1 not equal in %s"
-      (Conv.string_of_string0 s)
+    Format.fprintf fmt "op1 not equal in %a"
+      pp_string0 s
   | Compiler_util.Cerr_neqop2(_, _, s) ->
-    Format.fprintf fmt "op2 not equal in %s"
-      (Conv.string_of_string0 s)
+    Format.fprintf fmt "op2 not equal in %a"
+      pp_string0 s
   | Compiler_util.Cerr_neqop(_,_, s) ->
-    Format.fprintf fmt "opn not equal in %s"
-      (Conv.string_of_string0 s)
+    Format.fprintf fmt "opn not equal in %a"
+      pp_string0 s
   | Compiler_util.Cerr_neqdir(s) ->
-    Format.fprintf fmt "dir not equal in %s"
-      (Conv.string_of_string0 s)
+    Format.fprintf fmt "dir not equal in %a"
+      pp_string0 s
   | Compiler_util.Cerr_neqexpr(_,_,s) ->
-    Format.fprintf fmt "expression not equal in %s"
-      (Conv.string_of_string0 s)
+    Format.fprintf fmt "expression not equal in %a"
+      pp_string0 s
   | Compiler_util.Cerr_neqrval(_,_,s) ->
-    Format.fprintf fmt "lval not equal in %s"
-      (Conv.string_of_string0 s)
+    Format.fprintf fmt "lval not equal in %a"
+      pp_string0 s
   | Compiler_util.Cerr_neqfun(_,_,s) ->
-    Format.fprintf fmt "funname not equal in %s"
-       (Conv.string_of_string0 s)
+    Format.fprintf fmt "funname not equal in %a"
+       pp_string0 s
   | Compiler_util.Cerr_neqinstr(_,_,s) ->
-    Format.fprintf fmt "instruction not equal in %s"
-       (Conv.string_of_string0 s)
+    Format.fprintf fmt "instruction not equal in %a"
+       pp_string0 s
   | Compiler_util.Cerr_unknown_fun(f1,s) ->
-    Format.fprintf fmt "unknown function %s during %s"
+    Format.fprintf fmt "unknown function %s during %a"
      (Conv.fun_of_cfun tbl f1).fn_name
-     (Conv.string_of_string0 s)
+     pp_string0 s
   | Compiler_util.Cerr_in_fun f ->
     (pp_comp_ferr tbl) fmt f
   | Compiler_util.Cerr_arr_exp (e1, e2) ->
@@ -66,16 +68,16 @@ let rec pp_comp_err tbl fmt = function
   | Compiler_util.Cerr_arr_exp_v _ ->
     Format.fprintf fmt "err arr exp: lval"
   | Compiler_util.Cerr_stk_alloc s ->
-    Format.fprintf fmt "stack_alloc error %s"
-      (Conv.string_of_string0 s)
+    Format.fprintf fmt "stack_alloc error %a"
+      pp_string0 s
   | Compiler_util.Cerr_linear s ->
-    Format.fprintf fmt "linearisation error %s"
-      (Conv.string_of_string0 s)
+    Format.fprintf fmt "linearisation error %a"
+      pp_string0 s
   | Compiler_util.Cerr_assembler c ->
     begin match c with
     | Compiler_util.AsmErr_string s ->
-      Format.fprintf fmt "assembler error %s"
-        (Conv.string_of_string0 s)
+      Format.fprintf fmt "assembler error %a"
+        pp_string0 s
     | Compiler_util.AsmErr_cond e ->
       Format.fprintf fmt "assembler error: invalid condition %a"
         (Printer.pp_expr ~debug:true) (Conv.expr_of_cexpr tbl e)
