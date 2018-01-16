@@ -1,0 +1,200 @@
+//#include "reduce.h"
+//#include "params.h"
+param int KYBER_N = 256;
+param int KYBER_Q = 7681;
+
+//static const uint32_t qinv = 7679; // -inverse_mod(q,2^18)
+//static const uint32_t rlog = 18;
+param int qinv = 7679; // -inverse_mod(q,2^18)
+param int rlog = 18;
+
+/*************************************************
+* Name:        montgomery_reduce
+* 
+* Description: Montgomery reduction; given a 32-bit integer a, computes
+*              16-bit integer congruent to a * R^-1 mod q, 
+*              where R=2^18 (see value of rlog)
+*
+* Arguments:   - uint32_t a: input unsigned integer to be reduced; has to be in {0,...,2281446912}
+*              
+* Returns:     unsigned integer in {0,...,2^13-1} congruent to a * R^-1 modulo q.
+**************************************************/
+//uint16_t montgomery_reduce(uint32_t a)
+fn montgomery_reduce_mil(reg u64 a) -> reg u64 
+{
+  reg u64 u;
+  reg u64 t;
+  
+  u = a*qinv;
+  u &= ((1 << rlog) - 1);
+  u *= KYBER_Q;
+  t = u + a;
+  t &= 0xffffffff; // not needed if 32-bit addition 
+  t >>= rlog;
+  return t;
+  }
+
+/*************************************************
+* Name:        barrett_reduce
+* 
+* Description: Barrett reduction; given a 16-bit integer a, computes
+*              16-bit integer congruent to a mod q in {0,...,11768}
+*
+* Arguments:   - uint16_t a: input unsigned integer to be reduced
+*              
+* Returns:     unsigned integer in {0,...,11768} congruent to a modulo q.
+**************************************************/
+//uint16_t barrett_reduce(uint16_t a)
+fn barrett_reduce_mil(reg u64 a) -> reg u64
+{
+  reg u64 u; //uint32_t u;
+  reg u64 t;
+
+  u = a;
+  u >>= 13;//((uint32_t) a * sinv) >> 16;
+  u *= KYBER_Q;
+  t = a;
+  u = t - u;
+  return u;
+}
+
+/*************************************************
+* Name:        freeze
+* 
+* Description: Full reduction; given a 16-bit integer a, computes
+*              unsigned integer a mod q.
+*
+* Arguments:   - uint16_t x: input unsigned integer to be reduced
+*              
+* Returns:     unsigned integer in {0,...,q-1} congruent to a modulo q.
+**************************************************/
+//uint16_t freeze(uint16_t x)
+fn freeze_mil(reg u64 x) -> reg u64
+{
+  reg u64 m;
+  reg u64 r; //uint16_t m,r;
+  reg u64 c;//int16_t c;
+  r = barrett_reduce_mil(x);
+
+  m = r;
+  m -= KYBER_Q;
+  c = m;
+  c >>= 15;
+  r = r^m;
+  r = r&c;
+  r = m^r; //r = m ^ ((r^m)&c); 
+
+  return r;
+}
+
+/*************************************************
+* Name:        ntt
+* 
+* Description: Computes negacyclic number-theoretic transform (NTT) of
+*              a polynomial (vector of 256 coefficients) in place; 
+*              inputs assumed to be in normal order, output in bitreversed order
+*
+* Arguments:   - uint16_t *p: pointer to in/output polynomial
+**************************************************/
+//void ntt(uint16_t *p) 
+ export fn ntt_mil(reg u64 p, reg u64 zetas)
+{
+  reg u64 level;
+  reg u64 start;
+  reg u64 j;
+  reg u64 k;
+  reg u64 zeta;
+  reg u64 interval;
+  reg u64 t1;
+  reg u64 t2;
+  reg u64 t;
+
+  k = 1;
+  level=7;
+  interval = 128; //1 << 7;
+  while (level >=s 0) 
+  {
+    start = 0;
+    while (start < KYBER_N)
+    { 
+      zeta = [zetas + k*8];
+      k = k + 1;
+      j = start;
+      start += interval;
+      while (j < start) 
+      {
+        t2 = j;
+        t2 += interval;
+        t1 = [p + t2*8];
+        t1 *= zeta;
+        t = montgomery_reduce_mil(t1);
+        t2 = 4*KYBER_Q;
+        t1 = t2 - t; 
+        t1 += [p + j*8];
+        t1 = barrett_reduce_mil(t1);
+        t2 = j;
+        t2 += interval;
+        [p + t2*8] = t1;
+        t2 = level;
+        t2 &= 1;
+        if(t2 != 0) { /* odd level */
+          [p + j*8] +=t; /* Omit reduction (be lazy) */
+        } 
+        else { 
+          t += [p + j*8];
+          t1 = barrett_reduce_mil(t);
+          [p + j*8] = t1;
+        }
+        j += 1;
+      }
+      start += interval;
+    }
+    level -= 1;
+    t1 = interval;
+    t1 >>= 1;
+    interval = t1; 
+  }
+}
+
+/*************************************************
+* Name:        invntt
+* 
+* Description: Computes inverse of negacyclic number-theoretic transform (NTT) of
+*              a polynomial (vector of 256 coefficients) in place; 
+*              inputs assumed to be in bitreversed order, output in normal order
+*
+* Arguments:   - uint16_t *a: pointer to in/output polynomial
+**************************************************/
+/*
+void invntt(uint16_t * a)
+{
+  int start, j, jTwiddle, level;
+  uint16_t temp, W;
+  uint32_t t;
+
+  for(level=0;level<8;level++)
+  {
+    for(start = 0; start < (1<<level);start++)
+    {
+      jTwiddle = 0;
+      for(j=start;j<KYBER_N-1;j+=2*(1<<level))
+      {
+        W = omegas_inv_bitrev_montgomery[jTwiddle++];
+        temp = a[j];
+
+        if(level & 1) // odd level 
+          a[j] = barrett_reduce((temp + a[j + (1<<level)]));
+        else
+          a[j] = (temp + a[j + (1<<level)]); // Omit reduction (be lazy) 
+
+        t = (W * ((uint32_t)temp + 4*KYBER_Q - a[j + (1<<level)]));
+
+        a[j + (1<<level)] = montgomery_reduce(t);
+      }
+    }
+  }
+
+  for(j = 0; j < KYBER_N; j++)
+    a[j] = montgomery_reduce((a[j] * psis_inv_montgomery[j]));
+}
+*/
