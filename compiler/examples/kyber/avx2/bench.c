@@ -135,7 +135,7 @@ const uint64_t zetas_mil[KYBER_N] = {
 
 extern void ntt_mil(uint64_t *p, const uint64_t *zetas);
 
-uint16_t a[256]; 
+uint16_t a[256] __attribute__((aligned(32)));
 uint64_t b[256];
 
 int main()
