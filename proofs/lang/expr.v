@@ -116,6 +116,7 @@ Variant sopn : Set :=
 | Ox86_OR      (* bit-wise or  *)
 | Ox86_XOR     (* bit-wise xor *)
 | Ox86_NOT     (* bit-wise not *)
+| Ox86_ROR | Ox86_ROL
 | Ox86_SHL     (* unsigned / left  *)
 | Ox86_SHR     (* unsigned / right *)
 | Ox86_SAR     (*   signed / right *)
@@ -190,6 +191,8 @@ Definition string_of_sopn o : string :=
   | Ox86_OR => "Ox86_OR"
   | Ox86_XOR => "Ox86_XOR"
   | Ox86_NOT => "Ox86_NOT"
+  | Ox86_ROR => "Ox86_ROR"
+  | Ox86_ROL => "Ox86_ROL"
   | Ox86_SHL => "Ox86_SHL"
   | Ox86_SHR => "Ox86_SHR"
   | Ox86_SAR => "Ox86_SAR"

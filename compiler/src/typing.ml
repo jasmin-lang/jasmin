@@ -574,6 +574,8 @@ let prim_sig p =
   | Ox86_OR     -> b_5u64  , u64_2
   | Ox86_XOR    -> b_5u64  , u64_2
   | Ox86_NOT    -> [u64]   , [u64]
+  | Ox86_ROL | Ox86_ROR
+    -> [tbool;tbool;u64], u64_2
   | Ox86_SHL    -> b_5u64  , u64_2
   | Ox86_SHR    -> b_5u64  , u64_2   
   | Ox86_SAR    -> b_5u64  , u64_2
@@ -607,6 +609,8 @@ let prim_string =
     "x86_OR"    , Ox86_OR;
     "x86_XOR"   , Ox86_XOR;
     "x86_NOT"   , Ox86_NOT;
+    "x86_ROL", Ox86_ROL;
+    "x86_ROR", Ox86_ROR;
     "x86_SHL"   , Ox86_SHL;
     "x86_SHR"   , Ox86_SHR;
     "x86_SAR"   , Ox86_SAR;

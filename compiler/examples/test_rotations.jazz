@@ -1,0 +1,14 @@
+export
+fn f(reg u64 x) -> reg u64 {
+reg u64 a, b, c, d;
+reg bool cf, of;
+
+a = x;
+d = 4;
+_, _, a = #x86_ROL(a, d);
+of, cf, b = #x86_ROL(a, 2);
+cf, b += x + cf;
+_, _, c = #x86_ROR(b, d);
+_, _, c = #x86_ROR(c, 3);
+return c;
+}

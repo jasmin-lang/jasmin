@@ -703,6 +703,34 @@ Definition x86_xor (v1 v2: word) :=
 Definition x86_not (v:word) : exec values:=
   ok [:: Vword (I64.not v)].
 
+Definition x86_ror (v i: word) : exec values :=
+  let i := I64.and i x86_shift_mask in
+  if i == I64.zero then
+    let u := Vundef sbool in
+    ok [:: u; u; Vword v]
+  else
+    let r := I64.or (I64.shr v i) (I64.shl v (I64.sub (I64.repr 64) i)) in
+    let CF := msb r in
+    let OF :=
+        if i == I64.one
+        then Vbool (CF != msb (I64.add r I64.mone)) else Vundef sbool
+    in
+    ok [:: OF; Vbool CF; Vword r ].
+
+Definition x86_rol (v i: word) : exec values :=
+  let i := I64.and i x86_shift_mask in
+  if i == I64.zero then
+    let u := Vundef sbool in
+    ok [:: u; u; Vword v]
+  else
+    let r := I64.or (I64.shl v i) (I64.shr v (I64.sub (I64.repr 64) i)) in
+    let CF := lsb r in
+    let OF :=
+        if i == I64.one
+        then Vbool (msb r != CF) else Vundef sbool
+    in
+    ok [:: OF; Vbool CF; Vword r ].
+
 Definition x86_shl (v i: word) : exec values :=
   let i := I64.and i x86_shift_mask in
   if i == I64.zero then
@@ -823,6 +851,8 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_OR      => app_ww   x86_or
   | Ox86_XOR     => app_ww   x86_xor
   | Ox86_NOT     => app_w    x86_not
+  | Ox86_ROL => app_ww x86_rol
+  | Ox86_ROR => app_ww x86_ror
   | Ox86_SHL     => app_ww   x86_shl
   | Ox86_SHR     => app_ww   x86_shr
   | Ox86_SAR     => app_ww   x86_sar

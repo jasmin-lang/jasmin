@@ -449,6 +449,94 @@ Lemma decode_addr_update_rflags m f addr:
   decode_addr (mem_update_rflags f m) addr = decode_addr m addr.
 Proof. done. Qed.
 
+Instance rflagv_leb_refl : Reflexive rflagv_leb.
+Proof. case => // b /=; exact: eqxx. Qed.
+
+Instance rflagv_leb_trans : Transitive rflagv_leb.
+Proof. case => // b y z /eqP -> /eqP ->; reflexivity. Qed.
+
+Lemma rflagv_leb_undef rf f f' :
+  rflagv_leb (RflagMap.oset rf f Undef f') (rf f').
+Proof. rewrite ffunE; case: eqP => // _; reflexivity. Qed.
+
+Lemma ROL_gsc :
+  gen_sem_correct [:: TYoprd; TYireg ] Ox86_ROL
+    [:: ADImplicit (var_of_flag OF) ; ADImplicit (var_of_flag CF) ; E 0 ]
+    [:: E 0 ; ADExplicit 1 (Some RCX) ]
+    [::] ROL.
+Proof.
+move => x [ y | y ]; split => // gd m m'; rewrite /low_sem_aux /= /eval_ROL /= /x86_rol /sets_low.
++ case: x => //= [ x | x ].
+  - case: eqP => hy /=.
+    * case => <-; eexists; split; first reflexivity.
+      constructor => //=; first by rewrite -RegMap_set_id.
+      by move => f; etransitivity; apply/rflagv_leb_undef.
+    case: eqP => hy' h; update_set.
+  t_xrbindP => ??? w hw <- <- /=.
+  case: ifP => hy [<-] /=.
+  - rewrite /mem_write_mem write_mem_id //= hw => -[<-] /=.
+    eexists; split; first reflexivity.
+    constructor => //.
+    by move => f; etransitivity; apply/rflagv_leb_undef.
+  case: eqP => hy' h; rewrite hw /=; update_set.
+case: eqP => // <- {y} /=.
+(* Same as above *)
++ case: x => //= [ x | x ].
+  - case: eqP => hy /=.
+    * case => <-; eexists; split; first reflexivity.
+      constructor => //=; first by rewrite -RegMap_set_id.
+      by move => f; etransitivity; apply/rflagv_leb_undef.
+    case: eqP => hy' h; update_set.
+  t_xrbindP => ??? w hw <- <- /=.
+  case: ifP => hy [<-] /=.
+  - rewrite /mem_write_mem write_mem_id //= hw => -[<-] /=.
+    eexists; split; first reflexivity.
+    constructor => //.
+    by move => f; etransitivity; apply/rflagv_leb_undef.
+  case: eqP => hy' h; rewrite hw /=; update_set.
+Qed.
+
+Definition ROL_desc := make_instr_desc ROL_gsc.
+
+Lemma ROR_gsc :
+  gen_sem_correct [:: TYoprd; TYireg ] Ox86_ROR
+    [:: ADImplicit (var_of_flag OF) ; ADImplicit (var_of_flag CF) ; E 0 ]
+    [:: E 0 ; ADExplicit 1 (Some RCX) ]
+    [::] ROR.
+Proof.
+move => x [ y | y ]; split => // gd m m'; rewrite /low_sem_aux /= /eval_ROR /= /x86_ror /sets_low.
++ case: x => //= [ x | x ].
+  - case: eqP => hy /=.
+    * case => <-; eexists; split; first reflexivity.
+      constructor => //=; first by rewrite -RegMap_set_id.
+      by move => f; etransitivity; apply/rflagv_leb_undef.
+    case: eqP => hy' h; update_set.
+  t_xrbindP => ??? w hw <- <- /=.
+  case: ifP => hy [<-] /=.
+  - rewrite /mem_write_mem write_mem_id //= hw => -[<-] /=.
+    eexists; split; first reflexivity.
+    constructor => //.
+    by move => f; etransitivity; apply/rflagv_leb_undef.
+  case: eqP => hy' h; rewrite hw /=; update_set.
+case: eqP => // <- {y} /=.
+(* Same as above *)
++ case: x => //= [ x | x ].
+  - case: eqP => hy /=.
+    * case => <-; eexists; split; first reflexivity.
+      constructor => //=; first by rewrite -RegMap_set_id.
+      by move => f; etransitivity; apply/rflagv_leb_undef.
+    case: eqP => hy' h; update_set.
+  t_xrbindP => ??? w hw <- <- /=.
+  case: ifP => hy [<-] /=.
+  - rewrite /mem_write_mem write_mem_id //= hw => -[<-] /=.
+    eexists; split; first reflexivity.
+    constructor => //.
+    by move => f; etransitivity; apply/rflagv_leb_undef.
+  case: eqP => hy' h; rewrite hw /=; update_set.
+Qed.
+
+Definition ROR_desc := make_instr_desc ROR_gsc.
+
 Lemma SHL_gsc :
   gen_sem_correct [:: TYoprd; TYireg] Ox86_SHL
      (implicit_flags ++ [:: E 0])
@@ -595,6 +683,8 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_OR      => ok OR_desc
   | Ox86_XOR     => ok XOR_desc
   | Ox86_NOT     => ok NOT_desc
+  | Ox86_ROL => ok ROL_desc
+  | Ox86_ROR => ok ROR_desc
   | Ox86_SHL     => ok SHL_desc
   | Ox86_SHR     => ok SHR_desc
   | Ox86_SAR     => ok SAR_desc

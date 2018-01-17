@@ -149,6 +149,8 @@ let pp_opn =
   | Ox86_OR      -> "#x86_OR"
   | Ox86_XOR     -> "#x86_XOR"
   | Ox86_NOT     -> "#x86_NOT"
+  | Ox86_ROL -> "#x86_ROL"
+  | Ox86_ROR -> "#x86_ROR"
   | Ox86_SHL     -> "#x86_SHL"
   | Ox86_SHR     -> "#x86_SHR"
   | Ox86_SAR     -> "#x86_SAR"
