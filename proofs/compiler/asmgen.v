@@ -308,13 +308,28 @@ Definition is_sopn (i: asm) : bool :=
   | _ => true
   end.
 
+Definition rflagv_leb (v v': RflagMap.rflagv) : bool :=
+  match v with
+  | Def _ => v' == v
+  | Undef => true
+  end.
+
+Variant x86_mem_equiv (m m': x86_mem) : Prop :=
+| X86ME
+  `(xmem m = xmem m')
+  `(xreg m = xreg m')
+  `(∀ f, rflagv_leb (xrf m f) (xrf m' f))
+.
+
 Fixpoint gen_sem_correct tys id_name id_out id_in args  : interp_tys tys -> Prop :=
   match tys with
   | [::] => fun asm =>
     is_sopn asm ∧
     ∀ gd m m',
        low_sem_aux gd m id_name id_out id_in args = ok m' →
-       eval_instr_mem gd asm m = ok m'
+       ∃ m'',
+       eval_instr_mem gd asm m = ok m'' ∧
+       x86_mem_equiv m' m''
   | ty::tys => fun asm =>
     forall (x:interp_ty ty), @gen_sem_correct tys id_name id_out id_in (args ++ [::@mk_garg ty x]) (asm x)
   end.

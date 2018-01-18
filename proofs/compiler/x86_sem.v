@@ -274,6 +274,11 @@ Notation Undef    := RflagMap.Undef.
 Definition regmap0   : regmap   := [ffun x => I64.repr 0].
 Definition rflagmap0 : rflagmap := [ffun x => Undef].
 
+Scheme Equality for RflagMap.rflagv.
+
+Definition rflagv_eqMixin := comparableClass rflagv_eq_dec.
+Canonical rflagv_eqType := EqType _ rflagv_eqMixin.
+
 (* -------------------------------------------------------------------- *)
 Record x86_mem : Type :=
   X86Mem {

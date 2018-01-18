@@ -22,12 +22,21 @@ Local Coercion R f := ADImplicit (var_of_register f).
 
 Notation make_instr_desc gen_sem := (mk_instr_desc gen_sem erefl erefl).
 
+Instance x86_mem_equiv_refl : Reflexive x86_mem_equiv.
+Proof. by case => xm xr xf; constructor => //= f; case: (xf f) => /=. Qed.
+
+Arguments x86_mem_equiv_refl [_].
+
+Corollary x86_mem_eq_equiv m m' :
+  m = m' → x86_mem_equiv m m'.
+Proof. move => ->; reflexivity. Qed.
+
 (* ----------------------------------------------------------------------------- *)
 Lemma MOV_gsc :
   gen_sem_correct [:: TYoprd; TYoprd] Ox86_MOV [:: E 0] [:: E 1] [::] MOV.
 Proof.
   move=> [] // => [ x | x] y; split => // gd m m';rewrite /low_sem_aux /= /eval_MOV /=;
-  by t_xrbindP => ???? -> <- <- [<-] <-.
+  t_xrbindP => ???? -> <- <- [<-] h; exists m' => /=; split => //; reflexivity.
 Qed.
 
 Definition MOV_desc := make_instr_desc MOV_gsc.
@@ -59,26 +68,34 @@ Proof.
   + t_xrbindP => ? ? ? h ? ? ? -> <- <- <-.
     case: eval_cond h => [ | [] // ] /=; last by case => <-.
     move => ? [] <-.
-    case:ifP => ? -[<-] [<-];rewrite ?Hy //.
+    case:ifP => ? -[<-] [<-];rewrite ?Hy //; (eexists; split; last by reflexivity);
     by rewrite /mem_write_reg /=; f_equal;rewrite -RegMap_set_id;case:(m).
   t_xrbindP => ??? h ? ? ? Hy <- ? ? ? Hx <- <- <- <-.
   case: eval_cond h => [ | [] // ] /=; last by case => <-.
   move => ? [] <- /=.
   case:ifP => ? -[<-].
-  + by rewrite /sets_low /= Hy.
+  + rewrite /sets_low /= Hy /= => ->; eexists; split; reflexivity.
   rewrite /sets_low /= /mem_write_mem => {Hy}.
   case: m (decode_addr _ _) Hx => xmem xreg xrf /= a.
-  by move=> /write_mem_id -> //.
+  move=> /write_mem_id -> //= ->; eexists; split; reflexivity.
 Qed.
 
 Definition CMOVcc_desc := make_instr_desc CMOVcc_gsc.
 
 (* ----------------------------------------------------------------------------- *)
 
-Ltac update_set :=
+Ltac know_it :=
+  refine (ex_intro _ _ (conj _ x86_mem_equiv_refl));
+  repeat match goal with
+  | H : _ = ?a |- _ = ?a => rewrite - H => { H }
+  end.
+
+Ltac update_set' :=
   by rewrite /sets_low /= /mem_update_rflags /mem_unset_rflags /mem_set_rflags
              /mem_write_reg /=;
      repeat f_equal; apply /ffunP; case; rewrite !ffunE.
+
+Ltac update_set := know_it; update_set'.
 
 Lemma ADD_gsc :
    gen_sem_correct [:: TYoprd; TYoprd] Ox86_ADD
@@ -87,7 +104,7 @@ Lemma ADD_gsc :
 Proof.
   move=> [] // => [ x | x] y; split => // gd m m'; rewrite /low_sem_aux /= /eval_ADD /=.
   + t_xrbindP => vs ??? vy -> <- <- <- [<-] [<-]; update_set.
-  by t_xrbindP => vs ??? -> <- ?? vy -> <- <- <-[<-] <- /=; update_set.
+  t_xrbindP => vs ??? -> <- ?? vy -> <- <- <-[<-] /= h; update_set.
 Qed.
 
 Definition ADD_desc := make_instr_desc ADD_gsc.
@@ -99,7 +116,7 @@ Lemma SUB_gsc :
 Proof.
   move=> [] // => [ x | x] y; split => // gd m m'; rewrite /low_sem_aux /= /eval_SUB /=.
   + by t_xrbindP => vs ??? vy -> <- <- <- [<-] [<-]; update_set.
-  by t_xrbindP => vs ??? -> <- ?? vy -> <- <- <- [<-] <- /=; update_set.
+  by t_xrbindP => vs ??? -> <- ?? vy -> <- <- <- [<-] h /=; update_set.
 Qed.
 
 Definition SUB_desc := make_instr_desc SUB_gsc.
@@ -138,7 +155,7 @@ Proof.
   + t_xrbindP => vs ? ? ? vy -> <- <- <-.
     t_xrbindP => vx [<-] ? [<-] [<-] [<-] /=; update_set.
   t_xrbindP => vs ? ? ? -> <- ? ? ? -> <- <- <-.
-  t_xrbindP => ? [<-] ? [<-] [<-] <-.
+  t_xrbindP => ? [<-] ? [<-] [<-] h.
   update_set.
 Qed.
 
@@ -154,7 +171,7 @@ Proof.
   + t_xrbindP => vs ? ? ? -> <- <-.
     t_xrbindP => ? [<-] ? [<-] [<-] [<-] /=; update_set.
   t_xrbindP => vs ? ? ? -> <- <-.
-  t_xrbindP => ? [<-] ? [<-] [<-] <-.
+  t_xrbindP => ? [<-] ? [<-] [<-] h.
   update_set.
 Qed.
 
@@ -198,7 +215,7 @@ Proof.
     by move => [<-] [<-] [<-]; update_set.
   t_xrbindP => vs ??? -> <- ?? vy -> <- ? ? h <- <- <- /=.
   case: st_get_rflag h => [ ? | [] //] /=; last by case => <-.
-  by move => [<-] [<-] <-; update_set.
+  by move => [<-] [<-] h; update_set.
 Qed.
 
 Definition ADC_desc := make_instr_desc ADC_gsc.
@@ -215,7 +232,7 @@ Proof.
     by move => [<-] [<-] [<-]; update_set.
   t_xrbindP => vs ??? -> <- ?? vy -> <- ? ? h <- <- <- /=.
   case: st_get_rflag h => [ ? | [] //] /=; last by case => <-.
-  by move => [<-] [<-] <-; update_set.
+  by move => [<-] [<-] h; update_set.
 Qed.
 
 Definition SBB_desc := make_instr_desc SBB_gsc.
@@ -228,7 +245,7 @@ Lemma NEG_gsc :
 Proof.
   move=> [] // => [ x | x ] ; split => // gd m m';rewrite /low_sem_aux /= /eval_NEG /=.
   + by move=> [<-];update_set.
-  t_xrbindP => ???? -> <- <- /= [<-] <-;update_set.
+  t_xrbindP => ???? -> <- <- /= [<-] h;update_set.
 Qed.
 
 Definition NEG_desc := make_instr_desc NEG_gsc.
@@ -241,7 +258,7 @@ Lemma INC_gsc :
 Proof.
   move=> [] // => [ x | x ] ; split => // gd m m'; rewrite /low_sem_aux /= /eval_INC /=.
   + by move=> [<-]; update_set.
-  by t_xrbindP => ???? -> <- <- /= [<-] <-; update_set.
+  by t_xrbindP => ???? -> <- <- /= [<-] h; update_set.
 Qed.
 
 Definition INC_desc := make_instr_desc INC_gsc.
@@ -254,7 +271,7 @@ Lemma DEC_gsc :
 Proof.
   move=> [] // => [ x | x ] ; split => // gd m m';rewrite /low_sem_aux /= /eval_DEC /=.
   + by move=> [<-]; update_set.
-  by t_xrbindP => ???? -> <- <- /= [<-] <-; update_set.
+  by t_xrbindP => ???? -> <- <- /= [<-] h; update_set.
 Qed.
 
 Definition DEC_desc := make_instr_desc DEC_gsc.
@@ -268,7 +285,7 @@ Proof.
   by move=> ct [] // => [ x | x]; split => // gd m m';rewrite /low_sem_aux /= /eval_SETcc /=;
   t_xrbindP => ??? h <-;
   (case: eval_cond h => [ ? | [] // ]; last by case => <-);
-  case => <- [<-].
+  case => <- [<-] h /=; know_it.
 Qed.
 
 Definition SETcc_desc := make_instr_desc SETcc_gsc.
@@ -280,7 +297,7 @@ Lemma BT_gsc :
      [:: E 0; E 1] [::] BT.
 Proof.
   by move => o [i|r]; split => // gd m m'; rewrite /low_sem_aux /= /eval_BT /x86_bt;
-  t_xrbindP => b ? ? v -> <- <-; t_xrbindP => v' [<-] {v'} n [<-] <- [<-].
+  t_xrbindP => b ? ? v -> <- <-; t_xrbindP => v' [<-] {v'} n [<-] <- [<-]; know_it.
 Qed.
 
 Definition BT_desc := make_instr_desc BT_gsc.
@@ -336,7 +353,7 @@ Proof.
   rewrite !read_oprd_ireg.
   t_xrbindP => ????? Hbase <- ???? Hoffset <- <- <- <- <- /=.
   rewrite /x86_lea; case: ifP => // Hscale [<-] [<-]; rewrite /mk_LEA /eval_LEA.
-  case: base offset Hbase Hoffset => [base | base] [offset | offset] /= <- <-;
+  case: base offset Hbase Hoffset => [base | base] [offset | offset] /= <- <-; know_it;
     rewrite /decode_addr //=;do 2 f_equal; rewrite !I64_rw -?(check_scale_of Hscale) //.
   f_equal; apply I64.add_commut.
 Qed.
@@ -375,7 +392,7 @@ Lemma AND_gsc :
 Proof.
   move=> [] // => [x | x] y; split => // gd m m'; rewrite /low_sem_aux /= /eval_AND /=.
   + by t_xrbindP => ????? -> <- <- <- [<-] [<-] /=; update_set.
-  by t_xrbindP => ???? -> <- ??? -> <- <- <- [<-] <- /=; update_set.
+  by t_xrbindP => ???? -> <- ??? -> <- <- <- [<-] h /=; update_set.
 Qed.
 
 Definition AND_desc := make_instr_desc AND_gsc.
@@ -388,7 +405,7 @@ Lemma OR_gsc :
 Proof.
   move=> [] // => [x | x] y; split => // gd m m'; rewrite /low_sem_aux /= /eval_OR /=.
   + by t_xrbindP => ????? -> <- <- <- [<-] [<-] /=; update_set.
-  by t_xrbindP => ???? -> <- ??? -> <- <- <- [<-] <- /=; update_set.
+  by t_xrbindP => ???? -> <- ??? -> <- <- <- [<-] h /=; update_set.
 Qed.
 
 Definition OR_desc := make_instr_desc OR_gsc.
@@ -401,7 +418,7 @@ Lemma XOR_gsc :
 Proof.
   move=> [] // => [x | x] y; split => // gd m m'; rewrite /low_sem_aux /= /eval_XOR /=.
   + by t_xrbindP => ????? -> <- <- <- [<-] [<-] /=; update_set.
-  by t_xrbindP => ???? -> <- ??? -> <- <- <- [<-] <- /=; update_set.
+  by t_xrbindP => ???? -> <- ??? -> <- <- <- [<-] h /=; update_set.
 Qed.
 
 Definition XOR_desc := make_instr_desc XOR_gsc.
@@ -412,8 +429,9 @@ Lemma NOT_gsc :
      [:: E 0]
      [:: E 0] [::] NOT.
 Proof.
-  move=> [] // => x ; split => // gd m m'; rewrite /low_sem_aux /= /eval_NOT /=.
-  by t_xrbindP => ???? -> <- <- [<-] <- /=; update_set.
+  case => // [ x | x ]; split => // gd m m'; rewrite /low_sem_aux /= /eval_NOT /=.
+  + by move => h; know_it.
+  t_xrbindP => ???? -> <- <- [<-] h /=; update_set.
 Qed.
 
 Definition NOT_desc := make_instr_desc NOT_gsc.
@@ -439,18 +457,18 @@ Proof.
   move=> [] // => [x | x] y;split => // gd m m'; rewrite /low_sem_aux /= /eval_SHL /x86_shl /=.
   + t_xrbindP => ???? vy;rewrite read_oprd_ireg => -[->] <- <- <- /=.
     rewrite /rflags_of_sh /sets_low.
-    case: ifP => Heq [<-] <- /=.
-    + rewrite /mem_write_reg;case:m => ??? /=.
-      by rewrite -RegMap_set_id; update_set. 
-    by case:ifPn => [/eqP | ] Hvy /=; update_set.
+    case: ifP => Heq [<-] /=.
+    + rewrite /mem_write_reg;case:m => ??? /= h.
+      by know_it; rewrite -RegMap_set_id; update_set'.
+    by case:ifPn => [/eqP | ] Hvy /= h; update_set.
   t_xrbindP => ???? Hread <- ???;rewrite Hread.
-  rewrite read_oprd_ireg => -[<-] <- <- <- /= H <-.
+  rewrite read_oprd_ireg => -[<-] <- <- <- /= H.
   rewrite decode_addr_update_rflags.
   rewrite /sets_low /=; case:ifP H => Heq [<-] /=;rewrite /mem_write_mem /=.
-  + by rewrite !decode_addr_unset_rflags write_mem_id //=;update_set.
+  + by rewrite !decode_addr_unset_rflags write_mem_id //= => h;update_set.
   by rewrite /rflags_of_sh; case: ifP => ? /=;
     rewrite /mem_write_mem /= !decode_addr_set_rflags;
-    case: Memory.write_mem => //= mem; update_set. 
+    case: Memory.write_mem => //= mem h; update_set.
 Qed.
 
 Definition SHL_desc := make_instr_desc SHL_gsc.
@@ -464,18 +482,18 @@ Proof.
   move=> [] // => [x | x] y;split => // gd m m'; rewrite /low_sem_aux /= /eval_SHR /x86_shr /=.
   + t_xrbindP => ???? vy;rewrite read_oprd_ireg => -[->] <- <- <- /=.
     rewrite /rflags_of_sh /sets_low.
-    case: ifP => Heq [<-] <- /=.
-    + rewrite /mem_write_reg;case:m => ??? /=.
-      by rewrite -RegMap_set_id; update_set. 
-    by case:ifPn => [/eqP | ] Hvy /=; update_set.
+    case: ifP => Heq [<-] /=.
+    + rewrite /mem_write_reg;case:m => ??? /= h.
+      by know_it; rewrite -RegMap_set_id; update_set'.
+    by case:ifPn => [/eqP | ] Hvy /= h; update_set.
   t_xrbindP => ???? Hread <- ???;rewrite Hread.
-  rewrite read_oprd_ireg => -[<-] <- <- <- /= H <-.
+  rewrite read_oprd_ireg => -[<-] <- <- <- /= H.
   rewrite decode_addr_update_rflags.
   rewrite /sets_low /=; case:ifP H => Heq [<-] /=;rewrite /mem_write_mem /=.
-  + by rewrite !decode_addr_unset_rflags write_mem_id //=;update_set.
+  + by rewrite !decode_addr_unset_rflags write_mem_id //= => h;update_set.
   by rewrite /rflags_of_sh; case: ifP => ? /=;
     rewrite /mem_write_mem /= !decode_addr_set_rflags;
-    case: Memory.write_mem => //= mem; update_set. 
+    case: Memory.write_mem => //= mem h; update_set.
 Qed.
 
 Definition SHR_desc := make_instr_desc SHR_gsc.
@@ -489,18 +507,18 @@ Proof.
   move=> [] // => [x | x] y;split => // gd m m'; rewrite /low_sem_aux /= /eval_SAR /x86_sar /=.
   + t_xrbindP => ???? vy;rewrite read_oprd_ireg => -[->] <- <- <- /=.
     rewrite /rflags_of_sh /sets_low.
-    case: ifP => Heq [<-] <- /=.
-    + rewrite /mem_write_reg;case:m => ??? /=.
-      by rewrite -RegMap_set_id; update_set. 
-    by case:ifPn => [/eqP | ] Hvy /=; update_set.
+    case: ifP => Heq [<-] /=.
+    + rewrite /mem_write_reg;case:m => ??? /= h.
+      by know_it; rewrite -RegMap_set_id; update_set'.
+    by case:ifPn => [/eqP | ] Hvy /= h; update_set.
   t_xrbindP => ???? Hread <- ???;rewrite Hread.
-  rewrite read_oprd_ireg => -[<-] <- <- <- /= H <-.
+  rewrite read_oprd_ireg => -[<-] <- <- <- /= H.
   rewrite decode_addr_update_rflags.
   rewrite /sets_low /=; case:ifP H => Heq [<-] /=;rewrite /mem_write_mem /=.
-  + by rewrite !decode_addr_unset_rflags write_mem_id //=;update_set.
+  + by rewrite !decode_addr_unset_rflags write_mem_id //= => h;update_set.
   by rewrite /rflags_of_sh; case: ifP => ? /=;
     rewrite /mem_write_mem /= !decode_addr_set_rflags;
-    case: Memory.write_mem => //= mem; update_set. 
+    case: Memory.write_mem => //= mem h; update_set.
 Qed.
 
 Definition SAR_desc := make_instr_desc SAR_gsc.
@@ -514,18 +532,18 @@ Proof.
   move=> [] // => [x | x] y;split => // gd m m'; rewrite /low_sem_aux /= /eval_SHLD /x86_shld /=.
   + t_xrbindP => ????? vy;rewrite read_oprd_ireg => -[->] <- <- <- <- /=.
     rewrite /rflags_of_sh /sets_low.
-    case: ifP => Heq [<-] <- /=.
-    + rewrite /mem_write_reg;case:m => ??? /=.
-      by rewrite -RegMap_set_id; update_set. 
-    by case:ifPn => [/eqP | ] Hvy /=; update_set.
+    case: ifP => Heq [<-] /=.
+    + rewrite /mem_write_reg;case:m => ??? /= h.
+      by know_it; rewrite -RegMap_set_id; update_set'.
+    by case:ifPn => [/eqP | ] Hvy /= h; update_set.
   t_xrbindP => ???? Hread <- ????;rewrite Hread.
-  rewrite read_oprd_ireg => -[<-] <- <- <- <- /= H <-.
+  rewrite read_oprd_ireg => -[<-] <- <- <- <- /= H.
   rewrite decode_addr_update_rflags.
   rewrite /sets_low /=; case:ifP H => Heq [<-] /=;rewrite /mem_write_mem /=.
-  + by rewrite !decode_addr_unset_rflags write_mem_id //=;update_set.
+  + by rewrite !decode_addr_unset_rflags write_mem_id //= => h;update_set.
   by rewrite /rflags_of_sh; case: ifP => ? /=;
     rewrite /mem_write_mem /= !decode_addr_set_rflags;
-    case: Memory.write_mem => //= mem; update_set. 
+    case: Memory.write_mem => //= mem h; update_set.
 Qed.
 
 Definition SHLD_desc := make_instr_desc SHLD_gsc.
@@ -622,6 +640,20 @@ Proof.
   by have [x' [-> ->]]:= type_apply_gargP Ha.
 Qed.
 
+Lemma lom_eqv_mem_equiv_trans s m1 m2 :
+  lom_eqv s m1 →
+  x86_mem_equiv m1 m2 →
+  lom_eqv s m2.
+Proof.
+case: m1 m2 => m1 rg1 rf1 [] m2 rg2 rf2 [] /= ? hrg1 hrf1 [] /= <- <- hrf2.
+constructor => //= f v hv.
+move: (hrf1 f v hv) (hrf2 f) => {hv}.
+case: (rf1 _) v => [ b | ] [] //=.
+- by move => ? <- /eqP ->.
+- by move => ? /eqP -> /eqP ->.
+by move => ? /eqP -> _; case: (rf2 _).
+Qed.
+
 Theorem assemble_sopnP gd ii out op args i s1 m1 s2 :
   lom_eqv s1 m1 →
   assemble_sopn ii out op args = ok i →
@@ -634,7 +666,9 @@ Proof.
   t_xrbindP => eqm id hid hiargs ok_hi loargs ok_lo ok_i h.
   have hm := compile_hi_sopnP (sopn_desc_name hid) ok_hi h.
   have [m2 [ok_m2 hm2]] := mixed_to_low eqm ok_lo hm.
-  exists m2; split => //.
+  suff : ∃ m0, eval_instr_mem gd i m1 = ok m0 ∧ x86_mem_equiv m2 m0.
+  - case => m0 [hm0 eqm0].
+    exists m0; split => //; exact: (lom_eqv_mem_equiv_trans hm2 eqm0).
   have := id_gen_sem id.
   move: ok_m2 => {h hid op ok_hi ok_lo eqm s1 s2 hm hm2}; rewrite /low_sem.
   rewrite -(cat0s loargs); move: [::] loargs ok_i.
