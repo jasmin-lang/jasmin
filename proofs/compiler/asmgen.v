@@ -435,6 +435,15 @@ Definition check_sopn_res (loargs : seq pexpr) (x : lval) (ad : arg_desc) :=
 Lemma is_varP x e : is_var x e ->  eq_expr e {| v_var := x; v_info := xH |}.
 Proof. by case e => //= v /eqP ->. Qed.
 
+Lemma is_var_or_immediateP x e :
+  is_var_or_immediate x e →
+  eq_expr e {| v_var := x ; v_info := xH |} ∨ ∃ n, e = Pcast (Pconst n).
+Proof.
+case: e => //.
+- case => //=; eauto.
+move => e /=; eauto.
+Qed.
+
 Lemma check_sopn_argP (loargs hiargs : seq pexpr) (ads : seq arg_desc) :
      all2 (check_sopn_arg loargs) hiargs ads →
      ∃ hiargs',
@@ -630,7 +639,6 @@ Lemma compile_low_args_in ii gd m lom ads tys pes args gargs :
     mapM (eval_low gd lom) loargs = ok vs' ∧
     List.Forall2 value_uincl vs vs'.
 Proof.
-Admitted. (*
   move => eqm hpes.
   elim: ads args.
   - by  move => args _ [] <-; exists [::]; split => // ? [] <-; exists [::].
@@ -661,8 +669,8 @@ Admitted. (*
   (* Explicit *)
   case/compile_low_argsP: hpes => hsz hpes.
   move => /= n o ho _.
-  have : onth pes n = Some arg ∧ match o with Some x => eq_expr arg {| v_var := var_of_register x ; v_info := xH |} | _ => true end.
-  + by case: o ho => // x /obindI [] e [] ->; case: ifP => // /is_varP h [] ?; subst.
+  have : onth pes n = Some arg ∧ match o with Some x => eq_expr arg {| v_var := var_of_register x ; v_info := xH |} ∨ ∃ n : Z, arg = Pcast n | _ => true end.
+  + by case: o ho => // x /obindI [] e [] ->; case: ifP => // /is_var_or_immediateP h [] ?; subst.
   case => /onthP - /(_ any_pexpr) /andP [] hn /eqP ? {ho} ho; subst arg.
   have hna : n < size gargs by rewrite - (mapM_size hpes) size_zip hsz minnn.
   rewrite (onth_nth_size any_garg hna) /=.
@@ -676,9 +684,11 @@ Admitted. (*
   have : y = Some (arg_of_garg z).
   + subst y. case: o ho => // v hv.
     move: (hnth).
-    rewrite (compile_pexpr_eq_expr hv hnth) {hv}.
-    rewrite /compile_pexpr. case: eqP => // _; t_xrbindP => op.
-    by rewrite /= reg_of_stringK => -[ <-] <- /=; rewrite eqxx.
+    case: hv => [ hv | [q hv] ].
+    - rewrite (compile_pexpr_eq_expr hv hnth) {hv}.
+      rewrite /compile_pexpr. case: eqP => // _; t_xrbindP => op.
+      by rewrite /= reg_of_stringK => -[ <-] <- /=; rewrite eqxx.
+    by rewrite /pe hv /=; case: eqP => // hty [<-].
   move -> => {y}.
   rewrite hlo /=. eexists; split; first by eauto.
   t_xrbindP => vs' v ok_v vs ok_vs <- {vs'} /=.
@@ -688,7 +698,7 @@ Admitted. (*
   exists (v' :: vs'); split.
   + by rewrite ok_v'.
   by constructor.
-Qed. *)
+Qed.
 
 Lemma write_var_compile_var x y y0 m lom m1 rf :
   write_var x y m = ok m1 →
