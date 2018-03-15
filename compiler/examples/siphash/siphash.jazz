@@ -1,0 +1,145 @@
+param int cROUNDS = 2;
+param int dROUNDS = 4;
+
+inline fn rotl(reg u64 x, inline int n) -> reg u64 {
+  _, _, x = #x86_ROL(x, n);
+  return x;
+}
+
+inline
+fn sipround(reg u64[4] v) -> reg u64[4] {
+  v[0] += v[1];
+  v[1] = rotl(v[1], 13);
+  v[1] ^= v[0];
+  v[0] = rotl(v[0], 32);
+  v[2] += v[3];
+  v[3] = rotl(v[3], 16);
+  v[3] ^= v[2];
+  v[0] += v[3];
+  v[3] = rotl(v[3], 21);
+  v[3] ^= v[0];
+  v[2] += v[1];
+  v[1] = rotl(v[1], 17);
+  v[1] ^= v[2];
+  v[2] = rotl(v[2], 32);
+  return v;
+}
+
+/*
+Warning: in must point to a slice of valid memory
+ - aligned for u64 accesses;
+ - of size at least (((inlen + 7) / 8) * 8) octets
+   (i.e., if inlen is not a multiple of eight, some octets beyond (in + inlen) must be safe to access)
+*/
+export
+fn siphash_jazz(
+  reg u64 in, reg u64 inlen,
+  reg u64 kptr,
+  reg u64 out, reg u64 outlen
+) /*-> reg u64*/ {
+
+  reg u64[4] v;
+  reg u64[2] k;
+
+  reg u64 m, end, left, b, r;
+  reg u64 x, y;
+  inline int i;
+
+  v[0] = 0x736f6d6570736575;
+  v[1] = 0x646f72616e646f6d;
+  v[2] = 0x6c7967656e657261;
+  v[3] = 0x7465646279746573;
+
+  k[0] = [kptr + 0 * 8];
+  k[1] = [kptr + 1 * 8];
+
+  v[3] ^= k[1];
+  v[2] ^= k[0];
+  v[1] ^= k[1];
+  v[0] ^= k[0];
+
+  if (outlen == 16) {
+    v[1] ^= 0xee;
+  }
+
+  left = inlen; left &= 7;
+  b = inlen; b <<= 56;
+  inlen &= 0xFFFFFFFFFFFFFFF8;
+  /* Variant: inlen -= left;*/
+  end = in + inlen;
+
+  while (in != end) {
+    m = [in + 0 * 8];
+    v[3] ^= m;
+    for i = 0 to cROUNDS {
+      v = sipround(v);
+    }
+    v[0] ^= m;
+    in += 8;
+  }
+
+  if (left >= 1) {
+    x = [in + 0 * 8];
+    if (left < 4) {
+      if (left < 2) { x &= 0xFF; }
+      else /* 2 <= left */ {
+        if (left == 2) { x &= 0xFFFF; }
+        else /* left == 3 */ { x &= 0xFFFFFF; }
+      }
+    } else /* 4 <= left */ {
+      if (left < 6) {
+        if (left == 4) { x &= 0xFFFFFFFF; }
+        else /* left == 5 */ { x &= 0xFFFFFFFFFF; }
+      } else /* 6 <= left */ {
+        if (left == 6) { x &= 0xFFFFFFFFFFFF; }
+        else /* left == 7 */ { x &= 0xFFFFFFFFFFFFFF; }
+      }
+    }
+    b |= x;
+  }
+
+  v[3] ^= b;
+
+  for i = 0 to cROUNDS {
+    v = sipround(v);
+  }
+
+  v[0] ^= b;
+
+  if (outlen == 16) {
+    v[2] ^= 0xee;
+  } else {
+    v[2] ^= 0xff;
+  }
+
+  for i = 0 to dROUNDS {
+    v = sipround(v);
+  }
+
+  b = v[0];
+  b ^= v[1];
+  b ^= v[2];
+  b ^= v[3];
+
+  [out + 0 * 8 ] = b;
+
+  if (outlen == 16) {
+    v[1] ^= 0xdd;
+
+    for i = 0 to dROUNDS {
+      v = sipround(v);
+    }
+
+    b = v[0];
+    b ^= v[1];
+    b ^= v[2];
+    b ^= v[3];
+
+    [out + 1 * 8 ] = b;
+  }
+
+/*
+  r = 0;
+  return r;
+  */
+}
