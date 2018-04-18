@@ -1,4 +1,3 @@
-(* * Utility definition for dmasm *)
 (* ** License
  * -----------------------------------------------------------------------
  * Copyright 2016--2017 IMDEA Software Institute
@@ -29,7 +28,8 @@
 From mathcomp Require Import all_ssreflect.
 From Coq.Unicode Require Import Utf8.
 Require Import ZArith Setoid Morphisms CMorphisms CRelationClasses.
-Require Integers.
+Require Import oseq.
+Require Psatz.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -132,6 +132,15 @@ Definition ok_inj {E A} (a a': A) (H: Ok E a = ok a') : a = a' :=
 Definition Error_inj {E A} (a a': E) (H: @Error E A a = Error a') : a = a' :=
   let 'Logic.eq_refl := H in Logic.eq_refl.
 
+Definition assert E (b: bool) (e: E) : result E unit :=
+  if b then ok tt else Error e.
+
+Lemma assertP E b e u :
+  @assert E b e = ok u → b.
+Proof. by case: b. Qed.
+
+Arguments assertP {E b e u} _.
+
 Variant error :=
  | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType.
 
@@ -176,15 +185,39 @@ Ltac t_xrbindP :=
   | _ => idtac
   end.
 
-Fixpoint mapM eT aT bT (f : aT -> result eT bT) (xs : seq aT) : result eT (seq bT) :=
+Ltac clarify :=
+  repeat match goal with
+  | H : ?a = ?b |- _ => subst a || subst b
+  | H : ok _ = ok _ |- _ => apply ok_inj in H
+  | H : Some _ = Some _ |- _ => apply Some_inj in H
+  | H : ?a = _, K : ?a = _ |- _ => rewrite H in K
+  end.
+
+Definition mapM eT aT bT (f : aT -> result eT bT)  : seq aT → result eT (seq bT) :=
+  fix mapM xs :=
   match xs with
   | [::] =>
       Ok eT [::]
   | [:: x & xs] =>
       f x >>= fun y =>
-      mapM f xs >>= fun ys =>
+      mapM xs >>= fun ys =>
       Ok eT [:: y & ys]
   end.
+
+Lemma map_ext aT bT f g m :
+  (forall a, List.In a m -> f a = g a) ->
+  @map aT bT f m = map g m.
+Proof.
+elim: m => //= a m ih ext.
+rewrite ext; [ f_equal | ]; eauto.
+Qed.
+
+Instance mapM_ext eT aT bT :
+  Proper (@eqfun (result eT bT) aT ==> eq ==> eq) (@mapM eT aT bT).
+Proof.
+move => f g ext xs xs' <-{xs'}.
+by elim: xs => //= a xs ->; rewrite (ext a); case: (g a).
+Qed.
 
 Lemma mapM_size eT aT bT f xs ys :
   @mapM eT aT bT f xs = ok ys ->
@@ -211,6 +244,34 @@ by case: n ih => // n /(_ n).
 Qed.
 
 Local Open Scope Z_scope.
+
+Lemma mapM_onth eT aT bT (f: aT → result eT bT) (xs: seq aT) ys n x :
+  mapM f xs = ok ys →
+  onth xs n = Some x →
+  ∃ y, onth ys n = Some y ∧ f x = ok y.
+Proof.
+move => ok_ys.
+case: (leqP (size xs) n) => hsz; first by rewrite (onth_default hsz).
+elim: xs ys ok_ys n hsz.
+- by move => ys [<-].
+move => y xs ih ys' /=; t_xrbindP => z ok_z ys ok_ys <- [| n ] hsz /= ok_y.
+- by exists z; case: ok_y => <-.
+exact: (ih _ ok_ys n hsz ok_y).
+Qed.
+
+Lemma mapM_onth' eT aT bT (f: aT → result eT bT) (xs: seq aT) ys n y :
+  mapM f xs = ok ys →
+  onth ys n = Some y →
+  ∃ x, onth xs n = Some x ∧ f x = ok y.
+Proof.
+move => ok_ys.
+case: (leqP (size ys) n) => hsz; first by rewrite (onth_default hsz).
+elim: xs ys ok_ys n hsz.
+- by move => ys [<-].
+move => x xs ih ys' /=; t_xrbindP => z ok_z ys ok_ys <- [| n ] hsz /= ok_y.
+- by exists x; case: ok_y => <-.
+exact: (ih _ ok_ys n hsz ok_y).
+Qed.
 
 Lemma mapMP {eT} {aT bT: eqType} (f: aT -> result eT bT) (s: seq aT) (s': seq bT) y:
   mapM f s = ok s' ->
@@ -247,6 +308,18 @@ case.
   by exists y0; split=> //; right.
 Qed.
 
+Lemma mapM_In' {aT bT eT} (f: aT -> result eT bT) (s: seq aT) (s': seq bT) y:
+  mapM f s = ok s' ->
+  List.In y s' -> exists2 x, List.In x s & f x = ok y.
+Proof.
+elim: s s'.
++ by move => _ [<-].
+move => a s ih s'' /=; t_xrbindP => b ok_b s' rec <- {s''} /=.
+case.
++ by move=> <-; exists a => //; left.
+by move => h; case: (ih _ rec h) => x hx ok_y; eauto.
+Qed.
+
 Fixpoint foldM eT aT bT (f : aT -> bT -> result eT bT) (acc : bT) (l : seq aT) :=
   match l with
   | [::]         => Ok eT acc
@@ -272,6 +345,71 @@ Section FOLD2.
 
 End FOLD2.
 
+Section MAP2.
+
+  Variable A B E R:Type.
+  Variable e: E.
+
+  Variable f : A -> B -> result E R.
+
+  Fixpoint mapM2 (la:seq A) (lb: seq B) := 
+    match la, lb with
+    | [::]  , [::]   => Ok E [::]
+    | a::la, b::lb =>
+      Let c := f a b in
+      Let lc := mapM2 la lb in
+      ok (c::lc)
+    | _     , _      => Error e
+    end.
+
+  Lemma mapM2_Forall2 (P: R → B → Prop) ma mb mr :
+    (∀ a b r, List.In (a, b) (zip ma mb) → f a b = ok r → P r b) →
+    mapM2 ma mb = ok mr →
+    List.Forall2 P mr mb.
+  Proof.
+    elim: ma mb mr.
+    + move => [] // mr _ [<-]; constructor.
+    move => a ma ih [] // b mb mr' h /=; t_xrbindP => r ok_r mr rec <- {mr'}.
+    constructor.
+    + by apply: (h _ _ _ _ ok_r); left.
+    by apply: ih => // a' b' r' h' ok_r'; apply: (h a' b' r' _ ok_r'); right.
+  Qed.
+
+End MAP2.
+
+(* Inversion lemmas *)
+(* -------------------------------------------------------------- *)
+Lemma seq_eq_injL A (m n: seq A) (h: m = n) :
+  match m with
+  | [::] => if n is [::] then True else False
+  | a :: m' => if n is b :: n' then a = b ∧ m' = n' else False
+  end.
+Proof. by subst n; case: m. Qed.
+
+Lemma List_Forall_inv A (P: A → Prop) m :
+  List.Forall P m →
+  match m with [::] => True | x :: m' => P x ∧ List.Forall P m' end.
+Proof. by case. Qed.
+
+Lemma List_Forall2_refl A (R:A->A->Prop) l : (forall a, R a a) -> List.Forall2 R l l.
+Proof. by move=> HR;elim: l => // a l Hrec;constructor. Qed.
+
+Lemma List_Forall2_inv_l A B (R: A → B → Prop) m n :
+  List.Forall2 R m n →
+  match m with
+  | [::] => n = [::]
+  | a :: m' => ∃ b n', n = b :: n' ∧ R a b ∧ List.Forall2 R m' n'
+  end.
+Proof. case; eauto. Qed.
+
+Lemma List_Forall2_inv_r A B (R: A → B → Prop) m n :
+  List.Forall2 R m n →
+  match n with
+  | [::] => m = [::]
+  | b :: n' => ∃ a m', m = a :: m' ∧ R a b ∧ List.Forall2 R m' n'
+  end.
+Proof. case; eauto. Qed.
+
 Section All2.
 
   Variable A B:Type.
@@ -283,6 +421,17 @@ Section All2.
     | a1::l1, a2::l2 => f a1 a2 && all2 l1 l2
     | _     , _      => false
     end.
+
+  Lemma all2P l1 l2 : reflect (List.Forall2 f l1 l2) (all2 l1 l2).
+  Proof.
+    elim: l1 l2 => [ | a l1 hrec] [ | b l2] /=;try constructor.
+    + by constructor.
+    + by move/List_Forall2_inv_l.
+    + by move/List_Forall2_inv_r.
+    apply: equivP;first apply /andP.
+    split => [[]h1 /hrec h2 |];first by constructor.
+    by case/List_Forall2_inv_l => b' [n] [] [-> ->] [->] /hrec.
+  Qed.
 
 End All2.
 
@@ -320,29 +469,17 @@ Definition req eT aT (f : aT -> aT -> Prop) (o1 o2 : result eT aT) :=
   | _ ,       _      => false
   end.
 
-Lemma List_Forall_inv A (P: A → Prop) m :
-  List.Forall P m →
-  match m with [::] => True | x :: m' => P x ∧ List.Forall P m' end.
-Proof. by case. Qed.
-
-Lemma List_Forall2_refl A (R:A->A->Prop) l : (forall a, R a a) -> List.Forall2 R l l.
-Proof. by move=> HR;elim: l => // a l Hrec;constructor. Qed.
-
-Lemma List_Forall2_inv_l A B (R: A → B → Prop) m n :
-  List.Forall2 R m n →
-  match m with
-  | [::] => n = [::]
-  | a :: m' => ∃ b n', n = b :: n' ∧ R a b ∧ List.Forall2 R m' n'
-  end.
-Proof. case; eauto. Qed.
-
-Lemma List_Forall2_inv_r A B (R: A → B → Prop) m n :
-  List.Forall2 R m n →
-  match n with
-  | [::] => m = [::]
-  | b :: n' => ∃ a m', m = a :: m' ∧ R a b ∧ List.Forall2 R m' n'
-  end.
-Proof. case; eauto. Qed.
+Lemma Forall2_trans (A B C:Type) l2 (R1:A->B->Prop) (R2:B->C->Prop)
+                    l1 l3 (R3:A->C->Prop)  : 
+   (forall b a c, R1 a b -> R2 b c -> R3 a c) ->
+   List.Forall2 R1 l1 l2 ->
+   List.Forall2 R2 l2 l3 ->
+   List.Forall2 R3 l1 l3.
+Proof.
+  move=> H hr1;elim: hr1 l3 => {l1 l2} [ | a b l1 l2 hr1 _ hrec] l3 /List_Forall2_inv_l.
+  + by move => ->.
+   by case => ? [?] [->] [??]; constructor; eauto.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 (* Operators to build comparison                                              *)
@@ -383,22 +520,122 @@ Notation Lex u v :=
   | Gt => Gt
   end.
 
-Section LEX.
+(* -------------------------------------------------------------------- *)
 
-  Class Cmp {T:Type} (cmp:T -> T -> comparison) := {
+Scheme Equality for comparison.
+
+Lemma comparison_beqP : Equality.axiom comparison_beq.
+Proof.
+  move=> e1 e2;case Heq: comparison_beq;constructor.
+  + by apply: internal_comparison_dec_bl.
+  by move=> /internal_comparison_dec_lb;rewrite Heq.
+Qed.
+
+Canonical comparison_eqMixin := EqMixin comparison_beqP.
+Canonical comparison_eqType := Eval hnf in EqType comparison comparison_eqMixin.
+
+(* -------------------------------------------------------------------- *)
+
+Class Cmp {T:Type} (cmp:T -> T -> comparison) := {
     cmp_sym    : forall x y, cmp x y = CompOpp (cmp y x);
     cmp_ctrans : forall y x z c, ctrans (cmp x y) (cmp y z) = Some c -> cmp x z = c;
     cmp_eq     : forall x y, cmp x y = Eq -> x = y;
   }.
 
-  Lemma cmp_trans {T} {cmp} {C:@Cmp T cmp} y x z c:
+Definition gcmp {T:Type} {cmp:T -> T -> comparison} {C:Cmp cmp} := cmp.
+
+Section CMP.
+
+  Context {T:Type} {cmp:T -> T -> comparison} {C:Cmp cmp}. 
+
+  Lemma cmp_trans y x z c:
     cmp x y = c -> cmp y z = c -> cmp x z = c.
   Proof.
     by move=> H1 H2;apply (@cmp_ctrans _ _ C y);rewrite H1 H2 ctransI.
   Qed.
 
-  Lemma cmp_refl  {T} {cmp} {C:@Cmp T cmp} x : cmp x x = Eq.
+  Lemma cmp_refl x : cmp x x = Eq.
   Proof. by have := @cmp_sym _ _ C x x;case: (cmp x x). Qed.
+
+  Definition cmp_lt x1 x2 := gcmp x1 x2 == Lt.
+
+  Definition cmp_le x1 x2 := gcmp x2 x1 != Lt.
+
+  Lemma cmp_le_refl x : cmp_le x x.
+  Proof. by rewrite /cmp_le /gcmp cmp_refl. Qed.
+
+  Lemma cmp_lt_trans y x z : cmp_lt x y -> cmp_lt y z -> cmp_lt x z.
+  Proof. 
+    rewrite /cmp_lt /gcmp => /eqP h1 /eqP h2;apply /eqP;apply (@cmp_ctrans _ _ C y).
+    by rewrite h1 h2. 
+  Qed.
+
+  Lemma cmp_le_trans y x z : cmp_le x y -> cmp_le y z -> cmp_le x z.
+  Proof. 
+    rewrite /cmp_le /gcmp => h1 h2;have := (@cmp_ctrans _ _ C y z x).
+    by case: cmp h1 => // _;case: cmp h2 => //= _;rewrite /ctrans => /(_ _ erefl) ->.
+  Qed.
+
+  Lemma cmp_nle_lt x y: ~~ (cmp_le x y) = cmp_lt y x.
+  Proof. by rewrite /cmp_le /cmp_lt /gcmp Bool.negb_involutive. Qed.
+
+  Lemma cmp_nlt_le x y: ~~ (cmp_lt x y) = cmp_le y x.
+  Proof. done. Qed.
+
+  Lemma cmp_lt_le_trans y x z: cmp_lt x y -> cmp_le y z -> cmp_lt x z.
+  Proof.
+    rewrite /cmp_le /cmp_lt /gcmp (cmp_sym z) => h1 h2.
+    have := (@cmp_ctrans _ _ C y x z).
+    by case: cmp h1 => // _;case: cmp h2 => //= _;rewrite /ctrans => /(_ _ erefl) ->.
+  Qed.
+
+  Lemma cmp_le_lt_trans y x z: cmp_le x y -> cmp_lt y z -> cmp_lt x z.
+  Proof.
+    rewrite /cmp_le /cmp_lt /gcmp (cmp_sym y) => h1 h2.
+    have := (@cmp_ctrans _ _ C y x z).    
+    by case: cmp h1 => // _;case: cmp h2 => //= _;rewrite /ctrans => /(_ _ erefl) ->.
+  Qed.
+
+  Lemma cmp_lt_le x y : cmp_lt x y -> cmp_le x y.
+  Proof.
+    rewrite /cmp_lt /cmp_le /gcmp => /eqP h.
+    by rewrite cmp_sym h.
+  Qed.
+
+  Lemma cmp_nle_le x y : ~~ (cmp_le x y) -> cmp_le y x.
+  Proof. by rewrite cmp_nle_lt; apply: cmp_lt_le. Qed.
+
+End CMP.
+
+Notation "m < n" := (cmp_lt m n) : cmp_scope.
+Notation "m <= n" := (cmp_le m n) : cmp_scope.
+Notation "m ≤ n" := (cmp_le m n) : cmp_scope.
+Delimit Scope cmp_scope with CMP.
+
+Hint Resolve cmp_le_refl.
+
+Section EqCMP.
+
+  Context {T:eqType} {cmp:T -> T -> comparison} {C:Cmp cmp}. 
+
+  Lemma cmp_le_eq_lt (s1 s2:T): cmp_le s1 s2 = cmp_lt s1 s2 || (s1 == s2).
+  Proof.
+    rewrite /cmp_le /cmp_lt cmp_sym /gcmp.
+    case heq: cmp => //=.
+    + by rewrite (cmp_eq heq) eqxx.
+    case: eqP => // ?;subst.
+    by rewrite cmp_refl in heq.
+  Qed.
+
+  Lemma cmp_le_antisym x y :
+    cmp_le x y → cmp_le y x → x = y.
+  Proof.
+    by rewrite -cmp_nlt_le (cmp_le_eq_lt y) => /negbTE -> /eqP.
+  Qed.
+
+End EqCMP.
+
+Section LEX.
  
   Variables (T1 T2:Type) (cmp1:T1 -> T1 -> comparison) (cmp2:T2 -> T2 -> comparison).
 
@@ -446,6 +683,25 @@ Section LEX.
   Qed.
 
 End LEX.
+
+Section MIN.
+  Context T (cmp: T → T → comparison) (O: Cmp cmp).
+  Definition cmp_min (x y: T) : T :=
+    if (x ≤ y)%CMP then x else y.
+
+  Lemma cmp_minP x y (P: T → T → T → Prop) :
+    ((x ≤ y)%CMP → P x y x) →
+    ((y < x)%CMP → P x y y) →
+    P x y (cmp_min x y).
+  Proof.
+    rewrite /cmp_min; case: ifP.
+    - by move => _ /(_ erefl).
+    by rewrite -cmp_nle_lt => -> _ /(_ erefl).
+  Qed.
+
+End MIN.
+
+Arguments cmp_min {T cmp O} x y.
 
 Definition bool_cmp b1 b2 := 
   match b1, b2 with
@@ -548,39 +804,6 @@ Proof.
   apply Z.compare_eq.
 Qed.
 
-(* 64 bits word *)
-Module I64 := Integers.Int64.
-
-Definition i64_cmp (w1 w2:I64.int) := 
-   Z.compare (I64.unsigned w1) (I64.unsigned w2).
-
-Lemma i64_eqP : Equality.axiom (fun x y => I64.unsigned x == I64.unsigned y).
-Proof.
-  move=> p1 p2.
-  have := I64.eq_spec p1 p2;rewrite /I64.eq /Coqlib.zeq.
-  by case:Z.eq_dec => [/eqP | /eqP /negbTE] ->;constructor.
-Qed.
-
-Definition i64_eqMixin := EqMixin i64_eqP.
-Canonical  i64_eqType  := EqType I64.int i64_eqMixin.
-
-Lemma ueqP n1 n2: reflect (n1 = n2) (I64.unsigned n1 == I64.unsigned n2).
-Proof. by apply (n1 =P n2). Qed.
-
-Instance i64O : Cmp i64_cmp.
-Proof.
-  rewrite /i64_cmp;constructor.
-  + by move=> ??;rewrite Z.compare_antisym. 
-  + move=> ????;case:Z.compare_spec=> [->|H1|H1];
-    case:Z.compare_spec=> H2 //= -[] <- //;
-    rewrite -?H2 ?Z.compare_gt_iff ?Z.compare_lt_iff //.
-    + move: (H2);rewrite -?Z.compare_lt_iff => ->.
-      by rewrite Z.compare_lt_iff;apply: Z.lt_trans H1 H2. 
-    by apply: Z.lt_trans H2 H1. 
-  by move=> x y /Z.compare_eq Heq; rewrite -(I64.repr_unsigned x) -(I64.repr_unsigned y) Heq.
-Qed.
-
-
 (* ** Some Extra tactics
  * -------------------------------------------------------------------- *)
 
@@ -605,14 +828,18 @@ Qed.
 Lemma inj_drop {T : Type} (s : seq T) (n m : nat) :
   (n <= size s)%nat -> (m <= size s)%nat -> drop n s = drop m s -> n = m.
 Proof.
-elim: s n m => [|x s ih] //= n m.
-+ by rewrite !leqn0 => /eqP-> /eqP->.
-case: n m => [|n] [|m] //=; rewrite ?ltnS; first last.
-- by move=> len lem eq; congr _.+1; apply/ih.
-- move=> _ _ /(congr1 size) /eqP; rewrite eqn_leq => /andP[_].
-  rewrite size_drop => h; have := leq_trans h (leq_subr _ _).
-  by rewrite ltnn.
-- move=> _ _ /(congr1 size) /eqP; rewrite eqn_leq => /andP[h _].
-  rewrite size_drop in h; have := leq_trans h (leq_subr _ _).
-  by rewrite ltnn.
+move => /leP hn /leP hm he; have := size_drop n s.
+rewrite he size_drop /subn /subn_rec; Psatz.lia.
 Qed.
+
+Definition ZleP : ∀ x y, reflect (x <= y) (x <=? y) := Z.leb_spec0.
+Definition ZltP : ∀ x y, reflect (x < y) (x <? y) := Z.ltb_spec0.
+
+Lemma eq_dec_refl
+           (T: Type) (dec: ∀ x y : T, { x = y } + { x ≠ y })
+           (x: T) : dec x x = left erefl.
+Proof.
+case: (dec _ _) => // e; apply: f_equal.
+exact: Eqdep_dec.UIP_dec.
+Qed.
+

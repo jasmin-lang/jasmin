@@ -33,7 +33,7 @@ let rec gsubst_i fty f i =
   let i_desc =
     match i.i_desc with
     | Cblock c      -> Cblock (gsubst_c fty f c)
-    | Cassgn(x,t,e) -> Cassgn(gsubst_lval fty f x, t, gsubst_e f e)
+    | Cassgn(x, tg, ty, e) -> Cassgn(gsubst_lval fty f x, tg, fty ty, gsubst_e f e)
     | Copn(x,t,o,e)   -> Copn(gsubst_lvals fty f x, t, o, gsubst_es f e)
     | Cif(e,c1,c2)  -> Cif(gsubst_e f e, gsubst_c fty f c1, gsubst_c fty f c2)
     | Cfor(x,(d,e1,e2),c) ->
@@ -48,8 +48,10 @@ and gsubst_c fty f c = List.map (gsubst_i fty f) c
 let gsubst_func fty f fc =
   let dov v = L.unloc (gsubst_vdest f (L.mk_loc L._dummy v)) in
   { fc with
+    f_tyin = List.map fty fc.f_tyin;
     f_args = List.map dov fc.f_args;
     f_body = gsubst_c fty f fc.f_body;
+    f_tyout = List.map fty fc.f_tyout;
     f_ret  = List.map (gsubst_vdest f) fc.f_ret
   }
 
@@ -112,9 +114,9 @@ let psubst_prog (prog:'info pprog) : (pvar * pexpr) list * 'info pprog =
 
 let int_of_op2 o i1 i2 =
   match o with
-  | Oadd Op_int -> B.add i1 i2
-  | Omul Op_int -> B.mul i1 i2
-  | Osub Op_int -> B.sub i1 i2
+  | Expr.Oadd Op_int -> B.add i1 i2
+  | Expr.Omul Op_int -> B.mul i1 i2
+  | Expr.Osub Op_int -> B.sub i1 i2
   | _     -> assert false
 
 let rec int_of_expr e =
@@ -157,8 +159,10 @@ let isubst_prog (prog:'info pprog) =
         L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
       let fc = {
           fc with
+          f_tyin = List.map isubst_ty fc.f_tyin;
           f_args = List.map dov fc.f_args;
           f_body = gsubst_c isubst_ty subst_v fc.f_body;
+          f_tyout = List.map isubst_ty fc.f_tyout;
           f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret
         } in
       fc in

@@ -49,10 +49,19 @@ Definition get_flag (x:lval) flag :=
   | Lvar x => if inline_var x then AT_inline else flag
   | _      => flag
   end.
- 
-Definition assgn_tuple iinfo (xs:lvals) flag (es:pexprs) :=
-  let assgn xe := MkI iinfo (Cassgn xe.1 (get_flag xe.1 flag) xe.2) in
-  map assgn (zip xs es).
+
+Definition stype_of_lval (lv: lval) : stype :=
+  match lv with
+  | Lnone _ ty
+  | Lvar {| v_var := {| vtype := ty |} |}
+  | Laset {| v_var := {| vtype := ty |} |} _
+    => ty
+  | Lmem sz _ _ => sword sz
+  end.
+
+Definition assgn_tuple iinfo (xs:lvals) flag (tys:seq stype) (es:pexprs) :=
+  let assgn xe := MkI iinfo (Cassgn xe.1 (get_flag xe.1 flag) xe.2.1 xe.2.2) in
+  map assgn (zip xs (zip tys es)).
 
 Definition inline_c (inline_i: instr -> Sv.t -> ciexec (Sv.t * cmd)) c s := 
   foldr (fun i r =>
@@ -92,13 +101,13 @@ Definition dummy_info := xH.
 
 Definition mkdV x := {| v_var := x; v_info := dummy_info |}.
 
-Definition arr_init p := Papp1 Oarr_init (Pconst (Zpos p)).
+Definition arr_init sz p := Papp1 (Oarr_init sz) (Pconst (Zpos p)).
 
 Definition array_init iinfo (X: Sv.t) := 
   let assgn x c := 
     match x.(vtype) with
-    | sarr p => 
-      MkI iinfo (Cassgn (Lvar (mkdV x)) AT_rename (arr_init p)) :: c
+    | sarr sz p =>
+      MkI iinfo (Cassgn (Lvar (mkdV x)) AT_rename x.(vtype) (arr_init sz p)) :: c
     | _      => c
     end in
   Sv.fold assgn X [::].
@@ -107,7 +116,7 @@ Fixpoint inline_i (p:prog) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
   match i with
   | MkI iinfo ir =>
     match ir with 
-    | Cassgn x _ e => ciok (Sv.union (read_i ir) X, [::i])
+    | Cassgn x _ _ e => ciok (Sv.union (read_i ir) X, [::i])
     | Copn xs _ o es => ciok (Sv.union (read_i ir) X, [::i])
     | Cif e c1 c2  =>
       Let c1 := inline_c (inline_i p) c1 X in
@@ -130,20 +139,20 @@ Fixpoint inline_i (p:prog) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
         (* FIXME : locals is computed 2 times (one in check_rename) *)
         Let _ := check_rename iinfo f fd fd' (Sv.union (vrvs xs) X) in
         let init_array := array_init iinfo (locals fd') in                
-        ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename es ++
+        ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es ++
                   init_array ++ 
                   (fd'.(f_body) ++ 
-                  assgn_tuple iinfo xs AT_rename (map Pvar fd'.(f_res))))
+                  assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Pvar fd'.(f_res))))
       else ciok (X, [::i])        
     end
   end.
 
 Definition inline_fd (p:prog) (fd:fundef) :=
   match fd with 
-  | MkFun ii params c res =>
+  | MkFun ii tyin params c tyout res =>
     let s := read_es (map Pvar res) in
     Let c := inline_c (inline_i p) c s in
-    ok (MkFun ii params c.2 res)
+    ok (MkFun ii tyin params c.2 tyout res)
   end.
 
 Definition inline_fd_cons (ffd:funname * fundef) (p:cfexec prog) :=
@@ -161,7 +170,7 @@ Definition inline_prog_err (p:prog) :=
 
 Definition is_array_init e := 
   match e with
-  | Papp1 Oarr_init _ => true
+  | Papp1 (Oarr_init _) _ => true
   | _                 => false
   end.
 
@@ -169,7 +178,7 @@ Fixpoint remove_init_i i :=
   match i with
   | MkI ii ir =>
     match ir with
-    | Cassgn x t e => if is_array_init e then [::] else [::i]
+    | Cassgn x _ _ e => if is_array_init e then [::] else [::i]
     | Copn _ _ _ _   => [::i]
     | Cif e c1 c2  => 
       let c1 := foldr (fun i c => remove_init_i i ++ c) [::] c1 in
@@ -190,8 +199,10 @@ Definition remove_init_c c :=  foldr (fun i c => remove_init_i i ++ c) [::] c.
 
 Definition remove_init_fd fd := 
   {| f_iinfo  := fd.(f_iinfo);
+     f_tyin   := fd.(f_tyin);
      f_params := fd.(f_params);  
      f_body   := remove_init_c fd.(f_body);
+     f_tyout   := fd.(f_tyout);
      f_res    := fd.(f_res); |}.
 
 Definition remove_init_prog (p:prog) := map_prog remove_init_fd p.

@@ -45,7 +45,6 @@ Local Open Scope seq_scope.
 Definition label := positive.
 
 Variant linstr_r :=
-  | Lassgn : lval -> assgn_tag -> pexpr -> linstr_r
   | Lopn   : lvals -> sopn -> pexprs -> linstr_r
   | Llabel : label -> linstr_r
   | Lgoto  : label -> linstr_r
@@ -70,10 +69,15 @@ Definition find_label (lbl : label) (c : seq linstr) :=
 Record lfundef := LFundef {
  lfd_stk_size : Z;
  lfd_nstk : Ident.ident;
+ lfd_tyin : seq stype;
  lfd_arg  : seq var_i;
  lfd_body : lcmd;
+ lfd_tyout : seq stype;
  lfd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)
 }.
+
+Definition signature_of_lfundef (lfd: lfundef) : function_signature :=
+  (lfd_tyin lfd, lfd_tyout lfd).
 
 Definition lprog := seq (funname * lfundef).
 
@@ -114,7 +118,12 @@ Fixpoint snot e :=
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
-  | Cassgn x tag e => ok (lbl, MkLI ii (Lassgn x tag e) :: lc)
+  | Cassgn x _ ty e =>
+    if ty is sword sz
+    then
+      Let _ := assert (sz ≤ U64)%CMP (ii, (Cerr_linear "assign a big word")) in
+      ok (lbl, MkLI ii (Lopn [:: x ] (Ox86_MOV sz) [:: e]) :: lc)
+    else cierror ii (Cerr_linear "assign not a word")
   | Copn xs _ o es => ok (lbl, MkLI ii (Lopn xs o es) :: lc)
 
   | Cif e [::] c2 =>
@@ -174,7 +183,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
 
 Definition linear_fd (fd: sfundef) :=
   Let fd' := linear_c linear_i (sf_body fd) 1%positive [::] in
-  ok (LFundef (sf_stk_sz fd) (sf_stk_id fd) (sf_params fd) fd'.2 (sf_res fd)).
+  ok (LFundef (sf_stk_sz fd) (sf_stk_id fd) (sf_tyin fd) (sf_params fd) fd'.2 (sf_tyout fd) (sf_res fd)).
 
 Definition linear_prog (p: sprog) : cfexec lprog :=
   map_cfprog linear_fd p.
@@ -182,7 +191,6 @@ Definition linear_prog (p: sprog) : cfexec lprog :=
 Module Eq_linstr.
   Definition eqb_r i1 i2 := 
     match i1, i2 with 
-    | Lassgn lv1 t1 e1, Lassgn lv2 t2 e2 => (lv1 == lv2) && (t1 == t2) && (e1 == e2)
     | Lopn lv1 o1 e1, Lopn lv2 o2 e2 => (lv1 == lv2) && (o1 == o2) && (e1 == e2)
     | Llabel l1, Llabel l2 => l1 == l2
     | Lgoto l1, Lgoto l2 => l1 == l2
@@ -192,9 +200,7 @@ Module Eq_linstr.
 
   Lemma eqb_r_axiom : Equality.axiom eqb_r.
   Proof.
-    case => [lv1 t1 e1|lv1 o1 e1|l1|l1|e1 l1] [lv2 t2 e2|lv2 o2 e2|l2|l2|e2 l2] //=;try by constructor.
-    + apply (@equivP (((lv1 == lv2) && (t1 == t2)) /\ e1 == e2 ));first by apply andP.
-      by split => [ [] /andP [] /eqP -> /eqP -> /eqP -> //| [] -> -> ->];rewrite !eqxx.
+    case => [lv1 o1 e1|l1|l1|e1 l1] [lv2 o2 e2|l2|l2|e2 l2] //=;try by constructor.
     + apply (@equivP (((lv1 == lv2) && (o1 == o2)) /\ e1 == e2 ));first by apply andP.
       by split => [ [] /andP [] /eqP -> /eqP -> /eqP -> //| [] -> -> ->];rewrite !eqxx.
     + apply (@equivP (l1 = l2));first by apply eqP.

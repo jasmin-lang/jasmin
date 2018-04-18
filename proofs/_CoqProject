@@ -6,16 +6,11 @@
 -R logic Jasmin
 -R lang Jasmin
 -R ssrmisc Jasmin
--R sandbox Jasmin
 
 ssrmisc/oseq.v
-sandbox/gensem.v
-3rdparty/Coqlib.v
-3rdparty/Integers.v
 3rdparty/ssrring.v
 3rdparty/ssrify.v
 3rdparty/xseq.v
-3rdparty/ssrZ.v
 compiler/allocation.v
 compiler/array_expansion.v
 compiler/asmgen.v
@@ -49,8 +44,9 @@ lang/expr.v
 lang/extraction.v
 lang/gen_map.v
 lang/low_memory.v
-lang/memory.v
 lang/sem.v
+lang/psem.v
+lang/psem_of_sem_proof.v
 lang/strings.v
 lang/type.v
 lang/utils.v
@@ -59,5 +55,5 @@ lang/word.v
 lang/prog_notation.v
 logic/Ssem.v
 logic/Ssem_props.v
-logic/equiv_sem.v
-logic/wp.v
+#logic/equiv_sem.v
+#logic/wp.v

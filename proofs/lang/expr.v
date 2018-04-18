@@ -23,14 +23,13 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-(* * Syntax and semantics of the dmasm source language *)
-
 (* ** Imports and settings *)
+Require Import oseq.
 Require Export ZArith Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Export strings word utils type var.
 Require Import xseq.
-Import ZArith.
+Import Utf8 ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -48,19 +47,18 @@ Unset Printing Implicit Defensive.
 
 Variant cmp_kind :=
   | Cmp_int
-  | Cmp_sw
-  | Cmp_uw.
+  | Cmp_w of signedness & wsize.
 
 Variant op_kind :=
   | Op_int
-  | Op_w.
+  | Op_w of wsize.
 
 Variant sop1 :=
+(* | Ozeroext of wsize *)
 | Onot
-| Olnot
-| Oneg
-| Oarr_init 
-.
+| Olnot of wsize
+| Oneg  of op_kind
+| Oarr_init of wsize.
 
 Variant sop2 :=
 | Oand                        (* const : sbool -> sbool -> sbool *)
@@ -70,15 +68,15 @@ Variant sop2 :=
 | Omul  of op_kind
 | Osub  of op_kind
 
-| Oland of op_kind
-| Olor of op_kind
-| Olxor of op_kind
-| Olsr
-| Olsl
-| Oasr
+| Oland of wsize
+| Olor  of wsize
+| Olxor of wsize
+| Olsr  of wsize
+| Olsl  of wsize
+| Oasr  of wsize
 
-| Oeq   of cmp_kind
-| Oneq  of cmp_kind
+| Oeq   of op_kind
+| Oneq  of op_kind
 | Olt   of cmp_kind
 | Ole   of cmp_kind
 | Ogt   of cmp_kind
@@ -86,41 +84,42 @@ Variant sop2 :=
 
 Variant sopn : Set :=
 (* Generic operation *)
-| Omulu        (* cpu   : [sword; sword]        -> [sword;sword] *)
-| Oaddcarry    (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
-| Osubcarry    (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
+| Omulu     of wsize   (* cpu   : [sword; sword]        -> [sword;sword] *)
+| Oaddcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
+| Osubcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
 
 (* Low level x86 operations *)
-| Oset0        (* set register + flags to 0 (implemented using XOR x x) *)
-| Ox86_MOV     (* copy *)
-| Ox86_CMOVcc  (* conditional copy *)
-| Ox86_ADD     (* add unsigned / signed *)
-| Ox86_SUB     (* sub unsigned / signed *)
-| Ox86_MUL     (* mul unsigned *)
-| Ox86_IMUL    (* excat multiplication *)
-| Ox86_IMUL64    (* truncated multiplication *)
-| Ox86_IMUL64imm   (* truncated multiplication by an immediate value *)
-| Ox86_DIV     (* div unsigned *)
-| Ox86_IDIV    (* div   signed *)
-| Ox86_ADC     (* add with carry *)
-| Ox86_SBB     (* sub with borrow *)
-| Ox86_NEG	(* negation *)
-| Ox86_INC     (* increment *)
-| Ox86_DEC     (* decrement *)
-| Ox86_SETcc   (* Set byte on condition *)
-| Ox86_BT   (* Bit test, sets CF *)
-| Ox86_LEA     (* Load Effective Address *)
-| Ox86_TEST    (* Bit-wise logical and CMP *)
-| Ox86_CMP     (* Signed sub CMP *)
-| Ox86_AND     (* bit-wise and *)
-| Ox86_OR      (* bit-wise or  *)
-| Ox86_XOR     (* bit-wise xor *)
-| Ox86_NOT     (* bit-wise not *)
-| Ox86_ROR | Ox86_ROL
-| Ox86_SHL     (* unsigned / left  *)
-| Ox86_SHR     (* unsigned / right *)
-| Ox86_SAR     (*   signed / right *)
-| Ox86_SHLD    (* unsigned double-word / left  *)
+| Oset0        of wsize  (* set register + flags to 0 (implemented using XOR x x) *)
+| Ox86_MOV     of wsize  (* copy *)
+| Ox86_CMOVcc  of wsize  (* conditional copy *)
+| Ox86_ADD     of wsize  (* add unsigned / signed *)
+| Ox86_SUB     of wsize  (* sub unsigned / signed *)
+| Ox86_MUL     of wsize  (* mul unsigned *)
+| Ox86_IMUL    of wsize  (* excat multiplication *)
+| Ox86_IMULt   of wsize  (* truncated multiplication *)
+| Ox86_IMULtimm of wsize (* truncated multiplication by an immediate value *)
+| Ox86_DIV     of wsize  (* div unsigned *)
+| Ox86_IDIV    of wsize  (* div   signed *)
+| Ox86_ADC     of wsize  (* add with carry *)
+| Ox86_SBB     of wsize  (* sub with borrow *)
+| Ox86_NEG     of wsize  (* negation *)
+| Ox86_INC     of wsize  (* increment *)
+| Ox86_DEC     of wsize  (* decrement *)
+| Ox86_SETcc             (* Set byte on condition *)
+| Ox86_BT      of wsize  (* Bit test, sets CF *)
+| Ox86_LEA     of wsize  (* Load Effective Address *)
+| Ox86_TEST    of wsize  (* Bit-wise logical and CMP *)
+| Ox86_CMP     of wsize  (* Signed sub CMP *)
+| Ox86_AND     of wsize  (* bit-wise and *)
+| Ox86_OR      of wsize  (* bit-wise or  *)
+| Ox86_XOR     of wsize  (* bit-wise xor *)
+| Ox86_NOT     of wsize  (* bit-wise not *)
+| Ox86_ROR     of wsize  (* right rotation *)
+| Ox86_ROL     of wsize  (* left rotation *)
+| Ox86_SHL     of wsize  (* unsigned / left  *)
+| Ox86_SHR     of wsize  (* unsigned / right *)
+| Ox86_SAR     of wsize  (*   signed / right *)
+| Ox86_SHLD    of wsize  (* unsigned double-word / left  *)
 .
 
 Scheme Equality for sop1.
@@ -163,40 +162,72 @@ Canonical  sopn_eqType      := Eval hnf in EqType sopn sopn_eqMixin.
 
 Definition string_of_sopn o : string :=
   match o with
-  | Omulu => "Omulu"
-  | Oaddcarry => "Oaddcarry"
-  | Osubcarry => "Osubcarry"
-  | Oset0 => "Oset0"
-  | Ox86_MOV => "Ox86_MOV"
-  | Ox86_CMOVcc => "Ox86_CMOVcc"
-  | Ox86_ADD => "Ox86_ADD"
-  | Ox86_SUB => "Ox86_SUB"
-  | Ox86_MUL => "Ox86_MUL"
-  | Ox86_IMUL => "Ox86_IMUL"
-  | Ox86_IMUL64 => "Ox86_IMUL64"
-  | Ox86_IMUL64imm => "Ox86_IMUL64imm"
-  | Ox86_DIV => "Ox86_DIV"
-  | Ox86_IDIV => "Ox86_IDIV"
-  | Ox86_ADC => "Ox86_ADC"
-  | Ox86_SBB => "Ox86_SBB"
-  | Ox86_NEG => "Ox86_NEG"
-  | Ox86_INC => "Ox86_INC"
-  | Ox86_DEC => "Ox86_DEC"
+  | Omulu sz => "Omulu " ++ string_of_wsize sz
+  | Oaddcarry sz => "Oaddcarry " ++ string_of_wsize sz
+  | Osubcarry sz => "Osubcarry " ++ string_of_wsize sz
+  | Oset0 sz => "Oset0 " ++ string_of_wsize sz
+  | Ox86_MOV sz => "Ox86_MOV " ++ string_of_wsize sz
+  | Ox86_CMOVcc sz => "Ox86_CMOVcc " ++ string_of_wsize sz
+  | Ox86_ADD sz => "Ox86_ADD " ++ string_of_wsize sz
+  | Ox86_SUB sz => "Ox86_SUB " ++ string_of_wsize sz
+  | Ox86_MUL sz => "Ox86_MUL " ++ string_of_wsize sz
+  | Ox86_IMUL sz => "Ox86_IMUL " ++ string_of_wsize sz
+  | Ox86_IMULt sz => "Ox86_IMULt " ++ string_of_wsize sz
+  | Ox86_IMULtimm sz => "Ox86_IMULtimm " ++ string_of_wsize sz
+  | Ox86_DIV sz => "Ox86_DIV " ++ string_of_wsize sz
+  | Ox86_IDIV sz => "Ox86_IDIV " ++ string_of_wsize sz
+  | Ox86_ADC sz => "Ox86_ADC " ++ string_of_wsize sz
+  | Ox86_SBB sz => "Ox86_SBB " ++ string_of_wsize sz
+  | Ox86_NEG sz => "Ox86_NEG " ++ string_of_wsize sz
+  | Ox86_INC sz => "Ox86_INC " ++ string_of_wsize sz
+  | Ox86_DEC sz => "Ox86_DEC " ++ string_of_wsize sz
   | Ox86_SETcc => "Ox86_SETcc"
-  | Ox86_BT => "Ox86_BT"
-  | Ox86_LEA => "Ox86_LEA"
-  | Ox86_TEST => "Ox86_TEST"
-  | Ox86_CMP => "Ox86_CMP"
-  | Ox86_AND => "Ox86_AND"
-  | Ox86_OR => "Ox86_OR"
-  | Ox86_XOR => "Ox86_XOR"
-  | Ox86_NOT => "Ox86_NOT"
-  | Ox86_ROR => "Ox86_ROR"
-  | Ox86_ROL => "Ox86_ROL"
-  | Ox86_SHL => "Ox86_SHL"
-  | Ox86_SHR => "Ox86_SHR"
-  | Ox86_SAR => "Ox86_SAR"
-  | Ox86_SHLD => "Ox86_SHLD"
+  | Ox86_BT sz => "Ox86_BT " ++ string_of_wsize sz
+  | Ox86_LEA sz => "Ox86_LEA " ++ string_of_wsize sz
+  | Ox86_TEST sz => "Ox86_TEST " ++ string_of_wsize sz
+  | Ox86_CMP sz => "Ox86_CMP " ++ string_of_wsize sz
+  | Ox86_AND sz => "Ox86_AND " ++ string_of_wsize sz
+  | Ox86_OR sz => "Ox86_OR " ++ string_of_wsize sz
+  | Ox86_XOR sz => "Ox86_XOR " ++ string_of_wsize sz
+  | Ox86_NOT sz => "Ox86_NOT " ++ string_of_wsize sz
+  | Ox86_ROR sz => "Ox86_ROR " ++ string_of_wsize sz
+  | Ox86_ROL sz => "Ox86_ROL " ++ string_of_wsize sz
+  | Ox86_SHL sz => "Ox86_SHL " ++ string_of_wsize sz
+  | Ox86_SHR sz => "Ox86_SHR " ++ string_of_wsize sz
+  | Ox86_SAR sz => "Ox86_SAR " ++ string_of_wsize sz
+  | Ox86_SHLD sz => "Ox86_SHLD " ++ string_of_wsize sz
+  end.
+
+Definition b_ty := [::sbool].
+Definition b5_ty := [:: sbool;sbool;sbool;sbool;sbool].
+Definition w_ty sz:= [::sword sz].
+Definition b2w_ty sz := [::sbool;sbool;sword sz].
+Definition b4w_ty sz := [:: sbool;sbool;sbool;sbool;sword sz].
+Definition b5w_ty sz := [:: sbool;sbool;sbool;sbool;sbool;sword sz].
+Definition b5ww_ty sz := [:: sbool;sbool;sbool;sbool;sbool;sword sz;sword sz].
+
+Definition sopn_tout (o:sopn) :  list stype :=
+  match o with
+  | Omulu sz => [::sword sz; sword sz]
+  | Oaddcarry sz | Osubcarry sz => [:: sbool; sword sz]
+  | Oset0 sz => b5w_ty sz
+  | Ox86_MOV sz | Ox86_CMOVcc sz  => w_ty sz
+  | Ox86_ADD sz | Ox86_SUB sz     => b5w_ty sz
+  | Ox86_MUL sz | Ox86_IMUL sz    => b5ww_ty sz
+  | Ox86_IMULt sz | Ox86_IMULtimm sz => b5w_ty sz
+  | Ox86_DIV sz | Ox86_IDIV sz    => b5ww_ty sz
+  | Ox86_ADC sz | Ox86_SBB sz     => b5w_ty sz
+  | Ox86_NEG sz                   => b5w_ty sz
+  | Ox86_INC sz | Ox86_DEC sz     => b4w_ty sz
+  | Ox86_SETcc                    => w_ty U8
+  | Ox86_BT sz                    => b_ty 
+  | Ox86_LEA sz                   => w_ty sz
+  | Ox86_TEST sz | Ox86_CMP sz    => b5_ty
+  | Ox86_AND sz | Ox86_OR sz | Ox86_XOR sz => b5w_ty sz
+  | Ox86_NOT sz                   => w_ty sz
+  | Ox86_ROL sz | Ox86_ROR sz     => b2w_ty sz
+  | Ox86_SHL sz | Ox86_SHR sz     => b5w_ty sz 
+  | Ox86_SAR sz | Ox86_SHLD sz    => b5w_ty sz 
   end.
 
 (* ** Expressions
@@ -232,11 +263,11 @@ Canonical global_eqType := Eval hnf in EqType global global_eqMixin.
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
-| Pcast  : pexpr -> pexpr              (* int -> word *)
+| Pcast  : wsize -> pexpr -> pexpr              (* int -> word *)
 | Pvar   :> var_i -> pexpr
 | Pglobal :> global -> pexpr
 | Pget   : var_i -> pexpr -> pexpr
-| Pload  : var_i -> pexpr -> pexpr
+| Pload  : wsize -> var_i -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
 | Pif    : pexpr -> pexpr -> pexpr -> pexpr.
@@ -263,45 +294,47 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
   match e1, e2 with
   | Pconst n1   , Pconst n2    => n1 == n2
   | Pbool  b1   , Pbool  b2    => b1 == b2
-  | Pcast  e1   , Pcast  e2    => eqb e1 e2
+  | Pcast w1 e1, Pcast w2 e2 => (w1 == w2) && eqb e1 e2
   | Pvar   x1   , Pvar   x2    => (x1 == x2)
   | Pglobal g1, Pglobal g2 => g1 == g2
   | Pget   x1 e1, Pget   x2 e2 => (x1 == x2) && eqb e1 e2
-  | Pload  x1 e1, Pload  x2 e2 => (x1 == x2) && eqb e1 e2
+  | Pload w1 x1 e1, Pload w2 x2 e2 => (w1 == w2) && (x1 == x2) && eqb e1 e2
   | Papp1 o1 e1 , Papp1  o2 e2 => (o1 == o2) && eqb e1 e2
   | Papp2 o1 e11 e12, Papp2 o2 e21 e22  =>
      (o1 == o2) && eqb e11 e21 && eqb e12 e22
-  | Pif t1 e11 e12, Pif t2 e21 e22  =>
-     eqb t1 t2 && eqb e11 e21 && eqb e12 e22
+  | Pif b1 e11 e12, Pif b2 e21 e22  =>
+     eqb b1 b2 && eqb e11 e21 && eqb e12 e22
   | _, _ => false
   end.
 
   Lemma eq_axiom : Equality.axiom eqb.
   Proof.
-    elim => [n1|b1|e1 He1|x1|g1|x1 e1 He1|x1 e1 He1
+    elim => [n1|b1|w1 e1 He1|x1|g1|x1 e1 He1|w1 x1 e1 He1
             |o1 e1 He1|o1 e11 He11 e12 He12 | t1 Ht1 e11 He11 e12 He12]
-            [n2|b2|e2|x2|g2|x2 e2|x2 e2|o2 e2|o2 e21 e22 | t2 e21 e22] /=;
+            [n2|b2|w2 e2|x2|g2|x2 e2|w2 x2 e2|o2 e2|o2 e21 e22 |t2 e21 e22] /=;
         try by constructor.
     + apply (@equivP (n1 = n2));first by apply: eqP.
       by split => [->|[]->].
     + apply (@equivP (b1 = b2));first by apply: eqP.
       by split => [->|[]->].
-    + by apply: (equivP (He1 e2)); split => [->|[]->].
+    + apply (@equivP ((w1 == w2) /\ eqb e1 e2));first by apply andP.
+      by split=> [ [] /eqP -> /He1 -> | [] -> <- ] //;split => //;apply /He1.
     + apply (@equivP (x1 = x2));first by apply: eqP.
       by split => [->|[]->].
     + apply (@equivP (g1 = g2));first by apply: eqP.
       by split => [->|[]->].
     + apply (@equivP ((x1 == x2) /\ eqb e1 e2));first by apply andP.
       by split=> [ [] /eqP -> /He1 -> | [] -> <- ] //;split => //;apply /He1.
-    + apply (@equivP ((x1 == x2) /\ eqb e1 e2));first by apply andP.
-      by split=> [ [] /eqP -> /He1 -> | [] -> <- ] //;split => //;apply /He1.
+    + apply (@equivP (((w1 == w2) && (x1 == x2)) /\ eqb e1 e2)); first by apply andP.
+      split => [ [] /andP [] /eqP -> /eqP -> /He1 -> | [] -> -> <-] //.
+      by rewrite ! eq_refl; split => //; apply/ He1.
     + apply (@equivP ((o1 == o2) /\ eqb e1 e2));first by apply andP.
       by split=> [ [] /eqP -> /He1 -> | [] -> <- ] //;split => //;apply /He1.
     + apply (@equivP (((o1 == o2) && eqb e11 e21) /\ eqb e12 e22));first by apply andP.
       split=> [ []/andP[]/eqP-> /He11 -> /He12->| [] <- <- <- ] //.
       by rewrite eq_refl /=;split;[apply /He11|apply /He12].
     apply (@equivP ((eqb t1 t2 && eqb e11 e21) /\ eqb e12 e22));first by apply andP.
-    split=> [ []/andP[]/Ht1 -> /He11 -> /He12->| [] <- <- <- ] //.
+    split => [[] /andP[] /Ht1 -> /He11 -> /He12 ->| [] <- <- <-] //.
     by split;[apply /andP;split|]; [apply /Ht1 | apply /He11 | apply /He12].
   Qed.
 
@@ -318,7 +351,7 @@ Export Eq_pexpr.Exports.
 Variant lval : Type :=
 | Lnone `(var_info) `(stype)
 | Lvar `(var_i)
-| Lmem `(var_i) `(pexpr)
+| Lmem `(wsize) `(var_i) `(pexpr)
 | Laset `(var_i) `(pexpr).
 
 Coercion Lvar : var_i >-> lval.
@@ -329,20 +362,21 @@ Definition lval_beq (x1:lval) (x2:lval) :=
   match x1, x2 with
   | Lnone i1 t1, Lnone i2 t2 => (i1 == i2) && (t1 == t2)
   | Lvar  x1   , Lvar  x2    => x1 == x2
-  | Lmem  x1 e1, Lmem  x2 e2 => (x1 == x2) && (e1 == e2)
+  | Lmem w1 x1 e1, Lmem w2 x2 e2 => (w1 == w2) && (x1 == x2) && (e1 == e2)
   | Laset x1 e1, Laset x2 e2 => (x1 == x2) && (e1 == e2)
   | _          , _           => false
   end.
 
 Lemma lval_eq_axiom : Equality.axiom lval_beq.
 Proof.
-  case=> [i1 t1|x1|x1 e1|x1 e1] [i2 t2|x2|x2 e2|x2 e2] /=;try by constructor.
+  case=> [i1 t1|x1|w1 x1 e1|x1 e1] [i2 t2|x2|w2 x2 e2|x2 e2] /=;try by constructor.
   + apply (@equivP ((i1 == i2) /\ t1 == t2));first by apply andP.
     by split=> [ [] /eqP -> /eqP -> | [] -> <- ] //.
   + apply (@equivP (x1 = x2));first by apply: eqP.
     by split => [->|[]->].
-  + apply (@equivP ((x1 == x2) /\ e1 == e2));first by apply andP.
-    by split=> [ [] /eqP -> /eqP -> | [] -> <- ] //.
+  + apply (@equivP (((w1 == w2) && (x1 == x2)) /\ e1 == e2));first by apply andP.
+    split => [ [] /andP [] /eqP -> /eqP -> /eqP -> // | [] -> -> <- ].
+    by rewrite !eq_refl.
   apply (@equivP ((x1 == x2) /\ e1 == e2));first by apply andP.
   by split=> [ [] /eqP -> /eqP -> | [] -> <- ] //.
 Qed.
@@ -418,10 +452,10 @@ Definition inline_info_eqMixin     := Equality.Mixin inline_info_eq_axiom.
 Canonical  inline_info_eqType      := Eval hnf in EqType inline_info inline_info_eqMixin.
 
 (* -------------------------------------------------------------------- *)
-
+Local Unset Elimination Schemes.
 
 Inductive instr_r :=
-| Cassgn : lval -> assgn_tag -> pexpr -> instr_r
+| Cassgn : lval -> assgn_tag -> stype -> pexpr -> instr_r
 | Copn   : lvals -> assgn_tag -> sopn -> pexprs -> instr_r
 
 | Cif    : pexpr -> seq instr -> seq instr  -> instr_r
@@ -435,10 +469,18 @@ Notation cmd := (seq instr).
 
 Record fundef := MkFun {
   f_iinfo  : instr_info;
+  f_tyin  : seq stype;
   f_params : seq var_i;
   f_body   : cmd;
+  f_tyout : seq stype;
   f_res    : seq var_i;
 }.
+
+Definition function_signature : Type :=
+  (seq stype * seq stype).
+
+Definition signature_of_fundef (fd: fundef) : function_signature :=
+  (f_tyin fd, f_tyout fd).
 
 Definition prog := seq (funname * fundef).
 
@@ -449,8 +491,8 @@ Definition instr_d (i:instr) :=
 
 Fixpoint instr_r_beq i1 i2 :=
   match i1, i2 with
-  | Cassgn x1 tag1 e1, Cassgn x2 tag2 e2 =>
-     (tag1 == tag2) && (x1 == x2) && (e1 == e2)
+  | Cassgn x1 tag1 ty1 e1, Cassgn x2 tag2 ty2 e2 =>
+     (tag1 == tag2) && (ty1 == ty2) && (x1 == x2) && (e1 == e2)
   | Copn x1 tag1 o1 e1, Copn x2 tag2 o2 e2 =>
      (x1 == x2) && (tag1 == tag2) && (o1 == o2) && (e1 == e2)
   | Cif e1 c11 c12, Cif e2 c21 c22 =>
@@ -497,11 +539,11 @@ Lemma instr_r_eq_axiom : Equality.axiom instr_r_beq.
 Proof.
   rewrite /Equality.axiom.
   fix Hrec 1;case =>
-    [x1 t1 e1|x1 t1 o1 e1|e1 c11 c12|x1 [[dir1 lo1] hi1] c1|c1 e1 c1'|ii1 x1 f1 arg1]
-    [x2 t2 e2|x2 t2 o2 e2|e2 c21 c22|x2 [[dir2 lo2] hi2] c2|c2 e2 c2'|ii2 x2 f2 arg2] /=;
+    [x1 t1 ty1 e1|x1 t1 o1 e1|e1 c11 c12|x1 [[dir1 lo1] hi1] c1|c1 e1 c1'|ii1 x1 f1 arg1]
+    [x2 t2 ty2 e2|x2 t2 o2 e2|e2 c21 c22|x2 [[dir2 lo2] hi2] c2|c2 e2 c2'|ii2 x2 f2 arg2] /=;
   try by constructor.
-  + apply (@equivP ((t1 == t2) && (x1 == x2) && (e1 == e2)));first by apply idP.
-    split=> [/andP [] /andP [] /eqP-> /eqP-> /eqP-> | [] <- <- <- ] //.
+  + apply (@equivP ((t1 == t2) && (ty1 == ty2) && (x1 == x2) && (e1 == e2)));first by apply idP.
+    split=> [/andP [] /andP [] /andP [] /eqP -> /eqP-> /eqP-> /eqP-> | [] <- <- <- <- ] //.
     by rewrite !eq_refl.
   + apply (@equivP ((x1 == x2) && (t1 == t2)&& (o1 == o2) && (e1 == e2)));first by apply idP.
     split=> [/andP [] /andP [] /andP [] /eqP-> /eqP-> /eqP-> /eqP-> | [] <- <- <- <-] //.
@@ -534,15 +576,16 @@ Canonical  instr_eqType      := Eval hnf in EqType instr instr_eqMixin.
 
 Definition fundef_beq fd1 fd2 :=
   match fd1, fd2 with
-  | MkFun ii1 x1 c1 r1, MkFun ii2 x2 c2 r2 =>
-    (ii1 == ii2) && (x1 == x2) && (c1 == c2) && (r1 == r2)
+  | MkFun ii1 tin1 x1 c1 tout1 r1, MkFun ii2 tin2 x2 c2 tout2 r2 =>
+    (ii1 == ii2) && (tin1 == tin2) && (x1 == x2) && (c1 == c2) && (tout1 == tout2) && (r1 == r2)
   end.
 
 Lemma fundef_eq_axiom : Equality.axiom fundef_beq.
 Proof.
-  move=> [i1 p1 c1 r1] [i2 p2 c2 r2] /=.
-  apply (@equivP ((i1 == i2) && (p1 == p2) && (c1 == c2) && (r1 == r2)));first by apply idP.
-  by split=> [/andP[]/andP[]/andP[] | []] /eqP->/eqP->/eqP->/eqP->.
+  move=> [i1 tin1 p1 c1 tout1 r1] [i2 tin2 p2 c2 tout2 r2] /=.
+  apply (@equivP ((i1 == i2) && (tin1 == tin2) && (p1 == p2) && 
+           (c1 == c2) && (tout1 == tout2) &&(r1 == r2)));first by apply idP.
+  by split=> [/andP[]/andP[]/andP[]/andP[]/andP[] | []] /eqP->/eqP->/eqP->/eqP->/eqP->/eqP->.
 Qed.
 
 Definition fundef_eqMixin     := Equality.Mixin fundef_eq_axiom.
@@ -599,7 +642,7 @@ Section RECT.
   Hypothesis Hmk  : forall i ii, Pr i -> Pi (MkI ii i).
   Hypothesis Hnil : Pc [::].
   Hypothesis Hcons: forall i c, Pi i -> Pc c -> Pc (i::c).
-  Hypothesis Hasgn: forall x t e, Pr (Cassgn x t e).
+  Hypothesis Hasgn: forall x tg ty e, Pr (Cassgn x tg ty e).
   Hypothesis Hopn : forall xs t o es, Pr (Copn xs t o es).
   Hypothesis Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Hypothesis Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
@@ -622,7 +665,7 @@ Section RECT.
     end
   with instr_r_Rect (i:instr_r) : Pr i :=
     match i return Pr i with
-    | Cassgn x t e => Hasgn x t e
+    | Cassgn x tg ty e => Hasgn x tg ty e
     | Copn xs t o es => Hopn xs t o es
     | Cif e c1 c2  => @Hif e c1 c2 (cmd_rect_aux instr_Rect c1) (cmd_rect_aux instr_Rect c2)
     | Cfor i (dir,lo,hi) c => @Hfor i dir lo hi c (cmd_rect_aux instr_Rect c)
@@ -641,7 +684,7 @@ Definition vrv_rec (s:Sv.t) (rv:lval) :=
   match rv with
   | Lnone _ _  => s
   | Lvar  x    => Sv.add x s
-  | Lmem  _ _  => s
+  | Lmem _ _ _  => s
   | Laset x _  => Sv.add x s
   end.
 
@@ -652,7 +695,7 @@ Definition vrvs := (vrvs_rec Sv.empty).
 
 Fixpoint write_i_rec s i :=
   match i with
-  | Cassgn x _ _    => vrv_rec s x
+  | Cassgn x _ _ _    => vrv_rec s x
   | Copn xs _ _ _   => vrvs_rec s xs
   | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
@@ -683,7 +726,7 @@ Proof. by []. Qed.
 Lemma vrv_var x: Sv.Equal (vrv (Lvar x)) (Sv.singleton x).
 Proof. rewrite /vrv /=;SvD.fsetdec. Qed.
 
-Lemma vrv_mem x e : vrv (Lmem x e) = Sv.empty.
+Lemma vrv_mem w x e : vrv (Lmem w x e) = Sv.empty.
 Proof. by []. Qed.
 
 Lemma vrv_aset x e : Sv.Equal (vrv (Laset x e)) (Sv.singleton x).
@@ -712,7 +755,7 @@ Proof.
            (fun i => forall s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)))
            (fun c => forall s, Sv.Equal (foldl write_I_rec s c) (Sv.union s (write_c c)))) =>
      /= {c s}
-    [ i ii Hi | | i c Hi Hc | x t e | xs t o es | e c1 c2 Hc1 Hc2
+    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | c e c' Hc Hc' | ii xs f es] s;
     rewrite /write_I /write_i /write_c /=
     ?Hc1 ?Hc2 /write_c_rec ?Hc ?Hc' ?Hi -?vrv_recE -?vrvs_recE //;
@@ -735,7 +778,7 @@ Lemma write_c_app c1 c2 :
   Sv.Equal (write_c (c1 ++ c2)) (Sv.union (write_c c1) (write_c c2)).
 Proof. by elim: c1 => //= i c1 Hrec;rewrite !write_c_cons;SvD.fsetdec. Qed.
 
-Lemma write_i_assgn x tag e : write_i (Cassgn x tag e) = vrv x.
+Lemma write_i_assgn x tag ty e : write_i (Cassgn x tag ty e) = vrv x.
 Proof. done. Qed.
 
 Lemma write_i_opn xs t o es : write_i (Copn xs t o es) = vrvs xs.
@@ -778,11 +821,11 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   match e with
   | Pconst _       => s
   | Pbool  _       => s
-  | Pcast  e       => read_e_rec s e
+  | Pcast  _ e     => read_e_rec s e
   | Pvar   x       => Sv.add x s
   | Pglobal _ => s
   | Pget   x e     => read_e_rec (Sv.add x s) e
-  | Pload  x e     => read_e_rec (Sv.add x s) e
+  | Pload _ x e => read_e_rec (Sv.add x s) e
   | Papp1  _ e     => read_e_rec s e
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
   | Pif    t e1 e2 => read_e_rec (read_e_rec (read_e_rec s e2) e1) t
@@ -796,7 +839,7 @@ Definition read_rv_rec  (s:Sv.t) (r:lval) :=
   match r with
   | Lnone _ _ => s
   | Lvar  _   => s
-  | Lmem  x e => read_e_rec (Sv.add x s) e
+  | Lmem _ x e => read_e_rec (Sv.add x s) e
   | Laset x e => read_e_rec (Sv.add x s) e
   end.
 
@@ -806,7 +849,7 @@ Definition read_rvs := read_rvs_rec Sv.empty.
 
 Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
   match i with
-  | Cassgn x _ e => read_rv_rec (read_e_rec s e) x
+  | Cassgn x _ _ e => read_rv_rec (read_e_rec s e) x
   | Copn xs _ _ es => read_es_rec (read_rvs_rec s xs) es
   | Cif b c1 c2 =>
     let s := foldl read_I_rec s c1 in
@@ -836,7 +879,7 @@ Definition read_c := read_c_rec Sv.empty.
 
 Lemma read_eE e s : Sv.Equal (read_e_rec s e) (Sv.union (read_e e) s).
 Proof.
-  elim: e s => //= [v | v e He | v e He | o e1 He1 e2 He2 | e He e1 He1 e2 He2] s;
+  elim: e s => //= [v | v e He | w v e He | o e1 He1 e2 He2 | e He e1 He1 e2 He2] s;
    rewrite /read_e /= ?He ?He1 ?He2; by SvD.fsetdec.
 Qed.
 
@@ -854,7 +897,7 @@ Proof. by rewrite /read_es /= !read_esE read_eE;SvD.fsetdec. Qed.
 
 Lemma read_rvE s x: Sv.Equal (read_rv_rec s x) (Sv.union s (read_rv x)).
 Proof.
-  case: x => //= [_|_|x e|x e]; rewrite /read_rv /= ?read_eE;SvD.fsetdec.
+  case: x => //= [_|_|w x e|x e]; rewrite /read_rv /= ?read_eE; SvD.fsetdec.
 Qed.
 
 Lemma read_rvsE s xs:  Sv.Equal (read_rvs_rec s xs) (Sv.union s (read_rvs xs)).
@@ -877,7 +920,7 @@ Proof.
            (fun i => forall s, Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)))
            (fun c => forall s, Sv.Equal (foldl read_I_rec s c) (Sv.union s (read_c c))))
            => /= {c s}
-   [ i ii Hi | | i c Hi Hc | x t e | xs t o es | e c1 c2 Hc1 Hc2
+   [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | c e c' Hc Hc' | ii xs f es] s;
     rewrite /read_I /read_i /read_c /=
      ?read_rvE ?read_eE ?read_esE ?read_rvsE ?Hc2 ?Hc1 /read_c_rec ?Hc' ?Hc ?Hi //;
@@ -896,8 +939,8 @@ Proof. done. Qed.
 Lemma read_c_cons i c: Sv.Equal (read_c (i::c)) (Sv.union (read_I i) (read_c c)).
 Proof. by rewrite {1}/read_c /= read_cE //. Qed.
 
-Lemma read_i_assgn x tag e :
-  Sv.Equal (read_i (Cassgn x tag e)) (Sv.union (read_rv x) (read_e e)).
+Lemma read_i_assgn x tag ty e :
+  Sv.Equal (read_i (Cassgn x tag ty e)) (Sv.union (read_rv x) (read_e e)).
 Proof. rewrite /read_i /= read_rvE read_eE;SvD.fsetdec. Qed.
 
 Lemma read_i_opn xs t o es:
@@ -946,18 +989,27 @@ Definition is_bool (e:pexpr) :=
   | _ => None
   end.
 
-Definition wconst n:= Pcast (Pconst n).
+Definition wconst (sz: wsize) (n: word sz) : pexpr :=
+  Pcast sz (Pconst (wunsigned n)).
 
-Definition is_wconst e :=
+Definition is_wconst (sz: wsize) (e: pexpr) : option (word sz) :=
   match e with
-  | Pcast e => is_const e
+  | Pcast sz' e => 
+    if (sz <= sz')%CMP then
+      is_const e >>= λ n, Some (zero_extend sz (wrepr sz' n))
+    else None
   | _       => None
-  end.
+  end%O.
+
+Definition is_wconst_of_size sz (e: pexpr) : option Z :=
+  match e with
+  | Pcast sz' (Pconst z) =>
+    if sz' == sz then Some z else None
+  | _ => None end.
 
 Variant is_reflect (A:Type) (P:A -> pexpr) : pexpr -> option A -> Prop :=
  | Is_reflect_some : forall a, is_reflect P (P a) (Some a)
  | Is_reflect_none : forall e, is_reflect P e None.
-
 
 Lemma is_boolP e : is_reflect Pbool e (is_bool e).
 Proof. by case e=> *;constructor. Qed.
@@ -965,11 +1017,29 @@ Proof. by case e=> *;constructor. Qed.
 Lemma is_constP e : is_reflect Pconst e (is_const e).
 Proof. by case: e=>*;constructor. Qed.
 
-Lemma is_wconstP e : is_reflect wconst e (is_wconst e).
+Lemma is_reflect_some_inv {A P e a} (H: @is_reflect A P e (Some a)) : e = P a.
+Proof.
+  set (d e m := match m with None => True | Some a => e = P a end).
+  change (d e (Some a)).
+  case H; simpl; auto.
+Qed.
+
+(*
+Lemma is_wconstP sz e : is_reflect (@wconst sz) e (is_wconst sz e).
 Proof.
   case e => //=;auto using Is_reflect_none.
-  move=> e1; case: (is_constP e1);auto using Is_reflect_none.
+  move=> sz1 e1; case: (is_constP e1);auto using Is_reflect_none.
   move=> z;apply: Is_reflect_some.
+Qed.
+*)
+
+Lemma is_wconst_of_sizeP sz e :
+  is_reflect (fun z => Pcast sz (Pconst z)) e (is_wconst_of_size sz e).
+Proof.
+case: e; try constructor.
+move => sz' []; try constructor.
+move => z /=; case: eqP; try constructor.
+move => ->; exact: Is_reflect_some.
 Qed.
 
 (* --------------------------------------------------------------------- *)
@@ -979,28 +1049,29 @@ Fixpoint eq_expr e e' :=
   | Pconst z      , Pconst z'         => z == z'
   | Pbool  b      , Pbool  b'         => b == b'
   (* FIXME if e1, e2 = Pconst we can compute the cast *)
-  | Pcast  e      , Pcast  e'         => eq_expr e e'
+  | Pcast w e, Pcast w' e'=> (w == w') && eq_expr e e'
   | Pvar   x      , Pvar   x'         => v_var x == v_var x'
   | Pglobal g, Pglobal g' => g == g'
   | Pget   x e    , Pget   x' e'      => (v_var x == v_var x') && eq_expr e e'
-  | Pload  x e    , Pload  x' e'      => (v_var x == v_var x') && eq_expr e e'
+  | Pload w x e, Pload w' x' e' => (w == w') && (v_var x == v_var x') && eq_expr e e'
   | Papp1  o e    , Papp1  o' e'      => (o == o') && eq_expr e e'
   | Papp2  o e1 e2, Papp2  o' e1' e2' => (o == o') && eq_expr e1 e1' && eq_expr e2 e2'
-  | Pif    e e1 e2, Pif    e' e1' e2' => eq_expr e e' && eq_expr e1 e1' && eq_expr e2 e2'
+  | Pif    e e1 e2, Pif    e' e1' e2' => 
+    eq_expr e e' && eq_expr e1 e1' && eq_expr e2 e2'
   | _             , _                 => false
   end.
 
 Lemma eq_expr_refl e : eq_expr e e.
 Proof.
-  by elim: e => //= [ ?? -> | ?? -> | ?? -> | ?? -> ? -> | ? -> ? -> ? -> ] //=;
-   rewrite eqxx.
+ by elim: e => //= [ ?? -> | ?? -> | ??? -> | ?? -> | ?? -> ? -> | ?-> ? -> ? -> ] //=;
+  rewrite !eqxx.
 Qed.
 
 Definition eq_lval (x x': lval) : bool :=
   match x, x' with
   | Lnone _ ty,  Lnone _ ty' => ty == ty'
   | Lvar v, Lvar v' => v_var v == v_var v'
-  | Lmem v e, Lmem v' e'
+  | Lmem w v e, Lmem w' v' e' => (w == w') && (v_var v == v_var v') && (eq_expr e e')
   | Laset v e, Laset v' e'
     => (v_var v == v_var v') && (eq_expr e e')
   | _, _ => false
@@ -1008,5 +1079,5 @@ Definition eq_lval (x x': lval) : bool :=
 
 Lemma eq_lval_refl x : eq_lval x x.
 Proof.
-  by case: x => // [ i ty | x | x e | x e] /=; rewrite eqxx // eq_expr_refl.
+  by case: x => // [ i ty | x | w x e | x e] /=; rewrite !eqxx // eq_expr_refl.
 Qed.

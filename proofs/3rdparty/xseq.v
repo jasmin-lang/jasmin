@@ -145,16 +145,22 @@ End AssocMap.
 Section AssocFilter.
 Context (T: eqType) (U: Type) (p: pred T).
 
-Lemma neq (x y: T) (n: x ≠ y) : x == y = false.
-Proof. by case: eqP. Qed.
+Lemma assoc_filterI (m: seq (T * U)) (n: T) :
+  assoc [seq x <- m | p x.1 ] n = if p n then assoc m n else None.
+Proof.
+  elim: m n.
+  - by move => n /=; case: ifP.
+  case => t u m ih n /=.
+  case: ifP.
+  - by move => /=; case: eqP => // -> ->.
+  by case: eqP => // -> {n} h; rewrite ih h.
+Qed.
 
-Lemma assoc_filter (m: seq (T * U)) (n: T) :
+Corollary assoc_filter (m: seq (T * U)) (n: T) :
   p n →
   assoc [seq x <- m | p x.1] n = assoc m n.
 Proof.
-  elim: m n => // [[q r] m ] ih n hn /=; case: eqP.
-  + by move => <- {q}; rewrite hn /= eq_refl.
-  move=> ne; case: (p _); auto; rewrite /= neq; auto.
+  by move => h; rewrite assoc_filterI h.
 Qed.
 
 End AssocFilter.

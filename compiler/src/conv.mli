@@ -18,9 +18,8 @@ val bi_of_pos : BinNums.positive -> Bigint.zint
 val z_of_bi : Bigint.zint -> BinNums.coq_Z
 val bi_of_z : BinNums.coq_Z -> Bigint.zint
 
-val int64_of_bi : Bigint.zint -> Integers.Int64.int
-val bi_of_int64 : Integers.Int64.int -> Bigint.zint
-
+val int64_of_bi : Bigint.zint -> Obj.t
+val bi_of_int64 : Obj.t -> Bigint.zint
 
 
 (* -------------------------------------------------------------------- *)

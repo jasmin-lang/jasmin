@@ -1,5 +1,5 @@
 (* -------------------------------------------------------------------- *)
-exception InvalidRegSize of Word.wsize
+exception InvalidRegSize of Type.wsize
 
 (* -------------------------------------------------------------------- *)
 val mangle : string -> string

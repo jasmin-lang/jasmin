@@ -1,5 +1,7 @@
 (* ------------------------------------------------------------------------ *)
 open Utils
+open Type
+module E = Expr
 module L = Location
 module B = Bigint
 
@@ -10,56 +12,11 @@ end
 type uid
 val int_of_uid : uid -> int
 
-type word_size =
-  | W8
-  | W16
-  | W32
-  | W64
-  | W128
-  | W256
-
-type cmp_ty =
-  | Cmp_int
-  | Cmp_uw  of word_size
-  | Cmp_sw  of word_size
-
-type op_ty =
-  | Op_int
-  | Op_w  of word_size
-
 (* ------------------------------------------------------------------------ *)
-type op1 =
-  | Olnot of word_size
-  | Onot
-  | Oneg of word_size
-  | Oarr_init of word_size
-
-type op2 =
-  | Oand    (* const : sbool -> sbool -> sbool *)
-  | Oor     (* const : sbool -> sbool -> sbool *)
-
-  | Oadd    of op_ty
-  | Omul    of op_ty
-  | Osub    of op_ty
-
-  | Oland of op_ty
-  | Olor of op_ty
-  | Olxor of op_ty
-  | Olsr
-  | Olsl
-  | Oasr
-
-  | Oeq     of cmp_ty
-  | Oneq    of cmp_ty
-  | Olt     of cmp_ty
-  | Ole     of cmp_ty
-  | Ogt     of cmp_ty
-  | Oge     of cmp_ty
-
 type base_ty =
   | Bool
   | Int              (* Unbounded integer for pexpr *)
-  | U   of word_size (* U(n): unsigned n-bit integer *)
+  | U   of wsize (* U(n): unsigned n-bit integer *)
 
   [@@deriving compare,sexp]
 
@@ -83,20 +40,20 @@ type 'ty gvar_i = 'ty gvar L.located
 
 type 'expr gty =
   | Bty of base_ty
-  | Arr of word_size * 'expr (* Arr(n,de): array of n-bit integers with dim. *)
+  | Arr of wsize * 'expr (* Arr(n,de): array of n-bit integers with dim. *)
            (* invariant only Const variable can be used in expression *)
            (* the type of the expression is [Int] *)
 
 type 'ty gexpr =
   | Pconst of B.zint
   | Pbool  of bool
-  | Pcast  of word_size * 'ty gexpr
+  | Pcast  of wsize * 'ty gexpr
   | Pvar   of 'ty gvar_i
   | Pglobal of Name.t
   | Pget   of 'ty gvar_i * 'ty gexpr
-  | Pload  of word_size * 'ty gvar_i * 'ty gexpr
-  | Papp1  of op1 * 'ty gexpr
-  | Papp2  of op2 * 'ty gexpr * 'ty gexpr
+  | Pload  of wsize * 'ty gvar_i * 'ty gexpr
+  | Papp1  of E.sop1 * 'ty gexpr
+  | Papp2  of E.sop2 * 'ty gexpr * 'ty gexpr
   | Pif    of 'ty gexpr * 'ty gexpr * 'ty gexpr
 
 type 'ty gexprs = 'ty gexpr list
@@ -121,7 +78,7 @@ type assgn_tag =
 type 'ty glval =
  | Lnone of L.t * 'ty
  | Lvar  of 'ty gvar_i
- | Lmem  of word_size * 'ty gvar_i * 'ty gexpr
+ | Lmem  of wsize * 'ty gvar_i * 'ty gexpr
  | Laset of 'ty gvar_i * 'ty gexpr
 
 type 'ty glvals = 'ty glval list
@@ -142,7 +99,7 @@ type i_loc = L.t * L.t list
 
 type ('ty,'info) ginstr_r =
   | Cblock of ('ty,'info) gstmt
-  | Cassgn of 'ty glval * assgn_tag * 'ty gexpr
+  | Cassgn of 'ty glval * assgn_tag * 'ty * 'ty gexpr
   | Copn   of 'ty glvals * assgn_tag * Expr.sopn * 'ty gexprs
   | Cif    of 'ty gexpr * ('ty,'info) gstmt * ('ty,'info) gstmt
   | Cfor   of 'ty gvar_i * 'ty grange * ('ty,'info) gstmt
@@ -166,8 +123,10 @@ type ('ty,'info) gfunc = {
     f_loc  : L.t;
     f_cc   : call_conv;
     f_name : funname;
+    f_tyin : 'ty list;
     f_args : 'ty gvar list;
     f_body : ('ty,'info) gstmt;
+    f_tyout : 'ty list;
     f_ret  : 'ty gvar_i list
   }
 
@@ -288,12 +247,12 @@ val locals  : 'info func -> Sv.t
 (* -------------------------------------------------------------------- *)
 (* Functions on types                                                   *)
 
-val int_of_ws : word_size -> int
-val size_of_ws : word_size -> int
+val int_of_ws : wsize -> int
+val size_of_ws : wsize -> int
 
 val is_ty_arr : 'e gty -> bool
-val array_kind : ty -> word_size * int
-val ws_of_ty   : ty -> word_size
+val array_kind : ty -> wsize * int
+val ws_of_ty   : ty -> wsize
 
 (* -------------------------------------------------------------------- *)
 (* Functions on variables                                               *)
@@ -319,5 +278,4 @@ val expr_of_lval : 'ty glval -> 'ty gexpr option
 (* -------------------------------------------------------------------- *)
 (* Functions over instruction                                           *)
 
-val destruct_move : ('ty, 'info) ginstr -> 'ty glval * assgn_tag * 'ty gexpr
-
+val destruct_move : ('ty, 'info) ginstr -> 'ty glval * assgn_tag * 'ty * 'ty gexpr

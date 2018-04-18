@@ -22,7 +22,7 @@ let fill_in_missing_names (f: 'info func) : 'info func =
   let rec fill_instr_r =
     function
     | Cblock s -> Cblock (fill_stmt s)
-    | Cassgn (lv, tg, e) -> Cassgn (fill_lv lv, tg, e)
+    | Cassgn (lv, tg, ty, e) -> Cassgn (fill_lv lv, tg, ty, e)
     | Copn (lvs, tg, op, es) -> Copn (fill_lvs lvs, tg, op, es)
     | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
     | Cfor _ -> assert false
@@ -51,11 +51,11 @@ let find_equality_constraints (id: instr_desc) : arg_position list list =
   List.iteri (fun n ->
       function
       | ADImplicit _ -> ()
-      | ADExplicit (p, _) -> set (int_of_nat p) (APout n)) id.id_out;
+      | ADExplicit (_, p, _) -> set (int_of_nat p) (APout n)) id.id_out;
   List.iteri (fun n ->
       function
       | ADImplicit _ -> ()
-      | ADExplicit (p, _) -> set (int_of_nat p) (APin n)) id.id_in;
+      | ADExplicit (_, p, _) -> set (int_of_nat p) (APin n)) id.id_in;
   Hashtbl.fold
     (fun _ apl res ->
        match apl with
@@ -82,8 +82,8 @@ let x86_equality_constraints (tbl: int Hv.t) (k: int -> int -> unit)
     with Not_found -> ()
   in
   begin match op, lvs, es with
-  | (Oaddcarry | Osubcarry), [ _ ; Lvar v ], Pvar w :: _ -> merge k v w
-  | Ox86_MOV, [ Lvar x ], [ Pvar y ] when kind_i x = kind_i y ->
+  | (Oaddcarry _ | Osubcarry _), [ _ ; Lvar v ], Pvar w :: _ -> merge k v w
+  | Ox86_MOV _, [ Lvar x ], [ Pvar y ] when kind_i x = kind_i y ->
     merge k' x y
   | _, _, _ ->
     begin match desc_of_op op with
@@ -150,7 +150,7 @@ let collect_equality_constraints
     | Cfor (_, _, s)
       -> collect_stmt s
     | Copn (lvs, _, op, es) -> copn_constraints tbl (add ii) addf lvs op es
-    | Cassgn (Lvar x, (AT_rename | AT_phinode), Pvar y) ->
+    | Cassgn (Lvar x, (AT_rename | AT_phinode), _, Pvar y) ->
       let i = try Hv.find tbl (L.unloc x) with
         Not_found ->
           hierror "%s: unknown variable %a"
@@ -159,7 +159,7 @@ let collect_equality_constraints
       in
       let j = Hv.find tbl (L.unloc y) in
       add ii  i j
-    | Cassgn (Lvar x, _, Pvar y) when kind_i x = kind_i y ->
+    | Cassgn (Lvar x, _, _, Pvar y) when kind_i x = kind_i y ->
       begin try
         let i = Hv.find tbl (L.unloc x) in
         let j = Hv.find tbl (L.unloc y) in
@@ -270,7 +270,7 @@ let collect_variables (allvars: bool) (f: 'info func) : int Hv.t * int =
   let rec collect_instr_r =
     function
     | Cblock s -> collect_stmt s
-    | Cassgn (lv, _, e) -> collect_lv lv; collect_expr e
+    | Cassgn (lv, _, _, e) -> collect_lv lv; collect_expr e
     | Ccall (_, lvs, _, es)
     | Copn (lvs, _, _, es) -> collect_lvs lvs; collect_exprs es
     | Cwhile (s1, e, s2)
@@ -311,22 +311,22 @@ let conflicting_registers (i: int) (cnf: conflicts) (a: allocation) : var option
 module X64 =
 struct
 
-  let rax = V.mk "RAX" Reg (Bty (U W64)) L._dummy
-  let rbx = V.mk "RBX" Reg (Bty (U W64)) L._dummy
-  let rcx = V.mk "RCX" Reg (Bty (U W64)) L._dummy
-  let rdx = V.mk "RDX" Reg (Bty (U W64)) L._dummy
-  let rsp = V.mk "RSP" Reg (Bty (U W64)) L._dummy
-  let rbp = V.mk "RBP" Reg (Bty (U W64)) L._dummy
-  let rsi = V.mk "RSI" Reg (Bty (U W64)) L._dummy
-  let rdi = V.mk "RDI" Reg (Bty (U W64)) L._dummy
-  let r8 = V.mk "R8" Reg (Bty (U W64)) L._dummy
-  let r9 = V.mk "R9" Reg (Bty (U W64)) L._dummy
-  let r10 = V.mk "R10" Reg (Bty (U W64)) L._dummy
-  let r11 = V.mk "R11" Reg (Bty (U W64)) L._dummy
-  let r12 = V.mk "R12" Reg (Bty (U W64)) L._dummy
-  let r13 = V.mk "R13" Reg (Bty (U W64)) L._dummy
-  let r14 = V.mk "R14" Reg (Bty (U W64)) L._dummy
-  let r15 = V.mk "R15" Reg (Bty (U W64)) L._dummy
+  let rax = V.mk "RAX" Reg (Bty (U U64)) L._dummy
+  let rbx = V.mk "RBX" Reg (Bty (U U64)) L._dummy
+  let rcx = V.mk "RCX" Reg (Bty (U U64)) L._dummy
+  let rdx = V.mk "RDX" Reg (Bty (U U64)) L._dummy
+  let rsp = V.mk "RSP" Reg (Bty (U U64)) L._dummy
+  let rbp = V.mk "RBP" Reg (Bty (U U64)) L._dummy
+  let rsi = V.mk "RSI" Reg (Bty (U U64)) L._dummy
+  let rdi = V.mk "RDI" Reg (Bty (U U64)) L._dummy
+  let r8 = V.mk "R8" Reg (Bty (U U64)) L._dummy
+  let r9 = V.mk "R9" Reg (Bty (U U64)) L._dummy
+  let r10 = V.mk "R10" Reg (Bty (U U64)) L._dummy
+  let r11 = V.mk "R11" Reg (Bty (U U64)) L._dummy
+  let r12 = V.mk "R12" Reg (Bty (U U64)) L._dummy
+  let r13 = V.mk "R13" Reg (Bty (U U64)) L._dummy
+  let r14 = V.mk "R14" Reg (Bty (U U64)) L._dummy
+  let r15 = V.mk "R15" Reg (Bty (U U64)) L._dummy
 
   let allocatable = [
       rax; rcx; rdx;
@@ -390,8 +390,8 @@ struct
         List.fold_left2 (fun acc ad e ->
             begin match ad with
             | ADImplicit v -> mallocate_one e (translate_var v) acc
-            | ADExplicit (_, Some r) -> mallocate_one e (translate_var (X86_variables.var_of_register r)) acc
-            | ADExplicit (_, None) -> acc
+            | ADExplicit (_, _, Some r) -> mallocate_one e (translate_var (X86_variables.var_of_register r)) acc
+            | ADExplicit (_, _, None) -> acc
             end) a id.id_in es
       | _ -> assert false
     end

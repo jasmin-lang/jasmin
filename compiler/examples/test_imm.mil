@@ -1,8 +1,6 @@
 export
-fn test() {
-reg u64 x;
-reg u64 y;
-reg u64 z;
+fn test() -> reg u64 {
+reg u64 x, y, z, r;
 reg bool cf;
 x = 0; y = x; z = y;
 x += 420;
@@ -13,12 +11,17 @@ cf, y -= 0x12345678abcd;
 cf, z += 42 + cf;
 cf, z += -2147483649 + cf;
 cf, z -= 0 - cf;
-x = y * 12;
-z = x * -2147483650;
+x = x * 12;
+z = z * -2147483650;
 x |= 33;
 y |= 0xabcdef0000;
 z ^= -1;
 x ^= 2147483648;
 y &= -2147483648;
 z &= 0xabcdef0000;
+r = 0;
+r &= x;
+r &= y;
+r &= z;
+return r;
 }

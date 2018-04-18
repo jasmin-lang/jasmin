@@ -3,7 +3,9 @@ open Utils
 
 module L = Location
 module S = Syntax
+module E = Expr
 module P = Prog
+module T = Type
 
 (* -------------------------------------------------------------------- *)
 let loc_of_tuples base locs =
@@ -183,12 +185,12 @@ end
 (* -------------------------------------------------------------------- *)
 let tt_ws (ws : S.wsize) =
   match ws with
-  | `W8   -> P.W8
-  | `W16  -> P.W16
-  | `W32  -> P.W32
-  | `W64  -> P.W64
-  | `W128 -> P.W128
-  | `W256 -> P.W256
+  | `W8   -> T.U8
+  | `W16  -> T.U16
+  | `W32  -> T.U32
+  | `W64  -> T.U64
+  | `W128 -> T.U128
+  | `W256 -> T.U256
 
 (* -------------------------------------------------------------------- *)
 let tt_sto (sto : S.pstorage) : P.v_kind =
@@ -281,7 +283,7 @@ let tt_as_array ((loc, ty) : L.t * P.pty) : P.pty =
   | _ -> rs_tyerror ~loc (InvalidType (ty, TPArray))
 
 (* -------------------------------------------------------------------- *)
-let tt_as_word ((loc, ty) : L.t * P.pty) : P.word_size =
+let tt_as_word ((loc, ty) : L.t * P.pty) : T.wsize =
   match ty with
   | P.Bty (P.U ws) -> ws
   | _ -> rs_tyerror ~loc (InvalidType (ty, TPWord))
@@ -290,40 +292,45 @@ let tt_as_word ((loc, ty) : L.t * P.pty) : P.word_size =
 
 let op_of_ty exn ty =
   match ty with
-  | P.Bty P.Int    -> P.Op_int
-  | P.Bty (P.U ws) -> P.Op_w ws
+  | P.Bty P.Int    -> E.Op_int
+  | P.Bty (P.U ws) -> E.Op_w ws
   | _              -> raise exn
+
+let ws_of_ty exn =
+  function
+  | P.Bty (P.U ws) -> ws
+  | _ -> raise exn
 
 let cmp_of_ty exn sign ty =
   match sign, ty with
-  | _      , P.Bty P.Int    -> P.Cmp_int
-  | `Sign  , P.Bty (P.U ws) -> P.Cmp_sw ws
-  | `Unsign, P.Bty (P.U ws) -> P.Cmp_uw ws
+  | _      , P.Bty P.Int    -> E.Cmp_int
+  | `Sign  , P.Bty (P.U ws) -> E.Cmp_w(T.Signed, ws)
+  | `Unsign, P.Bty (P.U ws) -> E.Cmp_w(T.Unsigned, ws)
   | _      , _              -> raise exn
 
 let op2_of_pop2 exn ty (op : S.peop2) =
   match op with
-  | `Add  -> P.Oadd (op_of_ty exn ty)
-  | `Sub  -> P.Osub (op_of_ty exn ty)
-  | `Mul  -> P.Omul (op_of_ty exn ty)
-  | `And  -> P.Oand
-  | `Or   -> P.Oor
-  | `BAnd -> P.Oland (op_of_ty exn ty)
-  | `BOr  -> P.Olor (op_of_ty exn ty)
-  | `BXOr -> P.Olxor (op_of_ty exn ty)
-  | `ShR  -> P.Olsr
-  | `ShL  -> P.Olsl
-  | `Asr  -> P.Oasr
-  | `Eq   -> P.Oeq  (cmp_of_ty exn `Unsign ty)
-  | `Neq  -> P.Oneq (cmp_of_ty exn `Unsign ty)
-  | `Lt   -> P.Olt  (cmp_of_ty exn `Unsign ty)
-  | `Le   -> P.Ole  (cmp_of_ty exn `Unsign ty)
-  | `Gt   -> P.Ogt  (cmp_of_ty exn `Unsign ty)
-  | `Ge   -> P.Oge  (cmp_of_ty exn `Unsign ty)
-  | `Lts  -> P.Olt  (cmp_of_ty exn `Sign ty)
-  | `Les  -> P.Ole  (cmp_of_ty exn `Sign ty)
-  | `Gts  -> P.Ogt  (cmp_of_ty exn `Sign ty)
-  | `Ges  -> P.Oge  (cmp_of_ty exn `Sign ty)
+  | `Add  -> E.Oadd (op_of_ty exn ty)
+  | `Sub  -> E.Osub (op_of_ty exn ty)
+  | `Mul  -> E.Omul (op_of_ty exn ty)
+  | `And  -> E.Oand
+  | `Or   -> E.Oor
+  | `BAnd -> E.Oland (ws_of_ty exn ty)
+  | `BOr  -> E.Olor (ws_of_ty exn ty)
+  | `BXOr -> E.Olxor (ws_of_ty exn ty)
+  | `ShR  -> E.Olsr (ws_of_ty exn ty)
+  | `ShL  -> E.Olsl (ws_of_ty exn ty)
+  | `Asr  -> E.Oasr (ws_of_ty exn ty)
+  | `Eq   -> E.Oeq  (op_of_ty exn ty)
+  | `Neq  -> E.Oneq (op_of_ty exn ty)
+  | `Lt   -> E.Olt  (cmp_of_ty exn `Unsign ty)
+  | `Le   -> E.Ole  (cmp_of_ty exn `Unsign ty)
+  | `Gt   -> E.Ogt  (cmp_of_ty exn `Unsign ty)
+  | `Ge   -> E.Oge  (cmp_of_ty exn `Unsign ty)
+  | `Lts  -> E.Olt  (cmp_of_ty exn `Sign ty)
+  | `Les  -> E.Ole  (cmp_of_ty exn `Sign ty)
+  | `Gts  -> E.Ogt  (cmp_of_ty exn `Sign ty)
+  | `Ges  -> E.Oge  (cmp_of_ty exn `Sign ty)
 
 (* -------------------------------------------------------------------- *)
 let peop2_of_eqop (eqop : S.peqop) =
@@ -356,7 +363,7 @@ let cast loc e ety ty =
 
 let cast_word loc e ety =
   match ety with
-  | P.Bty P.Int   -> P.Pcast (P.W64, e), P.W64
+  | P.Bty P.Int   -> P.Pcast (T.U64, e), T.U64
   | P.Bty (P.U ws) -> e, ws
   | _             ->  rs_tyerror ~loc (InvalidCast(ety,P.u64))
 
@@ -412,7 +419,7 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     check_ty_u64 ~loc:xlc x.P.v_ty;
     let e = tt_expr_cast64 ~mode env po in
     let ct = ct |>
-      omap_dfl (fun st -> tt_as_word (L.loc st, tt_type env st)) W64 in
+      omap_dfl (fun st -> tt_as_word (L.loc st, tt_type env st)) T.U64 in
     P.Pload (ct, L.mk_loc xlc x, e), P.Bty (P.U ct)
 
   | S.PEGet ({ L.pl_loc = xlc } as x, pi) ->
@@ -427,13 +434,13 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
 
     begin match op with
     | `Not ->
-      if ety = P.tbool then Papp1(P.Onot, e), P.tbool
+      if ety = P.tbool then Papp1(E.Onot, e), P.tbool
       else
         let e, ws = cast_word (L.loc pe) e ety in
-        Papp1(P.Olnot ws, e), P.Bty (P.U ws)
+        Papp1(E.Olnot ws, e), P.Bty (P.U ws)
     | `Neg ->
       let e, ws = cast_word (L.loc pe) e ety in
-      Papp1(P.Oneg ws, e), P.Bty (P.U ws)
+      Papp1(E.(Oneg (Op_w ws)), e), P.Bty (P.U ws)
     end
 
   | S.PEOp2 (pop, (pe1, pe2)) ->
@@ -524,7 +531,7 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     check_ty_u64 ~loc:xlc x.P.v_ty;
     let e = tt_expr_cast64 ~mode:`AllVar env po in
     let ct = ct |>
-               omap_dfl (fun st -> tt_as_word (L.loc st, tt_type env st)) W64 in
+               omap_dfl (fun st -> tt_as_word (L.loc st, tt_type env st)) T.U64 in
     loc, (fun _ -> P.Lmem (ct, L.mk_loc xlc x, e)), Some (P.Bty (P.U ct))
 
 (* -------------------------------------------------------------------- *)
@@ -541,80 +548,82 @@ let u64_2    = [P.u64; P.u64]
 let u64_3    = [P.u64; P.u64; P.u64]
 let u64_4    = [P.u64; P.u64; P.u64; P.u64]
 
+(* TODO out put type are already defined in Coq: sopn_tout *)
 let prim_sig p =
   let open P in
   let open Expr in
   match p with
-  | Omulu       -> u64_2   , u64_2
-  | Oaddcarry   -> [tbool; u64], u64_2b
-  | Osubcarry   -> [tbool; u64], u64_2b
-  | Oset0       -> b_5u64  , []
-  | Ox86_CMP    -> b_5     , u64_2
-  | Ox86_TEST   -> b_5     , u64_2
-  | Ox86_MOV    -> [u64]   , [u64]
-  | Ox86_SHLD   -> b_5u64  , u64_3
-  | Ox86_CMOVcc -> [u64]   , [tbool; u64; u64]
-  | Ox86_ADD    -> b_5u64  , u64_2
-  | Ox86_SUB    -> b_5u64  , u64_2
-  | Ox86_MUL    -> b_5u64_2, u64_2
-  | Ox86_IMUL   -> b_5u64_2, u64_2
-  | Ox86_IMUL64 -> b_5u64  , u64_2
-  | Ox86_IMUL64imm -> b_5u64  , u64_2
-  | Ox86_DIV    -> b_5u64_2, u64_3
-  | Ox86_IDIV   -> b_5u64_2, u64_3
-  | Ox86_ADC    -> b_5u64  , u64_2b
-  | Ox86_SBB    -> b_5u64  , u64_2b
-  | Ox86_NEG    -> b_5u64  , [u64]
-  | Ox86_INC    -> b_4u64  , [u64]
-  | Ox86_DEC    -> b_4u64  , [u64]
+  | Omulu U64 -> u64_2   , u64_2
+  | Oaddcarry U64 -> [tbool; u64], u64_2b
+  | Osubcarry U64 -> [tbool; u64], u64_2b
+  | Oset0 U64 -> b_5u64  , []
+  | Ox86_CMP U64 -> b_5     , u64_2
+  | Ox86_TEST U64 -> b_5     , u64_2
+  | Ox86_MOV U64 -> [u64]   , [u64]
+  | Ox86_SHLD U64 -> b_5u64  , u64_3
+  | Ox86_CMOVcc U64 -> [u64]   , [tbool; u64; u64]
+  | Ox86_ADD U64 -> b_5u64  , u64_2
+  | Ox86_SUB U64 -> b_5u64  , u64_2
+  | Ox86_MUL U64 -> b_5u64_2, u64_2
+  | Ox86_IMUL U64 -> b_5u64_2, u64_2
+  | Ox86_IMULt U64 -> b_5u64  , u64_2
+  | Ox86_IMULtimm U64 -> b_5u64  , u64_2
+  | Ox86_DIV U64 -> b_5u64_2, u64_3
+  | Ox86_IDIV U64 -> b_5u64_2, u64_3
+  | Ox86_ADC U64 -> b_5u64  , u64_2b
+  | Ox86_SBB U64 -> b_5u64  , u64_2b
+  | Ox86_NEG U64 -> b_5u64  , [u64]
+  | Ox86_INC U64 -> b_4u64  , [u64]
+  | Ox86_DEC U64 -> b_4u64  , [u64]
   | Ox86_SETcc  -> [u64]   , [tbool]
-  | Ox86_BT -> [tbool], u64_2
-  | Ox86_LEA    -> [u64]   , u64_4 
-  | Ox86_AND    -> b_5u64  , u64_2
-  | Ox86_OR     -> b_5u64  , u64_2
-  | Ox86_XOR    -> b_5u64  , u64_2
-  | Ox86_NOT    -> [u64]   , [u64]
-  | Ox86_ROL | Ox86_ROR
+  | Ox86_BT U64 -> [tbool], u64_2
+  | Ox86_LEA U64 -> [u64]   , u64_4
+  | Ox86_AND U64 -> b_5u64  , u64_2
+  | Ox86_OR U64 -> b_5u64  , u64_2
+  | Ox86_XOR U64 -> b_5u64  , u64_2
+  | Ox86_NOT U64 -> [u64]   , [u64]
+  | Ox86_ROL U64 | Ox86_ROR U64
     -> [tbool;tbool;u64], u64_2
-  | Ox86_SHL    -> b_5u64  , u64_2
-  | Ox86_SHR    -> b_5u64  , u64_2   
-  | Ox86_SAR    -> b_5u64  , u64_2
+  | Ox86_SHL U64 -> b_5u64  , u64_2
+  | Ox86_SHR U64 -> b_5u64  , u64_2
+  | Ox86_SAR U64 -> b_5u64  , u64_2
+  | _ -> assert false
 
 let prim_string =
   let open Expr in
-  [ "mulu"      , Omulu;
-    "adc"       , Oaddcarry;
-    "sbb"       , Osubcarry;
-    "set0"      , Oset0;
-    "x86_MOV"   , Ox86_MOV;
-    "x86_CMOVcc", Ox86_CMOVcc;
-    "x86_ADD"   , Ox86_ADD;
-    "x86_SUB"   , Ox86_SUB;
-    "x86_MUL"   , Ox86_MUL;
-    "x86_IMUL"  , Ox86_IMUL;
-    "x86_IMUL64", Ox86_IMUL64;
-    "x86_IMUL64imm", Ox86_IMUL64imm;
-    "x86_DIV"   , Ox86_DIV;
-    "x86_IDIV"  , Ox86_IDIV;
-    "x86_ADC"   , Ox86_ADC;
-    "x86_SBB"   , Ox86_SBB;
-    "x86_INC"   , Ox86_INC;
-    "x86_DEC"   , Ox86_DEC;
+  [ "mulu"      , Omulu U64;
+    "adc"       , Oaddcarry U64;
+    "sbb"       , Osubcarry U64;
+    "set0"      , Oset0 U64;
+    "x86_MOV"   , Ox86_MOV U64;
+    "x86_CMOVcc", Ox86_CMOVcc U64;
+    "x86_ADD"   , Ox86_ADD U64;
+    "x86_SUB"   , Ox86_SUB U64;
+    "x86_MUL"   , Ox86_MUL U64;
+    "x86_IMUL"  , Ox86_IMUL U64;
+    "x86_IMULt", Ox86_IMULt U64;
+    "x86_IMULtimm", Ox86_IMULtimm U64;
+    "x86_DIV"   , Ox86_DIV U64;
+    "x86_IDIV"  , Ox86_IDIV U64;
+    "x86_ADC"   , Ox86_ADC U64;
+    "x86_SBB"   , Ox86_SBB U64;
+    "x86_INC"   , Ox86_INC U64;
+    "x86_DEC"   , Ox86_DEC U64;
     "x86_SETcc" , Ox86_SETcc;
-    "x86_BT"    , Ox86_BT;
-    "x86_LEA"   , Ox86_LEA;
-    "x86_TEST"  , Ox86_TEST;
-    "x86_CMP"   , Ox86_CMP;
-    "x86_AND"   , Ox86_AND;
-    "x86_OR"    , Ox86_OR;
-    "x86_XOR"   , Ox86_XOR;
-    "x86_NOT"   , Ox86_NOT;
-    "x86_ROL", Ox86_ROL;
-    "x86_ROR", Ox86_ROR;
-    "x86_SHL"   , Ox86_SHL;
-    "x86_SHR"   , Ox86_SHR;
-    "x86_SAR"   , Ox86_SAR;
-    "x86_SHLD"   , Ox86_SHLD;
+    "x86_BT"    , Ox86_BT U64;
+    "x86_LEA"   , Ox86_LEA U64;
+    "x86_TEST"  , Ox86_TEST U64;
+    "x86_CMP"   , Ox86_CMP U64;
+    "x86_AND"   , Ox86_AND U64;
+    "x86_OR"    , Ox86_OR U64;
+    "x86_XOR"   , Ox86_XOR U64;
+    "x86_NOT"   , Ox86_NOT U64;
+    "x86_ROL", Ox86_ROL U64;
+    "x86_ROR", Ox86_ROR U64;
+    "x86_SHL"   , Ox86_SHL U64;
+    "x86_SHR"   , Ox86_SHR U64;
+    "x86_SAR"   , Ox86_SAR U64;
+    "x86_SHLD"   , Ox86_SHLD U64;
   ]
 
 let tt_prim id =
@@ -627,9 +636,9 @@ let prim_of_op exn loc o =
   let p =
     let open Expr in
     match o with
-    | `Add -> Oaddcarry
-    | `Sub -> Osubcarry
-    | `Mul -> Omulu
+    | `Add -> Oaddcarry U64
+    | `Sub -> Osubcarry U64
+    | `Mul -> Omulu U64
     | _    -> raise exn in
   let id = fst (List.find (fun (_, p') -> p = p') prim_string) in
   L.mk_loc loc id
@@ -662,10 +671,6 @@ let prim_of_pe pe =
 
 
 (* -------------------------------------------------------------------- *)
-let carry_op = function
-  | `Add -> Expr.Oaddcarry
-  | `Sub -> Expr.Osubcarry
-
 let pexpr_of_plvalue exn l =
   match L.unloc l with
   | S.PLIgnore      -> raise exn
@@ -697,7 +702,7 @@ let tt_exprs_cast env les tys =
     let e, ety = tt_expr ~mode:`AllVar env le in
     cast (L.loc le) e ety ty) les tys
 
-let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (e: P.pty P.gexpr) : (P.pty, unit) P.ginstr_r =
+let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (ty: P.pty) (e: P.pty P.gexpr) : (P.pty, unit) P.ginstr_r =
   match x with
   | Lvar z ->
     begin match (L.unloc z).v_ty with
@@ -706,14 +711,14 @@ let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (e: P.pty P.gexpr) : (P.pty,
     | Pvar y ->
         let i = L.mk_loc (L.loc z) (P.PV.mk "i" P.Inline (Bty Int) (L.loc z)) in
         Cfor (i, (UpTo, Pconst P.B.zero, n), [
-            let i_desc = P.Cassgn (Laset (z, Pvar i), AT_none, Pget (y, Pvar i)) in
+            let i_desc = P.Cassgn (Laset (z, Pvar i), AT_none, P.Bty Int, Pget (y, Pvar i)) in
             { i_desc ; i_loc = L.loc z, [] ; i_info = () }
           ])
     | _ -> hierror "Array copy"
     end
-    | _ -> Cassgn (x, tg, e)
+    | _ -> Cassgn (x, tg, ty, e)
     end
-  | _ -> Cassgn (x, tg, e)
+  | _ -> Cassgn (x, tg, ty, e)
 
 let rec is_constant e = 
   match e with 
@@ -784,7 +789,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
       let x = tt_var ~allow_global:false `AllVar env x in
       let xi = (L.mk_loc lc x) in
       begin match x.P.v_ty with
-      | P.Arr(ws,e) -> P.Cassgn (Lvar xi, P.AT_inline, P.Papp1(P.Oarr_init ws, e))
+      | P.Arr(ws,e) as ty -> P.Cassgn (Lvar xi, P.AT_inline, ty, P.Papp1(E.Oarr_init ws, e))
       | _           -> rs_tyerror ~loc:lc (InvalidType( x.P.v_ty, TPArray))
       end
 
@@ -815,7 +820,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
         P.(match v with
             | Lvar v -> (match kind_i v with Inline -> AT_inline | _ -> AT_none)
             | _ -> AT_none) in
-      cassgn_for v tg e
+      cassgn_for v tg ety e
 
     | PIAssign(ls, `Raw, pe, None) ->
       (* Try to match addc, subc, mulu *)
@@ -840,10 +845,10 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
       if peop2_of_eqop eqop <> None then rs_tyerror ~loc exn;
       let cpi = S.PIAssign (ls, eqop, e, None) in
       let i = tt_instr env (L.mk_loc loc cpi) in
-      let x, _, e = P.destruct_move i in
+      let x, _, ty, e = P.destruct_move i in
       let e' = ofdfl (fun _ -> rs_tyerror ~loc exn) (P.expr_of_lval x) in
       let c = tt_expr_bool env cp in
-      P.Cassgn (x, AT_none, Pif (c, e, e'))
+      P.Cassgn (x, AT_none, ty, Pif (c, e, e'))
 
     | PIIf (cp, st, sf) ->
         let c  = tt_expr_bool env cp in
@@ -907,8 +912,10 @@ let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
     { P.f_loc = loc;
       P.f_cc   = tt_call_conv pf.pdf_cc;
       P.f_name = P.F.mk (L.unloc pf.pdf_name); 
+      P.f_tyin = List.map (fun { P.v_ty } -> v_ty) args;
       P.f_args = args;
       P.f_body = fst body;
+      P.f_tyout = rty;
       P.f_ret  = snd body; } in
 
   check_sig ~loc:(`IfEmpty (L.loc pf.S.pdf_name)) rty
@@ -925,8 +932,8 @@ let tt_global (env : Env.env) _loc (gd: S.pglobal) : Env.env * (P.pvar * P.pexpr
   let pe =
     let open P in
     match ety with
-    | Bty (U W64) -> pe
-    | Bty Int -> Pcast (W64, pe)
+    | Bty (U T.U64) -> pe
+    | Bty Int -> Pcast (T.U64, pe)
     | _ -> rs_tyerror ~loc:(L.loc gd.S.pgd_val) (TypeMismatch (ty, ety))
     in
 

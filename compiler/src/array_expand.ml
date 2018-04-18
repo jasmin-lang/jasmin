@@ -70,7 +70,7 @@ let rec arrexp_i tbl i =
   let i_desc =
     match i.i_desc with
     | Cblock c -> Cblock (arrexp_c tbl c)
-    | Cassgn(x,t,e) -> Cassgn(arrexp_lv tbl x, t, arrexp_e tbl e)
+    | Cassgn(x, tg, ty, e) -> Cassgn(arrexp_lv tbl x, tg, ty, arrexp_e tbl e)
     | Copn(x,t,o,e)   -> Copn(arrexp_lvs tbl x, t, o, arrexp_es tbl e)
     | Cif(e,c1,c2)  -> Cif(arrexp_e tbl e, arrexp_c tbl c1, arrexp_c tbl c2)
     | Cfor(i,(d,e1,e2),c) ->
@@ -102,8 +102,8 @@ let init_stk fc =
   let init_var v =
     let n =
       match v.v_ty with
-      | Bty (U W64)  -> size_of_ws W64
-      | Arr (W64, n) -> n * size_of_ws W64
+      | Bty (U U64)  -> size_of_ws U64
+      | Arr (U64, n) -> n * size_of_ws U64
       | _            -> assert false in
     let pos = !size in
     let bpos = B.of_int pos in
@@ -181,7 +181,7 @@ let rec astk_i tbl i =
   let i_desc =
     match i.i_desc with
     | Cblock c        -> Cblock (astk_c tbl c)
-    | Cassgn(x,t,e)   -> Cassgn(astk_lv tbl x, t, astk_e tbl e)
+    | Cassgn(x, tg, ty, e) -> Cassgn(astk_lv tbl x, tg, ty, astk_e tbl e)
     | Copn(x,t,o,e)     -> Copn(astk_lvs tbl x, t, o, astk_es tbl e)
     | Cif(e,c1,c2)    -> Cif(astk_e tbl e, astk_c tbl c1, astk_c tbl c2)
     | Cfor(i,(d,e1,e2),c) ->

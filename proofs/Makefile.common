@@ -8,12 +8,11 @@ TOP     = $(dir $(lastword $(MAKEFILE_LIST)))
 COQMAKE = $(MAKE) -f Makefile.coq
 
 # --------------------------------------------------------------------
-all: config build
+all: build
 
 # --------------------------------------------------------------------
 Makefile.coq: Makefile
 	coq_makefile -f _CoqProject -o Makefile.coq
-	-+$(COQMAKE) depend
 
 # --------------------------------------------------------------------
 config: sub-config this-config Makefile.coq
@@ -29,10 +28,10 @@ distclean: sub-distclean this-distclean
 # --------------------------------------------------------------------
 .PHONY: this-config this-build this-distclean this-clean
 
-this-build::
+this-build:: Makefile.coq
 	+$(COQMAKE)
 
-this-quick::
+this-quick:: Makefile.coq
 	+$(COQMAKE) quick
 
 this-distclean:: this-clean

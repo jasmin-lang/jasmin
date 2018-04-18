@@ -29,7 +29,7 @@ let is_trivial_move x e =
   | _              -> false
 
 let is_move_op = function
-  | Expr.Ox86_MOV -> true
+  | Expr.Ox86_MOV _ -> true
   | _        -> false
 
 (* When [weak] is true, the out live-set contains also the written variables. *)
@@ -43,13 +43,13 @@ and live_d weak d (s_o: Sv.t) =
     let s_i, c = live_c weak c s_o in
     s_i, s_o, Cblock c
 
-  | Cassgn(x,t,e) ->
+  | Cassgn(x, tg, ty, e) ->
 
     let s_i = Sv.union (vars_e e) (dep_lv s_o x) in
     let s_o =
       if weak && not (is_trivial_move x e) then writev_lval s_o x
       else s_o in
-    s_i, s_o, Cassgn(x,t,e)
+    s_i, s_o, Cassgn(x, tg, ty, e)
 
   | Copn(xs,t,o,es) ->
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
@@ -93,14 +93,7 @@ and live_c weak c s_o =
 let live_fd weak fd =
   let s_o = Sv.of_list (List.map L.unloc fd.f_ret) in
   let _, c = live_c weak fd.f_body s_o in
-  {
-    f_loc  = fd.f_loc;
-    f_cc   = fd.f_cc  ;
-    f_name = fd.f_name;
-    f_args = fd.f_args;
-    f_body = c;
-    f_ret  = fd.f_ret ;
-  }
+  { fd with f_body = c }
 
 let liveness weak prog = List.map (live_fd weak) prog
 

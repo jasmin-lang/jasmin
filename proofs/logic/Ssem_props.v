@@ -26,7 +26,7 @@
 (* --------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect.
 Require Import Setoid Morphisms ZArith.
-Require Import gen_map word utils type var expr memory sem Ssem.
+Require Import gen_map word utils type var expr low_memory sem Ssem.
 
 Import UnsafeMemory.
 
@@ -71,9 +71,9 @@ Hypothesis Icons : forall s1 s2 s3 i c,
 Hypothesis ImkI : forall ii i s1 s2,
   ssem_i p gd s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
 
-Hypothesis Iasgn : forall s1 s2 x tag e,
+(*Hypothesis Iasgn : forall s1 s2 x tag e,
   Let v := ssem_pexpr gd s1 e in swrite_lval gd x v s1 = ok s2 ->
-  Pi_r s1 (Cassgn x tag e) s2.
+  Pi_r s1 (Cassgn x tag e) s2.*)
 
 Hypothesis Iopn : forall s1 s2 t o xs es,
      Let x :=
@@ -131,7 +131,7 @@ Hypothesis Iproc : forall m1 m2 fn f vargs s1 vm2 vres,
   -> [seq sget_var vm2 x | x : var_i <- f_res f] = vres
   -> Pfun m1 fn vargs m2 vres.
 
-Lemma ssem_Ind s1 c s2 : ssem p gd s1 c s2 -> Pc s1 c s2.
+(*Lemma ssem_Ind s1 c s2 : ssem p gd s1 c s2 -> Pc s1 c s2.
 Proof.
 by apply/(@_ssem_Ind p gd
            (fun s1 c s2 _ => Pc s1 c s2)
@@ -139,7 +139,7 @@ by apply/(@_ssem_Ind p gd
            (fun s1 i s2 _ => Pi s1 i s2)
            (fun x sz s1 c s2 _ => Pfor x sz s1 c s2)
            (fun m f l m' l' _  => Pfun m f l m' l')); auto.
-Qed.
+Qed.*)
 End SsemInd.
 
 (* --------------------------------------------------------------------- *)
@@ -193,7 +193,7 @@ Lemma svmap_eq_exceptR vm1 vm2 s1 s2 :
 Proof. by apply/svmap_eq_except_subset/SvP.MP.union_subset_2. Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma swrite_var_eqmem vi v s s' :
+(*Lemma swrite_var_eqmem vi v s s' :
   swrite_var vi v s = ok s' -> sevm s = sevm s' [\Sv.singleton vi].
 Proof.
 apply: rbindP => sv /=; apply: on_vuP.
@@ -271,4 +271,4 @@ eapply (@ssem_Ind p gd
   transitivity (sevm s2) => //; rewrite SvP.MP.add_union_singleton.
   by transitivity (sevm s1'); [apply: svmap_eq_exceptL | apply: svmap_eq_exceptR].
 + by move=> s1 m s2 ii xs fn args vargs vs okv _ _ /vrvsP /=; writeN.
-Qed.
+Qed.*)

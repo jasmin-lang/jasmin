@@ -31,7 +31,7 @@ From mathcomp Require Import all_ssreflect.
 Require Import ZArith Utf8.
         Import Relations.
 Require oseq.
-Require Import sem compiler_util stack_alloc stack_sem linear.
+Require Import psem compiler_util stack_alloc stack_sem linear.
 
 Import Memory.
 
@@ -77,10 +77,6 @@ Context (gd: glob_defs).
 
 Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   match li_i i with
-  | Lassgn x _ e =>
-    Let v := sem_pexpr gd (to_estate s1) e in
-    Let s2 := write_lval gd x v (to_estate s1) in
-    ok (of_estate s2 s1.(lc) s1.(lpc).+1)
   | Lopn xs o es =>
     Let s2 := sem_sopn gd o (to_estate s1) xs es in
     ok (of_estate s2 s1.(lc) s1.(lpc).+1)
@@ -128,19 +124,20 @@ Qed.
 
 End LSEM.
 
-Variant lsem_fd gd m1 fn va m2 vr : Prop :=
-| LSem_fd : forall p fd vm2 m2' s1 s2,
+Variant lsem_fd gd m1 fn va' m2 vr' : Prop :=
+| LSem_fd : forall m1' fd va vm2 m2' s1 s2 vr,
     get_fundef P fn = Some fd ->
-    alloc_stack m1 fd.(lfd_stk_size) = ok p ->
+    alloc_stack m1 fd.(lfd_stk_size) = ok m1' ->
     let c := fd.(lfd_body) in
-    write_var  (S.vstk fd.(lfd_nstk)) p.1 (Estate p.2 vmap0) = ok s1 ->
+    write_var  (S.vstk fd.(lfd_nstk)) (Vword (top_stack m1')) (Estate m1' vmap0) = ok s1 ->
+    mapM2 ErrType truncate_val fd.(lfd_tyin) va' = ok va ->
     write_vars fd.(lfd_arg) va s1 = ok s2 ->
     lsem gd (of_estate s2 c 0)
            {| lmem := m2'; lvm := vm2; lc := c; lpc := size c |} ->
     mapM (fun (x:var_i) => get_var vm2 x) fd.(lfd_res) = ok vr ->
-    m2 = free_stack m2' p.1 fd.(lfd_stk_size) ->
-    List.Forall is_full_array vr ->
-    lsem_fd gd m1 fn va m2 vr.
+    mapM2 ErrType truncate_val fd.(lfd_tyout) vr = ok vr' ->
+    m2 = free_stack m2' fd.(lfd_stk_size) ->
+    lsem_fd gd m1 fn va' m2 vr'.
 
 Definition lsem_trans gd s2 s1 s3 :
   lsem gd s1 s2 -> lsem gd s2 s3 -> lsem gd s1 s3 :=

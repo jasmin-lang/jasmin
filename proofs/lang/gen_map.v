@@ -32,6 +32,25 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Lemma InAE (A: Type) (eqA: relation A) a m :
+  InA eqA a m ->
+  match m with
+  | [::] => False
+  | a' :: m' => eqA a a' \/ InA eqA a m'
+  end.
+Proof. by case; [ left | right ]. Qed.
+
+Arguments InAE {A eqA a m}.
+
+Lemma NoDupAE (A: Type) (eqA: relation A) m :
+  NoDupA eqA m ->
+  match m with
+  | [::] => True
+  | a' :: m' => ~ InA eqA a' m' /\ NoDupA eqA m'
+  end.
+Proof. by case. Qed.
+
+
 (* ** *)
 
 Module Type CmpType.
@@ -58,7 +77,7 @@ Module MkOrdT (T:CmpType) <: OrderedType.
   Proof. by rewrite /eq=> Heq;rewrite cmp_sym Heq. Qed.
 
   Lemma eq_trans x y z: eq x y -> eq y z -> eq x z.
-  Proof. by apply cmp_trans. Qed.
+  Proof. apply cmp_trans. Qed.
 
   Lemma lt_trans x y z: lt x y -> lt y z -> lt x z.
   Proof. apply cmp_trans. Qed.
@@ -305,15 +324,15 @@ Module Mmake (K:CmpType) <: MAP.
     have : InA (Map.eq_key_elt (elt:=T)) (kv.1, kv.2) (Map.elements m) <-> 
            (kv \in Map.elements m).
     + elim: (Map.elements m) => [|x xs Hrec].
-      + by rewrite in_nil;split => // H;inversion H.
-      rewrite in_cons;split=> [| /orP [/eqP|]] H.
-      + inversion H;clear H;subst. 
-        move: H1;rewrite /Map.eq_key_elt /Map.Raw.Proofs.PX.eqke /= => []. 
-        case: kv x {Hrec} => k v [xk xv] /= [] /= /(@cmp_eq _ _ K.cmpO) -> ->.
-        by rewrite eq_refl.
-      + by rewrite ->Hrec in H1;rewrite orbC H1.
-      + rewrite H;constructor;case x;reflexivity.
-      by apply /InA_cons_tl /Hrec.
+      + by rewrite in_nil; split => // /InAE.
+      rewrite in_cons; split=> [| /orP [/eqP|]].
+      + case/InAE.
+        * rewrite /Map.eq_key_elt /Map.Raw.Proofs.PX.eqke /= => [].
+          case: kv x {Hrec} => k v [xk xv] /= [] /= /(@cmp_eq _ _ K.cmpO) -> ->.
+          by rewrite eq_refl.
+        by move/Hrec ->; exact: orbT.
+      + move => ->; constructor;case x;reflexivity.
+      by move => H; apply /InA_cons_tl /Hrec.
     case: (boolP (kv \in Map.elements m)) => Hin [Hf Ht];constructor.
     + move: (Ht (erefl _)).
       by move=> /(Facts.elements_mapsto_iff m kv.1 kv.2) /Facts.find_mapsto_iff.
@@ -322,11 +341,11 @@ Module Mmake (K:CmpType) <: MAP.
 
   Lemma elementsU {T:eqType} (m:t T): uniq [seq x.1 | x <- (elements m)].
   Proof.
-    rewrite /elements; elim: (Map.elements m) (Map.elements_3w m) => [|p ps Hrec] //= H.
-    inversion H;clear H;subst.
-    rewrite andbC Hrec //=.
-    apply /negP=> H;apply H2.
-    elim: ps H {H2 H3 Hrec} => [|p' ps Hrec] //=;rewrite in_cons=> /orP [/eqP | ] H.
+    rewrite /elements; elim: (Map.elements m) (Map.elements_3w m) => [|p ps Hrec] //=.
+    case/NoDupAE => Hp Hps.
+    rewrite andbC Hrec //= {Hrec Hps}.
+    apply /negP=> H; apply: Hp.
+    elim: ps H => [|p' ps Hrec] //=;rewrite in_cons=> /orP [/eqP | ] H.
     + apply InA_cons_hd. 
       by rewrite /Map.eq_key /Map.Raw.Proofs.PX.eqk H; apply cmp_refl.
     by apply /InA_cons_tl/Hrec.
@@ -347,7 +366,7 @@ Module Mmake (K:CmpType) <: MAP.
              (exists k : K.t, (k,v) \in elements m).            
     + by split;move=> [k /(elementsP (k,v)) H];exists k.
     elim: (elements m) => /= [ | k ks Hrec].
-    + by split => // -[k H];inversion H.
+    + by split => // -[k H].
     case: eqP => [-> | Hdiff].
     + have -> : foldl (fun (a : bool) (p : Map.key * T) => a || (k.2 == p.2))true ks.
       + elim ks => //=.

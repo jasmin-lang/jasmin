@@ -29,21 +29,30 @@
 open Prog
 open Printer
 
+module T = Type
+module E = Expr
 module F   = Format
 
 (* ** Pretty printing
  * ------------------------------------------------------------------------ *)
 
+let pp_ws fmt =
+  function
+  | T.U8 -> F.fprintf fmt "16"
+  | T.U16 -> F.fprintf fmt "16"
+  | T.U32 -> F.fprintf fmt "32"
+  | T.U64 -> F.fprintf fmt "64"
+  | T.U128 -> F.fprintf fmt "128"
+  | T.U256 -> F.fprintf fmt "256"
+
 let pp_bty fmt = function
   | Bool  -> F.fprintf fmt "sbool"
-  | U W64 -> F.fprintf fmt "sword"
-  | U _   -> assert false
+  | U ws -> F.fprintf fmt "u%a" pp_ws ws
   | Int   -> F.fprintf fmt "sint"
 
 let pp_ty fmt = function
   | Bty ty     -> pp_bty fmt ty
-  | Arr(W64,i) -> F.fprintf fmt "(sarr %i)" i
-  | Arr _      -> assert false
+  | Arr(ws, i) -> F.fprintf fmt "(sarr %a %i)" pp_ws ws i
 
 let pp_inline fmt = function
   | DoInline -> F.fprintf fmt "InlineFun"
@@ -57,13 +66,13 @@ let pp_ass_tag fmt = function
   | AT_phinode -> F.fprintf fmt ":φ="
 
 let string_cmp_ty = function
-  | Cmp_int    -> "i"
-  | Cmp_uw W64 -> "u"
-  | Cmp_sw W64 -> "s"
-  | _          -> assert false
+  | E.Cmp_int    -> "i"
+  | E.Cmp_w (T.Unsigned, T.U64) -> "u"
+  | E.Cmp_w (T.Signed, T.U64) -> "s"
+  | _ -> assert false
 
 let infix_sop2 = function
-  | Oand -> "&&"
+  | E.Oand -> "&&"
   | Oor  -> "||"
   | Oadd _ -> "+"
   | Omul _ -> "*"
@@ -72,12 +81,12 @@ let infix_sop2 = function
   | Oland _ -> "&"
   | Olor _ -> "|"
   | Olxor _ -> "^"
-  | Olsr   -> ">>"
-  | Olsl   -> "<<"
-  | Oasr   -> assert false
+  | Olsr _ -> ">>"
+  | Olsl _ -> "<<"
+  | Oasr _ -> assert false
 
-  | Oeq  k -> "==" ^ string_cmp_ty k
-  | Oneq k -> "!=" ^ string_cmp_ty k
+  | Oeq  _ -> "=="
+  | Oneq _ -> "!="
   | Olt  k -> "<"  ^ string_cmp_ty k
   | Ole  k -> "<=" ^ string_cmp_ty k
   | Ogt  k -> ">"  ^ string_cmp_ty k
@@ -128,25 +137,22 @@ let pp_funname fmt fn =
   F.fprintf fmt "%s" x
 
 let pp_op1 = function
-  | Onot     -> "~~"
-  | Olnot W64 -> "~!"
-  | Olnot _   -> assert false
-  | Oneg W64 -> "~-"
-  | Oneg _   -> assert false
-  | Oarr_init _ -> assert false (* FIXME *)
+  | E.Onot     -> "~~"
+  | E.Olnot U64 -> "~!"
+  | E.Olnot _   -> assert false
+  | E.Oneg _ -> "~-" (* FIXME *)
+  | E.Oarr_init _ -> assert false (* FIXME *)
 
 let rec pp_pexpr fmt = function
   | Pconst i       -> F.fprintf fmt "%s" (B.to_string i)
   | Pbool b        -> F.fprintf fmt "%a" pp_bool b
-  | Pcast(W64, pe) -> F.fprintf fmt "(Pcast %a)" pp_pexpr pe
-  | Pcast _        -> assert false
+  | Pcast(ws, pe) -> F.fprintf fmt "(Pcast %a %a)" pp_ws ws pp_pexpr pe
   | Pvar vi        -> F.fprintf fmt "%a" pp_vari vi
   | Pglobal g -> F.fprintf fmt "(Pglobal %s)" g
   | Pget(vi, pe)   ->
     F.fprintf fmt "%a.[%a]" pp_vari vi pp_pexpr pe
-  | Pload(W64, vi, pe) ->
-    F.fprintf fmt "@[<hov 2>(load@ %a@ %a)@]" pp_vari vi pp_pexpr pe
-  | Pload _        ->  assert false
+  | Pload(ws, vi, pe) ->
+    F.fprintf fmt "@[<hov 2>(load@ %a@ %a@ %a)@]" pp_ws ws pp_vari vi pp_pexpr pe
   | Papp1(o, pe)  -> F.fprintf fmt "(%s %a)" (pp_op1 o) pp_pexpr pe
   | Papp2(o, e1, e2)->
     Format.fprintf fmt "@[<hov 2>(%a %s@ %a)@]"
@@ -159,9 +165,8 @@ let pp_rval fmt rv =
   match rv with
   | Lnone _  -> Format.fprintf fmt "__"
   | Lvar vi  -> pp_vari fmt vi
-  | Lmem(W64, vi,pe) ->
-    F.fprintf fmt "@[<hov 2>store %a@ %a@]" pp_vari vi pp_pexpr pe
-  | Lmem _   -> assert false
+  | Lmem(ws, vi,pe) ->
+    F.fprintf fmt "@[<hov 2>store %a@ %a@ %a@]" pp_ws ws pp_vari vi pp_pexpr pe
   | Laset(vi,pe) -> F.fprintf fmt "%a.[%a]" pp_vari vi pp_pexpr pe
 
 
@@ -183,9 +188,9 @@ let dotdot = function
 let rec pp_instr_r fmt instr =
   match instr with
   | Cblock c -> pp_instrs fmt c
-  | Cassgn(rv,atag,pe) ->
-    F.fprintf fmt "@[%a %a@ %a@]"
-      pp_rval rv pp_ass_tag atag pp_pexpr pe
+  | Cassgn(rv, atag, ty, pe) ->
+    F.fprintf fmt "@[%a %a@ %a@ %a@]"
+      pp_rval rv pp_ass_tag atag pp_ty ty pp_pexpr pe
   | Copn(rvs,t,sopn,pes) ->
       F.fprintf fmt "@[Copn [:: %a]@ %a %a [:: %a]@]"
         (pp_list ";@ " pp_rval) rvs

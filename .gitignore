@@ -27,6 +27,7 @@ target
 
 Makefile.coq
 Makefile.coq.bak
+Makefile.coq.conf
 
 /ssreflect/*.v
 /ssreflect/*.ml*

@@ -27,7 +27,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect.
-Require Import ZArith sem compiler_util.
+Require Import ZArith psem compiler_util.
 Require Export unrolling.
 
 Set Implicit Arguments.
@@ -76,12 +76,14 @@ Section PROOF.
     sem_i p gd s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
   Proof. move=> _ Hi; exact: Hi. Qed.
 
-  Local Lemma Hassgn s1 s2 x tag e :
-    Let v := sem_pexpr gd s1 e in write_lval gd x v s1 = Ok error s2 ->
-    Pi_r s1 (Cassgn x tag e) s2.
+  Local Lemma Hassgn s1 s2 x tag ty e v v' :
+    sem_pexpr gd s1 e = ok v ->
+    truncate_val ty v = ok v' ->
+    write_lval gd x v' s1 = ok s2 ->
+    Pi_r s1 (Cassgn x tag ty e) s2.
   Proof.
-    move=> Hw ii.
-    by apply: sem_seq1; apply: EmkI; apply: Eassgn.
+    move=> hv hv' hw ii.
+    by apply: sem_seq1; apply: EmkI; apply: Eassgn; eauto.
   Qed.
 
   Local Lemma Hopn s1 s2 t o xs es :
@@ -93,7 +95,7 @@ Section PROOF.
   Qed.
 
   Local Lemma Hif_true s1 s2 e c1 c2 :
-    Let x := sem_pexpr gd s1 e in to_bool x = Ok error true ->
+    sem_pexpr gd s1 e = ok (Vbool true) ->
     sem p gd s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
   Proof.
     move=> Hb Hsc Hc ii.
@@ -101,7 +103,7 @@ Section PROOF.
   Qed.
 
   Local Lemma Hif_false s1 s2 e c1 c2 :
-    Let x := sem_pexpr gd s1 e in to_bool x = Ok error false ->
+    sem_pexpr gd s1 e = ok (Vbool false) ->
     sem p gd s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
   Proof.
     move=> Hb Hsc Hc ii.
@@ -110,22 +112,18 @@ Section PROOF.
 
   Local Lemma Hwhile_true s1 s2 s3 s4 c e c' :
     sem p gd s1 c s2 -> Pc s1 c s2 ->
-    Let x := sem_pexpr gd s2 e in to_bool x = ok true ->
+    sem_pexpr gd s2 e = ok (Vbool true) ->
     sem p gd s2 c' s3 -> Pc s2 c' s3 ->
     sem_i p gd s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 -> Pi_r s1 (Cwhile c e c') s4.
   Proof.
     move=> Hsc Hc Hb Hsc' Hc' Hsi Hi ii.
     apply: sem_seq1; apply: EmkI; apply: Ewhile_true=> //; eauto=> /=.
-    move: Hi=> /(_ ii) Hi.
-    sinversion Hi.
-    sinversion H2.
-    sinversion H4.
-    apply: H5.
+    by move: Hi=> /(_ ii) /semE [?] [/sem_IE Hi /semE ->].
   Qed.
 
   Local Lemma Hwhile_false s1 s2 c e c' :
     sem p gd s1 c s2 -> Pc s1 c s2 ->
-    Let x := sem_pexpr gd s2 e in to_bool x = ok false ->
+    sem_pexpr gd s2 e = ok (Vbool false) ->
     Pi_r s1 (Cwhile c e c') s2.
   Proof.
    move=> Hsc Hc Hb ii.
@@ -133,8 +131,8 @@ Section PROOF.
   Qed.
 
   Local Lemma Hfor s1 s2 (i:var_i) d lo hi c vlo vhi :
-    Let x := sem_pexpr gd s1 lo in to_int x = Ok error vlo ->
-    Let x := sem_pexpr gd s1 hi in to_int x = Ok error vhi ->
+    sem_pexpr gd s1 lo = ok (Vint vlo) ->
+    sem_pexpr gd s1 hi = ok (Vint vhi) ->
     sem_for p gd i (wrange d vlo vhi) s1 c s2 ->
     Pfor i (wrange d vlo vhi) s1 c s2 -> Pi_r s1 (Cfor i (d, lo, hi) c) s2.
   Proof.
@@ -161,6 +159,11 @@ Section PROOF.
     apply: Eskip.
   Qed.
 
+  Lemma write_var_Z i (z: Z) s s' :
+    write_var i z s = ok s' ->
+    vtype i = sint.
+  Proof. by case: i => - [[] x]. Qed.
+
   Local Lemma Hfor_cons s1 s1' s2 s3 (i : var_i) (w:Z) (ws:seq Z) c :
     write_var i w s1 = Ok error s1' ->
     sem p gd s1' c s2 ->
@@ -170,7 +173,9 @@ Section PROOF.
     move=> Hw Hsc Hc Hsfor [Hfor Hfor']; split=> [|ii].
     apply: EForOne; [exact: Hw|exact: Hc|exact: Hfor].
     move: Hfor'=> /(_ ii) Hfor'.
-    apply: Eseq; [apply: EmkI; apply: Eassgn; exact: Hw|apply: sem_app].
+    apply: Eseq.
+    + apply: EmkI; apply: Eassgn. reflexivity. by rewrite (write_var_Z Hw). exact Hw.
+    apply: sem_app.
     exact: Hc.
     exact: Hfor'.
   Qed.
@@ -186,21 +191,24 @@ Section PROOF.
     apply: sem_seq1; apply: EmkI; apply: Ecall; [exact: Hexpr|exact: Hfun|exact: Hw].
   Qed.
 
-  Local Lemma Hproc m1 m2 fn f vargs s1 vm2 vres:
+  Local Lemma Hproc m1 m2 fn f vargs vargs' s1 vm2 vres vres':
     get_fundef p fn = Some f ->
+    mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
     write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
     sem p gd s1 (f_body f) {| emem := m2; evm := vm2 |} ->
     Pc s1 (f_body f) {| emem := m2; evm := vm2 |} ->
     mapM (fun x : var_i => get_var vm2 x) (f_res f) = ok vres ->
-    List.Forall is_full_array vres ->
-    Pfun m1 fn vargs m2 vres.
+    mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
+    Pfun m1 fn vargs' m2 vres'.
   Proof.
-    case: f=> fi fparams fc fres /= Hget Hw _ Hc Hres Hfull.
-    apply: EcallRun=> //.
-    by rewrite get_map_prog Hget.
-    exact: Hw.
-    exact: Hc.
-    exact: Hres.
+    case: f=> fi ftyi fparams fc ftyo fres /= Hget Htyi Hw _ Hc Hres Htyo.
+    apply: EcallRun.
+    + by rewrite get_map_prog Hget.
+    + exact: Htyi.
+    + exact: Hw.
+    + exact: Hc.
+    + exact: Hres.
+    exact: Htyo.
   Qed.
 
   Lemma unroll_callP f mem mem' va vr:

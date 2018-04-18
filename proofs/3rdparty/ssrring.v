@@ -10,7 +10,7 @@ From mathcomp Require Import choice ssralg bigop.
 
 Import GRing.Theory.
 
-Open Local Scope ring_scope.
+Local Open Scope ring_scope.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -78,42 +78,42 @@ Instance closed_cons T (x : T) (xs : seq T)
  : closed (x :: xs).
 
 (* -------------------------------------------------------------------- *)
-Class reify (R : idomainType) (a : R) (t : PExpr Z) (e : seq R).
+Class reify (R : ringType) (a : R) (t : PExpr Z) (e : seq R).
 
-Instance reify_zero (R : idomainType) e : @reify R 0 0%S e.
-Instance reify_one  (R : idomainType) e : @reify R 1 1%S e.
+Instance reify_zero (R : ringType) e : @reify R 0 0%S e.
+Instance reify_one  (R : ringType) e : @reify R 1 1%S e.
 
-Instance reify_natconst (R : idomainType) n e
+Instance reify_natconst (R : ringType) n e
   : @reify R n%:R ((n : Z)%:S)%S e.
 
-Instance reify_add (R : idomainType) a1 a2 t1 t2 e
+Instance reify_add (R : ringType) a1 a2 t1 t2 e
   {_: @reify R a1 t1 e}
   {_: @reify R a2 t2 e}
   : reify (a1 + a2) (t1 + t2)%S e.
 
-Instance reify_opp (R : idomainType) a t e
+Instance reify_opp (R : ringType) a t e
   {_: @reify R a t e}
   : reify (-a) (-t)%S e.
 
-Instance reify_natmul (R : idomainType) a n t e
+Instance reify_natmul (R : ringType) a n t e
   {_: @reify R a t e}
   : reify (a *+ n) (t * (n : Z)%:S)%S e.
 
-Instance reify_mul (R : idomainType) a1 a2 t1 t2 e
+Instance reify_mul (R : ringType) a1 a2 t1 t2 e
   {_: @reify R a1 t1 e}
   {_: @reify R a2 t2 e}
   : reify (a1 * a2) (t1 * t2)%S e.
 
-Instance reify_exp (R : idomainType) a n t e
+Instance reify_exp (R : ringType) a n t e
   {_: @reify R a t e}
   : reify (a ^+ n) (t ^+ n)%S e | 1.
 
-Instance reify_var (R : idomainType) a i e
+Instance reify_var (R : ringType) a i e
   `{find R a e i}
   : reify a ('X_i)%S e
   | 100.
 
-Definition reifyl (R : idomainType) a t e
+Definition reifyl (R : ringType) a t e
   {_: @reify R a t e}
   `{closed (T := R) e}
   := (t, e).
@@ -303,21 +303,21 @@ Canonical R_of_Z_rmorphism (R : ringType) := AddRMorphism (R_of_Z_is_multiplicat
 Local Notation REeval :=
   (@PEeval _ 0 +%R *%R (fun x y => x - y) -%R Z R_of_Z nat nat_of_N (@GRing.exp _)).
 
-Lemma RE (R : idomainType): @ring_eq_ext R +%R *%R -%R (@eq R).
+Lemma RE (R : ringType): @ring_eq_ext R +%R *%R -%R (@eq R).
 Proof. by split; do! move=> ? _ <-. Qed.
 
 Local Notation "~%R"   := (fun x y => x - y).
 Local Notation "/%R"   := (fun x y => x / y).
 Local Notation "^-1%R" := (@GRing.inv _) (only parsing).
 
-Lemma RR (R : idomainType): @ring_theory R 0 1 +%R *%R ~%R -%R (@eq R).
+Lemma RR (R : comRingType): @ring_theory R 0 1 +%R *%R ~%R -%R (@eq R).
 Proof.
   split=> //=;
     [ exact: add0r | exact: addrC | exact: addrA  | exact: mul1r
     | exact: mulrC | exact: mulrA | exact: mulrDl | exact: subrr ].
 Qed.
 
-Lemma RZ (R : idomainType):
+Lemma RZ (R : ringType):
   ring_morph (R := R) 0 1 +%R *%R ~%R -%R eq
     0%Z 1%Z Zplus Zmult Zminus Zopp Zeq_bool (@R_of_Z _).
 Proof.
@@ -329,7 +329,7 @@ Proof.
   + by move=> x y /Zeq_bool_eq ->.
 Qed.
 
-Lemma PN (R : idomainType):
+Lemma PN (R : ringType):
   @power_theory R 1 *%R eq nat nat_of_N (@GRing.exp R).
 Proof.
   split=> r [|n] //=; elim: n => //= p ih.
@@ -344,7 +344,7 @@ Proof.
   + by move=> x /eqP nz_z; rewrite mulVf.
 Qed.
 
-Definition Rcorrect (R : idomainType) :=
+Definition Rcorrect (R : comRingType) :=
   ring_correct (Eqsth R) (RE R)
     (Rth_ARth (Eqsth R) (RE R) (RR R))
     (RZ R) (PN R)
@@ -424,16 +424,16 @@ Ltac ssring :=
   let xt := fresh "xt" in
   let xe := fresh "xe" in
     apply/eqP; rewrite -subr_eq0; apply/eqP;
-      rewrite ?(mulr0, mul0r, mulr1, mul1r); reify xt xe;
-      move: (@Rcorrect _ 100 xe [::] xt (PEc 0) I (erefl true));
-      by rewrite !PEReval.
+    reify xt xe;
+    apply (@Rcorrect _ 100 xe [::] xt (Coq.setoid_ring.Ring_polynom.PEc 0%Z) I);
+    vm_compute;exact (erefl true).
 
 (* -------------------------------------------------------------------- *)
 Ltac ssfield :=
   let xt := fresh "xt" in
   let xe := fresh "xe" in
     apply/eqP; rewrite -subr_eq0; apply/eqP;
-      rewrite ?(mulr0, mul0r, mulr1, mul1r); freify xt xe;
+      (* rewrite ?(mulr0, mul0r, mulr1, mul1r); *) freify xt xe;
       move: (@Fcorrect _ 100 xe [::] xt (Field_theory.FEc 0) I [::] (erefl [::]));
       move/(_ _ (erefl _) _ (erefl _) (erefl true)); rewrite !PEFeval;
       apply=> /=; do? split; cbv delta[BinPos.Pos.to_nat] => /= {xt xe};

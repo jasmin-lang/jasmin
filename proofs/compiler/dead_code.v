@@ -72,28 +72,28 @@ Section LOOP.
 End LOOP.
 
 Definition write_mem (r:lval) : bool := 
-  if r is Lmem _ _ then true else false.
+  if r is Lmem _ _ _ then true else false.
 
-Definition check_nop (rv:lval) (e:pexpr) :=
+Definition check_nop (rv:lval) ty (e:pexpr) :=
   match rv, e with
-  | Lvar x1, Pvar x2 => x1.(v_var) == x2.(v_var)
+  | Lvar x1, Pvar x2 => (x1.(v_var) == x2.(v_var)) && (ty == vtype x1.(v_var))
   | _, _ => false
   end.
 
 Definition check_nop_opn (xs:lvals) (o: sopn) (es:pexprs) :=
   match xs, o, es with
-  | [:: x], Ox86_MOV, [:: e] => check_nop x e
+  | [:: x], Ox86_MOV sz, [:: e] => check_nop x (sword sz) e
   | _, _, _ => false
   end.
  
 Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) := 
   let (ii,ir) := i in
   match ir with
-  | Cassgn x tag e =>
+  | Cassgn x tag ty e =>
     let w := write_i ir in
     if tag != AT_keep then
       if disjoint s w && negb (write_mem x) then ciok (s, [::])
-      else if check_nop x e then ciok (s, [::])
+      else if check_nop x ty e then ciok (s, [::])
       else ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
     else   ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
   
@@ -135,12 +135,10 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
   end.
 
 Definition dead_code_fd (fd: fundef) :=
-  match fd with
-  | MkFun ii params c res =>
-    let s := read_es (map Pvar res) in
-    Let c := dead_code_c dead_code_i c s in
-    ciok (MkFun ii params c.2 res)
-  end.
+  let 'MkFun ii tyi params c tyo res := fd in
+  let s := read_es (map Pvar res) in
+  Let c := dead_code_c dead_code_i c s in
+  ciok (MkFun ii tyi params c.2 tyo res).
 
 Definition dead_code_prog (p: prog) : cfexec prog :=
   map_cfprog dead_code_fd p.

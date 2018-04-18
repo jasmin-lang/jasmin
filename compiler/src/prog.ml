@@ -1,6 +1,7 @@
 (* ------------------------------------------------------------------------ *)
 open Utils
-
+open Type
+module E = Expr
 module L = Location
 module B = Bigint
 
@@ -14,55 +15,10 @@ type uid = int
 let int_of_uid i = i
 
 (* ------------------------------------------------------------------------ *)
-type word_size =
-  | W8
-  | W16
-  | W32
-  | W64
-  | W128
-  | W256
-
-type cmp_ty =
-  | Cmp_int
-  | Cmp_uw  of word_size
-  | Cmp_sw  of word_size
-
-type op_ty =
-  | Op_int
-  | Op_w  of word_size
-
-type op1 =
-  | Olnot of word_size
-  | Onot
-  | Oneg of word_size
-  | Oarr_init of word_size
-
-type op2 =
-  | Oand    (* const : sbool -> sbool -> sbool *)
-  | Oor     (* const : sbool -> sbool -> sbool *)
-
-  | Oadd    of op_ty
-  | Omul    of op_ty
-  | Osub    of op_ty
-
-  | Oland of op_ty
-  | Olor of op_ty
-  | Olxor of op_ty
-  | Olsr
-  | Olsl
-  | Oasr
-
-  | Oeq     of cmp_ty
-  | Oneq    of cmp_ty
-  | Olt     of cmp_ty
-  | Ole     of cmp_ty
-  | Ogt     of cmp_ty
-  | Oge     of cmp_ty
-
 type base_ty =
   | Bool
   | Int              (* Unbounded integer for pexpr *)
-  | U   of word_size (* U(n): unsigned n-bit integer *)
+  | U   of wsize (* U(n): unsigned n-bit integer *)
   [@@deriving compare,sexp]
 
 type v_kind =
@@ -85,30 +41,30 @@ type 'ty gvar_i = 'ty gvar L.located
 
 type 'expr gty =
   | Bty of base_ty
-  | Arr of word_size * 'expr (* Arr(n,de): array of n-bit integers with dim. *)
+  | Arr of wsize * 'expr (* Arr(n,de): array of n-bit integers with dim. *)
            (* invariant only Const variable can be used in expression *)
            (* the type of the expression is [Int] *)
 
 type 'ty gexpr =
   | Pconst of B.zint
   | Pbool  of bool
-  | Pcast  of word_size * 'ty gexpr
+  | Pcast  of wsize * 'ty gexpr
   | Pvar   of 'ty gvar_i
   | Pglobal of Name.t
   | Pget   of 'ty gvar_i * 'ty gexpr
-  | Pload  of word_size * 'ty gvar_i * 'ty gexpr
-  | Papp1  of op1 * 'ty gexpr
-  | Papp2  of op2 * 'ty gexpr * 'ty gexpr
+  | Pload  of wsize * 'ty gvar_i * 'ty gexpr
+  | Papp1  of E.sop1 * 'ty gexpr
+  | Papp2  of E.sop2 * 'ty gexpr * 'ty gexpr
   | Pif    of 'ty gexpr * 'ty gexpr * 'ty gexpr
 
 type 'ty gexprs = 'ty gexpr list
 
-let u8   = Bty (U W8)
-let u16  = Bty (U W16)
-let u32  = Bty (U W32)
-let u64  = Bty (U W64)
-let u128 = Bty (U W128)
-let u256 = Bty (U W256)
+let u8   = Bty (U U8)
+let u16  = Bty (U U16)
+let u32  = Bty (U U32)
+let u64  = Bty (U U64)
+let u128 = Bty (U U128)
+let u256 = Bty (U U256)
 let tbool = Bty Bool
 let tint  = Bty Int
 
@@ -127,7 +83,7 @@ type assgn_tag =
 type 'ty glval =
  | Lnone of L.t * 'ty
  | Lvar  of 'ty gvar_i
- | Lmem  of word_size * 'ty gvar_i * 'ty gexpr
+ | Lmem  of wsize * 'ty gvar_i * 'ty gexpr
  | Laset of 'ty gvar_i * 'ty gexpr
 
 type 'ty glvals = 'ty glval list
@@ -148,7 +104,7 @@ type i_loc = L.t * L.t list
 
 type ('ty,'info) ginstr_r =
   | Cblock of ('ty,'info) gstmt
-  | Cassgn of 'ty glval * assgn_tag * 'ty gexpr
+  | Cassgn of 'ty glval * assgn_tag * 'ty * 'ty gexpr
   | Copn   of 'ty glvals * assgn_tag * Expr.sopn * 'ty gexprs
   | Cif    of 'ty gexpr * ('ty,'info) gstmt * ('ty,'info) gstmt
   | Cfor   of 'ty gvar_i * 'ty grange * ('ty,'info) gstmt
@@ -172,8 +128,10 @@ type ('ty,'info) gfunc = {
     f_loc  : L.t;
     f_cc   : call_conv;
     f_name : funname;
+    f_tyin : 'ty list;
     f_args : 'ty gvar list;
     f_body : ('ty,'info) gstmt;
+    f_tyout : 'ty list;
     f_ret  : 'ty gvar_i list
   }
 
@@ -324,7 +282,7 @@ let rvars_lvs s lvs = List.fold_left rvars_lv s lvs
 let rec rvars_i s i =
   match i.i_desc with
   | Cblock c       -> rvars_c s c
-  | Cassgn(x,_,e)  -> rvars_e (rvars_lv s x) e
+  | Cassgn(x, _, _, e)  -> rvars_e (rvars_lv s x) e
   | Copn(x,_,_,e)    -> rvars_es (rvars_lvs s x) e
   | Cif(e,c1,c2)   -> rvars_c (rvars_c (rvars_e s e) c1) c2
   | Cfor(x,(_,e1,e2), c) ->
@@ -357,20 +315,20 @@ let locals fc =
 (* Functions on types                                                   *)
 
 let int_of_ws = function
-  | W8   -> 8
-  | W16  -> 16
-  | W32  -> 32
-  | W64  -> 64
-  | W128 -> 128
-  | W256 -> 256
+  | U8   -> 8
+  | U16  -> 16
+  | U32  -> 32
+  | U64  -> 64
+  | U128 -> 128
+  | U256 -> 256
 
 let size_of_ws = function
-  | W8   -> 1
-  | W16  -> 2
-  | W32  -> 4
-  | W64  -> 8
-  | W128 -> 16
-  | W256 -> 32
+  | U8   -> 1
+  | U16  -> 2
+  | U32  -> 4
+  | U64  -> 8
+  | U128 -> 16
+  | U256 -> 32
 
 let is_ty_arr = function
   | Arr _ -> true
@@ -408,7 +366,7 @@ let ( ** ) e1 e2 =
 let cnst i = Pconst i
 let icnst i = cnst (B.of_int i)
 
-let cast64 e = Pcast (W64, e)
+let cast64 e = Pcast (U64, e)
 
 (* -------------------------------------------------------------------- *)
 (* Functions over lvalue                                                *)
@@ -424,6 +382,6 @@ let expr_of_lval = function
 
 let destruct_move i =
   match i.i_desc with
-  | Cassgn(x, tag, e) -> x, tag, e
+  | Cassgn(x, tag, ty, e) -> x, tag, ty, e
   | _                 -> assert false
 

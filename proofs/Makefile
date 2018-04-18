@@ -8,7 +8,7 @@ include Makefile.common
 # --------------------------------------------------------------------
 .PHONY: install extraction
 
-install:
+install: Makefile.coq
 	$(MAKE) -f Makefile.coq install
 
 extraction: Makefile.coq

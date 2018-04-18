@@ -39,8 +39,8 @@ let bi_of_nat n =
 let pos_of_int i = pos_of_bi (B.of_int i)
 let int_of_pos p = B.to_int (bi_of_pos p)
 
-let int64_of_bi bi = Integers.Int64.repr (z_of_bi bi)
-let bi_of_int64 z  = bi_of_z (Integers.Int64.signed z)
+let int64_of_bi bi = Word0.wrepr T.U64 (z_of_bi bi)
+let bi_of_int64 z  = bi_of_z (Word0.wsigned T.U64 z)
 
 (* ------------------------------------------------------------------------ *)
 
@@ -62,15 +62,14 @@ let string_of_string0 s0 =
 let cty_of_ty = function
   | Bty Bool      -> T.Coq_sbool
   | Bty Int       -> T.Coq_sint
-  | Bty (U W64)   -> T.Coq_sword
-  | Arr (W64, sz) -> T.Coq_sarr (pos_of_int sz)
-  | _ -> assert false
+  | Bty (U sz)   -> T.Coq_sword(sz)
+  | Arr (sz, len) -> T.Coq_sarr (sz, pos_of_int len)
 
 let ty_of_cty = function
   | T.Coq_sbool  ->  Bty Bool
   | T.Coq_sint   ->  Bty Int
-  | T.Coq_sword  ->  Bty (U W64)
-  | T.Coq_sarr p ->  Arr (W64, (int_of_pos p))
+  | T.Coq_sword(sz) -> Bty (U sz)
+  | T.Coq_sarr(sz, p) -> Arr (sz, (int_of_pos p))
 
 (* ------------------------------------------------------------------------ *)
 
@@ -162,100 +161,16 @@ let global_of_cglobal (g: C.global) : Name.t =
 
 
 (* ------------------------------------------------------------------------ *)
-
-let ccmp_of_cmp = function
-  | Cmp_int    -> C.Cmp_int
-  | Cmp_uw W64 -> C.Cmp_uw
-  | Cmp_uw _   -> assert false
-  | Cmp_sw W64 -> C.Cmp_sw
-  | Cmp_sw _   -> assert false
-
-let cmp_of_ccmp = function
-  | C.Cmp_int -> Cmp_int
-  | C.Cmp_uw  -> Cmp_uw W64
-  | C.Cmp_sw  -> Cmp_sw W64
-
-let coty_of_oty = function
-  | Op_int   -> C.Op_int
-  | Op_w W64 -> C.Op_w
-  | Op_w _   -> assert false
-
-let oty_of_coty = function
-  | C.Op_int -> Op_int
-  | C.Op_w   -> Op_w W64
-
-let cop_of_op = function
-  | Oand    -> C.Oand
-  | Oor     -> C.Oor
-
-  | Oadd ty -> C.Oadd (coty_of_oty ty)
-  | Omul ty -> C.Omul (coty_of_oty ty)
-  | Osub ty -> C.Osub (coty_of_oty ty)
-
-  | Oland ty -> C.Oland (coty_of_oty ty)
-  | Olor ty -> C.Olor (coty_of_oty ty)
-  | Olxor ty -> C.Olxor (coty_of_oty ty)
-  | Olsr    -> C.Olsr
-  | Olsl    -> C.Olsl
-  | Oasr    -> C.Oasr
-
-  | Oeq  ty -> C.Oeq  (ccmp_of_cmp ty)
-  | Oneq ty -> C.Oneq (ccmp_of_cmp ty)
-  | Olt  ty -> C.Olt  (ccmp_of_cmp ty)
-  | Ole  ty -> C.Ole  (ccmp_of_cmp ty)
-  | Ogt  ty -> C.Ogt  (ccmp_of_cmp ty)
-  | Oge  ty -> C.Oge  (ccmp_of_cmp ty)
-
-let op_of_cop = function
-  | C.Oand    -> Oand
-  | C.Oor     -> Oor
-  | C.Oadd ty -> Oadd (oty_of_coty ty)
-  | C.Omul ty -> Omul (oty_of_coty ty)
-  | C.Osub ty -> Osub (oty_of_coty ty)
-
-  | C.Oland ty -> Oland (oty_of_coty ty)
-  | C.Olor ty -> Olor (oty_of_coty ty)
-  | C.Olxor ty -> Olxor (oty_of_coty ty)
-  | C.Olsr    -> Olsr
-  | C.Olsl    -> Olsl
-  | C.Oasr    -> Oasr
-
-  | C.Oeq  ty -> Oeq  (cmp_of_ccmp ty)
-  | C.Oneq ty -> Oneq (cmp_of_ccmp ty)
-  | C.Olt  ty -> Olt  (cmp_of_ccmp ty)
-  | C.Ole  ty -> Ole  (cmp_of_ccmp ty)
-  | C.Ogt  ty -> Ogt  (cmp_of_ccmp ty)
-  | C.Oge  ty -> Oge  (cmp_of_ccmp ty)
-
-let op1_of_cop1 = function
-  | C.Olnot -> Olnot W64
-  | C.Onot  -> Onot
-  | C.Oneg -> Oneg W64
-  | C.Oarr_init -> Oarr_init W64
-
-let cop1_of_op1 = function
-  | Olnot W64 -> C.Olnot
-  | Olnot _   -> assert false
-  | Onot      -> C.Onot
-  | Oneg W64 -> C.Oneg
-  | Oneg _   -> assert false
-  | Oarr_init W64 -> C.Oarr_init
-  | Oarr_init _   -> assert false
-
-(* ------------------------------------------------------------------------ *)
-
 let rec cexpr_of_expr tbl = function
   | Pconst z          -> C.Pconst (z_of_bi z)
   | Pbool  b          -> C.Pbool  b
-  | Pcast (W64, e)    -> C.Pcast (cexpr_of_expr tbl e)
-  | Pcast _           -> assert false
+  | Pcast (ws, e)    -> C.Pcast (ws, cexpr_of_expr tbl e)
   | Pvar x            -> C.Pvar (cvari_of_vari tbl x)
   | Pglobal g -> C.Pglobal (cglobal_of_global g)
   | Pget (x,e)        -> C.Pget (cvari_of_vari tbl x, cexpr_of_expr tbl e)
-  | Pload (W64, x, e) -> C.Pload(cvari_of_vari tbl x, cexpr_of_expr tbl e)
-  | Pload _           -> assert false
-  | Papp1 (o, e)      -> C.Papp1(cop1_of_op1 o, cexpr_of_expr tbl e)
-  | Papp2 (o, e1, e2) -> C.Papp2(cop_of_op o, cexpr_of_expr tbl e1, cexpr_of_expr tbl e2)
+  | Pload (ws, x, e) -> C.Pload(ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
+  | Papp1 (o, e)      -> C.Papp1(o, cexpr_of_expr tbl e)
+  | Papp2 (o, e1, e2) -> C.Papp2(o, cexpr_of_expr tbl e1, cexpr_of_expr tbl e2)
   | Pif   (e, e1, e2)  -> C.Pif(cexpr_of_expr tbl e,
                                 cexpr_of_expr tbl e1,
                                 cexpr_of_expr tbl e2)
@@ -263,13 +178,13 @@ let rec cexpr_of_expr tbl = function
 let rec expr_of_cexpr tbl = function
   | C.Pconst z          -> Pconst (bi_of_z z)
   | C.Pbool  b          -> Pbool  b
-  | C.Pcast  e          -> Pcast (W64, expr_of_cexpr tbl e)
+  | C.Pcast (ws, e) -> Pcast (ws, expr_of_cexpr tbl e)
   | C.Pvar x            -> Pvar (vari_of_cvari tbl x)
   | C.Pglobal g -> Pglobal (global_of_cglobal g)
   | C.Pget (x,e)        -> Pget (vari_of_cvari tbl x, expr_of_cexpr tbl e)
-  | C.Pload (x, e)      -> Pload(W64, vari_of_cvari tbl x, expr_of_cexpr tbl e)
-  | C.Papp1 (o, e)      -> Papp1(op1_of_cop1 o, expr_of_cexpr tbl e)
-  | C.Papp2 (o, e1, e2) -> Papp2(op_of_cop o, expr_of_cexpr tbl e1, expr_of_cexpr tbl e2)
+  | C.Pload (ws, x, e) -> Pload(ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
+  | C.Papp1 (o, e)      -> Papp1(o, expr_of_cexpr tbl e)
+  | C.Papp2 (o, e1, e2) -> Papp2(o, expr_of_cexpr tbl e1, expr_of_cexpr tbl e2)
   | C.Pif   (e, e1, e2) -> Pif(expr_of_cexpr tbl e,
                                expr_of_cexpr tbl e1,
                                expr_of_cexpr tbl e2)
@@ -280,14 +195,13 @@ let rec expr_of_cexpr tbl = function
 let clval_of_lval tbl = function
   | Lnone(loc, ty) -> C.Lnone (set_loc tbl loc, cty_of_ty ty)
   | Lvar x         -> C.Lvar  (cvari_of_vari tbl x)
-  | Lmem (W64,x,e) -> C.Lmem  (cvari_of_vari tbl x, cexpr_of_expr tbl e)
-  | Lmem _         -> assert false
+  | Lmem (ws, x, e) -> C.Lmem (ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Laset(x,e)     -> C.Laset (cvari_of_vari tbl x, cexpr_of_expr tbl e)
 
 let lval_of_clval tbl = function
   | C.Lnone(p,ty)-> Lnone (get_loc tbl p, ty_of_cty ty)
   | C.Lvar x     -> Lvar (vari_of_cvari tbl x)
-  | C.Lmem(x,e)  -> Lmem (W64, vari_of_cvari tbl x, expr_of_cexpr tbl e)
+  | C.Lmem(ws, x,e) -> Lmem (ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Laset(x,e) -> Laset (vari_of_cvari tbl x, expr_of_cexpr tbl e)
 
 (* ------------------------------------------------------------------------ *)
@@ -367,9 +281,9 @@ let rec cinstr_of_instr tbl i c =
 and cinstr_r_of_instr_r tbl p i tl =
   match i with
   | Cblock c -> cstmt_of_stmt tbl c tl
-  | Cassgn(x,t,e) ->
+  | Cassgn(x,t, ty,e) ->
     let ir  =
-      C.Cassgn(clval_of_lval tbl x, cat_of_at t, cexpr_of_expr tbl e) in
+      C.Cassgn(clval_of_lval tbl x, cat_of_at t, cty_of_ty ty, cexpr_of_expr tbl e) in
     C.MkI(p, ir) :: tl
   | Copn(x,t,o,e) ->
     let ir =
@@ -410,8 +324,8 @@ let rec instr_of_cinstr tbl i =
     { i_desc; i_loc; i_info }
 
 and instr_r_of_cinstr_r tbl = function
-  | C.Cassgn(x,t,e) ->
-    Cassgn(lval_of_clval tbl x, at_of_cat t, expr_of_cexpr tbl e)
+  | C.Cassgn(x,t, ty,e) ->
+    Cassgn(lval_of_clval tbl x, at_of_cat t, ty_of_cty ty, expr_of_cexpr tbl e)
 
   | C.Copn(x,t,o,e) ->
     Copn(lval_of_clvals tbl x, at_of_cat t, o, expr_of_cexprs tbl e)
@@ -457,8 +371,10 @@ let cfdef_of_fdef tbl fd =
   let f_body = cstmt_of_stmt tbl fd.f_body [] in
   let f_res = List.map (cvari_of_vari tbl) fd.f_ret in
   fn, { C.f_iinfo = f_iinfo;
+        C.f_tyin = List.map cty_of_ty fd.f_tyin;
         C.f_params = f_params;
         C.f_body   = f_body;
+        C.f_tyout = List.map cty_of_ty fd.f_tyout;
         C.f_res    = f_res }
 
 
@@ -467,8 +383,10 @@ let fdef_of_cfdef tbl (fn, fd) =
   { f_loc;
     f_cc;
     f_name = fun_of_cfun tbl fn;
+    f_tyin = List.map ty_of_cty fd.C.f_tyin;
     f_args = List.map (fun v -> L.unloc (vari_of_cvari tbl v)) fd.C.f_params;
     f_body = stmt_of_cstmt tbl fd.C.f_body;
+    f_tyout = List.map ty_of_cty fd.C.f_tyout;
     f_ret  = List.map (vari_of_cvari tbl) fd.C.f_res;
   }
 

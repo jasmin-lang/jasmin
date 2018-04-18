@@ -1,6 +1,7 @@
 (* -------------------------------------------------------------------- *)
 open Prog
 
+module E = Expr
 module F = Format
 module B = Bigint
 
@@ -42,35 +43,35 @@ let pp_gvar_i pp_var fmt v = pp_var fmt (L.unloc v)
 (* -------------------------------------------------------------------- *)
 
 let string_of_cmp_ty = function
-  | Cmp_uw _ -> "u"
+  | E.Cmp_w (Type.Unsigned, _) -> "u"
   | _        -> ""
 
 let string_of_op2 = function
-  | Oand   -> "&&"
-  | Oor    -> "||"
-  | Oadd _ -> "+"
-  | Omul _ -> "*"
-  | Osub _ -> "-"
+  | E.Oand   -> "&&"
+  | E.Oor    -> "||"
+  | E.Oadd _ -> "+"
+  | E.Omul _ -> "*"
+  | E.Osub _ -> "-"
 
-  | Oland _ -> "&"
-  | Olor _ -> "|"
-  | Olxor _ -> "^"
-  | Olsr   -> ">>"
-  | Olsl   -> "<<"
-  | Oasr   -> ">>s"
+  | E.Oland _ -> "&"
+  | E.Olor _ -> "|"
+  | E.Olxor _ -> "^"
+  | E.Olsr _ -> ">>"
+  | E.Olsl _ -> "<<"
+  | E.Oasr _ -> ">>s"
 
-  | Oeq  _ -> "=="
-  | Oneq _ -> "!="
-  | Olt  k -> "<"  ^ string_of_cmp_ty k
-  | Ole  k -> "<=" ^ string_of_cmp_ty k
-  | Ogt  k -> ">"  ^ string_of_cmp_ty k
-  | Oge  k -> ">=" ^ string_of_cmp_ty k
+  | E.Oeq  _ -> "=="
+  | E.Oneq _ -> "!="
+  | E.Olt  k -> "<"  ^ string_of_cmp_ty k
+  | E.Ole  k -> "<=" ^ string_of_cmp_ty k
+  | E.Ogt  k -> ">"  ^ string_of_cmp_ty k
+  | E.Oge  k -> ">=" ^ string_of_cmp_ty k
 
 let pp_op1 = function
-  | Olnot _ -> "!"
-  | Onot    -> "~"
-  | Oneg _ -> "-"
-  | Oarr_init _ -> "array_init"
+  | E.Olnot _ -> "!"
+  | E.Onot    -> "~"
+  | E.Oneg _ -> "-"
+  | E.Oarr_init _ -> "array_init"
 
 (* -------------------------------------------------------------------- *)
 let pp_ge pp_var =
@@ -121,40 +122,40 @@ let pp_glvs pp_var fmt lvs =
 let pp_opn =
   let open Expr in
   function
-  | Omulu        -> "#mulu"
-  | Oaddcarry    -> "#addc"
-  | Osubcarry    -> "#subc"
-  | Oset0        -> "#set0"
-  | Ox86_MOV     -> "#x86_MOV"
-  | Ox86_CMOVcc  -> "#x86_CMOVcc"
-  | Ox86_ADD     -> "#x86_ADD"
-  | Ox86_SUB     -> "#x86_SUB"
-  | Ox86_MUL     -> "#x86_MUL"
-  | Ox86_IMUL    -> "#x86_IMUL"
-  | Ox86_IMUL64	 -> "#x86_IMUL64"
-  | Ox86_IMUL64imm -> "#x86_IMUL64imm"
-  | Ox86_DIV     -> "#x86_DIV"
-  | Ox86_IDIV    -> "#x86_IDIV"
-  | Ox86_ADC     -> "#x86_ADC"
-  | Ox86_SBB     -> "#x86_SBB"
-  | Ox86_NEG	 -> "#x86_NEG"
-  | Ox86_INC     -> "#x86_INC"
-  | Ox86_DEC     -> "#x86_DEC"
+  | Omulu _      -> "#mulu"
+  | Oaddcarry _  -> "#addc"
+  | Osubcarry _  -> "#subc"
+  | Oset0 _      -> "#set0"
+  | Ox86_MOV _   -> "#x86_MOV"
+  | Ox86_CMOVcc _ -> "#x86_CMOVcc"
+  | Ox86_ADD _   -> "#x86_ADD"
+  | Ox86_SUB _   -> "#x86_SUB"
+  | Ox86_MUL _   -> "#x86_MUL"
+  | Ox86_IMUL _  -> "#x86_IMUL"
+  | Ox86_IMULt _ -> "#x86_IMULt"
+  | Ox86_IMULtimm _ -> "#x86_IMULtimm"
+  | Ox86_DIV _   -> "#x86_DIV"
+  | Ox86_IDIV _  -> "#x86_IDIV"
+  | Ox86_ADC _   -> "#x86_ADC"
+  | Ox86_SBB _   -> "#x86_SBB"
+  | Ox86_NEG _ -> "#x86_NEG"
+  | Ox86_INC _   -> "#x86_INC"
+  | Ox86_DEC _   -> "#x86_DEC"
   | Ox86_SETcc   -> "#x86_SETcc"
-  | Ox86_BT   -> "#x86_BT"
-  | Ox86_LEA     -> "#x86_LEA"
-  | Ox86_TEST    -> "#x86_TEST"
-  | Ox86_CMP     -> "#x86_CMP"
-  | Ox86_AND     -> "#x86_AND"
-  | Ox86_OR      -> "#x86_OR"
-  | Ox86_XOR     -> "#x86_XOR"
-  | Ox86_NOT     -> "#x86_NOT"
-  | Ox86_ROL -> "#x86_ROL"
-  | Ox86_ROR -> "#x86_ROR"
-  | Ox86_SHL     -> "#x86_SHL"
-  | Ox86_SHR     -> "#x86_SHR"
-  | Ox86_SAR     -> "#x86_SAR"
-  | Ox86_SHLD    -> "#x86_SHLD"
+  | Ox86_BT _ -> "#x86_BT"
+  | Ox86_LEA _   -> "#x86_LEA"
+  | Ox86_TEST _  -> "#x86_TEST"
+  | Ox86_CMP _   -> "#x86_CMP"
+  | Ox86_AND _   -> "#x86_AND"
+  | Ox86_OR _    -> "#x86_OR"
+  | Ox86_XOR _   -> "#x86_XOR"
+  | Ox86_NOT _   -> "#x86_NOT"
+  | Ox86_ROL _ -> "#x86_ROL"
+  | Ox86_ROR _ -> "#x86_ROR"
+  | Ox86_SHL _   -> "#x86_SHL"
+  | Ox86_SHR _   -> "#x86_SHR"
+  | Ox86_SAR _   -> "#x86_SAR"
+  | Ox86_SHLD _  -> "#x86_SHLD"
 
 (* -------------------------------------------------------------------- *)
 let pp_tag = function
@@ -170,9 +171,9 @@ let rec pp_gi pp_info pp_var fmt i =
   | Cblock c ->
     F.fprintf fmt "@[<v>{@   @[<v>%a@]@ }@]" (pp_cblock pp_info pp_var) c
 
-  | Cassgn(x , t, e) ->
+  | Cassgn(x , tg, ty, e) -> (* FIXME: ty *)
     F.fprintf fmt "@[<hov 2>%a %s=@ %a;@]"
-      (pp_glv pp_var) x (pp_tag t) (pp_ge pp_var) e
+      (pp_glv pp_var) x (pp_tag tg) (pp_ge pp_var) e
 
   | Copn(x, t, o, e) -> (* FIXME *)
     F.fprintf fmt "@[<hov 2>%a %s=@ %s(%a);@]"

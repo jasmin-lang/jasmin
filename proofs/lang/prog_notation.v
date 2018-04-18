@@ -31,19 +31,19 @@ Notation "e1 <=i e2" := (Papp2 (Ole  Cmp_int) e1 e2) (at level 70, no associativ
 Notation "e1 >i e2"  := (Papp2 (Ogt  Cmp_int) e1 e2) (at level 70, no associativity) : expr_scope.
 Notation "e1 >=i e2" := (Papp2 (Oge  Cmp_int) e1 e2) (at level 70, no associativity) : expr_scope.
                                
-Notation "e1 ==u e2" := (Papp2 (Oeq  Cmp_uw) e1 e2) (at level 70, no associativity) : expr_scope.
-Notation "e1 !=u e2" := (Papp2 (Oneq Cmp_uw) e1 e2) (at level 70, no associativity) : expr_scope.
-Notation "e1 <u e2"  := (Papp2 (Olt  Cmp_uw) e1 e2) (at level 70, no associativity) : expr_scope.
-Notation "e1 <=u e2" := (Papp2 (Ole  Cmp_uw) e1 e2) (at level 70, no associativity) : expr_scope.
-Notation "e1 >u e2"  := (Papp2 (Ogt  Cmp_uw) e1 e2) (at level 70, no associativity) : expr_scope.
-Notation "e1 >=u e2" := (Papp2 (Oge  Cmp_uw) e1 e2) (at level 70, no associativity) : expr_scope.
+Notation "e1 ==u e2" := (Papp2 (Oeq  (Cmp_w Unsigned U64)) e1 e2) (at level 70, no associativity) : expr_scope.
+Notation "e1 !=u e2" := (Papp2 (Oneq (Cmp_w Unsigned U64)) e1 e2) (at level 70, no associativity) : expr_scope.
+Notation "e1 <u e2"  := (Papp2 (Olt  (Cmp_w Unsigned U64)) e1 e2) (at level 70, no associativity) : expr_scope.
+Notation "e1 <=u e2" := (Papp2 (Ole  (Cmp_w Unsigned U64)) e1 e2) (at level 70, no associativity) : expr_scope.
+Notation "e1 >u e2"  := (Papp2 (Ogt  (Cmp_w Unsigned U64)) e1 e2) (at level 70, no associativity) : expr_scope.
+Notation "e1 >=u e2" := (Papp2 (Oge  (Cmp_w Unsigned U64)) e1 e2) (at level 70, no associativity) : expr_scope.
                                
-Notation "e1 ==s e2" := (Papp2 (Oeq  Cmp_sw) e1 e2) (at level 70, no associativity) : expr_scope.
-Notation "e1 !=s e2" := (Papp2 (Oneq Cmp_sw) e1 e2) (at level 70, no associativity) : expr_scope.
-Notation "e1 <s e2"  := (Papp2 (Olt  Cmp_sw) e1 e2) (at level 70, no associativity) : expr_scope.
-Notation "e1 <=s e2" := (Papp2 (Ole  Cmp_sw) e1 e2) (at level 70, no associativity) : expr_scope.
-Notation "e1 >s e2"  := (Papp2 (Ogt  Cmp_sw) e1 e2) (at level 70, no associativity) : expr_scope.
-Notation "e1 >=s e2" := (Papp2 (Oge  Cmp_sw) e1 e2) (at level 70, no associativity) : expr_scope.
+Notation "e1 ==s e2" := (Papp2 (Oeq  (Cmp_w Signed U64)) e1 e2) (at level 70, no associativity) : expr_scope.
+Notation "e1 !=s e2" := (Papp2 (Oneq (Cmp_w Signed U64)) e1 e2) (at level 70, no associativity) : expr_scope.
+Notation "e1 <s e2"  := (Papp2 (Olt  (Cmp_w Signed U64)) e1 e2) (at level 70, no associativity) : expr_scope.
+Notation "e1 <=s e2" := (Papp2 (Ole  (Cmp_w Signed U64)) e1 e2) (at level 70, no associativity) : expr_scope.
+Notation "e1 >s e2"  := (Papp2 (Ogt  (Cmp_w Signed U64)) e1 e2) (at level 70, no associativity) : expr_scope.
+Notation "e1 >=s e2" := (Papp2 (Oge  (Cmp_w Signed U64)) e1 e2) (at level 70, no associativity) : expr_scope.
 
 Notation "e1 ^^ e2" := (Papp2 Olxor e1 e2) (at level 60) : expr_scope. 
 

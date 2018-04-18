@@ -31,6 +31,9 @@ let rec pp_comp_err tbl fmt =
   | Compiler_util.Cerr_fold2 s ->
     Format.fprintf fmt "fold2 error in %a"
       pp_string0 s
+  | Compiler_util.Cerr_neqty (_, _, s) ->
+    Format.fprintf fmt "neqty %a"
+      pp_string0 s
   | Compiler_util.Cerr_neqop1(_, _, s) ->
     Format.fprintf fmt "op1 not equal in %a"
       pp_string0 s
@@ -154,7 +157,7 @@ let main () =
         ; fresh_SF = (b "SF").vname
         ; fresh_PF = (b "PF").vname
         ; fresh_ZF = (b "ZF").vname
-        ; fresh_multiplicand = (f u64 "multiplicand").vname
+        ; fresh_multiplicand = (fun sz -> (f (Bty (U sz)) "multiplicand").vname)
         }) in
 
     let fdef_of_cfdef fn cfd = Conv.fdef_of_cfdef tbl (fn,cfd) in
@@ -185,8 +188,10 @@ let main () =
         Stack_alloc.sf_stk_sz = sz;
         Stack_alloc.sf_stk_id =
           Var0.Var.vname (Conv.cvar_of_var tbl Array_expand.vstack);
+        Stack_alloc.sf_tyin = cfd.Expr.f_tyin;
         Stack_alloc.sf_params = cfd.Expr.f_params;
         Stack_alloc.sf_body   = cfd.Expr.f_body;
+        Stack_alloc.sf_tyout = cfd.Expr.f_tyout;
         Stack_alloc.sf_res    = cfd.Expr.f_res; } in
       alloc, sfd
     in

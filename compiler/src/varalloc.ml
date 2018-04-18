@@ -24,7 +24,7 @@ let rec rm_uninitialized_i init i =
     | Cblock c ->
       let init', c = rm_uninitialized_c init c in
       init', Cblock c
-    | Cassgn(x, _, _) ->
+    | Cassgn(x, _, _, _) ->
       init_lval init x, i.i_desc
     | Copn(xs, _, _, _) | Ccall(_, xs, _, _) ->
       init_lvals init xs, i.i_desc
@@ -111,9 +111,9 @@ let set_same loc cfm x y =
 
 let rec same_i cfm i =
   match i.i_desc with
-  | Cassgn (Lvar x, tag ,Pvar y) when is_same tag && kind_i x = kind_i y ->
+  | Cassgn (Lvar x, tg, _, Pvar y) when is_same tg && kind_i x = kind_i y ->
     set_same i.i_loc cfm (L.unloc x) (L.unloc y)
-  | Cassgn (_, tag, _) when is_same tag ->
+  | Cassgn (_, tg, _, _) when is_same tg ->
     hierror "at %a: cannot remove assignment %a@\nintroduced by inlining"
         Printer.pp_iloc i.i_loc
         (Printer.pp_instr ~debug:true) i

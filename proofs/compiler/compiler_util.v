@@ -6,6 +6,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Local Unset Elimination Schemes.
+
 (* ** Compiler warning  
  * -------------------------------------------------------------------------- *)
 
@@ -24,6 +26,7 @@ Inductive error_msg :=
   | Cerr_inline   : Sv.t -> Sv.t -> error_msg
   | Cerr_Loop     : string -> error_msg
   | Cerr_fold2    : string -> error_msg
+  | Cerr_neqty : stype -> stype -> string -> error_msg
   | Cerr_neqop1   : sop1 -> sop1 -> string -> error_msg
   | Cerr_neqop2   : sop2 -> sop2 -> string -> error_msg
   | Cerr_neqop    : sopn -> sopn -> string -> error_msg
@@ -138,6 +141,19 @@ Proof.
     by case: (F f) Hf'=> // a []<-.
   exists f'; split=> //.
   exact: (map_cfprog_get Hmap H).
+Qed.
+
+Lemma get_map_cfprog' {T1 T2} (F: T1 -> ciexec T2) p p' fn f':
+  map_cfprog F p = ok p' ->
+  get_fundef p' fn = Some f' ->
+  exists2 f, F f = ok f' & get_fundef p fn = Some f.
+Proof.
+  elim: p p' f'.
+  + by move => _ f' [<-].
+  case => n d p ih p'' f' /=; t_xrbindP => - [x y] d'; apply: add_finfoP => ok_d' [??]; subst x y => p' rec <- {p''} /=.
+  case: ifP.
+  + by move => _ [<-]; eauto.
+  by move => _ /(ih _ _ rec).
 Qed.
 
 Module Type LoopCounter.

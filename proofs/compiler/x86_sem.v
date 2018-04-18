@@ -1,7 +1,7 @@
 (* -------------------------------------------------------------------- *)
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import all_ssreflect all_algebra.
 Require oseq.
-Require Import memory word expr sem.
+Require Import low_memory word expr psem.
 Import Utf8 Relation_Operators.
 Import Memory.
 
@@ -26,7 +26,7 @@ Variant scale : Type := Scale1 | Scale2 | Scale4 | Scale8.
 (* -------------------------------------------------------------------- *)
 (* disp + base + scale × offset *)
 Record address : Type := mkAddress {
-  ad_disp   : word;
+  ad_disp   : pointer;
   ad_base   : option register;
   ad_scale  : scale;
   ad_offset : option register;
@@ -34,7 +34,7 @@ Record address : Type := mkAddress {
 
 (* -------------------------------------------------------------------- *)
 Variant oprd : Type :=
-| Imm_op     of word
+| Imm_op     of u64
 | Glo_op     of global
 | Reg_op     of register
 | Adr_op     of address.
@@ -49,7 +49,7 @@ Definition string_of_oprd (o: oprd) : string :=
 
 (* -------------------------------------------------------------------- *)
 Variant ireg : Type :=
-| Imm_ir of word
+| Imm_ir of u64
 | Reg_ir of register.
 
 (* -------------------------------------------------------------------- *)
@@ -96,55 +96,55 @@ Variant asm : Type :=
 | LABEL of label
 
   (* Data transfert *)
-| MOV    of         oprd & oprd    (* copy *)
-| CMOVcc of condt & oprd & oprd    (* conditional copy *)
+| MOV    of wsize & oprd & oprd    (* copy *)
+| CMOVcc of wsize & condt & oprd & oprd    (* conditional copy *)
 
   (* Arithmetic *)
-| ADD    of oprd & oprd            (* add unsigned / signed *)
-| SUB    of oprd & oprd            (* sub unsigned / signed *)
-| MUL    of oprd                   (* mul unsigned *)
-| IMUL   of oprd & option (oprd * option word)
-                                   (* mul signed with truncation *)
-| DIV    of oprd                   (* div unsigned *)
-| IDIV   of oprd                   (* div   signed *)
+| ADD    of wsize & oprd & oprd            (* add unsigned / signed *)
+| SUB    of wsize & oprd & oprd            (* sub unsigned / signed *)
+| MUL    of wsize & oprd                   (* mul unsigned *)
+| IMUL   of wsize & oprd & option (oprd * option u32)
+                                           (* mul signed with truncation *)
+| DIV    of wsize & oprd                   (* div unsigned *)
+| IDIV   of wsize & oprd                   (* div   signed *)
 
-| ADC    of oprd & oprd            (* add with carry *)
-| SBB    of oprd & oprd            (* sub with borrow *)
+| ADC    of wsize & oprd & oprd            (* add with carry *)
+| SBB    of wsize & oprd & oprd            (* sub with borrow *)
 
-| NEG	of oprd	(* negation *)
+| NEG	 of wsize & oprd	(* negation *)
 
-| INC    of oprd                   (* increment *)
-| DEC    of oprd                   (* decrement *)
+| INC    of wsize & oprd                   (* increment *)
+| DEC    of wsize & oprd                   (* decrement *)
 
   (* Flag *)
-| SETcc  of condt & oprd           (* Set byte on condition *)
-| BT of oprd & ireg              (* Bit test, sets result to CF *)
+| SETcc  of condt & oprd                   (* Set byte on condition *)
+| BT     of wsize & oprd & ireg            (* Bit test, sets result to CF *)
 
   (* Pointer arithmetic *)
-| LEA    of register & oprd        (* Load Effective Address *)
+| LEA    of wsize & register & oprd        (* Load Effective Address *)
 
   (* Comparison *)
-| TEST   of oprd & oprd            (* Bit-wise logical and CMP *)
-| CMP    of oprd & oprd            (* Signed sub CMP *)
+| TEST   of wsize & oprd & oprd            (* Bit-wise logical and CMP *)
+| CMP    of wsize & oprd & oprd            (* Signed sub CMP *)
 
   (* Jumps *)
-| JMP    of label                  (* Unconditional jump *)
-| Jcc    of label & condt          (* Conditional jump *)
+| JMP    of label                          (* Unconditional jump *)
+| Jcc    of label & condt                  (* Conditional jump *)
 
   (* Bitwise logical instruction *)
-| AND    of oprd & oprd            (* bit-wise and *)
-| OR     of oprd & oprd            (* bit-wise or  *)
-| XOR    of oprd & oprd            (* bit-wise xor *)
-| NOT    of oprd                   (* bit-wise not *)
+| AND    of wsize & oprd & oprd            (* bit-wise and *)
+| OR     of wsize & oprd & oprd            (* bit-wise or  *)
+| XOR    of wsize & oprd & oprd            (* bit-wise xor *)
+| NOT    of wsize & oprd                   (* bit-wise not *)
 
   (* Bit shifts *)
-| ROR of oprd & ireg (* rotation / right *)
-| ROL of oprd & ireg (* rotation / left *)
-| SHL    of oprd & ireg            (* unsigned / left  *)
-| SHR    of oprd & ireg            (* unsigned / right *)
-| SAL    of oprd & ireg            (*   signed / left; synonym of SHL *)
-| SAR    of oprd & ireg            (*   signed / right *)
-| SHLD   of oprd & register & ireg (* unsigned (double) / left *)
+| ROR    of wsize & oprd & ireg (* rotation / right *)
+| ROL    of wsize & oprd & ireg (* rotation / left *)
+| SHL    of wsize & oprd & ireg            (* unsigned / left  *)
+| SHR    of wsize & oprd & ireg            (* unsigned / right *)
+| SAL    of wsize & oprd & ireg            (*   signed / left; synonym of SHL *)
+| SAR    of wsize & oprd & ireg            (*   signed / right *)
+| SHLD   of wsize & oprd & register & ireg (* unsigned (double) / left *)
 .
 
 (* -------------------------------------------------------------------- *)
@@ -245,9 +245,9 @@ Canonical rflag_finType :=
 
 (* -------------------------------------------------------------------- *)
 Module RegMap.
-  Definition map := {ffun register -> word}.
+  Definition map := {ffun register -> u64}.
 
-  Definition set (m : map) (x : register) (y : word) : map :=
+  Definition set (m : map) (x : register) (y : u64) : map :=
     [ffun z => if (z == x) then y else m z].
 End RegMap.
 
@@ -273,7 +273,7 @@ Notation rflagmap := RflagMap.map.
 Notation Def      := RflagMap.Def.
 Notation Undef    := RflagMap.Undef.
 
-Definition regmap0   : regmap   := [ffun x => I64.repr 0].
+Definition regmap0   : regmap   := [ffun x => 0%R].
 Definition rflagmap0 : rflagmap := [ffun x => Undef].
 
 Scheme Equality for RflagMap.rflagv.
@@ -286,11 +286,11 @@ Record x86_mem : Type :=
   X86Mem {
       xmem : mem;
       xreg : regmap;
-      xrf : rflagmap;
+      xrf  : rflagmap;
     }.
 
 Record x86_state := X86State {
-  xm :> x86_mem;
+  xm   :> x86_mem;
   xc   : seq asm;
   xip  : nat;
 }.
@@ -304,14 +304,26 @@ Section GLOB_DEFS.
 Context (gd: glob_defs).
 
 (* -------------------------------------------------------------------- *)
-Definition mem_write_reg (r: register) (w: word) (m: x86_mem) :=
+
+Definition word_extend_reg (r: register) sz (w: word sz) (m: x86_mem) := 
+  merge_word (m.(xreg) r) w.
+
+Lemma word_extend_reg_id r sz (w: word sz) m :
+  (U32 ≤ sz)%CMP →
+  word_extend_reg r w m = zero_extend U64 w.
+Proof.
+rewrite /word_extend_reg /merge_word.
+by case: sz w => //= w _; rewrite wand0 wxor0.
+Qed.
+    
+Definition mem_write_reg (r: register) sz (w: word sz) (m: x86_mem) :=  
   {|
     xmem := m.(xmem);
-    xreg := RegMap.set m.(xreg) r w;
+    xreg := RegMap.set m.(xreg) r (word_extend_reg r w m);
     xrf  := m.(xrf);
   |}.
 
-Definition st_write_reg (r : register) (w : word) (s : x86_state) :=
+Definition st_write_reg (r : register) sz (w : word sz) (s : x86_state) :=
   {| xm := mem_write_reg r w s;
      xc   := s.(xc);
      xip  := s.(xip); |}.
@@ -353,14 +365,14 @@ Definition st_update_rflags f (s : x86_state) :=
      xip  := s.(xip); |}.
 
 (* -------------------------------------------------------------------- *)
-Definition mem_write_mem (l : word) (w : word) (s : x86_mem) :=
-  Let m := write_mem s.(xmem) l w in ok
+Definition mem_write_mem (l : pointer) sz (w : word sz) (s : x86_mem) :=
+  Let m := write_mem s.(xmem) l sz w in ok
   {| xmem := m;
      xreg := s.(xreg);
      xrf  := s.(xrf);
   |}.
 
-Definition st_write_mem (l : word) (w : word) (s : x86_state) :=
+Definition st_write_mem (l : pointer) sz (w : word sz ) (s : x86_state) :=
   Let m := mem_write_mem l w s in ok
   {| xm := m;
      xc   := s.(xc);
@@ -373,8 +385,8 @@ Definition st_write_ip (ip : nat) (s : x86_state) :=
      xip  := ip; |}.
 
 (* -------------------------------------------------------------------- *)
-Coercion word_of_scale (s : scale) : word :=
-  I64.repr match s with
+Coercion word_of_scale (s : scale) : pointer :=
+  wrepr Uptr match s with
   | Scale1 => 1
   | Scale2 => 2
   | Scale4 => 4
@@ -382,16 +394,15 @@ Coercion word_of_scale (s : scale) : word :=
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition decode_addr (s : x86_mem) (a : address) : word := nosimpl (
+Definition decode_addr (s : x86_mem) (a : address) : pointer := nosimpl (
   let: disp   := a.(ad_disp) in
-  let: base   := odflt I64.zero (omap (s.(xreg)) a.(ad_base)) in
+  let: base   := odflt 0%R (omap (s.(xreg)) a.(ad_base)) in
   let: scale  := word_of_scale a.(ad_scale) in
-  let: offset := odflt I64.zero (omap (s.(xreg)) a.(ad_offset)) in
-
-  I64.add disp (I64.add base (I64.mul scale offset))).
+  let: offset := odflt 0%R (omap (s.(xreg)) a.(ad_offset)) in
+  disp + base + scale * offset)%R.
 
 (* -------------------------------------------------------------------- *)
-Definition write_oprd (o : oprd) (w : word) (s : x86_mem) :=
+Definition write_oprd (o : oprd) sz (w : word sz) (s : x86_mem) :=
   match o with
   | Glo_op _
   | Imm_op _ => type_error
@@ -400,17 +411,17 @@ Definition write_oprd (o : oprd) (w : word) (s : x86_mem) :=
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition read_oprd (o : oprd) (s : x86_mem) :=
+Definition read_oprd sz (o : oprd) (s : x86_mem) :=
   match o with
-  | Imm_op v => ok v
-  | Glo_op g => if get_global_word gd g is Some v then ok v else type_error
-  | Reg_op r => ok (s.(xreg) r)
-  | Adr_op a => read_mem s.(xmem) (decode_addr s a)
+  | Imm_op v => ok (zero_extend sz v)
+  | Glo_op g => if get_global_word gd g is Some v then ok (zero_extend sz v) else type_error
+  | Reg_op r => ok (zero_extend sz (s.(xreg) r))
+  | Adr_op a => read_mem s.(xmem) (decode_addr s a) sz
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition read_ireg (ir : ireg) (s : x86_mem) :=
-  match ir with
+Definition read_ireg sz (ir : ireg) (s : x86_mem) :=
+  zero_extend sz match ir with
   | Imm_ir v => v
   | Reg_ir r => s.(xreg) r
   end.
@@ -472,19 +483,19 @@ Definition find_label (lbl : label) (a : seq asm) :=
   if idx < size a then ok idx else type_error.
 
 (* -------------------------------------------------------------------- *)
-Definition SF_of_word (w : word) :=
+Definition SF_of_word sz (w : word sz) :=
   msb w.
 
 (* -------------------------------------------------------------------- *)
-Definition PF_of_word (w : word) :=
+Definition PF_of_word sz (w : word sz) :=
   lsb w.
 
 (* -------------------------------------------------------------------- *)
-Definition ZF_of_word (w : word) :=
-  I64.eq w I64.zero.
+Definition ZF_of_word sz (w : word sz) :=
+  w == 0%R.
 
 (* -------------------------------------------------------------------- *)
-Definition rflags_of_bwop (w : word) := fun rf =>
+Definition rflags_of_bwop sz (w : word sz) := fun rf =>
   match rf with
   | OF => Some (Def false)
   | CF => Some (Def false)
@@ -495,10 +506,10 @@ Definition rflags_of_bwop (w : word) := fun rf =>
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition rflags_of_aluop (w : word) (vu vs : Z) := fun rf =>
+Definition rflags_of_aluop sz (w : word sz) (vu vs : Z) := fun rf =>
   match rf with
-  | OF => Some (Def (I64.signed   w != vs))
-  | CF => Some (Def (I64.unsigned w != vu))
+  | OF => Some (Def (wsigned   w != vs))
+  | CF => Some (Def (wunsigned w != vu))
   | SF => Some (Def (SF_of_word w))
   | PF => Some (Def (PF_of_word w))
   | ZF => Some (Def (ZF_of_word w))
@@ -506,10 +517,10 @@ Definition rflags_of_aluop (w : word) (vu vs : Z) := fun rf =>
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition rflags_of_aluop_nocf (w : word) (vs : Z) := fun rf =>
+Definition rflags_of_aluop_nocf sz (w : word sz) (vs : Z) := fun rf =>
   match rf with
   | CF => None
-  | OF => Some (Def (I64.signed w != vs))
+  | OF => Some (Def (wsigned w != vs))
   | SF => Some (Def (SF_of_word w))
   | PF => Some (Def (PF_of_word w))
   | ZF => Some (Def (ZF_of_word w))
@@ -532,9 +543,10 @@ Definition rflags_of_div := fun rf =>
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition rflags_of_sh i of_ r rc := fun rf =>
+
+Definition rflags_of_sh (i:u8) of_ sz(r:word sz) rc := fun rf =>
   match rf with
-  | OF => Some (if i == I64.one then Def of_ else Undef)
+  | OF => Some (if (i == 1)%R then Def of_ else Undef)
   | CF => Some (Def rc)
   | SF => Some (Def (SF_of_word r))
   | PF => Some (Def (PF_of_word r))
@@ -549,255 +561,284 @@ Definition all_undef := fun rf =>
   | DF => None
   end.
 
-
 (* -------------------------------------------------------------------- *)
 Implicit Types (ct : condt) (s : x86_mem) (o : oprd) (ir : ireg).
 Implicit Types (lbl : label).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_MOV o1 o2 s : x86_result :=
-  Let v := read_oprd o2 s in
+Definition eval_MOV_nocheck sz o1 o2 s : x86_result :=
+  Let v := read_oprd sz o2 s in
   write_oprd o1 v s.
 
+Definition eval_MOV sz o1 o2 s : x86_result :=
+  Let _ := check_size_8_64 sz in
+  eval_MOV_nocheck sz o1 o2 s.
+
 (* -------------------------------------------------------------------- *)
-Definition eval_CMOVcc ct o1 o2 s : x86_result :=
+Definition eval_CMOVcc sz ct o1 o2 s : x86_result :=
+  Let _ := check_size_16_64 sz in
   Let b := eval_cond ct s.(xrf) in
-  if b then eval_MOV o1 o2 s else ok s.
+  eval_MOV_nocheck sz o1 (if b then o2 else o1) s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_ADD o1 o2 s : x86_result :=
-  Let v1 := read_oprd o1 s in
-  Let v2 := read_oprd o2 s in
-  let v  := I64.add v1 v2 in
-  let vu := (I64.unsigned v1 + I64.unsigned v2)%Z in
-  let vs := (I64.signed   v1 + I64.signed   v2)%Z in
+Definition eval_ADD sz o1 o2 s : x86_result :=
+  Let _  := check_size_8_64 sz in
+  Let v1 := read_oprd sz o1 s in
+  Let v2 := read_oprd sz o2 s in
+  let v  := (v1 + v2)%R in
+  let vu := (wunsigned v1 + wunsigned v2)%Z in
+  let vs := (wsigned   v1 + wsigned   v2)%Z in
   let s  := mem_update_rflags (rflags_of_aluop v vu vs) s in
   write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_SUB o1 o2 s : x86_result :=
-  Let v1 := read_oprd o1 s in
-  Let v2 := read_oprd o2 s in
-  let v  := I64.sub v1 v2 in
-  let vu := (I64.unsigned v1 - I64.unsigned v2)%Z in
-  let vs := (I64.signed   v1 - I64.signed   v2)%Z in
+Definition eval_SUB sz o1 o2 s : x86_result :=
+  Let _  := check_size_8_64 sz in
+  Let v1 := read_oprd sz o1 s in
+  Let v2 := read_oprd sz o2 s in
+  let v  := (v1 - v2)%R in
+  let vu := (wunsigned v1 - wunsigned v2)%Z in
+  let vs := (wsigned   v1 - wsigned   v2)%Z in
   let s  := mem_update_rflags (rflags_of_aluop v vu vs) s in
   write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_MUL o s : x86_result :=
-  let v1 := s.(xreg) RAX in
-  Let v2 := read_oprd o s in
-  let lo := I64.mul v1 v2 in
-  let hi := I64.mulhu v1 v2 in
-  let ov := dwordu hi lo in
-  let ov := (ov >? I64.max_unsigned)%Z in
+(* WARNING: We do not take into account the 8 bits *)
+Definition eval_MUL sz o s : x86_result :=
+  Let _  := check_size_16_64 sz in
+  let v1 := zero_extend sz (s.(xreg) RAX) in
+  Let v2 := read_oprd sz o s in
+  let lo := (v1 * v2)%R in
+  let hi := wmulhu v1 v2 in
+  let ov := wdwordu hi lo in
+  let ov := (ov >? wmax_unsigned sz)%Z in
   let s  := mem_update_rflags (rflags_of_mul ov) s in
   let s  := mem_write_reg RDX hi s in
   let s  := mem_write_reg RAX lo s in
   ok s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_IMUL o1 (o2 : option (oprd * option word)) s : x86_result  :=
+(* WARNING: We do not take into account the 8 bits *)
+Definition eval_IMUL sz o1 (o2 : option (oprd * option u32)) s : x86_result :=
+  Let _  := check_size_16_64 sz in
   match o2 with
   | None =>
-      let v1 := s.(xreg) RAX in
-      Let v2 := read_oprd o1 s in
-      let lo := I64.mul v1 v2 in
-      let hi := I64.mulhs v1 v2 in
-      let ov := dwords hi lo in
-      let ov := (ov <? I64.min_signed)%Z || (ov >? I64.max_unsigned)%Z in
+      let v1 := zero_extend sz (s.(xreg) RAX) in
+      Let v2 := read_oprd sz o1 s in
+      let lo := (v1 * v2)%R in
+      let hi := wmulhs v1 v2 in
+      let ov := x86_imul_overflow hi lo in
       let s  := mem_update_rflags (rflags_of_mul ov) s in
       let s  := mem_write_reg RDX hi s in
       let s  := mem_write_reg RAX lo s in
       ok s
 
   | Some (o2, None) =>
-      Let v1 := read_oprd o1 s in
-      Let v2 := read_oprd o2 s in
-      let lo := I64.mul v1 v2 in
-      let hi := I64.mulhs v1 v2 in
-      let ov := dwords hi lo in
-      let ov := (ov <? I64.min_signed)%Z || (ov >? I64.max_unsigned)%Z in
+      Let v1 := read_oprd sz o1 s in
+      Let v2 := read_oprd sz o2 s in
+      let lo := (v1 * v2)%R in
+      let hi := wmulhs v1 v2 in
+      let ov := x86_imul_overflow hi lo in
       let s  := mem_update_rflags (rflags_of_mul ov) s in
       write_oprd o1 lo s
 
    | Some (o2, Some v2) =>
-      Let v1 := read_oprd o2 s in
-      let lo := I64.mul v1 v2 in
-      let hi := I64.mulhs v1 v2 in
-      let ov := dwords hi lo in
-      let ov := (ov <? I64.min_signed)%Z || (ov >? I64.max_unsigned)%Z in
+      Let v1 := read_oprd sz o2 s in
+      let v2 := sign_extend sz v2 in
+      let lo := (v1 * v2)%R in
+      let hi := wmulhs v1 v2 in
+      let ov := x86_imul_overflow hi lo in
       let s  := mem_update_rflags (rflags_of_mul ov) s in
       write_oprd o1 lo s
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_DIV o s : x86_result :=
-  let hi := s.(xreg) RDX in
-  let lo := s.(xreg) RAX in
-  let dd := dwordu hi lo in
-  Let dv := read_oprd o s in
-  let dv := I64.unsigned dv in
+(* WARNING: We do not take into account the 8 bits *)
+Definition eval_DIV sz o s : x86_result :=
+  Let _  := check_size_16_64 sz in
+  let hi := zero_extend sz (s.(xreg) RDX) in
+  let lo := zero_extend sz (s.(xreg) RAX) in
+  let dd := wdwordu hi lo in
+  Let dv := read_oprd sz o s in
+  let dv := wunsigned dv in
   let q  := (dd  /  dv)%Z in
   let r  := (dd mod dv)%Z in
-  let ov := (q >? I64.max_unsigned)%Z in
+  let ov := (q >? wmax_unsigned sz)%Z in
 
   if (dv == 0)%Z || ov then type_error else
 
-  let s := mem_write_reg RAX (I64.repr q) s in
-  let s := mem_write_reg RDX (I64.repr r) s in
+  let s := mem_write_reg RAX (wrepr sz q) s in
+  let s := mem_write_reg RDX (wrepr sz r) s in
 
   ok (mem_update_rflags rflags_of_div s).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_IDIV o s : x86_result :=
-  let hi := s.(xreg) RDX in
-  let lo := s.(xreg) RAX in
-  let dd := dwords hi lo in
-  Let dv := read_oprd o s in
-  let dv := I64.signed dv in
+(* WARNING: We do not take into account the 8 bits *)
+Definition eval_IDIV sz o s : x86_result :=
+  Let _  := check_size_16_64 sz in
+  let hi := zero_extend sz (s.(xreg) RDX) in
+  let lo := zero_extend sz (s.(xreg) RAX) in
+  let dd := wdwords hi lo in
+  Let dv := read_oprd sz o s in
+  let dv := wsigned dv in
   let q  := (Z.quot dd dv)%Z in
   let r  := (Z.rem  dd dv)%Z in
-  let ov := (q <? I64.min_signed)%Z || (q >? I64.max_signed)%Z in
+  let ov := (q <? wmin_signed sz)%Z || (q >? wmax_signed sz)%Z in
 
   if (dv == 0)%Z || ov then type_error else
 
-  let s := mem_write_reg RAX (I64.repr q) s in
-  let s := mem_write_reg RDX (I64.repr r) s in
+  let s := mem_write_reg RAX (wrepr sz q) s in
+  let s := mem_write_reg RDX (wrepr sz r) s in
 
   ok (mem_update_rflags rflags_of_div s).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_ADC o1 o2 s : x86_result :=
-  Let v1 := read_oprd o1 s in
-  Let v2 := read_oprd o2 s in
+Definition eval_ADC sz o1 o2 s : x86_result :=
+  Let _  := check_size_8_64 sz in
+  Let v1 := read_oprd sz o1 s in
+  Let v2 := read_oprd sz o2 s in
   Let c  := st_get_rflag CF s in
-  let c  := if c then I64.one else I64.zero in
-  let v  := add_carry v1 v2 c in
-  let vu := (I64.unsigned v1 + I64.unsigned v2 + (c : Z))%Z in
-  let vs := (I64.signed   v1 + I64.signed   v2 + (c : Z))%Z in
+  let c  := if c then 1%R else 0%R in
+  let v  := (v1 + v2 + c)%R in
+  let vu := (wunsigned v1 + wunsigned v2 + wunsigned c)%Z in
+  let vs := (wsigned   v1 + wsigned   v2 + wunsigned c)%Z in
   let s  := mem_update_rflags (rflags_of_aluop v vu vs) s in
   write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_SBB o1 o2 s : x86_result :=
-  Let v1 := read_oprd o1 s in
-  Let v2 := read_oprd o2 s in
+Definition eval_SBB sz o1 o2 s : x86_result :=
+  Let _  := check_size_8_64 sz in
+  Let v1 := read_oprd sz o1 s in
+  Let v2 := read_oprd sz o2 s in
   Let c  := st_get_rflag CF s in
-  let c  := if c then I64.one else I64.zero in
-  let v  := sub_borrow v1 v2 c in
-  let vu := (I64.unsigned v1 - (I64.unsigned v2 + (c : Z)))%Z in
-  let vs := (I64.signed   v1 - (I64.signed   v2 + (c : Z)))%Z in
+  let c  := if c then 1%R else 0%R in
+  let v  := (v1 - v2 - c)%R in
+  let vu := (wunsigned v1 - (wunsigned v2 + wunsigned c))%Z in
+  let vs := (wsigned   v1 - (wsigned   v2 + wunsigned c))%Z in
   let s  := mem_update_rflags (rflags_of_aluop v vu vs) s in
   write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_NEG o s : x86_result :=
-  Let w  := read_oprd o s in
-  let v  := I64.neg w in
-  let vs := (- I64.signed w)%Z in
+Definition eval_NEG sz o s : x86_result :=
+  Let _  := check_size_8_64 sz in
+  Let w  := read_oprd sz o s in
+  let v  := (- w)%R in
+  let vs := (- wsigned w)%Z in
   let s  :=
       mem_update_rflags (
           fun rf =>
           match rf with
-          | CF => Some (Def (negb (I64.eq w I64.zero)))
+          | CF => Some (Def (negb (w == 0%R)))
           | _ => rflags_of_aluop_nocf v vs rf
           end) s
   in write_oprd o v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_INC o s : x86_result :=
-  Let w  := read_oprd o s in
-  let v  := I64.add w I64.one in
-  let vs := (I64.signed w + 1)%Z in
+Definition eval_INC sz o s : x86_result :=
+  Let _  := check_size_8_64 sz in
+  Let w  := read_oprd sz o s in
+  let v  := (w + 1)%R in
+  let vs := (wsigned w + 1)%Z in
   let s  := mem_update_rflags (rflags_of_aluop_nocf v vs) s in
   write_oprd o v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_DEC o s : x86_result :=
-  Let w  := read_oprd o s in
-  let v  := I64.sub w I64.one in
-  let vs := (I64.signed w - 1)%Z in
+Definition eval_DEC sz o s : x86_result :=
+  Let _  := check_size_8_64 sz in
+  Let w  := read_oprd sz o s in
+  let v  := (w - 1)%R in
+  let vs := (wsigned w - 1)%Z in
   let s  := mem_update_rflags (rflags_of_aluop_nocf v vs) s in
   write_oprd o v s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_SETcc ct o s : x86_result :=
   Let b := eval_cond ct s.(xrf) in
-  write_oprd o (if b then I64.one else I64.zero) s.
+  @write_oprd o U8 (if b then 1%R else 0%R) s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_BT o ir s : x86_result :=
-  Let v1 := read_oprd o s in
-  let v2 := read_ireg ir s in
-  let b  := I64.and v1 (I64.shl I64.one v2) != I64.zero in
+Definition eval_BT sz o ir s : x86_result :=
+  Let _  := check_size_8_64 sz in
+  Let v1 := read_oprd sz o s in
+  let v2 := read_ireg sz ir s in
+  let b  := wbit v1 v2 in
   ok (mem_set_rflags CF b s).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_LEA r o2 s : x86_result :=
+Definition eval_LEA sz r o2 s : x86_result :=
+  Let _  := check_size_32_64 sz in
   Let addr :=
     match o2 with
     | Imm_op w => ok w
     | Adr_op a => ok (decode_addr s a)
     | _        => type_error
     end in
-  ok (mem_write_reg r addr s).
+  ok (mem_write_reg r (zero_extend sz addr) s).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_TEST o1 o2 s : x86_result :=
-  Let v1 := read_oprd o1 s in
-  Let v2 := read_oprd o2 s in
-  let v  := I64.and v1 v2 in
+Definition eval_TEST sz o1 o2 s : x86_result :=
+  Let _  := check_size_8_64 sz in
+  Let v1 := read_oprd sz o1 s in
+  Let v2 := read_oprd sz o2 s in
+  let v  := wand v1 v2 in
   ok (mem_update_rflags (rflags_of_bwop v) s).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_CMP o1 o2 s : x86_result :=
-  Let v1 := read_oprd o1 s in
-  Let v2 := read_oprd o2 s in
-  let v  := I64.sub v1 v2 in
-  let vu := (I64.unsigned v1 - I64.unsigned v2)%Z in
-  let vs := (I64.signed   v1 - I64.signed   v2)%Z in
+Definition eval_CMP sz o1 o2 s : x86_result :=
+  Let _  := check_size_8_64 sz in
+  Let v1 := read_oprd sz o1 s in
+  Let v2 := read_oprd sz o2 s in
+  let v  := (v1 - v2)%R in
+  let vu := (wunsigned v1 - wunsigned v2)%Z in
+  let vs := (wsigned   v1 - wsigned   v2)%Z in
   ok (mem_update_rflags (rflags_of_aluop v vu vs) s).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_AND o1 o2 s : x86_result :=
-  Let v1 := read_oprd o1 s in
-  Let v2 := read_oprd o2 s in
-  let v  := I64.and v1 v2 in
+Definition eval_AND sz o1 o2 s : x86_result :=
+  Let _  := check_size_8_64 sz in
+  Let v1 := read_oprd sz o1 s in
+  Let v2 := read_oprd sz o2 s in
+  let v  := wand v1 v2 in
   let s  := mem_update_rflags (rflags_of_bwop v) s in
   write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_OR o1 o2 s : x86_result :=
-  Let v1 := read_oprd o1 s in
-  Let v2 := read_oprd o2 s in
-  let v  := I64.or v1 v2 in
+Definition eval_OR sz o1 o2 s : x86_result :=
+  Let _  := check_size_8_64 sz in
+  Let v1 := read_oprd sz o1 s in
+  Let v2 := read_oprd sz o2 s in
+  let v  := wor v1 v2 in
   let s  := mem_update_rflags (rflags_of_bwop v) s in
   write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_XOR o1 o2 s : x86_result :=
-  Let v1 := read_oprd o1 s in
-  Let v2 := read_oprd o2 s in
-  let v  := I64.xor v1 v2 in
+Definition eval_XOR sz o1 o2 s : x86_result :=
+  Let _  := check_size_8_64 sz in
+  Let v1 := read_oprd sz o1 s in
+  Let v2 := read_oprd sz o2 s in
+  let v  := wxor v1 v2 in
   let s  := mem_update_rflags (rflags_of_bwop v) s in
   write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_NOT o s : x86_result :=
-  Let v := read_oprd o s in write_oprd o (I64.not v) s.
+Definition eval_NOT sz o s : x86_result :=
+  Let _  := check_size_8_64 sz in
+  Let v := read_oprd sz o s in 
+  write_oprd o (wnot v) s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_ROR o ir s : x86_result :=
-  Let v := read_oprd o s in
-  let i := I64.and (read_ireg ir s) x86_shift_mask in
-  if i == I64.zero then ok s else
-    let r := I64.or (I64.shr v i) (I64.shl v (I64.sub (I64.repr 64) i)) in
+Definition eval_ROR sz o ir s : x86_result :=
+  Let _  := check_size_8_64 sz in
+  Let v := read_oprd sz o s in
+  let i := wand (read_ireg U8 ir s) (x86_shift_mask sz) in
+  if i == 0%R
+  then write_oprd o v s
+  else
+    let r := wror v (wunsigned i) in
     let cf := msb r in
     let s :=
-        if i == I64.one then
-          let ro := cf != msb (I64.add r I64.mone) in (* FIXME: typo in the manual *)
+        if i == 1%R then
+          let ro := cf != msb v in
           mem_set_rflags OF ro s
         else mem_unset_rflags OF s
     in
@@ -805,14 +846,17 @@ Definition eval_ROR o ir s : x86_result :=
     write_oprd o r s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_ROL o ir s : x86_result :=
-  Let v := read_oprd o s in
-  let i := I64.and (read_ireg ir s) x86_shift_mask in
-  if i == I64.zero then ok s else
-    let r := I64.or (I64.shl v i) (I64.shr v (I64.sub (I64.repr 64) i)) in
+Definition eval_ROL sz o ir s : x86_result :=
+  Let _  := check_size_8_64 sz in
+  Let v := read_oprd sz o s in
+  let i := wand (read_ireg U8 ir s) (x86_shift_mask sz) in
+  if i == 0%R
+  then write_oprd o v s
+  else
+    let r := wrol v (wunsigned i) in 
     let cf := lsb r in
     let s :=
-        if i == I64.one then
+        if i == 1%R then
           let ro := msb r != cf in
           mem_set_rflags OF ro s
         else mem_unset_rflags OF s
@@ -821,53 +865,65 @@ Definition eval_ROL o ir s : x86_result :=
     write_oprd o r s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_SHL o ir s : x86_result :=
-  Let v := read_oprd o s in
-  let i := I64.and (read_ireg ir s) x86_shift_mask in
+Definition eval_SHL sz o ir s : x86_result :=
+  Let _ := check_size_8_64 sz in
+  Let v := read_oprd sz o s in
+  let i := wand (read_ireg U8 ir s) (x86_shift_mask sz) in
 
-  if i == I64.zero then ok (mem_update_rflags all_undef s) else
-    let rc := msb (I64.shl v (I64.sub i I64.one)) in
-    let r  := I64.shl v i in
+  if i == 0%R
+  then write_oprd o v s
+  else
+    let rc := msb (wshl v (wunsigned i - 1)) in
+    let r  := wshl v (wunsigned i) in
     let s  := mem_update_rflags (rflags_of_sh i (msb r (+) rc) r rc) s in
     write_oprd o r s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_SHLD o1 r2 ir s : x86_result :=
-  Let v1 := read_oprd o1 s in
-  let v2 := s.(xreg) r2 in
-  let i := I64.and (read_ireg ir s) x86_shift_mask in
+Definition eval_SHLD sz o1 r2 ir s : x86_result :=
+  Let _  := check_size_16_64 sz in
+  Let v1 := read_oprd sz o1 s in
+  let v2 := zero_extend sz (s.(xreg) r2) in 
+  let i := wand (read_ireg U8 ir s) (x86_shift_mask sz) in (* FIXME: enforce ir is CL or immediate *)
 
-  if i == I64.zero then ok (mem_update_rflags all_undef s) else
-    let rc := msb (I64.shl v1 (I64.sub i I64.one)) in
-    let r1 := I64.shl v1 i in
-    let r2 := I64.shr v2 (I64.sub (I64.repr I64.zwordsize) i) in
-    let r  := I64.or r1 r2 in
+  if i == 0%R
+  then write_oprd o1 v1 s
+  else
+    let rc := msb (wshl v1 (wunsigned i - 1)) in
+    let r1 := wshl v1 (wunsigned i) in
+    let r2 := wsar v2 (wsize_bits sz - wunsigned i) in
+    let r  := wor r1 r2 in
     let s  := mem_update_rflags (rflags_of_sh i (msb r (+) rc) r rc) s in
     write_oprd o1 r s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_SHR o ir s : x86_result :=
-  Let v := read_oprd o s in
-  let i := I64.and (read_ireg ir s) x86_shift_mask in
+Definition eval_SHR sz o ir s : x86_result :=
+  Let _ := check_size_8_64 sz in
+  Let v := read_oprd sz o s in
+  let i := wand (read_ireg U8 ir s) (x86_shift_mask sz) in
 
-  if i == I64.zero then ok (mem_update_rflags all_undef s) else
-    let rc := lsb (I64.shru v (I64.sub i I64.one)) in
-    let r  := I64.shru v i in
+  if i == 0%R
+  then write_oprd o v s
+  else
+    let rc := lsb (wshr v (wunsigned i - 1)) in
+    let r  := wshr v (wunsigned i) in
     let s  := mem_update_rflags (rflags_of_sh i (msb r) r rc) s in
     write_oprd o r s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_SAL o ir s : x86_result :=
-  eval_SHL o ir s.
+Definition eval_SAL sz o ir s : x86_result :=
+  eval_SHL sz o ir s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_SAR o ir s : x86_result :=
-  Let v := read_oprd o s in
-  let i := I64.and (read_ireg ir s) x86_shift_mask in
+Definition eval_SAR sz o ir s : x86_result :=
+  Let _ := check_size_8_64 sz in
+  Let v := read_oprd sz o s in
+  let i := wand (read_ireg U8 ir s) (x86_shift_mask sz) in
 
-  if i == I64.zero then ok (mem_update_rflags all_undef s) else
-    let rc := lsb (I64.shr v (I64.sub i I64.one)) in
-    let r  := I64.shr v i in
+  if i == 0%R
+  then write_oprd o v s
+  else
+    let rc := lsb (wsar v (wunsigned i - 1)) in
+    let r  := wsar v (wunsigned i) in
     let s  := mem_update_rflags (rflags_of_sh i false r rc) s
     in write_oprd o r s.
 
@@ -885,36 +941,36 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   match i with
   | JMP    _
   | Jcc    _ _
-  | LABEL  _        => ok s
-  | MOV    o1 o2    => eval_MOV o1 o2 s
-  | CMOVcc ct o1 o2 => eval_CMOVcc ct o1 o2 s
-  | ADD    o1 o2    => eval_ADD o1 o2 s
-  | SUB    o1 o2    => eval_SUB o1 o2 s
-  | MUL    o        => eval_MUL o s
-  | IMUL   o1 o2i   => eval_IMUL o1 o2i s
-  | DIV    o        => eval_DIV o s
-  | IDIV   o        => eval_IDIV o s
-  | ADC    o1 o2    => eval_ADC o1 o2 s
-  | SBB    o1 o2    => eval_SBB o1 o2 s
-  | NEG    o        => eval_NEG o s
-  | INC    o        => eval_INC o s
-  | DEC    o        => eval_DEC o s
-  | SETcc  ct o     => eval_SETcc ct o s
-  | BT o ir => eval_BT o ir s
-  | LEA    o1 o2    => eval_LEA o1 o2 s
-  | TEST   o1 o2    => eval_TEST o1 o2 s
-  | CMP    o1 o2    => eval_CMP o1 o2 s
-  | AND    o1 o2    => eval_AND o1 o2 s
-  | OR     o1 o2    => eval_OR o1 o2 s
-  | XOR    o1 o2    => eval_XOR o1 o2 s
-  | NOT    o        => eval_NOT o s
-  | ROR o ir => eval_ROR o ir s
-  | ROL o ir => eval_ROL o ir s
-  | SHL    o ir     => eval_SHL o ir s
-  | SHR    o ir     => eval_SHR o ir s
-  | SAL    o ir     => eval_SAL o ir s
-  | SAR    o ir     => eval_SAR o ir s
-  | SHLD   o1 o2 ir => eval_SHLD o1 o2 ir s
+  | LABEL  _           => ok s
+  | MOV    sz o1 o2    => eval_MOV    sz o1 o2 s
+  | CMOVcc sz ct o1 o2 => eval_CMOVcc sz ct o1 o2 s
+  | ADD    sz o1 o2    => eval_ADD    sz o1 o2 s
+  | SUB    sz o1 o2    => eval_SUB    sz o1 o2 s
+  | MUL    sz o        => eval_MUL    sz o s
+  | IMUL   sz o1 o2i   => eval_IMUL   sz o1 o2i s
+  | DIV    sz o        => eval_DIV    sz o s
+  | IDIV   sz o        => eval_IDIV   sz o s
+  | ADC    sz o1 o2    => eval_ADC    sz o1 o2 s
+  | SBB    sz o1 o2    => eval_SBB    sz o1 o2 s
+  | NEG    sz o        => eval_NEG    sz o s
+  | INC    sz o        => eval_INC    sz o s
+  | DEC    sz o        => eval_DEC    sz o s
+  | SETcc     ct o     => eval_SETcc  ct o s
+  | BT     sz o ir     => eval_BT     sz o ir s
+  | LEA    sz o1 o2    => eval_LEA    sz o1 o2 s
+  | TEST   sz o1 o2    => eval_TEST   sz o1 o2 s
+  | CMP    sz o1 o2    => eval_CMP    sz o1 o2 s
+  | AND    sz o1 o2    => eval_AND    sz o1 o2 s
+  | OR     sz o1 o2    => eval_OR     sz o1 o2 s
+  | XOR    sz o1 o2    => eval_XOR    sz o1 o2 s
+  | NOT    sz o        => eval_NOT    sz o s
+  | ROR    sz o ir     => eval_ROR    sz o ir s
+  | ROL    sz o ir     => eval_ROL    sz o ir s
+  | SHL    sz o ir     => eval_SHL    sz o ir s
+  | SHR    sz o ir     => eval_SHR    sz o ir s
+  | SAL    sz o ir     => eval_SAL    sz o ir s
+  | SAR    sz o ir     => eval_SAR    sz o ir s
+  | SHLD   sz o1 o2 ir => eval_SHLD   sz o1 o2 ir s
   end.
 
 Definition eval_instr (i : asm) (s: x86_state) : x86_result_state :=
@@ -956,27 +1012,17 @@ Record xfundef := XFundef {
 Definition xprog : Type :=
   seq (funname * xfundef).
 
-Definition mem_write_regs m rs vs :=
-    foldl (λ m rv, let '(r,v) := rv in mem_write_reg r v m) m (zip rs vs).
-
-Lemma mem_write_regs_cons m r rs v vs :
-  mem_write_regs m (r :: rs) (v :: vs) =
-  mem_write_regs (mem_write_reg r v m) rs vs.
-Proof. by []. Qed.
-
-(* FIXME: initial register map *)
-Variant x86sem_fd (P: xprog) (gd: glob_defs) m1 fn va m2 vr : Prop :=
-| X86Sem_fd fd p m2'
-    `(get_fundef P fn = Some fd)
-    `(alloc_stack m1 fd.(xfd_stk_size) = ok p)
+(* TODO: flags may be preserved *)
+(* TODO: restore stack pointer of caller? *)
+Variant x86sem_fd (P: xprog) (gd: glob_defs) fn st st' : Prop :=
+| X86Sem_fd fd mp st2
+   `(get_fundef P fn = Some fd)
+   `(alloc_stack st.(xmem) fd.(xfd_stk_size) = ok mp)
+    (st1 := mem_write_reg fd.(xfd_nstk) (top_stack mp) {| xmem := mp ; xreg := st.(xreg) ; xrf := rflagmap0 |})
     (c := fd.(xfd_body))
-    (m1' := mem_write_reg fd.(xfd_nstk) p.1 {| xmem := p.2 ; xreg := regmap0 ; xrf := rflagmap0 |})
-    `(size va = size fd.(xfd_arg))
-    (m1'' := mem_write_regs m1' fd.(xfd_arg) va)
-    `(x86sem gd {| xm := m1'' ; xc := c ; xip := 0 |} {| xm := m2'; xc := c; xip := size c |})
-    `(vr = map (λ r, m2'.(xreg) r) fd.(xfd_res))
-    `(m2 = free_stack m2'.(xmem) p.1 fd.(xfd_stk_size))
-    : x86sem_fd P gd m1 fn va m2 vr.
+    `(x86sem gd {| xm := st1 ; xc := c ; xip := 0 |} {| xm := st2; xc := c; xip := size c |})
+    `(st' = {| xmem := free_stack st2.(xmem) fd.(xfd_stk_size) ; xreg := st2.(xreg) ; xrf := rflagmap0 |})
+    .
 
 Definition x86sem_trans gd s2 s1 s3 :
   x86sem gd s1 s2 -> x86sem gd s2 s3 -> x86sem gd s1 s3 :=

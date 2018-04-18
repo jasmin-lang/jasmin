@@ -320,7 +320,7 @@ Module MvMake (I:IDENT).
 
 End MvMake.
 
-(* ** Types for idents 
+(* ** Types for idents
  * -------------------------------------------------------------------- *)
 
 Module Ident.
@@ -349,6 +349,12 @@ Notation "vm .[ x ]" := (@Mv.get _ vm x) : mvar_scope.
 Notation "vm .[ x  <- v ]" := (@Mv.set _ vm x v) : mvar_scope.
 Arguments Mv.get to m%mvar_scope x.
 Arguments Mv.set to m%mvar_scope x v.
+
+Lemma vtype_diff x x': vtype x != vtype x' -> x != x'.
+Proof. by apply: contra => /eqP ->. Qed.
+
+Lemma vname_diff x x': vname x != vname x' -> x != x'.
+Proof. by apply: contra => /eqP ->. Qed.
 
 (* ** Variables function: to be not used if computation is needed, 
  *                       but extentianality is permited 
@@ -383,8 +389,6 @@ Module Fv.
 
   Definition ext_eq  {to} (vm1 vm2 : t to) :=
     forall x, get vm1 x = get vm2 x.
-
-  Axiom map_ext: forall to (vm1 vm2 : t to), ext_eq vm1 vm2 -> vm1 = vm2.
 
 End Fv.
 
@@ -443,6 +447,19 @@ Proof.
   apply: (@equivP (Sv.mem x s));first by apply idP.
   by rewrite -Sv.mem_spec.
 Qed.
+
+Lemma Sv_elemsP x s : reflect (Sv.In x s) (x \in Sv.elements s).
+Proof.
+  apply: (equivP idP);rewrite SvD.F.elements_iff.
+  elim: (Sv.elements s) => /= [|v vs];split => //=.
+  + by move /SetoidList.InA_nil.
+  + by rewrite inE => /orP [ /eqP -> | /H];auto.
+  case/SetoidList.InA_cons => [ -> |]; rewrite inE ?eq_refl //.
+  by move /H => ->; rewrite orbT.
+Qed.
+
+Lemma Sv_elems_eq x s : Sv.mem x s = (x \in (Sv.elements s)).
+Proof. by apply: sameP (Sv_memP x s) (Sv_elemsP x s). Qed.
 
 Definition disjoint s1 s2 := Sv.is_empty (Sv.inter s1 s2).
 
