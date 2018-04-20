@@ -14,6 +14,7 @@ before_install:
 branches:
   only:
   - master
+  - small-words
 notifications:
   email:
   - false
