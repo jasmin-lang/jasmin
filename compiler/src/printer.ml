@@ -166,15 +166,17 @@ let pp_tag = function
   | AT_inline  -> ":i"
   | AT_phinode -> ":φ"
 
-let rec pp_gi pp_info pp_var fmt i =
+let rec pp_gi pp_info pp_ty pp_var fmt i =
   F.fprintf fmt "%a" pp_info i.i_info;
   match i.i_desc with
   | Cblock c ->
-    F.fprintf fmt "@[<v>{@   @[<v>%a@]@ }@]" (pp_cblock pp_info pp_var) c
+    F.fprintf fmt "@[<v>{@   @[<v>%a@]@ }@]" (pp_cblock pp_info pp_ty pp_var) c
 
-  | Cassgn(x , tg, ty, e) -> (* FIXME: ty *)
-    F.fprintf fmt "@[<hov 2>%a %s=@ %a;@]"
-      (pp_glv pp_var) x (pp_tag tg) (pp_ge pp_var) e
+  | Cassgn(x , tg, ty, e) ->
+    F.fprintf fmt "@[<hov 2>%a %s=(%a)@ %a;@]"
+      (pp_glv pp_var) x (pp_tag tg)
+      pp_ty ty
+      (pp_ge pp_var) e
 
   | Copn(x, t, o, e) -> (* FIXME *)
     F.fprintf fmt "@[<hov 2>%a %s=@ %s(%a);@]"
@@ -183,44 +185,44 @@ let rec pp_gi pp_info pp_var fmt i =
 
   | Cif(e, c, []) ->
     F.fprintf fmt "@[<v>if %a %a@]"
-      (pp_ge pp_var) e (pp_cblock pp_info pp_var) c
+      (pp_ge pp_var) e (pp_cblock pp_info pp_ty pp_var) c
 
   | Cif(e, c1, c2) ->
     F.fprintf fmt "@[<v>if %a %a else %a@]"
-      (pp_ge pp_var) e (pp_cblock pp_info pp_var) c1
-      (pp_cblock pp_info pp_var) c2
+      (pp_ge pp_var) e (pp_cblock pp_info pp_ty pp_var) c1
+      (pp_cblock pp_info pp_ty pp_var) c2
 
   | Cfor(i, (dir, lo, hi), c) ->
     let dir, e1, e2 =
       if dir = UpTo then "to", lo, hi else "downto", hi, lo in
     F.fprintf fmt "@[<v>for %a = @[%a %s@ %a@] %a@]"
       (pp_gvar_i pp_var) i (pp_ge pp_var) e1 dir (pp_ge pp_var) e2
-      (pp_gc pp_info pp_var) c
+      (pp_gc pp_info pp_ty pp_var) c
 
   | Cwhile([], e, c) ->
     F.fprintf fmt "@[<v>while (%a) %a@]"
-      (pp_ge pp_var) e (pp_cblock pp_info pp_var) c
+      (pp_ge pp_var) e (pp_cblock pp_info pp_ty pp_var) c
 
   | Cwhile(c, e, []) ->
     F.fprintf fmt "@[<v>while %a (%a)@]"
-      (pp_cblock pp_info pp_var) c (pp_ge pp_var) e
+      (pp_cblock pp_info pp_ty pp_var) c (pp_ge pp_var) e
 
   | Cwhile(c, e, c') ->
     F.fprintf fmt "@[<v>while %a %a %a@]"
-      (pp_cblock pp_info pp_var) c (pp_ge pp_var) e
-      (pp_cblock pp_info pp_var) c'
+      (pp_cblock pp_info pp_ty pp_var) c (pp_ge pp_var) e
+      (pp_cblock pp_info pp_ty pp_var) c'
 
   | Ccall(_ii, x, f, e) -> (* FIXME ii *)
     F.fprintf fmt "@[<hov 2> %a =@ %s(%a);@]"
       (pp_glvs pp_var) x f.fn_name (pp_ges pp_var) e
 
 (* -------------------------------------------------------------------- *)
-and pp_gc pp_info pp_var fmt c =
-  F.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_gi pp_info pp_var)) c
+and pp_gc pp_info pp_ty pp_var fmt c =
+  F.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_gi pp_info pp_ty pp_var)) c
 
 (* -------------------------------------------------------------------- *)
-and pp_cblock pp_info pp_var fmt c =
-  F.fprintf fmt "{@   %a@ }" (pp_gc pp_info pp_var) c
+and pp_cblock pp_info pp_ty pp_var fmt c =
+  F.fprintf fmt "{@   %a@ }" (pp_gc pp_info pp_ty pp_var) c
 
 (* -------------------------------------------------------------------- *)
 
@@ -250,7 +252,7 @@ let pp_gfun pp_info (pp_size:F.formatter -> 'size -> unit) pp_var fmt fd =
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_size)) ret
 (*   (pp_list ";@ " pp_vd) (Sv.elements locals) *)
-   (pp_gc pp_info pp_var) fd.f_body
+   (pp_gc pp_info (pp_gtype pp_size) pp_var) fd.f_body
    pp_ret ()
 
 let pp_noinfo _ _ = ()
@@ -297,7 +299,7 @@ let pp_fun ?(pp_info=pp_noinfo) pp_var fmt fd =
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_size)) ret
    (pp_list ";@ " pp_vd) (Sv.elements locals)
-   (pp_gc pp_info pp_var) fd.f_body
+   (pp_gc pp_info (pp_gtype pp_size) pp_var) fd.f_body
    pp_ret ()
 
 let pp_var ~debug =
@@ -306,18 +308,19 @@ let pp_var ~debug =
     else
       fun fmt x -> F.fprintf fmt "%s" x.v_name
 
-
 let pp_expr ~debug fmt e =
   let pp_var = pp_var ~debug in
   pp_ge pp_var fmt e
 
+let pp_ty fmt = pp_gtype (fun fmt -> F.fprintf fmt "%i") fmt
+
 let pp_instr ~debug fmt i =
   let pp_var = pp_var ~debug in
-  pp_gi pp_noinfo pp_var fmt i
+  pp_gi pp_noinfo pp_ty pp_var fmt i
 
 let pp_stmt ~debug fmt i =
   let pp_var = pp_var ~debug in
-  pp_gc pp_noinfo pp_var fmt i
+  pp_gc pp_noinfo pp_ty pp_var fmt i
 
 let pp_ifunc ~debug pp_info fmt fd =
   let pp_var = pp_var ~debug in
