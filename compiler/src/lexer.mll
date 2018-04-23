@@ -3,13 +3,14 @@
   open Parser
 
   module L = Location
+  module S = Syntax
 
   let unterminated_comment loc =
-    raise (Syntax.ParseError (loc, Some "unterminated comment"))
+    raise (S.ParseError (loc, Some "unterminated comment"))
 
   let invalid_char loc (c : char) =
     let msg = Printf.sprintf "invalid char: `%c'" c in
-    raise (Syntax.ParseError (loc, Some msg))
+    raise (S.ParseError (loc, Some msg))
 
   let _keywords = [
     "u8"    , T_U8   ;
@@ -42,6 +43,28 @@
   ]
 
   let keywords = Hash.of_enum (List.enum _keywords)
+
+  let get_sign : char option -> S.sign option =
+  function
+  | Some 'u' -> Some `Unsigned
+  | Some 's' -> Some `Signed
+  | None -> None
+  | Some _ -> assert false
+
+  let get_size : string option -> S.wsize option =
+  function
+  | Some "8" -> Some `W8
+  | Some "16" -> Some `W16
+  | Some "32" -> Some `W32
+  | Some "64" -> Some `W64
+  | None -> None
+  | Some _ -> assert false
+
+  let mk_swsize g w : S.swsize =
+    match get_sign g, get_size w with
+    | Some g, (Some _ as w) -> Some (g, w)
+    | None, None -> None
+    | _, _ -> assert false
 }
 
 (* -------------------------------------------------------------------- *)
@@ -53,7 +76,10 @@ let lower    = ['a'-'z']
 let upper    = ['A'-'Z']
 let letter   = (lower | upper)
 let idletter = letter | '_'
-let ident    = idletter (idletter | digit)* 
+let ident    = idletter (idletter | digit)*
+
+let size = "8" | "16" | "32" | "64"
+let signletter = ['s' 'u']
 
 (* -------------------------------------------------------------------- *)
 rule main = parse
@@ -74,7 +100,7 @@ rule main = parse
   | ident+ as s
       { odfl (NID s) (Hash.find_option keywords s) }
 
-  | "#"     { SHARP      } 
+  | "#"     { SHARP      }
   | "["     { LBRACKET   }
   | "]"     { RBRACKET   }
   | "{"     { LBRACE     }
@@ -84,40 +110,32 @@ rule main = parse
   | "->"    { RARROW     }
   | ","     { COMMA      }
   | ";"     { SEMICOLON  }
-  | "<="    { LE         }
-  | "<"     { LT         }
-  | ">="    { GE         }
-  | ">"     { GT         }
-  | "<=s"   { LEs        }
-  | "<s"    { LTs        }
-  | ">=s"   { GEs        }
-  | ">s"    { GTs        }
+
+  | "<<" (blank* (size as w) (signletter as g))? { LTLT (mk_swsize g w) }
+  | "<=s" { LE (Some (`Signed, None)) }
+  | "<=" (blank* (size as w) (signletter as g))? { LE (mk_swsize g w) }
+  | "<s" { LT (Some (`Signed, None)) }
+  | "<" (blank* (size as w) (signletter as g))? { LT (mk_swsize g w) }
+
+  | ">>" (blank* (size as w) (signletter as g))? { GTGT (mk_swsize g w) }
+  | ">>s" { GTGT (Some (`Signed, None)) }
+  | ">=s" { GE (Some (`Signed, None)) }
+  | ">=" (blank* (size as w) (signletter as g))? { GE (mk_swsize g w) }
+  | ">s" { GT (Some (`Signed, None)) }
+  | ">" (blank* (size as w) (signletter as g))? { GT (mk_swsize g w) }
 
   | "!"     { BANG       }
-  | "+"     { PLUS       }
-  | "-"     { MINUS      }
-  | "*"     { STAR       }
-  | "|"     { PIPE       }
-  | "&"     { AMP        }
-  | "^"     { HAT        }
+  | "+" (blank* (size as w) (signletter as g))? { PLUS (mk_swsize g w) }
+  | "-" (blank* (size as w) (signletter as g))? { MINUS (mk_swsize g w) }
+  | "*" (blank* (size as w) (signletter as g))? { STAR (mk_swsize g w) }
+  | "|" (blank* (size as w) (signletter as g))? { PIPE (mk_swsize g w) }
+  | "&" (blank* (size as w) (signletter as g))? { AMP (mk_swsize g w) }
+  | "^" (blank* (size as w) (signletter as g))? { HAT (mk_swsize g w) }
   | "&&"    { AMPAMP     }
   | "||"    { PIPEPIPE   }
-  | ">>"    { GTGT       }
-  | ">>s"   { GTGTs      }
-  | "<<"    { LTLT       }
   | "="     { EQ         }
-  | "=="    { EQEQ       }
-  | "!="    { BANGEQ     }
-  | "+="    { PLUSEQ     }
-  | "-="    { MINUSEQ    }
-  | "*="    { STAREQ     }
-  | "|="    { PIPEEQ     }
-  | "&="    { AMPEQ      }
-  | "^="    { HATEQ      }
-  | "^="    { HATEQ      }
-  | ">>="   { GTGTEQ     }
-  | ">>s="  { GTGTsEQ    }
-  | "<<="   { LTLTEQ     }
+  | "==" (blank* (size as w) (signletter as g))? { EQEQ (mk_swsize g w) }
+  | "!=" (blank* (size as w) (signletter as g))? { BANGEQ (mk_swsize g w) }
 
   | _ as c  { invalid_char (L.of_lexbuf lexbuf) c }
   | eof     { EOF }

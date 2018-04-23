@@ -18,52 +18,38 @@
 %token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
 
 %token SHARP
-%token AMP
+%token <Syntax.swsize> AMP
 %token AMPAMP
-%token AMPEQ
 %token BANG
-%token BANGEQ
+%token <Syntax.swsize> BANGEQ
 %token COMMA
 %token DOWNTO
 %token ELSE
 %token EQ
-%token EQEQ
+%token <Syntax.swsize> EQEQ
 %token FALSE
 %token FN
 %token FOR
-%token GE 
-%token GEs
-%token GT
-%token GTs
-%token GTGT
-%token GTGTs
-%token GTGTEQ
-%token GTGTsEQ
-%token HAT
-%token HATEQ
+%token <Syntax.swsize> GE
+%token <Syntax.swsize> GT
+%token <Syntax.swsize> GTGT
+%token <Syntax.swsize> HAT
 %token IF
 %token INLINE
-%token LE
-%token LEs
-%token LT
-%token LTs
-%token LTLT
-%token LTLTEQ
-%token MINUS
-%token MINUSEQ
+%token <Syntax.swsize> LE
+%token <Syntax.swsize> LT
+%token <Syntax.swsize> LTLT
+%token <Syntax.swsize> MINUS
 %token PARAM
-%token PIPE
-%token PIPEEQ
+%token <Syntax.swsize> PIPE
 %token PIPEPIPE
-%token PLUS
-%token PLUSEQ
+%token <Syntax.swsize> PLUS
 %token RARROW
 %token REG
 %token RETURN
 %token SEMICOLON
 %token STACK
-%token STAR
-%token STAREQ
+%token <Syntax.swsize> STAR
 %token TO
 %token TRUE
 %token UNDERSCORE
@@ -76,11 +62,11 @@
 %left PIPEPIPE
 %left AMPAMP
 %left EQEQ BANGEQ
-%left LE LEs GE GEs LT LTs GT GTs
+%left LE GE LT GT
 %left PIPE
 %left HAT
 %left AMP
-%left LTLT GTGT GTGTs
+%left LTLT GTGT
 %left PLUS MINUS
 %left STAR
 %nonassoc BANG
@@ -126,33 +112,27 @@ ptype:
 
 (* ** Index expressions
  * -------------------------------------------------------------------- *)
-
 %inline peop1:
 | BANG  { `Not }
-| MINUS  { `Neg }
+| s=MINUS  { `Neg s }
 
 %inline peop2:
-| PLUS     { `Add  }
-| MINUS    { `Sub  }
-| STAR     { `Mul  }
-| AMPAMP   { `And  }
-| PIPEPIPE { `Or   }
-| AMP      { `BAnd }
-| PIPE     { `BOr  }
-| HAT      { `BXOr }
-| LTLT     { `ShL  }
-| GTGT     { `ShR  }
-| GTGTs    { `Asr  }
-| EQEQ     { `Eq   }
-| BANGEQ   { `Neq  }
-| LT       { `Lt   }
-| LE       { `Le   }
-| GT       { `Gt   }
-| GE       { `Ge   }
-| LTs      { `Lts  }
-| LEs      { `Les  }
-| GTs      { `Gts  }
-| GEs      { `Ges  }
+| s=PLUS { `Add s }
+| s=MINUS { `Sub s }
+| s=STAR { `Mul s }
+| AMPAMP { `And }
+| PIPEPIPE { `Or }
+| s=AMP { `BAnd s }
+| s=PIPE { `BOr s }
+| s=HAT { `BXOr s }
+| s=LTLT { `ShL s }
+| s=GTGT { `ShR s }
+| s=EQEQ { `Eq s }
+| s=BANGEQ { `Neq s }
+| s=LT       { `Lt s }
+| s=LE       { `Le s }
+| s=GT       { `Gt s }
+| s=GE       { `Ge s }
 
 prim:
 | SHARP x=ident { x }
@@ -196,21 +176,18 @@ pexpr:
 
 (* -------------------------------------------------------------------- *)
 peqop:
-| EQ      { `Raw  }
-| PLUSEQ  { `Add  }
-| MINUSEQ { `Sub  }
-| STAREQ  { `Mul  }
-| GTGTEQ  { `ShR  }
-| GTGTsEQ { `Asr  }
-| LTLTEQ  { `ShL  }
-| AMPEQ   { `BAnd }
-| HATEQ   { `BXOr }
-| PIPEEQ  { `BOr  }
+| EQ      { `Raw }
+| s=PLUS EQ  { `Add s }
+| s=MINUS EQ { `Sub s }
+| s=STAR EQ  { `Mul s }
+| s=GTGT EQ  { `ShR s }
+| s=LTLT EQ  { `ShL s }
+| s=AMP EQ { `BAnd s }
+| s=HAT EQ   { `BXOr s }
+| s=PIPE EQ  { `BOr s }
 
 (* ** Left value
  * -------------------------------------------------------------------- *)
-
-(* FIXME: missing syntax for Lmem *)
 plvalue_r:
 | UNDERSCORE
     { PLIgnore }
@@ -353,9 +330,6 @@ module_:
 %inline braces(X):
 | x=delimited(LBRACE, X, RBRACE) { x }
 
-%inline angles(X):
-| x=delimited(LT, X, GT) { x }
-
 %inline rtuple(X):
 | s=separated_list(COMMA, X) { s }
 
@@ -370,9 +344,6 @@ module_:
 
 %inline parens_tuple(X):
 | s=parens(rtuple(X)) { s }
-
-%inline angles_tuple(X):
-| s=angles(rtuple(X)) { s }
 
 %inline brackets_tuple(X):
 | s=brackets(rtuple(X)) { s }

@@ -64,42 +64,34 @@ let pp_var fmt x =
   F.fprintf fmt "%s" (L.unloc x)
 
 let string_of_wsize w =
-  match w with
-  | `W8 -> "b8"
-  | `W16 -> "b16"
-  | `W32 -> "b32"
-  | `W64 -> "b64"
-  | `W128 -> "b128"
-  | `W256 -> "b256"
+  F.sprintf "b%d" (bits_of_wsize w)
 
 let string_of_op1 =
+  let f s p = F.sprintf "%s%s" p (string_of_swsize s) in
   function
   | `Not -> "!"
-  | `Neg -> "-"
+  | `Neg s -> f s "-"
 
 let string_of_op2 =
+  let f s p = F.sprintf "%s%s" p (string_of_swsize s) in
   function
-  | `Add  -> "+"
-  | `Sub  -> "-"
-  | `Mul  -> "*"
-  | `And  -> "&&"
-  | `Or   -> "||"
-  | `BAnd -> "&"
-  | `BOr  -> "|"
-  | `BXOr -> "^"
-  | `ShR  -> ">{}>"
-  | `ShL  -> "<{}<"
-  | `Asr  -> ">{}>s"
-  | `Eq   -> "=="
-  | `Neq  -> "!="
-  | `Lt   -> "<"
-  | `Le   -> "<="
-  | `Gt   -> ">"
-  | `Ge   -> ">="
-  | `Lts  -> "<s"
-  | `Les  -> "<=s"
-  | `Gts  -> ">s"
-  | `Ges  -> ">=s"
+  | `Add s -> f s "+"
+  | `Sub s -> f s "-"
+  | `Mul s -> f s "*"
+  | `And -> "&&"
+  | `Or -> "||"
+  | `BAnd s -> f s "&"
+  | `BOr s -> f s "|"
+  | `BXOr s -> f s "\\textasciicircum"
+  | `ShR s -> f s ">{}>"
+  | `ShL s -> f s "<{}<"
+  | `Eq s -> f s "=="
+  | `Neq s -> f s "!="
+  | `Lt s -> f s "<"
+  | `Le s -> f s "<="
+  | `Gt s -> f s ">"
+  | `Ge s -> f s ">="
+  | `Raw -> ""
 
 type prio =
   | Pmin
@@ -119,22 +111,21 @@ type prio =
 
 let prio_of_op1 =
   function
-  | `Not -> Punary
-  | `Neg -> Pbang
+  | `Not -> Pbang
+  | `Neg _ -> Punary
 
 let prio_of_op2 =
   function
-  | `Add | `Sub  -> Padd
-  | `Mul  -> Pmul
-  | `And  -> Pand
-  | `Or   -> Por
-  | `BAnd -> Pbwand
-  | `BOr  -> Pbwor
-  | `BXOr -> Pbwxor
-  | `ShR | `ShL | `Asr -> Pshift
-  | `Eq | `Neq  -> Pcmpeq
-  | `Lt | `Le | `Gt | `Ge
-  | `Lts | `Les | `Gts | `Ges
+  | `Add _ | `Sub _ -> Padd
+  | `Mul _ -> Pmul
+  | `And -> Pand
+  | `Or -> Por
+  | `BAnd _ -> Pbwand
+  | `BOr _ -> Pbwor
+  | `BXOr _ -> Pbwxor
+  | `ShR _ | `ShL _ -> Pshift
+  | `Eq _ | `Neq _ -> Pcmpeq
+  | `Lt _ | `Le _ | `Gt _ | `Ge _
     -> Pcmp
 
 let optparent fmt ctxt prio p =
@@ -216,18 +207,8 @@ let pp_lv fmt x =
   | PLArray (x, e) -> F.fprintf fmt "%a[%a]" pp_var x pp_expr e
   | PLMem (ty, x, e) -> F.fprintf fmt "%a[%a + %a]" (pp_opt (pp_paren pp_type)) ty pp_var x pp_expr e
 
-let string_of_eqop =
-  function
-  | `Raw -> "="
-  | `Add -> "+="
-  | `Sub -> "-="
-  | `ShR -> ">{}>s="
-  | `Asr -> ">{}>="
-  | `ShL -> "<{}<="
-  | `BAnd -> "&="
-  | `BXOr -> "\\textasciicircum="
-  | `BOr  -> "|="
-  | `Mul -> "*="
+let string_of_eqop op =
+  F.sprintf "%s=" (string_of_op2 op)
 
 let pp_sidecond fmt =
   F.fprintf fmt " %a %a" kw "if" pp_expr

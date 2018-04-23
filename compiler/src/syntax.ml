@@ -12,39 +12,77 @@ type symbol = string
 type pident = symbol L.located
 
 (* -------------------------------------------------------------------- *)
-type peop1 = [ `Not | `Neg ]
+type wsize = [ `W8 | `W16 | `W32 | `W64 | `W128 | `W256 ]
 
-type peop2 = [
-  `Add | `Sub | `Mul | `And | `Or  | `BAnd | `BOr | `BXOr |
-  `ShR | `ShL | `Asr | `Eq  | `Neq | `Lt  | `Le   | `Gt  | `Ge |
-  `Lts  | `Les   | `Gts  | `Ges
-]
+type sign = [ `Unsigned | `Signed ]
 
-let string_of_peop2 = function
-  | `Add  -> "+"
-  | `Sub  -> "-"
-  | `Mul  -> "*"
-  | `And  -> "&&"
-  | `Or   -> "||"
-  | `BAnd -> "&"
-  | `BOr  -> "|"
-  | `BXOr -> "^"
-  | `ShR  -> ">>"
-  | `ShL  -> "<<"
-  | `Asr  -> ">>s"
-  | `Eq   -> "=="
-  | `Neq  -> "!="
-  | `Lt   -> "<"
-  | `Le   -> "<="
-  | `Gt   -> ">"
-  | `Ge   -> ">="
-  | `Lts  -> "<s"
-  | `Les  -> "<=s"
-  | `Gts  -> ">s"
-  | `Ges  -> ">=s"
+type swsize = (sign * wsize option) option
+
+let bits_of_wsize : wsize -> int =
+  function
+  | `W8 -> 8
+  | `W16 -> 16
+  | `W32 -> 32
+  | `W64 -> 64
+  | `W128 -> 128
+  | `W256 -> 256
+
+let suffix_of_sign : sign -> string =
+  function
+  | `Unsigned -> "u"
+  | `Signed -> "s"
+
+let string_of_swsize : swsize -> string =
+  function
+  | None -> ""
+  | Some (sg, None) -> suffix_of_sign sg
+  | Some (sg, Some sz) ->
+    Format.sprintf "%d%s"
+      (bits_of_wsize sz)
+      (suffix_of_sign sg)
 
 (* -------------------------------------------------------------------- *)
-type wsize = [ `W8 | `W16 | `W32 | `W64 | `W128 | `W256 ]
+type peop1 = [ `Not | `Neg of swsize ]
+
+type peop2 = [
+  | `Add of swsize
+  | `Sub of swsize
+  | `Mul of swsize
+  | `And
+  | `Or
+  | `BAnd of swsize
+  | `BOr of swsize
+  | `BXOr of swsize
+  | `ShR of swsize
+  | `ShL of swsize
+
+  | `Eq of swsize
+  | `Neq of swsize
+  | `Lt of swsize
+  | `Le of swsize
+  | `Gt of swsize
+  | `Ge of swsize
+]
+
+let string_of_peop2 : peop2 -> string =
+  let f s p = Format.sprintf "%s%s" p (string_of_swsize s) in
+  function
+  | `Add s -> f s "+"
+  | `Sub s -> f s "-"
+  | `Mul s -> f s "*"
+  | `And -> "&&"
+  | `Or  -> "||"
+  | `BAnd s -> f s "&"
+  | `BOr s -> f s "|"
+  | `BXOr s -> f s "^"
+  | `ShR s -> f s ">>"
+  | `ShL s -> f s "<<"
+  | `Eq s -> f s "=="
+  | `Neq s -> f s "!="
+  | `Lt s -> f s "<"
+  | `Le s -> f s "<="
+  | `Gt s -> f s ">"
+  | `Ge s -> f s ">="
 
 (* -------------------------------------------------------------------- *)
 type pexpr_r =
@@ -82,7 +120,15 @@ type plvalue = plvalue_r L.located
 
 (* -------------------------------------------------------------------- *)
 type peqop = [
-  `Raw | `Add | `Sub | `ShR | `Asr | `ShL | `BAnd | `BXOr | `BOr  | `Mul
+  `Raw
+  | `Add of swsize
+  | `Sub of swsize
+  | `Mul of swsize
+  | `ShR of swsize
+  | `ShL of swsize
+  | `BAnd of swsize
+  | `BXOr of swsize
+  | `BOr of swsize
 ]
 
 (* -------------------------------------------------------------------- *)

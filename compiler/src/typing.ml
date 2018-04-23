@@ -309,42 +309,37 @@ let cmp_of_ty exn sign ty =
   | _      , _              -> raise exn
 
 let op2_of_pop2 exn ty (op : S.peop2) =
+  (* TODO: use type annotation *)
   match op with
-  | `Add  -> E.Oadd (op_of_ty exn ty)
-  | `Sub  -> E.Osub (op_of_ty exn ty)
-  | `Mul  -> E.Omul (op_of_ty exn ty)
-  | `And  -> E.Oand
-  | `Or   -> E.Oor
-  | `BAnd -> E.Oland (ws_of_ty exn ty)
-  | `BOr  -> E.Olor (ws_of_ty exn ty)
-  | `BXOr -> E.Olxor (ws_of_ty exn ty)
-  | `ShR  -> E.Olsr (ws_of_ty exn ty)
-  | `ShL  -> E.Olsl (ws_of_ty exn ty)
-  | `Asr  -> E.Oasr (ws_of_ty exn ty)
-  | `Eq   -> E.Oeq  (op_of_ty exn ty)
-  | `Neq  -> E.Oneq (op_of_ty exn ty)
-  | `Lt   -> E.Olt  (cmp_of_ty exn `Unsign ty)
-  | `Le   -> E.Ole  (cmp_of_ty exn `Unsign ty)
-  | `Gt   -> E.Ogt  (cmp_of_ty exn `Unsign ty)
-  | `Ge   -> E.Oge  (cmp_of_ty exn `Unsign ty)
-  | `Lts  -> E.Olt  (cmp_of_ty exn `Sign ty)
-  | `Les  -> E.Ole  (cmp_of_ty exn `Sign ty)
-  | `Gts  -> E.Ogt  (cmp_of_ty exn `Sign ty)
-  | `Ges  -> E.Oge  (cmp_of_ty exn `Sign ty)
+  | `Add s -> E.Oadd (op_of_ty exn ty)
+  | `Sub s -> E.Osub (op_of_ty exn ty)
+  | `Mul s -> E.Omul (op_of_ty exn ty)
+  | `And -> E.Oand
+  | `Or -> E.Oor
+  | `BAnd s -> E.Oland (ws_of_ty exn ty)
+  | `BOr s -> E.Olor (ws_of_ty exn ty)
+  | `BXOr s -> E.Olxor (ws_of_ty exn ty)
+  | `ShR s -> E.Olsr (ws_of_ty exn ty)
+  | `ShL s -> E.Olsl (ws_of_ty exn ty)
+  | `Eq s -> E.Oeq  (op_of_ty exn ty)
+  | `Neq s -> E.Oneq (op_of_ty exn ty)
+  | `Lt s -> E.Olt  (cmp_of_ty exn `Unsign ty)
+  | `Le s -> E.Ole  (cmp_of_ty exn `Unsign ty)
+  | `Gt s -> E.Ogt  (cmp_of_ty exn `Unsign ty)
+  | `Ge s -> E.Oge  (cmp_of_ty exn `Unsign ty)
 
 (* -------------------------------------------------------------------- *)
 let peop2_of_eqop (eqop : S.peqop) =
   match eqop with
   | `Raw  -> None
-  | `Add  -> Some `Add
-  | `Sub  -> Some `Sub
-  | `Mul  -> Some `Mul
-  | `ShR  -> Some `ShR
-  | `ShL  -> Some `ShL
-  | `Asr  -> Some `Asr
-  | `BAnd -> Some `BAnd
-  | `BXOr -> Some `BXOr
-  | `BOr  -> Some `BOr
+  | `Add s -> Some (`Add s)
+  | `Sub s -> Some (`Sub s)
+  | `Mul s -> Some (`Mul s)
+  | `ShR s -> Some (`ShR s)
+  | `ShL s -> Some (`ShL s)
+  | `BAnd s -> Some (`BAnd s)
+  | `BXOr s -> Some (`BXOr s)
+  | `BOr s -> Some (`BOr s)
 
 (* -------------------------------------------------------------------- *)
 let max_ty ty1 ty2 =
@@ -375,12 +370,14 @@ let tt_op2 (loc1, (e1, ty1)) (loc2, (e2, ty2))
 
   let op, e1, e2, ty =
     match pop with
-    | (`Add | `Sub | `Mul | `BAnd | `BOr | `BXOr) ->
+    | (`Add s | `Sub s | `Mul s | `BAnd s | `BOr s | `BXOr s) ->
+      (* TODO: use ssize annotation *)
       let ty = max_ty ty1 ty2 |> oget ~exn in
       let op = op2_of_pop2 exn ty pop in
       (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, ty)
 
-    | `ShR | `ShL | `Asr ->
+    | `ShR _ | `ShL _ ->
+      (* TODO: use ssize annotation *)
       let ty = P.u64 in
       let op = op2_of_pop2 exn ty pop in
       (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, ty)
@@ -389,7 +386,8 @@ let tt_op2 (loc1, (e1, ty1)) (loc2, (e2, ty2))
       if not (ty1 = P.tbool && ty2 = P.tbool) then raise exn;
       (op2_of_pop2 Not_found P.tbool pop, e1, e2, P.tbool)
 
-    | (`Eq | `Neq | `Lt | `Le | `Gt | `Ge | `Lts | `Les | `Gts | `Ges ) ->
+    | (`Eq s | `Neq s | `Lt s | `Le s | `Gt s | `Ge s) ->
+      (* TODO: use ssize annotation *)
       let ty = max_ty ty1 ty2 |> oget ~exn in
       let op = op2_of_pop2 exn ty pop in
          (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, P.tbool)
@@ -438,7 +436,8 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
       else
         let e, ws = cast_word (L.loc pe) e ety in
         Papp1(E.Olnot ws, e), P.Bty (P.U ws)
-    | `Neg ->
+    | `Neg s ->
+      (* TODO: use ssize annotation *)
       let e, ws = cast_word (L.loc pe) e ety in
       Papp1(E.(Oneg (Op_w ws)), e), P.Bty (P.U ws)
     end
@@ -627,18 +626,32 @@ let prim_string =
   ]
 
 let tt_prim id =
+  (* TODO: split id to extract size *)
   let s = L.unloc id in
   try List.assoc s prim_string
   with Not_found ->
     rs_tyerror ~loc:(L.loc id) (UnknownPrim s)
 
 let prim_of_op exn loc o =
+  (* TODO: use context typing information when the operator is not annotated *)
+  let size_of_swsize : S.swsize -> T.wsize =
+    function
+    | None | Some (_, None) -> U64
+    | Some (_, Some sz) ->
+      match sz with
+      | `W8 -> U8
+      | `W16 -> U16
+      | `W32 -> U32
+      | `W64 -> U64
+      | `W128 -> U128
+      | `W256 -> U256
+  in
   let p =
     let open Expr in
     match o with
-    | `Add -> Oaddcarry U64
-    | `Sub -> Osubcarry U64
-    | `Mul -> Omulu U64
+    | `Add s -> Oaddcarry (size_of_swsize s)
+    | `Sub s -> Osubcarry (size_of_swsize s)
+    | `Mul s -> Omulu (size_of_swsize s)
     | _    -> raise exn in
   let id = fst (List.find (fun (_, p') -> p = p') prim_string) in
   L.mk_loc loc id
@@ -656,7 +669,7 @@ let prim_of_pe pe =
   | S.PEOp2 (o, (pe1, pe2)) ->
     let desc =
       match o with
-      | (`Add | `Sub) as o1 ->
+      | (`Add s | `Sub s) as o1 ->
         let pe1, pe2, pe3 =
           match L.unloc pe1, L.unloc pe2 with
           | S.PEOp2(o2, (pe1, pe3)), _ when o1 = o2 -> pe1, pe3, pe2
