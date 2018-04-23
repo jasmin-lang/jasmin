@@ -230,6 +230,49 @@ Definition sopn_tout (o:sopn) :  list stype :=
   | Ox86_SAR sz | Ox86_SHLD sz    => b5w_ty sz 
   end.
 
+Definition sopn_tin (o: sopn) : list stype :=
+  match o with
+  | Oaddcarry sz
+  | Osubcarry sz
+  | Ox86_ADC sz
+  | Ox86_SBB sz
+    => let t := sword sz in [:: t ; t ; sbool ]
+  | Oset0 _ => [::]
+  | Ox86_MOV sz
+  | Ox86_NEG sz
+  | Ox86_INC sz
+  | Ox86_DEC sz
+  | Ox86_NOT sz
+    => [:: sword sz ]
+  | Ox86_CMOVcc sz => [:: sbool ; sword sz ; sword sz ]
+  | Omulu sz
+  | Ox86_ADD sz
+  | Ox86_SUB sz
+  | Ox86_MUL sz
+  | Ox86_IMUL sz
+  | Ox86_IMULt sz
+  | Ox86_IMULtimm sz
+  | Ox86_BT sz
+  | Ox86_TEST sz
+  | Ox86_CMP sz
+  | Ox86_AND sz
+  | Ox86_OR sz
+  | Ox86_XOR sz
+    => let t := sword sz in [:: t ; t ]
+  | Ox86_DIV sz
+  | Ox86_IDIV sz
+    => let t := sword sz in [:: t ; t ; t ]
+  | Ox86_SETcc => [:: sbool ]
+  | Ox86_LEA sz => let t := sword sz in [:: t ; t ; t ; t ]
+  | Ox86_ROR sz
+  | Ox86_ROL sz
+  | Ox86_SHL sz
+  | Ox86_SHR sz
+  | Ox86_SAR sz
+    => [:: sword sz ; sword8 ]
+  | Ox86_SHLD sz => let t := sword sz in [:: t ; t ; sword8 ]
+  end.
+
 (* ** Expressions
  * -------------------------------------------------------------------- *)
 (* Used only by the ocaml compiler *)
