@@ -689,15 +689,26 @@ Section MIN.
   Definition cmp_min (x y: T) : T :=
     if (x ≤ y)%CMP then x else y.
 
-  Lemma cmp_minP x y (P: T → T → T → Prop) :
-    ((x ≤ y)%CMP → P x y x) →
-    ((y < x)%CMP → P x y y) →
-    P x y (cmp_min x y).
+  Lemma cmp_minP x y (P: T → Prop) :
+    ((x ≤ y)%CMP → P x) →
+    ((y < x)%CMP → P y) →
+    P (cmp_min x y).
   Proof.
     rewrite /cmp_min; case: ifP.
     - by move => _ /(_ erefl).
     by rewrite -cmp_nle_lt => -> _ /(_ erefl).
   Qed.
+
+  Lemma cmp_min_leL x y :
+    (cmp_min x y ≤ x)%CMP.
+  Proof.
+    apply: (@cmp_minP x y (λ z, z ≤ x)%CMP) => //.
+    apply: cmp_lt_le.
+  Qed.
+
+  Lemma cmp_min_leR x y :
+    (cmp_min x y ≤ y)%CMP.
+  Proof. exact: (@cmp_minP x y (λ z, z ≤ y)%CMP). Qed.
 
 End MIN.
 

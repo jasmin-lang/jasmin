@@ -1,6 +1,7 @@
 (* -------------------------------------------------------------------- *)
 open Utils
 
+module F = Format
 module L = Location
 module S = Syntax
 module E = Expr
@@ -38,6 +39,7 @@ type tyerror =
   | PrimNotAllowed
   | Unsupported         of string
   | UnknownPrim         of S.symbol
+  | PrimNoSize of S.symbol
   | ReturnLocalStack    of S.symbol
   | BadVariableKind     of P.pvar_i * P.v_kind 
 
@@ -51,75 +53,79 @@ let rs_tyerror ~loc (code : tyerror) =
 
 (* -------------------------------------------------------------------- *)
 let pp_typat fmt = function
-  | TPBool  -> Format.fprintf fmt "bool"
-  | TPInt   -> Format.fprintf fmt "int"
-  | TPWord  -> Format.fprintf fmt "word (u8, u16, u32, u64)"
-  | TPArray -> Format.fprintf fmt "array"
+  | TPBool  -> F.fprintf fmt "bool"
+  | TPInt   -> F.fprintf fmt "int"
+  | TPWord  -> F.fprintf fmt "word (u8, u16, u32, u64)"
+  | TPArray -> F.fprintf fmt "array"
 
 let pp_tyerror fmt (code : tyerror) =
   match code with
   | UnknownVar x ->
-      Format.fprintf fmt "unknown variable: `%s'" x
+      F.fprintf fmt "unknown variable: `%s'" x
 
   | UnknownFun x ->
-      Format.fprintf fmt "unknown function: `%s'" x
+      F.fprintf fmt "unknown function: `%s'" x
 
   | InvalidType (ty, p) -> 
-    Format.fprintf fmt "the expression as type %a instead of %a"
+    F.fprintf fmt "the expression as type %a instead of %a"
        Printer.pp_ptype ty pp_typat p
 
   | TypeMismatch (t1,t2) ->
-    Format.fprintf fmt
+    F.fprintf fmt
       "the expression has type %a instead of %a"
       Printer.pp_ptype t1 Printer.pp_ptype t2
 
   | InvalidCast (t1,t2) ->
-    Format.fprintf fmt "can not implicitly cast %a into %a"
+    F.fprintf fmt "can not implicitly cast %a into %a"
       Printer.pp_ptype t1 Printer.pp_ptype t2        
 
   | InvalidGlobal g ->
-      Format.fprintf fmt "invalid use of a global name: ‘%s’" g
+      F.fprintf fmt "invalid use of a global name: ‘%s’" g
 
   | NoOperator (`Op2 o, ts) ->
-      Format.fprintf fmt
+      F.fprintf fmt
         "no operator %s for these types %a"
         (S.string_of_peop2 o)
         (Printer.pp_list " * " Printer.pp_ptype) ts
 
   | InvalidArgCount (n1, n2) ->
-      Format.fprintf fmt
+      F.fprintf fmt
         "invalid number of arguments, %d provided instead of %d" n1 n2
 
   | InvalidLvalCount (n1, n2) ->
-      Format.fprintf fmt
+      F.fprintf fmt
         "invalid number of lvalues, %d provided instead of %d" n1 n2
 
   | DuplicateFun (f, loc) ->
-      Format.fprintf fmt
+      F.fprintf fmt
         "The function %s is already declared at %s"
         f (L.tostring loc)
 
   | EqOpWithNoLValue ->
-      Format.fprintf fmt
+      F.fprintf fmt
         "operator-assign requires a lvalue"
 
   | CallNotAllowed ->
-      Format.fprintf fmt
+      F.fprintf fmt
         "function calls not allowed at that point"
 
   | PrimNotAllowed ->
-      Format.fprintf fmt
+      F.fprintf fmt
         "primitive calls not allowed at that point"
 
   | Unsupported s ->
-      Format.fprintf fmt "%s" s
+      F.fprintf fmt "%s" s
   | UnknownPrim s ->
-      Format.fprintf fmt "unknown primitive: `%s'" s
+      F.fprintf fmt "unknown primitive: `%s'" s
+
+  | PrimNoSize s ->
+      F.fprintf fmt "primitive accepts no size annotation: `%s'" s
+
 
   | ReturnLocalStack v ->
-      Format.fprintf fmt "can not return the local stack variable %s" v
+      F.fprintf fmt "can not return the local stack variable %s" v
   | BadVariableKind(x,kind) ->
-    Format.fprintf fmt "the variable %a has kind %a instead of %a"
+    F.fprintf fmt "the variable %a has kind %a instead of %a"
        Printer.pp_pvar (L.unloc x) Printer.pp_kind (P.kind_i x) Printer.pp_kind kind
 
 
@@ -309,50 +315,44 @@ let cmp_of_ty exn sign ty =
   | _      , _              -> raise exn
 
 let op2_of_pop2 exn ty (op : S.peop2) =
+  (* TODO: use type annotation *)
   match op with
-  | `Add  -> E.Oadd (op_of_ty exn ty)
-  | `Sub  -> E.Osub (op_of_ty exn ty)
-  | `Mul  -> E.Omul (op_of_ty exn ty)
-  | `And  -> E.Oand
-  | `Or   -> E.Oor
-  | `BAnd -> E.Oland (ws_of_ty exn ty)
-  | `BOr  -> E.Olor (ws_of_ty exn ty)
-  | `BXOr -> E.Olxor (ws_of_ty exn ty)
-  | `ShR  -> E.Olsr (ws_of_ty exn ty)
-  | `ShL  -> E.Olsl (ws_of_ty exn ty)
-  | `Asr  -> E.Oasr (ws_of_ty exn ty)
-  | `Eq   -> E.Oeq  (op_of_ty exn ty)
-  | `Neq  -> E.Oneq (op_of_ty exn ty)
-  | `Lt   -> E.Olt  (cmp_of_ty exn `Unsign ty)
-  | `Le   -> E.Ole  (cmp_of_ty exn `Unsign ty)
-  | `Gt   -> E.Ogt  (cmp_of_ty exn `Unsign ty)
-  | `Ge   -> E.Oge  (cmp_of_ty exn `Unsign ty)
-  | `Lts  -> E.Olt  (cmp_of_ty exn `Sign ty)
-  | `Les  -> E.Ole  (cmp_of_ty exn `Sign ty)
-  | `Gts  -> E.Ogt  (cmp_of_ty exn `Sign ty)
-  | `Ges  -> E.Oge  (cmp_of_ty exn `Sign ty)
+  | `Add s -> E.Oadd (op_of_ty exn ty)
+  | `Sub s -> E.Osub (op_of_ty exn ty)
+  | `Mul s -> E.Omul (op_of_ty exn ty)
+  | `And -> E.Oand
+  | `Or -> E.Oor
+  | `BAnd s -> E.Oland (ws_of_ty exn ty)
+  | `BOr s -> E.Olor (ws_of_ty exn ty)
+  | `BXOr s -> E.Olxor (ws_of_ty exn ty)
+  | `ShR s -> E.Olsr (ws_of_ty exn ty)
+  | `ShL s -> E.Olsl (ws_of_ty exn ty)
+  | `Eq s -> E.Oeq  (op_of_ty exn ty)
+  | `Neq s -> E.Oneq (op_of_ty exn ty)
+  | `Lt s -> E.Olt  (cmp_of_ty exn `Unsign ty)
+  | `Le s -> E.Ole  (cmp_of_ty exn `Unsign ty)
+  | `Gt s -> E.Ogt  (cmp_of_ty exn `Unsign ty)
+  | `Ge s -> E.Oge  (cmp_of_ty exn `Unsign ty)
 
 (* -------------------------------------------------------------------- *)
 let peop2_of_eqop (eqop : S.peqop) =
   match eqop with
   | `Raw  -> None
-  | `Add  -> Some `Add
-  | `Sub  -> Some `Sub
-  | `Mul  -> Some `Mul
-  | `ShR  -> Some `ShR
-  | `ShL  -> Some `ShL
-  | `Asr  -> Some `Asr
-  | `BAnd -> Some `BAnd
-  | `BXOr -> Some `BXOr
-  | `BOr  -> Some `BOr
+  | `Add s -> Some (`Add s)
+  | `Sub s -> Some (`Sub s)
+  | `Mul s -> Some (`Mul s)
+  | `ShR s -> Some (`ShR s)
+  | `ShL s -> Some (`ShL s)
+  | `BAnd s -> Some (`BAnd s)
+  | `BXOr s -> Some (`BXOr s)
+  | `BOr s -> Some (`BOr s)
 
 (* -------------------------------------------------------------------- *)
 let max_ty ty1 ty2 =
+  if ty1 = ty2 then Some ty1 else
   match ty1, ty2 with
-  | P.Bty P.Int, P.Bty P.Int   -> Some ty1
   | P.Bty P.Int, P.Bty (P.U _) -> Some ty2
   | P.Bty (P.U _), P.Bty P.Int -> Some ty1
-  | P.Bty (P.U _), P.Bty (P.U _) when ty1 = ty2 -> Some ty1
   | _    , _     -> None
 
 let cast loc e ety ty =
@@ -375,12 +375,14 @@ let tt_op2 (loc1, (e1, ty1)) (loc2, (e2, ty2))
 
   let op, e1, e2, ty =
     match pop with
-    | (`Add | `Sub | `Mul | `BAnd | `BOr | `BXOr) ->
+    | (`Add s | `Sub s | `Mul s | `BAnd s | `BOr s | `BXOr s) ->
+      (* TODO: use ssize annotation *)
       let ty = max_ty ty1 ty2 |> oget ~exn in
       let op = op2_of_pop2 exn ty pop in
       (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, ty)
 
-    | `ShR | `ShL | `Asr ->
+    | `ShR _ | `ShL _ ->
+      (* TODO: use ssize annotation *)
       let ty = P.u64 in
       let op = op2_of_pop2 exn ty pop in
       (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, ty)
@@ -389,7 +391,8 @@ let tt_op2 (loc1, (e1, ty1)) (loc2, (e2, ty2))
       if not (ty1 = P.tbool && ty2 = P.tbool) then raise exn;
       (op2_of_pop2 Not_found P.tbool pop, e1, e2, P.tbool)
 
-    | (`Eq | `Neq | `Lt | `Le | `Gt | `Ge | `Lts | `Les | `Gts | `Ges ) ->
+    | (`Eq s | `Neq s | `Lt s | `Le s | `Gt s | `Ge s) ->
+      (* TODO: use ssize annotation *)
       let ty = max_ty ty1 ty2 |> oget ~exn in
       let op = op2_of_pop2 exn ty pop in
          (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, P.tbool)
@@ -438,7 +441,8 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
       else
         let e, ws = cast_word (L.loc pe) e ety in
         Papp1(E.Olnot ws, e), P.Bty (P.U ws)
-    | `Neg ->
+    | `Neg s ->
+      (* TODO: use ssize annotation *)
       let e, ws = cast_word (L.loc pe) e ety in
       Papp1(E.(Oneg (Op_w ws)), e), P.Bty (P.U ws)
     end
@@ -548,100 +552,109 @@ let u64_2    = [P.u64; P.u64]
 let u64_3    = [P.u64; P.u64; P.u64]
 let u64_4    = [P.u64; P.u64; P.u64; P.u64]
 
-(* TODO out put type are already defined in Coq: sopn_tout *)
-let prim_sig p =
-  let open P in
-  let open Expr in
-  match p with
-  | Omulu U64 -> u64_2   , u64_2
-  | Oaddcarry U64 -> [tbool; u64], u64_2b
-  | Osubcarry U64 -> [tbool; u64], u64_2b
-  | Oset0 U64 -> b_5u64  , []
-  | Ox86_CMP U64 -> b_5     , u64_2
-  | Ox86_TEST U64 -> b_5     , u64_2
-  | Ox86_MOV U64 -> [u64]   , [u64]
-  | Ox86_SHLD U64 -> b_5u64  , u64_3
-  | Ox86_CMOVcc U64 -> [u64]   , [tbool; u64; u64]
-  | Ox86_ADD U64 -> b_5u64  , u64_2
-  | Ox86_SUB U64 -> b_5u64  , u64_2
-  | Ox86_MUL U64 -> b_5u64_2, u64_2
-  | Ox86_IMUL U64 -> b_5u64_2, u64_2
-  | Ox86_IMULt U64 -> b_5u64  , u64_2
-  | Ox86_IMULtimm U64 -> b_5u64  , u64_2
-  | Ox86_DIV U64 -> b_5u64_2, u64_3
-  | Ox86_IDIV U64 -> b_5u64_2, u64_3
-  | Ox86_ADC U64 -> b_5u64  , u64_2b
-  | Ox86_SBB U64 -> b_5u64  , u64_2b
-  | Ox86_NEG U64 -> b_5u64  , [u64]
-  | Ox86_INC U64 -> b_4u64  , [u64]
-  | Ox86_DEC U64 -> b_4u64  , [u64]
-  | Ox86_SETcc  -> [u64]   , [tbool]
-  | Ox86_BT U64 -> [tbool], u64_2
-  | Ox86_LEA U64 -> [u64]   , u64_4
-  | Ox86_AND U64 -> b_5u64  , u64_2
-  | Ox86_OR U64 -> b_5u64  , u64_2
-  | Ox86_XOR U64 -> b_5u64  , u64_2
-  | Ox86_NOT U64 -> [u64]   , [u64]
-  | Ox86_ROL U64 | Ox86_ROR U64
-    -> [tbool;tbool;u64], u64_2
-  | Ox86_SHL U64 -> b_5u64  , u64_2
-  | Ox86_SHR U64 -> b_5u64  , u64_2
-  | Ox86_SAR U64 -> b_5u64  , u64_2
-  | _ -> assert false
+let prim_sig (type a) p : a P.gty list * a P.gty list =
+  let f =
+    function
+    | T.Coq_sword sz -> P.Bty (P.U sz)
+    | T.Coq_sbool -> P.Bty P.Bool
+    | _ -> assert false
+  in
+  List.map f (E.sopn_tout p),
+  List.map f (E.sopn_tin p)
+
+type prim_constructor =
+  | PrimP of (T.wsize -> Expr.sopn)
+  | PrimM of Expr.sopn
 
 let prim_string =
   let open Expr in
-  [ "mulu"      , Omulu U64;
-    "adc"       , Oaddcarry U64;
-    "sbb"       , Osubcarry U64;
-    "set0"      , Oset0 U64;
-    "x86_MOV"   , Ox86_MOV U64;
-    "x86_CMOVcc", Ox86_CMOVcc U64;
-    "x86_ADD"   , Ox86_ADD U64;
-    "x86_SUB"   , Ox86_SUB U64;
-    "x86_MUL"   , Ox86_MUL U64;
-    "x86_IMUL"  , Ox86_IMUL U64;
-    "x86_IMULt", Ox86_IMULt U64;
-    "x86_IMULtimm", Ox86_IMULtimm U64;
-    "x86_DIV"   , Ox86_DIV U64;
-    "x86_IDIV"  , Ox86_IDIV U64;
-    "x86_ADC"   , Ox86_ADC U64;
-    "x86_SBB"   , Ox86_SBB U64;
-    "x86_INC"   , Ox86_INC U64;
-    "x86_DEC"   , Ox86_DEC U64;
-    "x86_SETcc" , Ox86_SETcc;
-    "x86_BT"    , Ox86_BT U64;
-    "x86_LEA"   , Ox86_LEA U64;
-    "x86_TEST"  , Ox86_TEST U64;
-    "x86_CMP"   , Ox86_CMP U64;
-    "x86_AND"   , Ox86_AND U64;
-    "x86_OR"    , Ox86_OR U64;
-    "x86_XOR"   , Ox86_XOR U64;
-    "x86_NOT"   , Ox86_NOT U64;
-    "x86_ROL", Ox86_ROL U64;
-    "x86_ROR", Ox86_ROR U64;
-    "x86_SHL"   , Ox86_SHL U64;
-    "x86_SHR"   , Ox86_SHR U64;
-    "x86_SAR"   , Ox86_SAR U64;
-    "x86_SHLD"   , Ox86_SHLD U64;
+  [ "mulu", PrimP (fun sz -> Omulu sz);
+    "adc", PrimP (fun sz -> Oaddcarry sz);
+    "sbb", PrimP (fun sz -> Osubcarry sz);
+    "set0", PrimP (fun sz -> Oset0 sz);
+    "x86_MOV", PrimP (fun sz -> Ox86_MOV sz);
+    "x86_CMOVcc", PrimP (fun sz -> Ox86_CMOVcc sz);
+    "x86_ADD", PrimP (fun sz -> Ox86_ADD sz);
+    "x86_SUB", PrimP (fun sz -> Ox86_SUB sz);
+    "x86_MUL", PrimP (fun sz -> Ox86_MUL sz);
+    "x86_IMUL", PrimP (fun sz -> Ox86_IMUL sz);
+    "x86_IMULt", PrimP (fun sz -> Ox86_IMULt sz);
+    "x86_IMULtimm", PrimP (fun sz -> Ox86_IMULtimm sz);
+    "x86_DIV", PrimP (fun sz -> Ox86_DIV sz);
+    "x86_IDIV", PrimP (fun sz -> Ox86_IDIV sz);
+    "x86_ADC", PrimP (fun sz -> Ox86_ADC sz);
+    "x86_SBB", PrimP (fun sz -> Ox86_SBB sz);
+    "x86_INC", PrimP (fun sz -> Ox86_INC sz);
+    "x86_DEC", PrimP (fun sz -> Ox86_DEC sz);
+    "x86_SETcc" , PrimM Ox86_SETcc;
+    "x86_BT", PrimP (fun sz -> Ox86_BT sz);
+    "x86_LEA", PrimP (fun sz -> Ox86_LEA sz);
+    "x86_TEST", PrimP (fun sz -> Ox86_TEST sz);
+    "x86_CMP", PrimP (fun sz -> Ox86_CMP sz);
+    "x86_AND", PrimP (fun sz -> Ox86_AND sz);
+    "x86_OR", PrimP (fun sz -> Ox86_OR sz);
+    "x86_XOR", PrimP (fun sz -> Ox86_XOR sz);
+    "x86_NOT", PrimP (fun sz -> Ox86_NOT sz);
+    "x86_ROL", PrimP (fun sz -> Ox86_ROL sz);
+    "x86_ROR", PrimP (fun sz -> Ox86_ROR sz);
+    "x86_SHL", PrimP (fun sz -> Ox86_SHL sz);
+    "x86_SHR", PrimP (fun sz -> Ox86_SHR sz);
+    "x86_SAR", PrimP (fun sz -> Ox86_SAR sz);
+    "x86_SHLD", PrimP (fun sz -> Ox86_SHLD sz);
   ]
 
+let extract_size str : string * T.wsize option =
+  let get_size =
+    function
+    | "8" -> Some T.U8
+    | "16" -> Some T.U16
+    | "32" -> Some T.U32
+    | "64" -> Some T.U64
+    | _ -> None
+  in
+  match List.rev (String.split_on_char '_' str) with
+  | [] -> str, None
+  | suf :: s ->
+    match get_size suf with
+    | None -> str, None
+    | sz -> String.concat "_" (List.rev s), sz
+
 let tt_prim id =
-  let s = L.unloc id in
-  try List.assoc s prim_string
-  with Not_found ->
-    rs_tyerror ~loc:(L.loc id) (UnknownPrim s)
+  let { L.pl_loc = loc ; L.pl_desc = s } = id in
+  let name, sz = extract_size s in
+  match List.assoc name prim_string with
+  | PrimP pr -> pr (match sz with Some sz -> sz | None -> T.U64)
+  | PrimM pr -> if sz = None then pr else rs_tyerror ~loc (PrimNoSize s)
+  | exception Not_found -> rs_tyerror ~loc (UnknownPrim s)
 
 let prim_of_op exn loc o =
+  (* TODO: use context typing information when the operator is not annotated *)
+  let bits_of_swsize : S.swsize -> int option =
+    function
+    | None | Some (_, None) -> None
+    | Some (_, Some sz) ->
+      Some (match sz with
+      | `W8 -> 8
+      | `W16 -> 16
+      | `W32 -> 32
+      | `W64 -> 64
+      | `W128 -> 128
+      | `W256 -> 256
+      )
+  in
   let p =
+    let f s n =
+      match bits_of_swsize s with
+      | None -> n
+      | Some b -> F.sprintf "%s_%d" n b
+    in
     let open Expr in
     match o with
-    | `Add -> Oaddcarry U64
-    | `Sub -> Osubcarry U64
-    | `Mul -> Omulu U64
+    | `Add s -> f s "adc"
+    | `Sub s -> f s "sbb"
+    | `Mul s -> f s "mulu"
     | _    -> raise exn in
-  let id = fst (List.find (fun (_, p') -> p = p') prim_string) in
-  L.mk_loc loc id
+  L.mk_loc loc p
 
 (*  x + y     -> addc x y false
     x + y + c -> addc x y c
@@ -656,7 +669,7 @@ let prim_of_pe pe =
   | S.PEOp2 (o, (pe1, pe2)) ->
     let desc =
       match o with
-      | (`Add | `Sub) as o1 ->
+      | (`Add s | `Sub s) as o1 ->
         let pe1, pe2, pe3 =
           match L.unloc pe1, L.unloc pe2 with
           | S.PEOp2(o2, (pe1, pe3)), _ when o1 = o2 -> pe1, pe3, pe2
@@ -687,7 +700,7 @@ let tt_lvalues env pls tys =
     if n1 < n2 then
       let n = n2 - n1 in
       let loc = loc_of_tuples None (List.map P.L.loc pls) in
-      Format.eprintf "WARNING: introduce %d _ lvalues at %a@." n P.L.pp_sloc loc;
+      F.eprintf "WARNING: introduce %d _ lvalues at %a@." n P.L.pp_sloc loc;
       List.make n (loc, (fun ty ->  P.Lnone(loc,ty)), None) @ ls
     else ls in
   check_sig_lvs tys ls
@@ -741,7 +754,7 @@ let check_call loc doInline lvs f es =
       | P.Global -> assert false
       | P.Inline -> 
         if not (is_constant e) then 
-          Format.eprintf 
+          F.eprintf
             "WARNING: at %a, the expression %a will not be evaluated to a constant expression, inlining will introduce an assigment@."
             L.pp_loc loc Printer.pp_pexpr e
       | (P.Stack | P.Reg) as k ->
@@ -754,7 +767,7 @@ let check_call loc doInline lvs f es =
   (* Extra check for inlining *)
   if doInline = P.DoInline then
     let warning x y y' = 
-      Format.eprintf "WARNING: at %a, variables %s and %s will be merged to %s@."
+      F.eprintf "WARNING: at %a, variables %s and %s will be merged to %s@."
                      P.L.pp_loc loc y.P.v_name y'.P.v_name x.P.v_name in
       
     let m_xy = ref P.Mpv.empty in
@@ -769,7 +782,7 @@ let check_call loc doInline lvs f es =
       match e with
       | P.Pvar y -> let y = P.L.unloc y in add_var x y m_xy; add_var y x m_yx 
       | _      -> 
-        Format.eprintf "WARNING: at %a the argument %a is not a variable, inlining will introduce an assigment@." 
+        F.eprintf "WARNING: at %a the argument %a is not a variable, inlining will introduce an assigment@."
           P.L.pp_loc loc Printer.pp_pexpr e                         
     in
     List.iter2 check_arg f.P.f_args es;
@@ -777,7 +790,7 @@ let check_call loc doInline lvs f es =
       match l with
       | P.Lvar y -> let x = P.L.unloc x in let y = P.L.unloc y in add_var x y m_xy; add_var y x m_yx 
       | _        -> 
-        Format.eprintf "WARNING: at %a the lval %a is not a variable, inlining will introduce an assigment@." 
+        F.eprintf "WARNING: at %a the lval %a is not a variable, inlining will introduce an assigment@."
           P.L.pp_loc loc Printer.pp_plval l
     in
     List.iter2 check_res f.P.f_ret lvs
@@ -815,6 +828,13 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
       let _, flv, vty = tt_lvalue env lv in
       let e, ety = tt_expr ~mode:`AllVar env pe in
       let e = vty |> omap_dfl (cast (L.loc pe) e ety) e in
+      let ety =
+        match vty with
+        | None -> ety
+        | Some vty -> match max_ty ety vty with
+          | Some ty -> ty
+          | None -> rs_tyerror ~loc:(L.loc pi) (TypeMismatch (ety, vty))
+      in
       let v = flv ety in
       let tg =
         P.(match v with

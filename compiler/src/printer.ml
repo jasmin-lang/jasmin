@@ -121,41 +121,42 @@ let pp_glvs pp_var fmt lvs =
 (* -------------------------------------------------------------------- *)
 let pp_opn =
   let open Expr in
+  let f w s = F.sprintf "%s_%d" s (int_of_ws w) in
   function
-  | Omulu _      -> "#mulu"
-  | Oaddcarry _  -> "#addc"
-  | Osubcarry _  -> "#subc"
-  | Oset0 _      -> "#set0"
-  | Ox86_MOV _   -> "#x86_MOV"
-  | Ox86_CMOVcc _ -> "#x86_CMOVcc"
-  | Ox86_ADD _   -> "#x86_ADD"
-  | Ox86_SUB _   -> "#x86_SUB"
-  | Ox86_MUL _   -> "#x86_MUL"
-  | Ox86_IMUL _  -> "#x86_IMUL"
-  | Ox86_IMULt _ -> "#x86_IMULt"
-  | Ox86_IMULtimm _ -> "#x86_IMULtimm"
-  | Ox86_DIV _   -> "#x86_DIV"
-  | Ox86_IDIV _  -> "#x86_IDIV"
-  | Ox86_ADC _   -> "#x86_ADC"
-  | Ox86_SBB _   -> "#x86_SBB"
-  | Ox86_NEG _ -> "#x86_NEG"
-  | Ox86_INC _   -> "#x86_INC"
-  | Ox86_DEC _   -> "#x86_DEC"
-  | Ox86_SETcc   -> "#x86_SETcc"
-  | Ox86_BT _ -> "#x86_BT"
-  | Ox86_LEA _   -> "#x86_LEA"
-  | Ox86_TEST _  -> "#x86_TEST"
-  | Ox86_CMP _   -> "#x86_CMP"
-  | Ox86_AND _   -> "#x86_AND"
-  | Ox86_OR _    -> "#x86_OR"
-  | Ox86_XOR _   -> "#x86_XOR"
-  | Ox86_NOT _   -> "#x86_NOT"
-  | Ox86_ROL _ -> "#x86_ROL"
-  | Ox86_ROR _ -> "#x86_ROR"
-  | Ox86_SHL _   -> "#x86_SHL"
-  | Ox86_SHR _   -> "#x86_SHR"
-  | Ox86_SAR _   -> "#x86_SAR"
-  | Ox86_SHLD _  -> "#x86_SHLD"
+  | Omulu w -> f w "#mulu"
+  | Oaddcarry w -> f w "#addc"
+  | Osubcarry w -> f w "#subc"
+  | Oset0 w -> f w "#set0"
+  | Ox86_MOV w -> f w "#x86_MOV"
+  | Ox86_CMOVcc w -> f w "#x86_CMOVcc"
+  | Ox86_ADD w -> f w "#x86_ADD"
+  | Ox86_SUB w -> f w "#x86_SUB"
+  | Ox86_MUL w -> f w "#x86_MUL"
+  | Ox86_IMUL w -> f w "#x86_IMUL"
+  | Ox86_IMULt w -> f w "#x86_IMULt"
+  | Ox86_IMULtimm w -> f w "#x86_IMULtimm"
+  | Ox86_DIV w -> f w "#x86_DIV"
+  | Ox86_IDIV w -> f w "#x86_IDIV"
+  | Ox86_ADC w -> f w "#x86_ADC"
+  | Ox86_SBB w -> f w "#x86_SBB"
+  | Ox86_NEG w -> f w "#x86_NEG"
+  | Ox86_INC w -> f w "#x86_INC"
+  | Ox86_DEC w -> f w "#x86_DEC"
+  | Ox86_SETcc -> "#x86_SETcc"
+  | Ox86_BT w -> f w "#x86_BT"
+  | Ox86_LEA w -> f w "#x86_LEA"
+  | Ox86_TEST w -> f w "#x86_TEST"
+  | Ox86_CMP w -> f w "#x86_CMP"
+  | Ox86_AND w -> f w "#x86_AND"
+  | Ox86_OR w -> f w "#x86_OR"
+  | Ox86_XOR w -> f w "#x86_XOR"
+  | Ox86_NOT w -> f w "#x86_NOT"
+  | Ox86_ROL w -> f w "#x86_ROL"
+  | Ox86_ROR w -> f w "#x86_ROR"
+  | Ox86_SHL w -> f w "#x86_SHL"
+  | Ox86_SHR w -> f w "#x86_SHR"
+  | Ox86_SAR w -> f w "#x86_SAR"
+  | Ox86_SHLD w -> f w "#x86_SHLD"
 
 (* -------------------------------------------------------------------- *)
 let pp_tag = function
@@ -165,15 +166,17 @@ let pp_tag = function
   | AT_inline  -> ":i"
   | AT_phinode -> ":φ"
 
-let rec pp_gi pp_info pp_var fmt i =
+let rec pp_gi pp_info pp_ty pp_var fmt i =
   F.fprintf fmt "%a" pp_info i.i_info;
   match i.i_desc with
   | Cblock c ->
-    F.fprintf fmt "@[<v>{@   @[<v>%a@]@ }@]" (pp_cblock pp_info pp_var) c
+    F.fprintf fmt "@[<v>{@   @[<v>%a@]@ }@]" (pp_cblock pp_info pp_ty pp_var) c
 
-  | Cassgn(x , tg, ty, e) -> (* FIXME: ty *)
-    F.fprintf fmt "@[<hov 2>%a %s=@ %a;@]"
-      (pp_glv pp_var) x (pp_tag tg) (pp_ge pp_var) e
+  | Cassgn(x , tg, ty, e) ->
+    F.fprintf fmt "@[<hov 2>%a %s=(%a)@ %a;@]"
+      (pp_glv pp_var) x (pp_tag tg)
+      pp_ty ty
+      (pp_ge pp_var) e
 
   | Copn(x, t, o, e) -> (* FIXME *)
     F.fprintf fmt "@[<hov 2>%a %s=@ %s(%a);@]"
@@ -182,44 +185,44 @@ let rec pp_gi pp_info pp_var fmt i =
 
   | Cif(e, c, []) ->
     F.fprintf fmt "@[<v>if %a %a@]"
-      (pp_ge pp_var) e (pp_cblock pp_info pp_var) c
+      (pp_ge pp_var) e (pp_cblock pp_info pp_ty pp_var) c
 
   | Cif(e, c1, c2) ->
     F.fprintf fmt "@[<v>if %a %a else %a@]"
-      (pp_ge pp_var) e (pp_cblock pp_info pp_var) c1
-      (pp_cblock pp_info pp_var) c2
+      (pp_ge pp_var) e (pp_cblock pp_info pp_ty pp_var) c1
+      (pp_cblock pp_info pp_ty pp_var) c2
 
   | Cfor(i, (dir, lo, hi), c) ->
     let dir, e1, e2 =
       if dir = UpTo then "to", lo, hi else "downto", hi, lo in
     F.fprintf fmt "@[<v>for %a = @[%a %s@ %a@] %a@]"
       (pp_gvar_i pp_var) i (pp_ge pp_var) e1 dir (pp_ge pp_var) e2
-      (pp_gc pp_info pp_var) c
+      (pp_gc pp_info pp_ty pp_var) c
 
   | Cwhile([], e, c) ->
     F.fprintf fmt "@[<v>while (%a) %a@]"
-      (pp_ge pp_var) e (pp_cblock pp_info pp_var) c
+      (pp_ge pp_var) e (pp_cblock pp_info pp_ty pp_var) c
 
   | Cwhile(c, e, []) ->
     F.fprintf fmt "@[<v>while %a (%a)@]"
-      (pp_cblock pp_info pp_var) c (pp_ge pp_var) e
+      (pp_cblock pp_info pp_ty pp_var) c (pp_ge pp_var) e
 
   | Cwhile(c, e, c') ->
     F.fprintf fmt "@[<v>while %a %a %a@]"
-      (pp_cblock pp_info pp_var) c (pp_ge pp_var) e
-      (pp_cblock pp_info pp_var) c'
+      (pp_cblock pp_info pp_ty pp_var) c (pp_ge pp_var) e
+      (pp_cblock pp_info pp_ty pp_var) c'
 
   | Ccall(_ii, x, f, e) -> (* FIXME ii *)
     F.fprintf fmt "@[<hov 2> %a =@ %s(%a);@]"
       (pp_glvs pp_var) x f.fn_name (pp_ges pp_var) e
 
 (* -------------------------------------------------------------------- *)
-and pp_gc pp_info pp_var fmt c =
-  F.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_gi pp_info pp_var)) c
+and pp_gc pp_info pp_ty pp_var fmt c =
+  F.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_gi pp_info pp_ty pp_var)) c
 
 (* -------------------------------------------------------------------- *)
-and pp_cblock pp_info pp_var fmt c =
-  F.fprintf fmt "{@   %a@ }" (pp_gc pp_info pp_var) c
+and pp_cblock pp_info pp_ty pp_var fmt c =
+  F.fprintf fmt "{@   %a@ }" (pp_gc pp_info pp_ty pp_var) c
 
 (* -------------------------------------------------------------------- *)
 
@@ -249,7 +252,7 @@ let pp_gfun pp_info (pp_size:F.formatter -> 'size -> unit) pp_var fmt fd =
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_size)) ret
 (*   (pp_list ";@ " pp_vd) (Sv.elements locals) *)
-   (pp_gc pp_info pp_var) fd.f_body
+   (pp_gc pp_info (pp_gtype pp_size) pp_var) fd.f_body
    pp_ret ()
 
 let pp_noinfo _ _ = ()
@@ -296,7 +299,7 @@ let pp_fun ?(pp_info=pp_noinfo) pp_var fmt fd =
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_size)) ret
    (pp_list ";@ " pp_vd) (Sv.elements locals)
-   (pp_gc pp_info pp_var) fd.f_body
+   (pp_gc pp_info (pp_gtype pp_size) pp_var) fd.f_body
    pp_ret ()
 
 let pp_var ~debug =
@@ -305,18 +308,19 @@ let pp_var ~debug =
     else
       fun fmt x -> F.fprintf fmt "%s" x.v_name
 
-
 let pp_expr ~debug fmt e =
   let pp_var = pp_var ~debug in
   pp_ge pp_var fmt e
 
+let pp_ty fmt = pp_gtype (fun fmt -> F.fprintf fmt "%i") fmt
+
 let pp_instr ~debug fmt i =
   let pp_var = pp_var ~debug in
-  pp_gi pp_noinfo pp_var fmt i
+  pp_gi pp_noinfo pp_ty pp_var fmt i
 
 let pp_stmt ~debug fmt i =
   let pp_var = pp_var ~debug in
-  pp_gc pp_noinfo pp_var fmt i
+  pp_gc pp_noinfo pp_ty pp_var fmt i
 
 let pp_ifunc ~debug pp_info fmt fd =
   let pp_var = pp_var ~debug in

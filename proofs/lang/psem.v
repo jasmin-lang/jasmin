@@ -575,7 +575,7 @@ Qed.
 Lemma to_bool_inv x b :
   to_bool x = ok b →
   x = b.
-Proof. case: x => // i' H. apply ok_inj in H. congruence. by case: i' H. Qed.
+Proof. case: x => //=; last by case. by move => ? /(@ok_inj _ _ _ _) ->. Qed.
 
 Lemma of_val_bool v b: of_val sbool v = ok b -> v = Vbool b.
 Proof. by case v=> //= [? [->] | []]. Qed.
@@ -583,13 +583,34 @@ Proof. by case v=> //= [? [->] | []]. Qed.
 Lemma of_val_int v z: of_val sint v = ok z -> v = Vint z.
 Proof. by case v=> //= [? [->] | []]. Qed.
 
-Lemma of_val_word sz v w:
-  of_val (sword sz) v = ok w ->
+Lemma to_wordI sz v w:
+  to_word sz v = ok w →
   ∃ sz' (w': word sz'), [/\ (sz <= sz')%CMP, v = Vword w' & w = zero_extend sz w'].
 Proof.
  case: v => //=.
  + by move=> s w' /truncate_wordP [];exists s, w'.
  by case => // ?;case: ifP => //.
+Qed.
+
+Corollary of_val_word sz v w :
+  of_val (sword sz) v = ok w →
+  ∃ sz' (w': word sz'), [/\ (sz <= sz')%CMP, v = Vword w' & w = zero_extend sz w'].
+Proof. exact: to_wordI. Qed.
+
+Lemma sopn_tinP o vs vs' : exec_sopn o vs = ok vs' ->
+  (if o is Ox86_CMOVcc _ then false else true) →
+  all2 subtype (sopn_tin o) (List.map type_of_val vs).
+Proof.
+rewrite /exec_sopn; case: o => //=;
+repeat match goal with
+| |- match ?x with _ => _ end = ok _ → _ => case: x => //
+| |- Let _ := _ in _ = ok _ → _ => apply: rbindP => //=
+| |- to_bool ?v = ok _ → _ => move => /to_bool_inv -> {v}
+| |- to_word ?sz ?v = ok _ → _ =>
+  let k := fresh in case/to_wordI => ? [?] [k ->?]; rewrite /= k => {k}
+| |- _ → _ => intro
+end;
+trivial.
 Qed.
 
 Lemma to_arr_ok s n v t :
@@ -2193,9 +2214,6 @@ Proof.
  elim: ls1 ls2 vs m => [ | l1 ls1 Hrec] [ | l2 ls2] //= [] // v vs m.
  by move=> /andP [] /eq_lvalP -> /Hrec; case: write_lval => /=.
 Qed.
-
-Lemma ok_inj E A (x y:A) : @Ok E A x = @Ok E A y -> x = y.
-Proof. by move=> []. Qed.
 
 Lemma to_val_inj t (v1 v2:sem_t t) : to_val v1 = to_val v2 -> v1 = v2.
 Proof.
