@@ -405,7 +405,7 @@ Definition is_var_or_immediate (x:var) e :=
 
 Definition check_esize s e := 
   match e with
-  | Pcast ws (Pconst _) => ws == U64
+  | Pcast ws (Pconst _) => (ws ≤ U64)%CMP
   | Pload s' _ _ => s == Some s' 
   | _            => true
   end.
@@ -665,9 +665,9 @@ Lemma eval_oprd_of_pexpr ii gd sz s m e c a v:
   exists2 v' : value, eval_low gd m a = ok v' & value_uincl v v'.
 Proof.
 move=> eqv; case: e => //.
-+ move=> [] // [] //= z [<-] /= [<-] _ [<-] /=.
-  eexists; first by eauto.
-  by apply/andP; split => //; rewrite zero_extend_u.
++ move=> [] // [] //= z [<-] /= [<-] _ [<-] /=;
+  (eexists; [ eauto |
+  by apply/andP; split => //; rewrite zero_extend_idem // zero_extend_u ]).
 + move=> x /=;t_xrbindP.
   move=> r ok_r -[<-] /= [<-] Hsize /=ok_v /=; eexists; first by reflexivity.
   exact: xgetreg_ex eqv ok_r ok_v.

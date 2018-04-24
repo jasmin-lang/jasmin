@@ -345,12 +345,10 @@ Definition addr_of_pexpr ii s (e: pexpr) :=
 
 Definition oprd_of_pexpr ii (e: pexpr) :=
   match e with
-  | Pcast U64 (Pconst z) =>
-(*    Let _ := 
-      if check_size_8_64 sz is Ok _ then ok tt 
-      else cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for oprd: invalid cast")) in 
-    let w := zero_extend Uptr (wrepr sz z) in *)
-    let w := wrepr U64 z in
+  | Pcast sz' (Pconst z) =>
+    Let _ := assert (sz' ≤ Uptr)%CMP
+                    (ii, Cerr_assembler (AsmErr_string "Invalid pexpr for oprd: invalid cast")) in
+    let w := zero_extend Uptr (wrepr sz' z) in
     ciok (Imm_op w)
   | Pvar v =>
     Let s := reg_of_var ii v in
