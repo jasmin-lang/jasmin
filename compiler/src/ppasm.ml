@@ -183,8 +183,8 @@ let pp_address (ws : rsize) (addr : X86_sem.address) =
   else begin
     let disp = if disp =^ Bigint.zero then None else Some disp in
     let disp = odfl "" (omap Bigint.to_string disp) in
-    let base = odfl "" (omap (pp_register ws) base) in
-    let off  = omap (pp_register ws) off in
+    let base = odfl "" (omap (pp_register `U64) base) in
+    let off  = omap (pp_register `U64) off in
 
     match off, scal with
     | None, _ ->
