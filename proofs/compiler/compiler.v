@@ -83,7 +83,7 @@ Record compiler_params := {
   reg_alloc_fd : funname -> fundef -> fundef;
   stk_alloc_fd : funname -> fundef -> seq (var * Z) * sfundef;
   print_prog   : compiler_step -> prog -> prog;
-(*  print_linear : lprog -> lprog; *)
+  print_linear : lprog -> lprog;
   warning      : instr_info -> warning_msg -> instr_info;
   lowering_opt : lowering_options;                                                
 }.
@@ -153,6 +153,7 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
     if stack_alloc.check_prog pd ps l then
       (* linearisation                     *)
       Let pl := linear_prog ps in
+      let pl := cparams.(print_linear) pl in
       (* asm                               *)
       cfok pl
     else cferror Ferr_neqprog

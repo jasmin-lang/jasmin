@@ -43,6 +43,7 @@ Section PROOF.
 Variable cparams : compiler_params.
 
 Hypothesis print_progP : forall s p, cparams.(print_prog) s p = p.
+Hypothesis print_linearP : forall p, cparams.(print_linear) p = p.
 
 Lemma unroll1P (fn: funname) (p p':prog) gd mem va mem' vr:
   unroll1 p = ok p' ->
@@ -119,7 +120,7 @@ Proof.
   apply: rbindP=> pd Hpd. rewrite !print_progP.
   case Hpstk: (stk_alloc_prog _ pd)=> [pstk l].
   case Hpstk': (check_prog pd pstk l)=> //.
-  apply: rbindP=> pl Hpl [] <-.
+  apply: rbindP=> pl Hpl [] <-. rewrite !print_linearP.
   move=> Hin Hcall Halloc.
   have Haok : alloc_ok pstk fn mem.
   + rewrite /alloc_ok=> fd Hfd.

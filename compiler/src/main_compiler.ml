@@ -204,6 +204,9 @@ let main () =
       let p = Conv.prog_of_cprog tbl cp in
       Printer.pp_prog ~debug:true fmt p in
 
+    let pp_linear fmt lp =
+      PrintLinear.pp_prog tbl fmt lp in
+
     let rename_fd ii fn cfd = 
       let ii,_ = Conv.get_iinfo tbl ii in 
       let doit fd = 
@@ -232,6 +235,7 @@ let main () =
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;
       Compiler.print_prog   = (fun s p -> eprint s pp_cprog p; p);
+      Compiler.print_linear = (fun p -> eprint Compiler.Linearisation pp_linear p; p);
       Compiler.warning      = warning;
       Compiler.inline_var   = inline_var;
       Compiler.lowering_opt = Lowering.{ use_lea = !Glob_options.lea; 
