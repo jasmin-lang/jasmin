@@ -1,0 +1,16 @@
+#!/bin/sh
+
+set -e
+
+ARGS=$@
+JASMINC=./jasminc.native
+
+ASM=$(mktemp jasminXXXXX.s)
+OBJ=$(mktemp jasminXXXXX.o)
+trap "rm -f $ASM $OBJ" EXIT
+
+CMD="$JASMINC -o $ASM $ARGS"
+
+echo $CMD
+$CMD
+cc -c -o $OBJ $ASM
