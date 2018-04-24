@@ -1,6 +1,7 @@
 export
 fn f(reg u64 x) -> reg u64 {
-reg u64 a, b, c, d;
+reg u64 a, b, c;
+reg u8 d;
 reg bool cf, of;
 
 a = x;

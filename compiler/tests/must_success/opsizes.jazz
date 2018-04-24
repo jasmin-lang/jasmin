@@ -18,3 +18,38 @@ y = x;
 y += x;
 return y;
 }
+
+export
+fn dead_code(reg u32 x) -> reg u32 {
+reg u32 y, z;
+
+/* Should one of these moves be eliminated? */
+y = x;
+z = y;
+
+return z;
+}
+
+inline
+fn move(reg u32 x) -> reg u32 {
+reg u32 y;
+y = x;
+return y;
+}
+
+export
+fn test_inline(reg u32 a) -> reg u32 {
+reg u32 b;
+b = move(a);
+return b;
+}
+
+export
+fn primop_test(reg u8 x) -> reg u8 {
+reg u8 a;
+a = x;
+
+a = #x86_ADD_8(a, a);
+
+return a;
+}
