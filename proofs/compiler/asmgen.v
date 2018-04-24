@@ -324,19 +324,6 @@ Definition mk_garg ty : interp_ty ty -> garg :=
   | TYimm sz => fun i => Goprd (Imm_op (sign_extend _ i))
   end.
 
-Fixpoint seq_of_tys_t_rec ty tys : (ty -> list garg) -> tys_t_rec ty tys -> list garg :=
-  match tys with
-  | [::] => fun k t => k t
-  | ty'::tys => fun k => @seq_of_tys_t_rec (ty * interp_ty ty')%type tys
-     (fun (p:ty * interp_ty ty') => rcons (k p.1) (@mk_garg ty' p.2))
-  end.
-
-Definition seq_of_tys_tuple tys : tys_tuple tys -> list garg :=
-  match tys with
-  | [::] => fun tt => [::]
-  | ty::tys => @seq_of_tys_t_rec (interp_ty ty) tys (fun a => [::@mk_garg ty a])
-  end.
-
 Definition is_sopn (i: asm) : bool :=
   match i with
   | LABEL _ | JMP _ | Jcc _ _ => false
