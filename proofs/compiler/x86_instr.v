@@ -602,6 +602,7 @@ case: y => //= [ y | y ].
     eexists; split; first reflexivity.
     by constructor => // f; etransitivity; apply/rflagv_leb_undef.
   case: ifP => _; rewrite hptr /= !decode_addr_set_rflags ?decode_addr_unset_rflags truncate_word_u /= /mem_write_mem /=; t_xrbindP => ? -> <-; update_set.
+
 case: eqP => // <- {y} /=.
   rewrite /sets_low /=.
 (* Duplicate of above proof script *)
@@ -626,9 +627,30 @@ Definition ROR_desc sz := make_instr_desc (ROR_gsc sz).
 Lemma SHL_gsc sz :
   gen_sem_correct [:: TYoprd; TYireg] (Ox86_SHL sz)
      (implicit_flags ++ [:: E sz 0])
-     [:: E sz 0; E sz 1] [::] (SHL sz).
+     [:: E sz 0; ADExplicit (Some sz) 1 (Some RCX)]
+     [::] (SHL sz).
 Proof.
-move => x y; split => // gd m m'; rewrite /low_sem_aux /= !arg_of_oprdE /= eval_low_ireg /= /x86_shl /eval_SHL.
+move => x y; split => // gd m m'. rewrite /low_sem_aux /= !arg_of_oprdE /= /x86_shl /eval_SHL.
+case: y => //= [ y | y ].
+case: x => //= [ x | x ]; t_xrbindP => ?;
+[ move => ? /truncate_wordP [hle] ->
+| move=> ??? hptr <- <-; rewrite /= truncate_word_u /=; apply: rbindP ];
+move => _ -> /=; case: ifP => _ [<-].
+- case => <-; eexists; split; first reflexivity.
+  constructor => //= f.
+  repeat (etransitivity; [apply/rflagv_leb_undef |]); apply: rflagv_leb_refl.
+- rewrite /rflags_of_sh. case: ifP => _ [<-]; update_set.
+- rewrite /sets_low /= truncate_word_u /= hptr /= !decode_addr_unset_rflags /mem_write_mem.
+  apply: rbindP => ? -> /= [<-].
+  eexists; split; first reflexivity.
+  constructor => //= f; repeat (etransitivity; [apply/rflagv_leb_undef |]); apply: rflagv_leb_refl.
+rewrite /sets_low /= /rflags_of_sh /= hptr /=.
+case: ifP => /= _; rewrite truncate_word_u /= !decode_addr_set_rflags /mem_write_mem /=;
+apply: rbindP => ? -> [<-] /=; update_set.
+
+case: eqP => // <- {y} /=.
+  rewrite /sets_low /=.
+(* Duplicate of above *)
 case: x => //= [ x | x ]; t_xrbindP => ?;
 [ move => ? /truncate_wordP [hle] ->
 | move=> ??? hptr <- <-; rewrite /= truncate_word_u /=; apply: rbindP ];
@@ -652,9 +674,30 @@ Definition SHL_desc sz := make_instr_desc (SHL_gsc sz).
 Lemma SHR_gsc sz :
   gen_sem_correct [:: TYoprd; TYireg] (Ox86_SHR sz)
      (implicit_flags ++ [:: E sz 0])
-     [:: E sz 0; E sz 1] [::] (SHR sz).
+     [:: E sz 0; ADExplicit (Some sz) 1 (Some RCX)]
+     [::] (SHR sz).
 Proof.
-move => x y; split => // gd m m'; rewrite /low_sem_aux /= !arg_of_oprdE /= eval_low_ireg /= /x86_shr /eval_SHR.
+move => x y; split => // gd m m'; rewrite /low_sem_aux /= !arg_of_oprdE /= /x86_shr /eval_SHR.
+case: y => //= [ y | y ].
+case: x => //= [ x | x ]; t_xrbindP => ?;
+[ move => ? /truncate_wordP [hle] ->
+| move=> ??? hptr <- <-; rewrite /= truncate_word_u /=; apply: rbindP ];
+move => _ -> /=; case: ifP => _ [<-].
+- case => <-; eexists; split; first reflexivity.
+  constructor => //= f.
+  repeat (etransitivity; [apply/rflagv_leb_undef |]); apply: rflagv_leb_refl.
+- rewrite /rflags_of_sh. case: ifP => _ [<-]; update_set.
+- rewrite /sets_low /= truncate_word_u /= hptr /= !decode_addr_unset_rflags /mem_write_mem.
+  apply: rbindP => ? -> /= [<-].
+  eexists; split; first reflexivity.
+  constructor => //= f; repeat (etransitivity; [apply/rflagv_leb_undef |]); apply: rflagv_leb_refl.
+rewrite /sets_low /= /rflags_of_sh /= hptr /=.
+case: ifP => /= _; rewrite truncate_word_u /= !decode_addr_set_rflags /mem_write_mem /=;
+apply: rbindP => ? -> [<-] /=; update_set.
+
+case: eqP => // <- {y} /=.
+  rewrite /sets_low /=.
+(* Duplicate of above *)
 case: x => //= [ x | x ]; t_xrbindP => ?;
 [ move => ? /truncate_wordP [hle] ->
 | move=> ??? hptr <- <-; rewrite /= truncate_word_u /=; apply: rbindP ];
@@ -678,9 +721,30 @@ Definition SHR_desc sz := make_instr_desc (SHR_gsc sz).
 Lemma SAR_gsc sz :
   gen_sem_correct [:: TYoprd; TYireg] (Ox86_SAR sz)
      (implicit_flags ++ [:: E sz 0])
-     [:: E sz 0; E sz 1] [::] (SAR sz).
+     [:: E sz 0; ADExplicit (Some sz) 1 (Some RCX)]
+     [::] (SAR sz).
 Proof.
-move => x y; split => // gd m m'; rewrite /low_sem_aux /= !arg_of_oprdE /= eval_low_ireg /= /x86_sar /eval_SAR.
+move => x y; split => // gd m m'; rewrite /low_sem_aux /= !arg_of_oprdE /= /x86_sar /eval_SAR.
+case: y => //= [ y | y ].
+case: x => //= [ x | x ]; t_xrbindP => ?;
+[ move => ? /truncate_wordP [hle] ->
+| move=> ??? hptr <- <-; rewrite /= truncate_word_u /=; apply: rbindP ];
+move => _ -> /=; case: ifP => _ [<-].
+- case => <-; eexists; split; first reflexivity.
+  constructor => //= f.
+  repeat (etransitivity; [apply/rflagv_leb_undef |]); apply: rflagv_leb_refl.
+- rewrite /rflags_of_sh. case: ifP => _ [<-]; update_set.
+- rewrite /sets_low /= truncate_word_u /= hptr /= !decode_addr_unset_rflags /mem_write_mem.
+  apply: rbindP => ? -> /= [<-].
+  eexists; split; first reflexivity.
+  constructor => //= f; repeat (etransitivity; [apply/rflagv_leb_undef |]); apply: rflagv_leb_refl.
+rewrite /sets_low /= /rflags_of_sh /= hptr /=.
+case: ifP => /= _; rewrite truncate_word_u /= !decode_addr_set_rflags /mem_write_mem /=;
+apply: rbindP => ? -> [<-] /=; update_set.
+
+case: eqP => // <- {y} /=.
+  rewrite /sets_low /=.
+(* Duplicate of above *)
 case: x => //= [ x | x ]; t_xrbindP => ?;
 [ move => ? /truncate_wordP [hle] ->
 | move=> ??? hptr <- <-; rewrite /= truncate_word_u /=; apply: rbindP ];

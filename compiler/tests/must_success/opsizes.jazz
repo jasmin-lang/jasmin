@@ -1,7 +1,8 @@
 export
-fn parsing_test(reg u64 s, reg u64 u) -> reg u64 {
-reg u64 x;
+fn parsing_test(reg u64 s, reg u64 v) -> reg u64 {
+reg u64 x, u;
 x = s;
+u = v;
 x = x + s;
 x = x + 64;
 x = x + 64s s;
