@@ -67,7 +67,7 @@ let string_of_op2 = function
   | E.Ogt  k -> ">"  ^ string_of_cmp_ty k
   | E.Oge  k -> ">=" ^ string_of_cmp_ty k
 
-let pp_op1 = function
+let string_of_op1 = function
   | E.Olnot _ -> "!"
   | E.Onot    -> "~"
   | E.Oneg _ -> "-"
@@ -87,7 +87,7 @@ let pp_ge pp_var =
     F.fprintf fmt "@[(load %a@ %a@ %a)@]"
       pp_btype (U ws) pp_var_i x pp_expr e
   | Papp1(o, e) ->
-    F.fprintf fmt "@[(%s@ %a)@]" (pp_op1 o) pp_expr e
+    F.fprintf fmt "@[(%s@ %a)@]" (string_of_op1 o) pp_expr e
   | Papp2(op,e1,e2) ->
     F.fprintf fmt "@[(%a %s@ %a)@]"
       pp_expr e1 (string_of_op2 op) pp_expr e2
@@ -350,124 +350,3 @@ let pp_prog ~debug fmt p =
 
 let pp_warning_msg fmt = function
   | Compiler_util.Use_lea -> Format.fprintf fmt "LEA instruction is used"
-      
-(*
-let pp_cprog fmt p =
-  let open Expr in
-  let string_cmp_ty = function
-    | Cmp_int -> "i"
-    | Cmp_uw  -> "u"
-    | Cmp_sw  -> "s" in
-
-  let pp_pos fmt n =
-    Format.fprintf fmt "%a" B.pp_print (Conv.bi_of_pos n) in
-  let pp_var fmt v =
-    Format.fprintf fmt "%s" (Conv.string_of_string0 v.Var0.Var.vname) in
-  let pp_vari fmt v =
-    pp_var fmt (v.Expr.v_var) in
-  let pp_op2 = function
-    | Oand -> "&&"
-    | Oor  -> "||"
-    | Oadd _ -> "+"
-    | Omul _ -> "*"
-    | Osub _ -> "-"
-    | Oeq  k -> "==" ^ string_cmp_ty k
-    | Oneq k -> "!=" ^ string_cmp_ty k
-    | Olt  k -> "<"  ^ string_cmp_ty k
-    | Ole  k -> "<=" ^ string_cmp_ty k
-    | Ogt  k -> ">"  ^ string_cmp_ty k
-    | Oge  k -> ">=" ^ string_cmp_ty k
-    | Oland  -> "&"
-    | Olor   -> "|"
-    | Olxor  -> "^"
-    | Olsr   -> ">>"
-    | Olsl   -> "<<"
-    | Oasr   -> ">>s"
-
-  in
-  let rec pp_expr fmt = function
-    | Pconst z -> Format.fprintf fmt "%a" B.pp_print (Conv.bi_of_z z)
-    | Pbool b  -> pp_bool fmt b
-    | Pcast e  -> Format.fprintf fmt "(u64)%a" pp_expr e
-    | Pvar  v  -> pp_vari fmt v
-    | Pget(v,e) -> Format.fprintf fmt "%a[%a]" pp_vari v pp_expr e
-    | Pload(v,e) -> Format.fprintf fmt "(load %a %a)" pp_vari v pp_expr e
-    | Papp1(_o, e) -> Format.fprintf fmt "(! %a)" pp_expr e
-    | Papp2(o,e1,e2) ->
-      Format.fprintf fmt "(%a %s %a)" pp_expr e1 (pp_op2 o) pp_expr e2
-    | Pif (e,e1,e2) ->
-      Format.fprintf fmt "(%a ? %a : %a)" pp_expr e pp_expr e1 pp_expr e2
-  in
-
-  let pp_exprs fmt = Format.fprintf fmt "@[%a@]" (pp_list ",@ " pp_expr) in
-
-  let pp_lval fmt = function
-    | Lnone _ -> Format.fprintf fmt "_"
-    | Lvar x  -> pp_vari fmt x
-    | Lmem(x,e) -> Format.fprintf fmt "(store %a %a)" pp_vari x pp_expr e
-    | Laset(x,e) -> Format.fprintf fmt "%a[%a]" pp_vari x pp_expr e in
-
-  let pp_lvals fmt = Format.fprintf fmt "@[%a@]" (pp_list ",@ " pp_lval) in
-
-  let pp_tag = function
-    | AT_keep       -> ""
-    | AT_rename_arg -> ":a"
-    | AT_rename_res -> ":r"
-    | AT_inline     -> ":i" in
-
-  let pp_sop = function
-    | Olnot     -> "Olnot"
-    | Oxor      -> "Oxor"
-    | Oland     -> "Oland"
-    | Olor      -> "Olor"
-    | Olsr      -> "Olsr"
-    | Olsl      -> "Olsl"
-    | Oif       -> "Oif"
-    | Omulu     -> "Omulu"
-    | Omuli     -> "Omuli"
-    | Oaddcarry -> "Oaddcarry"
-    | Osubcarry -> "Osubcarry"
-    | Oleu      -> "Oleu"
-    | Oltu      -> "Oltu"
-    | Ogeu      -> "Ogeu"
-    | Ogtu      -> "Ogtu"
-    | Oles      -> "Oles"
-    | Olts      -> "Olts"
-    | Oges      -> "Oges"
-    | Ogts      -> "Ogts"
-    | Oeqw      -> "Oeqw" in
-
-  let rec pp_instr fmt (MkI(_, i)) =
-    match i with
-    | Cassgn(x,t,e) ->
-      Format.fprintf fmt "%a %s= %a;" pp_lval x (pp_tag t) pp_expr e
-    | Copn(x,o,e) ->
-      Format.fprintf fmt "%a = #%s(%a);" pp_lvals x (pp_sop o) pp_exprs e
-    | Cif(e, c1, c2) ->
-      Format.fprintf fmt "if %a {@   @[<v>%a@]@ } else {@   @[<v>%a@]@ }"
-        pp_expr e pp_cmd c1 pp_cmd c2
-    | Cfor(x,((dir, e1), e2), c) ->
-      let s, e1, e2 =
-        if dir = UpTo then "to", e1, e2 else "downto", e2, e1 in
-      Format.fprintf fmt "for %a = %a %s %a {@   @[<v>%a@]@ }"
-        pp_vari x pp_expr e1 s pp_expr e2 pp_cmd c
-    | Cwhile(c1, e, c2) ->
-      Format.fprintf fmt "while {@   @[<v>%a@]@ }(%a){@   @[<v>%a@]@ }"
-        pp_cmd c1 pp_expr e pp_cmd c2
-    | Ccall(_, x, f, e) ->
-      Format.fprintf fmt "%a = %a(%a);" pp_lvals x pp_pos f pp_exprs e
-
-  and pp_cmd fmt c = pp_list "@ " pp_instr fmt c in
-
-  let pp_params xs = pp_list ", " pp_vari xs in
-
-  let pp_res xs = pp_list ", " pp_vari xs in
-
-  let pp_cfun fmt (n,fd) =
-    Format.fprintf fmt "fn %a(%a) {@  @[<v>%a@]@ return %a;@ }@ @ "
-      pp_pos n
-      pp_params fd.f_params
-      pp_cmd fd.f_body
-      pp_res fd.f_res in
-  Format.fprintf fmt "@[<v>%a@]" (pp_list "@ @ " pp_cfun) p
- *)
