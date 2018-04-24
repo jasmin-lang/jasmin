@@ -13,6 +13,7 @@ src/Parseio
 src/Parser
 src/Ppasm
 src/Printer
+src/PrintLinear
 src/Prog
 src/Puf
 src/Regalloc
