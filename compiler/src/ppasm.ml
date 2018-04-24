@@ -79,8 +79,8 @@ let pp_gens (fmt : Format.formatter) xs =
   List.iter (Format.fprintf fmt "%a\n%!" pp_gen) xs
 
 (* -------------------------------------------------------------------- *)
-let string_of_label (p : Linear.label) =
-  Printf.sprintf "L%d" (Conv.int_of_pos p)
+let string_of_label name (p : Linear.label) =
+  Format.sprintf "L%s$%d" name (Conv.int_of_pos p)
 
 (* -------------------------------------------------------------------- *)
 let string_of_funname tbl (p : Expr.funname) : string =
@@ -200,8 +200,7 @@ let pp_imm (imm : Bigint.zint) =
   Format.sprintf "$%s" (Bigint.to_string imm)
 
 (* -------------------------------------------------------------------- *)
-let pp_label (lbl : Linear.label) =
-  Format.sprintf "%s" (string_of_label lbl)
+let pp_label = string_of_label
 
 (* -------------------------------------------------------------------- *)
 let pp_global (g: Expr.global) =
@@ -256,10 +255,10 @@ let pp_iname (rs : rsize) (name : string) =
   Printf.sprintf "%s%s" name (pp_instr_rsize rs)
 
 (* -------------------------------------------------------------------- *)
-let pp_instr (i : X86_sem.asm) =
+let pp_instr name (i : X86_sem.asm) =
   match i with
   | LABEL lbl ->
-      `Label (string_of_label lbl)
+      `Label (pp_label name lbl)
 
   | MOV (ws, op1, op2) ->
       let rs = rs_of_ws ws in
@@ -342,11 +341,11 @@ let pp_instr (i : X86_sem.asm) =
 
   | Jcc (label, ct) ->
       let iname = Printf.sprintf "j%s" (pp_ct ct) in
-      `Instr (iname, [pp_label label])
+      `Instr (iname, [pp_label name label])
 
   | JMP label ->
       (* Correct? *)
-      `Instr ("jmp", [pp_label label])
+      `Instr ("jmp", [pp_label name label])
 
   | LEA (ws, op1, op2) ->
       (* Correct? *)
@@ -397,12 +396,12 @@ let pp_instr (i : X86_sem.asm) =
       `Instr (pp_iname rs "shld", [pp_imr rs ir; pp_register rs op2; pp_opr rs op1])
 
 (* -------------------------------------------------------------------- *)
-let pp_instr (fmt : Format.formatter) (i : X86_sem.asm) =
-  pp_gen fmt (pp_instr i)
+let pp_instr name (fmt : Format.formatter) (i : X86_sem.asm) =
+  pp_gen fmt (pp_instr name i)
 
 (* -------------------------------------------------------------------- *)
-let pp_instrs (fmt : Format.formatter) (is : X86_sem.asm list) =
-  List.iter (Format.fprintf fmt "%a\n%!" pp_instr) is
+let pp_instrs name (fmt : Format.formatter) (is : X86_sem.asm list) =
+  List.iter (Format.fprintf fmt "%a\n%!" (pp_instr name)) is
 
 (* -------------------------------------------------------------------- *)
 type rset = X86_sem.register Set.t
@@ -489,6 +488,7 @@ let pp_prog (tbl: 'info tbl) (gd: gd_t) (fmt : Format.formatter) (asm : X86_sem.
     asm;
 
   List.iter (fun (n, d) ->
+      let name = string_of_funname tbl n in
       let stsz  = Conv.bi_of_z d.X86_sem.xfd_stk_size in
       let wregs = wregs_of_fundef Set.empty d in
       let wregs = List.fold_right Set.remove [X86_sem.RBP; X86_sem.RSP] wregs in
@@ -496,14 +496,14 @@ let pp_prog (tbl: 'info tbl) (gd: gd_t) (fmt : Format.formatter) (asm : X86_sem.
 
       pp_gens fmt [
         `Label (mangle (string_of_funname tbl n));
-        `Label (string_of_funname tbl n);
+        `Label name;
         `Instr ("pushq", ["%rbp"])];
       List.iter (fun r ->
         pp_gens fmt [`Instr ("pushq", [pp_register `U64 r])])
         wregs;
       if not (Bigint.equal stsz Bigint.zero) then
         pp_gens fmt [`Instr ("subq", [pp_imm stsz; "%rsp"])];
-      pp_instrs fmt d.X86_sem.xfd_body;
+      pp_instrs name fmt d.X86_sem.xfd_body;
       if not (Bigint.equal stsz Bigint.zero) then
         pp_gens fmt [`Instr ("addq", [pp_imm stsz; "%rsp"])];
       List.iter (fun r ->
