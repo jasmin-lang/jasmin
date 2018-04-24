@@ -1,7 +1,6 @@
 export
 fn f(reg u64 x) -> reg u64 {
-reg u64 r;
-reg u64 y;
+reg u64 r, y;
 r = 0;
 y = 1;
 _, y = y * x; // y is forced to RAX
@@ -12,12 +11,13 @@ return r; // r is forced to RAX
 
 export
 fn g(reg u64 x) -> reg u64 {
-reg u64 r;
+reg u64 r, one;
 reg bool cf;
 r = 0;
+one = 1;
 while (x < 12) {
-cf, x += 1;
-r = 1 if !cf;
+cf, x += one;
+r = one if !cf;
 }
 return r;
 }

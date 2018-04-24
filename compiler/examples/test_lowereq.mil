@@ -1,9 +1,10 @@
 export
 fn f(reg u64 x) -> reg u64 {
 reg bool eqf;
-reg u64 r;
+reg u64 r, one;
 eqf = x == 0;
 r = 0;
-r = 1 if eqf;
+one = 1;
+r = one if eqf;
 return r;
 }
