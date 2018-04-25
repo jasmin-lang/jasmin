@@ -46,11 +46,29 @@ return b;
 }
 
 export
-fn primop_test(reg u8 x) -> reg u8 {
+fn primop_test(reg u64 x) -> reg u8 {
 reg u8 a;
-a = x;
+reg u16 b;
+reg u32 c;
+reg u64 d;
+d = x;
+c = #x86_MOV_32(d);
+b = #x86_MOV_16(c);
+a = #x86_ADD_8(b, b);
 
-a = #x86_ADD_8(a, a);
+return a;
+}
+
+export
+fn pluseq(reg u64 x) -> reg u8 {
+reg u8 a;
+reg u16 b;
+reg u32 c;
+
+c = 0;
+c *= x;
+b -= c;
+a += b;
 
 return a;
 }

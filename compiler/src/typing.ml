@@ -353,11 +353,13 @@ let max_ty ty1 ty2 =
   match ty1, ty2 with
   | P.Bty P.Int, P.Bty (P.U _) -> Some ty2
   | P.Bty (P.U _), P.Bty P.Int -> Some ty1
+  | P.Bty (P.U w1), P.Bty (P.U w2) -> Some (P.Bty (P.U (Utils0.cmp_min T.wsize_cmp w1 w2)))
   | _    , _     -> None
 
 let cast loc e ety ty =
   match ety, ty with
   | P.Bty P.Int , P.Bty (P.U w) -> P.Pcast (w, e)
+  | P.Bty (P.U w1), P.Bty (P.U w2) when T.wsize_cmp w1 w2 <> Datatypes.Lt -> e
   | _, _ when P.pty_equal ety ty -> e
   | _  ->  rs_tyerror ~loc (InvalidCast(ety,ty))
 
