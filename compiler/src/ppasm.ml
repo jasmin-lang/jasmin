@@ -321,7 +321,7 @@ let pp_instr name (i : X86_sem.asm) =
   | IMUL (ws, op1, Some (op2, Some i)) ->
       let rs = rs_of_ws ws in
       `Instr (pp_iname rs "imul",
-              [pp_imm (Conv.bi_of_int64 i); pp_opr rs op2; pp_opr rs op1])
+              [pp_imm (Conv.bi_of_int32 i); pp_opr rs op2; pp_opr rs op1])
 
   | DIV (ws, op) ->
       let rs = rs_of_ws ws in

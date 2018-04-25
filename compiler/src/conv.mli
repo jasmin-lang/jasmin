@@ -20,6 +20,7 @@ val bi_of_z : BinNums.coq_Z -> Bigint.zint
 
 val int64_of_bi : Bigint.zint -> Obj.t
 val bi_of_int64 : Obj.t -> Bigint.zint
+val bi_of_int32 : Obj.t -> Bigint.zint
 
 
 (* -------------------------------------------------------------------- *)
