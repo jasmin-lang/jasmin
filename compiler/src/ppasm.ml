@@ -462,11 +462,9 @@ let wregs_of_fundef (c : rset) (f : X86_sem.xfundef) =
 
 (* -------------------------------------------------------------------- *)
 let x86_64_callee_save = [
-  X86_sem.RDI;
-  X86_sem.RSI;
   X86_sem.RBP;
   X86_sem.RBX;
-  X86_sem.RSP;
+  X86_sem.RSP; (* Why? *)
   X86_sem.R12;
   X86_sem.R13;
   X86_sem.R14;
