@@ -189,7 +189,7 @@ Definition R_of_Z (R : ringType) (z : Z) : R :=
   | Zneg n => - (nat_of_P n)%:R
   end.
 
-Implicit Arguments R_of_Z [R].
+Arguments R_of_Z [R].
 
 Lemma eqposP (x y : positive): reflect (x = y) (Peqb x y).
 Proof. by apply: (iffP idP); move/Peqb_eq. Qed.
