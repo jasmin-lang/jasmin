@@ -404,6 +404,10 @@ Proof. by apply/eqP. Qed.
 Lemma wsigned0 sz : @wsigned sz 0%R = 0%Z.
 Proof. by case: sz. Qed.
 
+Lemma sign_extend0 sz sz' :
+  @sign_extend sz sz' 0%R = 0%R.
+Proof. by rewrite /sign_extend wsigned0 wrepr0. Qed.
+
 Lemma wand0 sz (x: word sz) : wand 0 x = 0%R.
 Proof. by apply/eqP. Qed.
 
