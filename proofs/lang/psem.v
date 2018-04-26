@@ -572,6 +572,15 @@ Proof.
   by rewrite /to_arr /= eq_dec_refl pos_dec_n_n /=.
 Qed.
 
+Lemma of_val_type_of_val (v: value) :
+  (if v is Vundef _ then false else true) →
+  exists2 x, of_val (type_of_val v) v = ok x & to_val x = v.
+Proof.
+case: v => //=; eauto.
++ by move => sz n a; rewrite eq_dec_refl pos_dec_n_n; eauto.
+by move => sz w; rewrite truncate_word_u; eauto.
+Qed.
+
 Lemma to_bool_inv x b :
   to_bool x = ok b →
   x = b.
