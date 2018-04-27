@@ -559,9 +559,15 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
           (* d + b *)
           if d == 1%R then inc (Ox86_INC sz) b
           else
-            if check_signed_range (Some U32) sz (wunsigned d)
+            let w := wunsigned d in
+            if check_signed_range (Some U32) sz w
             then [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86_ADD sz) [:: b ; de ])]
-            else lea tt
+            else if w == (wbase U32 / 2)%Z
+            then [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86_SUB sz) [:: b ; wconst (wrepr sz (-w)) ])]
+            else
+              let c := {| v_var := {| vtype := sword U64; vname := fresh_multiplicand fv U64 |} ; v_info := vi |} in
+              [:: MkI ii (Copn [:: Lvar c ] tg (Ox86_MOV U64) [:: de]);
+                 MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86_ADD sz) [:: b ; Pvar c ])]
       else lea tt
       
   | LowerEq sz a b => [:: MkI ii (Copn [:: f ; f ; f ; f ; x ] tg (Ox86_CMP sz) [:: a ; b ]) ]

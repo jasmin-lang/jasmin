@@ -115,6 +115,15 @@ Section PROOF.
     rewrite /vars_c read_c_cons write_c_cons /vars_I; SvD.fsetdec.
   Qed.
 
+  Lemma disj_fvars_subset s1 s2 :
+    Sv.Subset s1 s2 →
+    disj_fvars s2 →
+    disj_fvars s1.
+  Proof.
+    move => Hle h1; rewrite /disj_fvars /lowering.disj_fvars.
+    by apply: disjoint_w; eauto.
+  Qed.
+
   Global Instance disj_fvars_m : Proper (Sv.Equal ==> iff) disj_fvars.
   Proof.
     by move=> s1 s2 Heq; split; rewrite /disj_fvars /lowering.disj_fvars Heq.
@@ -758,13 +767,96 @@ Section PROOF.
     exact: lea_subP (He1 _ _ _ hsz1 Heq1 Hv1) (He2 _ _ _ hsz2 Heq2 Hv2) Hsub.
   Qed.
 
+  Definition read_ovar (o: option var_i) : Sv.t :=
+    if o is Some v then read_e v else Sv.empty.
+
+  Definition read_lea (m: lea) : Sv.t :=
+    Sv.union (read_ovar m.(lea_base)) (read_ovar m.(lea_offset)).
+
+  Lemma read_lea_mkLea d b sc o :
+    Sv.Subset (read_lea (mkLea d b sc o)) (Sv.union (read_ovar b) (read_ovar o)).
+  Proof. rewrite /mkLea; case: ifP => _; rewrite /read_lea /=; SvD.fsetdec. Qed.
+
+  Ltac read_lea_mkLea :=
+    match goal with
+    | |- context[ read_lea (mkLea ?d ?b ?sc ?o) ] => have := @read_lea_mkLea d b sc o
+    end.
+
+  Lemma lea_add_read m1 m2 m :
+    lea_add m1 m2 = Some m →
+    Sv.Subset (read_lea m) (Sv.union (read_lea m1) (read_lea m2)).
+  Proof.
+  Local Ltac lar :=
+    rewrite {-1}/read_lea /=; read_lea_mkLea; SvD.fsetdec.
+  case: m1 m2 => [d1 b1 sc1 o1] [d2 b2 sc2 o2].
+  case: b1 o1 => [ b1 | ] [ o1 | ] /=; last first.
+  - case => <-; rewrite SvP.MP.empty_union_1; last exact: Sv.empty_spec.
+    lar.
+  - case: b2 => [ b2 | ].
+    + case: o2 => // - [<-]; lar.
+    case: o2 => [ o2 | ].
+    + case: ifP => _.
+      * case => <-; lar.
+      case: ifP => // _ [<-]; lar.
+    case => <-; lar.
+  - case: b2 => [ b2 | ].
+    + case: o2 => // - [<-]; lar.
+    case: o2 => [ o2 | ] [<-]; lar.
+  case: b2 => //; case: o2 => // - [<-]; lar.
+  Qed.
+
+  Lemma lea_mul_read m1 m2 m :
+    lea_mul m1 m2 = Some m →
+    Sv.Subset (read_lea m) (Sv.union (read_lea m1) (read_lea m2)).
+  Proof.
+  case: m1 m2 => [d1 b1 sc1 o1] [d2 b2 sc2 o2].
+  case: b1 o1 b2 o2 => [ b1 | ] [ o1 | ] // [ b2 | ] // [ o2 | ] // [<-];
+  last exact: SvP.MP.subset_empty;
+  lar.
+  Qed.
+
+  Lemma lea_sub_read m1 m2 m :
+    lea_sub m1 m2 = Some m →
+    Sv.Subset (read_lea m) (Sv.union (read_lea m1) (read_lea m2)).
+  Proof.
+  case: m1 m2 => [d1 b1 sc1 o1] [d2 b2 sc2 o2].
+  case: b2 o2 => // - [] // [<-]; lar.
+  Qed.
+
+  Lemma mk_lea_read e m :
+    mk_lea e = Some m →
+    Sv.Subset (read_lea m) (read_e e).
+  Proof.
+  elim: e m => //=.
+  - by move => sz [] //= z _ _ [<-].
+  - by move => x _ [<-]; rewrite read_e_var; apply: SvD.F.Subset_refl.
+  - case => //.
+    + case => // - [] // e1.
+      case: (mk_lea e1) => // m1 /(_ _ erefl) ih1 e2.
+      case: (mk_lea e2) => // m2 /(_ _ erefl) ih2 m /lea_add_read.
+      rewrite /read_e /= !read_eE.
+      SvD.fsetdec.
+    + case => // - [] // e1.
+      case: (mk_lea e1) => // m1 /(_ _ erefl) ih1 e2.
+      case: (mk_lea e2) => // m2 /(_ _ erefl) ih2 m /lea_mul_read.
+      rewrite /read_e /= !read_eE.
+      SvD.fsetdec.
+  case => // - [] // e1.
+  case: (mk_lea e1) => // m1 /(_ _ erefl) ih1 e2.
+  case: (mk_lea e2) => // m2 /(_ _ erefl) ih2 m /lea_sub_read.
+  rewrite /read_e /= !read_eE.
+  SvD.fsetdec.
+  Qed.
+
   Lemma is_leaP f sz x e l :
     is_lea f sz x e = Some l ->
     sz = Uptr ∧
+    Sv.Subset (read_lea l) (read_e e) ∧
     mk_lea e = Some l /\ check_scale (wunsigned l.(lea_scale)).
   Proof.
-    rewrite /is_lea; case: andP => // - [/eqP -> _]; case: mk_lea => [[d b sc o]|] //.
-    case: andP => // - [] /andP [] ? _ _ [<-] //=.
+    rewrite /is_lea; case: andP => // - [/eqP -> _].
+    case: (mk_lea e) (@mk_lea_read e) => [[d b sc o]|] // /(_ _ erefl) h.
+    by case: andP => // - [] /andP [] ? _ _ [<-].
   Qed.
 
   Lemma lower_cassgn_classifyP e l s s' v ty v' (Hs: sem_pexpr gd s e = ok v)
@@ -794,6 +886,7 @@ Section PROOF.
       check_size_16_64 (wsize_of_lval l) = ok tt ∧ e = Pif a e1 e2 ∧ wsize_of_lval l = wsize_of_stype ty ∧ ∃ sz', stype_of_lval l = sword sz'
     | LowerLea sz l =>
       sz = Uptr ∧ check_scale (wunsigned (lea_scale l)) ∧
+      Sv.Subset (read_lea l) (read_e e) ∧
       exists w: word sz,
       v' = Vword w /\ sem_lea (evm s) l = ok (zero_extend Uptr w)
     | LowerAssgn => True
@@ -841,8 +934,8 @@ Section PROOF.
         case: Hv' => ?; subst v'.
         case Heq: is_lea => [lea|].
         + (* LEA *)
-          case/is_leaP: Heq => hsz [/mk_leaP /= hlea hsc]; rewrite /= in hsz; subst sz''.
-          do 2 split => //.
+          case/is_leaP: Heq => hsz [hrl] [/mk_leaP /= hlea hsc]; rewrite /= in hsz; subst sz''.
+          do 3 split => //.
           eexists; split; first reflexivity.
           apply: hlea; first done.
           apply: rbindP Hv => /= v1 -> /=.
@@ -872,9 +965,9 @@ Section PROOF.
         case: Hv' => ?; subst v'.
         case Heq: is_lea => [lea|].
         (* LEA *)
-        + case/is_leaP: Heq => hsz [] /mk_leaP hlea hsc.
+        + case/is_leaP: Heq => hsz [] hrl [] /mk_leaP hlea hsc.
           split; first by rewrite hsz.
-          split => //.
+          do 2 split => //.
           eexists; split; first reflexivity.
           apply: hlea; first by rewrite hsz.
           apply: rbindP Hv => /= v1 -> /=.
@@ -899,8 +992,8 @@ Section PROOF.
         case: Hv' => ?; subst v'.
         case Heq: is_lea => [lea|].
         (* LEA *)
-        * case/is_leaP: Heq => hsz [/mk_leaP /= hlea hsc]; rewrite /= in hsz; subst sz''.
-          do 2 split => //.
+        * case/is_leaP: Heq => hsz [hrl] [/mk_leaP /= hlea hsc]; rewrite /= in hsz; subst sz''.
+          do 3 split => //.
           eexists; split; first reflexivity.
           apply: hlea => //.
           apply: rbindP Hv => /= v1 -> /=.
@@ -1116,7 +1209,7 @@ Section PROOF.
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
       by rewrite /sem_sopn H /= Hw'.
     (* LowerLea *)
-    + move=> sz [d b sc o] /= [hsz] [Hsc] [w [? Hslea]]; subst v'; exists s2';split => //.
+    + move => sz [d b sc o] /= [hsz] [Hsc] [hrl] [w [? Hslea]]; subst v'; set f := Lnone_b _.
       set ob := oapp Pvar _ b; set oo := oapp Pvar _ o.
       have [wb [wo [Hwb Hwo Ew ]]]:
         exists (wb wo: pointer),
@@ -1125,10 +1218,10 @@ Section PROOF.
            w = zero_extend sz (d + (wb + (sc * wo)))%R].
       + move: Hslea; rewrite /sem_lea /=; t_xrbindP => wb Hwb wo Hwo H.
         exists wb, wo; split.
-        - subst ob; case: b Hwb => [ b | ] /=; t_xrbindP.
+        - subst ob; case: b Hwb {hrl} => [ b | ] /=; t_xrbindP.
           * by move => vb -> /of_val_word [sz'] [w'] [h -> ->]; rewrite /= /truncate_word h.
           by subst sz; move => <-; rewrite /truncate_word /=; f_equal; apply: word_ext.
-        - subst oo; case: o Hwo => [ o | ] /=; t_xrbindP.
+        - subst oo; case: o Hwo {hrl} => [ o | ] /=; t_xrbindP.
           * by move => vb -> /of_val_word [sz'] [w'] [h -> ->]; rewrite /= /truncate_word h.
           by subst sz; move => <-; rewrite /truncate_word /=; f_equal; apply: word_ext.
         subst; rewrite zero_extend_u.
@@ -1144,28 +1237,47 @@ Section PROOF.
       have Hlea' : sem p' gd s1'
                     [:: MkI (warning ii Use_lea) (Copn [:: l] tag (Ox86_LEA sz) [:: wconst d; ob; wconst sc; oo])] s2'.
       + by apply: sem_seq1; apply: EmkI; apply: Eopn; rewrite /sem_sopn Hlea /= Hw'.
-      case use_lea => //;subst w.
+      case: use_lea; first by exists s2'.
+      subst w.
       case: eqP => [ ? | _ ].
       + subst d; case: eqP => [ ? | _].
-        + subst sc;apply sem_seq1;constructor;constructor.
+        + subst sc; exists s2'; split => //; apply sem_seq1; constructor; constructor.
           by move: Hw'; rewrite /sem_sopn /sem_pexprs /= Hvb Hvo /= hsz -/to_pointer Hwb Hwo /= zero_extend_u GRing.add0r GRing.mul1r => ->.
-        case: eqP => [ Eob | //].
-        apply sem_seq1;constructor;constructor.
+        case: eqP => [ Eob | _ ]; last by exists s2'.
+        exists s2'; split => //; apply sem_seq1; constructor; constructor.
         move: Hvb Hwb Hw';rewrite Eob /sem_sopn /sem_pexprs /= hsz GRing.add0r Hvo /= -/to_pointer Hwo /= -!/(zero_extend Uptr _) !zero_extend_u => -[<-] [<-].
         by rewrite zero_extend_u GRing.add0r GRing.mulrC => ->.
-      case: eqP => [ Eoo | //].
+      case: eqP => [ Eoo | _]; last by exists s2'.
+      move: Hvo Hwo Hw'; rewrite Eoo => - [<-] {Eoo oo Hlea Hlea'}.
+      rewrite hsz wrepr_unsigned /= truncate_word_u => - [?]; subst wo.
+      rewrite zero_extend_u GRing.mulr0 GRing.addr0 GRing.addrC => Hw'.
       case: eqP => [ Ed | _ ].
-      + subst d;apply sem_seq1;constructor;constructor.
-        move: Hvo Hwo Hw'; rewrite Eoo => - [<-].
-        rewrite hsz -!/(zero_extend _ _) !zero_extend_u => - [<-].
-        rewrite zero_extend_u GRing.mulr0 GRing.addr0 GRing.addrC.
-        by rewrite /sem_sopn /sem_pexprs /= Hvb /= Hwb /= => ->.
-      case: ifP => // hrange.
-      apply sem_seq1;constructor;constructor.
-      move: Hvo Hwo Hw'; rewrite Eoo => - [<-].
-      rewrite hsz -!/(zero_extend _ _) !zero_extend_u => - [<-].
-      rewrite /sem_sopn /sem_pexprs /= Hvb -/to_pointer /= Hwb /=.
-      by rewrite -!/(zero_extend _ _) !zero_extend_u GRing.mulr0 GRing.addr0 GRing.addrC => ->.
+      + subst d; exists s2'; split => //; apply sem_seq1; constructor; constructor.
+        by rewrite /sem_sopn /sem_pexprs /= Hvb /= Hwb /= Hw'.
+      case: ifP => [ hrange | _ ].
+      + exists s2'; split => //; apply sem_seq1; constructor; constructor.
+        by rewrite /sem_sopn /sem_pexprs /= Hvb -/to_pointer /= Hwb /= -!/(zero_extend _ _) !zero_extend_u Hw'.
+      case: eqP => [ Ed | _ ].
+      + exists s2'; split => //; apply sem_seq1; constructor; constructor.
+        rewrite /sem_sopn /sem_pexprs /= Hvb -/to_pointer /= Hwb /= -!/(zero_extend _ _) !zero_extend_u.
+        replace (wrepr _ _) with (- d)%R by by apply: word_ext.
+        by rewrite GRing.opprK Hw'.
+      set si := {| emem := emem s1'; evm := (evm s1').[{| vtype := sword64; vname := fresh_multiplicand fv U64 |} <- ok {| pw_size := U64 ; pw_word := d ; pw_proof := erefl (U64 ≤ U64)%CMP |}] |}.
+      have hsi : eq_exc_fresh si s1'.
+      + by rewrite /si; split => //= k hk; rewrite Fv.setP_neq //; apply/eqP => ?; subst k; apply: hk; exact: multiplicand_in_fv.
+      have [si' [Hwi hsi']] := write_lval_same Hdisjl hsi Hw'.
+      eexists; split.
+      + apply: Eseq; first by repeat constructor.
+         apply: sem_seq1. repeat constructor.
+         rewrite /sem_sopn /= zero_extend_u wrepr_unsigned /get_var Fv.setP_eq /= (sem_pexpr_same _ _ Hvb) //=.
+         - by rewrite hsz Hwb /= zero_extend_u Hwi.
+         apply: (disj_fvars_subset _ Hdisje).
+         apply: (SvD.F.Subset_trans _ hrl).
+         rewrite /read_lea /=; subst ob; case: (b) => [ x | ] /=.
+         - SvD.fsetdec.
+         exact: SvP.MP.subset_empty.
+       by eauto using eq_exc_freshT.
+
     (* LowerFopn *)
     + set vi := var_info_of_lval _.
       move=> o a m [] LE. t_xrbindP => ys xs hxs hys hs2.
