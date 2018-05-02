@@ -1,10 +1,11 @@
+#include <stdint.h>
 #include <stdio.h>
 
-extern void gimli(unsigned int *);
+extern void gimli(uint32_t *);
 
 int main()
 {
-  unsigned long x[12];
+  uint32_t x[12];
   int i;
 
   for (i = 0;i < 12;++i) x[i] = i * i * i + i * 0x9e3779b9;
