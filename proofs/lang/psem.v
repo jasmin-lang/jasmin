@@ -1655,17 +1655,16 @@ Proof.
 Qed.
 
 Lemma of_val_error t v:
-  of_val t v = undef_error -> exists t', subtype (vundef_type t) t' /\ v = Vundef t'.
+  of_val t v = undef_error -> exists2 t', v = Vundef t' & subtype t t'.
 Proof.
 case: t v => [||sz p|sz] [] //=.
-+ by case => //;eauto.
-+ by case => //;eauto.
++ by case => //; eauto.
++ by case => //; eauto.
 + move => sz' n a; case: wsize_eq_dec => // ?; subst.
   by case: CEDecStype.pos_dec.
 + by case => // ??;case:ifP => // /andP [] /eqP <- /eqP <-;eauto.
 + by move=> ??;rewrite /truncate_word;case:ifP.
-case => // ? _;eexists;split;last reflexivity.
-by apply wsize_le_U8.
+by case => // sz'; case: ifP => // hle _; eauto.
 Qed.
 
 Lemma pof_val_error t v:
