@@ -1220,9 +1220,10 @@ Lemma check_fdP (P: prog) (gd: glob_defs) (SP: sprog) l fn fn' fd fd':
   forall m1 va m1' vr, 
     sem_call P gd m1 fn va m1' vr ->
     (exists p, Memory.alloc_stack m1 (sf_stk_sz fd') = ok p) ->
-    exists vr',
+    exists m2' vr',
       List.Forall2 value_uincl vr vr' /\
-      S.sem_call SP gd m1 fn' va m1' vr'.
+      eq_mem m1' m2' /\
+      S.sem_call SP gd m1 fn' va m2' vr'.
 Proof.
   move=> get Sget.
   rewrite /check_fd.
@@ -1277,17 +1278,9 @@ Proof.
   case: Hv2' => /= Hdisj Hmem Hval Heqvm _ Htopstack Hstacksize _.
   have [vr' [/= hvr' hvruincl]] := check_varsP Hr Heqvm hvres.
   have [vr'' [hvr'' hvruincl']] := mapM2_truncate_val hvr hvruincl.
-  exists vr''. split; first exact: hvruincl'.
-  apply: S.EcallRun.
-  + exact: Sget.
-  + exact: Halloc.
-  + exact: erefl.
-  + rewrite -Htyin; exact: hvargs.
-  + move: Hs2; rewrite /pword_of_word (Eqdep_dec.UIP_dec Bool.bool_dec (cmp_le_refl U64)); exact: id.
-  + exact: Hs2'.
-  + exact: hvr'.
-  + rewrite -Htyout; exact: hvr''.
-  + apply: eq_memP=> w sz.
+  exists (free_stack m2' (sf_stk_sz fd')), vr''. split; first exact: hvruincl'.
+  split.
+  + move => w sz.
     pose stk_sz := sf_stk_sz fd'.
     have hts : frame_size m2' (top_stack m2') = Some stk_sz.
     + by rewrite Htopstack Hstacksize.
@@ -1313,6 +1306,16 @@ Proof.
     subst b stk_sz; rewrite -Htopstack /between; symmetry.
     have Hsz := wsize_size_pos sz.
     apply/nandP; case: k' => k'; [ right | left ]; apply/ZleP; lia.
+  apply: S.EcallRun.
+  + exact: Sget.
+  + exact: Halloc.
+  + exact: erefl.
+  + rewrite -Htyin; exact: hvargs.
+  + move: Hs2; rewrite /pword_of_word (Eqdep_dec.UIP_dec Bool.bool_dec (cmp_le_refl U64)); exact: id.
+  + exact: Hs2'.
+  + exact: hvr'.
+  + rewrite -Htyout; exact: hvr''.
+  reflexivity.
 Qed.
 
 Definition alloc_ok SP fn m1 :=
@@ -1324,9 +1327,10 @@ Lemma check_progP (P: prog) (gd: glob_defs) (SP: sprog) l fn:
   forall m1 va m1' vr, 
     sem_call P gd m1 fn va m1' vr ->
     alloc_ok SP fn m1 ->
-    exists vr',
+    exists m2' vr',
       List.Forall2 value_uincl vr vr' /\
-      S.sem_call SP gd m1 fn va m1' vr'.
+      eq_mem m1' m2' /\
+      S.sem_call SP gd m1 fn va m2' vr'.
 Proof.
   move=> Hcheck m1 va m1' vr [] {m1 va m1' vr fn}
     m1 m2 fn f vargs vargs' s1 vm2 vres vres' Hf e0 e1 s e2 e3 Halloc.

@@ -76,6 +76,23 @@ Let Ki : ∀ vr (P Q: _ → Prop),
         (∃ vr', List.Forall2 value_uincl vr vr' ∧ Q vr')
     := λ vr P Q h x, let 'ex_intro vr' (conj u p) := x in ex_intro _ vr' (conj u (h vr' p)).
 
+Let Kj : ∀ m vr (P Q: _ → _ → Prop),
+        (∀ m' vr', P m' vr' → Q m' vr') →
+        (∃ m' vr', List.Forall2 value_uincl vr vr' ∧ eq_mem m m' ∧ P m' vr') →
+        (∃ m' vr', List.Forall2 value_uincl vr vr' ∧ eq_mem m m' ∧ Q m' vr')
+    := λ m vr P Q h x,
+      let 'ex_intro m' (ex_intro vr' (conj u (conj v p))) := x in
+      ex_intro _ m' (ex_intro _ vr' (conj u (conj v (h m' vr' p)))).
+
+Let Km : ∀ m vr (P: _ → Prop) (Q: _ → _ → Prop),
+        (∀ vr, P vr → ∃ m' vr', List.Forall2 value_uincl vr vr' ∧ eq_mem m m' ∧ Q m' vr') →
+        (∃ vr', List.Forall2 value_uincl vr vr' ∧ P vr') →
+        (∃ m' vr', List.Forall2 value_uincl vr vr' ∧ eq_mem m m' ∧ Q m' vr')
+  := λ m vr P Q h x,
+      let 'ex_intro vr' (conj u p) := x in
+      let 'ex_intro m' (ex_intro vr'' (conj u' q)) := h vr' p in
+      ex_intro _ m' (ex_intro _ vr'' (conj (Forall2_trans value_uincl_trans u u') q)).
+
 Let K : ∀ vr (P Q: _ → Prop),
         (∀ vr, P vr → ∃ vr', List.Forall2 value_uincl vr vr' ∧ Q vr') →
         (∃ vr', List.Forall2 value_uincl vr vr' ∧ P vr') →
@@ -102,9 +119,10 @@ Lemma compile_progP entries (p: prog) gd (lp: lprog) mem fn va mem' vr:
   sem.sem_call p gd mem fn va mem' vr ->
   (forall f, get_fundef lp fn = Some f -> 
      exists p, Memory.alloc_stack mem (lfd_stk_size f) = ok p) ->
-  ∃ vr',
+  ∃ mem2' vr',
     List.Forall2 value_uincl vr vr' ∧
-    lsem_fd lp gd mem fn va mem' vr'.
+    eq_mem mem' mem2' ∧
+    lsem_fd lp gd mem fn va mem2' vr'.
 Proof.
   rewrite /compile_prog.
   apply: rbindP=> p0 Hp0. rewrite !print_progP.
@@ -129,8 +147,8 @@ Proof.
     have := Halloc _ Hf'2.
     by rewrite -Hf' /=.
   have va_refl := List_Forall2_refl va value_uincl_refl.
-  apply: Ki; first by move => vr'; exact: (linear_fdP Hpl).
-  apply: K; first by move => vr' Hvr'; apply: (stack_alloc_proof.check_progP Hpstk' _ Haok); exact: Hvr'.
+  apply: Kj; first by move => vr'; exact: (linear_fdP Hpl).
+  apply: Km; first by move => vr' Hvr'; apply: (stack_alloc_proof.check_progP Hpstk' _ Haok); exact: Hvr'.
   apply: Ki; first by move => vr'; exact: (dead_code_callP Hpd).
   apply: K'; first by move => vr' Hvr'; apply: (CheckAllocReg.alloc_callP He'); exact: Hvr'.
   apply: Ki; first by move => vr'; exact: (lower_callP _ _ _ Hlower).
@@ -165,7 +183,7 @@ Lemma compile_prog_to_x86P entries (p: prog) (gd: glob_defs) (xp: xprog) m1 fn v
   ∃ st2,
     x86sem_fd xp gd fn st1 st2 ∧
     List.Forall2 value_uincl vr (get_reg_values st2 fd'.(xfd_res)) ∧
-    st2.(xmem) = m2.
+    eq_mem m2 st2.(xmem).
 Proof.
 apply: rbindP=> lp hlp; t_xrbindP => _ /assertP /allP ok_sig hxp hfn hsem hsafe.
 have hlsem := compile_progP hlp hfn hsem.
@@ -174,7 +192,7 @@ case: hlsem.
   have [xfd [hxfd]] := get_map_cfprog hxp hfd.
   by move => /hsafe; rewrite (assemble_fd_stk_size hxfd).
 move/ok_sig: hfn.
-case: hsem => {m1 m2 hsafe fn va vr} m1 m2 fn fd va va' st1 vm2 vr vr1 ok_fd ok_va _ _ _ _ hsig vr' [ok_vr' hlsem].
+case: hsem => {m1 m2 hsafe fn va vr} m1 m2 fn fd va va' st1 vm2 vr vr1 ok_fd ok_va _ _ _ _ hsig m2' [vr'] [ok_vr'] [hm2' hlsem].
 exists fd, va.
 split; first exact: ok_fd.
 split; first exact: ok_va.
@@ -188,7 +206,7 @@ move => st hva hm1.
 have [st2 [hxsem [hvr' hm2]]] := h st hva hm1.
 exists st2.
 split; first exact: hxsem.
-split; last exact: hm2.
+split; last by rewrite hm2.
 exact: (Forall2_trans value_uincl_trans ok_vr' hvr').
 Qed.
 

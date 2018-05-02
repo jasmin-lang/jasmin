@@ -50,9 +50,6 @@ Arguments write_mem : clear implicits.
 
 Parameter valid_pointer : mem -> pointer -> wsize -> bool.
 
-Parameter eq_memP : forall m m',
-    (forall ptr sz, read_mem m ptr sz = read_mem m' ptr sz) -> m = m'.
-
 Definition no_overflow (p: pointer) (sz: Z) : bool :=
   (wunsigned p + sz <? wbase Uptr)%Z.
 
@@ -185,6 +182,21 @@ Parameter free_stackP : forall m sz,
 
 End Memory.
 
+Definition eq_mem m m' : Prop :=
+    forall ptr sz, Memory.read_mem m ptr sz = Memory.read_mem m' ptr sz.
+
+Lemma eq_mem_refl m : eq_mem m m.
+Proof. by []. Qed.
+
+Lemma eq_mem_sym m m' : eq_mem m m' -> eq_mem m' m.
+Proof. move => h ptr sz; symmetry; exact: (h ptr sz). Qed.
+
+Lemma eq_mem_trans m2 m1 m3 :
+  eq_mem m1 m2 ->
+  eq_mem m2 m3 ->
+  eq_mem m1 m3.
+Proof. move => p q x y; rewrite (p x y); exact: (q x y). Qed.
+
 Module UnsafeMemory.
 
 Parameter mem : Type.
@@ -215,9 +227,6 @@ Parameter free_stackP : forall m m' pstk sz,
    free_stack m pstk sz = m' ->
    forall w,
      read_mem m' w = read_mem m w.
-
-Parameter eq_memP : forall m m',
-    (forall ptr sz, read_mem m ptr sz = read_mem m' ptr sz) -> m = m'.
 
 End UnsafeMemory.
 
