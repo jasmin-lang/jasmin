@@ -305,6 +305,7 @@ let op_of_ty exn ty =
 let ws_of_ty exn =
   function
   | P.Bty (P.U ws) -> ws
+  | P.Bty P.Int -> T.U64
   | _ -> raise exn
 
 let cmp_of_ty exn sign ty =
@@ -377,17 +378,25 @@ let tt_op2 (loc1, (e1, ty1)) (loc2, (e2, ty2))
 
   let op, e1, e2, ty =
     match pop with
-    | (`Add s | `Sub s | `Mul s | `BAnd s | `BOr s | `BXOr s) ->
+    | (`Add s | `Sub s | `Mul s) ->
       (* TODO: use ssize annotation *)
       let ty = max_ty ty1 ty2 |> oget ~exn in
       let op = op2_of_pop2 exn ty pop in
       (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, ty)
 
-    | `ShR _ | `ShL _ ->
+    | (`BAnd s | `BOr s | `BXOr s) ->
       (* TODO: use ssize annotation *)
-      let ty = P.u64 in
+      let ty = max_ty ty1 ty2 |> oget ~exn in
+      let ty = max_ty ty (P.Bty (P.U T.U64)) |> oget ~exn in
       let op = op2_of_pop2 exn ty pop in
       (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, ty)
+
+    | `ShR s | `ShL s ->
+      (* TODO: use ssize annotation *)
+      let ty = ty1 in
+      let tyarg1 = max_ty ty1 (P.Bty (P.U T.U64)) |> oget ~exn in
+      let op = op2_of_pop2 exn ty pop in
+      (op, cast loc1 e1 ty1 tyarg1, cast loc2 e2 ty2 (P.Bty (P.U T.U8)), tyarg1)
 
     | (`And | `Or) ->
       if not (ty1 = P.tbool && ty2 = P.tbool) then raise exn;

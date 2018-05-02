@@ -72,3 +72,12 @@ a += b;
 
 return a;
 }
+
+export
+fn test_shift(reg u32 x) -> reg u32 {
+reg u32 y;
+
+y = x;
+y <<= 1;
+return y;
+}
