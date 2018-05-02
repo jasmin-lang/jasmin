@@ -98,9 +98,6 @@ Module Array.
     split; [by apply/Z.leb_le|by apply/Z.ltb_lt].
   Qed.
 
-  (* FIXME *)
-  Axiom eq_ext : forall T s (t1 t2:array s T), (forall x, get t1 x = get t2 x) -> t1 = t2.
-
 End Array.
   
 
