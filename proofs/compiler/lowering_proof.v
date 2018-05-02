@@ -405,6 +405,40 @@ Section PROOF.
   by case: o => // -[] // => [ | | [] | [] | [] | [] ] sz [] _ <- <-.
   Qed.
 
+  Lemma between_ZR (a b c: ssrZ.Z_numType) :
+    (a <= b < c)%R →
+    (a <= b < c)%Z.
+  Proof. by case/andP => /ssrZ.lezP ? /ssrZ.ltzP. Qed.
+
+  Lemma wleuE' sz (α β: word sz) :
+    wle Unsigned β α = (wunsigned (β - α) != (wunsigned β - wunsigned α)%Z) || (β == α).
+  Proof.
+  case: (β =P α).
+  + by move => <-; rewrite orbT /= Num.Theory.lerr.
+  rewrite orbF /wunsigned /=.
+  case: α β => α hα [] β hβ ne'.
+  Transparent word.
+  repeat rewrite /CoqWord.word.urepr /=.
+  Opaque word.
+  have ne : α ≠ β.
+  - move => ?; subst; apply: ne'.
+    by rewrite (Eqdep_dec.UIP_dec Bool.bool_dec hα).
+  case/between_ZR: hα hβ {ne'} => hα hα' /between_ZR [hβ hβ'].
+  elim_div => - [] //.
+  elim_div => - [] //.
+  set m := (wsize_size_minus_1 sz).+1.
+  have /ssrZ.ltzP := CoqWord.word.modulus_gt0 m.
+  match goal with |- (?x < _)%Z → _ => have hz : x = 0%Z by [] end.
+  rewrite hz in hα, hβ |- * => {hz}.
+  move => hm /Z.eq_opp_r ?; subst α => - []; last Psatz.lia.
+  case => ??? []; last Psatz.lia.
+  case => ??.
+  symmetry; case: ssrZ.lezP => h; apply/eqP; first Psatz.nia.
+  fold m in hα', hβ'.
+  apply Znot_le_gt in h.
+  suff: z = (- z1)%Z; Psatz.nia.
+  Qed.
+
   Lemma lower_cond_classifyP ii e cond s1':
     sem_pexpr gd s1' e = ok cond ->
     match lower_cond_classify fv ii e with
@@ -1156,11 +1190,6 @@ Section PROOF.
       by case: (y) => //= -[].
     + exists s'. repeat econstructor. by rewrite /sem_sopn hx /= hr.
   Qed.
-
-  Lemma between_ZR (a b c: ssrZ.Z_numType) :
-    (a <= b < c)%R →
-    (a <= b < c)%Z.
-  Proof. by case/andP => /ssrZ.lezP ? /ssrZ.ltzP. Qed.
 
   Local Lemma Hassgn s1 s2 l tag ty e v v' :
     sem_pexpr gd s1 e = ok v →

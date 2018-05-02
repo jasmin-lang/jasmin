@@ -322,10 +322,6 @@ Lemma wleuE sz (w1 w2: word sz) :
   wle Unsigned w1 w2 = (wunsigned (w2 - w1) == (wunsigned w2 - wunsigned w1))%Z.
 Proof. Admitted.
 
-Lemma wleuE' sz (α β: word sz) :
-  wle Unsigned β α = (wunsigned (β - α) != (wunsigned β - wunsigned α)%Z) || (β == α).
-Proof. Admitted.
-
 Lemma wlesE sz (w1 w2: word sz) :
   wle Signed w1 w2 = (msb (w2 - w1) == (wsigned (w2 - w1) != (wsigned w2 - wsigned w1)%Z)).
 Proof. Admitted.
