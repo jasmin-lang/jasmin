@@ -19,6 +19,14 @@ Variant register : Type :=
   | R8  | R9  | R10 | R11 | R12 | R13 | R14 | R15.
 
 (* -------------------------------------------------------------------- *)
+Variant xmm_register : Type :=
+  | XMM0 | XMM1 | XMM2 | XMM3
+  | XMM4 | XMM5 | XMM6 | XMM7
+  | XMM8 | XMM9 | XMM10 | XMM11
+  | XMM12 | XMM13 | XMM14 | XMM15
+.
+
+(* -------------------------------------------------------------------- *)
 Variant rflag : Type := CF | PF | ZF | SF | OF | DF.
 
 (* -------------------------------------------------------------------- *)
@@ -150,12 +158,16 @@ Variant asm : Type :=
 
 (* -------------------------------------------------------------------- *)
 Scheme Equality for register.
+Scheme Equality for xmm_register.
 Scheme Equality for rflag.
 Scheme Equality for scale.
 Scheme Equality for condt.
 
 Definition reg_eqMixin := comparableClass register_eq_dec.
 Canonical reg_eqType := EqType register reg_eqMixin.
+
+Definition xreg_eqMixin := comparableClass xmm_register_eq_dec.
+Canonical xreg_eqType := EqType _ xreg_eqMixin.
 
 Definition rflag_eqMixin := comparableClass rflag_eq_dec.
 Canonical rflag_eqType := EqType rflag rflag_eqMixin.
@@ -224,6 +236,28 @@ Canonical reg_finType :=
   Eval hnf in FinType register reg_finMixin.
 
 (* -------------------------------------------------------------------- *)
+Definition xmm_registers :=
+  [:: XMM0; XMM1; XMM2; XMM3; XMM4; XMM5; XMM6; XMM7; XMM8; XMM9; XMM10; XMM11; XMM12; XMM13; XMM14; XMM15 ].
+
+Lemma xmm_registers_fin_axiom : Finite.axiom xmm_registers.
+Proof. by case. Qed.
+
+Definition xreg_choiceMixin :=
+  PcanChoiceMixin (FinIsCount.pickleK xmm_registers_fin_axiom).
+Canonical xreg_choiceType :=
+  Eval hnf in ChoiceType xmm_register xreg_choiceMixin.
+
+Definition xreg_countMixin :=
+  PcanCountMixin (FinIsCount.pickleK xmm_registers_fin_axiom).
+Canonical xreg_countType :=
+  Eval hnf in CountType xmm_register xreg_countMixin.
+
+Definition xreg_finMixin :=
+  FinMixin xmm_registers_fin_axiom.
+Canonical xreg_finType :=
+  Eval hnf in FinType xmm_register xreg_finMixin.
+
+(* -------------------------------------------------------------------- *)
 Definition rflags := [:: CF; PF; ZF; SF; OF; DF].
 
 Lemma rflags_fin_axiom : Finite.axiom rflags.
@@ -253,6 +287,14 @@ Module RegMap.
 End RegMap.
 
 (* -------------------------------------------------------------------- *)
+Module XRegMap.
+  Definition map := {ffun xmm_register -> u128 }.
+
+  Definition set (m : map) (x : xmm_register) (y : u128) : map :=
+    [ffun z => if (z == x) then y else m z].
+End XRegMap.
+
+(* -------------------------------------------------------------------- *)
 Module RflagMap.
   Variant rflagv := Def of bool | Undef.
 
@@ -270,6 +312,7 @@ End RflagMap.
 
 (* -------------------------------------------------------------------- *)
 Notation regmap   := RegMap.map.
+Notation xregmap   := XRegMap.map.
 Notation rflagmap := RflagMap.map.
 Notation Def      := RflagMap.Def.
 Notation Undef    := RflagMap.Undef.
@@ -287,6 +330,7 @@ Record x86_mem : Type :=
   X86Mem {
       xmem : mem;
       xreg : regmap;
+      xxreg: xregmap;
       xrf  : rflagmap;
     }.
 
@@ -321,6 +365,7 @@ Definition mem_write_reg (r: register) sz (w: word sz) (m: x86_mem) :=
   {|
     xmem := m.(xmem);
     xreg := RegMap.set m.(xreg) r (word_extend_reg r w m);
+    xxreg := m.(xxreg);
     xrf  := m.(xrf);
   |}.
 
@@ -338,6 +383,7 @@ Definition mem_set_rflags (rf : rflag) (b : bool) (s : x86_mem) :=
   {|
     xmem := s.(xmem);
     xreg := s.(xreg);
+    xxreg := s.(xxreg);
     xrf  := RflagMap.set s.(xrf) rf b;
   |}.
 
@@ -345,6 +391,7 @@ Definition mem_unset_rflags (rf : rflag) (s : x86_mem) :=
   {|
     xmem := s.(xmem);
     xreg := s.(xreg);
+    xxreg := s.(xxreg);
     xrf  := RflagMap.oset s.(xrf) rf Undef;
   |}.
 
@@ -357,6 +404,7 @@ Definition st_set_rflags (rf : rflag) (b : bool) (s : x86_state) :=
 Definition mem_update_rflags f (s : x86_mem) :=
   {| xmem := s.(xmem);
      xreg := s.(xreg);
+     xxreg := s.(xxreg);
      xrf  := RflagMap.update s.(xrf) f;
      |}.
 
@@ -370,6 +418,7 @@ Definition mem_write_mem (l : pointer) sz (w : word sz) (s : x86_mem) :=
   Let m := write_mem s.(xmem) l sz w in ok
   {| xmem := m;
      xreg := s.(xreg);
+     xxreg := s.(xxreg);
      xrf  := s.(xrf);
   |}.
 
@@ -1019,10 +1068,10 @@ Variant x86sem_fd (P: xprog) (gd: glob_defs) fn st st' : Prop :=
 | X86Sem_fd fd mp st2
    `(get_fundef P fn = Some fd)
    `(alloc_stack st.(xmem) fd.(xfd_stk_size) = ok mp)
-    (st1 := mem_write_reg fd.(xfd_nstk) (top_stack mp) {| xmem := mp ; xreg := st.(xreg) ; xrf := rflagmap0 |})
+    (st1 := mem_write_reg fd.(xfd_nstk) (top_stack mp) {| xmem := mp ; xreg := st.(xreg) ; xxreg := st.(xxreg) ; xrf := rflagmap0 |})
     (c := fd.(xfd_body))
     `(x86sem gd {| xm := st1 ; xc := c ; xip := 0 |} {| xm := st2; xc := c; xip := size c |})
-    `(st' = {| xmem := free_stack st2.(xmem) fd.(xfd_stk_size) ; xreg := st2.(xreg) ; xrf := rflagmap0 |})
+    `(st' = {| xmem := free_stack st2.(xmem) fd.(xfd_stk_size) ; xreg := st2.(xreg) ; xxreg := st2.(xxreg) ; xrf := rflagmap0 |})
     .
 
 Definition x86sem_trans gd s2 s1 s3 :

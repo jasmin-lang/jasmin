@@ -982,7 +982,7 @@ Proof.
     by move: ok_lom''; rewrite /sets_low /=; case: ifP => // /eqP ->; rewrite eqxx ok_lom'.
   move => a hz [x] [ofs] [d] [hpe] [?] [hd ha]; subst lv.
   move: ok_m' => /=; t_xrbindP => v v' ok_v' ok_v w w' ok_w' ok_w u ok_u em ok_em ?; subst m'.
-  set lom' := {| xmem := em ; xreg := xreg lom ; xrf := xrf lom |}.
+  set lom' := {| xmem := em ; xreg := xreg lom ; xxreg := xxreg lom ; xrf := xrf lom |}.
   have eqm' : lom_eqv {| emem := em ; evm := evm m |} lom'.
   - by case: eqm => eqm eqr eqf; rewrite /lom'; split.
   have [lom'' [ok_lom'' eqm'']] := H _ _ _ _ _ eqm' ok_m'' hysys'.

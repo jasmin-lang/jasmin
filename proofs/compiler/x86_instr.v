@@ -48,7 +48,7 @@ Local Coercion R f := ADImplicit (var_of_register f).
 Notation make_instr_desc gen_sem := (mk_instr_desc gen_sem erefl erefl).
 
 Instance x86_mem_equiv_refl : Reflexive x86_mem_equiv.
-Proof. by case => xm xr xf; constructor => //= f; case: (xf f) => /=. Qed.
+Proof. by case => xm xr xx xf; constructor => //= f; case: (xf f) => /=. Qed.
 
 Arguments x86_mem_equiv_refl [_].
 
@@ -893,7 +893,7 @@ Lemma lom_eqv_mem_equiv_trans s m1 m2 :
   x86_mem_equiv m1 m2 →
   lom_eqv s m2.
 Proof.
-case: m1 m2 => m1 rg1 rf1 [] m2 rg2 rf2 [] /= ? hrg1 hrf1 [] /= <- <- hrf2.
+case: m1 m2 => m1 rg1 xr1 rf1 [] m2 rg2 xr2 rf2 [] /= ? hrg1 hrf1 [] /= <- <- hrf2.
 constructor => //= f v hv.
 move: (hrf1 f v hv) (hrf2 f) => {hv}.
 case: (rf1 _) v => [ b | ] [] //=.

@@ -242,7 +242,7 @@ move => s1 hargs ?; subst m1.
 move: h; rewrite /assemble_fd; t_xrbindP => body ok_body.
 case ok_sp: (reg_of_string _) => [ sp | // ];
   t_xrbindP => args ok_args dsts ok_dsts _ /assertP hsp [?]; subst fd'.
-set xr1 := mem_write_reg sp (Memory.top_stack m1') {| xmem := m1' ; xreg := s1.(xreg) ; xrf := rflagmap0 |}.
+set xr1 := mem_write_reg sp (Memory.top_stack m1') {| xmem := m1' ; xreg := s1.(xreg) ; xxreg := s1.(xxreg) ; xrf := rflagmap0 |}.
 have eqm1 : lom_eqv {| emem := m1' ; evm := vm1 |} xr1.
 + constructor => //.
   - rewrite /vm1 /= => r v.
@@ -264,7 +264,7 @@ have eqm2 : lom_eqv s2 xr1.
 + by apply: write_vars_uincl; eauto.
 have ms : match_state (of_estate s2 fd.(lfd_body) 0) {| xm := xr1 ; xc := body ; xip := 0 |}.
 + by constructor => //=; rewrite to_estate_of_estate.
-have [[[om or orf] oc opc] [xexec]] := match_state_sem hexec ms.
+have [[[om or oxr orf] oc opc] [xexec]] := match_state_sem hexec ms.
 rewrite (mapM_size ok_body).
 case => eqm' /=.
 rewrite ok_body => -[?] ?; subst oc opc.
