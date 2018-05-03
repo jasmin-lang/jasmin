@@ -40,6 +40,30 @@ Unset Printing Implicit Defensive.
 Notation Uptr := U64 (only parsing).
 Notation pointer := (word Uptr) (only parsing).
 
+Definition no_overflow (p: pointer) (sz: Z) : bool :=
+  (wunsigned p + sz <? wbase Uptr)%Z.
+
+Definition disjoint_zrange (p: pointer) (s: Z) (p': pointer) (s': Z) :=
+  [/\ no_overflow p s,
+      no_overflow p' s' &
+      wunsigned p + s <= wunsigned p' \/
+        wunsigned p' + s' <= wunsigned p]%Z.
+
+Definition disjoint_range p s p' s' :=
+  disjoint_zrange p (wsize_size s) p' (wsize_size s').
+
+Definition between (pstk : pointer)  (sz : Z) (p : pointer) (s : wsize) : bool :=
+  ((wunsigned pstk <=? wunsigned p) && (wunsigned p + wsize_size s <=? wunsigned pstk + sz))%Z.
+
+Lemma between_leb pstk sz p s pstk' sz' :
+  ((wunsigned pstk' <=? wunsigned pstk) && (wunsigned pstk + sz <=? wunsigned pstk' + sz'))%Z ->
+  between pstk sz p s ->
+  between pstk' sz' p s.
+Proof.
+rewrite /between => /andP [] /ZleP a /ZleP b /andP [] /ZleP c /ZleP d.
+apply/andP; split; apply/ZleP; Psatz.lia.
+Qed.
+
 Module Memory.
 
 Parameter mem : Type.
@@ -50,9 +74,6 @@ Arguments write_mem : clear implicits.
 
 Parameter valid_pointer : mem -> pointer -> wsize -> bool.
 
-Definition no_overflow (p: pointer) (sz: Z) : bool :=
-  (wunsigned p + sz <? wbase Uptr)%Z.
-
 Parameter readV : forall m p s,
   reflect (exists v, read_mem m p s = ok v) (valid_pointer m p s).
 
@@ -61,20 +82,9 @@ Parameter writeV : forall m p s v,
 
 Axiom read_mem_error : forall m p s e, read_mem m p s = Error e -> e = ErrAddrInvalid.
 
-(* Definition padd (p:pointer) (s:nat) := I64.add p (I64.repr (Z.of_nat s)). *)
-
 Parameter writeP_eq : forall m m' p s (v :word s),
   write_mem m p s v = ok m' ->
   read_mem m' p s = ok v.
-
-Definition disjoint_zrange (p: pointer) (s: Z) (p': pointer) (s': Z) :=
-  [/\ no_overflow p s,
-      no_overflow p' s' &
-      wunsigned p + s <= wunsigned p' \/
-        wunsigned p' + s' <= wunsigned p]%Z.
-
-Definition disjoint_range p s p' s' := 
-  disjoint_zrange p (wsize_size s) p' (wsize_size s').
 
 Parameter writeP_neq : forall m m' p s (v :word s) p' s',
   write_mem m p s v = ok m' ->
@@ -118,18 +128,6 @@ Parameter frame_size : mem -> pointer -> option Z.
 Parameter alloc_stack : mem -> Z -> exec mem.
 
 Parameter free_stack : mem -> Z -> mem.
-
-Definition between (pstk : pointer)  (sz : Z) (p : pointer) (s : wsize) : bool :=
-  ((wunsigned pstk <=? wunsigned p) && (wunsigned p + wsize_size s <=? wunsigned pstk + sz))%Z.
-
-Lemma between_leb pstk sz p s pstk' sz' :
-  ((wunsigned pstk' <=? wunsigned pstk) && (wunsigned pstk + sz <=? wunsigned pstk' + sz'))%Z ->
-  between pstk sz p s ->
-  between pstk' sz' p s.
-Proof.
-rewrite /between => /andP [] /ZleP a /ZleP b /andP [] /ZleP c /ZleP d.
-apply/andP; split; apply/ZleP; Psatz.lia.
-Qed.
 
 Section SPEC.
   Variables (m:mem) (sz:Z) (m':mem).
