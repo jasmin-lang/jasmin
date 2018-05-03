@@ -311,46 +311,10 @@ Lemma wsar0 sz (w: word sz) : wsar w 0 = w.
 Proof. by rewrite /wsar /asr Z.shiftr_0_r wrepr_unsigned. Qed.
 
 (* -------------------------------------------------------------------*)
-Lemma urepr_word {n} (w : n.-word) : urepr w = w :> Z.
-Proof. by []. Qed.
-
-Lemma addwE {n} (w1 w2 : n.-word) :
-  urepr (w1 + w2)%R = (urepr w1 + urepr w2)%R mod modulus n.
-Proof. by []. Qed.
-
-Lemma subwE {n} (w1 w2 : n.-word) :
-  urepr (w1 - w2)%R = (urepr w1 - urepr w2)%R mod modulus n.
-Proof.
-rewrite addwE {1}/GRing.opp /= /opp_word mkwordK.
-by rewrite -!(addZE, oppZE) Zplus_mod_idemp_r.
-Qed.
-
-Lemma wltuE_word {n} (w1 w2: n.-word) :
-  (urepr w1 < urepr w2)%R = (urepr (w1 - w2) != (urepr w1 - urepr w2))%R.
-Proof.
-apply/esym; case: ltrP; last first.
-+ move=> ge; apply/negbTE; rewrite negbK subwE Zmod_small //.
-  split; first by apply/lezP; rewrite subr_ge0.
-  apply/ltzP; rewrite -[modulus n]subr0 ltr_le_sub //.
-  * by rewrite urepr_ltmod. * by rewrite urepr_ge0.
-+ move=> lt; rewrite subwE -(@Z_mod_plus _ 1); last first.
-  * by apply/Z.lt_gt/ltzP/modulus_gt0.
-  rewrite !(addZE, mulZE) mul1r Zmod_small; last split.
-  * apply/eqP; rewrite -[X in _=X]addr0 => /addrI.
-    by move/eqP; rewrite gtr_eqF.
-  * apply/lezP; rewrite addrC -opprB subr_ge0.
-    rewrite ler_subl_addr ler_paddr //.
-    * by rewrite urepr_ge0. * by rewrite ltrW ?urepr_ltmod.
-  * by apply/ltzP; rewrite gtr_addr subr_lt0.
-Qed.
-
-Lemma modulusS n : modulus n.+1 = (modulus n *+ 2)%R.
-Proof. by rewrite [in LHS]modulusE exprS mulr_natl -modulusE. Qed.
-
 Lemma wltE sg sz (w1 w2: word sz) :
   wlt sg w1 w2 = (wunsigned (w1 - w2) != (wunsigned w1 - wunsigned w2))%Z.
 Proof.
-rewrite -wltuE_word; case: sg => //=; rewrite !sreprE.
+rewrite -wltuE; case: sg => //=; rewrite !sreprE.
  do! case: ifPn => //=.
 + rewrite -lerNgt => h1 h2; rewrite (ltr_le_trans h2 h1).
   rewrite modulusE exprS -modulusE mulr_natl mulr2n opprD.
@@ -361,12 +325,25 @@ rewrite -wltuE_word; case: sg => //=; rewrite !sreprE.
 + by move=> _ _; rewrite ltr_add2r.
 Admitted.
 
+Lemma wltuE' sz (α β: word sz) :
+  wlt Unsigned α β = (wunsigned (β - α) == (wunsigned β - wunsigned α)%Z) && (β != α).
+Proof.
+by rewrite -[X in X && _]negbK -wltuE /= -lerNgt andbC eq_sym -ltr_neqAle.
+Qed.
+
+Lemma wleuE sz (w1 w2: word sz) :
+  wle Unsigned w1 w2 = (wunsigned (w2 - w1) == (wunsigned w2 - wunsigned w1))%Z.
+Proof.
+rewrite /= ler_eqVlt -/(wlt Unsigned _ _) wltuE'.
+rewrite orb_andr /= [w2 == w1]eq_sym orbN andbT.
+by rewrite orb_idl // => /eqP /val_inj ->; rewrite subZE !subrr.
+Qed.
+
 Lemma wlesE sz (w1 w2: word sz) :
   wle Signed w1 w2 = (msb (w2 - w1) == (wsigned (w2 - w1) != (wsigned w2 - wsigned w1)%Z)).
 Proof. Admitted.
 
 (* -------------------------------------------------------------------*)
-
 Lemma zero_extend0 sz sz' :
   @zero_extend sz sz' 0%R = 0%R.
 Proof. by apply/eqP/eq_from_wbit. Qed.
