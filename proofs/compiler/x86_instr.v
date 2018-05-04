@@ -273,7 +273,7 @@ move => x y; split => // gd m m'.
 rewrite /low_sem_aux /= /eval_ADC /x86_adc !arg_of_oprdE /=.
 case: x => //= [ x | x ]; t_xrbindP => ???? hx; [ | move => <- ?? hy ] => ?? hb <- <- <- /=;
 t_xrbindP => ? /truncate_wordP [hle ->] ? /of_val_word [?] [?] [hle' ??]; subst;
-move => b /to_bool_inv ? _ -> /= [?]; subst; rewrite (value_of_boolI hb) {hb} !(word_of_b2z sz) /add_carry !wrepr_add !wrepr_unsigned.
+move => b /to_boolI ? _ -> /= [?]; subst; rewrite (value_of_boolI hb) {hb} !(word_of_b2z sz) /add_carry !wrepr_add !wrepr_unsigned.
 - case => <-. rewrite (eval_low_read _ hx) //=. update_set.
 rewrite /sets_low /= truncate_word_u /= !decode_addr_set_rflags hx /= (eval_low_read _ hy) //= decode_addr_update_rflags.
 rewrite /mem_write_mem /= !zero_extend_u.
@@ -291,7 +291,7 @@ Proof.
 move => x y; split => // gd m m'; rewrite /low_sem_aux /= !arg_of_oprdE /eval_SBB /x86_sbb /=.
 case: x => //= [ x | x ]; t_xrbindP => ???; [ | move => ? hptr <- ? ] => ? hy ?? hb <- <- <- /=;
 t_xrbindP => ? /truncate_wordP [hle ->] ? /of_val_word [?] [?] [hle' ??];
-subst => b /to_bool_inv ? _ -> /=; subst => - [<-]; rewrite (value_of_boolI hb) {hb} (eval_low_read _ hy) //= !(word_of_b2z sz) /sub_borrow !wrepr_sub !wrepr_unsigned Z.sub_add_distr.
+subst => b /to_boolI ? _ -> /=; subst => - [<-]; rewrite (value_of_boolI hb) {hb} (eval_low_read _ hy) //= !(word_of_b2z sz) /sub_borrow !wrepr_sub !wrepr_unsigned Z.sub_add_distr.
 - case => <-. update_set.
 rewrite /sets_low /= truncate_word_u /= !decode_addr_set_rflags hptr /= decode_addr_update_rflags.
 rewrite /mem_write_mem /= !zero_extend_u !Z.sub_add_distr.
@@ -355,7 +355,7 @@ Lemma SETcc_gsc :
      [:: Eb 0] [::] SETcc.
 Proof.
 move => ct x; split => // gd m m'; rewrite /low_sem_aux /= /eval_SETcc /x86_setcc.
-case: x => //= [ x | x ]; t_xrbindP => ??? hb <-; t_xrbindP => b /to_bool_inv ? ?; subst.
+case: x => //= [ x | x ]; t_xrbindP => ??? hb <-; t_xrbindP => b /to_boolI ? ?; subst.
 - case => <-; rewrite (value_of_boolI hb) {hb} /=; case: b; update_set.
 rewrite /sets_low /= zero_extend_u (value_of_boolI hb) {hb}.
 case: b => /=.

@@ -152,9 +152,9 @@ Proof.
   apply: eeq_weaken; rewrite /sand. 
   case: is_boolP => [b1 rho v /=| {e1} e1]. 
   + apply: rbindP=> v2' /= He2;apply:rbindP=> ? [<-]. 
-    by apply: rbindP => b2 /of_val_bool Hb2 [<-];subst v2';case:b1.
+    by apply: rbindP => b2 /to_boolI Hb2 [<-];subst v2';case:b1.
   case: is_boolP => [b2 rho v /=|{e2}e2];last by auto using eeq_refl.
-  apply: rbindP => v1 Hv1;apply:rbindP=> b1 /of_val_bool ?;subst v1 => /= -[<-].
+  apply: rbindP => v1 Hv1;apply:rbindP=> b1 /to_boolI ?;subst v1 => /= -[<-].
   by case:b2;rewrite ?andbT ?andbF.
 Qed.
 
@@ -163,9 +163,9 @@ Proof.
   apply: eeq_weaken; rewrite /sor. 
   case: is_boolP => [b1 rho v /=| {e1} e1]. 
   + apply: rbindP=> v2' /= He2;apply:rbindP=> ? [<-]. 
-    by apply: rbindP => b2 /of_val_bool Hb2 [<-];subst v2';case:b1.
+    by apply: rbindP => b2 /to_boolI Hb2 [<-];subst v2';case:b1.
   case: is_boolP => [b2 rho v /=|{e2}e2];last by auto using eeq_refl.
-  apply: rbindP => v1 Hv1;apply:rbindP=> b1 /of_val_bool ?;subst v1 => /= -[<-].
+  apply: rbindP => v1 Hv1;apply:rbindP=> b1 /to_boolI ?;subst v1 => /= -[<-].
   by case:b2;rewrite ?orbT ?orbF.
 Qed.
 

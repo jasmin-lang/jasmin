@@ -114,16 +114,6 @@ Proof.
   by exists s'; exists  w';split => //=; rewrite le_ss' eq_ww'.
 Qed.
 
-Lemma to_bool_inv x b :
-  to_bool x = ok b →
-  x = b.
-Proof.
-  case: x => // ? H.
-  apply ok_inj in H; congruence.
-  elim (@of_val_undef_ok sbool _ _ H).
-Qed.
- 
-
 Require psem.
 
 Definition sstype_stype_incl sst st :=
@@ -229,7 +219,7 @@ Lemma svalue_uincl_bool ve ve' b :
   svalue_uincl ve ve' -> to_bool ve = ok b -> ve = b /\ ve' = b.
 Proof.
   move=> h t; case: (@of_sval_uincl ve ve' sbool b h t) => /= z' [t' q].
-  apply sto_bool_inv in t'; apply to_bool_inv in t. intuition congruence.
+  apply sto_bool_inv in t'; apply psem.to_boolI in t. intuition congruence.
 Qed.
 
 Lemma sget_var_uincl x vm1 vm2 v1:
@@ -431,7 +421,7 @@ Proof.
     eauto using svuincl_sem_op2_i, svuincl_sem_op2_w, 
                 svuincl_sem_op2_b, svuincl_sem_op2_ib, svuincl_sem_op2_wb.
   + apply: rbindP => b; apply: rbindP => ? /Heb {Heb} [] b' [] -> h.
-    move=> Q; apply to_bool_inv in Q; subst.
+    move=> Q; apply psem.to_boolI in Q; subst.
     apply: rbindP => w1 /He1 {He1} [] w1' [] -> h1.
     apply: rbindP => w2 /He2 {He2} [] w2' [] -> h2.
     apply: rbindP => z1 Z1; apply: rbindP => z2 Z2.

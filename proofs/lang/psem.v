@@ -581,13 +581,10 @@ case: v => //=; eauto.
 by move => sz w; rewrite truncate_word_u; eauto.
 Qed.
 
-Lemma to_bool_inv x b :
+Lemma to_boolI x b :
   to_bool x = ok b →
   x = b.
 Proof. case: x => //=; last by case. by move => ? /(@ok_inj _ _ _ _) ->. Qed.
-
-Lemma of_val_bool v b: of_val sbool v = ok b -> v = Vbool b.
-Proof. by case v=> //= [? [->] | []]. Qed.
 
 Lemma of_val_int v z: of_val sint v = ok z -> v = Vint z.
 Proof. by case v=> //= [? [->] | []]. Qed.
@@ -614,7 +611,7 @@ rewrite /exec_sopn; case: o => //=;
 repeat match goal with
 | |- match ?x with _ => _ end = ok _ → _ => case: x => //
 | |- Let _ := _ in _ = ok _ → _ => apply: rbindP => //=
-| |- to_bool ?v = ok _ → _ => move => /to_bool_inv -> {v}
+| |- to_bool ?v = ok _ → _ => move => /to_boolI -> {v}
 | |- to_word ?sz ?v = ok _ → _ =>
   let k := fresh in case/to_wordI => ? [?] [k ->?]; rewrite /= k => {k}
 | |- _ → _ => intro
@@ -1727,7 +1724,7 @@ Lemma value_uincl_pof_val t v1 (v1' v2 : psem_t t):
   value_uincl (pto_val v1') (pto_val v2).
 Proof.
   case: t v1' v2 => /= [||s n|s] v1' v2.
-  + by move=> /to_bool_inv ->.
+  + by move=> /to_boolI ->.
   + by move=> h1 h2;have [? [<-]]:= value_uincl_int h2 h1.
   + by move=> /to_arr_ok ->.
   case: v1 => //= [ s' w| [] //] [<-].

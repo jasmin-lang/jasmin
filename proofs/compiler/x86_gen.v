@@ -197,7 +197,7 @@ Lemma truncate_val_uincl ty v v' :
 Proof.
 apply: rbindP => z hz [<-].
 case: ty z hz => /=.
-- by move => b /to_bool_inv ->.
+- by move => b /to_boolI ->.
 - by move => z /of_val_int ->.
 - by move => sz n t /to_arr_ok ->; split => //; exists erefl.
 move => sz w /of_val_word [sz'] [w'] [hle -> ->].

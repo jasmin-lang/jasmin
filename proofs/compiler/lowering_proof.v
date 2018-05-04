@@ -1379,7 +1379,7 @@ Section PROOF.
     case: x => // -[] //; last by case => //= ? ?; case: ifP.
     move => sz1 w1 [ | x y ] //=; rewrite /truncate_word; case: ifP => //= hle.
     t_xrbindP => wx /of_val_word [sz'] [wx'] [hle' -> ->] {x wx}.
-    case: y => // y z; t_xrbindP => b /of_val_bool -> {y}; case: z => // h.
+    case: y => // y z; t_xrbindP => b /to_boolI -> {y}; case: z => // h.
     by eexists _, w1, _, wx', b.
   Qed.
 
