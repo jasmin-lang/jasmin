@@ -21,9 +21,6 @@ let rec rm_uninitialized_i init i =
   let (s1, s2) = i.i_info in
   let init',i_desc =
     match i.i_desc with
-    | Cblock c ->
-      let init', c = rm_uninitialized_c init c in
-      init', Cblock c
     | Cassgn(x, _, _, _) ->
       init_lval init x, i.i_desc
     | Copn(xs, _, _, _) | Ccall(_, xs, _, _) ->
@@ -119,7 +116,7 @@ let rec same_i cfm i =
         (Printer.pp_instr ~debug:true) i
   | Cassgn _                              -> cfm
   | Copn (_, _,_, _) | Ccall (_, _, _, _) -> cfm
-  | Cblock c       | Cfor( _, _, c)       -> same_c cfm c
+  | Cfor( _, _, c) -> same_c cfm c
   | Cif(_, c1, c2) | Cwhile(c1, _, c2)    -> same_c (same_c cfm c1) c2
 
 and same_c cfm c = List.fold_left same_i cfm c

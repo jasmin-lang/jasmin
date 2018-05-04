@@ -98,7 +98,6 @@ type 'ty grange = range_dir * 'ty gexpr * 'ty gexpr
 type i_loc = L.t * L.t list
 
 type ('ty,'info) ginstr_r =
-  | Cblock of ('ty,'info) gstmt
   | Cassgn of 'ty glval * assgn_tag * 'ty * 'ty gexpr
   | Copn   of 'ty glvals * assgn_tag * Expr.sopn * 'ty gexprs
   | Cif    of 'ty gexpr * ('ty,'info) gstmt * ('ty,'info) gstmt

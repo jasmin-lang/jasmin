@@ -187,7 +187,6 @@ let dotdot = function
 
 let rec pp_instr_r fmt instr =
   match instr with
-  | Cblock c -> pp_instrs fmt c
   | Cassgn(rv, atag, ty, pe) ->
     F.fprintf fmt "@[%a %a@ %a@ %a@]"
       pp_rval rv pp_ass_tag atag pp_ty ty pp_pexpr pe

@@ -30,7 +30,6 @@ let written_vars_lvars allvars = List.fold_left (written_vars_lvar allvars)
 
 let rec written_vars_instr_r allvars w =
   function
-  | Cblock s
   | Cfor (_, _, s)
     -> written_vars_stmt allvars w s
   | Cassgn (x, _, _, _) -> written_vars_lvar allvars w x
@@ -54,7 +53,6 @@ let split_live_ranges (allvars: bool) (f: 'info func) : unit func =
   let f = Liveness.live_fd false f in
   let rec instr_r (li: Sv.t) (lo: Sv.t) (m: names) =
     function
-    | Cblock s -> let m, s = stmt m s in m, Cblock s
     | Cassgn (x, tg, ty, e) ->
       let e = rename_expr m e in
       let m, y = rename_lval allvars (m, []) x in
@@ -111,7 +109,6 @@ let split_live_ranges (allvars: bool) (f: 'info func) : unit func =
 let remove_phi_nodes (f: 'info func) : 'info func =
   let rec instr_r =
     function
-    | Cblock s -> (match stmt s with [] -> [] | s -> [Cblock s])
     | Cassgn (x, tg, _, e) as i ->
       (match tg with
        | AT_phinode ->

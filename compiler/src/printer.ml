@@ -169,9 +169,6 @@ let pp_tag = function
 let rec pp_gi pp_info pp_ty pp_var fmt i =
   F.fprintf fmt "%a" pp_info i.i_info;
   match i.i_desc with
-  | Cblock c ->
-    F.fprintf fmt "@[<v>{@   @[<v>%a@]@ }@]" (pp_cblock pp_info pp_ty pp_var) c
-
   | Cassgn(x , tg, ty, e) ->
     F.fprintf fmt "@[<hov 2>%a %s=(%a)@ %a;@]"
       (pp_glv pp_var) x (pp_tag tg)

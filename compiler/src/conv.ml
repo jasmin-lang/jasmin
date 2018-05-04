@@ -281,7 +281,6 @@ let rec cinstr_of_instr tbl i c =
 
 and cinstr_r_of_instr_r tbl p i tl =
   match i with
-  | Cblock c -> cstmt_of_stmt tbl c tl
   | Cassgn(x,t, ty,e) ->
     let ir  =
       C.Cassgn(clval_of_lval tbl x, cat_of_at t, cty_of_ty ty, cexpr_of_expr tbl e) in

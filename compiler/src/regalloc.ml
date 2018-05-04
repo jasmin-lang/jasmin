@@ -21,7 +21,6 @@ let fill_in_missing_names (f: 'info func) : 'info func =
   let fill_lvs lvs = List.map fill_lv lvs in
   let rec fill_instr_r =
     function
-    | Cblock s -> Cblock (fill_stmt s)
     | Cassgn (lv, tg, ty, e) -> Cassgn (fill_lv lv, tg, ty, e)
     | Copn (lvs, tg, op, es) -> Copn (fill_lvs lvs, tg, op, es)
     | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
@@ -146,7 +145,6 @@ let collect_equality_constraints
   let addf x y = fr := set_friend x y !fr in
   let rec collect_instr_r ii =
     function
-    | Cblock s
     | Cfor (_, _, s)
       -> collect_stmt s
     | Copn (lvs, _, op, es) -> copn_constraints tbl (add ii) addf lvs op es
@@ -230,7 +228,6 @@ let collect_conflicts (tbl: int Hv.t) (tr: 'info trace) (f: (Sv.t * Sv.t) func) 
   in
   let rec collect_instr_r c =
     function
-    | Cblock s
     | Cfor (_, _, s)
       -> collect_stmt c s
     | Cassgn _
@@ -269,7 +266,6 @@ let collect_variables (allvars: bool) (f: 'info func) : int Hv.t * int =
   let collect_exprs es = vars_es es |> collect_sv in
   let rec collect_instr_r =
     function
-    | Cblock s -> collect_stmt s
     | Cassgn (lv, _, _, e) -> collect_lv lv; collect_expr e
     | Ccall (_, lvs, _, es)
     | Copn (lvs, _, _, es) -> collect_lvs lvs; collect_exprs es
@@ -417,7 +413,6 @@ let allocate_forced_registers translate_var (vars: int Hv.t) (cnf: conflicts)
   let alloc_ret loc = alloc_from_list loc X64.ret L.unloc in
   let rec alloc_instr_r loc a =
     function
-    | Cblock s
     | Cfor (_, _, s)
       -> alloc_stmt a s
     | Copn (lvs, _, op, es) -> X64.forced_registers translate_var loc vars cnf lvs op es a

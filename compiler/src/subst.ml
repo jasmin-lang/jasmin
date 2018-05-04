@@ -32,7 +32,6 @@ let gsubst_es f = List.map (gsubst_e f)
 let rec gsubst_i fty f i =
   let i_desc =
     match i.i_desc with
-    | Cblock c      -> Cblock (gsubst_c fty f c)
     | Cassgn(x, tg, ty, e) -> Cassgn(gsubst_lval fty f x, tg, fty ty, gsubst_e f e)
     | Copn(x,t,o,e)   -> Copn(gsubst_lvals fty f x, t, o, gsubst_es f e)
     | Cif(e,c1,c2)  -> Cif(gsubst_e f e, gsubst_c fty f c1, gsubst_c fty f c2)
@@ -204,8 +203,7 @@ let clone_func fc =
 let rec extend_iinfo_i pre i =
   let i_desc = 
     match i.i_desc with
-    | Cblock c -> Cblock (extend_iinfo_c pre c)
-    | Cassgn _ | Copn _ | Ccall _ -> i.i_desc 
+    | Cassgn _ | Copn _ | Ccall _ -> i.i_desc
     | Cif(e,c1,c2) -> 
       Cif(e, extend_iinfo_c pre c1, extend_iinfo_c pre c2)
     | Cfor(x,r,c) -> 

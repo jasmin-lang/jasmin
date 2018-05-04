@@ -39,10 +39,6 @@ let rec live_i weak i s_o =
 
 and live_d weak d (s_o: Sv.t) =
   match d with
-  | Cblock c ->
-    let s_i, c = live_c weak c s_o in
-    s_i, s_o, Cblock c
-
   | Cassgn(x, tg, ty, e) ->
 
     let s_i = Sv.union (vars_e e) (dep_lv s_o x) in
@@ -115,7 +111,7 @@ let rec conflicts_i cf i =
   match i.i_desc with
   | Cassgn _ | Copn _ | Ccall _ ->
     merge_class cf s2
-  | Cblock c | Cfor( _, _, c) ->
+  | Cfor( _, _, c) ->
     conflicts_c (merge_class cf s2) c
   | Cif(_, c1, c2) | Cwhile(c1, _, c2) ->
     conflicts_c (conflicts_c (merge_class cf s2) c1) c2

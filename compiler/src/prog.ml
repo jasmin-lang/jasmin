@@ -103,7 +103,6 @@ type 'ty grange = range_dir * 'ty gexpr * 'ty gexpr
 type i_loc = L.t * L.t list 
 
 type ('ty,'info) ginstr_r =
-  | Cblock of ('ty,'info) gstmt
   | Cassgn of 'ty glval * assgn_tag * 'ty * 'ty gexpr
   | Copn   of 'ty glvals * assgn_tag * Expr.sopn * 'ty gexprs
   | Cif    of 'ty gexpr * ('ty,'info) gstmt * ('ty,'info) gstmt
@@ -281,7 +280,6 @@ let rvars_lvs s lvs = List.fold_left rvars_lv s lvs
 
 let rec rvars_i s i =
   match i.i_desc with
-  | Cblock c       -> rvars_c s c
   | Cassgn(x, _, _, e)  -> rvars_e (rvars_lv s x) e
   | Copn(x,_,_,e)    -> rvars_es (rvars_lvs s x) e
   | Cif(e,c1,c2)   -> rvars_c (rvars_c (rvars_e s e) c1) c2
