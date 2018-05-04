@@ -1226,7 +1226,7 @@ Module CBAreg.
   Proof. by case: e => //= -[? []] //= v [<- <-]. Qed.
 
   Definition check_lval (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec M.t :=
-    let err _ := cerror (Cerr_neqrval x1 x2 salloc) in
+    let err _ := cerror (Cerr_neqlval x1 x2 salloc) in
     match x1, x2 with
     | Lnone  _ t1, Lnone _ t2  => 
       if t1 == t2 then cok m else err tt

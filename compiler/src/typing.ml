@@ -659,7 +659,6 @@ let prim_of_op exn loc o =
       | None -> n
       | Some b -> F.sprintf "%s_%d" n b
     in
-    let open Expr in
     match o with
     | `Add s -> f s "adc"
     | `Sub s -> f s "sbb"

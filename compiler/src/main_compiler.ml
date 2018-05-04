@@ -49,7 +49,7 @@ let rec pp_comp_err tbl fmt =
   | Compiler_util.Cerr_neqexpr(_,_,s) ->
     Format.fprintf fmt "expression not equal in %a"
       pp_string0 s
-  | Compiler_util.Cerr_neqrval(_,_,s) ->
+  | Compiler_util.Cerr_neqlval(_,_,s) ->
     Format.fprintf fmt "lval not equal in %a"
       pp_string0 s
   | Compiler_util.Cerr_neqfun(_,_,s) ->
