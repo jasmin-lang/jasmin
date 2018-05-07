@@ -172,7 +172,7 @@ let pp_scale (scale : X86_sem.scale) =
   | Scale8 -> "8"
 
 (* -------------------------------------------------------------------- *)
-let pp_address (ws : rsize) (addr : X86_sem.address) =
+let pp_address (addr : X86_sem.address) =
   let disp = Conv.bi_of_int64 addr.ad_disp in
   let base = addr.ad_base in
   let off  = addr.ad_offset in
@@ -219,7 +219,7 @@ let pp_opr (ws : rsize) (op : X86_sem.oprd) =
       pp_register ws reg
 
   | Adr_op addr ->
-      pp_address ws addr
+      pp_address addr
 
 (* -------------------------------------------------------------------- *)
 let pp_imr (ws : rsize) (op : X86_sem.ireg) =
@@ -249,6 +249,32 @@ let pp_ct (ct : X86_sem.condt) =
   | NL_ct  -> "nl"
   | LE_ct  -> "le"
   | NLE_ct -> "nle"
+
+(* -------------------------------------------------------------------- *)
+let pp_xmm_register : X86_sem.xmm_register -> string =
+  function
+  | XMM0 -> "xmm0"
+  | XMM1 -> "xmm1"
+  | XMM2 -> "xmm2"
+  | XMM3 -> "xmm3"
+  | XMM4 -> "xmm4"
+  | XMM5 -> "xmm5"
+  | XMM6 -> "xmm6"
+  | XMM7 -> "xmm7"
+  | XMM8 -> "xmm8"
+  | XMM9 -> "xmm9"
+  | XMM10 -> "xmm10"
+  | XMM11 -> "xmm11"
+  | XMM12 -> "xmm12"
+  | XMM13 -> "xmm13"
+  | XMM14 -> "xmm14"
+  | XMM15 -> "xmm15"
+
+(* -------------------------------------------------------------------- *)
+let pp_rm128 : X86_sem.rm128 -> string =
+  function
+  | RM128_reg r -> pp_xmm_register r
+  | RM128_mem a -> pp_address a
 
 (* -------------------------------------------------------------------- *)
 let pp_iname (rs : rsize) (name : string) =
@@ -395,6 +421,9 @@ let pp_instr name (i : X86_sem.asm) =
       let rs = rs_of_ws ws in
       `Instr (pp_iname rs "shld", [pp_imr rs ir; pp_register rs op2; pp_opr rs op1])
 
+  | VMOVDQU (dst, src) ->
+    `Instr ("vmovdqu", [pp_rm128 src; pp_rm128 dst])
+
 (* -------------------------------------------------------------------- *)
 let pp_instr name (fmt : Format.formatter) (i : X86_sem.asm) =
   pp_gen fmt (pp_instr name i)
@@ -418,6 +447,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   match i with
   | LABEL _ | Jcc  _ | JMP _
   | CMP   _ | TEST _ | BT _
+  | VMOVDQU _
     -> c
 
   | LEA    (_, op, _) -> Set.add op c

@@ -101,6 +101,12 @@ Definition string_of_condt (c: condt) : string :=
   end.
 
 (* -------------------------------------------------------------------- *)
+Variant rm128 :=
+| RM128_reg of xmm_register
+| RM128_mem of address
+.
+
+(* -------------------------------------------------------------------- *)
 Variant asm : Type :=
 | LABEL of label
 
@@ -154,6 +160,9 @@ Variant asm : Type :=
 | SAL    of wsize & oprd & ireg            (*   signed / left; synonym of SHL *)
 | SAR    of wsize & oprd & ireg            (*   signed / right *)
 | SHLD   of wsize & oprd & register & ireg (* unsigned (double) / left *)
+
+  (* SSE instructions *)
+| VMOVDQU (_ _: rm128)
 .
 
 (* -------------------------------------------------------------------- *)
@@ -429,6 +438,15 @@ Definition st_write_mem (l : pointer) sz (w : word sz ) (s : x86_state) :=
      xip  := s.(xip); |}.
 
 (* -------------------------------------------------------------------- *)
+Definition mem_write_xreg (r: xmm_register) (w: u128) (m: x86_mem) :=
+  {|
+    xmem := m.(xmem);
+    xreg := m.(xreg);
+    xxreg := XRegMap.set m.(xxreg) r w;
+    xrf  := m.(xrf);
+  |}.
+
+(* -------------------------------------------------------------------- *)
 Definition st_write_ip (ip : nat) (s : x86_state) :=
   {| xm := s.(xm);
      xc   := s.(xc);
@@ -609,6 +627,20 @@ Definition all_undef := fun rf =>
   match rf with
   | SF | ZF | PF | OF | CF => Some Undef
   | DF => None
+  end.
+
+(* -------------------------------------------------------------------- *)
+Definition read_rm128 (rm: rm128) (m: x86_mem) : exec u128 :=
+  match rm with
+  | RM128_reg r => ok (m.(xxreg) r)
+  | RM128_mem a => read_mem m.(xmem) (decode_addr m a) U128
+  end.
+
+(* -------------------------------------------------------------------- *)
+Definition write_rm128 (rm: rm128) (w: u128) (m: x86_mem) : x86_result :=
+  match rm with
+  | RM128_reg r => ok (mem_write_xreg r w m)
+  | RM128_mem a => mem_write_mem (decode_addr m a) w m
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -987,6 +1019,11 @@ Definition eval_Jcc lbl ct (s: x86_state) : x86_result_state :=
   if b then eval_JMP lbl s else ok (st_write_ip (xip s).+1 s).
 
 (* -------------------------------------------------------------------- *)
+Definition eval_VMOV (dst src: rm128) s : x86_result :=
+  Let v := read_rm128 src s in
+  write_rm128 dst v s.
+
+(* -------------------------------------------------------------------- *)
 Definition eval_instr_mem (i : asm) s : x86_result :=
   match i with
   | JMP    _
@@ -1021,6 +1058,8 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | SAL    sz o ir     => eval_SAL    sz o ir s
   | SAR    sz o ir     => eval_SAR    sz o ir s
   | SHLD   sz o1 o2 ir => eval_SHLD   sz o1 o2 ir s
+
+  | VMOVDQU dst src => eval_VMOV dst src s
   end.
 
 Definition eval_instr (i : asm) (s: x86_state) : x86_result_state :=
