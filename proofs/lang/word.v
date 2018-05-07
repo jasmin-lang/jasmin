@@ -28,7 +28,7 @@
 (* ** Imports and settings *)
 
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import word.
+From CoqWord Require Import ssrZ word.
 Require ssrring.
 Require Zquot.
 Require Import Psatz ZArith utils type.

@@ -7,6 +7,7 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import ssreflect eqtype ssrbool ssrnat ssrfun seq.
 From mathcomp Require Import choice ssralg bigop.
+From CoqWord Require Export ssrZ.
 
 Import GRing.Theory.
 
@@ -190,65 +191,6 @@ Definition R_of_Z (R : ringType) (z : Z) : R :=
   end.
 
 Arguments R_of_Z [R].
-
-Lemma eqposP (x y : positive): reflect (x = y) (Peqb x y).
-Proof. by apply: (iffP idP); move/Peqb_eq. Qed.
-
-Definition pos_eqMixin := EqMixin eqposP.
-Canonical pos_eqType := Eval hnf in (EqType positive pos_eqMixin).
-
-Definition pos_pickle   (p : positive) := nat_of_P p.
-Definition pos_unpickle (n : nat) := Ppred (P_of_succ_nat n).
-
-Lemma pos_pickleK: cancel pos_pickle pos_unpickle.
-Proof.
-  move=> p; rewrite /pos_unpickle /pos_pickle.
-  by rewrite pred_o_P_of_succ_nat_o_nat_of_P_eq_id.
-Qed.
-
-Definition pos_countMixin := CanCountMixin pos_pickleK.
-Definition pos_choiceMixin := CountChoiceMixin pos_countMixin.
-
-Canonical pos_choiceType := Eval hnf in (ChoiceType positive pos_choiceMixin).
-Canonical pos_countType := Eval hnf in (CountType positive pos_countMixin).
-
-Lemma eqZP (x y : Z): reflect (x = y) (Zeq_bool x y).
-Proof. by apply: (iffP idP); move/Zeq_is_eq_bool. Qed.
-
-Definition Z_eqMixin := EqMixin eqZP.
-Canonical Z_eqType := Eval hnf in (EqType Z Z_eqMixin).
-
-Definition Z_pickle z :=
-  match z with
-  | Z0     => inl _ tt
-  | Zpos n => inr _ (inl _ (pos_pickle n))
-  | Zneg n => inr _ (inr _ (pos_pickle n))
-  end.
-
-Definition Z_unpickle z :=
-  match z with
-  | inl tt      => Z0
-  | inr (inl n) => Zpos (pos_unpickle n)
-  | inr (inr n) => Zneg (pos_unpickle n)
-  end.
-
-Lemma Z_pickleK: cancel Z_pickle Z_unpickle.
-Proof. by case=> [|n|n] //=; rewrite pos_pickleK. Qed.
-
-Definition Z_countMixin := CanCountMixin Z_pickleK.
-Definition Z_choiceMixin := CountChoiceMixin Z_countMixin.
-
-Canonical Z_choiceType := Eval hnf in (ChoiceType Z Z_choiceMixin).
-Canonical Z_countType := Eval hnf in (CountType Z Z_countMixin).
-
-Definition Z_zmodMixin := ZmodMixin Zplus_assoc Zplus_comm Zplus_0_l Zplus_opp_l.
-Canonical Z_zmodType := Eval hnf in (ZmodType Z Z_zmodMixin).
-
-Definition Z_ringMixin :=
-  RingMixin
-    Zmult_assoc Zmult_1_l Zmult_1_r
-    Zmult_plus_distr_l Zmult_plus_distr_r (erefl true).
-Canonical Z_ringType := Eval hnf in (RingType Z Z_ringMixin).
 
 Lemma z0E: 0%Z = 0.
 Proof. by []. Qed.

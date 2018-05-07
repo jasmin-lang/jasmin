@@ -800,9 +800,6 @@ Qed.
 Lemma Z_eqP : Equality.axiom Z.eqb. 
 Proof. by move=> p1 p2;apply:(iffP idP);rewrite -Z.eqb_eq. Qed.
 
-Definition Z_eqMixin := EqMixin Z_eqP.
-Canonical  Z_eqType  := EqType Z Z_eqMixin.
-
 Instance ZO : Cmp Z.compare.
 Proof.
   constructor.

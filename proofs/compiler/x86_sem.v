@@ -1,5 +1,6 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
+From CoqWord Require Import ssrZ.
 Require oseq.
 Require Import low_memory word expr psem.
 Import Utf8 Relation_Operators.

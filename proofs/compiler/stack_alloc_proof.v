@@ -25,6 +25,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
+From CoqWord Require Import ssrZ.
 Require Import psem compiler_util constant_prop_proof.
 Require Export stack_alloc stack_sem.
 Require Import Psatz.

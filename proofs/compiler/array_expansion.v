@@ -26,6 +26,7 @@
 (* ** Imports and settings *)
 
 From mathcomp Require Import all_ssreflect all_algebra.
+From CoqWord Require Import ssrZ.
 Require Import psem allocation.
 Require Import compiler_util ZArith.
 

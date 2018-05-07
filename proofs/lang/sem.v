@@ -27,6 +27,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
+From CoqWord Require Import ssrZ.
 Require Import Psatz xseq.
 Require Export expr low_memory.
 Import Utf8.
