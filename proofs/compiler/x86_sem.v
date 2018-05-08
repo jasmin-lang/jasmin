@@ -106,6 +106,12 @@ Variant rm128 :=
 | RM128_mem of address
 .
 
+Definition string_of_rm128 rm : string :=
+  match rm with
+  | RM128_reg r => "RM128_reg"
+  | RM128_mem x => "RM128_mem"
+  end.
+
 (* -------------------------------------------------------------------- *)
 Variant asm : Type :=
 | LABEL of label
@@ -220,6 +226,22 @@ Canonical oprd_eqType := EqType oprd oprd_eqMixin.
 
 Definition condt_eqMixin := comparableClass condt_eq_dec.
 Canonical condt_eqType := EqType condt condt_eqMixin.
+
+Definition rm128_beq (rm1 rm2: rm128) : bool :=
+  match rm1, rm2 with
+  | RM128_reg r1, RM128_reg r2 => r1 == r2
+  | RM128_mem a1, RM128_mem a2 => a1 == a2
+  | _, _ => false
+  end.
+
+Lemma rm128_eq_axiom : Equality.axiom rm128_beq.
+Proof.
+  case => [ r | a ] [ r' | a' ] /=; (try by constructor);
+  case: eqP => h; constructor; congruence.
+Qed.
+
+Definition rm128_eqMixin := Equality.Mixin rm128_eq_axiom.
+Canonical rm128_eqType := EqType rm128 rm128_eqMixin.
 
 (* -------------------------------------------------------------------- *)
 Definition registers :=
