@@ -28,6 +28,26 @@ Definition string_of_register r :=
   | R15 => "R15"
   end%string.
 
+Definition string_of_xmm_register r : string :=
+  match r with
+  | XMM0 => "XMM0"
+  | XMM1 => "XMM1"
+  | XMM2 => "XMM2"
+  | XMM3 => "XMM3"
+  | XMM4 => "XMM4"
+  | XMM5 => "XMM5"
+  | XMM6 => "XMM6"
+  | XMM7 => "XMM7"
+  | XMM8 => "XMM8"
+  | XMM9 => "XMM9"
+  | XMM10 => "XMM10"
+  | XMM11 => "XMM11"
+  | XMM12 => "XMM12"
+  | XMM13 => "XMM13"
+  | XMM14 => "XMM14"
+  | XMM15 => "XMM15"
+  end.
+
 Definition string_of_rflag (rf : rflag) : string :=
   match rf with
  | CF => "CF"
@@ -46,6 +66,14 @@ Lemma regs_stringsE : regs_strings =
 Proof. by []. Qed.
 
 (* -------------------------------------------------------------------- *)
+Definition xmm_regs_strings :=
+  Eval compute in [seq (string_of_xmm_register x, x) | x <- xmm_registers].
+
+Lemma xmm_regs_stringsE : xmm_regs_strings =
+  [seq (string_of_xmm_register x, x) | x <- xmm_registers].
+Proof. by []. Qed.
+
+(* -------------------------------------------------------------------- *)
 Definition rflags_strings :=
   Eval compute in [seq (string_of_rflag x, x) | x <- rflags].
 
@@ -58,6 +86,10 @@ Definition reg_of_string (s : string) :=
   assoc regs_strings s.
 
 (* -------------------------------------------------------------------- *)
+Definition xmm_reg_of_string (s : string) :=
+  assoc xmm_regs_strings s.
+
+(* -------------------------------------------------------------------- *)
 Definition rflag_of_string (s : string) :=
   assoc rflags_strings s.
 
@@ -68,11 +100,17 @@ Proof. by case. Qed.
 Lemma reg_of_stringK : pcancel string_of_register reg_of_string.
 Proof. by case. Qed.
 
+Lemma xmm_reg_of_stringK : pcancel string_of_xmm_register xmm_reg_of_string.
+Proof. by case. Qed.
+
 Lemma inj_string_of_rflag : injective string_of_rflag.
 Proof. by apply: (pcan_inj rflag_of_stringK). Qed.
 
 Lemma inj_string_of_register : injective string_of_register.
 Proof. by apply: (pcan_inj reg_of_stringK). Qed.
+
+Lemma inj_string_of_xmm_register : injective string_of_xmm_register.
+Proof. by apply: (pcan_inj xmm_reg_of_stringK). Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma inj_reg_of_string s1 s2 r :
@@ -80,6 +118,22 @@ Lemma inj_reg_of_string s1 s2 r :
   -> reg_of_string s2 = Some r
   -> s1 = s2.
 Proof. by rewrite /reg_of_string !regs_stringsE; apply: inj_assoc. Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma xmm_reg_of_stringI s r :
+  xmm_reg_of_string s = Some r →
+  string_of_xmm_register r = s.
+Proof.
+  have := xmm_reg_of_stringK r.
+  move => /assoc_inj. apply. done.
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma inj_xmm_reg_of_string s1 s2 r :
+     xmm_reg_of_string s1 = Some r
+  -> xmm_reg_of_string s2 = Some r
+  -> s1 = s2.
+Proof. by rewrite /xmm_reg_of_string !xmm_regs_stringsE; apply: inj_assoc. Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma inj_rflag_of_string s1 s2 rf :
