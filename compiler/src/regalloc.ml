@@ -324,6 +324,23 @@ struct
   let r14 = V.mk "R14" Reg (Bty (U U64)) L._dummy
   let r15 = V.mk "R15" Reg (Bty (U U64)) L._dummy
 
+  let xmm0 = V.mk "XMM0" Reg (Bty (U U128)) L._dummy
+  let xmm1 = V.mk "XMM1" Reg (Bty (U U128)) L._dummy
+  let xmm2 = V.mk "XMM2" Reg (Bty (U U128)) L._dummy
+  let xmm3 = V.mk "XMM3" Reg (Bty (U U128)) L._dummy
+  let xmm4 = V.mk "XMM4" Reg (Bty (U U128)) L._dummy
+  let xmm5 = V.mk "XMM5" Reg (Bty (U U128)) L._dummy
+  let xmm6 = V.mk "XMM6" Reg (Bty (U U128)) L._dummy
+  let xmm7 = V.mk "XMM7" Reg (Bty (U U128)) L._dummy
+  let xmm8 = V.mk "XMM8" Reg (Bty (U U128)) L._dummy
+  let xmm9 = V.mk "XMM9" Reg (Bty (U U128)) L._dummy
+  let xmm10 = V.mk "XMM10" Reg (Bty (U U128)) L._dummy
+  let xmm11 = V.mk "XMM11" Reg (Bty (U U128)) L._dummy
+  let xmm12 = V.mk "XMM12" Reg (Bty (U U128)) L._dummy
+  let xmm13 = V.mk "XMM13" Reg (Bty (U U128)) L._dummy
+  let xmm14 = V.mk "XMM14" Reg (Bty (U U128)) L._dummy
+  let xmm15 = V.mk "XMM15" Reg (Bty (U U128)) L._dummy
+
   let allocatable = [
       rax; rcx; rdx;
       rsi; rdi;
@@ -333,13 +350,26 @@ struct
       r12; r13; r14; r15
     ]
 
+  let xmm_allocatable = [
+    xmm0; xmm1; xmm2; xmm3; xmm4; xmm5; xmm6; xmm7;
+    xmm8; xmm9; xmm10; xmm11; xmm12; xmm13; xmm14; xmm15
+  ]
+
   let arguments = [
     rdi; rsi; rdx; rcx;
     r8; r9
   ]
 
+  let xmm_arguments = [
+    xmm0; xmm1; xmm2; xmm3; xmm4; xmm5; xmm6; xmm7
+  ]
+
   let ret = [
     rax; rdx
+  ]
+
+  let xmm_ret = [
+    xmm0; xmm1
   ]
 
   let reserved = [
@@ -355,7 +385,7 @@ struct
 
   let flags = [f_c; f_d; f_o; f_p; f_s; f_z]
 
-  let all_registers = reserved @ allocatable @ flags
+  let all_registers = reserved @ allocatable @ xmm_allocatable @ flags
 
   let forced_registers translate_var loc (vars: int Hv.t) (cnf: conflicts)
       (lvs: 'ty glvals) (op: sopn) (es: 'ty gexprs)
@@ -393,24 +423,43 @@ struct
     end
 end
 
+type kind = Word | Vector | Unknown of ty
+
+let kind_of_type =
+  function
+  | Bty (U (U8 | U16 | U32 | U64)) -> Word
+  | Bty (U (U128 | U256)) -> Vector
+  | ty -> Unknown ty
+
 let allocate_forced_registers translate_var (vars: int Hv.t) (cnf: conflicts)
     (f: 'info func) (a: allocation) : allocation =
-  let alloc_from_list loc rs q a vs =
-    let f x = Hv.find vars (q x) in
-    List.fold_left (fun (vs, a) p ->
+  let alloc_from_list loc rs xs q a vs =
+    let f x = Hv.find vars x in
+    List.fold_left (fun (rs, xs, a) p ->
+        let p = q p in
         match f p with
-        | r ->
-          begin match vs with
-          | v :: vs -> (vs, allocate_one loc (q p) r v a)
-          | [] -> failwith "Regalloc: dame…"
-          end
-        | exception Not_found -> (vs, a))
-      (rs, a)
+        | i ->
+          let split =
+            function
+            | a :: b -> (a, b)
+            | [] -> hierror "Register allocation: dame…"
+          in
+          let d, rs, xs =
+            match kind_of_type p.v_ty with
+            | Word -> let d, rs = split rs in d, rs, xs
+            | Vector -> let d, xs = split xs in d, rs, xs
+            | Unknown ty ->
+              hierror "Register allocation: unknown type %a for forced register %a"
+                Printer.pp_ty ty (Printer.pp_var ~debug:true) p
+          in
+          (rs, xs, allocate_one loc p i d a)
+        | exception Not_found -> (rs, xs, a))
+      (rs, xs, a)
       vs
-    |> snd
+    |> fun (_, _, a) -> a
   in
-  let alloc_args loc = alloc_from_list loc X64.arguments identity in
-  let alloc_ret loc = alloc_from_list loc X64.ret L.unloc in
+  let alloc_args loc = alloc_from_list loc X64.arguments X64.xmm_arguments identity in
+  let alloc_ret loc = alloc_from_list loc X64.ret X64.xmm_ret L.unloc in
   let rec alloc_instr_r loc a =
     function
     | Cfor (_, _, s)
@@ -444,6 +493,16 @@ let get_friend_registers (dflt: var) (fr: friend) (a: allocation) (i: int) (regs
     List.find (fun r -> List.mem (Some r) fregs) regs
   with Not_found -> dflt
 
+(* Gets the type of all variables in the list.
+   Fails if the list has variables of different types. *)
+let type_of_vars (vars: var list) : ty =
+  match List.sort_unique Pervasives.compare (List.map (fun x -> x.v_ty) vars) with
+  | [ty] -> ty
+  | _ :: _ ->
+    hierror "Register allocation: heterogeneous class %a"
+      Printer.(pp_list "; " (pp_var ~debug: true)) vars
+  | [] -> assert false
+
 let greedy_allocation
     (vars: int Hv.t)
     (nv: int) (cnf: conflicts)
@@ -452,13 +511,22 @@ let greedy_allocation
   let a = ref a in
   for i = 0 to nv - 1 do
     if not (IntMap.mem i !a) then (
+      let vi = find_vars vars i in
+      if vi <> [] then (
       let c = conflicting_registers i cnf !a in
       let has_no_conflict v = not (List.mem (Some v) c) in
-      match List.filter has_no_conflict X64.allocatable with
+      let bank =
+        match kind_of_type (type_of_vars vi) with
+        | Word -> X64.allocatable
+        | Vector -> X64.xmm_allocatable
+        | Unknown ty -> hierror "Register allocation: no register bank for type %a" Printer.pp_ty ty
+      in
+      match List.filter has_no_conflict bank with
       | x :: regs ->
         let y = get_friend_registers x fr !a i regs in
         a := IntMap.add i y !a
-      | _ -> hierror "Register allocation: no more register to allocate %a" Printer.(pp_list "; " (pp_var ~debug:true)) (find_vars vars i)
+      | _ -> hierror "Register allocation: no more register to allocate %a" Printer.(pp_list "; " (pp_var ~debug:true)) vi
+    )
     )
   done;
   !a
