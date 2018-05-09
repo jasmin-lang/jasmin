@@ -311,20 +311,6 @@ Lemma wsar0 sz (w: word sz) : wsar w 0 = w.
 Proof. by rewrite /wsar /asr Z.shiftr_0_r wrepr_unsigned. Qed.
 
 (* -------------------------------------------------------------------*)
-Lemma wltE sg sz (w1 w2: word sz) :
-  wlt sg w1 w2 = (wunsigned (w1 - w2) != (wunsigned w1 - wunsigned w2))%Z.
-Proof.
-rewrite -wltuE; case: sg => //=; rewrite !sreprE.
- do! case: ifPn => //=.
-+ rewrite -lerNgt => h1 h2; rewrite (ltr_le_trans h2 h1).
-  rewrite modulusE exprS -modulusE mulr_natl mulr2n opprD.
-  admit.  
-+ rewrite -lerNgt => h1 h2; rewrite [in RHS]ltrNge.
-  rewrite (ltrW (ltr_le_trans h1 h2)) /=; apply/negbTE.
-  rewrite -lerNgt. admit.
-+ by move=> _ _; rewrite ltr_add2r.
-Admitted.
-
 Lemma wltuE' sz (α β: word sz) :
   wlt Unsigned α β = (wunsigned (β - α) == (wunsigned β - wunsigned α)%Z) && (β != α).
 Proof.
@@ -339,8 +325,20 @@ rewrite orb_andr /= [w2 == w1]eq_sym orbN andbT.
 by rewrite orb_idl // => /eqP /val_inj ->; rewrite subZE !subrr.
 Qed.
 
-Lemma wlesE sz (w1 w2: word sz) :
-  wle Signed w1 w2 = (msb (w2 - w1) == (wsigned (w2 - w1) != (wsigned w2 - wsigned w1)%Z)).
+Lemma wltsE sz (α β: word sz) :
+  α ≠ β → wlt Signed α β = (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
+Proof. Admitted.
+
+Lemma wltsE' sz (α β: word sz) :
+  α ≠ β → wlt Signed β α = (msb (α - β) == (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
+Proof. Admitted.
+
+Lemma wlesE sz (α β: word sz) :
+  α ≠ β → wle Signed β α = (msb (α - β) == (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
+Proof. Admitted.
+
+Lemma wlesE' sz (α β: word sz) :
+  α ≠ β → wle Signed α β = (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
 Proof. Admitted.
 
 (* -------------------------------------------------------------------*)
@@ -489,26 +487,6 @@ apply/eqP/eq_from_wbit_n => i.
 rewrite !(wbit_zero_extend, wxorE).
 by case: (_ <=? _).
 Qed.
-
-Lemma wsub_signed_overflow sz (α β: word sz) :
-  (wunsigned (α - β) != (wunsigned α - wunsigned β)%Z) =
-  (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
-Proof.
-Admitted.
-
-Lemma wles_msb sz (α β: word sz) :
-  α ≠ β →
-  (msb (β - α) == (wsigned (β - α) != (wsigned β - wsigned α)%Z)) =
-  (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
-Proof.
-Admitted.
-
-Lemma wlts_msb sz (α β: word sz) :
-  α ≠ β →
-  (wunsigned (β - α) != (wunsigned β - wunsigned α)%Z) =
-  (msb (α - β) == (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
-Proof.
-Admitted.
 
 (* -------------------------------------------------------------------*)
 

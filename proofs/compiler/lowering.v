@@ -416,7 +416,7 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
     | Olsl sz => k8 sz (LowerFopn (Ox86_SHL sz) [:: a ; b ] (Some U8))
     | Oasr sz => k8 sz (LowerFopn (Ox86_SAR sz) [:: a ; b ] (Some U8))
     | Oeq (Op_w sz) => k8 sz (LowerEq sz a b)
-    | Olt (Cmp_w _ sz) => k8 sz (LowerLt sz a b)
+    | Olt (Cmp_w Unsigned sz) => k8 sz (LowerLt sz a b)
     | _ => LowerAssgn
     end
 
