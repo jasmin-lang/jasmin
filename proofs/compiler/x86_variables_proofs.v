@@ -49,6 +49,7 @@ Variant lom_eqv (m : estate) (lom : x86_mem) :=
   | MEqv of
          emem m = xmem lom
     & (∀ r v, get_var (evm m) (var_of_register r) = ok v → value_uincl v (Vword (xreg lom r)))
+    & (∀ r v, get_var (evm m) (var_of_xmm_register r) = ok v → value_uincl v (Vword (xxreg lom r)))
     & eqflags m (xrf lom).
 
 (* -------------------------------------------------------------------- *)
@@ -67,7 +68,7 @@ Lemma xgetreg_ex ii x r v s xs :
   value_uincl v (Vword (xs.(xreg) r)).
 Proof.
 move: (@var_of_register_of_var x).
-move => h [_ eqv _]; case: x h => -[] //= [] // x.
+move => h [_ eqv _ _]; case: x h => -[] //= [] // x.
 rewrite /register_of_var /=.
 case: reg_of_string => [vx|] // /(_ _ erefl) <- {x} [<-] ok_v.
 exact: eqv.
@@ -83,6 +84,14 @@ Proof.
   move => eqm hx hv hw; move: (xgetreg_ex eqm hx hv) => /value_uincl_word -/(_ _ _ hw) [].
   by rewrite zero_extend_u. 
 Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma xxgetreg_ex x r v s xs :
+  lom_eqv s xs →
+  xmm_register_of_var x = Some r →
+  get_var (evm s) x = ok v →
+  value_uincl v (Vword (xxreg xs r)).
+Proof. by case => _ _ eqr _ /xmm_register_of_varI ?; subst x; auto. Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xgetflag_ex ii m rf x f v :

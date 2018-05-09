@@ -871,6 +871,7 @@ Proof.
   case => // s w i'; t_xrbindP => z h <-; eexists; split; last reflexivity; repeat f_equal.
   move: h; rewrite /check_immediate. case: eqP => // <- [<-] {z}.
   by rewrite sign_zero_sign_extend.
+  + by case => x f [<-]; eauto.
 Qed.
 
 Lemma assemble_sopn_is_sopn ii out op args i :
@@ -893,7 +894,7 @@ Lemma lom_eqv_mem_equiv_trans s m1 m2 :
   x86_mem_equiv m1 m2 →
   lom_eqv s m2.
 Proof.
-case: m1 m2 => m1 rg1 xr1 rf1 [] m2 rg2 xr2 rf2 [] /= ? hrg1 hrf1 [] /= <- <- hrf2.
+case: m1 m2 => m1 rg1 xr1 rf1 [] m2 rg2 xr2 rf2 [] /= ? hrg1 hrx1 hrf1 [] /= <- <- <- hrf2.
 constructor => //= f v hv.
 move: (hrf1 f v hv) (hrf2 f) => {hv}.
 case: (rf1 _) v => [ b | ] [] //=.

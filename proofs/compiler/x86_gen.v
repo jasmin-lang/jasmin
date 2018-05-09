@@ -120,7 +120,7 @@ case: i => ii [] /=.
   rewrite /eval_JMP -(assemble_c_find_label lbl eqc) ok_pc /=.
   by eexists; split; eauto; constructor.
 - t_xrbindP => cnd lbl cndt ok_c [<-] b v ok_v ok_b.
-  case: eqm => eqm eqr eqf.
+  case: eqm => eqm eqr eqx eqf.
   have [v' [ok_v' hvv']] := eval_assemble_cond eqf ok_c ok_v.
   case: v ok_v ok_b hvv' => // [ b' | [] // ] ok_b [?]; subst b'.
   rewrite /eval_Jcc.
@@ -252,6 +252,7 @@ have eqm1 : lom_eqv {| emem := m1' ; evm := vm1 |} xr1.
       exact: word_uincl_refl.
     move => ne; rewrite /= Fv.setP_neq; first by case => <-.
     by apply/eqP => -[] /inj_string_of_register ?; apply: ne.
+  - by move => r v; rewrite /vm1 /= /get_var Fv.setP_neq // => - [<-].
   move => f v /=; rewrite /vm1 /rflagmap0 ffunE /=.
   by rewrite /var_of_flag /get_var /= Fv.setP_neq => // -[<-].
 have h1 : get_reg_values xr1 args = get_reg_values s1 args.
