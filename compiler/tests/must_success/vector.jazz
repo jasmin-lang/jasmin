@@ -1,0 +1,7 @@
+export
+fn test_mem128(reg u64 p) {
+reg u128 r;
+
+r = (u128)[p + 16 * 0];
+(u128)[p + 16 * 1] = r;
+}
