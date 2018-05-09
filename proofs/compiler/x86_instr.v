@@ -92,6 +92,19 @@ Qed.
 Definition MOV_desc sz := make_instr_desc (MOV_gsc sz).
 
 (* ----------------------------------------------------------------------------- *)
+Lemma VMOVDQU_gsc :
+  gen_sem_correct [:: TYrm128; TYrm128] Ox86_VMOVDQU [:: E U128 0] [:: E U128 1] [::] VMOVDQU.
+Proof.
+move => /= x y; split => // gd m m'.
+case: y => [ y | y ]; rewrite /low_sem_aux /sets_low /eval_VMOV /=.
++ case: x => //= x; rewrite !zero_extend_u => ->; eexists; split; reflexivity.
+t_xrbindP => ???? -> <- <- /= [<-].
+case: x => //= x; rewrite !zero_extend_u => ->; eexists; split; reflexivity.
+Qed.
+
+Definition VMOVDQU_desc := make_instr_desc VMOVDQU_gsc.
+
+(* ----------------------------------------------------------------------------- *)
 Ltac know_it :=
   refine (ex_intro _ _ (conj _ x86_mem_equiv_refl));
   repeat match goal with
@@ -843,6 +856,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_SHR sz => ok (SHR_desc sz)
   | Ox86_SAR sz => ok (SAR_desc sz)
   | Ox86_SHLD sz => ok (SHLD_desc sz)
+  | Ox86_VMOVDQU => ok VMOVDQU_desc
   end.
 
 Lemma sopn_desc_name ii o d : sopn_desc ii o = ok d -> d.(id_name) = o.

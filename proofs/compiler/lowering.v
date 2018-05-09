@@ -502,6 +502,7 @@ Definition wsize_of_sopn (op: sopn) : wsize :=
   | Ox86_SAR x
   | Ox86_SHLD x
     => x
+  | Ox86_VMOVDQU => U128
   end.
 
 Definition opn_5flags (immed_bound: option wsize) (vi: var_info)

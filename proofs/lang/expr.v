@@ -121,6 +121,8 @@ Variant sopn : Set :=
 | Ox86_SHR     of wsize  (* unsigned / right *)
 | Ox86_SAR     of wsize  (*   signed / right *)
 | Ox86_SHLD    of wsize  (* unsigned double-word / left  *)
+
+| Ox86_VMOVDQU (* 128-bit copy *)
 .
 
 Scheme Equality for sop1.
@@ -197,6 +199,7 @@ Definition string_of_sopn o : string :=
   | Ox86_SHR sz => "Ox86_SHR " ++ string_of_wsize sz
   | Ox86_SAR sz => "Ox86_SAR " ++ string_of_wsize sz
   | Ox86_SHLD sz => "Ox86_SHLD " ++ string_of_wsize sz
+  | Ox86_VMOVDQU => "Ox86_VMOVDQU"
   end.
 
 Definition b_ty := [::sbool].
@@ -228,7 +231,8 @@ Definition sopn_tout (o:sopn) :  list stype :=
   | Ox86_NOT sz                   => w_ty sz
   | Ox86_ROL sz | Ox86_ROR sz     => b2w_ty sz
   | Ox86_SHL sz | Ox86_SHR sz     => b5w_ty sz 
-  | Ox86_SAR sz | Ox86_SHLD sz    => b5w_ty sz 
+  | Ox86_SAR sz | Ox86_SHLD sz    => b5w_ty sz
+  | Ox86_VMOVDQU => [:: sword128 ]
   end.
 
 Definition sopn_tin (o: sopn) : list stype :=
@@ -272,6 +276,7 @@ Definition sopn_tin (o: sopn) : list stype :=
   | Ox86_SAR sz
     => [:: sword sz ; sword8 ]
   | Ox86_SHLD sz => let t := sword sz in [:: t ; t ; sword8 ]
+  | Ox86_VMOVDQU => [:: sword128 ]
   end.
 
 (* ** Expressions

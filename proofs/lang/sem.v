@@ -897,6 +897,7 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_SHR sz => app_w8 sz x86_shr
   | Ox86_SAR sz => app_w8 sz x86_sar
   | Ox86_SHLD sz => app_ww8 sz x86_shld
+  | Ox86_VMOVDQU => app_sopn [:: sword128 ] (λ x, ok [:: Vword x])
   end.
 
 Ltac app_sopn_t := 

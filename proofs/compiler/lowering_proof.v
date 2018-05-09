@@ -1188,6 +1188,7 @@ Section PROOF.
       rewrite (sem_pexprs_same dz e hz1) /=.
       case: o hr => //=; try (move => ? -> //).
       by case: (y) => //= -[].
+    + by t_xrbindP.
     + exists s'. repeat econstructor. by rewrite /sem_sopn hx /= hr.
   Qed.
 
