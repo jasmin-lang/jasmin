@@ -821,6 +821,27 @@ Qed.
 Definition Set0_desc sz := make_instr_desc (Set0_gsc sz).
 
 (* ----------------------------------------------------------------------------- *)
+Lemma eval_low_rm128 gd m x sz (v: word sz) :
+  eval_low gd m match x with RM128_reg r => Axreg r | RM128_mem a => Aaddr U128 a end = ok (Vword v) →
+  read_rm128 x m = ok (zero_extend _ v).
+Proof.
+  by case: x => [ r | a ]; [ | apply: rbindP => ?? ] => /(@ok_inj _ _ _ _) /Vword_inj [??]; subst => /=; rewrite zero_extend_u.
+Qed.
+
+(* ----------------------------------------------------------------------------- *)
+Lemma VPXOR_gsc :
+  gen_sem_correct [:: TYrm128 ; TYrm128 ; TYrm128 ] Ox86_VPXOR
+                  [:: E U128 0 ] [:: E U128 1 ; E U128 2 ] [::] VPXOR.
+Proof.
+move => d x y; split => // gd m m'.
+rewrite /low_sem_aux /= /eval_VPXOR /x86_vpxor /=; t_xrbindP => vs ? kx hx ? ky hy <- <-; t_xrbindP => vx /to_wordI [szx] [wx] [hlex ? ->] {vx}; subst kx => vy /to_wordI [szy] [wy] [hley ? ->] {vy}; subst ky => <- {vs}.
+rewrite (eval_low_rm128 hx) (eval_low_rm128 hy) /= /sets_low /=.
+case: d => [ r | a ] /=; [ case | ]; rewrite zero_extend_u => ->; eexists; split; reflexivity.
+Qed.
+
+Definition VPXOR_desc := make_instr_desc VPXOR_gsc.
+
+(* ----------------------------------------------------------------------------- *)
 
 Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   match c with
@@ -857,6 +878,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_SAR sz => ok (SAR_desc sz)
   | Ox86_SHLD sz => ok (SHLD_desc sz)
   | Ox86_VMOVDQU => ok VMOVDQU_desc
+  | Ox86_VPXOR => ok VPXOR_desc
   end.
 
 Lemma sopn_desc_name ii o d : sopn_desc ii o = ok d -> d.(id_name) = o.

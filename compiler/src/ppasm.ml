@@ -424,6 +424,9 @@ let pp_instr name (i : X86_sem.asm) =
   | VMOVDQU (dst, src) ->
     `Instr ("vmovdqu", [pp_rm128 src; pp_rm128 dst])
 
+  | VPXOR (dst, src1, src2) ->
+    `Instr ("vpxor", [pp_rm128 src2; pp_rm128 src1; pp_rm128 dst])
+
 (* -------------------------------------------------------------------- *)
 let pp_instr name (fmt : Format.formatter) (i : X86_sem.asm) =
   pp_gen fmt (pp_instr name i)
@@ -448,6 +451,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | LABEL _ | Jcc  _ | JMP _
   | CMP   _ | TEST _ | BT _
   | VMOVDQU _
+  | VPXOR _
     -> c
 
   | LEA    (_, op, _) -> Set.add op c

@@ -169,6 +169,7 @@ Variant asm : Type :=
 
   (* SSE instructions *)
 | VMOVDQU (_ _: rm128)
+| VPXOR (_ _ _: rm128)
 .
 
 (* -------------------------------------------------------------------- *)
@@ -1046,6 +1047,13 @@ Definition eval_VMOV (dst src: rm128) s : x86_result :=
   write_rm128 dst v s.
 
 (* -------------------------------------------------------------------- *)
+Definition eval_VPXOR (dst src1 src2: rm128) s : x86_result :=
+  Let v1 := read_rm128 src1 s in
+  Let v2 := read_rm128 src2 s in
+  let v := wxor v1 v2 in
+  write_rm128 dst v s.
+
+(* -------------------------------------------------------------------- *)
 Definition eval_instr_mem (i : asm) s : x86_result :=
   match i with
   | JMP    _
@@ -1082,6 +1090,7 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | SHLD   sz o1 o2 ir => eval_SHLD   sz o1 o2 ir s
 
   | VMOVDQU dst src => eval_VMOV dst src s
+  | VPXOR dst src1 src2 => eval_VPXOR dst src1 src2 s
   end.
 
 Definition eval_instr (i : asm) (s: x86_state) : x86_result_state :=

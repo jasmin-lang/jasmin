@@ -900,7 +900,7 @@ Section PROOF.
     | LowerMov _ =>
       ∃ sz' (w : word sz'), (sz' ≤ U64)%CMP ∧ v = Vword w
     | LowerCopn o a =>
-      sem_pexprs gd s [:: a] >>= exec_sopn o = ok [:: v' ]
+      sem_pexprs gd s a >>= exec_sopn o = ok [:: v' ]
     | LowerInc o a =>
       ∃ b1 b2 b3 b4, sem_pexprs gd s [:: a] >>= exec_sopn o = ok [:: Vbool b1; Vbool b2; Vbool b3; Vbool b4; v']
     | LowerFopn o e' _ =>
@@ -1070,7 +1070,15 @@ Section PROOF.
         case: Hv' => ?; subst v'.
         by rewrite /truncate_word hw1 hw2 /x86_or /check_size_8_64 hsz64 /= Hw.
       (* Olxor Op_w *)
-      + move=> A.
+      + case: eqP.
+        * (* VPXOR *)
+          move => -> {sz} /sem_op2_w_dec [sz1] [w1] [sz2] [w2] [hle1 hle2 ?]; subst v.
+          case: eqP => //= hty -> /=.
+          rewrite /truncate_word hle1 hle2 /=.
+          have [sz [? _ ?]] := truncate_val_word Hv'.
+          subst ty v'; rewrite /= in hty; subst sz.
+          by rewrite zero_extend_u.
+        move => _ A.
         case: andP => // - [hsz64] /eqP ?; subst sz.
         split. by rewrite read_es_swap. move: A.
         case/sem_op2_w_dec => w1 [z1] [w2] [z2] [hw1 hw2 hv ->] /=; subst v.
@@ -1188,6 +1196,7 @@ Section PROOF.
       rewrite (sem_pexprs_same dz e hz1) /=.
       case: o hr => //=; try (move => ? -> //).
       by case: (y) => //= -[].
+    + by t_xrbindP.
     + by t_xrbindP.
     + exists s'. repeat econstructor. by rewrite /sem_sopn hx /= hr.
   Qed.

@@ -387,7 +387,7 @@ let tt_op2 (loc1, (e1, ty1)) (loc2, (e2, ty2))
     | (`BAnd s | `BOr s | `BXOr s) ->
       (* TODO: use ssize annotation *)
       let ty = max_ty ty1 ty2 |> oget ~exn in
-      let ty = max_ty ty (P.Bty (P.U T.U64)) |> oget ~exn in
+      let ty = max_ty ty (P.Bty (P.U T.U256)) |> oget ~exn in
       let op = op2_of_pop2 exn ty pop in
       (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, ty)
 
@@ -613,6 +613,7 @@ let prim_string =
     "x86_SAR", PrimP (fun sz -> Ox86_SAR sz);
     "x86_SHLD", PrimP (fun sz -> Ox86_SHLD sz);
     "x86_VMOVDQU", PrimM Ox86_VMOVDQU;
+    "x86_VPXOR", PrimM Ox86_VPXOR;
   ]
 
 let extract_size str : string * T.wsize option =

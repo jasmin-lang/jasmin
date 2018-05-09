@@ -838,6 +838,10 @@ Definition x86_sar {sz} (v: word sz) (i: u8) : exec values :=
     let ZF := Vbool (ZF_of_word r) in
     ok [:: OF; CF; SF; PF; ZF; Vword r].
 
+Definition x86_vpxor (v1 v2: u128) : exec values :=
+  ok [:: Vword (wxor v1 v2) ].
+
+(* ---------------------------------------------------------------- *)
 Notation app_b   o := (app_sopn [:: sbool] o).
 Notation app_w sz o := (app_sopn [:: sword sz] o).
 Notation app_ww sz o := (app_sopn [:: sword sz; sword sz] o).
@@ -847,6 +851,7 @@ Notation app_ww8 sz o := (app_sopn [:: sword sz; sword sz; sword U8] o).
 Notation app_wwb sz o := (app_sopn [:: sword sz; sword sz; sbool] o).
 Notation app_bww o := (app_sopn [:: sbool; sword; sword] o).
 Notation app_w4 sz o  := (app_sopn [:: sword sz; sword sz; sword sz; sword sz] o).
+Notation app_vv o := (app_sopn [:: sword128; sword128 ] o).
 
 Definition exec_sopn (o:sopn) :  values -> exec values :=
   match o with
@@ -898,6 +903,7 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_SAR sz => app_w8 sz x86_sar
   | Ox86_SHLD sz => app_ww8 sz x86_shld
   | Ox86_VMOVDQU => app_sopn [:: sword128 ] (λ x, ok [:: Vword x])
+  | Ox86_VPXOR => app_vv x86_vpxor
   end.
 
 Ltac app_sopn_t := 
