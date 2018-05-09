@@ -169,6 +169,7 @@ Variant asm : Type :=
 
   (* SSE instructions *)
 | VMOVDQU (_ _: rm128)
+| VPAND (_ _ _: rm128)
 | VPXOR (_ _ _: rm128)
 .
 
@@ -1047,11 +1048,14 @@ Definition eval_VMOV (dst src: rm128) s : x86_result :=
   write_rm128 dst v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_VPXOR (dst src1 src2: rm128) s : x86_result :=
+Definition eval_bitwise_128 op (dst src1 src2: rm128) s : x86_result :=
   Let v1 := read_rm128 src1 s in
   Let v2 := read_rm128 src2 s in
-  let v := wxor v1 v2 in
+  let v := op v1 v2 in
   write_rm128 dst v s.
+
+Definition eval_VPAND := eval_bitwise_128 wand.
+Definition eval_VPXOR := eval_bitwise_128 wxor.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_instr_mem (i : asm) s : x86_result :=
@@ -1090,6 +1094,7 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | SHLD   sz o1 o2 ir => eval_SHLD   sz o1 o2 ir s
 
   | VMOVDQU dst src => eval_VMOV dst src s
+  | VPAND dst src1 src2 => eval_VPAND dst src1 src2 s
   | VPXOR dst src1 src2 => eval_VPXOR dst src1 src2 s
   end.
 

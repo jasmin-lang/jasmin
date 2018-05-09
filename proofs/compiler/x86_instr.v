@@ -834,7 +834,7 @@ Lemma VPXOR_gsc :
                   [:: E U128 0 ] [:: E U128 1 ; E U128 2 ] [::] VPXOR.
 Proof.
 move => d x y; split => // gd m m'.
-rewrite /low_sem_aux /= /eval_VPXOR /x86_vpxor /=; t_xrbindP => vs ? kx hx ? ky hy <- <-; t_xrbindP => vx /to_wordI [szx] [wx] [hlex ? ->] {vx}; subst kx => vy /to_wordI [szy] [wy] [hley ? ->] {vy}; subst ky => <- {vs}.
+rewrite /low_sem_aux /= /eval_VPXOR /eval_bitwise_128 /x86_vpxor /=; t_xrbindP => vs ? kx hx ? ky hy <- <-; t_xrbindP => vx /to_wordI [szx] [wx] [hlex ? ->] {vx}; subst kx => vy /to_wordI [szy] [wy] [hley ? ->] {vy}; subst ky => <- {vs}.
 rewrite (eval_low_rm128 hx) (eval_low_rm128 hy) /= /sets_low /=.
 case: d => [ r | a ] /=; [ case | ]; rewrite zero_extend_u => ->; eexists; split; reflexivity.
 Qed.
