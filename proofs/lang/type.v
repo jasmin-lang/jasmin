@@ -55,6 +55,17 @@ Variant signedness :=
   | Signed
   | Unsigned.
 
+(* Size in bits of the elements of a vector. *)
+Variant velem := VE16 | VE32 | VE64.
+
+Definition wsize_of_velem (ve: velem) : wsize :=
+  match ve with
+  | VE16 => U16
+  | VE32 => U32
+  | VE64 => U64
+  end.
+
+(* -------------------------------------------------------------------- *)
 Definition string_of_wsize (sz: wsize) : string :=
   match sz with
   | U8 => "U8"
@@ -73,6 +84,14 @@ Definition string_of_stype (ty: stype) : string :=
   | sword sz => "(sword " ++ string_of_wsize sz ++ ")"
   end.
 
+Definition string_of_velem (ve: velem) : string :=
+  match ve with
+  | VE16 => "VE16"
+  | VE32 => "VE32"
+  | VE64 => "VE64"
+  end.
+
+(* -------------------------------------------------------------------- *)
 Notation sword8   := (sword U8).
 Notation sword16  := (sword U16).
 Notation sword32  := (sword U32).
@@ -126,6 +145,19 @@ Qed.
 
 Definition stype_eqMixin     := Equality.Mixin stype_axiom.
 Canonical  stype_eqType      := Eval hnf in EqType stype stype_eqMixin.
+
+(* -------------------------------------------------------------------- *)
+Scheme Equality for velem.
+
+Lemma velem_axiom : Equality.axiom velem_beq.
+Proof.
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_velem_dec_bl.
+  by apply: internal_velem_dec_lb.
+Qed.
+
+Definition velem_eqMixin     := Equality.Mixin velem_axiom.
+Canonical  velem_eqType      := Eval hnf in EqType velem velem_eqMixin.
 
 (* ** Comparison 
  * -------------------------------------------------------------------- *)

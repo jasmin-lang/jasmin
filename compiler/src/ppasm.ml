@@ -281,6 +281,16 @@ let pp_iname (rs : rsize) (name : string) =
   Printf.sprintf "%s%s" name (pp_instr_rsize rs)
 
 (* -------------------------------------------------------------------- *)
+let pp_instr_velem =
+  function
+  | LM.VE16 -> "w"
+  | LM.VE32 -> "d"
+  | LM.VE64 -> "q"
+
+let pp_viname (ve: LM.velem) (name: string) =
+  Printf.sprintf "%s%s" name (pp_instr_velem ve)
+
+(* -------------------------------------------------------------------- *)
 let pp_instr name (i : X86_sem.asm) =
   match i with
   | LABEL lbl ->
@@ -433,6 +443,9 @@ let pp_instr name (i : X86_sem.asm) =
   | VPXOR (dst, src1, src2) ->
     `Instr ("vpxor", [pp_rm128 src2; pp_rm128 src1; pp_rm128 dst])
 
+  | VPADD (ve, dst, src1, src2) ->
+    `Instr (pp_viname ve "vpadd", [pp_rm128 src2; pp_rm128 src1; pp_rm128 dst])
+
 (* -------------------------------------------------------------------- *)
 let pp_instr name (fmt : Format.formatter) (i : X86_sem.asm) =
   pp_gen fmt (pp_instr name i)
@@ -458,6 +471,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | CMP   _ | TEST _ | BT _
   | VMOVDQU _
   | VPAND _ | VPOR _ | VPXOR _
+  | VPADD _
     -> c
 
   | LEA    (_, op, _) -> Set.add op c

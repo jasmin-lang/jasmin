@@ -40,6 +40,8 @@ type tyerror =
   | Unsupported         of string
   | UnknownPrim         of S.symbol
   | PrimNoSize of S.symbol
+  | PrimNotVector of S.symbol
+  | PrimIsVector of S.symbol
   | ReturnLocalStack    of S.symbol
   | BadVariableKind     of P.pvar_i * P.v_kind 
 
@@ -120,6 +122,12 @@ let pp_tyerror fmt (code : tyerror) =
 
   | PrimNoSize s ->
       F.fprintf fmt "primitive accepts no size annotation: `%s'" s
+
+  | PrimNotVector s ->
+      F.fprintf fmt "primitive does not operate on vectors: `%s'" s
+
+  | PrimIsVector s ->
+      F.fprintf fmt "primitive needs a vector size annotation: `%s'" s
 
 
   | ReturnLocalStack v ->
@@ -576,6 +584,7 @@ let prim_sig (type a) p : a P.gty list * a P.gty list =
 type prim_constructor =
   | PrimP of (T.wsize -> Expr.sopn)
   | PrimM of Expr.sopn
+  | PrimV of (T.velem -> Expr.sopn)
 
 let prim_string =
   let open Expr in
@@ -616,30 +625,40 @@ let prim_string =
     "x86_VPAND", PrimM Ox86_VPAND;
     "x86_VPOR", PrimM Ox86_VPOR;
     "x86_VPXOR", PrimM Ox86_VPXOR;
+    "x86_VPADD", PrimV (fun ve -> Ox86_VPADD ve);
   ]
 
-let extract_size str : string * T.wsize option =
+type size_annotation =
+  | SAw of T.wsize
+  | SAv of T.velem
+  | SA
+
+let extract_size str : string * size_annotation =
   let get_size =
     function
-    | "8" -> Some T.U8
-    | "16" -> Some T.U16
-    | "32" -> Some T.U32
-    | "64" -> Some T.U64
-    | _ -> None
+    | "8" -> SAw T.U8
+    | "16" -> SAw T.U16
+    | "32" -> SAw T.U32
+    | "64" -> SAw T.U64
+    | "8u16" -> SAv T.VE16
+    | "4u32" -> SAv T.VE32
+    | "2u64" -> SAv T.VE64
+    | _ -> SA
   in
   match List.rev (String.split_on_char '_' str) with
-  | [] -> str, None
+  | [] -> str, SA
   | suf :: s ->
     match get_size suf with
-    | None -> str, None
+    | SA -> str, SA
     | sz -> String.concat "_" (List.rev s), sz
 
 let tt_prim id =
   let { L.pl_loc = loc ; L.pl_desc = s } = id in
   let name, sz = extract_size s in
   match List.assoc name prim_string with
-  | PrimP pr -> pr (match sz with Some sz -> sz | None -> T.U64)
-  | PrimM pr -> if sz = None then pr else rs_tyerror ~loc (PrimNoSize s)
+  | PrimP pr -> pr (match sz with SAw sz -> sz | SA -> T.U64 | SAv _ -> rs_tyerror ~loc (PrimNotVector s))
+  | PrimM pr -> if sz = SA then pr else rs_tyerror ~loc (PrimNoSize s)
+  | PrimV pr -> pr (match sz with SAv sz -> sz | _ -> rs_tyerror ~loc (PrimIsVector s))
   | exception Not_found -> rs_tyerror ~loc (UnknownPrim s)
 
 let prim_of_op exn loc o =

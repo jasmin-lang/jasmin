@@ -21,3 +21,17 @@ r |= u;
 (u128)[p + 16 * 1] = r;
 
 }
+
+export
+fn test_add(reg u64 p) {
+reg u128 r, s, t;
+
+r = (u128)[p + 16 * 0];
+s = (u128)[p + 16 * 1];
+
+t = #x86_VPADD_8u16(r, s);
+r = #x86_VPADD_4u32(s, t);
+s = #x86_VPADD_2u64(t, r);
+
+(u128)[p + 16 * 1] = s;
+}

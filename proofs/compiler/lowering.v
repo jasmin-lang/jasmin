@@ -513,6 +513,7 @@ Definition wsize_of_sopn (op: sopn) : wsize :=
     => x
   | Ox86_VMOVDQU
   | Ox86_VPAND | Ox86_VPOR | Ox86_VPXOR
+  | Ox86_VPADD _
     => U128
   end.
 

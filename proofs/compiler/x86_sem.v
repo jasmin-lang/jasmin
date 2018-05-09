@@ -172,6 +172,7 @@ Variant asm : Type :=
 | VPAND (_ _ _: rm128)
 | VPOR (_ _ _: rm128)
 | VPXOR (_ _ _: rm128)
+| VPADD `(velem) (_ _ _: rm128)
 .
 
 (* -------------------------------------------------------------------- *)
@@ -1060,6 +1061,9 @@ Definition eval_VPOR := eval_bitwise_128 wor.
 Definition eval_VPXOR := eval_bitwise_128 wxor.
 
 (* -------------------------------------------------------------------- *)
+Definition eval_VPADD ve := eval_bitwise_128 (vector_binop U128 ve +%R).
+
+(* -------------------------------------------------------------------- *)
 Definition eval_instr_mem (i : asm) s : x86_result :=
   match i with
   | JMP    _
@@ -1099,6 +1103,7 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | VPAND dst src1 src2 => eval_VPAND dst src1 src2 s
   | VPOR dst src1 src2 => eval_VPOR dst src1 src2 s
   | VPXOR dst src1 src2 => eval_VPXOR dst src1 src2 s
+  | VPADD ve dst src1 src2 => eval_VPADD ve dst src1 src2 s
   end.
 
 Definition eval_instr (i : asm) (s: x86_state) : x86_result_state :=

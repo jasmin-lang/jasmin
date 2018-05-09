@@ -119,9 +119,17 @@ let pp_glvs pp_var fmt lvs =
   | _   -> F.fprintf fmt "(@[%a@])" (pp_list ",@ " (pp_glv pp_var)) lvs
 
 (* -------------------------------------------------------------------- *)
+let string_of_velem =
+  function
+  | Type.VE16 -> "8u16"
+  | Type.VE32 -> "4u32"
+  | Type.VE64 -> "2u64"
+
+(* -------------------------------------------------------------------- *)
 let pp_opn =
   let open Expr in
   let f w s = F.sprintf "%s_%d" s (int_of_ws w) in
+  let v ve s = F.sprintf "%s_%s" s (string_of_velem ve) in
   function
   | Omulu w -> f w "#mulu"
   | Oaddcarry w -> f w "#addc"
@@ -161,6 +169,7 @@ let pp_opn =
   | Ox86_VPAND -> "#x86_VPAND"
   | Ox86_VPOR -> "#x86_VPOR"
   | Ox86_VPXOR -> "#x86_VPXOR"
+  | Ox86_VPADD ve -> v ve "#x86_VPADD"
 
 (* -------------------------------------------------------------------- *)
 let pp_tag = function

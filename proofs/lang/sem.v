@@ -849,6 +849,13 @@ Definition x86_vpxor (v1 v2: u128) : exec values :=
   ok [:: Vword (wxor v1 v2) ].
 
 (* ---------------------------------------------------------------- *)
+Parameter vector_binop : ∀ sz ve (sz' := wsize_of_velem ve), (word sz' → word sz' → word sz') → word sz → word sz → word sz.
+Arguments vector_binop : clear implicits.
+
+Definition x86_vpadd (ve: velem) (v1 v2: u128) : exec values :=
+  ok [:: Vword (vector_binop U128 ve +%R v1 v2) ].
+
+(* ---------------------------------------------------------------- *)
 Notation app_b   o := (app_sopn [:: sbool] o).
 Notation app_w sz o := (app_sopn [:: sword sz] o).
 Notation app_ww sz o := (app_sopn [:: sword sz; sword sz] o).
@@ -913,11 +920,13 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_VPAND => app_vv x86_vpand
   | Ox86_VPOR => app_vv x86_vpor
   | Ox86_VPXOR => app_vv x86_vpxor
+  | Ox86_VPADD ve => app_vv (x86_vpadd ve)
   end.
 
 Ltac app_sopn_t := 
   match goal with
   | |- forall (_:wsize), _     => move=> ?;app_sopn_t
+  | |- forall (_:velem), _     => move=> ?;app_sopn_t
   | |- forall (_:value), _     => move=> ?;app_sopn_t
   | |- forall (_:seq value), _ => move=> ?;app_sopn_t
   | |- (match ?vs with
