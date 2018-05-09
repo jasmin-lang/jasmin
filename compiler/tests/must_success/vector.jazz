@@ -8,11 +8,13 @@ r = (u128)[p + 16 * 0];
 
 export
 fn test_xor (reg u64 p) {
-reg u128 r, s;
+reg u128 r, s, t;
 r = (u128)[p + 16 * 0];
 s = (u128)[p + 16 * 1];
+t = (u128)[p + 16 * 2];
 
 r ^= s;
+r &= t;
 
 (u128)[p + 16 * 1] = r;
 
