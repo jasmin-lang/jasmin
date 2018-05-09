@@ -413,7 +413,10 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
       if sz == U128
       then kb true sz (LowerCopn Ox86_VPAND [:: a ; b ])
       else k8 sz (LowerFopn (Ox86_AND sz) [:: a ; b ] (Some U32))
-    | Olor sz => k8 sz (LowerFopn (Ox86_OR sz) [:: a ; b ] (Some U32))
+    | Olor sz =>
+      if sz == U128
+      then kb true sz (LowerCopn Ox86_VPOR [:: a ; b ])
+      else k8 sz (LowerFopn (Ox86_OR sz) [:: a ; b ] (Some U32))
     | Olxor sz =>
       if sz == U128
       then kb true sz (LowerCopn Ox86_VPXOR [:: a ; b ])
@@ -509,7 +512,7 @@ Definition wsize_of_sopn (op: sopn) : wsize :=
   | Ox86_SHLD x
     => x
   | Ox86_VMOVDQU
-  | Ox86_VPAND | Ox86_VPXOR
+  | Ox86_VPAND | Ox86_VPOR | Ox86_VPXOR
     => U128
   end.
 

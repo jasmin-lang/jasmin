@@ -614,6 +614,7 @@ let prim_string =
     "x86_SHLD", PrimP (fun sz -> Ox86_SHLD sz);
     "x86_VMOVDQU", PrimM Ox86_VMOVDQU;
     "x86_VPAND", PrimM Ox86_VPAND;
+    "x86_VPOR", PrimM Ox86_VPOR;
     "x86_VPXOR", PrimM Ox86_VPXOR;
   ]
 

@@ -842,6 +842,9 @@ Definition x86_sar {sz} (v: word sz) (i: u8) : exec values :=
 Definition x86_vpand (v1 v2: u128) : exec values :=
   ok [:: Vword (wand v1 v2) ].
 
+Definition x86_vpor (v1 v2: u128) : exec values :=
+  ok [:: Vword (wor v1 v2) ].
+
 Definition x86_vpxor (v1 v2: u128) : exec values :=
   ok [:: Vword (wxor v1 v2) ].
 
@@ -908,6 +911,7 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_SHLD sz => app_ww8 sz x86_shld
   | Ox86_VMOVDQU => app_sopn [:: sword128 ] (λ x, ok [:: Vword x])
   | Ox86_VPAND => app_vv x86_vpand
+  | Ox86_VPOR => app_vv x86_vpor
   | Ox86_VPXOR => app_vv x86_vpxor
   end.
 

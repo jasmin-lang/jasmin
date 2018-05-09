@@ -427,6 +427,9 @@ let pp_instr name (i : X86_sem.asm) =
   | VPAND (dst, src1, src2) ->
     `Instr ("vpand", [pp_rm128 src2; pp_rm128 src1; pp_rm128 dst])
 
+  | VPOR (dst, src1, src2) ->
+    `Instr ("vpor", [pp_rm128 src2; pp_rm128 src1; pp_rm128 dst])
+
   | VPXOR (dst, src1, src2) ->
     `Instr ("vpxor", [pp_rm128 src2; pp_rm128 src1; pp_rm128 dst])
 
@@ -454,7 +457,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | LABEL _ | Jcc  _ | JMP _
   | CMP   _ | TEST _ | BT _
   | VMOVDQU _
-  | VPAND _ | VPXOR _
+  | VPAND _ | VPOR _ | VPXOR _
     -> c
 
   | LEA    (_, op, _) -> Set.add op c

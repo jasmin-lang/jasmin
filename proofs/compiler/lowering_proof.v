@@ -1069,7 +1069,15 @@ Section PROOF.
         case: Hv' => ?; subst v'.
         by rewrite /truncate_word hw1 hw2 /x86_and /check_size_8_64 hsz64 /= Hw.
       (* Olor Op_w *)
-      + move=> A.
+      + case: eqP.
+        * (* VPOR *)
+          move => -> {sz} /sem_op2_w_dec [sz1] [w1] [sz2] [w2] [hle1 hle2 ?]; subst v.
+          case: eqP => //= hty -> /=.
+          rewrite /truncate_word hle1 hle2 /=.
+          have [sz [? _ ?]] := truncate_val_word Hv'.
+          subst ty v'; rewrite /= in hty; subst sz.
+          by rewrite zero_extend_u.
+        move => _ A.
         case: andP => // - [hsz64] /eqP ?; subst sz.
         split. by rewrite read_es_swap. move: A.
         case/sem_op2_w_dec => w1 [z1] [w2] [z2] [hw1 hw2 hv ->] /=; subst v.
@@ -1202,11 +1210,7 @@ Section PROOF.
       fold (sem_pexprs gd s) in hz1.
       rewrite /get_var /on_vu Fv.setP_eq /= -/(sem_pexprs gd ℓ).
       rewrite (sem_pexprs_same dz e hz1) /=.
-      case: o hr => //=; try (move => ? -> //).
-      by case: (y) => //= -[].
-    + by t_xrbindP.
-    + by t_xrbindP.
-    + by t_xrbindP.
+      case: o hr => //=; try (move => ? -> //); by t_xrbindP.
     + exists s'. repeat econstructor. by rewrite /sem_sopn hx /= hr.
   Qed.
 

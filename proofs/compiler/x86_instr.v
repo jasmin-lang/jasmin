@@ -842,6 +842,19 @@ Qed.
 Definition VPAND_desc := make_instr_desc VPAND_gsc.
 
 (* ----------------------------------------------------------------------------- *)
+Lemma VPOR_gsc :
+  gen_sem_correct [:: TYrm128 ; TYrm128 ; TYrm128 ] Ox86_VPOR
+                  [:: E U128 0 ] [:: E U128 1 ; E U128 2 ] [::] VPOR.
+Proof.
+move => d x y; split => // gd m m'.
+rewrite /low_sem_aux /= /eval_VPOR /eval_bitwise_128 /x86_vpor /=; t_xrbindP => vs ? kx hx ? ky hy <- <-; t_xrbindP => vx /to_wordI [szx] [wx] [hlex ? ->] {vx}; subst kx => vy /to_wordI [szy] [wy] [hley ? ->] {vy}; subst ky => <- {vs}.
+rewrite (eval_low_rm128 hx) (eval_low_rm128 hy) /= /sets_low /=.
+case: d => [ r | a ] /=; [ case | ]; rewrite zero_extend_u => ->; eexists; split; reflexivity.
+Qed.
+
+Definition VPOR_desc := make_instr_desc VPOR_gsc.
+
+(* ----------------------------------------------------------------------------- *)
 Lemma VPXOR_gsc :
   gen_sem_correct [:: TYrm128 ; TYrm128 ; TYrm128 ] Ox86_VPXOR
                   [:: E U128 0 ] [:: E U128 1 ; E U128 2 ] [::] VPXOR.
@@ -892,6 +905,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_SHLD sz => ok (SHLD_desc sz)
   | Ox86_VMOVDQU => ok VMOVDQU_desc
   | Ox86_VPAND => ok VPAND_desc
+  | Ox86_VPOR => ok VPOR_desc
   | Ox86_VPXOR => ok VPXOR_desc
   end.
 
