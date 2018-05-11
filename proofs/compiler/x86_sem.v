@@ -1050,18 +1050,18 @@ Definition eval_VMOV (dst src: rm128) s : x86_result :=
   write_rm128 dst v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_bitwise_128 op (dst src1 src2: rm128) s : x86_result :=
+Definition eval_rm128_binop op (dst src1 src2: rm128) s : x86_result :=
   Let v1 := read_rm128 src1 s in
   Let v2 := read_rm128 src2 s in
   let v := op v1 v2 in
   write_rm128 dst v s.
 
-Definition eval_VPAND := eval_bitwise_128 wand.
-Definition eval_VPOR := eval_bitwise_128 wor.
-Definition eval_VPXOR := eval_bitwise_128 wxor.
+Definition eval_VPAND := eval_rm128_binop wand.
+Definition eval_VPOR := eval_rm128_binop wor.
+Definition eval_VPXOR := eval_rm128_binop wxor.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_VPADD ve := eval_bitwise_128 (vector_binop U128 ve +%R).
+Definition eval_VPADD ve := eval_rm128_binop (vector_binop U128 ve +%R).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_instr_mem (i : asm) s : x86_result :=

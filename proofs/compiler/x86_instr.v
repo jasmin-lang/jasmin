@@ -829,56 +829,39 @@ Proof.
 Qed.
 
 (* ----------------------------------------------------------------------------- *)
-Lemma VPAND_gsc :
-  gen_sem_correct [:: TYrm128 ; TYrm128 ; TYrm128 ] Ox86_VPAND
-                  [:: E U128 0 ] [:: E U128 1 ; E U128 2 ] [::] VPAND.
+Lemma x86_rm128_binop_gsc op i sem :
+  (∀ d x y, is_sopn (i d x y)) →
+  (exec_sopn op = app_vv (x86_u128_binop sem)) →
+  (∀ d x y gd m, eval_instr_mem gd (i d x y) m = eval_rm128_binop sem d x y m) →
+  gen_sem_correct [:: TYrm128 ; TYrm128 ; TYrm128 ] op
+                  [:: E U128 0 ] [:: E U128 1 ; E U128 2 ] [::] i.
 Proof.
-move => d x y; split => // gd m m'.
-rewrite /low_sem_aux /= /eval_VPAND /eval_bitwise_128 /x86_vpand /=; t_xrbindP => vs ? kx hx ? ky hy <- <-; t_xrbindP => vx /to_wordI [szx] [wx] [hlex ? ->] {vx}; subst kx => vy /to_wordI [szy] [wy] [hley ? ->] {vy}; subst ky => <- {vs}.
+move => ok_sopn hsem lsem d x y; split => // gd m m'.
+rewrite /low_sem_aux /= lsem /eval_rm128_binop hsem /x86_u128_binop /=;
+t_xrbindP => vs ? kx hx ? ky hy <- <-;
+t_xrbindP => vx /to_wordI [szx] [wx] [hlex ? ->] {vx};
+subst kx => vy /to_wordI [szy] [wy] [hley ? ->] {vy}; subst ky => <- {vs}.
 rewrite (eval_low_rm128 hx) (eval_low_rm128 hy) /= /sets_low /=.
 case: d => [ r | a ] /=; [ case | ]; rewrite zero_extend_u => ->; eexists; split; reflexivity.
 Qed.
 
-Definition VPAND_desc := make_instr_desc VPAND_gsc.
+Arguments x86_rm128_binop_gsc : clear implicits.
 
-(* ----------------------------------------------------------------------------- *)
-Lemma VPOR_gsc :
-  gen_sem_correct [:: TYrm128 ; TYrm128 ; TYrm128 ] Ox86_VPOR
-                  [:: E U128 0 ] [:: E U128 1 ; E U128 2 ] [::] VPOR.
-Proof.
-move => d x y; split => // gd m m'.
-rewrite /low_sem_aux /= /eval_VPOR /eval_bitwise_128 /x86_vpor /=; t_xrbindP => vs ? kx hx ? ky hy <- <-; t_xrbindP => vx /to_wordI [szx] [wx] [hlex ? ->] {vx}; subst kx => vy /to_wordI [szy] [wy] [hley ? ->] {vy}; subst ky => <- {vs}.
-rewrite (eval_low_rm128 hx) (eval_low_rm128 hy) /= /sets_low /=.
-case: d => [ r | a ] /=; [ case | ]; rewrite zero_extend_u => ->; eexists; split; reflexivity.
-Qed.
+Definition VPAND_desc := make_instr_desc
+    (x86_rm128_binop_gsc Ox86_VPAND VPAND wand
+    (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
-Definition VPOR_desc := make_instr_desc VPOR_gsc.
+Definition VPOR_desc := make_instr_desc
+    (x86_rm128_binop_gsc Ox86_VPOR VPOR wor
+    (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
-(* ----------------------------------------------------------------------------- *)
-Lemma VPXOR_gsc :
-  gen_sem_correct [:: TYrm128 ; TYrm128 ; TYrm128 ] Ox86_VPXOR
-                  [:: E U128 0 ] [:: E U128 1 ; E U128 2 ] [::] VPXOR.
-Proof.
-move => d x y; split => // gd m m'.
-rewrite /low_sem_aux /= /eval_VPXOR /eval_bitwise_128 /x86_vpxor /=; t_xrbindP => vs ? kx hx ? ky hy <- <-; t_xrbindP => vx /to_wordI [szx] [wx] [hlex ? ->] {vx}; subst kx => vy /to_wordI [szy] [wy] [hley ? ->] {vy}; subst ky => <- {vs}.
-rewrite (eval_low_rm128 hx) (eval_low_rm128 hy) /= /sets_low /=.
-case: d => [ r | a ] /=; [ case | ]; rewrite zero_extend_u => ->; eexists; split; reflexivity.
-Qed.
+Definition VPXOR_desc := make_instr_desc
+    (x86_rm128_binop_gsc Ox86_VPXOR VPXOR wxor
+    (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
-Definition VPXOR_desc := make_instr_desc VPXOR_gsc.
-
-(* ----------------------------------------------------------------------------- *)
-Lemma VPADD_gsc ve :
-  gen_sem_correct [:: TYrm128 ; TYrm128 ; TYrm128 ] (Ox86_VPADD ve)
-                  [:: E U128 0 ] [:: E U128 1 ; E U128 2 ] [::] (VPADD ve).
-Proof.
-move => d x y; split => // gd m m'.
-rewrite /low_sem_aux /= /eval_VPADD /eval_bitwise_128 /x86_vpadd /=; t_xrbindP => vs ? kx hx ? ky hy <- <-; t_xrbindP => vx /to_wordI [szx] [wx] [hlex ? ->] {vx}; subst kx => vy /to_wordI [szy] [wy] [hley ? ->] {vy}; subst ky => <- {vs}.
-rewrite (eval_low_rm128 hx) (eval_low_rm128 hy) /= /sets_low /=.
-case: d => [ r | a ] /=; [ case | ]; rewrite zero_extend_u => ->; eexists; split; reflexivity.
-Qed.
-
-Definition VPADD_desc ve := make_instr_desc (VPADD_gsc ve).
+Definition VPADD_desc ve := make_instr_desc
+    (x86_rm128_binop_gsc (Ox86_VPADD ve) (VPADD ve) (vector_binop U128 ve +%R)
+    (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
 (* ----------------------------------------------------------------------------- *)
 

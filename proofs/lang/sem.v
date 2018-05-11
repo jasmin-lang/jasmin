@@ -839,21 +839,18 @@ Definition x86_sar {sz} (v: word sz) (i: u8) : exec values :=
     ok [:: OF; CF; SF; PF; ZF; Vword r].
 
 (* ---------------------------------------------------------------- *)
-Definition x86_vpand (v1 v2: u128) : exec values :=
-  ok [:: Vword (wand v1 v2) ].
+Definition x86_u128_binop (op: _ → _ → u128) (v1 v2: u128) : exec values :=
+  ok [:: Vword (op v1 v2) ].
 
-Definition x86_vpor (v1 v2: u128) : exec values :=
-  ok [:: Vword (wor v1 v2) ].
-
-Definition x86_vpxor (v1 v2: u128) : exec values :=
-  ok [:: Vword (wxor v1 v2) ].
+Definition x86_vpand := x86_u128_binop wand.
+Definition x86_vpor := x86_u128_binop wor.
+Definition x86_vpxor := x86_u128_binop wxor.
 
 (* ---------------------------------------------------------------- *)
 Parameter vector_binop : ∀ sz ve (sz' := wsize_of_velem ve), (word sz' → word sz' → word sz') → word sz → word sz → word sz.
 Arguments vector_binop : clear implicits.
 
-Definition x86_vpadd (ve: velem) (v1 v2: u128) : exec values :=
-  ok [:: Vword (vector_binop U128 ve +%R v1 v2) ].
+Definition x86_vpadd (ve: velem) := x86_u128_binop (vector_binop U128 ve +%R).
 
 (* ---------------------------------------------------------------- *)
 Notation app_b   o := (app_sopn [:: sbool] o).
