@@ -860,7 +860,7 @@ Definition VPXOR_desc := make_instr_desc
     (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
 Definition VPADD_desc ve := make_instr_desc
-    (x86_rm128_binop_gsc (Ox86_VPADD ve) (VPADD ve) (vector_binop U128 ve +%R)
+    (x86_rm128_binop_gsc (Ox86_VPADD ve) (VPADD ve) (lift2_vec ve +%R U128)
     (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
 (* ----------------------------------------------------------------------------- *)

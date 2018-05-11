@@ -1063,12 +1063,12 @@ Definition eval_VPOR := eval_rm128_binop wor.
 Definition eval_VPXOR := eval_rm128_binop wxor.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_VPADD ve := eval_rm128_binop (vector_binop U128 ve +%R).
+Definition eval_VPADD ve := eval_rm128_binop (lift2_vec ve +%R U128).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_rm128_shift ve op (dst src1: rm128) (v2: u8) s : x86_result :=
   Let v1 := read_rm128 src1 s in
-  let v := vector_unop U128 ve (λ v, op v (wunsigned v2)) v1 in
+  let v := lift1_vec ve (λ v, op v (wunsigned v2)) U128 v1 in
   write_rm128 dst v s.
 
 Arguments eval_rm128_shift : clear implicits.

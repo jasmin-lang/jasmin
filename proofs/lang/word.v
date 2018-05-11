@@ -529,3 +529,23 @@ Definition mask_word (sz:wsize) : u64 :=
 
 Definition merge_word (wr: u64) (sz:wsize) (w:word sz) := 
    wxor (wand (mask_word sz) wr) (zero_extend U64 w).
+
+(* -------------------------------------------------------------------*)
+
+Axiom split_vec : 
+  forall (ve:velem) (sz:wsize), word sz -> list (word ve).
+
+Axiom make_vec : forall (sz sz':wsize), list (word sz) -> word sz'.
+
+Definition lift1_vec (ve:velem) (op : word ve -> word ve)
+    (sz:wsize) (w:word sz) : word sz :=
+  make_vec sz (map op (split_vec ve w)).
+Arguments lift1_vec : clear implicits.
+
+Definition lift2_vec (ve:velem) (op : word ve -> word ve -> word ve)
+  (sz:wsize) (w1 w2:word sz) : word sz :=
+  make_vec sz (map2 op (split_vec ve w1) (split_vec ve w2)).
+Arguments lift2_vec : clear implicits.
+
+
+

@@ -847,18 +847,13 @@ Definition x86_vpor := x86_u128_binop wor.
 Definition x86_vpxor := x86_u128_binop wxor.
 
 (* ---------------------------------------------------------------- *)
-Parameter vector_unop : ∀ sz ve (sz' := wsize_of_velem ve), (word sz' → word sz') → word sz → word sz.
-Parameter vector_binop : ∀ sz ve (sz' := wsize_of_velem ve), (word sz' → word sz' → word sz') → word sz → word sz → word sz.
-Arguments vector_unop : clear implicits.
-Arguments vector_binop : clear implicits.
-
-(* ---------------------------------------------------------------- *)
-Definition x86_vpadd (ve: velem) := x86_u128_binop (vector_binop U128 ve +%R).
+Definition x86_vpadd (ve: velem) := x86_u128_binop (lift2_vec ve +%R U128).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_u128_shift ve (sz' := wsize_of_velem ve) (op: word sz' → Z → word sz')
   (v: u128) (c: u8) : exec values :=
-  ok [:: Vword (vector_unop U128 ve (λ v, op v (wunsigned c)) v) ].
+  ok [:: Vword (lift1_vec ve (λ v, op v (wunsigned c)) U128 v) ].
+
 Arguments x86_u128_shift : clear implicits.
 
 Definition x86_vpsll (ve: velem) := x86_u128_shift ve (@wshl _).
