@@ -69,6 +69,7 @@ let string_of_wsize w =
 let string_of_op1 =
   let f s p = F.sprintf "%s%s" p (string_of_swsize s) in
   function
+  | `Cast (sg, sz) -> F.sprintf "(%d%s)" (bits_of_wsize sz) (suffix_of_sign sg)
   | `Not -> "!"
   | `Neg s -> f s "-"
 
@@ -111,6 +112,7 @@ type prio =
 
 let prio_of_op1 =
   function
+  | `Cast _
   | `Not -> Pbang
   | `Neg _ -> Punary
 

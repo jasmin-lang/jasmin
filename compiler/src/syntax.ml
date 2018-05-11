@@ -42,7 +42,7 @@ let string_of_swsize : swsize -> string =
       (suffix_of_sign sg)
 
 (* -------------------------------------------------------------------- *)
-type peop1 = [ `Not | `Neg of swsize ]
+type peop1 = [ `Cast of sign * wsize | `Not | `Neg of swsize ]
 
 type peop2 = [
   | `Add of swsize

@@ -447,6 +447,15 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     let e, ety = tt_expr ~mode env pe in
 
     begin match op with
+    | `Cast (sg, sz) ->
+      let sz = tt_ws sz in
+      let e, ws = cast_word (L.loc pe) e ety in
+      let op =
+        match sg with
+        | `Unsigned -> E.Ozeroext (sz, ws)
+        | `Signed -> E.Osignext (sz, ws)
+      in
+      Papp1 (op, e), P.Bty (P.U sz)
     | `Not ->
       if ety = P.tbool then Papp1(E.Onot, e), P.tbool
       else

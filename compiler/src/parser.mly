@@ -23,6 +23,7 @@
 %token BANG
 %token <Syntax.swsize> BANGEQ
 %token COMMA
+%token <Syntax.sign * Syntax.wsize>CAST
 %token DOWNTO
 %token ELSE
 %token EQ
@@ -69,7 +70,7 @@
 %left LTLT GTGT
 %left PLUS MINUS
 %left STAR
-%nonassoc BANG
+%nonassoc BANG CAST
 
 %type <Syntax.pprogram> module_
 
@@ -113,6 +114,7 @@ ptype:
 (* ** Index expressions
  * -------------------------------------------------------------------- *)
 %inline peop1:
+| c=CAST { `Cast c }
 | BANG  { `Not }
 | s=MINUS  { `Neg s }
 
