@@ -864,6 +864,28 @@ Definition VPADD_desc ve := make_instr_desc
     (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
 (* ----------------------------------------------------------------------------- *)
+Lemma x86_rm128_shift_gsc ve op i sem :
+  (∀ d x y, is_sopn (i d x y)) →
+  (exec_sopn op = app_v8 (x86_u128_shift ve sem)) →
+  (∀ d x y gd m, eval_instr_mem gd (i d x y) m = eval_rm128_shift sem d x y m) →
+  gen_sem_correct [:: TYrm128 ; TYrm128 ; TYimm U8 ] op
+                  [:: E U128 0 ] [:: E U128 1 ; E U8 2 ] [::] i.
+Proof.
+move => ok_sopn hsem lsem d x y; split => // gd m m'.
+rewrite /low_sem_aux /= lsem /eval_rm128_shift hsem /x86_u128_shift /=.
+t_xrbindP => ??? hx <-; t_xrbindP => vx /to_wordI [szx] [wx] [hlex ??]; subst => _ [<-] <-.
+rewrite zero_extend_sign_extend // sign_extend_u (eval_low_rm128 hx) /sets_low /= => {hx}.
+case: d => [ r | a ] /=; [ | apply: rbindP => s'; rewrite zero_extend_u => ok_s' ] => - [<-];
+[ rewrite zero_extend_u | rewrite /mem_write_mem ok_s' ];
+eexists; split; reflexivity.
+Qed.
+
+Arguments x86_rm128_shift_gsc : clear implicits.
+
+Definition VPSLL_desc ve := make_instr_desc (x86_rm128_shift_gsc ve (Ox86_VPSLL ve) (VPSLL ve) _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
+Definition VPSRL_desc ve := make_instr_desc (x86_rm128_shift_gsc ve (Ox86_VPSRL ve) (VPSRL ve) _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
+
+(* ----------------------------------------------------------------------------- *)
 
 Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   match c with
@@ -904,6 +926,8 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_VPOR => ok VPOR_desc
   | Ox86_VPXOR => ok VPXOR_desc
   | Ox86_VPADD ve => ok (VPADD_desc ve)
+  | Ox86_VPSLL ve => ok (VPSLL_desc ve)
+  | Ox86_VPSRL ve => ok (VPSRL_desc ve)
   end.
 
 Lemma sopn_desc_name ii o d : sopn_desc ii o = ok d -> d.(id_name) = o.

@@ -128,6 +128,9 @@ Variant sopn : Set :=
 | Ox86_VPXOR (* 128-bit XOR *)
 
 | Ox86_VPADD of velem (* Parallel addition over 128-bit vectors *)
+
+| Ox86_VPSLL of velem (* Parallel shift left logical ovec 128-bit vectors *)
+| Ox86_VPSRL of velem (* Parallel shift right logical ovec 128-bit vectors *)
 .
 
 Scheme Equality for sop1.
@@ -209,6 +212,8 @@ Definition string_of_sopn o : string :=
   | Ox86_VPOR => "Ox86_VPOR"
   | Ox86_VPXOR => "Ox86_VPXOR"
   | Ox86_VPADD ve => "Ox86_VPADD " ++ string_of_velem ve
+  | Ox86_VPSLL ve => "Ox86_VPSLL " ++ string_of_velem ve
+  | Ox86_VPSRL ve => "Ox86_VPSRL " ++ string_of_velem ve
   end.
 
 Definition b_ty := [::sbool].
@@ -244,6 +249,7 @@ Definition sopn_tout (o:sopn) :  list stype :=
   | Ox86_VMOVDQU
   | Ox86_VPAND | Ox86_VPOR | Ox86_VPXOR
   | Ox86_VPADD _
+  | Ox86_VPSLL _ | Ox86_VPSRL _
     => [:: sword128 ]
   end.
 
@@ -292,6 +298,7 @@ Definition sopn_tin (o: sopn) : list stype :=
   | Ox86_VPAND | Ox86_VPOR | Ox86_VPXOR
   | Ox86_VPADD _
     => let t := sword128 in [:: t; t ]
+  | Ox86_VPSLL _ | Ox86_VPSRL _ => [:: sword128 ; sword8 ]
   end.
 
 (* ** Expressions

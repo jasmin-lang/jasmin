@@ -173,6 +173,8 @@ Variant asm : Type :=
 | VPOR (_ _ _: rm128)
 | VPXOR (_ _ _: rm128)
 | VPADD `(velem) (_ _ _: rm128)
+| VPSLL `(velem) (_ _: rm128) `(u8)
+| VPSRL `(velem) (_ _: rm128) `(u8)
 .
 
 (* -------------------------------------------------------------------- *)
@@ -1064,6 +1066,17 @@ Definition eval_VPXOR := eval_rm128_binop wxor.
 Definition eval_VPADD ve := eval_rm128_binop (vector_binop U128 ve +%R).
 
 (* -------------------------------------------------------------------- *)
+Definition eval_rm128_shift ve op (dst src1: rm128) (v2: u8) s : x86_result :=
+  Let v1 := read_rm128 src1 s in
+  let v := vector_unop U128 ve (λ v, op v (wunsigned v2)) v1 in
+  write_rm128 dst v s.
+
+Arguments eval_rm128_shift : clear implicits.
+
+Definition eval_VPSLL ve := eval_rm128_shift ve (@wshl _).
+Definition eval_VPSRL ve := eval_rm128_shift ve (@wshr _).
+
+(* -------------------------------------------------------------------- *)
 Definition eval_instr_mem (i : asm) s : x86_result :=
   match i with
   | JMP    _
@@ -1104,6 +1117,8 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | VPOR dst src1 src2 => eval_VPOR dst src1 src2 s
   | VPXOR dst src1 src2 => eval_VPXOR dst src1 src2 s
   | VPADD ve dst src1 src2 => eval_VPADD ve dst src1 src2 s
+  | VPSLL ve dst src1 src2 => eval_VPSLL ve dst src1 src2 s
+  | VPSRL ve dst src1 src2 => eval_VPSRL ve dst src1 src2 s
   end.
 
 Definition eval_instr (i : asm) (s: x86_state) : x86_result_state :=

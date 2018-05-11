@@ -847,10 +847,22 @@ Definition x86_vpor := x86_u128_binop wor.
 Definition x86_vpxor := x86_u128_binop wxor.
 
 (* ---------------------------------------------------------------- *)
+Parameter vector_unop : ∀ sz ve (sz' := wsize_of_velem ve), (word sz' → word sz') → word sz → word sz.
 Parameter vector_binop : ∀ sz ve (sz' := wsize_of_velem ve), (word sz' → word sz' → word sz') → word sz → word sz → word sz.
+Arguments vector_unop : clear implicits.
 Arguments vector_binop : clear implicits.
 
+(* ---------------------------------------------------------------- *)
 Definition x86_vpadd (ve: velem) := x86_u128_binop (vector_binop U128 ve +%R).
+
+(* ---------------------------------------------------------------- *)
+Definition x86_u128_shift ve (sz' := wsize_of_velem ve) (op: word sz' → Z → word sz')
+  (v: u128) (c: u8) : exec values :=
+  ok [:: Vword (vector_unop U128 ve (λ v, op v (wunsigned c)) v) ].
+Arguments x86_u128_shift : clear implicits.
+
+Definition x86_vpsll (ve: velem) := x86_u128_shift ve (@wshl _).
+Definition x86_vpsrl (ve: velem) := x86_u128_shift ve (@wshr _).
 
 (* ---------------------------------------------------------------- *)
 Notation app_b   o := (app_sopn [:: sbool] o).
@@ -863,6 +875,7 @@ Notation app_wwb sz o := (app_sopn [:: sword sz; sword sz; sbool] o).
 Notation app_bww o := (app_sopn [:: sbool; sword; sword] o).
 Notation app_w4 sz o  := (app_sopn [:: sword sz; sword sz; sword sz; sword sz] o).
 Notation app_vv o := (app_sopn [:: sword128; sword128 ] o).
+Notation app_v8 o := (app_sopn [:: sword128; sword8 ] o).
 
 Definition exec_sopn (o:sopn) :  values -> exec values :=
   match o with
@@ -918,6 +931,8 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_VPOR => app_vv x86_vpor
   | Ox86_VPXOR => app_vv x86_vpxor
   | Ox86_VPADD ve => app_vv (x86_vpadd ve)
+  | Ox86_VPSLL ve => app_v8 (x86_vpsll ve)
+  | Ox86_VPSRL ve => app_v8 (x86_vpsrl ve)
   end.
 
 Ltac app_sopn_t := 
