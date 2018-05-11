@@ -445,6 +445,13 @@ Section Map2.
     | _, _         => [::]
     end.
 
+  Lemma map2E ma mb :
+    map2 ma mb = map (λ ab, f ab.1 ab.2) (zip ma mb).
+  Proof.
+    elim: ma mb; first by case.
+    by move => a ma ih [] // b mb /=; f_equal.
+  Qed.
+
 End Map2.
 
 (* ** Misc functions
