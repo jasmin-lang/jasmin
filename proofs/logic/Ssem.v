@@ -203,6 +203,8 @@ Definition ssem_arr_init sz (v:svalue) :=
 
 Definition ssem_sop1 (o:sop1) := 
   match o with
+  | Osignext sz sz' => @mk_ssem_sop1 (ssword sz') (ssword sz) (@sign_extend sz sz')
+  | Ozeroext sz sz' => @mk_ssem_sop1 (ssword sz') (ssword sz) (@zero_extend sz sz')
   | Onot           => ssem_op1_b negb
   | Olnot sz       => @ssem_op1_w sz wnot
   | Oneg Op_int    => ssem_op1_i Z.opp

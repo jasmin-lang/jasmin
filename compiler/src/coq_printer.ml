@@ -137,6 +137,8 @@ let pp_funname fmt fn =
   F.fprintf fmt "%s" x
 
 let pp_op1 = function
+  | E.Osignext _ -> assert false (* FIXME *)
+  | E.Ozeroext _ -> assert false (* FIXME *)
   | E.Onot     -> "~~"
   | E.Olnot U64 -> "~!"
   | E.Olnot _   -> assert false

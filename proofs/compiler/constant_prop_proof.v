@@ -143,7 +143,7 @@ by rewrite /sem_op1_w /mk_sem_sop1 /= -bindA (is_wconstP gd s heq) /= => -[<-]; 
 Qed.
 
 Lemma s_op1P o e : Papp1 o e =E s_op1 o e.
-Proof. case: o => [|?|[|?]|?]; eauto using snot_boolP, snot_wP, sneg_intP, sneg_wP. Qed.
+Proof. case: o => [??|??||?|[|?]|?]; eauto using snot_boolP, snot_wP, sneg_intP, sneg_wP. Qed.
 
 (* * -------------------------------------------------------------------- *)
 

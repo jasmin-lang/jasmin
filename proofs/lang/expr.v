@@ -55,10 +55,11 @@ Variant op_kind :=
   | Op_w of wsize.
 
 Variant sop1 :=
-(* | Ozeroext of wsize *)
-| Onot
-| Olnot of wsize
-| Oneg  of op_kind
+| Osignext of wsize & wsize (* Sign-extension: output-size, input-size *)
+| Ozeroext of wsize & wsize (* Zero-extension: output-size, input-size *)
+| Onot (* Boolean negation *)
+| Olnot of wsize (* Bitwize not: 1s’ complement *)
+| Oneg  of op_kind (* Arithmetic negation *)
 | Oarr_init of wsize.
 
 Variant sop2 :=

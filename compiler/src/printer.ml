@@ -68,6 +68,8 @@ let string_of_op2 = function
   | E.Oge  k -> ">=" ^ string_of_cmp_ty k
 
 let string_of_op1 = function
+  | E.Osignext (szo, _) -> F.sprintf "(%ds)" (int_of_ws szo)
+  | E.Ozeroext (szo, _) -> F.sprintf "(%du)" (int_of_ws szo)
   | E.Olnot _ -> "!"
   | E.Onot    -> "~"
   | E.Oneg _ -> "-"

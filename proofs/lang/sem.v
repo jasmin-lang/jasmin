@@ -314,6 +314,8 @@ Definition sem_arr_init s (v:value) :=
 
 Definition sem_sop1 (o:sop1) :=
   match o with
+  | Osignext szo szi => @mk_sem_sop1 (sword szi) (sword szo) (@sign_extend szo szi)
+  | Ozeroext szo szi => @mk_sem_sop1 (sword szi) (sword szo) (@zero_extend szo szi)
   | Onot    => sem_op1_b negb
   | Olnot s => @sem_op1_w s wnot 
   | Oneg  Op_int => sem_op1_i Z.opp 

@@ -1197,6 +1197,19 @@ Definition value_uincl (v1 v2:value) :=
   | _, _ => False
   end.
 
+Lemma value_uinclE v1 v2 :
+  value_uincl v1 v2 →
+  match v1 with
+  | Vbool _ | Vint _ => v2 = v1
+  | Varr sz n t1 => exists2 t2, v2 = @Varr sz n t2 & ∀ i v, Array.get t1 i = ok v → Array.get t2 i = ok v
+  | Vword sz1 w1 => ∃ sz2 w2, v2 = @Vword sz2 w2 ∧ word_uincl w1 w2
+  | Vundef t => vundef_type t = vundef_type (type_of_val v2)
+  end.
+Proof.
+  case: v1 v2 => [ b1 | n1 | sz1 n1 t1 | sz1 w1 | t1 ] [] //=; eauto; try by move => ? <-.
+  by move => sz n t2 [?] [?]; subst; eauto.
+Qed.
+
 Lemma vundef_type_idem v : vundef_type v = vundef_type (vundef_type v).
 Proof. by case: v. Qed.
 
@@ -1530,12 +1543,19 @@ Lemma vuincl_sem_sop1 o ve1 ve1' v1 :
   sem_sop1 o ve1 = ok v1 ->
   sem_sop1 o ve1' = ok v1.
 Proof.
-  case: o => [ | sz | [| sz] | sz ];
-  rewrite /= /sem_op1_b /sem_op1_w /sem_op1_i /mk_sem_sop1 => Hu;
-  apply: rbindP => z Hz; last case: z Hz => // p Hz; case => <-;
-  last (by have [_ ->] := value_uincl_int Hu Hz);
-  try (by have [z' [/= -> ->]] := of_val_uincl Hu Hz);
-  by have [z' [/= -> /val_uincl_sword ->]] := of_val_uincl Hu Hz.
+  case: o => [ szo szi | szo szi | | sz | [| sz] | sz ].
+  1-2:
+    case: ve1 => // [ | [] // ] sz1 w1 /value_uinclE [sz2] [w2] [-> {ve1'}] /andP [] hle /eqP -> {w1};
+    rewrite /= /mk_sem_sop1; t_xrbindP => /= y /truncate_wordP [hle'] -> <-;
+    by rewrite /truncate_word (cmp_le_trans hle' hle) /= (zero_extend_idem _ hle').
+  all:
+    rewrite /= /sem_op1_b /sem_op1_w /sem_op1_i /mk_sem_sop1 => Hu;
+    apply: rbindP => z Hz.
+  5: case: z Hz => // p Hz.
+  all: case => <-.
+  5: by have [_ ->] := value_uincl_int Hu Hz.
+  2, 4: by have [z' [/= -> /val_uincl_sword ->]] := of_val_uincl Hu Hz.
+  all: by have [z' [/= -> ->]] := of_val_uincl Hu Hz.
 Qed.
 
 Lemma value_uincl_subtype v1 v2 :
