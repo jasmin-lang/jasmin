@@ -255,6 +255,10 @@ let pp_iname (rs : rsize) (name : string) =
   Printf.sprintf "%s%s" name (pp_instr_rsize rs)
 
 (* -------------------------------------------------------------------- *)
+let pp_iname2 (rs1 : rsize) (rs2: rsize) (name : string) =
+  Printf.sprintf "%s%s%s" name (pp_instr_rsize rs1) (pp_instr_rsize rs2)
+
+(* -------------------------------------------------------------------- *)
 let pp_instr name (i : X86_sem.asm) =
   match i with
   | LABEL lbl ->
@@ -263,6 +267,11 @@ let pp_instr name (i : X86_sem.asm) =
   | MOV (ws, op1, op2) ->
       let rs = rs_of_ws ws in
       `Instr (pp_iname rs "mov", [pp_opr rs op2; pp_opr rs op1])
+
+  | MOVZX (wsd, wss, dst, src) ->
+      let rsd = rs_of_ws wsd in
+      let rss = rs_of_ws wss in
+    `Instr (pp_iname2 rss rsd "movz", [pp_opr rss src; pp_register rsd dst])
 
   | CMOVcc (ws, ct, op1, op2) ->
       let iname = Printf.sprintf "cmov%s" (pp_ct ct) in
@@ -444,6 +453,8 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | SHLD    (_, op, _, _)
   | SHR    (_, op, _) ->
       Option.map_default (fun r -> Set.add r c) c (reg_of_oprd op)
+
+  | MOVZX (_, _, r, _) -> Set.add r c
 
   | MUL  _
   | IMUL (_, _, None)

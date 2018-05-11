@@ -98,6 +98,7 @@ Variant asm : Type :=
 
   (* Data transfert *)
 | MOV    of wsize & oprd & oprd    (* copy *)
+| MOVZX of wsize & wsize & register & oprd (* zero-extend *)
 | CMOVcc of wsize & condt & oprd & oprd    (* conditional copy *)
 
   (* Arithmetic *)
@@ -576,6 +577,17 @@ Definition eval_MOV sz o1 o2 s : x86_result :=
   eval_MOV_nocheck sz o1 o2 s.
 
 (* -------------------------------------------------------------------- *)
+Definition eval_MOVZX szo szi dst o s : x86_result :=
+  Let _ :=
+    match szi with
+    | U8 => check_size_16_64 szo
+    | U16 => check_size_32_64 szo
+    | _ => type_error
+    end in
+  Let v := read_oprd szi o s in
+  ok (mem_write_reg dst (zero_extend szo v) s).
+
+(* -------------------------------------------------------------------- *)
 Definition eval_CMOVcc sz ct o1 o2 s : x86_result :=
   Let _ := check_size_16_64 sz in
   Let b := eval_cond ct s.(xrf) in
@@ -944,6 +956,7 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | Jcc    _ _
   | LABEL  _           => ok s
   | MOV    sz o1 o2    => eval_MOV    sz o1 o2 s
+  | MOVZX szo szi o1 o2 => eval_MOVZX szo szi o1 o2 s
   | CMOVcc sz ct o1 o2 => eval_CMOVcc sz ct o1 o2 s
   | ADD    sz o1 o2    => eval_ADD    sz o1 o2 s
   | SUB    sz o1 o2    => eval_SUB    sz o1 o2 s
