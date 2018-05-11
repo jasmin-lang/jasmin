@@ -435,6 +435,18 @@ Section All2.
 
 End All2.
 
+Section Map2.
+
+  Context (A B C : Type) (f : A -> B -> C).
+  
+  Fixpoint map2 la lb := 
+    match la, lb with
+    | a::la, b::lb => f a b :: map2 la lb
+    | _, _         => [::]
+    end.
+
+End Map2.
+
 (* ** Misc functions
  * -------------------------------------------------------------------- *)
 
