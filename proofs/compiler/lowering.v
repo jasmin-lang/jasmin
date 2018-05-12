@@ -473,6 +473,7 @@ Definition wsize_of_sopn (op: sopn) : wsize :=
   | Osubcarry x
   | Oset0 x
   | Ox86_MOV x
+  | Ox86_MOVZX _ x
   | Ox86_CMOVcc x
   | Ox86_ADD x
   | Ox86_SUB x

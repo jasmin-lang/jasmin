@@ -124,12 +124,14 @@ let pp_glvs pp_var fmt lvs =
 let pp_opn =
   let open Expr in
   let f w s = F.sprintf "%s_%d" s (int_of_ws w) in
+  let f2 w w' s = F.sprintf "%s_%d" s (int_of_ws w) in (* TODO: concrete syntax for this intrinsic *)
   function
   | Omulu w -> f w "#mulu"
   | Oaddcarry w -> f w "#addc"
   | Osubcarry w -> f w "#subc"
   | Oset0 w -> f w "#set0"
   | Ox86_MOV w -> f w "#x86_MOV"
+  | Ox86_MOVZX (w, w') -> f2 w w' "#x86_MOVZX"
   | Ox86_CMOVcc w -> f w "#x86_CMOVcc"
   | Ox86_ADD w -> f w "#x86_ADD"
   | Ox86_SUB w -> f w "#x86_SUB"

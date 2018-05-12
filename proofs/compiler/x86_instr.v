@@ -92,6 +92,19 @@ Qed.
 Definition MOV_desc sz := make_instr_desc (MOV_gsc sz).
 
 (* ----------------------------------------------------------------------------- *)
+Lemma MOVZX_gsc sz sz' :
+  gen_sem_correct [:: TYreg; TYoprd] (Ox86_MOVZX sz sz') [:: E sz 0] [:: E sz' 1] [::] (MOVZX sz sz').
+Proof.
+move => /= x y; split => // gd m m'.
+rewrite /low_sem_aux /= arg_of_oprdE /= /sets_low /eval_MOVZX /x86_MOVZX.
+t_xrbindP => ??? h <-; t_xrbindP => w' /of_val_word [szw] [w] [hle ??] ? -> <- [<-] /=; subst.
+rewrite (eval_low_read _ h) //=.
+eexists; split; reflexivity.
+Qed.
+
+Definition MOVZX_desc sz sz' := make_instr_desc (MOVZX_gsc sz sz').
+
+(* ----------------------------------------------------------------------------- *)
 Ltac know_it :=
   refine (ex_intro _ _ (conj _ x86_mem_equiv_refl));
   repeat match goal with
@@ -814,6 +827,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Omulu _ | Oaddcarry _ | Osubcarry _ => cierror ii (Cerr_assembler (AsmErr_string "sopn_desc"))
   | Oset0 sz => ok (Set0_desc sz)
   | Ox86_MOV sz => ok (MOV_desc sz)
+  | Ox86_MOVZX sz sz' => ok (MOVZX_desc sz sz')
   | Ox86_CMOVcc sz => ok (CMOVcc_desc sz)
   | Ox86_ADD sz => ok (ADD_desc sz)
   | Ox86_SUB sz => ok (SUB_desc sz)
@@ -847,7 +861,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
 
 Lemma sopn_desc_name ii o d : sopn_desc ii o = ok d -> d.(id_name) = o.
 Proof.
-  by case: o => //=; (move => w h || move => h); have <- := ok_inj h.
+  by case: o => //=; (move => w w' h || move => w h || move => h); have <- := ok_inj h.
 Qed.
 
 (* ----------------------------------------------------------------------------- *)

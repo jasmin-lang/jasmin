@@ -1646,7 +1646,7 @@ Lemma vuincl_exec_opn_eq o vs vs' v :
   List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
   exec_sopn o vs' = ok v.
 Proof.
-rewrite /sem_sopn; case: o; (try (refine (λ sz: wsize, _)));
+rewrite /sem_sopn; case: o; do 2 (try (refine (λ sz: wsize, _)));
 try apply: vuincl_sopn => //.
 move: vs=> [] // vs1 [] // vs2 [] // vs3 [] //.
 case/List_Forall2_inv_l => vs'1 [?] [->] [H1].

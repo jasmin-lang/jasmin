@@ -93,6 +93,7 @@ Variant sopn : Set :=
 (* Low level x86 operations *)
 | Oset0        of wsize  (* set register + flags to 0 (implemented using XOR x x) *)
 | Ox86_MOV     of wsize  (* copy *)
+| Ox86_MOVZX of wsize & wsize (* zero-extension *)
 | Ox86_CMOVcc  of wsize  (* conditional copy *)
 | Ox86_ADD     of wsize  (* add unsigned / signed *)
 | Ox86_SUB     of wsize  (* sub unsigned / signed *)
@@ -169,6 +170,7 @@ Definition string_of_sopn o : string :=
   | Osubcarry sz => "Osubcarry " ++ string_of_wsize sz
   | Oset0 sz => "Oset0 " ++ string_of_wsize sz
   | Ox86_MOV sz => "Ox86_MOV " ++ string_of_wsize sz
+  | Ox86_MOVZX sz sz' => "Ox86_MOVZX " ++ string_of_wsize sz ++ " " ++ string_of_wsize sz'
   | Ox86_CMOVcc sz => "Ox86_CMOVcc " ++ string_of_wsize sz
   | Ox86_ADD sz => "Ox86_ADD " ++ string_of_wsize sz
   | Ox86_SUB sz => "Ox86_SUB " ++ string_of_wsize sz
@@ -213,7 +215,10 @@ Definition sopn_tout (o:sopn) :  list stype :=
   | Omulu sz => [::sword sz; sword sz]
   | Oaddcarry sz | Osubcarry sz => [:: sbool; sword sz]
   | Oset0 sz => b5w_ty sz
-  | Ox86_MOV sz | Ox86_CMOVcc sz  => w_ty sz
+  | Ox86_MOV sz
+  | Ox86_MOVZX sz _
+  | Ox86_CMOVcc sz
+    => w_ty sz
   | Ox86_ADD sz | Ox86_SUB sz     => b5w_ty sz
   | Ox86_MUL sz | Ox86_IMUL sz    => b5ww_ty sz
   | Ox86_IMULt sz | Ox86_IMULtimm sz => b5w_ty sz
@@ -241,6 +246,7 @@ Definition sopn_tin (o: sopn) : list stype :=
     => let t := sword sz in [:: t ; t ; sbool ]
   | Oset0 _ => [::]
   | Ox86_MOV sz
+  | Ox86_MOVZX _ sz
   | Ox86_NEG sz
   | Ox86_INC sz
   | Ox86_DEC sz
