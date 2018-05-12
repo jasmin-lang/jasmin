@@ -951,6 +951,16 @@ Section PROOF.
     + by case: x => - [] [] // sz vn vi /=; apply: on_arr_varP=> sz' n t.
     + by rewrite /=; t_xrbindP => ???????? w _<-; case: ifP => // ?; eauto.
     + move: o=> [] //.
+      (* Osignext *)
+      + rewrite /= /mk_sem_sop1; t_xrbindP => sz sz' x ok_x x' /to_wordI [szx] [wx] [hle ??] ?.
+        subst x x' v.
+        case: sz' Hv' hle => // /truncate_val_word [sz'] [? hle'] ? hle; subst ty v'.
+        - case: andP => // - [] hs /eqP ?; subst sz.
+          by rewrite ok_x /= zero_extend_sign_extend // /truncate_word hle /x86_MOVSX /check_size_16_64 hs.
+        - case: andP => // - [] hs /eqP ?; subst sz.
+          by rewrite ok_x /= zero_extend_sign_extend // /truncate_word hle /x86_MOVSX /check_size_32_64 hs.
+        case: andP => // - [] /eqP ? /eqP /= ?; subst sz sz'.
+        by rewrite ok_x /= zero_extend_sign_extend // /truncate_word hle /x86_MOVSX.
       (* Ozeroext *)
       + rewrite /= /mk_sem_sop1; t_xrbindP => sz sz' x ok_x x' /to_wordI [szx] [wx] [hle ??] ?.
         subst x x' v.

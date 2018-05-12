@@ -370,6 +370,13 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
 
   | Papp1 (Olnot sz) a => k8 sz (LowerCopn (Ox86_NOT sz) a)
   | Papp1 (Oneg (Op_w sz)) a => k8 sz (LowerFopn (Ox86_NEG sz) [:: a] None)
+  | Papp1 (Osignext szo szi) a =>
+    match szi with
+    | U8 => k16 szo
+    | U16 => k32 szo
+    | U32 => kb (szo == U64) szo
+    | _ => chk false
+    end (LowerCopn (Ox86_MOVSX szo szi) a)
   | Papp1 (Ozeroext szo szi) a =>
     match szi with
     | U8 => k16 szo
