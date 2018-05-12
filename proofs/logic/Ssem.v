@@ -410,6 +410,7 @@ Definition ssem_sopn (o:sopn) :  svalues -> exec svalues :=
 
   (* Low level x86 operations *)
   | Ox86_MOV sz    => sapp_w sz (w1 (@x86_MOV sz)) (*sapp_w sz (w1 x86_MOV)*)
+  | Ox86_MOVSX sz sz' => sapp_w sz' (w1 (@x86_MOVSX sz sz'))
   | Ox86_MOVZX sz sz' => sapp_w sz' (w1 (@x86_MOVZX sz sz'))
   | Ox86_CMOVcc sz => (fun v => match v with
     | [:: v1; v2; v3] =>

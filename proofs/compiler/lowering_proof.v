@@ -1204,8 +1204,8 @@ Section PROOF.
       fold (sem_pexprs gd s) in hz1.
       rewrite /get_var /on_vu Fv.setP_eq /= -/(sem_pexprs gd ℓ).
       rewrite (sem_pexprs_same dz e hz1) /=.
-      case: o hr => //=; try (move => ? -> //).
-      - move => _ ? -> //.
+      case: o hr => //=;
+        try by (move => ?? -> || move => ? ->).
       by case: (y) => //= -[].
     + exists s'. repeat econstructor. by rewrite /sem_sopn hx /= hr.
   Qed.

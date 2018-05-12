@@ -587,6 +587,16 @@ Definition x86_MOV sz (x: word sz) : exec values :=
   Let _ := check_size_8_64 sz in
   ok [:: Vword x].
 
+Definition x86_MOVSX szo szi (x: word szi) : exec values :=
+  Let _ :=
+    match szi with
+    | U8 => check_size_16_64 szo
+    | U16 => check_size_32_64 szo
+    | U32 => assert (szo == U64) ErrType
+    | _ => type_error
+    end in
+  ok [:: Vword (sign_extend szo x) ].
+
 Definition x86_MOVZX szo szi (x: word szi) : exec values :=
   Let _ :=
     match szi with
@@ -871,6 +881,7 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
 
   (* Low level x86 operations *)
   | Ox86_MOV sz => app_w sz (@x86_MOV sz)
+  | Ox86_MOVSX sz sz' => app_w sz' (@x86_MOVSX sz sz')
   | Ox86_MOVZX sz sz' => app_w sz' (@x86_MOVZX sz sz')
   | Ox86_CMOVcc sz => (fun v => match v with
     | [:: v1; v2; v3] =>
