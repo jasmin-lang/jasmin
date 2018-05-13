@@ -137,18 +137,25 @@ let pp_funname fmt fn =
   F.fprintf fmt "%s" x
 
 let pp_op1 = function
+  | E.Osignext _ -> assert false (* FIXME *)
+  | E.Ozeroext _ -> assert false (* FIXME *)
   | E.Onot     -> "~~"
   | E.Olnot U64 -> "~!"
   | E.Olnot _   -> assert false
   | E.Oneg _ -> "~-" (* FIXME *)
   | E.Oarr_init _ -> assert false (* FIXME *)
 
+let pp_global fmt (ws, n) =
+  F.fprintf fmt "(Global U%a \"%s\")"
+    pp_ws ws
+    n
+
 let rec pp_pexpr fmt = function
   | Pconst i       -> F.fprintf fmt "%s" (B.to_string i)
   | Pbool b        -> F.fprintf fmt "%a" pp_bool b
   | Pcast(ws, pe) -> F.fprintf fmt "(Pcast %a %a)" pp_ws ws pp_pexpr pe
   | Pvar vi        -> F.fprintf fmt "%a" pp_vari vi
-  | Pglobal g -> F.fprintf fmt "(Pglobal %s)" g
+  | Pglobal (ws, g) -> F.fprintf fmt "(Pglobal %a)" pp_global (ws, g)
   | Pget(vi, pe)   ->
     F.fprintf fmt "%a.[%a]" pp_vari vi pp_pexpr pe
   | Pload(ws, vi, pe) ->

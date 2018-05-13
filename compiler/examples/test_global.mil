@@ -1,4 +1,4 @@
-__38 = 38;
+u64 __38 = 38;
 
 export
 fn main(reg u64 x) -> reg u64 {

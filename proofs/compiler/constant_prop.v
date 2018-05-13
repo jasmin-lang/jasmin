@@ -40,6 +40,14 @@ Local Open Scope Z_scope.
 (* ** Smart constructors                                                      *)
 (* -------------------------------------------------------------------------- *)
 
+Definition ssign_extend sz sz' (e: pexpr) :=
+  (* TODO *)
+  Papp1 (Osignext sz sz') e.
+
+Definition szero_extend sz sz' (e: pexpr) :=
+  (* TODO *)
+  Papp1 (Ozeroext sz sz') e.
+
 Definition snot_bool (e:pexpr) := 
   match e with
   | Pbool b      => negb b
@@ -68,7 +76,9 @@ Definition sneg_w (sz: wsize) (e:pexpr) :=
 
 Definition s_op1 o e :=
   match o with
-  | Onot  => snot_bool e 
+  | Osignext sz sz' => ssign_extend sz sz' e
+  | Ozeroext sz sz' => szero_extend sz sz' e
+  | Onot  => snot_bool e
   | Olnot sz => snot_w sz e
   | Oneg Op_int => sneg_int e
   | Oneg (Op_w sz) => sneg_w sz e

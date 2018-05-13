@@ -314,6 +314,8 @@ Definition sem_arr_init s (v:value) :=
 
 Definition sem_sop1 (o:sop1) :=
   match o with
+  | Osignext szo szi => @mk_sem_sop1 (sword szi) (sword szo) (@sign_extend szo szi)
+  | Ozeroext szo szi => @mk_sem_sop1 (sword szi) (sword szo) (@zero_extend szo szi)
   | Onot    => sem_op1_b negb
   | Olnot s => @sem_op1_w s wnot 
   | Oneg  Op_int => sem_op1_i Z.opp 
@@ -404,15 +406,15 @@ Definition Vword_inj sz sz' w w' (e: @Vword sz w = @Vword sz' w') :
   ∃ e : sz = sz', eq_rect sz (λ s, (word s)) w sz' e = w' :=
   let 'Logic.eq_refl := e in (ex_intro _ erefl erefl).
 
-Definition glob_def : Type := global * u64.
+Definition glob_def : Type := global * value.
 Notation glob_defs := (seq glob_def).
 
-Definition get_global_word (gd: glob_defs) (g: global) : option u64 :=
+Definition get_global_value (gd: glob_defs) (g: global) : option value :=
   assoc gd g.
 
 Definition get_global gd g : exec value :=
-  if get_global_word gd g is Some v
-  then ok (Vword v)
+  if get_global_value gd g is Some (Vword sz w as v)
+  then Let _ := assert (sz == size_of_global g) ErrType in ok v
   else type_error.
 
 Definition is_defined (v: value) : bool :=
@@ -584,6 +586,25 @@ Definition vbools bs : exec values := ok (List.map Vbool bs).
 Definition x86_MOV sz (x: word sz) : exec values :=
   Let _ := check_size_8_64 sz in
   ok [:: Vword x].
+
+Definition x86_MOVSX szo szi (x: word szi) : exec values :=
+  Let _ :=
+    match szi with
+    | U8 => check_size_16_64 szo
+    | U16 => check_size_32_64 szo
+    | U32 => assert (szo == U64) ErrType
+    | _ => type_error
+    end in
+  ok [:: Vword (sign_extend szo x) ].
+
+Definition x86_MOVZX szo szi (x: word szi) : exec values :=
+  Let _ :=
+    match szi with
+    | U8 => check_size_16_64 szo
+    | U16 => check_size_32_64 szo
+    | _ => type_error
+    end in
+  ok [:: Vword (zero_extend szo x) ].
 
 Definition x86_add {sz} (v1 v2 : word sz) :=
   Let _ := check_size_8_64 sz in
@@ -884,6 +905,8 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
 
   (* Low level x86 operations *)
   | Ox86_MOV sz => app_w sz (@x86_MOV sz)
+  | Ox86_MOVSX sz sz' => app_w sz' (@x86_MOVSX sz sz')
+  | Ox86_MOVZX sz sz' => app_w sz' (@x86_MOVZX sz sz')
   | Ox86_CMOVcc sz => (fun v => match v with
     | [:: v1; v2; v3] =>
       Let _ := check_size_16_64 sz in

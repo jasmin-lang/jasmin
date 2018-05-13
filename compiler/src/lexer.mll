@@ -44,21 +44,29 @@
 
   let keywords = Hash.of_enum (List.enum _keywords)
 
+  let sign_of_char =
+  function
+  | 'u' -> `Unsigned
+  | 's' -> `Signed
+  | _ -> assert false
+
   let get_sign : char option -> S.sign option =
   function
-  | Some 'u' -> Some `Unsigned
-  | Some 's' -> Some `Signed
+  | Some c -> Some (sign_of_char c)
   | None -> None
-  | Some _ -> assert false
+
+  let size_of_string =
+  function
+  | "8" -> `W8
+  | "16" -> `W16
+  | "32" -> `W32
+  | "64" -> `W64
+  | _ -> assert false
 
   let get_size : string option -> S.wsize option =
   function
-  | Some "8" -> Some `W8
-  | Some "16" -> Some `W16
-  | Some "32" -> Some `W32
-  | Some "64" -> Some `W64
+  | Some s -> Some (size_of_string s)
   | None -> None
-  | Some _ -> assert false
 
   let mk_swsize g w : S.swsize =
     match get_sign g, get_size w with
@@ -99,6 +107,8 @@ rule main = parse
 
   | ident+ as s
       { odfl (NID s) (Hash.find_option keywords s) }
+
+  | '(' blank* (size as sz) (signletter as sg) blank* ')' { CAST (sign_of_char sg, size_of_string sz) }
 
   | "#"     { SHARP      }
   | "["     { LBRACKET   }

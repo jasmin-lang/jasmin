@@ -1,0 +1,2 @@
+u8 one = 1;
+u16 two = one + one;

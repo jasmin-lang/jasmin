@@ -118,6 +118,8 @@ Variant asm : Type :=
 
   (* Data transfert *)
 | MOV    of wsize & oprd & oprd    (* copy *)
+| MOVSX of wsize & wsize & register & oprd (* sign-extend *)
+| MOVZX of wsize & wsize & register & oprd (* zero-extend *)
 | CMOVcc of wsize & condt & oprd & oprd    (* conditional copy *)
 
   (* Arithmetic *)
@@ -510,7 +512,7 @@ Definition write_oprd (o : oprd) sz (w : word sz) (s : x86_mem) :=
 Definition read_oprd sz (o : oprd) (s : x86_mem) :=
   match o with
   | Imm_op v => ok (zero_extend sz v)
-  | Glo_op g => if get_global_word gd g is Some v then ok (zero_extend sz v) else type_error
+  | Glo_op g => if get_global gd g is Ok (Vword sz' v) then ok (zero_extend sz v) else type_error
   | Reg_op r => ok (zero_extend sz (s.(xreg) r))
   | Adr_op a => read_mem s.(xmem) (decode_addr s a) sz
   end.
@@ -683,6 +685,29 @@ Definition eval_MOV_nocheck sz o1 o2 s : x86_result :=
 Definition eval_MOV sz o1 o2 s : x86_result :=
   Let _ := check_size_8_64 sz in
   eval_MOV_nocheck sz o1 o2 s.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_MOVSX szo szi dst o s : x86_result :=
+  Let _ :=
+    match szi with
+    | U8 => check_size_16_64 szo
+    | U16 => check_size_32_64 szo
+    | U32 => assert (szo == U64) ErrType
+    | _ => type_error
+    end in
+  Let v := read_oprd szi o s in
+  ok (mem_write_reg dst (sign_extend szo v) s).
+
+(* -------------------------------------------------------------------- *)
+Definition eval_MOVZX szo szi dst o s : x86_result :=
+  Let _ :=
+    match szi with
+    | U8 => check_size_16_64 szo
+    | U16 => check_size_32_64 szo
+    | _ => type_error
+    end in
+  Let v := read_oprd szi o s in
+  ok (mem_write_reg dst (zero_extend szo v) s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_CMOVcc sz ct o1 o2 s : x86_result :=
@@ -1083,6 +1108,8 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | Jcc    _ _
   | LABEL  _           => ok s
   | MOV    sz o1 o2    => eval_MOV    sz o1 o2 s
+  | MOVSX szo szi o1 o2 => eval_MOVSX szo szi o1 o2 s
+  | MOVZX szo szi o1 o2 => eval_MOVZX szo szi o1 o2 s
   | CMOVcc sz ct o1 o2 => eval_CMOVcc sz ct o1 o2 s
   | ADD    sz o1 o2    => eval_ADD    sz o1 o2 s
   | SUB    sz o1 o2    => eval_SUB    sz o1 o2 s

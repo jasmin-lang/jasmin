@@ -370,6 +370,19 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
 
   | Papp1 (Olnot sz) a => k8 sz (LowerCopn (Ox86_NOT sz) [:: a ])
   | Papp1 (Oneg (Op_w sz)) a => k8 sz (LowerFopn (Ox86_NEG sz) [:: a] None)
+  | Papp1 (Osignext szo szi) a =>
+    match szi with
+    | U8 => k16 szo
+    | U16 => k32 szo
+    | U32 => kb (szo == U64) szo
+    | _ => chk false
+    end (LowerCopn (Ox86_MOVSX szo szi) [:: a])
+  | Papp1 (Ozeroext szo szi) a =>
+    match szi with
+    | U8 => k16 szo
+    | U16 => k32 szo
+    | _ => chk false
+    end (LowerCopn (Ox86_MOVZX szo szi) [:: a])
 
   | Papp2 op a b =>
     match op with
@@ -425,7 +438,7 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
     | Olsl sz => k8 sz (LowerFopn (Ox86_SHL sz) [:: a ; b ] (Some U8))
     | Oasr sz => k8 sz (LowerFopn (Ox86_SAR sz) [:: a ; b ] (Some U8))
     | Oeq (Op_w sz) => k8 sz (LowerEq sz a b)
-    | Olt (Cmp_w _ sz) => k8 sz (LowerLt sz a b)
+    | Olt (Cmp_w Unsigned sz) => k8 sz (LowerLt sz a b)
     | _ => LowerAssgn
     end
 
@@ -482,6 +495,8 @@ Definition wsize_of_sopn (op: sopn) : wsize :=
   | Osubcarry x
   | Oset0 x
   | Ox86_MOV x
+  | Ox86_MOVSX _ x
+  | Ox86_MOVZX _ x
   | Ox86_CMOVcc x
   | Ox86_ADD x
   | Ox86_SUB x

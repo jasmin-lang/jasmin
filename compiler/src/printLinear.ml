@@ -32,7 +32,7 @@ let rec pp_expr tbl fmt =
   | E.Pbool b -> Pr.pp_bool fmt b
   | E.Pcast (sz, e) -> F.fprintf fmt "(%a) %a" pp_wsize sz pp_expr e
   | E.Pvar x -> pp_var_i tbl fmt x
-  | E.Pglobal g -> F.fprintf fmt "%s" (Conv.global_of_cglobal g)
+  | E.Pglobal g -> F.fprintf fmt "%s" (Conv.global_of_cglobal g |> snd)
   | E.Pget (x, e) -> F.fprintf fmt "%a[%a]" (pp_var_i tbl) x pp_expr e
   | E.Pload (sz, x, e) -> F.fprintf fmt "(%a)[%a + %a]" pp_wsize sz (pp_var_i tbl) x pp_expr e
   | E.Papp1 (op, e) -> F.fprintf fmt "(%s %a)" (Pr.string_of_op1 op) pp_expr e

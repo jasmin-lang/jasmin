@@ -203,6 +203,8 @@ Definition ssem_arr_init sz (v:svalue) :=
 
 Definition ssem_sop1 (o:sop1) := 
   match o with
+  | Osignext sz sz' => @mk_ssem_sop1 (ssword sz') (ssword sz) (@sign_extend sz sz')
+  | Ozeroext sz sz' => @mk_ssem_sop1 (ssword sz') (ssword sz) (@zero_extend sz sz')
   | Onot           => ssem_op1_b negb
   | Olnot sz       => @ssem_op1_w sz wnot
   | Oneg Op_int    => ssem_op1_i Z.opp
@@ -266,10 +268,10 @@ Definition son_arr_var A (s: sestate) (x: var) (f: forall sz n, FArray.array (wo
 Notation "'SLet' ( sz , n , t ) ':=' s '.[' x ']' 'in' body" :=
   (@son_arr_var _ s x (fun sz n (t:FArray.array (word sz)) => body)) (at level 25, s at level 0).
 
-Definition sget_global gd g :  word Uptr :=
-  if get_global_word gd g is Some v
-  then v
-  else sdflt_val (sword Uptr).
+Definition sget_global gd g : svalue :=
+  if get_global_value gd g is Some (Vword sz w)
+  then SVword w
+  else SVword (sdflt_val (sword (size_of_global g))).
 
 Section SSEM_PEXPR.
 
@@ -283,7 +285,7 @@ Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : exec svalue :=
     Let z := ssem_pexpr s e >>= sto_int in
     ok (SVword (wrepr sz z))
   | Pvar v    => ok (sget_var s.(sevm) v)
-  | Pglobal g => ok (SVword (sget_global gd g))
+  | Pglobal g => ok (sget_global gd g)
   | Pget x e  =>
     SLet (sz, n, t) := s.[x] in
     Let i := ssem_pexpr s e >>= sto_int in
@@ -410,6 +412,8 @@ Definition ssem_sopn (o:sopn) :  svalues -> exec svalues :=
 
   (* Low level x86 operations *)
   | Ox86_MOV sz    => sapp_w sz (w1 (@x86_MOV sz)) (*sapp_w sz (w1 x86_MOV)*)
+  | Ox86_MOVSX sz sz' => sapp_w sz' (w1 (@x86_MOVSX sz sz'))
+  | Ox86_MOVZX sz sz' => sapp_w sz' (w1 (@x86_MOVZX sz sz'))
   | Ox86_CMOVcc sz => (fun v => match v with
     | [:: v1; v2; v3] =>
       Let b := sto_bool v1 in

@@ -1,0 +1,41 @@
+export
+fn test_zeroext (reg u8 a) -> reg u32 {
+
+reg u16 b;
+reg u32 c, d;
+reg u64 e, f;
+
+b = (16u) a;
+c = (32u) a;
+d = (32u) b;
+e = (64u) a;
+f = (64u) b;
+
+e += f;
+d += e;
+c += d;
+
+return c;
+}
+
+export
+fn test_signext(reg u8 a) -> reg u32 {
+reg u16 b;
+reg u32 c, d;
+reg u64 e, f, g;
+
+b = (16s) a;
+c = (32s) a;
+d = (32s) b;
+
+e = (64s) a;
+f = (64s) b;
+g = (64s) c;
+
+f += e;
+g += f;
+
+d += g;
+
+return d;
+}

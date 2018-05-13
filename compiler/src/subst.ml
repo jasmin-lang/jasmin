@@ -7,7 +7,7 @@ let rec gsubst_e (f: 'ty1 gvar_i -> 'ty2 gexpr) e =
   | Pbool b  -> Pbool b
   | Pcast(ws,e) -> Pcast(ws, gsubst_e f e)
   | Pvar v -> f v
-  | Pglobal g -> Pglobal g
+  | Pglobal (ws, g) -> Pglobal (ws, g)
   | Pget (v,e) -> Pget(gsubst_vdest f v, gsubst_e f e)
   | Pload (ws, v, e) -> Pload (ws, gsubst_vdest f v, gsubst_e f e)
   | Papp1 (o, e)     -> Papp1 (o, gsubst_e f e)

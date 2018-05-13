@@ -75,7 +75,7 @@ Lemma eval_low_read gd m sz sz' (w: word sz') x :
 Proof.
 move => hle; case: x => /=.
 - by move => n /ok_word_inj [??]; subst.
-- by rewrite /get_global => g; case: get_global_word => // ? /ok_word_inj [??]; subst.
+- by rewrite /get_global => g; case: get_global_value => // - [] // s w'; apply: rbindP => _ /assertP /eqP ?; subst s => /ok_word_inj [??]; subst; rewrite eqxx.
 - by move => r /ok_word_inj [??]; subst.
 by move => a; apply: rbindP => ? -> /ok_word_inj [??]; subst; rewrite /= zero_extend_u.
 Qed.
@@ -90,6 +90,32 @@ case: x => // [ x | x ]; t_xrbindP => ??? h <-; t_xrbindP => w' /of_val_word [sz
 Qed.
 
 Definition MOV_desc sz := make_instr_desc (MOV_gsc sz).
+
+(* ----------------------------------------------------------------------------- *)
+Lemma MOVSX_gsc sz sz' :
+  gen_sem_correct [:: TYreg; TYoprd] (Ox86_MOVSX sz sz') [:: E sz 0] [:: E sz' 1] [::] (MOVSX sz sz').
+Proof.
+move => /= x y; split => // gd m m'.
+rewrite /low_sem_aux /= arg_of_oprdE /= /sets_low /eval_MOVSX /x86_MOVSX.
+t_xrbindP => ??? h <-; t_xrbindP => w' /of_val_word [szw] [w] [hle ??] ? -> <- [<-] /=; subst.
+rewrite (eval_low_read _ h) //=.
+eexists; split; reflexivity.
+Qed.
+
+Definition MOVSX_desc sz sz' := make_instr_desc (MOVSX_gsc sz sz').
+
+(* ----------------------------------------------------------------------------- *)
+Lemma MOVZX_gsc sz sz' :
+  gen_sem_correct [:: TYreg; TYoprd] (Ox86_MOVZX sz sz') [:: E sz 0] [:: E sz' 1] [::] (MOVZX sz sz').
+Proof.
+move => /= x y; split => // gd m m'.
+rewrite /low_sem_aux /= arg_of_oprdE /= /sets_low /eval_MOVZX /x86_MOVZX.
+t_xrbindP => ??? h <-; t_xrbindP => w' /of_val_word [szw] [w] [hle ??] ? -> <- [<-] /=; subst.
+rewrite (eval_low_read _ h) //=.
+eexists; split; reflexivity.
+Qed.
+
+Definition MOVZX_desc sz sz' := make_instr_desc (MOVZX_gsc sz sz').
 
 (* ----------------------------------------------------------------------------- *)
 Lemma VMOVDQU_gsc :
@@ -892,6 +918,8 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Omulu _ | Oaddcarry _ | Osubcarry _ => cierror ii (Cerr_assembler (AsmErr_string "sopn_desc"))
   | Oset0 sz => ok (Set0_desc sz)
   | Ox86_MOV sz => ok (MOV_desc sz)
+  | Ox86_MOVSX sz sz' => ok (MOVSX_desc sz sz')
+  | Ox86_MOVZX sz sz' => ok (MOVZX_desc sz sz')
   | Ox86_CMOVcc sz => ok (CMOVcc_desc sz)
   | Ox86_ADD sz => ok (ADD_desc sz)
   | Ox86_SUB sz => ok (SUB_desc sz)
@@ -932,7 +960,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
 
 Lemma sopn_desc_name ii o d : sopn_desc ii o = ok d -> d.(id_name) = o.
 Proof.
-  by case: o => //=; (move => w h || move => h); have <- := ok_inj h.
+  by case: o => //=; (move => w w' h || move => w h || move => h); have <- := ok_inj h.
 Qed.
 
 (* ----------------------------------------------------------------------------- *)

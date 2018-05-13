@@ -55,10 +55,11 @@ Variant op_kind :=
   | Op_w of wsize.
 
 Variant sop1 :=
-(* | Ozeroext of wsize *)
-| Onot
-| Olnot of wsize
-| Oneg  of op_kind
+| Osignext of wsize & wsize (* Sign-extension: output-size, input-size *)
+| Ozeroext of wsize & wsize (* Zero-extension: output-size, input-size *)
+| Onot (* Boolean negation *)
+| Olnot of wsize (* Bitwize not: 1s’ complement *)
+| Oneg  of op_kind (* Arithmetic negation *)
 | Oarr_init of wsize.
 
 Variant sop2 :=
@@ -92,6 +93,8 @@ Variant sopn : Set :=
 (* Low level x86 operations *)
 | Oset0        of wsize  (* set register + flags to 0 (implemented using XOR x x) *)
 | Ox86_MOV     of wsize  (* copy *)
+| Ox86_MOVSX of wsize & wsize (* sign-extension *)
+| Ox86_MOVZX of wsize & wsize (* zero-extension *)
 | Ox86_CMOVcc  of wsize  (* conditional copy *)
 | Ox86_ADD     of wsize  (* add unsigned / signed *)
 | Ox86_SUB     of wsize  (* sub unsigned / signed *)
@@ -178,6 +181,8 @@ Definition string_of_sopn o : string :=
   | Osubcarry sz => "Osubcarry " ++ string_of_wsize sz
   | Oset0 sz => "Oset0 " ++ string_of_wsize sz
   | Ox86_MOV sz => "Ox86_MOV " ++ string_of_wsize sz
+  | Ox86_MOVSX sz sz' => "Ox86_MOVSX " ++ string_of_wsize sz ++ " " ++ string_of_wsize sz'
+  | Ox86_MOVZX sz sz' => "Ox86_MOVZX " ++ string_of_wsize sz ++ " " ++ string_of_wsize sz'
   | Ox86_CMOVcc sz => "Ox86_CMOVcc " ++ string_of_wsize sz
   | Ox86_ADD sz => "Ox86_ADD " ++ string_of_wsize sz
   | Ox86_SUB sz => "Ox86_SUB " ++ string_of_wsize sz
@@ -229,7 +234,11 @@ Definition sopn_tout (o:sopn) :  list stype :=
   | Omulu sz => [::sword sz; sword sz]
   | Oaddcarry sz | Osubcarry sz => [:: sbool; sword sz]
   | Oset0 sz => b5w_ty sz
-  | Ox86_MOV sz | Ox86_CMOVcc sz  => w_ty sz
+  | Ox86_MOV sz
+  | Ox86_MOVSX sz _
+  | Ox86_MOVZX sz _
+  | Ox86_CMOVcc sz
+    => w_ty sz
   | Ox86_ADD sz | Ox86_SUB sz     => b5w_ty sz
   | Ox86_MUL sz | Ox86_IMUL sz    => b5ww_ty sz
   | Ox86_IMULt sz | Ox86_IMULtimm sz => b5w_ty sz
@@ -262,6 +271,8 @@ Definition sopn_tin (o: sopn) : list stype :=
     => let t := sword sz in [:: t ; t ; sbool ]
   | Oset0 _ => [::]
   | Ox86_MOV sz
+  | Ox86_MOVSX _ sz
+  | Ox86_MOVZX _ sz
   | Ox86_NEG sz
   | Ox86_INC sz
   | Ox86_DEC sz
@@ -321,12 +332,19 @@ Definition var_info_to_attr (vi: var_info) :=
   | _ => VarA false
   end.
 
-Record global := Global { ident_of_global:> Ident.ident }.
+Record global := Global { size_of_global : wsize ; ident_of_global:> Ident.ident }.
 
-Definition global_beq (g1 g2: global) : bool := g1 == g2.
+Definition global_beq (g1 g2: global) : bool :=
+  let 'Global s1 n1 := g1 in
+  let 'Global s2 n2 := g2 in
+  (s1 == s2) && (n1 == n2).
 
 Lemma global_eq_axiom : Equality.axiom global_beq.
-Proof. move=>[g1][g2]; rewrite/global_beq/=; case: eqP; constructor; congruence. Qed.
+Proof.
+  case => s1 g1 [] s2 g2 /=; case: andP => h; constructor.
+  - by case: h => /eqP -> /eqP ->.
+  by case => ??; apply: h; subst.
+Qed.
 
 Definition global_eqMixin := Equality.Mixin global_eq_axiom.
 Canonical global_eqType := Eval hnf in EqType global global_eqMixin.

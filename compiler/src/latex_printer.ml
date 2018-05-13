@@ -69,6 +69,7 @@ let string_of_wsize w =
 let string_of_op1 =
   let f s p = F.sprintf "%s%s" p (string_of_swsize s) in
   function
+  | `Cast (sg, sz) -> F.sprintf "(%d%s)" (bits_of_wsize sz) (suffix_of_sign sg)
   | `Not -> "!"
   | `Neg s -> f s "-"
 
@@ -111,6 +112,7 @@ type prio =
 
 let prio_of_op1 =
   function
+  | `Cast _
   | `Not -> Pbang
   | `Neg _ -> Punary
 
@@ -283,8 +285,9 @@ let pp_param fmt { ppa_ty ; ppa_name ; ppa_init } =
     pp_expr ppa_init;
   F.fprintf fmt eol
 
-let pp_global fmt { pgd_name ; pgd_val } =
-  F.fprintf fmt "%a = %a;"
+let pp_global fmt { pgd_type ; pgd_name ; pgd_val } =
+  F.fprintf fmt "%a %a = %a;"
+    pp_type pgd_type
     dname (L.unloc pgd_name)
     pp_expr pgd_val;
   F.fprintf fmt eol

@@ -42,7 +42,7 @@ let string_of_swsize : swsize -> string =
       (suffix_of_sign sg)
 
 (* -------------------------------------------------------------------- *)
-type peop1 = [ `Not | `Neg of swsize ]
+type peop1 = [ `Cast of sign * wsize | `Not | `Neg of swsize ]
 
 type peop2 = [
   | `Add of swsize
@@ -174,7 +174,7 @@ type pfundef = {
 }
 
 (* -------------------------------------------------------------------- *)
-type pglobal = { pgd_name: pident ; pgd_val: pexpr }
+type pglobal = { pgd_type: ptype; pgd_name: pident ; pgd_val: pexpr }
 
 (* -------------------------------------------------------------------- *)
 type pitem = PFundef of pfundef | PParam of pparam

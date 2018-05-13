@@ -506,7 +506,7 @@ Section PROOF.
       rewrite /x86_cmp /check_size_8_64 Hsz.
       eexists _, _; split; first by reflexivity.
       do 2 split => //.
-      by rewrite wltE.
+      by rewrite -CoqWord.word.wltuE.
     (* Cond1 CondNotVar *)
     + case: o He => // -[] // => [ sz' | [] sz' | [] sz' | [] sz' | [] sz' ] He //[] ?????; subst.
       + case/sem_op2_wb_dec: He => szx [vx] [szy] [vy] [<-] [Hszx] [Hszy ->].
@@ -532,7 +532,11 @@ Section PROOF.
       set vof := wsigned (zero_extend sz z1 - zero_extend sz z2) != (wsigned (zero_extend sz z1) - wsigned (zero_extend sz z2))%Z.
       set vsf := SF_of_word (zero_extend sz z1 - zero_extend sz z2).
       exists vof, vsf, fv.(fresh_OF), fv.(fresh_SF); repeat split=> //=.
-      + by rewrite -Hz1z2 /vsf /SF_of_word /vof wlesE.
+      rewrite -Hz1z2 /vsf /SF_of_word /vof; f_equal.
+      set α := zero_extend _ z1; set β := zero_extend _ z2.
+      case: (α =P β).
+      - by move => <-; rewrite GRing.subrr msb0 wsigned0 Z.sub_diag /= Num.Theory.lerr.
+      exact: wlesE.
     (* Cond2 CondNeq *)
     + case: o He => // [] // [] // [] sz' // He []??????; subst.
       case/sem_op2_wb_dec: He => w1 [z1] [w2] [z2] [Hz1z2] [Hw1] [Hw2 ->].
@@ -542,7 +546,11 @@ Section PROOF.
       set vof := wsigned (zero_extend sz z1 - zero_extend sz z2) != (wsigned (zero_extend sz z1) - wsigned (zero_extend sz z2))%Z.
       set vsf := SF_of_word (zero_extend sz z1 - zero_extend sz z2).
       exists vof, vsf, fv.(fresh_OF), fv.(fresh_SF); repeat split=> //=.
-      + by rewrite -Hz1z2 /vsf /SF_of_word /vof wltE wsub_signed_overflow.
+      rewrite -Hz1z2 /vsf /SF_of_word /vof; f_equal.
+      set α := zero_extend _ z1; set β := zero_extend _ z2.
+      case: (α =P β).
+      + by move => <-; rewrite /= Num.Theory.ltrr GRing.subrr Z.sub_diag wsigned0 msb0.
+      exact: wltsE.
     (* Cond2 CondOr *)
     + case: o He => // [] // [] // [] sz' // He []??????; subst.
       case/sem_op2_wb_dec: He => w1 [z1] [w2] [z2] [Hz1z2] [Hw1] [Hw2 ->].
@@ -574,10 +582,11 @@ Section PROOF.
       set vsf := SF_of_word (zero_extend sz z1 - zero_extend sz z2).
       set vzf := ZF_of_word (zero_extend sz z1 - zero_extend sz z2).
       exists vof, vsf, vzf, fv.(fresh_OF), fv.(fresh_SF), fv.(fresh_ZF); repeat split=> //=.
-      + rewrite -Hz1z2 /vzf /ZF_of_word /vsf /SF_of_word /vof wlesE GRing.subr_eq0; f_equal.
-        case: (zero_extend _ z1 =P _) => /=.
-        * by move => ->; rewrite GRing.subrr Z.sub_diag wsigned0 msb0.
-        exact: wles_msb.
+      rewrite -Hz1z2 /vzf /ZF_of_word /vsf /SF_of_word /vof GRing.subr_eq0; f_equal.
+      set α := zero_extend _ z1; set β := zero_extend _ z2.
+      case: (α =P β).
+      - move => ->; exact: Num.Theory.lerr.
+      exact: wlesE'.
     (* Cond3 CondAndNotEq *)
     + case: o He => // [] // [] // [] sz' // He []???????; subst.
       case/sem_op2_wb_dec: He => w1 [z1] [w2] [z2] [Hz1z2] [Hw1] [Hw2 ->].
@@ -588,11 +597,11 @@ Section PROOF.
       set vsf := SF_of_word (zero_extend sz z1 - zero_extend sz z2).
       set vzf := ZF_of_word (zero_extend sz z1 - zero_extend sz z2).
       exists vof, vsf, vzf, fv.(fresh_OF), fv.(fresh_SF), fv.(fresh_ZF); repeat split=> //=.
-      + rewrite -Hz1z2 /vzf /vsf /vof /ZF_of_word /SF_of_word wltE GRing.subr_eq0; f_equal.
+      + rewrite -Hz1z2 /vzf /vsf /vof /ZF_of_word /SF_of_word GRing.subr_eq0; f_equal.
         set α := zero_extend _ z1; set β := zero_extend _ z2.
-        case: (α =P _) => /=.
-        * by move => ->; rewrite GRing.subrr Z.sub_diag.
-        exact: wlts_msb.
+        case: (α =P _).
+        * by move => ->; exact: Num.Theory.ltrr.
+        exact: wltsE'.
   Qed.
 
   Lemma vboolI x y : x != y → vbool y != vbool x.
@@ -942,6 +951,24 @@ Section PROOF.
     + by case: x => - [] [] // sz vn vi /=; apply: on_arr_varP=> sz' n t.
     + by rewrite /=; t_xrbindP => ???????? w _<-; case: ifP => // ?; eauto.
     + move: o=> [] //.
+      (* Osignext *)
+      + rewrite /= /mk_sem_sop1; t_xrbindP => sz sz' x ok_x x' /to_wordI [szx] [wx] [hle ??] ?.
+        subst x x' v.
+        case: sz' Hv' hle => // /truncate_val_word [sz'] [? hle'] ? hle; subst ty v'.
+        - case: andP => // - [] hs /eqP ?; subst sz.
+          by rewrite /= ok_x /= zero_extend_sign_extend // /truncate_word hle /x86_MOVSX /check_size_16_64 hs.
+        - case: andP => // - [] hs /eqP ?; subst sz.
+          by rewrite /= ok_x /= zero_extend_sign_extend // /truncate_word hle /x86_MOVSX /check_size_32_64 hs.
+        case: andP => // - [] /eqP ? /eqP /= ?; subst sz sz'.
+        by rewrite ok_x /= zero_extend_sign_extend // /truncate_word hle /x86_MOVSX.
+      (* Ozeroext *)
+      + rewrite /= /mk_sem_sop1; t_xrbindP => sz sz' x ok_x x' /to_wordI [szx] [wx] [hle ??] ?.
+        subst x x' v.
+        case: sz' Hv' hle => // /truncate_val_word [sz'] [? hle'] ? hle; subst ty v'.
+        - case: andP => // - [] hs /eqP ?; subst sz.
+          by rewrite /= ok_x /= zero_extend_u /truncate_word hle /x86_MOVZX /check_size_16_64 hs.
+        case: andP => // - [] hs /eqP ?; subst sz.
+        by rewrite /= ok_x /= zero_extend_u /truncate_word hle /x86_MOVZX /check_size_32_64 hs.
       (* Olnot *)
       + move=> sz /sem_op1_w_dec [sz' [z [Hsz Hv Hz]]].
         case: andP => // - [hsz] /eqP ?; subst sz.
@@ -1149,13 +1176,14 @@ Section PROOF.
          rewrite /truncate_word hw1 hw2 /x86_cmp /=.
          rewrite -GRing.subr_eq0; eexists _, _, _, _; reflexivity.
        (* Olt Op_w *)
-      + case: andP => // - [hsz64] /eqP ?; subst sz.
+      + case: sg => //.
+        case: andP => // - [hsz64] /eqP ?; subst sz.
          case/sem_op2_wb_dec => w1 [z1] [w2] [z2] [?] [hw1 [hw2 ->]] /=; subst v.
          have /subtypeE/=? := truncate_val_subtype Hv'; subst ty.
          case: Hv' => ?; subst v'.
          rewrite /x86_cmp /vbools /rflags_of_aluop /= /truncate_word hw1 hw2 /=.
          eexists _, _, _, _; repeat f_equal.
-         by rewrite wltE.
+         by rewrite CoqWord.word.wltuE.
        (* Pif *)
        rewrite /check_size_16_64.
        by case: stype_of_lval => //= w hv; case: andP => // - [] -> /eqP ->; eauto.
@@ -1210,7 +1238,8 @@ Section PROOF.
       fold (sem_pexprs gd s) in hz1.
       rewrite /get_var /on_vu Fv.setP_eq /= -/(sem_pexprs gd ℓ).
       rewrite (sem_pexprs_same dz e hz1) /=.
-      case: o hr => //=; try (move => ? -> //); by t_xrbindP.
+      case: o hr => //=;
+        try (move => ?? -> || move => ? ->); by t_xrbindP.
     + exists s'. repeat econstructor. by rewrite /sem_sopn hx /= hr.
   Qed.
 

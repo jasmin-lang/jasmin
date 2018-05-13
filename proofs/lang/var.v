@@ -23,8 +23,6 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-(* * Syntax and semantics of the dmasm source language *)
-
 (* ** Imports and settings *)
 Require Import Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
@@ -341,8 +339,6 @@ Definition var2pair (v:var) := (v.(vtype), v.(vname)).
 Definition pair2var (p:stype * ident) := Var (fst p) (snd p).
 
 Lemma codeK_var : cancel var2pair pair2var. Proof. by rewrite /cancel; case => //. Qed.
-Definition var_eqMixin := CanEqMixin codeK_var.
-Canonical  var_eqType  := EqType var var_eqMixin.
 
 Delimit Scope mvar_scope with mv.
 Notation "vm .[ x ]" := (@Mv.get _ vm x) : mvar_scope.

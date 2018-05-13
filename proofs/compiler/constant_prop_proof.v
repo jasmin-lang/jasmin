@@ -143,7 +143,7 @@ by rewrite /sem_op1_w /mk_sem_sop1 /= -bindA (is_wconstP gd s heq) /= => -[<-]; 
 Qed.
 
 Lemma s_op1P o e : Papp1 o e =E s_op1 o e.
-Proof. case: o => [|?|[|?]|?]; eauto using snot_boolP, snot_wP, sneg_intP, sneg_wP. Qed.
+Proof. case: o => [??|??||?|[|?]|?]; eauto using snot_boolP, snot_wP, sneg_intP, sneg_wP. Qed.
 
 (* * -------------------------------------------------------------------- *)
 
@@ -927,7 +927,9 @@ Section PROOF.
     List.Forall2 value_uincl_a vs vs' ->
     exec_sopn o vs' = ok vres.
   Proof.
-    case: o; try by move=> ?;apply: app_sopn_uincl_a.
+    case: o; try by do 2 try (refine (λ _ : wsize, _));
+      try (refine (λ _ : velem, _));
+      apply: app_sopn_uincl_a.
     move=> w /=;case: vs => //= v1 [// | v2 [// | v3 [|//]]] H.
     case/List_Forall2_inv_l => v1' [vs''] [->] {vs'} [hv1] /List_Forall2_inv_l [v2'] [vs'] [->] {vs''} [hv2] /List_Forall2_inv_l [v3'] [vs''] [->] {vs'} [hv3] /List_Forall2_inv_l -> {vs''}.
     move: H hv1;t_xrbindP => _ -> /= b /value_uincl_bool h H [] /h {h} [??] _; subst => /=.

@@ -34,6 +34,7 @@ type tyerror =
   | DuplicateFun        of S.symbol * L.t
   | InvalidCast         of P.pty pair
   | InvalidGlobal       of S.symbol
+  | InvalidTypeForGlobal of P.pty
   | EqOpWithNoLValue
   | CallNotAllowed
   | PrimNotAllowed
@@ -83,6 +84,10 @@ let pp_tyerror fmt (code : tyerror) =
 
   | InvalidGlobal g ->
       F.fprintf fmt "invalid use of a global name: ‘%s’" g
+
+  | InvalidTypeForGlobal ty ->
+      F.fprintf fmt "globals should have type word; found: ‘%a’"
+        Printer.pp_ptype ty
 
   | NoOperator (`Op2 o, ts) ->
       F.fprintf fmt
@@ -433,7 +438,7 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
 
   | S.PEVar ({ L.pl_loc = lc; } as x) ->
     let x = tt_var ~allow_global:true mode env x in
-    (if x.P.v_kind = P.Global then P.Pglobal x.P.v_name else
+    (if x.P.v_kind = P.Global then P.Pglobal (tt_as_word (lc, x.P.v_ty), x.P.v_name) else
     P.Pvar (L.mk_loc lc x)), x.P.v_ty
 
   | S.PEFetch (ct, ({ pl_loc = xlc } as x), po) ->
@@ -455,6 +460,15 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     let e, ety = tt_expr ~mode env pe in
 
     begin match op with
+    | `Cast (sg, sz) ->
+      let sz = tt_ws sz in
+      let e, ws = cast_word (L.loc pe) e ety in
+      let op =
+        match sg with
+        | `Unsigned -> E.Ozeroext (sz, ws)
+        | `Signed -> E.Osignext (sz, ws)
+      in
+      Papp1 (op, e), P.Bty (P.U sz)
     | `Not ->
       if ety = P.tbool then Papp1(E.Onot, e), P.tbool
       else
@@ -982,14 +996,18 @@ let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
 let tt_global (env : Env.env) _loc (gd: S.pglobal) : Env.env * (P.pvar * P.pexpr) =
   let pe, ety = tt_expr ~mode:`OnlyParam env gd.S.pgd_val in
 
-  let ty = P.u64 in
+  let ty, ws =
+    match tt_type env gd.S.pgd_type with
+    | Bty (U ws) as ty -> ty, ws
+    | ty -> rs_tyerror ~loc:(L.loc gd.S.pgd_type) (InvalidTypeForGlobal ty)
+  in
 
   let pe =
     let open P in
     match ety with
-    | Bty (U T.U64) -> pe
-    | Bty Int -> Pcast (T.U64, pe)
-    | _ -> rs_tyerror ~loc:(L.loc gd.S.pgd_val) (TypeMismatch (ty, ety))
+    | Bty (U ews) when Utils0.cmp_le T.wsize_cmp ws ews -> pe
+    | Bty Int -> Pcast (ws, pe)
+    | _ -> rs_tyerror ~loc:(L.loc gd.S.pgd_val) (TypeMismatch (ety, ty))
     in
 
   let x = P.PV.mk (L.unloc gd.S.pgd_name) P.Global ty (L.loc gd.S.pgd_name) in

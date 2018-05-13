@@ -68,6 +68,8 @@ let string_of_op2 = function
   | E.Oge  k -> ">=" ^ string_of_cmp_ty k
 
 let string_of_op1 = function
+  | E.Osignext (szo, _) -> F.sprintf "(%ds)" (int_of_ws szo)
+  | E.Ozeroext (szo, _) -> F.sprintf "(%du)" (int_of_ws szo)
   | E.Olnot _ -> "!"
   | E.Onot    -> "~"
   | E.Oneg _ -> "-"
@@ -81,7 +83,7 @@ let pp_ge pp_var =
   | Pbool  b    -> F.fprintf fmt "%b" b
   | Pcast(ws,e) -> F.fprintf fmt "(%a)%a" pp_btype (U ws) pp_expr e
   | Pvar v      -> pp_var_i fmt v
-  | Pglobal g -> F.fprintf fmt "%s" g
+  | Pglobal (_, g) -> F.fprintf fmt "%s" g
   | Pget(x,e)   -> F.fprintf fmt "%a[%a]" pp_var_i x pp_expr e
   | Pload(ws,x,e) ->
     F.fprintf fmt "@[(load %a@ %a@ %a)@]"
@@ -129,6 +131,7 @@ let string_of_velem =
 let pp_opn =
   let open Expr in
   let f w s = F.sprintf "%s_%d" s (int_of_ws w) in
+  let f2 w w' s = F.sprintf "%s_%d" s (int_of_ws w) in (* TODO: concrete syntax for these intrinsics *)
   let v ve s = F.sprintf "%s_%s" s (string_of_velem ve) in
   function
   | Omulu w -> f w "#mulu"
@@ -136,6 +139,8 @@ let pp_opn =
   | Osubcarry w -> f w "#subc"
   | Oset0 w -> f w "#set0"
   | Ox86_MOV w -> f w "#x86_MOV"
+  | Ox86_MOVSX (w, w') -> f2 w w' "#x86_MOVSX"
+  | Ox86_MOVZX (w, w') -> f2 w w' "#x86_MOVZX"
   | Ox86_CMOVcc w -> f w "#x86_CMOVcc"
   | Ox86_ADD w -> f w "#x86_ADD"
   | Ox86_SUB w -> f w "#x86_SUB"

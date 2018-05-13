@@ -704,9 +704,9 @@ move=> eqv; case: e => //.
   move=> r ok_r -[<-] /= [<-] Hsize /=ok_v /=; eexists; first by reflexivity.
   exact: xgetreg_ex eqv ok_r ok_v.
 + move=> g h; apply ok_inj in h; subst c => -[<-];rewrite /= /get_global => _.
-  case: (get_global_word _ _) => // v' h; apply ok_inj in h.
-  subst;eexists;eauto.
-move=> ws x e /=; t_xrbindP => r1 ok_r1 w ok_w [<-] /=. 
+  case: get_global_value => // - [] // sz' w; apply: rbindP => _ /assertP /eqP ?; subst sz'.
+  move => /(@ok_inj _ _ _ _) <- {v}; rewrite eqxx /=; eexists; [ reflexivity | exact: word_uincl_refl ].
+move=> ws x e /=; t_xrbindP => r1 ok_r1 w ok_w [<-] /=.
 move=> H /eqP ?;subst;case: H => ?;subst.
 move=> z o ok_o ok_z z' o' ok_o' ok_z' res ok_res <- {v} /=.
 exists (Vword res) => //=.
