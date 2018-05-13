@@ -2,7 +2,7 @@
 
 let inherit (coqPackages_8_7) coq mathcomp; in
 
-let rev = "0c882f69087ce3d964434a77916f27686a5b6fe3"; in
+let rev = "9fa315504c4cbf1dc62667844a33981de695e1e7"; in
 
 stdenv.mkDerivation rec {
   version = "0.0-git-${builtins.substring 0 8 rev}";
