@@ -75,7 +75,7 @@ Lemma eval_low_read gd m sz sz' (w: word sz') x :
 Proof.
 move => hle; case: x => /=.
 - by move => n /ok_word_inj [??]; subst.
-- by rewrite /get_global => g; case: get_global_word => // ? /ok_word_inj [??]; subst.
+- by rewrite /get_global => g; case: get_global_value => // - [] // s w'; apply: rbindP => _ /assertP /eqP ?; subst s => /ok_word_inj [??]; subst; rewrite eqxx.
 - by move => r /ok_word_inj [??]; subst.
 by move => a; apply: rbindP => ? -> /ok_word_inj [??]; subst; rewrite /= zero_extend_u.
 Qed.

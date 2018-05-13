@@ -406,15 +406,15 @@ Definition Vword_inj sz sz' w w' (e: @Vword sz w = @Vword sz' w') :
   ∃ e : sz = sz', eq_rect sz (λ s, (word s)) w sz' e = w' :=
   let 'Logic.eq_refl := e in (ex_intro _ erefl erefl).
 
-Definition glob_def : Type := global * u64.
+Definition glob_def : Type := global * value.
 Notation glob_defs := (seq glob_def).
 
-Definition get_global_word (gd: glob_defs) (g: global) : option u64 :=
+Definition get_global_value (gd: glob_defs) (g: global) : option value :=
   assoc gd g.
 
 Definition get_global gd g : exec value :=
-  if get_global_word gd g is Some v
-  then ok (Vword v)
+  if get_global_value gd g is Some (Vword sz w as v)
+  then Let _ := assert (sz == size_of_global g) ErrType in ok v
   else type_error.
 
 Definition is_defined (v: value) : bool :=

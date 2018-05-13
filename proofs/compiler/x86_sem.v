@@ -417,7 +417,7 @@ Definition write_oprd (o : oprd) sz (w : word sz) (s : x86_mem) :=
 Definition read_oprd sz (o : oprd) (s : x86_mem) :=
   match o with
   | Imm_op v => ok (zero_extend sz v)
-  | Glo_op g => if get_global_word gd g is Some v then ok (zero_extend sz v) else type_error
+  | Glo_op g => if get_global gd g is Ok (Vword sz' v) then ok (zero_extend sz v) else type_error
   | Reg_op r => ok (zero_extend sz (s.(xreg) r))
   | Adr_op a => read_mem s.(xmem) (decode_addr s a) sz
   end.
