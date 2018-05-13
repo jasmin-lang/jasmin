@@ -34,6 +34,7 @@ type tyerror =
   | DuplicateFun        of S.symbol * L.t
   | InvalidCast         of P.pty pair
   | InvalidGlobal       of S.symbol
+  | InvalidTypeForGlobal of P.pty
   | EqOpWithNoLValue
   | CallNotAllowed
   | PrimNotAllowed
@@ -81,6 +82,10 @@ let pp_tyerror fmt (code : tyerror) =
 
   | InvalidGlobal g ->
       F.fprintf fmt "invalid use of a global name: ‘%s’" g
+
+  | InvalidTypeForGlobal ty ->
+      F.fprintf fmt "globals should have type word; found: ‘%a’"
+        Printer.pp_ptype ty
 
   | NoOperator (`Op2 o, ts) ->
       F.fprintf fmt
@@ -966,14 +971,18 @@ let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
 let tt_global (env : Env.env) _loc (gd: S.pglobal) : Env.env * (P.pvar * P.pexpr) =
   let pe, ety = tt_expr ~mode:`OnlyParam env gd.S.pgd_val in
 
-  let ty = P.u64 in
+  let ty, ws =
+    match tt_type env gd.S.pgd_type with
+    | Bty (U ws) as ty -> ty, ws
+    | ty -> rs_tyerror ~loc:(L.loc gd.S.pgd_type) (InvalidTypeForGlobal ty)
+  in
 
   let pe =
     let open P in
     match ety with
-    | Bty (U T.U64) -> pe
-    | Bty Int -> Pcast (T.U64, pe)
-    | _ -> rs_tyerror ~loc:(L.loc gd.S.pgd_val) (TypeMismatch (ty, ety))
+    | Bty (U ews) when Utils0.cmp_le T.wsize_cmp ws ews -> pe
+    | Bty Int -> Pcast (ws, pe)
+    | _ -> rs_tyerror ~loc:(L.loc gd.S.pgd_val) (TypeMismatch (ety, ty))
     in
 
   let x = P.PV.mk (L.unloc gd.S.pgd_name) P.Global ty (L.loc gd.S.pgd_name) in

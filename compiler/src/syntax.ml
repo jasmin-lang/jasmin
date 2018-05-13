@@ -174,7 +174,7 @@ type pfundef = {
 }
 
 (* -------------------------------------------------------------------- *)
-type pglobal = { pgd_name: pident ; pgd_val: pexpr }
+type pglobal = { pgd_type: ptype; pgd_name: pident ; pgd_val: pexpr }
 
 (* -------------------------------------------------------------------- *)
 type pitem = PFundef of pfundef | PParam of pparam

@@ -285,8 +285,9 @@ let pp_param fmt { ppa_ty ; ppa_name ; ppa_init } =
     pp_expr ppa_init;
   F.fprintf fmt eol
 
-let pp_global fmt { pgd_name ; pgd_val } =
-  F.fprintf fmt "%a = %a;"
+let pp_global fmt { pgd_type ; pgd_name ; pgd_val } =
+  F.fprintf fmt "%a %a = %a;"
+    pp_type pgd_type
     dname (L.unloc pgd_name)
     pp_expr pgd_val;
   F.fprintf fmt eol

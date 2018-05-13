@@ -293,8 +293,8 @@ pparam:
 
 (* -------------------------------------------------------------------- *)
 pglobal:
-| pgd_name=ident EQ pgd_val=pexpr SEMICOLON
-  { { pgd_name ; pgd_val  } }
+| pgd_type=ptype pgd_name=ident EQ pgd_val=pexpr SEMICOLON
+  { { pgd_type ; pgd_name ; pgd_val  } }
 
 (* -------------------------------------------------------------------- *)
 top:
