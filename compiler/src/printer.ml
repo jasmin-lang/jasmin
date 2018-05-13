@@ -83,7 +83,7 @@ let pp_ge pp_var =
   | Pbool  b    -> F.fprintf fmt "%b" b
   | Pcast(ws,e) -> F.fprintf fmt "(%a)%a" pp_btype (U ws) pp_expr e
   | Pvar v      -> pp_var_i fmt v
-  | Pglobal g -> F.fprintf fmt "%s" g
+  | Pglobal (_, g) -> F.fprintf fmt "%s" g
   | Pget(x,e)   -> F.fprintf fmt "%a[%a]" pp_var_i x pp_expr e
   | Pload(ws,x,e) ->
     F.fprintf fmt "@[(load %a@ %a@ %a)@]"

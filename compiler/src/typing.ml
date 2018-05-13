@@ -430,7 +430,7 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
 
   | S.PEVar ({ L.pl_loc = lc; } as x) ->
     let x = tt_var ~allow_global:true mode env x in
-    (if x.P.v_kind = P.Global then P.Pglobal x.P.v_name else
+    (if x.P.v_kind = P.Global then P.Pglobal (tt_as_word (lc, x.P.v_ty), x.P.v_name) else
     P.Pvar (L.mk_loc lc x)), x.P.v_ty
 
   | S.PEFetch (ct, ({ pl_loc = xlc } as x), po) ->

@@ -50,7 +50,7 @@ type 'ty gexpr =
   | Pbool  of bool
   | Pcast  of wsize * 'ty gexpr
   | Pvar   of 'ty gvar_i
-  | Pglobal of Name.t
+  | Pglobal of wsize * Name.t
   | Pget   of 'ty gvar_i * 'ty gexpr
   | Pload  of wsize * 'ty gvar_i * 'ty gexpr
   | Papp1  of E.sop1 * 'ty gexpr
@@ -200,7 +200,7 @@ and pexpr_equal e1 e2 =
  | Pbool b1, Pbool b2 -> b1 = b2
  | Pcast (b1, e1), Pcast(b2, e2) -> b1 = b2 && pexpr_equal e1 e2
  | Pvar v1, Pvar v2 -> PV.equal (L.unloc v1) (L.unloc v2)
- | Pglobal n1, Pglobal n2 -> Name.equal n1 n2
+ | Pglobal (s1, n1), Pglobal (s2, n2) -> s1 = s2 && Name.equal n1 n2
  | Pget(v1,e1), Pget(v2,e2) -> PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
  | Pload(b1,v1,e1), Pload(b2,v2,e2) -> b1 = b2 && PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
  | Papp1(o1,e1), Papp1(o2,e2) -> o1 = o2 && pexpr_equal e1 e2

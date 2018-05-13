@@ -305,12 +305,19 @@ Definition var_info_to_attr (vi: var_info) :=
   | _ => VarA false
   end.
 
-Record global := Global { ident_of_global:> Ident.ident }.
+Record global := Global { size_of_global : wsize ; ident_of_global:> Ident.ident }.
 
-Definition global_beq (g1 g2: global) : bool := g1 == g2.
+Definition global_beq (g1 g2: global) : bool :=
+  let 'Global s1 n1 := g1 in
+  let 'Global s2 n2 := g2 in
+  (s1 == s2) && (n1 == n2).
 
 Lemma global_eq_axiom : Equality.axiom global_beq.
-Proof. move=>[g1][g2]; rewrite/global_beq/=; case: eqP; constructor; congruence. Qed.
+Proof.
+  case => s1 g1 [] s2 g2 /=; case: andP => h; constructor.
+  - by case: h => /eqP -> /eqP ->.
+  by case => ??; apply: h; subst.
+Qed.
 
 Definition global_eqMixin := Equality.Mixin global_eq_axiom.
 Canonical global_eqType := Eval hnf in EqType global global_eqMixin.

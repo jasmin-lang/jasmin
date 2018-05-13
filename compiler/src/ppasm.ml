@@ -204,7 +204,7 @@ let pp_label = string_of_label
 
 (* -------------------------------------------------------------------- *)
 let pp_global (g: Expr.global) =
-  Format.sprintf "%s(%%rip)" (Conv.string_of_string0 g)
+  Format.sprintf "%s(%%rip)" (Conv.global_of_cglobal g |> snd)
 
 (* -------------------------------------------------------------------- *)
 let pp_opr (ws : rsize) (op : X86_sem.oprd) =
@@ -490,6 +490,65 @@ let x86_64_callee_save = [
 ]
 
 (* -------------------------------------------------------------------- *)
+let align_of_ws =
+  function
+  | Type.U8 -> 0
+  | Type.U16 -> 1
+  | Type.U32 -> 2
+  | Type.U64 -> 3
+  | Type.U128 -> 4
+  | Type.U256 -> 5
+
+let pp_align ws =
+  let a = align_of_ws ws in
+  (* test should evaluate to true on OSX *)
+  let n = if false then a else 1 lsl a in
+  Format.sprintf "%d" n
+
+let decl_of_ws =
+  function
+  | Type.U8 -> Some ".byte"
+  | Type.U16 -> Some ".word"
+  | Type.U32 -> Some ".long"
+  | Type.U64 -> Some ".quad"
+  | Type.U128 | Type.U256 -> None
+
+let bigint_to_bytes n z =
+  let base = Bigint.of_int 256 in
+  let res = ref [] in
+  let z = ref z in
+  for i = 1 to n do
+    let q, r = Bigint.ediv !z base in
+    z := q;
+    res := r :: !res
+  done;
+  !res
+
+let pp_const ws z =
+  match decl_of_ws ws with
+  | Some d -> [ `Instr (d, [Bigint.to_string z]) ]
+  | None ->
+    List.rev_map (fun b -> `Instr (".byte", [ Bigint.to_string b] ))
+      (bigint_to_bytes (Prog.size_of_ws ws) z)
+
+let pp_glob_def fmt ((x, d): Prog.pvar * Prog.pexpr) : unit =
+  let ws =
+    match x.Prog.v_ty with
+    | Prog.(Bty (U ws)) -> ws
+    | _ -> assert false
+  in
+  let z = clamp ws (constant_of_expr d) in
+  let n = x.Prog.v_name in
+  let m = mangle n in
+  pp_gens fmt ([
+    `Instr (".globl", [m]);
+    `Instr (".globl", [n]);
+    `Instr (".align", [pp_align ws]);
+    `Label m;
+    `Label n
+  ] @ pp_const ws z)
+
+(* -------------------------------------------------------------------- *)
 type 'a tbl = 'a Conv.coq_tbl
 type  gd_t  = (Prog.pvar * Prog.pexpr) list
 
@@ -531,14 +590,4 @@ let pp_prog (tbl: 'info tbl) (gd: gd_t) (fmt : Format.formatter) (asm : X86_sem.
   if not (List.is_empty gd) then
     pp_gens fmt [`Instr (".data", [])];
 
-  List.iter (fun (n, d) ->
-      let z = clamp (wsize_of_rsize `U64) (constant_of_expr d) in
-      pp_gens fmt [
-        `Instr (".globl", [mangle n.Prog.v_name]);
-        `Instr (".globl", [n.Prog.v_name]);
-        `Instr (".align", ["8"]);
-        `Label (mangle n.Prog.v_name);
-        `Label n.Prog.v_name;
-        `Instr (".quad", [Bigint.to_string z])
-      ])
-    gd
+  List.iter (pp_glob_def fmt) gd

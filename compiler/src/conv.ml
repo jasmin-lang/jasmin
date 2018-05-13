@@ -154,11 +154,15 @@ let vari_of_cvari tbl v =
 
 (* ------------------------------------------------------------------------ *)
 
-let cglobal_of_global (g: Name.t) : C.global =
-  string0_of_string g
+let cglobal_of_global ws (g: Name.t) : C.global =
+  {
+    size_of_global = ws;
+    ident_of_global = string0_of_string g;
+  }
 
-let global_of_cglobal (g: C.global) : Name.t =
-  string_of_string0 g
+let global_of_cglobal (g: C.global) : T.wsize * Name.t =
+  let { E.size_of_global = ws ; E.ident_of_global = n } = g in
+  ws, string_of_string0 n
 
 
 (* ------------------------------------------------------------------------ *)
@@ -167,7 +171,7 @@ let rec cexpr_of_expr tbl = function
   | Pbool  b          -> C.Pbool  b
   | Pcast (ws, e)    -> C.Pcast (ws, cexpr_of_expr tbl e)
   | Pvar x            -> C.Pvar (cvari_of_vari tbl x)
-  | Pglobal g -> C.Pglobal (cglobal_of_global g)
+  | Pglobal (ws, g) -> C.Pglobal (cglobal_of_global ws g)
   | Pget (x,e)        -> C.Pget (cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Pload (ws, x, e) -> C.Pload(ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Papp1 (o, e)      -> C.Papp1(o, cexpr_of_expr tbl e)
@@ -181,7 +185,7 @@ let rec expr_of_cexpr tbl = function
   | C.Pbool  b          -> Pbool  b
   | C.Pcast (ws, e) -> Pcast (ws, expr_of_cexpr tbl e)
   | C.Pvar x            -> Pvar (vari_of_cvari tbl x)
-  | C.Pglobal g -> Pglobal (global_of_cglobal g)
+  | C.Pglobal g -> let ws, n = global_of_cglobal g in Pglobal (ws, n)
   | C.Pget (x,e)        -> Pget (vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Pload (ws, x, e) -> Pload(ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Papp1 (o, e)      -> Papp1(o, expr_of_cexpr tbl e)

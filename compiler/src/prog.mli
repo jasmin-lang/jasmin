@@ -49,7 +49,7 @@ type 'ty gexpr =
   | Pbool  of bool
   | Pcast  of wsize * 'ty gexpr
   | Pvar   of 'ty gvar_i
-  | Pglobal of Name.t
+  | Pglobal of wsize * Name.t
   | Pget   of 'ty gvar_i * 'ty gexpr
   | Pload  of wsize * 'ty gvar_i * 'ty gexpr
   | Papp1  of E.sop1 * 'ty gexpr
