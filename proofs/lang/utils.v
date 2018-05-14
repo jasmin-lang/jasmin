@@ -729,6 +729,10 @@ Section MIN.
     (cmp_min x y ≤ y)%CMP.
   Proof. exact: (@cmp_minP x y (λ z, z ≤ y)%CMP). Qed.
 
+  Lemma cmp_le_min x y :
+    (x ≤ y)%CMP → cmp_min x y = x.
+  Proof. by rewrite /cmp_min => ->. Qed.
+
 End MIN.
 
 Arguments cmp_min {T cmp O} x y.

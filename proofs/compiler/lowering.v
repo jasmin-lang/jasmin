@@ -362,7 +362,7 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
   let k16 sz := kb ((U16 ≤ sz) && (sz ≤ U64))%CMP sz in
   let k32 sz := kb ((U32 ≤ sz) && (sz ≤ U64))%CMP sz in
   match e with
-  | Pcast sz (Pconst _) => chk (sz ≤ U64)%CMP (LowerMov false)
+  | Pcast sz (Pconst _) => chk (sz' ≤ U64)%CMP (LowerMov false)
   | Pget ({| v_var := {| vtype := sword sz |} |} as v) _
   | Pvar ({| v_var := {| vtype := sword sz |} |} as v) =>
     chk (sz ≤ U64)%CMP (LowerMov (if is_var_in_memory v then is_lval_in_memory x else false))
@@ -545,6 +545,11 @@ Definition opn_5flags (immed_bound: option wsize) (vi: var_info)
   | Opn5f_other => fopn o a
   end.
 
+Definition reduce_wconst sz (e: pexpr) : pexpr :=
+  if e is Pcast sz' (Pconst z)
+  then Pcast (cmp_min sz sz') (Pconst z)
+  else e.
+
 Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : cmd :=
   let vi := var_info_of_lval x in
   let f := Lnone_b vi in
@@ -553,6 +558,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
   let szty := wsize_of_stype ty in
   match lower_cassgn_classify szty e x with
   | LowerMov b =>
+    let e := reduce_wconst szty e in
     if b
     then
       let c := {| v_var := {| vtype := sword szty; vname := fresh_multiplicand fv szty |} ; v_info := vi |} in
