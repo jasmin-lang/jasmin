@@ -12,7 +12,7 @@ stdenv.mkDerivation rec {
     owner = "jasmin-lang";
     repo = "coqword";
     inherit rev;
-    sha256 = "19gyc177yw98s5360s4fv0py4g9z798bd80ybxdkli0vxgh66k7c";
+    sha256 = "00hapcdzhlnqzsflgdv8865wa50sz390l04x651if73llfgfbg0v";
   };
 
   buildInputs = [ coq ];
