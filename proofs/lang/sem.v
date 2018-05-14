@@ -417,6 +417,14 @@ Definition get_global gd g : exec value :=
   then Let _ := assert (sz == size_of_global g) ErrType in ok v
   else type_error.
 
+Lemma get_globalI gd g v :
+  get_global gd g = ok v →
+  exists2 w : word (size_of_global g), get_global_value gd g = Some (Vword w) & v = Vword w.
+Proof.
+  rewrite /get_global; case: get_global_value => // - [] // sz w.
+  t_xrbindP => _ /assertP /eqP ??; subst; eauto.
+Qed.
+
 Definition is_defined (v: value) : bool :=
   if v is Vundef _ then false else true.
 
