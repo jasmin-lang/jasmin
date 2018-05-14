@@ -469,6 +469,9 @@ let pp_instr name (i : X86_sem.asm) =
   | VPSRL (ve, dst, src1, src2) ->
     `Instr (pp_viname ve "vpsrl", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 src1; pp_rm128 dst])
 
+  | VPSHUFB (dst, src1, src2) ->
+    `Instr ("vpshufb", [pp_rm128 src2; pp_xmm_register src1; pp_xmm_register dst])
+
 (* -------------------------------------------------------------------- *)
 let pp_instr name (fmt : Format.formatter) (i : X86_sem.asm) =
   pp_gen fmt (pp_instr name i)
@@ -497,6 +500,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | VPAND _ | VPOR _ | VPXOR _
   | VPADD _
   | VPSLL _ | VPSRL _
+  | VPSHUFB _
     -> c
 
   | LEA    (_, op, _) -> Set.add op c

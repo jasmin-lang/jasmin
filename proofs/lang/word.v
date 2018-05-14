@@ -526,3 +526,6 @@ Definition lift2_vec (ve:velem) (op : word ve -> word ve -> word ve)
   (sz:wsize) (w1 w2:word sz) : word sz :=
   make_vec sz (map2 op (split_vec ve w1) (split_vec ve w2)).
 Arguments lift2_vec : clear implicits.
+
+(* -------------------------------------------------------------------*)
+Parameter wpshufb : u128 → u128 → u128.

@@ -178,6 +178,7 @@ Variant asm : Type :=
 | VPADD `(velem) (_ _ _: rm128)
 | VPSLL `(velem) (_ _: rm128) `(u8)
 | VPSRL `(velem) (_ _: rm128) `(u8)
+| VPSHUFB (_ _: xmm_register) `(rm128)
 .
 
 (* -------------------------------------------------------------------- *)
@@ -1109,6 +1110,13 @@ Definition eval_VPSLL ve := eval_rm128_shift ve (@wshl _).
 Definition eval_VPSRL ve := eval_rm128_shift ve (@wshr _).
 
 (* -------------------------------------------------------------------- *)
+Definition eval_VPSHUFB (dst src: xmm_register) (pattern: rm128) s : x86_result :=
+  let v := xxreg s src in
+  Let p := read_rm128 pattern s in
+  let r := wpshufb v p in
+  ok (mem_write_xreg dst r s).
+
+(* -------------------------------------------------------------------- *)
 Definition eval_instr_mem (i : asm) s : x86_result :=
   match i with
   | JMP    _
@@ -1154,6 +1162,7 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | VPADD ve dst src1 src2 => eval_VPADD ve dst src1 src2 s
   | VPSLL ve dst src1 src2 => eval_VPSLL ve dst src1 src2 s
   | VPSRL ve dst src1 src2 => eval_VPSRL ve dst src1 src2 s
+  | VPSHUFB dst src pat => eval_VPSHUFB dst src pat s
   end.
 
 Definition eval_instr (i : asm) (s: x86_state) : x86_result_state :=
