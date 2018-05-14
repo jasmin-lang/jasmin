@@ -193,13 +193,13 @@ Lemma wle_refl sz sg (w: word sz) :
 Proof. case: sg; exact: Z.leb_refl. Qed.
 
 Definition wshr sz (x: word sz) (n: Z) : word sz :=
-  wrepr sz (lsr x (Z.to_nat n)).
+  lsr x (Z.to_nat n).
 
 Definition wshl sz (x: word sz) (n: Z) : word sz :=
-  wrepr sz (lsl x (Z.to_nat n)).
+  lsl x (Z.to_nat n).
 
 Definition wsar sz (x: word sz) (n: Z) : word sz :=
-  wrepr sz (asr x (Z.to_nat n)).
+  asr x (Z.to_nat n).
 
 Definition wmulhu sz (x y: word sz) : word sz :=
   wrepr sz ((wunsigned x * wunsigned y) / wbase sz).
@@ -308,7 +308,7 @@ Lemma wshl0 sz (w: word sz) : wshl w 0 = w.
 Proof. by rewrite /wshl /lsl Z.shiftl_0_r; exact: wrepr_unsigned. Qed.
 
 Lemma wsar0 sz (w: word sz) : wsar w 0 = w.
-Proof. by rewrite /wsar /asr Z.shiftr_0_r wrepr_unsigned. Qed.
+Proof. by rewrite /wsar /asr Z.shiftr_0_r sreprK. Qed.
 
 (* -------------------------------------------------------------------*)
 Lemma wltuE' sz (α β: word sz) :
