@@ -511,11 +511,11 @@ Definition merge_word (wr: u64) (sz:wsize) (w:word sz) :=
 
 (* -------------------------------------------------------------------*)
 Definition split_vec {sz} ve (w : word sz) :=
-  let wsz := (ve %/ sz + ve %% sz)%nat in
+  let wsz := (sz %/ ve + sz %% ve)%nat in
   [seq subword (i * ve)%nat ve w | i <- iota 0 wsz].
 
 Definition make_vec {sz} sz' (s : seq (word sz)) :=
-  wrepr sz' (wcat_r (in_tuple s)).
+  wrepr sz' (wcat_r s).
 
 Definition lift1_vec (ve:velem) (op : word ve -> word ve)
     (sz:wsize) (w:word sz) : word sz :=
