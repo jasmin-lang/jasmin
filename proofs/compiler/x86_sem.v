@@ -170,6 +170,7 @@ Variant asm : Type :=
 | SHLD   of wsize & oprd & register & ireg (* unsigned (double) / left *)
 
   (* SSE instructions *)
+| MOVD of wsize & xmm_register & oprd
 | VMOVDQU (_ _: rm128)
 | VPAND (_ _ _: rm128)
 | VPOR (_ _ _: rm128)
@@ -1072,6 +1073,12 @@ Definition eval_Jcc lbl ct (s: x86_state) : x86_result_state :=
   if b then eval_JMP lbl s else ok (st_write_ip (xip s).+1 s).
 
 (* -------------------------------------------------------------------- *)
+Definition eval_MOVD sz (dst: xmm_register) (src: oprd) s : x86_result :=
+  Let _ := check_size_32_64 sz in
+  Let v := read_oprd sz src s in
+  ok (mem_write_xreg dst (zero_extend _ v) s).
+
+(* -------------------------------------------------------------------- *)
 Definition eval_VMOV (dst src: rm128) s : x86_result :=
   Let v := read_rm128 src s in
   write_rm128 dst v s.
@@ -1139,6 +1146,7 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | SAR    sz o ir     => eval_SAR    sz o ir s
   | SHLD   sz o1 o2 ir => eval_SHLD   sz o1 o2 ir s
 
+  | MOVD sz dst src => eval_MOVD sz dst src s
   | VMOVDQU dst src => eval_VMOV dst src s
   | VPAND dst src1 src2 => eval_VPAND dst src1 src2 s
   | VPOR dst src1 src2 => eval_VPOR dst src1 src2 s
