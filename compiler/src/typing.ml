@@ -643,6 +643,7 @@ let prim_string =
     "x86_VPADD", PrimV (fun ve -> Ox86_VPADD ve);
     "x86_VPSLL", PrimV (fun ve -> Ox86_VPSLL ve);
     "x86_VPSRL", PrimV (fun ve -> Ox86_VPSRL ve);
+    "x86_VPSHUFB", PrimM Ox86_VPSHUFB;
   ]
 
 type size_annotation =

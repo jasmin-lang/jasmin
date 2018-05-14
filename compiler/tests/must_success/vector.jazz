@@ -35,3 +35,13 @@ s = #x86_VPADD_2u64(t, r);
 
 (u128)[p + 16 * 1] = s;
 }
+
+u128 rotate24pattern = 0x0c0f0e0d080b0a090407060500030201;
+
+export
+fn test_shuffle(reg u64 p) {
+reg u128 r;
+r = (u128)[p + 0];
+r = #x86_VPSHUFB(r, r);
+(u128)[p + 0] = r;
+}

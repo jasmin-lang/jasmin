@@ -458,6 +458,7 @@ Definition ssem_sopn (o:sopn) :  svalues -> exec svalues :=
   | Ox86_VPADD ve => sapp_vv (w2 (x86_vpadd ve))
   | Ox86_VPSLL ve => sapp_v8 (w2 (x86_vpsll ve))
   | Ox86_VPSRL ve => sapp_v8 (w2 (x86_vpsrl ve))
+  | Ox86_VPSHUFB => sapp_vv (w2 x86_vpshufb)
   end.
 
 (* ** Instructions

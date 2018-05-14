@@ -926,6 +926,24 @@ Definition VPSLL_desc ve := make_instr_desc (x86_rm128_shift_gsc ve (Ox86_VPSLL 
 Definition VPSRL_desc ve := make_instr_desc (x86_rm128_shift_gsc ve (Ox86_VPSRL ve) (VPSRL ve) _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
 (* ----------------------------------------------------------------------------- *)
+Lemma VPSHUFB_gsc :
+  gen_sem_correct [:: TYxreg ; TYxreg ; TYrm128 ]
+    Ox86_VPSHUFB
+    [:: E U128 0 ] [:: E U128 1 ; E U128 2 ] [::]
+    VPSHUFB.
+Proof.
+move => x y z; split => // gd m m'.
+rewrite /low_sem_aux /=; t_xrbindP => ???? h <- <-; t_xrbindP.
+rewrite /= truncate_word_u => _ [<-] w /to_wordI [sz] [w'] [hle ??]; subst.
+rewrite /sets_low => - [<-] [<-].
+rewrite /eval_VPSHUFB (eval_low_rm128 h).
+eexists; split; first reflexivity.
+by rewrite zero_extend_u; reflexivity.
+Qed.
+
+Definition VPSHUFB_desc := make_instr_desc VPSHUFB_gsc.
+
+(* ----------------------------------------------------------------------------- *)
 
 Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   match c with
@@ -971,6 +989,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_VPADD ve => ok (VPADD_desc ve)
   | Ox86_VPSLL ve => ok (VPSLL_desc ve)
   | Ox86_VPSRL ve => ok (VPSRL_desc ve)
+  | Ox86_VPSHUFB => ok VPSHUFB_desc
   end.
 
 Lemma sopn_desc_name ii o d : sopn_desc ii o = ok d -> d.(id_name) = o.
