@@ -256,11 +256,21 @@ Definition arg_of_oprd sz o :=
   | _, _ => None
   end.
 
+Definition arg_of_rm128 rm :=
+  match rm with
+  | RM128_reg r => Some (Axreg r)
+  | RM128_mem a => Some (Aaddr U128 a)
+  | RM128_glo g =>
+    if size_of_global g == U128
+    then Some (Aglob g)
+    else None
+  end.
+
 Definition arg_of_garg sz (i: garg) : option argument :=
   match i with
   | Gcondt c => Some (Acondt c)
   | Goprd o  => arg_of_oprd sz o
-  | Grm128 rm => Some match rm with RM128_reg r => Axreg r | RM128_mem a => Aaddr U128 a end
+  | Grm128 r => arg_of_rm128 r
   end.
 
 Definition low_sem_ad_in (xs : seq garg) (ad : arg_desc) : option argument :=
@@ -287,7 +297,8 @@ Definition dest_of_garg (s: wsize) (g: garg) : option destination :=
   match g with
   | Goprd (Reg_op r) => Some (DReg r)
   | Goprd (Adr_op a) => Some (DAddr s a)
-  | Grm128 rm => Some match rm with RM128_reg r => DXReg r | RM128_mem a => DAddr s a end
+  | Grm128 (RM128_reg r) => Some (DXReg r)
+  | Grm128 (RM128_mem a) => Some (DAddr s a)
   | _ => None
   end.
 
@@ -741,15 +752,20 @@ Lemma rm128_of_pexpr ii gd s m e rm v :
   lom_eqv s m →
   rm128_of_pexpr ii e = ok rm →
   sem_pexpr gd s e = ok v →
-  exists2 v' : value, eval_low gd m match rm with RM128_reg r => Axreg r | RM128_mem a => Aaddr U128 a end = ok v' & value_uincl v v'.
+  exists2 a : argument, arg_of_rm128 rm = Some a &
+  exists2 v' : value, eval_low gd m a = ok v' & value_uincl v v'.
 Proof.
 case: e => //.
 - move => x eqv /=; case ok_r: xmm_register_of_var => [ r | ] // [<-] ok_v.
-  eexists; first reflexivity.
+  do 2 eexists; first reflexivity.
   exact: xxgetreg_ex eqv ok_r ok_v.
+- case => - [] // g eqv [<-] /= h.
+  eexists; first reflexivity.
+  by eexists; first exact: h.
 case => // x e eqv /=.
 t_xrbindP => y ok_y a ok_a [<-] {rm} w z ok_z ok_w w' z' ok_z' ok_w' r ok_r <- {v} /=.
-rewrite -(addr_of_pexprP eqv ok_y ok_z ok_w ok_z' ok_w' ok_a).
+eexists; first reflexivity.
+rewrite /= -(addr_of_pexprP eqv ok_y ok_z ok_w ok_z' ok_w' ok_a).
 case: eqv => <- _ _; rewrite ok_r /=.
 eexists; first reflexivity.
 exact: word_uincl_refl.
@@ -772,9 +788,9 @@ case: arg_ty_classify; t_xrbindP => x hx /=.
 - move=> <- {g} ha hce.
   have [w -> hvw] := eval_oprd_of_pexpr eqm hx ha hce hv.
   by exists w.
-move => <- {g} [<-] {a} hce.
-have [w -> hwv] := rm128_of_pexpr eqm hx hv.
-by exists w.
+move => <- {g} /=.
+have {hx} [ar -> [w ok_w hvw]] := rm128_of_pexpr eqm hx hv.
+by case => <- {a} _; eauto.
 Qed.
 
 Lemma compile_low_args_in ii gd m lom ads tys pes args gargs :
@@ -866,10 +882,15 @@ Proof.
       by (move=> w v p;t_xrbindP => ???? [<-] /eqP -> _ /=;eexists;split;[by reflexivity | ]) => //=.
     move => /= _ _; t_xrbindP => op hop <- /=.
     rewrite hop /=.
-    case: o; last by eauto.
-    move => r [].
-    - move => hpe /(_ _ hpe) //.
-    case => ? [] ? k. by rewrite k in hop.
+    case: o.
+    * move => r [].
+      - move => hpe /(_ _ hpe) //.
+      case => ? [] ? k. by rewrite k in hop.
+    case: op hop => /=; eauto.
+    move => g; case: pe => //=.
+    * by move => x; case: xmm_register_of_var.
+    * by case => - [] // g' [<-] {g} _ _ /=; eauto.
+    by case => //; t_xrbindP.
   move=> [] a [] ha [-> Hsize] => {y}.
   rewrite hlo /=. eexists; split; first by eauto.
   t_xrbindP => vs' v ok_v vs ok_vs <- {vs'} /=.

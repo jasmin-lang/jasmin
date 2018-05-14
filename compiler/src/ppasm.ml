@@ -275,6 +275,7 @@ let pp_rm128 : X86_sem.rm128 -> string =
   function
   | RM128_reg r -> pp_xmm_register r
   | RM128_mem a -> pp_address a
+  | RM128_glo g -> pp_global g
 
 (* -------------------------------------------------------------------- *)
 let pp_iname (rs : rsize) (name : string) =

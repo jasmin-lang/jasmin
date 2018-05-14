@@ -104,12 +104,14 @@ Definition string_of_condt (c: condt) : string :=
 Variant rm128 :=
 | RM128_reg of xmm_register
 | RM128_mem of address
+| RM128_glo of global
 .
 
 Definition string_of_rm128 rm : string :=
   match rm with
   | RM128_reg r => "RM128_reg"
   | RM128_mem x => "RM128_mem"
+  | RM128_glo g => "RM128_glo"
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -241,12 +243,13 @@ Definition rm128_beq (rm1 rm2: rm128) : bool :=
   match rm1, rm2 with
   | RM128_reg r1, RM128_reg r2 => r1 == r2
   | RM128_mem a1, RM128_mem a2 => a1 == a2
+  | RM128_glo g1, RM128_glo g2 => g1 == g2
   | _, _ => false
   end.
 
 Lemma rm128_eq_axiom : Equality.axiom rm128_beq.
 Proof.
-  case => [ r | a ] [ r' | a' ] /=; (try by constructor);
+  case => [ r | a | g ] [ r' | a' | g' ] /=; (try by constructor);
   case: eqP => h; constructor; congruence.
 Qed.
 
@@ -666,6 +669,9 @@ Definition read_rm128 (rm: rm128) (m: x86_mem) : exec u128 :=
   match rm with
   | RM128_reg r => ok (m.(xxreg) r)
   | RM128_mem a => read_mem m.(xmem) (decode_addr m a) U128
+  | RM128_glo g =>
+    get_global gd g >>= λ v,
+    if v is Vword U128 w then ok w else type_error
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -673,6 +679,7 @@ Definition write_rm128 (rm: rm128) (w: u128) (m: x86_mem) : x86_result :=
   match rm with
   | RM128_reg r => ok (mem_write_xreg r w m)
   | RM128_mem a => mem_write_mem (decode_addr m a) w m
+  | RM128_glo _ => type_error
   end.
 
 (* -------------------------------------------------------------------- *)

@@ -42,6 +42,6 @@ export
 fn test_shuffle(reg u64 p) {
 reg u128 r;
 r = (u128)[p + 0];
-r = #x86_VPSHUFB(r, r);
+r = #x86_VPSHUFB(r, rotate24pattern);
 (u128)[p + 0] = r;
 }

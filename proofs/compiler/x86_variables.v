@@ -478,6 +478,7 @@ Definition rm128_of_pexpr ii (e: pexpr) : ciexec rm128 :=
      Let s := reg_of_var ii v in
      Let w := addr_of_pexpr ii s e in
      ciok (RM128_mem w)
+  | Pglobal (Global U128 _ as g) => ciok (RM128_glo g)
   | _ => rm128_of_pexpr_error ii None
   end.
 
@@ -619,6 +620,7 @@ Proof.
 elim: pe pe' rm => [ z | b | sz pe ih | x | g | x pe ih | sz x pe ih | op pe ih | op pe1 ih1 pe2 ih2 | pe1 ih1 pe2 ih2 pe3 ih3 ]
   [ z' | b' | sz' pe' | x' | g' | x' pe' | sz' x' pe' | op' pe' | op' pe1' pe2' | pe1' pe2' pe3' ] // rm.
 - by case: x => x xi /eqP /= ->.
+- by move/eqP => <-.
 case: sz => //= /andP [] /andP [] /eqP <- /eqP <- rec.
 by t_xrbindP => r -> a ok_a _ /=; rewrite (addr_of_pexpr_eq_expr rec ok_a).
 Qed.
