@@ -170,6 +170,7 @@ let pp_opn =
   | Ox86_SHR w -> f w "#x86_SHR"
   | Ox86_SAR w -> f w "#x86_SAR"
   | Ox86_SHLD w -> f w "#x86_SHLD"
+  | Ox86_MOVD w -> f w "#x86_MOVD"
   | Ox86_VMOVDQU -> "#x86_VMOVDQU"
   | Ox86_VPAND -> "#x86_VPAND"
   | Ox86_VPOR -> "#x86_VPOR"

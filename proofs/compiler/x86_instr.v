@@ -118,6 +118,20 @@ Qed.
 Definition MOVZX_desc sz sz' := make_instr_desc (MOVZX_gsc sz sz').
 
 (* ----------------------------------------------------------------------------- *)
+Lemma MOVD_gsc sz :
+  gen_sem_correct [:: TYxreg ; TYoprd ] (Ox86_MOVD sz)
+                  [:: E U128 0 ] [:: E sz 1 ] [::] (MOVD sz).
+Proof.
+move => x y; split => // gd m m'.
+rewrite /low_sem_aux /= arg_of_oprdE /= /sets_low /eval_MOVD /x86_movd.
+t_xrbindP => ??? h <-; t_xrbindP => w' /of_val_word [szw] [w] [hle ??] _ -> <- /= [<-]; subst.
+rewrite (eval_low_read _ h) //= zero_extend_u.
+eexists; split; reflexivity.
+Qed.
+
+Definition MOVD_desc sz := make_instr_desc (MOVD_gsc sz).
+
+(* ----------------------------------------------------------------------------- *)
 Lemma VMOVDQU_gsc :
   gen_sem_correct [:: TYrm128; TYrm128] Ox86_VMOVDQU [:: E U128 0] [:: E U128 1] [::] VMOVDQU.
 Proof.
@@ -949,6 +963,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_SHR sz => ok (SHR_desc sz)
   | Ox86_SAR sz => ok (SAR_desc sz)
   | Ox86_SHLD sz => ok (SHLD_desc sz)
+  | Ox86_MOVD sz => ok (MOVD_desc sz)
   | Ox86_VMOVDQU => ok VMOVDQU_desc
   | Ox86_VPAND => ok VPAND_desc
   | Ox86_VPOR => ok VPOR_desc
@@ -984,6 +999,7 @@ Proof.
   case => // s w i'; t_xrbindP => z h <-; eexists; split; last reflexivity; repeat f_equal.
   move: h; rewrite /check_immediate. case: eqP => // <- [<-] {z}.
   by rewrite sign_zero_sign_extend.
+  + by case => // ? ? [<-]; eauto.
   + by case => x f [<-]; eauto.
 Qed.
 

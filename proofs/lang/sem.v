@@ -860,6 +860,11 @@ Definition x86_sar {sz} (v: word sz) (i: u8) : exec values :=
     ok [:: OF; CF; SF; PF; ZF; Vword r].
 
 (* ---------------------------------------------------------------- *)
+Definition x86_movd {sz} (v: word sz) : exec values :=
+  Let _ := check_size_32_64 sz in
+  ok [:: Vword (zero_extend U128 v) ].
+
+(* ---------------------------------------------------------------- *)
 Definition x86_u128_binop (op: _ → _ → u128) (v1 v2: u128) : exec values :=
   ok [:: Vword (op v1 v2) ].
 
@@ -944,6 +949,7 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_SHR sz => app_w8 sz x86_shr
   | Ox86_SAR sz => app_w8 sz x86_sar
   | Ox86_SHLD sz => app_ww8 sz x86_shld
+  | Ox86_MOVD sz => app_w sz x86_movd
   | Ox86_VMOVDQU => app_sopn [:: sword128 ] (λ x, ok [:: Vword x])
   | Ox86_VPAND => app_vv x86_vpand
   | Ox86_VPOR => app_vv x86_vpor

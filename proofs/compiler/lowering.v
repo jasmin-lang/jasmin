@@ -526,6 +526,7 @@ Definition wsize_of_sopn (op: sopn) : wsize :=
   | Ox86_SAR x
   | Ox86_SHLD x
     => x
+  | Ox86_MOVD _
   | Ox86_VMOVDQU
   | Ox86_VPAND | Ox86_VPOR | Ox86_VPXOR
   | Ox86_VPADD _

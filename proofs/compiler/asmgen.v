@@ -46,7 +46,9 @@ Definition destination_eqMixin := comparableClass destination_eq_dec.
 Canonical destination_eqType := EqType _ destination_eqMixin.
 
 (* -------------------------------------------------------------------- *)
-Variant arg_ty := TYcondt | TYoprd | TYreg | TYireg | TYimm of wsize | TYrm128.
+Variant arg_ty :=
+| TYcondt | TYoprd | TYreg | TYireg | TYimm of wsize
+| TYxreg | TYrm128.
 
 Scheme Equality for arg_ty.
 
@@ -60,6 +62,7 @@ Definition string_of_arg_ty (ty: arg_ty) : string :=
   | TYreg => "TYreg"
   | TYireg => "TYireg"
   | TYimm _ => "TYimm"
+  | TYxreg => "TYxreg"
   | TYrm128 => "TYrm128"
   end.
 
@@ -70,6 +73,7 @@ Definition interp_ty (ty : arg_ty) : Type :=
   | TYreg   => register
   | TYireg  => ireg
   | TYimm sz => word sz
+  | TYxreg => xmm_register
   | TYrm128 => rm128
   end.
 
@@ -143,6 +147,7 @@ Definition typed_apply_garg ii {T} (ty: arg_ty) (arg: garg) :
     | TYireg , Goprd  (Imm_op w) => λ op, ok (op (Imm_ir w))
     | TYimm sz, Goprd  (Imm_op w) =>
       λ op, Let r := check_immediate ii sz w in ok (op r)
+    | TYxreg, Grm128 (RM128_reg r) => λ op, ok (op r)
     | TYrm128, Grm128 r => λ op, ok (op r)
     | _      , _                 => λ _, typed_apply_garg_error ii ty arg
     end.
@@ -338,6 +343,7 @@ Definition mk_garg ty : interp_ty ty -> garg :=
   | TYreg  => fun r => Goprd (Reg_op r)
   | TYireg => fun ir => Goprd (match ir with Imm_ir i => Imm_op i | Reg_ir r => Reg_op r end)
   | TYimm sz => fun i => Goprd (Imm_op (sign_extend _ i))
+  | TYxreg => λ x, Grm128 (RM128_reg x)
   | TYrm128 => Grm128
   end.
 
@@ -620,15 +626,30 @@ Qed.
 (* -------------------------------------------------------------------- *)
 (* Mixed semantics to generated ASM semantics                           *)
 
+(* How to compile a given argument *)
+Variant arg_ty_scheme := ATS_cond | ATS_oprd | ATS_rm128.
+
+Definition arg_ty_classify (ty: arg_ty) : arg_ty_scheme :=
+  match ty with
+  | TYcondt => ATS_cond
+  | TYoprd | TYreg | TYireg | TYimm _ => ATS_oprd
+  | TYxreg | TYrm128 => ATS_rm128
+  end.
+
+Lemma arg_ty_classifyE ty :
+  match arg_ty_classify ty with
+  | ATS_cond => ty = TYcondt
+  | _ => True
+  end.
+Proof. by case: ty. Qed.
+
 Definition compile_pexpr ii (ty_arg: arg_ty * pexpr) : ciexec garg :=
   let: (ty, arg) := ty_arg in
-  if ty == TYcondt then
-    assemble_cond ii arg >>= λ c, ok (Gcondt c)
-  else if ty == TYrm128 then
-    rm128_of_pexpr ii arg >>= λ rm, ok (Grm128 rm)
-  else
-    oprd_of_pexpr ii arg >>= λ o, ok (Goprd o)
-.
+  match arg_ty_classify ty with
+  | ATS_cond => assemble_cond ii arg >>= λ c, ok (Gcondt c)
+  | ATS_oprd => oprd_of_pexpr ii arg >>= λ o, ok (Goprd o)
+  | ATS_rm128 => rm128_of_pexpr ii arg >>= λ rm, ok (Grm128 rm)
+  end.
 
 Lemma compile_pexpr_eq_expr ii ty pe pe' r :
   eq_expr pe pe' →
@@ -636,10 +657,10 @@ Lemma compile_pexpr_eq_expr ii ty pe pe' r :
   compile_pexpr ii (ty, pe) = compile_pexpr ii (ty, pe').
 Proof.
   move => h; rewrite /compile_pexpr.
-  case: eqP => _; [| case: eqP => _ ]; t_xrbindP => z hz.
+  case: arg_ty_classify; t_xrbindP => z hz.
   + by rewrite (assemble_cond_eq_expr h hz).
-  + by rewrite (rm128_of_pexpr_eq_expr h hz).
-  by rewrite (oprd_of_pexpr_eq_expr h hz).
+  + by rewrite (oprd_of_pexpr_eq_expr h hz).
+  by rewrite (rm128_of_pexpr_eq_expr h hz).
 Qed.
 
 Definition compile_low_args ii (tys: seq arg_ty) (args: pexprs) : ciexec (seq garg) :=
@@ -745,14 +766,14 @@ Lemma compile_low_eval ii gd ty m lom pe g sz a v :
     value_uincl v v'.
 Proof.
 rewrite /compile_pexpr => eqm hv.
-case: eqP => hty; [ | case: eqP => hty' ]; t_xrbindP => x hx /=.
+case: arg_ty_classify; t_xrbindP => x hx /=.
 - move => <- {g}; case: eqm => _ _ _ eqf [<-].
   by have /(_ gd _ hv) := eval_assemble_cond eqf hx.
-- move => <- {g} [<-] {a} hce.
-  have [w -> hwv] := rm128_of_pexpr eqm hx hv.
+- move=> <- {g} ha hce.
+  have [w -> hvw] := eval_oprd_of_pexpr eqm hx ha hce hv.
   by exists w.
-move=> <- {g} ha hce.
-have [w -> hvw] := eval_oprd_of_pexpr eqm hx ha hce hv.
+move => <- {g} [<-] {a} hce.
+have [w -> hwv] := rm128_of_pexpr eqm hx hv.
 by exists w.
 Qed.
 
@@ -826,29 +847,29 @@ Proof.
   have: exists a, arg_of_garg sz z = Some a /\ y = Some a /\ check_esize sz pe.
   + subst y;have := compile_pexpr_eq_expr _ hnth.
     move: hnth ho;rewrite /compile_pexpr -/pe.
-    case: (nth _ _ _ =P _) htys.
-    + move => /= _ htys; t_xrbindP => op hop <- /=.
+    set ty := nth _ _ _.
+    case: arg_ty_classify (arg_ty_classifyE ty) htys; subst ty.
+    + move => /= -> htys; t_xrbindP => op hop <- /=.
       case: o htys;last by eauto.
       by move=> ?;rewrite /= orbT.
-    + move => _; case: (nth _ _ _ =P _).
-      * move => /= _ _; t_xrbindP => op hop <- /=.
-        rewrite hop /=.
-        case: o; last by eauto.
-        move => r [].
-        - move => hpe /(_ _ hpe) //.
-        case => ? [] ? k. by rewrite k in hop.
-    move => /= _ htys;t_xrbindP => op hop <- /=.
-    move=> {htys};case: o.
-    + move=> r [].
-      + move=> Heq /(_ _ Heq);rewrite hop /= reg_of_stringK /= => -[->] /=;rewrite eqxx.
-        eexists;split;last split; eauto.
-        by case: (pe) Heq.
-      by move=> [ws [n' heq]] _;move: hop;rewrite heq;case:(ws) => //= -[<-] /=;eauto.
-    case: pe hop => //=.
-    + by move=> [] // [] //= z' [<-] _ _ /=;eauto.
-    + by move=> v;t_xrbindP => ? _ [<-] _ _ /=;eauto.
-    + by move=> ? [<-] /=;eauto.
-    by (move=> w v p;t_xrbindP => ???? [<-] /eqP -> _ /=;eexists;split;[by reflexivity | ]) => //=.
+    + move => /= _ htys;t_xrbindP => op hop <- /=.
+      move=> {htys};case: o.
+      + move=> r [].
+        + move=> Heq /(_ _ Heq);rewrite hop /= reg_of_stringK /= => -[->] /=;rewrite eqxx.
+          eexists;split;last split; eauto.
+          by case: (pe) Heq.
+        by move=> [ws [n' heq]] _;move: hop;rewrite heq;case:(ws) => //= -[<-] /=;eauto.
+      case: pe hop => //=.
+      + by move=> [] // [] //= z' [<-] _ _ /=;eauto.
+      + by move=> v;t_xrbindP => ? _ [<-] _ _ /=;eauto.
+      + by move=> ? [<-] /=;eauto.
+      by (move=> w v p;t_xrbindP => ???? [<-] /eqP -> _ /=;eexists;split;[by reflexivity | ]) => //=.
+    move => /= _ _; t_xrbindP => op hop <- /=.
+    rewrite hop /=.
+    case: o; last by eauto.
+    move => r [].
+    - move => hpe /(_ _ hpe) //.
+    case => ? [] ? k. by rewrite k in hop.
   move=> [] a [] ha [-> Hsize] => {y}.
   rewrite hlo /=. eexists; split; first by eauto.
   t_xrbindP => vs' v ok_v vs ok_vs <- {vs'} /=.
@@ -1020,31 +1041,31 @@ Lemma compile_lval_of_pexpr ii ty pe g sz lv :
   | DFlag _ => False
   end.
 Proof.
-rewrite /compile_pexpr; case: eqP => hty; [ | case: eqP => hty' ]; t_xrbindP => r hr <- {g}.
+rewrite /compile_pexpr; case: arg_ty_classify; t_xrbindP => r hr <- {g}.
 - by case: pe hr => //=; case => -[] [] //; case: sz.
-- case: pe hr => //=.
-  + case => x /= xi.
-    case: (xmm_register_of_var x) (@xmm_register_of_varI x) => // xr /(_ _ erefl) <- {x} [<-] {r}.
-    case: sz => // sz [<-] {lv}.
+- case: pe hr => //=; case: sz => // sz.
+    case => -[] [] //= [] // x xi; t_xrbindP => f ok_f [<-] {r} [<-] {lv}.
     do 3 (eexists; split; first reflexivity).
-    split => //=; exact: xmm_register_of_var_of_xmm_register.
-  case => // - [] x /= xi e; t_xrbindP => re hre a ha [<-] {r}.
-  case: sz => // sz; case: eqP => // -> {sz} [<-] {lv}.
+    split; first reflexivity.
+    rewrite /register_of_var /=.
+    by case: reg_of_string ok_f => // ? [->].
+  t_xrbindP => sz' x pe d ok_d a ok_a [<-] {r}.
+  case: eqP => // <- {sz'} [<-] {lv}.
   do 2 (eexists; split; first reflexivity).
-  eexists _, _, _; do 3 (split; first reflexivity).
-  split; last exact: ha.
-  exact: (reg_of_var_register_of_var hre).
-case: pe hr => //=; case: sz => // sz.
-  case => -[] [] //= [] // x xi; t_xrbindP => f ok_f [<-] {r} [<-] {lv}.
+  exists x, pe, d; repeat (split => //).
+  exact: (reg_of_var_register_of_var ok_d).
+case: pe hr => //=.
++ case => x /= xi.
+  case: (xmm_register_of_var x) (@xmm_register_of_varI x) => // xr /(_ _ erefl) <- {x} [<-] {r}.
+  case: sz => // sz [<-] {lv}.
   do 3 (eexists; split; first reflexivity).
-  split; first reflexivity.
-  rewrite /register_of_var /=.
-  by case: reg_of_string ok_f => // ? [->].
-t_xrbindP => sz' x pe d ok_d a ok_a [<-] {r}.
-case: eqP => // <- {sz'} [<-] {lv}.
+  split => //=; exact: xmm_register_of_var_of_xmm_register.
+case => // - [] x /= xi e; t_xrbindP => re hre a ha [<-] {r}.
+case: sz => // sz; case: eqP => // -> {sz} [<-] {lv}.
 do 2 (eexists; split; first reflexivity).
-exists x, pe, d; repeat (split => //).
-exact: (reg_of_var_register_of_var ok_d).
+eexists _, _, _; do 3 (split; first reflexivity).
+split; last exact: ha.
+exact: (reg_of_var_register_of_var hre).
 Qed.
 
 Lemma compile_low_args_out ii gd ads tys pes args gargs :
