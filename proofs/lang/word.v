@@ -305,10 +305,10 @@ Lemma msb0 sz : @msb sz 0 = false.
 Proof. by case: sz. Qed.
 
 Lemma wshr0 sz (w: word sz) : wshr w 0 = w.
-Proof. by rewrite /wshr /lsr Z.shiftr_0_r ureprK wrepr_unsigned. Qed.
+Proof. by rewrite /wshr /lsr Z.shiftr_0_r ureprK. Qed.
 
 Lemma wshl0 sz (w: word sz) : wshl w 0 = w.
-Proof. by rewrite /wshl /lsl Z.shiftl_0_r ureprK wrepr_unsigned. Qed.
+Proof. by rewrite /wshl /lsl Z.shiftl_0_r ureprK. Qed.
 
 Lemma wsar0 sz (w: word sz) : wsar w 0 = w.
 Proof. by rewrite /wsar /asr Z.shiftr_0_r sreprK. Qed.
