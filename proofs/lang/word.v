@@ -522,7 +522,7 @@ Definition lift1_vec ve (op : word ve -> word ve)
   make_vec sz (map op (split_vec ve w)).
 Arguments lift1_vec : clear implicits.
 
-Definition lift2_vec (ve:velem) (op : word ve -> word ve -> word ve)
+Definition lift2_vec ve (op : word ve -> word ve -> word ve)
   (sz:wsize) (w1 w2:word sz) : word sz :=
   make_vec sz (map2 op (split_vec ve w1) (split_vec ve w2)).
 Arguments lift2_vec : clear implicits.

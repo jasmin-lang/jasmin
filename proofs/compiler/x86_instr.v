@@ -942,8 +942,8 @@ Qed.
 
 Arguments x86_rm128_shift_gsc : clear implicits.
 
-Definition VPSLL_desc ve := make_instr_desc (x86_rm128_shift_gsc ve (Ox86_VPSLL ve) (VPSLL ve) _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
-Definition VPSRL_desc ve := make_instr_desc (x86_rm128_shift_gsc ve (Ox86_VPSRL ve) (VPSRL ve) _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
+Definition VPSLL_desc (ve: velem) := make_instr_desc (x86_rm128_shift_gsc ve (Ox86_VPSLL ve) (VPSLL ve) _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
+Definition VPSRL_desc (ve: velem) := make_instr_desc (x86_rm128_shift_gsc ve (Ox86_VPSRL ve) (VPSRL ve) _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
 (* ----------------------------------------------------------------------------- *)
 Lemma VPSHUFB_gsc :
