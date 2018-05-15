@@ -61,7 +61,7 @@ Definition string_of_arg_ty (ty: arg_ty) : string :=
   | TYoprd => "TYoprd"
   | TYreg => "TYreg"
   | TYireg => "TYireg"
-  | TYimm _ => "TYimm"
+  | TYimm sz => "TYimm " ++ string_of_wsize sz
   | TYxreg => "TYxreg"
   | TYrm128 => "TYrm128"
   end.
@@ -731,7 +731,7 @@ Proof.
 move=> eqv; case: e => //.
 + move=> [] // [] //= z [<-] /= [<-] _ [<-] /=;
   (eexists; [ eauto |
-  by apply/andP; split => //; rewrite zero_extend_idem // zero_extend_u ]).
+  by apply/andP; split => //; rewrite zero_extend_sign_extend // sign_extend_u ]).
 + move=> x /=;t_xrbindP.
   move=> r ok_r -[<-] /= [<-] Hsize /=ok_v /=; eexists; first by reflexivity.
   exact: xgetreg_ex eqv ok_r ok_v.

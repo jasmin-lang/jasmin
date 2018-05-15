@@ -445,7 +445,7 @@ Definition oprd_of_pexpr ii (e: pexpr) :=
   | Pcast sz' (Pconst z) =>
     Let _ := assert (sz' ≤ Uptr)%CMP
                     (ii, Cerr_assembler (AsmErr_string "Invalid pexpr for oprd: invalid cast")) in
-    let w := zero_extend Uptr (wrepr sz' z) in
+    let w := sign_extend Uptr (wrepr sz' z) in
     ciok (Imm_op w)
   | Pvar v =>
     Let s := reg_of_var ii v in
