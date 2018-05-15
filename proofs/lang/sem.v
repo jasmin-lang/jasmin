@@ -895,6 +895,8 @@ Definition x86_vpsrl (ve: velem) := x86_u128_shift ve (@wshr _).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_vpshufb := x86_u128_binop wpshufb.
+Definition x86_vpshufd v1 (v2: u8) : exec values :=
+  ok [:: Vword (wpshufd v1 (wunsigned v2)) ].
 
 (* ---------------------------------------------------------------- *)
 Notation app_b   o := (app_sopn [:: sbool] o).
@@ -969,6 +971,7 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_VPSLL ve => app_v8 (x86_vpsll ve)
   | Ox86_VPSRL ve => app_v8 (x86_vpsrl ve)
   | Ox86_VPSHUFB => app_vv x86_vpshufb
+  | Ox86_VPSHUFD => app_v8 x86_vpshufd
   end.
 
 Ltac app_sopn_t := 

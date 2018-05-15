@@ -966,6 +966,27 @@ Qed.
 Definition VPSHUFB_desc := make_instr_desc VPSHUFB_gsc.
 
 (* ----------------------------------------------------------------------------- *)
+Lemma VPSHUFD_gsc :
+  gen_sem_correct [:: TYxreg ; TYrm128 ; TYimm U8 ]
+    Ox86_VPSHUFD
+    [:: E U128 0 ] [:: E U128 1 ; E U8 2 ] [::]
+    VPSHUFD.
+Proof.
+move => x y z; split => // gd m m'.
+rewrite /low_sem_aux /=.
+case hz: arg_of_rm128 => [ z' | ] //=.
+t_xrbindP => ??? h <-; t_xrbindP => w /to_wordI [sz] [w'] [hle ??].
+subst => _ [<-] [<-].
+rewrite /sets_low => - [<-].
+rewrite /eval_VPSHUFD (eval_low_rm128 hz h).
+eexists; split; first reflexivity.
+rewrite zero_extend_u /=.
+by rewrite zero_extend_sign_extend // sign_extend_u; reflexivity.
+Qed.
+
+Definition VPSHUFD_desc := make_instr_desc VPSHUFD_gsc.
+
+(* ----------------------------------------------------------------------------- *)
 
 Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   match c with
@@ -1012,6 +1033,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_VPSLL ve => ok (VPSLL_desc ve)
   | Ox86_VPSRL ve => ok (VPSRL_desc ve)
   | Ox86_VPSHUFB => ok VPSHUFB_desc
+  | Ox86_VPSHUFD => ok VPSHUFD_desc
   end.
 
 Lemma sopn_desc_name ii o d : sopn_desc ii o = ok d -> d.(id_name) = o.
