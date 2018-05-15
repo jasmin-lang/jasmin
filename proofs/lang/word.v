@@ -528,5 +528,14 @@ Definition lift2_vec ve (op : word ve -> word ve -> word ve)
 Arguments lift2_vec : clear implicits.
 
 (* -------------------------------------------------------------------*)
-Parameter wpshufb : u128 → u128 → u128.
+Definition wpshufb1 (s : seq u8) (idx : u8) :=
+  if msb idx then 0%R else
+    let off := wunsigned (wand idx (wshl 1 4%Z - 1)) in
+    (s`_(Z.to_nat off))%R.
+
+Definition wpshufb (s idx : u128) : u128 :=
+  let idx  := [tuple subword (8 * i)%nat 8 idx | i < 16] in
+  let aout := [tuple wpshufb1 s (tnth idx i) | i < 16] in
+  wcat aout.
+
 Parameter wpshufd : u128 → Z → u128.
