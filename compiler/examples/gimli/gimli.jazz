@@ -63,7 +63,7 @@ for round = 24 downto 0 {
   }
 
   if (round & 3) == 0 { // add constant: pattern c...c...c... etc.
-    (u32)[state + 4 * 0] ^= 0x9e377900 | round;
+    (u32)[state + 4 * 0] ^= 0x9e377900 + round;
   }
 }
 }

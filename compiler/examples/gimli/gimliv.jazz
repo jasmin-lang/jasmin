@@ -1,0 +1,89 @@
+inline
+fn shift(reg u128 x, inline int count) -> reg u128 {
+  reg u128 r;
+  r = #x86_VPSLL_4u32(x, count);
+  return r;
+}
+
+u128 rotate24pattern = 0x0c0f0e0d080b0a090407060500030201;
+
+inline
+fn rotate(reg u128 r, inline int count) -> reg u128 {
+  reg u128 a, b;
+  if count != 0 {
+    if count == 24 {
+      r = #x86_VPSHUFB(r, rotate24pattern);
+    } else {
+      a = shift(r, count);
+      count = 32 - count;
+      b = #x86_VPSRL_4u32(r, count);
+      r = a | b;
+    }
+  }
+  return r;
+}
+
+inline
+fn shuffle(inline int a, inline int b, inline int c, inline int d) -> inline int {
+  inline int r;
+  r = a * 64 + b * 16 + c * 4 + d;
+  return r;
+}
+
+export
+fn gimli(reg u64 state) {
+  reg u128 x, y, z;
+  reg u128 a, b, c, d, e;
+  reg u32 m;
+  inline int round, pattern;
+
+  x = (u128)[state + 16 * 0];
+  y = (u128)[state + 16 * 1];
+  z = (u128)[state + 16 * 2];
+
+  for round = 24 downto 0 {
+    x = rotate(x, 24);
+    y = rotate(y, 9);
+    z = rotate(z, 0);
+
+    a = shift(z, 1);
+    b = y & z;
+    c = shift(b, 2);
+    d = x ^ a;
+    e = d ^ c;
+
+    a = x | z;
+    b = shift(a, 1);
+    c = y ^ x;
+    d = c ^ b;
+
+    a = x & y;
+    b = shift(a, 3);
+    c = z ^ y;
+
+    x = c ^ b;
+    y = d;
+    z = e;
+
+    if (round & 3) == 0 { // small swap: pattern s...s...s... etc.
+      pattern = shuffle(2, 3, 0, 1);
+      x = #x86_VPSHUFD(x, pattern);
+    }
+
+    if (round & 3) == 2 { // big swap: pattern ..S...S...S. etc.
+      pattern = shuffle(1, 0, 3, 2);
+      x = #x86_VPSHUFD(x, pattern);
+    }
+
+    if (round & 3) == 0 { // add constant: pattern c...c...c... etc.
+      m = 0x9e377900 + round;
+      a = #x86_MOVD_32(m);
+      x ^= a;
+    }
+
+  }
+
+  (u128)[state + 16 * 0] = x;
+  (u128)[state + 16 * 1] = y;
+  (u128)[state + 16 * 2] = z;
+}
