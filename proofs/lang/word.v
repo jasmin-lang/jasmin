@@ -534,8 +534,9 @@ Definition wpshufb1 (s : seq u8) (idx : u8) :=
     (s`_(Z.to_nat off))%R.
 
 Definition wpshufb (s idx : u128) : u128 :=
-  let idx  := [tuple subword (8 * i)%nat 8 idx | i < 16] in
-  let aout := [tuple wpshufb1 s (tnth idx i) | i < 16] in
-  wcat aout.
+  let s    := [seq subword (8 * i)%nat 8 s   | i <- iota 0 16] in
+  let idx  := [seq subword (8 * i)%nat 8 idx | i <- iota 0 16] in
+  let aout := [seq wpshufb1 s (idx`_i)%R | i <- iota 0 16] in
+  wrepr U128 (wcat_r aout).
 
 Parameter wpshufd : u128 → Z → u128.
