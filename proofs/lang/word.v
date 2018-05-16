@@ -539,4 +539,10 @@ Definition wpshufb (s idx : u128) : u128 :=
   let aout := [seq wpshufb1 s (idx`_i)%R | i <- iota 0 16] in
   wrepr U128 (wcat_r aout).
 
-Parameter wpshufd : u128 → Z → u128.
+Definition wpshufd1 (s : u128) (o : u8) (i : nat) :=
+  wshl s (32 * urepr (subword (2 * i) 2 o)).
+
+Definition wpshufd (s : u128) (o : Z) : u128 :=
+  let o := wrepr U8 o in
+  let d := [seq wpshufd1 s o i | i <- iota 0 4] in
+  wrepr U128 (wcat_r d).
