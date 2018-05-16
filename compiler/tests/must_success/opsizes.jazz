@@ -81,3 +81,10 @@ y = x;
 y <<= 1;
 return y;
 }
+
+export
+fn test_immediate() -> reg u32 {
+  reg u32 r;
+  r = 42 & 10;
+  return r;
+}

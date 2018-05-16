@@ -28,6 +28,26 @@ Definition string_of_register r :=
   | R15 => "R15"
   end%string.
 
+Definition string_of_xmm_register r : string :=
+  match r with
+  | XMM0 => "XMM0"
+  | XMM1 => "XMM1"
+  | XMM2 => "XMM2"
+  | XMM3 => "XMM3"
+  | XMM4 => "XMM4"
+  | XMM5 => "XMM5"
+  | XMM6 => "XMM6"
+  | XMM7 => "XMM7"
+  | XMM8 => "XMM8"
+  | XMM9 => "XMM9"
+  | XMM10 => "XMM10"
+  | XMM11 => "XMM11"
+  | XMM12 => "XMM12"
+  | XMM13 => "XMM13"
+  | XMM14 => "XMM14"
+  | XMM15 => "XMM15"
+  end.
+
 Definition string_of_rflag (rf : rflag) : string :=
   match rf with
  | CF => "CF"
@@ -46,6 +66,14 @@ Lemma regs_stringsE : regs_strings =
 Proof. by []. Qed.
 
 (* -------------------------------------------------------------------- *)
+Definition xmm_regs_strings :=
+  Eval compute in [seq (string_of_xmm_register x, x) | x <- xmm_registers].
+
+Lemma xmm_regs_stringsE : xmm_regs_strings =
+  [seq (string_of_xmm_register x, x) | x <- xmm_registers].
+Proof. by []. Qed.
+
+(* -------------------------------------------------------------------- *)
 Definition rflags_strings :=
   Eval compute in [seq (string_of_rflag x, x) | x <- rflags].
 
@@ -58,6 +86,10 @@ Definition reg_of_string (s : string) :=
   assoc regs_strings s.
 
 (* -------------------------------------------------------------------- *)
+Definition xmm_reg_of_string (s : string) :=
+  assoc xmm_regs_strings s.
+
+(* -------------------------------------------------------------------- *)
 Definition rflag_of_string (s : string) :=
   assoc rflags_strings s.
 
@@ -68,11 +100,17 @@ Proof. by case. Qed.
 Lemma reg_of_stringK : pcancel string_of_register reg_of_string.
 Proof. by case. Qed.
 
+Lemma xmm_reg_of_stringK : pcancel string_of_xmm_register xmm_reg_of_string.
+Proof. by case. Qed.
+
 Lemma inj_string_of_rflag : injective string_of_rflag.
 Proof. by apply: (pcan_inj rflag_of_stringK). Qed.
 
 Lemma inj_string_of_register : injective string_of_register.
 Proof. by apply: (pcan_inj reg_of_stringK). Qed.
+
+Lemma inj_string_of_xmm_register : injective string_of_xmm_register.
+Proof. by apply: (pcan_inj xmm_reg_of_stringK). Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma inj_reg_of_string s1 s2 r :
@@ -80,6 +118,22 @@ Lemma inj_reg_of_string s1 s2 r :
   -> reg_of_string s2 = Some r
   -> s1 = s2.
 Proof. by rewrite /reg_of_string !regs_stringsE; apply: inj_assoc. Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma xmm_reg_of_stringI s r :
+  xmm_reg_of_string s = Some r →
+  string_of_xmm_register r = s.
+Proof.
+  have := xmm_reg_of_stringK r.
+  move => /assoc_inj. apply. done.
+Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma inj_xmm_reg_of_string s1 s2 r :
+     xmm_reg_of_string s1 = Some r
+  -> xmm_reg_of_string s2 = Some r
+  -> s1 = s2.
+Proof. by rewrite /xmm_reg_of_string !xmm_regs_stringsE; apply: inj_assoc. Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma inj_rflag_of_string s1 s2 rf :
@@ -92,6 +146,9 @@ Proof. by rewrite /rflag_of_string !rflags_stringsE; apply: inj_assoc. Qed.
 
 Definition var_of_register r := 
   {| vtype := sword64 ; vname := string_of_register r |}. 
+
+Definition var_of_xmm_register r :=
+  {| vtype := sword128 ; vname := string_of_xmm_register r |}.
 
 Definition var_of_flag f := 
   {| vtype := sbool; vname := string_of_rflag f |}. 
@@ -123,6 +180,13 @@ Proof.
   by apply: inj_reg_of_string H; apply reg_of_stringK.
 Qed.
 
+Lemma register_of_var_of_register r :
+  register_of_var (var_of_register r) = Some r.
+Proof.
+  rewrite /register_of_var /var_of_register /=.
+  by apply reg_of_stringK.
+Qed.
+
 Definition flag_of_var (v: var) : option rflag :=
   if v.(vtype) == sbool then rflag_of_string v.(vname)
   else None.
@@ -136,21 +200,54 @@ Proof.
   by apply: inj_rflag_of_string H; apply rflag_of_stringK.
 Qed.
 
-Definition compile_var (v: var) : option (register + rflag) :=
-  match register_of_var v with
-  | Some r => Some (inl r)
-  | None =>
-    match flag_of_var v with
-    | Some f => Some (inr f)
-    | None => None
-    end
-  end.
+Definition xmm_register_of_var (v:var) : option xmm_register :=
+  if v.(vtype) == sword128 then xmm_reg_of_string v.(vname)
+  else None.
 
-Lemma register_of_var_of_register r :
-  register_of_var (var_of_register r) = Some r.
+Lemma xmm_register_of_varI v r :
+  xmm_register_of_var v = Some r →
+  var_of_xmm_register r = v.
 Proof.
-  rewrite /register_of_var /var_of_register /=.
-  by apply reg_of_stringK.
+  by rewrite /xmm_register_of_var /var_of_xmm_register; case: eqP => // <- /xmm_reg_of_stringI ->; case: v.
+Qed.
+
+Lemma xmm_register_of_var_of_xmm_register xr :
+  xmm_register_of_var (var_of_xmm_register xr) = Some xr.
+Proof. exact: xmm_reg_of_stringK. Qed.
+
+(* -------------------------------------------------------------------- *)
+Variant compiled_variable :=
+| LRegister of register
+| LXRegister of xmm_register
+| LRFlag of rflag
+.
+
+Scheme Equality for compiled_variable.
+
+Definition compiled_variable_eqMixin := comparableClass compiled_variable_eq_dec.
+Canonical compiled_variable_eqType := EqType compiled_variable compiled_variable_eqMixin.
+
+Definition compile_var (v: var) : option compiled_variable :=
+  match register_of_var v with
+  | Some r => Some (LRegister r)
+  | None =>
+  match xmm_register_of_var v with
+  | Some r => Some (LXRegister r)
+  | None =>
+  match flag_of_var v with
+  | Some f => Some (LRFlag f)
+  | None => None
+  end end end.
+
+Lemma xmm_register_of_var_compile_var x r :
+  xmm_register_of_var x = Some r →
+  compile_var x = Some (LXRegister r).
+Proof.
+  move => h; rewrite /compile_var h.
+  case: (register_of_var x) (@var_of_register_of_var x) => //.
+  move => r' /(_ _ erefl) ?; subst x.
+  have {h} := xmm_register_of_varI h.
+  by destruct r, r'.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -348,7 +445,7 @@ Definition oprd_of_pexpr ii (e: pexpr) :=
   | Pcast sz' (Pconst z) =>
     Let _ := assert (sz' ≤ Uptr)%CMP
                     (ii, Cerr_assembler (AsmErr_string "Invalid pexpr for oprd: invalid cast")) in
-    let w := zero_extend Uptr (wrepr sz' z) in
+    let w := sign_extend Uptr (wrepr sz' z) in
     ciok (Imm_op w)
   | Pvar v =>
     Let s := reg_of_var ii v in
@@ -363,6 +460,26 @@ Definition oprd_of_pexpr ii (e: pexpr) :=
      Let w := addr_of_pexpr ii s e in
      ciok (Adr_op w)
   | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for oprd"))
+  end.
+
+Definition rm128_of_pexpr_error ii e : ciexec rm128 :=
+  cierror ii (Cerr_assembler (AsmErr_string
+  match e with
+  | Some x => "rm128_of_pexpr: bad variable " ++ vname x
+  | None => "rm128_of_pexpr"
+  end)).
+
+Definition rm128_of_pexpr ii (e: pexpr) : ciexec rm128 :=
+  match e with
+  | Pvar x =>
+    if xmm_register_of_var x is Some r then ciok (RM128_reg r)
+    else rm128_of_pexpr_error ii (Some (v_var x))
+  | Pload U128 v e =>
+     Let s := reg_of_var ii v in
+     Let w := addr_of_pexpr ii s e in
+     ciok (RM128_mem w)
+  | Pglobal (Global U128 _ as g) => ciok (RM128_glo g)
+  | _ => rm128_of_pexpr_error ii None
   end.
 
 Lemma assemble_cond_eq_expr ii pe pe' c :
@@ -493,4 +610,17 @@ move: (h) => /ih {ih}.
 case: (reg_of_var _ _) => //= r ih. 
 t_xrbindP => a ha _.
 by rewrite (addr_of_pexpr_eq_expr h ha).
+Qed.
+
+Lemma rm128_of_pexpr_eq_expr ii pe pe' rm :
+  eq_expr pe pe' →
+  rm128_of_pexpr ii pe = ok rm →
+  rm128_of_pexpr ii pe = rm128_of_pexpr ii pe'.
+Proof.
+elim: pe pe' rm => [ z | b | sz pe ih | x | g | x pe ih | sz x pe ih | op pe ih | op pe1 ih1 pe2 ih2 | pe1 ih1 pe2 ih2 pe3 ih3 ]
+  [ z' | b' | sz' pe' | x' | g' | x' pe' | sz' x' pe' | op' pe' | op' pe1' pe2' | pe1' pe2' pe3' ] // rm.
+- by case: x => x xi /eqP /= ->.
+- by move/eqP => <-.
+case: sz => //= /andP [] /andP [] /eqP <- /eqP <- rec.
+by t_xrbindP => r -> a ok_a _ /=; rewrite (addr_of_pexpr_eq_expr rec ok_a).
 Qed.

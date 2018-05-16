@@ -417,6 +417,14 @@ Definition get_global gd g : exec value :=
   then Let _ := assert (sz == size_of_global g) ErrType in ok v
   else type_error.
 
+Lemma get_globalI gd g v :
+  get_global gd g = ok v →
+  exists2 w : word (size_of_global g), get_global_value gd g = Some (Vword w) & v = Vword w.
+Proof.
+  rewrite /get_global; case: get_global_value => // - [] // sz w.
+  t_xrbindP => _ /assertP /eqP ??; subst; eauto.
+Qed.
+
 Definition is_defined (v: value) : bool :=
   if v is Vundef _ then false else true.
 
@@ -859,6 +867,38 @@ Definition x86_sar {sz} (v: word sz) (i: u8) : exec values :=
     let ZF := Vbool (ZF_of_word r) in
     ok [:: OF; CF; SF; PF; ZF; Vword r].
 
+(* ---------------------------------------------------------------- *)
+Definition x86_movd {sz} (v: word sz) : exec values :=
+  Let _ := check_size_32_64 sz in
+  ok [:: Vword (zero_extend U128 v) ].
+
+(* ---------------------------------------------------------------- *)
+Definition x86_u128_binop (op: _ → _ → u128) (v1 v2: u128) : exec values :=
+  ok [:: Vword (op v1 v2) ].
+
+Definition x86_vpand := x86_u128_binop wand.
+Definition x86_vpor := x86_u128_binop wor.
+Definition x86_vpxor := x86_u128_binop wxor.
+
+(* ---------------------------------------------------------------- *)
+Definition x86_vpadd (ve: velem) := x86_u128_binop (lift2_vec ve +%R U128).
+
+(* ---------------------------------------------------------------- *)
+Definition x86_u128_shift sz' (op: word sz' → Z → word sz')
+  (v: u128) (c: u8) : exec values :=
+  ok [:: Vword (lift1_vec sz' (λ v, op v (wunsigned c)) U128 v) ].
+
+Arguments x86_u128_shift : clear implicits.
+
+Definition x86_vpsll (ve: velem) := x86_u128_shift ve (@wshl _).
+Definition x86_vpsrl (ve: velem) := x86_u128_shift ve (@wshr _).
+
+(* ---------------------------------------------------------------- *)
+Definition x86_vpshufb := x86_u128_binop wpshufb.
+Definition x86_vpshufd v1 (v2: u8) : exec values :=
+  ok [:: Vword (wpshufd v1 (wunsigned v2)) ].
+
+(* ---------------------------------------------------------------- *)
 Notation app_b   o := (app_sopn [:: sbool] o).
 Notation app_w sz o := (app_sopn [:: sword sz] o).
 Notation app_ww sz o := (app_sopn [:: sword sz; sword sz] o).
@@ -868,6 +908,8 @@ Notation app_ww8 sz o := (app_sopn [:: sword sz; sword sz; sword U8] o).
 Notation app_wwb sz o := (app_sopn [:: sword sz; sword sz; sbool] o).
 Notation app_bww o := (app_sopn [:: sbool; sword; sword] o).
 Notation app_w4 sz o  := (app_sopn [:: sword sz; sword sz; sword sz; sword sz] o).
+Notation app_vv o := (app_sopn [:: sword128; sword128 ] o).
+Notation app_v8 o := (app_sopn [:: sword128; sword8 ] o).
 
 Definition exec_sopn (o:sopn) :  values -> exec values :=
   match o with
@@ -920,11 +962,22 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_SHR sz => app_w8 sz x86_shr
   | Ox86_SAR sz => app_w8 sz x86_sar
   | Ox86_SHLD sz => app_ww8 sz x86_shld
+  | Ox86_MOVD sz => app_w sz x86_movd
+  | Ox86_VMOVDQU => app_sopn [:: sword128 ] (λ x, ok [:: Vword x])
+  | Ox86_VPAND => app_vv x86_vpand
+  | Ox86_VPOR => app_vv x86_vpor
+  | Ox86_VPXOR => app_vv x86_vpxor
+  | Ox86_VPADD ve => app_vv (x86_vpadd ve)
+  | Ox86_VPSLL ve => app_v8 (x86_vpsll ve)
+  | Ox86_VPSRL ve => app_v8 (x86_vpsrl ve)
+  | Ox86_VPSHUFB => app_vv x86_vpshufb
+  | Ox86_VPSHUFD => app_v8 x86_vpshufd
   end.
 
 Ltac app_sopn_t := 
   match goal with
   | |- forall (_:wsize), _     => move=> ?;app_sopn_t
+  | |- forall (_:velem), _     => move=> ?;app_sopn_t
   | |- forall (_:value), _     => move=> ?;app_sopn_t
   | |- forall (_:seq value), _ => move=> ?;app_sopn_t
   | |- (match ?vs with

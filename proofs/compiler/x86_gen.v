@@ -120,7 +120,7 @@ case: i => ii [] /=.
   rewrite /eval_JMP -(assemble_c_find_label lbl eqc) ok_pc /=.
   by eexists; split; eauto; constructor.
 - t_xrbindP => cnd lbl cndt ok_c [<-] b v ok_v ok_b.
-  case: eqm => eqm eqr eqf.
+  case: eqm => eqm eqr eqx eqf.
   have [v' [ok_v' hvv']] := eval_assemble_cond eqf ok_c ok_v.
   case: v ok_v ok_b hvv' => // [ b' | [] // ] ok_b [?]; subst b'.
   rewrite /eval_Jcc.
@@ -242,7 +242,7 @@ move => s1 hargs ?; subst m1.
 move: h; rewrite /assemble_fd; t_xrbindP => body ok_body.
 case ok_sp: (reg_of_string _) => [ sp | // ];
   t_xrbindP => args ok_args dsts ok_dsts _ /assertP hsp [?]; subst fd'.
-set xr1 := mem_write_reg sp (Memory.top_stack m1') {| xmem := m1' ; xreg := s1.(xreg) ; xrf := rflagmap0 |}.
+set xr1 := mem_write_reg sp (Memory.top_stack m1') {| xmem := m1' ; xreg := s1.(xreg) ; xxreg := s1.(xxreg) ; xrf := rflagmap0 |}.
 have eqm1 : lom_eqv {| emem := m1' ; evm := vm1 |} xr1.
 + constructor => //.
   - rewrite /vm1 /= => r v.
@@ -252,6 +252,7 @@ have eqm1 : lom_eqv {| emem := m1' ; evm := vm1 |} xr1.
       exact: word_uincl_refl.
     move => ne; rewrite /= Fv.setP_neq; first by case => <-.
     by apply/eqP => -[] /inj_string_of_register ?; apply: ne.
+  - by move => r v; rewrite /vm1 /= /get_var Fv.setP_neq // => - [<-].
   move => f v /=; rewrite /vm1 /rflagmap0 ffunE /=.
   by rewrite /var_of_flag /get_var /= Fv.setP_neq => // -[<-].
 have h1 : get_reg_values xr1 args = get_reg_values s1 args.
@@ -264,7 +265,7 @@ have eqm2 : lom_eqv s2 xr1.
 + by apply: write_vars_uincl; eauto.
 have ms : match_state (of_estate s2 fd.(lfd_body) 0) {| xm := xr1 ; xc := body ; xip := 0 |}.
 + by constructor => //=; rewrite to_estate_of_estate.
-have [[[om or orf] oc opc] [xexec]] := match_state_sem hexec ms.
+have [[[om or oxr orf] oc opc] [xexec]] := match_state_sem hexec ms.
 rewrite (mapM_size ok_body).
 case => eqm' /=.
 rewrite ok_body => -[?] ?; subst oc opc.

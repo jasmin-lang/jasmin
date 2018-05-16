@@ -75,22 +75,25 @@ rewrite (Nat2Z.inj_sub _ _ hle); f_equal; lia.
 Qed.
 
 (* -------------------------------------------------------------- *)
-Definition nat7 : nat := 7.
-Definition nat15 : nat := nat7.+4.+4.
-Definition nat31 : nat := nat15.+4.+4.+4.+4.
-Definition nat63 : nat := nat31.+4.+4.+4.+4.+4.+4.+4.+4.
+Definition nat7   : nat := 7.
+Definition nat15  : nat := nat7.+4.+4.
+Definition nat31  : nat := nat15.+4.+4.+4.+4.
+Definition nat63  : nat := nat31.+4.+4.+4.+4.+4.+4.+4.+4.
 Definition nat127 : nat := nat63.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.
 Definition nat255 : nat := nat127.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.+4.
 
 Definition wsize_size_minus_1 (s: wsize) : nat :=
   match s with
-  | U8 => nat7
-  | U16 => nat15
-  | U32 => nat31
-  | U64 => nat63
+  | U8   => nat7
+  | U16  => nat15
+  | U32  => nat31
+  | U64  => nat63
   | U128 => nat127
   | U256 => nat255
   end.
+
+Coercion nat_of_wsize (sz : wsize) :=
+  (wsize_size_minus_1 sz).+1.
 
 Definition wsize_bits (s:wsize) : Z :=
   Zpos (Pos.of_succ_nat (wsize_size_minus_1 s)).
@@ -113,8 +116,8 @@ Proof.
 by move=> /eqP; rewrite /cmp_le /gcmp wsize_cmpP Nat.compare_ge_iff.
 Qed.
 
-Definition word : wsize -> comRingType :=
-  λ sz, word_comRingType (wsize_size_minus_1 sz).
+Definition word := fun sz =>
+  [comRingType of (wsize_size_minus_1 sz).+1.-word].
 
 Global Opaque word.
 
@@ -302,10 +305,10 @@ Lemma msb0 sz : @msb sz 0 = false.
 Proof. by case: sz. Qed.
 
 Lemma wshr0 sz (w: word sz) : wshr w 0 = w.
-Proof. by rewrite /wshr /lsr Z.shiftr_0_r; exact: wrepr_unsigned. Qed.
+Proof. by rewrite /wshr /lsr Z.shiftr_0_r ureprK. Qed.
 
 Lemma wshl0 sz (w: word sz) : wshl w 0 = w.
-Proof. by rewrite /wshl /lsl Z.shiftl_0_r; exact: wrepr_unsigned. Qed.
+Proof. by rewrite /wshl /lsl Z.shiftl_0_r ureprK. Qed.
 
 Lemma wsar0 sz (w: word sz) : wsar w 0 = w.
 Proof. by rewrite /wsar /asr Z.shiftr_0_r sreprK. Qed.
@@ -489,7 +492,6 @@ by case: (_ <=? _).
 Qed.
 
 (* -------------------------------------------------------------------*)
-
 Ltac wring := 
   rewrite ?zero_extend_u; ssrring.ssring.
 
@@ -498,7 +500,6 @@ Definition check_scale (s:Z) :=
   (s == 1%Z) || (s == 2%Z) || (s == 4%Z) || (s == 8%Z).
 
 (* -------------------------------------------------------------------*)
-
 Definition mask_word (sz:wsize) : u64 := 
   match sz with
   | U8 | U16 => wshl (-1)%R (wsize_bits sz)
@@ -507,3 +508,41 @@ Definition mask_word (sz:wsize) : u64 :=
 
 Definition merge_word (wr: u64) (sz:wsize) (w:word sz) := 
    wxor (wand (mask_word sz) wr) (zero_extend U64 w).
+
+(* -------------------------------------------------------------------*)
+Definition split_vec {sz} ve (w : word sz) :=
+  let wsz := (sz %/ ve + sz %% ve)%nat in
+  [seq subword (i * ve)%nat ve w | i <- iota 0 wsz].
+
+Definition make_vec {sz} sz' (s : seq (word sz)) :=
+  wrepr sz' (wcat_r s).
+
+Definition lift1_vec ve (op : word ve -> word ve)
+    (sz:wsize) (w:word sz) : word sz :=
+  make_vec sz (map op (split_vec ve w)).
+Arguments lift1_vec : clear implicits.
+
+Definition lift2_vec ve (op : word ve -> word ve -> word ve)
+  (sz:wsize) (w1 w2:word sz) : word sz :=
+  make_vec sz (map2 op (split_vec ve w1) (split_vec ve w2)).
+Arguments lift2_vec : clear implicits.
+
+(* -------------------------------------------------------------------*)
+Definition wpshufb1 (s : seq u8) (idx : u8) :=
+  if msb idx then 0%R else
+    let off := wunsigned (wand idx (wshl 1 4%Z - 1)) in
+    (s`_(Z.to_nat off))%R.
+
+Definition wpshufb (s idx : u128) : u128 :=
+  let s    := [seq subword (8 * i)%nat 8 s   | i <- iota 0 16] in
+  let idx  := [seq subword (8 * i)%nat 8 idx | i <- iota 0 16] in
+  let aout := [seq wpshufb1 s (idx`_i)%R | i <- iota 0 16] in
+  wrepr U128 (wcat_r aout).
+
+Definition wpshufd1 (s : u128) (o : u8) (i : nat) :=
+  wshl s (32 * urepr (subword (2 * i) 2 o)).
+
+Definition wpshufd (s : u128) (o : Z) : u128 :=
+  let o := wrepr U8 o in
+  let d := [seq wpshufd1 s o i | i <- iota 0 4] in
+  wrepr U128 (wcat_r d).

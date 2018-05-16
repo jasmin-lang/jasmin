@@ -19,6 +19,14 @@ Variant register : Type :=
   | R8  | R9  | R10 | R11 | R12 | R13 | R14 | R15.
 
 (* -------------------------------------------------------------------- *)
+Variant xmm_register : Type :=
+  | XMM0 | XMM1 | XMM2 | XMM3
+  | XMM4 | XMM5 | XMM6 | XMM7
+  | XMM8 | XMM9 | XMM10 | XMM11
+  | XMM12 | XMM13 | XMM14 | XMM15
+.
+
+(* -------------------------------------------------------------------- *)
 Variant rflag : Type := CF | PF | ZF | SF | OF | DF.
 
 (* -------------------------------------------------------------------- *)
@@ -93,6 +101,20 @@ Definition string_of_condt (c: condt) : string :=
   end.
 
 (* -------------------------------------------------------------------- *)
+Variant rm128 :=
+| RM128_reg of xmm_register
+| RM128_mem of address
+| RM128_glo of global
+.
+
+Definition string_of_rm128 rm : string :=
+  match rm with
+  | RM128_reg r => "RM128_reg"
+  | RM128_mem x => "RM128_mem"
+  | RM128_glo g => "RM128_glo"
+  end.
+
+(* -------------------------------------------------------------------- *)
 Variant asm : Type :=
 | LABEL of label
 
@@ -148,16 +170,32 @@ Variant asm : Type :=
 | SAL    of wsize & oprd & ireg            (*   signed / left; synonym of SHL *)
 | SAR    of wsize & oprd & ireg            (*   signed / right *)
 | SHLD   of wsize & oprd & register & ireg (* unsigned (double) / left *)
+
+  (* SSE instructions *)
+| MOVD of wsize & xmm_register & oprd
+| VMOVDQU (_ _: rm128)
+| VPAND (_ _ _: rm128)
+| VPOR (_ _ _: rm128)
+| VPXOR (_ _ _: rm128)
+| VPADD `(velem) (_ _ _: rm128)
+| VPSLL `(velem) (_ _: rm128) `(u8)
+| VPSRL `(velem) (_ _: rm128) `(u8)
+| VPSHUFB (_ _: xmm_register) `(rm128)
+| VPSHUFD of xmm_register & rm128 & u8
 .
 
 (* -------------------------------------------------------------------- *)
 Scheme Equality for register.
+Scheme Equality for xmm_register.
 Scheme Equality for rflag.
 Scheme Equality for scale.
 Scheme Equality for condt.
 
 Definition reg_eqMixin := comparableClass register_eq_dec.
 Canonical reg_eqType := EqType register reg_eqMixin.
+
+Definition xreg_eqMixin := comparableClass xmm_register_eq_dec.
+Canonical xreg_eqType := EqType _ xreg_eqMixin.
 
 Definition rflag_eqMixin := comparableClass rflag_eq_dec.
 Canonical rflag_eqType := EqType rflag rflag_eqMixin.
@@ -202,6 +240,23 @@ Canonical oprd_eqType := EqType oprd oprd_eqMixin.
 Definition condt_eqMixin := comparableClass condt_eq_dec.
 Canonical condt_eqType := EqType condt condt_eqMixin.
 
+Definition rm128_beq (rm1 rm2: rm128) : bool :=
+  match rm1, rm2 with
+  | RM128_reg r1, RM128_reg r2 => r1 == r2
+  | RM128_mem a1, RM128_mem a2 => a1 == a2
+  | RM128_glo g1, RM128_glo g2 => g1 == g2
+  | _, _ => false
+  end.
+
+Lemma rm128_eq_axiom : Equality.axiom rm128_beq.
+Proof.
+  case => [ r | a | g ] [ r' | a' | g' ] /=; (try by constructor);
+  case: eqP => h; constructor; congruence.
+Qed.
+
+Definition rm128_eqMixin := Equality.Mixin rm128_eq_axiom.
+Canonical rm128_eqType := EqType rm128 rm128_eqMixin.
+
 (* -------------------------------------------------------------------- *)
 Definition registers :=
   [:: RAX; RCX; RDX; RBX; RSP; RBP; RSI; RDI ;
@@ -224,6 +279,28 @@ Definition reg_finMixin :=
   FinMixin registers_fin_axiom.
 Canonical reg_finType :=
   Eval hnf in FinType register reg_finMixin.
+
+(* -------------------------------------------------------------------- *)
+Definition xmm_registers :=
+  [:: XMM0; XMM1; XMM2; XMM3; XMM4; XMM5; XMM6; XMM7; XMM8; XMM9; XMM10; XMM11; XMM12; XMM13; XMM14; XMM15 ].
+
+Lemma xmm_registers_fin_axiom : Finite.axiom xmm_registers.
+Proof. by case. Qed.
+
+Definition xreg_choiceMixin :=
+  PcanChoiceMixin (FinIsCount.pickleK xmm_registers_fin_axiom).
+Canonical xreg_choiceType :=
+  Eval hnf in ChoiceType xmm_register xreg_choiceMixin.
+
+Definition xreg_countMixin :=
+  PcanCountMixin (FinIsCount.pickleK xmm_registers_fin_axiom).
+Canonical xreg_countType :=
+  Eval hnf in CountType xmm_register xreg_countMixin.
+
+Definition xreg_finMixin :=
+  FinMixin xmm_registers_fin_axiom.
+Canonical xreg_finType :=
+  Eval hnf in FinType xmm_register xreg_finMixin.
 
 (* -------------------------------------------------------------------- *)
 Definition rflags := [:: CF; PF; ZF; SF; OF; DF].
@@ -255,6 +332,14 @@ Module RegMap.
 End RegMap.
 
 (* -------------------------------------------------------------------- *)
+Module XRegMap.
+  Definition map := {ffun xmm_register -> u128 }.
+
+  Definition set (m : map) (x : xmm_register) (y : u128) : map :=
+    [ffun z => if (z == x) then y else m z].
+End XRegMap.
+
+(* -------------------------------------------------------------------- *)
 Module RflagMap.
   Variant rflagv := Def of bool | Undef.
 
@@ -272,6 +357,7 @@ End RflagMap.
 
 (* -------------------------------------------------------------------- *)
 Notation regmap   := RegMap.map.
+Notation xregmap   := XRegMap.map.
 Notation rflagmap := RflagMap.map.
 Notation Def      := RflagMap.Def.
 Notation Undef    := RflagMap.Undef.
@@ -289,6 +375,7 @@ Record x86_mem : Type :=
   X86Mem {
       xmem : mem;
       xreg : regmap;
+      xxreg: xregmap;
       xrf  : rflagmap;
     }.
 
@@ -323,6 +410,7 @@ Definition mem_write_reg (r: register) sz (w: word sz) (m: x86_mem) :=
   {|
     xmem := m.(xmem);
     xreg := RegMap.set m.(xreg) r (word_extend_reg r w m);
+    xxreg := m.(xxreg);
     xrf  := m.(xrf);
   |}.
 
@@ -340,6 +428,7 @@ Definition mem_set_rflags (rf : rflag) (b : bool) (s : x86_mem) :=
   {|
     xmem := s.(xmem);
     xreg := s.(xreg);
+    xxreg := s.(xxreg);
     xrf  := RflagMap.set s.(xrf) rf b;
   |}.
 
@@ -347,6 +436,7 @@ Definition mem_unset_rflags (rf : rflag) (s : x86_mem) :=
   {|
     xmem := s.(xmem);
     xreg := s.(xreg);
+    xxreg := s.(xxreg);
     xrf  := RflagMap.oset s.(xrf) rf Undef;
   |}.
 
@@ -359,6 +449,7 @@ Definition st_set_rflags (rf : rflag) (b : bool) (s : x86_state) :=
 Definition mem_update_rflags f (s : x86_mem) :=
   {| xmem := s.(xmem);
      xreg := s.(xreg);
+     xxreg := s.(xxreg);
      xrf  := RflagMap.update s.(xrf) f;
      |}.
 
@@ -372,6 +463,7 @@ Definition mem_write_mem (l : pointer) sz (w : word sz) (s : x86_mem) :=
   Let m := write_mem s.(xmem) l sz w in ok
   {| xmem := m;
      xreg := s.(xreg);
+     xxreg := s.(xxreg);
      xrf  := s.(xrf);
   |}.
 
@@ -380,6 +472,15 @@ Definition st_write_mem (l : pointer) sz (w : word sz ) (s : x86_state) :=
   {| xm := m;
      xc   := s.(xc);
      xip  := s.(xip); |}.
+
+(* -------------------------------------------------------------------- *)
+Definition mem_write_xreg (r: xmm_register) (w: u128) (m: x86_mem) :=
+  {|
+    xmem := m.(xmem);
+    xreg := m.(xreg);
+    xxreg := XRegMap.set m.(xxreg) r w;
+    xrf  := m.(xrf);
+  |}.
 
 (* -------------------------------------------------------------------- *)
 Definition st_write_ip (ip : nat) (s : x86_state) :=
@@ -562,6 +663,24 @@ Definition all_undef := fun rf =>
   match rf with
   | SF | ZF | PF | OF | CF => Some Undef
   | DF => None
+  end.
+
+(* -------------------------------------------------------------------- *)
+Definition read_rm128 (rm: rm128) (m: x86_mem) : exec u128 :=
+  match rm with
+  | RM128_reg r => ok (m.(xxreg) r)
+  | RM128_mem a => read_mem m.(xmem) (decode_addr m a) U128
+  | RM128_glo g =>
+    get_global gd g >>= λ v,
+    if v is Vword U128 w then ok w else type_error
+  end.
+
+(* -------------------------------------------------------------------- *)
+Definition write_rm128 (rm: rm128) (w: u128) (m: x86_mem) : x86_result :=
+  match rm with
+  | RM128_reg r => ok (mem_write_xreg r w m)
+  | RM128_mem a => mem_write_mem (decode_addr m a) w m
+  | RM128_glo _ => type_error
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -963,6 +1082,55 @@ Definition eval_Jcc lbl ct (s: x86_state) : x86_result_state :=
   if b then eval_JMP lbl s else ok (st_write_ip (xip s).+1 s).
 
 (* -------------------------------------------------------------------- *)
+Definition eval_MOVD sz (dst: xmm_register) (src: oprd) s : x86_result :=
+  Let _ := check_size_32_64 sz in
+  Let v := read_oprd sz src s in
+  ok (mem_write_xreg dst (zero_extend _ v) s).
+
+(* -------------------------------------------------------------------- *)
+Definition eval_VMOV (dst src: rm128) s : x86_result :=
+  Let v := read_rm128 src s in
+  write_rm128 dst v s.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_rm128_binop op (dst src1 src2: rm128) s : x86_result :=
+  Let v1 := read_rm128 src1 s in
+  Let v2 := read_rm128 src2 s in
+  let v := op v1 v2 in
+  write_rm128 dst v s.
+
+Definition eval_VPAND := eval_rm128_binop wand.
+Definition eval_VPOR := eval_rm128_binop wor.
+Definition eval_VPXOR := eval_rm128_binop wxor.
+
+(* -------------------------------------------------------------------- *)
+Definition eval_VPADD ve := eval_rm128_binop (lift2_vec ve +%R U128).
+
+(* -------------------------------------------------------------------- *)
+Definition eval_rm128_shift ve op (dst src1: rm128) (v2: u8) s : x86_result :=
+  Let v1 := read_rm128 src1 s in
+  let v := lift1_vec ve (λ v, op v (wunsigned v2)) U128 v1 in
+  write_rm128 dst v s.
+
+Arguments eval_rm128_shift : clear implicits.
+
+Definition eval_VPSLL ve := eval_rm128_shift ve (@wshl _).
+Definition eval_VPSRL ve := eval_rm128_shift ve (@wshr _).
+
+(* -------------------------------------------------------------------- *)
+Definition eval_VPSHUFB (dst src: xmm_register) (pattern: rm128) s : x86_result :=
+  let v := xxreg s src in
+  Let p := read_rm128 pattern s in
+  let r := wpshufb v p in
+  ok (mem_write_xreg dst r s).
+
+(* -------------------------------------------------------------------- *)
+Definition eval_VPSHUFD (dst: xmm_register) (src: rm128) (pat: u8) s : x86_result :=
+  Let v := read_rm128 src s in
+  let r := wpshufd v (wunsigned pat) in
+  ok (mem_write_xreg dst r s).
+
+(* -------------------------------------------------------------------- *)
 Definition eval_instr_mem (i : asm) s : x86_result :=
   match i with
   | JMP    _
@@ -999,6 +1167,17 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | SAL    sz o ir     => eval_SAL    sz o ir s
   | SAR    sz o ir     => eval_SAR    sz o ir s
   | SHLD   sz o1 o2 ir => eval_SHLD   sz o1 o2 ir s
+
+  | MOVD sz dst src => eval_MOVD sz dst src s
+  | VMOVDQU dst src => eval_VMOV dst src s
+  | VPAND dst src1 src2 => eval_VPAND dst src1 src2 s
+  | VPOR dst src1 src2 => eval_VPOR dst src1 src2 s
+  | VPXOR dst src1 src2 => eval_VPXOR dst src1 src2 s
+  | VPADD ve dst src1 src2 => eval_VPADD ve dst src1 src2 s
+  | VPSLL ve dst src1 src2 => eval_VPSLL ve dst src1 src2 s
+  | VPSRL ve dst src1 src2 => eval_VPSRL ve dst src1 src2 s
+  | VPSHUFB dst src pat => eval_VPSHUFB dst src pat s
+  | VPSHUFD dst src pat => eval_VPSHUFD dst src pat s
   end.
 
 Definition eval_instr (i : asm) (s: x86_state) : x86_result_state :=
@@ -1046,10 +1225,10 @@ Variant x86sem_fd (P: xprog) (gd: glob_defs) fn st st' : Prop :=
 | X86Sem_fd fd mp st2
    `(get_fundef P fn = Some fd)
    `(alloc_stack st.(xmem) fd.(xfd_stk_size) = ok mp)
-    (st1 := mem_write_reg fd.(xfd_nstk) (top_stack mp) {| xmem := mp ; xreg := st.(xreg) ; xrf := rflagmap0 |})
+    (st1 := mem_write_reg fd.(xfd_nstk) (top_stack mp) {| xmem := mp ; xreg := st.(xreg) ; xxreg := st.(xxreg) ; xrf := rflagmap0 |})
     (c := fd.(xfd_body))
     `(x86sem gd {| xm := st1 ; xc := c ; xip := 0 |} {| xm := st2; xc := c; xip := size c |})
-    `(st' = {| xmem := free_stack st2.(xmem) fd.(xfd_stk_size) ; xreg := st2.(xreg) ; xrf := rflagmap0 |})
+    `(st' = {| xmem := free_stack st2.(xmem) fd.(xfd_stk_size) ; xreg := st2.(xreg) ; xxreg := st2.(xxreg) ; xrf := rflagmap0 |})
     .
 
 Definition x86sem_trans gd s2 s1 s3 :

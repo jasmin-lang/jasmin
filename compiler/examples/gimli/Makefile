@@ -1,17 +1,27 @@
 JASMINC?=jasminc
-all: test.out
+
+.SUFFIXES: .s .o .jazz
+
+all: test.out testv.out
 
 test.out: test
 	./test > test.out
 	cmp test.out test.exp
 
+testv.out: testv
+	./testv > testv.out
+	cmp testv.out test.exp
+
 test: test.c gimli.o
-	$(CC) -o test test.c gimli.o
+	$(CC) -o $@ $^
 
-gimli.o: gimli.s
-	$(CC) -c gimli.s
+testv: test.c gimliv.o
+	$(CC) -o $@ $^
 
-gimli.s: gimli.jazz
+%.o: %.s
+	$(CC) -c $<
+
+%.s: %.jazz
 	$(JASMINC) -o $@ $<
 
 clean:

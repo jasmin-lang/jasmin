@@ -39,3 +39,15 @@ d += g;
 
 return d;
 }
+
+export
+fn test_u128(reg u64 ptr, reg u64 v, reg u32 w) {
+reg u128 x, y;
+
+x = #x86_MOVD(v);
+y = #x86_MOVD_32(w);
+
+x ^= y;
+
+(u128)[ptr + 0] = x;
+}

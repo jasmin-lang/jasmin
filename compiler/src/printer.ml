@@ -121,10 +121,18 @@ let pp_glvs pp_var fmt lvs =
   | _   -> F.fprintf fmt "(@[%a@])" (pp_list ",@ " (pp_glv pp_var)) lvs
 
 (* -------------------------------------------------------------------- *)
+let string_of_velem =
+  function
+  | Type.VE16 -> "8u16"
+  | Type.VE32 -> "4u32"
+  | Type.VE64 -> "2u64"
+
+(* -------------------------------------------------------------------- *)
 let pp_opn =
   let open Expr in
   let f w s = F.sprintf "%s_%d" s (int_of_ws w) in
   let f2 w w' s = F.sprintf "%s_%d" s (int_of_ws w) in (* TODO: concrete syntax for these intrinsics *)
+  let v ve s = F.sprintf "%s_%s" s (string_of_velem ve) in
   function
   | Omulu w -> f w "#mulu"
   | Oaddcarry w -> f w "#addc"
@@ -162,6 +170,16 @@ let pp_opn =
   | Ox86_SHR w -> f w "#x86_SHR"
   | Ox86_SAR w -> f w "#x86_SAR"
   | Ox86_SHLD w -> f w "#x86_SHLD"
+  | Ox86_MOVD w -> f w "#x86_MOVD"
+  | Ox86_VMOVDQU -> "#x86_VMOVDQU"
+  | Ox86_VPAND -> "#x86_VPAND"
+  | Ox86_VPOR -> "#x86_VPOR"
+  | Ox86_VPXOR -> "#x86_VPXOR"
+  | Ox86_VPADD ve -> v ve "#x86_VPADD"
+  | Ox86_VPSLL ve -> v ve "#x86_VPSLL"
+  | Ox86_VPSRL ve -> v ve "#x86_VPSRL"
+  | Ox86_VPSHUFB -> "#x86_VPSHUFB"
+  | Ox86_VPSHUFD -> "#x86_VPSHUFD"
 
 (* -------------------------------------------------------------------- *)
 let pp_tag = function

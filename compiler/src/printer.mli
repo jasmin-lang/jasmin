@@ -25,6 +25,8 @@ val pp_var   : debug:bool -> Format.formatter -> var -> unit
 val string_of_op1 : Expr.sop1 -> string
 val string_of_op2 : Expr.sop2 -> string
 
+val pp_ty : Format.formatter -> ty -> unit
+
 val pp_expr  : debug:bool -> Format.formatter -> expr -> unit
 
 val pp_instr : debug:bool -> Format.formatter -> 'info instr -> unit

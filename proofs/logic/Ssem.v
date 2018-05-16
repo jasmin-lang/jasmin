@@ -372,6 +372,8 @@ Notation sapp_bww sz o := (sapp_sopn [:: ssbool; ssword sz; ssword sz] o).
 Notation sapp_www sz o := (sapp_sopn [:: ssword sz; ssword sz; ssword sz ] o).
 Notation sapp_ww8 sz o := (sapp_sopn [:: ssword sz; ssword sz; ssword U8] o).
 Notation sapp_w4  sz o := (sapp_sopn [:: ssword sz; ssword sz; ssword sz ; ssword sz] o).
+Notation sapp_vv  o := (sapp_sopn [:: ssword U128; ssword U128] o).
+Notation sapp_v8  o := (sapp_sopn [:: ssword U128; ssword U8] o).
 
 Definition svalue_of_value (v: value) : svalue :=
   match v with
@@ -448,6 +450,16 @@ Definition ssem_sopn (o:sopn) :  svalues -> exec svalues :=
   | Ox86_SHR sz      => sapp_w8 sz  (w2 x86_shr)
   | Ox86_SAR sz      => sapp_w8 sz  (w2 x86_sar)
   | Ox86_SHLD sz     => sapp_ww8 sz (w3 x86_shld)
+  | Ox86_MOVD sz => sapp_w sz (w1 x86_movd)
+  | Ox86_VMOVDQU => sapp_sopn [:: ssword U128 ] (λ x, ok [:: SVword x])
+  | Ox86_VPAND => sapp_vv (w2 x86_vpand)
+  | Ox86_VPOR => sapp_vv (w2 x86_vpor)
+  | Ox86_VPXOR => sapp_vv (w2 x86_vpxor)
+  | Ox86_VPADD ve => sapp_vv (w2 (x86_vpadd ve))
+  | Ox86_VPSLL ve => sapp_v8 (w2 (x86_vpsll ve))
+  | Ox86_VPSRL ve => sapp_v8 (w2 (x86_vpsrl ve))
+  | Ox86_VPSHUFB => sapp_vv (w2 x86_vpshufb)
+  | Ox86_VPSHUFD => sapp_v8 (w2 x86_vpshufd)
   end.
 
 (* ** Instructions

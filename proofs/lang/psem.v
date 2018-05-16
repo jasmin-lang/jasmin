@@ -1647,6 +1647,7 @@ Lemma vuincl_exec_opn_eq o vs vs' v :
   exec_sopn o vs' = ok v.
 Proof.
 rewrite /sem_sopn; case: o; do 2 (try (refine (λ sz: wsize, _)));
+try (move => ve; exact: vuincl_sopn);
 try apply: vuincl_sopn => //.
 move: vs=> [] // vs1 [] // vs2 [] // vs3 [] //.
 case/List_Forall2_inv_l => vs'1 [?] [->] [H1].

@@ -435,6 +435,25 @@ Section All2.
 
 End All2.
 
+Section Map2.
+
+  Context (A B C : Type) (f : A -> B -> C).
+  
+  Fixpoint map2 la lb := 
+    match la, lb with
+    | a::la, b::lb => f a b :: map2 la lb
+    | _, _         => [::]
+    end.
+
+  Lemma map2E ma mb :
+    map2 ma mb = map (λ ab, f ab.1 ab.2) (zip ma mb).
+  Proof.
+    elim: ma mb; first by case.
+    by move => a ma ih [] // b mb /=; f_equal.
+  Qed.
+
+End Map2.
+
 (* ** Misc functions
  * -------------------------------------------------------------------- *)
 
@@ -709,6 +728,10 @@ Section MIN.
   Lemma cmp_min_leR x y :
     (cmp_min x y ≤ y)%CMP.
   Proof. exact: (@cmp_minP x y (λ z, z ≤ y)%CMP). Qed.
+
+  Lemma cmp_le_min x y :
+    (x ≤ y)%CMP → cmp_min x y = x.
+  Proof. by rewrite /cmp_min => ->. Qed.
 
 End MIN.
 
