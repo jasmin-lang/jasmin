@@ -47,7 +47,7 @@ Proof.
 Qed.
 
 Definition stk_ok (w: pointer) (z:Z) :=
-  wunsigned w + z < wbase Uptr /\
+  wunsigned w + z <= wbase Uptr /\
   forall ofs s,
     (0 <= ofs /\ ofs + wsize_size s <= z)%Z ->
     is_align (w + wrepr _ ofs) s = is_align (wrepr _ ofs) s.
@@ -463,7 +463,7 @@ Section PROOF.
   Qed.
 
   Lemma wunsigned_pstk_add ofs :
-    0 <= ofs -> ofs <= stk_size ->
+    0 <= ofs -> ofs < stk_size ->
     wunsigned (pstk + wrepr Uptr ofs) = wunsigned pstk + ofs.
   Proof.
   move => p1 p2.
@@ -473,9 +473,9 @@ Section PROOF.
   lia.
   Qed.
 
-  Lemma le_of_add_le x y sz :
+  Lemma lt_of_add_le x y sz :
     x + wsize_size sz <= y ->
-    x <= y.
+    x < y.
   Proof. have := wsize_size_pos sz; lia. Qed.
 
   Lemma valid_get_w sz vn ofs :
@@ -486,7 +486,7 @@ Section PROOF.
     move: (validm Hget)=> [sx [/= [] Hsz [Hsx Hsx' Hal Hoverlap]]].
     subst.
     apply/andP; split.
-    + have h := wunsigned_pstk_add Hsx (le_of_add_le Hsx').
+    + have h := wunsigned_pstk_add Hsx (lt_of_add_le Hsx').
       apply/andP; rewrite h; split; apply/ZleP; lia.
     rewrite halign => //; lia.
   Qed.
@@ -514,7 +514,7 @@ Section PROOF.
     - by apply: is_align_no_overflow; apply: valid_align Hvmem.
     - by apply: is_align_no_overflow; apply: valid_align Hoff1.
     have : wunsigned (pstk + wrepr _ ofsw) = wunsigned pstk + ofsw.
-    - by apply: (wunsigned_pstk_add hw (le_of_add_le hw')).
+    - by apply: (wunsigned_pstk_add hw (lt_of_add_le hw')).
     have hsz' := wsize_size_pos sz'.
     have : wunsigned (pstk + wrepr _ (wsize_size sz' * off + ofsa)) = wunsigned pstk + wsize_size sz' * off + ofsa.
     - by rewrite wunsigned_pstk_add; nia.
@@ -547,9 +547,9 @@ Section PROOF.
     case: (validm Hget) => sx [] [<-] {sx} [hw hw' hxal] /(_ _ _ _ hvix Hget' erefl) hdisj.
     case: (validm Hget') => sa [] [<-] {sa} [ha ha' haal] _.
     have : wunsigned (pstk + wrepr _ ofsx) = wunsigned pstk + ofsx.
-    - by apply: (wunsigned_pstk_add hw (le_of_add_le hw')).
+    - by apply: (wunsigned_pstk_add hw (lt_of_add_le hw')).
     have haha : wunsigned (pstk + wrepr _ ofsx') = wunsigned pstk + ofsx'.
-    - by apply: (wunsigned_pstk_add ha (le_of_add_le ha')).
+    - by apply: (wunsigned_pstk_add ha (lt_of_add_le ha')).
     lia.
   Qed.
 
@@ -591,7 +591,7 @@ Section PROOF.
       - by apply: is_align_no_overflow; apply: valid_align Hvalid.
       case: hsx => ?; subst sx.
       have : wunsigned (pstk + wrepr _ ofs) = wunsigned pstk + ofs.
-      - by apply: (wunsigned_pstk_add ho1 (le_of_add_le ho2)).
+      - by apply: (wunsigned_pstk_add ho1 (lt_of_add_le ho2)).
       have := H1 _ _ Hvalid.
       case/negP/nandP => /ZltP /Z.nlt_ge h; lia.
     + by move=> w' sz'; rewrite -H3 -(write_valid _ _ Hm').
@@ -888,7 +888,7 @@ Section PROOF.
     have Hvalid1: valid_pointer (emem s1) (ptr + off) sz.
     + apply/writeV; exists m'; exact: Hm'.
     split.
-    + by case: pstk_add => /ZltP.
+    + by case: pstk_add => /ZleP.
     + apply: is_align_no_overflow; exact: (valid_align Hvalid1).
     case/negP/nandP: (H1 _ _ Hvalid1) => /ZltP; lia.
   Qed.
@@ -1295,7 +1295,7 @@ Proof.
       rewrite Htopstack.
       have [noo _ _ _ _ _ _] := alloc_stackP Halloc.
       constructor.
-      + by apply/ZltP.
+      + by apply/ZleP.
       + apply: is_align_no_overflow; exact: (valid_align Hw).
       case/negP/nandP: (Hdisjw Hw) => /ZltP; rewrite /stk_sz; lia.
     have ? := read_mem_error Heq1. subst err.

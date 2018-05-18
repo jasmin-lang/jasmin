@@ -42,7 +42,7 @@ Notation Uptr := U64 (only parsing).
 Notation pointer := (word Uptr) (only parsing).
 
 Definition no_overflow (p: pointer) (sz: Z) : bool :=
-  (wunsigned p + sz <? wbase Uptr)%Z.
+  (wunsigned p + sz <=? wbase Uptr)%Z.
 
 Definition disjoint_zrange (p: pointer) (s: Z) (p': pointer) (s': Z) :=
   [/\ no_overflow p s,
@@ -135,7 +135,7 @@ Section SPEC.
   Let pstk := top_stack m'.
  
   Record alloc_stack_spec : Prop := mkASS {
-    ass_mod      : (wunsigned pstk + sz < wbase Uptr)%Z;
+    ass_mod      : (wunsigned pstk + sz <= wbase Uptr)%Z;
     ass_read_old : forall p s, valid_pointer m p s -> read_mem m p s = read_mem m' p s;
     ass_valid    : forall p s, 
       valid_pointer m' p s = 
