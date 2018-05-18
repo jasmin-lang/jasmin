@@ -437,10 +437,10 @@ Section PROOF.
     exists vm2, [/\ wf_vm vm2, evm s2 <=[X2] vm2 &
       sem_for p' gd i vs (Estate (emem s1) vm1) c' (Estate (emem s2) vm2)].
 
-  Let Pfun (mem:Memory.mem) fn vargs (mem':Memory.mem) vres :=
+  Let Pfun m fn vargs m' vres :=
     forall vargs', List.Forall2 value_uincl vargs vargs' ->
     exists vres',  
-       sem_call p' gd mem fn vargs' mem' vres' /\
+       sem_call p' gd m fn vargs' m' vres' /\
        List.Forall2 value_uincl vres vres'.
 
   Local Lemma Hskip s: Pc s [::] s.
@@ -925,10 +925,10 @@ Section REMOVE_INIT.
             vm_uincl (evm s2) vm2 & 
             wf_vm vm2].
 
-  Let Pfun (mem:Memory.mem) fn vargs (mem':Memory.mem) vres :=
+  Let Pfun m fn vargs m' vres :=
     forall vargs',
     List.Forall2 value_uincl vargs vargs' ->
-    exists vres', sem_call p' gd mem fn vargs' mem' vres' /\
+    exists vres', sem_call p' gd m fn vargs' m' vres' /\
       List.Forall2 value_uincl vres vres'.
 
   Local Lemma Rnil s : @Pc s [::] s.

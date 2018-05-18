@@ -256,10 +256,10 @@ Section PROOF.
     exists vm2, eq_alloc r1 (evm s2) vm2 /\ 
       sem_for p2 gd i2 vs (Estate (emem s1) vm1) c2 (Estate (emem s2) vm2).
 
-  Let Pfun (mem:Memory.mem) fn vargs1 (mem':Memory.mem) vres :=
+  Let Pfun m fn vargs1 m' vres :=
     forall vargs2, List.Forall2 value_uincl vargs1 vargs2 ->
     exists vres',  
-       sem_call p2 gd mem fn vargs2 mem' vres' /\
+       sem_call p2 gd m fn vargs2 m' vres' /\
        List.Forall2 value_uincl vres vres'.
 
   Local Lemma Hskip s: Pc s [::] s.

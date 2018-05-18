@@ -870,9 +870,9 @@ Section PROOF.
       valid_cpm s.(evm) m ->
       sem_for p' gd i vs s (const_prop const_prop_i m c).2 s'.
 
-  Let Pfun (mem:Memory.mem) fn vargs (mem':Memory.mem) vres :=
+  Let Pfun m fn vargs m' vres :=
     forall vargs', List.Forall2 value_uincl_a vargs vargs' ->
-    sem_call p' gd mem fn vargs' mem' vres.
+    sem_call p' gd m fn vargs' m' vres.
 
   Local Lemma Hskip s: Pc s [::] s.
   Proof. move=> m /= ?;split=>//; constructor. Qed.
