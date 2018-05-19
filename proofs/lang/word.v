@@ -517,6 +517,11 @@ Definition split_vec {sz} ve (w : word sz) :=
 Definition make_vec {sz} sz' (s : seq (word sz)) :=
   wrepr sz' (wcat_r s).
 
+Lemma make_vec_split_vec sz w :
+  make_vec sz (split_vec U8 w) = w.
+Proof. Admitted.
+
+(* -------------------------------------------------------------------*)
 Definition lift1_vec ve (op : word ve -> word ve)
     (sz:wsize) (w:word sz) : word sz :=
   make_vec sz (map op (split_vec ve w)).
