@@ -61,6 +61,8 @@ Definition valid_map (m:map) (stk_size:Z) :=
            Mvar.get m.1 y = Some py -> size_of (vtype y) = ok sy ->
            px + sx <= py \/ py + sy <= px].
 
+Hint Resolve is_align_no_overflow valid_align.
+
 Section PROOF.
   Variable P: prog.
   Context (gd: glob_defs).
@@ -510,9 +512,7 @@ Section PROOF.
     apply: (writeP_neq Hm').
     case: (validm Hgetw) => sx [] [<-] {sx} [hw hw' hxal] /(_ _ _ _ hxwa Hgeta erefl) hdisj.
     case: (validm Hgeta) => sa [] [<-] {sa} [ha ha' haal] _.
-    split.
-    - by apply: is_align_no_overflow; apply: valid_align Hvmem.
-    - by apply: is_align_no_overflow; apply: valid_align Hoff1.
+    split; eauto.
     have : wunsigned (pstk + wrepr _ ofsw) = wunsigned pstk + ofsw.
     - by apply: (wunsigned_pstk_add hw (lt_of_add_le hw')).
     have hsz' := wsize_size_pos sz'.
@@ -541,9 +541,7 @@ Section PROOF.
     move/eqP => hvix.
     rewrite Fv.setP_neq // => Hread.
     rewrite (writeP_neq Hm'); first by exact: H'.
-    split.
-    - by apply: is_align_no_overflow; apply: valid_align Hvmem.
-    - by apply: is_align_no_overflow; apply: valid_align H.
+    split; eauto.
     case: (validm Hget) => sx [] [<-] {sx} [hw hw' hxal] /(_ _ _ _ hvix Hget' erefl) hdisj.
     case: (validm Hget') => sa [] [<-] {sa} [ha ha' haal] _.
     have : wunsigned (pstk + wrepr _ ofsx) = wunsigned pstk + ofsx.
@@ -586,9 +584,7 @@ Section PROOF.
       have [sx [hsx [ho1 ho2 hal hdisj]]] := validm Hget.
       have [hov hal'] := pstk_add.
       rewrite (H2 _ _ Hvalid); symmetry; apply: (writeP_neq Hm').
-      split.
-      - by apply: is_align_no_overflow; apply: valid_align Hmem.
-      - by apply: is_align_no_overflow; apply: valid_align Hvalid.
+      split; eauto.
       case: hsx => ?; subst sx.
       have : wunsigned (pstk + wrepr _ ofs) = wunsigned pstk + ofs.
       - by apply: (wunsigned_pstk_add ho1 (lt_of_add_le ho2)).
@@ -680,17 +676,13 @@ Section PROOF.
       rewrite (writeP_neq Hm').
       * apply: (H' _ _ _ Hv1).
         by move: Ha; rewrite /get_var; apply: on_vuP => //= ? -> /Varr_inj1 ->.
-      split.
-      - by apply: is_align_no_overflow; apply: valid_align Hvmem.
-      - by apply: is_align_no_overflow; apply: valid_align H.
+      split; eauto.
       by rewrite !(valid_map_arr_addr Hget) //;nia.
     move => Hxx' a'.
     rewrite Fv.setP_neq; last by apply/eqP.
     move => /H'{H'}H' v /H'{H'}.
     rewrite (writeP_neq Hm') //.
-    split.
-    - by apply: is_align_no_overflow; apply: valid_align Hvmem.
-    - by apply: is_align_no_overflow; apply: valid_align H.
+    split; eauto.
     have Hi: 0 <= i < Z.pos n.
     + by move: (Ht);rewrite /Array.set;case:ifP => // /andP [/ZleP ? /ZltP ?].
     rewrite (valid_map_arr_addr Hget) // (valid_map_arr_addr Hget') //. 
@@ -719,9 +711,7 @@ Section PROOF.
     rewrite Fv.setP_neq in Hv1; last by rewrite vtype_diff.
     have [e heq] := H' v1 Hv1;exists e;rewrite -heq.
     apply: (writeP_neq Hm').
-    split.
-    + by apply: is_align_no_overflow; apply: valid_align Hvmem.
-    + by apply: is_align_no_overflow; apply: valid_align H.
+    split; eauto.
     have Hi: 0 <= i < Z.pos n.
     + by move: (Ht);rewrite /Array.set;case:ifP => // /andP [/ZleP ? /ZltP ?].
     rewrite (valid_map_arr_addr Hgeta) // (valid_map_word_addr Hgetw) //. 
@@ -766,9 +756,7 @@ Section PROOF.
     + move=> w sz' Hvmem'. 
       rewrite (H2 _ _ Hvmem') //.
       symmetry; apply: (writeP_neq Hm').
-      split.
-      - by apply: is_align_no_overflow; apply: valid_align Hvmem.
-      - by apply: is_align_no_overflow; apply: valid_align Hvmem'.
+      split; eauto.
       have Hi: 0 <= i < Z.pos n.
       + by move: (Ht);rewrite /Array.set;case:ifP => // /andP [/ZleP ? /ZltP ?].
       rewrite (valid_map_arr_addr Hget) //.
@@ -847,9 +835,7 @@ Section PROOF.
       move => t a Ht v0 Hv0.
       rewrite -(H' a Ht v0 Hv0).
       apply: (writeP_neq Hm'2).
-      split.
-      - by apply: is_align_no_overflow; apply: valid_align Hvalid.
-      - by apply: is_align_no_overflow; apply: valid_align H.
+      split; eauto.
       have hsz := wsize_size_pos sz; have hsz' := wsize_size_pos sz'.
       have [_ [[/= <-] [ hoffsx hsx _ _]]] := validm Hget.
       rewrite wunsigned_pstk_add; [ | nia | nia ].
@@ -858,9 +844,7 @@ Section PROOF.
     + by rewrite (write_valid _ _ Hm'2).
     move=> v0 Hv0; have [e heq]:= H' v0 Hv0;exists e;rewrite -heq.
     apply: (writeP_neq Hm'2).
-    split.
-    - by apply: is_align_no_overflow; apply: valid_align Hvalid.
-    - by apply: is_align_no_overflow; apply: valid_align H''.
+    split; eauto.
     have hsz := wsize_size_pos sz; have hsz' := wsize_size_pos sz'.
     have [_ [[/= <-] [ hoffsx hsx _ _]]] := validm Hget.
     rewrite wunsigned_pstk_add; [ | nia | nia ].
@@ -887,9 +871,8 @@ Section PROOF.
     apply: (valid_stk_mem Hm') (Hm'2) (H6).
     have Hvalid1: valid_pointer (emem s1) (ptr + off) sz.
     + apply/writeV; exists m'; exact: Hm'.
-    split.
+    split; eauto.
     + by case: pstk_add => /ZleP.
-    + apply: is_align_no_overflow; exact: (valid_align Hvalid1).
     case/negP/nandP: (H1 _ _ Hvalid1) => /ZltP; lia.
   Qed.
 
@@ -1294,9 +1277,8 @@ Proof.
       split; first by rewrite Hw.
       rewrite Htopstack.
       have [noo _ _ _ _ _ _] := alloc_stackP Halloc.
-      constructor.
+      constructor; eauto.
       + by apply/ZleP.
-      + apply: is_align_no_overflow; exact: (valid_align Hw).
       case/negP/nandP: (Hdisjw Hw) => /ZltP; rewrite /stk_sz; lia.
     have ? := read_mem_error Heq1. subst err.
     case Heq2: (read_mem _ _ _) => [w'|];last by rewrite (read_mem_error Heq2).
