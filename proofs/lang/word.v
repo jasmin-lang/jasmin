@@ -530,7 +530,7 @@ have eq_st: wcat_r s = wcat t.
 + rewrite {}/s {}/t /=; pose F i := subword (i * U8) U8 wt.
   rewrite (map_comp F val) val_enum_ord {}/F.
   congr wcat_r; apply/eq_map => i; apply/eqP/eq_from_wbit.
-  move=> j; rewrite !subwordE; congr (word.wbit (t2w _) _).
+  move=> j; rewrite !subwordE; congr (CoqWord.word.wbit (t2w _) _).
   apply/val_eqP/eqP => /=; apply/eq_map=> k.
   suff ->: val wt = val w by done.
   by rewrite {}/wt; case: _ / sz_even.
