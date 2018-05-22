@@ -519,7 +519,24 @@ Definition make_vec {sz} sz' (s : seq (word sz)) :=
 
 Lemma make_vec_split_vec sz w :
   make_vec sz (split_vec U8 w) = w.
-Proof. Admitted.
+Proof.
+have mod0: sz %% U8 = 0%nat by case: {+}sz.
+have sz_even: sz = (U8 * (sz %/ U8))%nat :> nat.
++ by rewrite [LHS](divn_eq _ U8) mod0 addn0 mulnC.
+rewrite /make_vec /split_vec mod0 addn0; set s := map _ _.
+pose wt := (ecast ws (ws.-word) sz_even w).
+pose t  := [tuple subword (i * U8) U8 wt | i < sz %/ U8].
+have eq_st: wcat_r s = wcat t.
++ rewrite {}/s {}/t /=; pose F i := subword (i * U8) U8 wt.
+  rewrite (map_comp F val) val_enum_ord {}/F.
+  congr wcat_r; apply/eq_map => i; apply/eqP/eq_from_wbit.
+  move=> j; rewrite !subwordE; congr (word.wbit (t2w _) _).
+  apply/val_eqP/eqP => /=; apply/eq_map=> k.
+  suff ->: val wt = val w by done.
+  by rewrite {}/wt; case: _ / sz_even.
+rewrite {}eq_st wcat_subwordK {s t}/wt; case: _ / sz_even.
+by rewrite /wrepr /= ureprK.
+Qed.
 
 (* -------------------------------------------------------------------*)
 Definition lift1_vec ve (op : word ve -> word ve)
