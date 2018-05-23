@@ -20,14 +20,6 @@ by f_equal; apply: (inj_rflag_of_string Ex Ey).
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Definition to_rbool (v : value) :=
-  match v with
-  | Vbool   b    => ok (Def b)
-  | Vundef sbool => ok Undef
-  | _            => type_error
-  end.
-
-(* -------------------------------------------------------------------- *)
 Definition of_rbool (v : RflagMap.rflagv) :=
   if v is Def b then Vbool b else Vundef sbool.
 
