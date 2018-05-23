@@ -1,0 +1,15 @@
+#!/bin/sh
+
+DPD=proofs/graph.dpd
+ALL_UNUSED=proofs/unused-lemmas.all
+UNUSED=proofs/unused-lemmas.filtered
+
+# Generates dependencies in file $DPD
+make -C proofs lang/MakeDpdGraph.vo
+
+# Finds all leaves in graph $DPD
+# And remove some of them that should be “benign”
+dpdusage $DPD | tee $ALL_UNUSED \
+| grep -vE \
+  "M(id?|[pstvz]|var)[.:]|S[pv][DP]?[.:]" \
+| tee $UNUSED

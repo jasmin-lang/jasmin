@@ -1,0 +1,4 @@
+lang/MakeDpdGraph.v: _CoqProject lang/MakeDpdGraph.v.in
+	cat lang/MakeDpdGraph.v.in > $@
+	cat _CoqProject | grep -v MakeDpdGraph | grep '\.v$$' | sed -e 's@^.*/\([^/]\+\).v@\1@' >> $@
+	echo "." >> $@
