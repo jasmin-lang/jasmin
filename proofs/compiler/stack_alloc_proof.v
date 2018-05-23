@@ -136,26 +136,6 @@ Section PROOF.
       (valid_stk (evm s1) (emem s2) pstk)
   .
 
-
-  Lemma get_valid_word sz x p m1 m2:
-     valid m1 m2 -> 
-     Mvar.get m.1 {| vtype := sword sz; vname := x |} = Some p ->
-     valid_pointer (emem m2) (pstk + wrepr _ p) sz.
-  Proof.
-    case => _ _ _ _ _ _ _ H Hget.
-    by have := H {| vtype := sword sz; vname := x |}; rewrite Hget /= => -[-> _].
-  Qed.
-
-  Lemma get_valid_arr sz x n p p1 m1 m2:
-     valid m1 m2 ->
-     Mvar.get m.1 {| vtype := sarr sz n; vname := x |} = Some p ->
-     0 <= p1 < Zpos n ->
-     valid_pointer (emem m2) (pstk + wrepr _ (wsize_size sz * p1 + p)) sz.
-  Proof.
-    case => _ _ _ _ _ _ _ H Hget Hp1.
-    by have := H {| vtype := sarr sz n; vname := x |}; rewrite Hget => /(_ _ Hp1) [].
-  Qed.
-
   Lemma check_varP vm1 vm2 x1 x2 v:
     check_var m x1 x2 -> eq_vm vm1 vm2 -> 
     get_var vm1 x1 = ok v ->
@@ -391,77 +371,6 @@ Section PROOF.
     move: (check_varW Ha Hv hva Hwa)=> [s2' [Hs2' Hv2']] Hwl.
     move: (IH _ _ _ _ _ Hl Hv2' hvl _ Hwl)=> [s3' [Hs3' Hv3']].
     by exists s3'; split=> //; rewrite Hs2' /= Hs3'.
-  Qed.
-
-  Lemma var_stk_diff x x' get get' sz:
-    Mvar.get m.1 x = Some get ->
-    Mvar.get m.1 x' = Some get' ->
-    x != x' ->
-    size_of (vtype x') = ok sz ->
-    get != get'.
-  Proof.
-    move=> Hget Hget' Hneq Hsz.
-    apply/negP=> /eqP Habs.
-    rewrite -{}Habs in Hget'.
-    move: (validm Hget)=> [sx] [Hsx1] [_ _ _] /(_ _ _ _ Hneq Hget' Hsz) [].
-    have := (size_of_pos Hsx1); lia.
-    have := (size_of_pos Hsz); lia.
-  Qed.
-
-  Lemma var_stk_diff_off x x' get get' off sz:
-    Mvar.get m.1 x = Some get ->
-    Mvar.get m.1 x' = Some get' ->
-    x != x' ->
-    size_of (vtype x') = ok sz ->
-    0 <= off < sz ->
-    get != off + get'.
-  Proof.
-    move=> Hget Hget' Hneq Hsz Hoff.
-    apply/negP=> /eqP Habs.
-    rewrite {}Habs in Hget.
-    move: (validm Hget)=> [sx [Hsx1 [Hsx2 Hsx3 _ /(_ _ _ _ Hneq Hget' Hsz) [|]]]].
-    have := (size_of_pos Hsx1); lia.
-    have := (size_of_pos Hsz); lia.
-  Qed.
-
-  Lemma var_stk_diff_off_l x x' get get' off sz:
-    Mvar.get m.1 x = Some get ->
-    Mvar.get m.1 x' = Some get' ->
-    x != x' ->
-    size_of (vtype x) = ok sz ->
-    0 <= off < sz ->
-    get + off != get'.
-  Proof.
-    move=> Hget Hget' Hneq Hsz Hoff.
-    apply/negP=> /eqP Habs.
-    rewrite -{}Habs in Hget'.
-    rewrite eq_sym in Hneq.
-    move: (validm Hget')=> [sx [Hsx1 [Hsx2 Hsx3 _ /(_ _ _ _ Hneq Hget Hsz) [|]]]].
-    have := (size_of_pos Hsx1); lia.
-    have := (size_of_pos Hsz); lia.
-  Qed.
-
-  Lemma var_stk_diff_off_both x x' get get' off off' sz sz':
-    Mvar.get m.1 x = Some get ->
-    Mvar.get m.1 x' = Some get' ->
-    x != x' ->
-    size_of (vtype x) = ok sz ->
-    size_of (vtype x') = ok sz' ->
-    0 <= off < sz ->
-    0 <= off' < sz' ->
-    get + off != get' + off'.
-  Proof.
-    move=> Hget Hget' Hneq Hsz Hsz' Hoff Hoff'.
-    apply/negP=> /eqP Habs.
-    rewrite eq_sym in Hneq.
-    (* TODO: check if optimal *)
-    move: (validm Hget')=> [sx [Hsx1 [Hsx2 Hsx3 _ /(_ _ _ _ Hneq Hget Hsz) [|]]]].
-    have := (size_of_pos Hsx1).
-    rewrite eq_sym in Hneq.
-    move: (validm Hget)=> [sx' [Hsx'1 [Hsx'2 Hsx'3 _ /(_ _ _ _ Hneq Hget' Hsz') [|]]]].
-    have := (size_of_pos Hsx'1); lia.
-    lia.
-    have := (size_of_pos Hsz); lia.
   Qed.
 
   Lemma wunsigned_pstk_add ofs :

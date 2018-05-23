@@ -1024,10 +1024,7 @@ Module CBAreg.
   Lemma get0_s x s: get (empty_s s) x = None.
   Proof. apply Mvar.get0. Qed.
 
-  Lemma get0 x : get empty x = None.
-  Proof. apply get0_s. Qed.
-
-  Lemma setP m x id y h : 
+  Lemma setP m x id y h :
     get (set m x id h) y = 
       if x == y then Some id
       else if Sv.mem y (Mv.oget (Mv.mid (mv m)) id) then None 

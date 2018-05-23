@@ -52,10 +52,6 @@ Proof. by case => xm xr xx xf; constructor => //= f; case: (xf f) => /=. Qed.
 
 Arguments x86_mem_equiv_refl [_].
 
-Corollary x86_mem_eq_equiv m m' :
-  m = m' → x86_mem_equiv m m'.
-Proof. move => ->; reflexivity. Qed.
-
 Definition arg_of_oprd_sz sz o :=
   match o with
   | Imm_op x => Aimm x

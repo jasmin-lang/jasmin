@@ -414,11 +414,6 @@ Definition mem_write_reg (r: register) sz (w: word sz) (m: x86_mem) :=
     xrf  := m.(xrf);
   |}.
 
-Definition st_write_reg (r : register) sz (w : word sz) (s : x86_state) :=
-  {| xm := mem_write_reg r w s;
-     xc   := s.(xc);
-     xip  := s.(xip); |}.
-
 (* -------------------------------------------------------------------- *)
 Definition st_get_rflag (rf : rflag) (s : x86_mem) :=
   if s.(xrf) rf is Def b then ok b else undef_error.
@@ -440,11 +435,6 @@ Definition mem_unset_rflags (rf : rflag) (s : x86_mem) :=
     xrf  := RflagMap.oset s.(xrf) rf Undef;
   |}.
 
-Definition st_set_rflags (rf : rflag) (b : bool) (s : x86_state) :=
-  {| xm := mem_set_rflags rf b s;
-     xc   := s.(xc);
-     xip  := s.(xip); |}.
-
 (* -------------------------------------------------------------------- *)
 Definition mem_update_rflags f (s : x86_mem) :=
   {| xmem := s.(xmem);
@@ -452,11 +442,6 @@ Definition mem_update_rflags f (s : x86_mem) :=
      xxreg := s.(xxreg);
      xrf  := RflagMap.update s.(xrf) f;
      |}.
-
-Definition st_update_rflags f (s : x86_state) :=
-  {| xm := mem_update_rflags f s;
-     xc   := s.(xc);
-     xip  := s.(xip); |}.
 
 (* -------------------------------------------------------------------- *)
 Definition mem_write_mem (l : pointer) sz (w : word sz) (s : x86_mem) :=
@@ -466,12 +451,6 @@ Definition mem_write_mem (l : pointer) sz (w : word sz) (s : x86_mem) :=
      xxreg := s.(xxreg);
      xrf  := s.(xrf);
   |}.
-
-Definition st_write_mem (l : pointer) sz (w : word sz ) (s : x86_state) :=
-  Let m := mem_write_mem l w s in ok
-  {| xm := m;
-     xc   := s.(xc);
-     xip  := s.(xip); |}.
 
 (* -------------------------------------------------------------------- *)
 Definition mem_write_xreg (r: xmm_register) (w: u128) (m: x86_mem) :=
@@ -656,13 +635,6 @@ Definition rflags_of_sh (i:u8) of_ sz(r:word sz) rc := fun rf =>
   | PF => Some (Def (PF_of_word r))
   | ZF => Some (Def (ZF_of_word r))
   | _  => None
-  end.
-
-(* --------------------------------------------------------------------- *)
-Definition all_undef := fun rf =>
-  match rf with
-  | SF | ZF | PF | OF | CF => Some Undef
-  | DF => None
   end.
 
 (* -------------------------------------------------------------------- *)

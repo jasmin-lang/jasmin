@@ -57,9 +57,6 @@ Section PROOF.
   Lemma fvars_fresh: disj_fvars vars_p.
   Proof. by move: fvars_correct=> /andP[]/andP[]/andP[]/andP[]/andP[]. Qed.
 
-  Lemma sf_neq_of: fv.(fresh_SF) != fv.(fresh_OF).
-  Proof. by move: fvars_correct=> /andP[]/andP[]/andP[]/andP[]/andP[]. Qed.
-
   Lemma cf_neq_zf: fv.(fresh_CF) != fv.(fresh_ZF).
   Proof. by move: fvars_correct=> /andP[]/andP[]/andP[]/andP[]/andP[]. Qed.
 
@@ -85,7 +82,7 @@ Section PROOF.
   Lemma multiplicand_in_fv sz : Sv.In (vword sz (fv.(fresh_multiplicand) sz)) fvars.
   Proof. by rewrite /fvars /lowering.fvars /=; case: sz; SvD.fsetdec. Qed.
 
-  Local Hint Resolve sf_neq_of cf_neq_zf sf_neq_zf of_neq_zf of_neq_sf.
+  Local Hint Resolve cf_neq_zf sf_neq_zf of_neq_zf of_neq_sf.
   Local Hint Resolve of_in_fv cf_in_fv sf_in_fv pf_in_fv zf_in_fv multiplicand_in_fv.
 
   Local
@@ -373,19 +370,6 @@ Section PROOF.
     end.
   Proof.
   by case: e => // w [] // [] // [] //=; case: eqP => // ->.
-  Qed.
-
-  Lemma assgn_keep s1' s2' e l tag ty ii s2 v v':
-    write_lval gd l v' s1' = ok s2' ->
-    eq_exc_fresh s2' s2 ->
-    sem_pexpr gd s1' e = ok v ->
-    truncate_val ty v = ok v' →
-    exists s1'0 : estate,
-      sem p' gd s1' [:: MkI ii (Cassgn l tag ty e)] s1'0 /\
-      eq_exc_fresh s1'0 s2.
-  Proof.
-    move=> Hw' Hs2' Hv' hty.
-    by exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eassgn; eauto.
   Qed.
 
   Lemma write_lval_word l sz v s s':

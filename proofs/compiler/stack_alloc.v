@@ -106,7 +106,6 @@ Definition is_in_stk (m:map) (x:var) :=
   end.
 
 Definition vstk (m:map) :=  {|vtype := sword Uptr; vname := m.2|}.
-Definition estk (m:map) := Pvar {|v_var := vstk m; v_info := xH|}.
 
 Definition is_vstk (m:map) (x:var) :=
   x == (vstk m).

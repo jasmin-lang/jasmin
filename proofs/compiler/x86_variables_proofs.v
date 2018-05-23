@@ -27,19 +27,9 @@ Definition to_rbool (v : value) :=
   | _            => type_error
   end.
 
-Lemma to_rbool_inj v b b' :
-  to_rbool v = ok b →
-  to_rbool v = ok b' →
-  b = b'.
-Proof. by case: v => // [ v | [] // ] [<-] [<-]. Qed.
-
 (* -------------------------------------------------------------------- *)
 Definition of_rbool (v : RflagMap.rflagv) :=
   if v is Def b then Vbool b else Vundef sbool.
-
-(* -------------------------------------------------------------------- *)
-Lemma to_rboolK rfv : to_rbool (of_rbool rfv) = ok rfv.
-Proof. by case: rfv. Qed.
 
 (* -------------------------------------------------------------------- *)
 Definition eqflags (m: estate) (rf: rflagmap) : Prop :=

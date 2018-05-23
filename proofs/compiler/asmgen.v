@@ -82,18 +82,6 @@ Fixpoint interp_tys (tys : seq arg_ty) :=
     interp_ty ty -> interp_tys tys
   else asm.
 
-Fixpoint tys_t_rec (ty: Type) tys : Type :=
-  match tys with
-  | [::] => ty
-  | ty' :: tys' => tys_t_rec (ty * interp_ty ty') tys'
-  end.
-
-Definition tys_tuple (tys: seq arg_ty) : Type :=
-  match tys with
-  | [::] => unit
-  | ty :: tys => tys_t_rec (interp_ty ty) tys
-  end.
-
 Variant garg := Gcondt of condt | Goprd of oprd | Grm128 of rm128.
 
 Definition garg_beq (g g': garg) : bool :=
@@ -684,12 +672,6 @@ Lemma compile_low_argsP ii tys pes gargs :
   compile_low_args ii tys pes = ok gargs →
   size tys = size pes ∧ mapM (compile_pexpr ii) (zip tys pes) = ok gargs.
 Proof. by rewrite/compile_low_args; case: eqP. Qed.
-
-Definition check_asize sz a := 
-  match a with 
-  | Aaddr sz' _ => sz == Some sz'
-  | _ => true
-  end.
 
 Require Import ssrring.
 

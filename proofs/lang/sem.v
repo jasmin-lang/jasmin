@@ -192,16 +192,6 @@ Proof.
   by case:ifPn => // neq herr [];apply : H2.
 Qed.
 
-
-
-Definition is_full_array v :=
-  match v with
-  | Vundef _ => False
-  | Varr s n t =>
-    forall p, (0 <= p < Zpos n)%Z -> exists w, Array.get t p = ok w
-  | _ => True
-  end.
-
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 

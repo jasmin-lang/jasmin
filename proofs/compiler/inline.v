@@ -50,15 +50,6 @@ Definition get_flag (x:lval) flag :=
   | _      => flag
   end.
 
-Definition stype_of_lval (lv: lval) : stype :=
-  match lv with
-  | Lnone _ ty
-  | Lvar {| v_var := {| vtype := ty |} |}
-  | Laset {| v_var := {| vtype := ty |} |} _
-    => ty
-  | Lmem sz _ _ => sword sz
-  end.
-
 Definition assgn_tuple iinfo (xs:lvals) flag (tys:seq stype) (es:pexprs) :=
   let assgn xe := MkI iinfo (Cassgn xe.1 (get_flag xe.1 flag) xe.2.1 xe.2.2) in
   map assgn (zip xs (zip tys es)).

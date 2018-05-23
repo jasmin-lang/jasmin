@@ -404,17 +404,7 @@ Section CMD.
 
 End CMD.
 
-Definition restr_ty ty e := 
-  match ty with
-  | sword sz => 
-    match is_wconst sz e with
-    | Some w => wconst w
-    | None   => e
-    end
-  | _ => e
-  end.
- 
-Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd := 
+Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
   match ir with
   | Cassgn x tag ty e => 
     let e := const_prop_e m e in 
