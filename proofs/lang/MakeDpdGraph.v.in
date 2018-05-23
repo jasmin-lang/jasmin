@@ -1,0 +1,17 @@
+Require compiler_proof jasmin_compiler.
+Require
+  arm_facts
+  arm_params_proof
+  arm_lowering_proof
+  it_compiler_proof
+  riscv_lower_addressing_proof
+  riscv_lowering_proof
+  riscv_params_proof
+  wint_int_proof
+  x86_params_proof
+  x86_lowering_proof
+.
+From dpdgraph Require dpdgraph.
+
+Print FileDependGraph
+
