@@ -101,8 +101,10 @@ let psubst_prog (prog:'info pprog) : (pvar * pexpr) list * 'info pprog =
           L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
         let fc = {
             fc with
+            f_tyin = List.map subst_ty fc.f_tyin;
             f_args = List.map dov fc.f_args;
             f_body = gsubst_c subst_ty subst_v fc.f_body;
+            f_tyout = List.map subst_ty fc.f_tyout;
             f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret
           } in
         g, MIfun(fc)::p in
