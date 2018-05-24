@@ -363,7 +363,7 @@ let peop2_of_eqop (eqop : S.peqop) =
 
 (* -------------------------------------------------------------------- *)
 let max_ty ty1 ty2 =
-  if ty1 = ty2 then Some ty1 else
+  if P.pty_equal ty1 ty2 then Some ty1 else
   match ty1, ty2 with
   | P.Bty P.Int, P.Bty (P.U _) -> Some ty2
   | P.Bty (P.U _), P.Bty P.Int -> Some ty1
@@ -538,8 +538,7 @@ let tt_param (env : Env.env) _loc (pp : S.pparam) : Env.env * (P.pvar * P.pexpr)
   let ty = tt_type env pp.ppa_ty in
   let pe, ety = tt_expr ~mode:`OnlyParam env pp.S.ppa_init in
 
-  if ty <> ety then
-    rs_tyerror ~loc:(L.loc pp.ppa_init) (TypeMismatch (ty, ety));
+  check_ty_eq ~loc:(L.loc pp.ppa_init) ~from:ty ~to_:ety;
 
   let x = P.PV.mk (L.unloc pp.ppa_name) P.Const ty (L.loc pp.ppa_name) in
   let env = Env.Vars.push x env in
