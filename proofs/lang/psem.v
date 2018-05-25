@@ -1237,6 +1237,14 @@ Proof. by case: y => //=; case; case: x. Qed.
 Lemma word_uincl_zero_ext sz sz' (w':word sz') : (sz ≤ sz')%CMP -> word_uincl (zero_extend sz w') w'.
 Proof. by move=> ?;apply /andP. Qed.
 
+Lemma word_uincl_zero_extR sz sz' (w: word sz) :
+  (sz ≤ sz')%CMP →
+  word_uincl w (zero_extend sz' w).
+Proof.
+  move => hle; apply /andP; split; first exact: hle.
+  by rewrite zero_extend_idem // zero_extend_u.
+Qed.
+
 Lemma value_uincl_zero_ext sz sz' (w':word sz') : (sz ≤ sz')%CMP -> 
   value_uincl (Vword (zero_extend sz w')) (Vword w').
 Proof. apply word_uincl_zero_ext. Qed.
