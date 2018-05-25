@@ -274,6 +274,17 @@ Proof.
   by rewrite eqi => ->.
 Qed.
 
+Lemma wshl_ovf sz (w: word sz) c :
+  (wsize_size_minus_1 sz < Z.to_nat c)%coq_nat →
+  wshl w c = 0%R.
+Proof.
+  move => hc; apply/eqP/eq_from_wbit_n => i.
+  rewrite wshlE {2}/wbit_n wbit0.
+  case: i => i /= /leP /le_S_n hi.
+  have /leP -> := hi.
+  case: leP => //; lia.
+Qed.
+
 Definition lsb {s} (w: word s) : bool := wbit_n w 0.
 Definition msb {s} (w: word s) : bool := wbit_n w (wsize_size_minus_1 s).
 
@@ -431,6 +442,12 @@ Proof. by case: sz. Qed.
 Lemma sign_extend0 sz sz' :
   @sign_extend sz sz' 0%R = 0%R.
 Proof. by rewrite /sign_extend wsigned0 wrepr0. Qed.
+
+Lemma wandC sz : commutative (@wand sz).
+Proof.
+  by move => x y; apply/eqP/eq_from_wbit => i;
+  rewrite /wand !CoqWord.word.wandE andbC.
+Qed.
 
 Lemma wand0 sz (x: word sz) : wand 0 x = 0%R.
 Proof. by apply/eqP. Qed.
