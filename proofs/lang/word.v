@@ -262,6 +262,18 @@ Proof.
   exact: addbT.
 Qed.
 
+Lemma wshlE sz (w: word sz) c i :
+  wbit_n (wshl w c) i = (Z.to_nat c <= i <= wsize_size_minus_1 sz)%nat && wbit_n w (i - Z.to_nat c).
+Proof.
+  rewrite /wbit_n /wshl /=.
+  case: leP => hic /=;
+    last (rewrite wbit_lsl_lo //; apply/leP; lia).
+  have eqi : (Z.to_nat c + (i - Z.to_nat c))%nat = i.
+   * by rewrite /addn /addn_rec; zify; rewrite Nat2Z.inj_sub; lia.
+  have := wbit_lsl w (Z.to_nat c) (i - Z.to_nat c).
+  by rewrite eqi => ->.
+Qed.
+
 Definition lsb {s} (w: word s) : bool := wbit_n w 0.
 Definition msb {s} (w: word s) : bool := wbit_n w (wsize_size_minus_1 s).
 
@@ -381,16 +393,15 @@ Proof.
 Qed.
 
 Lemma wbit_zero_extend s s' (w: word s') i :
-  wbit_n (zero_extend s w) i = (i <=? wsize_size_minus_1 s) && wbit_n w i.
+  wbit_n (zero_extend s w) i = (i <= wsize_size_minus_1 s)%nat && wbit_n w i.
 Proof.
 rewrite /zero_extend /wbit_n /wunsigned /wrepr.
 move: (urepr w) => {w} z.
 rewrite mkwordK.
 set m := wsize_size_minus_1 _.
 rewrite /CoqWord.word.wbit /=.
-move: (Z.of_nat i) => {i} i.
 rewrite /modulus two_power_nat_equiv.
-case: Z.leb_spec => hi.
+case: leP => hi.
 + rewrite Z.mod_pow2_bits_low //; lia.
 rewrite Z.mod_pow2_bits_high //; lia.
 Qed.
@@ -404,7 +415,7 @@ Lemma sign_zero_sign_extend sz sz' (w: word sz') :
 Proof.
 apply/eqP/eq_from_wbit_n => i.
 rewrite !(wbit_sign_extend, wbit_zero_extend) -Min.min_assoc Min.min_idempotent.
-case: leZP => // /Z.nle_gt /Nat2Z.inj_lt hlt; rewrite /wbit_n wbit_word_ovf //.
+case: leP => //= /Nat.nle_gt hlt; rewrite /wbit_n wbit_word_ovf //.
 exact/ltP.
 Qed.
 
@@ -471,6 +482,26 @@ case: (modulus_m (wsize_size_m hle)) => n -> {hle}.
 by rewrite mod_pq_mod_q.
 Qed.
 
+Lemma zero_extend_wshl sz sz' (x: word sz') c :
+  (sz ≤ sz')%CMP →
+  zero_extend sz (wshl x c) = wshl (zero_extend sz x) c.
+Proof.
+move => hle; apply/eqP/eq_from_wbit_n => i.
+rewrite !(wbit_zero_extend, wshlE).
+have := wsize_size_m hle.
+move: i.
+set m := wsize_size_minus_1 _.
+set m' := wsize_size_minus_1 _.
+case => i /= /leP hi hm.
+have him : (i <= m)%nat by apply/leP; lia.
+rewrite him andbT /=.
+have him' : (i <= m')%nat by apply/leP; lia.
+rewrite him' andbT.
+case: leP => //= hci.
+have -> // : (i - Z.to_nat c <= m)%nat.
+apply/leP; rewrite /subn /subn_rec; lia.
+Qed.
+
 Lemma wand_zero_extend sz sz' (x y: word sz') :
   (sz ≤ sz')%CMP →
   wand (zero_extend sz x) (zero_extend sz y) = zero_extend sz (wand x y).
@@ -478,7 +509,7 @@ Proof.
 move => hle.
 apply/eqP/eq_from_wbit_n => i.
 rewrite !(wbit_zero_extend, wandE).
-by case: (_ <=? _).
+by case: (_ <= _)%nat.
 Qed.
 
 Lemma wxor_zero_extend sz sz' (x y: word sz') :
@@ -488,7 +519,7 @@ Proof.
 move => hle.
 apply/eqP/eq_from_wbit_n => i.
 rewrite !(wbit_zero_extend, wxorE).
-by case: (_ <=? _).
+by case: (_ <= _)%nat.
 Qed.
 
 (* -------------------------------------------------------------------*)
