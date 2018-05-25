@@ -555,16 +555,26 @@ Definition wpshufb1 (s : seq u8) (idx : u8) :=
     let off := wunsigned (wand idx (wshl 1 4%Z - 1)) in
     (s`_(Z.to_nat off))%R.
 
-Definition wpshufb (s idx : u128) : u128 :=
-  let s    := [seq subword (8 * i)%nat 8 s   | i <- iota 0 16] in
-  let idx  := [seq subword (8 * i)%nat 8 idx | i <- iota 0 16] in
-  let aout := [seq wpshufb1 s (idx`_i)%R | i <- iota 0 16] in
-  wrepr U128 (wcat_r aout).
+Definition wpshufb (sz: wsize) (w idx: word sz) : word sz :=
+  let s := split_vec 8 w in
+  let i := split_vec 8 idx in
+  let r := map (wpshufb1 s) i in
+  make_vec sz r.
 
+(* -------------------------------------------------------------------*)
 Definition wpshufd1 (s : u128) (o : u8) (i : nat) :=
   wshl s (32 * urepr (subword (2 * i) 2 o)).
 
-Definition wpshufd (s : u128) (o : Z) : u128 :=
+Definition wpshufd_128 (s : u128) (o : Z) : u128 :=
   let o := wrepr U8 o in
   let d := [seq wpshufd1 s o i | i <- iota 0 4] in
   wrepr U128 (wcat_r d).
+
+Definition wpshufd_256 (s : u256) (o : Z) : u256 :=
+  make_vec U256 (map (λ w, wpshufd_128 w o) (split_vec U128 s)).
+
+Definition wpshufd sz : word sz → Z → word sz :=
+  match sz with
+  | U128 => wpshufd_128
+  | U256 => wpshufd_256
+  | _ => λ w _, w end.

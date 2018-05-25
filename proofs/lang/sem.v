@@ -818,8 +818,8 @@ Definition x86_vpsll (ve: velem) := x86_u128_shift ve (@wshl _).
 Definition x86_vpsrl (ve: velem) := x86_u128_shift ve (@wshr _).
 
 (* ---------------------------------------------------------------- *)
-Definition x86_vpshufb := x86_u128_binop wpshufb.
-Definition x86_vpshufd v1 (v2: u8) : exec values :=
+Definition x86_vpshufb := x86_u128_binop (@wpshufb U128).
+Definition x86_vpshufd (v1: u128) (v2: u8) : exec values :=
   ok [:: Vword (wpshufd v1 (wunsigned v2)) ].
 
 (* ---------------------------------------------------------------- *)
