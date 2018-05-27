@@ -840,8 +840,6 @@ Notation app_ww8 sz o := (app_sopn [:: sword sz; sword sz; sword U8] o).
 Notation app_wwb sz o := (app_sopn [:: sword sz; sword sz; sbool] o).
 Notation app_bww o := (app_sopn [:: sbool; sword; sword] o).
 Notation app_w4 sz o  := (app_sopn [:: sword sz; sword sz; sword sz; sword sz] o).
-Notation app_vv sz o := (app_sopn [:: sword sz; sword sz ] o).
-Notation app_v8 sz o := (app_sopn [:: sword sz; sword8 ] o).
 
 Definition exec_sopn (o:sopn) :  values -> exec values :=
   match o with
@@ -898,14 +896,14 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_VMOVDQU sz => app_sopn [:: sword sz ] (λ x,
                                                 Let _ := check_size_128_256 sz in
                                                 ok [:: Vword x])
-  | Ox86_VPAND sz => app_vv sz x86_vpand
-  | Ox86_VPOR sz => app_vv sz x86_vpor
-  | Ox86_VPXOR sz => app_vv sz x86_vpxor
-  | Ox86_VPADD ve sz => app_vv sz (x86_vpadd ve)
-  | Ox86_VPSLL ve sz => app_v8 sz (x86_vpsll ve)
-  | Ox86_VPSRL ve sz => app_v8 sz (x86_vpsrl ve)
-  | Ox86_VPSHUFB sz => app_vv sz x86_vpshufb
-  | Ox86_VPSHUFD sz => app_v8 sz x86_vpshufd
+  | Ox86_VPAND sz => app_ww sz x86_vpand
+  | Ox86_VPOR sz => app_ww sz x86_vpor
+  | Ox86_VPXOR sz => app_ww sz x86_vpxor
+  | Ox86_VPADD ve sz => app_ww sz (x86_vpadd ve)
+  | Ox86_VPSLL ve sz => app_w8 sz (x86_vpsll ve)
+  | Ox86_VPSRL ve sz => app_w8 sz (x86_vpsrl ve)
+  | Ox86_VPSHUFB sz => app_ww sz x86_vpshufb
+  | Ox86_VPSHUFD sz => app_w8 sz x86_vpshufd
   | Ox86_VPBLENDD sz => app_ww8 sz x86_vpblendd
   end.
 

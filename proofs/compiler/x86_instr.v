@@ -887,7 +887,7 @@ Qed.
 (* ----------------------------------------------------------------------------- *)
 Lemma x86_rm128_binop_gsc sz op i sem :
   (∀ d x y, is_sopn (i sz d x y)) →
-  (exec_sopn (op sz) = app_vv sz (@x86_u128_binop sz sem)) →
+  (exec_sopn (op sz) = app_ww sz (@x86_u128_binop sz sem)) →
   (∀ d x y gd m, eval_instr_mem gd (i sz d x y) m = eval_rm128_binop gd MSB_CLEAR sem d x y m) →
   gen_sem_correct [:: TYrm128 ; TYrm128 ; TYrm128 ] (op sz)
                   [:: E sz 0 ] [:: E sz 1 ; E sz 2 ] [::] (i sz).
@@ -926,7 +926,7 @@ Definition VPADD_desc ve sz := make_instr_desc
 (* ----------------------------------------------------------------------------- *)
 Lemma x86_rm128_shift_gsc ve sz op i sem :
   (∀ d x y, is_sopn (i sz d x y)) →
-  (exec_sopn (op sz) = app_v8 sz (x86_u128_shift ve sz sem)) →
+  (exec_sopn (op sz) = app_w8 sz (x86_u128_shift ve sz sem)) →
   (∀ d x y gd m, eval_instr_mem gd (i sz d x y) m = eval_rm128_shift gd MSB_CLEAR sz sem d x y m) →
   gen_sem_correct [:: TYrm128 ; TYrm128 ; TYimm U8 ] (op sz)
                   [:: E sz 0 ] [:: E sz 1 ; E U8 2 ] [::] (i sz).
