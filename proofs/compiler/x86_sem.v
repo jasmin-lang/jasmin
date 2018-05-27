@@ -173,15 +173,15 @@ Variant asm : Type :=
 
   (* SSE instructions *)
 | MOVD of wsize & xmm_register & oprd
-| VMOVDQU (_ _: rm128)
-| VPAND (_ _ _: rm128)
-| VPOR (_ _ _: rm128)
-| VPXOR (_ _ _: rm128)
-| VPADD `(velem) (_ _ _: rm128)
-| VPSLL `(velem) (_ _: rm128) `(u8)
-| VPSRL `(velem) (_ _: rm128) `(u8)
-| VPSHUFB (_ _: xmm_register) `(rm128)
-| VPSHUFD of xmm_register & rm128 & u8
+| VMOVDQU `(wsize) (_ _: rm128)
+| VPAND `(wsize) (_ _ _: rm128)
+| VPOR `(wsize) (_ _ _: rm128)
+| VPXOR `(wsize) (_ _ _: rm128)
+| VPADD `(velem) `(wsize) (_ _ _: rm128)
+| VPSLL `(velem) `(wsize) (_ _: rm128) `(u8)
+| VPSRL `(velem) `(wsize) (_ _: rm128) `(u8)
+| VPSHUFB `(wsize) (_ _: xmm_register) `(rm128)
+| VPSHUFD of wsize & xmm_register & rm128 & u8
 .
 
 (* -------------------------------------------------------------------- *)
@@ -333,9 +333,9 @@ End RegMap.
 
 (* -------------------------------------------------------------------- *)
 Module XRegMap.
-  Definition map := {ffun xmm_register -> u128 }.
+  Definition map := {ffun xmm_register -> u256 }.
 
-  Definition set (m : map) (x : xmm_register) (y : u128) : map :=
+  Definition set (m : map) (x : xmm_register) (y : u256) : map :=
     [ffun z => if (z == x) then y else m z].
 End XRegMap.
 
@@ -453,7 +453,7 @@ Definition mem_write_mem (l : pointer) sz (w : word sz) (s : x86_mem) :=
   |}.
 
 (* -------------------------------------------------------------------- *)
-Definition mem_write_xreg (r: xmm_register) (w: u128) (m: x86_mem) :=
+Definition mem_write_xreg (r: xmm_register) (w: u256) (m: x86_mem) :=
   {|
     xmem := m.(xmem);
     xreg := m.(xreg);
@@ -638,19 +638,48 @@ Definition rflags_of_sh (i:u8) of_ sz(r:word sz) rc := fun rf =>
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition read_rm128 (rm: rm128) (m: x86_mem) : exec u128 :=
+Definition get_word (sz: wsize) (v: value) : exec (word sz) :=
+  if v is Vword sz' w
+  then
+    match wsize_eq_dec sz' sz with
+    | left e => ok (eq_rect sz' word w sz e)
+    | right _ => type_error end
+  else type_error.
+
+Definition read_rm128 (sz: wsize) (rm: rm128) (m: x86_mem) : exec (word sz) :=
+  Let _ := check_size_128_256 sz in
   match rm with
-  | RM128_reg r => ok (m.(xxreg) r)
-  | RM128_mem a => read_mem m.(xmem) (decode_addr m a) U128
-  | RM128_glo g =>
-    get_global gd g >>= λ v,
-    if v is Vword U128 w then ok w else type_error
+  | RM128_reg r => ok (zero_extend sz (m.(xxreg) r))
+  | RM128_mem a => read_mem m.(xmem) (decode_addr m a) sz
+  | RM128_glo g => get_global gd g >>= get_word sz
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition write_rm128 (rm: rm128) (w: u128) (m: x86_mem) : x86_result :=
+(* Writing a large word to register or memory *)
+(* When writing to a register, depending on the instruction,
+  the most significant bits are either preserved or cleared. *)
+Variant msb_flag := MSB_CLEAR | MSB_MERGE.
+
+Scheme Equality for msb_flag.
+Definition msb_flag_eqMixin := comparableClass msb_flag_eq_dec.
+Canonical msb_flag_eqType := EqType msb_flag msb_flag_eqMixin.
+
+Definition update_u256 (f: msb_flag) (old: u256) (sz: wsize) (new: word sz) : u256 :=
+  match f with
+  | MSB_CLEAR => zero_extend U256 new
+  | MSB_MERGE =>
+    let m : u256 := wshl (-1)%R (wsize_bits sz) in
+    wxor (wand old m) (zero_extend U256 new)
+  end.
+
+Definition mem_update_xreg f (r: xmm_register) sz (w: word sz) (m: x86_mem) : x86_mem :=
+  let old := xxreg m r in
+  let w' := update_u256 f old w in
+  mem_write_xreg r w' m.
+
+Definition write_rm128 (f: msb_flag) (sz: wsize) (rm: rm128) (w: word sz) (m: x86_mem) : x86_result :=
   match rm with
-  | RM128_reg r => ok (mem_write_xreg r w m)
+  | RM128_reg r => ok (mem_update_xreg f r w m)
   | RM128_mem a => mem_write_mem (decode_addr m a) w m
   | RM128_glo _ => type_error
   end.
@@ -1057,50 +1086,50 @@ Definition eval_Jcc lbl ct (s: x86_state) : x86_result_state :=
 Definition eval_MOVD sz (dst: xmm_register) (src: oprd) s : x86_result :=
   Let _ := check_size_32_64 sz in
   Let v := read_oprd sz src s in
-  ok (mem_write_xreg dst (zero_extend _ v) s).
+  ok (mem_update_xreg MSB_MERGE dst (zero_extend U128 v) s).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_VMOV (dst src: rm128) s : x86_result :=
-  Let v := read_rm128 src s in
-  write_rm128 dst v s.
+Definition eval_VMOV sz (dst src: rm128) s : x86_result :=
+  Let v := read_rm128 sz src s in
+  write_rm128 MSB_CLEAR dst v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_rm128_binop op (dst src1 src2: rm128) s : x86_result :=
-  Let v1 := read_rm128 src1 s in
-  Let v2 := read_rm128 src2 s in
+Definition eval_rm128_binop f sz (op: word sz → word sz → word sz) (dst src1 src2: rm128) s : x86_result :=
+  Let v1 := read_rm128 sz src1 s in
+  Let v2 := read_rm128 sz src2 s in
   let v := op v1 v2 in
-  write_rm128 dst v s.
+  write_rm128 f dst v s.
 
-Definition eval_VPAND := eval_rm128_binop wand.
-Definition eval_VPOR := eval_rm128_binop wor.
-Definition eval_VPXOR := eval_rm128_binop wxor.
-
-(* -------------------------------------------------------------------- *)
-Definition eval_VPADD ve := eval_rm128_binop (lift2_vec ve +%R U128).
+Definition eval_VPAND sz := eval_rm128_binop MSB_CLEAR (@wand sz).
+Definition eval_VPOR sz := eval_rm128_binop MSB_CLEAR (@wor sz).
+Definition eval_VPXOR sz := eval_rm128_binop MSB_CLEAR (@wxor sz).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_rm128_shift ve op (dst src1: rm128) (v2: u8) s : x86_result :=
-  Let v1 := read_rm128 src1 s in
-  let v := lift1_vec ve (λ v, op v (wunsigned v2)) U128 v1 in
-  write_rm128 dst v s.
+Definition eval_VPADD ve sz := eval_rm128_binop MSB_CLEAR (lift2_vec ve +%R sz).
+
+(* -------------------------------------------------------------------- *)
+Definition eval_rm128_shift f ve sz op (dst src1: rm128) (v2: u8) s : x86_result :=
+  Let v1 := read_rm128 sz src1 s in
+  let v := lift1_vec ve (λ v, op v (wunsigned v2)) sz v1 in
+  write_rm128 f dst v s.
 
 Arguments eval_rm128_shift : clear implicits.
 
-Definition eval_VPSLL ve := eval_rm128_shift ve (@wshl _).
-Definition eval_VPSRL ve := eval_rm128_shift ve (@wshr _).
+Definition eval_VPSLL ve sz := eval_rm128_shift MSB_CLEAR ve sz (@wshl _).
+Definition eval_VPSRL ve sz := eval_rm128_shift MSB_CLEAR ve sz (@wshr _).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_VPSHUFB (dst src: xmm_register) (pattern: rm128) s : x86_result :=
-  let v := xxreg s src in
-  Let p := read_rm128 pattern s in
+Definition eval_VPSHUFB sz (dst src: xmm_register) (pattern: rm128) s : x86_result :=
+  let v := zero_extend sz (xxreg s src) in
+  Let p := read_rm128 sz pattern s in
   let r := wpshufb v p in
-  ok (mem_write_xreg dst r s).
+  ok (mem_update_xreg MSB_CLEAR dst r s).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_VPSHUFD (dst: xmm_register) (src: rm128) (pat: u8) s : x86_result :=
-  Let v := read_rm128 src s in
+Definition eval_VPSHUFD sz (dst: xmm_register) (src: rm128) (pat: u8) s : x86_result :=
+  Let v := read_rm128 sz src s in
   let r := wpshufd v (wunsigned pat) in
-  ok (mem_write_xreg dst r s).
+  ok (mem_update_xreg MSB_CLEAR dst r s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_instr_mem (i : asm) s : x86_result :=
@@ -1141,15 +1170,15 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | SHLD   sz o1 o2 ir => eval_SHLD   sz o1 o2 ir s
 
   | MOVD sz dst src => eval_MOVD sz dst src s
-  | VMOVDQU dst src => eval_VMOV dst src s
-  | VPAND dst src1 src2 => eval_VPAND dst src1 src2 s
-  | VPOR dst src1 src2 => eval_VPOR dst src1 src2 s
-  | VPXOR dst src1 src2 => eval_VPXOR dst src1 src2 s
-  | VPADD ve dst src1 src2 => eval_VPADD ve dst src1 src2 s
-  | VPSLL ve dst src1 src2 => eval_VPSLL ve dst src1 src2 s
-  | VPSRL ve dst src1 src2 => eval_VPSRL ve dst src1 src2 s
-  | VPSHUFB dst src pat => eval_VPSHUFB dst src pat s
-  | VPSHUFD dst src pat => eval_VPSHUFD dst src pat s
+  | VMOVDQU sz dst src => eval_VMOV sz dst src s
+  | VPAND sz dst src1 src2 => eval_VPAND sz dst src1 src2 s
+  | VPOR sz dst src1 src2 => eval_VPOR sz dst src1 src2 s
+  | VPXOR sz dst src1 src2 => eval_VPXOR sz dst src1 src2 s
+  | VPADD ve sz dst src1 src2 => eval_VPADD ve sz dst src1 src2 s
+  | VPSLL ve sz dst src1 src2 => eval_VPSLL ve sz dst src1 src2 s
+  | VPSRL ve sz dst src1 src2 => eval_VPSRL ve sz dst src1 src2 s
+  | VPSHUFB sz dst src pat => eval_VPSHUFB sz dst src pat s
+  | VPSHUFD sz dst src pat => eval_VPSHUFD sz dst src pat s
   end.
 
 Definition eval_instr (i : asm) (s: x86_state) : x86_result_state :=

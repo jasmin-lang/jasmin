@@ -1073,56 +1073,56 @@ Section PROOF.
         + split. by rewrite read_es_swap.
           by rewrite Hv /= /truncate_word Hsz1 Hsz2 /x86_sub /check_size_8_64 hsz64 /= Hw.
       (* Oland Op_w *)
-      + case: eqP.
-        * (* VPAND *)
-          move => -> {sz} /sem_op2_w_dec [sz1] [w1] [sz2] [w2] [hle1 hle2 ?]; subst v.
-          case: eqP => //= hty -> /=.
-          rewrite /truncate_word hle1 hle2 /=.
-          have [sz [? _ ?]] := truncate_val_word Hv'.
-          subst ty v'; rewrite /= in hty; subst sz.
-          by rewrite zero_extend_u.
-        move => _ A.
-        case: andP => // - [hsz64] /eqP ?; subst sz.
-        split. by rewrite read_es_swap. move: A.
-        case/sem_op2_w_dec => w1 [z1] [w2] [z2] [hw1 hw2 hv ->] /=; subst v.
-        case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
-        rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
-        case: Hv' => ?; subst v'.
-        by rewrite /truncate_word hw1 hw2 /x86_and /check_size_8_64 hsz64 /= Hw.
+      + case: eqP; last by rewrite andbF => _ _ /=; case: ifP.
+        move => -> {sz} /sem_op2_w_dec [sz1] [w1] [sz2] [w2] [hw1 hw2 ?]; subst v.
+        case hty: (_ ≤ _)%CMP => /= -> /=.
+        * (* AND *)
+          split. by rewrite read_es_swap.
+          case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
+          rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
+          case: Hv' => ?; subst v'.
+          by rewrite /truncate_word hw1 hw2 /x86_and /check_size_8_64 hty /= Hw.
+        (* VPAND *)
+        rewrite /truncate_word hw1 hw2 /=.
+        have [sz [? _ ?]] := truncate_val_word Hv'.
+        subst ty v'; rewrite /= in hty.
+        rewrite /=.
+        rewrite /x86_vpand /x86_u128_binop /=.
+        by rewrite (wsize_nle_u64_check_128_256 hty) /= zero_extend_u.
       (* Olor Op_w *)
-      + case: eqP.
-        * (* VPOR *)
-          move => -> {sz} /sem_op2_w_dec [sz1] [w1] [sz2] [w2] [hle1 hle2 ?]; subst v.
-          case: eqP => //= hty -> /=.
-          rewrite /truncate_word hle1 hle2 /=.
-          have [sz [? _ ?]] := truncate_val_word Hv'.
-          subst ty v'; rewrite /= in hty; subst sz.
-          by rewrite zero_extend_u.
-        move => _ A.
-        case: andP => // - [hsz64] /eqP ?; subst sz.
-        split. by rewrite read_es_swap. move: A.
-        case/sem_op2_w_dec => w1 [z1] [w2] [z2] [hw1 hw2 hv ->] /=; subst v.
-        case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
-        rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
-        case: Hv' => ?; subst v'.
-        by rewrite /truncate_word hw1 hw2 /x86_or /check_size_8_64 hsz64 /= Hw.
+      + case: eqP; last by rewrite andbF => _ _ /=; case: ifP.
+        move => -> {sz} /sem_op2_w_dec [sz1] [w1] [sz2] [w2] [hw1 hw2 ?]; subst v.
+        case hty: (_ ≤ _)%CMP => /= -> /=.
+        * (* OR *)
+          split. by rewrite read_es_swap.
+          case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
+          rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
+          case: Hv' => ?; subst v'.
+          by rewrite /truncate_word hw1 hw2 /x86_or /check_size_8_64 hty /= Hw.
+        (* VPOR *)
+        rewrite /truncate_word hw1 hw2 /=.
+        have [sz [? _ ?]] := truncate_val_word Hv'.
+        subst ty v'; rewrite /= in hty.
+        rewrite /=.
+        rewrite /x86_vpor /x86_u128_binop /=.
+        by rewrite (wsize_nle_u64_check_128_256 hty) /= zero_extend_u.
       (* Olxor Op_w *)
-      + case: eqP.
-        * (* VPXOR *)
-          move => -> {sz} /sem_op2_w_dec [sz1] [w1] [sz2] [w2] [hle1 hle2 ?]; subst v.
-          case: eqP => //= hty -> /=.
-          rewrite /truncate_word hle1 hle2 /=.
-          have [sz [? _ ?]] := truncate_val_word Hv'.
-          subst ty v'; rewrite /= in hty; subst sz.
-          by rewrite zero_extend_u.
-        move => _ A.
-        case: andP => // - [hsz64] /eqP ?; subst sz.
-        split. by rewrite read_es_swap. move: A.
-        case/sem_op2_w_dec => w1 [z1] [w2] [z2] [hw1 hw2 hv ->] /=; subst v.
-        case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
-        rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
-        case: Hv' => ?; subst v'.
-        by rewrite /truncate_word hw1 hw2 /x86_xor /check_size_8_64 hsz64 /= Hw.
+      + case: eqP; last by rewrite andbF => _ _ /=; case: ifP.
+        move => -> {sz} /sem_op2_w_dec [sz1] [w1] [sz2] [w2] [hw1 hw2 ?]; subst v.
+        case hty: (_ ≤ _)%CMP => /= -> /=.
+        * (* XOR *)
+          split. by rewrite read_es_swap.
+          case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
+          rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
+          case: Hv' => ?; subst v'.
+          by rewrite /truncate_word hw1 hw2 /x86_xor /check_size_8_64 hty /= Hw.
+        (* VPXOR *)
+        rewrite /truncate_word hw1 hw2 /=.
+        have [sz [? _ ?]] := truncate_val_word Hv'.
+        subst ty v'; rewrite /= in hty.
+        rewrite /=.
+        rewrite /x86_vpxor /x86_u128_binop /=.
+        by rewrite (wsize_nle_u64_check_128_256 hty) /= zero_extend_u.
       (* Olsr *)
       + case: andP => // - [hsz64] /eqP ?; subst sz.
          rewrite /sem_pexprs /=; t_xrbindP => v1 -> v2 ->.

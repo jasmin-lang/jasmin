@@ -797,29 +797,32 @@ Definition x86_movd {sz} (v: word sz) : exec values :=
   ok [:: Vword (zero_extend U128 v) ].
 
 (* ---------------------------------------------------------------- *)
-Definition x86_u128_binop (op: _ → _ → u128) (v1 v2: u128) : exec values :=
+Definition x86_u128_binop sz (op: _ → _ → word sz) (v1 v2: word sz) : exec values :=
+  Let _ := check_size_128_256 sz in
   ok [:: Vword (op v1 v2) ].
 
-Definition x86_vpand := x86_u128_binop wand.
-Definition x86_vpor := x86_u128_binop wor.
-Definition x86_vpxor := x86_u128_binop wxor.
+Definition x86_vpand {sz} := x86_u128_binop (@wand sz).
+Definition x86_vpor {sz} := x86_u128_binop (@wor sz).
+Definition x86_vpxor {sz} := x86_u128_binop (@wxor sz).
 
 (* ---------------------------------------------------------------- *)
-Definition x86_vpadd (ve: velem) := x86_u128_binop (lift2_vec ve +%R U128).
+Definition x86_vpadd (ve: velem) {sz} := x86_u128_binop (lift2_vec ve +%R sz).
 
 (* ---------------------------------------------------------------- *)
-Definition x86_u128_shift sz' (op: word sz' → Z → word sz')
-  (v: u128) (c: u8) : exec values :=
-  ok [:: Vword (lift1_vec sz' (λ v, op v (wunsigned c)) U128 v) ].
+Definition x86_u128_shift sz' sz (op: word sz' → Z → word sz')
+  (v: word sz) (c: u8) : exec values :=
+  Let _ := check_size_128_256 sz in
+  ok [:: Vword (lift1_vec sz' (λ v, op v (wunsigned c)) sz v) ].
 
 Arguments x86_u128_shift : clear implicits.
 
-Definition x86_vpsll (ve: velem) := x86_u128_shift ve (@wshl _).
-Definition x86_vpsrl (ve: velem) := x86_u128_shift ve (@wshr _).
+Definition x86_vpsll (ve: velem) {sz} := x86_u128_shift ve sz (@wshl _).
+Definition x86_vpsrl (ve: velem) {sz} := x86_u128_shift ve sz (@wshr _).
 
 (* ---------------------------------------------------------------- *)
-Definition x86_vpshufb := x86_u128_binop (@wpshufb U128).
-Definition x86_vpshufd (v1: u128) (v2: u8) : exec values :=
+Definition x86_vpshufb {sz} := x86_u128_binop (@wpshufb sz).
+Definition x86_vpshufd {sz} (v1: word sz) (v2: u8) : exec values :=
+  Let _ := check_size_128_256 sz in
   ok [:: Vword (wpshufd v1 (wunsigned v2)) ].
 
 (* ---------------------------------------------------------------- *)
@@ -832,8 +835,8 @@ Notation app_ww8 sz o := (app_sopn [:: sword sz; sword sz; sword U8] o).
 Notation app_wwb sz o := (app_sopn [:: sword sz; sword sz; sbool] o).
 Notation app_bww o := (app_sopn [:: sbool; sword; sword] o).
 Notation app_w4 sz o  := (app_sopn [:: sword sz; sword sz; sword sz; sword sz] o).
-Notation app_vv o := (app_sopn [:: sword128; sword128 ] o).
-Notation app_v8 o := (app_sopn [:: sword128; sword8 ] o).
+Notation app_vv sz o := (app_sopn [:: sword sz; sword sz ] o).
+Notation app_v8 sz o := (app_sopn [:: sword sz; sword8 ] o).
 
 Definition exec_sopn (o:sopn) :  values -> exec values :=
   match o with
@@ -887,15 +890,17 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_SAR sz => app_w8 sz x86_sar
   | Ox86_SHLD sz => app_ww8 sz x86_shld
   | Ox86_MOVD sz => app_w sz x86_movd
-  | Ox86_VMOVDQU => app_sopn [:: sword128 ] (λ x, ok [:: Vword x])
-  | Ox86_VPAND => app_vv x86_vpand
-  | Ox86_VPOR => app_vv x86_vpor
-  | Ox86_VPXOR => app_vv x86_vpxor
-  | Ox86_VPADD ve => app_vv (x86_vpadd ve)
-  | Ox86_VPSLL ve => app_v8 (x86_vpsll ve)
-  | Ox86_VPSRL ve => app_v8 (x86_vpsrl ve)
-  | Ox86_VPSHUFB => app_vv x86_vpshufb
-  | Ox86_VPSHUFD => app_v8 x86_vpshufd
+  | Ox86_VMOVDQU sz => app_sopn [:: sword sz ] (λ x,
+                                                Let _ := check_size_128_256 sz in
+                                                ok [:: Vword x])
+  | Ox86_VPAND sz => app_vv sz x86_vpand
+  | Ox86_VPOR sz => app_vv sz x86_vpor
+  | Ox86_VPXOR sz => app_vv sz x86_vpxor
+  | Ox86_VPADD ve sz => app_vv sz (x86_vpadd ve)
+  | Ox86_VPSLL ve sz => app_v8 sz (x86_vpsll ve)
+  | Ox86_VPSRL ve sz => app_v8 sz (x86_vpsrl ve)
+  | Ox86_VPSHUFB sz => app_vv sz x86_vpshufb
+  | Ox86_VPSHUFD sz => app_v8 sz x86_vpshufd
   end.
 
 Ltac app_sopn_t := 

@@ -377,3 +377,9 @@ Qed.
 Definition check_size_8_64 sz := assert (sz ≤ U64)%CMP ErrType.
 Definition check_size_16_64 sz := assert ((U16 ≤ sz) && (sz ≤ U64))%CMP ErrType.
 Definition check_size_32_64 sz := assert ((U32 ≤ sz) && (sz ≤ U64))%CMP ErrType.
+Definition check_size_128_256 sz := assert ((U128 ≤ sz) && (sz ≤ U256))%CMP ErrType.
+
+Lemma wsize_nle_u64_check_128_256 sz :
+  (sz ≤ U64)%CMP = false →
+  check_size_128_256 sz = ok tt.
+Proof. by case: sz. Qed.

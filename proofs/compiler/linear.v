@@ -121,8 +121,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Cassgn x _ ty e =>
     if ty is sword sz
     then
-      Let _ := assert (sz ≤ U128)%CMP (ii, (Cerr_linear "assign a big word")) in
-      let op := if (sz ≤ U64)%CMP then Ox86_MOV sz else Ox86_VMOVDQU in
+      let op := if (sz ≤ U64)%CMP then Ox86_MOV sz else (Ox86_VMOVDQU sz) in
       ok (lbl, MkLI ii (Lopn [:: x ] op [:: e]) :: lc)
     else cierror ii (Cerr_linear "assign not a word")
   | Copn xs _ o es => ok (lbl, MkLI ii (Lopn xs o es) :: lc)

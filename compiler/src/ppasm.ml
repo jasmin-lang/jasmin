@@ -251,29 +251,34 @@ let pp_ct (ct : X86_sem.condt) =
   | NLE_ct -> "nle"
 
 (* -------------------------------------------------------------------- *)
-let pp_xmm_register : X86_sem.xmm_register -> string =
-  function
-  | XMM0 -> "%xmm0"
-  | XMM1 -> "%xmm1"
-  | XMM2 -> "%xmm2"
-  | XMM3 -> "%xmm3"
-  | XMM4 -> "%xmm4"
-  | XMM5 -> "%xmm5"
-  | XMM6 -> "%xmm6"
-  | XMM7 -> "%xmm7"
-  | XMM8 -> "%xmm8"
-  | XMM9 -> "%xmm9"
-  | XMM10 -> "%xmm10"
-  | XMM11 -> "%xmm11"
-  | XMM12 -> "%xmm12"
-  | XMM13 -> "%xmm13"
-  | XMM14 -> "%xmm14"
-  | XMM15 -> "%xmm15"
+let pp_xmm_register (ws: LM.wsize) (r: X86_sem.xmm_register) : string =
+  Format.sprintf "%%%smm%d"
+    (match ws with
+     | U128 -> "x"
+     | U256 -> "y"
+     | _ -> assert false)
+    (match r with
+     | XMM0 -> 0
+     | XMM1 -> 1
+     | XMM2 -> 2
+     | XMM3 -> 3
+     | XMM4 -> 4
+     | XMM5 -> 5
+     | XMM6 -> 6
+     | XMM7 -> 7
+     | XMM8 -> 8
+     | XMM9 -> 9
+     | XMM10 -> 10
+     | XMM11 -> 11
+     | XMM12 -> 12
+     | XMM13 -> 13
+     | XMM14 -> 14
+     | XMM15 -> 15)
 
 (* -------------------------------------------------------------------- *)
-let pp_rm128 : X86_sem.rm128 -> string =
+let pp_rm128 (ws: LM.wsize) : X86_sem.rm128 -> string =
   function
-  | RM128_reg r -> pp_xmm_register r
+  | RM128_reg r -> pp_xmm_register ws r
   | RM128_mem a -> pp_address a
   | RM128_glo g -> pp_global g
 
@@ -447,34 +452,34 @@ let pp_instr name (i : X86_sem.asm) =
 
   | MOVD (ws, dst, src) ->
       let rs = rs_of_ws ws in
-      `Instr ((if ws = U64 then "movq" else "movd"), [pp_opr rs src; pp_xmm_register dst])
+      `Instr ((if ws = U64 then "movq" else "movd"), [pp_opr rs src; pp_xmm_register U128 dst])
 
-  | VMOVDQU (dst, src) ->
-    `Instr ("vmovdqu", [pp_rm128 src; pp_rm128 dst])
+  | VMOVDQU (sz, dst, src) ->
+    `Instr ("vmovdqu", [pp_rm128 sz src; pp_rm128 sz dst])
 
-  | VPAND (dst, src1, src2) ->
-    `Instr ("vpand", [pp_rm128 src2; pp_rm128 src1; pp_rm128 dst])
+  | VPAND (sz, dst, src1, src2) ->
+    `Instr ("vpand", [pp_rm128 sz src2; pp_rm128 sz src1; pp_rm128 sz dst])
 
-  | VPOR (dst, src1, src2) ->
-    `Instr ("vpor", [pp_rm128 src2; pp_rm128 src1; pp_rm128 dst])
+  | VPOR (sz, dst, src1, src2) ->
+    `Instr ("vpor", [pp_rm128 sz src2; pp_rm128 sz src1; pp_rm128 sz dst])
 
-  | VPXOR (dst, src1, src2) ->
-    `Instr ("vpxor", [pp_rm128 src2; pp_rm128 src1; pp_rm128 dst])
+  | VPXOR (sz, dst, src1, src2) ->
+    `Instr ("vpxor", [pp_rm128 sz src2; pp_rm128 sz src1; pp_rm128 sz dst])
 
-  | VPADD (ve, dst, src1, src2) ->
-    `Instr (pp_viname ve "vpadd", [pp_rm128 src2; pp_rm128 src1; pp_rm128 dst])
+  | VPADD (ve, sz, dst, src1, src2) ->
+    `Instr (pp_viname ve "vpadd", [pp_rm128 sz src2; pp_rm128 sz src1; pp_rm128 sz dst])
 
-  | VPSLL (ve, dst, src1, src2) ->
-    `Instr (pp_viname ve "vpsll", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 src1; pp_rm128 dst])
+  | VPSLL (ve, sz, dst, src1, src2) ->
+    `Instr (pp_viname ve "vpsll", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 sz src1; pp_rm128 sz dst])
 
-  | VPSRL (ve, dst, src1, src2) ->
-    `Instr (pp_viname ve "vpsrl", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 src1; pp_rm128 dst])
+  | VPSRL (ve, sz, dst, src1, src2) ->
+    `Instr (pp_viname ve "vpsrl", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 sz src1; pp_rm128 sz dst])
 
-  | VPSHUFB (dst, src1, src2) ->
-    `Instr ("vpshufb", [pp_rm128 src2; pp_xmm_register src1; pp_xmm_register dst])
+  | VPSHUFB (sz, dst, src1, src2) ->
+    `Instr ("vpshufb", [pp_rm128 sz src2; pp_xmm_register sz src1; pp_xmm_register sz dst])
 
-  | VPSHUFD (dst, src1, src2) ->
-    `Instr ("vpshufd", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 src1; pp_xmm_register dst])
+  | VPSHUFD (sz, dst, src1, src2) ->
+    `Instr ("vpshufd", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 sz src1; pp_xmm_register sz dst])
 
 (* -------------------------------------------------------------------- *)
 let pp_instr name (fmt : Format.formatter) (i : X86_sem.asm) =

@@ -185,7 +185,7 @@ elim: xs vs s1 s2 rs.
 move => x xs ih /= [] // v vs s1 s3 rs';
   t_xrbindP => s2 ok_s2 ok_s3 r ok_r rs ok_rs <- {rs'} h /List_Forall2_inv_l [v'] [vs'] [/=] /seq_eq_injL [<- {v'} <- {vs'}] [hv rec].
 apply: ih; eauto.
-have := write_var_compile_var ok_s2 hv h.
+have := write_var_compile_var MSB_CLEAR ok_s2 hv h.
 rewrite /compile_var (reg_of_var_register_of_var ok_r) => /(_ _ erefl) [_] [<-] /=.
 rewrite /mem_write_reg /= word_extend_reg_id // zero_extend_u -RegMap_set_id.
 by case: (xm1).

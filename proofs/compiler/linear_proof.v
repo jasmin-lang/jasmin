@@ -462,17 +462,15 @@ Section PROOF.
     
   Let Hassgn : forall x tag ty e, Pi_r (Cassgn x tag ty e).
   Proof.
-    move=> x tag [] // sz e ii lbl lbl' l' /=; apply: rbindP => // ? h; have := assertP h => {h} hsz [] <- <-; rewrite Pos.leb_refl; split => //.
+    move=> x tag [] // sz e ii lbl lbl' l' /= [] <- <-; rewrite Pos.leb_refl; split => //.
     move => -[m1 vm1] s2 /S.sem_iE [v] [v'] [ok_v].
     apply: rbindP => w /of_val_word [sz'] [w'] [hle ? ?]; subst v w => - [<-] {v'} ok_s2.
     apply: LSem_step.
     rewrite /lsem1 /step /= /eval_instr /= !to_of_estate.
     case: ifP.
-    + by move => {hsz} hsz; rewrite /sem_sopn /sem_pexprs /= ok_v /= /truncate_word hle /x86_MOV /check_size_8_64 hsz /= ok_s2.
-    move => h64.
-    have ? : sz = U128 by case: (sz) hsz h64.
-    subst sz => {hsz h64}.
-    by rewrite /sem_sopn /= ok_v /= /truncate_word hle /= ok_s2.
+    + by move => hsz; rewrite /sem_sopn /sem_pexprs /= ok_v /= /truncate_word hle /x86_MOV /check_size_8_64 hsz /= ok_s2.
+    move => hsz.
+    by rewrite /sem_sopn /= ok_v /= /truncate_word hle (wsize_nle_u64_check_128_256 hsz) /= ok_s2.
   Qed.
 
   Let Hopn : forall xs t o es, Pi_r (Copn xs t o es).

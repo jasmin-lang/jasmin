@@ -132,7 +132,7 @@ let pp_opn =
   let open Expr in
   let f w s = F.sprintf "%s_%d" s (int_of_ws w) in
   let f2 w w' s = F.sprintf "%s_%d" s (int_of_ws w) in (* TODO: concrete syntax for these intrinsics *)
-  let v ve s = F.sprintf "%s_%s" s (string_of_velem ve) in
+  let v ve sz s = F.sprintf "%s_%s" s (string_of_velem ve) in
   function
   | Omulu w -> f w "#mulu"
   | Oaddcarry w -> f w "#addc"
@@ -171,15 +171,15 @@ let pp_opn =
   | Ox86_SAR w -> f w "#x86_SAR"
   | Ox86_SHLD w -> f w "#x86_SHLD"
   | Ox86_MOVD w -> f w "#x86_MOVD"
-  | Ox86_VMOVDQU -> "#x86_VMOVDQU"
-  | Ox86_VPAND -> "#x86_VPAND"
-  | Ox86_VPOR -> "#x86_VPOR"
-  | Ox86_VPXOR -> "#x86_VPXOR"
-  | Ox86_VPADD ve -> v ve "#x86_VPADD"
-  | Ox86_VPSLL ve -> v ve "#x86_VPSLL"
-  | Ox86_VPSRL ve -> v ve "#x86_VPSRL"
-  | Ox86_VPSHUFB -> "#x86_VPSHUFB"
-  | Ox86_VPSHUFD -> "#x86_VPSHUFD"
+  | Ox86_VMOVDQU w -> f w "#x86_VMOVDQU"
+  | Ox86_VPAND w -> "f w #x86_VPAND"
+  | Ox86_VPOR w -> f w "#x86_VPOR"
+  | Ox86_VPXOR w -> f w "#x86_VPXOR"
+  | Ox86_VPADD (ve, sz) -> v ve sz "#x86_VPADD"
+  | Ox86_VPSLL (ve, sz) -> v ve sz "#x86_VPSLL"
+  | Ox86_VPSRL (ve, sz) -> v ve sz "#x86_VPSRL"
+  | Ox86_VPSHUFB w -> f w "#x86_VPSHUFB"
+  | Ox86_VPSHUFD w -> f w "#x86_VPSHUFD"
 
 (* -------------------------------------------------------------------- *)
 let pp_tag = function

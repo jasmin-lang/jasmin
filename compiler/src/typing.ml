@@ -595,60 +595,60 @@ let prim_sig (type a) p : a P.gty list * a P.gty list =
   List.map f (E.sopn_tin p)
 
 type prim_constructor =
-  | PrimP of (T.wsize -> Expr.sopn)
+  | PrimP of T.wsize * (T.wsize -> Expr.sopn)
   | PrimM of Expr.sopn
-  | PrimV of (T.velem -> Expr.sopn)
+  | PrimV of (T.velem -> T.wsize -> Expr.sopn)
 
 let prim_string =
   let open Expr in
-  [ "mulu", PrimP (fun sz -> Omulu sz);
-    "adc", PrimP (fun sz -> Oaddcarry sz);
-    "sbb", PrimP (fun sz -> Osubcarry sz);
-    "set0", PrimP (fun sz -> Oset0 sz);
-    "x86_MOV", PrimP (fun sz -> Ox86_MOV sz);
-    "x86_CMOVcc", PrimP (fun sz -> Ox86_CMOVcc sz);
-    "x86_ADD", PrimP (fun sz -> Ox86_ADD sz);
-    "x86_SUB", PrimP (fun sz -> Ox86_SUB sz);
-    "x86_MUL", PrimP (fun sz -> Ox86_MUL sz);
-    "x86_IMUL", PrimP (fun sz -> Ox86_IMUL sz);
-    "x86_IMULt", PrimP (fun sz -> Ox86_IMULt sz);
-    "x86_IMULtimm", PrimP (fun sz -> Ox86_IMULtimm sz);
-    "x86_DIV", PrimP (fun sz -> Ox86_DIV sz);
-    "x86_IDIV", PrimP (fun sz -> Ox86_IDIV sz);
-    "x86_ADC", PrimP (fun sz -> Ox86_ADC sz);
-    "x86_SBB", PrimP (fun sz -> Ox86_SBB sz);
-    "x86_INC", PrimP (fun sz -> Ox86_INC sz);
-    "x86_DEC", PrimP (fun sz -> Ox86_DEC sz);
+  [ "mulu", PrimP (T.U64, fun sz -> Omulu sz);
+    "adc", PrimP (T.U64, fun sz -> Oaddcarry sz);
+    "sbb", PrimP (T.U64, fun sz -> Osubcarry sz);
+    "set0", PrimP (T.U64, fun sz -> Oset0 sz);
+    "x86_MOV", PrimP (T.U64, fun sz -> Ox86_MOV sz);
+    "x86_CMOVcc", PrimP (T.U64, fun sz -> Ox86_CMOVcc sz);
+    "x86_ADD", PrimP (T.U64, fun sz -> Ox86_ADD sz);
+    "x86_SUB", PrimP (T.U64, fun sz -> Ox86_SUB sz);
+    "x86_MUL", PrimP (T.U64, fun sz -> Ox86_MUL sz);
+    "x86_IMUL", PrimP (T.U64, fun sz -> Ox86_IMUL sz);
+    "x86_IMULt", PrimP (T.U64, fun sz -> Ox86_IMULt sz);
+    "x86_IMULtimm", PrimP (T.U64, fun sz -> Ox86_IMULtimm sz);
+    "x86_DIV", PrimP (T.U64, fun sz -> Ox86_DIV sz);
+    "x86_IDIV", PrimP (T.U64, fun sz -> Ox86_IDIV sz);
+    "x86_ADC", PrimP (T.U64, fun sz -> Ox86_ADC sz);
+    "x86_SBB", PrimP (T.U64, fun sz -> Ox86_SBB sz);
+    "x86_INC", PrimP (T.U64, fun sz -> Ox86_INC sz);
+    "x86_DEC", PrimP (T.U64, fun sz -> Ox86_DEC sz);
     "x86_SETcc" , PrimM Ox86_SETcc;
-    "x86_BT", PrimP (fun sz -> Ox86_BT sz);
-    "x86_LEA", PrimP (fun sz -> Ox86_LEA sz);
-    "x86_TEST", PrimP (fun sz -> Ox86_TEST sz);
-    "x86_CMP", PrimP (fun sz -> Ox86_CMP sz);
-    "x86_AND", PrimP (fun sz -> Ox86_AND sz);
-    "x86_OR", PrimP (fun sz -> Ox86_OR sz);
-    "x86_XOR", PrimP (fun sz -> Ox86_XOR sz);
-    "x86_NOT", PrimP (fun sz -> Ox86_NOT sz);
-    "x86_ROL", PrimP (fun sz -> Ox86_ROL sz);
-    "x86_ROR", PrimP (fun sz -> Ox86_ROR sz);
-    "x86_SHL", PrimP (fun sz -> Ox86_SHL sz);
-    "x86_SHR", PrimP (fun sz -> Ox86_SHR sz);
-    "x86_SAR", PrimP (fun sz -> Ox86_SAR sz);
-    "x86_SHLD", PrimP (fun sz -> Ox86_SHLD sz);
-    "x86_MOVD", PrimP (fun sz -> Ox86_MOVD sz);
-    "x86_VMOVDQU", PrimM Ox86_VMOVDQU;
-    "x86_VPAND", PrimM Ox86_VPAND;
-    "x86_VPOR", PrimM Ox86_VPOR;
-    "x86_VPXOR", PrimM Ox86_VPXOR;
-    "x86_VPADD", PrimV (fun ve -> Ox86_VPADD ve);
-    "x86_VPSLL", PrimV (fun ve -> Ox86_VPSLL ve);
-    "x86_VPSRL", PrimV (fun ve -> Ox86_VPSRL ve);
-    "x86_VPSHUFB", PrimM Ox86_VPSHUFB;
-    "x86_VPSHUFD", PrimM Ox86_VPSHUFD;
+    "x86_BT", PrimP (T.U64, fun sz -> Ox86_BT sz);
+    "x86_LEA", PrimP (T.U64, fun sz -> Ox86_LEA sz);
+    "x86_TEST", PrimP (T.U64, fun sz -> Ox86_TEST sz);
+    "x86_CMP", PrimP (T.U64, fun sz -> Ox86_CMP sz);
+    "x86_AND", PrimP (T.U64, fun sz -> Ox86_AND sz);
+    "x86_OR", PrimP (T.U64, fun sz -> Ox86_OR sz);
+    "x86_XOR", PrimP (T.U64, fun sz -> Ox86_XOR sz);
+    "x86_NOT", PrimP (T.U64, fun sz -> Ox86_NOT sz);
+    "x86_ROL", PrimP (T.U64, fun sz -> Ox86_ROL sz);
+    "x86_ROR", PrimP (T.U64, fun sz -> Ox86_ROR sz);
+    "x86_SHL", PrimP (T.U64, fun sz -> Ox86_SHL sz);
+    "x86_SHR", PrimP (T.U64, fun sz -> Ox86_SHR sz);
+    "x86_SAR", PrimP (T.U64, fun sz -> Ox86_SAR sz);
+    "x86_SHLD", PrimP (T.U64, fun sz -> Ox86_SHLD sz);
+    "x86_MOVD", PrimP (T.U64, fun sz -> Ox86_MOVD sz);
+    "x86_VMOVDQU", PrimP (T.U128, fun sz -> Ox86_VMOVDQU sz);
+    "x86_VPAND", PrimP (T.U128, fun sz -> Ox86_VPAND sz);
+    "x86_VPOR", PrimP (T.U128, fun sz -> Ox86_VPOR sz);
+    "x86_VPXOR", PrimP (T.U128, fun sz -> Ox86_VPXOR sz);
+    "x86_VPADD", PrimV (fun ve sz -> Ox86_VPADD (ve, sz));
+    "x86_VPSLL", PrimV (fun ve sz -> Ox86_VPSLL (ve, sz));
+    "x86_VPSRL", PrimV (fun ve sz -> Ox86_VPSRL (ve, sz));
+    "x86_VPSHUFB", PrimP (T.U128, fun sz -> Ox86_VPSHUFB sz);
+    "x86_VPSHUFD", PrimP (T.U128, fun sz -> Ox86_VPSHUFD sz);
   ]
 
 type size_annotation =
   | SAw of T.wsize
-  | SAv of T.velem
+  | SAv of T.velem * T.wsize
   | SA
 
 let extract_size str : string * size_annotation =
@@ -658,9 +658,11 @@ let extract_size str : string * size_annotation =
     | "16" -> SAw T.U16
     | "32" -> SAw T.U32
     | "64" -> SAw T.U64
-    | "8u16" -> SAv T.VE16
-    | "4u32" -> SAv T.VE32
-    | "2u64" -> SAv T.VE64
+    | "128" -> SAw T.U128
+    | "256" -> SAw T.U256
+    | "8u16" -> SAv (T.VE16, T.U128)
+    | "4u32" -> SAv (T.VE32, T.U128)
+    | "2u64" -> SAv (T.VE64, T.U128)
     | _ -> SA
   in
   match List.rev (String.split_on_char '_' str) with
@@ -674,9 +676,9 @@ let tt_prim id =
   let { L.pl_loc = loc ; L.pl_desc = s } = id in
   let name, sz = extract_size s in
   match List.assoc name prim_string with
-  | PrimP pr -> pr (match sz with SAw sz -> sz | SA -> T.U64 | SAv _ -> rs_tyerror ~loc (PrimNotVector s))
+  | PrimP (d, pr) -> pr (match sz with SAw sz -> sz | SA -> d | SAv _ -> rs_tyerror ~loc (PrimNotVector s))
   | PrimM pr -> if sz = SA then pr else rs_tyerror ~loc (PrimNoSize s)
-  | PrimV pr -> pr (match sz with SAv sz -> sz | _ -> rs_tyerror ~loc (PrimIsVector s))
+  | PrimV pr -> (match sz with SAv (ve, sz) -> pr ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
   | exception Not_found -> rs_tyerror ~loc (UnknownPrim s)
 
 let prim_of_op exn loc o =

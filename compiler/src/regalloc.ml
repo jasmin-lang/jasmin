@@ -324,22 +324,22 @@ struct
   let r14 = V.mk "R14" Reg (Bty (U U64)) L._dummy
   let r15 = V.mk "R15" Reg (Bty (U U64)) L._dummy
 
-  let xmm0 = V.mk "XMM0" Reg (Bty (U U128)) L._dummy
-  let xmm1 = V.mk "XMM1" Reg (Bty (U U128)) L._dummy
-  let xmm2 = V.mk "XMM2" Reg (Bty (U U128)) L._dummy
-  let xmm3 = V.mk "XMM3" Reg (Bty (U U128)) L._dummy
-  let xmm4 = V.mk "XMM4" Reg (Bty (U U128)) L._dummy
-  let xmm5 = V.mk "XMM5" Reg (Bty (U U128)) L._dummy
-  let xmm6 = V.mk "XMM6" Reg (Bty (U U128)) L._dummy
-  let xmm7 = V.mk "XMM7" Reg (Bty (U U128)) L._dummy
-  let xmm8 = V.mk "XMM8" Reg (Bty (U U128)) L._dummy
-  let xmm9 = V.mk "XMM9" Reg (Bty (U U128)) L._dummy
-  let xmm10 = V.mk "XMM10" Reg (Bty (U U128)) L._dummy
-  let xmm11 = V.mk "XMM11" Reg (Bty (U U128)) L._dummy
-  let xmm12 = V.mk "XMM12" Reg (Bty (U U128)) L._dummy
-  let xmm13 = V.mk "XMM13" Reg (Bty (U U128)) L._dummy
-  let xmm14 = V.mk "XMM14" Reg (Bty (U U128)) L._dummy
-  let xmm15 = V.mk "XMM15" Reg (Bty (U U128)) L._dummy
+  let xmm0 = V.mk "XMM0" Reg (Bty (U U256)) L._dummy
+  let xmm1 = V.mk "XMM1" Reg (Bty (U U256)) L._dummy
+  let xmm2 = V.mk "XMM2" Reg (Bty (U U256)) L._dummy
+  let xmm3 = V.mk "XMM3" Reg (Bty (U U256)) L._dummy
+  let xmm4 = V.mk "XMM4" Reg (Bty (U U256)) L._dummy
+  let xmm5 = V.mk "XMM5" Reg (Bty (U U256)) L._dummy
+  let xmm6 = V.mk "XMM6" Reg (Bty (U U256)) L._dummy
+  let xmm7 = V.mk "XMM7" Reg (Bty (U U256)) L._dummy
+  let xmm8 = V.mk "XMM8" Reg (Bty (U U256)) L._dummy
+  let xmm9 = V.mk "XMM9" Reg (Bty (U U256)) L._dummy
+  let xmm10 = V.mk "XMM10" Reg (Bty (U U256)) L._dummy
+  let xmm11 = V.mk "XMM11" Reg (Bty (U U256)) L._dummy
+  let xmm12 = V.mk "XMM12" Reg (Bty (U U256)) L._dummy
+  let xmm13 = V.mk "XMM13" Reg (Bty (U U256)) L._dummy
+  let xmm14 = V.mk "XMM14" Reg (Bty (U U256)) L._dummy
+  let xmm15 = V.mk "XMM15" Reg (Bty (U U256)) L._dummy
 
   let allocatable = [
       rax; rcx; rdx;

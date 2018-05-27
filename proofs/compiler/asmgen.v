@@ -183,12 +183,23 @@ Definition any_garg : garg := Goprd (Imm_op 0%R).
 Definition any_pexpr : pexpr := 0%Z.
 Definition any_ty_pexpr : arg_ty * pexpr := (any_ty, any_pexpr).
 
-Definition wf_arg_desc tys ad := 
+(* -------------------------------------------------------------------- *)
+Definition wf_implicit (x: var) : bool :=
+  compile_var x != None.
+
+Lemma wf_implicitP x :
+  reflect (∃ d, compile_var x = Some d) (wf_implicit x).
+Proof.
+  rewrite /wf_implicit; case: compile_var => [ [ r | r | f ] | ]; constructor; eauto.
+  by case => ? // [<-].
+Qed.
+
+Definition wf_arg_desc tys ad :=
   match ad with
-  | ADExplicit sz n r => 
+  | ADExplicit sz n r =>
     if ((sz != None) || (r != None)) then nth any_ty tys n != TYcondt
     else true
-  | ADImplicit x       => compile_var x != None
+  | ADImplicit x => wf_implicit x
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -244,12 +255,12 @@ Definition arg_of_oprd sz o :=
   | _, _ => None
   end.
 
-Definition arg_of_rm128 rm :=
+Definition arg_of_rm128 sz rm :=
   match rm with
   | RM128_reg r => Some (Axreg r)
-  | RM128_mem a => Some (Aaddr U128 a)
+  | RM128_mem a => Option.map (λ sz, Aaddr sz a) sz
   | RM128_glo g =>
-    if size_of_global g == U128
+    if Some (size_of_global g) == sz
     then Some (Aglob g)
     else None
   end.
@@ -258,7 +269,7 @@ Definition arg_of_garg sz (i: garg) : option argument :=
   match i with
   | Gcondt c => Some (Acondt c)
   | Goprd o  => arg_of_oprd sz o
-  | Grm128 r => arg_of_rm128 r
+  | Grm128 r => arg_of_rm128 sz r
   end.
 
 Definition low_sem_ad_in (xs : seq garg) (ad : arg_desc) : option argument :=
@@ -292,7 +303,7 @@ Definition dest_of_garg (s: wsize) (g: garg) : option destination :=
 
 Definition low_sem_ad_out (xs : seq garg) (ad : arg_desc) : option destination :=
   match ad with
-  | ADImplicit x => ssrfun.omap dest_of_compiled_variable (compile_var x)
+  | ADImplicit x => compile_var x >>= λ d, Some (dest_of_compiled_variable d)
   | ADExplicit (Some s) n None => onth xs n >>= dest_of_garg s
   | _ => None
   end%O.
@@ -308,30 +319,30 @@ Definition eval_low gd (m : x86_mem) (a : argument) : exec value :=
   | Acondt c => value_of_bool (eval_cond c m.(xrf))
   end.
 
-Definition set_low (d: destination) (v: value) (m: x86_mem) : result _ x86_mem :=
+Definition set_low (f: msb_flag) (d: destination) (v: value) (m: x86_mem) : result _ x86_mem :=
   match d, v with
   | DAddr sz a, Vword sz' w =>
     Let w' := truncate_word sz w in
     let ptr := decode_addr m a in
     mem_write_mem ptr w' m
   | DReg r, Vword sz w => ok (mem_write_reg r w m)
-  | DXReg r, Vword sz w => ok (mem_write_xreg r (zero_extend U128 w) m)
+  | DXReg r, Vword sz w => ok (mem_update_xreg f r w m)
   | DFlag f, Vbool b => ok (mem_set_rflags f b m)
   | DFlag f, Vundef sbool => ok (mem_unset_rflags f m)
   | _, _ => type_error
   end.
 
-Definition sets_low (m : x86_mem) (x : seq destination) (v : seq value) :=
+Definition sets_low (m : x86_mem) (f: msb_flag) (x : seq destination) (v : seq value) :=
   if size x == size v then
-    foldl (fun m xv => Result.bind (set_low xv.1 xv.2) m) (ok m) (zip x v)
+    foldl (fun m xv => Result.bind (set_low f xv.1 xv.2) m) (ok m) (zip x v)
   else type_error.
 
-Definition low_sem_aux (gd: glob_defs) (m: x86_mem) (op: sopn)
+Definition low_sem_aux (gd: glob_defs) (m: x86_mem) (f: msb_flag) (op: sopn)
            (outx inx: seq arg_desc) (xs: seq garg) : exec x86_mem :=
   let inx := oseq.omap (low_sem_ad_in xs) inx in
   let outx := oseq.omap (low_sem_ad_out xs) outx in
   if (inx, outx) is (Some inx, Some outx) then
-    mapM (eval_low gd m) inx >>= exec_sopn op >>= sets_low m outx
+    mapM (eval_low gd m) inx >>= exec_sopn op >>= sets_low m f outx
   else type_error.
 
 (* -------------------------------------------------------------------- *)
@@ -366,23 +377,24 @@ Variant x86_mem_equiv (m m': x86_mem) : Prop :=
   `(∀ f, rflagv_leb (xrf m f) (xrf m' f))
 .
 
-Fixpoint gen_sem_correct tys id_name id_out id_in args  : interp_tys tys -> Prop :=
+Fixpoint gen_sem_correct' tys f id_name id_out id_in args  : interp_tys tys -> Prop :=
   match tys with
   | [::] => fun asm =>
     is_sopn asm ∧
     ∀ gd m m',
-       low_sem_aux gd m id_name id_out id_in args = ok m' →
+       low_sem_aux gd m f id_name id_out id_in args = ok m' →
        ∃ m'',
        eval_instr_mem gd asm m = ok m'' ∧
        x86_mem_equiv m' m''
   | ty::tys => fun asm =>
-    forall (x:interp_ty ty), @gen_sem_correct tys id_name id_out id_in (args ++ [::@mk_garg ty x]) (asm x)
+    forall (x:interp_ty ty), @gen_sem_correct' tys f id_name id_out id_in (args ++ [::@mk_garg ty x]) (asm x)
   end.
 
-Arguments gen_sem_correct : clear implicits.
+Arguments gen_sem_correct' : clear implicits.
 
 Record instr_desc := mk_instr_desc {
   id_name : sopn;
+  id_msb_flag: msb_flag;
   id_out  : seq arg_desc;
   id_in   : seq arg_desc;
   id_tys  : seq arg_ty;
@@ -390,13 +402,15 @@ Record instr_desc := mk_instr_desc {
 
   (* FIXME : Add the functionnal semantic of the operator in the record,
              this require to the have its syntatic type *)
-  id_gen_sem : gen_sem_correct id_tys id_name id_out id_in [::] id_instr;
+  id_gen_sem : gen_sem_correct' id_tys id_msb_flag id_name id_out id_in [::] id_instr;
   id_in_wf   : all (wf_arg_desc id_tys) id_in ;
   id_out_wf  : all (wf_arg_desc id_tys) id_out;
 }.
 
+Notation gen_sem_correct := (λ tys, gen_sem_correct' tys MSB_CLEAR).
+
 Definition low_sem gd m (id: instr_desc) (gargs: seq garg) : x86_result :=
-  low_sem_aux gd m id.(id_name) id.(id_out) id.(id_in) gargs.
+  low_sem_aux gd m id.(id_msb_flag) id.(id_name) id.(id_out) id.(id_in) gargs.
 
 (* -------------------------------------------------------------------- *)
 (* Generated mixed semantics                                            *)
@@ -413,10 +427,12 @@ Definition is_var_or_immediate (x:var) e :=
   | Pvar x' => x == x'
   | _ => false end.
 
-Definition check_esize s e := 
+Definition check_esize (s: option wsize) e :=
   match e with
   | Pcast ws (Pconst _) => (ws ≤ U64)%CMP
-  | Pload s' _ _ => s == Some s' 
+  | Pload s' _ _
+  | Pglobal (Global s' _)
+    => s == Some s'
   | _            => true
   end.
 
@@ -730,23 +746,24 @@ move => { ok_res }.
 apply: addr_of_pexprP; eauto.
 Qed.
 
-Lemma rm128_of_pexpr ii gd s m e rm v :
+Lemma rm128_of_pexpr ii gd sz s m e rm a v :
   lom_eqv s m →
   rm128_of_pexpr ii e = ok rm →
+  arg_of_rm128 sz rm = Some a →
+  check_esize sz e →
   sem_pexpr gd s e = ok v →
-  exists2 a : argument, arg_of_rm128 rm = Some a &
   exists2 v' : value, eval_low gd m a = ok v' & value_uincl v v'.
 Proof.
 case: e => //.
-- move => x eqv /=; case ok_r: xmm_register_of_var => [ r | ] // [<-] ok_v.
-  do 2 eexists; first reflexivity.
-  exact: xxgetreg_ex eqv ok_r ok_v.
-- case => - [] // g eqv [<-] /= h.
+- move => x eqv /=; case ok_r: xmm_register_of_var => [ r | ] // [<-] [<-]{a} _ /= ok_v.
   eexists; first reflexivity.
+  exact: xxgetreg_ex eqv ok_r ok_v.
+- move => g eqv [<-]{rm} /=; case: eqP => // _ [<-]{a} _ h.
   by eexists; first exact: h.
-case => // x e eqv /=.
-t_xrbindP => y ok_y a ok_a [<-] {rm} w z ok_z ok_w w' z' ok_z' ok_w' r ok_r <- {v} /=.
-eexists; first reflexivity.
+move => sz' x e eqv /=.
+t_xrbindP => y ok_y u ok_a [<-] {rm} /obindI [sz1] [?] [?]; subst a sz.
+case/eqP => ->{sz1}.
+move => w z ok_z ok_w w' z' ok_z' ok_w' r ok_r <- {v} /=.
 rewrite /= -(addr_of_pexprP eqv ok_y ok_z ok_w ok_z' ok_w' ok_a).
 case: eqv => <- _ _; rewrite ok_r /=.
 eexists; first reflexivity.
@@ -770,9 +787,9 @@ case: arg_ty_classify; t_xrbindP => x hx /=.
 - move=> <- {g} ha hce.
   have [w -> hvw] := eval_oprd_of_pexpr eqm hx ha hce hv.
   by exists w.
-move => <- {g} /=.
-have {hx} [ar -> [w ok_w hvw]] := rm128_of_pexpr eqm hx hv.
-by case => <- {a} _; eauto.
+move => <- {g} /= ha hce.
+have [w ok_w hvw] := rm128_of_pexpr eqm hx ha hce hv.
+eauto.
 Qed.
 
 Lemma compile_low_args_in ii gd m lom ads tys pes args gargs :
@@ -797,30 +814,22 @@ Proof.
   case: ad ha hwf.
   (* Implicit *)
   + move => x /= [] ?; subst arg.
-    case hd: compile_var => [ d | ] //= _.
+    case/wf_implicitP => d ok_d; rewrite ok_d.
     exists (arg_of_reg_or_flag d :: loargs); split; first by rewrite /= hlo.
     t_xrbindP => vs' v hv vs ok_vs <- {vs'}.
     have [vs1 [hvs1 hvsvs1]] := hlo' _ ok_vs.
     case: eqm => hm hr hx hf.
-    move: hd; rewrite/compile_var.
-    case eq1: register_of_var => [ r | ].
-    * have := var_of_register_of_var eq1 => {eq1} ?; subst x.
-      case => <- /=.
-      exists (Vword (xreg lom r) :: vs1); split.
-      + by rewrite hvs1.
-      by constructor => //;exact: hr.
-    case eqx: xmm_register_of_var => [ r | ].
-    * case => <- {d} /=.
-      rewrite hvs1 /=; eexists; split; first reflexivity.
-      constructor; last by [].
-      have {eqx} eqx := xmm_register_of_varI eqx; subst x.
-      exact: hx.
-    case eq2: flag_of_var => [ f | ] // [<-] {d}.
-    have := var_of_flag_of_var eq2 => {eq1 eq2} ?; subst x.
-    exists (of_rbool (xrf lom f) :: vs1); split.
-    + have := hf _ _ hv.
-      by rewrite /= /st_get_rflag hvs1; case: (xrf lom f).
-    by constructor => //;exact: hf.
+    rewrite /= hvs1 /=.
+    case: d ok_d => // [ r | r | f ] /compile_varI ok_d /=.
+    * eexists; split; first reflexivity.
+      constructor => //.
+      by apply: hr; rewrite ok_d.
+    * eexists; split; first reflexivity.
+      constructor => //.
+      by apply: hx; rewrite ok_d.
+    have := hf f v; rewrite ok_d => /(_ hv) h.
+    exists (of_rbool (xrf lom f) :: vs1); split; last by constructor.
+    by rewrite /= /st_get_rflag; case: (xrf lom f).
   (* Explicit *)
   case/compile_low_argsP: hpes => hsz hpes.
   move => /= sz n o ho htys.
@@ -869,10 +878,13 @@ Proof.
       - move => hpe /(_ _ hpe) //.
       case => ? [] ? k. by rewrite k in hop.
     case: op hop => /=; eauto.
+    - move => g; case: pe => //=.
+      * by move => x; case: xmm_register_of_var.
+      t_xrbindP => sz' x e r ok_r a ok_a [<-] {g} /eqP -> {sz} /=; eauto.
     move => g; case: pe => //=.
     * by move => x; case: xmm_register_of_var.
-    * by case => - [] // g' [<-] {g} _ _ /=; eauto.
-    by case => //; t_xrbindP.
+    * by move => g' [->]{g'}; case: g => sz' g /eqP -> {sz} _ /=; rewrite eqxx; eauto.
+    by t_xrbindP.
   move=> [] a [] ha [-> Hsize] => {y}.
   rewrite hlo /=. eexists; split; first by eauto.
   t_xrbindP => vs' v ok_v vs ok_vs <- {vs'} /=.
@@ -902,12 +914,36 @@ move => hle hle'.
 by rewrite /word_uincl hle' /= /merge_word -wxor_zero_extend // zero_extend_idem // -wand_zero_extend // zero_extend_mask_word // wand0 wxor0.
 Qed.
 
-Lemma write_var_compile_var x y y0 m lom m1 rf :
+Lemma wsize_le_U256 sz : (sz ≤ U256)%CMP.
+Proof. by case: sz. Qed.
+
+Lemma word_uincl_update_u256 sz sz' (w: word sz) (w': word sz') fl old :
+  word_uincl w w' →
+  word_uincl w (update_u256 fl old w').
+Proof.
+  case: fl => h /=.
+  + (* MSB_CLEAR *)
+    apply: (word_uincl_trans h).
+    apply: word_uincl_zero_extR.
+    exact: wsize_le_U256.
+  (* MSB_MERGE *)
+  apply/andP; split; first exact: wsize_le_U256.
+  case/andP: h => hle /eqP -> {w}.
+  rewrite -wxor_zero_extend; last exact: wsize_le_U256.
+  rewrite -wand_zero_extend; last exact: wsize_le_U256.
+  rewrite zero_extend_wshl; last exact: wsize_le_U256.
+  rewrite zero_extend_idem; last exact: wsize_le_U256.
+  rewrite wshl_ovf; last first.
+  + by apply/leP; case: sz sz' {w' old} hle => -[].
+  by rewrite wandC wand0 wxor0.
+Qed.
+
+Lemma write_var_compile_var x y y0 m lom m1 rf fl :
   write_var x y m = ok m1 →
   value_uincl y y0 →
   lom_eqv m lom →
   compile_var x = Some rf →
-  exists2 lom1, set_low (dest_of_compiled_variable rf) y0 lom = ok lom1 & lom_eqv m1 lom1.
+  exists2 lom1, set_low fl (dest_of_compiled_variable rf) y0 lom = ok lom1 & lom_eqv m1 lom1.
 Proof.
 rewrite /write_var /compile_var.
 case: x => -[ty x] /= _.
@@ -959,11 +995,8 @@ case: xmm_register_of_var (@xmm_register_of_varI (Var ty x)) => [ r | ].
       by apply/eqP => - [] /inj_string_of_xmm_register ne' //; apply: ne.
   + move => ?; subst r'.
     move: h; rewrite Fv.setP_eq => - [<-] {w} /=.
-    case: Sumbool.sumbool_of_bool => hle /=; rewrite /word_uincl /=.
-    * rewrite hle /= zero_extend_idem //.
-      by case/andP: hy.
-    rewrite zero_extend_u.
-    by case/andP: hy => hle' /eqP ->; rewrite zero_extend_idem // (cmp_nle_le (negbT hle)).
+    rewrite sumbool_of_boolET; first by case: (sz).
+    move => /= _; exact: word_uincl_update_u256.
   move => f v /= h; apply: eqf; move: h.
   rewrite /get_var; apply: on_vuP.
   + by move => /= b h <- {v}; move: h; rewrite Fv.setP_neq => // ->.
@@ -1063,7 +1096,7 @@ case: pe hr => //=.
   case: sz => // sz [<-] {lv}.
   do 3 (eexists; split; first reflexivity).
   split => //=; exact: xmm_register_of_var_of_xmm_register.
-case => // - [] x /= xi e; t_xrbindP => re hre a ha [<-] {r}.
+move => sz' [] x /= xi e; t_xrbindP => re hre a ha [<-]{r}.
 case: sz => // sz; case: eqP => // -> {sz} [<-] {lv}.
 do 2 (eexists; split; first reflexivity).
 eexists _, _, _; do 3 (split; first reflexivity).
@@ -1071,7 +1104,7 @@ split; last exact: ha.
 exact: (reg_of_var_register_of_var hre).
 Qed.
 
-Lemma compile_low_args_out ii gd ads tys pes args gargs :
+Lemma compile_low_args_out ii gd ads tys pes args gargs fl :
   compile_low_args ii tys pes = ok gargs →
   all (wf_arg_desc tys) ads →
   oseq.omap (mixed_sem_ad_out pes) ads = Some args →
@@ -1082,7 +1115,7 @@ Lemma compile_low_args_out ii gd ads tys pes args gargs :
     write_lvals gd m args ys = ok m' →
     List.Forall2 value_uincl ys ys' →
     ∃ lom',
-    sets_low lom loargs ys' = ok lom' ∧
+    sets_low lom fl loargs ys' = ok lom' ∧
     lom_eqv m' lom'.
 Proof.
   move => hpes.
@@ -1093,11 +1126,12 @@ Proof.
   case Heq' : omap => [ lvs /=| //] [<-].
   have [loargs [-> H]]:= ih _ wads Heq'.
   case: {ih} ds Heq wds => /=.
-  + move=> v [<-]; case Heq1: compile_var => [rf | //] _ /=.
+  + move=> v [<-] /wf_implicitP [d ok_d].
+    rewrite ok_d.
     eexists;split;first by eauto.
     move=> [ // | y ys] m m' ys'' lom eqm.
     t_xrbindP => m1 Hwr Hwv /List_Forall2_inv_l [y'] [ys'] [->] {ys''} [hyy' hysys'].
-    have [lom1 /= Hset eqm1]:= write_var_compile_var Hwr hyy' eqm Heq1.
+    have [lom1 /= Hset eqm1]:= write_var_compile_var fl Hwr hyy' eqm ok_d.
     have [lom' []]:= H _ _ _ _ _ eqm1 Hwv hysys'.
     by rewrite /sets_low;case:ifP => //= /eqP ->;rewrite eqxx Hset => ->;eauto.
   case/compile_low_argsP: hpes => hsz hpes.
@@ -1154,13 +1188,13 @@ Proof.
     have <- := xgetreg eqm ok_r ok_v' ok_v.
     wring.
   - move => r [x] [hpe] [? ok_r]; subst lv.
-    have := @write_var_compile_var _ _ _ _ _ _ (LRegister r) ok_m' hyy' eqm.
+    have := @write_var_compile_var _ _ _ _ _ _ (LRegister r) fl ok_m' hyy' eqm.
     rewrite /compile_var ok_r => /(_ erefl) /= [lom' ok_lom' eqm'].
     have [lom'' [ok_lom'' eqm'']] := H _ _ _ _ _ eqm' ok_m'' hysys'.
     exists lom''; split => //.
     by move: ok_lom''; rewrite /sets_low /=; case: ifP => // /eqP ->; rewrite eqxx ok_lom'.
   move => r [x] [hpe] [? ok_r]; subst lv.
-  have := @write_var_compile_var _ _ _ _ _ _ (LXRegister r) ok_m' hyy' eqm.
+  have := @write_var_compile_var _ _ _ _ _ _ (LXRegister r) fl ok_m' hyy' eqm.
   rewrite (xmm_register_of_var_compile_var ok_r) => /(_ erefl) /= [lom' ok_lom' eqm'].
   have [lom'' [ok_lom'' eqm'']] := H _ _ _ _ _ eqm' ok_m'' hysys'.
   exists lom''; split => //.
@@ -1183,6 +1217,6 @@ Proof.
   rewrite /low_sem /low_sem_aux.
   have [loin [-> /(_ _ ok_xs) [xs' [-> /= hxs]]]] := compile_low_args_in gd eqsm ok_args (id_in_wf id) ok_in.
   have [ys' [-> /= hys]] := vuincl_exec_opn hxs ok_ys.
-  have [loout [-> ]]  := compile_low_args_out gd ok_args (id_out_wf id) ok_out.
+  have [loout [-> ]]  := compile_low_args_out gd (id_msb_flag id) ok_args (id_out_wf id) ok_out.
   by move=> /(_ _ _ _ _ _ eqsm hs' hys).
  Qed.

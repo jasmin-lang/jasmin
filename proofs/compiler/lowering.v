@@ -423,17 +423,17 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
         end
       end
     | Oland sz =>
-      if sz == U128
-      then kb true sz (LowerCopn Ox86_VPAND [:: a ; b ])
-      else k8 sz (LowerFopn (Ox86_AND sz) [:: a ; b ] (Some U32))
+      if (sz ≤ U64)%CMP
+      then k8 sz (LowerFopn (Ox86_AND sz) [:: a ; b ] (Some U32))
+      else kb true sz (LowerCopn (Ox86_VPAND sz) [:: a ; b ])
     | Olor sz =>
-      if sz == U128
-      then kb true sz (LowerCopn Ox86_VPOR [:: a ; b ])
-      else k8 sz (LowerFopn (Ox86_OR sz) [:: a ; b ] (Some U32))
+      if (sz ≤ U64)%CMP
+      then k8 sz (LowerFopn (Ox86_OR sz) [:: a ; b ] (Some U32))
+      else kb true sz (LowerCopn (Ox86_VPOR sz) [:: a ; b ])
     | Olxor sz =>
-      if sz == U128
-      then kb true sz (LowerCopn Ox86_VPXOR [:: a ; b ])
-      else k8 sz (LowerFopn (Ox86_XOR sz) [:: a ; b ] (Some U32))
+      if (sz ≤ U64)%CMP
+      then k8 sz (LowerFopn (Ox86_XOR sz) [:: a ; b ] (Some U32))
+      else kb true sz (LowerCopn (Ox86_VPXOR sz) [:: a ; b ])
     | Olsr sz => k8 sz (LowerFopn (Ox86_SHR sz) [:: a ; b ] (Some U8))
     | Olsl sz => k8 sz (LowerFopn (Ox86_SHL sz) [:: a ; b ] (Some U8))
     | Oasr sz => k8 sz (LowerFopn (Ox86_SAR sz) [:: a ; b ] (Some U8))
@@ -525,13 +525,13 @@ Definition wsize_of_sopn (op: sopn) : wsize :=
   | Ox86_SHR x
   | Ox86_SAR x
   | Ox86_SHLD x
+  | Ox86_VMOVDQU x
+  | Ox86_VPAND x | Ox86_VPOR x | Ox86_VPXOR x
+  | Ox86_VPADD _ x
+  | Ox86_VPSLL _ x | Ox86_VPSRL _ x
+  | Ox86_VPSHUFB x | Ox86_VPSHUFD x
     => x
   | Ox86_MOVD _
-  | Ox86_VMOVDQU
-  | Ox86_VPAND | Ox86_VPOR | Ox86_VPXOR
-  | Ox86_VPADD _
-  | Ox86_VPSLL _ | Ox86_VPSRL _
-  | Ox86_VPSHUFB | Ox86_VPSHUFD
     => U128
   end.
 

@@ -126,17 +126,17 @@ Variant sopn : Set :=
 | Ox86_SHLD    of wsize  (* unsigned double-word / left  *)
 
 | Ox86_MOVD of wsize (* zero-extend to 128 bits *)
-| Ox86_VMOVDQU (* 128-bit copy *)
-| Ox86_VPAND (* 128-bit AND *)
-| Ox86_VPOR (* 128-bit OR *)
-| Ox86_VPXOR (* 128-bit XOR *)
+| Ox86_VMOVDQU of wsize (* 128/256-bit copy *)
+| Ox86_VPAND of wsize (* 128/256-bit AND *)
+| Ox86_VPOR of wsize (* 128/256-bit OR *)
+| Ox86_VPXOR of wsize (* 128/256-bit XOR *)
 
-| Ox86_VPADD of velem (* Parallel addition over 128-bit vectors *)
+| Ox86_VPADD of velem & wsize (* Parallel addition over 128/256-bit vectors *)
 
-| Ox86_VPSLL of velem (* Parallel shift left logical ovec 128-bit vectors *)
-| Ox86_VPSRL of velem (* Parallel shift right logical ovec 128-bit vectors *)
-| Ox86_VPSHUFB (* Shuffle bytes *)
-| Ox86_VPSHUFD (* Shuffle 32-bit words *)
+| Ox86_VPSLL of velem & wsize (* Parallel shift left logical over 128/256-bit vectors *)
+| Ox86_VPSRL of velem & wsize (* Parallel shift right logical over 128/256-bit vectors *)
+| Ox86_VPSHUFB of wsize (* Shuffle bytes *)
+| Ox86_VPSHUFD of wsize (* Shuffle 32-bit words *)
 .
 
 Scheme Equality for sop1.
@@ -216,15 +216,15 @@ Definition string_of_sopn o : string :=
   | Ox86_SAR sz => "Ox86_SAR " ++ string_of_wsize sz
   | Ox86_SHLD sz => "Ox86_SHLD " ++ string_of_wsize sz
   | Ox86_MOVD sz => "Ox86_MOVD " ++ string_of_wsize sz
-  | Ox86_VMOVDQU => "Ox86_VMOVDQU"
-  | Ox86_VPAND => "Ox86_VPAND"
-  | Ox86_VPOR => "Ox86_VPOR"
-  | Ox86_VPXOR => "Ox86_VPXOR"
-  | Ox86_VPADD ve => "Ox86_VPADD " ++ string_of_velem ve
-  | Ox86_VPSLL ve => "Ox86_VPSLL " ++ string_of_velem ve
-  | Ox86_VPSRL ve => "Ox86_VPSRL " ++ string_of_velem ve
-  | Ox86_VPSHUFB => "Ox86_VPSHUFB"
-  | Ox86_VPSHUFD => "Ox86_VPSHUFD"
+  | Ox86_VMOVDQU sz => "Ox86_VMOVDQU " ++ string_of_wsize sz
+  | Ox86_VPAND sz => "Ox86_VPAND " ++ string_of_wsize sz
+  | Ox86_VPOR sz => "Ox86_VPOR " ++ string_of_wsize sz
+  | Ox86_VPXOR sz => "Ox86_VPXOR " ++ string_of_wsize sz
+  | Ox86_VPADD ve sz => "Ox86_VPADD " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
+  | Ox86_VPSLL ve sz => "Ox86_VPSLL " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
+  | Ox86_VPSRL ve sz => "Ox86_VPSRL " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
+  | Ox86_VPSHUFB sz => "Ox86_VPSHUFB " ++ string_of_wsize sz
+  | Ox86_VPSHUFD sz => "Ox86_VPSHUFD " ++ string_of_wsize sz
   end.
 
 Definition b_ty := [::sbool].
@@ -262,12 +262,13 @@ Definition sopn_tout (o:sopn) :  list stype :=
   | Ox86_SHL sz | Ox86_SHR sz     => b5w_ty sz 
   | Ox86_SAR sz | Ox86_SHLD sz    => b5w_ty sz
   | Ox86_MOVD _
-  | Ox86_VMOVDQU
-  | Ox86_VPAND | Ox86_VPOR | Ox86_VPXOR
-  | Ox86_VPADD _
-  | Ox86_VPSLL _ | Ox86_VPSRL _
-  | Ox86_VPSHUFB | Ox86_VPSHUFD
     => [:: sword128 ]
+  | Ox86_VMOVDQU sz
+  | Ox86_VPAND sz | Ox86_VPOR sz | Ox86_VPXOR sz
+  | Ox86_VPADD _ sz
+  | Ox86_VPSLL _ sz | Ox86_VPSRL _ sz
+  | Ox86_VPSHUFB sz | Ox86_VPSHUFD sz
+    => [:: sword sz ]
   end.
 
 Definition sopn_tin (o: sopn) : list stype :=
@@ -286,6 +287,7 @@ Definition sopn_tin (o: sopn) : list stype :=
   | Ox86_DEC sz
   | Ox86_NOT sz
   | Ox86_MOVD sz
+  | Ox86_VMOVDQU sz
     => [:: sword sz ]
   | Ox86_CMOVcc sz => [:: sbool ; sword sz ; sword sz ]
   | Omulu sz
@@ -314,14 +316,13 @@ Definition sopn_tin (o: sopn) : list stype :=
   | Ox86_SAR sz
     => [:: sword sz ; sword8 ]
   | Ox86_SHLD sz => let t := sword sz in [:: t ; t ; sword8 ]
-  | Ox86_VMOVDQU => [:: sword128 ]
-  | Ox86_VPAND | Ox86_VPOR | Ox86_VPXOR
-  | Ox86_VPADD _
-  | Ox86_VPSHUFB
-    => let t := sword128 in [:: t; t ]
-  | Ox86_VPSLL _ | Ox86_VPSRL _
-  | Ox86_VPSHUFD
-    => [:: sword128 ; sword8 ]
+  | Ox86_VPAND sz | Ox86_VPOR sz | Ox86_VPXOR sz
+  | Ox86_VPADD _ sz
+  | Ox86_VPSHUFB sz
+    => let t := sword sz in [:: t; t ]
+  | Ox86_VPSLL _ sz | Ox86_VPSRL _ sz
+  | Ox86_VPSHUFD sz
+    => [:: sword sz; sword8 ]
   end.
 
 (* ** Expressions

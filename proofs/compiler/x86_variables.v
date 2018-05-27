@@ -148,7 +148,7 @@ Definition var_of_register r :=
   {| vtype := sword64 ; vname := string_of_register r |}. 
 
 Definition var_of_xmm_register r :=
-  {| vtype := sword128 ; vname := string_of_xmm_register r |}.
+  {| vtype := sword256 ; vname := string_of_xmm_register r |}.
 
 Definition var_of_flag f := 
   {| vtype := sbool; vname := string_of_rflag f |}. 
@@ -201,7 +201,7 @@ Proof.
 Qed.
 
 Definition xmm_register_of_var (v:var) : option xmm_register :=
-  if v.(vtype) == sword128 then xmm_reg_of_string v.(vname)
+  if v.(vtype) == sword256 then xmm_reg_of_string v.(vname)
   else None.
 
 Lemma xmm_register_of_varI v r :
@@ -248,6 +248,25 @@ Proof.
   move => r' /(_ _ erefl) ?; subst x.
   have {h} := xmm_register_of_varI h.
   by destruct r, r'.
+Qed.
+
+Lemma compile_varI x cv :
+  compile_var x = Some cv →
+  match cv with
+  | LRegister r => var_of_register r = x
+  | LXRegister r => var_of_xmm_register r = x
+  | LRFlag f => var_of_flag f = x
+  end.
+Proof.
+  rewrite /compile_var.
+  case: (register_of_var x) (@var_of_register_of_var x).
+  + by move => r /(_ _ erefl) <- {x} [<-]{cv}.
+  move => _.
+  case: (xmm_register_of_var x) (@xmm_register_of_varI x).
+  + by move => r /(_ _ erefl) <- {x} [<-]{cv}.
+  move => _.
+  case: (flag_of_var x) (@var_of_flag_of_var x) => //.
+  by move => r /(_ _ erefl) <- {x} [<-]{cv}.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -474,11 +493,11 @@ Definition rm128_of_pexpr ii (e: pexpr) : ciexec rm128 :=
   | Pvar x =>
     if xmm_register_of_var x is Some r then ciok (RM128_reg r)
     else rm128_of_pexpr_error ii (Some (v_var x))
-  | Pload U128 v e =>
+  | Pload _ v e =>
      Let s := reg_of_var ii v in
      Let w := addr_of_pexpr ii s e in
      ciok (RM128_mem w)
-  | Pglobal (Global U128 _ as g) => ciok (RM128_glo g)
+  | Pglobal g => ciok (RM128_glo g)
   | _ => rm128_of_pexpr_error ii None
   end.
 
@@ -621,6 +640,6 @@ elim: pe pe' rm => [ z | b | sz pe ih | x | g | x pe ih | sz x pe ih | op pe ih 
   [ z' | b' | sz' pe' | x' | g' | x' pe' | sz' x' pe' | op' pe' | op' pe1' pe2' | pe1' pe2' pe3' ] // rm.
 - by case: x => x xi /eqP /= ->.
 - by move/eqP => <-.
-case: sz => //= /andP [] /andP [] /eqP <- /eqP <- rec.
+move => /= /andP [] /andP [] /eqP _ /eqP <- rec.
 by t_xrbindP => r -> a ok_a _ /=; rewrite (addr_of_pexpr_eq_expr rec ok_a).
 Qed.
