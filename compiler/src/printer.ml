@@ -180,6 +180,7 @@ let pp_opn =
   | Ox86_VPSRL (ve, sz) -> v ve sz "#x86_VPSRL"
   | Ox86_VPSHUFB w -> f w "#x86_VPSHUFB"
   | Ox86_VPSHUFD w -> f w "#x86_VPSHUFD"
+  | Ox86_VPBLENDD w -> f w "#x86_VPBLENDD"
 
 (* -------------------------------------------------------------------- *)
 let pp_tag = function

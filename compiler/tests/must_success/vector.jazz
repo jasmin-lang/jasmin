@@ -48,8 +48,12 @@ r = #x86_VPSHUFB(r, rotate24pattern);
 
 export
 fn test_avx2(reg u64 p) {
-reg u256 r;
+reg u256 r, s, t, u, v;
 r = (u256)[p + 0];
+s = (u256)[p + 32];
+t = (u256)[p + 64];
 r = #x86_VPSHUFD_256(r, 0x33);
-(u256)[p + 32] = r;
+u = #x86_VPBLENDD_256(s, t, 0xa4);
+v = r ^ u;
+(u256)[p + 32] = v;
 }

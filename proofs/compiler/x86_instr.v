@@ -990,6 +990,27 @@ Qed.
 Definition VPSHUFD_desc sz := make_instr_desc (VPSHUFD_gsc sz).
 
 (* ----------------------------------------------------------------------------- *)
+Lemma VPBLENDD_gsc sz :
+  gen_sem_correct [:: TYxreg ; TYxreg ; TYrm128 ; TYimm U8 ]
+    (Ox86_VPBLENDD sz)
+    [:: E sz 0 ] [:: E sz 1 ; E sz 2 ; E U8 3 ] [::]
+    (VPBLENDD sz).
+Proof.
+move => x y z k; split => // gd m m'.
+rewrite /low_sem_aux /=.
+case hz: arg_of_rm128 => [ z' | ] //=.
+t_xrbindP => ???? h <- <-; t_xrbindP => w1 /to_wordI [sz1] [w1'] [_ /Vword_inj [?]].
+subst => /= ??; subst => w1 /to_wordI [sz1] [w1'] [hle ??]; subst => ?.
+rewrite /truncate_word /= zero_extend_sign_extend // sign_extend_u => - [?]; subst.
+rewrite /x86_vpblendd; t_xrbindP => ? ok_sz <-.
+rewrite /sets_low => - [<-].
+rewrite /eval_VPBLENDD (eval_low_rm128 ok_sz hz h).
+eexists; split; reflexivity.
+Qed.
+
+Definition VPBLENDD_desc sz := make_instr_desc (VPBLENDD_gsc sz).
+
+(* ----------------------------------------------------------------------------- *)
 
 Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   match c with
@@ -1037,6 +1058,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_VPSRL ve sz => ok (VPSRL_desc ve sz)
   | Ox86_VPSHUFB sz => ok (VPSHUFB_desc sz)
   | Ox86_VPSHUFD sz => ok (VPSHUFD_desc sz)
+  | Ox86_VPBLENDD sz => ok (VPBLENDD_desc sz)
   end.
 
 Lemma sopn_desc_name ii o d : sopn_desc ii o = ok d -> d.(id_name) = o.

@@ -137,6 +137,7 @@ Variant sopn : Set :=
 | Ox86_VPSRL of velem & wsize (* Parallel shift right logical over 128/256-bit vectors *)
 | Ox86_VPSHUFB of wsize (* Shuffle bytes *)
 | Ox86_VPSHUFD of wsize (* Shuffle 32-bit words *)
+| Ox86_VPBLENDD of wsize (* Blend 32-bit words *)
 .
 
 Scheme Equality for sop1.
@@ -225,6 +226,7 @@ Definition string_of_sopn o : string :=
   | Ox86_VPSRL ve sz => "Ox86_VPSRL " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
   | Ox86_VPSHUFB sz => "Ox86_VPSHUFB " ++ string_of_wsize sz
   | Ox86_VPSHUFD sz => "Ox86_VPSHUFD " ++ string_of_wsize sz
+  | Ox86_VPBLENDD sz => "Ox86_VPBLENDD " ++ string_of_wsize sz
   end.
 
 Definition b_ty := [::sbool].
@@ -268,6 +270,7 @@ Definition sopn_tout (o:sopn) :  list stype :=
   | Ox86_VPADD _ sz
   | Ox86_VPSLL _ sz | Ox86_VPSRL _ sz
   | Ox86_VPSHUFB sz | Ox86_VPSHUFD sz
+  | Ox86_VPBLENDD sz
     => [:: sword sz ]
   end.
 
@@ -315,7 +318,9 @@ Definition sopn_tin (o: sopn) : list stype :=
   | Ox86_SHR sz
   | Ox86_SAR sz
     => [:: sword sz ; sword8 ]
-  | Ox86_SHLD sz => let t := sword sz in [:: t ; t ; sword8 ]
+  | Ox86_SHLD sz
+  | Ox86_VPBLENDD sz
+    => let t := sword sz in [:: t ; t ; sword8 ]
   | Ox86_VPAND sz | Ox86_VPOR sz | Ox86_VPXOR sz
   | Ox86_VPADD _ sz
   | Ox86_VPSHUFB sz

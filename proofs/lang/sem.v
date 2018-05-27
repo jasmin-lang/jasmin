@@ -826,6 +826,11 @@ Definition x86_vpshufd {sz} (v1: word sz) (v2: u8) : exec values :=
   ok [:: Vword (wpshufd v1 (wunsigned v2)) ].
 
 (* ---------------------------------------------------------------- *)
+Definition x86_vpblendd {sz} (v1 v2: word sz) (m: u8) : exec values :=
+  Let _ := check_size_128_256 sz in
+  ok [:: Vword (wpblendd v1 v2 m) ].
+
+(* ---------------------------------------------------------------- *)
 Notation app_b   o := (app_sopn [:: sbool] o).
 Notation app_w sz o := (app_sopn [:: sword sz] o).
 Notation app_ww sz o := (app_sopn [:: sword sz; sword sz] o).
@@ -901,6 +906,7 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_VPSRL ve sz => app_v8 sz (x86_vpsrl ve)
   | Ox86_VPSHUFB sz => app_vv sz x86_vpshufb
   | Ox86_VPSHUFD sz => app_v8 sz x86_vpshufd
+  | Ox86_VPBLENDD sz => app_ww8 sz x86_vpblendd
   end.
 
 Ltac app_sopn_t := 
