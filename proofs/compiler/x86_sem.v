@@ -182,6 +182,7 @@ Variant asm : Type :=
 | VPSRL `(velem) `(wsize) (_ _: rm128) `(u8)
 | VPSHUFB `(wsize) (_ _: xmm_register) `(rm128)
 | VPSHUFD of wsize & xmm_register & rm128 & u8
+| VPBLENDD `(wsize) (_ _: xmm_register) `(rm128) `(u8)
 .
 
 (* -------------------------------------------------------------------- *)
@@ -1132,6 +1133,13 @@ Definition eval_VPSHUFD sz (dst: xmm_register) (src: rm128) (pat: u8) s : x86_re
   ok (mem_update_xreg MSB_CLEAR dst r s).
 
 (* -------------------------------------------------------------------- *)
+Definition eval_VPBLENDD sz (dst: xmm_register) (src1: xmm_register) (src2: rm128) (mask: u8) s : x86_result :=
+  let v1 := zero_extend sz (xxreg s src1) in
+  Let v2 := read_rm128 sz src2 s in
+  let r := wpblendd v1 v2 mask in
+  ok (mem_update_xreg MSB_CLEAR dst r s).
+
+(* -------------------------------------------------------------------- *)
 Definition eval_instr_mem (i : asm) s : x86_result :=
   match i with
   | JMP    _
@@ -1179,6 +1187,8 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | VPSRL ve sz dst src1 src2 => eval_VPSRL ve sz dst src1 src2 s
   | VPSHUFB sz dst src pat => eval_VPSHUFB sz dst src pat s
   | VPSHUFD sz dst src pat => eval_VPSHUFD sz dst src pat s
+
+  | VPBLENDD sz dst src1 src2 mask => eval_VPBLENDD sz dst src1 src2 mask s
   end.
 
 Definition eval_instr (i : asm) (s: x86_state) : x86_result_state :=

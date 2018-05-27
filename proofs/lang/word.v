@@ -626,3 +626,11 @@ Definition wpshufd sz : word sz → Z → word sz :=
   | U128 => wpshufd_128
   | U256 => wpshufd_256
   | _ => λ w _, w end.
+
+(* -------------------------------------------------------------------*)
+Definition wpblendd sz (w1 w2: word sz) (m: u8) : word sz :=
+  let v1 := split_vec U32 w1 in
+  let v2 := split_vec U32 w2 in
+  let b := split_vec 1 m in
+  let r := map3 (λ b v1 v2, if b == 1%R then v2 else v1) b v1 v2 in
+  make_vec sz r.

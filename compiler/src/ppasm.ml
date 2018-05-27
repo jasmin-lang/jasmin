@@ -481,6 +481,9 @@ let pp_instr name (i : X86_sem.asm) =
   | VPSHUFD (sz, dst, src1, src2) ->
     `Instr ("vpshufd", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 sz src1; pp_xmm_register sz dst])
 
+  | VPBLENDD (sz, dst, src1, src2, mask) ->
+    `Instr("vpblendd", [pp_imm (Conv.bi_of_int8 mask); pp_rm128 sz src2; pp_xmm_register sz src1; pp_xmm_register sz dst])
+
 (* -------------------------------------------------------------------- *)
 let pp_instr name (fmt : Format.formatter) (i : X86_sem.asm) =
   pp_gen fmt (pp_instr name i)
@@ -510,6 +513,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | VPADD _
   | VPSLL _ | VPSRL _
   | VPSHUFB _ | VPSHUFD _
+  | VPBLENDD _
     -> c
 
   | LEA    (_, op, _) -> Set.add op c
