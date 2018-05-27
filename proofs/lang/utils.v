@@ -454,6 +454,25 @@ Section Map2.
 
 End Map2.
 
+Section Map3.
+
+  Context (A B C D : Type) (f : A -> B -> C -> D).
+
+  Fixpoint map3 ma mb mc :=
+    match ma, mb, mc with
+    | a :: ma', b :: mb', c :: mc' => f a b c :: map3 ma' mb' mc'
+    | _, _, _ => [::]
+    end.
+
+  Lemma map3E ma mb mc :
+    map3 ma mb mc = map2 (λ ab, f ab.1 ab.2) (zip ma mb) mc.
+  Proof.
+    elim: ma mb mc; first by case.
+    by move => a ma ih [] // b mb [] // c mc /=; f_equal.
+  Qed.
+
+End Map3.
+
 (* ** Misc functions
  * -------------------------------------------------------------------- *)
 
