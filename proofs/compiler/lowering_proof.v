@@ -1462,28 +1462,35 @@ Section PROOF.
     by eexists _, w1, _, wx'.
   Qed.
 
+  Lemma unsigned_overflow sz (z: Z):
+    (0 <= z)%Z ->
+    (wunsigned (wrepr sz z) != z) = (wbase sz <=? z)%Z.
+  Proof.
+    move => hz.
+    rewrite wunsigned_repr; apply/idP/idP.
+    * apply: contraR => /negbTE /Z.leb_gt lt; apply/eqP.
+        by rewrite Z.mod_small //; lia.
+    * apply: contraL => /eqP <-; apply/negbT/Z.leb_gt.
+      by case: (Z_mod_lt z (wbase sz)).
+  Qed.
+
   Lemma add_overflow sz (w1 w2: word sz) :
     (wbase sz <=? wunsigned w1 + wunsigned w2)%Z =
     (wunsigned (w1 + w2) != (wunsigned w1 + wunsigned w2)%Z).
-  Proof using.
-  (*
-  case: w1 w2 => [z1 h1] [z2 h2]; rewrite /I64.add /=.
-  rewrite unsigned_overflow //; lia.
+  Proof.
+    rewrite unsigned_overflow //; rewrite -!/(wunsigned _).
+    have := wunsigned_range w1; have := wunsigned_range w2.
+    lia.
   Qed.
-  *)
-  Admitted.
 
-  Lemma add_carry_overflow sz (w1 w2: word sz) b :
-    (wbase sz <=? wunsigned w1 + wunsigned w2 + b)%Z =
-    (wunsigned (add_carry sz (wunsigned w1) (wunsigned w2) b) != (wunsigned w1 + wunsigned w2 + b))%Z.
-  Proof using.
-  (*
-  case: w1 w2 => [z1 h1] [z2 h2]; rewrite add_carry_repr /= b_to_w_Zofb.
-  rewrite unsigned_overflow //; case: b=> /=;
-    by rewrite ?I64.unsigned_one ?I64.unsigned_zero; lia.
+  Lemma add_carry_overflow sz (w1 w2: word sz) (b: bool) :
+    (wbase sz <=? wunsigned w1 + wunsigned w2 + Z.b2z b)%Z =
+    (wunsigned (add_carry sz (wunsigned w1) (wunsigned w2) (Z.b2z b)) != (wunsigned w1 + wunsigned w2 + Z.b2z b))%Z.
+  Proof.
+    rewrite unsigned_overflow //.
+    have := wunsigned_range w1; have := wunsigned_range w2.
+    case: b => /=; lia.
   Qed.
-  *)
-  Admitted.
 
   Lemma sub_underflow sz (w1 w2: word sz) :
     (wunsigned w1 - wunsigned w2 <? 0)%Z = (wunsigned (w1 - w2) != (wunsigned w1 - wunsigned w2))%Z.
