@@ -171,6 +171,8 @@ Variant asm : Type :=
 | SAR    of wsize & oprd & ireg            (*   signed / right *)
 | SHLD   of wsize & oprd & register & ireg (* unsigned (double) / left *)
 
+| BSWAP of wsize & register (* byte swap *)
+
   (* SSE instructions *)
 | MOVD of wsize & xmm_register & oprd
 | VMOVDQU `(wsize) (_ _: rm128)
@@ -1075,6 +1077,13 @@ Definition eval_SAR sz o ir s : x86_result :=
     in write_oprd o r s.
 
 (* -------------------------------------------------------------------- *)
+Definition eval_BSWAP sz x s : x86_result :=
+  Let _ := check_size_32_64 sz in
+  let v := zero_extend sz (xreg s x) in
+  let r := wbswap v in
+  ok (mem_write_reg x r s).
+
+(* -------------------------------------------------------------------- *)
 Definition eval_JMP lbl (s: x86_state) : x86_result_state :=
   Let ip := find_label lbl s.(xc) in ok (st_write_ip ip.+1 s).
 
@@ -1176,6 +1185,8 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | SAL    sz o ir     => eval_SAL    sz o ir s
   | SAR    sz o ir     => eval_SAR    sz o ir s
   | SHLD   sz o1 o2 ir => eval_SHLD   sz o1 o2 ir s
+
+  | BSWAP sz r => eval_BSWAP sz r s
 
   | MOVD sz dst src => eval_MOVD sz dst src s
   | VMOVDQU sz dst src => eval_VMOV sz dst src s

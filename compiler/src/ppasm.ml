@@ -450,6 +450,10 @@ let pp_instr name (i : X86_sem.asm) =
       let rs = rs_of_ws ws in
       `Instr (pp_iname rs "shld", [pp_imr rs ir; pp_register rs op2; pp_opr rs op1])
 
+  | BSWAP(ws, r) ->
+    let rs = rs_of_ws ws in
+    `Instr (pp_iname rs "bswap", [pp_register rs r])
+
   | MOVD (ws, dst, src) ->
       let rs = rs_of_ws ws in
       `Instr ((if ws = U64 then "movq" else "movd"), [pp_opr rs src; pp_xmm_register U128 dst])
@@ -543,6 +547,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
 
   | MOVSX (_, _, r, _)
   | MOVZX (_, _, r, _)
+  | BSWAP (_, r)
     -> Set.add r c
 
   | MUL  _

@@ -598,6 +598,10 @@ Definition lift2_vec ve (op : word ve -> word ve -> word ve)
 Arguments lift2_vec : clear implicits.
 
 (* -------------------------------------------------------------------*)
+Definition wbswap sz (w: word sz) : word sz :=
+  make_vec sz (rev (split_vec U8 w)).
+
+(* -------------------------------------------------------------------*)
 Definition wpshufb1 (s : seq u8) (idx : u8) :=
   if msb idx then 0%R else
     let off := wunsigned (wand idx (wshl 1 4%Z - 1)) in
