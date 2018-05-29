@@ -867,6 +867,18 @@ Qed.
 Definition Set0_desc sz := make_instr_desc (Set0_gsc sz).
 
 (* ----------------------------------------------------------------------------- *)
+Lemma BSWAP_gsc sz :
+  gen_sem_correct [:: TYreg ] (Ox86_BSWAP sz)
+     [:: E sz 0] [:: E sz 0] [::] (BSWAP sz).
+Proof.
+move => x; split => // gd m m'; rewrite /low_sem_aux /= /eval_BSWAP /x86_bswap.
+t_xrbindP => _ _ /truncate_wordP [hle ->] _ -> /= <- [<-].
+eexists; split; reflexivity.
+Qed.
+
+Definition BSWAP_desc sz := make_instr_desc (BSWAP_gsc sz).
+
+(* ----------------------------------------------------------------------------- *)
 Lemma eval_low_rm128 gd s u m x y sz (v: word sz) :
   check_size_128_256 s = ok u →
   arg_of_rm128 (Some s) x = Some y →
@@ -1048,6 +1060,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_SHR sz => ok (SHR_desc sz)
   | Ox86_SAR sz => ok (SAR_desc sz)
   | Ox86_SHLD sz => ok (SHLD_desc sz)
+  | Ox86_BSWAP sz => ok (BSWAP_desc sz)
   | Ox86_MOVD sz => ok (MOVD_desc sz)
   | Ox86_VMOVDQU sz => ok (VMOVDQU_desc sz)
   | Ox86_VPAND sz => ok (VPAND_desc sz)

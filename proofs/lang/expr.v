@@ -125,6 +125,8 @@ Variant sopn : Set :=
 | Ox86_SAR     of wsize  (*   signed / right *)
 | Ox86_SHLD    of wsize  (* unsigned double-word / left  *)
 
+| Ox86_BSWAP of wsize (* byte swap *)
+
 | Ox86_MOVD of wsize (* zero-extend to 128 bits *)
 | Ox86_VMOVDQU of wsize (* 128/256-bit copy *)
 | Ox86_VPAND of wsize (* 128/256-bit AND *)
@@ -216,6 +218,7 @@ Definition string_of_sopn o : string :=
   | Ox86_SHR sz => "Ox86_SHR " ++ string_of_wsize sz
   | Ox86_SAR sz => "Ox86_SAR " ++ string_of_wsize sz
   | Ox86_SHLD sz => "Ox86_SHLD " ++ string_of_wsize sz
+  | Ox86_BSWAP sz => "Ox86_BSWAP " ++ string_of_wsize sz
   | Ox86_MOVD sz => "Ox86_MOVD " ++ string_of_wsize sz
   | Ox86_VMOVDQU sz => "Ox86_VMOVDQU " ++ string_of_wsize sz
   | Ox86_VPAND sz => "Ox86_VPAND " ++ string_of_wsize sz
@@ -246,6 +249,7 @@ Definition sopn_tout (o:sopn) :  list stype :=
   | Ox86_MOVSX sz _
   | Ox86_MOVZX sz _
   | Ox86_CMOVcc sz
+  | Ox86_BSWAP sz
     => w_ty sz
   | Ox86_ADD sz | Ox86_SUB sz     => b5w_ty sz
   | Ox86_MUL sz | Ox86_IMUL sz    => b5ww_ty sz
@@ -289,6 +293,7 @@ Definition sopn_tin (o: sopn) : list stype :=
   | Ox86_INC sz
   | Ox86_DEC sz
   | Ox86_NOT sz
+  | Ox86_BSWAP sz
   | Ox86_MOVD sz
   | Ox86_VMOVDQU sz
     => [:: sword sz ]
