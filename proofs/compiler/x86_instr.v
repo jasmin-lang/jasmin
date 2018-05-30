@@ -981,25 +981,31 @@ Qed.
 Definition VPSHUFB_desc sz := make_instr_desc (VPSHUFB_gsc sz).
 
 (* ----------------------------------------------------------------------------- *)
-Lemma VPSHUFD_gsc sz :
+Lemma vpshuf_gsc sz op i sem :
+  (∀ d x y, is_sopn (i sz d x y)) →
+  (exec_sopn (op sz) = app_w8 sz (x86_vpshuf sz sem)) →
+  (∀ d x y gd m, eval_instr_mem gd (i sz d x y) m = eval_vpshuf gd sem d x y m) →
   gen_sem_correct [:: TYxreg ; TYrm128 ; TYimm U8 ]
-    (Ox86_VPSHUFD sz)
-    [:: E sz 0 ] [:: E sz 1 ; E U8 2 ] [::]
-    (VPSHUFD sz).
+    (op sz) [:: E sz 0 ] [:: E sz 1 ; E U8 2 ] [::]
+    (i sz).
 Proof.
-move => x y z; split => // gd m m'.
-rewrite /low_sem_aux /=.
+move => ok_sopn hsem lsem x y z; split => // gd m m'.
+rewrite /low_sem_aux /= lsem /eval_vpshuf hsem /x86_vpshuf /=.
 case hz: arg_of_rm128 => [ z' | ] //=.
 t_xrbindP => ??? h <-; t_xrbindP => w /to_wordI [sz'] [w'] [hle ??].
 subst => _ [<-].
-rewrite /x86_vpshufd; t_xrbindP => ? ok_sz <-.
+t_xrbindP => ? ok_sz <-.
 rewrite /sets_low => - [<-].
-rewrite /eval_VPSHUFD (eval_low_rm128 ok_sz hz h).
+rewrite (eval_low_rm128 ok_sz hz h).
 eexists; split; first reflexivity.
 by rewrite zero_extend_sign_extend // sign_extend_u; reflexivity.
 Qed.
 
-Definition VPSHUFD_desc sz := make_instr_desc (VPSHUFD_gsc sz).
+Arguments vpshuf_gsc : clear implicits.
+
+Definition VPSHUFHW_desc sz := make_instr_desc (vpshuf_gsc sz Ox86_VPSHUFHW VPSHUFHW _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
+Definition VPSHUFLW_desc sz := make_instr_desc (vpshuf_gsc sz Ox86_VPSHUFLW VPSHUFLW _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
+Definition VPSHUFD_desc sz := make_instr_desc (vpshuf_gsc sz Ox86_VPSHUFD VPSHUFD _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
 (* ----------------------------------------------------------------------------- *)
 Lemma VPBLENDD_gsc sz :
@@ -1070,6 +1076,8 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_VPSLL ve sz => ok (VPSLL_desc ve sz)
   | Ox86_VPSRL ve sz => ok (VPSRL_desc ve sz)
   | Ox86_VPSHUFB sz => ok (VPSHUFB_desc sz)
+  | Ox86_VPSHUFHW sz => ok (VPSHUFHW_desc sz)
+  | Ox86_VPSHUFLW sz => ok (VPSHUFLW_desc sz)
   | Ox86_VPSHUFD sz => ok (VPSHUFD_desc sz)
   | Ox86_VPBLENDD sz => ok (VPBLENDD_desc sz)
   end.

@@ -180,6 +180,8 @@ let pp_opn =
   | Ox86_VPSLL (ve, sz) -> v ve sz "#x86_VPSLL"
   | Ox86_VPSRL (ve, sz) -> v ve sz "#x86_VPSRL"
   | Ox86_VPSHUFB w -> f w "#x86_VPSHUFB"
+  | Ox86_VPSHUFHW w -> f w "#x86_VPSHUFHW"
+  | Ox86_VPSHUFLW w -> f w "#x86_VPSHUFLW"
   | Ox86_VPSHUFD w -> f w "#x86_VPSHUFD"
   | Ox86_VPBLENDD w -> f w "#x86_VPBLENDD"
 

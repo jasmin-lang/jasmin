@@ -184,6 +184,8 @@ Variant asm : Type :=
 | VPSRL `(velem) `(wsize) (_ _: rm128) `(u8)
 | VPSHUFB `(wsize) (_ _: xmm_register) `(rm128)
 | VPSHUFD of wsize & xmm_register & rm128 & u8
+| VPSHUFHW of wsize & xmm_register & rm128 & u8
+| VPSHUFLW of wsize & xmm_register & rm128 & u8
 | VPBLENDD `(wsize) (_ _: xmm_register) `(rm128) `(u8)
 .
 
@@ -1136,10 +1138,14 @@ Definition eval_VPSHUFB sz (dst src: xmm_register) (pattern: rm128) s : x86_resu
   ok (mem_update_xreg MSB_CLEAR dst r s).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_VPSHUFD sz (dst: xmm_register) (src: rm128) (pat: u8) s : x86_result :=
+Definition eval_vpshuf sz (op: word sz → Z → word sz) (dst: xmm_register) (src: rm128) (pat: u8) s : x86_result :=
   Let v := read_rm128 sz src s in
-  let r := wpshufd v (wunsigned pat) in
+  let r := op v (wunsigned pat) in
   ok (mem_update_xreg MSB_CLEAR dst r s).
+
+Definition eval_VPSHUFD sz := eval_vpshuf (@wpshufd sz).
+Definition eval_VPSHUFHW sz := eval_vpshuf (@wpshufhw sz).
+Definition eval_VPSHUFLW sz := eval_vpshuf (@wpshuflw sz).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_VPBLENDD sz (dst: xmm_register) (src1: xmm_register) (src2: rm128) (mask: u8) s : x86_result :=
@@ -1198,6 +1204,8 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | VPSRL ve sz dst src1 src2 => eval_VPSRL ve sz dst src1 src2 s
   | VPSHUFB sz dst src pat => eval_VPSHUFB sz dst src pat s
   | VPSHUFD sz dst src pat => eval_VPSHUFD sz dst src pat s
+  | VPSHUFHW sz dst src pat => eval_VPSHUFHW sz dst src pat s
+  | VPSHUFLW sz dst src pat => eval_VPSHUFLW sz dst src pat s
 
   | VPBLENDD sz dst src1 src2 mask => eval_VPBLENDD sz dst src1 src2 mask s
   end.

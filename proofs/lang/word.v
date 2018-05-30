@@ -632,6 +632,9 @@ Definition wpshufd sz : word sz → Z → word sz :=
   | _ => λ w _, w end.
 
 (* -------------------------------------------------------------------*)
+Parameters wpshuflw wpshufhw : ∀ sz, word sz → Z → word sz.
+
+(* -------------------------------------------------------------------*)
 Definition wpblendd sz (w1 w2: word sz) (m: u8) : word sz :=
   let v1 := split_vec U32 w1 in
   let v2 := split_vec U32 w2 in

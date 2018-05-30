@@ -485,6 +485,12 @@ let pp_instr name (i : X86_sem.asm) =
   | VPSHUFD (sz, dst, src1, src2) ->
     `Instr ("vpshufd", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 sz src1; pp_xmm_register sz dst])
 
+  | VPSHUFHW (sz, dst, src1, src2) ->
+    `Instr ("vpshufhw", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 sz src1; pp_xmm_register sz dst])
+
+  | VPSHUFLW (sz, dst, src1, src2) ->
+    `Instr ("vpshuflw", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 sz src1; pp_xmm_register sz dst])
+
   | VPBLENDD (sz, dst, src1, src2, mask) ->
     `Instr("vpblendd", [pp_imm (Conv.bi_of_int8 mask); pp_rm128 sz src2; pp_xmm_register sz src1; pp_xmm_register sz dst])
 
@@ -516,7 +522,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | VPAND _ | VPOR _ | VPXOR _
   | VPADD _
   | VPSLL _ | VPSRL _
-  | VPSHUFB _ | VPSHUFD _
+  | VPSHUFB _ | VPSHUFHW _ | VPSHUFLW _ | VPSHUFD _
   | VPBLENDD _
     -> c
 
