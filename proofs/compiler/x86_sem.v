@@ -187,6 +187,8 @@ Variant asm : Type :=
 | VPSHUFHW of wsize & xmm_register & rm128 & u8
 | VPSHUFLW of wsize & xmm_register & rm128 & u8
 | VPBLENDD `(wsize) (_ _: xmm_register) `(rm128) `(u8)
+| VPUNPCKH `(velem) `(wsize) (_ _: xmm_register) `(rm128)
+| VPUNPCKL `(velem) `(wsize) (_ _: xmm_register) `(rm128)
 .
 
 (* -------------------------------------------------------------------- *)
@@ -1156,6 +1158,19 @@ Definition eval_VPBLENDD sz (dst: xmm_register) (src1: xmm_register) (src2: rm12
   ok (mem_update_xreg MSB_CLEAR dst r s).
 
 (* -------------------------------------------------------------------- *)
+Definition eval_vpunpck (sz: wsize) (op: word sz → word sz → word sz)
+           (dst src1: xmm_register) (src2: rm128) s : x86_result :=
+  let v1 := zero_extend sz (xxreg s src1) in
+  Let v2 := read_rm128 sz src2 s in
+  let r := op v1 v2  in
+  ok (mem_update_xreg MSB_CLEAR dst r s).
+
+Arguments eval_vpunpck : clear implicits.
+
+Definition eval_VPUNPCKH ve sz := eval_vpunpck sz (wpunpckh ve).
+Definition eval_VPUNPCKL ve sz := eval_vpunpck sz (wpunpckl ve).
+
+(* -------------------------------------------------------------------- *)
 Definition eval_instr_mem (i : asm) s : x86_result :=
   match i with
   | JMP    _
@@ -1207,6 +1222,8 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | VPSHUFD sz dst src pat => eval_VPSHUFD sz dst src pat s
   | VPSHUFHW sz dst src pat => eval_VPSHUFHW sz dst src pat s
   | VPSHUFLW sz dst src pat => eval_VPSHUFLW sz dst src pat s
+  | VPUNPCKH ve sz dst src1 src2 => eval_VPUNPCKH ve sz dst src1 src2 s
+  | VPUNPCKL ve sz dst src1 src2 => eval_VPUNPCKL ve sz dst src1 src2 s
 
   | VPBLENDD sz dst src1 src2 mask => eval_VPBLENDD sz dst src1 src2 mask s
   end.

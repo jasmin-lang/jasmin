@@ -297,14 +297,25 @@ let pp_instr_velem =
   | LM.VE32 -> "d"
   | LM.VE64 -> "q"
 
-let pp_viname (ve: LM.velem) (name: string) =
-  Printf.sprintf "%s%s" name (pp_instr_velem ve)
+let pp_instr_velem_long =
+  function
+  | LM.VE8 -> "bw"
+  | LM.VE16 -> "wd"
+  | LM.VE32 -> "dq"
+  | LM.VE64 -> "qdq"
+
+let pp_viname ?(long = false) (ve: LM.velem) (name: string) =
+  Printf.sprintf "%s%s" name ((if long then pp_instr_velem_long else pp_instr_velem) ve)
 
 (* -------------------------------------------------------------------- *)
 let pp_movx name wsd wss dst src =
   let rsd = rs_of_ws wsd in
   let rss = rs_of_ws wss in
   `Instr (pp_iname2 rss rsd name, [pp_opr rss src; pp_register rsd dst])
+
+(* -------------------------------------------------------------------- *)
+let pp_vpunpck suf ve sz dst src1 src2 =
+  `Instr (pp_viname ~long:true ve ("vpunpck" ^ suf), [ pp_rm128 sz src2 ; pp_xmm_register sz src1 ; pp_xmm_register sz dst ])
 
 (* -------------------------------------------------------------------- *)
 let pp_instr name (i : X86_sem.asm) =
@@ -492,6 +503,9 @@ let pp_instr name (i : X86_sem.asm) =
   | VPSHUFLW (sz, dst, src1, src2) ->
     `Instr ("vpshuflw", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 sz src1; pp_xmm_register sz dst])
 
+  | VPUNPCKH (ve, sz, dst, src1, src2) -> pp_vpunpck "h" ve sz dst src1 src2
+  | VPUNPCKL (ve, sz, dst, src1, src2) -> pp_vpunpck "l" ve sz dst src1 src2
+
   | VPBLENDD (sz, dst, src1, src2, mask) ->
     `Instr("vpblendd", [pp_imm (Conv.bi_of_int8 mask); pp_rm128 sz src2; pp_xmm_register sz src1; pp_xmm_register sz dst])
 
@@ -524,6 +538,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | VPADD _
   | VPSLL _ | VPSRL _
   | VPSHUFB _ | VPSHUFHW _ | VPSHUFLW _ | VPSHUFD _
+  | VPUNPCKH _ | VPUNPCKL _
   | VPBLENDD _
     -> c
 
