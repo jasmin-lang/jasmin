@@ -647,6 +647,8 @@ let prim_string =
     "x86_VPSHUFHW", PrimP (T.U128, fun sz -> Ox86_VPSHUFHW sz);
     "x86_VPSHUFLW", PrimP (T.U128, fun sz -> Ox86_VPSHUFLW sz);
     "x86_VPSHUFD", PrimP (T.U128, fun sz -> Ox86_VPSHUFD sz);
+    "x86_VPUNPCKH", PrimV (fun ve sz -> Ox86_VPUNPCKH (ve, sz));
+    "x86_VPUNPCKL", PrimV (fun ve sz -> Ox86_VPUNPCKL (ve, sz));
     "x86_VPBLENDD", PrimP (T.U128, fun sz -> Ox86_VPBLENDD sz);
   ]
 
@@ -668,6 +670,10 @@ let extract_size str : string * size_annotation =
     | "8u16" -> SAv (T.VE16, T.U128)
     | "4u32" -> SAv (T.VE32, T.U128)
     | "2u64" -> SAv (T.VE64, T.U128)
+    | "32u8" -> SAv (T.VE8, T.U256)
+    | "16u16" -> SAv (T.VE16, T.U256)
+    | "8u32" -> SAv (T.VE32, T.U256)
+    | "4u64" -> SAv (T.VE64, T.U256)
     | _ -> SA
   in
   match List.rev (String.split_on_char '_' str) with

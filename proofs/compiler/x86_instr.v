@@ -1008,6 +1008,30 @@ Definition VPSHUFLW_desc sz := make_instr_desc (vpshuf_gsc sz Ox86_VPSHUFLW VPSH
 Definition VPSHUFD_desc sz := make_instr_desc (vpshuf_gsc sz Ox86_VPSHUFD VPSHUFD _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
 (* ----------------------------------------------------------------------------- *)
+Lemma vpunpck_gsc (ve: velem) sz op i sem :
+  (∀ d x y, is_sopn (i ve sz d x y)) →
+  (exec_sopn (op ve sz) = app_ww sz (x86_u128_binop sem)) →
+  (∀ d x y gd m, eval_instr_mem gd (i ve sz d x y) m = eval_vpunpck gd sem d x y m) →
+  gen_sem_correct [:: TYxreg ; TYxreg ; TYrm128 ]
+    (op ve sz) [:: E sz 0 ] [:: E sz 1 ; E sz 2 ] [::] (i ve sz).
+Proof.
+move => ok_sopn hsem lsem x y z; split => // gd m m'.
+rewrite /low_sem_aux /= lsem /eval_vpunpck hsem /x86_u128_binop /=.
+case hz: arg_of_rm128 => [ z' | ] //=.
+t_xrbindP => ???? h <- <- /=; rewrite /truncate_word wsize_le_U256 /=.
+t_xrbindP => w /to_wordI [sz'] [w'] [hle ??].
+subst => ? ok_sz <-.
+rewrite /sets_low => - [<-].
+rewrite (eval_low_rm128 ok_sz hz h).
+eexists; split; reflexivity.
+Qed.
+
+Arguments vpunpck_gsc : clear implicits.
+
+Definition VPUNPCKH_desc ve sz := make_instr_desc (vpunpck_gsc ve sz Ox86_VPUNPCKH VPUNPCKH _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
+Definition VPUNPCKL_desc ve sz := make_instr_desc (vpunpck_gsc ve sz Ox86_VPUNPCKL VPUNPCKL _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
+
+(* ----------------------------------------------------------------------------- *)
 Lemma VPBLENDD_gsc sz :
   gen_sem_correct [:: TYxreg ; TYxreg ; TYrm128 ; TYimm U8 ]
     (Ox86_VPBLENDD sz)
@@ -1079,6 +1103,8 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_VPSHUFHW sz => ok (VPSHUFHW_desc sz)
   | Ox86_VPSHUFLW sz => ok (VPSHUFLW_desc sz)
   | Ox86_VPSHUFD sz => ok (VPSHUFD_desc sz)
+  | Ox86_VPUNPCKH ve sz => ok (VPUNPCKH_desc ve sz)
+  | Ox86_VPUNPCKL ve sz => ok (VPUNPCKL_desc ve sz)
   | Ox86_VPBLENDD sz => ok (VPBLENDD_desc sz)
   end.
 

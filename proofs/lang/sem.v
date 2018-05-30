@@ -840,6 +840,10 @@ Definition x86_vpshuflw {sz} := x86_vpshuf sz (@wpshuflw _).
 Definition x86_vpshufd {sz} := x86_vpshuf sz (@wpshufd _).
 
 (* ---------------------------------------------------------------- *)
+Definition x86_vpunpckh ve {sz} := x86_u128_binop (@wpunpckh sz ve).
+Definition x86_vpunpckl ve {sz} := x86_u128_binop (@wpunpckl sz ve).
+
+(* ---------------------------------------------------------------- *)
 Definition x86_vpblendd {sz} (v1 v2: word sz) (m: u8) : exec values :=
   Let _ := check_size_128_256 sz in
   ok [:: Vword (wpblendd v1 v2 m) ].
@@ -921,6 +925,8 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_VPSHUFHW sz => app_w8 sz x86_vpshufhw
   | Ox86_VPSHUFLW sz => app_w8 sz x86_vpshuflw
   | Ox86_VPSHUFD sz => app_w8 sz x86_vpshufd
+  | Ox86_VPUNPCKH ve sz => app_ww sz (x86_vpunpckh ve)
+  | Ox86_VPUNPCKL ve sz => app_ww sz (x86_vpunpckl ve)
   | Ox86_VPBLENDD sz => app_ww8 sz x86_vpblendd
   end.
 

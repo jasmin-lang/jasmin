@@ -123,17 +123,26 @@ let pp_glvs pp_var fmt lvs =
 (* -------------------------------------------------------------------- *)
 let string_of_velem =
   function
-  | Type.VE8 -> "16u8"
-  | Type.VE16 -> "8u16"
-  | Type.VE32 -> "4u32"
-  | Type.VE64 -> "2u64"
+  | Type.U128 ->
+    (function
+    | Type.VE8 -> "16u8"
+    | Type.VE16 -> "8u16"
+    | Type.VE32 -> "4u32"
+    | Type.VE64 -> "2u64")
+  | Type.U256 ->
+    (function
+    | Type.VE8 -> "32u8"
+    | Type.VE16 -> "16u16"
+    | Type.VE32 -> "8u32"
+    | Type.VE64 -> "4u64")
+  | _ -> assert false
 
 (* -------------------------------------------------------------------- *)
 let pp_opn =
   let open Expr in
   let f w s = F.sprintf "%s_%d" s (int_of_ws w) in
   let f2 w w' s = F.sprintf "%s_%d" s (int_of_ws w) in (* TODO: concrete syntax for these intrinsics *)
-  let v ve sz s = F.sprintf "%s_%s" s (string_of_velem ve) in
+  let v ve sz s = F.sprintf "%s_%s" s (string_of_velem sz ve) in
   function
   | Omulu w -> f w "#mulu"
   | Oaddcarry w -> f w "#addc"
@@ -184,6 +193,8 @@ let pp_opn =
   | Ox86_VPSHUFHW w -> f w "#x86_VPSHUFHW"
   | Ox86_VPSHUFLW w -> f w "#x86_VPSHUFLW"
   | Ox86_VPSHUFD w -> f w "#x86_VPSHUFD"
+  | Ox86_VPUNPCKH (ve, sz) -> v ve sz "#x86_VPUNPCKH"
+  | Ox86_VPUNPCKL (ve, sz) -> v ve sz "#x86_VPUNPCKL"
   | Ox86_VPBLENDD w -> f w "#x86_VPBLENDD"
 
 (* -------------------------------------------------------------------- *)

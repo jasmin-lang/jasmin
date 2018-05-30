@@ -141,6 +141,8 @@ Variant sopn : Set :=
 | Ox86_VPSHUFHW of wsize (* Shuffle high 16-bit words *)
 | Ox86_VPSHUFLW of wsize (* Shuffle low 16-bit words *)
 | Ox86_VPSHUFD of wsize (* Shuffle 32-bit words *)
+| Ox86_VPUNPCKH of velem & wsize (* Unpack High Data *)
+| Ox86_VPUNPCKL of velem & wsize (* Unpack Low Data *)
 | Ox86_VPBLENDD of wsize (* Blend 32-bit words *)
 .
 
@@ -233,6 +235,8 @@ Definition string_of_sopn o : string :=
   | Ox86_VPSHUFHW sz => "Ox86_VPSHUFHW " ++ string_of_wsize sz
   | Ox86_VPSHUFLW sz => "Ox86_VPSHUFLW " ++ string_of_wsize sz
   | Ox86_VPSHUFD sz => "Ox86_VPSHUFD " ++ string_of_wsize sz
+  | Ox86_VPUNPCKH ve sz => "Ox86_VPUNPCKH " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
+  | Ox86_VPUNPCKL ve sz => "Ox86_VPUNPCKL " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
   | Ox86_VPBLENDD sz => "Ox86_VPBLENDD " ++ string_of_wsize sz
   end.
 
@@ -278,6 +282,7 @@ Definition sopn_tout (o:sopn) :  list stype :=
   | Ox86_VPADD _ sz
   | Ox86_VPSLL _ sz | Ox86_VPSRL _ sz
   | Ox86_VPSHUFB sz | Ox86_VPSHUFHW sz | Ox86_VPSHUFLW sz | Ox86_VPSHUFD sz
+  | Ox86_VPUNPCKH _ sz | Ox86_VPUNPCKL _ sz
   | Ox86_VPBLENDD sz
     => [:: sword sz ]
   end.
@@ -333,6 +338,7 @@ Definition sopn_tin (o: sopn) : list stype :=
   | Ox86_VPAND sz | Ox86_VPOR sz | Ox86_VPXOR sz
   | Ox86_VPADD _ sz
   | Ox86_VPSHUFB sz
+  | Ox86_VPUNPCKH _ sz | Ox86_VPUNPCKL _ sz
     => let t := sword sz in [:: t; t ]
   | Ox86_VPSLL _ sz | Ox86_VPSRL _ sz
   | Ox86_VPSHUFHW sz | Ox86_VPSHUFLW sz
