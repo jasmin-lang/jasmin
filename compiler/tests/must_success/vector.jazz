@@ -37,6 +37,27 @@ s = #x86_VPADD_2u64(t, r);
 (u128)[p + 16 * 1] = s;
 }
 
+export
+fn test_mulu(reg u64 p) {
+reg u128 a, b, c;
+reg u256 x, y, z;
+
+a = (u128)[p + 0];
+b = (u128)[p + 16];
+
+c = #x86_VPMULU(a, b);
+
+(u128)[p + 0] = c;
+
+x = (u256)[p + 0];
+y = (u256)[p + 32];
+
+z = #x86_VPMULU_256(x, y);
+
+(u256)[p + 0] = z;
+
+}
+
 u128 rotate24pattern = 0x0c0f0e0d080b0a090407060500030201;
 
 export
@@ -83,18 +104,18 @@ a = (u128)[p + 0];
 b = (u128)[p + 16];
 
 c = #x86_VPUNPCKH_16u8(a, b);
-a = #x86_VPUNPCKH_8u16(b, c);
+a = #x86_VPUNPCKL_8u16(b, c);
 b = #x86_VPUNPCKH_4u32(c, a);
-c = #x86_VPUNPCKH_2u64(a, b);
+c = #x86_VPUNPCKL_2u64(a, b);
 
 (u128)[p + 0] = c;
 
 x = (u256)[p + 32];
 y = (u256)[p + 64];
 
-z = #x86_VPUNPCKH_32u8(x, y);
+z = #x86_VPUNPCKL_32u8(x, y);
 x = #x86_VPUNPCKH_16u16(y, z);
-y = #x86_VPUNPCKH_8u32(z, x);
+y = #x86_VPUNPCKL_8u32(z, x);
 z = #x86_VPUNPCKH_4u64(x, y);
 
 (u256)[p + 32] = z;
