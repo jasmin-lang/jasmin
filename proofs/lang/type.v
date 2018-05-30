@@ -56,10 +56,11 @@ Variant signedness :=
   | Unsigned.
 
 (* Size in bits of the elements of a vector. *)
-Variant velem := VE16 | VE32 | VE64.
+Variant velem := VE8 | VE16 | VE32 | VE64.
 
 Coercion wsize_of_velem (ve: velem) : wsize :=
   match ve with
+  | VE8 => U8
   | VE16 => U16
   | VE32 => U32
   | VE64 => U64
@@ -86,6 +87,7 @@ Definition string_of_stype (ty: stype) : string :=
 
 Definition string_of_velem (ve: velem) : string :=
   match ve with
+  | VE8 => "VE8"
   | VE16 => "VE16"
   | VE32 => "VE32"
   | VE64 => "VE64"

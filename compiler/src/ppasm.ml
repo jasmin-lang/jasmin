@@ -292,6 +292,7 @@ let pp_iname2 (rs1 : rsize) (rs2: rsize) (name : string) =
 (* -------------------------------------------------------------------- *)
 let pp_instr_velem =
   function
+  | LM.VE8 -> "b"
   | LM.VE16 -> "w"
   | LM.VE32 -> "d"
   | LM.VE64 -> "q"

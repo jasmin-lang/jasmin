@@ -816,6 +816,7 @@ Definition x86_vpadd (ve: velem) {sz} := x86_u128_binop (lift2_vec ve +%R sz).
 (* ---------------------------------------------------------------- *)
 Definition x86_u128_shift sz' sz (op: word sz' → Z → word sz')
   (v: word sz) (c: u8) : exec values :=
+  Let _ := check_size_16_64 sz' in
   Let _ := check_size_128_256 sz in
   ok [:: Vword (lift1_vec sz' (λ v, op v (wunsigned c)) sz v) ].
 

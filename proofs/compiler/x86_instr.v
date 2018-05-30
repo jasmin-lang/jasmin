@@ -949,7 +949,7 @@ case hx: arg_of_rm128 => [ x' | ] //.
 case: d => d //=;
 t_xrbindP => ??? hx' ?; subst;
 t_xrbindP => vx /to_wordI [szx] [wx] [hlex ??];
-subst => _ [<-] ? ok_s <-;
+subst => _ [<-] _ -> /= ? ok_s <-;
 rewrite zero_extend_sign_extend // sign_extend_u (eval_low_rm128 ok_s hx hx') /sets_low /= => {hx};
 [ case | rewrite truncate_word_u /= ] => ->;
 eexists; split; reflexivity.

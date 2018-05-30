@@ -123,6 +123,7 @@ let pp_glvs pp_var fmt lvs =
 (* -------------------------------------------------------------------- *)
 let string_of_velem =
   function
+  | Type.VE8 -> "16u8"
   | Type.VE16 -> "8u16"
   | Type.VE32 -> "4u32"
   | Type.VE64 -> "2u64"

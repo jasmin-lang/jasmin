@@ -1121,6 +1121,7 @@ Definition eval_VPADD ve sz := eval_rm128_binop MSB_CLEAR (lift2_vec ve +%R sz).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_rm128_shift f ve sz op (dst src1: rm128) (v2: u8) s : x86_result :=
+  Let _ := check_size_16_64 ve in
   Let v1 := read_rm128 sz src1 s in
   let v := lift1_vec ve (λ v, op v (wunsigned v2)) sz v1 in
   write_rm128 f dst v s.

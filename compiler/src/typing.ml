@@ -664,6 +664,7 @@ let extract_size str : string * size_annotation =
     | "64" -> SAw T.U64
     | "128" -> SAw T.U128
     | "256" -> SAw T.U256
+    | "16u8" -> SAv (T.VE8, T.U128)
     | "8u16" -> SAv (T.VE16, T.U128)
     | "4u32" -> SAv (T.VE32, T.U128)
     | "2u64" -> SAv (T.VE64, T.U128)
