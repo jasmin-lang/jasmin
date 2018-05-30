@@ -180,6 +180,7 @@ Variant asm : Type :=
 | VPOR `(wsize) (_ _ _: rm128)
 | VPXOR `(wsize) (_ _ _: rm128)
 | VPADD `(velem) `(wsize) (_ _ _: rm128)
+| VPMULU `(wsize) (_ _: xmm_register) `(rm128)
 | VPSLL `(velem) `(wsize) (_ _: rm128) `(u8)
 | VPSRL `(velem) `(wsize) (_ _: rm128) `(u8)
 | VPSHUFB `(wsize) (_ _: xmm_register) `(rm128)
@@ -1122,6 +1123,18 @@ Definition eval_VPXOR sz := eval_rm128_binop MSB_CLEAR (@wxor sz).
 Definition eval_VPADD ve sz := eval_rm128_binop MSB_CLEAR (lift2_vec ve +%R sz).
 
 (* -------------------------------------------------------------------- *)
+Definition eval_xmm_binop sz (op: word sz → word sz → word sz)
+           (dst src1: xmm_register) (src2: rm128) s : x86_result :=
+  let v1 := zero_extend sz (xxreg s src1) in
+  Let v2 := read_rm128 sz src2 s in
+  let r := op v1 v2 in
+  ok (mem_update_xreg MSB_CLEAR dst r s).
+
+Arguments eval_xmm_binop : clear implicits.
+
+Definition eval_VPMULU sz := eval_xmm_binop sz (@wpmulu _).
+
+(* -------------------------------------------------------------------- *)
 Definition eval_rm128_shift f ve sz op (dst src1: rm128) (v2: u8) s : x86_result :=
   Let _ := check_size_16_64 ve in
   Let v1 := read_rm128 sz src1 s in
@@ -1134,11 +1147,7 @@ Definition eval_VPSLL ve sz := eval_rm128_shift MSB_CLEAR ve sz (@wshl _).
 Definition eval_VPSRL ve sz := eval_rm128_shift MSB_CLEAR ve sz (@wshr _).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_VPSHUFB sz (dst src: xmm_register) (pattern: rm128) s : x86_result :=
-  let v := zero_extend sz (xxreg s src) in
-  Let p := read_rm128 sz pattern s in
-  let r := wpshufb v p in
-  ok (mem_update_xreg MSB_CLEAR dst r s).
+Definition eval_VPSHUFB sz := eval_xmm_binop sz (@wpshufb _).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_vpshuf sz (op: word sz → Z → word sz) (dst: xmm_register) (src: rm128) (pat: u8) s : x86_result :=
@@ -1216,6 +1225,7 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | VPOR sz dst src1 src2 => eval_VPOR sz dst src1 src2 s
   | VPXOR sz dst src1 src2 => eval_VPXOR sz dst src1 src2 s
   | VPADD ve sz dst src1 src2 => eval_VPADD ve sz dst src1 src2 s
+  | VPMULU sz dst src1 src2 => eval_VPMULU sz dst src1 src2 s
   | VPSLL ve sz dst src1 src2 => eval_VPSLL ve sz dst src1 src2 s
   | VPSRL ve sz dst src1 src2 => eval_VPSRL ve sz dst src1 src2 s
   | VPSHUFB sz dst src pat => eval_VPSHUFB sz dst src pat s

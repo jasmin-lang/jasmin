@@ -314,6 +314,9 @@ let pp_movx name wsd wss dst src =
   `Instr (pp_iname2 rss rsd name, [pp_opr rss src; pp_register rsd dst])
 
 (* -------------------------------------------------------------------- *)
+let pp_xmm_binop name sz dst src1 src2 =
+  `Instr (name, [pp_rm128 sz src2 ; pp_xmm_register sz src1 ; pp_xmm_register sz dst ])
+
 let pp_vpshuf suf sz dst src1 src2 =
   `Instr ("vpshuf" ^ suf, [pp_imm (Conv.bi_of_int8 src2); pp_rm128 sz src1; pp_xmm_register sz dst])
 
@@ -488,14 +491,15 @@ let pp_instr name (i : X86_sem.asm) =
   | VPADD (ve, sz, dst, src1, src2) ->
     `Instr (pp_viname ve "vpadd", [pp_rm128 sz src2; pp_rm128 sz src1; pp_rm128 sz dst])
 
+  | VPMULU (sz, dst, src1, src2) -> pp_xmm_binop "vpmuludq" sz dst src1 src2
+
   | VPSLL (ve, sz, dst, src1, src2) ->
     `Instr (pp_viname ve "vpsll", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 sz src1; pp_rm128 sz dst])
 
   | VPSRL (ve, sz, dst, src1, src2) ->
     `Instr (pp_viname ve "vpsrl", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 sz src1; pp_rm128 sz dst])
 
-  | VPSHUFB (sz, dst, src1, src2) ->
-    `Instr ("vpshufb", [pp_rm128 sz src2; pp_xmm_register sz src1; pp_xmm_register sz dst])
+  | VPSHUFB (sz, dst, src1, src2) -> pp_xmm_binop "vpshufb" sz dst src1 src2
 
   | VPSHUFD (sz, dst, src1, src2) -> pp_vpshuf "d" sz dst src1 src2
   | VPSHUFHW (sz, dst, src1, src2) -> pp_vpshuf "hw" sz dst src1 src2
@@ -533,7 +537,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | MOVD _
   | VMOVDQU _
   | VPAND _ | VPOR _ | VPXOR _
-  | VPADD _
+  | VPADD _ | VPMULU _
   | VPSLL _ | VPSRL _
   | VPSHUFB _ | VPSHUFHW _ | VPSHUFLW _ | VPSHUFD _
   | VPUNPCKH _ | VPUNPCKL _

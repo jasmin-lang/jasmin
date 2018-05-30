@@ -602,6 +602,16 @@ Definition wbswap sz (w: word sz) : word sz :=
   make_vec sz (rev (split_vec U8 w)).
 
 (* -------------------------------------------------------------------*)
+Definition halve_list A : seq A → seq A :=
+  fix loop m := if m is a :: _ :: m' then a :: loop m' else m.
+
+Definition wpmulu sz (x y: word sz) : word sz :=
+  let xs := halve_list (split_vec U32 x) in
+  let ys := halve_list (split_vec U32 y) in
+  let f (a b: u32) : u64 := wrepr U64 (wunsigned a * wunsigned b) in
+  make_vec sz (map2 f xs ys).
+
+(* -------------------------------------------------------------------*)
 Definition wpshufb1 (s : seq u8) (idx : u8) :=
   if msb idx then 0%R else
     let off := wunsigned (wand idx (wshl 1 4%Z - 1)) in

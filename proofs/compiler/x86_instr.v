@@ -961,24 +961,26 @@ Definition VPSLL_desc (ve: velem) sz := make_instr_desc (x86_rm128_shift_gsc ve 
 Definition VPSRL_desc (ve: velem) sz := make_instr_desc (x86_rm128_shift_gsc ve sz (Ox86_VPSRL ve) (VPSRL ve) _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
 (* ----------------------------------------------------------------------------- *)
-Lemma VPSHUFB_gsc sz :
-  gen_sem_correct [:: TYxreg ; TYxreg ; TYrm128 ]
-    (Ox86_VPSHUFB sz)
-    [:: E sz 0 ] [:: E sz 1 ; E sz 2 ] [::]
-    (VPSHUFB sz).
+Lemma x86_xmm_binop_gsc sz op i sem :
+  (∀ d x y, is_sopn (i sz d x y)) →
+  (exec_sopn (op sz) = app_ww sz (@x86_u128_binop sz sem)) →
+  (∀ d x y gd m, eval_instr_mem gd (i sz d x y) m = eval_xmm_binop gd sem d x y m) →
+  gen_sem_correct [:: TYxreg ; TYxreg ; TYrm128 ] (op sz)
+                  [:: E sz 0 ] [:: E sz 1 ; E sz 2 ] [::] (i sz).
 Proof.
-move => x y z; split => // gd m m'.
-rewrite /low_sem_aux /=.
-case hz: arg_of_rm128 => [ z' | ] //=.
-t_xrbindP => ???? h <- <- /=;
-rewrite /truncate_word wsize_le_U256 /=; t_xrbindP => w /to_wordI [sz'] [w'] [hle ??]; subst.
-rewrite /x86_vpshufb /x86_u128_binop; t_xrbindP => ? ok_sz <-.
-rewrite /sets_low => - [<-].
-rewrite /eval_VPSHUFB (eval_low_rm128 ok_sz hz h).
+move => ok_sopn hsem lsem d x y; split => // gd m m'.
+rewrite /low_sem_aux /= lsem /eval_xmm_binop hsem /x86_u128_binop /=.
+case hy: (arg_of_rm128 _ y) => [ y' | ] //=.
+t_xrbindP => ???? h <- <- /=; rewrite /truncate_word wsize_le_U256 /=.
+t_xrbindP => w /to_wordI [sz'] [w'] [hle ??].
+subst => ? ok_sz <- [<-].
+rewrite (eval_low_rm128 ok_sz hy h).
 eexists; split; reflexivity.
 Qed.
 
-Definition VPSHUFB_desc sz := make_instr_desc (VPSHUFB_gsc sz).
+Arguments x86_xmm_binop_gsc : clear implicits.
+
+Definition VPSHUFB_desc sz := make_instr_desc (x86_xmm_binop_gsc sz Ox86_VPSHUFB VPSHUFB _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
 (* ----------------------------------------------------------------------------- *)
 Lemma vpshuf_gsc sz op i sem :
