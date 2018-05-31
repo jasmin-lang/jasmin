@@ -658,6 +658,19 @@ Definition wpblendd sz (w1 w2: word sz) (m: u8) : word sz :=
   make_vec sz r.
 
 (* -------------------------------------------------------------------*)
+Definition wperm2i128 (w1 w2: u256) (i: u8) : u256 :=
+  let choose (n: nat) :=
+      match urepr (subword n 2 i) with
+      | 0 => subword 0 U128 w1
+      | 1 => subword U128 U128 w1
+      | 2 => subword 0 U128 w2
+      | _ => subword U128 U128 w2
+      end in
+  let lo := if wbit_n i 3 then 0%R else choose 0%nat in
+  let hi := if wbit_n i 7 then 0%R else choose 4%nat in
+  make_vec U256 [:: hi ; lo ].
+
+(* -------------------------------------------------------------------*)
 Definition wpermq (w: u256) (i: u8) : u256 :=
   let v := split_vec U64 w in
   let j := split_vec 2 i in

@@ -326,6 +326,9 @@ let pp_vpshuf suf sz dst src1 src2 =
 let pp_vpunpck suf ve sz dst src1 src2 =
   `Instr (pp_viname ~long:true ve ("vpunpck" ^ suf), [ pp_rm128 sz src2 ; pp_xmm_register sz src1 ; pp_xmm_register sz dst ])
 
+let pp_xxri name sz dst src1 src2 mask =
+    `Instr(name, [pp_imm (Conv.bi_of_int8 mask); pp_rm128 sz src2; pp_xmm_register sz src1; pp_xmm_register sz dst])
+
 (* -------------------------------------------------------------------- *)
 let pp_instr name (i : X86_sem.asm) =
   match i with
@@ -510,8 +513,8 @@ let pp_instr name (i : X86_sem.asm) =
   | VPUNPCKH (ve, sz, dst, src1, src2) -> pp_vpunpck "h" ve sz dst src1 src2
   | VPUNPCKL (ve, sz, dst, src1, src2) -> pp_vpunpck "l" ve sz dst src1 src2
 
-  | VPBLENDD (sz, dst, src1, src2, mask) ->
-    `Instr("vpblendd", [pp_imm (Conv.bi_of_int8 mask); pp_rm128 sz src2; pp_xmm_register sz src1; pp_xmm_register sz dst])
+  | VPBLENDD (sz, dst, src1, src2, mask) -> pp_xxri "vpblendd" sz dst src1 src2 mask
+  | VPERM2I128 (dst, src1, src2, i) -> pp_xxri "vperm2i128" U256 dst src1 src2 i
   | VPERMQ (dst, src, i) ->
     `Instr("vpermq", [ pp_imm (Conv.bi_of_int8 i); pp_rm128 U256 src; pp_xmm_register U256 dst ])
 
@@ -545,7 +548,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | VPSLL _ | VPSRL _
   | VPSHUFB _ | VPSHUFHW _ | VPSHUFLW _ | VPSHUFD _
   | VPUNPCKH _ | VPUNPCKL _
-  | VPBLENDD _ | VPERMQ _
+  | VPBLENDD _ | VPERM2I128 _ | VPERMQ _
     -> c
 
   | LEA    (_, op, _) -> Set.add op c
