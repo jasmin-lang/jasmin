@@ -142,6 +142,8 @@ Definition wnot sz (w: word sz) : word sz :=
 
 Arguments wnot {sz} w.
 
+Definition wandn sz (x y: word sz) : word sz := wand (wnot x) y.
+
 Definition wbase (s: wsize) : Z :=
   modulus (wsize_size_minus_1 s).+1.
 

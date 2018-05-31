@@ -177,6 +177,7 @@ Variant asm : Type :=
 | MOVD of wsize & xmm_register & oprd
 | VMOVDQU `(wsize) (_ _: rm128)
 | VPAND `(wsize) (_ _ _: rm128)
+| VPANDN `(wsize) (_ _: xmm_register) `(rm128)
 | VPOR `(wsize) (_ _ _: rm128)
 | VPXOR `(wsize) (_ _ _: rm128)
 | VPADD `(velem) `(wsize) (_ _ _: rm128)
@@ -1134,6 +1135,8 @@ Arguments eval_xmm_binop : clear implicits.
 
 Definition eval_VPMULU sz := eval_xmm_binop sz (@wpmulu _).
 
+Definition eval_VPANDN sz := eval_xmm_binop sz (@wandn _).
+
 (* -------------------------------------------------------------------- *)
 Definition eval_rm128_shift f ve sz op (dst src1: rm128) (v2: u8) s : x86_result :=
   Let _ := check_size_16_64 ve in
@@ -1222,6 +1225,7 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | MOVD sz dst src => eval_MOVD sz dst src s
   | VMOVDQU sz dst src => eval_VMOV sz dst src s
   | VPAND sz dst src1 src2 => eval_VPAND sz dst src1 src2 s
+  | VPANDN sz dst src1 src2 => eval_VPANDN sz dst src1 src2 s
   | VPOR sz dst src1 src2 => eval_VPOR sz dst src1 src2 s
   | VPXOR sz dst src1 src2 => eval_VPXOR sz dst src1 src2 s
   | VPADD ve sz dst src1 src2 => eval_VPADD ve sz dst src1 src2 s

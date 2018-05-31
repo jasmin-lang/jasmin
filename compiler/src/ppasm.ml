@@ -482,6 +482,8 @@ let pp_instr name (i : X86_sem.asm) =
   | VPAND (sz, dst, src1, src2) ->
     `Instr ("vpand", [pp_rm128 sz src2; pp_rm128 sz src1; pp_rm128 sz dst])
 
+  | VPANDN (sz, dst, src1, src2) -> pp_xmm_binop "vpandn" sz dst src1 src2
+
   | VPOR (sz, dst, src1, src2) ->
     `Instr ("vpor", [pp_rm128 sz src2; pp_rm128 sz src1; pp_rm128 sz dst])
 
@@ -536,7 +538,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | CMP   _ | TEST _ | BT _
   | MOVD _
   | VMOVDQU _
-  | VPAND _ | VPOR _ | VPXOR _
+  | VPAND _ | VPANDN _ | VPOR _ | VPXOR _
   | VPADD _ | VPMULU _
   | VPSLL _ | VPSRL _
   | VPSHUFB _ | VPSHUFHW _ | VPSHUFLW _ | VPSHUFD _
