@@ -145,8 +145,9 @@ z = #x86_VPANDN_256(x, y);
 
 export
 fn test_vpermq(reg u64 p) {
-reg u256 x;
+reg u256 x, y;
 x = (u256)[p + 0];
-x = #x86_VPERMQ(x, 42);
+y = #x86_VPERMQ(x, 42);
+x = #x86_VPERM2I128(x, y, 123);
 (u256)[p + 0] = x;
 }

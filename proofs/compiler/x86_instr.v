@@ -1057,6 +1057,26 @@ Qed.
 Definition VPBLENDD_desc sz := make_instr_desc (VPBLENDD_gsc sz).
 
 (* ----------------------------------------------------------------------------- *)
+Lemma VPERM2I128_gsc :
+  gen_sem_correct [:: TYxreg ; TYxreg ; TYrm128 ; TYimm U8 ]
+    Ox86_VPERM2I128
+    [:: E U256 0 ] [:: E U256 1 ; E U256 2 ; E U8 3 ] [::]
+    VPERM2I128.
+Proof.
+move => x y z k; split => // gd m m'.
+rewrite /low_sem_aux /=.
+case hz: arg_of_rm128 => [ z' | ] //=.
+t_xrbindP => ???? h <- <-; t_xrbindP => w1 /to_wordI [sz1] [w1'] [_ /Vword_inj [?]].
+subst => /= ??; subst => w1 /to_wordI [sz1] [w1'] [hle ??]; subst => ?.
+rewrite /truncate_word /= zero_extend_sign_extend // sign_extend_u => - [?]; subst => -[<-].
+rewrite /sets_low zero_extend_u => - [<-].
+rewrite /eval_VPERM2I128 (eval_low_rm128 (erefl : check_size_128_256 U256 = ok tt) hz h).
+eexists; split; reflexivity.
+Qed.
+
+Definition VPERM2I128_desc := make_instr_desc VPERM2I128_gsc.
+
+(* ----------------------------------------------------------------------------- *)
 Lemma VPERMQ_gsc :
   gen_sem_correct [:: TYxreg ; TYrm128 ; TYimm U8 ]
     Ox86_VPERMQ [:: E U256 0 ] [:: E U256 1 ; E U8 2 ] [::] VPERMQ.
@@ -1128,6 +1148,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_VPUNPCKH ve sz => ok (VPUNPCKH_desc ve sz)
   | Ox86_VPUNPCKL ve sz => ok (VPUNPCKL_desc ve sz)
   | Ox86_VPBLENDD sz => ok (VPBLENDD_desc sz)
+  | Ox86_VPERM2I128 => ok VPERM2I128_desc
   | Ox86_VPERMQ => ok VPERMQ_desc
   end.
 
