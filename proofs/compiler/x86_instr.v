@@ -981,6 +981,7 @@ Qed.
 Arguments x86_xmm_binop_gsc : clear implicits.
 
 Definition VPMULU_desc sz := make_instr_desc (x86_xmm_binop_gsc sz Ox86_VPMULU VPMULU _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
+Definition VPANDN_desc sz := make_instr_desc (x86_xmm_binop_gsc sz Ox86_VPANDN VPANDN _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 Definition VPSHUFB_desc sz := make_instr_desc (x86_xmm_binop_gsc sz Ox86_VPSHUFB VPSHUFB _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
 (* ----------------------------------------------------------------------------- *)
@@ -1097,6 +1098,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_MOVD sz => ok (MOVD_desc sz)
   | Ox86_VMOVDQU sz => ok (VMOVDQU_desc sz)
   | Ox86_VPAND sz => ok (VPAND_desc sz)
+  | Ox86_VPANDN sz => ok (VPANDN_desc sz)
   | Ox86_VPOR sz => ok (VPOR_desc sz)
   | Ox86_VPXOR sz => ok (VPXOR_desc sz)
   | Ox86_VPADD ve sz => ok (VPADD_desc ve sz)

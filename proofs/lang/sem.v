@@ -807,6 +807,7 @@ Definition x86_u128_binop sz (op: _ → _ → word sz) (v1 v2: word sz) : exec v
   ok [:: Vword (op v1 v2) ].
 
 Definition x86_vpand {sz} := x86_u128_binop (@wand sz).
+Definition x86_vpandn {sz} := x86_u128_binop (@wandn sz).
 Definition x86_vpor {sz} := x86_u128_binop (@wor sz).
 Definition x86_vpxor {sz} := x86_u128_binop (@wxor sz).
 
@@ -918,6 +919,7 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
                                                 Let _ := check_size_128_256 sz in
                                                 ok [:: Vword x])
   | Ox86_VPAND sz => app_ww sz x86_vpand
+  | Ox86_VPANDN sz => app_ww sz x86_vpandn
   | Ox86_VPOR sz => app_ww sz x86_vpor
   | Ox86_VPXOR sz => app_ww sz x86_vpxor
   | Ox86_VPADD ve sz => app_ww sz (x86_vpadd ve)

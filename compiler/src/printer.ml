@@ -184,6 +184,7 @@ let pp_opn =
   | Ox86_MOVD w -> f w "#x86_MOVD"
   | Ox86_VMOVDQU w -> f w "#x86_VMOVDQU"
   | Ox86_VPAND w -> f w "#x86_VPAND"
+  | Ox86_VPANDN w -> f w "#x86_VPANDN"
   | Ox86_VPOR w -> f w "#x86_VPOR"
   | Ox86_VPXOR w -> f w "#x86_VPXOR"
   | Ox86_VPADD (ve, sz) -> v ve sz "#x86_VPADD"

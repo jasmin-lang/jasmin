@@ -130,6 +130,7 @@ Variant sopn : Set :=
 | Ox86_MOVD of wsize (* zero-extend to 128 bits *)
 | Ox86_VMOVDQU of wsize (* 128/256-bit copy *)
 | Ox86_VPAND of wsize (* 128/256-bit AND *)
+| Ox86_VPANDN of wsize (* 128/256-bit AND-NOT *)
 | Ox86_VPOR of wsize (* 128/256-bit OR *)
 | Ox86_VPXOR of wsize (* 128/256-bit XOR *)
 
@@ -227,6 +228,7 @@ Definition string_of_sopn o : string :=
   | Ox86_MOVD sz => "Ox86_MOVD " ++ string_of_wsize sz
   | Ox86_VMOVDQU sz => "Ox86_VMOVDQU " ++ string_of_wsize sz
   | Ox86_VPAND sz => "Ox86_VPAND " ++ string_of_wsize sz
+  | Ox86_VPANDN sz => "Ox86_VPANDN " ++ string_of_wsize sz
   | Ox86_VPOR sz => "Ox86_VPOR " ++ string_of_wsize sz
   | Ox86_VPXOR sz => "Ox86_VPXOR " ++ string_of_wsize sz
   | Ox86_VPADD ve sz => "Ox86_VPADD " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
@@ -280,7 +282,7 @@ Definition sopn_tout (o:sopn) :  list stype :=
   | Ox86_MOVD _
     => [:: sword128 ]
   | Ox86_VMOVDQU sz
-  | Ox86_VPAND sz | Ox86_VPOR sz | Ox86_VPXOR sz
+  | Ox86_VPAND sz | Ox86_VPANDN sz | Ox86_VPOR sz | Ox86_VPXOR sz
   | Ox86_VPADD _ sz | Ox86_VPMULU sz
   | Ox86_VPSLL _ sz | Ox86_VPSRL _ sz
   | Ox86_VPSHUFB sz | Ox86_VPSHUFHW sz | Ox86_VPSHUFLW sz | Ox86_VPSHUFD sz
@@ -337,7 +339,7 @@ Definition sopn_tin (o: sopn) : list stype :=
   | Ox86_SHLD sz
   | Ox86_VPBLENDD sz
     => let t := sword sz in [:: t ; t ; sword8 ]
-  | Ox86_VPAND sz | Ox86_VPOR sz | Ox86_VPXOR sz
+  | Ox86_VPAND sz | Ox86_VPANDN sz | Ox86_VPOR sz | Ox86_VPXOR sz
   | Ox86_VPADD _ sz | Ox86_VPMULU sz
   | Ox86_VPSHUFB sz
   | Ox86_VPUNPCKH _ sz | Ox86_VPUNPCKL _ sz

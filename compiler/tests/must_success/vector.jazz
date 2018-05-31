@@ -121,3 +121,24 @@ z = #x86_VPUNPCKH_4u64(x, y);
 (u256)[p + 32] = z;
 
 }
+
+export
+fn test_vpandn(reg u64 p) {
+reg u128 a, b, c;
+reg u256 x, y, z;
+
+a = (u128)[p + 0];
+b = (u128)[p + 16];
+
+c = #x86_VPANDN(a, b);
+
+(u128)[p + 0] = c;
+
+x = (u256)[p + 32];
+y = (u256)[p + 64];
+
+z = #x86_VPANDN_256(x, y);
+
+(u256)[p + 32] = z;
+
+}

@@ -638,6 +638,7 @@ let prim_string =
     "x86_MOVD", PrimP (T.U64, fun sz -> Ox86_MOVD sz);
     "x86_VMOVDQU", PrimP (T.U128, fun sz -> Ox86_VMOVDQU sz);
     "x86_VPAND", PrimP (T.U128, fun sz -> Ox86_VPAND sz);
+    "x86_VPANDN", PrimP (T.U128, fun sz -> Ox86_VPANDN sz);
     "x86_VPOR", PrimP (T.U128, fun sz -> Ox86_VPOR sz);
     "x86_VPXOR", PrimP (T.U128, fun sz -> Ox86_VPXOR sz);
     "x86_VPADD", PrimV (fun ve sz -> Ox86_VPADD (ve, sz));
