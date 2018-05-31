@@ -504,6 +504,9 @@ let pp_instr name (i : X86_sem.asm) =
   | VPSRL (ve, sz, dst, src1, src2) ->
     `Instr (pp_viname ve "vpsrl", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 sz src1; pp_rm128 sz dst])
 
+  | VPSLLV (ve, sz, dst, src1, src2) -> pp_xmm_binop (pp_viname ve "vpsllv") sz dst src1 src2
+  | VPSRLV (ve, sz, dst, src1, src2) -> pp_xmm_binop (pp_viname ve "vpsrlv") sz dst src1 src2
+
   | VPSHUFB (sz, dst, src1, src2) -> pp_xmm_binop "vpshufb" sz dst src1 src2
 
   | VPSHUFD (sz, dst, src1, src2) -> pp_vpshuf "d" sz dst src1 src2
@@ -546,6 +549,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | VPAND _ | VPANDN _ | VPOR _ | VPXOR _
   | VPADD _ | VPMULU _
   | VPSLL _ | VPSRL _
+  | VPSLLV _ | VPSRLV _
   | VPSHUFB _ | VPSHUFHW _ | VPSHUFLW _ | VPSHUFD _
   | VPUNPCKH _ | VPUNPCKL _
   | VPBLENDD _ | VPERM2I128 _ | VPERMQ _

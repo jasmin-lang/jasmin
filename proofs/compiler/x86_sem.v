@@ -184,6 +184,8 @@ Variant asm : Type :=
 | VPMULU `(wsize) (_ _: xmm_register) `(rm128)
 | VPSLL `(velem) `(wsize) (_ _: rm128) `(u8)
 | VPSRL `(velem) `(wsize) (_ _: rm128) `(u8)
+| VPSLLV `(velem) `(wsize) (_ _: xmm_register) `(rm128)
+| VPSRLV `(velem) `(wsize) (_ _: xmm_register) `(rm128)
 | VPSHUFB `(wsize) (_ _: xmm_register) `(rm128)
 | VPSHUFD of wsize & xmm_register & rm128 & u8
 | VPSHUFHW of wsize & xmm_register & rm128 & u8
@@ -1152,6 +1154,16 @@ Definition eval_VPSLL ve sz := eval_rm128_shift MSB_CLEAR ve sz (@wshl _).
 Definition eval_VPSRL ve sz := eval_rm128_shift MSB_CLEAR ve sz (@wshr _).
 
 (* -------------------------------------------------------------------- *)
+Definition eval_rm128_shift_variable ve sz op dst src1 src2 s : x86_result :=
+  Let _ := check_size_32_64 ve in
+  eval_xmm_binop sz (lift2_vec ve (λ v1 v2, op v1 (wunsigned v2)) sz) dst src1 src2 s.
+
+Arguments eval_rm128_shift_variable : clear implicits.
+
+Definition eval_VPSLLV ve sz := eval_rm128_shift_variable ve sz (@wshl _).
+Definition eval_VPSRLV ve sz := eval_rm128_shift_variable ve sz (@wshr _).
+
+(* -------------------------------------------------------------------- *)
 Definition eval_VPSHUFB sz := eval_xmm_binop sz (@wpshufb _).
 
 (* -------------------------------------------------------------------- *)
@@ -1246,6 +1258,8 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | VPMULU sz dst src1 src2 => eval_VPMULU sz dst src1 src2 s
   | VPSLL ve sz dst src1 src2 => eval_VPSLL ve sz dst src1 src2 s
   | VPSRL ve sz dst src1 src2 => eval_VPSRL ve sz dst src1 src2 s
+  | VPSLLV ve sz dst src1 src2 => eval_VPSLLV ve sz dst src1 src2 s
+  | VPSRLV ve sz dst src1 src2 => eval_VPSRLV ve sz dst src1 src2 s
   | VPSHUFB sz dst src pat => eval_VPSHUFB sz dst src pat s
   | VPSHUFD sz dst src pat => eval_VPSHUFD sz dst src pat s
   | VPSHUFHW sz dst src pat => eval_VPSHUFHW sz dst src pat s
