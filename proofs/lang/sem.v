@@ -852,6 +852,10 @@ Definition x86_vpblendd {sz} (v1 v2: word sz) (m: u8) : exec values :=
   ok [:: Vword (wpblendd v1 v2 m) ].
 
 (* ---------------------------------------------------------------- *)
+Definition x86_vpermq (v: u256) (m: u8) : exec values :=
+  ok [:: Vword (wpermq v m) ].
+
+(* ---------------------------------------------------------------- *)
 Notation app_b   o := (app_sopn [:: sbool] o).
 Notation app_w sz o := (app_sopn [:: sword sz] o).
 Notation app_ww sz o := (app_sopn [:: sword sz; sword sz] o).
@@ -933,6 +937,7 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_VPUNPCKH ve sz => app_ww sz (x86_vpunpckh ve)
   | Ox86_VPUNPCKL ve sz => app_ww sz (x86_vpunpckl ve)
   | Ox86_VPBLENDD sz => app_ww8 sz x86_vpblendd
+  | Ox86_VPERMQ => app_w8 U256 x86_vpermq
   end.
 
 Ltac app_sopn_t := 

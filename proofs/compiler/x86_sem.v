@@ -191,6 +191,7 @@ Variant asm : Type :=
 | VPBLENDD `(wsize) (_ _: xmm_register) `(rm128) `(u8)
 | VPUNPCKH `(velem) `(wsize) (_ _: xmm_register) `(rm128)
 | VPUNPCKL `(velem) `(wsize) (_ _: xmm_register) `(rm128)
+| VPERMQ of xmm_register & rm128 & u8
 .
 
 (* -------------------------------------------------------------------- *)
@@ -1183,6 +1184,12 @@ Definition eval_VPUNPCKH ve sz := eval_vpunpck sz (wpunpckh ve).
 Definition eval_VPUNPCKL ve sz := eval_vpunpck sz (wpunpckl ve).
 
 (* -------------------------------------------------------------------- *)
+Definition eval_VPERMQ (dst: xmm_register) (src: rm128) (i: u8) s : x86_result :=
+  Let v := read_rm128 U256 src s in
+  let r := wpermq v i in
+  ok (mem_update_xreg MSB_CLEAR dst r s).
+
+(* -------------------------------------------------------------------- *)
 Definition eval_instr_mem (i : asm) s : x86_result :=
   match i with
   | JMP    _
@@ -1240,6 +1247,7 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | VPUNPCKL ve sz dst src1 src2 => eval_VPUNPCKL ve sz dst src1 src2 s
 
   | VPBLENDD sz dst src1 src2 mask => eval_VPBLENDD sz dst src1 src2 mask s
+  | VPERMQ dst src i => eval_VPERMQ dst src i s
   end.
 
 Definition eval_instr (i : asm) (s: x86_state) : x86_result_state :=

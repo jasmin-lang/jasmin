@@ -652,6 +652,7 @@ let prim_string =
     "x86_VPUNPCKH", PrimV (fun ve sz -> Ox86_VPUNPCKH (ve, sz));
     "x86_VPUNPCKL", PrimV (fun ve sz -> Ox86_VPUNPCKL (ve, sz));
     "x86_VPBLENDD", PrimP (T.U128, fun sz -> Ox86_VPBLENDD sz);
+    "x86_VPERMQ", PrimM Ox86_VPERMQ;
   ]
 
 type size_annotation =

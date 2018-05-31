@@ -656,3 +656,9 @@ Definition wpblendd sz (w1 w2: word sz) (m: u8) : word sz :=
   let b := split_vec 1 m in
   let r := map3 (λ b v1 v2, if b == 1%R then v2 else v1) b v1 v2 in
   make_vec sz r.
+
+(* -------------------------------------------------------------------*)
+Definition wpermq (w: u256) (i: u8) : u256 :=
+  let v := split_vec U64 w in
+  let j := split_vec 2 i in
+  make_vec U256 (map (λ n, v`_(Z.to_nat (urepr n)))%R j).

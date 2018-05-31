@@ -198,6 +198,7 @@ let pp_opn =
   | Ox86_VPUNPCKH (ve, sz) -> v ve sz "#x86_VPUNPCKH"
   | Ox86_VPUNPCKL (ve, sz) -> v ve sz "#x86_VPUNPCKL"
   | Ox86_VPBLENDD w -> f w "#x86_VPBLENDD"
+  | Ox86_VPERMQ -> "#x86_VPERMQ"
 
 (* -------------------------------------------------------------------- *)
 let pp_tag = function

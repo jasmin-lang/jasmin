@@ -512,6 +512,8 @@ let pp_instr name (i : X86_sem.asm) =
 
   | VPBLENDD (sz, dst, src1, src2, mask) ->
     `Instr("vpblendd", [pp_imm (Conv.bi_of_int8 mask); pp_rm128 sz src2; pp_xmm_register sz src1; pp_xmm_register sz dst])
+  | VPERMQ (dst, src, i) ->
+    `Instr("vpermq", [ pp_imm (Conv.bi_of_int8 i); pp_rm128 U256 src; pp_xmm_register U256 dst ])
 
 (* -------------------------------------------------------------------- *)
 let pp_instr name (fmt : Format.formatter) (i : X86_sem.asm) =
@@ -543,7 +545,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | VPSLL _ | VPSRL _
   | VPSHUFB _ | VPSHUFHW _ | VPSHUFLW _ | VPSHUFD _
   | VPUNPCKH _ | VPUNPCKL _
-  | VPBLENDD _
+  | VPBLENDD _ | VPERMQ _
     -> c
 
   | LEA    (_, op, _) -> Set.add op c

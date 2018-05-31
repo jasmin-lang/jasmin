@@ -146,6 +146,7 @@ Variant sopn : Set :=
 | Ox86_VPUNPCKH of velem & wsize (* Unpack High Data *)
 | Ox86_VPUNPCKL of velem & wsize (* Unpack Low Data *)
 | Ox86_VPBLENDD of wsize (* Blend 32-bit words *)
+| Ox86_VPERMQ (* Permutation of 64-bit words *)
 .
 
 Scheme Equality for sop1.
@@ -242,6 +243,7 @@ Definition string_of_sopn o : string :=
   | Ox86_VPUNPCKH ve sz => "Ox86_VPUNPCKH " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
   | Ox86_VPUNPCKL ve sz => "Ox86_VPUNPCKL " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
   | Ox86_VPBLENDD sz => "Ox86_VPBLENDD " ++ string_of_wsize sz
+  | Ox86_VPERMQ => "Ox86_VPERMQ"
   end.
 
 Definition b_ty := [::sbool].
@@ -289,6 +291,7 @@ Definition sopn_tout (o:sopn) :  list stype :=
   | Ox86_VPUNPCKH _ sz | Ox86_VPUNPCKL _ sz
   | Ox86_VPBLENDD sz
     => [:: sword sz ]
+  | Ox86_VPERMQ => [:: sword256 ]
   end.
 
 Definition sopn_tin (o: sopn) : list stype :=
@@ -348,6 +351,7 @@ Definition sopn_tin (o: sopn) : list stype :=
   | Ox86_VPSHUFHW sz | Ox86_VPSHUFLW sz
   | Ox86_VPSHUFD sz
     => [:: sword sz; sword8 ]
+  | Ox86_VPERMQ => [:: sword256 ; sword8 ]
   end.
 
 (* ** Expressions

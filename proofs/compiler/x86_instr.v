@@ -1057,6 +1057,22 @@ Qed.
 Definition VPBLENDD_desc sz := make_instr_desc (VPBLENDD_gsc sz).
 
 (* ----------------------------------------------------------------------------- *)
+Lemma VPERMQ_gsc :
+  gen_sem_correct [:: TYxreg ; TYrm128 ; TYimm U8 ]
+    Ox86_VPERMQ [:: E U256 0 ] [:: E U256 1 ; E U8 2 ] [::] VPERMQ.
+Proof.
+move => dst src imm; split => // gd m m'.
+rewrite /low_sem_aux /= /eval_VPERMQ /x86_vpermq /=.
+case hsrc: arg_of_rm128 => [ src' | ] //=.
+t_xrbindP => ??? h <-; t_xrbindP => w /to_wordI [sz'] [w'] [hle ??].
+subst => _ [<-] <- [<-].
+rewrite (eval_low_rm128 (erefl : check_size_128_256 U256 = ok tt) hsrc h) zero_extend_sign_extend // sign_extend_u.
+eexists; split; reflexivity.
+Qed.
+
+Definition VPERMQ_desc := make_instr_desc VPERMQ_gsc.
+
+(* ----------------------------------------------------------------------------- *)
 
 Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   match c with
@@ -1112,6 +1128,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_VPUNPCKH ve sz => ok (VPUNPCKH_desc ve sz)
   | Ox86_VPUNPCKL ve sz => ok (VPUNPCKL_desc ve sz)
   | Ox86_VPBLENDD sz => ok (VPBLENDD_desc sz)
+  | Ox86_VPERMQ => ok VPERMQ_desc
   end.
 
 Lemma sopn_desc_name ii o d : sopn_desc ii o = ok d -> d.(id_name) = o.
