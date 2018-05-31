@@ -438,7 +438,19 @@ Proof. exact: sreprK. Qed.
 Lemma wrepr0 sz : wrepr sz 0 = 0%R.
 Proof. by apply/eqP. Qed.
 
+Lemma wrepr1 sz : wrepr sz 1 = 1%R.
+Proof. by apply/eqP;case sz. Qed.
+
+Lemma wreprB sz : wrepr sz (wbase sz) = 0%R.
+Proof. by apply/eqP;case sz. Qed.
+
+Lemma wbase_n0 sz : wbase sz <> 0%Z.
+Proof. by case sz. Qed.
+
 Lemma wsigned0 sz : @wsigned sz 0%R = 0%Z.
+Proof. by case: sz. Qed.
+
+Lemma wsigned1 sz : @wsigned sz 1%R = 1%Z.
 Proof. by case: sz. Qed.
 
 Lemma sign_extend0 sz sz' :

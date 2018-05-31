@@ -1494,46 +1494,37 @@ Section PROOF.
 
   Lemma sub_underflow sz (w1 w2: word sz) :
     (wunsigned w1 - wunsigned w2 <? 0)%Z = (wunsigned (w1 - w2) != (wunsigned w1 - wunsigned w2))%Z.
-  Proof using.
-  (*
-  case: w1 w2 => [z1 h1] [z2 h2]; rewrite /I64.sub /=.
-  have: (z1 - z2 < I64.modulus)%Z by lia.
-  have: (-I64.modulus < z1 - z2)%Z by lia.
-  move=> {h1 h2}; rewrite I64.unsigned_repr_eq.
-  move: (z1 - z2)%Z => {z1 z2} z hlo hhi.
-  case: (Z_le_dec 0 z) => [ge0_z|lt0_z].
-  + rewrite Z.mod_small // eqxx /=; apply/esym/negbTE.
-    by rewrite -Z.leb_antisym; apply/Z.leb_le.
-  + move/Z.lt_nge/Z.ltb_lt: (lt0_z) => ->; apply/negP.
-    by case/eqP/Z.mod_small_iff; lia.
-   *)
-  Admitted.
+  Proof.
+    have hn: forall b, ~~b = true <-> ~b. 
+    + by case;split.
+    have -> : (wunsigned w1 - wunsigned w2 <? 0)%Z = 
+           ~~(wunsigned w2 <=? wunsigned w1)%Z.
+    + apply Bool.eq_true_iff_eq.
+      rewrite hn /is_true Z.ltb_lt Z.leb_le; lia.
+    by f_equal; rewrite -wleuE.
+  Qed.
 
-  Lemma sub_borrow_underflow sz (w1 w2: word sz) b :
+  Lemma sub_borrow_underflow sz (w1 w2: word sz) (b:bool) :
     (wunsigned w1 - wunsigned w2 - b <? 0)%Z =
     (wunsigned (sub_borrow sz (wunsigned w1) (wunsigned w2) b) != (wunsigned w1 - (wunsigned w2 + b)))%Z.
-  Proof using.
-  (*
-  case: b => //=; last first.
-  + by rewrite /sub_borrow Z.sub_0_r Z.add_0_r sub_underflow.
-  case/boolP: (w2 + 1 =? I64.modulus)%Z; last first.
-  + move/eqP=> h; have {h}h: (w2 < I64.modulus - 1)%Z.
-    * by case: w2 h => z; set v := (_ - 1)%Z; rewrite /= {}/v; lia.
-    rewrite /sub_borrow -Z.sub_add_distr; set w := (w2 + _)%Z.
-    suff ->: w = I64.unsigned (I64.repr w) by rewrite sub_underflow.
-    rewrite I64.unsigned_repr_eq {}/w Z.mod_small //.
-    rewrite I64.unsigned_one; suff: (0 <= w2)%Z by lia.
-    by case: {h} w2=> /= *; lia.
-  rewrite /sub_borrow -!Z.sub_add_distr I64.unsigned_one.
-  move=> /eqP->; have ->: ((w1 - I64.modulus) <? 0)%Z.
-  + by apply/Z.ltb_lt; apply/Z.lt_sub_0; case: w1 => /= *; lia.
-  rewrite I64.unsigned_repr_eq Zminus_mod Z_mod_same_full.
-  rewrite Z.sub_0_r Zmod_mod Z.mod_small; last by case: w1 => /= *; lia.
-  have: (0 <> I64.modulus)%Z by have := I64.modulus_pos; lia.
-  by move=> ?; apply/eqP; lia.
+  Proof.
+    rewrite /sub_borrow.
+    case: b => /=;last first.
+    + by rewrite Z.sub_0_r Z.add_0_r wrepr_sub !wrepr_unsigned sub_underflow.
+    have -> : (wunsigned w1 - wunsigned w2 - 1 = 
+              wunsigned w1 - (wunsigned w2 + 1))%Z by ring.
+    case : (wunsigned w2 =P wbase sz - 1)%Z => hw2.
+    + have -> : (wunsigned w1 - (wunsigned w2 + 1) <? 0)%Z.
+      + by rewrite /is_true Z.ltb_lt; have := wunsigned_range w1;lia.
+      symmetry;apply /eqP. 
+      have ->: (wunsigned w2 + 1)%Z = wbase sz by rewrite hw2;ring.
+      rewrite wrepr_sub wreprB GRing.subr0 wrepr_unsigned.
+      by have := @wbase_n0 sz;lia.
+    have -> : (wunsigned w2 + 1 = wunsigned (w2 + 1))%Z.
+    + rewrite -wunsigned_add ?wrepr1 //.
+      by have := wunsigned_range w2;lia.
+    by rewrite wrepr_sub !wrepr_unsigned sub_underflow.
   Qed.
-  *)
-  Admitted.
 
   Lemma sem_pexprs_dec2 s e1 e2 v1 v2:
     sem_pexprs gd s [:: e1; e2] = ok [:: v1; v2] ->
