@@ -829,6 +829,17 @@ Definition x86_vpsll (ve: velem) {sz} := x86_u128_shift ve sz (@wshl _).
 Definition x86_vpsrl (ve: velem) {sz} := x86_u128_shift ve sz (@wshr _).
 
 (* ---------------------------------------------------------------- *)
+Definition x86_u128_shift_variable ve sz op v1 v2 : exec values :=
+  Let _ := check_size_32_64 ve in
+  Let _ := check_size_128_256 sz in
+  ok [:: Vword (lift2_vec ve (λ v1 v2, op v1 (wunsigned v2)) sz v1 v2) ].
+
+Arguments x86_u128_shift_variable : clear implicits.
+
+Definition x86_vpsllv ve {sz} := x86_u128_shift_variable ve sz (@wshl _).
+Definition x86_vpsrlv ve {sz} := x86_u128_shift_variable ve sz (@wshr _).
+
+(* ---------------------------------------------------------------- *)
 Definition x86_vpshufb {sz} := x86_u128_binop (@wpshufb sz).
 
 (* ---------------------------------------------------------------- *)
@@ -933,6 +944,8 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_VPMULU sz => app_ww sz x86_vpmulu
   | Ox86_VPSLL ve sz => app_w8 sz (x86_vpsll ve)
   | Ox86_VPSRL ve sz => app_w8 sz (x86_vpsrl ve)
+  | Ox86_VPSLLV ve sz => app_ww sz (x86_vpsllv ve)
+  | Ox86_VPSRLV ve sz => app_ww sz (x86_vpsrlv ve)
   | Ox86_VPSHUFB sz => app_ww sz x86_vpshufb
   | Ox86_VPSHUFHW sz => app_w8 sz x86_vpshufhw
   | Ox86_VPSHUFLW sz => app_w8 sz x86_vpshuflw

@@ -961,6 +961,29 @@ Definition VPSLL_desc (ve: velem) sz := make_instr_desc (x86_rm128_shift_gsc ve 
 Definition VPSRL_desc (ve: velem) sz := make_instr_desc (x86_rm128_shift_gsc ve sz (Ox86_VPSRL ve) (VPSRL ve) _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
 (* ----------------------------------------------------------------------------- *)
+Lemma x86_rm128_shift_variable_gsc ve sz op i sem :
+  (∀ d x y, is_sopn (i sz d x y)) →
+  (exec_sopn (op sz) = app_ww sz (x86_u128_shift_variable ve sz sem)) →
+  (∀ d x y gd m, eval_instr_mem gd (i sz d x y) m = eval_rm128_shift_variable gd sz sem d x y m) →
+  gen_sem_correct [:: TYxreg ; TYxreg ; TYrm128 ] (op sz)
+                  [:: E sz 0 ] [:: E sz 1 ; E sz 2 ] [::] (i sz).
+Proof.
+move => ok_sopn hsem lsem d x y; split => // gd m m'.
+rewrite /low_sem_aux /= lsem /eval_rm128_shift_variable hsem /x86_u128_shift_variable /=.
+case hy: arg_of_rm128 => [ y' | ] //=.
+t_xrbindP => ???? hy' <- <- /=.
+rewrite /truncate_word wsize_le_U256 /=; t_xrbindP => w /to_wordI [sz'] [w'] [hle ??].
+subst => _ -> /= ? ok_sz <- [<-].
+rewrite /eval_xmm_binop (eval_low_rm128 ok_sz hy hy').
+eexists; split; reflexivity.
+Qed.
+
+Arguments x86_rm128_shift_variable_gsc : clear implicits.
+
+Definition VPSLLV_desc (ve: velem) sz := make_instr_desc (x86_rm128_shift_variable_gsc ve sz (Ox86_VPSLLV ve) (VPSLLV ve) _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
+Definition VPSRLV_desc (ve: velem) sz := make_instr_desc (x86_rm128_shift_variable_gsc ve sz (Ox86_VPSRLV ve) (VPSRLV ve) _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
+
+(* ----------------------------------------------------------------------------- *)
 Lemma x86_xmm_binop_gsc sz op i sem :
   (∀ d x y, is_sopn (i sz d x y)) →
   (exec_sopn (op sz) = app_ww sz (@x86_u128_binop sz sem)) →
@@ -1141,6 +1164,8 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_VPMULU sz => ok (VPMULU_desc sz)
   | Ox86_VPSLL ve sz => ok (VPSLL_desc ve sz)
   | Ox86_VPSRL ve sz => ok (VPSRL_desc ve sz)
+  | Ox86_VPSLLV ve sz => ok (VPSLLV_desc ve sz)
+  | Ox86_VPSRLV ve sz => ok (VPSRLV_desc ve sz)
   | Ox86_VPSHUFB sz => ok (VPSHUFB_desc sz)
   | Ox86_VPSHUFHW sz => ok (VPSHUFHW_desc sz)
   | Ox86_VPSHUFLW sz => ok (VPSHUFLW_desc sz)
