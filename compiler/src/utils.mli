@@ -316,3 +316,8 @@ end
 exception HiError of string
 
 val hierror : ('a, Format.formatter, unit, 'b) format4 -> 'a
+
+(* -------------------------------------------------------------------- *)
+type 'a pp = Format.formatter -> 'a -> unit
+
+val pp_list : ('a, 'b, 'c, 'd, 'd, 'a) format6 -> 'a pp -> 'a list pp

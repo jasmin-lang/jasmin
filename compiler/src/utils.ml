@@ -717,3 +717,13 @@ let hierror fmt =
       Format.pp_print_flush bfmt ();
       raise (HiError (Buffer.contents buf)))
     bfmt fmt
+
+(* -------------------------------------------------------------------- *)
+type 'a pp = Format.formatter -> 'a -> unit
+
+let rec pp_list sep pp fmt xs =
+  let pp_list = pp_list sep pp in
+  match xs with
+  | []      -> ()
+  | [x]     -> Format.fprintf fmt "%a" pp x
+  | x :: xs -> Format.fprintf fmt "%a%(%)%a" pp x sep pp_list xs
