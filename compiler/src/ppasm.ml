@@ -314,6 +314,9 @@ let pp_movx name wsd wss dst src =
   `Instr (pp_iname2 rss rsd name, [pp_opr rss src; pp_register rsd dst])
 
 (* -------------------------------------------------------------------- *)
+let pp_rm128_binop name sz dst src1 src2 =
+    `Instr (name, [pp_rm128 sz src2; pp_rm128 sz src1; pp_rm128 sz dst])
+
 let pp_xmm_binop name sz dst src1 src2 =
   `Instr (name, [pp_rm128 sz src2 ; pp_xmm_register sz src1 ; pp_xmm_register sz dst ])
 
@@ -479,16 +482,13 @@ let pp_instr name (i : X86_sem.asm) =
   | VMOVDQU (sz, dst, src) ->
     `Instr ("vmovdqu", [pp_rm128 sz src; pp_rm128 sz dst])
 
-  | VPAND (sz, dst, src1, src2) ->
-    `Instr ("vpand", [pp_rm128 sz src2; pp_rm128 sz src1; pp_rm128 sz dst])
+  | VPAND (sz, dst, src1, src2) -> pp_rm128_binop "vpand" sz dst src1 src2
 
   | VPANDN (sz, dst, src1, src2) -> pp_xmm_binop "vpandn" sz dst src1 src2
 
-  | VPOR (sz, dst, src1, src2) ->
-    `Instr ("vpor", [pp_rm128 sz src2; pp_rm128 sz src1; pp_rm128 sz dst])
+  | VPOR (sz, dst, src1, src2) -> pp_rm128_binop "vpor" sz dst src1 src2
 
-  | VPXOR (sz, dst, src1, src2) ->
-    `Instr ("vpxor", [pp_rm128 sz src2; pp_rm128 sz src1; pp_rm128 sz dst])
+  | VPXOR (sz, dst, src1, src2) -> pp_rm128_binop "vpxor" sz dst src1 src2
 
   | VPADD (ve, sz, dst, src1, src2) ->
     `Instr (pp_viname ve "vpadd", [pp_rm128 sz src2; pp_rm128 sz src1; pp_rm128 sz dst])
