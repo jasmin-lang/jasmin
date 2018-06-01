@@ -241,10 +241,13 @@ let pp_ret env fmt xs =
   Format.fprintf fmt "@[return (%a);@]"
     (pp_list ",@ " (fun fmt x -> pp_var env fmt (L.unloc x))) xs
 
-let pp_opn fmt op = assert false
+let pp_opn fmt op = 
+  let s = Printer.pp_opn op in
+  let s = String.sub s 1 (String.length s - 1) in
+  Format.fprintf fmt "%s" s
 
 let pp_lval env fmt = function
-  | Lnone _ -> assert false
+  | Lnone _ -> Format.fprintf fmt "_"
   | Lvar x -> pp_var env fmt (L.unloc x)
   | Lmem _ -> assert false
   | Laset (x,e) -> 
@@ -313,9 +316,9 @@ let pp_prog fmt globs funcs =
   let env = 
     List.fold_left (fun env (x,_) -> add_glob env x.v_name x.v_ty)
       empty_env globs in
-  Format.fprintf fmt "@[<v>%a@ @ module M = {@   %a@ }.@ @]" 
-    (pp_list "@ " (pp_glob_decl env)) globs 
-    (pp_list "@ " (pp_fun env)) funcs 
+  Format.fprintf fmt "@[<v>%a@ @ module M = {@   @[<v>%a@]@ }.@ @]" 
+    (pp_list "@ @ " (pp_glob_decl env)) globs 
+    (pp_list "@ @ " (pp_fun env)) funcs 
 
 let rec used_func f = 
   used_func_c Ss.empty f.f_body 

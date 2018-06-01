@@ -99,7 +99,7 @@ type i_loc = L.t * L.t list
 
 type ('ty,'info) ginstr_r =
   | Cassgn of 'ty glval * assgn_tag * 'ty * 'ty gexpr
-  | Copn   of 'ty glvals * assgn_tag * Expr.sopn * 'ty gexprs
+  | Copn   of 'ty glvals * assgn_tag * E.sopn * 'ty gexprs
   | Cif    of 'ty gexpr * ('ty,'info) gstmt * ('ty,'info) gstmt
   | Cfor   of 'ty gvar_i * 'ty grange * ('ty,'info) gstmt
   | Cwhile of ('ty,'info) gstmt * 'ty gexpr * ('ty,'info) gstmt
