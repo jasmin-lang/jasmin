@@ -261,7 +261,7 @@ Qed.
 
 Lemma RZ (R : ringType):
   ring_morph (R := R) 0 1 +%R *%R ~%R -%R eq
-    0%Z 1%Z Zplus Zmult Zminus Zopp Zeq_bool (@R_of_Z _).
+    0%Z 1%Z Zplus Zmult Zminus Z.opp Zeq_bool (@R_of_Z _).
 Proof.
   split=> //=.
   + by move=> x y; rewrite rmorphD.
