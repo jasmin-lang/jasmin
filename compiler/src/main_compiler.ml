@@ -135,6 +135,17 @@ let main () =
     let gd, prog = Subst.remove_params pprog in
     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
+    if !ec_list <> [] then begin
+      let fmt, close = 
+        if !ecfile = "" then Format.std_formatter, fun () -> ()
+        else
+          let out = open_out !ec_list in
+          let fmt = Format.formatter_of_out_channel out in
+          fmt, fun () -> close_out out in
+      ToEC.extract fmt gd prog !ec_list;
+      close()
+    end;
+
     (* Generate the coq program if needed *)
     if !coqfile <> "" then begin
       let out = open_out !coqfile in

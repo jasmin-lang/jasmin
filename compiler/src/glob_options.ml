@@ -7,6 +7,8 @@ let debug = ref false
 let coqfile = ref ""
 let coqonly = ref false
 let print_list = ref []
+let ecfile = ref ""
+let ec_list = ref []
 
 let lea = ref false
 let set0 = ref false
@@ -39,6 +41,9 @@ let set_printing p () =
 
 let set_all_print () =
   print_list := poptions
+
+let set_ec f = 
+  ec_list := f :: !ec_list
 
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
@@ -76,6 +81,8 @@ let options = [
     "-nolea"   , Arg.Clear lea         , ": try to use add and mul instead of lea";
     "-set0"     , Arg.Set set0          , ": use [xor x x] to set x to 0 (default is not)";
     "-noset0"   , Arg.Clear set0        , ": do not use set0 option";
+    "-ec"       , Arg.String  set_ec    , "[f]: extract [f] and its dependency to an easycrypt file";
+    "-oec"     ,  Arg.Set_string ecfile, "[filename]: use filename as output destination for easycrypt extraction";
 
   ] @  List.map print_option poptions
 
