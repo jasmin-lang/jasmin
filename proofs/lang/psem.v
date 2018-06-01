@@ -1528,9 +1528,15 @@ Lemma vuincl_sem_sop2 o ve1 ve1' ve2 ve2' v1 :
   sem_sop2 o ve1 ve2 = ok v1 ->
   sem_sop2 o ve1' ve2' = ok v1.
 Proof.
-  case:o => [||[]|[]|[]|[]|[]|[]||||[]|[]|[]|[]|[]|[]]/=;
-   eauto using vuincl_sem_op2_i, vuincl_sem_op2_w, vuincl_sem_op2_b, vuincl_sem_op2_ib,
-    vuincl_sem_op2_wb, vuincl_sem_op2_w8.
+  case:o => [||[]|[]|[]|[]|[]|[]||||[]|[]|[]|[]|[]|[]]/=.
+  all: try exact: vuincl_sem_op2_i.
+  all: try exact: vuincl_sem_op2_w.
+  all: try (move => w; exact: vuincl_sem_op2_w).
+  all: try exact: vuincl_sem_op2_b.
+  all: try exact: vuincl_sem_op2_ib.
+  all: try (move => w; exact: vuincl_sem_op2_wb).
+  all: try (move => w; exact: vuincl_sem_op2_w8).
+  all: try (move => s w; exact: vuincl_sem_op2_wb).
 Qed.
 
 Lemma val_uincl_sword s (z z':sem_t (sword s)) : val_uincl z z' -> z = z'.

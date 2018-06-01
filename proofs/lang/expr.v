@@ -365,6 +365,30 @@ Definition sopn_tin (o: sopn) : list stype :=
   | Ox86_VPERMQ => [:: sword256 ; sword8 ]
   end.
 
+Definition type_of_op2 (o: sop2) : stype * stype * stype :=
+  match o with
+  | Oand | Oor => (sbool, sbool, sbool)
+  | Oadd Op_int
+  | Omul Op_int
+  | Osub Op_int
+    => (sint, sint, sint)
+  | Oadd (Op_w s)
+  | Omul (Op_w s)
+  | Osub (Op_w s)
+  | Oland s | Olor s | Olxor s
+    => let t := sword s in (t, t, t)
+  | Olsr s | Olsl s | Oasr s
+    => let t := sword s in (t, sword8, t)
+  | Oeq Op_int | Oneq Op_int
+  | Olt Cmp_int | Ole Cmp_int
+  | Ogt Cmp_int | Oge Cmp_int
+    => (sint, sint, sbool)
+  | Oeq (Op_w s) | Oneq (Op_w s)
+  | Olt (Cmp_w _ s) | Ole (Cmp_w _ s)
+  | Ogt (Cmp_w _ s) | Oge (Cmp_w _ s)
+    => let t := sword s in (t, t, sbool)
+  end.
+
 (* ** Expressions
  * -------------------------------------------------------------------- *)
 (* Used only by the ocaml compiler *)

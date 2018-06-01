@@ -544,7 +544,7 @@ Section PROOF.
       set vcf := wunsigned (zero_extend sz z1 - zero_extend sz z2) != (wunsigned (zero_extend sz z1) - wunsigned (zero_extend sz z2))%Z.
       set vzf := ZF_of_word (zero_extend sz z1 - zero_extend sz z2).
       exists vcf, vzf, fv.(fresh_CF), fv.(fresh_ZF); repeat split=> //=.
-      + by rewrite -Hz1z2 /vcf /vzf /ZF_of_word wleuE' GRing.subr_eq0.
+      + by rewrite -Hz1z2 /vcf /vzf /ZF_of_word /sem_sop2_typed wleuE' GRing.subr_eq0.
     (* Cond2 CondAndNot *)
     + case: o He => // [] // [] // [] sz' // He []??????; subst.
       case/sem_op2_wb_dec: He => w1 [z1] [w2] [z2] [Hz1z2] [Hw1] [Hw2 ->].
@@ -555,7 +555,7 @@ Section PROOF.
       set vzf := ZF_of_word (zero_extend sz z1 - zero_extend sz z2).
       exists vcf, vzf, fv.(fresh_CF), fv.(fresh_ZF); repeat split=> //=.
       rewrite -Hz1z2 /vcf /vzf /ZF_of_word.
-      by rewrite GRing.subr_eq0 negbK wltuE'.
+      by rewrite GRing.subr_eq0 negbK /sem_sop2_typed wltuE'.
     (* Cond3 CondOrNeq *)
     + case: o He => // [] // [] // [] sz' // He []???????; subst.
       case/sem_op2_wb_dec: He => w1 [z1] [w2] [z2] [Hz1z2] [Hw1] [Hw2 ->].
@@ -995,7 +995,7 @@ Section PROOF.
           apply: hlea; first done.
           apply: rbindP Hv => /= v1 -> /=.
           t_xrbindP => ? v2 -> <- -> [->] /=.
-          by rewrite /sem_op2_w /mk_sem_sop2 /= /truncate_word Hsz1 Hsz2.
+          by rewrite /sem_sop2 /= /truncate_word Hsz1 Hsz2.
         move => {Heq}.
         have := @add_inc_dec_classifyP s sz'' e1 e2 _ _ _ _ Hv.
         case: (add_inc_dec_classify _ _ _) => [y|y|//].
@@ -1027,7 +1027,7 @@ Section PROOF.
           apply: hlea; first by rewrite hsz.
           apply: rbindP Hv => /= v1 -> /=.
           t_xrbindP => ? v2 -> <- -> [->] /=.
-          by rewrite /sem_op2_w /mk_sem_sop2 /= /truncate_word Hsz1 Hsz2.
+          by rewrite /sem_sop2 /= /truncate_word Hsz1 Hsz2.
         move => {Heq}.
         case Heq: (is_wconst _ _) Hv => [z | ].
         * have := is_wconstP gd s Heq; t_xrbindP => v1 h1 hz.
@@ -1053,7 +1053,7 @@ Section PROOF.
           apply: hlea => //.
           apply: rbindP Hv => /= v1 -> /=.
           t_xrbindP => ? v2 -> <- -> [->] /=.
-          by rewrite /sem_op2_w /mk_sem_sop2 /= /truncate_word Hsz1 Hsz2.
+          by rewrite /sem_sop2 /= /truncate_word Hsz1 Hsz2.
         have := sub_inc_dec_classifyP sz'' e2.
         case: (sub_inc_dec_classify _ _)=> [He2|He2|//]; try subst e2.
         (* SubInc *)
@@ -1126,7 +1126,7 @@ Section PROOF.
       (* Olsr *)
       + case: andP => // - [hsz64] /eqP ?; subst sz.
          rewrite /sem_pexprs /=; t_xrbindP => v1 -> v2 ->.
-         rewrite /sem_op2_w8 /mk_sem_sop2 /=; t_xrbindP => w1 -> w2 -> /= ?; subst v.
+         rewrite /sem_sop2 /=; t_xrbindP => w1 -> w2 -> /= ?; subst v.
          case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
          rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
          case: Hv' => ?; subst v'.
@@ -1139,7 +1139,7 @@ Section PROOF.
       (* Olsl *)
       + case: andP => // - [hsz64] /eqP ?; subst sz.
         rewrite /sem_pexprs /=; t_xrbindP => v1 -> v2 ->.
-         rewrite /sem_op2_w8 /mk_sem_sop2 /=; t_xrbindP => w1 -> w2 -> /= ?; subst v.
+         rewrite /sem_sop2 /=; t_xrbindP => w1 -> w2 -> /= ?; subst v.
          case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
          rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
          case: Hv' => ?; subst v'.
@@ -1152,7 +1152,7 @@ Section PROOF.
       (* Oasr *)
       + case: andP => // - [hsz64] /eqP ?; subst sz.
         rewrite /sem_pexprs /=; t_xrbindP => v1 -> v2 ->.
-         rewrite /sem_op2_w8 /mk_sem_sop2 /=; t_xrbindP => w1 -> w2 -> /= ?; subst v.
+         rewrite /sem_sop2 /=; t_xrbindP => w1 -> w2 -> /= ?; subst v.
          case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
          rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
          case: Hv' => ?; subst v'.

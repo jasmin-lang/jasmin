@@ -247,41 +247,50 @@ Definition sem_sop1 (o:sop1) :=
   | Oarr_init s => sem_arr_init s
   end%R.
 
-Definition sem_sop2 (o:sop2) :=
+Definition sem_sop2_typed (o: sop2) :
+  let t := type_of_op2 o in
+  sem_t t.1.1 → sem_t t.1.2 → sem_t t.2 :=
   match o with
-  | Oand => sem_op2_b andb 
-  | Oor  => sem_op2_b orb 
+  | Oand => andb
+  | Oor  => orb
 
-  | Oadd Op_int   => sem_op2_i Z.add
-  | Oadd (Op_w s) => @sem_op2_w s +%R
-  | Omul Op_int   => sem_op2_i Z.mul
-  | Omul (Op_w s) => @sem_op2_w s *%R
-  | Osub Op_int   => sem_op2_i Z.sub
-  | Osub (Op_w s) => @sem_op2_w s (fun x y =>  x - y)%R
+  | Oadd Op_int   => Z.add
+  | Oadd (Op_w s) => +%R
+  | Omul Op_int   => Z.mul
+  | Omul (Op_w s) => *%R
+  | Osub Op_int   => Z.sub
+  | Osub (Op_w s) => (fun x y =>  x - y)%R
 
+  | Oland s => wand
+  | Olor  s => wor
+  | Olxor s => wxor
+  | Olsr  s => sem_shr
+  | Olsl  s => sem_shl
+  | Oasr  s => sem_sar
 
-  | Oland s => @sem_op2_w s wand
-  | Olor  s => @sem_op2_w s wor
-  | Olxor s => @sem_op2_w s wxor
-  | Olsr  s => @sem_op2_w8 s sem_shr
-  | Olsl  s => @sem_op2_w8 s sem_shl
-  | Oasr  s => @sem_op2_w8 s sem_sar
-
-  | Oeq Op_int    => sem_op2_ib Z.eqb
-  | Oeq (Op_w s)  => @sem_op2_wb s eq_op 
-  | Oneq Op_int   => sem_op2_ib (fun x y => negb (Z.eqb x y))
-  | Oneq (Op_w s) => @sem_op2_wb s (fun x y => (x != y))
+  | Oeq Op_int    => Z.eqb
+  | Oeq (Op_w s)  => eq_op
+  | Oneq Op_int   => fun x y => negb (Z.eqb x y)
+  | Oneq (Op_w s) => fun x y => (x != y)
   (* Fixme use the "new" Z *)
-  | Olt Cmp_int   => sem_op2_ib Z.ltb
-  | Ole Cmp_int   => sem_op2_ib Z.leb
-  | Ogt Cmp_int   => sem_op2_ib Z.gtb
-  | Oge Cmp_int   => sem_op2_ib Z.geb
+  | Olt Cmp_int   => Z.ltb
+  | Ole Cmp_int   => Z.leb
+  | Ogt Cmp_int   => Z.gtb
+  | Oge Cmp_int   => Z.geb
 
-  | Olt (Cmp_w u s) => @sem_op2_wb s (wlt u)
-  | Ole (Cmp_w u s) => @sem_op2_wb s (wle u)
-  | Ogt (Cmp_w u s) => @sem_op2_wb s (fun x y => wlt u y x)
-  | Oge (Cmp_w u s) => @sem_op2_wb s (fun x y => wle u y x)
+  | Olt (Cmp_w u s) => wlt u
+  | Ole (Cmp_w u s) => wle u
+  | Ogt (Cmp_w u s) => fun x y => wlt u y x
+  | Oge (Cmp_w u s) => fun x y => wle u y x
   end.
+
+Arguments sem_sop2_typed : clear implicits.
+
+Definition sem_sop2 (o: sop2) (v1 v2: value) : exec value :=
+  let t := type_of_op2 o in
+  Let x1 := of_val _ v1 in
+  Let x2 := of_val _ v2 in
+  ok (to_val (sem_sop2_typed o x1 x2)).
 
 Import Memory.
 
