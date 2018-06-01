@@ -126,13 +126,13 @@ let in_ty_op1 = function
   | E.Oarr_init _ -> assert false
 
 let in_ty_op2 = function
-  | E.Oand | E.Oor -> Coq_sbool
-  | E.Oeq k | E.Oneq k -> ty_op_kind k
-  | E.Olt k | E.Ole k | E.Ogt k | E.Oge k -> ty_cmp_kind k
-  | E.Oadd k | E.Omul k | E.Osub k -> ty_op_kind k
+  | E.Oand | E.Oor -> Coq_sbool, Coq_sbool
+  | E.Oeq k | E.Oneq k ->  let t = ty_op_kind k in t, t
+  | E.Olt k | E.Ole k | E.Ogt k | E.Oge k -> let t = ty_cmp_kind k in t, t
+  | E.Oadd k | E.Omul k | E.Osub k -> let t = ty_op_kind k in t, t
 
-  | E.Oland sz | E.Olor sz | E.Olxor sz
-  | E.Olsr sz | E.Olsl sz | E.Oasr sz -> Coq_sword sz
+  | E.Oland sz | E.Olor sz | E.Olxor sz -> let t = Coq_sword sz in t, t
+  | E.Olsr sz | E.Olsl sz | E.Oasr sz -> Coq_sword sz, Coq_sword U8
 
 let out_ty_op1 = function
   | E.Osignext (sz,_) | E.Ozeroext (sz, _) | E.Olnot sz-> Coq_sword sz
@@ -201,10 +201,10 @@ let rec pp_expr env fmt (e:expr) =
 
     Format.fprintf fmt "(%a %a)" pp_op1 op1 (pp_wcast env) (in_ty_op1 op1, e)
   | Papp2 (op2, e1, e2) ->  
-    let e1, e2 = swap_op2 op2 e1 e2 in
-    let ty = in_ty_op2 op2 in
+    let ty1,ty2 = in_ty_op2 op2 in
+    let te1, te2 = swap_op2 op2 (ty1, e1) (ty2, e2) in
     Format.fprintf fmt "(%a %a %a)"
-      (pp_wcast env) (ty,e1) pp_op2 op2 (pp_wcast env) (ty,e2)
+      (pp_wcast env) te1 pp_op2 op2 (pp_wcast env) te2
   | Pif(e1,et,ef) -> 
     let ty = ty_expr e in
     Format.fprintf fmt "(%a ? %a : %a)"
