@@ -65,6 +65,8 @@ End CmpType.
 
 Module MkOrdT (T:CmpType) <: OrderedType.
 
+  Existing Instance T.cmpO.
+
   Definition t := Equality.sort T.t.
 
   Definition eq x y := T.cmp x y = Eq.
@@ -186,9 +188,9 @@ Module Type MAP.
 
 End MAP.
 
-Module Mmake (K:CmpType) <: MAP.
+Module Mmake (K':CmpType) <: MAP.
 
-  Module K := K.
+  Module K := K'.
 
   Module Ordered := MkOrdT K.
 
@@ -495,6 +497,8 @@ Module Mp := Mmake CmpPos.
 Require Import MSets.
 
 Module MkMOrdT (T:CmpType) <: Orders.OrderedType.
+  Existing Instance T.cmpO.
+
   Definition t := Equality.sort T.t.
  
   Definition eq := @Logic.eq t.

@@ -48,6 +48,7 @@ End IDENT.
 Module MvMake (I:IDENT).
 
   Import I Mid.
+  Existing Instance K.cmpO.
 
   Record var := Var { vtype : stype; vname : ident }.
 
