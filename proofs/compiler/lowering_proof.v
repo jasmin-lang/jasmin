@@ -1505,8 +1505,8 @@ Section PROOF.
   Qed.
 
   Lemma sub_borrow_underflow sz (w1 w2: word sz) (b:bool) :
-    (wunsigned w1 - wunsigned w2 - b <? 0)%Z =
-    (wunsigned (sub_borrow sz (wunsigned w1) (wunsigned w2) b) != (wunsigned w1 - (wunsigned w2 + b)))%Z.
+    (wunsigned w1 - wunsigned w2 - Z.b2z b <? 0)%Z =
+    (wunsigned (sub_borrow sz (wunsigned w1) (wunsigned w2) (Z.b2z b)) != (wunsigned w1 - (wunsigned w2 + Z.b2z b)))%Z.
   Proof.
     rewrite /sub_borrow.
     case: b => /=;last first.
