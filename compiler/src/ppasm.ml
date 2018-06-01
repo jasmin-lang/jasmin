@@ -656,7 +656,7 @@ let pp_const ws z =
 let pp_glob_def fmt ((x, d): Prog.pvar * Prog.pexpr) : unit =
   let ws =
     match x.Prog.v_ty with
-    | Prog.(Bty (U ws)) -> ws
+    | Bty (U ws) -> ws
     | _ -> assert false
   in
   let z = clamp ws (constant_of_expr d) in

@@ -134,7 +134,7 @@ let isubst_ty = function
   | Arr(ty, e) -> Arr(ty, B.to_int (int_of_expr e))
 
 
-let isubst_prog (prog:'info pprog) =
+let isubst_prog (glob: (pvar * _) list) (prog:'info pprog) =
 
   let isubst_v () =
     let subst = ref Mpv.empty in
@@ -168,15 +168,26 @@ let isubst_prog (prog:'info pprog) =
         } in
       fc in
 
-  List.map isubst_item prog
+  let isubst_glob (x,e) = 
+    let subst_v = isubst_v () in
+    let x = 
+      match subst_v (Location.mk_loc Location._dummy x) with 
+      | Pvar x -> (Location.unloc x)
+      | _ -> assert false in
+    let e = gsubst_e subst_v e in
+    (x,e) in
+
+  let prog = List.map isubst_item prog in
+  let glob = List.map isubst_glob glob in
+  glob, prog 
 
 
 (* ---------------------------------------------------------------- *)
 (* Remove parameter from program definition                         *)
 
-let remove_params (prog : 'info pprog) : _ * 'info prog =
+let remove_params (prog : 'info pprog) =
   let globals, prog = psubst_prog prog in
-  globals, isubst_prog prog
+  globals, isubst_prog globals prog
 
 
 

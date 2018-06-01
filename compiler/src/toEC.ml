@@ -317,7 +317,6 @@ let pp_prog fmt globs funcs =
     (pp_list "@ " (pp_glob_decl env)) globs 
     (pp_list "@ " (pp_fun env)) funcs 
 
-
 let rec used_func f = 
   used_func_c Ss.empty f.f_body 
 
@@ -332,8 +331,6 @@ and used_func_i used i =
   | Cwhile(c1,_,c2) -> used_func_c (used_func_c used c1) c2
   | Ccall (_,_,f,_) -> Ss.add f.fn_name used
 
-
-
 let extract fmt globs funcs tokeep = 
   let tokeep = ref (Ss.of_list tokeep) in
   let dofun f = 
@@ -342,9 +339,6 @@ let extract fmt globs funcs tokeep =
     else false in
   let funcs = List.filter dofun funcs in
   pp_prog fmt globs (List.rev funcs)
-
-
-
 
 
 

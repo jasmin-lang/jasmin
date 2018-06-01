@@ -132,19 +132,19 @@ let main () =
     eprint Compiler.Typing Printer.pp_pprog pprog;
     if !typeonly then exit 0;
 
-    let gd, prog = Subst.remove_params pprog in
+    let gd, (gd',prog) = Subst.remove_params pprog in
     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
     if !ec_list <> [] then begin
       let fmt, close = 
         if !ecfile = "" then Format.std_formatter, fun () -> ()
         else
-          let out = open_out !ec_list in
+          let out = open_out !ecfile in
           let fmt = Format.formatter_of_out_channel out in
           fmt, fun () -> close_out out in
-      ToEC.extract fmt gd prog !ec_list;
+      ToEC.extract fmt gd' prog !ec_list;
       close()
-    end;
+    end; 
 
     (* Generate the coq program if needed *)
     if !coqfile <> "" then begin
