@@ -1,6 +1,6 @@
-{ stdenv, fetchFromGitHub, coqPackages_8_7 }:
+{ stdenv, fetchFromGitHub, coqPackages }:
 
-let inherit (coqPackages_8_7) coq mathcomp; in
+let inherit (coqPackages) coq mathcomp; in
 
 let rev = "9fa315504c4cbf1dc62667844a33981de695e1e7"; in
 
