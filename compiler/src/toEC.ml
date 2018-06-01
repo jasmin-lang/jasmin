@@ -125,14 +125,8 @@ let in_ty_op1 = function
   | E.Oneg (Op_w sz) -> Coq_sword sz
   | E.Oarr_init _ -> assert false
 
-let in_ty_op2 = function
-  | E.Oand | E.Oor -> Coq_sbool, Coq_sbool
-  | E.Oeq k | E.Oneq k ->  let t = ty_op_kind k in t, t
-  | E.Olt k | E.Ole k | E.Ogt k | E.Oge k -> let t = ty_cmp_kind k in t, t
-  | E.Oadd k | E.Omul k | E.Osub k -> let t = ty_op_kind k in t, t
-
-  | E.Oland sz | E.Olor sz | E.Olxor sz -> let t = Coq_sword sz in t, t
-  | E.Olsr sz | E.Olsl sz | E.Oasr sz -> Coq_sword sz, Coq_sword U8
+let in_ty_op2 op =
+  fst (E.type_of_op2 op)
 
 let out_ty_op1 = function
   | E.Osignext (sz,_) | E.Ozeroext (sz, _) | E.Olnot sz-> Coq_sword sz
@@ -141,12 +135,8 @@ let out_ty_op1 = function
   | E.Oneg (Op_w sz) -> Coq_sword sz
   | E.Oarr_init _ -> assert false
 
-let out_ty_op2 = function
-  | E.Oand | E.Oor | E.Oeq _ | E.Oneq _
-  | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ -> Coq_sbool
-  | E.Oadd t | E.Omul t | E.Osub t -> ty_op_kind t 
-  | E.Oland sz | E.Olor sz | E.Olxor sz 
-  | E.Olsr sz | E.Olsl sz | E.Oasr sz -> Coq_sword sz 
+let out_ty_op2 op =
+  snd (E.type_of_op2 op)
 
 let min_ty ty1 ty2 = 
   match ty1, ty2 with
