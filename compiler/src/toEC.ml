@@ -4,20 +4,8 @@ open Prog
 module E = Expr
 module B = Bigint
 
-let pp_bool fmt b = 
-  if b then Format.fprintf fmt "true" 
-  else Format.fprintf fmt "false"
-
-let bits_of_wsize = function
-  | U8 -> 8
-  | U16 -> 16
-  | U32 -> 32
-  | U64 -> 64
-  | U128 -> 128
-  | U256 -> 256
-
-let pp_size fmt sz = 
-  Format.fprintf fmt "%i" (bits_of_wsize sz) 
+let pp_size fmt sz =
+  Format.fprintf fmt "%i" (int_of_ws sz)
 
 let pp_Tsz fmt sz = 
   Format.fprintf fmt "W%a" pp_size sz
@@ -110,14 +98,6 @@ let pp_op2 fmt = function
   | E.Olt _ | E.Ogt _ -> Format.fprintf fmt "<"
   | E.Ole _ | E.Oge _ -> Format.fprintf fmt "<="
 
-let ty_op_kind = function
-  | E.Op_int -> Coq_sint
-  | E.Op_w sz -> Coq_sword sz
-
-let ty_cmp_kind = function 
-  | E.Cmp_int -> Coq_sint
-  | E.Cmp_w(_,sz) -> Coq_sword sz
-
 let in_ty_op1 = function
   | E.Osignext (_,sz) | E.Ozeroext (_, sz) | E.Olnot sz-> Coq_sword sz
   | E.Onot -> Coq_sbool
@@ -178,7 +158,7 @@ let pp_cast pp fmt (ty,ety,e) =
 let rec pp_expr env fmt (e:expr) = 
   match e with
   | Pconst z -> Format.fprintf fmt "%a" B.pp_print z
-  | Pbool b -> Format.fprintf fmt "%a" pp_bool b
+  | Pbool b -> Format.fprintf fmt "%a" Printer.pp_bool b
   | Pcast(sz,e) -> 
     Format.fprintf fmt "(%a.of_int %a)" pp_Tsz sz (pp_expr env) e
   | Pvar x -> pp_var env fmt (L.unloc x)
