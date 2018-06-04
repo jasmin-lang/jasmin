@@ -204,24 +204,11 @@ Definition mk_sem_sop1 t1 tr (o:sem_t t1 -> sem_t tr) v1 :=
   Let v1 := of_val t1 v1 in
   ok (@to_val tr (o v1)).
 
-Definition mk_sem_sop2 t1 t2 tr (o:sem_t t1 -> sem_t t2 -> sem_t tr) v1 v2 :=
-  Let v1 := of_val t1 v1 in
-  Let v2 := of_val t2 v2 in
-  ok (@to_val tr (o v1 v2)).
-
 Definition sem_op1_b  := @mk_sem_sop1 sbool sbool.
 Definition sem_op1_i  := @mk_sem_sop1 sint sint.
 Definition sem_op1_w s := @mk_sem_sop1 (sword s) (sword s).
 
-Definition sem_op2_b  := @mk_sem_sop2 sbool sbool sbool.
-Definition sem_op2_i  := @mk_sem_sop2 sint  sint  sint.
-Definition sem_op2_w  s := @mk_sem_sop2 (sword s) (sword s) (sword s).
-Definition sem_op2_ib := @mk_sem_sop2 sint  sint  sbool.
-Definition sem_op2_wb s := @mk_sem_sop2 (sword s) (sword s) sbool.
-
-Definition sem_op2_w8  s := @mk_sem_sop2 (sword s) (sword U8) (sword s).
-
-Definition sem_shift (shift:forall {s}, word s -> Z -> word s) s (v:word s) (i:u8) := 
+Definition sem_shift (shift:forall {s}, word s -> Z -> word s) s (v:word s) (i:u8) :=
   let i :=  wunsigned (wand i (x86_shift_mask s)) in
   shift v i.
 
@@ -291,6 +278,16 @@ Definition sem_sop2 (o: sop2) (v1 v2: value) : exec value :=
   Let x1 := of_val _ v1 in
   Let x2 := of_val _ v2 in
   ok (to_val (sem_sop2_typed o x1 x2)).
+
+Lemma sem_sop2I v v1 v2 f:
+  sem_sop2 f v1 v2 = ok v →
+  ∃ (w1 : sem_t (type_of_op2 f).1.1) (w2 : sem_t (type_of_op2 f).1.2),
+    of_val _ v1 = ok w1 ∧
+    of_val _ v2 = ok w2 ∧
+    v = to_val (sem_sop2_typed f w1 w2).
+Proof.
+  by rewrite /sem_sop2; t_xrbindP => w1 ok_w1 w2 ok_w2 <- {v}; eauto.
+Qed.
 
 Import Memory.
 

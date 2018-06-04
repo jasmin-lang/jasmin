@@ -279,18 +279,14 @@ Qed.
 Lemma smulP ty e1 e2 : Papp2 (Omul ty) e1 e2 =E smul ty e1 e2.
 Proof. by case: ty; eauto using smul_intP, smul_wP. Qed.
 
-Lemma mk_sem_sop2_b b t (o:sem_t t -> sem_t t -> bool) :
-   (forall v, o v v = b) ->
-   forall v v', @mk_sem_sop2 t t sbool o v v = ok v' -> v' = Vbool b.
-Proof.
-  by move=> Ho v v';apply: rbindP=> z -> [];rewrite Ho => ->.
-Qed.
-  
 Lemma s_eqP ty e1 e2 : Papp2 (Oeq ty) e1 e2 =E s_eq ty e1 e2.
 Proof.
   rewrite /s_eq;case:ifP => [ /eq_exprP Hs s v /=| _ ].
   + rewrite Hs;case: sem_pexpr => //= ve.
-    by case: ty => [ | sz ] /(@mk_sem_sop2_b true) ->; eauto => ? /=; rewrite (Z.eqb_refl, eq_refl).
+    rewrite /sem_sop2; case: ty => [ | sz ] /=; t_xrbindP => ? -> ? [<-] <-;
+    (eexists; split; first reflexivity).
+    - by rewrite Z.eqb_refl.
+    by rewrite eqxx.
   case: ty.
   + apply: eeq_weaken.
     case: (is_constP e1) => [n1| {e1} e1];
@@ -312,8 +308,11 @@ Proof.
   rewrite /sneq /s_eq.
   case:ifP => [ /eq_exprP Hs s v /=| _ ].
   + rewrite Hs;case: sem_pexpr => //= ve.
-    by case: ty => [ | sz ] /(@mk_sem_sop2_b false) ->; eauto => ? /=; rewrite (Z.eqb_refl, eq_refl).
-  case: ty. 
+    rewrite /sem_sop2; case: ty => [ | sz ] /=; t_xrbindP => ? -> ? [<-] <-;
+    (eexists; split; first reflexivity).
+    - by rewrite Z.eqb_refl.
+    by rewrite eqxx.
+  case: ty.
   + apply: eeq_weaken.
     case: (is_constP e1) => [n1| {e1} e1];
     case: (is_constP e2) => [n2| {e2} e2] rho v //=.
@@ -332,8 +331,10 @@ Lemma sltP ty e1 e2 : Papp2 (Olt ty) e1 e2 =E slt ty e1 e2.
 Proof.
   rewrite /slt;case:ifP => [ /eq_exprP Hs s v /=| _ ].
   + rewrite Hs;apply: rbindP => v' -> /=.
-    by case: ty => [ | sg sz ] /(@mk_sem_sop2_b false) ->; eauto => ? /=;
-    rewrite (Z.ltb_irrefl, wlt_irrefl).
+    rewrite /sem_sop2; case: ty => [ | sg sz ] /=; t_xrbindP => ? -> ? [<-] <-;
+    (eexists; split; first reflexivity).
+    - by rewrite Z.ltb_irrefl.
+    by rewrite wlt_irrefl.
   apply: eeq_weaken.
   case: (is_constP e1) => [n1| {e1} e1];last by auto.
   case: (is_constP e2) => [n2 ?? /=| {e2} e2];last by auto.
@@ -344,8 +345,10 @@ Lemma sleP ty e1 e2 : Papp2 (Ole ty) e1 e2 =E sle ty e1 e2.
 Proof.
   rewrite /sle; case:ifP => [ /eq_exprP Hs s v /=| _ ].
   + rewrite Hs;apply: rbindP => v' -> /=.
-    by case: ty => [ | sg sz ] /(@mk_sem_sop2_b true) ->; eauto => ? /=;
-      rewrite (Z.leb_refl, wle_refl).
+    rewrite /sem_sop2; case: ty => [ | sg sz ] /=; t_xrbindP => ? -> ? [<-] <-;
+    (eexists; split; first reflexivity).
+    - by rewrite Z.leb_refl.
+    by rewrite wle_refl.
   apply: eeq_weaken.
   case: (is_constP e1) => [n1| {e1} e1];last by auto.
   case: (is_constP e2) => [n2 ?? /=| {e2} e2];last by auto.
@@ -356,8 +359,10 @@ Lemma sgtP ty e1 e2 : Papp2 (Ogt ty) e1 e2 =E sgt ty e1 e2.
 Proof.
   rewrite /sgt;case:ifP => [ /eq_exprP Hs s v /=| _ ].
   + rewrite Hs;apply: rbindP => v' -> /=.
-    by case: ty => [ | ? ? ] /(@mk_sem_sop2_b false) ->; eauto => ? /=;
-      rewrite ?Z.gtb_ltb (Z.ltb_irrefl, wlt_irrefl).
+    rewrite /sem_sop2; case: ty => [ | sg sz ] /=; t_xrbindP => ? -> ? [<-] <-;
+    (eexists; split; first reflexivity).
+    - by rewrite Z.gtb_ltb Z.ltb_irrefl.
+    by rewrite wlt_irrefl.
   apply: eeq_weaken.
   case: (is_constP e1) => [n1| {e1} e1];last by auto.
   case: (is_constP e2) => [n2 ?? /=| {e2} e2];last by auto.
@@ -368,8 +373,10 @@ Lemma sgeP ty e1 e2 : Papp2 (Oge ty) e1 e2 =E sge ty e1 e2.
 Proof.
   rewrite /sge; case:ifP => [ /eq_exprP Hs s v /=| _ ].
   + rewrite Hs;apply: rbindP => v' -> /=.
-    by case: ty => [ | ? ? ] /(@mk_sem_sop2_b true) ->; eauto => ? /=;
-      rewrite ?Z.geb_leb (Z.leb_refl, wle_refl).
+    rewrite /sem_sop2; case: ty => [ | sg sz ] /=; t_xrbindP => ? -> ? [<-] <-;
+    (eexists; split; first reflexivity).
+    - by rewrite Z.geb_leb Z.leb_refl.
+    by rewrite wle_refl.
   apply: eeq_weaken.
   case: (is_constP e1) => [n1| {e1} e1];last by auto.
   case: (is_constP e2) => [n2 ?? /=| {e2} e2];last by auto.

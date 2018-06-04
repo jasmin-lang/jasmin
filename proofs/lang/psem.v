@@ -753,19 +753,6 @@ Proof.
   + by move=> [] //.
 Qed.
 
-Lemma sem_op2_b_dec gd v s e1 e2 f:
-  Let v1 := sem_pexpr gd s e1 in (Let v2 := sem_pexpr gd s e2 in sem_op2_b f v1 v2) = ok v ->
-  exists z1 z2, Vbool (f z1 z2) = v /\ sem_pexpr gd s e1 = ok (Vbool z1) /\ sem_pexpr gd s e2 = ok (Vbool z2).
-Proof.
-  t_xrbindP=> v1 Hv1 v2 Hv2; rewrite /sem_op2_b /mk_sem_sop2.
-  t_xrbindP=> z1 Hz1 z2 Hz2 Hv.
-  move: v1 Hv1 Hz1=> [] //; last by move=> [].
-  move=> w1 Hw1 []Hz1; subst w1.
-  move: v2 Hv2 Hz2=> [] //; last by move=> [].
-  move=> w2 Hw2 []Hz1; subst w2.
-  rewrite /sem_pexprs /= Hw1 /= Hw2 /=; eexists; eexists; eauto.
-Qed.
-
 Lemma sem_op1_w_dec gd sz v s e f:
   Let v1 := sem_pexpr gd s e in sem_op1_w f v1 = ok v ->
   exists sz' (z: word sz'), 
@@ -774,34 +761,6 @@ Proof.
   t_xrbindP=> v1 Hv1; rewrite /sem_op1_w /mk_sem_sop1.
   t_xrbindP=> z1 /of_val_word [sz1 [w1 [hle ???]]];subst.
   by rewrite Hv1;exists sz1, w1.
-Qed.
-
-Lemma sem_op2_w_dec gd sz v e1 e2 s (f: word sz → word sz → _):
-  Let v1 := sem_pexpr gd s e1 in (Let v2 := sem_pexpr gd s e2 in sem_op2_w f v1 v2) = ok v ->
-  ∃ sz1 (z1: word sz1) sz2 (z2: word sz2),
-   [/\ (sz <= sz1)%CMP, (sz <= sz2)%CMP, 
-    Vword (f (zero_extend _ z1) (zero_extend _ z2)) = v &
-    sem_pexprs gd s [:: e1; e2] = ok [:: Vword z1; Vword z2] ].
-Proof.
-  rewrite /sem_op2_w /mk_sem_sop2.
-  t_xrbindP=> v1 Hv1 v2 Hv2 z1 /of_val_word [sz1 [w1 [Hw1 ??]]];subst.
-  move=> z2 /of_val_word [sz2 [w2 [Hw2 ??]]] ?;subst.
-  rewrite /sem_pexprs /= Hv1 /= Hv2 /=.
-  by exists sz1, w1, sz2, w2.
-Qed.
-
-Lemma sem_op2_wb_dec gd sz v e1 e2 s f:
-  Let v1 := sem_pexpr gd s e1 in (Let v2 := sem_pexpr gd s e2 in sem_op2_wb f v1 v2) = ok v ->
-  ∃ sz1 (z1: word sz1) sz2 (z2: word sz2),
-    Vbool (f (zero_extend sz z1) (zero_extend sz z2)) = v
-    ∧ (sz ≤ sz1)%CMP ∧ (sz ≤ sz2)%CMP
-    ∧ sem_pexprs gd s [:: e1; e2] = ok [:: Vword z1; Vword z2].
-Proof.
-  rewrite /sem_op2_wb /mk_sem_sop2.
-  t_xrbindP=> v1 Hv1 v2 Hv2 z1 /of_val_word [sz1 [w1 [Hw1 ??]]].
-  move=> z2 /of_val_word [sz2 [w2 [Hw2 ??]]] ?;subst.
-  rewrite /sem_pexprs /= Hv1 /= Hv2 /=.
-  by exists sz1, w1, sz2, w2.
 Qed.
 
 Definition eq_on (s : Sv.t) (vm1 vm2 : vmap) :=
@@ -1469,58 +1428,13 @@ Proof.
   by constructor.
 Qed.
 
-Lemma vuincl_sem_op2_b o ve1 ve1' ve2 ve2' v1 :
-  value_uincl ve1 ve1' -> value_uincl ve2 ve2' -> sem_op2_b o ve1 ve2 = ok v1 ->
-  sem_op2_b o ve1' ve2' = ok v1.
+Lemma val_uincl_eq t (x y: sem_t t) :
+  val_uincl x y →
+  (if t is sarr _ _ then false else true) →
+  y = x.
 Proof.
-  rewrite /sem_op2_b /= /mk_sem_sop2 => Hvu1 Hvu2.
-  apply: rbindP => z1 /(value_uincl_bool Hvu1) [] _ ->.
-  by apply: rbindP => z2 /(value_uincl_bool Hvu2) [] _ -> [] <-.
-Qed.
-
-Lemma vuincl_sem_op2_i o ve1 ve1' ve2 ve2' v1 :
-  value_uincl ve1 ve1' -> value_uincl ve2 ve2' -> sem_op2_i o ve1 ve2 = ok v1 ->
-  sem_op2_i o ve1' ve2' = ok v1.
-Proof.
-  rewrite /sem_op2_i /= /mk_sem_sop2 => Hvu1 Hvu2.
-  apply: rbindP => z1 /(value_uincl_int Hvu1) [] _ ->.
-  by apply: rbindP => z2 /(value_uincl_int Hvu2) [] _ -> [] <-.
-Qed.
-
-Lemma vuincl_sem_op2_w sz (o: word sz → _) ve1 ve1' ve2 ve2' v1 :
-  value_uincl ve1 ve1' -> value_uincl ve2 ve2' -> sem_op2_w o ve1 ve2 = ok v1 ->
-  sem_op2_w o ve1' ve2' = ok v1.
-Proof.
-  rewrite /sem_op2_w /= /mk_sem_sop2 => Hvu1 Hvu2.
-  apply: rbindP => z1 /= /(value_uincl_word Hvu1) ->.
-  by apply: rbindP => z2 /= /(value_uincl_word Hvu2) -> [<-].
-Qed.
-
-Lemma vuincl_sem_op2_ib o ve1 ve1' ve2 ve2' v1 :
-  value_uincl ve1 ve1' -> value_uincl ve2 ve2' -> sem_op2_ib o ve1 ve2 = ok v1 ->
-  sem_op2_ib o ve1' ve2' = ok v1.
-Proof.
-  rewrite /sem_op2_ib /= /mk_sem_sop2 => Hvu1 Hvu2.
-  apply: rbindP => z1 /(value_uincl_int Hvu1) [] _ ->.
-  by apply: rbindP => z2 /(value_uincl_int Hvu2) [] _ -> [] <- /=.
-Qed.
-
-Lemma vuincl_sem_op2_wb sz (o: word sz → _) ve1 ve1' ve2 ve2' v1 :
-  value_uincl ve1 ve1' -> value_uincl ve2 ve2' -> sem_op2_wb o ve1 ve2 = ok v1 ->
-  sem_op2_wb o ve1' ve2' = ok v1.
-Proof.
-  rewrite /sem_op2_wb /= /mk_sem_sop2 => Hvu1 Hvu2.
-  apply: rbindP => z1 /(value_uincl_word Hvu1) /= ->.
-  by apply: rbindP => z2 /(value_uincl_word Hvu2) /= -> [<-].
-Qed.
-
-Lemma vuincl_sem_op2_w8 sz (o: word sz → _) ve1 ve1' ve2 ve2' v1 :
-  value_uincl ve1 ve1' -> value_uincl ve2 ve2' -> sem_op2_w8 o ve1 ve2 = ok v1 ->
-  sem_op2_w8 o ve1' ve2' = ok v1.
-Proof.
-  rewrite /sem_op2_w8 /= /mk_sem_sop2 => Hvu1 Hvu2.
-  apply: rbindP => z1 /(value_uincl_word Hvu1) /= ->.
-  by apply: rbindP => z2 /(value_uincl_word Hvu2) /= -> [<-].
+  case: t x y => //.
+  by move => sz /= x y /andP [] _ /eqP ->; rewrite zero_extend_u.
 Qed.
 
 Lemma vuincl_sem_sop2 o ve1 ve1' ve2 ve2' v1 :
@@ -1528,15 +1442,14 @@ Lemma vuincl_sem_sop2 o ve1 ve1' ve2 ve2' v1 :
   sem_sop2 o ve1 ve2 = ok v1 ->
   sem_sop2 o ve1' ve2' = ok v1.
 Proof.
-  case:o => [||[]|[]|[]|[]|[]|[]||||[]|[]|[]|[]|[]|[]]/=.
-  all: try exact: vuincl_sem_op2_i.
-  all: try exact: vuincl_sem_op2_w.
-  all: try (move => w; exact: vuincl_sem_op2_w).
-  all: try exact: vuincl_sem_op2_b.
-  all: try exact: vuincl_sem_op2_ib.
-  all: try (move => w; exact: vuincl_sem_op2_wb).
-  all: try (move => w; exact: vuincl_sem_op2_w8).
-  all: try (move => s w; exact: vuincl_sem_op2_wb).
+  move => h1 h2; rewrite /sem_sop2 /=; t_xrbindP => w1 ok_w1 w2 ok_w2 <-.
+  have {ok_w1} [z1 [-> /= hz1]] := of_val_uincl h1 ok_w1.
+  have {ok_w2} [z2 [-> /= hz2]] := of_val_uincl h2 ok_w2.
+  repeat f_equal.
+  - apply: (val_uincl_eq hz1).
+    by clear; case: o => //= - [] //.
+  apply: (val_uincl_eq hz2).
+  by clear; case: o => //= - [] //.
 Qed.
 
 Lemma val_uincl_sword s (z z':sem_t (sword s)) : val_uincl z z' -> z = z'.
