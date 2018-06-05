@@ -1466,12 +1466,12 @@ Proof.
   case: o => [ szo szi | szo szi | | sz | [| sz] ].
   1-2:
     case: ve1 => // [ | [] // ] sz1 w1 /value_uinclE [sz2] [w2] [-> {ve1'}] /andP [] hle /eqP -> {w1};
-    rewrite /= /mk_sem_sop1; t_xrbindP => /= y /truncate_wordP [hle'] -> <-;
+    rewrite /sem_sop1 /=; t_xrbindP => /= y /truncate_wordP [hle'] -> <-;
     by rewrite /truncate_word (cmp_le_trans hle' hle) /= (zero_extend_idem _ hle').
   all:
-    rewrite /= /sem_op1_b /sem_op1_w /sem_op1_i /mk_sem_sop1 => Hu;
-    apply: rbindP => z Hz.
-  all: case => <-.
+    move => Hu;
+    apply: rbindP => z Hz;
+    rewrite /sem_sop1 /= => [<-].
   2, 4: by have [z' [/= -> /val_uincl_sword ->]] := of_val_uincl Hu Hz.
   all: by have [z' [/= -> ->]] := of_val_uincl Hu Hz.
 Qed.

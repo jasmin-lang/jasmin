@@ -97,20 +97,14 @@ let pp_op2 fmt = function
   | E.Olt _ | E.Ogt _ -> Format.fprintf fmt "<"
   | E.Ole _ | E.Oge _ -> Format.fprintf fmt "<="
 
-let in_ty_op1 = function
-  | E.Osignext (_,sz) | E.Ozeroext (_, sz) | E.Olnot sz-> Coq_sword sz
-  | E.Onot -> Coq_sbool
-  | E.Oneg (Op_int) -> Coq_sint
-  | E.Oneg (Op_w sz) -> Coq_sword sz
+let in_ty_op1 op =
+  fst (E.type_of_op1 op)
 
 let in_ty_op2 op =
   fst (E.type_of_op2 op)
 
-let out_ty_op1 = function
-  | E.Osignext (sz,_) | E.Ozeroext (sz, _) | E.Olnot sz-> Coq_sword sz
-  | E.Onot -> Coq_sbool
-  | E.Oneg (Op_int) -> Coq_sint
-  | E.Oneg (Op_w sz) -> Coq_sword sz
+let out_ty_op1 op =
+  snd (E.type_of_op1 op)
 
 let out_ty_op2 op =
   snd (E.type_of_op2 op)

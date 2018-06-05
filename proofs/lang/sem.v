@@ -216,15 +216,24 @@ Definition sem_shr {s} := @sem_shift (@wshr) s.
 Definition sem_sar {s} := @sem_shift (@wsar) s.
 Definition sem_shl {s} := @sem_shift (@wshl) s.
 
-Definition sem_sop1 (o:sop1) :=
+Definition sem_sop1_typed (o: sop1) :
+  let t := type_of_op1 o in
+  sem_t t.1 → sem_t t.2 :=
   match o with
-  | Osignext szo szi => @mk_sem_sop1 (sword szi) (sword szo) (@sign_extend szo szi)
-  | Ozeroext szo szi => @mk_sem_sop1 (sword szi) (sword szo) (@zero_extend szo szi)
-  | Onot    => sem_op1_b negb
-  | Olnot s => @sem_op1_w s wnot 
-  | Oneg  Op_int => sem_op1_i Z.opp 
-  | Oneg (Op_w s) => @sem_op1_w s -%R
-  end%R.
+  | Osignext szo szi => @sign_extend szo szi
+  | Ozeroext szo szi => @zero_extend szo szi
+  | Onot => negb
+  | Olnot sz => wnot
+  | Oneg Op_int => Z.opp
+  | Oneg (Op_w sz) => (-%R)%R
+  end.
+
+Arguments sem_sop1_typed : clear implicits.
+
+Definition sem_sop1 (o: sop1) (v: value) : exec value :=
+  let t := type_of_op1 o in
+  Let x := of_val _ v in
+  ok (to_val (sem_sop1_typed o x)).
 
 Definition sem_sop2_typed (o: sop2) :
   let t := type_of_op2 o in

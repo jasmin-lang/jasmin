@@ -119,7 +119,7 @@ Proof.
   move=> p rho v /=;rewrite /eqok.
   apply: rbindP => w;apply:rbindP => w' /= ->.
   apply: rbindP => /= b Hb [<-]. 
-  rewrite /sem_op1_b /mk_sem_sop1 /= negbK => [<-].
+  rewrite /sem_sop1 /= negbK => [<-].
   by case: w' Hb => //= [? [->] | []].
 Qed.
 
@@ -132,7 +132,7 @@ Qed.
 Lemma sneg_intP e : Papp1 (Oneg Op_int) e =E sneg_int e.
 Proof.
 apply: eeq_weaken; case: e => // [ z s v [] <- // | [] ] // [] // e s v /=; t_xrbindP => ? ? -> /=.
-rewrite /sem_op1_i /mk_sem_sop1; t_xrbindP => ? /of_val_int -> <- /= ? [<-] <-.
+rewrite /sem_sop1; t_xrbindP => ? /of_val_int -> <- /= ? [<-] <-.
 by rewrite Z.opp_involutive.
 Qed.
 

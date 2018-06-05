@@ -365,6 +365,18 @@ Definition sopn_tin (o: sopn) : list stype :=
   | Ox86_VPERMQ => [:: sword256 ; sword8 ]
   end.
 
+Definition type_of_op1 (o: sop1) : stype * stype :=
+  match o with
+  | Osignext szo szi
+  | Ozeroext szo szi
+    => (sword szi, sword szo)
+  | Onot => (sbool, sbool)
+  | Olnot sz
+  | Oneg (Op_w sz)
+    => let t := sword sz in (t, t)
+  | Oneg Op_int => (sint, sint)
+  end.
+
 Definition type_of_op2 (o: sop2) : stype * stype * stype :=
   match o with
   | Oand | Oor => (sbool, sbool, sbool)
