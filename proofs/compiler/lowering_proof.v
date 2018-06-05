@@ -337,7 +337,7 @@ Section PROOF.
     end.
   Proof.
     rewrite /add_inc_dec_classify.
-    move: a b=> -[z|bv|w[[//|z|z]|bv|wi e|x| g |x e|wi x e|o e|o e1 e2|e e1 e2]|x| g |x e|w x e|o e|o e1 e2|e e1 e2] [z'|bv'|w'[[//|[//|//|]|[//|//|]]|bv'|wi' e'|x'| g' |x' e'|wi' x' e'|o' e'|o' e1' e2'|e' e1' e2']|x'| g' |x' e'|w' x' e'|o' e'|o' e1' e2'|e' e1' e2'] //;
+    move: a b=> -[z|bv|w n|w[[//|z|z]|bv|wi ni|wi e|x| g |x e|wi x e|o e|o e1 e2|e e1 e2]|x| g |x e|w x e|o e|o e1 e2|e e1 e2] [z'|bv'|sz' n'|w'[[//|[//|//|]|[//|//|]]|bv'|wi' ni'|wi' e'|x'| g' |x' e'|wi' x' e'|o' e'|o' e1' e2'|e' e1' e2']|x'| g' |x' e'|w' x' e'|o' e'|o' e1' e2'|e' e1' e2'] //;
     try (case: eqP => // ?; subst);
     try (by left; split); try (
     by move: z => [] //; right); try (
@@ -943,8 +943,8 @@ Section PROOF.
     end.
   Proof.
     rewrite /lower_cassgn_classify.
-    move: e Hs=> [z|b|sz e|x| g |x e|sz x e|o e|o e1 e2|e e1 e2] //.
-    + move: e=> [z'|b'|sz' e'|x'| g' |x' e'|sz' x' e'|o' e'|o' e1' e2'|e' e1' e2'] //.
+    move: e Hs=> [z|b|sz n|sz e|x| g |x e|sz x e|o e|o e1 e2|e e1 e2] //.
+    + move: e=> [z'|b'|sz' n'|sz' e'|x'| g' |x' e'|sz' x' e'|o' e'|o' e1' e2'|e' e1' e2'] //.
       case => ?; subst v.
       have {Hv'} [sz' [? hle ?]] := truncate_val_word Hv'.
       subst v' ty => /=.

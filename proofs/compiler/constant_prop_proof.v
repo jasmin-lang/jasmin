@@ -143,7 +143,7 @@ by rewrite /sem_op1_w /mk_sem_sop1 /= -bindA (is_wconstP gd s heq) /= => -[<-]; 
 Qed.
 
 Lemma s_op1P o e : Papp1 o e =E s_op1 o e.
-Proof. case: o => [??|??||?|[|?]|?]; eauto using snot_boolP, snot_wP, sneg_intP, sneg_wP. Qed.
+Proof. case: o => [??|??||?|[|?]]; eauto using snot_boolP, snot_wP, sneg_intP, sneg_wP. Qed.
 
 (* * -------------------------------------------------------------------- *)
 
@@ -485,7 +485,7 @@ Lemma const_prop_eP (e:pexpr) s (m:cpm):
   e =[s] const_prop_e m e.
 Proof.
   move=> Hvalid;rewrite /eqok.
-  elim: e=> [z | b | sz e He | x | g | x e He | sz x e He | o e He | o e1 He1 e2 He2 | e He e1 He1 e2 He2] v /=;
+  elim: e=> [z | b | sz n | sz e He | x | g | x e He | sz x e He | o e He | o e1 He1 e2 He2 | e He e1 He1 e2 He2] v /=;
   try (intros; clarify; eauto; fail).
   + t_xrbindP => z w /(He _) [v'] [->] [/value_uincl_int h A] /h {h} [??] ?; subst.
     by eexists; split; first reflexivity.

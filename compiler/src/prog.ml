@@ -48,6 +48,7 @@ type 'expr gty =
 type 'ty gexpr =
   | Pconst of B.zint
   | Pbool  of bool
+  | Parr_init of wsize * B.zint
   | Pcast  of wsize * 'ty gexpr
   | Pvar   of 'ty gvar_i
   | Pglobal of wsize * Name.t
@@ -259,7 +260,7 @@ module Hf = Hash.Make(F)
 (* used variables                                                       *)
 
 let rec rvars_e s = function
-  | Pconst _ | Pbool _ | Pglobal _ -> s
+  | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ -> s
   | Pcast(_,e)     -> rvars_e s e
   | Pvar x         -> Sv.add (L.unloc x) s
   | Pget(x,e)      -> rvars_e (Sv.add (L.unloc x) s) e

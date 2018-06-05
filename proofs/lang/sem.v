@@ -216,13 +216,6 @@ Definition sem_shr {s} := @sem_shift (@wshr) s.
 Definition sem_sar {s} := @sem_shift (@wsar) s.
 Definition sem_shl {s} := @sem_shift (@wshl) s.
 
-Definition sem_arr_init s (v:value) := 
-  Let n := to_int v in 
-  match n with
-  | Zpos p => ok (@Varr s p (Array.empty p))
-  | _      => type_error
-  end.
-
 Definition sem_sop1 (o:sop1) :=
   match o with
   | Osignext szo szi => @mk_sem_sop1 (sword szi) (sword szo) (@sign_extend szo szi)
@@ -231,7 +224,6 @@ Definition sem_sop1 (o:sop1) :=
   | Olnot s => @sem_op1_w s wnot 
   | Oneg  Op_int => sem_op1_i Z.opp 
   | Oneg (Op_w s) => @sem_op1_w s -%R
-  | Oarr_init s => sem_arr_init s
   end%R.
 
 Definition sem_sop2_typed (o: sop2) :
@@ -366,6 +358,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   match e with
   | Pconst z => ok (Vint z)
   | Pbool b  => ok (Vbool b)
+  | Parr_init sz n => ok (@Varr sz n (Array.empty n))
   | Pcast sz e  =>
     Let z := sem_pexpr s e >>= to_int in
     ok (Vword (wrepr sz z))

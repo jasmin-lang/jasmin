@@ -30,6 +30,7 @@ let rec pp_expr tbl fmt =
   function
   | E.Pconst z -> B.pp_print fmt (Conv.bi_of_z z)
   | E.Pbool b -> Pr.pp_bool fmt b
+  | E.Parr_init(sz, n) -> F.fprintf fmt "arr_init(%a, %a)" pp_wsize sz B.pp_print (Conv.bi_of_pos n)
   | E.Pcast (sz, e) -> F.fprintf fmt "(%a) %a" pp_wsize sz pp_expr e
   | E.Pvar x -> pp_var_i tbl fmt x
   | E.Pglobal g -> F.fprintf fmt "%s" (Conv.global_of_cglobal g |> snd)

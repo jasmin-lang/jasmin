@@ -164,6 +164,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   match e with
   | Pconst z => ok (Vint z)
   | Pbool b  => ok (Vbool b)
+  | Parr_init sz n => ok (@Varr sz n (Array.empty n))
   | Pcast sz e  =>
     Let z := sem_pexpr s e >>= to_int in
     ok (Vword (wrepr sz z))
@@ -1462,7 +1463,7 @@ Lemma vuincl_sem_sop1 o ve1 ve1' v1 :
   sem_sop1 o ve1 = ok v1 ->
   sem_sop1 o ve1' = ok v1.
 Proof.
-  case: o => [ szo szi | szo szi | | sz | [| sz] | sz ].
+  case: o => [ szo szi | szo szi | | sz | [| sz] ].
   1-2:
     case: ve1 => // [ | [] // ] sz1 w1 /value_uinclE [sz2] [w2] [-> {ve1'}] /andP [] hle /eqP -> {w1};
     rewrite /= /mk_sem_sop1; t_xrbindP => /= y /truncate_wordP [hle'] -> <-;
@@ -1470,9 +1471,7 @@ Proof.
   all:
     rewrite /= /sem_op1_b /sem_op1_w /sem_op1_i /mk_sem_sop1 => Hu;
     apply: rbindP => z Hz.
-  5: case: z Hz => // p Hz.
   all: case => <-.
-  5: by have [_ ->] := value_uincl_int Hu Hz.
   2, 4: by have [z' [/= -> /val_uincl_sword ->]] := of_val_uincl Hu Hz.
   all: by have [z' [/= -> ->]] := of_val_uincl Hu Hz.
 Qed.
@@ -1497,9 +1496,10 @@ Lemma sem_pexpr_uincl gd s1 vm2 e v1:
   sem_pexpr gd s1 e = ok v1 ->
   exists v2, sem_pexpr gd (Estate s1.(emem) vm2) e = ok v2 /\ value_uincl v1 v2.
 Proof.
-  move=> Hu; elim: e v1=>//=[z|b|sz e He|x|g|x p Hp|sz x p Hp|o e He|o e1 He1 e2 He2| e He e1 He1 e2 He2 ] v1.
+  move=> Hu; elim: e v1=>//=[z|b|sz n|sz e He|x|g|x p Hp|sz x p Hp|o e He|o e1 He1 e2 He2| e He e1 He1 e2 He2 ] v1.
   + by move=> [] <-;exists z.
   + by move=> [] <-;exists b.
+  + by case => <-; eauto.
   + apply: rbindP => z;apply: rbindP => ve /He [] ve' [] -> Hvu Hto [] <-.
     by case: (value_uincl_int Hvu Hto) => ??;subst; exists (Vword (wrepr sz z)).
   + by apply get_var_uincl.
@@ -2121,9 +2121,10 @@ End UNDEFINCL.
 
 Lemma eq_exprP gd s e1 e2 : eq_expr e1 e2 -> sem_pexpr gd s e1 = sem_pexpr gd s e2.
 Proof.
-  elim: e1 e2=> [z  | b  | sz e He | x | g | x e He | sz x e He | o e  He | o e1 He1 e2 He2 | e He e1 He1 e2 He2]
-                [z' | b' | sz' e'   | x' | g' | x' e'  | sz' x' e'  | o' e' | o' e1' e2' | e' e1' e2'] //=.
+  elim: e1 e2=> [z  | b | sz n | sz e He | x | g | x e He | sz x e He | o e  He | o e1 He1 e2 He2 | e He e1 He1 e2 He2]
+                [z' | b' | sz' n' | sz' e'   | x' | g' | x' e'  | sz' x' e'  | o' e' | o' e1' e2' | e' e1' e2'] //=.
   + by move=> /eqP ->.   + by move=> /eqP ->.
+  + by case/andP => /eqP -> /eqP ->.
   + by move=> /andP [] /eqP -> /He ->.
   + by move=> /eqP ->.
   + by move=> /eqP ->.

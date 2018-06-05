@@ -82,7 +82,6 @@ Definition s_op1 o e :=
   | Olnot sz => snot_w sz e
   | Oneg Op_int => sneg_int e
   | Oneg (Op_w sz) => sneg_w sz e
-  | Oarr_init sz => Papp1 (Oarr_init sz) e
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -324,8 +323,10 @@ Definition const v :=
 
 Fixpoint const_prop_e (m:cpm) e :=
   match e with
-  | Pconst _      => e
-  | Pbool  _      => e
+  | Pconst _
+  | Pbool  _
+  | Parr_init _ _
+    => e
   | Pcast sz e    => Pcast sz (const_prop_e m e)
   | Pvar  x       => if Mvar.get m x is Some n then const n else e
   | Pglobal _     => e

@@ -945,8 +945,8 @@ Section REMOVE_INIT.
   Local Lemma RmkI ii i s1 s2 : sem_i p gd s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
   Proof. by move=> _ Hi vm1 Hvm1 /(Hi ii _ Hvm1) [vm2 []] Hsi ??;exists vm2. Qed.
   
-  Lemma is_array_initP e : is_array_init e -> exists sz e1, e = Papp1 (Oarr_init sz) e1.
-  Proof. by case e => // -[] //= sz e1 _;exists sz, e1. Qed.
+  Lemma is_array_initP e : is_array_init e -> exists sz n, e = Parr_init sz n.
+  Proof. by case: e => // sz n _; eauto. Qed.
 
   Local Lemma Rasgn s1 s2 x tag ty e v v' :
     sem_pexpr gd s1 e = ok v -> 
@@ -956,8 +956,7 @@ Section REMOVE_INIT.
   Proof.
     move=> Hse hsub hwr ii vm1 Hvm1 /=; case: ifP.
     + case/is_array_initP => sz [e1 ?];subst e.
-      move: Hse => /=; apply: rbindP => v1 He1; apply: rbindP => -[ | n | ] //=.
-      move=> Hn [?];subst v.
+      case: Hse => ?; subst v.
       move: hsub;rewrite /truncate_val;case: ty => //= sty nty.
       case: wsize_eq_dec => // ?;subst.
       case: CEDecStype.pos_dec => // ?;subst => /= -[?];subst.

@@ -143,7 +143,6 @@ let pp_op1 = function
   | E.Olnot U64 -> "~!"
   | E.Olnot _   -> assert false
   | E.Oneg _ -> "~-" (* FIXME *)
-  | E.Oarr_init _ -> assert false (* FIXME *)
 
 let pp_global fmt (ws, n) =
   F.fprintf fmt "(Global U%a \"%s\")"
@@ -153,6 +152,7 @@ let pp_global fmt (ws, n) =
 let rec pp_pexpr fmt = function
   | Pconst i       -> F.fprintf fmt "%s" (B.to_string i)
   | Pbool b        -> F.fprintf fmt "%a" pp_bool b
+  | Parr_init _ -> assert false (* FIXME *)
   | Pcast(ws, pe) -> F.fprintf fmt "(Pcast %a %a)" pp_ws ws pp_pexpr pe
   | Pvar vi        -> F.fprintf fmt "%a" pp_vari vi
   | Pglobal (ws, g) -> F.fprintf fmt "(Pglobal %a)" pp_global (ws, g)

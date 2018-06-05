@@ -67,7 +67,6 @@ let pp_op1 fmt = function
   | E.Onot     -> Format.fprintf fmt "!"
   | E.Olnot _  -> Format.fprintf fmt "!"
   | E.Oneg _   -> Format.fprintf fmt "-"
-  | E.Oarr_init _ -> raise (Invalid_argument "pp_op1 : Oarr_init") 
 
 let swap_op2 op e1 e2 = 
   match op with 
@@ -103,7 +102,6 @@ let in_ty_op1 = function
   | E.Onot -> Coq_sbool
   | E.Oneg (Op_int) -> Coq_sint
   | E.Oneg (Op_w sz) -> Coq_sword sz
-  | E.Oarr_init _ -> assert false
 
 let in_ty_op2 op =
   fst (E.type_of_op2 op)
@@ -113,7 +111,6 @@ let out_ty_op1 = function
   | E.Onot -> Coq_sbool
   | E.Oneg (Op_int) -> Coq_sint
   | E.Oneg (Op_w sz) -> Coq_sword sz
-  | E.Oarr_init _ -> assert false
 
 let out_ty_op2 op =
   snd (E.type_of_op2 op)
@@ -136,6 +133,7 @@ let ty_get x =
 let rec ty_expr = function
   | Pconst _ -> Coq_sint
   | Pbool _ -> Coq_sbool
+  | Parr_init (sz, n) -> Coq_sarr (sz, Conv.pos_of_bi n)
   | Pcast (sz,_) -> Coq_sword sz
   | Pvar x -> Conv.cty_of_ty x.L.pl_desc.v_ty
   | Pglobal (sz,_) -> Coq_sword sz
@@ -159,6 +157,7 @@ let rec pp_expr env fmt (e:expr) =
   match e with
   | Pconst z -> Format.fprintf fmt "%a" B.pp_print z
   | Pbool b -> Format.fprintf fmt "%a" Printer.pp_bool b
+  | Parr_init _ -> assert false
   | Pcast(sz,e) -> 
     Format.fprintf fmt "(%a.of_int %a)" pp_Tsz sz (pp_expr env) e
   | Pvar x -> pp_var env fmt (L.unloc x)

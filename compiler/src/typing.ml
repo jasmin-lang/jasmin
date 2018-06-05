@@ -805,7 +805,7 @@ let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (ty: P.pty) (e: P.pty P.gexp
 
 let rec is_constant e = 
   match e with 
-  | P.Pconst _ | P.Pbool _ -> true
+  | P.Pconst _ | P.Pbool _ | P.Parr_init _ -> true
   | P.Pcast(_, e) -> is_constant e
   | P.Pvar x  -> P.kind_i x = P.Const || P.kind_i x = P.Inline
   | P.Pglobal _  | P.Pget _ | P.Pload _ -> false
@@ -872,7 +872,8 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
       let x = tt_var ~allow_global:false `AllVar env x in
       let xi = (L.mk_loc lc x) in
       begin match x.P.v_ty with
-      | P.Arr(ws,e) as ty -> P.Cassgn (Lvar xi, P.AT_inline, ty, P.Papp1(E.Oarr_init ws, e))
+      | P.Arr(ws, P.Pconst n) as ty -> P.Cassgn (Lvar xi, P.AT_inline, ty, P.Parr_init (ws, n))
+        (* FIXME: should not fail when the array size is a parameter *)
       | _           -> rs_tyerror ~loc:lc (InvalidType( x.P.v_ty, TPArray))
       end
 

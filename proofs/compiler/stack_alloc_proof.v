@@ -229,9 +229,10 @@ Section PROOF.
     have Hvm: eq_vm (evm s1) (evm s2).
       by move: Hv=> -[].
     elim: e1 e2 v=> 
-     [z1|b1|sz1 e1 IH|v1| g1 |v1 e1 IH|sz1 v1 e1 IH|o1 e1 IH|o1 e1 H1 e1' H1' | e He e1 H1 e1' H1'] e2 v.
+     [z1|b1|sz1 n1|sz1 e1 IH|v1| g1 |v1 e1 IH|sz1 v1 e1 IH|o1 e1 IH|o1 e1 H1 e1' H1' | e He e1 H1 e1' H1'] e2 v.
     + by case: e2=> //= z2 /eqP -> [] <-;exists z2;auto.
     + by case: e2=> //= b2 /eqP -> [] <-;exists b2;auto.
+    + by case: e2 => // _ _ /andP [] /eqP <- /eqP <- [<-]{v}; eexists; split; first reflexivity.
     + case:e2 => //= sz2 e2 /andP [] /eqP <- {sz2} /IH {IH}IH.
       apply: rbindP => z;apply: rbindP => v1 /IH [v1' [->]] /= Hu.
       move=> /(value_uincl_int Hu) [??] [?];subst v1 v1' v => /=.

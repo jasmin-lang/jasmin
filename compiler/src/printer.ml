@@ -73,7 +73,6 @@ let string_of_op1 = function
   | E.Olnot _ -> "!"
   | E.Onot    -> "~"
   | E.Oneg _ -> "-"
-  | E.Oarr_init _ -> "array_init"
 
 (* -------------------------------------------------------------------- *)
 let pp_ge pp_var =
@@ -81,6 +80,7 @@ let pp_ge pp_var =
   let rec pp_expr fmt = function
   | Pconst i    -> B.pp_print fmt i
   | Pbool  b    -> F.fprintf fmt "%b" b
+  | Parr_init (ws, n) -> F.fprintf fmt "array_init(%a, %a)" pp_btype (U ws) B.pp_print n
   | Pcast(ws,e) -> F.fprintf fmt "(%a)%a" pp_btype (U ws) pp_expr e
   | Pvar v      -> pp_var_i fmt v
   | Pglobal (_, g) -> F.fprintf fmt "%s" g

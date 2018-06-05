@@ -60,7 +60,7 @@ Variant sop1 :=
 | Onot (* Boolean negation *)
 | Olnot of wsize (* Bitwize not: 1s’ complement *)
 | Oneg  of op_kind (* Arithmetic negation *)
-| Oarr_init of wsize.
+.
 
 Variant sop2 :=
 | Oand                        (* const : sbool -> sbool -> sbool *)
@@ -429,6 +429,7 @@ Canonical global_eqType := Eval hnf in EqType global global_eqMixin.
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
+| Parr_init : wsize → positive → pexpr
 | Pcast  : wsize -> pexpr -> pexpr              (* int -> word *)
 | Pvar   :> var_i -> pexpr
 | Pglobal :> global -> pexpr
@@ -460,6 +461,7 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
   match e1, e2 with
   | Pconst n1   , Pconst n2    => n1 == n2
   | Pbool  b1   , Pbool  b2    => b1 == b2
+  | Parr_init w1 n1, Parr_init w2 n2 => (w1 == w2) && (n1 == n2)
   | Pcast w1 e1, Pcast w2 e2 => (w1 == w2) && eqb e1 e2
   | Pvar   x1   , Pvar   x2    => (x1 == x2)
   | Pglobal g1, Pglobal g2 => g1 == g2
@@ -475,14 +477,16 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
 
   Lemma eq_axiom : Equality.axiom eqb.
   Proof.
-    elim => [n1|b1|w1 e1 He1|x1|g1|x1 e1 He1|w1 x1 e1 He1
+    elim => [n1|b1| w1 n1 |w1 e1 He1|x1|g1|x1 e1 He1|w1 x1 e1 He1
             |o1 e1 He1|o1 e11 He11 e12 He12 | t1 Ht1 e11 He11 e12 He12]
-            [n2|b2|w2 e2|x2|g2|x2 e2|w2 x2 e2|o2 e2|o2 e21 e22 |t2 e21 e22] /=;
+            [n2|b2| w2 n2 |w2 e2|x2|g2|x2 e2|w2 x2 e2|o2 e2|o2 e21 e22 |t2 e21 e22] /=;
         try by constructor.
     + apply (@equivP (n1 = n2));first by apply: eqP.
       by split => [->|[]->].
     + apply (@equivP (b1 = b2));first by apply: eqP.
       by split => [->|[]->].
+    + apply (@equivP ((w1 == w2) ∧ (n1 == n2)));first by apply andP.
+      by split => [ [/eqP -> /eqP ->] | [-> ->] ].
     + apply (@equivP ((w1 == w2) /\ eqb e1 e2));first by apply andP.
       by split=> [ [] /eqP -> /He1 -> | [] -> <- ] //;split => //;apply /He1.
     + apply (@equivP (x1 = x2));first by apply: eqP.
@@ -985,8 +989,10 @@ Ltac writeN := autorewrite with write_c write_i vrv.
 
 Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   match e with
-  | Pconst _       => s
-  | Pbool  _       => s
+  | Pconst _
+  | Pbool  _
+  | Parr_init _ _
+    => s
   | Pcast  _ e     => read_e_rec s e
   | Pvar   x       => Sv.add x s
   | Pglobal _ => s
@@ -1214,6 +1220,7 @@ Fixpoint eq_expr e e' :=
   match e, e' with
   | Pconst z      , Pconst z'         => z == z'
   | Pbool  b      , Pbool  b'         => b == b'
+  | Parr_init w n, Parr_init w' n' => (w == w') && (n == n')
   (* FIXME if e1, e2 = Pconst we can compute the cast *)
   | Pcast w e, Pcast w' e'=> (w == w') && eq_expr e e'
   | Pvar   x      , Pvar   x'         => v_var x == v_var x'
@@ -1229,7 +1236,7 @@ Fixpoint eq_expr e e' :=
 
 Lemma eq_expr_refl e : eq_expr e e.
 Proof.
- by elim: e => //= [ ?? -> | ?? -> | ??? -> | ?? -> | ?? -> ? -> | ?-> ? -> ? -> ] //=;
+ by elim: e => //= [ ?? | ?? -> | ?? -> | ??? -> | ?? -> | ?? -> ? -> | ?-> ? -> ? -> ] //=;
   rewrite !eqxx.
 Qed.
 

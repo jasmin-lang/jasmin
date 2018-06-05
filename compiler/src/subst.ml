@@ -5,6 +5,7 @@ let rec gsubst_e (f: 'ty1 gvar_i -> 'ty2 gexpr) e =
   match e with
   | Pconst c -> Pconst c
   | Pbool b  -> Pbool b
+  | Parr_init (ws, n) -> Parr_init (ws, n)
   | Pcast(ws,e) -> Pcast(ws, gsubst_e f e)
   | Pvar v -> f v
   | Pglobal (ws, g) -> Pglobal (ws, g)
@@ -125,7 +126,7 @@ let rec int_of_expr e =
   | Pconst i -> i
   | Papp2 (o, e1, e2) ->
       int_of_op2 o (int_of_expr e1) (int_of_expr e2)
-  | Pbool _ | Pcast _ | Pvar _ | Pglobal _
+  | Pbool _ | Parr_init _ | Pcast _ | Pvar _ | Pglobal _
   | Pget _ | Pload _ | Papp1 _ | Pif _ -> assert false
 
 

@@ -47,6 +47,7 @@ type 'expr gty =
 type 'ty gexpr =
   | Pconst of B.zint
   | Pbool  of bool
+  | Parr_init of wsize * B.zint
   | Pcast  of wsize * 'ty gexpr
   | Pvar   of 'ty gvar_i
   | Pglobal of wsize * Name.t

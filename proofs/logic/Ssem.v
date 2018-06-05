@@ -197,11 +197,7 @@ Definition ssem_zeroext (sz: wsize) (v: svalue) : exec svalue :=
   | _             => type_error
   end.
 
-Definition ssem_arr_init sz (v:svalue) :=
-  Let n := sto_int v in 
-  ok (@SVarr sz (FArray.cnst 0%R)).
-
-Definition ssem_sop1 (o:sop1) := 
+Definition ssem_sop1 (o:sop1) :=
   match o with
   | Osignext sz sz' => @mk_ssem_sop1 (ssword sz') (ssword sz) (@sign_extend sz sz')
   | Ozeroext sz sz' => @mk_ssem_sop1 (ssword sz') (ssword sz) (@zero_extend sz sz')
@@ -209,7 +205,6 @@ Definition ssem_sop1 (o:sop1) :=
   | Olnot sz       => @ssem_op1_w sz wnot
   | Oneg Op_int    => ssem_op1_i Z.opp
   | Oneg (Op_w sz) => @ssem_op1_w sz -%R
-  | Oarr_init sz   => ssem_arr_init sz
   end%R.
 
 Definition ssem_op2_b     := @mk_ssem_sop2 sbool sbool sbool.
@@ -281,6 +276,7 @@ Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : exec svalue :=
   match e with
   | Pconst z    => ok (SVint z)
   | Pbool b     => ok (SVbool b)
+  | Parr_init sz _ => ok (@SVarr sz (FArray.cnst 0%R))
   | Pcast sz e  =>
     Let z := ssem_pexpr s e >>= sto_int in
     ok (SVword (wrepr sz z))

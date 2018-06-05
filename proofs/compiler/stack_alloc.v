@@ -142,7 +142,8 @@ Definition check_arr_stk' (* check_e *) (m:map) (sz1: wsize) (x1:var_i) (e1:pexp
 Fixpoint check_e (m:map) (e1 e2: pexpr) :=
   match e1, e2 with 
   | Pconst n1, Pconst n2 => n1 == n2 
-  | Pbool  b1, Pbool  b2 => b1 == b2 
+  | Pbool  b1, Pbool  b2 => b1 == b2
+  | Parr_init sz1 n1, Parr_init sz2 n2 => (sz1 == sz2) && (n1 == n2)
   | Pcast w1 e1, Pcast w2 e2 => (w1 == w2) && check_e m e1 e2
   | Pvar   x1, Pvar   x2 => check_var m x1 x2 
   | Pvar   x1, Pload w2 x2 e2 => check_var_stk m w2 x1 x2 e2

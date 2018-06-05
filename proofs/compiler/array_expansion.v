@@ -159,6 +159,7 @@ Module CBEA.
     match e1, e2 with
     | Pconst   n1, Pconst   n2 => n1 == n2
     | Pbool    b1, Pbool    b2 => b1 == b2
+    | Parr_init sz1 n1, Parr_init sz2 n2 => (sz1 == sz2) && (n1 == n2)
     | Pcast sw1 e1, Pcast sw2 e2 => (sw1 == sw2) && (check_eb m e1 e2)
     | Pvar     x1, Pvar     x2 => check_var m x1 x2
     | Pglobal g1, Pglobal g2 => g1 == g2
@@ -228,9 +229,10 @@ Module CBEA.
     exists v2, sem_pexpr gd {|emem := m1; evm:= vm2 |} e2 = ok v2 /\ value_uincl v1 v2.
   Proof.
     move=> Hrn; elim: e1 e2 v1 =>
-     [ z1 | b1 | sw1 e1 He1 | x1 | g1 | x1 e1 He1 | sw1 x1 e1 He1 | o1 e1 He1 | o1 e11 He11 e12 He12 | e He e11 He11 e12 He12]
-     [ z2 | b2 | sw2 e2 | x2 | g2 | x2 e2 | sw2 x2 e2 | o2 e2 | o2 e21 e22 | e' e21 e22] //= v1.
+     [ z1 | b1 | sz1 n1 | sw1 e1 He1 | x1 | g1 | x1 e1 He1 | sw1 x1 e1 He1 | o1 e1 He1 | o1 e11 He11 e12 He12 | e He e11 He11 e12 He12]
+     [ z2 | b2 | sz2 n2 | sw2 e2 | x2 | g2 | x2 e2 | sw2 x2 e2 | o2 e2 | o2 e21 e22 | e' e21 e22] //= v1.
     + by move=> /eqP <- [<-];eauto. + by move=> /eqP <- [<-];eauto.
+    + by case/andP => /eqP <- /eqP <- [<-]; eauto.
     + move=> /andP [] /eqP <- /He1 H;apply rbindP => ?;apply: rbindP => ? /H [v2 [-> Hu]].
       by move=> /(value_uincl_int Hu) [_ ->] /= ->;eauto.
     + by apply: check_varP.
