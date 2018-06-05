@@ -200,14 +200,6 @@ Definition lprod ts tr :=
 
 Definition sem_prod ts tr := lprod (map sem_t ts) tr.
 
-Definition mk_sem_sop1 t1 tr (o:sem_t t1 -> sem_t tr) v1 :=
-  Let v1 := of_val t1 v1 in
-  ok (@to_val tr (o v1)).
-
-Definition sem_op1_b  := @mk_sem_sop1 sbool sbool.
-Definition sem_op1_i  := @mk_sem_sop1 sint sint.
-Definition sem_op1_w s := @mk_sem_sop1 (sword s) (sword s).
-
 Definition sem_shift (shift:forall {s}, word s -> Z -> word s) s (v:word s) (i:u8) :=
   let i :=  wunsigned (wand i (x86_shift_mask s)) in
   shift v i.
@@ -234,6 +226,13 @@ Definition sem_sop1 (o: sop1) (v: value) : exec value :=
   let t := type_of_op1 o in
   Let x := of_val _ v in
   ok (to_val (sem_sop1_typed o x)).
+
+Lemma sem_sop1I y x f:
+  sem_sop1 f x = ok y →
+  exists2 w : sem_t (type_of_op1 f).1,
+    of_val _ x = ok w &
+    y = to_val (sem_sop1_typed f w).
+Proof. by rewrite /sem_sop1; t_xrbindP => w ok_w <-; eauto. Qed.
 
 Definition sem_sop2_typed (o: sop2) :
   let t := type_of_op2 o in

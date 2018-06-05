@@ -126,7 +126,7 @@ Qed.
 Lemma snot_wP sz e : Papp1 (Olnot sz) e =E snot_w sz e.
 Proof.
 apply: eeq_weaken; rewrite /snot_w; case heq: is_wconst => [ w | ] // s v /=.
-by rewrite /sem_op1_w /mk_sem_sop1 /= -bindA (is_wconstP gd s heq) /= => -[<-]; rewrite wrepr_unsigned.
+by rewrite /= -bindA (is_wconstP gd s heq) /= => -[<-]; rewrite wrepr_unsigned.
 Qed.
 
 Lemma sneg_intP e : Papp1 (Oneg Op_int) e =E sneg_int e.
@@ -139,7 +139,7 @@ Qed.
 Lemma sneg_wP sz e : Papp1 (Oneg (Op_w sz)) e =E sneg_w sz e.
 Proof.
 apply: eeq_weaken; rewrite /sneg_w; case heq: is_wconst => [ w | ] // s v /=.
-by rewrite /sem_op1_w /mk_sem_sop1 /= -bindA (is_wconstP gd s heq) /= => -[<-]; rewrite wrepr_unsigned.
+by rewrite /= -bindA (is_wconstP gd s heq) /= => -[<-]; rewrite wrepr_unsigned.
 Qed.
 
 Lemma s_op1P o e : Papp1 o e =E s_op1 o e.

@@ -744,26 +744,6 @@ Proof.
   by rewrite /= /truncate_word hle. 
 Qed.
 
-Lemma sem_op1_b_dec gd v s e f:
-  Let v1 := sem_pexpr gd s e in sem_op1_b f v1 = ok v ->
-  exists z, Vbool (f z) = v /\ sem_pexpr gd s e = ok (Vbool z).
-Proof.
-  rewrite /sem_op1_b /mk_sem_sop1.
-  t_xrbindP=> -[] //.
-  + by move=> b -> b1 []<- <-; exists b; split.
-  + by move=> [] //.
-Qed.
-
-Lemma sem_op1_w_dec gd sz v s e f:
-  Let v1 := sem_pexpr gd s e in sem_op1_w f v1 = ok v ->
-  exists sz' (z: word sz'), 
-   [/\ (sz <= sz')%CMP, Vword (f (zero_extend sz z)) = v & sem_pexpr gd s e = ok (Vword z)].
-Proof.
-  t_xrbindP=> v1 Hv1; rewrite /sem_op1_w /mk_sem_sop1.
-  t_xrbindP=> z1 /of_val_word [sz1 [w1 [hle ???]]];subst.
-  by rewrite Hv1;exists sz1, w1.
-Qed.
-
 Definition eq_on (s : Sv.t) (vm1 vm2 : vmap) :=
   forall x, Sv.In x s -> vm1.[x]%vmap = vm2.[x]%vmap.
 

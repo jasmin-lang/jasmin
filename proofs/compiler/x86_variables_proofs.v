@@ -104,15 +104,6 @@ by case.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma ok_sem_op1_b f v b :
-  sem_op1_b f v = ok b ->
-    exists2 vb, to_bool v = ok vb & b = Vbool (f vb).
-Proof.
-rewrite /sem_op1_b /mk_sem_sop1; t_xrbindP => /= vb ->.
-by move=> ok_b; exists vb.
-Qed.
-
-(* -------------------------------------------------------------------- *)
 Lemma eval_assemble_cond ii gd m rf e c v:
   eqflags m rf →
   assemble_cond ii e = ok c →
@@ -124,7 +115,7 @@ move=> eqv; case: e => //.
   have := xgetflag_ex eqv ok_r ok_v.
   by case: {ok_r ok_v} r ok_ct => // -[<-] {c} /= h; eexists; split; eauto; case: (rf _).
 + do 2! case=> //; move=> x /=; t_xrbindP => r.
-  move => ok_r ok_ct vx ok_vx /ok_sem_op1_b [vb ok_vb -> {v}].
+  move => ok_r ok_ct vx ok_vx /sem_sop1I [/= vb ok_vb -> {v}].
   have := xgetflag eqv ok_r ok_vx ok_vb.
   by case: {ok_r ok_vx ok_vb} r ok_ct => // -[<-] {c} /= -> /=; eexists.
 + case=> //; first do 3! case=> //; move=> x.
@@ -132,8 +123,8 @@ move=> eqv; case: e => //.
     - move=> /=; t_xrbindP => r1 ok_r1 r2 ok_r2.
       case: ifPn => // /andP[]; do 2! move/eqP=> ?; subst r1 r2.
       case=> <- resx vx ok_vx ok_resx resy vy ok_vy ok_resy ok_v.
-      have /ok_sem_op1_b[rxb ok_rxb resxE] := ok_resx.
-      have /ok_sem_op1_b[ryb ok_ryb resyE] := ok_resy.
+      have /sem_sop1I [/=rxb ok_rxb resxE] := ok_resx.
+      have /sem_sop1I [/=ryb ok_ryb resyE] := ok_resy.
       have := xgetflag eqv ok_r1 ok_vx ok_rxb => CFE.
       have := xgetflag eqv ok_r2 ok_vy ok_ryb => ZFE.
       rewrite /eval_cond; rewrite CFE ZFE /=; subst resx resy.
@@ -146,8 +137,8 @@ move=> eqv; case: e => //.
       move=> vz ok_vz vNt vt ok_vt ok_vNt.
       case: eqP => // hty.
       case: ifP => // _ [<-] {res} ok_v.
-      have [vbx ok_vbx ?] := ok_sem_op1_b ok_vNx; subst vNx.
-      have [vbt ok_vbt ?] := ok_sem_op1_b ok_vNt; subst vNt.
+      have [/=vbx ok_vbx ?] := sem_sop1I ok_vNx; subst vNx.
+      have [/=vbt ok_vbt ?] := sem_sop1I ok_vNt; subst vNt.
       have := xgetflag eqv ok_rx ok_vx ok_vbx => ZFE.
       have := xgetflag eqv ok_ry ok_vy ok_vby => SFE.
       have := xgetflag eqv ok_rt ok_vt ok_vbt => OFE.
@@ -174,7 +165,7 @@ move=> eqv; case: e => //.
       move=> vx ok_vx res vby vy ok_vy ok_vby vNz vz ok_vz ok_vNz vt ok_vt.
       case: eqP => // hty; case: ifP => // _ [<-] {res}.
       rewrite /sem_sop2; t_xrbindP => /= vbx ok_vbx vbres ok_vbres <- {v}.
-      have [vbz ok_vbz ?] := ok_sem_op1_b ok_vNz; subst vNz.
+      have [/=vbz ok_vbz ?] := sem_sop1I ok_vNz; subst vNz.
       have := xgetflag eqv ok_rx ok_vx ok_vbx => ZFE.
       have := xgetflag eqv ok_ry ok_vy ok_vby => SFE.
       have := xgetflag eqv ok_rz ok_vz ok_vbz => OFE.
@@ -194,7 +185,7 @@ move=> eqv; case: e => //.
     - by apply/(inj_rflag_of_var ok_ry ok_rz).
     case=> <- vbx vx ok_vx ok_vbx vy ok_vy rvz vz ok_vz ok_rvz.
     case: eqP => // hty; case: ifP => // _ [<-] {v}.
-    have /ok_sem_op1_b[vbz ok_vbz ?] := ok_rvz; subst rvz.
+    have /sem_sop1I[/=vbz ok_vbz ?] := ok_rvz; subst rvz.
     have := xgetflag eqv ok_rx ok_vx ok_vbx => SFE.
     have := xgetflag eqv ok_rz ok_vz ok_vbz => OFE.
     rewrite /= SFE OFE /=; have := inj_rflag_of_var ok_ry ok_rz.
@@ -209,7 +200,7 @@ move=> eqv; case: e => //.
     do 3! move/eqP=> ?; subst vx vy vz; case=> <-.
     move=> vbx vx ok_vx ok_vbx vNy vy ok_vy ok_vNy vz ok_vz.
     case: eqP => // hty; case: ifP => // _ [<-] {v}.
-    have /ok_sem_op1_b[vby ok_vby ?] := ok_vNy; subst vNy.
+    have /sem_sop1I[/=vby ok_vby ?] := ok_vNy; subst vNy.
     have := xgetflag eqv ok_x ok_vx ok_vbx => SFE.
     have := xgetflag eqv ok_y ok_vy ok_vby => OFE.
     move: (inj_rflag_of_var ok_z ok_y) ok_vz.

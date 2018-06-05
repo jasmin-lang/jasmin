@@ -374,7 +374,8 @@ Lemma snot_spec gd s e b :
   sem_pexpr gd s (snot e) = sem_pexpr gd s (Papp1 Onot e).
 Proof.
 elim: e b => //.
-- by case => // e _ b /sem_op1_b_dec [b'] [] [?]; subst b => /= -> /=; rewrite /sem_sop1/= negbK.
+- by case => // e _ b; rewrite /= /sem_sop1 /=; t_xrbindP => z -> b' /to_boolI -> _ /=;
+  rewrite negbK.
 - by case => // e1 He1 e2 He2 b /=; t_xrbindP => v1 h1 v2 h2 /sem_sop2I [b1] [b2]
   [/to_boolI hb1] [/to_boolI hb2] [?]; subst v1 v2 b;
   rewrite /= (He1 _ h1) (He2 _ h2) /= h1 h2;

@@ -986,18 +986,16 @@ Section PROOF.
         case: andP => // - [] hs /eqP ?; subst sz.
         by rewrite /= ok_x /= zero_extend_u /truncate_word hle /x86_MOVZX /check_size_32_64 hs.
       (* Olnot *)
-      + move=> sz /sem_op1_w_dec [sz' [z [Hsz Hv Hz]]].
+      + rewrite /= /sem_sop1 => sz; t_xrbindP => w Hz z' /to_wordI [sz'] [z] [Hsz ??] ?; subst.
         case: andP => // - [hsz] /eqP ?; subst sz.
-        subst v.
         case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
         rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
         case: Hv' => ?; subst v'.
         by rewrite /sem_pexprs /= Hz /= /truncate_word Hsz /= /x86_not /check_size_8_64 hsz.
       (* Oneg *)
-      + case => // sz /sem_op1_w_dec [sz' [z [Hsz Hz Hv]]].
+      + rewrite /= /sem_sop1 => - [] // sz; t_xrbindP => w Hv z' /to_wordI [sz'] [z] [Hsz ??] ?; subst.
         case: andP => // - [hsz] /eqP ?; subst sz.
         split. reflexivity.
-        subst v.
         have /subtypeE [sz'' [? _]] := truncate_val_subtype Hv'; subst ty.
         rewrite /truncate_val /= /truncate_word /= cmp_le_refl /= zero_extend_u in Hv'.
         case: Hv' => ?; subst v'.
