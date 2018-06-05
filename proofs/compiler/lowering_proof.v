@@ -983,8 +983,10 @@ Section PROOF.
         case: sz' Hv' hle => // /truncate_val_word [sz'] [? hle'] ? hle; subst ty v'.
         - case: andP => // - [] hs /eqP ?; subst sz.
           by rewrite /= ok_x /= zero_extend_u /truncate_word hle /x86_MOVZX /check_size_16_64 hs.
-        case: andP => // - [] hs /eqP ?; subst sz.
-        by rewrite /= ok_x /= zero_extend_u /truncate_word hle /x86_MOVZX /check_size_32_64 hs.
+        - case: andP => // - [] hs /eqP ?; subst sz.
+          by rewrite /= ok_x /= zero_extend_u /truncate_word hle /x86_MOVZX /check_size_32_64 hs.
+        case: andP => // - [] /eqP ? /eqP /= ?; subst sz sz'.
+        by rewrite ok_x /= /truncate_word hle /= zero_extend_u.
       (* Olnot *)
       + rewrite /= /sem_sop1 => sz; t_xrbindP => w Hz z' /to_wordI [sz'] [z] [Hsz ??] ?; subst.
         case: andP => // - [hsz] /eqP ?; subst sz.

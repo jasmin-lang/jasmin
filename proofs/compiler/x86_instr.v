@@ -113,6 +113,22 @@ Qed.
 
 Definition MOVZX_desc sz sz' := make_instr_desc (MOVZX_gsc sz sz').
 
+Lemma MOVZX32_gsc :
+  gen_sem_correct [:: TYreg; TYoprd ] Ox86_MOVZX32
+    [:: E U32 0 ] [:: E U32 1 ] [::] (λ d, MOV U32 (Reg_op d)).
+Proof.
+move => x y; split => // gd m m'.
+rewrite /low_sem_aux /= arg_of_oprdE /=.
+t_xrbindP => ??? h <-; t_xrbindP => ? /to_wordI [szw] [w] [hle ??];
+subst => <- /= [<-].
+rewrite /eval_MOV /= /eval_MOV_nocheck (eval_low_read _ h) //=.
+eexists; split; first reflexivity.
+split. 1, 3, 4: reflexivity.
+by rewrite /= /word_extend_reg /merge_word zero_extend_u.
+Qed.
+
+Definition MOVZX32_desc := make_instr_desc MOVZX32_gsc.
+
 (* ----------------------------------------------------------------------------- *)
 Lemma MOVD_gsc sz :
   gen_sem_correct' [:: TYxreg ; TYoprd ] MSB_MERGE (Ox86_MOVD sz)
@@ -1124,6 +1140,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_MOV sz => ok (MOV_desc sz)
   | Ox86_MOVSX sz sz' => ok (MOVSX_desc sz sz')
   | Ox86_MOVZX sz sz' => ok (MOVZX_desc sz sz')
+  | Ox86_MOVZX32 => ok MOVZX32_desc
   | Ox86_CMOVcc sz => ok (CMOVcc_desc sz)
   | Ox86_ADD sz => ok (ADD_desc sz)
   | Ox86_SUB sz => ok (SUB_desc sz)

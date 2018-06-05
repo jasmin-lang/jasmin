@@ -408,6 +408,7 @@ Definition ssem_sopn (o:sopn) :  svalues -> exec svalues :=
   | Ox86_MOV sz    => sapp_w sz (w1 (@x86_MOV sz)) (*sapp_w sz (w1 x86_MOV)*)
   | Ox86_MOVSX sz sz' => sapp_w sz' (w1 (@x86_MOVSX sz sz'))
   | Ox86_MOVZX sz sz' => sapp_w sz' (w1 (@x86_MOVZX sz sz'))
+  | Ox86_MOVZX32 => sapp_w U32 (λ x : u32, ok [:: SVword (zero_extend U64 x) ])
   | Ox86_CMOVcc sz => (fun v => match v with
     | [:: v1; v2; v3] =>
       Let b := sto_bool v1 in

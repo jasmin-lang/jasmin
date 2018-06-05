@@ -901,6 +901,7 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_MOV sz => app_w sz (@x86_MOV sz)
   | Ox86_MOVSX sz sz' => app_w sz' (@x86_MOVSX sz sz')
   | Ox86_MOVZX sz sz' => app_w sz' (@x86_MOVZX sz sz')
+  | Ox86_MOVZX32 => app_w U32 (λ x : u32, ok [:: Vword (zero_extend U64 x) ])
   | Ox86_CMOVcc sz => (fun v => match v with
     | [:: v1; v2; v3] =>
       Let _ := check_size_16_64 sz in

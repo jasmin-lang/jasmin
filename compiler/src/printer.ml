@@ -151,6 +151,7 @@ let pp_opn =
   | Ox86_MOV w -> f w "#x86_MOV"
   | Ox86_MOVSX (w, w') -> f2 w w' "#x86_MOVSX"
   | Ox86_MOVZX (w, w') -> f2 w w' "#x86_MOVZX"
+  | Ox86_MOVZX32 -> "#x86_MOVZX32"
   | Ox86_CMOVcc w -> f w "#x86_CMOVcc"
   | Ox86_ADD w -> f w "#x86_ADD"
   | Ox86_SUB w -> f w "#x86_SUB"

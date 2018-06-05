@@ -379,10 +379,11 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
     end (LowerCopn (Ox86_MOVSX szo szi) [:: a])
   | Papp1 (Ozeroext szo szi) a =>
     match szi with
-    | U8 => k16 szo
-    | U16 => k32 szo
-    | _ => chk false
-    end (LowerCopn (Ox86_MOVZX szo szi) [:: a])
+    | U8 => k16 szo (LowerCopn (Ox86_MOVZX szo szi) [:: a])
+    | U16 => k32 szo (LowerCopn (Ox86_MOVZX szo szi) [:: a])
+    | U32 => kb (szo == U64) szo (LowerCopn Ox86_MOVZX32 [:: a])
+    | _ => LowerAssgn
+    end
 
   | Papp2 op a b =>
     match op with
@@ -535,6 +536,7 @@ Definition wsize_of_sopn (op: sopn) : wsize :=
   | Ox86_VPUNPCKH _ x | Ox86_VPUNPCKL _ x
   | Ox86_VPBLENDD x
     => x
+  | Ox86_MOVZX32 => U32
   | Ox86_MOVD _
     => U128
   | Ox86_VPERM2I128
