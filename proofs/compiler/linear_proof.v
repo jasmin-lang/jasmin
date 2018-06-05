@@ -376,8 +376,8 @@ Proof.
 elim: e b => //.
 - by case => // e _ b; rewrite /= /sem_sop1 /=; t_xrbindP => z -> b' /to_boolI -> _ /=;
   rewrite negbK.
-- by case => // e1 He1 e2 He2 b /=; t_xrbindP => v1 h1 v2 h2 /sem_sop2I [b1] [b2]
-  [/to_boolI hb1] [/to_boolI hb2] [?]; subst v1 v2 b;
+- by case => // e1 He1 e2 He2 b /=; t_xrbindP => v1 h1 v2 h2 /sem_sop2I [b1 [b2 [b3]]] []
+  /to_boolI hb1 /to_boolI hb2 [?] ?; subst v1 v2 b3;
   rewrite /= (He1 _ h1) (He2 _ h2) /= h1 h2;
   apply: (f_equal (@Ok _ _)); rewrite /= ?negb_and ?negb_or.
 move => p hp e1 he1 e2 he2 b /=.

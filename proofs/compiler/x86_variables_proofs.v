@@ -154,7 +154,7 @@ move=> eqv; case: e => //.
     - t_xrbindP=> rx ok_rx ry ok_ry; case: ifP => //.
       case/andP; do 2! move/eqP=> ?; subst rx ry.
       case=> <- vx ok_vx vy ok_vy.
-      rewrite /sem_sop2; t_xrbindP => /= xb ok_bx yb ok_by <-.
+      rewrite /sem_sop2 /=; t_xrbindP => /= xb ok_bx yb ok_by <-.
       have -> /= := xgetflag eqv ok_rx ok_vx ok_bx.
       have ->/= := xgetflag eqv ok_ry ok_vy ok_by.
       eexists; split; reflexivity.
@@ -164,7 +164,7 @@ move=> eqv; case: e => //.
       do 4! move/eqP=> ?; subst rx ry rz rt => -[<-].
       move=> vx ok_vx res vby vy ok_vy ok_vby vNz vz ok_vz ok_vNz vt ok_vt.
       case: eqP => // hty; case: ifP => // _ [<-] {res}.
-      rewrite /sem_sop2; t_xrbindP => /= vbx ok_vbx vbres ok_vbres <- {v}.
+      rewrite /sem_sop2 /=; t_xrbindP => /= vbx ok_vbx vbres ok_vbres <- {v}.
       have [/=vbz ok_vbz ?] := sem_sop1I ok_vNz; subst vNz.
       have := xgetflag eqv ok_rx ok_vx ok_vbx => ZFE.
       have := xgetflag eqv ok_ry ok_vy ok_vby => SFE.
@@ -251,29 +251,29 @@ elim: e v w => //=.
       by case: hw => <-; rewrite zero_extend_u.
     * move => /= z /(_ _ _ hvq) hz z' /(_ _ _ hvp) hz' _ /=.
       move: hv => /=; rewrite /sem_sop2; t_xrbindP => wp /hz' /(_ erefl) [<-] {wp} wq /hz /(_ erefl).
-      t_xrbindP => vz -> /= -> /= ?; subst v.
+      t_xrbindP => vz -> /= -> /= h1 [] <- ?; subst v.
       case: hw => <-;f_equal;wring.
     * move => /= x z /(_ _ _ hvq) hz z' /(_ _ _ hvp) hz' _.
       move: hv hw => /=; rewrite /sem_sop2; t_xrbindP => wp /hz' /(_ erefl) [<-] {wp} wq /hz /(_ erefl).
-      by t_xrbindP => ? ? -> /= -> <- /= <- [<-];f_equal; wring.
+      t_xrbindP => ? ? -> /= -> <- ? /= [] <- <- [<-];f_equal; wring.
     * move => /= z /(_ _ _ hvq) hz z' /(_ _ _ hvp) hz' _ /=.
       move: hv hw => /=; rewrite /sem_sop2; t_xrbindP => wp /hz' /(_ erefl).
-      by t_xrbindP => vz' -> /= -> wq /hz /(_ erefl) [<-] {wq} <- [<-] /=;f_equal;wring.
+      t_xrbindP => vz' -> /= -> wq /hz /(_ erefl) [<-] {wq} ? []<- <- [<-] /=;f_equal;wring.
     move => /= z /(_ _ _ hvq) hz x z' /(_ _ _ hvp) hz' _ /=.
     move: hv hw => /=; rewrite /sem_sop2; t_xrbindP => wp /hz' /(_ erefl).
-    by t_xrbindP => y vz' -> /= -> /= <- ? /hz /(_ erefl) [<-] <- [<-];rewrite zero_extend_u.
+    by t_xrbindP => y vz' -> /= -> /= <- ? /hz /(_ erefl) [<-] ? []<- <- [<-];rewrite zero_extend_u.
   (* Mul *)
-  move => [] // p ihp q ihq v w ; t_xrbindP => vp hvp vq hvq hv hw.
+  move => [] // p ihp q ihq v w; t_xrbindP => vp hvp vq hvq hv hw.
   case: (addr_ofs p) ihp => //; case: (addr_ofs q) ihq => //.
   * move => /= z /(_ _ _ hvq) hz z' /(_ _ _ hvp) hz' _ /=.
-    move: hv => /=; rewrite /sem_sop2; t_xrbindP => wp /hz' /(_ erefl) [<-] {wp} wq /hz /(_ erefl) [<-] {wq} ?; subst v.
+    move: hv; rewrite /= /sem_sop2; t_xrbindP => wp /hz' /(_ erefl) [<-] {wp} wq /hz /(_ erefl) [<-] {wq} ? [<-] ? ; subst v.
     by case: hw => <-; f_equal;wring.
   * move => /= z /(_ _ _ hvq) hz z' /(_ _ _ hvp) hz' _ /=.
     move: hv => /=; rewrite /sem_sop2; t_xrbindP => wp /hz' /(_ erefl) [<-] {wp} wq /hz /(_ erefl).
-    by t_xrbindP => vz -> /= -> /= ?; subst v; f_equal; case: hw => <-;rewrite zero_extend_u.
+    by t_xrbindP => vz -> /= -> /= ? [] <- ?; subst v; f_equal; case: hw => <-;rewrite zero_extend_u.
   move => /= z /(_ _ _ hvq) hz z' /(_ _ _ hvp) hz' _.
   move: hv hw => /=; rewrite /sem_sop2; t_xrbindP => wp /hz' /(_ erefl).
-  by t_xrbindP => ? -> /= -> ? /hz /(_ erefl) [<-] <- /= [<-];f_equal;wring.
+  by t_xrbindP => ? -> /= -> ? /hz /(_ erefl) [<-] ? [<-] <- /= [<-];f_equal;wring.
 Qed.
 
 (* -------------------------------------------------------------------- *)

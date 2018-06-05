@@ -234,41 +234,59 @@ Lemma sem_sop1I y x f:
     y = to_val (sem_sop1_typed f w).
 Proof. by rewrite /sem_sop1; t_xrbindP => w ok_w <-; eauto. Qed.
 
+Definition signed {A:Type} (fu fs:A) s := 
+  match s with
+  | Unsigned => fu
+  | Signed => fs
+  end.
+
+Definition mk_sem_divmod sz (o:word sz -> word sz -> word sz) w1 w2 :=
+  if w2 == 0%R then type_error
+  else ok (o w1 w2).
+
+Definition mk_sem_sop2 (t1 t2 t3: Type) (o:t1 -> t2 -> t3) v1 v2 : exec t3 := 
+  ok (o v1 v2).
+
 Definition sem_sop2_typed (o: sop2) :
   let t := type_of_op2 o in
-  sem_t t.1.1 → sem_t t.1.2 → sem_t t.2 :=
+  sem_t t.1.1 → sem_t t.1.2 → exec (sem_t t.2) :=
   match o with
-  | Oand => andb
-  | Oor  => orb
+  | Oand => mk_sem_sop2 andb
+  | Oor  => mk_sem_sop2 orb
 
-  | Oadd Op_int   => Z.add
-  | Oadd (Op_w s) => +%R
-  | Omul Op_int   => Z.mul
-  | Omul (Op_w s) => *%R
-  | Osub Op_int   => Z.sub
-  | Osub (Op_w s) => (fun x y =>  x - y)%R
+  | Oadd Op_int   => mk_sem_sop2 Z.add
+  | Oadd (Op_w s) => mk_sem_sop2 +%R
+  | Omul Op_int   => mk_sem_sop2 Z.mul
+  | Omul (Op_w s) => mk_sem_sop2 *%R
+  | Osub Op_int   => mk_sem_sop2 Z.sub
+  | Osub (Op_w s) => mk_sem_sop2 (fun x y =>  x - y)%R
+  | Odiv Cmp_int  => mk_sem_sop2 Z.div
+  | Odiv (Cmp_w u s) => @mk_sem_divmod s (signed wdiv wdivi u)
+  | Omod Cmp_int  => mk_sem_sop2 Z.modulo
+  | Omod (Cmp_w u s) => @mk_sem_divmod s (signed wmod wmodi u)
 
-  | Oland s => wand
-  | Olor  s => wor
-  | Olxor s => wxor
-  | Olsr  s => sem_shr
-  | Olsl  s => sem_shl
-  | Oasr  s => sem_sar
+  | Oland s => mk_sem_sop2 wand
+  | Olor  s => mk_sem_sop2 wor
+  | Olxor s => mk_sem_sop2 wxor
+  | Olsr  s => mk_sem_sop2 sem_shr
+  | Olsl  s => mk_sem_sop2 sem_shl
+  | Oasr  s => mk_sem_sop2 sem_sar
 
-  | Oeq Op_int    => Z.eqb
-  | Oeq (Op_w s)  => eq_op
-  | Oneq Op_int   => fun x y => negb (Z.eqb x y)
-  | Oneq (Op_w s) => fun x y => (x != y)
+  | Oeq Op_int    => mk_sem_sop2 Z.eqb
+  | Oeq (Op_w s)  => mk_sem_sop2 eq_op
+  | Oneq Op_int   => mk_sem_sop2 (fun x y => negb (Z.eqb x y))
+  | Oneq (Op_w s) => mk_sem_sop2 (fun x y => (x != y))
+
   (* Fixme use the "new" Z *)
-  | Olt Cmp_int   => Z.ltb
-  | Ole Cmp_int   => Z.leb
-  | Ogt Cmp_int   => Z.gtb
-  | Oge Cmp_int   => Z.geb
+  | Olt Cmp_int   => mk_sem_sop2 Z.ltb
+  | Ole Cmp_int   => mk_sem_sop2 Z.leb
+  | Ogt Cmp_int   => mk_sem_sop2 Z.gtb
+  | Oge Cmp_int   => mk_sem_sop2 Z.geb
 
-  | Olt (Cmp_w u s) => wlt u
-  | Ole (Cmp_w u s) => wle u
-  | Ogt (Cmp_w u s) => fun x y => wlt u y x
-  | Oge (Cmp_w u s) => fun x y => wle u y x
+  | Olt (Cmp_w u s) => mk_sem_sop2 (wlt u)
+  | Ole (Cmp_w u s) => mk_sem_sop2 (wle u)
+  | Ogt (Cmp_w u s) => mk_sem_sop2 (fun x y => wlt u y x)
+  | Oge (Cmp_w u s) => mk_sem_sop2 (fun x y => wle u y x)
   end.
 
 Arguments sem_sop2_typed : clear implicits.
@@ -277,16 +295,19 @@ Definition sem_sop2 (o: sop2) (v1 v2: value) : exec value :=
   let t := type_of_op2 o in
   Let x1 := of_val _ v1 in
   Let x2 := of_val _ v2 in
-  ok (to_val (sem_sop2_typed o x1 x2)).
+  Let r  := sem_sop2_typed o x1 x2 in
+  ok (to_val r).
 
 Lemma sem_sop2I v v1 v2 f:
   sem_sop2 f v1 v2 = ok v →
-  ∃ (w1 : sem_t (type_of_op2 f).1.1) (w2 : sem_t (type_of_op2 f).1.2),
-    of_val _ v1 = ok w1 ∧
-    of_val _ v2 = ok w2 ∧
-    v = to_val (sem_sop2_typed f w1 w2).
+  ∃ (w1 : sem_t (type_of_op2 f).1.1) (w2 : sem_t (type_of_op2 f).1.2) 
+    (w3: sem_t (type_of_op2 f).2),
+    [/\ of_val _ v1 = ok w1,
+        of_val _ v2 = ok w2,
+        sem_sop2_typed f w1 w2 = ok w3 &
+        v = to_val w3].
 Proof.
-  by rewrite /sem_sop2; t_xrbindP => w1 ok_w1 w2 ok_w2 <- {v}; eauto.
+  by rewrite /sem_sop2; t_xrbindP => w1 ok_w1 w2 ok_w2 w3 ok_w3 <- {v}; exists w1, w2, w3.
 Qed.
 
 Import Memory.

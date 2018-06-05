@@ -236,6 +236,32 @@ Definition sbitw i (z: ∀ sz, word sz → word sz → word sz) sz e1 e2 :=
   | _, _ => Papp2 (i sz) e1 e2
   end.
 
+Definition soint i f e1 e2 := 
+  match is_const e1, is_const e2 with
+  | Some n1, Some n2 =>  Pconst (f n1 n2)
+  | _, _ => Papp2 (i Cmp_int) e1 e2
+  end.
+
+Definition sbituw i (z: signedness -> ∀ sz, word sz → word sz → word sz) u sz e1 e2 := 
+  match is_wconst sz e1, is_wconst sz e2 with
+  | Some n1, Some n2 => 
+    if n2 == 0%R then Papp2 (i (Cmp_w u sz)) e1 e2
+    else wconst (z u sz n1 n2)
+  | _, _ => Papp2 (i (Cmp_w u sz)) e1 e2
+  end.
+ 
+Definition sdiv ty (e1 e2:pexpr) :=
+  match ty with
+  | Cmp_int => soint Odiv Z.div e1 e2
+  | Cmp_w u sz => sbituw Odiv (signed (@wdiv) (@wdivi)) u sz e1 e2
+  end.
+
+Definition smod ty e1 e2 :=
+  match ty with
+  | Cmp_int => soint Omod Z.modulo e1 e2
+  | Cmp_w u sz => sbituw Omod (signed (@wmod) (@wmodi)) u sz e1 e2
+  end.
+
 (* TODO: could be improved when one operand is known *)
 Definition sland := sbitw Oland (@wand).
 Definition slor := sbitw Olor (@wor).
@@ -263,6 +289,8 @@ Definition s_op2 o e1 e2 :=
   | Oadd ty => sadd ty e1 e2
   | Osub ty => ssub ty e1 e2
   | Omul ty => smul ty e1 e2
+  | Odiv ty => sdiv ty e1 e2
+  | Omod ty => smod ty e1 e2  
   | Oeq  ty => s_eq ty e1 e2
   | Oneq ty => sneq ty e1 e2
   | Olt  ty => slt  ty e1 e2

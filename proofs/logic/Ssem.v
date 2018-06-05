@@ -226,6 +226,11 @@ Definition ssem_sop2 (o:sop2) :=
   | Omul Op_int    => ssem_op2_i Z.mul
   | Omul (Op_w sz) => @ssem_op2_w sz *%R
 
+  | Odiv Cmp_int     => ssem_op2_i Z.div
+  | Odiv (Cmp_w u s) => @ssem_op2_w s (signed wdiv wdivi u)
+  | Omod Cmp_int     => ssem_op2_i Z.modulo
+  | Omod (Cmp_w u s) => @ssem_op2_w s (signed wmod wmodi u)
+
   | Oland sz       => @ssem_op2_w sz wand
   | Olor sz        => @ssem_op2_w sz wor
   | Olxor sz       => @ssem_op2_w sz wxor

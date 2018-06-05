@@ -296,7 +296,7 @@ Proof.
   case h2: is_wconst => [ n2 | ] // s v;
   rewrite /= /sem_sop2;
   t_xrbindP => v1 k1 v2 k2 w1' /of_val_word [sz1] [w1] [hle1 ? ?]
-                  w2' /of_val_word [sz2] [w2] [hle2 ? ?] ?; subst; f_equal.
+                  w2' /of_val_word [sz2 [w2 [hle2 ? ?]]] ? /= [] ? ?;subst.
   eexists; split; first reflexivity.
   have := is_wconstP gd s h1; rewrite k1 /= /truncate_word hle1 => -[?]; subst.
   have := is_wconstP gd s h2; rewrite k2 /= /truncate_word hle2 => -[?]; subst.
@@ -320,7 +320,8 @@ Proof.
   case h1: is_wconst => [ n1 | ] //.
   case h2: is_wconst => [ n2 | ] // s v;
   rewrite /= /sem_sop2;
-  t_xrbindP => v1 k1 v2 k2 w1' /of_val_word [sz1] [w1] [hle1 ? ?] w2' /of_val_word [sz2] [w2] [hle2 ? ?] ?; subst; f_equal.
+  t_xrbindP => v1 k1 v2 k2 w1' /of_val_word [sz1] [w1] [hle1 ? ?]
+                  w2' /of_val_word [sz2 [w2 [hle2 ? ?]]] ? /= [] ? ?;subst.
   eexists; split; first reflexivity.
   have := is_wconstP gd s h1; rewrite k1 /= /truncate_word hle1 => -[?]; subst.
   have := is_wconstP gd s h2; rewrite k2 /= /truncate_word hle2 => -[?]; subst.
@@ -465,10 +466,51 @@ Proof.
   by case.
 Qed.
 
+Lemma sdivP k e1 e2 : Papp2 (Odiv k) e1 e2 =E sdiv k e1 e2.
+Proof.
+  case: k => [ | u sz] /=.
+  + rewrite /soint.
+    case: (is_constP e1) => [n1| {e1} e1];
+    case: (is_constP e2) => [n2| {e2} e2] rho v /=;eauto.
+  rewrite /sbituw.  
+  case h1: is_wconst => [ n1 | ] //.
+  case h2: is_wconst => [ n2 | ] //. 
+  case:eqP => // neq s v.
+  rewrite /= /sem_sop2 /= /mk_sem_divmod.
+  t_xrbindP => v1 k1 v2 k2 w1' /of_val_word [sz1] [w1] [hle1 ? ?]
+                  w2' /of_val_word [sz2] [w2] [hle2 ? ?];subst.
+  have := is_wconstP gd s h1; rewrite k1 /= /truncate_word hle1 => -[?]; subst.
+  have := is_wconstP gd s h2; rewrite k2 /= /truncate_word hle2 => -[?]; subst.
+  case:eqP => // hne' ? [] ??;subst. 
+  eexists; split; first reflexivity.
+  by rewrite wrepr_unsigned;case: u.
+Qed.
+
+Lemma smodP k e1 e2 : Papp2 (Omod k) e1 e2 =E smod k e1 e2.
+Proof.
+  case: k => [ | u sz] /=.
+  + rewrite /soint.
+    case: (is_constP e1) => [n1| {e1} e1];
+    case: (is_constP e2) => [n2| {e2} e2] rho v /=;eauto.
+  rewrite /sbituw.  
+  case h1: is_wconst => [ n1 | ] //.
+  case h2: is_wconst => [ n2 | ] //.
+  case:eqP => // neq s v.
+   rewrite /= /sem_sop2 /= /mk_sem_divmod.
+  t_xrbindP => v1 k1 v2 k2 w1' /of_val_word [sz1] [w1] [hle1 ? ?]
+                  w2' /of_val_word [sz2] [w2] [hle2 ? ?];subst.
+  have := is_wconstP gd s h1; rewrite k1 /= /truncate_word hle1 => -[?]; subst.
+  have := is_wconstP gd s h2; rewrite k2 /= /truncate_word hle2 => -[?]; subst.
+  case:eqP => // hne' ?[] ??;subst.
+  eexists; split; first reflexivity.
+  by rewrite wrepr_unsigned;case: u.
+Qed.
+
 Lemma s_op2P o e1 e2 : Papp2 o e1 e2 =E s_op2 o e1 e2.
 Proof.
-  case: o;eauto using sandP, sorP, saddP, smulP, ssubP, s_eqP, sneqP, sltP, sleP, sgtP, sgeP,
-      slandP, slorP, slxorP, slslP, slsrP, sasrP.
+  case: o;eauto using sandP, sorP, saddP, smulP, ssubP, sdivP, smodP, 
+                      s_eqP, sneqP, sltP, sleP, sgtP, sgeP,
+                      slandP, slorP, slxorP, slslP, slsrP, sasrP.
 Qed.
 
 Definition vconst c :=

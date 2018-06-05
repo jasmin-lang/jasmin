@@ -1423,16 +1423,16 @@ Lemma vuincl_sem_sop2 o ve1 ve1' ve2 ve2' v1 :
   sem_sop2 o ve1 ve2 = ok v1 ->
   sem_sop2 o ve1' ve2' = ok v1.
 Proof.
-  move => h1 h2; rewrite /sem_sop2 /=; t_xrbindP => w1 ok_w1 w2 ok_w2 <-.
+  move => h1 h2; rewrite /sem_sop2 /=; t_xrbindP => w1 ok_w1 w2 ok_w2 w3 ok_w3 <-.
   have {ok_w1} [z1 [-> /= hz1]] := of_val_uincl h1 ok_w1.
   have {ok_w2} [z2 [-> /= hz2]] := of_val_uincl h2 ok_w2.
-  repeat f_equal.
-  - apply: (val_uincl_eq hz1).
-    by clear; case: o => //= - [] //.
-  apply: (val_uincl_eq hz2).
-  by clear; case: o => //= - [] //.
+  case: o w1 w2 w3 ok_w3 z1 hz1 z2 hz2 => /=
+   [||[|s]|[|s]|[|s]| [|u s]|[|u s]| s|s|s|s|s|s| [|s]|[|s]| [|u s]|[|u s]|[|u s]|[|u s] ] /=;
+   ( (by move=> w1 w2 w3 [] <- z1 /val_uincl_eq <- // z2 /val_uincl_eq <-) || 
+    by move=> w1 w2 w3;rewrite /mk_sem_divmod;case:ifP => // hw2 [<-]
+         z1 /val_uincl_eq <- // z2 /val_uincl_eq /(_ erefl) ?;subst z2;rewrite hw2).
 Qed.
-
+  
 Lemma val_uincl_sword s (z z':sem_t (sword s)) : val_uincl z z' -> z = z'.
 Proof.
   by rewrite /val_uincl /= /word_uincl cmp_le_refl zero_extend_u => /eqP.

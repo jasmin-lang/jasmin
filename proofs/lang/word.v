@@ -308,6 +308,26 @@ Definition wumul sz (x y: word sz) :=
   let n := wunsigned x * wunsigned y in
   (wrepr sz (Z.quot n (wbase sz)), wrepr sz n).
 
+Definition wdiv {sz} (p q : word sz) : word sz := 
+  let p := wunsigned p in
+  let q := wunsigned q in
+  wrepr sz (p / q)%Z.
+
+Definition wdivi {sz} (p q : word sz) : word sz := 
+  let p := wsigned p in
+  let q := wsigned q in
+  wrepr sz (Z.quot p q)%Z.
+
+Definition wmod {sz} (p q : word sz) : word sz := 
+  let p := wunsigned p in
+  let q := wunsigned q in
+  wrepr sz (p mod q)%Z.
+
+Definition wmodi {sz} (p q : word sz) : word sz := 
+  let p := wsigned p in
+  let q := wsigned q in
+  wrepr sz (Z.rem p q)%Z.
+
 Definition zero_extend sz sz' (w: word sz') : word sz :=
   wrepr sz (wunsigned w).
 
