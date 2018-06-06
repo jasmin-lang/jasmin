@@ -170,6 +170,7 @@ Variant asm : Type :=
 | SAL    of wsize & oprd & ireg            (*   signed / left; synonym of SHL *)
 | SAR    of wsize & oprd & ireg            (*   signed / right *)
 | SHLD   of wsize & oprd & register & ireg (* unsigned (double) / left *)
+| SHRD   of wsize & oprd & register & ireg (* unsigned (double) / right *)
 
 | BSWAP of wsize & register (* byte swap *)
 
@@ -1069,6 +1070,23 @@ Definition eval_SHR sz o ir s : x86_result :=
     write_oprd o r s.
 
 (* -------------------------------------------------------------------- *)
+Definition eval_SHRD sz o1 r2 ir s : x86_result :=
+  Let _  := check_size_16_64 sz in
+  Let v1 := read_oprd sz o1 s in
+  let v2 := zero_extend sz (s.(xreg) r2) in
+  let i := wand (read_ireg U8 ir s) (x86_shift_mask sz) in (* FIXME: enforce ir is CL or immediate *)
+
+  if i == 0%R
+  then write_oprd o1 v1 s
+  else
+    let rc := lsb (wshr v1 (wunsigned i - 1)) in
+    let r1 := wshr v1 (wunsigned i) in
+    let r2 := wshl v2 (wsize_bits sz - wunsigned i) in
+    let r  := wor r1 r2 in
+    let s  := mem_update_rflags (rflags_of_sh i (msb r (+) msb v1) r rc) s in
+    write_oprd o1 r s.
+
+(* -------------------------------------------------------------------- *)
 Definition eval_SAL sz o ir s : x86_result :=
   eval_SHL sz o ir s.
 
@@ -1245,6 +1263,7 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | SAL    sz o ir     => eval_SAL    sz o ir s
   | SAR    sz o ir     => eval_SAR    sz o ir s
   | SHLD   sz o1 o2 ir => eval_SHLD   sz o1 o2 ir s
+  | SHRD   sz o1 o2 ir => eval_SHRD   sz o1 o2 ir s
 
   | BSWAP sz r => eval_BSWAP sz r s
 

@@ -181,6 +181,7 @@ let pp_opn =
   | Ox86_SHR w -> f w "#x86_SHR"
   | Ox86_SAR w -> f w "#x86_SAR"
   | Ox86_SHLD w -> f w "#x86_SHLD"
+  | Ox86_SHRD w -> f w "#x86_SHRD"
   | Ox86_BSWAP w -> f w "#x86_BSWAP"
   | Ox86_MOVD w -> f w "#x86_MOVD"
   | Ox86_VMOVDQU w -> f w "#x86_VMOVDQU"

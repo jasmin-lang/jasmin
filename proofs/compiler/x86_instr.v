@@ -843,9 +843,29 @@ Definition SAR_desc sz := make_instr_desc (SAR_gsc sz).
 Lemma SHLD_gsc sz :
   gen_sem_correct [:: TYoprd; TYreg; TYireg] (Ox86_SHLD sz)
      (implicit_flags ++ [:: E sz 0])
-     [:: E sz 0; E sz 1; E sz 2] [::] (SHLD sz).
+     [:: E sz 0; E sz 1; ADExplicit (Some U8) 2 (Some RCX)] [::] (SHLD sz).
 Proof.
-move => x y; split => // gd m m'; rewrite /low_sem_aux /= !arg_of_oprdE /= eval_low_ireg /= /x86_shld /eval_SHLD.
+move => x y z; split => // gd m m'.
+rewrite /low_sem_aux /= !arg_of_oprdE /= /x86_shld /eval_SHLD.
+case: z => // [ z | z ].
+case: x => //= [ x | x ]; t_xrbindP => ?;
+[ move => ? /truncate_wordP [hle] ->; rewrite /truncate_word hle => _ [<-]
+| move=> ??? hptr <- <-; rewrite /= truncate_word_u /=; t_xrbindP => ? /truncate_wordP [hle] -> ];
+move => _ -> /=; case: ifP => _ [<-].
+- case => <-; eexists; split; first reflexivity.
+  constructor => //= f.
+  repeat (etransitivity; [apply/rflagv_leb_undef |]); apply: rflagv_leb_refl.
+- rewrite /rflags_of_sh. case: ifP => _ [<-]; update_set.
+- rewrite /sets_low /= truncate_word_u /= hptr /= !decode_addr_unset_rflags /mem_write_mem.
+  apply: rbindP => ? -> /= [<-].
+  eexists; split; first reflexivity.
+  constructor => //= f; repeat (etransitivity; [apply/rflagv_leb_undef |]); apply: rflagv_leb_refl.
+rewrite /sets_low /= /rflags_of_sh /= hptr /=.
+case: ifP => /= _; rewrite truncate_word_u /= !decode_addr_set_rflags /mem_write_mem /=;
+apply: rbindP => ? -> [<-] /=; update_set.
+
+(* Duplicate of the above *)
+rewrite /=; case: eqP => // ?; subst z.
 case: x => //= [ x | x ]; t_xrbindP => ?;
 [ move => ? /truncate_wordP [hle] ->; rewrite /truncate_word hle => _ [<-]
 | move=> ??? hptr <- <-; rewrite /= truncate_word_u /=; t_xrbindP => ? /truncate_wordP [hle] -> ];
@@ -864,6 +884,52 @@ apply: rbindP => ? -> [<-] /=; update_set.
 Qed.
 
 Definition SHLD_desc sz := make_instr_desc (SHLD_gsc sz).
+
+(* ----------------------------------------------------------------------------- *)
+Lemma SHRD_gsc sz :
+  gen_sem_correct [:: TYoprd; TYreg; TYireg] (Ox86_SHRD sz)
+     (implicit_flags ++ [:: E sz 0])
+     [:: E sz 0; E sz 1; ADExplicit (Some U8) 2 (Some RCX)] [::] (SHRD sz).
+Proof.
+move => x y z; split => // gd m m'.
+rewrite /low_sem_aux /= !arg_of_oprdE /= /x86_shrd /eval_SHRD.
+case: z => // [ z | z ].
+case: x => //= [ x | x ]; t_xrbindP => ?;
+[ move => ? /truncate_wordP [hle] ->; rewrite /truncate_word hle => _ [<-]
+| move=> ??? hptr <- <-; rewrite /= truncate_word_u /=; t_xrbindP => ? /truncate_wordP [hle] -> ];
+move => _ -> /=; case: ifP => _ [<-].
+- case => <-; eexists; split; first reflexivity.
+  constructor => //= f.
+  repeat (etransitivity; [apply/rflagv_leb_undef |]); apply: rflagv_leb_refl.
+- rewrite /rflags_of_sh. case: ifP => _ [<-]; update_set.
+- rewrite /sets_low /= truncate_word_u /= hptr /= !decode_addr_unset_rflags /mem_write_mem.
+  apply: rbindP => ? -> /= [<-].
+  eexists; split; first reflexivity.
+  constructor => //= f; repeat (etransitivity; [apply/rflagv_leb_undef |]); apply: rflagv_leb_refl.
+rewrite /sets_low /= /rflags_of_sh /= hptr /=.
+case: ifP => /= _; rewrite truncate_word_u /= !decode_addr_set_rflags /mem_write_mem /=;
+apply: rbindP => ? -> [<-] /=; update_set.
+
+(* Duplicate of the above *)
+rewrite /=; case: eqP => // ?; subst z.
+case: x => //= [ x | x ]; t_xrbindP => ?;
+[ move => ? /truncate_wordP [hle] ->; rewrite /truncate_word hle => _ [<-]
+| move=> ??? hptr <- <-; rewrite /= truncate_word_u /=; t_xrbindP => ? /truncate_wordP [hle] -> ];
+move => _ -> /=; case: ifP => _ [<-].
+- case => <-; eexists; split; first reflexivity.
+  constructor => //= f.
+  repeat (etransitivity; [apply/rflagv_leb_undef |]); apply: rflagv_leb_refl.
+- rewrite /rflags_of_sh. case: ifP => _ [<-]; update_set.
+- rewrite /sets_low /= truncate_word_u /= hptr /= !decode_addr_unset_rflags /mem_write_mem.
+  apply: rbindP => ? -> /= [<-].
+  eexists; split; first reflexivity.
+  constructor => //= f; repeat (etransitivity; [apply/rflagv_leb_undef |]); apply: rflagv_leb_refl.
+rewrite /sets_low /= /rflags_of_sh /= hptr /=.
+case: ifP => /= _; rewrite truncate_word_u /= !decode_addr_set_rflags /mem_write_mem /=;
+apply: rbindP => ? -> [<-] /=; update_set.
+Qed.
+
+Definition SHRD_desc sz := make_instr_desc (SHRD_gsc sz).
 
 (* ----------------------------------------------------------------------------- *)
 Lemma Set0_gsc sz :
@@ -1170,6 +1236,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_SHR sz => ok (SHR_desc sz)
   | Ox86_SAR sz => ok (SAR_desc sz)
   | Ox86_SHLD sz => ok (SHLD_desc sz)
+  | Ox86_SHRD sz => ok (SHRD_desc sz)
   | Ox86_BSWAP sz => ok (BSWAP_desc sz)
   | Ox86_MOVD sz => ok (MOVD_desc sz)
   | Ox86_VMOVDQU sz => ok (VMOVDQU_desc sz)

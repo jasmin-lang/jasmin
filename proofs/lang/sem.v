@@ -780,6 +780,26 @@ Definition x86_shr {sz} (v: word sz) (i: u8) : exec values :=
     let ZF := Vbool (ZF_of_word r) in
     ok [:: OF; CF; SF; PF; ZF; Vword r].
 
+Definition x86_shrd {sz} (v1 v2: word sz) (i: u8) : exec values :=
+  Let _  := check_size_16_64 sz in
+  let i := wand i (x86_shift_mask sz) in
+  if i == 0%R then
+    let u := Vundef sbool in
+    ok [:: u; u; u; u; u; Vword v1]
+  else
+    let rc := lsb (wshr v1 (wunsigned i - 1)) in
+    let r1 := wshr v1 (wunsigned i) in
+    let r2 := wshl v2 (wsize_bits sz - (wunsigned i)) in
+    let r  := wor r1 r2 in
+    let OF :=
+      if i == 1%R then Vbool (msb r (+) msb v1)
+      else undef_b in
+    let CF := Vbool rc in
+    let SF := Vbool (SF_of_word r) in
+    let PF := Vbool (PF_of_word r) in
+    let ZF := Vbool (ZF_of_word r) in
+    ok [:: OF; CF; SF; PF; ZF; Vword r].
+
 Definition x86_sar {sz} (v: word sz) (i: u8) : exec values :=
   Let _ := check_size_8_64 sz in
   let i := wand i (x86_shift_mask sz) in
@@ -939,6 +959,7 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_SHR sz => app_w8 sz x86_shr
   | Ox86_SAR sz => app_w8 sz x86_sar
   | Ox86_SHLD sz => app_ww8 sz x86_shld
+  | Ox86_SHRD sz => app_ww8 sz x86_shrd
   | Ox86_BSWAP sz => app_w sz x86_bswap
   | Ox86_MOVD sz => app_w sz x86_movd
   | Ox86_VMOVDQU sz => app_sopn [:: sword sz ] (λ x,
@@ -1000,7 +1021,8 @@ Proof.
   + by rewrite /x86_shl;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
   + by rewrite /x86_shr;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
   + by rewrite /x86_sar;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
-  by rewrite /x86_shld;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
+  + by rewrite /x86_shld;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
+  by rewrite /x86_shrd;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
 Qed.
 
 Section SEM.

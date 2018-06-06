@@ -308,6 +308,11 @@ let pp_viname ?(long = false) (ve: LM.velem) (name: string) =
   Printf.sprintf "%s%s" name ((if long then pp_instr_velem_long else pp_instr_velem) ve)
 
 (* -------------------------------------------------------------------- *)
+let pp_sh_d name ws op1 op2 ir =
+  let rs = rs_of_ws ws in
+  `Instr (pp_iname rs name, [pp_imr `U8 ir; pp_register rs op2; pp_opr rs op1])
+
+(* -------------------------------------------------------------------- *)
 let pp_movx name wsd wss dst src =
   let rsd = rs_of_ws wsd in
   let rss = rs_of_ws wss in
@@ -470,9 +475,9 @@ let pp_instr name (i : X86_sem.asm) =
       let rs = rs_of_ws ws in
       `Instr (pp_iname rs "shr", [pp_imr `U8 ir; pp_opr rs op])
 
-  | SHLD (ws, op1, op2, ir) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "shld", [pp_imr rs ir; pp_register rs op2; pp_opr rs op1])
+  | SHLD (ws, op1, op2, ir) -> pp_sh_d "shld" ws op1 op2 ir
+
+  | SHRD (ws, op1, op2, ir) -> pp_sh_d "shrd" ws op1 op2 ir
 
   | BSWAP(ws, r) ->
     let rs = rs_of_ws ws in
@@ -577,6 +582,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | SAR    (_, op, _)
   | SHL    (_, op, _)
   | SHLD    (_, op, _, _)
+  | SHRD    (_, op, _, _)
   | SHR    (_, op, _) ->
       Option.map_default (fun r -> Set.add r c) c (reg_of_oprd op)
 
