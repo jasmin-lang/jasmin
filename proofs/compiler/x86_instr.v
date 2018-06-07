@@ -932,14 +932,26 @@ Qed.
 Definition SHRD_desc sz := make_instr_desc (SHRD_gsc sz).
 
 (* ----------------------------------------------------------------------------- *)
+Definition SET0 sz o : asm :=
+  XOR
+    (if o is Reg_op _
+     then cmp_min U32 sz
+     else sz)
+    o o.
+
 Lemma Set0_gsc sz :
   gen_sem_correct [:: TYoprd] (Oset0 sz)
      (implicit_flags ++ [:: E sz 0])
-     [::] [::] (fun x => XOR sz x x).
+     [::] [::] (SET0 sz).
 Proof.
 move => x; split => // gd m m'; rewrite /low_sem_aux /= /eval_XOR.
-case: x => //= [ x | x ]; t_xrbindP => vs _ -> /= <-.
-- by case => <- /=; rewrite wxor_xx /= /rflags_of_bwop /SF_of_word msb0; update_set.
+have ok_sz : ∀ u, check_size_8_64 sz = ok u → check_size_8_64 (if x is Reg_op _ then cmp_min U32 sz else sz) = ok tt.
++ by case: x => //; case: sz.
+case: x ok_sz => //= [ x | x ] ok_sz; t_xrbindP => vs _ /(ok_sz) {ok_sz} -> /= <-.
+- case => <- /=; rewrite wxor_xx /= /rflags_of_bwop /SF_of_word msb0 /=.
+  know_it; f_equal; rewrite /mem_write_reg /=; f_equal; last first.
+  * by apply /ffunP; case; rewrite !ffunE.
+  by rewrite /word_extend_reg /=; f_equal; case: sz.
 rewrite /sets_low /= truncate_word_u /= /mem_write_mem /= !decode_addr_set_rflags.
 apply: rbindP => m'' hw [<-].
 have [o ->] := write_mem_can_read hw.
