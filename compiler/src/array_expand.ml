@@ -95,14 +95,13 @@ let arrexp_prog prog = List.map arrexp_func prog
 
 let init_stk fc =
   let vars = Sv.elements (Sv.filter is_stack_var (vars_fc fc)) in
-  (* FIXME: For the moment we assume that all variable are 64 bits *)
   let size = ref 0 in
   let tbl = Hv.create 107 in
   let init_var v =
     let n =
       match v.v_ty with
-      | Bty (U U64)  -> size_of_ws U64
-      | Arr (U64, n) -> n * size_of_ws U64
+      | Bty (U ws)  -> size_of_ws ws
+      | Arr (ws, n) -> n * size_of_ws ws
       | _            -> assert false in
     let pos = !size in
     let bpos = B.of_int pos in
