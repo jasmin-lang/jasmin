@@ -22,6 +22,7 @@
 %token AMPAMP
 %token BANG
 %token <Syntax.swsize> BANGEQ
+%token COLON
 %token COMMA
 %token <Syntax.sign * Syntax.wsize>CAST
 %token DOWNTO
@@ -45,6 +46,7 @@
 %token <Syntax.swsize> PIPE
 %token PIPEPIPE
 %token <Syntax.swsize> PLUS
+%token QUESTIONMARK
 %token RARROW
 %token REG
 %token RETURN
@@ -60,6 +62,7 @@
 %token <string> NID
 %token <Bigint.zint> INT
 
+%nonassoc COLON QUESTIONMARK
 %left PIPEPIPE
 %left AMPAMP
 %left EQEQ BANGEQ
@@ -172,6 +175,9 @@ pexpr_r:
 
 | f=prim args=parens_tuple(pexpr)
     { PEPrim (f, args) }
+
+| e1=pexpr QUESTIONMARK e2=pexpr COLON e3=pexpr
+    { PEIf(e1, e2, e3) }
 
 pexpr:
 | e=loc(pexpr_r) { e }

@@ -491,6 +491,16 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
   | S.PEPrim _ ->
     rs_tyerror ~loc:(L.loc pe) PrimNotAllowed
 
+  | S.PEIf (pe1, pe2, pe3) ->
+    let e1, ty1 = tt_expr ~mode env pe1 in
+    let e2, ty2 = tt_expr ~mode env pe2 in
+    let e3, ty3 = tt_expr ~mode env pe3 in
+
+    check_ty_bool ~loc:(L.loc pe1) ty1;
+    check_ty_eq ~loc:(L.loc pe) ~from:ty2 ~to_:ty3;
+    P.Pif(e1, e2, e3), ty2
+
+
 and tt_expr_cast64 ?(mode=`AllVar) (env : Env.env) pe =
   let e, ty = tt_expr ~mode env pe in
   cast (L.loc pe) e ty P.u64

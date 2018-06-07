@@ -120,6 +120,8 @@ rule main = parse
   | "->"    { RARROW     }
   | ","     { COMMA      }
   | ";"     { SEMICOLON  }
+  | "?"     { QUESTIONMARK  }
+  | ":"     { COLON  }
 
   | "<<" (blank* (size as w) (signletter as g))? { LTLT (mk_swsize g w) }
   | "<=s" { LE (Some (`Signed, None)) }

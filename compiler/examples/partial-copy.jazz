@@ -1,0 +1,42 @@
+fn use(stack u32[17] t) -> reg u32 {
+  inline int i;
+  reg u32 s;
+  s = 0;
+  for i = 0 to 17 {
+    s += t[i];
+  }
+  return s;
+}
+
+export
+fn copy(reg u64 in, reg u64 inlen) -> reg u32 {
+
+reg bool of, cf, sf, zf;
+stack u32[17] t;
+reg u8 size;
+reg u32 one, r, tmp;
+inline int i;
+
+one = 1;
+while (inlen >s 0) {
+size = inlen;
+size &= 0xF;
+
+for i = 0 to 17 {
+tmp = #set0_32();
+of, cf, sf, _, zf = #x86_CMP_8(size, i);
+tmp = (u32)[in + i] if ! zf && (sf ? of : !of); // size > i
+tmp = one if zf; // size == i
+t[i] = tmp;
+}
+
+in += 16;
+inlen -= 16;
+
+}
+
+r = use(t);
+
+return r;
+
+}

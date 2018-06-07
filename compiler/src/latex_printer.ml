@@ -96,6 +96,7 @@ let string_of_op2 =
 
 type prio =
   | Pmin
+  | Pternary
   | Por
   | Pand
   | Pbwor
@@ -152,6 +153,11 @@ let rec pp_expr_rec prio fmt pe =
     let p = prio_of_op2 op in
     optparent fmt prio p "(";
     F.fprintf fmt "%a %s %a" (pp_expr_rec p) e (string_of_op2 op) (pp_expr_rec p) r;
+    optparent fmt prio p ")"
+  | PEIf (e1, e2, e3) ->
+    let p = Pternary in
+    optparent fmt prio p "(";
+    F.fprintf fmt "%a ? %a : %a" (pp_expr_rec p) e1 (pp_expr_rec p) e2 (pp_expr_rec p) e3;
     optparent fmt prio p ")"
 
 and pp_type fmt ty =

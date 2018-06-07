@@ -96,6 +96,7 @@ type pexpr_r =
   | PEPrim   of pident * pexpr list
   | PEOp1    of peop1 * pexpr
   | PEOp2    of peop2 * (pexpr * pexpr)
+  | PEIf of pexpr * pexpr * pexpr
 
 and pexpr = pexpr_r L.located
 
