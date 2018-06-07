@@ -54,7 +54,7 @@ op to32 : u128 -> u32 * u32 * u32 * u32.
 op zeroextend w = of32 w U32.zero U32.zero U32.zero.
 
 axiom of32_shl x0 x1 x2 x3 i: 
-  of32 x0 x1 x2 x3 `<<` i = 
+  (of32 x0 x1 x2 x3) `<<` i = 
   of32 (x0 `<<` i) (x1 `<<` i) (x2 `<<` i) (x3 `<<` i).
 
 axiom of32_shr x0 x1 x2 x3 i: 
@@ -81,9 +81,20 @@ axiom shuffle4_u32_1032 x0 x1 x2 x3 :
   shuffle4_u32 (of32 x0 x1 x2 x3) (shuffle 1 0 3 2) = 
   of32 x2 x3 x0 x1.
 
-
-
 end U128. import U128.
+
+hint simplify xor_zero_l.
+hint simplify xor_zero_r.
+hint simplify of32_shl.
+hint simplify of32_shr.
+hint simplify of32_xor.
+hint simplify of32_and.
+hint simplify of32_or.
+hint simplify shuffle4_u32_2301.
+hint simplify shuffle4_u32_1032.
+hint simplify shl_0.
+hint simplify shr_0.
+hint simplify shr_32.
 
 (* -------------------------------------------------------------------- *)
 
@@ -116,8 +127,7 @@ proof.
   unroll {1} 6; rcondt{1} 6; 1: by auto.
   unroll {1} 8; rcondt{1} 8; 1: by auto.
   rcondf{1} 10; 1: by auto.
-  auto => &m1 &m2; rewrite /veq32 /= => />; rewrite of32_xor.
-  smt ().
+  by auto => &m1 &m2; rewrite /veq32 /= => /> /#.
 qed.
 
 (* ---------------------------------------------------------------------- *)
@@ -302,6 +312,7 @@ module Gimli_vec1 = {
   include Gimli_vec_gen(R)
 }.
 
+
 equiv ref1_vec1 : Gimli_ref1.gimli ~ Gimli_vec1.gimli : 
    (of32 state.[0] state.[1] state.[2]  state.[3] ){1} = x{2} /\
    (of32 state.[4] state.[5] state.[6]  state.[7] ){1} = y{2} /\
@@ -330,25 +341,17 @@ proof.
       by seq 13: (column = 3); auto.
     wp;skip => &m1 &m2 [#] hx hy hz hround gt0round _. 
     cbv delta.
-    by rewrite -!(hx, hy, hz, hround)
-                !(xor_zero_l, xor_zero_r, of32_shl, of32_shr, of32_xor, of32_and, of32_or,
-                   shuffle4_u32_2301, shuffle4_u32_1032, shl_0, shr_0, shr_32).
+    by rewrite -!(hx, hy, hz, hround) /=.
   seq 1 1 : (#[/0:4]pre).
   + if => //.
     wp; skip => &m1 &m2 [#] 4!<- _ _ _ _.
-    cbv delta.
-    by rewrite !(xor_zero_l, xor_zero_r, of32_shl, of32_shr, of32_xor, of32_and, of32_or,
-                 shuffle4_u32_2301, shuffle4_u32_1032, shl_0, shr_0, shr_32).
+    by cbv delta => /=; rewrite shuffle4_u32_2301.
   seq 1 1 : (#pre).
   + if => //.
     wp; skip => &m1 &m2 [#] 4!<- _.
-    cbv delta.
-    by rewrite !(xor_zero_l, xor_zero_r, of32_shl, of32_shr, of32_xor, of32_and, of32_or,
-                 shuffle4_u32_2301, shuffle4_u32_1032, shl_0, shr_0, shr_32).
+    by cbv delta => /=; rewrite shuffle4_u32_1032.
   if => //;last by auto.
   wp; skip => &m1 &m2 [#] 4!<- _.
-  cbv delta.
-  by rewrite !(xor_zero_l, xor_zero_r, of32_shl, of32_shr, of32_xor, of32_and, of32_or,
-                 shuffle4_u32_2301, shuffle4_u32_1032, shl_0, shr_0, shr_32).
+  by cbv delta => /=.
 qed.
 
