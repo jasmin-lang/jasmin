@@ -1,0 +1,24 @@
+param int n = 8;
+
+export
+fn test_cmp(reg u64 x, reg u64 y) -> reg u64 {
+inline int i;
+reg u64[n] t;
+reg u64 r;
+reg bool of, cf, sf, zf;
+
+for i = 0 to n { t[i] = i; }
+
+of, cf, sf, _, zf = #x86_CMP(x, y);
+
+r = t[0] if zf; // E. x = y
+r = t[1] if cf; // B. y <u x
+r = t[2] if cf || zf; // BE. y <=u x
+r = t[3] if !cf && !zf; // NBE. y >u x
+r = t[4] if sf ? !of : of; // L. y <s x
+r = t[5] if sf ? of : !of; // NL. y >=s x
+r = t[6] if zf || (sf ? !of : of); // LE. y <=s x
+r = t[7] if !zf && (sf ? of : !of); // NLE. y >s x
+
+return r;
+}
