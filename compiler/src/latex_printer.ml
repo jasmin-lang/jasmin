@@ -66,19 +66,14 @@ let pp_var fmt x =
 let string_of_wsize w =
   F.sprintf "b%d" (bits_of_wsize w)
 
-let string_of_op1 =
-  let f s p = F.sprintf "%s%s" p (string_of_swsize s) in
-  function
-  | `Cast (sg, sz) -> F.sprintf "(%d%s)" (bits_of_wsize sz) (suffix_of_sign sg)
-  | `Not -> "!"
-  | `Neg s -> f s "-"
-
 let string_of_op2 =
   let f s p = F.sprintf "%s%s" p (string_of_swsize s) in
   function
   | `Add s -> f s "+"
   | `Sub s -> f s "-"
   | `Mul s -> f s "*"
+  | `Div s -> f s "/"
+  | `Mod s -> f s "\\%"
   | `And -> "&&"
   | `Or -> "||"
   | `BAnd s -> f s "&"
@@ -114,13 +109,13 @@ type prio =
 let prio_of_op1 =
   function
   | `Cast _
-  | `Not -> Pbang
+  | `Not _ -> Pbang
   | `Neg _ -> Punary
 
 let prio_of_op2 =
   function
   | `Add _ | `Sub _ -> Padd
-  | `Mul _ -> Pmul
+  | `Mul _ | `Div _ | `Mod _ -> Pmul
   | `And -> Pand
   | `Or -> Por
   | `BAnd _ -> Pbwand
@@ -147,7 +142,7 @@ let rec pp_expr_rec prio fmt pe =
   | PEOp1 (op, e) ->
     let p = prio_of_op1 op in
     optparent fmt prio p "(";
-    F.fprintf fmt "%s %a" (string_of_op1 op) (pp_expr_rec p) e;
+    F.fprintf fmt "%s %a" (string_of_peop1 op) (pp_expr_rec p) e;
     optparent fmt prio p ")"
   | PEOp2 (op, (e, r)) ->
     let p = prio_of_op2 op in

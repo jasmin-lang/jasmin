@@ -28,7 +28,7 @@ type tyerror =
   | UnknownFun          of S.symbol
   | InvalidType         of P.pty * typattern
   | TypeMismatch        of P.pty pair
-  | NoOperator          of [ `Op2 of S.peop2 ] * P.pty list
+  | NoOperator          of [ `Op2 of S.peop2 | `Op1 of S.peop1] * P.pty list
   | InvalidArgCount     of int * int
   | InvalidLvalCount    of int * int
   | DuplicateFun        of S.symbol * L.t
@@ -93,6 +93,12 @@ let pp_tyerror fmt (code : tyerror) =
       F.fprintf fmt
         "no operator %s for these types %a"
         (S.string_of_peop2 o)
+        (Printer.pp_list " * " Printer.pp_ptype) ts
+
+  | NoOperator (`Op1 o, ts) ->
+      F.fprintf fmt
+        "no operator %s for these type %a"
+        (S.string_of_peop1 o)
         (Printer.pp_list " * " Printer.pp_ptype) ts
 
   | InvalidArgCount (n1, n2) ->
@@ -291,6 +297,12 @@ let check_sig_lvs ?loc sig_ lvs =
 
   List.map2 (fun ty (_,flv,_) -> flv ty) sig_ lvs
 
+
+(* -------------------------------------------------------------------- *)
+let tt_sign = function
+  | `Signed -> T.Signed
+  | `Unsigned -> T.Unsigned
+  
 (* -------------------------------------------------------------------- *)
 let tt_as_bool = check_ty TPBool
 let tt_as_int  = check_ty TPInt
@@ -318,35 +330,55 @@ let op_of_ty exn ty =
 let ws_of_ty exn =
   function
   | P.Bty (P.U ws) -> ws
-  | P.Bty P.Int -> T.U64
   | _ -> raise exn
 
 let cmp_of_ty exn sign ty =
-  match sign, ty with
-  | _      , P.Bty P.Int    -> E.Cmp_int
-  | `Sign  , P.Bty (P.U ws) -> E.Cmp_w(T.Signed, ws)
-  | `Unsign, P.Bty (P.U ws) -> E.Cmp_w(T.Unsigned, ws)
-  | _      , _              -> raise exn
+  match ty with
+  | P.Bty P.Int    -> E.Cmp_int
+  | P.Bty (P.U ws) -> E.Cmp_w(sign, ws)
+  | _              -> raise exn
+
+let op2_info s ty = 
+  let s, ty = 
+    match s with
+    | None              -> T.Unsigned, ty
+    | Some (s, None)    -> tt_sign s, ty
+    | Some (s, Some ws) -> tt_sign s, P.Bty (P.U (tt_ws ws)) in
+  s, ty 
+
+let op2_of_ty exn s ty op = 
+  let _, ty = op2_info s ty in
+  ty, op (op_of_ty exn ty)
+
+let cmp2_of_ty exn s ty op = 
+  let s, ty = op2_info s ty in
+  ty, op (cmp_of_ty exn s ty)
+
+let ws2_of_ty exn s ty op = 
+  let _, ty = op2_info s ty in
+  ty, op (ws_of_ty exn ty)
 
 let op2_of_pop2 exn ty (op : S.peop2) =
   (* TODO: use type annotation *)
   match op with
-  | `Add s -> E.Oadd (op_of_ty exn ty)
-  | `Sub s -> E.Osub (op_of_ty exn ty)
-  | `Mul s -> E.Omul (op_of_ty exn ty)
-  | `And -> E.Oand
-  | `Or -> E.Oor
-  | `BAnd s -> E.Oland (ws_of_ty exn ty)
-  | `BOr s -> E.Olor (ws_of_ty exn ty)
-  | `BXOr s -> E.Olxor (ws_of_ty exn ty)
-  | `ShR s -> E.Olsr (ws_of_ty exn ty)
-  | `ShL s -> E.Olsl (ws_of_ty exn ty)
-  | `Eq s -> E.Oeq  (op_of_ty exn ty)
-  | `Neq s -> E.Oneq (op_of_ty exn ty)
-  | `Lt s -> E.Olt  (cmp_of_ty exn `Unsign ty)
-  | `Le s -> E.Ole  (cmp_of_ty exn `Unsign ty)
-  | `Gt s -> E.Ogt  (cmp_of_ty exn `Unsign ty)
-  | `Ge s -> E.Oge  (cmp_of_ty exn `Unsign ty)
+  | `Add s -> op2_of_ty exn s ty (fun x -> E.Oadd x)
+  | `Sub s -> op2_of_ty exn s ty (fun x -> E.Osub x)
+  | `Mul s -> op2_of_ty exn s ty (fun x -> E.Omul x)
+  | `Div s -> cmp2_of_ty exn s ty (fun x -> E.Odiv x)
+  | `Mod s -> cmp2_of_ty exn s ty (fun x -> E.Omod x)
+  | `And   -> P.tbool, E.Oand
+  | `Or    -> P.tbool, E.Oor
+  | `BAnd s -> ws2_of_ty exn s ty (fun x -> E.Oland x) 
+  | `BOr s  -> ws2_of_ty exn s ty (fun x -> E.Olor x) 
+  | `BXOr s -> ws2_of_ty exn s ty (fun x -> E.Olxor x) 
+  | `ShR s  -> ws2_of_ty exn s ty (fun x -> E.Olsr x) 
+  | `ShL s  -> ws2_of_ty exn s ty (fun x -> E.Olsl x) 
+  | `Eq s   -> op2_of_ty exn s ty (fun x -> E.Oeq x)
+  | `Neq s  -> op2_of_ty exn s ty (fun x -> E.Oneq x)
+  | `Lt s -> cmp2_of_ty exn s ty (fun x -> E.Olt x)
+  | `Le s -> cmp2_of_ty exn s ty (fun x -> E.Ole x)
+  | `Gt s -> cmp2_of_ty exn s ty (fun x -> E.Ogt x)
+  | `Ge s -> cmp2_of_ty exn s ty (fun x -> E.Oge x) 
 
 (* -------------------------------------------------------------------- *)
 let peop2_of_eqop (eqop : S.peqop) =
@@ -391,35 +423,30 @@ let tt_op2 (loc1, (e1, ty1)) (loc2, (e2, ty2))
 
   let op, e1, e2, ty =
     match pop with
-    | (`Add s | `Sub s | `Mul s) ->
-      (* TODO: use ssize annotation *)
+    | (`Add _ | `Sub _ | `Mul _ | `Div _ | `Mod _) ->
       let ty = max_ty ty1 ty2 |> oget ~exn in
-      let op = op2_of_pop2 exn ty pop in
+      let ty, op = op2_of_pop2 exn ty pop in
       (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, ty)
 
-    | (`BAnd s | `BOr s | `BXOr s) ->
-      (* TODO: use ssize annotation *)
+    | (`BAnd _ | `BOr _ | `BXOr _) ->
       let ty = max_ty ty1 ty2 |> oget ~exn in
       let ty = max_ty ty (P.Bty (P.U T.U256)) |> oget ~exn in
-      let op = op2_of_pop2 exn ty pop in
+      let ty, op = op2_of_pop2 exn ty pop in
       (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, ty)
 
-    | `ShR s | `ShL s ->
-      (* TODO: use ssize annotation *)
-      let ty = ty1 in
+    | `ShR _ | `ShL _ ->
       let tyarg1 = max_ty ty1 (P.Bty (P.U T.U64)) |> oget ~exn in
-      let op = op2_of_pop2 exn ty pop in
+      let tyarg1, op = op2_of_pop2 exn tyarg1 pop in
       (op, cast loc1 e1 ty1 tyarg1, cast loc2 e2 ty2 (P.Bty (P.U T.U8)), tyarg1)
 
     | (`And | `Or) ->
       if not (ty1 = P.tbool && ty2 = P.tbool) then raise exn;
-      (op2_of_pop2 Not_found P.tbool pop, e1, e2, P.tbool)
+      (snd (op2_of_pop2 Not_found P.tbool pop), e1, e2, P.tbool)
 
-    | (`Eq s | `Neq s | `Lt s | `Le s | `Gt s | `Ge s) ->
-      (* TODO: use ssize annotation *)
+    | (`Eq _ | `Neq _ | `Lt _ | `Le _ | `Gt _ | `Ge _) ->
       let ty = max_ty ty1 ty2 |> oget ~exn in
-      let op = op2_of_pop2 exn ty pop in
-         (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, P.tbool)
+      let ty, op = op2_of_pop2 exn ty pop in
+      (op, cast loc1 e1 ty1 ty, cast loc2 e2 ty2 ty, P.tbool)
 
   in
   (P.Papp2 (op, e1, e2), ty)
@@ -469,15 +496,22 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
         | `Signed -> E.Osignext (sz, ws)
       in
       Papp1 (op, e), P.Bty (P.U sz)
-    | `Not ->
-      if ety = P.tbool then Papp1(E.Onot, e), P.tbool
+    | `Not s ->
+      let loc = L.loc pe in
+      let exn = tyerror ~loc (NoOperator (`Op1 op, [ety])) in
+      if ety = P.tbool then 
+        if s <> None then raise exn
+        else Papp1(E.Onot, e), P.tbool
       else
-        let e, ws = cast_word (L.loc pe) e ety in
-        Papp1(E.Olnot ws, e), P.Bty (P.U ws)
+        let ty = max_ty ety (P.Bty (P.U T.U256)) |> oget ~exn in
+        let ty, op = ws2_of_ty exn s ty (fun x -> E.Olnot x) in
+        Papp1(op, cast loc e ety ty), ty
+
     | `Neg s ->
-      (* TODO: use ssize annotation *)
-      let e, ws = cast_word (L.loc pe) e ety in
-      Papp1(E.(Oneg (Op_w ws)), e), P.Bty (P.U ws)
+      let loc = L.loc pe in
+      let exn = tyerror ~loc (NoOperator (`Op1 op, [ety])) in
+      let ty, op = op2_of_ty exn s ety (fun x -> E.Oneg x) in
+      Papp1(op, cast loc e ety ty), ty
     end
 
   | S.PEOp2 (pop, (pe1, pe2)) ->
@@ -750,13 +784,36 @@ let prim_of_pe pe =
   | S.PEOp2 (o, (pe1, pe2)) ->
     let desc =
       match o with
-      | (`Add s | `Sub s) as o1 ->
-        let pe1, pe2, pe3 =
+      | (`Add _ | `Sub _) as o1 ->
+        let check_size op s1 s2 = 
+          match s1, s2 with
+          | None, _ -> Some (op s2)
+          | _, None -> Some (op s1)
+          | Some s1', Some s2' when s1' = s2' -> Some (op s1)
+          | _ -> None in 
+        let check_op o1 o2 = 
+          match o1, o2 with
+          | `Add s1, `Add s2 -> check_size (fun x -> `Add x) s1 s2
+          | `Sub s1, `Sub s2 -> check_size (fun x -> `Sub x) s1 s2
+          | _                -> None in
+
+        let o, pe1, pe2, pe3 =
           match L.unloc pe1, L.unloc pe2 with
-          | S.PEOp2(o2, (pe1, pe3)), _ when o1 = o2 -> pe1, pe3, pe2
-          | _, S.PEOp2(o2, (pe2, pe3)) when o1 = o2 -> pe1, pe2, pe3
-          | _, _ -> pe1, pe2, L.mk_loc (L.loc pe2) (S.PEBool false) in
+          | S.PEOp2(o2, (pe1', pe3')), _ ->
+            begin match check_op o1 o2 with
+            | None -> o, pe1, pe2, L.mk_loc (L.loc pe2) (S.PEBool false)
+            | Some o -> o, pe1', pe3', pe2
+            end
+          | _, S.PEOp2(o2, (pe2', pe3')) ->
+            begin match check_op o1 o2 with
+            | None -> o, pe1, pe2, L.mk_loc (L.loc pe2) (S.PEBool false)
+            | Some o -> o, pe1, pe2', pe3'
+            end
+          | _, _ -> o, pe1, pe2, L.mk_loc (L.loc pe2) (S.PEBool false) 
+        in
+
         S.PEPrim(prim_of_op exn loc o, [pe1; pe2; pe3])
+
       | _  ->
         S.PEPrim(prim_of_op exn loc o, [pe1; pe2])
     in

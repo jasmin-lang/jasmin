@@ -42,12 +42,14 @@ let string_of_swsize : swsize -> string =
       (suffix_of_sign sg)
 
 (* -------------------------------------------------------------------- *)
-type peop1 = [ `Cast of sign * wsize | `Not | `Neg of swsize ]
+type peop1 = [ `Cast of sign * wsize | `Not of swsize | `Neg of swsize ]
 
 type peop2 = [
   | `Add of swsize
   | `Sub of swsize
   | `Mul of swsize
+  | `Div of swsize
+  | `Mod of swsize
   | `And
   | `Or
   | `BAnd of swsize
@@ -64,12 +66,21 @@ type peop2 = [
   | `Ge of swsize
 ]
 
+let string_of_peop1 = 
+  let f s p = Format.sprintf "%s%s" p (string_of_swsize s) in
+  function 
+  | `Cast (s,ws) -> Format.sprintf "(%s)" (string_of_swsize (Some( s,Some ws)))
+  | `Not s -> f s "!"
+  | `Neg s -> f s "-"
+
 let string_of_peop2 : peop2 -> string =
   let f s p = Format.sprintf "%s%s" p (string_of_swsize s) in
   function
   | `Add s -> f s "+"
   | `Sub s -> f s "-"
   | `Mul s -> f s "*"
+  | `Div s -> f s "/"
+  | `Mod s -> f s "%"
   | `And -> "&&"
   | `Or  -> "||"
   | `BAnd s -> f s "&"
@@ -83,6 +94,7 @@ let string_of_peop2 : peop2 -> string =
   | `Le s -> f s "<="
   | `Gt s -> f s ">"
   | `Ge s -> f s ">="
+
 
 (* -------------------------------------------------------------------- *)
 type pexpr_r =

@@ -136,10 +136,12 @@ rule main = parse
   | ">s" { GT (Some (`Signed, None)) }
   | ">" (blank* (size as w) (signletter as g))? { GT (mk_swsize g w) }
 
-  | "!"     { BANG       }
+  | "!" (blank* (size as w) (signletter as g))? { BANG (mk_swsize g w) }
   | "+" (blank* (size as w) (signletter as g))? { PLUS (mk_swsize g w) }
   | "-" (blank* (size as w) (signletter as g))? { MINUS (mk_swsize g w) }
   | "*" (blank* (size as w) (signletter as g))? { STAR (mk_swsize g w) }
+  | "/" (blank* (size as w) (signletter as g))? { SLASH (mk_swsize g w) }
+  | "%" (blank* (size as w) (signletter as g))? { PERCENT (mk_swsize g w) }
   | "|" (blank* (size as w) (signletter as g))? { PIPE (mk_swsize g w) }
   | "&" (blank* (size as w) (signletter as g))? { AMP (mk_swsize g w) }
   | "^" (blank* (size as w) (signletter as g))? { HAT (mk_swsize g w) }

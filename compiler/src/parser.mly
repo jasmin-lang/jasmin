@@ -20,7 +20,7 @@
 %token SHARP
 %token <Syntax.swsize> AMP
 %token AMPAMP
-%token BANG
+%token <Syntax.swsize> BANG
 %token <Syntax.swsize> BANGEQ
 %token COLON
 %token COMMA
@@ -43,6 +43,7 @@
 %token <Syntax.swsize> LTLT
 %token <Syntax.swsize> MINUS
 %token PARAM
+%token <Syntax.swsize> PERCENT
 %token <Syntax.swsize> PIPE
 %token PIPEPIPE
 %token <Syntax.swsize> PLUS
@@ -51,6 +52,7 @@
 %token REG
 %token RETURN
 %token SEMICOLON
+%token <Syntax.swsize> SLASH
 %token STACK
 %token <Syntax.swsize> STAR
 %token TO
@@ -72,7 +74,7 @@
 %left AMP
 %left LTLT GTGT
 %left PLUS MINUS
-%left STAR
+%left STAR SLASH PERCENT
 %nonassoc BANG CAST
 
 %type <Syntax.pprogram> module_
@@ -117,14 +119,16 @@ ptype:
 (* ** Index expressions
  * -------------------------------------------------------------------- *)
 %inline peop1:
-| c=CAST { `Cast c }
-| BANG  { `Not }
+| c=CAST   { `Cast c }
+| s=BANG   { `Not s }
 | s=MINUS  { `Neg s }
 
 %inline peop2:
 | s=PLUS { `Add s }
 | s=MINUS { `Sub s }
 | s=STAR { `Mul s }
+| s=SLASH {`Div s }
+| s=PERCENT {`Mod s }
 | AMPAMP { `And }
 | PIPEPIPE { `Or }
 | s=AMP { `BAnd s }
