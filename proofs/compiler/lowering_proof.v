@@ -909,7 +909,7 @@ Section PROOF.
   Qed.
 
 Axiom wunsigned0 : ∀ (sz : wsize), @wunsigned sz 0%R = 0%Z.
-Axiom wdwords_0 : forall sz (w:word sz), wdwords 0 w = wsigned w.
+Axiom wdwords_0 : forall sz (w:word sz), wdwords (if msb w then (-1)%R else 0%R) w = wsigned w.
 Axiom wdwordu_0 : forall sz (w:word sz), wdwordu 0 w = wunsigned w.
 
 Axiom wsigned_quot_bound : forall sz (w1 w2:word sz),  
@@ -938,7 +938,7 @@ Axiom wunsigned_div_bound : forall sz (w1 w2: word sz),
       Sv.Subset (read_es e') (read_e e) ∧
       sem_pexprs gd s e' >>= exec_sopn o >>=
       write_lvals gd s [:: f; f; f; f; f; l] = ok s'
-    | LowerDivMod p sz o a b =>
+    | LowerDivMod p u sz o a b =>
       let vi := var_info_of_lval l in
       let f  := Lnone vi sbool in
       let lv := 
@@ -946,15 +946,23 @@ Axiom wunsigned_div_bound : forall sz (w1 w2: word sz),
         | DM_Fst => [:: f; f; f; f; f; l; Lnone vi (sword sz)]
         | DM_Snd => [:: f; f; f; f; f; Lnone vi (sword sz); l] 
         end in
-      [/\ (forall s1, 
+      [/\ (exists (va:value)(wa:word sz), 
+          [/\ (sem_pexpr gd s a) = ok va,  
+               to_word sz va = ok wa &
+            (forall s1, 
              eq_exc_fresh s1 s ->
              disj_fvars (vars_lval l) ->
              disj_fvars (read_e e) ->
+             [/\ (sem_pexpr gd s1 a) = ok va &
              exists s1', 
-               sem_pexprs gd s1 [::Pcast sz (Pconst 0); a; b] >>= exec_sopn o >>=
-                   write_lvals gd s1 lv = ok s1' /\
-               eq_exc_fresh s1' s'), 
-          ty = sword sz & (sz ≤ U64)%CMP]
+              (Let vb := (sem_pexpr gd s1 b) in
+               let v0 : word sz := 
+                 if u is Unsigned then 0%R
+                 else if msb wa then (-1)%R else 0%R in
+               exec_sopn o [::Vword v0; va; vb] >>=
+                 write_lvals gd s1 lv) = ok s1' /\
+               eq_exc_fresh s1' s'])]), 
+          ty = sword sz , (U16 ≤ sz)%CMP & (sz ≤ U64)%CMP]
     | LowerEq sz a b =>
       exists b1 b2 b3 b4, sem_pexprs gd s [:: a; b] >>= exec_sopn (Ox86_CMP sz) = ok [:: Vbool b1; Vbool b2; Vbool b3; Vbool b4; v']
     | LowerLt sz a b =>
@@ -1132,22 +1140,25 @@ Axiom wunsigned_div_bound : forall sz (w1 w2: word sz),
       + case: ifP => // /andP [] /andP [] hsz1 hsz2 /eqP ?;subst sz.
         rewrite /sem_pexprs /=; t_xrbindP => v1 hv1 v2 hv2.
         rewrite /sem_sop2 /= /mk_sem_divmod;t_xrbindP => /= w1 hw1 w2 hw2 w3 hw3 ?; subst v.
-        have [sz' [ ? hle ?]]:= truncate_val_word Hv';subst ty v';split => // s1 hs1 hl he.
-        have -> := sem_pexpr_same _ hs1 hv1; last first.
+        have [sz' [ ? hle ?]]:= truncate_val_word Hv';subst ty v';simpl in *; split => //.
+        exists v1, w1;split => //. 
+        move=> s1 hs1 hl he.
+        have -> /= := sem_pexpr_same _ hs1 hv1; last first.
         + move: he; rewrite /read_e /= /disj_fvars /lowering.disj_fvars !read_eE /disjoint.
           by rewrite /is_true !Sv.is_empty_spec;SvD.fsetdec.
-        have -> /=:= sem_pexpr_same _ hs1 hv2; last first.
+        split => //.
+        have -> /= := sem_pexpr_same _ hs1 hv2; last first.
         + move: he; rewrite /read_e /= /disj_fvars /lowering.disj_fvars !read_eE /disjoint.
           by rewrite /is_true !Sv.is_empty_spec;SvD.fsetdec.
         case: eqP hw3 => // neq []; simpl in * => {he}.
         case: u => /= ?; subst w3; 
-          rewrite truncate_word_u hw1 hw2 /= /x86_idiv /x86_div
-             /check_size_16_64 /= hsz1 hsz2 /=.
+          rewrite /= /x86_idiv /x86_div !truncate_word_u
+             /check_size_16_64 /= hsz1 hsz2 /= hw2 /=.
         + have hw2' : (wsigned w2 == 0%Z) = false.
           + apply /negbTE;apply /eqP => h;apply neq.
             apply (can_inj (@word.sreprK _)).
             by move:h;rewrite /wsigned => ->;symmetry;apply wsigned0.
-          rewrite hw2' wrepr0 wdwords_0. 
+          rewrite hw2' hw1 /= wdwords_0. 
           move: hw2' => /negbT -/(wsigned_quot_bound w1) -/negbTE -> /=.
           move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
           by exists s1'.
@@ -1155,7 +1166,7 @@ Axiom wunsigned_div_bound : forall sz (w1 w2: word sz),
         + apply /negbTE;apply /eqP => h;apply neq.
           apply (can_inj (@word.ureprK _)).
           by move:h; rewrite /wunsigned => -> ;symmetry;apply wunsigned0.
-        rewrite hw2' wrepr0 wdwordu_0. 
+        rewrite hw2' hw1 /= wdwordu_0. 
         move: hw2' => /negbT -/(wunsigned_div_bound w1) -/negbTE -> /=.
         move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
         by exists s1'.
@@ -1164,22 +1175,25 @@ Axiom wunsigned_div_bound : forall sz (w1 w2: word sz),
       + case: ifP => // /andP [] /andP [] hsz1 hsz2 /eqP ?;subst sz.
         rewrite /sem_pexprs /=; t_xrbindP => v1 hv1 v2 hv2.
         rewrite /sem_sop2 /= /mk_sem_divmod;t_xrbindP => /= w1 hw1 w2 hw2 w3 hw3 ?; subst v.
-        have [sz' [ ? hle ?]]:= truncate_val_word Hv';subst ty v';split => // s1 hs1 hl he.
-        have -> := sem_pexpr_same _ hs1 hv1; last first.
+        have [sz' [ ? hle ?]]:= truncate_val_word Hv';subst ty v';simpl in *; split => //.
+        exists v1, w1;split => //. 
+        move=> s1 hs1 hl he.
+        have -> /= := sem_pexpr_same _ hs1 hv1; last first.
         + move: he; rewrite /read_e /= /disj_fvars /lowering.disj_fvars !read_eE /disjoint.
           by rewrite /is_true !Sv.is_empty_spec;SvD.fsetdec.
-        have -> /=:= sem_pexpr_same _ hs1 hv2; last first.
+        split => //.
+        have -> /= := sem_pexpr_same _ hs1 hv2; last first.
         + move: he; rewrite /read_e /= /disj_fvars /lowering.disj_fvars !read_eE /disjoint.
           by rewrite /is_true !Sv.is_empty_spec;SvD.fsetdec.
         case: eqP hw3 => // neq []; simpl in * => {he}.
         case: u => /= ?; subst w3; 
-          rewrite truncate_word_u hw1 hw2 /= /x86_idiv /x86_div
-             /check_size_16_64 /= hsz1 hsz2 /=.
+          rewrite /= /x86_idiv /x86_div !truncate_word_u
+             /check_size_16_64 /= hsz1 hsz2 /= hw2 /=.
         + have hw2' : (wsigned w2 == 0%Z) = false.
           + apply /negbTE;apply /eqP => h;apply neq.
             apply (can_inj (@word.sreprK _)).
             by move:h;rewrite /wsigned => ->;symmetry;apply wsigned0.
-          rewrite hw2' wrepr0 wdwords_0. 
+          rewrite hw2' hw1 /= wdwords_0. 
           move: hw2' => /negbT -/(wsigned_quot_bound w1) -/negbTE -> /=.
           move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
           by exists s1'.
@@ -1187,7 +1201,7 @@ Axiom wunsigned_div_bound : forall sz (w1 w2: word sz),
         + apply /negbTE;apply /eqP => h;apply neq.
           apply (can_inj (@word.ureprK _)).
           by move:h; rewrite /wunsigned => -> ;symmetry;apply wunsigned0.
-        rewrite hw2' wrepr0 wdwordu_0. 
+        rewrite hw2' hw1 /= wdwordu_0. 
         move: hw2' => /negbT -/(wunsigned_div_bound w1) -/negbTE -> /=.
         move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
         by exists s1'.
@@ -1551,23 +1565,29 @@ Axiom wunsigned_div_bound : forall sz (w1 w2: word sz),
       rewrite -[X in check_size_16_64 X]Hsz Hsz64.
       by case: ifP => hb; rewrite hb in hw'; subst; rewrite /= /truncate_word hle /= Hw'.
     (* LowerDivMod *)
-    + move=> d w s p0 p1 /= [hdiv ? hle];subst ty.
+    + move=> d u w s p0 p1 /= [[va [wa [hva hwa hdiv]]] ? hle1 hle2];subst ty.
       set vf := {| v_var := _ |}.
+      set i1 := match u with Signed => _ | _ => _ end.
+      move: hdiv; set va0 := Vword (match u with Signed => _ | _ => _ end) => hdiv.
       have [s1'1 [hsem1 hget heq1]]: exists s1'1, 
-        [/\ sem_I p' gd s1'
-                (MkI ii  (Copn [:: Lvar vf]  tag (Ox86_MOV w) [:: Pcast w 0%Z])) s1'1, 
-            get_var (evm s1'1) (v_var vf) = ok (@Vword w 0%R) & 
+        [/\ sem_I p' gd s1' (MkI ii i1) s1'1, 
+            get_var (evm s1'1) (v_var vf) = ok va0 & 
             eq_exc_fresh s1'1 s1'].
-      + eexists; split.
-        + apply: EmkI; apply: Eopn.
-          by rewrite /sem_sopn /= truncate_word_u /= /x86_MOV /check_size_8_64 hle.
+      + rewrite /i1 /va0; case: (u); eexists; split.
+        + by apply: EmkI; rewrite /i1; apply: Eopn; rewrite /sem_sopn /= hva /= hwa /x86_cqo /= 
+              /check_size_16_64 hle1 hle2 /= sumbool_of_boolET;eauto.
+        + by rewrite /get_var Fv.setP_eq. 
+        + by split => //; apply vmap_eq_except_set; apply multiplicand_in_fv.
+        + by apply: EmkI;  apply: Eopn; rewrite /sem_sopn /= truncate_word_u /=
+               /x86_MOV /check_size_8_64 hle2 /=;eauto.
         + by rewrite /= sumbool_of_boolET /get_var /= Fv.setP_eq /= wrepr0.
         rewrite sumbool_of_boolET; split => //.  
         by apply vmap_eq_except_set; apply multiplicand_in_fv.
-      have [s3 [hsem heqe] {hdiv}]:= hdiv _ heq1 Hdisjl Hdisje; exists s3;split.
+      have [hwa1 [s3 [hsem heqe] {hdiv}]]:= hdiv _ heq1 Hdisjl Hdisje.
+      exists s3;split.
       + econstructor;first by eassumption.     
         by case: d hsem => hsem;apply sem_seq1;apply: EmkI; apply: Eopn;
-           move: hsem; rewrite /sem_sopn /= hget /= wrepr0.
+           move: hsem; rewrite /sem_sopn /= hget /= hwa1 /=; t_xrbindP => ? -> ? /= ->.
       apply: eq_exc_freshT heqe Hs2'.
     (* LowerAssgn *)
     move=> _.

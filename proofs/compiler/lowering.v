@@ -260,7 +260,7 @@ Variant lower_cassgn_t : Type :=
   | LowerEq   of wsize & pexpr & pexpr
   | LowerLt   of wsize & pexpr & pexpr
   | LowerIf   of pexpr & pexpr & pexpr
-  | LowerDivMod of divmod_pos & wsize & sopn & pexpr & pexpr 
+  | LowerDivMod of divmod_pos & signedness & wsize & sopn & pexpr & pexpr 
   | LowerAssgn.
 
 Context (is_var_in_memory : var_i → bool).
@@ -433,7 +433,7 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
         | Unsigned => Ox86_DIV sz
         | Signed   => Ox86_IDIV sz
         end in
-      k16 sz (LowerDivMod DM_Fst sz opn a b)
+      k16 sz (LowerDivMod DM_Fst u sz opn a b)
 
     | Omod (Cmp_w u sz) =>
        let opn := 
@@ -441,7 +441,7 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
         | Unsigned => Ox86_DIV sz
         | Signed   => Ox86_IDIV sz
         end in
-      k16 sz (LowerDivMod DM_Snd sz opn a b)
+      k16 sz (LowerDivMod DM_Snd u sz opn a b)
         
     | Oland sz =>
       if (sz ≤ U64)%CMP
@@ -527,6 +527,7 @@ Definition wsize_of_sopn (op: sopn) : wsize :=
   | Ox86_IMULtimm x
   | Ox86_DIV x
   | Ox86_IDIV x
+  | Ox86_CQO x 
   | Ox86_ADC x
   | Ox86_SBB x
   | Ox86_NEG x
@@ -644,15 +645,20 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
      let (l, e) := lower_condition vi e in
      let sz := wsize_of_lval x in
      map (MkI ii) (l ++ [:: Copn [:: x] tg (Ox86_CMOVcc sz) [:: e; e1; e2]])
-  | LowerDivMod p sz op a b =>
+  | LowerDivMod p s sz op a b =>
     let c := {| v_var := {| vtype := sword sz; vname := fresh_multiplicand fv sz |} ; v_info := vi |} in
     let lv := 
       match p with
       | DM_Fst => [:: f ; f ; f ; f ; f; x; Lnone vi (sword sz)]
       | DM_Snd => [:: f ; f ; f ; f ; f; Lnone vi (sword sz) ; x] 
       end in
-    [::MkI ii (Copn [:: Lvar c ] tg (Ox86_MOV sz) [:: Pcast sz (Pconst 0)]);
-       MkI ii (Copn lv tg op [::Pvar c; a; b]) ]
+    let i1 := 
+      match s with
+      | Signed => Copn [:: Lvar c ] tg (Ox86_CQO sz) [:: a]
+      | Unsigned => Copn [:: Lvar c ] tg (Ox86_MOV sz) [:: Pcast sz (Pconst 0)]
+      end in
+
+    [::MkI ii i1; MkI ii (Copn lv tg op [::Pvar c; a; b]) ]
     
   | LowerAssgn => [::  MkI ii (Cassgn x tg ty e)]
   end.

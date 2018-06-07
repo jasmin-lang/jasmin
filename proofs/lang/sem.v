@@ -630,6 +630,11 @@ Definition x86_idiv {sz} (hi lo dv: word sz) : exec values :=
 
   ok (rflags_of_div ++ [:: Vword (wrepr sz q); Vword (wrepr sz r)]).
 
+Definition x86_cqo {sz} (w:word sz) : exec values := 
+  Let _ := check_size_16_64 sz in
+  let r : word sz := (if msb w then -1 else 0)%R in
+  ok [::Vword r].
+  
 Definition add_carry sz (x y c: Z) : word sz :=
   wrepr sz (x + y + c).
 
@@ -960,6 +965,7 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_IMULtimm sz => app_ww sz x86_imult
   | Ox86_DIV sz => app_www sz x86_div
   | Ox86_IDIV sz => app_www sz x86_idiv
+  | Ox86_CQO sz => app_w sz x86_cqo
   | Ox86_ADC sz => app_wwb sz x86_adc
   | Ox86_SBB sz => app_wwb sz x86_sbb
   | Ox86_NEG sz => app_w sz x86_neg

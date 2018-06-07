@@ -334,9 +334,23 @@ Qed.
 
 Definition IDIV_desc sz := make_instr_desc (IDIV_gsc sz).
 
+
+(* ----------------------------------------------------------------------------- *)
+Lemma CQO_gsc sz :
+  gen_sem_correct [::] (Ox86_CQO sz) [:: R RDX] [:: R RAX] [::] (CQO sz).
+Proof.
+  rewrite /= /low_sem_aux /= /eval_CQO /x86_cqo; split => // gd m m'.
+   t_xrbindP => vs ? /truncate_wordP [ ? -> ] _ -> <- /= [<-].
+   eexists;split;reflexivity.
+Qed.
+
+Definition CQO_desc sz := make_instr_desc (CQO_gsc sz).
+
+(* ----------------------------------------------------------------------------- *)
 Lemma word_of_b2z sz b :
   Z.b2z b = @wunsigned sz (if b then 1%R else 0%R).
 Proof. by case: b. Qed.
+
 
 (* ----------------------------------------------------------------------------- *)
 Lemma ADC_gsc sz :
@@ -1228,6 +1242,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_IMULtimm sz => ok (IMULtimm_desc sz)
   | Ox86_DIV sz => ok (DIV_desc sz)
   | Ox86_IDIV sz => ok (IDIV_desc sz)
+  | Ox86_CQO sz => ok (CQO_desc sz)
   | Ox86_ADC sz => ok (ADC_desc sz)
   | Ox86_SBB sz => ok (SBB_desc sz)
   | Ox86_NEG sz => ok (NEG_desc sz)

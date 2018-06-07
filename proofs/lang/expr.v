@@ -107,6 +107,7 @@ Variant sopn : Set :=
 | Ox86_IMULtimm of wsize (* truncated multiplication by an immediate value *)
 | Ox86_DIV     of wsize  (* div unsigned *)
 | Ox86_IDIV    of wsize  (* div   signed *)
+| Ox86_CQO     of wsize  (* return 0 if the highest bit is 0 or -1 otherwise *)
 | Ox86_ADC     of wsize  (* add with carry *)
 | Ox86_SBB     of wsize  (* sub with borrow *)
 | Ox86_NEG     of wsize  (* negation *)
@@ -213,6 +214,7 @@ Definition string_of_sopn o : string :=
   | Ox86_IMULtimm sz => "Ox86_IMULtimm " ++ string_of_wsize sz
   | Ox86_DIV sz => "Ox86_DIV " ++ string_of_wsize sz
   | Ox86_IDIV sz => "Ox86_IDIV " ++ string_of_wsize sz
+  | Ox86_CQO sz => "Ox86_CQO " ++ string_of_wsize sz
   | Ox86_ADC sz => "Ox86_ADC " ++ string_of_wsize sz
   | Ox86_SBB sz => "Ox86_SBB " ++ string_of_wsize sz
   | Ox86_NEG sz => "Ox86_NEG " ++ string_of_wsize sz
@@ -276,6 +278,7 @@ Definition sopn_tout (o:sopn) :  list stype :=
   | Ox86_MOVZX sz _
   | Ox86_CMOVcc sz
   | Ox86_BSWAP sz
+  | Ox86_CQO sz  
     => w_ty sz
   | Ox86_MOVZX32 => [:: sword64 ]
   | Ox86_ADD sz | Ox86_SUB sz     => b5w_ty sz
@@ -326,6 +329,7 @@ Definition sopn_tin (o: sopn) : list stype :=
   | Ox86_DEC sz
   | Ox86_NOT sz
   | Ox86_BSWAP sz
+  | Ox86_CQO sz  
   | Ox86_MOVD sz
   | Ox86_VMOVDQU sz
     => [:: sword sz ]

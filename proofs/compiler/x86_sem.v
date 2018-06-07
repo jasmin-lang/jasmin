@@ -132,11 +132,11 @@ Variant asm : Type :=
                                            (* mul signed with truncation *)
 | DIV    of wsize & oprd                   (* div unsigned *)
 | IDIV   of wsize & oprd                   (* div   signed *)
-
+| CQO    of wsize                          (* CWD CDQ CQO: allows sign extention in many words *)
 | ADC    of wsize & oprd & oprd            (* add with carry *)
 | SBB    of wsize & oprd & oprd            (* sub with borrow *)
 
-| NEG	 of wsize & oprd	(* negation *)
+| NEG	 of wsize & oprd	           (* negation *)
 
 | INC    of wsize & oprd                   (* increment *)
 | DEC    of wsize & oprd                   (* decrement *)
@@ -852,6 +852,12 @@ Definition eval_IDIV sz o s : x86_result :=
 
   ok (mem_update_rflags rflags_of_div s).
 
+Definition eval_CQO sz s : x86_result := 
+  Let _ := check_size_16_64 sz in
+  let w := xreg s RAX in
+  let r : word sz := (if msb (zero_extend sz w) then -1 else 0)%R in
+  ok (mem_write_reg RDX r s).
+
 (* -------------------------------------------------------------------- *)
 Definition eval_ADC sz o1 o2 s : x86_result :=
   Let _  := check_size_8_64 sz in
@@ -1242,6 +1248,7 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | IMUL   sz o1 o2i   => eval_IMUL   sz o1 o2i s
   | DIV    sz o        => eval_DIV    sz o s
   | IDIV   sz o        => eval_IDIV   sz o s
+  | CQO    sz          => eval_CQO    sz s  
   | ADC    sz o1 o2    => eval_ADC    sz o1 o2 s
   | SBB    sz o1 o2    => eval_SBB    sz o1 o2 s
   | NEG    sz o        => eval_NEG    sz o s

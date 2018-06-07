@@ -415,6 +415,15 @@ let pp_instr name (i : X86_sem.asm) =
       let rs = rs_of_ws ws in
       `Instr (pp_iname rs "idiv", [pp_opr rs op])
 
+  | CQO ws ->
+    let name = 
+      match ws with
+      | LM.U16 -> "CWD"
+      | LM.U32 -> "CDQ" 
+      | LM.U64 -> "CQO"
+      | _ -> assert false in
+    `Instr (name, [])
+    
   | CMP (ws, op1, op2) ->
       let rs = rs_of_ws ws in
       `Instr (pp_iname rs "cmp", [pp_opr rs op2; pp_opr rs op1])
@@ -596,6 +605,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | DIV  _
   | IDIV _ ->
       List.fold_right Set.add [X86_sem.RAX; X86_sem.RDX] c
+  | CQO _ -> Set.add X86_sem.RDX c
 
 (* -------------------------------------------------------------------- *)
 let wregs_of_instrs (c : rset) (is : X86_sem.asm list) =

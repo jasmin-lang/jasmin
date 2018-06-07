@@ -52,6 +52,8 @@ let string_of_op2 = function
   | E.Oadd _ -> "+"
   | E.Omul _ -> "*"
   | E.Osub _ -> "-"
+  | E.Odiv k -> "/"  ^ string_of_cmp_ty k
+  | E.Omod k -> "%"  ^ string_of_cmp_ty k
 
   | E.Oland _ -> "&"
   | E.Olor _ -> "|"
@@ -161,6 +163,7 @@ let pp_opn =
   | Ox86_IMULtimm w -> f w "#x86_IMULtimm"
   | Ox86_DIV w -> f w "#x86_DIV"
   | Ox86_IDIV w -> f w "#x86_IDIV"
+  | Ox86_CQO w  -> f w "#x86_CQO"
   | Ox86_ADC w -> f w "#x86_ADC"
   | Ox86_SBB w -> f w "#x86_SBB"
   | Ox86_NEG w -> f w "#x86_NEG"

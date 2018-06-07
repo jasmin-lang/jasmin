@@ -430,6 +430,7 @@ Definition ssem_sopn (o:sopn) :  svalues -> exec svalues :=
   | Ox86_IMULtimm sz => sapp_ww sz  (w2 x86_imult)
   | Ox86_DIV sz      => sapp_www sz (w3 x86_div)
   | Ox86_IDIV sz     => sapp_www sz (w3 x86_idiv)
+  | Ox86_CQO sz      => sapp_w sz   (w1 x86_cqo)
   | Ox86_ADC sz      => sapp_wwb sz (w3 x86_adc)
   | Ox86_SBB sz      => sapp_wwb sz (w3 x86_sbb)
   | Ox86_NEG sz      => sapp_w sz   (w1 x86_neg)

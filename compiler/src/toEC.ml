@@ -74,11 +74,17 @@ let swap_op2 op e1 e2 =
   | E.Oge   _ -> e2, e1 
   | _         -> e1, e2
 
+let pp_signed fmt = function 
+  | E.Cmp_w (Signed, _) -> Format.fprintf fmt "s"
+  | _                 -> ()
+
 let pp_op2 fmt = function
   | E.Oand -> Format.fprintf fmt "/\\"
   | E.Oor ->  Format.fprintf fmt "\\/"
   | E.Oadd _ -> Format.fprintf fmt "+"
   | E.Omul _ -> Format.fprintf fmt "*"
+  | E.Odiv s -> Format.fprintf fmt "`/%a`" pp_signed s
+  | E.Omod s -> Format.fprintf fmt "`%%%a`" pp_signed s 
   | E.Osub  _ -> Format.fprintf fmt "-"
 
   | E.Oland _ -> Format.fprintf fmt "`&`"
@@ -90,12 +96,8 @@ let pp_op2 fmt = function
 
   | E.Oeq   _ -> Format.fprintf fmt "="
   | E.Oneq  _ -> Format.fprintf fmt "<>"
-  | E.Olt (Cmp_w(Signed,_)) | E.Ogt (Cmp_w(Signed,_)) -> 
-    Format.fprintf fmt "`<s`"
-  | E.Ole (Cmp_w(Signed,_)) | E.Oge (Cmp_w(Signed,_)) -> 
-    Format.fprintf fmt "`<=s`"
-  | E.Olt _ | E.Ogt _ -> Format.fprintf fmt "<"
-  | E.Ole _ | E.Oge _ -> Format.fprintf fmt "<="
+  | E.Olt s| E.Ogt s -> Format.fprintf fmt "`<%a`" pp_signed s
+  | E.Ole s | E.Oge s -> Format.fprintf fmt "`<=%a`" pp_signed s
 
 let in_ty_op1 op =
   fst (E.type_of_op1 op)

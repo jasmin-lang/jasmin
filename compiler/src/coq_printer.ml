@@ -76,6 +76,8 @@ let infix_sop2 = function
   | Oor  -> "||"
   | Oadd _ -> "+"
   | Omul _ -> "*"
+  | Odiv _ -> assert false
+  | Omod _ -> assert false
   | Osub _ -> "-"
 
   | Oland _ -> "&"
