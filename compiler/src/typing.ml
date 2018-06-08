@@ -359,7 +359,6 @@ let ws2_of_ty exn s ty op =
   ty, op (ws_of_ty exn ty)
 
 let op2_of_pop2 exn ty (op : S.peop2) =
-  (* TODO: use type annotation *)
   match op with
   | `Add s -> op2_of_ty exn s ty (fun x -> E.Oadd x)
   | `Sub s -> op2_of_ty exn s ty (fun x -> E.Osub x)
@@ -371,8 +370,9 @@ let op2_of_pop2 exn ty (op : S.peop2) =
   | `BAnd s -> ws2_of_ty exn s ty (fun x -> E.Oland x) 
   | `BOr s  -> ws2_of_ty exn s ty (fun x -> E.Olor x) 
   | `BXOr s -> ws2_of_ty exn s ty (fun x -> E.Olxor x) 
-  | `ShR s  -> ws2_of_ty exn s ty (fun x -> E.Olsr x) 
-  | `ShL s  -> ws2_of_ty exn s ty (fun x -> E.Olsl x) 
+  | `ShR (Some (`Signed, _) as s) -> ws2_of_ty exn s ty (fun x -> E.Oasr x)
+  | `ShR s -> ws2_of_ty exn s ty (fun x -> E.Olsr x)
+  | `ShL s  -> ws2_of_ty exn s ty (fun x -> E.Olsl x)
   | `Eq s   -> op2_of_ty exn s ty (fun x -> E.Oeq x)
   | `Neq s  -> op2_of_ty exn s ty (fun x -> E.Oneq x)
   | `Lt s -> cmp2_of_ty exn s ty (fun x -> E.Olt x)

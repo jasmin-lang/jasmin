@@ -1,0 +1,23 @@
+export
+fn opsize_test(reg u64 x) -> reg u8 {
+reg u32 y;
+reg u16 z;
+reg u8 r;
+
+y = x; // implicit cast to 32 bits
+y = y + x; // 32 bits addition, x is implicitly truncated
+
+y = x if y < 0; // 32 bits, unsigned
+
+x >>= 32; // 64 bits, unsigned
+
+x >>s= 8; // 64 bits, signed
+
+r = x; // implicit truncation of x to 8 bits
+
+r >> 8u = 1; // 8 bits, unsigned
+
+r ^= y; // 8 bits
+
+return r;
+}
