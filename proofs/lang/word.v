@@ -222,17 +222,22 @@ Definition wmax_unsigned sz := wbase sz - 1.
 Definition wmin_signed (sz: wsize) : Z := - modulus (wsize_size_minus_1 sz).
 Definition wmax_signed (sz: wsize) : Z := modulus (wsize_size_minus_1 sz) - 1.
 
+Section wsigned_range.
+Local Arguments Z.add: simpl never.
+Local Arguments Z.sub: simpl never.
+Local Arguments Z.opp: simpl never.
+
 Lemma wsigned_range sz (p: word sz) :
   wmin_signed sz <= wsigned p <= wmax_signed sz.
 Proof.
-  Opaque Z.add Z.opp Z.sub.
   have := wunsigned_range p; rewrite /wunsigned.
   rewrite /wsigned sreprE; case: ltzP => /=; rewrite /wmin_signed /wmax_signed.
   + lia.
   rewrite /GRing.add /GRing.opp /= /wbase /modulus two_power_nat_S.
   lia.
-  Transparent Z.add Z.opp Z.sub.
 Qed.
+
+End wsigned_range.
 
 Notation u8   := (word U8).
 Notation u16  := (word U16).
