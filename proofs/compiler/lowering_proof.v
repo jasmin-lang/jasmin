@@ -913,9 +913,17 @@ Axiom wsigned_quot_bound : forall sz (w1 w2:word sz),
   ~~((wsigned w1 ÷ wsigned w2 <? wmin_signed sz)%Z || 
      (wsigned w1 ÷ wsigned w2 >? wmax_signed sz)%Z).
 
-Axiom wunsigned_div_bound : forall sz (w1 w2: word sz),
-  wunsigned w2 != 0%Z ->
-  ~~(wunsigned w1 / wunsigned w2 >? wmax_unsigned sz)%Z.
+  Lemma wunsigned_div_bound sz (w1 w2: word sz) :
+    wunsigned w2 != 0%Z ->
+    ~~(wunsigned w1 / wunsigned w2 >? wmax_unsigned sz)%Z.
+  Proof.
+  have ? := wunsigned_range w2.
+  move/eqP => hnz.
+  rewrite Z.gtb_ltb -Z.leb_antisym; apply/leZP.
+  rewrite /wmax_unsigned.
+  have := wunsigned_range w1.
+  elim_div; nia.
+  Qed.
 
   Lemma lower_cassgn_classifyP e l s s' v ty v' (Hs: sem_pexpr gd s e = ok v)
       (Hv': truncate_val ty v = ok v')
