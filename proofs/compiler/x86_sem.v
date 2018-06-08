@@ -183,6 +183,7 @@ Variant asm : Type :=
 | VPXOR `(wsize) (_ _ _: rm128)
 | VPADD `(velem) `(wsize) (_ _ _: rm128)
 | VPMULU `(wsize) (_ _: xmm_register) `(rm128)
+| VPEXTR of velem & wsize & oprd & xmm_register & u8
 | VPSLL `(velem) `(wsize) (_ _: rm128) `(u8)
 | VPSRL `(velem) `(wsize) (_ _: rm128) `(u8)
 | VPSLLV `(velem) `(wsize) (_ _: xmm_register) `(rm128)
@@ -1166,6 +1167,15 @@ Definition eval_VPMULU sz := eval_xmm_binop sz (@wpmulu _).
 Definition eval_VPANDN sz := eval_xmm_binop sz (@wandn _).
 
 (* -------------------------------------------------------------------- *)
+Definition eval_VPEXTR (ve: velem) sz (dst: oprd) (src: xmm_register) (i: u8) s : x86_result :=
+  Let _ := check_size_128_256 sz in
+  let v := zero_extend sz (xxreg s src) in
+  let n := nth (0%R: word ve) (split_vec ve v) (Z.to_nat (wunsigned i)) in
+  if dst is Reg_op r
+  then ok (mem_write_reg r (zero_extend U64 n) s)
+  else write_oprd dst n s.
+
+(* -------------------------------------------------------------------- *)
 Definition eval_rm128_shift f ve sz op (dst src1: rm128) (v2: u8) s : x86_result :=
   Let _ := check_size_16_64 ve in
   Let v1 := read_rm128 sz src1 s in
@@ -1282,6 +1292,7 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | VPXOR sz dst src1 src2 => eval_VPXOR sz dst src1 src2 s
   | VPADD ve sz dst src1 src2 => eval_VPADD ve sz dst src1 src2 s
   | VPMULU sz dst src1 src2 => eval_VPMULU sz dst src1 src2 s
+  | VPEXTR ve sz dst src i => eval_VPEXTR ve sz dst src i s
   | VPSLL ve sz dst src1 src2 => eval_VPSLL ve sz dst src1 src2 s
   | VPSRL ve sz dst src1 src2 => eval_VPSRL ve sz dst src1 src2 s
   | VPSLLV ve sz dst src1 src2 => eval_VPSLLV ve sz dst src1 src2 s
