@@ -74,11 +74,11 @@ axiom of32_or x0 x1 x2 x3 y0 y1 y2 y3 :
   of32 (x0 `|` y0) (x1 `|` y1) (x2 `|` y2) (x3 `|` y3).
 
 axiom shuffle4_u32_2301 x0 x1 x2 x3 : 
-  shuffle4_u32 (of32 x0 x1 x2 x3) (shuffle 2 3 0 1) = 
+  shuffle4_u32 (of32 x0 x1 x2 x3) 177 (*shuffle 2 3 0 1*) = 
   of32 x1 x0 x3 x2.
 
 axiom shuffle4_u32_1032 x0 x1 x2 x3 : 
-  shuffle4_u32 (of32 x0 x1 x2 x3) (shuffle 1 0 3 2) = 
+  shuffle4_u32 (of32 x0 x1 x2 x3) 78 (*shuffle 1 0 3 2*) = 
   of32 x2 x3 x0 x1.
 
 end U128. import U128.
@@ -342,16 +342,6 @@ proof.
     wp;skip => &m1 &m2 [#] hx hy hz hround gt0round _. 
     cbv delta.
     by rewrite -!(hx, hy, hz, hround) /=.
-  seq 1 1 : (#[/0:4]pre).
-  + if => //.
-    wp; skip => &m1 &m2 [#] 4!<- _ _ _ _.
-    by cbv delta; rewrite shuffle4_u32_2301.
-  seq 1 1 : (#pre).
-  + if => //.
-    wp; skip => &m1 &m2 [#] 4!<- _.
-    by cbv delta; rewrite shuffle4_u32_1032.
-  if => //;last by auto.
-  wp; skip => &m1 &m2 [#] 4!<- _.
-  by cbv delta.
+  wp;skip => &m1 &m2 [#] 4!<- _ _ _. cbv delta => />.
 qed.
 
