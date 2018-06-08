@@ -17,6 +17,10 @@ let pp_var_i tbl fmt vi =
   let vi = Conv.vari_of_cvari tbl vi in
   Printer.pp_var ~debug:true fmt (Prog.L.unloc vi)
 
+let pp_clval tbl fmt lv =
+  Conv.lval_of_clval tbl lv |>
+  Printer.(pp_glv (pp_var ~debug:true)) fmt
+
 let rec pp_comp_err tbl fmt =
   let open Printer in
   function
@@ -49,9 +53,9 @@ let rec pp_comp_err tbl fmt =
   | Compiler_util.Cerr_neqexpr(_,_,s) ->
     Format.fprintf fmt "expression not equal in %a"
       pp_string0 s
-  | Compiler_util.Cerr_neqlval(_,_,s) ->
-    Format.fprintf fmt "lval not equal in %a"
-      pp_string0 s
+  | Compiler_util.Cerr_neqlval(lv1, lv2, s) ->
+    Format.fprintf fmt "lval not equal in %a: %a and %a"
+      pp_string0 s (pp_clval tbl) lv1 (pp_clval tbl) lv2
   | Compiler_util.Cerr_neqfun(_,_,s) ->
     Format.fprintf fmt "funname not equal in %a"
        pp_string0 s

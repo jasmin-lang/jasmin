@@ -103,7 +103,7 @@ let pp_ge pp_var =
 
 (* -------------------------------------------------------------------- *)
 let pp_glv pp_var fmt = function
-  | Lnone _ -> F.fprintf fmt "_"
+  | Lnone (_, ty) -> F.fprintf fmt "_{%a}" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
   | Lvar x  -> pp_gvar_i pp_var fmt x
   | Lmem (ws, x, e) ->
     F.fprintf fmt "@[store %a@ %a@ %a@]"
