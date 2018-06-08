@@ -345,13 +345,13 @@ proof.
   seq 1 1 : (#[/0:4]pre).
   + if => //.
     wp; skip => &m1 &m2 [#] 4!<- _ _ _ _.
-    by cbv delta => /=; rewrite shuffle4_u32_2301.
+    by cbv delta; rewrite shuffle4_u32_2301.
   seq 1 1 : (#pre).
   + if => //.
     wp; skip => &m1 &m2 [#] 4!<- _.
-    by cbv delta => /=; rewrite shuffle4_u32_1032.
+    by cbv delta; rewrite shuffle4_u32_1032.
   if => //;last by auto.
   wp; skip => &m1 &m2 [#] 4!<- _.
-  by cbv delta => /=.
+  by cbv delta.
 qed.
 
