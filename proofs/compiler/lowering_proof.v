@@ -908,7 +908,6 @@ Section PROOF.
     by case: andP => // - [] /andP [] ? _ _ [<-].
   Qed.
 
-Axiom wunsigned0 : ∀ (sz : wsize), @wunsigned sz 0%R = 0%Z.
 Axiom wdwords_0 : forall sz (w:word sz), wdwords (if msb w then (-1)%R else 0%R) w = wsigned w.
 Axiom wdwordu_0 : forall sz (w:word sz), wdwordu 0 w = wunsigned w.
 
@@ -1163,10 +1162,8 @@ Axiom wunsigned_div_bound : forall sz (w1 w2: word sz),
           move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
           by exists s1'.
         have hw2' : (wunsigned w2 == 0%Z) = false.
-        + apply /negbTE;apply /eqP => h;apply neq.
-          apply (can_inj (@word.ureprK _)).
-          by move:h; rewrite /wunsigned => -> ;symmetry;apply wunsigned0.
-        rewrite hw2' hw1 /= wdwordu_0. 
+        + by apply /negbTE; apply /eqP => h; apply neq, wunsigned_inj.
+        rewrite hw2' hw1 /= wdwordu_0.
         move: hw2' => /negbT -/(wunsigned_div_bound w1) -/negbTE -> /=.
         move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
         by exists s1'.
@@ -1198,10 +1195,8 @@ Axiom wunsigned_div_bound : forall sz (w1 w2: word sz),
           move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
           by exists s1'.
         have hw2' : (wunsigned w2 == 0%Z) = false.
-        + apply /negbTE;apply /eqP => h;apply neq.
-          apply (can_inj (@word.ureprK _)).
-          by move:h; rewrite /wunsigned => -> ;symmetry;apply wunsigned0.
-        rewrite hw2' hw1 /= wdwordu_0. 
+        + by apply /negbTE; apply /eqP => h; apply neq, wunsigned_inj.
+        rewrite hw2' hw1 /= wdwordu_0.
         move: hw2' => /negbT -/(wunsigned_div_bound w1) -/negbTE -> /=.
         move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
         by exists s1'.
