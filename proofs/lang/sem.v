@@ -240,8 +240,8 @@ Definition signed {A:Type} (fu fs:A) s :=
   | Signed => fs
   end.
 
-Definition mk_sem_divmod sz (o:word sz -> word sz -> word sz) w1 w2 :=
-  if w2 == 0%R then type_error
+Definition mk_sem_divmod sz o (w1 w2: word sz) : exec (word sz) :=
+  if ((w2 == 0) || ((wsigned w1 == wmin_signed sz) && (w2 == -1)))%R then type_error
   else ok (o w1 w2).
 
 Definition mk_sem_sop2 (t1 t2 t3: Type) (o:t1 -> t2 -> t3) v1 v2 : exec t3 := 

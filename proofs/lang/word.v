@@ -222,6 +222,18 @@ Definition wmax_unsigned sz := wbase sz - 1.
 Definition wmin_signed (sz: wsize) : Z := - modulus (wsize_size_minus_1 sz).
 Definition wmax_signed (sz: wsize) : Z := modulus (wsize_size_minus_1 sz) - 1.
 
+Lemma wsigned_range sz (p: word sz) :
+  wmin_signed sz <= wsigned p <= wmax_signed sz.
+Proof.
+  Opaque Z.add Z.opp Z.sub.
+  have := wunsigned_range p; rewrite /wunsigned.
+  rewrite /wsigned sreprE; case: ltzP => /=; rewrite /wmin_signed /wmax_signed.
+  + lia.
+  rewrite /GRing.add /GRing.opp /= /wbase /modulus two_power_nat_S.
+  lia.
+  Transparent Z.add Z.opp Z.sub.
+Qed.
+
 Notation u8   := (word U8).
 Notation u16  := (word U16).
 Notation u32  := (word U32).
@@ -478,7 +490,7 @@ Proof. by case: sz. Qed.
 Lemma wsigned1 sz : @wsigned sz 1%R = 1%Z.
 Proof. by case: sz. Qed.
 
-Lemma wsignedN1 sz : @wsigned sz (-1)%R = -1%Z.
+Lemma wsignedN1 sz : @wsigned sz (-1)%R = (-1)%Z.
 Proof. by case: sz. Qed.
 
 Lemma sign_extend0 sz sz' :
@@ -592,7 +604,7 @@ Proof. done. Qed.
 Lemma wdwords0 sz (w:word sz) :
   wdwords (if msb w then (-1)%R else 0%R) w = wsigned w.
 Proof.
-  rewrite wsignedE /wdwords; case: msb; rewrite ?wsigned0 ?wsignedN1; wring.
+  rewrite wsignedE /wdwords; case: msb; rewrite ?wsigned0 ?wsignedN1; ring.
 Qed.
 
 (* -------------------------------------------------------------------*)

@@ -908,10 +908,32 @@ Section PROOF.
     by case: andP => // - [] /andP [] ? _ _ [<-].
   Qed.
 
-Axiom wsigned_quot_bound : forall sz (w1 w2:word sz),
-  wsigned w2 != 0%Z ->
-  ~~((wsigned w1 ÷ wsigned w2 <? wmin_signed sz)%Z || 
-     (wsigned w1 ÷ wsigned w2 >? wmax_signed sz)%Z).
+  Lemma zquot_bound m x y :
+    (y ≠ 0 → x ≠ -m ∨ y ≠ -1 → -m <= x <= m - 1 → -m <= y <= m - 1 → -m <= x ÷ y <= m - 1)%Z.
+  Proof.
+    move => hnz hn1 hx hy.
+    move: (x ÷ y)%Z (Z.quot_div x y hnz) => z.
+    elim_div => - []; first lia.
+    move => h []; last lia.
+    nia.
+  Qed.
+
+  Lemma wsigned_quot_bound sz (w1 w2:word sz) :
+    w2 ≠ 0%R →
+    (wsigned w1 == wmin_signed sz) && (w2 == (-1)%R) = false →
+    [|| wsigned w2 == 0%Z, (wsigned w1 ÷ wsigned w2 <? wmin_signed sz)%Z
+    | (wsigned w1 ÷ wsigned w2 >? wmax_signed sz)%Z] = false.
+  Proof.
+    move => hnz hn1.
+    case: eqP.
+    + by rewrite -(@wsigned0 sz) => /(can_inj (@word.sreprK _)).
+    move => hnz' /=.
+    apply: negbTE; rewrite negb_or; apply/andP.
+    rewrite Z.gtb_ltb -!Z.leb_antisym -!(rwP lezP).
+    apply: zquot_bound => //; try exact: wsigned_range.
+    case /Bool.andb_false_elim: hn1 => /eqP h; [ left | right ] => //.
+    by rewrite -(@wsignedN1 sz) => /(can_inj (@word.sreprK _)).
+  Qed.
 
   Lemma wunsigned_div_bound sz (w1 w2: word sz) :
     wunsigned w2 != 0%Z ->
@@ -1154,16 +1176,12 @@ Axiom wsigned_quot_bound : forall sz (w1 w2:word sz),
         have -> /= := sem_pexpr_same _ hs1 hv2; last first.
         + move: he; rewrite /read_e /= /disj_fvars /lowering.disj_fvars !read_eE /disjoint.
           by rewrite /is_true !Sv.is_empty_spec;SvD.fsetdec.
-        case: eqP hw3 => // neq []; simpl in * => {he}.
-        case: u => /= ?; subst w3; 
+        case: ifP hw3 => // hdiv []; simpl in * => {he}.
+        case/Bool.orb_false_elim: hdiv => /eqP neq hdiv.
+        case: u => /= ?; subst w3;
           rewrite /= /x86_idiv /x86_div !truncate_word_u
              /check_size_16_64 /= hsz1 hsz2 /= hw2 /=.
-        + have hw2' : (wsigned w2 == 0%Z) = false.
-          + apply /negbTE;apply /eqP => h;apply neq.
-            apply (can_inj (@word.sreprK _)).
-            by move:h;rewrite /wsigned => ->;symmetry;apply wsigned0.
-          rewrite hw2' hw1 /= wdwords0.
-          move: hw2' => /negbT -/(wsigned_quot_bound w1) -/negbTE -> /=.
+        + rewrite hw1 /= wdwords0 (wsigned_quot_bound neq hdiv) /=.
           move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
           by exists s1'.
         have hw2' : (wunsigned w2 == 0%Z) = false.
@@ -1187,16 +1205,12 @@ Axiom wsigned_quot_bound : forall sz (w1 w2:word sz),
         have -> /= := sem_pexpr_same _ hs1 hv2; last first.
         + move: he; rewrite /read_e /= /disj_fvars /lowering.disj_fvars !read_eE /disjoint.
           by rewrite /is_true !Sv.is_empty_spec;SvD.fsetdec.
-        case: eqP hw3 => // neq []; simpl in * => {he}.
-        case: u => /= ?; subst w3; 
+        case: ifP hw3 => // hdiv []; simpl in * => {he}.
+        case/Bool.orb_false_elim: hdiv => /eqP neq hdiv.
+        case: u => /= ?; subst w3;
           rewrite /= /x86_idiv /x86_div !truncate_word_u
              /check_size_16_64 /= hsz1 hsz2 /= hw2 /=.
-        + have hw2' : (wsigned w2 == 0%Z) = false.
-          + apply /negbTE;apply /eqP => h;apply neq.
-            apply (can_inj (@word.sreprK _)).
-            by move:h;rewrite /wsigned => ->;symmetry;apply wsigned0.
-          rewrite hw2' hw1 /= wdwords0.
-          move: hw2' => /negbT -/(wsigned_quot_bound w1) -/negbTE -> /=.
+        + rewrite hw1 /= wdwords0 (wsigned_quot_bound neq hdiv) /=.
           move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
           by exists s1'.
         have hw2' : (wunsigned w2 == 0%Z) = false.

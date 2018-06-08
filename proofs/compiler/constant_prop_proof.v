@@ -478,10 +478,10 @@ Proof.
   case:eqP => // neq s v.
   rewrite /= /sem_sop2 /= /mk_sem_divmod.
   t_xrbindP => v1 k1 v2 k2 w1' /of_val_word [sz1] [w1] [hle1 ? ?]
-                  w2' /of_val_word [sz2] [w2] [hle2 ? ?];subst.
+                  w2' /of_val_word [sz2] [w2] [hle2 ? ?] ?; subst.
   have := is_wconstP gd s h1; rewrite k1 /= /truncate_word hle1 => -[?]; subst.
   have := is_wconstP gd s h2; rewrite k2 /= /truncate_word hle2 => -[?]; subst.
-  case:eqP => // hne' ? [] ??;subst. 
+  case: ifP => // _ [?] ?; subst.
   eexists; split; first reflexivity.
   by rewrite wrepr_unsigned;case: u.
 Qed.
@@ -498,10 +498,10 @@ Proof.
   case:eqP => // neq s v.
    rewrite /= /sem_sop2 /= /mk_sem_divmod.
   t_xrbindP => v1 k1 v2 k2 w1' /of_val_word [sz1] [w1] [hle1 ? ?]
-                  w2' /of_val_word [sz2] [w2] [hle2 ? ?];subst.
+                  w2' /of_val_word [sz2] [w2] [hle2 ? ?] ?; subst.
   have := is_wconstP gd s h1; rewrite k1 /= /truncate_word hle1 => -[?]; subst.
   have := is_wconstP gd s h2; rewrite k2 /= /truncate_word hle2 => -[?]; subst.
-  case:eqP => // hne' ?[] ??;subst.
+  case: ifP => // _ [?] ?; subst.
   eexists; split; first reflexivity.
   by rewrite wrepr_unsigned;case: u.
 Qed.
