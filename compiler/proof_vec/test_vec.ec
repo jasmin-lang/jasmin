@@ -324,24 +324,13 @@ equiv ref1_vec1 : Gimli_ref1.gimli ~ Gimli_vec1.gimli :
 proof.
   proc; inline * => /=.
   while (#pre /\ ={round}); last by auto.
-  seq 2 19: (#pre /\ ={round}).
-  + unroll{1} 2; rcondt{1} 2; first by auto.
-    unroll{1} 15; rcondt{1} 15; first by auto.
-    unroll{1} 28; rcondt{1} 28.
-    + move=> &m.
-      seq 14: (column = 1); by auto.
-    unroll{1} 41; rcondt{1} 41.
-    + move=> &m.
-      seq 14: (column = 1); first by auto.
-      by seq 13: (column = 2); auto.
-    rcondf{1} 54.
-    + move=> &m.
-      seq 14: (column = 1); first by auto.
-      seq 13: (column = 2); first by auto.
-      by seq 13: (column = 3); auto.
-    wp;skip => &m1 &m2 [#] hx hy hz hround gt0round _. 
-    cbv delta.
-    by rewrite -!(hx, hy, hz, hround) /=.
-  wp;skip => &m1 &m2 [#] 4!<- _ _ _. cbv delta => />.
+  unroll{1} 2; rcondt{1} 2; first by auto.
+  unroll{1} 15; rcondt{1} 15; first by auto.
+  unroll{1} 28; rcondt{1} 28; first by auto.
+  unroll{1} 41; rcondt{1} 41; first by auto.
+  rcondf{1} 54; first by auto.
+  wp;skip => &m1 &m2 [#]. cbv delta.
+  move=> 4!<- _ _. cbv delta => />.
 qed.
+
 
