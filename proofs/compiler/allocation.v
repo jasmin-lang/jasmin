@@ -1229,9 +1229,9 @@ Module CBAreg.
     let err _ := cerror (Cerr_neqlval x1 x2 salloc) in
     match x1, x2 with
     | Lnone  _ t1, Lnone _ t2  => 
-      if t1 == t2 then cok m else err tt
+      if subtype t1 t2 then cok m else err tt
     | Lnone  _ t1, Lvar x      => 
-      if t1 == x.(v_var).(vtype) then
+      if subtype t1 x.(v_var).(vtype) then
         cok (M.remove m x.(v_var))
       else err tt
     | Lvar x1    , Lvar x2     => 
@@ -1502,16 +1502,19 @@ Module CBAreg.
       eq_alloc r1' s1'.(evm) vm1'.
   Proof.
     case: x1 x2 => /= [ii1 t1 | x1 | sz1 x1 p1 | x1 p1] [ii2 t2 | x2 | sz2 x2 p2 | x2 p2] //=.
-    + case:ifP => //= /eqP <- [] <- ? Hv _ H.
+    + case:ifP => //= hs [] <- ? Hv _ H.
       have [-> _]:= write_noneP H.
-      by rewrite (uincl_write_none _ Hv H);exists vm1.
-    + case:ifP => //= /eqP -> [] <- Heqa Hu Happ H.
+      by rewrite (uincl_write_none_subtype _ hs Hv H);exists vm1.
+    + case:ifP => //= hs [] <- Heqa Hu Happ H.
       have [-> ]:= write_noneP H.
       rewrite /write_var /set_var => -[ [u]| ].
-      + move=> /(pof_val_uincl Hu) [z' [-> ?]] /=.
+      + move=> /(subtype_pof_val_ok hs) [v3] [].
+        move=> /(pof_val_uincl Hu) [z' [-> ?]] /= ?.
         eexists; split; eauto; apply eq_alloc_rm => //.
         by apply eval_uincl_undef.
-      move=> [] /pof_val_error [t' []] hsub ? hnw;subst v1.
+      move=> [] /(pof_val_error_subtype hs) hof.
+      rewrite (is_sword_subtype hs) => hnw.
+      have [t' [hsub ?]] := pof_val_error hof;subst v1.
       have := @pof_val_type_of (vtype x2) v2.
       move: Hu => /= <- [|[v2' ->]|->] /=.
       + by apply subtype_vundef_type_eq.

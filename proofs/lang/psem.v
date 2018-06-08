@@ -1776,19 +1776,50 @@ Proof.
     by rewrite -(vundef_type_is_sword htof) -(vundef_type_is_sword hle).
   by subst;apply pof_val_type_of_val.  
 Qed.
-  
-Lemma uincl_write_none s2 v1 v2 s s' t :
-  value_uincl v1 v2 ->
-  write_none s t v1 = ok s' ->
-  write_none s2 t v2 = ok s2.
+
+Lemma pof_val_error_subtype t1 t2 v: 
+  subtype t1 t2 ->
+  pof_val t1 v = undef_error ->
+  pof_val t2 v = undef_error.
 Proof.
-  move=> Hv /write_noneP [_] H;rewrite /write_none.
+  case: t1 => /=.
+  + by move=> /eqP ?;subst. 
+  + by move=> /eqP ?;subst. 
+  + by move=> ?? /eqP ?;subst.
+  move=> w;case: t2 => //= w' hle.
+  by rewrite /to_pword; case: v => // -[].
+Qed.
+  
+Lemma is_sword_subtype t1 t2 : subtype t1 t2 -> is_sword t1 = is_sword t2. 
+Proof.
+  case: (t1) => //=.
+  + by move=> /eqP ?;subst.
+  + by move=> /eqP ?;subst.
+  + by move=> ?? /eqP ?;subst.
+  by move=> w; case: t2.
+Qed.
+
+Lemma uincl_write_none_subtype s2 v1 v2 s s' t1 t2 :
+  subtype t1 t2 ->
+  value_uincl v1 v2 ->
+  write_none s t1 v1 = ok s' ->
+  write_none s2 t2 v2 = ok s2.
+Proof.
+  move=> Hs Hv /write_noneP [_] H;rewrite /write_none.
   case:H.
-  + by move=> [u] /(pof_val_uincl Hv) [u' [-> _]].
-  move=> [] hof hw.
+  + move=> [u] /(subtype_pof_val_ok Hs) [v3 [h1 h2]].
+    by have [v4 [-> _]] := pof_val_uincl Hv h1.
+  move=> [] /(pof_val_error_subtype Hs) hof.
+  rewrite (is_sword_subtype Hs) => hw.
   have [ [w] -> // | -> ] /=:= pof_val_uincl_error hw hof Hv.
   by rewrite (negbTE hw).
 Qed.
+
+Lemma uincl_write_none s2 v1 v2 s s' t:
+  value_uincl v1 v2 ->
+  write_none s t v1 = ok s' ->
+  write_none s2 t v2 = ok s2.
+Proof. apply: uincl_write_none_subtype; apply: subtype_refl. Qed.
 
 Lemma write_uincl gd s1 s2 vm1 r v1 v2:
   vm_uincl s1.(evm) vm1 ->
