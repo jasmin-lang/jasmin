@@ -346,6 +346,11 @@ Definition wrol sz (w:word sz) (z:Z) :=
   wor (wshl w i) (wshr w (wsize_bits sz - i)).
 
 (* -------------------------------------------------------------------*)
+Lemma wsignedE sz (w: word sz) :
+  wsigned w = if msb w then wunsigned w - wbase sz else wunsigned w.
+Proof. done. Qed.
+
+(* -------------------------------------------------------------------*)
 Lemma msb0 sz : @msb sz 0 = false.
 Proof. by case: sz. Qed.
 
@@ -473,6 +478,9 @@ Proof. by case: sz. Qed.
 Lemma wsigned1 sz : @wsigned sz 1%R = 1%Z.
 Proof. by case: sz. Qed.
 
+Lemma wsignedN1 sz : @wsigned sz (-1)%R = -1%Z.
+Proof. by case: sz. Qed.
+
 Lemma sign_extend0 sz sz' :
   @sign_extend sz sz' 0%R = 0%R.
 Proof. by rewrite /sign_extend wsigned0 wrepr0. Qed.
@@ -576,6 +584,16 @@ Qed.
 (* -------------------------------------------------------------------*)
 Ltac wring := 
   rewrite ?zero_extend_u; ssrring.ssring.
+
+(* -------------------------------------------------------------------*)
+Lemma wdwordu0 sz (w:word sz) : wdwordu 0 w = wunsigned w.
+Proof. done. Qed.
+
+Lemma wdwords0 sz (w:word sz) :
+  wdwords (if msb w then (-1)%R else 0%R) w = wsigned w.
+Proof.
+  rewrite wsignedE /wdwords; case: msb; rewrite ?wsigned0 ?wsignedN1; wring.
+Qed.
 
 (* -------------------------------------------------------------------*)
 Definition check_scale (s:Z) :=

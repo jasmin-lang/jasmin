@@ -908,10 +908,7 @@ Section PROOF.
     by case: andP => // - [] /andP [] ? _ _ [<-].
   Qed.
 
-Axiom wdwords_0 : forall sz (w:word sz), wdwords (if msb w then (-1)%R else 0%R) w = wsigned w.
-Axiom wdwordu_0 : forall sz (w:word sz), wdwordu 0 w = wunsigned w.
-
-Axiom wsigned_quot_bound : forall sz (w1 w2:word sz),  
+Axiom wsigned_quot_bound : forall sz (w1 w2:word sz),
   wsigned w2 != 0%Z ->
   ~~((wsigned w1 ÷ wsigned w2 <? wmin_signed sz)%Z || 
      (wsigned w1 ÷ wsigned w2 >? wmax_signed sz)%Z).
@@ -1157,13 +1154,13 @@ Axiom wunsigned_div_bound : forall sz (w1 w2: word sz),
           + apply /negbTE;apply /eqP => h;apply neq.
             apply (can_inj (@word.sreprK _)).
             by move:h;rewrite /wsigned => ->;symmetry;apply wsigned0.
-          rewrite hw2' hw1 /= wdwords_0. 
+          rewrite hw2' hw1 /= wdwords0.
           move: hw2' => /negbT -/(wsigned_quot_bound w1) -/negbTE -> /=.
           move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
           by exists s1'.
         have hw2' : (wunsigned w2 == 0%Z) = false.
         + by apply /negbTE; apply /eqP => h; apply neq, wunsigned_inj.
-        rewrite hw2' hw1 /= wdwordu_0.
+        rewrite hw2' hw1 /= wdwordu0.
         move: hw2' => /negbT -/(wunsigned_div_bound w1) -/negbTE -> /=.
         move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
         by exists s1'.
@@ -1190,13 +1187,13 @@ Axiom wunsigned_div_bound : forall sz (w1 w2: word sz),
           + apply /negbTE;apply /eqP => h;apply neq.
             apply (can_inj (@word.sreprK _)).
             by move:h;rewrite /wsigned => ->;symmetry;apply wsigned0.
-          rewrite hw2' hw1 /= wdwords_0. 
+          rewrite hw2' hw1 /= wdwords0.
           move: hw2' => /negbT -/(wsigned_quot_bound w1) -/negbTE -> /=.
           move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
           by exists s1'.
         have hw2' : (wunsigned w2 == 0%Z) = false.
         + by apply /negbTE; apply /eqP => h; apply neq, wunsigned_inj.
-        rewrite hw2' hw1 /= wdwordu_0.
+        rewrite hw2' hw1 /= wdwordu0.
         move: hw2' => /negbT -/(wunsigned_div_bound w1) -/negbTE -> /=.
         move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
         by exists s1'.
