@@ -120,15 +120,6 @@ let rsize_of_wsize (ws : LM.wsize) =
   | U64 -> `U64
   | _   -> raise (InvalidRegSize ws)
 
-
-(* -------------------------------------------------------------------- *)
-let wsize_of_rsize (ws : rsize) =
-  match ws with
-  | `U8  -> LM.U8
-  | `U16 -> LM.U16
-  | `U32 -> LM.U32
-  | `U64 -> LM.U64
-
 (* -------------------------------------------------------------------- *)
 let pp_instr_rsize (rs : rsize) =
   match rs with
@@ -308,6 +299,14 @@ let pp_viname ?(long = false) (ve: LM.velem) (name: string) =
   Printf.sprintf "%s%s" name ((if long then pp_instr_velem_long else pp_instr_velem) ve)
 
 (* -------------------------------------------------------------------- *)
+let pp_instr_unop name ws op =
+  let rs = rs_of_ws ws in
+  `Instr (pp_iname rs name, [pp_opr rs op])
+
+let pp_instr_binop name ws op1 op2 =
+  let rs = rs_of_ws ws in
+  `Instr (pp_iname rs name, [pp_opr rs op2; pp_opr rs op1])
+
 let pp_sh_d name ws op1 op2 ir =
   let rs = rs_of_ws ws in
   `Instr (pp_iname rs name, [pp_imr `U8 ir; pp_register rs op2; pp_opr rs op1])
@@ -340,9 +339,7 @@ let pp_instr name (i : X86_sem.asm) =
   | LABEL lbl ->
       `Label (pp_label name lbl)
 
-  | MOV (ws, op1, op2) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "mov", [pp_opr rs op2; pp_opr rs op1])
+  | MOV (ws, op1, op2) -> pp_instr_binop "mov" ws op1 op2
 
   | MOVSX (wsd, wss, dst, src) -> pp_movx "movs" wsd wss dst src
 
@@ -350,8 +347,7 @@ let pp_instr name (i : X86_sem.asm) =
 
   | CMOVcc (ws, ct, op1, op2) ->
       let iname = Printf.sprintf "cmov%s" (pp_ct ct) in
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs iname, [pp_opr rs op2; pp_opr rs op1])
+      pp_instr_binop iname ws op1 op2
 
   | SETcc (ct, op) ->
       let iname = Printf.sprintf "set%s" (pp_ct ct) in
@@ -361,76 +357,47 @@ let pp_instr name (i : X86_sem.asm) =
     let rs = rs_of_ws ws in
     `Instr (pp_iname rs "bt", [pp_imr `U8 ir; pp_opr rs op])
 
-  | NEG (ws, op) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "neg", [pp_opr rs op])
+  | NEG (ws, op) -> pp_instr_unop "neg" ws op
 
-  | INC (ws, op) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "inc", [pp_opr rs op])
+  | INC (ws, op) -> pp_instr_unop "inc" ws op
 
-  | DEC (ws, op) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "dec", [pp_opr rs op])
+  | DEC (ws, op) -> pp_instr_unop "dec" ws op
 
-  | ADD (ws, op1, op2) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "add", [pp_opr rs op2; pp_opr rs op1])
+  | ADD (ws, op1, op2) -> pp_instr_binop "add" ws op1 op2
 
-  | SUB (ws, op1, op2) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "sub", [pp_opr rs op2; pp_opr rs op1])
+  | SUB (ws, op1, op2) -> pp_instr_binop "sub" ws op1 op2
 
-  | ADC (ws, op1, op2) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "adc", [pp_opr rs op2; pp_opr rs op1])
+  | ADC (ws, op1, op2) -> pp_instr_binop "adc" ws op1 op2
 
-  | SBB (ws, op1, op2) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "sbb", [pp_opr rs op2; pp_opr rs op1])
+  | SBB (ws, op1, op2) -> pp_instr_binop "sbb" ws op1 op2
 
-  | MUL (ws, op) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "mul", [pp_opr rs op])
+  | MUL (ws, op) -> pp_instr_unop "mul" ws op
 
-  | IMUL (ws, op, None) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "imul", [pp_opr rs op])
+  | IMUL (ws, op, None) -> pp_instr_unop "imul" ws op
 
-  | IMUL (ws, op1, Some (op2, None)) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "imul",
-              [pp_opr rs op2; pp_opr rs op1])
+  | IMUL (ws, op1, Some (op2, None)) -> pp_instr_binop "imul" ws op1 op2
 
   | IMUL (ws, op1, Some (op2, Some i)) ->
       let rs = rs_of_ws ws in
       `Instr (pp_iname rs "imul",
               [pp_imm (Conv.bi_of_int32 i); pp_opr rs op2; pp_opr rs op1])
 
-  | DIV (ws, op) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "div", [pp_opr rs op])
+  | DIV (ws, op) -> pp_instr_unop "div" ws op
 
-  | IDIV (ws, op) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "idiv", [pp_opr rs op])
+  | IDIV (ws, op) -> pp_instr_unop "idiv" ws op
 
   | CQO ws ->
-    let name = 
+    let name =
       match ws with
-      | LM.U16 -> "CWD"
-      | LM.U32 -> "CDQ" 
-      | LM.U64 -> "CQO"
+      | LM.U16 -> "cwd"
+      | LM.U32 -> "cdq"
+      | LM.U64 -> "cqo"
       | _ -> assert false in
     `Instr (name, [])
-    
-  | CMP (ws, op1, op2) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "cmp", [pp_opr rs op2; pp_opr rs op1])
 
-  | TEST (ws, op1, op2) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "test", [pp_opr rs op2; pp_opr rs op1])
+  | CMP (ws, op1, op2) -> pp_instr_binop "cmp" ws op1 op2
+
+  | TEST (ws, op1, op2) -> pp_instr_binop "test" ws op1 op2
 
   | Jcc (label, ct) ->
       let iname = Printf.sprintf "j%s" (pp_ct ct) in
@@ -445,21 +412,13 @@ let pp_instr name (i : X86_sem.asm) =
       let rs = rs_of_ws ws in
       `Instr (pp_iname rs "lea", [pp_opr rs op2; pp_register rs op1])
 
-  | NOT (ws, op) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "not", [pp_opr rs op])
+  | NOT (ws, op) -> pp_instr_unop "not" ws op
 
-  | AND (ws, op1, op2) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "and", [pp_opr rs op2; pp_opr rs op1])
+  | AND (ws, op1, op2) -> pp_instr_binop "and" ws op1 op2
 
-  | OR (ws, op1, op2) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "or", [pp_opr rs op2; pp_opr rs op1])
+  | OR (ws, op1, op2) -> pp_instr_binop "or" ws op1 op2
 
-  | XOR (ws, op1, op2) ->
-      let rs = rs_of_ws ws in
-      `Instr (pp_iname rs "xor", [pp_opr rs op2; pp_opr rs op1])
+  | XOR (ws, op1, op2) -> pp_instr_binop "xor" ws op1 op2
 
   | ROR (ws, op, ir) ->
       let rs = rs_of_ws ws in
