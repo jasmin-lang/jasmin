@@ -478,8 +478,9 @@ let pp_instr name (i : X86_sem.asm) =
 
   | VPMULU (sz, dst, src1, src2) -> pp_xmm_binop "vpmuludq" sz dst src1 src2
 
-  | VPEXTR (ve, sz, dst, src, i) ->
-    `Instr (pp_viname ve "vpextr", [ pp_imm (Conv.bi_of_int8 i); pp_xmm_register sz src; pp_opr (rs_of_ve ve) dst ])
+  | VPEXTR (ve, dst, src, i) ->
+    let ve' = LM.(match ve with U32 -> VE32 | U64 -> VE64 | _ -> assert false) in
+    `Instr (pp_viname ve' "vpextr", [ pp_imm (Conv.bi_of_int8 i); pp_xmm_register U128 src; pp_opr (rs_of_ws ve) dst ])
 
   | VPSLL (ve, sz, dst, src1, src2) ->
     `Instr (pp_viname ve "vpsll", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 sz src1; pp_rm128 sz dst])
@@ -562,7 +563,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | SHLD    (_, op, _, _)
   | SHRD    (_, op, _, _)
   | SHR    (_, op, _)
-  | VPEXTR (_, _, op, _, _)
+  | VPEXTR (_, op, _, _)
       ->
       Option.map_default (fun r -> Set.add r c) c (reg_of_oprd op)
 
