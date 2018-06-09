@@ -1044,6 +1044,25 @@ Definition VPADD_desc ve sz := make_instr_desc
     (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
 (* ----------------------------------------------------------------------------- *)
+Lemma VPEXTR_gsc ve :
+  gen_sem_correct [:: TYoprd ; TYxreg ; TYimm U8 ] (Ox86_VPEXTR ve)
+      [:: E ve 0 ] [:: E U128 1 ; E U8 2 ] [::] (VPEXTR ve).
+Proof.
+move => x y z; split => // gd m m'.
+rewrite /low_sem_aux /= /x86_vpextr /eval_VPEXTR.
+case: x => //= [ x | x ]; t_xrbindP => ?? hve <-; rewrite /sets_low /=;
+[ case | rewrite truncate_word_u/= ];
+rewrite zero_extend_sign_extend // sign_extend_u.
++ move => <-; eexists; split; first reflexivity.
+  split; try reflexivity.
+  rewrite /=; f_equal; rewrite /mem_write_reg /word_extend_reg /merge_word zero_extend_u.
+  by case: ve hve.
+move => ->; eexists; split; reflexivity.
+Qed.
+
+Definition VPEXTR_desc ve := make_instr_desc (VPEXTR_gsc ve).
+
+(* ----------------------------------------------------------------------------- *)
 Lemma x86_rm128_shift_gsc ve sz op i sem :
   (∀ d x y, is_sopn (i sz d x y)) →
   (exec_sopn (op sz) = app_w8 sz (x86_u128_shift ve sz sem)) →
@@ -1273,6 +1292,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_VPXOR sz => ok (VPXOR_desc sz)
   | Ox86_VPADD ve sz => ok (VPADD_desc ve sz)
   | Ox86_VPMULU sz => ok (VPMULU_desc sz)
+  | Ox86_VPEXTR ve => ok (VPEXTR_desc ve)
   | Ox86_VPSLL ve sz => ok (VPSLL_desc ve sz)
   | Ox86_VPSRL ve sz => ok (VPSRL_desc ve sz)
   | Ox86_VPSLLV ve sz => ok (VPSLLV_desc ve sz)

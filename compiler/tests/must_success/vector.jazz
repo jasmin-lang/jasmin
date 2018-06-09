@@ -174,3 +174,21 @@ z = #x86_VPSLLV_4u64(x, y);
 (u256)[p + 32] = z;
 
 }
+
+export
+fn test_vpextr(reg u64 p) -> reg u32 {
+reg u32 r, x;
+reg u64 y;
+reg u128 a;
+
+r = 0;
+
+a = (u128)[p + 0];
+
+x = #x86_VPEXTR_32(a, 0);
+y = #x86_VPEXTR_64(a, 1);
+r += x;
+r += y;
+
+return r;
+}
