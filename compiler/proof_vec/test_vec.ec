@@ -1,8 +1,5 @@
 require import Int IntDiv CoreMap.
 
-(*require SmtMap.
-import SmtMap.Map. *)
-
 (* uint 32 operations *)
 
 theory U32.
@@ -122,12 +119,7 @@ op veq32 (x:(int,u32) map) (v:u128) =
 equiv XOR_VXOR : XOR.xor ~ VXOR.xor : veq32 x{1} x{2} /\ veq32 y{1} y{2} ==> veq32 res{1} res{2}.
 proof.
   proc.
-  unroll {1} 2; rcondt{1} 2; 1: by auto.
-  unroll {1} 4; rcondt{1} 4; 1: by auto.
-  unroll {1} 6; rcondt{1} 6; 1: by auto.
-  unroll {1} 8; rcondt{1} 8; 1: by auto.
-  rcondf{1} 10; 1: by auto.
-  by auto => &m1 &m2; rewrite /veq32 /= => /> /#.
+  unroll {1} 2 *; wp; skip=> &m1 &m2;cbv delta => />.
 qed.
 
 (* ---------------------------------------------------------------------- *)
@@ -215,9 +207,9 @@ proof. by proc; auto => &m1 &m2 /> ??; rewrite rol32_xor. qed.
 equiv Gimli_ref_ref1 : Gimli_ref.gimli ~ Gimli_ref1.gimli : ={state} ==> ={res}.
 proof.
   proc.
-  while (={round, state}); wp; 2: by auto.
-  while (={round, state, column}); 2: by auto.
-  by sim; do 2! (call rotate_ref_ref1; sim />).
+  while (={round, state});last by auto.
+  sim; while (={round, state, column}); last by auto.
+  sim; do 2! (call rotate_ref_ref1; sim />).
 qed.
 
 (* ------------------------------------------------------------------- *)
@@ -323,12 +315,8 @@ equiv ref1_vec1 : Gimli_ref1.gimli ~ Gimli_vec1.gimli :
    (of32 res.[8] res.[9] res.[10] res.[11]){1} = res.`3{2}.
 proof.
   proc; inline * => /=.
-  while (#pre /\ ={round}); last by auto.
-  unroll{1} 2; rcondt{1} 2; first by auto.
-  unroll{1} 15; rcondt{1} 15; first by auto.
-  unroll{1} 28; rcondt{1} 28; first by auto.
-  unroll{1} 41; rcondt{1} 41; first by auto.
-  rcondf{1} 54; first by auto.
+  while (#pre /\ ={round});last by auto.
+  unroll{1} 2 *.
   wp;skip => &m1 &m2 [#]. cbv delta.
   move=> 4!<- _ _. cbv delta => />.
 qed.
