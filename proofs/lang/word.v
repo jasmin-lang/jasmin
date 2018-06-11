@@ -307,6 +307,9 @@ Qed.
 Definition lsb {s} (w: word s) : bool := wbit_n w 0.
 Definition msb {s} (w: word s) : bool := wbit_n w (wsize_size_minus_1 s).
 
+Lemma msbE {s} (w : word s) : msb w = word.msb w.
+Proof. by []. Qed.
+
 Definition wdwordu sz (hi lo: word sz) : Z :=
   wunsigned hi * wbase sz + wunsigned lo.
 
@@ -395,21 +398,76 @@ rewrite orb_andr /= [w2 == w1]eq_sym orbN andbT.
 by rewrite orb_idl // => /eqP /val_inj ->; rewrite subZE !subrr.
 Qed.
 
-Lemma wltsE sz (α β: word sz) :
-  α ≠ β → wlt Signed α β = (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
-Proof. Admitted.
+Lemma wltsE sz (α β: word sz) : α ≠ β →
+  wlt Signed α β = (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
+Proof.
+move=> ne_ab; rewrite /= msbE /wsigned /srepr !word.msbE /= !subZE.
+set w := (_ sz);
+  case: (lerP (modulus _) (val α)) => ha;
+  case: (lerP (modulus _) (val β)) => hb;
+  case: (lerP (modulus _) (val _)) => hab.
++ rewrite ltr_add2r eq_sym eqb_id negbK opprB !addrA subrK.
+  rewrite [val (α - β)%R]subwE /urepr /= -/w.
+  case: ltrP; first by rewrite addrK eqxx.
+  by rewrite addr0 ltr_eqF // ltr_subl_addr ltr_addl modulus_gt0.
++ rewrite ltr_add2r opprB !addrA subrK eq_sym eqbF_neg negbK.
+  rewrite [val (α - β)%R]subwE /urepr -/w /=; case: ltrP.
+  + by rewrite mulr1n gtr_eqF // ltr_addl modulus_gt0.
+  + by rewrite addr0 eqxx.
++ rewrite ltr_subl_addr (ltr_le_trans (urepr_ltmod _)); last first.
+    by rewrite ler_addr urepr_ge0.
+  rewrite eq_sym eqb_id negbK; apply/esym.
+  rewrite [val _]subwE /urepr -/w /= ltrNge ltrW /=.
+  * by rewrite addr0 addrAC eqxx.
+  * by rewrite (ltr_le_trans hb).
++ rewrite ltr_subl_addr (ltr_le_trans (urepr_ltmod _)); last first.
+    by rewrite ler_addr urepr_ge0.
+  rewrite eq_sym eqbF_neg negbK [val _]subwE /urepr -/w /=.
+  rewrite ltrNge ltrW ?addr0; last first.
+    by rewrite (ltr_le_trans hb).
+  by rewrite addrAC gtr_eqF // ltr_subl_addr ltr_addl modulus_gt0.
++ rewrite ltr_subr_addl ltrNge ltrW /=; last first.
+    by rewrite (ltr_le_trans (urepr_ltmod _)) // ler_addl urepr_ge0.
+  apply/esym/negbTE; rewrite negbK; apply/eqP/esym.
+  rewrite [val _]subwE /urepr /= -/w; have ->/=: (val α < val β)%R.
+    by have := ltr_le_add ha hb; rewrite addrC ltr_add2l.
+  rewrite mulr1n addrK opprD addrA ltr_eqF //= opprK.
+  by rewrite ltr_addl modulus_gt0.
++ rewrite ltr_subr_addl ltrNge ltrW /=; last first.
+    by rewrite (ltr_le_trans (urepr_ltmod _)) // ler_addl urepr_ge0.
+  apply/esym/negbTE; rewrite negbK eq_sym eqbF_neg negbK.
+  rewrite [val _]subwE /urepr -/w /= opprD addrA opprK.
+  by have ->//: (val α < val β)%R; apply/(ltr_le_trans ha).
++ rewrite [val (α - β)%R](subwE α β) -/w /urepr /=.
+  rewrite eq_sym eqb_id negbK; case: ltrP.
+  * by rewrite mulr1n addrK eqxx.
+  * by rewrite addr0 ltr_eqF // ltr_subl_addr ltr_addl modulus_gt0.
++ rewrite [val (α - β)%R](subwE α β) -/w /urepr /=.
+  rewrite eq_sym eqbF_neg negbK; case: ltrP.
+  * by rewrite mulr1n gtr_eqF // ltr_addl modulus_gt0.
+  * by rewrite addr0 eqxx.
+Qed.
 
-Lemma wltsE' sz (α β: word sz) :
-  α ≠ β → wlt Signed β α = (msb (α - β) == (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
-Proof. Admitted.
+Lemma wlesE' sz (α β: word sz) : α ≠ β →
+  wle Signed α β = (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
+Proof.
+move=> ne_ab; suff ->: wle Signed α β = wlt Signed α β by rewrite wltsE.
+by move=> /=; rewrite ler_eqVlt orb_idl // => /eqP /srepr_inj.
+Qed.
 
-Lemma wlesE sz (α β: word sz) :
-  α ≠ β → wle Signed β α = (msb (α - β) == (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
-Proof. Admitted.
+Lemma wltsE' sz (α β: word sz) : α ≠ β →
+  wlt Signed β α = (msb (α - β) == (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
+Proof.
+have ->: wlt Signed β α = ~~ (wle Signed α β) by rewrite /= ltrNge.
+by move=> ne_ab; rewrite wlesE' // negbK.
+Qed.
 
-Lemma wlesE' sz (α β: word sz) :
-  α ≠ β → wle Signed α β = (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
-Proof. Admitted.
+Lemma wlesE sz (α β: word sz) : α ≠ β →
+  wle Signed β α = (msb (α - β) == (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
+Proof.
+move=> ne_ab; suff ->: wle Signed β α = wlt Signed β α by rewrite wltsE'.
+by move=> /=; rewrite ler_eqVlt orb_idl // => /eqP /srepr_inj /esym.
+Qed.
 
 (* -------------------------------------------------------------------*)
 Lemma zero_extend0 sz sz' :
