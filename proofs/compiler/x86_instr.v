@@ -1063,6 +1063,23 @@ Qed.
 Definition VPEXTR_desc ve := make_instr_desc (VPEXTR_gsc ve).
 
 (* ----------------------------------------------------------------------------- *)
+Definition VPINSR_gsc ve :
+  gen_sem_correct [:: TYxreg ; TYxreg ; TYoprd ; TYimm U8 ]
+    (Ox86_VPINSR ve)
+    [:: E U128 0 ] [:: E U128 1 ; E ve 2 ; E U8 3 ] [::]
+    (VPINSR ve).
+Proof.
+move => d x y i; split => // gd m m'.
+rewrite /low_sem_aux/= arg_of_oprdE /= /x86_vpinsr /eval_VPINSR.
+t_xrbindP => ???? h <- <- /=; t_xrbindP => w' /to_wordI [sz'] [w] [hle ??].
+subst => <- [<-].
+rewrite (eval_low_read hle h) /= zero_extend_sign_extend // sign_extend_u.
+update_set.
+Qed.
+
+Definition VPINSR_desc ve := make_instr_desc (VPINSR_gsc ve).
+
+(* ----------------------------------------------------------------------------- *)
 Lemma x86_rm128_shift_gsc ve sz op i sem :
   (∀ d x y, is_sopn (i sz d x y)) →
   (exec_sopn (op sz) = app_w8 sz (x86_u128_shift ve sz sem)) →
@@ -1312,6 +1329,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_VPADD ve sz => ok (VPADD_desc ve sz)
   | Ox86_VPMULU sz => ok (VPMULU_desc sz)
   | Ox86_VPEXTR ve => ok (VPEXTR_desc ve)
+  | Ox86_VPINSR ve => ok (VPINSR_desc ve)
   | Ox86_VPSLL ve sz => ok (VPSLL_desc ve sz)
   | Ox86_VPSRL ve sz => ok (VPSRL_desc ve sz)
   | Ox86_VPSLLV ve sz => ok (VPSLLV_desc ve sz)

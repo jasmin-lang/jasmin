@@ -560,7 +560,7 @@ Definition wsize_of_sopn (op: sopn) : wsize :=
     => x
   | Ox86_MOVZX32 => U32
   | Ox86_MOVD _
-  | Ox86_VPEXTR _
+  | Ox86_VPEXTR _ | Ox86_VPINSR _
     => U128
   | Ox86_VEXTRACTI128
   | Ox86_VPERM2I128

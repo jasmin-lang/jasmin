@@ -205,3 +205,14 @@ w = y ^ z;
 
 (u128)[p + 32] = w;
 }
+
+export
+fn test_vpinsr(reg u64 p) {
+reg u128 a;
+a = (u128)[p + 0];
+a = #x86_VPINSR_2u64(a, p, 0);
+a = #x86_VPINSR_4u32(a, p, 1);
+a = #x86_VPINSR_8u16(a, p, 2);
+a = #x86_VPINSR_16u8(a, p, 3);
+(u128)[p + 0] = a;
+}

@@ -877,6 +877,12 @@ Definition x86_vpextr (ve: wsize) (v: u128) (i: u8) :=
   ok [:: Vword (nth (0%R: word ve) (split_vec ve v) (Z.to_nat (wunsigned i))) ].
 
 (* ---------------------------------------------------------------- *)
+Definition x86_vpinsr (ve: velem) (v1: u128) (v2: word ve) (i: u8) : exec values :=
+  ok [:: Vword (wpinsr v1 v2 i) ].
+
+Arguments x86_vpinsr : clear implicits.
+
+(* ---------------------------------------------------------------- *)
 Definition x86_u128_shift sz' sz (op: word sz' → Z → word sz')
   (v: word sz) (c: u8) : exec values :=
   Let _ := check_size_16_64 sz' in
@@ -1011,6 +1017,7 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_VPADD ve sz => app_ww sz (x86_vpadd ve)
   | Ox86_VPMULU sz => app_ww sz x86_vpmulu
   | Ox86_VPEXTR ve => app_w8 U128 (x86_vpextr ve)
+  | Ox86_VPINSR ve => app_sopn [:: sword128 ; sword ve ; sword8 ] (x86_vpinsr ve)
   | Ox86_VPSLL ve sz => app_w8 sz (x86_vpsll ve)
   | Ox86_VPSRL ve sz => app_w8 sz (x86_vpsrl ve)
   | Ox86_VPSLLV ve sz => app_ww sz (x86_vpsllv ve)
