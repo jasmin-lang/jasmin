@@ -501,6 +501,8 @@ let pp_instr name (i : X86_sem.asm) =
   | VPUNPCKL (ve, sz, dst, src1, src2) -> pp_vpunpck "l" ve sz dst src1 src2
 
   | VPBLENDD (sz, dst, src1, src2, mask) -> pp_xxri "vpblendd" sz dst src1 src2 mask
+  | VEXTRACTI128 (dst, src, i) ->
+    `Instr ("vextracti128", [ pp_imm (Conv.bi_of_int8 i); pp_xmm_register U256 src ; pp_rm128 U128 dst ])
   | VPERM2I128 (dst, src1, src2, i) -> pp_xxri "vperm2i128" U256 dst src1 src2 i
   | VPERMQ (dst, src, i) ->
     `Instr("vpermq", [ pp_imm (Conv.bi_of_int8 i); pp_rm128 U256 src; pp_xmm_register U256 dst ])
@@ -536,7 +538,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | VPSLLV _ | VPSRLV _
   | VPSHUFB _ | VPSHUFHW _ | VPSHUFLW _ | VPSHUFD _
   | VPUNPCKH _ | VPUNPCKL _
-  | VPBLENDD _ | VPERM2I128 _ | VPERMQ _
+  | VPBLENDD _ | VEXTRACTI128 _ | VPERM2I128 _ | VPERMQ _
     -> c
 
   | LEA    (_, op, _) -> Set.add op c

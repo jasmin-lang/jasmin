@@ -195,6 +195,7 @@ Variant asm : Type :=
 | VPBLENDD `(wsize) (_ _: xmm_register) `(rm128) `(u8)
 | VPUNPCKH `(velem) `(wsize) (_ _: xmm_register) `(rm128)
 | VPUNPCKL `(velem) `(wsize) (_ _: xmm_register) `(rm128)
+| VEXTRACTI128 of rm128 & xmm_register & u8
 | VPERM2I128 (_ _: xmm_register) `(rm128) `(u8)
 | VPERMQ of xmm_register & rm128 & u8
 .
@@ -1230,6 +1231,12 @@ Definition eval_VPUNPCKH ve sz := eval_vpunpck sz (wpunpckh ve).
 Definition eval_VPUNPCKL ve sz := eval_vpunpck sz (wpunpckl ve).
 
 (* -------------------------------------------------------------------- *)
+Definition eval_VEXTRACTI128 (dst: rm128) (src: xmm_register) (i: u8) s : x86_result :=
+  let v := xxreg s src in
+  let r := if lsb i then wshr v U128 else v in
+  write_rm128 MSB_CLEAR dst (zero_extend U128 r) s.
+
+(* -------------------------------------------------------------------- *)
 Definition eval_VPERM2I128 (dst src1: xmm_register) (src2: rm128) (i: u8) s : x86_result :=
   let v1 := xxreg s src1 in
   Let v2 := read_rm128 U256 src2 s in
@@ -1304,6 +1311,7 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | VPUNPCKL ve sz dst src1 src2 => eval_VPUNPCKL ve sz dst src1 src2 s
 
   | VPBLENDD sz dst src1 src2 mask => eval_VPBLENDD sz dst src1 src2 mask s
+  | VEXTRACTI128 dst src i => eval_VEXTRACTI128 dst src i s
   | VPERM2I128 dst src1 src2 i => eval_VPERM2I128 dst src1 src2 i s
   | VPERMQ dst src i => eval_VPERMQ dst src i s
   end.
