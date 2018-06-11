@@ -1,0 +1,32 @@
+inline
+fn imm256(reg u256 zero256, reg u128 zero128, inline int c) -> reg u256 {
+reg u64 n;
+reg u128 t;
+reg u256 r;
+inline int i, j;
+
+r = zero256;
+t = zero128;
+
+for i = 0 to 2 {
+  for j = 0 to 2 {
+    n = (c >> 256u (64 * (2 * i + j))) & ((1 << 256u 64) - 1);
+    t = #x86_VPINSR_2u64(t, n, j);
+  }
+  r = #x86_VINSERTI128(r, t, i);
+}
+return r;
+}
+
+export
+fn test(reg u64 p) {
+reg u128 z128;
+reg u256 z256, x;
+
+z256 = (u256)[p + 0 ];
+z128 = z256;
+
+x = imm256(z256, z128, 0xabcdabcd0011223301234567fedcba9800001111222233334444555566667777);
+
+(u256)[p + 0] = x;
+}

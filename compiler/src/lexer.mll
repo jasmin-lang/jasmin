@@ -61,6 +61,8 @@
   | "16" -> `W16
   | "32" -> `W32
   | "64" -> `W64
+  | "128" -> `W128
+  | "256" -> `W256
   | _ -> assert false
 
   let get_size : string option -> S.wsize option =
@@ -86,7 +88,7 @@ let letter   = (lower | upper)
 let idletter = letter | '_'
 let ident    = idletter (idletter | digit)*
 
-let size = "8" | "16" | "32" | "64"
+let size = "8" | "16" | "32" | "64" | "128" | "256"
 let signletter = ['s' 'u']
 
 (* -------------------------------------------------------------------- *)
