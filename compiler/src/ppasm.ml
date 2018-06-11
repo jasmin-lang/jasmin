@@ -482,6 +482,13 @@ let pp_instr name (i : X86_sem.asm) =
     let ve' = LM.(match ve with U32 -> VE32 | U64 -> VE64 | _ -> assert false) in
     `Instr (pp_viname ve' "vpextr", [ pp_imm (Conv.bi_of_int8 i); pp_xmm_register U128 src; pp_opr (rs_of_ws ve) dst ])
 
+  | VPINSR (ve, dst, src1, src2, i) ->
+    let rs = match ve with
+      | LM.VE8 | LM.VE16 | LM.VE32 -> `U32
+      | LM.VE64 -> `U64
+    in
+    `Instr (pp_viname ve "vpinsr", [ pp_imm (Conv.bi_of_int8 i) ; pp_opr rs src2 ; pp_xmm_register U128 src1 ; pp_xmm_register U128 dst ])
+
   | VPSLL (ve, sz, dst, src1, src2) ->
     `Instr (pp_viname ve "vpsll", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 sz src1; pp_rm128 sz dst])
 
@@ -534,6 +541,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | VMOVDQU _
   | VPAND _ | VPANDN _ | VPOR _ | VPXOR _
   | VPADD _ | VPMULU _
+  | VPINSR _
   | VPSLL _ | VPSRL _
   | VPSLLV _ | VPSRLV _
   | VPSHUFB _ | VPSHUFHW _ | VPSHUFLW _ | VPSHUFD _
