@@ -197,6 +197,7 @@ Variant asm : Type :=
 | VPUNPCKH `(velem) `(wsize) (_ _: xmm_register) `(rm128)
 | VPUNPCKL `(velem) `(wsize) (_ _: xmm_register) `(rm128)
 | VEXTRACTI128 of rm128 & xmm_register & u8
+| VINSERTI128 (_ _: xmm_register) `(rm128) `(u8)
 | VPERM2I128 (_ _: xmm_register) `(rm128) `(u8)
 | VPERMQ of xmm_register & rm128 & u8
 .
@@ -1245,12 +1246,17 @@ Definition eval_VEXTRACTI128 (dst: rm128) (src: xmm_register) (i: u8) s : x86_re
   write_rm128 MSB_CLEAR dst (zero_extend U128 r) s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_VPERM2I128 (dst src1: xmm_register) (src2: rm128) (i: u8) s : x86_result :=
+Definition eval_i128_terop sz (op: u256 → word sz → u8 → u256)
+    dst src1 src2 i s : x86_result :=
   let v1 := xxreg s src1 in
-  Let v2 := read_rm128 U256 src2 s in
-  let r := wperm2i128 v1 v2 i in
+  Let v2 := read_rm128 sz src2 s in
+  let r := op v1 v2 i in
   ok (mem_update_xreg MSB_CLEAR dst r s).
 
+Definition eval_VINSERTI128 := eval_i128_terop winserti128.
+Definition eval_VPERM2I128 := eval_i128_terop wperm2i128.
+
+(* -------------------------------------------------------------------- *)
 Definition eval_VPERMQ (dst: xmm_register) (src: rm128) (i: u8) s : x86_result :=
   Let v := read_rm128 U256 src s in
   let r := wpermq v i in
@@ -1321,6 +1327,7 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
 
   | VPBLENDD sz dst src1 src2 mask => eval_VPBLENDD sz dst src1 src2 mask s
   | VEXTRACTI128 dst src i => eval_VEXTRACTI128 dst src i s
+  | VINSERTI128 dst src1 src2 i => eval_VINSERTI128 dst src1 src2 i s
   | VPERM2I128 dst src1 src2 i => eval_VPERM2I128 dst src1 src2 i s
   | VPERMQ dst src i => eval_VPERMQ dst src i s
   end.

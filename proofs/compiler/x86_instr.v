@@ -1243,24 +1243,31 @@ Qed.
 Definition VEXTRACTI128_desc := make_instr_desc VEXTRACTI128_gsc.
 
 (* ----------------------------------------------------------------------------- *)
-Lemma VPERM2I128_gsc :
+Lemma i128_terop_gsc sz op i sem :
+  (check_size_128_256 sz = ok tt) →
+  (∀ d x y n, is_sopn (i d x y n)) →
+  (exec_sopn op = app_sopn [:: sword256 ; sword sz ; sword8 ] (λ x y n, ok [:: Vword (sem x y n)])) →
+  (∀ d x y n gd m, eval_instr_mem gd (i d x y n) m = eval_i128_terop gd sem d x y n m) →
   gen_sem_correct [:: TYxreg ; TYxreg ; TYrm128 ; TYimm U8 ]
-    Ox86_VPERM2I128
-    [:: E U256 0 ] [:: E U256 1 ; E U256 2 ; E U8 3 ] [::]
-    VPERM2I128.
+    op
+    [:: E U256 0 ] [:: E U256 1 ; E sz 2 ; E U8 3 ] [::]
+    i.
 Proof.
-move => x y z k; split => // gd m m'.
+move => ok_sz ok_sopn hsem lsem x y z k; split => // gd m m'.
 rewrite /low_sem_aux /=.
 case hz: arg_of_rm128 => [ z' | ] //=.
+rewrite hsem lsem /=.
 t_xrbindP => ???? h <- <-; t_xrbindP => w1 /to_wordI [sz1] [w1'] [_ /Vword_inj [?]].
 subst => /= ??; subst => w1 /to_wordI [sz1] [w1'] [hle ??]; subst => ?.
-rewrite /truncate_word /= zero_extend_sign_extend // sign_extend_u => - [?]; subst => -[<-].
+rewrite /truncate_word /= zero_extend_sign_extend // sign_extend_u => - [?]; subst => <-.
 rewrite /sets_low zero_extend_u => - [<-].
-rewrite /eval_VPERM2I128 (eval_low_rm128 (erefl : check_size_128_256 U256 = ok tt) hz h).
+rewrite /eval_i128_terop (eval_low_rm128 ok_sz hz h).
 eexists; split; reflexivity.
 Qed.
 
-Definition VPERM2I128_desc := make_instr_desc VPERM2I128_gsc.
+Arguments i128_terop_gsc : clear implicits.
+
+Definition VPERM2I128_desc := make_instr_desc (i128_terop_gsc U256 Ox86_VPERM2I128 VPERM2I128 wperm2i128 erefl (λ d x y n, erefl) erefl (λ d x y n gd m, erefl)).
 
 (* ----------------------------------------------------------------------------- *)
 Lemma VPERMQ_gsc :

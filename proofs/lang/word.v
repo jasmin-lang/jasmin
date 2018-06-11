@@ -718,6 +718,7 @@ Parameters wpunpckl wpunpckh : ∀ sz, velem → word sz → word sz → word sz
 
 (* -------------------------------------------------------------------*)
 Parameter wpinsr : ∀ ve, u128 → word ve → u8 → u128.
+Parameter winserti128 : u256 → u128 → u8 → u256.
 
 (* -------------------------------------------------------------------*)
 Definition wpblendd sz (w1 w2: word sz) (m: u8) : word sz :=
