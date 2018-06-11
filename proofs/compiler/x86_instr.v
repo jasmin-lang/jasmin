@@ -1267,6 +1267,7 @@ Qed.
 
 Arguments i128_terop_gsc : clear implicits.
 
+Definition VINSERTI128_desc := make_instr_desc (i128_terop_gsc U128 Ox86_VINSERTI128 VINSERTI128 winserti128 erefl (λ d x y n, erefl) erefl (λ d x y n gd m, erefl)).
 Definition VPERM2I128_desc := make_instr_desc (i128_terop_gsc U256 Ox86_VPERM2I128 VPERM2I128 wperm2i128 erefl (λ d x y n, erefl) erefl (λ d x y n gd m, erefl)).
 
 (* ----------------------------------------------------------------------------- *)
@@ -1349,6 +1350,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_VPUNPCKL ve sz => ok (VPUNPCKL_desc ve sz)
   | Ox86_VPBLENDD sz => ok (VPBLENDD_desc sz)
   | Ox86_VEXTRACTI128 => ok VEXTRACTI128_desc
+  | Ox86_VINSERTI128 => ok VINSERTI128_desc
   | Ox86_VPERM2I128 => ok VPERM2I128_desc
   | Ox86_VPERMQ => ok VPERMQ_desc
   end.

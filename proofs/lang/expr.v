@@ -156,6 +156,7 @@ Variant sopn : Set :=
 | Ox86_VPUNPCKL of velem & wsize (* Unpack Low Data *)
 | Ox86_VPBLENDD of wsize (* Blend 32-bit words *)
 | Ox86_VEXTRACTI128 (* Extract 128-bit value from a 256-bit vector *)
+| Ox86_VINSERTI128 (* Insert a 128-bit element into a 256-bit vector *)
 | Ox86_VPERM2I128 (* Permutation of 128-bit words *)
 | Ox86_VPERMQ (* Permutation of 64-bit words *)
 .
@@ -262,6 +263,7 @@ Definition string_of_sopn o : string :=
   | Ox86_VPUNPCKL ve sz => "Ox86_VPUNPCKL " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
   | Ox86_VPBLENDD sz => "Ox86_VPBLENDD " ++ string_of_wsize sz
   | Ox86_VEXTRACTI128 => "Ox86_VEXTRACTI128"
+  | Ox86_VINSERTI128 => "Ox86_VINSERTI128"
   | Ox86_VPERM2I128 => "Ox86_VPERM2I128"
   | Ox86_VPERMQ => "Ox86_VPERMQ"
   end.
@@ -318,6 +320,7 @@ Definition sopn_tout (o:sopn) :  list stype :=
     => [:: sword sz ]
   | Ox86_VPERM2I128
   | Ox86_VPERMQ
+  | Ox86_VINSERTI128
     => [:: sword256 ]
   | Ox86_VPEXTR ve => [:: sword ve ]
   end.
@@ -385,6 +388,7 @@ Definition sopn_tin (o: sopn) : list stype :=
   | Ox86_VPSHUFHW sz | Ox86_VPSHUFLW sz
   | Ox86_VPSHUFD sz
     => [:: sword sz; sword8 ]
+  | Ox86_VINSERTI128 => [:: sword256 ; sword128 ; sword8 ]
   | Ox86_VPERM2I128 => [:: sword256 ; sword256 ; sword8 ]
   | Ox86_VEXTRACTI128
   | Ox86_VPERMQ => [:: sword256 ; sword8 ]

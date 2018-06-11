@@ -1,0 +1,21 @@
+fn xor64(reg u256 x, inline int i, inline u64 c) -> reg u256 {
+  reg u128 y;
+  reg u64 r;
+  y = #x86_VEXTRACTI128(x, i / 4);
+  r = #x86_VPEXTR_64(y, i % 4);
+  r ^= c;
+  y = #x86_VPINSR_2u64(y, r, i % 4);
+  x = #x86_VINSERTI128(x, y, i / 4);
+  return x;
+}
+
+export
+fn test(reg u64 p) {
+reg u256 a;
+
+a = (u256)[p + 0];
+
+a = xor64(a, 1, 0xaabbccdd00112233);
+
+(u256)[p + 0] = a;
+}

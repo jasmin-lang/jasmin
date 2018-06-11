@@ -933,6 +933,9 @@ Definition x86_vextracti128 (v: u256) (i: u8) : exec values :=
   let r := if lsb i then wshr v U128 else v in
   ok [:: Vword (zero_extend U128 r) ].
 
+Definition x86_vinserti128 (v1: u256) (v2: u128) (m: u8) : exec values :=
+  ok [:: Vword (winserti128 v1 v2 m) ].
+
 (* ---------------------------------------------------------------- *)
 Definition x86_vperm2i128 (v1 v2: u256) (m: u8) : exec values :=
   ok [:: Vword (wperm2i128 v1 v2 m) ].
@@ -1030,6 +1033,7 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_VPUNPCKL ve sz => app_ww sz (x86_vpunpckl ve)
   | Ox86_VPBLENDD sz => app_ww8 sz x86_vpblendd
   | Ox86_VEXTRACTI128 => app_w8 U256 x86_vextracti128
+  | Ox86_VINSERTI128 => app_sopn [:: sword256 ; sword128 ; sword8 ] x86_vinserti128
   | Ox86_VPERM2I128 => app_ww8 U256 x86_vperm2i128
   | Ox86_VPERMQ => app_w8 U256 x86_vpermq
   end.

@@ -208,6 +208,7 @@ let pp_opn =
   | Ox86_VPUNPCKL (ve, sz) -> v ve sz "#x86_VPUNPCKL"
   | Ox86_VPBLENDD w -> f w "#x86_VPBLENDD"
   | Ox86_VEXTRACTI128 -> "#x86_VEXTRACTI128"
+  | Ox86_VINSERTI128 -> "#x86_VINSERTI128"
   | Ox86_VPERM2I128 -> "#x86_VPERM2I128"
   | Ox86_VPERMQ -> "#x86_VPERMQ"
 
