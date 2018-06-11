@@ -307,7 +307,7 @@ Qed.
 Definition lsb {s} (w: word s) : bool := wbit_n w 0.
 Definition msb {s} (w: word s) : bool := wbit_n w (wsize_size_minus_1 s).
 
-Lemma msbE {s} (w : word s) : msb w = word.msb w.
+Lemma msb_wordE {s} (w : word s) : msb w = CoqWord.word.msb w.
 Proof. by []. Qed.
 
 Definition wdwordu sz (hi lo: word sz) : Z :=
@@ -401,8 +401,8 @@ Qed.
 Lemma wltsE sz (α β: word sz) : α ≠ β →
   wlt Signed α β = (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
 Proof.
-move=> ne_ab; rewrite /= msbE /wsigned /srepr !word.msbE /= !subZE.
-set w := (_ sz);
+move=> ne_ab; rewrite /= !msb_wordE /wsigned /srepr.
+rewrite !CoqWord.word.msbE /= !subZE; set w := (_ sz);
   case: (lerP (modulus _) (val α)) => ha;
   case: (lerP (modulus _) (val β)) => hb;
   case: (lerP (modulus _) (val _)) => hab.
