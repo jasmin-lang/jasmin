@@ -192,3 +192,16 @@ r += y;
 
 return r;
 }
+
+export
+fn test_extracti128(reg u64 p) {
+reg u256 x;
+reg u128 y, z, w;
+
+x = (u256)[p + 0];
+y = #x86_VEXTRACTI128(x, 0);
+z = #x86_VEXTRACTI128(x, 1);
+w = y ^ z;
+
+(u128)[p + 32] = w;
+}

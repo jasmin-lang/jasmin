@@ -562,6 +562,7 @@ Definition wsize_of_sopn (op: sopn) : wsize :=
   | Ox86_MOVD _
   | Ox86_VPEXTR _
     => U128
+  | Ox86_VEXTRACTI128
   | Ox86_VPERM2I128
   | Ox86_VPERMQ
     => U256

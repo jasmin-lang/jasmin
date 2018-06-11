@@ -154,6 +154,7 @@ Variant sopn : Set :=
 | Ox86_VPUNPCKH of velem & wsize (* Unpack High Data *)
 | Ox86_VPUNPCKL of velem & wsize (* Unpack Low Data *)
 | Ox86_VPBLENDD of wsize (* Blend 32-bit words *)
+| Ox86_VEXTRACTI128 (* Extract 128-bit value from a 256-bit vector *)
 | Ox86_VPERM2I128 (* Permutation of 128-bit words *)
 | Ox86_VPERMQ (* Permutation of 64-bit words *)
 .
@@ -258,6 +259,7 @@ Definition string_of_sopn o : string :=
   | Ox86_VPUNPCKH ve sz => "Ox86_VPUNPCKH " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
   | Ox86_VPUNPCKL ve sz => "Ox86_VPUNPCKL " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
   | Ox86_VPBLENDD sz => "Ox86_VPBLENDD " ++ string_of_wsize sz
+  | Ox86_VEXTRACTI128 => "Ox86_VEXTRACTI128"
   | Ox86_VPERM2I128 => "Ox86_VPERM2I128"
   | Ox86_VPERMQ => "Ox86_VPERMQ"
   end.
@@ -300,6 +302,7 @@ Definition sopn_tout (o:sopn) :  list stype :=
   | Ox86_SHL sz | Ox86_SHR sz     => b5w_ty sz 
   | Ox86_SAR sz | Ox86_SHLD sz | Ox86_SHRD sz => b5w_ty sz
   | Ox86_MOVD _
+  | Ox86_VEXTRACTI128
     => [:: sword128 ]
   | Ox86_VMOVDQU sz
   | Ox86_VPAND sz | Ox86_VPANDN sz | Ox86_VPOR sz | Ox86_VPXOR sz
@@ -379,6 +382,7 @@ Definition sopn_tin (o: sopn) : list stype :=
   | Ox86_VPSHUFD sz
     => [:: sword sz; sword8 ]
   | Ox86_VPERM2I128 => [:: sword256 ; sword256 ; sword8 ]
+  | Ox86_VEXTRACTI128
   | Ox86_VPERMQ => [:: sword256 ; sword8 ]
   end.
 
