@@ -317,8 +317,10 @@ proof.
   proc; inline * => /=.
   while (#pre /\ ={round});last by auto.
   unroll{1} 2 *.
-  wp;skip => &m1 &m2 [#]. cbv delta.
-  move=> 4!<- _ _. cbv delta => />.
+  wp;skip => &m1 &m2 [#].
+  time cbv delta.
+
+ => 4!<- _ _; cbv delta => />.
 qed.
 
 
