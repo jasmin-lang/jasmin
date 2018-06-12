@@ -119,7 +119,7 @@ op veq32 (x:(int,u32) map) (v:u128) =
 equiv XOR_VXOR : XOR.xor ~ VXOR.xor : veq32 x{1} x{2} /\ veq32 y{1} y{2} ==> veq32 res{1} res{2}.
 proof.
   proc.
-  unroll {1} 2 *; wp; skip=> &m1 &m2;cbv delta => />.
+  unroll for {1} 2; wp; skip=> &m1 &m2;cbv delta => />.
 qed.
 
 (* ---------------------------------------------------------------------- *)
@@ -316,11 +316,9 @@ equiv ref1_vec1 : Gimli_ref1.gimli ~ Gimli_vec1.gimli :
 proof.
   proc; inline * => /=.
   while (#pre /\ ={round});last by auto.
-  unroll{1} 2 *.
+  unroll for {1} 2.
   wp;skip => &m1 &m2 [#].
-  time cbv delta.
-
- => 4!<- _ _; cbv delta => />.
+  by cbv delta => 4!<- _ _; cbv delta => />.
 qed.
 
 
