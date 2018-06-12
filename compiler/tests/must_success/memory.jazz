@@ -39,3 +39,15 @@ fn test_swap_u32(reg u64 ptr) -> reg u64 {
   z = 0;
   return z;
 }
+
+export
+fn test_u128(reg u64 ptr) -> reg u64 {
+reg u64 r;
+reg u128 t;
+r = 0;
+
+t = (u128)[ptr + 16 * 0];
+(u128)[ptr + 16 * 1] = t;
+
+return r;
+}
