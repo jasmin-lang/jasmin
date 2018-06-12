@@ -1378,9 +1378,13 @@ Proof.
   + case => // a i' [<-].
     + by exists (Imm_ir a).
     by exists (Reg_ir a).
-  case => // s w i'; t_xrbindP => z h <-; eexists; split; last reflexivity; repeat f_equal.
-  move: h; rewrite /check_immediate. case: eqP => // <- [<-] {z}.
-  by rewrite sign_zero_sign_extend.
+  + case => // s w i'; t_xrbindP => z h <-; eexists; split; last reflexivity; repeat f_equal.
+    move: h; rewrite /check_immediate. case: eqP => // <- [<-] {z}.
+    case hsz: (w ≤ U64)%CMP.
+    + by rewrite zero_extend_sign_extend // sign_extend_u.
+    have hsz' : (U64 ≤ w)%CMP.
+    + by apply: cmp_nle_le; rewrite hsz.
+    by rewrite !(sign_extend_truncate _ hsz') !(zero_extend_idem _ hsz') !zero_extend_u.
   + by case => // ? ? [<-]; eauto.
   + by case => x f [<-]; eauto.
 Qed.

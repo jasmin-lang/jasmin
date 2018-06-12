@@ -519,17 +519,17 @@ case: leP => hi.
 rewrite Z.mod_pow2_bits_high //; lia.
 Qed.
 
-Lemma wbit_sign_extend s s' (w: word s') i :
-  wbit_n (sign_extend s w) i = wbit_n w (min i (wsize_size_minus_1 s)).
-Proof. Admitted.
-
-Lemma sign_zero_sign_extend sz sz' (w: word sz') :
-  sign_extend sz (zero_extend sz' (sign_extend sz w)) = sign_extend sz w.
+Lemma sign_extend_truncate s s' (w: word s') :
+  (s ≤ s')%CMP →
+  sign_extend s w = zero_extend s w.
 Proof.
-apply/eqP/eq_from_wbit_n => i.
-rewrite !(wbit_sign_extend, wbit_zero_extend) -Min.min_assoc Min.min_idempotent.
-case: leP => //= /Nat.nle_gt hlt; rewrite /wbit_n wbit_word_ovf //.
-exact/ltP.
+  rewrite /sign_extend /zero_extend /wsigned /wunsigned.
+  rewrite CoqWord.word.sreprE /= /wrepr.
+  move: (CoqWord.word.urepr w) => z hle.
+  apply/word_ext.
+  have [n ->] := modulus_m (wsize_size_m hle).
+  case: ssrZ.ltzP => // hgt.
+  by rewrite Zminus_mod Z_mod_mult Z.sub_0_r Zmod_mod.
 Qed.
 
 Lemma sign_extend_u sz (w: word sz) : sign_extend sz w = w.
