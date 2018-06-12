@@ -623,8 +623,7 @@ let align_of_ws =
 
 let pp_align ws =
   let a = align_of_ws ws in
-  (* test should evaluate to true on OSX *)
-  let n = if false then a else 1 lsl a in
+  let n = if Arch.os = Some `Mac then a else 1 lsl a in
   Format.sprintf "%d" n
 
 let decl_of_ws =
