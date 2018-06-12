@@ -775,8 +775,23 @@ Parameters wpshuflw wpshufhw : ∀ sz, word sz → Z → word sz.
 Parameters wpunpckl wpunpckh : ∀ sz, velem → word sz → word sz → word sz.
 
 (* -------------------------------------------------------------------*)
-Parameter wpinsr : ∀ ve, u128 → word ve → u8 → u128.
+Section UPDATE_AT.
+  Context (T: Type) (t: T).
 
+  Fixpoint update_at (xs: seq T) (i: nat) : seq T :=
+    match xs with
+    | [::] => [::]
+    | x :: xs' => if i is S i' then x :: update_at xs' i' else t :: xs'
+    end.
+
+End UPDATE_AT.
+
+Definition wpinsr ve (v: u128) (w: word ve) (i: u8) : u128 :=
+  let v := split_vec ve v in
+  let i := Z.to_nat (wunsigned i) in
+  make_vec U128 (update_at w v i).
+
+(* -------------------------------------------------------------------*)
 Definition winserti128 (v: u256) (w: u128) (i: u8) : u256 :=
   let v := split_vec U128 v in
   make_vec U256 (if lsb i then [:: v`_0 ; w ] else [:: w ; v`_1 ])%R.
