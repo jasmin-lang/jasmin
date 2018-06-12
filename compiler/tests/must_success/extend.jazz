@@ -3,19 +3,21 @@ fn test_zeroext (reg u8 a) -> reg u32 {
 
 reg u16 b;
 reg u32 c, d;
-reg u64 e, f;
+reg u64 e, f, g;
 
 b = (16u) a;
 c = (32u) a;
 d = (32u) b;
 e = (64u) a;
 f = (64u) b;
+g = (64u) c;
 
-e += f;
-d += e;
-c += d;
+f += e;
+g += f;
 
-return c;
+d += g;
+
+return d;
 }
 
 export
