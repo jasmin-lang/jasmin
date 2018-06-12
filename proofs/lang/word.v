@@ -776,7 +776,10 @@ Parameters wpunpckl wpunpckh : ∀ sz, velem → word sz → word sz → word sz
 
 (* -------------------------------------------------------------------*)
 Parameter wpinsr : ∀ ve, u128 → word ve → u8 → u128.
-Parameter winserti128 : u256 → u128 → u8 → u256.
+
+Definition winserti128 (v: u256) (w: u128) (i: u8) : u256 :=
+  let v := split_vec U128 v in
+  make_vec U256 (if lsb i then [:: v`_0 ; w ] else [:: w ; v`_1 ])%R.
 
 (* -------------------------------------------------------------------*)
 Definition wpblendd sz (w1 w2: word sz) (m: u8) : word sz :=
