@@ -25,7 +25,7 @@ type v_kind =
   | Stack         (* stack variable    *)
   | Reg           (* register variable *)
   | Inline        (* inline variable   *)
-  | Global        (* global (in memory) constant *)
+(*  | Global        (* global (in memory) constant *) *)
   [@@deriving compare,sexp]
 
 type 'ty gvar = private {
@@ -133,7 +133,7 @@ type ('ty,'info) gfunc = {
 type ('ty,'info) gmod_item =
   | MIfun   of ('ty,'info) gfunc
   | MIparam of ('ty gvar * 'ty gexpr)
-  | MIglobal of 'ty gvar * 'ty gexpr
+  | MIglobal of (Name.t * 'ty) * 'ty gexpr
 
 type ('ty,'info) gprog = ('ty,'info) gmod_item list
    (* first declaration occur at the end (i.e reverse order) *)

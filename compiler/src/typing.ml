@@ -160,8 +160,8 @@ module Env : sig
   end
 
   module Globals : sig
-    val push  : P.pvar -> env -> env
-    val find  : S.symbol -> env -> P.pvar option
+    val push  : P.Name.t -> P.pty -> env -> env
+    val find  : S.symbol -> env -> (P.Name.t * P.pty) option
   end
 
   module Funs : sig
@@ -171,7 +171,7 @@ module Env : sig
 end = struct
   type env = {
     e_vars : (S.symbol, P.pvar) Map.t;
-    e_globals : (S.symbol, P.pvar) Map.t;
+    e_globals : (S.symbol, P.Name.t * P.pty) Map.t;
     e_funs : (S.symbol, unit P.pfunc) Map.t;
   }
 
@@ -187,8 +187,8 @@ end = struct
   end
 
   module Globals = struct
-    let push (v : P.pvar) (env : env) =
-      { env with e_globals = Map.add v.P.v_name v env.e_globals; }
+    let push (v : P.Name.t) (ty:P.pty) (env : env) =
+      { env with e_globals = Map.add v (v,ty) env.e_globals; }
 
     let find (x : S.symbol) (env : env) =
       Map.Exceptionless.find x env.e_globals
@@ -230,18 +230,27 @@ type tt_mode = [
   ]
 
 (* -------------------------------------------------------------------- *)
-let tt_var ?(allow_global = false) (mode:tt_mode) (env : Env.env) { L.pl_desc = x; L.pl_loc = lc; } =
+let tt_var (mode:tt_mode) (env : Env.env) { L.pl_desc = x; L.pl_loc = lc; } =
   let v =
     match Env.Vars.find x env with
     | Some v -> v
-    | None ->
-      match Env.Globals.find x env with
-      | Some v -> if allow_global then v else rs_tyerror ~loc:lc (InvalidGlobal x)
-      | None -> rs_tyerror ~loc:lc (UnknownVar x)
-  in
-  if mode = `OnlyParam && match v.P.v_kind with P.Const | P.Global -> false | _ -> true then
+    | None -> rs_tyerror ~loc:lc (UnknownVar x) in
+  if mode = `OnlyParam && 
+       match v.P.v_kind with P.Const -> false | _ -> true then
     rs_tyerror ~loc:lc (UnknownVar x);
   v
+
+let tt_var_global (mode:tt_mode) (env : Env.env) v = 
+  try `Var (tt_var mode env v) 
+  with TyError _ -> 
+    let x = v.L.pl_desc in
+    let lc = v.L.pl_loc in
+    if mode = `OnlyParam then rs_tyerror ~loc:lc (UnknownVar x);
+    match Env.Globals.find x env with
+    | Some ty -> `Glob ty
+    | None -> rs_tyerror ~loc:lc (UnknownVar x) 
+
+    
 
 (* -------------------------------------------------------------------- *)
 let tt_fun (env : Env.env) { L.pl_desc = x; L.pl_loc = lc; } =
@@ -464,9 +473,10 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     P.Pconst i, P.tint
 
   | S.PEVar ({ L.pl_loc = lc; } as x) ->
-    let x = tt_var ~allow_global:true mode env x in
-    (if x.P.v_kind = P.Global then P.Pglobal (tt_as_word (lc, x.P.v_ty), x.P.v_name) else
-    P.Pvar (L.mk_loc lc x)), x.P.v_ty
+    begin match tt_var_global mode env x with
+    | `Var x -> P.Pvar (L.mk_loc lc x), x.P.v_ty
+    | `Glob (x, ty) -> P.Pglobal (tt_as_word (lc, ty), x), ty
+    end
 
   | S.PEFetch (ct, ({ pl_loc = xlc } as x), po) ->
     let x = tt_var mode env x in
@@ -893,7 +903,6 @@ let check_call loc doInline lvs f es =
     let _ = 
       match x.P.v_kind with
       | P.Const -> assert false
-      | P.Global -> assert false
       | P.Inline -> 
         if not (is_constant e) then 
           F.eprintf
@@ -941,7 +950,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
   let instr =
     match L.unloc pi with
     | S.PIArrayInit ({ L.pl_loc = lc; } as x) ->
-      let x = tt_var ~allow_global:false `AllVar env x in
+      let x = tt_var `AllVar env x in
       let xi = (L.mk_loc lc x) in
       begin match x.P.v_ty with
       | P.Arr(ws, P.Pconst n) as ty -> P.Cassgn (Lvar xi, P.AT_inline, ty, P.Parr_init (ws, n))
@@ -1087,7 +1096,7 @@ let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
   (Env.Funs.push fdef env, fdef)
 
 (* -------------------------------------------------------------------- *)
-let tt_global (env : Env.env) _loc (gd: S.pglobal) : Env.env * (P.pvar * P.pexpr) =
+let tt_global (env : Env.env) _loc (gd: S.pglobal) : Env.env * ((P.Name.t * P.pty) * P.pexpr) =
   let pe, ety = tt_expr ~mode:`OnlyParam env gd.S.pgd_val in
 
   let ty, ws =
@@ -1104,11 +1113,11 @@ let tt_global (env : Env.env) _loc (gd: S.pglobal) : Env.env * (P.pvar * P.pexpr
     | _ -> rs_tyerror ~loc:(L.loc gd.S.pgd_val) (TypeMismatch (ety, ty))
     in
 
-  let x = P.PV.mk (L.unloc gd.S.pgd_name) P.Global ty (L.loc gd.S.pgd_name) in
+  let x = L.unloc gd.S.pgd_name in
 
-  let env = Env.Globals.push x env in
+  let env = Env.Globals.push x ty env in
 
-  (env, (x, pe))
+  (env, ((x,ty), pe))
 
 (* -------------------------------------------------------------------- *)
 let tt_item (env : Env.env) pt : Env.env * unit P.pmod_item =

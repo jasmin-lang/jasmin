@@ -359,14 +359,14 @@ let pp_fun env fmt f =
     (pp_cmd env) f.f_body
     (pp_ret b env) f.f_ret
 
-let pp_glob_decl env fmt (x,e) =
+let pp_glob_decl env fmt ((x,_ty),e) =
   Format.fprintf fmt "@[op %a = %a.@]@ "
-    (pp_glob env) x.v_name (pp_expr env) e
+    (pp_glob env) x (pp_expr env) e
 
 let pp_prog fmt globs funcs = 
   let fmem = init_use funcs in
   let env = 
-    List.fold_left (fun env (x,_) -> add_glob env x.v_name x.v_ty)
+    List.fold_left (fun env ((x,ty),_) -> add_glob env x ty)
       empty_env globs in
   let env = {env with fmem} in
   Format.fprintf fmt "@[<v>require import Jasmin_model Int IntDiv CoreMap.@ @ %a@ @ module M = {@   @[<v>%a@]@ }.@ @]@." 

@@ -39,7 +39,7 @@ exception NotAConstantExpr
 let clamp (sz : LM.wsize) (z : Bigint.zint) =
   Bigint.erem z (Bigint.lshift Bigint.one (bits_of_wsize sz))
 
-let rec constant_of_expr (e: Prog.pexpr) : Bigint.zint =
+let rec constant_of_expr (e: Prog.expr) : Bigint.zint =
   let open Prog in
 
   match e with
@@ -652,14 +652,13 @@ let pp_const ws z =
     List.rev_map (fun b -> `Instr (".byte", [ Bigint.to_string b] ))
       (bigint_to_bytes (Prog.size_of_ws ws) z)
 
-let pp_glob_def fmt ((x, d): Prog.pvar * Prog.pexpr) : unit =
+let pp_glob_def fmt (((n,ty), d): (Prog.Name.t * Prog.ty) * Prog.expr) : unit =
   let ws =
-    match x.Prog.v_ty with
+    match ty with
     | Bty (U ws) -> ws
     | _ -> assert false
   in
   let z = clamp ws (constant_of_expr d) in
-  let n = x.Prog.v_name in
   let m = mangle n in
   pp_gens fmt ([
     `Instr (".globl", [m]);
@@ -671,7 +670,7 @@ let pp_glob_def fmt ((x, d): Prog.pvar * Prog.pexpr) : unit =
 
 (* -------------------------------------------------------------------- *)
 type 'a tbl = 'a Conv.coq_tbl
-type  gd_t  = (Prog.pvar * Prog.pexpr) list
+type  gd_t  = ((Prog.Name.t * Prog.ty) * Prog.expr) list
 
 let pp_prog (tbl: 'info tbl) (gd: gd_t) (fmt : Format.formatter) (asm : X86_sem.xprog) =
   pp_gens fmt

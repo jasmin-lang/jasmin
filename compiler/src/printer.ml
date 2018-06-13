@@ -282,7 +282,7 @@ let pp_kind fmt = function
   | Stack  ->  F.fprintf fmt "Stack"
   | Reg    ->  F.fprintf fmt "Reg"
   | Inline ->  F.fprintf fmt "Inline"
-  | Global ->  F.fprintf fmt "Global"
+(*  | Global ->  F.fprintf fmt "Global" *)
 
 let pp_ty_decl (pp_size:F.formatter -> 'size -> unit) fmt v =
   F.fprintf fmt "%a %a" pp_kind v.v_kind (pp_gtype pp_size) v.v_ty
@@ -312,11 +312,13 @@ let pp_pitem pp_var =
   let pp_size = pp_ge pp_var in
   let aux fmt = function
     | MIfun fd -> pp_gfun pp_noinfo pp_size pp_var fmt fd
-    | MIglobal (x, e)
     | MIparam (x,e) ->
       F.fprintf fmt "%a = %a"
         (pp_var_decl pp_var pp_size) x
-        (pp_ge pp_var) e in
+        (pp_ge pp_var) e
+    | MIglobal ((x,ty), e) ->
+      F.fprintf fmt "Global %a %s = %a" (pp_gtype pp_size) ty x (pp_ge pp_var) e
+ in
   aux
 
 let pp_pvar fmt x = F.fprintf fmt "%s" x.v_name 

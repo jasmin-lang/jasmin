@@ -5,8 +5,7 @@ val gsubst_func : ('ty1 -> 'ty2) -> ('ty1 gvar_i -> 'ty2 gexpr) -> ('ty1, 'info)
 
 (* replace parameter by their definition everywhere in the program *)
 val remove_params : 'info pprog -> 
-                    (pvar * pexpr) list * 
-                      ((var * expr) list * 'info prog)
+                    (((Name.t * ty) * expr) list * 'info prog)
 
 (* rename all variable using fresh variables *)
 val clone_func : 'info func -> 'info func

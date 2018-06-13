@@ -82,7 +82,7 @@ let psubst_v subst =
     | _      -> e in
   aux
 
-let psubst_prog (prog:'info pprog) : (pvar * pexpr) list * 'info pprog =
+let psubst_prog (prog:'info pprog) : ((Name.t * pty) * pexpr) list * 'info pprog =
   let subst = ref (Mpv.empty : pexpr Mpv.t) in
   let rec aux = function
     | [] -> [], []
@@ -135,7 +135,7 @@ let isubst_ty = function
   | Arr(ty, e) -> Arr(ty, B.to_int (int_of_expr e))
 
 
-let isubst_prog (glob: (pvar * _) list) (prog:'info pprog) =
+let isubst_prog (glob: ((Name.t * pty) * _) list) (prog:'info pprog) =
 
   let isubst_v () =
     let subst = ref Mpv.empty in
@@ -169,14 +169,11 @@ let isubst_prog (glob: (pvar * _) list) (prog:'info pprog) =
         } in
       fc in
 
-  let isubst_glob (x,e) = 
+  let isubst_glob ((x,ty),e) = 
     let subst_v = isubst_v () in
-    let x = 
-      match subst_v (Location.mk_loc Location._dummy x) with 
-      | Pvar x -> (Location.unloc x)
-      | _ -> assert false in
+    let ty = isubst_ty ty in
     let e = gsubst_e subst_v e in
-    (x,e) in
+    ((x,ty),e) in
 
   let prog = List.map isubst_item prog in
   let glob = List.map isubst_glob glob in
@@ -188,7 +185,7 @@ let isubst_prog (glob: (pvar * _) list) (prog:'info pprog) =
 
 let remove_params (prog : 'info pprog) =
   let globals, prog = psubst_prog prog in
-  globals, isubst_prog globals prog
+  isubst_prog globals prog
 
 
 

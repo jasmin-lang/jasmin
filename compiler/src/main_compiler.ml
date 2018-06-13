@@ -136,7 +136,7 @@ let main () =
     eprint Compiler.Typing Printer.pp_pprog pprog;
     if !typeonly then exit 0;
 
-    let gd, (gd',prog) = Subst.remove_params pprog in
+    let (gd',prog) = Subst.remove_params pprog in
     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
     if !ec_list <> [] then begin
@@ -271,10 +271,10 @@ let main () =
       if !outfile <> "" then begin
         BatFile.with_file_out !outfile (fun out ->
           let fmt = BatFormat.formatter_of_out_channel out in
-          Format.fprintf fmt "%a%!" (Ppasm.pp_prog tbl gd) asm);
+          Format.fprintf fmt "%a%!" (Ppasm.pp_prog tbl gd') asm);
           if !debug then Format.eprintf "assembly listing written@."
       end else if List.mem Compiler.Assembly !print_list then
-          Format.printf "%a%!" (Ppasm.pp_prog tbl gd) asm
+          Format.printf "%a%!" (Ppasm.pp_prog tbl gd') asm
     end
   with
   | Utils.HiError s ->
