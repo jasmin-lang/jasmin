@@ -130,16 +130,6 @@ Definition to_sval t : ssem_t t -> svalue :=
   | ssword sz   => @SVword sz
   end.
 
-Lemma of_sval_ex ty (s: svalue) :
-  ty = sval_sstype s →
-  ∃ v,
-  of_sval ty s = ok v ∧ to_sval v = s.
-Proof.
-move=>->; case: s => /=; eauto.
-- by move => sz t; exists t; rewrite eq_dec_refl.
-by move => sz w; exists w; split; [rewrite truncate_word_u |].
-Qed.
-
 (* ** Traduction of Arrays into Farrays & Truncation of Farrays
  * -------------------------------------------------------------------- *)
 
@@ -488,6 +478,11 @@ Section SEM.
 Variable P:prog.
 Context (gd: glob_defs).
 
+Definition truncate_sval (ty: sstype) (v: svalue) : exec svalue :=
+  of_sval ty v >>= λ x, ok (to_sval x).
+
+Definition sstypes_of_stypes := map sstype_of_stype.
+
 Inductive ssem : sestate -> cmd -> sestate -> Prop :=
 | SEskip s :
     ssem s [::] s
@@ -501,8 +496,10 @@ with ssem_I : sestate -> instr -> sestate -> Prop :=
     ssem_I s1 (MkI ii i) s2
 
 with ssem_i : sestate -> instr_r -> sestate -> Prop :=
-| SEassgn s1 s2 (x:lval) tag ty e:
-    (Let v := ssem_pexpr gd s1 e in swrite_lval gd x v s1) = ok s2 ->
+| SEassgn s1 s2 (x:lval) tag ty e v v':
+    ssem_pexpr gd s1 e = ok v ->
+    truncate_sval (sstype_of_stype ty) v = ok v' ->
+    swrite_lval gd x v' s1 = ok s2 ->
     ssem_i s1 (Cassgn x tag ty e) s2
 
 | SEopn s1 s2 t o xs es:
@@ -554,12 +551,14 @@ with ssem_for : var -> seq Z -> sestate -> cmd -> sestate -> Prop :=
     ssem_for i (w :: ws) s1 c s3
 
 with ssem_call : mem -> funname -> seq svalue -> mem -> seq svalue -> Prop := 
-| SEcallRun m1 m2 fn f vargs s1 vm2 vres:
+| SEcallRun m1 m2 fn f vargs vargs' s1 vm2 vres vres':
     get_fundef P fn = Some f ->
+    mapM2 ErrType truncate_sval (sstypes_of_stypes f.(f_tyin)) vargs' = ok vargs ->
     swrite_vars f.(f_params) vargs (SEstate m1 svmap0) = ok s1 ->
     ssem s1 f.(f_body) (SEstate m2 vm2) ->
     map (fun (x:var_i) => sget_var vm2 x) f.(f_res) = vres ->
-    ssem_call m1 fn vargs m2 vres.
+    mapM2 ErrType truncate_sval (sstypes_of_stypes f.(f_tyout)) vres = ok vres' ->
+    ssem_call m1 fn vargs' m2 vres'.
 
 End SEM.
 
@@ -574,37 +573,14 @@ Lemma sval_sstype_to_sval sst (z : ssem_t sst) :
   sval_sstype (to_sval z) = sst.
 Proof. by case: sst z. Qed.
 
-(*Lemma sval_sstype_of_sval sst (z : svalue) y :
-  of_sval sst z = ok y -> sval_sstype z = sst.
+Lemma sto_word_inv s x (w:word s) :
+  sto_word s x = ok w →
+  exists  {s'} (w': word s'), x = SVword w' /\ truncate_word s w' = ok w.
 Proof.
-  case: sst y z;[by move => y []| by move => y [] | |] => s; [by destruct s => y [] [] |]; (try by move => y [] ).
-  simpl => w. move => []; (try by move).
-  move => s' w'. simpl. rewrite /truncate_word. case (s<=s')%CMP. 
-  move => H. apply ok_inj in H.
-  simpl. move => H. 
+  case: x => // s' w'. rewrite /sto_word /truncate_word.
+  elim le_ss' : cmp_le => //= eq_ww';apply ok_inj in eq_ww'.
+  by exists s'; exists  w';split => //=; rewrite le_ss' eq_ww'.
 Qed.
-
-Lemma of_sval_inj sst z1 z2 :
-     sval_sstype z1 = sst
-  -> sval_sstype z2 = sst
-  -> of_sval sst z1 = of_sval sst z2
-  -> z1 = z2.
-Proof. by case: sst; case: z2; case: z1 => //= x1 x2 _ _ [->]. Qed.
-
-Lemma of_sval_to_sval ty x :
-  of_sval ty (to_sval x) = ok x.
-Proof. by move: x; case ty. Qed.
-*)
-Lemma sto_word_inv sz'(x : word sz') sz (i: word sz) :
-  sto_word sz (SVword x) = ok i →
-  (sz <= sz')%CMP ->
-  truncate_word sz x = ok i.
-Proof.
-case: x => //i';simpl.
-(*rewrite /truncate_word.
-case:cmp_le => //= H; apply ok_inj in H.
-rewrite -H. congr. congruence.
-apply ok_inj in H. congruence.*) Qed.
 
 Lemma sto_int_inv x i :
   sto_int x = ok i →
@@ -615,103 +591,35 @@ Lemma sto_bool_inv x b :
   sto_bool x = ok b →
   x = b.
 Proof. case: x => // i' H; apply ok_inj in H. congruence. Qed.
-(*
-Lemma sto_arr_inv x a :
-  sto_arr x = ok a →
-  x = SVarr s a.
-Proof. case: x => // a' H;apply ok_inj in H. congruence. Qed.
 
-Lemma slet_inv {A s x} {f: _ → _ → exec A} {y} :
-  SLet (n, t) := s.[x] in f n t = ok y →
-  ∃ n (Tx: vtype x = sarr n), f n (eq_rect _ _ (sevm s).[x]%vmap _ Tx) = ok y.
-Proof.
-  unfold son_arr_var.
-  generalize ((sevm s).[x])%vmap.
-  case: (vtype x) => // n t E.
-  exists n, Logic.eq_refl. exact E.
-Qed.
-
-Lemma ssem_inv { prg gd s c s' } :
-  ssem prg gd s c s' →
-  match c with
-  | [::]    => s' = s
-  | i :: c' => ∃ si, ssem_I prg gd s i si ∧ ssem prg gd si c' s'
-end.
-Proof. case; eauto. Qed.
-
-Lemma ssem_I_inv { prg gd s i s' } :
-  ssem_I prg gd s i s' →
-  ∃ i' ii, i = MkI ii i' ∧ ssem_i prg gd s i' s'.
-Proof. case; eauto. Qed.
-
-Lemma ssem_i_inv { prg gd s i s' } :
-  ssem_i prg gd s i s' →
-  match i with
-  | Cassgn x tg e   => ∃ v, ssem_pexpr gd s e = ok v ∧ swrite_lval gd x v s = ok s'
-  | Copn xs t op es => ∃ args vs, ssem_pexprs gd s es = ok args ∧ ssem_sopn op args = ok vs ∧ swrite_lvals gd s xs vs = ok s'
-  | Cif e c1 c2     => ∃ b : bool, ssem_pexpr gd s e = ok (SVbool b) ∧ ssem prg gd s (if b then c1 else c2) s'
-  | _ => True
+Definition incl_ty t1 t2 :=
+  match t1,t2 with
+  |sbool, sbool          => true
+  |sint, sint            => true
+  |sarr s p , sarr s' p' => s == s'
+  |sword s, sword s'     => (s <= s')%CMP
+  |_, _ => false
   end.
-Proof.
-  case; eauto; clear.
-  - (* Cassgn *)
-  move=> s s' x _ e; apply: rbindP; eauto.
-  - (* Copn *)
-  move=> s s' xs t op es; apply: rbindP => vs; apply: rbindP; eauto.
-  - (* Cif true *)
-  move=> s s' e c1 c2; apply: rbindP => v Hv /sto_bool_inv ?; subst v; eauto.
-  - (* Cif false *)
-  move=> s s' e c1 c2; apply: rbindP => v Hv /sto_bool_inv ?; subst v; eauto.
-Qed.
 
 Lemma of_val_addr_undef ty v :
   of_val ty v = Error ErrAddrUndef →
-  v = Vundef ty.
+  exists ty', v = Vundef ty' /\ incl_ty ty ty'.
 Proof.
-  case: ty => //; case: v => //=; try by case => //.
-  + move=> n a p. case: CEDecStype.pos_dec => //.
-  case => //. move=> p p'; case: eqP => // -> //.
-Qed.
-
-Lemma swrite_lval_inv {gd x v s s'} :
-  swrite_lval gd x v s = ok s' →
-  match x with
-  | Lnone _ _ => s' = s
-  | Lvar x => (∃ v', of_sval (vtype x) v = ok v' ∧
-                    s' = {| semem := semem s ; sevm := (sevm s).[ x <- v' ] |})
-                ∨ of_sval (vtype x) v = Error ErrAddrUndef ∧ s' = s
-  | Lmem x e =>
-    ∃ (Tx: vtype x = sword),
-    ∃ vx ve w: word, eq_rect _ _ ((sevm s).[ x ]) _ Tx = vx ∧ ssem_pexpr gd s e = ok (SVword ve) ∧ v = w ∧
-               s' = {| semem := write_mem (semem s) (I64.add vx ve) w ; sevm := sevm s |}
-  | Laset x i =>
-    ∃ n (Tx: vtype x = sarr n) (vi : Z) (w: word),
-  ssem_pexpr gd s i = ok (SVint vi) ∧
-  v = w ∧
-  let q := FArray.set (eq_rect (vtype x) ssem_t ((sevm s).[x]) (sarr n) Tx) vi w in
-  s' = {| semem := semem s ; sevm := (sevm s).[x <- eq_rect _ _ q _ (Logic.eq_sym Tx)] |}
-end%vmap.
-Proof.
-  destruct x as [ vi | x | x e | x i ].
-  - move=> H; apply ok_inj in H; auto.
-  - apply: rbindP => vm H K; apply ok_inj in K; subst s'.
-    revert H; apply: on_vuP.
-    + move=> w -> <-; eauto.
-    + move=> ->; case: eqP => // ht k; apply ok_inj in k; subst; right; constructor; auto.
-      by case: s.
-  - apply: rbindP => vx /sto_word_inv H.
-    apply: rbindP => ve.
-    apply: rbindP => ve' He /sto_word_inv ?; subst ve'.
-    apply: rbindP => w /sto_word_inv -> X; apply ok_inj in X; subst s'.
-    unfold sget_var in H.
-    case: x H=> [[[] x] xi] //.
-    exists Logic.eq_refl, vx, ve, w.
-    split. simpl in *. congruence. auto.
-  - move=> /slet_inv [n [Tx H]].
-    exists n, Tx.
-    apply: rbindP H=> vi;apply: rbindP => vj Hi /sto_int_inv H;subst vj.
-    apply: rbindP => w /sto_word_inv ->;apply: rbindP => vm' L [<-].
-    exists vi, w;split=> //;split=>//=;f_equal;f_equal.
-    by case: x Tx L=>  -[ty x] xi /= ?;subst ty => /= -[] <-.
-Qed.
-*)
+  elim ty => // => [||s p|s]; elim v => //=; try (move =>  ty';by exists ty';move: H;case: ty' => //=).
+  + move => s' n a. case: CEDecStype.pos_dec => //=.
+    move => eq_an'.
+    case: wsize_eq_dec => //=. move=>  _.
+    case: wsize_eq_dec => //=.
+    move => ty'. case: ty' => //=.
+    move => s' p'.
+    case:eqP => //=;case:eqP => //= eq_pp' eq_ss';subst => _.
+    exists (sarr s' p') => //=.
+    move => s' w'.
+    rewrite /truncate_word.
+    case:cmp_le => //=.
+    move => ty'.
+    case: ty' => //=.
+    move => s'.
+    case H : cmp_le  => //= _.
+    exists (sword s') => //=.
+Qed. 
