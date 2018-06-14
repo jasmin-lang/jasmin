@@ -147,8 +147,9 @@ let main () =
           let fmt = Format.formatter_of_out_channel out in
           fmt, fun () -> close_out out in
       ToEC.extract fmt gd' prog !ec_list;
-      close()
-    end; 
+      close();
+      exit 0
+    end;
 
     (* Generate the coq program if needed *)
     if !coqfile <> "" then begin
