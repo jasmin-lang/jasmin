@@ -71,6 +71,7 @@ theory W256.
   op (`>>`) :  t -> W8.t -> t. 
   op (`<<`) : t -> W8.t -> t.
   op addc_256: t -> t -> bool -> (bool * t).
+  op cast_32: t -> W32.t.
 end W256. 
 export W256.
 
@@ -116,7 +117,27 @@ op sigext_256_64:  W256.t -> W64.t.
 op sigext_256_128: W256.t -> W128.t.
 op sigext_256_256: W256.t -> W256.t.
 
-op x86_SHLD_64: W64.t -> W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
-op x86_SHRD_64: W64.t -> W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
+
+op loadW32: global_mem_t -> W64.t -> W32.t.
+op storeW32: global_mem_t -> W64.t -> W32.t -> global_mem_t.
+
+op x86_MOVD_32: W32.t -> W128.t.
+op x86_ROL_32: W32.t -> W8.t -> (bool * bool * W32.t).
+
+
 op loadW64: global_mem_t -> W64.t -> W64.t.
 op storeW64: global_mem_t -> W64.t -> W64.t -> global_mem_t.
+
+op x86_SHLD_64: W64.t -> W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
+op x86_SHRD_64: W64.t -> W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
+
+op loadW128: global_mem_t -> W64.t -> W128.t.
+op storeW128: global_mem_t -> W64.t -> W128.t -> global_mem_t.
+
+op x86_VPSLL_4u32: W128.t -> W8.t -> W128.t.
+op x86_VPSRL_4u32: W128.t -> W8.t -> W128.t.
+op x86_VPSHUFB_128: W128.t -> W128.t -> W128.t.
+op x86_VPSHUFD_128: W128.t -> W8.t -> W128.t.
+
+
+
