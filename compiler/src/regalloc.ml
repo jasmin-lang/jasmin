@@ -10,7 +10,7 @@ let fill_in_missing_names (f: 'info func) : 'info func =
   let fresh_name : L.t -> ty -> ty gvar_i =
     let count = ref 0 in
     fun loc ty ->
-      let n = Printf.sprintf " %d" !count in
+      let n = Printf.sprintf " _%d" !count in
       incr count;
       L.mk_loc loc (V.mk n Reg ty L._dummy)
   in
