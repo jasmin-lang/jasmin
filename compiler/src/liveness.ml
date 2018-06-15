@@ -91,7 +91,9 @@ let live_fd weak fd =
   let _, c = live_c weak fd.f_body s_o in
   { fd with f_body = c }
 
-let liveness weak prog = List.map (live_fd weak) prog
+let liveness weak prog = 
+  let fds = List.map (live_fd weak) (snd prog) in
+  fst prog, fds
 
 let pp_info fmt (s1, s2) =
   Format.fprintf fmt "before: %a; after %a@ "

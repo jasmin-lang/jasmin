@@ -113,6 +113,17 @@ and pp_comp_ferr tbl fmt = function
     Format.fprintf fmt "program is not a topological sorting of the call-graph"
   | Compiler_util.Ferr_lowering ->
     Format.fprintf fmt "lowering check fails"
+  | Ferr_glob_neq ->
+    Format.fprintf fmt "error global not equal"
+  | Ferr_fun (f, err_msg) ->
+    let f =  Conv.fun_of_cfun tbl f in
+    Format.fprintf fmt "in function %s: %a" 
+      f.fn_name (pp_comp_err tbl) err_msg
+  | Ferr_remove_glob x ->
+    Format.fprintf fmt "Cannot remove global variable : %a"
+     (pp_var_i tbl) x
+  | Ferr_remove_glob_dup (_, _) ->
+    Format.fprintf fmt "duplicate global: please report"
 
 (* -------------------------------------------------------------------- *)
 let main () =

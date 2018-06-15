@@ -287,12 +287,12 @@ let pp_notation fmt () =
     (pp_list "@ " pp_fun) !flist
     (pp_list "@ " pp_var) !vlist
 
-let pp_prog fmt prog =
-  reset ();
+let pp_prog _fmt _prog = assert false
+(*  reset ();
   List.iter preprocess prog;
 
   pp_prefix fmt ();
   pp_notation fmt ();
   F.fprintf fmt "@[<v>Definition program := [::@   @[<v>%a@]]@]."
-      (pp_list ";@ @ " pp_named_fun) prog
+      (pp_list ";@ @ " pp_named_fun) prog *)
 

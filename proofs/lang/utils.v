@@ -320,14 +320,20 @@ case.
 by move => h; case: (ih _ rec h) => x hx ok_y; eauto.
 Qed.
 
-Fixpoint foldM eT aT bT (f : aT -> bT -> result eT bT) (acc : bT) (l : seq aT) :=
-  match l with
-  | [::]         => Ok eT acc
-  | [:: a & la ] => f a acc >>= fun acc => foldM f acc la
-  end.
+Section FOLDM.
 
-Definition isOk e a (r : result e a) :=
-  if r is Ok _ then true else false.
+  Context (eT aT bT:Type) (f:aT -> bT -> result eT bT).
+
+  Fixpoint foldM (acc : bT) (l : seq aT) :=
+    match l with
+    | [::]         => Ok eT acc
+    | [:: a & la ] => f a acc >>= fun acc => foldM acc la
+    end.
+
+  Definition isOk e a (r : result e a) :=
+    if r is Ok _ then true else false.
+
+End FOLDM.
 
 Section FOLD2.
 

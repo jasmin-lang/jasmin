@@ -71,7 +71,7 @@ Lemma eval_low_read gd m sz sz' (w: word sz') x :
 Proof.
 move => hle; case: x => /=.
 - by move => n /ok_word_inj [??]; subst.
-- by rewrite /get_global => g; case: get_global_value => // - [] // s w'; apply: rbindP => _ /assertP /eqP ?; subst s => /ok_word_inj [??]; subst; rewrite eqxx.
+- by rewrite /get_global => g; case: get_global_value => // z /ok_word_inj [??];subst.
 - by move => r /ok_word_inj [??]; subst.
 by move => a; apply: rbindP => ? -> /ok_word_inj [??]; subst; rewrite /= zero_extend_u.
 Qed.
@@ -158,8 +158,8 @@ case: y => [ y | y | y ]; rewrite /low_sem_aux /sets_low /eval_VMOV /read_rm128 
   [ case | rewrite truncate_word_u ] => /= ->;
   eexists; split; reflexivity.
 case: eqP => // - [<-]{sz}.
-case: x => //= x; t_xrbindP => ??? /get_globalI /= [w]; rewrite /get_global => -> -> /= <- /=;
-rewrite truncate_word_u /= eqxx /= eq_dec_refl; t_xrbindP => _ -> /= <- /=;
+case: x => //= x; t_xrbindP => ??? /get_globalI /= [w];rewrite /get_global => -> -> /= <- /=;
+rewrite truncate_word_u /= eq_dec_refl; t_xrbindP => _ -> /= <- /=;
 [ case | rewrite truncate_word_u ] => /= ->;
 eexists; split; reflexivity.
 Qed.

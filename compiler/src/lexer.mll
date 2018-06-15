@@ -28,6 +28,7 @@
     "false" , FALSE  ;
     "fn"    , FN     ;
     "for"   , FOR    ;
+    "global", GLOBAL ;
     "if"    , IF     ;
     "inline", INLINE ;
     "param" , PARAM  ;

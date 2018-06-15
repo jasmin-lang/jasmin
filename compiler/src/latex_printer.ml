@@ -169,7 +169,8 @@ let pp_storage fmt s =
     (match s with
      | `Reg -> "reg"
      | `Stack -> "stack"
-     | `Inline -> "inline")
+     | `Inline -> "inline"
+     | `Global -> "global")
 
 let pp_sto_ty fmt (sto, ty) =
   F.fprintf fmt "%a %a" pp_storage sto pp_type ty

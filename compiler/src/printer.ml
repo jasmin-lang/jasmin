@@ -282,7 +282,7 @@ let pp_kind fmt = function
   | Stack  ->  F.fprintf fmt "Stack"
   | Reg    ->  F.fprintf fmt "Reg"
   | Inline ->  F.fprintf fmt "Inline"
-(*  | Global ->  F.fprintf fmt "Global" *)
+  | Global ->  F.fprintf fmt "Global" 
 
 let pp_ty_decl (pp_size:F.formatter -> 'size -> unit) fmt v =
   F.fprintf fmt "%a %a" pp_kind v.v_kind (pp_gtype pp_size) v.v_ty

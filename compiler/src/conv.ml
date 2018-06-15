@@ -166,20 +166,26 @@ let global_of_cglobal (g: C.global) : T.wsize * Name.t =
   let { E.size_of_global = ws ; E.ident_of_global = n } = g in
   ws, string_of_string0 n
 
+let cgd_of_gd (ws, g, z) = 
+  (cglobal_of_global ws g, z_of_bi z)
+  
+let gd_of_cgd (g, z) = 
+  let ws, n = global_of_cglobal g in
+  (ws, n, bi_of_z z)
 
 (* ------------------------------------------------------------------------ *)
 let rec cexpr_of_expr tbl = function
   | Pconst z          -> C.Pconst (z_of_bi z)
   | Pbool  b          -> C.Pbool  b
   | Parr_init (ws, n) -> C.Parr_init (ws, pos_of_bi n)
-  | Pcast (ws, e)    -> C.Pcast (ws, cexpr_of_expr tbl e)
+  | Pcast (ws, e)     -> C.Pcast (ws, cexpr_of_expr tbl e)
   | Pvar x            -> C.Pvar (cvari_of_vari tbl x)
-  | Pglobal (ws, g) -> C.Pglobal (cglobal_of_global ws g)
+  | Pglobal (ws, g)   -> C.Pglobal (cglobal_of_global ws g)
   | Pget (x,e)        -> C.Pget (cvari_of_vari tbl x, cexpr_of_expr tbl e)
-  | Pload (ws, x, e) -> C.Pload(ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
+  | Pload (ws, x, e)  -> C.Pload(ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Papp1 (o, e)      -> C.Papp1(o, cexpr_of_expr tbl e)
   | Papp2 (o, e1, e2) -> C.Papp2(o, cexpr_of_expr tbl e1, cexpr_of_expr tbl e2)
-  | Pif   (e, e1, e2)  -> C.Pif(cexpr_of_expr tbl e,
+  | Pif   (e, e1, e2) -> C.Pif(cexpr_of_expr tbl e,
                                 cexpr_of_expr tbl e1,
                                 cexpr_of_expr tbl e2)
 
@@ -404,7 +410,10 @@ let cprog_of_prog info p =
   List.iter
     (fun x -> ignore (cvar_of_reg tbl x))
     Regalloc.X64.all_registers;
-   tbl, List.map (cfdef_of_fdef tbl) p
+  let fds = List.map (cfdef_of_fdef tbl) (snd p) in
+  let gd  = List.map cgd_of_gd (fst p) in
+  tbl, { C.p_globs = gd; C.p_funcs = fds }
 
 let prog_of_cprog tbl p =
-  List.map (fdef_of_cfdef tbl) p
+  List.map gd_of_cgd p.C.p_globs,
+  List.map (fdef_of_cfdef tbl) p.C.p_funcs

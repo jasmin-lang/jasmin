@@ -26,7 +26,7 @@ type v_kind =
   | Stack         (* stack variable    *)
   | Reg           (* register variable *)
   | Inline        (* inline variable   *)
-(*  | Global        (* global (in memory) constant *) *)
+  | Global        (* global (in memory) constant *) 
   [@@deriving compare,sexp]
 
 type 'ty gvar = {
@@ -225,7 +225,8 @@ type 'info stmt  = (ty,'info) gstmt
 
 type 'info func     = (ty,'info) gfunc
 type 'info mod_item = (ty,'info) gmod_item
-type 'info prog     = 'info func list
+type global_decl    = wsize * Name.t * B.zint
+type 'info prog     = global_decl list * 'info func list
 
 module V = struct
   type t = var

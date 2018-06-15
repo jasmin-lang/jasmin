@@ -165,7 +165,7 @@ Qed.
 
 Section PROG.
 
-Context (p: lprog) (p': xprog) (ok_p': assemble_prog p = ok p') (gd: glob_defs).
+Context (p: lprog) (p': xprog) (ok_p': assemble_prog p = ok p') (gd: glob_decls).
 
 Definition get_reg_value (st: x86_mem) (r: register) : value :=
   Vword (xreg st r).

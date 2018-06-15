@@ -223,6 +223,7 @@ let tt_sto (sto : S.pstorage) : P.v_kind =
   | `Inline -> P.Inline
   | `Reg    -> P.Reg
   | `Stack  -> P.Stack
+  | `Global -> P.Global
 
 type tt_mode = [
   | `AllVar
@@ -903,12 +904,15 @@ let check_call loc doInline lvs f es =
     let _ = 
       match x.P.v_kind with
       | P.Const -> assert false
-      | P.Inline -> 
+      | P.Inline ->
         if not (is_constant e) then 
           F.eprintf
             "WARNING: at %a, the expression %a will not be evaluated to a constant expression, inlining will introduce an assigment@."
             L.pp_loc loc Printer.pp_pexpr e
-      | (P.Stack | P.Reg) as k ->
+      
+      | P.Global -> ()
+
+      | (P.Stack | P.Reg ) as k ->
         match e with
         | Pvar z -> if P.kind_i z <> k then rs_tyerror ~loc (BadVariableKind(z, k))
         | _      -> () in

@@ -357,23 +357,19 @@ Definition Vword_inj sz sz' w w' (e: @Vword sz w = @Vword sz' w') :
   ∃ e : sz = sz', eq_rect sz (λ s, (word s)) w sz' e = w' :=
   let 'Logic.eq_refl := e in (ex_intro _ erefl erefl).
 
-Definition glob_def : Type := global * value.
-Notation glob_defs := (seq glob_def).
-
-Definition get_global_value (gd: glob_defs) (g: global) : option value :=
+Definition get_global_value (gd: glob_decls) (g: global) : option Z :=
   assoc gd g.
 
 Definition get_global gd g : exec value :=
-  if get_global_value gd g is Some (Vword sz w as v)
-  then Let _ := assert (sz == size_of_global g) ErrType in ok v
+  if get_global_value gd g is Some z then 
+    ok (Vword (wrepr (size_of_global g) z))
   else type_error.
 
 Lemma get_globalI gd g v :
   get_global gd g = ok v →
-  exists2 w : word (size_of_global g), get_global_value gd g = Some (Vword w) & v = Vword w.
+  exists2 z : Z, get_global_value gd g = Some z & v = Vword (wrepr (size_of_global g) z).
 Proof.
-  rewrite /get_global; case: get_global_value => // - [] // sz w.
-  t_xrbindP => _ /assertP /eqP ??; subst; eauto.
+  rewrite /get_global; case: get_global_value => // z [<-];eauto.
 Qed.
 
 Definition is_defined (v: value) : bool :=
@@ -381,7 +377,7 @@ Definition is_defined (v: value) : bool :=
 
 Section SEM_PEXPR.
 
-Context (gd: glob_defs).
+Context (gd: glob_decls).
 
 Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   match e with
@@ -1080,7 +1076,8 @@ Qed.
 Section SEM.
 
 Variable P:prog.
-Context (gd: glob_defs).
+
+Notation gd := (p_globs P).
 
 Definition sem_range (s : estate) (r : range) :=
   let: (d,pe1,pe2) := r in
@@ -1088,7 +1085,7 @@ Definition sem_range (s : estate) (r : range) :=
   Let i2 := sem_pexpr gd s pe2 >>= to_int in
   ok (wrange d i1 i2).
 
-Definition sem_sopn o m lvs args :=
+Definition sem_sopn gd o m lvs args :=
   sem_pexprs gd m args >>= exec_sopn o >>= write_lvals gd m lvs.
 
 Inductive sem : estate -> cmd -> estate -> Prop :=
@@ -1111,7 +1108,7 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     sem_i s1 (Cassgn x tag ty e) s2
 
 | Eopn s1 s2 t o xs es:
-    sem_sopn o s1 xs es = ok s2 ->
+    sem_sopn gd o s1 xs es = ok s2 ->
     sem_i s1 (Copn xs t o es) s2
 
 | Eif_true s1 s2 e c1 c2 :
@@ -1160,7 +1157,7 @@ with sem_for : var_i -> seq Z -> estate -> cmd -> estate -> Prop :=
 
 with sem_call : mem -> funname -> seq value -> mem -> seq value -> Prop :=
 | EcallRun m1 m2 fn f vargs vargs' s1 vm2 vres vres' :
-    get_fundef P fn = Some f ->
+    get_fundef (p_funcs P) fn = Some f ->
     mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
     write_vars f.(f_params) vargs (Estate m1 vmap0) = ok s1 ->
     sem s1 f.(f_body) (Estate m2 vm2) ->
@@ -1213,7 +1210,7 @@ Section SEM_IND.
 
   Definition sem_Ind_opn : Prop :=
     forall (s1 s2 : estate) t (o : sopn) (xs : lvals) (es : pexprs),
-      sem_sopn o s1 xs es = Ok error s2 ->
+      sem_sopn gd o s1 xs es = Ok error s2 ->
       Pi_r s1 (Copn xs t o es) s2.
 
   Definition sem_Ind_if_true : Prop :=
@@ -1283,7 +1280,7 @@ Section SEM_IND.
   Definition sem_Ind_proc : Prop :=
     forall (m1 m2 : mem) (fn:funname) (f : fundef) (vargs vargs': seq value)
            (s1 : estate) (vm2 : vmap) (vres vres': seq value),
-      get_fundef P fn = Some f ->
+      get_fundef (p_funcs P) fn = Some f ->
       mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
       write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
       sem s1 (f_body f) {| emem := m2; evm := vm2 |} ->

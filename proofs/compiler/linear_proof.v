@@ -396,7 +396,7 @@ Qed.
 Section PROOF.
 
   Variable p:  sprog.
-  Context (gd: glob_defs).
+  Context (gd: glob_decls).
   Variable p': lprog.
   Hypothesis linear_ok : linear_prog p = ok p'.
 

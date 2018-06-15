@@ -117,7 +117,7 @@ and ptype_r = TBool | TInt | TWord of wsize | TArray of wsize * pexpr
 and ptype   = ptype_r L.located
 
 (* -------------------------------------------------------------------- *)
-type pstorage = [ `Reg | `Stack | `Inline ]
+type pstorage = [ `Reg | `Stack | `Inline | `Global]
 
 (* -------------------------------------------------------------------- *)
 type pstotype = pstorage * ptype

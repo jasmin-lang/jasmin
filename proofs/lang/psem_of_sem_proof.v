@@ -32,7 +32,8 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Section PROOF.
-Context (p: prog) (gd: glob_defs).
+Context (p: prog).
+Notation gd := (p_globs p).
 
 Definition word_sim (s: wsize) (w: word s) (w': pword s) : Prop :=
   w' = pword_of_word w.
@@ -235,33 +236,33 @@ Let Pc s1 c s2 : Prop :=
   ∀ s1',
     estate_sim s1 s1' →
     ∃ s2',
-      estate_sim s2 s2' ∧ psem.sem p gd s1' c s2'.
+      estate_sim s2 s2' ∧ psem.sem p s1' c s2'.
 
 Let Pi_r s1 i s2 : Prop :=
   ∀ s1',
     estate_sim s1 s1' →
     ∃ s2',
-      estate_sim s2 s2' ∧ psem.sem_i p gd s1' i s2'.
+      estate_sim s2 s2' ∧ psem.sem_i p s1' i s2'.
 
 Let Pi s1 i s2 : Prop :=
   ∀ s1',
     estate_sim s1 s1' →
     ∃ s2',
-      estate_sim s2 s2' ∧ psem.sem_I p gd s1' i s2'.
+      estate_sim s2 s2' ∧ psem.sem_I p s1' i s2'.
 
 Let Pfor x ws s1 c s2 : Prop :=
   ∀ s1',
     estate_sim s1 s1' →
     ∃ s2',
-      estate_sim s2 s2' ∧ psem.sem_for p gd x ws s1' c s2'.
+      estate_sim s2 s2' ∧ psem.sem_for p x ws s1' c s2'.
 
-Let Pfun := psem.sem_call p gd.
+Let Pfun := psem.sem_call p.
 
 Lemma psem_call m fn va m' vr :
-  sem.sem_call p gd m fn va m' vr →
-  psem.sem_call p gd m fn va m' vr.
+  sem.sem_call p m fn va m' vr →
+  psem.sem_call p m fn va m' vr.
 Proof.
-apply: (@sem.sem_call_Ind p gd Pc Pi_r Pi Pfor Pfun) => {m fn va m' vr}.
+apply: (@sem.sem_call_Ind p Pc Pi_r Pi Pfor Pfun) => {m fn va m' vr}.
 - by move => s s' hss'; exists s'; split; first exact: hss'; constructor.
 - move => s1 s2 s3 [ii i] c [] {ii i s1 s2} ii i s1 s2 _ ihi _ ihc s1' hss'1.
   case: (ihi s1' hss'1) => s2' [hss'2 hi].

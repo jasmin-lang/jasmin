@@ -88,8 +88,6 @@ let arrexp_func fc =
   let tbl = init_tbl fc in
   { fc with f_body = arrexp_c tbl fc.f_body }
 
-let arrexp_prog prog = List.map arrexp_func prog
-
 (* -------------------------------------------------------------- *)
 (* Perform stack allocation                                       *)
 
@@ -199,4 +197,3 @@ let stk_alloc_func fc =
   let alloc, sz, tbl = init_stk fc in
   alloc, sz, { fc with f_body = astk_c tbl fc.f_body }
 
-let stk_alloc_prog prog = List.map stk_alloc_func prog

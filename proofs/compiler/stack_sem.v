@@ -47,7 +47,7 @@ Module S.
   Section SEM.
 
   Variable P:sprog.
-  Context (gd: glob_defs).
+  Context (gd: glob_decls).
 
   Inductive sem : estate -> cmd -> estate -> Prop :=
   | Eskip s : sem s [::] s

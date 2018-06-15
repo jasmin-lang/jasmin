@@ -26,7 +26,7 @@ Inductive error_msg :=
   | Cerr_inline   : Sv.t -> Sv.t -> error_msg
   | Cerr_Loop     : string -> error_msg
   | Cerr_fold2    : string -> error_msg
-  | Cerr_neqty : stype -> stype -> string -> error_msg
+  | Cerr_neqty    : stype -> stype -> string -> error_msg
   | Cerr_neqop1   : sop1 -> sop1 -> string -> error_msg
   | Cerr_neqop2   : sop2 -> sop2 -> string -> error_msg
   | Cerr_neqop    : sopn -> sopn -> string -> error_msg
@@ -42,15 +42,19 @@ Inductive error_msg :=
   | Cerr_stk_alloc: string -> error_msg
   | Cerr_linear   : string -> error_msg
   | Cerr_assembler: asm_error -> error_msg
-
+ 
 with fun_error   := 
   | Ferr_in_body  : funname -> funname -> (instr_info * error_msg) -> fun_error
   | Ferr_neqfun   : funname -> funname -> fun_error
+  | Ferr_fun      : funname -> error_msg -> fun_error
+  | Ferr_remove_glob     : var_i -> fun_error
+  | Ferr_remove_glob_dup : instr_info -> global -> fun_error
   | Ferr_neqprog  : fun_error
   | Ferr_loop     : fun_error
   | Ferr_uniqfun  : fun_error
-  | Ferr_topo : fun_error
-  | Ferr_lowering : fun_error.
+  | Ferr_topo     : fun_error
+  | Ferr_lowering : fun_error
+  | Ferr_glob_neq : fun_error.
 
 
 Notation instr_error := (instr_info * error_msg)%type.

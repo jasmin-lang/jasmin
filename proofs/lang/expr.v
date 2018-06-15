@@ -695,7 +695,16 @@ Definition function_signature : Type :=
 Definition signature_of_fundef (fd: fundef) : function_signature :=
   (f_tyin fd, f_tyout fd).
 
-Definition prog := seq (funname * fundef).
+Definition glob_decl := (global * Z)%type.
+Notation glob_decls  := (seq glob_decl).
+
+Definition fun_decl := (funname * fundef)%type.
+Notation fun_decls  := (seq fun_decl).
+
+Record prog := { 
+  p_globs : glob_decls;
+  p_funcs : fun_decls; 
+}.
 
 Definition instr_d (i:instr) :=
   match i with
@@ -804,13 +813,30 @@ Qed.
 Definition fundef_eqMixin     := Equality.Mixin fundef_eq_axiom.
 Canonical  fundef_eqType      := Eval hnf in EqType fundef fundef_eqMixin.
 
+Definition prog_beq p1 p2 := (p_globs p1 == p_globs p2) && (p_funcs p1 == p_funcs p2).
+
+Lemma prog_eq_axiom : Equality.axiom prog_beq.
+Proof.
+  move=> [gd1 fs1] [gd2 fs2] /=.
+  apply (@equivP ((gd1 == gd2) && (fs1 == fs2)));first by apply idP.
+  by split => [/andP [] | []] /eqP -> /eqP ->.
+Qed.
+
+Definition prog_eqMixin     := Equality.Mixin prog_eq_axiom.
+Canonical  prog_eqType      := Eval hnf in EqType prog prog_eqMixin.
+
 Definition get_fundef {T} (p: seq (funname * T)) (f: funname) :=
   assoc p f.
 
-Definition map_prog {T1} {T2} (F: T1 -> T2) := map (fun (f:funname * T1) => (f.1, F f.2)).
+Definition map_prog (F: fundef -> fundef) (p:prog) :=
+  {| p_globs := p_globs p;
+     p_funcs := map (fun f => (f.1, F f.2)) (p_funcs p) |}.
 
-Lemma get_map_prog {T1} {T2} (F: T1 -> T2) p fn :
-  get_fundef (map_prog F p) fn = omap F (get_fundef p fn).
+Lemma map_prog_globs F p : p_globs (map_prog F p) = p_globs p.
+Proof. done. Qed.
+
+Lemma get_map_prog F p fn :
+  get_fundef (p_funcs (map_prog F p)) fn = omap F (get_fundef (p_funcs p) fn).
 Proof. exact: assoc_map. Qed.
 
 Lemma get_fundef_cons {T} (fnd: funname * T) p fn:

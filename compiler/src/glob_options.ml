@@ -29,6 +29,7 @@ let poptions = [
   ; Compiler.ShareStackVariable
   ; Compiler.DeadCode_ShareStackVariable
   ; Compiler.RegArrayExpansion
+  ; Compiler.RemoveGlobal
   ; Compiler.LowerInstruction
   ; Compiler.RegAllocation
   ; Compiler.DeadCode_RegAllocation
@@ -57,6 +58,7 @@ let print_strings = function
   | Compiler.ShareStackVariable          -> "vshare"   , "sharing of stack variables"
   | Compiler.DeadCode_ShareStackVariable -> "vshared"  , "dead code after sharing of stack variables"
   | Compiler.RemoveArrInit               -> "rmarrinit" , "remove array init"
+  | Compiler.RemoveGlobal                -> "rmglobals" , "remove globals variables"
   | Compiler.RegArrayExpansion           -> "arrexp"   , "expansion of register arrays"
   | Compiler.LowerInstruction            -> "lowering" , "lowering of instructions"
   | Compiler.RegAllocation               -> "ralloc"   , "register allocation"

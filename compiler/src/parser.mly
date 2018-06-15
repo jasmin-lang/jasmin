@@ -33,6 +33,7 @@
 %token FN
 %token FOR
 %token <Syntax.swsize> GE
+%token GLOBAL
 %token <Syntax.swsize> GT
 %token <Syntax.swsize> GTGT
 %token <Syntax.swsize> HAT
@@ -265,6 +266,7 @@ storage:
 | REG    { `Reg    }
 | STACK  { `Stack  }
 | INLINE { `Inline }
+| GLOBAL { `Global }
 
 pvardecl :
 | ty=stor_type vs=rtuple1(var) { (ty, vs) }

@@ -141,5 +141,7 @@ Definition dead_code_fd (fd: fundef) :=
   ciok (MkFun ii tyi params c.2 tyo res).
 
 Definition dead_code_prog (p: prog) : cfexec prog :=
-  map_cfprog dead_code_fd p.
+  Let funcs := map_cfprog dead_code_fd (p_funcs p) in
+  ok {| p_globs := p_globs p; p_funcs := funcs |}.
+
 

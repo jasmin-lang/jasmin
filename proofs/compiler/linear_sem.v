@@ -73,7 +73,7 @@ the reached state has no instruction left to execute.
 *)
 Section LSEM.
 
-Context (gd: glob_defs).
+Context (gd: glob_decls).
 
 Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   match li_i i with

@@ -68,7 +68,7 @@ Fixpoint vars_l (l: seq var_i) :=
 Definition vars_fd fd :=
   Sv.union (vars_l fd.(f_params)) (Sv.union (vars_l fd.(f_res)) (vars_c fd.(f_body))).
 
-Definition vars_p (p: prog) :=
+Definition vars_p (p: fun_decls) :=
   foldr (fun f x => let '(fn, fd) := f in Sv.union x (vars_fd fd)) Sv.empty p.
 
 Definition vbool vn := {| vtype := sbool ; vname := vn |}.

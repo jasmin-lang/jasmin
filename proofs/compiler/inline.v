@@ -78,13 +78,11 @@ Definition check_rename iinfo f fd1 fd2 (s:Sv.t) :=
   if disjoint s s2 then ciok tt 
   else cierror iinfo (Cerr_inline s s2).
 
-Definition get_fun (p:prog) iinfo (f:funname) :=
+Definition get_fun (p:fun_decls) iinfo (f:funname) :=
   match get_fundef p f with
   | Some fd => ciok fd 
   | None    => cierror iinfo (Cerr_unknown_fun f "inlining")
   end.
-
-
 
 Variable rename_fd : instr_info -> funname -> fundef -> fundef.
 
@@ -103,7 +101,7 @@ Definition array_init iinfo (X: Sv.t) :=
     end in
   Sv.fold assgn X [::].
     
-Fixpoint inline_i (p:prog) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) := 
+Fixpoint inline_i (p:fun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) := 
   match i with
   | MkI iinfo ir =>
     match ir with 
@@ -138,7 +136,7 @@ Fixpoint inline_i (p:prog) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
     end
   end.
 
-Definition inline_fd (p:prog) (fd:fundef) :=
+Definition inline_fd (p:fun_decls) (fd:fundef) :=
   match fd with 
   | MkFun ii tyin params c tyout res =>
     let s := read_es (map Pvar res) in
@@ -146,17 +144,19 @@ Definition inline_fd (p:prog) (fd:fundef) :=
     ok (MkFun ii tyin params c.2 tyout res)
   end.
 
-Definition inline_fd_cons (ffd:funname * fundef) (p:cfexec prog) :=
+Definition inline_fd_cons (ffd:funname * fundef) (p:cfexec fun_decls) :=
   Let p := p in 
   let f := ffd.1 in
   Let fd := add_finfo f f (inline_fd p ffd.2) in
-  cfok ((f,fd)::p).
+  cfok ((f,fd):: p).
 
-Definition inline_prog (p:prog) := 
+Definition inline_prog (p:fun_decls) := 
   foldr inline_fd_cons (cfok [::]) p.
 
 Definition inline_prog_err (p:prog) := 
-  if uniq [seq x.1 | x <- p] then inline_prog (p:prog)
+  if uniq [seq x.1 | x <- p_funcs p] then 
+    Let fds := inline_prog (p_funcs p) in
+    ok {| p_globs := p_globs p; p_funcs := fds |}
   else cferror Ferr_uniqfun.
 
 Definition is_array_init e := 

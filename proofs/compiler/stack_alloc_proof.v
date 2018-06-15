@@ -65,7 +65,7 @@ Hint Resolve is_align_no_overflow valid_align.
 
 Section PROOF.
   Variable P: prog.
-  Context (gd: glob_defs).
+  Notation gd := (p_globs P).
   Variable SP: sprog.
 
   Variable m:map.
@@ -913,8 +913,8 @@ Section PROOF.
   Qed.
 
   Local Lemma Hcons s1 s2 s3 i c :
-    sem_I P gd s1 i s2 ->
-    Pi s1 i s2 -> sem P gd s2 c s3 -> Pc s2 c s3 -> Pc s1 (i :: c) s3.
+    sem_I P s1 i s2 ->
+    Pi s1 i s2 -> sem P s2 c s3 -> Pc s2 c s3 -> Pc s1 (i :: c) s3.
   Proof.
     move=> _ Hi _ Hc [|i' c'] //= /andP [Hi'c Hc'c] s1' Hv.
     have [s2' [Hi' Hv2]] := Hi _ Hi'c _ Hv.
@@ -924,7 +924,7 @@ Section PROOF.
   Qed.
 
   Local Lemma HmkI ii i s1 s2 :
-    sem_i P gd s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
+    sem_i P s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
   Proof. 
     move=> _ Hi [ii' ir'] Hc s1' Hv.
     move: Hi=> /(_ ii ii' ir' Hc s1' Hv) [s2' [Hs2'1 Hs2'2]].
@@ -962,7 +962,7 @@ Section PROOF.
 
   Local Lemma Hif_true s1 s2 e c1 c2 :
     sem_pexpr gd s1 e = ok (Vbool true) ->
-    sem P gd s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+    sem P s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
   Proof.
     move=> Hse ? Hc ii1 ii2 i2 Hi2 s1' Hvalid.
     case: i2 Hi2=> //= e' c1' c2' /andP [/andP [He Hcheck] _].
@@ -975,7 +975,7 @@ Section PROOF.
 
   Local Lemma Hif_false s1 s2 e c1 c2 :
     sem_pexpr gd s1 e = ok (Vbool false) ->
-    sem P gd s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+    sem P s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
   Proof.
     move=> Hse ? Hc ii1 ii2 i2 Hi2 s1' Hvalid.
     case: i2 Hi2=> //= e' c1' c2' /andP [/andP [He _] Hcheck].
@@ -987,10 +987,10 @@ Section PROOF.
   Qed.
 
   Local Lemma Hwhile_true s1 s2 s3 s4 c e c' :
-    sem P gd s1 c s2 -> Pc s1 c s2 ->
+    sem P s1 c s2 -> Pc s1 c s2 ->
     sem_pexpr gd s2 e = ok (Vbool true) ->
-    sem P gd s2 c' s3 -> Pc s2 c' s3 ->
-    sem_i P gd s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 -> Pi_r s1 (Cwhile c e c') s4.
+    sem P s2 c' s3 -> Pc s2 c' s3 ->
+    sem_i P s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 -> Pi_r s1 (Cwhile c e c') s4.
   Proof.
     move=> _ Hc Hv ? Hc' ? Hwhile ii1 ii2 i2 Hi2 s1' Hvalid.
     case: i2 Hi2=> //= c2 e2 c2' /andP [/andP [Hc2 He2] Hc2'].
@@ -1005,7 +1005,7 @@ Section PROOF.
   Qed.
 
   Local Lemma Hwhile_false s1 s2 c e c' :
-    sem P gd s1 c s2 -> Pc s1 c s2 ->
+    sem P s1 c s2 -> Pc s1 c s2 ->
     sem_pexpr gd s2 e = ok (Vbool false) ->
     Pi_r s1 (Cwhile c e c') s2.
   Proof.
@@ -1021,7 +1021,7 @@ Section PROOF.
   Local Lemma Hfor s1 s2 (i:var_i) d lo hi c vlo vhi :
     sem_pexpr gd s1 lo = ok (Vint vlo) ->
     sem_pexpr gd s1 hi = ok (Vint vhi) ->
-    sem_for P gd i (wrange d vlo vhi) s1 c s2 ->
+    sem_for P i (wrange d vlo vhi) s1 c s2 ->
     Pfor i (wrange d vlo vhi) s1 c s2 -> Pi_r s1 (Cfor i (d, lo, hi) c) s2.
   Proof. by []. Qed.
 
@@ -1030,33 +1030,33 @@ Section PROOF.
 
   Local Lemma Hfor_cons s1 s1' s2 s3 (i : var_i) (w:Z) (ws:seq Z) c :
     write_var i w s1 = Ok error s1' ->
-    sem P gd s1' c s2 ->
+    sem P s1' c s2 ->
     Pc s1' c s2 ->
-    sem_for P gd i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
+    sem_for P i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
   Proof. by []. Qed.
 
   Local Lemma Hcall s1 m2 s2 ii xs fn args vargs vs:
     sem_pexprs gd s1 args = Ok error vargs ->
-    sem_call P gd (emem s1) fn vargs m2 vs ->
+    sem_call P (emem s1) fn vargs m2 vs ->
     Pfun (emem s1) fn vargs m2 vs ->
     write_lvals gd {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
     Pi_r s1 (Ccall ii xs fn args) s2.
   Proof. by []. Qed.
 
   Local Lemma Hproc m1 m2 fn f vargs vargs' s1 vm2 vres vres' :
-    get_fundef P fn = Some f ->
+    get_fundef (p_funcs P) fn = Some f ->
     mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
     write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
-    sem P gd s1 (f_body f) {| emem := m2; evm := vm2 |} ->
+    sem P s1 (f_body f) {| emem := m2; evm := vm2 |} ->
     Pc s1 (f_body f) {| emem := m2; evm := vm2 |} ->
     mapM (fun x : var_i => get_var vm2 x) (f_res f) = ok vres ->
     mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
     Pfun m1 fn vargs' m2 vres'.
   Proof. by []. Qed.
 
-  Lemma check_cP s1 c s2: sem P gd s1 c s2 -> Pc s1 c s2.
+  Lemma check_cP s1 c s2: sem P s1 c s2 -> Pc s1 c s2.
   Proof.
-    apply (@sem_Ind P gd Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    apply (@sem_Ind P Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 End PROOF.
@@ -1107,17 +1107,17 @@ Proof.
   by exists sx;split=>//;split=>//;omega.
 Qed.
 
-Lemma check_fdP (P: prog) (gd: glob_defs) (SP: sprog) l fn fn' fd fd':
-  get_fundef P fn = Some fd ->
+Lemma check_fdP (P: prog) (SP: sprog) l fn fn' fd fd':
+  get_fundef (p_funcs P) fn = Some fd ->
   get_fundef SP fn' = Some fd' ->
   check_fd l fd fd' ->
   forall m1 va m1' vr, 
-    sem_call P gd m1 fn va m1' vr ->
+    sem_call P m1 fn va m1' vr ->
     (exists p, Memory.alloc_stack m1 (sf_stk_sz fd') = ok p) ->
     exists m2' vr',
       List.Forall2 value_uincl vr vr' /\
       eq_mem m1' m2' /\
-      S.sem_call SP gd m1 fn' va m2' vr'.
+      S.sem_call SP (p_globs P) m1 fn' va m2' vr'.
 Proof.
   move=> get Sget.
   rewrite /check_fd.
@@ -1215,19 +1215,19 @@ Definition alloc_ok SP fn m1 :=
   forall fd, get_fundef SP fn = Some fd ->
   exists p, Memory.alloc_stack m1 (sf_stk_sz fd) = ok p.
 
-Lemma check_progP (P: prog) (gd: glob_defs) (SP: sprog) l fn:
-  check_prog P SP l ->
+Lemma check_progP (P: prog) (SP: sprog) l fn:
+  check_prog (p_funcs P) SP l ->
   forall m1 va m1' vr, 
-    sem_call P gd m1 fn va m1' vr ->
+    sem_call P m1 fn va m1' vr ->
     alloc_ok SP fn m1 ->
     exists m2' vr',
       List.Forall2 value_uincl vr vr' /\
       eq_mem m1' m2' /\
-      S.sem_call SP gd m1 fn va m2' vr'.
+      S.sem_call SP (p_globs P) m1 fn va m2' vr'.
 Proof.
   move=> Hcheck m1 va m1' vr [] {m1 va m1' vr fn}
     m1 m2 fn f vargs vargs' s1 vm2 vres vres' Hf e0 e1 s e2 e3 Halloc.
   move: (all_progP Hcheck Hf)=> [fd' [l' [Hfd' Hl']]].
-  have H : sem_call P gd m1 fn vargs' m2 vres' by econstructor; eauto.
+  have H : sem_call P m1 fn vargs' m2 vres' by econstructor; eauto.
   by case: (check_fdP Hf Hfd' Hl' H); eauto.
 Qed.

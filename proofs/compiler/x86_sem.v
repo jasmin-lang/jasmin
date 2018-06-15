@@ -409,7 +409,7 @@ Notation x86_result_state := (result error x86_state).
 (* -------------------------------------------------------------------- *)
 Section GLOB_DEFS.
 
-Context (gd: glob_defs).
+Context (gd: glob_decls).
 
 (* -------------------------------------------------------------------- *)
 
@@ -1373,7 +1373,7 @@ Definition xprog : Type :=
 
 (* TODO: flags may be preserved *)
 (* TODO: restore stack pointer of caller? *)
-Variant x86sem_fd (P: xprog) (gd: glob_defs) fn st st' : Prop :=
+Variant x86sem_fd (P: xprog) (gd: glob_decls) fn st st' : Prop :=
 | X86Sem_fd fd mp st2
    `(get_fundef P fn = Some fd)
    `(alloc_stack st.(xmem) fd.(xfd_stk_size) = ok mp)
