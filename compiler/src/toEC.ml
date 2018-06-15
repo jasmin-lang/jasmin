@@ -21,12 +21,14 @@ module Ms = Map.Make(Scmp)
 type env = {
     alls : Ss.t;
     vars : string Mv.t;
+    fmem : Sf.t;
     glob : (string * Type.stype) Ms.t
   }
 
 let empty_env = {
     alls = Ss.empty;
     vars = Mv.empty;
+    fmem = Sf.empty;
     glob = Ms.empty;
   }
 
@@ -149,6 +151,9 @@ let pp_cast pp fmt (ty,ety,e) =
     Format.fprintf fmt "(%a.cast_%a %a)" 
       pp_Tsz (wsize ety) pp_size (wsize ty) pp e
 
+let add64 x e = 
+  (Type.Coq_sword Type.U64, Papp2 (E.Oadd ( E.Op_w Type.U64), Pvar x, e))
+ 
 let rec pp_expr env fmt (e:expr) = 
   match e with
   | Pconst z -> Format.fprintf fmt "%a" B.pp_print z
@@ -161,9 +166,10 @@ let rec pp_expr env fmt (e:expr) =
     pp_cast (pp_glob env) fmt (Coq_sword sz, ty_glob env x, x)
   | Pget(x,e) -> 
     Format.fprintf fmt "%a.[%a]" (pp_var env) (L.unloc x) (pp_expr env) e 
-  | Pload _ -> raise (Invalid_argument "pp_expr: Pload")
+  | Pload (sz, x, e) -> 
+    Format.fprintf fmt "(load%a global_mem %a)"
+      pp_Tsz sz (pp_wcast env) (add64 x e)
   | Papp1 (op1, e) -> 
-
     Format.fprintf fmt "(%a %a)" pp_op1 op1 (pp_wcast env) (in_ty_op1 op1, e)
   | Papp2 (op2, e1, e2) ->  
     let ty1,ty2 = in_ty_op2 op2 in
@@ -198,11 +204,25 @@ let pp_locals env fmt locals =
   let pp_loc fmt x = Format.fprintf fmt "var %a;" (pp_vdecl env) x in
   (pp_list "@ " pp_loc) fmt locals
 
-let pp_rty fmt tys = 
-  Format.fprintf fmt "@[%a@]" 
-    (pp_list "*@ " pp_coq_ty) tys 
+let pp_rty b fmt tys =
+  if b then
+    Format.fprintf fmt "@[global_mem_t%s%a@]"
+       (if tys = [] then "" else " * ")
+       (pp_list "*@ " pp_coq_ty) tys 
+  else  
+    if tys = [] then
+       Format.fprintf fmt "unit"
+    else
+      Format.fprintf fmt "@[%a@]" 
+        (pp_list " *@ " pp_coq_ty) tys 
 
-let pp_ret env fmt xs = 
+let pp_ret b env fmt xs = 
+  if b then
+    if xs = [] then Format.fprintf fmt "return global_mem;"
+    else 
+      Format.fprintf fmt "@[return (global_mem, %a);@]"
+        (pp_list ",@ " (fun fmt x -> pp_var env fmt (L.unloc x))) xs
+  else 
   Format.fprintf fmt "@[return (%a);@]"
     (pp_list ",@ " (fun fmt x -> pp_var env fmt (L.unloc x))) xs
 
@@ -214,7 +234,7 @@ let pp_opn fmt op =
 let pp_lval env fmt = function
   | Lnone _ -> Format.fprintf fmt "_"
   | Lvar x -> pp_var env fmt (L.unloc x)
-  | Lmem _ -> assert false
+  | Lmem _  -> assert false
   | Laset (x,e) -> 
     Format.fprintf fmt "%a.[%a]" (pp_var env) (L.unloc x) (pp_expr env) e
 
@@ -231,13 +251,35 @@ let rec pp_cmd env fmt c =
 and pp_instr env fmt i = 
   match i.i_desc with 
   | Cassgn (lv, _, _, e) ->
-    Format.fprintf fmt "@[%a <- %a;@]" (pp_lval env) lv (pp_expr env) e 
+    begin match lv with
+    | Lmem(ws, x, e1) ->
+      Format.fprintf fmt "@[global_mem <- store%a global_mem %a %a;@]"
+         pp_Tsz ws (pp_wcast env) (add64 x e1) (pp_wcast env) (Type.Coq_sword ws, e)
+    | _ -> 
+       Format.fprintf fmt "@[%a <- %a;@]" (pp_lval env) lv (pp_expr env) e 
+    end
   | Copn(lvs, _, op, es) ->
     Format.fprintf fmt "@[%a <- %a %a;@]"
       (pp_lvals env) lvs pp_opn op 
       (pp_list "@ " (pp_expr env)) es
   | Ccall(_, lvs, f, es) ->
-    Format.fprintf fmt "@[%a <@ %s (%a);@]"
+    if Sf.mem f env.fmem then
+      let pp_vars fmt lvs = 
+        if lvs = [] then
+          Format.fprintf fmt "global_mem"
+        else 
+          Format.fprintf fmt "(global_mem, %a)" (pp_list ",@ " (pp_lval env)) lvs in
+      let pp_args fmt es = 
+        if es = [] then
+          Format.fprintf fmt "global_mem"
+        else 
+          Format.fprintf fmt "global_mem, %a" (pp_list ",@ " (pp_expr env)) es in
+        
+      Format.fprintf fmt "@[%a <%@ %s (%a);@]"
+        pp_vars lvs f.fn_name 
+        pp_args es
+    else 
+    Format.fprintf fmt "@[%a <%@ %s (%a);@]"
       (pp_lvals env) lvs f.fn_name 
       (pp_list ",@ " (pp_expr env)) es
   | Cif(e,c1,c2) ->
@@ -257,33 +299,80 @@ and pp_instr env fmt i =
       (pp_cmd env) c
       (pp_var env) (L.unloc i) (pp_var env) (L.unloc i) 
       (if d = UpTo then "+" else "-")
-      
+
+
+
+let rec use_mem_e = function
+  | Pconst _ | Pbool _ | Parr_init _ |Pvar _ | Pglobal _ -> false
+  | Pload _ -> true
+  | Pcast (_, e) | Papp1 (_, e) | Pget (_, e) -> use_mem_e e  
+  | Papp2 (_, e1, e2) -> use_mem_e e1 || use_mem_e e2
+  | Pif  (e1, e2, e3) -> use_mem_e e1 || use_mem_e e2 || use_mem_e e3
+
+let use_mem_es = List.exists use_mem_e
+
+let use_mem_lval = function
+  | Lnone _ | Lvar _ -> false
+  | Lmem _ -> true
+  | Laset (_, e) -> use_mem_e e
+
+let use_mem_lvals = List.exists use_mem_lval
+
+let rec use_mem_i s i =
+  match i.i_desc with
+  | Cassgn (x, _, _, e) -> use_mem_lval x || use_mem_e e
+  | Copn (xs, _, _, es) -> use_mem_lvals xs || use_mem_es es
+  | Cif (e, c1, c2)     -> use_mem_e e || use_mem_c s c1 || use_mem_c s c2
+  | Cwhile (c1, e, c2)  -> use_mem_c s c1 || use_mem_e e || use_mem_c s c2
+  | Ccall (_, xs, fn, es) -> use_mem_lvals xs || Sf.mem fn s || use_mem_es es
+  | Cfor (_, (_, e1, e2), c) -> use_mem_e e1 || use_mem_e e2 || use_mem_c s c
+
+and use_mem_c s = List.exists (use_mem_i s)
+
+let use_mem_f s f = use_mem_c s f.f_body
+
+let init_use fs = List.fold_left (fun s f -> if use_mem_f s f then Sf.add f.f_name s else s) Sf.empty fs
+
 let pp_fun env fmt f = 
   let locals = Sv.elements (locals f) in
   (* initialize the env *)
   let env = List.fold_left add_var env f.f_args in
   let env = List.fold_left add_var env locals in  
   (* Print the function *)
+  let b = Sf.mem f.f_name env.fmem in 
+  let pp_args fmt a =
+    if b then
+      if a = [] then
+        Format.fprintf fmt "global_mem : global_mem_t"
+      else
+      Format.fprintf fmt "global_mem : global_mem_t, %a"
+        (pp_params env) a
+    else (pp_params env) fmt a
+  in
+
   Format.fprintf fmt 
     "@[<v>proc %s (%a) : %a = {@   @[<v>%a@ %a@ %a@]@ }@]"
     f.f_name.fn_name 
-    (pp_params env) f.f_args 
-    pp_rty f.f_tyout
+    pp_args f.f_args 
+    (pp_rty b) f.f_tyout
     (pp_locals env) locals
     (pp_cmd env) f.f_body
-    (pp_ret env) f.f_ret
+    (pp_ret b env) f.f_ret
 
 let pp_glob_decl env fmt (x,e) =
   Format.fprintf fmt "@[op %a = %a.@]@ "
     (pp_glob env) x.v_name (pp_expr env) e
 
 let pp_prog fmt globs funcs = 
+  let fmem = init_use funcs in
   let env = 
     List.fold_left (fun env (x,_) -> add_glob env x.v_name x.v_ty)
       empty_env globs in
-  Format.fprintf fmt "@[<v>%a@ @ module M = {@   @[<v>%a@]@ }.@ @]" 
+  let env = {env with fmem} in
+  Format.fprintf fmt "@[<v>require import Jasmin_model Int IntDiv CoreMap.@ @ %a@ @ module M = {@   @[<v>%a@]@ }.@ @]@." 
     (pp_list "@ @ " (pp_glob_decl env)) globs 
     (pp_list "@ @ " (pp_fun env)) funcs 
+    
 
 let rec used_func f = 
   used_func_c Ss.empty f.f_body 
@@ -294,12 +383,13 @@ and used_func_c used c =
 and used_func_i used i = 
   match i.i_desc with
   | Cassgn _ | Copn _ -> used
-  | Cif (_,c1,c2) -> used_func_c (used_func_c used c1) c2
-  | Cfor(_,_,c) -> used_func_c used c
-  | Cwhile(c1,_,c2) -> used_func_c (used_func_c used c1) c2
-  | Ccall (_,_,f,_) -> Ss.add f.fn_name used
+  | Cif (_,c1,c2)     -> used_func_c (used_func_c used c1) c2
+  | Cfor(_,_,c)       -> used_func_c used c
+  | Cwhile(c1,_,c2)   -> used_func_c (used_func_c used c1) c2
+  | Ccall (_,_,f,_)   -> Ss.add f.fn_name used
 
 let extract fmt globs funcs tokeep = 
+  let funcs = List.map Regalloc.fill_in_missing_names funcs in
   let tokeep = ref (Ss.of_list tokeep) in
   let dofun f = 
     if Ss.mem f.f_name.fn_name !tokeep then
