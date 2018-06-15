@@ -71,7 +71,7 @@ val tbool : 'e gty
 
 type assgn_tag =
   | AT_none   (* The compiler can do what it want *)
-  | AT_keep   (* Assignment should be keep by the compiler *)
+  | AT_keep   (* Assignment should be kept by the compiler *)
   | AT_rename (* use as equality constraint in reg-alloc and compile to no-op *)
   | AT_inline (* the assignement should be inline, and propagate *)
   | AT_phinode (* renaming during SSA transformation *)
