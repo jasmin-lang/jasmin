@@ -183,11 +183,50 @@ let isubst_prog (glob: ((Name.t * pty) * _) list) (prog:'info pprog) =
 (* ---------------------------------------------------------------- *)
 (* Remove parameter from program definition                         *)
 
+exception NotAConstantExpr
+
+let rec constant_of_expr (e: Prog.expr) : Bigint.zint =
+  let open Prog in
+
+  match e with
+  | Pcast (sz, e) ->
+      clamp sz (constant_of_expr e)
+
+  | Pconst z ->
+      z
+
+  | Papp1 (Oneg (Op_w ws), e) ->
+      Bigint.neg (clamp ws (constant_of_expr e))
+
+  | Papp2 (Oadd (Op_w ws), e1, e2) ->
+      let e1 = clamp ws (constant_of_expr e1) in
+      let e2 = clamp ws (constant_of_expr e2) in
+      clamp ws (Bigint.add e1 e2)
+
+  | Papp2 (Osub (Op_w ws), e1, e2) ->
+      let e1 = clamp ws (constant_of_expr e1) in
+      let e2 = clamp ws (constant_of_expr e2) in
+      clamp ws (Bigint.sub e1 e2)
+
+  | Papp2 (Omul (Op_w ws), e1, e2) ->
+      let e1 = clamp ws (constant_of_expr e1) in
+      let e2 = clamp ws (constant_of_expr e2) in
+      clamp ws (Bigint.mul e1 e2)
+
+  | _ -> raise NotAConstantExpr
+
+
 let remove_params (prog : 'info pprog) =
   let globals, prog = psubst_prog prog in
-  isubst_prog globals prog
-
-
+  let globals, prog = isubst_prog globals prog in
+  let doglob ((x,ty),e) = 
+    let ws = 
+      match ty with
+      | Bty (U ws) -> ws 
+      | _ -> raise NotAConstantExpr in
+    ws, x, clamp ws (constant_of_expr e) in
+  let globals = List.map doglob globals in 
+  globals, prog
 
 (* ---------------------------------------------------------------- *)
 (* Rename all variable using fresh variable                         *)

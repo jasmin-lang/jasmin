@@ -259,13 +259,13 @@ Notation "'SLet' ( sz , n , t ) ':=' s '.[' x ']' 'in' body" :=
   (@son_arr_var _ s x (fun sz n (t:FArray.array (word sz)) => body)) (at level 25, s at level 0).
 
 Definition sget_global gd g : svalue :=
-  if get_global_value gd g is Some (Vword sz w)
-  then SVword w
+  if get_global_value gd g is Some z 
+  then SVword (wrepr (size_of_global g) z)
   else SVword (sdflt_val (sword (size_of_global g))).
 
 Section SSEM_PEXPR.
 
-Context (gd: glob_defs).
+Context (gd: glob_decls).
 
 Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : exec svalue :=
   match e with
@@ -476,7 +476,7 @@ Definition ssem_sopn (o:sopn) :  svalues -> exec svalues :=
 Section SEM.
 
 Variable P:prog.
-Context (gd: glob_defs).
+Notation gd := (p_globs P).
 
 Definition truncate_sval (ty: sstype) (v: svalue) : exec svalue :=
   of_sval ty v >>= λ x, ok (to_sval x).
@@ -552,7 +552,7 @@ with ssem_for : var -> seq Z -> sestate -> cmd -> sestate -> Prop :=
 
 with ssem_call : mem -> funname -> seq svalue -> mem -> seq svalue -> Prop := 
 | SEcallRun m1 m2 fn f vargs vargs' s1 vm2 vres vres':
-    get_fundef P fn = Some f ->
+    get_fundef (p_funcs P) fn = Some f ->
     mapM2 ErrType truncate_sval (sstypes_of_stypes f.(f_tyin)) vargs' = ok vargs ->
     swrite_vars f.(f_params) vargs (SEstate m1 svmap0) = ok s1 ->
     ssem s1 f.(f_body) (SEstate m2 vm2) ->

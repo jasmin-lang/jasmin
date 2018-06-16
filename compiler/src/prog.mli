@@ -281,3 +281,6 @@ val expr_of_lval : 'ty glval -> 'ty gexpr option
 (* Functions over instruction                                           *)
 
 val destruct_move : ('ty, 'info) ginstr -> 'ty glval * assgn_tag * 'ty * 'ty gexpr
+
+(* -------------------------------------------------------------------- *)
+val clamp : Type.wsize -> Bigint.zint -> Bigint.zint

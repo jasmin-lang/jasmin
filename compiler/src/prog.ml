@@ -385,3 +385,6 @@ let destruct_move i =
   | Cassgn(x, tag, ty, e) -> x, tag, ty, e
   | _                 -> assert false
 
+(* -------------------------------------------------------------------- *)
+let clamp (sz : Type.wsize) (z : Bigint.zint) =
+  Bigint.erem z (Bigint.lshift Bigint.one (int_of_ws sz))

@@ -88,7 +88,7 @@ Record compiler_params := {
   warning      : instr_info -> warning_msg -> instr_info;
   lowering_opt : lowering_options;
   is_glob      : var -> bool;
-  fresh_id     : var -> Ident.ident;
+  fresh_id     : glob_decls -> var -> Ident.ident;
 }.
 
 Variable cparams : compiler_params.

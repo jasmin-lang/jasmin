@@ -3,6 +3,7 @@ open Prog
 
 type 'info coq_tbl
 
+val string0_of_string : string -> 'a (* coq string *)
 val string_of_string0 : 'a (* coq string *) -> string
 
 val bi_of_nat : Datatypes.nat -> Bigint.zint
@@ -41,6 +42,7 @@ val expr_of_cexpr : 'info coq_tbl -> Expr.pexpr -> expr
 val cfun_of_fun : 'info coq_tbl -> funname -> BinNums.positive
 val fun_of_cfun : 'info coq_tbl -> BinNums.positive -> funname
 
+val gd_of_cgd : Expr.global * BinNums.coq_Z -> Type.wsize * Name.t * B.zint
 val get_iinfo   : 'info coq_tbl -> BinNums.positive -> (L.t * L.t list) * 'info
 
 val cfdef_of_fdef : 'info coq_tbl -> 'info func -> BinNums.positive * Expr.fundef

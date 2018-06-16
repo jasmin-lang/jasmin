@@ -47,8 +47,9 @@ let add_var env x =
     alls = Ss.add s env.alls;
     vars = Mv.add x s env.vars }
 
-let add_glob env x ty = 
+let add_glob env x ws = 
   let s = create_name env x in
+  let ty = Bty (U ws) in
   { env with
     alls = Ss.add s env.alls;
     glob = Ms.add x (s,Conv.cty_of_ty ty) env.glob }
@@ -359,14 +360,14 @@ let pp_fun env fmt f =
     (pp_cmd env) f.f_body
     (pp_ret b env) f.f_ret
 
-let pp_glob_decl env fmt ((x,_ty),e) =
-  Format.fprintf fmt "@[op %a = %a.@]@ "
-    (pp_glob env) x (pp_expr env) e
+let pp_glob_decl env fmt (ws,x, z) =
+  Format.fprintf fmt "@[op %a = %a.ofint %a.@]@ "
+    (pp_glob env) x pp_Tsz ws B.pp_print z
 
 let pp_prog fmt globs funcs = 
   let fmem = init_use funcs in
   let env = 
-    List.fold_left (fun env ((x,ty),_) -> add_glob env x ty)
+    List.fold_left (fun env (ws, x, _) -> add_glob env x ws)
       empty_env globs in
   let env = {env with fmem} in
   Format.fprintf fmt "@[<v>require import Jasmin_model Int IntDiv CoreMap.@ @ %a@ @ module M = {@   @[<v>%a@]@ }.@ @]@." 
@@ -388,7 +389,7 @@ and used_func_i used i =
   | Cwhile(c1,_,c2)   -> used_func_c (used_func_c used c1) c2
   | Ccall (_,_,f,_)   -> Ss.add f.fn_name used
 
-let extract fmt globs funcs tokeep = 
+let extract fmt ((globs,funcs):'a prog) tokeep = 
   let funcs = List.map Regalloc.fill_in_missing_names funcs in
   let tokeep = ref (Ss.of_list tokeep) in
   let dofun f = 

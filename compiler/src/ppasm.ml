@@ -9,9 +9,6 @@ module LM = Type
 type rsize = [ `U8 | `U16 | `U32 | `U64 ]
 
 (* -------------------------------------------------------------------- *)
-let bits_of_wsize = Prog.int_of_ws
-
-(* -------------------------------------------------------------------- *)
 let rs_of_ws =
   function
   | LM.U8 -> `U8
@@ -32,43 +29,6 @@ exception InvalidRegSize of LM.wsize
 
 (* -------------------------------------------------------------------- *)
 let mangle (x : string) = "_" ^ x
-
-(* -------------------------------------------------------------------- *)
-exception NotAConstantExpr
-
-let clamp (sz : LM.wsize) (z : Bigint.zint) =
-  Bigint.erem z (Bigint.lshift Bigint.one (bits_of_wsize sz))
-
-let rec constant_of_expr (e: Prog.expr) : Bigint.zint =
-  let open Prog in
-
-  match e with
-  | Prog.Pcast (sz, e) ->
-      clamp sz (constant_of_expr e)
-
-  | Pconst z ->
-      z
-
-  | Papp1 (Oneg (Op_w ws), e) ->
-      Bigint.neg (clamp ws (constant_of_expr e))
-
-  | Papp2 (Oadd (Op_w ws), e1, e2) ->
-      let e1 = clamp ws (constant_of_expr e1) in
-      let e2 = clamp ws (constant_of_expr e2) in
-      clamp ws (Bigint.add e1 e2)
-
-  | Papp2 (Osub (Op_w ws), e1, e2) ->
-      let e1 = clamp ws (constant_of_expr e1) in
-      let e2 = clamp ws (constant_of_expr e2) in
-      clamp ws (Bigint.sub e1 e2)
-
-  | Papp2 (Omul (Op_w ws), e1, e2) ->
-      let e1 = clamp ws (constant_of_expr e1) in
-      let e2 = clamp ws (constant_of_expr e2) in
-      clamp ws (Bigint.mul e1 e2)
-
-  | _ ->
-      raise NotAConstantExpr
 
 (* -------------------------------------------------------------------- *)
 let iwidth = 4
@@ -652,13 +612,9 @@ let pp_const ws z =
     List.rev_map (fun b -> `Instr (".byte", [ Bigint.to_string b] ))
       (bigint_to_bytes (Prog.size_of_ws ws) z)
 
-let pp_glob_def fmt (((n,ty), d): (Prog.Name.t * Prog.ty) * Prog.expr) : unit =
-  let ws =
-    match ty with
-    | Bty (U ws) -> ws
-    | _ -> assert false
-  in
-  let z = clamp ws (constant_of_expr d) in
+let pp_glob_def fmt (gd:Expr.glob_decl) : unit =
+  let (ws,n,z) = Conv.gd_of_cgd gd in
+  let z = Prog.clamp ws z in
   let m = mangle n in
   pp_gens fmt ([
     `Instr (".globl", [m]);
@@ -670,9 +626,10 @@ let pp_glob_def fmt (((n,ty), d): (Prog.Name.t * Prog.ty) * Prog.expr) : unit =
 
 (* -------------------------------------------------------------------- *)
 type 'a tbl = 'a Conv.coq_tbl
-type  gd_t  = ((Prog.Name.t * Prog.ty) * Prog.expr) list
+type  gd_t  = Expr.glob_decl list 
 
-let pp_prog (tbl: 'info tbl) (gd: gd_t) (fmt : Format.formatter) (asm : X86_sem.xprog) =
+let pp_prog (tbl: 'info tbl) (fmt : Format.formatter) 
+   ((gd:gd_t), (asm : X86_sem.xprog)) =
   pp_gens fmt
     [`Instr (".text"   , []);
      `Instr (".p2align", ["5"])];

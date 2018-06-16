@@ -38,7 +38,7 @@ Local Open Scope seq_scope.
 Section REMOVE.
 
   Context (is_glob : var -> bool).
-  Context (fresh_id : var -> Ident.ident).
+  Context (fresh_id : glob_decls -> var -> Ident.ident).
 
   Notation venv := (Mvar.t global).
 
@@ -64,7 +64,7 @@ Section REMOVE.
       (ws == size_of_global gv.1) && (z == gv.2) in
     if has test gd then ok gd 
     else
-      let g := Global ws (fresh_id x) in
+      let g := Global ws (fresh_id gd x) in
       if has (fun g' => g'.1 == g) gd then cferror (Ferr_remove_glob_dup ii g)
       else ok ((g, z) :: gd).
 

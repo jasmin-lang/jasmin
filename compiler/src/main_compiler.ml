@@ -1,3 +1,4 @@
+open Utils
 open Prog
 open Glob_options
 (* -------------------------------------------------------------------- *)
@@ -147,7 +148,7 @@ let main () =
     eprint Compiler.Typing Printer.pp_pprog pprog;
     if !typeonly then exit 0;
 
-    let (gd',prog) = Subst.remove_params pprog in
+    let prog = Subst.remove_params pprog in
     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
     if !ec_list <> [] then begin
@@ -157,7 +158,7 @@ let main () =
           let out = open_out !ecfile in
           let fmt = Format.formatter_of_out_channel out in
           fmt, fun () -> close_out out in
-      ToEC.extract fmt gd' prog !ec_list;
+      ToEC.extract fmt prog !ec_list;
       close();
       exit 0
     end;
@@ -252,6 +253,24 @@ let main () =
 
     let translate_var = Conv.var_of_cvar tbl in
       
+    let is_glob x = 
+      let x = Conv.var_of_cvar tbl x in
+      x.v_kind = Global in
+      
+    let fresh_id gd x = 
+      let x = (Conv.var_of_cvar tbl x).v_name in
+      let ns = List.map (fun (g,_) -> snd (Conv.global_of_cglobal g)) gd in
+      let s = Ss.of_list ns in
+      let x = 
+        if Ss.mem x s then
+          let rec aux i = 
+            let x = x ^ "_" ^ string_of_int i in
+            if Ss.mem x s then aux (i+1)
+            else x in
+          aux 0
+        else x in
+      Conv.string0_of_string x in
+
     let cparams = {
       Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = apply "arr exp" Array_expand.arrexp_func;
@@ -267,10 +286,12 @@ let main () =
       Compiler.inline_var   = inline_var;
       Compiler.lowering_opt = Lowering.{ use_lea = !Glob_options.lea; 
                                          use_set0 = !Glob_options.set0; };
+      Compiler.is_glob     = is_glob;
+      Compiler.fresh_id    = fresh_id;
     } in
 
     let entries =
-      let ep = List.filter (fun fd -> fd.f_cc = Export) prog in
+      let ep = List.filter (fun fd -> fd.f_cc = Export) (snd prog) in
       List.map (fun fd -> Conv.cfun_of_fun tbl fd.f_name) ep in
 
     begin match
@@ -282,10 +303,10 @@ let main () =
       if !outfile <> "" then begin
         BatFile.with_file_out !outfile (fun out ->
           let fmt = BatFormat.formatter_of_out_channel out in
-          Format.fprintf fmt "%a%!" (Ppasm.pp_prog tbl gd') asm);
+          Format.fprintf fmt "%a%!" (Ppasm.pp_prog tbl) asm);
           if !debug then Format.eprintf "assembly listing written@."
       end else if List.mem Compiler.Assembly !print_list then
-          Format.printf "%a%!" (Ppasm.pp_prog tbl gd') asm
+          Format.printf "%a%!" (Ppasm.pp_prog tbl) asm
     end
   with
   | Utils.HiError s ->

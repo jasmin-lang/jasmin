@@ -7,6 +7,13 @@ module Sint = Set.Make (BatInt)
 module Mint = Map.Make (BatInt)
 
 (* -------------------------------------------------------------------- *)
+module Scmp = struct 
+  type t = string
+  let compare = compare 
+end
+module Ss = Set.Make(Scmp)
+
+(* -------------------------------------------------------------------- *)
 exception Unexpected
 
 let unexpected () = raise Unexpected
