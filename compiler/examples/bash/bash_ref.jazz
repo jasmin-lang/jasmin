@@ -138,7 +138,7 @@ inline
 fn ce(reg u64 x) -> reg u64 {
   reg u64 y;
   y = x;
-  y = #x86_BSWAP(y);
+  /*y = #x86_BSWAP(y);*/
   return y;
 }
 
