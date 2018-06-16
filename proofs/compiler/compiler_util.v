@@ -47,7 +47,7 @@ with fun_error   :=
   | Ferr_in_body  : funname -> funname -> (instr_info * error_msg) -> fun_error
   | Ferr_neqfun   : funname -> funname -> fun_error
   | Ferr_fun      : funname -> error_msg -> fun_error
-  | Ferr_remove_glob     : var_i -> fun_error
+  | Ferr_remove_glob     : instr_info -> var_i -> fun_error
   | Ferr_remove_glob_dup : instr_info -> global -> fun_error
   | Ferr_neqprog  : fun_error
   | Ferr_loop     : fun_error

@@ -120,9 +120,11 @@ and pp_comp_ferr tbl fmt = function
     let f =  Conv.fun_of_cfun tbl f in
     Format.fprintf fmt "in function %s: %a" 
       f.fn_name (pp_comp_err tbl) err_msg
-  | Ferr_remove_glob x ->
-    Format.fprintf fmt "Cannot remove global variable : %a"
+  | Ferr_remove_glob (ii, x) ->
+    let i_loc, _ = Conv.get_iinfo tbl ii in
+    Format.fprintf fmt "Cannot remove global variable %a at %a"
      (pp_var_i tbl) x
+     Printer.pp_iloc i_loc
   | Ferr_remove_glob_dup (_, _) ->
     Format.fprintf fmt "duplicate global: please report"
 

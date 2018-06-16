@@ -50,12 +50,12 @@ Section REMOVE.
       if fa is None then myfind f l else fa
     end.
 
-  Definition find_glob (xi:var_i) (gd:glob_decls) (ws:wsize) (z:Z) := 
+  Definition find_glob ii (xi:var_i) (gd:glob_decls) (ws:wsize) (z:Z) :=
     let test (gv:glob_decl) := 
       if (ws == size_of_global gv.1) && (z == gv.2) then Some gv.1
       else None in 
     match myfind test gd with 
-    | None => cferror (Ferr_remove_glob xi) 
+    | None => cferror (Ferr_remove_glob ii xi)
     | Some g => ok g
     end. 
 
@@ -78,7 +78,7 @@ Section REMOVE.
         if is_glob x then 
           match e with
           | Pcast ws (Pconst z) => add_glob ii x gd ws z
-          | _                   => cferror (Ferr_remove_glob xi)
+          | _                   => cferror (Ferr_remove_glob ii xi)
           end
         else ok gd
       | _ => ok gd
@@ -100,65 +100,65 @@ Section REMOVE.
   Section GD.
     Context (gd:glob_decls).
 
-    Fixpoint remove_glob_e (env:venv) (e:pexpr) := 
+    Fixpoint remove_glob_e ii (env:venv) (e:pexpr) :=
       match e with
       | Pconst _ | Pbool _ => ok e 
       | Parr_init _ _ => ok e
       | Pcast w e =>
-        Let e := remove_glob_e env e in ok (Pcast w e)
+        Let e := remove_glob_e ii env e in ok (Pcast w e)
       | Pvar xi =>
         let x := xi.(v_var) in
         if is_glob x then
           match Mvar.get env x with
           | Some g => ok (Pglobal g)
-          | None   => cferror (Ferr_remove_glob xi) 
+          | None   => cferror (Ferr_remove_glob ii xi)
           end 
         else ok e
       | Pglobal g => ok e
       | Pget xi e =>
         let x := xi.(v_var) in
-        if is_glob x then cferror (Ferr_remove_glob xi)  
+        if is_glob x then cferror (Ferr_remove_glob ii xi)
         else
-          Let e := remove_glob_e env e in
+          Let e := remove_glob_e ii env e in
           ok (Pget xi e)
       | Pload ws xi e =>  
         let x := xi.(v_var) in
-        if is_glob x then cferror (Ferr_remove_glob xi)
+        if is_glob x then cferror (Ferr_remove_glob ii xi)
         else
-          Let e := remove_glob_e env e in
+          Let e := remove_glob_e ii env e in
           ok (Pload ws xi e)
       | Papp1 o e =>
-        Let e := remove_glob_e env e in
+        Let e := remove_glob_e ii env e in
         ok (Papp1 o e)
       | Papp2 o e1 e2 =>
-        Let e1 := remove_glob_e env e1 in
-        Let e2 := remove_glob_e env e2 in
+        Let e1 := remove_glob_e ii env e1 in
+        Let e2 := remove_glob_e ii env e2 in
         ok (Papp2 o e1 e2)
       | Pif e e1 e2 =>
-        Let e := remove_glob_e env e in
-        Let e1 := remove_glob_e env e1 in
-        Let e2 := remove_glob_e env e2 in
+        Let e := remove_glob_e ii env e in
+        Let e1 := remove_glob_e ii env e1 in
+        Let e2 := remove_glob_e ii env e2 in
         ok (Pif e e1 e2)
       end.
   
-    Definition remove_glob_lv (env:venv) (lv:lval) := 
+    Definition remove_glob_lv ii (env:venv) (lv:lval) :=
       match lv with
       | Lnone _ _ => ok lv
       | Lvar xi =>
         let x := xi.(v_var) in
-        if is_glob x then cferror (Ferr_remove_glob xi)
+        if is_glob x then cferror (Ferr_remove_glob ii xi)
         else ok lv
       | Lmem ws xi e =>
         let x := xi.(v_var) in
-        if is_glob x then cferror (Ferr_remove_glob xi)
+        if is_glob x then cferror (Ferr_remove_glob ii xi)
         else
-          Let e := remove_glob_e env e in
+          Let e := remove_glob_e ii env e in
           ok (Lmem ws xi e)
       | Laset xi e =>
         let x := xi.(v_var) in
-        if is_glob x then cferror (Ferr_remove_glob xi)
+        if is_glob x then cferror (Ferr_remove_glob ii xi)
         else
-          Let e := remove_glob_e env e in
+          Let e := remove_glob_e ii env e in
           ok (Laset xi e)
       end.
     
@@ -223,13 +223,13 @@ Section REMOVE.
         end.
   
     End Loop2.
-  
+
     Fixpoint remove_glob_i (env:venv) (i:instr) : cfexec (venv * cmd) := 
       match i with
       | MkI ii i =>
         match i with 
         | Cassgn lv tag ty e =>
-          Let e := remove_glob_e env e in
+          Let e := remove_glob_e ii env e in
           match lv with
           | Lvar xi =>
             let x := xi.(v_var) in
@@ -237,24 +237,24 @@ Section REMOVE.
               match e with
               | Pcast ws (Pconst z) =>
                 if ty == sword ws then
-                  Let g := find_glob xi gd ws z in
+                  Let g := find_glob ii xi gd ws z in
                   ok (env, [::])
-                else cferror (Ferr_remove_glob xi)
-              | _ => cferror (Ferr_remove_glob xi)
+                else cferror (Ferr_remove_glob ii xi)
+              | _ => cferror (Ferr_remove_glob ii xi)
               end
             else
-              Let lv := remove_glob_lv env lv in
+              Let lv := remove_glob_lv ii env lv in
               ok (env, [::MkI ii (Cassgn lv tag ty e)])
           | _ => 
-            Let lv := remove_glob_lv env lv in
+            Let lv := remove_glob_lv ii env lv in
             ok (env, [::MkI ii (Cassgn lv tag ty e)])    
           end
         | Copn lvs tag o es =>
-          Let lvs := mapM (remove_glob_lv env) lvs in
-          Let es  := mapM (remove_glob_e env) es in
+          Let lvs := mapM (remove_glob_lv ii env) lvs in
+          Let es  := mapM (remove_glob_e ii env) es in
           ok (env, [::MkI ii (Copn lvs tag o es)])
         | Cif e c1 c2 =>
-          Let e := remove_glob_e env e in
+          Let e := remove_glob_e ii env e in
           Let envc1 := remove_glob remove_glob_i env c1 in
           let env1 := envc1.1 in
           let c1   := envc1.2 in
@@ -267,24 +267,24 @@ Section REMOVE.
           let check_c env := 
             Let envc1 := remove_glob remove_glob_i env c1 in
             let env1 := envc1.1 in
-            Let e := remove_glob_e env1 e in
+            Let e := remove_glob_e ii env1 e in
             Let envc2 := remove_glob remove_glob_i env1 c2 in
             ok (Check2_r e envc1 envc2) in
           Let lr := loop2 check_c Loop.nb env in
           let: (Loop2_r e c1 c2 env) := lr in                               
           ok (env, [::MkI ii (Cwhile c1 e c2)])
         | Cfor xi (d,e1,e2) c =>
-          if is_glob xi.(v_var) then cferror (Ferr_remove_glob xi)
+          if is_glob xi.(v_var) then cferror (Ferr_remove_glob ii xi)
           else
-            Let e1 := remove_glob_e env e1 in
-            Let e2 := remove_glob_e env e2 in
+            Let e1 := remove_glob_e ii env e1 in
+            Let e2 := remove_glob_e ii env e2 in
             let check_c env := remove_glob remove_glob_i env c in 
             Let envc := loop check_c Loop.nb env in
             let: (env, c) := envc in
             ok (env, [::MkI ii (Cfor xi (d,e1,e2) c)])
         | Ccall i lvs fn es =>
-          Let lvs := mapM (remove_glob_lv env) lvs in
-          Let es  := mapM (remove_glob_e env) es in
+          Let lvs := mapM (remove_glob_lv ii env) lvs in
+          Let es  := mapM (remove_glob_e ii env) es in
           ok (env, [::MkI ii (Ccall i lvs fn es)])
         end
       end.
@@ -294,8 +294,8 @@ Section REMOVE.
     Definition remove_glob_fundef (f:funname*fundef) := 
       let (fn,f) := f in
       let env := Mvar.empty _ in
-      let check_var xi := 
-        if is_glob xi.(v_var) then cferror (Ferr_remove_glob xi) else ok tt in
+      let check_var xi :=
+        if is_glob xi.(v_var) then cferror (Ferr_remove_glob xH xi) else ok tt in
       Let _ := mapM check_var f.(f_params) in
       Let _ := mapM check_var f.(f_res) in
       Let envc := remove_glob (remove_glob_i fn) env f.(f_body) in
