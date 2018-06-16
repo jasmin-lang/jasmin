@@ -238,7 +238,7 @@ Section REMOVE.
               | Pcast ws (Pconst z) =>
                 if ty == sword ws then
                   Let g := find_glob ii xi gd ws z in
-                  ok (env, [::])
+                  ok (Mvar.set env x g, [::])
                 else cferror (Ferr_remove_glob ii xi)
               | _ => cferror (Ferr_remove_glob ii xi)
               end
