@@ -14,39 +14,16 @@ fn perm2u128(reg u256 x, reg u256 y, inline int c) -> reg u256 {
 }
 
 /* ---------------------------------------------------------------- */
-u256 zero256 = 0;
-u128 zero128 = 0;
-
-inline
-fn imm256(inline int c) -> reg u256 {
-  reg u64 n;
-  reg u128 t;
-  reg u256 r;
-  inline int i, j;
-
-  r = zero256;
-  t = zero128;
-
-  for i = 0 to 2 {
-    for j = 0 to 2 {
-      n = (c >> 256u (64 * (2 * i + j))) & ((1 << 256u 64) - 1);
-      t = #x86_VPINSR_2u64(t, n, j);
-    }
-    r = #x86_VINSERTI128(r, t, i);
-  }
-  return r;
-}
-
-/* ---------------------------------------------------------------- */
 inline
 fn R4(inline int c, reg u256 x) -> reg u256 {
 inline int d;
-reg u256 a, b, r, cr;
-cr = imm256(c);
+reg u256 a, b, r;
+global u256 cr, dr;
+cr = c;
 a = #x86_VPSLLV_4u64(x, cr);
 d = 0x40000000000000004000000000000000400000000000000040 - c;
-cr = imm256(d);
-b = #x86_VPSRLV_4u64(x, cr);
+dr = d;
+b = #x86_VPSRLV_4u64(x, dr);
 r = a ^ b;
 return r;
 }
