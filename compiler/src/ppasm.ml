@@ -582,8 +582,7 @@ let align_of_ws =
   | Type.U256 -> 5
 
 let pp_align ws =
-  let a = align_of_ws ws in
-  let n = if Arch.os = Some `Mac then a else 1 lsl a in
+  let n = align_of_ws ws in
   Format.sprintf "%d" n
 
 let decl_of_ws =
@@ -619,7 +618,7 @@ let pp_glob_def fmt (gd:Expr.glob_decl) : unit =
   pp_gens fmt ([
     `Instr (".globl", [m]);
     `Instr (".globl", [n]);
-    `Instr (".align", [pp_align ws]);
+    `Instr (".p2align", [pp_align ws]);
     `Label m;
     `Label n
   ] @ pp_const ws z)
