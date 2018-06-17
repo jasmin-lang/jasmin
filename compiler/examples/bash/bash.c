@@ -160,7 +160,7 @@ static const u64 c24 = 0xDE8082CD72DEBC78;
 *******************************************************************************
 */
 
-static void bashF0(u64 s[24])
+void bashF0(u64 s[24])
 {
 	register u64 t0;
 	register u64 t1;

@@ -250,7 +250,7 @@ fn ce(reg u256 x) -> reg u256 {
 
 /* ---------------------------------------------------------------- */
 export
-fn bash(reg u64 ptr) {
+fn bashF0(reg u64 ptr) {
   reg u256[6] w;
   reg u256 t;
   inline int i;
