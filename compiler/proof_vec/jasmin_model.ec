@@ -1,4 +1,4 @@
-require import Int.
+require import AllCore IntDiv List.
 
 (*sopn_tin, sopn_tout*)
 type global_mem_t.
@@ -6,22 +6,38 @@ abstract theory W.
 
 type t.
 op size : int.
-op (+)    : t -> t -> t.
-op (-)    : t -> t -> t.
-op [-]    : t -> t.
+
+ 
+op of_int: int -> t.
+op to_int: t -> int.
+op mk: bool list -> t.
+op repr: t -> bool list.
+
+op norm (x : bool list) =
+  take size x ++ nseq (max 0 (size - size x)) false.
+
+axiom mk_repr x: mk (repr x) = x.
+axiom repr_mk x: repr (mk x) = norm x.
+
+axiom to_of_int x: to_int (of_int x) = x.
+axiom of_to_int x: of_int (to_int x) = x.
+
+op (+) (x:t) (y:t) = of_int ((to_int x) + (to_int x)).
+op (-) (x:t) (y:t) = of_int ((to_int x) - (to_int x)).
+op [-] (x:t) (y:t) = of_int ( - (to_int x)).
+op ( * ) (x:t) (y:t) = of_int ((to_int x) * (to_int x)).
+op (`^`) (x:t) (y:t) = of_int ((to_int x) ^ (to_int x)).
+op (<=) (x:t) (y:t) = (to_int x) <= (to_int x).
+op (`<`) (x:t) (y:t) = (to_int x) < (to_int x).
 op (`&`)  : t -> t -> t.
 op (%)    : t -> t -> t.
-op ( * )  : t -> t -> t.
 op (/)    : t -> t -> t.
 op ( & )  : t -> t -> t.
 op (`|`)    : t -> t -> t.
 op (|>>)  : t -> t -> t.
-op (`<`)    : t -> t -> bool.
-op (<=)   : t -> t -> bool.
-op (`^`)  : t -> t -> t.
- 
-op of_int: int -> t.
+
 end W.
+
 
 (* example below *)
 
