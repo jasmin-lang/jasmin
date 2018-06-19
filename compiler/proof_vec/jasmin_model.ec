@@ -1,41 +1,147 @@
-require import AllCore IntDiv List.
+require import AllCore IntDiv List StdOrder.
+(*---*) import Ring.IntID IntOrder.
 
 (*sopn_tin, sopn_tout*)
 type global_mem_t.
+
 abstract theory W.
 
 type t.
-op size : int.
 
- 
-op of_int: int -> t.
-op to_int: t -> int.
-op mk: bool list -> t.
-op repr: t -> bool list.
+op size : { int | 0 < size } as size_gt0.
+
+lemma size_ge0 : 0 <= size.
+proof. by apply/ltrW/size_gt0. qed.
+
+hint exact : size_gt0 size_ge0.
+
+op of_int : int -> t.
+op to_int : t -> int.
+
+op mk   : bool list -> t.
+op repr : t -> bool list.
+
+op "_.[_]" (w : t) (i : int) =
+  nth false (repr w) i.
+
+lemma getE (w : t) (i : int) : w.[i] = nth false (repr w) i.
+proof. by []. qed.
+
+abbrev modulus = 2 ^ size.
+
+op normed (x : bool list) = size x = size.
+
+lemma normedP (w : bool list) :
+  normed w <=> size w = size.
+proof. by []. qed.
 
 op norm (x : bool list) =
   take size x ++ nseq (max 0 (size - size x)) false.
 
-axiom mk_repr x: mk (repr x) = x.
-axiom repr_mk x: repr (mk x) = norm x.
+axiom repr_normed (w : t) : normed (repr w).
 
-axiom to_of_int x: to_int (of_int x) = x.
-axiom of_to_int x: of_int (to_int x) = x.
+lemma size_repr (w : t) : size (repr w) = size.
+proof. by apply/repr_normed. qed.
 
-op (+) (x:t) (y:t) = of_int ((to_int x) + (to_int x)).
-op (-) (x:t) (y:t) = of_int ((to_int x) - (to_int x)).
-op [-] (x:t) (y:t) = of_int ( - (to_int x)).
-op ( * ) (x:t) (y:t) = of_int ((to_int x) * (to_int x)).
-op (`^`) (x:t) (y:t) = of_int ((to_int x) ^ (to_int x)).
-op (<=) (x:t) (y:t) = (to_int x) <= (to_int x).
-op (`<`) (x:t) (y:t) = (to_int x) < (to_int x).
-op (`&`)  : t -> t -> t.
-op (%)    : t -> t -> t.
-op (/)    : t -> t -> t.
-op ( & )  : t -> t -> t.
-op (`|`)    : t -> t -> t.
-op (|>>)  : t -> t -> t.
+lemma norm_normed (w : bool list) : normed w => norm w = w.
+proof.
+move/normedP=> sz_w; rewrite /norm sz_w subrr nseq0 cats0.
+by rewrite take_oversize // sz_w.
+qed.
 
+lemma size_norm (x : bool list) : size (norm x) = size.
+proof.
+rewrite /norm size_cat size_take // maxC /max subr_lt0.
+case: (size < size x) => h; first by rewrite nseq0.
+by rewrite size_nseq maxC /max subr_lt0 h /= addrCA subrr.
+qed.
+
+axiom mkK   x : mk (repr x) = x.
+axiom reprK x : repr (mk x) = norm x.
+
+axiom of_intK (x : int) : to_int (of_int x) = x %% modulus.
+axiom to_intK (x : t  ) : cancel to_int of_int.
+
+op blift1 (f : bool -> bool) (w : t) =
+  mk (map f (repr w)).
+
+op blift2 (f : bool -> bool -> bool) (w1 w2 : t) =
+  mk (map (fun b : _ * _ => f b.`1 b.`2) (zip (repr w1) (repr w2))).
+
+op ilift1 (f : int -> int) (w : t) =
+  of_int (f (to_int w)).
+
+op ilift2 (f : int -> int -> int) (w1 w2 : t) =
+  of_int (f (to_int w1) (to_int w2)).
+
+lemma get_default (w : t) (i : int) :
+  size <= i => w.[i] = false.
+proof. by move=> gt; rewrite getE nth_default // size_repr. qed.
+
+lemma get_neg (w : t) (i : int) : i < 0 => w.[i] = false.
+proof. by move=> lt0; rewrite getE nth_neg. qed.
+
+lemma mk_seqE (w : bool list) (i : int) :
+  (mk w).[i] = (0 <= i < size /\ nth false w i).
+proof.
+rewrite getE reprK; case: (0 <= i) => /=; last first.
++ by move=> /ltrNge gt0_i; rewrite nth_neg.
+move=> ge0_i; case: (i < size) => /=; last first.
++ by move=> /lerNgt ge_i_sz; rewrite nth_default ?size_norm.
+move=> gt_i_sz; rewrite -{2}(cat_take_drop size w) /norm.
+rewrite !nth_cat; case: (i < size (take size w)) => //.
+move=> /lerNgt h; rewrite nth_nseq_if if_same; apply/eq_sym.
+case: (size w <= size) => [ge_wsz|]; first by rewrite drop_oversize.
+move=> /ltrNge lt_szw; move: h; rewrite size_takel.
++ by rewrite size_ge0 /= ltzW.
++ by move/(ltr_le_trans _ _ _ gt_i_sz).
+qed.
+
+lemma blift1E (f : bool -> bool) (w : t) (i : int) :
+  (blift1 f w).[i] = (0 <= i < size /\ f w.[i]).
+proof.
+rewrite mk_seqE; apply/eq_iff/andb_id2l => h.
+by rewrite getE; apply/nth_map; rewrite size_repr.
+qed.
+
+lemma blift2E (f : bool -> bool -> bool) (w1 w2: t) (i : int) :
+  (blift2 f w1 w2).[i] = (0 <= i < size /\ f w1.[i] w2.[i]).
+proof.
+rewrite mk_seqE; apply/eq_iff/andb_id2l => h.
+rewrite !getE (nth_map (false, false)).
++ by rewrite size_zip !size_repr.
+by rewrite nth_zip ?size_repr.
+qed. 
+
+op ( + ) = ilift2 Int.( + ).
+op ( - ) = ilift2 Int.( - ).
+op ([-]) = ilift1 Int.([-]).
+op ( * ) = ilift2 Int.( * ).
+
+op (`&`) = blift2 (/\).
+op (`|`) = blift2 (\/).
+op (`^`) = blift2 Logic.(^).
+ 
+op (`<=`) (x y : t) = (to_int x) <= (to_int x).
+op (`<` ) (x y : t) = (to_int x) <  (to_int x).
+
+op (|>>) (x : t) (i : int) =
+  mk (mkseq (fun j => x.[j + i]) size).
+
+op (<<|) (x : t) (i : int) =
+  mk (mkseq (fun j => x.[j - i]) size).
+
+lemma bandE (w1 w2 : t) (i : int) :
+  0 <= i < size => (w1 `&` w2).[i] = (w1.[i] /\ w2.[i]).
+proof. by move=> szok; rewrite blift2E szok. qed.
+
+lemma borE (w1 w2 : t) (i : int) :
+  0 <= i < size => (w1 `|` w2).[i] = (w1.[i] \/ w2.[i]).
+proof. by move=> szok; rewrite blift2E szok. qed.
+
+lemma bxorE (w1 w2 : t) (i : int) :
+  0 <= i < size => (w1 `^` w2).[i] = (w1.[i] ^ w2.[i]).
+proof. by move=> szok; rewrite blift2E szok. qed.
 end W.
 
 
