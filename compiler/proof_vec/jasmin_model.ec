@@ -197,7 +197,7 @@ theory W256.
 end W256. 
 export W256.
 
-op sigext_8_8:   W16.t -> W8.t.
+(*op sigext_8_8:   W16.t -> W8.t.
 op sigext_8_16:  W16.t -> W16.t.
 op sigext_8_32:  W16.t -> W32.t.
 op sigext_8_64:  W16.t -> W64.t.
@@ -237,27 +237,41 @@ op sigext_256_16:  W256.t -> W16.t.
 op sigext_256_32:  W256.t -> W32.t.
 op sigext_256_64:  W256.t -> W64.t.
 op sigext_256_128: W256.t -> W128.t.
-op sigext_256_256: W256.t -> W256.t.
+op sigext_256_256: W256.t -> W256.t.*)
 
 
 op loadW32: global_mem_t -> W64.t -> W32.t.
 op storeW32: global_mem_t -> W64.t -> W32.t -> global_mem_t.
 
-op x86_MOVD_32: W32.t -> W128.t.
-op x86_ROL_32: W32.t -> W8.t -> (bool * bool * W32.t).
+op x86_MOVD_32 (x:W32.t) = W128.mk ((repr x) ++ (repr x) ++ (repr x) ++ (repr x)). 
 
+op x86_ROL_32 (x:W32.t) (cnt:W8.t) =
+let result = rot (to_int cnt) (repr x) in
+let CF = last true result in
+let OF = Logic.(^) CF (head true result) in
+(CF,OF, W32.mk result).
 
 op loadW64: global_mem_t -> W64.t -> W64.t.
 op storeW64: global_mem_t -> W64.t -> W64.t -> global_mem_t.
 
+(*op x86_SHLD_64 (x:W64.t) (y:W64.t) (cnt:W8.t)=
+let result = (drop (to_int cnt) (repr x)) ++ (take (32 - (to_int cnt)) (repr y)) in
+let CF = true in
+let OF = Logic.(^) (head true result) (head true (repr x)) in
+let SF = true in
+let ZF = true in
+let AF = true in
+(CF, OF, SF, ZF, AF, W64.mk result).*)
+
 op x86_SHLD_64: W64.t -> W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
+
 op x86_SHRD_64: W64.t -> W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
 
 op loadW128: global_mem_t -> W64.t -> W128.t.
 op storeW128: global_mem_t -> W64.t -> W128.t -> global_mem_t.
 
-op x86_VPSLL_4u32: W128.t -> W8.t -> W128.t.
-op x86_VPSRL_4u32: W128.t -> W8.t -> W128.t.
+op x86_VPSLL_4u32: W128.t  -> W8.t -> W128.t.
+op x86_VPSRL_4u32: W128.t  -> W8.t -> W128.t.
 op x86_VPSHUFB_128: W128.t -> W128.t -> W128.t.
 op x86_VPSHUFD_128: W128.t -> W8.t -> W128.t.
 
