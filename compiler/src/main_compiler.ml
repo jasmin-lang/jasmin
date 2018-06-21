@@ -160,8 +160,15 @@ let main () =
           let out = open_out !ecfile in
           let fmt = Format.formatter_of_out_channel out in
           fmt, fun () -> close_out out in
-      ToEC.extract fmt prog !ec_list;
-      close();
+      begin try
+        BatPervasives.finally
+          (fun () -> close ())
+          (fun () -> ToEC.extract fmt prog !ec_list)
+          ()
+      with e ->
+        BatPervasives.ignore_exceptions
+          (fun () -> if !ecfile <> "" then Unix.unlink !ecfile) ();
+        raise e end;
       exit 0
     end;
 
