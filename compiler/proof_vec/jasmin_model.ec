@@ -276,11 +276,11 @@ op loadW128: global_mem_t -> W64.t -> W128.t.
 op storeW128: global_mem_t -> W64.t -> W128.t -> global_mem_t.
 
 
-
+(*
 
 op x86_VPSLL_4u32 (x:W128.t) (cnt:W8.t) =
 let (x1,x2,x3,x4) = split_4u_32 x in
-(
+( *)
 
 op x86_VPSLL_4u32: W128.t  -> W8.t   -> W128.t.
 
