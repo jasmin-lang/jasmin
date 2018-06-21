@@ -420,3 +420,5 @@ err_t bashavx2_Hash( octet hash[], size_t l, const void* src, size_t count )
     bashavx2_StepG( hash, l / 4, state );
     return ERR_OK;
 }
+
+void bashF0(octet block[192]) { bashavx2_F(block); }

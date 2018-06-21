@@ -6,7 +6,7 @@
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
 /* arg: pointer to 24 × 64 bits, aligned for 64-bits memory accesses */
-extern void bash(void*);
+extern void bashF0(void*);
 
 int
 main(void)
@@ -41,7 +41,7 @@ main(void)
     0x49, 0x72, 0xAC, 0xD9, 0xD9, 0x76, 0x21, 0x4B, 0x7C, 0xED, 0x8E, 0x3F, 0x8B, 0x6E, 0x05, 0x8E
   };
 
-  bash(input);
+  bashF0(input);
 
   for (int i = 0; i < 24 * 8; ++i) {
     printf("%s%02x%s",
