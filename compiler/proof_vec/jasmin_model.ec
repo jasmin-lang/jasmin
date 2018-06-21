@@ -263,17 +263,31 @@ let ZF = true in
 let AF = true in
 (CF, OF, SF, ZF, AF, W64.mk result).*)
 
+op x86_SHLD_32: W32.t -> W32.t -> W8.t -> (bool * bool * bool * bool * bool * W32.t).
+
+
 op x86_SHLD_64: W64.t -> W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
 
 op x86_SHRD_64: W64.t -> W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
 
+op split_4u_32: W128.t -> (W32.t * W32.t * W32.t * W32.t).
+
 op loadW128: global_mem_t -> W64.t -> W128.t.
 op storeW128: global_mem_t -> W64.t -> W128.t -> global_mem_t.
 
-op x86_VPSLL_4u32: W128.t  -> W8.t -> W128.t.
-op x86_VPSRL_4u32: W128.t  -> W8.t -> W128.t.
+
+
+
+op x86_VPSLL_4u32 (x:W128.t) (cnt:W8.t) =
+let (x1,x2,x3,x4) = split_4u_32 x in
+(
+
+op x86_VPSLL_4u32: W128.t  -> W8.t   -> W128.t.
+
+
+op x86_VPSRL_4u32: W128.t  -> W8.t   -> W128.t.
 op x86_VPSHUFB_128: W128.t -> W128.t -> W128.t.
-op x86_VPSHUFD_128: W128.t -> W8.t -> W128.t.
+op x86_VPSHUFD_128: W128.t -> W8.t   -> W128.t.
 
 
 
