@@ -1,0 +1,54 @@
+inline
+fn rotate (reg u32 x, inline int bits) -> reg u32 {
+x = (x << bits) ^ (x >> (32 - bits));
+return x;
+}
+
+inline 
+fn gimli_body(stack u32[12] state) -> stack u32[12] {
+   inline int round, column;
+   reg u32 x, y, z;
+   
+   for round = 24 downto 0 {
+     for column = 0 to 4 {              
+        x = state[column];
+        x = rotate(x, 24);
+        y = state[4 + column];
+        y = rotate(y, 9);
+        z = state[8 + column];
+  
+        state[8 + column] = x ^ (z << 1) ^ ((y & z) << 2);
+        state[4 + column] = y ^ x ^ ((x | z) << 1);
+        state[column]     = z ^ y ^((x & y) << 3);
+     }
+     if (round & 3) == 0 { 
+       x = state[0];  
+       y = state[1];
+       state[0] = y;
+       state[1] = x;
+
+       x = state[2];
+       y = state[3];
+       state[2] = y;
+       state[3] = x;
+     }
+
+     if (round & 3) == 2 { 
+       x = state[0]; 
+       y = state[2];
+       state[0] = y;
+       state[2] = x;
+
+       x = state[1];
+       y = state[3];
+       state[1] = y;
+       state[3] = x;
+     }
+
+     if (round & 3) == 0 {
+       state[0] = state[0] ^ (0x9e377900 ^ round);
+     }      
+   }
+   return state;
+}
+
