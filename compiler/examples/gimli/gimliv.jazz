@@ -30,18 +30,8 @@ fn shuffle(inline int a, inline int b, inline int c, inline int d) -> inline int
   return r;
 }
 
-export
-fn gimli(reg u64 state) {
-  reg u128 x, y, z;
-  reg u128 a, b, c, d, e;
-  reg u32 m;
-  inline int round, pattern;
-
-  x = (u128)[state + 16 * 0];
-  y = (u128)[state + 16 * 1];
-  z = (u128)[state + 16 * 2];
-
-  for round = 24 downto 0 {
+inline gimli_body (reg u128 x, reg u128 y, reg u128 z) {
+ for round = 24 downto 0 {
     x = rotate(x, 24);
     y = rotate(y, 9);
     z = rotate(z, 0);
@@ -82,6 +72,21 @@ fn gimli(reg u64 state) {
     }
 
   }
+  return (x,y,z);
+}
+
+export
+fn gimli(reg u64 state) {
+  reg u128 x, y, z;
+  reg u128 a, b, c, d, e;
+  reg u32 m;
+  inline int round, pattern;
+
+  x = (u128)[state + 16 * 0];
+  y = (u128)[state + 16 * 1];
+  z = (u128)[state + 16 * 2];
+
+  (x,y,z) = gimli_body(x,y,z); 
 
   (u128)[state + 16 * 0] = x;
   (u128)[state + 16 * 1] = y;
