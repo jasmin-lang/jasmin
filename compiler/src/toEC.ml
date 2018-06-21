@@ -361,7 +361,7 @@ let pp_fun env fmt f =
     (pp_ret b env) f.f_ret
 
 let pp_glob_decl env fmt (ws,x, z) =
-  Format.fprintf fmt "@[op %a = %a.ofint %a.@]@ "
+  Format.fprintf fmt "@[op %a = %a.of_int %a.@]@ "
     (pp_glob env) x pp_Tsz ws B.pp_print z
 
 let pp_prog fmt globs funcs = 
