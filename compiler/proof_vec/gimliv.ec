@@ -1,6 +1,6 @@
 require import Jasmin_model Int IntDiv CoreMap.
 
-op rotate24pattern = (W128.of_int 16028905388486802350658220295983399425).
+op rotate24pattern = W128.of_int 16028905388486802350658220295983399425.
 
 
 module M = {
@@ -20,7 +20,7 @@ module M = {
         a <@ shift (r, count);
         count <- (32 - count);
         b <- x86_VPSRL_4u32 r (W8.of_int count);
-        r <- (a `|` b);
+        r <- (a `^` b);
       }
     } else {
       
@@ -34,10 +34,7 @@ module M = {
     return (r);
   }
   
-  proc gimli (global_mem : global_mem_t, state:W64.t) : global_mem_t = {
-    var x:W128.t;
-    var y:W128.t;
-    var z:W128.t;
+  proc gimli_body (x:W128.t, y:W128.t, z:W128.t) : W128.t * W128.t * W128.t = {
     var a:W128.t;
     var b:W128.t;
     var c:W128.t;
@@ -46,9 +43,6 @@ module M = {
     var pattern:int;
     var round:int;
     var m:W32.t;
-    x <- (loadW128 global_mem (state + (W64.of_int (16 * 0))));
-    y <- (loadW128 global_mem (state + (W64.of_int (16 * 1))));
-    z <- (loadW128 global_mem (state + (W64.of_int (16 * 2))));
     round <- 0;
     while (24 < round) {
      x <@ rotate (x, 24);
@@ -90,10 +84,7 @@ module M = {
      }
     round <- round - 1;
     }
-    global_mem <- storeW128 global_mem (state + (W64.of_int (16 * 0))) x;
-    global_mem <- storeW128 global_mem (state + (W64.of_int (16 * 1))) y;
-    global_mem <- storeW128 global_mem (state + (W64.of_int (16 * 2))) z;
-    return global_mem;
+    return (x, y, z);
   }
 }.
 

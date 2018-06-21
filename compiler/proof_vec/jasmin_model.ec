@@ -126,11 +126,11 @@ op (`^`) = blift2 Logic.(^) axiomatized by xorE.
 op (`<=`) (x y : t) = (to_int x) <= (to_int x) axiomatized by wleE.
 op (`<` ) (x y : t) = (to_int x) <  (to_int x) axiomatized by wltE.
 
-op (`>>`) (x : t) (i : int) =
+op (`>>>`) (x : t) (i : int) =
   mk (mkseq (fun j => x.[j + i]) size)
   axiomatized by wlsrE.
 
-op (`<<`) (x : t) (i : int) =
+op (`<<<`) (x : t) (i : int) =
   mk (mkseq (fun j => x.[j - i]) size)
   axiomatized by wlslE.
 
@@ -155,24 +155,40 @@ end W.
 
 theory W8.
   clone include W with op size = 8.
+
+  op (`>>`) : t -> t -> t.
+  op (`<<`) : t -> t -> t.
+
   op addc_8: t -> t -> bool -> (bool * t).
 end W8.
 export W8. 
  
 theory W16.
   clone include W with op size = 16.
+
+  op (`>>`) : t -> W8.t -> t.
+  op (`<<`) : t -> W8.t -> t.
+
   op addc_16: t -> t -> bool -> (bool * t).
 end W16. 
 export W16.
 
 theory W32.
   clone include W with op size = 32.
+
+  op (`>>`) : t -> W8.t -> t.
+  op (`<<`) : t -> W8.t -> t.
+
   op addc_32: t -> t -> bool -> (bool * t).
 end W32.
 export W32.
 
 theory W64.
   clone include W with op size = 64.
+
+  op (`>>`) : t -> W8.t -> t.
+  op (`<<`) : t -> W8.t -> t.
+
   op mulu_64: t -> t -> (t*t).
   op addc_64: t -> t -> bool -> (bool * t).
 end W64. 
@@ -180,12 +196,20 @@ export W64.
 
 theory W128.
   clone include W with op size = 128.
+
+  op (`>>`) : t -> W8.t -> t.
+  op (`<<`) : t -> W8.t -> t.
+
   op addc_128: t -> t -> bool -> (bool * t).
 end W128. 
 export W128.
 
 theory W256.
   clone include W with op size = 256.
+
+  op (`>>`) : t -> W8.t -> t.
+  op (`<<`) : t -> W8.t -> t.
+
   op addc_256: t -> t -> bool -> (bool * t).
   op cast_32: t -> W32.t.
 end W256. 
@@ -273,13 +297,16 @@ op map_4u32 (f : W32.t -> W32.t) (w : p4u32) : p4u32 =
 
 (* -------------------------------------------------------------------- *)
 op x86_MOVD_32 (x : W32.t) =
-  pack_4u32 (x, x, x, x).
+  pack_4u32 (x, x, x, x)
+  axiomatized by x86_MOVD_32_E.
 
 op x86_ROL_32 (x : W32.t) (cnt : W8.t) =
   let result = rot (to_int cnt) (repr x) in
   let CF = last true result in
   let OF = Logic.(^) CF (head true result) in
-  (CF, OF, W32.mk result).
+  (CF, OF, W32.mk result)
+  axiomatized by x86_ROL_32_E.
+
 
 (*op x86_SHLD_64 (x:W64.t) (y:W64.t) (cnt:W8.t)=
 let result = (drop (to_int cnt) (repr x)) ++ (take (32 - (to_int cnt)) (repr y)) in
@@ -305,12 +332,14 @@ op x86_SHRD_64 :
 
 (* -------------------------------------------------------------------- *)
 op x86_VPSLL_4u32 (w : W128.t) (cnt : W8.t) =
-  let f = fun w : W32.t => w `<<` (W8.to_int cnt) in
-  pack_4u32 (map_4u32 f (unpack_4u32 w)).
+  let f = fun w : W32.t => w `<<` cnt in
+  pack_4u32 (map_4u32 f (unpack_4u32 w))
+  axiomatized by x86_VPSLL_4u32_E.
 
 op x86_VPSRL_4u32 (w : W128.t) (cnt : W8.t) =
-  let f = fun w : W32.t => w `>>` (W8.to_int cnt) in
-  pack_4u32 (map_4u32 f (unpack_4u32 w)).
+  let f = fun w : W32.t => w `>>`  cnt in
+  pack_4u32 (map_4u32 f (unpack_4u32 w))
+  axiomatized by x86_VPSRL_4u32_E.
 
 (* -------------------------------------------------------------------- *)
 op x86_VPSHUFB_128_B (w m : W128.t) (i : int) =
@@ -319,15 +348,17 @@ op x86_VPSHUFB_128_B (w m : W128.t) (i : int) =
   W8.mk (W128.slice idx 8 w).
 
 op x86_VPSHUFB_128 (w m : W128.t) : W128.t =
-  W128.mk (flatten (rev (map (W8.repr \o x86_VPSHUFB_128_B w m) (range 0 15)))).
+  W128.mk (flatten (rev (map (W8.repr \o x86_VPSHUFB_128_B w m) (range 0 15))))
+  axiomatized by x86_VPSHUFB_128_E.
 
 (* -------------------------------------------------------------------- *)
 op x86_VPSHUFD_128_B (w : W128.t) (m : W8.t) (i : int) : W32.t =
   let lvl  = BS2Int.bs2int (W8.slice (2 * i) 2 m) in
-  (unpack_4u32 (w `>>` lvl)).`1.
+  (unpack_4u32 (w `>>>` lvl)).`1.
 
 op x86_VPSHUFD_128 (w : W128.t) (m : W8.t) : W128.t =
   pack_4u32 (x86_VPSHUFD_128_B w m 4,
              x86_VPSHUFD_128_B w m 3,
              x86_VPSHUFD_128_B w m 2,
-             x86_VPSHUFD_128_B w m 1).
+             x86_VPSHUFD_128_B w m 1)
+  axiomatized by x86_VPSHUFD_128_E.

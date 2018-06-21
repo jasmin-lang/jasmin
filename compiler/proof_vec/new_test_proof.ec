@@ -33,6 +33,5 @@ proof.
   while (#pre /\ ={round}); last by auto.
   unroll for {1} 2.
   wp; skip => &m1 &m2 [#].
-pragma verbose.
   cbv delta => 4!<- _ _; cbv delta => />.
 qed.
