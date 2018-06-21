@@ -315,7 +315,7 @@ equiv ref1_vec1 : Gimli_ref1.gimli ~ Gimli_vec1.gimli :
    (of32 res.[8] res.[9] res.[10] res.[11]){1} = res.`3{2}.
 proof.
   proc; inline * => /=.
-  while (#pre /\ ={round});last by auto.
+  while (#pre /\ ={round}); last by auto.
   unroll for {1} 2.
   wp;skip => &m1 &m2 [#].
   by cbv delta => 4!<- _ _; cbv delta => />.

@@ -111,41 +111,44 @@ rewrite !getE (nth_map (false, false)).
 by rewrite nth_zip ?size_repr.
 qed. 
 
-op zeros = mk (nseq size false).
-op ones  = mk (nseq size true ).
+op zeros = mk (nseq size false) axiomatized by zerosE.
+op ones  = mk (nseq size true ) axiomatized by onesE.
 
-op ( + ) = ilift2 Int.( + ).
-op ( - ) = ilift2 Int.( - ).
-op ([-]) = ilift1 Int.([-]).
-op ( * ) = ilift2 Int.( * ).
+op ( + ) = ilift2 Int.( + ) axiomatized by addE.
+op ( - ) = ilift2 Int.( - ) axiomatized by subE.
+op ([-]) = ilift1 Int.([-]) axiomatized by oppE.
+op ( * ) = ilift2 Int.( * ) axiomatized by mulE.
 
-op (`&`) = blift2 (/\).
-op (`|`) = blift2 (\/).
-op (`^`) = blift2 Logic.(^).
+op (`&`) = blift2 (/\) axiomatized by andE.
+op (`|`) = blift2 (\/) axiomatized by orE.
+op (`^`) = blift2 Logic.(^) axiomatized by xorE.
  
-op (`<=`) (x y : t) = (to_int x) <= (to_int x).
-op (`<` ) (x y : t) = (to_int x) <  (to_int x).
+op (`<=`) (x y : t) = (to_int x) <= (to_int x) axiomatized by wleE.
+op (`<` ) (x y : t) = (to_int x) <  (to_int x) axiomatized by wltE.
 
 op (`>>`) (x : t) (i : int) =
-  mk (mkseq (fun j => x.[j + i]) size).
+  mk (mkseq (fun j => x.[j + i]) size)
+  axiomatized by wlsrE.
 
 op (`<<`) (x : t) (i : int) =
-  mk (mkseq (fun j => x.[j - i]) size).
+  mk (mkseq (fun j => x.[j - i]) size)
+  axiomatized by wlslE.
 
 lemma bandE (w1 w2 : t) (i : int) :
   0 <= i < size => (w1 `&` w2).[i] = (w1.[i] /\ w2.[i]).
-proof. by move=> szok; rewrite blift2E szok. qed.
+proof. by move=> szok; rewrite andE blift2E szok. qed.
 
 lemma borE (w1 w2 : t) (i : int) :
   0 <= i < size => (w1 `|` w2).[i] = (w1.[i] \/ w2.[i]).
-proof. by move=> szok; rewrite blift2E szok. qed.
+proof. by move=> szok; rewrite orE blift2E szok. qed.
 
 lemma bxorE (w1 w2 : t) (i : int) :
   0 <= i < size => (w1 `^` w2).[i] = (w1.[i] ^ w2.[i]).
-proof. by move=> szok; rewrite blift2E szok. qed.
+proof. by move=> szok; rewrite xorE blift2E szok. qed.
 
 op slice (i : int) (n : int) (w : t) =
-  take n (drop i (repr w)).
+  take n (drop i (repr w))
+  axiomatized by sliceE.
 end W.
 
 (* example below *)
