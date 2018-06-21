@@ -1,9 +1,7 @@
-require import AllCore IntDiv List StdOrder.
-(*---*) import Ring.IntID IntOrder.
+require import AllCore BitEncoding IntDiv SmtMap List StdOrder.
+(*---*) import CoreMap Map Ring.IntID IntOrder.
 
 (*sopn_tin, sopn_tout*)
-type global_mem_t.
-
 abstract theory W.
 
 type t.
@@ -113,6 +111,9 @@ rewrite !getE (nth_map (false, false)).
 by rewrite nth_zip ?size_repr.
 qed. 
 
+op zeros = mk (nseq size false).
+op ones  = mk (nseq size true ).
+
 op ( + ) = ilift2 Int.( + ).
 op ( - ) = ilift2 Int.( - ).
 op ([-]) = ilift1 Int.([-]).
@@ -125,10 +126,10 @@ op (`^`) = blift2 Logic.(^).
 op (`<=`) (x y : t) = (to_int x) <= (to_int x).
 op (`<` ) (x y : t) = (to_int x) <  (to_int x).
 
-op (|>>) (x : t) (i : int) =
+op (`>>`) (x : t) (i : int) =
   mk (mkseq (fun j => x.[j + i]) size).
 
-op (<<|) (x : t) (i : int) =
+op (`<<`) (x : t) (i : int) =
   mk (mkseq (fun j => x.[j - i]) size).
 
 lemma bandE (w1 w2 : t) (i : int) :
@@ -142,39 +143,33 @@ proof. by move=> szok; rewrite blift2E szok. qed.
 lemma bxorE (w1 w2 : t) (i : int) :
   0 <= i < size => (w1 `^` w2).[i] = (w1.[i] ^ w2.[i]).
 proof. by move=> szok; rewrite blift2E szok. qed.
-end W.
 
+op slice (i : int) (n : int) (w : t) =
+  take n (drop i (repr w)).
+end W.
 
 (* example below *)
 
 theory W8.
   clone include W with op size = 8.
-  op (`>>`) :  t -> t -> t. 
-  op (`<<`) : t -> t -> t.
   op addc_8: t -> t -> bool -> (bool * t).
 end W8.
 export W8. 
  
 theory W16.
   clone include W with op size = 16.
-  op (`>>`) :  t -> W8.t -> t. 
-  op (`<<`) : t -> W8.t -> t.
   op addc_16: t -> t -> bool -> (bool * t).
 end W16. 
 export W16.
 
 theory W32.
   clone include W with op size = 32.
-  op (`>>`) :  t -> W8.t -> t. 
-  op (`<<`) : t -> W8.t -> t.
   op addc_32: t -> t -> bool -> (bool * t).
 end W32.
 export W32.
 
 theory W64.
   clone include W with op size = 64.
-  op (`>>`) :  t -> W8.t -> t. 
-  op (`<<`) : t -> W8.t -> t.
   op mulu_64: t -> t -> (t*t).
   op addc_64: t -> t -> bool -> (bool * t).
 end W64. 
@@ -182,16 +177,12 @@ export W64.
 
 theory W128.
   clone include W with op size = 128.
-  op (`>>`) :  t -> W8.t -> t. 
-  op (`<<`) : t -> W8.t -> t.
   op addc_128: t -> t -> bool -> (bool * t).
 end W128. 
 export W128.
 
 theory W256.
   clone include W with op size = 256.
-  op (`>>`) :  t -> W8.t -> t. 
-  op (`<<`) : t -> W8.t -> t.
   op addc_256: t -> t -> bool -> (bool * t).
   op cast_32: t -> W32.t.
 end W256. 
@@ -239,20 +230,53 @@ op sigext_256_64:  W256.t -> W64.t.
 op sigext_256_128: W256.t -> W128.t.
 op sigext_256_256: W256.t -> W256.t.*)
 
+(* -------------------------------------------------------------------- *)
+type wsize   = [ W32 | W64 ].
+type address = W64.t.
 
-op loadW32: global_mem_t -> W64.t -> W32.t.
-op storeW32: global_mem_t -> W64.t -> W32.t -> global_mem_t.
+type global_mem_t = {
+  gm128 : (address, W128.t) map;
+   gm64 : (address,  W64.t) map;
+   gm32 : (address,  W32.t) map;
+}.
 
-op x86_MOVD_32 (x:W32.t) = W128.mk ((repr x) ++ (repr x) ++ (repr x) ++ (repr x)). 
+op loadW32  (m : global_mem_t) (a : address) = m.`gm32 .[a].
+op loadW64  (m : global_mem_t) (a : address) = m.`gm64 .[a].
+op loadW128 (m : global_mem_t) (a : address) = m.`gm128.[a].
 
-op x86_ROL_32 (x:W32.t) (cnt:W8.t) =
-let result = rot (to_int cnt) (repr x) in
-let CF = last true result in
-let OF = Logic.(^) CF (head true result) in
-(CF,OF, W32.mk result).
+op storeW32 (m : global_mem_t) (a : address) (w : W32.t) =
+  {| m with gm32 = m.`gm32.[a <- w] |}.
 
-op loadW64: global_mem_t -> W64.t -> W64.t.
-op storeW64: global_mem_t -> W64.t -> W64.t -> global_mem_t.
+op storeW64 (m : global_mem_t) (a : address) (w : W64.t) =
+  {| m with gm64 = m.`gm64.[a <- w] |}.
+
+op storeW128 (m : global_mem_t) (a : address) (w : W128.t) =
+  {| m with gm128 = m.`gm128.[a <- w] |}.
+
+(* -------------------------------------------------------------------- *)
+type p4u32 = W32.t * W32.t * W32.t * W32.t.
+
+op unpack_4u32 (w : W128.t) : p4u32 =
+  (W32.mk (W128.slice 96 32 w),
+   W32.mk (W128.slice 64 32 w),
+   W32.mk (W128.slice 32 32 w),
+   W32.mk (W128.slice  0 32 w)).
+
+op pack_4u32 (w : p4u32) : W128.t =
+  W128.mk (W32.repr w.`1 ++ W32.repr w.`2 ++ W32.repr w.`3 ++ W32.repr w.`4).
+
+op map_4u32 (f : W32.t -> W32.t) (w : p4u32) : p4u32 =
+  (f w.`1, f w.`2, f w.`3, f w.`4).
+
+(* -------------------------------------------------------------------- *)
+op x86_MOVD_32 (x : W32.t) =
+  pack_4u32 (x, x, x, x).
+
+op x86_ROL_32 (x : W32.t) (cnt : W8.t) =
+  let result = rot (to_int cnt) (repr x) in
+  let CF = last true result in
+  let OF = Logic.(^) CF (head true result) in
+  (CF, OF, W32.mk result).
 
 (*op x86_SHLD_64 (x:W64.t) (y:W64.t) (cnt:W8.t)=
 let result = (drop (to_int cnt) (repr x)) ++ (take (32 - (to_int cnt)) (repr y)) in
@@ -263,31 +287,44 @@ let ZF = true in
 let AF = true in
 (CF, OF, SF, ZF, AF, W64.mk result).*)
 
-op x86_SHLD_32: W32.t -> W32.t -> W8.t -> (bool * bool * bool * bool * bool * W32.t).
+(* -------------------------------------------------------------------- *)
+op x86_SHLD_32 :
+  W32.t -> W32.t -> W8.t -> (bool * bool * bool * bool * bool * W32.t).
 
+op x86_SHRD_32 :
+  W32.t -> W32.t -> W8.t -> (bool * bool * bool * bool * bool * W32.t).
 
-op x86_SHLD_64: W64.t -> W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
+op x86_SHLD_64 :
+  W64.t -> W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
 
-op x86_SHRD_64: W64.t -> W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
+op x86_SHRD_64 :
+  W64.t -> W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
 
-op split_4u_32: W128.t -> (W32.t * W32.t * W32.t * W32.t).
+(* -------------------------------------------------------------------- *)
+op x86_VPSLL_4u32 (w : W128.t) (cnt : W8.t) =
+  let f = fun w : W32.t => w `<<` (W8.to_int cnt) in
+  pack_4u32 (map_4u32 f (unpack_4u32 w)).
 
-op loadW128: global_mem_t -> W64.t -> W128.t.
-op storeW128: global_mem_t -> W64.t -> W128.t -> global_mem_t.
+op x86_VPSRL_4u32 (w : W128.t) (cnt : W8.t) =
+  let f = fun w : W32.t => w `>>` (W8.to_int cnt) in
+  pack_4u32 (map_4u32 f (unpack_4u32 w)).
 
+(* -------------------------------------------------------------------- *)
+op x86_VPSHUFB_128_B (w m : W128.t) (i : int) =
+  if m.[i * 8 + 7] then W8.zeros else
+  let idx = BS2Int.bs2int (W128.slice (i * 8) 4 m) in
+  W8.mk (W128.slice idx 8 w).
 
-(*
+op x86_VPSHUFB_128 (w m : W128.t) : W128.t =
+  W128.mk (flatten (rev (map (W8.repr \o x86_VPSHUFB_128_B w m) (range 0 15)))).
 
-op x86_VPSLL_4u32 (x:W128.t) (cnt:W8.t) =
-let (x1,x2,x3,x4) = split_4u_32 x in
-( *)
+(* -------------------------------------------------------------------- *)
+op x86_VPSHUFD_128_B (w : W128.t) (m : W8.t) (i : int) : W32.t =
+  let lvl  = BS2Int.bs2int (W8.slice (2 * i) 2 m) in
+  (unpack_4u32 (w `>>` lvl)).`1.
 
-op x86_VPSLL_4u32: W128.t  -> W8.t   -> W128.t.
-
-
-op x86_VPSRL_4u32: W128.t  -> W8.t   -> W128.t.
-op x86_VPSHUFB_128: W128.t -> W128.t -> W128.t.
-op x86_VPSHUFD_128: W128.t -> W8.t   -> W128.t.
-
-
-
+op x86_VPSHUFD_128 (w : W128.t) (m : W8.t) : W128.t =
+  pack_4u32 (x86_VPSHUFD_128_B w m 4,
+             x86_VPSHUFD_128_B w m 3,
+             x86_VPSHUFD_128_B w m 2,
+             x86_VPSHUFD_128_B w m 1).
