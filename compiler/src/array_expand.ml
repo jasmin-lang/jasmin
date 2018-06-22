@@ -91,16 +91,21 @@ let arrexp_func fc =
 (* -------------------------------------------------------------- *)
 (* Perform stack allocation                                       *)
 
+(* The variables are allocated in decreasing order of (base) size;
+   this ensures that the alignment constraints are satisfied. *)
 let init_stk fc =
   let vars = Sv.elements (Sv.filter is_stack_var (vars_fc fc)) in
+  let size v =
+     match v.v_ty with
+     | Bty (U ws)  -> let s = size_of_ws ws in v, s, s
+     | Arr (ws, n) -> let s = size_of_ws ws in v, s, n * s
+     | _            -> assert false in
+  let vars = List.rev_map size vars in
+  let cmp (_, s1, _) (_, s2, _) = s2 - s1 in
+  let vars = List.sort cmp vars in
   let size = ref 0 in
   let tbl = Hv.create 107 in
-  let init_var v =
-    let n =
-      match v.v_ty with
-      | Bty (U ws)  -> size_of_ws ws
-      | Arr (ws, n) -> n * size_of_ws ws
-      | _            -> assert false in
+  let init_var (v, _, n) =
     let pos = !size in
     let bpos = B.of_int pos in
     Hv.add tbl v bpos;
