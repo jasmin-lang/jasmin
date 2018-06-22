@@ -712,6 +712,8 @@ let prim_string =
     "x86_VPUNPCKH", PrimV (fun ve sz -> Ox86_VPUNPCKH (ve, sz));
     "x86_VPUNPCKL", PrimV (fun ve sz -> Ox86_VPUNPCKL (ve, sz));
     "x86_VPBLENDD", PrimP (T.U128, fun sz -> Ox86_VPBLENDD sz);
+    "x86_VPBROADCAST_2u128", PrimM Ox86_VBROADCASTI128;
+    "x86_VPBROADCAST", PrimV (fun ve sz -> Ox86_VPBROADCAST (ve, sz));
     "x86_VEXTRACTI128", PrimM Ox86_VEXTRACTI128;
     "x86_VINSERTI128", PrimM Ox86_VINSERTI128;
     "x86_VPERM2I128", PrimM Ox86_VPERM2I128;

@@ -925,6 +925,11 @@ Definition x86_vpblendd {sz} (v1 v2: word sz) (m: u8) : exec values :=
   ok [:: Vword (wpblendd v1 v2 m) ].
 
 (* ---------------------------------------------------------------- *)
+Definition x86_vpbroadcast ve sz (v: word ve) : exec values :=
+  Let _ := check_size_128_256 sz in
+  ok [:: Vword (wpbroadcast sz v) ].
+
+(* ---------------------------------------------------------------- *)
 Definition x86_vextracti128 (v: u256) (i: u8) : exec values :=
   let r := if lsb i then wshr v U128 else v in
   ok [:: Vword (zero_extend U128 r) ].
@@ -1028,6 +1033,8 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_VPUNPCKH ve sz => app_ww sz (x86_vpunpckh ve)
   | Ox86_VPUNPCKL ve sz => app_ww sz (x86_vpunpckl ve)
   | Ox86_VPBLENDD sz => app_ww8 sz x86_vpblendd
+  | Ox86_VPBROADCAST ve sz => app_w ve (x86_vpbroadcast sz)
+  | Ox86_VBROADCASTI128 => app_w U128 (x86_vpbroadcast U256)
   | Ox86_VEXTRACTI128 => app_w8 U256 x86_vextracti128
   | Ox86_VINSERTI128 => app_sopn [:: sword256 ; sword128 ; sword8 ] x86_vinserti128
   | Ox86_VPERM2I128 => app_ww8 U256 x86_vperm2i128

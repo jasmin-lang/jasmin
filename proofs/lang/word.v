@@ -805,6 +805,11 @@ Definition wpblendd sz (w1 w2: word sz) (m: u8) : word sz :=
   make_vec sz r.
 
 (* -------------------------------------------------------------------*)
+Definition wpbroadcast ve sz (w: word ve) : word sz :=
+  let r := nseq (sz %/ ve) w in
+  make_vec sz r.
+
+(* -------------------------------------------------------------------*)
 Definition wperm2i128 (w1 w2: u256) (i: u8) : u256 :=
   let choose (n: nat) :=
       match urepr (subword n 2 i) with

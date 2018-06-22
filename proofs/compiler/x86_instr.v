@@ -987,21 +987,29 @@ Qed.
 Definition BSWAP_desc sz := make_instr_desc (BSWAP_gsc sz).
 
 (* ----------------------------------------------------------------------------- *)
+Lemma eval_low_rm128_nocheck gd s m x y sz (v: word sz) :
+  arg_of_rm128 (Some s) x = Some y →
+  eval_low gd m y = ok (Vword v) →
+  read_rm128_nocheck gd s x m = ok (zero_extend _ v).
+Proof.
+  case: x => [ r | a | g ] /=.
+  1-2: case => <- {y} /=.
+  2: apply: rbindP => ??.
+  1-2: by move => /ok_word_inj [?]; subst => /= <-; rewrite /read_rm128_nocheck /= ?zero_extend_u.
+  case: eqP => // - [<-] {s} [<-] {y} /= h; rewrite h /=.
+  case/get_globalI: h => w h /Vword_inj [?]; subst => /= -> {v}.
+  by rewrite eq_dec_refl zero_extend_u.
+Qed.
+
 Lemma eval_low_rm128 gd s u m x y sz (v: word sz) :
   check_size_128_256 s = ok u →
   arg_of_rm128 (Some s) x = Some y →
   eval_low gd m y = ok (Vword v) →
   read_rm128 gd s x m = ok (zero_extend _ v).
 Proof.
-  move => ok_s.
-  case: x => [ r | a | g ] /=.
-  1-2: case => <- {y} /=.
-  2: apply: rbindP => ??.
-  1-2: by move => /ok_word_inj [?]; subst => /= <-; rewrite /read_rm128 ok_s /= ?zero_extend_u.
-  case: eqP ok_s => // - [<-] {s} ok_s [<-] {y} /= h.
-  rewrite /read_rm128 ok_s /= h /=.
-  case/get_globalI: h => w h /Vword_inj [?]; subst => /= -> {v}.
-  by rewrite eq_dec_refl zero_extend_u.
+  move => ok_s ok_y ok_v.
+  rewrite /read_rm128 ok_s /=.
+  exact: (eval_low_rm128_nocheck ok_y ok_v).
 Qed.
 
 (* ----------------------------------------------------------------------------- *)
@@ -1224,6 +1232,42 @@ Qed.
 Definition VPBLENDD_desc sz := make_instr_desc (VPBLENDD_gsc sz).
 
 (* ----------------------------------------------------------------------------- *)
+Lemma VPBROADCAST_gsc ve sz :
+  gen_sem_correct [:: TYxreg ; TYrm128 ]
+    (Ox86_VPBROADCAST ve sz)
+    [:: E sz 0 ] [:: E ve 1 ] [::]
+    (VPBROADCAST ve sz).
+Proof.
+move => x y; split => // gd m m'.
+rewrite /low_sem_aux /=.
+case hy: arg_of_rm128 => [ y' | ] //=.
+t_xrbindP => ??? h <-; t_xrbindP => w' /to_wordI [sz'] [w] [hle ??]; subst.
+rewrite /x86_vpbroadcast /eval_VPBROADCAST.
+t_xrbindP => _ -> /= <- [<-].
+rewrite (eval_low_rm128_nocheck hy h).
+eexists; split; reflexivity.
+Qed.
+
+Definition VPBROADCAST_desc ve sz := make_instr_desc (VPBROADCAST_gsc ve sz).
+
+Lemma VBROADCASTI128_gsc :
+  gen_sem_correct [:: TYxreg ; TYm128 ]
+    Ox86_VBROADCASTI128
+    [:: E U256 0 ] [:: E U128 1 ] [::]
+    VBROADCASTI128.
+Proof.
+move => x y; split => // gd m m'.
+rewrite /low_sem_aux /=.
+case hy: arg_of_rm128 => [ y' | ] //=.
+t_xrbindP => ??? h <-; t_xrbindP => w' /to_wordI [sz'] [w] [hle ??]; subst.
+rewrite /x86_vpbroadcast /eval_VBROADCASTI128 /eval_VPBROADCAST => - [<-] [<-].
+rewrite (eval_low_rm128_nocheck hy h).
+eexists; split; reflexivity.
+Qed.
+
+Definition VBROADCASTI128_desc := make_instr_desc VBROADCASTI128_gsc.
+
+(* ----------------------------------------------------------------------------- *)
 Lemma VEXTRACTI128_gsc :
   gen_sem_correct [:: TYrm128 ; TYxreg ; TYimm U8 ]
     Ox86_VEXTRACTI128
@@ -1349,6 +1393,8 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_VPUNPCKH ve sz => ok (VPUNPCKH_desc ve sz)
   | Ox86_VPUNPCKL ve sz => ok (VPUNPCKL_desc ve sz)
   | Ox86_VPBLENDD sz => ok (VPBLENDD_desc sz)
+  | Ox86_VPBROADCAST ve sz => ok (VPBROADCAST_desc ve sz)
+  | Ox86_VBROADCASTI128 => ok VBROADCASTI128_desc
   | Ox86_VEXTRACTI128 => ok VEXTRACTI128_desc
   | Ox86_VINSERTI128 => ok VINSERTI128_desc
   | Ox86_VPERM2I128 => ok VPERM2I128_desc
@@ -1386,6 +1432,7 @@ Proof.
     + by apply: cmp_nle_le; rewrite hsz.
     by rewrite !(sign_extend_truncate _ hsz') !(zero_extend_idem _ hsz') !zero_extend_u.
   + by case => // ? ? [<-]; eauto.
+  + by case => // ? ? [<-]; eexists; (split; [ | reflexivity ]).
   + by case => x f [<-]; eauto.
 Qed.
 

@@ -216,3 +216,47 @@ a = #x86_VPINSR_8u16(a, p, 2);
 a = #x86_VPINSR_16u8(a, p, 3);
 (u128)[p + 0] = a;
 }
+
+export
+fn test_vpbroadcast(reg u64 p) {
+reg u128 a, b;
+reg u256 c, d, e;
+
+a = #x86_VPBROADCAST_16u8((u8)[p + 0]);
+b = #x86_VPBROADCAST_16u8(a);
+c = #x86_VPBROADCAST_32u8((u8)[p + 0]);
+d = #x86_VPBROADCAST_32u8(b);
+
+e = c;
+e ^= d;
+
+a = #x86_VPBROADCAST_8u16((u16)[p + 0]);
+b = #x86_VPBROADCAST_8u16(a);
+c = #x86_VPBROADCAST_16u16((u16)[p + 0]);
+d = #x86_VPBROADCAST_16u16(b);
+
+e ^= c;
+e ^= d;
+
+a = #x86_VPBROADCAST_4u32((u32)[p + 0]);
+b = #x86_VPBROADCAST_4u32(a);
+c = #x86_VPBROADCAST_8u32((u32)[p + 0]);
+d = #x86_VPBROADCAST_8u32(b);
+
+e ^= c;
+e ^= d;
+
+a = #x86_VPBROADCAST_2u64((u64)[p + 0]);
+b = #x86_VPBROADCAST_2u64(a);
+c = #x86_VPBROADCAST_4u64((u64)[p + 0]);
+d = #x86_VPBROADCAST_4u64(b);
+
+e ^= c;
+e ^= d;
+
+d = #x86_VPBROADCAST_2u128((u128)[p + 16 * 0]);
+
+e ^= d;
+
+(u256)[p + 32 ] = e;
+}

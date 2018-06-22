@@ -115,6 +115,23 @@ Definition string_of_rm128 rm : string :=
   end.
 
 (* -------------------------------------------------------------------- *)
+Variant m128 :=
+| M128_mem of address
+| M128_glo of global.
+
+Definition string_of_m128 mo : string :=
+  match mo with
+  | M128_mem a => "M128_mem"
+  | M128_glo g => "M128_glo"
+  end.
+
+Coercion rm128_of_m128 mo : rm128 :=
+  match mo with
+  | M128_mem a => RM128_mem a
+  | M128_glo g => RM128_glo g
+  end.
+
+(* -------------------------------------------------------------------- *)
 Variant asm : Type :=
 | LABEL of label
 
@@ -194,6 +211,8 @@ Variant asm : Type :=
 | VPSHUFHW of wsize & xmm_register & rm128 & u8
 | VPSHUFLW of wsize & xmm_register & rm128 & u8
 | VPBLENDD `(wsize) (_ _: xmm_register) `(rm128) `(u8)
+| VPBROADCAST of velem & wsize & xmm_register & rm128
+| VBROADCASTI128 of xmm_register & m128
 | VPUNPCKH `(velem) `(wsize) (_ _: xmm_register) `(rm128)
 | VPUNPCKL `(velem) `(wsize) (_ _: xmm_register) `(rm128)
 | VEXTRACTI128 of rm128 & xmm_register & u8
@@ -664,13 +683,16 @@ Definition get_word (sz: wsize) (v: value) : exec (word sz) :=
     | right _ => type_error end
   else type_error.
 
-Definition read_rm128 (sz: wsize) (rm: rm128) (m: x86_mem) : exec (word sz) :=
-  Let _ := check_size_128_256 sz in
+Definition read_rm128_nocheck (sz: wsize) (rm: rm128) (m: x86_mem) : exec (word sz) :=
   match rm with
   | RM128_reg r => ok (zero_extend sz (m.(xxreg) r))
   | RM128_mem a => read_mem m.(xmem) (decode_addr m a) sz
   | RM128_glo g => get_global gd g >>= get_word sz
   end.
+
+Definition read_rm128 (sz: wsize) (rm: rm128) (m: x86_mem) : exec (word sz) :=
+  Let _ := check_size_128_256 sz in
+  read_rm128_nocheck sz rm m.
 
 (* -------------------------------------------------------------------- *)
 (* Writing a large word to register or memory *)
@@ -1227,6 +1249,16 @@ Definition eval_VPBLENDD sz (dst: xmm_register) (src1: xmm_register) (src2: rm12
   ok (mem_update_xreg MSB_CLEAR dst r s).
 
 (* -------------------------------------------------------------------- *)
+Definition eval_VPBROADCAST ve sz dst src s : x86_result :=
+  Let _ := check_size_128_256 sz in
+  Let v := read_rm128_nocheck ve src s in
+  let r := wpbroadcast sz v in
+  ok (mem_update_xreg MSB_CLEAR dst r s).
+
+Definition eval_VBROADCASTI128 dst (src: m128) s : x86_result :=
+  eval_VPBROADCAST U128 U256 dst src s.
+
+(* -------------------------------------------------------------------- *)
 Definition eval_vpunpck (sz: wsize) (op: word sz → word sz → word sz)
            (dst src1: xmm_register) (src2: rm128) s : x86_result :=
   let v1 := zero_extend sz (xxreg s src1) in
@@ -1326,6 +1358,8 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | VPUNPCKL ve sz dst src1 src2 => eval_VPUNPCKL ve sz dst src1 src2 s
 
   | VPBLENDD sz dst src1 src2 mask => eval_VPBLENDD sz dst src1 src2 mask s
+  | VPBROADCAST ve sz dst src => eval_VPBROADCAST ve sz dst src s
+  | VBROADCASTI128 dst src => eval_VBROADCASTI128 dst src s
   | VEXTRACTI128 dst src i => eval_VEXTRACTI128 dst src i s
   | VINSERTI128 dst src1 src2 i => eval_VINSERTI128 dst src1 src2 i s
   | VPERM2I128 dst src1 src2 i => eval_VPERM2I128 dst src1 src2 i s

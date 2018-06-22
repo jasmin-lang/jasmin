@@ -556,12 +556,13 @@ Definition wsize_of_sopn (op: sopn) : wsize :=
   | Ox86_VPSLLV _ x | Ox86_VPSRLV _ x
   | Ox86_VPSHUFB x | Ox86_VPSHUFHW x | Ox86_VPSHUFLW x | Ox86_VPSHUFD x
   | Ox86_VPUNPCKH _ x | Ox86_VPUNPCKL _ x
-  | Ox86_VPBLENDD x
+  | Ox86_VPBLENDD x | Ox86_VPBROADCAST _ x
     => x
   | Ox86_MOVZX32 => U32
   | Ox86_MOVD _
   | Ox86_VPEXTR _ | Ox86_VPINSR _
     => U128
+  | Ox86_VBROADCASTI128
   | Ox86_VEXTRACTI128
   | Ox86_VINSERTI128
   | Ox86_VPERM2I128

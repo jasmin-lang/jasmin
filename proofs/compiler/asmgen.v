@@ -48,7 +48,7 @@ Canonical destination_eqType := EqType _ destination_eqMixin.
 (* -------------------------------------------------------------------- *)
 Variant arg_ty :=
 | TYcondt | TYoprd | TYreg | TYireg | TYimm of wsize
-| TYxreg | TYrm128.
+| TYxreg | TYm128 | TYrm128.
 
 Scheme Equality for arg_ty.
 
@@ -63,6 +63,7 @@ Definition string_of_arg_ty (ty: arg_ty) : string :=
   | TYireg => "TYireg"
   | TYimm sz => "TYimm " ++ string_of_wsize sz
   | TYxreg => "TYxreg"
+  | TYm128 => "TYm128"
   | TYrm128 => "TYrm128"
   end.
 
@@ -74,6 +75,7 @@ Definition interp_ty (ty : arg_ty) : Type :=
   | TYireg  => ireg
   | TYimm sz => word sz
   | TYxreg => xmm_register
+  | TYm128 => m128
   | TYrm128 => rm128
   end.
 
@@ -136,6 +138,8 @@ Definition typed_apply_garg ii {T} (ty: arg_ty) (arg: garg) :
     | TYimm sz, Goprd  (Imm_op w) =>
       λ op, Let r := check_immediate ii sz w in ok (op r)
     | TYxreg, Grm128 (RM128_reg r) => λ op, ok (op r)
+    | TYm128, Grm128 (RM128_mem a) => λ op, ok (op (M128_mem a))
+    | TYm128, Grm128 (RM128_glo g) => λ op, ok (op (M128_glo g))
     | TYrm128, Grm128 r => λ op, ok (op r)
     | _      , _                 => λ _, typed_apply_garg_error ii ty arg
     end.
@@ -354,6 +358,7 @@ Definition mk_garg ty : interp_ty ty -> garg :=
   | TYireg => fun ir => Goprd (match ir with Imm_ir i => Imm_op i | Reg_ir r => Reg_op r end)
   | TYimm sz => fun i => Goprd (Imm_op (sign_extend _ i))
   | TYxreg => λ x, Grm128 (RM128_reg x)
+  | TYm128 => λ x, Grm128 (rm128_of_m128 x)
   | TYrm128 => Grm128
   end.
 
@@ -648,7 +653,7 @@ Definition arg_ty_classify (ty: arg_ty) : arg_ty_scheme :=
   match ty with
   | TYcondt => ATS_cond
   | TYoprd | TYreg | TYireg | TYimm _ => ATS_oprd
-  | TYxreg | TYrm128 => ATS_rm128
+  | TYxreg | TYm128 | TYrm128 => ATS_rm128
   end.
 
 Lemma arg_ty_classifyE ty :
