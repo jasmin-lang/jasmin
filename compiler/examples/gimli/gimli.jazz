@@ -38,7 +38,7 @@ for round = 24 downto 0 {
     (u32)[state + 4 * column] = a;
   }
 
-  if (round & 3) == 0 { // small swap: pattern s...s...s... etc.
+  if (round % 4) == 0 { // small swap: pattern s...s...s... etc.
     x = (u32)[state + 4 * 0];
     y = (u32)[state + 4 * 1];
     (u32)[state + 4 * 0] = y;
@@ -50,7 +50,7 @@ for round = 24 downto 0 {
     (u32)[state + 4 * 3] = x;
   }
 
-  if (round & 3) == 2 { // big swap: pattern ..S...S...S. etc.
+  if (round % 4) == 2 { // big swap: pattern ..S...S...S. etc.
     x = (u32)[state + 4 * 0];
     y = (u32)[state + 4 * 2];
     (u32)[state + 4 * 0] = y;
@@ -62,7 +62,7 @@ for round = 24 downto 0 {
     (u32)[state + 4 * 3] = x;
   }
 
-  if (round & 3) == 0 { // add constant: pattern c...c...c... etc.
+  if (round % 4) == 0 { // add constant: pattern c...c...c... etc.
     (u32)[state + 4 * 0] ^= 0x9e377900 + round;
   }
 }

@@ -60,17 +60,17 @@ fn gimli_body (reg u128 x, reg u128 y, reg u128 z) -> reg u128, reg u128, reg u1
     y = d;
     z = e;
 
-    if (round & 3) == 0 { // small swap: pattern s...s...s... etc.
+    if (round % 4) == 0 { // small swap: pattern s...s...s... etc.
       pattern = shuffle(2, 3, 0, 1);
       x = #x86_VPSHUFD(x, pattern);
     }
 
-    if (round & 3) == 2 { // big swap: pattern ..S...S...S. etc.
+    if (round % 4) == 2 { // big swap: pattern ..S...S...S. etc.
       pattern = shuffle(1, 0, 3, 2);
       x = #x86_VPSHUFD(x, pattern);
     }
 
-    if (round & 3) == 0 { // add constant: pattern c...c...c... etc.
+    if (round % 4) == 0 { // add constant: pattern c...c...c... etc.
       m = 0x9e377900 + round;
       a = #x86_MOVD_32(m);
       x ^= a;

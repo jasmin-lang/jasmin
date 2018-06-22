@@ -1,4 +1,4 @@
-JASMINC?=jasminc
+JASMINC?=../../jasminc.native
 
 .SUFFIXES: .s .o .jazz
 
@@ -26,7 +26,7 @@ testv: test.c gimliv.o
 
 clean:
 	@echo "cleaning..."
-	@rm test test.out gimli.o 2> /dev/null || true
+	@rm test test.out testv testv.out gimli.o 2> /dev/null || true
 
 archclean: clean
-	@rm -r gimli.s 2> /dev/null || true
+	@rm -r gimli.s gimliv.s 2> /dev/null || true
