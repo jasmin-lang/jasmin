@@ -19,6 +19,49 @@ qed.
 op of32 : W32.t -> W32.t -> W32.t -> W32.t -> W128.t.
 op to32 : W128.t -> W32.t -> W32.t -> W32.t.
 
+op zero   : W32.t.
+
+axiom xor_zero_l x : zero `^` x = x.
+axiom xor_zero_r x : x `^` zero = x.
+
+axiom of32_shl x0 x1 x2 x3 i: 
+  (of32 x0 x1 x2 x3) `<<` i = 
+  of32 (x0 `<<` i) (x1 `<<` i) (x2 `<<` i) (x3 `<<` i).
+
+axiom of32_shr x0 x1 x2 x3 i: 
+  of32 x0 x1 x2 x3 `>>` i = 
+  of32 (x0 `>>` i) (x1 `>>` i) (x2 `>>` i) (x3 `>>` i).
+
+axiom of32_xor x0 x1 x2 x3 y0 y1 y2 y3 : 
+  of32 x0 x1 x2 x3 `^` of32 y0 y1 y2 y3 = 
+  of32 (x0 `^` y0) (x1 `^` y1) (x2 `^` y2) (x3 `^` y3).
+
+axiom of32_and x0 x1 x2 x3 y0 y1 y2 y3 : 
+  of32 x0 x1 x2 x3 `&` of32 y0 y1 y2 y3 = 
+  of32 (x0 `&` y0) (x1 `&` y1) (x2 `&` y2) (x3 `&` y3).
+
+axiom of32_or x0 x1 x2 x3 y0 y1 y2 y3 : 
+  of32 x0 x1 x2 x3 `|` of32 y0 y1 y2 y3 = 
+  of32 (x0 `|` y0) (x1 `|` y1) (x2 `|` y2) (x3 `|` y3).
+
+axiom shuffle4_u32_2301 x0 x1 x2 x3 : 
+  x86_VPSHUFD_128 (of32 x0 x1 x2 x3) (W8.of_int 177) (*shuffle 2 3 0 1*) = 
+  of32 x1 x0 x3 x2.
+
+axiom shuffle4_u32_1032 x0 x1 x2 x3 : 
+  x86_VPSHUFD_128 (of32 x0 x1 x2 x3) (W8.of_int 78) (*shuffle 1 0 3 2*) = 
+  of32 x2 x3 x0 x1.
+
+
+hint simplify xor_zero_l.
+hint simplify xor_zero_r.
+hint simplify of32_shl.
+hint simplify of32_shr.
+hint simplify of32_xor.
+hint simplify of32_and.
+hint simplify of32_or.
+hint simplify shuffle4_u32_2301.
+hint simplify shuffle4_u32_1032.
 
 equiv ref1_vec1 : Gimli_ref1.M.gimli_body ~ Gimliv.M.gimli_body : 
    (of32 state.[0] state.[1] state.[2]  state.[3] ){1} = x{2} /\
