@@ -244,7 +244,7 @@ Module EXTEND. Section PROOFS.
 
   Local Lemma Hasgn: forall x tg ty e, Pr (Cassgn x tg ty e).
   Proof.
-    move=> [ii ty|x|ws x e|x e] ?? e1 ??? //=; try by move=> [<-].
+    move=> [ii ty|x|ws x e|x e] ?? e1 ??? //=. 1,3-4: by move=> [<-].
     case: ifP => ?; last by move=> [<-].
     case: e1 => // w [] // z; rewrite /add_glob.  
     case:ifPn => hhas1; first by move=> [<-].
@@ -482,7 +482,7 @@ Module RGP. Section PROOFS.
   Proof.
     rewrite /find_glob /get_global /get_global_value.
     elim: gd uniq_gd => //= -[g' z'] gd hrec /andP /= [hg' huniq]; case: ifPn => /= /andP.
-    + by move=> [/eqP ? /eqP [?] [?]] {hrec};subst; rewrite eq_refl.
+    + by move=> [/eqP ? /eqP ? [?]] {hrec};subst; rewrite eq_refl.
     move=> hn /(hrec huniq) hget {hrec}.
     case: eqP => heq //; subst g'.
     case heq : assoc hget hg' => [z1 | //].

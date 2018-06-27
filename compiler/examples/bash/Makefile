@@ -31,3 +31,6 @@ testavx2: bash_avx2.o test.o
 
 testc: bash.c test.o
 	$(CC) -o $@ $^
+
+clean:
+	$(RM) *.o *.s
