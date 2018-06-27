@@ -713,6 +713,13 @@ rewrite {}eq_st wcat_subwordK {s t}/wt; case: _ / sz_even.
 by rewrite /wrepr /= ureprK.
 Qed.
 
+Lemma make_vec_inj sz (bs bs': seq u8) :
+  size bs = size bs' →
+  size bs = Z.to_nat (wsize_size sz) →
+  make_vec sz bs = make_vec sz bs' →
+  bs = bs'.
+Proof. Admitted.
+
 (* -------------------------------------------------------------------*)
 Definition lift1_vec ve (op : word ve -> word ve)
     (sz:wsize) (w:word sz) : word sz :=
