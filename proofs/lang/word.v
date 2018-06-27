@@ -779,7 +779,29 @@ Definition wpshufd sz : word sz → Z → word sz :=
 Parameters wpshuflw wpshufhw : ∀ sz, word sz → Z → word sz.
 
 (* -------------------------------------------------------------------*)
-Parameters wpunpckl wpunpckh : ∀ sz, velem → word sz → word sz → word sz.
+Section UNPCK.
+  (* Interleaves two even-sized lists. *)
+  Context (T: Type).
+  Fixpoint unpck (qs xs ys: seq T) : seq T :=
+    match xs, ys with
+    | [::], _ | _, [::]
+    | [:: _], _ | _, [:: _]
+      => qs
+    | x :: _ :: xs', y :: _ :: ys' => unpck (x :: y :: qs) xs' ys'
+    end.
+End UNPCK.
+
+Definition wpunpckl sz (ve: velem) (x y: word sz) : word sz :=
+  let xv := split_vec ve x in
+  let yv := split_vec ve y in
+  let zv := unpck [::] xv yv in
+  make_vec sz (rev zv).
+
+Definition wpunpckh sz (ve: velem) (x y: word sz) : word sz :=
+  let xv := split_vec ve x in
+  let yv := split_vec ve y in
+  let zv := unpck [::] (rev xv) (rev yv) in
+  make_vec sz zv.
 
 (* -------------------------------------------------------------------*)
 Section UPDATE_AT.
