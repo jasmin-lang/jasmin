@@ -297,7 +297,7 @@ op map_4u32 (f : W32.t -> W32.t) (w : p4u32) : p4u32 =
 
 (* -------------------------------------------------------------------- *)
 op x86_MOVD_32 (x : W32.t) =
-  pack_4u32 (x, x, x, x)
+  pack_4u32 (W32.of_int 0, W32.of_int 0, W32.of_int 0, x)
   axiomatized by x86_MOVD_32_E.
 
 op x86_ROL_32 (x : W32.t) (cnt : W8.t) =
