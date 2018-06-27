@@ -52,6 +52,7 @@ with fun_error   :=
   | Ferr_neqprog  : fun_error
   | Ferr_loop     : fun_error
   | Ferr_uniqfun  : fun_error
+  | Ferr_uniqglob : fun_error
   | Ferr_topo     : fun_error
   | Ferr_lowering : fun_error
   | Ferr_glob_neq : fun_error.

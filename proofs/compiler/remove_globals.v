@@ -71,7 +71,7 @@ Section REMOVE.
   Fixpoint extend_glob_i  (i:instr) (gd:glob_decls) := 
     let (ii,i) := i in
     match i with
-    | Cassgn lv _ _ e =>
+    | Cassgn lv _ ty e =>
       match lv with
       | Lvar xi =>
         let x := xi.(v_var) in
@@ -183,8 +183,8 @@ Section REMOVE.
       end.
   
     Definition Mincl (m1 m2 : venv) := 
-      Mvar.fold 
-        (fun x g r => r && if Mvar.get m2 x is Some g' then g == g' else false) m1 true.
+      all (fun xg => if Mvar.get m2 xg.1 is Some g' then xg.2 == g' else false) 
+        (Mvar.elements m1).
       
     Definition merge_env (env1 env2:venv) := Mvar.map2 merge_glob env1 env2.
   
@@ -201,7 +201,7 @@ Section REMOVE.
         | O => cferror (Ferr_fun fn (Cerr_Loop "remove_glob"))
         | S n =>
           Let m' := check_c m in
-          if Mincl m m'.1 then ok m'
+          if Mincl m m'.1 then ok (m, m'.2)
           else loop n (merge_env m m'.1)
         end.
       
@@ -219,7 +219,7 @@ Section REMOVE.
         | S n =>
           Let cr := check_c2 m in
           let: (Check2_r e (m1,c1) (m2,c2)) := cr in
-          if Mincl m m1 then ok (Loop2_r e c1 c2 m1) else loop2 n (merge_env m m2)
+          if Mincl m m2 then ok (Loop2_r e c1 c2 m1) else loop2 n (merge_env m m2)
         end.
   
     End Loop2.
@@ -236,7 +236,7 @@ Section REMOVE.
             if is_glob x then 
               match e with
               | Pcast ws (Pconst z) =>
-                if ty == sword ws then
+                if (ty == sword ws) && (vtype x == sword ws) then
                   Let g := find_glob ii xi gd ws z in
                   ok (Mvar.set env x g, [::])
                 else cferror (Ferr_remove_glob ii xi)
@@ -310,7 +310,9 @@ Section REMOVE.
 
   Definition remove_glob_prog (p:prog) := 
     Let gd := extend_glob_prog p in
-    Let fs := mapM (remove_glob_fundef gd) (p_funcs p) in
-    ok {| p_globs := gd; p_funcs := fs |}.
+    if uniq (map fst gd) then
+      Let fs := mapM (remove_glob_fundef gd) (p_funcs p) in
+      ok {| p_globs := gd; p_funcs := fs |}
+    else cferror Ferr_uniqglob.
      
 End REMOVE.

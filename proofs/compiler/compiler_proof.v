@@ -27,7 +27,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import psem compiler_util compiler.
 Require Import allocation inline_proof dead_calls_proof
                unrolling_proof constant_prop_proof dead_code_proof
-               array_expansion stack_alloc_proof
+               array_expansion remove_globals_proof stack_alloc_proof
                lowering_proof
                linear_proof
                psem_of_sem_proof.
@@ -153,7 +153,7 @@ Proof.
   apply: Ki; first by move => vr'; exact: (dead_code_callP Hpd).
   apply: K'; first by move => vr' Hvr'; apply: (CheckAllocReg.alloc_callP He'); exact: Hvr'.
   apply: Ki; first by move => vr'; exact: (lower_callP _ _ _ Hlower).
-(*  
+  apply: Ki; first by move => vr';apply: (RGP.remove_globP Hpg).
   apply: K'; first by move => vr' Hvr'; apply: (CheckExpansion.alloc_callP He); exact: Hvr'.
   apply: K'; first by move => vr' Hvr'; apply: (remove_init_fdP va_refl); exact: Hvr'.
   apply: Ki; first by move => vr'; exact: (dead_code_callP Hps').
@@ -168,8 +168,6 @@ Proof.
   exists vr; split => //.
   exact: (List_Forall2_refl _ value_uincl_refl).
 Qed.
-*)
-Admitted.
 
 Lemma compile_prog_to_x86P entries (p: prog) (gd: glob_decls) (xp: xprog) m1 fn va m2 vr :
   compile_prog_to_x86 cparams entries p = cfok (gd,xp) →
@@ -189,9 +187,7 @@ Lemma compile_prog_to_x86P entries (p: prog) (gd: glob_decls) (xp: xprog) m1 fn 
     List.Forall2 value_uincl vr (get_reg_values st2 fd'.(xfd_res)) ∧
     eq_mem m2 st2.(xmem).
 Proof.
-Admitted.
-(*
-apply: rbindP=> -[gd1 lp] hlp; t_xrbindP => /= _ /assertP /allP ok_sig hxp hfn ?? hsem hsafe;subst.
+apply: rbindP=> -[gd1 lp] hlp; t_xrbindP => /= _ /assertP /allP ok_sig ? hxp ?? hfn hsem hsafe;subst.
 have hlsem := compile_progP hlp hfn hsem.
 case: hlsem.
 - move => fd hfd.
@@ -215,5 +211,5 @@ split; first exact: hxsem.
 split; last by rewrite hm2.
 exact: (Forall2_trans value_uincl_trans ok_vr' hvr').
 Qed.
-*)
+
 End PROOF.
