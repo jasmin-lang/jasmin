@@ -110,6 +110,8 @@ and pp_comp_ferr tbl fmt = function
     Format.fprintf fmt "loop iterator to small"
   | Compiler_util.Ferr_uniqfun ->
     Format.fprintf fmt "two function declarations with the same name"
+  | Compiler_util.Ferr_uniqglob ->
+    Format.fprintf fmt "two global declarations with the same name"
   | Compiler_util.Ferr_topo ->
     Format.fprintf fmt "program is not a topological sorting of the call-graph"
   | Compiler_util.Ferr_lowering ->
