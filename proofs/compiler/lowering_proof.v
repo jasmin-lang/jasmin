@@ -173,14 +173,12 @@ Section PROOF.
   Let Pfun m1 fn vargs m2 vres :=
     sem_call p' m1 fn vargs m2 vres.
 
-  Local Lemma Hskip s : Pc s [::] s.
-  Proof. move=> ? s1 [H1 H2]; exists s1; repeat split=> //; exact: Eskip. Qed.
+  Local Lemma Hskip : sem_Ind_nil Pc.
+  Proof. move=> s ? s1 [H1 H2]; exists s1; repeat split=> //; exact: Eskip. Qed.
 
-  Local Lemma Hcons s1 s2 s3 i c :
-    sem_I p s1 i s2 ->
-    Pi s1 i s2 -> sem p s2 c s3 -> Pc s2 c s3 -> Pc s1 (i :: c) s3.
+  Local Lemma Hcons : sem_Ind_cons p Pc Pi.
   Proof.
-    move=> Hsi Hi Hsc Hc Hdisj s1' Hs1'.
+    move=> s1 s2 s3 i c Hsi Hi Hsc Hc Hdisj s1' Hs1'.
     move: Hdisj.
     rewrite /disj_fvars /lowering.disj_fvars vars_c_cons=> /disj_fvars_union [Hdisji Hdisjc].
     have [s2' [Hs2'1 Hs2'2]] := Hi Hdisji _ Hs1'.
@@ -189,9 +187,8 @@ Section PROOF.
     exact: (sem_app Hs2'1 Hs3'1).
   Qed.
 
-  Local Lemma HmkI ii i s1 s2 :
-    sem_i p s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
-  Proof. move=> _ Hi; exact: Hi. Qed.
+  Local Lemma HmkI : sem_Ind_mkI p Pi_r Pi.
+  Proof. move=> ii i s1 s2 _ Hi; exact: Hi. Qed.
 
   Lemma write_lval_undef l v s1 s2 sz :
     write_lval gd l v s1 = ok s2 ->
@@ -1415,13 +1412,9 @@ Section PROOF.
     by move => hle; rewrite !zero_extend_wrepr.
   Qed.
 
-  Local Lemma Hassgn s1 s2 l tag ty e v v' :
-    sem_pexpr gd s1 e = ok v →
-    truncate_val ty v = ok v' →
-    write_lval gd l v' s1 = Ok error s2 →
-    Pi_r s1 (Cassgn l tag ty e) s2.
+  Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
   Proof.
-    move => Hv hty Hw ii /= Hdisj s1' Hs1'.
+    move => s1 s2 l tag ty e v v' Hv hty Hw ii /= Hdisj s1' Hs1'.
     move: Hdisj; rewrite /disj_fvars /lowering.disj_fvars vars_I_assgn=> /disj_fvars_union [Hdisjl Hdisje].
     have Hv' := sem_pexpr_same Hdisje Hs1' Hv.
     have [s2' [Hw' Hs2']] := write_lval_same Hdisjl Hs1' Hw.
@@ -1829,10 +1822,9 @@ Section PROOF.
     Qed.
     Opaque lower_addcarry.
 
-  Local Lemma Hopn s1 s2 t o xs es :
-    sem_sopn gd o s1 xs es = ok s2 ->
-    Pi_r s1 (Copn xs t o es) s2.
+  Local Lemma Hopn : sem_Ind_opn p Pi_r.
   Proof.
+    move => s1 s2 t o xs es.
     apply: rbindP=> v; apply: rbindP=> x Hx Hv Hw ii Hdisj s1' Hs1'.
     move: Hdisj; rewrite /disj_fvars /lowering.disj_fvars vars_I_opn=> /disj_fvars_union [Hdisjl Hdisje].
     have Hx' := sem_pexprs_same Hdisje Hs1' Hx; have [s2' [Hw' Hs2']] := write_lvals_same Hdisjl Hs1' Hw.
@@ -1924,11 +1916,9 @@ Section PROOF.
     SvD.fsetdec.
   Qed.
 
-  Local Lemma Hif_true s1 s2 e c1 c2 :
-    sem_pexpr gd s1 e = ok (Vbool true) →
-    sem p s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+  Local Lemma Hif_true : sem_Ind_if_true p Pc Pi_r.
   Proof.
-    move=> Hz _ Hc ii /= Hdisj s1' Hs1' /=.
+    move=> s1 s2 e c1 c2 Hz _ Hc ii /= Hdisj s1' Hs1' /=.
     move: Hdisj; rewrite /disj_fvars /lowering.disj_fvars vars_I_if=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
     have Hcond: x = lower_condition fv xH e by [].
@@ -1944,11 +1934,9 @@ Section PROOF.
     exact: Hs3'1.
   Qed.
 
-  Local Lemma Hif_false s1 s2 e c1 c2 :
-    sem_pexpr gd s1 e = ok (Vbool false) →
-    sem p s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+  Local Lemma Hif_false : sem_Ind_if_false p Pc Pi_r.
   Proof.
-    move=> Hz _ Hc ii /= Hdisj s1' Hs1' /=.
+    move=> s1 s2 e c1 c2 Hz _ Hc ii /= Hdisj s1' Hs1' /=.
     move: Hdisj; rewrite /disj_fvars /lowering.disj_fvars vars_I_if=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
     have Hcond: x = lower_condition fv xH e by [].
@@ -1971,13 +1959,9 @@ Section PROOF.
     SvD.fsetdec.
   Qed.
 
-  Local Lemma Hwhile_true s1 s2 s3 s4 c e c' :
-    sem p s1 c s2 -> Pc s1 c s2 ->
-    sem_pexpr gd s2 e = ok (Vbool true) →
-    sem p s2 c' s3 -> Pc s2 c' s3 ->
-    sem_i p s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 -> Pi_r s1 (Cwhile c e c') s4.
+  Local Lemma Hwhile_true : sem_Ind_while_true p Pc Pi_r.
   Proof.
-    move=> _ Hc Hz _ Hc' _ Hwhile ii Hdisj s1' Hs1' /=.
+    move=> s1 s2 s3 s4 c e c' _ Hc Hz _ Hc' _ Hwhile ii Hdisj s1' Hs1' /=.
     have := Hdisj; rewrite /disj_fvars /lowering.disj_fvars vars_I_while=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
     have Hcond: x = lower_condition fv xH e by [].
@@ -1996,12 +1980,9 @@ Section PROOF.
     by case/semE: Hs5'1 => ? [/sem_IE H] /semE ->.
   Qed.
 
-  Local Lemma Hwhile_false s1 s2 c e c' :
-    sem p s1 c s2 -> Pc s1 c s2 ->
-    sem_pexpr gd s2 e = ok (Vbool false) →
-    Pi_r s1 (Cwhile c e c') s2.
+  Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
   Proof.
-    move=> _ Hc Hz ii Hdisj s1' Hs1' /=.
+    move=> s1 s2 c e c' _ Hc Hz ii Hdisj s1' Hs1' /=.
     move: Hdisj; rewrite /disj_fvars /lowering.disj_fvars vars_I_while=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
     have Hcond: x = lower_condition fv xH e by [].
@@ -2021,13 +2002,9 @@ Section PROOF.
     SvD.fsetdec.
   Qed.
 
-  Local Lemma Hfor s1 s2 (i:var_i) d lo hi c vlo vhi :
-    sem_pexpr gd s1 lo = ok (Vint vlo) ->
-    sem_pexpr gd s1 hi = ok (Vint vhi) ->
-    sem_for p i (wrange d vlo vhi) s1 c s2 ->
-    Pfor i (wrange d vlo vhi) s1 c s2 -> Pi_r s1 (Cfor i (d, lo, hi) c) s2.
+  Local Lemma Hfor : sem_Ind_for p Pi_r Pfor.
   Proof.
-    move=> Hlo Hhi _ Hfor ii Hdisj s1' Hs1' /=.
+    move=> s1 s2 i d lo hi c vlo vhi Hlo Hhi _ Hfor ii Hdisj s1' Hs1' /=.
     move: Hdisj; rewrite /disj_fvars /lowering.disj_fvars sem_I_for=> /disj_fvars_union [Hdisjc /disj_fvars_union [Hdisjlo Hdisjhi]].
     have [s2' [Hs2'1 Hs2'2]] := Hfor Hdisjc _ Hs1'.
     exists s2'; split=> //.
@@ -2036,16 +2013,12 @@ Section PROOF.
     by rewrite (sem_pexpr_same Hdisjhi Hs1' Hhi).
   Qed.
 
-  Local Lemma Hfor_nil s i c: Pfor i [::] s c s.
-  Proof. move=> _ s' Hs'; exists s'; split=> //; exact: EForDone. Qed.
+  Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
+  Proof. move=> s i c _ s' Hs'; exists s'; split=> //; exact: EForDone. Qed.
 
-  Local Lemma Hfor_cons s1 s1' s2 s3 (i : var_i) (w:Z) (ws:seq Z) c :
-    write_var i w s1 = Ok error s1' ->
-    sem p s1' c s2 ->
-    Pc s1' c s2 ->
-    sem_for p i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
+  Local Lemma Hfor_cons : sem_Ind_for_cons p Pc Pfor.
   Proof.
-    move=> Hw _ Hc _ Hfor Hdisj s1'' Hs1''.
+    move=> s1 s1' s2 s3 i w ws c Hw _ Hc _ Hfor Hdisj s1'' Hs1''.
     have := Hdisj=> /disj_fvars_union [Hdisjc Hdisji].
     have Hw1: write_lval gd (Lvar i) w s1 = ok s1' by exact: Hw.
     have [|s2'' [Hs2''1 Hs2''2]] := write_lval_same _ Hs1'' Hw1.
@@ -2066,14 +2039,9 @@ Section PROOF.
     SvD.fsetdec.
   Qed.
 
-  Local Lemma Hcall s1 m2 s2 ii xs fn args vargs vs:
-    sem_pexprs gd s1 args = Ok error vargs ->
-    sem_call p (emem s1) fn vargs m2 vs ->
-    Pfun (emem s1) fn vargs m2 vs ->
-    write_lvals gd {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
-    Pi_r s1 (Ccall ii xs fn args) s2.
+  Local Lemma Hcall : sem_Ind_call p Pi_r Pfun.
   Proof.
-    move=> Harg _ Hfun Hret ii' Hdisj s1' Hs1'; move: Hdisj.
+    move=> s1 m2 s2 ii xs fn args vargs vs Harg _ Hfun Hret ii' Hdisj s1' Hs1'; move: Hdisj.
     rewrite /disj_fvars /lowering.disj_fvars vars_I_call=> /disj_fvars_union [Hxs Hargs].
     have Heq: eq_exc_fresh {| emem := m2; evm := evm s1' |} {| emem := m2; evm := evm s1 |}.
       split=> //=.
@@ -2086,17 +2054,9 @@ Section PROOF.
     exact: Hfun.
   Qed.
 
-  Local Lemma Hproc m1 m2 fn f vargs vargs' s1 vm2 vres vres' :
-    get_fundef (p_funcs p) fn = Some f ->
-    mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
-    write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
-    sem p s1 (f_body f) {| emem := m2; evm := vm2 |} ->
-    Pc s1 (f_body f) {| emem := m2; evm := vm2 |} ->
-    mapM (fun x : var_i => get_var vm2 x) (f_res f) = ok vres ->
-    mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
-    Pfun m1 fn vargs' m2 vres'.
+  Local Lemma Hproc : sem_Ind_proc p Pc Pfun.
   Proof.
-    move=> Hget Htya Harg _ Hc Hres Htyr.
+    move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' Hget Htya Harg _ Hc Hres Htyr.
     have H: eq_exc_fresh s1 s1 by [].
     have Hdisj := fvars_fun Hget.
     rewrite /vars_fd in Hdisj.

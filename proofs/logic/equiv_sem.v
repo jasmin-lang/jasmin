@@ -766,19 +766,17 @@ Let Pfun m1 fd vargs m2 vres :=
     ssem_call p (mem_to_smem m1) fd vargs' (mem_to_smem m2) vres' /\
     List.Forall2 svalue_uincl vres vres'.
 
-Local Lemma Hnil s : Pc s [::] s.
-Proof. by move=> vm1 Hvm1;exists vm1;split=> //;constructor. Qed.
+Local Lemma Hnil : sem_Ind_nil Pc.
+Proof. by move=> s vm1 Hvm1;exists vm1;split=> //;constructor. Qed.
 
-Local Lemma Hcons s1 s2 s3 i c :
-  sem_I p s1 i s2 -> Pi s1 i s2 ->
-  sem p s2 c s3 -> Pc s2 c s3 -> Pc s1 (i :: c) s3.
+Local Lemma Hcons : sem_Ind_cons p Pc Pi.
 Proof.
-  move=> _ Hi _ Hc vm1 /Hi [vm2 []] Hsi /Hc [vm3 []] Hsc ?.
+  move=> s1 s2 s3 i c _ Hi _ Hc vm1 /Hi [vm2 []] Hsi /Hc [vm3 []] Hsc ?.
   by exists vm3;split=>//;econstructor;eauto.
 Qed.
 
-Local Lemma HmkI ii i s1 s2 : sem_i p s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
-Proof. by move=> _ Hi vm1 /Hi [vm2 []] Hsi ?;exists vm2. Qed.
+Local Lemma HmkI : sem_Ind_mkI p Pi_r Pi.
+Proof. by move=> ii i s1 s2 _ Hi vm1 /Hi [vm2 []] Hsi ?;exists vm2. Qed.
 
 Local Lemma Hasgn : sem_Ind_assgn p Pi_r.
 Proof.
@@ -790,11 +788,9 @@ Proof.
   by have := (SEassgn tag ssem_e trunc_v2 write_v2').
 Qed.
 
-Local Lemma Hopn s1 s2 t o xs es:
-  sem_sopn gd o s1 xs es = ok s2 ->
-  Pi_r s1 (Copn xs t o es) s2.
+Local Lemma Hopn : sem_Ind_opn p Pi_r.
 Proof.
-  move=> H vm1 Hvm1; apply: rbindP H => rs;apply: rbindP => vs.
+  move=> s1 s2 t o xs es H vm1 Hvm1; apply: rbindP H => rs;apply: rbindP => vs.
   move=> /(ssem_pexprs_uincl Hvm1) [] vs' [] H1 H2.
   move=> /(svuincl_exec_opn H2) [] rs' H3 H4.
   move=> /(swrites_uincl Hvm1 H4) [] vm2 ??.
@@ -850,28 +846,20 @@ Proof.
   by econstructor;eauto;rewrite ?H1 ?H3.
 Qed.
 
-Local Lemma Hfor_nil s i c : Pfor i [::] s c s.
-Proof. by move=> vm1 Hvm1;exists vm1;split=> //;constructor. Qed.
+Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
+Proof. by move=> s i c vm1 Hvm1;exists vm1;split=> //;constructor. Qed.
 
-Local Lemma Hfor_cons s1 s1' s2 s3 (i : var_i) (w : Z) (ws : seq Z) c :
-  write_var i w s1 = ok s1' ->
-  sem p s1' c s2 -> Pc s1' c s2 ->
-  sem_for p i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
+Local Lemma Hfor_cons : sem_Ind_for_cons p Pc Pfor.
 Proof.
-  move=> Hi _ Hc _ Hf vm1 Hvm1.
+  move=> s1 s1' s2 s3 i w ws c Hi _ Hc _ Hf vm1 Hvm1.
   have [//|vm1' [Hi' /Hc]] := @swrite_var_uincl _ _ _ _ (SVint w) _ Hvm1 _ Hi.
   move=> [vm2 [Hsc /Hf]] [vm3 [Hsf Hvm3]];exists vm3;split => //.
   by econstructor;eauto.
 Qed.
  
-Local Lemma Hcall s1 m2 s2 ii xs fn args vargs vs :
-  sem_pexprs gd s1 args = ok vargs ->
-  sem_call p (emem s1) fn vargs m2 vs ->
-  Pfun (emem s1) fn vargs m2 vs ->
-  write_lvals gd {| emem := m2; evm := evm s1 |} xs vs = ok s2 ->
-  Pi_r s1 (Ccall ii xs fn args) s2.
+Local Lemma Hcall : sem_Ind_call p Pi_r Pfun.
 Proof.
-  move=> Hargs Hcall Hfd Hxs s Hs.
+  move=> s1 m2 s2 ii xs fn args vargs vs Hargs Hcall Hfd Hxs s Hs.
   have [vargs' [Hsa /Hfd Hc]]:= ssem_pexprs_uincl Hs Hargs.
   have Hvm1: sestate_uincl {| emem := m2; evm := evm s1 |} {| semem := mem_to_smem m2; sevm := sevm s |}.
   * split=> //.

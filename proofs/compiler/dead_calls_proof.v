@@ -182,113 +182,85 @@ Section PROOF.
   Let Pfun m1 fn vargs m2 vres :=
     def_incl (Sp.singleton fn) -> sem_call p m1 fn vargs m2 vres -> sem_call p' m1 fn vargs m2 vres.
 
-  Local Lemma Hskip s : Pc s [::] s.
-  Proof. move=> _ _; exact: Eskip. Qed.
+  Local Lemma Hskip : sem_Ind_nil Pc.
+  Proof. move=> s _ _; exact: Eskip. Qed.
 
-  Local Lemma Hcons s1 s2 s3 i c :
-    sem_I p s1 i s2 ->
-    Pi s1 i s2 -> sem p s2 c s3 -> Pc s2 c s3 -> Pc s1 (i :: c) s3.
+  Local Lemma Hcons : sem_Ind_cons p Pc Pi.
   Proof.
-    move=> Hsi Hi Hsc Hc Hincl.
+    move=> s1 s2 s3 i c Hsi Hi Hsc Hc Hincl.
     rewrite CallsE in Hincl.
     move: Hincl=> /def_incl_union [Hincli Hinclc] H.
     exact: (Eseq (Hi Hincli Hsi) (Hc Hinclc Hsc)).
   Qed.
 
-  Local Lemma HmkI ii i s1 s2 :
-    sem_i p s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
+  Local Lemma HmkI : sem_Ind_mkI p Pi_r Pi.
   Proof.
-    move=> Hs Hi Hincl _.
+    move=> ii i s1 s2 Hs Hi Hincl _.
     apply: EmkI.
     exact: (Hi Hincl Hs).
   Qed.
 
-  Local Lemma Hassgn s1 s2 x tag ty e v v' :
-    sem_pexpr gd s1 e = ok v ->
-    truncate_val ty v = ok v' →
-    write_lval gd x v' s1 = ok s2 ->
-    Pi_r s1 (Cassgn x tag ty e) s2.
+  Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
   Proof.
-    move => hv hv' hw _ _.
+    move => s1 s2 x tag ty e v v' hv hv' hw _ _.
     exact: (Eassgn (P:=p') _ hv hv' hw).
   Qed.
 
-  Local Lemma Hopn s1 s2 t o xs es :
-    sem_sopn gd o s1 xs es = ok s2 ->
-    Pi_r s1 (Copn xs t o es) s2.
+  Local Lemma Hopn : sem_Ind_opn p Pi_r.
   Proof.
-    move=> H _ _; exact: (Eopn (P:=p') _ H).
+    move=> s1 s2 t o xs es H _ _; exact: (Eopn (P:=p') _ H).
   Qed.
 
-  Local Lemma Hif_true s1 s2 e c1 c2 :
-    sem_pexpr gd s1 e = ok (Vbool true) ->
-    sem p s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+  Local Lemma Hif_true : sem_Ind_if_true p Pc Pi_r.
   Proof.
-    move=> H Hsi Hc Hincl _.
+    move=> s1 s2 e c1 c2 H Hsi Hc Hincl _.
     rewrite CallsE in Hincl.
     move: Hincl=> /def_incl_union [Hincl1 Hincl2].
     apply: (Eif_true (P:=p') _ H).
     exact: (Hc Hincl1 Hsi).
   Qed.
 
-  Local Lemma Hif_false s1 s2 e c1 c2 :
-    sem_pexpr gd s1 e = ok (Vbool false) ->
-    sem p s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+  Local Lemma Hif_false : sem_Ind_if_false p Pc Pi_r.
   Proof.
-    move=> H Hsi Hc Hincl _.
+    move=> s1 s2 e c1 c2 H Hsi Hc Hincl _.
     rewrite CallsE in Hincl.
     move: Hincl=> /def_incl_union [Hincl1 Hincl2].
     apply: (Eif_false (P:=p') _ H).
     exact: (Hc Hincl2 Hsi).
   Qed.
 
-  Local Lemma Hwhile_true s1 s2 s3 s4 c e c' :
-    sem p s1 c s2 -> Pc s1 c s2 ->
-    sem_pexpr gd s2 e = ok (Vbool true) ->
-    sem p s2 c' s3 -> Pc s2 c' s3 ->
-    sem_i p s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 -> Pi_r s1 (Cwhile c e c') s4.
+  Local Lemma Hwhile_true : sem_Ind_while_true p Pc Pi_r.
   Proof.
-    move=> Hs1 Hc1 H Hs2 Hc2 Hsw Hiw Hinclw _.
+    move=> s1 s2 s3 s4 c e c' Hs1 Hc1 H Hs2 Hc2 Hsw Hiw Hinclw _.
     rewrite CallsE in Hinclw.
     have /def_incl_union [Hincl Hincl'] := Hinclw.
     exact: (Ewhile_true (Hc1 Hincl Hs1) H (Hc2 Hincl' Hs2) (Hiw Hinclw Hsw)).
   Qed.
 
-  Local Lemma Hwhile_false s1 s2 c e c' :
-    sem p s1 c s2 -> Pc s1 c s2 ->
-    sem_pexpr gd s2 e = ok (Vbool false) ->
-    Pi_r s1 (Cwhile c e c') s2.
+  Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
   Proof.
-    move=> Hs1 Hc1 H Hinclw _.
+    move=> s1 s2 c e c' Hs1 Hc1 H Hinclw _.
     rewrite CallsE in Hinclw.
     have /def_incl_union [Hincl Hincl'] := Hinclw.
     exact: (Ewhile_false _ (Hc1 Hincl Hs1) H).
   Qed.
 
-  Local Lemma Hfor s1 s2 (i:var_i) d lo hi c vlo vhi :
-    sem_pexpr gd s1 lo = ok (Vint vlo) ->
-    sem_pexpr gd s1 hi = ok (Vint vhi) ->
-    sem_for p i (wrange d vlo vhi) s1 c s2 ->
-    Pfor i (wrange d vlo vhi) s1 c s2 -> Pi_r s1 (Cfor i (d, lo, hi) c) s2.
+  Local Lemma Hfor : sem_Ind_for p Pi_r Pfor.
   Proof.
-    move=> Hlo Hhi Hsf Hf Hincl _.
+    move=> s1 s2 i d lo hi c vlo vhi Hlo Hhi Hsf Hf Hincl _.
     rewrite CallsE in Hincl.
     apply: (Efor (P:= p') Hlo Hhi).
     exact: (Hf Hincl Hsf).
   Qed.
 
-  Local Lemma Hfor_nil s i c: Pfor i [::] s c s.
+  Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
   Proof.
-    move=> Hincl _; exact: EForDone.
+    move=> s i c Hincl _; exact: EForDone.
   Qed.
 
-  Local Lemma Hfor_cons s1 s1' s2 s3 (i : var_i) (w:Z) (ws:seq Z) c :
-    write_var i w s1 = Ok error s1' ->
-    sem p s1' c s2 ->
-    Pc s1' c s2 ->
-    sem_for p i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
+  Local Lemma Hfor_cons : sem_Ind_for_cons p Pc Pfor.
   Proof.
-   move=> H Hsc Hc Hsf Hf Hincl _.
+   move=> s1 s1' s2 s3 i w ws c H Hsc Hc Hsf Hf Hincl _.
    exact: (EForOne H (Hc Hincl Hsc) (Hf Hincl Hsf)).
   Qed.
 

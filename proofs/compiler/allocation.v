@@ -267,33 +267,27 @@ Section PROOF.
        sem_call p2 m fn vargs2 m' vres' /\
        List.Forall2 value_uincl vres vres'.
 
-  Local Lemma Hskip s: Pc s [::] s.
+  Local Lemma Hskip : sem_Ind_nil Pc.
   Proof. 
-    move=> ii r1 [ | ??] //= r2 vm1 ? [] <-;exists vm1;split=>//;constructor.
+    move=> s ii r1 [ | ??] //= r2 vm1 ? [] <-;exists vm1;split=>//;constructor.
   Qed.
 
-  Local Lemma Hcons s1 s2 s3 i c :
-    sem_I p1 s1 i s2 ->
-    Pi s1 i s2 -> sem p1 s2 c s3 -> Pc s2 c s3 -> Pc s1 (i :: c) s3.
+  Local Lemma Hcons : sem_Ind_cons p1 Pc Pi.
   Proof.
-    move=> _ Hi _ Hc ? r1 [ | i2 c2] //= r2 vm1 /Hi Hvm1. 
+    move=> s1 s2 s3 i c _ Hi _ Hc ? r1 [ | i2 c2] //= r2 vm1 /Hi Hvm1.
     apply: rbindP => r3 /Hvm1 [vm2 []] /Hc Hvm2 ? /Hvm2.
     by move=> [vm3 [??]];exists vm3;split=>//;econstructor;eauto.
   Qed.
 
-  Local Lemma HmkI ii i s1 s2 :
-    sem_i p1 s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
-  Proof. 
-    move=> _ Hi  r1 [? i2] r2 vm1 /Hi Hvm /= /Hvm [vm2 [??]].
+  Local Lemma HmkI : sem_Ind_mkI p1 Pi_r Pi.
+  Proof.
+    move=> ii i s1 s2 _ Hi  r1 [? i2] r2 vm1 /Hi Hvm /= /Hvm [vm2 [??]].
     by exists vm2;split=>//;constructor.
   Qed.
 
-  Local Lemma Hassgn s1 s2 x tag ty e v v':
-    sem_pexpr gd s1 e = ok v ->
-    truncate_val ty v = ok v' ->
-    write_lval gd x v' s1 = Ok error s2 ->
-    Pi_r s1 (Cassgn x tag ty e) s2.
+  Local Lemma Hassgn : sem_Ind_assgn p1 Pi_r.
   Proof.
+    move => s1 s2 x tag ty e v v'.
     case: s1 => sm1 svm1 He Htr Hw ii r1 [] //= x2 tag2 ty2 e2 r2 vm1 Hvm1.
     case: eqP => // <- {ty2}.
     apply: add_iinfoP.
@@ -323,10 +317,9 @@ Section PROOF.
     by exists (ve2 :: ves2);split => //;constructor.
   Qed.
 
-  Local Lemma Hopn s1 s2 t o xs es : 
-    sem_sopn (p_globs p1) o s1 xs es = ok s2 ->
-    Pi_r s1 (Copn xs t o es) s2.
+  Local Lemma Hopn : sem_Ind_opn p1 Pi_r.
   Proof.
+    move => s1 s2 t o xs es.
     apply: rbindP => v.
     apply: rbindP => ves He Ho Hw ii r1 [] //= xs2 t' o2 es2 r2 vm1 Hvm1.
     case:ifPn => //= /eqP <-.
@@ -337,10 +330,9 @@ Section PROOF.
     by exists vm2;split=>//;constructor;rewrite /sem_sopn He2 /= Ho' -eq_globs.
   Qed.
 
-  Local Lemma Hif_true s1 s2 e c1 c2 :
-    sem_pexpr gd s1 e = ok (Vbool true) ->
-    sem p1 s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+  Local Lemma Hif_true : sem_Ind_if_true p1 Pc Pi_r.
   Proof.
+    move => s1 s2 e c1 c2.
     case: s1 => sm1 svm1 Hve _ Hc1 ii r1 [] //= e' c1' c2' r2 vm1 Hvm1.
     apply: rbindP => r1';apply: add_iinfoP => /check_eP -/(_ gd _ _ Hvm1) [] Hr1'.
     move=> /(_ _ _ Hve) [ve' [Hve' /value_uincl_bool1 ?]];subst ve'.
@@ -350,10 +342,9 @@ Section PROOF.
     by apply Eif_true => //;rewrite -eq_globs Hve'.
   Qed.
 
-  Local Lemma Hif_false s1 s2 e c1 c2 :
-    sem_pexpr gd s1 e = ok (Vbool false) ->
-    sem p1 s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+  Local Lemma Hif_false : sem_Ind_if_false p1 Pc Pi_r.
   Proof.
+    move => s1 s2 e c1 c2.
     case: s1 => sm1 svm1 Hve _ Hc1 ii r1 [] //= e' c1' c2' r2 vm1 Hvm1.
     apply: rbindP => r1';apply: add_iinfoP => /check_eP -/(_ gd _ _ Hvm1) [] Hr1'.
     move=> /(_ _ _ Hve) [ve' [Hve' /value_uincl_bool1 ?]];subst ve'.
@@ -375,13 +366,9 @@ Section PROOF.
     apply: (M.incl_trans H2); apply M.merge_incl_l.
   Qed.
     
-  Local Lemma Hwhile_true s1 s2 s3 s4 c e c':
-    sem p1 s1 c s2 -> Pc s1 c s2 ->
-    sem_pexpr gd s2 e = ok (Vbool true) ->
-    sem p1 s2 c' s3 -> Pc s2 c' s3 ->
-    sem_i p1 s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 ->
-    Pi_r s1 (Cwhile c e c') s4.
-  Proof. 
+  Local Lemma Hwhile_true : sem_Ind_while_true p1 Pc Pi_r.
+  Proof.
+    move => s1 s2 s3 s4 c e c'.
     case: s2 => sm2 svm2 _ Hc Hse _ Hc' _ Hw ii r1 [] //= c2 e2 c2' r2 vm1 Hvm1.
     apply: rbindP => r /loop2P [r2' [r3 [H Hir1 Hir3]]] [?];subst r.
     have Hvmr2' := eq_alloc_incl Hir1 Hvm1.
@@ -398,11 +385,9 @@ Section PROOF.
     by apply: Ewhile_true Hsw;eauto;rewrite -eq_globs Hse2.
   Qed.
 
-  Local Lemma Hwhile_false s1 s2 c e c':
-    sem p1 s1 c s2 -> Pc s1 c s2 ->
-    sem_pexpr gd s2 e = ok (Vbool false) ->
-    Pi_r s1 (Cwhile c e c') s2.
-  Proof. 
+  Local Lemma Hwhile_false : sem_Ind_while_false p1 Pc Pi_r.
+  Proof.
+    move => s1 s2 c e c'.
     case: s2 => sm2 svm2 _ Hc Hse ii r1 [] //= c2 e2 c2' r2 vm1 Hvm1.
     apply: rbindP => r /loop2P [r2' [r3 [H Hir1 Hir3]]] [?];subst r.
     have Hvmr2' := eq_alloc_incl Hir1 Hvm1.
@@ -427,12 +412,9 @@ Section PROOF.
     apply: (M.incl_trans H2); apply M.merge_incl_l.
   Qed.
 
-  Local Lemma Hfor s1 s2 (i:var_i) d lo hi c vlo vhi :
-    sem_pexpr gd s1 lo = ok (Vint vlo) ->
-    sem_pexpr gd s1 hi = ok (Vint vhi) ->
-    sem_for p1 i (wrange d vlo vhi) s1 c s2 ->
-    Pfor i (wrange d vlo vhi) s1 c s2 -> Pi_r s1 (Cfor i (d, lo, hi) c) s2.
+  Local Lemma Hfor : sem_Ind_for p1 Pi_r Pfor.
   Proof.
+    move => s1 s2 i d lo hi c vlo vhi.
     case: s1 => sm1 svm1.
     move=> Hlo Hhi Hc Hfor ii r1 [] //= i2 [[d2 lo2] hi2] c2 r2 vm1 Hvm1.
     case: eqP => //= ?;subst d2.
@@ -448,32 +430,23 @@ Section PROOF.
     econstructor; rewrite -?eq_globs ?Hlo2 ?Hhi2 /= ;eauto.
   Qed.
     
-  Local Lemma Hfor_nil s i c: Pfor i [::] s c s.
+  Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
   Proof. 
-    by move=> i2 ii r1 r1' c2 r2 vm1 Ha ???;exists vm1;split=> //;constructor.
+    by move=> s i c i2 ii r1 r1' c2 r2 vm1 Ha ???;exists vm1;split=> //;constructor.
   Qed.
 
-  Local Lemma Hfor_cons s1 s1' s2 s3 (i : var_i) (w:Z) (ws:seq Z) c :
-    write_var i w s1 = Ok error s1' ->
-    sem p1 s1' c s2 ->
-    Pc s1' c s2 ->
-    sem_for p1 i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
+  Local Lemma Hfor_cons : sem_Ind_for_cons p1 Pc Pfor.
   Proof.
-    move=> Hwi _ Hc _ Hfor i2 ii r1 r1' c2 r2 vm2 Heq Hr1' Hcc Hincl. 
+    move=> s1 s1' s2 s3 i w ws c Hwi _ Hc _ Hfor i2 ii r1 r1' c2 r2 vm2 Heq Hr1' Hcc Hincl.
     have [//|vm3 [Hwi2 Hvm3]] := check_lvalP (gd := gd) Hr1' Heq (value_uincl_refl _) _ Hwi.
     have [vm4 [Hvm4 Hsc]] := Hc _ _ _ _ _ Hvm3 Hcc.
     have [vm5 [Hvm5 Hsf]] := Hfor _ _ _ _ _ _ _ (eq_alloc_incl Hincl Hvm4) Hr1' Hcc Hincl.
     by exists vm5;split=>//;econstructor;eauto.
   Qed.
 
-  Local Lemma Hcall s1 m2 s2 ii xs fn args vargs vs:
-    sem_pexprs gd s1 args = Ok error vargs ->
-    sem_call p1 (emem s1) fn vargs m2 vs ->
-    Pfun (emem s1) fn vargs m2 vs ->
-    write_lvals gd {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
-    Pi_r s1 (Ccall ii xs fn args) s2.
+  Local Lemma Hcall : sem_Ind_call p1 Pi_r Pfun.
   Proof.
-    move=> Hes Hsc Hfun Hw ii' r1 [] //= ii2 xs2 fn2 args2 r2 vm1 Hr1.
+    move=> s1 m2 s2 ii xs fn args vargs vs Hes Hsc Hfun Hw ii' r1 [] //= ii2 xs2 fn2 args2 r2 vm1 Hr1.
     case: eqP => //= ?;subst fn2;apply: add_iinfoP.
     apply: rbindP => r1' Hca Hcxs.
     have [Hr1' /(_ _ Hes) [vargs2 [Hargs2 Hvargs]]] := check_esP Hca Hr1.
@@ -538,17 +511,9 @@ Section PROOF.
 
   End REFL.
    
-  Local Lemma Hproc m1 m2 fn f vargs vargs' s1 vm2 vres vres' : 
-    get_fundef (p_funcs p1) fn = Some f ->
-    mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
-    write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
-    sem p1 s1 (f_body f) {| emem := m2; evm := vm2 |} ->
-    Pc s1 (f_body f) {| emem := m2; evm := vm2 |} ->
-    mapM (fun x : var_i => get_var vm2 x) (f_res f) = ok vres ->
-    mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
-    Pfun m1 fn vargs' m2 vres'.
+  Local Lemma Hproc : sem_Ind_proc p1 Pc Pfun.
   Proof.
-    move=> Hget Hca Hw _ Hc Hres Hcr.
+    move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' Hget Hca Hw _ Hc Hres Hcr.
     have [fd2 [Hget2 /=]]:= all_checked Hget.
     rewrite eq_refl /=;case: ifP => // /andP[]/eqP htyin /eqP htyout.
     apply:add_finfoP;apply:rbindP => r1;apply:add_iinfoP => Hcparams.
