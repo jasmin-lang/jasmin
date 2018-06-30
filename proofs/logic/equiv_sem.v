@@ -447,7 +447,7 @@ Lemma svalue_of_value_uincl v :
   svalue_uincl v (svalue_of_value v).
 Proof.
   case: v => // [s n a | s w|t];move => //=;try (rewrite eq_refl).
-  + by move => i w h; rewrite/FArray.get h psem.truncate_word_u.
+  + by move => i w h; rewrite FArray.of_funP h psem.truncate_word_u.
   + by rewrite zero_extend_u.
   + by case t => //=.
 Qed.
@@ -894,9 +894,7 @@ Proof.
   have Hss0: sestate_uincl {| emem := m1; evm := vmap0 |} {| semem := mem_to_smem m1; sevm := svmap0 |}.
   * split=> //= -[vi v].
     rewrite /vmap0 !Fv.get0 /sval_uincl /=.
-    case: vi => // p0 i v0.
-    rewrite /Array.get /FArray.get.
-    case: ifP=> //.
+    case: vi => // p0 i v0 ? h; elim (Array.getP_empty h).
   have := swrite_vars_uincl Hss0 Huincl_vargs2' Hwrite => [] [ss] [Hwrite_vargs2'] Huincl_s_ss.
   have := HPc ss Huincl_s_ss => [] [ss'] //= [Hssem_ss'] Huincl_ss'.
   set vres2 := (map (fun x : var_i => sget_var ss'.(sevm) x) (f_res f)).

@@ -134,18 +134,18 @@ Definition to_sval t : ssem_t t -> svalue :=
  * -------------------------------------------------------------------- *)
 
 Definition word_array_to_farray {n} {s} (a : Array.array n (word s)) : FArray.array (word s):=
-  fun i => match Array.get a i with
-           |Ok z => z
-           |_    => sdflt_val (ssword s)
-           end.
-
+  FArray.of_fun 
+    (fun i => match Array.get a i with
+     | Ok z => z
+     | _    => sdflt_val (ssword s)
+     end).
 
 Definition truncate_farray {s} s' (a : FArray.array (word s)) : FArray.array (word s'):=
-  fun i => match truncate_word s' (a i) with
-           |Ok z => z
-           |_    => sdflt_val (ssword s')
-           end.
-
+  FArray.of_fun 
+    (fun i => match truncate_word s' (FArray.get a i) with
+     | Ok z => z
+     | _    => sdflt_val (ssword s')
+     end).
 
 (* ** Variable map
  * -------------------------------------------------------------------- *)
@@ -368,13 +368,13 @@ Definition svalue_of_value (v: value) : svalue :=
   match v with
   | Vbool b => SVbool b
   | Vint z => SVint z
-  | Varr sz n t => SVarr (λ x, match Array.get t x with Error _ => 0%R | Ok e => e end)
+  | Varr sz n t => SVarr (FArray.of_fun (λ x, match Array.get t x with Error _ => 0%R | Ok e => e end))
   | Vword sz w => SVword w
   | Vundef ty =>
     match ty with
     | sbool => SVbool (sdflt_val sbool)
     | sint => SVint (sdflt_val sint)
-    | sarr sz _ => SVarr (λ _, sdflt_val (sword sz))
+    | sarr sz _ => SVarr (FArray.of_fun (λ _, sdflt_val (sword sz)))
     | sword sz => SVword (sdflt_val (sword sz))
     end
   end.

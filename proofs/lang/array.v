@@ -24,8 +24,9 @@
  * ----------------------------------------------------------------------- *)
 
 From CoqWord Require Import ssrZ.
-Require Import utils.
-Import all_ssreflect.
+From mathcomp Require Import all_ssreflect.
+Require Import utils gen_map.
+
 Import ZArith.
 
 Local Open Scope Z_scope.
@@ -34,20 +35,61 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Module FArray.
+Module Type FArrayT.
+  Parameter array : Type -> Type. 
+  Parameter cnst : forall {T}, T -> array T.
+  Parameter get : forall {T}, array T -> Z -> T.
+  Parameter set : forall {T}, array T -> Z -> T -> array T.
 
-  Definition array (T:Type) := Z -> T.
+  Parameter of_fun : forall {T}, (Z -> T) -> array T.
 
-  Definition cnst {T} (t:T) : array T := fun i => t.
+  Axiom get0 : forall {T} (t:T) w, get (cnst t) w = t.
 
-  Definition get {T} (a:array T) (i:Z) := a i.
+  Axiom setP : forall {T} (a:array T) (w1 w2:Z) (t:T),
+    get (set a w1 t) w2 = if w1 == w2 then t else get a w2.
+
+  Axiom setP_eq : forall {T} (a:array T) w (t:T),
+    get (set a w t) w = t.
+
+  Axiom setP_neq : forall {T} (a:array T) w1 w2 (t:T),
+    w1 != w2 -> get (set a w1 t) w2 = get a w2.
+
+  Axiom of_funP : forall {T} (f:Z -> T) w, get (of_fun f) w = f w.
+
+End FArrayT.
+
+Module FArray : FArrayT.
+
+  Record array_ (T:Type) := MkArray { 
+    a_map : Mz.t T;
+    a_dfl : Z -> T 
+  }.
+
+  Definition array := array_.
+
+  Definition of_fun {T} (f:Z -> T) := 
+    {| a_map := Mz.empty T; a_dfl := f |}.
+
+  Definition cnst {T} (t:T) : array T := of_fun (fun _ => t).
+
+  Definition get {T} (a:array T) (i:Z) := 
+    match Mz.get a.(a_map) i with
+    | Some t => t
+    | None   => a.(a_dfl) i
+    end.
 
   Definition set {T} (a:array T) (i:Z) (v:T) :=
-    fun j => if i == j  then v else a j.
+    {| a_map := Mz.set a.(a_map) i v; a_dfl := a.(a_dfl); |}.
+
+  Lemma of_funP {T} (f:Z -> T) w: get (of_fun f) w = f w.
+  Proof. by rewrite /of_fun /get Mz.get0. Qed.
+
+  Lemma get0 {T} (t:T) w : get (cnst t) w = t.
+  Proof. apply of_funP. Qed.
 
   Lemma setP {T} (a:array T) (w1 w2:Z) (t:T):
     get (set a w1 t) w2 = if w1 == w2 then t else get a w2.
-  Proof. done. Qed.
+  Proof. by rewrite /get /set /= Mz.setP; case:ifP. Qed.
 
   Lemma setP_eq {T} (a:array T) w (t:T):
     get (set a w t) w = t.
@@ -80,7 +122,7 @@ Module Array.
   Proof. by rewrite /get;case: ifP. Qed.
 
   Lemma getP_empty T s x w: get (@empty T s) x <> ok w.
-  Proof. by rewrite /get/empty;case:ifP. Qed.
+  Proof. by rewrite /get/empty FArray.get0;case:ifP. Qed.
 
   Lemma setP_inv T s (a:array s T) x v t:
     set a x v = ok t ->

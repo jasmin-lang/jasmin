@@ -491,6 +491,23 @@ End CmpPos.
 Module Mp := Mmake CmpPos.
 
 (* --------------------------------------------------------------------------
+ ** Map of Z    
+ * -------------------------------------------------------------------------- *) 
+From CoqWord Require Import ssrZ.
+Module CmpZ.
+
+  Definition t := [eqType of Z].
+
+  Definition cmp : t -> t -> comparison := Z.compare.
+
+  Lemma cmpO : Cmp cmp.
+  Proof. apply ZO. Qed.
+
+End CmpZ.
+
+Module Mz := Mmake CmpZ.
+
+(* --------------------------------------------------------------------------
  ** Finite Set    
  * -------------------------------------------------------------------------- *) 
 

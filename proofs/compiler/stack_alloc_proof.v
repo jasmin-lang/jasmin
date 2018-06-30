@@ -1120,7 +1120,7 @@ Proof.
           set q := (top_stack _ + wrepr _ (_ + _))%R.
           replace (wrepr _ _ + _)%R with q. done.
           subst q; rewrite wrepr_add; ssrring.ssring.
-        by rewrite /vmap0 Fv.get0 => t [<-] {t}.
+        by rewrite /vmap0 Fv.get0 => t [<-] {t} ?; rewrite FArray.get0.
       case: x Htype Hget => - [] // sz' x [] -> {sz'} Hget.
       split.
       + rewrite Ha3; apply/orP; right.
