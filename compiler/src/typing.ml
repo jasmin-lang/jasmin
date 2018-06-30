@@ -168,15 +168,22 @@ module Env : sig
     val push  : unit P.pfunc -> env -> env
     val find  : S.symbol -> env -> unit P.pfunc option
   end
+
+  module Exec : sig 
+    val push : P.funname -> env -> env
+    val get  : env -> P.funname list 
+  end 
+
 end = struct
   type env = {
-    e_vars : (S.symbol, P.pvar) Map.t;
+    e_vars    : (S.symbol, P.pvar) Map.t;
     e_globals : (S.symbol, P.Name.t * P.pty) Map.t;
-    e_funs : (S.symbol, unit P.pfunc) Map.t;
+    e_funs    : (S.symbol, unit P.pfunc) Map.t;
+    e_exec    : P.funname list
   }
 
   let empty : env =
-    { e_vars = Map.empty; e_globals = Map.empty; e_funs = Map.empty; }
+    { e_vars = Map.empty; e_globals = Map.empty; e_funs = Map.empty; e_exec = [] }
 
   module Vars = struct
     let push (v : P.pvar) (env : env) =
@@ -205,6 +212,12 @@ end = struct
       | Some fd -> rs_tyerror ~loc:v.P.f_loc (DuplicateFun(name, fd.P.f_loc))
 
   end
+
+  module Exec = struct
+    let push f env = { env with e_exec = f :: env.e_exec }
+    let get env = List.rev env.e_exec
+  end
+
 end
 
 (* -------------------------------------------------------------------- *)
@@ -1126,17 +1139,17 @@ let tt_global (env : Env.env) _loc (gd: S.pglobal) : Env.env * ((P.Name.t * P.pt
   (env, ((x,ty), pe))
 
 (* -------------------------------------------------------------------- *)
-let tt_item (env : Env.env) pt : Env.env * unit P.pmod_item =
+let tt_item (env : Env.env) pt : Env.env * (unit P.pmod_item list) =
   match L.unloc pt with
-  | S.PParam  pp -> snd_map (fun x -> P.MIparam x) (tt_param  env (L.loc pt) pp)
-  | S.PFundef pf -> snd_map (fun x -> P.MIfun   x) (tt_fundef env (L.loc pt) pf)
-  | S.PGlobal pg -> snd_map (fun (x, y) -> P.MIglobal (x, y)) (tt_global env (L.loc pt) pg)
+  | S.PParam  pp -> snd_map (fun x -> [P.MIparam x]) (tt_param  env (L.loc pt) pp)
+  | S.PFundef pf -> snd_map (fun x -> [P.MIfun   x]) (tt_fundef env (L.loc pt) pf)
+  | S.PGlobal pg -> snd_map (fun (x, y) -> [P.MIglobal (x, y)]) (tt_global env (L.loc pt) pg)
+  | S.Pexec   pf -> Env.Exec.push (tt_fun env pf).P.f_name env, []
 
 (* -------------------------------------------------------------------- *)
 let tt_program (env : Env.env) (pm : S.pprogram) : Env.env * unit P.pprog =
   let env, l = List.map_fold tt_item env pm in
-  env, List.rev l
-
+  env, List.flatten (List.rev l)
 
 (* FIXME :
    - Les fonctions exportees doivent pas avoir de tableau en argument,

@@ -148,7 +148,7 @@ let main () =
       if !debug then Format.eprintf "Pretty printed to LATEX@."
     end;
 
-    let _, pprog  = Typing.tt_program Typing.Env.empty ast in
+    let env, pprog  = Typing.tt_program Typing.Env.empty ast in
     eprint Compiler.Typing Printer.pp_pprog pprog;
     if !typeonly then exit 0;
 
@@ -187,6 +187,16 @@ let main () =
     (* Now call the coq compiler *)
     let tbl, cprog = Conv.cprog_of_prog () prog in
     if !debug then Printf.eprintf "translated to coq \n%!";
+
+    let to_exec = Typing.Env.Exec.get env in
+    if to_exec <> [] then begin
+        let exec f = 
+          let _m, _vs = 
+            Evaluator.exec cprog (Conv.cfun_of_fun tbl f) OcamlMem.empty in
+          () in
+        List.iter exec to_exec
+      end;
+
 
     let lowering_vars = Lowering.(
         let f ty n = Conv.fresh_cvar tbl n ty in

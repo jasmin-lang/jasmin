@@ -190,8 +190,11 @@ type pfundef = {
 type pglobal = { pgd_type: ptype; pgd_name: pident ; pgd_val: pexpr }
 
 (* -------------------------------------------------------------------- *)
-type pitem = PFundef of pfundef | PParam of pparam
+type pitem = 
+  | PFundef of pfundef 
+  | PParam of pparam
   | PGlobal of pglobal
+  | Pexec of pident 
 
 (* -------------------------------------------------------------------- *)
 type pprogram = pitem L.located list

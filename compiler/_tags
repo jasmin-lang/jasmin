@@ -7,6 +7,7 @@ true : bin_annot
 
 # --------------------------------------------------------------------
 <.>     : include
+<src>   : include
 <src>   : traverse
 <CIL>   : traverse
 <entry> : traverse

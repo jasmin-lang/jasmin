@@ -4,12 +4,14 @@ src/Bigint
 src/BigintCore
 src/Conv
 src/Coq_printer
+src/Evaluator
 src/Latex_printer
 src/Lexer
 src/Liveness
 src/Location
 src/Glob_options
 src/Main_compiler
+src/OcamlMem
 src/Parseio
 src/Parser
 src/Ppasm
