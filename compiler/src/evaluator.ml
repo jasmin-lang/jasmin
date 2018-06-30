@@ -8,6 +8,18 @@ open Sem
          
 exception Eval_error of instr_info * Utils0.error 
 
+let pp_error fmt (tbl, ii, err) = 
+  let i_loc, _ = Conv.get_iinfo tbl ii in
+  let msg = 
+    match err with
+    | ErrOob -> "out_of_bound"
+    | ErrAddrUndef -> "undefined address"
+    | ErrAddrInvalid -> "invalid address"
+    | ErrStack -> "stack error"
+    | ErrType  -> "type error" in
+  Format.fprintf fmt "Evaluation error at position %a: %s" 
+    Printer.pp_iloc i_loc msg
+
 let exn_exec (ii:instr_info) (r: 't exec) = 
   match r with
   | Ok r -> r
@@ -18,7 +30,8 @@ let of_val_z ii v : coq_Z =
 
 let of_val_b ii v : bool = 
   Obj.magic (exn_exec ii (of_val Coq_sbool v))
-  
+
+(*  
 let rec sem_i (p:Expr.prog) (i:instr) (s1:Sem.estate) = 
   match i with
   | MkI(ii, ir) ->
@@ -82,7 +95,7 @@ and sem_c (p:Expr.prog) (c:instr list) (st:Sem.estate) : Sem.estate =
   match c with
   | [] -> st
   | i::c -> sem_c p c (sem_i p i st)
-
+ *)
 (* ----------------------------------------------------------------- *)
 type stack = 
   | Sempty of instr_info * fundef
@@ -209,6 +222,36 @@ let exec p fn m =
   let s = init_state p fn m in
   try small_step s
   with Final(m,vs) -> m, vs 
+
+(* ----------------------------------------------------------- *)
+let pp_undef fmt ty = 
+  Format.fprintf fmt "undef<%a>" Printer.pp_ty (Conv.ty_of_cty ty)
+ 
+let pp_word fmt ws w = 
+  let z = Word0.wunsigned ws w in
+  let z = Conv.bi_of_z z in
+  Bigint.pp_print_X fmt z
+  
+let pp_val fmt v = 
+  match v with
+  | Vbool b -> Format.fprintf fmt "%b" b
+  | Vint z  -> Format.fprintf fmt "%a" Bigint.pp_print (Conv.bi_of_z z)
+  | Varr(ws,p,t) ->
+    let ip = Conv.int_of_pos p in
+    let pp_res fmt = function 
+      | Ok w               -> pp_word fmt ws w
+      | Error ErrAddrUndef -> pp_undef fmt (Coq_sword ws)
+      | Error _            -> assert false in
+    Format.fprintf fmt "@[[";
+    for i = 0 to ip-2 do
+      let i = Conv.z_of_int i in
+      Format.fprintf fmt "%a;@ " pp_res (Array0.Array.get p t i);
+    done;
+    if 0 < ip then 
+      pp_res fmt (Array0.Array.get p t (Conv.z_of_int (ip-1)));
+    Format.fprintf fmt "]@]";
+  | Vword(ws, w) -> pp_word fmt ws w
+  | Vundef ty -> pp_undef fmt ty
 
 
  

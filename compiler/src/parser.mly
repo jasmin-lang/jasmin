@@ -29,6 +29,7 @@
 %token ELSE
 %token EQ
 %token <Syntax.swsize> EQEQ
+%token EXEC
 %token FALSE
 %token FN
 %token FOR
@@ -309,11 +310,15 @@ pglobal:
   { { pgd_type ; pgd_name ; pgd_val  } }
 
 (* -------------------------------------------------------------------- *)
+pexec:
+| EXEC name=ident { name }
+
+(* -------------------------------------------------------------------- *)
 top:
 | x=pfundef { S.PFundef x }
 | x=pparam  { S.PParam  x }
-| x=pglobal  { S.PGlobal  x }
-
+| x=pglobal { S.PGlobal x }
+| x=pexec   { S.Pexec   x } 
 (* -------------------------------------------------------------------- *)
 module_:
 | pfs=loc(top)* EOF

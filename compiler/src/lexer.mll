@@ -25,6 +25,7 @@
 
     "downto", DOWNTO ;
     "else"  , ELSE   ;
+    "exec"  , EXEC   ;
     "false" , FALSE  ;
     "fn"    , FN     ;
     "for"   , FOR    ;

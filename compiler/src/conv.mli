@@ -27,6 +27,7 @@ val bi_of_int8 : Obj.t -> Bigint.zint
 
 (* -------------------------------------------------------------------- *)
 val cty_of_ty : Prog.ty -> Type.stype
+val ty_of_cty : Type.stype -> Prog.ty
 (* -------------------------------------------------------------------- *)
 val cvar_of_var : 'a coq_tbl -> var -> Var0.Var.var
 val var_of_cvar : 'a coq_tbl -> Var0.Var.var -> var

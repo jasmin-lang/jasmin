@@ -1,0 +1,54 @@
+export
+fn f() -> (reg u32, reg u32) {
+  reg u32 b, c;
+  b = 5;
+  c = b;
+  c += 1;
+  return (b,c);
+}
+
+exec f
+
+inline fn ft() -> reg u32[2] {
+  reg u32[2] t;
+
+  t[0] = 1;
+  t[1] = 15;
+  
+  return t;
+}
+
+exec ft
+
+inline fn mem() -> reg u64 {
+  reg u64 r;
+  reg u64 p;
+
+  p = 0xFF;
+
+  [ p + 0] = 255;
+  r = [ p + 0];
+
+  return r;
+}
+
+exec mem
+
+inline fn mem1() -> reg u32 {
+  reg u32 r;
+  reg u64 p;
+
+  p = 0xFF;
+
+  [ p + 0 ] = 255;
+  r = [ p + 4];
+
+  return r;
+}
+
+exec mem1
+
+
+
+
+

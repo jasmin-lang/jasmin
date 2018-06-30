@@ -297,8 +297,9 @@ let pp_global fmt { pgd_type ; pgd_name ; pgd_val } =
 let pp_pitem fmt pi =
   match L.unloc pi with
   | PFundef f -> pp_fundef fmt f
-  | PParam p -> pp_param fmt p
+  | PParam p  -> pp_param fmt p
   | PGlobal g -> pp_global fmt g
+  | Pexec _   -> ()
 
 let pp_prog fmt prog =
   F.fprintf fmt "%a" (pp_list "\n" pp_pitem) prog

@@ -191,9 +191,14 @@ let main () =
     let to_exec = Typing.Env.Exec.get env in
     if to_exec <> [] then begin
         let exec f = 
-          let _m, _vs = 
-            Evaluator.exec cprog (Conv.cfun_of_fun tbl f) OcamlMem.empty in
-          () in
+          try 
+            let _m, vs = 
+              Evaluator.exec cprog (Conv.cfun_of_fun tbl f) OcamlMem.empty in
+            Format.printf "@[<v>%a@]@."
+              (pp_list "@ " Evaluator.pp_val) vs
+          with Evaluator.Eval_error (ii,err) ->
+            Format.eprintf "%a" Evaluator.pp_error (tbl, ii, err)
+        in
         List.iter exec to_exec
       end;
 

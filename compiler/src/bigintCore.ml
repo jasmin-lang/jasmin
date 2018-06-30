@@ -69,4 +69,5 @@ module type TheInterface = sig
   val to_string : zint -> string
 
   val pp_print : Format.formatter -> zint -> unit
+  val pp_print_X : Format.formatter -> zint -> unit
 end
