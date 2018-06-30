@@ -759,7 +759,7 @@ Definition wpshufb (sz: wsize) (w idx: word sz) : word sz :=
 
 (* -------------------------------------------------------------------*)
 Definition wpshufd1 (s : u128) (o : u8) (i : nat) :=
-  wshl s (32 * urepr (subword (2 * i) 2 o)).
+  subword 0 32 (wshr s (32 * urepr (subword (2 * i) 2 o))).
 
 Definition wpshufd_128 (s : u128) (o : Z) : u128 :=
   let o := wrepr U8 o in
@@ -776,10 +776,45 @@ Definition wpshufd sz : word sz → Z → word sz :=
   | _ => λ w _, w end.
 
 (* -------------------------------------------------------------------*)
-Parameters wpshuflw wpshufhw : ∀ sz, word sz → Z → word sz.
+
+Definition wpshufl_u64 (w:u64) (z:Z) : u64 := 
+  let v := split_vec U16 w in
+  let j := split_vec 2 (wrepr U8 z) in
+  make_vec U64 (map (λ n, v`_(Z.to_nat (urepr n)))%R j).
+
+Definition wpshufl_u128 (w:u128) (z:Z) := 
+  match split_vec 64 w with
+  | [::h;l] => make_vec U128 [::(h:u64); wpshufl_u64 l z]
+  | _       => w
+  end.
+
+Definition wpshufh_u128 (w:u128) (z:Z) := 
+  match split_vec 64 w with
+  | [::h;l] => make_vec U128 [::wpshufl_u64 h z; (l:u64)]
+  | _       => w
+  end.
+
+Definition wpshufl_u256 (s:u256) (z:Z) := 
+  make_vec U256 (map (λ w, wpshufl_u128 w z) (split_vec U128 s)).
+
+Definition wpshufh_u256 (s:u256) (z:Z) := 
+  make_vec U256 (map (λ w, wpshufh_u128 w z) (split_vec U128 s)).
+
+Definition wpshuflw sz : word sz → Z → word sz :=
+  match sz with
+  | U128 => wpshufl_u128
+  | U256 => wpshufl_u256
+  | _ => λ w _, w end.
+
+Definition wpshufhw sz : word sz → Z → word sz :=
+  match sz with
+  | U128 => wpshufh_u128
+  | U256 => wpshufh_u256
+  | _ => λ w _, w end.
 
 (* -------------------------------------------------------------------*)
-Section UNPCK.
+
+(*Section UNPCK.
   (* Interleaves two even-sized lists. *)
   Context (T: Type).
   Fixpoint unpck (qs xs ys: seq T) : seq T :=
@@ -802,6 +837,46 @@ Definition wpunpckh sz (ve: velem) (x y: word sz) : word sz :=
   let yv := split_vec ve y in
   let zv := unpck [::] (rev xv) (rev yv) in
   make_vec sz zv.
+*)
+
+Fixpoint interleave {A:Type} (l1 l2: list A) := 
+  match l1, l2 with
+  | [::], _ => l2
+  | _, [::] => l1
+  | a1::l1, a2::l2 => a1::a2::interleave l1 l2
+  end.
+
+Definition interleave_gen (get:u128 -> u64) (ve:velem) (src1 src2: u128) := 
+  let ve : nat :=  wsize_of_velem ve in
+  let l1 := split_vec ve (get src1) in
+  let l2 := split_vec ve (get src2) in
+  make_vec U128 (interleave l1 l2).
+
+Definition wpunpckl_128 := interleave_gen (subword 0 64).
+
+Definition wpunpckl_256 ve (src1 src2 : u256) := 
+  make_vec U256 
+    (map2 (wpunpckl_128 ve) (split_vec U128 src1) (split_vec U128 src2)).
+
+Definition wpunpckh_128 := interleave_gen (subword 64 64).
+
+Definition wpunpckh_256 ve (src1 src2 : u256) := 
+  make_vec U256 
+    (map2 (wpunpckh_128 ve) (split_vec U128 src1) (split_vec U128 src2)).
+
+Definition wpunpckl (sz:wsize) : velem -> word sz -> word sz -> word sz := 
+  match sz with
+  | U128 => wpunpckl_128
+  | U256 => wpunpckl_256
+  | _    => fun ve w1 w2 => w1
+  end.
+
+Definition wpunpckh (sz:wsize) : velem -> word sz -> word sz -> word sz := 
+  match sz with
+  | U128 => wpunpckh_128
+  | U256 => wpunpckh_256
+  | _    => fun ve w1 w2 => w1
+  end.
 
 (* -------------------------------------------------------------------*)
 Section UPDATE_AT.
