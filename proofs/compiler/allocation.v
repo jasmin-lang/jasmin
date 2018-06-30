@@ -1234,7 +1234,7 @@ Module CBAreg.
                       eval_uincl vm1.[x] vm2.[x'])].
   
   Lemma eq_alloc_empty: eq_alloc M.empty vmap0 vmap0.
-  Proof. done. Qed.
+  Proof. by split;rewrite /vm_uincl=> *;rewrite /vmap0 !Fv.get0. Qed.
 
   Lemma eq_alloc_incl r1 r2 vm vm':
     M.incl r2 r1 -> 

@@ -1120,12 +1120,12 @@ Proof.
           set q := (top_stack _ + wrepr _ (_ + _))%R.
           replace (wrepr _ _ + _)%R with q. done.
           subst q; rewrite wrepr_add; ssrring.ssring.
-        by rewrite /vmap0 /Fv.empty /Fv.get => t [<-] {t}.
+        by rewrite /vmap0 Fv.get0 => t [<-] {t}.
       case: x Htype Hget => - [] // sz' x [] -> {sz'} Hget.
       split.
       + rewrite Ha3; apply/orP; right.
         exact: (valid_get_w Hstk Hv Hget).
-      done.
+      by move=> v;rewrite /vmap0 Fv.get0.
   have := check_varsW Hp Hval'' _ hs1.
   move=> /(_ vargs) [ |s2 [Hs2 Hv2]];first by apply List_Forall2_refl.
   have [[m2' vm2'] [Hs2' Hv2']] := check_cP SP Hstk Hv hbody Hi Hv2.

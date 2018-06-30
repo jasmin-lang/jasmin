@@ -464,11 +464,11 @@ Section PROOF.
   Proof.
     move=> hsub hsem.
     pose vm1 : vmap := 
-      Fv.Vmap (fun (x:var) => if Sv.mem x (read_e_rec s e) then vm.[x] else vm'.[x]).
+      Fv.empty (fun (x:var) => if Sv.mem x (read_e_rec s e) then vm.[x] else vm'.[x]).
     have /read_e_eq_on -/(_ gd m) heq: vm =[read_e_rec s e] vm1.
-    + by move=> ? /Sv_memP;rewrite /vm1 {2}/Fv.get /= => ->.
+    + by move=> ? /Sv_memP; rewrite /vm1 Fv.get0 => ->.
     have hle: vm_uincl vm1 vm'.
-    + by move=> ?;rewrite /Fv.get /=;case:ifP => // /Sv_memP -/hsub.
+    + by move=> ?;rewrite /vm1 Fv.get0;case:ifP => // /Sv_memP -/hsub.
     by rewrite heq in hsem;have /(_ _ hle):= sem_pexpr_uincl _ hsem.
   Qed.
 
@@ -481,11 +481,11 @@ Section PROOF.
   Proof.
     move=> hsub hsem.
     pose vm1 : vmap := 
-      Fv.Vmap (fun (x:var) => if Sv.mem x (read_es_rec s es) then vm.[x] else vm'.[x]).
+      Fv.empty (fun (x:var) => if Sv.mem x (read_es_rec s es) then vm.[x] else vm'.[x]).
     have /read_es_eq_on -/(_ gd m) heq: vm =[read_es_rec s es] vm1.
-    + by move=> ? /Sv_memP;rewrite /vm1 {2}/Fv.get /= => ->.
+    + by move=> ? /Sv_memP;rewrite /vm1 Fv.get0 /= => ->.
     have hle: vm_uincl vm1 vm'.
-    + by move=> ?;rewrite /Fv.get /=;case:ifP => // /Sv_memP -/hsub.
+    + by move=> ?;rewrite /vm1 Fv.get0;case:ifP => // /Sv_memP -/hsub.
     by rewrite heq in hsem;have /(_ _ hle):= sem_pexprs_uincl _ hsem.
   Qed.
 
@@ -498,12 +498,12 @@ Section PROOF.
       write_var x v2 {| emem := emem s1; evm := vm1 |} = ok {| emem := emem s2; evm := vm2 |}.
   Proof.
     move=> hu hw hsub;pose vm1' : vmap := 
-      Fv.Vmap (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
+      Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
     have heq_on :  evm s1 =[X] vm1'.
-    + by move=> ? /Sv_memP;rewrite /vm1' {2}/Fv.get /= => ->.
+    + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
     have [vm2' [heq_on' ]]:= write_var_eq_on hw heq_on.
     have: vm_uincl vm1' vm1.
-    + by move=> ?;rewrite /Fv.get /=;case:ifP => // /Sv_memP -/hsub.
+    + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
     move=> H /(write_var_uincl _ hu) -/(_ _ H) /= [vm2 [-> hvmu]];eexists;split;last reflexivity.
     by move=> ? hin;rewrite heq_on'. 
   Qed.
@@ -518,12 +518,12 @@ Section PROOF.
       write_lval gd x v2 {| emem := emem s1; evm := vm1 |} = ok {| emem := emem s2; evm := vm2 |}.
   Proof.
     move=> hsubset hu hw hsub;pose vm1' : vmap := 
-      Fv.Vmap (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
+      Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
     have heq_on :  evm s1 =[X] vm1'.
-    + by move=> ? /Sv_memP;rewrite /vm1' {2}/Fv.get /= => ->.
+    + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
     have [vm2' [heq_on' ]]:= write_lval_eq_on hsubset hw heq_on.
     have: vm_uincl vm1' vm1.
-    + by move=> ?;rewrite /Fv.get /=;case:ifP => // /Sv_memP -/hsub.
+    + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
     move=> H /(write_uincl _ hu) -/(_ _ H) /= [vm2 [-> hvmu]];eexists;split;last reflexivity.
     by move=> ? hin;rewrite heq_on'. 
   Qed.
@@ -538,12 +538,12 @@ Section PROOF.
       write_lvals gd {| emem := emem s1; evm := vm1 |} x v2 = ok {| emem := emem s2; evm := vm2 |}.
   Proof.
     move=> hsubset hu hw hsub;pose vm1' : vmap := 
-      Fv.Vmap (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
+      Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
     have heq_on :  evm s1 =[X] vm1'.
-    + by move=> ? /Sv_memP;rewrite /vm1' {2}/Fv.get /= => ->.
+    + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
     have [vm2' [heq_on' ]]:= write_lvals_eq_on hsubset hw heq_on.
     have: vm_uincl vm1' vm1.
-    + by move=> ?;rewrite /Fv.get /=;case:ifP => // /Sv_memP -/hsub.
+    + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
     move=> H /(writes_uincl _ hu) -/(_ _ H) /= [vm2 [-> hvmu]];eexists;split;last reflexivity.
     by move=> ? hin;rewrite heq_on'. 
   Qed.
@@ -773,7 +773,8 @@ Section PROOF.
     have Uvmi : vm_uincl (evm s1') vmi.
     + move=> [zt zn];rewrite Evmi;case:ifPn => // /Sv_memP.
       rewrite /locals /locals_p !vrvs_recE;have := Uvm1' {| vtype := zt; vname := zn |}.
-      by case: zt => //= sz n _ Hin; rewrite -(vrvsP Hwv) //; SvD.fsetdec.
+      case: zt => //= sz n _ Hin; rewrite -(vrvsP Hwv) //=;last by SvD.fsetdec.
+      by rewrite /vmap0 Fv.get0.     
     have [/=vm3 [Hsem' Uvm3]]:= sem_uincl Uvmi Hbody.
     have [/=vs2' [Hvs' Uvs']]:= get_vars_uincl Uvm3 Hvs. 
     have [vs' [Htout' Uvs]]:= mapM2_truncate_val Htout Uvs'.

@@ -892,10 +892,8 @@ Proof.
   have := mapM2_truncate_val HM2 Huincl_vargs2 => [] [vargs2'] [HM2_vargs2] Huincl_vargs2'.
 
   have Hss0: sestate_uincl {| emem := m1; evm := vmap0 |} {| semem := mem_to_smem m1; sevm := svmap0 |}.
-  * split=> //=.
-    rewrite /vmap0 /svmap0 /svm_uincl.
-    move=> [vi v] /=.
-    rewrite /sval_uincl.
+  * split=> //= -[vi v].
+    rewrite /vmap0 !Fv.get0 /sval_uincl /=.
     case: vi => // p0 i v0.
     rewrite /Array.get /FArray.get.
     case: ifP=> //.

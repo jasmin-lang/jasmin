@@ -357,36 +357,54 @@ Proof. by apply: contra => /eqP ->. Qed.
  *                       but extentianality is permited 
  * -------------------------------------------------------------------- *)
 
-Module Fv.
-  Record rt_ (to : stype -> Type) := Vmap {
-    map : forall (x:var), to x.(vtype)
-  }.
+Module Type FvT.
+  Parameter t : (stype -> Type) -> Type.
+  Parameter empty : 
+    forall {to:stype -> Type} (dval : forall (x:var), to x.(vtype)), t to.
 
-  Definition t := rt_.
+  Parameter get :
+    forall {to:stype -> Type} (vm:t to) (x:var), to x.(vtype).
 
-  Definition empty {to} dval : t to := {| map := dval |}.
+  Parameter set :
+    forall {to:stype -> Type} (vm : t to) x (v : to x.(vtype)), t to.
 
-  Definition get {to} (vm : t to) x :=
-    nosimpl (vm.(map) x).
+  Axiom get0 : forall to dval x, @get to (empty dval) x = dval x.
 
-  Definition set {to:stype -> Type} (vm : t to) x (v : to x.(vtype)) : t to :=
-    nosimpl (Vmap (fun y =>
-      if x =P y is ReflectT p then ecast _ _ p v else vm.(map) y)).
-
-  Lemma get0 to dval x: @get to (empty dval) x = dval x.
-  Proof. done. Qed.
-
-  Lemma setP_eq to (vm:t to) x (v:to x.(vtype)) : 
+  Axiom setP_eq : forall to (vm:t to) x (v:to x.(vtype)),
     get (@set _ vm x v) x = v.
-  Proof. by rewrite /get /set /=; case: eqP => // p; rewrite eq_axiomK. Qed.
 
-  Lemma setP_neq to (vm:t to) x y (v:to x.(vtype)) : 
+  Axiom setP_neq : forall to (vm:t to) x y (v:to x.(vtype)),
     x != y -> get (@set _ vm x v) y = get vm y.
-  Proof. by rewrite /get /set /=; case: eqP. Qed.
 
   Definition ext_eq  {to} (vm1 vm2 : t to) :=
     forall x, get vm1 x = get vm2 x.
 
+End FvT.
+
+Module Fv : FvT.
+
+  Definition t := Mv.t.
+
+  Definition empty := @Mv.empty.
+
+  Definition get := @Mv.get.
+
+  Definition set := @Mv.set.
+
+  Lemma get0 to dval x : @get to (empty dval) x = dval x.
+  Proof. by apply: Mv.get0. Qed.
+
+  Lemma setP_eq to (vm:t to) x (v:to x.(vtype)) :
+    get (@set _ vm x v) x = v.
+  Proof. apply Mv.setP_eq. Qed.
+
+  Lemma setP_neq to (vm:t to) x y (v:to x.(vtype)) :
+    x != y -> get (@set _ vm x v) y = get vm y.
+  Proof. apply Mv.setP_neq. Qed.
+
+  Definition ext_eq  {to} (vm1 vm2 : t to) :=
+    forall x, get vm1 x = get vm2 x.
+  
 End Fv.
 
 Delimit Scope vmap_scope with vmap.
