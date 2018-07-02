@@ -63,19 +63,19 @@ module M = {
      x <- (c `^` b);
      y <- d;
      z <- e;
-     if ((((W256.of_int round) `&` (W256.of_int 3)) = (W256.of_int 0))) {
+     if (((round %% 4) = 0)) {
        pattern <@ shuffle (2, 3, 0, 1);
        x <- x86_VPSHUFD_128 x (W8.of_int pattern);
      } else {
        
      }
-     if ((((W256.of_int round) `&` (W256.of_int 3)) = (W256.of_int 2))) {
+     if (((round %% 4) = 2)) {
        pattern <@ shuffle (1, 0, 3, 2);
        x <- x86_VPSHUFD_128 x (W8.of_int pattern);
      } else {
        
      }
-     if ((((W256.of_int round) `&` (W256.of_int 3)) = (W256.of_int 0))) {
+     if (((round %% 4) = 0)) {
        m <- (W32.of_int (2654435584 + round));
        a <- x86_MOVD_32 m;
        x <- (x `^` a);

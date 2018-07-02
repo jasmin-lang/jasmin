@@ -46,12 +46,23 @@ axiom of32_or x0 x1 x2 x3 y0 y1 y2 y3 :
 
 axiom shuffle4_u32_2301 x0 x1 x2 x3 : 
   x86_VPSHUFD_128 (of32 x0 x1 x2 x3) (W8.of_int 177) (*shuffle 2 3 0 1*) = 
-  of32 x1 x0 x3 x2.
+  of32 x2 x3 x0 x1.
 
 axiom shuffle4_u32_1032 x0 x1 x2 x3 : 
   x86_VPSHUFD_128 (of32 x0 x1 x2 x3) (W8.of_int 78) (*shuffle 1 0 3 2*) = 
-  of32 x2 x3 x0 x1.
+  of32 x1 x0 x3 x2.
 
+axiom of32_x86_VPSLL x0 x1 x2 x3 i :
+  x86_VPSLL_4u32 (of32 x0 x1 x2 x3) i =
+  of32 (x0 `<<` i) (x1 `<<` i) (x2 `<<` i) (x3 `<<` i).
+
+axiom of32_x86_VPSRL x0 x1 x2 x3 i :
+  x86_VPSRL_4u32 (of32 x0 x1 x2 x3) i =
+  of32 (x0 `>>` i) (x1 `>>` i) (x2 `>>` i) (x3 `>>` i).
+
+axiom rotate24E w :
+    x86_VPSHUFB_128  w (W128.of_int 16028905388486802350658220295983399425)
+  = ((w `<<` (W8.of_int 24)) `^` (w `>>` (W8.of_int 8))).
 
 hint simplify xor_zero_l.
 hint simplify xor_zero_r.
@@ -60,8 +71,11 @@ hint simplify of32_shr.
 hint simplify of32_xor.
 hint simplify of32_and.
 hint simplify of32_or.
-hint simplify shuffle4_u32_2301.
-hint simplify shuffle4_u32_1032.
+(*hint simplify shuffle4_u32_2301.
+hint simplify shuffle4_u32_1032.*)
+hint simplify of32_x86_VPSLL.
+hint simplify of32_x86_VPSRL.
+hint simplify rotate24E.
 
 equiv ref1_vec1 : Gimli_ref1.M.gimli_body ~ Gimliv.M.gimli_body : 
    (of32 state.[0] state.[1] state.[2]  state.[3] ){1} = x{2} /\
@@ -77,4 +91,18 @@ proof.
   unroll for {1} 2.
   wp; skip => &m1 &m2 [#].
   cbv delta => 4!<- _ _; cbv delta => />.
+split.
+admit.
+move=> h1; split.
+admit.
+move=> h2; split.
+move=> h3.
+split.
+move=> h4.
+admit.
+move=> h4.
+
+
+
+
 qed.
