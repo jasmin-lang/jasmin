@@ -21,7 +21,7 @@ fn gimli_body(stack u32[12] state) -> stack u32[12] {
         state[4 + column] = y ^ x ^ ((x | z) << 1);
         state[column]     = z ^ y ^((x & y) << 3);
      }
-     if (round & 3) == 0 { 
+     if (round % 4) == 0 { 
        x = state[0];  
        y = state[1];
        state[0] = y;
@@ -33,7 +33,7 @@ fn gimli_body(stack u32[12] state) -> stack u32[12] {
        state[3] = x;
      }
 
-     if (round & 3) == 2 { 
+     if (round % 4) == 2 { 
        x = state[0]; 
        y = state[2];
        state[0] = y;
@@ -45,7 +45,7 @@ fn gimli_body(stack u32[12] state) -> stack u32[12] {
        state[3] = x;
      }
 
-     if (round & 3) == 0 {
+     if (round % 4) == 0 {
        state[0] = state[0] ^ (0x9e377900 ^ round);
      }      
    }

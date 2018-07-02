@@ -87,7 +87,7 @@ let pp_op2 fmt = function
   | E.Oadd _ -> Format.fprintf fmt "+"
   | E.Omul _ -> Format.fprintf fmt "*"
   | E.Odiv s -> Format.fprintf fmt "`/%a`" pp_signed s
-  | E.Omod s -> Format.fprintf fmt "`%%%a`" pp_signed s 
+  | E.Omod s -> Format.fprintf fmt "%%%%%a" pp_signed s 
   | E.Osub  _ -> Format.fprintf fmt "-"
 
   | E.Oland _ -> Format.fprintf fmt "`&`"
