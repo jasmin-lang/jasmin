@@ -883,7 +883,17 @@ let tt_exprs_cast env les tys =
     let e, ety = tt_expr ~mode:`AllVar env le in
     cast (L.loc le) e ety ty) les tys
 
-let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (ty: P.pty) (e: P.pty P.gexpr) : (P.pty, unit) P.ginstr_r =
+let arr_init xi = 
+  let x = L.unloc xi in 
+  match x.P.v_ty with
+  | P.Arr(ws, P.Pconst n) as ty ->
+    P.Cassgn (Lvar xi, P.AT_inline, ty, P.Parr_init (ws, n))
+    (* FIXME: should not fail when the array size is a parameter *)
+  | _           -> 
+    rs_tyerror ~loc:(L.loc xi) (InvalidType( x.P.v_ty, TPArray))
+
+let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (ty: P.pty) (e: P.pty P.gexpr) : 
+  (P.pty, unit) P.ginstr_r list =
   match x with
   | Lvar z ->
     begin match (L.unloc z).v_ty with
@@ -891,15 +901,16 @@ let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (ty: P.pty) (e: P.pty P.gexp
     begin match e with
     | Pvar y ->
         let i = L.mk_loc (L.loc z) (P.PV.mk "i" P.Inline (Bty Int) (L.loc z)) in
-        Cfor (i, (UpTo, Pconst P.B.zero, n), [
-            let i_desc = P.Cassgn (Laset (z, Pvar i), AT_none, P.Bty Int, Pget (y, Pvar i)) in
+        [arr_init z;
+         Cfor(i, (UpTo, Pconst P.B.zero, n), [
+          let i_desc = P.Cassgn (Laset (z, Pvar i), AT_none, P.Bty Int, Pget (y, Pvar i)) in
             { i_desc ; i_loc = L.loc z, [] ; i_info = () }
-          ])
+           ])]
     | _ -> hierror "Array copy"
     end
-    | _ -> Cassgn (x, tg, ty, e)
+    | _ -> [Cassgn (x, tg, ty, e)]
     end
-  | _ -> Cassgn (x, tg, ty, e)
+  | _ -> [Cassgn (x, tg, ty, e)]
 
 let rec is_constant e = 
   match e with 
@@ -965,20 +976,20 @@ let check_call loc doInline lvs f es =
     in
     List.iter2 check_res f.P.f_ret lvs
     
-let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
-  let instr =
-    match L.unloc pi with
-    | S.PIArrayInit ({ L.pl_loc = lc; } as x) ->
-      let x = tt_var `AllVar env x in
-      let xi = (L.mk_loc lc x) in
-      begin match x.P.v_ty with
-      | P.Arr(ws, P.Pconst n) as ty -> P.Cassgn (Lvar xi, P.AT_inline, ty, P.Parr_init (ws, n))
-        (* FIXME: should not fail when the array size is a parameter *)
-      | _           -> rs_tyerror ~loc:lc (InvalidType( x.P.v_ty, TPArray))
-      end
+let rec tt_instr (env : Env.env) (pi : S.pinstr) : (unit P.pinstr) list =
+  let mki instr = 
+    { P.i_desc = instr; P.i_loc = L.loc pi, []; P.i_info = (); } in
+  let mkli instr = [mki instr] in
+  let map_loc = List.map (fun i -> { i with P.i_loc = L.loc pi, [] }) in
 
+  match L.unloc pi with
+  | S.PIArrayInit ({ L.pl_loc = lc; } as x) ->
+    let x = tt_var `AllVar env x in
+    let xi = (L.mk_loc lc x) in
+    mkli (arr_init xi)
+  
 
-    | S.PIAssign (ls, `Raw, { pl_desc = PECall (f, args) }, None) ->
+  | S.PIAssign (ls, `Raw, { pl_desc = PECall (f, args) }, None) ->
       let f = tt_fun env f in
       let tlvs, tes = f_sig f in
       let lvs = tt_lvalues env ls tlvs in
@@ -986,14 +997,14 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
       let doInline = P.DoInline in
       let les = List.map2 (fun l e -> L.mk_loc (L.loc l) e) args es in
       check_call (L.loc pi) doInline lvs f les;
-      P.Ccall (P.DoInline, lvs, f.P.f_name, es)
+      mkli (P.Ccall (P.DoInline, lvs, f.P.f_name, es))
 
     | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim f in
       let tlvs, tes = prim_sig p in
       let lvs = tt_lvalues env ls tlvs in
       let es  = tt_exprs_cast env args tes in
-      P.Copn(lvs, AT_none, p, es)
+      mkli (P.Copn(lvs, AT_none, p, es))
 
     | PIAssign([lv], `Raw, pe, None) ->
       let _, flv, vty = tt_lvalue env lv in
@@ -1011,14 +1022,14 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
         P.(match v with
             | Lvar v -> (match kind_i v with Inline -> AT_inline | _ -> AT_none)
             | _ -> AT_none) in
-      cassgn_for v tg ety e
+      List.map mki (cassgn_for v tg ety e)
 
     | PIAssign(ls, `Raw, pe, None) ->
       (* Try to match addc, subc, mulu *)
       let pe = prim_of_pe pe in
       let loc = L.loc pi in
       let i = L.mk_loc loc (S.PIAssign(ls, `Raw, pe, None)) in
-      (tt_instr env i).P.i_desc
+      map_loc (tt_instr env i) 
 
     | S.PIAssign(ls, eqop, pe, None) ->
       let op = oget (peop2_of_eqop eqop) in
@@ -1028,45 +1039,46 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr =
       let pe1 = pexpr_of_plvalue exn (List.last ls) in
       let pe  = L.mk_loc loc (S.PEOp2(op,(pe1,pe))) in
       let i   = L.mk_loc loc (S.PIAssign(ls, `Raw, pe, None)) in
-      (tt_instr env i).P.i_desc
+      map_loc (tt_instr env i)
 
     | PIAssign (ls, eqop, e, Some cp) ->
       let loc = L.loc pi in
       let exn = Unsupported "if not allowed here" in
       if peop2_of_eqop eqop <> None then rs_tyerror ~loc exn;
       let cpi = S.PIAssign (ls, eqop, e, None) in
-      let i = tt_instr env (L.mk_loc loc cpi) in
+      let i = 
+        match tt_instr env (L.mk_loc loc cpi) with
+        | [i] -> i 
+        | _ -> assert false (* FIXME: error message *) in
       let x, _, ty, e = P.destruct_move i in
       let e' = ofdfl (fun _ -> rs_tyerror ~loc exn) (P.expr_of_lval x) in
       let c = tt_expr_bool env cp in
-      P.Cassgn (x, AT_none, ty, Pif (c, e, e'))
+      mkli (P.Cassgn (x, AT_none, ty, Pif (c, e, e')))
 
     | PIIf (cp, st, sf) ->
-        let c  = tt_expr_bool env cp in
-        let st = tt_block env st in
-        let sf = odfl [] (omap (tt_block env) sf) in
-        P.Cif (c, st, sf)
+      let c  = tt_expr_bool env cp in
+      let st = tt_block env st in
+      let sf = odfl [] (omap (tt_block env) sf) in
+      mkli (P.Cif (c, st, sf))
 
     | PIFor ({ pl_loc = lx } as x, (d, i1, i2), s) ->
-        let i1   = tt_expr_int env i1 in
-        let i2   = tt_expr_int env i2 in
-        let vx   = tt_var `AllVar env x in
-        check_ty_eq ~loc:lx ~from:vx.P.v_ty ~to_:P.tint;
-        let s    = tt_block env s in
-        let d    = match d with `Down -> P.DownTo | `Up -> P.UpTo in
-        P.Cfor (L.mk_loc lx vx, (d, i1, i2), s)
+      let i1   = tt_expr_int env i1 in
+      let i2   = tt_expr_int env i2 in
+      let vx   = tt_var `AllVar env x in
+      check_ty_eq ~loc:lx ~from:vx.P.v_ty ~to_:P.tint;
+      let s    = tt_block env s in
+      let d    = match d with `Down -> P.DownTo | `Up -> P.UpTo in
+      mkli (P.Cfor (L.mk_loc lx vx, (d, i1, i2), s))
 
     | PIWhile (s1, c, s2) ->
-        let c  = tt_expr_bool env c in
-        let s1 = omap_dfl (tt_block env) [] s1 in
-        let s2 = omap_dfl (tt_block env) [] s2 in
-        P.Cwhile (s1, c, s2)
-
-  in { P.i_desc = instr; P.i_loc = L.loc pi, []; P.i_info = (); }
+      let c  = tt_expr_bool env c in
+      let s1 = omap_dfl (tt_block env) [] s1 in
+      let s2 = omap_dfl (tt_block env) [] s2 in
+      mkli (P.Cwhile (s1, c, s2))
 
 (* -------------------------------------------------------------------- *)
 and tt_block (env : Env.env) (pb : S.pblock) =
-  List.map (tt_instr env) (L.unloc pb)
+  List.flatten (List.map (tt_instr env) (L.unloc pb))
 
 (* -------------------------------------------------------------------- *)
 let tt_funbody (env : Env.env) (pb : S.pfunbody) =
@@ -1075,7 +1087,7 @@ let tt_funbody (env : Env.env) (pb : S.pfunbody) =
   let ret =
     let for1 x = L.mk_loc (L.loc x) (tt_var `AllVar env x) in
     List.map for1 (odfl [] pb.pdb_ret) in
-  let bdy = List.map (tt_instr env) pb.S.pdb_instr in
+  let bdy =  List.flatten (List.map (tt_instr env) pb.S.pdb_instr) in
   (bdy, ret)
 
 let tt_call_conv = function
