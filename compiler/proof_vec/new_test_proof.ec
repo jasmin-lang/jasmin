@@ -46,11 +46,11 @@ axiom of32_or x0 x1 x2 x3 y0 y1 y2 y3 :
 
 axiom shuffle4_u32_2301 x0 x1 x2 x3 : 
   x86_VPSHUFD_128 (of32 x0 x1 x2 x3) (W8.of_int 177) (*shuffle 2 3 0 1*) = 
-  of32 x2 x3 x0 x1.
+  of32 x1 x0 x3 x2.
 
 axiom shuffle4_u32_1032 x0 x1 x2 x3 : 
   x86_VPSHUFD_128 (of32 x0 x1 x2 x3) (W8.of_int 78) (*shuffle 1 0 3 2*) = 
-  of32 x1 x0 x3 x2.
+  of32 x2 x3 x0 x1.
 
 axiom of32_x86_VPSLL x0 x1 x2 x3 i :
   x86_VPSLL_4u32 (of32 x0 x1 x2 x3) i =
@@ -91,18 +91,10 @@ proof.
   unroll for {1} 2.
   wp; skip => &m1 &m2 [#].
   cbv delta => 4!<- _ _; cbv delta => />.
-split.
-admit.
-move=> h1; split.
-admit.
-move=> h2; split.
-move=> h3.
-split.
-move=> h4.
-admit.
-move=> h4.
-
-
-
-
+split; move => h1.
+split; move => h2.
++ admit. 
++ rewrite shuffle4_u32_2301.
+  admit.
++ by rewrite shuffle4_u32_1032.
 qed.
