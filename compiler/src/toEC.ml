@@ -64,9 +64,9 @@ let ty_glob env x = snd (Ms.find x env.glob)
 
 let pp_op1 fmt = function
   | E.Osignext(sz1,sz2) -> 
-    Format.fprintf fmt "sigext_%a_%a" pp_size sz1 pp_size sz2
+    Format.fprintf fmt "sigext_%a_%a" pp_size sz2 pp_size sz1
   | E.Ozeroext(sz1,sz2) -> 
-    Format.fprintf fmt "sigext_%a_%a" pp_size sz1 pp_size sz2
+    Format.fprintf fmt "zeroext_%a_%a" pp_size sz2 pp_size sz1
   | E.Onot     -> Format.fprintf fmt "!"
   | E.Olnot _  -> Format.fprintf fmt "!"
   | E.Oneg _   -> Format.fprintf fmt "-"

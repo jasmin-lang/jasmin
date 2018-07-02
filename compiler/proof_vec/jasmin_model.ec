@@ -179,6 +179,7 @@ theory W32.
   op (`>>`) : t -> W8.t -> t.
   op (`<<`) : t -> W8.t -> t.
 
+  op mulu_32   : t -> t -> (t * t).
   op addc_32: t -> t -> bool -> (bool * t).
 end W32.
 export W32.
@@ -215,7 +216,7 @@ theory W256.
 end W256. 
 export W256.
 
-(*op sigext_8_8:   W16.t -> W8.t.
+op sigext_8_8:   W16.t -> W8.t.
 op sigext_8_16:  W16.t -> W16.t.
 op sigext_8_32:  W16.t -> W32.t.
 op sigext_8_64:  W16.t -> W64.t.
@@ -255,7 +256,7 @@ op sigext_256_16:  W256.t -> W16.t.
 op sigext_256_32:  W256.t -> W32.t.
 op sigext_256_64:  W256.t -> W64.t.
 op sigext_256_128: W256.t -> W128.t.
-op sigext_256_256: W256.t -> W256.t.*)
+op sigext_256_256: W256.t -> W256.t.
 
 (* -------------------------------------------------------------------- *)
 type wsize   = [ W32 | W64 ].
@@ -265,11 +266,20 @@ type global_mem_t = {
   gm128 : (address, W128.t) map;
    gm64 : (address,  W64.t) map;
    gm32 : (address,  W32.t) map;
+   gm16 : (address,  W16.t) map;
+   gm8  : (address,   W8.t) map;
 }.
-
+op loadW8   (m : global_mem_t) (a : address) = m.`gm8  .[a].
+op loadW162  (m : global_mem_t) (a : address) = m.`gm16 .[a].
 op loadW32  (m : global_mem_t) (a : address) = m.`gm32 .[a].
 op loadW64  (m : global_mem_t) (a : address) = m.`gm64 .[a].
 op loadW128 (m : global_mem_t) (a : address) = m.`gm128.[a].
+
+op storeW8  (m : global_mem_t) (a : address) (w : W8.t) =
+  {| m with gm8 = m.`gm8.[a <- w] |}.
+
+op storeW16 (m : global_mem_t) (a : address) (w : W16.t) =
+  {| m with gm16 = m.`gm16.[a <- w] |}.
 
 op storeW32 (m : global_mem_t) (a : address) (w : W32.t) =
   {| m with gm32 = m.`gm32.[a <- w] |}.
@@ -362,3 +372,90 @@ op x86_VPSHUFD_128 (w : W128.t) (m : W8.t) : W128.t =
              x86_VPSHUFD_128_B w m 2,
              x86_VPSHUFD_128_B w m 1)
   axiomatized by x86_VPSHUFD_128_E.
+
+
+(* -------------------------------------------------------------------- *)
+type p2u32 = W32.t * W32.t.
+op unpack_2u32 (w:W64.t) = 
+  (W32.mk (W64.slice 32 32 w),
+   W32.mk (W64.slice 0 32 w)).
+
+op pack_2u32 (w:p2u32) = 
+  W64.mk (W32.repr w.`1 ++ W32.repr w.`2).
+
+op mulu_64 (w1 w2 : W64.t) = 
+  let (w11, w10) = unpack_2u32 w1 in
+  let (w21, w20) = unpack_2u32 w2 in
+  pack_2u32 (W32.mulu_32 w10 w20). 
+ 
+(* -------------------------------------------------------------------- *)
+type p2u64 = W64.t * W64.t.
+
+op unpack_2u64 (w : W128.t) : p2u64 =
+  (W64.mk (W128.slice 64 64 w),
+   W64.mk (W128.slice 0 64 w)).
+
+op pack_2u64 (w : p2u64) : W128.t =
+  W128.mk (W64.repr w.`1 ++ W64.repr w.`2).
+
+op map_2u64 (f : W64.t -> W64.t) (w : p2u64) : p2u64 =
+  (f w.`1, f w.`2).
+
+op map2_2u64 (f : W64.t -> W64.t -> W64.t) (w1 w2 : p2u64) : p2u64 =
+  (f w1.`1 w2.`1, f w1.`2 w2.`2).
+
+op x86_VPADD_2u64 (w1 : W128.t) (w2:W128.t) = 
+   pack_2u64 (map2_2u64 W64.(+) (unpack_2u64 w1) (unpack_2u64 w2))
+ axiomatized by x86_VPADD_2u64_E.
+
+op x86_VPEXTR_64 (w:W128.t) (i:W8.t) = 
+  let (w1,w0) = unpack_2u64 w in
+  if i = W8.of_int 0 then w0 
+  else if i = W8.of_int 1 then w1 
+  else W64.of_int 0
+  axiomatized by x86_VPEXTR_64_E.
+
+op x86_VPINSR_2u64 (v1:W128.t) (v2:W64.t) (i:W8.t) = 
+  let (w1,w0) = unpack_2u64 v1 in
+  if i = W8.of_int 0 then pack_2u64 (w1, v2) 
+  else if i = W8.of_int 1 then pack_2u64 (v2, w0)
+  else v1
+  axiomatized by x86_VPINSR_2u64_E.
+
+op x86_MOVD_64 (v:W64.t) = 
+  pack_2u64 (W64.of_int 0, v). 
+
+op x86_VPUNPCKL_2u64 (w1 w2: W128.t) = 
+  let (w11, w10) = unpack_2u64 w1 in
+  let (w21, w20) = unpack_2u64 w2 in
+  pack_2u64 (w20, w10)
+  axiomatized by x86_VPUNPCKL_2u64_E.
+
+op x86_VPUNPCKH_2u64 (w1 w2: W128.t) = 
+  let (w11, w10) = unpack_2u64 w1 in
+  let (w21, w20) = unpack_2u64 w2 in
+  pack_2u64 (w21, w11)
+  axiomatized by x86_VPUNPCKH_2u64_E.
+
+op x86_VPSLL_2u64 (w:W128.t) (cnt:W8.t) = 
+  let f = fun w : W64.t => w `<<`  cnt in
+  pack_2u64 (map_2u64 f (unpack_2u64 w))
+  axiomatized by x86_VPSLL_2u64_E.
+
+op x86_VPSRL_2u64 (w:W128.t) (cnt:W8.t) = 
+  let f = fun w : W64.t => w `>>`  cnt in
+  pack_2u64 (map_2u64 f (unpack_2u64 w))
+  axiomatized by x86_VPSRL_2u64_E.
+
+op x86_VPAND_128 = W128.(`&`).
+op x86_VPOR_128 = W128.(`|`).
+
+op x86_VPMULU_128 (w1 w2: W128.t) = 
+  pack_2u64 (map2_2u64 mulu_64 (unpack_2u64 w1) (unpack_2u64 w2)).
+
+
+  
+
+
+
+
