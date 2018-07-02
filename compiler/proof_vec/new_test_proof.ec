@@ -92,8 +92,8 @@ proof.
   wp; skip => &m1 &m2 [#].
   cbv delta => 4!<- _ _; cbv delta => />.
 split; move => h1.
-split; move => h2.
-+ admit. 
+rewrite h1. split. auto.
+move => _.
 + rewrite shuffle4_u32_2301.
   admit.
 + by rewrite shuffle4_u32_1032.
