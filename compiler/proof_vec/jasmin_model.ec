@@ -216,12 +216,12 @@ theory W256.
 end W256. 
 export W256.
 
-op sigext_8_8:   W16.t -> W8.t.
-op sigext_8_16:  W16.t -> W16.t.
-op sigext_8_32:  W16.t -> W32.t.
-op sigext_8_64:  W16.t -> W64.t.
-op sigext_8_128: W16.t -> W128.t.
-op sigext_8_256: W16.t -> W256.t.
+op sigext_8_8:   W8.t -> W8.t.
+op sigext_8_16:  W8.t -> W16.t.
+op sigext_8_32:  W8.t -> W32.t.
+op sigext_8_64:  W8.t -> W64.t.
+op sigext_8_128: W8.t -> W128.t.
+op sigext_8_256: W8.t -> W256.t.
 
 op sigext_16_8:   W16.t -> W8.t.
 op sigext_16_16:  W16.t -> W16.t.
@@ -257,6 +257,48 @@ op sigext_256_32:  W256.t -> W32.t.
 op sigext_256_64:  W256.t -> W64.t.
 op sigext_256_128: W256.t -> W128.t.
 op sigext_256_256: W256.t -> W256.t.
+
+op zeroext_8_8:   W8.t -> W8.t.
+op zeroext_8_16:  W8.t -> W16.t.
+op zeroext_8_32:  W8.t -> W32.t.
+op zeroext_8_64:  W8.t -> W64.t.
+op zeroext_8_128: W8.t -> W128.t.
+op zeroext_8_256: W8.t -> W256.t.
+
+op zeroext_16_8:   W16.t -> W8.t.
+op zeroext_16_16:  W16.t -> W16.t.
+op zeroext_16_32:  W16.t -> W32.t.
+op zeroext_16_64:  W16.t -> W64.t.
+op zeroext_16_128: W16.t -> W128.t.
+op zeroext_16_256: W16.t -> W256.t.
+
+op zeroext_32_8:   W32.t -> W8.t.
+op zeroext_32_16:  W32.t -> W16.t.
+op zeroext_32_32:  W32.t -> W32.t.
+op zeroext_32_64:  W32.t -> W64.t.
+op zeroext_32_128: W32.t -> W128.t.
+op zeroext_32_256: W32.t -> W256.t.
+
+op zeroext_64_8:   W64.t -> W8.t.
+op zeroext_64_16:  W64.t -> W16.t.
+op zeroext_64_32:  W64.t -> W32.t.
+op zeroext_64_64:  W64.t -> W64.t.
+op zeroext_64_128: W64.t -> W128.t.
+op zeroext_64_256: W64.t -> W256.t.
+
+op zeroext_128_8:   W128.t -> W8.t.
+op zeroext_128_16:  W128.t -> W16.t.
+op zeroext_128_32:  W128.t -> W32.t.
+op zeroext_128_64:  W128.t -> W64.t.
+op zeroext_128_128: W128.t -> W128.t.
+op zeroext_128_256: W128.t -> W256.t.
+
+op zeroext_256_8:   W256.t -> W8.t.
+op zeroext_256_16:  W256.t -> W16.t.
+op zeroext_256_32:  W256.t -> W32.t.
+op zeroext_256_64:  W256.t -> W64.t.
+op zeroext_256_128: W256.t -> W128.t.
+op zeroext_256_256: W256.t -> W256.t.
 
 (* -------------------------------------------------------------------- *)
 type wsize   = [ W32 | W64 ].
@@ -454,7 +496,15 @@ op x86_VPMULU_128 (w1 w2: W128.t) =
   pack_2u64 (map2_2u64 mulu_64 (unpack_2u64 w1) (unpack_2u64 w2)).
 
 
-  
+(* ------------------------------------------ *)
+
+op array_init_8   (n:int) : (int, W8  .t) map = CoreMap.cst witness.
+op array_init_16  (n:int) : (int, W16 .t) map = CoreMap.cst witness.
+op array_init_32  (n:int) : (int, W32 .t) map = CoreMap.cst witness.
+op array_init_64  (n:int) : (int, W64 .t) map = CoreMap.cst witness.
+op array_init_128 (n:int) : (int, W128.t) map = CoreMap.cst witness.
+op array_init_256 (n:int) : (int, W256.t) map = CoreMap.cst witness.
+
 
 
 

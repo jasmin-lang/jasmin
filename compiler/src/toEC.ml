@@ -149,8 +149,8 @@ let wsize = function
 let pp_cast pp fmt (ty,ety,e) = 
   if ety = ty then pp fmt e 
   else 
-    Format.fprintf fmt "(%a.cast_%a %a)" 
-      pp_Tsz (wsize ety) pp_size (wsize ty) pp e
+    Format.fprintf fmt "(zeroext_%a_%a %a)" 
+      pp_size (wsize ety) pp_size (wsize ty) pp e
 
 let add64 x e = 
   (Type.Coq_sword Type.U64, Papp2 (E.Oadd ( E.Op_w Type.U64), Pvar x, e))
@@ -159,7 +159,8 @@ let rec pp_expr env fmt (e:expr) =
   match e with
   | Pconst z -> Format.fprintf fmt "%a" B.pp_print z
   | Pbool b -> Format.fprintf fmt "%a" Printer.pp_bool b
-  | Parr_init _ -> assert false
+  | Parr_init (sz, n) -> 
+    Format.fprintf fmt "(array_init_%a %a)" pp_size sz B.pp_print n
   | Pcast(sz,e) -> 
     Format.fprintf fmt "(%a.of_int %a)" pp_Tsz sz (pp_expr env) e
   | Pvar x -> pp_var env fmt (L.unloc x)
@@ -361,7 +362,7 @@ let pp_fun env fmt f =
     (pp_ret b env) f.f_ret
 
 let pp_glob_decl env fmt (ws,x, z) =
-  Format.fprintf fmt "@[op %a = %a.of_int %a.@]@ "
+  Format.fprintf fmt "@[abbrev %a = %a.of_int %a.@]@ "
     (pp_glob env) x pp_Tsz ws B.pp_print z
 
 let pp_prog fmt globs funcs = 
