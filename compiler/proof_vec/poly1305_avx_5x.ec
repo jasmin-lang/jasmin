@@ -15,6 +15,7 @@ abbrev mask26_u128 = W128.of_int 1237940020838636201256681471.
 module M = {
   proc add (x:(int,W64.t)map, y:(int,W64.t)map) : (int,W64.t)map = {
     var i:int;
+    
     i <- 0;
     while (i < 5) {
      x.[i] <- (x.[i] + y.[i]);
@@ -26,6 +27,7 @@ module M = {
   proc add_carry (x:(int,W64.t)map, y:(int,W64.t)map) : (int,W64.t)map = {
     var i:int;
     var c:W64.t;
+    
     x.[0] <- (x.[0] + y.[0]);
     i <- 0;
     while (i < 4) {
@@ -41,6 +43,7 @@ module M = {
   
   proc add_u128 (x:(int,W128.t)map, y:(int,W128.t)map) : (int,W128.t)map = {
     var i:int;
+    
     i <- 0;
     while (i < 5) {
      x.[i] <- x86_VPADD_2u64 x.[i] y.[i];
@@ -51,10 +54,10 @@ module M = {
   
   proc hadd_u128 (x:(int,W128.t)map) : (int,W64.t)map = {
     var h:(int,W64.t)map;
-    var t:(int,W64.t)map;
     var i:int;
-    t <- (array_init_64 5);
+    var t:(int,W64.t)map;
     h <- (array_init_64 5);
+    t <- (array_init_64 5);
     i <- 0;
     while (i < 5) {
      t.[i] <- x86_VPEXTR_64 x.[i] (W8.of_int 0);
@@ -70,6 +73,8 @@ module M = {
     var i:int;
     var mp:(int,W64.t)map;
     var n:W64.t;
+    mp <- (array_init_64 5);
+    ox <- (array_init_64 5);
     ox <- (array_init_64 5);
     i <- 0;
     while (i < 5) {
@@ -104,11 +109,12 @@ module M = {
     return (x);
   }
   
-  proc unpack (global_mem : global_mem_t, m:W64.t) : global_mem_t * (int,W64.t)map = {
+  proc unpack (global_mem : global_mem_t, m:W64.t) : (int,W64.t)map = {
     var x:(int,W64.t)map;
     var m0:W64.t;
     var m1:W64.t;
     var t:W64.t;
+    x <- (array_init_64 5);
     m0 <- (loadW64 global_mem (m + (W64.of_int (8 * 0))));
     m1 <- (loadW64 global_mem (m + (W64.of_int (8 * 1))));
     x.[0] <- m0;
@@ -127,13 +133,15 @@ module M = {
     x.[3] <- (x.[3] `&` (W64.of_int 67108863));
     m1 <- (m1 `>>` (W8.of_int 26));
     x.[4] <- m1;
-    return (global_mem, x);
+    return (x);
   }
   
   proc mulmod_12 (x:(int,W64.t)map, y:(int,W64.t)map, yx5:(int,W64.t)map) : 
   (int,W64.t)map = {
     var t:(int,W64.t)map;
     var z:(int,W64.t)map;
+    t <- (array_init_64 5);
+    z <- (array_init_64 3);
     t.[0] <- x.[0];
     t.[0] <- (t.[0] * y.[0]);
     t.[1] <- x.[0];
@@ -263,13 +271,14 @@ module M = {
   }
   
   proc unpack_u128x2_to_u26x5x2 (global_mem : global_mem_t, m:W64.t) : 
-  global_mem_t * (int,W128.t)map = {
+  (int,W128.t)map = {
     var r:(int,W128.t)map;
     var s128:W128.t;
     var t128:W128.t;
     var t1:W128.t;
     var t2:W128.t;
     var t3:W128.t;
+    r <- (array_init_128 5);
     s128 <- x86_MOVD_64 (loadW64 global_mem (m + (W64.of_int (8 * 0))));
     t128 <- x86_MOVD_64 (loadW64 global_mem (m + (W64.of_int (8 * 2))));
     t1 <- x86_VPUNPCKL_2u64 s128 t128;
@@ -287,13 +296,15 @@ module M = {
     r.[3] <- x86_VPAND_128 t1 mask26_u128;
     r.[4] <- x86_VPSRL_2u64 t2 (W8.of_int 40);
     r.[4] <- x86_VPOR_128 r.[4] bit25_u128;
-    return (global_mem, r);
+    return (r);
   }
   
   proc mulmod_u128 (x:(int,W128.t)map, y:(int,W128.t)map, yx5:(int,W128.t)map) : 
   (int,W128.t)map = {
     var t:(int,W128.t)map;
     var z:(int,W128.t)map;
+    t <- (array_init_128 5);
+    z <- (array_init_128 5);
     t.[0] <- x86_VPMULU_128 x.[0] y.[0];
     t.[1] <- x86_VPMULU_128 x.[0] y.[1];
     t.[2] <- x86_VPMULU_128 x.[0] y.[2];
@@ -347,6 +358,8 @@ module M = {
                         y:(int,W128.t)map, yx5:(int,W128.t)map) : (int,W128.t)map = {
     var t:(int,W128.t)map;
     var z:(int,W128.t)map;
+    t <- (array_init_128 5);
+    z <- (array_init_128 5);
     t.[0] <- x86_VPMULU_128 x.[0] y.[0];
     t.[1] <- x86_VPMULU_128 x.[0] y.[1];
     t.[2] <- x86_VPMULU_128 x.[0] y.[2];
@@ -425,29 +438,31 @@ module M = {
     return (x);
   }
   
-  proc clamp (global_mem : global_mem_t, k:W64.t) : global_mem_t * (int,W64.t)map = {
+  proc clamp (global_mem : global_mem_t, k:W64.t) : (int,W64.t)map = {
     var r:(int,W64.t)map;
-    (global_mem, r) <@ unpack (global_mem, k);
+    r <- (array_init_64 5);
+    r <@ unpack (global_mem, k);
     r.[0] <- (r.[0] `&` (W64.of_int 67108863));
     r.[1] <- (r.[1] `&` (W64.of_int 67108611));
     r.[2] <- (r.[2] `&` (W64.of_int 67092735));
     r.[3] <- (r.[3] `&` (W64.of_int 66076671));
     r.[4] <- (r.[4] `&` (W64.of_int 1048575));
-    return (global_mem, r);
+    return (r);
   }
   
-  proc load (global_mem : global_mem_t, in1:W64.t) : global_mem_t * (int,W64.t)map = {
+  proc load (global_mem : global_mem_t, in1:W64.t) : (int,W64.t)map = {
     var x:(int,W64.t)map;
-    (global_mem, x) <@ unpack (global_mem, in1);
+    x <- (array_init_64 5);
+    x <@ unpack (global_mem, in1);
     x.[4] <- (x.[4] `|` (W64.of_int 16777216));
-    return (global_mem, x);
+    return (x);
   }
   
   proc load_last (global_mem : global_mem_t, in1:W64.t, inlen:W64.t) : 
-  global_mem_t * (int,W64.t)map = {
+  (int,W64.t)map = {
     var x:(int,W64.t)map;
-    var m:(int,W64.t)map;
     var i:int;
+    var m:(int,W64.t)map;
     var c:W64.t;
     var n:W64.t;
     var t:W64.t;
@@ -506,13 +521,14 @@ module M = {
     x.[3] <- (x.[3] `&` (W64.of_int 67108863));
     m.[1] <- (m.[1] `>>` (W8.of_int 26));
     x.[4] <- m.[1];
-    return (global_mem, x);
+    return (x);
   }
   
   proc pack (global_mem : global_mem_t, y:W64.t, x:(int,W64.t)map) : 
   global_mem_t = {
     var t:W64.t;
     var t1:W64.t;
+    
     t <- x.[0];
     t1 <- x.[1];
     t1 <- (t1 `<<` (W8.of_int 26));
@@ -537,18 +553,21 @@ module M = {
   proc first_block (global_mem : global_mem_t, in1:W64.t,
                                                s_r2r2:(int,W128.t)map,
                                                s_r2r2x5:(int,W128.t)map) : 
-  global_mem_t * (int,W128.t)map* W64.t = {
+  (int,W128.t)map * W64.t = {
     var hxy:(int,W128.t)map;
     var xy0:(int,W128.t)map;
     var xy1:(int,W128.t)map;
-    (global_mem, xy0) <@ unpack_u128x2_to_u26x5x2 (global_mem, in1);
+    hxy <- (array_init_128 5);
+    xy0 <- (array_init_128 5);
+    xy1 <- (array_init_128 5);
+    xy0 <@ unpack_u128x2_to_u26x5x2 (global_mem, in1);
     in1 <- (in1 + (W64.of_int 32));
     hxy <@ mulmod_u128 (xy0, s_r2r2, s_r2r2x5);
-    (global_mem, xy1) <@ unpack_u128x2_to_u26x5x2 (global_mem, in1);
+    xy1 <@ unpack_u128x2_to_u26x5x2 (global_mem, in1);
     in1 <- (in1 + (W64.of_int 32));
     hxy <@ add_u128 (hxy, xy1);
     hxy <@ carry_reduce_u128 (hxy);
-    return (global_mem, hxy, in1);
+    return (hxy, in1);
   }
   
   proc remaining_blocks (global_mem : global_mem_t, hxy:(int,W128.t)map,
@@ -557,23 +576,26 @@ module M = {
                                                     s_r4r4x5:(int,W128.t)map,
                                                     s_r2r2:(int,W128.t)map,
                                                     s_r2r2x5:(int,W128.t)map) : 
-  global_mem_t * (int,W128.t)map* W64.t = {
+  (int,W128.t)map * W64.t = {
     var xy0:(int,W128.t)map;
     var xy1:(int,W128.t)map;
+    xy0 <- (array_init_128 5);
+    xy1 <- (array_init_128 5);
     hxy <@ mulmod_u128 (hxy, s_r4r4, s_r4r4x5);
-    (global_mem, xy0) <@ unpack_u128x2_to_u26x5x2 (global_mem, in1);
+    xy0 <@ unpack_u128x2_to_u26x5x2 (global_mem, in1);
     in1 <- (in1 + (W64.of_int 32));
     hxy <@ mulmod_add_u128 (hxy, xy0, s_r2r2, s_r2r2x5);
-    (global_mem, xy1) <@ unpack_u128x2_to_u26x5x2 (global_mem, in1);
+    xy1 <@ unpack_u128x2_to_u26x5x2 (global_mem, in1);
     in1 <- (in1 + (W64.of_int 32));
     hxy <@ add_u128 (hxy, xy1);
     hxy <@ carry_reduce_u128 (hxy);
-    return (global_mem, hxy, in1);
+    return (hxy, in1);
   }
   
   proc final_mul (hxy:(int,W128.t)map, s_r2r:(int,W128.t)map,
                   s_r2rx5:(int,W128.t)map) : (int,W64.t)map = {
     var h:(int,W64.t)map;
+    h <- (array_init_64 5);
     hxy <@ mulmod_u128 (hxy, s_r2r, s_r2rx5);
     hxy <@ carry_reduce_u128 (hxy);
     h <@ hadd_u128 (hxy);
@@ -582,15 +604,6 @@ module M = {
   
   proc poly1305 (global_mem : global_mem_t, out:W64.t, in1:W64.t,
                                             inlen:W64.t, k:W64.t) : global_mem_t = {
-    var h:(int,W64.t)map;
-    var s_r2r:(int,W128.t)map;
-    var s_r2rx5:(int,W128.t)map;
-    var s_r2x5:(int,W64.t)map;
-    var s_r2r2:(int,W128.t)map;
-    var s_r2r2x5:(int,W128.t)map;
-    var s_r4r4:(int,W128.t)map;
-    var s_r4r4x5:(int,W128.t)map;
-    var s_rx5:(int,W64.t)map;
     var s_out:W64.t;
     var s_in:W64.t;
     var s_inlen:W64.t;
@@ -600,36 +613,56 @@ module M = {
     var i:int;
     var i_0:int;
     var t:W64.t;
+    var s_rx5:(int,W64.t)map;
+    var h:(int,W64.t)map;
     var b64:W64.t;
     var s_b64:W64.t;
     var r2:(int,W64.t)map;
     var i_1:int;
     var s_r2:(int,W64.t)map;
     var i_2:int;
+    var s_r2x5:(int,W64.t)map;
     var r2r:(int,W128.t)map;
+    var s_r2r:(int,W128.t)map;
     var t_u128:W128.t;
+    var s_r2rx5:(int,W128.t)map;
     var r2r2:(int,W128.t)map;
+    var s_r2r2:(int,W128.t)map;
+    var s_r2r2x5:(int,W128.t)map;
     var r4:(int,W64.t)map;
     var i_3:int;
     var r4r4:(int,W128.t)map;
+    var s_r4r4:(int,W128.t)map;
+    var s_r4r4x5:(int,W128.t)map;
     var hxy:(int,W128.t)map;
     var b16:W64.t;
     var x:(int,W64.t)map;
     var s:(int,W64.t)map;
     h <- (array_init_64 5);
+    hxy <- (array_init_128 5);
+    r <- (array_init_64 5);
+    r2 <- (array_init_64 5);
+    r2r <- (array_init_128 5);
+    r2r2 <- (array_init_128 5);
+    r4 <- (array_init_64 5);
+    r4r4 <- (array_init_128 5);
+    s <- (array_init_64 5);
+    s_r <- (array_init_64 5);
+    s_r2 <- (array_init_64 5);
     s_r2r <- (array_init_128 5);
-    s_r2rx5 <- (array_init_128 4);
-    s_r2x5 <- (array_init_64 4);
     s_r2r2 <- (array_init_128 5);
     s_r2r2x5 <- (array_init_128 4);
+    s_r2rx5 <- (array_init_128 4);
+    s_r2x5 <- (array_init_64 4);
     s_r4r4 <- (array_init_128 5);
     s_r4r4x5 <- (array_init_128 4);
     s_rx5 <- (array_init_64 4);
+    x <- (array_init_64 5);
     s_out <- out;
     s_in <- in1;
     s_inlen <- inlen;
     s_k <- k;
-    (global_mem, r) <@ clamp (global_mem, k);
+    r <@ clamp (global_mem, k);
     s_r <- (array_init_64 5);
     i <- 0;
     while (i < 5) {
@@ -726,16 +759,15 @@ module M = {
         
       }
       in1 <- s_in;
-      (global_mem, hxy, in1) <@ first_block (global_mem, in1, s_r2r2,
-      s_r2r2x5);
+      (hxy, in1) <@ first_block (global_mem, in1, s_r2r2, s_r2r2x5);
       b64 <- s_b64;
       b64 <- (b64 - (W64.of_int 1));
       
       while (((W64.of_int 0) `<` b64)) {
         b64 <- (b64 - (W64.of_int 1));
         s_b64 <- b64;
-        (global_mem, hxy, in1) <@ remaining_blocks (global_mem, hxy, in1,
-        s_r4r4, s_r4r4x5, s_r2r2, s_r2r2x5);
+        (hxy, in1) <@ remaining_blocks (global_mem, hxy, in1, s_r4r4,
+        s_r4r4x5, s_r2r2, s_r2r2x5);
         b64 <- s_b64;
       }
       h <@ final_mul (hxy, s_r2r, s_r2rx5);
@@ -748,7 +780,7 @@ module M = {
     
     while (((W64.of_int 0) `<` b16)) {
       b16 <- (b16 - (W64.of_int 1));
-      (global_mem, x) <@ load (global_mem, in1);
+      x <@ load (global_mem, in1);
       in1 <- (in1 + (W64.of_int 16));
       h <@ add (h, x);
       h <@ mulmod_12 (h, s_r, s_rx5);
@@ -757,7 +789,7 @@ module M = {
     inlen <- s_inlen;
     inlen <- (inlen `&` (W64.of_int 15));
     if ((inlen <> (W64.of_int 0))) {
-      (global_mem, x) <@ load_last (global_mem, in1, inlen);
+      x <@ load_last (global_mem, in1, inlen);
       h <@ add (h, x);
       h <@ mulmod_12 (h, s_r, s_rx5);
       h <@ carry_reduce (h);
@@ -768,7 +800,7 @@ module M = {
     k <- s_k;
     k <- (k + (W64.of_int 16));
     out <- s_out;
-    (global_mem, s) <@ unpack (global_mem, k);
+    s <@ unpack (global_mem, k);
     h <@ add_carry (h, s);
     global_mem <@ pack (global_mem, out, h);
     return global_mem;

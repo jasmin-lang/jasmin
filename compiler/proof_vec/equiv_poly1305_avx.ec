@@ -12,6 +12,6 @@ proof.
   sim.
   inline{2} M.mulmod_add_u128_prefetch M.mulmod_u128_prefetch.
   inline{1} Poly1305_avx_5x.M.mulmod_u128 Poly1305_avx_5x.M.mulmod_add_u128.
-  swap{2} 102 6;sim.
-  swap{2} 46 6;sim.
+  swap{2} 110 6;sim.
+  swap{2} 51 6;sim.
 qed.
