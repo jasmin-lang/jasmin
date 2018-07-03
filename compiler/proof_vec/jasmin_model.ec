@@ -14,7 +14,7 @@ proof. by apply/ltrW/size_gt0. qed.
 hint exact : size_gt0 size_ge0.
 
 op of_int : int -> t.
-op to_int : t -> int.
+op to_sint : t -> int.
 op to_uint : t -> int.
 
 op mk   : bool list -> t.
@@ -58,8 +58,13 @@ qed.
 axiom mkK   x : mk (repr x) = x.
 axiom reprK x : repr (mk x) = norm x.
 
-axiom of_intK (x : int) : to_int (of_int x) = x %% modulus.
-axiom to_intK (x : t  ) : cancel to_int of_int.
+axiom of_uintK (x : int) : to_uint (of_int x) = x %% modulus.
+axiom to_uintK : cancel to_uint of_int.
+lemma to_uintK' (x: t) : of_int (to_uint x) = x.
+proof. apply to_uintK. qed.
+
+hint simplify of_uintK.
+hint simplify to_uintK'.
 
 op blift1 (f : bool -> bool) (w : t) =
   mk (map f (repr w)).
@@ -68,10 +73,10 @@ op blift2 (f : bool -> bool -> bool) (w1 w2 : t) =
   mk (map (fun b : _ * _ => f b.`1 b.`2) (zip (repr w1) (repr w2))).
 
 op ilift1 (f : int -> int) (w : t) =
-  of_int (f (to_int w)).
+  of_int (f (to_uint w)).
 
 op ilift2 (f : int -> int -> int) (w1 w2 : t) =
-  of_int (f (to_int w1) (to_int w2)).
+  of_int (f (to_uint w1) (to_uint w2)).
 
 lemma get_default (w : t) (i : int) :
   size <= i => w.[i] = false.
@@ -123,9 +128,13 @@ op ( * ) = ilift2 Int.( * ) axiomatized by mulE.
 op (`&`) = blift2 (/\) axiomatized by andE.
 op (`|`) = blift2 (\/) axiomatized by orE.
 op (`^`) = blift2 Logic.(^) axiomatized by xorE.
+
+(* FIXME : check extraction *)
+op (`<=`) (x y : t) = (to_sint x) <= (to_sint x) axiomatized by wsleE.
+op (`<` ) (x y : t) = (to_sint x) <  (to_sint x) axiomatized by wsltE.
  
-op (`<=`) (x y : t) = (to_int x) <= (to_int x) axiomatized by wleE.
-op (`<` ) (x y : t) = (to_int x) <  (to_int x) axiomatized by wltE.
+op (\ule) (x y : t) = (to_uint x) <= (to_uint x) axiomatized by wuleE.
+op (\ult) (x y : t) = (to_uint x) <  (to_uint x) axiomatized by wultE.
 
 op (`>>>`) (x : t) (i : int) =
   mk (mkseq (fun j => x.[j + i]) size)
@@ -349,8 +358,8 @@ op pack_4u32 (w : p4u32) : W128.t =
 
 axiom pack_unpack_4u32 w : pack_4u32 (unpack_4u32 w) = w.
 
-axiom unpack_pack_4u32 w0 w1 w2 w3 : 
-  unpack_4u32 (pack_4u32 (w0, w1, w2, w3)) = (w0, w1, w2, w3).
+axiom unpack_pack_4u32 w : 
+  unpack_4u32 (pack_4u32 w) = w.
 
 hint simplify pack_unpack_4u32.
 hint simplify unpack_pack_4u32.
@@ -358,13 +367,32 @@ hint simplify unpack_pack_4u32.
 op map_4u32 (f : W32.t -> W32.t) (w : p4u32) : p4u32 =
   (f w.`1, f w.`2, f w.`3, f w.`4).
 
+op map2_4u32 (f : W32.t -> W32.t -> W32.t) (w1 w2:p4u32) : p4u32 = 
+  (f w1.`1 w2.`1, f w1.`2 w2.`2, f w1.`3 w2.`3, f w1.`4 w2.`4).
+
+axiom VPAND_128_32 (w1 w2 : p4u32):
+  (pack_4u32 w1 `&` pack_4u32 w2) = 
+  pack_4u32 (map2_4u32 W32.(`&`) w1 w2).
+
+axiom VPOR_128_32 (w1 w2 : p4u32):
+  (pack_4u32 w1 `|` pack_4u32 w2) = 
+  pack_4u32 (map2_4u32 W32.(`|`) w1 w2).
+
+axiom VPXOR_128_32 (w1 w2 : p4u32):
+  (pack_4u32 w1 `^` pack_4u32 w2) = 
+  pack_4u32 (map2_4u32 W32.(`^`) w1 w2).
+
+hint simplify VPAND_128_32.
+hint simplify VPOR_128_32.
+hint simplify VPXOR_128_32.
+
 (* -------------------------------------------------------------------- *)
 op x86_MOVD_32 (x : W32.t) =
-  pack_4u32 (x, W32.of_int 0, W32.of_int 0, W32.of_int 0)
-  axiomatized by x86_MOVD_32_E.
+  pack_4u32 (x, W32.zeros, W32.zeros, W32.zeros).
 
+(* FIXME cnt should be unsigned int mod 32 *)
 op x86_ROL_32 (x : W32.t) (cnt : W8.t) =
-  let result = rot (to_int cnt) (repr x) in
+  let result = rot (to_uint cnt) (repr x) in
   let CF = last true result in
   let OF = Logic.(^) CF (head true result) in
   (CF, OF, W32.mk result)
@@ -402,27 +430,145 @@ op x86_VPSRL_4u32 (w : W128.t) (cnt : W8.t) =
   pack_4u32 (map_4u32 f (unpack_4u32 w)).
 
 (* -------------------------------------------------------------------- *)
-op x86_VPSHUFB_128_B (w m : W128.t) (i : int) =
-  if m.[i * 8 + 7] then W8.zeros else
-  let idx = BS2Int.bs2int (W128.slice (i * 8) 4 m) in
-  W8.mk (W128.slice idx 8 w).
 
-(* FIXME : should we really do the rev ? *)
+type p16u8 = W8.t * W8.t * W8.t * W8.t * W8.t * W8.t * W8.t * W8.t *
+             W8.t * W8.t * W8.t * W8.t * W8.t * W8.t * W8.t * W8.t.
+
+op unpack_16u8 (w : W128.t) : p16u8 =
+  (W8.mk (W128.slice 0 8 w),
+   W8.mk (W128.slice 8 8 w),
+   W8.mk (W128.slice 16 8 w),
+   W8.mk (W128.slice 24 8 w),
+   W8.mk (W128.slice 32 8 w),
+   W8.mk (W128.slice 40 8 w),
+   W8.mk (W128.slice 48 8 w),
+   W8.mk (W128.slice 56 8 w),
+   W8.mk (W128.slice 64 8 w),
+   W8.mk (W128.slice 72 8 w),
+   W8.mk (W128.slice 80 8 w),
+   W8.mk (W128.slice 88 8 w),
+   W8.mk (W128.slice 96 8 w),
+   W8.mk (W128.slice 104 8 w),
+   W8.mk (W128.slice 112 8 w),
+   W8.mk (W128.slice 120 8 w))
+  axiomatized by unpack_16u8_E.
+
+op p16u8_l (w:p16u8) = 
+   [ w.`1; w.`2; w.`3; w.`4; w.`5; w.`6; w.`7; w.`8;
+     w.`9;  w.`10; w.`11; w.`12; w.`13; w.`14; w.`15; w.`16 ].
+
+op pack_16u8 (w : p16u8) : W128.t =
+  W128.mk (List.flatten (List.map W8.repr (p16u8_l w)))
+  axiomatized by pack_16u8_E.
+
+axiom pack_unpack_16u8 w : pack_16u8 (unpack_16u8 w) = w.
+
+axiom unpack_pack_16u8 w : 
+  unpack_16u8 (pack_16u8 w) = w.
+
+hint simplify pack_unpack_16u8.
+hint simplify unpack_pack_16u8.
+
+op map_16u8 (f : W8.t -> W8.t) (w : p16u8) : p16u8 =
+  ( f w.`1, f w.`2, f w.`3, f w.`4, f w.`5, f w.`6, f w.`7, f w.`8,
+    f w.`9, f w.`10, f w.`11, f w.`12, f w.`13, f w.`14, f w.`15, f w.`16 ).
+
+op map2_16u8 (f : W8.t -> W8.t -> W8.t) (w1 w2 : p16u8) : p16u8 =
+  ( f w1.`1  w2.`1 , 
+    f w1.`2  w2.`2 , 
+    f w1.`3  w2.`3 , 
+    f w1.`4  w2.`4 , 
+    f w1.`5  w2.`5 , 
+    f w1.`6  w2.`6 , 
+    f w1.`7  w2.`7 , 
+    f w1.`8  w2.`8 ,
+    f w1.`9  w2.`9 , 
+    f w1.`10 w2.`10, 
+    f w1.`11 w2.`11, 
+    f w1.`12 w2.`12, 
+    f w1.`13 w2.`13, 
+    f w1.`14 w2.`14, 
+    f w1.`15 w2.`15, 
+    f w1.`16 w2.`16 ).
+
+op x86_VPSHUFB_128_B (w:W8.t list) (m : W8.t) =
+  let i = W8.to_uint m in
+  if 128 <= i then W8.zeros 
+  else
+    let i = i %% 16 in
+    nth W8.zeros w i.
+    
 op x86_VPSHUFB_128 (w m : W128.t) : W128.t =
-  W128.mk (flatten (rev (map (W8.repr \o x86_VPSHUFB_128_B w m) (range 0 15))))
-  axiomatized by x86_VPSHUFB_128_E.
+  let w = p16u8_l (unpack_16u8 w) in
+  let m = unpack_16u8 m in
+  pack_16u8 (map_16u8 (x86_VPSHUFB_128_B w) m).
+
+axiom VPAND_128_8 (w1 w2 : p16u8):
+  (pack_16u8 w1 `&` pack_16u8 w2) = 
+  pack_16u8 (map2_16u8 W8.(`&`) w1 w2).
+
+axiom VPOR_128_8 (w1 w2 : p16u8):
+  (pack_16u8 w1 `|` pack_16u8 w2) = 
+  pack_16u8 (map2_16u8 W8.(`|`) w1 w2).
+
+axiom VPXOR_128_8 (w1 w2 : p16u8):
+  (pack_16u8 w1 `^` pack_16u8 w2) = 
+  pack_16u8 (map2_16u8 W8.(`^`) w1 w2).
+
+hint simplify VPAND_128_8.
+hint simplify VPOR_128_8.
+hint simplify VPXOR_128_8.
 
 (* -------------------------------------------------------------------- *)
-op x86_VPSHUFD_128_B (w : W128.t) (m : W8.t) (i : int) : W32.t =
-  let lvl  = BS2Int.bs2int (W8.slice (2 * i) 2 m) in
-  (unpack_4u32 (w `>>>` lvl)).`1.
+op x86_VPSHUFD_128_B (w : W32.t list) (m : W8.t) (i : int) : W32.t =
+  let m = W8.to_uint m in
+  let p = (m %/ (2^i))%%4 in
+  nth W32.zeros w p.
+
+op p4u32_l (w:p4u32) = [w.`1; w.`2; w.`3; w.`4].
 
 op x86_VPSHUFD_128 (w : W128.t) (m : W8.t) : W128.t =
-  pack_4u32 (x86_VPSHUFD_128_B w m 1,
+  let w = p4u32_l (unpack_4u32 w) in
+  pack_4u32 (x86_VPSHUFD_128_B w m 0,
+             x86_VPSHUFD_128_B w m 1,
              x86_VPSHUFD_128_B w m 2,
-             x86_VPSHUFD_128_B w m 3,
-             x86_VPSHUFD_128_B w m 4)
-  axiomatized by x86_VPSHUFD_128_E.
+             x86_VPSHUFD_128_B w m 3).
+
+hint simplify (W8.of_uintK, W8.to_uintK')@0.
+
+lemma powS_minus (x p:int) : 1 <= p => x ^ p  = x * x ^ (p-1).
+proof. smt (powS). qed.
+
+hint simplify pow_le0.
+hint simplify powS_minus@1.
+
+lemma pow2_1 : 2^1 = 2.
+proof. by move=> /=. qed.
+lemma pow2_2 : 2^2 = 4.
+proof. by move=> /=. qed.
+lemma pow2_3 : 2^3 = 8.
+proof. by move=> /=. qed.
+lemma pow2_4 : 2^4 = 16.
+proof. by move=> /=. qed.
+lemma pow2_8 : 2^8 = 256.
+proof. by move=> /=. qed.
+
+hint simplify (pow2_1, pow2_2, pow2_3, pow2_4, pow2_8)@0.
+
+(*
+lemma test w0 w1 w2 w3: x86_VPSHUFD_128 (pack_4u32 (w0, w1, w2, w3)) 
+             (W8.of_int (3 + 4 * (2 + 4 * (1 + 4 * 0)))) = 
+            pack_4u32 (w3, w2, w1, w0).
+cbv delta.
+cbv delta.
+cbv delta.
+cbv delta. 
+cbv delta.
+trivial.
+
+qed.
+*)
+
 
 (* -------------------------------------------------------------------- *)
 type p2u32 = W32.t * W32.t.
