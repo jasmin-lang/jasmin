@@ -1,6 +1,32 @@
 require import AllCore BitEncoding IntDiv SmtMap List StdOrder.
 (*---*) import CoreMap Map Ring.IntID IntOrder.
 
+lemma powS_minus (x p:int) : 1 <= p => x ^ p  = x * x ^ (p-1).
+proof. smt (powS). qed.
+
+hint simplify pow_le0.
+hint simplify powS_minus@1.
+
+lemma pow2_1 : 2^1 = 2.
+proof. by move=> /=. qed.
+lemma pow2_2 : 2^2 = 4.
+proof. by move=> /=. qed.
+lemma pow2_3 : 2^3 = 8.
+proof. by move=> /=. qed.
+lemma pow2_4 : 2^4 = 16.
+proof. by move=> /=. qed.
+lemma pow2_5 : 2^5 = 32.
+proof. by move=> /=. qed.
+lemma pow2_6 : 2^6 = 64.
+proof. by move=> /=. qed.
+lemma pow2_7 : 2^7 = 128.
+proof. by move=> /=. qed.
+lemma pow2_8 : 2^8 = 256.
+proof. by move=> /=. qed.
+
+hint simplify (pow2_1, pow2_2, pow2_3, pow2_4, pow2_5, pow2_6, pow2_7, pow2_8)@0.
+
+
 (*sopn_tin, sopn_tout*)
 abstract theory W.
 
@@ -172,6 +198,8 @@ theory W8.
   op addc_8: t -> t -> bool -> (bool * t).
 end W8.
 export W8. 
+
+hint simplify (W8.of_uintK, W8.to_uintK')@0.
  
 theory W16.
   clone include W with op size = 16.
@@ -522,7 +550,7 @@ hint simplify VPXOR_128_8.
 (* -------------------------------------------------------------------- *)
 op x86_VPSHUFD_128_B (w : W32.t list) (m : W8.t) (i : int) : W32.t =
   let m = W8.to_uint m in
-  let p = (m %/ (2^i))%%4 in
+  let p = (m %/ (2^(2*i)))%%4 in
   nth W32.zeros w p.
 
 op p4u32_l (w:p4u32) = [w.`1; w.`2; w.`3; w.`4].
@@ -534,41 +562,14 @@ op x86_VPSHUFD_128 (w : W128.t) (m : W8.t) : W128.t =
              x86_VPSHUFD_128_B w m 2,
              x86_VPSHUFD_128_B w m 3).
 
-hint simplify (W8.of_uintK, W8.to_uintK')@0.
-
-lemma powS_minus (x p:int) : 1 <= p => x ^ p  = x * x ^ (p-1).
-proof. smt (powS). qed.
-
-hint simplify pow_le0.
-hint simplify powS_minus@1.
-
-lemma pow2_1 : 2^1 = 2.
-proof. by move=> /=. qed.
-lemma pow2_2 : 2^2 = 4.
-proof. by move=> /=. qed.
-lemma pow2_3 : 2^3 = 8.
-proof. by move=> /=. qed.
-lemma pow2_4 : 2^4 = 16.
-proof. by move=> /=. qed.
-lemma pow2_8 : 2^8 = 256.
-proof. by move=> /=. qed.
-
-hint simplify (pow2_1, pow2_2, pow2_3, pow2_4, pow2_8)@0.
-
 (*
 lemma test w0 w1 w2 w3: x86_VPSHUFD_128 (pack_4u32 (w0, w1, w2, w3)) 
              (W8.of_int (3 + 4 * (2 + 4 * (1 + 4 * 0)))) = 
             pack_4u32 (w3, w2, w1, w0).
 cbv delta.
-cbv delta.
-cbv delta.
-cbv delta. 
-cbv delta.
-trivial.
-
+done.
 qed.
 *)
-
 
 (* -------------------------------------------------------------------- *)
 type p2u32 = W32.t * W32.t.
@@ -583,8 +584,9 @@ op pack_2u32 (w:p2u32) =
   axiomatized by pack_2u32_E.
 
 axiom pack_unpack_2u32 w : pack_2u32 (unpack_2u32 w) = w.
-axiom unpack_pack_2u32 w0 w1 : 
-  unpack_2u32 (pack_2u32(w0, w1)) = (w0, w1).
+axiom unpack_pack_2u32 w : unpack_2u32 (pack_2u32 w) = w.
+
+hint simplify (pack_unpack_2u32, unpack_pack_2u32)@0.
 
 op mulu_64 (w1 w2 : W64.t) = 
   let (w10, w11) = unpack_2u32 w1 in
@@ -604,9 +606,9 @@ op pack_2u64 (w : p2u64) : W128.t =
   axiomatized by pack_2u64_E. 
 
 axiom pack_unpack_2u64 w : pack_2u64 (unpack_2u64 w) = w.
+axiom unpack_pack_2u64 w : unpack_2u64 (pack_2u64 w) = w.
 
-axiom unpack_pack_2u64 w0 w1 : 
-  unpack_2u64 (pack_2u64(w0, w1)) = (w0, w1).
+hint simplify (pack_unpack_2u64, unpack_pack_2u64)@0.
 
 op map_2u64 (f : W64.t -> W64.t) (w : p2u64) : p2u64 =
   (f w.`1, f w.`2).
@@ -618,19 +620,19 @@ op x86_VPADD_2u64 (w1 : W128.t) (w2:W128.t) =
    pack_2u64 (map2_2u64 W64.(+) (unpack_2u64 w1) (unpack_2u64 w2)).
 
 op x86_VPEXTR_64 (w:W128.t) (i:W8.t) = 
-  let (w1,w0) = unpack_2u64 w in
+  let (w0,w1) = unpack_2u64 w in
   if i = W8.of_int 0 then w0 
   else if i = W8.of_int 1 then w1 
   else W64.of_int 0.
 
 op x86_VPINSR_2u64 (v1:W128.t) (v2:W64.t) (i:W8.t) = 
-  let (w1,w0) = unpack_2u64 v1 in
-  if i = W8.of_int 0 then pack_2u64 (w1, v2) 
-  else if i = W8.of_int 1 then pack_2u64 (v2, w0)
+  let (w0,w1) = unpack_2u64 v1 in
+  if i = W8.of_int 0 then pack_2u64 (v2, w1)
+  else if i = W8.of_int 1 then pack_2u64 (w0, v2)
   else v1.
 
 op x86_MOVD_64 (v:W64.t) = 
-  pack_2u64 (W64.of_int 0, v). 
+  pack_2u64 (v, W64.zeros). 
 
 op x86_VPUNPCKL_2u64 (w1 w2: W128.t) = 
   let (w10, w11) = unpack_2u64 w1 in
@@ -663,6 +665,10 @@ axiom VPAND_128_64 (w10 w11 w20 w21):
 axiom VPOR_128_64 (w10 w11 w20 w21):
   pack_2u64(w10,w11) `|` pack_2u64(w20,w21) = 
   pack_2u64(w10 `|` w20, w11 `|` w21).
+
+axiom VPXOR_128_64 (w10 w11 w20 w21):
+  pack_2u64(w10,w11) `^` pack_2u64(w20,w21) = 
+  pack_2u64(w10 `^` w20, w11 `^` w21).
 
 (* ------------------------------------------ *)
 
