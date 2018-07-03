@@ -203,8 +203,19 @@ let pp_params env fmt params =
     (pp_list ",@ " (pp_vdecl env)) params 
 
 let pp_locals env fmt locals = 
+  let locarr = 
+    List.filter (fun x -> match x.v_ty with Arr _ -> true | _ -> false) 
+      locals in
+  let locarr = 
+    List.sort (fun x1 x2 -> compare x1.v_name x2.v_name) locarr in
+
   let pp_loc fmt x = Format.fprintf fmt "var %a;" (pp_vdecl env) x in
-  (pp_list "@ " pp_loc) fmt locals
+  let pp_init fmt x = 
+    let (sz,n) = match x.v_ty with Arr (sz,n) -> sz,n | _ -> assert false in
+    Format.fprintf fmt "%a <- %a;" (pp_var env) x (pp_expr env) (Parr_init(sz,B.of_int n)) in
+  Format.fprintf fmt "%a@ %a" 
+  (pp_list "@ " pp_loc) locals
+  (pp_list "@ " pp_init) locarr 
 
 let pp_rty b fmt tys =
   if b then
