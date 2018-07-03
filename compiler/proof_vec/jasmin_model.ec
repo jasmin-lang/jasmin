@@ -15,6 +15,7 @@ hint exact : size_gt0 size_ge0.
 
 op of_int : int -> t.
 op to_int : t -> int.
+op to_uint : t -> int.
 
 op mk   : bool list -> t.
 op repr : t -> bool list.
@@ -179,7 +180,7 @@ theory W32.
   op (`>>`) : t -> W8.t -> t.
   op (`<<`) : t -> W8.t -> t.
 
-  op mulu_32   : t -> t -> (t * t).
+  op mulu_32   : t -> t -> (t * t). (* low bits first *)
   op addc_32: t -> t -> bool -> (bool * t).
 end W32.
 export W32.
@@ -190,7 +191,7 @@ theory W64.
   op (`>>`) : t -> W8.t -> t.
   op (`<<`) : t -> W8.t -> t.
 
-  op mulu_64: t -> t -> (t*t).
+  op mulu_64: t -> t -> (t*t). (* low bits first *)
   op addc_64: t -> t -> bool -> (bool * t).
 end W64. 
 export W64.
@@ -312,7 +313,7 @@ type global_mem_t = {
    gm8  : (address,   W8.t) map;
 }.
 op loadW8   (m : global_mem_t) (a : address) = m.`gm8  .[a].
-op loadW162  (m : global_mem_t) (a : address) = m.`gm16 .[a].
+op loadW16  (m : global_mem_t) (a : address) = m.`gm16 .[a].
 op loadW32  (m : global_mem_t) (a : address) = m.`gm32 .[a].
 op loadW64  (m : global_mem_t) (a : address) = m.`gm64 .[a].
 op loadW128 (m : global_mem_t) (a : address) = m.`gm128.[a].
@@ -336,20 +337,30 @@ op storeW128 (m : global_mem_t) (a : address) (w : W128.t) =
 type p4u32 = W32.t * W32.t * W32.t * W32.t.
 
 op unpack_4u32 (w : W128.t) : p4u32 =
-  (W32.mk (W128.slice 96 32 w),
-   W32.mk (W128.slice 64 32 w),
+  (W32.mk (W128.slice  0 32 w), 
    W32.mk (W128.slice 32 32 w),
-   W32.mk (W128.slice  0 32 w)).
+   W32.mk (W128.slice 64 32 w),
+   W32.mk (W128.slice 96 32 w) )
+  axiomatized by unpack_4u32_E.
 
 op pack_4u32 (w : p4u32) : W128.t =
-  W128.mk (W32.repr w.`1 ++ W32.repr w.`2 ++ W32.repr w.`3 ++ W32.repr w.`4).
+  W128.mk (W32.repr w.`1 ++ W32.repr w.`2 ++ W32.repr w.`3 ++ W32.repr w.`4)
+  axiomatized by pack_4u32_E.
+
+axiom pack_unpack_4u32 w : pack_4u32 (unpack_4u32 w) = w.
+
+axiom unpack_pack_4u32 w0 w1 w2 w3 : 
+  unpack_4u32 (pack_4u32 (w0, w1, w2, w3)) = (w0, w1, w2, w3).
+
+hint simplify pack_unpack_4u32.
+hint simplify unpack_pack_4u32.
 
 op map_4u32 (f : W32.t -> W32.t) (w : p4u32) : p4u32 =
   (f w.`1, f w.`2, f w.`3, f w.`4).
 
 (* -------------------------------------------------------------------- *)
 op x86_MOVD_32 (x : W32.t) =
-  pack_4u32 (W32.of_int 0, W32.of_int 0, W32.of_int 0, x)
+  pack_4u32 (x, W32.of_int 0, W32.of_int 0, W32.of_int 0)
   axiomatized by x86_MOVD_32_E.
 
 op x86_ROL_32 (x : W32.t) (cnt : W8.t) =
@@ -358,7 +369,6 @@ op x86_ROL_32 (x : W32.t) (cnt : W8.t) =
   let OF = Logic.(^) CF (head true result) in
   (CF, OF, W32.mk result)
   axiomatized by x86_ROL_32_E.
-
 
 (*op x86_SHLD_64 (x:W64.t) (y:W64.t) (cnt:W8.t)=
 let result = (drop (to_int cnt) (repr x)) ++ (take (32 - (to_int cnt)) (repr y)) in
@@ -385,13 +395,11 @@ op x86_SHRD_64 :
 (* -------------------------------------------------------------------- *)
 op x86_VPSLL_4u32 (w : W128.t) (cnt : W8.t) =
   let f = fun w : W32.t => w `<<` cnt in
-  pack_4u32 (map_4u32 f (unpack_4u32 w))
-  axiomatized by x86_VPSLL_4u32_E.
+  pack_4u32 (map_4u32 f (unpack_4u32 w)).
 
 op x86_VPSRL_4u32 (w : W128.t) (cnt : W8.t) =
   let f = fun w : W32.t => w `>>`  cnt in
-  pack_4u32 (map_4u32 f (unpack_4u32 w))
-  axiomatized by x86_VPSRL_4u32_E.
+  pack_4u32 (map_4u32 f (unpack_4u32 w)).
 
 (* -------------------------------------------------------------------- *)
 op x86_VPSHUFB_128_B (w m : W128.t) (i : int) =
@@ -399,6 +407,7 @@ op x86_VPSHUFB_128_B (w m : W128.t) (i : int) =
   let idx = BS2Int.bs2int (W128.slice (i * 8) 4 m) in
   W8.mk (W128.slice idx 8 w).
 
+(* FIXME : should we really do the rev ? *)
 op x86_VPSHUFB_128 (w m : W128.t) : W128.t =
   W128.mk (flatten (rev (map (W8.repr \o x86_VPSHUFB_128_B w m) (range 0 15))))
   axiomatized by x86_VPSHUFB_128_E.
@@ -409,36 +418,49 @@ op x86_VPSHUFD_128_B (w : W128.t) (m : W8.t) (i : int) : W32.t =
   (unpack_4u32 (w `>>>` lvl)).`1.
 
 op x86_VPSHUFD_128 (w : W128.t) (m : W8.t) : W128.t =
-  pack_4u32 (x86_VPSHUFD_128_B w m 4,
-             x86_VPSHUFD_128_B w m 3,
+  pack_4u32 (x86_VPSHUFD_128_B w m 1,
              x86_VPSHUFD_128_B w m 2,
-             x86_VPSHUFD_128_B w m 1)
+             x86_VPSHUFD_128_B w m 3,
+             x86_VPSHUFD_128_B w m 4)
   axiomatized by x86_VPSHUFD_128_E.
-
 
 (* -------------------------------------------------------------------- *)
 type p2u32 = W32.t * W32.t.
+
 op unpack_2u32 (w:W64.t) = 
-  (W32.mk (W64.slice 32 32 w),
-   W32.mk (W64.slice 0 32 w)).
+  ( W32.mk (W64.slice 0 32 w), 
+    W32.mk (W64.slice 32 32 w) )
+  axiomatized by unpack_2u32_E.
 
 op pack_2u32 (w:p2u32) = 
-  W64.mk (W32.repr w.`1 ++ W32.repr w.`2).
+  W64.mk (W32.repr w.`1 ++ W32.repr w.`2)
+  axiomatized by pack_2u32_E.
+
+axiom pack_unpack_2u32 w : pack_2u32 (unpack_2u32 w) = w.
+axiom unpack_pack_2u32 w0 w1 : 
+  unpack_2u32 (pack_2u32(w0, w1)) = (w0, w1).
 
 op mulu_64 (w1 w2 : W64.t) = 
-  let (w11, w10) = unpack_2u32 w1 in
-  let (w21, w20) = unpack_2u32 w2 in
+  let (w10, w11) = unpack_2u32 w1 in
+  let (w20, w21) = unpack_2u32 w2 in
   pack_2u32 (W32.mulu_32 w10 w20). 
  
 (* -------------------------------------------------------------------- *)
 type p2u64 = W64.t * W64.t.
 
 op unpack_2u64 (w : W128.t) : p2u64 =
-  (W64.mk (W128.slice 64 64 w),
-   W64.mk (W128.slice 0 64 w)).
+  ( W64.mk (W128.slice 0 64 w),
+    W64.mk (W128.slice 64 64 w) )
+  axiomatized by unpack_2u64_E. 
 
 op pack_2u64 (w : p2u64) : W128.t =
-  W128.mk (W64.repr w.`1 ++ W64.repr w.`2).
+  W128.mk (W64.repr w.`1 ++ W64.repr w.`2)
+  axiomatized by pack_2u64_E. 
+
+axiom pack_unpack_2u64 w : pack_2u64 (unpack_2u64 w) = w.
+
+axiom unpack_pack_2u64 w0 w1 : 
+  unpack_2u64 (pack_2u64(w0, w1)) = (w0, w1).
 
 op map_2u64 (f : W64.t -> W64.t) (w : p2u64) : p2u64 =
   (f w.`1, f w.`2).
@@ -447,47 +469,40 @@ op map2_2u64 (f : W64.t -> W64.t -> W64.t) (w1 w2 : p2u64) : p2u64 =
   (f w1.`1 w2.`1, f w1.`2 w2.`2).
 
 op x86_VPADD_2u64 (w1 : W128.t) (w2:W128.t) = 
-   pack_2u64 (map2_2u64 W64.(+) (unpack_2u64 w1) (unpack_2u64 w2))
- axiomatized by x86_VPADD_2u64_E.
+   pack_2u64 (map2_2u64 W64.(+) (unpack_2u64 w1) (unpack_2u64 w2)).
 
 op x86_VPEXTR_64 (w:W128.t) (i:W8.t) = 
   let (w1,w0) = unpack_2u64 w in
   if i = W8.of_int 0 then w0 
   else if i = W8.of_int 1 then w1 
-  else W64.of_int 0
-  axiomatized by x86_VPEXTR_64_E.
+  else W64.of_int 0.
 
 op x86_VPINSR_2u64 (v1:W128.t) (v2:W64.t) (i:W8.t) = 
   let (w1,w0) = unpack_2u64 v1 in
   if i = W8.of_int 0 then pack_2u64 (w1, v2) 
   else if i = W8.of_int 1 then pack_2u64 (v2, w0)
-  else v1
-  axiomatized by x86_VPINSR_2u64_E.
+  else v1.
 
 op x86_MOVD_64 (v:W64.t) = 
   pack_2u64 (W64.of_int 0, v). 
 
 op x86_VPUNPCKL_2u64 (w1 w2: W128.t) = 
-  let (w11, w10) = unpack_2u64 w1 in
-  let (w21, w20) = unpack_2u64 w2 in
-  pack_2u64 (w20, w10)
-  axiomatized by x86_VPUNPCKL_2u64_E.
+  let (w10, w11) = unpack_2u64 w1 in
+  let (w20, w21) = unpack_2u64 w2 in
+  pack_2u64 (w10, w20).
 
 op x86_VPUNPCKH_2u64 (w1 w2: W128.t) = 
-  let (w11, w10) = unpack_2u64 w1 in
-  let (w21, w20) = unpack_2u64 w2 in
-  pack_2u64 (w21, w11)
-  axiomatized by x86_VPUNPCKH_2u64_E.
+  let (w10, w11) = unpack_2u64 w1 in
+  let (w20, w21) = unpack_2u64 w2 in
+  pack_2u64 (w11, w21).
 
 op x86_VPSLL_2u64 (w:W128.t) (cnt:W8.t) = 
   let f = fun w : W64.t => w `<<`  cnt in
-  pack_2u64 (map_2u64 f (unpack_2u64 w))
-  axiomatized by x86_VPSLL_2u64_E.
+  pack_2u64 (map_2u64 f (unpack_2u64 w)).
 
 op x86_VPSRL_2u64 (w:W128.t) (cnt:W8.t) = 
   let f = fun w : W64.t => w `>>`  cnt in
-  pack_2u64 (map_2u64 f (unpack_2u64 w))
-  axiomatized by x86_VPSRL_2u64_E.
+  pack_2u64 (map_2u64 f (unpack_2u64 w)).
 
 op x86_VPAND_128 = W128.(`&`).
 op x86_VPOR_128 = W128.(`|`).
@@ -495,6 +510,13 @@ op x86_VPOR_128 = W128.(`|`).
 op x86_VPMULU_128 (w1 w2: W128.t) = 
   pack_2u64 (map2_2u64 mulu_64 (unpack_2u64 w1) (unpack_2u64 w2)).
 
+axiom VPAND_128_64 (w10 w11 w20 w21):
+  pack_2u64(w10,w11) `&` pack_2u64(w20,w21) = 
+  pack_2u64(w10 `&` w20, w11 `&` w21).
+
+axiom VPOR_128_64 (w10 w11 w20 w21):
+  pack_2u64(w10,w11) `|` pack_2u64(w20,w21) = 
+  pack_2u64(w10 `|` w20, w11 `|` w21).
 
 (* ------------------------------------------ *)
 
