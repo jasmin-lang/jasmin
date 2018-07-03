@@ -21,14 +21,16 @@ module Ms = Map.Make(Scmp)
 type env = {
     alls : Ss.t;
     vars : string Mv.t;
-    fmem : Sf.t;
+    rmem : Sf.t;
+    wmem : Sf.t;
     glob : (string * Type.stype) Ms.t
   }
 
 let empty_env = {
     alls = Ss.empty;
     vars = Mv.empty;
-    fmem = Sf.empty;
+    rmem = Sf.empty;
+    wmem = Sf.empty;
     glob = Ms.empty;
   }
 
@@ -276,25 +278,25 @@ and pp_instr env fmt i =
       (pp_lvals env) lvs pp_opn op 
       (pp_list "@ " (pp_expr env)) es
   | Ccall(_, lvs, f, es) ->
-    if Sf.mem f env.fmem then
-      let pp_vars fmt lvs = 
+    let pp_vars fmt lvs = 
+      if Sf.mem f env.wmem then
         if lvs = [] then
           Format.fprintf fmt "global_mem"
         else 
-          Format.fprintf fmt "(global_mem, %a)" (pp_list ",@ " (pp_lval env)) lvs in
-      let pp_args fmt es = 
+          Format.fprintf fmt "(global_mem, %a)" 
+            (pp_list ",@ " (pp_lval env)) lvs 
+      else pp_lvals env fmt lvs in
+    let pp_args fmt es = 
+      if Sf.mem f env.rmem then
         if es = [] then
           Format.fprintf fmt "global_mem"
         else 
-          Format.fprintf fmt "global_mem, %a" (pp_list ",@ " (pp_expr env)) es in
-        
-      Format.fprintf fmt "@[%a <%@ %s (%a);@]"
-        pp_vars lvs f.fn_name 
-        pp_args es
-    else 
+          Format.fprintf fmt "global_mem, %a" (pp_list ",@ " (pp_expr env)) es 
+      else pp_list ",@ " (pp_expr env) fmt es in
+    
     Format.fprintf fmt "@[%a <%@ %s (%a);@]"
-      (pp_lvals env) lvs f.fn_name 
-      (pp_list ",@ " (pp_expr env)) es
+        pp_vars lvs f.fn_name pp_args es
+
   | Cif(e,c1,c2) ->
     Format.fprintf fmt "@[<v>if (%a) {@   %a@ } else {@   %a@ }@]"
       (pp_expr env) e (pp_cmd env) c1 (pp_cmd env) c2
@@ -313,38 +315,58 @@ and pp_instr env fmt i =
       (pp_var env) (L.unloc i) (pp_var env) (L.unloc i) 
       (if d = UpTo then "+" else "-")
 
-
-
-let rec use_mem_e = function
+let rec read_mem_e = function
   | Pconst _ | Pbool _ | Parr_init _ |Pvar _ | Pglobal _ -> false
   | Pload _ -> true
-  | Pcast (_, e) | Papp1 (_, e) | Pget (_, e) -> use_mem_e e  
-  | Papp2 (_, e1, e2) -> use_mem_e e1 || use_mem_e e2
-  | Pif  (e1, e2, e3) -> use_mem_e e1 || use_mem_e e2 || use_mem_e e3
+  | Pcast (_, e) | Papp1 (_, e) | Pget (_, e) -> read_mem_e e  
+  | Papp2 (_, e1, e2) -> read_mem_e e1 || read_mem_e e2
+  | Pif  (e1, e2, e3) -> read_mem_e e1 || read_mem_e e2 || read_mem_e e3
 
-let use_mem_es = List.exists use_mem_e
+let read_mem_es = List.exists read_mem_e
 
-let use_mem_lval = function
+let read_mem_lval = function
   | Lnone _ | Lvar _ -> false
+  | Lmem (_,_,_) -> true 
+  | Laset (_, e) -> read_mem_e e
+
+let write_mem_lval = function
+  | Lnone _ | Lvar _ | Laset _ -> false
   | Lmem _ -> true
-  | Laset (_, e) -> use_mem_e e
 
-let use_mem_lvals = List.exists use_mem_lval
+let read_mem_lvals = List.exists read_mem_lval
+let write_mem_lvals = List.exists write_mem_lval
 
-let rec use_mem_i s i =
+let rec read_mem_i s i =
   match i.i_desc with
-  | Cassgn (x, _, _, e) -> use_mem_lval x || use_mem_e e
-  | Copn (xs, _, _, es) -> use_mem_lvals xs || use_mem_es es
-  | Cif (e, c1, c2)     -> use_mem_e e || use_mem_c s c1 || use_mem_c s c2
-  | Cwhile (c1, e, c2)  -> use_mem_c s c1 || use_mem_e e || use_mem_c s c2
-  | Ccall (_, xs, fn, es) -> use_mem_lvals xs || Sf.mem fn s || use_mem_es es
-  | Cfor (_, (_, e1, e2), c) -> use_mem_e e1 || use_mem_e e2 || use_mem_c s c
+  | Cassgn (x, _, _, e) -> read_mem_lval x || read_mem_e e
+  | Copn (xs, _, _, es) -> read_mem_lvals xs || read_mem_es es
+  | Cif (e, c1, c2)     -> read_mem_e e || read_mem_c s c1 || read_mem_c s c2
+  | Cwhile (c1, e, c2)  -> read_mem_c s c1 || read_mem_e e || read_mem_c s c2
+  | Ccall (_, xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es
+  | Cfor (_, (_, e1, e2), c) -> read_mem_e e1 || read_mem_e e2 || read_mem_c s c
 
-and use_mem_c s = List.exists (use_mem_i s)
+and read_mem_c s = List.exists (read_mem_i s)
 
-let use_mem_f s f = use_mem_c s f.f_body
+let read_mem_f s f = read_mem_c s f.f_body
 
-let init_use fs = List.fold_left (fun s f -> if use_mem_f s f then Sf.add f.f_name s else s) Sf.empty fs
+let rec write_mem_i s i =
+  match i.i_desc with
+  | Cassgn (x, _, _, _)  -> write_mem_lval x 
+  | Copn (xs, _, _, _)   -> write_mem_lvals xs 
+  | Cif (_, c1, c2)      -> write_mem_c s c1 ||write_mem_c s c2
+  | Cwhile (c1, _, c2)   -> write_mem_c s c1 ||write_mem_c s c2
+  | Ccall (_, xs, fn, _) -> write_mem_lvals xs || Sf.mem fn s 
+  | Cfor (_, _, c)       -> write_mem_c s c 
+
+and write_mem_c s = List.exists (write_mem_i s)
+
+let write_mem_f s f = write_mem_c s f.f_body
+
+let init_use fs = 
+  let add t s f = if t s f then Sf.add f.f_name s else s in
+  List.fold_left 
+    (fun (sr,sw) f -> add read_mem_f sr f, add write_mem_f sw f)
+    (Sf.empty, Sf.empty) fs
 
 let pp_fun env fmt f = 
   let locals = Sv.elements (locals f) in
@@ -352,17 +374,17 @@ let pp_fun env fmt f =
   let env = List.fold_left add_var env f.f_args in
   let env = List.fold_left add_var env locals in  
   (* Print the function *)
-  let b = Sf.mem f.f_name env.fmem in 
   let pp_args fmt a =
-    if b then
+    if Sf.mem f.f_name env.rmem then
       if a = [] then
         Format.fprintf fmt "global_mem : global_mem_t"
       else
-      Format.fprintf fmt "global_mem : global_mem_t, %a"
-        (pp_params env) a
+        Format.fprintf fmt "global_mem : global_mem_t, %a"
+          (pp_params env) a
     else (pp_params env) fmt a
   in
 
+  let b = Sf.mem f.f_name env.wmem in
   Format.fprintf fmt 
     "@[<v>proc %s (%a) : %a = {@   @[<v>%a@ %a@ %a@]@ }@]"
     f.f_name.fn_name 
@@ -377,11 +399,11 @@ let pp_glob_decl env fmt (ws,x, z) =
     (pp_glob env) x pp_Tsz ws B.pp_print z
 
 let pp_prog fmt globs funcs = 
-  let fmem = init_use funcs in
+  let rmem, wmem = init_use funcs in
   let env = 
     List.fold_left (fun env (ws, x, _) -> add_glob env x ws)
       empty_env globs in
-  let env = {env with fmem} in
+  let env = {env with rmem; wmem} in
   Format.fprintf fmt "@[<v>require import Jasmin_model Int IntDiv CoreMap.@ @ %a@ @ module M = {@   @[<v>%a@]@ }.@ @]@." 
     (pp_list "@ @ " (pp_glob_decl env)) globs 
     (pp_list "@ @ " (pp_fun env)) funcs 
