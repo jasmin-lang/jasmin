@@ -34,10 +34,6 @@ Cd  "lang/ocaml".
 
 Extraction Blacklist String List Nat Utils Var Array.
 
-Extract Constant low_memory.Memory.mem       => "OcamlMem.mem".
-Extract Constant low_memory.Memory.write_mem => "OcamlMem.write_mem".
-Extract Constant low_memory.Memory.read_mem  => "OcamlMem.read_mem".
-
 Separate Extraction utils expr sem compiler.
 
 Cd  "../..".

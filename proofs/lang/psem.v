@@ -138,8 +138,6 @@ Definition set_var (m:vmap) x v : exec vmap :=
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
-Import Memory.
-
 Record estate := Estate {
   emem : mem;
   evm  : vmap

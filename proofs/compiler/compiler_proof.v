@@ -118,7 +118,7 @@ Lemma compile_progP entries (p: prog) (gd:glob_decls) (lp: lprog) mem fn va mem'
   fn \in entries ->
   sem.sem_call p mem fn va mem' vr ->
   (forall f, get_fundef lp fn = Some f -> 
-     exists p, Memory.alloc_stack mem (lfd_stk_size f) = ok p) ->
+     exists p, alloc_stack mem (lfd_stk_size f) = ok p) ->
   ∃ mem2' vr',
     List.Forall2 value_uincl vr vr' ∧
     eq_mem mem' mem2' ∧
@@ -174,7 +174,7 @@ Lemma compile_prog_to_x86P entries (p: prog) (gd: glob_decls) (xp: xprog) m1 fn 
   fn \in entries →
   sem.sem_call p m1 fn va m2 vr →
   (∀ f, get_fundef xp fn = Some f →
-     ∃ p, Memory.alloc_stack m1 (xfd_stk_size f) = ok p) →
+     ∃ p, alloc_stack m1 (xfd_stk_size f) = ok p) →
   ∃ fd va',
     get_fundef (p_funcs p) fn = Some fd ∧
     mapM2 ErrType truncate_val (f_tyin fd) va = ok va' ∧

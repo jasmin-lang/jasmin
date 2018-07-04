@@ -46,6 +46,8 @@ lang/array.v
 lang/expr.v
 lang/extraction.v
 lang/gen_map.v
+lang/memory_example.v
+lang/memory_model.v
 lang/low_memory.v
 lang/sem.v
 lang/psem.v

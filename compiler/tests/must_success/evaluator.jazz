@@ -24,7 +24,7 @@ inline fn mem() -> reg u64 {
   reg u64 r;
   reg u64 p;
 
-  p = 0xFF;
+  p = 0x100;
 
   [ p + 0] = 255;
   r = [ p + 0];
@@ -38,10 +38,10 @@ inline fn mem1() -> reg u32 {
   reg u32 r;
   reg u64 p;
 
-  p = 0xFF;
+  p = 0x100;
 
   [ p + 0 ] = 255;
-  r = [ p + 4];
+  r = [ p + 8];
 
   return r;
 }

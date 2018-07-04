@@ -81,7 +81,7 @@ Definition size_of (t:stype) :=
 Definition aligned_for (ty: stype) (ofs: Z) : bool :=
   match ty with
   | sarr sz _
-  | sword sz => Memory.is_align (wrepr _ ofs) sz
+  | sword sz => is_align (wrepr _ ofs) sz
   | sbool | sint => false
   end.
 

@@ -319,7 +319,7 @@ Definition eval_low gd (m : x86_mem) (a : argument) : exec value :=
   | Aglob g => get_global gd g
   | Areg r  => ok (Vword (xreg m r))
   | Axreg r  => ok (Vword (xxreg m r))
-  | Aaddr sz a => Memory.read_mem (xmem m) (decode_addr m a) sz >>= fun v => ok (Vword v)
+  | Aaddr sz a => read_mem (xmem m) (decode_addr m a) sz >>= fun v => ok (Vword v)
   | Acondt c => value_of_bool (eval_cond c m.(xrf))
   end.
 

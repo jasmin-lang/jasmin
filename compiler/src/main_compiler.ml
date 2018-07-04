@@ -192,8 +192,12 @@ let main () =
     if to_exec <> [] then begin
         let exec f = 
           try 
-            let _m, vs = 
-              Evaluator.exec cprog (Conv.cfun_of_fun tbl f) OcamlMem.empty in
+            let _m, vs =
+              let mem = Low_memory.Memory.coq_M.init [
+                  Conv.int64_of_bi (Bigint.of_int 0x100), Conv.z_of_int 16
+                ]
+              in
+              Evaluator.exec cprog (Conv.cfun_of_fun tbl f) mem in
             Format.printf "@[<v>%a@]@."
               (pp_list "@ " Evaluator.pp_val) vs
           with Evaluator.Eval_error (ii,err) ->

@@ -310,8 +310,6 @@ Proof.
   by rewrite /sem_sop2; t_xrbindP => w1 ok_w1 w2 ok_w2 w3 ok_w3 <- {v}; exists w1, w2, w3.
 Qed.
 
-Import Memory.
-
 Record estate := Estate {
   emem : mem;
   evm  : vmap
