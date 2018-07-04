@@ -7,7 +7,7 @@ fn f() -> (reg u32, reg u32) {
   return (b,c);
 }
 
-exec f
+exec f ()
 
 inline fn ft() -> reg u32[2] {
   reg u32[2] t;
@@ -18,7 +18,7 @@ inline fn ft() -> reg u32[2] {
   return t;
 }
 
-exec ft
+exec ft ()
 
 inline fn mem() -> reg u64 {
   reg u64 r;
@@ -32,7 +32,7 @@ inline fn mem() -> reg u64 {
   return r;
 }
 
-exec mem
+exec mem (0x100 : 8)
 
 inline fn mem1() -> reg u32 {
   reg u32 r;
@@ -46,9 +46,4 @@ inline fn mem1() -> reg u32 {
   return r;
 }
 
-exec mem1
-
-
-
-
-
+exec mem1 (0x100 : 16)

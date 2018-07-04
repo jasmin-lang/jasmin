@@ -311,14 +311,17 @@ pglobal:
 
 (* -------------------------------------------------------------------- *)
 pexec:
-| EXEC name=ident { name }
+| EXEC pex_name=ident pex_mem=parens_tuple(range) { { pex_name ; pex_mem } }
+
+range:
+| ptr=INT COLON size=INT { ptr, size }
 
 (* -------------------------------------------------------------------- *)
 top:
 | x=pfundef { S.PFundef x }
 | x=pparam  { S.PParam  x }
 | x=pglobal { S.PGlobal x }
-| x=pexec   { S.Pexec   x } 
+| x=pexec   { S.Pexec   x }
 (* -------------------------------------------------------------------- *)
 module_:
 | pfs=loc(top)* EOF

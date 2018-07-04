@@ -192,14 +192,17 @@ let main () =
 
     let to_exec = Typing.Env.Exec.get env in
     if to_exec <> [] then begin
-        let exec f = 
-          try 
+        let exec (f, m) =
+          try
+            let pp_range fmt (ptr, sz) =
+              Format.fprintf fmt "%a:%a" B.pp_print ptr B.pp_print sz in
+            Format.printf "Evaluation of %s (@[<h>%a@]):@." f.fn_name
+              (pp_list ",@ " pp_range) m;
             let _m, vs =
-              let mem = Low_memory.Memory.coq_M.init [
-                  Conv.int64_of_bi (Bigint.of_int 0x100), Conv.z_of_int 16
-                ]
-              in
-              Evaluator.exec cprog (Conv.cfun_of_fun tbl f) mem in
+              m |>
+              List.map (fun (ptr, sz) -> Conv.int64_of_bi ptr, Conv.z_of_bi sz) |>
+              Low_memory.Memory.coq_M.init |>
+              Evaluator.exec cprog (Conv.cfun_of_fun tbl f) in
             Format.printf "@[<v>%a@]@."
               (pp_list "@ " Evaluator.pp_val) vs
           with Evaluator.Eval_error (ii,err) ->
