@@ -379,7 +379,6 @@ let pp_cast pp fmt (ty,ety,e) =
   else 
     Format.fprintf fmt "(zeroext_%a_%a %a)" 
       pp_size (wsize ety) pp_size (wsize ty) pp e
-
  
 let rec pp_expr env fmt (e:expr) = 
   match e with
@@ -511,11 +510,9 @@ let pp_leaks_for env fmt e1 e2 =
       (pp_expr env) e1 (pp_expr env) e2 
       (pp_list ";@ " (pp_expr env)) leaks
 
-let check_lval = function
-  | Lvar _ -> true 
-  | Lnone _ | Lmem _ | Laset _ -> false 
-  
-let check_lvals = List.for_all check_lval
+let check_lvals lvs = 
+  let leaks = List.fold_left leaks_lval [] lvs in
+  leaks = []
 
 let rec pp_cmd env fmt c = 
   Format.fprintf fmt "@[<v>%a@]"
