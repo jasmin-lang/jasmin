@@ -1,7 +1,6 @@
 require import Int IntDiv CoreMap Jasmin_model.
 require import Poly1305_avx_5x Poly1305_avx_5xp.
 
-
 equiv poly1305_avx_5x_5xp : 
   Poly1305_avx_5x.M.poly1305 ~ Poly1305_avx_5xp.M.poly1305 :
    ={arg} ==> ={res}.
