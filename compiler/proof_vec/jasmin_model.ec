@@ -389,8 +389,7 @@ axiom pack_unpack_4u32 w : pack_4u32 (unpack_4u32 w) = w.
 axiom unpack_pack_4u32 w : 
   unpack_4u32 (pack_4u32 w) = w.
 
-hint simplify pack_unpack_4u32.
-hint simplify unpack_pack_4u32.
+hint simplify (pack_unpack_4u32, unpack_pack_4u32)@0.
 
 op map_4u32 (f : W32.t -> W32.t) (w : p4u32) : p4u32 =
   (f w.`1, f w.`2, f w.`3, f w.`4).
@@ -410,9 +409,7 @@ axiom VPXOR_128_32 (w1 w2 : p4u32):
   (pack_4u32 w1 `^` pack_4u32 w2) = 
   pack_4u32 (map2_4u32 W32.(`^`) w1 w2).
 
-hint simplify VPAND_128_32.
-hint simplify VPOR_128_32.
-hint simplify VPXOR_128_32.
+hint simplify (VPAND_128_32, VPOR_128_32, VPXOR_128_32)@0.
 
 (* -------------------------------------------------------------------- *)
 op x86_MOVD_32 (x : W32.t) =
@@ -669,6 +666,8 @@ axiom VPOR_128_64 (w10 w11 w20 w21):
 axiom VPXOR_128_64 (w10 w11 w20 w21):
   pack_2u64(w10,w11) `^` pack_2u64(w20,w21) = 
   pack_2u64(w10 `^` w20, w11 `^` w21).
+
+hint simplify (VPAND_128_64, VPOR_128_64, VPXOR_128_64)@0.
 
 (* ------------------------------------------ *)
 

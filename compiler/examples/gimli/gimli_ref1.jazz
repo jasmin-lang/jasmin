@@ -46,7 +46,7 @@ fn gimli_body(stack u32[12] state) -> stack u32[12] {
      }
 
      if (round % 4) == 0 {
-       state[0] = state[0] ^ (0x9e377900 ^ round);
+       state[0] = state[0] ^ (0x9e377900 ^32u round);
      }      
    }
    return state;

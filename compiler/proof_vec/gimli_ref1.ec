@@ -4,10 +4,9 @@ require import Jasmin_model Int IntDiv CoreMap.
 
 module M = {
   proc rotate (x:W32.t, bits:int) : W32.t = {
-    var  _0:bool;
-    var  _1:bool;
     
-    ( _0,  _1, x) <- x86_ROL_32 x (W8.of_int bits);
+    
+    x <- ((x `<<` (W8.of_int bits)) `^` (x `>>` (W8.of_int (32 - bits))));
     return (x);
   }
   

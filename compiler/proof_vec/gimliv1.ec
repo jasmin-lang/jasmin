@@ -11,18 +11,14 @@ module M = {
     return (r);
   }
   
-  proc rotate (r:W128.t, count:int) : W128.t = {
+  proc rotate1 (r:W128.t, count:int) : W128.t = {
     var a:W128.t;
     var b:W128.t;
     
-    if ((count = 24)) {
-      r <- x86_VPSHUFB_128 r rotate24pattern;
-    } else {
-      a <@ shift (r, count);
-      count <- (32 - count);
-      b <- x86_VPSRL_4u32 r (W8.of_int count);
-      r <- (a `^` b);
-    }
+    a <@ shift (r, count);
+    count <- (32 - count);
+    b <- x86_VPSRL_4u32 r (W8.of_int count);
+    r <- (a `^` b);
     return (r);
   }
   
@@ -33,7 +29,7 @@ module M = {
     return (r);
   }
   
-  proc gimli_body (x:W128.t, y:W128.t, z:W128.t) : W128.t * W128.t * W128.t = {
+  proc gimli_body1 (x:W128.t, y:W128.t, z:W128.t) : W128.t * W128.t * W128.t = {
     var a:W128.t;
     var b:W128.t;
     var c:W128.t;
@@ -45,8 +41,8 @@ module M = {
     
     round <- 0;
     while (24 < round) {
-      x <@ rotate (x, 24);
-      y <@ rotate (y, 9);
+      x <@ rotate1 (x, 24);
+      y <@ rotate1 (y, 9);
       a <@ shift (z, 1);
       b <- (y `&` z);
       c <@ shift (b, 2);
