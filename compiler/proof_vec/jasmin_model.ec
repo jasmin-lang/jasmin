@@ -182,9 +182,13 @@ lemma bxorE (w1 w2 : t) (i : int) :
   0 <= i < size => (w1 `^` w2).[i] = (w1.[i] ^ w2.[i]).
 proof. by move=> szok; rewrite xorE blift2E szok. qed.
 
+axiom xor_zero_l x : zeros `^` x = x.
+axiom xor_zero_r x : x `^` zeros = x.
+
 op slice (i : int) (n : int) (w : t) =
   take n (drop i (repr w))
   axiomatized by sliceE.
+
 end W.
 
 (* example below *)

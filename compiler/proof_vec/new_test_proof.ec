@@ -5,6 +5,7 @@ hint simplify pow_le0.
 hint simplify powS_minus@1.
 hint simplify (pow2_1, pow2_2, pow2_3, pow2_4, pow2_5, pow2_6, pow2_7, pow2_8)@0.
 
+hint simplify (W32.xor_zero_l, W32.xor_zero_r)@0.
 hint simplify (W8.of_uintK, W8.to_uintK', W32.of_uintK, W32.to_uintK')@0.
 hint simplify (pack_unpack_4u32, unpack_pack_4u32)@0.
 hint simplify (VPAND_128_32, VPOR_128_32, VPXOR_128_32)@0.
@@ -25,19 +26,6 @@ proof.
   sim; do 2! (call rotate_ref_ref1; sim />).
 qed.
 
-axiom xor_zero_l x : W32.zeros `^` x = x.
-axiom xor_zero_r x : x `^` W32.zeros = x.
-
-hint simplify (xor_zero_l, xor_zero_r)@0.
-
-axiom rotate24E w :
-    x86_VPSHUFB_128  w (W128.of_int 16028905388486802350658220295983399425)
-  = x86_VPSLL_4u32 w (W8.of_int 24) `^` x86_VPSRL_4u32 w (W8.of_int 8).
-
-hint simplify xor_zero_l.
-hint simplify xor_zero_r.
-hint simplify rotate24E.
-
 equiv ref1_vec1 : Gimli_ref1.M.gimli_body ~ Gimliv1.M.gimli_body1 : 
    pack_4u32 (state.[0], state.[1], state.[2] , state.[3] ){1} = x{2} /\
    pack_4u32 (state.[4], state.[5], state.[6] , state.[7] ){1} = y{2} /\
@@ -53,6 +41,12 @@ proof.
   wp; skip => &m1 &m2 [#].
   cbv delta => 4!<- _ _; cbv delta => />.
 qed.
+
+axiom rotate24E w :
+    x86_VPSHUFB_128  w (W128.of_int 16028905388486802350658220295983399425)
+  = x86_VPSLL_4u32 w (W8.of_int 24) `^` x86_VPSRL_4u32 w (W8.of_int 8).
+
+hint simplify rotate24E.
 
 equiv vec1_vec : Gimliv1.M.gimli_body1 ~ Gimliv.M.gimli_body : 
    ={x,y,z} ==> ={res}.
