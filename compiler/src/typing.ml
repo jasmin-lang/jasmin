@@ -892,24 +892,9 @@ let arr_init xi =
   | _           -> 
     rs_tyerror ~loc:(L.loc xi) (InvalidType( x.P.v_ty, TPArray))
 
-let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (ty: P.pty) (e: P.pty P.gexpr) : 
+let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (ty: P.pty) (e: P.pty P.gexpr) :
   (P.pty, unit) P.ginstr_r =
-  match x with
-  | Lvar z ->
-    begin match (L.unloc z).v_ty with
-    | P.Arr (ws, n) ->
-    begin match e with
-    | Pvar y ->
-        let i = L.mk_loc (L.loc z) (P.PV.mk "i" P.Inline (Bty Int) (L.loc z)) in
-        Cfor(i, (UpTo, Pconst P.B.zero, n), [
-          let i_desc = P.Cassgn (Laset (z, Pvar i), AT_none, P.Bty (P.U ws), Pget (y, Pvar i)) in
-            { i_desc ; i_loc = L.loc z, [] ; i_info = () }
-           ])
-    | _ -> hierror "Array copy"
-    end
-    | _ -> Cassgn (x, tg, ty, e)
-    end
-  | _ -> Cassgn (x, tg, ty, e)
+  Cassgn (x, tg, ty, e)
 
 let rec is_constant e = 
   match e with 

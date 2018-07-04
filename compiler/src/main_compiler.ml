@@ -152,6 +152,8 @@ let main () =
     eprint Compiler.Typing Printer.pp_pprog pprog;
     if !typeonly then exit 0;
 
+    let pprog = Inline_array_copy.doit pprog in
+
     let prog = Subst.remove_params pprog in
     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
