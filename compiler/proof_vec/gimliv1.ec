@@ -1,4 +1,4 @@
-require import Jasmin_model Int IntDiv CoreMap.
+require import List Jasmin_model Int IntDiv CoreMap.
 
 abbrev rotate24pattern = W128.of_uint 16028905388486802350658220295983399425.
 
