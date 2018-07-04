@@ -897,12 +897,12 @@ let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (ty: P.pty) (e: P.pty P.gexp
   match x with
   | Lvar z ->
     begin match (L.unloc z).v_ty with
-    | P.Arr (_, n) ->
+    | P.Arr (ws, n) ->
     begin match e with
     | Pvar y ->
         let i = L.mk_loc (L.loc z) (P.PV.mk "i" P.Inline (Bty Int) (L.loc z)) in
         Cfor(i, (UpTo, Pconst P.B.zero, n), [
-          let i_desc = P.Cassgn (Laset (z, Pvar i), AT_none, P.Bty Int, Pget (y, Pvar i)) in
+          let i_desc = P.Cassgn (Laset (z, Pvar i), AT_none, P.Bty (P.U ws), Pget (y, Pvar i)) in
             { i_desc ; i_loc = L.loc z, [] ; i_info = () }
            ])
     | _ -> hierror "Array copy"
