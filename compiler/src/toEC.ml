@@ -409,13 +409,14 @@ let rec pp_cmd env fmt c =
 
 and pp_instr env fmt i = 
   match i.i_desc with 
-  | Cassgn (lv, _, _, e) ->
+  | Cassgn (lv, _, ty, e) ->
     begin match lv with
     | Lmem(ws, x, e1) ->
       Format.fprintf fmt "@[global_mem <- store%a global_mem %a %a;@]"
          pp_Tsz ws (pp_wcast env) (add64 x e1) (pp_wcast env) (Type.Coq_sword ws, e)
     | _ -> 
-       Format.fprintf fmt "@[%a <- %a;@]" (pp_lval env) lv (pp_expr env) e 
+       Format.fprintf fmt "@[%a <- %a;@]" (pp_lval env) lv 
+         (pp_wcast env) (Conv.cty_of_ty ty, e)
     end
   | Copn(lvs, _, op, es) ->
     Format.fprintf fmt "@[%a <- %a %a;@]"
