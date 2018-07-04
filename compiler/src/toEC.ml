@@ -19,12 +19,93 @@ module Ss = Set.Make(Scmp)
 module Ms = Map.Make(Scmp)
 
 type env = {
+    leaks : bool;
     alls : Ss.t;
     vars : string Mv.t;
     rmem : Sf.t;
     wmem : Sf.t;
     glob : (string * Type.stype) Ms.t
   }
+(* --------------------------------------------------------------- *)
+
+let rec read_mem_e = function
+  | Pconst _ | Pbool _ | Parr_init _ |Pvar _ | Pglobal _ -> false
+  | Pload _ -> true
+  | Pcast (_, e) | Papp1 (_, e) | Pget (_, e) -> read_mem_e e  
+  | Papp2 (_, e1, e2) -> read_mem_e e1 || read_mem_e e2
+  | Pif  (e1, e2, e3) -> read_mem_e e1 || read_mem_e e2 || read_mem_e e3
+
+let read_mem_es = List.exists read_mem_e
+
+let read_mem_lval = function
+  | Lnone _ | Lvar _ -> false
+  | Lmem (_,_,_) -> true 
+  | Laset (_, e) -> read_mem_e e
+
+let write_mem_lval = function
+  | Lnone _ | Lvar _ | Laset _ -> false
+  | Lmem _ -> true
+
+let read_mem_lvals = List.exists read_mem_lval
+let write_mem_lvals = List.exists write_mem_lval
+
+let rec read_mem_i s i =
+  match i.i_desc with
+  | Cassgn (x, _, _, e) -> read_mem_lval x || read_mem_e e
+  | Copn (xs, _, _, es) -> read_mem_lvals xs || read_mem_es es
+  | Cif (e, c1, c2)     -> read_mem_e e || read_mem_c s c1 || read_mem_c s c2
+  | Cwhile (c1, e, c2)  -> read_mem_c s c1 || read_mem_e e || read_mem_c s c2
+  | Ccall (_, xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es
+  | Cfor (_, (_, e1, e2), c) -> read_mem_e e1 || read_mem_e e2 || read_mem_c s c
+
+and read_mem_c s = List.exists (read_mem_i s)
+
+let read_mem_f s f = read_mem_c s f.f_body
+
+let rec write_mem_i s i =
+  match i.i_desc with
+  | Cassgn (x, _, _, _)  -> write_mem_lval x 
+  | Copn (xs, _, _, _)   -> write_mem_lvals xs 
+  | Cif (_, c1, c2)      -> write_mem_c s c1 ||write_mem_c s c2
+  | Cwhile (c1, _, c2)   -> write_mem_c s c1 ||write_mem_c s c2
+  | Ccall (_, xs, fn, _) -> write_mem_lvals xs || Sf.mem fn s 
+  | Cfor (_, _, c)       -> write_mem_c s c 
+
+and write_mem_c s = List.exists (write_mem_i s)
+
+let write_mem_f s f = write_mem_c s f.f_body
+
+let init_use fs = 
+  let add t s f = if t s f then Sf.add f.f_name s else s in
+  List.fold_left 
+    (fun (sr,sw) f -> add read_mem_f sr f, add write_mem_f sw f)
+    (Sf.empty, Sf.empty) fs
+
+(* ------------------------------------------------------------------- *)
+let add64 x e = 
+  (Type.Coq_sword Type.U64, Papp2 (E.Oadd ( E.Op_w Type.U64), Pvar x, e))
+
+type leakage = 
+  | LK_MemAccess of expr list
+  | LK_Branch of expr
+  | LK_For of expr * expr
+  | LK_unit of expr * expr
+
+let rec leaks_e_rec leaks e = 
+  match e with
+  | Pconst _ | Pbool _ | Parr_init _ |Pvar _ | Pglobal _ -> leaks
+  | Pload (_,x,e) -> snd (add64 x e) :: leaks_e_rec leaks e
+  | Pcast (_, e) | Papp1 (_, e) | Pget (_, e) -> leaks_e_rec leaks e
+  | Papp2 (_, e1, e2) -> leaks_e_rec (leaks_e_rec leaks e1) e2
+  | Pif  (e1, e2, e3) -> leaks_e_rec (leaks_e_rec (leaks_e_rec leaks e1) e2) e3
+
+let leaks_e e = leaks_e_rec [] e
+let leaks_es es = List.fold_left leaks_e_rec [] es
+
+let leaks_lval leaks = function
+  | Lnone _ | Lvar _ -> leaks
+  | Laset (_, e) -> leaks_e_rec leaks e
+  | Lmem (_, x,e) -> snd (add64 x e) :: leaks_e_rec leaks e
 
 (* FIXME: generate this list automatically *)
 let ec_keyword = 
@@ -170,7 +251,8 @@ let ec_keyword =
  ; "expect" ]
 
 
-let empty_env = {
+let empty_env leaks = {
+    leaks;
     alls = Ss.of_list ec_keyword;
     vars = Mv.empty;
     rmem = Sf.empty;
@@ -298,8 +380,6 @@ let pp_cast pp fmt (ty,ety,e) =
     Format.fprintf fmt "(zeroext_%a_%a %a)" 
       pp_size (wsize ety) pp_size (wsize ty) pp e
 
-let add64 x e = 
-  (Type.Coq_sword Type.U64, Papp2 (E.Oadd ( E.Op_w Type.U64), Pvar x, e))
  
 let rec pp_expr env fmt (e:expr) = 
   match e with
@@ -391,7 +471,7 @@ let pp_opn fmt op =
   Format.fprintf fmt "%s" s
 
 let pp_lval env fmt = function
-  | Lnone _ -> Format.fprintf fmt "_"
+  | Lnone _ -> assert false 
   | Lvar x -> pp_var env fmt (L.unloc x)
   | Lmem _  -> assert false
   | Laset (x,e) -> 
@@ -403,6 +483,40 @@ let pp_lvals env fmt xs =
   | [x] -> pp_lval env fmt x 
   | _   -> Format.fprintf fmt "(%a)" (pp_list ",@ " (pp_lval env)) xs
 
+let pp_leaks_assgn env fmt lv e =
+  if env.leaks then
+    let leaks = leaks_lval (leaks_e e) lv in
+    Format.fprintf fmt "leakages <- LeakExpr(@[[%a]@]) :: leakages;@ "
+      (pp_list ";@ " (pp_expr env)) leaks
+
+let pp_leaks_es env fmt es = 
+  if env.leaks then
+    let leaks = leaks_es es in
+    Format.fprintf fmt "leakages <- LeakExpr(@[[%a]@]) :: leakages;@ "
+      (pp_list ";@ " (pp_expr env)) leaks
+    
+let pp_leaks_if env fmt e = 
+  if env.leaks then
+    let leaks = leaks_e e in
+    Format.fprintf fmt 
+      "leakages <- LeakCond(%a) :: LeakExpr(@[[%a]@]) :: leakages;@ "
+      (pp_expr env) e
+      (pp_list ";@ " (pp_expr env)) leaks
+
+let pp_leaks_for env fmt e1 e2 = 
+  if env.leaks then
+    let leaks = leaks_es [e1;e2] in
+    Format.fprintf fmt 
+      "leakages <- LeakFor(%a,%a) :: LeakExpr(@[[%a]@]) :: leakages;@ "
+      (pp_expr env) e1 (pp_expr env) e2 
+      (pp_list ";@ " (pp_expr env)) leaks
+
+let check_lval = function
+  | Lvar _ -> true 
+  | Lnone _ | Lmem _ | Laset _ -> false 
+  
+let check_lvals = List.for_all check_lval
+
 let rec pp_cmd env fmt c = 
   Format.fprintf fmt "@[<v>%a@]"
    (pp_list "@ " (pp_instr env)) c
@@ -410,6 +524,7 @@ let rec pp_cmd env fmt c =
 and pp_instr env fmt i = 
   match i.i_desc with 
   | Cassgn (lv, _, ty, e) ->
+    pp_leaks_assgn env fmt lv e;
     begin match lv with
     | Lmem(ws, x, e1) ->
       Format.fprintf fmt "@[global_mem <- store%a global_mem %a %a;@]"
@@ -419,10 +534,14 @@ and pp_instr env fmt i =
         (pp_wcast env) (Conv.cty_of_ty ty, e)
     end
   | Copn(lvs, _, op, es) ->
+    assert (check_lvals lvs);
+    pp_leaks_es env fmt es; 
     Format.fprintf fmt "@[%a <- %a %a;@]"
       (pp_lvals env) lvs pp_opn op 
       (pp_list "@ " (pp_expr env)) es
   | Ccall(_, lvs, f, es) ->
+    assert (check_lvals lvs);
+    pp_leaks_es env fmt es; 
     let pp_vars fmt lvs = 
       if Sf.mem f env.wmem then
         if lvs = [] then
@@ -443,12 +562,18 @@ and pp_instr env fmt i =
         pp_vars lvs f.fn_name pp_args es
 
   | Cif(e,c1,c2) ->
+    pp_leaks_if env fmt e;
     Format.fprintf fmt "@[<v>if (%a) {@   %a@ } else {@   %a@ }@]"
       (pp_expr env) e (pp_cmd env) c1 (pp_cmd env) c2
   | Cwhile(c1, e,c2) ->
-    Format.fprintf fmt "@[<v>%a@ while (%a) {@   %a@ }@]"
-      (pp_cmd env) c1 (pp_expr env) e (pp_cmd env) (c2@c1)
+    let pp_leak fmt e = 
+      if env.leaks then Format.fprintf fmt "@ %a" (pp_leaks_if env) e in
+    Format.fprintf fmt "@[<v>%a%a@ while (%a) {@   %a%a@ }@]"
+      (pp_cmd env) c1 pp_leak e (pp_expr env) e 
+      (pp_cmd env) (c2@c1) pp_leak e
+
   | Cfor(i, (d,e1,e2), c) ->
+    pp_leaks_for env fmt e1 e2;
     let i1, i2 = 
       if d = UpTo then Pvar i, e2
       else e2, Pvar i in
@@ -460,58 +585,6 @@ and pp_instr env fmt i =
       (pp_var env) (L.unloc i) (pp_var env) (L.unloc i) 
       (if d = UpTo then "+" else "-")
 
-let rec read_mem_e = function
-  | Pconst _ | Pbool _ | Parr_init _ |Pvar _ | Pglobal _ -> false
-  | Pload _ -> true
-  | Pcast (_, e) | Papp1 (_, e) | Pget (_, e) -> read_mem_e e  
-  | Papp2 (_, e1, e2) -> read_mem_e e1 || read_mem_e e2
-  | Pif  (e1, e2, e3) -> read_mem_e e1 || read_mem_e e2 || read_mem_e e3
-
-let read_mem_es = List.exists read_mem_e
-
-let read_mem_lval = function
-  | Lnone _ | Lvar _ -> false
-  | Lmem (_,_,_) -> true 
-  | Laset (_, e) -> read_mem_e e
-
-let write_mem_lval = function
-  | Lnone _ | Lvar _ | Laset _ -> false
-  | Lmem _ -> true
-
-let read_mem_lvals = List.exists read_mem_lval
-let write_mem_lvals = List.exists write_mem_lval
-
-let rec read_mem_i s i =
-  match i.i_desc with
-  | Cassgn (x, _, _, e) -> read_mem_lval x || read_mem_e e
-  | Copn (xs, _, _, es) -> read_mem_lvals xs || read_mem_es es
-  | Cif (e, c1, c2)     -> read_mem_e e || read_mem_c s c1 || read_mem_c s c2
-  | Cwhile (c1, e, c2)  -> read_mem_c s c1 || read_mem_e e || read_mem_c s c2
-  | Ccall (_, xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es
-  | Cfor (_, (_, e1, e2), c) -> read_mem_e e1 || read_mem_e e2 || read_mem_c s c
-
-and read_mem_c s = List.exists (read_mem_i s)
-
-let read_mem_f s f = read_mem_c s f.f_body
-
-let rec write_mem_i s i =
-  match i.i_desc with
-  | Cassgn (x, _, _, _)  -> write_mem_lval x 
-  | Copn (xs, _, _, _)   -> write_mem_lvals xs 
-  | Cif (_, c1, c2)      -> write_mem_c s c1 ||write_mem_c s c2
-  | Cwhile (c1, _, c2)   -> write_mem_c s c1 ||write_mem_c s c2
-  | Ccall (_, xs, fn, _) -> write_mem_lvals xs || Sf.mem fn s 
-  | Cfor (_, _, c)       -> write_mem_c s c 
-
-and write_mem_c s = List.exists (write_mem_i s)
-
-let write_mem_f s f = write_mem_c s f.f_body
-
-let init_use fs = 
-  let add t s f = if t s f then Sf.add f.f_name s else s in
-  List.fold_left 
-    (fun (sr,sw) f -> add read_mem_f sr f, add write_mem_f sw f)
-    (Sf.empty, Sf.empty) fs
 
 let pp_fun env fmt f = 
   let locals = Sv.elements (locals f) in
@@ -543,14 +616,19 @@ let pp_glob_decl env fmt (ws,x, z) =
   Format.fprintf fmt "@[abbrev %a = %a.of_uint %a.@]@ "
     (pp_glob env) x pp_Tsz ws B.pp_print z
 
-let pp_prog fmt globs funcs = 
+let pp_prog fmt leaks globs funcs = 
   let rmem, wmem = init_use funcs in
   let env = 
     List.fold_left (fun env (ws, x, _) -> add_glob env x ws)
-      empty_env globs in
+      (empty_env leaks) globs in
   let env = {env with rmem; wmem} in
-  Format.fprintf fmt "@[<v>require import Jasmin_model Int IntDiv CoreMap.@ @ %a@ @ module M = {@   @[<v>%a@]@ }.@ @]@." 
+  let pp_leakages fmt env = 
+    if env.leaks then
+      Format.fprintf fmt "var leakages : leakages_t@ @ " in
+
+  Format.fprintf fmt "@[<v>require import List Jasmin_model Int IntDiv CoreMap.@ @ %a@ @ module M = {@   @[<v>%a%a@]@ }.@ @]@." 
     (pp_list "@ @ " (pp_glob_decl env)) globs 
+    pp_leakages env 
     (pp_list "@ @ " (pp_fun env)) funcs 
     
 
@@ -568,7 +646,7 @@ and used_func_i used i =
   | Cwhile(c1,_,c2)   -> used_func_c (used_func_c used c1) c2
   | Ccall (_,_,f,_)   -> Ss.add f.fn_name used
 
-let extract fmt ((globs,funcs):'a prog) tokeep = 
+let extract fmt ~withleakage ((globs,funcs):'a prog) tokeep = 
   let funcs = List.map Regalloc.fill_in_missing_names funcs in
   let tokeep = ref (Ss.of_list tokeep) in
   let dofun f = 
@@ -576,7 +654,7 @@ let extract fmt ((globs,funcs):'a prog) tokeep =
       (tokeep := Ss.union (used_func f) !tokeep; true)
     else false in
   let funcs = List.filter dofun funcs in
-  pp_prog fmt globs (List.rev funcs)
+  pp_prog fmt withleakage globs (List.rev funcs)
 
 
 

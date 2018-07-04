@@ -662,3 +662,14 @@ op array_init_64  (n:int) : (int, W64 .t) map = CoreMap.cst witness.
 op array_init_128 (n:int) : (int, W128.t) map = CoreMap.cst witness.
 op array_init_256 (n:int) : (int, W256.t) map = CoreMap.cst witness.
 
+(* ------------------------------------------------------------------- *)
+(* Leakages                                                            *)
+
+type leakage_t = [
+  | LeakExpr of W64.t list
+  | LeakCond of bool
+  | LeakFor  of (int * int)
+].
+
+type leakages_t = leakage_t list.
+
