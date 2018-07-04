@@ -1,35 +1,28 @@
+(* -------------------------------------------------------------------- *)
 require import AllCore BitEncoding IntDiv SmtMap List StdOrder.
 (*---*) import CoreMap Map Ring.IntID IntOrder.
 
+(* -------------------------------------------------------------------- *)
 lemma powS_minus (x p:int) : 1 <= p => x ^ p  = x * x ^ (p-1).
 proof. smt (powS). qed.
 
 hint simplify pow_le0.
 hint simplify powS_minus@1.
 
-lemma pow2_1 : 2^1 = 2.
-proof. by move=> /=. qed.
-lemma pow2_2 : 2^2 = 4.
-proof. by move=> /=. qed.
-lemma pow2_3 : 2^3 = 8.
-proof. by move=> /=. qed.
-lemma pow2_4 : 2^4 = 16.
-proof. by move=> /=. qed.
-lemma pow2_5 : 2^5 = 32.
-proof. by move=> /=. qed.
-lemma pow2_6 : 2^6 = 64.
-proof. by move=> /=. qed.
-lemma pow2_7 : 2^7 = 128.
-proof. by move=> /=. qed.
-lemma pow2_8 : 2^8 = 256.
-proof. by move=> /=. qed.
+lemma pow2_1 : 2^1 = 2   by [].
+lemma pow2_2 : 2^2 = 4   by [].
+lemma pow2_3 : 2^3 = 8   by [].
+lemma pow2_4 : 2^4 = 16  by [].
+lemma pow2_5 : 2^5 = 32  by [].
+lemma pow2_6 : 2^6 = 64  by [].
+lemma pow2_7 : 2^7 = 128 by [].
+lemma pow2_8 : 2^8 = 256 by [].
 
-hint simplify (pow2_1, pow2_2, pow2_3, pow2_4, pow2_5, pow2_6, pow2_7, pow2_8)@0.
+hint simplify
+  (pow2_1, pow2_2, pow2_3, pow2_4, pow2_5, pow2_6, pow2_7, pow2_8)@0.
 
-
-(*sopn_tin, sopn_tout*)
+(* -------------------------------------------------------------------- *)
 abstract theory W.
-
 type t.
 
 op size : { int | 0 < size } as size_gt0.
@@ -39,9 +32,11 @@ proof. by apply/ltrW/size_gt0. qed.
 
 hint exact : size_gt0 size_ge0.
 
-op of_int : int -> t.
-op to_sint : t -> int.
+op of_uint : int -> t.
 op to_uint : t -> int.
+
+op of_sint : int -> t.
+op to_sint : t -> int.
 
 op mk   : bool list -> t.
 op repr : t -> bool list.
@@ -84,13 +79,13 @@ qed.
 axiom mkK   x : mk (repr x) = x.
 axiom reprK x : repr (mk x) = norm x.
 
-axiom of_uintK (x : int) : to_uint (of_int x) = x %% modulus.
-axiom to_uintK : cancel to_uint of_int.
-lemma to_uintK' (x: t) : of_int (to_uint x) = x.
-proof. apply to_uintK. qed.
+axiom of_uintK (x : int) : to_uint (of_uint x) = x %% modulus.
+axiom to_uintK : cancel to_uint of_uint.
 
-hint simplify of_uintK.
-hint simplify to_uintK'.
+lemma to_uintK' (x: t) : of_uint (to_uint x) = x.
+proof. by apply to_uintK. qed.
+
+hint simplify (of_uintK, to_uintK')@0.
 
 op blift1 (f : bool -> bool) (w : t) =
   mk (map f (repr w)).
@@ -99,10 +94,10 @@ op blift2 (f : bool -> bool -> bool) (w1 w2 : t) =
   mk (map (fun b : _ * _ => f b.`1 b.`2) (zip (repr w1) (repr w2))).
 
 op ilift1 (f : int -> int) (w : t) =
-  of_int (f (to_uint w)).
+  of_uint (f (to_uint w)).
 
 op ilift2 (f : int -> int -> int) (w1 w2 : t) =
-  of_int (f (to_uint w1) (to_uint w2)).
+  of_uint (f (to_uint w1) (to_uint w2)).
 
 lemma get_default (w : t) (i : int) :
   size <= i => w.[i] = false.
@@ -163,12 +158,15 @@ op (\ule) (x y : t) = (to_uint x) <= (to_uint x) axiomatized by wuleE.
 op (\ult) (x y : t) = (to_uint x) <  (to_uint x) axiomatized by wultE.
 
 op (`>>>`) (x : t) (i : int) =
-  mk (mkseq (fun j => x.[j + i]) size)
+  mk (mkseq (fun j => x.[j + (i %% size)]) size)
   axiomatized by wlsrE.
 
 op (`<<<`) (x : t) (i : int) =
-  mk (mkseq (fun j => x.[j - i]) size)
+  mk (mkseq (fun j => x.[j - (i %% size)]) size)
   axiomatized by wlslE.
+
+op addc : t -> t -> bool -> bool * t.
+op mulu : t -> t -> t * t.
 
 lemma bandE (w1 w2 : t) (i : int) :
   0 <= i < size => (w1 `&` w2).[i] = (w1.[i] /\ w2.[i]).
@@ -188,159 +186,161 @@ axiom xor_zero_r x : x `^` zeros = x.
 op slice (i : int) (n : int) (w : t) =
   take n (drop i (repr w))
   axiomatized by sliceE.
-
 end W.
 
-(* example below *)
-
+(* -------------------------------------------------------------------- *)
 theory W8.
   clone include W with op size = 8.
 
-  op (`>>`) : t -> t -> t.
-  op (`<<`) : t -> t -> t.
-
-  op addc_8: t -> t -> bool -> (bool * t).
+  op (`>>`) (w1 w2 : W8.t) = w1 `>>>` to_uint w2.
+  op (`<<`) (w1 w2 : W8.t) = w1 `<<<` to_uint w2.
 end W8.
 export W8. 
 
-hint simplify (W8.of_uintK, W8.to_uintK')@0.
- 
+(* -------------------------------------------------------------------- *)
 theory W16.
   clone include W with op size = 16.
 
-  op (`>>`) : t -> W8.t -> t.
-  op (`<<`) : t -> W8.t -> t.
-
-  op addc_16: t -> t -> bool -> (bool * t).
+  op (`>>`) (w1 w2 : W16.t) = w1 `>>>` to_uint w2.
+  op (`<<`) (w1 w2 : W16.t) = w1 `<<<` to_uint w2.
 end W16. 
-export W16.
+export W16. 
 
+(* -------------------------------------------------------------------- *)
 theory W32.
   clone include W with op size = 32.
 
-  op (`>>`) : t -> W8.t -> t.
-  op (`<<`) : t -> W8.t -> t.
-
-  op mulu_32   : t -> t -> (t * t). (* low bits first *)
-  op addc_32: t -> t -> bool -> (bool * t).
+  op (`>>`) (w1 : W32.t) (w2 : W8.t) = w1 `>>>` to_uint w2.
+  op (`<<`) (w1 : W32.t) (w2 : W8.t) = w1 `<<<` to_uint w2.
 end W32.
-export W32.
+export W32. 
 
+(* -------------------------------------------------------------------- *)
 theory W64.
   clone include W with op size = 64.
 
-  op (`>>`) : t -> W8.t -> t.
-  op (`<<`) : t -> W8.t -> t.
-
-  op mulu_64: t -> t -> (t*t). (* low bits first *)
-  op addc_64: t -> t -> bool -> (bool * t).
+  op (`>>`) (w1 : W64.t) (w2 : W8.t) = w1 `>>>` to_uint w2.
+  op (`<<`) (w1 : W64.t) (w2 : W8.t) = w1 `<<<` to_uint w2.
 end W64. 
-export W64.
+export W64. 
 
+(* -------------------------------------------------------------------- *)
 theory W128.
   clone include W with op size = 128.
 
-  op (`>>`) : t -> W8.t -> t.
-  op (`<<`) : t -> W8.t -> t.
-
-  op addc_128: t -> t -> bool -> (bool * t).
+  op (`>>`) (w1 : W128.t) (w2 : W8.t) = w1 `>>>` to_uint w2.
+  op (`<<`) (w1 : W128.t) (w2 : W8.t) = w1 `<<<` to_uint w2.
 end W128. 
-export W128.
+export W128. 
 
+(* -------------------------------------------------------------------- *)
 theory W256.
   clone include W with op size = 256.
 
-  op (`>>`) : t -> W8.t -> t.
-  op (`<<`) : t -> W8.t -> t.
-
-  op addc_256: t -> t -> bool -> (bool * t).
-  op cast_32: t -> W32.t.
+  op (`>>`) (w1 : W256.t) (w2 : W8.t) = w1 `>>>` to_uint w2.
+  op (`<<`) (w1 : W256.t) (w2 : W8.t) = w1 `<<<` to_uint w2.
 end W256. 
-export W256.
+export W256. 
 
-op sigext_8_8:   W8.t -> W8.t.
-op sigext_8_16:  W8.t -> W16.t.
-op sigext_8_32:  W8.t -> W32.t.
-op sigext_8_64:  W8.t -> W64.t.
-op sigext_8_128: W8.t -> W128.t.
-op sigext_8_256: W8.t -> W256.t.
+(* -------------------------------------------------------------------- *)
+op sigext_8_16  = fun x => W16.of_sint  (W8.to_sint x)
+  axiomatized by sigext_8_16E.
 
-op sigext_16_8:   W16.t -> W8.t.
-op sigext_16_16:  W16.t -> W16.t.
-op sigext_16_32:  W16.t -> W32.t.
-op sigext_16_64:  W16.t -> W64.t.
-op sigext_16_128: W16.t -> W128.t.
-op sigext_16_256: W16.t -> W256.t.
+op sigext_8_32  = fun x => W32.of_sint  (W8.to_sint x)
+  axiomatized by sigext_8_32E.
 
-op sigext_32_8:   W32.t -> W8.t.
-op sigext_32_16:  W32.t -> W16.t.
-op sigext_32_32:  W32.t -> W32.t.
-op sigext_32_64:  W32.t -> W64.t.
-op sigext_32_128: W32.t -> W128.t.
-op sigext_32_256: W32.t -> W256.t.
+op sigext_8_64  = fun x => W64.of_sint  (W8.to_sint x)
+  axiomatized by sigext_8_64E.
 
-op sigext_64_8:   W64.t -> W8.t.
-op sigext_64_16:  W64.t -> W16.t.
-op sigext_64_32:  W64.t -> W32.t.
-op sigext_64_64:  W64.t -> W64.t.
-op sigext_64_128: W64.t -> W128.t.
-op sigext_64_256: W64.t -> W256.t.
+op sigext_8_128 = fun x => W128.of_sint (W8.to_sint x)
+  axiomatized by sigext_8_128E.
 
-op sigext_128_8:   W128.t -> W8.t.
-op sigext_128_16:  W128.t -> W16.t.
-op sigext_128_32:  W128.t -> W32.t.
-op sigext_128_64:  W128.t -> W64.t.
-op sigext_128_128: W128.t -> W128.t.
-op sigext_128_256: W128.t -> W256.t.
+op sigext_8_256 = fun x => W256.of_sint (W8.to_sint x)
+  axiomatized by sigext_8_256E.
 
-op sigext_256_8:   W256.t -> W8.t.
-op sigext_256_16:  W256.t -> W16.t.
-op sigext_256_32:  W256.t -> W32.t.
-op sigext_256_64:  W256.t -> W64.t.
-op sigext_256_128: W256.t -> W128.t.
-op sigext_256_256: W256.t -> W256.t.
+(* -------------------------------------------------------------------- *)
+op sigext_16_32  = fun x => W32.of_sint  (W16.to_sint x)
+  axiomatized by sigext_16_32E.
 
-op zeroext_8_8:   W8.t -> W8.t.
-op zeroext_8_16:  W8.t -> W16.t.
-op zeroext_8_32:  W8.t -> W32.t.
-op zeroext_8_64:  W8.t -> W64.t.
-op zeroext_8_128: W8.t -> W128.t.
-op zeroext_8_256: W8.t -> W256.t.
+op sigext_16_64  = fun x => W64.of_sint  (W16.to_sint x)
+  axiomatized by sigext_16_64E.
 
-op zeroext_16_8:   W16.t -> W8.t.
-op zeroext_16_16:  W16.t -> W16.t.
-op zeroext_16_32:  W16.t -> W32.t.
-op zeroext_16_64:  W16.t -> W64.t.
-op zeroext_16_128: W16.t -> W128.t.
-op zeroext_16_256: W16.t -> W256.t.
+op sigext_16_128 = fun x => W128.of_sint (W16.to_sint x)
+  axiomatized by sigext_16_128E.
 
-op zeroext_32_8:   W32.t -> W8.t.
-op zeroext_32_16:  W32.t -> W16.t.
-op zeroext_32_32:  W32.t -> W32.t.
-op zeroext_32_64:  W32.t -> W64.t.
-op zeroext_32_128: W32.t -> W128.t.
-op zeroext_32_256: W32.t -> W256.t.
+op sigext_16_256 = fun x => W256.of_sint (W16.to_sint x)
+  axiomatized by sigext_16_256E.
 
-op zeroext_64_8:   W64.t -> W8.t.
-op zeroext_64_16:  W64.t -> W16.t.
-op zeroext_64_32:  W64.t -> W32.t.
-op zeroext_64_64:  W64.t -> W64.t.
-op zeroext_64_128: W64.t -> W128.t.
-op zeroext_64_256: W64.t -> W256.t.
+(* -------------------------------------------------------------------- *)
+op sigext_32_64  = fun x => W64.of_sint  (W32.to_sint x)
+  axiomatized by sigext_32_64E.
 
-op zeroext_128_8:   W128.t -> W8.t.
-op zeroext_128_16:  W128.t -> W16.t.
-op zeroext_128_32:  W128.t -> W32.t.
-op zeroext_128_64:  W128.t -> W64.t.
-op zeroext_128_128: W128.t -> W128.t.
-op zeroext_128_256: W128.t -> W256.t.
+op sigext_32_128 = fun x => W128.of_sint (W32.to_sint x)
+  axiomatized by sigext_32_128E.
 
-op zeroext_256_8:   W256.t -> W8.t.
-op zeroext_256_16:  W256.t -> W16.t.
-op zeroext_256_32:  W256.t -> W32.t.
-op zeroext_256_64:  W256.t -> W64.t.
-op zeroext_256_128: W256.t -> W128.t.
-op zeroext_256_256: W256.t -> W256.t.
+op sigext_32_256 = fun x => W256.of_sint (W32.to_sint x)
+  axiomatized by sigext_32_256E.
+
+(* -------------------------------------------------------------------- *)
+op sigext_64_128 = fun x => W128.of_sint (W64.to_sint x)
+  axiomatized by sigext_64_128E.
+
+op sigext_64_256 = fun x => W256.of_sint (W64.to_sint x)
+  axiomatized by sigext_64_256E.
+
+(* -------------------------------------------------------------------- *)
+op sigext_128_256 = fun x => W256.of_sint (W128.to_sint x)
+  axiomatized by sigext_128_256E.
+
+(* -------------------------------------------------------------------- *)
+op zeroext_8_16  = fun x => W16.of_uint  (W8.to_uint x)
+  axiomatized by zeroext_8_16E.
+
+op zeroext_8_32  = fun x => W32.of_uint  (W8.to_uint x)
+  axiomatized by zeroext_8_32E.
+
+op zeroext_8_64  = fun x => W64.of_uint  (W8.to_uint x)
+  axiomatized by zeroext_8_64E.
+
+op zeroext_8_128 = fun x => W128.of_uint (W8.to_uint x)
+  axiomatized by zeroext_8_128E.
+
+op zeroext_8_256 = fun x => W256.of_uint (W8.to_uint x)
+  axiomatized by zeroext_8_256E.
+
+(* -------------------------------------------------------------------- *)
+op zeroext_16_32  = fun x => W32.of_uint  (W16.to_uint x)
+  axiomatized by zeroext_16_32E.
+
+op zeroext_16_64  = fun x => W64.of_uint  (W16.to_uint x)
+  axiomatized by zeroext_16_64E.
+
+op zeroext_16_128 = fun x => W128.of_uint (W16.to_uint x)
+  axiomatized by zeroext_16_128E.
+
+op zeroext_16_256 = fun x => W256.of_uint (W16.to_uint x)
+  axiomatized by zeroext_16_256E.
+
+(* -------------------------------------------------------------------- *)
+op zeroext_32_64  = fun x => W64.of_uint  (W32.to_uint x)
+  axiomatized by zeroext_32_64E.
+
+op zeroext_32_128 = fun x => W128.of_uint (W32.to_uint x)
+  axiomatized by zeroext_32_128E.
+
+op zeroext_32_256 = fun x => W256.of_uint (W32.to_uint x)
+  axiomatized by zeroext_32_256E.
+
+(* -------------------------------------------------------------------- *)
+op zeroext_64_128 = fun x => W128.of_uint (W64.to_uint x)
+  axiomatized by zeroext_64_128E.
+
+op zeroext_64_256 = fun x => W256.of_uint (W64.to_uint x)
+  axiomatized by zeroext_64_256E.
+
+(* -------------------------------------------------------------------- *)
+op zeroext_128_256 = fun x => W256.of_uint (W128.to_uint x)
+  axiomatized by zeroext_128_256E.
 
 (* -------------------------------------------------------------------- *)
 type wsize   = [ W32 | W64 ].
@@ -427,15 +427,6 @@ op x86_ROL_32 (x : W32.t) (cnt : W8.t) =
   (CF, OF, W32.mk result)
   axiomatized by x86_ROL_32_E.
 
-(*op x86_SHLD_64 (x:W64.t) (y:W64.t) (cnt:W8.t)=
-let result = (drop (to_int cnt) (repr x)) ++ (take (32 - (to_int cnt)) (repr y)) in
-let CF = true in
-let OF = Logic.(^) (head true result) (head true (repr x)) in
-let SF = true in
-let ZF = true in
-let AF = true in
-(CF, OF, SF, ZF, AF, W64.mk result).*)
-
 (* -------------------------------------------------------------------- *)
 op x86_SHLD_32 :
   W32.t -> W32.t -> W8.t -> (bool * bool * bool * bool * bool * W32.t).
@@ -455,11 +446,10 @@ op x86_VPSLL_4u32 (w : W128.t) (cnt : W8.t) =
   pack_4u32 (map_4u32 f (unpack_4u32 w)).
 
 op x86_VPSRL_4u32 (w : W128.t) (cnt : W8.t) =
-  let f = fun w : W32.t => w `>>`  cnt in
+  let f = fun w : W32.t => w `>>` cnt in
   pack_4u32 (map_4u32 f (unpack_4u32 w)).
 
 (* -------------------------------------------------------------------- *)
-
 type p16u8 = W8.t * W8.t * W8.t * W8.t * W8.t * W8.t * W8.t * W8.t *
              W8.t * W8.t * W8.t * W8.t * W8.t * W8.t * W8.t * W8.t.
 
@@ -563,15 +553,6 @@ op x86_VPSHUFD_128 (w : W128.t) (m : W8.t) : W128.t =
              x86_VPSHUFD_128_B w m 2,
              x86_VPSHUFD_128_B w m 3).
 
-(*
-lemma test w0 w1 w2 w3: x86_VPSHUFD_128 (pack_4u32 (w0, w1, w2, w3)) 
-             (W8.of_int (3 + 4 * (2 + 4 * (1 + 4 * 0)))) = 
-            pack_4u32 (w3, w2, w1, w0).
-cbv delta.
-done.
-qed.
-*)
-
 (* -------------------------------------------------------------------- *)
 type p2u32 = W32.t * W32.t.
 
@@ -592,7 +573,7 @@ hint simplify (pack_unpack_2u32, unpack_pack_2u32)@0.
 op mulu_64 (w1 w2 : W64.t) = 
   let (w10, w11) = unpack_2u32 w1 in
   let (w20, w21) = unpack_2u32 w2 in
-  pack_2u32 (W32.mulu_32 w10 w20). 
+  pack_2u32 (W32.mulu w10 w20). 
  
 (* -------------------------------------------------------------------- *)
 type p2u64 = W64.t * W64.t.
@@ -622,14 +603,14 @@ op x86_VPADD_2u64 (w1 : W128.t) (w2:W128.t) =
 
 op x86_VPEXTR_64 (w:W128.t) (i:W8.t) = 
   let (w0,w1) = unpack_2u64 w in
-  if i = W8.of_int 0 then w0 
-  else if i = W8.of_int 1 then w1 
-  else W64.of_int 0.
+  if i = W8.of_uint 0 then w0 
+  else if i = W8.of_uint 1 then w1 
+  else W64.of_uint 0.
 
 op x86_VPINSR_2u64 (v1:W128.t) (v2:W64.t) (i:W8.t) = 
   let (w0,w1) = unpack_2u64 v1 in
-  if i = W8.of_int 0 then pack_2u64 (v2, w1)
-  else if i = W8.of_int 1 then pack_2u64 (w0, v2)
+  if i = W8.of_uint 0 then pack_2u64 (v2, w1)
+  else if i = W8.of_uint 1 then pack_2u64 (w0, v2)
   else v1.
 
 op x86_MOVD_64 (v:W64.t) = 
@@ -650,7 +631,7 @@ op x86_VPSLL_2u64 (w:W128.t) (cnt:W8.t) =
   pack_2u64 (map_2u64 f (unpack_2u64 w)).
 
 op x86_VPSRL_2u64 (w:W128.t) (cnt:W8.t) = 
-  let f = fun w : W64.t => w `>>`  cnt in
+  let f = fun w : W64.t => w `>>` cnt in
   pack_2u64 (map_2u64 f (unpack_2u64 w)).
 
 op x86_VPAND_128 = W128.(`&`).
@@ -673,16 +654,11 @@ axiom VPXOR_128_64 (w10 w11 w20 w21):
 
 hint simplify (VPAND_128_64, VPOR_128_64, VPXOR_128_64)@0.
 
-(* ------------------------------------------ *)
-
+(*-------------------------------------------------------------------- *)
 op array_init_8   (n:int) : (int, W8  .t) map = CoreMap.cst witness.
 op array_init_16  (n:int) : (int, W16 .t) map = CoreMap.cst witness.
 op array_init_32  (n:int) : (int, W32 .t) map = CoreMap.cst witness.
 op array_init_64  (n:int) : (int, W64 .t) map = CoreMap.cst witness.
 op array_init_128 (n:int) : (int, W128.t) map = CoreMap.cst witness.
 op array_init_256 (n:int) : (int, W256.t) map = CoreMap.cst witness.
-
-
-
-
 

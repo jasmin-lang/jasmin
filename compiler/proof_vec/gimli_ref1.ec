@@ -6,7 +6,7 @@ module M = {
   proc rotate (x:W32.t, bits:int) : W32.t = {
     
     
-    x <- ((x `<<` (W8.of_int bits)) `^` (x `>>` (W8.of_int (32 - bits))));
+    x <- ((x `<<` (W8.of_uint bits)) `^` (x `>>` (W8.of_uint (32 - bits))));
     return (x);
   }
   
@@ -26,9 +26,9 @@ module M = {
         y <- state.[(4 + column)];
         y <@ rotate (y, 9);
         z <- state.[(8 + column)];
-        state.[(8 + column)] <- ((x `^` (z `<<` (W8.of_int 1))) `^` ((y `&` z) `<<` (W8.of_int 2)));
-        state.[(4 + column)] <- ((y `^` x) `^` ((x `|` z) `<<` (W8.of_int 1)));
-        state.[column] <- ((z `^` y) `^` ((x `&` y) `<<` (W8.of_int 3)));
+        state.[(8 + column)] <- ((x `^` (z `<<` (W8.of_uint 1))) `^` ((y `&` z) `<<` (W8.of_uint 2)));
+        state.[(4 + column)] <- ((y `^` x) `^` ((x `|` z) `<<` (W8.of_uint 1)));
+        state.[column] <- ((z `^` y) `^` ((x `&` y) `<<` (W8.of_uint 3)));
         column <- column + 1;
       }
       if (((round %% 4) = 0)) {
@@ -56,7 +56,7 @@ module M = {
         
       }
       if (((round %% 4) = 0)) {
-        state.[0] <- (state.[0] `^` ((W32.of_int 2654435584) `^` (W32.of_int round)));
+        state.[0] <- (state.[0] `^` ((W32.of_uint 2654435584) `^` (W32.of_uint round)));
       } else {
         
       }

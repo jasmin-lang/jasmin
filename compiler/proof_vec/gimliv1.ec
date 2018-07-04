@@ -1,13 +1,13 @@
 require import Jasmin_model Int IntDiv CoreMap.
 
-abbrev rotate24pattern = W128.of_int 16028905388486802350658220295983399425.
+abbrev rotate24pattern = W128.of_uint 16028905388486802350658220295983399425.
 
 
 module M = {
   proc shift (x:W128.t, count:int) : W128.t = {
     var r:W128.t;
     
-    r <- x86_VPSLL_4u32 x (W8.of_int count);
+    r <- x86_VPSLL_4u32 x (W8.of_uint count);
     return (r);
   }
   
@@ -17,7 +17,7 @@ module M = {
     
     a <@ shift (r, count);
     count <- (32 - count);
-    b <- x86_VPSRL_4u32 r (W8.of_int count);
+    b <- x86_VPSRL_4u32 r (W8.of_uint count);
     r <- (a `^` b);
     return (r);
   }
@@ -60,18 +60,18 @@ module M = {
       z <- e;
       if (((round %% 4) = 0)) {
         pattern <@ shuffle (2, 3, 0, 1);
-        x <- x86_VPSHUFD_128 x (W8.of_int pattern);
+        x <- x86_VPSHUFD_128 x (W8.of_uint pattern);
       } else {
         
       }
       if (((round %% 4) = 2)) {
         pattern <@ shuffle (1, 0, 3, 2);
-        x <- x86_VPSHUFD_128 x (W8.of_int pattern);
+        x <- x86_VPSHUFD_128 x (W8.of_uint pattern);
       } else {
         
       }
       if (((round %% 4) = 0)) {
-        m <- ((W32.of_int 2654435584) `^` (W32.of_int round));
+        m <- ((W32.of_uint 2654435584) `^` (W32.of_uint round));
         a <- x86_MOVD_32 m;
         x <- (x `^` a);
       } else {

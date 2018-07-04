@@ -3,7 +3,7 @@
 # --------------------------------------------------------------------
 TOP     := ..
 JASMINC := $(TOP)/jasminc.native
-FILES   := gimli_ref gimli_ref1 gimliv
+FILES   := gimli_ref gimli_ref1 gimliv gimliv1
 
 # --------------------------------------------------------------------
 .PHONY: default clean
@@ -22,3 +22,6 @@ gimli_ref1.ec: $(TOP)/examples/gimli/gimli_ref1.jazz
 
 gimliv.ec: $(TOP)/examples/gimli/gimliv.jazz
 	$(JASMINC) -oec $@ -ec gimli_body $<
+
+gimliv1.ec: $(TOP)/examples/gimli/gimliv.jazz
+	$(JASMINC) -oec $@ -ec gimli_body1 $<

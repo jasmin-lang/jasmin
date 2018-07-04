@@ -308,7 +308,7 @@ let rec pp_expr env fmt (e:expr) =
   | Parr_init (sz, n) -> 
     Format.fprintf fmt "(array_init_%a %a)" pp_size sz B.pp_print n
   | Pcast(sz,e) -> 
-    Format.fprintf fmt "(%a.of_int %a)" pp_Tsz sz (pp_expr env) e
+    Format.fprintf fmt "(%a.of_uint %a)" pp_Tsz sz (pp_expr env) e
   | Pvar x -> pp_var env fmt (L.unloc x)
   | Pglobal(sz, x) -> 
     pp_cast (pp_glob env) fmt (Coq_sword sz, ty_glob env x, x)
@@ -540,7 +540,7 @@ let pp_fun env fmt f =
     (pp_ret b env) f.f_ret
 
 let pp_glob_decl env fmt (ws,x, z) =
-  Format.fprintf fmt "@[abbrev %a = %a.of_int %a.@]@ "
+  Format.fprintf fmt "@[abbrev %a = %a.of_uint %a.@]@ "
     (pp_glob env) x pp_Tsz ws B.pp_print z
 
 let pp_prog fmt globs funcs = 
