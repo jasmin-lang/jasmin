@@ -1,6 +1,6 @@
 require import List Jasmin_model Int IntDiv CoreMap.
 
-abbrev rotate24pattern = W128.of_int 16028905388486802350658220295983399425.
+abbrev rotate24pattern = W128.of_uint 16028905388486802350658220295983399425.
 
 
 module M = {
@@ -10,7 +10,7 @@ module M = {
     var r:W128.t;
     
     leakages <- LeakExpr([]) :: leakages;
-    r <- x86_VPSLL_4u32 x (W8.of_int count);
+    r <- x86_VPSLL_4u32 x (W8.of_uint count);
     return (r);
   }
   
@@ -28,7 +28,7 @@ module M = {
       leakages <- LeakExpr([]) :: leakages;
       count <- (32 - count);
       leakages <- LeakExpr([]) :: leakages;
-      b <- x86_VPSRL_4u32 r (W8.of_int count);
+      b <- x86_VPSRL_4u32 r (W8.of_uint count);
       leakages <- LeakExpr([]) :: leakages;
       r <- (a `^` b);
     }
@@ -95,7 +95,7 @@ module M = {
         leakages <- LeakExpr([]) :: leakages;
         pattern <@ shuffle (2, 3, 0, 1);
         leakages <- LeakExpr([]) :: leakages;
-        x <- x86_VPSHUFD_128 x (W8.of_int pattern);
+        x <- x86_VPSHUFD_128 x (W8.of_uint pattern);
       } else {
         
       }
@@ -104,14 +104,14 @@ module M = {
         leakages <- LeakExpr([]) :: leakages;
         pattern <@ shuffle (1, 0, 3, 2);
         leakages <- LeakExpr([]) :: leakages;
-        x <- x86_VPSHUFD_128 x (W8.of_int pattern);
+        x <- x86_VPSHUFD_128 x (W8.of_uint pattern);
       } else {
         
       }
       leakages <- LeakCond(((round %% 4) = 0)) :: LeakExpr([]) :: leakages;
       if (((round %% 4) = 0)) {
         leakages <- LeakExpr([]) :: leakages;
-        m <- ((W32.of_int 2654435584) `^` (W32.of_int round));
+        m <- ((W32.of_uint 2654435584) `^` (W32.of_uint round));
         leakages <- LeakExpr([]) :: leakages;
         a <- x86_MOVD_32 m;
         leakages <- LeakExpr([]) :: leakages;
