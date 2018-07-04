@@ -309,6 +309,9 @@ op zeroext_8_256 = fun x => W256.of_uint (W8.to_uint x)
   axiomatized by zeroext_8_256E.
 
 (* -------------------------------------------------------------------- *)
+op zeroext_16_8   = fun x => W8.of_uint   (W16.to_uint x)
+  axiomatized by zeroext_16_8E.
+
 op zeroext_16_32  = fun x => W32.of_uint  (W16.to_uint x)
   axiomatized by zeroext_16_32E.
 
@@ -322,6 +325,12 @@ op zeroext_16_256 = fun x => W256.of_uint (W16.to_uint x)
   axiomatized by zeroext_16_256E.
 
 (* -------------------------------------------------------------------- *)
+op zeroext_32_8   = fun x => W8.of_uint   (W32.to_uint x)
+  axiomatized by zeroext_32_8E.
+
+op zeroext_32_16  = fun x => W16.of_uint  (W32.to_uint x)
+  axiomatized by zeroext_32_16E.
+
 op zeroext_32_64  = fun x => W64.of_uint  (W32.to_uint x)
   axiomatized by zeroext_32_64E.
 
@@ -332,6 +341,15 @@ op zeroext_32_256 = fun x => W256.of_uint (W32.to_uint x)
   axiomatized by zeroext_32_256E.
 
 (* -------------------------------------------------------------------- *)
+op zeroext_64_8   = fun x => W8.of_uint   (W64.to_uint x)
+  axiomatized by zeroext_64_8E.
+
+op zeroext_64_16  = fun x => W16.of_uint  (W64.to_uint x)
+  axiomatized by zeroext_64_16E.
+
+op zeroext_64_32  = fun x => W32.of_uint  (W64.to_uint x)
+  axiomatized by zeroext_64_32E.
+
 op zeroext_64_128 = fun x => W128.of_uint (W64.to_uint x)
   axiomatized by zeroext_64_128E.
 
@@ -339,8 +357,39 @@ op zeroext_64_256 = fun x => W256.of_uint (W64.to_uint x)
   axiomatized by zeroext_64_256E.
 
 (* -------------------------------------------------------------------- *)
+
+op zeroext_128_8   = fun x => W8.of_uint   (W128.to_uint x)
+  axiomatized by zeroext_128_8E.
+
+op zeroext_128_16  = fun x => W16.of_uint  (W128.to_uint x)
+  axiomatized by zeroext_128_16E.
+
+op zeroext_128_32  = fun x => W32.of_uint  (W128.to_uint x)
+  axiomatized by zeroext_128_32E.
+
+op zeroext_128_64  = fun x => W64.of_uint  (W128.to_uint x)
+  axiomatized by zeroext_128_64E.
+
 op zeroext_128_256 = fun x => W256.of_uint (W128.to_uint x)
   axiomatized by zeroext_128_256E.
+
+
+(* -------------------------------------------------------------------- *)
+
+op zeroext_256_8   = fun x => W8.of_uint   (W256.to_uint x)
+  axiomatized by zeroext_256_8E.
+
+op zeroext_256_16  = fun x => W16.of_uint  (W256.to_uint x)
+  axiomatized by zeroext_256_16E.
+
+op zeroext_256_32  = fun x => W32.of_uint  (W256.to_uint x)
+  axiomatized by zeroext_256_32E.
+
+op zeroext_256_64  = fun x => W64.of_uint  (W256.to_uint x)
+  axiomatized by zeroext_256_64E.
+
+op zeroext_256_128 = fun x => W128.of_uint (W256.to_uint x)
+  axiomatized by zeroext_256_128E.
 
 (* -------------------------------------------------------------------- *)
 type wsize   = [ W32 | W64 ].
