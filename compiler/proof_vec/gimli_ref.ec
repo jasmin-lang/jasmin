@@ -1,5 +1,7 @@
 require import List Jasmin_model Int IntDiv CoreMap.
 
+clone import Array as Array12 with op size <- 12.
+
 
 
 module M = {

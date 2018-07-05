@@ -146,13 +146,19 @@ op ( - ) = ilift2 Int.( - ) axiomatized by subE.
 op ([-]) = ilift1 Int.([-]) axiomatized by oppE.
 op ( * ) = ilift2 Int.( * ) axiomatized by mulE.
 
+op (\udiv) : t -> t -> t.
+op (\umod) : t -> t -> t.
+
+op (\sdiv) : t -> t -> t.
+op (\smod) : t -> t -> t.
+
 op (`&`) = blift2 (/\) axiomatized by andE.
 op (`|`) = blift2 (\/) axiomatized by orE.
 op (`^`) = blift2 Logic.(^) axiomatized by xorE.
 
 (* FIXME : check extraction *)
-op (`<=`) (x y : t) = (to_sint x) <= (to_sint x) axiomatized by wsleE.
-op (`<` ) (x y : t) = (to_sint x) <  (to_sint x) axiomatized by wsltE.
+op (\sle) (x y : t) = (to_sint x) <= (to_sint x) axiomatized by wsleE.
+op (\slt) (x y : t) = (to_sint x) <  (to_sint x) axiomatized by wsltE.
  
 op (\ule) (x y : t) = (to_uint x) <= (to_uint x) axiomatized by wuleE.
 op (\ult) (x y : t) = (to_uint x) <  (to_uint x) axiomatized by wultE.
@@ -620,9 +626,9 @@ axiom unpack_pack_2u32 w : unpack_2u32 (pack_2u32 w) = w.
 hint simplify (pack_unpack_2u32, unpack_pack_2u32)@0.
 
 op mulu_64 (w1 w2 : W64.t) = 
-  let (w10, w11) = unpack_2u32 w1 in
-  let (w20, w21) = unpack_2u32 w2 in
-  pack_2u32 (W32.mulu w10 w20). 
+  let p1 = unpack_2u32 w1 in
+  let p2 = unpack_2u32 w2 in
+  pack_2u32 (W32.mulu p1.`1 p2.`1). 
  
 (* -------------------------------------------------------------------- *)
 type p2u64 = W64.t * W64.t.
@@ -651,29 +657,29 @@ op x86_VPADD_2u64 (w1 : W128.t) (w2:W128.t) =
    pack_2u64 (map2_2u64 W64.(+) (unpack_2u64 w1) (unpack_2u64 w2)).
 
 op x86_VPEXTR_64 (w:W128.t) (i:W8.t) = 
-  let (w0,w1) = unpack_2u64 w in
-  if i = W8.of_uint 0 then w0 
-  else if i = W8.of_uint 1 then w1 
+  let p = unpack_2u64 w in
+  if W8.to_uint i = 0 then p.`1 
+  else if W8.to_uint i = 1 then p.`2 
   else W64.of_uint 0.
 
 op x86_VPINSR_2u64 (v1:W128.t) (v2:W64.t) (i:W8.t) = 
-  let (w0,w1) = unpack_2u64 v1 in
-  if i = W8.of_uint 0 then pack_2u64 (v2, w1)
-  else if i = W8.of_uint 1 then pack_2u64 (w0, v2)
+  let p = unpack_2u64 v1 in
+  if W8.to_uint i = 0 then pack_2u64 (v2, p.`2)
+  else if W8.to_uint i = 1 then pack_2u64 (p.`1, v2)
   else v1.
 
 op x86_MOVD_64 (v:W64.t) = 
   pack_2u64 (v, W64.zeros). 
 
 op x86_VPUNPCKL_2u64 (w1 w2: W128.t) = 
-  let (w10, w11) = unpack_2u64 w1 in
-  let (w20, w21) = unpack_2u64 w2 in
-  pack_2u64 (w10, w20).
+  let p1 = unpack_2u64 w1 in
+  let p2 = unpack_2u64 w2 in
+  pack_2u64 (p1.`1, p2.`1).
 
 op x86_VPUNPCKH_2u64 (w1 w2: W128.t) = 
-  let (w10, w11) = unpack_2u64 w1 in
-  let (w20, w21) = unpack_2u64 w2 in
-  pack_2u64 (w11, w21).
+  let p1 = unpack_2u64 w1 in
+  let p2 = unpack_2u64 w2 in
+  pack_2u64 (p1.`2, p2.`2).
 
 op x86_VPSLL_2u64 (w:W128.t) (cnt:W8.t) = 
   let f = fun w : W64.t => w `<<`  cnt in
@@ -687,29 +693,79 @@ op x86_VPAND_128 = W128.(`&`).
 op x86_VPOR_128 = W128.(`|`).
 
 op x86_VPMULU_128 (w1 w2: W128.t) = 
-  pack_2u64 (map2_2u64 mulu_64 (unpack_2u64 w1) (unpack_2u64 w2)).
+(*  pack_2u64 (map2_2u64 mulu_64 (unpack_2u64 w1) (unpack_2u64 w2)) *)
+  pack_2u64 (map2_2u64 W64.( * ) (unpack_2u64 w1) (unpack_2u64 w2))
+.
 
-axiom VPAND_128_64 (w10 w11 w20 w21):
-  pack_2u64(w10,w11) `&` pack_2u64(w20,w21) = 
-  pack_2u64(w10 `&` w20, w11 `&` w21).
+axiom VPAND_128_64 w1 w2:
+  pack_2u64 w1 `&` pack_2u64 w2 = 
+  pack_2u64(w1.`1 `&` w2.`1, w1.`2 `&` w2.`2).
 
-axiom VPOR_128_64 (w10 w11 w20 w21):
-  pack_2u64(w10,w11) `|` pack_2u64(w20,w21) = 
-  pack_2u64(w10 `|` w20, w11 `|` w21).
+axiom VPOR_128_64 w1 w2:
+  pack_2u64 w1 `|` pack_2u64 w2 = 
+  pack_2u64(w1.`1 `|` w2.`1, w1.`2 `|` w2.`2).
 
-axiom VPXOR_128_64 (w10 w11 w20 w21):
-  pack_2u64(w10,w11) `^` pack_2u64(w20,w21) = 
-  pack_2u64(w10 `^` w20, w11 `^` w21).
+axiom VPXOR_128_64 w1 w2:
+  pack_2u64 w1 `^` pack_2u64 w2 = 
+  pack_2u64(w1.`1 `^` w2.`1, w1.`2 `^` w2.`2).
 
 hint simplify (VPAND_128_64, VPOR_128_64, VPXOR_128_64)@0.
 
 (*-------------------------------------------------------------------- *)
-op array_init_8   (n:int) : (int, W8  .t) map = CoreMap.cst witness.
-op array_init_16  (n:int) : (int, W16 .t) map = CoreMap.cst witness.
-op array_init_32  (n:int) : (int, W32 .t) map = CoreMap.cst witness.
-op array_init_64  (n:int) : (int, W64 .t) map = CoreMap.cst witness.
-op array_init_128 (n:int) : (int, W128.t) map = CoreMap.cst witness.
-op array_init_256 (n:int) : (int, W256.t) map = CoreMap.cst witness.
+
+abstract theory Array.
+
+  op size: int.
+
+  type 'a t.
+
+  op init : 'a t.
+
+  op "_.[_]" ['a] : 'a t -> int -> 'a.
+
+  op "_.[_<-_]" ['a] : 'a t -> int -> 'a -> 'a t.
+
+  axiom get_setE ['a] (t:'a t) (x y:int) (a:'a) :
+    0 <= x < size => t.[x<-a].[y] = if y = x then a else t.[y].
+
+  lemma nosmt get_set_eqE (t : 'a t) x y a :
+    0 <= x < size => y = x => t.[x <- a].[y] = a.
+  proof. by move=> h1 ->; rewrite get_setE. qed.
+
+  lemma nosmt get_set_neqE (t : 'a t) x y a :
+    0 <= x < size => y <> x => t.[x <- a].[y] = t.[y].
+  proof. by move=> h1; rewrite get_setE // => ->. qed.
+
+  axiom ext_eq (t1 t2: 'a t) : 
+    (forall x, 0 <= x < size => t1.[x] = t2.[x]) => 
+    t1 = t2.
+
+  op all_eq (t1 t2: 'a t) =
+    all (fun x => t1.[x] = t2.[x]) (range 0 size).
+
+  lemma ext_eq_all (t1 t2: 'a t) : 
+    all_eq t1 t2 <=> t1 = t2.
+  proof. by move=> /allP h; apply ext_eq => x /mem_range; apply h. qed.
+
+end Array.
+
+clone export Array as Array0  with op size <- 0.
+clone export Array as Array1  with op size <- 1.
+clone export Array as Array2  with op size <- 2.
+clone export Array as Array3  with op size <- 3.
+clone export Array as Array4  with op size <- 4.
+clone export Array as Array5  with op size <- 5.
+clone export Array as Array6  with op size <- 6.
+clone export Array as Array7  with op size <- 7.
+clone export Array as Array8  with op size <- 8.
+clone export Array as Array9  with op size <- 9.
+clone export Array as Array10 with op size <- 10.
+
+lemma iotaS_minus :
+  forall (i n : int), 0 < n => iota_ i n = i :: iota_ (i + 1) (n - 1).
+proof. smt (iotaS). qed.
+
+hint simplify (iota0, iotaS_minus)@0.
 
 (* ------------------------------------------------------------------- *)
 (* Leakages                                                            *)

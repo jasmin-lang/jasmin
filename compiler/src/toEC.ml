@@ -24,8 +24,10 @@ type env = {
     vars : string Mv.t;
     rmem : Sf.t;
     wmem : Sf.t;
-    glob : (string * Type.stype) Ms.t
+    glob : (string * Type.stype) Ms.t;
+    arrsz : Sint.t;
   }
+
 (* --------------------------------------------------------------- *)
 
 let rec read_mem_e = function
@@ -258,6 +260,7 @@ let empty_env leaks = {
     rmem = Sf.empty;
     wmem = Sf.empty;
     glob = Ms.empty;
+    arrsz = Sint.empty;
   }
 
 let create_name env s = 
@@ -305,17 +308,19 @@ let swap_op2 op e1 e2 =
   | E.Oge   _ -> e2, e1 
   | _         -> e1, e2
 
-let pp_signed fmt = function 
-  | E.Cmp_w (Signed, _) -> Format.fprintf fmt "s"
-  | _                 -> ()
+let pp_signed fmt ws is = function 
+  | E.Cmp_w (Signed, _)   -> Format.fprintf fmt "\\s%s" ws
+  | E.Cmp_w (Unsigned, _) -> Format.fprintf fmt "\\u%s" ws
+  | _                     -> Format.fprintf fmt "%s" is
 
 let pp_op2 fmt = function
   | E.Oand -> Format.fprintf fmt "/\\"
   | E.Oor ->  Format.fprintf fmt "\\/"
   | E.Oadd _ -> Format.fprintf fmt "+"
   | E.Omul _ -> Format.fprintf fmt "*"
-  | E.Odiv s -> Format.fprintf fmt "`/%a`" pp_signed s
-  | E.Omod s -> Format.fprintf fmt "%%%%%a" pp_signed s 
+  | E.Odiv s -> pp_signed fmt "div" "%/" s
+  | E.Omod s -> pp_signed fmt "mod" "%%" s
+
   | E.Osub  _ -> Format.fprintf fmt "-"
 
   | E.Oland _ -> Format.fprintf fmt "`&`"
@@ -327,8 +332,8 @@ let pp_op2 fmt = function
 
   | E.Oeq   _ -> Format.fprintf fmt "="
   | E.Oneq  _ -> Format.fprintf fmt "<>"
-  | E.Olt s| E.Ogt s -> Format.fprintf fmt "`<%a`" pp_signed s
-  | E.Ole s | E.Oge s -> Format.fprintf fmt "`<=%a`" pp_signed s
+  | E.Olt s| E.Ogt s -> pp_signed fmt "lt" "<" s
+  | E.Ole s | E.Oge s -> pp_signed fmt "le" "<=" s
 
 let in_ty_op1 op =
   fst (E.type_of_op1 op)
@@ -380,18 +385,24 @@ let pp_cast pp fmt (ty,ety,e) =
     Format.fprintf fmt "(zeroext_%a_%a %a)" 
       pp_size (wsize ety) pp_size (wsize ty) pp e
  
+let check_array env x = 
+  match (L.unloc x).v_ty with
+  | Arr(_, n) -> Sint.mem n env.arrsz
+  | _ -> true
+  
 let rec pp_expr env fmt (e:expr) = 
   match e with
   | Pconst z -> Format.fprintf fmt "%a" B.pp_print z
   | Pbool b -> Format.fprintf fmt "%a" Printer.pp_bool b
-  | Parr_init (sz, n) -> 
-    Format.fprintf fmt "(array_init_%a %a)" pp_size sz B.pp_print n
+  | Parr_init (_sz, n) -> 
+    Format.fprintf fmt "Array%a.init" B.pp_print n
   | Pcast(sz,e) -> 
     Format.fprintf fmt "(%a.of_uint %a)" pp_Tsz sz (pp_expr env) e
   | Pvar x -> pp_var env fmt (L.unloc x)
   | Pglobal(sz, x) -> 
     pp_cast (pp_glob env) fmt (Coq_sword sz, ty_glob env x, x)
   | Pget(x,e) -> 
+    assert (check_array env x);
     Format.fprintf fmt "%a.[%a]" (pp_var env) (L.unloc x) (pp_expr env) e 
   | Pload (sz, x, e) -> 
     Format.fprintf fmt "(load%a global_mem %a)"
@@ -415,7 +426,9 @@ let pp_coq_ty fmt ty =
   match Conv.cty_of_ty ty with 
   | Coq_sbool -> Format.fprintf fmt "bool"
   | Coq_sint  -> Format.fprintf fmt "int"
-  | Coq_sarr(sz,_) -> Format.fprintf fmt "(int,%a.t)map" pp_Tsz sz
+  | Coq_sarr(sz,n) -> 
+    let n = Conv.int_of_pos n in
+    Format.fprintf fmt "%a.t Array%i.t" pp_Tsz sz n
   | Coq_sword sz   -> Format.fprintf fmt "%a.t" pp_Tsz sz
 
 let pp_vdecl env fmt x = 
@@ -474,6 +487,7 @@ let pp_lval env fmt = function
   | Lvar x -> pp_var env fmt (L.unloc x)
   | Lmem _  -> assert false
   | Laset (x,e) -> 
+    assert (check_array env x);
     Format.fprintf fmt "%a.[%a]" (pp_var env) (L.unloc x) (pp_expr env) e
 
 let pp_lvals env fmt xs = 
@@ -613,17 +627,39 @@ let pp_glob_decl env fmt (ws,x, z) =
   Format.fprintf fmt "@[abbrev %a = %a.of_uint %a.@]@ "
     (pp_glob env) x pp_Tsz ws B.pp_print z
 
+let add_arrsz env f = 
+  let add_sz x sz = 
+    match x.v_ty with
+    | Arr(_, n) -> Sint.add n sz 
+    | _ -> sz in
+  {env with arrsz = Sv.fold add_sz (vars_fc f) env.arrsz }
+
+
 let pp_prog fmt leaks globs funcs = 
   let rmem, wmem = init_use funcs in
   let env = 
     List.fold_left (fun env (ws, x, _) -> add_glob env x ws)
       (empty_env leaks) globs in
+  let env = List.fold_left add_arrsz env funcs in
   let env = {env with rmem; wmem} in
+
+  let pp_array fmt i = 
+    assert (0<= i);
+    if 10 < i then 
+      ( Format.eprintf "Warning use array of size greater than 10@.";
+        Format.fprintf fmt 
+          "clone import Array as Array%i with op size <- %i.@ " i i) in
+    
+  let pp_arrays fmt env = 
+    List.iter (pp_array fmt) (Sint.elements env.arrsz) in
+
   let pp_leakages fmt env = 
     if env.leaks then
       Format.fprintf fmt "var leakages : leakages_t@ @ " in
 
-  Format.fprintf fmt "@[<v>require import List Jasmin_model Int IntDiv CoreMap.@ @ %a@ @ module M = {@   @[<v>%a%a@]@ }.@ @]@." 
+  Format.fprintf fmt 
+     "@[<v>require import List Jasmin_model Int IntDiv CoreMap.@ @ %a@ %a@ @ module M = {@   @[<v>%a%a@]@ }.@ @]@." 
+    pp_arrays env
     (pp_list "@ @ " (pp_glob_decl env)) globs 
     pp_leakages env 
     (pp_list "@ @ " (pp_fun env)) funcs 
