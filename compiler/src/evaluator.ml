@@ -101,7 +101,7 @@ type stack =
   | Sempty of instr_info * fundef
   | Scall of 
       instr_info * fundef * lval list * sem_t exec Fv.t * instr list * stack
-  | Sfor of instr_info * var_i * coq_Z list * instr list * stack
+  | Sfor of instr_info * var_i * coq_Z list * instr list * instr list * stack
 
 type state = 
   { s_prog : prog;
@@ -136,14 +136,14 @@ let return s =
       s_estate = s1;
       s_stk = stk }
 
-  | Sfor(ii,i,ws,c,stk) ->
+  | Sfor(ii,i,ws,body,c,stk) ->
     match ws with
     | [] -> { s with s_cmd = c; s_stk = stk }
     | w::ws ->
       let s1 = exn_exec ii (write_var i (Vint w) s.s_estate) in
-      { s with s_cmd = c;
+      { s with s_cmd = body;
                s_estate = s1;
-               s_stk = Sfor(ii,i,ws,c,stk) }
+               s_stk = Sfor(ii, i, ws, body, c, stk) }
 
 let small_step1 s = 
   match s.s_cmd with
@@ -169,12 +169,12 @@ let small_step1 s =
       let c = (if b then c1 else c2) @ c in
       { s with s_cmd = c }
 
-    | Cfor (i,((d,lo),hi), c) -> 
+    | Cfor (i,((d,lo),hi), body) ->
       let vlo = of_val_z ii (exn_exec ii (sem_pexpr gd s1 lo)) in
       let vhi = of_val_z ii (exn_exec ii (sem_pexpr gd s1 hi)) in
       let rng = wrange d vlo vhi in
       let s =
-        {s with s_cmd = []; s_stk = Sfor(ii, i, rng, c, s.s_stk) } in
+        {s with s_cmd = []; s_stk = Sfor(ii, i, rng, body, c, s.s_stk) } in
       return s
  
     | Cwhile (c1, e, c2) ->
