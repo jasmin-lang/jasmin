@@ -249,6 +249,12 @@ end W256.
 export W256. 
 
 (* -------------------------------------------------------------------- *)
+theory W8List.
+  abbrev "_.[_]" (w : W8.t list) (i : int) = nth W8.zeros w i.
+end W8List.
+export W8List.
+
+(* -------------------------------------------------------------------- *)
 op sigext_8_16  = fun x => W16.of_sint  (W8.to_sint x)
   axiomatized by sigext_8_16E.
 
@@ -363,7 +369,6 @@ op zeroext_64_256 = fun x => W256.of_uint (W64.to_uint x)
   axiomatized by zeroext_64_256E.
 
 (* -------------------------------------------------------------------- *)
-
 op zeroext_128_8   = fun x => W8.of_uint   (W128.to_uint x)
   axiomatized by zeroext_128_8E.
 
@@ -379,9 +384,7 @@ op zeroext_128_64  = fun x => W64.of_uint  (W128.to_uint x)
 op zeroext_128_256 = fun x => W256.of_uint (W128.to_uint x)
   axiomatized by zeroext_128_256E.
 
-
 (* -------------------------------------------------------------------- *)
-
 op zeroext_256_8   = fun x => W8.of_uint   (W256.to_uint x)
   axiomatized by zeroext_256_8E.
 
@@ -398,36 +401,148 @@ op zeroext_256_128 = fun x => W128.of_uint (W256.to_uint x)
   axiomatized by zeroext_256_128E.
 
 (* -------------------------------------------------------------------- *)
-type wsize   = [ W32 | W64 ].
+abbrev [-printing] u8_16  = zeroext_8_16.
+abbrev [-printing] u8_32  = zeroext_8_32.
+abbrev [-printing] u8_64  = zeroext_8_64.
+abbrev [-printing] u8_128 = zeroext_8_128.
+abbrev [-printing] u8_256 = zeroext_8_256.
+
+abbrev [-printing]  u16_8 = zeroext_16_8.
+abbrev [-printing]  u32_8 = zeroext_32_8.
+abbrev [-printing]  u64_8 = zeroext_64_8.
+abbrev [-printing] u128_8 = zeroext_128_8.
+abbrev [-printing] u256_8 = zeroext_256_8.
+
+(* -------------------------------------------------------------------- *)
+op unpackW16 (w : W16.t) : W8.t list =
+  map (fun i => u16_8 (w `>>>` (i * 8))) (range 0 2).
+
+op unpackW32 (w : W32.t) : W8.t list =
+  map (fun i => u32_8 (w `>>>` (i * 8))) (range 0 4).
+
+op unpackW64 (w : W64.t) : W8.t list =
+  map (fun i => u64_8 (w `>>>` (i * 8))) (range 0 8).
+
+op unpackW128 (w : W128.t) : W8.t list =
+  map (fun i => u128_8 (w `>>>` (i * 8))) (range 0 16).
+
+op unpackW256 (w : W256.t) : W8.t list =
+  map (fun i => u256_8 (w `>>>` (i * 8))) (range 0 32).
+
+(* -------------------------------------------------------------------- *)
+op packW16 (w : W8.t list) =
+      (u8_16 w.[0] `<<<` (0 * 8))
+  `^` (u8_16 w.[1] `<<<` (1 * 8)).
+
+op packW32 (w : W8.t list) =
+      (u8_16 w.[0] `<<<` (0 * 8))
+  `^` (u8_16 w.[1] `<<<` (1 * 8))
+  `^` (u8_16 w.[2] `<<<` (2 * 8))
+  `^` (u8_16 w.[3] `<<<` (3 * 8)).
+
+op packW64 (w : W8.t list) =
+      (u8_16 w.[0] `<<<` 0 * 8)
+  `^` (u8_16 w.[1] `<<<` 1 * 8)
+  `^` (u8_16 w.[2] `<<<` 2 * 8)
+  `^` (u8_16 w.[3] `<<<` 3 * 8)
+  `^` (u8_16 w.[4] `<<<` 4 * 8)
+  `^` (u8_16 w.[5] `<<<` 5 * 8)
+  `^` (u8_16 w.[6] `<<<` 6 * 8)
+  `^` (u8_16 w.[7] `<<<` 7 * 8).
+
+op packW128 (w : W8.t list) =
+      (u8_16 w.[ 0] `<<<`  0 * 8)
+  `^` (u8_16 w.[ 1] `<<<`  1 * 8)
+  `^` (u8_16 w.[ 2] `<<<`  2 * 8)
+  `^` (u8_16 w.[ 3] `<<<`  3 * 8)
+  `^` (u8_16 w.[ 4] `<<<`  4 * 8)
+  `^` (u8_16 w.[ 5] `<<<`  5 * 8)
+  `^` (u8_16 w.[ 6] `<<<`  6 * 8)
+  `^` (u8_16 w.[ 7] `<<<`  7 * 8)
+  `^` (u8_16 w.[ 8] `<<<`  8 * 8)
+  `^` (u8_16 w.[ 9] `<<<`  9 * 8)
+  `^` (u8_16 w.[10] `<<<` 10 * 8)
+  `^` (u8_16 w.[11] `<<<` 11 * 8)
+  `^` (u8_16 w.[12] `<<<` 12 * 8)
+  `^` (u8_16 w.[13] `<<<` 13 * 8)
+  `^` (u8_16 w.[14] `<<<` 14 * 8)
+  `^` (u8_16 w.[15] `<<<` 15 * 8).
+
+op packW256 (w : W8.t list) =
+      (u8_16 w.[ 0] `<<<`  0 * 8)
+  `^` (u8_16 w.[ 1] `<<<`  1 * 8)
+  `^` (u8_16 w.[ 2] `<<<`  2 * 8)
+  `^` (u8_16 w.[ 3] `<<<`  3 * 8)
+  `^` (u8_16 w.[ 4] `<<<`  4 * 8)
+  `^` (u8_16 w.[ 5] `<<<`  5 * 8)
+  `^` (u8_16 w.[ 6] `<<<`  6 * 8)
+  `^` (u8_16 w.[ 7] `<<<`  7 * 8)
+  `^` (u8_16 w.[ 8] `<<<`  8 * 8)
+  `^` (u8_16 w.[ 9] `<<<`  9 * 8)
+  `^` (u8_16 w.[10] `<<<` 10 * 8)
+  `^` (u8_16 w.[11] `<<<` 11 * 8)
+  `^` (u8_16 w.[12] `<<<` 12 * 8)
+  `^` (u8_16 w.[13] `<<<` 13 * 8)
+  `^` (u8_16 w.[14] `<<<` 14 * 8)
+  `^` (u8_16 w.[15] `<<<` 15 * 8)
+  `^` (u8_16 w.[16] `<<<` 16 * 8)
+  `^` (u8_16 w.[17] `<<<` 17 * 8)
+  `^` (u8_16 w.[18] `<<<` 18 * 8)
+  `^` (u8_16 w.[19] `<<<` 19 * 8)
+  `^` (u8_16 w.[20] `<<<` 20 * 8)
+  `^` (u8_16 w.[21] `<<<` 21 * 8)
+  `^` (u8_16 w.[22] `<<<` 22 * 8)
+  `^` (u8_16 w.[23] `<<<` 23 * 8)
+  `^` (u8_16 w.[24] `<<<` 24 * 8)
+  `^` (u8_16 w.[25] `<<<` 25 * 8)
+  `^` (u8_16 w.[26] `<<<` 26 * 8)
+  `^` (u8_16 w.[27] `<<<` 27 * 8)
+  `^` (u8_16 w.[28] `<<<` 28 * 8)
+  `^` (u8_16 w.[29] `<<<` 29 * 8)
+  `^` (u8_16 w.[30] `<<<` 30 * 8)
+  `^` (u8_16 w.[31] `<<<` 31 * 8).
+
+(* -------------------------------------------------------------------- *)
 type address = W64.t.
 
-type global_mem_t = {
-  gm128 : (address, W128.t) map;
-   gm64 : (address,  W64.t) map;
-   gm32 : (address,  W32.t) map;
-   gm16 : (address,  W16.t) map;
-   gm8  : (address,   W8.t) map;
-}.
-op loadW8   (m : global_mem_t) (a : address) = m.`gm8  .[a].
-op loadW16  (m : global_mem_t) (a : address) = m.`gm16 .[a].
-op loadW32  (m : global_mem_t) (a : address) = m.`gm32 .[a].
-op loadW64  (m : global_mem_t) (a : address) = m.`gm64 .[a].
-op loadW128 (m : global_mem_t) (a : address) = m.`gm128.[a].
+type global_mem_t = (address, W8.t) map.
 
-op storeW8  (m : global_mem_t) (a : address) (w : W8.t) =
-  {| m with gm8 = m.`gm8.[a <- w] |}.
+abbrev "_.[_]" (m : global_mem_t) (a : address) =
+  m.[a].
+
+abbrev "_.[_<-_]" (m : global_mem_t) (a : address) (w : W8.t) =
+  m.[a <- w].
+
+op loads (m : global_mem_t) (a : address) (l : int) =
+  map (fun i => m.[a + W64.of_uint i]) (range 0 l).
+
+op stores (m : global_mem_t) (a : address) (w : W8.t list) =
+  foldl (fun m i => m.[a + W64.of_uint i <- w.[i]]) m (range 0 (size w)).
+
+op loadW8   (m : global_mem_t) (a : address) = m.[a].
+op loadW16  (m : global_mem_t) (a : address) = packW16  (loads m a  2).
+op loadW32  (m : global_mem_t) (a : address) = packW32  (loads m a  4).
+op loadW64  (m : global_mem_t) (a : address) = packW64  (loads m a  8).
+op loadW128 (m : global_mem_t) (a : address) = packW128 (loads m a 16).
+op loadW256 (m : global_mem_t) (a : address) = packW256 (loads m a 32).
+
+op storeW8 (m : global_mem_t) (a : address) (w : W8.t) =
+  m.[a <- w].
 
 op storeW16 (m : global_mem_t) (a : address) (w : W16.t) =
-  {| m with gm16 = m.`gm16.[a <- w] |}.
+  stores m a (unpackW16 w).
 
 op storeW32 (m : global_mem_t) (a : address) (w : W32.t) =
-  {| m with gm32 = m.`gm32.[a <- w] |}.
+  stores m a (unpackW32 w).
 
 op storeW64 (m : global_mem_t) (a : address) (w : W64.t) =
-  {| m with gm64 = m.`gm64.[a <- w] |}.
+  stores m a (unpackW64 w).
 
 op storeW128 (m : global_mem_t) (a : address) (w : W128.t) =
-  {| m with gm128 = m.`gm128.[a <- w] |}.
+  stores m a (unpackW128 w).
+
+op storeW256 (m : global_mem_t) (a : address) (w : W256.t) =
+  stores m a (unpackW256 w).
 
 (* -------------------------------------------------------------------- *)
 type p4u32 = W32.t * W32.t * W32.t * W32.t.
