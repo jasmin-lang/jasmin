@@ -66,7 +66,8 @@ equiv poly1305_amd64_amd64_pr :
     ={arg} ==> ={res}.
 proof.
   proc => /=; sim (_:true).
-  + proc.    
+  (* first bloc *)
+  + proc => /=.    
     swap{1} 10 2.
     swap{1} [12..15] 2.
     swap{1} 17 5. swap{1} 18 -4. swap{1} 21 -6.
@@ -76,33 +77,60 @@ proof.
               Poly1305_amd64_5xPR.M.mulmod_u128
               Poly1305_amd64_5xPR.M.add_u128
               Poly1305_amd64_5xPR.M.carry_reduce_u128.
-    sim; wp.
-    call amd64_amd64_pr_load;wp => /=.
-    seq 7 6 : (#pre); 1:by sim.
-    conseq />.
+    sim. swap{2} [9..10] -2. swap{2} [18..19] -10. conseq />.
+    seq 7 10 : (#pre); 1:by sim.
     transitivity{1} {
-      x0 <@ Poly1305_amd64_5x.M.load(global_mem, in_0);
-      x1 <@ Poly1305_amd64_5x.M.load(global_mem, in_0 + (of_uint 32)%W64);
-      y0 <@ Poly1305_amd64_5x.M.load(global_mem, in_0 + (of_uint 32)%W64 - (of_uint 16)%W64);
-      in_0 <- in_0 + (of_uint 32)%W64 - (of_uint 16)%W64;
-    } 
-      (={global_mem, in_0, s_r2, s_r2x5} ==> ={global_mem, in_0, x0, x1, y0})
-      (={global_mem, in_0, s_r2, s_r2x5} ==> (global_mem{2} = global_mem1{2} /\
-             in_0{1} + (of_uint 32)%W64 = in_01{2} + (of_uint 16)%W64) /\
-             (in_0{1} + (of_uint 32)%W64 = in_01{2} + (of_uint 16)%W64 =>
-             in_0{1} + (of_uint 32)%W64 + (of_uint 16)%W64 = in_0{2} + (of_uint 32)%W64 /\
-             ={y0} /\ x1{1} = x2{2} /\ ={x0}))=> //.
+        x0 <@ Poly1305_amd64_5x.M.load(global_mem, in_0);
+        x1 <@ Poly1305_amd64_5x.M.load(global_mem, in_0 + (of_uint 32)%W64);
+        y0 <@ Poly1305_amd64_5x.M.load(global_mem, (in_0 + (of_uint 16)%W64));
+        y1 <@ Poly1305_amd64_5x.M.load(global_mem, (in_0 +  (of_uint 32)%W64 + (of_uint 16)%W64));
+        in_0 <- (in_0 + (of_uint 32)%W64) + (of_uint 32)%W64;
+      } 
+      (={global_mem, in_0, s_r2, s_r2x5} ==> ={in_0, x0, x1, y0, y1})
+      (={global_mem, in_0, s_r2, s_r2x5} ==> ={in_0, x0, x1, y0, y1})=> //.
     + by move=> &m1 &m2 />; exists global_mem{m2} in_0{m2} s_r2{m2} s_r2x5{m2}.
-    + do !(wp;call (_: ={global_mem, in_0} ==> ={res}); 1: by sim).
-     
-amd64_amd64_pr_load.
+    + do !(wp;call (_: ={global_mem, in_0} ==> ={res}); 1: by sim); skip => />.
+      admit. (* Simple arithmetic stuff *)
+    swap{1} 3 -1; do !(wp; call amd64_amd64_pr_load); auto => />.
 
-#post).
+  (* remaining_blocks *)
+  + proc => /=.
+    swap{1} [17..18] -8. swap{1} 9 -1.
+    swap{1} [17..18] 6. 
+    swap{1} 16 5.
+    swap{1} 18 2.
+    swap{1} 13 6.
+    swap{1} [9..10] 8.
+    swap{2} [9..10] -1. swap{2} 5 4. 
+    inline{2} Poly1305_amd64_5xPR.M.unpack_u128x2_to_u26x5x2
+              Poly1305_amd64_5xPR.M.mulmod_u128 Poly1305_amd64_5xPR.M.mulmod_add_u128
+              Poly1305_amd64_5xPR.M.add_u128
+              Poly1305_amd64_5xPR.M.carry_reduce_u128.
+    sim. swap{2} [5..6] 2. swap {2} [16..17] - 11. conseq />. 
+    seq 6 8 : (#pre); 1: by sim.
+    transitivity{1} {
+        x0 <@ Poly1305_amd64_5x.M.load(global_mem, in_0);
+        x1 <@ Poly1305_amd64_5x.M.load(global_mem, in_0 + (of_uint 32)%W64);
+        y0 <@ Poly1305_amd64_5x.M.load(global_mem, (in_0 + (of_uint 16)%W64));
+        y1 <@ Poly1305_amd64_5x.M.load(global_mem, (in_0 +  (of_uint 32)%W64 + (of_uint 16)%W64));
+        in_0 <- (in_0 + (of_uint 32)%W64) + (of_uint 32)%W64;
+      } 
+      ( ={global_mem, hx, hy, in_0, s_r4, s_r4x5, s_r2, s_r2x5} ==> ={in_0, hy, y1, y0, x1, x0} )   
+      ( ={global_mem, hx, hy, in_0, s_r4, s_r4x5, s_r2, s_r2x5} ==> ={in_0, hy, y1, y0, x1, x0} ) => //.
+    + by move=> &m1 &m2 />; exists global_mem{m2} hx{m2} hy{m2} in_0{m2} s_r2{m2} s_r2x5{m2} s_r4{m2} s_r4x5{m2}.
+    + do !(wp;call (_: ={global_mem, in_0} ==> ={res}); 1: by sim); wp; skip => />.
+      admit. (* Simple arithmetic stuff *)
+    swap{1} 3 -1; do !(wp; call amd64_amd64_pr_load); auto => />.
 
-    sp.
-in_0{1} 
+  (* final_mul *)
+  proc=> /=.
+  swap{1} [6..7] 2.
+  inline{2} Poly1305_amd64_5xPR.M.mulmod_u128 Poly1305_amd64_5xPR.M.carry_reduce_u128. 
+  by sim.
+qed.
+
 (* ------------------------------------------------------------------------------ *)
-(* AMD64-5x and AVX-5x                                                            *)
+(* AMD64-5x_for_proof and AVX-5x                                                  *)
 (* ------------------------------------------------------------------------------ *)
 
 op rela4 (x y: W64.t Array4.t) 
@@ -145,6 +173,8 @@ op wf4 (z : W64.t Array4.t) =
 
 axiom bounded_add i x y : 0 < i => bounded (i-1) x => bounded (i-1) y => bounded i (x + y).
 axiom bounded_and i x y : bounded i x \/ bounded i y => bounded i (x `&` y).
+axiom bounded_or  i x y : bounded i x /\ bounded i y => bounded i (x `|` y).
+
 axiom bounded_shr i j x : 
   0 <= i => (* i + j <= 64 => *)
   bounded (i + j) x => 
@@ -158,12 +188,6 @@ axiom bounded_weak (i j:int) x : i <= j => bounded i x => bounded j x.
 
 axiom bounded_w64 i w : 64 <= i => bounded i w.
 
-(*lemma bounded_5 i : 4 <= i => bounded i (W64.of_uint 5).
-proof. by move=> ?;apply (bounded_weak 4). qed.
-
-lemma bounded_67108863 i : 26 <= i => bounded 26 (W64.of_uint 67108863).
-proof. by move=> ?;apply (bounded_weak 26). qed. *)
-
 lemma bounded_and_2p26 i w : 26 <= i => bounded i (w `&`  (W64.of_uint 67108863)).
 proof.
   move=> h; apply (bounded_weak 26); 1: done.
@@ -176,31 +200,17 @@ proof.
   by apply bounded_mul => //; rewrite boundedE.
 qed.
 
-hoare carry_reduceWF : Poly1305_amd64_5x.M.carry_reduce : true ==> wf5 res.
+hoare carry_reduceWF : Poly1305_amd64_5xPR.M.carry_reduce : true ==> wf5 res.
 proof.
   proc; wp; skip; rewrite /wf5 => &m1 &m2 /=.
   smt (bounded_and_2p26 bounded_add bounded_shr bounded_mul5 bounded_w64).
 qed.
 
-equiv carry_reduceP : Poly1305_amd64_5x.M.carry_reduce ~ Poly1305_avx_5x.M.carry_reduce : 
+equiv carry_reduceP : Poly1305_amd64_5xPR.M.carry_reduce ~ Poly1305_avx_5x.M.carry_reduce : 
         ={x} ==> ={res} /\ wf5 res{1}.
 proof.
   conseq (_: ={res}) carry_reduceWF.
   by proc; wp; skip => &m1 &m2 /= ->.
-qed.
-
-hoare clampWF : Poly1305_amd64_5x.M.clamp : true ==> wf5 res.
-proof.
-  proc;wp; conseq (_:true);last done.
-  rewrite /wf5 /= => ?.
-  do !(split || by apply bounded_and;right;rewrite boundedE).
-qed.
-
-equiv clampP : Poly1305_amd64_5x.M.clamp ~ Poly1305_avx_5x.M.clamp : 
-  ={global_mem, k} ==> ={res} /\ wf5 res{1}.
-proof.
-  conseq (_: ={res}) clampWF.
-  proc; sim.
 qed.
 
 axiom pack_mulu_32 w1 w2 : 
@@ -215,7 +225,44 @@ proof. by rewrite zeroext_32_64E. qed.
 
 hint simplify zeroext_of_uint.
 
-equiv add_carryP : Poly1305_amd64_5x.M.add_carry ~ Poly1305_avx_5x.M.add_carry : 
+hint simplify (VPAND_128_64, VPOR_128_64, VPXOR_128_64)@0. 
+
+lemma VPAND_128_64_l w1 w2 : 
+   pack_2u64 w1 `&` w2 = 
+     pack_2u64(w1.`1 `&` (unpack_2u64 w2).`1, w1.`2 `&` (unpack_2u64 w2).`2).
+proof. by rewrite -(pack_unpack_2u64 w2) VPAND_128_64. qed.
+
+hint simplify VPAND_128_64_l@1.
+
+equiv carry_reduce_u128P : Poly1305_amd64_5xPR.M.carry_reduce_u128 ~ Poly1305_avx_5x.M.carry_reduce_u128 : 
+        rela5 hx{1} hy{1} x{2} ==>
+        rela5 res{1}.`1 res{1}.`2 res{2} /\ wf5 res{1}.`1 /\ wf5 res{1}.`2.
+proof.
+  conseq (_: rela5 res{1}.`1 res{1}.`2 res{2}) (_ : true ==> wf5 res.`1 /\ wf5 res.`2) => //.
+  + by proc; do 2!call carry_reduceWF;auto.
+  proc; inline *; wp; skip; cbv delta.
+  move=> &m1 &m2 [#] 5!->. cbv delta.  
+  rewrite (zeroext_bounded (hx{m1}.[4] + (hx{m1}.[3] `>>>` 26) `>>>` 26)) //.
+  admit.    (* 57 *)
+  rewrite (zeroext_bounded (hy{m1}.[4] + (hy{m1}.[3] `>>>` 26) `>>>` 26)) //.
+  admit.    (* 57 *)
+qed.
+
+hoare clampWF : Poly1305_amd64_5xPR.M.clamp : true ==> wf5 res.
+proof.
+  proc;wp; conseq (_:true);last done.
+  rewrite /wf5 /= => ?.
+  do !(split || by apply bounded_and;right;rewrite boundedE).
+qed.
+
+equiv clampP : Poly1305_amd64_5xPR.M.clamp ~ Poly1305_avx_5x.M.clamp : 
+  ={global_mem, k} ==> ={res} /\ wf5 res{1}.
+proof.
+  conseq (_: ={res}) clampWF.
+  proc; sim.
+qed.
+
+equiv add_carryP : Poly1305_amd64_5xPR.M.add_carry ~ Poly1305_avx_5x.M.add_carry : 
    ={x,y} ==> ={res}.
 proof.
   proc => /=.
@@ -225,7 +272,7 @@ proof.
   wp; skip; cbv delta => />.
 qed.
 
-equiv hadd_u128P : Poly1305_amd64_5x.M.add_carry ~ Poly1305_avx_5x.M.hadd_u128 :  
+equiv hadd_u128P : Poly1305_amd64_5xPR.M.add_carry ~ Poly1305_avx_5x.M.hadd_u128 :  
   rela5 x{1} y{1} x{2} ==> ={res}.
 proof.
   proc *.
@@ -236,16 +283,155 @@ proof.
   by unroll for {2} 5; wp; skip => &m1 &m2; cbv delta => [#] 5!->.
 qed.
 
-hint simplify (VPAND_128_64, VPOR_128_64, VPXOR_128_64)@0. 
+equiv mulmod_u128P : 
+  Poly1305_amd64_5xPR.M.mulmod_u128 ~ Poly1305_avx_5x.M.mulmod_u128 : 
+  wf5 x1{1} /\ wf5 x2{1} /\ wf5 y1{1} /\ wf5 y2{1} /\ wf4 y1x5{1} /\ wf4 y2x5{1} /\
+  rela5 x1{1} x2{1} x{2} /\
+  rela5 y1{1} y2{1} y{2} /\
+  rela4 y1x5{1} y2x5{1} yx5{2} ==>
+  rela5 res{1}.`1 res{1}.`2 res{2}.
+proof.
+  proc => /=; inline *; wp; skip; cbv delta.
+  move=> &m1 &m2 [#] X10 X11 X12 X13 X14 X20 X21 X22 X23 X24.
+  move=> Y10 Y11 Y12 Y13 Y14 Y20 Y21 Y22 Y23 Y24.
+  move=> Y1x0 Y1x1 Y1x2 Y1x3 Y2x0 Y2x1 Y2x2 Y2x3 14!-> /=.
+  rewrite (zeroext_bounded x1{m1}.[0]); 1:by move: X10;apply: bounded_weak.
+  rewrite (zeroext_bounded x1{m1}.[1]); 1:by move: X11;apply: bounded_weak.
+  rewrite (zeroext_bounded x1{m1}.[2]); 1:by move: X12;apply: bounded_weak.
+  rewrite (zeroext_bounded x1{m1}.[3]); 1:by move: X13;apply: bounded_weak.
+  rewrite (zeroext_bounded x1{m1}.[4]); 1:by move: X14;apply: bounded_weak.
+  rewrite (zeroext_bounded x2{m1}.[0]); 1:by move: X20;apply: bounded_weak.
+  rewrite (zeroext_bounded x2{m1}.[1]); 1:by move: X21;apply: bounded_weak.
+  rewrite (zeroext_bounded x2{m1}.[2]); 1:by move: X22;apply: bounded_weak.
+  rewrite (zeroext_bounded x2{m1}.[3]); 1:by move: X23;apply: bounded_weak.
+  rewrite (zeroext_bounded x2{m1}.[4]); 1:by move: X24;apply: bounded_weak.
 
-lemma VPAND_128_64_l w1 w2 : 
-   pack_2u64 w1 `&` w2 = 
-     pack_2u64(w1.`1 `&` (unpack_2u64 w2).`1, w1.`2 `&` (unpack_2u64 w2).`2).
-proof. by rewrite -(pack_unpack_2u64 w2) VPAND_128_64. qed.
+  rewrite (zeroext_bounded y1{m1}.[0]); 1:by move: Y10;apply: bounded_weak.
+  rewrite (zeroext_bounded y1{m1}.[1]); 1:by move: Y11;apply: bounded_weak.
+  rewrite (zeroext_bounded y1{m1}.[2]); 1:by move: Y12;apply: bounded_weak.
+  rewrite (zeroext_bounded y1{m1}.[3]); 1:by move: Y13;apply: bounded_weak.
+  rewrite (zeroext_bounded y1{m1}.[4]); 1:by move: Y14;apply: bounded_weak.
+  rewrite (zeroext_bounded y2{m1}.[0]); 1:by move: Y20;apply: bounded_weak.
+  rewrite (zeroext_bounded y2{m1}.[1]); 1:by move: Y21;apply: bounded_weak.
+  rewrite (zeroext_bounded y2{m1}.[2]); 1:by move: Y22;apply: bounded_weak.
+  rewrite (zeroext_bounded y2{m1}.[3]); 1:by move: Y23;apply: bounded_weak.
+  rewrite (zeroext_bounded y2{m1}.[4]); 1:by move: Y24;apply: bounded_weak.
 
-hint simplify VPAND_128_64_l@1.
+  rewrite (zeroext_bounded y1x5{m1}.[0]); 1:by move: Y1x0;apply: bounded_weak.
+  rewrite (zeroext_bounded y1x5{m1}.[1]); 1:by move: Y1x1;apply: bounded_weak.
+  rewrite (zeroext_bounded y1x5{m1}.[2]); 1:by move: Y1x2;apply: bounded_weak.
+  rewrite (zeroext_bounded y1x5{m1}.[3]); 1:by move: Y1x3;apply: bounded_weak.
+  rewrite (zeroext_bounded y2x5{m1}.[0]); 1:by move: Y2x0;apply: bounded_weak.
+  rewrite (zeroext_bounded y2x5{m1}.[1]); 1:by move: Y2x1;apply: bounded_weak.
+  rewrite (zeroext_bounded y2x5{m1}.[2]); 1:by move: Y2x2;apply: bounded_weak.
+  rewrite (zeroext_bounded y2x5{m1}.[3]); 1:by move: Y2x3;apply: bounded_weak.
+  done.
+qed.
 
-equiv final_mulP : Poly1305_amd64_5x.M.final_mul ~ Poly1305_avx_5x.M.final_mul : 
+equiv mulmod_add_u128P : 
+  Poly1305_amd64_5xPR.M.mulmod_add_u128 ~ Poly1305_avx_5x.M.mulmod_add_u128 : 
+  wf5 x1{1} /\ wf5 x2{1} /\ wf5 y{1} /\ wf4 yx5{1} /\
+  rela5 u1{1} u2{1} u{2} /\
+  rela5 x1{1} x2{1} x{2} /\
+  rela5 y{1} y{1} y{2} /\
+  rela4 yx5{1} yx5{1} yx5{2} ==>
+  rela5 res{1}.`1 res{1}.`2 res{2}.
+proof.
+  proc => /=; inline *. 
+  unroll for{1} 107. unroll for{1} 20.
+  unroll for{2} 11.
+  wp; skip; cbv delta.
+  move=> &m1 &m2 [#] X10 X11 X12 X13 X14 X20 X21 X22 X23 X24.
+  move=> Y0 Y1 Y2 Y3 Y4 Yx0 Yx1 Yx2 Yx3 19!-> /=.
+  rewrite (zeroext_bounded x1{m1}.[0]); 1:by move: X10;apply: bounded_weak.
+  rewrite (zeroext_bounded x1{m1}.[1]); 1:by move: X11;apply: bounded_weak.
+  rewrite (zeroext_bounded x1{m1}.[2]); 1:by move: X12;apply: bounded_weak.
+  rewrite (zeroext_bounded x1{m1}.[3]); 1:by move: X13;apply: bounded_weak.
+  rewrite (zeroext_bounded x1{m1}.[4]); 1:by move: X14;apply: bounded_weak.
+  rewrite (zeroext_bounded x2{m1}.[0]); 1:by move: X20;apply: bounded_weak.
+  rewrite (zeroext_bounded x2{m1}.[1]); 1:by move: X21;apply: bounded_weak.
+  rewrite (zeroext_bounded x2{m1}.[2]); 1:by move: X22;apply: bounded_weak.
+  rewrite (zeroext_bounded x2{m1}.[3]); 1:by move: X23;apply: bounded_weak.
+  rewrite (zeroext_bounded x2{m1}.[4]); 1:by move: X24;apply: bounded_weak.
+
+  rewrite (zeroext_bounded y{m1}.[0]); 1:by move: Y0;apply: bounded_weak.
+  rewrite (zeroext_bounded y{m1}.[1]); 1:by move: Y1;apply: bounded_weak.
+  rewrite (zeroext_bounded y{m1}.[2]); 1:by move: Y2;apply: bounded_weak.
+  rewrite (zeroext_bounded y{m1}.[3]); 1:by move: Y3;apply: bounded_weak.
+  rewrite (zeroext_bounded y{m1}.[4]); 1:by move: Y4;apply: bounded_weak.
+ 
+  rewrite (zeroext_bounded yx5{m1}.[0]); 1:by move: Yx0;apply: bounded_weak.
+  rewrite (zeroext_bounded yx5{m1}.[1]); 1:by move: Yx1;apply: bounded_weak.
+  rewrite (zeroext_bounded yx5{m1}.[2]); 1:by move: Yx2;apply: bounded_weak.
+  rewrite (zeroext_bounded yx5{m1}.[3]); 1:by move: Yx3;apply: bounded_weak.
+  done.
+qed.
+
+equiv add_u128P : Poly1305_amd64_5xPR.M.add_u128 ~ Poly1305_avx_5x.M.add_u128 :  
+  rela5 x1{1} x2{1} x{2} /\ rela5 y1{1} y2{1} y{2} 
+  ==> 
+  rela5 res{1}.`1 res{1}.`2 res{2}.
+proof.
+  proc; inline *.
+  unroll for {1} 9; unroll for {1} 4.
+  unroll for {2} 2; wp; skip; cbv delta.
+  by move=> &1 &2 [#] 10!->.
+qed.
+
+hoare loadWF : Poly1305_amd64_5xPR.M.load : true ==> wf5 res.
+proof.
+  proc; inline *; wp; skip; rewrite /wf5 => /= &hr.
+  have h : bounded 27 ((of_uint 16777216))%W64 by rewrite boundedE. 
+  smt (bounded_and_2p26 bounded_add bounded_shr bounded_w64 bounded_or).
+qed.
+
+equiv unpack_u128P : 
+ Poly1305_amd64_5xPR.M.unpack_u128x2_to_u26x5x2 ~  Poly1305_avx_5x.M.unpack_u128x2_to_u26x5x2 :
+  ={global_mem} /\ in_0{1} = m{2} ==> rela5 res{1}.`1 res{1}.`2 res{2} /\ wf5 res{1}.`1 /\ wf5 res{1}.`2.
+proof. 
+  conseq (_: ={global_mem} /\ in_0{1} = m{2} ==> rela5 res{1}.`1 res{1}.`2 res{2}) 
+         (_: true ==> wf5 res.`1 /\ wf5 res.`2).
+  + by proc; do !(call loadWF;wp); skip.
+  proc;inline *;wp; skip => />; cbv delta.
+
+
+
+equiv remaining_blocksP : Poly1305_amd64_5xPR.M.remaining_blocks ~ Poly1305_avx_5x.M.remaining_blocks :
+   ={global_mem, in_0} /\ 
+   wf5 hx{1} /\ wf5 hy{1} /\ wf5 s_r2{1} /\ wf5 s_r4{1} /\ wf4 s_r2x5{1} /\ wf4 s_r4x5{1} /\
+   rela5 hx{1} hy{1} hxy{2} /\ 
+   rela5 s_r2{1} s_r2{1} s_r2r2{2} /\ 
+   rela5 s_r4{1} s_r4{1} s_r4r4{2} /\ 
+   rela4 s_r2x5{1} s_r2x5{1} s_r2r2x5{2} /\
+   rela4 s_r4x5{1} s_r4x5{1} s_r4r4x5{2} ==>
+   res{1}.`3 = res{2}.`2 /\
+   rela5 res{1}.`1 res{1}.`2 res{2}.`1.
+proof.
+  proc => /=.
+  call carry_reduce_u128P. (* need precondition 57 *)
+  call add_u128P;wp. (* need precondition 56 *)  
+  
+ 
+  
+  
+
+
+  swap{1}16 9. swap{1} 15 8; wp.
+  seq 22 9 : (#post). 
+  + admit.
+  inline *.
+  wp; skip; cbv delta => &m1 &m2 [#] 5!->; cbv delta.
+admitted.
+
+equiv first_blockP : Poly1305_amd64_5xPR.M.first_block ~ Poly1305_avx_5x.M.first_block :
+   ={global_mem, in_0} /\
+   rela5 s_r2{1} s_r2{1} s_r2r2{2} /\
+   rela4 s_r2x5{1} s_r2x5{1} s_r2r2x5{2} ==>
+   res{1}.`3 = res{2}.`2 /\
+   rela5 res{1}.`1 res{1}.`2 res{2}.`1.
+admitted.
+
+equiv final_mulP : Poly1305_amd64_5xPR.M.final_mul ~ Poly1305_avx_5x.M.final_mul : 
   wf5 hx{1} /\ wf5 hy{1} /\ wf5 s_r2{1} /\ wf4 s_r2x5{1} /\ wf5 s_r{1} /\ wf4 s_rx5{1} /\
   rela5 hx{1} hy{1} hxy{2} /\
   rela5 s_r2{1} s_r{1} s_r2r{2} /\
@@ -253,51 +439,9 @@ equiv final_mulP : Poly1305_amd64_5x.M.final_mul ~ Poly1305_avx_5x.M.final_mul :
 proof.
   proc => /=.
   call hadd_u128P => /=.
-  swap{1} 7 3. swap{1} 6 2. swap{1} 6 -1; wp.
-  seq 7 2 : (#post).   
-  + inline *; wp; skip; cbv delta.
-    move=> &m1 &m2 [#] X0 X1 X2 X3 X4 Y0 Y1 Y2 Y3 Y4.
-    move=> R20 R21 R22 R23 R24 R2x0 R2x1 R2x2 R2x3.
-    move=> R0 R1 R2 R3 R4 Rx0 Rx1 Rx2 Rx3 14!-> />.
-    rewrite (zeroext_bounded hx{m1}.[0]). by move: X0;apply: bounded_weak.
-    rewrite (zeroext_bounded hx{m1}.[1]). by move: X1;apply: bounded_weak.
-    rewrite (zeroext_bounded hx{m1}.[2]). by move: X2;apply: bounded_weak.
-    rewrite (zeroext_bounded hx{m1}.[3]). by move: X3;apply: bounded_weak.
-    rewrite (zeroext_bounded hx{m1}.[4]). by move: X4;apply: bounded_weak.
-    rewrite (zeroext_bounded hy{m1}.[0]). by move: Y0;apply: bounded_weak.
-    rewrite (zeroext_bounded hy{m1}.[1]). by move: Y1;apply: bounded_weak.
-    rewrite (zeroext_bounded hy{m1}.[2]). by move: Y2;apply: bounded_weak.
-    rewrite (zeroext_bounded hy{m1}.[3]). by move: Y3;apply: bounded_weak.
-    rewrite (zeroext_bounded hy{m1}.[4]). by move: Y4;apply: bounded_weak.
-    rewrite (zeroext_bounded s_r2{m1}.[0]). by move: R20;apply: bounded_weak.
-    rewrite (zeroext_bounded s_r2{m1}.[1]). by move: R21;apply: bounded_weak.
-    rewrite (zeroext_bounded s_r2{m1}.[2]). by move: R22;apply: bounded_weak.
-    rewrite (zeroext_bounded s_r2{m1}.[3]). by move: R23;apply: bounded_weak.
-    rewrite (zeroext_bounded s_r2{m1}.[4]). by move: R24;apply: bounded_weak.
-    rewrite (zeroext_bounded s_r2x5{m1}.[0]). by move: R2x0;apply: bounded_weak.
-    rewrite (zeroext_bounded s_r2x5{m1}.[1]). by move: R2x1;apply: bounded_weak.
-    rewrite (zeroext_bounded s_r2x5{m1}.[2]). by move: R2x2;apply: bounded_weak.
-    rewrite (zeroext_bounded s_r2x5{m1}.[3]). by move: R2x3;apply: bounded_weak.
-    rewrite (zeroext_bounded s_r{m1}.[0]). by move: R0;apply: bounded_weak.
-    rewrite (zeroext_bounded s_r{m1}.[1]). by move: R1;apply: bounded_weak.
-    rewrite (zeroext_bounded s_r{m1}.[2]). by move: R2;apply: bounded_weak.
-    rewrite (zeroext_bounded s_r{m1}.[3]). by move: R3;apply: bounded_weak.
-    rewrite (zeroext_bounded s_r{m1}.[4]). by move: R4;apply: bounded_weak.
-    rewrite (zeroext_bounded s_rx5{m1}.[0]). by move: Rx0;apply: bounded_weak.
-    rewrite (zeroext_bounded s_rx5{m1}.[1]). by move: Rx1;apply: bounded_weak.
-    rewrite (zeroext_bounded s_rx5{m1}.[2]). by move: Rx2;apply: bounded_weak.
-    rewrite (zeroext_bounded s_rx5{m1}.[3]). by move: Rx3;apply: bounded_weak.
-    done.
-
-
-
- X0.
-s_r2{m2}.[1])
-    rewrite !zeroext_bounded. 
-    admit.
-  inline *.
-  wp; skip; cbv delta => &m1 &m2 [#] 5!->; cbv delta.
-  admit. (* again we need condition on size *)
+  call carry_reduce_u128P.
+  call mulmod_u128P.  (* We need to ensure bounded 57 hx.[3] hx.[4] hy.[3] hy.[4] *)
+  by wp; skip => />.
 qed.
 
 phoare unpack_u26x5x2P x0 y0:
@@ -315,43 +459,8 @@ proof.
   wp;skip;cbv delta => />.
 qed.
 
-equiv remaining_blocksP : Poly1305_amd64_5x.M.remaining_blocks ~ Poly1305_avx_5x.M.remaining_blocks :
-   ={global_mem, in_0} /\ rela5 hx{1} hy{1} hxy{2} /\ 
-            rela5 s_r2{1} s_r2{1} s_r2r2{2} /\ 
-            rela5 s_r4{1} s_r4{1} s_r4r4{2} /\ 
-            rela4 s_r2x5{1} s_r2x5{1} s_r2r2x5{2} /\
-            rela4 s_r4x5{1} s_r4x5{1} s_r4r4x5{2} ==>
-   res{1}.`3 = res{2}.`2 /\
-   rela5 res{1}.`1 res{1}.`2 res{2}.`1.
-proof.
-  proc => /=.
-  swap{1}16 9. swap{1} 15 8; wp.
-  seq 22 9 : (#post). 
-  + admit.
-  inline *.
-  wp; skip; cbv delta => &m1 &m2 [#] 5!->; cbv delta.
-admitted.
-
-equiv first_blockP : Poly1305_amd64_5x.M.first_block ~ Poly1305_avx_5x.M.first_block :
-   ={global_mem, in_0} /\
-   rela5 s_r2{1} s_r2{1} s_r2r2{2} /\
-   rela4 s_r2x5{1} s_r2x5{1} s_r2r2x5{2} ==>
-   res{1}.`3 = res{2}.`2 /\
-   rela5 res{1}.`1 res{1}.`2 res{2}.`1.
-admitted.
-
-(* axiom W64_leNgt (w1 w2: W64.t) : (w1 `<=` w2) = ! (w2 `<` w1). *)
-
-
-unpack 26 26 26 26 24
-r4 : 26 26 26 26 24
-r4x5 : 30 30 30 28
-
-mulmod 56 
-61       
-
 equiv poly1305_amd64_avx_5x :
-  Poly1305_amd64_5x.M.poly1305 ~ Poly1305_avx_5x.M.poly1305 :
+  Poly1305_amd64_5xPR.M.poly1305 ~ Poly1305_avx_5x.M.poly1305 :
    ={arg} ==> ={res}.
 proof.
   proc=> /=. sim.
