@@ -1,16 +1,6 @@
 require import List Jasmin_model Int IntDiv CoreMap.
 
 
-abbrev zero_u128 = W128.of_uint 0.
-
-
-abbrev five_u128 = W128.of_uint 92233720368547758085.
-
-
-abbrev bit25_u128 = W128.of_uint 309485009821345068741558272.
-
-
-abbrev mask26_u128 = W128.of_uint 1237940020838636201256681471.
 
 
 module M = {
@@ -40,33 +30,6 @@ module M = {
       i <- i + 1;
     }
     return (x);
-  }
-  
-  proc add_u128 (x:W128.t Array5.t, y:W128.t Array5.t) : W128.t Array5.t = {
-    var i:int;
-    
-    i <- 0;
-    while (i < 5) {
-      x.[i] <- x86_VPADD_2u64 x.[i] y.[i];
-      i <- i + 1;
-    }
-    return (x);
-  }
-  
-  proc hadd_u128 (x:W128.t Array5.t) : W64.t Array5.t = {
-    var h:W64.t Array5.t;
-    var i:int;
-    var t:W64.t Array5.t;
-    h <- Array5.init;
-    t <- Array5.init;
-    i <- 0;
-    while (i < 5) {
-      t.[i] <- x86_VPEXTR_64 x.[i] (W8.of_uint 1);
-      h.[i] <- x86_VPEXTR_64 x.[i] (W8.of_uint 0);
-      i <- i + 1;
-    }
-    h <@ add_carry (h, t);
-    return (h);
   }
   
   proc freeze (x:W64.t Array5.t) : W64.t Array5.t = {
@@ -215,6 +178,91 @@ module M = {
     return (x);
   }
   
+  proc mulmod_add_12 (u:W64.t Array5.t, x:W64.t Array5.t, y:W64.t Array5.t,
+                      yx5:W64.t Array4.t) : W64.t Array5.t = {
+    var t:W64.t Array5.t;
+    var z:W64.t Array3.t;
+    t <- Array5.init;
+    z <- Array3.init;
+    t.[0] <- x.[0];
+    t.[0] <- (t.[0] * y.[0]);
+    t.[1] <- x.[0];
+    t.[1] <- (t.[1] * y.[1]);
+    t.[2] <- x.[0];
+    t.[2] <- (t.[2] * y.[2]);
+    t.[3] <- x.[0];
+    t.[3] <- (t.[3] * y.[3]);
+    t.[4] <- x.[0];
+    t.[4] <- (t.[4] * y.[4]);
+    t <@ add (t, u);
+    z.[0] <- x.[1];
+    z.[0] <- (z.[0] * y.[0]);
+    z.[1] <- x.[1];
+    z.[1] <- (z.[1] * y.[1]);
+    z.[2] <- x.[1];
+    z.[2] <- (z.[2] * y.[2]);
+    t.[1] <- (t.[1] + z.[0]);
+    t.[2] <- (t.[2] + z.[1]);
+    t.[3] <- (t.[3] + z.[2]);
+    z.[0] <- x.[1];
+    z.[0] <- (z.[0] * y.[3]);
+    z.[1] <- x.[2];
+    z.[1] <- (z.[1] * y.[0]);
+    z.[2] <- x.[2];
+    z.[2] <- (z.[2] * y.[1]);
+    t.[4] <- (t.[4] + z.[0]);
+    t.[2] <- (t.[2] + z.[1]);
+    t.[3] <- (t.[3] + z.[2]);
+    z.[0] <- x.[2];
+    z.[0] <- (z.[0] * y.[2]);
+    z.[1] <- x.[3];
+    z.[1] <- (z.[1] * y.[0]);
+    z.[2] <- x.[3];
+    z.[2] <- (z.[2] * y.[1]);
+    t.[4] <- (t.[4] + z.[0]);
+    z.[0] <- x.[4];
+    z.[0] <- (z.[0] * y.[0]);
+    t.[3] <- (t.[3] + z.[1]);
+    t.[4] <- (t.[4] + z.[2]);
+    t.[4] <- (t.[4] + z.[0]);
+    z.[0] <- x.[4];
+    z.[0] <- (z.[0] * yx5.[0]);
+    z.[1] <- x.[3];
+    z.[1] <- (z.[1] * yx5.[1]);
+    z.[2] <- x.[4];
+    z.[2] <- (z.[2] * yx5.[1]);
+    t.[0] <- (t.[0] + z.[0]);
+    t.[0] <- (t.[0] + z.[1]);
+    t.[1] <- (t.[1] + z.[2]);
+    z.[0] <- x.[4];
+    z.[0] <- (z.[0] * yx5.[2]);
+    z.[1] <- x.[2];
+    z.[1] <- (z.[1] * yx5.[2]);
+    z.[2] <- x.[3];
+    z.[2] <- (z.[2] * yx5.[2]);
+    t.[2] <- (t.[2] + z.[0]);
+    t.[0] <- (t.[0] + z.[1]);
+    t.[1] <- (t.[1] + z.[2]);
+    z.[0] <- x.[1];
+    z.[0] <- (z.[0] * yx5.[3]);
+    z.[1] <- x.[2];
+    z.[1] <- (z.[1] * yx5.[3]);
+    z.[2] <- x.[3];
+    z.[2] <- (z.[2] * yx5.[3]);
+    u.[0] <- t.[0];
+    u.[0] <- (u.[0] + z.[0]);
+    z.[0] <- x.[4];
+    z.[0] <- (z.[0] * yx5.[3]);
+    u.[1] <- t.[1];
+    u.[1] <- (u.[1] + z.[1]);
+    u.[2] <- t.[2];
+    u.[2] <- (u.[2] + z.[2]);
+    u.[3] <- t.[3];
+    u.[3] <- (u.[3] + z.[0]);
+    u.[4] <- t.[4];
+    return (u);
+  }
+  
   proc carry_reduce (x:W64.t Array5.t) : W64.t Array5.t = {
     var z:W64.t Array2.t;
     z <- Array2.init;
@@ -247,189 +295,6 @@ module M = {
     z.[0] <- (z.[0] `>>` (W8.of_uint 26));
     x.[3] <- (x.[3] `&` (W64.of_uint 67108863));
     x.[4] <- (x.[4] + z.[0]);
-    return (x);
-  }
-  
-  proc unpack_u26x5x2_to_u26x5x2 (s:W64.t Array5.t, t:W64.t Array5.t) : 
-  W128.t Array5.t = {
-    var r:W128.t Array5.t;
-    var i:int;
-    r <- Array5.init;
-    i <- 0;
-    while (i < 5) {
-      r.[i] <- zero_u128;
-      r.[i] <- x86_VPINSR_2u64 r.[i] s.[i] (W8.of_uint 0);
-      r.[i] <- x86_VPINSR_2u64 r.[i] t.[i] (W8.of_uint 1);
-      i <- i + 1;
-    }
-    return (r);
-  }
-  
-  proc unpack_u128x2_to_u26x5x2 (global_mem : global_mem_t, m:W64.t) : 
-  W128.t Array5.t = {
-    var r:W128.t Array5.t;
-    var s128:W128.t;
-    var t128:W128.t;
-    var t1:W128.t;
-    var t2:W128.t;
-    var t3:W128.t;
-    r <- Array5.init;
-    s128 <- x86_MOVD_64 (loadW64 global_mem (m + (W64.of_uint (8 * 0))));
-    t128 <- x86_MOVD_64 (loadW64 global_mem (m + (W64.of_uint (8 * 2))));
-    t1 <- x86_VPUNPCKL_2u64 s128 t128;
-    s128 <- x86_MOVD_64 (loadW64 global_mem (m + (W64.of_uint (8 * 1))));
-    t128 <- x86_MOVD_64 (loadW64 global_mem (m + (W64.of_uint (8 * 3))));
-    t2 <- x86_VPUNPCKL_2u64 s128 t128;
-    t3 <- x86_VPSLL_2u64 t2 (W8.of_uint 12);
-    r.[0] <- x86_VPAND_128 t1 mask26_u128;
-    t1 <- x86_VPSRL_2u64 t1 (W8.of_uint 26);
-    r.[1] <- x86_VPAND_128 t1 mask26_u128;
-    t1 <- x86_VPSRL_2u64 t1 (W8.of_uint 26);
-    t1 <- x86_VPOR_128 t1 t3;
-    r.[2] <- x86_VPAND_128 t1 mask26_u128;
-    t1 <- x86_VPSRL_2u64 t1 (W8.of_uint 26);
-    r.[3] <- x86_VPAND_128 t1 mask26_u128;
-    r.[4] <- x86_VPSRL_2u64 t2 (W8.of_uint 40);
-    r.[4] <- x86_VPOR_128 r.[4] bit25_u128;
-    return (r);
-  }
-  
-  proc mulmod_u128 (x:W128.t Array5.t, y:W128.t Array5.t, yx5:W128.t Array4.t) : 
-  W128.t Array5.t = {
-    var t:W128.t Array5.t;
-    var z:W128.t Array5.t;
-    t <- Array5.init;
-    z <- Array5.init;
-    t.[0] <- x86_VPMULU_128 x.[0] y.[0];
-    t.[1] <- x86_VPMULU_128 x.[0] y.[1];
-    t.[2] <- x86_VPMULU_128 x.[0] y.[2];
-    t.[3] <- x86_VPMULU_128 x.[0] y.[3];
-    t.[4] <- x86_VPMULU_128 x.[0] y.[4];
-    z.[0] <- x86_VPMULU_128 x.[1] y.[0];
-    z.[1] <- x86_VPMULU_128 x.[1] y.[1];
-    z.[2] <- x86_VPMULU_128 x.[1] y.[2];
-    z.[3] <- x86_VPMULU_128 x.[1] y.[3];
-    z.[4] <- x86_VPMULU_128 x.[2] y.[0];
-    t.[1] <- x86_VPADD_2u64 t.[1] z.[0];
-    t.[2] <- x86_VPADD_2u64 t.[2] z.[1];
-    t.[3] <- x86_VPADD_2u64 t.[3] z.[2];
-    t.[4] <- x86_VPADD_2u64 t.[4] z.[3];
-    t.[2] <- x86_VPADD_2u64 t.[2] z.[4];
-    z.[0] <- x86_VPMULU_128 x.[2] y.[1];
-    z.[1] <- x86_VPMULU_128 x.[2] y.[2];
-    z.[2] <- x86_VPMULU_128 x.[3] y.[0];
-    z.[3] <- x86_VPMULU_128 x.[3] y.[1];
-    z.[4] <- x86_VPMULU_128 x.[4] y.[0];
-    t.[3] <- x86_VPADD_2u64 t.[3] z.[0];
-    t.[4] <- x86_VPADD_2u64 t.[4] z.[1];
-    t.[3] <- x86_VPADD_2u64 t.[3] z.[2];
-    t.[4] <- x86_VPADD_2u64 t.[4] z.[3];
-    t.[4] <- x86_VPADD_2u64 t.[4] z.[4];
-    z.[0] <- x86_VPMULU_128 x.[4] yx5.[0];
-    z.[1] <- x86_VPMULU_128 x.[3] yx5.[1];
-    z.[2] <- x86_VPMULU_128 x.[4] yx5.[1];
-    z.[3] <- x86_VPMULU_128 x.[2] yx5.[2];
-    z.[4] <- x86_VPMULU_128 x.[3] yx5.[2];
-    t.[0] <- x86_VPADD_2u64 t.[0] z.[0];
-    t.[1] <- x86_VPADD_2u64 t.[1] z.[2];
-    t.[0] <- x86_VPADD_2u64 t.[0] z.[1];
-    t.[1] <- x86_VPADD_2u64 t.[1] z.[4];
-    t.[0] <- x86_VPADD_2u64 t.[0] z.[3];
-    z.[0] <- x86_VPMULU_128 x.[4] yx5.[2];
-    z.[1] <- x86_VPMULU_128 x.[1] yx5.[3];
-    z.[2] <- x86_VPMULU_128 x.[2] yx5.[3];
-    z.[3] <- x86_VPMULU_128 x.[3] yx5.[3];
-    z.[4] <- x86_VPMULU_128 x.[4] yx5.[3];
-    t.[2] <- x86_VPADD_2u64 t.[2] z.[0];
-    x.[0] <- x86_VPADD_2u64 t.[0] z.[1];
-    x.[1] <- x86_VPADD_2u64 t.[1] z.[2];
-    x.[2] <- x86_VPADD_2u64 t.[2] z.[3];
-    x.[3] <- x86_VPADD_2u64 t.[3] z.[4];
-    x.[4] <- t.[4];
-    return (x);
-  }
-  
-  proc mulmod_add_u128 (u:W128.t Array5.t, x:W128.t Array5.t,
-                        y:W128.t Array5.t, yx5:W128.t Array4.t) : W128.t Array5.t = {
-    var t:W128.t Array5.t;
-    var z:W128.t Array5.t;
-    t <- Array5.init;
-    z <- Array5.init;
-    t.[0] <- x86_VPMULU_128 x.[0] y.[0];
-    t.[1] <- x86_VPMULU_128 x.[0] y.[1];
-    t.[2] <- x86_VPMULU_128 x.[0] y.[2];
-    t.[3] <- x86_VPMULU_128 x.[0] y.[3];
-    t.[4] <- x86_VPMULU_128 x.[0] y.[4];
-    t <@ add_u128 (t, u);
-    z.[0] <- x86_VPMULU_128 x.[1] y.[0];
-    z.[1] <- x86_VPMULU_128 x.[1] y.[1];
-    z.[2] <- x86_VPMULU_128 x.[1] y.[2];
-    z.[3] <- x86_VPMULU_128 x.[1] y.[3];
-    z.[4] <- x86_VPMULU_128 x.[2] y.[0];
-    t.[1] <- x86_VPADD_2u64 t.[1] z.[0];
-    t.[2] <- x86_VPADD_2u64 t.[2] z.[1];
-    t.[3] <- x86_VPADD_2u64 t.[3] z.[2];
-    t.[4] <- x86_VPADD_2u64 t.[4] z.[3];
-    t.[2] <- x86_VPADD_2u64 t.[2] z.[4];
-    z.[0] <- x86_VPMULU_128 x.[2] y.[1];
-    z.[1] <- x86_VPMULU_128 x.[2] y.[2];
-    z.[2] <- x86_VPMULU_128 x.[3] y.[0];
-    z.[3] <- x86_VPMULU_128 x.[3] y.[1];
-    z.[4] <- x86_VPMULU_128 x.[4] y.[0];
-    t.[3] <- x86_VPADD_2u64 t.[3] z.[0];
-    t.[4] <- x86_VPADD_2u64 t.[4] z.[1];
-    t.[3] <- x86_VPADD_2u64 t.[3] z.[2];
-    t.[4] <- x86_VPADD_2u64 t.[4] z.[3];
-    t.[4] <- x86_VPADD_2u64 t.[4] z.[4];
-    z.[0] <- x86_VPMULU_128 x.[4] yx5.[0];
-    z.[1] <- x86_VPMULU_128 x.[3] yx5.[1];
-    z.[2] <- x86_VPMULU_128 x.[4] yx5.[1];
-    z.[3] <- x86_VPMULU_128 x.[2] yx5.[2];
-    z.[4] <- x86_VPMULU_128 x.[3] yx5.[2];
-    t.[0] <- x86_VPADD_2u64 t.[0] z.[0];
-    t.[1] <- x86_VPADD_2u64 t.[1] z.[2];
-    t.[0] <- x86_VPADD_2u64 t.[0] z.[1];
-    t.[1] <- x86_VPADD_2u64 t.[1] z.[4];
-    t.[0] <- x86_VPADD_2u64 t.[0] z.[3];
-    z.[0] <- x86_VPMULU_128 x.[4] yx5.[2];
-    z.[1] <- x86_VPMULU_128 x.[1] yx5.[3];
-    z.[2] <- x86_VPMULU_128 x.[2] yx5.[3];
-    z.[3] <- x86_VPMULU_128 x.[3] yx5.[3];
-    z.[4] <- x86_VPMULU_128 x.[4] yx5.[3];
-    t.[2] <- x86_VPADD_2u64 t.[2] z.[0];
-    u.[0] <- x86_VPADD_2u64 t.[0] z.[1];
-    u.[1] <- x86_VPADD_2u64 t.[1] z.[2];
-    u.[2] <- x86_VPADD_2u64 t.[2] z.[3];
-    u.[3] <- x86_VPADD_2u64 t.[3] z.[4];
-    u.[4] <- t.[4];
-    return (u);
-  }
-  
-  proc carry_reduce_u128 (x:W128.t Array5.t) : W128.t Array5.t = {
-    var z:W128.t Array2.t;
-    z <- Array2.init;
-    z.[0] <- x86_VPSRL_2u64 x.[0] (W8.of_uint 26);
-    z.[1] <- x86_VPSRL_2u64 x.[3] (W8.of_uint 26);
-    x.[0] <- x86_VPAND_128 x.[0] mask26_u128;
-    x.[3] <- x86_VPAND_128 x.[3] mask26_u128;
-    x.[1] <- x86_VPADD_2u64 x.[1] z.[0];
-    x.[4] <- x86_VPADD_2u64 x.[4] z.[1];
-    z.[0] <- x86_VPSRL_2u64 x.[1] (W8.of_uint 26);
-    z.[1] <- x86_VPSRL_2u64 x.[4] (W8.of_uint 26);
-    z.[1] <- x86_VPMULU_128 z.[1] five_u128;
-    x.[1] <- x86_VPAND_128 x.[1] mask26_u128;
-    x.[4] <- x86_VPAND_128 x.[4] mask26_u128;
-    x.[2] <- x86_VPADD_2u64 x.[2] z.[0];
-    x.[0] <- x86_VPADD_2u64 x.[0] z.[1];
-    z.[0] <- x86_VPSRL_2u64 x.[2] (W8.of_uint 26);
-    z.[1] <- x86_VPSRL_2u64 x.[0] (W8.of_uint 26);
-    x.[2] <- x86_VPAND_128 x.[2] mask26_u128;
-    x.[0] <- x86_VPAND_128 x.[0] mask26_u128;
-    x.[3] <- x86_VPADD_2u64 x.[3] z.[0];
-    x.[1] <- x86_VPADD_2u64 x.[1] z.[1];
-    z.[0] <- x86_VPSRL_2u64 x.[3] (W8.of_uint 26);
-    x.[3] <- x86_VPAND_128 x.[3] mask26_u128;
-    x.[4] <- x86_VPADD_2u64 x.[4] z.[0];
     return (x);
   }
   
@@ -545,55 +410,118 @@ module M = {
     return global_mem;
   }
   
+  proc mulmod_u128 (x1:W64.t Array5.t, x2:W64.t Array5.t, y1:W64.t Array5.t,
+                    y1x5:W64.t Array4.t, y2:W64.t Array5.t,
+                    y2x5:W64.t Array4.t) : W64.t Array5.t * W64.t Array5.t = {
+    
+    
+    x1 <@ mulmod_12 (x1, y1, y1x5);
+    x2 <@ mulmod_12 (x2, y2, y2x5);
+    return (x1, x2);
+  }
+  
+  proc mulmod_add_u128 (u1:W64.t Array5.t, u2:W64.t Array5.t,
+                        x1:W64.t Array5.t, x2:W64.t Array5.t,
+                        y:W64.t Array5.t, yx5:W64.t Array4.t) : W64.t Array5.t *
+                                                                W64.t Array5.t = {
+    
+    
+    u1 <@ mulmod_add_12 (u1, x1, y, yx5);
+    u2 <@ mulmod_add_12 (u2, x2, y, yx5);
+    return (u1, u2);
+  }
+  
+  proc add_u128 (x1:W64.t Array5.t, x2:W64.t Array5.t, y1:W64.t Array5.t,
+                 y2:W64.t Array5.t) : W64.t Array5.t * W64.t Array5.t = {
+    
+    
+    x1 <@ add (x1, y1);
+    x2 <@ add (x2, y2);
+    return (x1, x2);
+  }
+  
+  proc unpack_u128x2_to_u26x5x2 (global_mem : global_mem_t, in_0:W64.t) : 
+  W64.t Array5.t * W64.t Array5.t = {
+    var x:W64.t Array5.t;
+    var y:W64.t Array5.t;
+    x <- Array5.init;
+    y <- Array5.init;
+    x <@ load (global_mem, in_0);
+    in_0 <- (in_0 + (W64.of_uint 16));
+    y <@ load (global_mem, in_0);
+    return (x, y);
+  }
+  
+  proc carry_reduce_u128 (hx:W64.t Array5.t, hy:W64.t Array5.t) : W64.t Array5.t *
+                                                                  W64.t Array5.t = {
+    
+    
+    hx <@ carry_reduce (hx);
+    hy <@ carry_reduce (hy);
+    return (hx, hy);
+  }
+  
   proc first_block (global_mem : global_mem_t, in_0:W64.t,
-                                               s_r2r2:W128.t Array5.t,
-                                               s_r2r2x5:W128.t Array4.t) : 
-  W128.t Array5.t * W64.t = {
-    var hxy:W128.t Array5.t;
-    var xy0:W128.t Array5.t;
-    var xy1:W128.t Array5.t;
-    hxy <- Array5.init;
-    xy0 <- Array5.init;
-    xy1 <- Array5.init;
-    xy0 <@ unpack_u128x2_to_u26x5x2 (global_mem, in_0);
+                                               s_r2:W64.t Array5.t,
+                                               s_r2x5:W64.t Array4.t) : 
+  W64.t Array5.t * W64.t Array5.t * W64.t = {
+    var hx:W64.t Array5.t;
+    var hy:W64.t Array5.t;
+    var x0:W64.t Array5.t;
+    var y0:W64.t Array5.t;
+    var x1:W64.t Array5.t;
+    var y1:W64.t Array5.t;
+    hx <- Array5.init;
+    hy <- Array5.init;
+    x0 <- Array5.init;
+    x1 <- Array5.init;
+    y0 <- Array5.init;
+    y1 <- Array5.init;
+    (x0, y0) <@ unpack_u128x2_to_u26x5x2 (global_mem, in_0);
     in_0 <- (in_0 + (W64.of_uint 32));
-    hxy <@ mulmod_u128 (xy0, s_r2r2, s_r2r2x5);
-    xy1 <@ unpack_u128x2_to_u26x5x2 (global_mem, in_0);
+    (hx, hy) <@ mulmod_u128 (x0, y0, s_r2, s_r2x5, s_r2, s_r2x5);
+    (x1, y1) <@ unpack_u128x2_to_u26x5x2 (global_mem, in_0);
     in_0 <- (in_0 + (W64.of_uint 32));
-    hxy <@ add_u128 (hxy, xy1);
-    hxy <@ carry_reduce_u128 (hxy);
-    return (hxy, in_0);
+    (hx, hy) <@ add_u128 (hx, hy, x1, y1);
+    (hx, hy) <@ carry_reduce_u128 (hx, hy);
+    return (hx, hy, in_0);
   }
   
-  proc remaining_blocks (global_mem : global_mem_t, hxy:W128.t Array5.t,
+  proc remaining_blocks (global_mem : global_mem_t, hx:W64.t Array5.t,
+                                                    hy:W64.t Array5.t,
                                                     in_0:W64.t,
-                                                    s_r4r4:W128.t Array5.t,
-                                                    s_r4r4x5:W128.t Array4.t,
-                                                    s_r2r2:W128.t Array5.t,
-                                                    s_r2r2x5:W128.t Array4.t) : 
-  W128.t Array5.t * W64.t = {
-    var xy0:W128.t Array5.t;
-    var xy1:W128.t Array5.t;
-    xy0 <- Array5.init;
-    xy1 <- Array5.init;
-    hxy <@ mulmod_u128 (hxy, s_r4r4, s_r4r4x5);
-    xy0 <@ unpack_u128x2_to_u26x5x2 (global_mem, in_0);
+                                                    s_r4:W64.t Array5.t,
+                                                    s_r4x5:W64.t Array4.t,
+                                                    s_r2:W64.t Array5.t,
+                                                    s_r2x5:W64.t Array4.t) : 
+  W64.t Array5.t * W64.t Array5.t * W64.t = {
+    var x0:W64.t Array5.t;
+    var y0:W64.t Array5.t;
+    var x1:W64.t Array5.t;
+    var y1:W64.t Array5.t;
+    x0 <- Array5.init;
+    x1 <- Array5.init;
+    y0 <- Array5.init;
+    y1 <- Array5.init;
+    (hx, hy) <@ mulmod_u128 (hx, hy, s_r4, s_r4x5, s_r4, s_r4x5);
+    (x0, y0) <@ unpack_u128x2_to_u26x5x2 (global_mem, in_0);
     in_0 <- (in_0 + (W64.of_uint 32));
-    hxy <@ mulmod_add_u128 (hxy, xy0, s_r2r2, s_r2r2x5);
-    xy1 <@ unpack_u128x2_to_u26x5x2 (global_mem, in_0);
+    (hx, hy) <@ mulmod_add_u128 (hx, hy, x0, y0, s_r2, s_r2x5);
+    (x1, y1) <@ unpack_u128x2_to_u26x5x2 (global_mem, in_0);
     in_0 <- (in_0 + (W64.of_uint 32));
-    hxy <@ add_u128 (hxy, xy1);
-    hxy <@ carry_reduce_u128 (hxy);
-    return (hxy, in_0);
+    (hx, hy) <@ add_u128 (hx, hy, x1, y1);
+    (hx, hy) <@ carry_reduce_u128 (hx, hy);
+    return (hx, hy, in_0);
   }
   
-  proc final_mul (hxy:W128.t Array5.t, s_r2r:W128.t Array5.t,
-                  s_r2rx5:W128.t Array4.t) : W64.t Array5.t = {
+  proc final_mul (hx:W64.t Array5.t, hy:W64.t Array5.t, s_r2:W64.t Array5.t,
+                  s_r2x5:W64.t Array4.t, s_r:W64.t Array5.t,
+                  s_rx5:W64.t Array4.t) : W64.t Array5.t = {
     var h:W64.t Array5.t;
     h <- Array5.init;
-    hxy <@ mulmod_u128 (hxy, s_r2r, s_r2rx5);
-    hxy <@ carry_reduce_u128 (hxy);
-    h <@ hadd_u128 (hxy);
+    (hx, hy) <@ mulmod_u128 (hx, hy, s_r2, s_r2x5, s_r, s_rx5);
+    (hx, hy) <@ carry_reduce_u128 (hx, hy);
+    h <@ add_carry (hx, hy);
     return (h);
   }
   
@@ -614,39 +542,26 @@ module M = {
     var r2:W64.t Array5.t;
     var s_r2:W64.t Array5.t;
     var s_r2x5:W64.t Array4.t;
-    var r2r:W128.t Array5.t;
-    var s_r2r:W128.t Array5.t;
-    var t_u128:W128.t;
-    var s_r2rx5:W128.t Array4.t;
-    var r2r2:W128.t Array5.t;
-    var s_r2r2:W128.t Array5.t;
-    var s_r2r2x5:W128.t Array4.t;
     var r4:W64.t Array5.t;
-    var r4r4:W128.t Array5.t;
-    var s_r4r4:W128.t Array5.t;
-    var s_r4r4x5:W128.t Array4.t;
-    var hxy:W128.t Array5.t;
+    var s_r4:W64.t Array5.t;
+    var s_r4x5:W64.t Array4.t;
+    var hx:W64.t Array5.t;
+    var hy:W64.t Array5.t;
     var b16:W64.t;
     var x:W64.t Array5.t;
     var s:W64.t Array5.t;
     h <- Array5.init;
-    hxy <- Array5.init;
+    hx <- Array5.init;
+    hy <- Array5.init;
     r <- Array5.init;
     r2 <- Array5.init;
-    r2r <- Array5.init;
-    r2r2 <- Array5.init;
     r4 <- Array5.init;
-    r4r4 <- Array5.init;
     s <- Array5.init;
     s_r <- Array5.init;
     s_r2 <- Array5.init;
-    s_r2r <- Array5.init;
-    s_r2r2 <- Array5.init;
-    s_r2r2x5 <- Array4.init;
-    s_r2rx5 <- Array4.init;
     s_r2x5 <- Array4.init;
-    s_r4r4 <- Array5.init;
-    s_r4r4x5 <- Array4.init;
+    s_r4 <- Array5.init;
+    s_r4x5 <- Array4.init;
     s_rx5 <- Array4.init;
     x <- Array5.init;
     s_out <- out;
@@ -680,52 +595,34 @@ module M = {
         s_r2x5.[i] <- t;
         i <- i + 1;
       }
-      r <- s_r;
-      r2r <@ unpack_u26x5x2_to_u26x5x2 (r2, r);
-      s_r2r <- r2r;
-      i <- 0;
-      while (i < 4) {
-        t_u128 <- x86_VPMULU_128 r2r.[(i + 1)] five_u128;
-        s_r2rx5.[i] <- t_u128;
-        i <- i + 1;
-      }
-      r2r2 <@ unpack_u26x5x2_to_u26x5x2 (r2, r2);
-      s_r2r2 <- r2r2;
-      i <- 0;
-      while (i < 4) {
-        t_u128 <- x86_VPMULU_128 r2r2.[(i + 1)] five_u128;
-        s_r2r2x5.[i] <- t_u128;
-        i <- i + 1;
-      }
       b64 <- s_b64;
       if (((W64.of_uint 1) \ult b64)) {
         r4 <- r2;
         r4 <@ mulmod_12 (r4, s_r2, s_r2x5);
         r4 <@ carry_reduce (r4);
-        r4r4 <@ unpack_u26x5x2_to_u26x5x2 (r4, r4);
-        s_r4r4 <- r4r4;
+        s_r4 <- r4;
         i <- 0;
         while (i < 4) {
-          t_u128 <- x86_VPMULU_128 r4r4.[(i + 1)] five_u128;
-          s_r4r4x5.[i] <- t_u128;
+          t <- (r4.[(i + 1)] * (W64.of_uint 5));
+          s_r4x5.[i] <- t;
           i <- i + 1;
         }
       } else {
         
       }
       in_0 <- s_in;
-      (hxy, in_0) <@ first_block (global_mem, in_0, s_r2r2, s_r2r2x5);
+      (hx, hy, in_0) <@ first_block (global_mem, in_0, s_r2, s_r2x5);
       b64 <- s_b64;
       b64 <- (b64 - (W64.of_uint 1));
       
       while (((W64.of_uint 0) \ult b64)) {
         b64 <- (b64 - (W64.of_uint 1));
         s_b64 <- b64;
-        (hxy, in_0) <@ remaining_blocks (global_mem, hxy, in_0, s_r4r4,
-        s_r4r4x5, s_r2r2, s_r2r2x5);
+        (hx, hy, in_0) <@ remaining_blocks (global_mem, hx, hy, in_0, s_r4,
+        s_r4x5, s_r2, s_r2x5);
         b64 <- s_b64;
       }
-      h <@ final_mul (hxy, s_r2r, s_r2rx5);
+      h <@ final_mul (hx, hy, s_r2, s_r2x5, s_r, s_rx5);
     } else {
       
     }

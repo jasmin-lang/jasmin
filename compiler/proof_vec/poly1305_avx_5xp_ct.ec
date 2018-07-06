@@ -76,9 +76,9 @@ module M = {
     i <- 0;
     while (i < 5) {
       leakages <- LeakExpr([]) :: leakages;
-      t.[i] <- x86_VPEXTR_64 x.[i] (W8.of_uint 0);
+      t.[i] <- x86_VPEXTR_64 x.[i] (W8.of_uint 1);
       leakages <- LeakExpr([]) :: leakages;
-      h.[i] <- x86_VPEXTR_64 x.[i] (W8.of_uint 1);
+      h.[i] <- x86_VPEXTR_64 x.[i] (W8.of_uint 0);
       i <- i + 1;
     }
     leakages <- LeakExpr([]) :: leakages;

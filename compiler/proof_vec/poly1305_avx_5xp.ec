@@ -61,8 +61,8 @@ module M = {
     t <- Array5.init;
     i <- 0;
     while (i < 5) {
-      t.[i] <- x86_VPEXTR_64 x.[i] (W8.of_uint 0);
-      h.[i] <- x86_VPEXTR_64 x.[i] (W8.of_uint 1);
+      t.[i] <- x86_VPEXTR_64 x.[i] (W8.of_uint 1);
+      h.[i] <- x86_VPEXTR_64 x.[i] (W8.of_uint 0);
       i <- i + 1;
     }
     h <@ add_carry (h, t);

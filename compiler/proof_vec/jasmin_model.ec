@@ -3,7 +3,7 @@ require import AllCore BitEncoding IntDiv SmtMap List StdOrder.
 (*---*) import CoreMap Map Ring.IntID IntOrder.
 
 (* -------------------------------------------------------------------- *)
-lemma powS_minus (x p:int) : 1 <= p => x ^ p  = x * x ^ (p-1).
+lemma powS_minus (x p:int) : 0 < p => x ^ p  = x * x ^ (p-1).
 proof. smt (powS). qed.
 
 hint simplify pow_le0.
@@ -17,9 +17,13 @@ lemma pow2_5 : 2^5 = 32  by [].
 lemma pow2_6 : 2^6 = 64  by [].
 lemma pow2_7 : 2^7 = 128 by [].
 lemma pow2_8 : 2^8 = 256 by [].
+lemma pow2_16 : 2^16 = 65536 by [].
+lemma pow2_32 : 2 ^ 32 = 4294967296 by [].
+lemma pow2_64 : 2 ^ 64 = 18446744073709551616 by [].
+lemma pow2_128 : 2 ^ 128 = 340282366920938463463374607431768211456 by [].
 
 hint simplify
-  (pow2_1, pow2_2, pow2_3, pow2_4, pow2_5, pow2_6, pow2_7, pow2_8)@0.
+  (pow2_1, pow2_2, pow2_3, pow2_4, pow2_5, pow2_6, pow2_7, pow2_8, pow2_16, pow2_32, pow2_64, pow2_128)@0.
 
 (* -------------------------------------------------------------------- *)
 lemma iotaS_minus :
@@ -195,6 +199,8 @@ proof. by move=> szok; rewrite xorE blift2E szok. qed.
 
 axiom xor_zero_l x : zeros `^` x = x.
 axiom xor_zero_r x : x `^` zeros = x.
+
+hint simplify (xor_zero_l, xor_zero_r).
 
 op slice (i : int) (n : int) (w : t) =
   take n (drop i (repr w))
@@ -815,9 +821,8 @@ op x86_VPAND_128 = W128.(`&`).
 op x86_VPOR_128 = W128.(`|`).
 
 op x86_VPMULU_128 (w1 w2: W128.t) = 
-(*  pack_2u64 (map2_2u64 mulu_64 (unpack_2u64 w1) (unpack_2u64 w2)) *)
-  pack_2u64 (map2_2u64 W64.( * ) (unpack_2u64 w1) (unpack_2u64 w2))
-.
+  pack_2u64 (map2_2u64 mulu_64 (unpack_2u64 w1) (unpack_2u64 w2)).
+
 
 axiom VPAND_128_64 w1 w2:
   pack_2u64 w1 `&` pack_2u64 w2 = 
@@ -867,8 +872,13 @@ abstract theory Array.
 
   lemma ext_eq_all (t1 t2: 'a t) : 
     all_eq t1 t2 <=> t1 = t2.
-  proof. by move=> /allP h; apply ext_eq => x /mem_range; apply h. qed.
+  proof. 
+    split.
+    + by move=> /allP h; apply ext_eq => x /mem_range; apply h. 
+    by move=> ->;apply /allP.
+  qed.
 
+  hint simplify (get_set_eqE, get_set_neqE).
 end Array.
 
 clone export Array as Array0  with op size <- 0.

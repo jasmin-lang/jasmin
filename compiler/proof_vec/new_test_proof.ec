@@ -1,14 +1,12 @@
 require import AllCore Jasmin_model Gimli_ref Gimli_ref1 Gimliv1 Gimliv CoreMap.
 
 
-hint simplify pow_le0.
-hint simplify powS_minus@1.
-hint simplify (pow2_1, pow2_2, pow2_3, pow2_4, pow2_5, pow2_6, pow2_7, pow2_8)@0.
 
-hint simplify (W32.xor_zero_l, W32.xor_zero_r)@0.
+
+hint simplify (W32.xor_zero_l, W32.xor_zero_r)@0. 
 hint simplify (W8.of_uintK, W8.to_uintK', W32.of_uintK, W32.to_uintK')@0.
-hint simplify (pack_unpack_4u32, unpack_pack_4u32)@0.
-hint simplify (VPAND_128_32, VPOR_128_32, VPXOR_128_32)@0.
+(*hint simplify (pack_unpack_4u32, unpack_pack_4u32)@0.
+  hint simplify (VPAND_128_32, VPOR_128_32, VPXOR_128_32)@0. *)
 
 axiom rol32_xor (x:W32.t) i : 0 <= i < 32 => 
  (x86_ROL_32 x ((of_uint i)%W8)).`3  = (x `<<` (W8.of_uint i)) `^` (x `>>` (W8.of_uint (32 - i))).
