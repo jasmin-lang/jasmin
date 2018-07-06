@@ -532,30 +532,36 @@ op loads (m : global_mem_t) (a : address) (l : int) =
 op stores (m : global_mem_t) (a : address) (w : W8.t list) =
   foldl (fun m i => m.[a + W64.of_uint i <- w.[i]]) m (range 0 (size w)).
 
-op loadW8   (m : global_mem_t) (a : address) = m.[a].
-op loadW16  (m : global_mem_t) (a : address) = packW16  (loads m a  2).
-op loadW32  (m : global_mem_t) (a : address) = packW32  (loads m a  4).
-op loadW64  (m : global_mem_t) (a : address) = packW64  (loads m a  8).
-op loadW128 (m : global_mem_t) (a : address) = packW128 (loads m a 16).
-op loadW256 (m : global_mem_t) (a : address) = packW256 (loads m a 32).
+op loadW8   (m : global_mem_t) (a : address) = m.[a]                   axiomatized by loadW8E.
+op loadW16  (m : global_mem_t) (a : address) = packW16  (loads m a  2) axiomatized by loadW16E.
+op loadW32  (m : global_mem_t) (a : address) = packW32  (loads m a  4) axiomatized by loadW32E.
+op loadW64  (m : global_mem_t) (a : address) = packW64  (loads m a  8) axiomatized by loadW64E.
+op loadW128 (m : global_mem_t) (a : address) = packW128 (loads m a 16) axiomatized by loadW128E.
+op loadW256 (m : global_mem_t) (a : address) = packW256 (loads m a 32) axiomatized by loadW256E.
 
 op storeW8 (m : global_mem_t) (a : address) (w : W8.t) =
-  m.[a <- w].
+  m.[a <- w]
+axiomatized by storeW8E.
 
 op storeW16 (m : global_mem_t) (a : address) (w : W16.t) =
-  stores m a (unpackW16 w).
+  stores m a (unpackW16 w)
+axiomatized by storeW16E.
 
 op storeW32 (m : global_mem_t) (a : address) (w : W32.t) =
-  stores m a (unpackW32 w).
+  stores m a (unpackW32 w)
+axiomatized by storeW32E.
 
 op storeW64 (m : global_mem_t) (a : address) (w : W64.t) =
-  stores m a (unpackW64 w).
+  stores m a (unpackW64 w)
+axiomatized by storeW64E.
 
 op storeW128 (m : global_mem_t) (a : address) (w : W128.t) =
-  stores m a (unpackW128 w).
+  stores m a (unpackW128 w)
+axiomatized by storeW128E.
 
 op storeW256 (m : global_mem_t) (a : address) (w : W256.t) =
-  stores m a (unpackW256 w).
+  stores m a (unpackW256 w)
+axiomatized by storeW256E.
 
 (* -------------------------------------------------------------------- *)
 type p4u32 = W32.t * W32.t * W32.t * W32.t.
