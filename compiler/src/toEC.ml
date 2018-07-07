@@ -19,7 +19,7 @@ module Ss = Set.Make(Scmp)
 module Ms = Map.Make(Scmp)
 
 type env = {
-    leaks : bool;
+    model : model;
     alls : Ss.t;
     vars : string Mv.t;
     rmem : Sf.t;
@@ -27,6 +27,9 @@ type env = {
     glob : (string * Type.stype) Ms.t;
     arrsz : Sint.t;
   }
+
+let for_constTime env = env.model = Utils.ConstantTime
+let for_safety    env = env.model = Utils.Safety
 
 (* --------------------------------------------------------------- *)
 
@@ -252,10 +255,13 @@ let ec_keyword =
  ; "strict"
  ; "expect" ]
 
+let internal_keyword = 
+  [ "global_mem"
+  ; "global_safe" ]
 
-let empty_env leaks = {
-    leaks;
-    alls = Ss.of_list ec_keyword;
+let empty_env model = {
+    model;
+    alls = Ss.union (Ss.of_list ec_keyword) (Ss.of_list internal_keyword);
     vars = Mv.empty;
     rmem = Sf.empty;
     wmem = Sf.empty;
@@ -390,30 +396,49 @@ let check_array env x =
   | Arr(_, n) -> Sint.mem n env.arrsz
   | _ -> true
   
+let pp_oget env pp = 
+  pp_maybe (for_safety env) (pp_enclose ~pre:"(oget " ~post:")") pp
+
 let rec pp_expr env fmt (e:expr) = 
   match e with
   | Pconst z -> Format.fprintf fmt "%a" B.pp_print z
+
   | Pbool b -> Format.fprintf fmt "%a" Printer.pp_bool b
-  | Parr_init (_sz, n) -> 
-    Format.fprintf fmt "Array%a.init" B.pp_print n
+
+  | Parr_init (sz, n) -> 
+    let pp_init fmt sz = 
+      if for_safety env then Format.fprintf fmt "None"
+      else Format.fprintf fmt "%a.zeros" pp_Tsz sz in
+    Format.fprintf fmt "Array%a.init %a" B.pp_print n pp_init sz
+
   | Pcast(sz,e) -> 
     Format.fprintf fmt "(%a.of_uint %a)" pp_Tsz sz (pp_expr env) e
-  | Pvar x -> pp_var env fmt (L.unloc x)
+
+  | Pvar x -> 
+    pp_oget env (pp_var env) fmt (L.unloc x)
+
   | Pglobal(sz, x) -> 
     pp_cast (pp_glob env) fmt (Coq_sword sz, ty_glob env x, x)
+
   | Pget(x,e) -> 
     assert (check_array env x);
-    Format.fprintf fmt "%a.[%a]" (pp_var env) (L.unloc x) (pp_expr env) e 
+    let pp fmt (x,e) = 
+      Format.fprintf fmt "%a.[%a]" (pp_var env) (L.unloc x) (pp_expr env) e in
+    pp_oget env pp fmt (x,e)
+
   | Pload (sz, x, e) -> 
     Format.fprintf fmt "(load%a global_mem %a)"
       pp_Tsz sz (pp_wcast env) (add64 x e)
+
   | Papp1 (op1, e) -> 
     Format.fprintf fmt "(%a %a)" pp_op1 op1 (pp_wcast env) (in_ty_op1 op1, e)
+
   | Papp2 (op2, e1, e2) ->  
     let ty1,ty2 = in_ty_op2 op2 in
     let te1, te2 = swap_op2 op2 (ty1, e1) (ty2, e2) in
     Format.fprintf fmt "(%a %a %a)"
       (pp_wcast env) te1 pp_op2 op2 (pp_wcast env) te2
+
   | Pif(e1,et,ef) -> 
     let ty = ty_expr e in
     Format.fprintf fmt "(%a ? %a : %a)"
@@ -497,19 +522,19 @@ let pp_lvals env fmt xs =
   | _   -> Format.fprintf fmt "(%a)" (pp_list ",@ " (pp_lval env)) xs
 
 let pp_leaks_assgn env fmt lv e =
-  if env.leaks then
+  if for_constTime env then
     let leaks = leaks_lval (leaks_e e) lv in
     Format.fprintf fmt "leakages <- LeakExpr(@[[%a]@]) :: leakages;@ "
       (pp_list ";@ " (pp_expr env)) leaks
 
 let pp_leaks_es env fmt es = 
-  if env.leaks then
+  if for_constTime env then
     let leaks = leaks_es es in
     Format.fprintf fmt "leakages <- LeakExpr(@[[%a]@]) :: leakages;@ "
       (pp_list ";@ " (pp_expr env)) leaks
     
 let pp_leaks_if env fmt e = 
-  if env.leaks then
+  if for_constTime env then
     let leaks = leaks_e e in
     Format.fprintf fmt 
       "leakages <- LeakCond(%a) :: LeakExpr(@[[%a]@]) :: leakages;@ "
@@ -517,7 +542,7 @@ let pp_leaks_if env fmt e =
       (pp_list ";@ " (pp_expr env)) leaks
 
 let pp_leaks_for env fmt e1 e2 = 
-  if env.leaks then
+  if for_constTime env then
     let leaks = leaks_es [e1;e2] in
     Format.fprintf fmt 
       "leakages <- LeakFor(%a,%a) :: LeakExpr(@[[%a]@]) :: leakages;@ "
@@ -578,7 +603,7 @@ and pp_instr env fmt i =
       (pp_expr env) e (pp_cmd env) c1 (pp_cmd env) c2
   | Cwhile(c1, e,c2) ->
     let pp_leak fmt e = 
-      if env.leaks then Format.fprintf fmt "@ %a" (pp_leaks_if env) e in
+      if for_constTime env then Format.fprintf fmt "@ %a" (pp_leaks_if env) e in
     Format.fprintf fmt "@[<v>%a%a@ while (%a) {@   %a%a@ }@]"
       (pp_cmd env) c1 pp_leak e (pp_expr env) e 
       (pp_cmd env) (c2@c1) pp_leak e
@@ -635,11 +660,11 @@ let add_arrsz env f =
   {env with arrsz = Sv.fold add_sz (vars_fc f) env.arrsz }
 
 
-let pp_prog fmt leaks globs funcs = 
+let pp_prog fmt model globs funcs = 
   let rmem, wmem = init_use funcs in
   let env = 
     List.fold_left (fun env (ws, x, _) -> add_glob env x ws)
-      (empty_env leaks) globs in
+      (empty_env model) globs in
   let env = List.fold_left add_arrsz env funcs in
   let env = {env with rmem; wmem} in
 
@@ -654,7 +679,7 @@ let pp_prog fmt leaks globs funcs =
     List.iter (pp_array fmt) (Sint.elements env.arrsz) in
 
   let pp_leakages fmt env = 
-    if env.leaks then
+    if for_constTime env then
       Format.fprintf fmt "var leakages : leakages_t@ @ " in
 
   Format.fprintf fmt 
@@ -679,7 +704,7 @@ and used_func_i used i =
   | Cwhile(c1,_,c2)   -> used_func_c (used_func_c used c1) c2
   | Ccall (_,_,f,_)   -> Ss.add f.fn_name used
 
-let extract fmt ~withleakage ((globs,funcs):'a prog) tokeep = 
+let extract fmt model ((globs,funcs):'a prog) tokeep = 
   let funcs = List.map Regalloc.fill_in_missing_names funcs in
   let tokeep = ref (Ss.of_list tokeep) in
   let dofun f = 
@@ -687,7 +712,7 @@ let extract fmt ~withleakage ((globs,funcs):'a prog) tokeep =
       (tokeep := Ss.union (used_func f) !tokeep; true)
     else false in
   let funcs = List.filter dofun funcs in
-  pp_prog fmt withleakage globs (List.rev funcs)
+  pp_prog fmt model globs (List.rev funcs)
 
 
 

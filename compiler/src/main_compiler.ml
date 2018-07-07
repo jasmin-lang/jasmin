@@ -165,7 +165,7 @@ let main () =
       begin try
         BatPervasives.finally
           (fun () -> close ())
-          (fun () -> ToEC.extract fmt ~withleakage:!withleakages prog !ec_list)
+          (fun () -> ToEC.extract fmt !model prog !ec_list)
           ()
       with e ->
         BatPervasives.ignore_exceptions

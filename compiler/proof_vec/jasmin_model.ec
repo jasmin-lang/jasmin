@@ -852,7 +852,7 @@ abstract theory Array.
 
   type 'a t.
 
-  op init : 'a t.
+  op init : 'a -> 'a t.
 
   op "_.[_]" ['a] : 'a t -> int -> 'a.
 

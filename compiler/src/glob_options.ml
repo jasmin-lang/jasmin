@@ -1,3 +1,4 @@
+open Utils
 (*--------------------------------------------------------------------- *)
 let infile = ref ""
 let outfile = ref ""
@@ -12,7 +13,7 @@ let ec_list = ref []
 
 let lea = ref false
 let set0 = ref false
-let withleakages = ref false
+let model = ref Normal
 
 let set_coqonly s =
   coqfile := s;
@@ -46,6 +47,9 @@ let set_all_print () =
 
 let set_ec f = 
   ec_list := f :: !ec_list
+
+let set_constTime () = model := ConstantTime
+let set_safety () = model := Safety
 
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
@@ -86,7 +90,9 @@ let options = [
     "-noset0"   , Arg.Clear set0        , ": do not use set0 option";
     "-ec"       , Arg.String  set_ec    , "[f]: extract function [f] and its dependencies to an easycrypt file";
     "-oec"     ,  Arg.Set_string ecfile , "[filename]: use filename as output destination for easycrypt extraction";
-"-withleakage" , Arg.Set withleakages   , ": add leakage for constant time verification during easycrypt extraction" 
+    "-CT" , Arg.Unit set_constTime      , ": generates model for constant time verification";
+    "-safety", Arg.Unit set_safety      , ": generates model for safety verification"
+
 
   ] @  List.map print_option poptions
 

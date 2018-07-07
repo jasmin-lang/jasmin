@@ -734,3 +734,31 @@ let rec pp_list sep pp fmt xs =
   | []      -> ()
   | [x]     -> Format.fprintf fmt "%a" pp x
   | x :: xs -> Format.fprintf fmt "%a%(%)%a" pp x sep pp_list xs
+
+(* -------------------------------------------------------------------- *)
+let pp_if c pp1 pp2 fmt x =
+  match c with
+  | true  -> Format.fprintf fmt "%a" pp1 x
+  | false -> Format.fprintf fmt "%a" pp2 x
+
+(* -------------------------------------------------------------------- *)
+let pp_maybe c tx pp fmt x =
+  pp_if c (tx pp) pp fmt x
+
+(* -------------------------------------------------------------------- *)
+let pp_enclose ~pre ~post pp fmt x =
+  Format.fprintf fmt "%(%)%a%(%)" pre pp x post
+
+(* -------------------------------------------------------------------- *)
+let pp_paren pp fmt x =
+  pp_enclose "(" ")" pp fmt x
+
+(* -------------------------------------------------------------------- *)
+let pp_maybe_paren c pp =
+  pp_maybe c pp_paren pp
+  
+(* -------------------------------------------------------------------- *)
+type model = 
+  | ConstantTime
+  | Safety
+  | Normal

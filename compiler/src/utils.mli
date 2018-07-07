@@ -323,3 +323,26 @@ val hierror : ('a, Format.formatter, unit, 'b) format4 -> 'a
 type 'a pp = Format.formatter -> 'a -> unit
 
 val pp_list : ('a, 'b, 'c, 'd, 'd, 'a) format6 -> 'a pp -> 'a list pp
+
+val pp_if : bool -> 'a pp -> 'a pp -> 'a pp 
+val pp_maybe :  bool -> ('a pp -> 'a pp) -> 'a pp -> 'a pp
+
+(* -------------------------------------------------------------------- *)
+val pp_enclose : 
+      pre:('a, 'b, 'c, 'd, 'd, 'a) format6
+   -> post:('a, 'b, 'c, 'd, 'd, 'a) format6
+   -> 'a pp -> 'a pp 
+
+(* -------------------------------------------------------------------- *)
+val pp_paren : 'a pp -> 'a pp 
+
+(* -------------------------------------------------------------------- *)
+val pp_maybe_paren : bool -> 'a pp -> 'a pp
+
+ 
+(* -------------------------------------------------------------------- *)
+type model = 
+  | ConstantTime
+  | Safety
+  | Normal
+  
