@@ -6,13 +6,12 @@ JASMINC := $(TOP)/jasminc.native
 FILES   := gimli_ref gimli_ref1 gimliv gimliv1
 
 # --------------------------------------------------------------------
-.PHONY: default clean
+.PHONY: default check clean
 
 # --------------------------------------------------------------------
 default: $(FILES:%=%.ec)
 
-clean:
-	rm -f $(FILES:%=%.ec)
+check: $(FILES:%=%.ec.check)
 
 gimli_ref.ec: $(TOP)/examples/gimli/gimli_ref.jazz
 	$(JASMINC) -oec $@ -ec gimli_body $<
@@ -25,3 +24,11 @@ gimliv.ec: $(TOP)/examples/gimli/gimliv.jazz
 
 gimliv1.ec: $(TOP)/examples/gimli/gimliv.jazz
 	$(JASMINC) -oec $@ -ec gimli_body1 $<
+
+clean:
+	rm -f $(FILES:%=%.ec) $(FILES:%=%.ec.check)
+
+%.ec: $(JASMINC)
+
+%.ec.check: %.ec
+	easycrypt $< && touch $@
