@@ -51,16 +51,16 @@ axiom W64_or0w w : W64.zeros `|` w = w.
 
 equiv poly1305_avx_5x_5xp : 
   Poly1305_avx_5x.M.poly1305 ~ Poly1305_avx_5xp.M.poly1305 :
-   ={arg} ==> ={res}.
+   ={arg, Glob.mem} ==> ={res, Glob.mem}.
 proof.
-  proc => /=; sim (_:true).
+  proc => /=; sim (_: ={Glob.mem}).
   (* remaining_blocks *)
   proc => /=. 
   sim.
   inline{2} M.mulmod_add_u128_prefetch M.mulmod_u128_prefetch.
   inline{1} Poly1305_avx_5x.M.mulmod_u128 Poly1305_avx_5x.M.mulmod_add_u128.
-  swap{2} 110 6;sim.
-  swap{2} 51 6;sim.
+  swap{2} 108 6;sim.
+  swap{2} 50 6;sim.
 qed.
 
 (* ------------------------------------------------------------------------------ *)
@@ -68,7 +68,7 @@ qed.
 (* ------------------------------------------------------------------------------ *)
 
 equiv amd64_amd64_pr_load : Poly1305_amd64_5x.M.load ~ Poly1305_amd64_5xPR.M.load :
-   ={global_mem, in_0} ==> ={res}.
+   ={Glob.mem, in_0} ==> ={res}.
 proof. sim. qed.
 
 axiom W64_subaddA (x y z:W64.t) : x - (y + z) = (x - y) + z.
@@ -76,9 +76,9 @@ axiom W64_addsubA (x y z:W64.t) : x + (y - z) = (x + y) - z.
 
 equiv poly1305_amd64_amd64_pr : 
   Poly1305_amd64_5x.M.poly1305 ~ Poly1305_amd64_5xPR.M.poly1305 :
-    ={arg} ==> ={res}.
+    ={arg,Glob.mem} ==> ={res, Glob.mem}.
 proof.
-  proc => /=; sim (_:true).
+  proc => /=; sim (_: ={Glob.mem}).
   (* first bloc *)
   + proc => /=.    
     swap{1} 10 2.
@@ -90,19 +90,19 @@ proof.
               Poly1305_amd64_5xPR.M.mulmod_u128
               Poly1305_amd64_5xPR.M.add_u128
               Poly1305_amd64_5xPR.M.carry_reduce_u128.
-    sim. swap{2} [9..10] -2. swap{2} [18..19] -10. conseq />.
+    sim. swap{2} 7 2. swap{2} [16..17] -10. conseq />.
     seq 7 10 : (#pre); 1:by sim.
     transitivity{1} {
-        x0 <@ Poly1305_amd64_5x.M.load(global_mem, in_0);
-        x1 <@ Poly1305_amd64_5x.M.load(global_mem, in_0 + (of_uint 32)%W64);
-        y0 <@ Poly1305_amd64_5x.M.load(global_mem, (in_0 + (of_uint 16)%W64));
-        y1 <@ Poly1305_amd64_5x.M.load(global_mem, (in_0 +  (of_uint 32)%W64 + (of_uint 16)%W64));
+        x0 <@ Poly1305_amd64_5x.M.load(in_0);
+        x1 <@ Poly1305_amd64_5x.M.load(in_0 + (of_uint 32)%W64);
+        y0 <@ Poly1305_amd64_5x.M.load((in_0 + (of_uint 16)%W64));
+        y1 <@ Poly1305_amd64_5x.M.load((in_0 +  (of_uint 32)%W64 + (of_uint 16)%W64));
         in_0 <- (in_0 + (of_uint 32)%W64) + (of_uint 32)%W64;
       } 
-      (={global_mem, in_0, s_r2, s_r2x5} ==> ={in_0, x0, x1, y0, y1})
-      (={global_mem, in_0, s_r2, s_r2x5} ==> ={in_0, x0, x1, y0, y1})=> //.
-    + by move=> &m1 &m2 />; exists global_mem{m2} in_0{m2} s_r2{m2} s_r2x5{m2}.
-    + do !(wp;call (_: ={global_mem, in_0} ==> ={res}); 1: by sim); skip => />.
+      (={Glob.mem, in_0, s_r2, s_r2x5} ==> ={in_0, x0, x1, y0, y1})
+      (={Glob.mem, in_0, s_r2, s_r2x5} ==> ={in_0, x0, x1, y0, y1})=> //.
+    + by move=> &m1 &m2 />; exists Glob.mem{m2} in_0{m2} s_r2{m2} s_r2x5{m2}.
+    + do !(wp;call (_: ={Glob.mem, in_0} ==> ={res}); 1: by sim); skip => />.
       move=> &m1. 
       by rewrite -!W64_addsubA W64_subi -!W64_addwA !W64_addi.
     swap{1} 3 -1; do !(wp; call amd64_amd64_pr_load); auto => />.
@@ -120,20 +120,20 @@ proof.
               Poly1305_amd64_5xPR.M.mulmod_u128 Poly1305_amd64_5xPR.M.mulmod_add_u128
               Poly1305_amd64_5xPR.M.add_u128
               Poly1305_amd64_5xPR.M.carry_reduce_u128.
-    sim. swap{2} [5..6] 2. swap {2} [16..17] - 11. conseq />. 
+    sim. swap{2} 5 2. swap{2} [14..15] - 11. conseq />. 
     seq 6 8 : (#pre); 1: by sim.
     transitivity{1} {
-        x0 <@ Poly1305_amd64_5x.M.load(global_mem, in_0);
-        x1 <@ Poly1305_amd64_5x.M.load(global_mem, in_0 + (of_uint 32)%W64);
-        y0 <@ Poly1305_amd64_5x.M.load(global_mem, (in_0 + (of_uint 16)%W64));
-        y1 <@ Poly1305_amd64_5x.M.load(global_mem, (in_0 +  (of_uint 32)%W64 + (of_uint 16)%W64));
+        x0 <@ Poly1305_amd64_5x.M.load(in_0);
+        x1 <@ Poly1305_amd64_5x.M.load(in_0 + (of_uint 32)%W64);
+        y0 <@ Poly1305_amd64_5x.M.load((in_0 + (of_uint 16)%W64));
+        y1 <@ Poly1305_amd64_5x.M.load((in_0 +  (of_uint 32)%W64 + (of_uint 16)%W64));
         in_0 <- (in_0 + (of_uint 32)%W64) + (of_uint 32)%W64;
       } 
-      ( ={global_mem, hx, hy, in_0, s_r4, s_r4x5, s_r2, s_r2x5} ==> ={in_0, hy, y1, y0, x1, x0} )   
-      ( ={global_mem, hx, hy, in_0, s_r4, s_r4x5, s_r2, s_r2x5} ==> ={in_0, hy, y1, y0, x1, x0} ) => //.
-    + by move=> &m1 &m2 />; exists global_mem{m2} hx{m2} hy{m2} in_0{m2} s_r2{m2} s_r2x5{m2} s_r4{m2} s_r4x5{m2}.
+      ( ={Glob.mem, hx, hy, in_0, s_r4, s_r4x5, s_r2, s_r2x5} ==> ={in_0, hy, y1, y0, x1, x0} )   
+      ( ={Glob.mem, hx, hy, in_0, s_r4, s_r4x5, s_r2, s_r2x5} ==> ={in_0, hy, y1, y0, x1, x0} ) => //.
+    + by move=> &m1 &m2 />; exists Glob.mem{m2} hx{m2} hy{m2} in_0{m2} s_r2{m2} s_r2x5{m2} s_r4{m2} s_r4x5{m2}.
     move=> />.
-    + do !(wp;call (_: ={global_mem, in_0} ==> ={res}); 1: by sim); wp; skip => />.
+    + do !(wp;call (_: ={Glob.mem, in_0} ==> ={res}); 1: by sim); wp; skip => />.
       by rewrite -!W64_addsubA W64_subi -!W64_addwA !W64_addi.
     by swap{1} 3 -1; do !(wp; call amd64_amd64_pr_load); auto => />.
 
@@ -237,7 +237,6 @@ axiom pack_mulu_32 w1 w2 :
   pack_2u32 (W32.mulu w1 w2) = (zeroext_32_64 w1) * (zeroext_32_64 w2).
 
 hint simplify pack_mulu_32.
-search zeroext_32_64.
 
 axiom zeroext_and2p32 w : zeroext_32_64 (unpack_2u32 w).`1 = w `&` W64.of_uint 4294967295.
 
@@ -279,7 +278,7 @@ proof.
 qed.
 
 equiv clampP : Poly1305_amd64_5xPR.M.clamp ~ Poly1305_avx_5x.M.clamp : 
-  ={global_mem, k} ==> ={res} /\ wf5 res{1}.
+  ={Glob.mem, k} ==> ={res} /\ wf5 res{1}.
 proof.
   conseq (_: ={res}) clampWF.
   proc; sim.
@@ -361,9 +360,9 @@ qed.
 
 equiv unpack_u128P : 
  Poly1305_amd64_5xPR.M.unpack_u128x2_to_u26x5x2 ~  Poly1305_avx_5x.M.unpack_u128x2_to_u26x5x2 :
-  ={global_mem} /\ in_0{1} = m{2} ==> rela5 res{1}.`1 res{1}.`2 res{2} /\ wf5 res{1}.`1 /\ wf5 res{1}.`2.
+  ={Glob.mem} /\ in_0{1} = m{2} ==> rela5 res{1}.`1 res{1}.`2 res{2} /\ wf5 res{1}.`1 /\ wf5 res{1}.`2.
 proof. 
-  conseq (_: ={global_mem} /\ in_0{1} = m{2} ==> rela5 res{1}.`1 res{1}.`2 res{2}) 
+  conseq (_: ={Glob.mem} /\ in_0{1} = m{2} ==> rela5 res{1}.`1 res{1}.`2 res{2}) 
          (_: true ==> wf5 res.`1 /\ wf5 res.`2).
   + by proc; do !(call loadWF;wp); skip.
   proc;inline *;wp; skip => />; cbv delta => &1.
@@ -373,7 +372,7 @@ proof.
 qed.
 
 equiv remaining_blocksP : Poly1305_amd64_5xPR.M.remaining_blocks ~ Poly1305_avx_5x.M.remaining_blocks :
-   ={global_mem, in_0} /\ 
+   ={Glob.mem, in_0} /\ 
    wf5 hx{1} /\ wf5 hy{1} /\ wf5 s_r2{1} /\ wf5 s_r4{1} /\ wf4 s_r2x5{1} /\ wf4 s_r4x5{1} /\
    rela5 hx{1} hy{1} hxy{2} /\ 
    rela5 s_r2{1} s_r2{1} s_r2r2{2} /\ 
@@ -393,7 +392,7 @@ proof.
 qed.
 
 equiv first_blockP : Poly1305_amd64_5xPR.M.first_block ~ Poly1305_avx_5x.M.first_block :
-   ={global_mem, in_0} /\
+   ={Glob.mem, in_0} /\
    wf5 s_r2{1} /\ wf4 s_r2x5{1} /\
    rela5 s_r2{1} s_r2{1} s_r2r2{2} /\
    rela4 s_r2x5{1} s_r2x5{1} s_r2r2x5{2} ==>
@@ -438,7 +437,7 @@ qed.
 
 equiv poly1305_amd64_avx_5x :
   Poly1305_amd64_5xPR.M.poly1305 ~ Poly1305_avx_5x.M.poly1305 :
-   ={arg} ==> ={res}.
+   ={arg, Glob.mem} ==> ={res, Glob.mem}.
 proof.
   proc=> /=. sim.
   seq 20 26 : 
@@ -446,7 +445,7 @@ proof.
     ={s_out, s_in, s_inlen, s_k, r, s_r, s_rx5, s_r2x5, h}).
   + wp. call clampP => /=. 
     conseq (_ :
-      ={global_mem, out, in_0, inlen, k, s_out, s_in, s_inlen, s_k, s_rx5, s_r2x5, h}) => //.
+      ={Glob.mem, out, in_0, inlen, k, s_out, s_in, s_inlen, s_k, s_rx5, s_r2x5, h}) => //.
     by sim.
   seq 2 2 : (#pre /\  (is_x5 r s_rx5){1}).
   + conseq />;unroll for {1} 2; unroll for {2} 2.
@@ -499,7 +498,7 @@ proof.
     + skip => &m1 &m2 |> ??????????? + _ + _.
       by move=> /> ????? 4!->; rewrite !bounded_mul5.
     call final_mulP => /=.
-    while (={global_mem, b64, in_0} /\ 
+    while (={Glob.mem, b64, in_0} /\ 
             wf5 hx{1}   /\ wf5 hy{1} /\
             wf5 s_r2{1} /\ wf4 s_r2x5{1} /\
             wf5 s_r4{1} /\ wf4 s_r4x5{1} /\

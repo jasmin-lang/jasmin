@@ -70,8 +70,8 @@ module M = {
     var h:W64.t Array5.t;
     var i:int;
     var t:W64.t Array5.t;
-    h <- Array5.init;
-    t <- Array5.init;
+    h <- Array5.init W64.zeros;
+    t <- Array5.init W64.zeros;
     leakages <- LeakFor(0,5) :: LeakExpr([]) :: leakages;
     i <- 0;
     while (i < 5) {
@@ -90,8 +90,8 @@ module M = {
     var ox:W64.t Array5.t;
     var mp:W64.t Array5.t;
     var n:W64.t;
-    mp <- Array5.init;
-    ox <- Array5.init;
+    mp <- Array5.init W64.zeros;
+    ox <- Array5.init W64.zeros;
     leakages <- LeakExpr([]) :: leakages;
     ox <- x;
     leakages <- LeakExpr([]) :: leakages;
@@ -147,16 +147,16 @@ module M = {
     return (x);
   }
   
-  proc unpack (global_mem : global_mem_t, m:W64.t) : W64.t Array5.t = {
+  proc unpack (m:W64.t) : W64.t Array5.t = {
     var x:W64.t Array5.t;
     var m0:W64.t;
     var m1:W64.t;
     var t:W64.t;
-    x <- Array5.init;
+    x <- Array5.init W64.zeros;
     leakages <- LeakExpr([(m + (W64.of_uint (8 * 0)))]) :: leakages;
-    m0 <- (loadW64 global_mem (m + (W64.of_uint (8 * 0))));
+    m0 <- (loadW64 Glob.mem (m + (W64.of_uint (8 * 0))));
     leakages <- LeakExpr([(m + (W64.of_uint (8 * 1)))]) :: leakages;
-    m1 <- (loadW64 global_mem (m + (W64.of_uint (8 * 1))));
+    m1 <- (loadW64 Glob.mem (m + (W64.of_uint (8 * 1))));
     leakages <- LeakExpr([]) :: leakages;
     x.[0] <- m0;
     leakages <- LeakExpr([]) :: leakages;
@@ -196,8 +196,8 @@ module M = {
   W64.t Array5.t = {
     var t:W64.t Array5.t;
     var z:W64.t Array3.t;
-    t <- Array5.init;
-    z <- Array3.init;
+    t <- Array5.init W64.zeros;
+    z <- Array3.init W64.zeros;
     leakages <- LeakExpr([]) :: leakages;
     t.[0] <- x.[0];
     leakages <- LeakExpr([]) :: leakages;
@@ -353,7 +353,7 @@ module M = {
   
   proc carry_reduce (x:W64.t Array5.t) : W64.t Array5.t = {
     var z:W64.t Array2.t;
-    z <- Array2.init;
+    z <- Array2.init W64.zeros;
     leakages <- LeakExpr([]) :: leakages;
     z.[0] <- x.[0];
     leakages <- LeakExpr([]) :: leakages;
@@ -378,6 +378,8 @@ module M = {
     z.[1] <- x.[4];
     leakages <- LeakExpr([]) :: leakages;
     z.[1] <- (z.[1] `>>` (W8.of_uint 26));
+    leakages <- LeakExpr([]) :: leakages;
+    z.[1] <- (z.[1] `&` (W64.of_uint 4294967295));
     leakages <- LeakExpr([]) :: leakages;
     z.[1] <- (z.[1] * (W64.of_uint 5));
     leakages <- LeakExpr([]) :: leakages;
@@ -419,7 +421,7 @@ module M = {
   W128.t Array5.t = {
     var r:W128.t Array5.t;
     var i:int;
-    r <- Array5.init;
+    r <- Array5.init W128.zeros;
     leakages <- LeakFor(0,5) :: LeakExpr([]) :: leakages;
     i <- 0;
     while (i < 5) {
@@ -434,25 +436,24 @@ module M = {
     return (r);
   }
   
-  proc unpack_u128x2_to_u26x5x2 (global_mem : global_mem_t, m:W64.t) : 
-  W128.t Array5.t = {
+  proc unpack_u128x2_to_u26x5x2 (m:W64.t) : W128.t Array5.t = {
     var r:W128.t Array5.t;
     var s128:W128.t;
     var t128:W128.t;
     var t1:W128.t;
     var t2:W128.t;
     var t3:W128.t;
-    r <- Array5.init;
+    r <- Array5.init W128.zeros;
     leakages <- LeakExpr([(m + (W64.of_uint (8 * 0)))]) :: leakages;
-    s128 <- x86_MOVD_64 (loadW64 global_mem (m + (W64.of_uint (8 * 0))));
+    s128 <- x86_MOVD_64 (loadW64 Glob.mem (m + (W64.of_uint (8 * 0))));
     leakages <- LeakExpr([(m + (W64.of_uint (8 * 2)))]) :: leakages;
-    t128 <- x86_MOVD_64 (loadW64 global_mem (m + (W64.of_uint (8 * 2))));
+    t128 <- x86_MOVD_64 (loadW64 Glob.mem (m + (W64.of_uint (8 * 2))));
     leakages <- LeakExpr([]) :: leakages;
     t1 <- x86_VPUNPCKL_2u64 s128 t128;
     leakages <- LeakExpr([(m + (W64.of_uint (8 * 1)))]) :: leakages;
-    s128 <- x86_MOVD_64 (loadW64 global_mem (m + (W64.of_uint (8 * 1))));
+    s128 <- x86_MOVD_64 (loadW64 Glob.mem (m + (W64.of_uint (8 * 1))));
     leakages <- LeakExpr([(m + (W64.of_uint (8 * 3)))]) :: leakages;
-    t128 <- x86_MOVD_64 (loadW64 global_mem (m + (W64.of_uint (8 * 3))));
+    t128 <- x86_MOVD_64 (loadW64 Glob.mem (m + (W64.of_uint (8 * 3))));
     leakages <- LeakExpr([]) :: leakages;
     t2 <- x86_VPUNPCKL_2u64 s128 t128;
     leakages <- LeakExpr([]) :: leakages;
@@ -484,8 +485,8 @@ module M = {
   W128.t Array5.t = {
     var t:W128.t Array5.t;
     var z:W128.t Array5.t;
-    t <- Array5.init;
-    z <- Array5.init;
+    t <- Array5.init W128.zeros;
+    z <- Array5.init W128.zeros;
     leakages <- LeakExpr([]) :: leakages;
     t.[0] <- x86_VPMULU_128 x.[0] y.[0];
     leakages <- LeakExpr([]) :: leakages;
@@ -581,17 +582,15 @@ module M = {
     return (x);
   }
   
-  proc mulmod_u128_prefetch (global_mem : global_mem_t, in_0:W64.t,
-                                                        x:W128.t Array5.t,
-                                                        y:W128.t Array5.t,
-                                                        yx5:W128.t Array4.t) : 
+  proc mulmod_u128_prefetch (in_0:W64.t, x:W128.t Array5.t,
+                             y:W128.t Array5.t, yx5:W128.t Array4.t) : 
   W128.t Array5.t * W128.t Array5.t = {
     var xy0:W128.t Array5.t;
     var t:W128.t Array5.t;
     var z:W128.t Array5.t;
-    t <- Array5.init;
-    xy0 <- Array5.init;
-    z <- Array5.init;
+    t <- Array5.init W128.zeros;
+    xy0 <- Array5.init W128.zeros;
+    z <- Array5.init W128.zeros;
     leakages <- LeakExpr([]) :: leakages;
     t.[0] <- x86_VPMULU_128 x.[0] y.[0];
     leakages <- LeakExpr([]) :: leakages;
@@ -673,7 +672,7 @@ module M = {
     leakages <- LeakExpr([]) :: leakages;
     z.[4] <- x86_VPMULU_128 x.[4] yx5.[3];
     leakages <- LeakExpr([]) :: leakages;
-    xy0 <@ unpack_u128x2_to_u26x5x2 (global_mem, in_0);
+    xy0 <@ unpack_u128x2_to_u26x5x2 (in_0);
     leakages <- LeakExpr([]) :: leakages;
     t.[2] <- x86_VPADD_2u64 t.[2] z.[0];
     leakages <- LeakExpr([]) :: leakages;
@@ -689,18 +688,16 @@ module M = {
     return (x, xy0);
   }
   
-  proc mulmod_add_u128_prefetch (global_mem : global_mem_t, in_0:W64.t,
-                                                            u:W128.t Array5.t,
-                                                            x:W128.t Array5.t,
-                                                            y:W128.t Array5.t,
-                                                            yx5:W128.t Array4.t) : 
-  W128.t Array5.t * W128.t Array5.t = {
+  proc mulmod_add_u128_prefetch (in_0:W64.t, u:W128.t Array5.t,
+                                 x:W128.t Array5.t, y:W128.t Array5.t,
+                                 yx5:W128.t Array4.t) : W128.t Array5.t *
+                                                        W128.t Array5.t = {
     var xy1:W128.t Array5.t;
     var t:W128.t Array5.t;
     var z:W128.t Array5.t;
-    t <- Array5.init;
-    xy1 <- Array5.init;
-    z <- Array5.init;
+    t <- Array5.init W128.zeros;
+    xy1 <- Array5.init W128.zeros;
+    z <- Array5.init W128.zeros;
     leakages <- LeakExpr([]) :: leakages;
     t.[0] <- x86_VPMULU_128 x.[0] y.[0];
     leakages <- LeakExpr([]) :: leakages;
@@ -784,7 +781,7 @@ module M = {
     leakages <- LeakExpr([]) :: leakages;
     z.[4] <- x86_VPMULU_128 x.[4] yx5.[3];
     leakages <- LeakExpr([]) :: leakages;
-    xy1 <@ unpack_u128x2_to_u26x5x2 (global_mem, in_0);
+    xy1 <@ unpack_u128x2_to_u26x5x2 (in_0);
     leakages <- LeakExpr([]) :: leakages;
     t.[2] <- x86_VPADD_2u64 t.[2] z.[0];
     leakages <- LeakExpr([]) :: leakages;
@@ -802,7 +799,7 @@ module M = {
   
   proc carry_reduce_u128 (x:W128.t Array5.t) : W128.t Array5.t = {
     var z:W128.t Array2.t;
-    z <- Array2.init;
+    z <- Array2.init W128.zeros;
     leakages <- LeakExpr([]) :: leakages;
     z.[0] <- x86_VPSRL_2u64 x.[0] (W8.of_uint 26);
     leakages <- LeakExpr([]) :: leakages;
@@ -850,11 +847,11 @@ module M = {
     return (x);
   }
   
-  proc clamp (global_mem : global_mem_t, k:W64.t) : W64.t Array5.t = {
+  proc clamp (k:W64.t) : W64.t Array5.t = {
     var r:W64.t Array5.t;
-    r <- Array5.init;
+    r <- Array5.init W64.zeros;
     leakages <- LeakExpr([]) :: leakages;
-    r <@ unpack (global_mem, k);
+    r <@ unpack (k);
     leakages <- LeakExpr([]) :: leakages;
     r.[0] <- (r.[0] `&` (W64.of_uint 67108863));
     leakages <- LeakExpr([]) :: leakages;
@@ -868,26 +865,25 @@ module M = {
     return (r);
   }
   
-  proc load (global_mem : global_mem_t, in_0:W64.t) : W64.t Array5.t = {
+  proc load (in_0:W64.t) : W64.t Array5.t = {
     var x:W64.t Array5.t;
-    x <- Array5.init;
+    x <- Array5.init W64.zeros;
     leakages <- LeakExpr([]) :: leakages;
-    x <@ unpack (global_mem, in_0);
+    x <@ unpack (in_0);
     leakages <- LeakExpr([]) :: leakages;
     x.[4] <- (x.[4] `|` (W64.of_uint 16777216));
     return (x);
   }
   
-  proc load_last (global_mem : global_mem_t, in_0:W64.t, inlen:W64.t) : 
-  W64.t Array5.t = {
+  proc load_last (in_0:W64.t, inlen:W64.t) : W64.t Array5.t = {
     var x:W64.t Array5.t;
     var i:int;
     var m:W64.t Array2.t;
     var c:W64.t;
     var n:W64.t;
     var t:W64.t;
-    m <- Array2.init;
-    x <- Array5.init;
+    m <- Array2.init W64.zeros;
+    x <- Array5.init W64.zeros;
     leakages <- LeakFor(0,2) :: LeakExpr([]) :: leakages;
     i <- 0;
     while (i < 2) {
@@ -906,7 +902,7 @@ module M = {
       
       while ((c \ult inlen)) {
         leakages <- LeakExpr([(in_0 + c)]) :: leakages;
-        t <- (zeroext_8_64 (loadW8 global_mem (in_0 + c)));
+        t <- (zeroext_8_64 (loadW8 Glob.mem (in_0 + c)));
         leakages <- LeakExpr([]) :: leakages;
         t <- (t `<<` (zeroext_64_8 n));
         leakages <- LeakExpr([]) :: leakages;
@@ -926,7 +922,7 @@ module M = {
       m.[0] <- (m.[0] `|` t);
     } else {
       leakages <- LeakExpr([(in_0 + (W64.of_uint 0))]) :: leakages;
-      m.[0] <- (loadW64 global_mem (in_0 + (W64.of_uint 0)));
+      m.[0] <- (loadW64 Glob.mem (in_0 + (W64.of_uint 0)));
       leakages <- LeakExpr([]) :: leakages;
       inlen <- (inlen - (W64.of_uint 8));
       leakages <- LeakExpr([]) :: leakages;
@@ -940,7 +936,7 @@ module M = {
       
       while ((c \ult inlen)) {
         leakages <- LeakExpr([(in_0 + c)]) :: leakages;
-        t <- (zeroext_8_64 (loadW8 global_mem (in_0 + c)));
+        t <- (zeroext_8_64 (loadW8 Glob.mem (in_0 + c)));
         leakages <- LeakExpr([]) :: leakages;
         t <- (t `<<` (zeroext_64_8 n));
         leakages <- LeakExpr([]) :: leakages;
@@ -994,8 +990,7 @@ module M = {
     return (x);
   }
   
-  proc pack (global_mem : global_mem_t, y:W64.t, x:W64.t Array5.t) : 
-  global_mem_t = {
+  proc pack (y:W64.t, x:W64.t Array5.t) : unit = {
     var t:W64.t;
     var t1:W64.t;
     
@@ -1014,7 +1009,7 @@ module M = {
     leakages <- LeakExpr([]) :: leakages;
     t <- (t `|` t1);
     leakages <- LeakExpr([(y + (W64.of_uint (0 * 8)))]) :: leakages;
-    global_mem <- storeW64 global_mem (y + (W64.of_uint (0 * 8))) t;
+    Glob.mem <- storeW64 Glob.mem (y + (W64.of_uint (0 * 8))) t;
     leakages <- LeakExpr([]) :: leakages;
     t <- x.[2];
     leakages <- LeakExpr([]) :: leakages;
@@ -1034,28 +1029,26 @@ module M = {
     leakages <- LeakExpr([]) :: leakages;
     t <- (t `|` t1);
     leakages <- LeakExpr([(y + (W64.of_uint (1 * 8)))]) :: leakages;
-    global_mem <- storeW64 global_mem (y + (W64.of_uint (1 * 8))) t;
-    return global_mem;
+    Glob.mem <- storeW64 Glob.mem (y + (W64.of_uint (1 * 8))) t;
+    return ();
   }
   
-  proc first_block (global_mem : global_mem_t, in_0:W64.t,
-                                               s_r2r2:W128.t Array5.t,
-                                               s_r2r2x5:W128.t Array4.t) : 
-  W128.t Array5.t * W64.t = {
+  proc first_block (in_0:W64.t, s_r2r2:W128.t Array5.t,
+                    s_r2r2x5:W128.t Array4.t) : W128.t Array5.t * W64.t = {
     var hxy:W128.t Array5.t;
     var xy0:W128.t Array5.t;
     var xy1:W128.t Array5.t;
-    hxy <- Array5.init;
-    xy0 <- Array5.init;
-    xy1 <- Array5.init;
+    hxy <- Array5.init W128.zeros;
+    xy0 <- Array5.init W128.zeros;
+    xy1 <- Array5.init W128.zeros;
     leakages <- LeakExpr([]) :: leakages;
-    xy0 <@ unpack_u128x2_to_u26x5x2 (global_mem, in_0);
+    xy0 <@ unpack_u128x2_to_u26x5x2 (in_0);
     leakages <- LeakExpr([]) :: leakages;
     in_0 <- (in_0 + (W64.of_uint 32));
     leakages <- LeakExpr([]) :: leakages;
     hxy <@ mulmod_u128 (xy0, s_r2r2, s_r2r2x5);
     leakages <- LeakExpr([]) :: leakages;
-    xy1 <@ unpack_u128x2_to_u26x5x2 (global_mem, in_0);
+    xy1 <@ unpack_u128x2_to_u26x5x2 (in_0);
     leakages <- LeakExpr([]) :: leakages;
     in_0 <- (in_0 + (W64.of_uint 32));
     leakages <- LeakExpr([]) :: leakages;
@@ -1065,25 +1058,21 @@ module M = {
     return (hxy, in_0);
   }
   
-  proc remaining_blocks (global_mem : global_mem_t, hxy:W128.t Array5.t,
-                                                    in_0:W64.t,
-                                                    s_r4r4:W128.t Array5.t,
-                                                    s_r4r4x5:W128.t Array4.t,
-                                                    s_r2r2:W128.t Array5.t,
-                                                    s_r2r2x5:W128.t Array4.t) : 
+  proc remaining_blocks (hxy:W128.t Array5.t, in_0:W64.t,
+                         s_r4r4:W128.t Array5.t, s_r4r4x5:W128.t Array4.t,
+                         s_r2r2:W128.t Array5.t, s_r2r2x5:W128.t Array4.t) : 
   W128.t Array5.t * W64.t = {
     var xy0:W128.t Array5.t;
     var xy1:W128.t Array5.t;
-    xy0 <- Array5.init;
-    xy1 <- Array5.init;
+    xy0 <- Array5.init W128.zeros;
+    xy1 <- Array5.init W128.zeros;
     leakages <- LeakExpr([]) :: leakages;
-    (hxy, xy0) <@ mulmod_u128_prefetch (global_mem, in_0, hxy, s_r4r4,
-    s_r4r4x5);
+    (hxy, xy0) <@ mulmod_u128_prefetch (in_0, hxy, s_r4r4, s_r4r4x5);
     leakages <- LeakExpr([]) :: leakages;
     in_0 <- (in_0 + (W64.of_uint 32));
     leakages <- LeakExpr([]) :: leakages;
-    (hxy, xy1) <@ mulmod_add_u128_prefetch (global_mem, in_0, hxy, xy0,
-    s_r2r2, s_r2r2x5);
+    (hxy, xy1) <@ mulmod_add_u128_prefetch (in_0, hxy, xy0, s_r2r2,
+    s_r2r2x5);
     leakages <- LeakExpr([]) :: leakages;
     in_0 <- (in_0 + (W64.of_uint 32));
     leakages <- LeakExpr([]) :: leakages;
@@ -1096,7 +1085,7 @@ module M = {
   proc final_mul (hxy:W128.t Array5.t, s_r2r:W128.t Array5.t,
                   s_r2rx5:W128.t Array4.t) : W64.t Array5.t = {
     var h:W64.t Array5.t;
-    h <- Array5.init;
+    h <- Array5.init W64.zeros;
     leakages <- LeakExpr([]) :: leakages;
     hxy <@ mulmod_u128 (hxy, s_r2r, s_r2rx5);
     leakages <- LeakExpr([]) :: leakages;
@@ -1106,8 +1095,7 @@ module M = {
     return (h);
   }
   
-  proc poly1305 (global_mem : global_mem_t, out:W64.t, in_0:W64.t,
-                                            inlen:W64.t, k:W64.t) : global_mem_t = {
+  proc poly1305 (out:W64.t, in_0:W64.t, inlen:W64.t, k:W64.t) : unit = {
     var s_out:W64.t;
     var s_in:W64.t;
     var s_inlen:W64.t;
@@ -1138,26 +1126,26 @@ module M = {
     var b16:W64.t;
     var x:W64.t Array5.t;
     var s:W64.t Array5.t;
-    h <- Array5.init;
-    hxy <- Array5.init;
-    r <- Array5.init;
-    r2 <- Array5.init;
-    r2r <- Array5.init;
-    r2r2 <- Array5.init;
-    r4 <- Array5.init;
-    r4r4 <- Array5.init;
-    s <- Array5.init;
-    s_r <- Array5.init;
-    s_r2 <- Array5.init;
-    s_r2r <- Array5.init;
-    s_r2r2 <- Array5.init;
-    s_r2r2x5 <- Array4.init;
-    s_r2rx5 <- Array4.init;
-    s_r2x5 <- Array4.init;
-    s_r4r4 <- Array5.init;
-    s_r4r4x5 <- Array4.init;
-    s_rx5 <- Array4.init;
-    x <- Array5.init;
+    h <- Array5.init W64.zeros;
+    hxy <- Array5.init W128.zeros;
+    r <- Array5.init W64.zeros;
+    r2 <- Array5.init W64.zeros;
+    r2r <- Array5.init W128.zeros;
+    r2r2 <- Array5.init W128.zeros;
+    r4 <- Array5.init W64.zeros;
+    r4r4 <- Array5.init W128.zeros;
+    s <- Array5.init W64.zeros;
+    s_r <- Array5.init W64.zeros;
+    s_r2 <- Array5.init W64.zeros;
+    s_r2r <- Array5.init W128.zeros;
+    s_r2r2 <- Array5.init W128.zeros;
+    s_r2r2x5 <- Array4.init W128.zeros;
+    s_r2rx5 <- Array4.init W128.zeros;
+    s_r2x5 <- Array4.init W64.zeros;
+    s_r4r4 <- Array5.init W128.zeros;
+    s_r4r4x5 <- Array4.init W128.zeros;
+    s_rx5 <- Array4.init W64.zeros;
+    x <- Array5.init W64.zeros;
     leakages <- LeakExpr([]) :: leakages;
     s_out <- out;
     leakages <- LeakExpr([]) :: leakages;
@@ -1167,7 +1155,7 @@ module M = {
     leakages <- LeakExpr([]) :: leakages;
     s_k <- k;
     leakages <- LeakExpr([]) :: leakages;
-    r <@ clamp (global_mem, k);
+    r <@ clamp (k);
     leakages <- LeakExpr([]) :: leakages;
     s_r <- r;
     leakages <- LeakFor(0,4) :: LeakExpr([]) :: leakages;
@@ -1268,7 +1256,7 @@ module M = {
       leakages <- LeakExpr([]) :: leakages;
       in_0 <- s_in;
       leakages <- LeakExpr([]) :: leakages;
-      (hxy, in_0) <@ first_block (global_mem, in_0, s_r2r2, s_r2r2x5);
+      (hxy, in_0) <@ first_block (in_0, s_r2r2, s_r2r2x5);
       leakages <- LeakExpr([]) :: leakages;
       b64 <- s_b64;
       leakages <- LeakExpr([]) :: leakages;
@@ -1282,8 +1270,8 @@ module M = {
         leakages <- LeakExpr([]) :: leakages;
         s_b64 <- b64;
         leakages <- LeakExpr([]) :: leakages;
-        (hxy, in_0) <@ remaining_blocks (global_mem, hxy, in_0, s_r4r4,
-        s_r4r4x5, s_r2r2, s_r2r2x5);
+        (hxy, in_0) <@ remaining_blocks (hxy, in_0, s_r4r4, s_r4r4x5, s_r2r2,
+        s_r2r2x5);
         leakages <- LeakExpr([]) :: leakages;
         b64 <- s_b64;
       leakages <- LeakCond(((W64.of_uint 0) \ult b64)) :: LeakExpr([]) :: leakages;
@@ -1307,7 +1295,7 @@ module M = {
       leakages <- LeakExpr([]) :: leakages;
       b16 <- (b16 - (W64.of_uint 1));
       leakages <- LeakExpr([]) :: leakages;
-      x <@ load (global_mem, in_0);
+      x <@ load (in_0);
       leakages <- LeakExpr([]) :: leakages;
       in_0 <- (in_0 + (W64.of_uint 16));
       leakages <- LeakExpr([]) :: leakages;
@@ -1326,7 +1314,7 @@ module M = {
     leakages <- LeakCond((inlen <> (W64.of_uint 0))) :: LeakExpr([]) :: leakages;
     if ((inlen <> (W64.of_uint 0))) {
       leakages <- LeakExpr([]) :: leakages;
-      x <@ load_last (global_mem, in_0, inlen);
+      x <@ load_last (in_0, inlen);
       leakages <- LeakExpr([]) :: leakages;
       h <@ add (h, x);
       leakages <- LeakExpr([]) :: leakages;
@@ -1345,12 +1333,12 @@ module M = {
     leakages <- LeakExpr([]) :: leakages;
     out <- s_out;
     leakages <- LeakExpr([]) :: leakages;
-    s <@ unpack (global_mem, k);
+    s <@ unpack (k);
     leakages <- LeakExpr([]) :: leakages;
     h <@ add_carry (h, s);
     leakages <- LeakExpr([]) :: leakages;
-    global_mem <@ pack (global_mem, out, h);
-    return global_mem;
+    pack (out, h);
+    return ();
   }
 }.
 

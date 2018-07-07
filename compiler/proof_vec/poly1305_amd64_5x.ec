@@ -36,8 +36,8 @@ module M = {
     var ox:W64.t Array5.t;
     var mp:W64.t Array5.t;
     var n:W64.t;
-    mp <- Array5.init;
-    ox <- Array5.init;
+    mp <- Array5.init W64.zeros;
+    ox <- Array5.init W64.zeros;
     ox <- x;
     mp.[0] <- (W64.of_uint 5);
     mp.[1] <- (W64.of_uint 0);
@@ -67,14 +67,14 @@ module M = {
     return (x);
   }
   
-  proc unpack (global_mem : global_mem_t, m:W64.t) : W64.t Array5.t = {
+  proc unpack (m:W64.t) : W64.t Array5.t = {
     var x:W64.t Array5.t;
     var m0:W64.t;
     var m1:W64.t;
     var t:W64.t;
-    x <- Array5.init;
-    m0 <- (loadW64 global_mem (m + (W64.of_uint (8 * 0))));
-    m1 <- (loadW64 global_mem (m + (W64.of_uint (8 * 1))));
+    x <- Array5.init W64.zeros;
+    m0 <- (loadW64 Glob.mem (m + (W64.of_uint (8 * 0))));
+    m1 <- (loadW64 Glob.mem (m + (W64.of_uint (8 * 1))));
     x.[0] <- m0;
     x.[0] <- (x.[0] `&` (W64.of_uint 67108863));
     m0 <- (m0 `>>` (W8.of_uint 26));
@@ -98,8 +98,8 @@ module M = {
   W64.t Array5.t = {
     var t:W64.t Array5.t;
     var z:W64.t Array3.t;
-    t <- Array5.init;
-    z <- Array3.init;
+    t <- Array5.init W64.zeros;
+    z <- Array3.init W64.zeros;
     t.[0] <- x.[0];
     t.[0] <- (t.[0] * y.[0]);
     t.[1] <- x.[0];
@@ -182,8 +182,8 @@ module M = {
                       yx5:W64.t Array4.t) : W64.t Array5.t = {
     var t:W64.t Array5.t;
     var z:W64.t Array3.t;
-    t <- Array5.init;
-    z <- Array3.init;
+    t <- Array5.init W64.zeros;
+    z <- Array3.init W64.zeros;
     t.[0] <- x.[0];
     t.[0] <- (t.[0] * y.[0]);
     t.[1] <- x.[0];
@@ -265,7 +265,7 @@ module M = {
   
   proc carry_reduce (x:W64.t Array5.t) : W64.t Array5.t = {
     var z:W64.t Array2.t;
-    z <- Array2.init;
+    z <- Array2.init W64.zeros;
     z.[0] <- x.[0];
     z.[0] <- (z.[0] `>>` (W8.of_uint 26));
     z.[1] <- x.[3];
@@ -299,10 +299,10 @@ module M = {
     return (x);
   }
   
-  proc clamp (global_mem : global_mem_t, k:W64.t) : W64.t Array5.t = {
+  proc clamp (k:W64.t) : W64.t Array5.t = {
     var r:W64.t Array5.t;
-    r <- Array5.init;
-    r <@ unpack (global_mem, k);
+    r <- Array5.init W64.zeros;
+    r <@ unpack (k);
     r.[0] <- (r.[0] `&` (W64.of_uint 67108863));
     r.[1] <- (r.[1] `&` (W64.of_uint 67108611));
     r.[2] <- (r.[2] `&` (W64.of_uint 67092735));
@@ -311,24 +311,23 @@ module M = {
     return (r);
   }
   
-  proc load (global_mem : global_mem_t, in_0:W64.t) : W64.t Array5.t = {
+  proc load (in_0:W64.t) : W64.t Array5.t = {
     var x:W64.t Array5.t;
-    x <- Array5.init;
-    x <@ unpack (global_mem, in_0);
+    x <- Array5.init W64.zeros;
+    x <@ unpack (in_0);
     x.[4] <- (x.[4] `|` (W64.of_uint 16777216));
     return (x);
   }
   
-  proc load_last (global_mem : global_mem_t, in_0:W64.t, inlen:W64.t) : 
-  W64.t Array5.t = {
+  proc load_last (in_0:W64.t, inlen:W64.t) : W64.t Array5.t = {
     var x:W64.t Array5.t;
     var i:int;
     var m:W64.t Array2.t;
     var c:W64.t;
     var n:W64.t;
     var t:W64.t;
-    m <- Array2.init;
-    x <- Array5.init;
+    m <- Array2.init W64.zeros;
+    x <- Array5.init W64.zeros;
     i <- 0;
     while (i < 2) {
       m.[i] <- (W64.of_uint 0);
@@ -339,7 +338,7 @@ module M = {
       n <- (W64.of_uint 0);
       
       while ((c \ult inlen)) {
-        t <- (zeroext_8_64 (loadW8 global_mem (in_0 + c)));
+        t <- (zeroext_8_64 (loadW8 Glob.mem (in_0 + c)));
         t <- (t `<<` (zeroext_64_8 n));
         m.[0] <- (m.[0] `|` t);
         n <- (n + (W64.of_uint 8));
@@ -349,14 +348,14 @@ module M = {
       t <- (t `<<` (zeroext_64_8 n));
       m.[0] <- (m.[0] `|` t);
     } else {
-      m.[0] <- (loadW64 global_mem (in_0 + (W64.of_uint 0)));
+      m.[0] <- (loadW64 Glob.mem (in_0 + (W64.of_uint 0)));
       inlen <- (inlen - (W64.of_uint 8));
       in_0 <- (in_0 + (W64.of_uint 8));
       c <- (W64.of_uint 0);
       n <- (W64.of_uint 0);
       
       while ((c \ult inlen)) {
-        t <- (zeroext_8_64 (loadW8 global_mem (in_0 + c)));
+        t <- (zeroext_8_64 (loadW8 Glob.mem (in_0 + c)));
         t <- (t `<<` (zeroext_64_8 n));
         m.[1] <- (m.[1] `|` t);
         n <- (n + (W64.of_uint 8));
@@ -385,8 +384,7 @@ module M = {
     return (x);
   }
   
-  proc pack (global_mem : global_mem_t, y:W64.t, x:W64.t Array5.t) : 
-  global_mem_t = {
+  proc pack (y:W64.t, x:W64.t Array5.t) : unit = {
     var t:W64.t;
     var t1:W64.t;
     
@@ -397,7 +395,7 @@ module M = {
     t1 <- x.[2];
     t1 <- (t1 `<<` (W8.of_uint 52));
     t <- (t `|` t1);
-    global_mem <- storeW64 global_mem (y + (W64.of_uint (0 * 8))) t;
+    Glob.mem <- storeW64 Glob.mem (y + (W64.of_uint (0 * 8))) t;
     t <- x.[2];
     t <- (t `&` (W64.of_uint 67108863));
     t <- (t `>>` (W8.of_uint 12));
@@ -407,13 +405,11 @@ module M = {
     t1 <- x.[4];
     t1 <- (t1 `<<` (W8.of_uint 40));
     t <- (t `|` t1);
-    global_mem <- storeW64 global_mem (y + (W64.of_uint (1 * 8))) t;
-    return global_mem;
+    Glob.mem <- storeW64 Glob.mem (y + (W64.of_uint (1 * 8))) t;
+    return ();
   }
   
-  proc first_block (global_mem : global_mem_t, in_0:W64.t,
-                                               s_r2:W64.t Array5.t,
-                                               s_r2x5:W64.t Array4.t) : 
+  proc first_block (in_0:W64.t, s_r2:W64.t Array5.t, s_r2x5:W64.t Array4.t) : 
   W64.t Array5.t * W64.t Array5.t * W64.t = {
     var hx:W64.t Array5.t;
     var hy:W64.t Array5.t;
@@ -422,25 +418,25 @@ module M = {
     var s_hx:W64.t Array5.t;
     var y0:W64.t Array5.t;
     var y1:W64.t Array5.t;
-    hx <- Array5.init;
-    hy <- Array5.init;
-    s_hx <- Array5.init;
-    x0 <- Array5.init;
-    x1 <- Array5.init;
-    y0 <- Array5.init;
-    y1 <- Array5.init;
-    x0 <@ load (global_mem, in_0);
+    hx <- Array5.init W64.zeros;
+    hy <- Array5.init W64.zeros;
+    s_hx <- Array5.init W64.zeros;
+    x0 <- Array5.init W64.zeros;
+    x1 <- Array5.init W64.zeros;
+    y0 <- Array5.init W64.zeros;
+    y1 <- Array5.init W64.zeros;
+    x0 <@ load (in_0);
     in_0 <- (in_0 + (W64.of_uint 32));
     hx <@ mulmod_12 (x0, s_r2, s_r2x5);
-    x1 <@ load (global_mem, in_0);
+    x1 <@ load (in_0);
     in_0 <- (in_0 - (W64.of_uint 16));
     hx <@ add (hx, x1);
     hx <@ carry_reduce (hx);
     s_hx <- hx;
-    y0 <@ load (global_mem, in_0);
+    y0 <@ load (in_0);
     in_0 <- (in_0 + (W64.of_uint 32));
     hy <@ mulmod_12 (y0, s_r2, s_r2x5);
-    y1 <@ load (global_mem, in_0);
+    y1 <@ load (in_0);
     hy <@ add (hy, y1);
     hy <@ carry_reduce (hy);
     in_0 <- (in_0 + (W64.of_uint 16));
@@ -448,13 +444,9 @@ module M = {
     return (hx, hy, in_0);
   }
   
-  proc remaining_blocks (global_mem : global_mem_t, hx:W64.t Array5.t,
-                                                    hy:W64.t Array5.t,
-                                                    in_0:W64.t,
-                                                    s_r4:W64.t Array5.t,
-                                                    s_r4x5:W64.t Array4.t,
-                                                    s_r2:W64.t Array5.t,
-                                                    s_r2x5:W64.t Array4.t) : 
+  proc remaining_blocks (hx:W64.t Array5.t, hy:W64.t Array5.t, in_0:W64.t,
+                         s_r4:W64.t Array5.t, s_r4x5:W64.t Array4.t,
+                         s_r2:W64.t Array5.t, s_r2x5:W64.t Array4.t) : 
   W64.t Array5.t * W64.t Array5.t * W64.t = {
     var s_hy:W64.t Array5.t;
     var x0:W64.t Array5.t;
@@ -462,28 +454,28 @@ module M = {
     var s_hx:W64.t Array5.t;
     var y0:W64.t Array5.t;
     var y1:W64.t Array5.t;
-    s_hx <- Array5.init;
-    s_hy <- Array5.init;
-    x0 <- Array5.init;
-    x1 <- Array5.init;
-    y0 <- Array5.init;
-    y1 <- Array5.init;
+    s_hx <- Array5.init W64.zeros;
+    s_hy <- Array5.init W64.zeros;
+    x0 <- Array5.init W64.zeros;
+    x1 <- Array5.init W64.zeros;
+    y0 <- Array5.init W64.zeros;
+    y1 <- Array5.init W64.zeros;
     s_hy <- hy;
     hx <@ mulmod_12 (hx, s_r4, s_r4x5);
-    x0 <@ load (global_mem, in_0);
+    x0 <@ load (in_0);
     in_0 <- (in_0 + (W64.of_uint 32));
     hx <@ mulmod_add_12 (hx, x0, s_r2, s_r2x5);
-    x1 <@ load (global_mem, in_0);
+    x1 <@ load (in_0);
     in_0 <- (in_0 - (W64.of_uint 16));
     hx <@ add (hx, x1);
     hx <@ carry_reduce (hx);
     s_hx <- hx;
     hy <- s_hy;
     hy <@ mulmod_12 (hy, s_r4, s_r4x5);
-    y0 <@ load (global_mem, in_0);
+    y0 <@ load (in_0);
     in_0 <- (in_0 + (W64.of_uint 32));
     hy <@ mulmod_add_12 (hy, y0, s_r2, s_r2x5);
-    y1 <@ load (global_mem, in_0);
+    y1 <@ load (in_0);
     in_0 <- (in_0 + (W64.of_uint 16));
     hy <@ add (hy, y1);
     hy <@ carry_reduce (hy);
@@ -497,9 +489,9 @@ module M = {
     var h:W64.t Array5.t;
     var s_hy:W64.t Array5.t;
     var s_hx:W64.t Array5.t;
-    h <- Array5.init;
-    s_hx <- Array5.init;
-    s_hy <- Array5.init;
+    h <- Array5.init W64.zeros;
+    s_hx <- Array5.init W64.zeros;
+    s_hy <- Array5.init W64.zeros;
     s_hy <- hy;
     hx <@ mulmod_12 (hx, s_r2, s_r2x5);
     hx <@ carry_reduce (hx);
@@ -512,8 +504,7 @@ module M = {
     return (h);
   }
   
-  proc poly1305 (global_mem : global_mem_t, out:W64.t, in_0:W64.t,
-                                            inlen:W64.t, k:W64.t) : global_mem_t = {
+  proc poly1305 (out:W64.t, in_0:W64.t, inlen:W64.t, k:W64.t) : unit = {
     var s_out:W64.t;
     var s_in:W64.t;
     var s_inlen:W64.t;
@@ -537,25 +528,25 @@ module M = {
     var b16:W64.t;
     var x:W64.t Array5.t;
     var s:W64.t Array5.t;
-    h <- Array5.init;
-    hx <- Array5.init;
-    hy <- Array5.init;
-    r <- Array5.init;
-    r2 <- Array5.init;
-    r4 <- Array5.init;
-    s <- Array5.init;
-    s_r <- Array5.init;
-    s_r2 <- Array5.init;
-    s_r2x5 <- Array4.init;
-    s_r4 <- Array5.init;
-    s_r4x5 <- Array4.init;
-    s_rx5 <- Array4.init;
-    x <- Array5.init;
+    h <- Array5.init W64.zeros;
+    hx <- Array5.init W64.zeros;
+    hy <- Array5.init W64.zeros;
+    r <- Array5.init W64.zeros;
+    r2 <- Array5.init W64.zeros;
+    r4 <- Array5.init W64.zeros;
+    s <- Array5.init W64.zeros;
+    s_r <- Array5.init W64.zeros;
+    s_r2 <- Array5.init W64.zeros;
+    s_r2x5 <- Array4.init W64.zeros;
+    s_r4 <- Array5.init W64.zeros;
+    s_r4x5 <- Array4.init W64.zeros;
+    s_rx5 <- Array4.init W64.zeros;
+    x <- Array5.init W64.zeros;
     s_out <- out;
     s_in <- in_0;
     s_inlen <- inlen;
     s_k <- k;
-    r <@ clamp (global_mem, k);
+    r <@ clamp (k);
     s_r <- r;
     i <- 0;
     while (i < 4) {
@@ -598,15 +589,15 @@ module M = {
         
       }
       in_0 <- s_in;
-      (hx, hy, in_0) <@ first_block (global_mem, in_0, s_r2, s_r2x5);
+      (hx, hy, in_0) <@ first_block (in_0, s_r2, s_r2x5);
       b64 <- s_b64;
       b64 <- (b64 - (W64.of_uint 1));
       
       while (((W64.of_uint 0) \ult b64)) {
         b64 <- (b64 - (W64.of_uint 1));
         s_b64 <- b64;
-        (hx, hy, in_0) <@ remaining_blocks (global_mem, hx, hy, in_0, s_r4,
-        s_r4x5, s_r2, s_r2x5);
+        (hx, hy, in_0) <@ remaining_blocks (hx, hy, in_0, s_r4, s_r4x5, s_r2,
+        s_r2x5);
         b64 <- s_b64;
       }
       h <@ final_mul (hx, hy, s_r2, s_r2x5, s_r, s_rx5);
@@ -619,7 +610,7 @@ module M = {
     
     while (((W64.of_uint 0) \ult b16)) {
       b16 <- (b16 - (W64.of_uint 1));
-      x <@ load (global_mem, in_0);
+      x <@ load (in_0);
       in_0 <- (in_0 + (W64.of_uint 16));
       h <@ add (h, x);
       h <@ mulmod_12 (h, s_r, s_rx5);
@@ -628,7 +619,7 @@ module M = {
     inlen <- s_inlen;
     inlen <- (inlen `&` (W64.of_uint 15));
     if ((inlen <> (W64.of_uint 0))) {
-      x <@ load_last (global_mem, in_0, inlen);
+      x <@ load_last (in_0, inlen);
       h <@ add (h, x);
       h <@ mulmod_12 (h, s_r, s_rx5);
       h <@ carry_reduce (h);
@@ -639,10 +630,10 @@ module M = {
     k <- s_k;
     k <- (k + (W64.of_uint 16));
     out <- s_out;
-    s <@ unpack (global_mem, k);
+    s <@ unpack (k);
     h <@ add_carry (h, s);
-    global_mem <@ pack (global_mem, out, h);
-    return global_mem;
+    pack (out, h);
+    return ();
   }
 }.
 

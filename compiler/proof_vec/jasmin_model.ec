@@ -563,6 +563,13 @@ op storeW256 (m : global_mem_t) (a : address) (w : W256.t) =
   stores m a (unpackW256 w)
 axiomatized by storeW256E.
 
+(* ------------------------------------------------------------------- *)
+(* Global Memory                                                       *)
+
+module Glob = {
+  var mem : global_mem_t
+}.
+
 (* -------------------------------------------------------------------- *)
 type p4u32 = W32.t * W32.t * W32.t * W32.t.
 
@@ -909,4 +916,5 @@ type leakage_t = [
 ].
 
 type leakages_t = leakage_t list.
+
 

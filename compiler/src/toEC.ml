@@ -22,8 +22,6 @@ type env = {
     model : model;
     alls : Ss.t;
     vars : string Mv.t;
-    rmem : Sf.t;
-    wmem : Sf.t;
     glob : (string * Type.stype) Ms.t;
     arrsz : Sint.t;
   }
@@ -256,15 +254,12 @@ let ec_keyword =
  ; "expect" ]
 
 let internal_keyword = 
-  [ "global_mem"
-  ; "global_safe" ]
+  [ "global_safe" ]
 
 let empty_env model = {
     model;
     alls = Ss.union (Ss.of_list ec_keyword) (Ss.of_list internal_keyword);
     vars = Mv.empty;
-    rmem = Sf.empty;
-    wmem = Sf.empty;
     glob = Ms.empty;
     arrsz = Sint.empty;
   }
@@ -427,7 +422,7 @@ let rec pp_expr env fmt (e:expr) =
     pp_oget env pp fmt (x,e)
 
   | Pload (sz, x, e) -> 
-    Format.fprintf fmt "(load%a global_mem %a)"
+    Format.fprintf fmt "(load%a Glob.mem %a)"
       pp_Tsz sz (pp_wcast env) (add64 x e)
 
   | Papp1 (op1, e) -> 
@@ -480,25 +475,14 @@ let pp_locals env fmt locals =
   (pp_list "@ " pp_loc) locals
   (pp_list "@ " pp_init) locarr 
 
-let pp_rty b fmt tys =
-  if b then
-    Format.fprintf fmt "@[global_mem_t%s%a@]"
-       (if tys = [] then "" else " * ")
-       (pp_list "*@ " pp_coq_ty) tys 
-  else  
-    if tys = [] then
-       Format.fprintf fmt "unit"
-    else
-      Format.fprintf fmt "@[%a@]" 
-        (pp_list " *@ " pp_coq_ty) tys 
+let pp_rty fmt tys =
+  if tys = [] then
+    Format.fprintf fmt "unit"
+  else
+    Format.fprintf fmt "@[%a@]" 
+      (pp_list " *@ " pp_coq_ty) tys 
 
-let pp_ret b env fmt xs = 
-  if b then
-    if xs = [] then Format.fprintf fmt "return global_mem;"
-    else 
-      Format.fprintf fmt "@[return (global_mem, %a);@]"
-        (pp_list ",@ " (fun fmt x -> pp_var env fmt (L.unloc x))) xs
-  else 
+let pp_ret env fmt xs = 
   Format.fprintf fmt "@[return (%a);@]"
     (pp_list ",@ " (fun fmt x -> pp_var env fmt (L.unloc x))) xs
 
@@ -563,7 +547,7 @@ and pp_instr env fmt i =
     pp_leaks_assgn env fmt lv e;
     begin match lv with
     | Lmem(ws, x, e1) ->
-      Format.fprintf fmt "@[global_mem <- store%a global_mem %a %a;@]"
+      Format.fprintf fmt "@[Glob.mem <- store%a Glob.mem %a %a;@]"
          pp_Tsz ws (pp_wcast env) (add64 x e1) (pp_wcast env) (Type.Coq_sword ws, e)
     | _ -> 
       Format.fprintf fmt "@[%a <- %a;@]" (pp_lval env) lv 
@@ -578,24 +562,12 @@ and pp_instr env fmt i =
   | Ccall(_, lvs, f, es) ->
     assert (check_lvals lvs);
     pp_leaks_es env fmt es; 
-    let pp_vars fmt lvs = 
-      if Sf.mem f env.wmem then
-        if lvs = [] then
-          Format.fprintf fmt "global_mem"
-        else 
-          Format.fprintf fmt "(global_mem, %a)" 
-            (pp_list ",@ " (pp_lval env)) lvs 
-      else pp_lvals env fmt lvs in
-    let pp_args fmt es = 
-      if Sf.mem f env.rmem then
-        if es = [] then
-          Format.fprintf fmt "global_mem"
-        else 
-          Format.fprintf fmt "global_mem, %a" (pp_list ",@ " (pp_expr env)) es 
-      else pp_list ",@ " (pp_expr env) fmt es in
-    
-    Format.fprintf fmt "@[%a <%@ %s (%a);@]"
-        pp_vars lvs f.fn_name pp_args es
+    let pp_args fmt es = pp_list ",@ " (pp_expr env) fmt es in
+    let pp_lvs fmt lvs = 
+      if lvs <> [] then 
+        Format.fprintf fmt "%a <%@ " (pp_lvals env) lvs in
+    Format.fprintf fmt "@[%a%s (%a);@]"
+        pp_lvs lvs f.fn_name pp_args es
 
   | Cif(e,c1,c2) ->
     pp_leaks_if env fmt e;
@@ -628,25 +600,15 @@ let pp_fun env fmt f =
   let env = List.fold_left add_var env f.f_args in
   let env = List.fold_left add_var env locals in  
   (* Print the function *)
-  let pp_args fmt a =
-    if Sf.mem f.f_name env.rmem then
-      if a = [] then
-        Format.fprintf fmt "global_mem : global_mem_t"
-      else
-        Format.fprintf fmt "global_mem : global_mem_t, %a"
-          (pp_params env) a
-    else (pp_params env) fmt a
-  in
 
-  let b = Sf.mem f.f_name env.wmem in
   Format.fprintf fmt 
     "@[<v>proc %s (%a) : %a = {@   @[<v>%a@ %a@ %a@]@ }@]"
     f.f_name.fn_name 
-    pp_args f.f_args 
-    (pp_rty b) f.f_tyout
+    (pp_params env) f.f_args 
+    pp_rty f.f_tyout
     (pp_locals env) locals
     (pp_cmd env) f.f_body
-    (pp_ret b env) f.f_ret
+    (pp_ret env) f.f_ret
 
 let pp_glob_decl env fmt (ws,x, z) =
   Format.fprintf fmt "@[abbrev %a = %a.of_uint %a.@]@ "
@@ -661,12 +623,11 @@ let add_arrsz env f =
 
 
 let pp_prog fmt model globs funcs = 
-  let rmem, wmem = init_use funcs in
+
   let env = 
     List.fold_left (fun env (ws, x, _) -> add_glob env x ws)
       (empty_env model) globs in
   let env = List.fold_left add_arrsz env funcs in
-  let env = {env with rmem; wmem} in
 
   let pp_array fmt i = 
     assert (0<= i);
