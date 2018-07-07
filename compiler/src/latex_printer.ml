@@ -78,7 +78,7 @@ let string_of_op2 =
   | `Or -> "||"
   | `BAnd s -> f s "&"
   | `BOr s -> f s "|"
-  | `BXOr s -> f s "\\textasciicircum"
+  | `BXOr s -> f s "\\textasciicircum{}"
   | `ShR s -> f s ">{}>"
   | `ShL s -> f s "<{}<"
   | `Eq s -> f s "=="
