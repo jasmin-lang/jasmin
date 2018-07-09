@@ -351,7 +351,13 @@ let is_option env (x:var) =
 
 let pp_ovar env fmt (x:var) = 
   let (s,option) = Mv.find x env.vars in
-  pp_oget option pp_string fmt s
+  if option then
+    let ty = x.v_ty in
+    if is_ty_arr ty then
+      let (_ws,n) = array_kind ty in
+      Format.fprintf fmt "(Array%i.map oget %s)" n s
+    else pp_oget true pp_string fmt s
+  else pp_string fmt s
 
 let pp_glob env fmt x = 
   Format.fprintf fmt "%s" (fst (Ms.find x env.glob))
@@ -480,7 +486,9 @@ let rec pp_expr env fmt (e:expr) =
     assert (check_array env x);
     let pp fmt (x,e) = 
       Format.fprintf fmt "%a.[%a]" (pp_var env) (L.unloc x) (pp_expr env) e in
-    pp_oget (for_safety env) pp fmt (x,e)
+    let option = 
+      for_safety env &&  snd (Mv.find (L.unloc x) env.vars) in
+    pp_oget option pp fmt (x,e)
 
   | Pload (sz, x, e) -> 
     Format.fprintf fmt "(loadW%a Glob.mem %a)" 
@@ -696,7 +704,8 @@ module Leak = struct
 
   type safe_cond = 
     | Initv of var 
-    | Inita of var * expr 
+    | Initai of var * expr 
+    | Inita of var * int
     | InBound of int * expr
     | Valid of wsize * expr 
     | NotZero of wsize * expr 
@@ -719,17 +728,20 @@ module Leak = struct
   let rec safe_e_rec env safe = function
     | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ -> safe
     | Pvar x -> 
-      begin match (L.unloc x).v_ty with
-      | Arr _ -> safe
-      | _ -> 
-        let (_s,option) = Mv.find (L.unloc x) env.vars in
-        if option then Initv(L.unloc x) :: safe 
-        else safe 
-      end
+      let (_s,option) = Mv.find (L.unloc x) env.vars in
+      if option then
+        match (L.unloc x).v_ty with
+        | Arr(_,n) -> Inita (L.unloc x, n) :: safe
+        | _ -> Initv(L.unloc x) :: safe 
+      else safe 
     | Pload (ws,x,e) -> Valid (ws, snd (add64 x e)) :: safe_e_rec env safe e 
     | Pcast (_, e) | Papp1 (_, e) -> safe_e_rec env safe e
     | Pget (x, e) -> 
-      in_bound x e :: Inita (L.unloc x,e) :: safe_e_rec env safe e 
+      let safe = 
+        let (_s,option) = Mv.find (L.unloc x) env.vars in
+        if option then Initai(L.unloc x, e) :: safe 
+        else safe in
+      in_bound x e :: safe 
     | Papp2 (op, e1, e2) -> 
       safe_op2 (safe_e_rec env (safe_e_rec env safe e1) e2) e1 e2 op 
     | Pif  (e1, e2, e3) -> 
@@ -773,7 +785,8 @@ module Leak = struct
 
   let pp_safe_e env fmt = function
     | Initv x -> Format.fprintf fmt "is_init %a" (pp_var env) x
-    | Inita(x,e) -> Format.fprintf fmt "is_init %a.[%a]" (pp_var env) x (pp_expr env) e
+    | Initai(x,e) -> Format.fprintf fmt "is_init %a.[%a]" (pp_var env) x (pp_expr env) e
+    | Inita(x,n) -> Format.fprintf fmt "Array%i.is_init %a" n (pp_var env) x 
     | Valid (sz, e) -> Format.fprintf fmt "is_valid Glob.mem %a W%a" (pp_expr env) e pp_size sz 
     | NotZero(sz,e) -> Format.fprintf fmt "%a <> W%a.zeros" (pp_expr env) e pp_size sz
     | InBound(n,e)  -> Format.fprintf fmt "in_bound %a %i" (pp_expr env) e n
@@ -849,23 +862,30 @@ module Leak = struct
     
   and init_aux env c = List.fold_left init_aux_i env c
  
-  let pp_some env lv = 
+  let pp_some env pp lv fmt e = 
     if for_safety env then
       match lv with
-      | Lnone _ -> ""
+      | Lnone _ -> ()
       | Lvar x ->
         let x = L.unloc x in
-        (match x.v_ty with
-         | Arr _ -> ""
-         | _ -> if is_option env x then "Some " else "")
-      | Lmem _ -> ""
-      | Laset _ -> "Some "
-    else ""
+        let _s, option = Mv.find x env.vars in
+        if option then
+          let ty = x.v_ty in
+          if is_ty_arr ty then
+            let (_ws,n) = array_kind ty in
+            Format.fprintf fmt "(Array%i.map Some %a)" n pp e
+          else Format.fprintf fmt "(Some %a)" pp e 
+        else pp fmt e 
+      | Lmem _ -> pp fmt e
+      | Laset (x,_) -> 
+        if snd (Mv.find (L.unloc x) env.vars) then 
+          Format.fprintf fmt "(Some %a)" pp e
+        else pp fmt e
+    else pp fmt e
 
   let pp_assgn_i env fmt lv (ety, aux) = 
     Format.fprintf fmt "@ "; pp_leaks_lv env fmt lv;
-    let pp_e fmt =
-      Format.fprintf fmt "%s%a" (pp_some env lv) (pp_cast pp_string) in
+    let pp_e = pp_some env (pp_cast pp_string) lv in
     pp_lval1 env pp_e fmt (lv, (ety,aux))
 
   let pp_call env fmt lvs etys pp a = 
@@ -921,24 +941,30 @@ module Leak = struct
       let i1, i2 = 
         if d = UpTo then Pvar i, e2
         else e2, Pvar i in
+      let pp_incr fmt i = 
+        Format.fprintf fmt "(%a %s 1)" (pp_ovar env) i 
+          (if d = UpTo then "+" else "-") in
+        
       Format.fprintf fmt 
-        "@[<v>%a <- %s%a;@ while (%a < %a) {@   @[<v>%a@ %a <- %s(%a %s 1);@]@ }@]"
+        "@[<v>%a <- %a;@ while (%a < %a) {@   @[<v>%a@ %a <- %a;@]@ }@]"
         (pp_var env) (L.unloc i) 
-        (pp_some env (Lvar i))
-        (pp_expr env) e1 
+        (pp_some env (pp_expr env) (Lvar i)) e1
         (pp_expr env) i1 (pp_expr env) i2
         (pp_cmd env) c
         (pp_var env) (L.unloc i) 
-        (pp_some env (Lvar i))
-        (pp_ovar env) (L.unloc i) 
-        (if d = UpTo then "+" else "-")
-
+        (pp_some env pp_incr (Lvar i)) (L.unloc i) 
+        
 end 
 
 let pp_aux fmt env = 
   let pp ty aux = 
     Format.fprintf fmt "@[var %s:@ %a@];@ " aux (pp_coq_ty false) ty in
   Mty.iter (fun ty -> List.iter (pp ty)) env.auxv
+
+let pp_safe_ret env fmt xs =
+  if for_safety env then
+    let es = List.map (fun x -> Pvar x) xs in
+    Leak.pp_safe_cond env fmt (Leak.safe_es env es)
 
 let pp_fun env fmt f = 
   let locals = Sv.elements (locals f) in
@@ -957,13 +983,14 @@ let pp_fun env fmt f =
     if env.model = Normal then Normal.pp_cmd
     else Leak.pp_cmd in
   Format.fprintf fmt 
-    "@[<v>proc %s (%a) : %a = {@   @[<v>%a@ %a@ %a@ %a@]@ }@]"
+    "@[<v>proc %s (%a) : %a = {@   @[<v>%a@ %a@ %a@ %a%a@]@ }@]"
     f.f_name.fn_name 
     (pp_params env) f.f_args 
     (pp_rty false) f.f_tyout
     pp_aux env
     (pp_locals env) locals
     (pp_cmd env) f.f_body
+    (pp_safe_ret env) f.f_ret 
     (pp_ret env) f.f_ret
 
 let pp_glob_decl env fmt (ws,x, z) =

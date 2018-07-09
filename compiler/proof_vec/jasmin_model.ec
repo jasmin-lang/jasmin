@@ -866,6 +866,8 @@ abstract theory Array.
 
   op "_.[_<-_]" ['a] : 'a t -> int -> 'a -> 'a t.
 
+  op map ['a 'b] : ('a -> 'b) -> 'a t -> 'b t.
+
   axiom get_setE ['a] (t:'a t) (x y:int) (a:'a) :
     0 <= x < size => t.[x<-a].[y] = if y = x then a else t.[y].
 
@@ -891,8 +893,13 @@ abstract theory Array.
     + by move=> /allP h; apply ext_eq => x /mem_range; apply h. 
     by move=> ->;apply /allP.
   qed.
+  
+  axiom mapE (f:'a -> 'b) (t:'a t) i : 0 <= i < size => (map f t).[i] = f (t.[i]).
 
-  hint simplify (get_set_eqE, get_set_neqE).
+  op is_init (t: 'a option t) = 
+    all (fun i => t.[i] <> None) (range 0 size).
+
+  hint simplify (get_set_eqE, get_set_neqE, mapE).
 end Array.
 
 clone export Array as Array0  with op size <- 0.
@@ -926,37 +933,36 @@ clone export Array as Array27  with op size <- 27.
 clone export Array as Array28  with op size <- 28.
 clone export Array as Array29  with op size <- 29.
 
-
-hint simplify (Array0.get_set_eqE, Array0.get_set_neqE)@0.
-hint simplify (Array1.get_set_eqE, Array1.get_set_neqE)@0.
-hint simplify (Array2.get_set_eqE, Array2.get_set_neqE)@0.
-hint simplify (Array3.get_set_eqE, Array3.get_set_neqE)@0.
-hint simplify (Array4.get_set_eqE, Array4.get_set_neqE)@0.
-hint simplify (Array5.get_set_eqE, Array5.get_set_neqE)@0.
-hint simplify (Array6.get_set_eqE, Array6.get_set_neqE)@0.
-hint simplify (Array7.get_set_eqE, Array7.get_set_neqE)@0.
-hint simplify (Array8.get_set_eqE, Array8.get_set_neqE)@0.
-hint simplify (Array9.get_set_eqE, Array9.get_set_neqE)@0.
-hint simplify (Array10.get_set_eqE, Array10.get_set_neqE)@0.
-hint simplify (Array11.get_set_eqE, Array11.get_set_neqE)@0.
-hint simplify (Array12.get_set_eqE, Array12.get_set_neqE)@0.
-hint simplify (Array13.get_set_eqE, Array13.get_set_neqE)@0.
-hint simplify (Array14.get_set_eqE, Array14.get_set_neqE)@0.
-hint simplify (Array15.get_set_eqE, Array15.get_set_neqE)@0.
-hint simplify (Array16.get_set_eqE, Array16.get_set_neqE)@0.
-hint simplify (Array17.get_set_eqE, Array17.get_set_neqE)@0.
-hint simplify (Array18.get_set_eqE, Array18.get_set_neqE)@0.
-hint simplify (Array19.get_set_eqE, Array19.get_set_neqE)@0.
-hint simplify (Array20.get_set_eqE, Array20.get_set_neqE)@0.
-hint simplify (Array21.get_set_eqE, Array21.get_set_neqE)@0.
-hint simplify (Array22.get_set_eqE, Array22.get_set_neqE)@0.
-hint simplify (Array23.get_set_eqE, Array23.get_set_neqE)@0.
-hint simplify (Array24.get_set_eqE, Array24.get_set_neqE)@0.
-hint simplify (Array25.get_set_eqE, Array25.get_set_neqE)@0.
-hint simplify (Array26.get_set_eqE, Array26.get_set_neqE)@0.
-hint simplify (Array27.get_set_eqE, Array27.get_set_neqE)@0.
-hint simplify (Array28.get_set_eqE, Array28.get_set_neqE)@0.
-hint simplify (Array29.get_set_eqE, Array29.get_set_neqE)@0.
+hint simplify (Array0.get_set_eqE, Array0.get_set_neqE, Array0.mapE)@0.
+hint simplify (Array1.get_set_eqE, Array1.get_set_neqE, Array1.mapE)@0.
+hint simplify (Array2.get_set_eqE, Array2.get_set_neqE, Array2.mapE)@0.
+hint simplify (Array3.get_set_eqE, Array3.get_set_neqE, Array3.mapE)@0.
+hint simplify (Array4.get_set_eqE, Array4.get_set_neqE, Array4.mapE)@0.
+hint simplify (Array5.get_set_eqE, Array5.get_set_neqE, Array5.mapE)@0.
+hint simplify (Array6.get_set_eqE, Array6.get_set_neqE, Array6.mapE)@0.
+hint simplify (Array7.get_set_eqE, Array7.get_set_neqE, Array7.mapE)@0.
+hint simplify (Array8.get_set_eqE, Array8.get_set_neqE, Array8.mapE)@0.
+hint simplify (Array9.get_set_eqE, Array9.get_set_neqE, Array9.mapE)@0.
+hint simplify (Array10.get_set_eqE, Array10.get_set_neqE, Array10.mapE)@0.
+hint simplify (Array11.get_set_eqE, Array11.get_set_neqE, Array11.mapE)@0.
+hint simplify (Array12.get_set_eqE, Array12.get_set_neqE, Array12.mapE)@0.
+hint simplify (Array13.get_set_eqE, Array13.get_set_neqE, Array13.mapE)@0.
+hint simplify (Array14.get_set_eqE, Array14.get_set_neqE, Array14.mapE)@0.
+hint simplify (Array15.get_set_eqE, Array15.get_set_neqE, Array15.mapE)@0.
+hint simplify (Array16.get_set_eqE, Array16.get_set_neqE, Array16.mapE)@0.
+hint simplify (Array17.get_set_eqE, Array17.get_set_neqE, Array17.mapE)@0.
+hint simplify (Array18.get_set_eqE, Array18.get_set_neqE, Array18.mapE)@0.
+hint simplify (Array19.get_set_eqE, Array19.get_set_neqE, Array19.mapE)@0.
+hint simplify (Array20.get_set_eqE, Array20.get_set_neqE, Array20.mapE)@0.
+hint simplify (Array21.get_set_eqE, Array21.get_set_neqE, Array21.mapE)@0.
+hint simplify (Array22.get_set_eqE, Array22.get_set_neqE, Array22.mapE)@0.
+hint simplify (Array23.get_set_eqE, Array23.get_set_neqE, Array23.mapE)@0.
+hint simplify (Array24.get_set_eqE, Array24.get_set_neqE, Array24.mapE)@0.
+hint simplify (Array25.get_set_eqE, Array25.get_set_neqE, Array25.mapE)@0.
+hint simplify (Array26.get_set_eqE, Array26.get_set_neqE, Array26.mapE)@0.
+hint simplify (Array27.get_set_eqE, Array27.get_set_neqE, Array27.mapE)@0.
+hint simplify (Array28.get_set_eqE, Array28.get_set_neqE, Array28.mapE)@0.
+hint simplify (Array29.get_set_eqE, Array29.get_set_neqE, Array29.mapE)@0.
 
 (* ------------------------------------------------------------------- *)
 (* Leakages                                                            *)
