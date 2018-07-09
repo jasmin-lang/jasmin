@@ -16,22 +16,6 @@ axiom W64_unpack_2u32_of_uint i :
 hint simplify W64_unpack_2u32_of_uint.
 
 hint simplify (pack_unpack_2u64, unpack_pack_2u64)@0.
-hint simplify (W8.of_uintK, W8.to_uintK')@0.
-hint simplify (W32.of_uintK, W32.to_uintK')@0.
-hint simplify (W64.of_uintK, W64.to_uintK')@0.
-hint simplify (W128.of_uintK, W128.to_uintK')@0.
-
-hint simplify (Array0.get_set_eqE, Array0.get_set_neqE)@0.
-hint simplify (Array1.get_set_eqE, Array1.get_set_neqE)@0.
-hint simplify (Array2.get_set_eqE, Array2.get_set_neqE)@0.
-hint simplify (Array3.get_set_eqE, Array3.get_set_neqE)@0.
-hint simplify (Array4.get_set_eqE, Array4.get_set_neqE)@0.
-hint simplify (Array5.get_set_eqE, Array5.get_set_neqE)@0.
-hint simplify (Array6.get_set_eqE, Array6.get_set_neqE)@0.
-hint simplify (Array7.get_set_eqE, Array7.get_set_neqE)@0.
-hint simplify (Array8.get_set_eqE, Array8.get_set_neqE)@0.
-hint simplify (Array9.get_set_eqE, Array9.get_set_neqE)@0.
-hint simplify (Array10.get_set_eqE, Array10.get_set_neqE)@0.
 
 hint simplify (iota0, iotaS_minus)@0.
 

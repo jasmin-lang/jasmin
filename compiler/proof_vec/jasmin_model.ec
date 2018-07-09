@@ -261,6 +261,13 @@ theory W256.
 end W256. 
 export W256. 
 
+hint simplify (W8.of_uintK, W8.to_uintK')@0.
+hint simplify (W16.of_uintK, W16.to_uintK')@0.
+hint simplify (W32.of_uintK, W32.to_uintK')@0.
+hint simplify (W64.of_uintK, W64.to_uintK')@0.
+hint simplify (W128.of_uintK, W128.to_uintK')@0.
+hint simplify (W256.of_uintK, W256.to_uintK')@0.
+
 (* -------------------------------------------------------------------- *)
 theory W8List.
   abbrev "_.[_]" (w : W8.t list) (i : int) = nth W8.zeros w i.
@@ -520,17 +527,11 @@ type address = W64.t.
 
 type global_mem_t = (address, W8.t) map.
 
-abbrev "_.[_]" (m : global_mem_t) (a : address) =
-  m.[a].
-
-abbrev "_.[_<-_]" (m : global_mem_t) (a : address) (w : W8.t) =
-  m.[a <- w].
-
 op loads (m : global_mem_t) (a : address) (l : int) =
   map (fun i => m.[a + W64.of_uint i]) (range 0 l).
 
 op stores (m : global_mem_t) (a : address) (w : W8.t list) =
-  foldl (fun m i => m.[a + W64.of_uint i <- w.[i]]) m (range 0 (size w)).
+  foldl (fun (m:global_mem_t) i => m.[a + W64.of_uint i <- w.[i]]) m (range 0 (size w)).
 
 op loadW8   (m : global_mem_t) (a : address) = m.[a]                   axiomatized by loadW8E.
 op loadW16  (m : global_mem_t) (a : address) = packW16  (loads m a  2) axiomatized by loadW16E.
@@ -904,7 +905,58 @@ clone export Array as Array6  with op size <- 6.
 clone export Array as Array7  with op size <- 7.
 clone export Array as Array8  with op size <- 8.
 clone export Array as Array9  with op size <- 9.
-clone export Array as Array10 with op size <- 10.
+clone export Array as Array10  with op size <- 10.
+clone export Array as Array11  with op size <- 11.
+clone export Array as Array12  with op size <- 12.
+clone export Array as Array13  with op size <- 13.
+clone export Array as Array14  with op size <- 14.
+clone export Array as Array15  with op size <- 15.
+clone export Array as Array16  with op size <- 16.
+clone export Array as Array17  with op size <- 17.
+clone export Array as Array18  with op size <- 18.
+clone export Array as Array19  with op size <- 19.
+clone export Array as Array20  with op size <- 20.
+clone export Array as Array21  with op size <- 21.
+clone export Array as Array22  with op size <- 22.
+clone export Array as Array23  with op size <- 23.
+clone export Array as Array24  with op size <- 24.
+clone export Array as Array25  with op size <- 25.
+clone export Array as Array26  with op size <- 26.
+clone export Array as Array27  with op size <- 27.
+clone export Array as Array28  with op size <- 28.
+clone export Array as Array29  with op size <- 29.
+
+
+hint simplify (Array0.get_set_eqE, Array0.get_set_neqE)@0.
+hint simplify (Array1.get_set_eqE, Array1.get_set_neqE)@0.
+hint simplify (Array2.get_set_eqE, Array2.get_set_neqE)@0.
+hint simplify (Array3.get_set_eqE, Array3.get_set_neqE)@0.
+hint simplify (Array4.get_set_eqE, Array4.get_set_neqE)@0.
+hint simplify (Array5.get_set_eqE, Array5.get_set_neqE)@0.
+hint simplify (Array6.get_set_eqE, Array6.get_set_neqE)@0.
+hint simplify (Array7.get_set_eqE, Array7.get_set_neqE)@0.
+hint simplify (Array8.get_set_eqE, Array8.get_set_neqE)@0.
+hint simplify (Array9.get_set_eqE, Array9.get_set_neqE)@0.
+hint simplify (Array10.get_set_eqE, Array10.get_set_neqE)@0.
+hint simplify (Array11.get_set_eqE, Array11.get_set_neqE)@0.
+hint simplify (Array12.get_set_eqE, Array12.get_set_neqE)@0.
+hint simplify (Array13.get_set_eqE, Array13.get_set_neqE)@0.
+hint simplify (Array14.get_set_eqE, Array14.get_set_neqE)@0.
+hint simplify (Array15.get_set_eqE, Array15.get_set_neqE)@0.
+hint simplify (Array16.get_set_eqE, Array16.get_set_neqE)@0.
+hint simplify (Array17.get_set_eqE, Array17.get_set_neqE)@0.
+hint simplify (Array18.get_set_eqE, Array18.get_set_neqE)@0.
+hint simplify (Array19.get_set_eqE, Array19.get_set_neqE)@0.
+hint simplify (Array20.get_set_eqE, Array20.get_set_neqE)@0.
+hint simplify (Array21.get_set_eqE, Array21.get_set_neqE)@0.
+hint simplify (Array22.get_set_eqE, Array22.get_set_neqE)@0.
+hint simplify (Array23.get_set_eqE, Array23.get_set_neqE)@0.
+hint simplify (Array24.get_set_eqE, Array24.get_set_neqE)@0.
+hint simplify (Array25.get_set_eqE, Array25.get_set_neqE)@0.
+hint simplify (Array26.get_set_eqE, Array26.get_set_neqE)@0.
+hint simplify (Array27.get_set_eqE, Array27.get_set_neqE)@0.
+hint simplify (Array28.get_set_eqE, Array28.get_set_neqE)@0.
+hint simplify (Array29.get_set_eqE, Array29.get_set_neqE)@0.
 
 (* ------------------------------------------------------------------- *)
 (* Leakages                                                            *)
@@ -917,4 +969,30 @@ type leakage_t = [
 
 type leakages_t = leakage_t list.
 
+(* ------------------------------------------------------------------- *)
+(* Safety                                                              *)
+
+op is_init (x : 'a option) = x <> None.
+op in_bound (x n:int) = 0 <= x /\ x < n.
+
+type wsize = [
+  | W8
+  | W16
+  | W32
+  | W64
+  | W128
+  | W256
+].
+
+(* FIXME : define this *)
+op is_valid (m:global_mem_t) (p:W64.t) (ws:wsize) : bool = true.
+
+
+ 
+
+
+
+ 
+
+  
 

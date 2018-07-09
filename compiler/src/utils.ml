@@ -758,6 +758,10 @@ let pp_maybe_paren c pp =
   pp_maybe c pp_paren pp
   
 (* -------------------------------------------------------------------- *)
+let pp_string fmt s = 
+  Format.fprintf fmt "%s" s
+
+(* -------------------------------------------------------------------- *)
 type model = 
   | ConstantTime
   | Safety

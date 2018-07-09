@@ -15,6 +15,7 @@ abbrev mask26_u128 = W128.of_uint 1237940020838636201256681471.
 
 module M = {
   proc add (x:W64.t Array5.t, y:W64.t Array5.t) : W64.t Array5.t = {
+    
     var i:int;
     
     i <- 0;
@@ -26,6 +27,7 @@ module M = {
   }
   
   proc add_carry (x:W64.t Array5.t, y:W64.t Array5.t) : W64.t Array5.t = {
+    
     var i:int;
     var c:W64.t;
     
@@ -43,6 +45,7 @@ module M = {
   }
   
   proc add_u128 (x:W128.t Array5.t, y:W128.t Array5.t) : W128.t Array5.t = {
+    
     var i:int;
     
     i <- 0;
@@ -54,6 +57,7 @@ module M = {
   }
   
   proc hadd_u128 (x:W128.t Array5.t) : W64.t Array5.t = {
+    
     var h:W64.t Array5.t;
     var i:int;
     var t:W64.t Array5.t;
@@ -70,6 +74,7 @@ module M = {
   }
   
   proc freeze (x:W64.t Array5.t) : W64.t Array5.t = {
+    
     var ox:W64.t Array5.t;
     var mp:W64.t Array5.t;
     var n:W64.t;
@@ -105,6 +110,7 @@ module M = {
   }
   
   proc unpack (m:W64.t) : W64.t Array5.t = {
+    
     var x:W64.t Array5.t;
     var m0:W64.t;
     var m1:W64.t;
@@ -133,6 +139,7 @@ module M = {
   
   proc mulmod_12 (x:W64.t Array5.t, y:W64.t Array5.t, yx5:W64.t Array4.t) : 
   W64.t Array5.t = {
+    
     var t:W64.t Array5.t;
     var z:W64.t Array3.t;
     t <- Array5.init W64.zeros;
@@ -216,6 +223,7 @@ module M = {
   }
   
   proc carry_reduce (x:W64.t Array5.t) : W64.t Array5.t = {
+    
     var z:W64.t Array2.t;
     z <- Array2.init W64.zeros;
     z.[0] <- x.[0];
@@ -253,6 +261,7 @@ module M = {
   
   proc unpack_u26x5x2_to_u26x5x2 (s:W64.t Array5.t, t:W64.t Array5.t) : 
   W128.t Array5.t = {
+    
     var r:W128.t Array5.t;
     var i:int;
     r <- Array5.init W128.zeros;
@@ -267,6 +276,7 @@ module M = {
   }
   
   proc unpack_u128x2_to_u26x5x2 (m:W64.t) : W128.t Array5.t = {
+    
     var r:W128.t Array5.t;
     var s128:W128.t;
     var t128:W128.t;
@@ -296,6 +306,7 @@ module M = {
   
   proc mulmod_u128 (x:W128.t Array5.t, y:W128.t Array5.t, yx5:W128.t Array4.t) : 
   W128.t Array5.t = {
+    
     var t:W128.t Array5.t;
     var z:W128.t Array5.t;
     t <- Array5.init W128.zeros;
@@ -351,6 +362,7 @@ module M = {
   
   proc mulmod_add_u128 (u:W128.t Array5.t, x:W128.t Array5.t,
                         y:W128.t Array5.t, yx5:W128.t Array4.t) : W128.t Array5.t = {
+    
     var t:W128.t Array5.t;
     var z:W128.t Array5.t;
     t <- Array5.init W128.zeros;
@@ -406,6 +418,7 @@ module M = {
   }
   
   proc carry_reduce_u128 (x:W128.t Array5.t) : W128.t Array5.t = {
+    
     var z:W128.t Array2.t;
     z <- Array2.init W128.zeros;
     z.[0] <- x86_VPSRL_2u64 x.[0] (W8.of_uint 26);
@@ -434,6 +447,7 @@ module M = {
   }
   
   proc clamp (k:W64.t) : W64.t Array5.t = {
+    
     var r:W64.t Array5.t;
     r <- Array5.init W64.zeros;
     r <@ unpack (k);
@@ -446,6 +460,7 @@ module M = {
   }
   
   proc load (in_0:W64.t) : W64.t Array5.t = {
+    
     var x:W64.t Array5.t;
     x <- Array5.init W64.zeros;
     x <@ unpack (in_0);
@@ -454,6 +469,7 @@ module M = {
   }
   
   proc load_last (in_0:W64.t, inlen:W64.t) : W64.t Array5.t = {
+    
     var x:W64.t Array5.t;
     var i:int;
     var m:W64.t Array2.t;
@@ -519,6 +535,7 @@ module M = {
   }
   
   proc pack (y:W64.t, x:W64.t Array5.t) : unit = {
+    
     var t:W64.t;
     var t1:W64.t;
     
@@ -545,6 +562,7 @@ module M = {
   
   proc first_block (in_0:W64.t, s_r2r2:W128.t Array5.t,
                     s_r2r2x5:W128.t Array4.t) : W128.t Array5.t * W64.t = {
+    
     var hxy:W128.t Array5.t;
     var xy0:W128.t Array5.t;
     var xy1:W128.t Array5.t;
@@ -565,6 +583,7 @@ module M = {
                          s_r4r4:W128.t Array5.t, s_r4r4x5:W128.t Array4.t,
                          s_r2r2:W128.t Array5.t, s_r2r2x5:W128.t Array4.t) : 
   W128.t Array5.t * W64.t = {
+    
     var xy0:W128.t Array5.t;
     var xy1:W128.t Array5.t;
     xy0 <- Array5.init W128.zeros;
@@ -582,6 +601,7 @@ module M = {
   
   proc final_mul (hxy:W128.t Array5.t, s_r2r:W128.t Array5.t,
                   s_r2rx5:W128.t Array4.t) : W64.t Array5.t = {
+    
     var h:W64.t Array5.t;
     h <- Array5.init W64.zeros;
     hxy <@ mulmod_u128 (hxy, s_r2r, s_r2rx5);
@@ -591,6 +611,7 @@ module M = {
   }
   
   proc poly1305 (out:W64.t, in_0:W64.t, inlen:W64.t, k:W64.t) : unit = {
+    
     var s_out:W64.t;
     var s_in:W64.t;
     var s_inlen:W64.t;

@@ -5,6 +5,7 @@ abbrev rotate24pattern = W128.of_uint 16028905388486802350658220295983399425.
 
 module M = {
   proc shift (x:W128.t, count:int) : W128.t = {
+    
     var r:W128.t;
     
     r <- x86_VPSLL_4u32 x (W8.of_uint count);
@@ -12,6 +13,7 @@ module M = {
   }
   
   proc rotate1 (r:W128.t, count:int) : W128.t = {
+    
     var a:W128.t;
     var b:W128.t;
     
@@ -23,6 +25,7 @@ module M = {
   }
   
   proc shuffle (a:int, b:int, c:int, d:int) : int = {
+    
     var r:int;
     
     r <- ((((a * 64) + (b * 16)) + (c * 4)) + d);
@@ -30,6 +33,7 @@ module M = {
   }
   
   proc gimli_body1 (x:W128.t, y:W128.t, z:W128.t) : W128.t * W128.t * W128.t = {
+    
     var a:W128.t;
     var b:W128.t;
     var c:W128.t;

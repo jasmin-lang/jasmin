@@ -5,6 +5,7 @@ require import List Jasmin_model Int IntDiv CoreMap.
 
 module M = {
   proc add (x:W64.t Array5.t, y:W64.t Array5.t) : W64.t Array5.t = {
+    
     var i:int;
     
     i <- 0;
@@ -16,6 +17,7 @@ module M = {
   }
   
   proc add_carry (x:W64.t Array5.t, y:W64.t Array5.t) : W64.t Array5.t = {
+    
     var i:int;
     var c:W64.t;
     
@@ -33,6 +35,7 @@ module M = {
   }
   
   proc freeze (x:W64.t Array5.t) : W64.t Array5.t = {
+    
     var ox:W64.t Array5.t;
     var mp:W64.t Array5.t;
     var n:W64.t;
@@ -68,6 +71,7 @@ module M = {
   }
   
   proc unpack (m:W64.t) : W64.t Array5.t = {
+    
     var x:W64.t Array5.t;
     var m0:W64.t;
     var m1:W64.t;
@@ -96,6 +100,7 @@ module M = {
   
   proc mulmod_12 (x:W64.t Array5.t, y:W64.t Array5.t, yx5:W64.t Array4.t) : 
   W64.t Array5.t = {
+    
     var t:W64.t Array5.t;
     var z:W64.t Array3.t;
     t <- Array5.init W64.zeros;
@@ -180,6 +185,7 @@ module M = {
   
   proc mulmod_add_12 (u:W64.t Array5.t, x:W64.t Array5.t, y:W64.t Array5.t,
                       yx5:W64.t Array4.t) : W64.t Array5.t = {
+    
     var t:W64.t Array5.t;
     var z:W64.t Array3.t;
     t <- Array5.init W64.zeros;
@@ -264,6 +270,7 @@ module M = {
   }
   
   proc carry_reduce (x:W64.t Array5.t) : W64.t Array5.t = {
+    
     var z:W64.t Array2.t;
     z <- Array2.init W64.zeros;
     z.[0] <- x.[0];
@@ -300,6 +307,7 @@ module M = {
   }
   
   proc clamp (k:W64.t) : W64.t Array5.t = {
+    
     var r:W64.t Array5.t;
     r <- Array5.init W64.zeros;
     r <@ unpack (k);
@@ -312,6 +320,7 @@ module M = {
   }
   
   proc load (in_0:W64.t) : W64.t Array5.t = {
+    
     var x:W64.t Array5.t;
     x <- Array5.init W64.zeros;
     x <@ unpack (in_0);
@@ -320,6 +329,7 @@ module M = {
   }
   
   proc load_last (in_0:W64.t, inlen:W64.t) : W64.t Array5.t = {
+    
     var x:W64.t Array5.t;
     var i:int;
     var m:W64.t Array2.t;
@@ -385,6 +395,7 @@ module M = {
   }
   
   proc pack (y:W64.t, x:W64.t Array5.t) : unit = {
+    
     var t:W64.t;
     var t1:W64.t;
     
@@ -411,6 +422,7 @@ module M = {
   
   proc first_block (in_0:W64.t, s_r2:W64.t Array5.t, s_r2x5:W64.t Array4.t) : 
   W64.t Array5.t * W64.t Array5.t * W64.t = {
+    
     var hx:W64.t Array5.t;
     var hy:W64.t Array5.t;
     var x0:W64.t Array5.t;
@@ -448,6 +460,7 @@ module M = {
                          s_r4:W64.t Array5.t, s_r4x5:W64.t Array4.t,
                          s_r2:W64.t Array5.t, s_r2x5:W64.t Array4.t) : 
   W64.t Array5.t * W64.t Array5.t * W64.t = {
+    
     var s_hy:W64.t Array5.t;
     var x0:W64.t Array5.t;
     var x1:W64.t Array5.t;
@@ -486,6 +499,7 @@ module M = {
   proc final_mul (hx:W64.t Array5.t, hy:W64.t Array5.t, s_r2:W64.t Array5.t,
                   s_r2x5:W64.t Array4.t, s_r:W64.t Array5.t,
                   s_rx5:W64.t Array4.t) : W64.t Array5.t = {
+    
     var h:W64.t Array5.t;
     var s_hy:W64.t Array5.t;
     var s_hx:W64.t Array5.t;
@@ -505,6 +519,7 @@ module M = {
   }
   
   proc poly1305 (out:W64.t, in_0:W64.t, inlen:W64.t, k:W64.t) : unit = {
+    
     var s_out:W64.t;
     var s_in:W64.t;
     var s_inlen:W64.t;
