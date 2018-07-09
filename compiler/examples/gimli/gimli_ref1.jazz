@@ -52,3 +52,17 @@ fn gimli_body(stack u32[12] state) -> stack u32[12] {
    return state;
 }
 
+export
+fn gimli(reg u64 istate) {
+  stack u32[12] state;
+  inline int i;
+
+  for i = 0 to 12 {
+    state[i] = (u32)[istate + 4 * i];
+  }
+  state = gimli_body (state);
+
+  for i = 0 to 12 {
+    (u32)[istate + 4*i] = state[i];
+  }   
+}

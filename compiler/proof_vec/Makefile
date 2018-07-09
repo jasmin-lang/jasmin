@@ -51,22 +51,22 @@ clean:
 # --------------------------------------------------------------------
 
 gimli_ref.ec: $(TOP)/examples/gimli/gimli_ref.jazz $(JASMINC)
-	$(JASMINC) -oec $@ -ec gimli_body $<
+	$(JASMINC) -oec $@ -ec gimli $<
 
 gimli_ref1.ec: $(TOP)/examples/gimli/gimli_ref1.jazz $(JASMINC)
-	$(JASMINC) -oec $@ -ec gimli_body $<
+	$(JASMINC) -oec $@ -ec gimli $<
 
 gimliv1.ec: $(TOP)/examples/gimli/gimliv.jazz $(JASMINC)
-	$(JASMINC) -oec $@ -ec gimli_body1 $<
+	$(JASMINC) -oec $@ -ec gimli1 $<
 
 gimliv.ec: $(TOP)/examples/gimli/gimliv.jazz $(JASMINC)
-	$(JASMINC) -oec $@ -ec gimli_body $<
+	$(JASMINC) -oec $@ -ec gimli $<
 
 gimliv_ct.ec: $(TOP)/examples/gimli/gimliv.jazz $(JASMINC)
-	$(JASMINC) -oec $@ -ec gimli_body -CT $<
+	$(JASMINC) -oec $@ -ec gimli -CT $<
 
 gimliv_safe.ec: $(TOP)/examples/gimli/gimliv.jazz $(JASMINC)
-	$(JASMINC) -oec $@ -ec gimli_body -safety $<
+	$(JASMINC) -oec $@ -ec gimli -safety $<
 
 poly1305_amd64_5x.ec: $(POLY1305)/amd64-5x/auth.jazz $(JASMINC)
 	$(JASMINC) -oec $@ -ec poly1305 $<

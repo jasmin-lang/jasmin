@@ -991,7 +991,9 @@ type wsize = [
 ].
 
 (* FIXME : define this *)
-op is_valid (m:global_mem_t) (p:W64.t) (ws:wsize) : bool = true.
+op is_valid (m:global_mem_t) (p:W64.t) (ws:wsize) : bool.
+
+
 
 
  
