@@ -1,15 +1,8 @@
 require import AllCore Jasmin_model Gimli_ref Gimli_ref1 Gimliv1 Gimliv CoreMap.
 
-
-
-
-hint simplify (W32.xor_zero_l, W32.xor_zero_r)@0. 
-hint simplify (W8.of_uintK, W8.to_uintK', W32.of_uintK, W32.to_uintK')@0.
-(*hint simplify (pack_unpack_4u32, unpack_pack_4u32)@0.
-  hint simplify (VPAND_128_32, VPOR_128_32, VPXOR_128_32)@0. *)
-
+(* FIXME: move this *)
 axiom rol32_xor (x:W32.t) i : 0 <= i < 32 => 
- (x86_ROL_32 x ((of_uint i)%W8)).`3  = (x `<<` (W8.of_uint i)) `^` (x `>>` (W8.of_uint (32 - i))).
+ (x86_ROL_32 x ((of_int i)%W8)).`3  = (x `<<` (W8.of_int i)) `^` (x `>>` (W8.of_int (32 - i))).
 
 equiv rotate_ref_ref1 : Gimli_ref.M.rotate ~ Gimli_ref1.M.rotate : ={x,bits} /\ 0 <= bits{1} < 32 ==> ={res}.
 proof.
@@ -69,8 +62,8 @@ proof.
 qed.
 
 axiom rotate24E w :
-    x86_VPSHUFB_128  w (W128.of_uint 16028905388486802350658220295983399425)
-  = x86_VPSLL_4u32 w (W8.of_uint 24) `^` x86_VPSRL_4u32 w (W8.of_uint 8).
+    x86_VPSHUFB_128  w (W128.of_int 16028905388486802350658220295983399425)
+  = x86_VPSLL_4u32 w (W8.of_int 24) `^` x86_VPSRL_4u32 w (W8.of_int 8).
 
 hint simplify rotate24E.
 

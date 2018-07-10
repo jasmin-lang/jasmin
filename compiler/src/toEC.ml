@@ -474,7 +474,7 @@ let rec pp_expr env fmt (e:expr) =
     Format.fprintf fmt "Array%a.init %a" B.pp_print n pp_init sz
 
   | Pcast(sz,e) -> 
-    Format.fprintf fmt "(%a.of_uint %a)" pp_Tsz sz (pp_expr env) e
+    Format.fprintf fmt "(%a.of_int %a)" pp_Tsz sz (pp_expr env) e
 
   | Pvar x -> 
     pp_ovar env fmt (L.unloc x)
@@ -994,7 +994,7 @@ let pp_fun env fmt f =
     (pp_ret env) f.f_ret
 
 let pp_glob_decl env fmt (ws,x, z) =
-  Format.fprintf fmt "@[abbrev %a = %a.of_uint %a.@]@ "
+  Format.fprintf fmt "@[abbrev %a = %a.of_int %a.@]@ "
     (pp_glob env) x pp_Tsz ws B.pp_print z
 
 let add_arrsz env f = 
