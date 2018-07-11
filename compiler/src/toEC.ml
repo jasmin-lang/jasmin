@@ -327,11 +327,14 @@ let get_aux env tys =
     List.nth l n in
   List.map do1 tys
 
-let add_var option env x = 
-  let s = create_name env x.v_name in
+let set_var env x option s = 
   { env with 
     alls = Ss.add s env.alls;
     vars = Mv.add x (s,option) env.vars }
+
+let add_var option env x = 
+  let s = create_name env x.v_name in
+  set_var env x option s
 
 let add_glob env x ws = 
   let s = create_name env x in
@@ -614,7 +617,7 @@ module Normal = struct
     match i.i_desc with
     | Cassgn _ -> env
     | Cif(_, c1, c2) | Cwhile(c1, _, c2) -> init_aux (init_aux env c1) c2
-    | Cfor(_,_,c) -> init_aux env c
+    | Cfor(_,_,c) -> init_aux (add_aux env [tint]) c
     | Copn (lvs, _, op, _) -> 
       if List.length lvs = 1 then env 
       else
@@ -687,16 +690,27 @@ module Normal = struct
         (pp_cmd env) c1 (pp_expr env) e (pp_cmd env) (c2@c1)
       
     | Cfor(i, (d,e1,e2), c) ->
-      let i1, i2 = 
-        if d = UpTo then Pvar i, e2
-        else e2, Pvar i in
+      let pp_init, pp_e2 = 
+        match e2 with
+        (* Can be generalized to the case where e2 is not modified by c and i *)
+        | Pconst _ -> (fun _fmt () -> ()), (fun fmt () -> pp_expr env fmt e2)
+        | _ -> 
+          let aux = List.hd (get_aux env [tint]) in
+          let pp_init fmt () = 
+            Format.fprintf fmt "@[%s <-@ %a@];@ " aux (pp_expr env) e2 in
+          let pp_e2 fmt () = pp_string fmt aux in
+          pp_init, pp_e2 in
+      let pp_i fmt () = pp_var env fmt (L.unloc i) in
+      let pp_i1, pp_i2 = 
+        if d = UpTo then pp_i , pp_e2
+        else pp_e2, pp_i in
       Format.fprintf fmt 
-        "@[<v>%a <- %a;@ while (%a < %a) {@   @[<v>%a@ %a <- %a %s 1;@]@ }@]"
-        (pp_var env) (L.unloc i) (pp_expr env) e1 
-        (pp_expr env) i1 (pp_expr env) i2
+        "@[<v>%a%a <- %a;@ while (%a < %a) {@   @[<v>%a@ %a <- %a %s 1;@]@ }@]"
+        pp_init () 
+        pp_i () (pp_expr env) e1 
+        pp_i1 () pp_i2 ()
         (pp_cmd env) c
-        (pp_var env) (L.unloc i) (pp_var env) (L.unloc i) 
-        (if d = UpTo then "+" else "-")
+        pp_i () pp_i () (if d = UpTo then "+" else "-")
 
 end
 
@@ -858,7 +872,12 @@ module Leak = struct
       if lvs = [] then env 
       else add_aux env (List.map ty_lval lvs)
     | Cif(_, c1, c2) | Cwhile(c1, _, c2) -> init_aux (init_aux env c1) c2
-    | Cfor(_,_,c) -> init_aux env c
+    | Cfor(_,_,c) -> 
+      if for_safety env then
+        init_aux (add_aux env [tint; tint]) c
+      else
+        init_aux (add_aux env [tint]) c
+
     
   and init_aux env c = List.fold_left init_aux_i env c
  
@@ -938,21 +957,36 @@ module Leak = struct
 
     | Cfor(i, (d,e1,e2), c) ->
       pp_leaks_for env fmt e1 e2;
-      let i1, i2 = 
-        if d = UpTo then Pvar i, e2
-        else e2, Pvar i in
-      let pp_incr fmt i = 
-        Format.fprintf fmt "(%a %s 1)" (pp_ovar env) i 
-          (if d = UpTo then "+" else "-") in
-        
+      let aux, env1 = 
+        if for_safety env then 
+          let auxs = get_aux env [tint;tint] in
+          List.hd auxs, set_var env (L.unloc i) false (List.nth auxs 1) 
+        else List.hd (get_aux env [tint]), env in
+      let pp_init, pp_e2 = 
+        match e2 with
+        (* Can be generalized to the case where e2 is not modified by c and i *)
+        | Pconst _ -> (fun _fmt () -> ()), (fun fmt () -> pp_expr env fmt e2)
+        | _ -> 
+          let pp_init fmt () = 
+            Format.fprintf fmt "@[%s <-@ %a@];@ " aux (pp_expr env) e2 in
+          let pp_e2 fmt () = pp_string fmt aux in
+          pp_init, pp_e2 in
+      let pp_i fmt () = pp_var env1 fmt (L.unloc i) in
+      let pp_i1, pp_i2 = 
+        if d = UpTo then pp_i , pp_e2
+        else pp_e2, pp_i in
+      let pp_restore fmt () = 
+        if for_safety env then
+          Format.fprintf fmt "@ @[%a <- %a;@]"
+            (pp_var env) (L.unloc i) (pp_some env pp_i (Lvar i)) () in
       Format.fprintf fmt 
-        "@[<v>%a <- %a;@ while (%a < %a) {@   @[<v>%a@ %a <- %a;@]@ }@]"
-        (pp_var env) (L.unloc i) 
-        (pp_some env (pp_expr env) (Lvar i)) e1
-        (pp_expr env) i1 (pp_expr env) i2
-        (pp_cmd env) c
-        (pp_var env) (L.unloc i) 
-        (pp_some env pp_incr (Lvar i)) (L.unloc i) 
+        "@[<v>%a%a <- %a;@ while (%a < %a) {@   @[<v>%a@ %a <- %a %s 1;@]@ }%a@]"
+        pp_init () 
+        pp_i () (pp_expr env) e1 
+        pp_i1 () pp_i2 ()
+        (pp_cmd env1) c
+        pp_i () pp_i () (if d = UpTo then "+" else "-")
+        pp_restore ()
         
 end 
 

@@ -53,15 +53,7 @@ proof.
 qed.
 
 hoare add_carryS : M.add_carry : M.safe ==> M.safe.
-proof. 
-  proc. 
-  rcondt 6; 1: by auto.
-  rcondt 25; 1: by auto.
-  rcondt 44; 1: by auto.
-  rcondt 63; 1: by auto.
-  rcondf 82; 1: by auto.
-  by wp;skip.
-qed.
+proof. by proc; unroll for 6; wp; skip. qed.
 
 hoare unpackS : M.unpack : M.safe /\ valid_range W64 Glob.mem m 2 ==> M.safe.
 proof. 
@@ -83,16 +75,7 @@ hoare mulmod_12S : M.mulmod_12 : M.safe ==> M.safe.
 proof. by proc; wp; skip. qed.
 
 hoare addS : M.add : M.safe ==> M.safe.
-proof. 
-  proc.
-  rcondt 2; 1: by auto.
-  rcondt 7; 1: by auto.
-  rcondt 12; 1: by auto.
-  rcondt 17; 1: by auto.
-  rcondt 22; 1: by auto.
-  rcondf 27; 1: by auto.
-  by wp; skip.
-qed.
+proof. by proc; unroll for 2; wp; skip. qed.
 
 (* TODO: move this *)
 lemma nltgeE (x y: W64.t) : (! x \ult y) = (y \ule x).
@@ -116,12 +99,9 @@ proof.
   proc => /=; wp.
   conseq (_: M.safe /\ is_init m). 
   + by cbv delta => />.
-  seq 4: (#pre /\ is_init m).
-  + conseq />. 
-    rcondt 4; 1: by auto. 
-    rcondt 8; 1: by auto.
-    rcondf 12; 1: by auto.
-    by wp; skip; cbv delta.
+  seq 5: (#pre /\ is_init m).
+  + conseq />.  
+    by unroll for 4; wp; skip; cbv delta.
   if.
   + wp. 
     while (M.safe /\ is_init n /\ is_init m /\ is_init c /\ 
@@ -144,7 +124,7 @@ proof.
                    (to_uint inlen{1}) 1 ha _ _ hv) => //.
     by have /= := h 0 _ => //; rewrite addw0.
   move=> i; rewrite to_uint_minus 1:// (W64.to_uint_small 8) 1:// => h.
-  rewrite -addwA add_of; apply hv => /#.
+  by rewrite -addwA add_of; apply hv => /#.
 qed.
   
 hoare loadS: M.load : M.safe /\ valid_range W64 Glob.mem in_0 2 ==> M.safe.
@@ -159,26 +139,13 @@ qed.
 
 hoare unpack_u26x5x2_to_u26x5x2S : M.unpack_u26x5x2_to_u26x5x2 : M.safe ==> M.safe.
 proof.
-  proc.
-  rcondt 3; 1: by auto.
-  rcondt 15; 1: by auto.
-  rcondt 27; 1: by auto.
-  rcondt 39; 1: by auto.
-  rcondt 51; 1: by auto.
-  rcondf 63; 1: by auto.
-  by wp; skip; cbv delta.
+  by proc; unroll for 3; wp; skip; cbv delta.
 qed.
 
 hoare hadd_u128S : M.hadd_u128 : M.safe ==> M.safe.
 proof. 
   proc.  
-  wp; call add_carryS.
-  rcondt 4; 1: by auto.
-  rcondt 13; 1: by auto.
-  rcondt 22; 1: by auto.
-  rcondt 31; 1: by auto.
-  rcondt 40; 1: by auto.
-  rcondf 49; 1: by auto.
+  wp; call add_carryS; unroll for 4.
   by wp; skip; cbv delta.
 qed.
 
@@ -189,16 +156,7 @@ hoare mulmod_u128S : M.mulmod_u128 : M.safe ==> M.safe.
 proof. by proc; wp; skip. qed.
 
 hoare add_u128S : M.add_u128 : M.safe ==> M.safe.
-proof. 
-  proc.
-  rcondt 2; 1: by auto.
-  rcondt 7; 1: by auto.
-  rcondt 12; 1: by auto.
-  rcondt 17; 1: by auto.
-  rcondt 22; 1: by auto.
-  rcondf 27; 1: by auto.
-  by wp; skip. 
-qed.
+proof. by proc; unroll for 2; wp; skip. qed.
 
 hoare unpack_u128x2_to_u26x5x2S : M.unpack_u128x2_to_u26x5x2 : 
    M.safe /\ valid_range W64 Glob.mem m 4 ==> M.safe.
@@ -335,24 +293,12 @@ proof.
     is_align W64 in_0 /\ 
     is_init s_out /\ is_init s_in /\ is_init s_inlen /\ is_init s_k /\ is_init r /\ 
     s_inlen = Some inlen /\ s_in = Some in_0).
-  + by wp; call clampS; wp; skip => /> &hr _ /valid_range_add16 />; cbv delta.
-  seq 5 : (#pre /\ is_init s_r /\ is_init s_rx5).
-  + conseq />. 
-    rcondt 5; 1: by auto.
-    rcondt 13; 1: by auto.
-    rcondt 21; 1: by auto.
-    rcondt 29; 1: by auto.
-    rcondf 37; 1: by auto.
-    by wp; skip; cbv delta.
-  seq 8 : (#pre /\ is_init h /\ is_init b64 /\ to_uint (oget b64) = to_uint inlen %/ 64).
-  + conseq />.
-    rcondt 2; 1: by auto.
-    rcondt 6; 1: by auto.
-    rcondt 10; 1: by auto.
-    rcondt 14; 1: by auto.
-    rcondt 18; 1: by auto.
-    rcondf 22; 1: by auto.
-    wp; skip => /> &1.
+  + by wp; call clampS; wp; skip => /> &hr _ /valid_range_add16. 
+  seq 6 : (#pre /\ is_init s_r /\ is_init s_rx5).
+  + by conseq />; unroll for 5; wp; skip; cbv delta.
+  seq 9 : (#pre /\ is_init h /\ is_init b64 /\ 
+            to_uint (oget b64) = to_uint inlen %/ 64).
+  + conseq />; unroll for 2; wp; skip => /> &1.
     by rewrite (shr_mod inlen{1} (W8.of_int 6)) //=; cbv delta.
   seq 1 : (M.safe /\
            valid_range W64 Glob.mem (oget s_k + (of_int 16)%W64) 2 /\
@@ -364,43 +310,24 @@ proof.
     + skip => /> &1 ?? hv ?????????????.
       apply: valid_range_le hv.  
       by rewrite {2} (divz_eq (to_uint inlen{1}) 64); smt (divz_ge0 to_uint_bounded).
-    seq 17 : (#pre /\ is_init s_b64 /\ is_init r2 /\ is_init s_r2 /\ is_init s_r2x5 /\
+    seq 18 : (#pre /\ is_init s_b64 /\ is_init r2 /\ is_init s_r2 /\ is_init s_r2x5 /\
               oget s_b64 = oget b64).
-    + conseq />.
-      rcondt 17; 1:by auto.
-      rcondt 25; 1:by auto.
-      rcondt 33; 1:by auto.
-      rcondt 41; 1:by auto.
-      rcondf 49; 1:by auto.
+    + conseq />; unroll for 17.
       wp; call carry_reduceS.
       wp; call mulmod_12S.
       by wp; skip => />; cbv delta.
-    seq 11 : (#pre /\ is_init s_r2r /\ is_init s_r2rx5).
-    + conseq />.
-      rcondt 11; 1:by auto.
-      rcondt 19; 1:by auto.
-      rcondt 27; 1:by auto.
-      rcondt 35; 1:by auto.
-      rcondf 43; 1:by auto.
+    seq 12 : (#pre /\ is_init s_r2r /\ is_init s_r2rx5).
+    + conseq />; unroll for 11.
       by wp; call unpack_u26x5x2_to_u26x5x2S; wp; skip => />; cbv delta.
-    seq 8 : (#pre /\ is_init s_r2r2 /\ is_init s_r2r2x5).
-    + conseq />.    
-      rcondt 8; 1:by auto.
-      rcondt 16; 1:by auto.
-      rcondt 24; 1:by auto.
-      rcondt 32; 1:by auto.
-      rcondf 40; 1:by auto.
+    seq 9 : (#pre /\ is_init s_r2r2 /\ is_init s_r2r2x5).
+    + conseq />; unroll for 8.    
       by wp; call unpack_u26x5x2_to_u26x5x2S; wp; skip => />; cbv delta.
     seq 4 : (#pre).
     + by wp; skip => /> &1 ???????????????????? ->.
     seq 1 : (#pre /\ 
          (W64.of_int 1 \ult oget b64 => (is_init s_r4r4 /\ is_init s_r4r4x5))).
     + conseq />; if => //.
-      rcondt 17; 1:by auto.
-      rcondt 25; 1:by auto.
-      rcondt 33; 1:by auto.
-      rcondt 41; 1:by auto.
-      rcondf 49; 1:by auto.
+      unroll for 17.
       wp; call unpack_u26x5x2_to_u26x5x2S.
       wp; call carry_reduceS.
       by wp; call mulmod_12S; wp; skip => />; cbv delta.
