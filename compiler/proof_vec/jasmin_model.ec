@@ -345,6 +345,7 @@ qed.
 end W.
 
 (* -------------------------------------------------------------------- *)
+(* FIXME shift should be done modulo the size                           *)
 theory W8.
   clone include W with op size = 8.
 
@@ -400,12 +401,6 @@ export W256.
 
 hint simplify (W8.to_uint_small, W16.to_uint_small, W32.to_uint_small, 
                W64.to_uint_small, W128.to_uint_small, W256.to_uint_small)@0. 
-
-(*hint simplify W8.to_uint_small.
-
-lemma foo : W8.to_uint (W8.of_int 0) = 0.
-rewrite /=.
-rewrite W8.to_uint_small 1://. *)
 
 hint simplify (W8.of_uintK, W8.to_uintK')@1.
 hint simplify (W16.of_uintK, W16.to_uintK')@1.
