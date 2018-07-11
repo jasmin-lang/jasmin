@@ -1,5 +1,5 @@
 (* -------------------------------------------------------------------- *)
-require import AllCore BitEncoding IntDiv SmtMap List StdOrder.
+require import AllCore BitEncoding IntDiv SmtMap Ring List StdOrder.
 (*---*) import CoreMap Map Ring.IntID IntOrder.
 
 (* -------------------------------------------------------------------- *)
@@ -68,6 +68,16 @@ op "_.[_]" (w : t) (i : int) =
 lemma getE (w : t) (i : int) : w.[i] = nth false (repr w) i.
 proof. by []. qed.
 
+abbrev modulus = 2 ^ size.
+
+lemma ge0_modulus : 0 <= modulus.
+proof.
+elim/intind: size size_ge0 => // i ge0_i ih.
+by rewrite powS // mulr_ge0.
+qed.
+
+hint exact : ge0_modulus.
+
 op normed (x : bool list) = size x = size.
 
 lemma normedP (w : bool list) :
@@ -100,8 +110,10 @@ axiom reprK x : repr (mk x) = norm x.
 
 axiom of_uintK (x : int) : to_uint (of_int x) = x %% modulus.
 axiom to_uintK : cancel to_uint of_int.
+axiom to_uint_cmp (x : t) : 0 <= to_uint x < modulus.
 
-lemma to_uintK' (x: t) : of_int (to_uint x) = x.
+lemma to_uintK' (x : t) : of_uint (to_uint x) = x.
+
 proof. by apply to_uintK. qed.
 
 hint simplify (of_uintK, to_uintK')@1.
@@ -111,6 +123,19 @@ lemma of_sintK (x:int) :
       if 2^(size -1) <= x %% modulus then (x %% modulus) - modulus
       else x %% modulus.
 proof. by rewrite to_sintE of_uintK. qed.
+
+lemma to_uint_mod (x : t) : to_uint x %% modulus = to_uint x.
+proof. by rewrite modz_small // ger0_norm // to_uint_cmp. qed.
+
+lemma of_uint_mod (x : int) : of_uint (x %% modulus) = of_uint x.
+proof. by apply/(can_inj _ _ to_uintK) => /=; rewrite modz_mod. qed.
+
+lemma word_modeqP (x y : t) :
+  to_uint x %% modulus = to_uint y %% modulus => x = y.
+proof.
+move=> eq_mod; rewrite -(to_uintK x) -(to_uint_mod x).
+by rewrite eq_mod to_uint_mod.
+qed.
 
 op blift1 (f : bool -> bool) (w : t) =
   mk (map f (repr w)).
@@ -166,6 +191,7 @@ qed.
 op zeros = mk (nseq size false) axiomatized by zerosE.
 op ones  = mk (nseq size true ) axiomatized by onesE.
 
+op zerow = of_uint 0 axiomatized by zerowE.
 op ( + ) = ilift2 Int.( + ) axiomatized by addE.
 op ([-]) = ilift1 Int.([-]) axiomatized by oppE.
 op ( * ) = ilift2 Int.( * ) axiomatized by mulE.
@@ -280,6 +306,42 @@ hint simplify (xor_zero_l, xor_zero_r).
 op slice (i : int) (n : int) (w : t) =
   take n (drop i (repr w))
   axiomatized by sliceE.
+
+lemma to_uint0 : to_uint zerow = 0.
+proof. by rewrite zerowE /= mod0z. qed.
+
+hint simplify to_uint0.
+
+lemma of_uintD (x y : int) : of_uint (x + y) = of_uint x + of_uint y.
+proof.
+rewrite addE /ilift2 /=; apply/word_modeqP=> /=.
+by rewrite !modz_mod !(modzDml, modzDmr).
+qed.
+
+lemma to_uintD (x y : t) : to_uint (x + y) = (to_uint x + to_uint y) %% modulus.
+proof. by rewrite addE /ilift2. qed.
+
+(*
+clone export ComRing with type t <- t,
+  op zeror <- zerow,
+  op ( + ) <- ( + ),
+  op [ - ] <- [ - ],
+  op ( * ) <- ( * )
+
+  proof *.
+
+realize add0r.
+proof. by move=> x; rewrite addE /ilift2. qed.
+
+realize addrC.
+proof. by move=> x y; rewrite addE /ilift2 addrC. qed.
+
+realize addrA.
+proof.
+move=> x y z; rewrite addE /ilift2 !to_uintD -of_uint_mod modzDmr.
+by rewrite -(of_uint_mod (_ + to_uint z)) modzDml addrA.
+qed.
+*)
 end W.
 
 (* -------------------------------------------------------------------- *)
