@@ -554,6 +554,7 @@ Definition wsize_of_sopn (op: sopn) : wsize :=
   | Ox86_VPADD _ x | Ox86_VPMULU x
   | Ox86_VPSLL _ x | Ox86_VPSRL _ x
   | Ox86_VPSLLV _ x | Ox86_VPSRLV _ x
+  | Ox86_VPSLLDQ x | Ox86_VPSRLDQ x
   | Ox86_VPSHUFB x | Ox86_VPSHUFHW x | Ox86_VPSHUFLW x | Ox86_VPSHUFD x
   | Ox86_VPUNPCKH _ x | Ox86_VPUNPCKL _ x
   | Ox86_VPBLENDD x | Ox86_VPBROADCAST _ x

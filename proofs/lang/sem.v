@@ -900,6 +900,14 @@ Definition x86_vpsllv ve {sz} := x86_u128_shift_variable ve sz (@wshl _).
 Definition x86_vpsrlv ve {sz} := x86_u128_shift_variable ve sz (@wshr _).
 
 (* ---------------------------------------------------------------- *)
+Definition x86_vpsxldq sz op (v1: word sz) (v2: u8) :=
+  Let _ := check_size_128_256 sz in
+  ok [:: @Vword sz (op v1 v2) ].
+
+Definition x86_vpslldq {sz} := x86_vpsxldq (@wpslldq sz).
+Definition x86_vpsrldq {sz} := x86_vpsxldq (@wpsrldq sz).
+
+(* ---------------------------------------------------------------- *)
 Definition x86_vpshufb {sz} := x86_u128_binop (@wpshufb sz).
 
 (* ---------------------------------------------------------------- *)
@@ -1024,6 +1032,8 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_VPSRL ve sz => app_w8 sz (x86_vpsrl ve)
   | Ox86_VPSLLV ve sz => app_ww sz (x86_vpsllv ve)
   | Ox86_VPSRLV ve sz => app_ww sz (x86_vpsrlv ve)
+  | Ox86_VPSLLDQ sz => app_w8 sz x86_vpslldq
+  | Ox86_VPSRLDQ sz => app_w8 sz x86_vpsrldq
   | Ox86_VPSHUFB sz => app_ww sz x86_vpshufb
   | Ox86_VPSHUFHW sz => app_w8 sz x86_vpshufhw
   | Ox86_VPSHUFLW sz => app_w8 sz x86_vpshuflw

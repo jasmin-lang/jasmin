@@ -718,6 +718,8 @@ let prim_string =
     "x86_VPSRL", PrimV (fun ve sz -> Ox86_VPSRL (ve, sz));
     "x86_VPSLLV", PrimV (fun ve sz -> Ox86_VPSLLV (ve, sz));
     "x86_VPSRLV", PrimV (fun ve sz -> Ox86_VPSRLV (ve, sz));
+    "x86_VPSLLDQ", PrimP (T.U128, fun sz -> Ox86_VPSLLDQ sz);
+    "x86_VPSRLDQ", PrimP (T.U128, fun sz -> Ox86_VPSRLDQ sz);
     "x86_VPSHUFB", PrimP (T.U128, fun sz -> Ox86_VPSHUFB sz);
     "x86_VPSHUFHW", PrimP (T.U128, fun sz -> Ox86_VPSHUFHW sz);
     "x86_VPSHUFLW", PrimP (T.U128, fun sz -> Ox86_VPSHUFLW sz);

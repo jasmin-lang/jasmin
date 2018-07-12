@@ -1136,6 +1136,26 @@ Definition VPSLLV_desc (ve: velem) sz := make_instr_desc (x86_rm128_shift_variab
 Definition VPSRLV_desc (ve: velem) sz := make_instr_desc (x86_rm128_shift_variable_gsc ve sz (Ox86_VPSRLV ve) (VPSRLV ve) _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
 (* ----------------------------------------------------------------------------- *)
+Lemma x86_shift_double_quadword_gsc sz op i sem :
+  (∀ d x y, is_sopn (i sz d x y)) →
+  (exec_sopn (op sz) = app_w8 sz (x86_vpsxldq sem)) →
+  (∀ d x y gd m, eval_instr_mem gd (i sz d x y) m = eval_shift_double_quadword sem d x y m) →
+  gen_sem_correct [:: TYxreg ; TYxreg ; TYimm U8 ] (op sz)
+                  [:: E sz 0 ] [:: E sz 1 ; E sz 2 ] [::] (i sz).
+Proof.
+move => ok_sopn hsem lsem d x y; split => // gd m m'.
+rewrite /low_sem_aux /= lsem /eval_shift_double_quadword hsem /x86_vpsxldq /=.
+t_xrbindP => ?? /truncate_wordP [_ ->] ? ok_sz /= <- [<-].
+rewrite ok_sz /=; know_it; do 3 f_equal.
+by rewrite zero_extend_sign_extend // sign_extend_u.
+Qed.
+
+Arguments x86_shift_double_quadword_gsc : clear implicits.
+
+Definition VPSLLDQ_desc sz := make_instr_desc (x86_shift_double_quadword_gsc sz Ox86_VPSLLDQ VPSLLDQ _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
+Definition VPSRLDQ_desc sz := make_instr_desc (x86_shift_double_quadword_gsc sz Ox86_VPSRLDQ VPSRLDQ _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
+
+(* ----------------------------------------------------------------------------- *)
 Lemma x86_xmm_binop_gsc sz op i sem :
   (∀ d x y, is_sopn (i sz d x y)) →
   (exec_sopn (op sz) = app_ww sz (@x86_u128_binop sz sem)) →
@@ -1386,6 +1406,8 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_VPSRL ve sz => ok (VPSRL_desc ve sz)
   | Ox86_VPSLLV ve sz => ok (VPSLLV_desc ve sz)
   | Ox86_VPSRLV ve sz => ok (VPSRLV_desc ve sz)
+  | Ox86_VPSLLDQ sz => ok (VPSLLDQ_desc sz)
+  | Ox86_VPSRLDQ sz => ok (VPSRLDQ_desc sz)
   | Ox86_VPSHUFB sz => ok (VPSHUFB_desc sz)
   | Ox86_VPSHUFHW sz => ok (VPSHUFHW_desc sz)
   | Ox86_VPSHUFLW sz => ok (VPSHUFLW_desc sz)
