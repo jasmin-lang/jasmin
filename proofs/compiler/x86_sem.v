@@ -206,6 +206,8 @@ Variant asm : Type :=
 | VPSRL `(velem) `(wsize) (_ _: rm128) `(u8)
 | VPSLLV `(velem) `(wsize) (_ _: xmm_register) `(rm128)
 | VPSRLV `(velem) `(wsize) (_ _: xmm_register) `(rm128)
+| VPSLLDQ `(wsize) (_ _: xmm_register) `(u8)
+| VPSRLDQ `(wsize) (_ _: xmm_register) `(u8)
 | VPSHUFB `(wsize) (_ _: xmm_register) `(rm128)
 | VPSHUFD of wsize & xmm_register & rm128 & u8
 | VPSHUFHW of wsize & xmm_register & rm128 & u8
@@ -1229,6 +1231,16 @@ Definition eval_VPSLLV ve sz := eval_rm128_shift_variable ve sz (@wshl _).
 Definition eval_VPSRLV ve sz := eval_rm128_shift_variable ve sz (@wshr _).
 
 (* -------------------------------------------------------------------- *)
+Definition eval_shift_double_quadword sz op (dst src: xmm_register) (n: u8) s : x86_result :=
+  Let _ := check_size_128_256 sz in
+  let x := zero_extend sz (xxreg s src) in
+  let r : word sz := op x n in
+  ok (mem_update_xreg MSB_CLEAR dst r s).
+
+Definition eval_VPSLLDQ sz := eval_shift_double_quadword (@wpslldq sz).
+Definition eval_VPSRLDQ sz := eval_shift_double_quadword (@wpsrldq sz).
+
+(* -------------------------------------------------------------------- *)
 Definition eval_VPSHUFB sz := eval_xmm_binop sz (@wpshufb _).
 
 (* -------------------------------------------------------------------- *)
@@ -1350,6 +1362,8 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | VPSRL ve sz dst src1 src2 => eval_VPSRL ve sz dst src1 src2 s
   | VPSLLV ve sz dst src1 src2 => eval_VPSLLV ve sz dst src1 src2 s
   | VPSRLV ve sz dst src1 src2 => eval_VPSRLV ve sz dst src1 src2 s
+  | VPSLLDQ sz dst src i => eval_VPSLLDQ sz dst src i s
+  | VPSRLDQ sz dst src i => eval_VPSRLDQ sz dst src i s
   | VPSHUFB sz dst src pat => eval_VPSHUFB sz dst src pat s
   | VPSHUFD sz dst src pat => eval_VPSHUFD sz dst src pat s
   | VPSHUFHW sz dst src pat => eval_VPSHUFHW sz dst src pat s

@@ -295,6 +295,9 @@ let pp_rm128_binop name sz dst src1 src2 =
 let pp_xmm_binop name sz dst src1 src2 =
   `Instr (name, [pp_rm128 sz src2 ; pp_xmm_register sz src1 ; pp_xmm_register sz dst ])
 
+let pp_vpsxldq d sz dst src i =
+  `Instr ("vps" ^ d ^ "ldq", [ pp_imm (Conv.bi_of_int8 i); pp_xmm_register sz src; pp_xmm_register sz dst ])
+
 let pp_vpshuf suf sz dst src1 src2 =
   `Instr ("vpshuf" ^ suf, [pp_imm (Conv.bi_of_int8 src2); pp_rm128 sz src1; pp_xmm_register sz dst])
 
@@ -462,6 +465,9 @@ let pp_instr name (i : X86_sem.asm) =
   | VPSLLV (ve, sz, dst, src1, src2) -> pp_xmm_binop (pp_viname ve "vpsllv") sz dst src1 src2
   | VPSRLV (ve, sz, dst, src1, src2) -> pp_xmm_binop (pp_viname ve "vpsrlv") sz dst src1 src2
 
+  | VPSLLDQ (sz, dst, src, i) -> pp_vpsxldq "l" sz dst src i
+  | VPSRLDQ (sz, dst, src, i) -> pp_vpsxldq "r" sz dst src i
+
   | VPSHUFB (sz, dst, src1, src2) -> pp_xmm_binop "vpshufb" sz dst src1 src2
 
   | VPSHUFD (sz, dst, src1, src2) -> pp_vpshuf "d" sz dst src1 src2
@@ -514,6 +520,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | VPINSR _
   | VPSLL _ | VPSRL _
   | VPSLLV _ | VPSRLV _
+  | VPSLLDQ _ | VPSRLDQ _
   | VPSHUFB _ | VPSHUFHW _ | VPSHUFLW _ | VPSHUFD _
   | VPUNPCKH _ | VPUNPCKL _
   | VPBLENDD _ | VPBROADCAST _ | VBROADCASTI128 _ | VEXTRACTI128 _ | VINSERTI128 _ | VPERM2I128 _ | VPERMQ _

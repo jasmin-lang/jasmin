@@ -931,3 +931,11 @@ Definition wpermq (w: u256) (i: u8) : u256 :=
   let v := split_vec U64 w in
   let j := split_vec 2 i in
   make_vec U256 (map (λ n, v`_(Z.to_nat (urepr n)))%R j).
+
+(* -------------------------------------------------------------------*)
+Definition wpsxldq op sz (w: word sz) (i: u8) : word sz :=
+  let n : Z := (Z.max 16 (wunsigned i)) * 8 in
+  lift1_vec U128 (λ w, op w n) sz w.
+
+Definition wpslldq := wpsxldq (@wshl _).
+Definition wpsrldq := wpsxldq (@wshr _).
