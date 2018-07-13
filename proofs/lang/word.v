@@ -934,7 +934,7 @@ Definition wpermq (w: u256) (i: u8) : u256 :=
 
 (* -------------------------------------------------------------------*)
 Definition wpsxldq op sz (w: word sz) (i: u8) : word sz :=
-  let n : Z := (Z.max 16 (wunsigned i)) * 8 in
+  let n : Z := (Z.min 16 (wunsigned i)) * 8 in
   lift1_vec U128 (λ w, op w n) sz w.
 
 Definition wpslldq := wpsxldq (@wshl _).
