@@ -67,7 +67,7 @@ proof.
           [loadW32 mem p; loadW32 mem (p + (of_int 4)%W64);
            loadW32 mem (p + (of_int 8)%W64); loadW32 mem (p + (of_int 12)%W64)] =
          W4u32.Pack.init (fun i => loadW32 mem (p + W64.of_int (i * 4))).
-  + by apply W4u32.Pack.ext_eq_all; rewrite /all_eq /= addr0. 
+  + by apply W4u32.Pack.ext_eq_all; rewrite /all_eq.
   apply (can_inj _ _ W4u32.unpack32K); apply W4u32.Pack.packP => i hi.
   by rewrite pack4K initiE //=  get_unpack32 // loadW128_bits32.
 qed.
@@ -96,6 +96,32 @@ axiomatized by storeW128E.
 op storeW256 (m : global_mem_t) (a : address) (w : W256.t) =
   stores m a (to_list (unpack8 w))
 axiomatized by storeW256E.
+
+lemma pack4u32_bits8_nth i (ws:W32.t list) : 0 <= i < 16 => 
+  W4u32.pack4 ws \bits8 i = nth W32.zero ws (i %/ 4) \bits8 (i%%4).
+proof.
+  move=> hi; rewrite -W4u32.Pack.get_of_list; first by apply divz_cmp.
+  move: (W4u32.Pack.of_list ws) => w.
+  apply W8.wordP => k hk.
+  rewrite -W4u32.pack4bE; 1: by apply divz_cmp.
+  rewrite bits8iE // bits8iE // bits32iE; 1: smt(modz_cmp).
+  congr; rewrite {1}(divz_eq i 4); ring.
+qed.
+
+lemma store4u32 mem ptr w0 w1 w2 w3 : 
+  storeW128 mem ptr (W4u32.pack4 [w0; w1; w2; w3]) =
+  storeW32 
+    (storeW32 
+       (storeW32 
+          (storeW32 mem ptr w0) 
+          (ptr + W64.of_int 4) w1) 
+       (ptr + W64.of_int 8) w2)
+    (ptr + W64.of_int 12) w3.
+proof.
+  rewrite storeW128E !storeW32E.
+  rewrite /W4u8.Pack.to_list /mkseq /= /stores /=.
+  by rewrite size_to_list /= !pack4u32_bits8_nth.
+qed.
 
 (* ------------------------------------------------------------------- *)
 (* Global Memory                                                       *)
