@@ -19,6 +19,9 @@ GENFILES := \
    poly1305_amd64_5x_safe  
 
 ECFILES := \
+   jasmin_utils \
+   jasmin_array \
+   jasmin_word  \
    jasmin_model \
    \
    gimliv_ct_proof \

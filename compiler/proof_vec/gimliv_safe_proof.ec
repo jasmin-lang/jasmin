@@ -2,10 +2,9 @@ require import List Jasmin_model Int IntDiv CoreMap Gimliv_safe.
 
 hoare gimli_bodyS : M.gimli_body : M.safe ==> M.safe.
 proof.
-  proc.
-  seq 1 : (M.safe /\ is_init round); 1: by auto.
-  while (M.safe /\ is_init round); 2: by auto.
-  inline *; wp; skip; rewrite /is_init => />.
+  proc; wp.
+  while (M.safe); 2: by auto.
+  by inline *; wp; skip.
 qed.
 
 hoare gimliS : M.gimli : 
@@ -16,10 +15,7 @@ hoare gimliS : M.gimli :
   ==> 
   M.safe.
 proof.
-  proc.
-  wp; call gimli_bodyS; wp; skip.
-  cbv delta => /> &1.  
-  rewrite W64.addr0 => />.
+  by proc; wp; call gimli_bodyS; wp; skip.
 qed.
 
 

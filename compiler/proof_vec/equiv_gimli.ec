@@ -1,12 +1,15 @@
-require import AllCore Jasmin_model Gimli_ref Gimli_ref1 Gimliv1 Gimliv CoreMap.
+require import AllCore Jasmin_model Gimli_ref Gimli_ref1 Gimliv1 Gimliv CoreMap IntDiv List.
 
-(* FIXME: move this *)
+(*(* FIXME: move this *)
 axiom rol32_xor (x:W32.t) i : 0 <= i < 32 => 
  (x86_ROL_32 x ((of_int i)%W8)).`3  = (x `<<` (W8.of_int i)) `^` (x `>>` (W8.of_int (32 - i))).
-
-equiv rotate_ref_ref1 : Gimli_ref.M.rotate ~ Gimli_ref1.M.rotate : ={x,bits} /\ 0 <= bits{1} < 32 ==> ={res}.
+*)
+equiv rotate_ref_ref1 : Gimli_ref.M.rotate ~ Gimli_ref1.M.rotate : ={x,bits} /\ 1 <= bits{1} < 32 ==> ={res}.
 proof.
- by proc;auto => &m1 &m2 /> ??; apply (rol32_xor x{m2} bits{m2}). 
+  proc;auto => &m1 &m2 /> ??.
+  rewrite x86_ROL_32_E /= rol_xor.
+  + by rewrite modz_small /#.
+  rewrite /(`<<`) /(`>>`) !of_uintK /= !modz_small /#.
 qed. 
 
 equiv Gimli_ref_ref1_body : Gimli_ref.M.gimli_body ~ Gimli_ref1.M.gimli_body : ={state} ==> ={res}.
@@ -27,19 +30,21 @@ proof.
 qed.
 
 equiv ref1_vec1_body : Gimli_ref1.M.gimli_body ~ Gimliv1.M.gimli_body1 : 
-   pack_4u32 (state.[0], state.[1], state.[2] , state.[3] ){1} = x{2} /\
-   pack_4u32 (state.[4], state.[5], state.[6] , state.[7] ){1} = y{2} /\
-   pack_4u32 (state.[8], state.[9], state.[10], state.[11]){1} = z{2} 
+   pack4 [state.[0]; state.[1]; state.[2] ; state.[3] ]{1} = x{2} /\
+   pack4 [state.[4]; state.[5]; state.[6] ; state.[7] ]{1} = y{2} /\
+   pack4 [state.[8]; state.[9]; state.[10]; state.[11]]{1} = z{2} 
    ==>
-   pack_4u32 (res.[0], res.[1], res.[2] , res.[3] ){1} = res.`1{2} /\
-   pack_4u32 (res.[4], res.[5], res.[6] , res.[7] ){1} = res.`2{2} /\
-   pack_4u32 (res.[8], res.[9], res.[10], res.[11]){1} = res.`3{2}.
+   pack4 [res.[0]; res.[1]; res.[2] ; res.[3] ]{1} = res.`1{2} /\
+   pack4 [res.[4]; res.[5]; res.[6] ; res.[7] ]{1} = res.`2{2} /\
+   pack4 [res.[8]; res.[9]; res.[10]; res.[11]]{1} = res.`3{2}.
 proof.
   proc; inline * => /=.
   while (#pre /\ ={round}); last by auto.
-  unroll for {1} 2.
-  wp; skip => &m1 &m2 [#].
-  cbv delta => 4!<- _ _; cbv delta => />.
+  seq 2 47 : (#pre).
+  + by unroll for {1} 2; auto. 
+  seq 1 1 : (#[/:-2]pre); 1: by auto.
+  seq 1 1 : (#pre); 1: by auto.
+  auto.
 qed.
 
 equiv ref1_vec1 : Gimli_ref1.M.gimli ~ Gimliv1.M.gimli1 : 
@@ -47,23 +52,43 @@ equiv ref1_vec1 : Gimli_ref1.M.gimli ~ Gimliv1.M.gimli1 :
 proof.
   proc.
   seq 3 3 : 
-   (pack_4u32 (state.[0], state.[1], state.[2] , state.[3] ){1} = x{2} /\
-    pack_4u32 (state.[4], state.[5], state.[6] , state.[7] ){1} = y{2} /\
-    pack_4u32 (state.[8], state.[9], state.[10], state.[11]){1} = z{2}).
+   (pack4 [state.[0]; state.[1]; state.[2] ; state.[3] ]{1} = x{2} /\
+    pack4 [state.[4]; state.[5]; state.[6] ; state.[7] ]{1} = y{2} /\
+    pack4 [state.[8]; state.[9]; state.[10]; state.[11]]{1} = z{2} /\
+    ={Glob.mem} /\ istate{1} = state{2}).
   + unroll for{1} 3.
-    wp; skip => /> &2. admit. (* stuff on memory *)
-  seq 1 1: 
-   (pack_4u32 (state.[0], state.[1], state.[2] , state.[3] ){1} = x{2} /\
-    pack_4u32 (state.[4], state.[5], state.[6] , state.[7] ){1} = y{2} /\
-    pack_4u32 (state.[8], state.[9], state.[10], state.[11]){1} = z{2}).
+    by wp; skip => /> &2; rewrite -!load4u32.
+  seq 1 1 : #pre.
   + by call ref1_vec1_body; skip.
   unroll for{1} 2.
   wp; skip => /> &2. admit. (* stuff on memory *)
 qed.
 
-axiom rotate24E w :
-    x86_VPSHUFB_128  w (W128.of_int 16028905388486802350658220295983399425)
-  = x86_VPSLL_4u32 w (W8.of_int 24) `^` x86_VPSRL_4u32 w (W8.of_int 8).
+(* FIXME: prove this *)
+axiom bits8_div (w:W128.t) i : (w \bits8 i) = 
+  W8.of_int (to_uint w %/ (2^(8*i))).
+
+lemma bits8_div_of_int x i : (W128.of_int x \bits8 i) = 
+   W8.of_int (to_uint (W128.of_int x) %/ (2^(8*i))).
+proof. by rewrite bits8_div. qed.
+
+hint simplify bits8_div_of_int.
+
+lemma false_eq_not_b b: (false = ! b) = b.
+proof. by case b. qed.
+
+lemma b_eq_true b : (b = true) = b.
+proof. by case b. qed.
+
+hint simplify (false_eq_not_b, b_eq_true). 
+
+lemma rotate24E w :
+    (x86_VPSHUFB_128  w (W128.of_int 16028905388486802350658220295983399425))
+  = (x86_VPSLL_4u32 w (W8.of_int 24) `^` x86_VPSRL_4u32 w (W8.of_int 8)).
+proof.
+  rewrite -W128.ext_eq_all; cbv delta.
+  rewrite !(false_eq_not_b, b_eq_true).
+qed.  (* FIXME rewrite should not be necessary *)
 
 hint simplify rotate24E.
 

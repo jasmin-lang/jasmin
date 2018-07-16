@@ -367,13 +367,19 @@ let pp_glob env fmt x =
 
 let ty_glob env x = snd (Ms.find x env.glob)
 
+let pp_zeroext fmt (szi, szo) = 
+  let io, ii = int_of_ws szo, int_of_ws szi in
+  if ii < io then Format.fprintf fmt "zeroextu%a" pp_size szo
+  else if ii = io then ()
+  else (* io < ii *) Format.fprintf fmt "truncateu%a" pp_size szo
+  
 let pp_op1 fmt = function
-  | E.Osignext(sz1,sz2) -> 
-    Format.fprintf fmt "sigext_%a_%a" pp_size sz2 pp_size sz1
-  | E.Ozeroext(sz1,sz2) -> 
-    Format.fprintf fmt "zeroext_%a_%a" pp_size sz2 pp_size sz1
+  | E.Osignext(szo,_szi) -> 
+    Format.fprintf fmt "sigextu%a" pp_size szo
+  | E.Ozeroext(szo,szi) -> 
+    pp_zeroext fmt (szi, szo) 
   | E.Onot     -> Format.fprintf fmt "!"
-  | E.Olnot _  -> Format.fprintf fmt "!"
+  | E.Olnot _  -> Format.fprintf fmt "invw"
   | E.Oneg _   -> Format.fprintf fmt "-"
 
 let swap_op2 op e1 e2 = 
@@ -456,8 +462,8 @@ let wsize = function
 let pp_cast pp fmt (ty,ety,e) = 
   if ety = ty then pp fmt e 
   else 
-    Format.fprintf fmt "(zeroext_%a_%a %a)" 
-      pp_size (wsize ety) pp_size (wsize ty) pp e
+    Format.fprintf fmt "(%a %a)" pp_zeroext (wsize ety, wsize ty) pp e 
+
  
 let check_array env x = 
   match (L.unloc x).v_ty with
@@ -473,8 +479,8 @@ let rec pp_expr env fmt (e:expr) =
   | Parr_init (sz, n) -> 
     let pp_init fmt sz = 
       if for_safety env then Format.fprintf fmt "None"
-      else Format.fprintf fmt "%a.zeros" pp_Tsz sz in
-    Format.fprintf fmt "Array%a.init %a" B.pp_print n pp_init sz
+      else Format.fprintf fmt "%a.zero" pp_Tsz sz in
+    Format.fprintf fmt "Array%a.create %a" B.pp_print n pp_init sz
 
   | Pcast(sz,e) -> 
     Format.fprintf fmt "(%a.of_int %a)" pp_Tsz sz (pp_expr env) e
@@ -809,7 +815,7 @@ module Leak = struct
   let pp_safe_es env fmt es = pp_list "/\\@ " (pp_safe_e env) fmt es
 
   let pp_leaks env fmt es = 
-    Format.fprintf fmt "leakages <- LeakExpr(@[[%a]@]) :: leakages;@ "
+    Format.fprintf fmt "leakages <- LeakAddr(@[[%a]@]) :: leakages;@ "
       (pp_list ";@ " (pp_expr env)) es
 
   let pp_safe_cond env fmt conds = 
@@ -841,7 +847,7 @@ module Leak = struct
     | ConstantTime -> 
       let leaks = leaks_e e in
       Format.fprintf fmt 
-        "leakages <- LeakCond(%a) :: LeakExpr(@[[%a]@]) :: leakages;@ "
+        "leakages <- LeakCond(%a) :: LeakAddr(@[[%a]@]) :: leakages;@ "
         (pp_expr env) e (pp_list ";@ " (pp_expr env)) leaks
     | Safety -> pp_safe_cond env fmt (safe_e env e)
     | Normal -> ()
@@ -851,7 +857,7 @@ module Leak = struct
     | ConstantTime -> 
       let leaks = leaks_es [e1;e2] in
       Format.fprintf fmt 
-        "leakages <- LeakFor(%a,%a) :: LeakExpr(@[[%a]@]) :: leakages;@ "
+        "leakages <- LeakFor(%a,%a) :: LeakAddr(@[[%a]@]) :: leakages;@ "
         (pp_expr env) e1 (pp_expr env) e2 
         (pp_list ";@ " (pp_expr env)) leaks
     | Safety -> pp_safe_cond env fmt (safe_es env [e1;e2])
