@@ -84,7 +84,8 @@ qed.
 lemma to_uintK' (x: t) : of_int (to_uint x) = x.
 proof. by apply to_uintK. qed.
 
-hint simplify (of_uintK, to_uintK')@0.
+(*hint simplify of_uintK@1. *)
+hint simplify to_uintK'@0.
 
 lemma of_sintK (x:int) : 
    to_sint (of_int x) = smod (x %% modulus).
@@ -94,17 +95,16 @@ lemma to_uint_mod (x : t) : to_uint x %% modulus = to_uint x.
 proof. by rewrite modz_small // ger0_norm // to_uint_cmp. qed.
 
 lemma of_int_mod (x : int) : of_int (x %% modulus) = of_int x.
-proof. by apply/(can_inj _ _ to_uintK) => /=; rewrite modz_mod. qed.
+proof. by apply/(can_inj _ _ to_uintK); rewrite !of_uintK modz_mod. qed.
 
 lemma to_uint_small i : 0 <= i < modulus => to_uint (of_int i) = i.
 proof. by move=> h; rewrite of_uintK modz_small;solve. qed.
-
-hint simplify to_uint_small@1.
 
 lemma to_uint0 : to_uint (of_int 0) = 0 by [].
 lemma to_uint1 : to_uint (of_int 1) = 1 by [].
 
 hint simplify (to_uint0, to_uint1)@0.
+hint simplify to_uint_small@1.
 
 lemma word_modeqP (x y : t) :
   to_uint x %% modulus = to_uint y %% modulus => x = y.
@@ -299,7 +299,7 @@ instance bring with t
 pred unitw (w:t) = w = onew.
 op iandw (w:t) = if w = onew then onew else w.
 
-clone import Ring.ComRing as WRing with 
+clone Ring.ComRing as WRing with 
    type t <- t,
    op zeror <- zero,
    op ( + ) <- (+^),
@@ -422,39 +422,29 @@ op invr (w:t) = Logic.choiceb (is_inverse w) w.
 lemma of_intN (x : int) : of_int (-x) = - of_int x.
 proof.
 rewrite oppE /ulift1 /=; apply/word_modeqP=> /=.
-by rewrite !modz_mod modzNm.
+by rewrite !of_uintK !modz_mod modzNm.
 qed.
 
-lemma to_uintN (x y : t) : to_uint (-x) = (- to_uint x) %% modulus.
-proof. by rewrite oppE /ulift1. qed.
+lemma to_uintN (x : t) : to_uint (-x) = (- to_uint x) %% modulus.
+proof. by rewrite oppE /ulift1 of_uintK. qed.
 
 lemma of_intD (x y : int) : of_int (x + y) = of_int x + of_int y.
 proof.
 rewrite addE /ulift2 /=; apply/word_modeqP=> /=.
-by rewrite !modz_mod !(modzDml, modzDmr).
+by rewrite !of_uintK !modz_mod !(modzDml, modzDmr).
 qed.
 
 lemma to_uintD (x y : t) : to_uint (x + y) = (to_uint x + to_uint y) %% modulus.
-proof. by rewrite addE /ulift2. qed.
+proof. by rewrite addE /ulift2 of_uintK. qed.
 
 lemma of_intM (x y : int) : of_int x * of_int y = of_int (x * y).
 proof.
 rewrite mulE /ulift2 /=; apply/word_modeqP=> /=.
-by rewrite !modz_mod !(modzMml, modzMmr).
+by rewrite !of_uintK !modz_mod !(modzMml, modzMmr).
 qed.
 
 lemma to_uintM (x y : t) : to_uint (x * y) = (to_uint x * to_uint y) %% modulus.
-proof. by rewrite mulE /ulift2. qed.
-
-(* FIXME add direction for hint simplify *)
-lemma of_intN' (x : int) : - of_int x = of_int (-x).
-proof. by rewrite of_intN. qed.
-lemma of_intD' (x y : int) : of_int x + of_int y = of_int (x + y).
-proof. by rewrite of_intD. qed.
-lemma of_intM' (x y : int) : of_int x * of_int y = of_int (x * y).
-proof. by rewrite of_intM. qed.
-
-hint simplify (of_intN', of_intD', of_intM').
+proof. by rewrite mulE /ulift2 !of_uintK. qed.
 
 clone export Ring.ComRing as WRingA with 
    type t <- t,
@@ -524,6 +514,25 @@ lemma ofintS (n : int) : 0 <= n => of_int (n + 1) = of_int 1 + of_int n.
 proof. by rewrite of_intD addrC. qed. 
 
 (* Add simplification rule for rewriting *)
+(* FIXME add direction for hint simplify *)
+lemma of_intN' (x : int) : - of_int x = of_int (-x).
+proof. by rewrite of_intN. qed.
+
+lemma of_intS (x y : int) : of_int (x - y) = of_int x - of_int y.
+proof. by rewrite of_intD of_intN. qed.
+
+lemma of_intS' (x y : int) : of_int x - of_int y = of_int (x - y).
+proof. by rewrite of_intS. qed.
+
+lemma of_intD' (x y : int) : of_int x + of_int y = of_int (x + y).
+proof. by rewrite of_intD. qed.
+
+lemma of_intM' (x y : int) : of_int x * of_int y = of_int (x * y).
+proof. by rewrite of_intM. qed.
+
+hint simplify (of_intS', of_intM')@0.
+hint simplify (of_intD')@1.
+
 lemma addr0_s w : w + of_int 0 = w.
 proof. by apply addr0. qed.
 
@@ -545,7 +554,12 @@ proof. by apply mul0r. qed.
 lemma addA_ofint w i j : w + of_int i + of_int j = w + of_int (i + j).
 proof. by rewrite -addrA. qed.
 
+lemma addS_ofint w i j : w + of_int i - of_int j = w + of_int (i - j).
+proof. by rewrite -addrA -of_intS. qed.
+
 hint simplify (addr0_s, add0r_s, mul1r_s, mulr1_s, mul0r_s, mulr0_s, addA_ofint).
+
+
 
 (* --------------------------------------------------------------------- *)
 (* Ring tactic                                                           *)
@@ -621,7 +635,7 @@ lemma shlMP i k : (of_int i `<<<` k) = of_int (i * 2^(k %% size)).
 admitted.
   
 (* FIXME *)
-lemma shrMP i k : (of_int i `>>>` k) = of_int (i * 2^(k %% size)).
+lemma shrMP i k : (of_int i `>>>` k) = of_int (i %/ 2^(k %% size)).
 admitted.
   
 op ror (x : t) (i : int) = 
@@ -659,6 +673,15 @@ qed.
 axiom and_mod k w : 
   0 <= k <= size => 
     w `&` of_int (2^k - 1) = of_int (to_uint w %% 2^k).
+
+lemma to_uint_and_mod k w : 
+  0 <= k <= size => 
+    to_uint (w `&` of_int (2^k - 1)) = to_uint w %% 2^k.
+proof.
+  move=> hk; rewrite and_mod 1://.
+  rewrite of_uintK modz_small //. 
+  apply bound_abs;smt (modz_cmp gt0_pow2 pow_Mle).
+qed.
 
 axiom to_uint_shl (w:t) i : 
   0 <= i < size => to_uint (w `>>>` i) = to_uint w %/ 2^ i.
@@ -874,19 +897,61 @@ end W_WS.
 
 theory W8.
   abbrev [-printing] size = 8.
-  clone include BitWord with op size <- 8.
+  clone include BitWord with op size <- 8
+  proof gt0_size by done.
 
   op (`>>`) (w1 w2 : W8.t) = w1 `>>>` to_uint w2.
   op (`<<`) (w1 w2 : W8.t) = w1 `<<<` to_uint w2. 
 
+  lemma shr_div w1 w2 : to_uint (w1 `>>` w2) = to_uint w1 %/ 2^ (to_uint w2 %% size).
+  proof.
+    rewrite -{1}(to_uintK w1) /(`>>`) shrMP of_uintK modz_small //.
+    apply bound_abs; apply divz_cmp. 
+    + by apply gt0_pow2.
+    by have := to_uint_cmp w1; smt (gt0_pow2).
+  qed.
+
+  lemma shr_div_le w1 i : 0 <= i < size => 
+       to_uint (w1 `>>` (of_int i)) = to_uint w1 %/ 2^ i.
+  proof.
+    move=> hi;rewrite shr_div of_uintK.
+    rewrite (modz_small i);1: smt (pow2_8).
+    by rewrite modz_small.
+  qed.
+
 end W8. export W8. 
 
-theory W16.
-  abbrev [-printing] size = 16.
+abstract theory BitWordSH.
+  op size : int.
+  axiom size_le_256 : size <= 256.
   clone include BitWord with op size <- size.
 
   op (`>>`) (w1 : t) (w2 : W8.t) = w1 `>>>` to_uint w2.
   op (`<<`) (w1 : t) (w2 : W8.t) = w1 `<<<` to_uint w2. 
+
+  lemma shr_div w1 w2 : to_uint (w1 `>>` w2) = to_uint w1 %/ 2^ (to_uint w2 %% size).
+  proof.
+    rewrite -{1}(to_uintK w1) /(`>>`) shrMP of_uintK modz_small //.
+    apply bound_abs; apply divz_cmp. 
+    + by apply gt0_pow2.
+    by have := to_uint_cmp w1; smt (gt0_pow2).
+  qed.
+
+  lemma shr_div_le w1 i : 0 <= i < size => 
+     to_uint (w1 `>>` (W8.of_int i)) = to_uint w1 %/ 2^ i.
+  proof.
+    move=> hi;rewrite shr_div of_uintK.
+    rewrite (modz_small i) 1:pow2_8; 1: smt (size_le_256).
+    by rewrite modz_small //;apply bound_abs.
+  qed.
+
+end BitWordSH.
+
+theory W16.
+  abbrev [-printing] size = 16.
+  clone include BitWordSH with op size <- size
+  proof gt0_size by done,
+        size_le_256 by done.
 end W16. export W16.
 
 clone export W_WS as W2u8 with 
@@ -897,10 +962,9 @@ clone export W_WS as W2u8 with
 
 theory W32.
   abbrev [-printing] size = 32.
-  clone include BitWord with op size <- size.
-
-  op (`>>`) (w1 : t) (w2 : W8.t) = w1 `>>>` to_uint w2.
-  op (`<<`) (w1 : t) (w2 : W8.t) = w1 `<<<` to_uint w2. 
+  clone include BitWordSH with op size <- size
+  proof gt0_size by done,
+        size_le_256 by done.
 end W32. export W32.
 
 clone export W_WS as W4u8 with 
@@ -917,10 +981,9 @@ clone export W_WS as W2u16 with
 
 theory W64.
   abbrev [-printing] size = 64.
-  clone include BitWord with op size <- size.
-
-  op (`>>`) (w1 : t) (w2 : W8.t) = w1 `>>>` to_uint w2.
-  op (`<<`) (w1 : t) (w2 : W8.t) = w1 `<<<` to_uint w2. 
+  clone include BitWordSH with op size <- size
+  proof gt0_size by done,
+        size_le_256 by done.
 end W64. export W64.
 
 clone export W_WS as W8u8 with 
@@ -943,10 +1006,9 @@ clone export W_WS as W2u32 with
 
 theory W128.
   abbrev [-printing] size = 128.
-  clone include BitWord with op size <- size.
-
-  op (`>>`) (w1 : t) (w2 : W8.t) = w1 `>>>` to_uint w2.
-  op (`<<`) (w1 : t) (w2 : W8.t) = w1 `<<<` to_uint w2. 
+  clone include BitWordSH with op size <- size
+  proof gt0_size by done,
+        size_le_256 by done.
 end W128. export W128.
 
 clone export W_WS as W16u8 with 
@@ -975,10 +1037,9 @@ clone export W_WS as W2u64 with
 
 theory W256.
   abbrev [-printing] size = 256.
-  clone include BitWord with op size <- size.
-
-  op (`>>`) (w1 : t) (w2 : W8.t) = w1 `>>>` to_uint w2.
-  op (`<<`) (w1 : t) (w2 : W8.t) = w1 `<<<` to_uint w2. 
+  clone include BitWordSH with op size <- size
+  proof gt0_size by done,
+        size_le_256 by done.
 end W256. export W256.
 
 clone export W_WS as W32u8 with 

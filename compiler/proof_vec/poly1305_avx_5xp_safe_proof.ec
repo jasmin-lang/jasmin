@@ -19,7 +19,7 @@ axiom valid_range_size_ge w1 w2 mem ptr len1 len2 :
 
 lemma ult_of_int x y :
    (W64.of_int x \ult W64.of_int y) = (x %% W64.modulus < y %% W64.modulus).
-proof. by rewrite W64.ultE /=. qed.
+proof. by rewrite W64.ultE /= !of_uintK. qed.
 
 hint simplify ult_of_int.
 
@@ -65,6 +65,7 @@ hoare addS : M.add : M.safe ==> M.safe.
 proof. by proc; unroll for 2; wp; skip. qed.
 
 (* TODO: move this *)
+
 lemma nltgeE (x y: W64.t) : (! x \ult y) = (y \ule x).
 proof.
   rewrite W64.ultE W64.uleE; smt ().
@@ -73,8 +74,10 @@ qed.
 (* TODO: move this *)
 lemma to_uint_minus (x y: W64.t) : y \ule x => to_uint (x - y) = to_uint x - to_uint y.
 proof.
-  rewrite W64.addE W64.oppE /ilift2 /ilift1.
-admitted.
+  rewrite uleE=> hle.
+  rewrite to_uintD to_uintN modzDmr modz_small //.
+  apply bound_abs; have := W64.to_uint_cmp x; have := W64.to_uint_cmp y; smt ().
+qed.
 
 hoare load_lastS : M.load_last : 
    M.safe /\ valid_range W8 Glob.mem in_0 (W64.to_uint inlen) /\ is_align W64 in_0 ==> M.safe.
@@ -105,11 +108,10 @@ proof.
   + have h := (valid_range_size_ge W8 W64 Glob.mem{1} in_0{1} 
                    (to_uint inlen{1}) 1 ha _ _ hv) => //.
     by have /= := h 0 _.
-admitted.
-(*
   move=> i; rewrite to_uint_minus 1:// (W64.to_uint_small 8) 1:// => h.
-  by rewrite -addwA add_of; apply hv => /#.
-qed. *)
+  by apply hv => /#.
+qed. 
+
 hoare loadS: M.load : M.safe /\ valid_range W64 Glob.mem in_0 2 ==> M.safe.
 proof.
   by proc; wp; call unpackS; wp; skip; cbv delta.  
@@ -162,14 +164,11 @@ lemma valid_range_add (k:int) w mem ptr len :
   valid_range w mem ptr len =>
   valid_range w mem (ptr + W64.of_int (k * wsize_i w)) (len - k).
 proof.
-  move=> hk hv i hi. 
-admitted.
-(*
-  rewrite -addwA add_of. 
+  move=> hk hv i hi /=. 
   have -> : k * wsize_i w + wsize_i w * i = wsize_i w * (k + i) by ring.
   apply hv => /#.
 qed.
-*)
+
 (* TODO: move this *)
 lemma valid_range_le (len1 len2:int) w mem ptr  :
   len1 <= len2 =>   
@@ -237,7 +236,6 @@ proof.
   skip => /> &1 _ /valid_range_add32 /> *; ring.
 qed.
 
-
 (* TODO move this *)
 axiom is_align_add w ptr ofs: 
   wsize_i w %| W64.to_uint ofs => is_align w ptr => is_align w (ptr + ofs).
@@ -253,6 +251,13 @@ hint simplify (to_uint0, to_uint1)@0.
 
 axiom to_uint_bounded (w:W64.t) : 0 <= to_uint w < W64.modulus. 
 *)
+
+(* TODO : Move this *)
+
+lemma is_init_Some (a:'a) : is_init (Some a).
+proof. done. qed.
+hint simplify is_init_Some.
+
 hoare poly1305S : M.poly1305 :
     M.safe /\
     valid_range W64 Glob.mem k 4 /\
@@ -276,7 +281,7 @@ proof.
   seq 9 : (#pre /\ is_init h /\ is_init b64 /\ 
             to_uint (oget b64) = to_uint inlen %/ 64).
   + conseq />; unroll for 2; wp; skip => /> &1.
-    by rewrite (shr_mod inlen{1} (W8.of_int 6)) //=; cbv delta.
+    by rewrite to_uint_shl; cbv delta.
   seq 1 : (M.safe /\
            valid_range W64 Glob.mem (oget s_k + (of_int 16)%W64) 2 /\
            valid_range W8 Glob.mem in_0 (to_uint (oget s_inlen) %% 64) /\
@@ -284,9 +289,9 @@ proof.
            is_align W64 in_0 /\ is_init s_out /\ is_init s_in /\ is_init s_inlen /\ 
            is_init s_k /\ is_init s_r /\ is_init s_rx5 /\ is_init h).
   + if; last first.
-    + skip => /> &1 ?? hv ?????????????.
+    + skip => |> &1 ?? hv ???????????.
       apply: valid_range_le hv.  
-      by rewrite {2} (divz_eq (to_uint inlen{1}) 64); smt (divz_ge0 to_uint_bounded).
+      rewrite {2} (divz_eq (to_uint inlen{1}) 64); smt (divz_ge0 W64.to_uint_cmp).
     seq 18 : (#pre /\ is_init s_b64 /\ is_init r2 /\ is_init s_r2 /\ is_init s_r2x5 /\
               oget s_b64 = oget b64).
     + conseq />; unroll for 17.
@@ -295,19 +300,19 @@ proof.
       by wp; skip => />; cbv delta.
     seq 12 : (#pre /\ is_init s_r2r /\ is_init s_r2rx5).
     + conseq />; unroll for 11.
-      by wp; call unpack_u26x5x2_to_u26x5x2S; wp; skip => />; cbv delta.
+      by wp; call unpack_u26x5x2_to_u26x5x2S; wp; skip => />.
     seq 9 : (#pre /\ is_init s_r2r2 /\ is_init s_r2r2x5).
     + conseq />; unroll for 8.    
-      by wp; call unpack_u26x5x2_to_u26x5x2S; wp; skip => />; cbv delta.
+      by wp; call unpack_u26x5x2_to_u26x5x2S; wp; skip => />.
     seq 4 : (#pre).
-    + by wp; skip => /> &1 ?    ??????????????????? ->.
+    + by wp; skip => |> &1 ?????????????????? ->.
     seq 1 : (#pre /\ 
          (W64.of_int 1 \ult oget b64 => (is_init s_r4r4 /\ is_init s_r4r4x5))).
-    + conseq />; if => //.
+    + conseq |>; if;last by auto.
       unroll for 17.
       wp; call unpack_u26x5x2_to_u26x5x2S.
       wp; call carry_reduceS.
-      by wp; call mulmod_12S; wp; skip => />; cbv delta.
+      by wp; call mulmod_12S; wp; skip => />.
     wp; call final_mulS; wp.
     conseq (_: M.safe /\ is_align W64 in_0 /\ is_init hxy /\
                valid_range W8 Glob.mem in_0 (to_uint (oget s_inlen) %% 64)) => //.
@@ -317,26 +322,26 @@ proof.
            (W64.of_int 0 \ult oget b64 => is_init s_r4r4x5 /\ is_init s_r4r4) /\
            valid_range W8 Glob.mem in_0 (to_uint (oget b64) * 64 + to_uint (oget s_inlen) %% 64)).
     + wp. exists * in_0; elim * => in0.
-      call (remaining_blocksS in0); wp; skip => /> &hr _ ha ???? h hv ^ /h /> ??.
-      rewrite !W64.ultE /= => ?;split.
+      call (remaining_blocksS in0); wp; skip => |> &hr _ ha ???? h hv ^ /h |> ??.
+      rewrite !W64.ultE /= => ?;split => /=.
       + apply: valid_range_size_ge hv=> //=. 
         by rewrite (_:8 %/ 1 * 8 = 64) 1://; smt (modz_ge0).
-      move=> ????? ->; rewrite is_align_add //=.
+      move=> ???? ->; rewrite is_align_add //=.
       have := valid_range_add 64 _ _ _ _ _ hv; 1:smt (modz_ge0).
       rewrite to_uint_minus 1:W64.uleE /= /#. 
-    wp. exists * (oget s_in); elim * => in0.      
-    call (first_blockS in0); wp; skip => /> &1 _ ? hv ??????????? hd.
+    wp. exists * (oget s_in); elim * => in0.  (* FIXME it is very long *)
+    call (first_blockS in0); wp; skip => |> &1 _ ? hv ????????? hd.
     rewrite !W64.ultE /= => h0gt ???? -> ???? h1.
     move:hv; have := divz_eq (to_uint inlen{1}) 64.
     rewrite -hd => {1}-> hv;split.
     + apply: valid_range_size_ge hv => //=.
       by rewrite (_:8 %/ 1 * 8 = 64) 1://; smt (modz_ge0).
-    move=> ???? -> />;split.
+    move=> ???? -> |>;split.
     + rewrite to_uint_minus 1:W64.uleE /= 1:/# is_align_add //=.
       split; 1: smt().
       by have := valid_range_add 64 _ _ _ _ _ hv; smt (modz_ge0).
-    move=> ????; rewrite nltgeE W64.uleE /=.
-    smt (to_uint_bounded).
+    move=> ????. rewrite nltgeE W64.uleE /=.
+    smt (W64.to_uint_cmp).
       
   seq 16 : (M.safe /\
            valid_range W64 Glob.mem (oget s_k + (of_int 16)%W64) 2 /\
@@ -352,7 +357,7 @@ proof.
     + wp; call carry_reduceS.
       wp; call mulmod_12S.
       wp; call addS.
-      wp; call loadS; wp; skip => /> &1 _ hv ha _ _ _ _.
+      wp; call loadS; wp; skip => |> &1 _ hv ha _ _ _ _.
       rewrite W64.ultE /= => ?;split.
       + apply: valid_range_size_ge hv => //.
         have ->: wsize_i W64 %/ wsize_i W8 = 8 by done.
@@ -365,7 +370,7 @@ proof.
         to_uint (oget b16{1}) * 16 + to_uint (oget s_inlen{1}) %% 16 - 16.
       rewrite to_uint_minus; 2: by ring. 
       by rewrite W64.uleE /= /#.
-    wp; skip => /> &hr _ _ hv _ ha _ _ _ _ _ _ _;split.
+    wp; skip => |> &hr _ _ hv _ ha _ _ _ _ _ _ _;split.
     + have heq : forall x, x %/ 16 %% 4 = x %% 64 %/ 16.
       + move=> x; rewrite {1} (divz_eq x 64) {1}(divz_eq (x%%64) 16).
         rewrite addzA divzDl.
@@ -377,14 +382,13 @@ proof.
         rewrite modz_small 2://;split.
         + by rewrite divz_ge0 1:// modz_ge0.
         by move=> _;rewrite ltz_divLR //; apply ltz_pmod.
-      have := and_mod 2 (oget s_inlen{hr} `>>` (of_int 4)%W8) _; 1:by done.
-      rewrite (_: 2^2-1 = 3) 1:// /= => ->.
-      rewrite shr_mod 1:// (_ : 2 ^ to_uint ((W8.of_int 4)) = 16) 1:// heq.  
+      have /= -> := W64.to_uint_and_mod 2 (oget s_inlen{hr} `>>` (of_int 4)%W8) _; 1:by done.
+      rewrite shr_div_le 1:// /= heq. 
       have <- := modz_dvd (to_uint (oget s_inlen{hr})) 64 16 _; 1: done.
-      by rewrite -divz_eq hv.   
-    have /= -> := and_mod 4 (oget s_inlen{hr}) _; 1: done.
+      by rewrite -divz_eq hv.
+    have /= -> := W64.to_uint_and_mod 4 (oget s_inlen{hr}) _; 1: done.
     move=> ? b16 ? ?; rewrite nltgeE W64.uleE /= => ? _ h1 _ _ _.
-    apply: valid_range_le h1; smt (to_uint_bounded).
+    apply: valid_range_le h1; smt (W64.to_uint_cmp).
 
   call packS; wp. 
   call add_carryS; wp.
@@ -395,7 +399,7 @@ proof.
              valid_range W64 Glob.mem (oget s_out) 2 /\
              is_init h /\ is_init s_k /\ is_init s_out).
   + by move=> />; cbv delta.
-  if => //.
+  if; last by auto.
   wp; call carry_reduceS.
   wp; call mulmod_12S.
   wp; call addS.
