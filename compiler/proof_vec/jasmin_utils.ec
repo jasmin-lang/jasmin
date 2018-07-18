@@ -22,6 +22,9 @@ proof.
   by rewrite -(pow_le0 0 2) // pow_Mle /= ltzW.
 qed.
 
+lemma dvdmodz d m p : d %| m => d %| p => d %| (p%%m).
+proof. move=> h1 h2; rewrite /(%|);rewrite modz_dvd //. qed.
+
 (* -------------------------------------------------------------------- *)
 lemma powS_minus (x p:int) : 0 < p => x ^ p  = x * x ^ (p-1).
 proof. smt (powS). qed.
@@ -140,3 +143,12 @@ qed.
 
 op in_bound (x n:int) = 0 <= x /\ x < n.
 op is_init (x : 'a option) = x <> None.
+
+lemma is_init_Some (a:'a) : is_init (Some a).
+proof. done. qed.
+
+lemma in_bound_simplify x n : 
+    0 <= x < n => in_bound x n.
+proof. done. qed.
+
+hint simplify (is_init_Some, in_bound_simplify).

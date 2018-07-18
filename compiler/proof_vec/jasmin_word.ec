@@ -412,6 +412,38 @@ op (\ult) (x y : t) = (to_uint x) <  (to_uint y) axiomatized by ultE.
 op (\sle) (x y : t) = (to_sint x) <= (to_sint y) axiomatized by sleE.
 op (\slt) (x y : t) = (to_sint x) <  (to_sint y) axiomatized by sltE.
 
+lemma ult_of_int x y :
+   (of_int x \ult of_int y) = (x %% modulus < y %% modulus).
+proof. by rewrite ultE /= !of_uintK. qed.
+
+lemma ule_of_int x y :
+   (of_int x \ule of_int y) = (x %% modulus <= y %% modulus).
+proof. by rewrite uleE /= !of_uintK. qed.
+
+lemma uleNgt x y : x \ule y <=> ! y \ult x.
+proof. by rewrite ultE uleE lerNgt. qed.
+
+lemma ultNge x y: x \ult y <=> ! y \ule x.
+proof. by rewrite ultE uleE ltzNge. qed.
+
+lemma ult_of_int_true x y :
+   (x %% modulus < y %% modulus) => (of_int x \ult of_int y) = true.
+proof. by rewrite ult_of_int => ->. qed.
+
+lemma ult_of_int_false x y :
+   !(x %% modulus < y %% modulus) => (of_int x \ult of_int y) = false.
+proof. by rewrite ult_of_int => ->. qed.
+
+lemma ule_of_int_true x y :
+   (x %% modulus <= y %% modulus) => (of_int x \ule of_int y) = true.
+proof. by rewrite ule_of_int => ->. qed.
+
+lemma ule_of_int_false x y :
+   !(x %% modulus <= y %% modulus) => (of_int x \ule of_int y) = false.
+proof. by rewrite ule_of_int => ->. qed.
+
+hint simplify (ult_of_int_true, ult_of_int_false, ule_of_int_true, ule_of_int_false).
+
 (* --------------------------------------------------------------------- *)
 (* ComRing                                                               *)
 
@@ -512,6 +544,12 @@ abbrev (^) = WRingA.exp.
 
 lemma ofintS (n : int) : 0 <= n => of_int (n + 1) = of_int 1 + of_int n.
 proof. by rewrite of_intD addrC. qed. 
+
+lemma to_uint_minus (x y: t) : y \ule x => to_uint (x - y) = to_uint x - to_uint y.
+proof.
+  rewrite uleE=> hle.
+  rewrite to_uintD to_uintN modzDmr modz_small //; smt (to_uint_cmp).
+qed.
 
 (* Add simplification rule for rewriting *)
 (* FIXME add direction for hint simplify *)
@@ -1092,6 +1130,18 @@ op wsize_i (w:wsize) =
   with w = W64  => 8
   with w = W128 => 16
   with w = W256 => 32.
+
+(* TODO move *)
+lemma gt0_wsize_i ws: 0 < wsize_i ws.
+proof. by case ws. qed.
+hint exact : gt0_wsize_i.
+
+lemma div_le_wsize ws1 ws2 : wsize_i ws1 <= wsize_i ws2 => wsize_i ws1 %| wsize_i ws2.
+proof. by case: ws1 ws2 => -[]. qed.
+
+lemma div_wsize_modulus ws : wsize_i ws %| W64.modulus.
+proof. by case ws. qed.
+hint exact : div_wsize_modulus.
 
 (*
 print W2u64.
