@@ -22,6 +22,7 @@ ECFILES := \
    jasmin_utils \
    jasmin_array \
    jasmin_word  \
+   jasmin_memory \
    jasmin_model \
    \
    gimliv_ct_proof \

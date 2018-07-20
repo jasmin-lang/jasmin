@@ -110,7 +110,7 @@ proof.
           [loadW32 mem p; loadW32 mem (p + (of_int 4)%W64);
            loadW32 mem (p + (of_int 8)%W64); loadW32 mem (p + (of_int 12)%W64)] =
          W4u32.Pack.init (fun i => loadW32 mem (p + W64.of_int (i * 4))).
-  + by apply W4u32.Pack.ext_eq_all; rewrite /all_eq.
+  + by apply W4u32.Pack.all_eqP; rewrite /all_eq.
   apply (can_inj _ _ W4u32.unpack32K); apply W4u32.Pack.packP => i hi.
   by rewrite pack4K initiE //=  get_unpack32 // loadW128_bits32.
 qed.
@@ -163,7 +163,7 @@ lemma store4u32 mem ptr w0 w1 w2 w3 :
 proof.
   rewrite storeW128E !storeW32E.
   rewrite /W4u8.Pack.to_list /mkseq /= /stores /=.
-  by rewrite size_to_list /= !pack4u32_bits8_nth.
+  by rewrite !pack4u32_bits8_nth //.
 qed.
 
 (* ------------------------------------------------------------------- *)
