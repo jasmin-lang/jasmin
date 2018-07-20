@@ -100,48 +100,6 @@ abstract theory MonoArray.
   proof. by rewrite set_set_if => ->. qed.
 
   (* -------------------------------------------------------------------- *)
-  op create (a:elem) = init (fun (i:int) => a)
-  axiomatized by createE.
-
-  lemma createiE (a:elem) i : 0 <= i < size => (create a).[i] = a.
-  proof. by rewrite createE;apply initiE. qed.
-
-  hint simplify createiE.
-
-  (* -------------------------------------------------------------------- *)
-  op map (f: elem -> elem) (t:t) : t = 
-     init (fun i => f t.[i])
-  axiomatized by mapE.
-
-  lemma mapiE f t i : 0 <= i < size => (map f t).[i] = f t.[i].
-  proof. by rewrite mapE;apply initiE. qed.
-
-  hint simplify mapiE.
- 
-  (* -------------------------------------------------------------------- *)
-  op map2 (f: elem -> elem -> elem) (t1 t2:t) : t = 
-     init (fun i => f t1.[i] t2.[i])
-  axiomatized by map2E.
-
-  lemma map2iE f t1 t2 i : 0 <= i < size => (map2 f t1 t2).[i] = f t1.[i] t2.[i].
-  proof. by rewrite map2E;apply initiE. qed.
-
-  hint simplify map2iE.
-  
-  (* -------------------------------------------------------------------- *)
-  op all_eq (t1 t2: t) =
-    all (fun x => t1.[x] = t2.[x]) (iota_ 0 size).
-
-  lemma ext_eq_all (t1 t2: t) : 
-    all_eq t1 t2 <=> t1 = t2.
-  proof. 
-    split.
-    + by move=> /allP h; apply ext_eq => x /mem_range; apply h. 
-    by move=> ->;apply /allP.
-  qed.
-  
-  (* -------------------------------------------------------------------- *)
-
   op of_list (l:elem list) = 
     init (fun i => nth dfl l i)
   axiomatized by of_listE.
@@ -149,8 +107,11 @@ abstract theory MonoArray.
   op to_list (t:t) = 
     mkseq (fun i => t.[i]) size.
 
+  lemma to_listE (t:t) : to_list t = map (fun i => t.[i]) (iota_ 0 size).
+  proof. done. qed.
+
   lemma size_to_list (t:t): size (to_list t) = size.
-  proof. rewrite size_mkseq /max; smt (ge0_size). qed.
+  proof. rewrite /to_listE size_mkseq /max; smt (ge0_size). qed.
 
   lemma get_of_list (l:elem list) i : 0 <= i < size =>
     (of_list l).[i] = nth dfl l i.
@@ -161,8 +122,6 @@ abstract theory MonoArray.
     rewrite nth_mkseq_if; case:(0 <= i < size) => hi //.
     rewrite get_out //.
   qed.
-
-  hint simplify (get_of_list, get_to_list).
 
   lemma of_listK (l : elem list) : size l = size =>
     to_list (of_list l) = l.
@@ -181,22 +140,92 @@ abstract theory MonoArray.
   lemma to_list_inj : injective to_list.
   proof. by apply/(can_inj _ _ to_listK). qed.
 
-  (* The following rules are for reduction *)
+  hint simplify (get_of_list, get_to_list)@0.
+  hint simplify to_listK@0.
+  hint simplify to_listE@1.
+
+  lemma init_of_list f : init f = of_list (map f (iota_ 0 size)).
+  proof. 
+    apply tP => i hi;rewrite get_of_list // (nth_map 0) 1:size_iota 1:/#.
+    by rewrite nth_iota // initiE.
+  qed.
+
+  hint simplify init_of_list@1.
+ 
+  (* -------------------------------------------------------------------- *)
+  op create (a:elem) = init (fun (i:int) => a).
+
+  lemma createiE (a:elem) i : 0 <= i < size => (create a).[i] = a.
+  proof. by apply initiE. qed.
+
+  lemma createL (a:elem) : create a = of_list (map (fun i => a) (iota_ 0 size)).
+  proof. by rewrite /create. qed.
+
+  hint simplify (createiE, createL).
+
+  (* -------------------------------------------------------------------- *)
+  op map (f: elem -> elem) (t:t) : t = 
+     init (fun i => f t.[i]).
+
+  lemma mapiE f t i : 0 <= i < size => (map f t).[i] = f t.[i].
+  proof. by rewrite /map;apply initiE. qed.
 
   lemma map_of_list f ws :
     map f (of_list ws) = of_list (mapN f dfl ws size).
   proof.
     by apply tP => i hi; rewrite mapiE // !get_of_list // nth_mapN.
   qed.
- 
+
+  lemma map_to_list f t :
+    map f t = of_list (map f (to_list t)).
+  proof. rewrite to_listE /map /= -map_comp //. qed.
+  
+  hint simplify (mapiE, map_of_list)@0.
+(*  hint simplify map_to_list@1. *)
+  
+  (* -------------------------------------------------------------------- *)
+  op map2 (f: elem -> elem -> elem) (t1 t2:t) : t = 
+    init (fun i => f t1.[i] t2.[i]).
+
+  lemma map2iE f t1 t2 i : 0 <= i < size => (map2 f t1 t2).[i] = f t1.[i] t2.[i].
+  proof. by rewrite /map2;apply initiE. qed.
+
   lemma map2_of_list f ws1 ws2 :
     map2 f (of_list ws1) (of_list ws2) = of_list (mapN2 f dfl dfl ws1 ws2 size).
   proof.
     by apply tP => i hi; rewrite map2iE // !get_of_list // nth_mapN2.
   qed.
 
-  hint simplify (map_of_list, map2_of_list)@0.
+  lemma map2_to_list f t1 t2 :
+    map2 f t1 t2 = of_list (map2 f (to_list t1) (to_list t2)).
+  proof. 
+    rewrite to_listE /map2 map2_zip/=;congr.
+    apply (eq_from_nth dfl).   
+    + by rewrite !size_map size_zip !size_map min_ler.
+    move=> i; rewrite size_map => hi.
+    rewrite (nth_map 0) 1:// (nth_map (dfl,dfl)).
+    + by rewrite size_zip min_ler !size_map.
+    by rewrite /= nth_zip ?size_map // !(nth_map 0).
+  qed.
+ 
+  hint simplify (map2iE, map2_of_list)@0.
+(*  hint simplify (map2_to_list)@1. *)
+  
+  (* -------------------------------------------------------------------- *)
+  op all_eq (t1 t2: t) =
+    all (fun x => t1.[x] = t2.[x]) (iota_ 0 size).
 
+  lemma all_eq_eq (t1 t2: t) : all_eq t1 t2 => t1 = t2.
+  proof.
+    by move=> /allP h; apply ext_eq => x /mem_range; apply h. 
+  qed.
+
+  lemma all_eqP (t1 t2: t) : all_eq t1 t2 <=> t1 = t2.
+  proof. 
+    split; 1:by apply all_eq_eq.
+    by move=> ->;apply /allP.
+  qed.
+   
   (* -------------------------------------------------------------------- *)
   op fill (f : int -> elem) (k len : int) (t : t) = 
     init (fun i => if k <= i < k + len then f i else t.[i])

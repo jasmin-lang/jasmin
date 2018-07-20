@@ -4,7 +4,7 @@ equiv rotate_ref_ref1 : Gimli_ref.M.rotate ~ Gimli_ref1.M.rotate : ={x,bits} /\ 
 proof.
   proc;auto => &m1 &m2 /> ??.
   rewrite x86_ROL_32_E /= rol_xor.
-  + by rewrite modz_small /#.
+  + rewrite W8.of_uintK modz_small /#.
   rewrite /(`<<`) /(`>>`) !of_uintK /= !modz_small /#.
 qed. 
 
@@ -73,14 +73,16 @@ proof. by case b. qed.
 lemma b_eq_true b : (b = true) = b.
 proof. by case b. qed.
 
-hint simplify (false_eq_not_b, b_eq_true). 
+hint simplify (false_eq_not_b, b_eq_true, W8.of_uintK).
+hint simplify W32.get_out@0.
 
 lemma rotate24E w :
     (x86_VPSHUFB_128  w (W128.of_int 16028905388486802350658220295983399425))
   = (x86_VPSLL_4u32 w (W8.of_int 24) `^` x86_VPSRL_4u32 w (W8.of_int 8)).
 proof.
-  by rewrite -W128.ext_eq_all; cbv delta.
-qed.  
+  apply W128.all_eq_eq.
+  by cbv delta => /=. (* FIXME: why /= is necessary after cbv delta *)
+qed.
 hint simplify rotate24E.
 
 equiv vec1_vec : Gimliv1.M.gimli1 ~ Gimliv.M.gimli : 

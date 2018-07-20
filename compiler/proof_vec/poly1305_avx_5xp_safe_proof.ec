@@ -200,7 +200,7 @@ proof.
   seq 9 : (#pre /\ is_init h /\ is_init b64 /\ 
             to_uint (oget b64) = to_uint inlen %/ 64).
   + conseq />; unroll for 2; wp; skip => /> &1.
-    by rewrite to_uint_shl; cbv delta.
+    by rewrite /W64.(`>>`) W64.to_uint_shr;cbv delta.
   seq 1 : (M.safe /\
            valid_range W64 Glob.mem (oget s_k + (of_int 16)%W64) 2 /\
            valid_range W8 Glob.mem in_0 (to_uint (oget s_inlen) %% 64) /\

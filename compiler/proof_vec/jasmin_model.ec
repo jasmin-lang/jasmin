@@ -106,14 +106,13 @@ op x86_VPSHUFD_128 (w : W128.t) (m : W8.t) : W128.t =
 (* -------------------------------------------------------------------- *)
 
 op mulu_64 (w1 w2 : W64.t) = 
-  let (p1,p2) = (W32.mulu (w1 \bits32 0) (w2 \bits32 0)) in
-  pack2 [p1; p2].
+  (W2u32.zeroextu64 (W2u32.truncateu32 w1)) *
+  (W2u32.zeroextu64 (W2u32.truncateu32 w2)).
  
 (* -------------------------------------------------------------------- *)
 
 op x86_VPADD_2u64 (w1 : W128.t) (w2:W128.t) = 
    map2 W64.(+) w1 w2.
-
 
 op x86_VPEXTR_64 (w:W128.t) (i:W8.t) = 
   if W8.to_uint i = 0 then (w \bits64 0)
