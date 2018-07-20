@@ -71,10 +71,10 @@ gimliv_ct.ec: $(TOP)/examples/gimli/gimliv.jazz $(JASMINC)
 gimliv_safe.ec: $(TOP)/examples/gimli/gimliv.jazz $(JASMINC)
 	$(JASMINC) -oec $@ -ec gimli -safety $<
 
-poly1305_amd64_5x.ec: $(POLY1305)/amd64-5x/auth.jazz $(JASMINC)
+poly1305_amd64_5x.ec: $(POLY1305)/ref-5xpv/auth.jazz $(JASMINC)
 	$(JASMINC) -oec $@ -ec poly1305 $<
 
-poly1305_amd64_5xPR.ec: $(POLY1305)/amd64-5x/auth_for_proof.jazz $(JASMINC)
+poly1305_amd64_5xPR.ec: $(POLY1305)/ref-5xpv/auth_for_proof.jazz $(JASMINC)
 	$(JASMINC) -oec $@ -ec poly1305 $<
 
 poly1305_avx_5x.ec: $(POLY1305)/avx-5x/auth.jazz $(JASMINC)
@@ -89,10 +89,10 @@ poly1305_avx_5xp_ct.ec: $(POLY1305)/avx-5xp/auth.jazz $(JASMINC)
 poly1305_avx_5xp_safe.ec: $(POLY1305)/avx-5xp/auth.jazz $(JASMINC)
 	$(JASMINC) -oec $@ -ec poly1305 -safety $<
 
-poly1305_amd64_5x_ct.ec: $(POLY1305)/amd64-5x/auth.jazz $(JASMINC)
+poly1305_amd64_5x_ct.ec: $(POLY1305)/ref-5xpv/auth.jazz $(JASMINC)
 	$(JASMINC) -oec $@ -ec poly1305 -CT $<
 
-poly1305_amd64_5x_safe.ec: $(POLY1305)/amd64-5x/auth.jazz $(JASMINC)
+poly1305_amd64_5x_safe.ec: $(POLY1305)/ref-5xpv/auth.jazz $(JASMINC)
 	$(JASMINC) -oec $@ -ec poly1305 -safety $<
 
 %.ec: $(JASMINC)
