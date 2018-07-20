@@ -745,6 +745,11 @@ module Leak = struct
     | E.Odiv (E.Cmp_w(_, s)) -> NotZero (s, e2) :: safe 
     | E.Omod (E.Cmp_w(_, s)) -> NotZero (s, e2) :: safe 
 
+  let is_init env x safe = 
+    let (_s,option) = Mv.find (L.unloc x) env.vars in
+    if option then Initv (L.unloc x) :: safe
+    else safe
+    
   let rec safe_e_rec env safe = function
     | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ -> safe
     | Pvar x -> 
@@ -754,7 +759,8 @@ module Leak = struct
         | Arr(_,n) -> Inita (L.unloc x, n) :: safe
         | _ -> Initv(L.unloc x) :: safe 
       else safe 
-    | Pload (ws,x,e) -> Valid (ws, snd (add64 x e)) :: safe_e_rec env safe e 
+    | Pload (ws,x,e) -> 
+      is_init env x (Valid (ws, snd (add64 x e)) :: safe_e_rec env safe e)
     | Pcast (_, e) | Papp1 (_, e) -> safe_e_rec env safe e
     | Pget (x, e) -> 
       let safe = 
@@ -801,7 +807,8 @@ module Leak = struct
 
   let safe_lval env = function
     | Lnone _ | Lvar _ -> []
-    | Lmem(ws, x, e) -> Valid (ws, snd (add64 x e)) :: safe_e_rec env [] e 
+    | Lmem(ws, x, e) -> 
+      is_init env x (Valid (ws, snd (add64 x e)) :: safe_e_rec env [] e)
     | Laset(x,e) -> in_bound x e :: safe_e_rec env [] e 
 
   let pp_safe_e env fmt = function
