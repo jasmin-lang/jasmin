@@ -863,6 +863,32 @@ qed.
 
 end BitWord.
 
+theory W8.
+  abbrev [-printing] size = 8.
+  clone include BitWord with op size <- 8
+  proof gt0_size by done.
+
+  op (`>>`) (w1 w2 : W8.t) = w1 `>>>` (to_uint w2 %% size).
+  op (`<<`) (w1 w2 : W8.t) = w1 `<<<` (to_uint w2 %% size). 
+
+  lemma shr_div w1 w2 : to_uint (w1 `>>` w2) = to_uint w1 %/ 2^ (to_uint w2 %% size).
+  proof.
+    rewrite -{1}(to_uintK w1) /(`>>`) shrDP; 1: smt (modz_cmp).
+    rewrite of_uintK to_uint_mod modz_small 2://.
+    apply bound_abs; apply divz_cmp; 1: by apply gt0_pow2.
+    by have:= to_uint_cmp w1; smt (gt0_pow2).
+  qed.
+
+  lemma shr_div_le w1 i : 0 <= i < size => 
+       to_uint (w1 `>>` (of_int i)) = to_uint w1 %/ 2^i.
+  proof.
+    move=> hi;rewrite shr_div of_uintK.
+    rewrite (modz_small i);1: smt (pow2_8).
+    by rewrite modz_small.
+  qed.
+
+end W8. export W8. 
+
 abstract theory WT.
   type t.
   op size : int.
@@ -874,7 +900,11 @@ abstract theory WT.
   op andw : t -> t -> t.
   op orw  : t -> t -> t.
   op (+^) : t -> t -> t.
+  
+  op (+) : t -> t -> t.
 
+  op (`>>`) : t -> W8.t -> t. 
+  op (`<<`) : t -> W8.t -> t.
   op of_int : int -> t.
   op to_uint : t -> int.
   op to_sint : t -> int.
@@ -959,6 +989,8 @@ abstract theory W_WS.
 
   op unpack'S (w:WB.t) : pack_t = 
     Pack.init (fun i => w \bits'S i).
+
+  abbrev to_list (w:WB.t) : WS.t list = Pack.to_list (unpack'S w).
 
   op pack'R_t (ws:pack_t) = 
     WB.init (fun i => ws.[i %/ sizeS].[i %% sizeS])
@@ -1113,33 +1145,19 @@ abstract theory W_WS.
      by move=> ?;apply ler_pemulr => // /#.
    qed.
 
+   op x86_VPADD_'Ru'S (w1 : WB.t) (w2:WB.t) = 
+     map2 WS.(+) w1 w2.
+
+   op x86_VPSLL_'Ru'S (w : WB.t) (cnt : W8.t) = 
+     map (fun (w:WS.t) => w `<<` cnt) w.
+
+   op x86_VPSRL_'Ru'S (w : WB.t) (cnt : W8.t) = 
+     map (fun (w:WS.t) => w `>>` cnt) w.
+
+   op x86_VPBROADCAST_'Ru'S (w: WS.t) = 
+     pack'R (map (fun i => w) (iota_ 0 r)).
+
 end W_WS.
-
-theory W8.
-  abbrev [-printing] size = 8.
-  clone include BitWord with op size <- 8
-  proof gt0_size by done.
-
-  op (`>>`) (w1 w2 : W8.t) = w1 `>>>` (to_uint w2 %% size).
-  op (`<<`) (w1 w2 : W8.t) = w1 `<<<` (to_uint w2 %% size). 
-
-  lemma shr_div w1 w2 : to_uint (w1 `>>` w2) = to_uint w1 %/ 2^ (to_uint w2 %% size).
-  proof.
-    rewrite -{1}(to_uintK w1) /(`>>`) shrDP; 1: smt (modz_cmp).
-    rewrite of_uintK to_uint_mod modz_small 2://.
-    apply bound_abs; apply divz_cmp; 1: by apply gt0_pow2.
-    by have:= to_uint_cmp w1; smt (gt0_pow2).
-  qed.
-
-  lemma shr_div_le w1 i : 0 <= i < size => 
-       to_uint (w1 `>>` (of_int i)) = to_uint w1 %/ 2^i.
-  proof.
-    move=> hi;rewrite shr_div of_uintK.
-    rewrite (modz_small i);1: smt (pow2_8).
-    by rewrite modz_small.
-  qed.
-
-end W8. export W8. 
 
 abstract theory BitWordSH.
   op size : int.
@@ -1178,7 +1196,7 @@ clone export W_WS as W2u8 with
   op sizeS <- W8.size, op sizeB <- W16.size, op r <- 2, 
   theory WS <- W8, theory WB <- W16
   proof gt0_r by done, sizeBrS by done
-  rename [op, lemma] "'R" as "2" "'S" as "8" "'B" as "16".
+  rename [op, lemma] "'Ru'S" as "2u8" "'R" as "2" "'S" as "8" "'B" as "16" .
 
 theory W32.
   abbrev [-printing] size = 32.
@@ -1191,13 +1209,13 @@ clone export W_WS as W4u8 with
   op sizeS <- W8.size, op sizeB <- W32.size, op r <- 4, 
   theory WS <- W8, theory WB <- W32
   proof gt0_r by done, sizeBrS by done
-  rename [op, lemma] "'R" as "4" "'S" as "8" "'B" as "32". 
+  rename [op, lemma] "'Ru'S" as "4u8" "'R" as "4" "'S" as "8" "'B" as "32". 
 
 clone export W_WS as W2u16 with 
   op sizeS <- W16.size, op sizeB <- W32.size, op r <- 2, 
   theory WS <- W16, theory WB <- W32
   proof gt0_r by done, sizeBrS by done
-  rename [op, lemma] "'R" as "2" "'S" as "16" "'B" as "32". 
+  rename [op, lemma] "'Ru'S" as "2u16" "'R" as "2" "'S" as "16" "'B" as "32". 
 
 theory W64.
   abbrev [-printing] size = 64.
@@ -1210,19 +1228,19 @@ clone export W_WS as W8u8 with
   op sizeS <- W8.size, op sizeB <- W64.size, op r <- 8, 
   theory WS <- W8, theory WB <- W64
   proof gt0_r by done, sizeBrS by done
-  rename [op, lemma] "'R" as "8" "'S" as "8" "'B" as "64". 
+  rename [op, lemma] "'Ru'S" as "8u8" "'R" as "8" "'S" as "8" "'B" as "64". 
 
 clone export W_WS as W4u16 with 
   op sizeS <- W16.size, op sizeB <- W64.size, op r <- 4, 
   theory WS <- W16, theory WB <- W64
   proof gt0_r by done, sizeBrS by done
-  rename [op, lemma] "'R" as "4" "'S" as "16" "'B" as "64". 
+  rename [op, lemma] "'Ru'S" as "4u16" "'R" as "4" "'S" as "16" "'B" as "64". 
 
 clone export W_WS as W2u32 with 
   op sizeS <- W32.size, op sizeB <- W64.size, op r <- 2, 
   theory WS <- W32, theory WB <- W64
   proof gt0_r by done, sizeBrS by done
-  rename [op, lemma] "'R" as "2" "'S" as "32" "'B" as "64". 
+  rename [op, lemma] "'Ru'S" as "2u32" "'R" as "2" "'S" as "32" "'B" as "64". 
 
 theory W128.
   abbrev [-printing] size = 128.
@@ -1235,25 +1253,25 @@ clone export W_WS as W16u8 with
   op sizeS <- W8.size, op sizeB <- W128.size, op r <- 16, 
   theory WS <- W8, theory WB <- W128
   proof gt0_r by done, sizeBrS by done
-  rename [op, lemma] "'R" as "16" "'S" as "8" "'B" as "128". 
+  rename [op, lemma] "'Ru'S" as "16u8" "'R" as "16" "'S" as "8" "'B" as "128". 
 
 clone export W_WS as W8u16 with 
   op sizeS <- W16.size, op sizeB <- W128.size, op r <- 8, 
   theory WS <- W16, theory WB <- W128
   proof gt0_r by done, sizeBrS by done
-  rename [op, lemma] "'R" as "8" "'S" as "16" "'B" as "128". 
+  rename [op, lemma] "'Ru'S" as "8u16" "'R" as "8" "'S" as "16" "'B" as "128". 
 
 clone export W_WS as W4u32 with 
   op sizeS <- W32.size, op sizeB <- W128.size, op r <- 4, 
   theory WS <- W32, theory WB <- W128
   proof gt0_r by done, sizeBrS by done
-  rename [op, lemma] "'R" as "4" "'S" as "32" "'B" as "128". 
+  rename [op, lemma] "'Ru'S" as "4u32" "'R" as "4" "'S" as "32" "'B" as "128". 
 
 clone export W_WS as W2u64 with 
   op sizeS <- W64.size, op sizeB <- W128.size, op r <- 2, 
   theory WS <- W64, theory WB <- W128
   proof gt0_r by done, sizeBrS by done
-  rename [op, lemma] "'R" as "2" "'S" as "64" "'B" as "128". 
+  rename [op, lemma] "'Ru'S" as "2u64" "'R" as "2" "'S" as "64" "'B" as "128". 
 
 theory W256.
   abbrev [-printing] size = 256.
@@ -1266,31 +1284,31 @@ clone export W_WS as W32u8 with
   op sizeS <- W8.size, op sizeB <- W256.size, op r <- 32, 
   theory WS <- W8, theory WB <- W256
   proof gt0_r by done, sizeBrS by done
-  rename [op, lemma] "'R" as "32" "'S" as "8" "'B" as "256". 
+  rename [op, lemma] "'Ru'S" as "32u8" "'R" as "32" "'S" as "8" "'B" as "256". 
 
 clone export W_WS as W16u16 with 
   op sizeS <- W16.size, op sizeB <- W256.size, op r <- 16, 
   theory WS <- W16, theory WB <- W256
   proof gt0_r by done, sizeBrS by done
-  rename [op, lemma] "'R" as "16" "'S" as "16" "'B" as "256". 
+  rename [op, lemma] "'Ru'S" as "16u16" "'R" as "16" "'S" as "16" "'B" as "256". 
 
 clone export W_WS as W8u32 with 
   op sizeS <- W32.size, op sizeB <- W256.size, op r <- 8, 
   theory WS <- W32, theory WB <- W256
   proof gt0_r by done, sizeBrS by done
-  rename [op, lemma] "'R" as "8" "'S" as "32" "'B" as "256". 
+  rename [op, lemma] "'Ru'S" as "8u32" "'R" as "8" "'S" as "32" "'B" as "256". 
 
 clone export W_WS as W4u64 with 
   op sizeS <- W64.size, op sizeB <- W256.size, op r <- 4, 
   theory WS <- W64, theory WB <- W256
   proof gt0_r by done, sizeBrS by done
-  rename [op, lemma] "'R" as "4" "'S" as "64" "'B" as "256". 
+  rename [op, lemma] "'Ru'S" as "4u64" "'R" as "4" "'S" as "64" "'B" as "256". 
 
 clone export W_WS as W2u128 with 
   op sizeS <- W128.size, op sizeB <- W256.size, op r <- 2, 
   theory WS <- W128, theory WB <- W256
   proof gt0_r by done, sizeBrS by done
-  rename [op, lemma] "'R" as "2" "'S" as "128" "'B" as "256". 
+  rename [op, lemma] "'Ru'S" as "2u128" "'R" as "2" "'S" as "128" "'B" as "256". 
 
 
 (* -------------------------------------------------------------------- *)
