@@ -33,9 +33,9 @@ type env = {
     alls : Ss.t;
     vars : (string * bool) Mv.t;  (* true means option type *)
     glob : (string * Type.stype) Ms.t;
+    funs : (string * (Type.stype list * Type.stype list)) Mf.t;  
     arrsz : Sint.t;
     auxv  : string list Mty.t;
-    funty : (Type.stype list * Type.stype list) Mf.t;  
   }
 
 let for_constTime env = env.model = Utils.ConstantTime
@@ -266,25 +266,10 @@ let ec_keyword =
  ; "expect" ]
 
 let internal_keyword = 
-  [ "global_safe" ]
+  [ "safe"; "leakages"]
 
 let keywords = 
   Ss.union (Ss.of_list ec_keyword) (Ss.of_list internal_keyword)
-
-let empty_env model fds = 
-  let mk_tys tys = List.map Conv.cty_of_ty tys in
-  let add_fun m fd = 
-    Mf.add fd.f_name (mk_tys fd.f_tyout, mk_tys fd.f_tyin) m in
-  { model;
-    alls = keywords;
-    vars = Mv.empty;
-    glob = Ms.empty;
-    arrsz = Sint.empty;
-    auxv  = Mty.empty ;
-    funty = List.fold_left add_fun Mf.empty fds 
-  }
-
-let get_funtype env f = Mf.find f env.funty 
 
 let create_name env s = 
   if not (Ss.mem s env.alls) then s
@@ -295,6 +280,42 @@ let create_name env s =
       else s in
     aux 0
  
+let mkfunname env fn = 
+  let s = fn.fn_name in
+  let s = 
+    let c0 = s.[0] in
+    let l0 = Char.lowercase_ascii c0 in
+    if c0 = l0 then s
+    else 
+      String.init (String.length s) (fun i -> if i = 0 then l0 else s.[i]) 
+  in
+  create_name env s
+
+let empty_env model fds = 
+
+  let env = { 
+    model;
+    alls = keywords;
+    vars = Mv.empty;
+    glob = Ms.empty;
+    funs = Mf.empty;
+    arrsz = Sint.empty;
+    auxv  = Mty.empty ;
+  } in
+
+  let mk_tys tys = List.map Conv.cty_of_ty tys in
+  let add_fun env fd = 
+    let s = mkfunname env fd.f_name in
+    let funs = 
+      Mf.add fd.f_name (s, (mk_tys fd.f_tyout, mk_tys fd.f_tyin)) env.funs in
+    { env with funs; alls = Ss.add s env.alls } in
+
+  List.fold_left add_fun env fds
+
+let get_funtype env f = snd (Mf.find f env.funs)
+let get_funname env f = fst (Mf.find f env.funs) 
+let pp_fname env fmt f = Format.fprintf fmt "%s" (get_funname env f)
+
 let ty_lval = function
   | Lnone (_, ty) -> ty
   | Lvar x -> (L.unloc x).v_ty
@@ -681,10 +702,10 @@ module Normal = struct
       let pp_args fmt es = 
         pp_list ",@ " (pp_wcast env) fmt (List.combine itys es) in
       if lvs = [] then 
-        Format.fprintf fmt "@[%s (%a);@]" f.fn_name pp_args es
+        Format.fprintf fmt "@[%a (%a);@]" (pp_fname env) f pp_args es
       else
         let pp fmt es = 
-          Format.fprintf fmt "<%@ %s (%a)" f.fn_name pp_args es in
+          Format.fprintf fmt "<%@ %a (%a)" (pp_fname env) f pp_args es in
         pp_call env fmt lvs otys pp es 
 
     | Cif(e,c1,c2) ->
@@ -951,10 +972,10 @@ module Leak = struct
         pp_list ",@ " (pp_wcast env) fmt (List.combine itys es) in
       pp_leaks_es env fmt es;
       if lvs = [] then 
-        Format.fprintf fmt "@[%s (%a);@]" f.fn_name pp_args es
+        Format.fprintf fmt "@[%a (%a);@]" (pp_fname env) f pp_args es
       else
         let pp fmt es = 
-          Format.fprintf fmt "<%@ %s (%a)" f.fn_name pp_args es in
+          Format.fprintf fmt "<%@ %a (%a)" (pp_fname env) f pp_args es in
         pp_call env fmt lvs otys pp es 
 
     | Cif(e,c1,c2) ->
@@ -1031,8 +1052,8 @@ let pp_fun env fmt f =
     if env.model = Normal then Normal.pp_cmd
     else Leak.pp_cmd in
   Format.fprintf fmt 
-    "@[<v>proc %s (%a) : %a = {@   @[<v>%a@ %a@ %a@ %a%a@]@ }@]"
-    f.f_name.fn_name 
+    "@[<v>proc %a (%a) : %a = {@   @[<v>%a@ %a@ %a@ %a%a@]@ }@]"
+    (pp_fname env) f.f_name
     (pp_params env) f.f_args 
     (pp_rty false) f.f_tyout
     pp_aux env
