@@ -924,7 +924,7 @@ Definition wperm2i128 (w1 w2: u256) (i: u8) : u256 :=
       end in
   let lo := if wbit_n i 3 then 0%R else choose 0%nat in
   let hi := if wbit_n i 7 then 0%R else choose 4%nat in
-  make_vec U256 [:: hi ; lo ].
+  make_vec U256 [:: lo ; hi ]. 
 
 (* -------------------------------------------------------------------*)
 Definition wpermq (w: u256) (i: u8) : u256 :=
