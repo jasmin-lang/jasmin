@@ -680,9 +680,9 @@ module Normal = struct
 
   and pp_instr env fmt i = 
     match i.i_desc with 
-    | Cassgn (lv, _, ty, e) ->
+    | Cassgn (lv, _, _ty, e) ->
       let pp_e = pp_cast (pp_expr env) in
-      pp_lval1 env pp_e fmt (lv , (Conv.cty_of_ty ty, e))
+      pp_lval1 env pp_e fmt (lv , (ty_expr e, e))
 
     | Copn(lvs, _, op, es) ->
       let otys,itys = E.sopn_tout op, E.sopn_tin op in
