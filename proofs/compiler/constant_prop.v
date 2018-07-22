@@ -28,6 +28,7 @@ From CoqWord Require Import ssrZ.
 Require Import expr ZArith psem.
 Import all_ssreflect all_algebra.
 Import Utf8.
+Import oseq.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -202,30 +203,41 @@ Definition sneq ty e1 e2 :=
   | None      => Papp2 (Oneq ty) e1 e2
   end.
 
+Definition is_cmp_const (ty: cmp_kind) (e: pexpr) : option Z :=
+  match ty with
+  | Cmp_int => is_const e
+  | Cmp_w sg sz =>
+    is_wconst sz e >>= λ w,
+    Some match sg with
+    | Signed => wsigned w
+    | Unsigned => wunsigned w
+    end
+  end%O.
+
 Definition slt ty e1 e2 := 
   if eq_expr e1 e2 then Pbool false 
-  else match is_const e1, is_const e2 with
+  else match is_cmp_const ty e1, is_cmp_const ty e2 with
   | Some n1, Some n2 => Pbool (n1 <? n2)%Z
   | _      , _       => Papp2 (Olt ty) e1 e2 
   end.
 
 Definition sle ty e1 e2 := 
   if eq_expr e1 e2 then Pbool true 
-  else match is_const e1, is_const e2 with
+  else match is_cmp_const ty e1, is_cmp_const ty e2 with
   | Some n1, Some n2 => Pbool (n1 <=? n2)%Z
   | _      , _       => Papp2 (Ole ty) e1 e2 
   end.
 
 Definition sgt ty e1 e2 := 
   if eq_expr e1 e2 then Pbool false 
-  else match is_const e1, is_const e2 with
+  else match is_cmp_const ty e1, is_cmp_const ty e2 with
   | Some n1, Some n2 => Pbool (n1 >? n2)%Z
   | _      , _       => Papp2 (Ogt ty) e1 e2 
   end.
 
-Definition sge ty e1 e2 := 
+Definition sge ty e1 e2 :=
   if eq_expr e1 e2 then Pbool true 
-  else match is_const e1, is_const e2 with
+  else match is_cmp_const ty e1, is_cmp_const ty e2 with
   | Some n1, Some n2 => Pbool (n1 >=? n2)%Z
   | _      , _       => Papp2 (Oge ty) e1 e2 
   end.

@@ -328,6 +328,37 @@ Proof.
   done.
 Qed.
 
+Lemma is_cmp_constP s ty e z :
+  is_cmp_const ty e = Some z →
+  match ty with
+  | Cmp_int => e = Pconst z
+  | Cmp_w sg sz =>
+    exists2 x,
+    sem_pexpr gd s e = ok x &
+    exists2 w,
+    to_word sz x = ok w &
+    match sg with
+    | Signed => wsigned w = z
+    | Unsigned => wunsigned w = z
+    end
+  end.
+Proof.
+  case: ty => /=.
+  - by case: is_constP => // ? /(@Some_inj _ _ _) <-.
+  move => sg sz /oseq.obindI [] w [] /(is_wconstP gd s).
+  t_xrbindP => v -> ok_w [<-{z}].
+  exists v => //.
+  exists w => //.
+  by case: sg.
+Qed.
+
+Ltac is_cmp_const s :=
+  match goal with
+  | |- context[ is_cmp_const ?ty ?e ] =>
+    case: is_cmp_const (@is_cmp_constP s ty e);
+    [ let n := fresh in move => n /(_ _ erefl); move: n | ]
+  end.
+
 Lemma sltP ty e1 e2 : Papp2 (Olt ty) e1 e2 =E slt ty e1 e2.
 Proof.
   rewrite /slt;case:ifP => [ /eq_exprP Hs s v /=| _ ].
@@ -336,10 +367,16 @@ Proof.
     (eexists; split; first reflexivity).
     - by rewrite Z.ltb_irrefl.
     by rewrite wlt_irrefl.
-  apply: eeq_weaken.
-  case: (is_constP e1) => [n1| {e1} e1];last by auto.
-  case: (is_constP e2) => [n2 ?? /=| {e2} e2];last by auto.
-  by case: ty.
+  apply: eeq_weaken => s.
+  is_cmp_const s; last by move => _; exact: eeq_w_refl.
+  move => n1 h1.
+  is_cmp_const s; last by move => _; exact: eeq_w_refl.
+  move => n2.
+  case: ty h1.
+  + move => -> ->; exact: eeq_w_refl.
+  move => sg sz [] v1 ok_v1 [] w1 ok_w1 h1 [] v2 ok_v2 [] w2 ok_w2.
+  by case: sg h1 => <- <- v;
+    rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= ok_w1 ok_w2 /= ssrZ.ltzE.
 Qed.
 
 Lemma sleP ty e1 e2 : Papp2 (Ole ty) e1 e2 =E sle ty e1 e2.
@@ -350,10 +387,16 @@ Proof.
     (eexists; split; first reflexivity).
     - by rewrite Z.leb_refl.
     by rewrite wle_refl.
-  apply: eeq_weaken.
-  case: (is_constP e1) => [n1| {e1} e1];last by auto.
-  case: (is_constP e2) => [n2 ?? /=| {e2} e2];last by auto.
-  by case: ty.
+  apply: eeq_weaken => s.
+  is_cmp_const s; last by move => _; exact: eeq_w_refl.
+  move => n1 h1.
+  is_cmp_const s; last by move => _; exact: eeq_w_refl.
+  move => n2.
+  case: ty h1.
+  + move => -> ->; exact: eeq_w_refl.
+  move => sg sz [] v1 ok_v1 [] w1 ok_w1 h1 [] v2 ok_v2 [] w2 ok_w2.
+  by case: sg h1 => <- <- v;
+    rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= ok_w1 ok_w2 /= ssrZ.lezE.
 Qed.
 
 Lemma sgtP ty e1 e2 : Papp2 (Ogt ty) e1 e2 =E sgt ty e1 e2.
@@ -364,10 +407,16 @@ Proof.
     (eexists; split; first reflexivity).
     - by rewrite Z.gtb_ltb Z.ltb_irrefl.
     by rewrite wlt_irrefl.
-  apply: eeq_weaken.
-  case: (is_constP e1) => [n1| {e1} e1];last by auto.
-  case: (is_constP e2) => [n2 ?? /=| {e2} e2];last by auto.
-  by case: ty.
+  apply: eeq_weaken => s.
+  is_cmp_const s; last by move => _; exact: eeq_w_refl.
+  move => n1 h1.
+  is_cmp_const s; last by move => _; exact: eeq_w_refl.
+  move => n2.
+  case: ty h1.
+  + move => -> ->; exact: eeq_w_refl.
+  move => sg sz [] v1 ok_v1 [] w1 ok_w1 h1 [] v2 ok_v2 [] w2 ok_w2.
+  by case: sg h1 => <- <- v;
+    rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= ok_w1 ok_w2 /= Z.gtb_ltb ssrZ.ltzE.
 Qed.
 
 Lemma sgeP ty e1 e2 : Papp2 (Oge ty) e1 e2 =E sge ty e1 e2.
@@ -378,10 +427,16 @@ Proof.
     (eexists; split; first reflexivity).
     - by rewrite Z.geb_leb Z.leb_refl.
     by rewrite wle_refl.
-  apply: eeq_weaken.
-  case: (is_constP e1) => [n1| {e1} e1];last by auto.
-  case: (is_constP e2) => [n2 ?? /=| {e2} e2];last by auto.
-  by case: ty.
+  apply: eeq_weaken => s.
+  is_cmp_const s; last by move => _; exact: eeq_w_refl.
+  move => n1 h1.
+  is_cmp_const s; last by move => _; exact: eeq_w_refl.
+  move => n2.
+  case: ty h1.
+  + move => -> ->; exact: eeq_w_refl.
+  move => sg sz [] v1 ok_v1 [] w1 ok_w1 h1 [] v2 ok_v2 [] w2 ok_w2.
+  by case: sg h1 => <- <- v;
+    rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= ok_w1 ok_w2 /= Z.geb_leb ssrZ.lezE.
 Qed.
 
 Lemma sbitwP i (z: ∀ sz, word sz → word sz → word sz) sz e1 e2 :

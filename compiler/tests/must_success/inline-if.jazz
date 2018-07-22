@@ -1,0 +1,12 @@
+export
+fn test() -> reg u64 {
+  reg u64 r;
+  inline u64 c;
+  c = 42;
+  if c >= 1234 {
+    r = 1;
+  } else {
+    r = 0;
+  }
+  return r;
+}
