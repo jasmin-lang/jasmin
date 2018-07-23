@@ -1,0 +1,239 @@
+inline
+fn index(inline int x, inline int y) -> inline int {
+  inline int r;
+  r = (x % 5) + 5 * (y % 5);
+  return r;
+}
+
+inline
+fn ROL64(reg u64 x, inline int c) -> reg u64 {
+  reg u64 y;
+  _, _, y = #x86_ROL_64(x, c);
+  return y;
+}
+
+fn theta(stack u64[25] a) -> stack u64[25] {
+  inline int x, y;
+  reg u64[5] c, d;
+
+  for x = 0 to 5 {
+    c[x] = 0;
+    for y = 0 to 5 {
+      c[x] ^= a[x + 5 * y];
+    }
+  }
+
+  for x = 0 to 5 {
+    d[x] = ROL64(c[(x + 1) % 5], 1);
+    d[x] ^= c[(x + 4) % 5];
+  }
+
+  for x = 0 to 5 {
+    for y = 0 to 5 {
+      a[x + 5 * y] ^= d[x];
+    }
+  }
+
+  return a;
+}
+
+inline
+fn keccakRhoOffsets(inline int i) -> inline int {
+inline int r, x, y, z, t;
+
+  r = 0;
+  x = 1;
+  y = 0;
+  for t = 0 to 24 {
+    if i == x + 5 * y {
+      r = ((t + 1) * (t + 2) / 2) % 64;
+    }
+    z = (2 * x + 3 * y) % 5;
+    x = y;
+    y = z;
+  }
+
+  return r;
+}
+
+fn rho(stack u64[25] a) -> stack u64[25] {
+  inline int x, y, i, z;
+
+  for x = 0 to 5 {
+    for y = 0 to 5 {
+      i = index(x, y);
+      z = keccakRhoOffsets(i);
+      _, _, a[i] = #x86_ROL_64(a[i], z);
+    }
+  }
+
+  return a;
+}
+
+fn pi(stack u64[25] a) -> stack u64[25] {
+  stack u64[25] b;
+  reg u64 t;
+  inline int x, y, i;
+  for i = 0 to 25 { t = a[i]; b[i] = t; }
+
+  for x = 0 to 5 {
+    for y = 0 to 5 {
+      t = b[x + 5 * y];
+      i = index(y, 2 * x + 3 * y);
+      a[i] = t;
+    }
+  }
+  return a;
+}
+
+fn chi(stack u64[25] a) -> stack u64[25] {
+  inline int x, y, i;
+  reg u64[5] c;
+  for y = 0 to 5 {
+    for x = 0 to 5 {
+      i = index(x + 1, y);
+      c[x] = a[i];
+      c[x] = !c[x];
+      i = index(x + 2, y);
+      c[x] &= a[i];
+      i = index(x, y);
+      c[x] ^= a[i];
+    }
+    for x = 0 to 5 {
+      a[x + 5 * y] = c[x];
+    }
+  }
+  return a;
+}
+
+fn iota(stack u64[25] a, reg u64 c) -> stack u64[25] {
+  a[0] ^= c;
+  return a;
+}
+
+fn keccakP1600_round(stack u64[25] state, reg u64 c) -> stack u64[25] {
+  state = theta(state);
+  state = rho(state);
+  state = pi(state);
+  state = chi(state);
+  state = iota(state, c);
+  return state;
+}
+
+inline
+fn pow2m1(inline int n) -> inline int {
+  inline int i, r;
+  r = 1;
+  for i = 0 to n { r *= 2; }
+  r -= 1;
+  return r;
+}
+
+inline
+fn keccakRoundConstants(stack u64[24] constants) -> stack u64[24] {
+  inline u8 lfsr, lsb;
+  inline u64 c;
+  reg u64 r;
+  inline int i, j, bp;
+
+  lfsr = 1;
+  for i = 0 to 24 {
+    c = 0;
+    for j = 0 to 7 {
+      bp = pow2m1(j);
+      lsb = lfsr & 0x1;
+      if (lfsr & 0x80) != 0 {
+        lfsr = (lfsr << 1) ^ 0x71;
+      } else {
+        lfsr <<= 1;
+      }
+      if lsb != 0 { c ^= 1 << bp; }
+    }
+    if c >= 2147483648 {
+      r = c;
+      constants[i] = r;
+    } else {
+      constants[i] = c;
+    }
+  }
+  return constants;
+}
+
+inline
+fn permute(stack u64[25] state, stack u64[24] constants) -> stack u64[25] {
+  inline int round;
+  for round = 0 to 24 {
+    state = keccakP1600_round(state, constants[round]);
+  }
+  return state;
+}
+
+param int rate = 1088;
+param int capacity = 512;
+param int rateInBytes = 1088 / 8;
+
+inline
+fn initialize(stack u64[25] state) -> stack u64[25] {
+  reg u64 zero;
+  inline int i;
+  _, _, _, _, _, zero = #set0();
+  for i = 0 to 25 { state[i] = zero; }
+  return state;
+}
+
+inline
+fn addBlock(stack u64[25] state, reg u64 data) -> stack u64[25] {
+  reg u64 t;
+  inline int i;
+  for i = 0 to rateInBytes / 8 {
+    t = [data + 8 * i];
+    state[i] ^= t;
+  }
+  return state;
+}
+
+inline
+fn extractBlock(stack u64[25] state, reg u64 out) {
+  reg u64 t;
+  inline int i;
+  for i = 0 to rateInBytes / 8 {
+    t = state[i];
+    [out + 8 * i] = t;
+  }
+}
+
+export
+fn sponge(
+  reg u64 input,
+  reg u64 inputByteLen,
+  reg u64 output,
+  reg u64 outputByteLen
+) -> reg u64 {
+  reg u64 r;
+  stack u64[25] state;
+  stack u64[24] constants;
+  constants = keccakRoundConstants(constants);
+  state = initialize(state);
+
+  while (inputByteLen >= rateInBytes) {
+    state = addBlock(state, input);
+    state = permute(state, constants);
+    input += rateInBytes;
+    inputByteLen -= rateInBytes;
+  }
+
+  // TODO: absorb partial block
+  // TODO: padding
+
+  while (outputByteLen > rateInBytes) {
+    extractBlock(state, output);
+    permute(state, constants);
+    output += rateInBytes;
+    outputByteLen -= rateInBytes;
+  }
+
+  // TODO: extract partial block
+
+  _, _, _, _, _, r = #set0();
+  return r;
+}
