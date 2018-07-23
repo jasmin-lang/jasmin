@@ -1,9 +1,15 @@
 require import AllCore Jasmin_model Gimli_ref Gimli_ref1 Gimliv1 Gimliv CoreMap IntDiv List.
 
+(* --------------------------------------------------------------------------- *)
+
+hint simplify (x86_ROL_32_E, W32.rol_xor_simplify).
+
+(* --------------------------------------------------------------------------- *)
+(* FIXME: improve the proof *)
 equiv rotate_ref_ref1 : Gimli_ref.M.rotate ~ Gimli_ref1.M.rotate : ={x,bits} /\ 1 <= bits{1} < 32 ==> ={res}.
 proof.
   proc;auto => &m1 &m2 /> ??.
-  rewrite x86_ROL_32_E /= rol_xor.
+  rewrite rol_xor.
   + rewrite modz_small /#.
   rewrite /(`<<`) /(`>>`) /= !modz_small /#.
 qed. 
@@ -67,7 +73,9 @@ equiv vec1_vec : Gimliv1.M.gimli1 ~ Gimliv.M.gimli :
    ={state, Glob.mem} ==> ={Glob.mem}.
 proof.
   proc. sim (_:true).
-  proc => /=; inline *;wp;skip => />.
+  proc => /=; inline *;wp;skip => /> &2.
+  rewrite -(W4u32.unpack32K r{2}).
+  by cbv W4u32.unpack32 x86_VPSLL_4u32 x86_VPSRL_4u32 W32.(`>>`) W32.(`<<`) (%%).
 qed.
 
 equiv ref_vec : Gimli_ref.M.gimli ~ Gimliv.M.gimli : 

@@ -297,7 +297,7 @@ proof.
   conseq (_: rela5 res{1}.`1 res{1}.`2 res{2}) (_ : true ==> wf5 res.`1 /\ wf5 res.`2) => //.
   + by proc; do 2!call carry_reduceWF;auto.
   proc. inline *. wp; skip;rewrite /rela5 => /=. 
-  by move=> &m1 &m2 [#] 5!-> /=; cbv x86_VPADD_2u64 x86_VPMULU_128 (%/) (%%) mulu_64.
+  by move=> &m1 &m2 [#] 5!-> /=; cbv x86_VPADD_2u64 x86_VPMULU_128 x86_VPSRL_2u64 (%/) (%%) mulu_64.
 qed.
 
 hoare clampWF : Poly1305_amd64_5xPR.M.clamp : true ==> wf5 res.
@@ -396,7 +396,7 @@ proof.
          (_: true ==> wf5 res.`1 /\ wf5 res.`2).
   + by proc; do !(call loadWF;wp); skip.
   proc;inline *;wp; skip => />.
-  cbv x86_VPUNPCKL_2u64 x86_MOVD_64 (%/) (%%).
+  cbv x86_VPUNPCKL_2u64 x86_MOVD_64 (%/) (%%) interleave_gen get_lo_2u64 x86_VPSRL_2u64 x86_VPSLL_2u64.
   move => &m.
   by split; apply W128.all_eq_eq;cbv W128.all_eq (%%) (%/) W64.(`>>`) W64.(`<<`) W64.int_bit. 
 qed.

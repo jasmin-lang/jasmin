@@ -153,6 +153,7 @@ op mulu_64 (w1 w2 : W64.t) =
  
 (* -------------------------------------------------------------------- *)
 
+(* FIXME it is really the semantics? In particular the last if *)
 op x86_VPEXTR_64 (w:W128.t) (i:W8.t) = 
   if W8.to_uint i = 0 then (w \bits64 0)
   else if W8.to_uint i = 1 then (w \bits64 1)
@@ -162,9 +163,12 @@ op x86_MOVD_64 (v:W64.t) =
   pack2 [v; W64.zero]. 
 
 op x86_VPINSR_2u64 (v1:W128.t) (v2:W64.t) (i:W8.t) = 
-  if W8.to_uint i = 0 then (pack2 [v2; v1 \bits64 1])
-  else if W8.to_uint i = 1 then (pack2 [v1 \bits64 0; v2])
-  else v1.
+  let i = W8.to_uint i %% 2 in
+  pack2 (map (fun j => if j = i then v2 else v1 \bits64 j) [0;1]).
+
+op x86_VPINSR_4u32 (v1:W128.t) (v2:W32.t) (i:W8.t) = 
+  let i = W8.to_uint i %% 4 in
+  pack4 (map (fun j => if j = i then v2 else v1 \bits32 j) [0;1;2;3]).
 
 abbrev [-printing] x86_VPAND_128 = W128.(`&`).
 abbrev [-printing] x86_VPOR_128 = W128.(`|`).
@@ -247,6 +251,12 @@ op x86_VPUNPCKH_8u32 (w1 w2: W256.t) =
 op x86_VPUNPCKH_4u64 (w1 w2: W256.t) = 
   map2 x86_VPUNPCKH_2u64 w1 w2.
 
+(* ------------------------------------------------------------------- *)
+op x86_VPSLLDQ_128 (w1:W128.t) (w2:W8.t) = 
+  let n = to_uint w2 in
+  let i = min n 16 in 
+  w1 `<<<` (8 * i).
+ 
 (* ------------------------------------------------------------------- *)
 (* Leakages                                                            *)
 

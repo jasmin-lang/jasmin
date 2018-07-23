@@ -55,12 +55,7 @@ qed.
 
 (* --------------------------------------------------------------------------- *)
 
-lemma rol_xor_simplify (w1 w2:W32.t) i si: 
-   w1 = w2 => si = W32.size - i => 0 <= i < W32.size => 
-   (w1 `<<<` i) `^` (w2 `>>>` si) = rol w1 i.
-proof. by move=> 2!-> hi;rewrite rol_xor. qed.
-
-hint simplify rol_xor_simplify.
+hint simplify (x86_ROL_32_E, W32.rol_xor_simplify).
 
 (* --------------------------------------------------------------------------- *)
 (* hacl-x2 versus s-avx2                                                       *)
@@ -85,7 +80,6 @@ op rela (st1 st2:W32.t Array16.t) (s:W256.t Array4.t) =
 op rela_after (st1 st2:W32.t Array16.t) (s:W256.t Array4.t) = 
    s = Array4.init (fun i => rela_i i i st1 st2).
 *)
-hint simplify x86_ROL_32_E.
 
 equiv s_avx2_double_round : 
   Chacha20_hacl_x2.M.hacl_Impl_Chacha20_double_round_x2 ~ 

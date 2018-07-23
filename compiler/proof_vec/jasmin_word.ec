@@ -835,6 +835,11 @@ proof.
   by congr;ring.
 qed.
 
+lemma rol_xor_simplify w1 w2 i si: 
+   w1 = w2 => si = size - i => 0 <= i < size => 
+   (w1 `<<<` i) `^` (w2 `>>>` si) = rol w1 i.
+proof. by move=> 2!-> hi;rewrite rol_xor. qed.
+
 (* --------------------------------------------------------------------- *)
 (* Like between bitwize operations and arithmetic operations             *)
 
