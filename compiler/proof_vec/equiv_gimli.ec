@@ -4,8 +4,8 @@ equiv rotate_ref_ref1 : Gimli_ref.M.rotate ~ Gimli_ref1.M.rotate : ={x,bits} /\ 
 proof.
   proc;auto => &m1 &m2 /> ??.
   rewrite x86_ROL_32_E /= rol_xor.
-  + rewrite W8.of_uintK modz_small /#.
-  rewrite /(`<<`) /(`>>`) !of_uintK /= !modz_small /#.
+  + rewrite modz_small /#.
+  rewrite /(`<<`) /(`>>`) /= !modz_small /#.
 qed. 
 
 equiv Gimli_ref_ref1_body : Gimli_ref.M.gimli_body ~ Gimli_ref1.M.gimli_body : ={state} ==> ={res}.
@@ -37,7 +37,9 @@ proof.
   proc; inline * => /=.
   while (#pre /\ ={round}); last by auto.
   seq 2 47 : (#pre).
-  + by unroll for {1} 2; auto. 
+  + unroll for {1} 2; wp;skip => &1 &2 [#] hx hy hz hr hlt ?.
+    rewrite -$hx -$hy -$hz -$hr.
+    by cbv x86_VPSLL_4u32 x86_VPSRL_4u32;rewrite hlt.
   seq 1 1 : (#[/:-2]pre); 1: by auto.
   seq 1 1 : (#pre); 1: by auto.
   auto.
@@ -60,30 +62,6 @@ proof.
   wp; skip => /> &1 &2.
   by rewrite !store4u32.
 qed.
-
-lemma bits8_div_of_int x i : 0 <= i =>
-  (W128.of_int x \bits8 i) = W8.of_int (to_uint (W128.of_int x) %/ (2^(8*i))).
-proof. by move=> hi;rewrite bits8_div. qed.
-
-hint simplify bits8_div_of_int.
-
-lemma false_eq_not_b b: (false = ! b) = b.
-proof. by case b. qed.
-
-lemma b_eq_true b : (b = true) = b.
-proof. by case b. qed.
-
-hint simplify (false_eq_not_b, b_eq_true, W8.of_uintK).
-hint simplify W32.get_out@0.
-
-lemma rotate24E w :
-    (x86_VPSHUFB_128  w (W128.of_int 16028905388486802350658220295983399425))
-  = (x86_VPSLL_4u32 w (W8.of_int 24) `^` x86_VPSRL_4u32 w (W8.of_int 8)).
-proof.
-  apply W128.all_eq_eq.
-  by cbv delta => /=. (* FIXME: why /= is necessary after cbv delta *)
-qed.
-hint simplify rotate24E.
 
 equiv vec1_vec : Gimliv1.M.gimli1 ~ Gimliv.M.gimli : 
    ={state, Glob.mem} ==> ={Glob.mem}.

@@ -140,7 +140,6 @@ let pp_tyerror fmt (code : tyerror) =
   | PrimIsVector s ->
       F.fprintf fmt "primitive needs a vector size annotation: `%s'" s
 
-
   | ReturnLocalStack v ->
       F.fprintf fmt "can not return the local stack variable %s" v
   | BadVariableKind(x,kind) ->
@@ -1081,7 +1080,8 @@ let check_return_stack fd =
   let args = P.Spv.of_list fd.P.f_args in
   let check vi = 
     let v = P.L.unloc vi in
-    if v.P.v_kind = Stack && not (P.Spv.mem v args) then 
+    if v.P.v_kind = Stack && not (P.Spv.mem v args) && 
+       fd.P.f_cc = P.Export then 
       rs_tyerror ~loc:(P.L.loc vi) (ReturnLocalStack v.P.v_name)
   in
   List.iter check fd.P.f_ret

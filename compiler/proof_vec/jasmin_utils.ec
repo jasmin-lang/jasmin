@@ -12,6 +12,15 @@ proof.
   by move=> hd [hi1 hi2]; rewrite divz_ge0 // hi1 /= ltz_divLR.
 qed.
 
+lemma mulz_cmp_r i m r : 0 < m => 0 <= i < r => 0 <= i * m < r * m.
+proof.
+  move=> h0m [h0i hir]; rewrite IntOrder.divr_ge0 //=; 1: by apply ltzW.
+  by rewrite IntOrder.ltr_pmul2r.
+qed.
+
+lemma cmpW i d : 0 <= i < d => 0 <= i <= d.
+proof. by move=> [h1 h2];split => // ?;apply ltzW. qed.
+ 
 lemma le_modz m d : 0 <= m => m %% d <= m.
 proof.
   move=> hm. 

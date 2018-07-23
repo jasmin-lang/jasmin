@@ -18,6 +18,7 @@ GENFILES := \
    poly1305_amd64_5x_ct \
    poly1305_amd64_5x_safe \
    chacha20_hacl          \
+   chacha20_hacl_x2       \
    chacha20_s_avx2        \
    chacha20_avx2          \
    chacha20_avx2_ct       \
@@ -114,6 +115,9 @@ poly1305_amd64_5x_safe.ec: $(POLY1305)/ref-5xpv/auth.jazz $(JASMINC)
 	$(JASMINC) -oec $@ -ec poly1305 -safety $<
 
 chacha20_hacl.ec: $(CHACHA20)/hacl/chacha20.jazz $(JASMINC)
+	$(JASMINC) -oec $@ -ec hacl_2rounds $<
+
+chacha20_hacl_x2.ec: $(CHACHA20)/hacl/chacha20_x2.jazz $(JASMINC)
 	$(JASMINC) -oec $@ -ec hacl_2rounds $<
 
 chacha20_s_avx2.ec: $(CHACHA20)/s-avx2/chacha20.jazz $(JASMINC)

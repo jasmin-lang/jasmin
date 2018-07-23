@@ -1102,6 +1102,20 @@ abstract theory W_WS.
      by move=> k hk /=;rewrite bits'SiE 1:// mulzC.
    qed.
 
+   lemma of_int_bits'S_div w i : 0 <= i < r =>
+     (WB.of_int w) \bits'S i = WS.of_int (w %/ (2^(sizeS*i))).
+   proof. 
+     move=> [h0i hir];rewrite bits'S_div //.
+     rewrite WB.of_uintK modz_pow2_div. 
+     + by rewrite sizeBrS mulzC; apply cmpW; apply mulz_cmp_r.
+     rewrite -WS.of_int_mod modz_mod_pow2 /min.
+     have -> /= : !sizeB - sizeS * i < sizeS.
+     + rewrite sizeBrS.
+       have -> : r * sizeS - sizeS * i = sizeS * (r - i) by ring.
+       by rewrite -lezNgt;apply ler_pemulr;[ apply ltzW | smt ()].
+     by rewrite WS.of_int_mod.
+   qed.
+ 
    hint simplify (pack'RwE, bits'SiE, pack'RbE, get_unpack'S, unpack'SK, pack'RK, 
                   mapbE, map2bE, andb'SE, orb'SE, xorb'SE,
                   andb'Ru'SE, orb'Ru'SE, xorb'Ru'SE).

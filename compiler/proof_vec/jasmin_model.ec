@@ -35,14 +35,98 @@ op x86_VPSHUFB_128_B (w:W128.t) (m : W8.t) =
     
 op x86_VPSHUFB_128 (w m : W128.t) : W128.t =
   map (x86_VPSHUFB_128_B w) m.
-
-op x86_VPSHUFB_256_B (w:W256.t) (m : W8.t) =
-  let i = W8.to_uint m in
-  if 128 <= i then W8.zero 
-  else w \bits8 (i %% 16).
     
 op x86_VPSHUFB_256 (w m : W256.t) : W256.t =
-  map (x86_VPSHUFB_256_B w) m.
+  map2 x86_VPSHUFB_128 w m.
+
+hint simplify (W16u8.of_int_bits8_div).
+hint simplify (W8.of_uintK)@1. 
+hint simplify W32.get_out@0.
+
+abbrev [-printing] const_rotate8_128 = (W128.of_int 18676936380593224926704134051422339075).
+abbrev [-printing] const_rotate16_128 = (W128.of_int 17342576855639742879858139805557719810).
+abbrev [-printing] const_rotate24_128 = (W128.of_int 16028905388486802350658220295983399425).
+
+lemma rotate8_128_E w : 
+  x86_VPSHUFB_128 w const_rotate8_128 = W4u32.map (fun w => W32.rol w 8) w.
+proof.
+  have h : W128.all_eq 
+    (x86_VPSHUFB_128 w const_rotate8_128) (W4u32.map (fun w => W32.rol w 8) w).
+  + by cbv W128.all_eq x86_VPSHUFB_128 x86_VPSHUFB_128_B W16u8.unpack8 (%%) (%/). 
+  by apply (W128.all_eq_eq _ _ h).
+qed.
+
+lemma rotate16_128_E w : 
+  x86_VPSHUFB_128 w const_rotate16_128 = W4u32.map (fun w => W32.rol w 16) w.
+proof.
+  have h : W128.all_eq 
+    (x86_VPSHUFB_128  w const_rotate16_128) (W4u32.map (fun w => W32.rol w 16) w).
+  + by cbv W128.all_eq x86_VPSHUFB_128 x86_VPSHUFB_128_B  W16u8.unpack8 (%%) (%/).
+  by apply (W128.all_eq_eq _ _ h).
+qed.
+
+lemma rotate24_128_E w :
+  (x86_VPSHUFB_128 w const_rotate24_128) = W4u32.map (fun w => W32.rol w 24) w.
+proof.
+  have h : W128.all_eq 
+    (x86_VPSHUFB_128 w const_rotate24_128) (W4u32.map (fun w => W32.rol w 24) w).
+  + by cbv W128.all_eq x86_VPSHUFB_128 x86_VPSHUFB_128_B W16u8.unpack8 (%%) (%/).
+  by apply (W128.all_eq_eq _ _ h).
+qed.
+hint simplify (rotate8_128_E, rotate16_128_E, rotate24_128_E).
+
+abbrev [-printing] const_rotate8_256 = 
+  W256.of_int 6355432118420048154175784972596847518577147054203239762089463134348153782275.
+
+abbrev [-printing] const_rotate16_256 = 
+  W256.of_int 5901373100945378232718128989223044758631764214521116316503579100742837863170.
+
+abbrev [-printing] const_rotate24_256 =
+  W256.of_int 5454353864746073763129182254217446065883741921538078285974850505695092212225.
+
+(*lemma pack8u32_bits128 ws i : 0 <= i < 2 => 
+  W8u32.pack8_t ws \bits128 i = pack4 [ws.[4*i];ws.[4*i+1];ws.[4*i+2];ws.[4*i+3] ].
+proof.
+  move=> /(mema_iota 0 2 i); move: i; apply /List.allP => /=.
+  by split; apply W128.all_eq_eq;cbv delta.
+qed. *)
+
+lemma pack2_4u32_8u32 (w0 w1 w2 w3 w4 w5 w6 w7 :W32.t) :
+   pack2 [pack4 [w0;w1;w2;w3]; pack4 [w4; w5; w6; w7]] =
+   pack8 [w0; w1; w2; w3; w4; w5; w6; w7].
+proof. by apply W256.all_eq_eq;cbv W256.all_eq (%/) (%%). qed.
+
+lemma rotate8_256_E w : 
+  x86_VPSHUFB_256 w const_rotate8_256 = W8u32.map (fun w => W32.rol w 8) w.
+proof.
+  rewrite -(W8u32.unpack32K w) /unpack32 /= /x86_VPSHUFB_256 -{1}pack2_4u32_8u32.
+  rewrite -(W2u128.unpack128K const_rotate8_256) /unpack128 /=.
+  rewrite !W2u128.of_int_bits128_div 1,2://.
+  rewrite -W128.of_int_mod; cbv (%/) (%%). 
+  by rewrite pack2_4u32_8u32.
+qed.
+
+lemma rotate16_256_E w : 
+  x86_VPSHUFB_256 w const_rotate16_256 = W8u32.map (fun w => W32.rol w 16) w.
+proof.
+  rewrite -(W8u32.unpack32K w) /unpack32 /= /x86_VPSHUFB_256 -{1}pack2_4u32_8u32.
+  rewrite -(W2u128.unpack128K const_rotate16_256) /unpack128 /=.
+  rewrite !W2u128.of_int_bits128_div 1,2://.
+  rewrite -W128.of_int_mod; cbv (%/) (%%).
+  by rewrite pack2_4u32_8u32.
+qed.
+
+lemma rotate24_256_E w : 
+  x86_VPSHUFB_256 w const_rotate24_256 = W8u32.map (fun w => W32.rol w 24) w.
+proof.
+  rewrite -(W8u32.unpack32K w) /unpack32 /= /x86_VPSHUFB_256 -{1}pack2_4u32_8u32.
+  rewrite -(W2u128.unpack128K const_rotate24_256) /unpack128 /=.
+  rewrite !W2u128.of_int_bits128_div 1,2://.
+  rewrite -W128.of_int_mod; cbv (%/) (%%).
+  by rewrite pack2_4u32_8u32.
+qed.
+
+hint simplify (rotate8_256_E, rotate16_256_E, rotate24_256_E).
 
 (* -------------------------------------------------------------------- *)
 op x86_VPSHUFD_128_B (w : W128.t) (m : W8.t) (i : int) : W32.t =
@@ -53,13 +137,10 @@ op x86_VPSHUFD_128_B (w : W128.t) (m : W8.t) (i : int) : W32.t =
 op x86_VPSHUFD_128 (w : W128.t) (m : W8.t) : W128.t =
   pack4 (map (x86_VPSHUFD_128_B w m) (iota_ 0 4)).
 
-op x86_VPSHUFD_256_B (w : W256.t) (m : W8.t) (i : int) : W64.t =
-  let m = W8.to_uint m in
-  let p = (m %/ (2^(2*i)))%%4 in
-  w \bits64 p.
-
 op x86_VPSHUFD_256 (w : W256.t) (m : W8.t) : W256.t =
-  pack4 (map (x86_VPSHUFD_256_B w m) (iota_ 0 4)).
+  map (fun w => x86_VPSHUFD_128 w m) w.
+
+
 
 (* -------------------------------------------------------------------- *)
 abbrev [-printing] x86_VPBROADCASTI_2u128 = x86_VPBROADCAST_2u128.
