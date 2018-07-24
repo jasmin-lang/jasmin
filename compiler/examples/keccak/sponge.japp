@@ -44,7 +44,7 @@ fn sponge(
   reg u64 r;
   stack u64[25] state;
   stack u64[24] constants;
-  constants = keccakRoundConstants(constants);
+  constants = keccakRoundConstants();
   state = initialize(state);
 
   while (inputByteLen >= rateInBytes) {

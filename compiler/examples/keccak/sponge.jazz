@@ -130,7 +130,8 @@ fn pow2m1(inline int n) -> inline int {
 }
 
 inline
-fn keccakRoundConstants(stack u64[24] constants) -> stack u64[24] {
+fn keccakRoundConstants() -> stack u64[24] {
+  stack u64[24] constants;
   inline u8 lfsr, lsb;
   inline u64 c;
   reg u64 r;
@@ -212,7 +213,7 @@ fn sponge(
   reg u64 r;
   stack u64[25] state;
   stack u64[24] constants;
-  constants = keccakRoundConstants(constants);
+  constants = keccakRoundConstants();
   state = initialize(state);
 
   while (inputByteLen >= rateInBytes) {

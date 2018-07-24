@@ -10,7 +10,7 @@ fn keccakP1600(reg u64 ptr) {
     t = [ptr + 8 * x];
     state[x] = t;
   }
-  constants = keccakRoundConstants(constants);
+  constants = keccakRoundConstants();
   state = permute(state, constants);
   for x = 0 to 25 {
     t = state[x];
