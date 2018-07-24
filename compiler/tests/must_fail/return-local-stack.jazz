@@ -1,0 +1,6 @@
+export
+fn bad() -> stack u64 {
+  stack u64 x;
+  x = 0;
+  return x;
+}
