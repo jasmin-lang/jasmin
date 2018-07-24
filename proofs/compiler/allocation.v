@@ -1166,8 +1166,6 @@ Module CBAreg.
       if b1 == b2 then cok m else err tt
     | Parr_init sz1 n1, Parr_init sz2 n2 =>
       if (sz1 == sz2) && (n1 == n2) then cok m else err tt
-    | Pcast w1 e1, Pcast w2 e2 =>
-      if w1 == w2 then check_e e1 e2 m else err tt
     | Pvar   x1, Pvar   x2 => check_v x1 x2 m
     | Pglobal g1, Pglobal g2 =>
       if g1 == g2 then cok m else err tt
@@ -1303,15 +1301,11 @@ Module CBAreg.
     exists v2, sem_pexpr gd (Estate m vm2) e2 = ok v2 /\ value_uincl v1 v2.
   Proof.
     elim : e1 e2 r re vm1 =>
-      [z1 | b1 | sz1 n1 | sz1 e1 He1 | x1 | g1 | x1 e1 He1 | sz1 x1 e1 He1 | o1 e1 He1 | o1 e11 He11 e12 He12 | e He e11 He11 e12 He12 ]
-      [z2 | b2 | sz2 n2 | sz2 e2 | x2 | g2 | x2 e2 | sz2 x2 e2 | o2 e2 | o2 e21 e22 | e' e21 e22] //= r re s.
+      [z1 | b1 | sz1 n1 | x1 | g1 | x1 e1 He1 | sz1 x1 e1 He1 | o1 e1 He1 | o1 e11 He11 e12 He12 | e He e11 He11 e12 He12 ]
+      [z2 | b2 | sz2 n2 | x2 | g2 | x2 e2 | sz2 x2 e2 | o2 e2 | o2 e21 e22 | e' e21 e22] //= r re s.
     + by case: ifPn => // /eqP <- [->] ?;split=> // ?? [] <-; exists z1.
     + by case: ifPn => // /eqP <- [->] ?;split=> // ?? [] <-; exists b1.
     + by case: eqP => //= <-; case: eqP => //= <- [<-] ?; split => // ?? [<-]; eauto.
-    + case: eqP => // -> /He1 H /H [? {He1}He1];split=>// m v1.
-      apply: rbindP => z;apply:rbindP => v1' /He1 [v2 [-> /=]] Uv Hto [] <-.
-      have [_ -> /=]:= value_uincl_int Uv Hto.
-      by exists (Vword (wrepr sz2 z)); split => //; exists erefl.
     + by move=> /check_vP Hv /Hv [Hea H].
     + by case: ifPn => // /eqP <- [->] ?; split => // ?? ->; eauto.
     + apply: rbindP => r' Hcv Hce Hea. 

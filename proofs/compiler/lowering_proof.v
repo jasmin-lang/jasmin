@@ -329,17 +329,18 @@ Section PROOF.
 
   Lemma add_inc_dec_classifyP' sz a b:
     match add_inc_dec_classify sz a b with
-    | AddInc y => (a = y /\ b = Pcast sz (Pconst 1)) \/ (a = Pcast sz (Pconst 1) /\ b = y)
-    | AddDec y => (a = y /\ b = Pcast sz (Pconst (-1))) \/ (a = Pcast sz (Pconst (-1)) /\ b = y)
+    | AddInc y => (a = y ∧ b = Papp1 (Oword_of_int sz) (Pconst 1)) ∨ (a = Papp1 (Oword_of_int sz) (Pconst 1) ∧ b = y)
+    | AddDec y => (a = y ∧ b = Papp1 (Oword_of_int sz) (Pconst (-1))) ∨ (a = Papp1 (Oword_of_int sz) (Pconst (-1)) ∧ b = y)
     | AddNone => True
     end.
   Proof.
     rewrite /add_inc_dec_classify.
-    move: a b=> -[z|bv|w n|w[[//|z|z]|bv|wi ni|wi e|x| g |x e|wi x e|o e|o e1 e2|e e1 e2]|x| g |x e|w x e|o e|o e1 e2|e e1 e2] [z'|bv'|sz' n'|w'[[//|[//|//|]|[//|//|]]|bv'|wi' ni'|wi' e'|x'| g' |x' e'|wi' x' e'|o' e'|o' e1' e2'|e' e1' e2']|x'| g' |x' e'|w' x' e'|o' e'|o' e1' e2'|e' e1' e2'] //;
-    try (case: eqP => // ?; subst);
-    try (by left; split); try (
-    by move: z => [] //; right); try (
-    by move: z => [z|z|] //; try (by left); case: eqP => // ?; subst; right).
+    repeat match goal with
+    | |- True => exact: I
+    | |- _ ∨ _ => (left; split; reflexivity) || (right; split; reflexivity)
+    | |- match (if _ == _ then _ else _) with _ => _ end => case: eqP => // ?; subst
+    | |- match match ?x with _ => _ end with _ => _ end => destruct x
+    end.
   Qed.
 
   Lemma add_inc_dec_classifyP s sz (a b : pexpr) w1 (z1: word w1) w2 (z2 : word w2) :
@@ -362,12 +363,12 @@ Section PROOF.
 
   Lemma sub_inc_dec_classifyP sz e:
     match sub_inc_dec_classify sz e with
-    | SubInc => e = Pcast sz (Pconst (-1))
-    | SubDec => e = Pcast sz (Pconst 1)
+    | SubInc => e = Papp1 (Oword_of_int sz) (Pconst (-1))
+    | SubDec => e = Papp1 (Oword_of_int sz) (Pconst 1)
     | SubNone => True
     end.
   Proof.
-  by case: e => // w [] // [] // [] //=; case: eqP => // ->.
+  by case: e => // -[] // ? [] // [] // [] //=; case: eqP => // ->.
   Qed.
 
   Lemma write_lval_word l sz v s s':
@@ -788,9 +789,9 @@ Section PROOF.
     sem_pexpr gd s e = ok (Vword w) ->
     sem_lea (evm s) l = ok (zero_extend Uptr w).
   Proof.
-    elim: e l sz w => //= [sz'  // [] //= z _ | x | [] //= [] //= [] // e1 He1 e2 He2] l sz w hsz.
-    + by case => <- h; have /Vword_inj[? ?] := ok_inj h; subst; rewrite lea_constP.
+    elim: e l sz w => //= [x | [] //= sz' [] // e1 He1 | [] //= [] //= [] // e1 He1 e2 He2] l sz w hsz.
     + by move=> [<-];rewrite lea_varP => -> /=; f_equal; rewrite /truncate_word hsz.
+    + by case => <- h; have /Vword_inj[? ?] := ok_inj h; subst; rewrite lea_constP.
     + case Heq1: mk_lea => [l1|]//;case Heq2: mk_lea => [l2|]// Hadd.
       t_xrbindP => v1 Hv1 v2 Hv2; rewrite /sem_sop2 /=.
       apply: rbindP => w1' /of_val_word [sz1] [w1] [hsz1 ? ?]; subst v1 w1'.
@@ -875,8 +876,8 @@ Section PROOF.
     Sv.Subset (read_lea m) (read_e e).
   Proof.
   elim: e m => //=.
-  - by move => sz [] //= z _ _ [<-].
   - by move => x _ [<-]; rewrite read_e_var; apply: SvD.F.Subset_refl.
+  - by case => // sz [] // z _ _ [<-].
   - case => //.
     + case => // - [] // e1.
       case: (mk_lea e1) => // m1 /(_ _ erefl) ih1 e2.
@@ -1002,12 +1003,7 @@ Section PROOF.
     end.
   Proof.
     rewrite /lower_cassgn_classify.
-    move: e Hs=> [z|b|sz n|sz e|x| g |x e|sz x e|o e|o e1 e2|e e1 e2] //.
-    + move: e=> [z'|b'|sz' n'|sz' e'|x'| g' |x' e'|sz' x' e'|o' e'|o' e1' e2'|e' e1' e2'] //.
-      case => ?; subst v.
-      have {Hv'} [sz' [? hle ?]] := truncate_val_word Hv'.
-      subst v' ty => /=.
-      by case: ifP => // hle'; eauto 6.
+    move: e Hs=> [z|b|sz n|x| g |x e|sz x e|o e|o e1 e2|e e1 e2] //.
     + case: x => - [] [] // sz vn vi /= /type_of_get_var [sz'] [Hs Hs'].
       have := truncate_val_subtype Hv'. rewrite Hs -(truncate_val_has_type Hv').
       case hty: (type_of_val v') => [ | | | sz'' ] //= hle.
@@ -1026,6 +1022,11 @@ Section PROOF.
       split; first exact: (cmp_le_trans hle).
       by eauto.
     + case: o => //.
+      (* Oword_of_int *)
+      - move => sz; case: e => // z [?]; subst v.
+        have {Hv'} [sz' [? hle ?]] := truncate_val_word Hv'.
+        subst v' ty => /=.
+        by case: ifP => // hle'; eauto 6.
       (* Osignext *)
       + rewrite /= /sem_sop1 /=; t_xrbindP => sz sz' x ok_x x' /to_wordI [szx] [wx] [hle ??] ?.
         subst x x' v.
@@ -1404,6 +1405,7 @@ Section PROOF.
   Proof.
     rewrite /reduce_wconst.
     case: e; eauto using cmp_min_leR.
+    case; eauto using cmp_min_leR.
     move => sw []; eauto using cmp_min_leR.
     move => z /ok_word_inj [?]; subst => /= <- {v}.
     eexists _, _; split; first reflexivity.
@@ -1493,7 +1495,7 @@ Section PROOF.
         case: eqP => [ Eob | _ ]; last by exists s2'.
         exists s2'; split => //; apply sem_seq1; constructor; constructor.
         move: Hvb Hwb Hw';rewrite Eob /sem_sopn /sem_pexprs /= hsz GRing.add0r Hvo /= -/to_pointer Hwo /= -!/(zero_extend Uptr _) !zero_extend_u => -[<-] [<-].
-        by rewrite zero_extend_u GRing.add0r GRing.mulrC => ->.
+        by rewrite wrepr0 zero_extend_u GRing.add0r GRing.mulrC => ->.
       case: eqP => [ Eoo | _]; last by exists s2'.
       move: Hvo Hwo Hw'; rewrite Eoo => - [<-] {Eoo oo Hlea Hlea'}.
       rewrite hsz wrepr_unsigned /= truncate_word_u => - [?]; subst wo.

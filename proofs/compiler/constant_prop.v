@@ -41,6 +41,14 @@ Local Open Scope Z_scope.
 (* ** Smart constructors                                                      *)
 (* -------------------------------------------------------------------------- *)
 
+Definition sword_of_int sz (e: pexpr) :=
+  Papp1 (Oword_of_int sz) e.
+
+Definition sint_of_word sz (e: pexpr) :=
+  if is_wconst sz e is Some w
+  then Pconst (wunsigned w)
+  else Papp1 (Oint_of_word sz) e.
+
 Definition ssign_extend sz sz' (e: pexpr) :=
   (* TODO *)
   Papp1 (Osignext sz sz') e.
@@ -77,6 +85,8 @@ Definition sneg_w (sz: wsize) (e:pexpr) :=
 
 Definition s_op1 o e :=
   match o with
+  | Oword_of_int sz => sword_of_int sz e
+  | Oint_of_word sz => sint_of_word sz e
   | Osignext sz sz' => ssign_extend sz sz' e
   | Ozeroext sz sz' => szero_extend sz sz' e
   | Onot  => snot_bool e
@@ -367,7 +377,6 @@ Fixpoint const_prop_e (m:cpm) e :=
   | Pbool  _
   | Parr_init _ _
     => e
-  | Pcast sz e    => Pcast sz (const_prop_e m e)
   | Pvar  x       => if Mvar.get m x is Some n then const n else e
   | Pglobal _     => e
   | Pget  x e     => Pget x (const_prop_e m e)
@@ -416,7 +425,7 @@ Definition add_cpm (m:cpm) (rv:lval) tag ty e :=
     if tag is AT_inline then 
       match e with
       | Pconst z =>  Mvar.set m x (Cint z)
-      | Pcast sz' (Pconst z) =>
+      | Papp1 (Oword_of_int sz') (Pconst z) =>
         let szty := wsize_of_stype ty in
         let w := zero_extend szty (wrepr sz' z) in
         let w :=

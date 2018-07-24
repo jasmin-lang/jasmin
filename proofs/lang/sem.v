@@ -212,6 +212,8 @@ Definition sem_sop1_typed (o: sop1) :
   let t := type_of_op1 o in
   sem_t t.1 → sem_t t.2 :=
   match o with
+  | Oword_of_int sz => wrepr sz
+  | Oint_of_word sz => wunsigned
   | Osignext szo szi => @sign_extend szo szi
   | Ozeroext szo szi => @zero_extend szo szi
   | Onot => negb
@@ -382,9 +384,6 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pconst z => ok (Vint z)
   | Pbool b  => ok (Vbool b)
   | Parr_init sz n => ok (@Varr sz n (Array.empty n))
-  | Pcast sz e  =>
-    Let z := sem_pexpr s e >>= to_int in
-    ok (Vword (wrepr sz z))
   | Pvar v => get_var s.(evm) v
   | Pglobal g => get_global gd g
   | Pget x e =>

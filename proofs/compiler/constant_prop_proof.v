@@ -110,7 +110,15 @@ Hint Resolve eeq_refl eeq_w_refl.
 
 Lemma eeq_weaken e1 e2 : eeq_w e1 e2 -> e1 =E e2.
 Proof. by move=> h ?;apply eqok_weaken;apply h. Qed.
-  
+
+Lemma sint_of_wordP sz e : Papp1 (Oint_of_word sz) e =E sint_of_word sz e.
+Proof.
+  rewrite /sint_of_word => s.
+  case: (is_wconst _ _) (@is_wconstP gd s sz e); last by move => _ ?; eauto.
+  move => w /(_ _ erefl); t_xrbindP => v ok_v ok_w v'.
+  rewrite /= /sem_sop1 /= ok_v /= ok_w => - [<-{v'}]; eauto.
+Qed.
+
 Lemma snot_boolP e : Papp1 Onot e =E snot_bool e.
 Proof. 
   apply: eeq_weaken.
@@ -126,7 +134,7 @@ Qed.
 Lemma snot_wP sz e : Papp1 (Olnot sz) e =E snot_w sz e.
 Proof.
 apply: eeq_weaken; rewrite /snot_w; case heq: is_wconst => [ w | ] // s v /=.
-by rewrite /= -bindA (is_wconstP gd s heq) /= => -[<-]; rewrite wrepr_unsigned.
+by rewrite /= -bindA (is_wconstP gd s heq) /= => -[<-]; rewrite /sem_sop1 /= wrepr_unsigned.
 Qed.
 
 Lemma sneg_intP e : Papp1 (Oneg Op_int) e =E sneg_int e.
@@ -139,11 +147,11 @@ Qed.
 Lemma sneg_wP sz e : Papp1 (Oneg (Op_w sz)) e =E sneg_w sz e.
 Proof.
 apply: eeq_weaken; rewrite /sneg_w; case heq: is_wconst => [ w | ] // s v /=.
-by rewrite /= -bindA (is_wconstP gd s heq) /= => -[<-]; rewrite wrepr_unsigned.
+by rewrite /= -bindA (is_wconstP gd s heq) /= => -[<-]; rewrite /sem_sop1 /= wrepr_unsigned.
 Qed.
 
 Lemma s_op1P o e : Papp1 o e =E s_op1 o e.
-Proof. case: o => [??|??||?|[|?]]; eauto using snot_boolP, snot_wP, sneg_intP, sneg_wP. Qed.
+Proof. case: o => [?|?|??|??||?|[|?]]; eauto using sint_of_wordP, snot_boolP, snot_wP, sneg_intP, sneg_wP. Qed.
 
 (* * -------------------------------------------------------------------- *)
 
@@ -192,7 +200,7 @@ Proof.
 rewrite /sadd_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
-+ move => s v /=; rewrite /sem_sop2 /=.
++ move => s v /=; rewrite /sem_sop2 /sem_sop1 /=.
   have := is_wconstP gd s h2; have := is_wconstP gd s h1.
   by t_xrbindP => *; clarify; rewrite wrepr_unsigned;eauto.
 + case: eqP => // hz s v /=; rewrite /sem_sop2 /=.
@@ -225,7 +233,7 @@ Proof.
 rewrite /ssub_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
-+ move => s v /=; rewrite /sem_sop2 /=.
++ move => s v /=; rewrite /sem_sop2 /sem_sop1 /=.
   have := is_wconstP gd s h2; have := is_wconstP gd s h1.
   by t_xrbindP => *; clarify; rewrite wrepr_unsigned;eauto.
 case: eqP => // hz s v /=; rewrite /sem_sop2 /=.
@@ -259,16 +267,16 @@ Proof.
 rewrite /smul_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
-+ move => s v /=; rewrite /sem_sop2 /=.
++ move => s v /=; rewrite /sem_sop2 /sem_sop1 /=.
   have := is_wconstP gd s h2; have := is_wconstP gd s h1.
   by t_xrbindP => *; clarify; rewrite wrepr_unsigned;eauto.
-+ case: eqP => hn1; [| case: eqP => hn2] => s v /=; rewrite /sem_sop2 /=;
++ case: eqP => hn1; [| case: eqP => hn2] => s v /=; rewrite /sem_sop2 /sem_sop1 /=;
   have := is_wconstP gd s h1; t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
   - rewrite wrepr_unsigned GRing.mul0r;eauto.
   - case: (of_val_word k6) => {k6} sz' [w] [? ? ?]; subst.
     by rewrite k4 GRing.mul1r; eauto.
   by rewrite k4 /= k6 /= wrepr_unsigned truncate_word_u /=;eexists;split;eauto => /=.
-case: eqP => hn1; [| case: eqP => hn2] => s v /=; rewrite /sem_sop2 /=;
+case: eqP => hn1; [| case: eqP => hn2] => s v /=; rewrite /sem_sop2 /sem_sop1 /=;
 have := is_wconstP gd s h2; t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
 - by rewrite wrepr_unsigned GRing.mulr0;eauto.
 - case: (of_val_word k5) => {k5} sz' [w] [? ? ?]; subst.
@@ -449,7 +457,7 @@ rewrite /sbitw => h.
 case h1: is_wconst => [ n1 | ] //.
 case h2: is_wconst => [ n2 | ] //.
 move => s v /=; t_xrbindP => v1 k1 v2 k2 hv.
-rewrite wrepr_unsigned.
+rewrite /sem_sop1 /= wrepr_unsigned.
 eexists; split; first reflexivity.
 have := is_wconstP gd s h1; rewrite k1 => /of_val_word [sz1] [w1] [hle1 ??]; subst.
 have := is_wconstP gd s h2; rewrite k2 => /of_val_word [sz2] [w2] [hle2 ??]; subst.
@@ -490,7 +498,7 @@ rewrite /sbitw8 => h.
 case h1: is_wconst => [ n1 | ] //.
 case h2: is_wconst => [ n2 | ] //.
 move => s v /=; t_xrbindP => v1 k1 v2 k2 hv.
-rewrite wrepr_unsigned.
+rewrite /sem_sop1 /= wrepr_unsigned.
 eexists; split; first reflexivity.
 have := is_wconstP gd s h1; rewrite k1 => /of_val_word [sz1] [w1] [???]; subst.
 have := is_wconstP gd s h2; rewrite k2 => /of_val_word [sz2] [w2] [???]; subst.
@@ -538,7 +546,7 @@ Proof.
   have := is_wconstP gd s h2; rewrite k2 /= /truncate_word hle2 => -[?]; subst.
   case: ifP => // _ [?] ?; subst.
   eexists; split; first reflexivity.
-  by rewrite wrepr_unsigned;case: u.
+  by rewrite /sem_sop1 /= wrepr_unsigned;case: u.
 Qed.
 
 Lemma smodP k e1 e2 : Papp2 (Omod k) e1 e2 =E smod k e1 e2.
@@ -558,7 +566,7 @@ Proof.
   have := is_wconstP gd s h2; rewrite k2 /= /truncate_word hle2 => -[?]; subst.
   case: ifP => // _ [?] ?; subst.
   eexists; split; first reflexivity.
-  by rewrite wrepr_unsigned;case: u.
+  by rewrite /sem_sop1 /= wrepr_unsigned;case: u.
 Qed.
 
 Lemma s_op2P o e1 e2 : Papp2 o e1 e2 =E s_op2 o e1 e2.
@@ -582,12 +590,10 @@ Lemma const_prop_eP (e:pexpr) s (m:cpm):
   e =[s] const_prop_e m e.
 Proof.
   move=> Hvalid;rewrite /eqok.
-  elim: e=> [z | b | sz n | sz e He | x | g | x e He | sz x e He | o e He | o e1 He1 e2 He2 | e He e1 He1 e2 He2] v /=;
+  elim: e=> [z | b | sz n | x | g | x e He | sz x e He | o e He | o e1 He1 e2 He2 | e He e1 He1 e2 He2] v /=;
   try (intros; clarify; eauto; fail).
-  + t_xrbindP => z w /(He _) [v'] [->] [/value_uincl_int h A] /h {h} [??] ?; subst.
-    by eexists; split; first reflexivity.
   + move: (Hvalid x); case: Mvar.get => [n /(_ _ erefl) |_ /= -> ]; last by eauto.
-    by case: n => [ n | sz w ] /= -> [<-]; rewrite ?wrepr_unsigned; eauto.
+    by case: n => [ n | sz w ] /= -> [<-]; rewrite /sem_sop1 /= ?wrepr_unsigned; eauto.
   + apply:on_arr_varP; rewrite /on_arr_var => ? n t ? -> /=.
     t_xrbindP => z w /(He _) [v'] [->] [/value_uincl_int h A] /h {h} [??]; subst.
     move => a ha ?; subst; rewrite /= ha.
@@ -647,8 +653,8 @@ Lemma add_cpmP s1 s1' m x e tag ty v v' :
 Proof.
   rewrite /add_cpm;case: x => [xi | x | x | x] //= He.
   case: tag => //.
-  case: e He => // [ n | sz [] //= p ] [<-].
-  + case/truncate_val_int => ??; subst.
+  case: e He => // [ n | [] // sz [] //= q ] [<-].
+  + case/truncate_val_int => [??]; subst.
     case: x => -[] [] //= xn vi [] <- /= Hv z /= n0.
     have := Hv z n0.
     case: ({| vtype := sint; vname := xn |} =P z).
@@ -660,7 +666,7 @@ Proof.
   apply: set_varP => //= w' [<-] <- [<-] /= Hv z /= n.
   have := Hv z n.
   case: ({| vtype := sword szx; vname := xn |} =P z).
-  + move=> <- /=; rewrite Mvar.setP_eq=> ? -[] <-; rewrite /get_var Fv.setP_eq /=.
+  + move=> <- /=. rewrite Mvar.setP_eq=> ? -[] <-; rewrite /get_var Fv.setP_eq /=.
     f_equal.
     by case: Sumbool.sumbool_of_bool => /= ->.
   by move=> /eqP Hneq;rewrite Mvar.setP_neq.
@@ -763,7 +769,6 @@ Instance const_prop_e_m :
 Proof.
   move=> m1 m2 Hm e e' <- {e'}.
   elim: e => //=.
-  + by move=> ?? ->.
   + by move=> ?;rewrite Hm.
   + by move=> ?? ->.
   + by move=> ??? ->.
@@ -796,7 +801,7 @@ Instance add_cpm_m :
 Proof.
   move=> m1 m2 Hm x x' <- {x'} t t' <- {t'} ty ty' <- {ty'} e e' <- {e'}.
   case: x t => //= v [];rewrite ?Hm //.
-  by case:e => //= [n | sz [] //= n];rewrite Hm.
+  by case: e => //= [n | [] // sz [] // n ]; rewrite Hm.
 Qed.
 
 Instance merge_cpm_m : 

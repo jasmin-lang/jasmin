@@ -139,6 +139,8 @@ let pp_funname fmt fn =
   F.fprintf fmt "%s" x
 
 let pp_op1 = function
+  | E.Oword_of_int _
+  | E.Oint_of_word _
   | E.Osignext _ -> assert false (* FIXME *)
   | E.Ozeroext _ -> assert false (* FIXME *)
   | E.Onot     -> "~~"
@@ -155,7 +157,6 @@ let rec pp_pexpr fmt = function
   | Pconst i       -> F.fprintf fmt "%s" (B.to_string i)
   | Pbool b        -> F.fprintf fmt "%a" pp_bool b
   | Parr_init _ -> assert false (* FIXME *)
-  | Pcast(ws, pe) -> F.fprintf fmt "(Pcast %a %a)" pp_ws ws pp_pexpr pe
   | Pvar vi        -> F.fprintf fmt "%a" pp_vari vi
   | Pglobal (ws, g) -> F.fprintf fmt "(Pglobal %a)" pp_global (ws, g)
   | Pget(vi, pe)   ->

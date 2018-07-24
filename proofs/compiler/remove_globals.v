@@ -77,7 +77,7 @@ Section REMOVE.
         let x := xi.(v_var) in
         if is_glob x then 
           match e with
-          | Pcast ws (Pconst z) => add_glob ii x gd ws z
+          | Papp1 (Oword_of_int ws) (Pconst z) => add_glob ii x gd ws z
           | _                   => cferror (Ferr_remove_glob ii xi)
           end
         else ok gd
@@ -104,8 +104,6 @@ Section REMOVE.
       match e with
       | Pconst _ | Pbool _ => ok e 
       | Parr_init _ _ => ok e
-      | Pcast w e =>
-        Let e := remove_glob_e ii env e in ok (Pcast w e)
       | Pvar xi =>
         let x := xi.(v_var) in
         if is_glob x then
@@ -235,7 +233,7 @@ Section REMOVE.
             let x := xi.(v_var) in
             if is_glob x then 
               match e with
-              | Pcast ws (Pconst z) =>
+              | Papp1 (Oword_of_int ws) (Pconst z) =>
                 if (ty == sword ws) && (vtype x == sword ws) then
                   Let g := find_glob ii xi gd ws z in
                   ok (Mvar.set env x g, [::])

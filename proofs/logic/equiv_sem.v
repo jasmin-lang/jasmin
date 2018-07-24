@@ -253,6 +253,12 @@ Lemma svuincl_sem_op1 o v v' r :
   exists2 r' : svalue, ssem_sop1 o v' = ok r' & svalue_uincl r r'.
 Proof.
 case: o => /=.
++ move => sz h; apply: rbindP => /= z /(svalue_uincl_int h){h}.
+  case => ?? [?]; subst.
+  by eexists; [ reflexivity | rewrite /= eqxx zero_extend_u ].
++ move => sz h; apply: rbindP => /= z /(svalue_uincl_word h){h}.
+  case => ???? h ??[?]; subst.
+  by eexists; first by rewrite /mk_ssem_sop1 /= h.
 + move=> sz sz' incl_v_v'; rewrite /sem_sop1 /=; t_xrbindP => /=.
   move=> v_w' /svalue_uincl_word -/(_ _ incl_v_v') {incl_v_v'}.
   case=> szv szv' wv wv' tr_w'_wv' _ _ rE; subst r.
@@ -313,13 +319,10 @@ Lemma ssem_pexpr_uincl_r s ss e v1:
   sem_pexpr gd s e = ok v1 ->
   exists2 v2, ssem_pexpr gd ss e = ok v2 & svalue_uincl v1 v2.
 Proof.
-  move=> [Hu1 Hu2]; elim: e v1=>//= [z | b | sz | sz e He | x | g | x p Hp | sz x p Hp | o e He | o e1 He1 e2 He2| eb Heb e1 He1 e2 He2 ] v1.
+  move=> [Hu1 Hu2]; elim: e v1=>//= [z | b | sz | x | g | x p Hp | sz x p Hp | o e He | o e1 He1 e2 He2| eb Heb e1 He1 e2 He2 ] v1.
   + move=> [] <-. by exists z.
   + by move=> [] <-;exists b.
   + by move => ? [] <-; eexists; first reflexivity; rewrite /= eqxx => ?? /(@Array.getP_empty _ _ _ _).
-  + apply: rbindP => z; apply: rbindP => ve /He [] ve' -> Hvu Hto [] <-.
-    case: (svalue_uincl_int Hvu Hto) => ??;subst; exists (SVword (wrepr sz z)) => //=; case:ifP => /eqP //= _.
-   by rewrite zero_extend_u.
   + move=> ?; eexists => //; exact: sget_var_uincl.
   + rewrite /get_global/sget_global.
     case: get_global_value => //= z [<-].

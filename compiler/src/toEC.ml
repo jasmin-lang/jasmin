@@ -46,7 +46,7 @@ let for_safety    env = env.model = Utils.Safety
 let rec read_mem_e = function
   | Pconst _ | Pbool _ | Parr_init _ |Pvar _ | Pglobal _ -> false
   | Pload _ -> true
-  | Pcast (_, e) | Papp1 (_, e) | Pget (_, e) -> read_mem_e e  
+  | Papp1 (_, e) | Pget (_, e) -> read_mem_e e
   | Papp2 (_, e1, e2) -> read_mem_e e1 || read_mem_e e2
   | Pif  (e1, e2, e3) -> read_mem_e e1 || read_mem_e e2 || read_mem_e e3
 
@@ -110,7 +110,7 @@ let rec leaks_e_rec leaks e =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ |Pvar _ | Pglobal _ -> leaks
   | Pload (_,x,e) -> snd (add64 x e) :: leaks_e_rec leaks e
-  | Pcast (_, e) | Papp1 (_, e) | Pget (_, e) -> leaks_e_rec leaks e
+  | Papp1 (_, e) | Pget (_, e) -> leaks_e_rec leaks e
   | Papp2 (_, e1, e2) -> leaks_e_rec (leaks_e_rec leaks e1) e2
   | Pif  (e1, e2, e3) -> leaks_e_rec (leaks_e_rec (leaks_e_rec leaks e1) e2) e3
 
@@ -395,6 +395,10 @@ let pp_zeroext fmt (szi, szo) =
   else (* io < ii *) Format.fprintf fmt "truncateu%a" pp_size szo
   
 let pp_op1 fmt = function
+  | E.Oword_of_int sz ->
+    Format.fprintf fmt "%a.of_int" pp_Tsz sz
+  | E.Oint_of_word sz ->
+    Format.fprintf fmt "%a.to_uint" pp_Tsz sz
   | E.Osignext(szo,_szi) -> 
     Format.fprintf fmt "sigextu%a" pp_size szo
   | E.Ozeroext(szo,szi) -> 
@@ -467,7 +471,6 @@ let rec ty_expr = function
   | Pconst _ -> Coq_sint
   | Pbool _ -> Coq_sbool
   | Parr_init (sz, n) -> Coq_sarr (sz, Conv.pos_of_bi n)
-  | Pcast (sz,_) -> Coq_sword sz
   | Pvar x -> Conv.cty_of_ty x.L.pl_desc.v_ty
   | Pglobal (sz,_) -> Coq_sword sz
   | Pload (sz,_,_) -> Coq_sword sz
@@ -503,10 +506,7 @@ let rec pp_expr env fmt (e:expr) =
       else Format.fprintf fmt "%a.zero" pp_Tsz sz in
     Format.fprintf fmt "Array%a.create %a" B.pp_print n pp_init sz
 
-  | Pcast(sz,e) -> 
-    Format.fprintf fmt "(%a.of_int %a)" pp_Tsz sz (pp_expr env) e
-
-  | Pvar x -> 
+  | Pvar x ->
     pp_ovar env fmt (L.unloc x)
 
   | Pglobal(sz, x) -> 
@@ -782,7 +782,7 @@ module Leak = struct
       else safe 
     | Pload (ws,x,e) -> 
       is_init env x (Valid (ws, snd (add64 x e)) :: safe_e_rec env safe e)
-    | Pcast (_, e) | Papp1 (_, e) -> safe_e_rec env safe e
+    | Papp1 (_, e) -> safe_e_rec env safe e
     | Pget (x, e) -> 
       let safe = 
         let (_s,option) = Mv.find (L.unloc x) env.vars in

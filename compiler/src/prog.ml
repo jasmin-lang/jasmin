@@ -49,7 +49,6 @@ type 'ty gexpr =
   | Pconst of B.zint
   | Pbool  of bool
   | Parr_init of wsize * B.zint
-  | Pcast  of wsize * 'ty gexpr
   | Pvar   of 'ty gvar_i
   | Pglobal of wsize * Name.t
   | Pget   of 'ty gvar_i * 'ty gexpr
@@ -199,7 +198,6 @@ and pexpr_equal e1 e2 =
  match e1, e2 with
  | Pconst n1, Pconst n2 -> B.equal n1 n2
  | Pbool b1, Pbool b2 -> b1 = b2
- | Pcast (b1, e1), Pcast(b2, e2) -> b1 = b2 && pexpr_equal e1 e2
  | Pvar v1, Pvar v2 -> PV.equal (L.unloc v1) (L.unloc v2)
  | Pglobal (s1, n1), Pglobal (s2, n2) -> s1 = s2 && Name.equal n1 n2
  | Pget(v1,e1), Pget(v2,e2) -> PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
@@ -262,7 +260,6 @@ module Hf = Hash.Make(F)
 
 let rec rvars_e s = function
   | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ -> s
-  | Pcast(_,e)     -> rvars_e s e
   | Pvar x         -> Sv.add (L.unloc x) s
   | Pget(x,e)      -> rvars_e (Sv.add (L.unloc x) s) e
   | Pload(_,x,e)   -> rvars_e (Sv.add (L.unloc x) s) e
@@ -366,7 +363,7 @@ let ( ** ) e1 e2 =
 let cnst i = Pconst i
 let icnst i = cnst (B.of_int i)
 
-let cast64 e = Pcast (U64, e)
+let cast64 e = Papp1 (Oword_of_int U64, e)
 
 (* -------------------------------------------------------------------- *)
 (* Functions over lvalue                                                *)

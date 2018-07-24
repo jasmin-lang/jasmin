@@ -235,11 +235,11 @@ Lemma addr_ofsP gd m e v w :
   sem_ofs m ofs = ok w.
 Proof.
 elim: e v w => //=.
-- (* Cast Const *)
-  case => // -[] // z ih v w ; t_xrbindP => ? ? [<-] [<-] <- [<-].
-  by rewrite zero_extend_u.
 - (* Pvar *)
   by move => x z w ->.
+- (* Cast Const *)
+  case => // -[] // [] // z ih v w [<-] [<-] _.
+  by rewrite zero_extend_u.
 - (* Papp2 *)
   case => // -[] //.
   (* Add *)

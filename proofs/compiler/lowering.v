@@ -217,9 +217,9 @@ Variant add_inc_dec : Type :=
 
 Definition add_inc_dec_classify (sz: wsize) (a: pexpr) (b: pexpr) :=
   match a, b with
-  | Pcast w (Pconst 1), y | y, Pcast w (Pconst 1) =>
+  | Papp1 (Oword_of_int w) (Pconst 1), y | y, Papp1 (Oword_of_int w) (Pconst 1) =>
     if w == sz then AddInc y else AddNone
-  | Pcast w (Pconst (-1)), y | y, Pcast w (Pconst (-1)) =>
+  | Papp1 (Oword_of_int w) (Pconst (-1)), y | y, Papp1 (Oword_of_int w) (Pconst (-1)) =>
     if w == sz then AddDec y else AddNone
   | _, _ => AddNone
   end.
@@ -231,8 +231,8 @@ Variant sub_inc_dec : Type :=
 
 Definition sub_inc_dec_classify sz (e: pexpr) :=
   match e with
-  | Pcast w (Pconst (-1)) => if w == sz then SubInc else SubNone
-  | Pcast w (Pconst 1) => if w == sz then SubDec else SubNone
+  | Papp1 (Oword_of_int w) (Pconst (-1)) => if w == sz then SubInc else SubNone
+  | Papp1 (Oword_of_int w) (Pconst 1) => if w == sz then SubDec else SubNone
   | _ => SubNone
   end.
 
@@ -325,7 +325,7 @@ Definition lea_sub l1 l2 :=
 
 Fixpoint mk_lea e :=
   match e with
-  | Pcast sz' (Pconst z) => Some (lea_const (zero_extend Uptr (wrepr sz' z)))
+  | Papp1 (Oword_of_int sz') (Pconst z) => Some (lea_const (zero_extend Uptr (wrepr sz' z)))
   | Pvar  x          => Some (lea_var x)
   | Papp2 (Omul (Op_w Uptr)) e1 e2 =>
     match mk_lea e1, mk_lea e2 with
@@ -366,12 +366,12 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
   let k16 sz := kb ((U16 ≤ sz) && (sz ≤ U64))%CMP sz in
   let k32 sz := kb ((U32 ≤ sz) && (sz ≤ U64))%CMP sz in
   match e with
-  | Pcast sz (Pconst _) => chk (sz' ≤ U64)%CMP (LowerMov false)
   | Pget ({| v_var := {| vtype := sword sz |} |} as v) _
   | Pvar ({| v_var := {| vtype := sword sz |} |} as v) =>
     chk (sz ≤ U64)%CMP (LowerMov (if is_var_in_memory v then is_lval_in_memory x else false))
   | Pload sz _ _ => chk (sz ≤ U64)%CMP (LowerMov (is_lval_in_memory x))
 
+  | Papp1 (Oword_of_int sz) (Pconst _) => chk (sz' ≤ U64)%CMP (LowerMov false)
   | Papp1 (Olnot sz) a => k8 sz (LowerCopn (Ox86_NOT sz) [:: a ])
   | Papp1 (Oneg (Op_w sz)) a => k8 sz (LowerFopn (Ox86_NEG sz) [:: a] None)
   | Papp1 (Osignext szo szi) a =>
@@ -476,7 +476,7 @@ Definition Lnone_b vi := Lnone vi sbool.
 (* TODO: other sizes than U64 *)
 (* TODO: remove dependent types *)
 Variant opn_5flags_cases_t (a: pexprs) : Type :=
-| Opn5f_large_immed x y (n: Z) z `(a = x :: y :: z) `(y = Pcast U64 n)
+| Opn5f_large_immed x y (n: Z) z `(a = x :: y :: z) `(y = Papp1 (Oword_of_int U64) n)
 | Opn5f_other.
 
 Arguments Opn5f_large_immed [a] {x y n z} _ _.
@@ -492,7 +492,7 @@ Definition check_signed_range (m: option wsize) sz' (n: Z) : bool :=
 Definition opn_5flags_cases (a: pexprs) (m: option wsize) (sz: wsize) : opn_5flags_cases_t a :=
   match a with
   | x :: y :: _ =>
-    match is_wconst_of_size U64 y as u return is_reflect (λ z : Z, Pcast U64 z) y u → _ with
+    match is_wconst_of_size U64 y as u return is_reflect (λ z : Z, Papp1 (Oword_of_int U64) z) y u → _ with
     | None => λ _, Opn5f_other
     | Some n =>
       λ W,
@@ -583,8 +583,8 @@ Definition opn_5flags (immed_bound: option wsize) (vi: var_info)
   end.
 
 Definition reduce_wconst sz (e: pexpr) : pexpr :=
-  if e is Pcast sz' (Pconst z)
-  then Pcast (cmp_min sz sz') (Pconst z)
+  if e is Papp1 (Oword_of_int sz') (Pconst z)
+  then Papp1 (Oword_of_int (cmp_min sz sz')) (Pconst z)
   else e.
 
 Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : cmd :=
@@ -660,7 +660,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
     let i1 := 
       match s with
       | Signed => Copn [:: Lvar c ] tg (Ox86_CQO sz) [:: a]
-      | Unsigned => Copn [:: Lvar c ] tg (Ox86_MOV sz) [:: Pcast sz (Pconst 0)]
+      | Unsigned => Copn [:: Lvar c ] tg (Ox86_MOV sz) [:: Papp1 (Oword_of_int sz) (Pconst 0)]
       end in
 
     [::MkI ii i1; MkI ii (Copn lv tg op [::Pvar c; a; b]) ]

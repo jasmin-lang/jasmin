@@ -163,9 +163,6 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pconst z => ok (Vint z)
   | Pbool b  => ok (Vbool b)
   | Parr_init sz n => ok (@Varr sz n (Array.empty n))
-  | Pcast sz e  =>
-    Let z := sem_pexpr s e >>= to_int in
-    ok (Vword (wrepr sz z))
   | Pvar v => get_var s.(evm) v
   | Pglobal g => get_global gd g
   | Pget x e =>
@@ -778,7 +775,7 @@ Lemma is_wconstP gd s sz e w:
   is_wconst sz e = Some w →
   sem_pexpr gd s e >>= to_word sz = ok w.
 Proof.
-  case: e => // sz' e;rewrite /is_wconst;case:ifP => // hle /oseq.obindI [z] [h] [<-].
+  case: e => // - [] // sz' e /=; case: ifP => // hle /oseq.obindI [z] [h] [<-].
   have := is_constP e; rewrite h => {h} /is_reflect_some_inv -> {e}.
   by rewrite /= /truncate_word hle. 
 Qed.
@@ -1025,8 +1022,7 @@ Lemma read_e_eq_on gd s vm' vm m e:
   vm =[read_e_rec s e] vm'->
   sem_pexpr gd (Estate m vm) e = sem_pexpr gd (Estate m vm') e.
 Proof.
-  elim:e s => //= [sz e He|v|v e He|sz v e He|o e He|o e1 He1 e2 He2| e He e1 He1 e2 He2] s.
-  + by move=> /He ->.
+  elim:e s => //= [v|v e He|sz v e He|o e He|o e1 He1 e2 He2| e He e1 He1 e2 He2] s.
   + by move=> /get_var_eq_on -> //;SvD.fsetdec.
   + move=> Heq;rewrite (He _ Heq)=> {He}.
     rewrite (@on_arr_var_eq_on
@@ -1481,7 +1477,10 @@ Lemma vuincl_sem_sop1 o ve1 ve1' v1 :
   sem_sop1 o ve1 = ok v1 ->
   sem_sop1 o ve1' = ok v1.
 Proof.
-  case: o => [ szo szi | szo szi | | sz | [| sz] ].
+  case: o => [ sz | sz | szo szi | szo szi | | sz | [| sz] ].
+  - by move => h; apply: rbindP => /= z1 /(value_uincl_int h) [??][?]; subst.
+  - move => h; apply: rbindP => /= z1 /(value_uincl_word h) {h}h [?]; subst.
+    by rewrite /sem_sop1 /= h.
   1-2:
     case: ve1 => // [ | [] // ] sz1 w1 /value_uinclE [sz2] [w2] [-> {ve1'}] /andP [] hle /eqP -> {w1};
     rewrite /sem_sop1 /=; t_xrbindP => /= y /truncate_wordP [hle'] -> <-;
@@ -1514,12 +1513,10 @@ Lemma sem_pexpr_uincl gd s1 vm2 e v1:
   sem_pexpr gd s1 e = ok v1 ->
   exists v2, sem_pexpr gd (Estate s1.(emem) vm2) e = ok v2 /\ value_uincl v1 v2.
 Proof.
-  move=> Hu; elim: e v1=>//=[z|b|sz n|sz e He|x|g|x p Hp|sz x p Hp|o e He|o e1 He1 e2 He2| e He e1 He1 e2 He2 ] v1.
+  move=> Hu; elim: e v1=>//=[z|b|sz n|x|g|x p Hp|sz x p Hp|o e He|o e1 He1 e2 He2| e He e1 He1 e2 He2 ] v1.
   + by move=> [] <-;exists z.
   + by move=> [] <-;exists b.
   + by case => <-; eauto.
-  + apply: rbindP => z;apply: rbindP => ve /He [] ve' [] -> Hvu Hto [] <-.
-    by case: (value_uincl_int Hvu Hto) => ??;subst; exists (Vword (wrepr sz z)).
   + by apply get_var_uincl.
   + eauto.
   + apply on_arr_varP => sz n t Htx;rewrite /on_arr_var=> /(get_var_uincl Hu) [v2 [->]].
@@ -2130,11 +2127,10 @@ End UNDEFINCL.
 
 Lemma eq_exprP gd s e1 e2 : eq_expr e1 e2 -> sem_pexpr gd s e1 = sem_pexpr gd s e2.
 Proof.
-  elim: e1 e2=> [z  | b | sz n | sz e He | x | g | x e He | sz x e He | o e  He | o e1 He1 e2 He2 | e He e1 He1 e2 He2]
-                [z' | b' | sz' n' | sz' e'   | x' | g' | x' e'  | sz' x' e'  | o' e' | o' e1' e2' | e' e1' e2'] //=.
+  elim: e1 e2=> [z  | b | sz n | x | g | x e He | sz x e He | o e  He | o e1 He1 e2 He2 | e He e1 He1 e2 He2]
+                [z' | b' | sz' n' | x' | g' | x' e'  | sz' x' e'  | o' e' | o' e1' e2' | e' e1' e2'] //=.
   + by move=> /eqP ->.   + by move=> /eqP ->.
   + by case/andP => /eqP -> /eqP ->.
-  + by move=> /andP [] /eqP -> /He ->.
   + by move=> /eqP ->.
   + by move=> /eqP ->.
   + by move=> /andP [] /eqP -> /He ->.

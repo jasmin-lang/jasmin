@@ -70,7 +70,9 @@ let string_of_op2 = function
   | E.Oge  k -> ">=" ^ string_of_cmp_ty k
 
 let string_of_op1 = function
+  | E.Oint_of_word _ -> F.sprintf "(int)"
   | E.Osignext (szo, _) -> F.sprintf "(%ds)" (int_of_ws szo)
+  | E.Oword_of_int szo
   | E.Ozeroext (szo, _) -> F.sprintf "(%du)" (int_of_ws szo)
   | E.Olnot _ -> "!"
   | E.Onot    -> "~"
@@ -83,7 +85,6 @@ let pp_ge pp_var =
   | Pconst i    -> B.pp_print fmt i
   | Pbool  b    -> F.fprintf fmt "%b" b
   | Parr_init (ws, n) -> F.fprintf fmt "array_init(%a, %a)" pp_btype (U ws) B.pp_print n
-  | Pcast(ws,e) -> F.fprintf fmt "(%a)%a" pp_btype (U ws) pp_expr e
   | Pvar v      -> pp_var_i fmt v
   | Pglobal (_, g) -> F.fprintf fmt "%s" g
   | Pget(x,e)   -> F.fprintf fmt "%a[%a]" pp_var_i x pp_expr e

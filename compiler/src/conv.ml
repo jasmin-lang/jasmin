@@ -178,7 +178,6 @@ let rec cexpr_of_expr tbl = function
   | Pconst z          -> C.Pconst (z_of_bi z)
   | Pbool  b          -> C.Pbool  b
   | Parr_init (ws, n) -> C.Parr_init (ws, pos_of_bi n)
-  | Pcast (ws, e)     -> C.Pcast (ws, cexpr_of_expr tbl e)
   | Pvar x            -> C.Pvar (cvari_of_vari tbl x)
   | Pglobal (ws, g)   -> C.Pglobal (cglobal_of_global ws g)
   | Pget (x,e)        -> C.Pget (cvari_of_vari tbl x, cexpr_of_expr tbl e)
@@ -193,7 +192,6 @@ let rec expr_of_cexpr tbl = function
   | C.Pconst z          -> Pconst (bi_of_z z)
   | C.Pbool  b          -> Pbool  b
   | C.Parr_init (ws, n) -> Parr_init (ws, bi_of_pos n)
-  | C.Pcast (ws, e) -> Pcast (ws, expr_of_cexpr tbl e)
   | C.Pvar x            -> Pvar (vari_of_cvari tbl x)
   | C.Pglobal g -> let ws, n = global_of_cglobal g in Pglobal (ws, n)
   | C.Pget (x,e)        -> Pget (vari_of_cvari tbl x, expr_of_cexpr tbl e)

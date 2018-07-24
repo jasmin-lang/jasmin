@@ -428,13 +428,13 @@ Definition is_var (x:var) e :=
 
 Definition is_var_or_immediate (x:var) e :=
   match e with
-  | Pcast _ (Pconst _) => true
+  | Papp1 (Oword_of_int _) (Pconst _) => true
   | Pvar x' => x == x'
   | _ => false end.
 
 Definition check_esize (s: option wsize) e :=
   match e with
-  | Pcast ws (Pconst _) => (ws ≤ U64)%CMP
+  | Papp1 (Oword_of_int ws) (Pconst _) => (ws ≤ U64)%CMP
   | Pload s' _ _
   | Pglobal (Global s' _)
     => s == Some s'
@@ -507,11 +507,10 @@ Proof. by case e => //= v /eqP ->. Qed.
 
 Lemma is_var_or_immediateP x e :
   is_var_or_immediate x e →
-  eq_expr e {| v_var := x ; v_info := xH |} ∨ ∃ s n, e = Pcast s (Pconst n).
+  eq_expr e {| v_var := x ; v_info := xH |} ∨ ∃ s n, e = Papp1 (Oword_of_int s) (Pconst n).
 Proof.
-case: e => //.
-- move=> w [] //=; eauto.
-move => e /=; eauto.
+case: e => //=; eauto.
+case => // sz [] //; eauto.
 Qed.
 
 Lemma check_sopn_argP (loargs hiargs : seq pexpr) (ads : seq arg_desc) :
@@ -732,22 +731,22 @@ Lemma eval_oprd_of_pexpr ii gd sz s m e c a v:
   exists2 v' : value, eval_low gd m a = ok v' & value_uincl v v'.
 Proof.
 move=> eqv; case: e => //.
-+ move=> [] // [] //= z [<-] /= [<-] _ [<-] /=;
-  (eexists; [ eauto |
-  by apply/andP; split => //; rewrite zero_extend_sign_extend // sign_extend_u ]).
 + move=> x /=;t_xrbindP.
   move=> r ok_r -[<-] /= [<-] Hsize /=ok_v /=; eexists; first by reflexivity.
   exact: xgetreg_ex eqv ok_r ok_v.
 + move=> g h; apply ok_inj in h; subst c => -[<-];rewrite /= /get_global => _.
   by case: get_global_value => // z -[<-];eexists;first reflexivity.
-move=> ws x e /=; t_xrbindP => r1 ok_r1 w ok_w [<-] /=.
-move=> H /eqP ?;subst;case: H => ?;subst.
-move=> z o ok_o ok_z z' o' ok_o' ok_z' res ok_res <- {v} /=.
-exists (Vword res) => //=.
-suff : (z + z')%R = decode_addr m w.
-+ by move=> <-;case:eqv => <- _ _;rewrite ok_res.
-move => { ok_res }.
-apply: addr_of_pexprP; eauto.
++ move=> ws x e /=; t_xrbindP => r1 ok_r1 w ok_w [<-] /=.
+  move=> H /eqP ?;subst;case: H => ?;subst.
+  move=> z o ok_o ok_z z' o' ok_o' ok_z' res ok_res <- {v} /=.
+  exists (Vword res) => //=.
+  suff : (z + z')%R = decode_addr m w.
+  + by move=> <-;case:eqv => <- _ _;rewrite ok_res.
+  move => { ok_res }.
+  by apply: addr_of_pexprP; eauto.
++ case => // sz' [] // z /=; t_xrbindP => _ _ [<-] [<-] hle [<-] /=.
+  (eexists; [ eauto |
+  by apply/andP; split => //; rewrite zero_extend_sign_extend // sign_extend_u ]).
 Qed.
 
 Lemma rm128_of_pexpr ii gd sz s m e rm a v :
@@ -839,7 +838,7 @@ Proof.
   move => /= sz n o ho htys.
   have : onth pes n = Some arg ∧ 
          match o with 
-         | Some x => eq_expr arg {| v_var := var_of_register x ; v_info := xH |} ∨ ∃ sz n, arg = Pcast sz (Pconst n) 
+         | Some x => eq_expr arg {| v_var := var_of_register x ; v_info := xH |} ∨ ∃ sz n, arg = Papp1 (Oword_of_int sz) (Pconst n)
          | None => check_esize sz arg 
          end.
   + case: (o) ho => /= [ x | ] /obindI [] e [] ->;case: ifP => //.
@@ -871,10 +870,10 @@ Proof.
           by case: (pe) Heq.
         by move=> [ws [n' heq]] _;move: hop;rewrite heq;case:(ws) => //= -[<-] /=;eauto.
       case: pe hop => //=.
-      + by move=> [] // [] //= z' [<-] _ _ /=;eauto.
       + by move=> v;t_xrbindP => ? _ [<-] _ _ /=;eauto.
       + by move=> ? [<-] /=;eauto.
-      by (move=> w v p;t_xrbindP => ???? [<-] /eqP -> _ /=;eexists;split;[by reflexivity | ]) => //=.
+      + by (move=> w v p;t_xrbindP => ???? [<-] /eqP -> _ /=;eexists;split;[by reflexivity | ]) => //=.
+      by case => // sz' [] // z'; t_xrbindP => _ _ [<-] hle _ /=; eauto.
     move => /= _ _; t_xrbindP => op hop <- /=.
     rewrite hop /=.
     case: o.

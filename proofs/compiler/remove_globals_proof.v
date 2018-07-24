@@ -47,7 +47,6 @@ Module INCL. Section INCL.
     sem_pexpr gd2 s e = ok v.
   Proof.
    move=> hincl; elim: e v => //=.
-   + by move => sz e hrec v; t_xrbindP => ?? /hrec -> /= -> /= ->.
    + move => x e hrec v; apply :on_arr_varP => sz n t h1 h2; t_xrbindP => z v1 /hrec -> hz w.
      by rewrite /on_arr_var h2 /= hz /= => -> <-.
    + by move => sz x e hrec v; t_xrbindP => ?? -> /= -> ?? /hrec -> /= -> ? /= -> <-.
@@ -220,7 +219,7 @@ Module EXTEND. Section PROOFS.
   Proof.
     move=> [ii ty|x|ws x e|x e] ?? e1 ??? //=. 1,3-4: by move=> [<-].
     case: ifP => ?; last by move=> [<-].
-    case: e1 => // w [] // z; rewrite /add_glob.  
+    case: e1 => // - [] // w [] // z; rewrite /add_glob.
     case:ifPn => hhas1; first by move=> [<-].
     case:ifPn => // /hasP hhas2 [<-] g v.
     rewrite /get_global /get_global_value /=. 
@@ -307,7 +306,6 @@ Module RGP. Section PROOFS.
     + by move=> ??? [<-] [<-].
     + by move=> ??? [<-] [<-].
     + by move=> ???? [<-] [<-].
-    + by move=> ?? hrec ??;t_xrbindP => ? /hrec h <- ?? /h /= -> /= -> <-.
     + move=> ???;case:ifPn => ?.
       + by case heq : Mvar.get => [g | //] [<-] /= /(hm3 _ _ _ heq).
       by move=> [<-]; rewrite hm1.
@@ -473,7 +471,7 @@ Module RGP. Section PROOFS.
       exists s2';split => //; apply sem_seq1; constructor; econstructor; eauto.
     case: x hw => //=.
     move=> xi hxi hdef; case: ifPn => // hglob {hdef}.
-    case: e' he' => // sz []//= z [?]; subst v.
+    case: e' he' => // - [] // sz [] //= z [?]; subst v.
     case: andP => //= -[/eqP ? /eqP htxi];subst ty.
     move: hv; rewrite /truncate_val /= truncate_word_u /= => -[?]; subst v'.
     move: xi htxi hglob hxi.
@@ -722,9 +720,4 @@ Module RGP. Section PROOFS.
     apply: (remove_glob_call (P:={| p_globs := gd'; p_funcs := p_funcs P |}) hfds huniq hf).
   Qed.
 
-End PROOFS. End RGP. 
-
-
-
-
-
+End PROOFS. End RGP.

@@ -55,6 +55,8 @@ Variant op_kind :=
   | Op_w of wsize.
 
 Variant sop1 :=
+| Oword_of_int of wsize (* int → word *)
+| Oint_of_word of wsize (* word → unsigned int *)
 | Osignext of wsize & wsize (* Sign-extension: output-size, input-size *)
 | Ozeroext of wsize & wsize (* Zero-extension: output-size, input-size *)
 | Onot (* Boolean negation *)
@@ -407,8 +409,11 @@ Definition sopn_tin (o: sopn) : list stype :=
   | Ox86_VPERMQ => [:: sword256 ; sword8 ]
   end.
 
+(* Type of unany operators: input, output *)
 Definition type_of_op1 (o: sop1) : stype * stype :=
   match o with
+  | Oword_of_int sz => (sint, sword sz)
+  | Oint_of_word sz => (sword sz, sint)
   | Osignext szo szi
   | Ozeroext szo szi
     => (sword szi, sword szo)
@@ -419,6 +424,7 @@ Definition type_of_op1 (o: sop1) : stype * stype :=
   | Oneg Op_int => (sint, sint)
   end.
 
+(* Type of binany operators: inputs, output *)
 Definition type_of_op2 (o: sop2) : stype * stype * stype :=
   match o with
   | Oand | Oor => (sbool, sbool, sbool)
@@ -486,7 +492,6 @@ Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
 | Parr_init : wsize → positive → pexpr
-| Pcast  : wsize -> pexpr -> pexpr              (* int -> word *)
 | Pvar   :> var_i -> pexpr
 | Pglobal :> global -> pexpr
 | Pget   : var_i -> pexpr -> pexpr
@@ -518,7 +523,6 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
   | Pconst n1   , Pconst n2    => n1 == n2
   | Pbool  b1   , Pbool  b2    => b1 == b2
   | Parr_init w1 n1, Parr_init w2 n2 => (w1 == w2) && (n1 == n2)
-  | Pcast w1 e1, Pcast w2 e2 => (w1 == w2) && eqb e1 e2
   | Pvar   x1   , Pvar   x2    => (x1 == x2)
   | Pglobal g1, Pglobal g2 => g1 == g2
   | Pget   x1 e1, Pget   x2 e2 => (x1 == x2) && eqb e1 e2
@@ -533,9 +537,9 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
 
   Lemma eq_axiom : Equality.axiom eqb.
   Proof.
-    elim => [n1|b1| w1 n1 |w1 e1 He1|x1|g1|x1 e1 He1|w1 x1 e1 He1
+    elim => [n1|b1| w1 n1 |x1|g1|x1 e1 He1|w1 x1 e1 He1
             |o1 e1 He1|o1 e11 He11 e12 He12 | t1 Ht1 e11 He11 e12 He12]
-            [n2|b2| w2 n2 |w2 e2|x2|g2|x2 e2|w2 x2 e2|o2 e2|o2 e21 e22 |t2 e21 e22] /=;
+            [n2|b2| w2 n2 |x2|g2|x2 e2|w2 x2 e2|o2 e2|o2 e21 e22 |t2 e21 e22] /=;
         try by constructor.
     + apply (@equivP (n1 = n2));first by apply: eqP.
       by split => [->|[]->].
@@ -543,8 +547,6 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
       by split => [->|[]->].
     + apply (@equivP ((w1 == w2) ∧ (n1 == n2)));first by apply andP.
       by split => [ [/eqP -> /eqP ->] | [-> ->] ].
-    + apply (@equivP ((w1 == w2) /\ eqb e1 e2));first by apply andP.
-      by split=> [ [] /eqP -> /He1 -> | [] -> <- ] //;split => //;apply /He1.
     + apply (@equivP (x1 = x2));first by apply: eqP.
       by split => [->|[]->].
     + apply (@equivP (g1 = g2));first by apply: eqP.
@@ -1075,7 +1077,6 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Pbool  _
   | Parr_init _ _
     => s
-  | Pcast  _ e     => read_e_rec s e
   | Pvar   x       => Sv.add x s
   | Pglobal _ => s
   | Pget   x e     => read_e_rec (Sv.add x s) e
@@ -1244,11 +1245,11 @@ Definition is_bool (e:pexpr) :=
   end.
 
 Definition wconst (sz: wsize) (n: word sz) : pexpr :=
-  Pcast sz (Pconst (wunsigned n)).
+  Papp1 (Oword_of_int sz) (Pconst (wunsigned n)).
 
 Definition is_wconst (sz: wsize) (e: pexpr) : option (word sz) :=
   match e with
-  | Pcast sz' e => 
+  | Papp1 (Oword_of_int sz') e =>
     if (sz <= sz')%CMP then
       is_const e >>= λ n, Some (zero_extend sz (wrepr sz' n))
     else None
@@ -1257,7 +1258,7 @@ Definition is_wconst (sz: wsize) (e: pexpr) : option (word sz) :=
 
 Definition is_wconst_of_size sz (e: pexpr) : option Z :=
   match e with
-  | Pcast sz' (Pconst z) =>
+  | Papp1 (Oword_of_int sz') (Pconst z) =>
     if sz' == sz then Some z else None
   | _ => None end.
 
@@ -1288,9 +1289,10 @@ Qed.
 *)
 
 Lemma is_wconst_of_sizeP sz e :
-  is_reflect (fun z => Pcast sz (Pconst z)) e (is_wconst_of_size sz e).
+  is_reflect (fun z => Papp1 (Oword_of_int sz) (Pconst z)) e (is_wconst_of_size sz e).
 Proof.
 case: e; try constructor.
+case; try constructor.
 move => sz' []; try constructor.
 move => z /=; case: eqP; try constructor.
 move => ->; exact: Is_reflect_some.
@@ -1303,8 +1305,6 @@ Fixpoint eq_expr e e' :=
   | Pconst z      , Pconst z'         => z == z'
   | Pbool  b      , Pbool  b'         => b == b'
   | Parr_init w n, Parr_init w' n' => (w == w') && (n == n')
-  (* FIXME if e1, e2 = Pconst we can compute the cast *)
-  | Pcast w e, Pcast w' e'=> (w == w') && eq_expr e e'
   | Pvar   x      , Pvar   x'         => v_var x == v_var x'
   | Pglobal g, Pglobal g' => g == g'
   | Pget   x e    , Pget   x' e'      => (v_var x == v_var x') && eq_expr e e'
@@ -1318,7 +1318,7 @@ Fixpoint eq_expr e e' :=
 
 Lemma eq_expr_refl e : eq_expr e e.
 Proof.
- by elim: e => //= [ ?? | ?? -> | ?? -> | ??? -> | ?? -> | ?? -> ? -> | ?-> ? -> ? -> ] //=;
+ by elim: e => //= [ ?? | ?? -> | ??? -> | ?? -> | ?? -> ? -> | ?-> ? -> ? -> ] //=;
   rewrite !eqxx.
 Qed.
 

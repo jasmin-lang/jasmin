@@ -116,7 +116,7 @@ Definition check_var (m:map) (x1 x2:var_i) :=
 Definition check_var_stk (m:map) sz (x1 x2:var_i) (e2:pexpr) :=
   is_vstk m x2 && (vtype x1 == sword sz) &&
     match Mvar.get m.1 x1 with
-    | Some ofs => e2 == (Pcast Uptr (Pconst ofs))
+    | Some ofs => e2 == (Papp1 (Oword_of_int Uptr) (Pconst ofs))
     | _ => false
     end.
 
@@ -144,8 +144,7 @@ Fixpoint check_e (m:map) (e1 e2: pexpr) :=
   | Pconst n1, Pconst n2 => n1 == n2 
   | Pbool  b1, Pbool  b2 => b1 == b2
   | Parr_init sz1 n1, Parr_init sz2 n2 => (sz1 == sz2) && (n1 == n2)
-  | Pcast w1 e1, Pcast w2 e2 => (w1 == w2) && check_e m e1 e2
-  | Pvar   x1, Pvar   x2 => check_var m x1 x2 
+  | Pvar   x1, Pvar   x2 => check_var m x1 x2
   | Pvar   x1, Pload w2 x2 e2 => check_var_stk m w2 x1 x2 e2
   | Pglobal g1, Pglobal g2 => g1 == g2
   | Pget  x1 e1, Pget x2 e2 => check_var m x1 x2 && check_e m e1 e2

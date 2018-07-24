@@ -189,7 +189,7 @@ Section PROOF.
     is_addr_ofs sz ofs e1 e2 ->
     exists i, 
     e1 = Pconst i /\ 
-    e2 = Pcast Uptr (wsize_size sz * i + ofs).
+    e2 = Papp1 (Oword_of_int Uptr) (wsize_size sz * i + ofs).
   Proof.
     rewrite /is_addr_ofs;case:is_constP => // i.
     by case: is_wconst_of_sizeP => // z /eqP <-; eauto.
@@ -228,14 +228,10 @@ Section PROOF.
     have Hvm: eq_vm (evm s1) (evm s2).
       by move: Hv=> -[].
     elim: e1 e2 v=> 
-     [z1|b1|sz1 n1|sz1 e1 IH|v1| g1 |v1 e1 IH|sz1 v1 e1 IH|o1 e1 IH|o1 e1 H1 e1' H1' | e He e1 H1 e1' H1'] e2 v.
+     [z1|b1|sz1 n1|v1| g1 |v1 e1 IH|sz1 v1 e1 IH|o1 e1 IH|o1 e1 H1 e1' H1' | e He e1 H1 e1' H1'] e2 v.
     + by case: e2=> //= z2 /eqP -> [] <-;exists z2;auto.
     + by case: e2=> //= b2 /eqP -> [] <-;exists b2;auto.
     + by case: e2 => // _ _ /andP [] /eqP <- /eqP <- [<-]{v}; eexists; split; first reflexivity.
-    + case:e2 => //= sz2 e2 /andP [] /eqP <- {sz2} /IH {IH}IH.
-      apply: rbindP => z;apply: rbindP => v1 /IH [v1' [->]] /= Hu.
-      move=> /(value_uincl_int Hu) [??] [?];subst v1 v1' v => /=.
-      by exists (Vword (wrepr sz1 z)); split => //; exists erefl.
     + case: e2 => //= [v2 | sz2 v2 e2].
       + by move=> /check_varP -/(_ _ _ _ Hvm) H/H. 
       move=> /check_var_stkP -/(_ _ _ _ Hv) H /H {H} [v' [Hload /= Hu]].

@@ -426,14 +426,14 @@ let max_ty ty1 ty2 =
 
 let cast loc e ety ty =
   match ety, ty with
-  | P.Bty P.Int , P.Bty (P.U w) -> P.Pcast (w, e)
+  | P.Bty P.Int , P.Bty (P.U w) -> P.Papp1 (Oword_of_int w, e)
   | P.Bty (P.U w1), P.Bty (P.U w2) when T.wsize_cmp w1 w2 <> Datatypes.Lt -> e
   | _, _ when P.pty_equal ety ty -> e
   | _  ->  rs_tyerror ~loc (InvalidCast(ety,ty))
 
 let cast_word loc e ety =
   match ety with
-  | P.Bty P.Int   -> P.Pcast (T.U64, e), T.U64
+  | P.Bty P.Int   -> P.Papp1 (Oword_of_int T.U64, e), T.U64
   | P.Bty (P.U ws) -> e, ws
   | _             ->  rs_tyerror ~loc (InvalidCast(ety,P.u64))
 
@@ -900,7 +900,6 @@ let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (ty: P.pty) (e: P.pty P.gexp
 let rec is_constant e = 
   match e with 
   | P.Pconst _ | P.Pbool _ | P.Parr_init _ -> true
-  | P.Pcast(_, e) -> is_constant e
   | P.Pvar x  -> P.kind_i x = P.Const || P.kind_i x = P.Inline
   | P.Pglobal _  | P.Pget _ | P.Pload _ -> false
   | P.Papp1 (_, e) -> is_constant e
@@ -1119,7 +1118,7 @@ let tt_global (env : Env.env) _loc (gd: S.pglobal) : Env.env * ((P.Name.t * P.pt
     let open P in
     match ety with
     | Bty (U ews) when Utils0.cmp_le T.wsize_cmp ws ews -> pe
-    | Bty Int -> Pcast (ws, pe)
+    | Bty Int -> Papp1 (Oword_of_int ws, pe)
     | _ -> rs_tyerror ~loc:(L.loc gd.S.pgd_val) (TypeMismatch (ety, ty))
     in
 

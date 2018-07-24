@@ -46,7 +46,6 @@ let rec arrexp_e tbl e =
       Pvar (L.mk_loc (L.loc x) v)
     else Pget(x, arrexp_e tbl e)
 
-  | Pcast(ws,e)    -> Pcast(ws, arrexp_e tbl e)
   | Pload(ws,x,e)  -> Pload(ws,x,arrexp_e tbl e)
   | Papp1 (o, e)   -> Papp1(o, arrexp_e tbl e)
   | Papp2(o,e1,e2) -> Papp2(o,arrexp_e tbl e1, arrexp_e tbl e2)
@@ -144,7 +143,6 @@ let rec astk_e tbl e =
 
   | Pget _ -> assert false (* FIXME: ERROR MSG *)
 
-  | Pcast(ws,e)    -> Pcast(ws, astk_e tbl e)
   | Pload(ws,x,e)  -> Pload(ws,x, astk_e tbl e)
   | Papp1(o,e)     -> Papp1(o, astk_e tbl e)
   | Papp2(o,e1,e2) -> Papp2(o, astk_e tbl e1, astk_e tbl e2)
