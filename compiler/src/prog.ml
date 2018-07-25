@@ -55,6 +55,7 @@ type 'ty gexpr =
   | Pload  of wsize * 'ty gvar_i * 'ty gexpr
   | Papp1  of E.sop1 * 'ty gexpr
   | Papp2  of E.sop2 * 'ty gexpr * 'ty gexpr
+  | PappN of E.opN * 'ty gexpr list
   | Pif    of 'ty gexpr * 'ty gexpr * 'ty gexpr
 
 type 'ty gexprs = 'ty gexpr list
@@ -265,9 +266,10 @@ let rec rvars_e s = function
   | Pload(_,x,e)   -> rvars_e (Sv.add (L.unloc x) s) e
   | Papp1(_, e)    -> rvars_e s e
   | Papp2(_,e1,e2) -> rvars_e (rvars_e s e1) e2
+  | PappN (_, es) -> rvars_es s es
   | Pif(e,e1,e2)   -> rvars_e (rvars_e (rvars_e s e) e1) e2
 
-let rvars_es s es = List.fold_left rvars_e s es
+and rvars_es s es = List.fold_left rvars_e s es
 
 let rec rvars_lv s = function
  | Lnone _      -> s

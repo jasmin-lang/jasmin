@@ -904,6 +904,7 @@ let rec is_constant e =
   | P.Pglobal _  | P.Pget _ | P.Pload _ -> false
   | P.Papp1 (_, e) -> is_constant e
   | P.Papp2 (_, e1, e2) -> is_constant e1 && is_constant e2
+  | P.PappN (_, es) -> List.for_all is_constant es
   | P.Pif(e1, e2, e3)   -> is_constant e1 && is_constant e2 && is_constant e3
 
 let check_call loc doInline lvs f es =

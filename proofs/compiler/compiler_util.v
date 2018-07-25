@@ -29,6 +29,7 @@ Inductive error_msg :=
   | Cerr_neqty    : stype -> stype -> string -> error_msg
   | Cerr_neqop1   : sop1 -> sop1 -> string -> error_msg
   | Cerr_neqop2   : sop2 -> sop2 -> string -> error_msg
+  | Cerr_neqopN   : opN -> opN -> string -> error_msg
   | Cerr_neqop    : sopn -> sopn -> string -> error_msg
   | Cerr_neqdir   : string -> error_msg
   | Cerr_neqexpr  : pexpr -> pexpr -> string -> error_msg

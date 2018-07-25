@@ -293,6 +293,7 @@ Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : exec svalue :=
     Let v1 := ssem_pexpr s e1 in
     Let v2 := ssem_pexpr s e2 in
     ssem_sop2 o v1 v2
+  | PappN op es => type_error (* TODO: nary *)
   | Pif e e1 e2 =>
     Let b  := ssem_pexpr s e >>= sto_bool in
     Let v1 := ssem_pexpr s e1 in

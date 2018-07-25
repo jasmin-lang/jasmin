@@ -45,6 +45,9 @@ let rec pp_comp_err tbl fmt =
   | Compiler_util.Cerr_neqop2(_, _, s) ->
     Format.fprintf fmt "op2 not equal in %a"
       pp_string0 s
+  | Compiler_util.Cerr_neqopN(_, _, s) ->
+    Format.fprintf fmt "opN not equal in %a"
+      pp_string0 s
   | Compiler_util.Cerr_neqop(_,_, s) ->
     Format.fprintf fmt "opn not equal in %a"
       pp_string0 s

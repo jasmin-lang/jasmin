@@ -590,7 +590,7 @@ Lemma const_prop_eP (e:pexpr) s (m:cpm):
   e =[s] const_prop_e m e.
 Proof.
   move=> Hvalid;rewrite /eqok.
-  elim: e=> [z | b | sz n | x | g | x e He | sz x e He | o e He | o e1 He1 e2 He2 | e He e1 He1 e2 He2] v /=;
+  elim: e=> [z | b | sz n | x | g | x e He | sz x e He | o e He | o e1 He1 e2 He2 | op es ih | e He e1 He1 e2 He2] v /=;
   try (intros; clarify; eauto; fail).
   + move: (Hvalid x); case: Mvar.get => [n /(_ _ erefl) |_ /= -> ]; last by eauto.
     by case: n => [ n | sz w ] /= -> [<-]; rewrite /sem_sop1 /= ?wrepr_unsigned; eauto.
@@ -607,6 +607,7 @@ Proof.
   + t_xrbindP => v1 /He1 [w1] [hw1 [hvw1 A1]] v2 /He2 [w2] [hw2 [hvw2 A2]] h; apply/s_op2P.
     rewrite /= hw1 hw2 /=.
     by apply: vuincl_sem_sop2 h.
+  + done. (* TODO: nary *)
   t_xrbindP => b vb /He [wb] [hwb] [/value_uincl_bool h A]/h {h} [??]; subst.
   move => v1 /He1 [w1] [hw1 [hvw1 A1]] v2 /He2 [w2] [hw2 [hvw2 A2]].
   case: ifP => // h; case: andP => // - [] /(value_uincl_is_defined hvw1) hd1 /(value_uincl_is_defined hvw2) hd2 [<-].
@@ -774,6 +775,10 @@ Proof.
   + by move=> ??? ->.
   + by move=> ?? ->.
   + by move=> ?? -> ? ->.
+  + move => op es h; f_equal.
+    elim: es h => // e es ih rec /=; f_equal.
+    - by apply: rec; rewrite in_cons eqxx.
+    by apply: ih => e' he'; apply: rec; rewrite in_cons he' orbT.
   by move=> ? -> ? -> ? ->.
 Qed.
 

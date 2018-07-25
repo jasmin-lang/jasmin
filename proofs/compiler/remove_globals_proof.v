@@ -319,6 +319,7 @@ Module RGP. Section PROOFS.
       by rewrite hmem => -> <-.
     + by move=> ?? hrec ??; t_xrbindP => ? /hrec h <- /= ? /h -> /=.
     + by move=> ?? hrec1 ? hrec2 ??; t_xrbindP=> ? /hrec1 h1 ? /hrec2 h2 <- ? /= /h1 -> ? /h2 ->.
+    + done. (* TODO: nary *)
     move=> ? hrec1 ? hrec2 ? hrec3 ??. 
     by t_xrbindP => ? /hrec1 h1 ? /hrec2 h2 ? /hrec3 h3 <- ?? /= /h1 -> /= -> ? /h2 -> ? /h3 ->.
   Qed.

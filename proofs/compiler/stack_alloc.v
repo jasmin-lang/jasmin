@@ -153,6 +153,8 @@ Fixpoint check_e (m:map) (e1 e2: pexpr) :=
   | Papp1 o1 e1, Papp1 o2 e2 => (o1 == o2) && check_e m e1 e2 
   | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
     (o1 == o2) && check_e m e11 e21 && check_e m e12 e22
+  | PappN o1 es1, PappN o2 es2 =>
+    (o1 == o2) && all2 (check_e m) es1 es2
   | Pif e e1 e2, Pif e' e1' e2' => check_e m e e'  && check_e m e1 e1' && check_e m e2 e2' 
   | _, _ => false
   end.

@@ -182,6 +182,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     Let v1 := sem_pexpr s e1 in
     Let v2 := sem_pexpr s e2 in
     sem_sop2 o v1 v2
+  | PappN op es => type_error (* TODO: nary *)
   | Pif e e1 e2 =>
     Let b := sem_pexpr s e >>= to_bool in
     Let v1 := sem_pexpr s e1 in
@@ -2127,8 +2128,8 @@ End UNDEFINCL.
 
 Lemma eq_exprP gd s e1 e2 : eq_expr e1 e2 -> sem_pexpr gd s e1 = sem_pexpr gd s e2.
 Proof.
-  elim: e1 e2=> [z  | b | sz n | x | g | x e He | sz x e He | o e  He | o e1 He1 e2 He2 | e He e1 He1 e2 He2]
-                [z' | b' | sz' n' | x' | g' | x' e'  | sz' x' e'  | o' e' | o' e1' e2' | e' e1' e2'] //=.
+  elim: e1 e2=> [z  | b | sz n | x | g | x e He | sz x e He | o e  He | o e1 He1 e2 He2 | o es Hes | e He e1 He1 e2 He2]
+                [z' | b' | sz' n' | x' | g' | x' e'  | sz' x' e'  | o' e' | o' e1' e2' | o' es' | e' e1' e2'] //=.
   + by move=> /eqP ->.   + by move=> /eqP ->.
   + by case/andP => /eqP -> /eqP ->.
   + by move=> /eqP ->.

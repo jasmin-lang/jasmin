@@ -48,9 +48,10 @@ let rec read_mem_e = function
   | Pload _ -> true
   | Papp1 (_, e) | Pget (_, e) -> read_mem_e e
   | Papp2 (_, e1, e2) -> read_mem_e e1 || read_mem_e e2
+  | PappN (_, es) -> read_mem_es es
   | Pif  (e1, e2, e3) -> read_mem_e e1 || read_mem_e e2 || read_mem_e e3
 
-let read_mem_es = List.exists read_mem_e
+and read_mem_es es = List.exists read_mem_e es
 
 let read_mem_lval = function
   | Lnone _ | Lvar _ -> false
@@ -106,16 +107,18 @@ type leakage =
   | LK_For of expr * expr
   | LK_unit of expr * expr
 
-let rec leaks_e_rec leaks e = 
+let rec leaks_e_rec leaks e =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ |Pvar _ | Pglobal _ -> leaks
   | Pload (_,x,e) -> snd (add64 x e) :: leaks_e_rec leaks e
   | Papp1 (_, e) | Pget (_, e) -> leaks_e_rec leaks e
   | Papp2 (_, e1, e2) -> leaks_e_rec (leaks_e_rec leaks e1) e2
+  | PappN (_, es) -> leaks_es_rec leaks es
   | Pif  (e1, e2, e3) -> leaks_e_rec (leaks_e_rec (leaks_e_rec leaks e1) e2) e3
+and leaks_es_rec leaks es = List.fold_left leaks_e_rec leaks es
 
 let leaks_e e = leaks_e_rec [] e
-let leaks_es es = List.fold_left leaks_e_rec [] es
+let leaks_es es = leaks_es_rec [] es
 
 let leaks_lval = function
   | Lnone _ | Lvar _ -> []
@@ -452,6 +455,9 @@ let out_ty_op1 op =
 let out_ty_op2 op =
   snd (E.type_of_op2 op)
 
+let out_ty_opN _op =
+  assert false (* TODO: nary *)
+
 let min_ty ty1 ty2 = 
   match ty1, ty2 with
   | Coq_sword sz1, Coq_sword sz2 -> 
@@ -477,6 +483,7 @@ let rec ty_expr = function
   | Pget(x,_) -> ty_get x
   | Papp1 (op,_) -> out_ty_op1 op
   | Papp2 (op,_,_) -> out_ty_op2 op
+  | PappN (op, _) -> out_ty_opN op
   | Pif (_,e1,e2) -> min_ty (ty_expr e1) (ty_expr e2)
 
 let wsize = function
@@ -532,6 +539,9 @@ let rec pp_expr env fmt (e:expr) =
     let te1, te2 = swap_op2 op2 (ty1, e1) (ty2, e2) in
     Format.fprintf fmt "(%a %a %a)"
       (pp_wcast env) te1 pp_op2 op2 (pp_wcast env) te2
+
+  | PappN (_op, _es) ->
+    assert false (* TODO: nary *)
 
   | Pif(e1,et,ef) -> 
     let ty = ty_expr e in
@@ -790,7 +800,8 @@ module Leak = struct
         else safe in
       in_bound x e :: safe 
     | Papp2 (op, e1, e2) -> 
-      safe_op2 (safe_e_rec env (safe_e_rec env safe e1) e2) e1 e2 op 
+      safe_op2 (safe_e_rec env (safe_e_rec env safe e1) e2) e1 e2 op
+    | PappN (_op, _es) -> assert false (* TODO: nary *)
     | Pif  (e1, e2, e3) -> 
       (* We do not check "is_defined e1 && is_defined e2" since 
         (safe_e_rec (safe_e_rec safe e1) e2) implies it *)

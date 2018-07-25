@@ -228,7 +228,7 @@ Section PROOF.
     have Hvm: eq_vm (evm s1) (evm s2).
       by move: Hv=> -[].
     elim: e1 e2 v=> 
-     [z1|b1|sz1 n1|v1| g1 |v1 e1 IH|sz1 v1 e1 IH|o1 e1 IH|o1 e1 H1 e1' H1' | e He e1 H1 e1' H1'] e2 v.
+     [z1|b1|sz1 n1|v1| g1 |v1 e1 IH|sz1 v1 e1 IH|o1 e1 IH|o1 e1 H1 e1' H1' | op1 es1 H1 | e He e1 H1 e1' H1'] e2 v.
     + by case: e2=> //= z2 /eqP -> [] <-;exists z2;auto.
     + by case: e2=> //= b2 /eqP -> [] <-;exists b2;auto.
     + by case: e2 => // _ _ /andP [] /eqP <- /eqP <- [<-]{v}; eexists; split; first reflexivity.
@@ -268,6 +268,7 @@ Section PROOF.
       apply: rbindP=> v1 /He [v1' []] -> /vuincl_sem_sop2 Hu1.
       apply: rbindP=> v2 /He' [v2' []] -> /Hu1 Hu2 /Hu2 /= ->. 
       by exists v.
+    + done. (* TODO: nary *)
     case: e2 => // e' e2 e2' /= /andP[] /andP[] /He{He}He /H1{H1}H1 /H1'{H1'}H1'.
     apply: rbindP => b;apply: rbindP => w /He [b' [->]] /value_uincl_bool.
     move=> H /H [??];subst w b'=> /=.

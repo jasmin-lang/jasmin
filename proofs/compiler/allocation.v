@@ -1178,6 +1178,10 @@ Module CBAreg.
      | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
       if o1 == o2 then check_e e11 e21 m >>= check_e e12 e22
       else cerror (Cerr_neqop2 o1 o2 salloc)
+    | PappN o1 es1, PappN o2 es2 =>
+      if o1 == o2
+      then fold2 (Cerr_fold2 "allocation: check_e (appN)") check_e es1 es2 m
+      else cerror (Cerr_neqopN o1 o2 salloc)
     | Pif e e1 e2, Pif e' e1' e2' => 
       check_e e e' m >>= check_e e1 e1' >>= check_e e2 e2'
     | _, _ => err tt
@@ -1301,8 +1305,8 @@ Module CBAreg.
     exists v2, sem_pexpr gd (Estate m vm2) e2 = ok v2 /\ value_uincl v1 v2.
   Proof.
     elim : e1 e2 r re vm1 =>
-      [z1 | b1 | sz1 n1 | x1 | g1 | x1 e1 He1 | sz1 x1 e1 He1 | o1 e1 He1 | o1 e11 He11 e12 He12 | e He e11 He11 e12 He12 ]
-      [z2 | b2 | sz2 n2 | x2 | g2 | x2 e2 | sz2 x2 e2 | o2 e2 | o2 e21 e22 | e' e21 e22] //= r re s.
+      [z1 | b1 | sz1 n1 | x1 | g1 | x1 e1 He1 | sz1 x1 e1 He1 | o1 e1 He1 | o1 e11 He11 e12 He12 | o1 es1 Hes1 | e He e11 He11 e12 He12 ]
+      [z2 | b2 | sz2 n2 | x2 | g2 | x2 e2 | sz2 x2 e2 | o2 e2 | o2 e21 e22 | o2 es2 | e' e21 e22] //= r re s.
     + by case: ifPn => // /eqP <- [->] ?;split=> // ?? [] <-; exists z1.
     + by case: ifPn => // /eqP <- [->] ?;split=> // ?? [] <-; exists b1.
     + by case: eqP => //= <-; case: eqP => //= <- [<-] ?; split => // ?? [<-]; eauto.
@@ -1333,6 +1337,17 @@ Module CBAreg.
       apply: rbindP => v1 /Hse1 [v1' [-> U1]].
       apply: rbindP => v2 /Hse2 [v2' [-> U2]].
       by move=> /(vuincl_sem_sop2 U1 U2);exists v.
+    + case: eqP => // ? ok_re hr; subst o2; split.
+      * have {Hes1} Hes1 :=
+          fun e he e2 r re vm1 ok_re hr => proj1 (@Hes1 e he e2 r re vm1 ok_re hr).
+        elim: es1 es2 r hr ok_re Hes1.
+        - by case => // r hr [<-].
+        move => e1 es1 ih [] // e2 es2 r hr /=; apply: rbindP => r' hr' ok_re rec.
+        apply: (ih es2 r' _ ok_re).
+        - apply: (rec _ _ _ _ _ _ hr' hr); by rewrite in_cons eqxx.
+        move => e' he' a b c d ok_c hd; apply: (rec _ _ _ _ _ _ ok_c hd).
+        by rewrite in_cons he' orbT.
+      done. (* TODO: nary *)
     apply: rbindP => r1;apply: rbindP => r' /He Hr' /He11 Hr1 /He12 Hr2 {He He11 He12}.
     move=> /Hr'{Hr'}[] /Hr1{Hr1}[] /Hr2{Hr2}[] Hre Hs2 Hs1 Hs;split=>// m v1.
     t_xrbindP => b w /Hs [w'] [->] /= /value_uincl_bool H/H{H} [? ->] /= v2 Hv2 v3 Hv3.

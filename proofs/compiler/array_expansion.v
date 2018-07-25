@@ -173,6 +173,8 @@ Module CBEA.
     | Papp1 o1 e1, Papp1 o2 e2 => (o1 == o2) && check_eb m e1 e2
     | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>    
       (o1 == o2) && check_eb m e11 e21 && check_eb m e12 e22
+    | PappN o1 es1, PappN o2 es2 =>
+      (o1 == o2) && all2 (check_eb m) es1 es2
     | Pif e e1 e2, Pif e' e1' e2' =>
       check_eb m e e' && check_eb m e1 e1' && check_eb m e2 e2'      
     | _, _ => false
@@ -228,8 +230,8 @@ Module CBEA.
     exists v2, sem_pexpr gd {|emem := m1; evm:= vm2 |} e2 = ok v2 /\ value_uincl v1 v2.
   Proof.
     move=> Hrn; elim: e1 e2 v1 =>
-     [ z1 | b1 | sz1 n1 | x1 | g1 | x1 e1 He1 | sw1 x1 e1 He1 | o1 e1 He1 | o1 e11 He11 e12 He12 | e He e11 He11 e12 He12]
-     [ z2 | b2 | sz2 n2 | x2 | g2 | x2 e2 | sw2 x2 e2 | o2 e2 | o2 e21 e22 | e' e21 e22] //= v1.
+     [ z1 | b1 | sz1 n1 | x1 | g1 | x1 e1 He1 | sw1 x1 e1 He1 | o1 e1 He1 | o1 e11 He11 e12 He12 | o1 es1 Hes1 | e He e11 He11 e12 He12]
+     [ z2 | b2 | sz2 n2 | x2 | g2 | x2 e2 | sw2 x2 e2 | o2 e2 | o2 e21 e22 | o2 es2 | e' e21 e22] //= v1.
     + by move=> /eqP <- [<-];eauto. + by move=> /eqP <- [<-];eauto.
     + by case/andP => /eqP <- /eqP <- [<-]; eauto.
     + by apply: check_varP.

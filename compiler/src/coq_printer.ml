@@ -167,6 +167,7 @@ let rec pp_pexpr fmt = function
   | Papp2(o, e1, e2)->
     Format.fprintf fmt "@[<hov 2>(%a %s@ %a)@]"
       pp_pexpr e1 (infix_sop2 o) pp_pexpr e2
+  | PappN _ -> assert false (* FIXME *)
   | Pif(e,e1,e2) ->
     Format.fprintf fmt "(@[<hov 2>Pif %a@ %a@ %a@])"
       pp_pexpr e pp_pexpr e1 pp_pexpr e2

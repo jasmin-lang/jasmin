@@ -184,6 +184,7 @@ let rec cexpr_of_expr tbl = function
   | Pload (ws, x, e)  -> C.Pload(ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Papp1 (o, e)      -> C.Papp1(o, cexpr_of_expr tbl e)
   | Papp2 (o, e1, e2) -> C.Papp2(o, cexpr_of_expr tbl e1, cexpr_of_expr tbl e2)
+  | PappN (o, es) -> C.PappN (o, List.map (cexpr_of_expr tbl) es)
   | Pif   (e, e1, e2) -> C.Pif(cexpr_of_expr tbl e,
                                 cexpr_of_expr tbl e1,
                                 cexpr_of_expr tbl e2)
@@ -198,6 +199,7 @@ let rec expr_of_cexpr tbl = function
   | C.Pload (ws, x, e) -> Pload(ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Papp1 (o, e)      -> Papp1(o, expr_of_cexpr tbl e)
   | C.Papp2 (o, e1, e2) -> Papp2(o, expr_of_cexpr tbl e1, expr_of_cexpr tbl e2)
+  | C.PappN (o, es) -> PappN (o, List.map (expr_of_cexpr tbl) es)
   | C.Pif   (e, e1, e2) -> Pif(expr_of_cexpr tbl e,
                                expr_of_cexpr tbl e1,
                                expr_of_cexpr tbl e2)

@@ -36,6 +36,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Local Unset Elimination Schemes.
+
 (* ** Operators
  * -------------------------------------------------------------------- *)
 (* *** Summary
@@ -87,6 +89,9 @@ Variant sop2 :=
 | Ole   of cmp_kind
 | Ogt   of cmp_kind
 | Oge   of cmp_kind.
+
+(* N-ary operators *)
+Variant opN : Set := OPN (* TODO: nary *) .
 
 Variant sopn : Set :=
 (* Generic operation *)
@@ -192,6 +197,18 @@ Qed.
 
 Definition sop2_eqMixin     := Equality.Mixin sop2_eq_axiom.
 Canonical  sop2_eqType      := Eval hnf in EqType sop2 sop2_eqMixin.
+
+Scheme Equality for opN.
+
+Lemma opN_eq_axiom : Equality.axiom opN_beq.
+Proof.
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_opN_dec_bl.
+  by apply: internal_opN_dec_lb.
+Qed.
+
+Definition opN_eqMixin     := Equality.Mixin opN_eq_axiom.
+Canonical  opN_eqType      := Eval hnf in EqType opN opN_eqMixin.
 
 Scheme Equality for sopn.
 (* Definition sopn_beq : sopn -> sopn -> bool *)
@@ -498,9 +515,76 @@ Inductive pexpr : Type :=
 | Pload  : wsize -> var_i -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
+| PappN of opN & seq pexpr
 | Pif    : pexpr -> pexpr -> pexpr -> pexpr.
 
 Notation pexprs := (seq pexpr).
+
+Section ALL2.
+   Variable T:Type.
+   Variable eqb: T -> T -> bool.
+   Variable Heq : forall (x y:T), reflect (x = y) (eqb x y).
+
+   Lemma reflect_all2 l1 l2 : reflect (l1 = l2) (all2 eqb l1 l2).
+   Proof.
+     elim: l1 l2 => [|e1 l1 Hrec1] [|e2 l2] /=;try by constructor.
+     apply (@equivP (eqb e1 e2 /\ all2 eqb l1 l2));first by apply andP.
+     split=> [ [] /Heq -> /Hrec1 ->|[] ??] //.
+     split. by apply /Heq. by apply /Hrec1.
+   Defined.
+End ALL2.
+
+Section ALLT.
+  Context (A: Type) (P: A → Type).
+  Fixpoint allT (m: seq A) : Type :=
+    if m is a :: m' then P a * allT m' else unit.
+End ALLT.
+
+Lemma allT_refl A (P: A → A → Prop) m :
+  allT (λ a, P a a) m → List.Forall2 P m m.
+Proof. by elim: m => // a m ih [h] /ih{ih}ih; constructor. Qed.
+
+Section PEXPR_RECT.
+
+  Context
+    (P: pexpr → Type)
+    (Hconst: ∀ z, P (Pconst z))
+    (Hbool: ∀ b, P (Pbool b))
+    (Harr_init: ∀ sz n, P (Parr_init sz n))
+    (Hvar: ∀ x, P (Pvar x))
+    (Hglobal: ∀ g, P (Pglobal g))
+    (Hget: ∀ x e, P e → P (Pget x e))
+    (Hload: ∀ sz x e, P e → P (Pload sz x e))
+    (Happ1: ∀ op e, P e → P (Papp1 op e))
+    (Happ2: ∀ op e1 e2, P e1 → P e2 → P (Papp2 op e1 e2))
+    (HappN: ∀ op es, allT P es → P (PappN op es))
+    (Hif: ∀ e e1 e2, P e → P e1 → P e2 → P (Pif e e1 e2))
+  .
+
+  Definition pexpr_rect_rec (f: ∀ e, P e) : ∀ es, allT P es :=
+    fix loop es :=
+      if es is e :: es
+      then (f e, loop es)
+      else tt.
+
+  Fixpoint pexpr_rect (e: pexpr) : P e :=
+    match e with
+    | Pconst z => Hconst z
+    | Pbool b => Hbool b
+    | Parr_init sz n => Harr_init sz n
+    | Pvar x => Hvar x
+    | Pglobal g => Hglobal g
+    | Pget x e => Hget x (pexpr_rect e)
+    | Pload sz x e => Hload sz x (pexpr_rect e)
+    | Papp1 op e => Happ1 op (pexpr_rect e)
+    | Papp2 op e1 e2 => Happ2 op (pexpr_rect e1) (pexpr_rect e2)
+    | PappN op es => HappN op (pexpr_rect_rec pexpr_rect es)
+    | Pif e e1 e2 => Hif (pexpr_rect e) (pexpr_rect e1) (pexpr_rect e2)
+    end.
+
+End PEXPR_RECT.
+
+Arguments pexpr_rect: clear implicits.
 
 Definition var_i_beq x1 x2 :=
   match x1, x2 with
@@ -530,16 +614,28 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
   | Papp1 o1 e1 , Papp1  o2 e2 => (o1 == o2) && eqb e1 e2
   | Papp2 o1 e11 e12, Papp2 o2 e21 e22  =>
      (o1 == o2) && eqb e11 e21 && eqb e12 e22
+  | PappN o1 es1, PappN o2 es2 =>
+    (o1 == o2) && all2 eqb es1 es2
   | Pif b1 e11 e12, Pif b2 e21 e22  =>
      eqb b1 b2 && eqb e11 e21 && eqb e12 e22
   | _, _ => false
   end.
 
+  Lemma eqb_refl e : eqb e e.
+  Proof.
+    elim/pexpr_rect: e => //= *;
+    repeat match goal with
+    | H : _ |- _ => rewrite H //=
+    | |- context[ (?a == ?a) ] => rewrite eqxx //=
+    end.
+    apply/all2P; exact: allT_refl.
+  Qed.
+
   Lemma eq_axiom : Equality.axiom eqb.
   Proof.
     elim => [n1|b1| w1 n1 |x1|g1|x1 e1 He1|w1 x1 e1 He1
-            |o1 e1 He1|o1 e11 He11 e12 He12 | t1 Ht1 e11 He11 e12 He12]
-            [n2|b2| w2 n2 |x2|g2|x2 e2|w2 x2 e2|o2 e2|o2 e21 e22 |t2 e21 e22] /=;
+            |o1 e1 He1|o1 e11 e12 He11 He12 | o1 es1 Hes1 | t1 e11 e12 Ht1 He11 He12]
+            [n2|b2| w2 n2 |x2|g2|x2 e2|w2 x2 e2|o2 e2|o2 e21 e22 | o2 es2 |t2 e21 e22] /=;
         try by constructor.
     + apply (@equivP (n1 = n2));first by apply: eqP.
       by split => [->|[]->].
@@ -561,6 +657,16 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
     + apply (@equivP (((o1 == o2) && eqb e11 e21) /\ eqb e12 e22));first by apply andP.
       split=> [ []/andP[]/eqP-> /He11 -> /He12->| [] <- <- <- ] //.
       by rewrite eq_refl /=;split;[apply /He11|apply /He12].
+    + apply (@equivP ((o1 == o2) ∧ all2 eqb es1 es2)); first by apply: andP.
+      split.
+      - case => /eqP <-{o2} h; f_equal.
+        elim: es1 es2 Hes1 h; first by case.
+        by move => e1 es1 ih [] // e2 es2 [h1] /ih{ih}ih/=/andP[]/(rwP (h1 _)) <- /ih <-.
+      move => h.
+      have : o1 = o2 ∧ es1 = es2 by refine (let: erefl := h in conj erefl erefl).
+      move => {h} [??]; subst es2 o2; split; first exact: eqxx.
+      elim: es1 Hes1 => // e es ih [h] /ih{ih}ih /=.
+      by case: (h e).
     apply (@equivP ((eqb t1 t2 && eqb e11 e21) /\ eqb e12 e22));first by apply andP.
     split => [[] /andP[] /Ht1 -> /He11 -> /He12 ->| [] <- <- <-] //.
     by split;[apply /andP;split|]; [apply /Ht1 | apply /He11 | apply /He12].
@@ -572,6 +678,51 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
   End Exports.
 End Eq_pexpr.
 Export Eq_pexpr.Exports.
+
+Section PEXPR_IND.
+  Context
+    (P: pexpr → Prop)
+    (Hconst: ∀ z, P (Pconst z))
+    (Hbool: ∀ b, P (Pbool b))
+    (Harr_init: ∀ sz n, P (Parr_init sz n))
+    (Hvar: ∀ x, P (Pvar x))
+    (Hglobal: ∀ g, P (Pglobal g))
+    (Hget: ∀ x e, P e → P (Pget x e))
+    (Hload: ∀ sz x e, P e → P (Pload sz x e))
+    (Happ1: ∀ op e, P e → P (Papp1 op e))
+    (Happ2: ∀ op e1, P e1 → ∀ e2, P e2 → P (Papp2 op e1 e2))
+    (HappN: ∀ op es, (∀ e, e \in es → P e) → P (PappN op es))
+    (Hif: ∀ e, P e → ∀ e1, P e1 → ∀ e2, P e2 → P (Pif e e1 e2))
+  .
+
+  Definition pexpr_ind_rec (f: ∀ e, P e) : ∀ es : pexprs, ∀ e, e \in es → P e.
+  refine
+    (fix loop es :=
+       if es is e :: es'
+       then λ (e: pexpr), _
+       else λ e (k: e \in [::]), False_ind _ (Bool.diff_false_true k)
+    ).
+  rewrite in_cons; case/orP.
+  + move => /eqP -> ; exact: f.
+  apply: loop.
+  Defined.
+
+  Fixpoint pexpr_ind (e: pexpr) : P e :=
+    match e with
+    | Pconst z => Hconst z
+    | Pbool b => Hbool b
+    | Parr_init sz n => Harr_init sz n
+    | Pvar x => Hvar x
+    | Pglobal g => Hglobal g
+    | Pget x e => Hget x (pexpr_ind e)
+    | Pload sz x e => Hload sz x (pexpr_ind e)
+    | Papp1 op e => Happ1 op (pexpr_ind e)
+    | Papp2 op e1 e2 => Happ2 op (pexpr_ind e1) (pexpr_ind e2)
+    | PappN op es => HappN op (@pexpr_ind_rec pexpr_ind es)
+    | Pif e e1 e2 => Hif (pexpr_ind e) (pexpr_ind e1) (pexpr_ind e2)
+    end.
+
+End PEXPR_IND.
 
 (* ** Left values
  * -------------------------------------------------------------------- *)
@@ -680,7 +831,6 @@ Definition inline_info_eqMixin     := Equality.Mixin inline_info_eq_axiom.
 Canonical  inline_info_eqType      := Eval hnf in EqType inline_info inline_info_eqMixin.
 
 (* -------------------------------------------------------------------- *)
-Local Unset Elimination Schemes.
 
 Inductive instr_r :=
 | Cassgn : lval -> assgn_tag -> stype -> pexpr -> instr_r
@@ -746,20 +896,6 @@ with instr_beq i1 i2 :=
   match i1, i2 with
   | MkI if1 i1, MkI if2 i2 => (if1 == if2) && (instr_r_beq i1 i2)
   end.
-
-Section ALL2.
-   Variable T:Type.
-   Variable eqb: T -> T -> bool.
-   Variable Heq : forall (x y:T), reflect (x = y) (eqb x y).
-
-   Lemma reflect_all2 l1 l2 : reflect (l1 = l2) (all2 eqb l1 l2).
-   Proof.
-     elim: l1 l2 => [|e1 l1 Hrec1] [|e2 l2] /=;try by constructor.
-     apply (@equivP (eqb e1 e2 /\ all2 eqb l1 l2));first by apply andP.
-     split=> [ [] /Heq -> /Hrec1 ->|[] ??] //.
-     split. by apply /Heq. by apply /Hrec1.
-   Defined.
-End ALL2.
 
 Section EQI.
   Variable Heq : forall (x y:instr_r), reflect (x=y) (instr_r_beq x y).
@@ -1083,6 +1219,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Pload _ x e => read_e_rec (Sv.add x s) e
   | Papp1  _ e     => read_e_rec s e
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
+  | PappN _ es => foldl read_e_rec s es
   | Pif    t e1 e2 => read_e_rec (read_e_rec (read_e_rec s e2) e1) t
   end.
 
@@ -1134,8 +1271,19 @@ Definition read_c := read_c_rec Sv.empty.
 
 Lemma read_eE e s : Sv.Equal (read_e_rec s e) (Sv.union (read_e e) s).
 Proof.
-  elim: e s => //= [v | v e He | w v e He | o e1 He1 e2 He2 | e He e1 He1 e2 He2] s;
-   rewrite /read_e /= ?He ?He1 ?He2; by SvD.fsetdec.
+  elim: e s => //= [v | v e He | w v e He | o e1 He1 e2 He2 | o es Hes | e He e1 He1 e2 He2] s;
+   rewrite /read_e /= ?He ?He1 ?He2; try SvD.fsetdec.
+  rewrite -/read_es_rec -/read_es.
+  elim: es Hes s.
+  + move => _ /= s; SvD.fsetdec.
+  move => e es ih Hes s /=.
+  rewrite /read_es /= -/read_e ih. rewrite Hes. rewrite ih.
+  + SvD.fsetdec.
+  + move => e' he' s'. apply: Hes.
+    by rewrite in_cons he' orbT.
+  + by rewrite in_cons eqxx.
+  move => e' he' s'. apply: Hes.
+  by rewrite in_cons he' orbT.
 Qed.
 
 Lemma read_e_var (x:var_i) : Sv.Equal (read_e (Pvar x)) (Sv.singleton x).
@@ -1311,6 +1459,7 @@ Fixpoint eq_expr e e' :=
   | Pload w x e, Pload w' x' e' => (w == w') && (v_var x == v_var x') && eq_expr e e'
   | Papp1  o e    , Papp1  o' e'      => (o == o') && eq_expr e e'
   | Papp2  o e1 e2, Papp2  o' e1' e2' => (o == o') && eq_expr e1 e1' && eq_expr e2 e2'
+  | PappN o es, PappN o' es' => (o == o') && (all2 eq_expr es es')
   | Pif    e e1 e2, Pif    e' e1' e2' => 
     eq_expr e e' && eq_expr e1 e1' && eq_expr e2 e2'
   | _             , _                 => false
@@ -1318,8 +1467,11 @@ Fixpoint eq_expr e e' :=
 
 Lemma eq_expr_refl e : eq_expr e e.
 Proof.
- by elim: e => //= [ ?? | ?? -> | ??? -> | ?? -> | ?? -> ? -> | ?-> ? -> ? -> ] //=;
-  rewrite !eqxx.
+elim: e => //= [ ?? | ?? -> | ??? -> | ?? -> | ?? -> ? -> | ? es ih | ?-> ? -> ? -> ] //=;
+  rewrite ?eqxx //=.
+elim: es ih => // e es ih h /=; rewrite h.
++ by apply: ih => e' he'; apply: h; rewrite in_cons he' orbT.
+by rewrite in_cons eqxx.
 Qed.
 
 Definition eq_lval (x x': lval) : bool :=

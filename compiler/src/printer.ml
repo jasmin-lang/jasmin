@@ -78,6 +78,10 @@ let string_of_op1 = function
   | E.Onot    -> "~"
   | E.Oneg _ -> "-"
 
+let string_of_opN =
+  function
+  | E.OPN -> "OPN" (* TODO: nary *)
+
 (* -------------------------------------------------------------------- *)
 let pp_ge pp_var =
   let pp_var_i = pp_gvar_i pp_var in
@@ -96,6 +100,8 @@ let pp_ge pp_var =
   | Papp2(op,e1,e2) ->
     F.fprintf fmt "@[(%a %s@ %a)@]"
       pp_expr e1 (string_of_op2 op) pp_expr e2
+  | PappN (op, es) ->
+    F.fprintf fmt "@[(%s [%a])@]" (string_of_opN op) (pp_list ",@ " pp_expr) es
   | Pif(e,e1,e2) ->
     F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
       pp_expr e pp_expr e1  pp_expr e2

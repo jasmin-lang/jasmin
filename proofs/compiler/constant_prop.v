@@ -327,6 +327,12 @@ Definition s_op2 o e1 e2 :=
   | Oasr sz => ssar sz e1 e2
   end.
 
+Definition s_opN op es :=
+  (* TODO: nary *)
+  match op with
+  | OPN => PappN OPN es
+  end.
+
 Definition s_if e e1 e2 := 
   match is_bool e with
   | Some b => if b then e1 else e2
@@ -383,6 +389,7 @@ Fixpoint const_prop_e (m:cpm) e :=
   | Pload sz x e  => Pload sz x (const_prop_e m e)
   | Papp1 o e     => s_op1 o (const_prop_e m e)
   | Papp2 o e1 e2 => s_op2 o (const_prop_e m e1)  (const_prop_e m e2)
+  | PappN op es => s_opN op (map (const_prop_e m) es)
   | Pif e e1 e2   => s_if (const_prop_e m e) (const_prop_e m e1) (const_prop_e m e2)
   end.
 

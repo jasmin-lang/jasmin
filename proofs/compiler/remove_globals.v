@@ -132,6 +132,9 @@ Section REMOVE.
         Let e1 := remove_glob_e ii env e1 in
         Let e2 := remove_glob_e ii env e2 in
         ok (Papp2 o e1 e2)
+      | PappN op es =>
+        Let es := mapM (remove_glob_e ii env) es in
+        ok (PappN op es)
       | Pif e e1 e2 =>
         Let e := remove_glob_e ii env e in
         Let e1 := remove_glob_e ii env e1 in
