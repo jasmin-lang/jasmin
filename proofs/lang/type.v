@@ -239,6 +239,12 @@ Proof. by case: s. Qed.
 Lemma wsize_le_U8_inv s: (s <= U8)%CMP -> s = U8.
 Proof. by case: s. Qed.
 
+Lemma wsize_ge_U256 s: (s <= U256)%CMP.
+Proof. by case s. Qed.
+
+Lemma wsize_ge_U256_inv s: (U256 <= s)%CMP -> s = U256.
+Proof. by case s. Qed.
+
 Module CEDecStype.
 
   Definition t := [eqType of stype].

@@ -569,11 +569,60 @@ Proof.
   by rewrite /sem_sop1 /= wrepr_unsigned;case: u.
 Qed.
 
+Lemma svaddP ve ws e1 e2 : Papp2 (Ovadd ve ws) e1 e2 =E svadd ve ws e1 e2.
+Proof.
+  apply: sbitwP => sz1 w1 sz2 w2 v.
+  apply: rbindP => v1 /truncate_wordP [_ ->].
+  apply: rbindP => v2 /truncate_wordP [_ ->].
+  by case.
+Qed.
+
+Lemma svsubP ve ws e1 e2 : Papp2 (Ovsub ve ws) e1 e2 =E svsub ve ws e1 e2.
+Proof.
+  apply: sbitwP => sz1 w1 sz2 w2 v.
+  apply: rbindP => v1 /truncate_wordP [_ ->].
+  apply: rbindP => v2 /truncate_wordP [_ ->].
+  by case.
+Qed.
+
+Lemma svmulP ve ws e1 e2 : Papp2 (Ovmul ve ws) e1 e2 =E svmul ve ws e1 e2.
+Proof.
+  apply: sbitwP => sz1 w1 sz2 w2 v.
+  apply: rbindP => v1 /truncate_wordP [_ ->].
+  apply: rbindP => v2 /truncate_wordP [_ ->].
+  by case.
+Qed.
+
+Lemma svshlP ve ws e1 e2 : Papp2 (Ovlsl ve ws) e1 e2 =E svshl ve ws e1 e2.
+Proof.
+  apply: @sbitw8P => sz1 w1 sz2 w2 v.
+  apply: rbindP => v1 /truncate_wordP [_ ->].
+  apply: rbindP => v2 /truncate_wordP [_ ->].
+  by case.
+Qed.
+
+Lemma svshrP ve ws e1 e2 : Papp2 (Ovlsr ve ws) e1 e2 =E svshr ve ws e1 e2.
+Proof.
+  apply: @sbitw8P => sz1 w1 sz2 w2 v.
+  apply: rbindP => v1 /truncate_wordP [_ ->].
+  apply: rbindP => v2 /truncate_wordP [_ ->].
+  by case.
+Qed.
+
+Lemma svsarP ve ws e1 e2 : Papp2 (Ovasr ve ws) e1 e2 =E svsar ve ws e1 e2.
+Proof.
+  apply: @sbitw8P => sz1 w1 sz2 w2 v.
+  apply: rbindP => v1 /truncate_wordP [_ ->].
+  apply: rbindP => v2 /truncate_wordP [_ ->].
+  by case.
+Qed.
+
 Lemma s_op2P o e1 e2 : Papp2 o e1 e2 =E s_op2 o e1 e2.
 Proof.
   case: o;eauto using sandP, sorP, saddP, smulP, ssubP, sdivP, smodP, 
                       s_eqP, sneqP, sltP, sleP, sgtP, sgeP,
-                      slandP, slorP, slxorP, slslP, slsrP, sasrP.
+                      slandP, slorP, slxorP, slslP, slsrP, sasrP,
+                      svaddP, svsubP, svmulP, svshlP, svshrP, svsarP.
 Qed.
 
 Definition vconst c :=

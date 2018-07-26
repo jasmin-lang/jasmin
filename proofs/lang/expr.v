@@ -86,7 +86,16 @@ Variant sop2 :=
 | Olt   of cmp_kind
 | Ole   of cmp_kind
 | Ogt   of cmp_kind
-| Oge   of cmp_kind.
+| Oge   of cmp_kind
+
+(* vector operation *)
+| Ovadd of velem & wsize (* VPADD   *)
+| Ovsub of velem & wsize (* VPSUB   *)
+| Ovmul of velem & wsize (* VPMULLW *)
+| Ovlsr of velem & wsize 
+| Ovlsl of velem & wsize 
+| Ovasr of velem & wsize 
+.
 
 Variant sopn : Set :=
 (* Generic operation *)
@@ -437,9 +446,10 @@ Definition type_of_op2 (o: sop2) : stype * stype * stype :=
   | Omul (Op_w s)
   | Osub (Op_w s)
   | Odiv (Cmp_w _ s) | Omod (Cmp_w _ s)
-  | Oland s | Olor s | Olxor s
+  | Oland s | Olor s | Olxor s | Ovadd _ s | Ovsub _ s | Ovmul _ s
     => let t := sword s in (t, t, t)
   | Olsr s | Olsl s | Oasr s
+  | Ovlsr _ s | Ovlsl _ s | Ovasr _ s 
     => let t := sword s in (t, sword8, t)
   | Oeq Op_int | Oneq Op_int
   | Olt Cmp_int | Ole Cmp_int

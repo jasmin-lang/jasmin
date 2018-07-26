@@ -460,6 +460,19 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
     | Oasr sz => k8 sz (LowerFopn (Ox86_SAR sz) [:: a ; b ] (Some U8))
     | Oeq (Op_w sz) => k8 sz (LowerEq sz a b)
     | Olt (Cmp_w Unsigned sz) => k8 sz (LowerLt sz a b)
+
+    | Ovadd ve sz =>
+      kb (U128 <= sz)%CMP sz (LowerCopn (Ox86_VPADD ve sz) [::a; b])
+    | Ovsub ve sz => LowerAssgn (* FIXME *)
+    | Ovmul ve sz => LowerAssgn (* FIXME *)
+
+    | Ovlsl ve sz =>
+      kb ((U16 <= ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86_VPSLL ve sz) [::a; b])
+    | Ovlsr ve sz =>
+      kb ((U16 <= ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86_VPSRL ve sz) [::a; b])
+
+    | Ovasr ve sz => LowerAssgn (* FIXME *)
+
     | _ => LowerAssgn
     end
 

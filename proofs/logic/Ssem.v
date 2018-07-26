@@ -242,6 +242,13 @@ Definition ssem_sop2 (o:sop2) :=
   | Ole (Cmp_w sg sz)   => @ssem_op2_wb sz (wle sg)
   | Ogt (Cmp_w sg sz)   => ssem_op2_wb (λ x y : word sz, wlt sg y x)
   | Oge (Cmp_w sg sz)   => ssem_op2_wb (λ x y : word sz, wle sg y x)
+
+  | Ovadd ve ws     => @ssem_op2_w  ws (sem_vadd ve)
+  | Ovsub ve ws     => @ssem_op2_w  ws (sem_vsub ve)
+  | Ovmul ve ws     => @ssem_op2_w  ws (sem_vmul ve)
+  | Ovlsr ve ws     => @ssem_op2_w8 ws (sem_vshr ve)
+  | Ovlsl ve ws     => @ssem_op2_w8 ws (sem_vshl ve)
+  | Ovasr ve ws     => @ssem_op2_w8 ws (sem_vsar ve)
   end.
 
 Import UnsafeMemory.

@@ -208,6 +208,19 @@ Definition sem_shr {s} := @sem_shift (@wshr) s.
 Definition sem_sar {s} := @sem_shift (@wsar) s.
 Definition sem_shl {s} := @sem_shift (@wshl) s.
 
+Definition sem_vadd (ve:velem) {ws:wsize} := (lift2_vec ve +%R ws).
+Definition sem_vsub (ve:velem) {ws:wsize} := (lift2_vec ve (fun x y => x - y)%R ws).
+Definition sem_vmul (ve:velem) {ws:wsize} := (lift2_vec ve *%R ws).
+
+Definition sem_vshr (ve:velem) {ws:wsize} (v : word ws) (i:u8) :=  
+  lift1_vec ve (fun x => wshr x (wunsigned i)) ws v.
+
+Definition sem_vsar (ve:velem) {ws:wsize} (v : word ws) (i:u8) :=  
+  lift1_vec ve (fun x => wsar x (wunsigned i)) ws v.
+
+Definition sem_vshl (ve:velem) {ws:wsize} (v : word ws) (i:u8) :=  
+  lift1_vec ve (fun x => wshl x (wunsigned i)) ws v.
+
 Definition sem_sop1_typed (o: sop1) :
   let t := type_of_op1 o in
   sem_t t.1 → sem_t t.2 :=
@@ -289,7 +302,14 @@ Definition sem_sop2_typed (o: sop2) :
   | Ole (Cmp_w u s) => mk_sem_sop2 (wle u)
   | Ogt (Cmp_w u s) => mk_sem_sop2 (fun x y => wlt u y x)
   | Oge (Cmp_w u s) => mk_sem_sop2 (fun x y => wle u y x)
+  | Ovadd ve ws     => mk_sem_sop2 (sem_vadd ve)
+  | Ovsub ve ws     => mk_sem_sop2 (sem_vsub ve)
+  | Ovmul ve ws     => mk_sem_sop2 (sem_vmul ve)
+  | Ovlsr ve ws     => mk_sem_sop2 (sem_vshr ve)
+  | Ovlsl ve ws     => mk_sem_sop2 (sem_vshl ve)
+  | Ovasr ve ws     => mk_sem_sop2 (sem_vsar ve)
   end.
+
 
 Arguments sem_sop2_typed : clear implicits.
 
