@@ -847,6 +847,7 @@ let prim_string =
     "x86_TEST", PrimP (T.U64, fun sz -> Ox86_TEST sz);
     "x86_CMP", PrimP (T.U64, fun sz -> Ox86_CMP sz);
     "x86_AND", PrimP (T.U64, fun sz -> Ox86_AND sz);
+    "x86_ANDN", PrimP (T.U64, fun sz -> Ox86_ANDN sz);
     "x86_OR", PrimP (T.U64, fun sz -> Ox86_OR sz);
     "x86_XOR", PrimP (T.U64, fun sz -> Ox86_XOR sz);
     "x86_NOT", PrimP (T.U64, fun sz -> Ox86_NOT sz);
@@ -865,11 +866,14 @@ let prim_string =
     "x86_VPOR", PrimP (T.U128, fun sz -> Ox86_VPOR sz);
     "x86_VPXOR", PrimP (T.U128, fun sz -> Ox86_VPXOR sz);
     "x86_VPADD", PrimV (fun ve sz -> Ox86_VPADD (ve, sz));
+    "x86_VPSUB", PrimV (fun ve sz -> Ox86_VPSUB (ve, sz));
+    "x86_VPMULL", PrimV (fun ve sz -> Ox86_VPMULL (ve, sz));
     "x86_VPMULU", PrimP (T.U128, fun sz -> Ox86_VPMULU sz);
     "x86_VPEXTR", PrimP (T.U64, fun sz -> Ox86_VPEXTR sz);
     "x86_VPINSR", PrimV (fun ve _ -> Ox86_VPINSR ve);
     "x86_VPSLL", PrimV (fun ve sz -> Ox86_VPSLL (ve, sz));
     "x86_VPSRL", PrimV (fun ve sz -> Ox86_VPSRL (ve, sz));
+    "x86_VPSRA", PrimV (fun ve sz -> Ox86_VPSRA (ve, sz));
     "x86_VPSLLV", PrimV (fun ve sz -> Ox86_VPSLLV (ve, sz));
     "x86_VPSRLV", PrimV (fun ve sz -> Ox86_VPSRLV (ve, sz));
     "x86_VPSLLDQ", PrimP (T.U128, fun sz -> Ox86_VPSLLDQ sz);
