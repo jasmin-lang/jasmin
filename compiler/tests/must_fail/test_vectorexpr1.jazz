@@ -1,0 +1,12 @@
+export 
+fn toto () -> reg u64 {
+   reg u256 x;
+   reg u128 v; 
+   reg u64 r;
+   x = 0;
+   v = 1;
+   x = x +4u64 v;
+
+   r = 0;
+   return r;
+}
