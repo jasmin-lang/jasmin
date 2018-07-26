@@ -718,6 +718,11 @@ Definition x86_and {sz} (v1 v2: word sz) :=
   rflags_of_bwop_w
     (wand v1 v2).
 
+Definition x86_andn {sz} (v1 v2: word sz) :=
+  Let _  := check_size_8_64 sz in
+  rflags_of_bwop_w
+    (wandn v1 v2).
+
 Definition x86_or {sz} (v1 v2: word sz) :=
   Let _  := check_size_8_64 sz in
   rflags_of_bwop_w
@@ -879,6 +884,12 @@ Definition x86_vpxor {sz} := x86_u128_binop (@wxor sz).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_vpadd (ve: velem) {sz} := x86_u128_binop (lift2_vec ve +%R sz).
+Definition x86_vpsub (ve: velem) {sz} := 
+  x86_u128_binop (lift2_vec ve (fun x y => x - y)%R sz).
+
+Definition x86_vpmull (ve: velem) {sz} v1 v2 := 
+  Let _ := check_size_32_64 ve in
+  x86_u128_binop (lift2_vec ve *%R sz) v1 v2.
 
 Definition x86_vpmulu {sz} := x86_u128_binop (@wpmulu sz).
 
@@ -906,6 +917,7 @@ Arguments x86_u128_shift : clear implicits.
 
 Definition x86_vpsll (ve: velem) {sz} := x86_u128_shift ve sz (@wshl _).
 Definition x86_vpsrl (ve: velem) {sz} := x86_u128_shift ve sz (@wshr _).
+Definition x86_vpsra (ve: velem) {sz} := x86_u128_shift ve sz (@wsar _).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_u128_shift_variable ve sz op v1 v2 : exec values :=
@@ -1024,6 +1036,7 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_TEST sz => app_ww sz x86_test
   | Ox86_CMP sz => app_ww sz x86_cmp
   | Ox86_AND sz => app_ww sz x86_and
+  | Ox86_ANDN sz => app_ww sz x86_andn
   | Ox86_OR sz => app_ww sz x86_or
   | Ox86_XOR sz => app_ww sz x86_xor
   | Ox86_NOT sz => app_w sz x86_not
@@ -1044,11 +1057,14 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_VPOR sz => app_ww sz x86_vpor
   | Ox86_VPXOR sz => app_ww sz x86_vpxor
   | Ox86_VPADD ve sz => app_ww sz (x86_vpadd ve)
+  | Ox86_VPSUB ve sz => app_ww sz (x86_vpsub ve)
+  | Ox86_VPMULL ve sz => app_ww sz (x86_vpmull ve)
   | Ox86_VPMULU sz => app_ww sz x86_vpmulu
   | Ox86_VPEXTR ve => app_w8 U128 (x86_vpextr ve)
   | Ox86_VPINSR ve => app_sopn [:: sword128 ; sword ve ; sword8 ] (x86_vpinsr ve)
   | Ox86_VPSLL ve sz => app_w8 sz (x86_vpsll ve)
   | Ox86_VPSRL ve sz => app_w8 sz (x86_vpsrl ve)
+  | Ox86_VPSRA ve sz => app_w8 sz (x86_vpsra ve)
   | Ox86_VPSLLV ve sz => app_ww sz (x86_vpsllv ve)
   | Ox86_VPSRLV ve sz => app_ww sz (x86_vpsrlv ve)
   | Ox86_VPSLLDQ sz => app_w8 sz x86_vpslldq
@@ -1104,7 +1120,8 @@ Proof.
   + by rewrite /x86_shr;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
   + by rewrite /x86_sar;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
   + by rewrite /x86_shld;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
-  by rewrite /x86_shrd;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
+  + by rewrite /x86_shrd;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
+  by rewrite /x86_vpmull;t_xrbindP => ?? //;apply: rbindP => _ _; app_sopn_t.
 Qed.
 
 Section SEM.

@@ -130,6 +130,7 @@ Variant sopn : Set :=
 | Ox86_TEST    of wsize  (* Bit-wise logical and CMP *)
 | Ox86_CMP     of wsize  (* Signed sub CMP *)
 | Ox86_AND     of wsize  (* bit-wise and *)
+| Ox86_ANDN    of wsize  (* bit-wise and *)
 | Ox86_OR      of wsize  (* bit-wise or  *)
 | Ox86_XOR     of wsize  (* bit-wise xor *)
 | Ox86_NOT     of wsize  (* bit-wise not *)
@@ -151,12 +152,15 @@ Variant sopn : Set :=
 | Ox86_VPXOR of wsize (* 128/256-bit XOR *)
 
 | Ox86_VPADD of velem & wsize (* Parallel addition over 128/256-bit vectors *)
+| Ox86_VPSUB of velem & wsize (* Parallel addition over 128/256-bit vectors *)
+| Ox86_VPMULL of velem & wsize (* Parallel addition over 128/256-bit vectors *)
 | Ox86_VPMULU of wsize (* Parallel 32-bit → 64-bit multiplication *)
 | Ox86_VPEXTR of wsize (* Element extraction from a 128-bit vector *)
 | Ox86_VPINSR of velem (* Insert element into a 128-bit vector *)
 
 | Ox86_VPSLL of velem & wsize (* Parallel shift left logical over 128/256-bit vectors *)
 | Ox86_VPSRL of velem & wsize (* Parallel shift right logical over 128/256-bit vectors *)
+| Ox86_VPSRA of velem & wsize (* Parallel shift right arithmetic over 128/256-bit vectors *)
 | Ox86_VPSLLV of velem & wsize (* Parallel variable shift left logical over 128/256-bit vectors *)
 | Ox86_VPSRLV of velem & wsize (* Parallel variable shift right logical over 128/256-bit vectors *)
 | Ox86_VPSLLDQ of wsize (* Shift double quadword left logical *)
@@ -245,6 +249,7 @@ Definition string_of_sopn o : string :=
   | Ox86_TEST sz => "Ox86_TEST " ++ string_of_wsize sz
   | Ox86_CMP sz => "Ox86_CMP " ++ string_of_wsize sz
   | Ox86_AND sz => "Ox86_AND " ++ string_of_wsize sz
+  | Ox86_ANDN sz => "Ox86_ANDN " ++ string_of_wsize sz
   | Ox86_OR sz => "Ox86_OR " ++ string_of_wsize sz
   | Ox86_XOR sz => "Ox86_XOR " ++ string_of_wsize sz
   | Ox86_NOT sz => "Ox86_NOT " ++ string_of_wsize sz
@@ -263,11 +268,14 @@ Definition string_of_sopn o : string :=
   | Ox86_VPOR sz => "Ox86_VPOR " ++ string_of_wsize sz
   | Ox86_VPXOR sz => "Ox86_VPXOR " ++ string_of_wsize sz
   | Ox86_VPADD ve sz => "Ox86_VPADD " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
+  | Ox86_VPSUB ve sz => "Ox86_VPSUB " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
+  | Ox86_VPMULL ve sz => "Ox86_VPMULL " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
   | Ox86_VPMULU sz => "Ox86_VPMULU " ++ string_of_wsize sz
   | Ox86_VPEXTR ve => "Ox86_VPEXTR " ++ string_of_wsize ve
   | Ox86_VPINSR ve => "Ox86_VPINSR " ++ string_of_velem ve
   | Ox86_VPSLL ve sz => "Ox86_VPSLL " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
   | Ox86_VPSRL ve sz => "Ox86_VPSRL " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
+  | Ox86_VPSRA ve sz => "Ox86_VPSRA " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
   | Ox86_VPSLLV ve sz => "Ox86_VPSLLV " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
   | Ox86_VPSRLV ve sz => "Ox86_VPSRLV " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
   | Ox86_VPSLLDQ sz => "Ox86_VPSLLDQ" ++ string_of_wsize sz
@@ -319,7 +327,7 @@ Definition sopn_tout (o:sopn) :  list stype :=
   | Ox86_BT sz                    => b_ty 
   | Ox86_LEA sz                   => w_ty sz
   | Ox86_TEST sz | Ox86_CMP sz    => b5_ty
-  | Ox86_AND sz | Ox86_OR sz | Ox86_XOR sz => b5w_ty sz
+  | Ox86_AND sz | Ox86_ANDN sz | Ox86_OR sz | Ox86_XOR sz => b5w_ty sz
   | Ox86_NOT sz                   => w_ty sz
   | Ox86_ROL sz | Ox86_ROR sz     => b2w_ty sz
   | Ox86_SHL sz | Ox86_SHR sz     => b5w_ty sz 
@@ -330,8 +338,8 @@ Definition sopn_tout (o:sopn) :  list stype :=
     => [:: sword128 ]
   | Ox86_VMOVDQU sz
   | Ox86_VPAND sz | Ox86_VPANDN sz | Ox86_VPOR sz | Ox86_VPXOR sz
-  | Ox86_VPADD _ sz | Ox86_VPMULU sz
-  | Ox86_VPSLL _ sz | Ox86_VPSRL _ sz
+  | Ox86_VPADD _ sz | Ox86_VPSUB _ sz | Ox86_VPMULL _ sz | Ox86_VPMULU sz
+  | Ox86_VPSLL _ sz | Ox86_VPSRL _ sz | Ox86_VPSRA _ sz 
   | Ox86_VPSLLV _ sz | Ox86_VPSRLV _ sz
   | Ox86_VPSLLDQ sz | Ox86_VPSRLDQ sz
   | Ox86_VPSHUFB sz | Ox86_VPSHUFHW sz | Ox86_VPSHUFLW sz | Ox86_VPSHUFD sz
@@ -379,6 +387,7 @@ Definition sopn_tin (o: sopn) : list stype :=
   | Ox86_TEST sz
   | Ox86_CMP sz
   | Ox86_AND sz
+  | Ox86_ANDN sz
   | Ox86_OR sz
   | Ox86_XOR sz
     => let t := sword sz in [:: t ; t ]
@@ -399,14 +408,14 @@ Definition sopn_tin (o: sopn) : list stype :=
   | Ox86_VPBLENDD sz
     => let t := sword sz in [:: t ; t ; sword8 ]
   | Ox86_VPAND sz | Ox86_VPANDN sz | Ox86_VPOR sz | Ox86_VPXOR sz
-  | Ox86_VPADD _ sz | Ox86_VPMULU sz
+  | Ox86_VPADD _ sz | Ox86_VPSUB _ sz | Ox86_VPMULL _ sz | Ox86_VPMULU sz
   | Ox86_VPSLLV _ sz | Ox86_VPSRLV _ sz
   | Ox86_VPSHUFB sz
   | Ox86_VPUNPCKH _ sz | Ox86_VPUNPCKL _ sz
     => let t := sword sz in [:: t; t ]
   | Ox86_VPEXTR _ => [:: sword128 ; sword8 ]
   | Ox86_VPINSR ve => [:: sword128 ; sword ve ; sword8 ]
-  | Ox86_VPSLL _ sz | Ox86_VPSRL _ sz
+  | Ox86_VPSLL _ sz | Ox86_VPSRL _ sz | Ox86_VPSRA _ sz 
   | Ox86_VPSHUFHW sz | Ox86_VPSHUFLW sz
   | Ox86_VPSHUFD sz
     => [:: sword sz; sword8 ]

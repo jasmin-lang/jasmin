@@ -175,13 +175,14 @@ Variant asm : Type :=
 
   (* Bitwise logical instruction *)
 | AND    of wsize & oprd & oprd            (* bit-wise and *)
+| ANDN    of wsize & oprd & oprd           (* bit-wise andn *)
 | OR     of wsize & oprd & oprd            (* bit-wise or  *)
 | XOR    of wsize & oprd & oprd            (* bit-wise xor *)
 | NOT    of wsize & oprd                   (* bit-wise not *)
 
   (* Bit shifts *)
-| ROR    of wsize & oprd & ireg (* rotation / right *)
-| ROL    of wsize & oprd & ireg (* rotation / left *)
+| ROR    of wsize & oprd & ireg            (* rotation / right *)
+| ROL    of wsize & oprd & ireg            (* rotation / left *)
 | SHL    of wsize & oprd & ireg            (* unsigned / left  *)
 | SHR    of wsize & oprd & ireg            (* unsigned / right *)
 | SAL    of wsize & oprd & ireg            (*   signed / left; synonym of SHL *)
@@ -199,11 +200,14 @@ Variant asm : Type :=
 | VPOR `(wsize) (_ _ _: rm128)
 | VPXOR `(wsize) (_ _ _: rm128)
 | VPADD `(velem) `(wsize) (_ _ _: rm128)
+| VPSUB `(velem) `(wsize) (_ _ _: rm128)
+| VPMULL `(velem) `(wsize) (_ _ _: rm128)
 | VPMULU `(wsize) (_ _: xmm_register) `(rm128)
 | VPEXTR of wsize & oprd & xmm_register & u8
 | VPINSR `(velem) (_ _: xmm_register) `(oprd) `(u8)
 | VPSLL `(velem) `(wsize) (_ _: rm128) `(u8)
 | VPSRL `(velem) `(wsize) (_ _: rm128) `(u8)
+| VPSRA `(velem) `(wsize) (_ _: rm128) `(u8)
 | VPSLLV `(velem) `(wsize) (_ _: xmm_register) `(rm128)
 | VPSRLV `(velem) `(wsize) (_ _: xmm_register) `(rm128)
 | VPSLLDQ `(wsize) (_ _: xmm_register) `(u8)
@@ -997,6 +1001,15 @@ Definition eval_AND sz o1 o2 s : x86_result :=
   write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
+Definition eval_ANDN sz o1 o2 s : x86_result :=
+  Let _  := check_size_8_64 sz in
+  Let v1 := read_oprd sz o1 s in
+  Let v2 := read_oprd sz o2 s in
+  let v  := wandn v1 v2 in
+  let s  := mem_update_rflags (rflags_of_bwop v) s in
+  write_oprd o1 v s.
+
+(* -------------------------------------------------------------------- *)
 Definition eval_OR sz o1 o2 s : x86_result :=
   Let _  := check_size_8_64 sz in
   Let v1 := read_oprd sz o1 s in
@@ -1178,6 +1191,12 @@ Definition eval_VPXOR sz := eval_rm128_binop MSB_CLEAR (@wxor sz).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_VPADD ve sz := eval_rm128_binop MSB_CLEAR (lift2_vec ve +%R sz).
+Definition eval_VPSUB ve sz :=
+   eval_rm128_binop MSB_CLEAR (lift2_vec ve (fun x y => x-y)%R sz).
+
+Definition eval_VPMULL ve sz (dst src1 src2: rm128) s := 
+  Let _ := check_size_32_64 ve in
+  eval_rm128_binop MSB_CLEAR (lift2_vec ve *%R sz) dst src1 src2 s.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_xmm_binop sz (op: word sz → word sz → word sz)
@@ -1219,6 +1238,7 @@ Arguments eval_rm128_shift : clear implicits.
 
 Definition eval_VPSLL ve sz := eval_rm128_shift MSB_CLEAR ve sz (@wshl _).
 Definition eval_VPSRL ve sz := eval_rm128_shift MSB_CLEAR ve sz (@wshr _).
+Definition eval_VPSRA ve sz := eval_rm128_shift MSB_CLEAR ve sz (@wsar _).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_rm128_shift_variable ve sz op dst src1 src2 s : x86_result :=
@@ -1334,6 +1354,7 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | TEST   sz o1 o2    => eval_TEST   sz o1 o2 s
   | CMP    sz o1 o2    => eval_CMP    sz o1 o2 s
   | AND    sz o1 o2    => eval_AND    sz o1 o2 s
+  | ANDN    sz o1 o2   => eval_ANDN    sz o1 o2 s
   | OR     sz o1 o2    => eval_OR     sz o1 o2 s
   | XOR    sz o1 o2    => eval_XOR    sz o1 o2 s
   | NOT    sz o        => eval_NOT    sz o s
@@ -1355,11 +1376,14 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | VPOR sz dst src1 src2 => eval_VPOR sz dst src1 src2 s
   | VPXOR sz dst src1 src2 => eval_VPXOR sz dst src1 src2 s
   | VPADD ve sz dst src1 src2 => eval_VPADD ve sz dst src1 src2 s
+  | VPSUB ve sz dst src1 src2 => eval_VPSUB ve sz dst src1 src2 s
+  | VPMULL ve sz dst src1 src2 => eval_VPMULL ve sz dst src1 src2 s
   | VPMULU sz dst src1 src2 => eval_VPMULU sz dst src1 src2 s
   | VPEXTR ve dst src i => eval_VPEXTR ve dst src i s
   | VPINSR ve dst src1 src2 i => eval_VPINSR ve dst src1 src2 i s
   | VPSLL ve sz dst src1 src2 => eval_VPSLL ve sz dst src1 src2 s
   | VPSRL ve sz dst src1 src2 => eval_VPSRL ve sz dst src1 src2 s
+  | VPSRA ve sz dst src1 src2 => eval_VPSRA ve sz dst src1 src2 s
   | VPSLLV ve sz dst src1 src2 => eval_VPSLLV ve sz dst src1 src2 s
   | VPSRLV ve sz dst src1 src2 => eval_VPSRLV ve sz dst src1 src2 s
   | VPSLLDQ sz dst src i => eval_VPSLLDQ sz dst src i s
