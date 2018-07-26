@@ -71,7 +71,9 @@ let string_cmp_ty = function
   | E.Cmp_w (T.Signed, T.U64) -> "s"
   | _ -> assert false
 
-let infix_sop2 = function
+let infix_sop2 = fun _ -> assert false 
+(*
+function
   | E.Oand -> "&&"
   | Oor  -> "||"
   | Oadd _ -> "+"
@@ -94,7 +96,7 @@ let infix_sop2 = function
   | Ogt  k -> ">"  ^ string_cmp_ty k
   | Oge  k -> ">=" ^ string_cmp_ty k
 
-
+ *)
 let pp_sopn fmt sopn =
   pp_string0 fmt (Expr.string_of_sopn sopn)
 

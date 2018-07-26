@@ -63,11 +63,8 @@ let pp_cc =
 let pp_var fmt x =
   F.fprintf fmt "%s" (L.unloc x)
 
-let string_of_wsize w =
-  F.sprintf "b%d" (bits_of_wsize w)
-
 let string_of_op2 =
-  let f s p = F.sprintf "%s%s" p (string_of_swsize s) in
+  let f s p = F.sprintf "%s%s" p (string_of_castop s) in
   function
   | `Add s -> f s "+"
   | `Sub s -> f s "-"
@@ -129,12 +126,20 @@ let prio_of_op2 =
 let optparent fmt ctxt prio p =
   if prio < ctxt then F.fprintf fmt "%s" p
 
+let string_of_wsize w = Format.sprintf "u%d" (bits_of_wsize w)
+
+let pp_svsize fmt (vs,s,ve) = 
+  Format.fprintf fmt "%d%s%d"
+    (int_of_vsize vs) (suffix_of_sign s) (bits_of_vesize ve)
+
 let rec pp_expr_rec prio fmt pe =
   match L.unloc pe with
   | PEParens e -> pp_expr_rec prio fmt e
   | PEVar x -> pp_var fmt x
   | PEGet (x, e) -> F.fprintf fmt "%a[%a]" pp_var x pp_expr e
   | PEFetch (ty, x, e) -> F.fprintf fmt "%a[%a + %a]" (pp_opt (pp_paren pp_type)) ty pp_var x pp_expr e
+  | PEpack (vs,es) ->
+    F.fprintf fmt "(%a)[@[%a@]]" pp_svsize vs (pp_list ",@ " pp_expr) es
   | PEBool b -> F.fprintf fmt "%s" (if b then "true" else "false")
   | PEInt i -> F.fprintf fmt "%a" Bigint.pp_print i
   | PECall (f, args) -> F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args

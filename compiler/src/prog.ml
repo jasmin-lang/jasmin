@@ -327,6 +327,8 @@ let size_of_ws = function
   | U128 -> 16
   | U256 -> 32
 
+let int_of_velem ve = int_of_ws (wsize_of_velem ve)
+
 let is_ty_arr = function
   | Arr _ -> true
   | _     -> false

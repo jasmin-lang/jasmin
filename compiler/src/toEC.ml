@@ -418,9 +418,12 @@ let pp_signed fmt ws is = function
   | E.Cmp_w (Unsigned, _) -> Format.fprintf fmt "\\u%s" ws
   | _                     -> Format.fprintf fmt "%s" is
 
+let pp_vop2 fmt (s,ve,ws) = 
+  Format.fprintf fmt "\\v%s%iu%i" s (int_of_velem ve) (int_of_ws ws)
+
 let pp_op2 fmt = function
-  | E.Oand -> Format.fprintf fmt "/\\"
-  | E.Oor ->  Format.fprintf fmt "\\/"
+  | E.Oand   -> Format.fprintf fmt "/\\"
+  | E.Oor    -> Format.fprintf fmt "\\/"
   | E.Oadd _ -> Format.fprintf fmt "+"
   | E.Omul _ -> Format.fprintf fmt "*"
   | E.Odiv s -> pp_signed fmt "div" "%/" s
@@ -439,6 +442,14 @@ let pp_op2 fmt = function
   | E.Oneq  _ -> Format.fprintf fmt "<>"
   | E.Olt s| E.Ogt s -> pp_signed fmt "lt" "<" s
   | E.Ole s | E.Oge s -> pp_signed fmt "le" "<=" s
+
+  | Ovadd(ve,ws) -> pp_vop2 fmt ("add", ve, ws)
+  | Ovsub(ve,ws) -> pp_vop2 fmt ("sub", ve, ws) 
+  | Ovmul(ve,ws) -> pp_vop2 fmt ("mul", ve, ws) 
+  | Ovlsr(ve,ws) -> pp_vop2 fmt ("shr", ve, ws)
+  | Ovlsl(ve,ws) -> pp_vop2 fmt ("shl", ve, ws)
+  | Ovasr(ve,ws) -> pp_vop2 fmt ("sar", ve, ws) 
+  
 
 let in_ty_op1 op =
   fst (E.type_of_op1 op)
@@ -757,15 +768,19 @@ module Leak = struct
     | _ -> assert false
 
   let safe_op2 safe _e1 e2 = function
-    | E.Oand | E.Oor | E.Oadd _ | E.Omul _ | E.Osub _ 
-    | E.Oland _ | E.Olor _ | E.Olxor _ 
-    | E.Olsr _ | E.Olsl _ | E.Oasr _
-    | E.Oeq _ | E.Oneq _ | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ -> safe
+    | E.Oand    | E.Oor     
+    | E.Oadd _  | E.Omul _  | E.Osub _ 
+    | E.Oland _ | E.Olor _  | E.Olxor _ 
+    | E.Olsr _  | E.Olsl _  | E.Oasr _
+    | E.Oeq _   | E.Oneq _  | E.Olt _  | E.Ole _ | E.Ogt _ | E.Oge _ 
+    | E.Ovadd _ | E.Ovsub _ | E.Ovmul _
+    | E.Ovlsr _ | E.Ovlsl _ | E.Ovasr _ -> safe
+
     | E.Odiv E.Cmp_int -> safe 
     | E.Omod Cmp_int  -> safe
     | E.Odiv (E.Cmp_w(_, s)) -> NotZero (s, e2) :: safe 
     | E.Omod (E.Cmp_w(_, s)) -> NotZero (s, e2) :: safe 
-
+    
   let is_init env x safe = 
     let (_s,option) = Mv.find (L.unloc x) env.vars in
     if option then Initv (L.unloc x) :: safe
