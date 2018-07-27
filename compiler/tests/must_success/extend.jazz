@@ -53,3 +53,22 @@ x ^= y;
 
 (u128)[ptr + 0] = x;
 }
+
+export
+fn test_imm(reg u64 p) {
+inline u8 a;
+inline u16 b;
+inline u32 c;
+reg u64 d;
+a = 0xFF;
+b = (16s) a;
+c = (32s) b;
+d = (64s) c;
+[p + 0] = d;
+
+a = 0xFF;
+b = (16u) a;
+c = (32u) b;
+d = (64u) c;
+[p + 8] = d;
+}
