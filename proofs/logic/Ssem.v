@@ -251,6 +251,39 @@ Definition ssem_sop2 (o:sop2) :=
   | Ovasr ve ws     => @ssem_op2_w8 ws (sem_vsar ve)
   end.
 
+Definition value_of_svalue (v: svalue) : exec value :=
+  match v with
+  | SVbool b => ok (Vbool b)
+  | SVint z => ok (Vint z)
+  | SVarr _ _ => type_error
+  | SVword sz w => ok (Vword w)
+  end.
+
+Definition svalue_of_value (v: value) : svalue :=
+  match v with
+  | Vbool b => SVbool b
+  | Vint z => SVint z
+  | Varr sz n t => SVarr (FArray.of_fun (λ x, match Array.get t x with Error _ => 0%R | Ok e => e end))
+  | Vword sz w => SVword w
+  | Vundef ty =>
+    match ty with
+    | sbool => SVbool (sdflt_val sbool)
+    | sint => SVint (sdflt_val sint)
+    | sarr sz _ => SVarr (FArray.of_fun (λ _, sdflt_val (sword sz)))
+    | sword sz => SVword (sdflt_val (sword sz))
+    end
+  end.
+
+Definition svalues_of_values (vs: values) : svalues := map svalue_of_value vs.
+
+Definition ssem_sopn (op: sopn) (vs: svalues) : exec svalues :=
+  mapM value_of_svalue vs >>= exec_sopn op >>= λ r, ok (svalues_of_values r).
+
+Definition sem_opN (op: opN) (vs: svalues) : exec svalue :=
+  Let ws := mapM value_of_svalue vs in
+  Let r := app_sopn _ (sem_opN_typed op) ws in
+  ok (svalue_of_value (to_val r)).
+
 Import UnsafeMemory.
 
 Record sestate := SEstate {
@@ -300,7 +333,9 @@ Fixpoint ssem_pexpr (s:sestate) (e : pexpr) : exec svalue :=
     Let v1 := ssem_pexpr s e1 in
     Let v2 := ssem_pexpr s e2 in
     ssem_sop2 o v1 v2
-  | PappN op es => type_error (* TODO: nary *)
+  | PappN op es =>
+    Let vs := mapM (ssem_pexpr s) es in
+    sem_opN op vs
   | Pif e e1 e2 =>
     Let b  := ssem_pexpr s e >>= sto_bool in
     Let v1 := ssem_pexpr s e1 in
@@ -343,34 +378,6 @@ Definition swrite_lvals (s:sestate) xs vs :=
    fold2 ErrType swrite_lval xs vs s.
 
 End SSEM_PEXPR.
-
-Definition value_of_svalue (v: svalue) : exec value :=
-  match v with
-  | SVbool b => ok (Vbool b)
-  | SVint z => ok (Vint z)
-  | SVarr _ _ => type_error
-  | SVword sz w => ok (Vword w)
-  end.
-
-Definition svalue_of_value (v: value) : svalue :=
-  match v with
-  | Vbool b => SVbool b
-  | Vint z => SVint z
-  | Varr sz n t => SVarr (FArray.of_fun (λ x, match Array.get t x with Error _ => 0%R | Ok e => e end))
-  | Vword sz w => SVword w
-  | Vundef ty =>
-    match ty with
-    | sbool => SVbool (sdflt_val sbool)
-    | sint => SVint (sdflt_val sint)
-    | sarr sz _ => SVarr (FArray.of_fun (λ _, sdflt_val (sword sz)))
-    | sword sz => SVword (sdflt_val (sword sz))
-    end
-  end.
-
-Definition svalues_of_values (vs: values) : svalues := map svalue_of_value vs.
-
-Definition ssem_sopn (op: sopn) (vs: svalues) : exec svalues :=
-  mapM value_of_svalue vs >>= exec_sopn op >>= λ r, ok (svalues_of_values r).
 
 (* ** Instructions
  * -------------------------------------------------------------------- *)
