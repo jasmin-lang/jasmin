@@ -354,10 +354,13 @@ Definition s_op2 o e1 e2 :=
   | Ovasr ve sz => svsar ve sz e1 e2
   end.
 
+Definition force_int e :=
+  if e is Pconst z then ok (Vint z) else type_error.
+
 Definition s_opN op es :=
-  (* TODO: nary *)
-  match op with
-  | OPN => PappN OPN es
+  match mapM force_int es >>= sem_opN op with
+  | Ok (Vword sz w) => Papp1 (Oword_of_int sz) (Pconst (wunsigned w))
+  | _ => PappN op es
   end.
 
 Definition s_if e e1 e2 := 

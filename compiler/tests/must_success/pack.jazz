@@ -1,3 +1,4 @@
+export
 fn pack() -> reg u64 {
 reg u64 r;
 

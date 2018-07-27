@@ -671,6 +671,22 @@ Proof.
   by case: op {w ok_v'} => //= sz p; rewrite all_nseq orbT.
 Qed.
 
+Lemma s_opNP op s es :
+  sem_pexpr gd s (s_opN op es) = sem_pexpr gd s (PappN op es).
+Proof.
+  rewrite /s_opN.
+  case hi: (mapM _ _) => [ i | ] //=.
+  case heq: (sem_opN _ _) => [ v | ] //.
+  case: v heq => // sz w'.
+  case: op => sz' pe /=.
+  rewrite /sem_opN /=; apply: rbindP => w h /ok_word_inj [] ?; subst => /= <-{w'}.
+  rewrite /sem_sop1 /= wrepr_unsigned -/(sem_pexprs _ _).
+  have -> /= : sem_pexprs gd s es = ok i.
+  + elim: es i hi {h} => // - [] // z es ih /=; t_xrbindP => _ vs ok_vs <-.
+    by rewrite (ih _ ok_vs).
+  by rewrite h.
+Qed.
+
 Definition vconst c :=
   match c with
   | Cint z => Vint z
@@ -718,9 +734,8 @@ Section CONST_PROP_EP.
       rewrite /= hw1 hw2 /=.
       by apply: vuincl_sem_sop2 h.
     - move => op es ih v.
-      t_xrbindP => vs ok_vs ok_v; rewrite -/(sem_pexprs _ _).
-      move: ih => /(_ _ ok_vs) [] vs' ->.
-      exact: sem_opN_uincl_a.
+      t_xrbindP => vs /ih{ih} [] vs' ih /sem_opN_uincl_a h/h{h} [] v' [] ok_v' h.
+      by rewrite s_opNP /= -/(sem_pexprs _ _) ih /= ok_v'; eauto.
     move => e He e1 He1 e2 He2 v.
     t_xrbindP => b vb /He [wb] [hwb] [/value_uincl_bool h A]/h {h} [??]; subst.
     move => v1 /He1 [w1] [hw1 [hvw1 A1]] v2 /He2 [w2] [hw2 [hvw2 A2]].
