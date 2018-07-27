@@ -50,12 +50,14 @@ Definition sint_of_word sz (e: pexpr) :=
   else Papp1 (Oint_of_word sz) e.
 
 Definition ssign_extend sz sz' (e: pexpr) :=
-  (* TODO *)
-  Papp1 (Osignext sz sz') e.
+  if is_wconst sz' e is Some w
+  then Papp1 (Oword_of_int sz) (Pconst (wunsigned (sign_extend sz w)))
+  else Papp1 (Osignext sz sz') e.
 
 Definition szero_extend sz sz' (e: pexpr) :=
-  (* TODO *)
-  Papp1 (Ozeroext sz sz') e.
+  if is_wconst sz' e is Some w
+  then Papp1 (Oword_of_int sz) (Pconst (wunsigned (zero_extend sz w)))
+  else Papp1 (Ozeroext sz sz') e.
 
 Definition snot_bool (e:pexpr) := 
   match e with

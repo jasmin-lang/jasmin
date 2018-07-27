@@ -119,6 +119,24 @@ Proof.
   rewrite /= /sem_sop1 /= ok_v /= ok_w => - [<-{v'}]; eauto.
 Qed.
 
+Lemma ssign_extendP sz sz' e : Papp1 (Osignext sz sz') e =E ssign_extend sz sz' e.
+Proof.
+  rewrite /ssign_extend => s.
+  case: (is_wconst _ _) (@is_wconstP gd s sz' e); last by move => _ ?; eauto.
+  move => w /(_ _ erefl); t_xrbindP => v ok_v ok_w v' /=.
+  rewrite /sem_sop1 /= ok_v /= ok_w => - [<-{v'}].
+  rewrite wrepr_unsigned; eauto.
+Qed.
+
+Lemma szero_extendP sz sz' e : Papp1 (Ozeroext sz sz') e =E szero_extend sz sz' e.
+Proof.
+  rewrite /szero_extend => s.
+  case: (is_wconst _ _) (@is_wconstP gd s sz' e); last by move => _ ?; eauto.
+  move => w /(_ _ erefl); t_xrbindP => v ok_v ok_w v' /=.
+  rewrite /sem_sop1 /= ok_v /= ok_w => - [<-{v'}].
+  rewrite wrepr_unsigned; eauto.
+Qed.
+
 Lemma snot_boolP e : Papp1 Onot e =E snot_bool e.
 Proof. 
   apply: eeq_weaken.
@@ -151,7 +169,11 @@ by rewrite /= -bindA (is_wconstP gd s heq) /= => -[<-]; rewrite /sem_sop1 /= wre
 Qed.
 
 Lemma s_op1P o e : Papp1 o e =E s_op1 o e.
-Proof. case: o => [?|?|??|??||?|[|?]]; eauto using sint_of_wordP, snot_boolP, snot_wP, sneg_intP, sneg_wP. Qed.
+Proof.
+  case: o => [?|?|??|??||?|[|?]];
+  eauto using sint_of_wordP, ssign_extendP, szero_extendP,
+    snot_boolP, snot_wP, sneg_intP, sneg_wP.
+Qed.
 
 (* * -------------------------------------------------------------------- *)
 
