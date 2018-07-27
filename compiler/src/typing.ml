@@ -46,7 +46,11 @@ type tyerror =
   | PrimNotVector of S.symbol
   | PrimIsVector of S.symbol
   | ReturnLocalStack    of S.symbol
-  | BadVariableKind     of P.pvar_i * P.v_kind 
+  | BadVariableKind     of P.pvar_i * P.v_kind
+  | PackSigned
+  | PackWrongWS of int
+  | PackWrongPE of int
+  | PackWrongLength of int * int
 
 exception TyError of L.t * tyerror
 
@@ -71,7 +75,7 @@ let pp_tyerror fmt (code : tyerror) =
   | UnknownFun x ->
       F.fprintf fmt "unknown function: `%s'" x
 
-  | InvalidType (ty, p) -> 
+  | InvalidType (ty, p) ->
     F.fprintf fmt "the expression as type %a instead of %a"
        Printer.pp_ptype ty pp_typat p
 
@@ -154,6 +158,17 @@ let pp_tyerror fmt (code : tyerror) =
     F.fprintf fmt "the variable %a has kind %a instead of %a"
        Printer.pp_pvar (L.unloc x) Printer.pp_kind (P.kind_i x) Printer.pp_kind kind
 
+  | PackSigned ->
+    F.fprintf fmt "packs should be unsigned"
+
+  | PackWrongWS n ->
+    F.fprintf fmt "wrong word-size (%d) in pack" n
+
+  | PackWrongPE n ->
+    F.fprintf fmt "wrong element-size (%d) in pack" n
+
+  | PackWrongLength (e, f) ->
+    F.fprintf fmt "wrong length of pack; expected: %d; found: %d" e f
 
 (* -------------------------------------------------------------------- *)
 module Env : sig
@@ -592,6 +607,7 @@ let peop2_of_eqop (eqop : S.peqop) =
 let cast loc e ety ty =
   match ety, ty with
   | P.Bty P.Int , P.Bty (P.U w) -> P.Papp1 (E.Oword_of_int w, e)
+  | P.Bty (P.U w), P.Bty P.Int -> P.Papp1 (E.Oint_of_word w, e)
   | P.Bty (P.U w1), P.Bty (P.U w2) when T.wsize_cmp w1 w2 <> Datatypes.Lt -> e
   | _, _ when P.pty_equal ety ty -> e
   | _  ->  rs_tyerror ~loc (InvalidCast(ety,ty))
@@ -642,6 +658,36 @@ let tt_op1 (loc1, (e1, ety1)) { L.pl_desc = pop; L.pl_loc = loc } =
   let ty1, tyo = type_of_op1 op in
   let e1 = cast loc1 e1 ety1 ty1 in
   P.Papp1(op, e1), tyo
+
+(* -------------------------------------------------------------------- *)
+let wsize_of_bits ~loc =
+  function
+  | 8 -> T.U8
+  | 16 -> T.U16
+  | 32 -> T.U32
+  | 64 -> T.U64
+  | 128 -> T.U128
+  | 256 -> T.U256
+  | n -> rs_tyerror ~loc (PackWrongWS n)
+
+let pelem_of_bits ~loc =
+  function
+  | 1 -> T.PE1
+  | 2 -> T.PE2
+  | 4 -> T.PE4
+  | 8 -> T.PE8
+  | 16 -> T.PE16
+  | 32 -> T.PE32
+  | 64 -> T.PE64
+  | 128 -> T.PE128
+  | n -> rs_tyerror ~loc (PackWrongPE n)
+
+(* Returns the size of the output word, the size of the elements,
+   and the length of the input list *)
+let tt_pack ~loc nb es =
+  let n1 = S.int_of_vsize nb in
+  let n2 = S.bits_of_vesize es in
+  wsize_of_bits ~loc (n1 * n2), pelem_of_bits ~loc n2, n1
 
 (* -------------------------------------------------------------------- *)
 let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
@@ -706,7 +752,15 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
   | S.PEPrim _ ->
     rs_tyerror ~loc:(L.loc pe) PrimNotAllowed
 
-  | S.PEpack _ -> assert false (* Not implemented for the moment *)
+  | S.PEpack ((nb, sg, es), args) ->
+    let loc = L.loc pe in
+    if sg <> `Unsigned then rs_tyerror ~loc PackSigned;
+    let sz, pz, len = tt_pack ~loc nb es in
+    let args = List.map (tt_expr ~mode env) args in
+    let args = List.map (fun (a, ty) -> cast loc a (P.Bty P.Int) ty) args in
+    let alen = List.length args in
+    if alen <> len then rs_tyerror ~loc (PackWrongLength (len, alen));
+    P.PappN (E.Opack (sz, pz), args), P.Bty (P.U sz)
 
   | S.PEIf (pe1, pe2, pe3) ->
     let e1, ty1 = tt_expr ~mode env pe1 in
