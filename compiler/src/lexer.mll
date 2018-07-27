@@ -52,10 +52,10 @@
   | 's' -> `Signed
   | _ -> assert false
 
-  let get_sign : char option -> S.sign option =
+  let mk_sign : char option -> S.sign =
   function
-  | Some c -> Some (sign_of_char c)
-  | None -> None
+  | Some c -> sign_of_char c
+  | None   -> `Unsigned 
 
   let size_of_string =
   function
@@ -67,16 +67,30 @@
   | "256" -> `W256
   | _ -> assert false
 
-  let get_size : string option -> S.wsize option =
-  function
-  | Some s -> Some (size_of_string s)
-  | None -> None
+  let mksizesign sw s = size_of_string sw, sign_of_char s
 
-  let mk_swsize g w : S.swsize =
-    match get_sign g, get_size w with
-    | Some g, (Some _ as w) -> Some (g, w)
-    | None, None -> None
-    | _, _ -> assert false
+  let mk_gensize = function
+    | "1"   -> `W1 
+    | "2"   -> `W2
+    | "4"   -> `W4
+    | "8"   -> `W8
+    | "16"  -> `W16
+    | "32"  -> `W32
+    | "64"  -> `W64
+    | "128" -> `W128
+    | _     -> assert false
+
+
+  let mk_vsize   = function
+    | "2"  -> `V2  
+    | "4"  -> `V4
+    | "8"  -> `V8
+    | "16" -> `V16 
+    | "32" -> `V32
+    | _    ->  assert false 
+ 
+  let mkvsizesign r s g = mk_vsize r, sign_of_char s, mk_gensize g
+
 }
 
 (* -------------------------------------------------------------------- *)
@@ -92,6 +106,9 @@ let ident    = idletter (idletter | digit)*
 
 let size = "8" | "16" | "32" | "64" | "128" | "256"
 let signletter = ['s' 'u']
+let gensize = "1" | "2" | "4" | "8" | "16" | "32" | "64" | "128" 
+let vsize   = "2" | "4" | "8" | "16" | "32" 
+
 
 (* -------------------------------------------------------------------- *)
 rule main = parse
@@ -103,8 +120,9 @@ rule main = parse
   | "//" [^'\n']* newline { Lexing.new_line lexbuf; main lexbuf }
   | "//" [^'\n']* eof     { main lexbuf }
 
-  | ('-'? digit+) as s
-      { INT (Bigint.of_string s) }
+  (* Why this is needed *)
+  | ((*'-'?*) digit+) as s   
+      { INT (Bigint.of_string s) } 
 
   | ("0x" hexdigit+) as s
       { INT (Bigint.of_string s) }
@@ -112,8 +130,8 @@ rule main = parse
   | ident+ as s
       { odfl (NID s) (Hash.find_option keywords s) }
 
-  | '(' blank* (size as sz) (signletter as sg) blank* ')' { CAST (sign_of_char sg, size_of_string sz) }
-
+  | (size as sw) (signletter as s)                { SWSIZE(mksizesign sw s)  }
+  | (vsize as r) (signletter as s) (gensize as g) { SVSIZE(mkvsizesign r s g)}
   | "#"     { SHARP      }
   | "["     { LBRACKET   }
   | "]"     { RBRACKET   }
@@ -127,33 +145,27 @@ rule main = parse
   | "?"     { QUESTIONMARK  }
   | ":"     { COLON  }
 
-  | "<<" (blank* (size as w) (signletter as g))? { LTLT (mk_swsize g w) }
-  | "<=s" { LE (Some (`Signed, None)) }
-  | "<=" (blank* (size as w) (signletter as g))? { LE (mk_swsize g w) }
-  | "<s" { LT (Some (`Signed, None)) }
-  | "<" (blank* (size as w) (signletter as g))? { LT (mk_swsize g w) }
+  | "<<"                    { LTLT            }
+  | "<=" (signletter as s)? { LE   (mk_sign s) }
+  | "<"  (signletter as s)? { LT   (mk_sign s) }
+  | ">>" (signletter as s)? { GTGT (mk_sign s) }
+  | ">=" (signletter as s)? { GE   (mk_sign s) }
+  | ">"  (signletter as s)? { GT   (mk_sign s) }
 
-  | ">>" (blank* (size as w) (signletter as g))? { GTGT (mk_swsize g w) }
-  | ">>s" { GTGT (Some (`Signed, None)) }
-  | ">=s" { GE (Some (`Signed, None)) }
-  | ">=" (blank* (size as w) (signletter as g))? { GE (mk_swsize g w) }
-  | ">s" { GT (Some (`Signed, None)) }
-  | ">" (blank* (size as w) (signletter as g))? { GT (mk_swsize g w) }
-
-  | "!" (blank* (size as w) (signletter as g))? { BANG (mk_swsize g w) }
-  | "+" (blank* (size as w) (signletter as g))? { PLUS (mk_swsize g w) }
-  | "-" (blank* (size as w) (signletter as g))? { MINUS (mk_swsize g w) }
-  | "*" (blank* (size as w) (signletter as g))? { STAR (mk_swsize g w) }
-  | "/" (blank* (size as w) (signletter as g))? { SLASH (mk_swsize g w) }
-  | "%" (blank* (size as w) (signletter as g))? { PERCENT (mk_swsize g w) }
-  | "|" (blank* (size as w) (signletter as g))? { PIPE (mk_swsize g w) }
-  | "&" (blank* (size as w) (signletter as g))? { AMP (mk_swsize g w) }
-  | "^" (blank* (size as w) (signletter as g))? { HAT (mk_swsize g w) }
-  | "&&"    { AMPAMP     }
-  | "||"    { PIPEPIPE   }
-  | "="     { EQ         }
-  | "==" (blank* (size as w) (signletter as g))? { EQEQ (mk_swsize g w) }
-  | "!=" (blank* (size as w) (signletter as g))? { BANGEQ (mk_swsize g w) }
+  | "!"  { BANG     }
+  | "+"  { PLUS     }
+  | "-"  { MINUS    }
+  | "*"  { STAR     }
+  | "/"  { SLASH    }
+  | "%"  { PERCENT  }
+  | "|"  { PIPE     }
+  | "&"  { AMP      }
+  | "^"  { HAT      }
+  | "&&" { AMPAMP   }
+  | "||" { PIPEPIPE }
+  | "="  { EQ       }
+  | "==" { EQEQ     }
+  | "!=" { BANGEQ   }
 
   | _ as c  { invalid_char (L.of_lexbuf lexbuf) c }
   | eof     { EOF }

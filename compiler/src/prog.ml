@@ -340,6 +340,8 @@ let int_of_pe =
   | PE64  -> 64
   | PE128 -> 128
 
+let int_of_velem ve = int_of_ws (wsize_of_velem ve)
+
 let is_ty_arr = function
   | Arr _ -> true
   | _     -> false

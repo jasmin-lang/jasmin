@@ -359,6 +359,19 @@ Definition is_lea sz x e :=
 
 (* -------------------------------------------------------------------- *)
 
+Definition is_lnot a :=
+  match a with 
+  | Papp1 (Olnot _) a => Some a
+  | _                 => None
+  end.
+
+Definition is_andn  a b := 
+  match is_lnot a, is_lnot b with
+  | Some a, _      => Some (a, b)
+  | None  , Some b => Some (b, a)  
+  | None  , None   => None 
+  end. 
+
 Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
   let chk (b: bool) r := if b then r else LowerAssgn in
   let kb b sz := chk (b && (sz == sz')) in
@@ -444,9 +457,18 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
       k16 sz (LowerDivMod DM_Snd u sz opn a b)
         
     | Oland sz =>
-      if (sz ≤ U64)%CMP
-      then k8 sz (LowerFopn (Ox86_AND sz) [:: a ; b ] (Some U32))
-      else kb true sz (LowerCopn (Ox86_VPAND sz) [:: a ; b ])
+      match is_andn a b with
+      | Some (a,b) => 
+        if (sz ≤ U64)%CMP
+        then k8 sz (LowerFopn (Ox86_ANDN sz) [:: a ; b ] (Some U32))
+        else kb true sz (LowerCopn (Ox86_VPANDN sz) [:: a ; b ])
+      | None =>
+        if (sz ≤ U64)%CMP
+        then k8 sz (LowerFopn (Ox86_AND sz) [:: a ; b ] (Some U32))
+        else kb true sz (LowerCopn (Ox86_VPAND sz) [:: a ; b ])
+      end
+        
+
     | Olor sz =>
       if (sz ≤ U64)%CMP
       then k8 sz (LowerFopn (Ox86_OR sz) [:: a ; b ] (Some U32))
@@ -460,6 +482,20 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
     | Oasr sz => k8 sz (LowerFopn (Ox86_SAR sz) [:: a ; b ] (Some U8))
     | Oeq (Op_w sz) => k8 sz (LowerEq sz a b)
     | Olt (Cmp_w Unsigned sz) => k8 sz (LowerLt sz a b)
+
+    | Ovadd ve sz =>
+      kb (U128 <= sz)%CMP sz (LowerCopn (Ox86_VPADD ve sz) [::a; b])
+    | Ovsub ve sz => 
+      kb (U128 <= sz)%CMP sz (LowerCopn (Ox86_VPSUB ve sz) [::a; b])
+    | Ovmul ve sz => 
+      kb ((U32 <= ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86_VPMULL ve sz) [::a; b])
+    | Ovlsl ve sz =>
+      kb ((U16 <= ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86_VPSLL ve sz) [::a; b])
+    | Ovlsr ve sz =>
+      kb ((U16 <= ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86_VPSRL ve sz) [::a; b])
+    | Ovasr ve sz => 
+      kb ((U16 <= ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86_VPSRA ve sz) [::a; b])
+
     | _ => LowerAssgn
     end
 
@@ -538,6 +574,7 @@ Definition wsize_of_sopn (op: sopn) : wsize :=
   | Ox86_TEST x
   | Ox86_CMP x
   | Ox86_AND x
+  | Ox86_ANDN x
   | Ox86_OR x
   | Ox86_XOR x
   | Ox86_NOT x
@@ -551,8 +588,8 @@ Definition wsize_of_sopn (op: sopn) : wsize :=
   | Ox86_BSWAP x
   | Ox86_VMOVDQU x
   | Ox86_VPAND x | Ox86_VPANDN x | Ox86_VPOR x | Ox86_VPXOR x
-  | Ox86_VPADD _ x | Ox86_VPMULU x
-  | Ox86_VPSLL _ x | Ox86_VPSRL _ x
+  | Ox86_VPADD _ x | Ox86_VPSUB _ x | Ox86_VPMULL _ x | Ox86_VPMULU x
+  | Ox86_VPSLL _ x | Ox86_VPSRL _ x | Ox86_VPSRA _ x
   | Ox86_VPSLLV _ x | Ox86_VPSRLV _ x
   | Ox86_VPSLLDQ x | Ox86_VPSRLDQ x
   | Ox86_VPSHUFB x | Ox86_VPSHUFHW x | Ox86_VPSHUFLW x | Ox86_VPSHUFD x

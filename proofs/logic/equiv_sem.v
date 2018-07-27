@@ -446,130 +446,132 @@ Proof.
   by apply: rbindP => ys /Hrec [vs2 []] /= -> ? [] <- /=;eauto.
 Qed.
 
-Lemma svalue_of_value_uincl v :
-  svalue_uincl v (svalue_of_value v).
-Proof.
-  case: v => // [s n a | s w|t];move => //=;try (rewrite eq_refl).
-  + by move => i w h; rewrite FArray.of_funP h psem.truncate_word_u.
-  + by rewrite zero_extend_u.
-  + by case t => //=.
-Qed.
-
-Lemma svalues_of_values_uincl v :
-  List.Forall2 svalue_uincl v (svalues_of_values v).
-Proof.
-  elim: v => [ | v vs ih ]; constructor; eauto using svalue_of_value_uincl.
-Qed.
-
-Ltac split_list :=
-  repeat match goal with
-  | |- ∀ v vs, List.Forall2 _ (v :: vs) _ → _ =>
-      move => ?? /List_Forall2_inv_l [?] [?] [?] []; subst => ?
-  | |- List.Forall2 _ [::] _ → _ => move => /List_Forall2_inv_l ?; subst
-  | |- List.Forall2 _ ?vs _ → _ => case: vs => //=; t_xrbindP
+Definition type_of_val_strict v :=
+  match v with
+  | Vbool _ => sbool
+  | Vint _ => sint
+  | Varr s n _ => sarr s n
+  | Vword s _ => sword s
+  | Vundef t => t
   end.
 
-Lemma svuincl_app_w sz o vs vs' v :
-  List.Forall2 svalue_uincl vs vs' →
-  (app_w sz o) vs = ok v →
-  exists2 v', sapp_w sz (w1 o) vs' = ok v' & List.Forall2 svalue_uincl v v'.
+Definition value_uincl_strict (v v': value) : Prop :=
+  if v is Vundef s then s = type_of_val_strict v' else v = v'.
+
+Lemma svalue_of_value_uincl v v' :
+  value_uincl_strict v v' →
+  svalue_uincl v (svalue_of_value v').
 Proof.
-  split_list => ?? ok_v; svalue_uincl => h; rewrite /= h /= ok_v.
-  eexists; [ reflexivity | exact: svalues_of_values_uincl ].
+  case: v v' => [ b | z | sz n a | sz w | s ] [ b' | z' | sz' n' a' | sz' w' | s' ] //=.
+  - by case.
+  - by case.
+  - case/Varr_inj => ? [] ?; subst => /= <- {a'}.
+    rewrite eqxx => i v. rewrite FArray.of_funP => ->.
+    exact: psem.truncate_word_u.
+  - by case/Vword_inj => ?; subst => /= <-{w'}; rewrite eqxx zero_extend_u.
+  - by move => ->.
+  - by move => ->.
+  - by move => ->.
+  - by move => ->.
+  - by move => ->; case: s'.
 Qed.
 
-Lemma svuincl_app_b o vs vs' v :
-  List.Forall2 svalue_uincl vs vs' →
-  (app_b o) vs = ok v →
-  exists2 v', sapp_b (w1 o) vs' = ok v' & List.Forall2 svalue_uincl v v'.
+Lemma svalues_of_values_uincl vs vs' :
+  List.Forall2 value_uincl_strict vs vs' →
+  List.Forall2 svalue_uincl vs (svalues_of_values vs').
 Proof.
-  split_list => ?? ok_v; svalue_uincl; rewrite /= ok_v.
-  eexists; [ reflexivity | exact: svalues_of_values_uincl ].
+  elim: vs vs' => [ | v vs ih ] q /List_Forall2_inv_l.
+  - by move => ->; constructor.
+  case => v' [] vs' [] -> [] h hs; constructor; eauto using svalue_of_value_uincl.
 Qed.
 
-Lemma svuincl_app_ww sz o vs vs' v :
-  List.Forall2 svalue_uincl vs vs' →
-  (app_ww sz o) vs = ok v →
-  exists2 v', sapp_ww sz (w2 o) vs' = ok v' & List.Forall2 svalue_uincl v v'.
+Lemma exec_sopn_not_sarr op vs v :
+  exec_sopn op vs = ok v →
+  all (λ x, match x with Varr _ _ _ | Vundef (sarr _ _) => false | _ => true end) vs.
 Proof.
-  split_list => ???? ok_v; svalue_uincl => h h'; rewrite /= h h' /= ok_v.
-  eexists; [ reflexivity | exact: svalues_of_values_uincl ].
+case: op => /=;
+try by
+repeat match goal with
+| |- match ?x with _ => _ end = ok _ → _ => case: x => //
+| |- Let _ := _ in _ = ok _ → _ => apply: rbindP => //=
+| |- to_bool ?v = ok _ → _ => move => /psem.to_boolI ?; subst
+| |- to_word ?sz ?v = ok _ → _ => case/psem.to_wordI => ? [?] [???]; subst
+| |- _ → _ => intro
+end;
+trivial.
+move => sz; case: vs => // a [] // b [] // c [] //.
+t_xrbindP => _ _ ? /psem.to_boolI ->.
+by case: b => // [ sz' w | [] // sz' ]; case: c => // - [].
 Qed.
 
- Lemma svuincl_app_www sz o vs vs' v :
-  List.Forall2 svalue_uincl vs vs' →
-  (app_www sz o) vs = ok v →
-  exists2 v', sapp_www sz (w3 o) vs' = ok v' & List.Forall2 svalue_uincl v v'.
+Lemma vuincl_sopn ts o vs vs' v :
+  all psem.is_not_arr ts ->
+  List.Forall2 value_uincl_strict vs vs' ->
+  app_sopn ts o vs = ok v ->
+  app_sopn ts o vs' = ok v.
 Proof.
-  split_list => ?????? ok_v; svalue_uincl => h h' h''; rewrite /= h h' h'' /= ok_v.
-  eexists; [ reflexivity | exact: svalues_of_values_uincl ].
+  elim: ts o vs vs' => /= [ | t ts Hrec] o [] //.
+  + by move => vs' _ /List_Forall2_inv_l -> ->; eauto using List_Forall2_refl.
+  move => n vs vs'' /andP [] ht hts /List_Forall2_inv_l [v'] [vs'] [->] {vs''} [hv hvs].
+  case: t o ht => //= [ | | sz ] o _; apply: rbindP.
+  + by move => b /psem.to_boolI ?; subst; move: hv => <- /=; eauto.
+  + by move => z /to_int_inv ?; subst; move: hv => <- /=; eauto.
+  move => w /psem.to_wordI [] ? [] ? [] h ??; subst; move: hv => <- /=.
+  rewrite /truncate_word h /=. eauto.
 Qed.
 
- Lemma svuincl_app_ww8 sz o vs vs' v :
-  List.Forall2 svalue_uincl vs vs' →
-  (app_ww8 sz o) vs = ok v →
-  exists2 v', sapp_ww8 sz (w3 o) vs' = ok v' & List.Forall2 svalue_uincl v v'.
+Lemma value_uincl_strict_is_word v v' sz u :
+  value_uincl_strict v v' →
+  is_word sz v = ok u →
+  is_word sz v' = ok tt.
 Proof.
-  split_list => ?????? ok_v; svalue_uincl => h h' h''; rewrite /= h h' h'' /= ok_v.
-  eexists; [ reflexivity | exact: svalues_of_values_uincl ].
+case: v => // [ sz' w | [] // sz' ].
+- by move => <-.
+by case: v' => // - [].
 Qed.
 
-Lemma svuincl_app_wwb sz o vs vs' v :
-  List.Forall2 svalue_uincl vs vs' →
-  (app_wwb sz o) vs = ok v →
-  exists2 v', sapp_wwb sz (w3 o) vs' = ok v' & List.Forall2 svalue_uincl v v'.
+Lemma exec_sopn_uincl_strict op vs vs' v :
+  List.Forall2 value_uincl_strict vs vs' →
+  exec_sopn op vs = ok v →
+  exec_sopn op vs' = ok v.
 Proof.
-  split_list => ?????? ok_v; svalue_uincl => h h'; rewrite /= h h' /= ok_v.
-  eexists; [ reflexivity | exact: svalues_of_values_uincl ].
-Qed.
-
-Lemma svuincl_app_w4 sz o vs vs' v :
-  List.Forall2 svalue_uincl vs vs' →
-  (app_w4 sz o) vs = ok v →
-  exists2 v', sapp_w4 sz (w4 o) vs' = ok v' & List.Forall2 svalue_uincl v v'.
-Proof.
-  split_list => ???????? ok_v; svalue_uincl => /= -> -> -> -> /=; rewrite ok_v.
-  eexists; [ reflexivity | exact: svalues_of_values_uincl ].
-Qed.
-
-Lemma svuincl_app_w8 sz o vs vs' v :
-  List.Forall2 svalue_uincl vs vs' →
-  (app_w8 sz o) vs = ok v →
-  exists2 v', sapp_w8 sz (w2 o) vs' = ok v' & List.Forall2 svalue_uincl v v'.
-Proof.
-  split_list => ???? ok_v; svalue_uincl => /= -> -> /=; rewrite ok_v.
-  eexists; [ reflexivity | exact: svalues_of_values_uincl ].
+  case: op; try (repeat (intro; try exact: vuincl_sopn); fail).
+  case: vs => // a [] // b [] // c [] // sz.
+  case/List_Forall2_inv_l => a' [] ? [] -> [] ha.
+  case/List_Forall2_inv_l => b' [] ? [] -> [] hb.
+  case/List_Forall2_inv_l => c' [] ? [] -> [] hc.
+  move => /List_Forall2_inv_l -> /=; t_xrbindP => _ -> /=.
+  move => x /psem.to_boolI ?; subst.
+  move => _ /(value_uincl_strict_is_word hb) -> /=.
+  move => _ /(value_uincl_strict_is_word hc) -> /=.
+  by case: x ha => <-; t_xrbindP => ? /psem.to_wordI [] ? [] ? [] hle ???; subst => /=;
+  [ move: hb | move: hc ] => <- /=; rewrite /truncate_word hle.
 Qed.
 
 Lemma svuincl_exec_opn o vs vs' v :
   List.Forall2 svalue_uincl vs vs' -> exec_sopn o vs = ok v ->
   exists2 v', ssem_sopn o vs' = ok v' & List.Forall2 svalue_uincl v v'.
 Proof.
-  rewrite /exec_sopn /ssem_sopn;case: o;
-    eauto using svuincl_app_w, svuincl_app_b, svuincl_app_ww, svuincl_app_www,
-                svuincl_app_wwb, svuincl_app_w4, svuincl_app_w8, svuincl_app_ww8;
-    move => s.
-  + by split_list => ???? <-; svalue_uincl => /= -> ->;
-    eexists; [ reflexivity | exact: svalues_of_values_uincl ].
-  + by split_list => ?????? <-; svalue_uincl => /= -> ->;
-    eexists; [ reflexivity | exact: svalues_of_values_uincl ].
-  + by split_list => ?????? <-; svalue_uincl => /= -> ->;
-    eexists; [ reflexivity | exact: svalues_of_values_uincl ].
-  + by split_list => _ _ <-;
-    eexists; [ reflexivity | exact: svalues_of_values_uincl ].
-  + by move: s; split_list => ?? <-; svalue_uincl => /= ->;
-    eexists; [ reflexivity | exact: svalues_of_values_uincl ].
-    split_list => _ _ b ?; svalue_uincl.
-    case: b; t_xrbindP => ??; svalue_uincl => /= -> <-;
-    (eexists; [ reflexivity | exact: svalues_of_values_uincl ]).
-  + by split_list => ?? _ _ <-; svalue_uincl => /= ->;
-    eexists; [ reflexivity | exact: svalues_of_values_uincl ].
-  + by rewrite /x86_vpinsr;
-    split_list => ?????? ok_v; svalue_uincl => /= -> -> -> /=;
-    eexists; [ reflexivity | exact: svalues_of_values_uincl ].
-  by rewrite /x86_vinserti128; move: s;
-  split_list => ?????? <-; svalue_uincl => /= -> -> ->;
-  eexists; [ reflexivity | exact: svalues_of_values_uincl ].
+  move => hs ok_v.
+  rewrite /ssem_sopn.
+  have [q -> /= hq] : exists2 q, mapM value_of_svalue vs' = ok q & List.Forall2 value_uincl_strict vs q.
+  + move/exec_sopn_not_sarr: ok_v.
+    elim: {v o} vs vs' hs.
+    - by move => _ /List_Forall2_inv_l -> _; exists [::].
+    move => v vs ih _ /List_Forall2_inv_l [] v' [] vs' [] -> [] h /ih{ih}ih/=.
+    case/andP => h' /ih{ih} [] q -> hq /=.
+    suff [? ->/= ?] : exists2 r, value_of_svalue v' = ok r & value_uincl_strict v r by eauto.
+    case: v v' h h' => //=.
+    - by move => ? [] // _ <- _ /=; eexists; first reflexivity.
+    - by move => ? [] // _ <- _ /=; eexists; first reflexivity.
+    - move => ?? [] // ??; case: eqP => // ??; subst => _ /=; eexists; first reflexivity.
+      by rewrite /= zero_extend_u.
+    case => // [ | | sz' ] [] //=; eauto.
+    by move => ? ? [] ? _; subst => /=; eexists; first reflexivity.
+  rewrite (exec_sopn_uincl_strict hq ok_v) /=.
+  eexists; first reflexivity.
+  apply: svalues_of_values_uincl.
+  apply: List_Forall2_refl; by case.
 Qed.
 
 Lemma sset_vm_uincl vm vm' x z z' :

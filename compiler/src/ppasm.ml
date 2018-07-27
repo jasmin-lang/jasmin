@@ -390,6 +390,8 @@ let pp_instr name (i : X86_sem.asm) =
 
   | AND (ws, op1, op2) -> pp_instr_binop "and" ws op1 op2
 
+  | ANDN (ws, op1, op2) -> pp_instr_binop "andn" ws op1 op2
+
   | OR (ws, op1, op2) -> pp_instr_binop "or" ws op1 op2
 
   | XOR (ws, op1, op2) -> pp_instr_binop "xor" ws op1 op2
@@ -443,6 +445,12 @@ let pp_instr name (i : X86_sem.asm) =
   | VPADD (ve, sz, dst, src1, src2) ->
     `Instr (pp_viname ve "vpadd", [pp_rm128 sz src2; pp_rm128 sz src1; pp_rm128 sz dst])
 
+  | VPSUB (ve, sz, dst, src1, src2) ->
+    `Instr (pp_viname ve "vpsub", [pp_rm128 sz src2; pp_rm128 sz src1; pp_rm128 sz dst])
+
+  | VPMULL(ve, sz, dst, src1, src2) ->
+    `Instr (pp_viname ve "vpmull", [pp_rm128 sz src2; pp_rm128 sz src1; pp_rm128 sz dst])
+
   | VPMULU (sz, dst, src1, src2) -> pp_xmm_binop "vpmuludq" sz dst src1 src2
 
   | VPEXTR (ve, dst, src, i) ->
@@ -461,6 +469,9 @@ let pp_instr name (i : X86_sem.asm) =
 
   | VPSRL (ve, sz, dst, src1, src2) ->
     `Instr (pp_viname ve "vpsrl", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 sz src1; pp_rm128 sz dst])
+
+  | VPSRA (ve, sz, dst, src1, src2) ->
+    `Instr (pp_viname ve "vpsra", [pp_imm (Conv.bi_of_int8 src2); pp_rm128 sz src1; pp_rm128 sz dst])
 
   | VPSLLV (ve, sz, dst, src1, src2) -> pp_xmm_binop (pp_viname ve "vpsllv") sz dst src1 src2
   | VPSRLV (ve, sz, dst, src1, src2) -> pp_xmm_binop (pp_viname ve "vpsrlv") sz dst src1 src2
@@ -516,9 +527,9 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | MOVD _
   | VMOVDQU _
   | VPAND _ | VPANDN _ | VPOR _ | VPXOR _
-  | VPADD _ | VPMULU _
+  | VPADD _ | VPSUB _ | VPMULL _ | VPMULU _
   | VPINSR _
-  | VPSLL _ | VPSRL _
+  | VPSLL _ | VPSRL _ | VPSRA _
   | VPSLLV _ | VPSRLV _
   | VPSLLDQ _ | VPSRLDQ _
   | VPSHUFB _ | VPSHUFHW _ | VPSHUFLW _ | VPSHUFD _
@@ -540,6 +551,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | SBB    (_, op, _)
   | IMUL   (_, op, Some _)
   | AND    (_, op, _)
+  | ANDN   (_, op, _)
   | OR     (_, op, _)
   | XOR    (_, op, _)
   | ROR (_, op, _)

@@ -569,11 +569,60 @@ Proof.
   by rewrite /sem_sop1 /= wrepr_unsigned;case: u.
 Qed.
 
+Lemma svaddP ve ws e1 e2 : Papp2 (Ovadd ve ws) e1 e2 =E svadd ve ws e1 e2.
+Proof.
+  apply: sbitwP => sz1 w1 sz2 w2 v.
+  apply: rbindP => v1 /truncate_wordP [_ ->].
+  apply: rbindP => v2 /truncate_wordP [_ ->].
+  by case.
+Qed.
+
+Lemma svsubP ve ws e1 e2 : Papp2 (Ovsub ve ws) e1 e2 =E svsub ve ws e1 e2.
+Proof.
+  apply: sbitwP => sz1 w1 sz2 w2 v.
+  apply: rbindP => v1 /truncate_wordP [_ ->].
+  apply: rbindP => v2 /truncate_wordP [_ ->].
+  by case.
+Qed.
+
+Lemma svmulP ve ws e1 e2 : Papp2 (Ovmul ve ws) e1 e2 =E svmul ve ws e1 e2.
+Proof.
+  apply: sbitwP => sz1 w1 sz2 w2 v.
+  apply: rbindP => v1 /truncate_wordP [_ ->].
+  apply: rbindP => v2 /truncate_wordP [_ ->].
+  by case.
+Qed.
+
+Lemma svshlP ve ws e1 e2 : Papp2 (Ovlsl ve ws) e1 e2 =E svshl ve ws e1 e2.
+Proof.
+  apply: @sbitw8P => sz1 w1 sz2 w2 v.
+  apply: rbindP => v1 /truncate_wordP [_ ->].
+  apply: rbindP => v2 /truncate_wordP [_ ->].
+  by case.
+Qed.
+
+Lemma svshrP ve ws e1 e2 : Papp2 (Ovlsr ve ws) e1 e2 =E svshr ve ws e1 e2.
+Proof.
+  apply: @sbitw8P => sz1 w1 sz2 w2 v.
+  apply: rbindP => v1 /truncate_wordP [_ ->].
+  apply: rbindP => v2 /truncate_wordP [_ ->].
+  by case.
+Qed.
+
+Lemma svsarP ve ws e1 e2 : Papp2 (Ovasr ve ws) e1 e2 =E svsar ve ws e1 e2.
+Proof.
+  apply: @sbitw8P => sz1 w1 sz2 w2 v.
+  apply: rbindP => v1 /truncate_wordP [_ ->].
+  apply: rbindP => v2 /truncate_wordP [_ ->].
+  by case.
+Qed.
+
 Lemma s_op2P o e1 e2 : Papp2 o e1 e2 =E s_op2 o e1 e2.
 Proof.
   case: o;eauto using sandP, sorP, saddP, smulP, ssubP, sdivP, smodP, 
                       s_eqP, sneqP, sltP, sleP, sgtP, sgeP,
-                      slandP, slorP, slxorP, slslP, slsrP, sasrP.
+                      slandP, slorP, slxorP, slslP, slsrP, sasrP,
+                      svaddP, svsubP, svmulP, svshlP, svshrP, svsarP.
 Qed.
 
 Lemma app_sopn_uincl_a T ts op vs vs' (vres: T) :
@@ -1050,7 +1099,13 @@ Section PROOF.
     by apply sem_seq1;constructor;econstructor;eauto.
   Qed.
 
-  Lemma exec_sopn_uincl_a o vs vs' vres :
+  Lemma value_uincl_a_is_word v v' sz u :
+    value_uincl_a v v' →
+    is_word sz v = ok u →
+    is_word sz v' = ok tt.
+  Proof. case => /value_uincl_is_word; eauto. Qed.
+
+  Lemma exec_sopn_uincl_a o vs vs' vres : 
     exec_sopn o vs = ok vres ->
     List.Forall2 value_uincl_a vs vs' ->
     exec_sopn o vs' = ok vres.
@@ -1061,7 +1116,7 @@ Section PROOF.
         apply: app_sopn_uincl_a.
     move=> w /=;case: vs => //= v1 [// | v2 [// | v3 [|//]]] H.
     case/List_Forall2_inv_l => v1' [vs''] [->] {vs'} [hv1] /List_Forall2_inv_l [v2'] [vs'] [->] {vs''} [hv2] /List_Forall2_inv_l [v3'] [vs''] [->] {vs'} [hv3] /List_Forall2_inv_l -> {vs''}.
-    move: H hv1;t_xrbindP => _ -> /= b /value_uincl_bool h H [] /h {h} [??] _; subst => /=.
+    move: H hv1; t_xrbindP => _ -> /= b /value_uincl_bool h _ /(value_uincl_a_is_word hv2) -> _ /(value_uincl_a_is_word hv3) -> H [] /h {h} [??] _; subst => /=.
     case: b H; t_xrbindP => w'.
     + by case: hv2 => /value_uincl_word h _ /h -> <-.
     by case: hv3 => /value_uincl_word h _ /h -> <-.

@@ -3,6 +3,12 @@
   module S = Syntax
 
   open Syntax
+
+  let setsign c s = 
+    match c with
+    | None -> Some (L.mk_loc (L.loc s) (CSS(None, L.unloc s)))
+    | _    -> c
+
 %}
 
 %token EOF
@@ -18,45 +24,47 @@
 %token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
 
 %token SHARP
-%token <Syntax.swsize> AMP
+%token AMP
 %token AMPAMP
-%token <Syntax.swsize> BANG
-%token <Syntax.swsize> BANGEQ
+%token BANG
+%token BANGEQ
+(* %token <(Syntax.wsize * Syntax.sign)>CAST *)
 %token COLON
 %token COMMA
-%token <Syntax.sign * Syntax.wsize>CAST
 %token DOWNTO
 %token ELSE
 %token EQ
-%token <Syntax.swsize> EQEQ
+%token EQEQ
 %token EXEC
 %token FALSE
 %token FN
 %token FOR
-%token <Syntax.swsize> GE
+%token <Syntax.sign>GE
 %token GLOBAL
-%token <Syntax.swsize> GT
-%token <Syntax.swsize> GTGT
-%token <Syntax.swsize> HAT
+%token <Syntax.sign>GT
+%token <Syntax.sign>GTGT
+%token HAT
 %token IF
 %token INLINE
-%token <Syntax.swsize> LE
-%token <Syntax.swsize> LT
-%token <Syntax.swsize> LTLT
-%token <Syntax.swsize> MINUS
+%token <Syntax.sign> LE
+%token <Syntax.sign> LT
+%token               LTLT
+%token MINUS
 %token PARAM
-%token <Syntax.swsize> PERCENT
-%token <Syntax.swsize> PIPE
+%token PERCENT
+%token PIPE
 %token PIPEPIPE
-%token <Syntax.swsize> PLUS
+%token PLUS
 %token QUESTIONMARK
 %token RARROW
 %token REG
 %token RETURN
 %token SEMICOLON
-%token <Syntax.swsize> SLASH
+%token <Syntax.swsize>SWSIZE
+%token <Syntax.svsize> SVSIZE
+%token SLASH
 %token STACK
-%token <Syntax.swsize> STAR
+%token STAR
 %token TO
 %token TRUE
 %token UNDERSCORE
@@ -77,7 +85,7 @@
 %left LTLT GTGT
 %left PLUS MINUS
 %left STAR SLASH PERCENT
-%nonassoc BANG CAST
+%nonassoc BANG (* CAST *)
 
 %type <Syntax.pprogram> module_
 
@@ -118,32 +126,44 @@ ptype_r:
 ptype:
 | x=loc(ptype_r) { x }
 
+swsize:
+| s=SWSIZE { s }
+
+svsize:
+| s=SVSIZE { s }
+
+castop1:
+| s=swsize { CSS (Some (fst s), snd s) }
+| s=svsize { CVS s }
+
+castop:
+| c=loc(castop1)? { c }
+
 (* ** Index expressions
  * -------------------------------------------------------------------- *)
 %inline peop1:
-| c=CAST   { `Cast c }
-| s=BANG   { `Not s }
-| s=MINUS  { `Neg s }
+| BANG  c=castop    { `Not c  }
+| MINUS c=castop    { `Neg c  }
 
 %inline peop2:
-| s=PLUS { `Add s }
-| s=MINUS { `Sub s }
-| s=STAR { `Mul s }
-| s=SLASH {`Div s }
-| s=PERCENT {`Mod s }
-| AMPAMP { `And }
-| PIPEPIPE { `Or }
-| s=AMP { `BAnd s }
-| s=PIPE { `BOr s }
-| s=HAT { `BXOr s }
-| s=LTLT { `ShL s }
-| s=GTGT { `ShR s }
-| s=EQEQ { `Eq s }
-| s=BANGEQ { `Neq s }
-| s=LT       { `Lt s }
-| s=LE       { `Le s }
-| s=GT       { `Gt s }
-| s=GE       { `Ge s }
+| AMPAMP               { `And   }
+| PIPEPIPE             { `Or    }
+| PLUS        c=castop { `Add  c}
+| MINUS       c=castop { `Sub  c}
+| STAR        c=castop { `Mul  c}
+| SLASH       c=castop { `Div  c}
+| PERCENT     c=castop { `Mod  c}
+| AMP         c=castop { `BAnd c}
+| PIPE        c=castop { `BOr  c}
+| HAT         c=castop { `BXOr c}
+| LTLT        c=castop { `ShL  c} 
+| s=loc(GTGT) c=castop { `ShR (setsign c s)}
+| EQEQ        c=castop { `Eq   c}
+| BANGEQ      c=castop { `Neq  c}
+| s=loc(LT)   c=castop { `Lt  (setsign c s)}
+| s=loc(LE)   c=castop { `Le  (setsign c s)}
+| s=loc(GT)   c=castop { `Gt  (setsign c s)}
+| s=loc(GE)   c=castop { `Ge  (setsign c s)}
 
 prim:
 | SHARP x=ident { x }
@@ -166,6 +186,12 @@ pexpr_r:
 
 | ct=parens(ptype)? LBRACKET v=var PLUS e=pexpr RBRACKET
     { PEFetch (ct, v, e) }
+
+| ct=parens(svsize) LBRACKET es=rtuple1(pexpr) RBRACKET
+    { PEpack(ct,es) }
+
+| ct=parens(swsize) e=pexpr %prec BANG
+    { PEOp1 (`Cast(ct), e) }
 
 | o=peop1 e=pexpr
     { PEOp1 (o, e) }
@@ -190,15 +216,15 @@ pexpr:
 
 (* -------------------------------------------------------------------- *)
 peqop:
-| EQ      { `Raw }
-| s=PLUS EQ  { `Add s }
-| s=MINUS EQ { `Sub s }
-| s=STAR EQ  { `Mul s }
-| s=GTGT EQ  { `ShR s }
-| s=LTLT EQ  { `ShL s }
-| s=AMP EQ { `BAnd s }
-| s=HAT EQ   { `BXOr s }
-| s=PIPE EQ  { `BOr s }
+|                EQ  { `Raw    }
+| PLUS  c=castop EQ  { `Add  c }
+| MINUS c=castop EQ  { `Sub  c }
+| STAR  c=castop EQ  { `Mul  c }
+| GTGT  c=castop EQ  { `ShR  c }
+| LTLT  c=castop EQ  { `ShL  c }
+| AMP   c=castop EQ  { `BAnd c }
+| HAT   c=castop EQ  { `BXOr c }
+| PIPE  c=castop EQ  { `BOr  c }
 
 (* ** Left value
  * -------------------------------------------------------------------- *)

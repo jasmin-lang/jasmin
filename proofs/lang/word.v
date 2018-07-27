@@ -668,6 +668,24 @@ rewrite !(wbit_zero_extend, wxorE).
 by case: (_ <= _)%nat.
 Qed.
 
+Lemma wnot_zero_extend sz sz' (x : word sz') :
+  (sz ≤ sz')%CMP →
+  wnot (zero_extend sz x) = zero_extend sz (wnot x).
+Proof.
+move => hle.
+apply/eqP/eq_from_wbit_n => i.
+rewrite !(wbit_zero_extend, wnotE).
+have := wsize_size_m hle.
+move: i.
+set m := wsize_size_minus_1 _.
+set m' := wsize_size_minus_1 _.
+case => i /= /leP hi hm.
+have him : (i <= m)%nat. by apply/leP; lia.
+rewrite him /=.
+have hi' : (i < m'.+1)%nat. apply /ltP. lia.
+by have /= -> := @wnotE sz' x (Ordinal hi') .
+Qed.
+
 (* -------------------------------------------------------------------*)
 Ltac wring := 
   rewrite ?zero_extend_u; ssrring.ssring.

@@ -1,6 +1,7 @@
 (* -------------------------------------------------------------------- *)
 open Prog
 
+module T = Type
 module E = Expr
 module F = Format
 module B = Bigint
@@ -46,6 +47,14 @@ let string_of_cmp_ty = function
   | E.Cmp_w (Type.Unsigned, _) -> "u"
   | _        -> ""
 
+(* -------------------------------------------------------------------- *)
+
+let string_of_velem s ws ve = 
+  let nws = int_of_ws ws in
+  let nve = int_of_velem ve in
+  let s   = if s = T.Unsigned then "u" else "s" in
+  Format.sprintf "%d%s%d" (nws/nve) s nve
+
 let string_of_op2 = function
   | E.Oand   -> "&&"
   | E.Oor    -> "||"
@@ -68,6 +77,14 @@ let string_of_op2 = function
   | E.Ole  k -> "<=" ^ string_of_cmp_ty k
   | E.Ogt  k -> ">"  ^ string_of_cmp_ty k
   | E.Oge  k -> ">=" ^ string_of_cmp_ty k
+
+  | Ovadd (ve,ws) -> Format.sprintf "+%s"  (string_of_velem T.Unsigned ws ve)
+  | Ovsub (ve,ws) -> Format.sprintf "-%s"  (string_of_velem T.Unsigned ws ve)
+  | Ovmul (ve,ws) -> Format.sprintf "*%s"  (string_of_velem T.Unsigned ws ve)
+  | Ovlsr (ve,ws) -> Format.sprintf ">>%s" (string_of_velem T.Unsigned ws ve)
+  | Ovasr (ve,ws) -> Format.sprintf ">>%s" (string_of_velem T.Unsigned ws ve)
+  | Ovlsl (ve,ws) -> Format.sprintf "<<%s" (string_of_velem T.Signed   ws ve)
+
 
 let string_of_op1 = function
   | E.Oint_of_word _ -> F.sprintf "(int)"
@@ -133,28 +150,11 @@ let pp_glvs pp_var fmt lvs =
   | _   -> F.fprintf fmt "(@[%a@])" (pp_list ",@ " (pp_glv pp_var)) lvs
 
 (* -------------------------------------------------------------------- *)
-let string_of_velem =
-  function
-  | Type.U128 ->
-    (function
-    | Type.VE8 -> "16u8"
-    | Type.VE16 -> "8u16"
-    | Type.VE32 -> "4u32"
-    | Type.VE64 -> "2u64")
-  | Type.U256 ->
-    (function
-    | Type.VE8 -> "32u8"
-    | Type.VE16 -> "16u16"
-    | Type.VE32 -> "8u32"
-    | Type.VE64 -> "4u64")
-  | _ -> assert false
-
-(* -------------------------------------------------------------------- *)
 let pp_opn =
   let open Expr in
   let f w s = F.sprintf "%s_%d" s (int_of_ws w) in
   let f2 w _w' s = F.sprintf "%s_%d" s (int_of_ws w) in (* TODO: concrete syntax for these intrinsics *)
-  let v ve sz s = F.sprintf "%s_%s" s (string_of_velem sz ve) in
+  let v ve sz s = F.sprintf "%s_%s" s (string_of_velem T.Unsigned sz ve) in
   function
   | Omulu w -> f w "#mulu"
   | Oaddcarry w -> f w "#addc"
@@ -185,6 +185,7 @@ let pp_opn =
   | Ox86_TEST w -> f w "#x86_TEST"
   | Ox86_CMP w -> f w "#x86_CMP"
   | Ox86_AND w -> f w "#x86_AND"
+  | Ox86_ANDN w -> f w "#x86_ANDN"
   | Ox86_OR w -> f w "#x86_OR"
   | Ox86_XOR w -> f w "#x86_XOR"
   | Ox86_NOT w -> f w "#x86_NOT"
@@ -203,11 +204,14 @@ let pp_opn =
   | Ox86_VPOR w -> f w "#x86_VPOR"
   | Ox86_VPXOR w -> f w "#x86_VPXOR"
   | Ox86_VPADD (ve, sz) -> v ve sz "#x86_VPADD"
+  | Ox86_VPSUB (ve, sz) -> v ve sz "#x86_VPSUB"
+  | Ox86_VPMULL (ve, sz) -> v ve sz "#x86_VPMULL"
   | Ox86_VPMULU w -> f w "#x86_VPMULU"
   | Ox86_VPEXTR w -> f w "#x86_VPEXTR"
   | Ox86_VPINSR ve -> v ve U128 "#x86_VPINSR"
   | Ox86_VPSLL (ve, sz) -> v ve sz "#x86_VPSLL"
   | Ox86_VPSRL (ve, sz) -> v ve sz "#x86_VPSRL"
+  | Ox86_VPSRA (ve, sz) -> v ve sz "#x86_VPSRA"
   | Ox86_VPSLLV (ve, sz) -> v ve sz "#x86_VPSLLV"
   | Ox86_VPSRLV (ve, sz) -> v ve sz "#x86_VPSRLV"
   | Ox86_VPSLLDQ w -> f w "#x86_VPSLLDQ"

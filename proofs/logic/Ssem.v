@@ -242,6 +242,13 @@ Definition ssem_sop2 (o:sop2) :=
   | Ole (Cmp_w sg sz)   => @ssem_op2_wb sz (wle sg)
   | Ogt (Cmp_w sg sz)   => ssem_op2_wb (λ x y : word sz, wlt sg y x)
   | Oge (Cmp_w sg sz)   => ssem_op2_wb (λ x y : word sz, wle sg y x)
+
+  | Ovadd ve ws     => @ssem_op2_w  ws (sem_vadd ve)
+  | Ovsub ve ws     => @ssem_op2_w  ws (sem_vsub ve)
+  | Ovmul ve ws     => @ssem_op2_w  ws (sem_vmul ve)
+  | Ovlsr ve ws     => @ssem_op2_w8 ws (sem_vshr ve)
+  | Ovlsl ve ws     => @ssem_op2_w8 ws (sem_vshl ve)
+  | Ovasr ve ws     => @ssem_op2_w8 ws (sem_vsar ve)
   end.
 
 Import UnsafeMemory.
@@ -337,32 +344,13 @@ Definition swrite_lvals (s:sestate) xs vs :=
 
 End SSEM_PEXPR.
 
-Fixpoint sapp_sopn ts : ssem_prod ts (exec svalues) -> svalues -> exec svalues :=
-  match ts return ssem_prod ts (exec svalues) -> svalues -> exec svalues with
-  | [::]    => fun (o:exec svalues) (vs:svalues) =>
-    match vs with
-    | [::]  => o
-    | _     => type_error
-    end
-  | t::ts   => fun (o:ssem_t t -> ssem_prod ts (exec svalues)) (vs:svalues) =>
-    match vs with
-    | [::]  => type_error
-    | v::vs =>
-      Let v := of_sval t v in
-      sapp_sopn (o v) vs
-    end
+Definition value_of_svalue (v: svalue) : exec value :=
+  match v with
+  | SVbool b => ok (Vbool b)
+  | SVint z => ok (Vint z)
+  | SVarr _ _ => type_error
+  | SVword sz w => ok (Vword w)
   end.
-Arguments sapp_sopn ts o l:clear implicits.
-
-Notation sapp_b      o := (sapp_sopn [:: ssbool] o).
-Notation sapp_w   sz o := (sapp_sopn [:: ssword sz] o).
-Notation sapp_w8  sz o := (sapp_sopn [:: ssword sz; ssword U8] o).
-Notation sapp_ww  sz o := (sapp_sopn [:: ssword sz; ssword sz] o).
-Notation sapp_wwb sz o := (sapp_sopn [:: ssword sz; ssword sz; ssbool] o).
-Notation sapp_bww sz o := (sapp_sopn [:: ssbool; ssword sz; ssword sz] o).
-Notation sapp_www sz o := (sapp_sopn [:: ssword sz; ssword sz; ssword sz ] o).
-Notation sapp_ww8 sz o := (sapp_sopn [:: ssword sz; ssword sz; ssword U8] o).
-Notation sapp_w4  sz o := (sapp_sopn [:: ssword sz; ssword sz; ssword sz ; ssword sz] o).
 
 Definition svalue_of_value (v: value) : svalue :=
   match v with
@@ -381,98 +369,8 @@ Definition svalue_of_value (v: value) : svalue :=
 
 Definition svalues_of_values (vs: values) : svalues := map svalue_of_value vs.
 
-Notation w1 o := (λ x, Result.map svalues_of_values (o x)).
-Notation w2 o := (λ x y, Result.map svalues_of_values (o x y)).
-Notation w3 o := (λ x y z, Result.map svalues_of_values (o x y z)).
-Notation w4 o := (λ x y z w, Result.map svalues_of_values (o x y z w)).
-
-Definition spval t1 t2 (p: ssem_t t1 * ssem_t t2) :=
-  [::to_sval p.1; to_sval p.2].
-
-Definition ssem_sopn (o:sopn) :  svalues -> exec svalues :=
-  match o with
-  | Omulu sz       => sapp_ww  sz (fun x y   => ok (@spval (ssword sz)  (ssword sz) (wumul x y)))
-  | Oaddcarry sz   => sapp_wwb sz (fun x y c => ok (@spval ssbool (ssword sz) (waddcarry x y c)))
-  | Osubcarry sz   => sapp_wwb sz (fun x y c => ok (@spval ssbool (ssword sz) (wsubcarry x y c)))
-  | Oset0 sz       =>
-    λ _,
-    (let vf := SVbool false in
-     ok [:: vf; vf; vf; vf; SVbool true; @SVword sz 0%R])
-
-  (* Low level x86 operations *)
-  | Ox86_MOV sz    => sapp_w sz (w1 (@x86_MOV sz)) (*sapp_w sz (w1 x86_MOV)*)
-  | Ox86_MOVSX sz sz' => sapp_w sz' (w1 (@x86_MOVSX sz sz'))
-  | Ox86_MOVZX sz sz' => sapp_w sz' (w1 (@x86_MOVZX sz sz'))
-  | Ox86_MOVZX32 => sapp_w U32 (λ x : u32, ok [:: SVword (zero_extend U64 x) ])
-  | Ox86_CMOVcc sz => (fun v => match v with
-    | [:: v1; v2; v3] =>
-      Let b := sto_bool v1 in
-      if b then
-        Let w2 := sto_word sz v2 in ok [:: SVword w2]
-      else
-        Let w3 := sto_word sz v3 in ok [:: SVword w3]
-    | _ => type_error end)
-  | Ox86_ADD sz      => sapp_ww sz  (w2 x86_add)
-  | Ox86_SUB sz      => sapp_ww sz  (w2 x86_sub)
-  | Ox86_MUL sz      => sapp_ww sz  (w2 x86_mul)
-  | Ox86_IMUL sz     => sapp_ww sz  (w2 x86_imul)
-  | Ox86_IMULt sz    => sapp_ww sz  (w2 x86_imult)
-  | Ox86_IMULtimm sz => sapp_ww sz  (w2 x86_imult)
-  | Ox86_DIV sz      => sapp_www sz (w3 x86_div)
-  | Ox86_IDIV sz     => sapp_www sz (w3 x86_idiv)
-  | Ox86_CQO sz      => sapp_w sz   (w1 x86_cqo)
-  | Ox86_ADC sz      => sapp_wwb sz (w3 x86_adc)
-  | Ox86_SBB sz      => sapp_wwb sz (w3 x86_sbb)
-  | Ox86_NEG sz      => sapp_w sz   (w1 x86_neg)
-  | Ox86_INC sz      => sapp_w sz   (w1 x86_inc)
-  | Ox86_DEC sz      => sapp_w sz   (w1 x86_dec)
-  | Ox86_SETcc       => sapp_b      (w1 x86_setcc)
-  | Ox86_BT sz       => sapp_ww sz  (w2 x86_bt)
-  | Ox86_LEA sz      => sapp_w4 sz  (w4 x86_lea)
-  | Ox86_TEST sz     => sapp_ww sz  (w2 x86_test)
-  | Ox86_CMP sz      => sapp_ww sz  (w2 x86_cmp)
-  | Ox86_AND sz      => sapp_ww sz  (w2 x86_and)
-  | Ox86_OR  sz      => sapp_ww sz  (w2 x86_or)
-  | Ox86_XOR sz      => sapp_ww sz  (w2 x86_xor)
-  | Ox86_NOT sz      => sapp_w sz   (w1 x86_not)
-  | Ox86_ROL sz      => sapp_w8 sz  (w2 x86_rol)
-  | Ox86_ROR sz      => sapp_w8 sz  (w2 x86_ror)
-  | Ox86_SHL sz      => sapp_w8 sz  (w2 x86_shl)
-  | Ox86_SHR sz      => sapp_w8 sz  (w2 x86_shr)
-  | Ox86_SAR sz      => sapp_w8 sz  (w2 x86_sar)
-  | Ox86_SHLD sz     => sapp_ww8 sz (w3 x86_shld)
-  | Ox86_SHRD sz     => sapp_ww8 sz (w3 x86_shrd)
-  | Ox86_BSWAP sz => sapp_w sz (w1 x86_bswap)
-  | Ox86_MOVD sz => sapp_w sz (w1 x86_movd)
-  | Ox86_VMOVDQU sz => sapp_sopn [:: ssword sz ] (λ x, ok [:: SVword x])
-  | Ox86_VPAND sz => sapp_ww sz (w2 x86_vpand)
-  | Ox86_VPANDN sz => sapp_ww sz (w2 x86_vpandn)
-  | Ox86_VPOR sz => sapp_ww sz (w2 x86_vpor)
-  | Ox86_VPXOR sz => sapp_ww sz (w2 x86_vpxor)
-  | Ox86_VPADD ve sz => sapp_ww sz (w2 (x86_vpadd ve))
-  | Ox86_VPMULU sz => sapp_ww sz (w2 x86_vpmulu)
-  | Ox86_VPEXTR ve => sapp_w8 U128 (w2 (x86_vpextr ve))
-  | Ox86_VPINSR ve => sapp_sopn [:: ssword U128 ; ssword ve ; ssword U8 ] (w3 (x86_vpinsr ve))
-  | Ox86_VPSLL ve sz => sapp_w8 sz (w2 (x86_vpsll ve))
-  | Ox86_VPSRL ve sz => sapp_w8 sz (w2 (x86_vpsrl ve))
-  | Ox86_VPSLLV ve sz => sapp_ww sz (w2 (x86_vpsllv ve))
-  | Ox86_VPSRLV ve sz => sapp_ww sz (w2 (x86_vpsrlv ve))
-  | Ox86_VPSLLDQ sz => sapp_w8 sz (w2 x86_vpslldq)
-  | Ox86_VPSRLDQ sz => sapp_w8 sz (w2 x86_vpsrldq)
-  | Ox86_VPSHUFB sz => sapp_ww sz (w2 x86_vpshufb)
-  | Ox86_VPSHUFHW sz => sapp_w8 sz (w2 x86_vpshufhw)
-  | Ox86_VPSHUFLW sz => sapp_w8 sz (w2 x86_vpshuflw)
-  | Ox86_VPSHUFD sz => sapp_w8 sz (w2 x86_vpshufd)
-  | Ox86_VPUNPCKH ve sz => sapp_ww sz (w2 (x86_vpunpckh ve))
-  | Ox86_VPUNPCKL ve sz => sapp_ww sz (w2 (x86_vpunpckl ve))
-  | Ox86_VPBLENDD sz => sapp_ww8 sz (w3 x86_vpblendd)
-  | Ox86_VPBROADCAST ve sz => sapp_w ve (w1 (x86_vpbroadcast sz))
-  | Ox86_VBROADCASTI128 => sapp_w U128 (w1 (x86_vpbroadcast U256))
-  | Ox86_VEXTRACTI128 => sapp_w8 U256 (w2 x86_vextracti128)
-  | Ox86_VINSERTI128 => sapp_sopn [:: ssword U256 ; ssword U128 ; ssword U8 ] (w3 x86_vinserti128)
-  | Ox86_VPERM2I128 => sapp_ww8 U256 (w3 x86_vperm2i128)
-  | Ox86_VPERMQ => sapp_w8 U256 (w2 x86_vpermq)
-  end.
+Definition ssem_sopn (op: sopn) (vs: svalues) : exec svalues :=
+  mapM value_of_svalue vs >>= exec_sopn op >>= λ r, ok (svalues_of_values r).
 
 (* ** Instructions
  * -------------------------------------------------------------------- *)

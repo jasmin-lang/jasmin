@@ -191,7 +191,7 @@ Proof.
 move => ct x y; split => // gd m m'.
 rewrite /low_sem_aux /= !arg_of_oprdE /eval_CMOVcc /eval_MOV_nocheck.
 case: x => //= [x | x]; t_xrbindP => vs ?? hb ?? hv ; [ | move => ??? hm <- <- ] => <- <-; t_xrbindP => _ -> /=;
-case: (eval_cond _ _) hb => [ b | [] // ] [<-] //= _ [<-];
+case: (eval_cond _ _) hb => [ b | [] // ] [<-] //= _ [<-] _ _ _ _;
 case: vs => // v [] //; case: v => //= sz' w ok_w; [ case | rewrite /sets_low /=; apply: rbindP => w' ok_w' ];
 case: b ok_w.
 + apply: rbindP => w' /of_val_word [s'] [w''] [hle ??]; subst => h.
@@ -574,6 +574,21 @@ move => ?; update_set.
 Qed.
 
 Definition AND_desc sz := make_instr_desc (AND_gsc sz).
+
+(* ----------------------------------------------------------------------------- *)
+Lemma ANDN_gsc sz :
+  gen_sem_correct [:: TYoprd; TYoprd] (Ox86_ANDN sz)
+     (implicit_flags ++ [:: E sz 0])
+     [:: E sz 0; E sz 1] [::] (ANDN sz).
+Proof.
+move => x y; split => // gd m m'; rewrite /low_sem_aux /= !arg_of_oprdE /= /x86_andn /eval_ANDN.
+case: x => // [ x | x ] /=; t_xrbindP => ???? h <-; [ | move => ?? h' <- ] => <-; t_xrbindP => ? /truncate_wordP [hle ->] ? /of_val_word [sz'] [?] [hle' ??]; subst => _ -> /= [<-].
++ by case => <-; rewrite (eval_low_read _ h) //; update_set.
+apply: rbindP => /= m'' [<-] {m''}; rewrite truncate_word_u /= h (eval_low_read _ h') //= !zero_extend_u.
+move => ?; update_set.
+Qed.
+
+Definition ANDN_desc sz := make_instr_desc (ANDN_gsc sz).
 
 (* ----------------------------------------------------------------------------- *)
 Lemma OR_gsc sz :
@@ -1051,6 +1066,29 @@ Definition VPADD_desc ve sz := make_instr_desc
     (x86_rm128_binop_gsc sz (Ox86_VPADD ve) (VPADD ve) (lift2_vec ve +%R sz)
     (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
+Definition VPSUB_desc ve sz := make_instr_desc
+    (x86_rm128_binop_gsc sz (Ox86_VPSUB ve) (VPSUB ve) (lift2_vec ve (fun x y => x - y)%R sz)
+    (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
+
+(* ----------------------------------------------------------------------------- *)
+Lemma VPMULL_gsc ve sz: 
+   gen_sem_correct [:: TYrm128 ; TYrm128 ; TYrm128 ] (Ox86_VPMULL ve sz)
+                   [:: E sz 0 ] [:: E sz 1 ; E sz 2 ] [::] (VPMULL ve sz).
+Proof.
+  move=> d x y;split => // gd m m'.
+  rewrite /low_sem_aux /= /x86_vpmull /eval_VPMULL /= /x86_u128_binop /= /eval_rm128_binop.
+  case hx: (arg_of_rm128 _ x) => [ x' | ] //.
+  case hy: (arg_of_rm128 _ y) => [ y' | ] //=.
+  case: d => d //; t_xrbindP => ??? hx' ?? hy' ??; subst;
+  t_xrbindP => vx /to_wordI [szx] [wx] [hlex ??];
+  subst => vy /to_wordI [szy] [wy] [hley ??] ? -> ? ok_s ?; subst;
+  rewrite /sets_low /= (eval_low_rm128 ok_s hx hx') (eval_low_rm128 ok_s hy hy') /=;
+  [ case | rewrite truncate_word_u /= ];
+  move => ->; eexists; split; reflexivity.
+Qed.
+
+Definition VPMULL_desc ve sz := make_instr_desc (VPMULL_gsc ve sz).
+
 (* ----------------------------------------------------------------------------- *)
 Lemma VPEXTR_gsc ve :
   gen_sem_correct [:: TYoprd ; TYxreg ; TYimm U8 ] (Ox86_VPEXTR ve)
@@ -1111,6 +1149,8 @@ Arguments x86_rm128_shift_gsc : clear implicits.
 
 Definition VPSLL_desc (ve: velem) sz := make_instr_desc (x86_rm128_shift_gsc ve sz (Ox86_VPSLL ve) (VPSLL ve) _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 Definition VPSRL_desc (ve: velem) sz := make_instr_desc (x86_rm128_shift_gsc ve sz (Ox86_VPSRL ve) (VPSRL ve) _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
+
+Definition VPSRA_desc (ve: velem) sz := make_instr_desc (x86_rm128_shift_gsc ve sz (Ox86_VPSRA ve) (VPSRA ve) _ (λ d x y, erefl) erefl (λ d x y gd m, erefl)).
 
 (* ----------------------------------------------------------------------------- *)
 Lemma x86_rm128_shift_variable_gsc ve sz op i sem :
@@ -1381,6 +1421,7 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_TEST sz => ok (TEST_desc sz)
   | Ox86_CMP sz => ok (CMP_desc sz)
   | Ox86_AND sz => ok (AND_desc sz)
+  | Ox86_ANDN sz => ok (ANDN_desc sz)
   | Ox86_OR sz => ok (OR_desc sz)
   | Ox86_XOR sz => ok (XOR_desc sz)
   | Ox86_NOT sz => ok (NOT_desc sz)
@@ -1399,11 +1440,14 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_VPOR sz => ok (VPOR_desc sz)
   | Ox86_VPXOR sz => ok (VPXOR_desc sz)
   | Ox86_VPADD ve sz => ok (VPADD_desc ve sz)
+  | Ox86_VPSUB ve sz => ok (VPSUB_desc ve sz)
+  | Ox86_VPMULL ve sz => ok (VPMULL_desc ve sz)
   | Ox86_VPMULU sz => ok (VPMULU_desc sz)
   | Ox86_VPEXTR ve => ok (VPEXTR_desc ve)
   | Ox86_VPINSR ve => ok (VPINSR_desc ve)
   | Ox86_VPSLL ve sz => ok (VPSLL_desc ve sz)
   | Ox86_VPSRL ve sz => ok (VPSRL_desc ve sz)
+  | Ox86_VPSRA ve sz => ok (VPSRA_desc ve sz)
   | Ox86_VPSLLV ve sz => ok (VPSLLV_desc ve sz)
   | Ox86_VPSRLV ve sz => ok (VPSRLV_desc ve sz)
   | Ox86_VPSLLDQ sz => ok (VPSLLDQ_desc sz)

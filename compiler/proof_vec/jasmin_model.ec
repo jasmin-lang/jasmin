@@ -186,7 +186,7 @@ op x86_VPERM2I128 (w1 w2: W256.t) (i:W8.t) : W256.t =
      if i.[n+3] then W128.zero
      else
        let w = if i.[n+1] then w2 else w1 in
-       w1 \bits128 b2i i.[n] in
+       w \bits128 b2i i.[n] in
   pack2 [choose 0; choose 4].
 
 op x86_VEXTRACTI128 (w:W256.t) (i:W8.t) : W128.t = 

@@ -421,9 +421,12 @@ let pp_signed fmt ws is = function
   | E.Cmp_w (Unsigned, _) -> Format.fprintf fmt "\\u%s" ws
   | _                     -> Format.fprintf fmt "%s" is
 
+let pp_vop2 fmt (s,ve,ws) = 
+  Format.fprintf fmt "\\v%s%iu%i" s (int_of_velem ve) (int_of_ws ws)
+
 let pp_op2 fmt = function
-  | E.Oand -> Format.fprintf fmt "/\\"
-  | E.Oor ->  Format.fprintf fmt "\\/"
+  | E.Oand   -> Format.fprintf fmt "/\\"
+  | E.Oor    -> Format.fprintf fmt "\\/"
   | E.Oadd _ -> Format.fprintf fmt "+"
   | E.Omul _ -> Format.fprintf fmt "*"
   | E.Odiv s -> pp_signed fmt "div" "%/" s
@@ -442,6 +445,14 @@ let pp_op2 fmt = function
   | E.Oneq  _ -> Format.fprintf fmt "<>"
   | E.Olt s| E.Ogt s -> pp_signed fmt "lt" "<" s
   | E.Ole s | E.Oge s -> pp_signed fmt "le" "<=" s
+
+  | Ovadd(ve,ws) -> pp_vop2 fmt ("add", ve, ws)
+  | Ovsub(ve,ws) -> pp_vop2 fmt ("sub", ve, ws) 
+  | Ovmul(ve,ws) -> pp_vop2 fmt ("mul", ve, ws) 
+  | Ovlsr(ve,ws) -> pp_vop2 fmt ("shr", ve, ws)
+  | Ovlsl(ve,ws) -> pp_vop2 fmt ("shl", ve, ws)
+  | Ovasr(ve,ws) -> pp_vop2 fmt ("sar", ve, ws) 
+  
 
 let in_ty_op1 op =
   fst (E.type_of_op1 op)
@@ -767,15 +778,19 @@ module Leak = struct
     | _ -> assert false
 
   let safe_op2 safe _e1 e2 = function
-    | E.Oand | E.Oor | E.Oadd _ | E.Omul _ | E.Osub _ 
-    | E.Oland _ | E.Olor _ | E.Olxor _ 
-    | E.Olsr _ | E.Olsl _ | E.Oasr _
-    | E.Oeq _ | E.Oneq _ | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ -> safe
+    | E.Oand    | E.Oor     
+    | E.Oadd _  | E.Omul _  | E.Osub _ 
+    | E.Oland _ | E.Olor _  | E.Olxor _ 
+    | E.Olsr _  | E.Olsl _  | E.Oasr _
+    | E.Oeq _   | E.Oneq _  | E.Olt _  | E.Ole _ | E.Ogt _ | E.Oge _ 
+    | E.Ovadd _ | E.Ovsub _ | E.Ovmul _
+    | E.Ovlsr _ | E.Ovlsl _ | E.Ovasr _ -> safe
+
     | E.Odiv E.Cmp_int -> safe 
     | E.Omod Cmp_int  -> safe
     | E.Odiv (E.Cmp_w(_, s)) -> NotZero (s, e2) :: safe 
     | E.Omod (E.Cmp_w(_, s)) -> NotZero (s, e2) :: safe 
-
+    
   let is_init env x safe = 
     let (_s,option) = Mv.find (L.unloc x) env.vars in
     if option then Initv (L.unloc x) :: safe
@@ -823,13 +838,15 @@ module Leak = struct
     | E.Ox86_CQO _ | E.Ox86_ADC _ | E.Ox86_SBB _ | E.Ox86_NEG _
     | E.Ox86_INC _ | E.Ox86_DEC _ | E.Ox86_SETcc | E.Ox86_BT _
     | E.Ox86_LEA _ | E.Ox86_TEST _ | E.Ox86_CMP _
-    | E.Ox86_AND _ | E.Ox86_OR _ | E.Ox86_XOR _ | E.Ox86_NOT _
+    | E.Ox86_AND _ | E.Ox86_ANDN _ | E.Ox86_OR _ | E.Ox86_XOR _ | E.Ox86_NOT _
     | E.Ox86_ROL _ | E.Ox86_ROR _ | E.Ox86_SHL _ | E.Ox86_SHR _ | E.Ox86_SAR _
     | E.Ox86_SHLD _ | E.Ox86_SHRD _ | E.Ox86_BSWAP _ | E.Ox86_MOVD _
     | E.Ox86_VMOVDQU _ | E.Ox86_VPAND _ | E.Ox86_VPANDN _
-    | E.Ox86_VPOR _ | E.Ox86_VPXOR _ | E.Ox86_VPADD _
+    | E.Ox86_VPOR _ | E.Ox86_VPXOR _ 
+    | E.Ox86_VPADD _ | E.Ox86_VPSUB _ |Expr.Ox86_VPMULL _ 
     | E.Ox86_VPMULU _ | E.Ox86_VPEXTR _ | E.Ox86_VPINSR _
-    | E.Ox86_VPSLL _ | E.Ox86_VPSRL _ | E.Ox86_VPSLLV _ | E.Ox86_VPSRLV _
+    | E.Ox86_VPSLL _ | E.Ox86_VPSRL _ | E.Ox86_VPSRA _  
+    | E.Ox86_VPSLLV _ | E.Ox86_VPSRLV _
     | E.Ox86_VPSLLDQ _ | E.Ox86_VPSRLDQ _
     | E.Ox86_VPSHUFB _ | E.Ox86_VPSHUFHW _
     | E.Ox86_VPSHUFLW _ | E.Ox86_VPSHUFD _ | E.Ox86_VPUNPCKH _ | E.Ox86_VPUNPCKL _

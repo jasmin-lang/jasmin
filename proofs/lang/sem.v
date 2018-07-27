@@ -208,6 +208,19 @@ Definition sem_shr {s} := @sem_shift (@wshr) s.
 Definition sem_sar {s} := @sem_shift (@wsar) s.
 Definition sem_shl {s} := @sem_shift (@wshl) s.
 
+Definition sem_vadd (ve:velem) {ws:wsize} := (lift2_vec ve +%R ws).
+Definition sem_vsub (ve:velem) {ws:wsize} := (lift2_vec ve (fun x y => x - y)%R ws).
+Definition sem_vmul (ve:velem) {ws:wsize} := (lift2_vec ve *%R ws).
+
+Definition sem_vshr (ve:velem) {ws:wsize} (v : word ws) (i:u8) :=  
+  lift1_vec ve (fun x => wshr x (wunsigned i)) ws v.
+
+Definition sem_vsar (ve:velem) {ws:wsize} (v : word ws) (i:u8) :=  
+  lift1_vec ve (fun x => wsar x (wunsigned i)) ws v.
+
+Definition sem_vshl (ve:velem) {ws:wsize} (v : word ws) (i:u8) :=  
+  lift1_vec ve (fun x => wshl x (wunsigned i)) ws v.
+
 Definition sem_sop1_typed (o: sop1) :
   let t := type_of_op1 o in
   sem_t t.1 → sem_t t.2 :=
@@ -289,7 +302,14 @@ Definition sem_sop2_typed (o: sop2) :
   | Ole (Cmp_w u s) => mk_sem_sop2 (wle u)
   | Ogt (Cmp_w u s) => mk_sem_sop2 (fun x y => wlt u y x)
   | Oge (Cmp_w u s) => mk_sem_sop2 (fun x y => wle u y x)
+  | Ovadd ve ws     => mk_sem_sop2 (sem_vadd ve)
+  | Ovsub ve ws     => mk_sem_sop2 (sem_vsub ve)
+  | Ovmul ve ws     => mk_sem_sop2 (sem_vmul ve)
+  | Ovlsr ve ws     => mk_sem_sop2 (sem_vshr ve)
+  | Ovlsl ve ws     => mk_sem_sop2 (sem_vshl ve)
+  | Ovasr ve ws     => mk_sem_sop2 (sem_vsar ve)
   end.
+
 
 Arguments sem_sop2_typed : clear implicits.
 
@@ -713,6 +733,11 @@ Definition x86_and {sz} (v1 v2: word sz) :=
   rflags_of_bwop_w
     (wand v1 v2).
 
+Definition x86_andn {sz} (v1 v2: word sz) :=
+  Let _  := check_size_8_64 sz in
+  rflags_of_bwop_w
+    (wandn v1 v2).
+
 Definition x86_or {sz} (v1 v2: word sz) :=
   Let _  := check_size_8_64 sz in
   rflags_of_bwop_w
@@ -874,6 +899,12 @@ Definition x86_vpxor {sz} := x86_u128_binop (@wxor sz).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_vpadd (ve: velem) {sz} := x86_u128_binop (lift2_vec ve +%R sz).
+Definition x86_vpsub (ve: velem) {sz} := 
+  x86_u128_binop (lift2_vec ve (fun x y => x - y)%R sz).
+
+Definition x86_vpmull (ve: velem) {sz} v1 v2 := 
+  Let _ := check_size_32_64 ve in
+  x86_u128_binop (lift2_vec ve *%R sz) v1 v2.
 
 Definition x86_vpmulu {sz} := x86_u128_binop (@wpmulu sz).
 
@@ -901,6 +932,7 @@ Arguments x86_u128_shift : clear implicits.
 
 Definition x86_vpsll (ve: velem) {sz} := x86_u128_shift ve sz (@wshl _).
 Definition x86_vpsrl (ve: velem) {sz} := x86_u128_shift ve sz (@wshr _).
+Definition x86_vpsra (ve: velem) {sz} := x86_u128_shift ve sz (@wsar _).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_u128_shift_variable ve sz op v1 v2 : exec values :=
@@ -965,6 +997,19 @@ Definition x86_vpermq (v: u256) (m: u8) : exec values :=
   ok [:: Vword (wpermq v m) ].
 
 (* ---------------------------------------------------------------- *)
+Definition is_word (sz: wsize) (v: value) : exec unit :=
+  match v with
+  | Vword _ _
+  | Vundef (sword _)
+    => ok tt
+  | _ => type_error end.
+
+Lemma is_wordI sz v u :
+  is_word sz v = ok u →
+  subtype (vundef_type (sword sz)) (type_of_val v).
+Proof. case: v => // [ sz' w | [] // ] _; exact: wsize_le_U8. Qed.
+
+(* ---------------------------------------------------------------- *)
 Notation app_b   o := (app_sopn [:: sbool] o).
 Notation app_w sz o := (app_sopn [:: sword sz] o).
 Notation app_ww sz o := (app_sopn [:: sword sz; sword sz] o).
@@ -994,6 +1039,8 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
     | [:: v1; v2; v3] =>
       Let _ := check_size_16_64 sz in
       Let b := to_bool v1 in
+      Let _ := is_word sz v2 in
+      Let _ := is_word sz v3 in
       if b then
         Let w2 := to_word sz v2 in ok [:: Vword w2]
       else
@@ -1019,6 +1066,7 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_TEST sz => app_ww sz x86_test
   | Ox86_CMP sz => app_ww sz x86_cmp
   | Ox86_AND sz => app_ww sz x86_and
+  | Ox86_ANDN sz => app_ww sz x86_andn
   | Ox86_OR sz => app_ww sz x86_or
   | Ox86_XOR sz => app_ww sz x86_xor
   | Ox86_NOT sz => app_w sz x86_not
@@ -1039,11 +1087,14 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
   | Ox86_VPOR sz => app_ww sz x86_vpor
   | Ox86_VPXOR sz => app_ww sz x86_vpxor
   | Ox86_VPADD ve sz => app_ww sz (x86_vpadd ve)
+  | Ox86_VPSUB ve sz => app_ww sz (x86_vpsub ve)
+  | Ox86_VPMULL ve sz => app_ww sz (x86_vpmull ve)
   | Ox86_VPMULU sz => app_ww sz x86_vpmulu
   | Ox86_VPEXTR ve => app_w8 U128 (x86_vpextr ve)
   | Ox86_VPINSR ve => app_sopn [:: sword128 ; sword ve ; sword8 ] (x86_vpinsr ve)
   | Ox86_VPSLL ve sz => app_w8 sz (x86_vpsll ve)
   | Ox86_VPSRL ve sz => app_w8 sz (x86_vpsrl ve)
+  | Ox86_VPSRA ve sz => app_w8 sz (x86_vpsra ve)
   | Ox86_VPSLLV ve sz => app_ww sz (x86_vpsllv ve)
   | Ox86_VPSRLV ve sz => app_ww sz (x86_vpsrlv ve)
   | Ox86_VPSLLDQ sz => app_w8 sz x86_vpslldq
@@ -1089,7 +1140,7 @@ Lemma sopn_toutP o vs vs' : exec_sopn o vs = ok vs' ->
 Proof.
   rewrite /exec_sopn ;case: o => /=; app_sopn_t => //;
   try (by apply: rbindP => _ _; app_sopn_t).
-  + by move=> ?;case: ifP => ??;t_xrbindP => ?? <-.
+  + by move=> ??????; case: ifP => ?; t_xrbindP => ?? <-.
   + by rewrite /x86_div;t_xrbindP => ??;case: ifP => // ? [<-].
   + by rewrite /x86_idiv;t_xrbindP => ??;case: ifP => // ? [<-].
   + by rewrite /x86_lea;t_xrbindP => ??;case: ifP => // ? [<-].
@@ -1099,7 +1150,8 @@ Proof.
   + by rewrite /x86_shr;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
   + by rewrite /x86_sar;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
   + by rewrite /x86_shld;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
-  by rewrite /x86_shrd;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
+  + by rewrite /x86_shrd;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
+  by rewrite /x86_vpmull;t_xrbindP => ?? //;apply: rbindP => _ _; app_sopn_t.
 Qed.
 
 Section SEM.

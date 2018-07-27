@@ -304,6 +304,25 @@ Definition sshl sz e1 e2 :=
 Definition ssar sz e1 e2 :=
   sbitw8 Oasr (@sem_sar) sz e1 e2.
 
+Definition svadd ve sz e1 e2 := 
+   sbitw (Ovadd ve) (@sem_vadd ve) sz e1 e2.
+
+Definition svsub ve sz e1 e2 := 
+   sbitw (Ovsub ve) (@sem_vsub ve) sz e1 e2.
+
+Definition svmul ve sz e1 e2 := 
+  sbitw (Ovmul ve) (@sem_vmul ve) sz e1 e2.
+
+
+Definition svshr ve sz e1 e2 :=
+  sbitw8 (Ovlsr ve) (@sem_vshr ve) sz e1 e2.
+
+Definition svshl ve sz e1 e2 :=
+   sbitw8 (Ovlsl ve) (@sem_vshl ve) sz e1 e2.
+
+Definition svsar ve sz e1 e2 :=
+  sbitw8 (Ovasr ve) (@sem_vsar ve) sz e1 e2.
+
 Definition s_op2 o e1 e2 := 
   match o with 
   | Oand    => sand e1 e2 
@@ -325,6 +344,12 @@ Definition s_op2 o e1 e2 :=
   | Olsr sz => sshr sz e1 e2
   | Olsl sz => sshl sz e1 e2
   | Oasr sz => ssar sz e1 e2
+  | Ovadd ve sz => svadd ve sz e1 e2
+  | Ovsub ve sz => svsub ve sz e1 e2
+  | Ovmul ve sz => svmul ve sz e1 e2
+  | Ovlsr ve sz => svshr ve sz e1 e2
+  | Ovlsl ve sz => svshl ve sz e1 e2
+  | Ovasr ve sz => svsar ve sz e1 e2
   end.
 
 Definition s_opN op es :=
