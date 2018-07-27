@@ -21,18 +21,10 @@ reg u256 a, b, r;
 global u256 cr, dr;
 cr = c;
 a = #x86_VPSLLV_4u64(x, cr);
-d = 0x40000000000000004000000000000000400000000000000040 - c;
+d = (4u64)[64, 64, 64, 64] - c;
 dr = d;
 b = #x86_VPSRLV_4u64(x, dr);
 r = a ^ b;
-return r;
-}
-
-/* ---------------------------------------------------------------- */
-inline
-fn andnot(reg u256 x, reg u256 y) -> reg u256 {
-reg u256 r;
-r = #x86_VPANDN_256(x, y);
 return r;
 }
 
@@ -112,12 +104,12 @@ reg u256 x, reg u256 y, reg u256 z
     /* bashSS0 */
     t1 = u0 | u2;
     t2 = u0 & u1;
-    t0 = andnot(u1, u2);
+    t0 = !u1 & u2;
   } else {
     /* bashSS1 */
     t1 = u0 & u2;
     t2 = u0 | u1;
-    t0 = andnot(u2, u1);
+    t0 = !u2 & u1;
   }
 
   b = u1 ^ t1;
