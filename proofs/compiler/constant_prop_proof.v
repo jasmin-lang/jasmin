@@ -1057,10 +1057,8 @@ Section PROOF.
     by apply sem_seq1;constructor;econstructor;eauto.
   Qed.
 
-  Definition not_sarr t := if t is sarr _ _ then false else true.
-
   Lemma app_sopn_uincl_a ts op vs vs' vres:
-    all not_sarr ts -> 
+    all is_not_arr ts ->
     app_sopn ts op vs = ok vres ->
     List.Forall2 value_uincl_a vs vs' ->
     app_sopn ts op vs' = ok vres.
@@ -1073,6 +1071,12 @@ Section PROOF.
     by apply: hrec hvs.
   Qed.
 
+  Lemma value_uincl_a_is_word v v' sz u :
+    value_uincl_a v v' →
+    is_word sz v = ok u →
+    is_word sz v' = ok tt.
+  Proof. case => /value_uincl_is_word; eauto. Qed.
+
   Lemma exec_sopn_uincl_a o vs vs' vres : 
     exec_sopn o vs = ok vres ->
     List.Forall2 value_uincl_a vs vs' ->
@@ -1084,7 +1088,7 @@ Section PROOF.
         apply: app_sopn_uincl_a.
     move=> w /=;case: vs => //= v1 [// | v2 [// | v3 [|//]]] H.
     case/List_Forall2_inv_l => v1' [vs''] [->] {vs'} [hv1] /List_Forall2_inv_l [v2'] [vs'] [->] {vs''} [hv2] /List_Forall2_inv_l [v3'] [vs''] [->] {vs'} [hv3] /List_Forall2_inv_l -> {vs''}.
-    move: H hv1;t_xrbindP => _ -> /= b /value_uincl_bool h H [] /h {h} [??] _; subst => /=.
+    move: H hv1; t_xrbindP => _ -> /= b /value_uincl_bool h _ /(value_uincl_a_is_word hv2) -> _ /(value_uincl_a_is_word hv3) -> H [] /h {h} [??] _; subst => /=.
     case: b H; t_xrbindP => w'.
     + by case: hv2 => /value_uincl_word h _ /h -> <-.
     by case: hv3 => /value_uincl_word h _ /h -> <-.

@@ -1697,6 +1697,10 @@ Section PROOF.
       case: (truncate_val_wordI hty) => sz'' [w'] [hw' hle].
       move: (hty); rewrite hw' /truncate_val /= /truncate_word hle /= => - [?]; subst w.
       rewrite -[X in check_size_16_64 X]Hsz Hsz64.
+      have [-> -> /=] : is_word sz v1 = ok tt ∧ is_word sz v2 = ok tt.
+      + case: b hw' {hty Hv Hb Hb'} hty'.
+        - by move => -> /=; case: (v2) => // -[].
+        by move => -> /=; case: (v1) => // -[].
       by case: ifP => hb; rewrite hb in hw'; subst; rewrite /= /truncate_word hle /= Hw'.
     (* LowerDivMod *)
     + move=> d u w s p0 p1 /= [[va [wa [hva hwa hdiv]]] ? hle1 hle2];subst ty.

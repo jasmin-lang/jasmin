@@ -191,7 +191,7 @@ Proof.
 move => ct x y; split => // gd m m'.
 rewrite /low_sem_aux /= !arg_of_oprdE /eval_CMOVcc /eval_MOV_nocheck.
 case: x => //= [x | x]; t_xrbindP => vs ?? hb ?? hv ; [ | move => ??? hm <- <- ] => <- <-; t_xrbindP => _ -> /=;
-case: (eval_cond _ _) hb => [ b | [] // ] [<-] //= _ [<-];
+case: (eval_cond _ _) hb => [ b | [] // ] [<-] //= _ [<-] _ _ _ _;
 case: vs => // v [] //; case: v => //= sz' w ok_w; [ case | rewrite /sets_low /=; apply: rbindP => w' ok_w' ];
 case: b ok_w.
 + apply: rbindP => w' /of_val_word [s'] [w''] [hle ??]; subst => h.

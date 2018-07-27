@@ -641,6 +641,7 @@ repeat match goal with
 | |- match ?x with _ => _ end = ok _ → _ => case: x => //
 | |- Let _ := _ in _ = ok _ → _ => apply: rbindP => //=
 | |- to_bool ?v = ok _ → _ => move => /to_boolI -> {v}
+| |- is_word ?sz ?w = ok ?u → _ => move => /is_wordI /= -> {u}
 | |- to_word ?sz ?v = ok _ → _ =>
   let k := fresh in case/to_wordI => ? [?] [k ->?]; rewrite /= k => {k}
 | |- _ → _ => intro
@@ -1557,14 +1558,11 @@ Proof.
   by apply: rbindP => ys /Hrec [vs2 []] /= -> ? [] <- /=;eauto.
 Qed.
 
-Definition is_w_or_b t :=
-  match t with
-  | sbool | sword _ => true
-  | _             => false
-  end.
+Definition is_not_arr t :=
+  if t is sarr _ _ then false else true.
 
 Lemma vuincl_sopn ts o vs vs' v :
-  all is_w_or_b ts ->
+  all is_not_arr ts ->
   List.Forall2 value_uincl vs vs' ->
   app_sopn ts o vs = ok v ->
   app_sopn ts o vs' = ok v.
@@ -1572,9 +1570,20 @@ Proof.
   elim: ts o vs vs' => /= [ | t ts Hrec] o [] //.
   + by move => vs' _ /List_Forall2_inv_l -> ->; eauto using List_Forall2_refl.
   move => n vs vs'' /andP [] ht hts /List_Forall2_inv_l [v'] [vs'] [->] {vs''} [hv hvs].
-  case: t o ht => //= [ | sz ] o _; apply: rbindP.
+  case: t o ht => //= [ | | sz ] o _; apply: rbindP.
   + by move=> b /(value_uincl_bool hv) [] _ -> /= /(Hrec _ _ _ hts hvs).
+  + by move=> z /(value_uincl_int hv) [] _ -> /= /(Hrec _ _ _ hts hvs).
   by move=> w /(value_uincl_word hv) -> /= /(Hrec _ _ _ hts hvs).
+Qed.
+
+Lemma value_uincl_is_word v v' sz u :
+  value_uincl v v' →
+  is_word sz v = ok u →
+  is_word sz v' = ok tt.
+Proof.
+move => /value_uinclE; case: v => // [ sz' w | [] // sz' ].
++ by case => ? [] ? [] ->.
+by case: v' => // - [].
 Qed.
 
 Lemma vuincl_exec_opn_eq o vs vs' v :
@@ -1590,6 +1599,8 @@ case/List_Forall2_inv_l => vs'2 [?] [->] [H2].
 case/List_Forall2_inv_l => vs'3 [?] [->] [H3].
 move/List_Forall2_inv_l => -> /=.
 t_xrbindP => _ -> /= b /(value_uincl_bool H1) [] _ -> /=.
+move => _ /(value_uincl_is_word H2) ->.
+move => _ /(value_uincl_is_word H3) ->.
 by case: b; t_xrbindP => w hw <-;
 rewrite (value_uincl_word _ hw) /=; eauto.
 Qed.

@@ -982,6 +982,19 @@ Definition x86_vpermq (v: u256) (m: u8) : exec values :=
   ok [:: Vword (wpermq v m) ].
 
 (* ---------------------------------------------------------------- *)
+Definition is_word (sz: wsize) (v: value) : exec unit :=
+  match v with
+  | Vword _ _
+  | Vundef (sword _)
+    => ok tt
+  | _ => type_error end.
+
+Lemma is_wordI sz v u :
+  is_word sz v = ok u →
+  subtype (vundef_type (sword sz)) (type_of_val v).
+Proof. case: v => // [ sz' w | [] // ] _; exact: wsize_le_U8. Qed.
+
+(* ---------------------------------------------------------------- *)
 Notation app_b   o := (app_sopn [:: sbool] o).
 Notation app_w sz o := (app_sopn [:: sword sz] o).
 Notation app_ww sz o := (app_sopn [:: sword sz; sword sz] o).
@@ -1011,6 +1024,8 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
     | [:: v1; v2; v3] =>
       Let _ := check_size_16_64 sz in
       Let b := to_bool v1 in
+      Let _ := is_word sz v2 in
+      Let _ := is_word sz v3 in
       if b then
         Let w2 := to_word sz v2 in ok [:: Vword w2]
       else
@@ -1110,7 +1125,7 @@ Lemma sopn_toutP o vs vs' : exec_sopn o vs = ok vs' ->
 Proof.
   rewrite /exec_sopn ;case: o => /=; app_sopn_t => //;
   try (by apply: rbindP => _ _; app_sopn_t).
-  + by move=> ?;case: ifP => ??;t_xrbindP => ?? <-.
+  + by move=> ??????; case: ifP => ?; t_xrbindP => ?? <-.
   + by rewrite /x86_div;t_xrbindP => ??;case: ifP => // ? [<-].
   + by rewrite /x86_idiv;t_xrbindP => ??;case: ifP => // ? [<-].
   + by rewrite /x86_lea;t_xrbindP => ??;case: ifP => // ? [<-].
