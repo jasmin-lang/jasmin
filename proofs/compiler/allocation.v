@@ -27,7 +27,8 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import psem.
-Require Import compiler_util ZArith. 
+Require Import compiler_util ZArith.
+Import Utf8.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -292,7 +293,7 @@ Section PROOF.
     case: eqP => // <- {ty2}.
     apply: add_iinfoP.
     apply: rbindP => r1' /check_eP -/(_ (p_globs p1) _ _ Hvm1) [Hr1'] /(_ _ _ He) [v2 [He2 Hu2]] Hcx.
-    have [v2' [Htr' Hu2']]:= truncate_value_uincl Hu2 Htr.
+    have [v2' Htr' Hu2']:= truncate_value_uincl Hu2 Htr.
     have  /(_ _ Hr1') [|]:= check_lvalP Hcx _ Hu2' _ Hw.
     + by rewrite /= He2 /= Htr'.
     move=> vm2 [Hwv Hvm2].
@@ -502,7 +503,7 @@ Section PROOF.
       have := check_esP Hcres Hvm4.
       move=> [Hr3];rewrite sem_pexprs_get_var => /(_ _ Hres) [vres1' /= []].
       rewrite sem_pexprs_get_var => hmap huincl.
-      have [vres2' [??]]:= mapM2_truncate_val Hcr huincl.
+      have [vres2' ??]:= mapM2_truncate_val Hcr huincl.
       do 4 eexists;split;eauto.
       + by rewrite -htyin.
       + by rewrite (write_vars_lvals gd).
@@ -519,14 +520,14 @@ Section PROOF.
     apply:add_finfoP;apply:rbindP => r1;apply:add_iinfoP => Hcparams.
     apply:rbindP => r2 Hcc;apply: rbindP => r3;apply: add_iinfoP => Hcres _.
     move=> vargs2 Hvargs2.
-    have [vs2 [htr hall2]]:= mapM2_truncate_val Hca Hvargs2.
+    have [vs2 htr hall2]:= mapM2_truncate_val Hca Hvargs2.
     move: Hw;rewrite (write_vars_lvals gd)=> /(check_lvalsP Hcparams).
     move=> /(_ _ _ eq_alloc_empty hall2) [vm3 /= [Hw2 Hvm3]].
     have [vm4 /= [Hvm4 Hsc2]]:= Hc _ _ _ _ _ Hvm3 Hcc.
     have /(_ {| emem := emem s1; evm := vm2 |} vm4 Hvm4) := check_esP Hcres.
     move=> [Hr3];rewrite sem_pexprs_get_var => /(_ _ Hres) [vres1' /= []].
     rewrite sem_pexprs_get_var => H1 H2.
-    have [vs3 [??]]:= mapM2_truncate_val Hcr H2.
+    have [vs3 ??]:= mapM2_truncate_val Hcr H2.
     econstructor;split;eauto.
     econstructor;eauto.
     + by rewrite -htyin; eauto.
@@ -1297,60 +1298,85 @@ Module CBAreg.
     exact: subtype_vundef_type_eq husub.
   Qed.
 
-  Lemma check_eP gd e1 e2 r re vm1 vm2 :
-    check_e e1 e2 r = ok re ->
-    eq_alloc r vm1 vm2 ->
-    eq_alloc re vm1 vm2 /\
-    forall m v1,  sem_pexpr gd (Estate m vm1) e1 = ok v1 ->
-    exists v2, sem_pexpr gd (Estate m vm2) e2 = ok v2 /\ value_uincl v1 v2.
-  Proof.
-    elim : e1 e2 r re vm1 =>
-      [z1 | b1 | sz1 n1 | x1 | g1 | x1 e1 He1 | sz1 x1 e1 He1 | o1 e1 He1 | o1 e11 He11 e12 He12 | o1 es1 Hes1 | e He e11 He11 e12 He12 ]
-      [z2 | b2 | sz2 n2 | x2 | g2 | x2 e2 | sz2 x2 e2 | o2 e2 | o2 e21 e22 | o2 es2 | e' e21 e22] //= r re s.
-    + by case: ifPn => // /eqP <- [->] ?;split=> // ?? [] <-; exists z1.
-    + by case: ifPn => // /eqP <- [->] ?;split=> // ?? [] <-; exists b1.
-    + by case: eqP => //= <-; case: eqP => //= <- [<-] ?; split => // ?? [<-]; eauto.
-    + by move=> /check_vP Hv /Hv [Hea H].
-    + by case: ifPn => // /eqP <- [->] ?; split => // ?? ->; eauto.
-    + apply: rbindP => r' Hcv Hce Hea. 
+  Section CHECK_EP.
+    Context (gd: glob_decls) (vm2: vmap).
+
+    Let P e1 : Prop :=
+      ∀ e2 r re vm1, check_e e1 e2 r = ok re →
+      eq_alloc r vm1 vm2 →
+      eq_alloc re vm1 vm2 ∧
+      ∀ m v1, sem_pexpr gd {| emem := m ; evm := vm1 |} e1 = ok v1 →
+      ∃ v2, sem_pexpr gd {| emem := m ; evm := vm2 |} e2 = ok v2 ∧ value_uincl v1 v2.
+
+    Let Q es1 : Prop :=
+      ∀ es2 r re vm1 err,
+      fold2 err check_e es1 es2 r = ok re →
+      eq_alloc r vm1 vm2 →
+      eq_alloc re vm1 vm2 ∧
+      ∀ m vs1, sem_pexprs gd {| emem := m ; evm := vm1 |} es1 = ok vs1 →
+      ∃ vs2, sem_pexprs gd {| emem := m ; evm := vm2 |} es2 = ok vs2 ∧ List.Forall2 value_uincl vs1 vs2.
+
+    Lemma check_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
+    Proof.
+      apply: pexprs_ind_pair; split; subst P Q => //=.
+      - by case => // r _ vm1 _ [<-] h; split => // m _ [<-] /=; eauto.
+      - move => e1 he1 es1 hes1 [] // e2 es2 r re vm1 err; t_xrbindP => r' ok_r' ok_re h.
+        move: he1 => /(_ e2 r r' vm1 ok_r' h) [] h' he1.
+        move: hes1 => /(_ es2 r' re vm1 err ok_re h') [] hre hes1.
+        apply: (conj hre) => m vs1'; t_xrbindP => v1 ok_v1 vs1 ok_vs1 <- {vs1'} /=.
+        move: he1 => /(_ _ _ ok_v1) [] v2 [] -> hv.
+        move: hes1 => /(_ _ _ ok_vs1) [] vs2 [] -> hvs.
+        eexists; split; first reflexivity. by constructor.
+    - move => z1 [] // z2 r re vm1.
+      by case: ifPn => // /eqP <- [->] ?; split=> // ?? [] <-; exists z1.
+    - move => b1 [] // b2 r re vm1.
+      by case: ifPn => // /eqP <- [->] ?;split=> // ?? [] <-; exists b1.
+    - move => sz1 n1 [] // sz2 n2 r re vm1.
+      by case: eqP => //= <-; case: eqP => //= <- [<-] ?; split => // ?? [<-]; eauto.
+    - move => x1 [] // x2 r re vm1.
+      by move=> /check_vP Hv /Hv [Hea H].
+    - move => g1 [] // g2 r re vm1.
+      by case: ifPn => // /eqP <- [->] ?; split => //= ?? ->; eauto.
+    - move => x1 e1 He1 [] // x2 e2 r re vm1.
+      apply: rbindP => r' Hcv Hce Hea.
       have [Hea' Hget]:= check_vP Hcv Hea.
-      have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split=>// m v1.
+      have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= m v1.
       apply: on_arr_varP => sz n t Heqt /Hget [v2 []].
       rewrite /on_arr_var; case: v2 => //= sz' n' t' -> [] ? [?]; subst => /= Ht.
       apply: rbindP => w;apply: rbindP => ve /Hse1 [v2 [-> U2 Hto]].
       have [_ -> /=]:= value_uincl_int U2 Hto.
       by apply: rbindP => w' /Ht -> [] <-;exists (Vword w').
-    + case: eqP => // ->.
+    - move => sz1 x1 e1 He1 [] // sz2 x2 e2 r re vm1.
+      case: eqP => // ->.
       apply: rbindP => r' Hcv Hce Hea.
       have [Hea' Hget]:= check_vP Hcv Hea.
-      have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split=>// m v1.
-      apply: rbindP => w1;apply: rbindP => ve1 /Hget [ve1' [->]]. 
+      have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= m v1.
+      apply: rbindP => w1;apply: rbindP => ve1 /Hget [ve1' [->]].
       move=> /value_uincl_word H/H{H} /= ->.
       t_xrbindP => ?? /Hse1 [v2 [-> /value_uincl_word H/H{H} /= ->]] ? /= -> <-.
       by eexists; split; first by reflexivity.
-    + case: eqP => // <-. move=> H /(He1 _ _ _ _ H) [Hea Hse1];split=>//.
+    - move => op1 e1 He1 [] // op2 e2 r re vm1.
+      case: eqP => // <-. move=> H /(He1 _ _ _ _ H) [Hea Hse1];split=>//=.
       move=> m v1;apply:rbindP => v /Hse1 [v1'] [-> U1].
       by move=> /(vuincl_sem_sop1 U1);exists v1.
-    + case: eqP => // <-;apply:rbindP => r' Hs1 Hs2 Hea.
-      have [Hea' Hse1]:= He11 _ _ _ _ Hs1 Hea.  
-      have [? Hse2]:= He12 _ _ _ _ Hs2 Hea';split=>// m v.
+    - move => op1 e11 He11 e12 He12 [] // op2 e21 e22 r re vm1.
+      case: eqP => // <-;apply:rbindP => r' Hs1 Hs2 Hea.
+      have [Hea' Hse1]:= He11 _ _ _ _ Hs1 Hea.
+      have [? Hse2]:= He12 _ _ _ _ Hs2 Hea'; split => //= m v.
       apply: rbindP => v1 /Hse1 [v1' [-> U1]].
       apply: rbindP => v2 /Hse2 [v2' [-> U2]].
       by move=> /(vuincl_sem_sop2 U1 U2);exists v.
-    + case: eqP => // ? ok_re hr; subst o2; split.
-      * have {Hes1} Hes1 :=
-          fun e he e2 r re vm1 ok_re hr => proj1 (@Hes1 e he e2 r re vm1 ok_re hr).
-        elim: es1 es2 r hr ok_re Hes1.
-        - by case => // r hr [<-].
-        move => e1 es1 ih [] // e2 es2 r hr /=; apply: rbindP => r' hr' ok_re rec.
-        apply: (ih es2 r' _ ok_re).
-        - apply: (rec _ _ _ _ _ _ hr' hr); by rewrite in_cons eqxx.
-        move => e' he' a b c d ok_c hd; apply: (rec _ _ _ _ _ _ ok_c hd).
-        by rewrite in_cons he' orbT.
-      done. (* TODO: nary *)
+    - move => op1 es1 Hes1 [] // op2 es2 r re vm1.
+      case: eqP => // <- {op2} ok_re hr.
+      move: Hes1 => /(_ _ _ _ _ _  ok_re hr) [] hre h.
+      split => //= m v1; t_xrbindP => vs1 ok_vs1 ok_v1.
+      rewrite -/(sem_pexprs _ _).
+      move: h => /(_ _ _ ok_vs1) [] vs2 [] -> hs /=.
+      by have [] := vuincl_sem_opN ok_v1 hs; eauto.
+    move => e He e11 He11 e12 He12 [] // e2 e21 e22 r re vm1.
     apply: rbindP => r1;apply: rbindP => r' /He Hr' /He11 Hr1 /He12 Hr2 {He He11 He12}.
     move=> /Hr'{Hr'}[] /Hr1{Hr1}[] /Hr2{Hr2}[] Hre Hs2 Hs1 Hs;split=>// m v1.
-    t_xrbindP => b w /Hs [w'] [->] /= /value_uincl_bool H/H{H} [? ->] /= v2 Hv2 v3 Hv3.
+    t_xrbindP => b w /Hs [w'] /= [->] /= /value_uincl_bool H/H{H} [? ->] /= v2 Hv2 v3 Hv3.
     have [v2' [-> Hv2']] := Hs1 _ _ Hv2.
     have [v3' [-> Hv3']] := Hs2 _ _ Hv3.
     case: ifP => //=.
@@ -1359,6 +1385,11 @@ Module CBAreg.
     eexists;split;first by eauto.
     by case b.
   Qed.
+
+  End CHECK_EP.
+
+  Definition check_eP gd e1 e2 r re vm1 vm2 :=
+    (check_e_esP gd vm2).1 e1 e2 r re vm1.
 
   Lemma vm_uincl0_set vm x (v : exec (psem_t (vtype x))) : 
     vm_uincl vmap0 vm ->
@@ -1434,7 +1465,7 @@ Module CBAreg.
     apply: set_varP.
     + move=> v1' Hv1' <- Hu.
       have [v2' [Hv2' Hu']]:= pof_val_uincl Hu Hv1'.
-      rewrite /set_var; have [v2'' [-> hvu] /=]:= subtype_pof_val_ok h Hv2'.
+      rewrite /set_var; have [v2'' -> hvu /=]:= subtype_pof_val_ok h Hv2'.
       eexists;split;first reflexivity.
       apply: (@eq_alloc_set x1 (ok v1') _ x2 (ok v2'')) => //=;last by eauto.
       apply: value_uincl_trans Hu' hvu.
@@ -1495,7 +1526,7 @@ Module CBAreg.
     + case:ifP => //= hs [] <- Heqa Hu Happ H.
       have [-> ]:= write_noneP H.
       rewrite /write_var /set_var => -[ [u]| ].
-      + move=> /(subtype_pof_val_ok hs) [v3] [].
+      + move=> /(subtype_pof_val_ok hs) [v3].
         move=> /(pof_val_uincl Hu) [z' [-> ?]] /= ?.
         eexists; split; eauto; apply eq_alloc_rm => //.
         by apply eval_uincl_undef.
@@ -1558,7 +1589,7 @@ Module CBAreg.
     move=> /(value_uincl_int Hve) [_ ->] /=.
     apply: rbindP => w /(value_uincl_word Hv) -> /=.
     apply: rbindP => t1' Ht1'.
-    have [t2' [-> Ht2']]:= Array_set_uincl (val_uincl_array Ht) Ht1'. 
+    have [t2' -> Ht2']:= Array_set_uincl (val_uincl_array Ht) Ht1'.
     apply: rbindP => vm2 Hvm2 [<-] /=.
     by have [vm2' [-> ?] /=]:= check_varcP Hr1' Hcva Hvm2 Ht2';exists vm2'.
   Qed.

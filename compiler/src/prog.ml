@@ -329,6 +329,17 @@ let size_of_ws = function
   | U128 -> 16
   | U256 -> 32
 
+let int_of_pe =
+  function
+  | PE1   -> 1
+  | PE2   -> 2
+  | PE4   -> 4
+  | PE8   -> 8
+  | PE16  -> 16
+  | PE32  -> 32
+  | PE64  -> 64
+  | PE128 -> 128
+
 let is_ty_arr = function
   | Arr _ -> true
   | _     -> false

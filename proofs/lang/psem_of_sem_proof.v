@@ -149,12 +149,21 @@ apply: vmap_set_sim => //.
 by case: (vtype _).
 Qed.
 
-Lemma sem_pexpr_sim s e v s' :
-  estate_sim s s' →
-  sem.sem_pexpr gd s e = ok v →
-  psem.sem_pexpr gd s' e = ok v.
-Proof.
-Local Ltac sem_pexpr_sim_t :=
+Section SEM_PEXPR_SIM.
+
+  Context (s: sem.estate) (s': estate) (hs: estate_sim s s').
+
+  Let P e : Prop :=
+    ∀ v,
+      sem.sem_pexpr gd s e = ok v →
+      psem.sem_pexpr gd s' e = ok v.
+
+  Let Q es : Prop :=
+    ∀ vs,
+      sem.sem_pexprs gd s es = ok vs →
+      psem.sem_pexprs gd s' es = ok vs.
+
+  Local Ltac sem_pexpr_sim_t :=
   repeat match goal with
   | _ : ?a = ?b |- _ => subst a || subst b
   | h : to_int _ = ok _ |- _ => apply of_val_int in h
@@ -167,17 +176,21 @@ Local Ltac sem_pexpr_sim_t :=
   | h : Let x := _ in _ = ok _ |- _ => move: h; t_xrbindP => *
   | h : match ?x with _ => _ end = ok _ |- _ => move: h; case: x => // *
   end.
-by case => hm hvm; elim: e v => //=; t_xrbindP => *; sem_pexpr_sim_t.
-Qed.
 
-Corollary sem_pexprs_sim s es vs s' :
-  estate_sim s s' →
-  sem.sem_pexprs gd s es = ok vs →
-  psem.sem_pexprs gd s' es = ok vs.
-Proof.
-rewrite /sem.sem_pexprs /psem.sem_pexprs.
-by move => h; elim: es vs => //= e es ih vs; t_xrbindP => v /(sem_pexpr_sim h) -> ? /ih -> <-.
-Qed.
+  Lemma sem_pexpr_s_sim : (∀ e, P e) ∧ (∀ es, Q es).
+  Proof.
+    case: hs => ??.
+    apply: pexprs_ind_pair; subst P Q; split => //=; t_xrbindP => *;
+    rewrite -/(sem_pexprs _ _);
+    sem_pexpr_sim_t => //.
+  Qed.
+
+  End SEM_PEXPR_SIM.
+
+Definition sem_pexpr_sim s e v s' h :=
+  (@sem_pexpr_s_sim s s' h).1 e v.
+Definition sem_pexprs_sim s es vs s' h :=
+  (@sem_pexpr_s_sim s s' h).2 es vs.
 
 Lemma write_var_sim s1 x v s2 s1' :
   estate_sim s1 s1' →

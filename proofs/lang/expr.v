@@ -91,7 +91,9 @@ Variant sop2 :=
 | Oge   of cmp_kind.
 
 (* N-ary operators *)
-Variant opN : Set := OPN (* TODO: nary *) .
+Variant opN :=
+| Opack of wsize & pelem (* Pack words of size pelem into one word of wsize *)
+.
 
 Variant sopn : Set :=
 (* Generic operation *)
@@ -468,6 +470,14 @@ Definition type_of_op2 (o: sop2) : stype * stype * stype :=
     => let t := sword s in (t, t, sbool)
   end.
 
+(* Type of n-ary operators: inputs, output *)
+Definition type_of_opN (op: opN) : seq stype * stype :=
+  match op with
+  | Opack ws p =>
+    let n := nat_of_wsize ws %/ nat_of_pelem p in
+    (nseq n sint, sword ws)
+  end.
+
 (* ** Expressions
  * -------------------------------------------------------------------- *)
 (* Used only by the ocaml compiler *)
@@ -723,6 +733,57 @@ Section PEXPR_IND.
     end.
 
 End PEXPR_IND.
+
+(* Mutual induction scheme for pexpr and pexprs *)
+Section PEXPRS_IND.
+  Context
+    (P: pexpr → Prop)
+    (Q: pexprs → Prop)
+  .
+
+  Record pexpr_ind_hypotheses : Prop := {
+    pexprs_nil: Q [::];
+    pexprs_cons: ∀ pe, P pe → ∀ pes, Q pes → Q (pe :: pes);
+    pexprs_const: ∀ z, P (Pconst z);
+    pexprs_bool: ∀ b, P (Pbool b);
+    pexprs_arr_init: ∀ sz n, P (Parr_init sz n);
+    pexprs_var: ∀ x, P (Pvar x);
+    pexprs_global: ∀ g, P (Pglobal g);
+    pexprs_get: ∀ x e, P e → P (Pget x e);
+    pexprs_load: ∀ sz x e, P e → P (Pload sz x e);
+    pexprs_app1: ∀ op e, P e → P (Papp1 op e);
+    pexprs_app2: ∀ op e1, P e1 → ∀ e2, P e2 → P (Papp2 op e1 e2);
+    pexprs_appN: ∀ op es, Q es → P (PappN op es);
+    pexprs_if: ∀ e, P e → ∀ e1, P e1 → ∀ e2, P e2 → P (Pif e e1 e2);
+  }.
+
+  Context (h: pexpr_ind_hypotheses).
+
+  Definition pexprs_ind pexpr_mut_ind : ∀ pes, Q pes :=
+    fix pexprs_ind pes :=
+      if pes is pe :: pes'
+      then pexprs_cons h (pexpr_mut_ind pe) (pexprs_ind pes')
+      else pexprs_nil h.
+
+  Fixpoint pexpr_mut_ind pe : P pe :=
+    match pe with
+    | Pconst z => pexprs_const h z
+    | Pbool b => pexprs_bool h b
+    | Parr_init sz n => pexprs_arr_init h sz n
+    | Pvar x => pexprs_var h x
+    | Pglobal g => pexprs_global h g
+    | Pget x e => pexprs_get h x (pexpr_mut_ind e)
+    | Pload sz x e => pexprs_load h sz x (pexpr_mut_ind e)
+    | Papp1 op e => pexprs_app1 h op (pexpr_mut_ind e)
+    | Papp2 op e1 e2 => pexprs_app2 h op (pexpr_mut_ind e1) (pexpr_mut_ind e2)
+    | PappN op es => pexprs_appN h op (pexprs_ind pexpr_mut_ind es)
+    | Pif e e1 e2 => pexprs_if h (pexpr_mut_ind e) (pexpr_mut_ind e1) (pexpr_mut_ind e2)
+    end.
+
+  Definition pexprs_ind_pair :=
+    conj pexpr_mut_ind (pexprs_ind pexpr_mut_ind).
+
+End PEXPRS_IND.
 
 (* ** Left values
  * -------------------------------------------------------------------- *)

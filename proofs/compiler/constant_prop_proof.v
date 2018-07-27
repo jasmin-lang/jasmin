@@ -576,6 +576,30 @@ Proof.
                       slandP, slorP, slxorP, slslP, slsrP, sasrP.
 Qed.
 
+Lemma app_sopn_uincl_a T ts op vs vs' (vres: T) :
+  all is_not_arr ts ->
+  app_sopn ts op vs = ok vres ->
+  List.Forall2 value_uincl_a vs vs' ->
+  app_sopn ts op vs' = ok vres.
+Proof.
+  elim: ts op vs vs' => /=.
+  + by move=> ? [] //= [] //= ???? /List_Forall2_inv_l.
+  move=> t ts hrec op [] //= v vs vs'' /andP [ ht hts];t_xrbindP => w hw hop.
+  case/List_Forall2_inv_l => v' [vs'] [->] {vs''} [hv hvs].
+  rewrite (of_val_uincl_a hv hw) /=.
+  by apply: hrec hvs.
+Qed.
+
+Lemma sem_opN_uincl_a op vs v vs' :
+  sem_opN op vs = ok v →
+  List.Forall2 value_uincl_a vs vs' →
+  ∃ v' : value, sem_opN op vs' = ok v' ∧ value_uincl_a v v'.
+Proof.
+  rewrite /sem_opN; apply: rbindP => w ok_v' [<-{v}] h.
+  rewrite (app_sopn_uincl_a _ ok_v' h) /=; first by eauto.
+  by case: op {w ok_v'} => //= sz p; rewrite all_nseq orbT.
+Qed.
+
 Definition vconst c :=
   match c with
   | Cint z => Vint z
@@ -585,54 +609,67 @@ Definition vconst c :=
 Definition valid_cpm (vm: vmap)  (m:cpm) := 
   forall x n, Mvar.get m x = Some n -> get_var vm x = ok (vconst n).
 
-Lemma const_prop_eP (e:pexpr) s (m:cpm):  
-  valid_cpm (evm s) m ->
-  e =[s] const_prop_e m e.
-Proof.
-  move=> Hvalid;rewrite /eqok.
-  elim: e=> [z | b | sz n | x | g | x e He | sz x e He | o e He | o e1 He1 e2 He2 | op es ih | e He e1 He1 e2 He2] v /=;
-  try (intros; clarify; eauto; fail).
-  + move: (Hvalid x); case: Mvar.get => [n /(_ _ erefl) |_ /= -> ]; last by eauto.
-    by case: n => [ n | sz w ] /= -> [<-]; rewrite /sem_sop1 /= ?wrepr_unsigned; eauto.
-  + apply:on_arr_varP; rewrite /on_arr_var => ? n t ? -> /=.
-    t_xrbindP => z w /(He _) [v'] [->] [/value_uincl_int h A] /h {h} [??]; subst.
-    move => a ha ?; subst; rewrite /= ha.
-    by eexists; (split; first reflexivity) => /=.
-  + t_xrbindP => ? ? -> /= -> ? ? /He [v'] [->] [/value_uincl_word h A] /h {h} /=.
-    rewrite /to_pointer => -> /= ? -> <- /=.
-    by eexists; ( split; first reflexivity ) => /=.
-  + t_xrbindP => v' /He [w] [hw [hvw A]] h; apply /s_op1P.
-    rewrite /= hw /=.
-    by apply: vuincl_sem_sop1 h.
-  + t_xrbindP => v1 /He1 [w1] [hw1 [hvw1 A1]] v2 /He2 [w2] [hw2 [hvw2 A2]] h; apply/s_op2P.
-    rewrite /= hw1 hw2 /=.
-    by apply: vuincl_sem_sop2 h.
-  + done. (* TODO: nary *)
-  t_xrbindP => b vb /He [wb] [hwb] [/value_uincl_bool h A]/h {h} [??]; subst.
-  move => v1 /He1 [w1] [hw1 [hvw1 A1]] v2 /He2 [w2] [hw2 [hvw2 A2]].
-  case: ifP => // h; case: andP => // - [] /(value_uincl_is_defined hvw1) hd1 /(value_uincl_is_defined hvw2) hd2 [<-].
-  rewrite /s_if. case: is_boolP hwb => [ [] | ] /=.
-  + by case => <-;exists w1.
-  + by case => <-;exists w2.
-  move => p -> /=; rewrite hw1 hw2 /=.
-  rewrite -(value_uincl_vundef_type_eq hvw1) -(value_uincl_vundef_type_eq hvw2) h hd1 hd2 /=.
-  eexists;split;first reflexivity.
-  by case: (b).
-Qed.
-
 Definition eqoks e1 e2 st :=
-  ∀ vs, sem_pexprs gd st e1 = ok vs → ∃ vs', sem_pexprs gd st e2 = ok vs' ∧ List.Forall2 value_uincl_a vs vs'.
+  ∀ vs, sem_pexprs gd st e1 = ok vs → exists2 vs', sem_pexprs gd st e2 = ok vs' & List.Forall2 value_uincl_a vs vs'.
 
-Lemma const_prop_esP es s m :
-  valid_cpm (evm s) m →
-  eqoks es (map (const_prop_e m) es) s.
-Proof.
-move => hv; elim: es.
-+ by move => ? [<-]; exists [::].
-move => e es ih ?; rewrite /sem_pexprs /=.
-apply: rbindP => v /(const_prop_eP hv) [v'] [->] hu.
-apply: rbindP => vs /ih{ih}; rewrite -/(sem_pexprs gd s _) => - [vs'] [->] hrec [<-] /=; eauto.
-Qed.
+Section CONST_PROP_EP.
+  Context s m (Hvalid: valid_cpm (evm s) m).
+  Let P e : Prop := e =[s] const_prop_e m e.
+  Let Q es : Prop := eqoks es (map (const_prop_e m) es) s.
+
+  Lemma const_prop_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
+  Proof.
+    apply: pexprs_ind_pair; subst P Q; rewrite /eqok; split => /=;
+    try (intros; clarify; eauto; fail).
+    - by move => ? [<-]; exists [::].
+    - move => e rec es ih ?; rewrite /sem_pexprs /=.
+      apply: rbindP => v /rec [v'] [->] hu.
+      by apply: rbindP => vs /ih{ih}; rewrite -/(sem_pexprs gd s _) => - [vs'] -> hrec [<-] /=; eauto.
+    - move => x v.
+      move: Hvalid => /(_ x).
+      case: Mvar.get => [n /(_ _ erefl) | _ /= -> ]; last by eauto.
+      by case: n => [ n | sz w ] /= -> [<-]; rewrite /sem_sop1 /= ?wrepr_unsigned; eauto.
+    - move => x e He v.
+      apply:on_arr_varP; rewrite /on_arr_var => ? n t ? -> /=.
+      t_xrbindP => z w /(He _) [v'] [->] [/value_uincl_int h A] /h {h} [??]; subst.
+      move => a ha ?; subst; rewrite /= ha.
+      by eexists; (split; first reflexivity) => /=.
+    - move => sz x e He v.
+      t_xrbindP => ? ? -> /= -> ? ? /He [v'] [->] [/value_uincl_word h A] /h {h} /=.
+      rewrite /to_pointer => -> /= ? -> <- /=.
+      by eexists; ( split; first reflexivity ) => /=.
+    - move => op e He v.
+      t_xrbindP => v' /He [w] [hw [hvw A]] h; apply /s_op1P.
+      rewrite /= hw /=.
+      by apply: vuincl_sem_sop1 h.
+    - move => op e1 He1 e2 He2 v.
+      t_xrbindP => v1 /He1 [w1] [hw1 [hvw1 A1]] v2 /He2 [w2] [hw2 [hvw2 A2]] h; apply/s_op2P.
+      rewrite /= hw1 hw2 /=.
+      by apply: vuincl_sem_sop2 h.
+    - move => op es ih v.
+      t_xrbindP => vs ok_vs ok_v; rewrite -/(sem_pexprs _ _).
+      move: ih => /(_ _ ok_vs) [] vs' ->.
+      exact: sem_opN_uincl_a.
+    move => e He e1 He1 e2 He2 v.
+    t_xrbindP => b vb /He [wb] [hwb] [/value_uincl_bool h A]/h {h} [??]; subst.
+    move => v1 /He1 [w1] [hw1 [hvw1 A1]] v2 /He2 [w2] [hw2 [hvw2 A2]].
+    case: ifP => // h; case: andP => // - [] /(value_uincl_is_defined hvw1) hd1 /(value_uincl_is_defined hvw2) hd2 [<-].
+    rewrite /s_if. case: is_boolP hwb => [ [] | ] /=.
+    + by case => <-;exists w1.
+    + by case => <-;exists w2.
+    move => p -> /=; rewrite hw1 hw2 /=.
+    rewrite -(value_uincl_vundef_type_eq hvw1) -(value_uincl_vundef_type_eq hvw2) h hd1 hd2 /=.
+    eexists;split;first reflexivity.
+    by case: (b).
+  Qed.
+
+End CONST_PROP_EP.
+
+Definition const_prop_eP e s m h :=
+  (@const_prop_e_esP s m h).1 e.
+
+Definition const_prop_esP es s m h :=
+  (@const_prop_e_esP s m h).2 es.
 
 Lemma remove_cpm1P x v m s1 s1' : 
   write_var x v s1 = ok s1' ->
@@ -1013,23 +1050,7 @@ Section PROOF.
     by apply sem_seq1;constructor;econstructor;eauto.
   Qed.
 
-  Definition not_sarr t := if t is sarr _ _ then false else true.
-
-  Lemma app_sopn_uincl_a ts op vs vs' vres:
-    all not_sarr ts -> 
-    app_sopn ts op vs = ok vres ->
-    List.Forall2 value_uincl_a vs vs' ->
-    app_sopn ts op vs' = ok vres.
-  Proof.
-    elim: ts op vs vs' => /=.
-    + by move=> ? [] //= [] //= ???? /List_Forall2_inv_l.
-    move=> t ts hrec op [] //= v vs vs'' /andP [ ht hts];t_xrbindP => w hw hop.
-    case/List_Forall2_inv_l => v' [vs'] [->] {vs''} [hv hvs].
-    rewrite (of_val_uincl_a hv hw) /=.
-    by apply: hrec hvs.
-  Qed.
-
-  Lemma exec_sopn_uincl_a o vs vs' vres : 
+  Lemma exec_sopn_uincl_a o vs vs' vres :
     exec_sopn o vs = ok vres ->
     List.Forall2 value_uincl_a vs vs' ->
     exec_sopn o vs' = ok vres.
@@ -1050,7 +1071,7 @@ Section PROOF.
   Proof.
     move=> s1 s2 t o xs es H m ii Hm; apply: rbindP H => vs.
     apply: rbindP => ves Hes Ho Hw;move: (Hes) (Hw).
-    move=> /(const_prop_esP Hm) [vs' [Hes' Us]] /(const_prop_rvsP Hm) [] /=.
+    move=> /(const_prop_esP Hm) [vs' Hes' Us] /(const_prop_rvsP Hm) [] /=.
     case: const_prop_rvs => m' rvs' /= ??;split=>//.
     apply sem_seq1; do 2 constructor.
     by rewrite /sem_sopn Hes' /= (exec_sopn_uincl_a Ho Us).
@@ -1178,7 +1199,7 @@ Section PROOF.
   Local Lemma Hcall : sem_Ind_call p Pi_r Pfun.
   Proof.
     move=> s1 m2 s2 ii xs fn args vargs vs Hargs Hcall Hfun Hvs m ii' Hm.
-    have [vargs' [Hargs' Hall]] := const_prop_esP Hm Hargs.
+    have [vargs' Hargs' Hall] := const_prop_esP Hm Hargs.
     have /(_ _ Hm) [] /=:= const_prop_rvsP _ Hvs.
     case: const_prop_rvs => m' rvs' /= ??;split=>//.
     by apply sem_seq1;constructor;econstructor;eauto.

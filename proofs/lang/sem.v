@@ -312,6 +312,35 @@ Proof.
   by rewrite /sem_sop2; t_xrbindP => w1 ok_w1 w2 ok_w2 w3 ok_w3 <- {v}; exists w1, w2, w3.
 Qed.
 
+Fixpoint app_sopn T ts : sem_prod ts (exec T) → values → exec T :=
+  match ts return sem_prod ts (exec T) → values → exec T with
+  | [::] => λ (o : exec T) (vs: values), if vs is [::] then o else type_error
+  | t :: ts => λ (o: sem_t t → sem_prod ts (exec T)) (vs: values),
+    if vs is v :: vs
+    then Let v := of_val t v in app_sopn (o v) vs
+    else type_error
+  end.
+
+Arguments app_sopn {T} ts _ _.
+
+Definition curry A B (n: nat) (f: seq (sem_t A) → B) : sem_prod (nseq n A) B :=
+  (fix loop n :=
+   match n return seq (sem_t A) → sem_prod (nseq n A) B with
+   | 0 => f
+   | n'.+1 => λ acc a, loop n' (a :: acc)
+   end) n [::].
+
+Definition sem_opN_typed (o: opN) :
+  let t := type_of_opN o in
+  sem_prod t.1 (exec (sem_t t.2)) :=
+  match o with
+  | Opack sz pe => curry (A := sint) (sz %/ pe) (λ vs, ok (wpack sz pe vs))
+  end.
+
+Definition sem_opN (op: opN) (vs: values) : exec value :=
+  Let w := app_sopn _ (sem_opN_typed op) vs in
+  ok (to_val w).
+
 Record estate := Estate {
   emem : mem;
   evm  : vmap
@@ -403,7 +432,9 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     Let v1 := sem_pexpr s e1 in
     Let v2 := sem_pexpr s e2 in
     sem_sop2 o v1 v2
-  | PappN op es => type_error (* TODO: nary *)
+  | PappN op es =>
+    Let vs := mapM (sem_pexpr s) es in
+    sem_opN op vs
   | Pif e e1 e2 =>
     Let b := sem_pexpr s e >>= to_bool in
     Let v1 := sem_pexpr s e1 in
@@ -452,23 +483,6 @@ Definition write_lvals (s:estate) xs vs :=
    fold2 ErrType write_lval xs vs s.
 
 End SEM_PEXPR.
-
-Fixpoint app_sopn ts : sem_prod ts (exec values) -> values -> exec values :=
-  match ts return sem_prod ts (exec values) -> values -> exec values with
-  | [::] => fun (o:exec values) (vs:values) =>
-    match vs with
-    | [::] => o
-    | _    => type_error
-    end
-  | t::ts => fun (o:sem_t t -> sem_prod ts (exec values)) (vs:values) =>
-    match vs with
-    | [::]  => type_error
-    | v::vs =>
-      Let v := of_val t v in
-      app_sopn (o v) vs
-    end
-  end.
-Arguments app_sopn ts o l:clear implicits.
 
 Definition pval t1 t2 (p: sem_t t1 * sem_t t2) :=
   [::to_val p.1; to_val p.2].

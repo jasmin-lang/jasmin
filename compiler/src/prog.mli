@@ -251,6 +251,7 @@ val locals  : 'info func -> Sv.t
 
 val int_of_ws : wsize -> int
 val size_of_ws : wsize -> int
+val int_of_pe : pelem -> int
 
 val is_ty_arr : 'e gty -> bool
 val array_kind : ty -> wsize * int

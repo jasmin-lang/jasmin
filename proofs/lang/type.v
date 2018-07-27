@@ -66,6 +66,10 @@ Coercion wsize_of_velem (ve: velem) : wsize :=
   | VE64 => U64
   end.
 
+(* Size in bits of the elements of a pack. *)
+Variant pelem :=
+| PE1 | PE2 | PE4 | PE8 | PE16 | PE32 | PE64 | PE128.
+
 (* -------------------------------------------------------------------- *)
 Definition string_of_wsize (sz: wsize) : string :=
   match sz with

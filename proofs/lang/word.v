@@ -116,6 +116,18 @@ Proof.
 by move=> /eqP; rewrite /cmp_le /gcmp wsize_cmpP Nat.compare_ge_iff.
 Qed.
 
+Coercion nat_of_pelem (pe: pelem) : nat :=
+  match pe with
+  | PE1 => 1
+  | PE2 => 2
+  | PE4 => 4
+  | PE8 => nat_of_wsize U8
+  | PE16 => nat_of_wsize U16
+  | PE32 => nat_of_wsize U32
+  | PE64 => nat_of_wsize U64
+  | PE128 => nat_of_wsize U128
+  end.
+
 Definition word := fun sz =>
   [comRingType of (wsize_size_minus_1 sz).+1.-word].
 
@@ -939,3 +951,8 @@ Definition wpsxldq op sz (w: word sz) (i: u8) : word sz :=
 
 Definition wpslldq := wpsxldq (@wshl _).
 Definition wpsrldq := wpsxldq (@wshr _).
+
+(* -------------------------------------------------------------------*)
+Definition wpack sz pe (arg: seq Z) : word sz :=
+  let w := map (CoqWord.word.mkword pe) arg in
+  wrepr sz (word.wcat_r w).

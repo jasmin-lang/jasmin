@@ -1615,7 +1615,7 @@ Section PROOF.
     SvD.fsetdec.
   Qed.
 
-  Lemma app_wwb_dec sz f x v:
+  Lemma app_wwb_dec sz f x (v: values) :
     app_wwb sz f x = ok v ->
     ∃ sz1 (w1: word sz1) sz2 (w2: word sz2) b,
       (sz ≤ sz1)%CMP ∧ (sz ≤ sz2)%CMP ∧
@@ -1629,7 +1629,7 @@ Section PROOF.
     by eexists _, w1, _, wx', b.
   Qed.
 
-  Lemma app_ww_dec sz f x v:
+  Lemma app_ww_dec sz f x (v: values) :
     app_ww sz f x = ok v ->
     exists sz1 (w1: word sz1) sz2 (w2: word sz2),
       (sz ≤ sz1)%CMP ∧ (sz ≤ sz2)%CMP ∧

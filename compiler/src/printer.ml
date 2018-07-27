@@ -80,7 +80,10 @@ let string_of_op1 = function
 
 let string_of_opN =
   function
-  | E.OPN -> "OPN" (* TODO: nary *)
+  | E.Opack (sz, pe) ->
+    F.sprintf "Opack<%d, %d>"
+      (int_of_ws sz)
+      (int_of_pe pe)
 
 (* -------------------------------------------------------------------- *)
 let pp_ge pp_var =
@@ -150,7 +153,7 @@ let string_of_velem =
 let pp_opn =
   let open Expr in
   let f w s = F.sprintf "%s_%d" s (int_of_ws w) in
-  let f2 w w' s = F.sprintf "%s_%d" s (int_of_ws w) in (* TODO: concrete syntax for these intrinsics *)
+  let f2 w _w' s = F.sprintf "%s_%d" s (int_of_ws w) in (* TODO: concrete syntax for these intrinsics *)
   let v ve sz s = F.sprintf "%s_%s" s (string_of_velem sz ve) in
   function
   | Omulu w -> f w "#mulu"

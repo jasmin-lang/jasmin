@@ -455,10 +455,10 @@ let out_ty_op1 op =
 let out_ty_op2 op =
   snd (E.type_of_op2 op)
 
-let out_ty_opN _op =
-  assert false (* TODO: nary *)
+let out_ty_opN op =
+  snd (E.type_of_opN op)
 
-let min_ty ty1 ty2 = 
+let min_ty ty1 ty2 =
   match ty1, ty2 with
   | Coq_sword sz1, Coq_sword sz2 -> 
     Coq_sword (Utils0.cmp_min Type.wsize_cmp sz1 sz2)
