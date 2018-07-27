@@ -151,17 +151,12 @@ fn seq(inline int u0, inline int n) -> inline int {
 
 /* ---------------------------------------------------------------- */
 fn combine(inline int base, inline int a, inline int b, inline int c, inline int d) -> inline int {
-  inline int z, t;
-  z = seq(base, d);
-  z *= 18446744073709551616;
-  t = seq(base, c);
-  z += t;
-  z *= 18446744073709551616;
-  t = seq(base, b);
-  z += t;
-  z *= 18446744073709551616;
-  t = seq(base, a);
-  z += t;
+  inline int z, t1, t2, t3, t4;
+  t1 = seq(base, d);
+  t2 = seq(base, c);
+  t3 = seq(base, b);
+  t4 = seq(base, a);
+  z = (4u64)[t1, t2, t3, t4];
   return z;
 }
 
