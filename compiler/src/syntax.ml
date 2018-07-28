@@ -72,8 +72,10 @@ let string_of_svsize (sv,sg,ve) =
     (int_of_vsize sv) (suffix_of_sign sg) (bits_of_vesize ve)
 
 (* -------------------------------------------------------------------- *)
+type cast = [ `ToWord  of swsize | `ToInt ]
+
 type peop1 = [ 
-  | `Cast of swsize  
+  | `Cast of cast  
   | `Not  of castop 
   | `Neg  of castop 
 ]
@@ -110,10 +112,15 @@ let string_of_castop : castop -> string =
   | None   -> ""
   | Some c -> string_of_castop1 (L.unloc c)
 
+let string_of_cast s = 
+  match s with
+  | `ToWord s -> string_of_swsize s
+  | `ToInt    -> "int"
+
 let string_of_peop1 : peop1 -> string = 
   let f s p = Format.sprintf "%s%s" p (string_of_castop s) in
   function 
-  | `Cast s -> Format.sprintf "(%s)" (string_of_swsize s)
+  | `Cast s -> Format.sprintf "(%s)" (string_of_cast s)
   | `Not s -> f s "!"
   | `Neg s -> f s "-"
 
@@ -146,7 +153,7 @@ type pexpr_r =
   | PEParens of pexpr
   | PEVar    of pident
   | PEGet    of pident * pexpr
-  | PEFetch  of ptype option * pident * pexpr
+  | PEFetch  of wsize option * pident * pexpr
   | PEpack   of svsize * pexpr list
   | PEBool   of bool
   | PEInt    of Bigint.zint
@@ -173,7 +180,7 @@ type plvalue_r =
   | PLIgnore
   | PLVar   of pident
   | PLArray of pident * pexpr
-  | PLMem   of ptype option * pident * pexpr
+  | PLMem   of wsize option * pident * pexpr
 
 type plvalue = plvalue_r L.located
 

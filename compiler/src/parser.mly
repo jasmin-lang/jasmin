@@ -21,14 +21,13 @@
 %token RPAREN
 
 %token T_BOOL
-%token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
+%token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT 
 
 %token SHARP
 %token AMP
 %token AMPAMP
 %token BANG
 %token BANGEQ
-(* %token <(Syntax.wsize * Syntax.sign)>CAST *)
 %token COLON
 %token COMMA
 %token DOWNTO
@@ -85,7 +84,7 @@
 %left LTLT GTGT
 %left PLUS MINUS
 %left STAR SLASH PERCENT
-%nonassoc BANG (* CAST *)
+%nonassoc BANG 
 
 %type <Syntax.pprogram> module_
 
@@ -139,6 +138,10 @@ castop1:
 castop:
 | c=loc(castop1)? { c }
 
+cast: 
+| T_INT    { `ToInt }
+| s=swsize { `ToWord s }
+
 (* ** Index expressions
  * -------------------------------------------------------------------- *)
 %inline peop1:
@@ -184,13 +187,13 @@ pexpr_r:
 | i=INT
     { PEInt i }
 
-| ct=parens(ptype)? LBRACKET v=var PLUS e=pexpr RBRACKET
+| ct=parens(utype)? LBRACKET v=var PLUS e=pexpr RBRACKET
     { PEFetch (ct, v, e) }
 
 | ct=parens(svsize) LBRACKET es=rtuple1(pexpr) RBRACKET
     { PEpack(ct,es) }
 
-| ct=parens(swsize) e=pexpr %prec BANG
+| ct=parens(cast) e=pexpr %prec BANG
     { PEOp1 (`Cast(ct), e) }
 
 | o=peop1 e=pexpr
@@ -238,7 +241,7 @@ plvalue_r:
 | x=var i=brackets(pexpr)
     { PLArray (x, i) }
 
-| ct=parens(ptype)? LBRACKET v=var PLUS e=pexpr RBRACKET
+| ct=parens(utype)? LBRACKET v=var PLUS e=pexpr RBRACKET
     { PLMem (ct, v, e) }
 
 plvalue:

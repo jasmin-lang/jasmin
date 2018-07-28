@@ -579,7 +579,7 @@ let op2_of_pop2 exn ty (op : S.peop2) =
 
 let op1_of_pop1 exn ty (op: S.peop1) = 
   match op with
-  | `Cast (_ws, _sg) -> assert false 
+  | `Cast _ -> assert false 
   | `Not c ->
     if ty = P.tbool then 
       if c <> None then raise exn
@@ -612,11 +612,17 @@ let cast loc e ety ty =
   | _, _ when P.pty_equal ety ty -> e
   | _  ->  rs_tyerror ~loc (InvalidCast(ety,ty))
 
-let cast_word loc e ety =
+let cast_word loc ws e ety =
   match ety with
-  | P.Bty P.Int   -> P.Papp1 (Oword_of_int T.U64, e), T.U64
-  | P.Bty (P.U ws) -> e, ws
-  | _             ->  rs_tyerror ~loc (InvalidCast(ety,P.u64))
+  | P.Bty P.Int   -> P.Papp1 (Oword_of_int ws, e), ws
+  | P.Bty (P.U ws1) -> e, ws1
+  | _             ->  rs_tyerror ~loc (InvalidCast(ety,P.Bty (P.U ws)))
+
+let cast_int loc e ety = 
+  match ety with
+  | P.Bty P.Int    -> e 
+  | P.Bty (P.U ws) -> P.Papp1 (Oint_of_word ws, e)
+  | _             ->  rs_tyerror ~loc (InvalidCast(ety,P.tint))
 
 (* -------------------------------------------------------------------- *)
 let conv_ty = function
@@ -711,8 +717,7 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     let x = tt_var mode env x in
     check_ty_u64 ~loc:xlc x.P.v_ty;
     let e = tt_expr_cast64 ~mode env po in
-    let ct = ct |>
-      omap_dfl (fun st -> tt_as_word (L.loc st, tt_type env st)) T.U64 in
+    let ct = ct |> omap_dfl tt_ws T.U64 in
     P.Pload (ct, L.mk_loc xlc x, e), P.Bty (P.U ct)
 
   | S.PEGet ({ L.pl_loc = xlc } as x, pi) ->
@@ -726,16 +731,23 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     let e, ety = tt_expr ~mode env pe in
 
     begin match op with
-    | `Cast (sz, sg) ->
+    | `Cast (`ToInt) ->
+      let e = cast_int (L.loc pe) e ety in
+      e, P.tint 
+      
+    | `Cast (`ToWord (sz, sg)) ->
       let sz = tt_ws sz in
-      let e, ws = cast_word (L.loc pe) e ety in
-      let op =
-        (* FIXME : Remove unecessary cast, allows cast word -> int *)
-        match sg with
-        | `Unsigned -> E.Ozeroext (sz, ws)
-        | `Signed   -> E.Osignext (sz, ws)
-      in
-      Papp1 (op, e), P.Bty (P.U sz)
+      let e, ws = cast_word (L.loc pe) sz e ety in
+      let e = 
+        if T.wsize_cmp ws sz = Datatypes.Lt then 
+          let op =
+            match sg with
+            | `Unsigned -> E.Ozeroext (sz, ws)
+            | `Signed   -> E.Osignext (sz, ws)
+          in
+          P.Papp1(op,e)
+        else e in
+      e, P.Bty (P.U sz)
     | _  ->
       let et1 = tt_expr ~mode env pe in
       tt_op1 (L.loc pe, et1) (L.mk_loc (L.loc pe) op)
@@ -847,8 +859,7 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     let x = tt_var `AllVar env x in
     check_ty_u64 ~loc:xlc x.P.v_ty;
     let e = tt_expr_cast64 ~mode:`AllVar env po in
-    let ct = ct |>
-               omap_dfl (fun st -> tt_as_word (L.loc st, tt_type env st)) T.U64 in
+    let ct = ct |> omap_dfl tt_ws T.U64 in
     loc, (fun _ -> P.Lmem (ct, L.mk_loc xlc x, e)), Some (P.Bty (P.U ct))
 
 (* -------------------------------------------------------------------- *)
