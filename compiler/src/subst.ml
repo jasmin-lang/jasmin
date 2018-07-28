@@ -185,6 +185,11 @@ let isubst_prog (glob: ((Name.t * pty) * _) list) (prog:'info pprog) =
 
 exception NotAConstantExpr
 
+let clamp_k k e = 
+  match k with 
+  | E.Op_w ws -> clamp ws e
+  | E.Op_int  -> e
+
 let rec constant_of_expr (e: Prog.expr) : Bigint.zint =
   let open Prog in
 
@@ -192,26 +197,37 @@ let rec constant_of_expr (e: Prog.expr) : Bigint.zint =
   | Papp1 (Oword_of_int sz, e) ->
       clamp sz (constant_of_expr e)
 
+  | Papp1(Oint_of_word sz, e) ->
+      clamp sz (constant_of_expr e)
+
   | Pconst z ->
       z
 
-  | Papp1 (Oneg (Op_w ws), e) ->
-      Bigint.neg (clamp ws (constant_of_expr e))
+  | Papp1 (Oneg k, e) ->
+      clamp_k k (Bigint.neg (clamp_k k (constant_of_expr e)))
 
-  | Papp2 (Oadd (Op_w ws), e1, e2) ->
-      let e1 = clamp ws (constant_of_expr e1) in
-      let e2 = clamp ws (constant_of_expr e2) in
-      clamp ws (Bigint.add e1 e2)
+  | Papp2 (Oadd k, e1, e2) ->
+      let e1 = clamp_k k (constant_of_expr e1) in
+      let e2 = clamp_k k (constant_of_expr e2) in
+      clamp_k k (Bigint.add e1 e2)
 
-  | Papp2 (Osub (Op_w ws), e1, e2) ->
-      let e1 = clamp ws (constant_of_expr e1) in
-      let e2 = clamp ws (constant_of_expr e2) in
-      clamp ws (Bigint.sub e1 e2)
+  | Papp2 (Osub k, e1, e2) ->
+      let e1 = clamp_k k (constant_of_expr e1) in
+      let e2 = clamp_k k (constant_of_expr e2) in
+      clamp_k k (Bigint.sub e1 e2)
 
-  | Papp2 (Omul (Op_w ws), e1, e2) ->
-      let e1 = clamp ws (constant_of_expr e1) in
-      let e2 = clamp ws (constant_of_expr e2) in
-      clamp ws (Bigint.mul e1 e2)
+  | Papp2 (Omul k, e1, e2) ->
+      let e1 = clamp_k k (constant_of_expr e1) in
+      let e2 = clamp_k k (constant_of_expr e2) in
+      clamp_k k (Bigint.mul e1 e2)
+
+  | PappN(Opack(ws,pe), es) ->
+      let es = List.map constant_of_expr es in
+      let k = int_of_pe pe in
+      let e = 
+        List.fold_left (fun n e -> 
+            Bigint.add (Bigint.lshift n k) (clamp_pe pe e)) Bigint.zero es in
+      clamp ws e
 
   | _ -> raise NotAConstantExpr
 

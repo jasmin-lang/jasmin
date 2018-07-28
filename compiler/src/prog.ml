@@ -400,3 +400,6 @@ let destruct_move i =
 (* -------------------------------------------------------------------- *)
 let clamp (sz : Type.wsize) (z : Bigint.zint) =
   Bigint.erem z (Bigint.lshift Bigint.one (int_of_ws sz))
+
+let clamp_pe (sz : Type.pelem) (z : Bigint.zint) =
+  Bigint.erem z (Bigint.lshift Bigint.one (int_of_pe sz))

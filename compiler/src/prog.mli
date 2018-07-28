@@ -287,3 +287,4 @@ val destruct_move : ('ty, 'info) ginstr -> 'ty glval * assgn_tag * 'ty * 'ty gex
 
 (* -------------------------------------------------------------------- *)
 val clamp : Type.wsize -> Bigint.zint -> Bigint.zint
+val clamp_pe : Type.pelem -> Bigint.zint -> Bigint.zint
