@@ -82,7 +82,7 @@ Record compiler_params := {
   inline_var   : var -> bool;
   is_var_in_memory : var_i → bool;
   reg_alloc_fd : funname -> fundef -> fundef;
-  stk_alloc_fd : funname -> fundef -> seq (var * Z) * sfundef;
+  stk_alloc_fd : fun_decl -> Z * Ident.ident * list (var * Z);
   print_prog   : compiler_step -> prog -> prog;
   print_linear : lprog -> lprog;
   warning      : instr_info -> warning_msg -> instr_info;
@@ -108,11 +108,6 @@ Definition share_stack_prog (p:prog) :=
 Definition reg_alloc_prog (p:prog) :=
   {| p_globs := p_globs p;
      p_funcs := List.map (fun f => (f.1, cparams.(reg_alloc_fd) f.1 f.2)) (p_funcs p) |}.
-
-Definition stk_alloc_prog (p:prog) : sprog * (seq (seq (var * Z))) :=
-  List.split
-    (List.map 
-       (fun f => let (x, y) := cparams.(stk_alloc_fd) f.1 f.2 in ((f.1, y), x)) (p_funcs p)).
 
 Definition compile_prog (entries : seq funname) (p:prog) :=
   Let p := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
@@ -160,14 +155,13 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
     let pd := cparams.(print_prog) DeadCode_RegAllocation pd in
 
     (* stack_allocation                    *)
-    let (ps, l) := stk_alloc_prog pd in
-    if stack_alloc.check_prog (p_funcs pd) ps l then
-      (* linearisation                     *)
-      Let pl := linear_prog ps in
-      let pl := cparams.(print_linear) pl in
-      (* asm                               *)
-      cfok (p_globs pd, pl)
-    else cferror Ferr_neqprog
+    Let ps := stack_alloc.alloc_prog cparams.(stk_alloc_fd) pd in
+    (* linearisation                     *)
+    Let pl := linear_prog ps in
+    let pl := cparams.(print_linear) pl in
+    (* asm                               *)
+    cfok (p_globs pd, pl)
+
   else cferror Ferr_lowering.
 
 Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=

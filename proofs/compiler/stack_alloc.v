@@ -110,102 +110,212 @@ Definition vstk (m:map) :=  {|vtype := sword Uptr; vname := m.2|}.
 Definition is_vstk (m:map) (x:var) :=
   x == (vstk m).
 
-Definition check_var (m:map) (x1 x2:var_i) :=
-  ~~ is_in_stk m x1 && (v_var x1 == v_var x2) && ~~is_vstk m x1.
-
-Definition check_var_stk (m:map) sz (x1 x2:var_i) (e2:pexpr) :=
-  is_vstk m x2 && (vtype x1 == sword sz) &&
-    match Mvar.get m.1 x1 with
-    | Some ofs => e2 == (Papp1 (Oword_of_int Uptr) (Pconst ofs))
-    | _ => false
-    end.
+Definition check_var m (x:var_i) := 
+  ~~ is_in_stk m x && ~~is_vstk m x.
 
 (* TODO: MOVE *)
 Definition is_arr_type (t:stype) :=
   if t is sarr sz _ then Some sz else None.
 
-Definition is_addr_ofs sz ofs e1 e2 :=
-  match is_const e1, is_wconst_of_size Uptr e2 with
-  | Some i, Some zofs => (wsize_size sz * i + ofs)%Z == zofs
-  | _, _              => false
+Definition is_word_type (t:stype) :=
+  if t is sword sz then Some sz else None.
+
+Definition cast_w ws := Papp1 (Oword_of_int ws).
+
+Definition cast_ptr := cast_w Uptr.
+
+Definition cast_const z := cast_ptr (Pconst z).
+
+Definition mul := Papp2 (Omul (Op_w Uptr)).
+Definition add := Papp2 (Oadd (Op_w Uptr)).
+
+Definition cast_word e := 
+  match e with
+  | Papp1 (Oint_of_word U64) e1 => e1
+  | _  => cast_ptr e
   end.
 
-Definition check_arr_stk' (* check_e *) (m:map) (sz1: wsize) (x1:var_i) (e1:pexpr) (x2:var_i) (e2:pexpr) :=
-  is_vstk m x2 &&
-  if is_arr_type (vtype x1) is Some sz then
-  (sz == sz1) &&
-  match Mvar.get m.1 x1 with
-  | Some ofs => is_addr_ofs sz ofs e1 e2
-  | _ => false end
-  else false.
+(* End TODO *)
 
-Fixpoint check_e (m:map) (e1 e2: pexpr) :=
-  match e1, e2 with 
-  | Pconst n1, Pconst n2 => n1 == n2 
-  | Pbool  b1, Pbool  b2 => b1 == b2
-  | Parr_init sz1 n1, Parr_init sz2 n2 => (sz1 == sz2) && (n1 == n2)
-  | Pvar   x1, Pvar   x2 => check_var m x1 x2
-  | Pvar   x1, Pload w2 x2 e2 => check_var_stk m w2 x1 x2 e2
-  | Pglobal g1, Pglobal g2 => g1 == g2
-  | Pget  x1 e1, Pget x2 e2 => check_var m x1 x2 && check_e m e1 e2
-  | Pget  x1 e1, Pload w2 x2 e2 => check_arr_stk' (* check_e *) m w2 x1 e1 x2 e2
-  | Pload w1 x1 e1, Pload w2 x2 e2 => (w1 == w2) && check_var m x1 x2 && check_e m e1 e2
-  | Papp1 o1 e1, Papp1 o2 e2 => (o1 == o2) && check_e m e1 e2 
-  | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
-    (o1 == o2) && check_e m e11 e21 && check_e m e12 e22
-  | PappN o1 es1, PappN o2 es2 =>
-    (o1 == o2) && all2 (check_e m) es1 es2
-  | Pif e e1 e2, Pif e' e1' e2' => check_e m e e'  && check_e m e1 e1' && check_e m e2 e2' 
-  | _, _ => false
+Definition stk_not_fresh {A} := 
+  @cerror (Cerr_stk_alloc "the stack variable is not fresh") A.
+
+Definition not_a_word_v {A} := 
+  @cerror (Cerr_stk_alloc "not a word variable") A.
+
+Definition not_an_array_v {A} := 
+  @cerror (Cerr_stk_alloc "not an array variable") A.
+
+Definition invalid_var {A} := 
+  @cerror (Cerr_stk_alloc "invalid variable") A.
+
+Definition mk_ofs ws e1 ofs := 
+  let sz := wsize_size ws in
+  if is_const e1 is Some i then 
+    cast_const (sz * i + ofs)%Z
+  else 
+    add (mul (cast_const sz) (cast_word e1)) (cast_const ofs).
+
+Fixpoint alloc_e (m:map) (e: pexpr) := 
+  match e with
+  | Pconst _ | Pbool _ | Parr_init _ _ | Pglobal _ => ok e
+  | Pvar   x =>
+    match Mvar.get m.1 x with 
+    | Some ofs =>
+      if is_word_type (vtype x) is Some ws then
+        let ofs := cast_const ofs in
+        let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
+        ok (Pload ws stk ofs)
+      else not_a_word_v 
+    | None     =>
+      if is_vstk m x then stk_not_fresh 
+      else ok e 
+    end
+  | Pget x e1 =>
+    Let e1 := alloc_e m e1 in
+    match Mvar.get m.1 x with 
+    | Some ofs =>
+      if is_arr_type (vtype x) is Some ws then
+        let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
+        let ofs := mk_ofs ws e1 ofs in
+        ok (Pload ws stk ofs)
+      else not_an_array_v 
+
+    | None =>
+      if is_vstk m x then stk_not_fresh 
+      else ok (Pget x e1)
+    end
+
+  | Pload ws x e1 =>
+    if check_var m x then
+      Let e1 := alloc_e m e1 in
+      ok (Pload ws x e1)
+    else invalid_var 
+
+  | Papp1 o e1 =>
+    Let e1 := alloc_e m e1 in
+    ok (Papp1 o e1)
+   
+  | Papp2 o e1 e2 =>
+    Let e1 := alloc_e m e1 in
+    Let e2 := alloc_e m e2 in
+    ok (Papp2 o e1 e2)
+
+  | PappN o es => 
+    Let es := mapM (alloc_e m) es in
+    ok (PappN o es)  
+
+  | Pif e e1 e2 =>
+    Let e := alloc_e m e in
+    Let e1 := alloc_e m e1 in
+    Let e2 := alloc_e m e2 in
+    ok (Pif e e1 e2)
   end.
 
-Definition check_arr_stk := check_arr_stk' (* check_e *). 
+Definition alloc_lval (m:map) (r:lval) ty := 
+  match r with
+  | Lnone _ _ => ok r
 
-Definition check_lval (m:map) (r1 r2:lval) ty := 
-  match r1, r2 with
-  | Lnone _ t1, Lnone _ t2 => t1 == t2
-  | Lvar x1, Lvar x2 => check_var m x1 x2
-  | Lvar x1, Lmem w2 x2 e2 => (ty == sword w2) && check_var_stk m w2 x1 x2 e2
-  | Lmem w1 x1 e1, Lmem w2 x2 e2 => (w1 == w2) && check_var m x1 x2 && check_e m e1 e2
-  | Laset x1 e1, Laset x2 e2 => check_var m x1 x2 && check_e m e1 e2
-  | Laset x1 e1, Lmem w2 x2 e2 => check_arr_stk m w2 x1 e1 x2 e2
-  | _, _ => false
+  | Lvar x =>
+    match Mvar.get m.1 x with 
+    | Some ofs =>
+      if is_word_type (vtype x) is Some ws then
+        if ty == sword ws then  
+          let ofs := cast_const ofs in
+          let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
+          ok (Lmem ws stk ofs)
+        else cerror (Cerr_stk_alloc "invalid type for Lvar")
+      else not_a_word_v 
+    | None     =>
+      if is_vstk m x then stk_not_fresh 
+      else ok r
+    end
+
+  | Lmem ws x e1 =>
+    if check_var m x then
+      Let e1 := alloc_e m e1 in
+      ok (Lmem ws x e1)
+    else invalid_var
+    
+  | Laset x e1 =>
+    Let e1 := alloc_e m e1 in
+    match Mvar.get m.1 x with 
+    | Some ofs =>
+      if is_arr_type (vtype x) is Some ws then
+        let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
+        let ofs := mk_ofs ws e1 ofs in
+        ok (Lmem ws stk ofs)
+      else not_an_array_v
+
+    | None =>
+      if is_vstk m x then stk_not_fresh 
+      else ok (Laset x e1)
+    end
+
   end.
 
-Section ALL3.
+Definition bad_lval_number := Cerr_stk_alloc "invalid number of lval".
 
- Context (A B C:Type) (f:A -> B -> C -> bool).
+Fixpoint alloc_i (m: map) (i: instr) :=
+  let (ii, ir) := i in
+  Let ir := 
+    match ir with
+    | Cassgn r t ty e => 
+      Let r := add_iinfo ii (alloc_lval m r ty) in
+      Let e := add_iinfo ii (alloc_e m e) in
+      ok (Cassgn r t ty e)
+  
+    | Copn rs t o e => 
+      Let rs := add_iinfo ii (mapM2 bad_lval_number (alloc_lval m) rs (sopn_tout o)) in
+      Let e  := add_iinfo ii (mapM  (alloc_e m) e) in
+      ok (Copn rs t o e)               
+  
+    | Cif e c1 c2 => 
+      Let e := add_iinfo ii (alloc_e m e) in
+      Let c1 := mapM (alloc_i m) c1 in
+      Let c2 := mapM (alloc_i m) c2 in
+      ok (Cif e c1 c2)
+  
+    | Cwhile c1 e c2 => 
+      Let e := add_iinfo ii (alloc_e m e) in
+      Let c1 := mapM (alloc_i m) c1 in
+      Let c2 := mapM (alloc_i m) c2 in
+      ok (Cwhile c1 e c2)
+  
+    | Cfor _ _ _  => cierror ii (Cerr_stk_alloc "don't deal with for loop")
+    | Ccall _ _ _ _ => cierror ii (Cerr_stk_alloc "don't deal with call")
+    end in
+  ok (MkI ii ir).
 
- Fixpoint all3 l1 l2 l3 := 
-   match l1, l2, l3 with
-   | [::], [::], [::] => true
-   | a::l1, b::l2, c::l3 => f a b c && all3 l1 l2 l3
-   | _, _, _ => false
-   end.
 
-End ALL3.
-
-Fixpoint check_i (m: map) (i1 i2: instr) : bool :=
-  let (_, ir1) := i1 in
-  let (_, ir2) := i2 in
-  match ir1, ir2 with
-  | Cassgn r1 _ ty1 e1, Cassgn r2 _ ty2 e2 => check_lval m r1 r2 ty1 && (ty1 == ty2) && check_e m e1 e2
-  | Copn rs1 _ o1 e1, Copn rs2 _ o2 e2 => all3 (check_lval m) rs1 rs2 (sopn_tout o1) && (o1 == o2) && all2 (check_e m) e1 e2
-  | Cif e1 c1 c1', Cif e2 c2 c2' => check_e m e1 e2 && all2 (check_i m) c1 c2 && all2 (check_i m) c1' c2'
-  | Cwhile c1 e1 c1', Cwhile c2 e2 c2' => all2 (check_i m) c1 c2 && check_e m e1 e2 && all2 (check_i m) c1' c2'
-  | _, _ => false
+Definition add_err_fun (A : Type) (f : funname) (r : cexec A) := 
+  match r with
+  | ok _ a => ok a
+  | Error e => Error (Ferr_fun f e)
   end.
 
-Definition check_fd (l:list (var * Z))
-    (fd: fundef) (fd': sfundef) :=
-  match init_map (sf_stk_sz fd') (sf_stk_id fd') l with 
-  | Ok m =>
-    (f_tyin fd == sf_tyin fd') &&
-    (f_tyout fd == sf_tyout fd') &&
-     all2 (check_var m) (f_params fd) (sf_params fd') &&
-     all2 (check_var m) (f_res fd) (sf_res fd') &&
-     all2 (check_i m) (f_body fd) (sf_body fd')
-  | _ => false
-  end.
+Definition alloc_fd (stk_alloc_fd : fun_decl -> Z * Ident.ident * list (var * Z))
+    (f: fun_decl) :=
+  let info := stk_alloc_fd f in
+  let (fn, fd) := f in
+  Let sfd :=  
+    let: ((size, stkid), l) := info in 
+    Let m := add_err_fun fn (init_map size stkid l) in
+    Let body := add_finfo fn fn (mapM (alloc_i m) fd.(f_body)) in
+    if all (check_var m) fd.(f_params) && all (check_var m) fd.(f_res) then
+      ok {| sf_iinfo  := fd.(f_iinfo);
+            sf_stk_sz := size;
+            sf_stk_id := stkid;
+            sf_tyin   := fd.(f_tyin);
+            sf_params := fd.(f_params);
+            sf_body   := body;
+            sf_tyout  := fd.(f_tyout);
+            sf_res    := fd.(f_res) |} 
+    else add_err_fun fn invalid_var in
+  ok (fn, sfd).
 
-Definition check_prog P SP ll := all_prog P SP ll check_fd.
+Definition alloc_prog stk_alloc_fd P := 
+  mapM (alloc_fd stk_alloc_fd) P.(p_funcs).
+
+
+

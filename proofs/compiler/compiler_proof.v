@@ -137,8 +137,7 @@ Proof.
   case Hlower: fvars_correct=> //.
   apply: rbindP=> -[] He'.
   apply: rbindP=> pd Hpd. rewrite !print_progP.
-  case Hpstk: (stk_alloc_prog _ pd)=> [pstk l].
-  case Hpstk': (check_prog (p_funcs pd) pstk l)=> //.
+  apply: rbindP => pstk Hpstk.
   apply: rbindP=> pl Hpl [] <- <-. rewrite !print_linearP.
   move=> Hin Hcall Halloc.
   have Haok : alloc_ok pstk fn mem.
@@ -149,7 +148,7 @@ Proof.
     by rewrite -Hf' /=.
   have va_refl := List_Forall2_refl va value_uincl_refl.
   apply: Kj; first by move => vr'; exact: (linear_fdP Hpl).
-  apply: Km; first by move => vr' Hvr'; apply: (stack_alloc_proof.check_progP Hpstk' _ Haok); exact: Hvr'.
+  apply: Km; first by move => vr' Hvr'; apply: (stack_alloc_proof.alloc_progP Hpstk _ Haok); exact: Hvr'.
   apply: Ki; first by move => vr'; exact: (dead_code_callP Hpd).
   apply: K'; first by move => vr' Hvr'; apply: (CheckAllocReg.alloc_callP He'); exact: Hvr'.
   apply: Ki; first by move => vr'; exact: (lower_callP _ _ _ Hlower).
