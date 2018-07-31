@@ -769,7 +769,7 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     if sg <> `Unsigned then rs_tyerror ~loc PackSigned;
     let sz, pz, len = tt_pack ~loc nb es in
     let args = List.map (tt_expr ~mode env) args in
-    let args = List.map (fun (a, ty) -> cast loc a (P.Bty P.Int) ty) args in
+    let args = List.map (fun (a, ty) -> cast loc a ty (P.Bty P.Int)) args in
     let alen = List.length args in
     if alen <> len then rs_tyerror ~loc (PackWrongLength (len, alen));
     P.PappN (E.Opack (sz, pz), args), P.Bty (P.U sz)
