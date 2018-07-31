@@ -282,6 +282,10 @@ let pp_sh_d name ws op1 op2 ir =
   let rs = rs_of_ws ws in
   `Instr (pp_iname rs name, [pp_imr `U8 ir; pp_register rs op2; pp_opr rs op1])
 
+let pp_instr_rro name ws dst src1 src2 =
+  let rs = rs_of_ws ws in
+  `Instr (pp_iname rs name, [pp_opr rs src2; pp_register rs src1; pp_register rs dst])
+
 (* -------------------------------------------------------------------- *)
 let pp_movx name wsd wss dst src =
   let rsd = rs_of_ws wsd in
@@ -390,7 +394,7 @@ let pp_instr name (i : X86_sem.asm) =
 
   | AND (ws, op1, op2) -> pp_instr_binop "and" ws op1 op2
 
-  | ANDN (ws, op1, op2) -> pp_instr_binop "andn" ws op1 op2
+  | ANDN (ws, dst, src1, src2) -> pp_instr_rro "andn" ws dst src1 src2
 
   | OR (ws, op1, op2) -> pp_instr_binop "or" ws op1 op2
 
@@ -551,7 +555,6 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | SBB    (_, op, _)
   | IMUL   (_, op, Some _)
   | AND    (_, op, _)
-  | ANDN   (_, op, _)
   | OR     (_, op, _)
   | XOR    (_, op, _)
   | ROR (_, op, _)
@@ -569,6 +572,7 @@ let wregs_of_instr (c : rset) (i : X86_sem.asm) =
   | MOVSX (_, _, r, _)
   | MOVZX (_, _, r, _)
   | BSWAP (_, r)
+  | ANDN   (_, r, _, _)
     -> Set.add r c
 
   | MUL  _

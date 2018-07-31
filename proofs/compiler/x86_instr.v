@@ -577,15 +577,17 @@ Definition AND_desc sz := make_instr_desc (AND_gsc sz).
 
 (* ----------------------------------------------------------------------------- *)
 Lemma ANDN_gsc sz :
-  gen_sem_correct [:: TYoprd; TYoprd] (Ox86_ANDN sz)
+  gen_sem_correct [:: TYreg; TYreg; TYoprd] (Ox86_ANDN sz)
      (implicit_flags ++ [:: E sz 0])
-     [:: E sz 0; E sz 1] [::] (ANDN sz).
+     [:: E sz 1; E sz 2] [::] (ANDN sz).
 Proof.
-move => x y; split => // gd m m'; rewrite /low_sem_aux /= !arg_of_oprdE /= /x86_andn /eval_ANDN.
-case: x => // [ x | x ] /=; t_xrbindP => ???? h <-; [ | move => ?? h' <- ] => <-; t_xrbindP => ? /truncate_wordP [hle ->] ? /of_val_word [sz'] [?] [hle' ??]; subst => _ -> /= [<-].
-+ by case => <-; rewrite (eval_low_read _ h) //; update_set.
-apply: rbindP => /= m'' [<-] {m''}; rewrite truncate_word_u /= h (eval_low_read _ h') //= !zero_extend_u.
-move => ?; update_set.
+move => dst x y; split => // gd m m'; rewrite /low_sem_aux /= !arg_of_oprdE /= /x86_andn /eval_ANDN.
+case: y => [ y | y | y | y ] /=.
+1,3: t_xrbindP => ?? /truncate_wordP [hle] -> ? /truncate_wordP [hle'] -> _ -> /= <- [<-]; update_set.
+- t_xrbindP => ???? -> <- <- /=.
+  t_xrbindP => ? /truncate_wordP [hle] -> ? /to_wordI [sz'] [w'] [hle' -> ->] _ -> /= <- [<-]; update_set.
+t_xrbindP => ????? h <- <- <- /=.
+t_xrbindP => ? /truncate_wordP [hle] -> ?; rewrite truncate_word_u h => - [<-] _ -> /= <- [<-]; update_set.
 Qed.
 
 Definition ANDN_desc sz := make_instr_desc (ANDN_gsc sz).

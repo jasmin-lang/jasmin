@@ -1264,10 +1264,11 @@ Section PROOF.
           t_xrbindP => v1 va1 ha1 wa1 hva1 hv1 va2 ha2 wa2 hwa2 twa2 hva2 ? hread.
           subst v v1.
           case hty: (_ ≤ _)%CMP => /=.
-          + case : eqP => //= hz.
+          + case hty32: (_ ≤ _)%CMP => //=.
+            case : eqP => //= hz.
             split;first by apply hread.
             rewrite ha1 /= ha2 /= hva1 /= hva2 /=.
-            rewrite /x86_andn /check_size_8_64 hty /=.
+            rewrite /x86_andn /check_size_32_64 hty32 hty /=.
             case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
             rewrite /= in hz;subst sz''; move: Hv'.
             move: hwa2;rewrite /truncate_val /= /truncate_word cmp_le_refl /=.

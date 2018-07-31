@@ -733,10 +733,14 @@ Definition x86_and {sz} (v1 v2: word sz) :=
   rflags_of_bwop_w
     (wand v1 v2).
 
+Definition rflags_of_andn sz (w: word sz) :=
+  (* OF ; CF ; SF ; PF ; ZF *)
+  [:: Vbool false ; Vbool false ; Vbool (SF_of_word w) ; Vundef sbool ; Vbool (ZF_of_word w) ].
+
 Definition x86_andn {sz} (v1 v2: word sz) :=
-  Let _  := check_size_8_64 sz in
-  rflags_of_bwop_w
-    (wandn v1 v2).
+  Let _  := check_size_32_64 sz in
+  let w := wandn v1 v2 in
+  ok (rcons (rflags_of_andn w) (Vword w)).
 
 Definition x86_or {sz} (v1 v2: word sz) :=
   Let _  := check_size_8_64 sz in

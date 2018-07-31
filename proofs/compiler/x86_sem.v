@@ -175,7 +175,7 @@ Variant asm : Type :=
 
   (* Bitwise logical instruction *)
 | AND    of wsize & oprd & oprd            (* bit-wise and *)
-| ANDN    of wsize & oprd & oprd           (* bit-wise andn *)
+| ANDN of wsize & register & register & oprd (* bit-wise andn *)
 | OR     of wsize & oprd & oprd            (* bit-wise or  *)
 | XOR    of wsize & oprd & oprd            (* bit-wise xor *)
 | NOT    of wsize & oprd                   (* bit-wise not *)
@@ -1001,13 +1001,23 @@ Definition eval_AND sz o1 o2 s : x86_result :=
   write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_ANDN sz o1 o2 s : x86_result :=
-  Let _  := check_size_8_64 sz in
-  Let v1 := read_oprd sz o1 s in
-  Let v2 := read_oprd sz o2 s in
+Definition rflags_of_andn sz (w: word sz) rf :=
+  match rf with
+  | SF => Some (Def (SF_of_word w))
+  | ZF => Some (Def (ZF_of_word w))
+  | OF
+  | CF => Some (Def false)
+  | PF => Some Undef
+  | DF => None
+  end.
+
+Definition eval_ANDN sz dst src1 src2 s : x86_result :=
+  Let _  := check_size_32_64 sz in
+  let v1 := zero_extend sz (xreg s src1) in
+  Let v2 := read_oprd sz src2 s in
   let v  := wandn v1 v2 in
-  let s  := mem_update_rflags (rflags_of_bwop v) s in
-  write_oprd o1 v s.
+  let s  := mem_update_rflags (rflags_of_andn v) s in
+  ok (mem_write_reg dst v s).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_OR sz o1 o2 s : x86_result :=
@@ -1354,7 +1364,7 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | TEST   sz o1 o2    => eval_TEST   sz o1 o2 s
   | CMP    sz o1 o2    => eval_CMP    sz o1 o2 s
   | AND    sz o1 o2    => eval_AND    sz o1 o2 s
-  | ANDN    sz o1 o2   => eval_ANDN    sz o1 o2 s
+  | ANDN sz dst src1 src2 => eval_ANDN sz dst src1 src2 s
   | OR     sz o1 o2    => eval_OR     sz o1 o2 s
   | XOR    sz o1 o2    => eval_XOR    sz o1 o2 s
   | NOT    sz o        => eval_NOT    sz o s

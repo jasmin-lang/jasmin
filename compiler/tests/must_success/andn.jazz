@@ -1,0 +1,27 @@
+export
+fn f32(reg u32 x, reg u32 y) -> reg u32 {
+  reg u32 z;
+  z = !x & y;
+  return z;
+}
+
+export
+fn f64(reg u64 x, reg u64 y) -> reg u64 {
+  reg u64 z;
+  z = !x & y;
+  return z;
+}
+
+export
+fn m32(reg u32 x, reg u64 ptr) -> reg u32 {
+  reg u32 z;
+  z = !x & (u32)[ptr + 0];
+  return z;
+}
+
+export
+fn m64(reg u64 x, reg u64 ptr) -> reg u64 {
+  reg u64 z;
+  z = !x & [ptr + 0];
+  return z;
+}

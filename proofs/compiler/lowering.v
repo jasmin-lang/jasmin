@@ -460,7 +460,7 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
       match is_andn a b with
       | Some (a,b) => 
         if (sz ≤ U64)%CMP
-        then k8 sz (LowerFopn (Ox86_ANDN sz) [:: a ; b ] (Some U32))
+        then k32 sz (LowerFopn (Ox86_ANDN sz) [:: a ; b ] None)
         else kb true sz (LowerCopn (Ox86_VPANDN sz) [:: a ; b ])
       | None =>
         if (sz ≤ U64)%CMP
