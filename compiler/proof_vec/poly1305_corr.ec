@@ -193,7 +193,7 @@ qed.
 
 (* -------------------------------------------------------------------- *)
 lemma ref_ll : islossless Poly1305_Ref.fold.
-proof. admitted.
+proof. by islossless; while true (n-i) => *; auto => /#. qed.
 
 (* -------------------------------------------------------------------- *)
 lemma hop1_ok m0 r0 :
@@ -220,4 +220,7 @@ qed.
 
 (* -------------------------------------------------------------------- *)
 lemma hop1_ll : islossless Poly1305_Hop1.fold.
-proof. admitted.
+proof. islossless.
++ by while true (n-i) => //= *; auto => /#.
++ by while true (n-i) => //= *; auto => /#.
+qed.
