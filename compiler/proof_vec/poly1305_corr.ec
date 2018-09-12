@@ -244,9 +244,5 @@ lemma ref_hop1 :
   ].
 proof.                          (* WTF? *)
 proc*; exists* m{1}, m{2}; elim* => m1 m2.
-call {1} (_ : m = m1 ==> res = ref m1 (size (elems (fdom m1))) Poly1305_Ref.r).
-* by conseq ref_ll (ref_ok m1).
-call {2} (_ : m = m2 ==> res = ref m2 (size (elems (fdom m2))) Poly1305_Hop1.r).
-* by conseq hop1_ll (hop1_ok m2).
-by auto.
+by call {1} (ref_ok_ll m1); call {2} (hop1_ok_ll m2); auto.
 qed.
