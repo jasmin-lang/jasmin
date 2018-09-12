@@ -177,9 +177,9 @@ module Poly1305_Hop2 = {
 }.
 
 (* -------------------------------------------------------------------- *)
-lemma ref_ok m0 r0 :
+lemma ref_ok m0 :
   hoare [ Poly1305_Ref.fold :
-    m = m0 /\ Poly1305_Ref.r = r0 ==> res = ref m0 (size (elems (fdom m0))) r0 ].
+    m = m0 ==> res = ref m0 (size (elems (fdom m0))) Poly1305_Ref.r ].
 proof.
 proc; sp.
 conseq (_ :
@@ -196,9 +196,15 @@ lemma ref_ll : islossless Poly1305_Ref.fold.
 proof. by islossless; while true (n-i) => *; auto => /#. qed.
 
 (* -------------------------------------------------------------------- *)
-lemma hop1_ok m0 r0 :
+lemma ref_ok_ll m0 :
+  phoare [ Poly1305_Ref.fold :
+    m = m0 ==> res = ref m0 (size (elems (fdom m0))) Poly1305_Ref.r ] = 1%r.
+proof. by conseq ref_ll (ref_ok m0). qed.
+
+(* -------------------------------------------------------------------- *)
+lemma hop1_ok m0 :
   hoare [ Poly1305_Hop1.fold :
-    m = m0 /\ Poly1305_Hop1.r = r0 ==> res = ref m0 (size (elems (fdom m0))) r0 ].
+    m = m0 ==> res = ref m0 (size (elems (fdom m0))) Poly1305_Hop1.r ].
 proof.
 proc; sp.
 conseq (_ :
@@ -223,4 +229,24 @@ lemma hop1_ll : islossless Poly1305_Hop1.fold.
 proof. islossless.
 + by while true (n-i) => //= *; auto => /#.
 + by while true (n-i) => //= *; auto => /#.
+qed.
+
+(* -------------------------------------------------------------------- *)
+lemma hop1_ok_ll m0 :
+  phoare [ Poly1305_Hop1.fold :
+    m = m0 ==> res = ref m0 (size (elems (fdom m0))) Poly1305_Hop1.r ] = 1%r.
+proof. by conseq hop1_ll (hop1_ok m0). qed.
+
+(* -------------------------------------------------------------------- *)
+lemma ref_hop1 :
+  equiv [Poly1305_Ref.fold ~ Poly1305_Hop1.fold :
+    ={arg} /\ Poly1305_Ref.r{1} = Poly1305_Hop1.r{2} ==> ={res}
+  ].
+proof.                          (* WTF? *)
+proc*; exists* m{1}, m{2}; elim* => m1 m2.
+call {1} (_ : m = m1 ==> res = ref m1 (size (elems (fdom m1))) Poly1305_Ref.r).
+* by conseq ref_ll (ref_ok m1).
+call {2} (_ : m = m2 ==> res = ref m2 (size (elems (fdom m2))) Poly1305_Hop1.r).
+* by conseq hop1_ll (hop1_ok m2).
+by auto.
 qed.
