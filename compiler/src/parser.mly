@@ -298,12 +298,12 @@ storage:
 | INLINE { `Inline }
 | GLOBAL { `Global }
 
-pvardecl :
-| ty=stor_type vs=rtuple1(var) { (ty, vs) }
+%inline pvardecl(S):
+| ty=stor_type vs=separated_nonempty_list(S, var) { (ty, vs) }
 
 pfunbody :
 | LBRACE
-    vs = postfix(pvardecl, SEMICOLON)*
+    vs = postfix(pvardecl(COMMA?), SEMICOLON)*
     is = pinstr*
     rt = option(RETURN vs=tuple(var) SEMICOLON { vs })
   RBRACE
@@ -318,13 +318,14 @@ call_conv :
 pfundef:
 | cc=call_conv? FN
     name = ident
-    args = parens_tuple(st=stor_type v=var { (st, v) })
+    args = parens_tuple(pvardecl(empty))
     rty  = prefix(RARROW, tuple(stor_type))?
     body = pfunbody
 
   { { pdf_cc   = cc;
       pdf_name = name;
-      pdf_args = args;
+      pdf_args = 
+        List.flatten (List.map (fun (str, ids) -> List.map (fun id -> (str, id)) ids) args);
       pdf_rty  = rty ;
       pdf_body = body; } }
 
@@ -360,6 +361,9 @@ module_:
    { S.parse_error (L.make $startpos $endpos) }
 
 (* -------------------------------------------------------------------- *)
+%inline empty:
+| (* empty *) { () }
+
 %inline plist1(X, S):
 | s=separated_nonempty_list(S, X) { s }
 
