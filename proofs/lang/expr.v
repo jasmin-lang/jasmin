@@ -540,7 +540,7 @@ Inductive pexpr : Type :=
 | Parr_init : wsize → positive → pexpr
 | Pvar   :> var_i -> pexpr
 | Pglobal :> global -> pexpr
-| Pget   : var_i -> pexpr -> pexpr
+| Pget   : wsize -> var_i -> pexpr -> pexpr
 | Pload  : wsize -> var_i -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
@@ -582,7 +582,7 @@ Section PEXPR_RECT.
     (Harr_init: ∀ sz n, P (Parr_init sz n))
     (Hvar: ∀ x, P (Pvar x))
     (Hglobal: ∀ g, P (Pglobal g))
-    (Hget: ∀ x e, P e → P (Pget x e))
+    (Hget: ∀ sz x e, P e → P (Pget sz x e))
     (Hload: ∀ sz x e, P e → P (Pload sz x e))
     (Happ1: ∀ op e, P e → P (Papp1 op e))
     (Happ2: ∀ op e1 e2, P e1 → P e2 → P (Papp2 op e1 e2))
@@ -603,7 +603,7 @@ Section PEXPR_RECT.
     | Parr_init sz n => Harr_init sz n
     | Pvar x => Hvar x
     | Pglobal g => Hglobal g
-    | Pget x e => Hget x (pexpr_rect e)
+    | Pget sz x e => Hget sz x (pexpr_rect e)
     | Pload sz x e => Hload sz x (pexpr_rect e)
     | Papp1 op e => Happ1 op (pexpr_rect e)
     | Papp2 op e1 e2 => Happ2 op (pexpr_rect e1) (pexpr_rect e2)
@@ -638,8 +638,8 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
   | Parr_init w1 n1, Parr_init w2 n2 => (w1 == w2) && (n1 == n2)
   | Pvar   x1   , Pvar   x2    => (x1 == x2)
   | Pglobal g1, Pglobal g2 => g1 == g2
-  | Pget   x1 e1, Pget   x2 e2 => (x1 == x2) && eqb e1 e2
-  | Pload w1 x1 e1, Pload w2 x2 e2 => (w1 == w2) && (x1 == x2) && eqb e1 e2
+  | Pget sz1 x1 e1, Pget sz2 x2 e2 => (sz1 == sz2) && (x1 == x2) && eqb e1 e2
+  | Pload sz1 x1 e1, Pload sz2 x2 e2 => (sz1 == sz2) && (x1 == x2) && eqb e1 e2
   | Papp1 o1 e1 , Papp1  o2 e2 => (o1 == o2) && eqb e1 e2
   | Papp2 o1 e11 e12, Papp2 o2 e21 e22  =>
      (o1 == o2) && eqb e11 e21 && eqb e12 e22
@@ -662,9 +662,9 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
 
   Lemma eq_axiom : Equality.axiom eqb.
   Proof.
-    elim => [n1|b1| w1 n1 |x1|g1|x1 e1 He1|w1 x1 e1 He1
+    elim => [n1|b1| w1 n1 |x1|g1|w1 x1 e1 He1|w1 x1 e1 He1
             |o1 e1 He1|o1 e11 e12 He11 He12 | o1 es1 Hes1 | t1 e11 e12 Ht1 He11 He12]
-            [n2|b2| w2 n2 |x2|g2|x2 e2|w2 x2 e2|o2 e2|o2 e21 e22 | o2 es2 |t2 e21 e22] /=;
+            [n2|b2| w2 n2 |x2|g2|w2 x2 e2|w2 x2 e2|o2 e2|o2 e21 e22 | o2 es2 |t2 e21 e22] /=;
         try by constructor.
     + apply (@equivP (n1 = n2));first by apply: eqP.
       by split => [->|[]->].
@@ -676,8 +676,9 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
       by split => [->|[]->].
     + apply (@equivP (g1 = g2));first by apply: eqP.
       by split => [->|[]->].
-    + apply (@equivP ((x1 == x2) /\ eqb e1 e2));first by apply andP.
-      by split=> [ [] /eqP -> /He1 -> | [] -> <- ] //;split => //;apply /He1.
+    + apply (@equivP (((w1 == w2) && (x1 == x2)) /\ eqb e1 e2));first by apply andP.
+      split => [ [] /andP [] /eqP -> /eqP -> /He1 -> | [] -> -> <-] //.
+      by rewrite ! eq_refl; split => //; apply/ He1.
     + apply (@equivP (((w1 == w2) && (x1 == x2)) /\ eqb e1 e2)); first by apply andP.
       split => [ [] /andP [] /eqP -> /eqP -> /He1 -> | [] -> -> <-] //.
       by rewrite ! eq_refl; split => //; apply/ He1.
@@ -716,7 +717,7 @@ Section PEXPR_IND.
     (Harr_init: ∀ sz n, P (Parr_init sz n))
     (Hvar: ∀ x, P (Pvar x))
     (Hglobal: ∀ g, P (Pglobal g))
-    (Hget: ∀ x e, P e → P (Pget x e))
+    (Hget: ∀ sz x e, P e → P (Pget sz x e))
     (Hload: ∀ sz x e, P e → P (Pload sz x e))
     (Happ1: ∀ op e, P e → P (Papp1 op e))
     (Happ2: ∀ op e1, P e1 → ∀ e2, P e2 → P (Papp2 op e1 e2))
@@ -743,7 +744,7 @@ Section PEXPR_IND.
     | Parr_init sz n => Harr_init sz n
     | Pvar x => Hvar x
     | Pglobal g => Hglobal g
-    | Pget x e => Hget x (pexpr_ind e)
+    | Pget sz x e => Hget sz x (pexpr_ind e)
     | Pload sz x e => Hload sz x (pexpr_ind e)
     | Papp1 op e => Happ1 op (pexpr_ind e)
     | Papp2 op e1 e2 => Happ2 op (pexpr_ind e1) (pexpr_ind e2)
@@ -768,7 +769,7 @@ Section PEXPRS_IND.
     pexprs_arr_init: ∀ sz n, P (Parr_init sz n);
     pexprs_var: ∀ x, P (Pvar x);
     pexprs_global: ∀ g, P (Pglobal g);
-    pexprs_get: ∀ x e, P e → P (Pget x e);
+    pexprs_get: ∀ sz x e, P e → P (Pget sz x e);
     pexprs_load: ∀ sz x e, P e → P (Pload sz x e);
     pexprs_app1: ∀ op e, P e → P (Papp1 op e);
     pexprs_app2: ∀ op e1, P e1 → ∀ e2, P e2 → P (Papp2 op e1 e2);
@@ -791,7 +792,7 @@ Section PEXPRS_IND.
     | Parr_init sz n => pexprs_arr_init h sz n
     | Pvar x => pexprs_var h x
     | Pglobal g => pexprs_global h g
-    | Pget x e => pexprs_get h x (pexpr_mut_ind e)
+    | Pget sz x e => pexprs_get h sz x (pexpr_mut_ind e)
     | Pload sz x e => pexprs_load h sz x (pexpr_mut_ind e)
     | Papp1 op e => pexprs_app1 h op (pexpr_mut_ind e)
     | Papp2 op e1 e2 => pexprs_app2 h op (pexpr_mut_ind e1) (pexpr_mut_ind e2)
@@ -811,7 +812,7 @@ Variant lval : Type :=
 | Lnone `(var_info) `(stype)
 | Lvar `(var_i)
 | Lmem `(wsize) `(var_i) `(pexpr)
-| Laset `(var_i) `(pexpr).
+| Laset `(wsize) `(var_i) `(pexpr).
 
 Coercion Lvar : var_i >-> lval.
 
@@ -822,13 +823,13 @@ Definition lval_beq (x1:lval) (x2:lval) :=
   | Lnone i1 t1, Lnone i2 t2 => (i1 == i2) && (t1 == t2)
   | Lvar  x1   , Lvar  x2    => x1 == x2
   | Lmem w1 x1 e1, Lmem w2 x2 e2 => (w1 == w2) && (x1 == x2) && (e1 == e2)
-  | Laset x1 e1, Laset x2 e2 => (x1 == x2) && (e1 == e2)
+  | Laset w1 x1 e1, Laset w2 x2 e2 => (w1 == w2) && (x1 == x2) && (e1 == e2)
   | _          , _           => false
   end.
 
 Lemma lval_eq_axiom : Equality.axiom lval_beq.
 Proof.
-  case=> [i1 t1|x1|w1 x1 e1|x1 e1] [i2 t2|x2|w2 x2 e2|x2 e2] /=;try by constructor.
+  case=> [i1 t1|x1|w1 x1 e1|w1 x1 e1] [i2 t2|x2|w2 x2 e2|w2 x2 e2] /=;try by constructor.
   + apply (@equivP ((i1 == i2) /\ t1 == t2));first by apply andP.
     by split=> [ [] /eqP -> /eqP -> | [] -> <- ] //.
   + apply (@equivP (x1 = x2));first by apply: eqP.
@@ -836,8 +837,9 @@ Proof.
   + apply (@equivP (((w1 == w2) && (x1 == x2)) /\ e1 == e2));first by apply andP.
     split => [ [] /andP [] /eqP -> /eqP -> /eqP -> // | [] -> -> <- ].
     by rewrite !eq_refl.
-  apply (@equivP ((x1 == x2) /\ e1 == e2));first by apply andP.
-  by split=> [ [] /eqP -> /eqP -> | [] -> <- ] //.
+  apply (@equivP (((w1 == w2) && (x1 == x2)) /\ e1 == e2));first by apply andP.
+  split => [ [] /andP [] /eqP -> /eqP -> /eqP -> // | [] -> -> <- ].
+  by rewrite !eq_refl.
 Qed.
 
 Definition lval_eqMixin     := Equality.Mixin lval_eq_axiom.
@@ -868,7 +870,6 @@ Definition wrange d (n1 n2 : Z) :=
   | UpTo   => [seq (Z.add n1 (Z.of_nat i)) | i <- iota 0 n]
   | DownTo => [seq (Z.sub n2 (Z.of_nat i)) | i <- iota 0 n]
   end.
-
 
 Definition instr_info := positive.
 
@@ -1155,7 +1156,7 @@ Definition vrv_rec (s:Sv.t) (rv:lval) :=
   | Lnone _ _  => s
   | Lvar  x    => Sv.add x s
   | Lmem _ _ _  => s
-  | Laset x _  => Sv.add x s
+  | Laset _ x _  => Sv.add x s
   end.
 
 Definition vrvs_rec s (rv:lvals) := foldl vrv_rec s rv.
@@ -1187,7 +1188,7 @@ Definition write_c c := write_c_rec Sv.empty c.
 
 Instance vrv_rec_m : Proper (Sv.Equal ==> eq ==> Sv.Equal) vrv_rec.
 Proof.
-  move=> s1 s2 Hs x r ->;case:r => //= [v | v _];SvD.fsetdec.
+  move=> s1 s2 Hs x r ->;case:r => //= [v | _ v _];SvD.fsetdec.
 Qed.
 
 Lemma vrv_none i t: vrv (Lnone i t) = Sv.empty.
@@ -1199,7 +1200,7 @@ Proof. rewrite /vrv /=;SvD.fsetdec. Qed.
 Lemma vrv_mem w x e : vrv (Lmem w x e) = Sv.empty.
 Proof. by []. Qed.
 
-Lemma vrv_aset x e : Sv.Equal (vrv (Laset x e)) (Sv.singleton x).
+Lemma vrv_aset w x e : Sv.Equal (vrv (Laset w x e)) (Sv.singleton x).
 Proof. rewrite /vrv /=;SvD.fsetdec. Qed.
 
 Lemma vrv_recE s (r:lval) : Sv.Equal (vrv_rec s r) (Sv.union s (vrv r)).
@@ -1291,15 +1292,14 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   match e with
   | Pconst _
   | Pbool  _
-  | Parr_init _ _
-    => s
+  | Parr_init _ _  => s
   | Pvar   x       => Sv.add x s
-  | Pglobal _ => s
-  | Pget   x e     => read_e_rec (Sv.add x s) e
-  | Pload _ x e => read_e_rec (Sv.add x s) e
+  | Pglobal _      => s
+  | Pget _ x e     => read_e_rec (Sv.add x s) e
+  | Pload _ x e    => read_e_rec (Sv.add x s) e
   | Papp1  _ e     => read_e_rec s e
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
-  | PappN _ es => foldl read_e_rec s es
+  | PappN _ es     => foldl read_e_rec s es
   | Pif    t e1 e2 => read_e_rec (read_e_rec (read_e_rec s e2) e1) t
   end.
 
@@ -1309,10 +1309,10 @@ Definition read_es := read_es_rec Sv.empty.
 
 Definition read_rv_rec  (s:Sv.t) (r:lval) :=
   match r with
-  | Lnone _ _ => s
-  | Lvar  _   => s
-  | Lmem _ x e => read_e_rec (Sv.add x s) e
-  | Laset x e => read_e_rec (Sv.add x s) e
+  | Lnone _ _   => s
+  | Lvar  _     => s
+  | Lmem _ x e  => read_e_rec (Sv.add x s) e
+  | Laset _ x e => read_e_rec (Sv.add x s) e
   end.
 
 Definition read_rv := read_rv_rec Sv.empty.
@@ -1351,7 +1351,7 @@ Definition read_c := read_c_rec Sv.empty.
 
 Lemma read_eE e s : Sv.Equal (read_e_rec s e) (Sv.union (read_e e) s).
 Proof.
-  elim: e s => //= [v | v e He | w v e He | o e1 He1 e2 He2 | o es Hes | e He e1 He1 e2 He2] s;
+  elim: e s => //= [v | w v e He | w v e He | o e1 He1 e2 He2 | o es Hes | e He e1 He1 e2 He2] s;
    rewrite /read_e /= ?He ?He1 ?He2; try SvD.fsetdec.
   rewrite -/read_es_rec -/read_es.
   elim: es Hes s.
@@ -1380,7 +1380,7 @@ Proof. by rewrite /read_es /= !read_esE read_eE;SvD.fsetdec. Qed.
 
 Lemma read_rvE s x: Sv.Equal (read_rv_rec s x) (Sv.union s (read_rv x)).
 Proof.
-  case: x => //= [_|_|w x e|x e]; rewrite /read_rv /= ?read_eE; SvD.fsetdec.
+  case: x => //= [_|_|w x e|w x e]; rewrite /read_rv /= ?read_eE; SvD.fsetdec.
 Qed.
 
 Lemma read_rvsE s xs:  Sv.Equal (read_rvs_rec s xs) (Sv.union s (read_rvs xs)).
@@ -1535,7 +1535,7 @@ Fixpoint eq_expr e e' :=
   | Parr_init w n, Parr_init w' n' => (w == w') && (n == n')
   | Pvar   x      , Pvar   x'         => v_var x == v_var x'
   | Pglobal g, Pglobal g' => g == g'
-  | Pget   x e    , Pget   x' e'      => (v_var x == v_var x') && eq_expr e e'
+  | Pget w x e    , Pget w' x' e'      => (w == w') && (v_var x == v_var x') && eq_expr e e'
   | Pload w x e, Pload w' x' e' => (w == w') && (v_var x == v_var x') && eq_expr e e'
   | Papp1  o e    , Papp1  o' e'      => (o == o') && eq_expr e e'
   | Papp2  o e1 e2, Papp2  o' e1' e2' => (o == o') && eq_expr e1 e1' && eq_expr e2 e2'
@@ -1547,7 +1547,7 @@ Fixpoint eq_expr e e' :=
 
 Lemma eq_expr_refl e : eq_expr e e.
 Proof.
-elim: e => //= [ ?? | ?? -> | ??? -> | ?? -> | ?? -> ? -> | ? es ih | ?-> ? -> ? -> ] //=;
+elim: e => //= [ ?? | ??? -> | ??? -> | ?? -> | ?? -> ? -> | ? es ih | ?-> ? -> ? -> ] //=;
   rewrite ?eqxx //=.
 elim: es ih => // e es ih h /=; rewrite h.
 + by apply: ih => e' he'; apply: h; rewrite in_cons he' orbT.
@@ -1559,12 +1559,12 @@ Definition eq_lval (x x': lval) : bool :=
   | Lnone _ ty,  Lnone _ ty' => ty == ty'
   | Lvar v, Lvar v' => v_var v == v_var v'
   | Lmem w v e, Lmem w' v' e' => (w == w') && (v_var v == v_var v') && (eq_expr e e')
-  | Laset v e, Laset v' e'
-    => (v_var v == v_var v') && (eq_expr e e')
+  | Laset w v e, Laset w' v' e'
+    => (w == w') && (v_var v == v_var v') && (eq_expr e e')
   | _, _ => false
   end.
 
 Lemma eq_lval_refl x : eq_lval x x.
 Proof.
-  by case: x => // [ i ty | x | w x e | x e] /=; rewrite !eqxx // eq_expr_refl.
+  by case: x => // [ i ty | x | w x e | w x e] /=; rewrite !eqxx // eq_expr_refl.
 Qed.

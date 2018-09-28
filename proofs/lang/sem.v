@@ -36,13 +36,111 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Module WArray.
+
+  Definition size (ws:wsize) (s:positive)  := 
+    (wsize_size ws * s)%positive.
+
+  Record array (ws:wsize) (s:positive)  := 
+    { arr_data : FArray.array (result error u8); }.
+
+  Definition empty {ws:wsize} (s:positive) : array ws s := 
+    {| arr_data := FArray.cnst (Error ErrAddrUndef) |}.
+
+  Definition get8 {ws s} (a:array ws s) (p:Z) := 
+    @Array.get u8 (size ws s) a.(arr_data) p.
+
+  Definition get {ws} {s} ws' (a:array ws s) (p:Z) := 
+    Let wl := 
+      mapM (fun (i:nat) => get8 a (p * ws' + i)%Z) 
+           (iota 0 (Pos.to_nat (wsize_size ws'))) in
+    ok (make_vec ws' wl).
+
+  Definition set8 {ws s} (a:array ws s) (p:Z) (w:u8) := 
+    @Array.set u8 (size ws s) a.(arr_data) p w.
+
+  Definition set {ws ws' s} (a:array ws s) p (v:word ws') : result error (array ws s) :=   
+    let set1 (i:nat) (a:array ws s) := 
+       Let a' := set8 a (p * ws' + i)%Z (nth (wrepr U8 0) (split_vec U8 v) i) in
+       ok {| arr_data := a' |} in 
+    foldM set1 a (iota 0 (Pos.to_nat (wsize_size ws'))).
+
+  Definition cast {ws n} ws' n' (a:array ws n) : result error (array ws' n') :=
+    if (size ws' n' <=? size ws n)%Z then ok {| arr_data := a.(arr_data) |}
+    else Error ErrAddrUndef.
+
+  Lemma eqP ws s (a1 a2:array ws s) :
+    a1.(arr_data) = a2.(arr_data) ->
+    a1 = a2.
+  Proof. by case: a1 a2 => a1 [a2] /= ->. Qed.
+
+  Definition uincl {ws1 n1 ws2 n2} (a1 : array ws1 n1) (a2 : array ws2 n2) :=
+    (size ws1 n1 <= size ws2 n2)%Z ∧
+    ∀ i v, (0 <= i < size ws1 n1)%Z -> 
+       FArray.get a1.(arr_data) i = ok v → FArray.get a2.(arr_data) i = ok v.
+
+  Lemma uincl_get {ws1 n1 ws2 n2} (a1 : array ws1 n1) (a2 : array ws2 n2) ws i w :
+    uincl a1 a2 ->
+    get ws a1 i = ok w ->
+    get ws a2 i = ok w.
+  Proof.
+    rewrite /get => -[hle hi].
+    match goal with 
+    | |- Let _ := ?x1 in _ = _ -> Let _ := ?x2 in _ = _ => 
+      have h : forall wl, x1 = ok wl -> x2 = ok wl
+    end.
+    + elim: iota=> //= p ps hrec wl; t_xrbindP => wp. 
+      rewrite /get8 /Array.get;case:ifP => //= /andP [h0 /ZltP ?] /=;rewrite h0.
+      move/ZleP: h0 => h0;case: ifPn => /ZltP ?;last by lia.  
+      move=> /hi ->;last by lia.
+      by move=> ? /hrec -> /= ->.
+    by t_xrbindP => wl /h -> /= ->.
+  Qed.
+
+  Lemma uincl_set {ws ws1 n1 ws2 n2} (a1 a1': array ws1 n1) (a2: array ws2 n2) i (w:word ws) :
+    uincl a1 a2 ->
+    set a1 i w = ok a1' ->
+    exists a2', set a2 i w = ok a2' /\ uincl a1' a2'.
+  Proof.
+    rewrite /set; elim : iota a1 a2 => /= [ | p ps hrec] a1 a2 hu.
+    + by move=> [<-];eauto.
+    set i0 := (_ * _ + _)%Z; t_xrbindP => ? fsa1 hset <- /hrec.  
+    have [fsa2 [-> hget]]: exists fsa2, 
+      set8 a2 i0 (nth (wrepr U8 0) (split_vec U8 w) p) = ok fsa2 /\
+      forall j v, (0 <= j < size ws1 n1)%Z -> 
+        FArray.get fsa1 j = ok v -> FArray.get fsa2 j = ok v.
+    + move: hset; rewrite /set8 /Array.set; case: ifP => //= /andP -[->] /= /ZltP ?.
+      case: ifPn => /ZltP ?.
+      + move=> [<-];eexists;split;first by reflexivity.
+        move=> j v hj; rewrite !FArray.setP; case: ifP => // _.
+        by case: hu => hle hget /hget ->.
+      case: hu; lia.
+    move=> /(_ {| arr_data := fsa2 |}) []; first by case: hu.
+    by move=> a2' /= ?; exists a2'.
+  Qed.
+
+  Lemma uincl_refl {ws n} (a: array ws n) : uincl a a.
+  Proof. by split => //;apply Z.le_refl. Qed.
+
+  Lemma uincl_trans {ws1 n1 ws2 n2 ws3 n3} 
+    (a2: array ws2 n2) (a1: array ws1 n1) (a3: array ws3 n3) :
+    uincl a1 a2 -> uincl a2 a3 -> uincl a1 a3. 
+  Proof.
+    move=> [l1 h1] [l2 h2]; split; first by lia.
+    move=> ????;apply h2;first by lia.
+    by apply h1.
+  Qed.
+
+End WArray.
+Hint Resolve WArray.uincl_refl.
+
 (* ** Values
   * -------------------------------------------------------------------- *)
 
 Variant value : Type :=
   | Vbool  :> bool -> value
   | Vint   :> Z    -> value
-  | Varr   : forall s n, Array.array n (word s) -> value
+  | Varr   : forall s n, WArray.array s n -> value
   | Vword  : forall s, word s -> value
   | Vundef : stype -> value.
 
@@ -82,26 +180,17 @@ Definition sem_t (t : stype) : Type :=
   match t with
   | sbool    => bool
   | sint     => Z
-  | sarr s n => Array.array n (word s)
+  | sarr s n => WArray.array s n
   | sword s  => word s
   end.
 
+
 Definition to_arr s n v : exec (sem_t (sarr s n)) :=
   match v with
-  | Varr s' n' t =>
-    match wsize_eq_dec s' s with
-    | left eqw =>
-      match CEDecStype.pos_dec n' n with
-      | left eqn => 
-        let t := eq_rect n' (fun p => Array.array p (word s')) t n eqn in
-        let t := eq_rect s' (fun p => Array.array n (word p)) t s eqw in
-        ok t
-      | _      => type_error
-      end
-    | _ => type_error
-    end
-  | Vundef (sarr s' n') => Error (if (s == s') && (n == n') then ErrAddrUndef else ErrType)
-  | _                => type_error
+  | Varr s' n' t => WArray.cast s n t
+  | Vundef (sarr s' n') => 
+    Error (if (WArray.size s n <=? WArray.size s' n')%Z then ErrAddrUndef else ErrType)
+  | _ => type_error
   end.
 
 Definition vundef_type (t:stype) :=
@@ -141,6 +230,39 @@ Definition truncate_val (ty: stype) (v: value) : exec value :=
 Lemma type_of_to_val t (s: sem_t t) : type_of_val (to_val s) = t.
 Proof. by case: t s. Qed.
 
+(* -------------------------------------------------------------------- *)
+Definition subtype (t t': stype) :=
+  match t with
+  | sword w => if t' is sword w' then (w ≤ w')%CMP else false
+  | sarr s n =>
+    if t' is sarr s' n' then (WArray.size s n <=? WArray.size s' n')%Z else false
+  | _ => t == t'
+  end.
+
+Lemma subtypeE ty ty' :
+  subtype ty ty' →
+  match ty' with
+  | sword sz' => ∃ sz, ty = sword sz ∧ (sz ≤ sz')%CMP
+  | sarr sz' n' => ∃ sz n, ty = sarr sz n ∧ (WArray.size sz n <= WArray.size sz' n')%Z
+  | _ => ty = ty'
+end.
+Proof.
+  destruct ty; try by move/eqP => <-.
+  + by case: ty'=> //= w' p' /ZleP ?; eauto.
+  by case: ty' => //; eauto.
+Qed.
+
+Lemma subtype_refl x : subtype x x.
+Proof. case: x => //= ??;apply Z.leb_refl. Qed.
+
+Lemma subtype_trans y x z : subtype x y -> subtype y z -> subtype x z.
+Proof.
+  case: x => //= [/eqP<-|/eqP<-|ws1 n1|sx] //.
+  + case: y => //= ws2 n2 /ZleP h1;case: z => //= ws3 n3 /ZleP h2.
+    by apply /ZleP;apply: Z.le_trans h1 h2.
+  case: y => //= sy hle;case: z => //= sz;apply: cmp_le_trans hle.
+Qed.
+
 Definition check_ty_val (ty:stype) (v:value) :=
   subtype ty (type_of_val v).
 
@@ -152,7 +274,7 @@ Notation vmap     := (Fv.t (fun t => exec (sem_t t))).
 Definition undef_addr t :=
   match t return exec (sem_t t) with
   | sbool | sint | sword _ => undef_error
-  | sarr s n => ok (@Array.empty _ n)
+  | sarr s n => ok (@WArray.empty _ n)
   end.
 
 Definition vmap0 : vmap :=
@@ -310,7 +432,6 @@ Definition sem_sop2_typed (o: sop2) :
   | Ovasr ve ws     => mk_sem_sop2 (sem_vsar ve)
   end.
 
-
 Arguments sem_sop2_typed : clear implicits.
 
 Definition sem_sop2 (o: sop2) (v1 v2: value) : exec value :=
@@ -366,7 +487,7 @@ Record estate := Estate {
   evm  : vmap
 }.
 
-Definition on_arr_var A (s:estate) (x:var) (f:forall sz n, Array.array n (word sz)-> exec A) :=
+Definition on_arr_var A (s:estate) (x:var) (f:forall sz n, WArray.array sz n-> exec A) :=
   Let v := get_var s.(evm) x in
   match v with
   | Varr sz n t => f sz n t
@@ -374,9 +495,9 @@ Definition on_arr_var A (s:estate) (x:var) (f:forall sz n, Array.array n (word s
   end.
 
 Notation "'Let' ( sz , n , t ) ':=' s '.[' x ']' 'in' body" :=
-  (@on_arr_var _ s x (fun sz n (t:Array.array n (word sz)) => body)) (at level 25, s at level 0).
+  (@on_arr_var _ s x (fun sz n (t:WArray.array sz n) => body)) (at level 25, s at level 0).
 
-Lemma on_arr_varP A (f : forall sz n, Array.array n (word sz) -> exec A) v s x P:
+Lemma on_arr_varP A (f : forall sz n, WArray.array sz n -> exec A) v s x P:
   (forall sz n t, vtype x = sarr sz n ->
                get_var (evm s) x = ok (@Varr sz n t) ->
                f sz n t = ok v -> P) ->
@@ -392,14 +513,17 @@ Proof.
 Qed.
 
 Definition Varr_inj sz sz' n n' t t' (e: @Varr sz n t = @Varr sz' n' t') :
-  n = n' ∧
-  ∃ e : sz = sz', eq_rect sz (λ s, Array.array n (word s)) t sz' e = t' :=
-  let 'Logic.eq_refl := e in conj erefl (ex_intro _ erefl erefl).
+  ∃ (en: n = n') (ez : sz = sz'),
+    eq_rect n (λ p, WArray.array sz' p) 
+      (eq_rect sz (λ s, WArray.array s n) t sz' ez) n' en = t' :=
+  let 'Logic.eq_refl := e in
+    (ex_intro _ erefl (ex_intro _ erefl erefl)).
 
 Lemma Varr_inj1 sz n t t' : @Varr sz n t = @Varr sz n t' -> t = t'.
 Proof.
-  move => /Varr_inj [_] [] e.
-  by rewrite (Eqdep_dec.UIP_dec wsize_eq_dec e erefl).
+  move => /Varr_inj [en [ez ]].
+  rewrite (Eqdep_dec.UIP_dec wsize_eq_dec ez erefl).
+  by rewrite (Eqdep_dec.UIP_dec Pos.eq_dec en erefl).
 Qed.
 
 Definition Vword_inj sz sz' w w' (e: @Vword sz w = @Vword sz' w') :
@@ -432,13 +556,13 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   match e with
   | Pconst z => ok (Vint z)
   | Pbool b  => ok (Vbool b)
-  | Parr_init sz n => ok (@Varr sz n (Array.empty n))
+  | Parr_init sz n => ok (@Varr sz n (WArray.empty n))
   | Pvar v => get_var s.(evm) v
   | Pglobal g => get_global gd g
-  | Pget x e =>
+  | Pget ws x e =>
       Let (sz, n, t) := s.[x] in
       Let i := sem_pexpr s e >>= to_int in
-      Let w := Array.get t i in
+      Let w := WArray.get ws t i in
       ok (Vword w)
   | Pload sz x e =>
     Let w1 := get_var s.(evm) x >>= to_pointer in
@@ -490,11 +614,11 @@ Definition write_lval (l:lval) (v:value) (s:estate) : exec estate :=
     Let w := to_word sz v in
     Let m :=  write_mem s.(emem) p sz w in
     ok {| emem := m;  evm := s.(evm) |}
-  | Laset x i =>
+  | Laset ws x i =>
     Let (sz,n,t) := s.[x] in
     Let i := sem_pexpr s i >>= to_int in
-    Let v := to_word sz v in
-    Let t := Array.set t i v in
+    Let v := to_word ws v in
+    Let t := WArray.set t i v in
     Let vm := set_var s.(evm) x (@to_val (sarr sz n) t) in
     ok ({| emem := s.(emem); evm := vm |})
   end.
@@ -1438,23 +1562,17 @@ Lemma of_val_undef t t':
   of_val t (Vundef t') =
     Error (if subtype t t' then ErrAddrUndef else ErrType).
 Proof.
-  case: t t' => //= [  [] |  [] | | s []] //.
-  move=> s p [] // s' p';  case:eqP => [-> | ] /=; last by case: eqP => // -[] ->.
-  case: eqP => [-> | ] //=; first by rewrite eq_refl.
-  by case: eqP => // -[] ->.
+  by case: t t' => //= [  [] |  [] | s p| s []] // [].
 Qed.
 
 Lemma of_val_undef_ok t t' v:
   of_val t (Vundef t') <> ok v.
-Proof. by rewrite of_val_undef;case:ifP. Qed.
+Proof. by rewrite of_val_undef. Qed.
 
-Lemma of_varr t s n (a:Array.array n (word s)) z :
-  of_val t (Varr a) = ok z -> t = sarr s n.
+Lemma of_varr t s n (a:WArray.array s n) z :
+  of_val t (Varr a) = ok z -> subtype t (sarr s n).
 Proof.
-  case: t z => //= s' n' z.
-  case: wsize_eq_dec => // eq1.
-  case: CEDecStype.pos_dec => // eq2 _.
-  by congr sarr.
+  by case: t z => //= s' n' z; rewrite /WArray.cast; case: ifP.
 Qed.
 
 Lemma of_vword t s (w: word s) z :

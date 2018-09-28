@@ -359,33 +359,6 @@ Definition is_sword t :=
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition subtype (t t': stype) :=
-  match t with
-  | sword w => if t' is sword w' then (w ≤ w')%CMP else false
-  | _ => t == t'
-  end.
-
-Lemma subtypeE ty ty' :
-  subtype ty ty' →
-  match ty' with
-  | sword sz => ∃ sz', ty = sword sz' ∧ (sz' ≤ sz)%CMP
-  | _ => ty = ty'
-end.
-Proof.
-  destruct ty; try by move/eqP => <-.
-  case: ty' => //; eauto.
-Qed.
-
-Lemma subtype_refl x : subtype x x.
-Proof. by case: x => /=. Qed.
-
-Lemma subtype_trans y x z : subtype x y -> subtype y z -> subtype x z.
-Proof.
-  case: x => //= [/eqP<-|/eqP<-|??/eqP<-|sx] //.
-  case: y => //= sy hle;case: z => //= sz;apply: cmp_le_trans hle.
-Qed.
-
-(* -------------------------------------------------------------------- *)
 Definition check_size_8_64 sz := assert (sz ≤ U64)%CMP ErrType.
 Definition check_size_16_64 sz := assert ((U16 ≤ sz) && (sz ≤ U64))%CMP ErrType.
 Definition check_size_32_64 sz := assert ((U32 ≤ sz) && (sz ≤ U64))%CMP ErrType.

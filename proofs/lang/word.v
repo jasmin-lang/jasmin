@@ -98,12 +98,24 @@ Coercion nat_of_wsize (sz : wsize) :=
 Definition wsize_bits (s:wsize) : Z :=
   Zpos (Pos.of_succ_nat (wsize_size_minus_1 s)).
 
-Definition wsize_size (sz: wsize) : Z :=
-  wsize_bits sz / 8.
+Definition wsize_size (sz: wsize) : positive :=
+  match sz with
+  | U8   => 1
+  | U16  => 2
+  | U32  => 4
+  | U64  => 8
+  | U128 => 16
+  | U256 => 32
+  end.
+
+Coercion Zpos : positive >-> Z.
+
+Lemma wsize_sizeE sz : Zpos (wsize_size sz) =  wsize_bits sz / 8.
+Proof. by case: sz. Qed.
 
 Lemma wsize_size_pos sz :
   0 < wsize_size sz.
-Proof. by case sz. Qed.
+Proof. done. Qed.
 
 Lemma wsize_cmpP sz sz' :
   wsize_cmp sz sz' = Nat.compare (wsize_size_minus_1 sz) (wsize_size_minus_1 sz').
