@@ -58,7 +58,7 @@ Section Align.
     is_align ptr sz → is_align (wrepr _ (wsize_size sz * j) + ptr) sz.
   Proof.
     have hn := wsize_size_pos sz.
-    have hnz : wsize_size sz ≠ 0%Z by Psatz.lia.
+    have hnz : Zpos (wsize_size sz) ≠ 0%Z by Psatz.lia.
     rewrite /is_align => /eqP /Zmod_divides [] // p hptr.
     rewrite /wunsigned CoqWord.word.addwE -!/(wunsigned _) Zplus_mod hptr -Zplus_mod.
     rewrite wunsigned_repr -/(wbase Uptr) (cut_wbase_Uptr sz).
@@ -72,7 +72,7 @@ Section Align.
   Proof.
     rewrite /is_align /no_overflow => /eqP ha; apply/ZleP.
     have hn := wsize_size_pos sz.
-    have hnz : wsize_size sz ≠ 0%Z by Psatz.lia.
+    have hnz : Zpos (wsize_size sz) ≠ 0%Z by Psatz.lia.
     move: (wunsigned ptr) (wunsigned_range ptr) ha => {ptr} ptr.
     rewrite (cut_wbase_Uptr sz); set a := CoqWord.word.modulus _.
     move: (wsize_size sz) hn hnz => n hn hnz hr /Zmod_divides [] // q ?; subst ptr.
@@ -102,7 +102,7 @@ Module Type Endianness.
 
 End Endianness.
 
-Module BigEndian : Endianness.
+Module LittleEndian : Endianness.
   Definition encode sz (w: word sz) : seq u8 := split_vec U8 w.
   Definition decode sz (n: seq u8) : result unit (word sz) := ok (make_vec sz n).
 
@@ -131,7 +131,7 @@ Module BigEndian : Endianness.
     by move => eqsz hsz <- /(@ok_inj _ _ _ _) /esym /make_vec_inj; apply.
   Qed.
 
-End BigEndian.
+End LittleEndian.
 
 Module MemoryI (E: Endianness) : MemoryT.
 
@@ -380,7 +380,7 @@ Module MemoryI (E: Endianness) : MemoryT.
     have hs := wsize_size_pos s.
     have hs' := wsize_size_pos s'.
     zify.
-    move: hnr hn'r; rewrite !add0n !Z2Nat.id; Psatz.lia.
+    move: hnr hn'r; rewrite !add0n !positive_nat_Z; Psatz.lia.
   Qed.
 
   Lemma write_mem_same_ok m p s v m' a :

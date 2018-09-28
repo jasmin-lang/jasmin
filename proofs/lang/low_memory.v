@@ -37,7 +37,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Module Memory := MemoryI (BigEndian).
+Module Memory := MemoryI (LittleEndian).
 
 Notation mem := Memory.mem.
 
