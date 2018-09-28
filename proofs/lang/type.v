@@ -358,6 +358,12 @@ Definition is_sword t :=
   | _       => false
   end.
 
+Definition is_sarr t := 
+  match t with
+  | sarr _ _ => true
+  | _        => false
+  end.
+
 (* -------------------------------------------------------------------- *)
 Definition check_size_8_64 sz := assert (sz ≤ U64)%CMP ErrType.
 Definition check_size_16_64 sz := assert ((U16 ≤ sz) && (sz ≤ U64))%CMP ErrType.

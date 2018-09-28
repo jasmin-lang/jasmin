@@ -67,7 +67,7 @@ Module WArray.
 
   Definition cast {ws n} ws' n' (a:array ws n) : result error (array ws' n') :=
     if (size ws' n' <=? size ws n)%Z then ok {| arr_data := a.(arr_data) |}
-    else Error ErrAddrUndef.
+    else type_error.
 
   Lemma eqP ws s (a1 a2:array ws s) :
     a1.(arr_data) = a2.(arr_data) ->
@@ -583,11 +583,11 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     Let b := sem_pexpr s e >>= to_bool in
     Let v1 := sem_pexpr s e1 in
     Let v2 := sem_pexpr s e2 in
-    if type_of_val v1 == type_of_val v2 then
     if is_defined v1 && is_defined v2 then
-      ok (if b then v1 else v2)
+      if type_of_val v1 == type_of_val v2 then
+        ok (if b then v1 else v2)
+      else type_error
     else undef_error
-    else type_error
   end.
 
 Definition sem_pexprs s := mapM (sem_pexpr s).
