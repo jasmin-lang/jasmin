@@ -2,7 +2,7 @@
 
 let inherit (coqPackages) coq mathcomp; in
 
-let rev = "02ff5cbaffc621d47b5bf24551ea518bd011f69f"; in
+let rev = "d3e6843ce5d8153bc0161580f6c029b37588f85c"; in
 
 stdenv.mkDerivation rec {
   version = "0.0-git-${builtins.substring 0 8 rev}";
@@ -12,7 +12,7 @@ stdenv.mkDerivation rec {
     owner = "jasmin-lang";
     repo = "coqword";
     inherit rev;
-    sha256 = "12svkj0y4jx46z3278i8bz000gxm66yynii3jv5mva1dpz1zr1q6";
+    sha256 = "0pm9967i95kyvwlgdkkhka8h7sfbn4n7dfpp0nxbsm858gwk5kcv";
   };
 
   buildInputs = [ coq ];
