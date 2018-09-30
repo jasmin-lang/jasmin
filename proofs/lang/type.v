@@ -48,7 +48,7 @@ Variant wsize :=
 Variant stype : Set :=
 | sbool
 | sint
-| sarr of wsize & positive
+| sarr  of positive
 | sword of wsize.
 
 Variant signedness := 
@@ -85,7 +85,7 @@ Definition string_of_stype (ty: stype) : string :=
   match ty with
   | sbool => "sbool"
   | sint => "sint"
-  | sarr sz n => "(sarr " ++ string_of_wsize sz ++ " ?)"
+  | sarr n => "(sarr " ++ " ?)"
   | sword sz => "(sword " ++ string_of_wsize sz ++ ")"
   end.
 
@@ -204,27 +204,23 @@ Definition stype_cmp t t' :=
   | sint    , sint          => Eq
   | sint    , _             => Lt
 
-  | sword _ , sarr _ _      => Lt
+  | sword _ , sarr _        => Lt
   | sword w , sword w'      => wsize_cmp w w'
   | sword _ , _             => Gt
 
-  | sarr w n , sarr w' n'   => lex wsize_cmp Pos.compare (w,n) (w',n')
-  | sarr _ _ , _             => Gt
+  | sarr n  , sarr n'        => Pos.compare n n'
+  | sarr _  , _             => Gt
   end.
 
 Instance stypeO : Cmp stype_cmp. 
 Proof.
   constructor.
-  + case => [||w n|w] [||w' n'|w'] //=.
-    + by apply lex_sym => /=;apply cmp_sym.
-    by apply cmp_sym.
-  + move=> y x; case: x y=> [||w n|w] [||w' n'|w'] [||w'' n''|w''] c//=;
-    try (by apply ctrans_Eq);eauto using ctrans_Lt, ctrans_Gt.
-    + by apply lex_trans;apply cmp_ctrans.
-    by apply cmp_ctrans.
-  case=> [||w n|w] [||w' n'|w'] //=.
-  + by move=> /lex_eq /= [H H'];rewrite (@cmp_eq _ _ wsizeO _ _ H) (@cmp_eq _ _ positiveO _ _ H'). 
-  by move=> H; rewrite (@cmp_eq _ _ wsizeO _ _ H). 
+  + by case => [||n|w] [||n'|w'] //=; apply cmp_sym.
+  + by move=> y x; case: x y=> [||n|w] [||n'|w'] [||n''|w''] c//=;
+       try (by apply ctrans_Eq);eauto using ctrans_Lt, ctrans_Gt; apply cmp_ctrans.
+  case=> [||n|w] [||n'|w'] //= h.
+  + by rewrite (@cmp_eq _ _ positiveO _ _ h). 
+  by rewrite (@cmp_eq _ _ wsizeO _ _ h). 
 Qed.
 
 Module CmpStype.
@@ -294,15 +290,11 @@ Module CEDecStype.
       | sint => left (erefl sint)
       | _     => right I
       end
-    | sarr w1 n1 =>
-      match t2 as t0 return {sarr w1 n1 = t0} + {True} with
-      | sarr w2 n2 =>
-        match wsize_eq_dec w1 w2 with
-        | left eqw => 
-          match pos_dec n1 n2 with
-          | left eqn => left (f_equal2 sarr eqw eqn)
-          | right _ => right I
-          end
+    | sarr n1 =>
+      match t2 as t0 return {sarr n1 = t0} + {True} with
+      | sarr n2 =>
+        match pos_dec n1 n2 with
+        | left eqn => left (f_equal sarr eqn)
         | right _ => right I
         end
       | _          => right I
@@ -328,12 +320,10 @@ Module CEDecStype.
  
   Lemma eq_dec_r t1 t2 tt: eq_dec t1 t2 = right tt -> t1 != t2.
   Proof.
-    case: tt;case:t1 t2=> [||w n|w] [||w' n'|w'] //=.
-    + case: wsize_eq_dec => // eqw.
-      + case: pos_dec (@pos_dec_r n n' I) => [Heq _ | [] neq ] //=.
-        move: (neq (erefl _))=> /eqP H _;rewrite !eqE /= (internal_wsize_dec_lb eqw) /=.
-        by case H':positive_beq=> //;move:H'=> /internal_positive_dec_bl.
-      by move=> _;apply /eqP;congruence.
+    case: tt;case:t1 t2=> [||n|w] [||n'|w'] //=.
+    + case: pos_dec (@pos_dec_r n n' I) => [Heq _ | [] neq ] //=.
+      move: (neq (erefl _))=> /eqP H _;rewrite !eqE /=.
+      by case H':positive_beq=> //;move:H'=> /internal_positive_dec_bl.
     case: wsize_eq_dec => // eqw.
     by move=> _;apply /eqP;congruence.
   Qed.
@@ -360,8 +350,8 @@ Definition is_sword t :=
 
 Definition is_sarr t := 
   match t with
-  | sarr _ _ => true
-  | _        => false
+  | sarr _ => true
+  | _      => false
   end.
 
 (* -------------------------------------------------------------------- *)
