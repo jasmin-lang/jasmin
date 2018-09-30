@@ -1803,34 +1803,23 @@ Proof.
   by case: tv => //= s2 _;eauto.
 Qed.
 *)
-(*
+
 Lemma subtype_pof_val_ok t1 t2 v v1 : 
   subtype t1 t2 ->       
   pof_val t1 v = ok v1 ->
   exists2 v2, pof_val t2 v = ok v2 & value_uincl (pto_val v1) (pto_val v2).
 Proof.
-  case: t1 v1 => /= [v1 /eqP<-|v1 /eqP<-|s n v1 |s1 v1];
+  case: t1 v1 => /= [v1 /eqP<-|v1 /eqP<-|n v1 |s1 v1];
    try by move=> h; eexists; [apply h | done].
-Print subtype.
-Print pof_val.
-Print to_pword.
-Print pto_val.
-Print pw_word.
-Print value_uincl.
-  + case: t2 => // s' p' /ZleP hle /=.
+  + case: t2 => // p' /ZleP hle /=.
     case: v => //=; last by case. 
-    rewrite /WArray.cast => ???;case: ifP => // /ZleP hle' [<-].
-    case: ifPn => /ZleP; last by lia.
- ???;rewrite /WArray.cast. case: ifP.
-    rewrite /to_arr.
-Print subtype.
-Print value_uincl.
-Print word_uincl.
-Print to_word.
-Print truncate_word.
-Print subtype.
-move=> h; eexists; first by apply h.
-    by move=> /=;split=>//;exists erefl.
+    move=> len a [<-]; eexists; first reflexivity.
+    split => // i v hi.
+    case: ZleP => /= hlen.
+    + move=> hget; case: ZleP => //= ?.
+      by rewrite FArray.of_funP; have /ZltP -> : i < len by lia.
+    have /ZleP -/negbTE -> /= : ~ (p' <= len) by lia.
+    by rewrite !FArray.of_funP.
   case: t2 => //= s2 hle;case: v => //=;last by case.
   move=> s' w [<-]; eexists; first reflexivity.
   case: Sumbool.sumbool_of_bool => e /=.
@@ -1841,7 +1830,7 @@ move=> h; eexists; first by apply h.
   rewrite -(zero_extend_idem _ hle).
   exact: word_uincl_zero_ext.
 Qed.
-*)
+
 Lemma pof_val_pto_val t (v:psem_t t): pof_val t (pto_val v) = ok v.
 Proof. 
   case: t v => [b | z | n a | s w] //=.
@@ -2082,6 +2071,7 @@ Proof.
   case: t1 => /=.
   + by move=> /eqP ?;subst. 
   + by move=> /eqP ?;subst. 
+  + move=> p1;case: t2 => // p2 /ZleP hp /to_parr_undef [p3 [-> hp3]] /=.
   + by move=> ?? /eqP ?;subst.
   move=> w;case: t2 => //= w' hle.
   by rewrite /to_pword; case: v => // -[].
