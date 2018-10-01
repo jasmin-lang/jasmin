@@ -1,7 +1,0 @@
-#! /bin/bash
-
-docker build \
-	--build-arg "COQVERSION=${COQV}" \
-	--build-arg "SSRVERSION=${SSRV}" \
-	--build-arg "SSRPACKAGES=${SSRP}" \
-	-t "${IMAGE_NAME}" .
