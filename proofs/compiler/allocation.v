@@ -1170,7 +1170,8 @@ Module CBAreg.
     | Pvar   x1, Pvar   x2 => check_v x1 x2 m
     | Pglobal g1, Pglobal g2 =>
       if g1 == g2 then cok m else err tt
-    | Pget x1 e1, Pget x2 e2 => check_v x1 x2 m >>= check_e e1 e2
+    | Pget w1 x1 e1, Pget w2 x2 e2 => 
+      if w1 == w2 then check_v x1 x2 m >>= check_e e1 e2 else err tt
     | Pload w1 x1 e1, Pload w2 x2 e2 =>
       if w1 == w2 then check_v x1 x2 m >>= check_e e1 e2 else err tt
     | Papp1 o1 e1, Papp1 o2 e2 => 
@@ -1226,7 +1227,9 @@ Module CBAreg.
       end
     | Lmem w1 x1 e1, Lmem w2 x2 e2  =>
       if w1 == w2 then check_v x1 x2 m >>= check_e e1 e2 else err tt
-    | Laset x1 e1, Laset x2 e2 => check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2
+    | Laset w1 x1 e1, Laset w2 x2 e2 => 
+      if w1 == w2 then check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2
+      else err tt
     | _          , _           => err tt
     end.
 
@@ -1271,12 +1274,12 @@ Module CBAreg.
       case: x1 x2 hsub husub Hget Hev=> [[xt1 xn1] ii1] [[xt2 xn2] ii2] /= hsub husub.
       rewrite /get_var;apply: on_vuP => /= [t | ] -> => [<- | [<-]] /=.
       + by case: (vm2.[_])%vmap => //= z' Hz';exists (pto_val z'). 
-      have /= heq := subtype_eq_vundef_type hsub.
       case: (vm2.[_])%vmap => //= [ v' _ | e <-];
-        last by eexists; split; first reflexivity; rewrite heq /= -vundef_type_idem.
-      exists (pto_val v');split => //;rewrite heq.
-      symmetry;apply subtype_eq_vundef_type.
-      by apply: subtype_type_of_val.
+        eexists; (split; first reflexivity).
+      + apply (@type_uincl_trans xt2); first by apply subtype_type_uincl.
+        by apply type_uincl_pto_val.
+      apply (@type_uincl_trans xt2); first by apply subtype_type_uincl.
+      by apply type_uincl_tundef.
     case: ifPn => //= /Sv_memP Hnot [] <- [ Hvm0 Hset Huincl];split;first split=>//.
     + by move=> x;rewrite M.setP_mset => ?;apply Hset;SvD.fsetdec.
     + move=> x id;rewrite M.setP;case:eqP => [<- [<-]| Hne].
@@ -1290,12 +1293,11 @@ Module CBAreg.
      case: (vm2.[_]) => //=.
     + by move=> v' hv <-;eauto.
     + move=> v' _ [<-];eexists;split;first by reflexivity.
-      rewrite /= (subtype_eq_vundef_type hsub) /=.
-      symmetry;apply subtype_eq_vundef_type.
-      by apply: subtype_type_of_val.
+      apply (@type_uincl_trans xt2); first by apply subtype_type_uincl.
+      by apply type_uincl_pto_val.
     move=> e <- [<-];eexists;split;first by reflexivity.
-    rewrite /= -vundef_type_idem.
-    exact: subtype_vundef_type_eq husub.
+    apply (@type_uincl_trans xt2); first by apply subtype_type_uincl.
+    by apply type_uincl_tundef.
   Qed.
 
   Section CHECK_EP.
@@ -1337,15 +1339,16 @@ Module CBAreg.
       by move=> /check_vP Hv /Hv [Hea H].
     - move => g1 [] // g2 r re vm1.
       by case: ifPn => // /eqP <- [->] ?; split => //= ?? ->; eauto.
-    - move => x1 e1 He1 [] // x2 e2 r re vm1.
+    - move => sz1 x1 e1 He1 [] // sz2 x2 e2 r re vm1.
+      case: eqP => // ?; subst sz2.
       apply: rbindP => r' Hcv Hce Hea.
       have [Hea' Hget]:= check_vP Hcv Hea.
       have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= m v1.
-      apply: on_arr_varP => sz n t Heqt /Hget [v2 []].
-      rewrite /on_arr_var; case: v2 => //= sz' n' t' -> [] ? [?]; subst => /= Ht.
+      apply: on_arr_varP => n t Heqt /Hget [v2 []].
+      rewrite /on_arr_var; case: v2 => //= n' t' -> Ht.
       apply: rbindP => w;apply: rbindP => ve /Hse1 [v2 [-> U2 Hto]].
       have [_ -> /=]:= value_uincl_int U2 Hto.
-      by apply: rbindP => w' /Ht -> [] <-;exists (Vword w').
+      by apply: rbindP => w' /(WArray.uincl_get Ht) -> [] <-; exists (Vword w').
     - move => sz1 x1 e1 He1 [] // sz2 x2 e2 r re vm1.
       case: eqP => // ->.
       apply: rbindP => r' Hcv Hce Hea.
@@ -1379,10 +1382,10 @@ Module CBAreg.
     t_xrbindP => b w /Hs [w'] /= [->] /= /value_uincl_bool H/H{H} [? ->] /= v2 Hv2 v3 Hv3.
     have [v2' [-> Hv2']] := Hs1 _ _ Hv2.
     have [v3' [-> Hv3']] := Hs2 _ _ Hv3.
-    case: ifP => //=.
-    rewrite (value_uincl_vundef_type_eq Hv2') (value_uincl_vundef_type_eq Hv3') => ->.
-    case: andP => // - [] /(value_uincl_is_defined Hv2') -> /(value_uincl_is_defined Hv3') -> [<-].
-    eexists;split;first by eauto.
+    case: ifP => //= /andP []. 
+    move=> /(value_uincl_is_defined Hv2') -> /(value_uincl_is_defined Hv3') ->.
+    case: ifP => // /(value_uincl_compat_type Hv2' Hv3') -> [<-] /=.
+    eexists;split;first reflexivity.
     by case b.
   Qed.
 
@@ -1470,6 +1473,17 @@ Module CBAreg.
       apply: (@eq_alloc_set x1 (ok v1') _ x2 (ok v2'')) => //=;last by eauto.
       apply: value_uincl_trans Hu' hvu.
     rewrite /set_var.
+    rewrite (is_sword_subtype h) => /negbTE htw hpof <-;rewrite htw.
+
+
+
+Search pof_val undef_error.
+
+
+
+Search _ is_sword.
+    move=> 
+
     have hueq: vundef_type (vtype x1) = vundef_type (vtype x2).
     + by apply subtype_vundef_type_eq;apply: subtype_trans h;apply subtype_vundef_type.
     have <- := vundef_type_is_sword hueq.
