@@ -178,7 +178,10 @@ Module Type MAP.
   Parameter elementsP : forall {T:eqType} (kv:K.t * T) m,
     reflect (m.[kv.1] = Some kv.2) (kv \in elements m).
 
-  Parameter elementsU : forall {T:eqType} (m:t T), uniq [seq x.1 | x <- (elements m)].
+  Parameter elementsIn : forall T (kv:K.t * T) m,
+     List.In kv (elements m) <-> m.[kv.1] = Some kv.2.
+
+  Parameter elementsU : forall T (m:t T), uniq [seq x.1 | x <- (elements m)].
 
   Parameter foldP : forall {T A} (f:K.t -> T -> A -> A) m a,
     fold f m a = foldl (fun a (kv:K.t * T) => f kv.1 kv.2 a) a (elements m).
@@ -341,7 +344,19 @@ Module Mmake (K':CmpType) <: MAP.
     by move=>  /Facts.find_mapsto_iff /(Facts.elements_mapsto_iff m kv.1 kv.2) /Hf.
   Qed.
 
-  Lemma elementsU {T:eqType} (m:t T): uniq [seq x.1 | x <- (elements m)].
+  Lemma elementsIn : forall T (kv:K.t * T) m,
+     List.In kv (elements m) <-> m.[kv.1] = Some kv.2.
+  Proof.
+    move=> T kv m;rewrite /get -Facts.find_mapsto_iff Facts.elements_mapsto_iff InA_alt.
+    split => [hin | [kv' [heq hin]]]. 
+    + exists kv;split => //;case: (kv) => ??; split => //=.
+      apply cmp_refl.
+    have -> //: kv = kv'.
+    move=> {hin};case: kv kv' heq => k v [k' v'] [/= h ->].
+    by have -> := cmp_eq h. 
+  Qed.
+
+  Lemma elementsU T (m:t T): uniq [seq x.1 | x <- (elements m)].
   Proof.
     rewrite /elements; elim: (Map.elements m) (Map.elements_3w m) => [|p ps Hrec] //=.
     case/NoDupAE => Hp Hps.

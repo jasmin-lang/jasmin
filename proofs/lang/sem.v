@@ -131,6 +131,13 @@ Module WArray.
     by apply h1.
   Qed.
 
+  Lemma setP ws len (a a':array len) p1 p2 (w:word ws) :
+    set a p1 w = ok a' ->
+    get ws a' p2 = 
+      if p1 == p2 then ok w
+      else get ws a p2.
+  Admitted. 
+     
 End WArray.
 Hint Resolve WArray.uincl_refl.
 
@@ -195,6 +202,7 @@ Definition to_arr len v : exec (sem_t (sarr len)) :=
 Definition vundef_type (t:stype) :=
   match t with
   | sword _ => sword8
+  | sarr _  => sarr 1
   | _       => t
   end.
 
@@ -266,6 +274,7 @@ Qed.
 
 Lemma subtype_refl x : subtype x x.
 Proof. case: x => //= ?;apply Z.leb_refl. Qed.
+Hint Resolve subtype_refl.
 
 Lemma subtype_trans y x z : subtype x y -> subtype y z -> subtype x z.
 Proof.
@@ -301,29 +310,29 @@ Definition on_vu t r (fv: t -> r) (fu:exec r) (v:exec t) : exec r :=
 
 Lemma on_vuP T R (fv: T -> R) (fu: exec R) (v:exec T) r P:
   (forall t, v = ok t -> fv t = r -> P) ->
-  (v = Error ErrAddrUndef -> fu = ok r -> P) ->
+  (v = undef_error -> fu = ok r -> P) ->
   on_vu fv fu v = ok r -> P.
 Proof. by case: v => [a | []] Hfv Hfu //=;[case; apply: Hfv | apply Hfu]. Qed.
 
+(* An access to a undefined value, leads to an error *)
 Definition get_var (m:vmap) x :=
-  on_vu (@to_val (vtype x)) (ok (Vundef (vtype x))) (m.[x]%vmap).
+  on_vu (@to_val (vtype x)) undef_error (m.[x]%vmap).
 
-(* We do not allows to assign to a variable of type word an undef value *)
+(* Assigning undefined value is allowed only for bool *)
 Definition set_var (m:vmap) x v : exec vmap :=
   on_vu (fun v => m.[x<-ok v]%vmap)
-        (if is_sword x.(vtype) then type_error
-         else ok m.[x<-undef_addr x.(vtype)]%vmap)
+        (if is_sbool x.(vtype) then ok m.[x<-undef_addr x.(vtype)]%vmap
+         else type_error) 
         (of_val (vtype x) v).
 
 Lemma set_varP (m m':vmap) x v P :
    (forall t, of_val (vtype x) v = ok t -> m.[x <- ok t]%vmap = m' -> P) ->
-   ( ~~is_sword x.(vtype)  ->
-     of_val (vtype x) v = Error ErrAddrUndef ->
+   ( is_sbool x.(vtype) -> of_val (vtype x) v = undef_error ->
      m.[x<-undef_addr x.(vtype)]%vmap = m' -> P) ->
    set_var m x v = ok m' -> P.
 Proof.
   move=> H1 H2;apply on_vuP => //.
-  by case:ifPn => // neq herr [];apply : H2.
+  by case:ifPn => // hb herr []; apply : H2.
 Qed.
 
 (* ** Parameter expressions

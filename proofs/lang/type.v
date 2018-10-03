@@ -342,6 +342,8 @@ Arguments Mt.get P m%mtype_scope k.
 Arguments Mt.set P m%mtype_scope k v.
 
 
+Definition is_sbool t := t == sbool.
+
 Definition is_sword t := 
   match t with
   | sword _ => true
