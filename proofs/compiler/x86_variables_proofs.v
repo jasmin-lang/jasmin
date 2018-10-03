@@ -135,8 +135,7 @@ move=> eqv; case: e => //.
       do 4! move/eqP=> ?; subst rx ry rz rt => -[<-].
       move=> vNx vx ok_vx ok_vNx res vby vy ok_vy ok_vby.
       move=> vz ok_vz vNt vt ok_vt ok_vNt.
-      case: eqP => // hty.
-      case: ifP => // _ [<-] {res} ok_v.
+      case: ifP => // _. case: ifP => // hty [<-] {res} ok_v.
       have [/=vbx ok_vbx ?] := sem_sop1I ok_vNx; subst vNx.
       have [/=vbt ok_vbt ?] := sem_sop1I ok_vNt; subst vNt.
       have := xgetflag eqv ok_rx ok_vx ok_vbx => ZFE.
@@ -163,7 +162,7 @@ move=> eqv; case: e => //.
       case: ifP=> //; rewrite -!andbA => /and4P[].
       do 4! move/eqP=> ?; subst rx ry rz rt => -[<-].
       move=> vx ok_vx res vby vy ok_vy ok_vby vNz vz ok_vz ok_vNz vt ok_vt.
-      case: eqP => // hty; case: ifP => // _ [<-] {res}.
+      case:ifP => // _;case:ifP => // hty [<-] {res}.
       rewrite /sem_sop2 /=; t_xrbindP => /= vbx ok_vbx vbres ok_vbres <- {v}.
       have [/=vbz ok_vbz ?] := sem_sop1I ok_vNz; subst vNz.
       have := xgetflag eqv ok_rx ok_vx ok_vbx => ZFE.
@@ -184,7 +183,7 @@ move=> eqv; case: e => //.
     have eq_xy: v_var y = v_var z.
     - by apply/(inj_rflag_of_var ok_ry ok_rz).
     case=> <- vbx vx ok_vx ok_vbx vy ok_vy rvz vz ok_vz ok_rvz.
-    case: eqP => // hty; case: ifP => // _ [<-] {v}.
+    case:ifP => // _; case:ifP => // hty [<-] {v}.
     have /sem_sop1I[/=vbz ok_vbz ?] := ok_rvz; subst rvz.
     have := xgetflag eqv ok_rx ok_vx ok_vbx => SFE.
     have := xgetflag eqv ok_rz ok_vz ok_vbz => OFE.
@@ -199,7 +198,7 @@ move=> eqv; case: e => //.
     case: ifPn => //; rewrite -!andbA => /and3P[].
     do 3! move/eqP=> ?; subst vx vy vz; case=> <-.
     move=> vbx vx ok_vx ok_vbx vNy vy ok_vy ok_vNy vz ok_vz.
-    case: eqP => // hty; case: ifP => // _ [<-] {v}.
+    case:ifP => // _; case:ifP => // hty [<-] {v}.
     have /sem_sop1I[/=vby ok_vby ?] := ok_vNy; subst vNy.
     have := xgetflag eqv ok_x ok_vx ok_vbx => SFE.
     have := xgetflag eqv ok_y ok_vy ok_vby => OFE.

@@ -1519,6 +1519,9 @@ Proof.
   by have [x' [-> ->]]:= type_apply_gargP Ha.
 Qed.
 
+Lemma type_of_rbool c : type_of_val (of_rbool c) = sbool.
+Proof. by case: c. Qed.
+
 Lemma lom_eqv_mem_equiv_trans s m1 m2 :
   lom_eqv s m1 →
   x86_mem_equiv m1 m2 →
@@ -1529,8 +1532,8 @@ constructor => //= f v hv.
 move: (hrf1 f v hv) (hrf2 f) => {hv}.
 case: (rf1 _) v => [ b | ] [] //=.
 - by move => ? <- /eqP ->.
-- by move => ? -> /eqP ->.
-by move => ? -> _; case: (rf2 _).
+- by rewrite type_of_rbool.
+- by rewrite type_of_rbool.
 Qed.
 
 Theorem assemble_sopnP gd ii out op args i s1 m1 s2 :
