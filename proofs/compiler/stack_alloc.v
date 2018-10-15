@@ -74,13 +74,13 @@ Definition map := (Mvar.t Z * Ident.ident)%type.
 Definition size_of (t:stype) := 
   match t with
   | sword sz => ok (wsize_size sz)
-  | sarr sz n => ok (wsize_size sz * (Zpos n))%Z
+  | sarr n   => ok (Zpos n)
   | _      => cerror (Cerr_stk_alloc "size_of")
   end.
 
 Definition aligned_for (ty: stype) (ofs: Z) : bool :=
   match ty with
-  | sarr sz _
+  | sarr _ => true
   | sword sz => is_align (wrepr _ ofs) sz
   | sbool | sint => false
   end.
@@ -113,10 +113,7 @@ Definition is_vstk (m:map) (x:var) :=
 Definition check_var m (x:var_i) := 
   ~~ is_in_stk m x && ~~is_vstk m x.
 
-(* TODO: MOVE *)
-Definition is_arr_type (t:stype) :=
-  if t is sarr sz _ then Some sz else None.
-
+(* TODO: move *)
 Definition is_word_type (t:stype) :=
   if t is sword sz then Some sz else None.
 
@@ -143,8 +140,8 @@ Definition stk_not_fresh {A} :=
 Definition not_a_word_v {A} := 
   @cerror (Cerr_stk_alloc "not a word variable") A.
 
-Definition not_an_array_v {A} := 
-  @cerror (Cerr_stk_alloc "not an array variable") A.
+Definition not_aligned {A} := 
+  @cerror (Cerr_stk_alloc "array variable not aligned") A.
 
 Definition invalid_var {A} := 
   @cerror (Cerr_stk_alloc "invalid variable") A.
@@ -152,13 +149,13 @@ Definition invalid_var {A} :=
 Definition mk_ofs ws e1 ofs := 
   let sz := wsize_size ws in
   if is_const e1 is Some i then 
-    cast_const (sz * i + ofs)%Z
+    cast_const (i * sz + ofs)%Z
   else 
     add (mul (cast_const sz) (cast_word e1)) (cast_const ofs).
 
 Fixpoint alloc_e (m:map) (e: pexpr) := 
   match e with
-  | Pconst _ | Pbool _ | Parr_init _ _ | Pglobal _ => ok e
+  | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ => ok e
   | Pvar   x =>
     match Mvar.get m.1 x with 
     | Some ofs =>
@@ -171,19 +168,19 @@ Fixpoint alloc_e (m:map) (e: pexpr) :=
       if is_vstk m x then stk_not_fresh 
       else ok e 
     end
-  | Pget x e1 =>
+  | Pget ws x e1 =>
     Let e1 := alloc_e m e1 in
     match Mvar.get m.1 x with 
     | Some ofs =>
-      if is_arr_type (vtype x) is Some ws then
+      if is_align (wrepr _ ofs) ws then 
         let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
         let ofs := mk_ofs ws e1 ofs in
         ok (Pload ws stk ofs)
-      else not_an_array_v 
+      else not_aligned
 
     | None =>
       if is_vstk m x then stk_not_fresh 
-      else ok (Pget x e1)
+      else ok (Pget ws x e1)
     end
 
   | Pload ws x e1 =>
@@ -237,19 +234,19 @@ Definition alloc_lval (m:map) (r:lval) ty :=
       ok (Lmem ws x e1)
     else invalid_var
     
-  | Laset x e1 =>
+  | Laset ws x e1 =>
     Let e1 := alloc_e m e1 in
     match Mvar.get m.1 x with 
     | Some ofs =>
-      if is_arr_type (vtype x) is Some ws then
+      if is_align (wrepr _ ofs) ws then
         let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
         let ofs := mk_ofs ws e1 ofs in
         ok (Lmem ws stk ofs)
-      else not_an_array_v
+      else not_aligned
 
     | None =>
       if is_vstk m x then stk_not_fresh 
-      else ok (Laset x e1)
+      else ok (Laset ws x e1)
     end
 
   end.

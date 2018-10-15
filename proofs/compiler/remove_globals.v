@@ -103,7 +103,7 @@ Section REMOVE.
     Fixpoint remove_glob_e ii (env:venv) (e:pexpr) :=
       match e with
       | Pconst _ | Pbool _ => ok e 
-      | Parr_init _ _ => ok e
+      | Parr_init _ => ok e
       | Pvar xi =>
         let x := xi.(v_var) in
         if is_glob x then
@@ -113,12 +113,12 @@ Section REMOVE.
           end 
         else ok e
       | Pglobal g => ok e
-      | Pget xi e =>
+      | Pget ws xi e =>
         let x := xi.(v_var) in
         if is_glob x then cferror (Ferr_remove_glob ii xi)
         else
           Let e := remove_glob_e ii env e in
-          ok (Pget xi e)
+          ok (Pget ws xi e)
       | Pload ws xi e =>  
         let x := xi.(v_var) in
         if is_glob x then cferror (Ferr_remove_glob ii xi)
@@ -155,12 +155,12 @@ Section REMOVE.
         else
           Let e := remove_glob_e ii env e in
           ok (Lmem ws xi e)
-      | Laset xi e =>
+      | Laset ws xi e =>
         let x := xi.(v_var) in
         if is_glob x then cferror (Ferr_remove_glob ii xi)
         else
           Let e := remove_glob_e ii env e in
-          ok (Laset xi e)
+          ok (Laset ws xi e)
       end.
     
     Section REMOVE_C.

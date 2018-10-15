@@ -537,7 +537,7 @@ Canonical global_eqType := Eval hnf in EqType global global_eqMixin.
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
-| Parr_init : wsize → positive → pexpr
+| Parr_init : positive → pexpr
 | Pvar   :> var_i -> pexpr
 | Pglobal :> global -> pexpr
 | Pget   : wsize -> var_i -> pexpr -> pexpr
@@ -579,7 +579,7 @@ Section PEXPR_RECT.
     (P: pexpr → Type)
     (Hconst: ∀ z, P (Pconst z))
     (Hbool: ∀ b, P (Pbool b))
-    (Harr_init: ∀ sz n, P (Parr_init sz n))
+    (Harr_init: ∀ n, P (Parr_init n))
     (Hvar: ∀ x, P (Pvar x))
     (Hglobal: ∀ g, P (Pglobal g))
     (Hget: ∀ sz x e, P e → P (Pget sz x e))
@@ -600,7 +600,7 @@ Section PEXPR_RECT.
     match e with
     | Pconst z => Hconst z
     | Pbool b => Hbool b
-    | Parr_init sz n => Harr_init sz n
+    | Parr_init n => Harr_init n
     | Pvar x => Hvar x
     | Pglobal g => Hglobal g
     | Pget sz x e => Hget sz x (pexpr_rect e)
@@ -635,7 +635,7 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
   match e1, e2 with
   | Pconst n1   , Pconst n2    => n1 == n2
   | Pbool  b1   , Pbool  b2    => b1 == b2
-  | Parr_init w1 n1, Parr_init w2 n2 => (w1 == w2) && (n1 == n2)
+  | Parr_init n1, Parr_init n2 => n1 == n2
   | Pvar   x1   , Pvar   x2    => (x1 == x2)
   | Pglobal g1, Pglobal g2 => g1 == g2
   | Pget sz1 x1 e1, Pget sz2 x2 e2 => (sz1 == sz2) && (x1 == x2) && eqb e1 e2
@@ -662,16 +662,16 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
 
   Lemma eq_axiom : Equality.axiom eqb.
   Proof.
-    elim => [n1|b1| w1 n1 |x1|g1|w1 x1 e1 He1|w1 x1 e1 He1
+    elim => [n1|b1| n1 |x1|g1|w1 x1 e1 He1|w1 x1 e1 He1
             |o1 e1 He1|o1 e11 e12 He11 He12 | o1 es1 Hes1 | t1 e11 e12 Ht1 He11 He12]
-            [n2|b2| w2 n2 |x2|g2|w2 x2 e2|w2 x2 e2|o2 e2|o2 e21 e22 | o2 es2 |t2 e21 e22] /=;
+            [n2|b2| n2 |x2|g2|w2 x2 e2|w2 x2 e2|o2 e2|o2 e21 e22 | o2 es2 |t2 e21 e22] /=;
         try by constructor.
     + apply (@equivP (n1 = n2));first by apply: eqP.
       by split => [->|[]->].
     + apply (@equivP (b1 = b2));first by apply: eqP.
       by split => [->|[]->].
-    + apply (@equivP ((w1 == w2) ∧ (n1 == n2)));first by apply andP.
-      by split => [ [/eqP -> /eqP ->] | [-> ->] ].
+    + apply (@equivP (n1 = n2));first by apply eqP.
+      by split => [->|[]->].
     + apply (@equivP (x1 = x2));first by apply: eqP.
       by split => [->|[]->].
     + apply (@equivP (g1 = g2));first by apply: eqP.
@@ -714,7 +714,7 @@ Section PEXPR_IND.
     (P: pexpr → Prop)
     (Hconst: ∀ z, P (Pconst z))
     (Hbool: ∀ b, P (Pbool b))
-    (Harr_init: ∀ sz n, P (Parr_init sz n))
+    (Harr_init: ∀ n, P (Parr_init n))
     (Hvar: ∀ x, P (Pvar x))
     (Hglobal: ∀ g, P (Pglobal g))
     (Hget: ∀ sz x e, P e → P (Pget sz x e))
@@ -741,7 +741,7 @@ Section PEXPR_IND.
     match e with
     | Pconst z => Hconst z
     | Pbool b => Hbool b
-    | Parr_init sz n => Harr_init sz n
+    | Parr_init n => Harr_init n
     | Pvar x => Hvar x
     | Pglobal g => Hglobal g
     | Pget sz x e => Hget sz x (pexpr_ind e)
@@ -766,7 +766,7 @@ Section PEXPRS_IND.
     pexprs_cons: ∀ pe, P pe → ∀ pes, Q pes → Q (pe :: pes);
     pexprs_const: ∀ z, P (Pconst z);
     pexprs_bool: ∀ b, P (Pbool b);
-    pexprs_arr_init: ∀ sz n, P (Parr_init sz n);
+    pexprs_arr_init: ∀ n, P (Parr_init n);
     pexprs_var: ∀ x, P (Pvar x);
     pexprs_global: ∀ g, P (Pglobal g);
     pexprs_get: ∀ sz x e, P e → P (Pget sz x e);
@@ -789,7 +789,7 @@ Section PEXPRS_IND.
     match pe with
     | Pconst z => pexprs_const h z
     | Pbool b => pexprs_bool h b
-    | Parr_init sz n => pexprs_arr_init h sz n
+    | Parr_init n => pexprs_arr_init h n
     | Pvar x => pexprs_var h x
     | Pglobal g => pexprs_global h g
     | Pget sz x e => pexprs_get h sz x (pexpr_mut_ind e)
@@ -1292,7 +1292,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   match e with
   | Pconst _
   | Pbool  _
-  | Parr_init _ _  => s
+  | Parr_init _    => s
   | Pvar   x       => Sv.add x s
   | Pglobal _      => s
   | Pget _ x e     => read_e_rec (Sv.add x s) e
@@ -1532,7 +1532,7 @@ Fixpoint eq_expr e e' :=
   match e, e' with
   | Pconst z      , Pconst z'         => z == z'
   | Pbool  b      , Pbool  b'         => b == b'
-  | Parr_init w n, Parr_init w' n' => (w == w') && (n == n')
+  | Parr_init n   , Parr_init n'      => n == n'
   | Pvar   x      , Pvar   x'         => v_var x == v_var x'
   | Pglobal g, Pglobal g' => g == g'
   | Pget w x e    , Pget w' x' e'      => (w == w') && (v_var x == v_var x') && eq_expr e e'
@@ -1547,7 +1547,7 @@ Fixpoint eq_expr e e' :=
 
 Lemma eq_expr_refl e : eq_expr e e.
 Proof.
-elim: e => //= [ ?? | ??? -> | ??? -> | ?? -> | ?? -> ? -> | ? es ih | ?-> ? -> ? -> ] //=;
+elim: e => //= [ ??? -> | ??? -> | ?? -> | ?? -> ? -> | ? es ih | ?-> ? -> ? -> ] //=;
   rewrite ?eqxx //=.
 elim: es ih => // e es ih h /=; rewrite h.
 + by apply: ih => e' he'; apply: h; rewrite in_cons he' orbT.

@@ -90,13 +90,13 @@ Definition dummy_info := xH.
 
 Definition mkdV x := {| v_var := x; v_info := dummy_info |}.
 
-Definition arr_init sz p := Parr_init sz p.
+Definition arr_init p := Parr_init p.
 
 Definition array_init iinfo (X: Sv.t) := 
   let assgn x c := 
     match x.(vtype) with
-    | sarr sz p =>
-      MkI iinfo (Cassgn (Lvar (mkdV x)) AT_rename x.(vtype) (arr_init sz p)) :: c
+    | sarr p =>
+      MkI iinfo (Cassgn (Lvar (mkdV x)) AT_rename x.(vtype) (arr_init p)) :: c
     | _      => c
     end in
   Sv.fold assgn X [::].
@@ -161,8 +161,8 @@ Definition inline_prog_err (p:prog) :=
 
 Definition is_array_init e := 
   match e with
-  | Parr_init _ _ => true
-  | _                 => false
+  | Parr_init _ => true
+  | _           => false
   end.
 
 Fixpoint remove_init_i i := 

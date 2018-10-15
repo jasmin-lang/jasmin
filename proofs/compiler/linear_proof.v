@@ -382,8 +382,9 @@ elim: e b => //.
   apply: (f_equal (@Ok _ _)); rewrite /= ?negb_and ?negb_or.
 move => p hp e1 he1 e2 he2 b /=.
 t_xrbindP => bp vp -> /= -> v1 h1 v2 h2.
-case: ifP => // hty12.
-case: andP => // - [] hd1 hd2 [hb] /=.
+case: andP => // - [] hd1 hd2.
+case: ifP => // hty12  [hb] /=.
+
 have hty : type_of_val v1 = sbool.
 - case: bp hb => ?; subst => //.
   by case: v1 {h1 hd1} hty12 => //= -[].

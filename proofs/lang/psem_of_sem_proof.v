@@ -42,7 +42,7 @@ Definition val_sim t : sem_t t → psem_t t → Prop :=
   match t with
   | sbool => eq
   | sint => eq
-  | sarr s n => eq
+  | sarr n => eq
   | sword s => @word_sim s
   end.
 
@@ -86,10 +86,9 @@ Lemma of_val_sim t x v :
   exec_val_sim (ok v) (pof_val t x).
 Proof.
 move => h; rewrite -h; move: h.
-case: t v => [ | | sz n | sz ]; case: x => //; try by case.
-- move => sz' n' t' t /=.
-  case: wsize_eq_dec => // ?; subst.
-  by case: CEDecStype.pos_dec.
+case: t v => [ | | n | sz ]; case: x => //; try by case.
+- move => n' t' t /=.
+  by rewrite /WArray.cast /WArray.inject Z.ltb_antisym;case:ZleP.
 - move => sz' w' /= w h.
   rewrite h /=.
   case: (truncate_wordP h) => {h} hle ?; subst w.
@@ -98,18 +97,10 @@ case: t v => [ | | sz n | sz ]; case: x => //; try by case.
   by rewrite zero_extend_u /word_sim /pword_of_word (Eqdep_dec.UIP_dec Bool.bool_dec (cmp_le_refl sz')).
 Qed.
 
-Lemma of_val_undef_sim t x :
-  of_val t x = undef_error →
-  exec_val_sim undef_error (pof_val t x).
-Proof.
-move => h; rewrite -h; move: h.
-case: t => [ | | sz n | sz ]; case: x => //; try by case.
-- move => sz' n' t' t /=.
-  case: wsize_eq_dec => // ?; subst.
-  by case: CEDecStype.pos_dec.
-- by move => sz' w' /truncate_word_errP [].
-by case => // sz' [].
-Qed.
+Lemma of_val_undef_sim x :
+  of_val sbool x = undef_error →
+  exec_val_sim undef_error (pof_val sbool x).
+Proof. by case: x => //= -[]. Qed.
 
 Lemma get_var_sim vm vm' :
   vmap_sim vm vm' →
@@ -143,10 +134,10 @@ move => h; rewrite /sem.set_var /psem.set_var; apply: on_vuP.
   case/exec_val_simE: (of_val_sim ht) => t' [-> htt'] /=.
   eexists; split; last reflexivity.
   exact: vmap_set_sim.
-move => /of_val_undef_sim /exec_val_simE /= ->; case: ifP => // _ [<-] /=.
+case: x => xt x;case: is_sboolP => //= ?;subst xt.
+move => /of_val_undef_sim /exec_val_simE /= -> [<-] /=.
 eexists; split; last reflexivity.
-apply: vmap_set_sim => //.
-by case: (vtype _).
+by apply: vmap_set_sim.
 Qed.
 
 Section SEM_PEXPR_SIM.
@@ -172,7 +163,8 @@ Section SEM_PEXPR_SIM.
   | hm: sem.emem _ = _, h : context[sem.emem _] |- _ => rewrite hm in h
   | hvm: vmap_sim ?vm _, h : context[ sem.get_var ?vm _] |- _ => rewrite (get_var_sim hvm) in h
   | h : sem.on_arr_var _ _ _ = ok _ |- _ => unfold sem.on_arr_var in h; unfold psem.on_arr_var
-  | h : (if _ then _ else _) = ok _ |- _ => move: h; case: eqP => // ->; rewrite eqxx
+  | h : (if _ then _ else _) = ok _ |- _ => 
+    move: h; case: eqP => // ->; rewrite eqxx
   | h : Let x := _ in _ = ok _ |- _ => move: h; t_xrbindP => *
   | h : match ?x with _ => _ end = ok _ |- _ => move: h; case: x => // *
   end.
@@ -180,9 +172,8 @@ Section SEM_PEXPR_SIM.
   Lemma sem_pexpr_s_sim : (∀ e, P e) ∧ (∀ es, Q es).
   Proof.
     case: hs => ??.
-    apply: pexprs_ind_pair; subst P Q; split => //=; t_xrbindP => *;
-    rewrite -/(sem_pexprs _ _);
-    sem_pexpr_sim_t => //.
+    by apply: pexprs_ind_pair; subst P Q; split => //=; t_xrbindP => *;
+      rewrite -/(sem_pexprs _ _); sem_pexpr_sim_t.
   Qed.
 
   End SEM_PEXPR_SIM.
@@ -221,15 +212,17 @@ case => hm hvm; case: x => /=.
 - move => _ ty; rewrite /sem.write_none /psem.write_none; apply: on_vuP.
   + move => w hw <- {s2}; exists s1'; split; first by [].
     by case /exec_val_simE: (of_val_sim hw) => v' [-> _].
-  move /of_val_undef_sim => /exec_val_simE /= -> /=.
-  case: (is_sword _) => // - [<-].
+  case: is_sboolP => // ?;subst ty.
+  move /of_val_undef_sim => /exec_val_simE /= -> /= [<-].
   by exists s1'.
 - move => x; exact: write_var_sim.
 - move => sz x e; t_xrbindP => ? ?;
-    rewrite hm (get_var_sim hvm) => -> /= -> ?? /(sem_pexpr_sim (conj hm hvm)) -> /= -> ? -> ? /= -> <- /=.
+    rewrite hm (get_var_sim hvm) => -> /= -> ?? /(sem_pexpr_sim (conj hm hvm)) 
+        -> /= -> ? -> ? /= -> <- /=.
   by eexists; split; split.
-move => x e; rewrite /sem.on_arr_var /psem.on_arr_var (get_var_sim hvm); t_xrbindP => t -> /=.
-case: t => // sz n t; t_xrbindP => ?? /(sem_pexpr_sim (conj hm hvm)) -> /= -> ? -> /= ? -> ? /(set_var_sim hvm).
+move => ws x e; rewrite /sem.on_arr_var /psem.on_arr_var (get_var_sim hvm).
+t_xrbindP => t -> /=.
+case: t => // n t; t_xrbindP => ?? /(sem_pexpr_sim (conj hm hvm)) -> /= -> ? -> /= ? -> ? /(set_var_sim hvm).
 case => vm' [] h /= -> <- /=.
 by eexists; split; split.
 Qed.

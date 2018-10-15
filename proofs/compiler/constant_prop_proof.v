@@ -50,7 +50,7 @@ Definition eqok_w (e1 e2:pexpr) st :=
   forall v, sem_pexpr gd st e1 = ok v -> sem_pexpr gd st e2 = ok v.
 
 Definition array_eq v1 v2 := 
-   if type_of_val v1 is sarr _ _ then v1 = v2 else True.
+   if type_of_val v1 is sarr _ then v1 = v2 else True.
 
 Lemma array_eq_refl v : array_eq v v.
 Proof. by case v => //= -[]. Qed.
@@ -69,11 +69,11 @@ Lemma of_val_uincl_a ty v1 v2 v1' :
   of_val ty v1 = ok v1' ->
   of_val ty v2 = ok v1'.
 Proof.
-  case: ty v1' => [||s n|s] v1' [U Aeq];t_xrbindP.
+  case: ty v1' => [||n|s] v1' [U Aeq];t_xrbindP.
   + by move=> /(of_val_uincl U) /= [b [-> ]]; rewrite /val_uincl /= => ->.
   + by move=> /(of_val_uincl U) /= [b [-> ]]; rewrite /val_uincl /= => ->.
   + case: v1 v2 U Aeq => //;last by move=> [] //=???;case:ifP.
-    by move=> s1 n1 a1 []//= s2 n2 a2 [? [??]];subst => /Varr_inj1 <-. 
+    by move=> n1 a1 []//= n2 a2 hu /Varr_inj [??];subst.
   by move=> /(of_val_uincl U) /=  /= [w [-> ]] => /andP [_ /eqP ->];rewrite zero_extend_u.
 Qed.
 
@@ -648,7 +648,7 @@ Proof.
 Qed.
 
 Lemma app_sopn_uincl_a T ts op vs vs' (vres: T) :
-  all is_not_arr ts ->
+  all is_not_sarr ts ->
   app_sopn ts op vs = ok vres ->
   List.Forall2 value_uincl_a vs vs' ->
   app_sopn ts op vs' = ok vres.
@@ -716,8 +716,8 @@ Section CONST_PROP_EP.
       move: Hvalid => /(_ x).
       case: Mvar.get => [n /(_ _ erefl) | _ /= -> ]; last by eauto.
       by case: n => [ n | sz w ] /= -> [<-]; rewrite /sem_sop1 /= ?wrepr_unsigned; eauto.
-    - move => x e He v.
-      apply:on_arr_varP; rewrite /on_arr_var => ? n t ? -> /=.
+    - move => sz x e He v.
+      apply:on_arr_varP; rewrite /on_arr_var => n t ? -> /=.
       t_xrbindP => z w /(He _) [v'] [->] [/value_uincl_int h A] /h {h} [??]; subst.
       move => a ha ?; subst; rewrite /= ha.
       by eexists; (split; first reflexivity) => /=.
@@ -739,12 +739,12 @@ Section CONST_PROP_EP.
     move => e He e1 He1 e2 He2 v.
     t_xrbindP => b vb /He [wb] [hwb] [/value_uincl_bool h A]/h {h} [??]; subst.
     move => v1 /He1 [w1] [hw1 [hvw1 A1]] v2 /He2 [w2] [hw2 [hvw2 A2]].
-    case: ifP => // h; case: andP => // - [] /(value_uincl_is_defined hvw1) hd1 /(value_uincl_is_defined hvw2) hd2 [<-].
+    case: andP => // -[] /(value_uincl_is_defined hvw1) hd1 /(value_uincl_is_defined hvw2) hd2.     case: ifP => // /(value_uincl_compat_type hvw1 hvw2) hc [?];subst v.
     rewrite /s_if. case: is_boolP hwb => [ [] | ] /=.
     + by case => <-;exists w1.
     + by case => <-;exists w2.
     move => p -> /=; rewrite hw1 hw2 /=.
-    rewrite -(value_uincl_vundef_type_eq hvw1) -(value_uincl_vundef_type_eq hvw2) h hd1 hd2 /=.
+    rewrite hd1 hd2 hc /=.
     eexists;split;first reflexivity.
     by case: (b).
   Qed.
@@ -812,14 +812,14 @@ Lemma const_prop_rvP s1 s2 m x v:
   valid_cpm (evm s2) (const_prop_rv m x).1 /\
   write_lval gd (const_prop_rv m x).2 v s1 = ok s2.
 Proof.
-  case:x => [ii t | x | sz x p | x p] /= Hv.
+  case:x => [ii t | x | sz x p | sz x p] /= Hv.
   + by move=> H; have [??]:= write_noneP H; subst s2.
   + by move=> H;split=>//;apply: remove_cpm1P H Hv.
   + apply: rbindP => z Hz;rewrite Hz /=.
     apply: rbindP => z'.
     apply: rbindP => z'' /(@const_prop_eP p _ _ Hv) [] z3 [] -> /= [/value_uincl_word h _] /h {h} ->.
     by apply: rbindP => w -> /=;apply: rbindP => m' -> [<-].
-  apply: on_arr_varP;rewrite /on_arr_var => ? n t Htx -> /=.
+  apply: on_arr_varP;rewrite /on_arr_var => n t Htx -> /=.
   apply: rbindP => z;apply: rbindP => z'' /(@const_prop_eP p _ _ Hv) [] z3 [] ->.
   move => [/value_uincl_int h _] /h {h} [] ??; subst.
   apply: rbindP => w -> /=;apply: rbindP => t' -> /=.
@@ -894,7 +894,7 @@ Proof.
   move=> m1 m2 Hm e e' <- {e'}.
   elim: e => //=.
   + by move=> ?;rewrite Hm.
-  + by move=> ?? ->.
+  + by move=> ??? ->.
   + by move=> ??? ->.
   + by move=> ?? ->.
   + by move=> ?? -> ? ->.
@@ -909,7 +909,7 @@ Instance const_prop_rv_m :
   Proper (@Mvar_eq const_v ==> eq ==> RelationPairs.RelProd (@Mvar_eq const_v) eq) const_prop_rv.
 Proof.
   move=> m1 m2 Hm rv rv' <- {rv'}.
-  by case: rv => [ v | v | sz v p | v p] //=;rewrite Hm.
+  by case: rv => [ v | v | sz v p | sz v p] //=;rewrite Hm.
 Qed.
 
 Instance const_prop_rvs_m : 

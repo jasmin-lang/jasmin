@@ -1165,8 +1165,8 @@ Module CBAreg.
       if n1 == n2 then cok m else err tt
     | Pbool  b1, Pbool  b2 => 
       if b1 == b2 then cok m else err tt
-    | Parr_init sz1 n1, Parr_init sz2 n2 =>
-      if (sz1 == sz2) && (n1 == n2) then cok m else err tt
+    | Parr_init n1, Parr_init n2 =>
+      if n1 == n2 then cok m else err tt
     | Pvar   x1, Pvar   x2 => check_v x1 x2 m
     | Pglobal g1, Pglobal g2 =>
       if g1 == g2 then cok m else err tt
@@ -1323,8 +1323,8 @@ Module CBAreg.
       by case: ifPn => // /eqP <- [->] ?; split=> // ?? [] <-; exists z1.
     - move => b1 [] // b2 r re vm1.
       by case: ifPn => // /eqP <- [->] ?;split=> // ?? [] <-; exists b1.
-    - move => sz1 n1 [] // sz2 n2 r re vm1.
-      by case: eqP => //= <-; case: eqP => //= <- [<-] ?; split => // ?? [<-]; eauto.
+    - move => n1 [] // n2 r re vm1.
+      by case: eqP => //= <- [<-] ?; split => // ?? [<-]; eauto.
     - move => x1 [] // x2 r re vm1.
       by move=> /check_vP Hv /Hv [Hea H].
     - move => g1 [] // g2 r re vm1.

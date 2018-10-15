@@ -98,8 +98,8 @@ Coercion nat_of_wsize (sz : wsize) :=
 Definition wsize_bits (s:wsize) : Z :=
   Zpos (Pos.of_succ_nat (wsize_size_minus_1 s)).
 
-Definition wsize_size (sz: wsize) : positive :=
-  match sz with
+Definition wsize_size (sz: wsize) : Z :=
+  Zpos match sz return positive with
   | U8   => 1
   | U16  => 2
   | U32  => 4
@@ -108,14 +108,24 @@ Definition wsize_size (sz: wsize) : positive :=
   | U256 => 32
   end.
 
-Coercion Zpos : positive >-> Z.
+Lemma wsize8 : wsize_size U8 = 1%Z. done. Qed.
 
-Lemma wsize_sizeE sz : Zpos (wsize_size sz) =  wsize_bits sz / 8.
+Definition wbase (s: wsize) : Z :=
+  modulus (wsize_size_minus_1 s).+1.
+
+Lemma le0_wsize_size ws : 0 <= wsize_size ws.
+Proof. rewrite /wsize_size; lia. Qed.
+Hint Resolve le0_wsize_size.
+
+Lemma wsize_sizeE sz : wsize_size sz =  wsize_bits sz / 8.
 Proof. by case: sz. Qed.
 
 Lemma wsize_size_pos sz :
   0 < wsize_size sz.
 Proof. done. Qed.
+
+Lemma wsize_size_wbase s : wsize_size s < wbase U64.
+Proof. by apply /ZltP; case: s; vm_compute. Qed.
 
 Lemma wsize_cmpP sz sz' :
   wsize_cmp sz sz' = Nat.compare (wsize_size_minus_1 sz) (wsize_size_minus_1 sz').
@@ -167,9 +177,6 @@ Definition wnot sz (w: word sz) : word sz :=
 Arguments wnot {sz} w.
 
 Definition wandn sz (x y: word sz) : word sz := wand (wnot x) y.
-
-Definition wbase (s: wsize) : Z :=
-  modulus (wsize_size_minus_1 s).+1.
 
 Definition wunsigned {s} (w: word s) : Z :=
   urepr w.
@@ -696,6 +703,14 @@ have him : (i <= m)%nat. by apply/leP; lia.
 rewrite him /=.
 have hi' : (i < m'.+1)%nat. apply /ltP. lia.
 by have /= -> := @wnotE sz' x (Ordinal hi') .
+Qed.
+
+Lemma wunsigned_sub (sz : wsize) (p : word sz) (n : Z):
+  0 <= wunsigned p - n < wbase sz → wunsigned (p - wrepr sz n) = wunsigned p - n.
+Proof.
+  move=> h.
+  rewrite -{1}(wrepr_unsigned p).
+  by rewrite -wrepr_sub wunsigned_repr Z.mod_small.
 Qed.
 
 (* -------------------------------------------------------------------*)

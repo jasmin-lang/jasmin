@@ -191,6 +191,7 @@ rewrite /mem_write_reg /= word_extend_reg_id // zero_extend_u -RegMap_set_id.
 by case: (xm1).
 Qed.
 
+(* TODO: Move this *)
 Lemma truncate_val_uincl ty v v' :
   truncate_val ty v = ok v' →
   value_uincl v' v.
@@ -199,7 +200,8 @@ apply: rbindP => z hz [<-].
 case: ty z hz => /=.
 - by move => b /to_boolI ->.
 - by move => z /of_val_int ->.
-- by move => sz n t /to_arr_ok ->; split => //; exists erefl.
+- move => n t; case: v => //= [len a | []//].
+  by rewrite /WArray.cast /WArray.uincl; case: ZleP => // ? [<-].
 move => sz w /of_val_word [sz'] [w'] [hle -> ->].
 exact: word_uincl_zero_ext.
 Qed.
@@ -250,11 +252,11 @@ have eqm1 : lom_eqv {| emem := m1' ; evm := vm1 |} xr1.
     rewrite /get_var /var_of_register /RegMap.set ffunE; case: eqP.
     * move => -> {r} /=; rewrite Fv.setP_eq word_extend_reg_id // zero_extend_u => -[<-];
       exact: word_uincl_refl.
-    move => ne; rewrite /= Fv.setP_neq /vmap0 ?Fv.get0; first by case => <-.
+    move => ne; rewrite /= Fv.setP_neq /vmap0 ?Fv.get0 //.
     by apply/eqP => -[] /inj_string_of_register ?; apply: ne.
-  - by move => r v; rewrite /vm1 /= /get_var /vmap0 Fv.setP_neq // Fv.get0 => - [<-].
+  - by move => r v; rewrite /vm1 /= /get_var /vmap0 Fv.setP_neq // Fv.get0.
   move => f v /=; rewrite /vm1 /rflagmap0 ffunE /=.
-  by rewrite /var_of_flag /get_var /= Fv.setP_neq // /vmap0 Fv.get0 => -[<-].
+  by rewrite /var_of_flag /get_var /= Fv.setP_neq // /vmap0 Fv.get0. 
 have h1 : get_reg_values xr1 args = get_reg_values s1 args.
 + rewrite /get_reg_values /get_reg_value /xr1 /=.
   apply: map_ext => // r /xseq.InP hr; f_equal.

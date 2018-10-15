@@ -204,7 +204,7 @@ Section PROOF.
     + by move => _ [] //; rewrite /write_none /= => sz'; case: eqP.
     + by case => - [] [] // sz' vn vi; rewrite /write_var /set_var /=; case: eqP.
     + by move => sz' v e; t_xrbindP; case: ifP.
-    by move => [] [vt vn] /= _ e; apply: on_arr_varP => sz' n t /= ->; t_xrbindP; case: ifP.
+    by move => ws [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
   Qed.
 
   Lemma type_of_get_var vm sz vn v:
@@ -214,7 +214,6 @@ Section PROOF.
     rewrite /get_var /on_vu.
     case Heq: (vm.[_])=> [a|[]] // [<-] /=; eauto.
     case: a {Heq} => /= sz' _; eauto.
-    exists U8; split => //; by case: (sz).
   Qed.
 
   Lemma disj_eq_exc v mem1 mem2 vm1 vm2:
@@ -376,7 +375,7 @@ Section PROOF.
     write_lval gd l v s = ok s' →
     ∃ sz', type_of_val v = sword sz'.
   Proof.
-  case: l => /= [ _ [] // sz' | [[vt vn] vi] | sz' [[vt vn] vi] e | [[vt vn] vi] e ] /=.
+  case: l => /= [ _ [] // sz' | [[vt vn] vi] | sz' [[vt vn] vi] e | sz' [[vt vn] vi] e ] /=.
   - case => ->; case: v => //=; eauto => -[] //=; eauto.
   - move => ->; case: v => //=; eauto => -[] //=; eauto.
   - move => ->; t_xrbindP => w1 v1 _ h1 w n _ hn w' /of_val_word [ws] [?] [??]; subst => /=; eauto.
@@ -1012,7 +1011,7 @@ Section PROOF.
     end.
   Proof.
     rewrite /lower_cassgn_classify.
-    move: e Hs=> [z|b|sz n|x| g |x e|sz x e|o e|o e1 e2| op es |e e1 e2] //.
+    move: e Hs=> [z|b|n|x| g |x e|sz x e|o e|o e1 e2| op es |e e1 e2] //.
     + case: x => - [] [] // sz vn vi /= /type_of_get_var [sz'] [Hs Hs'].
       have := truncate_val_subtype Hv'. rewrite Hs -(truncate_val_has_type Hv').
       case hty: (type_of_val v') => [ | | | sz'' ] //= hle.
@@ -1023,7 +1022,6 @@ Section PROOF.
       case: ifP => // h; eexists; first reflexivity.
       split; first exact: (cmp_le_trans hle (cmp_le_trans Hs' h)).
       by eexists _, _; split; last reflexivity.
-    + by case: x => - [] [] // sz vn vi /=; apply: on_arr_varP=> sz' n t.
     + rewrite /=; t_xrbindP => ???????? w _ ?; subst v; case: ifP => // ?.
       have {Hv'} [sz' [? hle ?]] := truncate_val_word Hv'.
       subst v' ty => /=.
@@ -1675,7 +1673,7 @@ Section PROOF.
       clear s2' Hw' Hs2'.
       rewrite /= in Hv'.
       move: Hv'; t_xrbindP=> b bv Hbv Hb v1 Hv1 v2 Hv2.
-      case: eqP => // hty'; case: ifP => // _ [?]; subst v.
+      case:ifP => // hdef; case: ifP => // hty' [?]; subst v.
       have [s2' [Hs2'1 [Hs2'2 Hs2'3]]] := lower_condition_corr ii Hcond Hs1' Hbv.
       have [s3' [Hw' Hs3']] := write_lval_same Hdisjl Hs2'2 Hw.
       exists s3'; split=> //.

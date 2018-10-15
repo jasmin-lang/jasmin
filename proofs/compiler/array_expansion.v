@@ -418,7 +418,7 @@ Module CBEA.
     match e1, e2 with
     | Pconst   n1, Pconst   n2 => n1 == n2
     | Pbool    b1, Pbool    b2 => b1 == b2
-    | Parr_init sz1 n1, Parr_init sz2 n2 => (sz1 == sz2) && (n1 == n2)
+    | Parr_init n1, Parr_init n2 => n1 == n2
     | Pvar     x1, Pvar     x2 => check_var m x1 x2
     | Pglobal g1, Pglobal g2 => g1 == g2
     | Pget wz1 x1 e1, Pget wz2 x2 e2 => (wz1 == wz2) && check_var m x1 x2 && check_eb m e1 e2
@@ -505,7 +505,7 @@ Module CBEA.
         by move: ih => /(_ _ _ hes ok_vs) [] vs' -> hs /=; eauto.
       - by move => z1 [] // z2 _ /eqP <- [<-] /=; exists z1.
       - by move => z1 [] // z2 _ /eqP <- [<-] /=; exists z1.
-      - by move => sz1 n1 [] // sz2 n2 _ /andP [] /eqP <- /eqP <- [<-] /=; eexists => //=.
+      - by move => n1 [] // n2 _ /eqP <- [<-] /=; eexists => //=.
       - by move => x1 [] // x2 v; exact: check_varP.
       - by move => g1 [] // g2 v /eqP <- /= ->; eauto.
       - move => sz1 [[ty1 x1] ii1] e1 ih1 [] //.
@@ -575,23 +575,6 @@ Module CBEA.
     by eauto.
   Qed.
 
-(* ----------------------------------- TODO move this ---------------------------*)
-Lemma eval_uincl_undef t (v:psem_t t) : eval_uincl (pundef_addr t) (ok v).
-Proof.
-  case: t v => //= p v. rewrite /pval_uincl /=; split.
-  + by apply Z.le_refl.
-  by move=> ??? /=; rewrite FArray.get0.
-Qed.
-
-Lemma eval_uincl_apply_undef t (v1 v2 : exec (psem_t t)): 
-  eval_uincl v1 v2 -> 
-  eval_uincl (apply_undef v1) (apply_undef v2).
-Proof.
-  case:v1 v2=> [v1 | []] [v2 | e2] //=; try by move=> <-.
-  by move=> _; apply eval_uincl_undef.
-Qed.
-
-(* ------------------------------------------------------------------------------ *)
   Lemma eq_alloc_set x1 (v1 v2:exec (psem_t (vtype x1))) r vm1 vm2  : 
     ~ Sv.In x1 (M.allocated r) ->
     eq_alloc r vm1 vm2 ->
@@ -662,8 +645,9 @@ Qed.
       t_xrbindP=> w /(value_uincl_word huv) H => {huv} t' Ht' vm1' Hset <- /=.
       move: Hget Hset; rewrite /get_var/set_var/=;apply:on_vuP => //=.
       move=> t'' Hget /Varr_inj [?]; subst n' => /= ? [?]; subst t'' vm1'.
-      rewrite Z.leb_refl /write_var /set_var /= (to_word_to_pword H) /=.
+      rewrite /write_var /set_var /= (to_word_to_pword H) /=.
       eexists;split;first reflexivity.
+      rewrite /WArray.inject Z.ltb_irrefl.
       have -> : {| WArray.arr_data := WArray.arr_data t' |} = t' by case: (t').
       case: heqa => Hina Hgeta.
       split.

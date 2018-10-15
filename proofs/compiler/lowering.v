@@ -100,28 +100,26 @@ Definition fvars_correct p :=
 Definition var_info_of_lval (x: lval) : var_info :=
   match x with 
   | Lnone i t => i
-  | Lvar x | Lmem _ x _ | Laset x _ => v_info x
+  | Lvar x | Lmem _ x _ | Laset _ x _ => v_info x
   end.
 
 Definition stype_of_lval (x: lval) : stype :=
   match x with
   | Lnone _ t => t
-  | Lvar v | Lmem _ v _ | Laset v _ => v.(vtype)
+  | Lvar v | Lmem _ v _ | Laset _ v _ => v.(vtype)
   end.
 
 Definition wsize_of_stype (ty: stype) : wsize :=
   match ty with
-  | sarr sz _
   | sword sz => sz
-  | sbool | sint => U64
+  | sbool | sint | sarr _ => U64
   end.
 
 Definition wsize_of_lval (lv: lval) : wsize :=
   match lv with
   | Lnone _ ty
-  | Lvar {| v_var := {| vtype := ty |} |}
-  | Laset {| v_var := {| vtype := ty |} |} _
-    => wsize_of_stype ty
+  | Lvar {| v_var := {| vtype := ty |} |} => wsize_of_stype ty
+  | Laset sz _  _ 
   | Lmem sz _ _ => sz
   end.
 
@@ -269,7 +267,7 @@ Definition is_lval_in_memory (x: lval) : bool :=
   match x with
   | Lnone _ _ => false
   | Lvar v
-  | Laset v _
+  | Laset _ v _
     => is_var_in_memory v
   | Lmem _ _ _ => true
   end.
@@ -379,7 +377,6 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
   let k16 sz := kb ((U16 ≤ sz) && (sz ≤ U64))%CMP sz in
   let k32 sz := kb ((U32 ≤ sz) && (sz ≤ U64))%CMP sz in
   match e with
-  | Pget ({| v_var := {| vtype := sword sz |} |} as v) _
   | Pvar ({| v_var := {| vtype := sword sz |} |} as v) =>
     chk (sz ≤ U64)%CMP (LowerMov (if is_var_in_memory v then is_lval_in_memory x else false))
   | Pload sz _ _ => chk (sz ≤ U64)%CMP (LowerMov (is_lval_in_memory x))

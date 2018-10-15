@@ -72,23 +72,10 @@ Definition to_pword (s: wsize) (v: value) : exec (pword s) :=
 
 Definition to_parr (n : positive) v: exec (WArray.array n) := 
   match v with
-  | Varr n' t =>
-    ok 
-    (if n <=? n' then {| WArray.arr_data := t.(WArray.arr_data) |}
-    else {| WArray.arr_data := 
-            FArray.of_fun (fun z => if z <? n' then FArray.get t.(WArray.arr_data) z
-                                    else undef_error) |})
+  | Varr n' t => ok (WArray.inject n t)
   | Vundef (sarr n') => type_error 
   | _                => type_error
   end.
-
-Lemma sumbool_of_boolET (b: bool) (h: b) :
-  Sumbool.sumbool_of_bool b = left h.
-Proof. by move: h; rewrite /is_true => ?; subst. Qed.
-
-Lemma sumbool_of_boolEF (b: bool) (h: b = false) :
-  Sumbool.sumbool_of_bool b = right h.
-Proof. by move: h; rewrite /is_true => ?; subst. Qed.
 
 Definition pof_val t : value -> exec (psem_t t) :=
   match t return value -> exec (psem_t t) with
@@ -178,14 +165,6 @@ Notation "'Let' ( n , t ) ':=' s '.[' x ']' 'in' body" :=
   (@on_arr_var _ s x (fun n (t:WArray.array n) => body)) 
   (at level 25, s at level 0).
 
-Definition compat_type t1 t2 := 
-  match t1 with
-  | sint    => t2 == sint
-  | sbool   => t2 == sbool
-  | sword _ => is_sword t2 
-  | sarr _  => is_sarr t2
-  end.
-
 Section SEM_PEXPR.
 
 Context (gd: glob_decls).
@@ -194,7 +173,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   match e with
   | Pconst z => ok (Vint z)
   | Pbool b  => ok (Vbool b)
-  | Parr_init sz n => ok (Varr (WArray.empty (WArray.size sz n)))
+  | Parr_init n => ok (Varr (WArray.empty n))
   | Pvar v => get_var s.(evm) v
   | Pglobal g => get_global gd g
   | Pget ws x e =>
@@ -639,7 +618,7 @@ Proof.
 case: v => //=; eauto.
 + move=> n a _;rewrite /WArray.cast.
   exists a => //; case: ifP => /ZleP; last by lia.
-  by move=> _; f_equal;apply WArray.eqP.
+  by move=> _; f_equal;case: a.
 by move => sz w; rewrite truncate_word_u; eauto.
 Qed.
 
@@ -775,7 +754,7 @@ Proof.
 case: ty v.
 + by move=> ? [<-]. + by move=> ? [<-].
 + move=> p t1; rewrite /truncate_val /= /WArray.cast Z.leb_refl /= => -[<-].
-  by f_equal;apply WArray.eqP.
+  by f_equal;case: t1.
 move => w [] // s v /= hle; apply: rbindP => w' /truncate_wordP [hle'] -> [<-].
 by rewrite -(cmp_le_antisym hle hle') zero_extend_u.
 Qed.
@@ -1209,22 +1188,6 @@ Proof.
   case: v1 v2 => [ b1 | n1 | n1 t1 | sz1 w1 | t1 ] [] //=; eauto; try by move => ? <-.
 Qed.
 
-Lemma compat_typeC t1 t2 : compat_type t1 t2 = compat_type t2 t1.
-Proof. by case: t1 t2 => [||n1|wz1] [||n2|wz2]. Qed.
-
-Lemma compat_type_refl t : compat_type t t.
-Proof. by case: t => [||n|wz]. Qed.
-Hint Resolve compat_type_refl.
-
-Lemma compat_type_trans t2 t1 t3 : compat_type t1 t2 -> compat_type t2 t3 -> compat_type t1 t3.
-Proof. 
-  case: t1 => /=.
-  + by move => /eqP -> /eqP ->.
-  + by move => /eqP -> /eqP ->.
-  + by case: t2.
-  by case: t2.
-Qed.
-
 (*Lemma type_uincl_refl t : type_uincl t t.
 Proof. case: t => //=; move=> *; apply Z.leb_refl. Qed. 
 
@@ -1477,7 +1440,7 @@ Hint Resolve vm_uincl_refl.
 Lemma val_uincl_array n (a a' : WArray.array n) : 
   (∀ (i : Z) (v : u8),
     0 <= i ∧ i < n → 
-    FArray.get (WArray.arr_data a) i = ok v → FArray.get (WArray.arr_data a') i = ok v) ->
+    Mz.get (WArray.arr_data a) i = Some v → Mz.get (WArray.arr_data a') i = Some v) ->
   @val_uincl (sarr n) (sarr n) a a'.
 Proof.
   by move=> H;rewrite /val_uincl /=;split => //; apply Z.le_refl.
@@ -1515,14 +1478,8 @@ Proof.
   + move=> [h1 h2]; case: t z => //= p a1 [<-].
     eexists;split;first by reflexivity.
     split; first by apply Z.le_refl.
-    move=> i v hi;case : ifPn => /ZleP hn /=. 
-    + have /ZleP -> /= : p <= n' by lia.
-      by apply h2; lia.
-    rewrite FArray.of_funP; case: ZleP => Hpn' /=; case: ZltP => hin //=.
-    + by apply h2;lia.
-    rewrite FArray.of_funP /=.
-    have /ZltP -> /= : i < n' by lia.
-    by apply h2; lia.
+    move=> i v [h0i hip]; rewrite !WArray.zget_inject //; case: ifP => //= /ZltP hn.
+    by case: ifPn => /ZltP hn'; [apply h2 | lia].
   move=> /andP []hsz /eqP ->;rewrite /pof_val /pval_uincl /=.
   case: t z => //= s z.
   case: (Sumbool.sumbool_of_bool (sz ≤ s)%CMP).
@@ -1692,7 +1649,7 @@ Lemma sem_pexpr_uincl gd s1 vm2 e v1 :
   sem_pexpr gd s1 e = ok v1 →
   exists2 v2, sem_pexpr gd (Estate s1.(emem) vm2) e = ok v2 & value_uincl v1 v2.
 Proof.
-  move=> Hu; elim: e v1=>//=[z|b|sz n|x|g|ws x p Hp|sz x p Hp|o e He|o e1 He1 e2 He2 | op es Hes | e He e1 He1 e2 He2 ] v1.
+  move=> Hu; elim: e v1=>//=[z|b|n|x|g|ws x p Hp|sz x p Hp|o e He|o e1 He1 e2 He2 | op es Hes | e He e1 He1 e2 He2 ] v1.
   + by move=> [] <-;exists z.
   + by move=> [] <-;exists b.
   + by case => <-; eauto.
@@ -1826,13 +1783,8 @@ Proof.
    try by move=> h; eexists; [apply h | done].
   + case: t2 => // p' /ZleP hle /=.
     case: v => //=; last by case. 
-    move=> len a [<-]; eexists; first reflexivity.
-    split => // i v hi.
-    case: ZleP => /= hlen.
-    + move=> hget; case: ZleP => //= ?.
-      by rewrite FArray.of_funP; have /ZltP -> : i < len by lia.
-    have /ZleP -/negbTE -> /= : ~ (p' <= len) by lia.
-    by rewrite !FArray.of_funP.
+    move=> len a [<-]; eexists;first by reflexivity.
+    by split => // i v hi; rewrite !WArray.zget_inject //; lia.
   case: t2 => //= s2 hle;case: v => //=;last by case.
   move=> s' w [<-]; eexists; first reflexivity.
   case: Sumbool.sumbool_of_bool => e /=.
@@ -1847,7 +1799,7 @@ Qed.
 Lemma pof_val_pto_val t (v:psem_t t): pof_val t (pto_val v) = ok v.
 Proof. 
   case: t v => [b | z | n a | s w] //=.
-  + by rewrite Z.leb_refl;f_equal; apply WArray.eqP.
+  + by f_equal; rewrite /WArray.inject Z.ltb_irrefl; case: a.
   case: Sumbool.sumbool_of_bool => e.
   + f_equal;case: w e => /= ????;f_equal; apply eq_irrelevance.
   by have := pw_proof w;rewrite e. 
@@ -1863,12 +1815,10 @@ Proof.
   + by move=> h1 h2;have [? [<-]]:= value_uincl_int h2 h1.
   + case: v1 => //= [ len a| []//] [<-] [hlen hget].
     apply: val_uincl_array => i v hi.
-    case: ZleP => hlen' /=; first by apply hget;lia.
-    by rewrite FArray.of_funP; case: ZltP => hlt //; apply hget;lia.
+    by rewrite WArray.zget_inject //; case:ZltP => // ?; apply hget; lia.
   case: v1 => //= [ s' w| [] //] [<-].
   case: Sumbool.sumbool_of_bool => //= /negbT hnle.
-  have hle := cmp_nle_le hnle.
-  apply: word_uincl_trans.
+  have hle := cmp_nle_le hnle; apply: word_uincl_trans.
   exact: word_uincl_zero_ext.
 Qed.
 
@@ -2398,12 +2348,10 @@ Qed.
 
 Lemma eq_exprP gd s e1 e2 : eq_expr e1 e2 -> sem_pexpr gd s e1 = sem_pexpr gd s e2.
 Proof.
-  elim: e1 e2=> [z  | b | sz n | x | g | sz x e He | sz x e He | o e  He | o e1 He1 e2 He2 | o es Hes | e He e1 He1 e2 He2]
-                [z' | b' | sz' n' | x' | g' | sz' x' e'  | sz' x' e'  | o' e' | o' e1' e2' | o' es' | e' e1' e2'] //=.
+  elim: e1 e2=> [z  | b | n | x | g | sz x e He | sz x e He | o e  He | o e1 He1 e2 He2 | o es Hes | e He e1 He1 e2 He2]
+                [z' | b' | n' | x' | g' | sz' x' e'  | sz' x' e'  | o' e' | o' e1' e2' | o' es' | e' e1' e2'] //=.
   + by move=> /eqP ->.   + by move=> /eqP ->.
-  + by case/andP => /eqP -> /eqP ->.
-  + by move=> /eqP ->.
-  + by move=> /eqP ->.
+  + by move=> /eqP ->.   + by move=> /eqP ->.  + by move=> /eqP ->.
   + by move=> /andP []/andP [] /eqP -> /eqP -> /He ->.
   + by case/andP => /andP [] /eqP -> /eqP -> /He ->.
   + by move=> /andP[]/eqP -> /He ->.
@@ -2468,7 +2416,7 @@ Proof.
   by subst; rewrite /pword_of_word zero_extend_u;do 2 f_equal;apply eq_irrelevance.
 Qed.
 
-(* ------------------------------------------ *)
+(* ------------------------------------------------------------------------------ *)
 Definition apply_undef t (v : exec (psem_t t)) :=
   match v with
   | Error ErrAddrUndef => pundef_addr t
@@ -2478,11 +2426,17 @@ Definition apply_undef t (v : exec (psem_t t)) :=
 Lemma eval_uincl_undef t1 t2 (v:psem_t t2) : 
   subtype t1 t2 -> 
   eval_uincl (pundef_addr t1) (ok v).
-Proof.
-  case: t1 => //= p; case: t2 v => //= p2 a /ZleP hle;split => // i v.
-  by rewrite FArray.get0.
-Qed. 
+Proof. by case: t1 => //= p; case: t2 v => //= p2 a /ZleP. Qed. 
 
 Lemma apply_undef_pundef_addr t : apply_undef (pundef_addr t) = pundef_addr t.
 Proof. by case: t. Qed.
 
+Lemma eval_uincl_apply_undef t (v1 v2 : exec (psem_t t)): 
+  eval_uincl v1 v2 -> 
+  eval_uincl (apply_undef v1) (apply_undef v2).
+Proof.
+  case:v1 v2=> [v1 | []] [v2 | e2] //=; try by move=> <-.
+  by move=> _; apply eval_uincl_undef.
+Qed.
+
+(* ------------------------------------------------------------------------------ *)

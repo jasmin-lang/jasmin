@@ -344,6 +344,9 @@ Arguments Mt.set P m%mtype_scope k v.
 
 Definition is_sbool t := t == sbool.
 
+Lemma is_sboolP t : reflect (t=sbool) (is_sbool t).
+Proof. by rewrite /is_sbool;case:eqP => ?;constructor. Qed.
+
 Definition is_sword t := 
   match t with
   | sword _ => true
@@ -366,3 +369,28 @@ Lemma wsize_nle_u64_check_128_256 sz :
   (sz ≤ U64)%CMP = false →
   check_size_128_256 sz = ok tt.
 Proof. by case: sz. Qed.
+
+(* -------------------------------------------------------------------- *)
+Definition compat_type t1 t2 := 
+  match t1 with
+  | sint    => t2 == sint
+  | sbool   => t2 == sbool
+  | sword _ => is_sword t2 
+  | sarr _  => is_sarr t2
+  end.
+
+Lemma compat_typeC t1 t2 : compat_type t1 t2 = compat_type t2 t1.
+Proof. by case: t1 t2 => [||n1|wz1] [||n2|wz2]. Qed.
+
+Lemma compat_type_refl t : compat_type t t.
+Proof. by case: t => [||n|wz]. Qed.
+Hint Resolve compat_type_refl.
+
+Lemma compat_type_trans t2 t1 t3 : compat_type t1 t2 -> compat_type t2 t3 -> compat_type t1 t3.
+Proof. 
+  case: t1 => /=.
+  + by move => /eqP -> /eqP ->.
+  + by move => /eqP -> /eqP ->.
+  + by case: t2.
+  by case: t2.
+Qed.
