@@ -152,7 +152,7 @@ let string_of_peop2 : peop2 -> string =
 type pexpr_r =
   | PEParens of pexpr
   | PEVar    of pident
-  | PEGet    of pident * pexpr
+  | PEGet    of wsize option * pident * pexpr
   | PEFetch  of wsize option * pident * pexpr
   | PEpack   of svsize * pexpr list
   | PEBool   of bool
@@ -179,7 +179,7 @@ type pstotype = pstorage * ptype
 type plvalue_r =
   | PLIgnore
   | PLVar   of pident
-  | PLArray of pident * pexpr
+  | PLArray of wsize option * pident * pexpr
   | PLMem   of wsize option * pident * pexpr
 
 type plvalue = plvalue_r L.located

@@ -14,3 +14,32 @@ r = s;
 b = a[0];
 return b;
 }
+
+
+export
+fn test1(reg u64 x) -> () {
+stack u128[3] a;
+reg int i;
+reg u8 b;
+reg u128 lll;
+reg u64  ll;
+reg u32  l;
+
+lll  = (u128)[x + 0];    // 16
+a[0] = lll; 
+lll = (u128)[x + 16];     // 32
+a[1] = lll;
+ll  = (u64)[x + 32]; // 40
+a[u64 4] = ll;
+l = (u32)[x + 40]; // 44
+a[u32 10] = l;
+l = (u32)[x + 44]; // 48
+a[u32 11] = l;
+
+for i = 0 to 48 {
+  b = a[u8 i];
+  (u8)[x+i] = b;
+}
+ 
+return ;
+}

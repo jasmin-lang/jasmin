@@ -175,8 +175,8 @@ pexpr_r:
 | v=var
     { PEVar v }
 
-| v=var i=brackets(pexpr)
-    { PEGet (v, i) }
+| v=var i=brackets(ws=utype? e=pexpr {ws, e})
+    { let ws, e = i in PEGet (ws, v, e) }
 
 | TRUE
     { PEBool true }
@@ -238,8 +238,8 @@ plvalue_r:
 | x=var
     { PLVar x }
 
-| x=var i=brackets(pexpr)
-    { PLArray (x, i) }
+| x=var i=brackets(ws=utype? e=pexpr {ws, e})
+    { let ws,e = i in PLArray (ws, x, e) }
 
 | ct=parens(utype)? LBRACKET v=var PLUS e=pexpr RBRACKET
     { PLMem (ct, v, e) }

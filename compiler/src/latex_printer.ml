@@ -136,7 +136,7 @@ let rec pp_expr_rec prio fmt pe =
   match L.unloc pe with
   | PEParens e -> pp_expr_rec prio fmt e
   | PEVar x -> pp_var fmt x
-  | PEGet (x, e) -> F.fprintf fmt "%a[%a]" pp_var x pp_expr e
+  | PEGet (ws, x, e) -> F.fprintf fmt "%a[%a %a]" (pp_opt pp_ws) ws pp_var x pp_expr e
   | PEFetch (ty, x, e) -> F.fprintf fmt "%a[%a + %a]" (pp_opt (pp_paren pp_ws)) ty pp_var x pp_expr e
   | PEpack (vs,es) ->
     F.fprintf fmt "(%a)[@[%a@]]" pp_svsize vs (pp_list ",@ " pp_expr) es
@@ -214,7 +214,7 @@ let pp_lv fmt x =
   match L.unloc x with
   | PLIgnore -> F.fprintf fmt "_"
   | PLVar x -> pp_var fmt x
-  | PLArray (x, e) -> F.fprintf fmt "%a[%a]" pp_var x pp_expr e
+  | PLArray (ws, x, e) -> F.fprintf fmt "%a[%a %a]" (pp_opt pp_ws) ws pp_var x pp_expr e
   | PLMem (ty, x, e) -> F.fprintf fmt "%a[%a + %a]" (pp_opt (pp_paren pp_ws)) ty pp_var x pp_expr e
 
 let string_of_eqop op =

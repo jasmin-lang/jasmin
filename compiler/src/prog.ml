@@ -66,6 +66,7 @@ let u32  = Bty (U U32)
 let u64  = Bty (U U64)
 let u128 = Bty (U U128)
 let u256 = Bty (U U256)
+let tu ws = Bty (U ws)
 let tbool = Bty Bool
 let tint  = Bty Int
 

@@ -65,6 +65,7 @@ val u32   : 'e gty
 val u64   : 'e gty
 val u128  : 'e gty
 val u256  : 'e gty
+val tu    : wsize -> 'e gty
 val tint  : 'e gty
 val tbool : 'e gty
 (* ------------------------------------------------------------------------ *)
