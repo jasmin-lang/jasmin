@@ -4,6 +4,7 @@ open Prog
 module E = Expr
 module B = Bigint
 
+(*
 let pp_size fmt sz =
   Format.fprintf fmt "%i" (int_of_ws sz)
 
@@ -46,7 +47,7 @@ let for_safety    env = env.model = Utils.Safety
 let rec read_mem_e = function
   | Pconst _ | Pbool _ | Parr_init _ |Pvar _ | Pglobal _ -> false
   | Pload _ -> true
-  | Papp1 (_, e) | Pget (_, e) -> read_mem_e e
+  | Papp1 (_, e) | Pget (_, _, e) -> read_mem_e e
   | Papp2 (_, e1, e2) -> read_mem_e e1 || read_mem_e e2
   | PappN (_, es) -> read_mem_es es
   | Pif  (e1, e2, e3) -> read_mem_e e1 || read_mem_e e2 || read_mem_e e3
@@ -56,7 +57,7 @@ and read_mem_es es = List.exists read_mem_e es
 let read_mem_lval = function
   | Lnone _ | Lvar _ -> false
   | Lmem (_,_,_) -> true 
-  | Laset (_, e) -> read_mem_e e
+  | Laset (_,_,e) -> read_mem_e e
 
 let write_mem_lval = function
   | Lnone _ | Lvar _ | Laset _ -> false
@@ -111,7 +112,7 @@ let rec leaks_e_rec leaks e =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ |Pvar _ | Pglobal _ -> leaks
   | Pload (_,x,e) -> snd (add64 x e) :: leaks_e_rec leaks e
-  | Papp1 (_, e) | Pget (_, e) -> leaks_e_rec leaks e
+  | Papp1 (_, e) | Pget (_,_, e) -> leaks_e_rec leaks e
   | Papp2 (_, e1, e2) -> leaks_e_rec (leaks_e_rec leaks e1) e2
   | PappN (_, es) -> leaks_es_rec leaks es
   | Pif  (e1, e2, e3) -> leaks_e_rec (leaks_e_rec (leaks_e_rec leaks e1) e2) e3
@@ -122,7 +123,7 @@ let leaks_es es = leaks_es_rec [] es
 
 let leaks_lval = function
   | Lnone _ | Lvar _ -> []
-  | Laset (_, e) -> leaks_e_rec [] e
+  | Laset (_,_, e) -> leaks_e_rec [] e
   | Lmem (_, x,e) -> leaks_e_rec [snd (add64 x e)] e
 
 (* FIXME: generate this list automatically *)
@@ -323,10 +324,7 @@ let ty_lval = function
   | Lnone (_, ty) -> ty
   | Lvar x -> (L.unloc x).v_ty
   | Lmem (ws,_,_) -> Bty (U ws)
-  | Laset(x, _) -> 
-    match (L.unloc x).v_ty with 
-    | Arr (ws,_) -> Bty (U ws)
-    | _ -> assert false
+  | Laset(ws, _, _) -> Bty (U ws)
 
 let add_aux env tys = 
   let tbl = Hashtbl.create 10 in
@@ -475,27 +473,22 @@ let min_ty ty1 ty2 =
     Coq_sword (Utils0.cmp_min Type.wsize_cmp sz1 sz2)
   | Coq_sint, Coq_sint -> Coq_sint
   | Coq_sbool, Coq_sbool -> Coq_sbool
-  | Coq_sarr(sz1,p1), Coq_sarr(sz2,p2) -> 
-    assert (sz1 = sz2 && p1 = p2); ty1
+  | Coq_sarr p1, Coq_sarr p2 -> 
+    assert (p1 = p2); ty1
   | _, _ -> assert false
-
-let ty_get x = 
-  match Conv.cty_of_ty x.L.pl_desc.v_ty with
-  | Coq_sarr(sz,_) -> Coq_sword sz
-  | _              -> assert false
 
 let rec ty_expr = function
   | Pconst _ -> Coq_sint
   | Pbool _ -> Coq_sbool
-  | Parr_init (sz, n) -> Coq_sarr (sz, Conv.pos_of_bi n)
+  | Parr_init n -> Coq_sarr (Conv.pos_of_bi n)
   | Pvar x -> Conv.cty_of_ty x.L.pl_desc.v_ty
   | Pglobal (sz,_) -> Coq_sword sz
   | Pload (sz,_,_) -> Coq_sword sz
-  | Pget(x,_) -> ty_get x
-  | Papp1 (op,_) -> out_ty_op1 op
+  | Pget  (sz,_,_) -> Coq_sword sz
+  | Papp1 (op,_)   -> out_ty_op1 op
   | Papp2 (op,_,_) -> out_ty_op2 op
-  | PappN (op, _) -> out_ty_opN op
-  | Pif (_,e1,e2) -> min_ty (ty_expr e1) (ty_expr e2)
+  | PappN (op, _)  -> out_ty_opN op
+  | Pif (_,e1,e2)  -> min_ty (ty_expr e1) (ty_expr e2)
 
 let wsize = function
   | Coq_sword sz -> sz
@@ -518,11 +511,11 @@ let rec pp_expr env fmt (e:expr) =
 
   | Pbool b -> Format.fprintf fmt "%a" Printer.pp_bool b
 
-  | Parr_init (sz, n) -> 
+  | Parr_init n -> 
     let pp_init fmt sz = 
       if for_safety env then Format.fprintf fmt "None"
       else Format.fprintf fmt "%a.zero" pp_Tsz sz in
-    Format.fprintf fmt "Array%a.create %a" B.pp_print n pp_init sz
+    Format.fprintf fmt "Array%a.create %a" B.pp_print n pp_init U8
 
   | Pvar x ->
     pp_ovar env fmt (L.unloc x)
@@ -1148,8 +1141,10 @@ and used_func_i used i =
   | Cfor(_,_,c)       -> used_func_c used c
   | Cwhile(c1,_,c2)   -> used_func_c (used_func_c used c1) c2
   | Ccall (_,_,f,_)   -> Ss.add f.fn_name used
-
+*)
 let extract fmt model ((globs,funcs):'a prog) tokeep = 
+  assert false 
+(*
   let funcs = List.map Regalloc.fill_in_missing_names funcs in
   let tokeep = ref (Ss.of_list tokeep) in
   let dofun f = 
@@ -1162,3 +1157,4 @@ let extract fmt model ((globs,funcs):'a prog) tokeep =
 
 
 
+ *)

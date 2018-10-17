@@ -723,9 +723,10 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
   | S.PEGet ({ L.pl_loc = xlc } as x, pi) ->
     let x  = tt_var mode env x in
     let ty = tt_as_array (xlc, x.P.v_ty) in
+    let ws = P.ws_of_ty ty in
     let i,ity  = tt_expr ~mode env pi in
     check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
-    P.Pget (L.mk_loc xlc x, i), ty
+    P.Pget (ws, L.mk_loc xlc x, i), ty
 
   | S.PEOp1 (op, pe) ->
     let e, ety = tt_expr ~mode env pe in
@@ -851,9 +852,10 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
   | S.PLArray ({ pl_loc = xlc } as x, pi) ->
     let x  = tt_var `AllVar env x in
     let ty = tt_as_array (xlc, x.P.v_ty) in
+    let ws = P.ws_of_ty ty in
     let i,ity  = tt_expr env ~mode:`AllVar pi in
     check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
-    loc, (fun _ -> P.Laset (L.mk_loc xlc x, i)), Some ty
+    loc, (fun _ -> P.Laset (ws, L.mk_loc xlc x, i)), Some ty
 
   | S.PLMem (ct, ({ pl_loc = xlc } as x), po) ->
     let x = tt_var `AllVar env x in
@@ -1114,7 +1116,8 @@ let arr_init xi =
   let x = L.unloc xi in 
   match x.P.v_ty with
   | P.Arr(ws, P.Pconst n) as ty ->
-    P.Cassgn (Lvar xi, P.AT_inline, ty, P.Parr_init (ws, n))
+    P.Cassgn (Lvar xi, P.AT_inline, ty, 
+              P.Parr_init (P.B.of_int (P.arr_size ws (P.B.to_int n))))
     (* FIXME: should not fail when the array size is a parameter *)
   | _           -> 
     rs_tyerror ~loc:(L.loc xi) (InvalidType( x.P.v_ty, TPArray))

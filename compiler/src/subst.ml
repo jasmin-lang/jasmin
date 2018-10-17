@@ -5,10 +5,10 @@ let rec gsubst_e (f: 'ty1 gvar_i -> 'ty2 gexpr) e =
   match e with
   | Pconst c -> Pconst c
   | Pbool b  -> Pbool b
-  | Parr_init (ws, n) -> Parr_init (ws, n)
+  | Parr_init n -> Parr_init n
   | Pvar v -> f v
-  | Pglobal (ws, g) -> Pglobal (ws, g)
-  | Pget (v,e) -> Pget(gsubst_vdest f v, gsubst_e f e)
+  | Pglobal (ws, g)  -> Pglobal (ws, g)
+  | Pget  (ws, v, e) -> Pget(ws, gsubst_vdest f v, gsubst_e f e)
   | Pload (ws, v, e) -> Pload (ws, gsubst_vdest f v, gsubst_e f e)
   | Papp1 (o, e)     -> Papp1 (o, gsubst_e f e)
   | Papp2 (o, e1, e2)-> Papp2 (o, gsubst_e f e1, gsubst_e f e2)
@@ -22,10 +22,10 @@ and gsubst_vdest f v =
 
 let gsubst_lval fty f lv =
   match lv with
-  | Lnone(i,ty) -> Lnone(i, fty ty)
-  | Lvar v      -> Lvar (gsubst_vdest f v)
-  | Lmem(w,v,e) -> Lmem(w, gsubst_vdest f v, gsubst_e f e)
-  | Laset(v,e)  -> Laset(gsubst_vdest f v, gsubst_e f e)
+  | Lnone(i,ty)  -> Lnone(i, fty ty)
+  | Lvar v       -> Lvar (gsubst_vdest f v)
+  | Lmem (w,v,e) -> Lmem(w, gsubst_vdest f v, gsubst_e f e)
+  | Laset(w,v,e) -> Laset(w, gsubst_vdest f v, gsubst_e f e)
 
 let gsubst_lvals fty f  = List.map (gsubst_lval fty f)
 let gsubst_es f = List.map (gsubst_e f)

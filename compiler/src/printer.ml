@@ -108,10 +108,10 @@ let pp_ge pp_var =
   let rec pp_expr fmt = function
   | Pconst i    -> B.pp_print fmt i
   | Pbool  b    -> F.fprintf fmt "%b" b
-  | Parr_init (ws, n) -> F.fprintf fmt "array_init(%a, %a)" pp_btype (U ws) B.pp_print n
+  | Parr_init n -> F.fprintf fmt "array_init(%a)" B.pp_print n
   | Pvar v      -> pp_var_i fmt v
   | Pglobal (_, g) -> F.fprintf fmt "%s" g
-  | Pget(x,e)   -> F.fprintf fmt "%a[%a]" pp_var_i x pp_expr e
+  | Pget(ws,x,e)   -> F.fprintf fmt "%a[%a]" pp_var_i x pp_expr e
   | Pload(ws,x,e) ->
     F.fprintf fmt "@[(load %a@ %a@ %a)@]"
       pp_btype (U ws) pp_var_i x pp_expr e
@@ -135,7 +135,7 @@ let pp_glv pp_var fmt = function
   | Lmem (ws, x, e) ->
     F.fprintf fmt "@[store %a@ %a@ %a@]"
      pp_btype (U ws) (pp_gvar_i pp_var) x (pp_ge pp_var) e
-  | Laset(x,e) ->
+  | Laset(ws, x,e) ->
     F.fprintf fmt "%a[%a]" (pp_gvar_i pp_var) x (pp_ge pp_var) e
 
 (* -------------------------------------------------------------------- *)

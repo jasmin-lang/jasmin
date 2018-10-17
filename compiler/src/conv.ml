@@ -66,13 +66,13 @@ let cty_of_ty = function
   | Bty Bool      -> T.Coq_sbool
   | Bty Int       -> T.Coq_sint
   | Bty (U sz)   -> T.Coq_sword(sz)
-  | Arr (sz, len) -> T.Coq_sarr (sz, pos_of_int len)
+  | Arr (sz, len) -> T.Coq_sarr (pos_of_int (size_of_ws sz * len))
 
 let ty_of_cty = function
   | T.Coq_sbool  ->  Bty Bool
   | T.Coq_sint   ->  Bty Int
-  | T.Coq_sword(sz) -> Bty (U sz)
-  | T.Coq_sarr(sz, p) -> Arr (sz, (int_of_pos p))
+  | T.Coq_sword sz -> Bty (U sz)
+  | T.Coq_sarr p -> Arr (U8, int_of_pos p)
 
 (* ------------------------------------------------------------------------ *)
 
@@ -177,10 +177,10 @@ let gd_of_cgd (g, z) =
 let rec cexpr_of_expr tbl = function
   | Pconst z          -> C.Pconst (z_of_bi z)
   | Pbool  b          -> C.Pbool  b
-  | Parr_init (ws, n) -> C.Parr_init (ws, pos_of_bi n)
+  | Parr_init n       -> C.Parr_init (pos_of_bi n)
   | Pvar x            -> C.Pvar (cvari_of_vari tbl x)
   | Pglobal (ws, g)   -> C.Pglobal (cglobal_of_global ws g)
-  | Pget (x,e)        -> C.Pget (cvari_of_vari tbl x, cexpr_of_expr tbl e)
+  | Pget (ws, x,e)    -> C.Pget (ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Pload (ws, x, e)  -> C.Pload(ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Papp1 (o, e)      -> C.Papp1(o, cexpr_of_expr tbl e)
   | Papp2 (o, e1, e2) -> C.Papp2(o, cexpr_of_expr tbl e1, cexpr_of_expr tbl e2)
@@ -192,11 +192,11 @@ let rec cexpr_of_expr tbl = function
 let rec expr_of_cexpr tbl = function
   | C.Pconst z          -> Pconst (bi_of_z z)
   | C.Pbool  b          -> Pbool  b
-  | C.Parr_init (ws, n) -> Parr_init (ws, bi_of_pos n)
+  | C.Parr_init n       -> Parr_init (bi_of_pos n)
   | C.Pvar x            -> Pvar (vari_of_cvari tbl x)
-  | C.Pglobal g -> let ws, n = global_of_cglobal g in Pglobal (ws, n)
-  | C.Pget (x,e)        -> Pget (vari_of_cvari tbl x, expr_of_cexpr tbl e)
-  | C.Pload (ws, x, e) -> Pload(ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
+  | C.Pglobal g         -> let ws, n = global_of_cglobal g in Pglobal (ws, n)
+  | C.Pget (ws, x,e)    -> Pget (ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
+  | C.Pload (ws, x, e)  -> Pload(ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Papp1 (o, e)      -> Papp1(o, expr_of_cexpr tbl e)
   | C.Papp2 (o, e1, e2) -> Papp2(o, expr_of_cexpr tbl e1, expr_of_cexpr tbl e2)
   | C.PappN (o, es) -> PappN (o, List.map (expr_of_cexpr tbl) es)
@@ -208,16 +208,16 @@ let rec expr_of_cexpr tbl = function
 (* ------------------------------------------------------------------------ *)
 
 let clval_of_lval tbl = function
-  | Lnone(loc, ty) -> C.Lnone (set_loc tbl loc, cty_of_ty ty)
-  | Lvar x         -> C.Lvar  (cvari_of_vari tbl x)
+  | Lnone(loc, ty)  -> C.Lnone (set_loc tbl loc, cty_of_ty ty)
+  | Lvar x          -> C.Lvar  (cvari_of_vari tbl x)
   | Lmem (ws, x, e) -> C.Lmem (ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
-  | Laset(x,e)     -> C.Laset (cvari_of_vari tbl x, cexpr_of_expr tbl e)
+  | Laset(ws,x,e)   -> C.Laset (ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
 
 let lval_of_clval tbl = function
-  | C.Lnone(p,ty)-> Lnone (get_loc tbl p, ty_of_cty ty)
-  | C.Lvar x     -> Lvar (vari_of_cvari tbl x)
-  | C.Lmem(ws, x,e) -> Lmem (ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
-  | C.Laset(x,e) -> Laset (vari_of_cvari tbl x, expr_of_cexpr tbl e)
+  | C.Lnone(p,ty)   -> Lnone (get_loc tbl p, ty_of_cty ty)
+  | C.Lvar x        -> Lvar (vari_of_cvari tbl x)
+  | C.Lmem(ws,x,e)  -> Lmem (ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
+  | C.Laset(ws,x,e) -> Laset (ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
 
 (* ------------------------------------------------------------------------ *)
 

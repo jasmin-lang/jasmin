@@ -19,7 +19,7 @@ let writev_lval s = function
   | Lnone _     -> s
   | Lvar x      -> Sv.add (L.unloc x) s
   | Lmem _      -> s
-  | Laset(x, _) -> Sv.add (L.unloc x) s
+  | Laset(_, x, _) -> Sv.add (L.unloc x) s
 
 let writev_lvals s lvs = List.fold_left writev_lval s lvs
 

@@ -181,11 +181,12 @@ let main () =
 
     (* Generate the coq program if needed *)
     if !coqfile <> "" then begin
-      let out = open_out !coqfile in
+      assert false
+(*      let out = open_out !coqfile in
       let fmt = Format.formatter_of_out_channel out in
       Format.fprintf fmt "%a@." Coq_printer.pp_prog prog;
       close_out out;
-      if !debug then Format.eprintf "coq program extracted@."
+      if !debug then Format.eprintf "coq program extracted@." *)
     end;
     if !coqonly then exit 0;
 
