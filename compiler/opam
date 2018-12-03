@@ -5,7 +5,7 @@ maintainer: "Jasmin Team <jasmin@example.com>"
 authors: [ "Jasmin Team <jasmin@example.com>" ]
 homepage: "http://jasmin-lang.github.io/"
 bug-reports: "https://github.com/jasmin-lang/jasmin/issues"
-license: "GPL-v2"
+license: "CeCILL-B"
 build: [
   make "build"
 ]
