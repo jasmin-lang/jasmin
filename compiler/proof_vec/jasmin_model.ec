@@ -1,7 +1,7 @@
 (* -------------------------------------------------------------------- *)
 require import AllCore BitEncoding IntDiv SmtMap Ring List StdOrder Bool.
 (*---*) import CoreMap Map Ring.IntID IntOrder.
-require export Jasmin_utils Jasmin_array Jasmin_word Jasmin_memory.
+require export Jasmin_utils Jasmin_array Jasmin_word Jasmin_word_array Jasmin_memory.
 
 (* -------------------------------------------------------------------- *)
 abbrev x86_MOVD_32 (x : W32.t) = pack4 [x; W32.zero; W32.zero; W32.zero].

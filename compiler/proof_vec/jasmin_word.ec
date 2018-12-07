@@ -1014,7 +1014,7 @@ abstract theory W_WS.
   lemma bits'SiE w i j : 0 <= j < sizeS => 
     (w \bits'S i).[j] = w.[i * sizeS + j].
   proof. by move=> hj; rewrite bits'SE initiE. qed.
-
+  
   lemma get_bits'S (w:WB.t) i : 
     0 <= i < sizeB => 
     w.[i] = (w \bits'S (i%/ sizeS)).[i %% sizeS].
@@ -1363,8 +1363,6 @@ proof. by case ws. qed.
 hint exact : div_wsize_modulus.
 
 (*
-print W2u64.
-
 lemma foo (x y:W128.t) (x1 x2 y1 y2:W64.t):
   x = pack2 [x1; x2] =>
   y = pack2 [y1; y2] =>

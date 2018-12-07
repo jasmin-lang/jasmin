@@ -12,6 +12,12 @@ Si ca permet pas de les virer il faut introduire
 des copier explicite et montrer la correction de cet algo
 
 (* -------------------------- *)
+merge stack array with different size before stack alloc 
+
+(* -------------------------- *)
+moveequ
+
+(* -------------------------- *)
 
 Apres inlining on peut (il faut) virer des fonctions de l'environement:
   prouver la transformation 
