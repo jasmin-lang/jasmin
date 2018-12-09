@@ -4,7 +4,6 @@ open Prog
 module E = Expr
 module B = Bigint
 
-(*
 let pp_size fmt sz =
   Format.fprintf fmt "%i" (int_of_ws sz)
 
@@ -34,7 +33,7 @@ type env = {
     alls : Ss.t;
     vars : (string * bool) Mv.t;  (* true means option type *)
     glob : (string * Type.stype) Ms.t;
-    funs : (string * (Type.stype list * Type.stype list)) Mf.t;  
+    funs : (string * (ty list * ty list)) Mf.t;  
     arrsz : Sint.t;
     auxv  : string list Mty.t;
   }
@@ -307,11 +306,11 @@ let empty_env model fds =
     auxv  = Mty.empty ;
   } in
 
-  let mk_tys tys = List.map Conv.cty_of_ty tys in
+(*  let mk_tys tys = List.map Conv.cty_of_ty tys in *)
   let add_fun env fd = 
     let s = mkfunname env fd.f_name in
     let funs = 
-      Mf.add fd.f_name (s, (mk_tys fd.f_tyout, mk_tys fd.f_tyin)) env.funs in
+      Mf.add fd.f_name (s, ((*mk_tys*) fd.f_tyout, (*mk_tys*)fd.f_tyin)) env.funs in
     { env with funs; alls = Ss.add s env.alls } in
 
   List.fold_left add_fun env fds
@@ -502,20 +501,31 @@ let pp_cast pp fmt (ty,ety,e) =
  
 let check_array env x = 
   match (L.unloc x).v_ty with
-  | Arr(_, n) -> Sint.mem n env.arrsz
+  | Arr(ws, n) -> Sint.mem (size_of_ws ws * n) env.arrsz
   | _ -> true
   
+let oarray option = if option then "OArray" else "Array"
+
+let pp_oarray env = oarray (for_safety env)
+
+let pp_initi env fmt (x, n, ws) =
+  Format.fprintf fmt 
+    "@[(WArray%i.init%i (fun i => %a.[i]))@]"
+    (arr_size ws n) (int_of_ws ws) (pp_var env) x
+    
 let rec pp_expr env fmt (e:expr) = 
   match e with
   | Pconst z -> Format.fprintf fmt "%a" B.pp_print z
 
   | Pbool b -> Format.fprintf fmt "%a" Printer.pp_bool b
 
-  | Parr_init n -> 
-    let pp_init fmt sz = 
+  | Parr_init _n -> 
+    assert false
+(*    let pp_init fmt sz = 
       if for_safety env then Format.fprintf fmt "None"
       else Format.fprintf fmt "%a.zero" pp_Tsz sz in
-    Format.fprintf fmt "Array%a.create %a" B.pp_print n pp_init U8
+    Format.fprintf fmt "%s%a.create %a"
+      (pp_oarray env) B.pp_print n pp_init U8 *)
 
   | Pvar x ->
     pp_ovar env fmt (L.unloc x)
@@ -523,10 +533,16 @@ let rec pp_expr env fmt (e:expr) =
   | Pglobal(sz, x) -> 
     pp_cast (pp_glob env) fmt (Coq_sword sz, ty_glob env x, x)
 
-  | Pget(x,e) -> 
+  | Pget(ws, x, e) -> 
     assert (check_array env x);
     let pp fmt (x,e) = 
-      Format.fprintf fmt "%a.[%a]" (pp_var env) (L.unloc x) (pp_expr env) e in
+      let x = L.unloc x in
+      let (xws,n) = array_kind x.v_ty in
+      if ws = xws then
+        Format.fprintf fmt "@[%a.[%a]@]" (pp_var env) x (pp_expr env) e
+      else
+        Format.fprintf fmt "@[(get%i@ %a@ %a)@]" 
+          (int_of_ws ws) (pp_initi env) (x, n, xws) (pp_expr env) e in
     let option = 
       for_safety env &&  snd (Mv.find (L.unloc x) env.vars) in
     pp_oget option pp fmt (x,e)
@@ -558,46 +574,46 @@ and pp_wcast env fmt (ty, e) =
 let pp_option option pp = 
   pp_maybe option (pp_enclose ~pre:"" ~post:" option") pp
 
-let pp_coq_ty option fmt ty = 
-  match Conv.cty_of_ty ty with 
-  | Coq_sbool -> pp_option option pp_string fmt "bool"
-  | Coq_sint  -> pp_option option pp_string fmt "int"
-  | Coq_sarr(sz,n) -> 
-    let n = Conv.int_of_pos n in
-    Format.fprintf fmt "%a Array%i.t" (pp_option option pp_sz_t) sz n
-  | Coq_sword sz   -> pp_option option pp_sz_t fmt sz
+let pp_ty _option fmt ty = 
+  match ty with
+  | Bty Bool -> Format.fprintf fmt "bool"
+  | Bty Int  -> Format.fprintf fmt "int"
+  | Bty (U ws) -> pp_sz_t fmt ws
+  | Arr(ws,n) -> Format.fprintf fmt "%a Array%i.t" pp_sz_t ws n
 
 let pp_vdecl env option fmt x = 
   Format.fprintf fmt "%a:%a" 
     (pp_var env) x 
-    (pp_coq_ty option) x.v_ty
+    (pp_ty option) x.v_ty
   
 let pp_params env fmt params = 
   Format.fprintf fmt "@[%a@]"
     (pp_list ",@ " (pp_vdecl env false)) params 
 
 let pp_locals env fmt locals = 
-  let locarr = 
+(*  let locarr = 
     List.filter (fun x -> match x.v_ty with Arr _ -> true | _ -> false) 
       locals in
   let locarr = 
-    List.sort (fun x1 x2 -> compare x1.v_name x2.v_name) locarr in
+    List.sort (fun x1 x2 -> compare x1.v_name x2.v_name) locarr in *)
 
   let pp_vdecl = pp_vdecl env (for_safety env) in
   let pp_loc fmt x = Format.fprintf fmt "var %a;" pp_vdecl x in
-  let pp_init fmt x = 
+  Format.fprintf fmt "%a" (pp_list "@ " pp_loc) locals
+(*  let pp_init fmt x = 
     let (sz,n) = match x.v_ty with Arr (sz,n) -> sz,n | _ -> assert false in
-    Format.fprintf fmt "%a <- %a;" (pp_var env) x (pp_expr env) (Parr_init(sz,B.of_int n)) in
+    Format.fprintf fmt "%a <- %a;" 
+      (pp_var env) x (pp_expr env) (Parr_init (B.of_int (arr_size sz n))) in
   Format.fprintf fmt "%a@ %a" 
   (pp_list "@ " pp_loc) locals
-  (pp_list "@ " pp_init) locarr 
+  (pp_list "@ " pp_init) locarr *)
 
 let pp_rty env fmt tys =
   if tys = [] then
     Format.fprintf fmt "unit"
   else
     Format.fprintf fmt "@[%a@]" 
-      (pp_list " *@ " (pp_coq_ty env)) tys 
+      (pp_list " *@ " (pp_ty env)) tys 
 
 let pp_ret env fmt xs = 
   Format.fprintf fmt "@[return (%a);@]"
@@ -618,17 +634,25 @@ let pp_lval1 env pp_e fmt (lv, (ety, e)) =
       (pp_wcast env) (add64 x e1) pp_e e
   | Lvar x  -> 
     Format.fprintf fmt "@[%a <-@ %a;@]" (pp_var env) (L.unloc x) pp_e e
-  | Laset (x,e1) -> 
+  | Laset (ws, x,e1) -> 
     assert (check_array env x);
-    Format.fprintf fmt "@[%a.[%a] <-@ %a;@]" 
-      (pp_var env) (L.unloc x) (pp_expr env) e1 pp_e e
+    let x = L.unloc x in
+    let (xws,n) = array_kind x.v_ty in
+    if ws = xws then
+      Format.fprintf fmt "@[%a.[%a] <-@ %a;@]"
+        (pp_var env) x (pp_expr env) e1 pp_e e
+    else
+      let nws = n * int_of_ws xws in
+      Format.fprintf fmt 
+        "@[%a =@ @[Array%i.init@ (WArray%i.get%i (WArray%i.set%i %a %a %a));@]@]"
+        (pp_var env) x n nws (int_of_ws xws) nws (int_of_ws ws)
+        (pp_initi env) (x, n, xws) (pp_expr env) e1 pp_e e
  
 let pp_lval env fmt = function
   | Lnone _ -> assert false
   | Lmem _ -> assert false 
   | Lvar x  -> pp_var env fmt (L.unloc x)
-  | Laset (x,e) -> 
-    Format.fprintf fmt "%a.[%a]" (pp_var env) (L.unloc x) (pp_expr env) e
+  | Laset _  -> assert false 
  
 let pp_lvals env fmt xs = 
   match xs with
@@ -669,7 +693,7 @@ module Normal = struct
     | Ccall(_, lvs, f, _) ->      
       if lvs = [] then env 
       else 
-        let tys = List.map Conv.ty_of_cty (fst (get_funtype env f)) in
+        let tys = (*List.map Conv.ty_of_cty *)(fst (get_funtype env f)) in
         let ltys = List.map ty_lval lvs in
         if (check_lvals lvs && ltys = tys) then env
         else add_aux env tys
@@ -713,6 +737,8 @@ module Normal = struct
         
     | Ccall(_, lvs, f, es) ->
       let otys, itys = get_funtype env f in
+      let otys = List.map Conv.cty_of_ty otys in
+      let itys = List.map Conv.cty_of_ty itys in
       let pp_args fmt es = 
         pp_list ",@ " (pp_wcast env) fmt (List.combine itys es) in
       if lvs = [] then 
@@ -759,15 +785,15 @@ module Leak = struct
 
   type safe_cond = 
     | Initv of var 
-    | Initai of var * expr 
+    | Initai of wsize * var * expr 
     | Inita of var * int
-    | InBound of int * expr
+    | InBound of wsize * int * expr
     | Valid of wsize * expr 
     | NotZero of wsize * expr 
 
-  let in_bound x e = 
+  let in_bound ws x e = 
     match (L.unloc x).v_ty with
-    | Arr(_,n) -> InBound(n,e)
+    | Arr(ws1,n) -> InBound(ws, (arr_size ws1 n), e)
     | _ -> assert false
 
   let safe_op2 safe _e1 e2 = function
@@ -795,18 +821,18 @@ module Leak = struct
       let (_s,option) = Mv.find (L.unloc x) env.vars in
       if option then
         match (L.unloc x).v_ty with
-        | Arr(_,n) -> Inita (L.unloc x, n) :: safe
+        | Arr(ws,n) -> Inita (L.unloc x, arr_size ws n) :: safe
         | _ -> Initv(L.unloc x) :: safe 
       else safe 
     | Pload (ws,x,e) -> 
       is_init env x (Valid (ws, snd (add64 x e)) :: safe_e_rec env safe e)
     | Papp1 (_, e) -> safe_e_rec env safe e
-    | Pget (x, e) -> 
+    | Pget (ws, x, e) -> 
       let safe = 
         let (_s,option) = Mv.find (L.unloc x) env.vars in
-        if option then Initai(L.unloc x, e) :: safe 
+        if option then Initai(ws, L.unloc x, e) :: safe 
         else safe in
-      in_bound x e :: safe 
+      in_bound ws x e :: safe 
     | Papp2 (op, e1, e2) -> 
       safe_op2 (safe_e_rec env (safe_e_rec env safe e1) e2) e1 e2 op
     | PappN (_op, _es) -> assert false (* TODO: nary *)
@@ -851,15 +877,17 @@ module Leak = struct
     | Lnone _ | Lvar _ -> []
     | Lmem(ws, x, e) -> 
       is_init env x (Valid (ws, snd (add64 x e)) :: safe_e_rec env [] e)
-    | Laset(x,e) -> in_bound x e :: safe_e_rec env [] e 
+    | Laset(ws, x,e) -> in_bound ws x e :: safe_e_rec env [] e 
 
   let pp_safe_e env fmt = function
     | Initv x -> Format.fprintf fmt "is_init %a" (pp_var env) x
-    | Initai(x,e) -> Format.fprintf fmt "is_init %a.[%a]" (pp_var env) x (pp_expr env) e
+    | Initai(ws, x,e) -> Format.fprintf fmt "is_init%i %a %a" 
+                           (int_of_ws ws) (pp_var env) x (pp_expr env) e
     | Inita(x,n) -> Format.fprintf fmt "Array%i.is_init %a" n (pp_var env) x 
     | Valid (sz, e) -> Format.fprintf fmt "is_valid Glob.mem %a W%a" (pp_expr env) e pp_size sz 
     | NotZero(sz,e) -> Format.fprintf fmt "%a <> W%a.zeros" (pp_expr env) e pp_size sz
-    | InBound(n,e)  -> Format.fprintf fmt "in_bound %a %i" (pp_expr env) e n
+    | InBound(ws, n,e)  -> Format.fprintf fmt "in_bound %a %i %i" 
+                             (pp_expr env) e (size_of_ws ws) n
 
   let pp_safe_es env fmt es = pp_list "/\\@ " (pp_safe_e env) fmt es
 
@@ -952,10 +980,7 @@ module Leak = struct
           else Format.fprintf fmt "(Some %a)" pp e 
         else pp fmt e 
       | Lmem _ -> pp fmt e
-      | Laset (x,_) -> 
-        if snd (Mv.find (L.unloc x) env.vars) then 
-          Format.fprintf fmt "(Some %a)" pp e
-        else pp fmt e
+      | Laset _ -> pp fmt e
     else pp fmt e
 
   let pp_assgn_i env fmt lv (ety, aux) = 
@@ -989,6 +1014,8 @@ module Leak = struct
       
     | Ccall(_, lvs, f, es) ->
       let otys, itys = get_funtype env f in
+      let otys = List.map Conv.cty_of_ty otys in
+      let itys = List.map Conv.cty_of_ty itys in
       let pp_args fmt es = 
         pp_list ",@ " (pp_wcast env) fmt (List.combine itys es) in
       pp_leaks_es env fmt es;
@@ -1048,7 +1075,7 @@ end
 
 let pp_aux fmt env = 
   let pp ty aux = 
-    Format.fprintf fmt "@[var %s:@ %a@];@ " aux (pp_coq_ty false) ty in
+    Format.fprintf fmt "@[var %s:@ %a@];@ " aux (pp_ty false) ty in
   Mty.iter (fun ty -> List.iter (pp ty)) env.auxv
 
 let pp_safe_ret env fmt xs =
@@ -1090,7 +1117,7 @@ let pp_glob_decl env fmt (ws,x, z) =
 let add_arrsz env f = 
   let add_sz x sz = 
     match x.v_ty with
-    | Arr(_, n) -> Sint.add n sz 
+    | Arr(ws, n) -> Sint.add (size_of_ws ws * n) sz 
     | _ -> sz in
   {env with arrsz = Sv.fold add_sz (vars_fc f) env.arrsz }
 
@@ -1105,10 +1132,10 @@ let pp_prog fmt model globs funcs =
 
   let pp_array fmt i = 
     assert (0<= i);
-    if 29 < i then 
-      ( Format.eprintf "Warning use array of size greater than 29@.";
+    if 49 < i then 
+      ( Format.eprintf "Warning use array of size greater than 49@.";
         Format.fprintf fmt 
-          "clone import Array as Array%i with op size <- %i.@ " i i) in
+          "clone import WArray as WArray%i with op size <- %i.@ " i i) in
     
   let pp_arrays fmt env = 
     List.iter (pp_array fmt) (Sint.elements env.arrsz) in
@@ -1141,10 +1168,8 @@ and used_func_i used i =
   | Cfor(_,_,c)       -> used_func_c used c
   | Cwhile(c1,_,c2)   -> used_func_c (used_func_c used c1) c2
   | Ccall (_,_,f,_)   -> Ss.add f.fn_name used
-*)
+
 let extract fmt model ((globs,funcs):'a prog) tokeep = 
-  assert false 
-(*
   let funcs = List.map Regalloc.fill_in_missing_names funcs in
   let tokeep = ref (Ss.of_list tokeep) in
   let dofun f = 
@@ -1154,7 +1179,3 @@ let extract fmt model ((globs,funcs):'a prog) tokeep =
   let funcs = List.filter dofun funcs in
   pp_prog fmt model globs (List.rev funcs)
 
-
-
-
- *)
