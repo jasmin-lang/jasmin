@@ -34,7 +34,8 @@ type env = {
     vars : (string * bool) Mv.t;  (* true means option type *)
     glob : (string * Type.stype) Ms.t;
     funs : (string * (ty list * ty list)) Mf.t;  
-    arrsz : Sint.t;
+    arrsz  : Sint.t;
+    warrsz : Sint.t;
     auxv  : string list Mty.t;
   }
 
@@ -303,6 +304,7 @@ let empty_env model fds =
     glob = Ms.empty;
     funs = Mf.empty;
     arrsz = Sint.empty;
+    warrsz = Sint.empty;
     auxv  = Mty.empty ;
   } in
 
@@ -498,10 +500,9 @@ let pp_cast pp fmt (ty,ety,e) =
   else 
     Format.fprintf fmt "(%a %a)" pp_zeroext (wsize ety, wsize ty) pp e 
 
- 
 let check_array env x = 
   match (L.unloc x).v_ty with
-  | Arr(ws, n) -> Sint.mem (size_of_ws ws * n) env.arrsz
+  | Arr(ws, n) -> Sint.mem n env.arrsz && Sint.mem (arr_size ws n) env.warrsz
   | _ -> true
   
 let oarray option = if option then "OArray" else "Array"
@@ -1117,10 +1118,32 @@ let pp_glob_decl env fmt (ws,x, z) =
 let add_arrsz env f = 
   let add_sz x sz = 
     match x.v_ty with
-    | Arr(ws, n) -> Sint.add (size_of_ws ws * n) sz 
+    | Arr(_ws, n) -> Sint.add n sz 
     | _ -> sz in
-  {env with arrsz = Sv.fold add_sz (vars_fc f) env.arrsz }
+  let add_wsz x sz =
+    match x.v_ty with
+    | Arr(ws, n) -> Sint.add (arr_size ws n) sz 
+    | _ -> sz in
+    
+  let vars = vars_fc f in
+  {env with arrsz = Sv.fold add_sz vars env.arrsz;
+            warrsz = Sv.fold add_wsz vars env.warrsz; }
 
+let pp_array_decl i = 
+  let file = Format.sprintf "Array%i.ec" i in
+  let out = open_out file in
+  let fmt = Format.formatter_of_out_channel out in
+  Format.fprintf fmt "@[<v>require import Jasmin_array.@ @ ";
+  Format.fprintf fmt "clone export PolyArray as Array%i  with op size <- %i.@]@." i i;
+  close_out out
+
+let pp_warray_decl i = 
+  let file = Format.sprintf "WArray%i.ec" i in
+  let out = open_out file in
+  let fmt = Format.formatter_of_out_channel out in
+  Format.fprintf fmt "@[<v>require import Jasmin_word_array.@ @ ";
+  Format.fprintf fmt "clone export WArray as WArray%i  with op size <- %i.@]@." i i;
+  close_out out
 
 let pp_prog fmt model globs funcs = 
 
@@ -1130,15 +1153,14 @@ let pp_prog fmt model globs funcs =
       env globs in
   let env = List.fold_left add_arrsz env funcs in
 
-  let pp_array fmt i = 
-    assert (0<= i);
-    if 49 < i then 
-      ( Format.eprintf "Warning use array of size greater than 49@.";
-        Format.fprintf fmt 
-          "clone import WArray as WArray%i with op size <- %i.@ " i i) in
-    
-  let pp_arrays fmt env = 
-    List.iter (pp_array fmt) (Sint.elements env.arrsz) in
+  Sint.iter pp_array_decl env.arrsz;
+  Sint.iter pp_warray_decl env.warrsz;
+
+  let pp_arrays arr fmt s = 
+    let l = Sint.elements s in
+    let pp_i fmt i = Format.fprintf fmt "%s%i" arr i in
+    if l <> [] then
+      Format.fprintf fmt "require import @[%a@].@ " (pp_list "@ " pp_i) l in
 
   let pp_leakages fmt env = 
     match env.model with
@@ -1149,8 +1171,9 @@ let pp_prog fmt model globs funcs =
     | Normal -> () in
 
   Format.fprintf fmt 
-     "@[<v>require import List Jasmin_model Int IntDiv CoreMap.@ @ %a@ %a@ @ module M = {@   @[<v>%a%a@]@ }.@ @]@." 
-    pp_arrays env
+     "@[<v>require import List Jasmin_model Int IntDiv CoreMap.@ %a%a@ %a@ @ module M = {@   @[<v>%a%a@]@ }.@ @]@." 
+    (pp_arrays "Array") env.arrsz
+    (pp_arrays "WArray") env.warrsz
     (pp_list "@ @ " (pp_glob_decl env)) globs 
     pp_leakages env 
     (pp_list "@ @ " (pp_fun env)) funcs 
