@@ -1214,7 +1214,7 @@ Qed.
 
 Lemma subtype_compat t1 t2 : subtype t1 t2 -> compat_type t1 t2.
 Proof.
-  by case: t1 => //= [/eqP ->| /eqP -> | p | w] //; case: t2.
+  by case: t1 => [/eqP ->| /eqP -> | p | w] // ; case: t2.
 Qed.
 
 Lemma compat_type_undef t : compat_type t (vundef_type t).
