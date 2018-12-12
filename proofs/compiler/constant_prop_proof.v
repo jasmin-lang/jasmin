@@ -1152,11 +1152,10 @@ Section PROOF.
         do 2 try (refine (λ _ : wsize, _));
         apply: app_sopn_uincl_a.
     move=> w /=;case: vs => //= v1 [// | v2 [// | v3 [|//]]] H.
-    case/List_Forall2_inv_l => v1' [vs''] [->] {vs'} [hv1] /List_Forall2_inv_l [v2'] [vs'] [->] {vs''} [hv2] /List_Forall2_inv_l [v3'] [vs''] [->] {vs'} [hv3] /List_Forall2_inv_l -> {vs''}.
-    move: H hv1; t_xrbindP => _ -> /= b /value_uincl_bool h _ /(value_uincl_a_is_word hv2) -> _ /(value_uincl_a_is_word hv3) -> H [] /h {h} [??] _; subst => /=.
-    case: b H; t_xrbindP => w'.
-    + by case: hv2 => /value_uincl_word h _ /h -> <-.
-    by case: hv3 => /value_uincl_word h _ /h -> <-.
+    case/List_Forall2_inv_l => v1' [vs''] [->] {vs'} [hv1] /List_Forall2_inv_l [v2'] [vs'] [->] {vs''} [[hv2 ?]] /List_Forall2_inv_l [v3'] [vs''] [->] {vs'} [hv3] /List_Forall2_inv_l -> {vs''}.
+    move: H hv1; t_xrbindP => _ -> /= b /value_uincl_bool h h2 hw2 h3 hw3 H [] /h {h} [??] _; subst => /=.
+    have -> /= := value_uincl_word hv2 hw2.
+    by case: hv3 => /value_uincl_word -/(_ _ _ hw3) ->.
   Qed.
 
   Local Lemma Hopn : sem_Ind_opn p Pi_r.

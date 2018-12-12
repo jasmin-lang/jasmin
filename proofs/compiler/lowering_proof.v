@@ -1679,7 +1679,7 @@ Section PROOF.
       exists s3'; split=> //.
       rewrite map_cat.
       apply: sem_app.
-      exact: Hs2'1.
+      + exact: Hs2'1.
       apply: sem_seq1; apply: EmkI; apply: Eopn.
       move: bv Hbv Hb Hs2'3=> [] b0 Hb //=; last by case: (b0).
       case => ? Hb'; subst b0.
@@ -1694,13 +1694,17 @@ Section PROOF.
       have /=? := truncate_val_has_type hty; subst ty.
       rewrite /= in Hsz; rewrite Hsz.
       case: (truncate_val_wordI hty) => sz'' [w'] [hw' hle].
-      move: (hty); rewrite hw' /truncate_val /= /truncate_word hle /= => - [?]; subst w.
-      rewrite -[X in check_size_16_64 X]Hsz Hsz64.
+admit.
+(*       move: (hty); rewrite hw' /truncate_val /= /truncate_word hle /= => - [?]; subst w.
+      rewrite -[X in check_size_16_64 X]Hsz Hsz64 /=.
+      t_xrbindP.
+      move: hty.
+Search truncate_val sword.
       have [-> -> /=] : is_word sz v1 = ok tt ∧ is_word sz v2 = ok tt.
       + case: b hw' {hty Hv Hb Hb'} hty'.
         - by move => -> /=; case: (v2) => // -[].
         by move => -> /=; case: (v1) => // -[].
-      by case: ifP => hb; rewrite hb in hw'; subst; rewrite /= /truncate_word hle /= Hw'.
+      by case: ifP => hb; rewrite hb in hw'; subst; rewrite /= /truncate_word hle /= Hw'. *)
     (* LowerDivMod *)
     + move=> d u w s p0 p1 /= [[va [wa [hva hwa hdiv]]] ? hle1 hle2];subst ty.
       set vf := {| v_var := _ |}.
@@ -1733,7 +1737,7 @@ Section PROOF.
     * by rewrite Hv'.
     * exact: hty.
     exact: Hw'.
-  Qed.
+  Admitted.
 
   Lemma vars_I_opn ii xs t o es:
     Sv.Equal (vars_I (MkI ii (Copn xs t o es))) (Sv.union (vars_lvals xs) (read_es es)).

@@ -188,25 +188,18 @@ Lemma CMOVcc_gsc sz :
   gen_sem_correct [:: TYcondt; TYoprd; TYoprd]
      (Ox86_CMOVcc sz) [:: E sz 1] [:: Eb 0; E sz 2; E sz 1] [::] (CMOVcc sz).
 Proof.
+
 move => ct x y; split => // gd m m'.
 rewrite /low_sem_aux /= !arg_of_oprdE /eval_CMOVcc /eval_MOV_nocheck.
-case: x => //= [x | x]; t_xrbindP => vs ?? hb ?? hv ; [ | move => ??? hm <- <- ] => <- <-; t_xrbindP => _ -> /=;
-case: (eval_cond _ _) hb => [ b | [] // ] [<-] //= _ [<-] _ _ _ _;
-case: vs => // v [] //; case: v => //= sz' w ok_w; [ case | rewrite /sets_low /=; apply: rbindP => w' ok_w' ];
-case: b ok_w.
-+ apply: rbindP => w' /of_val_word [s'] [w''] [hle ??]; subst => h.
-  have {h} /seq_eq_injL [/Vword_inj [? ?] _] := ok_inj h; subst => /= <-.
-  rewrite (eval_low_read _ hv) //=. update_set.
-+ apply: rbindP => w' /truncate_wordP [hle ?]; subst w' => h.
-  have {h} /seq_eq_injL [/Vword_inj [? ?] _] := ok_inj h; subst => /= <-; update_set.
-+ apply: rbindP => ? /of_val_word [s'] [w''] [hle ? ?]; subst => h.
-  have {h} /seq_eq_injL [/Vword_inj [? h] _] := ok_inj h; move: h; subst => /= ?; subst.
-  move: ok_w'; rewrite truncate_word_u => - [<-] {w'}.
-  rewrite (eval_low_read _ hv) //= => ->; update_set.
-  rewrite truncate_word_u /= => h.
-  have {h} /seq_eq_injL [/Vword_inj [? h] _] := ok_inj h; move: h; subst => /= ?; subst.
-  move: ok_w'; rewrite truncate_word_u => - [<-] {w'}.
-  rewrite hm /= => ->; update_set.
+case: x => //= [x | x]; t_xrbindP => vs ?? hb ?? hv ; [ | move => ??? hm <- <- ] => <- <- /= ; t_xrbindP => _ -> /=;
+move => vb /to_boolI => ? ; subst => h2 /to_wordI [x0] [x1] [] ??? ; subst => h4 /truncate_wordP [] ?? ; subst;
+have hb' := value_of_boolI hb;
+rewrite hb' => {hb}.
++ by case: vb hb' => hb' [] <- //=; [rewrite (eval_low_read _ hv) //= |];
+  rewrite /sets_low /= => -[<-] ; eexists ; split ; reflexivity.
+case: vb hb' => hb' [] <- //=; [rewrite (eval_low_read _ hv) //= |].
++ by rewrite /sets_low /= truncate_word_u /= => ? ; eexists ; split ; eauto ; reflexivity.
+by rewrite /sets_low /= truncate_word_u /= zero_extend_u hm /= ; eexists ; split ; eauto; reflexivity.
 Qed.
 
 Definition CMOVcc_desc sz := make_instr_desc (CMOVcc_gsc sz).

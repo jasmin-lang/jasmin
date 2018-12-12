@@ -1416,12 +1416,10 @@ Definition exec_sopn (o:sopn) :  values -> exec values :=
     | [:: v1; v2; v3] =>
       Let _ := check_size_16_64 sz in
       Let b := to_bool v1 in
-      Let _ := is_word sz v2 in
-      Let _ := is_word sz v3 in
-      if b then
-        Let w2 := to_word sz v2 in ok [:: Vword w2]
-      else
-        Let w3 := to_word sz v3 in ok [:: Vword w3]
+      Let w2 := to_word sz v2 in
+      Let w3 := to_word sz v3 in
+      if b then (ok [:: Vword w2])
+      else (ok [:: Vword w3])
     | _ => type_error end)
   | Ox86_ADD sz => app_ww sz x86_add
   | Ox86_SUB sz => app_ww sz x86_sub
@@ -1517,7 +1515,8 @@ Lemma sopn_toutP o vs vs' : exec_sopn o vs = ok vs' ->
 Proof.
   rewrite /exec_sopn ;case: o => /=; app_sopn_t => //;
   try (by apply: rbindP => _ _; app_sopn_t).
-  + by move=> ??????; case: ifP => ?; t_xrbindP => ?? <-.
+
+  + by move=> ???? w2 w3; case: ifP => ? [<-].
   + by rewrite /x86_div;t_xrbindP => ??;case: ifP => // ? [<-].
   + by rewrite /x86_idiv;t_xrbindP => ??;case: ifP => // ? [<-].
   + by rewrite /x86_lea;t_xrbindP => ??;case: ifP => // ? [<-].
