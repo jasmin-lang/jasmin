@@ -1,16 +1,13 @@
-#!/bin/sh
+#! /bin/bash
 
 set -e
 
-ARGS=$@
-JASMINC=./jasminc.native
-
 ASM=$(mktemp jasminXXXXX.s)
 OBJ=$(mktemp jasminXXXXX.o)
-trap "rm -f $ASM $OBJ" EXIT
 
-CMD="$JASMINC -o $ASM $ARGS"
+trap "rm -f ${ASM} ${OBJ}" EXIT
 
-echo $CMD
-$CMD
-cc -c -o $OBJ $ASM
+set -x
+
+$(dirname $0)/../jasminc.native -o ${ASM} "$@"
+cc -c -o ${OBJ} ${ASM}

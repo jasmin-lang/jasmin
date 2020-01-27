@@ -19,7 +19,7 @@ let is_array_copy (x:lval) e =
 let array_copy z ws n y =
   let i = L.mk_loc (L.loc z) (V.mk "i" Inline (Bty Int) (L.loc z)) in
   Cfor(i, (UpTo, Pconst B.zero, Pconst (B.of_int n)), [
-      let i_desc = Cassgn (Laset (z, Pvar i), AT_none, Bty (U ws), Pget (y, Pvar i)) in
+      let i_desc = Cassgn (Laset (ws, z, Pvar i), AT_none, Bty (U ws), Pget (ws, y, Pvar i)) in
       { i_desc ; i_loc = L.loc z, [] ; i_info = () }
     ])
 
@@ -34,7 +34,7 @@ and iac_instr_r ir =
     end
   | Cif (b, th, el) -> Cif (b, iac_stmt th, iac_stmt el)
   | Cfor (i, r, s) -> Cfor (i, r, iac_stmt s)
-  | Cwhile (a, b, c) -> Cwhile (iac_stmt a, b, iac_stmt c)
+  | Cwhile (a, c1, t, c2) -> Cwhile (a, iac_stmt c1, t, iac_stmt c2)
   | (Copn _ | Ccall _) -> ir
 
 let iac_func f =

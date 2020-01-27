@@ -1,0 +1,33 @@
+export
+fn poly1305(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k) -> reg u32 {
+  inline int i;
+  reg u8 tmp;
+  reg u32 tmp32, one;
+  stack u32[17] r, h, c;
+
+  for i = 0 to 16 {
+    tmp = (u8)[k + i];
+    if i % 4 == 3 { tmp &= 15; }
+    if i == 4 || i == 8 || i == 12 { tmp &= 252; }
+    tmp32 = (32u) tmp;
+    r[i] = tmp32;
+  }
+  r[16] = 0;
+
+  for i = 0 to 17 { h[i] = 0; }
+
+  one = 1;
+  while (inlen >= 16) {
+     for i = 0 to 16 {
+       tmp = (u8)[in + i];
+       tmp32 = (32u) tmp;
+       c[i] = tmp32;
+     }
+     c[16] = one;
+
+     in += 16;
+     inlen -= 16;
+  }
+
+  return one;
+}

@@ -224,7 +224,7 @@ Variant compiled_variable :=
 
 Scheme Equality for compiled_variable.
 
-Definition compiled_variable_eqMixin := comparableClass compiled_variable_eq_dec.
+Definition compiled_variable_eqMixin := comparableMixin compiled_variable_eq_dec.
 Canonical compiled_variable_eqType := EqType compiled_variable compiled_variable_eqMixin.
 
 Definition compile_var (v: var) : option compiled_variable :=
@@ -330,7 +330,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
       ok NBE_ct
     else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NBE)"))
 
-  | Pif (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2) =>
+  | Pif _ (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2) =>
     Let rsf := rflag_of_var ii vsf in
     Let rof1 := rflag_of_var ii vof1 in
     Let rof2 := rflag_of_var ii vof2 in
@@ -338,7 +338,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
       ok L_ct
     else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (L)"))
 
-  | Pif (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2)) =>
+  | Pif _ (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2)) =>
     Let rsf := rflag_of_var ii vsf in
     Let rof1 := rflag_of_var ii vof1 in
     Let rof2 := rflag_of_var ii vof2 in
@@ -347,7 +347,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NL)"))
 
   | Papp2 Oor (Pvar vzf)
-          (Pif (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2)) =>
+          (Pif _ (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2)) =>
     Let rzf := rflag_of_var ii vzf in
     Let rsf := rflag_of_var ii vsf in
     Let rof1 := rflag_of_var ii vof1 in
@@ -358,7 +358,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
 
   | Papp2 Oand
              (Papp1 Onot (Pvar vzf))
-             (Pif (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2))) =>
+             (Pif _ (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2))) =>
     Let rzf := rflag_of_var ii vzf in
     Let rsf := rflag_of_var ii vsf in
     Let rof1 := rflag_of_var ii vof1 in
@@ -506,8 +506,8 @@ Lemma assemble_cond_eq_expr ii pe pe' c :
   assemble_cond ii pe = ok c →
   assemble_cond ii pe = assemble_cond ii pe'.
 Proof.
-elim: pe pe' c => [ z | b | sz n | x | g | x pe ih | sz x pe ih | op pe ih | op pe1 ih1 pe2 ih2 | op pes ih | pe1 ih1 pe2 ih2 pe3 ih3 ]
-  [ z' | b' | sz' n' | x' | g' | x' pe' | sz' x' pe' | op' pe' | op' pe1' pe2' | op' pes' | pe1' pe2' pe3' ] // c;
+elim: pe pe' c => [ z | b | n | x | g | ws x pe ih | sz x pe ih | op pe ih | op pe1 ih1 pe2 ih2 | op pes ih | t pe1 ih1 pe2 ih2 pe3 ih3 ]
+  [ z' | b' | n' | x' | g' | ws' x' pe' | sz' x' pe' | op' pe' | op' pe1' pe2' | op' pes' | t' pe1' pe2' pe3' ] // c;
   try (move/eqP -> => //).
 - by case: x x' => /= x _ [x' _] /eqP <-.
 - case/andP => [/eqP] <- {op'} h; move: (h) => /ih {ih} ih.
@@ -522,8 +522,9 @@ elim: pe pe' c => [ z | b | sz n | x | g | x pe ih | sz x pe ih | op pe ih | op 
     * case => // - [] // [y yi]; case: pe2' => // - [] // -[] // [y' yi'] /eqP h'.
       rewrite /= in h'; subst y'.
       by rewrite /=; case: (rflag_of_var _ _).
-    case => // - [x1 xi1] - [] // - [x2  xi2] [] // [] // q.
-    case: pe2' => // - [] // - [x1' xi1'] x2' q' /andP [/andP] [/eqP] /= -> {x1}.
+    move=> ? [] // - [x1 xi1] - [] // - [x2  xi2] [] // [] // q.
+    case: pe2' => // ? p1 p2 p3;rewrite /eq_expr; case: eqP => // ?;subst.
+    case: p1 p2 p3 => //= - [x1' xi1'] x2' q' /andP [/andP] [/eqP] /= -> {x1}.
     case: x2' => // x2' /eqP /= -> {x2}.
     case: q' => // - [] // q' /andP [_] h; rewrite -/eq_expr in h.
     case: q h => // y; case: q' => // y' h.
@@ -546,8 +547,9 @@ elim: pe pe' c => [ z | b | sz n | x | g | x pe ih | sz x pe ih | op pe ih | op 
     rewrite /= in h2; subst x2.
     rewrite /=.
     by case: (rflag_of_var _ x2').
-  move => a1 a2 a3; case: pe2' => //.
-  case: a1 => // -[x2 xi2] [] // x2' a2' a3' /andP [] /andP [/eqP] h.
+  move => s a1 a2 a3; case: pe2' => //.
+  case: a1 => // -[x2 xi2] ? p1 p2 p3;rewrite /eq_expr; case: eqP => // ?;subst.
+  case: p1 p2 p3 => //= x2' a2' a3' /andP [] /andP [/eqP] h;rewrite -/eq_expr.
   rewrite /= in h; subst x2.
   rewrite -/eq_expr.
   case: a2 => // - [] // - [] // -[z1 zi1].
@@ -556,7 +558,7 @@ elim: pe pe' c => [ z | b | sz n | x | g | x pe ih | sz x pe ih | op pe ih | op 
   case: a3 => // -[z2 zi2]; case: a3' => // z2' /eqP h.
   rewrite /= in h; subst z2.
   done.
-case/andP => /andP []; rewrite -/eq_expr => h1 h2 h3.
+move=> /andP [] /andP [] /andP []; rewrite -/eq_expr => /eqP h0 h1 h2 h3.
 move: (h1) => /ih1 {ih1} ih1.
 move: (h2) => /ih2 {ih2} ih2.
 move: (h3) => /ih3 {ih3} ih3.
@@ -582,8 +584,8 @@ Lemma addr_ofs_eq_expr pe pe' :
   eq_expr pe pe' →
   addr_ofs pe = addr_ofs pe'.
 Proof.
-elim: pe pe' => [ z | b | sz n | x | g | x pe ih | sz x pe ih | op pe ih | op pe1 ih1 pe2 ih2 | op pes ih | pe1 ih1 pe2 ih2 pe3 ih3 ]
-  [ z' | b' | sz' n' | x' | g' | x' pe' | sz' x' pe' | op' pe' | op' pe1' pe2' | op' pes' | pe1' pe2' pe3' ] //;
+elim: pe pe' => [ z | b | n | x | g | ws x pe ih | sz x pe ih | op pe ih | op pe1 ih1 pe2 ih2 | op pes ih | t pe1 ih1 pe2 ih2 pe3 ih3 ]
+  [ z' | b' | n' | x' | g' | ws' x' pe' | sz' x' pe' | op' pe' | op' pe1' pe2' | op' pes' | t' pe1' pe2' pe3' ] //;
   try (move/eqP -> => //).
 - by case: x => x xi /eqP /= ->.
 - move => /= /andP [] /eqP <-{op'} h. case: op => // - [] //. move /ih: (h) => {ih} ih.
@@ -599,8 +601,8 @@ Lemma addr_of_pexpr_eq_expr ii r pe pe' a :
   addr_of_pexpr ii r pe = ok a →
   addr_of_pexpr ii r pe = addr_of_pexpr ii r pe'.
 Proof.
-elim: pe pe' a => [ z | b | sz n | x | g | x pe ih | sz x pe ih | op pe ih | op pe1 ih1 pe2 ih2 | op pes ih | pe1 ih1 pe2 ih2 pe3 ih3 ]
-  [ z' | b' | sz' n' | x' | g' | x' pe' | sz' x' pe' | op' pe' | op' pe1' pe2' | op' pes' | pe1' pe2' pe3' ] // c;
+elim: pe pe' a => [ z | b | n | x | g | ws x pe ih | sz x pe ih | op pe ih | op pe1 ih1 pe2 ih2 | op pes ih | t pe1 ih1 pe2 ih2 pe3 ih3 ]
+  [ z' | b' | n' | x' | g' | ws' x' pe' | sz' x' pe' | op' pe' | op' pe1' pe2' | op' pes' | t' pe1' pe2' pe3' ] // c;
   try (move/eqP -> => //).
 - by case: x => x xi /eqP /= ->.
 - move=> /= /andP [] /eqP <- {op'}.
@@ -616,8 +618,8 @@ Lemma oprd_of_pexpr_eq_expr ii pe pe' o :
   oprd_of_pexpr ii pe = ok o →
   oprd_of_pexpr ii pe = oprd_of_pexpr ii pe'.
 Proof.
-elim: pe pe' o => [ z | b | sz n | x | g | x pe ih | sz x pe ih | op pe ih | op pe1 ih1 pe2 ih2 | op pes ih | pe1 ih1 pe2 ih2 pe3 ih3 ]
-  [ z' | b' | sz' n' | x' | g' | x' pe' | sz' x' pe' | op' pe' | op' pe1' pe2' | op' pes' | pe1' pe2' pe3' ] // o;
+elim: pe pe' o => [ z | b | n | x | g | ws x pe ih | sz x pe ih | op pe ih | op pe1 ih1 pe2 ih2 | op pes ih | t pe1 ih1 pe2 ih2 pe3 ih3 ]
+  [ z' | b' | n' | x' | g' | ws' x' pe' | sz' x' pe' | op' pe' | op' pe1' pe2' | op' pes' | t' pe1' pe2' pe3' ] // o;
   try (move/eqP -> => //).
 - by case: x => x xi /eqP /= ->.
 - move=> /= /andP [] /andP [] /eqP ? /eqP hx h; rewrite -/eq_expr in h.
@@ -636,8 +638,8 @@ Lemma rm128_of_pexpr_eq_expr ii pe pe' rm :
   rm128_of_pexpr ii pe = ok rm →
   rm128_of_pexpr ii pe = rm128_of_pexpr ii pe'.
 Proof.
-elim: pe pe' rm => [ z | b | sz n | x | g | x pe ih | sz x pe ih | op pe ih | op pe1 ih1 pe2 ih2 | op pes ih | pe1 ih1 pe2 ih2 pe3 ih3 ]
-  [ z' | b' | sz' n' | x' | g' | x' pe' | sz' x' pe' | op' pe' | op' pe1' pe2' | op' pes' | pe1' pe2' pe3' ] // rm.
+elim: pe pe' rm => [ z | b | n | x | g | ws x pe ih | sz x pe ih | op pe ih | op pe1 ih1 pe2 ih2 | op pes ih | t pe1 ih1 pe2 ih2 pe3 ih3 ]
+  [ z' | b' | n' | x' | g' | ws' x' pe' | sz' x' pe' | op' pe' | op' pe1' pe2' | op' pes' | t' pe1' pe2' pe3' ] // rm.
 - by case: x => x xi /eqP /= ->.
 - by move/eqP => <-.
 move => /= /andP [] /andP [] /eqP _ /eqP <- rec.

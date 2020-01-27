@@ -1,11 +1,13 @@
-opam-version: "1.2"
+opam-version: "2.0"
 name: "jasmin"
 version: "0.1"
 maintainer: "Jasmin Team <jasmin@example.com>"
 authors: [ "Jasmin Team <jasmin@example.com>" ]
 homepage: "http://jasmin-lang.github.io/"
 bug-reports: "https://github.com/jasmin-lang/jasmin/issues"
-license: "CeCILL-B"
+synopsis: "High-Assurance and High-Speed Cryptography"
+license: "GPLv2"
+
 build: [
   make "build"
 ]
@@ -19,9 +21,13 @@ depends: [
   "batteries" {>= "2.6"}
   "menhir" {>= "20160825"}
   "zarith"
+  "apron"
+  "bddapron"
+  "conf-ppl"
   "ocamlbuild"
   "ocamlfind"
-  "coq" {>= "8.6"}
-  "coq-mathcomp-ssreflect"
+  "coq" {>= "8.7" & < "8.10"}
+  "coq-mathcomp-ssreflect" {>= "1.9" & < "1.10"}
   "coq-mathcomp-algebra"
+  "coq-word" {dev}
 ]

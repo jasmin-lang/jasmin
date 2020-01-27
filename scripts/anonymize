@@ -3,6 +3,7 @@
 ${SED:-sed} -i \
   -e "s/Inria/<Anonymized>/ig" \
   -e "s/IMDEA Software Institute/<Anonymized>/ig" \
+  -e "s/Polytechnique/<Anonymized>/ig" \
   -e "s,http://jasmin-lang.github.io/,http://example.com,g" \
   -e "s,https://github.com/jasmin-lang/jasmin/issues,http://example.com,g" \
   jasmin/proofs/*/*.v jasmin/compiler/src/*.ml* jasmin/compiler/opam

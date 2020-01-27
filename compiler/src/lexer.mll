@@ -23,6 +23,7 @@
     "bool"  , T_BOOL ;
     "int"   , T_INT  ;
 
+    "align" , ALIGN  ;  
     "downto", DOWNTO ;
     "else"  , ELSE   ;
     "exec"  , EXEC   ;

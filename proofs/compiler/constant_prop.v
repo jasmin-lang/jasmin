@@ -363,10 +363,10 @@ Definition s_opN op es :=
   | _ => PappN op es
   end.
 
-Definition s_if e e1 e2 := 
+Definition s_if t e e1 e2 := 
   match is_bool e with
   | Some b => if b then e1 else e2
-  | None   => Pif e e1 e2
+  | None   => Pif t e e1 e2
   end.
 
 (* ** constant propagation 
@@ -411,16 +411,16 @@ Fixpoint const_prop_e (m:cpm) e :=
   match e with
   | Pconst _
   | Pbool  _
-  | Parr_init _ _
+  | Parr_init _
     => e
   | Pvar  x       => if Mvar.get m x is Some n then const n else e
   | Pglobal _     => e
-  | Pget  x e     => Pget x (const_prop_e m e)
+  | Pget  sz x e  => Pget  sz x (const_prop_e m e)
   | Pload sz x e  => Pload sz x (const_prop_e m e)
   | Papp1 o e     => s_op1 o (const_prop_e m e)
   | Papp2 o e1 e2 => s_op2 o (const_prop_e m e1)  (const_prop_e m e2)
-  | PappN op es => s_opN op (map (const_prop_e m) es)
-  | Pif e e1 e2   => s_if (const_prop_e m e) (const_prop_e m e1) (const_prop_e m e2)
+  | PappN op es   => s_opN op (map (const_prop_e m) es)
+  | Pif t e e1 e2 => s_if t (const_prop_e m e) (const_prop_e m e1) (const_prop_e m e2)
   end.
 
 Definition empty_cpm : cpm := @Mvar.empty const_v.
@@ -439,10 +439,10 @@ Definition remove_cpm (m:cpm) (s:Sv.t): cpm :=
 
 Definition const_prop_rv (m:cpm) (rv:lval) : cpm * lval := 
   match rv with 
-  | Lnone _ _   => (m, rv)
-  | Lvar  x     => (Mvar.remove m x, rv)
-  | Lmem sz x e => (m, Lmem sz x (const_prop_e m e))
-  | Laset x e   => (Mvar.remove m x, Laset x (const_prop_e m e))
+  | Lnone _ _    => (m, rv)
+  | Lvar  x      => (Mvar.remove m x, rv)
+  | Lmem  sz x e => (m, Lmem sz x (const_prop_e m e))
+  | Laset sz x e => (Mvar.remove m x, Laset sz x (const_prop_e m e))
   end.
 
 Fixpoint const_prop_rvs (m:cpm) (rvs:lvals) : cpm * lvals := 
@@ -524,7 +524,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let (_,c) := const_prop const_prop_i m c in
     (m, [:: MkI ii (Cfor x (dir, e1, e2) c) ])
 
-  | Cwhile c e c' =>
+  | Cwhile a c e c' =>
     let m := remove_cpm m (write_i ir) in
     let (m',c) := const_prop const_prop_i m c in
     let e := const_prop_e m' e in
@@ -532,7 +532,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let cw := 
       match is_bool e with
       | Some false => c
-      | _          => [:: MkI ii (Cwhile c e c')]
+      | _          => [:: MkI ii (Cwhile a c e c')]
       end in
     (m', cw)
   | Ccall fi xs f es =>

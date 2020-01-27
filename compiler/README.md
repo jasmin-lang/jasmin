@@ -1,29 +1,35 @@
 Installing requirements using OPAM
 --------------------------------------------------------------------
 
-Starting with opam 1.2.0, you can install all the needed dependencies
+Starting with opam 2.0, you can install all the needed dependencies
 via the opam OCaml packages manager.
 
   0. Optionally, switch to a dedicated compiler for Jasmin:
 
-          $> opam switch -A $OVERSION jasmin
+          $> opam switch create jasmin $OVERSION
 
-     where $OVERSION is a valid OCaml version (e.g. 4.02.1)
+     where $OVERSION is a valid OCaml version (e.g. ocaml-base-compiler.4.07.0)
 
-  1. Add the Jasmin OPAM package:
+  1. Add the Coq Word library opam package:
 
-          $> opam pin add -n jasmin .
+          $> opam pin add -ny git+https://github.com/jasmin-lang/coqword.git 
 
-  3. Optionally, use opam to install the system dependencies:
+  2. Add the Jasmin OPAM package (from the compiler/ subdirectory)
+
+          $> opam pin add -ny jasmin .
+
+  3. Add the Coq remotes:
+
+          $> opam repo add coq-released https://coq.inria.fr/opam/released
+          $> opam repo add coq-extra-dev https://coq.inria.fr/opam/extra-dev
+
+  4. Optionally, use opam to install the system dependencies:
 
           $> opam install depext
           $> opam depext jasmin
 
-  4. Install Jasmin dependencies:
+  5. Install Jasmin dependencies:
 
-
-          $> opam repo add coq-released https://coq.inria.fr/opam/released
-          $> opam repo add coq-extra-dev https://coq.inria.fr/opam/extra-dev
           $> opam install --deps-only jasmin
 
 Opam can be easily installed from source or via your packages manager:
@@ -49,3 +55,10 @@ Run `nix-shell` in the top-level directory. This will drop you in a
 shell with all required dependencies available.
 
 See [https://nixos.org/nix/] for how to install the NIX package manager.
+
+Compiling
+--------------------------------------------------------------------
+
+Simply run:
+
+        $> make CIL build

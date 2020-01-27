@@ -188,25 +188,18 @@ Lemma CMOVcc_gsc sz :
   gen_sem_correct [:: TYcondt; TYoprd; TYoprd]
      (Ox86_CMOVcc sz) [:: E sz 1] [:: Eb 0; E sz 2; E sz 1] [::] (CMOVcc sz).
 Proof.
+
 move => ct x y; split => // gd m m'.
 rewrite /low_sem_aux /= !arg_of_oprdE /eval_CMOVcc /eval_MOV_nocheck.
-case: x => //= [x | x]; t_xrbindP => vs ?? hb ?? hv ; [ | move => ??? hm <- <- ] => <- <-; t_xrbindP => _ -> /=;
-case: (eval_cond _ _) hb => [ b | [] // ] [<-] //= _ [<-] _ _ _ _;
-case: vs => // v [] //; case: v => //= sz' w ok_w; [ case | rewrite /sets_low /=; apply: rbindP => w' ok_w' ];
-case: b ok_w.
-+ apply: rbindP => w' /of_val_word [s'] [w''] [hle ??]; subst => h.
-  have {h} /seq_eq_injL [/Vword_inj [? ?] _] := ok_inj h; subst => /= <-.
-  rewrite (eval_low_read _ hv) //=. update_set.
-+ apply: rbindP => w' /truncate_wordP [hle ?]; subst w' => h.
-  have {h} /seq_eq_injL [/Vword_inj [? ?] _] := ok_inj h; subst => /= <-; update_set.
-+ apply: rbindP => ? /of_val_word [s'] [w''] [hle ? ?]; subst => h.
-  have {h} /seq_eq_injL [/Vword_inj [? h] _] := ok_inj h; move: h; subst => /= ?; subst.
-  move: ok_w'; rewrite truncate_word_u => - [<-] {w'}.
-  rewrite (eval_low_read _ hv) //= => ->; update_set.
-  rewrite truncate_word_u /= => h.
-  have {h} /seq_eq_injL [/Vword_inj [? h] _] := ok_inj h; move: h; subst => /= ?; subst.
-  move: ok_w'; rewrite truncate_word_u => - [<-] {w'}.
-  rewrite hm /= => ->; update_set.
+case: x => //= [x | x]; t_xrbindP => vs ?? hb ?? hv ; [ | move => ??? hm <- <- ] => <- <- /= ; t_xrbindP => _ -> /=;
+move => vb /to_boolI => ? ; subst => h2 /to_wordI [x0] [x1] [] ??? ; subst => h4 /truncate_wordP [] ?? ; subst;
+have hb' := value_of_boolI hb;
+rewrite hb' => {hb}.
++ by case: vb hb' => hb' [] <- //=; [rewrite (eval_low_read _ hv) //= |];
+  rewrite /sets_low /= => -[<-] ; eexists ; split ; reflexivity.
+case: vb hb' => hb' [] <- //=; [rewrite (eval_low_read _ hv) //= |].
++ by rewrite /sets_low /= truncate_word_u /= => ? ; eexists ; split ; eauto ; reflexivity.
+by rewrite /sets_low /= truncate_word_u /= zero_extend_u hm /= ; eexists ; split ; eauto; reflexivity.
 Qed.
 
 Definition CMOVcc_desc sz := make_instr_desc (CMOVcc_gsc sz).
@@ -371,6 +364,55 @@ Qed.
 
 Definition ADC_desc sz := make_instr_desc (ADC_gsc sz).
 
+(* ----------------------------------------------------------------------------- *)
+Lemma ADCX_gsc sz :
+   gen_sem_correct [:: TYreg; TYoprd] (Ox86_ADCX sz)
+       ([::F CF; E sz 0])
+       [:: E sz 0; E sz 1; F CF] [::] (ADCX sz).
+Proof.
+move => x y; split => // gd m m'.
+rewrite /low_sem_aux /= /eval_ADCX /x86_adcx !arg_of_oprdE /=.
+t_xrbindP=> ???? hy ?? hc <- <- <- /=. 
+t_xrbindP => ? hx ? /to_wordI [sz' [w' [hsz ??]]] ? /to_boolI ?; subst => ? -> ?; subst => /= -[] <-.
+have -> /= := value_of_boolI hc.
+have -> /= := eval_low_read hsz hy.
+have [? <-]:= truncate_wordP hx; update_set.
+Qed.
+
+Definition ADCX_desc sz := make_instr_desc (ADCX_gsc sz).
+
+(* ----------------------------------------------------------------------------- *)
+Lemma ADOX_gsc sz :
+   gen_sem_correct [:: TYreg; TYoprd] (Ox86_ADOX sz)
+       ([::F OF; E sz 0])
+       [:: E sz 0; E sz 1; F OF] [::] (ADOX sz).
+Proof.
+move => x y; split => // gd m m'.
+rewrite /low_sem_aux /= /eval_ADOX /x86_adox /x86_adcx !arg_of_oprdE /=.
+t_xrbindP=> ???? hy ?? hc <- <- <- /=. 
+t_xrbindP => ? hx ? /to_wordI [sz' [w' [hsz ??]]] ? /to_boolI ?; subst => ? -> ?; subst => /= -[] <-.
+have -> /= := value_of_boolI hc.
+have -> /= := eval_low_read hsz hy.
+have [? <-]:= truncate_wordP hx; update_set.
+Qed.
+
+Definition ADOX_desc sz := make_instr_desc (ADOX_gsc sz).
+
+(* ----------------------------------------------------------------------------- *)
+Lemma MULX_gsc sz :
+   gen_sem_correct [:: TYreg; TYreg; TYoprd] (Ox86_MULX sz)
+       ([::E sz 0; E sz 1])
+        [:: R RDX; E sz 2] [::] (MULX sz).
+Proof.
+move=> x y z; split => // gd m m'.
+rewrite /low_sem_aux /= /eval_MULX /x86_mulx !arg_of_oprdE /=.
+t_xrbindP=> ???? hz <- <-. 
+t_xrbindP=> ? /to_wordI  [sz' [w' [hsz /Vword_inj [?]]]]. 
+subst => /= <- -> ? /to_wordI [sz'' [w'' [hsz' ??]]] ? -> <-;subst => -[<-] /=.
+have -> /= := eval_low_read hsz' hz; update_set.
+Qed.
+
+Definition MULX_desc sz := make_instr_desc (MULX_gsc sz).
 (* ----------------------------------------------------------------------------- *)
 Lemma SBB_gsc sz :
    gen_sem_correct [:: TYoprd; TYoprd] (Ox86_SBB sz)
@@ -963,33 +1005,58 @@ Qed.
 Definition SHRD_desc sz := make_instr_desc (SHRD_gsc sz).
 
 (* ----------------------------------------------------------------------------- *)
-Definition SET0 sz o : asm :=
-  XOR
-    (if o is Reg_op _
-     then cmp_min U32 sz
-     else sz)
-    o o.
 
-Lemma Set0_gsc sz :
-  gen_sem_correct [:: TYoprd] (Oset0 sz)
-     (implicit_flags ++ [:: E sz 0])
-     [::] [::] (SET0 sz).
+Definition SET0 sz : interp_ty (if (sz <= U64)%CMP then TYoprd else TYxreg) -> asm :=
+  match (sz <= U64)%CMP as t return interp_ty (if t then TYoprd else TYxreg) -> asm with
+  | true => fun o =>
+    XOR (if o is Reg_op _  then cmp_min U32 sz
+         else sz) o o
+  | false => fun o =>
+    VPXOR sz (RM128_reg o) (RM128_reg o) (RM128_reg o)
+  end.
+
+Lemma Set0_gsc sz : 
+  gen_sem_correct [:: if (sz <= U64)%CMP then TYoprd else TYxreg] (Oset0 sz)
+     (if (sz <= U64)%CMP then implicit_flags ++ [:: E sz 0] else [::E sz 0])
+     [::] [::] (@SET0 sz).
 Proof.
-move => x; split => // gd m m'; rewrite /low_sem_aux /= /eval_XOR.
-have ok_sz : ∀ u, check_size_8_64 sz = ok u → check_size_8_64 (if x is Reg_op _ then cmp_min U32 sz else sz) = ok tt.
-+ by case: x => //; case: sz.
-case: x ok_sz => //= [ x | x ] ok_sz; t_xrbindP => vs _ /(ok_sz) {ok_sz} -> /= <-.
-- case => <- /=; rewrite wxor_xx /= /rflags_of_bwop /SF_of_word msb0 /=.
-  know_it; f_equal; rewrite /mem_write_reg /=; f_equal; last first.
-  * by apply /ffunP; case; rewrite !ffunE.
-  by rewrite /word_extend_reg /=; f_equal; case: sz.
-rewrite /sets_low /= truncate_word_u /= /mem_write_mem /= !decode_addr_set_rflags.
-apply: rbindP => m'' hw [<-].
-have [o ->] := write_mem_can_read hw.
-rewrite /= wxor_xx decode_addr_update_rflags /= hw /= /rflags_of_bwop /SF_of_word msb0; update_set.
+  rewrite /SET0; case heq:(sz <= U64)%CMP => x; split => // gd m m'; rewrite /low_sem_aux /=.
+  + rewrite /eval_XOR /check_size_8_64 heq.
+    have -> /= : ((if x is Reg_op _ then cmp_min U32 sz else sz) <= U64)%CMP.
+    + by case: x => //; case: (sz).
+    case: x => //= [ x | x ]; rewrite /sets_low /=.
+    + move=> []<- /=; rewrite wxor_xx /= /rflags_of_bwop /SF_of_word msb0 /=.
+      know_it; f_equal; rewrite /mem_write_reg /=; f_equal; last first.
+      * by apply /ffunP; case; rewrite !ffunE.
+      by rewrite /word_extend_reg /=; f_equal; case: (sz).
+    rewrite /sets_low /= truncate_word_u /= /mem_write_mem /= !decode_addr_set_rflags.
+    apply: rbindP => m'' hw [<-].
+    have [o ->] := write_mem_can_read hw.
+    rewrite /= wxor_xx decode_addr_update_rflags /= hw /= /rflags_of_bwop /SF_of_word msb0; update_set.
+  rewrite heq; t_xrbindP => y ?;subst y.
+  rewrite /sets_low /= => -[<-].
+  know_it; rewrite /eval_VPXOR /eval_rm128_binop /read_rm128.
+  rewrite /check_size_128_256.
+  have -> /= : (U128 ≤ sz)%CMP && (sz ≤ U256)%CMP by case: sz heq.
+  by rewrite wxor_xx.
 Qed.
 
-Definition Set0_desc sz := make_instr_desc (Set0_gsc sz).
+Lemma SET0_wf_out sz : 
+    is_true (all (wf_arg_desc [:: if (sz <= U64)%CMP then TYoprd else TYxreg]) 
+         (if (sz <= U64)%CMP then implicit_flags ++ [:: E sz 0] else [::E sz 0])).
+Proof. case:ifP => //. Qed.
+
+Definition Set0_desc sz := 
+  {| id_name := _;
+     id_msb_flag := _;
+     id_out := _;
+     id_in  := _;
+     id_tys := _;
+     id_instr := _;
+     id_gen_sem := @Set0_gsc sz;
+     id_in_wf := refl_equal;
+     id_out_wf := SET0_wf_out sz
+|}.
 
 (* ----------------------------------------------------------------------------- *)
 Lemma BSWAP_gsc sz :
@@ -1434,6 +1501,9 @@ Definition sopn_desc ii (c : sopn) : ciexec instr_desc :=
   | Ox86_SAR sz => ok (SAR_desc sz)
   | Ox86_SHLD sz => ok (SHLD_desc sz)
   | Ox86_SHRD sz => ok (SHRD_desc sz)
+  | Ox86_ADCX sz => ok (ADCX_desc sz)
+  | Ox86_ADOX sz => ok (ADOX_desc sz)
+  | Ox86_MULX sz => ok (MULX_desc sz)
   | Ox86_BSWAP sz => ok (BSWAP_desc sz)
   | Ox86_MOVD sz => ok (MOVD_desc sz)
   | Ox86_VMOVDQU sz => ok (VMOVDQU_desc sz)
@@ -1519,6 +1589,9 @@ Proof.
   by have [x' [-> ->]]:= type_apply_gargP Ha.
 Qed.
 
+Lemma type_of_rbool c : type_of_val (of_rbool c) = sbool.
+Proof. by case: c. Qed.
+
 Lemma lom_eqv_mem_equiv_trans s m1 m2 :
   lom_eqv s m1 →
   x86_mem_equiv m1 m2 →
@@ -1529,8 +1602,8 @@ constructor => //= f v hv.
 move: (hrf1 f v hv) (hrf2 f) => {hv}.
 case: (rf1 _) v => [ b | ] [] //=.
 - by move => ? <- /eqP ->.
-- by move => ? -> /eqP ->.
-by move => ? -> _; case: (rf2 _).
+- by rewrite type_of_rbool.
+- by rewrite type_of_rbool.
 Qed.
 
 Theorem assemble_sopnP gd ii out op args i s1 m1 s2 :

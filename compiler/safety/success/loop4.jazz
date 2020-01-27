@@ -1,0 +1,141 @@
+inline
+fn add(stack u32[17] h, stack u32[17] c) -> stack u32[17] {
+  inline int j;
+  reg u32 u, tmp;
+  u = 0;
+  for j = 0 to 17 {
+    u += h[j];
+    u += c[j];
+    tmp = u; tmp &= 255; h[j] = tmp;
+    u >>= 8;
+  }
+
+  return h;
+}
+
+inline
+fn add_minusp(stack u32[17] h) -> stack u32[17] {
+  inline int j;
+  reg u32 u, tmp;
+  u = 0;
+  for j = 0 to 17 {
+    u += h[j];
+    if j == 0 { u += 5; }
+    if j == 16 { u += 252; }
+    tmp = u; tmp &= 255; h[j] = tmp;
+    u >>= 8;
+  }
+
+  return h;
+}
+
+inline
+fn squeeze(stack u32[17] h) -> stack u32[17] {
+  inline int j;
+  reg u32 u, tmp;
+  u = 0;
+  for j = 0 to 16 {
+    u += h[j];
+    tmp = u; tmp &= 255; h[j] = tmp;
+    u >>= 8;
+  }
+
+  u += h[16];
+  tmp = u; tmp &= 3; h[16] = tmp;
+
+  u >>= 2; u *= 5;
+
+  for j = 0 to 16 {
+    u += h[j];
+    tmp = u; tmp &= 255; h[j] = tmp;
+    u >>= 8;
+  }
+
+  u += h[16];
+  h[16] = u;
+
+  return h;
+}
+
+inline
+fn mulmod(stack u32[17] h, stack u32[17] r) -> stack u32[17] {
+  stack u32[17] hr;
+  reg u32 tmp, u;
+  inline int i, j;
+
+  for i = 0 to 17 {
+    u = 0;
+    for j = 0 to i + 1 {
+      tmp = h[j];
+      tmp *= r[i - j];
+      u += tmp;
+    }
+    for j = i + 1 to 17 {
+      tmp = 320;
+      tmp *= h[j];
+      tmp *= r[i + 17 - j];
+      u += tmp;
+    }
+    hr[i] = u;
+  }
+
+  for i = 0 to 17 { tmp = hr[i]; h[i] = tmp; }
+  h = squeeze(h);
+
+  return h;
+}
+
+export
+fn poly1305(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k) -> reg u64 {
+  inline int i;
+  reg u8 tmp;
+  reg u32 tmp32, one;
+  reg u64 ret;
+  reg bool of, cf, sf, zf;
+  stack u32[17] r, h, c;
+
+  for i = 0 to 16 {
+    tmp = (u8)[k + i];
+    if i % 4 == 3 { tmp &= 15; }
+    if i == 4 || i == 8 || i == 12 { tmp &= 252; }
+    tmp32 = (32u) tmp;
+    r[i] = tmp32;
+  }
+  r[16] = 0;
+
+  for i = 0 to 17 { h[i] = 0; }
+
+  one = 1;
+  while (inlen > 0) {
+    if inlen >= 16 {
+      for i = 0 to 16 {
+        tmp = (u8)[in + i];
+        tmp32 = (32u) tmp;
+        c[i] = tmp32;
+      }
+      c[16] = one;
+
+      in += 16;
+      inlen -= 16;
+
+    } else {
+      for i = 0 to 17 {
+        tmp32 = #set0_32();
+        of, cf, sf, _, zf = #x86_CMP(inlen, i);
+        if !zf && (sf ? of : !of) { // inlen > i
+          tmp = (u8)[in + i];
+          tmp32 = (32u) tmp;
+        }
+        tmp32 = one if zf; // inlen == i
+        c[i] = tmp32;
+      }
+      inlen = #set0();
+    }
+
+    h = add(h, c);
+    h = mulmod(h, r);
+  }
+
+  ret = #set0();
+  return ret;
+}

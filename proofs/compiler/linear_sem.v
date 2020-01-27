@@ -80,6 +80,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   | Lopn xs o es =>
     Let s2 := sem_sopn gd o (to_estate s1) xs es in
     ok (of_estate s2 s1.(lc) s1.(lpc).+1)
+  | Lalign   => ok (setpc s1 s1.(lpc).+1)
   | Llabel _ => ok (setpc s1 s1.(lpc).+1)
   | Lgoto lbl =>
     Let pc := find_label lbl s1.(lc) in

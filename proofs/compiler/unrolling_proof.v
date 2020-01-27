@@ -99,14 +99,14 @@ Section PROOF.
 
   Local Lemma Hwhile_true : sem_Ind_while_true p Pc Pi_r.
   Proof.
-    move=> s1 s2 s3 s4 c e c' Hsc Hc Hb Hsc' Hc' Hsi Hi ii.
+    move=> s1 s2 s3 s4 a c e c' Hsc Hc Hb Hsc' Hc' Hsi Hi ii.
     apply: sem_seq1; apply: EmkI; apply: Ewhile_true=> //; eauto=> /=.
     by move: Hi=> /(_ ii) /semE [?] [/sem_IE Hi /semE ->].
   Qed.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
   Proof.
-   move=> s1 s2 c e c' Hsc Hc Hb ii.
+   move=> s1 s2 a c e c' Hsc Hc Hb ii.
    by apply: sem_seq1; apply: EmkI; apply: Ewhile_false.
   Qed.
 

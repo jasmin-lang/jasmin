@@ -9,8 +9,8 @@ This repository contains the following subdirectories:
 
 - For the compiler: check compiler/README.md
 - For the proofs:
-  + Coq (tested with 8.7.2)
-  + The Mathematical Components library for Coq (tested with 1.7.0)
+  + Coq (>= 8.7)
+  + The Mathematical Components library for Coq (>= 1.9)
 
 # Testing
 

@@ -1,5 +1,7 @@
 compiler/src/CIL/*.ml
 compiler/src/CIL/*.mli
+*~
+*.eco
 *.d
 *.o
 *.s
@@ -23,15 +25,9 @@ a.out
 .DS_Store
 test_jasmin.rs
 
-target
-
 Makefile.coq
 Makefile.coq.bak
 Makefile.coq.conf
-
-/ssreflect/*.v
-/ssreflect/*.ml*
-/ssreflect-tmp/
 
 /jasmin/
 /jasmin.tar.gz

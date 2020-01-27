@@ -18,11 +18,11 @@ with i_Calls_r (i : instr_r) {struct i} : Sp.t :=
   in
 
   match i with
-  | Cassgn _  _  _ _ => Sp.empty
+  | Cassgn _  _  _ _  => Sp.empty
   | Copn   _  _  _  _ => Sp.empty
   | Cif    _  c1 c2   => Sp.union (c_Calls c1) (c_Calls c2)
   | Cfor   _  _  c1   => c_Calls c1
-  | Cwhile c1 _  c2   => Sp.union (c_Calls c1) (c_Calls c2)
+  | Cwhile _ c1 _  c2 => Sp.union (c_Calls c1) (c_Calls c2)
   | Ccall  _  _  f  _ => Sp.singleton f
   end.
 
@@ -50,8 +50,8 @@ Lemma i_Calls_for v rg c1 :
   i_Calls_r (Cfor v rg c1) = c_Calls c1.
 Proof. by []. Qed.
 
-Lemma i_Calls_while c1 e c2 :
-  i_Calls_r (Cwhile c1 e c2) = Sp.union (c_Calls c1) (c_Calls c2).
+Lemma i_Calls_while a c1 e c2 :
+  i_Calls_r (Cwhile a c1 e c2) = Sp.union (c_Calls c1) (c_Calls c2).
 Proof. by []. Qed.
 
 Lemma i_Calls_call ii lv f es :
@@ -82,7 +82,7 @@ apply (@cmd_rect
          (fun i => forall c, Sp.Equal (i_calls c i) (Sp.union c (i_Calls i)))
          (fun i => forall c, Sp.Equal (c_calls c i) (Sp.union c (c_Calls i)))) => /=
   [ i0 ii Hi | | i0 c0 Hi Hc | x t e | xs o es | e c1 c2 Hc1 Hc2
-    | v dir lo hi c0 Hc | c0 e c' Hc Hc' | ii xs f es] c //.
+    | v dir lo hi c0 Hc | a c0 e c' Hc Hc' | ii xs f es] c //.
 + rewrite CallsE; SpD.fsetdec.
 + rewrite /= CallsE Hc Hi; SpD.fsetdec.
 + SpD.fsetdec.
@@ -129,7 +129,7 @@ Lemma live_calls_in K p fn fd :
 Proof.
   elim: p K fn fd => // [[n d] p] ih K fn fd hn /=.
   case: eqP.
-  - move <- => {n} h; apply Some_inj in h; subst.
+  - move <- => {n} /Some_inj ->.
     rewrite (SpD.F.mem_1 hn) c_callsE.
     etransitivity. 2: apply: live_calls_subset. SpD.fsetdec.
   - move => ne rec. specialize (ih _ _ _ hn rec).
@@ -231,7 +231,7 @@ Section PROOF.
 
   Local Lemma Hwhile_true : sem_Ind_while_true p Pc Pi_r.
   Proof.
-    move=> s1 s2 s3 s4 c e c' Hs1 Hc1 H Hs2 Hc2 Hsw Hiw Hinclw _.
+    move=> s1 s2 s3 s4 a c e c' Hs1 Hc1 H Hs2 Hc2 Hsw Hiw Hinclw _.
     rewrite CallsE in Hinclw.
     have /def_incl_union [Hincl Hincl'] := Hinclw.
     exact: (Ewhile_true (Hc1 Hincl Hs1) H (Hc2 Hincl' Hs2) (Hiw Hinclw Hsw)).
@@ -239,10 +239,10 @@ Section PROOF.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
   Proof.
-    move=> s1 s2 c e c' Hs1 Hc1 H Hinclw _.
+    move=> s1 s2 a c e c' Hs1 Hc1 H Hinclw _.
     rewrite CallsE in Hinclw.
     have /def_incl_union [Hincl Hincl'] := Hinclw.
-    exact: (Ewhile_false _ (Hc1 Hincl Hs1) H).
+    exact: (Ewhile_false _ _ (Hc1 Hincl Hs1) H).
   Qed.
 
   Local Lemma Hfor : sem_Ind_for p Pi_r Pfor.

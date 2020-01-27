@@ -108,10 +108,10 @@ let pp_ge pp_var =
   let rec pp_expr fmt = function
   | Pconst i    -> B.pp_print fmt i
   | Pbool  b    -> F.fprintf fmt "%b" b
-  | Parr_init (ws, n) -> F.fprintf fmt "array_init(%a, %a)" pp_btype (U ws) B.pp_print n
+  | Parr_init n -> F.fprintf fmt "array_init(%a)" B.pp_print n
   | Pvar v      -> pp_var_i fmt v
   | Pglobal (_, g) -> F.fprintf fmt "%s" g
-  | Pget(x,e)   -> F.fprintf fmt "%a[%a]" pp_var_i x pp_expr e
+  | Pget(ws,x,e)   -> F.fprintf fmt "%a[%a %a]"  pp_btype (U ws) pp_var_i x pp_expr e
   | Pload(ws,x,e) ->
     F.fprintf fmt "@[(load %a@ %a@ %a)@]"
       pp_btype (U ws) pp_var_i x pp_expr e
@@ -122,7 +122,7 @@ let pp_ge pp_var =
       pp_expr e1 (string_of_op2 op) pp_expr e2
   | PappN (op, es) ->
     F.fprintf fmt "@[(%s [%a])@]" (string_of_opN op) (pp_list ",@ " pp_expr) es
-  | Pif(e,e1,e2) ->
+  | Pif(_, e,e1,e2) ->
     F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
       pp_expr e pp_expr e1  pp_expr e2
   in
@@ -135,8 +135,8 @@ let pp_glv pp_var fmt = function
   | Lmem (ws, x, e) ->
     F.fprintf fmt "@[store %a@ %a@ %a@]"
      pp_btype (U ws) (pp_gvar_i pp_var) x (pp_ge pp_var) e
-  | Laset(x,e) ->
-    F.fprintf fmt "%a[%a]" (pp_gvar_i pp_var) x (pp_ge pp_var) e
+  | Laset(ws, x,e) ->
+    F.fprintf fmt "%a[%a %a]" pp_btype (U ws) (pp_gvar_i pp_var) x (pp_ge pp_var) e
 
 (* -------------------------------------------------------------------- *)
 let pp_ges pp_var fmt es =
@@ -196,6 +196,9 @@ let pp_opn =
   | Ox86_SAR w -> f w "#x86_SAR"
   | Ox86_SHLD w -> f w "#x86_SHLD"
   | Ox86_SHRD w -> f w "#x86_SHRD"
+  | Ox86_ADCX w -> f w "#x86_ADCX"
+  | Ox86_ADOX w -> f w "#x86_ADOX"
+  | Ox86_MULX w -> f w "#x86_MULX"
   | Ox86_BSWAP w -> f w "#x86_BSWAP"
   | Ox86_MOVD w -> f w "#x86_MOVD"
   | Ox86_VMOVDQU w -> f w "#x86_VMOVDQU"
@@ -238,6 +241,10 @@ let pp_tag = function
   | AT_inline  -> ":i"
   | AT_phinode -> ":φ"
 
+let pp_align fmt = function 
+  | E.Align -> Format.fprintf fmt "align "
+  | E.NoAlign -> ()
+
 let rec pp_gi pp_info pp_ty pp_var fmt i =
   F.fprintf fmt "%a" pp_info i.i_info;
   match i.i_desc with
@@ -268,16 +275,19 @@ let rec pp_gi pp_info pp_ty pp_var fmt i =
       (pp_gvar_i pp_var) i (pp_ge pp_var) e1 dir (pp_ge pp_var) e2
       (pp_gc pp_info pp_ty pp_var) c
 
-  | Cwhile([], e, c) ->
-    F.fprintf fmt "@[<v>while (%a) %a@]"
+  | Cwhile(a, [], e, c) ->
+    F.fprintf fmt "@[<v>%awhile (%a) %a@]"
+      pp_align a
       (pp_ge pp_var) e (pp_cblock pp_info pp_ty pp_var) c
 
-  | Cwhile(c, e, []) ->
-    F.fprintf fmt "@[<v>while %a (%a)@]"
+  | Cwhile(a, c, e, []) ->
+    F.fprintf fmt "@[<v>%awhile %a (%a)@]"
+      pp_align a
       (pp_cblock pp_info pp_ty pp_var) c (pp_ge pp_var) e
 
-  | Cwhile(c, e, c') ->
-    F.fprintf fmt "@[<v>while %a %a %a@]"
+  | Cwhile(a, c, e, c') ->
+    F.fprintf fmt "@[<v>%awhile %a %a %a@]"
+      pp_align a
       (pp_cblock pp_info pp_ty pp_var) c (pp_ge pp_var) e
       (pp_cblock pp_info pp_ty pp_var) c'
 

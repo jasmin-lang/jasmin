@@ -3,7 +3,6 @@ src/Array_expand
 src/Bigint
 src/BigintCore
 src/Conv
-src/Coq_printer
 src/Evaluator
 src/Inline_array_copy
 src/Latex_printer
@@ -24,6 +23,7 @@ src/Ssa
 src/Subst
 src/Syntax
 src/ToEC
+src/Safety
 src/Typing
 src/Utils
 src/Varalloc

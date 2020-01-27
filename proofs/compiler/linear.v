@@ -46,6 +46,7 @@ Definition label := positive.
 
 Variant linstr_r :=
   | Lopn   : lvals -> sopn -> pexprs -> linstr_r
+  | Lalign : linstr_r
   | Llabel : label -> linstr_r
   | Lgoto  : label -> linstr_r
   | Lcond  : pexpr -> label -> linstr_r
@@ -74,6 +75,7 @@ Record lfundef := LFundef {
  lfd_body : lcmd;
  lfd_tyout : seq stype;
  lfd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)
+ lfd_extra : list var * saved_stack;
 }.
 
 Definition signature_of_lfundef (lfd: lfundef) : function_signature :=
@@ -110,10 +112,20 @@ Fixpoint snot e :=
   | Papp1 Onot e => e
   | Papp2 Oand e1 e2 => Papp2 Oor (snot e1) (snot e2)
   | Papp2 Oor e1 e2 => Papp2 Oand (snot e1) (snot e2)
-  | Pif e e1 e2 => Pif e (snot e1) (snot e2)
+  | Pif t e e1 e2 => Pif t e (snot e1) (snot e2)
   | Pbool b => Pbool (~~ b)
   | _ => Papp1 Onot e
   end.
+
+Definition add_align ii a (lc:lcmd) := 
+  match a with
+  | NoAlign => lc
+  | Align   =>  MkLI ii Lalign :: lc
+  end.
+
+Definition align ii a (lc:ciexec (label * lcmd)) : ciexec (label * lcmd) := 
+  Let p := lc in
+  ok (p.1, add_align ii a p.2).
 
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
@@ -146,14 +158,15 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
     MkLI ii (Llabel L1) >; linear_c linear_i c1 lbl 
    (MkLI ii (Llabel L2) :: lc)
 
-  | Cwhile c e c' =>
+  | Cwhile a c e c' =>
     match is_bool e with
     | Some true =>
       let L1 := lbl in
       let lbl := next_lbl L1 in
+      align ii a ( 
       MkLI ii (Llabel L1) >; linear_c linear_i c ;; 
                              linear_c linear_i c' lbl 
-                             (MkLI ii (Lgoto L1) :: lc)
+                             (MkLI ii (Lgoto L1) :: lc))
 
     | Some false =>
       linear_c linear_i c lbl lc
@@ -163,16 +176,16 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       | [::] =>
       let L1 := lbl in
       let lbl := next_lbl L1 in
-      MkLI ii (Llabel L1) >; linear_c linear_i c lbl
-                             (MkLI ii (Lcond e L1) :: lc)
+      align ii a (MkLI ii (Llabel L1) >; linear_c linear_i c lbl
+                             (MkLI ii (Lcond e L1) :: lc))
       | _ =>
       let L1 := lbl in
       let L2 := next_lbl L1 in
       let lbl := next_lbl L2 in
                              MkLI ii (Lgoto L1) >;
-      MkLI ii (Llabel L2) >; linear_c linear_i c' ;; 
+      align ii a (MkLI ii (Llabel L2) >; linear_c linear_i c' ;; 
       MkLI ii (Llabel L1) >; linear_c linear_i c lbl
-                             (MkLI ii (Lcond e L2) :: lc)
+                             (MkLI ii (Lcond e L2) :: lc))
       end
     end
 
@@ -183,7 +196,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
 
 Definition linear_fd (fd: sfundef) :=
   Let fd' := linear_c linear_i (sf_body fd) 1%positive [::] in
-  ok (LFundef (sf_stk_sz fd) (sf_stk_id fd) (sf_tyin fd) (sf_params fd) fd'.2 (sf_tyout fd) (sf_res fd)).
+  ok (LFundef (sf_stk_sz fd) (sf_stk_id fd) (sf_tyin fd) (sf_params fd) fd'.2 (sf_tyout fd) (sf_res fd) (sf_extra fd)).
 
 Definition linear_prog (p: sprog) : cfexec lprog :=
   map_cfprog linear_fd p.
@@ -192,6 +205,7 @@ Module Eq_linstr.
   Definition eqb_r i1 i2 := 
     match i1, i2 with 
     | Lopn lv1 o1 e1, Lopn lv2 o2 e2 => (lv1 == lv2) && (o1 == o2) && (e1 == e2)
+    | Lalign, Lalign => true
     | Llabel l1, Llabel l2 => l1 == l2
     | Lgoto l1, Lgoto l2 => l1 == l2
     | Lcond e1 l1, Lcond e2 l2 => (e1 == e2) && (l1 == l2)
@@ -200,7 +214,7 @@ Module Eq_linstr.
 
   Lemma eqb_r_axiom : Equality.axiom eqb_r.
   Proof.
-    case => [lv1 o1 e1|l1|l1|e1 l1] [lv2 o2 e2|l2|l2|e2 l2] //=;try by constructor.
+    case => [lv1 o1 e1||l1|l1|e1 l1] [lv2 o2 e2||l2|l2|e2 l2] //=;try by constructor.
     + apply (@equivP (((lv1 == lv2) && (o1 == o2)) /\ e1 == e2 ));first by apply andP.
       by split => [ [] /andP [] /eqP -> /eqP -> /eqP -> //| [] -> -> ->];rewrite !eqxx.
     + apply (@equivP (l1 = l2));first by apply eqP.

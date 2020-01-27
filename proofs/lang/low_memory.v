@@ -37,7 +37,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Module Memory := MemoryI (BigEndian).
+Module Memory := MemoryI.
 
 Notation mem := Memory.mem.
 
@@ -55,6 +55,25 @@ Lemma eq_mem_trans m2 m1 m3 :
   eq_mem m2 m3 ->
   eq_mem m1 m3.
 Proof. move => p q x y; rewrite (p x y); exact: (q x y). Qed.
+
+Lemma read_mem_valid_pointer m ptr sz w :
+  read_mem m ptr sz = ok w ->
+  valid_pointer m ptr sz.
+Proof.
+  by move => hr; apply /Memory.readV;exists w.
+Qed.
+
+Lemma write_mem_valid_pointer m ptr sz w m' :
+  write_mem m ptr sz w = ok m' ->
+  valid_pointer m ptr sz.
+Proof.
+  move => hw; apply /Memory.writeV; exists m'; exact hw.
+Qed.
+
+Lemma write_mem_can_read m ptr sz w m' :
+  write_mem m ptr sz w = ok m' ->
+  exists w', read_mem m ptr sz = ok w'.
+Proof. by move => /write_mem_valid_pointer /Memory.readV. Qed.
 
 Module UnsafeMemory.
 
@@ -88,27 +107,6 @@ Parameter free_stackP : forall m m' pstk sz,
      read_mem m' w = read_mem m w.
 
 End UnsafeMemory.
-
-Lemma read_mem_valid_pointer m ptr sz w :
-  read_mem m ptr sz = ok w ->
-  valid_pointer m ptr sz.
-Proof.
-  move => hr.
-  have := Memory.readV m ptr sz; rewrite hr {hr}; case => // - []; eauto.
-Qed.
-
-Lemma write_mem_valid_pointer m ptr sz w m' :
-  write_mem m ptr sz w = ok m' ->
-  valid_pointer m ptr sz.
-Proof.
-  move => hw.
-  have := Memory.writeV m ptr w; rewrite hw {hw}; case => // - []; eauto.
-Qed.
-
-Lemma write_mem_can_read m ptr sz w m' :
-  write_mem m ptr sz w = ok m' ->
-  exists w', read_mem m ptr sz = ok w'.
-Proof. by move => /write_mem_valid_pointer /Memory.readV. Qed.
 
 Parameter mem_to_smem: mem -> UnsafeMemory.mem.
 

@@ -45,27 +45,34 @@ Variable cparams : compiler_params.
 Hypothesis print_progP : forall s p, cparams.(print_prog) s p = p.
 Hypothesis print_linearP : forall p, cparams.(print_linear) p = p.
 
-Lemma unroll1P (fn: funname) (p p':prog) mem va mem' vr:
+Lemma unroll1P (fn: funname) (p p':prog) mem va va' mem' vr:
   unroll1 p = ok p' ->
   sem_call p mem fn va mem' vr ->
-  sem_call p' mem fn va mem' vr.
+  List.Forall2 value_uincl va va' ->
+  exists vr', sem_call p' mem fn va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
 Proof.
-  rewrite /unroll1=> Heq Hsem.
-  apply: (dead_code_callP Heq).
-  apply: const_prop_callP.
-  exact: unroll_callP.
+  rewrite /unroll1=> Heq Hsem Hall.
+  have hsemu := unroll_callP Hsem.
+  have [vr' [hsemc hall']]:= const_prop_callP hsemu Hall.
+  exists vr'; split => //.
+  apply: (dead_code_callP Heq hsemc).
 Qed.
 
-Lemma unrollP (fn: funname) (p p': prog) mem va mem' vr:
+
+Lemma unrollP (fn: funname) (p p': prog) mem va va' mem' vr:
   unroll Loop.nb p = ok p' ->
   sem_call p mem  fn va mem' vr ->
-  sem_call p' mem fn va mem' vr.
+  List.Forall2 value_uincl va va' ->
+  exists vr', sem_call p' mem fn va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
 Proof.
-  elim: Loop.nb p=> /= [p //|n Hn] p.
+  elim: Loop.nb p va va' vr => /= [p //|n Hn] p va va' vr.
   apply: rbindP=> z Hz.
-  case: ifP=> [_ [] ->|_ Hu Hs] //.
-  apply: (Hn z) =>//.
-  exact: unroll1P Hs.
+  case: ifP=> [_ [] ->|_ Hu Hs Hall].
+  + by move=> /sem_call_uincl h/h{h}.
+  have [vr' [hsem1 hall1]]:= unroll1P Hz Hs Hall.
+  have [vr'' [hsem2 hall2]]:= Hn _ _ _ _ Hu hsem1 (List_Forall2_refl _ value_uincl_refl).
+  exists vr'';split => //.
+  by apply: Forall2_trans value_uincl_trans hall1 hall2.
 Qed.
 
 Opaque Loop.nb.
@@ -159,8 +166,8 @@ Proof.
   apply: K'; first by move => vr' Hvr'; apply: (CheckAllocReg.alloc_callP Hps); exact: Hvr'.
   apply: Ki; first by move => vr'; exact: (dead_code_callP Hpv).
   apply: K'; first by move => vr' Hvr'; apply: (CheckAllocReg.alloc_callP Hv); exact: Hvr'.
-  apply: Ki; first by move => vr'; exact: const_prop_callP.
-  apply: Ki; first by move => vr'; exact: (unrollP Hp1).
+  apply: K'; first by move => vr' Hvr'; apply: (const_prop_callP _ va_refl); exact: Hvr'.
+  apply: K'; first by move => vr' Hvr'; apply: (unrollP Hp1 _ va_refl); exact: Hvr'.
   apply: Ki; first by move => vr'; exact: (dead_calls_err_seqP Hpca).
   apply: K'; first by move => vr' Hvr'; apply: (inline_call_errP Hp0 va_refl); exact: Hvr'.
   apply: Ki; first by move => vr'; exact: psem_call.

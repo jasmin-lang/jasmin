@@ -81,17 +81,17 @@ Module S.
     sem s1 c2 s2 ->
     sem_i s1 (Cif e c1 c2) s2
 
-  | Ewhile_true s1 s2 s3 s4 c e c' :
+  | Ewhile_true s1 s2 s3 s4 a c e c' :
     sem s1 c s2 ->
     sem_pexpr gd s2 e = ok (Vbool true) ->
     sem s2 c' s3 ->
-    sem_i s3 (Cwhile c e c') s4 ->
-    sem_i s1 (Cwhile c e c') s4
+    sem_i s3 (Cwhile a c e c') s4 ->
+    sem_i s1 (Cwhile a c e c') s4
 
-  | Ewhile_false s1 s2 c e c' :
+  | Ewhile_false s1 s2 a c e c' :
     sem s1 c s2 ->
     sem_pexpr gd s2 e = ok (Vbool false) ->
-    sem_i s1 (Cwhile c e c') s2
+    sem_i s1 (Cwhile a c e c') s2
 
   | Ecall s1 m2 s2 ii xs f args vargs vs :
     sem_pexprs gd s1 args = ok vargs ->
@@ -142,11 +142,11 @@ Module S.
       sem_pexpr gd s1 e = ok (Vbool b) /\
       sem p gd s1 (if b then c1 else c2) s2
     | Cfor _ _ _ => False
-    | Cwhile c1 e c2 =>
+    | Cwhile a c1 e c2 =>
       exists si b,
       sem p gd s1 c1 si /\
       sem_pexpr gd si e = ok (Vbool b) /\
-      if b then (exists sj, sem p gd si c2 sj /\ sem_i p gd sj (Cwhile c1 e c2) s2) else si = s2
+      if b then (exists sj, sem p gd si c2 sj /\ sem_i p gd sj (Cwhile a c1 e c2) s2) else si = s2
     | Ccall _ xs fn es =>
       exists vs m2 rs,
       [/\ sem_pexprs gd s1 es = ok vs,

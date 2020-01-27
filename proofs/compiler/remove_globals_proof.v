@@ -54,14 +54,14 @@ Module INCL. Section INCL.
       apply: pexprs_ind_pair; split; subst P Q => //=.
       - move => e rec es ih q; t_xrbindP => v ok_v vs ok_vs <- {q}.
         by rewrite (rec _ ok_v) /= (ih _ ok_vs).
-      - move => x e rec v; apply: on_arr_varP => sz n t h1 h2; t_xrbindP => z v1 /rec -> hz w.
+      - move => sz x e rec v; apply: on_arr_varP => n t h1 h2; t_xrbindP => z v1 /rec -> hz w.
          by rewrite /on_arr_var h2 /= hz /= => -> <-.
       - by move => sz x e hrec v; t_xrbindP => ?? -> /= -> ?? /hrec -> /= -> ? /= -> <-.
       - by move=> ? e hrec v; t_xrbindP => ? /hrec -> <-.
       - by move=> ? e1 hrec1 e2 hrec2 v; t_xrbindP => ? /hrec1 -> ? /= /hrec2 -> <-.
       - by move => op es rec v; rewrite -!/(sem_pexprs _ _); t_xrbindP => vs /rec ->.
-      move=> e1 hrec1 e2 hrec2 e3 hrec3 v.
-      by t_xrbindP => ?? /hrec1 -> /= -> ? /hrec2 -> ? /hrec3 -> /=.
+      move=> t e1 hrec1 e2 hrec2 e3 hrec3 v.
+      by t_xrbindP => ?? /hrec1 -> /= -> ?? /hrec2 -> /= -> ?? /hrec3 -> /= -> /= <-.
     Qed.
 
   End INCL_E.
@@ -79,7 +79,7 @@ Module INCL. Section INCL.
   Proof.
     move=> hincl;case: x => //=.
     + by move=> ws x e;t_xrbindP => ?? -> /= -> ?? /(gd_incl_e hincl) -> /= -> ? -> /= ? -> <-.
-    move=> x e; apply: on_arr_varP;rewrite /on_arr_var => ??? h1 ->.
+    move=> sz x e; apply: on_arr_varP;rewrite /on_arr_var => ?? h1 ->.
     by t_xrbindP => ?? /(gd_incl_e hincl) -> /= -> ? -> /= ? -> /= ? -> <-.
   Qed.
 
@@ -148,20 +148,20 @@ Module INCL. Section INCL.
     sem P1 s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
   Proof. by move=> ????? /(gd_incl_e hincl) h1 ? h2; apply Eif_false. Qed.
 
-  Local Lemma Hwhile_true : forall (s1 s2 s3 s4 : estate) (c : cmd) (e : pexpr) (c' : cmd),
+  Local Lemma Hwhile_true : forall (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (c' : cmd),
     sem P1 s1 c s2 -> Pc s1 c s2 ->
     sem_pexpr gd s2 e = ok (Vbool true) ->
     sem P1 s2 c' s3 -> Pc s2 c' s3 ->
-    sem_i P1 s3 (Cwhile c e c') s4 -> Pi_r s3 (Cwhile c e c') s4 -> Pi_r s1 (Cwhile c e c') s4.
+    sem_i P1 s3 (Cwhile a c e c') s4 -> Pi_r s3 (Cwhile a c e c') s4 -> Pi_r s1 (Cwhile a c e c') s4.
   Proof.
-    move=> ???????? h1 /(gd_incl_e hincl) h2 ? h3 ? h4; apply: Ewhile_true; eauto.
+    move=> ????????? h1 /(gd_incl_e hincl) h2 ? h3 ? h4; apply: Ewhile_true; eauto.
   Qed.
 
-  Local Lemma Hwhile_false : forall (s1 s2 : estate) (c : cmd) (e : pexpr) (c' : cmd),
+  Local Lemma Hwhile_false : forall (s1 s2 : estate) a (c : cmd) (e : pexpr) (c' : cmd),
     sem P1 s1 c s2 -> Pc s1 c s2 ->
     sem_pexpr gd s2 e = ok (Vbool false) ->
-    Pi_r s1 (Cwhile c e c') s2.
-  Proof. move=> ?????? h1 /(gd_incl_e hincl) ?; apply: Ewhile_false; eauto. Qed.
+    Pi_r s1 (Cwhile a c e c') s2.
+  Proof. move=> ??????? h1 /(gd_incl_e hincl) ?; apply: Ewhile_false; eauto. Qed.
 
   Local Lemma Hfor : sem_Ind_for P1 Pi_r Pfor.
   Proof.
@@ -224,7 +224,7 @@ Module EXTEND. Section PROOFS.
 
   Local Lemma Hasgn: forall x tg ty e, Pr (Cassgn x tg ty e).
   Proof.
-    move=> [ii ty|x|ws x e|x e] ?? e1 ??? //=. 1,3-4: by move=> [<-].
+    move=> [ii ty|x|ws x e|ws x e] ?? e1 ??? //=. 1,3-4: by move=> [<-].
     case: ifP => ?; last by move=> [<-].
     case: e1 => // - [] // w [] // z; rewrite /add_glob.
     case:ifPn => hhas1; first by move=> [<-].
@@ -247,9 +247,9 @@ Module EXTEND. Section PROOFS.
   Local Lemma Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
   Proof. by move=> ????? hc ii gd1 gd2 /= /hc. Qed.
 
-  Local Lemma Hwhile : forall c e c', Pc c -> Pc c' -> Pr (Cwhile c e c').
+  Local Lemma Hwhile : forall a c e c', Pc c -> Pc c' -> Pr (Cwhile a c e c').
   Proof. 
-    move=> c e c' hc hc' ii gd1 gd2 /=.
+    move=> a c e c' hc hc' ii gd1 gd2 /=.
     by t_xrbindP => gd3 /hc h1 /hc'; apply gd_inclT.
   Qed.
 
@@ -327,14 +327,14 @@ Module RGP. Section PROOFS.
         by rewrite (he _ _ ok_e' ok_v) (hes _ _ ok_es' ok_vs).
       - by move => z _ _ [<-] [<-].
       - by move => b _ _ [<-] [<-].
-      - by move => sz n _ _ [<-] [<-].
+      - by move => n _ _ [<-] [<-].
       - move => x e' v; case: ifP => hx.
         + case heq: (Mvar.get _ _) => [ g | // ] [<-].
           by move => /(hm3 _ _ _ heq); apply.
         by case => <- h; rewrite /= -hm1 // hx.
       - by move => g _ v [<-].
-      - move => x e he q v; case: ifPn => // hx; t_xrbindP => e' ok_e' <- {q}.
-        rewrite /= /on_arr_var (hm1 _ hx); t_xrbindP => -[] //= ??? -> /=.
+      - move => ws x e he q v; case: ifPn => // hx; t_xrbindP => e' ok_e' <- {q}.
+        rewrite /= /on_arr_var (hm1 _ hx); t_xrbindP => -[] //= ?? -> /=.
         by t_xrbindP => ?? /he /= -> //= -> ? /= -> <-.
       - move => ??? ih ??; case: ifPn => // hn.
         t_xrbindP => ? /ih h <- /= ??; rewrite (hm1 _ hn) => -> /= -> ?? /h -> /= -> ? /=.
@@ -343,8 +343,8 @@ Module RGP. Section PROOFS.
       - by move=> ?? hrec1 ? hrec2 ??; t_xrbindP=> ? /hrec1 h1 ? /hrec2 h2 <- ? /= /h1 -> ? /h2 ->.
       - move => ?? ih ??; t_xrbindP => ? /ih{ih} ih <- ? /ih /=.
         by rewrite -/(sem_pexprs _ _) => ->.
-      move=> ? hrec1 ? hrec2 ? hrec3 ??.
-      by t_xrbindP => ? /hrec1 h1 ? /hrec2 h2 ? /hrec3 h3 <- ?? /= /h1 -> /= -> ? /h2 -> ? /h3 ->.
+      move=> ? ? hrec1 ? hrec2 ? hrec3 ??.
+      by t_xrbindP => ? /hrec1 h1 ? /hrec2 h2 ? /hrec3 h3 <- ?? /= /h1 -> /= -> ?? /h2 -> /= -> ?? /h3 -> /= -> <-.
     Qed.
 
   End REMOVE_GLOB_E.
@@ -391,7 +391,7 @@ Module RGP. Section PROOFS.
     exists s2', 
       valid m s1' s2' /\ write_lval gd lv' v s2 = ok s2'.
   Proof.
-    move=> hval; case:(hval) => hmem hm1 hm2 hm3; case:lv => [vi ty|x|ws x e|x e] /=.
+    move=> hval; case:(hval) => hmem hm1 hm2 hm3; case:lv => [vi ty|x|ws x e|ws x e] /=.
     + move=> [<-]; apply on_vuP => [?|] hv /=;rewrite /write_none.
       + by move=> <-;exists s2;split => //; rewrite hv.
       by case : ifPn => // ? [<-]; exists s2; rewrite hv.
@@ -404,7 +404,7 @@ Module RGP. Section PROOFS.
       by eexists;split;last reflexivity; split.
     case: ifPn => hg //.
     t_xrbindP => ? /(remove_glob_eP hval) h <-.
-    apply: on_arr_varP => ??? hty; rewrite (hm1 _ hg) => hget.
+    apply: on_arr_varP => ?? hty; rewrite (hm1 _ hg) => hget.
     t_xrbindP => ?? /h /= -> /= -> ?.
     rewrite /on_arr_var /= hget /= => -> ? /= -> ? /= hset <-.
     apply (write_var_remove hg hval hset).
@@ -601,7 +601,7 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hwhile_true : sem_Ind_while_true P Pc Pi_r.
   Proof.
-    move=> s1 s2 s3 s4 c e c' _ hc he _ hc' _ hw ii m m' c'0 fn /= hrn s1' hval.
+    move=> s1 s2 s3 s4 a c e c' _ hc he _ hc' _ hw ii m m' c'0 fn /= hrn s1' hval.
     move: hrn; t_xrbindP => -[e' c1' c2' m1] /loop2P [m2 [m3 []]].
     t_xrbindP => -[m4 c4] h1 /= e1 he1 [m5 c5] h2.
     have h1' := hc _ _ _ _ h1.
@@ -610,8 +610,8 @@ Module RGP. Section PROOFS.
     have /h1' [s2' [hs2 hc1]]: valid m3 s1 s1' by apply: valid_Mincl hval.
     have he' := remove_glob_eP hs2 he1 he.
     have [s3' [hs3 hc2]]:= h2' _ hs2.
-    have : remove_glob_i is_glob gd fn m3 (MkI ii (Cwhile c e c')) = 
-             ok (m', [::MkI ii (Cwhile c1' e' c2')]). 
+    have : remove_glob_i is_glob gd fn m3 (MkI ii (Cwhile a c e c')) = 
+             ok (m', [::MkI ii (Cwhile a c1' e' c2')]). 
     + by rewrite /= Loop.nbP /= h1 /= he1 /= h2 /= hm.
     move=> /hw{hw}hw; have /hw : valid m3 s3 s3' by apply: (valid_Mincl hm).
     move=> [s4' [hs4 hw']]; exists s4';split => //.
@@ -621,7 +621,7 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hwhile_false : sem_Ind_while_false P Pc Pi_r.
   Proof.
-    move=> s1 s2 c e c' _ hc he ii m m' c'0 fn /= hrn s1' hval.
+    move=> s1 s2 a c e c' _ hc he ii m m' c'0 fn /= hrn s1' hval.
     move: hrn; t_xrbindP => -[e' c1' c2' m1] /loop2P [m2 [m3 []]].
     t_xrbindP => -[m4 c4] h1 /= e1 he1 [m5 c5] h2.
     move=> ? [??] [??] hm hm1 ? <-;subst e1 m4 c4 m5 c5 m1.

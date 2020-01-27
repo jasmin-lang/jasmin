@@ -10,6 +10,8 @@ let coqonly = ref false
 let print_list = ref []
 let ecfile = ref ""
 let ec_list = ref []
+let check_safety = ref false
+let safety_param = ref None
 
 let lea = ref false
 let set0 = ref false
@@ -45,11 +47,15 @@ let set_printing p () =
 let set_all_print () =
   print_list := poptions
 
-let set_ec f = 
+let set_ec f =
   ec_list := f :: !ec_list
 
 let set_constTime () = model := ConstantTime
 let set_safety () = model := Safety
+
+let set_checksafety () = check_safety := true
+
+let set_safetyparam s = safety_param := Some s
 
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
@@ -91,9 +97,15 @@ let options = [
     "-ec"       , Arg.String  set_ec    , "[f]: extract function [f] and its dependencies to an easycrypt file";
     "-oec"     ,  Arg.Set_string ecfile , "[filename]: use filename as output destination for easycrypt extraction";
     "-CT" , Arg.Unit set_constTime      , ": generates model for constant time verification";
-    "-safety", Arg.Unit set_safety      , ": generates model for safety verification"
-
-
+    "-safety", Arg.Unit set_safety      , ": generates model for safety verification";
+    "-checksafety", Arg.Unit set_checksafety, ": automatically check for safety";
+    "-safetyparam", Arg.String set_safetyparam,
+    "parameter for automatic safety verification:\n\
+     format: f_1>p_1:...:p_l|f_2>p_1':...:p_l'|...\
+     where each p_i is of the form:\n\
+     v_1,...,v_n;v_1',...,v_k'\n\
+     v_1,...,v_n: list of pointer variables that have to be considered together\n\
+     v_1',...,v_k': list of relational variables"
   ] @  List.map print_option poptions
 
 let usage_msg = "Usage : jasminc [option] filename"

@@ -100,28 +100,26 @@ Definition fvars_correct p :=
 Definition var_info_of_lval (x: lval) : var_info :=
   match x with 
   | Lnone i t => i
-  | Lvar x | Lmem _ x _ | Laset x _ => v_info x
+  | Lvar x | Lmem _ x _ | Laset _ x _ => v_info x
   end.
 
 Definition stype_of_lval (x: lval) : stype :=
   match x with
   | Lnone _ t => t
-  | Lvar v | Lmem _ v _ | Laset v _ => v.(vtype)
+  | Lvar v | Lmem _ v _ | Laset _ v _ => v.(vtype)
   end.
 
 Definition wsize_of_stype (ty: stype) : wsize :=
   match ty with
-  | sarr sz _
   | sword sz => sz
-  | sbool | sint => U64
+  | sbool | sint | sarr _ => U64
   end.
 
 Definition wsize_of_lval (lv: lval) : wsize :=
   match lv with
   | Lnone _ ty
-  | Lvar {| v_var := {| vtype := ty |} |}
-  | Laset {| v_var := {| vtype := ty |} |} _
-    => wsize_of_stype ty
+  | Lvar {| v_var := {| vtype := ty |} |} => wsize_of_stype ty
+  | Laset sz _  _ 
   | Lmem sz _ _ => sz
   end.
 
@@ -185,8 +183,8 @@ Definition lower_cond_classify vi (e: pexpr) :=
   | _ => None
   end.
 
-Definition eq_f  v1 v2 := Pif (Pvar v1) (Pvar v2) (Papp1 Onot (Pvar v2)).
-Definition neq_f v1 v2 := Pif (Pvar v1) (Papp1 Onot (Pvar v2)) (Pvar v2).
+Definition eq_f  v1 v2 := Pif sbool (Pvar v1) (Pvar v2) (Papp1 Onot (Pvar v2)).
+Definition neq_f v1 v2 := Pif sbool (Pvar v1) (Papp1 Onot (Pvar v2)) (Pvar v2).
 
 Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
   match lower_cond_classify vi pe with
@@ -259,7 +257,7 @@ Variant lower_cassgn_t : Type :=
   | LowerFopn of sopn & list pexpr & option wsize
   | LowerEq   of wsize & pexpr & pexpr
   | LowerLt   of wsize & pexpr & pexpr
-  | LowerIf   of pexpr & pexpr & pexpr
+  | LowerIf   of stype & pexpr & pexpr & pexpr
   | LowerDivMod of divmod_pos & signedness & wsize & sopn & pexpr & pexpr 
   | LowerAssgn.
 
@@ -269,7 +267,7 @@ Definition is_lval_in_memory (x: lval) : bool :=
   match x with
   | Lnone _ _ => false
   | Lvar v
-  | Laset v _
+  | Laset _ v _
     => is_var_in_memory v
   | Lmem _ _ _ => true
   end.
@@ -379,7 +377,6 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
   let k16 sz := kb ((U16 ≤ sz) && (sz ≤ U64))%CMP sz in
   let k32 sz := kb ((U32 ≤ sz) && (sz ≤ U64))%CMP sz in
   match e with
-  | Pget ({| v_var := {| vtype := sword sz |} |} as v) _
   | Pvar ({| v_var := {| vtype := sword sz |} |} as v) =>
     chk (sz ≤ U64)%CMP (LowerMov (if is_var_in_memory v then is_lval_in_memory x else false))
   | Pload sz _ _ => chk (sz ≤ U64)%CMP (LowerMov (is_lval_in_memory x))
@@ -499,9 +496,9 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
     | _ => LowerAssgn
     end
 
-  | Pif e e1 e2 =>
+  | Pif t e e1 e2 =>
     if stype_of_lval x is sword _ then
-      k16 (wsize_of_lval x) (LowerIf e e1 e2)
+      k16 (wsize_of_lval x) (LowerIf t e e1 e2)
     else
       LowerAssgn
   | _ => LowerAssgn
@@ -585,6 +582,9 @@ Definition wsize_of_sopn (op: sopn) : wsize :=
   | Ox86_SAR x
   | Ox86_SHLD x
   | Ox86_SHRD x
+  | Ox86_ADCX x
+  | Ox86_ADOX x
+  | Ox86_MULX x
   | Ox86_BSWAP x
   | Ox86_VMOVDQU x
   | Ox86_VPAND x | Ox86_VPANDN x | Ox86_VPOR x | Ox86_VPXOR x
@@ -683,7 +683,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
       
   | LowerEq sz a b => [:: MkI ii (Copn [:: f ; f ; f ; f ; x ] tg (Ox86_CMP sz) [:: a ; b ]) ]
   | LowerLt sz a b => [:: MkI ii (Copn [:: f ; x ; f ; f ; f ] tg (Ox86_CMP sz) [:: a ; b ]) ]
-  | LowerIf e e1 e2 =>
+  | LowerIf t e e1 e2 =>
      let (l, e) := lower_condition vi e in
      let sz := wsize_of_lval x in
      map (MkI ii) (l ++ [:: Copn [:: x] tg (Ox86_CMOVcc sz) [:: e; e1; e2]])
@@ -774,9 +774,9 @@ Fixpoint lower_i (i:instr) : cmd :=
        map (MkI ii) (rcons pre (Cif e (lower_cmd lower_i c1) (lower_cmd lower_i c2)))
   | Cfor v (d, lo, hi) c =>
      [:: MkI ii (Cfor v (d, lo, hi) (lower_cmd lower_i c))]
-  | Cwhile c e c' =>
+  | Cwhile a c e c' =>
      let '(pre, e) := lower_condition xH e in
-       map (MkI ii) [:: Cwhile ((lower_cmd lower_i c) ++ map (MkI xH) pre) e (lower_cmd lower_i c')]
+       map (MkI ii) [:: Cwhile a ((lower_cmd lower_i c) ++ map (MkI xH) pre) e (lower_cmd lower_i c')]
   | _ =>   map (MkI ii) [:: ir]
   end.
 

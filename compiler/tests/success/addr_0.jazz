@@ -1,0 +1,6 @@
+export fn main(reg u64 p) -> reg u64 {
+   reg u64 r;
+   r = (u64)[p];
+   r += (u64)[p - 8];
+   return r;
+}

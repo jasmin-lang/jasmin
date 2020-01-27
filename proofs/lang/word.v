@@ -99,11 +99,33 @@ Definition wsize_bits (s:wsize) : Z :=
   Zpos (Pos.of_succ_nat (wsize_size_minus_1 s)).
 
 Definition wsize_size (sz: wsize) : Z :=
-  wsize_bits sz / 8.
+  Zpos match sz return positive with
+  | U8   => 1
+  | U16  => 2
+  | U32  => 4
+  | U64  => 8
+  | U128 => 16
+  | U256 => 32
+  end.
+
+Lemma wsize8 : wsize_size U8 = 1%Z. done. Qed.
+
+Definition wbase (s: wsize) : Z :=
+  modulus (wsize_size_minus_1 s).+1.
+
+Lemma le0_wsize_size ws : 0 <= wsize_size ws.
+Proof. rewrite /wsize_size; lia. Qed.
+Hint Resolve le0_wsize_size.
+
+Lemma wsize_sizeE sz : wsize_size sz =  wsize_bits sz / 8.
+Proof. by case: sz. Qed.
 
 Lemma wsize_size_pos sz :
   0 < wsize_size sz.
-Proof. by case sz. Qed.
+Proof. done. Qed.
+
+Lemma wsize_size_wbase s : wsize_size s < wbase U64.
+Proof. by apply /ZltP; case: s; vm_compute. Qed.
 
 Lemma wsize_cmpP sz sz' :
   wsize_cmp sz sz' = Nat.compare (wsize_size_minus_1 sz) (wsize_size_minus_1 sz').
@@ -155,9 +177,6 @@ Definition wnot sz (w: word sz) : word sz :=
 Arguments wnot {sz} w.
 
 Definition wandn sz (x y: word sz) : word sz := wand (wnot x) y.
-
-Definition wbase (s: wsize) : Z :=
-  modulus (wsize_size_minus_1 s).+1.
 
 Definition wunsigned {s} (w: word s) : Z :=
   urepr w.
@@ -686,6 +705,14 @@ have hi' : (i < m'.+1)%nat. apply /ltP. lia.
 by have /= -> := @wnotE sz' x (Ordinal hi') .
 Qed.
 
+Lemma wunsigned_sub (sz : wsize) (p : word sz) (n : Z):
+  0 <= wunsigned p - n < wbase sz → wunsigned (p - wrepr sz n) = wunsigned p - n.
+Proof.
+  move=> h.
+  rewrite -{1}(wrepr_unsigned p).
+  by rewrite -wrepr_sub wunsigned_repr Z.mod_small.
+Qed.
+
 (* -------------------------------------------------------------------*)
 Ltac wring := 
   rewrite ?zero_extend_u; ssrring.ssring.
@@ -743,12 +770,31 @@ rewrite {}eq_st wcat_subwordK {s t}/wt; case: _ / sz_even.
 by rewrite /wrepr /= ureprK.
 Qed.
 
+Lemma mkwordI n x y :
+  (0 <= x < modulus n)%R ->
+  (0 <= y < modulus n)%R ->
+  mkword n x = mkword n y -> x = y.
+Proof.
+by case/andP => /ZleP ? /ZltP ? /andP[] /ZleP ? /ZltP ? [];
+  rewrite !Z.mod_small.
+Qed.
+
 Lemma make_vec_inj sz (bs bs': seq u8) :
   size bs = size bs' →
   size bs = Z.to_nat (wsize_size sz) →
   make_vec sz bs = make_vec sz bs' →
   bs = bs'.
-Proof. Admitted.
+Proof.
+Transparent word.
+rewrite /make_vec /wrepr /word.
+Opaque word.
+have : (wsize_size_minus_1 sz).+1 = (8 * Z.to_nat (wsize_size sz))%nat by case: sz.
+move: (wsize_size sz) => n /= ->.
+move: {n} (Z.to_nat n) => n.
+move => eq_size <- /mkwordI.
+rewrite {2}eq_size => /(_ (wcat_subproof (in_tuple bs)) (wcat_subproof (in_tuple bs'))).
+exact: wcat_rI eq_size.
+Qed.
 
 (* -------------------------------------------------------------------*)
 Definition lift1_vec ve (op : word ve -> word ve)

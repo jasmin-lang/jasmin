@@ -1,3 +1,4 @@
+
 (* -------------------------- *)
 
 apres inlining il y a des affectations de la forme 
@@ -9,6 +10,12 @@ i.e tout les deux Reg ou tout les deux Stack)
 
 Si ca permet pas de les virer il faut introduire 
 des copier explicite et montrer la correction de cet algo
+
+(* -------------------------- *)
+merge stack array with different size before stack alloc 
+
+(* -------------------------- *)
+moveequ
 
 (* -------------------------- *)
 

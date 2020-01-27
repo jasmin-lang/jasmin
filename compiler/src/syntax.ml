@@ -149,11 +149,12 @@ let string_of_peop2 : peop2 -> string =
  
 
 (* -------------------------------------------------------------------- *)
+
 type pexpr_r =
   | PEParens of pexpr
   | PEVar    of pident
-  | PEGet    of pident * pexpr
-  | PEFetch  of wsize option * pident * pexpr
+  | PEGet    of wsize option * pident * pexpr
+  | PEFetch  of mem_access
   | PEpack   of svsize * pexpr list
   | PEBool   of bool
   | PEInt    of Bigint.zint
@@ -164,6 +165,8 @@ type pexpr_r =
   | PEIf of pexpr * pexpr * pexpr
 
 and pexpr = pexpr_r L.located
+
+and mem_access = wsize option * pident * ([`Add | `Sub] * pexpr) option
 
 (* -------------------------------------------------------------------- *)
 and ptype_r = TBool | TInt | TWord of wsize | TArray of wsize * pexpr
@@ -179,8 +182,8 @@ type pstotype = pstorage * ptype
 type plvalue_r =
   | PLIgnore
   | PLVar   of pident
-  | PLArray of pident * pexpr
-  | PLMem   of wsize option * pident * pexpr
+  | PLArray of wsize option * pident * pexpr
+  | PLMem   of mem_access 
 
 type plvalue = plvalue_r L.located
 
@@ -198,12 +201,14 @@ type peqop = [
 ]
 
 (* -------------------------------------------------------------------- *)
+type align = [`Align | `NoAlign]
+
 type pinstr_r =
   | PIArrayInit of pident
   | PIAssign    of plvalue list * peqop * pexpr * pexpr option
   | PIIf        of pexpr * pblock * pblock option
   | PIFor       of pident * (fordir * pexpr * pexpr) * pblock
-  | PIWhile     of pblock option * pexpr * pblock option
+  | PIWhile     of align * pblock option * pexpr * pblock option
 
 and pblock_r = pinstr list
 and fordir   = [ `Down | `Up ]

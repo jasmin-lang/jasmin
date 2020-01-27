@@ -24,6 +24,7 @@
 %token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT 
 
 %token SHARP
+%token ALIGN
 %token AMP
 %token AMPAMP
 %token BANG
@@ -171,12 +172,20 @@ cast:
 prim:
 | SHARP x=ident { x }
 
+%inline mem_ofs:
+| PLUS e=pexpr { `Add, e }
+| MINUS e=pexpr { `Sub, e }
+
+%inline mem_access:
+| ct=parens(utype)? LBRACKET v=var e=mem_ofs? RBRACKET 
+  { ct, v, e }
+  
 pexpr_r:
 | v=var
     { PEVar v }
 
-| v=var i=brackets(pexpr)
-    { PEGet (v, i) }
+| v=var i=brackets(ws=utype? e=pexpr {ws, e})
+    { let ws, e = i in PEGet (ws, v, e) }
 
 | TRUE
     { PEBool true }
@@ -187,8 +196,8 @@ pexpr_r:
 | i=INT
     { PEInt i }
 
-| ct=parens(utype)? LBRACKET v=var PLUS e=pexpr RBRACKET
-    { PEFetch (ct, v, e) }
+| ma=mem_access 
+    { let ct,v,e = ma in PEFetch (ct, v, e) }
 
 | ct=parens(svsize) LBRACKET es=rtuple1(pexpr) RBRACKET
     { PEpack(ct,es) }
@@ -238,11 +247,11 @@ plvalue_r:
 | x=var
     { PLVar x }
 
-| x=var i=brackets(pexpr)
-    { PLArray (x, i) }
+| x=var i=brackets(ws=utype? e=pexpr {ws, e})
+    { let ws,e = i in PLArray (ws, x, e) }
 
-| ct=parens(utype)? LBRACKET v=var PLUS e=pexpr RBRACKET
-    { PLMem (ct, v, e) }
+| ma=mem_access 
+    { let ct,v,e = ma in PLMem (ct, v, e) }
 
 plvalue:
 | x=loc(plvalue_r) { x }
@@ -274,8 +283,11 @@ pinstr_r:
 | FOR v=var EQ ce1=pexpr DOWNTO ce2=pexpr is=pblock
     { PIFor (v, (`Down, ce2, ce1), is) }
 
-| WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock?
-    { PIWhile (is1, b, is2) }
+| a=align WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock?
+    { PIWhile (a,is1, b, is2) }
+
+%inline align:
+| a=ALIGN? { if a = None then `NoAlign else `Align }
 
 pinstr:
 | i=loc(pinstr_r) { i }

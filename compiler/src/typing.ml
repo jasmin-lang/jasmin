@@ -713,19 +713,18 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     | `Glob (x, ty) -> P.Pglobal (tt_as_word (lc, ty), x), ty
     end
 
-  | S.PEFetch (ct, ({ pl_loc = xlc } as x), po) ->
-    let x = tt_var mode env x in
-    check_ty_u64 ~loc:xlc x.P.v_ty;
-    let e = tt_expr_cast64 ~mode env po in
-    let ct = ct |> omap_dfl tt_ws T.U64 in
-    P.Pload (ct, L.mk_loc xlc x, e), P.Bty (P.U ct)
+  | S.PEFetch me ->
+    let ct, x, e = tt_mem_access ~mode env me in
+    P.Pload (ct, x, e), P.Bty (P.U ct)
 
-  | S.PEGet ({ L.pl_loc = xlc } as x, pi) ->
+  | S.PEGet (ws, ({ L.pl_loc = xlc } as x), pi) ->
     let x  = tt_var mode env x in
     let ty = tt_as_array (xlc, x.P.v_ty) in
+    let ws = omap_dfl tt_ws (P.ws_of_ty ty) ws in
+    let ty = P.tu ws in
     let i,ity  = tt_expr ~mode env pi in
     check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
-    P.Pget (L.mk_loc xlc x, i), ty
+    P.Pget (ws, L.mk_loc xlc x, i), ty
 
   | S.PEOp1 (op, pe) ->
     let e, ety = tt_expr ~mode env pe in
@@ -781,12 +780,27 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
 
     check_ty_bool ~loc:(L.loc pe1) ty1;
     check_ty_eq ~loc:(L.loc pe) ~from:ty2 ~to_:ty3;
-    P.Pif(e1, e2, e3), ty2
+    P.Pif(ty2, e1, e2, e3), ty2
 
 
 and tt_expr_cast64 ?(mode=`AllVar) (env : Env.env) pe =
   let e, ty = tt_expr ~mode env pe in
   cast (L.loc pe) e ty P.u64
+
+and tt_mem_access ?(mode=`AllVar) (env : Env.env) 
+           (ct, ({ L.pl_loc = xlc } as x), e) = 
+  let x = tt_var mode env x in
+  check_ty_u64 ~loc:xlc x.P.v_ty;
+  let e = 
+    match e with
+    | None -> P.Papp1 (Oword_of_int U64, P.Pconst (P.B.zero)) 
+    | Some(k, e) -> 
+      let e = tt_expr_cast64 ~mode env e in
+      match k with
+      | `Add -> e
+      | `Sub -> Papp1(E.Oneg (E.Op_w T.U64), e) in
+  let ct = ct |> omap_dfl tt_ws T.U64 in
+  (ct,L.mk_loc xlc x,e)
 
 (* -------------------------------------------------------------------- *)
 and tt_type (env : Env.env) (pty : S.ptype) : P.pty =
@@ -808,7 +822,6 @@ let tt_expr_ty (env : Env.env) pe ty =
 
 let tt_expr_bool env pe = tt_expr_ty env pe P.tbool
 let tt_expr_int  env pe = tt_expr_ty env pe P.tint
-
 
 (* -------------------------------------------------------------------- *)
 let tt_vardecl (env : Env.env) ((sto, xty), x) =
@@ -848,19 +861,18 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     let x = tt_var `AllVar env x in
     loc, (fun _ -> P.Lvar (L.mk_loc loc x)), Some x.P.v_ty
 
-  | S.PLArray ({ pl_loc = xlc } as x, pi) ->
+  | S.PLArray (ws, ({ pl_loc = xlc } as x), pi) ->
     let x  = tt_var `AllVar env x in
     let ty = tt_as_array (xlc, x.P.v_ty) in
+    let ws = omap_dfl tt_ws (P.ws_of_ty ty) ws in 
+    let ty = P.tu ws in
     let i,ity  = tt_expr env ~mode:`AllVar pi in
     check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
-    loc, (fun _ -> P.Laset (L.mk_loc xlc x, i)), Some ty
+    loc, (fun _ -> P.Laset (ws, L.mk_loc xlc x, i)), Some ty 
 
-  | S.PLMem (ct, ({ pl_loc = xlc } as x), po) ->
-    let x = tt_var `AllVar env x in
-    check_ty_u64 ~loc:xlc x.P.v_ty;
-    let e = tt_expr_cast64 ~mode:`AllVar env po in
-    let ct = ct |> omap_dfl tt_ws T.U64 in
-    loc, (fun _ -> P.Lmem (ct, L.mk_loc xlc x, e)), Some (P.Bty (P.U ct))
+  | S.PLMem me ->
+    let ct, x, e = tt_mem_access ~mode:`AllVar env me in
+    loc, (fun _ -> P.Lmem (ct, x, e)), Some (P.Bty (P.U ct))
 
 (* -------------------------------------------------------------------- *)
 
@@ -923,6 +935,9 @@ let prim_string =
     "x86_SAR", PrimP (T.U64, fun sz -> Ox86_SAR sz);
     "x86_SHLD", PrimP (T.U64, fun sz -> Ox86_SHLD sz);
     "x86_SHRD", PrimP (T.U64, fun sz -> Ox86_SHRD sz);
+    "x86_ADCX", PrimP (T.U64, fun sz -> Ox86_ADCX sz);
+    "x86_ADOX", PrimP (T.U64, fun sz -> Ox86_ADOX sz);
+    "x86_MULX", PrimP (T.U64, fun sz -> Ox86_MULX sz);
     "x86_BSWAP", PrimP (T.U64, fun sz -> Ox86_BSWAP sz);
     "x86_MOVD", PrimP (T.U64, fun sz -> Ox86_MOVD sz);
     "x86_VMOVDQU", PrimP (T.U128, fun sz -> Ox86_VMOVDQU sz);
@@ -1083,7 +1098,7 @@ let pexpr_of_plvalue exn l =
   match L.unloc l with
   | S.PLIgnore      -> raise exn
   | S.PLVar  x      -> L.mk_loc (L.loc l) (S.PEVar x)
-  | S.PLArray(x,e)  -> L.mk_loc (L.loc l) (S.PEGet(x,e))
+  | S.PLArray(ws,x,e)  -> L.mk_loc (L.loc l) (S.PEGet(ws,x,e))
   | S.PLMem(ty,x,e) -> L.mk_loc (L.loc l) (S.PEFetch(ty,x,e))
 
 
@@ -1114,7 +1129,8 @@ let arr_init xi =
   let x = L.unloc xi in 
   match x.P.v_ty with
   | P.Arr(ws, P.Pconst n) as ty ->
-    P.Cassgn (Lvar xi, P.AT_inline, ty, P.Parr_init (ws, n))
+    P.Cassgn (Lvar xi, P.AT_inline, ty, 
+              P.Parr_init (P.B.of_int (P.arr_size ws (P.B.to_int n))))
     (* FIXME: should not fail when the array size is a parameter *)
   | _           -> 
     rs_tyerror ~loc:(L.loc xi) (InvalidType( x.P.v_ty, TPArray))
@@ -1131,7 +1147,7 @@ let rec is_constant e =
   | P.Papp1 (_, e) -> is_constant e
   | P.Papp2 (_, e1, e2) -> is_constant e1 && is_constant e2
   | P.PappN (_, es) -> List.for_all is_constant es
-  | P.Pif(e1, e2, e3)   -> is_constant e1 && is_constant e2 && is_constant e3
+  | P.Pif(_, e1, e2, e3)   -> is_constant e1 && is_constant e2 && is_constant e3
 
 let check_call loc doInline lvs f es =
   (* Check that arguments have the same kind than parameters *)
@@ -1256,7 +1272,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       let x, _, ty, e = P.destruct_move i in
       let e' = ofdfl (fun _ -> rs_tyerror ~loc exn) (P.expr_of_lval x) in
       let c = tt_expr_bool env cp in
-      P.Cassgn (x, AT_none, ty, Pif (c, e, e'))
+      P.Cassgn (x, AT_none, ty, Pif (ty, c, e, e'))
 
     | PIIf (cp, st, sf) ->
       let c  = tt_expr_bool env cp in
@@ -1273,11 +1289,12 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       let d    = match d with `Down -> P.DownTo | `Up -> P.UpTo in
       P.Cfor (L.mk_loc lx vx, (d, i1, i2), s)
 
-    | PIWhile (s1, c, s2) ->
+    | PIWhile (a, s1, c, s2) ->
       let c  = tt_expr_bool env c in
       let s1 = omap_dfl (tt_block env) [] s1 in
       let s2 = omap_dfl (tt_block env) [] s2 in
-      P.Cwhile (s1, c, s2) in
+      let a = if a = `NoAlign then E.NoAlign else E.Align in
+      P.Cwhile (a, s1, c, s2) in
   { P.i_desc = instr; P.i_loc = L.loc pi, []; P.i_info = (); }
 
 (* -------------------------------------------------------------------- *)

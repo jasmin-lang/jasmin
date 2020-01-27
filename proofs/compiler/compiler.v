@@ -82,7 +82,7 @@ Record compiler_params := {
   inline_var   : var -> bool;
   is_var_in_memory : var_i → bool;
   reg_alloc_fd : funname -> fundef -> fundef;
-  stk_alloc_fd : fun_decl -> Z * Ident.ident * list (var * Z);
+  stk_alloc_fd : fun_decl -> Z * Ident.ident * list (var * Z) * (list var * stack_alloc.saved_stack);
   print_prog   : compiler_step -> prog -> prog;
   print_linear : lprog -> lprog;
   warning      : instr_info -> warning_msg -> instr_info;

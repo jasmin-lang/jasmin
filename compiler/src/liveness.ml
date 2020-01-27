@@ -19,7 +19,7 @@ let writev_lval s = function
   | Lnone _     -> s
   | Lvar x      -> Sv.add (L.unloc x) s
   | Lmem _      -> s
-  | Laset(x, _) -> Sv.add (L.unloc x) s
+  | Laset(_, x, _) -> Sv.add (L.unloc x) s
 
 let writev_lvals s lvs = List.fold_left writev_lval s lvs
 
@@ -62,7 +62,7 @@ and live_d weak d (s_o: Sv.t) =
 
   | Cfor _ -> assert false (* Should have been removed before *)
 
-  | Cwhile(c,e,c') ->
+  | Cwhile(a,c,e,c') ->
     let ve = (vars_e e) in
     let rec loop s_o =
       (* loop (c; if e then c' else exit) *)
@@ -72,7 +72,7 @@ and live_d weak d (s_o: Sv.t) =
       if Sv.subset s_i' s_o then s_i, (c,c')
       else loop (Sv.union s_i' s_o) in
     let s_i, (c,c') = loop s_o in
-    s_i, s_o, Cwhile(c, e, c')
+    s_i, s_o, Cwhile(a, c, e, c')
 
   | Ccall(ii,xs,f,es) ->
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
@@ -115,7 +115,7 @@ let rec conflicts_i cf i =
     merge_class cf s2
   | Cfor( _, _, c) ->
     conflicts_c (merge_class cf s2) c
-  | Cif(_, c1, c2) | Cwhile(c1, _, c2) ->
+  | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) ->
     conflicts_c (conflicts_c (merge_class cf s2) c1) c2
 and conflicts_c cf c =
   List.fold_left conflicts_i cf c

@@ -104,6 +104,7 @@ by case.
 Qed.
 
 (* -------------------------------------------------------------------- *)
+
 Lemma eval_assemble_cond ii gd m rf e c v:
   eqflags m rf →
   assemble_cond ii e = ok c →
@@ -118,9 +119,9 @@ move=> eqv; case: e => //.
   move => ok_r ok_ct vx ok_vx /sem_sop1I [/= vb ok_vb -> {v}].
   have := xgetflag eqv ok_r ok_vx ok_vb.
   by case: {ok_r ok_vx ok_vb} r ok_ct => // -[<-] {c} /= -> /=; eexists.
-+ case=> //; first do 3! case=> //; move=> x.
-  * case=> //; first do 2! case=> //; move=> y.
-    - move=> /=; t_xrbindP => r1 ok_r1 r2 ok_r2.
++ case=> //; first do 3! case=> //;move=> x.
+  * case=> //; first do 2! case=> //. 
+    - move=> y /=; t_xrbindP => r1 ok_r1 r2 ok_r2.
       case: ifPn => // /andP[]; do 2! move/eqP=> ?; subst r1 r2.
       case=> <- resx vx ok_vx ok_resx resy vy ok_vy ok_resy ok_v.
       have /sem_sop1I [/=rxb ok_rxb resxE] := ok_resx.
@@ -129,88 +130,77 @@ move=> eqv; case: e => //.
       have := xgetflag eqv ok_r2 ok_vy ok_ryb => ZFE.
       rewrite /eval_cond; rewrite CFE ZFE /=; subst resx resy.
       by move: ok_v; rewrite /sem_sop2 /= => -[<-]; eauto.
-    - case: y => // y; case=> // z; do 2! case=> //; case=> // t.
+    - move=> st [] // y; case=> // z; do 2! case=> //; case=> // t.
       move=> /=; t_xrbindP => rx ok_rx ry ok_ry rz ok_rz rt ok_rt.
       case: ifP => //; rewrite -!andbA => /and4P[].
       do 4! move/eqP=> ?; subst rx ry rz rt => -[<-].
+      have -> := inj_rflag_of_var ok_rz ok_rt.
       move=> vNx vx ok_vx ok_vNx res vby vy ok_vy ok_vby.
-      move=> vz ok_vz vNt vt ok_vt ok_vNt.
-      case: eqP => // hty.
-      case: ifP => // _ [<-] {res} ok_v.
+      move=> vtz vz ok_vz trz vtt vNt vt; rewrite ok_vz => -[?];subst vz.
+      move=> ok_vNt trNt <-.
       have [/=vbx ok_vbx ?] := sem_sop1I ok_vNx; subst vNx.
       have [/=vbt ok_vbt ?] := sem_sop1I ok_vNt; subst vNt.
       have := xgetflag eqv ok_rx ok_vx ok_vbx => ZFE.
       have := xgetflag eqv ok_ry ok_vy ok_vby => SFE.
-      have := xgetflag eqv ok_rt ok_vt ok_vbt => OFE.
-      rewrite /= ZFE SFE OFE /=; move: ok_v.
-      rewrite /sem_sop2 /=.
-      t_xrbindP=> vres; case: (boolP vby) => hvby //=; last first.
-      + by case=> <- <-; rewrite [false == _]eq_sym /= eqbF_neg; eexists.
-      have := inj_rflag_of_var ok_rz ok_rt => eq_zt.
-      have {eq_zt} ?: vt = vz; [have := ok_vz | subst vz].
-      + by rewrite eq_zt ok_vt => -[].
-      by rewrite ok_vbt => -[<-] <-; eauto.
+      have := xgetflag eqv ok_rt ok_vz ok_vbt => OFE.
+      rewrite /= ZFE SFE OFE /= /sem_sop2 /=. 
+      have [??]:= truncate_val_bool trNt; subst.
+      move: trz;rewrite /truncate_val /= ok_vbt => -[?];subst.
+      by rewrite eq_sym; t_xrbindP=> vres; case: (boolP vby) => hvby //= -[<-] <-;
+       rewrite ?eqb_id ?eqbF_neg;eexists.
   * case: x => // x; case => // [y /=|].
-    - t_xrbindP=> rx ok_rx ry ok_ry; case: ifP => //.
-      case/andP; do 2! move/eqP=> ?; subst rx ry.
-      case=> <- vx ok_vx vy ok_vy.
+    - t_xrbindP=> rx ok_rx ry ok_ry; case: ifP => // /andP [] /eqP ? /eqP ? [<-]; subst rx ry.
+      move=> vx ok_vx vy ok_vy.
       rewrite /sem_sop2 /=; t_xrbindP => /= xb ok_bx yb ok_by <-.
       have -> /= := xgetflag eqv ok_rx ok_vx ok_bx.
       have ->/= := xgetflag eqv ok_ry ok_vy ok_by.
       eexists; split; reflexivity.
-    - case=> // y; do 2! case=> //; case=> // z; case=> //= t.
+    - move=> st []// y []// []// []// z []//= t.
       t_xrbindP=> rx ok_rx ry ok_ry rz ok_rz rt ok_rt.
       case: ifP=> //; rewrite -!andbA => /and4P[].
       do 4! move/eqP=> ?; subst rx ry rz rt => -[<-].
-      move=> vx ok_vx res vby vy ok_vy ok_vby vNz vz ok_vz ok_vNz vt ok_vt.
-      case: eqP => // hty; case: ifP => // _ [<-] {res}.
+      have <- := inj_rflag_of_var ok_rz ok_rt.
+      move=> vx ok_vx ww vby vy ok_vy ok_vby trNz vNz vz ok_vz ok_vNz ok_trNz.
+      rewrite ok_vz => trz zz [?] ok_trz ?;subst zz ww.
       rewrite /sem_sop2 /=; t_xrbindP => /= vbx ok_vbx vbres ok_vbres <- {v}.
       have [/=vbz ok_vbz ?] := sem_sop1I ok_vNz; subst vNz.
       have := xgetflag eqv ok_rx ok_vx ok_vbx => ZFE.
       have := xgetflag eqv ok_ry ok_vy ok_vby => SFE.
       have := xgetflag eqv ok_rz ok_vz ok_vbz => OFE.
-      rewrite /= ZFE SFE OFE /=; move: ok_vbres.
-      case: (boolP vby) => hvby /= => [[<-]|].
-      + by rewrite eq_sym eqb_id; eexists.
-      have := inj_rflag_of_var ok_rz ok_rt => eq_zt.
-      have {eq_zt} ?: vt = vz; [have := ok_vz | subst vt].
-      + by rewrite eq_zt ok_vt => -[].
-      by rewrite ok_vbz => -[<-]; rewrite eq_sym eqbF_neg negbK; eexists.
-+ case=> // x [] // => [|[] // [] //] y.
+      rewrite /= ZFE SFE OFE /=.
+      have [??]:= truncate_val_bool ok_trNz; subst.
+      move: ok_trz;rewrite /truncate_val /= ok_vbz => -[?];subst.
+      by rewrite eq_sym; case: (boolP vby) ok_vbres => hvby /= [<-]; 
+       rewrite ?eqb_id ?eqbF_neg ?negbK; eexists.
++ move=> st []// x [] // => [|[] // [] //] y.
   * case=> // -[] // -[] // z /=; t_xrbindP.
     move=> rx ok_rx ry ok_ry rz ok_rz.
     case: ifPn => //; rewrite -!andbA => /and3P[].
     do 3! move/eqP=> ?; subst rx ry rz.
-    have eq_xy: v_var y = v_var z.
-    - by apply/(inj_rflag_of_var ok_ry ok_rz).
-    case=> <- vbx vx ok_vx ok_vbx vy ok_vy rvz vz ok_vz ok_rvz.
-    case: eqP => // hty; case: ifP => // _ [<-] {v}.
-    have /sem_sop1I[/=vbz ok_vbz ?] := ok_rvz; subst rvz.
+    have <- := inj_rflag_of_var ok_ry ok_rz.
+    move=> [] <- vbx vx ok_vx ok_vbx ytr vy ok_vy ok_ytr.
+    rewrite ok_vy => ytr' vNy vy' [<-] ok_vNy ok_yNtr <- /=.
+    have /sem_sop1I[/=vbz ok_vbz ?] := ok_vNy; subst vNy.
     have := xgetflag eqv ok_rx ok_vx ok_vbx => SFE.
-    have := xgetflag eqv ok_rz ok_vz ok_vbz => OFE.
-    rewrite /= SFE OFE /=; have := inj_rflag_of_var ok_ry ok_rz.
-    move=> eq_yz; have {eq_yz} ?: vy = vz; [have := ok_vy|subst vy].
-    - by rewrite eq_yz ok_vz => -[].
+    have := xgetflag eqv ok_ry ok_vy ok_vbz => OFE.
+    rewrite /= SFE OFE /=.
+    have [??]:= truncate_val_bool ok_yNtr; subst.
+    move: ok_ytr;rewrite /truncate_val /= ok_vbz => -[?];subst.
     eexists; split; first by eauto.
-    case: vz {ok_vy ok_rvz ok_vz hty} ok_vbz => //; last by case.
-    move => b [->] {b}.
-    by case: vbx {SFE} ok_vbx.
+    by rewrite eq_sym;case vbx => /=; rewrite ?eqb_id ?eqbF_neg.
   * case=> // z /=; t_xrbindP => vx ok_x vy ok_y vz ok_z.
     case: ifPn => //; rewrite -!andbA => /and3P[].
     do 3! move/eqP=> ?; subst vx vy vz; case=> <-.
-    move=> vbx vx ok_vx ok_vbx vNy vy ok_vy ok_vNy vz ok_vz.
-    case: eqP => // hty; case: ifP => // _ [<-] {v}.
+    have <- := inj_rflag_of_var ok_y ok_z.
+    move=> vbx vx ok_vx ok_vbx ytr vNy vy ok_vy ok_vNy ok_ytr.
+    rewrite ok_vy => yNtr vy' [?] ok_yNtr ?;subst vy' v.
     have /sem_sop1I[/=vby ok_vby ?] := ok_vNy; subst vNy.
     have := xgetflag eqv ok_x ok_vx ok_vbx => SFE.
     have := xgetflag eqv ok_y ok_vy ok_vby => OFE.
-    move: (inj_rflag_of_var ok_z ok_y) ok_vz.
-    case: z {ok_z} => /= z _ -> {z}.
-    rewrite ok_vy => -[] ?; subst vz.
     rewrite /= SFE {SFE} /= OFE {OFE} /=; eexists; split; first by eauto.
-    case: vy {ok_vy hty} ok_vNy ok_vby => //; last by case.
-    move => b [<-] [->] {b}.
-    case: vbx {ok_vbx} => //.
-    by case: vby.
+    have [??]:= truncate_val_bool ok_ytr; subst.
+    move: ok_yNtr;rewrite /truncate_val /= ok_vby => -[?];subst.
+    by rewrite eq_sym;case vbx => /=; rewrite ?eqb_id ?eqbF_neg ?negbK.
 Qed.
 
 (* -------------------------------------------------------------------- *)

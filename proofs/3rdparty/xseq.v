@@ -36,7 +36,7 @@ Lemma assoc_mem' (T: eqType) U (s: seq (T * U)) x w :
   assoc s x = Some w → List.In (x, w) s.
 Proof.
   elim: s => // [ [t u] s ] ih /=; case: eqP; last by auto.
-  by move => a b; apply Some_inj in b; left; f_equal.
+  by move => a /Some_inj; left; f_equal.
 Qed.
 
 Lemma mem_assoc (T: eqType) U (s: seq (T * U)) x w :

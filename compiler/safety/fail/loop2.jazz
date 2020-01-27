@@ -1,0 +1,24 @@
+export
+fn poly1305(reg u64 in, reg u64 inlen) -> reg u64 {
+  inline int i;
+  reg u8 tmp;
+  reg u64 ret, one;
+  reg bool of, cf, sf, zf;
+  stack u32[17] r, h, c;
+
+  one = 1;
+  while (inlen > 0) {
+    if inlen >= 16 {
+      for i = 0 to 16 {
+        tmp = (u8)[in + i];
+      }
+
+      in += 16;
+      inlen -= 16;
+
+    } else {
+
+    }
+  }
+  return one;
+}

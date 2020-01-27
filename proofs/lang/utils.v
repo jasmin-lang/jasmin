@@ -30,6 +30,8 @@ From Coq.Unicode Require Import Utf8.
 Require Import ZArith Setoid Morphisms CMorphisms CRelationClasses.
 Require Import oseq.
 Require Psatz.
+From CoqWord Require Import ssrZ.
+
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -64,6 +66,18 @@ Variant result (E : Type) (A : Type) : Type :=
 | Error of E.
 
 Arguments Error {E} {A} s.
+
+Definition is_ok (E A:Type) (r:result E A) := if r is Ok a then true else false.
+
+Lemma is_ok_ok (E A:Type) (a:A) : is_ok (Ok E a).
+Proof. done. Qed.
+Hint Resolve is_ok_ok.
+
+Lemma is_okP (E A:Type) (r:result E A) : reflect (exists (a:A), r = Ok E a) (is_ok r). 
+Proof.
+  case: r => /=; constructor; first by eauto.
+  by move=> []. 
+Qed.
 
 Section ResultEqType.
 
@@ -189,9 +203,13 @@ Ltac clarify :=
   repeat match goal with
   | H : ?a = ?b |- _ => subst a || subst b
   | H : ok _ = ok _ |- _ => apply ok_inj in H
-  | H : Some _ = Some _ |- _ => apply Some_inj in H
+  | H : Some _ = Some _ |- _ => move: H => /Some_inj H
   | H : ?a = _, K : ?a = _ |- _ => rewrite H in K
   end.
+
+Lemma Let_Let {eT A B C} (a:result eT A) (b:A -> result eT B) (c: B -> result eT C) :
+  ((a >>= b) >>= c) = a >>= (fun a => b a >>= c).
+Proof. by case: a. Qed.
 
 Definition mapM eT aT bT (f : aT -> result eT bT)  : seq aT → result eT (seq bT) :=
   fix mapM xs :=
@@ -792,10 +810,12 @@ Proof. by move=> ?? []. Qed.
 Instance reflect_m: Proper (iff ==> (@eq bool) ==> iffT) reflect.
 Proof. by move=> P1 P2 Hiff b1 b2 ->; split=> H; apply (equivP H);rewrite Hiff. Qed.
 
-Lemma P_leP x y : reflect (Zpos x <= Zpos y)%Z (x <=? y)%positive.
+Coercion Zpos : positive >-> Z.
+
+Lemma P_leP (x y:positive) : reflect (x <= y)%Z (x <=? y)%positive.
 Proof. apply: (@equivP (Pos.le x y)) => //;rewrite -Pos.leb_le;apply idP. Qed.
 
-Lemma P_ltP x y : reflect (Zpos x < Zpos y)%Z (x <? y)%positive.
+Lemma P_ltP (x y:positive) : reflect (x < y)%Z (x <? y)%positive.
 Proof. apply: (@equivP (Pos.lt x y)) => //;rewrite -Pos.ltb_lt;apply idP. Qed.
 
 Lemma Pos_leb_trans y x z: 
@@ -901,4 +921,95 @@ Proof.
 case: (dec _ _) => // e; apply: f_equal.
 exact: Eqdep_dec.UIP_dec.
 Qed.
+
+(* ------------------------------------------------------------------------- *)
+
+Lemma rwR1 (A:Type) (P:A->Prop) (f:A -> bool) : 
+  (forall a, reflect (P a) (f a)) ->
+  forall a, (f a) <-> (P a).
+Proof. by move=> h a; rewrite (rwP (h _)). Qed.
+
+Lemma rwR2 (A B:Type) (P:A->B->Prop) (f:A -> B -> bool) : 
+  (forall a b, reflect (P a b) (f a b)) ->
+  forall a b, (f a b) <-> (P a b).
+Proof. by move=> h a b; rewrite (rwP (h _ _)). Qed.
+
+Notation pify := 
+  (rwR2 (@andP), rwR2 (@orP), rwR2 (@implyP), rwR1 (@forallP _), rwR1 (@negP)).
+
+Notation zify := (pify, (rwR2 (@ZleP), rwR2 (@ZltP))).
+
+(* -------------------------------------------------------------------- *)
+
+Definition ziota p (z:Z) := [seq p + Z.of_nat i | i <- iota 0 (Z.to_nat z)].
+
+Lemma ziota0 p : ziota p 0 = [::].
+Proof. done. Qed.
+
+Lemma ziota_neg p z: z <= 0 -> ziota p z = [::].
+Proof. by case: z. Qed.
+
+Lemma ziotaS_cons p z: 0 <= z -> ziota p (Z.succ z) = p :: ziota (p+1) z.
+Proof.
+  move=> hz;rewrite /ziota Z2Nat.inj_succ //= Z.add_0_r; f_equal.
+  rewrite -addn1 addnC iota_addl -map_comp.
+  by apply eq_map => i /=; rewrite Zpos_P_of_succ_nat;Psatz.lia.
+Qed.  
+
+Lemma ziotaS_cat p z: 0 <= z -> ziota p (Z.succ z) = ziota p z ++ [:: p + z].
+Proof.
+  by move=> hz;rewrite /ziota Z2Nat.inj_succ // -addn1 iota_add map_cat /= add0n Z2Nat.id.
+Qed.
+
+Lemma in_ziota (p z i:Z) : (i \in ziota p z) = ((p <=? i) && (i <? p + z)).
+Proof.
+  case: (ZleP 0 z) => hz.
+  + move: p; pattern z; apply natlike_ind => [ p | {z hz} z hz hrec p| //].
+    + by rewrite ziota0 in_nil; case: andP => // -[/ZleP ? /ZltP ?]; Psatz.lia.
+    rewrite ziotaS_cons // in_cons; case: eqP => [-> | ?] /=.
+    + by rewrite Z.leb_refl /=; symmetry; apply /ZltP; Psatz.lia. 
+    by rewrite hrec; apply Bool.eq_iff_eq_true;split=> /andP [/ZleP ? /ZltP ?];
+      (apply /andP;split;[apply /ZleP| apply /ZltP]); Psatz.lia.
+  rewrite ziota_neg;last Psatz.lia.
+  rewrite in_nil;symmetry;apply /negP => /andP [/ZleP ? /ZltP ?]; Psatz.lia.
+Qed.
+
+Lemma size_ziota p z: size (ziota p z) = Z.to_nat z.
+Proof. by rewrite size_map size_iota. Qed.
+
+Lemma nth_ziota p (i:nat) z : leq (S i) (Z.to_nat z) ->
+   nth 0%Z (ziota p z) i = (p + Z.of_nat i)%Z.
+Proof.
+  by move=> hi;rewrite (nth_map O) ?size_iota // nth_iota.
+Qed.
+
+Lemma eq_map_ziota (T:Type) p1 p2 (f1 f2: Z -> T) : 
+  (forall i, (p1 <= i < p1 + p2)%Z -> f1 i = f2 i) ->
+  map f1 (ziota p1 p2) = map f2 (ziota p1 p2).
+Proof.
+  move=> hi; have {hi}: (forall i, i \in ziota p1 p2 -> f1 i = f2 i).
+  + move=> ?; rewrite in_ziota !zify; apply hi.
+  elim: ziota => //= i l hrec hf; rewrite hrec;first by rewrite hf ?mem_head.
+  by move=> ? hin; apply hf;rewrite in_cons hin orbT.
+Qed.
+
+Lemma all_ziota p1 p2 (f1 f2: Z -> bool) : 
+  (forall i, (p1 <= i < p1 + p2)%Z -> f1 i = f2 i) ->
+  all f1 (ziota p1 p2) = all f2 (ziota p1 p2).
+Proof.
+  move=> hi; have {hi}: (forall i, i \in ziota p1 p2 -> f1 i = f2 i).
+  + move=> ?; rewrite in_ziota !zify; apply hi.
+  elim: ziota => //= i l hrec hf; rewrite hrec;first by rewrite hf ?mem_head.
+  by move=> ? hin; apply hf;rewrite in_cons hin orbT.
+Qed.
+
+
+(* ------------------------------------------------------------------------- *)
+Lemma sumbool_of_boolET (b: bool) (h: b) :
+  Sumbool.sumbool_of_bool b = left h.
+Proof. by move: h; rewrite /is_true => ?; subst. Qed.
+
+Lemma sumbool_of_boolEF (b: bool) (h: b = false) :
+  Sumbool.sumbool_of_bool b = right h.
+Proof. by move: h; rewrite /is_true => ?; subst. Qed.
 

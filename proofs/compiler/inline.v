@@ -90,13 +90,13 @@ Definition dummy_info := xH.
 
 Definition mkdV x := {| v_var := x; v_info := dummy_info |}.
 
-Definition arr_init sz p := Parr_init sz p.
+Definition arr_init p := Parr_init p.
 
 Definition array_init iinfo (X: Sv.t) := 
   let assgn x c := 
     match x.(vtype) with
-    | sarr sz p =>
-      MkI iinfo (Cassgn (Lvar (mkdV x)) AT_rename x.(vtype) (arr_init sz p)) :: c
+    | sarr p =>
+      MkI iinfo (Cassgn (Lvar (mkdV x)) AT_rename x.(vtype) (arr_init p)) :: c
     | _      => c
     end in
   Sv.fold assgn X [::].
@@ -115,11 +115,11 @@ Fixpoint inline_i (p:fun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
       let X := Sv.union (read_i ir) X in
       Let c := inline_c (inline_i p) c X in
       ciok (X, [::MkI iinfo (Cfor x (d, lo, hi) c.2)])
-    | Cwhile c e c' =>
+    | Cwhile a c e c' =>
       let X := Sv.union (read_i ir) X in
       Let c := inline_c (inline_i p) c X in
       Let c' := inline_c (inline_i p) c' X in
-      ciok (X, [::MkI iinfo (Cwhile c.2 e c'.2)])
+      ciok (X, [::MkI iinfo (Cwhile a c.2 e c'.2)])
     | Ccall inline xs f es =>
       let X := Sv.union (read_i ir) X in
       if inline is InlineFun then
@@ -161,8 +161,8 @@ Definition inline_prog_err (p:prog) :=
 
 Definition is_array_init e := 
   match e with
-  | Parr_init _ _ => true
-  | _                 => false
+  | Parr_init _ => true
+  | _           => false
   end.
 
 Fixpoint remove_init_i i := 
@@ -178,10 +178,10 @@ Fixpoint remove_init_i i :=
     | Cfor x r c   => 
       let c := foldr (fun i c => remove_init_i i ++ c) [::] c in
       [:: MkI ii (Cfor x r c) ]
-    | Cwhile c e c' =>
+    | Cwhile a c e c' =>
       let c := foldr (fun i c => remove_init_i i ++ c) [::] c in
       let c' := foldr (fun i c => remove_init_i i ++ c) [::] c' in
-      [:: MkI ii (Cwhile c e c') ]
+      [:: MkI ii (Cwhile a c e c') ]
     | Ccall _ _ _ _  => [::i]
     end
   end.

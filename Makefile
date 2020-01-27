@@ -6,12 +6,15 @@ UNAME_S := $(shell uname -s)
 SED     ?= sed
 
 # --------------------------------------------------------------------
-.PHONY: all clean dist distcheck
+.PHONY: all check clean dist distcheck
 
 all:
 	$(MAKE) -C proofs all
 	$(MAKE) -C compiler CIL
 	$(MAKE) -C compiler all
+
+check:
+	$(MAKE) -C eclib check
 
 clean:
 	$(MAKE) -C proofs clean
@@ -23,7 +26,7 @@ dist:
 	rm -rf jasmin/proofs/logic
 	if [ -x scripts/anonymize ]; then SED=$(SED) scripts/anonymize; fi
 	$(SED) -i -e "/logic/d" jasmin/proofs/_CoqProject
-	tar czf jasmin.tar.gz jasmin && rm -rf jasmin
+	tar -czf jasmin.tar.gz --owner=0 --group=0 jasmin && rm -rf jasmin
 
 distcheck: dist
 	tar -xof $(DISTDIR).tar.gz

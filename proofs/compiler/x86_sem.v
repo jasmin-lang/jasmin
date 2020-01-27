@@ -1,3 +1,4 @@
+
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
@@ -133,87 +134,92 @@ Coercion rm128_of_m128 mo : rm128 :=
 
 (* -------------------------------------------------------------------- *)
 Variant asm : Type :=
+| ALIGN
 | LABEL of label
 
   (* Data transfert *)
-| MOV    of wsize & oprd & oprd    (* copy *)
-| MOVSX of wsize & wsize & register & oprd (* sign-extend *)
-| MOVZX of wsize & wsize & register & oprd (* zero-extend *)
-| CMOVcc of wsize & condt & oprd & oprd    (* conditional copy *)
+| MOV    of wsize & oprd & oprd                 (* copy *)
+| MOVSX  of wsize & wsize & register & oprd     (* sign-extend *)
+| MOVZX  of wsize & wsize & register & oprd     (* zero-extend *)
+| CMOVcc of wsize & condt & oprd & oprd         (* conditional copy *)
 
   (* Arithmetic *)
-| ADD    of wsize & oprd & oprd            (* add unsigned / signed *)
-| SUB    of wsize & oprd & oprd            (* sub unsigned / signed *)
-| MUL    of wsize & oprd                   (* mul unsigned *)
+| ADD    of wsize & oprd & oprd                 (* add unsigned / signed *)
+| SUB    of wsize & oprd & oprd                 (* sub unsigned / signed *)
+| MUL    of wsize & oprd                        (* mul unsigned *)
 | IMUL   of wsize & oprd & option (oprd * option u32)
-                                           (* mul signed with truncation *)
-| DIV    of wsize & oprd                   (* div unsigned *)
-| IDIV   of wsize & oprd                   (* div   signed *)
-| CQO    of wsize                          (* CWD CDQ CQO: allows sign extention in many words *)
-| ADC    of wsize & oprd & oprd            (* add with carry *)
-| SBB    of wsize & oprd & oprd            (* sub with borrow *)
+                                                (* mul signed with truncation *)
+| DIV    of wsize & oprd                        (* div unsigned *)
+| IDIV   of wsize & oprd                        (* div   signed *)
+| CQO    of wsize                               (* CWD CDQ CQO: allows sign extention in many words *)
+| ADC    of wsize & oprd & oprd                 (* add with carry *)
+| SBB    of wsize & oprd & oprd                 (* sub with borrow *)
 
-| NEG	 of wsize & oprd	           (* negation *)
+| NEG	   of wsize & oprd	                      (* negation *)
 
-| INC    of wsize & oprd                   (* increment *)
-| DEC    of wsize & oprd                   (* decrement *)
+| INC    of wsize & oprd                        (* increment *)
+| DEC    of wsize & oprd                        (* decrement *)
+
+| ADCX   of wsize & register & oprd                 (* add with carry, no flag *)
+| ADOX   of wsize & register & oprd                 (* add with carry, no flag *)
+| MULX   of wsize & register & register & oprd  (* mul unsigned, no flag   *)
 
   (* Flag *)
-| SETcc  of condt & oprd                   (* Set byte on condition *)
-| BT     of wsize & oprd & ireg            (* Bit test, sets result to CF *)
+| SETcc  of condt & oprd                        (* Set byte on condition *)
+| BT     of wsize & oprd & ireg                 (* Bit test, sets result to CF *)
 
   (* Pointer arithmetic *)
-| LEA    of wsize & register & oprd        (* Load Effective Address *)
+| LEA    of wsize & register & oprd             (* Load Effective Address *)
 
   (* Comparison *)
-| TEST   of wsize & oprd & oprd            (* Bit-wise logical and CMP *)
-| CMP    of wsize & oprd & oprd            (* Signed sub CMP *)
+| TEST   of wsize & oprd & oprd                 (* Bit-wise logical and CMP *)
+| CMP    of wsize & oprd & oprd                 (* Signed sub CMP *)
 
   (* Jumps *)
-| JMP    of label                          (* Unconditional jump *)
-| Jcc    of label & condt                  (* Conditional jump *)
+| JMP    of label                               (* Unconditional jump *)
+| Jcc    of label & condt                       (* Conditional jump *)
 
   (* Bitwise logical instruction *)
-| AND    of wsize & oprd & oprd            (* bit-wise and *)
-| ANDN of wsize & register & register & oprd (* bit-wise andn *)
-| OR     of wsize & oprd & oprd            (* bit-wise or  *)
-| XOR    of wsize & oprd & oprd            (* bit-wise xor *)
-| NOT    of wsize & oprd                   (* bit-wise not *)
+| AND    of wsize & oprd & oprd                 (* bit-wise and *)
+| ANDN   of wsize & register & register & oprd  (* bit-wise andn *)
+| OR     of wsize & oprd & oprd                 (* bit-wise or  *)
+| XOR    of wsize & oprd & oprd                 (* bit-wise xor *)
+| NOT    of wsize & oprd                        (* bit-wise not *)
 
   (* Bit shifts *)
-| ROR    of wsize & oprd & ireg            (* rotation / right *)
-| ROL    of wsize & oprd & ireg            (* rotation / left *)
-| SHL    of wsize & oprd & ireg            (* unsigned / left  *)
-| SHR    of wsize & oprd & ireg            (* unsigned / right *)
-| SAL    of wsize & oprd & ireg            (*   signed / left; synonym of SHL *)
-| SAR    of wsize & oprd & ireg            (*   signed / right *)
-| SHLD   of wsize & oprd & register & ireg (* unsigned (double) / left *)
-| SHRD   of wsize & oprd & register & ireg (* unsigned (double) / right *)
+| ROR    of wsize & oprd & ireg                 (* rotation / right *)
+| ROL    of wsize & oprd & ireg                 (* rotation / left *)
+| SHL    of wsize & oprd & ireg                 (* unsigned / left  *)
+| SHR    of wsize & oprd & ireg                 (* unsigned / right *)
+| SAL    of wsize & oprd & ireg                 (*   signed / left; synonym of SHL *)
+| SAR    of wsize & oprd & ireg                 (*   signed / right *)
+| SHLD   of wsize & oprd & register & ireg      (* unsigned (double) / left *)
+| SHRD   of wsize & oprd & register & ireg      (* unsigned (double) / right *)
 
-| BSWAP of wsize & register (* byte swap *)
+| BSWAP  of wsize & register                    (* byte swap *)
 
   (* SSE instructions *)
-| MOVD of wsize & xmm_register & oprd
-| VMOVDQU `(wsize) (_ _: rm128)
-| VPAND `(wsize) (_ _ _: rm128)
-| VPANDN `(wsize) (_ _: xmm_register) `(rm128)
-| VPOR `(wsize) (_ _ _: rm128)
-| VPXOR `(wsize) (_ _ _: rm128)
-| VPADD `(velem) `(wsize) (_ _ _: rm128)
-| VPSUB `(velem) `(wsize) (_ _ _: rm128)
-| VPMULL `(velem) `(wsize) (_ _ _: rm128)
-| VPMULU `(wsize) (_ _: xmm_register) `(rm128)
-| VPEXTR of wsize & oprd & xmm_register & u8
-| VPINSR `(velem) (_ _: xmm_register) `(oprd) `(u8)
-| VPSLL `(velem) `(wsize) (_ _: rm128) `(u8)
-| VPSRL `(velem) `(wsize) (_ _: rm128) `(u8)
-| VPSRA `(velem) `(wsize) (_ _: rm128) `(u8)
-| VPSLLV `(velem) `(wsize) (_ _: xmm_register) `(rm128)
-| VPSRLV `(velem) `(wsize) (_ _: xmm_register) `(rm128)
-| VPSLLDQ `(wsize) (_ _: xmm_register) `(u8)
-| VPSRLDQ `(wsize) (_ _: xmm_register) `(u8)
-| VPSHUFB `(wsize) (_ _: xmm_register) `(rm128)
-| VPSHUFD of wsize & xmm_register & rm128 & u8
+| MOVD     of wsize & xmm_register & oprd
+| VMOVDQU  `(wsize) (_ _: rm128)
+| VPAND    `(wsize) (_ _ _: rm128)
+| VPANDN   `(wsize) (_ _: xmm_register) `(rm128)
+| VPOR     `(wsize) (_ _ _: rm128)
+| VPXOR    `(wsize) (_ _ _: rm128)
+| VPADD    `(velem) `(wsize) (_ _ _: rm128)
+| VPSUB    `(velem) `(wsize) (_ _ _: rm128)
+| VPMULL   `(velem) `(wsize) (_ _ _: rm128)
+| VPMULU   `(wsize) (_ _: xmm_register) `(rm128)
+| VPEXTR   of wsize & oprd & xmm_register & u8
+| VPINSR   `(velem) (_ _: xmm_register) `(oprd) `(u8)
+| VPSLL    `(velem) `(wsize) (_ _: rm128) `(u8)
+| VPSRL    `(velem) `(wsize) (_ _: rm128) `(u8)
+| VPSRA    `(velem) `(wsize) (_ _: rm128) `(u8)
+| VPSLLV   `(velem) `(wsize) (_ _: xmm_register) `(rm128)
+| VPSRLV   `(velem) `(wsize) (_ _: xmm_register) `(rm128)
+| VPSLLDQ  `(wsize) (_ _: xmm_register) `(u8)
+| VPSRLDQ  `(wsize) (_ _: xmm_register) `(u8)
+| VPSHUFB  `(wsize) (_ _: xmm_register) `(rm128)
+| VPSHUFD  of wsize & xmm_register & rm128 & u8
 | VPSHUFHW of wsize & xmm_register & rm128 & u8
 | VPSHUFLW of wsize & xmm_register & rm128 & u8
 | VPBLENDD `(wsize) (_ _: xmm_register) `(rm128) `(u8)
@@ -228,22 +234,28 @@ Variant asm : Type :=
 .
 
 (* -------------------------------------------------------------------- *)
+(** Compatibility with ssreflect 1.7. *)
+Definition comparableMixin :=
+  ltac:( exact: comparableMixin || exact: comparableClass ).
+
+(* -------------------------------------------------------------------- *)
 Scheme Equality for register.
 Scheme Equality for xmm_register.
 Scheme Equality for rflag.
 Scheme Equality for scale.
 Scheme Equality for condt.
 
-Definition reg_eqMixin := comparableClass register_eq_dec.
+
+Definition reg_eqMixin := comparableMixin register_eq_dec.
 Canonical reg_eqType := EqType register reg_eqMixin.
 
-Definition xreg_eqMixin := comparableClass xmm_register_eq_dec.
+Definition xreg_eqMixin := comparableMixin xmm_register_eq_dec.
 Canonical xreg_eqType := EqType _ xreg_eqMixin.
 
-Definition rflag_eqMixin := comparableClass rflag_eq_dec.
+Definition rflag_eqMixin := comparableMixin rflag_eq_dec.
 Canonical rflag_eqType := EqType rflag rflag_eqMixin.
 
-Definition scale_eqMixin := comparableClass scale_eq_dec.
+Definition scale_eqMixin := comparableMixin scale_eq_dec.
 Canonical scale_eqType := EqType scale scale_eqMixin.
 
 Definition address_beq (addr1: address) addr2 :=
@@ -255,7 +267,7 @@ Definition address_beq (addr1: address) addr2 :=
 Lemma address_eq_axiom : Equality.axiom address_beq.
 Proof.
 case=> [d1 b1 s1 o1] [d2 b2 s2 o2]; apply: (iffP idP) => /=.
-+ by case/and4P; do 4! move/eqP=> ->.
++ by case/and4P ; do 4! move/eqP=> ->.
 by case; do 4! move=> ->; rewrite !eqxx.
 Qed.
 
@@ -280,7 +292,7 @@ Qed.
 Definition oprd_eqMixin := Equality.Mixin oprd_eq_axiom.
 Canonical oprd_eqType := EqType oprd oprd_eqMixin.
 
-Definition condt_eqMixin := comparableClass condt_eq_dec.
+Definition condt_eqMixin := comparableMixin condt_eq_dec.
 Canonical condt_eqType := EqType condt condt_eqMixin.
 
 Definition rm128_beq (rm1 rm2: rm128) : bool :=
@@ -400,7 +412,7 @@ End RflagMap.
 
 (* -------------------------------------------------------------------- *)
 Notation regmap   := RegMap.map.
-Notation xregmap   := XRegMap.map.
+Notation xregmap  := XRegMap.map.
 Notation rflagmap := RflagMap.map.
 Notation Def      := RflagMap.Def.
 Notation Undef    := RflagMap.Undef.
@@ -410,7 +422,7 @@ Definition rflagmap0 : rflagmap := [ffun x => Undef].
 
 Scheme Equality for RflagMap.rflagv.
 
-Definition rflagv_eqMixin := comparableClass rflagv_eq_dec.
+Definition rflagv_eqMixin := comparableMixin rflagv_eq_dec.
 Canonical rflagv_eqType := EqType _ rflagv_eqMixin.
 
 (* -------------------------------------------------------------------- *)
@@ -448,7 +460,7 @@ Proof.
 rewrite /word_extend_reg /merge_word.
 by case: sz w => //= w _; rewrite wand0 wxor0.
 Qed.
-    
+
 Definition mem_write_reg (r: register) sz (w: word sz) (m: x86_mem) :=  
   {|
     xmem := m.(xmem);
@@ -707,7 +719,7 @@ Definition read_rm128 (sz: wsize) (rm: rm128) (m: x86_mem) : exec (word sz) :=
 Variant msb_flag := MSB_CLEAR | MSB_MERGE.
 
 Scheme Equality for msb_flag.
-Definition msb_flag_eqMixin := comparableClass msb_flag_eq_dec.
+Definition msb_flag_eqMixin := comparableMixin msb_flag_eq_dec.
 Canonical msb_flag_eqType := EqType msb_flag msb_flag_eqMixin.
 
 Definition update_u256 (f: msb_flag) (old: u256) (sz: wsize) (new: word sz) : u256 :=
@@ -735,16 +747,16 @@ Implicit Types (ct : condt) (s : x86_mem) (o : oprd) (ir : ireg).
 Implicit Types (lbl : label).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_MOV_nocheck sz o1 o2 s : x86_result :=
+Definition eval_MOV_nocheck (sz: wsize) (o1 o2: oprd) (s: x86_mem) : x86_result :=
   Let v := read_oprd sz o2 s in
   write_oprd o1 v s.
 
-Definition eval_MOV sz o1 o2 s : x86_result :=
+Definition eval_MOV (sz: wsize) (o1 o2: oprd) (s: x86_mem) : x86_result :=
   Let _ := check_size_8_64 sz in
   eval_MOV_nocheck sz o1 o2 s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_MOVSX szo szi dst o s : x86_result :=
+Definition eval_MOVSX (szo szi: wsize) (dst: register) (o: oprd) (s: x86_mem) : x86_result :=
   Let _ :=
     match szi with
     | U8 => check_size_16_64 szo
@@ -756,7 +768,7 @@ Definition eval_MOVSX szo szi dst o s : x86_result :=
   ok (mem_write_reg dst (sign_extend szo v) s).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_MOVZX szo szi dst o s : x86_result :=
+Definition eval_MOVZX (szo szi: wsize) (dst: register) (o: oprd) (s: x86_mem) : x86_result :=
   Let _ :=
     match szi with
     | U8 => check_size_16_64 szo
@@ -767,13 +779,13 @@ Definition eval_MOVZX szo szi dst o s : x86_result :=
   ok (mem_write_reg dst (zero_extend szo v) s).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_CMOVcc sz ct o1 o2 s : x86_result :=
+Definition eval_CMOVcc (sz: wsize) (ct: condt) (o1 o2: oprd) (s: x86_mem) : x86_result :=
   Let _ := check_size_16_64 sz in
   Let b := eval_cond ct s.(xrf) in
   eval_MOV_nocheck sz o1 (if b then o2 else o1) s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_ADD sz o1 o2 s : x86_result :=
+Definition eval_ADD (sz: wsize) (o1 o2: oprd) (s: x86_mem) : x86_result :=
   Let _  := check_size_8_64 sz in
   Let v1 := read_oprd sz o1 s in
   Let v2 := read_oprd sz o2 s in
@@ -784,7 +796,7 @@ Definition eval_ADD sz o1 o2 s : x86_result :=
   write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_SUB sz o1 o2 s : x86_result :=
+Definition eval_SUB (sz: wsize) (o1 o2: oprd) (s: x86_mem) : x86_result :=
   Let _  := check_size_8_64 sz in
   Let v1 := read_oprd sz o1 s in
   Let v2 := read_oprd sz o2 s in
@@ -796,7 +808,7 @@ Definition eval_SUB sz o1 o2 s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 (* WARNING: We do not take into account the 8 bits *)
-Definition eval_MUL sz o s : x86_result :=
+Definition eval_MUL (sz: wsize) (o: oprd) (s: x86_mem) : x86_result :=
   Let _  := check_size_16_64 sz in
   let v1 := zero_extend sz (s.(xreg) RAX) in
   Let v2 := read_oprd sz o s in
@@ -811,7 +823,7 @@ Definition eval_MUL sz o s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 (* WARNING: We do not take into account the 8 bits *)
-Definition eval_IMUL sz o1 (o2 : option (oprd * option u32)) s : x86_result :=
+Definition eval_IMUL (sz: wsize) (o1: oprd) (o2 : option (oprd * option u32)) (s: x86_mem) : x86_result :=
   Let _  := check_size_16_64 sz in
   match o2 with
   | None =>
@@ -846,7 +858,7 @@ Definition eval_IMUL sz o1 (o2 : option (oprd * option u32)) s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 (* WARNING: We do not take into account the 8 bits *)
-Definition eval_DIV sz o s : x86_result :=
+Definition eval_DIV (sz: wsize) (o: oprd) (s: x86_mem) : x86_result :=
   Let _  := check_size_16_64 sz in
   let hi := zero_extend sz (s.(xreg) RDX) in
   let lo := zero_extend sz (s.(xreg) RAX) in
@@ -866,7 +878,7 @@ Definition eval_DIV sz o s : x86_result :=
 
 (* -------------------------------------------------------------------- *)
 (* WARNING: We do not take into account the 8 bits *)
-Definition eval_IDIV sz o s : x86_result :=
+Definition eval_IDIV (sz: wsize) (o: oprd) (s: x86_mem) : x86_result :=
   Let _  := check_size_16_64 sz in
   let hi := zero_extend sz (s.(xreg) RDX) in
   let lo := zero_extend sz (s.(xreg) RAX) in
@@ -884,14 +896,14 @@ Definition eval_IDIV sz o s : x86_result :=
 
   ok (mem_update_rflags rflags_of_div s).
 
-Definition eval_CQO sz s : x86_result := 
+Definition eval_CQO (sz: wsize) (s: x86_mem) : x86_result := 
   Let _ := check_size_16_64 sz in
   let w := xreg s RAX in
   let r : word sz := (if msb (zero_extend sz w) then -1 else 0)%R in
   ok (mem_write_reg RDX r s).
 
 (* -------------------------------------------------------------------- *)
-Definition eval_ADC sz o1 o2 s : x86_result :=
+Definition eval_ADC (sz: wsize) (o1 o2: oprd) (s: x86_mem) : x86_result :=
   Let _  := check_size_8_64 sz in
   Let v1 := read_oprd sz o1 s in
   Let v2 := read_oprd sz o2 s in
@@ -904,7 +916,36 @@ Definition eval_ADC sz o1 o2 s : x86_result :=
   write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_SBB sz o1 o2 s : x86_result :=
+Definition eval_ADCX (sz: wsize) (o1:register) (o2: oprd) (s: x86_mem) : x86_result :=
+  Let _  := check_size_32_64 sz in
+  let v1 := zero_extend sz (s.(xreg) o1) in
+  Let v2 := read_oprd sz o2 s in
+  Let c  := st_get_rflag CF s in
+  let (c, v) := waddcarry v1 v2 c in
+  let s := mem_set_rflags CF c s in
+  ok (mem_write_reg o1 v s).
+
+(* -------------------------------------------------------------------- *)
+Definition eval_ADOX (sz: wsize) (o1:register) (o2: oprd) (s: x86_mem) : x86_result :=
+  Let _  := check_size_32_64 sz in
+  let v1 := zero_extend sz (s.(xreg) o1) in
+  Let v2 := read_oprd sz o2 s in
+  Let c  := st_get_rflag OF s in
+  let (c, v) := waddcarry v1 v2 c in
+  let s := mem_set_rflags OF c s in
+  ok (mem_write_reg o1 v s).
+
+(* -------------------------------------------------------------------- *)
+Definition eval_MULX (sz: wsize) (d1 d2 : register) (o1: oprd) (s: x86_mem) : x86_result :=
+  Let _  := check_size_32_64 sz in
+  let v1 := zero_extend sz (s.(xreg) RDX) in
+  Let v2 := read_oprd sz o1 s in
+  let (hi,lo) := wumul v1 v2 in
+  let s  := mem_write_reg d1 hi s in
+  ok (mem_write_reg d2 lo s).
+
+(* -------------------------------------------------------------------- *)
+Definition eval_SBB (sz: wsize) (o1 o2: oprd) (s: x86_mem) : x86_result :=
   Let _  := check_size_8_64 sz in
   Let v1 := read_oprd sz o1 s in
   Let v2 := read_oprd sz o2 s in
@@ -917,7 +958,7 @@ Definition eval_SBB sz o1 o2 s : x86_result :=
   write_oprd o1 v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_NEG sz o s : x86_result :=
+Definition eval_NEG (sz: wsize) (o: oprd) (s: x86_mem) : x86_result :=
   Let _  := check_size_8_64 sz in
   Let w  := read_oprd sz o s in
   let v  := (- w)%R in
@@ -932,7 +973,7 @@ Definition eval_NEG sz o s : x86_result :=
   in write_oprd o v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_INC sz o s : x86_result :=
+Definition eval_INC (sz: wsize) (o: oprd) (s: x86_mem) : x86_result :=
   Let _  := check_size_8_64 sz in
   Let w  := read_oprd sz o s in
   let v  := (w + 1)%R in
@@ -941,7 +982,7 @@ Definition eval_INC sz o s : x86_result :=
   write_oprd o v s.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_DEC sz o s : x86_result :=
+Definition eval_DEC (sz: wsize) (o: oprd) (s: x86_mem) : x86_result :=
   Let _  := check_size_8_64 sz in
   Let w  := read_oprd sz o s in
   let v  := (w - 1)%R in
@@ -1339,6 +1380,7 @@ Definition eval_VPERMQ (dst: xmm_register) (src: rm128) (i: u8) s : x86_result :
 (* -------------------------------------------------------------------- *)
 Definition eval_instr_mem (i : asm) s : x86_result :=
   match i with
+  | ALIGN
   | JMP    _
   | Jcc    _ _
   | LABEL  _           => ok s
@@ -1358,6 +1400,10 @@ Definition eval_instr_mem (i : asm) s : x86_result :=
   | NEG    sz o        => eval_NEG    sz o s
   | INC    sz o        => eval_INC    sz o s
   | DEC    sz o        => eval_DEC    sz o s
+  | ADCX   sz r o      => eval_ADCX   sz r o s
+  | ADOX   sz r o      => eval_ADOX   sz r o s
+  | MULX   sz r1 r2 o  => eval_MULX   sz r1 r2 o s
+
   | SETcc     ct o     => eval_SETcc  ct o s
   | BT     sz o ir     => eval_BT     sz o ir s
   | LEA    sz o1 o2    => eval_LEA    sz o1 o2 s
@@ -1442,12 +1488,19 @@ Definition x86sem : relation x86_state := clos_refl_trans x86_state x86sem1.
 End GLOB_DEFS.
 
 (* -------------------------------------------------------------------- *)
+Variant saved_stack := 
+| SavedStackNone 
+| SavedStackReg of register  
+| SavedStackStk of Z.
+
+
 Record xfundef := XFundef {
  xfd_stk_size : Z;
  xfd_nstk : register;
  xfd_arg  : seq register;
  xfd_body : seq asm;
  xfd_res  : seq register;
+ xfd_extra : list register * saved_stack;
 }.
 
 Definition xprog : Type :=

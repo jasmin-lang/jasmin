@@ -5,6 +5,8 @@ B ../_build/CIL
 PKG batteries
 PKG menhirLib
 PKG zarith
+PKG apron
+PKG ppl
 
 FLG -rectypes
 FLG -w Y -w Z -w -23 -w +28 -w +33 -w -40 -w -58

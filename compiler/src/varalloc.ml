@@ -10,10 +10,10 @@ open Liveness
 
 let init_lval init x =
   match x with
-  | Lnone _     -> init
-  | Lvar x      -> Sv.add (L.unloc x) init
-  | Lmem _      -> init
-  | Laset(x, _) -> Sv.add (L.unloc x) init
+  | Lnone _        -> init
+  | Lvar x         -> Sv.add (L.unloc x) init
+  | Lmem _         -> init
+  | Laset(_, x, _) -> Sv.add (L.unloc x) init
 
 let init_lvals init xs = List.fold_left init_lval init xs
 
@@ -34,13 +34,13 @@ let rec rm_uninitialized_i init i =
       let init'', c = rm_uninitialized_c init' c in
       assert (Sv.equal init' init'');
       init', Cfor(x, d, c)
-    | Cwhile(c1, e, c2) ->
+    | Cwhile(a, c1, e, c2) ->
       let init1, _ = rm_uninitialized_c init  c1 in
       let init2, _ = rm_uninitialized_c init1 c2 in
       let init1', c1 = rm_uninitialized_c init2  c1 in
       let init2', c2 = rm_uninitialized_c init1' c2 in
       assert (Sv.equal init2 init2');
-      init2', Cwhile(c1, e, c2) in
+      init2', Cwhile(a, c1, e, c2) in
   init', {i with i_desc;
           i_info = Sv.inter s1 init, Sv.inter s2 init' }
 
@@ -117,7 +117,7 @@ let rec same_i cfm i =
   | Cassgn _                              -> cfm
   | Copn (_, _,_, _) | Ccall (_, _, _, _) -> cfm
   | Cfor( _, _, c) -> same_c cfm c
-  | Cif(_, c1, c2) | Cwhile(c1, _, c2)    -> same_c (same_c cfm c1) c2
+  | Cif(_, c1, c2) | Cwhile(_, c1, _, c2)    -> same_c (same_c cfm c1) c2
 
 and same_c cfm c = List.fold_left same_i cfm c
 

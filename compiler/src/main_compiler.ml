@@ -1,6 +1,7 @@
 open Utils
 open Prog
 open Glob_options
+
 (* -------------------------------------------------------------------- *)
 exception UsageError
 
@@ -123,7 +124,7 @@ and pp_comp_ferr tbl fmt = function
     Format.fprintf fmt "error global not equal"
   | Ferr_fun (f, err_msg) ->
     let f =  Conv.fun_of_cfun tbl f in
-    Format.fprintf fmt "in function %s: %a" 
+    Format.fprintf fmt "in function %s: %a"
       f.fn_name (pp_comp_err tbl) err_msg
   | Ferr_remove_glob (ii, x) ->
     let i_loc, _ = Conv.get_iinfo tbl ii in
@@ -132,6 +133,7 @@ and pp_comp_ferr tbl fmt = function
      Printer.pp_iloc i_loc
   | Ferr_remove_glob_dup (_, _) ->
     Format.fprintf fmt "duplicate global: please report"
+
 
 (* -------------------------------------------------------------------- *)
 let main () =
@@ -158,8 +160,25 @@ let main () =
     let prog = Subst.remove_params pprog in
     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
+    if !check_safety then begin
+      let () =
+        List.iter (fun f_decl ->
+            if f_decl.f_cc = Export then
+              let () = Format.eprintf "@[<v>Analyzing function %s@;@]@."
+                  f_decl.f_name.fn_name in
+
+              let module AbsInt = Safety.AbsAnalyzer(struct
+                  let main = f_decl
+                  let prog = prog
+                end) in
+
+              AbsInt.analyze ())
+          (snd prog) in
+      exit 0;
+    end;
+
     if !ec_list <> [] then begin
-      let fmt, close = 
+      let fmt, close =
         if !ecfile = "" then Format.std_formatter, fun () -> ()
         else
           let out = open_out !ecfile in
@@ -181,11 +200,12 @@ let main () =
 
     (* Generate the coq program if needed *)
     if !coqfile <> "" then begin
-      let out = open_out !coqfile in
+      assert false
+(*      let out = open_out !coqfile in
       let fmt = Format.formatter_of_out_channel out in
       Format.fprintf fmt "%a@." Coq_printer.pp_prog prog;
       close_out out;
-      if !debug then Format.eprintf "coq program extracted@."
+      if !debug then Format.eprintf "coq program extracted@." *)
     end;
     if !coqonly then exit 0;
 
@@ -202,9 +222,9 @@ let main () =
             Format.printf "Evaluation of %s (@[<h>%a@]):@." f.fn_name
               (pp_list ",@ " pp_range) m;
             let _m, vs =
-              m |>
-              List.map (fun (ptr, sz) -> Conv.int64_of_bi ptr, Conv.z_of_bi sz) |>
-              Low_memory.Memory.coq_M.init |>
+              (** TODO: allow to configure the initial stack pointer *)
+              let live = List.map (fun (ptr, sz) -> Conv.int64_of_bi ptr, Conv.z_of_bi sz) m in
+              (match Low_memory.Memory.coq_M.init live (Conv.int64_of_bi (Bigint.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
               Evaluator.exec cprog (Conv.cfun_of_fun tbl f) in
             Format.printf "@[<v>%a@]@."
               (pp_list "@ " Evaluator.pp_val) vs
@@ -238,14 +258,21 @@ let main () =
     let stk_alloc_fd cfd =
       let fd = Conv.fdef_of_cfdef tbl cfd in
       if !debug then Format.eprintf "START stack alloc@." ;
-      let stk_i = 
+      let stk_i =
         Var0.Var.vname (Conv.cvar_of_var tbl Array_expand.vstack) in
-      let alloc, sz = Array_expand.stk_alloc_func fd in
+      let alloc, sz, to_save, p_stack = Array_expand.stk_alloc_func fd in
       let alloc =
         let trans (v,i) = Conv.cvar_of_var tbl v, Conv.z_of_int i in
         List.map trans alloc in
       let sz = Conv.z_of_int sz in
-      (sz, stk_i), alloc
+      let p_stack = 
+        match p_stack with
+        | None -> Stack_alloc.SavedStackNone
+        | Some (`InReg x) -> Stack_alloc.SavedStackReg (Conv.cvar_of_var tbl x)
+        | Some (`InStack p) -> Stack_alloc.SavedStackStk (Conv.z_of_int p) in
+      
+      let to_save = List.map (Conv.cvar_of_var tbl) (Sv.elements to_save) in
+      ((sz, stk_i), alloc), (to_save, p_stack) 
     in
 
     let is_var_in_memory cv : bool =
@@ -259,35 +286,35 @@ let main () =
     let pp_linear fmt lp =
       PrintLinear.pp_prog tbl fmt lp in
 
-    let rename_fd ii fn cfd = 
-      let ii,_ = Conv.get_iinfo tbl ii in 
-      let doit fd = 
+    let rename_fd ii fn cfd =
+      let ii,_ = Conv.get_iinfo tbl ii in
+      let doit fd =
         let fd = Subst.clone_func fd in
         Subst.extend_iinfo ii fd in
       apply "rename_fd" doit fn cfd in
 
-    let warning ii msg = 
+    let warning ii msg =
       let loc,_ = Conv.get_iinfo tbl ii in
       Format.eprintf "WARNING: at %a, %a@." Printer.pp_iloc loc Printer.pp_warning_msg msg;
       ii in
-        
-    let inline_var x = 
+
+    let inline_var x =
       let x = Conv.var_of_cvar tbl x in
       x.v_kind = Inline in
 
     let translate_var = Conv.var_of_cvar tbl in
-      
-    let is_glob x = 
+
+    let is_glob x =
       let x = Conv.var_of_cvar tbl x in
       x.v_kind = Global in
-      
-    let fresh_id gd x = 
+
+    let fresh_id gd x =
       let x = (Conv.var_of_cvar tbl x).v_name in
       let ns = List.map (fun (g,_) -> snd (Conv.global_of_cglobal g)) gd in
       let s = Ss.of_list ns in
-      let x = 
+      let x =
         if Ss.mem x s then
-          let rec aux i = 
+          let rec aux i =
             let x = x ^ "_" ^ string_of_int i in
             if Ss.mem x s then aux (i+1)
             else x in
@@ -308,7 +335,7 @@ let main () =
       Compiler.print_linear = (fun p -> eprint Compiler.Linearisation pp_linear p; p);
       Compiler.warning      = warning;
       Compiler.inline_var   = inline_var;
-      Compiler.lowering_opt = Lowering.{ use_lea = !Glob_options.lea; 
+      Compiler.lowering_opt = Lowering.{ use_lea = !Glob_options.lea;
                                          use_set0 = !Glob_options.set0; };
       Compiler.is_glob     = is_glob;
       Compiler.fresh_id    = fresh_id;

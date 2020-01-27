@@ -39,29 +39,55 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
+Variant saved_stack := 
+| SavedStackNone 
+| SavedStackReg of var 
+| SavedStackStk of Z.
+
+Definition saved_stack_beq (x y : saved_stack) := 
+  match x, y with
+  | SavedStackNone, SavedStackNone => true
+  | SavedStackReg v1, SavedStackReg v2 => v1 == v2
+  | SavedStackStk z1, SavedStackStk z2 => z1 == z2
+  | _, _ => false
+  end.
+
+Lemma saved_stack_eq_axiom : Equality.axiom saved_stack_beq.
+Proof.
+  move=> [ | v1 | z1] [ | v2 | z2] /=; try constructor => //.
+  + apply (@equivP (v1 = v2)); first by apply eqP.
+    by intuition congruence.
+  apply (@equivP (z1 = z2)); first by apply eqP.
+  by intuition congruence.
+Qed.
+
+Definition saved_stack_eqMixin   := Equality.Mixin saved_stack_eq_axiom.
+Canonical  saved_stack_eqType      := Eval hnf in EqType saved_stack saved_stack_eqMixin.
+
 Record sfundef := MkSFun {
   sf_iinfo  : instr_info;
   sf_stk_sz : Z;
   sf_stk_id : Ident.ident;
-  sf_tyin  : seq stype;
+  sf_tyin   : seq stype;
   sf_params : seq var_i;
   sf_body   : cmd;
-  sf_tyout : seq stype;
+  sf_tyout  : seq stype;
   sf_res    : seq var_i;
+  sf_extra  : list var * saved_stack;
 }.
 
 Definition sfundef_beq fd1 fd2 :=
   match fd1, fd2 with
-  | MkSFun ii1 sz1 id1 ti1 p1 c1 to1 r1, MkSFun ii2 sz2 id2 ti2 p2 c2 to2 r2 =>
+  | MkSFun ii1 sz1 id1 ti1 p1 c1 to1 r1 e1, MkSFun ii2 sz2 id2 ti2 p2 c2 to2 r2 e2=>
     (ii1 == ii2) && (sz1 == sz2) && (id1 == id2) &&
-    (ti1 == ti2) && (p1 == p2) && (c1 == c2) && (to1 == to2) && (r1 == r2)
+    (ti1 == ti2) && (p1 == p2) && (c1 == c2) && (to1 == to2) && (r1 == r2) && (e1 == e2)
   end.
 
 Lemma sfundef_eq_axiom : Equality.axiom sfundef_beq.
 Proof.
-  move=> [i1 s1 id1 ti1 p1 c1 to1 r1] [i2 s2 id2 ti2 p2 c2 to2 r2] /=.
-  apply (@equivP ((i1 == i2) && (s1 == s2) && (id1 == id2) && (ti1 == ti2) && (p1 == p2) && (c1 == c2) && (to1 == to2) && (r1 == r2)));first by apply idP.
-  by split=> [ /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] | [] ] /eqP -> /eqP->/eqP->/eqP->/eqP->/eqP->/eqP-> /eqP ->.
+  move=> [i1 s1 id1 ti1 p1 c1 to1 r1 e1] [i2 s2 id2 ti2 p2 c2 to2 r2 e2] /=.
+  apply (@equivP ((i1 == i2) && (s1 == s2) && (id1 == id2) && (ti1 == ti2) && (p1 == p2) && (c1 == c2) && (to1 == to2) && (r1 == r2) && (e1 == e2)));first by apply idP.
+  by split=> [ /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] | [] ] /eqP -> /eqP->/eqP->/eqP->/eqP->/eqP->/eqP->/eqP->/eqP->.
 Qed.
 
 Definition sfundef_eqMixin   := Equality.Mixin sfundef_eq_axiom.
@@ -74,13 +100,13 @@ Definition map := (Mvar.t Z * Ident.ident)%type.
 Definition size_of (t:stype) := 
   match t with
   | sword sz => ok (wsize_size sz)
-  | sarr sz n => ok (wsize_size sz * (Zpos n))%Z
+  | sarr n   => ok (Zpos n)
   | _      => cerror (Cerr_stk_alloc "size_of")
   end.
 
 Definition aligned_for (ty: stype) (ofs: Z) : bool :=
   match ty with
-  | sarr sz _
+  | sarr _ => true
   | sword sz => is_align (wrepr _ ofs) sz
   | sbool | sint => false
   end.
@@ -113,10 +139,7 @@ Definition is_vstk (m:map) (x:var) :=
 Definition check_var m (x:var_i) := 
   ~~ is_in_stk m x && ~~is_vstk m x.
 
-(* TODO: MOVE *)
-Definition is_arr_type (t:stype) :=
-  if t is sarr sz _ then Some sz else None.
-
+(* TODO: move *)
 Definition is_word_type (t:stype) :=
   if t is sword sz then Some sz else None.
 
@@ -143,8 +166,8 @@ Definition stk_not_fresh {A} :=
 Definition not_a_word_v {A} := 
   @cerror (Cerr_stk_alloc "not a word variable") A.
 
-Definition not_an_array_v {A} := 
-  @cerror (Cerr_stk_alloc "not an array variable") A.
+Definition not_aligned {A} := 
+  @cerror (Cerr_stk_alloc "array variable not aligned") A.
 
 Definition invalid_var {A} := 
   @cerror (Cerr_stk_alloc "invalid variable") A.
@@ -152,13 +175,13 @@ Definition invalid_var {A} :=
 Definition mk_ofs ws e1 ofs := 
   let sz := wsize_size ws in
   if is_const e1 is Some i then 
-    cast_const (sz * i + ofs)%Z
+    cast_const (i * sz + ofs)%Z
   else 
     add (mul (cast_const sz) (cast_word e1)) (cast_const ofs).
 
 Fixpoint alloc_e (m:map) (e: pexpr) := 
   match e with
-  | Pconst _ | Pbool _ | Parr_init _ _ | Pglobal _ => ok e
+  | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ => ok e
   | Pvar   x =>
     match Mvar.get m.1 x with 
     | Some ofs =>
@@ -171,19 +194,19 @@ Fixpoint alloc_e (m:map) (e: pexpr) :=
       if is_vstk m x then stk_not_fresh 
       else ok e 
     end
-  | Pget x e1 =>
+  | Pget ws x e1 =>
     Let e1 := alloc_e m e1 in
     match Mvar.get m.1 x with 
     | Some ofs =>
-      if is_arr_type (vtype x) is Some ws then
+      if is_align (wrepr _ ofs) ws then 
         let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
         let ofs := mk_ofs ws e1 ofs in
         ok (Pload ws stk ofs)
-      else not_an_array_v 
+      else not_aligned
 
     | None =>
       if is_vstk m x then stk_not_fresh 
-      else ok (Pget x e1)
+      else ok (Pget ws x e1)
     end
 
   | Pload ws x e1 =>
@@ -205,11 +228,11 @@ Fixpoint alloc_e (m:map) (e: pexpr) :=
     Let es := mapM (alloc_e m) es in
     ok (PappN o es)  
 
-  | Pif e e1 e2 =>
+  | Pif t e e1 e2 =>
     Let e := alloc_e m e in
     Let e1 := alloc_e m e1 in
     Let e2 := alloc_e m e2 in
-    ok (Pif e e1 e2)
+    ok (Pif t e e1 e2)
   end.
 
 Definition alloc_lval (m:map) (r:lval) ty := 
@@ -237,19 +260,19 @@ Definition alloc_lval (m:map) (r:lval) ty :=
       ok (Lmem ws x e1)
     else invalid_var
     
-  | Laset x e1 =>
+  | Laset ws x e1 =>
     Let e1 := alloc_e m e1 in
     match Mvar.get m.1 x with 
     | Some ofs =>
-      if is_arr_type (vtype x) is Some ws then
+      if is_align (wrepr _ ofs) ws then
         let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
         let ofs := mk_ofs ws e1 ofs in
         ok (Lmem ws stk ofs)
-      else not_an_array_v
+      else not_aligned
 
     | None =>
       if is_vstk m x then stk_not_fresh 
-      else ok (Laset x e1)
+      else ok (Laset ws x e1)
     end
 
   end.
@@ -276,11 +299,11 @@ Fixpoint alloc_i (m: map) (i: instr) :=
       Let c2 := mapM (alloc_i m) c2 in
       ok (Cif e c1 c2)
   
-    | Cwhile c1 e c2 => 
+    | Cwhile a c1 e c2 => 
       Let e := add_iinfo ii (alloc_e m e) in
       Let c1 := mapM (alloc_i m) c1 in
       Let c2 := mapM (alloc_i m) c2 in
-      ok (Cwhile c1 e c2)
+      ok (Cwhile a c1 e c2)
   
     | Cfor _ _ _  => cierror ii (Cerr_stk_alloc "don't deal with for loop")
     | Ccall _ _ _ _ => cierror ii (Cerr_stk_alloc "don't deal with call")
@@ -294,12 +317,13 @@ Definition add_err_fun (A : Type) (f : funname) (r : cexec A) :=
   | Error e => Error (Ferr_fun f e)
   end.
 
-Definition alloc_fd (stk_alloc_fd : fun_decl -> Z * Ident.ident * list (var * Z))
+Definition alloc_fd (stk_alloc_fd : 
+   fun_decl -> Z * Ident.ident * list (var * Z) * (list var * saved_stack))
     (f: fun_decl) :=
   let info := stk_alloc_fd f in
   let (fn, fd) := f in
   Let sfd :=  
-    let: ((size, stkid), l) := info in 
+    let: (((size, stkid), l), saved):= info in 
     Let m := add_err_fun fn (init_map size stkid l) in
     Let body := add_finfo fn fn (mapM (alloc_i m) fd.(f_body)) in
     if all (check_var m) fd.(f_params) && all (check_var m) fd.(f_res) then
@@ -310,7 +334,9 @@ Definition alloc_fd (stk_alloc_fd : fun_decl -> Z * Ident.ident * list (var * Z)
             sf_params := fd.(f_params);
             sf_body   := body;
             sf_tyout  := fd.(f_tyout);
-            sf_res    := fd.(f_res) |} 
+            sf_res    := fd.(f_res);
+            sf_extra  := saved;
+         |} 
     else add_err_fun fn invalid_var in
   ok (fn, sfd).
 

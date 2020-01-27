@@ -111,7 +111,7 @@ def _options():
     options.jobs     = cmdopt.jobs
     options.report   = cmdopt.report
 
-    defaults = dict(args = '', exclude = '', okdirs = '', kodirs = '')
+    defaults = dict(args = '', exclude = '', okdirs = '', kodirs = '', bin = '')
 
     config = cp.SafeConfigParser(defaults)
     config.read(args[0])
@@ -142,6 +142,7 @@ def _options():
 
     for test in [x for x in config.sections() if x.startswith('test-')]:
         scenario = Object()
+        scenario.bin     = config.get(test, 'bin')
         scenario.args    = config.get(test, 'args').split()
         scenario.okdirs  = config.get(test, 'okdirs')
         scenario.kodirs  = config.get(test, 'kodirs')
@@ -204,8 +205,9 @@ def _run_test(config, options):
                      (config.filename, config.isvalid))
 
     timestamp = time.time()
+    binary = options.bin if not config.bin else config.bin
     try:
-        command = [options.bin] + options.args + config.args
+        command = [binary] + options.args + config.args
         if options.timeout:
             command.extend(['-timeout', str(options.timeout)])
         command.extend([config.filename])
@@ -220,7 +222,7 @@ def _run_test(config, options):
             try   : sp.kill()
             except: pass
     except OSError as e:
-        logging.error("cannot run `%s': %s" % (options.bin, e))
+        logging.error("cannot run `%s': %s" % (binary, e))
         exit (1)
     timestamp = time.time() - timestamp
     success   = (bool(status) != bool(config.isvalid))
@@ -263,6 +265,7 @@ def _main():
             return Object(isvalid  = obj.valid,
                           group    = obj.src,
                           args     = obj.args,
+                          bin      = obj.bin,
                           filename = fullname)
 
         return [config(x) for x in scripts]
@@ -282,10 +285,12 @@ def _main():
             dirs = [for1(x) for x in re.split(r'\s+', dirs)]
             return list(itertools.chain.from_iterable(dirs))
 
+        data = dict(args = scenario.args, bin = scenario.bin)
+
         dirs = []
-        dirs.extend([Object(src = x, valid = True , args = scenario.args) \
+        dirs.extend([Object(src = x, valid = True , **data) \
                          for x in expand(scenario.okdirs)])
-        dirs.extend([Object(src = x, valid = False, args = scenario.args) \
+        dirs.extend([Object(src = x, valid = False, **data) \
                          for x in expand(scenario.kodirs)])
         dirs = [x for x in dirs if x.src not in scenario.exclude]
         dirs = map(lambda x : gather(x, scenario), dirs)
@@ -310,7 +315,7 @@ def _main():
         import concurrent.futures as futures
 
     if options.jobs > 1:
-        with futures.ThreadPoolExecutor(options.jobs) as executor:
+        with futures.ThreadPoolExecutor(options.jobs, thread_name_prefix = 'Thread') as executor:
             result = list(executor.map(
                 lambda config : _run_test(config, options),
                 allscripts))
@@ -341,4 +346,8 @@ def _main():
 
 # --------------------------------------------------------------------
 if __name__ == '__main__':
-    _main()
+    try:
+        _main()
+    except KeyboardInterrupt:
+        print('interrupted', file = sys.stderr)
+        exit(127)

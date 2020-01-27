@@ -1,0 +1,5 @@
+#! /bin/bash
+
+set -ex
+
+exec $(dirname $0)/../jasminc.native -checksafety "$@"

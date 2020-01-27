@@ -1,0 +1,26 @@
+export fn adcx64 (reg u64 x, reg u64 y) -> reg u64 {
+   reg bool of, cf sf, pf, zf;
+   reg u64 r, aux, hi, lo;
+   of, cf, sf, pf, zf, x = #x86_ADD(x, y);
+   cf, x = #x86_ADCX(x, y, cf);
+   of, x = #x86_ADOX(x, y, of);
+   aux = y;
+   (hi,lo) = #x86_MULX(aux, x);
+   r = hi + lo;
+   return r;
+}
+
+export fn adcx32 (reg u32 x, reg u32 y) -> reg u32 {
+   reg bool of, cf sf, pf, zf;
+   reg u32 r, aux, hi, lo;
+   of, cf, sf, pf, zf, x = #x86_ADD_32(x, y);
+   cf, x = #x86_ADCX_32(x, y, cf);
+   of, x = #x86_ADOX_32(x, y, of);
+   aux = y;
+   (hi,lo) = #x86_MULX_32(aux, x);
+   r = hi + lo;
+   return r;
+}
+
+   
+   

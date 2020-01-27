@@ -27,6 +27,11 @@ compiler/opam
 compiler/CIL/.keep
 compiler/config/tests.config
 
+# EasyCrypt library
+eclib/Makefile
+eclib/tests.config
+find:eclib:*.ec
+
 # Tests
 find:compiler/examples:*.mil
 

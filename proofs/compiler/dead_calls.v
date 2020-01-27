@@ -22,7 +22,7 @@ with i_calls_r (c : Sp.t) (i : instr_r) {struct i} : Sp.t :=
   | Copn   _  _  _  _ => c
   | Cif    _  c1 c2   => c_calls (c_calls c c1) c2
   | Cfor   _  _  c1   => c_calls c c1
-  | Cwhile c1 _  c2   => c_calls (c_calls c c1) c2
+  | Cwhile _ c1 _  c2   => c_calls (c_calls c c1) c2
   | Ccall  _  _  f  _ => Sp.add f c
   end.
 

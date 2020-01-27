@@ -57,7 +57,7 @@ Fixpoint unroll_i (i:instr) : cmd :=
       flatten cs 
     | _, _       => [:: MkI ii (Cfor i (dir, low, hi) c') ]
     end     
-  | Cwhile c e c'  => [:: MkI ii (Cwhile (unroll_cmd unroll_i c) e (unroll_cmd unroll_i c')) ]
+  | Cwhile a c e c'  => [:: MkI ii (Cwhile a (unroll_cmd unroll_i c) e (unroll_cmd unroll_i c')) ]
   | Ccall _ _ _ _  => [:: i ]
   end.
 

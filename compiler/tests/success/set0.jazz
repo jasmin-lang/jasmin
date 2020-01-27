@@ -1,0 +1,33 @@
+export fn foo (reg u64 x) -> reg u64 {
+   reg u8 x8;
+   reg u16 x16;
+   reg u32 x32;
+   reg u64 x64;
+   reg u128 x128;
+   reg u256 x256;
+   reg u64 r, tmp;
+   x8 = #set0_8();
+   r = ((64s)x8);
+   x16 = #set0_16();
+   tmp = ((64s)x16);
+   r += tmp;
+   x32 = #set0_32();
+   tmp = ((64s)x32);
+   r += tmp;
+   x64 = #set0_64();
+   tmp = ((64s)x64);
+   r += tmp;
+   x128 = #set0_128();
+   tmp = #x86_VPEXTR_64(x128, 0);
+   r += tmp;
+   x256 = #set0_256();
+   x128 = #x86_VEXTRACTI128(x256, 0);
+   tmp = #x86_VPEXTR_64(x128, 0);
+   r += tmp;
+
+
+
+
+   return r;
+
+}

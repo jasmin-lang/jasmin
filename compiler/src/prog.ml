@@ -48,15 +48,15 @@ type 'expr gty =
 type 'ty gexpr =
   | Pconst of B.zint
   | Pbool  of bool
-  | Parr_init of wsize * B.zint
+  | Parr_init of B.zint
   | Pvar   of 'ty gvar_i
   | Pglobal of wsize * Name.t
-  | Pget   of 'ty gvar_i * 'ty gexpr
+  | Pget   of wsize * 'ty gvar_i * 'ty gexpr
   | Pload  of wsize * 'ty gvar_i * 'ty gexpr
   | Papp1  of E.sop1 * 'ty gexpr
   | Papp2  of E.sop2 * 'ty gexpr * 'ty gexpr
   | PappN of E.opN * 'ty gexpr list
-  | Pif    of 'ty gexpr * 'ty gexpr * 'ty gexpr
+  | Pif    of 'ty * 'ty gexpr * 'ty gexpr * 'ty gexpr
 
 type 'ty gexprs = 'ty gexpr list
 
@@ -66,6 +66,7 @@ let u32  = Bty (U U32)
 let u64  = Bty (U U64)
 let u128 = Bty (U U128)
 let u256 = Bty (U U256)
+let tu ws = Bty (U ws)
 let tbool = Bty Bool
 let tint  = Bty Int
 
@@ -85,7 +86,7 @@ type 'ty glval =
  | Lnone of L.t * 'ty
  | Lvar  of 'ty gvar_i
  | Lmem  of wsize * 'ty gvar_i * 'ty gexpr
- | Laset of 'ty gvar_i * 'ty gexpr
+ | Laset of wsize * 'ty gvar_i * 'ty gexpr
 
 type 'ty glvals = 'ty glval list
 
@@ -108,7 +109,7 @@ type ('ty,'info) ginstr_r =
   | Copn   of 'ty glvals * assgn_tag * Expr.sopn * 'ty gexprs
   | Cif    of 'ty gexpr * ('ty,'info) gstmt * ('ty,'info) gstmt
   | Cfor   of 'ty gvar_i * 'ty grange * ('ty,'info) gstmt
-  | Cwhile of ('ty,'info) gstmt * 'ty gexpr * ('ty,'info) gstmt
+  | Cwhile of E.align * ('ty,'info) gstmt * 'ty gexpr * ('ty,'info) gstmt
   | Ccall  of inline_info * 'ty glvals * funname * 'ty gexprs
 
 and ('ty,'info) ginstr = {
@@ -201,11 +202,11 @@ and pexpr_equal e1 e2 =
  | Pbool b1, Pbool b2 -> b1 = b2
  | Pvar v1, Pvar v2 -> PV.equal (L.unloc v1) (L.unloc v2)
  | Pglobal (s1, n1), Pglobal (s2, n2) -> s1 = s2 && Name.equal n1 n2
- | Pget(v1,e1), Pget(v2,e2) -> PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
+ | Pget(b1,v1,e1), Pget(b2,v2,e2) -> b1 = b2 && PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
  | Pload(b1,v1,e1), Pload(b2,v2,e2) -> b1 = b2 && PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
  | Papp1(o1,e1), Papp1(o2,e2) -> o1 = o2 && pexpr_equal e1 e2
  | Papp2(o1,e11,e12), Papp2(o2,e21,e22) -> o1 = o2 &&  pexpr_equal e11 e21 && pexpr_equal e12 e22
- | Pif(e11,e12,e13), Pif(e21,e22,e23) -> pexpr_equal e11 e21 && pexpr_equal e12 e22 && pexpr_equal e13 e23 
+ | Pif(_,e11,e12,e13), Pif(_,e21,e22,e23) -> pexpr_equal e11 e21 && pexpr_equal e12 e22 && pexpr_equal e13 e23 
  | _, _ -> false
 
 (* ------------------------------------------------------------------------ *)
@@ -262,20 +263,20 @@ module Hf = Hash.Make(F)
 let rec rvars_e s = function
   | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ -> s
   | Pvar x         -> Sv.add (L.unloc x) s
-  | Pget(x,e)      -> rvars_e (Sv.add (L.unloc x) s) e
+  | Pget(_,x,e)    -> rvars_e (Sv.add (L.unloc x) s) e
   | Pload(_,x,e)   -> rvars_e (Sv.add (L.unloc x) s) e
   | Papp1(_, e)    -> rvars_e s e
   | Papp2(_,e1,e2) -> rvars_e (rvars_e s e1) e2
   | PappN (_, es) -> rvars_es s es
-  | Pif(e,e1,e2)   -> rvars_e (rvars_e (rvars_e s e) e1) e2
+  | Pif(_,e,e1,e2)   -> rvars_e (rvars_e (rvars_e s e) e1) e2
 
 and rvars_es s es = List.fold_left rvars_e s es
 
 let rec rvars_lv s = function
- | Lnone _      -> s
- | Lvar x       -> Sv.add (L.unloc x) s
+ | Lnone _       -> s
+ | Lvar x        -> Sv.add (L.unloc x) s
  | Lmem (_,x,e)
- | Laset (x,e)  -> rvars_e (Sv.add (L.unloc x) s) e
+ | Laset (_,x,e) -> rvars_e (Sv.add (L.unloc x) s) e
 
 let rvars_lvs s lvs = List.fold_left rvars_lv s lvs
 
@@ -286,7 +287,7 @@ let rec rvars_i s i =
   | Cif(e,c1,c2)   -> rvars_c (rvars_c (rvars_e s e) c1) c2
   | Cfor(x,(_,e1,e2), c) ->
     rvars_c (rvars_e (rvars_e (Sv.add (L.unloc x) s) e1) e2) c
-  | Cwhile(c,e,c')    -> rvars_c (rvars_e (rvars_c s c') e) c
+  | Cwhile(_,c,e,c')    -> rvars_c (rvars_e (rvars_c s c') e) c
   | Ccall(_,x,_,e) -> rvars_es (rvars_lvs s x) e
 
 and rvars_c s c =  List.fold_left rvars_i s c
@@ -329,6 +330,8 @@ let size_of_ws = function
   | U128 -> 16
   | U256 -> 32
 
+let uptr = U64 (* Warning this should be arch dependent *)
+
 let int_of_pe =
   function
   | PE1   -> 1
@@ -354,6 +357,7 @@ let ws_of_ty = function
   | Bty (U ws) -> ws
   | _ -> assert false
 
+let arr_size ws i = size_of_ws ws * i
 (* -------------------------------------------------------------------- *)
 (* Functions over variables                                             *)
 
@@ -387,7 +391,7 @@ let expr_of_lval = function
   | Lnone _         -> None
   | Lvar x          -> Some (Pvar x)
   | Lmem (ws, x, e) -> Some (Pload(ws,x,e))
-  | Laset (x, e)    -> Some (Pget(x,e))
+  | Laset(ws, x, e) -> Some (Pget(ws,x,e))
 
 (* -------------------------------------------------------------------- *)
 (* Functions over instruction                                           *)
