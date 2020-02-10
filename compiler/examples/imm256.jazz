@@ -11,9 +11,9 @@ t = zero128;
 for i = 0 to 2 {
   for j = 0 to 2 {
     n = (c >> 256u (64 * (2 * i + j))) & ((1 << 256u 64) - 1);
-    t = #x86_VPINSR_2u64(t, n, j);
+    t = #VPINSR_2u64(t, n, j);
   }
-  r = #x86_VINSERTI128(r, t, i);
+  r = #VINSERTI128(r, t, i);
 }
 return r;
 }

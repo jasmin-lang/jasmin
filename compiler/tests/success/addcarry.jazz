@@ -13,7 +13,7 @@ cf, z = z + z + false;
 cf, z = z + z + cf;
 cf, z = #adc(z,z,false);
 // of cf xf pf zf
-_,cf,_,_,_,z = #x86_ADC(z,z,cf);
-z = #x86_ADC(z,z,cf);
+_,cf,_,_,_,z = #ADC(z,z,cf);
+z = #ADC(z,z,cf);
 return z;
 }

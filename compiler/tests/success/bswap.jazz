@@ -2,7 +2,7 @@ export
 fn f(reg u32 a) -> reg u32 {
   reg u32 b, c;
   b = a;
-  c = #x86_BSWAP_32(b);
+  c = #BSWAP_32(b);
   return c;
 }
 
@@ -10,6 +10,6 @@ export
 fn g(reg u64 p) {
   reg u64 a, b;
   a = [p + 0];
-  b = #x86_BSWAP(a);
+  b = #BSWAP(a);
   [p + 8] = b;
 }

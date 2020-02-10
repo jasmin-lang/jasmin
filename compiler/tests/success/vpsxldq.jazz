@@ -4,13 +4,13 @@ reg u128 a, b, c;
 reg u256 d, e, f;
 
 a = (u128)[p + 0];
-b = #x86_VPSLLDQ_128(a, 1);
-c = #x86_VPSRLDQ_128(b, 2);
+b = #VPSLLDQ_128(a, 1);
+c = #VPSRLDQ_128(b, 2);
 (u128)[p + 16] = c;
 
 d = (u256)[p + 0];
-e = #x86_VPSLLDQ_256(d, 3);
-f = #x86_VPSRLDQ_256(e, 4);
+e = #VPSLLDQ_256(d, 3);
+f = #VPSRLDQ_256(e, 4);
 (u256)[p + 32] = f;
 }
 

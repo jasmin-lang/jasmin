@@ -1,6 +1,6 @@
 (* ------------------------------------------------------------------------ *)
 open Utils
-open Type
+open Wsize
 module E = Expr
 module L = Location
 module B = Bigint
@@ -402,8 +402,8 @@ let destruct_move i =
   | _                 -> assert false
 
 (* -------------------------------------------------------------------- *)
-let clamp (sz : Type.wsize) (z : Bigint.zint) =
+let clamp (sz : wsize) (z : Bigint.zint) =
   Bigint.erem z (Bigint.lshift Bigint.one (int_of_ws sz))
 
-let clamp_pe (sz : Type.pelem) (z : Bigint.zint) =
+let clamp_pe (sz : pelem) (z : Bigint.zint) =
   Bigint.erem z (Bigint.lshift Bigint.one (int_of_pe sz))

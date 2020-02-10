@@ -6,10 +6,10 @@ reg bool cf, of;
 
 a = x;
 d = 4;
-_, _, a = #x86_ROL(a, d);
-of, cf, b = #x86_ROL(a, 2);
+_, _, a = #ROL(a, d);
+of, cf, b = #ROL(a, 2);
 cf, b += x + cf;
-_, _, c = #x86_ROR(b, d);
-_, _, c = #x86_ROR(c, 3);
+_, _, c = #ROR(b, d);
+_, _, c = #ROR(c, 3);
 return c;
 }

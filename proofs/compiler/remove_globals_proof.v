@@ -229,7 +229,7 @@ Module EXTEND. Section PROOFS.
     case: e1 => // - [] // w [] // z; rewrite /add_glob.
     case:ifPn => hhas1; first by move=> [<-].
     case:ifPn => // /hasP hhas2 [<-] g v.
-    rewrite /get_global /get_global_value /=. 
+    rewrite /get_global /get_global_word /get_global_Z /=.
     case:eqP => heq //;subst g.
     case ha : assoc => [|// ].
     have /assoc_mem hin := ha; elim hhas2;eauto.
@@ -469,7 +469,7 @@ Module RGP. Section PROOFS.
     find_glob ii xi gd sz z = ok g ->
     get_global gd g =  ok (Vword (wrepr sz z)).
   Proof.
-    rewrite /find_glob /get_global /get_global_value.
+    rewrite /find_glob /get_global /get_global_word /get_global_Z.
     elim: gd uniq_gd => //= -[g' z'] gd hrec /andP /= [hg' huniq]; case: ifPn => /= /andP.
     + by move=> [/eqP ? /eqP ? [?]] {hrec};subst; rewrite eq_refl.
     move=> hn /(hrec huniq) hget {hrec}.

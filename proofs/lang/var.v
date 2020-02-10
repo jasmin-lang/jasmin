@@ -26,7 +26,7 @@
 (* ** Imports and settings *)
 Require Import Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import strings utils gen_map type.
+Require Import strings utils gen_map type ident.
 Require Import Utf8.
 
 Set Implicit Arguments.
@@ -322,13 +322,7 @@ End MvMake.
 (* ** Types for idents
  * -------------------------------------------------------------------- *)
 
-Module Ident.
 
-  Definition ident := [eqType of string].
-  Module Mid := Ms.
-
-End Ident.
- 
 Module Var := MvMake Ident.
 Export Var. (* Enrico: On pert les structures canoniques si pas de import *)
 Notation var   := Var.var.

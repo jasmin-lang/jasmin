@@ -52,9 +52,9 @@ reg u16 b;
 reg u32 c;
 reg u64 d;
 d = x;
-c = #x86_MOV_32(d);
-b = #x86_MOV_16(c);
-a = #x86_ADD_8(b, b);
+c = #MOV_32(d);
+b = #MOV_16(c);
+a = #ADD_8(b, b);
 
 return a;
 }

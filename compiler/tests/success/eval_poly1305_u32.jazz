@@ -154,7 +154,7 @@ fn poly1305(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k) -> reg u64 {
     } else {
       for i = 0 to 17 {
         tmp32 = #set0_32();
-        of, cf, sf, _, zf = #x86_CMP(inlen, i);
+        of, cf, sf, _, zf = #CMP(inlen, i);
         if !zf && (sf ? of : !of) { // inlen > i
           tmp = (u8)[in + i];
           tmp32 = (32u) tmp;

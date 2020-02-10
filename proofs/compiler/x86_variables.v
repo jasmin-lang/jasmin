@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import low_memory x86_sem compiler_util.
+Require Import low_memory x86_sem x86_decl compiler_util.
 Import Utf8 String.
 Import all_ssreflect.
 Import xseq expr.
@@ -144,21 +144,21 @@ Proof. by rewrite /rflag_of_string !rflags_stringsE; apply: inj_assoc. Qed.
 
 (* -------------------------------------------------------------------- *)
 
-Definition var_of_register r := 
-  {| vtype := sword64 ; vname := string_of_register r |}. 
+Definition var_of_register r :=
+  {| vtype := sword64 ; vname := string_of_register r |}.
 
 Definition var_of_xmm_register r :=
   {| vtype := sword256 ; vname := string_of_xmm_register r |}.
 
-Definition var_of_flag f := 
-  {| vtype := sbool; vname := string_of_rflag f |}. 
+Definition var_of_flag f :=
+  {| vtype := sbool; vname := string_of_rflag f |}.
 
 Lemma var_of_register_inj x y :
   var_of_register x = var_of_register y →
   x = y.
 Proof. by move=> [];apply inj_string_of_register. Qed.
 
-Lemma var_of_flag_inj x y : 
+Lemma var_of_flag_inj x y :
   var_of_flag x = var_of_flag y →
   x = y.
 Proof. by move=> [];apply inj_string_of_rflag. Qed.
@@ -167,7 +167,7 @@ Lemma var_of_register_var_of_flag r f :
   ¬ var_of_register r = var_of_flag f.
 Proof. by case: r;case: f. Qed.
 
-Definition register_of_var (v:var) : option register := 
+Definition register_of_var (v:var) : option register :=
   if v.(vtype) == sword64 then reg_of_string v.(vname)
   else None.
 
@@ -225,6 +225,7 @@ Variant compiled_variable :=
 Scheme Equality for compiled_variable.
 
 Definition compiled_variable_eqMixin := comparableMixin compiled_variable_eq_dec.
+
 Canonical compiled_variable_eqType := EqType compiled_variable compiled_variable_eqMixin.
 
 Definition compile_var (v: var) : option compiled_variable :=
@@ -459,46 +460,41 @@ Definition addr_of_pexpr ii s (e: pexpr) :=
     cierror ii (Cerr_assembler (AsmErr_string "Invalid address expression"))
   end.
 
-Definition oprd_of_pexpr ii (e: pexpr) :=
+Definition assemble_word ii (sz:wsize) max_imm (e:pexpr) :=
   match e with
   | Papp1 (Oword_of_int sz') (Pconst z) =>
-    Let _ := assert (sz' ≤ Uptr)%CMP
-                    (ii, Cerr_assembler (AsmErr_string "Invalid pexpr for oprd: invalid cast")) in
-    let w := sign_extend Uptr (wrepr sz' z) in
-    ciok (Imm_op w)
-  | Pvar v =>
-    Let s := reg_of_var ii v in
-    ciok (Reg_op s)
+    match max_imm with
+    | None =>  cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for oprd, constant not allowed"))
+    | Some sz1 =>
+      let w := wrepr sz1 z in 
+      let w1 := sign_extend sz w in
+      let w2 := zero_extend sz (wrepr sz' z) in
+      Let _ := assert (w1 == w2) 
+                (ii, Cerr_assembler (AsmErr_string "Invalid pexpr for oprd: out of bound constant")) in 
+      ciok (Imm w)
+    end
+  | Pvar x =>
+    if xmm_register_of_var x is Some r then ok (XMM r)
+    else Let s := reg_of_var ii x in
+    ok (Reg s)
   | Pglobal g =>
-    ciok (Glo_op g)
-  | Pload sz' v e => (* FIXME: can we recognize more expression for e ? *)
-(*    Let _ := 
-      if sz == sz' then ok tt 
-      else cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for oprd: bad load cast")) in *)
-     Let s := reg_of_var ii v in
-     Let w := addr_of_pexpr ii s e in
-     ciok (Adr_op w)
-  | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for oprd"))
+    ok (Glob g)
+  | Pload sz' v e =>
+    if (sz == sz') then
+      Let s := reg_of_var ii v in
+      Let w := addr_of_pexpr ii s e in
+      ok (Adr w)
+    else
+    cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for word: invalid Load size"))
+  | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for word"))
   end.
 
-Definition rm128_of_pexpr_error ii e : ciexec rm128 :=
-  cierror ii (Cerr_assembler (AsmErr_string
-  match e with
-  | Some x => "rm128_of_pexpr: bad variable " ++ vname x
-  | None => "rm128_of_pexpr"
-  end)).
-
-Definition rm128_of_pexpr ii (e: pexpr) : ciexec rm128 :=
-  match e with
-  | Pvar x =>
-    if xmm_register_of_var x is Some r then ciok (RM128_reg r)
-    else rm128_of_pexpr_error ii (Some (v_var x))
-  | Pload _ v e =>
-     Let s := reg_of_var ii v in
-     Let w := addr_of_pexpr ii s e in
-     ciok (RM128_mem w)
-  | Pglobal g => ciok (RM128_glo g)
-  | _ => rm128_of_pexpr_error ii None
+Definition arg_of_pexpr ii (ty:stype) max_imm (e:pexpr) :=
+  match ty with
+  | sbool => Let c := assemble_cond ii e in ok (Condt c)
+  | sword sz => assemble_word ii sz max_imm e
+  | sint  => cierror ii (Cerr_assembler (AsmErr_string "sint ???"))
+  | sarr _ => cierror ii (Cerr_assembler (AsmErr_string "sarr ???"))
   end.
 
 Lemma assemble_cond_eq_expr ii pe pe' c :
@@ -613,35 +609,29 @@ by case: op => // - [] //;
 rewrite /addr_of_pexpr /= (addr_ofs_eq_expr h1) (addr_ofs_eq_expr h2).
 Qed.
 
-Lemma oprd_of_pexpr_eq_expr ii pe pe' o :
+Lemma assemble_word_eq_expr ii pe pe' sz1 max_imm o :
   eq_expr pe pe' →
-  oprd_of_pexpr ii pe = ok o →
-  oprd_of_pexpr ii pe = oprd_of_pexpr ii pe'.
+  assemble_word ii sz1 max_imm pe = ok o →
+  assemble_word ii sz1 max_imm pe = assemble_word ii sz1 max_imm pe'.
 Proof.
-elim: pe pe' o => [ z | b | n | x | g | ws x pe ih | sz x pe ih | op pe ih | op pe1 ih1 pe2 ih2 | op pes ih | t pe1 ih1 pe2 ih2 pe3 ih3 ]
-  [ z' | b' | n' | x' | g' | ws' x' pe' | sz' x' pe' | op' pe' | op' pe1' pe2' | op' pes' | t' pe1' pe2' pe3' ] // o;
-  try (move/eqP -> => //).
-- by case: x => x xi /eqP /= ->.
-- move=> /= /andP [] /andP [] /eqP ? /eqP hx h; rewrite -/eq_expr in h.
-  case: x hx => x xi /= -> {x}.
-  move: (h) => /ih {ih}.
-  case: (reg_of_var _ _) => //= r ih.
-  t_xrbindP => a ha _.
-  by rewrite (addr_of_pexpr_eq_expr h ha).
-move=> /= /andP [] /eqP <- {op'}.
-move => h; move: (h) => /ih {ih} ih.
-by case: pe h ih => // z; case: pe' => // z' /eqP ->.
+case: pe pe' o =>
+  [ z | b | n | x | g | ws x pe | sz x pe | op pe | op pe1 pe2 | op pes | t pe1 pe2 pe3 ]
+  [ z' | b' | n' | x' | g' | ws' x' pe' | sz' x' pe' | op' pe' | op' pe1' pe2' | op' pes' | t' pe1' pe2' pe3' ] // o.
++ by move/eq_expr_var=> /= ->.
++ by move/eq_expr_global => ->.
++ case/eq_expr_load=> <- eq_x eq_e /=; case: ifP => // /eqP _.
+  t_xrbindP => r okr a oka oE; subst o; rewrite -{}eq_x.
+  by rewrite okr /= (addr_of_pexpr_eq_expr eq_e oka).
++ case/eq_expr_app1=> <- eq_e; case: op => //=.
+  by move=> w; case: pe eq_e => // z /eq_expr_constL -> /=.
 Qed.
 
-Lemma rm128_of_pexpr_eq_expr ii pe pe' rm :
+Lemma arg_of_pexpr_eq_expr ii ty max_imm pe pe' o :
   eq_expr pe pe' →
-  rm128_of_pexpr ii pe = ok rm →
-  rm128_of_pexpr ii pe = rm128_of_pexpr ii pe'.
+  arg_of_pexpr ii ty max_imm pe = ok o →
+  arg_of_pexpr ii ty max_imm pe = arg_of_pexpr ii ty max_imm pe'.
 Proof.
-elim: pe pe' rm => [ z | b | n | x | g | ws x pe ih | sz x pe ih | op pe ih | op pe1 ih1 pe2 ih2 | op pes ih | t pe1 ih1 pe2 ih2 pe3 ih3 ]
-  [ z' | b' | n' | x' | g' | ws' x' pe' | sz' x' pe' | op' pe' | op' pe1' pe2' | op' pes' | t' pe1' pe2' pe3' ] // rm.
-- by case: x => x xi /eqP /= ->.
-- by move/eqP => <-.
-move => /= /andP [] /andP [] /eqP _ /eqP <- rec.
-by t_xrbindP => r -> a ok_a _ /=; rewrite (addr_of_pexpr_eq_expr rec ok_a).
+case: ty => //= [ | sz] heq; t_xrbindP.
++ by move=> c /(assemble_cond_eq_expr heq) ->. 
+by move=> /(assemble_word_eq_expr heq) ->.
 Qed.

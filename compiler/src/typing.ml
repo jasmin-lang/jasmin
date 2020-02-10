@@ -6,6 +6,7 @@ module L = Location
 module S = Syntax
 module E = Expr
 module P = Prog
+module W = Wsize
 module T = Type
 
 (* -------------------------------------------------------------------- *)
@@ -45,6 +46,8 @@ type tyerror =
   | PrimNoSize of S.symbol
   | PrimNotVector of S.symbol
   | PrimIsVector of S.symbol
+  | PrimIsX of S.symbol
+  | PrimNotX of S.symbol
   | ReturnLocalStack    of S.symbol
   | BadVariableKind     of P.pvar_i * P.v_kind
   | PackSigned
@@ -149,8 +152,13 @@ let pp_tyerror fmt (code : tyerror) =
   | PrimNotVector s ->
       F.fprintf fmt "primitive does not operate on vectors: `%s'" s
 
+  | PrimNotX s ->
+      F.fprintf fmt "primitive does not need  two word sizes annotations: `%s'" s
+
   | PrimIsVector s ->
       F.fprintf fmt "primitive needs a vector size annotation: `%s'" s
+  | PrimIsX s ->
+      F.fprintf fmt "primitive needs two word sizes annotations: `%s'" s
 
   | ReturnLocalStack v ->
       F.fprintf fmt "can not return the local stack variable %s" v
@@ -245,12 +253,12 @@ end
 (* -------------------------------------------------------------------- *)
 let tt_ws (ws : S.wsize) =
   match ws with
-  | `W8   -> T.U8
-  | `W16  -> T.U16
-  | `W32  -> T.U32
-  | `W64  -> T.U64
-  | `W128 -> T.U128
-  | `W256 -> T.U256
+  | `W8   -> W.U8
+  | `W16  -> W.U16
+  | `W32  -> W.U32
+  | `W64  -> W.U64
+  | `W128 -> W.U128
+  | `W256 -> W.U256
 
 (* -------------------------------------------------------------------- *)
 let tt_sto (sto : S.pstorage) : P.v_kind =
@@ -345,8 +353,8 @@ let check_sig_lvs ?loc sig_ lvs =
 
 (* -------------------------------------------------------------------- *)
 let tt_sign = function
-  | `Signed -> T.Signed
-  | `Unsigned -> T.Unsigned
+  | `Signed -> W.Signed
+  | `Unsigned -> W.Unsigned
   
 (* -------------------------------------------------------------------- *)
 let tt_as_bool = check_ty TPBool
@@ -359,7 +367,7 @@ let tt_as_array ((loc, ty) : L.t * P.pty) : P.pty =
   | _ -> rs_tyerror ~loc (InvalidType (ty, TPArray))
 
 (* -------------------------------------------------------------------- *)
-let tt_as_word ((loc, ty) : L.t * P.pty) : T.wsize =
+let tt_as_word ((loc, ty) : L.t * P.pty) : W.wsize =
   match ty with
   | P.Bty (P.U ws) -> ws
   | _ -> rs_tyerror ~loc (InvalidType (ty, TPWord))
@@ -368,10 +376,10 @@ let tt_as_word ((loc, ty) : L.t * P.pty) : T.wsize =
 
 type ty_op_kind = 
   | OpKE of E.cmp_kind 
-  | OpKV of T.signedness * T.velem * T.wsize 
+  | OpKV of W.signedness * W.velem * W.wsize 
    
-let wsize_le = Utils0.cmp_le T.wsize_cmp
-let wsize_min = Utils0.cmp_min T.wsize_cmp
+let wsize_le = Utils0.cmp_le W.wsize_cmp
+let wsize_min = Utils0.cmp_min W.wsize_cmp
 let wsize_max s1 s2 = if wsize_le s1 s2 then s2 else s1
 
 let max_ty ty1 ty2 =
@@ -379,21 +387,21 @@ let max_ty ty1 ty2 =
   match ty1, ty2 with
   | P.Bty P.Int, P.Bty (P.U _) -> Some ty2
   | P.Bty (P.U _), P.Bty P.Int -> Some ty1
-  | P.Bty (P.U w1), P.Bty (P.U w2) -> Some (P.Bty (P.U (Utils0.cmp_min T.wsize_cmp w1 w2)))
+  | P.Bty (P.U w1), P.Bty (P.U w2) -> Some (P.Bty (P.U (Utils0.cmp_min W.wsize_cmp w1 w2)))
   | _    , _     -> None
 
 let tt_vsize_op loc op (vs:S.vsize) (ve:S.vesize)  = 
   match vs, ve with
   (* 128 *)
-  | `V16, `W8  -> T.VE8 , T.U128
-  | `V8 , `W16 -> T.VE16, T.U128  
-  | `V4 , `W32 -> T.VE32, T.U128
-  | `V2 , `W64 -> T.VE64, T.U128
+  | `V16, `W8  -> W.VE8 , W.U128
+  | `V8 , `W16 -> W.VE16, W.U128  
+  | `V4 , `W32 -> W.VE32, W.U128
+  | `V2 , `W64 -> W.VE64, W.U128
   (* 256 *) 
-  | `V32, `W8  -> T.VE8 , T.U256
-  | `V16, `W16 -> T.VE16, T.U256  
-  | `V8 , `W32 -> T.VE32, T.U256
-  | `V4 , `W64 -> T.VE64, T.U256
+  | `V32, `W8  -> W.VE8 , W.U256
+  | `V16, `W16 -> W.VE16, W.U256  
+  | `V8 , `W32 -> W.VE32, W.U256
+  | `V4 , `W64 -> W.VE64, W.U256
   | _   ,  _   -> rs_tyerror ~loc (InvalidOperator op)
 
 let op_info_dfl exn ty s (intok, (minws, maxws)) = 
@@ -416,7 +424,7 @@ let check_op loc op cmp sz =
 let op_info exn op (castop:S.castop) ty ws_cmp vs_cmp =
   match castop with
   | None                -> 
-    let s = T.Unsigned in
+    let s = W.Unsigned in
     op_info_dfl exn ty s ws_cmp
 
   | Some c -> 
@@ -435,7 +443,7 @@ let op_info exn op (castop:S.castop) ty ws_cmp vs_cmp =
     | CVS(vs,s,ve) ->
       let s = tt_sign s in
       let ve, ws = tt_vsize_op loc op vs ve in
-      check_op loc op vs_cmp (T.wsize_of_velem ve);
+      check_op loc op vs_cmp (W.wsize_of_velem ve);
       OpKV(s, ve, ws)
 
   
@@ -447,12 +455,12 @@ let op_kind_of_cmp = function
 
 type 'o op_info = { 
     opi_op   : ty_op_kind -> 'o;
-    opi_wcmp : bool * (T.wsize * T.wsize);  
-    opi_vcmp : (T.wsize * T.wsize) option;
+    opi_wcmp : bool * (W.wsize * W.wsize);  
+    opi_vcmp : (W.wsize * W.wsize) option;
   }
 
-let cmp_8_64 = (T.U8, T.U64)
-let cmp_8_256 = (T.U8, T.U256)
+let cmp_8_64 = (W.U8, W.U64)
+let cmp_8_256 = (W.U8, W.U256)
 
 let mk_cmp_kind eop vop = function
   | OpKE c        -> eop c
@@ -516,9 +524,9 @@ let shr_info =
   let mk = function
     | OpKE (Cmp_int)     -> assert false 
     | OpKE (Cmp_w(s,ws)) -> 
-      if s = T.Unsigned then E.Olsr ws else E.Oasr ws
+      if s = W.Unsigned then E.Olsr ws else E.Oasr ws
     | OpKV (s,ve,ws)   -> 
-      if s = T.Unsigned then E.Ovlsr(ve,ws) else E.Ovasr(ve,ws) in
+      if s = W.Unsigned then E.Ovlsr(ve,ws) else E.Ovasr(ve,ws) in
   { opi_op   = mk;
     opi_wcmp = false, cmp_8_256;
     opi_vcmp = Some cmp_8_64;
@@ -608,7 +616,7 @@ let cast loc e ety ty =
   match ety, ty with
   | P.Bty P.Int , P.Bty (P.U w) -> P.Papp1 (E.Oword_of_int w, e)
   | P.Bty (P.U w), P.Bty P.Int -> P.Papp1 (E.Oint_of_word w, e)
-  | P.Bty (P.U w1), P.Bty (P.U w2) when T.wsize_cmp w1 w2 <> Datatypes.Lt -> e
+  | P.Bty (P.U w1), P.Bty (P.U w2) when W.wsize_cmp w1 w2 <> Datatypes.Lt -> e
   | _, _ when P.pty_equal ety ty -> e
   | _  ->  rs_tyerror ~loc (InvalidCast(ety,ty))
 
@@ -668,24 +676,24 @@ let tt_op1 (loc1, (e1, ety1)) { L.pl_desc = pop; L.pl_loc = loc } =
 (* -------------------------------------------------------------------- *)
 let wsize_of_bits ~loc =
   function
-  | 8 -> T.U8
-  | 16 -> T.U16
-  | 32 -> T.U32
-  | 64 -> T.U64
-  | 128 -> T.U128
-  | 256 -> T.U256
+  | 8 -> W.U8
+  | 16 -> W.U16
+  | 32 -> W.U32
+  | 64 -> W.U64
+  | 128 -> W.U128
+  | 256 -> W.U256
   | n -> rs_tyerror ~loc (PackWrongWS n)
 
 let pelem_of_bits ~loc =
   function
-  | 1 -> T.PE1
-  | 2 -> T.PE2
-  | 4 -> T.PE4
-  | 8 -> T.PE8
-  | 16 -> T.PE16
-  | 32 -> T.PE32
-  | 64 -> T.PE64
-  | 128 -> T.PE128
+  | 1 -> W.PE1
+  | 2 -> W.PE2
+  | 4 -> W.PE4
+  | 8 -> W.PE8
+  | 16 -> W.PE16
+  | 32 -> W.PE32
+  | 64 -> W.PE64
+  | 128 -> W.PE128
   | n -> rs_tyerror ~loc (PackWrongPE n)
 
 (* Returns the size of the output word, the size of the elements,
@@ -738,7 +746,7 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
       let sz = tt_ws sz in
       let e, ws = cast_word (L.loc pe) sz e ety in
       let e = 
-        if T.wsize_cmp ws sz = Datatypes.Lt then 
+        if W.wsize_cmp ws sz = Datatypes.Lt then 
           let op =
             match sg with
             | `Unsigned -> E.Ozeroext (sz, ws)
@@ -798,8 +806,8 @@ and tt_mem_access ?(mode=`AllVar) (env : Env.env)
       let e = tt_expr_cast64 ~mode env e in
       match k with
       | `Add -> e
-      | `Sub -> Papp1(E.Oneg (E.Op_w T.U64), e) in
-  let ct = ct |> omap_dfl tt_ws T.U64 in
+      | `Sub -> Papp1(E.Oneg (E.Op_w U64), e) in
+  let ct = ct |> omap_dfl tt_ws U64 in
   (ct,L.mk_loc xlc x,e)
 
 (* -------------------------------------------------------------------- *)
@@ -894,108 +902,65 @@ let prim_sig (type a) p : a P.gty list * a P.gty list =
   List.map f (E.sopn_tin p)
 
 type prim_constructor =
-  | PrimP of T.wsize * (T.wsize -> Expr.sopn)
+  | PrimP of W.wsize * (W.wsize -> Expr.sopn)
   | PrimM of Expr.sopn
-  | PrimV of (T.velem -> T.wsize -> Expr.sopn)
+  | PrimV of (W.velem -> W.wsize -> Expr.sopn)
+  | PrimX of (W.wsize -> W.wsize -> Expr.sopn)
 
 let prim_string =
   let open Expr in
-  [ "mulu", PrimP (T.U64, fun sz -> Omulu sz);
-    "adc", PrimP (T.U64, fun sz -> Oaddcarry sz);
-    "sbb", PrimP (T.U64, fun sz -> Osubcarry sz);
-    "set0", PrimP (T.U64, fun sz -> Oset0 sz);
-    "x86_MOV", PrimP (T.U64, fun sz -> Ox86_MOV sz);
-    "x86_CMOVcc", PrimP (T.U64, fun sz -> Ox86_CMOVcc sz);
-    "x86_ADD", PrimP (T.U64, fun sz -> Ox86_ADD sz);
-    "x86_SUB", PrimP (T.U64, fun sz -> Ox86_SUB sz);
-    "x86_MUL", PrimP (T.U64, fun sz -> Ox86_MUL sz);
-    "x86_IMUL", PrimP (T.U64, fun sz -> Ox86_IMUL sz);
-    "x86_IMULt", PrimP (T.U64, fun sz -> Ox86_IMULt sz);
-    "x86_IMULtimm", PrimP (T.U64, fun sz -> Ox86_IMULtimm sz);
-    "x86_DIV", PrimP (T.U64, fun sz -> Ox86_DIV sz);
-    "x86_IDIV", PrimP (T.U64, fun sz -> Ox86_IDIV sz);
-    "x86_ADC", PrimP (T.U64, fun sz -> Ox86_ADC sz);
-    "x86_SBB", PrimP (T.U64, fun sz -> Ox86_SBB sz);
-    "x86_INC", PrimP (T.U64, fun sz -> Ox86_INC sz);
-    "x86_DEC", PrimP (T.U64, fun sz -> Ox86_DEC sz);
-    "x86_SETcc" , PrimM Ox86_SETcc;
-    "x86_BT", PrimP (T.U64, fun sz -> Ox86_BT sz);
-    "x86_LEA", PrimP (T.U64, fun sz -> Ox86_LEA sz);
-    "x86_TEST", PrimP (T.U64, fun sz -> Ox86_TEST sz);
-    "x86_CMP", PrimP (T.U64, fun sz -> Ox86_CMP sz);
-    "x86_AND", PrimP (T.U64, fun sz -> Ox86_AND sz);
-    "x86_ANDN", PrimP (T.U64, fun sz -> Ox86_ANDN sz);
-    "x86_OR", PrimP (T.U64, fun sz -> Ox86_OR sz);
-    "x86_XOR", PrimP (T.U64, fun sz -> Ox86_XOR sz);
-    "x86_NOT", PrimP (T.U64, fun sz -> Ox86_NOT sz);
-    "x86_ROL", PrimP (T.U64, fun sz -> Ox86_ROL sz);
-    "x86_ROR", PrimP (T.U64, fun sz -> Ox86_ROR sz);
-    "x86_SHL", PrimP (T.U64, fun sz -> Ox86_SHL sz);
-    "x86_SHR", PrimP (T.U64, fun sz -> Ox86_SHR sz);
-    "x86_SAR", PrimP (T.U64, fun sz -> Ox86_SAR sz);
-    "x86_SHLD", PrimP (T.U64, fun sz -> Ox86_SHLD sz);
-    "x86_SHRD", PrimP (T.U64, fun sz -> Ox86_SHRD sz);
-    "x86_ADCX", PrimP (T.U64, fun sz -> Ox86_ADCX sz);
-    "x86_ADOX", PrimP (T.U64, fun sz -> Ox86_ADOX sz);
-    "x86_MULX", PrimP (T.U64, fun sz -> Ox86_MULX sz);
-    "x86_BSWAP", PrimP (T.U64, fun sz -> Ox86_BSWAP sz);
-    "x86_MOVD", PrimP (T.U64, fun sz -> Ox86_MOVD sz);
-    "x86_VMOVDQU", PrimP (T.U128, fun sz -> Ox86_VMOVDQU sz);
-    "x86_VPAND", PrimP (T.U128, fun sz -> Ox86_VPAND sz);
-    "x86_VPANDN", PrimP (T.U128, fun sz -> Ox86_VPANDN sz);
-    "x86_VPOR", PrimP (T.U128, fun sz -> Ox86_VPOR sz);
-    "x86_VPXOR", PrimP (T.U128, fun sz -> Ox86_VPXOR sz);
-    "x86_VPADD", PrimV (fun ve sz -> Ox86_VPADD (ve, sz));
-    "x86_VPSUB", PrimV (fun ve sz -> Ox86_VPSUB (ve, sz));
-    "x86_VPMULL", PrimV (fun ve sz -> Ox86_VPMULL (ve, sz));
-    "x86_VPMULU", PrimP (T.U128, fun sz -> Ox86_VPMULU sz);
-    "x86_VPEXTR", PrimP (T.U64, fun sz -> Ox86_VPEXTR sz);
-    "x86_VPINSR", PrimV (fun ve _ -> Ox86_VPINSR ve);
-    "x86_VPSLL", PrimV (fun ve sz -> Ox86_VPSLL (ve, sz));
-    "x86_VPSRL", PrimV (fun ve sz -> Ox86_VPSRL (ve, sz));
-    "x86_VPSRA", PrimV (fun ve sz -> Ox86_VPSRA (ve, sz));
-    "x86_VPSLLV", PrimV (fun ve sz -> Ox86_VPSLLV (ve, sz));
-    "x86_VPSRLV", PrimV (fun ve sz -> Ox86_VPSRLV (ve, sz));
-    "x86_VPSLLDQ", PrimP (T.U128, fun sz -> Ox86_VPSLLDQ sz);
-    "x86_VPSRLDQ", PrimP (T.U128, fun sz -> Ox86_VPSRLDQ sz);
-    "x86_VPSHUFB", PrimP (T.U128, fun sz -> Ox86_VPSHUFB sz);
-    "x86_VPSHUFHW", PrimP (T.U128, fun sz -> Ox86_VPSHUFHW sz);
-    "x86_VPSHUFLW", PrimP (T.U128, fun sz -> Ox86_VPSHUFLW sz);
-    "x86_VPSHUFD", PrimP (T.U128, fun sz -> Ox86_VPSHUFD sz);
-    "x86_VPUNPCKH", PrimV (fun ve sz -> Ox86_VPUNPCKH (ve, sz));
-    "x86_VPUNPCKL", PrimV (fun ve sz -> Ox86_VPUNPCKL (ve, sz));
-    "x86_VPBLENDD", PrimP (T.U128, fun sz -> Ox86_VPBLENDD sz);
-    "x86_VPBROADCAST_2u128", PrimM Ox86_VBROADCASTI128;
-    "x86_VPBROADCAST", PrimV (fun ve sz -> Ox86_VPBROADCAST (ve, sz));
-    "x86_VEXTRACTI128", PrimM Ox86_VEXTRACTI128;
-    "x86_VINSERTI128", PrimM Ox86_VINSERTI128;
-    "x86_VPERM2I128", PrimM Ox86_VPERM2I128;
-    "x86_VPERMQ", PrimM Ox86_VPERMQ;
-  ]
-
+  [ "mulu", PrimP (W.U64, fun sz -> Omulu sz);
+    "adc", PrimP (W.U64, fun sz -> Oaddcarry sz);
+    "sbb", PrimP (W.U64, fun sz -> Osubcarry sz);
+    "set0", PrimP (W.U64, fun sz -> Oset0 sz) ] @
+  List.map (fun (s, prc) ->
+        let s = Conv.string_of_string0 s in
+        let prc = 
+          match prc with
+          | X86_instr_decl.PrimP(x1,x2) -> PrimP(x1, fun sz -> Ox86 (x2 sz))
+          | X86_instr_decl.PrimM(x)     -> PrimM(Ox86 x)
+          | X86_instr_decl.PrimV(x)     -> PrimV(fun sz sz' -> Ox86 (x sz sz'))
+          | X86_instr_decl.PrimX(x)     -> PrimX(fun sz sz' -> Ox86 (x sz sz'))
+        in (s, prc)) X86_instr_decl.prim_string
+            
 type size_annotation =
-  | SAw of T.wsize
-  | SAv of T.velem * T.wsize
+  | SAw of W.wsize
+  | SAv of W.velem * W.wsize
+  | SAx of W.wsize * W.wsize
   | SA
 
 let extract_size str : string * size_annotation =
   let get_size =
     function
-    | "8" -> SAw T.U8
-    | "16" -> SAw T.U16
-    | "32" -> SAw T.U32
-    | "64" -> SAw T.U64
-    | "128" -> SAw T.U128
-    | "256" -> SAw T.U256
-    | "16u8" -> SAv (T.VE8, T.U128)
-    | "8u16" -> SAv (T.VE16, T.U128)
-    | "4u32" -> SAv (T.VE32, T.U128)
-    | "2u64" -> SAv (T.VE64, T.U128)
-    | "32u8" -> SAv (T.VE8, T.U256)
-    | "16u16" -> SAv (T.VE16, T.U256)
-    | "8u32" -> SAv (T.VE32, T.U256)
-    | "4u64" -> SAv (T.VE64, T.U256)
-    | _ -> SA
+    | "8" -> SAw W.U8
+    | "16" -> SAw W.U16
+    | "32" -> SAw W.U32
+    | "64" -> SAw W.U64
+    | "128" -> SAw W.U128
+    | "256" -> SAw W.U256
+    | "16u8" -> SAv (W.VE8, W.U128)
+    | "8u16" -> SAv (W.VE16, W.U128)
+    | "4u32" -> SAv (W.VE32, W.U128)
+    | "2u64" -> SAv (W.VE64, W.U128)
+    | "32u8" -> SAv (W.VE8, W.U256)
+    | "16u16" -> SAv (W.VE16, W.U256)
+    | "8u32" -> SAv (W.VE32, W.U256)
+    | "4u64" -> SAv (W.VE64, W.U256)
+    | s -> 
+      let wsize_of_int = function
+        | 8   -> W.U8
+        | 16  -> W.U16
+        | 32  -> W.U32
+        | 64  -> W.U64
+        | 128 -> W.U128
+        | 256 -> W.U256
+        | _   -> raise Not_found in
+      try 
+        Scanf.sscanf s "%c%u%c%u%!" 
+          (fun c0 i c1 j -> 
+            if not ((c0 = 'u' || c0 = 's') && (c1 = 'u' || c1 = 's')) then raise Not_found;
+            SAx(wsize_of_int i, wsize_of_int j))
+      with Not_found | Scanf.Scan_failure _ -> SA
   in
   match List.rev (String.split_on_char '_' str) with
   | [] -> str, SA
@@ -1008,9 +973,15 @@ let tt_prim id =
   let { L.pl_loc = loc ; L.pl_desc = s } = id in
   let name, sz = extract_size s in
   match List.assoc name prim_string with
-  | PrimP (d, pr) -> pr (match sz with SAw sz -> sz | SA -> d | SAv _ -> rs_tyerror ~loc (PrimNotVector s))
+  | PrimP (d, pr) ->
+    pr (match sz with 
+        | SAw sz -> sz 
+        | SA -> d 
+        | SAv _ -> rs_tyerror ~loc (PrimNotVector s)
+        | SAx _ -> rs_tyerror ~loc (PrimNotX s))
   | PrimM pr -> if sz = SA then pr else rs_tyerror ~loc (PrimNoSize s)
   | PrimV pr -> (match sz with SAv (ve, sz) -> pr ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
+  | PrimX pr -> (match sz with SAx(sz1, sz2) -> pr sz1 sz2 | _ -> rs_tyerror ~loc (PrimIsX s))
   | exception Not_found -> rs_tyerror ~loc (UnknownPrim s)
 
 let prim_of_op exn loc o =
@@ -1361,7 +1332,7 @@ let tt_global (env : Env.env) _loc (gd: S.pglobal) : Env.env * ((P.Name.t * P.pt
   let pe =
     let open P in
     match ety with
-    | Bty (U ews) when Utils0.cmp_le T.wsize_cmp ws ews -> pe
+    | Bty (U ews) when Utils0.cmp_le W.wsize_cmp ws ews -> pe
     | Bty Int -> Papp1 (Oword_of_int ws, pe)
     | _ -> rs_tyerror ~loc:(L.loc gd.S.pgd_val) (TypeMismatch (ety, ty))
     in

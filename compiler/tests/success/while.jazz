@@ -6,7 +6,7 @@ export fn test_while(reg u64 x) -> reg u64 {
   r = 0;
   align while {
    r += 1;
-   zf, _, i = #x86_DEC(i);
+   zf, _, i = #DEC(i);
   } (!zf) { 
    r += 2; 
   }

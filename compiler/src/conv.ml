@@ -1,5 +1,6 @@
 open Var0
 open Prog
+module W = Wsize
 module T = Type
 module C = Expr
 
@@ -36,15 +37,29 @@ let z_of_int i = z_of_bi (B.of_int i)
 let bi_of_nat n =
   bi_of_z (BinInt.Z.of_nat n)
 
+let int_of_nat n = B.to_int (bi_of_nat n)
+
 let pos_of_int i = pos_of_bi (B.of_int i)
 let int_of_pos p = B.to_int (bi_of_pos p)
 
-let int64_of_bi bi = Word0.wrepr T.U64 (z_of_bi bi)
-let bi_of_int64 z  = bi_of_z (Word0.wsigned T.U64 z)
-let bi_of_int32 z  = bi_of_z (Word0.wsigned T.U32 z)
-let bi_of_int16 z  = bi_of_z (Word0.wsigned T.U16 z)
-let bi_of_int8 z  = bi_of_z (Word0.wsigned T.U8 z)
+let int64_of_bi bi = Word0.wrepr W.U64 (z_of_bi bi)
+let int32_of_bi bi = Word0.wrepr W.U32 (z_of_bi bi)
 
+let bi_of_int256 z  = bi_of_z (Word0.wsigned W.U256 z)
+let bi_of_int128 z  = bi_of_z (Word0.wsigned W.U128 z)
+let bi_of_int64 z  = bi_of_z (Word0.wsigned W.U64 z)
+let bi_of_int32 z  = bi_of_z (Word0.wsigned W.U32 z)
+let bi_of_int16 z  = bi_of_z (Word0.wsigned W.U16 z)
+let bi_of_int8 z  = bi_of_z (Word0.wsigned W.U8 z)
+
+let bi_of_word sz z = 
+  match sz with
+  | W.U8 -> bi_of_int8 z 
+  | W.U16 -> bi_of_int16 z
+  | W.U32 -> bi_of_int32 z
+  | W.U64 -> bi_of_int64 z
+  | W.U128 -> bi_of_int128 z
+  | W.U256 -> bi_of_int256 z
 (* ------------------------------------------------------------------------ *)
 
 let string0_of_string s =
@@ -156,14 +171,14 @@ let vari_of_cvari tbl v =
 
 (* ------------------------------------------------------------------------ *)
 
-let cglobal_of_global ws (g: Name.t) : C.global =
+let cglobal_of_global ws (g: Name.t) : Global.global =
   {
     size_of_global = ws;
     ident_of_global = string0_of_string g;
   }
 
-let global_of_cglobal (g: C.global) : T.wsize * Name.t =
-  let { E.size_of_global = ws ; E.ident_of_global = n } = g in
+let global_of_cglobal (g: Global.global) : W.wsize * Name.t =
+  let { Global.size_of_global = ws ; Global.ident_of_global = n } = g in
   ws, string_of_string0 n
 
 let cgd_of_gd (ws, g, z) = 
@@ -405,12 +420,12 @@ let fdef_of_cfdef tbl (fn, fd) =
     f_ret  = List.map (vari_of_cvari tbl) fd.C.f_res;
   }
 
-let cprog_of_prog info p =
+let cprog_of_prog (all_registers: var list) info p =
   let tbl = empty_tbl info in
   (* First add registers *)
   List.iter
     (fun x -> ignore (cvar_of_reg tbl x))
-    Regalloc.X64.all_registers;
+    all_registers;
   let fds = List.map (cfdef_of_fdef tbl) (snd p) in
   let gd  = List.map cgd_of_gd (fst p) in
   tbl, { C.p_globs = gd; C.p_funcs = fds }

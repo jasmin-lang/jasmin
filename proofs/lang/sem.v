@@ -29,348 +29,13 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import Psatz xseq.
-Require Export array expr gen_map low_memory.
+Require Export array expr gen_map low_memory warray_ sem_type.
 Import Utf8.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Module WArray.
-
-  Definition arr_size (ws:wsize) (s:positive)  := 
-     (wsize_size ws * s)%Z.
-
-  Record array (s:positive)  := 
-    { arr_data : Mz.t u8 }.
-
-  Definition empty (s:positive) : array s := 
-    {| arr_data := Mz.empty _ |}.
-
-  Local Notation pointer := [eqType of Z].
-
-  Definition add x y := (x + y)%Z.
-  Definition sub x y := (x - y)%Z.
-
-  Section CM.
-    Variable (s:positive).
-
-    Definition uget (m:array s) (i:pointer) := 
-      odflt 0%R (Mz.get m.(arr_data) i).
- 
-    Definition uset (m:array s) (i:pointer) (v:u8) : array s := 
-      {| arr_data := Mz.set m.(arr_data) i v |}.
-
-    Definition in_range (p:pointer) (ws:wsize) := 
-      ((0 <=? p) && (p + wsize_size ws <=? s))%Z.
-
-    Lemma in_rangeP p ws: 
-      reflect (0 <= p /\ p + wsize_size ws <= s)%Z (in_range p ws).
-    Proof.
-      rewrite /in_range; case: andP => h; constructor; move: h; rewrite !zify; Psatz.nia.
-    Qed.
-
-    Definition validw (m:array s) (p:pointer) (ws:wsize) : exec unit := 
-      assert (in_range p ws) ErrOob.
-
-    Definition validr (m:array s) (p:pointer) (ws:wsize) := 
-      Let _ := validw m p ws in
-      assert (all (fun i => Mz.get m.(arr_data) (p+i)%Z != None) (ziota 0 (wsize_size ws))) 
-             ErrAddrInvalid.
-
-    Lemma add_sub p k: add p (sub k p) = k.
-    Proof. rewrite /add /sub; ring. Qed.
-
-    Lemma sub_add m p sw i t: validw m p sw = ok t -> (0 <= i < wsize_size sw)%Z -> sub (add p i) p = i.
-    Proof. move=> ?;rewrite /add /sub => _; ring. Qed.
-
-    Lemma add_0 p: add p 0 = p.
-    Proof. rewrite /add; ring. Qed.
-
-    Lemma validw_uset m p v p' sw: validw (uset m p v) p' sw = validw m p' sw.
-    Proof. done. Qed.
-
-    Lemma validw8 m2 m1 p sw i t: 
-      (0 <= i < wsize_size sw)%Z ->
-      validw m1 p sw = ok t -> validw m2 (add p i) U8 = ok tt.
-    Proof.
-      move=> hi;rewrite /validw /assert; case: in_rangeP => // h1 _. 
-      by case: in_rangeP => //; rewrite /wsize_size /add; Psatz.nia.
-    Qed.
-
-    Lemma validrP m p sw i t:
-      validr m p sw = ok t ->
-      (0 <= i < wsize_size sw)%Z ->  
-      validr m (add p i) U8 = ok t.
-    Proof.
-      rewrite /validr /assert /=; t_xrbindP.
-      case: allP => //= hin ? hv [<-] hi.
-      by rewrite Z.add_0_r (validw8 _ hi hv) hin // in_ziota !zify.
-    Qed.
-
-    Lemma validw_validr m p sw i v t k:
-      validw m p sw = ok t -> 
-      (0 <= i < wsize_size sw)%Z ->
-      validr (uset m (add p i) v) k U8 = if add p i == k then ok t else validr m k U8.
-    Proof.
-      case: t; rewrite /validr /= Z.add_0_r /validw /assert /add.
-      case: in_rangeP => //= hw _ hi.
-      case: in_rangeP; rewrite /= /wsize_size => h.
-      + by rewrite Mz.setP !andbT; case: (_ =P k). 
-      case: eqP => //; Psatz.nia.
-    Qed.
-
-    Lemma usetP m z1 z2 v:
-      uget (uset m z1 v) z2 = if z1 == z2 then v else uget m z2.
-    Proof. by rewrite /uget /uset /= Mz.setP; case: eqP. Qed.
-
-    Global Instance array_CM : coreMem (array s) pointer := 
-      CoreMem add_sub sub_add add_0 validw_uset 
-        validrP validw_validr usetP.
- 
-  End CM.
-
-  Definition get len ws (a:array len) (p:Z) :=
-    CoreMem.read a (p * wsize_size ws)%Z ws.
- 
-  Definition set {len ws} (a:array len) p (v:word ws) : exec (array len) :=   
-    CoreMem.write a (p * wsize_size ws)%Z v.
-
-  Definition cast len len' (a:array len) : result error (array len') :=
-    if (len' <=? len)%Z then ok {| arr_data := a.(arr_data) |}
-    else type_error.
-
-  Definition uincl {len1 len2} (a1 : array len1) (a2 : array len2) :=
-    (len1 <= len2)%Z ∧
-    ∀ i v, (0 <= i < Zpos len1)%Z -> 
-       Mz.get a1.(arr_data) i = Some v → Mz.get a2.(arr_data) i = Some v.
-
-  Lemma uincl_validw {len1 len2} (a1 : array len1) (a2 : array len2) ws i t :
-    uincl a1 a2 -> validw a1 i ws = ok t -> validw a2 i ws = ok tt.
-  Proof.
-    move=> [h1 h2]; rewrite /validw => /assertP/in_rangeP hi.
-    case: in_rangeP => //; nia.
-  Qed.
-
-  Lemma uincl_validr {len1 len2} (a1 : array len1) (a2 : array len2) ws i t :
-    uincl a1 a2 -> validr a1 i ws = ok t -> validr a2 i ws = ok tt.
-  Proof.
-    move=> [h1 h2]; rewrite /validr /validw; t_xrbindP => t1. 
-    case: in_rangeP => //= hi1 _ {t1} /assertP /allP h.
-    case: in_rangeP => //= hi2; last by nia.
-    case: allP => // -[] k hk; have := h _ hk.
-    move: hk; rewrite in_ziota !zify Z.add_0_l => hk.
-    by case: Mz.get (h2 (i+k)%Z) => //= v /(_ _ _ erefl) -> //; nia.
-  Qed.
-
-  Lemma uincl_get {len1 len2} (a1 : array len1) (a2 : array len2) ws i w :
-    uincl a1 a2 ->
-    get ws a1 i = ok w ->
-    get ws a2 i = ok w.
-  Proof.
-    rewrite /get /CoreMem.read /=; t_xrbindP => hu t hr.
-    have -> := uincl_validr hu hr => /= <-; do 2 f_equal.
-    rewrite /CoreMem.uread; apply eq_map_ziota; rewrite Z.add_0_l => k hk /=.
-    rewrite /add /uget; case: hu => h1 /(_ (i * wsize_size ws + k)%Z).
-    have := validrP hr hk; rewrite /validr /= Z.add_0_r; t_xrbindP => ? _ /assertP.
-    case: Mz.get => //= v _ /(_ v _ erefl) -> //.
-    by move: hr; rewrite /validr /validw; case: in_rangeP => //= ? _; nia.
-  Qed.
- 
-  Lemma uincl_set {ws len1 len2} (a1 a1': array len1) (a2: array len2) i (w:word ws) :
-    uincl a1 a2 ->
-    set a1 i w = ok a1' ->
-    exists a2', set a2 i w = ok a2' /\ uincl a1' a2'.
-  Proof.
-    rewrite /set /CoreMem.write /= => hu; t_xrbindP => ? hw1.
-    have hw2 := uincl_validw hu hw1.
-    rewrite hw2 => <-; eexists;split;first reflexivity.
-    case: hu => h1 h2; split => // k v hk hg1.
-    have := (CoreMem.uwrite_uget (CM := array_CM _) w k hw2).
-    have := (CoreMem.uwrite_uget (CM := array_CM _) w k hw1).
-    rewrite /= /uget hg1 /sub /= => ->.
-    have := CoreMem.uwrite_validr8 (CM := array_CM _) w k hw2.
-    have := CoreMem.uwrite_validr8 (CM := array_CM _) w k hw1.
-    rewrite /= /validr /sub /= Z.add_0_r.
-    case: ifPn; rewrite !zify => ?.
-    + by t_xrbindP => ? _ _ ? _; case: Mz.get => //= ?? ->.
-    rewrite /validw; case: in_rangeP; rewrite /wsize_size /=; last by nia.
-    case: in_rangeP; rewrite /wsize_size /= !andbT; last by nia.
-    move=> _ _; rewrite hg1 /=.
-    have := h2 k _ hk; case: Mz.get => //= v1 /(_ _ erefl) -> _ /=.
-    by case: Mz.get => //= ? _ ->.
-  Qed.
-
-  Lemma uincl_refl len (a: array len) : uincl a a.
-  Proof. by split => //;apply Z.le_refl. Qed.
-
-  Lemma uincl_trans {len1 len2 len3} 
-    (a2: array len2) (a1: array len1) (a3: array len3) :
-    uincl a1 a2 -> uincl a2 a3 -> uincl a1 a3. 
-  Proof.
-    move=> [l1 h1] [l2 h2]; split; first by lia.
-    move=> ????;apply h2;first by lia.
-    by apply h1.
-  Qed.
- 
-  Lemma set_get8 len (m m':array len) p ws (v: word ws) k :    
-    set m p v = ok m' ->
-    get U8 m' k= 
-      let i := (k - p * wsize_size ws)%Z in
-       if ((0 <=? i) && (i <? wsize_size ws))%Z then ok (LE.wread8 v i)
-       else get U8 m k.
-  Proof. 
-    move=> hs; have := CoreMem.write_read8 k hs.
-    by rewrite /get wsize8 !Z.mul_1_r.  
-  Qed.
-
-  Lemma set_zget8 len (m m':array len) p ws (v: word ws) k :    
-    (0 <= k < len)%Z ->
-    set m p v = ok m' ->
-    Mz.get m'.(arr_data) k= 
-      let i := (k - p * wsize_size ws)%Z in
-       if ((0 <=? i) && (i <? wsize_size ws))%Z then Some (LE.wread8 v i)
-       else Mz.get m.(arr_data) k.
-  Proof.
-    move=> hk; rewrite /set /CoreMem.write; t_xrbindP => ? /= hw <-.
-    have /= := CoreMem.uwrite_uget (CM := array_CM _) v k hw.
-    have /= := CoreMem.uwrite_validr8 (CM := array_CM _) v k hw.
-    move: hw => /assertP/in_rangeP => hw.
-    rewrite /validr /= /sub /validw /uget.
-    case: in_rangeP; last by rewrite wsize8; nia.
-    case: ifPn; rewrite !zify wsize8 Z.add_0_r => ? _ /=.
-    + by case: Mz.get => //= ? _ ->.
-    by case: Mz.get => /=; case: Mz.get =>//= ??? ->.
-  Qed.
-
-  Lemma set_validr_eq len (m m':array len) p ws (v: word ws) :
-    set m p v = ok m' ->
-    validr m' (p * wsize_size ws)%Z ws = ok tt.
-  Proof.
-    move=> hset; have := set_zget8 _ hset; move: hset.
-    rewrite /set /CoreMem.write /validr /=; t_xrbindP => ? hw1 <-.
-    move: (hw1); rewrite /validw; t_xrbindP => /assertP /dup [] /in_rangeP hp -> /= hz.
-    case: allP => //= -[] k; rewrite in_ziota !zify Z.add_0_l => hk.
-    rewrite hz; last by nia.
-    case: ifPn => //=; rewrite !zify; nia.
-  Qed.
-
-  Lemma setP_eq len (m m':array len) p ws (v: word ws) :
-    set m p v = ok m' ->
-    get ws m' p = ok v.
-  Proof.
-    move=> h1;have := CoreMem.writeP_eq h1.
-    rewrite /get /CoreMem.read /= (set_validr_eq h1) /= => ->.
-    by rewrite LE.decodeK.
-  Qed.
-
-  Lemma set_validr_neq len (m m':array len) p1 p2 ws (v: word ws) :
-    p1 != p2 -> 
-    set m p1 v = ok m' ->
-    validr m' (p2 * wsize_size ws)%Z ws = validr m (p2 * wsize_size ws)%Z ws.
-  Proof.
-    move=> /eqP hp hset; have := set_zget8 _ hset; move: hset.
-    rewrite /set /CoreMem.write /validr /=; t_xrbindP => ? hw1 <-.
-    move: (hw1); rewrite /validw => /assertP /in_rangeP hp1 hz.
-    case: in_rangeP => hp2 //=; f_equal.
-    apply all_ziota => i hi; rewrite hz; last by nia.
-    by case: ifPn => //=; rewrite !zify; nia.
-  Qed.
-
-  Lemma setP_neq len (m m':array len) p1 p2 ws (v: word ws) :
-    p1 != p2 ->
-    set m p1 v = ok m' -> 
-    get ws m' p2 = get ws m p2.
-  Proof.
-    move=> hp h1;have := CoreMem.writeP_neq h1.
-    rewrite /get /CoreMem.read /= (set_validr_neq hp h1) /= => -> //.
-    rewrite /CoreMem.disjoint_range /= /add => ??; move/eqP : hp; nia.
-  Qed.
-
-  Lemma setP len (m m':array len) p1 p2 ws (v: word ws) :
-    set m p1 v = ok m' -> 
-    get ws m' p2 = if p1 == p2 then ok v else get ws m p2.
-  Proof. by case: eqP => [<- | /eqP];[ apply setP_eq | apply setP_neq]. Qed.
-
-  Definition filter (m : Mz.t u8) p := 
-    Mz.fold (fun k e m => if (k <? p)%Z then Mz.set m k e else m) m (Mz.empty _).
-
-  Definition inject len len' (a:array len) : array len' :=
-    if (len <? len')%Z then {| arr_data := filter a.(arr_data) len |}
-    else {| arr_data := a.(arr_data) |}.
-
-  Lemma zget_inject len (a:array len) (p:positive) i: 
-    (0 <= i < p)%Z ->
-    Mz.get (WArray.arr_data (WArray.inject p a)) i = 
-    if (i <? len)%Z then Mz.get (WArray.arr_data a) i else None.
-  Proof.
-    rewrite /inject; case: a => a /=.
-    case: ZltP; last by case: ZltP => //=; lia.
-    rewrite /= /filter Mz.foldP => hlen hi.
-    have -> : forall els m,
-     (forall kv, List.In kv els -> Mz.get a kv.1 = Some kv.2) ->
-     Mz.get (foldl
-        (λ (a0 : Mz.t u8) (kv : Mz.K.t * u8),
-          if (kv.1 <? len)%Z then Mz.set a0 kv.1 kv.2 else a0) m els) i =
-      if (i \in map fst els) && (i <? len)%Z then Mz.get a i 
-      else Mz.get m i.
-    + elim => //= -[i1 v1] els hrec m hin; rewrite hrec; last by move=> ? h;apply hin;auto.
-      rewrite /= in_cons orbC;case: andP => [[] -> -> //| hn].
-      rewrite orbC; case: eqP => /=. 
-      + move=> ->;case: ifP => // ?; rewrite Mz.setP_eq.
-        by rewrite (hin (i1,v1));auto.
-      move=> /eqP /negbTE hne; move /andP/negbTE: hn => ->.
-      by case: ifPn => //; rewrite Mz.setP eq_sym hne.
-    + case heq: (i \in _) => //=; rewrite Mz.get0; case:ifP => //= ?.
-      case heq1: Mz.get => [w|//].
-      by move: heq1 => /(Mz.elementsP (i, w) a) -/(map_f fst); rewrite heq.
-    by move=> kv;apply Mz.elementsIn.
-  Qed.
-
-  Lemma get_bound ws len (t:array len) i w :
-    get ws t i = ok w -> 
-    (0 <= i * wsize_size ws /\ (i + 1) * wsize_size ws <= len)%Z.
-  Proof.
-    rewrite /get /CoreMem.read /= /validr /validw; t_xrbindP => ?? /assertP /in_rangeP; nia.
-  Qed.     
-
-  Lemma set_bound ws len (a t:array len) i (w:word ws) :
-    set a i w = ok t -> 
-    (0 <= i * wsize_size ws /\ (i+1) * wsize_size ws <= len)%Z.
-  Proof.
-    rewrite /set /CoreMem.write /= /validw; t_xrbindP => ? /assertP /in_rangeP; nia.
-  Qed.
-
-  Lemma get_uget len (t:array len) i v :
-    get U8 t i = ok v -> uget t i = v.
-  Proof.
-    rewrite /get /CoreMem.read /=; t_xrbindP => ?? <-.
-    by rewrite CoreMem.uread8_get wsize8 Z.mul_1_r.
-  Qed.
-
-  Lemma get_get8 ws len (t:WArray.array len) i w k :
-    get ws t i = ok w -> 
-    (0 <= k < wsize_size ws)%Z ->
-    exists v, get U8 t (i * wsize_size ws + k) = ok v.
-  Proof.
-    rewrite /get /CoreMem.read /= /validr /validw; t_xrbindP.
-    move=> ?? /assertP /in_rangeP h1 /assertP /allP h2 ? hk /=.
-    rewrite wsize8 Z.mul_1_r Z.add_0_r.
-    have -> /= : in_range len (i * wsize_size ws + k)%Z U8.
-    + by rewrite /in_range !zify wsize8; nia.
-    rewrite h2 /=; first by eauto.
-    by rewrite in_ziota !zify.
-  Qed.
-
-  Lemma get0 (n:positive) off : (0 <= off ∧ off < n)%Z -> 
-    get U8 (empty n) off = Error ErrAddrInvalid.
-  Proof.
-    rewrite /get /CoreMem.read /= /validr /validw /= /in_range wsize8 Z.mul_1_r.
-    case: andP => //; rewrite !zify; lia.
-  Qed.
-
-End WArray.
-Hint Resolve WArray.uincl_refl.
 
 (* ** Values
   * -------------------------------------------------------------------- *)
@@ -386,8 +51,6 @@ Definition undef_b := Vundef sbool.
 
 Definition values := seq value.
 
-Definition undef_error {t} := @Error error t ErrAddrUndef.
-
 Definition to_bool v :=
   match v with
   | Vbool b      => ok b
@@ -402,7 +65,7 @@ Definition to_int v :=
   | _           => type_error
   end.
 
-Definition truncate_word (s s':wsize) (w:word s') : exec (word s) := 
+Definition truncate_word (s s':wsize) (w:word s') : exec (word s) :=
    if (s <= s')%CMP then ok (zero_extend s w) else type_error.
 
 Definition to_word (s: wsize) (v: value) : exec (word s) :=
@@ -413,14 +76,6 @@ Definition to_word (s: wsize) (v: value) : exec (word s) :=
   end.
 
 Notation to_pointer := (to_word Uptr).
-
-Definition sem_t (t : stype) : Type :=
-  match t with
-  | sbool    => bool
-  | sint     => Z
-  | sarr n   => WArray.array n
-  | sword s  => word s
-  end.
 
 Definition to_arr len v : exec (sem_t (sarr len)) :=
   match v with
@@ -467,6 +122,15 @@ Definition truncate_val (ty: stype) (v: value) : exec value :=
 
 Lemma type_of_to_val t (s: sem_t t) : type_of_val (to_val s) = t.
 Proof. by case: t s. Qed.
+
+Definition oto_val t : sem_ot t -> value :=
+  match t return sem_ot t -> value with
+  | sbool => fun ob => if ob is Some b then Vbool b else Vundef sbool
+  | x     => @to_val x
+  end.
+
+Lemma type_of_oto_val t (s: sem_ot t) : type_of_val (oto_val s) = t.
+Proof. by case: t s => //= -[]. Qed.
 
 (* -------------------------------------------------------------------- *)
 Definition subtype (t t': stype) :=
@@ -553,7 +217,7 @@ Definition get_var (m:vmap) x :=
 Definition set_var (m:vmap) x v : exec vmap :=
   on_vu (fun v => m.[x<-ok v]%vmap)
         (if is_sbool x.(vtype) then ok m.[x<-undef_addr x.(vtype)]%vmap
-         else type_error) 
+         else type_error)
         (of_val (vtype x) v).
 
 Lemma set_varP (m m':vmap) x v P :
@@ -569,11 +233,6 @@ Qed.
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
-Definition lprod ts tr :=
-  foldr (fun t tr => t -> tr) tr ts.
-
-Definition sem_prod ts tr := lprod (map sem_t ts) tr.
-
 Definition sem_shift (shift:forall {s}, word s -> Z -> word s) s (v:word s) (i:u8) :=
   let i :=  wunsigned (wand i (x86_shift_mask s)) in
   shift v i.
@@ -586,13 +245,13 @@ Definition sem_vadd (ve:velem) {ws:wsize} := (lift2_vec ve +%R ws).
 Definition sem_vsub (ve:velem) {ws:wsize} := (lift2_vec ve (fun x y => x - y)%R ws).
 Definition sem_vmul (ve:velem) {ws:wsize} := (lift2_vec ve *%R ws).
 
-Definition sem_vshr (ve:velem) {ws:wsize} (v : word ws) (i:u8) :=  
+Definition sem_vshr (ve:velem) {ws:wsize} (v : word ws) (i:u8) :=
   lift1_vec ve (fun x => wshr x (wunsigned i)) ws v.
 
-Definition sem_vsar (ve:velem) {ws:wsize} (v : word ws) (i:u8) :=  
+Definition sem_vsar (ve:velem) {ws:wsize} (v : word ws) (i:u8) :=
   lift1_vec ve (fun x => wsar x (wunsigned i)) ws v.
 
-Definition sem_vshl (ve:velem) {ws:wsize} (v : word ws) (i:u8) :=  
+Definition sem_vshl (ve:velem) {ws:wsize} (v : word ws) (i:u8) :=
   lift1_vec ve (fun x => wshl x (wunsigned i)) ws v.
 
 Definition sem_sop1_typed (o: sop1) :
@@ -623,7 +282,7 @@ Lemma sem_sop1I y x f:
     y = to_val (sem_sop1_typed f w).
 Proof. by rewrite /sem_sop1; t_xrbindP => w ok_w <-; eauto. Qed.
 
-Definition signed {A:Type} (fu fs:A) s := 
+Definition signed {A:Type} (fu fs:A) s :=
   match s with
   | Unsigned => fu
   | Signed => fs
@@ -633,7 +292,7 @@ Definition mk_sem_divmod sz o (w1 w2: word sz) : exec (word sz) :=
   if ((w2 == 0) || ((wsigned w1 == wmin_signed sz) && (w2 == -1)))%R then type_error
   else ok (o w1 w2).
 
-Definition mk_sem_sop2 (t1 t2 t3: Type) (o:t1 -> t2 -> t3) v1 v2 : exec t3 := 
+Definition mk_sem_sop2 (t1 t2 t3: Type) (o:t1 -> t2 -> t3) v1 v2 : exec t3 :=
   ok (o v1 v2).
 
 Definition sem_sop2_typed (o: sop2) :
@@ -695,7 +354,7 @@ Definition sem_sop2 (o: sop2) (v1 v2: value) : exec value :=
 
 Lemma sem_sop2I v v1 v2 f:
   sem_sop2 f v1 v2 = ok v →
-  ∃ (w1 : sem_t (type_of_op2 f).1.1) (w2 : sem_t (type_of_op2 f).1.2) 
+  ∃ (w1 : sem_t (type_of_op2 f).1.1) (w2 : sem_t (type_of_op2 f).1.2)
     (w3: sem_t (type_of_op2 f).2),
     [/\ of_val _ v1 = ok w1,
         of_val _ v2 = ok w2,
@@ -779,19 +438,15 @@ Definition Vword_inj sz sz' w w' (e: @Vword sz w = @Vword sz' w') :
   ∃ e : sz = sz', eq_rect sz (λ s, (word s)) w sz' e = w' :=
   let 'Logic.eq_refl := e in (ex_intro _ erefl erefl).
 
-Definition get_global_value (gd: glob_decls) (g: global) : option Z :=
-  assoc gd g.
-
 Definition get_global gd g : exec value :=
-  if get_global_value gd g is Some z then 
-    ok (Vword (wrepr (size_of_global g) z))
-  else type_error.
+  Let w := get_global_word gd g in
+  ok (Vword w).
 
 Lemma get_globalI gd g v :
   get_global gd g = ok v →
-  exists2 z : Z, get_global_value gd g = Some z & v = Vword (wrepr (size_of_global g) z).
+  exists2 z : Z, get_global_Z gd g = Some z & v = Vword (wrepr (size_of_global g) z).
 Proof.
-  rewrite /get_global; case: get_global_value => // z [<-];eauto.
+  rewrite /get_global /get_global_word; case: get_global_Z => // z [<-];eauto.
 Qed.
 
 Definition is_defined (v: value) : bool :=
@@ -873,512 +528,6 @@ Definition write_lvals (s:estate) xs vs :=
 
 End SEM_PEXPR.
 
-Definition pval t1 t2 (p: sem_t t1 * sem_t t2) :=
-  [::to_val p.1; to_val p.2].
-
-Definition SF_of_word sz (w : word sz) :=
-  msb w.
-
-Definition PF_of_word sz (w : word sz) :=
-  lsb w.
-
-Definition ZF_of_word sz (w : word sz) :=
-  w == 0%R.
-
-(* -------------------------------------------------------------------- *)
-(*  OF; CF ;SF; PF; ZF  *)
-Definition rflags_of_bwop sz (w : word sz) :=
-  (*  OF   ; CF   ; SF          ; PF          ; ZF          ] *)
-  [:: false; false; SF_of_word w; PF_of_word w; ZF_of_word w].
-
-(* -------------------------------------------------------------------- *)
-(*  OF; CF ;SF; PF; ZF  *)
-Definition rflags_of_aluop sz (w : word sz) (vu vs : Z) :=
-  (*  OF                  ; CF                    *)
-  [:: wsigned  w != vs; wunsigned w != vu;
-  (*  SF          ; PF          ; ZF          ] *)
-      SF_of_word w; PF_of_word w; ZF_of_word w ].
-
-(* -------------------------------------------------------------------- *)
-(*  OF; CF ;SF; PF; ZF  *)
-Definition rflags_of_mul (ov : bool) :=
-  (*  OF      ; CF                    *)
-  [:: Vbool ov;  Vbool ov;
-  (*  SF      ; PF       ; ZF         *)
-     undef_b  ; undef_b   ; undef_b ].
-
-(* -------------------------------------------------------------------- *)
-
-Definition rflags_of_div :=
-  (*  OF      ; CF                    *)
-  [:: undef_b  ; undef_b  ;
-  (*  SF      ; PF       ; ZF         *)
-      undef_b  ; undef_b   ; undef_b ].
-
-(* -------------------------------------------------------------------- *)
-(*  OF; SF; PF; ZF  *)
-Definition rflags_of_aluop_nocf sz (w : word sz) (vs : Z) :=
-  (*  OF                  *)
-  [:: wsigned   w != vs;
-  (*  SF          ; PF          ; ZF          ] *)
-      SF_of_word w; PF_of_word w; ZF_of_word w ].
-
-Definition flags_w (bs:seq bool) sz (w: word sz) : exec values :=
-  ok ((map Vbool bs) ++ [:: Vword w]).
-
-Definition rflags_of_aluop_w sz (w : word sz) (vu vs : Z) : exec values :=
-  flags_w (rflags_of_aluop w vu vs) w.
-
-Definition rflags_of_aluop_nocf_w sz (w : word sz) (vs : Z) : exec values :=
-  flags_w (rflags_of_aluop_nocf w vs) w.
-
-Definition rflags_of_bwop_w sz (w : word sz) : exec values :=
-  flags_w (rflags_of_bwop w) w.
-
-Definition vbools bs : exec values := ok (List.map Vbool bs).
-
-(* -------------------------------------------------------------------- *)
-
-
-Definition x86_MOV sz (x: word sz) : exec values :=
-  Let _ := check_size_8_64 sz in
-  ok [:: Vword x].
-
-Definition x86_MOVSX szo szi (x: word szi) : exec values :=
-  Let _ :=
-    match szi with
-    | U8 => check_size_16_64 szo
-    | U16 => check_size_32_64 szo
-    | U32 => assert (szo == U64) ErrType
-    | _ => type_error
-    end in
-  ok [:: Vword (sign_extend szo x) ].
-
-Definition x86_MOVZX szo szi (x: word szi) : exec values :=
-  Let _ :=
-    match szi with
-    | U8 => check_size_16_64 szo
-    | U16 => check_size_32_64 szo
-    | _ => type_error
-    end in
-  ok [:: Vword (zero_extend szo x) ].
-
-Definition x86_add {sz} (v1 v2 : word sz) :=
-  Let _ := check_size_8_64 sz in
-  rflags_of_aluop_w
-    (v1 + v2)%R
-    (wunsigned v1 + wunsigned v2)%Z
-    (wsigned   v1 + wsigned   v2)%Z.
-
-Definition x86_sub {sz} (v1 v2 : word sz) :=
-  Let _ := check_size_8_64 sz in
-  rflags_of_aluop_w
-    (v1 - v2)%R
-    (wunsigned v1 - wunsigned v2)%Z
-    (wsigned   v1 - wsigned   v2)%Z.
-
-Definition x86_mul {sz} (v1 v2: word sz): exec values :=
-  Let _  := check_size_16_64 sz in
-  let lo := (v1 * v2)%R in
-  let hi := wmulhu v1 v2 in
-  let ov := wdwordu hi lo in
-  let ov := (ov >? wbase sz - 1)%Z in
-  ok (rflags_of_mul ov ++ [::Vword hi; Vword lo]).
-
-Definition x86_imul_overflow sz (hi lo: word sz) : bool :=
-  let ov := wdwords hi lo in
-  (ov <? -wbase sz)%Z || (ov >? wbase sz - 1)%Z.
-
-Definition x86_imul {sz} (v1 v2: word sz) : exec values:=
-  Let _  := check_size_16_64 sz in
-  let lo := (v1 * v2)%R in
-  let hi := wmulhs v1 v2 in
-  let ov := x86_imul_overflow hi lo in
-  ok (rflags_of_mul ov ++ [::Vword hi; Vword lo]).
-
-Definition x86_imult {sz} (v1 v2: word sz) : exec values:=
-  Let _  := check_size_16_64 sz in
-  let lo := (v1 * v2)%R in
-  let hi := wmulhs v1 v2 in
-  let ov := x86_imul_overflow hi lo in
-  ok (rflags_of_mul ov ++ [::Vword lo]).
-
-Definition x86_div {sz} (hi lo dv: word sz) : exec values:=
-  Let _  := check_size_16_64 sz in
-  let dd := wdwordu hi lo in
-  let dv := wunsigned dv in
-  let q  := (dd  /  dv)%Z in
-  let r  := (dd mod dv)%Z in
-  let ov := (q >? wmax_unsigned sz)%Z in
-
-  if (dv == 0)%Z || ov then type_error else
-
-  ok (rflags_of_div ++ [:: Vword (wrepr sz q); Vword (wrepr sz r)]).
-
-Definition x86_idiv {sz} (hi lo dv: word sz) : exec values :=
-  Let _  := check_size_16_64 sz in
-  let dd := wdwords hi lo in
-  let dv := wsigned dv in
-  let q  := (Z.quot dd dv)%Z in
-  let r  := (Z.rem  dd dv)%Z in
-  let ov := (q <? wmin_signed sz)%Z || (q >? wmax_signed sz)%Z in
-
-  if (dv == 0)%Z || ov then type_error else
-
-  ok (rflags_of_div ++ [:: Vword (wrepr sz q); Vword (wrepr sz r)]).
-
-Definition x86_cqo {sz} (w:word sz) : exec values := 
-  Let _ := check_size_16_64 sz in
-  let r : word sz := (if msb w then -1 else 0)%R in
-  ok [::Vword r].
-  
-Definition add_carry sz (x y c: Z) : word sz :=
-  wrepr sz (x + y + c).
-
-Definition x86_adc {sz} (v1 v2 : word sz) (c: bool) :=
-  Let _  := check_size_8_64 sz in
-  let c := Z.b2z c in
-  rflags_of_aluop_w
-    (add_carry sz (wunsigned v1) (wunsigned v2) c)
-    (wunsigned v1 + wunsigned v2 + c)%Z
-    (wsigned   v1 + wsigned   v2 + c)%Z.
-
-Definition sub_borrow sz (x y c: Z) : word sz :=
-  wrepr sz (x - y - c).
-
-Definition x86_sbb {sz} (v1 v2 : word sz) (c:bool) :=
-  Let _  := check_size_8_64 sz in
-  let c := Z.b2z c in
-  rflags_of_aluop_w
-    (sub_borrow sz (wunsigned v1) (wunsigned v2) c)
-    (wunsigned v1 - (wunsigned v2 + c))%Z
-    (wsigned   v1 - (wsigned   v2 + c))%Z.
-
-Definition x86_neg {sz} (w: word sz) :=
-  Let _  := check_size_8_64 sz in
-  let vs := (- wsigned w)%Z in
-  let v := (- w)%R in
-  flags_w
-  [:: wsigned   v != vs; (w != 0)%R;
-      SF_of_word v; PF_of_word v; ZF_of_word v ]
-  v.
-
-Definition x86_inc {sz} (w: word sz) :=
-  Let _  := check_size_8_64 sz in
-  rflags_of_aluop_nocf_w
-    (w + 1)
-    (wsigned w + 1)%Z.
-
-Definition x86_dec {sz} (w: word sz) :=
-  Let _  := check_size_8_64 sz in
-  rflags_of_aluop_nocf_w
-    (w - 1)
-    (wsigned w - 1)%Z.
-
-Definition x86_setcc (b:bool) : exec values := ok [:: Vword (wrepr U8 (Z.b2z b))].
-
-Definition x86_bt {sz} (x y: word sz) : exec values :=
-  Let _  := check_size_8_64 sz in
-  ok [:: Vbool (wbit x y) ].
-
-Definition x86_lea {sz} (disp base scale offset: word sz) : exec values :=
-  Let _  := check_size_32_64 sz in
-  if check_scale (wunsigned scale) then
-    ok [::Vword (disp + base + scale * offset)]
-  else type_error.
-
-Definition x86_test {sz} (x y: word sz) : exec values :=
-  Let _  := check_size_8_64 sz in
-  vbools (rflags_of_bwop (wand x y)).
-
-Definition x86_cmp {sz} (x y: word sz) :=
-  Let _  := check_size_8_64 sz in
-  vbools
-    (rflags_of_aluop (x - y)
-       (wunsigned x - wunsigned y)%Z (wsigned x - wsigned y)%Z).
-
-Definition x86_and {sz} (v1 v2: word sz) :=
-  Let _  := check_size_8_64 sz in
-  rflags_of_bwop_w
-    (wand v1 v2).
-
-Definition rflags_of_andn sz (w: word sz) :=
-  (* OF ; CF ; SF ; PF ; ZF *)
-  [:: Vbool false ; Vbool false ; Vbool (SF_of_word w) ; Vundef sbool ; Vbool (ZF_of_word w) ].
-
-Definition x86_andn {sz} (v1 v2: word sz) :=
-  Let _  := check_size_32_64 sz in
-  let w := wandn v1 v2 in
-  ok (rcons (rflags_of_andn w) (Vword w)).
-
-Definition x86_or {sz} (v1 v2: word sz) :=
-  Let _  := check_size_8_64 sz in
-  rflags_of_bwop_w
-    (wor v1 v2).
-
-Definition x86_xor {sz} (v1 v2: word sz) :=
-  Let _  := check_size_8_64 sz in
-  rflags_of_bwop_w
-    (wxor v1 v2).
-
-Definition x86_not {sz} (v: word sz) : exec values:=
-  Let _  := check_size_8_64 sz in
-  ok [:: Vword (wnot v)].
-
-Definition x86_ror {sz} (v: word sz) (i: u8) : exec values :=
-  Let _  := check_size_8_64 sz in
-  let i := wand i (x86_shift_mask sz) in
-  if i == 0%R then
-    let u := Vundef sbool in
-    ok [:: u; u; Vword v]
-  else
-    let r := wror v (wunsigned i) in
-    let CF := msb r in
-    let OF :=
-        if i == 1%R
-        then Vbool (CF != msb v) else Vundef sbool
-    in
-    ok [:: OF; Vbool CF; Vword r ].
-
-Definition x86_rol {sz} (v: word sz) (i: u8) : exec values :=
-  Let _  := check_size_8_64 sz in
-  let i := wand i (x86_shift_mask sz) in
-  if i == 0%R then
-    let u := Vundef sbool in
-    ok [:: u; u; Vword v]
-  else
-    let r := wrol v (wunsigned i) in
-    let CF := lsb r in
-    let OF :=
-        if i == 1%R
-        then Vbool (msb r != CF) else Vundef sbool
-    in
-    ok [:: OF; Vbool CF; Vword r ].
-
-Definition x86_shl {sz} (v: word sz) (i: u8) : exec values :=
-  Let _  := check_size_8_64 sz in
-  let i := wand i (x86_shift_mask sz) in
-  if i == 0%R then
-    let u := Vundef sbool in
-    ok [:: u; u; u; u; u; Vword v]
-  else
-    let rc := msb (wshl v (wunsigned i - 1)) in
-    let r  := wshl v (wunsigned i) in
-    let OF :=
-      if i == 1%R then Vbool (msb r (+) rc)
-      else undef_b in
-    let CF := Vbool rc in
-    let SF := Vbool (SF_of_word r) in
-    let PF := Vbool (PF_of_word r) in
-    let ZF := Vbool (ZF_of_word r) in
-    ok [:: OF; CF; SF; PF; ZF; Vword r].
-
-Definition x86_shld {sz} (v1 v2: word sz) (i: u8) : exec values :=
-  Let _  := check_size_16_64 sz in
-  let i := wand i (x86_shift_mask sz) in
-  if i == 0%R then
-    let u := Vundef sbool in
-    ok [:: u; u; u; u; u; Vword v1]
-  else
-    let rc := msb (wshl v1 (wunsigned i - 1)) in
-    let r1 := wshl v1 (wunsigned i) in
-    let r2 := wsar v2 (wsize_bits sz - (wunsigned i)) in
-    let r  := wor r1 r2 in
-    let OF :=
-      if i == 1%R then Vbool (msb r (+) rc)
-      else undef_b in
-    let CF := Vbool rc in
-    let SF := Vbool (SF_of_word r) in
-    let PF := Vbool (PF_of_word r) in
-    let ZF := Vbool (ZF_of_word r) in
-    ok [:: OF; CF; SF; PF; ZF; Vword r].
-
-Definition x86_shr {sz} (v: word sz) (i: u8) : exec values :=
-  Let _  := check_size_8_64 sz in
-  let i := wand i (x86_shift_mask sz) in
-  if i == 0%R then
-    let u := Vundef sbool in
-    ok [:: u; u; u; u; u; Vword v]
-  else
-    let rc := lsb (wshr v (wunsigned i - 1)) in
-    let r  := wshr v (wunsigned i) in
-
-    let OF :=
-      if i == 1%R then Vbool (msb r)
-      else undef_b in
-    let CF := Vbool rc in
-    let SF := Vbool (SF_of_word r) in
-    let PF := Vbool (PF_of_word r) in
-    let ZF := Vbool (ZF_of_word r) in
-    ok [:: OF; CF; SF; PF; ZF; Vword r].
-
-Definition x86_shrd {sz} (v1 v2: word sz) (i: u8) : exec values :=
-  Let _  := check_size_16_64 sz in
-  let i := wand i (x86_shift_mask sz) in
-  if i == 0%R then
-    let u := Vundef sbool in
-    ok [:: u; u; u; u; u; Vword v1]
-  else
-    let rc := lsb (wshr v1 (wunsigned i - 1)) in
-    let r1 := wshr v1 (wunsigned i) in
-    let r2 := wshl v2 (wsize_bits sz - (wunsigned i)) in
-    let r  := wor r1 r2 in
-    let OF :=
-      if i == 1%R then Vbool (msb r (+) msb v1)
-      else undef_b in
-    let CF := Vbool rc in
-    let SF := Vbool (SF_of_word r) in
-    let PF := Vbool (PF_of_word r) in
-    let ZF := Vbool (ZF_of_word r) in
-    ok [:: OF; CF; SF; PF; ZF; Vword r].
-
-Definition x86_sar {sz} (v: word sz) (i: u8) : exec values :=
-  Let _ := check_size_8_64 sz in
-  let i := wand i (x86_shift_mask sz) in
-  if i == 0%R then
-    let u := Vundef sbool in
-    ok [:: u; u; u; u; u; Vword v]
-  else
-    let rc := lsb (wsar v (wunsigned i - 1)) in
-    let r  := wsar v (wunsigned i) in
-    let OF :=
-      if i == 1%R then Vbool false
-      else undef_b in
-    let CF := Vbool rc in
-    let SF := Vbool (SF_of_word r) in
-    let PF := Vbool (PF_of_word r) in
-    let ZF := Vbool (ZF_of_word r) in
-    ok [:: OF; CF; SF; PF; ZF; Vword r].
-
-(* ---------------------------------------------------------------- *)
-Definition x86_bswap {sz} (v: word sz) : exec values :=
-  Let _ := check_size_32_64 sz in
-  ok [:: Vword (wbswap v) ].
-
-(* ---------------------------------------------------------------- *)
-Definition x86_movd {sz} (v: word sz) : exec values :=
-  Let _ := check_size_32_64 sz in
-  ok [:: Vword (zero_extend U128 v) ].
-
-(* ---------------------------------------------------------------- *)
-Definition x86_u128_binop sz (op: _ → _ → word sz) (v1 v2: word sz) : exec values :=
-  Let _ := check_size_128_256 sz in
-  ok [:: Vword (op v1 v2) ].
-
-Definition x86_vpand {sz} := x86_u128_binop (@wand sz).
-Definition x86_vpandn {sz} := x86_u128_binop (@wandn sz).
-Definition x86_vpor {sz} := x86_u128_binop (@wor sz).
-Definition x86_vpxor {sz} := x86_u128_binop (@wxor sz).
-
-(* ---------------------------------------------------------------- *)
-Definition x86_vpadd (ve: velem) {sz} := x86_u128_binop (lift2_vec ve +%R sz).
-Definition x86_vpsub (ve: velem) {sz} := 
-  x86_u128_binop (lift2_vec ve (fun x y => x - y)%R sz).
-
-Definition x86_vpmull (ve: velem) {sz} v1 v2 := 
-  Let _ := check_size_32_64 ve in
-  x86_u128_binop (lift2_vec ve *%R sz) v1 v2.
-
-Definition x86_vpmulu {sz} := x86_u128_binop (@wpmulu sz).
-
-(* ---------------------------------------------------------------- *)
-Definition x86_vpextr (ve: wsize) (v: u128) (i: u8) :=
-  (* This instruction is valid for smaller ve, but semantics is unusual,
-      hence compiler correctness would not be provable. *)
-  Let _ := check_size_32_64 ve in
-  ok [:: Vword (nth (0%R: word ve) (split_vec ve v) (Z.to_nat (wunsigned i))) ].
-
-(* ---------------------------------------------------------------- *)
-Definition x86_vpinsr (ve: velem) (v1: u128) (v2: word ve) (i: u8) : exec values :=
-  ok [:: Vword (wpinsr v1 v2 i) ].
-
-Arguments x86_vpinsr : clear implicits.
-
-(* ---------------------------------------------------------------- *)
-Definition x86_u128_shift sz' sz (op: word sz' → Z → word sz')
-  (v: word sz) (c: u8) : exec values :=
-  Let _ := check_size_16_64 sz' in
-  Let _ := check_size_128_256 sz in
-  ok [:: Vword (lift1_vec sz' (λ v, op v (wunsigned c)) sz v) ].
-
-Arguments x86_u128_shift : clear implicits.
-
-Definition x86_vpsll (ve: velem) {sz} := x86_u128_shift ve sz (@wshl _).
-Definition x86_vpsrl (ve: velem) {sz} := x86_u128_shift ve sz (@wshr _).
-Definition x86_vpsra (ve: velem) {sz} := x86_u128_shift ve sz (@wsar _).
-
-(* ---------------------------------------------------------------- *)
-Definition x86_u128_shift_variable ve sz op v1 v2 : exec values :=
-  Let _ := check_size_32_64 ve in
-  Let _ := check_size_128_256 sz in
-  ok [:: Vword (lift2_vec ve (λ v1 v2, op v1 (wunsigned v2)) sz v1 v2) ].
-
-Arguments x86_u128_shift_variable : clear implicits.
-
-Definition x86_vpsllv ve {sz} := x86_u128_shift_variable ve sz (@wshl _).
-Definition x86_vpsrlv ve {sz} := x86_u128_shift_variable ve sz (@wshr _).
-
-(* ---------------------------------------------------------------- *)
-Definition x86_vpsxldq sz op (v1: word sz) (v2: u8) :=
-  Let _ := check_size_128_256 sz in
-  ok [:: @Vword sz (op v1 v2) ].
-
-Definition x86_vpslldq {sz} := x86_vpsxldq (@wpslldq sz).
-Definition x86_vpsrldq {sz} := x86_vpsxldq (@wpsrldq sz).
-
-(* ---------------------------------------------------------------- *)
-Definition x86_vpshufb {sz} := x86_u128_binop (@wpshufb sz).
-
-(* ---------------------------------------------------------------- *)
-Definition x86_vpshuf sz (op: word sz → Z → word sz) (v1: word sz) (v2: u8) : exec values :=
-  Let _ := check_size_128_256 sz in
-  ok [:: Vword (op v1 (wunsigned v2)) ].
-
-Arguments x86_vpshuf : clear implicits.
-
-Definition x86_vpshufhw {sz} := x86_vpshuf sz (@wpshufhw _).
-Definition x86_vpshuflw {sz} := x86_vpshuf sz (@wpshuflw _).
-Definition x86_vpshufd {sz} := x86_vpshuf sz (@wpshufd _).
-
-(* ---------------------------------------------------------------- *)
-Definition x86_vpunpckh ve {sz} := x86_u128_binop (@wpunpckh sz ve).
-Definition x86_vpunpckl ve {sz} := x86_u128_binop (@wpunpckl sz ve).
-
-(* ---------------------------------------------------------------- *)
-Definition x86_vpblendd {sz} (v1 v2: word sz) (m: u8) : exec values :=
-  Let _ := check_size_128_256 sz in
-  ok [:: Vword (wpblendd v1 v2 m) ].
-
-(* ---------------------------------------------------------------- *)
-Definition x86_vpbroadcast ve sz (v: word ve) : exec values :=
-  Let _ := check_size_128_256 sz in
-  ok [:: Vword (wpbroadcast sz v) ].
-
-(* ---------------------------------------------------------------- *)
-Definition x86_vextracti128 (v: u256) (i: u8) : exec values :=
-  let r := if lsb i then wshr v U128 else v in
-  ok [:: Vword (zero_extend U128 r) ].
-
-Definition x86_vinserti128 (v1: u256) (v2: u128) (m: u8) : exec values :=
-  ok [:: Vword (winserti128 v1 v2 m) ].
-
-(* ---------------------------------------------------------------- *)
-Definition x86_vperm2i128 (v1 v2: u256) (m: u8) : exec values :=
-  ok [:: Vword (wperm2i128 v1 v2 m) ].
-
-Definition x86_vpermq (v: u256) (m: u8) : exec values :=
-  ok [:: Vword (wpermq v m) ].
-
-(* ---------------------------------------------------------------- *)
-Definition x86_adcx {sz:wsize} (w1 w2: word sz) (c:bool) : exec values := 
-  Let _ := check_size_32_64 sz in
-  ok (@pval sbool (sword sz) (waddcarry w1 w2 c)).
-
-Definition x86_adox {sz} := @x86_adcx sz.
-
-Definition x86_mulx {sz:wsize} (w1 w2: word sz) : exec values := 
-  Let _ := check_size_32_64 sz in
-  ok (@pval (sword sz) (sword sz) (wumul w1 w2)).
 
 (* ---------------------------------------------------------------- *)
 Definition is_word (sz: wsize) (v: value) : exec unit :=
@@ -1394,153 +543,38 @@ Lemma is_wordI sz v u :
 Proof. case: v => // [ sz' w | [] // ] _; exact: wsize_le_U8. Qed.
 
 (* ---------------------------------------------------------------- *)
-Notation app_b   o := (app_sopn [:: sbool] o).
-Notation app_w sz o := (app_sopn [:: sword sz] o).
-Notation app_ww sz o := (app_sopn [:: sword sz; sword sz] o).
-Notation app_w8 sz o := (app_sopn [:: sword sz; sword U8] o).
-Notation app_www sz o := (app_sopn [:: sword sz; sword sz; sword sz] o).
-Notation app_ww8 sz o := (app_sopn [:: sword sz; sword sz; sword U8] o).
-Notation app_wwb sz o := (app_sopn [:: sword sz; sword sz; sbool] o).
-Notation app_bww o := (app_sopn [:: sbool; sword; sword] o).
-Notation app_w4 sz o  := (app_sopn [:: sword sz; sword sz; sword sz; sword sz] o).
 
-Definition exec_sopn (o:sopn) :  values -> exec values :=
-  match o with
-  | Omulu sz => app_ww sz (fun x y => ok (@pval (sword sz) (sword sz) (wumul x y)))
-  | Oaddcarry sz => app_wwb sz (fun x y c => ok (@pval sbool (sword sz) (waddcarry x y c)))
-  | Osubcarry sz => app_wwb sz (fun x y c => ok (@pval sbool (sword sz) (wsubcarry x y c)))
-  | Oset0 sz => 
-    if (sz <= U64)%CMP then 
-      app_sopn [::]
-        (let vf := Vbool false in
-         ok [:: vf; vf; vf; vf; Vbool true; @Vword sz 0%R])
-    else 
-      app_sopn [::] (ok [:: @Vword sz 0%R])
-
-  (* Low level x86 operations *)
-  | Ox86_MOV sz => app_w sz (@x86_MOV sz)
-  | Ox86_MOVSX sz sz' => app_w sz' (@x86_MOVSX sz sz')
-  | Ox86_MOVZX sz sz' => app_w sz' (@x86_MOVZX sz sz')
-  | Ox86_MOVZX32 => app_w U32 (λ x : u32, ok [:: Vword (zero_extend U64 x) ])
-  | Ox86_CMOVcc sz => (fun v => match v with
-    | [:: v1; v2; v3] =>
-      Let _ := check_size_16_64 sz in
-      Let b := to_bool v1 in
-      Let w2 := to_word sz v2 in
-      Let w3 := to_word sz v3 in
-      if b then (ok [:: Vword w2])
-      else (ok [:: Vword w3])
-    | _ => type_error end)
-  | Ox86_ADD sz => app_ww sz x86_add
-  | Ox86_SUB sz => app_ww sz x86_sub
-  | Ox86_MUL sz => app_ww sz x86_mul
-  | Ox86_IMUL sz => app_ww sz x86_imul
-  | Ox86_IMULt sz => app_ww sz x86_imult
-  | Ox86_IMULtimm sz => app_ww sz x86_imult
-  | Ox86_DIV sz => app_www sz x86_div
-  | Ox86_IDIV sz => app_www sz x86_idiv
-  | Ox86_CQO sz => app_w sz x86_cqo
-  | Ox86_ADC sz => app_wwb sz x86_adc
-  | Ox86_SBB sz => app_wwb sz x86_sbb
-  | Ox86_NEG sz => app_w sz x86_neg
-  | Ox86_INC sz => app_w sz x86_inc
-  | Ox86_DEC sz => app_w sz x86_dec
-  | Ox86_SETcc => app_b x86_setcc
-  | Ox86_BT sz => app_ww sz x86_bt
-  | Ox86_LEA sz => app_w4 sz x86_lea
-  | Ox86_TEST sz => app_ww sz x86_test
-  | Ox86_CMP sz => app_ww sz x86_cmp
-  | Ox86_AND sz => app_ww sz x86_and
-  | Ox86_ANDN sz => app_ww sz x86_andn
-  | Ox86_OR sz => app_ww sz x86_or
-  | Ox86_XOR sz => app_ww sz x86_xor
-  | Ox86_NOT sz => app_w sz x86_not
-  | Ox86_ROL sz => app_w8 sz x86_rol
-  | Ox86_ROR sz => app_w8 sz x86_ror
-  | Ox86_SHL sz => app_w8 sz x86_shl
-  | Ox86_SHR sz => app_w8 sz x86_shr
-  | Ox86_SAR sz => app_w8 sz x86_sar
-  | Ox86_SHLD sz => app_ww8 sz x86_shld
-  | Ox86_SHRD sz => app_ww8 sz x86_shrd
-  | Ox86_ADCX sz => app_wwb sz x86_adcx
-  | Ox86_ADOX sz => app_wwb sz x86_adox
-  | Ox86_MULX sz => app_ww sz x86_mulx
-  | Ox86_BSWAP sz => app_w sz x86_bswap
-  | Ox86_MOVD sz => app_w sz x86_movd
-  | Ox86_VMOVDQU sz => app_sopn [:: sword sz ] (λ x,
-                                                Let _ := check_size_128_256 sz in
-                                                ok [:: Vword x])
-  | Ox86_VPAND sz => app_ww sz x86_vpand
-  | Ox86_VPANDN sz => app_ww sz x86_vpandn
-  | Ox86_VPOR sz => app_ww sz x86_vpor
-  | Ox86_VPXOR sz => app_ww sz x86_vpxor
-  | Ox86_VPADD ve sz => app_ww sz (x86_vpadd ve)
-  | Ox86_VPSUB ve sz => app_ww sz (x86_vpsub ve)
-  | Ox86_VPMULL ve sz => app_ww sz (x86_vpmull ve)
-  | Ox86_VPMULU sz => app_ww sz x86_vpmulu
-  | Ox86_VPEXTR ve => app_w8 U128 (x86_vpextr ve)
-  | Ox86_VPINSR ve => app_sopn [:: sword128 ; sword ve ; sword8 ] (x86_vpinsr ve)
-  | Ox86_VPSLL ve sz => app_w8 sz (x86_vpsll ve)
-  | Ox86_VPSRL ve sz => app_w8 sz (x86_vpsrl ve)
-  | Ox86_VPSRA ve sz => app_w8 sz (x86_vpsra ve)
-  | Ox86_VPSLLV ve sz => app_ww sz (x86_vpsllv ve)
-  | Ox86_VPSRLV ve sz => app_ww sz (x86_vpsrlv ve)
-  | Ox86_VPSLLDQ sz => app_w8 sz x86_vpslldq
-  | Ox86_VPSRLDQ sz => app_w8 sz x86_vpsrldq
-  | Ox86_VPSHUFB sz => app_ww sz x86_vpshufb
-  | Ox86_VPSHUFHW sz => app_w8 sz x86_vpshufhw
-  | Ox86_VPSHUFLW sz => app_w8 sz x86_vpshuflw
-  | Ox86_VPSHUFD sz => app_w8 sz x86_vpshufd
-  | Ox86_VPUNPCKH ve sz => app_ww sz (x86_vpunpckh ve)
-  | Ox86_VPUNPCKL ve sz => app_ww sz (x86_vpunpckl ve)
-  | Ox86_VPBLENDD sz => app_ww8 sz x86_vpblendd
-  | Ox86_VPBROADCAST ve sz => app_w ve (x86_vpbroadcast sz)
-  | Ox86_VBROADCASTI128 => app_w U128 (x86_vpbroadcast U256)
-  | Ox86_VEXTRACTI128 => app_w8 U256 x86_vextracti128
-  | Ox86_VINSERTI128 => app_sopn [:: sword256 ; sword128 ; sword8 ] x86_vinserti128
-  | Ox86_VPERM2I128 => app_ww8 U256 x86_vperm2i128
-  | Ox86_VPERMQ => app_w8 U256 x86_vpermq
+Fixpoint list_ltuple (ts:list stype) : sem_tuple ts -> values :=
+  match ts return sem_tuple ts -> values with
+  | [::] => fun (u:unit) => [::]
+  | t :: ts =>
+    let rec := @list_ltuple ts in
+    match ts return (sem_tuple ts -> values) -> sem_tuple (t::ts) -> values with
+    | [::] => fun _ x => [:: oto_val x]
+    | t1 :: ts' =>
+      fun rec (p : sem_ot t * sem_tuple (t1 :: ts')) =>
+       oto_val p.1 :: rec p.2
+    end rec
   end.
 
-Ltac app_sopn_t := 
-  match goal with
-  | |- forall (_:wsize), _     => move=> ?;app_sopn_t
-  | |- forall (_:velem), _     => move=> ?;app_sopn_t
-  | |- forall (_:value), _     => move=> ?;app_sopn_t
-  | |- forall (_:seq value), _ => move=> ?;app_sopn_t
-  | |- (match ?vs with
-       | [::] => type_error
-       | _ :: _ => _ end = ok _) -> _ =>
-    case: vs => // ??; app_sopn_t
-  | |- ((Let _ := _ in _) = ok _) -> _ =>
-    t_xrbindP => ??;app_sopn_t
-  | |- (match ?vs with
-       | [::] => _ 
-       | _ :: _ => _ end = ok _) -> _ =>
-       case: vs => //; app_sopn_t 
-  | |- _ = ok ?a -> _ => move => /(@ok_inj _ _ _ _); app_sopn_t
-  | |- ?a = ?b -> _ => (move => ?; subst a || subst b); app_sopn_t
-  | _ => idtac
-  end.
+Definition exec_sopn (o:sopn) (vs:values) : exec values :=
+  let semi := sopn_sem o in
+  Let t := app_sopn _ semi vs in
+  ok (list_ltuple t).
+
+Lemma type_of_val_ltuple tout (p : sem_tuple tout) :
+  List.map type_of_val (list_ltuple p) = tout.
+Proof.
+  elim: tout p => //= t1 [|t2 tout] /=.
+  + by rewrite /sem_tuple /= => _ x;rewrite type_of_oto_val.
+  by move=> hrec [] x xs /=; rewrite type_of_oto_val hrec.
+Qed.
 
 Lemma sopn_toutP o vs vs' : exec_sopn o vs = ok vs' ->
   List.map type_of_val vs' = sopn_tout o.
 Proof.
-  rewrite /exec_sopn ;case: o => /=; app_sopn_t => //;
-  try (by apply: rbindP => _ _; app_sopn_t).  
-  + by case:ifP => ?; case: vs => // -[<-].
-  + by move=> ???? w2 w3; case: ifP => ? [<-].
-  + by rewrite /x86_div;t_xrbindP => ??;case: ifP => // ? [<-].
-  + by rewrite /x86_idiv;t_xrbindP => ??;case: ifP => // ? [<-].
-  + by rewrite /x86_lea;t_xrbindP => ??;case: ifP => // ? [<-].
-  + by rewrite /x86_ror;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
-  + by rewrite /x86_rol;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
-  + by rewrite /x86_shl;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
-  + by rewrite /x86_shr;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
-  + by rewrite /x86_sar;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
-  + by rewrite /x86_shld;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
-  + by rewrite /x86_shrd;t_xrbindP => ??;case: ifP => // ? [<-] //; case:ifP.
-  by rewrite /x86_vpmull;t_xrbindP => ?? //;apply: rbindP => _ _; app_sopn_t.
+  rewrite /exec_sopn /sopn_tout /sopn_sem.
+  t_xrbindP => p _ <-;apply type_of_val_ltuple.
 Qed.
 
 Section SEM.

@@ -139,10 +139,6 @@ Definition is_vstk (m:map) (x:var) :=
 Definition check_var m (x:var_i) :=
   ~~ is_in_stk m x && ~~is_vstk m x.
 
-(* TODO: move *)
-Definition is_word_type (t:stype) :=
-  if t is sword sz then Some sz else None.
-
 Definition cast_w ws := Papp1 (Oword_of_int ws).
 
 Definition cast_ptr := cast_w Uptr.

@@ -210,7 +210,7 @@ let main () =
     if !coqonly then exit 0;
 
     (* Now call the coq compiler *)
-    let tbl, cprog = Conv.cprog_of_prog () prog in
+    let tbl, cprog = Conv.cprog_of_prog Regalloc.X64.all_registers () prog in
     if !debug then Printf.eprintf "translated to coq \n%!";
 
     let to_exec = Typing.Env.Exec.get env in

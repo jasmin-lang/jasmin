@@ -28,7 +28,7 @@
 From mathcomp Require Import all_ssreflect.
 From Coq.Unicode Require Import Utf8.
 Require Import ZArith Setoid Morphisms CMorphisms CRelationClasses.
-Require Import oseq.
+Require Import xseq oseq.
 Require Psatz.
 From CoqWord Require Import ssrZ.
 
@@ -173,6 +173,7 @@ Canonical error_eqType := Eval hnf in EqType error error_eqMixin.
 Definition exec t := result error t.
 
 Definition type_error {t} := @Error _ t ErrType.
+Definition undef_error {t} := @Error error t ErrAddrUndef.
 
 Lemma bindW {T U} (v : exec T) (f : T -> exec U) r :
   v >>= f = ok r -> exists2 a, v = ok a & f a = ok r.
@@ -221,6 +222,15 @@ Definition mapM eT aT bT (f : aT -> result eT bT)  : seq aT → result eT (seq b
       mapM xs >>= fun ys =>
       Ok eT [:: y & ys]
   end.
+
+Lemma mapM_cons aT eT bT x xs y ys (f : aT -> result eT bT):
+  f x = ok y /\ mapM f xs = ok ys 
+  <-> mapM f (x :: xs) = ok (y :: ys).
+Proof.
+  split.
+  by move => [] /= -> ->.
+  by simpl; t_xrbindP => y0 -> h0 -> -> ->.
+Qed.
 
 Lemma map_ext aT bT f g m :
   (forall a, List.In a m -> f a = g a) ->
@@ -1013,3 +1023,39 @@ Lemma sumbool_of_boolEF (b: bool) (h: b = false) :
   Sumbool.sumbool_of_bool b = right h.
 Proof. by move: h; rewrite /is_true => ?; subst. Qed.
 
+(* ------------------------------------------------------------------------- *)
+Definition funname := positive.
+
+Definition get_fundef {T} (p: seq (funname * T)) (f: funname) :=
+  assoc p f.
+
+(* ------------------------------------------------------------------------- *)
+
+Definition lprod ts tr :=
+  foldr (fun t tr => t -> tr) tr ts.
+
+Fixpoint ltuple (ts:list Type) : Type :=
+  match ts with
+  | [::]   => unit
+  | [::t1] => t1
+  | t1::ts => t1 * ltuple ts
+  end.
+
+Notation "(:: x , .. , y & z )" := (pair x .. (pair y z) ..) (only parsing).
+
+Fixpoint merge_tuple (l1 l2: list Type) : ltuple l1 -> ltuple l2 -> ltuple (l1 ++ l2) :=
+  match l1 return ltuple l1 -> ltuple l2 -> ltuple (l1 ++ l2) with
+  | [::] => fun _ p => p
+  | t1 :: l1 =>
+    let rec := @merge_tuple l1 l2 in
+    match l1 return (ltuple l1 -> ltuple l2 -> ltuple (l1 ++ l2)) ->
+                    ltuple (t1::l1) -> ltuple l2 -> ltuple (t1 :: l1 ++ l2) with
+    | [::] => fun _ (x:t1) =>
+      match l2 return ltuple l2 -> ltuple (t1::l2) with
+      | [::] => fun _ => x
+      | t2::l2    => fun (p:ltuple (t2::l2)) => (x, p)
+      end
+    | t1' :: l1' => fun rec (x:t1 * ltuple (t1'::l1')) p =>
+      (x.1, rec x.2 p)
+    end rec
+   end.

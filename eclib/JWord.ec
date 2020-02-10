@@ -1759,41 +1759,44 @@ abstract theory W_WS.
      by move=> ?;apply ler_pemulr => // /#.
    qed.
 
-   op x86_VPADD_'Ru'S (w1 : WB.t) (w2:WB.t) =
+   op VPADD_'Ru'S (w1 : WB.t) (w2:WB.t) =
      map2 WS.(+) w1 w2.
 
-(*   op x86_VPSUB_'Ru'S (w1 : WB.t) (w2:WB.t) =
+(*   op VPSUB_'Ru'S (w1 : WB.t) (w2:WB.t) =
      map2 (fun (x y:WS.t) => x - y) w1 w2.
 
-   op x86_VPMUL_'Ru'S (w1 : WB.t) (w2:WB.t) =
+   op VPMUL_'Ru'S (w1 : WB.t) (w2:WB.t) =
      map2 WS.( * ) w1 w2. *)
 
-   op x86_VPSLL_'Ru'S (w : WB.t) (cnt : W8.t) =
+   op VPSLL_'Ru'S (w : WB.t) (cnt : W8.t) =
      map (fun (w:WS.t) => w `<<` cnt) w.
 
-   op x86_VPSRL_'Ru'S (w : WB.t) (cnt : W8.t) =
+   op VPSRL_'Ru'S (w : WB.t) (cnt : W8.t) =
      map (fun (w:WS.t) => w `>>` cnt) w.
 
-   op x86_VPBROADCAST_'Ru'S (w: WS.t) =
+   op VPBROADCAST_'Ru'S (w: WS.t) =
      pack'R (map (fun i => w) (iota_ 0 r)).
 
+   (** TODO CHECKME : still x86 **)
    lemma x86_'Ru'S_rol_xor i w : 0 < i < sizeS =>
-      x86_VPSLL_'Ru'S w (W8.of_int i) +^ x86_VPSRL_'Ru'S w (W8.of_int (sizeS - i)) =
+      VPSLL_'Ru'S w (W8.of_int i) +^ VPSRL_'Ru'S w (W8.of_int (sizeS - i)) =
       map (fun w0 => WS.rol w0 i) w.
    proof.
-     move=> hr;rewrite /x86_VPSRL_'Ru'S /x86_VPSLL_'Ru'S.
+     move=> hr;rewrite /VPSRL_'Ru'S /VPSLL_'Ru'S.
      rewrite /map;apply wordP => j hj.
      by rewrite xorb'SE !pack'RbE 1..3:// !mapiE 1..3:// /= rol_xor_shft.
    qed.
 
+   (** TODO CHECKME : still x86 **)
    lemma x86_'Ru'S_rol_xor_red w1 w2 i si:
      w1 = w2 => W8.to_uint si = sizeS - W8.to_uint i => 0 < W8.to_uint i < sizeS =>
-     x86_VPSLL_'Ru'S w1 i +^ x86_VPSRL_'Ru'S w2 si =
+     VPSLL_'Ru'S w1 i +^ VPSRL_'Ru'S w2 si =
      map (fun w0 => WS.rol w0 (W8.to_uint i)) w1.
    proof.
      by move=> -> hsi hi; rewrite -(W8.to_uintK i) -(W8.to_uintK si) hsi x86_'Ru'S_rol_xor.
    qed.
 
+   (** TODO CHECKME : same **)
    hint simplify x86_'Ru'S_rol_xor_red.
 
 end W_WS.
@@ -1990,7 +1993,7 @@ type wsize = [
   | W256
 ].
 
-op wsize_i (w:wsize) =
+op wsize_i (w : wsize) =
   with w = W8   => 1
   with w = W16  => 2
   with w = W32  => 4

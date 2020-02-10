@@ -648,21 +648,23 @@ Proof.
   by exists n', t'.
 Qed.
 
+Lemma of_val_subtype t v sv : of_val t v = ok sv -> subtype t (type_of_val v).
+Proof.
+  case: t sv => /= [ | |p|ws] sv.
+  + by move=> /to_boolI ->.
+  + by move=> /to_intI ->.
+  + by move=> /to_arrI [n' [t' [-> /ZleP hle ?]]] /=.
+  by move=> /to_wordI [ws' [w [? -> ?]]] /=.
+Qed.
+
 Lemma sopn_tinP o vs vs' : exec_sopn o vs = ok vs' ->
   all2 subtype (sopn_tin o) (List.map type_of_val vs).
 Proof.
-rewrite /exec_sopn; case: o => //=;
-repeat match goal with
-| |- match ?x with _ => _ end = ok _ → _ => case: x => //
-| |- Let _ := _ in _ = ok _ → _ => apply: rbindP => //=
-| |- to_bool ?v = ok _ → _ => move => /to_boolI -> {v}
-| |- is_word ?sz ?w = ok ?u → _ => move => /is_wordI /= -> {u}
-| |- to_word ?sz ?v = ok _ → _ =>
-  let k := fresh in case/to_wordI => ? [?] [k ->?]; rewrite /= k => {k}
-| |- _ -> _ => case:ifP
-| |- _ → _ => intro
-end;
-trivial.
+  rewrite /exec_sopn /sopn_tin /sopn_sem.
+  case (get_instr o) => /= _ tin _ tout _ semi _ _ _.
+  t_xrbindP => p hp _.
+  elim: tin vs semi hp => /= [ | t tin hrec] [ | v vs] // semi.
+  by t_xrbindP => sv /= /of_val_subtype -> /hrec.
 Qed.
 
 Lemma on_arr_varP A (f : forall n, WArray.array n -> exec A) v s x P0:
@@ -1598,8 +1600,6 @@ Proof.
   all: by have [z' [/= -> ->]] := of_val_uincl Hu Hz.
 Qed.
 
-Definition is_not_sarr t := ~~ is_sarr t.
-
 Lemma vuincl_sopn T ts o vs vs' (v: T) :
   all is_not_sarr ts ->
   List.Forall2 value_uincl vs vs' ->
@@ -1722,18 +1722,8 @@ Lemma vuincl_exec_opn_eq o vs vs' v :
   List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
   exec_sopn o vs' = ok v.
 Proof.
-rewrite /sem_sopn; case: o; do 2 (try (refine (λ sz: wsize, _)));
-try (move => ve sz; exact: vuincl_sopn);
-try apply: vuincl_sopn => //.
-+ by move=> [] // ????/=; case:ifP.
-move: vs=> [] // vs1 [] // vs2 [] // vs3 [] //.
-case/List_Forall2_inv_l => vs'1 [?] [->] [H1].
-case/List_Forall2_inv_l => vs'2 [?] [->] [H2].
-case/List_Forall2_inv_l => vs'3 [?] [->] [H3].
-move/List_Forall2_inv_l => -> /=.
-t_xrbindP => _ -> /= b /(value_uincl_bool H1) [] _ -> /=.
-move=> w2 hw2 w3 hw3 <-.
-case b; rewrite (value_uincl_word _ hw3) ?(value_uincl_word _ hw2) /=; eauto.
+rewrite /exec_sopn /sopn_sem => h1; t_xrbindP => vs1 h2 h3.
+by have -> /= := vuincl_sopn (tin_narr _) h1 h2;rewrite h3.
 Qed.
 
 Lemma vuincl_exec_opn o vs vs' v :

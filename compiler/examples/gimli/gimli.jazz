@@ -18,7 +18,7 @@ fn rotate(reg u64 x, inline int bits) -> reg u64
   */
   /*
   reg u64 t1;
-  t1 = #x86_ROL32(t1,bits);
+  t1 = #ROL32(t1,bits);
   return t1;
   */
   reg u64 t1;
@@ -26,7 +26,7 @@ fn rotate(reg u64 x, inline int bits) -> reg u64
   t1 = x;
   t1 = t1 << 32;
   t2 = x;
-  t2 = #x86_SHLD(t2,t1,bits);
+  t2 = #SHLD(t2,t1,bits);
   t2 = mask32(t2);
   return t2;
 }

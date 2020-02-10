@@ -1,7 +1,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import x86_variables.
+Require Import psem x86_variables.
 Import Utf8.
-Import compiler_util psem x86_sem.
+Import compiler_util x86_sem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

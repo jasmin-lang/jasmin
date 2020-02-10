@@ -1,6 +1,6 @@
 inline
 fn rotate (reg u32 x, inline int bits) -> reg u32 {
-_, _, x = #x86_ROL_32(x, bits);
+_, _, x = #ROL_32(x, bits);
 return x;
 }
 

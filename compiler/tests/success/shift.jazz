@@ -8,27 +8,27 @@ reg u64 e, f;
 a = (u16)[p + 0];
 b = (u16)[p + 2];
 
-a = #x86_SHLD_16(a, b, 3);
+a = #SHLD_16(a, b, 3);
 n = a;
-a = #x86_SHLD_16(a, b, n);
+a = #SHLD_16(a, b, n);
 
 (u16)[p + 0] = a;
 
 c = (u32)[p + 0];
 d = (u32)[p + 4];
 
-c = #x86_SHLD_32(c, d, 17);
+c = #SHLD_32(c, d, 17);
 n = 9;
-c = #x86_SHLD_32(c, d, n);
+c = #SHLD_32(c, d, n);
 
 (u32)[p + 0] = c;
 
 e = [p + 0];
 f = [p + 8];
 
-f = #x86_SHLD(f, e, 17);
+f = #SHLD(f, e, 17);
 n = 11;
-f = #x86_SHLD(f, e, n);
+f = #SHLD(f, e, n);
 
 [p + 0] = f;
 }
@@ -43,27 +43,27 @@ reg u64 e, f;
 a = (u16)[p + 0];
 b = (u16)[p + 2];
 
-a = #x86_SHRD_16(a, b, 3);
+a = #SHRD_16(a, b, 3);
 n = a;
-a = #x86_SHRD_16(a, b, n);
+a = #SHRD_16(a, b, n);
 
 (u16)[p + 0] = a;
 
 c = (u32)[p + 0];
 d = (u32)[p + 4];
 
-c = #x86_SHRD_32(c, d, 17);
+c = #SHRD_32(c, d, 17);
 n = 9;
-c = #x86_SHRD_32(c, d, n);
+c = #SHRD_32(c, d, n);
 
 (u32)[p + 0] = c;
 
 e = [p + 0];
 f = [p + 8];
 
-f = #x86_SHRD(f, e, 17);
+f = #SHRD(f, e, 17);
 n = 11;
-f = #x86_SHRD(f, e, n);
+f = #SHRD(f, e, n);
 
 [p + 0] = f;
 }

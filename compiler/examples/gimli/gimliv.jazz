@@ -1,7 +1,7 @@
 inline
 fn shift(reg u128 x, inline int count) -> reg u128 {
   reg u128 r;
-  r = #x86_VPSLL_4u32(x, count);
+  r = #VPSLL_4u32(x, count);
   return r;
 }
 
@@ -12,7 +12,7 @@ fn rotate1 (reg u128 r, inline int count) -> reg u128 {
    reg u128 a, b;
    a = shift(r, count);
    count = 32 - count;
-   b = #x86_VPSRL_4u32(r, count);
+   b = #VPSRL_4u32(r, count);
    r = a ^ b;
    return r;
 }
@@ -21,11 +21,11 @@ inline
 fn rotate(reg u128 r, inline int count) -> reg u128 {
   reg u128 a, b;
   if count == 24 {
-    r = #x86_VPSHUFB(r, rotate24pattern);
+    r = #VPSHUFB(r, rotate24pattern);
   } else {
     a = shift(r, count);
     count = 32 - count;
-    b = #x86_VPSRL_4u32(r, count);
+    b = #VPSRL_4u32(r, count);
     r = a ^ b;
   }
   return r;
@@ -69,17 +69,17 @@ fn gimli_body1 (reg u128 x, reg u128 y, reg u128 z) -> reg u128, reg u128, reg u
 
     if (round % 4) == 0 { // small swap: pattern s...s...s... etc.
       pattern = shuffle(2, 3, 0, 1);
-      x = #x86_VPSHUFD(x, pattern);
+      x = #VPSHUFD(x, pattern);
     }
 
     if (round % 4) == 2 { // big swap: pattern ..S...S...S. etc.
       pattern = shuffle(1, 0, 3, 2);
-      x = #x86_VPSHUFD(x, pattern);
+      x = #VPSHUFD(x, pattern);
     }
 
     if (round % 4) == 0 { // add constant: pattern c...c...c... etc.
       m = 0x9e377900 ^32u round;
-      a = #x86_MOVD_32(m);
+      a = #MOVD_32(m);
       x ^= a;
     }
 
@@ -118,17 +118,17 @@ fn gimli_body (reg u128 x, reg u128 y, reg u128 z) -> reg u128, reg u128, reg u1
 
     if (round % 4) == 0 { // small swap: pattern s...s...s... etc.
       pattern = shuffle(2, 3, 0, 1);
-      x = #x86_VPSHUFD(x, pattern);
+      x = #VPSHUFD(x, pattern);
     }
 
     if (round % 4) == 2 { // big swap: pattern ..S...S...S. etc.
       pattern = shuffle(1, 0, 3, 2);
-      x = #x86_VPSHUFD(x, pattern);
+      x = #VPSHUFD(x, pattern);
     }
 
     if (round % 4) == 0 { // add constant: pattern c...c...c... etc.
       m = 0x9e377900 ^32u round;
-      a = #x86_MOVD_32(m);
+      a = #MOVD_32(m);
       x ^= a;
     }
 

@@ -28,7 +28,7 @@ Require Import oseq.
 Require Export ZArith Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
-Require Export strings word utils type var.
+Require Export strings word utils type var global sem_type x86_decl x86_instr_decl.
 Require Import xseq.
 Import Utf8 ZArith.
 
@@ -94,9 +94,9 @@ Variant sop2 :=
 | Ovadd of velem & wsize (* VPADD   *)
 | Ovsub of velem & wsize (* VPSUB   *)
 | Ovmul of velem & wsize (* VPMULLW *)
-| Ovlsr of velem & wsize 
-| Ovlsl of velem & wsize 
-| Ovasr of velem & wsize 
+| Ovlsr of velem & wsize
+| Ovlsl of velem & wsize
+| Ovasr of velem & wsize
 .
 
 (* N-ary operators *)
@@ -111,83 +111,9 @@ Variant sopn : Set :=
 | Osubcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
 
 (* Low level x86 operations *)
-| Oset0        of wsize  (* set register + flags to 0 (implemented using XOR x x) *)
-| Ox86_MOV     of wsize  (* copy *)
-| Ox86_MOVSX of wsize & wsize (* sign-extension *)
-| Ox86_MOVZX of wsize & wsize (* zero-extension *)
-| Ox86_MOVZX32  (* Pseudo instruction for 32-bit to 64-bit zero-extension *)
-| Ox86_CMOVcc  of wsize  (* conditional copy *)
-| Ox86_ADD     of wsize  (* add unsigned / signed *)
-| Ox86_SUB     of wsize  (* sub unsigned / signed *)
-| Ox86_MUL     of wsize  (* mul unsigned *)
-| Ox86_IMUL    of wsize  (* excat multiplication *)
-| Ox86_IMULt   of wsize  (* truncated multiplication *)
-| Ox86_IMULtimm of wsize (* truncated multiplication by an immediate value *)
-| Ox86_DIV     of wsize  (* div unsigned *)
-| Ox86_IDIV    of wsize  (* div   signed *)
-| Ox86_CQO     of wsize  (* return 0 if the highest bit is 0 or -1 otherwise *)
-| Ox86_ADC     of wsize  (* add with carry *)
-| Ox86_SBB     of wsize  (* sub with borrow *)
-| Ox86_NEG     of wsize  (* negation *)
-| Ox86_INC     of wsize  (* increment *)
-| Ox86_DEC     of wsize  (* decrement *)
-| Ox86_SETcc             (* Set byte on condition *)
-| Ox86_BT      of wsize  (* Bit test, sets CF *)
-| Ox86_LEA     of wsize  (* Load Effective Address *)
-| Ox86_TEST    of wsize  (* Bit-wise logical and CMP *)
-| Ox86_CMP     of wsize  (* Signed sub CMP *)
-| Ox86_AND     of wsize  (* bit-wise and *)
-| Ox86_ANDN    of wsize  (* bit-wise and *)
-| Ox86_OR      of wsize  (* bit-wise or  *)
-| Ox86_XOR     of wsize  (* bit-wise xor *)
-| Ox86_NOT     of wsize  (* bit-wise not *)
-| Ox86_ROR     of wsize  (* right rotation *)
-| Ox86_ROL     of wsize  (* left rotation *)
-| Ox86_SHL     of wsize  (* unsigned / left  *)
-| Ox86_SHR     of wsize  (* unsigned / right *)
-| Ox86_SAR     of wsize  (*   signed / right *)
-| Ox86_SHLD    of wsize  (* unsigned double-word / left  *)
-| Ox86_SHRD    of wsize  (* unsigned double-word / right  *)
-| Ox86_MULX    of wsize  (* mul unsigned, doesn't affect arithmetic flags *)
-| Ox86_ADCX    of wsize  (* add with carry flag, only writes carry flag *)
-| Ox86_ADOX    of wsize  (* add with overflow flag, only writes overflow flag *)
-
-| Ox86_BSWAP of wsize (* byte swap *)
-
-| Ox86_MOVD of wsize (* zero-extend to 128 bits *)
-| Ox86_VMOVDQU of wsize (* 128/256-bit copy *)
-| Ox86_VPAND of wsize (* 128/256-bit AND *)
-| Ox86_VPANDN of wsize (* 128/256-bit AND-NOT *)
-| Ox86_VPOR of wsize (* 128/256-bit OR *)
-| Ox86_VPXOR of wsize (* 128/256-bit XOR *)
-
-| Ox86_VPADD of velem & wsize (* Parallel addition over 128/256-bit vectors *)
-| Ox86_VPSUB of velem & wsize (* Parallel addition over 128/256-bit vectors *)
-| Ox86_VPMULL of velem & wsize (* Parallel addition over 128/256-bit vectors *)
-| Ox86_VPMULU of wsize (* Parallel 32-bit → 64-bit multiplication *)
-| Ox86_VPEXTR of wsize (* Element extraction from a 128-bit vector *)
-| Ox86_VPINSR of velem (* Insert element into a 128-bit vector *)
-
-| Ox86_VPSLL of velem & wsize (* Parallel shift left logical over 128/256-bit vectors *)
-| Ox86_VPSRL of velem & wsize (* Parallel shift right logical over 128/256-bit vectors *)
-| Ox86_VPSRA of velem & wsize (* Parallel shift right arithmetic over 128/256-bit vectors *)
-| Ox86_VPSLLV of velem & wsize (* Parallel variable shift left logical over 128/256-bit vectors *)
-| Ox86_VPSRLV of velem & wsize (* Parallel variable shift right logical over 128/256-bit vectors *)
-| Ox86_VPSLLDQ of wsize (* Shift double quadword left logical *)
-| Ox86_VPSRLDQ of wsize (* Shift double quadword right logical *)
-| Ox86_VPSHUFB of wsize (* Shuffle bytes *)
-| Ox86_VPSHUFHW of wsize (* Shuffle high 16-bit words *)
-| Ox86_VPSHUFLW of wsize (* Shuffle low 16-bit words *)
-| Ox86_VPSHUFD of wsize (* Shuffle 32-bit words *)
-| Ox86_VPUNPCKH of velem & wsize (* Unpack High Data *)
-| Ox86_VPUNPCKL of velem & wsize (* Unpack Low Data *)
-| Ox86_VPBLENDD of wsize (* Blend 32-bit words *)
-| Ox86_VPBROADCAST of velem & wsize (* Load integer and broadcast *)
-| Ox86_VBROADCASTI128 (* Load integer and broadcast *)
-| Ox86_VEXTRACTI128 (* Extract 128-bit value from a 256-bit vector *)
-| Ox86_VINSERTI128 (* Insert a 128-bit element into a 256-bit vector *)
-| Ox86_VPERM2I128 (* Permutation of 128-bit words *)
-| Ox86_VPERMQ (* Permutation of 64-bit words *)
+| Oset0     of wsize  (* set register + flags to 0 (implemented using XOR x x or VPXOR x x) *)
+| Ox86MOVZX32
+| Ox86      of asm_op  (* x86 instruction *)
 .
 
 Scheme Equality for sop1.
@@ -240,222 +166,105 @@ Qed.
 Definition sopn_eqMixin     := Equality.Mixin sopn_eq_axiom.
 Canonical  sopn_eqType      := Eval hnf in EqType sopn sopn_eqMixin.
 
-Definition string_of_sopn o : string :=
+(* ----------------------------------------------------------------------------- *)
+
+Record instruction := mkInstruction {
+  str      : unit -> string;
+  tin      : list stype;
+  i_in     : seq arg_desc; 
+  tout     : list stype;
+  i_out    : seq arg_desc;
+  semi     : sem_prod tin (exec (sem_tuple tout));
+  tin_narr : all is_not_sarr tin;
+  wsizei   : wsize;
+  i_safe   : seq safe_cond;
+}.
+
+Notation mk_instr str tin i_in tout i_out semi wsizei safe:=
+  {| str      := str;
+     tin      := tin;
+     i_in     := i_in;
+     tout     := tout;
+     i_out    := i_out;
+     semi     := semi;
+     tin_narr := refl_equal;
+     wsizei   := wsizei;
+     i_safe   := safe;
+  |}.
+
+(* ----------------------------------------------------------------------------- *)
+
+Definition Omulu_instr sz := 
+  mk_instr (pp_sz "mulu" sz) 
+           (w2_ty sz sz) [:: R RAX; E 0]
+           (w2_ty sz sz) [:: R RDX; R RAX] (fun x y => ok (@wumul sz x y)) sz [::].
+ 
+Definition Oaddcarry_instr sz := 
+  mk_instr (pp_sz "addc" sz) 
+           [::sword sz; sword sz; sbool] 
+           [::E 0; E 1; F CF]
+           (sbool :: (w_ty sz))  
+           [:: F CF; E 0]
+           (fun x y c => let p := @waddcarry sz x y c in ok (Some p.1, p.2))
+           sz [::].
+
+Definition Osubcarry_instr sz:= 
+  mk_instr (pp_sz "subc" sz) 
+           [::sword sz; sword sz; sbool] [::E 0; E 1; F CF]
+           (sbool :: (w_ty sz)) [:: F CF; E 0] 
+           (fun x y c => let p := @wsubcarry sz x y c in ok (Some p.1, p.2))
+           sz [::].
+
+Definition Oset0_instr sz  :=
+  let name := pp_sz "set0" sz in
+  if (sz <= U64)%CMP then 
+    mk_instr name 
+             [::] [::]
+             (b5w_ty sz) (implicit_flags ++ [::E 0])
+             (let vf := Some false in
+              ok (::vf, vf, vf, vf, Some true & (0%R: word sz)))
+             sz [::]
+  else 
+    mk_instr name 
+             [::] [::]  
+             (w_ty sz) [::E 0] 
+             (ok (0%R: word sz)) sz [::].
+
+Definition Ox86MOVZX32_instr := 
+  mk_instr (pp_s "MOVZX32") 
+           [:: sword32] [:: E 1] 
+           [:: sword64] [:: E 0] 
+           (λ x : u32, ok (zero_extend U64 x)) 
+           U32 [::].
+
+Definition get_instr o :=
   match o with
-  | Omulu sz => "Omulu " ++ string_of_wsize sz
-  | Oaddcarry sz => "Oaddcarry " ++ string_of_wsize sz
-  | Osubcarry sz => "Osubcarry " ++ string_of_wsize sz
-  | Oset0 sz => "Oset0 " ++ string_of_wsize sz
-  | Ox86_MOV sz => "Ox86_MOV " ++ string_of_wsize sz
-  | Ox86_MOVSX sz sz' => "Ox86_MOVSX " ++ string_of_wsize sz ++ " " ++ string_of_wsize sz'
-  | Ox86_MOVZX sz sz' => "Ox86_MOVZX " ++ string_of_wsize sz ++ " " ++ string_of_wsize sz'
-  | Ox86_MOVZX32 => "Ox86_MOVZX32"
-  | Ox86_CMOVcc sz => "Ox86_CMOVcc " ++ string_of_wsize sz
-  | Ox86_ADD sz => "Ox86_ADD " ++ string_of_wsize sz
-  | Ox86_SUB sz => "Ox86_SUB " ++ string_of_wsize sz
-  | Ox86_MUL sz => "Ox86_MUL " ++ string_of_wsize sz
-  | Ox86_IMUL sz => "Ox86_IMUL " ++ string_of_wsize sz
-  | Ox86_IMULt sz => "Ox86_IMULt " ++ string_of_wsize sz
-  | Ox86_IMULtimm sz => "Ox86_IMULtimm " ++ string_of_wsize sz
-  | Ox86_DIV sz => "Ox86_DIV " ++ string_of_wsize sz
-  | Ox86_IDIV sz => "Ox86_IDIV " ++ string_of_wsize sz
-  | Ox86_CQO sz => "Ox86_CQO " ++ string_of_wsize sz
-  | Ox86_ADC sz => "Ox86_ADC " ++ string_of_wsize sz
-  | Ox86_SBB sz => "Ox86_SBB " ++ string_of_wsize sz
-  | Ox86_NEG sz => "Ox86_NEG " ++ string_of_wsize sz
-  | Ox86_INC sz => "Ox86_INC " ++ string_of_wsize sz
-  | Ox86_DEC sz => "Ox86_DEC " ++ string_of_wsize sz
-  | Ox86_SETcc => "Ox86_SETcc"
-  | Ox86_BT sz => "Ox86_BT " ++ string_of_wsize sz
-  | Ox86_LEA sz => "Ox86_LEA " ++ string_of_wsize sz
-  | Ox86_TEST sz => "Ox86_TEST " ++ string_of_wsize sz
-  | Ox86_CMP sz => "Ox86_CMP " ++ string_of_wsize sz
-  | Ox86_AND sz => "Ox86_AND " ++ string_of_wsize sz
-  | Ox86_ANDN sz => "Ox86_ANDN " ++ string_of_wsize sz
-  | Ox86_OR sz => "Ox86_OR " ++ string_of_wsize sz
-  | Ox86_XOR sz => "Ox86_XOR " ++ string_of_wsize sz
-  | Ox86_NOT sz => "Ox86_NOT " ++ string_of_wsize sz
-  | Ox86_ROR sz => "Ox86_ROR " ++ string_of_wsize sz
-  | Ox86_ROL sz => "Ox86_ROL " ++ string_of_wsize sz
-  | Ox86_SHL sz => "Ox86_SHL " ++ string_of_wsize sz
-  | Ox86_SHR sz => "Ox86_SHR " ++ string_of_wsize sz
-  | Ox86_SAR sz => "Ox86_SAR " ++ string_of_wsize sz
-  | Ox86_SHLD sz => "Ox86_SHLD " ++ string_of_wsize sz
-  | Ox86_SHRD sz => "Ox86_SHRD " ++ string_of_wsize sz
-  | Ox86_MULX sz => "Ox86_MULX " ++ string_of_wsize sz
-  | Ox86_ADCX sz => "Ox86_ADCX " ++ string_of_wsize sz
-  | Ox86_ADOX sz => "Ox86_ADOX " ++ string_of_wsize sz
-  | Ox86_BSWAP sz => "Ox86_BSWAP " ++ string_of_wsize sz
-  | Ox86_MOVD sz => "Ox86_MOVD " ++ string_of_wsize sz
-  | Ox86_VMOVDQU sz => "Ox86_VMOVDQU " ++ string_of_wsize sz
-  | Ox86_VPAND sz => "Ox86_VPAND " ++ string_of_wsize sz
-  | Ox86_VPANDN sz => "Ox86_VPANDN " ++ string_of_wsize sz
-  | Ox86_VPOR sz => "Ox86_VPOR " ++ string_of_wsize sz
-  | Ox86_VPXOR sz => "Ox86_VPXOR " ++ string_of_wsize sz
-  | Ox86_VPADD ve sz => "Ox86_VPADD " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
-  | Ox86_VPSUB ve sz => "Ox86_VPSUB " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
-  | Ox86_VPMULL ve sz => "Ox86_VPMULL " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
-  | Ox86_VPMULU sz => "Ox86_VPMULU " ++ string_of_wsize sz
-  | Ox86_VPEXTR ve => "Ox86_VPEXTR " ++ string_of_wsize ve
-  | Ox86_VPINSR ve => "Ox86_VPINSR " ++ string_of_velem ve
-  | Ox86_VPSLL ve sz => "Ox86_VPSLL " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
-  | Ox86_VPSRL ve sz => "Ox86_VPSRL " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
-  | Ox86_VPSRA ve sz => "Ox86_VPSRA " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
-  | Ox86_VPSLLV ve sz => "Ox86_VPSLLV " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
-  | Ox86_VPSRLV ve sz => "Ox86_VPSRLV " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
-  | Ox86_VPSLLDQ sz => "Ox86_VPSLLDQ" ++ string_of_wsize sz
-  | Ox86_VPSRLDQ sz => "Ox86_VPSRLDQ" ++ string_of_wsize sz
-  | Ox86_VPSHUFB sz => "Ox86_VPSHUFB " ++ string_of_wsize sz
-  | Ox86_VPSHUFHW sz => "Ox86_VPSHUFHW " ++ string_of_wsize sz
-  | Ox86_VPSHUFLW sz => "Ox86_VPSHUFLW " ++ string_of_wsize sz
-  | Ox86_VPSHUFD sz => "Ox86_VPSHUFD " ++ string_of_wsize sz
-  | Ox86_VPUNPCKH ve sz => "Ox86_VPUNPCKH " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
-  | Ox86_VPUNPCKL ve sz => "Ox86_VPUNPCKL " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
-  | Ox86_VPBLENDD sz => "Ox86_VPBLENDD " ++ string_of_wsize sz
-  | Ox86_VPBROADCAST ve sz => "Ox86_VPBROADCAST " ++ string_of_velem ve ++ " " ++ string_of_wsize sz
-  | Ox86_VBROADCASTI128 => "Ox86_VBROADCASTI128"
-  | Ox86_VEXTRACTI128 => "Ox86_VEXTRACTI128"
-  | Ox86_VINSERTI128 => "Ox86_VINSERTI128"
-  | Ox86_VPERM2I128 => "Ox86_VPERM2I128"
-  | Ox86_VPERMQ => "Ox86_VPERMQ"
+  | Omulu     sz => Omulu_instr sz
+  | Oaddcarry sz => Oaddcarry_instr sz
+  | Osubcarry sz => Osubcarry_instr sz
+  | Oset0     sz => Oset0_instr sz
+  | Ox86MOVZX32  => Ox86MOVZX32_instr
+  | Ox86   instr =>
+      let id := instr_desc instr in
+      {|
+        str      := id.(id_str_jas);
+        tin      := id.(id_tin);
+        i_in     := id.(id_in);
+        i_out    := id.(id_out);
+        tout     := id.(id_tout);
+        semi     := id.(id_semi);
+        tin_narr := id.(id_tin_narr);
+        wsizei   := id.(id_wsize);
+        i_safe   := id.(id_safe)
+      |}
   end.
 
-Definition b_ty := [::sbool].
-Definition b5_ty := [:: sbool;sbool;sbool;sbool;sbool].
-Definition w_ty sz:= [::sword sz].
-Definition b2w_ty sz := [::sbool;sbool;sword sz].
-Definition b4w_ty sz := [:: sbool;sbool;sbool;sbool;sword sz].
-Definition b5w_ty sz := [:: sbool;sbool;sbool;sbool;sbool;sword sz].
-Definition b5ww_ty sz := [:: sbool;sbool;sbool;sbool;sbool;sword sz;sword sz].
+Definition string_of_sopn o : string := str (get_instr o) tt.
 
-Definition sopn_tout (o:sopn) :  list stype :=
-  match o with
-  | Omulu sz | Ox86_MULX sz => [::sword sz; sword sz]
-  | Oaddcarry sz | Osubcarry sz | Ox86_ADCX sz | Ox86_ADOX sz => [:: sbool; sword sz]
-  | Oset0 sz => 
-    if (sz <= U64)%CMP then b5w_ty sz
-    else [::sword sz]
-  | Ox86_MOV sz
-  | Ox86_MOVSX sz _
-  | Ox86_MOVZX sz _
-  | Ox86_CMOVcc sz
-  | Ox86_BSWAP sz
-  | Ox86_CQO sz  
-    => w_ty sz
-  | Ox86_MOVZX32 => [:: sword64 ]
-  | Ox86_ADD sz | Ox86_SUB sz     => b5w_ty sz
-  | Ox86_MUL sz | Ox86_IMUL sz    => b5ww_ty sz
-  | Ox86_IMULt sz | Ox86_IMULtimm sz => b5w_ty sz
-  | Ox86_DIV sz | Ox86_IDIV sz    => b5ww_ty sz
-  | Ox86_ADC sz | Ox86_SBB sz     => b5w_ty sz
-  | Ox86_NEG sz                   => b5w_ty sz
-  | Ox86_INC sz | Ox86_DEC sz     => b4w_ty sz
-  | Ox86_SETcc                    => w_ty U8
-  | Ox86_BT sz                    => b_ty 
-  | Ox86_LEA sz                   => w_ty sz
-  | Ox86_TEST sz | Ox86_CMP sz    => b5_ty
-  | Ox86_AND sz | Ox86_ANDN sz | Ox86_OR sz | Ox86_XOR sz => b5w_ty sz
-  | Ox86_NOT sz                   => w_ty sz
-  | Ox86_ROL sz | Ox86_ROR sz     => b2w_ty sz
-  | Ox86_SHL sz | Ox86_SHR sz     => b5w_ty sz 
-  | Ox86_SAR sz | Ox86_SHLD sz | Ox86_SHRD sz => b5w_ty sz
-  | Ox86_MOVD _
-  | Ox86_VPINSR _
-  | Ox86_VEXTRACTI128
-    => [:: sword128 ]
-  | Ox86_VMOVDQU sz
-  | Ox86_VPAND sz | Ox86_VPANDN sz | Ox86_VPOR sz | Ox86_VPXOR sz
-  | Ox86_VPADD _ sz | Ox86_VPSUB _ sz | Ox86_VPMULL _ sz | Ox86_VPMULU sz
-  | Ox86_VPSLL _ sz | Ox86_VPSRL _ sz | Ox86_VPSRA _ sz 
-  | Ox86_VPSLLV _ sz | Ox86_VPSRLV _ sz
-  | Ox86_VPSLLDQ sz | Ox86_VPSRLDQ sz
-  | Ox86_VPSHUFB sz | Ox86_VPSHUFHW sz | Ox86_VPSHUFLW sz | Ox86_VPSHUFD sz
-  | Ox86_VPUNPCKH _ sz | Ox86_VPUNPCKL _ sz
-  | Ox86_VPBLENDD sz | Ox86_VPBROADCAST _ sz
-    => [:: sword sz ]
-  | Ox86_VBROADCASTI128
-  | Ox86_VPERM2I128
-  | Ox86_VPERMQ
-  | Ox86_VINSERTI128
-    => [:: sword256 ]
-  | Ox86_VPEXTR ve => [:: sword ve ]
-  end.
-
-Definition sopn_tin (o: sopn) : list stype :=
-  match o with
-  | Oaddcarry sz
-  | Osubcarry sz
-  | Ox86_ADC sz
-  | Ox86_SBB sz
-  | Ox86_ADCX sz 
-  | Ox86_ADOX sz
-    => let t := sword sz in [:: t ; t ; sbool ]
-  | Oset0 _ => [::]
-  | Ox86_MOV sz
-  | Ox86_MOVSX _ sz
-  | Ox86_MOVZX _ sz
-  | Ox86_NEG sz
-  | Ox86_INC sz
-  | Ox86_DEC sz
-  | Ox86_NOT sz
-  | Ox86_BSWAP sz
-  | Ox86_CQO sz  
-  | Ox86_MOVD sz
-  | Ox86_VMOVDQU sz
-    => [:: sword sz ]
-  | Ox86_MOVZX32 => [:: sword32 ]
-  | Ox86_CMOVcc sz => [:: sbool ; sword sz ; sword sz ]
-  | Omulu sz
-  | Ox86_ADD sz
-  | Ox86_SUB sz
-  | Ox86_MUL sz
-  | Ox86_MULX sz
-  | Ox86_IMUL sz
-  | Ox86_IMULt sz
-  | Ox86_IMULtimm sz
-  | Ox86_BT sz
-  | Ox86_TEST sz
-  | Ox86_CMP sz
-  | Ox86_AND sz
-  | Ox86_ANDN sz
-  | Ox86_OR sz
-  | Ox86_XOR sz
-    => let t := sword sz in [:: t ; t ]
-  | Ox86_DIV sz
-  | Ox86_IDIV sz
-    => let t := sword sz in [:: t ; t ; t ]
-  | Ox86_SETcc => [:: sbool ]
-  | Ox86_LEA sz => let t := sword sz in [:: t ; t ; t ; t ]
-  | Ox86_ROR sz
-  | Ox86_ROL sz
-  | Ox86_SHL sz
-  | Ox86_SHR sz
-  | Ox86_SAR sz
-  | Ox86_VPSLLDQ sz | Ox86_VPSRLDQ sz
-    => [:: sword sz ; sword8 ]
-  | Ox86_SHLD sz
-  | Ox86_SHRD sz
-  | Ox86_VPBLENDD sz
-    => let t := sword sz in [:: t ; t ; sword8 ]
-  | Ox86_VPAND sz | Ox86_VPANDN sz | Ox86_VPOR sz | Ox86_VPXOR sz
-  | Ox86_VPADD _ sz | Ox86_VPSUB _ sz | Ox86_VPMULL _ sz | Ox86_VPMULU sz
-  | Ox86_VPSLLV _ sz | Ox86_VPSRLV _ sz
-  | Ox86_VPSHUFB sz
-  | Ox86_VPUNPCKH _ sz | Ox86_VPUNPCKL _ sz
-    => let t := sword sz in [:: t; t ]
-  | Ox86_VPEXTR _ => [:: sword128 ; sword8 ]
-  | Ox86_VPINSR ve => [:: sword128 ; sword ve ; sword8 ]
-  | Ox86_VPSLL _ sz | Ox86_VPSRL _ sz | Ox86_VPSRA _ sz 
-  | Ox86_VPSHUFHW sz | Ox86_VPSHUFLW sz
-  | Ox86_VPSHUFD sz
-    => [:: sword sz; sword8 ]
-  | Ox86_VPBROADCAST ve _ => [:: sword ve ]
-  | Ox86_VBROADCASTI128 => [:: sword128 ]
-  | Ox86_VINSERTI128 => [:: sword256 ; sword128 ; sword8 ]
-  | Ox86_VPERM2I128 => [:: sword256 ; sword256 ; sword8 ]
-  | Ox86_VEXTRACTI128
-  | Ox86_VPERMQ => [:: sword256 ; sword8 ]
-  end.
+Definition sopn_tin o : list stype := tin (get_instr o).
+Definition sopn_tout o : list stype := tout (get_instr o).
+Definition sopn_sem  o := semi (get_instr o).
+Definition wsize_of_sopn o : wsize := wsizei (get_instr o).
 
 (* Type of unany operators: input, output *)
 Definition type_of_op1 (o: sop1) : stype * stype :=
@@ -488,7 +297,7 @@ Definition type_of_op2 (o: sop2) : stype * stype * stype :=
   | Oland s | Olor s | Olxor s | Ovadd _ s | Ovsub _ s | Ovmul _ s
     => let t := sword s in (t, t, t)
   | Olsr s | Olsl s | Oasr s
-  | Ovlsr _ s | Ovlsl _ s | Ovasr _ s 
+  | Ovlsr _ s | Ovlsl _ s | Ovasr _ s
     => let t := sword s in (t, sword8, t)
   | Oeq Op_int | Oneq Op_int
   | Olt Cmp_int | Ole Cmp_int
@@ -527,23 +336,6 @@ Definition var_info_to_attr (vi: var_info) :=
   | xI _ => VarA true
   | _ => VarA false
   end.
-
-Record global := Global { size_of_global : wsize ; ident_of_global:> Ident.ident }.
-
-Definition global_beq (g1 g2: global) : bool :=
-  let 'Global s1 n1 := g1 in
-  let 'Global s2 n2 := g2 in
-  (s1 == s2) && (n1 == n2).
-
-Lemma global_eq_axiom : Equality.axiom global_beq.
-Proof.
-  case => s1 g1 [] s2 g2 /=; case: andP => h; constructor.
-  - by case: h => /eqP -> /eqP ->.
-  by case => ??; apply: h; subst.
-Qed.
-
-Definition global_eqMixin := Equality.Mixin global_eq_axiom.
-Canonical global_eqType := Eval hnf in EqType global global_eqMixin.
 
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
@@ -905,8 +697,6 @@ Canonical  assgn_tag_eqType      := Eval hnf in EqType assgn_tag assgn_tag_eqMix
 
 (* -------------------------------------------------------------------- *)
 
-Definition funname := positive.
-
 Variant inline_info :=
   | InlineFun
   | DoNotInline.
@@ -971,15 +761,12 @@ Definition function_signature : Type :=
 Definition signature_of_fundef (fd: fundef) : function_signature :=
   (f_tyin fd, f_tyout fd).
 
-Definition glob_decl := (global * Z)%type.
-Notation glob_decls  := (seq glob_decl).
-
 Definition fun_decl := (funname * fundef)%type.
 Notation fun_decls  := (seq fun_decl).
 
-Record prog := { 
+Record prog := {
   p_globs : glob_decls;
-  p_funcs : fun_decls; 
+  p_funcs : fun_decls;
 }.
 
 Definition instr_d (i:instr) :=
@@ -1067,7 +854,7 @@ Definition fundef_beq fd1 fd2 :=
 Lemma fundef_eq_axiom : Equality.axiom fundef_beq.
 Proof.
   move=> [i1 tin1 p1 c1 tout1 r1] [i2 tin2 p2 c2 tout2 r2] /=.
-  apply (@equivP ((i1 == i2) && (tin1 == tin2) && (p1 == p2) && 
+  apply (@equivP ((i1 == i2) && (tin1 == tin2) && (p1 == p2) &&
            (c1 == c2) && (tout1 == tout2) &&(r1 == r2)));first by apply idP.
   by split=> [/andP[]/andP[]/andP[]/andP[]/andP[] | []] /eqP->/eqP->/eqP->/eqP->/eqP->/eqP->.
 Qed.
@@ -1086,9 +873,6 @@ Qed.
 
 Definition prog_eqMixin     := Equality.Mixin prog_eq_axiom.
 Canonical  prog_eqType      := Eval hnf in EqType prog prog_eqMixin.
-
-Definition get_fundef {T} (p: seq (funname * T)) (f: funname) :=
-  assoc p f.
 
 Definition map_prog (F: fundef -> fundef) (p:prog) :=
   {| p_globs := p_globs p;
@@ -1387,9 +1171,9 @@ Proof.
   elim: es Hes s.
   + by move => _ /= s; SvD.fsetdec.
   move => e es ih Hes s /=.
-  rewrite /read_es /= -/read_e ih. 
-  + rewrite Hes. 
-    + rewrite ih. 
+  rewrite /read_es /= -/read_e ih.
+  + rewrite Hes.
+    + rewrite ih.
       + by SvD.fsetdec.
       move => e' he' s'; apply: Hes.
       by rewrite in_cons he' orbT.
@@ -1539,15 +1323,6 @@ Proof.
   case H; simpl; auto.
 Qed.
 
-(*
-Lemma is_wconstP sz e : is_reflect (@wconst sz) e (is_wconst sz e).
-Proof.
-  case e => //=;auto using Is_reflect_none.
-  move=> sz1 e1; case: (is_constP e1);auto using Is_reflect_none.
-  move=> z;apply: Is_reflect_some.
-Qed.
-*)
-
 Lemma is_wconst_of_sizeP sz e :
   is_reflect (fun z => Papp1 (Oword_of_int sz) (Pconst z)) e (is_wconst_of_size sz e).
 Proof.
@@ -1572,7 +1347,7 @@ Fixpoint eq_expr e e' :=
   | Papp1  o e    , Papp1  o' e'      => (o == o') && eq_expr e e'
   | Papp2  o e1 e2, Papp2  o' e1' e2' => (o == o') && eq_expr e1 e1' && eq_expr e2 e2'
   | PappN o es, PappN o' es' => (o == o') && (all2 eq_expr es es')
-  | Pif t e e1 e2, Pif t' e' e1' e2' => 
+  | Pif t e e1 e2, Pif t' e' e1' e2' =>
     (t == t') && eq_expr e e' && eq_expr e1 e1' && eq_expr e2 e2'
   | _             , _                 => false
   end.
@@ -1600,3 +1375,29 @@ Lemma eq_lval_refl x : eq_lval x x.
 Proof.
   by case: x => // [ i ty | x | w x e | w x e] /=; rewrite !eqxx // eq_expr_refl.
 Qed.
+
+Lemma eq_expr_constL z e :
+  eq_expr (Pconst z) e -> e = z :> pexpr.
+Proof. by case: e => // z' /eqP ->. Qed.
+
+Lemma eq_expr_const z1 z2 :
+  eq_expr (Pconst z1) (Pconst z2) -> z1 = z2.
+Proof. by move/eqP. Qed.
+
+Lemma eq_expr_var x1 x2 :
+  eq_expr (Pvar x1) (Pvar x2) -> x1 = x2 :> var.
+Proof. by move/eqP. Qed.
+
+Lemma eq_expr_global g1 g2 :
+  eq_expr (Pglobal g1) (Pglobal g2) -> g1 = g2.
+Proof. by move/eqP. Qed.
+
+Lemma eq_expr_load w1 w2 v1 v2 e1 e2 :
+     eq_expr (Pload w1 v1 e1) (Pload w2 v2 e2)
+  -> [/\ w1 = w2, v1 = v2 :> var & eq_expr e1 e2].
+Proof. by move=> /= /andP [/andP[]] /eqP-> /eqP-> ->. Qed.
+
+Lemma eq_expr_app1 o1 o2 e1 e2 :
+     eq_expr (Papp1 o1 e1) (Papp1 o2 e2)
+  -> [/\ o1 = o2 & eq_expr e1 e2].
+Proof. by move=> /= /andP[/eqP-> ->]. Qed.

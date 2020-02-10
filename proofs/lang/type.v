@@ -28,6 +28,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith gen_map utils strings.
+Require Export wsize.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -37,50 +38,14 @@ Unset Printing Implicit Defensive.
 (* ** Syntax
  * -------------------------------------------------------------------- *)
 
-Variant wsize :=
-  | U8 
-  | U16
-  | U32 
-  | U64
-  | U128
-  | U256.
-
 Variant stype : Set :=
 | sbool
 | sint
 | sarr  of positive
 | sword of wsize.
 
-Variant signedness := 
-  | Signed
-  | Unsigned.
-
-(* Size in bits of the elements of a vector. *)
-Variant velem := VE8 | VE16 | VE32 | VE64.
-
-Coercion wsize_of_velem (ve: velem) : wsize :=
-  match ve with
-  | VE8 => U8
-  | VE16 => U16
-  | VE32 => U32
-  | VE64 => U64
-  end.
-
-(* Size in bits of the elements of a pack. *)
-Variant pelem :=
-| PE1 | PE2 | PE4 | PE8 | PE16 | PE32 | PE64 | PE128.
-
 (* -------------------------------------------------------------------- *)
-Definition string_of_wsize (sz: wsize) : string :=
-  match sz with
-  | U8 => "U8"
-  | U16 => "U16"
-  | U32 => "U32"
-  | U64 => "U64"
-  | U128 => "U128"
-  | U256 => "U256"
-  end.
-
+(*
 Definition string_of_stype (ty: stype) : string :=
   match ty with
   | sbool => "sbool"
@@ -88,14 +53,7 @@ Definition string_of_stype (ty: stype) : string :=
   | sarr n => "(sarr " ++ " ?)"
   | sword sz => "(sword " ++ string_of_wsize sz ++ ")"
   end.
-
-Definition string_of_velem (ve: velem) : string :=
-  match ve with
-  | VE8 => "VE8"
-  | VE16 => "VE16"
-  | VE32 => "VE32"
-  | VE64 => "VE64"
-  end.
+*)
 
 (* -------------------------------------------------------------------- *)
 Notation sword8   := (sword U8).
@@ -106,44 +64,10 @@ Notation sword128 := (sword U128).
 Notation sword256 := (sword U256).
 
 (* -------------------------------------------------------------------- *)
-Scheme Equality for wsize. 
+Scheme Equality for stype.
 
-Lemma wsize_axiom : Equality.axiom wsize_beq. 
-Proof. 
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_wsize_dec_bl.
-  by apply: internal_wsize_dec_lb.
-Qed.
-
-Definition wsize_eqMixin     := Equality.Mixin wsize_axiom.
-Canonical  wsize_eqType      := Eval hnf in EqType wsize wsize_eqMixin.
-
-Definition wsizes :=
-  [:: U8 ; U16 ; U32 ; U64 ; U128 ; U256 ].
-
-Lemma wsize_fin_axiom : Finite.axiom wsizes.
-Proof. by case. Qed.
-
-Definition wsize_choiceMixin :=
-  PcanChoiceMixin (FinIsCount.pickleK wsize_fin_axiom).
-Canonical wsize_choiceType :=
-  Eval hnf in ChoiceType wsize wsize_choiceMixin.
-
-Definition wsize_countMixin :=
-  PcanCountMixin (FinIsCount.pickleK wsize_fin_axiom).
-Canonical wsize_countType :=
-  Eval hnf in CountType wsize wsize_countMixin.
-
-Definition wsize_finMixin :=
-  FinMixin wsize_fin_axiom.
-Canonical wsize_finType :=
-  Eval hnf in FinType wsize wsize_finMixin.
-
-(* -------------------------------------------------------------------- *)
-Scheme Equality for stype. 
-
-Lemma stype_axiom : Equality.axiom stype_beq. 
-Proof. 
+Lemma stype_axiom : Equality.axiom stype_beq.
+Proof.
   move=> x y;apply:(iffP idP).
   + by apply: internal_stype_dec_bl.
   by apply: internal_stype_dec_lb.
@@ -152,52 +76,13 @@ Qed.
 Definition stype_eqMixin     := Equality.Mixin stype_axiom.
 Canonical  stype_eqType      := Eval hnf in EqType stype stype_eqMixin.
 
-(* -------------------------------------------------------------------- *)
-Scheme Equality for velem.
 
-Lemma velem_axiom : Equality.axiom velem_beq.
-Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_velem_dec_bl.
-  by apply: internal_velem_dec_lb.
-Qed.
-
-Definition velem_eqMixin     := Equality.Mixin velem_axiom.
-Canonical  velem_eqType      := Eval hnf in EqType velem velem_eqMixin.
-
-(* ** Comparison 
+(* ** Comparison
  * -------------------------------------------------------------------- *)
-Definition wsize_cmp s s' := 
-  match s, s' with
-  | U8, U8 => Eq
-  | U8, (U16 | U32 | U64 | U128 | U256)  => Lt
-  | U16, U8 => Gt
-  | U16, U16 => Eq
-  | U16, (U32 | U64 | U128 | U256) => Lt
-  | U32, (U8 | U16) => Gt
-  | U32, U32 => Eq
-  | U32, (U64 | U128 | U256) => Lt
-  | U64, (U8 | U16 | U32) => Gt
-  | U64, U64 => Eq
-  | U64, ( U128 | U256) => Lt
-  | U128, (U8 | U16 | U32 | U64) => Gt
-  | U128, U128 => Eq
-  | U128, U256 => Lt
-  | U256, (U8 | U16 | U32 | U64 | U128) => Gt
-  | U256, U256 => Eq
-  end.
-
-Instance wsizeO : Cmp wsize_cmp.
-Proof.
-  constructor.
-  + by move=> [] [].
-  + by move=> [] [] [] //= ? [].
-  by move=> [] [].
-Qed.
 
 Definition stype_cmp t t' :=
   match t, t' with
-  | sbool   , sbool         => Eq 
+  | sbool   , sbool         => Eq
   | sbool   , _             => Lt
 
   | sint    , sbool         => Gt
@@ -212,15 +97,15 @@ Definition stype_cmp t t' :=
   | sarr _  , _             => Gt
   end.
 
-Instance stypeO : Cmp stype_cmp. 
+Instance stypeO : Cmp stype_cmp.
 Proof.
   constructor.
   + by case => [||n|w] [||n'|w'] //=; apply cmp_sym.
   + by move=> y x; case: x y=> [||n|w] [||n'|w'] [||n''|w''] c//=;
        try (by apply ctrans_Eq);eauto using ctrans_Lt, ctrans_Gt; apply cmp_ctrans.
   case=> [||n|w] [||n'|w'] //= h.
-  + by rewrite (@cmp_eq _ _ positiveO _ _ h). 
-  by rewrite (@cmp_eq _ _ wsizeO _ _ h). 
+  + by rewrite (@cmp_eq _ _ positiveO _ _ h).
+  by rewrite (@cmp_eq _ _ wsizeO _ _ h).
 Qed.
 
 Module CmpStype.
@@ -230,25 +115,13 @@ Module CmpStype.
   Definition cmp : t -> t -> comparison := stype_cmp.
 
   Definition cmpO : Cmp cmp := stypeO.
-  
+
 End CmpStype.
-
-Lemma wsize_le_U8 s: (U8 <= s)%CMP.
-Proof. by case: s. Qed.
-
-Lemma wsize_le_U8_inv s: (s <= U8)%CMP -> s = U8.
-Proof. by case: s. Qed.
-
-Lemma wsize_ge_U256 s: (s <= U256)%CMP.
-Proof. by case s. Qed.
-
-Lemma wsize_ge_U256_inv s: (U256 <= s)%CMP -> s = U256.
-Proof. by case s. Qed.
 
 Module CEDecStype.
 
   Definition t := [eqType of stype].
-  
+
   Fixpoint pos_dec (p1 p2:positive) : {p1 = p2} + {True} :=
     match p1 as p1' return {p1' = p2} + {True} with
     | xH =>
@@ -256,11 +129,11 @@ Module CEDecStype.
       | xH => left (erefl xH)
       | _  => right I
       end
-    | xO p1' => 
+    | xO p1' =>
       match p2 as p2' return {xO p1' = p2'} + {True} with
-      | xO p2' => 
+      | xO p2' =>
         match pos_dec p1' p2' with
-        | left eq => 
+        | left eq =>
           left (eq_rect p1' (fun p => xO p1' = xO p) (erefl (xO p1')) p2' eq)
         | _ => right I
         end
@@ -268,9 +141,9 @@ Module CEDecStype.
       end
     | xI p1' =>
       match p2 as p2' return {xI p1' = p2'} + {True} with
-      | xI p2' => 
+      | xI p2' =>
         match pos_dec p1' p2' with
-        | left eq => 
+        | left eq =>
           left (eq_rect p1' (fun p => xI p1' = xI p) (erefl (xI p1')) p2' eq)
         | _ => right I
         end
@@ -279,7 +152,7 @@ Module CEDecStype.
     end.
 
   Definition eq_dec (t1 t2:t) : {t1 = t2} + {True} :=
-    match t1 as t return {t = t2} + {True} with 
+    match t1 as t return {t = t2} + {True} with
     | sbool =>
       match t2 as t0 return {sbool = t0} + {True} with
       | sbool => left (erefl sbool)
@@ -301,7 +174,7 @@ Module CEDecStype.
       end
     | sword w1 =>
       match t2 as t0 return {sword w1 = t0} + {True} with
-      | sword w2 => 
+      | sword w2 =>
         match wsize_eq_dec w1 w2 with
         | left eqw => left (f_equal sword eqw)
         | right _ => right I
@@ -313,11 +186,11 @@ Module CEDecStype.
   Lemma pos_dec_r n1 n2 tt: pos_dec n1 n2 = right tt -> n1 != n2.
   Proof.
     case: tt.
-    elim: n1 n2 => [n1 Hrec|n1 Hrec|] [n2|n2|] //=. 
+    elim: n1 n2 => [n1 Hrec|n1 Hrec|] [n2|n2|] //=.
     + by case: pos_dec (Hrec n2) => //= -[] /(_ (erefl _)).
     by case: pos_dec (Hrec n2) => //= -[] /(_ (erefl _)).
   Qed.
- 
+
   Lemma eq_dec_r t1 t2 tt: eq_dec t1 t2 = right tt -> t1 != t2.
   Proof.
     case: tt;case:t1 t2=> [||n|w] [||n'|w'] //=.
@@ -347,35 +220,32 @@ Definition is_sbool t := t == sbool.
 Lemma is_sboolP t : reflect (t=sbool) (is_sbool t).
 Proof. by rewrite /is_sbool;case:eqP => ?;constructor. Qed.
 
-Definition is_sword t := 
+Definition is_sword t :=
   match t with
   | sword _ => true
   | _       => false
   end.
 
-Definition is_sarr t := 
+Definition is_sarr t :=
   match t with
   | sarr _ => true
   | _      => false
   end.
 
-(* -------------------------------------------------------------------- *)
-Definition check_size_8_64 sz := assert (sz ≤ U64)%CMP ErrType.
-Definition check_size_16_64 sz := assert ((U16 ≤ sz) && (sz ≤ U64))%CMP ErrType.
-Definition check_size_32_64 sz := assert ((U32 ≤ sz) && (sz ≤ U64))%CMP ErrType.
-Definition check_size_128_256 sz := assert ((U128 ≤ sz) && (sz ≤ U256))%CMP ErrType.
+Definition is_word_type (t:stype) :=
+  if t is sword sz then Some sz else None.
 
-Lemma wsize_nle_u64_check_128_256 sz :
-  (sz ≤ U64)%CMP = false →
-  check_size_128_256 sz = ok tt.
-Proof. by case: sz. Qed.
+Lemma is_word_typeP ty ws :
+  is_word_type ty = Some ws -> ty = sword ws.
+Proof. by case: ty => //= w [->]. Qed.
+
 
 (* -------------------------------------------------------------------- *)
-Definition compat_type t1 t2 := 
+Definition compat_type t1 t2 :=
   match t1 with
   | sint    => t2 == sint
   | sbool   => t2 == sbool
-  | sword _ => is_sword t2 
+  | sword _ => is_sword t2
   | sarr _  => is_sarr t2
   end.
 
@@ -387,10 +257,13 @@ Proof. by case: t => [||n|wz]. Qed.
 Hint Resolve compat_type_refl.
 
 Lemma compat_type_trans t2 t1 t3 : compat_type t1 t2 -> compat_type t2 t3 -> compat_type t1 t3.
-Proof. 
+Proof.
   case: t1 => /=.
   + by move => /eqP -> /eqP ->.
   + by move => /eqP -> /eqP ->.
   + by case: t2.
   by case: t2.
 Qed.
+
+
+

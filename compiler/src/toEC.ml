@@ -1,4 +1,5 @@
 open Utils
+open Wsize
 open Type
 open Prog
 module E = Expr
@@ -100,7 +101,7 @@ let init_use fs =
 
 (* ------------------------------------------------------------------- *)
 let add64 x e = 
-  ( u64, Papp2 (E.Oadd ( E.Op_w Type.U64), Pvar x, e))
+  (u64, Papp2 (E.Oadd ( E.Op_w U64), Pvar x, e))
 
 let int_of_word ws e = 
   Papp1 (E.Oint_of_word ws, e)
@@ -620,9 +621,8 @@ let pp_ret env fmt xs =
   Format.fprintf fmt "@[return (%a);@]"
     (pp_list ",@ " (fun fmt x -> pp_ovar env fmt (L.unloc x))) xs
 
-let pp_opn fmt op = 
+let pp_opn fmt op =
   let s = Printer.pp_opn op in
-  let s = String.sub s 1 (String.length s - 1) in
   Format.fprintf fmt "%s" s
 
 let pp_lval1 env pp_e fmt (lv, (ety, e)) = 
@@ -844,33 +844,12 @@ module Leak = struct
   let safe_es env = List.fold_left (safe_e_rec env) []
 
   let safe_opn safe opn es = 
-    match opn with 
-    | E.Omulu _ | E.Oaddcarry _ | E.Osubcarry _ | E.Oset0 _ 
-    | E.Ox86_MOV _ | E.Ox86_MOVSX _ | E.Ox86_MOVZX _ | E.Ox86_MOVZX32 
-    | E.Ox86_CMOVcc _ | E.Ox86_ADD _ | E.Ox86_SUB _ | E.Ox86_MUL _ | E.Ox86_IMUL _
-    | E.Ox86_ADCX _| E.Ox86_ADOX _ | E.Ox86_MULX _ | E.Ox86_IMULt _ | E.Ox86_IMULtimm _ -> safe
-
-    | E.Ox86_DIV sz | E.Ox86_IDIV sz ->  NotZero (sz, List.nth es 2) :: safe
-
-    | E.Ox86_CQO _ | E.Ox86_ADC _ | E.Ox86_SBB _ | E.Ox86_NEG _
-    | E.Ox86_INC _ | E.Ox86_DEC _ | E.Ox86_SETcc | E.Ox86_BT _
-    | E.Ox86_LEA _ | E.Ox86_TEST _ | E.Ox86_CMP _
-    | E.Ox86_AND _ | E.Ox86_ANDN _ | E.Ox86_OR _ | E.Ox86_XOR _ | E.Ox86_NOT _
-    | E.Ox86_ROL _ | E.Ox86_ROR _ | E.Ox86_SHL _ | E.Ox86_SHR _ | E.Ox86_SAR _
-    | E.Ox86_SHLD _ | E.Ox86_SHRD _ | E.Ox86_BSWAP _ | E.Ox86_MOVD _
-    | E.Ox86_VMOVDQU _ | E.Ox86_VPAND _ | E.Ox86_VPANDN _
-    | E.Ox86_VPOR _ | E.Ox86_VPXOR _ 
-    | E.Ox86_VPADD _ | E.Ox86_VPSUB _ |Expr.Ox86_VPMULL _ 
-    | E.Ox86_VPMULU _ | E.Ox86_VPEXTR _ | E.Ox86_VPINSR _
-    | E.Ox86_VPSLL _ | E.Ox86_VPSRL _ | E.Ox86_VPSRA _  
-    | E.Ox86_VPSLLV _ | E.Ox86_VPSRLV _
-    | E.Ox86_VPSLLDQ _ | E.Ox86_VPSRLDQ _
-    | E.Ox86_VPSHUFB _ | E.Ox86_VPSHUFHW _
-    | E.Ox86_VPSHUFLW _ | E.Ox86_VPSHUFD _ | E.Ox86_VPUNPCKH _ | E.Ox86_VPUNPCKL _
-    | E.Ox86_VPBLENDD _ | E.Ox86_VPBROADCAST _ 
-    | E.Ox86_VBROADCASTI128 | E.Ox86_VEXTRACTI128 | E.Ox86_VINSERTI128 | E.Ox86_VPERM2I128 
-    | E.Ox86_VPERMQ -> safe
-
+    let id = Expr.get_instr opn in
+    List.map (fun c ->
+        match c with
+        | X86_decl.NotZero(sz, i) ->
+          NotZero(sz, List.nth es (Conv.int_of_nat i))) id.i_safe @ safe
+ 
   let safe_lval env = function
     | Lnone _ | Lvar _ -> []
     | Lmem(ws, x, e) -> 

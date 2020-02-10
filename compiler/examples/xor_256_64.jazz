@@ -1,11 +1,11 @@
 fn xor64(reg u256 x, inline int i, inline u64 c) -> reg u256 {
   reg u128 y;
   reg u64 r;
-  y = #x86_VEXTRACTI128(x, i / 4);
-  r = #x86_VPEXTR_64(y, i % 4);
+  y = #VEXTRACTI128(x, i / 4);
+  r = #VPEXTR_64(y, i % 4);
   r ^= c;
-  y = #x86_VPINSR_2u64(y, r, i % 4);
-  x = #x86_VINSERTI128(x, y, i / 4);
+  y = #VPINSR_2u64(y, r, i % 4);
+  x = #VINSERTI128(x, y, i / 4);
   return x;
 }
 

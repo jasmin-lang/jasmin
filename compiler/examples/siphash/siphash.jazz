@@ -2,7 +2,7 @@ param int cROUNDS = 2;
 param int dROUNDS = 4;
 
 inline fn rotl(reg u64 x, inline int n) -> reg u64 {
-  _, _, x = #x86_ROL(x, n);
+  _, _, x = #ROL(x, n);
   return x;
 }
 

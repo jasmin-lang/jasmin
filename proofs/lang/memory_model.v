@@ -27,7 +27,7 @@
 
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
-Require Import strings word utils type var array.
+Require Import strings word utils.
 Import Utf8 ZArith.
 
 Set Implicit Arguments.

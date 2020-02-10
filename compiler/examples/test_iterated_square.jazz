@@ -18,19 +18,19 @@ fn reduce(reg u64[8] z) -> reg u64[4] {
   rdx, rax = rax * __38;
   cf, xa[1] += rax;
 
-  xa[2] = #x86_MOV(0);
+  xa[2] = #MOV(0);
   rax = z[6];
   _, xa[2] += rdx + cf;
   rdx, rax = rax * __38;
   cf, xa[2] += rax;
 
-  xa[3] = #x86_MOV(0);
+  xa[3] = #MOV(0);
   rax = z[7];
   _, xa[3] += rdx + cf;
   rdx, rax = rax * __38;
   cf, xa[3] += rax;
 
-  z8 = #x86_MOV(0);
+  z8 = #MOV(0);
   _, z8 += rdx + cf;
 
   cf, xa[0] += z[0];
@@ -40,7 +40,7 @@ fn reduce(reg u64[8] z) -> reg u64[4] {
 
   _, z8 += 0 + cf;
   z8 *= 38;
-  r0 = #x86_MOV(0);
+  r0 = #MOV(0);
 
   cf, xa[0] += z8;
   cf, xa[1] += 0 + cf;
@@ -81,7 +81,7 @@ fn iterated_square(reg u64[4] xa, stack u64 n) -> reg u64[4] {
     rdx, rax = rax * xa[2];
     z[5] = rax;
     z[6] = rdx;
-    z[7] = #x86_MOV(0);
+    z[7] = #MOV(0);
 
     rax = xa[2];
     rdx, rax = rax * xa[0];

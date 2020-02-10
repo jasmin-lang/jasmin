@@ -96,7 +96,7 @@ let arrexp_func fc =
 
 let add_var tbl ws x = 
   if is_stack_var x then
-    let ws' = Mv.find_default Type.U8 x tbl in
+    let ws' = Mv.find_default Wsize.U8 x tbl in
     if size_of_ws ws' <= size_of_ws ws then Mv.add x ws tbl
     else tbl 
   else tbl

@@ -1,0 +1,17 @@
+u64 x0 = 0;
+u64 x1 = 1;
+
+fn test () -> reg u64[2] {
+  inline int i;
+  inline u64[2] t; 
+  reg u64[2] z;
+
+  t[0] = x0;
+  t[1] = x1;
+
+  for i = 0 to 2 {
+    z[i] = t[i] + 1;
+  }
+   
+  return z;
+}

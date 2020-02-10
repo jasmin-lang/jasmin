@@ -4,43 +4,43 @@ require import AllCore BitEncoding IntDiv SmtMap Ring List StdOrder Bool.
 require export JUtils JArray JWord JWord_array JMemory.
 
 (* -------------------------------------------------------------------- *)
-op x86_MULX_64 : W64.t -> W64.t -> (W64.t * W64.t).
-op x86_IMULtimm_64 : W64.t -> W64.t -> (bool * bool * bool * bool * bool * W64.t).
-op x86_ADOX_64 : W64.t -> W64.t -> bool -> (bool * W64.t).
-op x86_ADCX_64 : W64.t -> W64.t -> bool -> (bool * W64.t).
-op x86_XOR_64 : W64.t -> W64.t -> (bool * bool * bool * bool * bool * W64.t).
-op x86_SAR_64 : W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
+op MULX_64 : W64.t -> W64.t -> (W64.t * W64.t).
+op IMULtimm_64 : W64.t -> W64.t -> (bool * bool * bool * bool * bool * W64.t).
+op ADOX_64 : W64.t -> W64.t -> bool -> (bool * W64.t).
+op ADCX_64 : W64.t -> W64.t -> bool -> (bool * W64.t).
+op XOR_64 : W64.t -> W64.t -> (bool * bool * bool * bool * bool * W64.t).
+op SAR_64 : W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
 op set0_64 = (false,false,false,false,false, W64.of_int(0)).
 
 (* -------------------------------------------------------------------- *)
-abbrev x86_MOVD_32 (x : W32.t) = pack4 [x; W32.zero; W32.zero; W32.zero].
+abbrev MOVD_32 (x : W32.t) = pack4 [x; W32.zero; W32.zero; W32.zero].
 
-op x86_ROL_32 (x : W32.t) (cnt : W8.t) =
+op ROL_32 (x : W32.t) (cnt : W8.t) =
   let result = W32.rol x (to_uint cnt) in
   let CF = result.[0] in
   let OF = Logic.(^) CF result.[31] in
   (CF, OF, result)
-  axiomatized by x86_ROL_32_E.
+  axiomatized by ROL_32_E.
 
-op x86_ROL_64 (x : W64.t) (cnt : W8.t) =
+op ROL_64 (x : W64.t) (cnt : W8.t) =
   let result = W64.rol x (to_uint cnt) in
   let CF = result.[0] in
   let OF = Logic.(^) CF result.[63] in
   (CF, OF, result)
-  axiomatized by x86_ROL_64_E.
+  axiomatized by ROL_64_E.
 
 
 (* -------------------------------------------------------------------- *)
-op x86_SHLD_32 :
+op SHLD_32 :
   W32.t -> W32.t -> W8.t -> (bool * bool * bool * bool * bool * W32.t).
 
-op x86_SHRD_32 :
+op SHRD_32 :
   W32.t -> W32.t -> W8.t -> (bool * bool * bool * bool * bool * W32.t).
 
-op x86_SHLD_64 :
+op SHLD_64 :
   W64.t -> W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
 
-op x86_SHRD_64 :
+op SHRD_64 :
   W64.t -> W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
 
 (* -------------------------------------------------------------------- *)
@@ -61,7 +61,7 @@ op rflags_of_aluop_nocf32 (w : W32.t) (vs : int) =
   let ZF = ZF_of_w32 w in
   (OF, SF, PF, ZF).
 
-op x86_DEC_32 (w:W32.t) =
+op DEC_32 (w:W32.t) =
   let v  = w - W32.of_int 1 in
   let vs = W32.to_sint w - 1 in
   let (OF, SF, PF, SZ) = rflags_of_aluop_nocf32 v vs in
@@ -69,11 +69,11 @@ op x86_DEC_32 (w:W32.t) =
 
 lemma DEC32_counter n (c:W32.t) :
   c <> W32.zero =>
-  (n - to_uint c + 1 = n - to_uint (x86_DEC_32 c).`5 /\
-  (x86_DEC_32 c).`4 = ((x86_DEC_32 c).`5 = W32.zero)) /\
-  (n - to_uint c + 1 < n <=> ! (x86_DEC_32 c).`4).
+  (n - to_uint c + 1 = n - to_uint (DEC_32 c).`5 /\
+  (DEC_32 c).`4 = ((DEC_32 c).`5 = W32.zero)) /\
+  (n - to_uint c + 1 < n <=> ! (DEC_32 c).`4).
 proof.
-  move=> hc0; rewrite /x86_DEC_32 /rflags_of_aluop_nocf32 /ZF_of_w32 => /=.
+  move=> hc0; rewrite /DEC_32 /rflags_of_aluop_nocf32 /ZF_of_w32 => /=.
   have -> : (c - W32.one = W32.zero) <=> (to_uint (c - W32.one) = 0).
   + by split => [-> // | h]; apply (canRL _ _ _ _ W32.to_uintK).
   have hc0': to_uint c <> 0.
@@ -99,7 +99,7 @@ op rflags_of_aluop_nocf64 (w : W64.t) (vs : int) =
   let ZF = ZF_of_w64 w in
   (OF, SF, PF, ZF).
 
-op x86_DEC_64 (w:W64.t) =
+op DEC_64 (w:W64.t) =
   let v  = w - W64.of_int 1 in
   let vs = W64.to_sint w - 1 in
   let (OF, SF, PF, SZ) = rflags_of_aluop_nocf64 v vs in
@@ -107,11 +107,11 @@ op x86_DEC_64 (w:W64.t) =
 
 lemma DEC64_counter n (c:W64.t) :
   c <> W64.zero =>
-  (n - to_uint c + 1 = n - to_uint (x86_DEC_64 c).`5 /\
-  (x86_DEC_64 c).`4 = ((x86_DEC_64 c).`5 = W64.zero)) /\
-  (n - to_uint c + 1 < n <=> ! (x86_DEC_64 c).`4).
+  (n - to_uint c + 1 = n - to_uint (DEC_64 c).`5 /\
+  (DEC_64 c).`4 = ((DEC_64 c).`5 = W64.zero)) /\
+  (n - to_uint c + 1 < n <=> ! (DEC_64 c).`4).
 proof.
-  move=> hc0; rewrite /x86_DEC_64 /rflags_of_aluop_nocf64 /ZF_of_w64 => /=.
+  move=> hc0; rewrite /DEC_64 /rflags_of_aluop_nocf64 /ZF_of_w64 => /=.
   have -> : (c - W64.one = W64.zero) <=> (to_uint (c - W64.one) = 0).
   + by split => [-> // | h]; apply (canRL _ _ _ _ W64.to_uintK).
   have hc0': to_uint c <> 0.
@@ -138,23 +138,23 @@ op rflags_of_bwop8 (w : W8.t) =
   let ZF = ZF_of_w8 w in
   (OF, CF, SF, PF, ZF).
 
-op x86_TEST_8 (x y:W8.t) =
+op TEST_8 (x y:W8.t) =
   rflags_of_bwop8 (x `&` y).
 
 
 
 (* -------------------------------------------------------------------- *)
 
-op x86_VPSHUFB_128_B (w:W128.t) (m : W8.t) =
+op VPSHUFB_128_B (w:W128.t) (m : W8.t) =
   let i = W8.to_uint m in
   if 128 <= i then W8.zero
   else w \bits8 (i %% 16).
 
-op x86_VPSHUFB_128 (w m : W128.t) : W128.t =
-  map (x86_VPSHUFB_128_B w) m.
+op VPSHUFB_128 (w m : W128.t) : W128.t =
+  map (VPSHUFB_128_B w) m.
 
-op x86_VPSHUFB_256 (w m : W256.t) : W256.t =
-  map2 x86_VPSHUFB_128 w m.
+op VPSHUFB_256 (w m : W256.t) : W256.t =
+  map2 VPSHUFB_128 w m.
 
 hint simplify (W16u8.of_int_bits8_div).
 hint simplify (W8.of_uintK)@1.
@@ -165,29 +165,29 @@ abbrev [-printing] const_rotate16_128 = (W128.of_int 173425768556397428798581398
 abbrev [-printing] const_rotate24_128 = (W128.of_int 16028905388486802350658220295983399425).
 
 lemma rotate8_128_E w :
-  x86_VPSHUFB_128 w const_rotate8_128 = W4u32.map (fun w => W32.rol w 8) w.
+  VPSHUFB_128 w const_rotate8_128 = W4u32.map (fun w => W32.rol w 8) w.
 proof.
   have h : W128.all_eq
-    (x86_VPSHUFB_128 w const_rotate8_128) (W4u32.map (fun w => W32.rol w 8) w).
-  + by cbv W128.all_eq x86_VPSHUFB_128 x86_VPSHUFB_128_B W16u8.unpack8 edivz.
+    (VPSHUFB_128 w const_rotate8_128) (W4u32.map (fun w => W32.rol w 8) w).
+  + by cbv W128.all_eq VPSHUFB_128 VPSHUFB_128_B W16u8.unpack8 edivz.
   by apply (W128.all_eq_eq _ _ h).
 qed.
 
 lemma rotate16_128_E w :
-  x86_VPSHUFB_128 w const_rotate16_128 = W4u32.map (fun w => W32.rol w 16) w.
+  VPSHUFB_128 w const_rotate16_128 = W4u32.map (fun w => W32.rol w 16) w.
 proof.
   have h : W128.all_eq
-    (x86_VPSHUFB_128  w const_rotate16_128) (W4u32.map (fun w => W32.rol w 16) w).
-  + by cbv W128.all_eq x86_VPSHUFB_128 x86_VPSHUFB_128_B  W16u8.unpack8.
+    (VPSHUFB_128  w const_rotate16_128) (W4u32.map (fun w => W32.rol w 16) w).
+  + by cbv W128.all_eq VPSHUFB_128 VPSHUFB_128_B  W16u8.unpack8.
   by apply (W128.all_eq_eq _ _ h).
 qed.
 
 lemma rotate24_128_E w :
-  (x86_VPSHUFB_128 w const_rotate24_128) = W4u32.map (fun w => W32.rol w 24) w.
+  (VPSHUFB_128 w const_rotate24_128) = W4u32.map (fun w => W32.rol w 24) w.
 proof.
   have h : W128.all_eq
-    (x86_VPSHUFB_128 w const_rotate24_128) (W4u32.map (fun w => W32.rol w 24) w).
-  + by cbv W128.all_eq x86_VPSHUFB_128 x86_VPSHUFB_128_B W16u8.unpack8 edivz.
+    (VPSHUFB_128 w const_rotate24_128) (W4u32.map (fun w => W32.rol w 24) w).
+  + by cbv W128.all_eq VPSHUFB_128 VPSHUFB_128_B W16u8.unpack8 edivz.
   by apply (W128.all_eq_eq _ _ h).
 qed.
 hint simplify (rotate8_128_E, rotate16_128_E, rotate24_128_E).
@@ -202,19 +202,19 @@ abbrev [-printing] const_rotate24_256 =
   W256.of_int 5454353864746073763129182254217446065883741921538078285974850505695092212225.
 
 lemma rotate8_256_E w :
-  x86_VPSHUFB_256 w const_rotate8_256 = W8u32.map (fun w => W32.rol w 8) w.
+  VPSHUFB_256 w const_rotate8_256 = W8u32.map (fun w => W32.rol w 8) w.
 proof.
   by apply: W256.all_eq_eq; cbv delta.
 qed.
 
 lemma rotate16_256_E w :
-  x86_VPSHUFB_256 w const_rotate16_256 = W8u32.map (fun w => W32.rol w 16) w.
+  VPSHUFB_256 w const_rotate16_256 = W8u32.map (fun w => W32.rol w 16) w.
 proof.
   by apply: W256.all_eq_eq; cbv delta.
 qed.
 
 lemma rotate24_256_E w :
-  x86_VPSHUFB_256 w const_rotate24_256 = W8u32.map (fun w => W32.rol w 24) w.
+  VPSHUFB_256 w const_rotate24_256 = W8u32.map (fun w => W32.rol w 24) w.
 proof.
   by apply: W256.all_eq_eq; cbv delta.
 qed.
@@ -222,19 +222,22 @@ qed.
 hint simplify (rotate8_256_E, rotate16_256_E, rotate24_256_E).
 
 (* -------------------------------------------------------------------- *)
-op x86_VPSHUFD_128_B (w : W128.t) (m : W8.t) (i : int) : W32.t =
+op VPSHUFD_128_B (w : W128.t) (m : W8.t) (i : int) : W32.t =
   let m = W8.to_uint m in
   let p = (m %/ (2^(2*i)))%%4 in
   w \bits32 p.
 
-op x86_VPSHUFD_128 (w : W128.t) (m : W8.t) : W128.t =
-  pack4 (map (x86_VPSHUFD_128_B w m) (iota_ 0 4)).
+op VPSHUFD_128 (w : W128.t) (m : W8.t) : W128.t =
+  pack4 (map (VPSHUFD_128_B w m) (iota_ 0 4)).
 
-op x86_VPSHUFD_256 (w : W256.t) (m : W8.t) : W256.t =
-  map (fun w => x86_VPSHUFD_128 w m) w.
+op VPSHUFD_256 (w : W256.t) (m : W8.t) : W256.t =
+  map (fun w => VPSHUFD_128 w m) w.
 
 (* -------------------------------------------------------------------- *)
-abbrev [-printing] x86_VPBROADCASTI_2u128 = x86_VPBROADCAST_2u128.
+abbrev [-printing] VPBROADCASTI_2u128 = VPBROADCAST_2u128.
+
+(** TODO : CHECKME **)
+abbrev [-printing] VBROADCAST_2u128 = VPBROADCAST_2u128.
 
 (* -------------------------------------------------------------------- *)
 abbrev [-printing] subc_8 = W8.subc.
@@ -260,43 +263,47 @@ op mulu64 (w1 w2 : W64.t) =
 (* -------------------------------------------------------------------- *)
 
 (* FIXME it is really the semantics? In particular the last if *)
-op x86_VPEXTR_64 (w:W128.t) (i:W8.t) =
+op VPEXTR_64 (w:W128.t) (i:W8.t) =
   if W8.to_uint i = 0 then (w \bits64 0)
   else if W8.to_uint i = 1 then (w \bits64 1)
   else W64.of_int 0.
 
-op x86_MOVD_64 (v:W64.t) =
+op MOVD_64 (v:W64.t) =
   pack2 [v; W64.zero].
 
-op x86_VPINSR_2u64 (v1:W128.t) (v2:W64.t) (i:W8.t) =
+op VPINSR_2u64 (v1:W128.t) (v2:W64.t) (i:W8.t) =
   let i = W8.to_uint i %% 2 in
   pack2 (map (fun j => if j = i then v2 else v1 \bits64 j) [0;1]).
 
-op x86_VPINSR_4u32 (v1:W128.t) (v2:W32.t) (i:W8.t) =
+op VPINSR_4u32 (v1:W128.t) (v2:W32.t) (i:W8.t) =
   let i = W8.to_uint i %% 4 in
   pack4 (map (fun j => if j = i then v2 else v1 \bits32 j) [0;1;2;3]).
 
-abbrev [-printing] x86_VPAND_128 = W128.(`&`).
-abbrev [-printing] x86_VPOR_128 = W128.(`|`).
-abbrev [-printing] x86_VPXOR_128 = W128.(`^`).
+abbrev [-printing] VPAND_128 = W128.(`&`).
+abbrev [-printing] VPOR_128 = W128.(`|`).
+abbrev [-printing] VPXOR_128 = W128.(`^`).
 
-op x86_VPANDN_128 (x y:W128.t) = W128.invw x `&` y.
+op VPANDN_128 (x y:W128.t) = W128.invw x `&` y.
 
-abbrev [-printing] x86_VPAND_256 = W256.(`&`).
-abbrev [-printing] x86_VPOR_256  = W256.(`|`).
-abbrev [-printing] x86_VPXOR_256 = W256.(`^`).
+abbrev [-printing] VPAND_256 = W256.(`&`).
+abbrev [-printing] VPOR_256  = W256.(`|`).
+abbrev [-printing] VPXOR_256 = W256.(`^`).
 
-op x86_VPANDN_256 (x y:W256.t) = W256.invw x `&` y.
+op VPANDN_256 (x y:W256.t) = W256.invw x `&` y.
 
 
-op x86_VPMULU_128 (w1 w2: W128.t) =
+op VPMULU_128 (w1 w2: W128.t) =
   map2 mulu64 w1 w2.
 
-op x86_VPMULU_256 (w1 w2: W256.t) =
+op VPMULU_256 (w1 w2: W256.t) =
+  map2 mulu64 w1 w2.
+
+(* quick fix *)
+op VPMULU (w1 w2: W256.t) =
   map2 mulu64 w1 w2.
 
 (* FIXME: check this *)
-op x86_VPERM2I128 (w1 w2: W256.t) (i:W8.t) : W256.t =
+op VPERM2I128 (w1 w2: W256.t) (i:W8.t) : W256.t =
   let choose = fun n =>
      if i.[n+3] then W128.zero
      else
@@ -304,11 +311,11 @@ op x86_VPERM2I128 (w1 w2: W256.t) (i:W8.t) : W256.t =
        w \bits128 b2i i.[n] in
   pack2 [choose 0; choose 4].
 
-op x86_VPERMQ (w:W256.t) (i:W8.t) : W256.t =
+op VPERMQ (w:W256.t) (i:W8.t) : W256.t =
   let choose = fun n => w \bits64 ((to_uint i %/ n) %% 4) in
   pack4 [choose 1; choose 4; choose 16; choose 64].
 
-op x86_VEXTRACTI128 (w:W256.t) (i:W8.t) : W128.t =
+op VEXTRACTI128 (w:W256.t) (i:W8.t) : W128.t =
   w \bits128 b2i i.[0].
 
 (* ------------------------------------------------------------------- *)
@@ -322,108 +329,108 @@ op interleave_gen ['elem]
 op get_lo_2u64 (w:W128.t) = w \bits64 0.
 op get_hi_2u64 (w:W128.t) = w \bits64 1.
 
-op x86_VPUNPCKL_16u8 (w1 w2:W128.t) =
+op VPUNPCKL_16u8 (w1 w2:W128.t) =
   interleave_gen get_lo_2u64 W8u8.to_list W16u8.pack16 w1 w2.
 
-op x86_VPUNPCKL_8u16 (w1 w2:W128.t) =
+op VPUNPCKL_8u16 (w1 w2:W128.t) =
   interleave_gen get_lo_2u64 W4u16.to_list W8u16.pack8 w1 w2.
 
-op x86_VPUNPCKL_4u32 (w1 w2:W128.t) =
+op VPUNPCKL_4u32 (w1 w2:W128.t) =
   interleave_gen get_lo_2u64 W2u32.to_list W4u32.pack4 w1 w2.
 
-op x86_VPUNPCKL_2u64 (w1 w2:W128.t) =
+op VPUNPCKL_2u64 (w1 w2:W128.t) =
   interleave_gen get_lo_2u64 (fun x => [x]) W2u64.pack2 w1 w2.
 
-op x86_VPUNPCKL_32u8 (w1 w2: W256.t) =
-  map2 x86_VPUNPCKL_16u8 w1 w2.
+op VPUNPCKL_32u8 (w1 w2: W256.t) =
+  map2 VPUNPCKL_16u8 w1 w2.
 
-op x86_VPUNPCKL_16u16 (w1 w2: W256.t) =
-  map2 x86_VPUNPCKL_8u16 w1 w2.
+op VPUNPCKL_16u16 (w1 w2: W256.t) =
+  map2 VPUNPCKL_8u16 w1 w2.
 
-op x86_VPUNPCKL_8u32 (w1 w2: W256.t) =
-  map2 x86_VPUNPCKL_4u32 w1 w2.
+op VPUNPCKL_8u32 (w1 w2: W256.t) =
+  map2 VPUNPCKL_4u32 w1 w2.
 
-op x86_VPUNPCKL_4u64 (w1 w2: W256.t) =
-  map2 x86_VPUNPCKL_2u64 w1 w2.
+op VPUNPCKL_4u64 (w1 w2: W256.t) =
+  map2 VPUNPCKL_2u64 w1 w2.
 
-op x86_VPUNPCKH_16u8 (w1 w2:W128.t) =
+op VPUNPCKH_16u8 (w1 w2:W128.t) =
   interleave_gen get_hi_2u64 W8u8.to_list W16u8.pack16 w1 w2.
 
-op x86_VPUNPCKH_8u16 (w1 w2:W128.t) =
+op VPUNPCKH_8u16 (w1 w2:W128.t) =
   interleave_gen get_hi_2u64 W4u16.to_list W8u16.pack8 w1 w2.
 
-op x86_VPUNPCKH_4u32 (w1 w2:W128.t) =
+op VPUNPCKH_4u32 (w1 w2:W128.t) =
   interleave_gen get_hi_2u64 W2u32.to_list W4u32.pack4 w1 w2.
 
-op x86_VPUNPCKH_2u64 (w1 w2:W128.t) =
+op VPUNPCKH_2u64 (w1 w2:W128.t) =
   interleave_gen get_hi_2u64 (fun x => [x]) W2u64.pack2 w1 w2.
 
-op x86_VPUNPCKH_32u8 (w1 w2: W256.t) =
-  map2 x86_VPUNPCKH_16u8 w1 w2.
+op VPUNPCKH_32u8 (w1 w2: W256.t) =
+  map2 VPUNPCKH_16u8 w1 w2.
 
-op x86_VPUNPCKH_16u16 (w1 w2: W256.t) =
-  map2 x86_VPUNPCKH_8u16 w1 w2.
+op VPUNPCKH_16u16 (w1 w2: W256.t) =
+  map2 VPUNPCKH_8u16 w1 w2.
 
-op x86_VPUNPCKH_8u32 (w1 w2: W256.t) =
-  map2 x86_VPUNPCKH_4u32 w1 w2.
+op VPUNPCKH_8u32 (w1 w2: W256.t) =
+  map2 VPUNPCKH_4u32 w1 w2.
 
-op x86_VPUNPCKH_4u64 (w1 w2: W256.t) =
-  map2 x86_VPUNPCKH_2u64 w1 w2.
+op VPUNPCKH_4u64 (w1 w2: W256.t) =
+  map2 VPUNPCKH_2u64 w1 w2.
 
 (* ------------------------------------------------------------------- *)
-op x86_VPSLLDQ_128 (w1:W128.t) (w2:W8.t) =
+op VPSLLDQ_128 (w1:W128.t) (w2:W8.t) =
   let n = to_uint w2 in
   let i = min n 16 in
   w1 `<<<` (8 * i).
 
-op x86_VPSLLDQ_256 (w1:W256.t) (w2:W8.t) =
-  map (fun w => x86_VPSLLDQ_128 w w2) w1.
+op VPSLLDQ_256 (w1:W256.t) (w2:W8.t) =
+  map (fun w => VPSLLDQ_128 w w2) w1.
 
-op x86_VPSRLDQ_128 (w1:W128.t) (w2:W8.t) =
+op VPSRLDQ_128 (w1:W128.t) (w2:W8.t) =
   let n = to_uint w2 in
   let i = min n 16 in
   w1 `>>>` (8 * i).
 
-op x86_VPSRLDQ_256 (w1:W256.t) (w2:W8.t) =
-  map (fun w => x86_VPSRLDQ_128 w w2) w1.
+op VPSRLDQ_256 (w1:W256.t) (w2:W8.t) =
+  map (fun w => VPSRLDQ_128 w w2) w1.
 
 (* ------------------------------------------------------------------- *)
-op x86_VPSLLV_4u64 (w1:W256.t) (w2:W256.t) =
+op VPSLLV_4u64 (w1:W256.t) (w2:W256.t) =
   let sll = fun (x1 x2:W64.t) => x1 `<<<` W64.to_uint x2 in
   map2 sll w1 w2.
 
-op x86_VPSRLV_4u64 (w1:W256.t) (w2:W256.t) =
+op VPSRLV_4u64 (w1:W256.t) (w2:W256.t) =
   let srl = fun (x1 x2:W64.t) => x1 `>>>` W64.to_uint x2 in
   map2 srl w1 w2.
 
 (* ------------------------------------------------------------------- *)
-op x86_VPBLENDD_128 (w1 w2: W128.t) (i:W8.t) : W128.t =
+op VPBLENDD_128 (w1 w2: W128.t) (i:W8.t) : W128.t =
   let choose = fun n =>
      let w = if i.[n] then w2 else w1 in
      w \bits32 n in
   pack4 [choose 0; choose 1; choose 2; choose 3].
 
-op x86_VPBLENDD_256 (w1 w2: W256.t) (i:W8.t) : W256.t =
+op VPBLENDD_256 (w1 w2: W256.t) (i:W8.t) : W256.t =
   let choose = fun n =>
      let w = if i.[n] then w2 else w1 in
      w \bits32 n in
   pack8 [choose 0; choose 1; choose 2; choose 3; choose 4; choose 5; choose 6; choose 7].
 
 (* ------------------------------------------------------------------- *)
-abbrev [-printing] (\vshr32u128) (w1:W128.t) (w2:W8.t) = x86_VPSRL_4u32 w1 w2.
-abbrev [-printing] (\vshl32u128) (w1:W128.t) (w2:W8.t) = x86_VPSLL_4u32 w1 w2.
-abbrev [-printing] (\vadd32u128) (w1 w2:W128.t) = x86_VPADD_4u32 w1 w2.
+abbrev [-printing] (\vshr32u128) (w1:W128.t) (w2:W8.t) = VPSRL_4u32 w1 w2.
+abbrev [-printing] (\vshl32u128) (w1:W128.t) (w2:W8.t) = VPSLL_4u32 w1 w2.
+abbrev [-printing] (\vadd32u128) (w1 w2:W128.t) = VPADD_4u32 w1 w2.
 
 
-abbrev [-printing] (\vshr32u256) (w1:W256.t) (w2:W8.t) = x86_VPSRL_8u32 w1 w2.
-abbrev [-printing] (\vshl32u256) (w1:W256.t) (w2:W8.t) = x86_VPSLL_8u32 w1 w2.
+abbrev [-printing] (\vshr32u256) (w1:W256.t) (w2:W8.t) = VPSRL_8u32 w1 w2.
+abbrev [-printing] (\vshl32u256) (w1:W256.t) (w2:W8.t) = VPSLL_8u32 w1 w2.
 
-abbrev [-printing] (\vshr64u256) (w1:W256.t) (w2:W8.t) = x86_VPSRL_4u64 w1 w2.
-abbrev [-printing] (\vshl64u256) (w1:W256.t) (w2:W8.t) = x86_VPSLL_4u64 w1 w2.
+abbrev [-printing] (\vshr64u256) (w1:W256.t) (w2:W8.t) = VPSRL_4u64 w1 w2.
+abbrev [-printing] (\vshl64u256) (w1:W256.t) (w2:W8.t) = VPSLL_4u64 w1 w2.
 
-abbrev [-printing] (\vadd32u256) (w1 w2:W256.t) = x86_VPADD_8u32 w1 w2.
-abbrev [-printing] (\vadd64u256) (w1 w2:W256.t) = x86_VPADD_4u64 w1 w2.
-(*abbrev [-printing] (\vsub64u256) (w1:W256.t) (w2:W8.t) = x86_VPSUB_4u64 w1 w2.*)
+abbrev [-printing] (\vadd32u256) (w1 w2:W256.t) = VPADD_8u32 w1 w2.
+abbrev [-printing] (\vadd64u256) (w1 w2:W256.t) = VPADD_4u64 w1 w2.
+(*abbrev [-printing] (\vsub64u256) (w1:W256.t) (w2:W8.t) = VPSUB_4u64 w1 w2.*)
 
 (* ------------------------------------------------------------------- *)
 (* Leakages                                                            *)

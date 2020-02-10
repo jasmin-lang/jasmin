@@ -18,11 +18,11 @@ export fn foo (reg u64 x) -> reg u64 {
    tmp = ((64s)x64);
    r += tmp;
    x128 = #set0_128();
-   tmp = #x86_VPEXTR_64(x128, 0);
+   tmp = #VPEXTR_64(x128, 0);
    r += tmp;
    x256 = #set0_256();
-   x128 = #x86_VEXTRACTI128(x256, 0);
-   tmp = #x86_VPEXTR_64(x128, 0);
+   x128 = #VEXTRACTI128(x256, 0);
+   tmp = #VPEXTR_64(x128, 0);
    r += tmp;
 
 

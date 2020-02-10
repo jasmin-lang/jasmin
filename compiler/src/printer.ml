@@ -1,6 +1,6 @@
 (* -------------------------------------------------------------------- *)
 open Prog
-
+module W = Wsize
 module T = Type
 module E = Expr
 module F = Format
@@ -44,7 +44,7 @@ let pp_gvar_i pp_var fmt v = pp_var fmt (L.unloc v)
 (* -------------------------------------------------------------------- *)
 
 let string_of_cmp_ty = function
-  | E.Cmp_w (Type.Unsigned, _) -> "u"
+  | E.Cmp_w (W.Unsigned, _) -> "u"
   | _        -> ""
 
 (* -------------------------------------------------------------------- *)
@@ -52,7 +52,7 @@ let string_of_cmp_ty = function
 let string_of_velem s ws ve = 
   let nws = int_of_ws ws in
   let nve = int_of_velem ve in
-  let s   = if s = T.Unsigned then "u" else "s" in
+  let s   = if s = W.Unsigned then "u" else "s" in
   Format.sprintf "%d%s%d" (nws/nve) s nve
 
 let string_of_op2 = function
@@ -78,12 +78,12 @@ let string_of_op2 = function
   | E.Ogt  k -> ">"  ^ string_of_cmp_ty k
   | E.Oge  k -> ">=" ^ string_of_cmp_ty k
 
-  | Ovadd (ve,ws) -> Format.sprintf "+%s"  (string_of_velem T.Unsigned ws ve)
-  | Ovsub (ve,ws) -> Format.sprintf "-%s"  (string_of_velem T.Unsigned ws ve)
-  | Ovmul (ve,ws) -> Format.sprintf "*%s"  (string_of_velem T.Unsigned ws ve)
-  | Ovlsr (ve,ws) -> Format.sprintf ">>%s" (string_of_velem T.Unsigned ws ve)
-  | Ovasr (ve,ws) -> Format.sprintf ">>%s" (string_of_velem T.Unsigned ws ve)
-  | Ovlsl (ve,ws) -> Format.sprintf "<<%s" (string_of_velem T.Signed   ws ve)
+  | Ovadd (ve,ws) -> Format.sprintf "+%s"  (string_of_velem W.Unsigned ws ve)
+  | Ovsub (ve,ws) -> Format.sprintf "-%s"  (string_of_velem W.Unsigned ws ve)
+  | Ovmul (ve,ws) -> Format.sprintf "*%s"  (string_of_velem W.Unsigned ws ve)
+  | Ovlsr (ve,ws) -> Format.sprintf ">>%s" (string_of_velem W.Unsigned ws ve)
+  | Ovasr (ve,ws) -> Format.sprintf ">>%s" (string_of_velem W.Unsigned ws ve)
+  | Ovlsl (ve,ws) -> Format.sprintf "<<%s" (string_of_velem W.Signed   ws ve)
 
 
 let string_of_op1 = function
@@ -150,88 +150,8 @@ let pp_glvs pp_var fmt lvs =
   | _   -> F.fprintf fmt "(@[%a@])" (pp_list ",@ " (pp_glv pp_var)) lvs
 
 (* -------------------------------------------------------------------- *)
-let pp_opn =
-  let open Expr in
-  let f w s = F.sprintf "%s_%d" s (int_of_ws w) in
-  let f2 w _w' s = F.sprintf "%s_%d" s (int_of_ws w) in (* TODO: concrete syntax for these intrinsics *)
-  let v ve sz s = F.sprintf "%s_%s" s (string_of_velem T.Unsigned sz ve) in
-  function
-  | Omulu w -> f w "#mulu"
-  | Oaddcarry w -> f w "#addc"
-  | Osubcarry w -> f w "#subc"
-  | Oset0 w -> f w "#set0"
-  | Ox86_MOV w -> f w "#x86_MOV"
-  | Ox86_MOVSX (w, w') -> f2 w w' "#x86_MOVSX"
-  | Ox86_MOVZX (w, w') -> f2 w w' "#x86_MOVZX"
-  | Ox86_MOVZX32 -> "#x86_MOVZX32"
-  | Ox86_CMOVcc w -> f w "#x86_CMOVcc"
-  | Ox86_ADD w -> f w "#x86_ADD"
-  | Ox86_SUB w -> f w "#x86_SUB"
-  | Ox86_MUL w -> f w "#x86_MUL"
-  | Ox86_IMUL w -> f w "#x86_IMUL"
-  | Ox86_IMULt w -> f w "#x86_IMULt"
-  | Ox86_IMULtimm w -> f w "#x86_IMULtimm"
-  | Ox86_DIV w -> f w "#x86_DIV"
-  | Ox86_IDIV w -> f w "#x86_IDIV"
-  | Ox86_CQO w  -> f w "#x86_CQO"
-  | Ox86_ADC w -> f w "#x86_ADC"
-  | Ox86_SBB w -> f w "#x86_SBB"
-  | Ox86_NEG w -> f w "#x86_NEG"
-  | Ox86_INC w -> f w "#x86_INC"
-  | Ox86_DEC w -> f w "#x86_DEC"
-  | Ox86_SETcc -> "#x86_SETcc"
-  | Ox86_BT w -> f w "#x86_BT"
-  | Ox86_LEA w -> f w "#x86_LEA"
-  | Ox86_TEST w -> f w "#x86_TEST"
-  | Ox86_CMP w -> f w "#x86_CMP"
-  | Ox86_AND w -> f w "#x86_AND"
-  | Ox86_ANDN w -> f w "#x86_ANDN"
-  | Ox86_OR w -> f w "#x86_OR"
-  | Ox86_XOR w -> f w "#x86_XOR"
-  | Ox86_NOT w -> f w "#x86_NOT"
-  | Ox86_ROL w -> f w "#x86_ROL"
-  | Ox86_ROR w -> f w "#x86_ROR"
-  | Ox86_SHL w -> f w "#x86_SHL"
-  | Ox86_SHR w -> f w "#x86_SHR"
-  | Ox86_SAR w -> f w "#x86_SAR"
-  | Ox86_SHLD w -> f w "#x86_SHLD"
-  | Ox86_SHRD w -> f w "#x86_SHRD"
-  | Ox86_ADCX w -> f w "#x86_ADCX"
-  | Ox86_ADOX w -> f w "#x86_ADOX"
-  | Ox86_MULX w -> f w "#x86_MULX"
-  | Ox86_BSWAP w -> f w "#x86_BSWAP"
-  | Ox86_MOVD w -> f w "#x86_MOVD"
-  | Ox86_VMOVDQU w -> f w "#x86_VMOVDQU"
-  | Ox86_VPAND w -> f w "#x86_VPAND"
-  | Ox86_VPANDN w -> f w "#x86_VPANDN"
-  | Ox86_VPOR w -> f w "#x86_VPOR"
-  | Ox86_VPXOR w -> f w "#x86_VPXOR"
-  | Ox86_VPADD (ve, sz) -> v ve sz "#x86_VPADD"
-  | Ox86_VPSUB (ve, sz) -> v ve sz "#x86_VPSUB"
-  | Ox86_VPMULL (ve, sz) -> v ve sz "#x86_VPMULL"
-  | Ox86_VPMULU w -> f w "#x86_VPMULU"
-  | Ox86_VPEXTR w -> f w "#x86_VPEXTR"
-  | Ox86_VPINSR ve -> v ve U128 "#x86_VPINSR"
-  | Ox86_VPSLL (ve, sz) -> v ve sz "#x86_VPSLL"
-  | Ox86_VPSRL (ve, sz) -> v ve sz "#x86_VPSRL"
-  | Ox86_VPSRA (ve, sz) -> v ve sz "#x86_VPSRA"
-  | Ox86_VPSLLV (ve, sz) -> v ve sz "#x86_VPSLLV"
-  | Ox86_VPSRLV (ve, sz) -> v ve sz "#x86_VPSRLV"
-  | Ox86_VPSLLDQ w -> f w "#x86_VPSLLDQ"
-  | Ox86_VPSRLDQ w -> f w "#x86_VPSRLDQ"
-  | Ox86_VPSHUFB w -> f w "#x86_VPSHUFB"
-  | Ox86_VPSHUFHW w -> f w "#x86_VPSHUFHW"
-  | Ox86_VPSHUFLW w -> f w "#x86_VPSHUFLW"
-  | Ox86_VPSHUFD w -> f w "#x86_VPSHUFD"
-  | Ox86_VPUNPCKH (ve, sz) -> v ve sz "#x86_VPUNPCKH"
-  | Ox86_VPUNPCKL (ve, sz) -> v ve sz "#x86_VPUNPCKL"
-  | Ox86_VPBLENDD w -> f w "#x86_VPBLENDD"
-  | Ox86_VPBROADCAST (ve, sz) -> v ve sz "#x86_VPBROADCAST"
-  | Ox86_VBROADCASTI128 -> "#x86_VPBROADCASTI_2u128"
-  | Ox86_VEXTRACTI128 -> "#x86_VEXTRACTI128"
-  | Ox86_VINSERTI128 -> "#x86_VINSERTI128"
-  | Ox86_VPERM2I128 -> "#x86_VPERM2I128"
-  | Ox86_VPERMQ -> "#x86_VPERMQ"
+let pp_opn o =
+  Conv.string_of_string0 ((Expr.get_instr o).str ())
 
 (* -------------------------------------------------------------------- *)
 let pp_tag = function

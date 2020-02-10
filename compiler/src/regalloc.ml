@@ -1,7 +1,7 @@
 open Utils
 open Expr
 open Prog
-open Asmgen
+open X86_decl
 
 module IntSet = Sint
 module IntMap = Mint
@@ -41,7 +41,7 @@ let int_of_nat n =
     | Datatypes.S n -> loop (1 + acc) n
   in loop 0 n
 
-let find_equality_constraints (id: instr_desc) : arg_position list list =
+let find_equality_constraints (id: instruction) : arg_position list list =
   let tbl : (int, arg_position list) Hashtbl.t = Hashtbl.create 17 in
   let set n p =
     let old = try Hashtbl.find tbl n with Not_found -> [] in
@@ -50,11 +50,11 @@ let find_equality_constraints (id: instr_desc) : arg_position list list =
   List.iteri (fun n ->
       function
       | ADImplicit _ -> ()
-      | ADExplicit (_, p, _) -> set (int_of_nat p) (APout n)) id.id_out;
+      | ADExplicit (p, _) -> set (int_of_nat p) (APout n)) id.i_out;
   List.iteri (fun n ->
       function
       | ADImplicit _ -> ()
-      | ADExplicit (_, p, _) -> set (int_of_nat p) (APin n)) id.id_in;
+      | ADExplicit (p, _) -> set (int_of_nat p) (APin n)) id.i_in;
   Hashtbl.fold
     (fun _ apl res ->
        match apl with
@@ -67,9 +67,6 @@ let find_var outs ins ap : _ option =
   | APout n -> (List.nth outs n |> function Lvar v -> Some v | _ -> None)
   | APin n -> (List.nth ins n |> function Pvar v -> Some v | _ -> None)
 
-let desc_of_op op =
-  X86_instr.sopn_desc BinNums.Coq_xH op
-
 let x86_equality_constraints (tbl: int Hv.t) (k: int -> int -> unit)
     (k': int -> int -> unit)
     (lvs: 'ty glvals) (op: sopn) (es: 'ty gexprs) : unit =
@@ -81,12 +78,10 @@ let x86_equality_constraints (tbl: int Hv.t) (k: int -> int -> unit)
     with Not_found -> ()
   in
   begin match op, lvs, es with
-  | (Oaddcarry _ | Osubcarry _), [ _ ; Lvar v ], Pvar w :: _ -> merge k v w
-  | Ox86_MOV _, [ Lvar x ], [ Pvar y ] when kind_i x = kind_i y ->
+  | Ox86 (MOV _), [ Lvar x ], [ Pvar y ] when kind_i x = kind_i y ->
     merge k' x y
   | _, _, _ ->
-    begin match desc_of_op op with
-    | Ok id ->
+    let id = get_instr op in
       find_equality_constraints id |>
       List.iter (fun constr ->
           constr |>
@@ -95,8 +90,6 @@ let x86_equality_constraints (tbl: int Hv.t) (k: int -> int -> unit)
           | x :: m ->
             List.iter (merge k x) m
         )
-    | _ -> assert false
-    end
   end
 
 (* Set of instruction information for each variable equivalence class. *)
@@ -410,23 +403,25 @@ struct
     let mallocate_one x y a =
       match x with Pvar x -> allocate_one x y a | _ -> a
     in
-    begin match desc_of_op op with
-      | Ok id ->
-        let a =
-        List.fold_left2 (fun acc ad lv ->
-            begin match ad with
-            | ADImplicit v -> begin match lv with Lvar w -> allocate_one w (translate_var v) acc | _ -> assert false end
-            | ADExplicit _ -> acc
-            end) a id.id_out lvs
-          in
-        List.fold_left2 (fun acc ad e ->
-            begin match ad with
-            | ADImplicit v -> mallocate_one e (translate_var v) acc
-            | ADExplicit (_, _, Some r) -> mallocate_one e (translate_var (X86_variables.var_of_register r)) acc
-            | ADExplicit (_, _, None) -> acc
-            end) a id.id_in es
-      | _ -> assert false
-    end
+    let id = get_instr op in 
+    let a =
+      List.fold_left2 (fun acc ad lv ->
+          match ad with
+          | ADImplicit v ->
+            begin match lv with 
+            | Lvar w -> allocate_one w (translate_var (Asmgen.var_of_implicit v)) acc 
+            | _ -> assert false 
+            end
+          | ADExplicit _ -> acc) a id.i_out lvs
+    in
+    List.fold_left2 (fun acc ad e ->
+        match ad with
+        | ADImplicit v -> 
+          mallocate_one e (translate_var (Asmgen.var_of_implicit v)) acc
+        | ADExplicit (_, Some r) -> 
+          mallocate_one e (translate_var (X86_variables.var_of_register r)) acc
+        | ADExplicit (_, None) -> acc) a id.i_in es
+
 end
 
 type kind = Word | Vector | Unknown of ty

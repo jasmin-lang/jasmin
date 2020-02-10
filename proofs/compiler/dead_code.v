@@ -82,7 +82,7 @@ Definition check_nop (rv:lval) ty (e:pexpr) :=
 
 Definition check_nop_opn (xs:lvals) (o: sopn) (es:pexprs) :=
   match xs, o, es with
-  | [:: x], Ox86_MOV sz, [:: e] => check_nop x (sword sz) e
+  | [:: x], Ox86 (MOV sz), [:: e] => check_nop x (sword sz) e
   | _, _, _ => false
   end.
 

@@ -23,17 +23,38 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-Require Import var compiler.
+(* * Syntax and semantics of the Jasmin source language *)
 
-Require ExtrOcamlBasic.
-Require ExtrOcamlString.
+(* ** Imports and settings *)
+From mathcomp Require Import all_ssreflect all_algebra.
+From CoqWord Require Import ssrZ.
+Require Import Psatz xseq.
+Require Export strings warray_.
+Import Utf8.
 
-Extraction Inline ssrbool.is_left.
+Set Implicit Arguments.
+Unset Strict Implicit.
+Unset Printing Implicit Defensive.
 
-Cd  "lang/ocaml".
+Definition sem_t (t : stype) : Type :=
+  match t with
+  | sbool    => bool
+  | sint     => Z
+  | sarr n   => WArray.array n
+  | sword s  => word s
+  end.
 
-Extraction Blacklist String List Nat Utils Var Array.
+Definition sem_prod ts tr := lprod (map sem_t ts) tr.
 
-Separate Extraction utils expr sem x86_instr_decl compiler.
+(* Definition example : ltuple [:: (nat:Type); (nat:Type); (nat:Type); (nat:Type); (nat:Type); (nat:Type); (nat:Type); (nat:Type)]:= merge_tuple toto toto.
+ *)
+Definition sem_ot (t:stype) : Type :=
+  if t is sbool then option bool
+  else sem_t t.
 
-Cd  "../..".
+Definition sem_tuple ts := ltuple (map sem_ot ts).
+
+(* -------------------------------------------------------------------------- *)
+Definition is_not_sarr t := ~~ is_sarr t.
+
+

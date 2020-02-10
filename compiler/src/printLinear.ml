@@ -1,5 +1,6 @@
 open Linear
 
+module W = Wsize
 module T = Type
 module E = Expr
 
@@ -11,7 +12,7 @@ module Pr = Printer
 
 (* ---------------------------------------------------------------- *)
 let pp_wsize fmt sz =
-  F.fprintf fmt "%a" Pr.pp_string0 (T.string_of_wsize sz)
+  F.fprintf fmt "%a" Pr.pp_string0 (W.string_of_wsize sz)
 
 let pp_stype fmt =
   function

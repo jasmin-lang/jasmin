@@ -177,7 +177,7 @@ with check_I i1 i2 r :=
 
 Definition check_cmd iinfo := fold2 (iinfo,cmd2_error) check_I.
 
-Definition check_fundef (f1 f2: funname * fundef) (_:unit) := 
+Definition check_fundef (f1 f2: funname * fundef) (_:Datatypes.unit) :=
   let (f1,fd1) := f1 in
   let (f2,fd2) := f2 in
   if (f1 == f2) && (fd1.(f_tyin) == fd2.(f_tyin)) && (fd1.(f_tyout) == fd2.(f_tyout)) then

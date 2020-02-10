@@ -23,17 +23,20 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-Require Import var compiler.
+(* ** Imports and settings *)
+From mathcomp Require Import all_ssreflect all_algebra.
+Require Import strings utils.
+Require Import Utf8.
 
-Require ExtrOcamlBasic.
-Require ExtrOcamlString.
+Set Implicit Arguments.
+Unset Strict Implicit.
+Unset Printing Implicit Defensive.
 
-Extraction Inline ssrbool.is_left.
+Module Ident.
 
-Cd  "lang/ocaml".
+  Definition ident := [eqType of string].
+  Module Mid := Ms.
 
-Extraction Blacklist String List Nat Utils Var Array.
+End Ident.
 
-Separate Extraction utils expr sem x86_instr_decl compiler.
 
-Cd  "../..".

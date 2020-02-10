@@ -1,7 +1,7 @@
-Require Import x86_instr linear_sem.
+Require Import x86_sem linear_sem.
 Import Utf8 Relation_Operators.
 Import all_ssreflect all_algebra.
-Import compiler_util expr psem x86_sem linear x86_variables x86_variables_proofs asmgen.
+Require Import compiler_util expr psem x86_sem linear x86_variables x86_variables_proofs asmgen.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -11,7 +11,9 @@ Unset Printing Implicit Defensive.
 Definition assemble_i (i: linstr) : ciexec asm :=
   let '{| li_ii := ii ; li_i := ir |} := i in
   match ir with
-  | Lopn ds op es => assemble_sopn ii ds op es 
+  | Lopn ds op es => 
+    Let oa := assemble_sopn ii op ds es in
+    ok (AsmOp oa.1 oa.2)
 
   | Lalign  => ciok ALIGN
 
@@ -85,8 +87,7 @@ Lemma assemble_i_is_label a b lbl :
 Proof.
 rewrite /assemble_i /linear.is_label ; case a =>  ii [] /=.
 - move => lvs op es h.
-  have := assemble_sopn_is_sopn h => {h}.
-  by case b.
+  by move: h;t_xrbindP => ?? <-.
 - by move => [<-].
 - by move => lbl' [<-].
 - by move => lbl' [<-].
@@ -122,11 +123,10 @@ Lemma assemble_iP gd i j ls ls' xs :
 Proof.
 rewrite /linear_sem.eval_instr /x86_sem.eval_instr; case => eqm eqc eqpc.
 case: i => ii [] /=.
-- move => lvs op pes ok_j; t_xrbindP => es ok_es <- {ls'} /=.
-  have [m2 [-> eqm2 /=]] := assemble_sopnP eqm ok_j ok_es.
-  have := assemble_sopn_is_sopn ok_j.
-  by case: j {ok_j} => //; (eexists; split; first by reflexivity); constructor => //=;
-    rewrite ?to_estate_of_estate ?eqpc.
+- move => lvs op pes; t_xrbindP => -[op' asm_args] hass <- m hsem <-.
+  have [s [-> eqm' /=]]:= assemble_sopnP hsem hass eqm.
+  (eexists; split; first by reflexivity).
+  by constructor => //=; rewrite ?to_estate_of_estate ?eqpc.
 - move => [<-] [<-];eexists;split;first by reflexivity.
   by constructor => //; rewrite /setpc eqpc.
 - move => lbl [<-] [<-]; eexists; split; first by reflexivity.
@@ -201,10 +201,24 @@ elim: xs vs s1 s2 rs.
 move => x xs ih /= [] // v vs s1 s3 rs';
   t_xrbindP => s2 ok_s2 ok_s3 r ok_r rs ok_rs <- {rs'} h /List_Forall2_inv_l [v'] [vs'] [/=] /seq_eq_injL [<- {v'} <- {vs'}] [hv rec].
 apply: ih; eauto.
-have := write_var_compile_var MSB_CLEAR ok_s2 hv h.
-rewrite /compile_var (reg_of_var_register_of_var ok_r) => /(_ _ erefl) [_] [<-] /=.
-rewrite /mem_write_reg /= word_extend_reg_id // zero_extend_u -RegMap_set_id.
-by case: (xm1).
+move: ok_s2; rewrite /write_var /set_var /=.
+have <- /= := var_of_reg_of_var ok_r.
+t_xrbindP => vm;apply: on_vuP => // w hw <- <-.
+case: h => h1 h2 h3 h4; constructor => //=.
++ move=> r' v'; rewrite /get_var /on_vu /=.
+  case: (r =P r') => [<- | hne].
+  + rewrite Fv.setP_eq => -[<-] /=.
+    have hu1 : value_uincl (Vword (pw_word w)) v.
+    + have [sz [w' [-> -> /=]]]:= to_pwordI hw.
+      case: Sumbool.sumbool_of_bool => hle //=.
+      by apply word_uincl_zero_ext; apply cmp_nle_le; rewrite hle.
+    by apply (value_uincl_trans hu1 hv).
+  rewrite Fv.setP_neq; last by apply /eqP => h; apply hne; apply var_of_register_inj.
+  by apply h2. 
++ move=> r' v'; rewrite /get_var /on_vu /=.
+  by rewrite Fv.setP_neq //; apply h3.
+move=> f v'; rewrite /get_var /on_vu /=.
+by rewrite Fv.setP_neq //; apply h4.
 Qed.
 
 (* TODO: Move this *)
@@ -272,7 +286,7 @@ have eqm1 : lom_eqv {| emem := m1' ; evm := vm1 |} xr1.
     by apply/eqP => -[] /inj_string_of_register ?; apply: ne.
   - by move => r v; rewrite /vm1 /= /get_var /vmap0 Fv.setP_neq // Fv.get0.
   move => f v /=; rewrite /vm1 /rflagmap0 ffunE /=.
-  by rewrite /var_of_flag /get_var /= Fv.setP_neq // /vmap0 Fv.get0. 
+  by rewrite /var_of_flag /get_var /= Fv.setP_neq // /vmap0 Fv.get0.
 have h1 : get_reg_values xr1 args = get_reg_values s1 args.
 + rewrite /get_reg_values /get_reg_value /xr1 /=.
   apply: map_ext => // r /xseq.InP hr; f_equal.

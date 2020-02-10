@@ -11,7 +11,7 @@ COQMAKE = $(MAKE) -f Makefile.coq
 all: build
 
 # --------------------------------------------------------------------
-Makefile.coq: Makefile
+Makefile.coq: Makefile _CoqProject
 	coq_makefile -f _CoqProject -o Makefile.coq
 
 # --------------------------------------------------------------------

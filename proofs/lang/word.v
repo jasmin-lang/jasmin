@@ -31,7 +31,8 @@ From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ word.
 Require ssrring.
 Require Zquot.
-Require Import Psatz ZArith utils type.
+Require Import Psatz ZArith utils.
+Require Export wsize.
 Import Utf8.
 Import ssrZ.
 
@@ -43,6 +44,7 @@ Import GRing.Theory Num.Theory.
 
 Local Open Scope Z_scope.
 
+(* -------------------------------------------------------------- *)
 Ltac elim_div :=
    unfold Z.div, Zmod;
      match goal with
@@ -550,6 +552,14 @@ case: leP => hi.
 rewrite Z.mod_pow2_bits_high //; lia.
 Qed.
 
+Lemma zero_extend1 sz sz' :
+  @zero_extend sz sz' 1%R = 1%R.
+Proof. 
+  apply/eqP/eq_from_wbit => -[i hi].
+  have := @wbit_zero_extend sz sz' 1%R i.
+  by rewrite /wbit_n => ->; rewrite -ltnS hi.
+Qed.
+
 Lemma sign_extend_truncate s s' (w: word s') :
   (s ≤ s')%CMP →
   sign_extend s w = zero_extend s w.
@@ -621,9 +631,20 @@ Lemma wrepr_mul sz (x y: Z) :
   wrepr sz (x * y) = (wrepr sz x * wrepr sz y)%R.
 Proof. by apply: word_ext; rewrite /wrepr !mkwordK Zmult_mod. Qed.
 
+Lemma wrepr_m1 sz :
+  wrepr sz (-1) = (-1)%R.
+Proof. by apply /eqP; case sz. Qed.
+
+Lemma wrepr_opp sz (x: Z) :
+  wrepr sz (- x) = (- wrepr sz x)%R.
+Proof. 
+  have -> : (- x) = (- x)%R by done.
+  by rewrite -(mulN1r x) wrepr_mul wrepr_m1 mulN1r.
+Qed.
+
 Lemma wadd_zero_extend sz sz' (x y: word sz') :
   (sz ≤ sz')%CMP →
-  (zero_extend sz x + zero_extend sz y)%R = zero_extend sz (x + y).
+  zero_extend sz (x + y) = (zero_extend sz x + zero_extend sz y)%R.
 Proof.
 move => hle; apply: word_ext.
 rewrite /wrepr !mkwordK -Zplus_mod.
@@ -636,7 +657,7 @@ Qed.
 
 Lemma wmul_zero_extend sz sz' (x y: word sz') :
   (sz ≤ sz')%CMP →
-  (zero_extend sz x * zero_extend sz y)%R = zero_extend sz (x * y).
+  zero_extend sz (x * y) = (zero_extend sz x * zero_extend sz y)%R.
 Proof.
 move => hle; apply: word_ext.
 rewrite /wrepr !mkwordK -Zmult_mod.
@@ -645,6 +666,25 @@ change (x * y)%R with (mul_word x y).
 rewrite /mul_word /= /urepr /=.
 case: (modulus_m (wsize_size_m hle)) => n -> {hle}.
 by rewrite mod_pq_mod_q.
+Qed.
+
+Lemma zero_extend_m1 sz sz' :
+  (sz ≤ sz')%CMP →
+  @zero_extend sz sz' (-1) = (-1)%R.
+Proof. exact: zero_extend_wrepr. Qed.
+
+Lemma wopp_zero_extend sz sz' (x: word sz') : 
+  (sz ≤ sz')%CMP →
+  zero_extend sz (-x) = (- zero_extend sz x)%R.
+Proof.
+ by move=> hsz; rewrite -(mulN1r x) wmul_zero_extend // zero_extend_m1 // mulN1r.
+Qed.
+
+Lemma wsub_zero_extend sz sz' (x y : word sz'): 
+  (sz ≤ sz')%CMP →
+  zero_extend sz (x - y) = (zero_extend sz x - zero_extend sz y)%R.
+Proof.
+  by move=> hsz; rewrite wadd_zero_extend // wopp_zero_extend. 
 Qed.
 
 Lemma zero_extend_wshl sz sz' (x: word sz') c :

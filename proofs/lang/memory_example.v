@@ -33,7 +33,7 @@ Stack frames have sizes that are multiple of 32 and the stack root is aligned at
 
 *)
 
-Require memory_model array.
+Require memory_model array type.
 
 Import Utf8.
 Import all_ssreflect all_algebra.
@@ -895,28 +895,3 @@ Module MemoryI : MemoryT.
   Qed.
 
 End MemoryI.
-
-(*
-  Fixpoint stack_aux (p:Z) (l:seq Z) : seq (Z * Z) :=
-    match l with
-    | [::] => [::]
-    | z::l => (p,z) :: stack_aux (p+z) l
-    end.
-
-  Definition stack (m:mem) :=
-    stack_aux (wunsigned m.(stk_ptr)) (m.(cur_frame) :: m.(frames)).
-
-  Definition get_frame (m:mem) (p:pointer) :=
-    let stack := stack m in
-    let i := find (fun pz => pz.1 == wunsigned p) stack in
-    ohead (drop i stack).
-
-  Definition caller (m:mem) (p:pointer) :=
-    omap (fun pz => wrepr U64 pz.1) (get_frame m p).
-
-  Definition frame_size (m:mem) (p:pointer) :=
-    omap fst (get_frame m p).
-
-End MemoryI.
-
-*)

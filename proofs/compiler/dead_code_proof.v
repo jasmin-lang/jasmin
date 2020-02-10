@@ -222,10 +222,10 @@ Section PROOF.
   Qed.
 
   Lemma check_nop_opn_spec (xs:lvals) (o:sopn) (es:pexprs): check_nop_opn xs o es ->
-    exists x i1 sz i2, 
-      [/\ xs = [:: Lvar (VarI (Var (sword sz) x) i1)], o = Ox86_MOV sz & es = [:: Pvar (VarI (Var (sword sz) x) i2)] ].
+    exists x i1 sz i2,
+      [/\ xs = [:: Lvar (VarI (Var (sword sz) x) i1)], o = Ox86 (MOV sz) & es = [:: Pvar (VarI (Var (sword sz) x) i2)] ].
   Proof.
-    case: xs o es => // rv [] // [] // sz [] // e [] //= /check_nop_spec [x [i1 [i2 []]]] -> -> /=.
+    case: xs o es => // rv [] // [] // [] // sz [] // e [] //= /check_nop_spec [x [i1 [i2 []]]] -> -> /=.
     by case: x => ty xn /= <-;exists xn, i1, sz, i2.
   Qed.
 
@@ -294,11 +294,12 @@ Section PROOF.
     move=> Hwf vm1' Hvm.
     have [ -> Hs ] : emem s1 = emem s2 ∧ evm s1 =v evm s2;
       last by eexists; split; last exact: Eskip; apply: eq_onT _ Hvm.
-    move: x0 Hexpr Hopn=> [] // x0 [] //=;last by  move=> ???; apply: rbindP.
+    move: x0 Hexpr Hopn=> [] // x0 [] //=; last by move => ??;t_xrbindP.
     rewrite /sem_pexprs /=.
     apply: rbindP=> z Hexpr []?; subst z.
+    apply: rbindP => /= p0; rewrite /= /sopn_sem /=.
     apply: rbindP => v0 /of_val_word [sz0] [v0'] [hle ? ?]; subst.
-    rewrite /x86_MOV;t_xrbindP => ? h; have ha := assertP h => ?;subst.
+    rewrite /x86_MOV;t_xrbindP => ? h; have ha := assertP h => ??;subst.
     move:Hw; rewrite /= /write_var => - [<-] {s2}.
     have [sz' /= [[? hle']]]:= get_var_word Hexpr;subst sz'.
     have ? := cmp_le_antisym hle' hle; subst sz0.

@@ -6,7 +6,7 @@ reg bool cf;
 z  = arg;
 cf, z = #adc(z,z,false);
 // of cf xf pf zf
-_,_,cf,_,_,z = #x86_ADC(z,z,cf);
-z = #x86_ADC(z,z,cf);
+_,_,cf,_,_,z = #ADC(z,z,cf);
+z = #ADC(z,z,cf);
 return z;
 }

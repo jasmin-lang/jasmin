@@ -29,10 +29,10 @@ reg u128 r, s, t, u;
 r = (u128)[p + 16 * 0];
 s = (u128)[p + 16 * 1];
 
-u = #x86_VPADD_16u8(r, s);
-t = #x86_VPADD_8u16(r, u);
-r = #x86_VPADD_4u32(s, t);
-s = #x86_VPADD_2u64(t, r);
+u = #VPADD_16u8(r, s);
+t = #VPADD_8u16(r, u);
+r = #VPADD_4u32(s, t);
+s = #VPADD_2u64(t, r);
 
 (u128)[p + 16 * 1] = s;
 }
@@ -45,14 +45,14 @@ reg u256 x, y, z;
 a = (u128)[p + 0];
 b = (u128)[p + 16];
 
-c = #x86_VPMULU(a, b);
+c = #VPMULU(a, b);
 
 (u128)[p + 0] = c;
 
 x = (u256)[p + 0];
 y = (u256)[p + 32];
 
-z = #x86_VPMULU_256(x, y);
+z = #VPMULU_256(x, y);
 
 (u256)[p + 0] = z;
 
@@ -64,7 +64,7 @@ export
 fn test_shuffle(reg u64 p) {
 reg u128 r;
 r = (u128)[p + 0];
-r = #x86_VPSHUFB(r, rotate24pattern);
+r = #VPSHUFB(r, rotate24pattern);
 (u128)[p + 0] = r;
 }
 
@@ -74,8 +74,8 @@ reg u256 r, s, t, u, v;
 r = (u256)[p + 0];
 s = (u256)[p + 32];
 t = (u256)[p + 64];
-r = #x86_VPSHUFD_256(r, 0x33);
-u = #x86_VPBLENDD_256(s, t, 0xa4);
+r = #VPSHUFD_256(r, 0x33);
+u = #VPBLENDD_256(s, t, 0xa4);
 v = r ^ u;
 (u256)[p + 32] = v;
 }
@@ -88,8 +88,8 @@ reg u256 y, z;
 a = (u128)[p + 0];
 y = (u256)[p + 32];
 
-b = #x86_VPSHUFLW(a, 7);
-z = #x86_VPSHUFHW_256(y, 42);
+b = #VPSHUFLW(a, 7);
+z = #VPSHUFHW_256(y, 42);
 
 (u128)[p + - 16] = b;
 (u256)[p + 32] = z;
@@ -103,20 +103,20 @@ reg u256 x, y, z;
 a = (u128)[p + 0];
 b = (u128)[p + 16];
 
-c = #x86_VPUNPCKH_16u8(a, b);
-a = #x86_VPUNPCKL_8u16(b, c);
-b = #x86_VPUNPCKH_4u32(c, a);
-c = #x86_VPUNPCKL_2u64(a, b);
+c = #VPUNPCKH_16u8(a, b);
+a = #VPUNPCKL_8u16(b, c);
+b = #VPUNPCKH_4u32(c, a);
+c = #VPUNPCKL_2u64(a, b);
 
 (u128)[p + 0] = c;
 
 x = (u256)[p + 32];
 y = (u256)[p + 64];
 
-z = #x86_VPUNPCKL_32u8(x, y);
-x = #x86_VPUNPCKH_16u16(y, z);
-y = #x86_VPUNPCKL_8u32(z, x);
-z = #x86_VPUNPCKH_4u64(x, y);
+z = #VPUNPCKL_32u8(x, y);
+x = #VPUNPCKH_16u16(y, z);
+y = #VPUNPCKL_8u32(z, x);
+z = #VPUNPCKH_4u64(x, y);
 
 (u256)[p + 32] = z;
 
@@ -130,14 +130,14 @@ reg u256 x, y, z;
 a = (u128)[p + 0];
 b = (u128)[p + 16];
 
-c = #x86_VPANDN(a, b);
+c = #VPANDN(a, b);
 
 (u128)[p + 0] = c;
 
 x = (u256)[p + 32];
 y = (u256)[p + 64];
 
-z = #x86_VPANDN_256(x, y);
+z = #VPANDN_256(x, y);
 
 (u256)[p + 32] = z;
 
@@ -147,8 +147,8 @@ export
 fn test_vpermq(reg u64 p) {
 reg u256 x, y;
 x = (u256)[p + 0];
-y = #x86_VPERMQ(x, 42);
-x = #x86_VPERM2I128(x, y, 123);
+y = #VPERMQ(x, 42);
+x = #VPERM2I128(x, y, 123);
 (u256)[p + 0] = x;
 }
 
@@ -158,19 +158,19 @@ reg u128 a, b, c;
 reg u256 x, y, z;
 
 a = (u128)[p + 0];
-b = #x86_VPSLL_8u16(a, 1);
-c = #x86_VPSLL_4u32(b, 2);
-a = #x86_VPSLL_2u64(c, 3);
-b = #x86_VPSLLV_4u32(c, a);
-c = #x86_VPSLLV_2u64(a, b);
+b = #VPSLL_8u16(a, 1);
+c = #VPSLL_4u32(b, 2);
+a = #VPSLL_2u64(c, 3);
+b = #VPSLLV_4u32(c, a);
+c = #VPSLLV_2u64(a, b);
 (u128)[p + 0] = c;
 
 x = (u256)[p + 32];
-y = #x86_VPSLL_16u16(x, 1);
-z = #x86_VPSLL_8u32(y, 2);
-x = #x86_VPSLL_4u64(z, 3);
-y = #x86_VPSLLV_8u32(z, x);
-z = #x86_VPSLLV_4u64(x, y);
+y = #VPSLL_16u16(x, 1);
+z = #VPSLL_8u32(y, 2);
+x = #VPSLL_4u64(z, 3);
+y = #VPSLLV_8u32(z, x);
+z = #VPSLLV_4u64(x, y);
 (u256)[p + 32] = z;
 
 }
@@ -185,8 +185,8 @@ r = 0;
 
 a = (u128)[p + 0];
 
-x = #x86_VPEXTR_32(a, 0);
-y = #x86_VPEXTR_64(a, 1);
+x = #VPEXTR_32(a, 0);
+y = #VPEXTR_64(a, 1);
 r += x;
 r += y;
 
@@ -199,8 +199,8 @@ reg u256 x;
 reg u128 y, z, w;
 
 x = (u256)[p + 0];
-y = #x86_VEXTRACTI128(x, 0);
-z = #x86_VEXTRACTI128(x, 1);
+y = #VEXTRACTI128(x, 0);
+z = #VEXTRACTI128(x, 1);
 w = y ^ z;
 
 (u128)[p + 32] = w;
@@ -210,10 +210,10 @@ export
 fn test_vpinsr(reg u64 p) {
 reg u128 a;
 a = (u128)[p + 0];
-a = #x86_VPINSR_2u64(a, p, 0);
-a = #x86_VPINSR_4u32(a, p, 1);
-a = #x86_VPINSR_8u16(a, p, 2);
-a = #x86_VPINSR_16u8(a, p, 3);
+a = #VPINSR_2u64(a, p, 0);
+a = #VPINSR_4u32(a, p, 1);
+a = #VPINSR_8u16(a, p, 2);
+a = #VPINSR_16u8(a, p, 3);
 (u128)[p + 0] = a;
 }
 
@@ -222,39 +222,39 @@ fn test_vpbroadcast(reg u64 p) {
 reg u128 a, b;
 reg u256 c, d, e;
 
-a = #x86_VPBROADCAST_16u8((u8)[p + 0]);
-b = #x86_VPBROADCAST_16u8(a);
-c = #x86_VPBROADCAST_32u8((u8)[p + 0]);
-d = #x86_VPBROADCAST_32u8(b);
+a = #VPBROADCAST_16u8((u8)[p + 0]);
+b = #VPBROADCAST_16u8(a);
+c = #VPBROADCAST_32u8((u8)[p + 0]);
+d = #VPBROADCAST_32u8(b);
 
 e = c;
 e ^= d;
 
-a = #x86_VPBROADCAST_8u16((u16)[p + 0]);
-b = #x86_VPBROADCAST_8u16(a);
-c = #x86_VPBROADCAST_16u16((u16)[p + 0]);
-d = #x86_VPBROADCAST_16u16(b);
+a = #VPBROADCAST_8u16((u16)[p + 0]);
+b = #VPBROADCAST_8u16(a);
+c = #VPBROADCAST_16u16((u16)[p + 0]);
+d = #VPBROADCAST_16u16(b);
 
 e ^= c;
 e ^= d;
 
-a = #x86_VPBROADCAST_4u32((u32)[p + 0]);
-b = #x86_VPBROADCAST_4u32(a);
-c = #x86_VPBROADCAST_8u32((u32)[p + 0]);
-d = #x86_VPBROADCAST_8u32(b);
+a = #VPBROADCAST_4u32((u32)[p + 0]);
+b = #VPBROADCAST_4u32(a);
+c = #VPBROADCAST_8u32((u32)[p + 0]);
+d = #VPBROADCAST_8u32(b);
 
 e ^= c;
 e ^= d;
 
-a = #x86_VPBROADCAST_2u64((u64)[p + 0]);
-b = #x86_VPBROADCAST_2u64(a);
-c = #x86_VPBROADCAST_4u64((u64)[p + 0]);
-d = #x86_VPBROADCAST_4u64(b);
+a = #VPBROADCAST_2u64((u64)[p + 0]);
+b = #VPBROADCAST_2u64(a);
+c = #VPBROADCAST_4u64((u64)[p + 0]);
+d = #VPBROADCAST_4u64(b);
 
 e ^= c;
 e ^= d;
 
-d = #x86_VPBROADCAST_2u128((u128)[p + 16 * 0]);
+d = #VPBROADCAST_2u128((u128)[p + 16 * 0]);
 
 e ^= d;
 

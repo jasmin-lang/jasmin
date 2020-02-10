@@ -403,7 +403,7 @@ have : exists (b1 b2:bool), st = sbool /\ sem_pexpr gd s e1 = ok (Vbool b1) /\ s
     by move: htr2; rewrite /truncate_val; t_xrbindP => /= b2 /to_boolI -> ?;eauto.
   have [??]:= truncate_val_boolI htr2;subst st v2.
   by move: htr1; rewrite /truncate_val; t_xrbindP => /= b1 /to_boolI -> ?;eauto.
-move=> [b1 [b2 [->] []/dup[]hb1 /he1 -> /dup[]hb2 /he2 ->]] /=.
+move=> [b1 [b2 [-> []/dup[]hb1 /he1 -> /dup[]hb2 /he2 ->]]] /=.
 by rewrite hb1 hb2 /=; case bp.
 Qed.
 
@@ -512,10 +512,10 @@ Section PROOF.
     apply: rbindP => w /of_val_word [sz'] [w'] [hle ? ?]; subst v w => - [<-] {v'} ok_s2.
     apply: LSem_step.
     rewrite /lsem1 /step /= /eval_instr /= !to_of_estate.
-    case: ifP.
-    + by move => hsz; rewrite /sem_sopn /sem_pexprs /= ok_v /= /truncate_word hle /x86_MOV /check_size_8_64 hsz /= ok_s2.
-    move => hsz.
-    by rewrite /sem_sopn /= ok_v /= /truncate_word hle (wsize_nle_u64_check_128_256 hsz) /= ok_s2.
+    case: ifP => hsz.
+    + by rewrite /sem_sopn /sem_pexprs /= /exec_sopn /sopn_sem /= ok_v /= /truncate_word hle /x86_MOV /check_size_8_64 hsz /= ok_s2.
+    by rewrite /sem_sopn /= /exec_sopn /sopn_sem /= ok_v /= /truncate_word hle /= /x86_VMOVDQU
+      (wsize_nle_u64_check_128_256 hsz) /= ok_s2.
   Qed.
 
   Let Hopn : forall xs t o es, Pi_r (Copn xs t o es).

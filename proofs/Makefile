@@ -18,7 +18,9 @@ extraction: Makefile.coq
 
 # --------------------------------------------------------------------
 this-clean::
-	rm -f src/*.glob src/*.d src/*.vo
+	rm -f lang/*.glob lang/*.d lang/*.vo lang/.*.vo
+	rm -f compiler/*.glob compiler/*.d compiler/*.vo compiler/.*.vo
+
 
 this-distclean::
 	rm -f $(shell find . -name '*~')

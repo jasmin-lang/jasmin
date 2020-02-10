@@ -1,0 +1,19 @@
+#!/bin/sh
+
+# Around the beginning of year 2020, the concrete syntax of
+# intrinsics (low-level instructions) changed:
+# the “x86_” prefix is removed.
+
+# This command removes these prefixes in the file whose name is given as first argument
+
+# To update the syntax of a batch of file, use a command like the following:
+# find -name '*.jazz' -exec ./scripts/update-syntax {} \;
+
+if [ "$#" -ne 1 ]; then
+    echo "“$0” expects exactly one arument: doing nothing."
+    exit 2
+fi
+
+echo "Updating syntax of “$1”"
+
+sed -i.bak -e 's/#x86_/#/g' $1
