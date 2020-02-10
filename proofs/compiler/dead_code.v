@@ -33,10 +33,10 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope vmap.
 Local Open Scope seq_scope.
-  
 
-Definition dead_code_c (dead_code_i: instr -> Sv.t -> ciexec (Sv.t * cmd)) 
-                       c s :  ciexec (Sv.t * cmd):= 
+
+Definition dead_code_c (dead_code_i: instr -> Sv.t -> ciexec (Sv.t * cmd))
+                       c s :  ciexec (Sv.t * cmd):=
   foldr (fun i r =>
     Let r := r in
     Let ri := dead_code_i i r.1 in
@@ -55,10 +55,10 @@ Section LOOP.
       Let sc := dead_code_c s in
       let: (s',c') := sc in
       let s' := Sv.union rx (Sv.diff s' wx) in
-      if Sv.subset s' s then ciok (s,c') 
+      if Sv.subset s' s then ciok (s,c')
       else loop n rx wx (Sv.union s s')
     end.
-  
+
   Fixpoint wloop (n:nat) (s:Sv.t) : ciexec (Sv.t * (cmd * cmd)) :=
     match n with
     | O =>  cierror ii (Cerr_Loop "dead_code")
@@ -71,7 +71,7 @@ Section LOOP.
 
 End LOOP.
 
-Definition write_mem (r:lval) : bool := 
+Definition write_mem (r:lval) : bool :=
   if r is Lmem _ _ _ then true else false.
 
 Definition check_nop (rv:lval) ty (e:pexpr) :=
@@ -85,8 +85,8 @@ Definition check_nop_opn (xs:lvals) (o: sopn) (es:pexprs) :=
   | [:: x], Ox86_MOV sz, [:: e] => check_nop x (sword sz) e
   | _, _, _ => false
   end.
- 
-Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) := 
+
+Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
   let (ii,ir) := i in
   match ir with
   | Cassgn x tag ty e =>
@@ -96,16 +96,16 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
       else if check_nop x ty e then ciok (s, [::])
       else ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
     else   ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
-  
+
   | Copn xs tag o es =>
     let w := vrvs xs in
-    if tag != AT_keep then 
+    if tag != AT_keep then
       if disjoint s w && negb (has write_mem xs) then ciok (s, [::])
       else if check_nop_opn xs o es then ciok (s, [::])
       else ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
     else ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
 
-  | Cif b c1 c2 => 
+  | Cif b c1 c2 =>
     Let sc1 := dead_code_c dead_code_i c1 s in
     Let sc2 := dead_code_c dead_code_i c2 s in
     let: (s1,c1) := sc1 in
@@ -113,16 +113,16 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
     ciok (read_e_rec (Sv.union s1 s2) b, [:: MkI ii (Cif b c1 c2)])
 
   | Cfor x (dir, e1, e2) c =>
-    Let sc := loop (dead_code_c dead_code_i c) ii Loop.nb 
+    Let sc := loop (dead_code_c dead_code_i c) ii Loop.nb
                    (read_rv (Lvar x)) (vrv (Lvar x)) s in
     let: (s, c) := sc in
     ciok (read_e_rec (read_e_rec s e2) e1,[:: MkI ii (Cfor x (dir,e1,e2) c) ])
 
   | Cwhile a c e c' =>
-    let dobody s_o := 
+    let dobody s_o :=
       let s_o' := read_e_rec s_o e in
       Let sci := dead_code_c dead_code_i c s_o' in
-      let: (s_i, c) := sci in 
+      let: (s_i, c) := sci in
       Let sci' := dead_code_c dead_code_i c' s_i in
       let: (s_i', c') := sci' in
       ok (s_i', (s_i, (c,c'))) in

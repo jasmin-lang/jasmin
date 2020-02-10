@@ -29,7 +29,7 @@
 Require Import Setoid Morphisms.
 
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import ZArith Utf8. 
+Require Import ZArith Utf8.
         Import Relations.
 
 Require Import psem compiler_util stack_alloc stack_sem.
@@ -50,8 +50,8 @@ Proof.
 Qed.
 *)
 
-Lemma align_bind ii a p1 l : 
-  Let p := align ii a p1 in ok (p.1, p.2 ++ l) = 
+Lemma align_bind ii a p1 l :
+  Let p := align ii a p1 in ok (p.1, p.2 ++ l) =
   align ii a (Let p := p1 in ok (p.1, p.2 ++ l)).
 Proof. by rewrite /align; case: a => //; case: p1. Qed.
 
@@ -154,7 +154,7 @@ Lemma valid_cat min max lc1 lc2 :
   valid min max (lc1 ++ lc2) = valid min max lc1 && valid min max lc2.
 Proof. by rewrite /valid all_cat. Qed.
 
-Lemma valid_add_align lbl1 lbl2 ii a c : 
+Lemma valid_add_align lbl1 lbl2 ii a c :
   valid lbl1 lbl2 (add_align ii a c) = valid lbl1 lbl2 c.
 Proof. by rewrite /add_align; case: a. Qed.
 
@@ -194,15 +194,15 @@ Proof.
 Qed.
 
 (* TODO move this *)
-Lemma onth_cat T (s1 s2 : seq T) n : 
+Lemma onth_cat T (s1 s2 : seq T) n :
   oseq.onth (s1 ++ s2) n = (if n < size s1 then oseq.onth s1 n else oseq.onth s2 (n - size s1)).
 Proof. by rewrite !oseq.onth_nth map_cat nth_cat size_map. Qed.
 
 Lemma find_instr_cat_tl c s i :
   find_instr s = Some i ->
-  find_instr (setc s (lc s ++ c)) = Some i. 
+  find_instr (setc s (lc s ++ c)) = Some i.
 Proof.
-  rewrite /setc /find_instr /= => /(oseq.onthP i) /andP [Hs Hnth]. 
+  rewrite /setc /find_instr /= => /(oseq.onthP i) /andP [Hs Hnth].
   by apply /(oseq.onthP i);rewrite size_cat nth_cat Hs (ltn_addr _ Hs).
 Qed.
 
@@ -249,10 +249,10 @@ end.
 
 Lemma find_label_cat_hd lbl c1 c2:
   ~~ has (is_label lbl) c1 ->
-  find_label lbl (c1 ++ c2) = 
+  find_label lbl (c1 ++ c2) =
   (Let pc := find_label lbl c2 in ok (size c1 + pc)).
 Proof.
-  rewrite /find_label find_cat size_cat => /negbTE ->. 
+  rewrite /find_label find_cat size_cat => /negbTE ->.
   by rewrite ltn_add2l;case:ifP.
 Qed.
 
@@ -286,7 +286,7 @@ Proof.
   + by move=> ?? <-.
   + by move=> <-.
   + by move=> <-.
-  + by move=> ?? <-. 
+  + by move=> ?? <-.
   move=> ????;case:ifP => [ ? | ? [<-] //].
   by t_xrbindP => ?? <-.
 Qed.
@@ -300,7 +300,7 @@ Qed.
 Lemma to_estate_add_hd_c c s : to_estate (add_hd_c c s) = to_estate s.
 Proof. by case: s. Qed.
 
-Lemma find_instr_has (p:linstr->bool) s i : 
+Lemma find_instr_has (p:linstr->bool) s i :
   find_instr s = Some i -> p i -> has p (lc s).
 Proof.
   rewrite /find_instr => /(oseq.onthP i) => /andP [H1 /eqP <-] Hp.
@@ -321,7 +321,7 @@ Proof.
   have Hnext : forall s s1,
     of_estate s (c ++ lc s1) (size c + lpc s1).+1 = add_hd_c c (of_estate s (lc s1) (lpc s1).+1).
   + by move=> s [????];rewrite /of_estate /add_hd_c /= addnS.
-  have Hset : forall pc s1, 
+  have Hset : forall pc s1,
     setpc (add_hd_c c s1) (size c + pc).+1 = add_hd_c c (setpc s1 pc.+1).
   + by move=> pc [????];rewrite /setpc /add_hd_c /= addnS.
   rewrite find_instr_add_hd_c;case Heq:find_instr => [ [ii [lv o e||l|l|e l]] | //];
@@ -330,12 +330,12 @@ Proof.
   + by move=> <-;rewrite Hset.
   + by move=> <-;rewrite Hset.
   + move=> pc' Hfind <-.
-    rewrite find_label_cat_hd ?Hfind /= ? Hset //.   
-    by move: (Hdisj l);rewrite /disjoint_lbl (@find_instr_has (is_jump l) _ _ Heq) ?andbT /is_jump. 
-  move=> b vb -> /= -> /=;case:ifPn => Hb. 
+    rewrite find_label_cat_hd ?Hfind /= ? Hset //.
+    by move: (Hdisj l);rewrite /disjoint_lbl (@find_instr_has (is_jump l) _ _ Heq) ?andbT /is_jump.
+  move=> b vb -> /= -> /=;case:ifPn => Hb.
   + t_xrbindP => ? Hfind <-.
-    rewrite find_label_cat_hd ?Hfind /= ? Hset //.   
-    by move: (Hdisj l);rewrite /disjoint_lbl (@find_instr_has (is_jump l) _ _ Heq) ?andbT /is_jump. 
+    rewrite find_label_cat_hd ?Hfind /= ? Hset //.
+    by move: (Hdisj l);rewrite /disjoint_lbl (@find_instr_has (is_jump l) _ _ Heq) ?andbT /is_jump.
   by move=> [<-];rewrite Hset.
 Qed.
 
@@ -407,7 +407,7 @@ move=> [b1 [b2 [->] []/dup[]hb1 /he1 -> /dup[]hb2 /he2 ->]] /=.
 by rewrite hb1 hb2 /=; case bp.
 Qed.
 
-Lemma lsem_add_align gd s c ii a s' : 
+Lemma lsem_add_align gd s c ii a s' :
   lsem gd (of_estate s c 0) (of_estate s' c (size c)) ->
   lsem gd (of_estate s (add_align ii a c) 0) (of_estate s' (add_align ii a c) (size (add_align ii a c))).
 Proof.
@@ -416,7 +416,7 @@ Proof.
   by apply: (lsem_cat_hd (c:=[::{| li_ii := ii; li_i := Lalign |}]) _ h).
 Qed.
 
-(*Lemma lsem_add_align gd s c ii a s' : 
+(*Lemma lsem_add_align gd s c ii a s' :
   lsem gd (of_estate s c 0) (of_estate s' c (size c)) ->
   lsem gd (of_estate s (add_align ii a c) 0) (of_estate s' (add_align ii a c) (size (add_align ii a c))).
 Proof.
@@ -428,8 +428,8 @@ Qed. *)
 Lemma add_align_nil ii a c : add_align ii a c = add_align ii a [::] ++ c.
 Proof. by case: a. Qed.
 
-Lemma find_label_add_align lbl ii a c : 
-  find_label lbl (add_align ii a c) = 
+Lemma find_label_add_align lbl ii a c :
+  find_label lbl (add_align ii a c) =
   Let n := find_label lbl c in ok ((a == Align) + n).
 Proof.
   case: a => /=;last by case: find_label.
@@ -480,7 +480,7 @@ Section PROOF.
   Lemma of_estate_add_hd_c s li lc pc:
     add_hd_c li (of_estate s lc pc) = of_estate s (li ++ lc) (size li + pc).
   Proof. done. Qed.
-   
+
   Let Hseq : forall i c,  Pi i -> Pc c -> Pc (i::c).
   Proof.
     move=> i c Hi Hc lbl lbl' l' /=.
@@ -504,7 +504,7 @@ Section PROOF.
 
   Lemma to_of_estate s c pc : to_estate (of_estate s c pc) = s.
   Proof. by case: s. Qed.
-    
+
   Let Hassgn : forall x tag ty e, Pi_r (Cassgn x tag ty e).
   Proof.
     move=> x tag [] // sz e ii lbl lbl' l' /= [] <- <-; rewrite Pos.leb_refl; split => //.
@@ -525,11 +525,11 @@ Section PROOF.
     by rewrite /lsem1 /step /= /eval_instr /= !to_of_estate ok_s2.
   Qed.
 
-  Lemma find_label_hd lbl ii c : 
+  Lemma find_label_hd lbl ii c :
     find_label lbl ({|li_ii:= ii; li_i := Llabel lbl|} :: c ) = ok 0.
   Proof. by rewrite /find_label /= /is_label /= eqxx. Qed.
 
-  Lemma setc_of_estate s c pc c' :setc (of_estate s c pc) c' = of_estate s c' pc.   
+  Lemma setc_of_estate s c pc c' :setc (of_estate s c pc) c' = of_estate s c' pc.
   Proof. done. Qed.
 
   Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi_r (Cif e c1 c2).
@@ -560,7 +560,7 @@ Section PROOF.
       have Hvc : valid lbl (next_lbl lbl) [:: MkLI ii (Lcond e lbl)].
       + by rewrite /= Pos.leb_refl lt_next.
       have Hd: disjoint_lbl [:: MkLI ii (Lcond e lbl)] lc2 by move=> ?.
-      have /(@lsem_cat_tl [:: MkLI ii (Llabel lbl)]):= 
+      have /(@lsem_cat_tl [:: MkLI ii (Llabel lbl)]):=
          @lsem_cat_hd [:: MkLI ii (Lcond e lbl)] _ _ _ Hd Hs2.
       rewrite !of_estate_add_hd_c !addn0 /= => Hsem.
       apply (lsem_trans Hsem) => {Hsem}.
@@ -584,7 +584,7 @@ Section PROOF.
         have := @lsem_cat_hd [:: MkLI ii (Lcond (snot e) lbl)] _ _ _ Hd Hs1.
         move=> /(@lsem_cat_tl [:: MkLI ii (Llabel lbl)]) Hsem.
         apply (lsem_trans Hsem);case s2 => m2 vm2.
-        apply LSem_step. 
+        apply LSem_step.
         rewrite /lsem1 /step /setc /find_instr /= onth_cat ltnn subnn /=.
         by rewrite /eval_instr /= size_cat /= addn1.
       move => /S.semE -> {s2}.
@@ -641,14 +641,14 @@ Section PROOF.
       have -> /= : (size lc2 + size lc1)%Nrec.+2 - size lc2 = (size lc1).+2.
       + by rewrite -addnE -minusE -plusE;omega.
       rewrite onth_cat ltnn subnn /= size_cat /= size_cat /eval_instr /=.
-      by rewrite !addSn !addnS addn0. 
+      by rewrite !addSn !addnS addn0.
     apply lsem_step with (of_estate {| emem := m1; evm := vm1 |} C 1).
     + by rewrite /lsem1 /step /= /eval_instr /= ?to_of_estate ok_b /=.
     apply lsem_trans with (of_estate s2 C (size lc2).+1).
     + have := Hs2 _ _ ok_s2.
       move=> /(@lsem_cat_tl [:: MkLI ii (Lgoto (next_lbl lbl)), MkLI ii (Llabel lbl) & lc1 ++ [:: MkLI ii (Llabel (next_lbl lbl))]]) /= H.
       by have /= /(_ [:: MkLI ii (Lcond e lbl)]) H0 := lsem_cat_hd _ H; apply H0.
-    apply LSem_step. 
+    apply LSem_step.
     rewrite /lsem1 /step /= /C /find_instr /= onth_cat ltnn subnn /eval_instr /=.
     rewrite -cat_cons -2!cat_rcons catA find_label_cat_hd.
     + by rewrite find_label_hd /= !(size_cat, size_rcons, addn0) /= size_cat /= !addSn addn1 !addnS.
@@ -681,7 +681,7 @@ Section PROOF.
       rewrite linear_c_nil.
       rewrite /align; t_xrbindP => y0 h0 [lblc lc] Heqc ????;subst lbli li y0 h0 => /=.
       move: Heqc' Heqc => /Hc' [ Hlbl' Hvc' Hlc'] /Hc [ Hlbl Hvc Hlc];split.
-      + by apply: (Pos_leb_trans (le_next lbl));apply: Pos_leb_trans Hlbl. 
+      + by apply: (Pos_leb_trans (le_next lbl));apply: Pos_leb_trans Hlbl.
       + rewrite valid_add_align /= !valid_cat /= (Pos_lt_leb_trans (lt_next _)) ?Pos.leb_refl /= ?andbT;
           last by apply: Pos_leb_trans Hlbl.
         apply /andP;split.
@@ -695,7 +695,7 @@ Section PROOF.
         move: H1 H3 H4 Hrec => {H2} /= /Hlc{Hlc}Hlc /Hlc'{Hlc'}Hlc' _ /(_ (refl_equal _)) Hrec.
         eapply lsem_trans with (of_estate s3 C (size lc + size lc').+1).
         + move=> {Hrec}.
-          have : lsem gd (of_estate s1 (lc ++ lc') 0) 
+          have : lsem gd (of_estate s1 (lc ++ lc') 0)
                          (of_estate s3 (lc ++ lc') (size lc + size lc')).
           + apply lsem_trans with (of_estate s2 (lc ++ lc') (size lc)).
             + by have /= := lsem_cat_tl lc' Hlc;case: (s1) (s2) => ?? [??].
@@ -709,7 +709,7 @@ Section PROOF.
           move=> /lsem_cat_hd -/(_ _ Hd). rewrite !of_estate_add_hd_c addn0.
           move/(lsem_cat_tl [:: {| li_ii := ii; li_i := Lgoto lbl |}]).
           by rewrite !setc_of_estate /= /C -/ι -!cat_cons catA.
-        apply: lsem_step Hrec. 
+        apply: lsem_step Hrec.
         rewrite /lsem1 /step /C /= /find_instr /= catA onth_cat size_cat ltnn subnn /=.
         by rewrite /eval_instr /= find_label_hd.
       by move=> ???? e0 ??? [????];subst e0 => //.
@@ -747,7 +747,7 @@ Section PROOF.
       + have /(_ _ Hd) := lsem_cat_hd _ Hc.
         exact: (lsem_cat_tl [:: ι (Lcond e lbl)]).
       apply: rt_step.
-      rewrite /lsem1 /step /= setc_of_estate /find_instr /=. 
+      rewrite /lsem1 /step /= setc_of_estate /find_instr /=.
       rewrite onth_cat ltnn subnn /= /eval_instr /= to_of_estate He /=.
       by rewrite size_cat /= add1n addn1.
     move: (i :: c') => { i c' } c' Hc'.
@@ -780,7 +780,7 @@ Section PROOF.
       have -> // : find_label lbl C =  ok ((a == Align) + (size lc').+2).
       rewrite /C -cat1s find_label_cat_hd // find_label_add_align.
       rewrite -!cat_cons find_label_cat_hd /=.
-      + by rewrite find_label_hd /= addn0 addnA (addnC 1) -addnA. 
+      + by rewrite find_label_hd /= addn0 addnA (addnC 1) -addnA.
       rewrite /= {1}/is_label /=.
       case: eqP => H' /=.
       + by have := lt_next lbl;rewrite Pos.ltb_antisym -H' Pos.leb_refl.
@@ -794,7 +794,7 @@ Section PROOF.
     + rewrite /C add_align_nil -cat_cons size_cat => h.
       have -> : ((a == Align) + (size lc').+2).+1 =
                 size ((ι (Lgoto lbl) :: add_align ii a [::])) + (size lc').+2.
-      + by case: (a). 
+      + by case: (a).
       by apply: (lsem_cat_hd _ h); rewrite /disjoint_lbl; case:(a).
     elim: _ {-1}_ _ / H Hs (erefl (Cwhile a c e c'))=> // {s1 s2}.
     + move=> s1 s2 s3 s4 a0 c0 e0 c'0 Hsem0 He Hsem Hsemi IH Hs [] ????; subst a0 c0 e0 c'0.
@@ -817,7 +817,7 @@ Section PROOF.
         by rewrite !size_cat addn0 /= addn1 !addSn /= -!cat_cons -!catA.
       apply: lsem_step.
       + rewrite /lsem1 /step /= /C1 /find_instr /=.
-        rewrite -cat_cons catA onth_cat size_cat /= addnS ltnn subnn /eval_instr /=.  
+        rewrite -cat_cons catA onth_cat size_cat /= addnS ltnn subnn /eval_instr /=.
         rewrite to_of_estate He /find_label /= /is_label /= eqxx /=;eauto.
       rewrite setpc_of_estate.
       apply: lsem_trans.
@@ -849,7 +849,7 @@ Section PROOF.
             by rewrite H Pos.leb_antisym (Pos_lt_leb_trans (lt_next _) leL2) orbT=> /(_ isT).
         have /(_ _ Hd) := lsem_cat_hd _ (Hc _ _ Hs0).
         move=> /(lsem_cat_tl [:: MkLI ii (Lcond e (next_lbl lbl))]) /=.
-        rewrite !of_estate_add_hd_c !setc_of_estate /= size_cat /= addn0 addn1. 
+        rewrite !of_estate_add_hd_c !setc_of_estate /= size_cat /= addn0 addn1.
         by rewrite -!cat_cons -!catA.
       apply: lsem_step.
       + rewrite /lsem1 /step /find_instr /= -cat_cons catA onth_cat.

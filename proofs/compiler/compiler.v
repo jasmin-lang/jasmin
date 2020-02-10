@@ -121,7 +121,7 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
 
   let p := const_prop_prog p in
   let p := cparams.(print_prog) Unrolling p in
-  
+
   let pv := var_alloc_prog p in
   let pv := cparams.(print_prog) AllocInlineAssgn pv in
   Let _ := CheckAllocReg.check_prog p pv in
@@ -136,7 +136,7 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
 
   let pr := remove_init_prog ps in
   let pr := cparams.(print_prog) RemoveArrInit pr in
-  
+
   let pe := expand_prog pr in
   let pe := cparams.(print_prog) RegArrayExpansion pe in
   Let _ := CheckExpansion.check_prog pr pe in

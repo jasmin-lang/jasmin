@@ -38,8 +38,8 @@ Scheme Equality for Ascii.ascii.
 (* ascii_beq :  Ascii.ascii ->  Ascii.ascii -> bool *)
 (* ascii_eq_dec *)
 
-Lemma ascii_eqP : Equality.axiom ascii_beq. 
-Proof. 
+Lemma ascii_eqP : Equality.axiom ascii_beq.
+Proof.
   move=> x y;apply:(iffP idP).
   + by apply: internal_ascii_dec_bl.
   by apply: internal_ascii_dec_lb.
@@ -54,7 +54,7 @@ Canonical  ascii_choiceType  := ChoiceType Ascii.ascii ascii_choiceMixin.
 Definition ascii_countMixin := CanCountMixin Ascii.ascii_nat_embedding.
 Canonical  ascii_countType  := CountType Ascii.ascii ascii_countMixin.
 
-Definition ascii_cmp (c c': Ascii.ascii) := 
+Definition ascii_cmp (c c': Ascii.ascii) :=
   match c, c' with
   | Ascii.Ascii b1  b2  b3  b4  b5  b6  b7  b8,
     Ascii.Ascii b1' b2' b3' b4' b5' b6' b7' b8' =>
@@ -70,9 +70,9 @@ Definition ascii_cmp (c c': Ascii.ascii) :=
 Instance asciiO : Cmp ascii_cmp.
 Proof.
   constructor=> [[]????????| []???????? []???????? | []????????][] ???????? /=;
-    rewrite !Lex_lex. 
-  + by apply @cmp_sym; do !(apply LexO;[apply boolO | ]);apply boolO. 
-  + by move=> c;apply @cmp_ctrans; do !(apply LexO;[apply boolO | ]);apply boolO. 
+    rewrite !Lex_lex.
+  + by apply @cmp_sym; do !(apply LexO;[apply boolO | ]);apply boolO.
+  + by move=> c;apply @cmp_ctrans; do !(apply LexO;[apply boolO | ]);apply boolO.
   do !move=> /lex_eq [] /= /(@cmp_eq _ _ boolO) ->.
   by move=> /(@cmp_eq _ _ boolO) ->.
 Qed.
@@ -82,8 +82,8 @@ Scheme Equality for String.string.
 (* string_beq is defined
    string_eq_dec is defined *)
 
-Lemma string_eqP : Equality.axiom string_beq. 
-Proof. 
+Lemma string_eqP : Equality.axiom string_beq.
+Proof.
   move=> x y;apply:(iffP idP).
   + by apply: internal_string_dec_bl.
   by apply: internal_string_dec_lb.
@@ -92,7 +92,7 @@ Qed.
 Definition string_eqMixin := EqMixin string_eqP.
 Canonical  string_eqType  := EqType string string_eqMixin.
 
-Fixpoint string_cmp s1 s2 := 
+Fixpoint string_cmp s1 s2 :=
   match s1, s2 with
   | EmptyString , String _  _  => Lt
   | EmptyString , EmptyString  => Eq
@@ -102,14 +102,14 @@ Fixpoint string_cmp s1 s2 :=
 
 Instance stringO: Cmp string_cmp.
 Proof.
-  constructor. 
+  constructor.
   + elim=> [ | c1 s1 Hs1] [ | c2 s2] //=.
     rewrite !Lex_lex;apply lex_sym. apply asciiO. apply Hs1.
   + move=> y x;elim:x y => [ | cx sx Hs] [ | cy sy] [ | cz sz] c //=; try by apply ctrans_Eq.
     + by apply ctrans_Lt. + by apply ctrans_Gt.
     rewrite !Lex_lex;apply lex_trans;[apply cmp_ctrans | apply Hs].
   elim=> [ | c1 s1 Hs1] [ | c2 s2] //=.
-  by rewrite Lex_lex=> /lex_eq /= [] /(@cmp_eq _ _ asciiO) -> /Hs1 ->. 
+  by rewrite Lex_lex=> /lex_eq /= [] /(@cmp_eq _ _ asciiO) -> /Hs1 ->.
 Qed.
 
 
@@ -134,7 +134,7 @@ Canonical  string_countType  := CountType string string_countMixin.
 
 (* -------------------------------------------------------------------- *)
 (*
-Definition a2P_app c n := 
+Definition a2P_app c n :=
   match c with
   | Ascii.Ascii b1 b2 b3 b4 b5 b6 b7 b8 =>
     b2P_app b1 (b2P_app b2 (b2P_app b3 (b2P_app b4
@@ -150,12 +150,12 @@ Lemma log_a2P c : log_inf (a2P c) = 8%Z.
 Proof. by case: c=> * /=;rewrite !log_b2P_app. Qed.
 
 Lemma a2P_app_inj c1 c2 n1 n2 : a2P_app c1 n1 = a2P_app c2 n2 -> c1 = c2 /\ n1 = n2.
-Proof. 
+Proof.
   case: c1 => ???? ????; case: c2 => ???? ???? /=.
   by do !(move=> /b2P_app_inj [] ->).
 Qed.
 
-Fixpoint s2P_app s n:= 
+Fixpoint s2P_app s n:=
   match s with
   | EmptyString => n
   | String c s => s2P_app s (a2P_app c n)
@@ -164,12 +164,12 @@ Fixpoint s2P_app s n:=
 Definition s2P s := s2P_app s xH.
 
 Lemma s2P_appP s n : s2P_app s n = FMapPositive.append (s2P s) n.
-Proof. 
+Proof.
   elim: s n => [ | c s Hs] n //=.
-  by rewrite /s2P /= !Hs /= a2P_appP -!appendA. 
+  by rewrite /s2P /= !Hs /= a2P_appP -!appendA.
 Qed.
-  
-Lemma s2P_app_inj s1 s2 n1 n2: 
+
+Lemma s2P_app_inj s1 s2 n1 n2:
   log_inf n1 = log_inf n2 ->
   s2P_app s1 n1 = s2P_app s2 n2 -> s1 = s2 /\ n1 = n2.
 Proof.
@@ -193,7 +193,7 @@ Module InjString.
   Definition t := [eqType of string].
 
   Definition t2P := s2P.
- 
+
   Definition t2P_inj := s2P_inj.
 
 End InjString.
@@ -206,7 +206,7 @@ Module CmpString.
   Definition cmp : t -> t -> comparison := string_cmp.
 
   Definition cmpO : Cmp cmp := stringO.
-  
+
 End CmpString.
 
 Module Ms := Mmake CmpString.
@@ -215,4 +215,4 @@ Notation "m .[ x ]" := (@Ms.get _ m x) : mstring_scope.
 Notation "m .[ x  <- v ]" := (@Ms.set _ m x v) : mstring_scope.
 Arguments Ms.get T%type_scope m%mstring_scope k.
 Arguments Ms.set T%type_scope m%mstring_scope k v.
- 
+

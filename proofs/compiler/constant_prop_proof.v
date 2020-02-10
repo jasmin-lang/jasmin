@@ -46,18 +46,18 @@ Section GLOB_DEFS.
 
 Context (gd: glob_decls).
 
-Definition eqok_w (e1 e2:pexpr) st := 
-  forall v, sem_pexpr gd st e1 = ok v -> sem_pexpr gd st e2 = ok v. 
+Definition eqok_w (e1 e2:pexpr) st :=
+  forall v, sem_pexpr gd st e1 = ok v -> sem_pexpr gd st e2 = ok v.
 
 (*
-Definition array_eq v1 v2 := 
+Definition array_eq v1 v2 :=
    if type_of_val v1 is sarr _ then v1 = v2 else True.
 
 Lemma array_eq_refl v : array_eq v v.
 Proof. by case v => //= -[]. Qed.
 Hint Resolve array_eq_refl.
 
-Definition value_uincl_a v1 v2 := 
+Definition value_uincl_a v1 v2 :=
   value_uincl v1 v2 /\
   array_eq v1 v2.
 
@@ -65,8 +65,8 @@ Lemma value_uincl_a_refl v : value_uincl_a v v.
 Proof. done. Qed.
 Hint Resolve value_uincl_a_refl.
 
-Lemma of_val_uincl_a ty v1 v2 v1' : 
-  value_uincl_a v1 v2 -> 
+Lemma of_val_uincl_a ty v1 v2 v1' :
+  value_uincl_a v1 v2 ->
   of_val ty v1 = ok v1' ->
   of_val ty v2 = ok v1'.
 Proof.
@@ -78,8 +78,8 @@ Proof.
   by move=> /(of_val_uincl U) /=  /= [w [-> ]] => /andP [_ /eqP ->];rewrite zero_extend_u.
 Qed.
 
-Lemma truncate_value_uincl_a ty v1 v2 v1' : 
-  value_uincl_a v1 v2 -> 
+Lemma truncate_value_uincl_a ty v1 v2 v1' :
+  value_uincl_a v1 v2 ->
   truncate_val ty v1 = ok v1' ->
   truncate_val ty v2 = ok v1'.
 Proof.
@@ -87,8 +87,8 @@ Proof.
 Qed.
 *)
 
-Definition eqok (e1 e2:pexpr) st := 
-  forall v, sem_pexpr gd st e1 = ok v -> 
+Definition eqok (e1 e2:pexpr) st :=
+  forall v, sem_pexpr gd st e1 = ok v ->
     exists v', sem_pexpr gd st e2 = ok v' /\ value_uincl v v'.
 
 Lemma eqok_weaken e1 e2 st : eqok_w e1 e2 st -> eqok e1 e2 st.
@@ -140,13 +140,13 @@ Proof.
 Qed.
 
 Lemma snot_boolP e : Papp1 Onot e =E snot_bool e.
-Proof. 
+Proof.
   apply: eeq_weaken.
   case: e=> //=;try auto; first by move=> ???.
   move=> []; auto.
   move=> p rho v /=;rewrite /eqok.
   apply: rbindP => w;apply:rbindP => w' /= ->.
-  apply: rbindP => /= b Hb [<-]. 
+  apply: rbindP => /= b Hb [<-].
   rewrite /sem_sop1 /= negbK => [<-].
   by case: w' Hb => //= [? [->] | []].
 Qed.
@@ -181,9 +181,9 @@ Qed.
 
 Lemma sandP e1 e2 : Papp2 Oand e1 e2 =E sand e1 e2.
 Proof.
-  apply: eeq_weaken; rewrite /sand. 
-  case: is_boolP => [b1 rho v /=| {e1} e1]. 
-  + apply: rbindP=> v2' /= He2;apply:rbindP=> ? [<-]. 
+  apply: eeq_weaken; rewrite /sand.
+  case: is_boolP => [b1 rho v /=| {e1} e1].
+  + apply: rbindP=> v2' /= He2;apply:rbindP=> ? [<-].
     by apply: rbindP => b2 /to_boolI Hb2 [<-];subst v2';case:b1.
   case: is_boolP => [b2 rho v /=|{e2}e2];last by auto using eeq_refl.
   apply: rbindP => v1 Hv1;apply:rbindP=> b1 /to_boolI ?;subst v1 => /= -[<-].
@@ -192,9 +192,9 @@ Qed.
 
 Lemma sorP e1 e2 : Papp2 Oor e1 e2 =E sor e1 e2.
 Proof.
-  apply: eeq_weaken; rewrite /sor. 
-  case: is_boolP => [b1 rho v /=| {e1} e1]. 
-  + apply: rbindP=> v2' /= He2;apply:rbindP=> ? [<-]. 
+  apply: eeq_weaken; rewrite /sor.
+  case: is_boolP => [b1 rho v /=| {e1} e1].
+  + apply: rbindP=> v2' /= He2;apply:rbindP=> ? [<-].
     by apply: rbindP => b2 /to_boolI Hb2 [<-];subst v2';case:b1.
   case: is_boolP => [b2 rho v /=|{e2}e2];last by auto using eeq_refl.
   apply: rbindP => v1 Hv1;apply:rbindP=> b1 /to_boolI ?;subst v1 => /= -[<-].
@@ -245,7 +245,7 @@ Proof. by case: ty; eauto using sadd_intP, sadd_wP. Qed.
 
 Lemma ssub_intP e1 e2 : Papp2 (Osub Op_int) e1 e2 =E ssub_int e1 e2.
 Proof.
-  apply: eeq_weaken; rewrite /ssub_int. 
+  apply: eeq_weaken; rewrite /ssub_int.
   case: (is_constP e1) => [n1| {e1} e1];
     case: (is_constP e2) => [n2| {e2} e2] rho v //=.
   apply: rbindP => v1 Hv1;rewrite /sem_sop2 /=.
@@ -273,7 +273,7 @@ Proof. by case: ty; eauto using ssub_intP, ssub_wP. Qed.
 
 Lemma smul_intP e1 e2 : Papp2 (Omul Op_int) e1 e2 =E smul_int e1 e2.
 Proof.
-  apply: eeq_weaken; rewrite /smul_int. 
+  apply: eeq_weaken; rewrite /smul_int.
   case: (is_constP e1) => [n1| {e1} e1];
     case: (is_constP e2) => [n2| {e2} e2] rho v //=.
   + apply: rbindP => v2 Hv2. rewrite /sem_sop2 /=.
@@ -560,9 +560,9 @@ Proof.
   + rewrite /soint.
     case: (is_constP e1) => [n1| {e1} e1];
     case: (is_constP e2) => [n2| {e2} e2] rho v /=;eauto.
-  rewrite /sbituw.  
+  rewrite /sbituw.
   case h1: is_wconst => [ n1 | ] //.
-  case h2: is_wconst => [ n2 | ] //. 
+  case h2: is_wconst => [ n2 | ] //.
   case:eqP => // neq s v.
   rewrite /= /sem_sop2 /= /mk_sem_divmod.
   t_xrbindP => v1 k1 v2 k2 w1' /of_val_word [sz1] [w1] [hle1 ? ?]
@@ -580,7 +580,7 @@ Proof.
   + rewrite /soint.
     case: (is_constP e1) => [n1| {e1} e1];
     case: (is_constP e2) => [n2| {e2} e2] rho v /=;eauto.
-  rewrite /sbituw.  
+  rewrite /sbituw.
   case h1: is_wconst => [ n1 | ] //.
   case h2: is_wconst => [ n2 | ] //.
   case:eqP => // neq s v.
@@ -644,7 +644,7 @@ Qed.
 
 Lemma s_op2P o e1 e2 : Papp2 o e1 e2 =E s_op2 o e1 e2.
 Proof.
-  case: o;eauto using sandP, sorP, saddP, smulP, ssubP, sdivP, smodP, 
+  case: o;eauto using sandP, sorP, saddP, smulP, ssubP, sdivP, smodP,
                       s_eqP, sneqP, sltP, sleP, sgtP, sgeP,
                       slandP, slorP, slxorP, slslP, slsrP, sasrP,
                       svaddP, svsubP, svmulP, svshlP, svshrP, svsarP.
@@ -666,7 +666,7 @@ Proof.
 Qed.
 *)
 
-(* vuincl_sem_opN 
+(* vuincl_sem_opN
 Lemma sem_opN_uincl_a op vs v vs' :
   sem_opN op vs = ok v →
   List.Forall2 value_uincl_a vs vs' →
@@ -700,7 +700,7 @@ Definition vconst c :=
   | Cword sz z => Vword z
   end.
 
-Definition valid_cpm (vm: vmap)  (m:cpm) := 
+Definition valid_cpm (vm: vmap)  (m:cpm) :=
   forall x n, Mvar.get m x = Some n -> get_var vm x = ok (vconst n).
 
 Definition eqoks e1 e2 st :=
@@ -761,7 +761,7 @@ Definition const_prop_eP e s m h :=
 Definition const_prop_esP es s m h :=
   (@const_prop_e_esP s m h).2 es.
 
-Lemma remove_cpm1P x v m s1 s1' : 
+Lemma remove_cpm1P x v m s1 s1' :
   write_var x v s1 = ok s1' ->
   valid_cpm (evm s1) m ->
   valid_cpm (evm s1') (Mvar.remove m x).
@@ -777,7 +777,7 @@ Lemma add_cpmP s1 s1' m x e tag ty v1 v v' :
   value_uincl v v1 ->
   truncate_val ty v = ok v' ->
   write_lval gd x v' s1 = ok s1' ->
-  valid_cpm (evm s1') m -> 
+  valid_cpm (evm s1') m ->
   valid_cpm (evm s1') (add_cpm m x tag ty e).
 Proof.
   rewrite /add_cpm;case: x => [xi | x | x | x] //= He.
@@ -785,7 +785,7 @@ Proof.
   case: e He => // [ n | [] // sz [] //= q ] [<-].
   + case: v => //= ?;last first.
     + by rewrite compat_typeC => /eqP ->; case: ty.
-    move=> -> /truncate_val_int [_ ->]. 
+    move=> -> /truncate_val_int [_ ->].
     case: x => -[] [] //= xn vi [] <- /= Hv z /= n0.
     have := Hv z n0.
     case: ({| vtype := sint; vname := xn |} =P z).
@@ -794,7 +794,7 @@ Proof.
   case: v => //= s ;last first.
   + by rewrite compat_typeC; case: s => //= s' _;case: ty.
   move=> w /andP[] Ule /eqP -> /truncate_val_word [] szw [] -> hle -> /=.
-  rewrite !(zero_extend_wrepr _ Ule, zero_extend_wrepr _ (cmp_le_trans hle Ule), zero_extend_wrepr _ hle).  
+  rewrite !(zero_extend_wrepr _ Ule, zero_extend_wrepr _ (cmp_le_trans hle Ule), zero_extend_wrepr _ hle).
   case: x => -[] [] //= szx xn vi; apply: rbindP => vm.
   apply: set_varP => //= w' [<-] <- [<-] /= Hv z /= n.
   have := Hv z n.
@@ -804,17 +804,17 @@ Proof.
   by move=> /eqP Hneq;rewrite Mvar.setP_neq.
 Qed.
 
-Lemma merge_cpmP rho m1 m2 : 
-  valid_cpm rho m1 \/ valid_cpm rho m2 ->  
+Lemma merge_cpmP rho m1 m2 :
+  valid_cpm rho m1 \/ valid_cpm rho m2 ->
   valid_cpm rho (merge_cpm m1 m2).
 Proof.
-  move=> Hv x n;rewrite /merge_cpm Mvar.map2P //. 
+  move=> Hv x n;rewrite /merge_cpm Mvar.map2P //.
   case Heq1 : (Mvar.get m1 x) => [n1|//]; case Heq2 : (Mvar.get m2 x) => [n2|//].
   case: eqP=> //.
   by move=> ? [] ?;do 2 subst;elim: Hv => Hv;apply Hv.
 Qed.
 
-Lemma const_prop_rvP s1 s2 m x v: 
+Lemma const_prop_rvP s1 s2 m x v:
   valid_cpm (evm s1) m ->
   write_lval gd x v s1 = Ok error s2 ->
   valid_cpm (evm s2) (const_prop_rv m x).1 /\
@@ -836,7 +836,7 @@ Proof.
   by apply: remove_cpm1P H Hv.
 Qed.
 
-Lemma const_prop_rvsP s1 s2 m x v: 
+Lemma const_prop_rvsP s1 s2 m x v:
   valid_cpm (evm s1) m ->
   write_lvals gd s1 x v = Ok error s2 ->
   valid_cpm (evm s2) (const_prop_rvs m x).1 /\
@@ -852,30 +852,30 @@ Proof.
 Qed.
 
 Lemma remove_cpm_spec (m : cpm) (xs : Sv.t) (x : CmpVar.t):
-  match Mvar.get (remove_cpm m xs) x with 
+  match Mvar.get (remove_cpm m xs) x with
   | Some n => Mvar.get m x = Some n /\ ~ Sv.In x xs
   | None   => Mvar.get m x = None \/ Sv.In x xs
   end.
 Proof.
-  rewrite /remove_cpm;apply SvP.MP.fold_rec_bis. 
+  rewrite /remove_cpm;apply SvP.MP.fold_rec_bis.
   + move=> s s' a Heq.
     by case: Mvar.get=> [? [] ??| [? | ?]]; [split=> //;SvD.fsetdec | left | right;SvD.fsetdec].
   + by case: Mvar.get=> [? | ]; [ split => //;SvD.fsetdec | left].
   move=> ?????;rewrite Mvar.removeP;case:ifPn => /eqP Heq.
-  + by rewrite Heq=> _;right;SvD.fsetdec. 
-  by case: Mvar.get=> [? [] ??| [?|?]];[split=> //;SvD.fsetdec | left | SvD.fsetdec]. 
+  + by rewrite Heq=> _;right;SvD.fsetdec.
+  by case: Mvar.get=> [? [] ??| [?|?]];[split=> //;SvD.fsetdec | left | SvD.fsetdec].
 Qed.
 
-Lemma remove_cpm2 m xs : Mvar_eq (remove_cpm (remove_cpm m xs) xs) (remove_cpm m xs). 
+Lemma remove_cpm2 m xs : Mvar_eq (remove_cpm (remove_cpm m xs) xs) (remove_cpm m xs).
 Proof.
   move=> z;have := remove_cpm_spec (remove_cpm m xs) xs z.
-  case: Mvar.get=> [? [] | [ | ]] // Hin.   
+  case: Mvar.get=> [? [] | [ | ]] // Hin.
   have := remove_cpm_spec m xs z.
   by case: Mvar.get=> // ? [] _ H;elim H.
 Qed.
 
-Lemma get_remove_cpm m xs x n: 
-  Mvar.get (remove_cpm m xs) x = Some n ->  
+Lemma get_remove_cpm m xs x n:
+  Mvar.get (remove_cpm m xs) x = Some n ->
   Mvar.get m x = Some n /\ ~Sv.In x xs.
 Proof. by move=> H;have := remove_cpm_spec m xs x;rewrite H. Qed.
 
@@ -885,10 +885,10 @@ Lemma valid_cpm_rm rho1 rho2 xs m:
   valid_cpm rho2 (remove_cpm m xs).
 Proof.
   move=> Hrho Hval x nx /get_remove_cpm [] Hm Hin.
-  rewrite /get_var -Hrho //;apply (Hval _ _ Hm). 
+  rewrite /get_var -Hrho //;apply (Hval _ _ Hm).
 Qed.
 
-Lemma remove_cpmP s s' m x v: 
+Lemma remove_cpmP s s' m x v:
   write_lval gd x v s = ok s' ->
   valid_cpm (evm s) m ->
   valid_cpm (evm s') (remove_cpm m (vrv x)).
@@ -896,7 +896,7 @@ Proof. move=> Hw Hv; apply: (valid_cpm_rm _ Hv);eapply vrvP;eauto. Qed.
 
 End GLOB_DEFS.
 
-Instance const_prop_e_m : 
+Instance const_prop_e_m :
   Proper (@Mvar_eq const_v ==> eq ==> eq) const_prop_e.
 Proof.
   move=> m1 m2 Hm e e' <- {e'}.
@@ -913,14 +913,14 @@ Proof.
   by move=> ?? -> ? -> ? ->.
 Qed.
 
-Instance const_prop_rv_m : 
+Instance const_prop_rv_m :
   Proper (@Mvar_eq const_v ==> eq ==> RelationPairs.RelProd (@Mvar_eq const_v) eq) const_prop_rv.
 Proof.
   move=> m1 m2 Hm rv rv' <- {rv'}.
   by case: rv => [ v | v | sz v p | sz v p] //=;rewrite Hm.
 Qed.
 
-Instance const_prop_rvs_m : 
+Instance const_prop_rvs_m :
   Proper (@Mvar_eq const_v ==> eq ==> RelationPairs.RelProd (@Mvar_eq const_v) eq) const_prop_rvs.
 Proof.
   move=> m1 m2 Hm rv rv' <- {rv'}.
@@ -932,7 +932,7 @@ Proof.
   by rewrite /RelationPairs.RelCompFun /= => -> ->.
 Qed.
 
-Instance add_cpm_m : 
+Instance add_cpm_m :
   Proper (@Mvar_eq const_v ==> eq ==> eq ==> eq ==> eq ==> @Mvar_eq const_v) add_cpm.
 Proof.
   move=> m1 m2 Hm x x' <- {x'} t t' <- {t'} ty ty' <- {ty'} e e' <- {e'}.
@@ -940,7 +940,7 @@ Proof.
   by case: e => //= [n | [] // sz [] // n ]; rewrite Hm.
 Qed.
 
-Instance merge_cpm_m : 
+Instance merge_cpm_m :
   Proper (@Mvar_eq const_v ==> @Mvar_eq const_v ==> @Mvar_eq const_v) merge_cpm.
 Proof.
   move=> m1 m2 Hm m1' m2' Hm' z;rewrite /merge_cpm.
@@ -948,10 +948,10 @@ Proof.
   have Hz : f z None None = None => //.
   have -> := Mvar.map2P m1 m1' Hz.
   have -> := Mvar.map2P m2 m2' Hz.
-  by rewrite Hm Hm'. 
+  by rewrite Hm Hm'.
 Qed.
 
-Instance remove_cpm_m : 
+Instance remove_cpm_m :
   Proper (@Mvar_eq const_v ==> Sv.Equal ==> @Mvar_eq const_v) remove_cpm.
 Proof.
   move=> m1 m2 Hm s1 s2 Hs z.
@@ -966,14 +966,14 @@ Definition Mvarc_eq T := RelationPairs.RelProd (@Mvar_eq T) (@eq cmd).
 
 Section PROPER.
 
-  Let Pr (i:instr_r) := 
+  Let Pr (i:instr_r) :=
     forall ii m1 m2, Mvar_eq m1 m2 -> Mvarc_eq (const_prop_ir m1 ii i) (const_prop_ir m2 ii i).
 
-  Let Pi (i:instr) := 
+  Let Pi (i:instr) :=
     forall m1 m2, Mvar_eq m1 m2 -> Mvarc_eq (const_prop_i m1 i) (const_prop_i m2 i).
 
-  Let Pc (c:cmd) := 
-    forall m1 m2, Mvar_eq m1 m2 -> 
+  Let Pc (c:cmd) :=
+    forall m1 m2, Mvar_eq m1 m2 ->
     Mvarc_eq (const_prop const_prop_i m1 c) (const_prop const_prop_i m2 c).
 
   Local Lemma Wmk i ii: Pr i -> Pi (MkI ii i).
@@ -982,7 +982,7 @@ Section PROPER.
   Local Lemma Wnil : Pc [::].
   Proof. by move=> m1 m2 /= ->. Qed.
 
-  Local Lemma Wcons i c:  Pi i -> Pc c -> Pc (i::c). 
+  Local Lemma Wcons i c:  Pi i -> Pc c -> Pc (i::c).
   Proof.
     move=> Hi Hc m1 m2 /= /Hi.
     case: const_prop_i => m1' i'; case: const_prop_i => m2' i'' [] /Hc.
@@ -1012,7 +1012,7 @@ Section PROPER.
   Proof.
     move=> Hc1 Hc2 ii m1 m2 Heq /=.
     have -> : const_prop_e m1 e = const_prop_e m2 e by rewrite Heq.
-    case: is_bool=> [ [] | ].    
+    case: is_bool=> [ [] | ].
     + by apply Hc1.
     + by apply Hc2.
     have := Hc1 _ _ Heq; have := Hc2 _ _ Heq.
@@ -1035,7 +1035,7 @@ Section PROPER.
   Local Lemma Wwhile a c e c': Pc c -> Pc c' -> Pr (Cwhile a c e c').
   Proof.
     move=> Hc Hc' ii m1 m2 Heq /=.
-    set ww1 := remove_cpm _ _;set ww2 := remove_cpm _ _. 
+    set ww1 := remove_cpm _ _;set ww2 := remove_cpm _ _.
     have Hw: Mvar_eq ww1 ww2 by rewrite /ww1 /ww2 Heq.
     move: (Hw) => /Hc; case: const_prop => m1' c1. case: const_prop => m2' c2 [].
     rewrite /RelationPairs.RelCompFun /= => H ->.
@@ -1056,29 +1056,29 @@ Section PROPER.
 
 End PROPER.
 
-Lemma const_prop_i_m : 
-  Proper (@Mvar_eq const_v ==> eq ==> @Mvarc_eq const_v) const_prop_i. 
+Lemma const_prop_i_m :
+  Proper (@Mvar_eq const_v ==> eq ==> @Mvarc_eq const_v) const_prop_i.
 Proof.
   move=> m1 m2 Hm i1 i2 <-.
   apply : (instr_Rect Wmk Wnil Wcons Wasgn Wopn Wif Wfor Wwhile Wcall i1) Hm.
 Qed.
 
-Lemma const_prop_i_r_m : 
-  Proper (@Mvar_eq const_v ==> eq ==> eq ==> @Mvarc_eq const_v) const_prop_ir. 
+Lemma const_prop_i_r_m :
+  Proper (@Mvar_eq const_v ==> eq ==> eq ==> @Mvarc_eq const_v) const_prop_ir.
 Proof.
   move=> m1 m2 Hm ii1 ii2 <- i1 i2 <-.
   apply : (instr_r_Rect Wmk Wnil Wcons Wasgn Wopn Wif Wfor Wwhile Wcall i1) Hm.
 Qed.
 
-Lemma const_prop_m : 
-  Proper (@Mvar_eq const_v ==> eq ==> @Mvarc_eq const_v) (const_prop const_prop_i). 
+Lemma const_prop_m :
+  Proper (@Mvar_eq const_v ==> eq ==> @Mvarc_eq const_v) (const_prop const_prop_i).
 Proof.
   move=> m1 m2 Hm c1 c2 <-.
   apply : (cmd_rect Wmk Wnil Wcons Wasgn Wopn Wif Wfor Wwhile Wcall c1) Hm.
 Qed.
 
-Lemma valid_cpm_m : 
-  Proper (eq ==> @Mvar_eq const_v ==> iff) valid_cpm. 
+Lemma valid_cpm_m :
+  Proper (eq ==> @Mvar_eq const_v ==> iff) valid_cpm.
 Proof.
   move=> s? <- m m' Hm;split => H z n Hget;apply H.
   by rewrite Hm. by rewrite -Hm.
@@ -1092,7 +1092,7 @@ Section PROOF.
   Let p' := const_prop_prog p.
 
   Let Pi s1 i s2 :=
-    forall m, 
+    forall m,
       valid_cpm s1.(evm) m ->
       valid_cpm s2.(evm) (const_prop_i m i).1 /\
       forall vm1,
@@ -1102,7 +1102,7 @@ Section PROOF.
           vm_uincl (evm s2) vm2.
 
   Let Pi_r s1 i s2 :=
-    forall m ii, 
+    forall m ii,
       valid_cpm s1.(evm) m ->
       valid_cpm s2.(evm) (const_prop_ir m ii i).1 /\
       forall vm1,
@@ -1112,7 +1112,7 @@ Section PROOF.
           vm_uincl (evm s2) vm2.
 
   Let Pc s1 c s2 :=
-    forall m, 
+    forall m,
       valid_cpm s1.(evm) m ->
       valid_cpm s2.(evm) (const_prop const_prop_i m c).1 /\
       forall vm1,
@@ -1122,7 +1122,7 @@ Section PROOF.
           vm_uincl (evm s2) vm2.
 
   Let Pfor (i:var_i) zs s1 c s2 :=
-    forall m, 
+    forall m,
       Mvar_eq m (remove_cpm m (Sv.union (Sv.singleton i) (write_c c))) ->
       valid_cpm s1.(evm) m ->
       forall vm1,
@@ -1139,8 +1139,8 @@ Section PROOF.
         List.Forall2 value_uincl vres vres'.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
-  Proof. 
-    by move=> s m /= ?;split=>// vm1 hu1;exists vm1;split => //; constructor. 
+  Proof.
+    by move=> s m /= ?;split=>// vm1 hu1;exists vm1;split => //; constructor.
   Qed.
 
   Local Lemma Hcons : sem_Ind_cons p Pc Pi.
@@ -1178,11 +1178,11 @@ Section PROOF.
     move=> /(const_prop_esP Hm) [vs' Hes' Us] /(const_prop_rvsP Hm) [] /=.
     case: const_prop_rvs => m' rvs' /= h1 h2;split=>//.
     move=> vm1 hvm1.
-    have [vm2 hw U]:= writes_uincl hvm1 (List_Forall2_refl _ value_uincl_refl) h2. 
+    have [vm2 hw U]:= writes_uincl hvm1 (List_Forall2_refl _ value_uincl_refl) h2.
     exists vm2;split => //.
     apply sem_seq1; do 2 constructor.
     have [vs2 hs u2]:= sem_pexprs_uincl hvm1 Hes'.
-    rewrite /sem_sopn hs /=. 
+    rewrite /sem_sopn hs /=.
     by have -> := vuincl_exec_opn_eq (Forall2_trans value_uincl_trans Us u2) Ho.
   Qed.
 
@@ -1198,7 +1198,7 @@ Section PROOF.
     move=> vm1 /dup[] h /Hs [vm2 [ hc u]];exists vm2;split => //.
     apply sem_seq1; do 2 constructor=> //.
     by have [v2 -> /value_uincl_bool1 ->]:= sem_pexpr_uincl h He.
-  Qed.   
+  Qed.
 
   Local Lemma Hif_false : sem_Ind_if_false p Pc Pi_r.
   Proof.
@@ -1214,7 +1214,7 @@ Section PROOF.
     by have [v2 -> /value_uincl_bool1 ->]:= sem_pexpr_uincl h He.
   Qed.
 
-  (* TODO: move this *)    
+  (* TODO: move this *)
   Lemma sem_seq1_iff (P : prog) (i : instr) (s1 s2 : estate):
      sem_I P s1 i s2 <-> sem P s1 [:: i] s2.
   Proof.
@@ -1249,18 +1249,18 @@ Section PROOF.
     move: Hsem .
     have -> : const_prop_e m2'' e = const_prop_e m'' e.
     + by rewrite Hm2''.
-    move=> Hrec vm1 hvm1. 
+    move=> Hrec vm1 hvm1.
     have [v' [ /=]]:= const_prop_eP Hm'' He.
     case: v' => //= ? Hv' ?;subst.
     have [vm2 [hc0 hvm2]]:= Hc0 _ hvm1.
     have [vm3 [hc0' hvm3]]:= Hc0' _ hvm2.
-    have H :  forall e0, 
+    have H :  forall e0,
       sem_pexpr gd s2 e0 = ok (Vbool true) ->
-      (exists vm2, 
-        sem p' {| emem := emem s3; evm := vm3 |} [:: MkI ii (Cwhile a c0 e0 c0')] 
+      (exists vm2,
+        sem p' {| emem := emem s3; evm := vm3 |} [:: MkI ii (Cwhile a c0 e0 c0')]
            {| emem := emem s4; evm := vm2 |} ∧ vm_uincl (evm s4) vm2) ->
-      exists vm2, 
-        sem p' {| emem := emem s1; evm := vm1 |} [:: MkI ii (Cwhile a c0 e0 c0')] 
+      exists vm2,
+        sem p' {| emem := emem s1; evm := vm1 |} [:: MkI ii (Cwhile a c0 e0 c0')]
            {| emem := emem s4; evm := vm2 |} ∧ vm_uincl (evm s4) vm2.
     + move=> e0 He0 [vm5] [] /sem_seq1_iff /sem_IE Hsw hvm5;exists vm5;split => //.
       apply:sem_seq1;constructor.
@@ -1284,7 +1284,7 @@ Section PROOF.
     apply: sem_seq1;constructor;apply: Ewhile_false => //.
     by have [v2 -> /value_uincl_bool1 ->]:= sem_pexpr_uincl h He0.
   Qed.
- 
+
   Local Lemma Hfor : sem_Ind_for p Pi_r Pfor.
   Proof.
     move=> s1 s2 i d lo hi c vlo vhi Hlo Hhi Hc Hfor m ii Hm /=.
@@ -1292,20 +1292,20 @@ Section PROOF.
     have Hm'1 : valid_cpm (evm s1) m' by apply: valid_cpm_rm Hm.
     have Heqm: Mvar_eq m' (remove_cpm m' (Sv.union (Sv.singleton i) (write_c c))).
     + by have := remove_cpm2 m ww; rewrite /m' /ww write_i_for => ->.
-    have := Hfor _ Heqm Hm'1.      
+    have := Hfor _ Heqm Hm'1.
     case Heq1: const_prop => [m'' c'] /= Hsem;split.
     + by apply: valid_cpm_rm Hm;apply (@write_iP p);econstructor;eauto.
     move=> vm1 /dup[] hvm1 /Hsem [vm2 [ hfor hvm2]];exists vm2;split => //.
     apply sem_seq1;constructor;econstructor;eauto.
-    + have [v' [h /=]] := const_prop_eP Hm Hlo; case: v' h => //= ? h ->. 
+    + have [v' [h /=]] := const_prop_eP Hm Hlo; case: v' h => //= ? h ->.
       by have [v2 -> /value_uincl_int1 ->]:= sem_pexpr_uincl hvm1 h.
     have [v' [h /=]] := const_prop_eP Hm Hhi;case: v' h => //= ? h ->.
     by have [v2 -> /value_uincl_int1 ->]:= sem_pexpr_uincl hvm1 h.
   Qed.
 
   Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
-  Proof. 
-    move=> s i c m Hm hv vm1 hvm1;exists vm1;split => //; constructor. 
+  Proof.
+    move=> s i c m Hm hv vm1 hvm1;exists vm1;split => //; constructor.
   Qed.
 
   Local Lemma Hfor_cons : sem_Ind_for_cons p Pc Pfor.
@@ -1313,16 +1313,16 @@ Section PROOF.
     move => s1 s1' s2 s3 i w ws c Hw Hsemc Hc Hsemf Hf m Heqm Hm vm1 hvm1.
     have Hm' : valid_cpm (evm s1') m.
     + have Hmi : Mvar_eq m (Mvar.remove m i).
-      + move=> z;rewrite Mvar.removeP;case:ifPn => [/eqP <- | Hneq //]. 
+      + move=> z;rewrite Mvar.removeP;case:ifPn => [/eqP <- | Hneq //].
         rewrite Heqm;move: (remove_cpm_spec m (Sv.union (Sv.singleton i) (write_c c)) i).
         by case: Mvar.get => // a [];SvD.fsetdec.
       have -> := valid_cpm_m (refl_equal (evm s1')) Hmi.
       by apply: remove_cpm1P Hw Hm.
-    have [_  Hc']:= Hc _ Hm'.        
+    have [_  Hc']:= Hc _ Hm'.
     have /(Hf _ Heqm) Hc'': valid_cpm (evm s2) m.
     + have -> := valid_cpm_m (refl_equal (evm s2)) Heqm.
-      apply: valid_cpm_rm Hm'=> z Hz;apply: (writeP Hsemc);SvD.fsetdec. 
-    have /(_ _ (value_uincl_refl _))[vm1' hw hvm1']:= write_var_uincl hvm1 _ Hw.   
+      apply: valid_cpm_rm Hm'=> z Hz;apply: (writeP Hsemc);SvD.fsetdec.
+    have /(_ _ (value_uincl_refl _))[vm1' hw hvm1']:= write_var_uincl hvm1 _ Hw.
     have [vm2 [hc' /Hc'' [vm3 [hfor U]]]]:= Hc' _ hvm1';exists vm3;split => //.
     by apply: EForOne hc' hfor.
   Qed.
@@ -1341,9 +1341,9 @@ Section PROOF.
     by apply sem_seq1;constructor;econstructor;eauto.
   Qed.
 
-(*  Lemma mapM2_truncate_val_uincl_a ts v1 v2 v1' : 
+(*  Lemma mapM2_truncate_val_uincl_a ts v1 v2 v1' :
     List.Forall2 value_uincl_a v1 v2 →
-    mapM2 ErrType truncate_val ts v1 = ok v1' → 
+    mapM2 ErrType truncate_val ts v1 = ok v1' →
     mapM2 ErrType truncate_val ts v2 = ok v1'.
   Proof.
     move=> hall;elim: hall ts v1' => {v1 v2} [ | v1 v2 vs1 vs2 hv hall hrec];case => //= t ts v1'.
@@ -1361,14 +1361,14 @@ Section PROOF.
     have [vm3 /= hw hu3]:= write_vars_uincl (vm_uincl_refl _) hu1 Hw.
     have [vm4 /= []hc hu4]:= hc' _ hu3.
     have [vres1 hvres1 hu5]:= get_vars_uincl hu4 Hres.
-    have [vres1' ??]:= mapM2_truncate_val Hfull hu5. 
+    have [vres1' ??]:= mapM2_truncate_val Hfull hu5.
     exists vres1';split => //.
     econstructor;eauto => /=.
   Qed.
 
   Lemma const_prop_callP f mem mem' va va' vr:
     sem_call p mem f va mem' vr ->
-    List.Forall2 value_uincl va va' -> 
+    List.Forall2 value_uincl va va' ->
     exists vr', sem_call p' mem f va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
     move=> /(@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn

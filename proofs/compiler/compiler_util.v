@@ -8,13 +8,13 @@ Unset Printing Implicit Defensive.
 
 Local Unset Elimination Schemes.
 
-(* ** Compiler warning  
+(* ** Compiler warning
  * -------------------------------------------------------------------------- *)
 
-Variant warning_msg : Set := 
+Variant warning_msg : Set :=
   | Use_lea.
 
-(* ** Compiler error 
+(* ** Compiler error
  * -------------------------------------------------------------------------- *)
 
 Variant asm_error :=
@@ -38,13 +38,13 @@ Inductive error_msg :=
   | Cerr_neqinstr : instr_r -> instr_r -> string -> error_msg
   | Cerr_unknown_fun : funname -> string -> error_msg
   | Cerr_in_fun   : fun_error -> error_msg
-  | Cerr_arr_exp  : pexpr -> pexpr -> error_msg 
-  | Cerr_arr_exp_v: lval -> lval -> error_msg 
+  | Cerr_arr_exp  : pexpr -> pexpr -> error_msg
+  | Cerr_arr_exp_v: lval -> lval -> error_msg
   | Cerr_stk_alloc: string -> error_msg
   | Cerr_linear   : string -> error_msg
   | Cerr_assembler: asm_error -> error_msg
- 
-with fun_error   := 
+
+with fun_error   :=
   | Ferr_in_body  : funname -> funname -> (instr_info * error_msg) -> fun_error
   | Ferr_neqfun   : funname -> funname -> fun_error
   | Ferr_fun      : funname -> error_msg -> fun_error
@@ -73,13 +73,13 @@ Definition cerror  (c:error_msg) {A} : cexec A := @Error _ A c.
 Definition cierror (ii:instr_info) (c:error_msg) {A} : ciexec A := @Error _ A (ii,c).
 Definition cferror  (c:fun_error) {A} : cfexec A := @Error _ A c.
 
-Definition add_iinfo {A} ii (r:cexec A) : ciexec A := 
+Definition add_iinfo {A} ii (r:cexec A) : ciexec A :=
   match r with
   | Ok a => @Ok _ A a
   | Error e  => Error (ii,e)
   end.
 
-Definition add_finfo {A} f1 f2 (r:ciexec A) : cfexec A := 
+Definition add_finfo {A} f1 f2 (r:ciexec A) : cfexec A :=
   match r with
   | Ok a => @Ok _ A a
   | Error e  => Error (Ferr_in_body f1 f2 e)
@@ -91,18 +91,18 @@ Definition add_infun {A} (ii:instr_info) (r:cfexec A) : ciexec A :=
   | Error e => Error (ii, Cerr_in_fun e)
   end.
 
-Lemma add_iinfoP A (a:A) (e:cexec A) ii (P:Prop):  
-  (e = ok a -> P) -> 
+Lemma add_iinfoP A (a:A) (e:cexec A) ii (P:Prop):
+  (e = ok a -> P) ->
   add_iinfo ii e = ok a -> P.
 Proof. by case: e=> //= a' H [] Heq;apply H;rewrite Heq. Qed.
 
-Lemma add_finfoP A (a:A) e f1 f2 (P:Prop):  
-  (e = ok a -> P) -> 
+Lemma add_finfoP A (a:A) e f1 f2 (P:Prop):
+  (e = ok a -> P) ->
   add_finfo f1 f2 e = ok a -> P.
 Proof. by case: e=> //= a' H [] Heq;apply H;rewrite Heq. Qed.
 
-Lemma add_infunP A a ii (e:cfexec A) (P:Prop):  
-  (e = ok a -> P) -> 
+Lemma add_infunP A a ii (e:cfexec A) (P:Prop):
+  (e = ok a -> P) ->
   add_infun ii e = ok a -> P.
 Proof. by case: e=> //= a' H [] Heq;apply H;rewrite Heq. Qed.
 

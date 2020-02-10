@@ -56,7 +56,7 @@ Module S.
     sem_I s1 i s2 -> sem s2 c s3 -> sem s1 (i::c) s3
 
   with sem_I : estate -> instr -> estate -> Prop :=
-  | EmkI ii i s1 s2: 
+  | EmkI ii i s1 s2:
     sem_i s1 i s2 ->
     sem_I s1 (MkI ii i) s2
 

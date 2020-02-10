@@ -66,7 +66,7 @@ Definition is_label (lbl: label) (i:linstr) : bool :=
 Definition find_label (lbl : label) (c : seq linstr) :=
   let idx := seq.find (is_label lbl) c in
   if idx < size c then ok idx else type_error.
-  
+
 Record lfundef := LFundef {
  lfd_stk_size : Z;
  lfd_nstk : Ident.ident;
@@ -117,13 +117,13 @@ Fixpoint snot e :=
   | _ => Papp1 Onot e
   end.
 
-Definition add_align ii a (lc:lcmd) := 
+Definition add_align ii a (lc:lcmd) :=
   match a with
   | NoAlign => lc
   | Align   =>  MkLI ii Lalign :: lc
   end.
 
-Definition align ii a (lc:ciexec (label * lcmd)) : ciexec (label * lcmd) := 
+Definition align ii a (lc:ciexec (label * lcmd)) : ciexec (label * lcmd) :=
   Let p := lc in
   ok (p.1, add_align ii a p.2).
 
@@ -152,10 +152,10 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
     let L1 := lbl in
     let L2 := next_lbl L1 in
     let lbl := next_lbl L2 in
-                           MkLI ii (Lcond e L1) >; 
-                           linear_c linear_i c2 ;; 
+                           MkLI ii (Lcond e L1) >;
+                           linear_c linear_i c2 ;;
                            MkLI ii (Lgoto L2) >;
-    MkLI ii (Llabel L1) >; linear_c linear_i c1 lbl 
+    MkLI ii (Llabel L1) >; linear_c linear_i c1 lbl
    (MkLI ii (Llabel L2) :: lc)
 
   | Cwhile a c e c' =>
@@ -163,9 +163,9 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
     | Some true =>
       let L1 := lbl in
       let lbl := next_lbl L1 in
-      align ii a ( 
-      MkLI ii (Llabel L1) >; linear_c linear_i c ;; 
-                             linear_c linear_i c' lbl 
+      align ii a (
+      MkLI ii (Llabel L1) >; linear_c linear_i c ;;
+                             linear_c linear_i c' lbl
                              (MkLI ii (Lgoto L1) :: lc))
 
     | Some false =>
@@ -183,7 +183,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       let L2 := next_lbl L1 in
       let lbl := next_lbl L2 in
                              MkLI ii (Lgoto L1) >;
-      align ii a (MkLI ii (Llabel L2) >; linear_c linear_i c' ;; 
+      align ii a (MkLI ii (Llabel L2) >; linear_c linear_i c' ;;
       MkLI ii (Llabel L1) >; linear_c linear_i c lbl
                              (MkLI ii (Lcond e L2) :: lc))
       end
@@ -202,8 +202,8 @@ Definition linear_prog (p: sprog) : cfexec lprog :=
   map_cfprog linear_fd p.
 
 Module Eq_linstr.
-  Definition eqb_r i1 i2 := 
-    match i1, i2 with 
+  Definition eqb_r i1 i2 :=
+    match i1, i2 with
     | Lopn lv1 o1 e1, Lopn lv2 o2 e2 => (lv1 == lv2) && (o1 == o2) && (e1 == e2)
     | Lalign, Lalign => true
     | Llabel l1, Llabel l2 => l1 == l2
@@ -227,7 +227,7 @@ Module Eq_linstr.
 
   Definition linstr_r_eqMixin := Equality.Mixin eqb_r_axiom.
 
-  Definition eqb i1 i2 := 
+  Definition eqb i1 i2 :=
     (li_ii i1 == li_ii i2) && (eqb_r (li_i i1) (li_i i2)).
 
   Lemma eqb_axiom : Equality.axiom eqb.
@@ -238,7 +238,7 @@ Module Eq_linstr.
     by apply /eqb_r_axiom.
   Qed.
 
-  Definition linstr_eqMixin := Equality.Mixin eqb_axiom.    
+  Definition linstr_eqMixin := Equality.Mixin eqb_axiom.
 
   Module Exports.
   Canonical linstr_r_eqType  := Eval hnf in EqType linstr_r linstr_r_eqMixin.

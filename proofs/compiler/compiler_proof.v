@@ -124,7 +124,7 @@ Lemma compile_progP entries (p: prog) (gd:glob_decls) (lp: lprog) mem fn va mem'
   compile_prog cparams entries p = cfok (gd, lp) ->
   fn \in entries ->
   sem.sem_call p mem fn va mem' vr ->
-  (forall f, get_fundef lp fn = Some f -> 
+  (forall f, get_fundef lp fn = Some f ->
      exists p, alloc_stack mem (lfd_stk_size f) = ok p) ->
   ∃ mem2' vr',
     List.Forall2 value_uincl vr vr' ∧
