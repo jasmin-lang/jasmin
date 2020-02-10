@@ -36,7 +36,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Module Type FArrayT.
-  Parameter array : Type -> Type. 
+  Parameter array : Type -> Type.
   Parameter cnst : forall {T}, T -> array T.
   Parameter get : forall {T}, array T -> Z -> T.
   Parameter set : forall {T}, array T -> Z -> T -> array T.
@@ -60,19 +60,19 @@ End FArrayT.
 
 Module FArray : FArrayT.
 
-  Record array_ (T:Type) := MkArray { 
+  Record array_ (T:Type) := MkArray {
     a_map : Mz.t T;
-    a_dfl : Z -> T 
+    a_dfl : Z -> T
   }.
 
   Definition array := array_.
 
-  Definition of_fun {T} (f:Z -> T) := 
+  Definition of_fun {T} (f:Z -> T) :=
     {| a_map := Mz.empty T; a_dfl := f |}.
 
   Definition cnst {T} (t:T) : array T := of_fun (fun _ => t).
 
-  Definition get {T} (a:array T) (i:Z) := 
+  Definition get {T} (a:array T) (i:Z) :=
     match Mz.get a.(a_map) i with
     | Some t => t
     | None   => a.(a_dfl) i

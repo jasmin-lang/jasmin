@@ -278,14 +278,14 @@ Notation u128 := (word U128).
 Notation u256 := (word U256).
 
 Definition x86_shift_mask (s:wsize) : u8 :=
-  match s with 
+  match s with
   | U8 | U16 | U32 => wrepr U8 31
   | U64  => wrepr U8 63
   | U128 => wrepr U8 127
   | U256 => wrepr U8 255
   end%Z.
 
-Definition wbit_n sz (w:word sz) (n:nat) : bool := 
+Definition wbit_n sz (w:word sz) (n:nat) : bool :=
    wbit (wunsigned w) n.
 
 Lemma eq_from_wbit_n s (w1 w2: word s) :
@@ -359,22 +359,22 @@ Definition wumul sz (x y: word sz) :=
   let n := wunsigned x * wunsigned y in
   (wrepr sz (Z.quot n (wbase sz)), wrepr sz n).
 
-Definition wdiv {sz} (p q : word sz) : word sz := 
+Definition wdiv {sz} (p q : word sz) : word sz :=
   let p := wunsigned p in
   let q := wunsigned q in
   wrepr sz (p / q)%Z.
 
-Definition wdivi {sz} (p q : word sz) : word sz := 
+Definition wdivi {sz} (p q : word sz) : word sz :=
   let p := wsigned p in
   let q := wsigned q in
   wrepr sz (Z.quot p q)%Z.
 
-Definition wmod {sz} (p q : word sz) : word sz := 
+Definition wmod {sz} (p q : word sz) : word sz :=
   let p := wunsigned p in
   let q := wunsigned q in
   wrepr sz (p mod q)%Z.
 
-Definition wmodi {sz} (p q : word sz) : word sz := 
+Definition wmodi {sz} (p q : word sz) : word sz :=
   let p := wsigned p in
   let q := wsigned q in
   wrepr sz (Z.rem p q)%Z.
@@ -388,11 +388,11 @@ Definition sign_extend sz sz' (w: word sz') : word sz :=
 Definition wbit sz (w i: word sz) : bool :=
   wbit_n w (Z.to_nat (wunsigned i mod wsize_bits sz)).
 
-Definition wror sz (w:word sz) (z:Z) := 
+Definition wror sz (w:word sz) (z:Z) :=
   let i := z mod wsize_bits sz in
   wor (wshr w i) (wshl w (wsize_bits sz - i)).
 
-Definition wrol sz (w:word sz) (z:Z) := 
+Definition wrol sz (w:word sz) (z:Z) :=
   let i := z mod wsize_bits sz in
   wor (wshl w i) (wshr w (wsize_bits sz - i)).
 
@@ -530,7 +530,7 @@ case: (modulus_m hle) => n -> {hle}.
 exact: mod_pq_mod_q.
 Qed.
 
-Lemma zero_extend_idem s s1 s2 (w:word s) : 
+Lemma zero_extend_idem s s1 s2 (w:word s) :
   (s1 <= s2)%CMP -> zero_extend s1 (zero_extend s2 w) = zero_extend s1 w.
 Proof.
   by move=> hle;rewrite [X in (zero_extend _ X) = _]/zero_extend zero_extend_wrepr.
@@ -714,7 +714,7 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------*)
-Ltac wring := 
+Ltac wring :=
   rewrite ?zero_extend_u; ssrring.ssring.
 
 (* -------------------------------------------------------------------*)
@@ -732,13 +732,13 @@ Definition check_scale (s:Z) :=
   (s == 1%Z) || (s == 2%Z) || (s == 4%Z) || (s == 8%Z).
 
 (* -------------------------------------------------------------------*)
-Definition mask_word (sz:wsize) : u64 := 
+Definition mask_word (sz:wsize) : u64 :=
   match sz with
   | U8 | U16 => wshl (-1)%R (wsize_bits sz)
   | _ => 0%R
   end.
 
-Definition merge_word (wr: u64) (sz:wsize) (w:word sz) := 
+Definition merge_word (wr: u64) (sz:wsize) (w:word sz) :=
    wxor (wand (mask_word sz) wr) (zero_extend U64 w).
 
 (* -------------------------------------------------------------------*)
@@ -853,27 +853,27 @@ Definition wpshufd sz : word sz → Z → word sz :=
 
 (* -------------------------------------------------------------------*)
 
-Definition wpshufl_u64 (w:u64) (z:Z) : u64 := 
+Definition wpshufl_u64 (w:u64) (z:Z) : u64 :=
   let v := split_vec U16 w in
   let j := split_vec 2 (wrepr U8 z) in
   make_vec U64 (map (λ n, v`_(Z.to_nat (urepr n)))%R j).
 
-Definition wpshufl_u128 (w:u128) (z:Z) := 
+Definition wpshufl_u128 (w:u128) (z:Z) :=
   match split_vec 64 w with
   | [::h;l] => make_vec U128 [::(h:u64); wpshufl_u64 l z]
   | _       => w
   end.
 
-Definition wpshufh_u128 (w:u128) (z:Z) := 
+Definition wpshufh_u128 (w:u128) (z:Z) :=
   match split_vec 64 w with
   | [::h;l] => make_vec U128 [::wpshufl_u64 h z; (l:u64)]
   | _       => w
   end.
 
-Definition wpshufl_u256 (s:u256) (z:Z) := 
+Definition wpshufl_u256 (s:u256) (z:Z) :=
   make_vec U256 (map (λ w, wpshufl_u128 w z) (split_vec U128 s)).
 
-Definition wpshufh_u256 (s:u256) (z:Z) := 
+Definition wpshufh_u256 (s:u256) (z:Z) :=
   make_vec U256 (map (λ w, wpshufh_u128 w z) (split_vec U128 s)).
 
 Definition wpshuflw sz : word sz → Z → word sz :=
@@ -915,14 +915,14 @@ Definition wpunpckh sz (ve: velem) (x y: word sz) : word sz :=
   make_vec sz zv.
 *)
 
-Fixpoint interleave {A:Type} (l1 l2: list A) := 
+Fixpoint interleave {A:Type} (l1 l2: list A) :=
   match l1, l2 with
   | [::], _ => l2
   | _, [::] => l1
   | a1::l1, a2::l2 => a1::a2::interleave l1 l2
   end.
 
-Definition interleave_gen (get:u128 -> u64) (ve:velem) (src1 src2: u128) := 
+Definition interleave_gen (get:u128 -> u64) (ve:velem) (src1 src2: u128) :=
   let ve : nat :=  wsize_of_velem ve in
   let l1 := split_vec ve (get src1) in
   let l2 := split_vec ve (get src2) in
@@ -930,24 +930,24 @@ Definition interleave_gen (get:u128 -> u64) (ve:velem) (src1 src2: u128) :=
 
 Definition wpunpckl_128 := interleave_gen (subword 0 64).
 
-Definition wpunpckl_256 ve (src1 src2 : u256) := 
-  make_vec U256 
+Definition wpunpckl_256 ve (src1 src2 : u256) :=
+  make_vec U256
     (map2 (wpunpckl_128 ve) (split_vec U128 src1) (split_vec U128 src2)).
 
 Definition wpunpckh_128 := interleave_gen (subword 64 64).
 
-Definition wpunpckh_256 ve (src1 src2 : u256) := 
-  make_vec U256 
+Definition wpunpckh_256 ve (src1 src2 : u256) :=
+  make_vec U256
     (map2 (wpunpckh_128 ve) (split_vec U128 src1) (split_vec U128 src2)).
 
-Definition wpunpckl (sz:wsize) : velem -> word sz -> word sz -> word sz := 
+Definition wpunpckl (sz:wsize) : velem -> word sz -> word sz -> word sz :=
   match sz with
   | U128 => wpunpckl_128
   | U256 => wpunpckl_256
   | _    => fun ve w1 w2 => w1
   end.
 
-Definition wpunpckh (sz:wsize) : velem -> word sz -> word sz -> word sz := 
+Definition wpunpckh (sz:wsize) : velem -> word sz -> word sz -> word sz :=
   match sz with
   | U128 => wpunpckh_128
   | U256 => wpunpckh_256
@@ -1000,7 +1000,7 @@ Definition wperm2i128 (w1 w2: u256) (i: u8) : u256 :=
       end in
   let lo := if wbit_n i 3 then 0%R else choose 0%nat in
   let hi := if wbit_n i 7 then 0%R else choose 4%nat in
-  make_vec U256 [:: lo ; hi ]. 
+  make_vec U256 [:: lo ; hi ].
 
 (* -------------------------------------------------------------------*)
 Definition wpermq (w: u256) (i: u8) : u256 :=

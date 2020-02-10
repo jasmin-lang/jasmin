@@ -163,7 +163,7 @@ Section SEM_PEXPR_SIM.
   | hm: sem.emem _ = _, h : context[sem.emem _] |- _ => rewrite hm in h
   | hvm: vmap_sim ?vm _, h : context[ sem.get_var ?vm _] |- _ => rewrite (get_var_sim hvm) in h
   | h : sem.on_arr_var _ _ _ = ok _ |- _ => unfold sem.on_arr_var in h; unfold psem.on_arr_var
-  | h : (if _ then _ else _) = ok _ |- _ => 
+  | h : (if _ then _ else _) = ok _ |- _ =>
     move: h; case: eqP => // ->; rewrite eqxx
   | h : Let x := _ in _ = ok _ |- _ => move: h; t_xrbindP => *
   | h : match ?x with _ => _ end = ok _ |- _ => move: h; case: x => // *
@@ -217,7 +217,7 @@ case => hm hvm; case: x => /=.
   by exists s1'.
 - move => x; exact: write_var_sim.
 - move => sz x e; t_xrbindP => ? ?;
-    rewrite hm (get_var_sim hvm) => -> /= -> ?? /(sem_pexpr_sim (conj hm hvm)) 
+    rewrite hm (get_var_sim hvm) => -> /= -> ?? /(sem_pexpr_sim (conj hm hvm))
         -> /= -> ? -> ? /= -> <- /=.
   by eexists; split; split.
 move => ws x e; rewrite /sem.on_arr_var /psem.on_arr_var (get_var_sim hvm).

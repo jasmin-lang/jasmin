@@ -73,10 +73,10 @@ Lemma is_ok_ok (E A:Type) (a:A) : is_ok (Ok E a).
 Proof. done. Qed.
 Hint Resolve is_ok_ok.
 
-Lemma is_okP (E A:Type) (r:result E A) : reflect (exists (a:A), r = Ok E a) (is_ok r). 
+Lemma is_okP (E A:Type) (r:result E A) : reflect (exists (a:A), r = Ok E a) (is_ok r).
 Proof.
   case: r => /=; constructor; first by eauto.
-  by move=> []. 
+  by move=> [].
 Qed.
 
 Section ResultEqType.
@@ -358,10 +358,10 @@ Section FOLD2.
   Variable A B E R:Type.
   Variable e: E.
   Variable f : A -> B -> R -> result E R.
- 
-  Fixpoint fold2 (la:seq A) (lb: seq B) r := 
+
+  Fixpoint fold2 (la:seq A) (lb: seq B) r :=
     match la, lb with
-    | [::]  , [::]   => Ok E r 
+    | [::]  , [::]   => Ok E r
     | a::la, b::lb =>
       f a b r >>= (fold2 la lb)
     | _     , _      => Error e
@@ -376,7 +376,7 @@ Section MAP2.
 
   Variable f : A -> B -> result E R.
 
-  Fixpoint mapM2 (la:seq A) (lb: seq B) := 
+  Fixpoint mapM2 (la:seq A) (lb: seq B) :=
     match la, lb with
     | [::]  , [::]   => Ok E [::]
     | a::la, b::lb =>
@@ -438,8 +438,8 @@ Section All2.
 
   Variable A B:Type.
   Variable f : A -> B -> bool.
- 
-  Fixpoint all2 (l1:seq A) (l2: seq B) := 
+
+  Fixpoint all2 (l1:seq A) (l2: seq B) :=
     match l1, l2 with
     | [::]  , [::]   => true
     | a1::l1, a2::l2 => f a1 a2 && all2 l1 l2
@@ -462,8 +462,8 @@ End All2.
 Section Map2.
 
   Context (A B C : Type) (f : A -> B -> C).
-  
-  Fixpoint map2 la lb := 
+
+  Fixpoint map2 la lb :=
     match la, lb with
     | a::la, b::lb => f a b :: map2 la lb
     | _, _         => [::]
@@ -532,7 +532,7 @@ Definition req eT aT (f : aT -> aT -> Prop) (o1 o2 : result eT aT) :=
   end.
 
 Lemma Forall2_trans (A B C:Type) l2 (R1:A->B->Prop) (R2:B->C->Prop)
-                    l1 l3 (R3:A->C->Prop)  : 
+                    l1 l3 (R3:A->C->Prop)  :
    (forall b a c, R1 a b -> R2 b c -> R3 a c) ->
    List.Forall2 R1 l1 l2 ->
    List.Forall2 R2 l2 l3 ->
@@ -551,13 +551,13 @@ Section CTRANS.
 
   Definition ctrans c1 c2 := nosimpl (
     match c1, c2 with
-    | Eq, _  => Some c2 
+    | Eq, _  => Some c2
     | _ , Eq => Some c1
-    | Lt, Lt => Some Lt 
+    | Lt, Lt => Some Lt
     | Gt, Gt => Some Gt
-    | _ , _  => None 
+    | _ , _  => None
     end).
- 
+
   Lemma ctransI c : ctrans c c = Some c.
   Proof. by case: c. Qed.
 
@@ -572,10 +572,10 @@ Section CTRANS.
 
   Lemma ctrans_Gt c1 c2 : ctrans Gt c1 = Some c2 -> Gt = c2.
   Proof. by rewrite /ctrans;case:c1=> //= -[] <-. Qed.
- 
+
 End CTRANS.
 
-Notation Lex u v := 
+Notation Lex u v :=
   match u with
   | Lt => Lt
   | Eq => v
@@ -608,7 +608,7 @@ Definition gcmp {T:Type} {cmp:T -> T -> comparison} {C:Cmp cmp} := cmp.
 
 Section CMP.
 
-  Context {T:Type} {cmp:T -> T -> comparison} {C:Cmp cmp}. 
+  Context {T:Type} {cmp:T -> T -> comparison} {C:Cmp cmp}.
 
   Lemma cmp_trans y x z c:
     cmp x y = c -> cmp y z = c -> cmp x z = c.
@@ -627,13 +627,13 @@ Section CMP.
   Proof. by rewrite /cmp_le /gcmp cmp_refl. Qed.
 
   Lemma cmp_lt_trans y x z : cmp_lt x y -> cmp_lt y z -> cmp_lt x z.
-  Proof. 
+  Proof.
     rewrite /cmp_lt /gcmp => /eqP h1 /eqP h2;apply /eqP;apply (@cmp_ctrans _ _ C y).
-    by rewrite h1 h2. 
+    by rewrite h1 h2.
   Qed.
 
   Lemma cmp_le_trans y x z : cmp_le x y -> cmp_le y z -> cmp_le x z.
-  Proof. 
+  Proof.
     rewrite /cmp_le /gcmp => h1 h2;have := (@cmp_ctrans _ _ C y z x).
     by case: cmp h1 => // _;case: cmp h2 => //= _;rewrite /ctrans => /(_ _ erefl) ->.
   Qed.
@@ -654,7 +654,7 @@ Section CMP.
   Lemma cmp_le_lt_trans y x z: cmp_le x y -> cmp_lt y z -> cmp_lt x z.
   Proof.
     rewrite /cmp_le /cmp_lt /gcmp (cmp_sym y) => h1 h2.
-    have := (@cmp_ctrans _ _ C y x z).    
+    have := (@cmp_ctrans _ _ C y x z).
     by case: cmp h1 => // _;case: cmp h2 => //= _;rewrite /ctrans => /(_ _ erefl) ->.
   Qed.
 
@@ -678,7 +678,7 @@ Hint Resolve cmp_le_refl.
 
 Section EqCMP.
 
-  Context {T:eqType} {cmp:T -> T -> comparison} {C:Cmp cmp}. 
+  Context {T:eqType} {cmp:T -> T -> comparison} {C:Cmp cmp}.
 
   Lemma cmp_le_eq_lt (s1 s2:T): cmp_le s1 s2 = cmp_lt s1 s2 || (s1 == s2).
   Proof.
@@ -698,7 +698,7 @@ Section EqCMP.
 End EqCMP.
 
 Section LEX.
- 
+
   Variables (T1 T2:Type) (cmp1:T1 -> T1 -> comparison) (cmp2:T2 -> T2 -> comparison).
 
   Definition lex x y := Lex (cmp1 x.1 y.1) (cmp2 x.2 y.2).
@@ -713,14 +713,14 @@ Section LEX.
   Proof.
     by move=> H1 H2;rewrite /lex H1;case: cmp1=> //=;apply H2.
   Qed.
- 
+
   Lemma lex_trans y x z:
     (forall c, ctrans (cmp1 x.1 y.1) (cmp1 y.1 z.1) = Some c -> cmp1 x.1 z.1 = c) ->
     (forall c, ctrans (cmp2 x.2 y.2) (cmp2 y.2 z.2) = Some c -> cmp2 x.2 z.2 = c) ->
     forall  c, ctrans (lex x y) (lex y z) = Some c -> lex x z = c.
   Proof.
     rewrite /lex=> Hr1 Hr2 c;case: cmp1 Hr1.
-    + move=> H;rewrite (H (cmp1 y.1 z.1));last by rewrite ctrans_Eq. 
+    + move=> H;rewrite (H (cmp1 y.1 z.1));last by rewrite ctrans_Eq.
       (case: cmp1;first by apply Hr2);
         rewrite ctransC; [apply ctrans_Lt | apply ctrans_Gt].
     + move=> H1 H2;rewrite (H1 Lt);move:H2;first by apply: ctrans_Lt.
@@ -780,7 +780,7 @@ End MIN.
 
 Arguments cmp_min {T cmp O} x y.
 
-Definition bool_cmp b1 b2 := 
+Definition bool_cmp b1 b2 :=
   match b1, b2 with
   | false, true  => Lt
   | false, false => Eq
@@ -788,13 +788,13 @@ Definition bool_cmp b1 b2 :=
   | true , false => Gt
   end.
 
-Instance boolO : Cmp bool_cmp. 
+Instance boolO : Cmp bool_cmp.
 Proof.
   constructor=> [[] [] | [] [] [] c | [] []] //=; apply ctrans_Eq.
 Qed.
 
 Polymorphic Instance equiv_iffT: Equivalence iffT.
-Proof. 
+Proof.
   split.
   + by move=> x;split;apply id.
   + by move=> x1 x2 []??;split.
@@ -818,19 +818,19 @@ Proof. apply: (@equivP (Pos.le x y)) => //;rewrite -Pos.leb_le;apply idP. Qed.
 Lemma P_ltP (x y:positive) : reflect (x < y)%Z (x <? y)%positive.
 Proof. apply: (@equivP (Pos.lt x y)) => //;rewrite -Pos.ltb_lt;apply idP. Qed.
 
-Lemma Pos_leb_trans y x z: 
-  (x <=? y)%positive -> (y <=? z)%positive -> (x <=? z)%positive. 
+Lemma Pos_leb_trans y x z:
+  (x <=? y)%positive -> (y <=? z)%positive -> (x <=? z)%positive.
 Proof. move=> /P_leP ? /P_leP ?;apply /P_leP;omega. Qed.
 
-Lemma Pos_lt_leb_trans y x z: 
-  (x <? y)%positive -> (y <=? z)%positive -> (x <? z)%positive. 
+Lemma Pos_lt_leb_trans y x z:
+  (x <? y)%positive -> (y <=? z)%positive -> (x <? z)%positive.
 Proof. move=> /P_ltP ? /P_leP ?;apply /P_ltP;omega. Qed.
 
-Lemma Pos_le_ltb_trans y x z: 
-  (x <=? y)%positive -> (y <? z)%positive -> (x <? z)%positive. 
+Lemma Pos_le_ltb_trans y x z:
+  (x <=? y)%positive -> (y <? z)%positive -> (x <? z)%positive.
 Proof. move=> /P_leP ? /P_ltP ?;apply /P_ltP;omega. Qed.
 
-Lemma pos_eqP : Equality.axiom Pos.eqb. 
+Lemma pos_eqP : Equality.axiom Pos.eqb.
 Proof. by move=> p1 p2;apply:(iffP idP);rewrite -Pos.eqb_eq. Qed.
 
 Definition pos_eqMixin := EqMixin pos_eqP.
@@ -843,12 +843,12 @@ Proof.
   + move=> ????;case:Pos.compare_spec=> [->|H1|H1];
     case:Pos.compare_spec=> H2 //= -[] <- //;subst;
     rewrite ?Pos.compare_lt_iff ?Pos.compare_gt_iff //.
-    + by apply: Pos.lt_trans H1 H2. 
+    + by apply: Pos.lt_trans H1 H2.
     by apply: Pos.lt_trans H2 H1.
   apply Pos.compare_eq.
 Qed.
 
-Lemma Z_eqP : Equality.axiom Z.eqb. 
+Lemma Z_eqP : Equality.axiom Z.eqb.
 Proof. by move=> p1 p2;apply:(iffP idP);rewrite -Z.eqb_eq. Qed.
 
 (*Definition Z_eqMixin := EqMixin Z_eqP.
@@ -861,7 +861,7 @@ Proof.
   + move=> ????;case:Z.compare_spec=> [->|H1|H1];
     case:Z.compare_spec=> H2 //= -[] <- //;subst;
     rewrite ?Z.compare_lt_iff ?Z.compare_gt_iff //.
-    + by apply: Z.lt_trans H1 H2. 
+    + by apply: Z.lt_trans H1 H2.
     by apply: Z.lt_trans H2 H1.
   apply Z.compare_eq.
 Qed.
@@ -924,17 +924,17 @@ Qed.
 
 (* ------------------------------------------------------------------------- *)
 
-Lemma rwR1 (A:Type) (P:A->Prop) (f:A -> bool) : 
+Lemma rwR1 (A:Type) (P:A->Prop) (f:A -> bool) :
   (forall a, reflect (P a) (f a)) ->
   forall a, (f a) <-> (P a).
 Proof. by move=> h a; rewrite (rwP (h _)). Qed.
 
-Lemma rwR2 (A B:Type) (P:A->B->Prop) (f:A -> B -> bool) : 
+Lemma rwR2 (A B:Type) (P:A->B->Prop) (f:A -> B -> bool) :
   (forall a b, reflect (P a b) (f a b)) ->
   forall a b, (f a b) <-> (P a b).
 Proof. by move=> h a b; rewrite (rwP (h _ _)). Qed.
 
-Notation pify := 
+Notation pify :=
   (rwR2 (@andP), rwR2 (@orP), rwR2 (@implyP), rwR1 (@forallP _), rwR1 (@negP)).
 
 Notation zify := (pify, (rwR2 (@ZleP), rwR2 (@ZltP))).
@@ -954,7 +954,7 @@ Proof.
   move=> hz;rewrite /ziota Z2Nat.inj_succ //= Z.add_0_r; f_equal.
   rewrite -addn1 addnC iota_addl -map_comp.
   by apply eq_map => i /=; rewrite Zpos_P_of_succ_nat;Psatz.lia.
-Qed.  
+Qed.
 
 Lemma ziotaS_cat p z: 0 <= z -> ziota p (Z.succ z) = ziota p z ++ [:: p + z].
 Proof.
@@ -967,7 +967,7 @@ Proof.
   + move: p; pattern z; apply natlike_ind => [ p | {z hz} z hz hrec p| //].
     + by rewrite ziota0 in_nil; case: andP => // -[/ZleP ? /ZltP ?]; Psatz.lia.
     rewrite ziotaS_cons // in_cons; case: eqP => [-> | ?] /=.
-    + by rewrite Z.leb_refl /=; symmetry; apply /ZltP; Psatz.lia. 
+    + by rewrite Z.leb_refl /=; symmetry; apply /ZltP; Psatz.lia.
     by rewrite hrec; apply Bool.eq_iff_eq_true;split=> /andP [/ZleP ? /ZltP ?];
       (apply /andP;split;[apply /ZleP| apply /ZltP]); Psatz.lia.
   rewrite ziota_neg;last Psatz.lia.
@@ -983,7 +983,7 @@ Proof.
   by move=> hi;rewrite (nth_map O) ?size_iota // nth_iota.
 Qed.
 
-Lemma eq_map_ziota (T:Type) p1 p2 (f1 f2: Z -> T) : 
+Lemma eq_map_ziota (T:Type) p1 p2 (f1 f2: Z -> T) :
   (forall i, (p1 <= i < p1 + p2)%Z -> f1 i = f2 i) ->
   map f1 (ziota p1 p2) = map f2 (ziota p1 p2).
 Proof.
@@ -993,7 +993,7 @@ Proof.
   by move=> ? hin; apply hf;rewrite in_cons hin orbT.
 Qed.
 
-Lemma all_ziota p1 p2 (f1 f2: Z -> bool) : 
+Lemma all_ziota p1 p2 (f1 f2: Z -> bool) :
   (forall i, (p1 <= i < p1 + p2)%Z -> f1 i = f2 i) ->
   all f1 (ziota p1 p2) = all f2 (ziota p1 p2).
 Proof.

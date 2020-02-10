@@ -35,9 +35,9 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope vmap.
 Local Open Scope seq_scope.
-  
+
 Lemma write_memP gd (x:lval) v m1 m2 vm1 vm2:
-  ~~ write_mem x -> 
+  ~~ write_mem x ->
   write_lval gd x v {| emem := m1; evm := vm1 |} = ok {| emem := m2; evm := vm2 |} ->
   m1 = m2.
 Proof.
@@ -59,14 +59,14 @@ Section PROOF.
 
   Lemma eq_globs : gd = p_globs p'.
   Proof. by move: dead_code_ok; rewrite /dead_code_prog; t_xrbindP => ? _ <-. Qed.
-  
+
   Let Pi_r (s:estate) (i:instr_r) (s':estate) :=
     forall ii s2,
       match dead_code_i (MkI ii i) s2 with
       | Ok (s1, c') =>
         wf_vm s.(evm) ->
         forall vm1', s.(evm) =[s1] vm1' ->
-          exists vm2', s'.(evm) =[s2] vm2' /\ 
+          exists vm2', s'.(evm) =[s2] vm2' /\
           sem p' (Estate s.(emem) vm1') c' (Estate s'.(emem) vm2')
       | _ => True
       end.
@@ -77,24 +77,24 @@ Section PROOF.
       | Ok (s1, c') =>
         wf_vm s.(evm) ->
         forall vm1', s.(evm) =[s1] vm1' ->
-          exists vm2', s'.(evm) =[s2] vm2' /\ 
+          exists vm2', s'.(evm) =[s2] vm2' /\
           sem p' (Estate s.(emem) vm1') c' (Estate s'.(emem) vm2')
       | _ => True
       end.
 
   Let Pc (s:estate) (c:cmd) (s':estate) :=
-    forall s2, 
+    forall s2,
       match dead_code_c dead_code_i c s2 with
       | Ok (s1, c') =>
         wf_vm s.(evm) ->
         forall vm1', s.(evm) =[s1] vm1' ->
-        exists vm2', s'.(evm) =[s2] vm2' /\ 
+        exists vm2', s'.(evm) =[s2] vm2' /\
           sem p' (Estate s.(emem) vm1') c' (Estate s'.(emem) vm2')
       | _ => True
       end.
 
   Let Pfor (i:var_i) vs s c s' :=
-    forall s2, 
+    forall s2,
       match dead_code_c dead_code_i c s2 with
       | Ok (s1, c') =>
         Sv.Subset (Sv.union (read_rv (Lvar i)) (Sv.diff s1 (vrv (Lvar i)))) s2 ->
@@ -140,16 +140,16 @@ Section PROOF.
 
   Lemma check_nop_spec (r:lval) ty (e:pexpr): check_nop r ty e ->
     exists x i1 i2, [/\ r = (Lvar (VarI x i1)), e = (Pvar(VarI x i2)) & ty = vtype x] .
-  Proof. 
+  Proof.
     case: r e => //= -[x1 i1] [] //= -[x2 i2] /= /andP [] /eqP <- /eqP ->.
-    by exists x1, i1, i2. 
+    by exists x1, i1, i2.
   Qed.
 
   Local Lemma Hassgn_aux ii m1 vm1 m2 vm2 v v' x tag ty e s2:
     sem_pexpr gd {| emem := m1; evm := vm1 |} e = ok v ->
     truncate_val ty v = ok v' ->
     write_lval gd x v' {| emem := m1; evm := vm1 |} = ok {| emem := m2; evm := vm2 |} ->
-    wf_vm vm1 → 
+    wf_vm vm1 →
     ∀ vm1' : vmap,
       vm1 =[read_rv_rec (read_e_rec (Sv.diff s2 (write_i (Cassgn x tag ty e))) e) x]  vm1' →
       ∃ vm2' : vmap, vm2 =[s2]  vm2'
@@ -250,7 +250,7 @@ Section PROOF.
   Proof.
     move: x=> [vt vn]; rewrite /=.
     rewrite /get_var /on_vu.
-    case Hv: vm.[_]=> /= [v|[] //] [] H {Hv}. 
+    case Hv: vm.[_]=> /= [v|[] //] [] H {Hv}.
     case: vt v H => //= sz' v /Vword_inj [e ];subst => /= ?.
     by exists sz';split=> //;apply pw_proof.
   Qed.
@@ -260,8 +260,8 @@ Section PROOF.
     exec_sopn o vs = ok v ->
     write_lvals gd s1 xs v = ok s2 ->
     wf_vm (evm s1) → ∀ vm1' : vmap,
-    evm s1 =[read_es_rec (read_rvs_rec (Sv.diff s0 (vrvs xs)) xs) es]  vm1' → 
-    ∃ vm2' : vmap, evm s2 =[s0]  vm2' ∧ 
+    evm s1 =[read_es_rec (read_rvs_rec (Sv.diff s0 (vrvs xs)) xs) es]  vm1' →
+    ∃ vm2' : vmap, evm s2 =[s0]  vm2' ∧
        sem p' {| emem := emem s1; evm := vm1' |} [:: MkI ii (Copn xs t o es)]
                  {| emem := emem s2; evm := vm2' |}.
   Proof.
@@ -307,7 +307,7 @@ Section PROOF.
     have := set_get_word Hexpr; rewrite /set_var /= sumbool_of_boolET.
     exact.
   Qed.
-         
+
   Local Lemma Hif_true : sem_Ind_if_true p Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 Hval Hp Hc ii sv0 /=.
@@ -325,7 +325,7 @@ Section PROOF.
     rewrite (read_e_eq_on _ _ Hvm).
     have ->: {| emem := emem s1; evm := evm s1 |} = s1 by case: (s1).
     by rewrite -eq_globs Hval.
-  Qed.    
+  Qed.
 
   Local Lemma Hif_false : sem_Ind_if_false p Pc Pi_r.
   Proof.
@@ -512,9 +512,9 @@ Section PROOF.
     move: Hc=> /(_ (read_es [seq Pvar i | i <- res])).
     have /= /(_ wf_vmap0) Hwf := wf_write_vars _ Hw.
     rewrite Hd => /(_ Hwf (evm s1)) [//|vm2' [Hvm2'1 /= Hvm2'2]] ??;subst.
-    case: s1 Hvm2'2 Hw Hsem Hwf => /= ?? Hvm2'2 Hw Hsem Hwf.   
-    econstructor. 
-    + exact: Hf'2. + exact htra. + exact Hw. + exact Hvm2'2. 
+    case: s1 Hvm2'2 Hw Hsem Hwf => /= ?? Hvm2'2 Hw Hsem Hwf.
+    econstructor.
+    + exact: Hf'2. + exact htra. + exact Hw. + exact Hvm2'2.
     2: exact Hfull.
     rewrite -Hres; have /= <- := (@sem_pexprs_get_var gd (Estate m2 vm2) f'_res).
     have /= <- := (@sem_pexprs_get_var gd (Estate m2 vm2') f'_res);symmetry.

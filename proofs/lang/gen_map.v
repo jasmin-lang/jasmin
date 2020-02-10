@@ -72,7 +72,7 @@ Module MkOrdT (T:CmpType) <: OrderedType.
   Definition eq x y := T.cmp x y = Eq.
   Definition lt x y := T.cmp x y = Lt.
 
-  Lemma eq_refl x: eq x x. 
+  Lemma eq_refl x: eq x x.
   Proof. apply: cmp_refl. Qed.
 
   Lemma eq_sym x y: eq x y -> eq y x.
@@ -90,11 +90,11 @@ Module MkOrdT (T:CmpType) <: OrderedType.
   Lemma gt_lt x y : T.cmp x y = Gt -> lt y x.
   Proof. by rewrite /lt=> H;rewrite cmp_sym H. Qed.
 
-  Definition compare x y : Compare lt eq x y := 
+  Definition compare x y : Compare lt eq x y :=
     let c := T.cmp x y in
     match c as c0 return c = c0 -> Compare lt eq x y with
-    | Lt => @LT t lt eq x y 
-    | Eq => @EQ t lt eq x y 
+    | Lt => @LT t lt eq x y
+    | Eq => @EQ t lt eq x y
     | Gt => fun h => @GT t lt eq x y (gt_lt h)
     end (erefl c).
 
@@ -106,7 +106,7 @@ End MkOrdT.
 Module Type CompuEqDec.
 
   Parameter t: eqType.
-  
+
   Parameter eq_dec : forall (t1 t2:t), {t1 = t2} + {True}.
 
   Axiom eq_dec_r : forall t1 t2 tt, eq_dec t1 t2 = right tt -> t1 != t2.
@@ -134,7 +134,7 @@ Module Type MAP.
 
   Parameter mapi : forall {T1 T2}, (K.t -> T1 -> T2) -> t T1 -> t T2.
 
-  Parameter map2 : forall {T1 T2 T3}, 
+  Parameter map2 : forall {T1 T2 T3},
     (K.t -> option T1 -> option T2 -> option T3) ->
     t T1 -> t T2 -> t T3.
 
@@ -170,7 +170,7 @@ Module Type MAP.
   Parameter mapiP : forall {T1 T2} (f:K.t -> T1 -> T2) (m:t T1) (x:K.t),
     (mapi f m).[x] = omap (f x) m.[x].
 
-  Parameter map2P : forall {T1 T2 T3} 
+  Parameter map2P : forall {T1 T2 T3}
     (f:K.t -> option T1 -> option T2 -> option T3) (m1:t T1) (m2:t T2) (x:K.t),
     f x None None = None ->
     (map2 f m1 m2).[x] = f x m1.[x] m2.[x].
@@ -199,13 +199,13 @@ Module Mmake (K':CmpType) <: MAP.
 
   Module Map := FMapAVL.Make Ordered.
 
-  Module Facts := WFacts_fun Ordered Map. 
+  Module Facts := WFacts_fun Ordered Map.
 
   Definition t (T:Type) := Map.t T.
 
   Definition empty T : t T := Map.empty T.
 
-  Definition get {T} (m:t T) (k:K.t) := Map.find k m. 
+  Definition get {T} (m:t T) (k:K.t) := Map.find k m.
 
   Definition set {T} (m:t T) (k:K.t) (v:T) := Map.add k v m.
 
@@ -215,8 +215,8 @@ Module Mmake (K':CmpType) <: MAP.
 
   Definition mapi := Map.mapi.
 
-  Definition raw_map2 {T1 T2 T3} (f:K.t -> option T1 -> option T2 -> option T3) m1 m2 := 
-    Map.Raw.map2_opt 
+  Definition raw_map2 {T1 T2 T3} (f:K.t -> option T1 -> option T2 -> option T3) m1 m2 :=
+    Map.Raw.map2_opt
       (fun k d o => f k (Some d) o)
       (Map.Raw.map_option (fun k d => f k (Some d) None))
       (Map.Raw.map_option (fun k d' => f k None (Some d'))) m1 m2.
@@ -225,7 +225,7 @@ Module Mmake (K':CmpType) <: MAP.
 
   Definition fold     := Map.fold.
 
-  Definition in_codom {T:eqType} v (m:t T) := 
+  Definition in_codom {T:eqType} v (m:t T) :=
     fold (fun k (v':T) b => b || (v == v')) m false.
 
   Lemma raw_map2_bst {T1 T2 T3} (f:K.t -> option T1 -> option T2 -> option T3) m1 m2:
@@ -237,24 +237,24 @@ Module Mmake (K':CmpType) <: MAP.
     + by apply Map.Raw.Proofs.map_option_bst=> ??? /(@cmp_eq _ _ _ _ _) ->.
     + by move=> x m H;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
     + by move=> x m H;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
-    + by apply Map.is_bst.     
-    by apply Map.is_bst. 
+    + by apply Map.is_bst.
+    by apply Map.is_bst.
   Qed.
- 
-  Definition map2 {T1 T2 T3} (f:K.t -> option T1 -> option T2 -> option T3) 
+
+  Definition map2 {T1 T2 T3} (f:K.t -> option T1 -> option T2 -> option T3)
       (m1:t T1) (m2: t T2) : t T3 :=
    (@Map.Bst _ (raw_map2 f m1.(Map.this) m2.(Map.this))
        (raw_map2_bst f m1 m2)).
-   
+
   Notation "m .[ s ]" := (get m s).
   Notation "x .[ k <- v ]" := (@set _ x k v).
-  
+
   Lemma get0 T x : (empty T).[x] = None.
   Proof. by rewrite /empty /get Facts.empty_o. Qed.
 
   Lemma setP {T} (m: t T) x y (v:T) :
     m.[x <- v].[y] = if x == y then Some v else m.[y].
-  Proof.  
+  Proof.
     rewrite /set /get /=;case: eqP=> H.
     + by rewrite Facts.add_eq_o // H cmp_refl.
     by rewrite Facts.add_neq_o // => H1;apply H;apply cmp_eq.
@@ -288,15 +288,15 @@ Module Mmake (K':CmpType) <: MAP.
 
   Lemma mapiP {T1 T2} (f:K.t -> T1 -> T2) (m:t T1) (x:K.t):
     (mapi f m).[x] = omap (f x) m.[x].
-  Proof. 
-    by rewrite /mapi /get Facts.mapi_o // => ??? /(@cmp_eq _ _ _ _ _) ->. 
+  Proof.
+    by rewrite /mapi /get Facts.mapi_o // => ??? /(@cmp_eq _ _ _ _ _) ->.
   Qed.
 
-  Lemma map2P {T1 T2 T3} (f:K.t -> option T1 -> option T2 -> option T3) 
+  Lemma map2P {T1 T2 T3} (f:K.t -> option T1 -> option T2 -> option T3)
     (m1:t T1) (m2:t T2) (x:K.t):
     f x None None = None ->
     (map2 f m1 m2).[x] = f x m1.[x] m2.[x].
-  Proof. 
+  Proof.
     move=> Hnone.
     case: (boolP (Map.mem x m1 || Map.mem x m2)).
     + move=> /orP;rewrite /is_true -!Facts.mem_in_iff /Map.In !Map.Raw.Proofs.In_alt.
@@ -306,8 +306,8 @@ Module Mmake (K':CmpType) <: MAP.
       + by move=> ???;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
       + by move=> ???;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
       + by move=> ???? /(@cmp_eq _ _ _ _ _) ->.
-      + by apply Map.is_bst.     
-      by apply Map.is_bst. 
+      + by apply Map.is_bst.
+      by apply Map.is_bst.
     rewrite !Facts.mem_find_b /get;case H1: Map.find;case H2: Map.find=>//= _.
     case H3:Map.find=> //; have : Map.In x (map2 f m1 m2).
     + by rewrite Facts.in_find_iff H3.
@@ -318,15 +318,15 @@ Module Mmake (K':CmpType) <: MAP.
     + by apply Map.Raw.Proofs.map_option_bst=> ??? /(@cmp_eq _ _ _ _ _) ->.
     + by move=> ???;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
     + by move=> ???;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
-    + by apply Map.is_bst.     
-    by apply Map.is_bst. 
+    + by apply Map.is_bst.
+    by apply Map.is_bst.
   Qed.
 
   Lemma elementsP : forall {T:eqType} (kv:K.t * T) m,
     reflect (m.[kv.1] = Some kv.2) (kv \in elements m).
   Proof.
     rewrite /elements;move=> T kv m.
-    have : InA (Map.eq_key_elt (elt:=T)) (kv.1, kv.2) (Map.elements m) <-> 
+    have : InA (Map.eq_key_elt (elt:=T)) (kv.1, kv.2) (Map.elements m) <->
            (kv \in Map.elements m).
     + elim: (Map.elements m) => [|x xs Hrec].
       + by rewrite in_nil; split => // /InAE.
@@ -348,12 +348,12 @@ Module Mmake (K':CmpType) <: MAP.
      List.In kv (elements m) <-> m.[kv.1] = Some kv.2.
   Proof.
     move=> T kv m;rewrite /get -Facts.find_mapsto_iff Facts.elements_mapsto_iff InA_alt.
-    split => [hin | [kv' [heq hin]]]. 
+    split => [hin | [kv' [heq hin]]].
     + exists kv;split => //;case: (kv) => ??; split => //=.
       apply cmp_refl.
     have -> //: kv = kv'.
     move=> {hin};case: kv kv' heq => k v [k' v'] [/= h ->].
-    by have -> := cmp_eq h. 
+    by have -> := cmp_eq h.
   Qed.
 
   Lemma elementsU T (m:t T): uniq [seq x.1 | x <- (elements m)].
@@ -363,7 +363,7 @@ Module Mmake (K':CmpType) <: MAP.
     rewrite andbC Hrec //= {Hrec Hps}.
     apply /negP=> H; apply: Hp.
     elim: ps H => [|p' ps Hrec] //=;rewrite in_cons=> /orP [/eqP | ] H.
-    + apply InA_cons_hd. 
+    + apply InA_cons_hd.
       by rewrite /Map.eq_key /Map.Raw.Proofs.PX.eqk H; apply cmp_refl.
     by apply /InA_cons_tl/Hrec.
   Qed.
@@ -379,8 +379,8 @@ Module Mmake (K':CmpType) <: MAP.
     in_codom v m <-> exists k, m.[k] = Some v.
   Proof.
     rewrite /in_codom=> T m v;rewrite foldP.
-    have ->: (exists k : K.t, m.[k] = Some v) <-> 
-             (exists k : K.t, (k,v) \in elements m).            
+    have ->: (exists k : K.t, m.[k] = Some v) <->
+             (exists k : K.t, (k,v) \in elements m).
     + by split;move=> [k /(elementsP (k,v)) H];exists k.
     elim: (elements m) => /= [ | k ks Hrec].
     + by split => // -[k H].
@@ -402,7 +402,7 @@ Module DMmake (K:CmpType) (E:CompuEqDec with Definition t := K.t).
     box_v : P box_t;
   }.
 
-  Definition from_boxed {P} (k:K.t) (b:option (boxed P)) : option (P k):= 
+  Definition from_boxed {P} (k:K.t) (b:option (boxed P)) : option (P k):=
     match b with
     | Some (Box k' v) =>
       match E.eq_dec k' k with
@@ -418,23 +418,23 @@ Module DMmake (K:CmpType) (E:CompuEqDec with Definition t := K.t).
 
   Definition empty P : t P := Map.empty (boxed P).
 
-  Definition get {P} (m:t P) (k:K.t) := 
-    from_boxed k (Map.get m k). 
+  Definition get {P} (m:t P) (k:K.t) :=
+    from_boxed k (Map.get m k).
 
   Definition set {P} (m:t P) (k:K.t) (v:P k) := Map.set m k (Box v).
 
-  Definition map {P1 P2} (f:forall k:K.t, P1 k -> P2 k) (m:t P1) : t P2 := 
+  Definition map {P1 P2} (f:forall k:K.t, P1 k -> P2 k) (m:t P1) : t P2 :=
     Map.map (fun b => {|box_t := b.(box_t); box_v := @f b.(box_t) b.(box_v) |}) m.
 
-  Definition map2 {P1 P2 P3} 
+  Definition map2 {P1 P2 P3}
       (f:forall k:K.t, option (P1 k) -> option (P2 k) -> option (P3 k))
-      (m1:t P1) (m2:t P2): t P3 := 
-    Map.map2 (fun k o1 o2 => 
+      (m1:t P1) (m2:t P2): t P3 :=
+    Map.map2 (fun k o1 o2 =>
         omap (@Box P3 k) (f k (from_boxed k o1) (from_boxed k o2))) m1 m2.
 
   Notation "m .[ s ]" := (get m s).
   Notation "x .[ k <- v ]" := (@set _ x k v).
-  
+
   Lemma get0 P x : (empty P).[x] = None.
   Proof. by rewrite /empty /get Map.get0. Qed.
 
@@ -450,12 +450,12 @@ Module DMmake (K:CmpType) (E:CompuEqDec with Definition t := K.t).
   Qed.
 
   Lemma setP {P} (m: t P) x y (v:P x) :
-    m.[x <- v].[y] = 
+    m.[x <- v].[y] =
     match E.eq_dec x y with
     | left Heq => Some (eq_rect x P v y Heq)
     | _        => m.[y]
     end.
-  Proof.  
+  Proof.
     rewrite /set /get /from_boxed /=.
     rewrite Map.setP;case : (x =P y) => [<- | neq];first by rewrite eq_dec_refl.
     by rewrite eq_dec_irefl.
@@ -469,9 +469,9 @@ Module DMmake (K:CmpType) (E:CompuEqDec with Definition t := K.t).
 
   Lemma mapP {P1 P2} (f:forall k:K.t, P1 k -> P2 k) (m:t P1) (x:K.t):
     (map f m).[x] = omap (f x) m.[x].
-  Proof. 
+  Proof.
     rewrite /map /get Map.mapP;case: Map.get => // -[z pz] /=.
-    case E.eq_dec=> e //=; move:(e);rewrite -e=> {e} e.                    
+    case E.eq_dec=> e //=; move:(e);rewrite -e=> {e} e.
     by rewrite eq_axiomK.
   Qed.
 
@@ -479,7 +479,7 @@ Module DMmake (K:CmpType) (E:CompuEqDec with Definition t := K.t).
     (m1:t P1)(m2:t P2) (x:K.t):
     f x None None = None ->
     (map2 f m1 m2).[x] = (f x) m1.[x] m2.[x].
-  Proof. 
+  Proof.
     move=> Hf;rewrite /get /map2 Map.map2P /=;last by rewrite Hf.
     by case: (f x)=> //= ?;rewrite eq_dec_refl.
   Qed.
@@ -487,8 +487,8 @@ Module DMmake (K:CmpType) (E:CompuEqDec with Definition t := K.t).
 End DMmake.
 
 (* --------------------------------------------------------------------------
- ** Map of positive    
- * -------------------------------------------------------------------------- *) 
+ ** Map of positive
+ * -------------------------------------------------------------------------- *)
 
 Require Import ZArith.
 
@@ -506,8 +506,8 @@ End CmpPos.
 Module Mp := Mmake CmpPos.
 
 (* --------------------------------------------------------------------------
- ** Map of Z    
- * -------------------------------------------------------------------------- *) 
+ ** Map of Z
+ * -------------------------------------------------------------------------- *)
 From CoqWord Require Import ssrZ.
 Module CmpZ.
 
@@ -523,8 +523,8 @@ End CmpZ.
 Module Mz := Mmake CmpZ.
 
 (* --------------------------------------------------------------------------
- ** Finite Set    
- * -------------------------------------------------------------------------- *) 
+ ** Finite Set
+ * -------------------------------------------------------------------------- *)
 
 Require Import MSets.
 
@@ -532,17 +532,17 @@ Module MkMOrdT (T:CmpType) <: Orders.OrderedType.
   Existing Instance T.cmpO.
 
   Definition t := Equality.sort T.t.
- 
+
   Definition eq := @Logic.eq t.
 
   Lemma eq_equiv : Equivalence eq.
   Proof. by auto. Qed.
 
   Definition lt x y := T.cmp x y = Lt.
-  
+
   Lemma lt_strorder : StrictOrder lt.
-  Proof. 
-    constructor. 
+  Proof.
+    constructor.
     + by move=> x;rewrite /complement /lt cmp_refl.
     move=> ???;apply cmp_trans.
   Qed.
@@ -558,9 +558,9 @@ Module MkMOrdT (T:CmpType) <: Orders.OrderedType.
     move=> x y;rewrite /compare /eq /lt (cmp_sym y x).
     case: T.cmp (@cmp_eq _ _ T.cmpO x y);constructor;auto.
   Qed.
-    
+
   Lemma eq_dec : forall x y : t, {eq x y} + {~ eq x y}.
-  Proof. 
+  Proof.
     by move=> x y;case:(x =P y);[left | right].
   Qed.
 

@@ -99,7 +99,7 @@ Module INCL. Section INCL.
   Hypothesis hincl : gd_incl gd gd2.
 
   Let P2 := {| p_globs := gd2; p_funcs := P1.(p_funcs) |}.
-  
+
   Let Pc s1 c s2 := sem P2 s1 c s2.
 
   Let Pi_r s1 i s2 := sem_i P2 s1 i s2.
@@ -137,7 +137,7 @@ Module INCL. Section INCL.
     t_xrbindP => ?? /(gd_incl_es hincl) h1 h2 /(gd_incl_wls hincl) h3.
     by econstructor;eauto;rewrite /sem_sopn h1 /= h2.
   Qed.
-    
+
   Local Lemma Hif_true : forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
     sem_pexpr gd s1 e = ok (Vbool true) ->
     sem P1 s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
@@ -171,10 +171,10 @@ Module INCL. Section INCL.
 
   Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
   Proof. move=> ???;constructor. Qed.
- 
+
   Local Lemma Hfor_cons : sem_Ind_for_cons P1 Pc Pfor.
   Proof. move=> ???????? h1 ? h2 h3 h4;econstructor;eauto. Qed.
-  
+
   Local Lemma Hcall : sem_Ind_call P1 Pi_r Pfun.
   Proof.
     move=> ????????? /(gd_incl_es hincl) h1 ? h2 /(gd_incl_wls hincl) h3.
@@ -188,7 +188,7 @@ Module INCL. Section INCL.
       sem_call P1 m fn l m0 vs -> Pfun m fn l m0 vs.
   Proof.
     apply: (@sem_call_Ind P1 Pc Pi_r Pi Pfor Pfun
-             Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false 
+             Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false
              Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 
@@ -199,14 +199,14 @@ Module EXTEND. Section PROOFS.
   Context (is_glob : var -> bool).
   Context (fresh_id : glob_decls -> var -> Ident.ident).
 
-  Let Pi (i:instr) := 
-    forall gd1 gd2, 
+  Let Pi (i:instr) :=
+    forall gd1 gd2,
       extend_glob_i is_glob fresh_id i gd1 = ok gd2 ->
       gd_incl gd1 gd2.
-    
+
   Let Pr (i:instr_r) := forall ii, Pi (MkI ii i).
-  
-  Let Pc (c:cmd) := 
+
+  Let Pc (c:cmd) :=
     forall gd1 gd2,
       foldM (extend_glob_i is_glob fresh_id) gd1 c = ok gd2 ->
       gd_incl gd1 gd2.
@@ -216,10 +216,10 @@ Module EXTEND. Section PROOFS.
 
   Local Lemma Hnil : Pc [::].
   Proof. by move=> ?? [<-]. Qed.
- 
+
   Local Lemma Hcons: forall i c, Pi i -> Pc c -> Pc (i::c).
-  Proof. 
-    by move=> i c hi hc gd1 gd2 /=;t_xrbindP => gd3 /hi h1 /hc; apply: gd_inclT.      
+  Proof.
+    by move=> i c hi hc gd1 gd2 /=;t_xrbindP => gd3 /hi h1 /hc; apply: gd_inclT.
   Qed.
 
   Local Lemma Hasgn: forall x tg ty e, Pr (Cassgn x tg ty e).
@@ -239,7 +239,7 @@ Module EXTEND. Section PROOFS.
   Proof. by move=> xs t o es ii gd1 gd2 /= [<-]. Qed.
 
   Local Lemma Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
-  Proof. 
+  Proof.
     move=> e c1 c2 hc1 hc2 ii gd1 gd2 /=.
     by t_xrbindP => gd3 /hc1 h1 /hc2; apply: gd_inclT.
   Qed.
@@ -248,7 +248,7 @@ Module EXTEND. Section PROOFS.
   Proof. by move=> ????? hc ii gd1 gd2 /= /hc. Qed.
 
   Local Lemma Hwhile : forall a c e c', Pc c -> Pc c' -> Pr (Cwhile a c e c').
-  Proof. 
+  Proof.
     move=> a c e c' hc hc' ii gd1 gd2 /=.
     by t_xrbindP => gd3 /hc h1 /hc'; apply gd_inclT.
   Qed.
@@ -256,17 +256,17 @@ Module EXTEND. Section PROOFS.
   Local Lemma Hcall: forall i xs f es, Pr (Ccall i xs f es).
   Proof. by move=> i xs f es ii gd1 gd2 /= [<-]. Qed.
 
-  Local Lemma extend_glob_cP c gd1 gd2 : 
+  Local Lemma extend_glob_cP c gd1 gd2 :
     foldM (extend_glob_i is_glob fresh_id) gd1 c = ok gd2 ->
     gd_incl gd1 gd2.
   Proof.
     apply (@cmd_rect Pr Pi Pc Hmk Hnil Hcons Hasgn Hopn Hif Hfor Hwhile Hcall c).
   Qed.
 
-End PROOFS. 
- 
-Lemma extend_glob_progP is_glob fresh_id P gd' : 
-  extend_glob_prog is_glob fresh_id P = ok gd' -> 
+End PROOFS.
+
+Lemma extend_glob_progP is_glob fresh_id P gd' :
+  extend_glob_prog is_glob fresh_id P = ok gd' ->
   gd_incl (p_globs P) gd'.
 Proof.
   rewrite /extend_glob_prog.
@@ -294,11 +294,11 @@ Module RGP. Section PROOFS.
   Hypothesis uniq_gd : uniq (map fst gd).
   Notation P' := {|p_globs := gd; p_funcs := fds |}.
 
-  Definition valid (m:venv) (s1 s2:estate) := 
-    [/\ s1.(emem) = s2.(emem), 
+  Definition valid (m:venv) (s1 s2:estate) :=
+    [/\ s1.(emem) = s2.(emem),
         (forall x, ~~is_glob x -> get_var (evm s1) x = get_var (evm s2) x),
         (forall x g, Mvar.get m x = Some g -> is_glob x) &
-        (forall x g v, 
+        (forall x g v,
            Mvar.get m x = Some g ->
            get_var (evm s1) x = ok v ->
            get_global gd g = ok v) ].
@@ -359,7 +359,7 @@ Module RGP. Section PROOFS.
     ~~ is_glob x ->
     valid m s1 s2 ->
     set_var (evm s1) x v = ok vm ->
-    exists s2' : 
+    exists s2' :
       estate, valid m {| emem := emem s1; evm := vm |} s2' /\ write_var x v s2 = ok s2'.
   Proof.
     rewrite /write_var /set_var => hglob hval; case:(hval) => hmem hm1 hm2 hm3.
@@ -373,7 +373,7 @@ Module RGP. Section PROOFS.
       move=> y g v0 hy.
       rewrite /get_var /on_vu Fv.setP_neq;first by apply: hm3 hy.
       by apply /eqP => ?;subst y; move: hglob; rewrite (hm2 _ _ hy).
-    move=> ->; case:ifPn => // hx [<-] /=;eexists;split;last reflexivity. 
+    move=> ->; case:ifPn => // hx [<-] /=;eexists;split;last reflexivity.
     split => //=.
     + move=> y hy; rewrite /get_var /= /on_vu.
       case: (v_var x =P y) => [<- | /eqP heq].
@@ -384,11 +384,11 @@ Module RGP. Section PROOFS.
     by apply /eqP => ?;subst y; move: hglob; rewrite (hm2 _ _ hy).
   Qed.
 
-  Lemma remove_glob_lvP m ii s1 s1' s2 lv lv' v : 
-    valid m s1 s2 ->  
+  Lemma remove_glob_lvP m ii s1 s1' s2 lv lv' v :
+    valid m s1 s2 ->
     remove_glob_lv is_glob ii m lv = ok lv' ->
     write_lval gd lv v s1 = ok s1' ->
-    exists s2', 
+    exists s2',
       valid m s1' s2' /\ write_lval gd lv' v s2 = ok s2'.
   Proof.
     move=> hval; case:(hval) => hmem hm1 hm2 hm3; case:lv => [vi ty|x|ws x e|ws x e] /=.
@@ -410,11 +410,11 @@ Module RGP. Section PROOFS.
     apply (write_var_remove hg hval hset).
   Qed.
 
-  Lemma remove_glob_lvsP  m ii s1 s1' s2 lv lv' v : 
-    valid m s1 s2 ->  
+  Lemma remove_glob_lvsP  m ii s1 s1' s2 lv lv' v :
+    valid m s1 s2 ->
     mapM (remove_glob_lv is_glob ii m) lv = ok lv' ->
     write_lvals gd s1 lv v = ok s1' ->
-    exists s2', 
+    exists s2',
       valid m s1' s2' /\ write_lvals gd s2 lv' v = ok s2'.
   Proof.
     elim: lv lv' v s1 s1' s2 => //=.
@@ -427,26 +427,26 @@ Module RGP. Section PROOFS.
     by rewrite /write_lvals /= w4.
   Qed.
 
-  Let Pc s1 c s2 := 
+  Let Pc s1 c s2 :=
     forall m m' c' fn, remove_glob (remove_glob_i is_glob gd fn) m c = ok (m', c') ->
     forall s1', valid m s1 s1' ->
     exists s2', valid m' s2 s2' /\ sem P' s1' c' s2'.
-  
-  Let Pi s1 i s2 := 
+
+  Let Pi s1 i s2 :=
     forall m m' c' fn, remove_glob_i is_glob gd fn m i = ok (m', c') ->
     forall s1', valid m s1 s1' ->
     exists s2', valid m' s2 s2' /\ sem P' s1' c' s2'.
 
   Let Pi_r s1 i s2 := forall ii, Pi s1 (MkI ii i) s2.
 
-  Let Pfor xi vs s1 c s2 := 
+  Let Pfor xi vs s1 c s2 :=
     ~~is_glob xi.(v_var) ->
     forall m m' c' fn, remove_glob (remove_glob_i is_glob gd fn) m c = ok (m', c') ->
     Mincl m m' ->
     forall s1', valid m s1 s1' ->
     exists s2', valid m s2 s2' /\ sem_for P' xi vs s1' c' s2'.
 
-  Let Pfun m fn vs m' vs' := 
+  Let Pfun m fn vs m' vs' :=
     sem_call P' m fn vs m' vs'.
 
   Local Lemma Hnil : sem_Ind_nil Pc.
@@ -461,11 +461,11 @@ Module RGP. Section PROOFS.
     t_xrbindP => -[mi ci] /hi{hi}hi [mc cc] /hc{hc}hc <- <- ? /hi [s2' [/hc [s3' [hv sc] si]]].
     exists s3';split => //=; apply: sem_app si sc.
   Qed.
-    
+
   Local Lemma HmkI : sem_Ind_mkI P Pi_r Pi.
   Proof. done. Qed.
 
-  Lemma find_globP ii xi sz z g : 
+  Lemma find_globP ii xi sz z g :
     find_glob ii xi gd sz z = ok g ->
     get_global gd g =  ok (Vword (wrepr sz z)).
   Proof.
@@ -482,8 +482,8 @@ Module RGP. Section PROOFS.
   Proof.
     move=> s1 s2 x tag ty e v v' he hv hw ii m m' c' fn /= hrm s1' hval.
     move: hrm; t_xrbindP => e' /(remove_glob_eP hval) -/(_ _ he) he'.
-    have :  
-      (Let lv := remove_globals.remove_glob_lv is_glob ii m x in 
+    have :
+      (Let lv := remove_globals.remove_glob_lv is_glob ii m x in
       ok (m, [:: MkI ii (Cassgn lv tag ty e')])) = ok (m', c') ->
       exists s2' : estate, valid m' s2 s2' /\ sem P' s1' c' s2'.
     + t_xrbindP => x' /(remove_glob_lvP hval) -/(_ _ _ hw) [s2' [hs2' hw' ]] <- <-.
@@ -500,18 +500,18 @@ Module RGP. Section PROOFS.
     set x := {| vtype := _ |}.
     case: hval => hm hm1 hm2 hm3; split => //=.
     + move=> y hy; rewrite /get_var /on_vu.
-      rewrite Fv.setP_neq; first by apply hm1.     
+      rewrite Fv.setP_neq; first by apply hm1.
       by apply /eqP => ?;subst y;move: hy;rewrite hglob.
     + by move=> y gy;rewrite Mvar.setP; case:eqP => [<- // | ?]; apply hm2.
     move=> y gy v;rewrite Mvar.setP;case:eqP => [<- | /eqP hneq].
     + move=> [<-]. rewrite /get_var Fv.setP_eq /= => -[<-].
-      by apply: find_globP hfind.  
+      by apply: find_globP hfind.
     by rewrite /get_var Fv.setP_neq //; apply hm3.
   Qed.
 
   Local Lemma Hopn : sem_Ind_opn P Pi_r.
   Proof.
-   move=> s1 s2 t o xs es ho ii m m' c fn /= hrm s1' hval. 
+   move=> s1 s2 t o xs es ho ii m m' c fn /= hrm s1' hval.
    move: hrm; t_xrbindP.
    move=> xs' /(remove_glob_lvsP hval) hxs' es' /(remove_glob_esP hval) hes' <- <-.
    move: ho;rewrite /sem_sopn; t_xrbindP => vs vres /hes' h1 h2 /hxs' [s2' [hval' h]].
@@ -519,8 +519,8 @@ Module RGP. Section PROOFS.
    by apply sem_seq1; constructor; constructor; rewrite /sem_sopn h1 /= h2.
   Qed.
 
-  Lemma MinclP m1 m2 x g : 
-    Mincl m1 m2 -> 
+  Lemma MinclP m1 m2 x g :
+    Mincl m1 m2 ->
     Mvar.get m1 x = Some g ->
     Mvar.get m2 x = Some g.
   Proof.
@@ -529,9 +529,9 @@ Module RGP. Section PROOFS.
     by move=> /h {h} /hincl;case: Mvar.get => //= g' /eqP ->.
   Qed.
 
-  Lemma valid_Mincl m1 m2 s s' : 
-    Mincl m1 m2 -> 
-    valid m2 s s' -> 
+  Lemma valid_Mincl m1 m2 s s' :
+    Mincl m1 m2 ->
+    valid m2 s s' ->
     valid m1 s s'.
   Proof.
     move=> hincl [hmem hm1 hm2 hm3];split => //.
@@ -576,7 +576,7 @@ Module RGP. Section PROOFS.
     by apply sem_seq1; constructor; apply Eif_false.
   Qed.
 
-  Lemma MinclR m : Mincl m m. 
+  Lemma MinclR m : Mincl m m.
   Proof. by apply /allP => -[x g] /Mvar.elementsP ->. Qed.
 
   Lemma MinclT m2 m1 m3: Mincl m1 m2 -> Mincl m2 m3 -> Mincl m1 m3.
@@ -586,9 +586,9 @@ Module RGP. Section PROOFS.
     by apply h2; apply /Mvar.elementsP.
   Qed.
 
-  Lemma loop2P fn check_c2 n m e c1 c2 m1: 
+  Lemma loop2P fn check_c2 n m e c1 c2 m1:
     loop2 fn check_c2 n m = ok (Loop2_r e c1 c2 m1) ->
-    exists m2 m3, 
+    exists m2 m3,
       [/\ check_c2 m3 = ok (Check2_r e (m1,c1) (m2,c2)), Mincl m3 m2 & Mincl m3 m].
   Proof.
     elim: n m => //= n hrec m; t_xrbindP.
@@ -610,8 +610,8 @@ Module RGP. Section PROOFS.
     have /h1' [s2' [hs2 hc1]]: valid m3 s1 s1' by apply: valid_Mincl hval.
     have he' := remove_glob_eP hs2 he1 he.
     have [s3' [hs3 hc2]]:= h2' _ hs2.
-    have : remove_glob_i is_glob gd fn m3 (MkI ii (Cwhile a c e c')) = 
-             ok (m', [::MkI ii (Cwhile a c1' e' c2')]). 
+    have : remove_glob_i is_glob gd fn m3 (MkI ii (Cwhile a c e c')) =
+             ok (m', [::MkI ii (Cwhile a c1' e' c2')]).
     + by rewrite /= Loop.nbP /= h1 /= he1 /= h2 /= hm.
     move=> /hw{hw}hw; have /hw : valid m3 s3 s3' by apply: (valid_Mincl hm).
     move=> [s4' [hs4 hw']]; exists s4';split => //.
@@ -633,8 +633,8 @@ Module RGP. Section PROOFS.
   Qed.
 
   Local Lemma loopP fn check_c n m m' c':
-    loop fn check_c n m = ok (m', c') -> 
-      exists m1, 
+    loop fn check_c n m = ok (m', c') ->
+      exists m1,
       [/\ check_c m' = ok (m1,c'), Mincl m' m1 & Mincl m' m].
   Proof.
     elim: n m => //= n hrec m; t_xrbindP => -[m2 c2] /= hc.
@@ -643,7 +643,7 @@ Module RGP. Section PROOFS.
     move=> /hrec => -[m1 [hc' h1 h2]]. exists m1;split=>//.
     apply: (MinclT h2);apply merge_incl_l.
   Qed.
- 
+
   Local Lemma Hfor : sem_Ind_for P Pi_r Pfor.
   Proof.
     move=> s1 s2 i d lo hi c vlo vhi hlo hhi _ hfor ii m m' c' fn /= hrn s1' hval.
@@ -659,7 +659,7 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
   Proof.
-    move=> s xi c ii m m' c' fn hrm hincl s1' hval; exists s1';split => //; constructor. 
+    move=> s xi c ii m m' c' fn hrm hincl s1' hval; exists s1';split => //; constructor.
   Qed.
 
   Local Lemma Hfor_cons : sem_Ind_for_cons P Pc Pfor.
@@ -686,10 +686,10 @@ Module RGP. Section PROOFS.
     by case: hval => <-.
   Qed.
 
-  Local Lemma get_fundefP fn f: 
-    get_fundef (p_funcs P) fn = Some f -> 
-    exists f', 
-       get_fundef (p_funcs P') fn = Some f' /\ 
+  Local Lemma get_fundefP fn f:
+    get_fundef (p_funcs P) fn = Some f ->
+    exists f',
+       get_fundef (p_funcs P') fn = Some f' /\
        remove_glob_fundef is_glob gd (fn,f) = ok (fn, f').
   Proof.
     change (p_funcs P') with fds.
@@ -698,7 +698,7 @@ Module RGP. Section PROOFS.
     move: hf1;rewrite /remove_glob_fundef;t_xrbindP.
     move=> ? hparams ? hres mc hmc ??; subst fn1' fd1'.
     case: ifP => [/eqP eq | neq].
-    + move=> [?]; subst fn1 fd1 => /=.     
+    + move=> [?]; subst fn1 fd1 => /=.
       rewrite eq_refl;eexists;split;first reflexivity.
       by rewrite hparams /= hres /= hmc.
     by move=> /(hrec _ hfds1') /=;rewrite neq.
@@ -719,8 +719,8 @@ Module RGP. Section PROOFS.
     econstructor; eauto.
   Qed.
 
-  Local Lemma remove_glob_call m1 f vargs m2 vres : 
-     sem_call P m1 f vargs m2 vres -> 
+  Local Lemma remove_glob_call m1 f vargs m2 vres :
+     sem_call P m1 f vargs m2 vres ->
      Pfun m1 f vargs m2 vres.
   Proof.
     apply (@sem_call_Ind P Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false
@@ -729,7 +729,7 @@ Module RGP. Section PROOFS.
 
   End FDS.
 
-  Lemma remove_globP P P' f mem mem' va vr : 
+  Lemma remove_globP P P' f mem mem' va vr :
     remove_glob_prog is_glob fresh_id P = ok P' ->
     sem_call P mem f va mem' vr ->
     sem_call P' mem f va mem' vr.

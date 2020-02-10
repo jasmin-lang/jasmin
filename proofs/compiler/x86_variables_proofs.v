@@ -64,7 +64,7 @@ Corollary xgetreg ii x r v s xs w :
   xreg xs r = w.
 Proof.
   move => eqm hx hv hw; move: (xgetreg_ex eqm hx hv) => /value_uincl_word -/(_ _ _ hw) [].
-  by rewrite zero_extend_u. 
+  by rewrite zero_extend_u.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -120,7 +120,7 @@ move=> eqv; case: e => //.
   have := xgetflag eqv ok_r ok_vx ok_vb.
   by case: {ok_r ok_vx ok_vb} r ok_ct => // -[<-] {c} /= -> /=; eexists.
 + case=> //; first do 3! case=> //;move=> x.
-  * case=> //; first do 2! case=> //. 
+  * case=> //; first do 2! case=> //.
     - move=> y /=; t_xrbindP => r1 ok_r1 r2 ok_r2.
       case: ifPn => // /andP[]; do 2! move/eqP=> ?; subst r1 r2.
       case=> <- resx vx ok_vx ok_resx resy vy ok_vy ok_resy ok_v.
@@ -143,7 +143,7 @@ move=> eqv; case: e => //.
       have := xgetflag eqv ok_rx ok_vx ok_vbx => ZFE.
       have := xgetflag eqv ok_ry ok_vy ok_vby => SFE.
       have := xgetflag eqv ok_rt ok_vz ok_vbt => OFE.
-      rewrite /= ZFE SFE OFE /= /sem_sop2 /=. 
+      rewrite /= ZFE SFE OFE /= /sem_sop2 /=.
       have [??]:= truncate_val_bool trNt; subst.
       move: trz;rewrite /truncate_val /= ok_vbt => -[?];subst.
       by rewrite eq_sym; t_xrbindP=> vres; case: (boolP vby) => hvby //= -[<-] <-;
@@ -170,7 +170,7 @@ move=> eqv; case: e => //.
       rewrite /= ZFE SFE OFE /=.
       have [??]:= truncate_val_bool ok_trNz; subst.
       move: ok_trz;rewrite /truncate_val /= ok_vbz => -[?];subst.
-      by rewrite eq_sym; case: (boolP vby) ok_vbres => hvby /= [<-]; 
+      by rewrite eq_sym; case: (boolP vby) ok_vbres => hvby /= [<-];
        rewrite ?eqb_id ?eqbF_neg ?negbK; eexists.
 + move=> st []// x [] // => [|[] // [] //] y.
   * case=> // -[] // -[] // z /=; t_xrbindP.
@@ -268,11 +268,11 @@ Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xscale_ok ii z sc :
-  scale_of_z' ii z = ok sc -> 
+  scale_of_z' ii z = ok sc ->
   z = word_of_scale sc.
-Proof. 
+Proof.
   rewrite /scale_of_z' -[X in _ -> X = _]wrepr_unsigned.
-  by case: sc (wunsigned z); do! case=> //. 
+  by case: sc (wunsigned z); do! case=> //.
 Qed.
 
 (* -------------------------------------------------------------------- *)

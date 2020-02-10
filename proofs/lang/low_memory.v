@@ -89,7 +89,7 @@ Parameter writeP_eq : forall m m' p s (v :word s),
 
 Parameter writeP_neq : forall m m' p s (v :word s) p' s',
   write_mem m p v = m' ->
-  read_mem m' p' s' = read_mem m p' s'. 
+  read_mem m' p' s' = read_mem m p' s'.
 
 Parameter alloc_stack : mem -> Z -> (pointer * mem).
 

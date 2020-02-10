@@ -57,8 +57,8 @@ Module MvMake (I:IDENT).
     let (t2,n2) := v2 in
     (t1 == t2) && (n1 == n2).
 
-  Lemma var_eqP : Equality.axiom var_beq. 
-  Proof. 
+  Lemma var_eqP : Equality.axiom var_beq.
+  Proof.
     move=> [t1 n1] [t2 n2];apply:(iffP idP) => /= [/andP[]/eqP->/eqP->| []->->] //.
       by rewrite !eq_refl.
   Qed.
@@ -66,7 +66,7 @@ Module MvMake (I:IDENT).
   Definition var_eqMixin := EqMixin var_eqP.
   Canonical  var_eqType  := EqType var var_eqMixin.
 
-  Definition var_cmp (x y:var) := 
+  Definition var_cmp (x y:var) :=
     Lex (stype_cmp x.(vtype) y.(vtype)) (K.cmp x.(vname) y.(vname)).
 
   Instance varO : Cmp var_cmp.
@@ -94,10 +94,10 @@ Module MvMake (I:IDENT).
      tbl := Mt.empty _;
   |}.
 
-  Definition get {to} (m: t to) (x:var) : to x.(vtype) := 
-    match (m.(tbl).[x.(vtype)])%mt with 
-    | Some mi => 
-      match mi.[x.(vname)] with 
+  Definition get {to} (m: t to) (x:var) : to x.(vtype) :=
+    match (m.(tbl).[x.(vtype)])%mt with
+    | Some mi =>
+      match mi.[x.(vname)] with
       | Some v => v
       | None   => m.(dft) x
       end
@@ -105,27 +105,27 @@ Module MvMake (I:IDENT).
     end.
 
   Definition set {to} (m: t to) (x:var) (v:to x.(vtype)) : t to :=
-    let mi := 
-      match (m.(tbl).[x.(vtype)])%mt with 
+    let mi :=
+      match (m.(tbl).[x.(vtype)])%mt with
       | Some mi => mi
-      | None    => Mid.empty _ 
+      | None    => Mid.empty _
       end in
     let mi := mi.[x.(vname) <- v] in
     {| dft := m.(dft);
        tbl := (m.(tbl).[x.(vtype) <- mi])%mt; |}.
 
-  Definition remove to (m: t to) x := 
-    match (m.(tbl).[x.(vtype)])%mt with 
-    | Some mi => 
-      {| dft := m.(dft); 
+  Definition remove to (m: t to) x :=
+    match (m.(tbl).[x.(vtype)])%mt with
+    | Some mi =>
+      {| dft := m.(dft);
          tbl :=  m.(tbl).[x.(vtype) <- Mid.remove mi x.(vname)]%mt; |}
     | None    => m
     end.
 
-  Definition indom to x (m: t to) := 
-    match (m.(tbl).[x.(vtype)])%mt with 
-    | Some mi => 
-      match mi.[x.(vname)] with 
+  Definition indom to x (m: t to) :=
+    match (m.(tbl).[x.(vtype)])%mt with
+    | Some mi =>
+      match mi.[x.(vname)] with
       | Some _ => true
       | None   => false
       end
@@ -137,24 +137,24 @@ Module MvMake (I:IDENT).
        tbl := Mt.map (fun t mi => Mid.map (f t) mi) m.(tbl); |}.
 
   Definition map2 {to1 to2 to3}
-     (fd:forall x, to3 x.(vtype)) 
-     (f:forall x, to1 x.(vtype) -> to2 x.(vtype) -> to3 x.(vtype)) 
+     (fd:forall x, to3 x.(vtype))
+     (f:forall x, to1 x.(vtype) -> to2 x.(vtype) -> to3 x.(vtype))
      (m1: t to1) (m2: t to2): t to3 :=
     let dft1 := m1.(dft) in
     let dft2 := m2.(dft) in
-    let doty ty mi1 mi2 := 
+    let doty ty mi1 mi2 :=
        match mi1, mi2 with
        | None, None => None
-       | Some mi1, None     => 
-         Some (Mid.mapi 
+       | Some mi1, None     =>
+         Some (Mid.mapi
            (fun id (v1:to1 ty) => let x := Var ty id in (f x v1 (dft2 x):to3 ty))
            mi1)
-       | None    , Some mi2 => 
-         Some (Mid.mapi 
+       | None    , Some mi2 =>
+         Some (Mid.mapi
            (fun id (v2:to2 ty) => let x := Var ty id in (f x (dft1 x) v2:to3 ty))
            mi2)
-       | Some mi1, Some mi2 => 
-         Some (Mid.map2 (fun id (o1:option (to1 ty)) (o2: option (to2 ty))  => 
+       | Some mi1, Some mi2 =>
+         Some (Mid.map2 (fun id (o1:option (to1 ty)) (o2: option (to2 ty))  =>
            match o1, o2 with
            | None   , None    => None
            | Some v1, None    => let x := Var ty id in Some (f x v1 (dft2 x))
@@ -174,9 +174,9 @@ Module MvMake (I:IDENT).
   Lemma setP_eq {to} (m:t to) (x:var) (v:to x.(vtype)) : m.[x <- v].[x] = v.
   Proof. by rewrite /set /get Mt.setP_eq Mid.setP_eq. Qed.
 
-  Lemma setP_neq {to} (m:t to) x y (v:to x.(vtype)) : 
+  Lemma setP_neq {to} (m:t to) x y (v:to x.(vtype)) :
     x != y ->   m.[x <- v].[y] = m.[y].
-  Proof.  
+  Proof.
     move=> neq;rewrite /set /get.
     case : (boolP ((vtype x) == (vtype y))) => [/eqP eq | ?] /=;
       last by rewrite Mt.setP_neq.
@@ -193,19 +193,19 @@ Module MvMake (I:IDENT).
 
   Lemma indom_set_neq {to} (m:t to) (x y:var) (v:to x.(vtype)):
      x !=y -> indom y m.[x<- v] = indom y m.
-  Proof. 
+  Proof.
     move=> H;rewrite /indom /set /=.
-    case: (vtype x =P vtype y)=> [Heq | /eqP ?];last by rewrite Mt.setP_neq. 
-    rewrite -Heq Mt.setP_eq Mid.setP_neq. 
-    + by case: (_.[_])%mt => //;rewrite Mid.get0. 
+    case: (vtype x =P vtype y)=> [Heq | /eqP ?];last by rewrite Mt.setP_neq.
+    rewrite -Heq Mt.setP_eq Mid.setP_neq.
+    + by case: (_.[_])%mt => //;rewrite Mid.get0.
     by apply: contra H=> /eqP eqn;rewrite (var_surj x) Heq eqn -var_surj.
   Qed.
 
   Lemma indom_setP {to} (m:t to) (x y:var) (v:to x.(vtype)):
      indom y m.[x<-v] = (x == y) || indom y m.
-  Proof. 
+  Proof.
    case : (boolP (x==y)) => [/eqP <-| ] /=;first by rewrite indom_set_eq.
-   by apply indom_set_neq.  
+   by apply indom_set_neq.
   Qed.
 
   Lemma indom_getP  {to} (m:t to) x: ~~indom x m -> m.[x] = dft m x.
@@ -217,13 +217,13 @@ Module MvMake (I:IDENT).
   Proof. done. Qed.
 
   Lemma removeP_eq to (m: t to) x: (remove m x).[x] = dft m x.
-  Proof. 
+  Proof.
     rewrite /remove/get;case H: (tbl m).[_]%mt => [mi|] /=;last by rewrite H.
     by rewrite Mt.setP_eq removeP_eq.
   Qed.
 
   Lemma removeP_neq to (m: t to) x y: x != y -> (remove m x).[y] = m.[y].
-  Proof. 
+  Proof.
     rewrite /remove/get=> Hxy;case: (vtype x =P vtype y) => /= [Heq | /eqP Hneq].
     + rewrite Heq;case H: (tbl m).[_]%mt => [mi|] /=;last by rewrite H.
       rewrite Mt.setP_eq Mid.removeP_neq //.
@@ -231,14 +231,14 @@ Module MvMake (I:IDENT).
     by case H: (tbl m).[_]%mt => [mi|] //=;rewrite Mt.setP_neq.
   Qed.
 
-  Lemma indom_removeP to (m: t to) x y: 
+  Lemma indom_removeP to (m: t to) x y:
     indom y (remove m x) = (x != y) && indom y m.
   Proof.
     rewrite /remove/indom.
     case: (vtype x =P vtype y) => /= [Heq | /eqP Hneq].
     + rewrite -Heq;case H: ((tbl m).[_]%mt) => [mi|]/=;last by rewrite H andbC.
       rewrite Mt.setP_eq Mid.removeP.
-      case: (_ =P _) => [Heqn | Hneqn ].    
+      case: (_ =P _) => [Heqn | Hneqn ].
       + by rewrite {1}(var_surj x) {1}(var_surj y) -Heq Heqn eq_refl.
       have -> // : x != y.
       by apply /eqP=> Hx;apply Hneqn;rewrite Hx.
@@ -247,29 +247,29 @@ Module MvMake (I:IDENT).
     by case H: ((tbl m).[_]%mt) => [mi|] //=;rewrite Mt.setP_neq.
   Qed.
 
-  Lemma indom_removeP_eq to (m: t to) x: 
+  Lemma indom_removeP_eq to (m: t to) x:
     ~~indom x (remove m x).
   Proof. by rewrite indom_removeP eq_refl. Qed.
-    
-  Lemma indom_removeP_neq to (m: t to) x y: x != y -> 
+
+  Lemma indom_removeP_neq to (m: t to) x y: x != y ->
     indom y (remove m x) = indom y m.
   Proof. by rewrite indom_removeP=> ->. Qed.
 
   Lemma dft_removeP to (m: t to) x: dft (remove m x) = dft m.
   Proof. by rewrite /dft/remove;case:(tbl m).[_]%mt. Qed.
 
-  Lemma mapP {to1 to2} (f:forall t, to1 t -> to2 t) (m: t to1) x: 
+  Lemma mapP {to1 to2} (f:forall t, to1 t -> to2 t) (m: t to1) x:
     (map f m).[x] = f x.(vtype) m.[x].
   Proof.
     rewrite /map /get /=.
-    rewrite Mt.mapP;case: Mt.get => //= mi.       
-    by rewrite Mid.mapP; case: Mid.get.   
+    rewrite Mt.mapP;case: Mt.get => //= mi.
+    by rewrite Mid.mapP; case: Mid.get.
   Qed.
 
   Lemma indom_mapP {to1 to2} (f:forall t, to1 t -> to2 t) (m: t to1) x:
      indom x (map f m) = indom x m.
-  Proof. 
-    rewrite /map /indom /= Mt.mapP. 
+  Proof.
+    rewrite /map /indom /= Mt.mapP.
     by case: Mt.get => //= ?;rewrite Mid.mapP;case Mid.get.
   Qed.
 
@@ -277,8 +277,8 @@ Module MvMake (I:IDENT).
      dft (map f m) = fun x : var => f (vtype x) (dft m x).
   Proof. done. Qed.
 
-  Lemma map2Pred {to1 to2 to3} 
-    (fd: forall x,  to3 x.(vtype))    
+  Lemma map2Pred {to1 to2 to3}
+    (fd: forall x,  to3 x.(vtype))
     (f:forall x, to1 x.(vtype) -> to2 x.(vtype) -> to3 x.(vtype)) m1 m2 x P:
     (~~indom x m1 -> ~~indom x m2 -> P (f x (dft m1 x) (dft m2 x)) -> P (fd x)) ->
     P (f x m1.[x] m2.[x]) -> P (map2 fd f m1 m2).[x].
@@ -286,23 +286,23 @@ Module MvMake (I:IDENT).
     rewrite /indom /map2 /get /= Mt.map2P //.
     case: ((tbl m1).[vtype x])%mt=>[mi1|];case: ((tbl m2).[vtype x])%mt=>[mi2|];last by auto.
     + rewrite Mid.map2P //.
-      by case: (Mid.get mi1 (vname x));case: (Mid.get mi2 (vname x))=> //; 
+      by case: (Mid.get mi1 (vname x));case: (Mid.get mi2 (vname x))=> //;
          last (by auto); case: (x) P.
     + by rewrite Mid.mapiP //;case: (Mid.get mi1 (vname x));case: (x) P =>//=;auto.
     by rewrite Mid.mapiP //;case: (Mid.get mi2 (vname x));case: (x) P=> //=;auto.
   Qed.
 
-  Lemma map2P {to1 to2 to3} 
-    (fd: forall x,  to3 x.(vtype))    
+  Lemma map2P {to1 to2 to3}
+    (fd: forall x,  to3 x.(vtype))
     (f:forall x, to1 x.(vtype) -> to2 x.(vtype) -> to3 x.(vtype)) m1 m2 x:
     (~~indom x m1 -> ~~indom x m2 -> fd x = f x (dft m1 x) (dft m2 x)) ->
     (map2 fd f m1 m2).[x] = f x m1.[x] m2.[x].
   Proof. by apply map2Pred => // ?? H1 H2;rewrite H2 // H1. Qed.
- 
+
   Lemma indom_map2P {to1 to2 to3} fd
       (f:forall x, to1 x.(vtype) -> to2 x.(vtype) -> to3 x.(vtype)) m1 m2 x:
      indom x (map2 fd f m1 m2) = indom x m1 || indom x m2.
-  Proof. 
+  Proof.
     rewrite /map2 /indom /= Mt.map2P //.
     case: ((tbl m1).[vtype x])%mt=> [mi1 | ];case: ((tbl m2).[vtype x])%mt => [mi2 | ] //.
     + by rewrite Mid.map2P //; case: Mid.get => [?|] /=;case: Mid.get.
@@ -310,11 +310,11 @@ Module MvMake (I:IDENT).
     by rewrite Mid.mapiP;case: Mid.get.
   Qed.
 
-  Lemma dft_map2P {to1 to2 to3} fd 
+  Lemma dft_map2P {to1 to2 to3} fd
       (f:forall x, to1 x.(vtype) -> to2 x.(vtype) -> to3 x.(vtype)) m1 m2:
-     dft (map2 fd f m1 m2) = fd. 
+     dft (map2 fd f m1 m2) = fd.
   Proof. done. Qed.
-  
+
   End Mv.
 
 End MvMake.
@@ -353,13 +353,13 @@ Proof. by apply: contra => /eqP ->. Qed.
 Lemma vname_diff x x': vname x != vname x' -> x != x'.
 Proof. by apply: contra => /eqP ->. Qed.
 
-(* ** Variables function: to be not used if computation is needed, 
- *                       but extentianality is permited 
+(* ** Variables function: to be not used if computation is needed,
+ *                       but extentianality is permited
  * -------------------------------------------------------------------- *)
 
 Module Type FvT.
   Parameter t : (stype -> Type) -> Type.
-  Parameter empty : 
+  Parameter empty :
     forall {to:stype -> Type} (dval : forall (x:var), to x.(vtype)), t to.
 
   Parameter get :
@@ -404,7 +404,7 @@ Module Fv : FvT.
 
   Definition ext_eq  {to} (vm1 vm2 : t to) :=
     forall x, get vm1 x = get vm2 x.
-  
+
 End Fv.
 
 Delimit Scope vmap_scope with vmap.
@@ -422,19 +422,19 @@ Module Type Vmap.
   Parameter empty : forall to, (forall (x:var), to x.(vtype)) -> t to.
 
   Parameter get : forall {to}, t to -> forall (x:var), to x.(vtype).
-  
+
   Parameter set : forall {to}, t to -> forall (x:var), to x.(vtype) -> t to.
 
-  Parameter get0 : 
-    forall {to} (dft: forall x, to x.(vtype)) (x:var), 
+  Parameter get0 :
+    forall {to} (dft: forall x, to x.(vtype)) (x:var),
       get (empty dft) x = dft x.
 
   Parameter setP_eq :
-    forall {to} (m:t to) (x:var) (v:to x.(vtype)), 
+    forall {to} (m:t to) (x:var) (v:to x.(vtype)),
       get (@set to m x v) x = v.
 
-  Parameter setP_neq : 
-    forall {to} (m:t to) x y (v:to x.(vtype)), 
+  Parameter setP_neq :
+    forall {to} (m:t to) x y (v:to x.(vtype)),
       x != y -> get (@set to m x v) y = get m y.
 
 End Vmap.
@@ -458,7 +458,7 @@ Module SvP := MSetEqProperties.EqProperties Sv.
 Module SvD := MSetDecide.WDecide Sv.
 
 Lemma Sv_memP x s: reflect (Sv.In x s) (Sv.mem x s).
-Proof. 
+Proof.
   apply: (@equivP (Sv.mem x s));first by apply idP.
   by rewrite -Sv.mem_spec.
 Qed.
@@ -504,24 +504,24 @@ Qed.
 (* Non dependant map *)
 Module Mvar :=  Mmake CmpVar.
 
-Definition Mvar_eq T (m1 m2:Mvar.t T) := 
+Definition Mvar_eq T (m1 m2:Mvar.t T) :=
   forall x, Mvar.get m1 x = Mvar.get m2 x.
 
 Polymorphic Instance equiv_Mvar_eq T : Equivalence (@Mvar_eq T).
-Proof. 
+Proof.
   split=> //.
   + by move=> m1 m2 Hm z;rewrite Hm.
   by move=> m1 m2 m3 Hm1 Hm2 z;rewrite Hm1 Hm2.
 Qed.
 
-Instance Mvar_get_m T: 
+Instance Mvar_get_m T:
   Proper (@Mvar_eq T ==> eq ==> eq) Mvar.get.
 Proof. by move=> m1 m2 Hm ?? <-. Qed.
 
-Instance Mvar_set_m T: 
+Instance Mvar_set_m T:
   Proper (@Mvar_eq T ==> eq ==> eq ==> @Mvar_eq T) Mvar.set.
 Proof. by move=> m1 m2 Hm ?? <- ?? <- z;rewrite !Mvar.setP;case:ifP. Qed.
 
-Instance Mvar_remove_m T: 
+Instance Mvar_remove_m T:
   Proper (@Mvar_eq T ==> eq ==> @Mvar_eq T) Mvar.remove.
 Proof. by move=> m1 m2 Hm ?? <- z;rewrite !Mvar.removeP;case:ifP. Qed.
