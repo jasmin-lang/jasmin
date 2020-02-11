@@ -62,57 +62,68 @@ Local Coercion Z.pos         : positive >-> Z.
 Class find (T : Type) (x : T) (xs : seq T) (i:nat).
 
 Instance find0 (T : Type) (x : T) (xs : seq T)
- : find x (x :: xs) 0.
+ : find x (x :: xs) 0
+ := { }.
 
 Instance findS (T : Type) (x : T) (y : T) (ys :  seq T) i
  {_: find x ys i}
- : find x (y :: ys) i.+1 | 1.
+ : find x (y :: ys) i.+1 | 1
+ := { }.
 
 (* -------------------------------------------------------------------- *)
 Class closed (T : Type) (xs : seq T).
 
 Instance closed_nil T
- : closed (T:=T) nil.
+ : closed (T:=T) nil
+ := { }.
 
 Instance closed_cons T (x : T) (xs : seq T)
  {_: closed xs}
- : closed (x :: xs).
+ : closed (x :: xs)
+ := { }.
 
 (* -------------------------------------------------------------------- *)
 Class reify (R : ringType) (a : R) (t : PExpr Z) (e : seq R).
 
-Instance reify_zero (R : ringType) e : @reify R 0 0%S e.
-Instance reify_one  (R : ringType) e : @reify R 1 1%S e.
+Instance reify_zero (R : ringType) e : @reify R 0 0%S e := { }.
+Instance reify_one  (R : ringType) e : @reify R 1 1%S e := { }.
 
 Instance reify_natconst (R : ringType) n e
-  : @reify R n%:R ((n : Z)%:S)%S e.
+  : @reify R n%:R ((n : Z)%:S)%S e
+  := { }.
 
 Instance reify_add (R : ringType) a1 a2 t1 t2 e
   {_: @reify R a1 t1 e}
   {_: @reify R a2 t2 e}
-  : reify (a1 + a2) (t1 + t2)%S e.
+  : reify (a1 + a2) (t1 + t2)%S e
+  := { }.
 
 Instance reify_opp (R : ringType) a t e
   {_: @reify R a t e}
-  : reify (-a) (-t)%S e.
+  : reify (-a) (-t)%S e
+  := { }.
 
 Instance reify_natmul (R : ringType) a n t e
   {_: @reify R a t e}
-  : reify (a *+ n) (t * (n : Z)%:S)%S e.
+  : reify (a *+ n) (t * (n : Z)%:S)%S e
+  := { }.
 
 Instance reify_mul (R : ringType) a1 a2 t1 t2 e
   {_: @reify R a1 t1 e}
   {_: @reify R a2 t2 e}
-  : reify (a1 * a2) (t1 * t2)%S e.
+  : reify (a1 * a2) (t1 * t2)%S e
+  := { }.
 
 Instance reify_exp (R : ringType) a n t e
   {_: @reify R a t e}
-  : reify (a ^+ n) (t ^+ n)%S e | 1.
+  : reify (a ^+ n) (t ^+ n)%S e | 1
+  := { }.
 
 Instance reify_var (R : ringType) a i e
   `{find R a e i}
   : reify a ('X_i)%S e
-  | 100.
+  | 100
+  := { }.
 
 Definition reifyl (R : ringType) a t e
   {_: @reify R a t e}
@@ -131,42 +142,50 @@ Ltac reify xt xe :=
 (* -------------------------------------------------------------------- *)
 Class freify (F : fieldType) (a : F) (t : FExpr Z) (e : seq F).
 
-Instance freify_zero (F : fieldType) e : @freify F 0 0%F e.
-Instance freify_one  (F : fieldType) e : @freify F 1 1%F e.
+Instance freify_zero (F : fieldType) e : @freify F 0 0%F e := { }.
+Instance freify_one  (F : fieldType) e : @freify F 1 1%F e := { }.
 
 Instance freify_natconst (F : fieldType) n e
-  : @freify F n%:R ((n : Z)%:S)%F e.
+  : @freify F n%:R ((n : Z)%:S)%F e
+  := { }.
 
 Instance freify_add (F : fieldType) a1 a2 t1 t2 e
   {_: @freify F a1 t1 e}
   {_: @freify F a2 t2 e}
-  : freify (a1 + a2) (t1 + t2)%F e.
+  : freify (a1 + a2) (t1 + t2)%F e
+  := { }.
 
 Instance freify_opp (F : fieldType) a t e
   {_: @freify F a t e}
-  : freify (-a) (-t)%F e.
+  : freify (-a) (-t)%F e
+  := { }.
 
 Instance freify_natmul (F : fieldType) a n t e
   {_: @freify F a t e}
-  : freify (a *+ n) (t * (n : Z)%:S)%F e.
+  : freify (a *+ n) (t * (n : Z)%:S)%F e
+  := { }.
 
 Instance freify_mul (F : fieldType) a1 a2 t1 t2 e
   {_: @freify F a1 t1 e}
   {_: @freify F a2 t2 e}
-  : freify (a1 * a2) (t1 * t2)%F e.
+  : freify (a1 * a2) (t1 * t2)%F e
+  := { }.
 
 Instance freify_inv (F : fieldType) a t e
   {_: @freify F a t e}
-  : freify (a^-1) (t^-1)%F e.
+  : freify (a^-1) (t^-1)%F e
+  := { }.
 
 Instance freify_exp (F : fieldType) a n t e
   {_: @freify F a t e}
-  : freify (a ^+ n) (t ^+ n)%F e | 1.
+  : freify (a ^+ n) (t ^+ n)%F e | 1
+  := { }.
 
 Instance freify_var (F : fieldType) a i e
   `{find F a e i}
   : freify a ('X_i)%F e
-  | 100.
+  | 100
+  := { }.
 
 Definition freifyl (F : fieldType) a t e
   {_: @freify F a t e}
