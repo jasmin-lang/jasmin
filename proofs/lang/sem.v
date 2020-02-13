@@ -452,42 +452,62 @@ Qed.
 Definition is_defined (v: value) : bool :=
   if v is Vundef _ then false else true.
 
+Inductive leakage := 
+  | LeakAdr of pointer
+  | LeakIdx of Z
+  | LeakCond of bool.
+
+Definition leakages := seq leakage.
+
 Section SEM_PEXPR.
 
 Context (gd: glob_decls).
 
-Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
+Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec (value * leakages)  :=
   match e with
-  | Pconst z => ok (Vint z)
-  | Pbool b  => ok (Vbool b)
-  | Parr_init n => ok (Varr (WArray.empty n))
-  | Pvar v => get_var s.(evm) v
-  | Pglobal g => get_global gd g
+  | Pconst z => ok (Vint z, [::])
+  | Pbool b  => ok (Vbool b, [::])
+  | Parr_init n => ok (Varr (WArray.empty n), [::])
+  | Pvar x => 
+    Let v := get_var s.(evm) x in
+    ok (v, [::])
+  | Pglobal g => 
+    Let v := get_global gd g in
+    ok (v, [::])
   | Pget ws x e =>
       Let (n, t) := s.[x] in
-      Let i := sem_pexpr s e >>= to_int in
+      Let vl := sem_pexpr s e in
+      Let i := to_int vl.1 in
       Let w := WArray.get ws t i in
-      ok (Vword w)
+      ok (Vword w, rcons vl.2 (LeakIdx i))
   | Pload sz x e =>
     Let w1 := get_var s.(evm) x >>= to_pointer in
-    Let w2 := sem_pexpr s e >>= to_pointer in
-    Let w  := read_mem s.(emem) (w1 + w2) sz in
-    ok (@to_val (sword sz) w)
+    Let vl2 := sem_pexpr s e in
+    Let w2 := to_pointer vl2.1 in
+    let adr := (w1 + w2)%R in 
+    Let w  := read_mem s.(emem) adr sz in
+    ok (@to_val (sword sz) w, rcons vl2.2 (LeakAdr adr))
   | Papp1 o e1 =>
-    Let v1 := sem_pexpr s e1 in
-    sem_sop1 o v1
+    Let vl1 := sem_pexpr s e1 in
+    Let v := sem_sop1 o vl1.1 in
+    ok (v, vl1.2)
   | Papp2 o e1 e2 =>
-    Let v1 := sem_pexpr s e1 in
-    Let v2 := sem_pexpr s e2 in
-    sem_sop2 o v1 v2
+    Let vl1 := sem_pexpr s e1 in
+    Let vl2 := sem_pexpr s e2 in
+    Let v := sem_sop2 o vl1.1 vl2.1 in
+    ok (v, vl1.2 ++ vl2.2)
   | PappN op es =>
     Let vs := mapM (sem_pexpr s) es in
-    sem_opN op vs
+    Let v := sem_opN op (unzip1 vs) in
+    ok (v, flatten (unzip2 vs))
   | Pif t e e1 e2 =>
-    Let b := sem_pexpr s e >>= to_bool in
-    Let v1 := sem_pexpr s e1 >>= truncate_val t in
-    Let v2 := sem_pexpr s e2 >>= truncate_val t in
-    ok (if b then v1 else v2)
+    Let vl := sem_pexpr s e in
+    Let b := to_bool vl.1in
+    Let vl1 := sem_pexpr s e1 in
+    Let vl2 := sem_pexpr s e2 in
+    Let v1 := truncate_val t vl1.1 in
+    Let v2 := truncate_val t vl2.1 in
+    ok (if b then v1 else v2, vl.2 ++ vl1.2 ++ vl2.2)
   end.
 
 Definition sem_pexprs s := mapM (sem_pexpr s).
