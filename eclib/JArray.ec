@@ -151,8 +151,8 @@ abstract theory MonoArray.
   proof. by apply/(can_inj _ _ to_listK). qed.
 
   hint simplify (get_of_list, get_to_list)@0.
-  hint simplify to_listK@0.
-  hint simplify to_listE@1.
+  hint simplify [reduce] to_listK@0.
+  hint simplify [reduce] to_listE@1.
 
   lemma init_of_list f : init f = of_list (map f (iota_ 0 size)).
   proof.
@@ -507,63 +507,6 @@ abstract theory PolyArray.
   lemma is_init_Some (t:'a t) : is_init (map Some t).
   proof. by rewrite allP => i hi; rewrite mapiE. qed.
 
-  hint simplify is_init_Some.
+  hint simplify [eqtrue] is_init_Some.
 
 end PolyArray.
-
-(*clone export PolyArray as Array0  with op size <- 0.
-clone export PolyArray as Array1  with op size <- 1.
-clone export PolyArray as Array2  with op size <- 2.
-clone export PolyArray as Array3  with op size <- 3.
-clone export PolyArray as Array4  with op size <- 4.
-clone export PolyArray as Array5  with op size <- 5.
-clone export PolyArray as Array6  with op size <- 6.
-clone export PolyArray as Array7  with op size <- 7.
-clone export PolyArray as Array8  with op size <- 8.
-clone export PolyArray as Array9  with op size <- 9.
-
-clone export PolyArray as Array10  with op size <- 10.
-clone export PolyArray as Array11  with op size <- 11.
-clone export PolyArray as Array12  with op size <- 12.
-clone export PolyArray as Array13  with op size <- 13.
-clone export PolyArray as Array14  with op size <- 14.
-clone export PolyArray as Array15  with op size <- 15.
-clone export PolyArray as Array16  with op size <- 16.
-clone export PolyArray as Array17  with op size <- 17.
-clone export PolyArray as Array18  with op size <- 18.
-clone export PolyArray as Array19  with op size <- 19.
-
-clone export PolyArray as Array20  with op size <- 20.
-clone export PolyArray as Array21  with op size <- 21.
-clone export PolyArray as Array22  with op size <- 22.
-clone export PolyArray as Array23  with op size <- 23.
-clone export PolyArray as Array24  with op size <- 24.
-clone export PolyArray as Array25  with op size <- 25.
-clone export PolyArray as Array26  with op size <- 26.
-clone export PolyArray as Array27  with op size <- 27.
-clone export PolyArray as Array28  with op size <- 28.
-clone export PolyArray as Array29  with op size <- 29.
-
-clone export PolyArray as Array30  with op size <- 30.
-clone export PolyArray as Array31  with op size <- 31.
-clone export PolyArray as Array32  with op size <- 32.
-clone export PolyArray as Array33  with op size <- 33.
-clone export PolyArray as Array34  with op size <- 34.
-clone export PolyArray as Array35  with op size <- 35.
-clone export PolyArray as Array36  with op size <- 36.
-clone export PolyArray as Array37  with op size <- 37.
-clone export PolyArray as Array38  with op size <- 38.
-clone export PolyArray as Array39  with op size <- 39.
-
-clone export PolyArray as Array40  with op size <- 40.
-clone export PolyArray as Array41  with op size <- 41.
-clone export PolyArray as Array42  with op size <- 42.
-clone export PolyArray as Array43  with op size <- 43.
-clone export PolyArray as Array44  with op size <- 44.
-clone export PolyArray as Array45  with op size <- 45.
-clone export PolyArray as Array46  with op size <- 46.
-clone export PolyArray as Array47  with op size <- 47.
-clone export PolyArray as Array48  with op size <- 48.
-clone export PolyArray as Array49  with op size <- 49. *)
-
-

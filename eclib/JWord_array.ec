@@ -203,61 +203,6 @@ abstract theory WArray.
 
 end WArray.
 
-(*clone export WArray as WArray0  with op size <- 0.
-clone export WArray as WArray1  with op size <- 1.
-clone export WArray as WArray2  with op size <- 2.
-clone export WArray as WArray3  with op size <- 3.
-clone export WArray as WArray4  with op size <- 4.
-clone export WArray as WArray5  with op size <- 5.
-clone export WArray as WArray6  with op size <- 6.
-clone export WArray as WArray7  with op size <- 7.
-clone export WArray as WArray8  with op size <- 8.
-clone export WArray as WArray9  with op size <- 9.
-
-clone export WArray as WArray10  with op size <- 10.
-clone export WArray as WArray11  with op size <- 11.
-clone export WArray as WArray12  with op size <- 12.
-clone export WArray as WArray13  with op size <- 13.
-clone export WArray as WArray14  with op size <- 14.
-clone export WArray as WArray15  with op size <- 15.
-clone export WArray as WArray16  with op size <- 16.
-clone export WArray as WArray17  with op size <- 17.
-clone export WArray as WArray18  with op size <- 18.
-clone export WArray as WArray19  with op size <- 19.
-
-clone export WArray as WArray20  with op size <- 20.
-clone export WArray as WArray21  with op size <- 21.
-clone export WArray as WArray22  with op size <- 22.
-clone export WArray as WArray23  with op size <- 23.
-clone export WArray as WArray24  with op size <- 24.
-clone export WArray as WArray25  with op size <- 25.
-clone export WArray as WArray26  with op size <- 26.
-clone export WArray as WArray27  with op size <- 27.
-clone export WArray as WArray28  with op size <- 28.
-clone export WArray as WArray29  with op size <- 29.
-
-clone export WArray as WArray30  with op size <- 30.
-clone export WArray as WArray31  with op size <- 31.
-clone export WArray as WArray32  with op size <- 32.
-clone export WArray as WArray33  with op size <- 33.
-clone export WArray as WArray34  with op size <- 34.
-clone export WArray as WArray35  with op size <- 35.
-clone export WArray as WArray36  with op size <- 36.
-clone export WArray as WArray37  with op size <- 37.
-clone export WArray as WArray38  with op size <- 38.
-clone export WArray as WArray39  with op size <- 39.
-
-clone export WArray as WArray40  with op size <- 40.
-clone export WArray as WArray41  with op size <- 41.
-clone export WArray as WArray42  with op size <- 42.
-clone export WArray as WArray43  with op size <- 43.
-clone export WArray as WArray44  with op size <- 44.
-clone export WArray as WArray45  with op size <- 45.
-clone export WArray as WArray46  with op size <- 46.
-clone export WArray as WArray47  with op size <- 47.
-clone export WArray as WArray48  with op size <- 48.
-clone export WArray as WArray49  with op size <- 49.
-*)
 
 
  

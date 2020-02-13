@@ -279,7 +279,8 @@ lemma in_bound_simplify x n :
     0 <= x < n => in_bound x n.
 proof. done. qed.
 
-hint simplify (is_init_Some, in_bound_simplify).
+hint simplify [eqtrue] is_init_Some.
+hint simplify [eqtrue] in_bound_simplify.
 
 (* -------------------------------------------------------------------- *)
 
