@@ -833,7 +833,7 @@ Section SEM_IND.
     match s in (sem e1 l0 le1 e2) return (Pc e1 l0 lpe1 e2) with
     | Eskip s0 => Hnil s0
     | @Eseq s1 s2 s3 i c s0 s4 li lc =>
-        @Hcons s1 s2 s3 i c s0 (@sem_I_Ind s1 i s2 s0) s4 (@sem_Ind s2 c (li ++ lc) s3 s4)
+        @Hcons s1 s2 s3 i c s0 (@sem_I_Ind s1 i li s2 s0) s4 (@sem_Ind s2 c (li ++ lc) s3 s4)
     end
 
   with sem_i_Ind (e : estate) (i : instr_r) (le : leakages) (e0 : estate) (s : sem_i e i e0) {struct s} :
