@@ -523,28 +523,33 @@ Definition write_none (s:estate) ty v :=
   on_vu (fun v => s) (if is_sbool ty then ok s else type_error)
           (of_val ty v).
 
-Definition write_lval (l:lval) (v:value) (s:estate) : exec estate :=
+Definition write_lval (l:lval) (v:value) (s:estate) : exec (estate * leakages) :=
   match l with
-  | Lnone _ ty => write_none s ty v
-  | Lvar x => write_var x v s
+  | Lnone _ ty => Let v := write_none s ty v in ok (v, [::])
+  | Lvar x => Let v := write_var x v s in ok(v, [::])
   | Lmem sz x e =>
     Let vx := get_var (evm s) x >>= to_pointer in
-    Let ve := sem_pexpr s e >>= to_pointer in
+    Let vl := sem_pexpr s e in 
+    Let ve := to_pointer vl.1 in
     let p := (vx + ve)%R in (* should we add the size of value, i.e vx + sz * se *)
     Let w := to_word sz v in
+    (* I think there should be a leakage here but not sure as I already mentioned leakage due to p *)
     Let m :=  write_mem s.(emem) p sz w in
-    ok {| emem := m;  evm := s.(evm) |}
+    ok ({| emem := m;  evm := s.(evm) |}, rcons vl.2 (LeakAdr p))
   | Laset ws x i =>
     Let (n,t) := s.[x] in
-    Let i := sem_pexpr s i >>= to_int in
+    Let vl := sem_pexpr s i in 
+    Let i := to_int vl.1 in
     Let v := to_word ws v in
     Let t := WArray.set t i v in
     Let vm := set_var s.(evm) x (@to_val (sarr n) t) in
-    ok ({| emem := s.(emem); evm := vm |})
+    ok ({| emem := s.(emem); evm := vm |}, rcons vl.2 (LeakIdx i))
   end.
 
-Definition write_lvals (s:estate) xs vs :=
-   fold2 ErrType write_lval xs vs s.
+Definition write_lvals := Type.
+
+(*Definition write_lvals (s:estate) xs vs :=
+   fold2 ErrType write_lval xs vs s.*)
 
 End SEM_PEXPR.
 
@@ -904,3 +909,16 @@ Proof.
 Qed.
 
 End SEM.
+© 2020 GitHub, Inc.
+Terms
+Privacy
+Security
+Status
+Help
+Contact GitHub
+Pricing
+API
+Training
+Blog
+About
+
