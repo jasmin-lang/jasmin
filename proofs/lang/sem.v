@@ -832,14 +832,14 @@ Section SEM_IND.
     Pc e l le e0 :=
     match s in (sem e1 l0 le1 e2) return (Pc e1 l0 lpe1 e2) with
     | Eskip s0 => Hnil s0
-    | @Eseq s1 s2 s3 i c s0 s4 =>
+    | @Eseq s1 s2 s3 i c s0 s4 li lc =>
         @Hcons s1 s2 s3 i c s0 (@sem_I_Ind s1 i s2 s0) s4 (@sem_Ind s2 c s3 s4)
     end
 
-  with sem_i_Ind (e : estate) (i : instr_r) (e0 : estate) (s : sem_i e i e0) {struct s} :
-    Pi_r e i e0 :=
-    match s in (sem_i e1 i0 e2) return (Pi_r e1 i0 e2) with
-    | @Eassgn s1 s2 x tag ty e1 v v' h1 h2 h3 => @Hasgn s1 s2 x tag ty e1 v v' h1 h2 h3
+  with sem_i_Ind (e : estate) (i : instr_r) (le : leakages) (e0 : estate) (s : sem_i e i e0) {struct s} :
+    Pi_r e i le e0 :=
+    match s in (sem_i e1 i0 li0 e2) return (Pi_r e1 i0 li0r e2) with
+    | @Eassgn s1 s2 x tag ty e1 v v' l1 l2 h1 h2 h3 => @Hasgn s1 s2 x tag ty e1 v v' l1 l2 h1 h2 h3
     | @Eopn s1 s2 t o xs es e1 => @Hopn s1 s2 t o xs es e1
     | @Eif_true s1 s2 e1 c1 c2 e2 s0 =>
       @Hif_true s1 s2 e1 c1 c2 e2 s0 (@sem_Ind s1 c1 s2 s0)
