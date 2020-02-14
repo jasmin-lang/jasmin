@@ -1,7 +1,5 @@
 require import AllCore IntDiv List Bool StdOrder.
 
-hint simplify (oget_some, oget_none).
-
 (* -------------------------------------------------------------------- *)
 
 lemma modz_cmp m d : 0 < d => 0 <= m %% d < d.
@@ -356,15 +354,14 @@ smt().
 qed.
 
 lemma bs2int_cons x xs:
- bs2int (x::xs) = b2i x + 2 * bs2int xs.
+  bs2int (x::xs) = b2i x + 2 * bs2int xs.
 proof.
 have ->: x::xs = [x]++xs by done.
-rewrite bs2int_cat /= ; congr.
-by rewrite /bs2int /big filter_predT /range iota1.
+rewrite bs2int_cat /=; congr.
 qed.
 
 lemma bs2int_nseq b k:
- bs2int (nseq k b) = if b then 2^k - 1 else 0.
+  bs2int (nseq k b) = if b then 2^k - 1 else 0.
 proof.
 elim/natind: k b => /= [n Hn|n Hn IH] b.
  by rewrite nseq0_le //= bs2int_nil powNeg.
