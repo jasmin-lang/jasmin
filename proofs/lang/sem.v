@@ -614,8 +614,8 @@ Definition sem_range (s : estate) (r : range) :=
   Let i2 := to_int vl2.1 in
   ok (wrange d i1 i2).
 
-(* Definition sem_sopn gd o m lvs args := 
-  sem_pexprs gd m args >>= exec_sopn o vl.1 >>= write_lvals gd m lvs.*)
+ Definition sem_sopn gd o m lvs args := 
+  sem_pexprs gd m args >>= exec_sopn o vl.1 >>= write_lvals gd m lvs.
 
 Inductive sem : estate -> cmd -> leakages -> estate -> Prop :=
 | Eskip s :
