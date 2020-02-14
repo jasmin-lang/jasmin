@@ -510,7 +510,9 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec (value * leakages)  :=
     ok (if b then v1 else v2, vl.2 ++ vl1.2 ++ vl2.2)
   end.
 
-Definition sem_pexprs s := mapM (sem_pexpr s).
+Definition sem_pexprs s es :=
+  Let vls := mapM (sem_pexpr s) es in
+  ok (unzip1 vls, flatten (unzip2 vls)).      
 
 Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
   Let vm := set_var s.(evm) x v in
@@ -547,7 +549,8 @@ Definition write_lval (l:lval) (v:value) (s:estate) : exec (estate * leakages) :
   end.
 
 Definition write_lvals (s:estate) xs vs :=
-   fold2 ErrType write_lval xs vs s.
+   fold2 ErrType (fun l v sl => Let sl' := write_lval l v sl.1 in ok (sl'.1, sl.2 ++ sl'.2))
+      xs vs (s, [::]).
 
 End SEM_PEXPR.
 
@@ -612,10 +615,14 @@ Definition sem_range (s : estate) (r : range) :=
   Let i1 := to_int vl1.1 in 
   Let vl2 := sem_pexpr gd s pe2 in 
   Let i2 := to_int vl2.1 in
-  ok (wrange d i1 i2).
+  ok (wrange d i1 i2, vl1.2 ++ vl2.2).
 
- Definition sem_sopn gd o m lvs args := 
-  sem_pexprs gd m args >>= exec_sopn o vl.1 >>= write_lvals gd m lvs.
+Definition sem_sopn gd o m lvs args := 
+  Let vas := sem_pexprs gd m args in
+  Let vs := exec_sopn o vas.1 in 
+  Let ml := write_lvals gd m lvs vs in
+  ok (ml.1, vas.2 ++ ml.2).
+
 
 Inductive sem : estate -> cmd -> leakages -> estate -> Prop :=
 | Eskip s :
@@ -625,74 +632,73 @@ Inductive sem : estate -> cmd -> leakages -> estate -> Prop :=
     sem_I s1 i li s2 -> sem s2 c lc s3 -> sem s1 (i::c) (li ++ lc) s3
 
 with sem_I : estate -> instr -> leakages -> estate -> Prop :=
-| EmkI ii i s1 s2 l1:
+| EmkI ii i s1 s2 li:
     sem_i s1 i li s2 ->
     sem_I s1 (MkI ii i) li s2
 
 with sem_i : estate -> instr_r -> leakages -> estate -> Prop :=
 | Eassgn s1 s2 (x:lval) tag ty e v v' l1 l2:
-    sem_pexpr gd s1 e = ok (v, l1) ->
+    sem_pexpr gd s1 e = ok (v,l1)  ->
     truncate_val ty v = ok v' →
     write_lval gd x v' s1 = ok (s2, l2) ->
     sem_i s1 (Cassgn x tag ty e) (l1 ++ l2) s2
 
-| Eopn s1 s2 t o xs es:
-    sem_sopn gd o s1 xs es = ok s2 ->
-    sem_i s1 (Copn xs t o es) s2
+| Eopn s1 s2 t o xs es lo:
+    sem_sopn gd o s1 xs es = ok (s2, lo) ->
+    sem_i s1 (Copn xs t o es) lo s2
 
-| Eif_true s1 s2 e c1 c2 :
-    sem_pexpr gd s1 e = ok (Vbool true) ->
-    sem s1 c1 s2 ->
-    sem_i s1 (Cif e c1 c2) s2
+| Eif_true s1 s2 e c1 c2 le lc:
+    sem_pexpr gd s1 e = ok (Vbool true, le) ->
+    sem s1 c1 lc s2 ->
+    sem_i s1 (Cif e c1 c2) (le ++ lc) s2
 
-| Eif_false s1 s2 e c1 c2 :
-    sem_pexpr gd s1 e = ok (Vbool false) ->
-    sem s1 c2 s2 ->
-    sem_i s1 (Cif e c1 c2) s2
+| Eif_false s1 s2 e c1 c2 le lc:
+    sem_pexpr gd s1 e = ok (Vbool false, le) ->
+    sem s1 c2 lc s2 ->
+    sem_i s1 (Cif e c1 c2) (le ++ lc) s2
 
-| Ewhile_true s1 s2 s3 s4 a c e c' :
-    sem s1 c s2 ->
-    sem_pexpr gd s2 e = ok (Vbool true) ->
-    sem s2 c' s3 ->
-    sem_i s3 (Cwhile a c e c') s4 ->
-    sem_i s1 (Cwhile a c e c') s4
+| Ewhile_true s1 s2 s3 s4 a c e c' lc le lc' lw:
+    sem s1 c lc s2 ->
+    sem_pexpr gd s2 e = ok (Vbool true, le) ->
+    sem s2 c' lc' s3 ->
+    sem_i s3 (Cwhile a c e c') lw s4 ->
+    sem_i s1 (Cwhile a c e c') (lc ++ le ++ lc' ++ lw)s4
 
-| Ewhile_false s1 s2 a c e c' :
-    sem s1 c s2 ->
-    sem_pexpr gd s2 e = ok (Vbool false) ->
-    sem_i s1 (Cwhile a c e c') s2
+| Ewhile_false s1 s2 a c e c' lc le:
+    sem s1 c lc s2 ->
+    sem_pexpr gd s2 e = ok (Vbool false, le) ->
+    sem_i s1 (Cwhile a c e c') (lc ++ le) s2
 
-| Efor s1 s2 (i:var_i) d lo hi c vlo vhi :
-    sem_pexpr gd s1 lo = ok (Vint vlo) ->
-    sem_pexpr gd s1 hi = ok (Vint vhi) ->
-    sem_for i (wrange d vlo vhi) s1 c s2 ->
-    sem_i s1 (Cfor i (d, lo, hi) c) s2
+| Efor s1 s2 (i:var_i) r c wr lr lf:
+    sem_range s1 r = ok (wr, lr) ->
+    sem_for i wr s1 c lf s2 ->
+    sem_i s1 (Cfor i r c) (lr ++ lf) s2
 
-| Ecall s1 m2 s2 ii xs f args vargs vs :
-    sem_pexprs gd s1 args = ok vargs ->
-    sem_call s1.(emem) f vargs m2 vs ->
-    write_lvals gd {|emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->
-    sem_i s1 (Ccall ii xs f args) s2
+| Ecall s1 m2 s2 ii xs f args vargs vs l1 lf l2:
+    sem_pexprs gd s1 args = ok (vargs, l1) ->
+    sem_call s1.(emem) f vargs lf m2 vs ->
+    write_lvals gd {|emem:= m2; evm := s1.(evm) |} xs vs = ok (s2, l2) ->
+    sem_i s1 (Ccall ii xs f args) (l1 ++ lf ++ l2) s2
 
-with sem_for : var_i -> seq Z -> estate -> cmd -> estate -> Prop :=
+with sem_for : var_i -> seq Z -> estate -> cmd -> leakages -> estate -> Prop :=
 | EForDone s i c :
-    sem_for i [::] s c s
+    sem_for i [::] s c [::] s
 
-| EForOne s1 s1' s2 s3 i w ws c :
+| EForOne s1 s1' s2 s3 i w ws c lc lw :
     write_var i (Vint w) s1 = ok s1' ->
-    sem s1' c s2 ->
-    sem_for i ws s2 c s3 ->
-    sem_for i (w :: ws) s1 c s3
+    sem s1' c lc s2 ->
+    sem_for i ws s2 c lw s3 ->
+    sem_for i (w :: ws) s1 c (lc ++ lw) s3
 
-with sem_call : mem -> funname -> seq value -> mem -> seq value -> Prop :=
-| EcallRun m1 m2 fn f vargs vargs' s1 vm2 vres vres' :
+with sem_call : mem -> funname -> seq value -> leakages -> mem -> seq value -> Prop :=
+| EcallRun m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc :
     get_fundef (p_funcs P) fn = Some f ->
     mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
     write_vars f.(f_params) vargs (Estate m1 vmap0) = ok s1 ->
-    sem s1 f.(f_body) (Estate m2 vm2) ->
+    sem s1 f.(f_body) lc (Estate m2 vm2) ->
     mapM (fun (x:var_i) => get_var vm2 x) f.(f_res) = ok vres ->
     mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
-    sem_call m1 fn vargs'  m2 vres'.
+    sem_call m1 fn vargs' lc m2 vres'.
 
 (* -------------------------------------------------------------------- *)
 (* The generated scheme is borring to use *)
@@ -706,18 +712,18 @@ with sem_call_Ind := Induction for sem_call Sort Prop.
 
 Section SEM_IND.
   Variables
-    (Pc   : estate -> cmd -> estate -> Prop)
-    (Pi_r : estate -> instr_r -> estate -> Prop)
-    (Pi : estate -> instr -> estate -> Prop)
-    (Pfor : var_i -> seq Z -> estate -> cmd -> estate -> Prop)
-    (Pfun : mem -> funname -> seq value -> mem -> seq value -> Prop).
+    (Pc   : estate -> cmd -> leakages -> estate -> Prop)
+    (Pi_r : estate -> instr_r -> leakages -> estate -> Prop)
+    (Pi : estate -> instr -> leakages -> estate -> Prop)
+    (Pfor : var_i -> seq Z -> estate -> cmd -> leakages -> estate -> Prop)
+    (Pfun : mem -> funname -> seq value -> leakages -> mem -> seq value -> Prop).
 
   Definition sem_Ind_nil : Prop :=
-    forall s : estate, Pc s [::] s.
+    forall s : estate, Pc s [::] [::] s.
 
   Definition sem_Ind_cons : Prop :=
-    forall (s1 s2 s3 : estate) (i : instr) (c : cmd),
-      sem_I s1 i s2 -> Pi s1 i s2 -> sem s2 c s3 -> Pc s2 c s3 -> Pc s1 (i :: c) s3.
+    forall (s1 s2 s3 : estate) (i : instr) (c : cmd) (lir li lc lpc : leakages),
+      sem_I s1 i lir s2 -> Pi s1 i li s2 -> sem s2 c lc s3 -> Pc s2 c lpc s3 -> Pc s1 (i :: c) (lir ++ li ++ lc ++ lpc) s3.
 
   Hypotheses
     (Hnil: sem_Ind_nil)
@@ -725,27 +731,27 @@ Section SEM_IND.
   .
 
   Definition sem_Ind_mkI : Prop :=
-    forall (ii : instr_info) (i : instr_r) (s1 s2 : estate),
-      sem_i s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
+    forall (ii : instr_info) (i : instr_r) (s1 s2 : estate) (li lir : leakages),
+      sem_i s1 i li s2 -> Pi_r s1 i lir s2 -> Pi s1 (MkI ii i) (li ++ lir) s2.
 
   Hypothesis HmkI : sem_Ind_mkI.
 
   Definition sem_Ind_assgn : Prop :=
-    forall (s1 s2 : estate) (x : lval) (tag : assgn_tag) ty (e : pexpr) v v',
-      sem_pexpr gd s1 e = ok v ->
+    forall (s1 s2 : estate) (x : lval) (tag : assgn_tag) ty (e : pexpr) v v' (le lw : leakages),
+      sem_pexpr gd s1 e = ok (v, le) ->
       truncate_val ty v = ok v' →
-      write_lval gd x v' s1 = Ok error s2 ->
-      Pi_r s1 (Cassgn x tag ty e) s2.
+      write_lval gd x v' s1 = Ok error (s2, lw) ->
+      Pi_r s1 (Cassgn x tag ty e) (le ++ lw) s2.
 
   Definition sem_Ind_opn : Prop :=
-    forall (s1 s2 : estate) t (o : sopn) (xs : lvals) (es : pexprs),
-      sem_sopn gd o s1 xs es = Ok error s2 ->
-      Pi_r s1 (Copn xs t o es) s2.
+    forall (s1 s2 : estate) t (o : sopn) (xs : lvals) (es : pexprs) (lo : leakages),
+      sem_sopn gd o s1 xs es = Ok error (s2, lo) ->
+      Pi_r s1 (Copn xs t o es) lo s2.
 
   Definition sem_Ind_if_true : Prop :=
-    forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
-      sem_pexpr gd s1 e = ok (Vbool true) ->
-      sem s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+    forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd) (le lc lc1 : leakages),
+      sem_pexpr gd s1 e = ok (Vbool true, le) ->
+      sem s1 c1 lc s2 -> Pc s1 c1 lc1 s2 -> Pi_r s1 (Cif e c1 c2) (le ++ lc ++ lc1) s2.
 
   Definition sem_Ind_if_false : Prop :=
     forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
@@ -909,4 +915,3 @@ Proof.
 Qed.
 
 End SEM.
-
