@@ -546,10 +546,8 @@ Definition write_lval (l:lval) (v:value) (s:estate) : exec (estate * leakages) :
     ok ({| emem := s.(emem); evm := vm |}, rcons vl.2 (LeakIdx i))
   end.
 
-Definition write_lvals := Type.
-
-(*Definition write_lvals (s:estate) xs vs :=
-   fold2 ErrType write_lval xs vs s.*)
+Definition write_lvals (s:estate) xs vs :=
+   fold2 ErrType write_lval xs vs s.
 
 End SEM_PEXPR.
 
@@ -610,31 +608,33 @@ Notation gd := (p_globs P).
 
 Definition sem_range (s : estate) (r : range) :=
   let: (d,pe1,pe2) := r in
-  Let i1 := sem_pexpr gd s pe1 >>= to_int in
-  Let i2 := sem_pexpr gd s pe2 >>= to_int in
+  Let vl1 := sem_pexpr gd s pe1 in 
+  Let i1 := to_int vl1.1 in 
+  Let vl2 := sem_pexpr gd s pe2 in 
+  Let i2 := to_int vl2.1 in
   ok (wrange d i1 i2).
 
-Definition sem_sopn gd o m lvs args :=
-  sem_pexprs gd m args >>= exec_sopn o >>= write_lvals gd m lvs.
+(* Definition sem_sopn gd o m lvs args := 
+  sem_pexprs gd m args >>= exec_sopn o vl.1 >>= write_lvals gd m lvs.*)
 
-Inductive sem : estate -> cmd -> estate -> Prop :=
+Inductive sem : estate -> cmd -> leakages -> estate -> Prop :=
 | Eskip s :
-    sem s [::] s
+    sem s [::] [::] s
 
-| Eseq s1 s2 s3 i c :
-    sem_I s1 i s2 -> sem s2 c s3 -> sem s1 (i::c) s3
+| Eseq s1 s2 s3 i c li lc :
+    sem_I s1 i li s2 -> sem s2 c lc s3 -> sem s1 (i::c) (li ++ lc) s3
 
-with sem_I : estate -> instr -> estate -> Prop :=
-| EmkI ii i s1 s2:
-    sem_i s1 i s2 ->
-    sem_I s1 (MkI ii i) s2
+with sem_I : estate -> instr -> leakages -> estate -> Prop :=
+| EmkI ii i s1 s2 l1:
+    sem_i s1 i li s2 ->
+    sem_I s1 (MkI ii i) li s2
 
-with sem_i : estate -> instr_r -> estate -> Prop :=
-| Eassgn s1 s2 (x:lval) tag ty e v v':
-    sem_pexpr gd s1 e = ok v ->
+with sem_i : estate -> instr_r -> leakages -> estate -> Prop :=
+| Eassgn s1 s2 (x:lval) tag ty e v v' l1 l2:
+    sem_pexpr gd s1 e = ok (v, l1) ->
     truncate_val ty v = ok v' →
-    write_lval gd x v' s1 = ok s2 ->
-    sem_i s1 (Cassgn x tag ty e) s2
+    write_lval gd x v' s1 = ok (s2, l2) ->
+    sem_i s1 (Cassgn x tag ty e) (l1 ++ l2) s2
 
 | Eopn s1 s2 t o xs es:
     sem_sopn gd o s1 xs es = ok s2 ->
