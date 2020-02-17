@@ -722,8 +722,8 @@ Section SEM_IND.
     forall s : estate, Pc s [::] [::] s.
 
   Definition sem_Ind_cons : Prop :=
-    forall (s1 s2 s3 : estate) (i : instr) (c : cmd) (lir li lc lpc : leakages),
-      sem_I s1 i lir s2 -> Pi s1 i li s2 -> sem s2 c lc s3 -> Pc s2 c lpc s3 -> Pc s1 (i :: c) (lir ++ li ++ lc ++ lpc) s3.
+    forall (s1 s2 s3 : estate) (i : instr) (c : cmd) (li lc : leakages),
+      sem_I s1 i li s2 -> Pi s1 i li s2 -> sem s2 c lc s3 -> Pc s2 c lc s3 -> Pc s1 (i :: c) (li ++ lc) s3.
 
   Hypotheses
     (Hnil: sem_Ind_nil)
@@ -731,8 +731,8 @@ Section SEM_IND.
   .
 
   Definition sem_Ind_mkI : Prop :=
-    forall (ii : instr_info) (i : instr_r) (s1 s2 : estate) (li lir : leakages),
-      sem_i s1 i li s2 -> Pi_r s1 i lir s2 -> Pi s1 (MkI ii i) (li ++ lir) s2.
+    forall (ii : instr_info) (i : instr_r) (s1 s2 : estate) (li : leakages),
+      sem_i s1 i li s2 -> Pi_r s1 i li s2 -> Pi s1 (MkI ii i) li s2.
 
   Hypothesis HmkI : sem_Ind_mkI.
 
@@ -749,27 +749,27 @@ Section SEM_IND.
       Pi_r s1 (Copn xs t o es) lo s2.
 
   Definition sem_Ind_if_true : Prop :=
-    forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd) (le lc1 lc1' : leakages),
+    forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd) (le lc : leakages),
       sem_pexpr gd s1 e = ok (Vbool true, le) ->
-      sem s1 c1 lc1 s2 -> Pc s1 c1 lc1' s2 -> Pi_r s1 (Cif e c1 c2) (le ++ lc1 ++ lc1') s2.
+      sem s1 c1 lc s2 -> Pc s1 c1 lc s2 -> Pi_r s1 (Cif e c1 c2) (le ++ lc) s2.
 
   Definition sem_Ind_if_false : Prop :=
-    forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd) (le lc2 lc2' : leakages),
+    forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd) (le lc : leakages),
       sem_pexpr gd s1 e = ok (Vbool false, le) ->
-      sem s1 c2 lc2 s2 -> Pc s1 c2 lc2' s2 -> Pi_r s1 (Cif e c1 c2) (le ++ lc2 ++ lc2') s2.
+      sem s1 c2 lc s2 -> Pc s1 c2 lc s2 -> Pi_r s1 (Cif e c1 c2) (le ++ lc) s2.
 
   Definition sem_Ind_while_true : Prop :=
-    forall (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (c' : cmd) (lc lpc le lc' lpc' lw lwir : leakages),
-      sem s1 c lc s2 -> Pc s1 c lpc s2 ->
+    forall (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (c' : cmd) (lc le lc' li : leakages),
+      sem s1 c lc s2 -> Pc s1 c lc s2 ->
       sem_pexpr gd s2 e = ok (Vbool true, le) ->
-      sem s2 c' lc' s3 -> Pc s2 c' lpc' s3 ->
-      sem_i s3 (Cwhile a c e c') lw s4 -> Pi_r s3 (Cwhile a c e c') lwir s4 -> Pi_r s1 (Cwhile a c e c') (lc ++ lpc ++ le ++ lc' ++ lpc' ++ lw ++ lwir) s4.
+      sem s2 c' lc' s3 -> Pc s2 c' lc' s3 ->
+      sem_i s3 (Cwhile a c e c') li s4 -> Pi_r s3 (Cwhile a c e c') li s4 -> Pi_r s1 (Cwhile a c e c') (lc ++ le ++ lc' ++ li) s4.
 
   Definition sem_Ind_while_false : Prop :=
-    forall (s1 s2 : estate) a (c : cmd) (e : pexpr) (c' : cmd) (lc lpc le : leakages),
-      sem s1 c lc s2 -> Pc s1 c lpc s2 ->
+    forall (s1 s2 : estate) a (c : cmd) (e : pexpr) (c' : cmd) (lc le : leakages),
+      sem s1 c lc s2 -> Pc s1 c lc s2 ->
       sem_pexpr gd s2 e = ok (Vbool false, le) ->
-      Pi_r s1 (Cwhile a c e c') (lc ++ lpc ++ le) s2.
+      Pi_r s1 (Cwhile a c e c') (lc ++ le) s2.
 
   Hypotheses
     (Hasgn: sem_Ind_assgn)
@@ -781,20 +781,20 @@ Section SEM_IND.
   .
 
   Definition sem_Ind_for : Prop :=
-    forall (s1 s2 : estate) (i : var_i) (d : dir) (lo hi : pexpr) (c : cmd) (r : seq Z) r wr (lr lf li : leakages),
+    forall (s1 s2 : estate) (i : var_i) r wr (c : cmd) (vlo vhi : Z) (lr lf: leakages),
       sem_range s1 r = ok (wr, lr) ->
       sem_for i wr s1 c lf s2 ->
-      Pfor i wr s1 c li s2 -> Pi_r s1 (Cfor i r c) (lr ++ lf ++ li) s2.
+      Pfor i wr s1 c lf s2 -> Pi_r s1 (Cfor i r c) (lr ++ lf) s2.
 
   Definition sem_Ind_for_nil : Prop :=
     forall (s : estate) (i : var_i) (c : cmd),
       Pfor i [::] s c [::] s.
 
   Definition sem_Ind_for_cons : Prop :=
-    forall (s1 s1' s2 s3 : estate) (i : var_i) (w : Z) (ws : seq Z) (c : cmd) (lc lpc lf lf' : leakages),
+    forall (s1 s1' s2 s3 : estate) (i : var_i) (w : Z) (ws : seq Z) (c : cmd) (lc lf : leakages),
       write_var i w s1 = Ok error s1' ->
-      sem s1' c lc s2 -> Pc s1' c lpc s2 ->
-      sem_for i ws s2 c lf s3 -> Pfor i ws s2 c lf' s3 -> Pfor i (w :: ws) s1 c (lc ++ lpc ++ lf ++ lf') s3.
+      sem s1' c lc s2 -> Pc s1' c lc s2 ->
+      sem_for i ws s2 c lf s3 -> Pfor i ws s2 c lf s3 -> Pfor i (w :: ws) s1 c (lc ++ lf) s3.
 
   Hypotheses
     (Hfor: sem_Ind_for)
@@ -805,23 +805,23 @@ Section SEM_IND.
   Definition sem_Ind_call : Prop :=
     forall (s1 : estate) (m2 : mem) (s2 : estate)
            (ii : inline_info) (xs : lvals)
-           (fn : funname) (args : pexprs) (vargs vs : seq value) (largs lc lfun lw : leakages),
-      sem_pexprs gd s1 args = Ok error (vargs, largs) ->
-      sem_call (emem s1) fn vargs lc m2 vs -> Pfun (emem s1) fn vargs lfun m2 vs ->
+           (fn : funname) (args : pexprs) (vargs vs : seq value) (l1 lf lw : leakages),
+      sem_pexprs gd s1 args = Ok error (vargs, l1) ->
+      sem_call (emem s1) fn vargs lf m2 vs -> Pfun (emem s1) fn vargs lf m2 vs ->
       write_lvals gd {| emem := m2; evm := evm s1 |} xs vs = Ok error (s2, lw) ->
-      Pi_r s1 (Ccall ii xs fn args) (largs ++ lc ++ lfun ++ lw) s2.
+      Pi_r s1 (Ccall ii xs fn args) (l1 ++ lf ++ lw) s2.
 
   Definition sem_Ind_proc : Prop :=
     forall (m1 m2 : mem) (fn:funname) (f : fundef) (vargs vargs': seq value)
-           (s1 : estate) (vm2 : vmap) (vres vres': seq value) (lc lpc : leakages),
+           (s1 : estate) (vm2 : vmap) (vres vres': seq value) (lc : leakages),
       get_fundef (p_funcs P) fn = Some f ->
       mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
       write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
       sem s1 (f_body f) lc {| emem := m2; evm := vm2 |} ->
-      Pc s1 (f_body f) lpc {| emem := m2; evm := vm2 |} ->
+      Pc s1 (f_body f) lc {| emem := m2; evm := vm2 |} ->
       mapM (fun x : var_i => get_var vm2 x) (f_res f) = ok vres ->
       mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
-      Pfun m1 fn vargs' (lc ++ lpc) m2 vres'.
+      Pfun m1 fn vargs' lc m2 vres'.
 
   Hypotheses
     (Hcall: sem_Ind_call)
@@ -830,16 +830,16 @@ Section SEM_IND.
 
   Fixpoint sem_Ind (e : estate) (l : cmd) (le : leakages) (e0 : estate) (s : sem e l le e0) {struct s} :
     Pc e l le e0 :=
-    match s in (sem e1 l0 le1 e2) return (Pc e1 l0 lpe1 e2) with
+    match s in (sem e1 l0 l1 e2) return (Pc e1 l0 l1 e2) with
     | Eskip s0 => Hnil s0
     | @Eseq s1 s2 s3 i c s0 s4 li lc =>
-        @Hcons s1 s2 s3 i c s0 (@sem_I_Ind s1 i li s2 s0) s4 (@sem_Ind s2 c (li ++ lc) s3 s4)
+        @Hcons s1 s2 s3 i c s0 (@sem_I_Ind s1 i li s2 s0) s4 (@sem_Ind s2 c le s3 s4) li lc
     end
 
-  with sem_i_Ind (e : estate) (i : instr_r) (le : leakages) (e0 : estate) (s : sem_i e i e0) {struct s} :
-    Pi_r e i le e0 :=
-    match s in (sem_i e1 i0 li0 e2) return (Pi_r e1 i0 li0r e2) with
-    | @Eassgn s1 s2 x tag ty e1 v v' l1 l2 h1 h2 h3 => @Hasgn s1 s2 x tag ty e1 v v' l1 l2 h1 h2 h3
+  with sem_i_Ind (e : estate) (i : instr_r) (li : leakages) (e0 : estate) (s : sem_i e i li e0) {struct s} :
+    Pi_r e i li e0 :=
+    match s in (sem_i e1 i0 e2) return (Pi_r e1 i0 e2) with
+    | @Eassgn s1 s2 x tag ty e1 v v' h1 h2 h3 => @Hasgn s1 s2 x tag ty e1 v v' h1 h2 h3
     | @Eopn s1 s2 t o xs es e1 => @Hopn s1 s2 t o xs es e1
     | @Eif_true s1 s2 e1 c1 c2 e2 s0 =>
       @Hif_true s1 s2 e1 c1 c2 e2 s0 (@sem_Ind s1 c1 s2 s0)
@@ -858,14 +858,14 @@ Section SEM_IND.
         (@sem_call_Ind (emem s1) f13 vargs m2 vs s0) e3
     end
 
-  with sem_I_Ind (e : estate) (i : instr) (e0 : estate) (s : sem_I e i e0) {struct s} :
-    Pi e i e0 :=
+  with sem_I_Ind (e : estate) (i : instr) (li : leakages) (e0 : estate) (s : sem_I e i li e0) {struct s} :
+    Pi e i li e0 :=
     match s in (sem_I e1 i0 e2) return (Pi e1 i0 e2) with
     | @EmkI ii i0 s1 s2 s0 => @HmkI ii i0 s1 s2 s0 (@sem_i_Ind s1 i0 s2 s0)
     end
 
-  with sem_for_Ind (v : var_i) (l : seq Z) (e : estate) (l0 : cmd) (e0 : estate)
-         (s : sem_for v l e l0 e0) {struct s} : Pfor v l e l0 e0 :=
+  with sem_for_Ind (v : var_i) (l : seq Z) (e : estate) (l0 : cmd) (lf : leakages) (e0 : estate)
+         (s : sem_for v l e l0 lf e0) {struct s} : Pfor v l e l0 lf e0 :=
     match s in (sem_for v0 l1 e1 l2 e2) return (Pfor v0 l1 e1 l2 e2) with
     | EForDone s0 i c => Hfor_nil s0 i c
     | @EForOne s1 s1' s2 s3 i w ws c e1 s0 s4 =>
@@ -874,7 +874,7 @@ Section SEM_IND.
     end
 
   with sem_call_Ind (m : mem) (f13 : funname) (l : seq value) (m0 : mem)
-         (l0 : seq value) (s : sem_call m f13 l m0 l0) {struct s} : Pfun m f13 l m0 l0 :=
+         (l0 : seq value) (lf : leakages) (s : sem_call m f13 l lf m0 l0) {struct s} : Pfun m f13 l lf m0 l0 :=
     match s with
     | @EcallRun m1 m2 fn f vargs vargs' s1 vm2 vres vres' Hget Hctin Hw Hsem Hvres Hctout =>
        @Hproc m1 m2 fn f vargs vargs' s1 vm2 vres vres' Hget Hctin Hw Hsem (sem_Ind Hsem) Hvres Hctout
