@@ -781,7 +781,7 @@ Section SEM_IND.
   .
 
   Definition sem_Ind_for : Prop :=
-    forall (s1 s2 : estate) (i : var_i) r wr (c : cmd) (vlo vhi : Z) (lr lf: leakages),
+    forall (s1 s2 : estate) (i : var_i) r wr (c : cmd) (lr lf: leakages),
       sem_range s1 r = ok (wr, lr) ->
       sem_for i wr s1 c lf s2 ->
       Pfor i wr s1 c lf s2 -> Pi_r s1 (Cfor i r c) (lr ++ lf) s2.
@@ -832,52 +832,52 @@ Section SEM_IND.
     Pc e l le e0 :=
     match s in (sem e1 l0 l1 e2) return (Pc e1 l0 l1 e2) with
     | Eskip s0 => Hnil s0
-    | @Eseq s1 s2 s3 i c s0 s4 li lc =>
-        @Hcons s1 s2 s3 i c s0 (@sem_I_Ind s1 i li s2 s0) s4 (@sem_Ind s2 c le s3 s4) li lc
+    | @Eseq s1 s2 s3 i c li lc s0 s4 =>
+        @Hcons s1 s2 s3 i c li lc s0 (@sem_I_Ind s1 i li s2 s0) s4 (@sem_Ind s2 c lc s3 s4) 
     end
 
   with sem_i_Ind (e : estate) (i : instr_r) (li : leakages) (e0 : estate) (s : sem_i e i li e0) {struct s} :
     Pi_r e i li e0 :=
-    match s in (sem_i e1 i0 e2) return (Pi_r e1 i0 e2) with
-    | @Eassgn s1 s2 x tag ty e1 v v' h1 h2 h3 => @Hasgn s1 s2 x tag ty e1 v v' h1 h2 h3
-    | @Eopn s1 s2 t o xs es e1 => @Hopn s1 s2 t o xs es e1
-    | @Eif_true s1 s2 e1 c1 c2 e2 s0 =>
-      @Hif_true s1 s2 e1 c1 c2 e2 s0 (@sem_Ind s1 c1 s2 s0)
-    | @Eif_false s1 s2 e1 c1 c2 e2 s0 =>
-      @Hif_false s1 s2 e1 c1 c2 e2 s0 (@sem_Ind s1 c2 s2 s0)
-    | @Ewhile_true s1 s2 s3 s4 a c e1 c' h1 h2 h3 h4 =>
-      @Hwhile_true s1 s2 s3 s4 a c e1 c' h1 (@sem_Ind s1 c s2 h1) h2 h3 (@sem_Ind s2 c' s3 h3) 
-          h4 (@sem_i_Ind s3 (Cwhile a c e1 c') s4 h4)
-    | @Ewhile_false s1 s2 a c e1 c' s0 e2 =>
-      @Hwhile_false s1 s2 a c e1 c' s0 (@sem_Ind s1 c s2 s0) e2
-    | @Efor s1 s2 i0 d lo hi c vlo vhi e1 e2 s0 =>
-      @Hfor s1 s2 i0 d lo hi c vlo vhi e1 e2 s0
-        (@sem_for_Ind i0 (wrange d vlo vhi) s1 c s2 s0)
-    | @Ecall s1 m2 s2 ii xs f13 args vargs vs e2 s0 e3 =>
-      @Hcall s1 m2 s2 ii xs f13 args vargs vs e2 s0
-        (@sem_call_Ind (emem s1) f13 vargs m2 vs s0) e3
+    match s in (sem_i e1 i0 le1 e2) return (Pi_r e1 i0 le1 e2) with
+    | @Eassgn s1 s2 x tag ty e1 v v' l1 l2 h1 h2 h3 => @Hasgn s1 s2 x tag ty e1 v v' l1 l2 h1 h2 h3
+    | @Eopn s1 s2 t o xs es lo e1 => @Hopn s1 s2 t o xs es lo e1
+    | @Eif_true s1 s2 e1 c1 c2 le lc e2 s0 =>
+      @Hif_true s1 s2 e1 c1 c2 le lc e2 s0 (@sem_Ind s1 c1 lc s2 s0)
+    | @Eif_false s1 s2 e1 c1 c2 le lc e2 s0 =>
+      @Hif_false s1 s2 e1 c1 c2 le lc e2 s0 (@sem_Ind s1 c2 lc s2 s0)
+    | @Ewhile_true s1 s2 s3 s4 a c e1 c' lc le lc' lw h1 h2 h3 h4 =>
+      @Hwhile_true s1 s2 s3 s4 a c e1 c' lc le lc' lw h1 (@sem_Ind s1 c lc s2 h1) h2 h3 (@sem_Ind s2 c' lc' s3 h3) 
+          h4 (@sem_i_Ind s3 (Cwhile a c e1 c') lw s4 h4)
+    | @Ewhile_false s1 s2 a c e1 c' lc le s0 e2 =>
+      @Hwhile_false s1 s2 a c e1 c' lc le s0 (@sem_Ind s1 c lc s2 s0) e2
+    | @Efor s1 s2 i0 r c wr lr lf s0 sf =>
+      @Hfor s1 s2 i0 r wr c lr lf s0 sf
+        (@sem_for_Ind i0 wr s1 c lf s2 sf)
+    | @Ecall s1 m2 s2 ii xs f13 args vargs vs l1 lf l2 e2 s0 e3 =>
+      @Hcall s1 m2 s2 ii xs f13 args vargs vs l1 lf l2 e2 s0
+        (@sem_call_Ind (emem s1) f13 vargs m2 vs lf s0) e3
     end
 
   with sem_I_Ind (e : estate) (i : instr) (li : leakages) (e0 : estate) (s : sem_I e i li e0) {struct s} :
     Pi e i li e0 :=
-    match s in (sem_I e1 i0 e2) return (Pi e1 i0 e2) with
-    | @EmkI ii i0 s1 s2 s0 => @HmkI ii i0 s1 s2 s0 (@sem_i_Ind s1 i0 s2 s0)
+    match s in (sem_I e1 i0 le e2) return (Pi e1 i0 le e2) with
+    | @EmkI ii i0 s1 s2 li s0 => @HmkI ii i0 s1 s2 li s0 (@sem_i_Ind s1 i0 li s2 s0)
     end
 
   with sem_for_Ind (v : var_i) (l : seq Z) (e : estate) (l0 : cmd) (lf : leakages) (e0 : estate)
          (s : sem_for v l e l0 lf e0) {struct s} : Pfor v l e l0 lf e0 :=
-    match s in (sem_for v0 l1 e1 l2 e2) return (Pfor v0 l1 e1 l2 e2) with
+    match s in (sem_for v0 l1 e1 l2 le e2) return (Pfor v0 l1 e1 l2 le e2) with
     | EForDone s0 i c => Hfor_nil s0 i c
-    | @EForOne s1 s1' s2 s3 i w ws c e1 s0 s4 =>
-      @Hfor_cons s1 s1' s2 s3 i w ws c e1 s0 (@sem_Ind s1' c s2 s0)
-         s4 (@sem_for_Ind i ws s2 c s3 s4)
+    | @EForOne s1 s1' s2 s3 i w ws c lc lw e1 s0 s4 =>
+      @Hfor_cons s1 s1' s2 s3 i w ws c lc lw e1 s0 (@sem_Ind s1' c lc s2 s0)
+         s4 (@sem_for_Ind i ws s2 c lw s3 s4)
     end
 
   with sem_call_Ind (m : mem) (f13 : funname) (l : seq value) (m0 : mem)
          (l0 : seq value) (lf : leakages) (s : sem_call m f13 l lf m0 l0) {struct s} : Pfun m f13 l lf m0 l0 :=
     match s with
-    | @EcallRun m1 m2 fn f vargs vargs' s1 vm2 vres vres' Hget Hctin Hw Hsem Hvres Hctout =>
-       @Hproc m1 m2 fn f vargs vargs' s1 vm2 vres vres' Hget Hctin Hw Hsem (sem_Ind Hsem) Hvres Hctout
+    | @EcallRun m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hget Hctin Hw Hsem Hvres Hctout =>
+       @Hproc m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hget Hctin Hw Hsem (sem_Ind Hsem) Hvres Hctout
     end.
 
 End SEM_IND.
