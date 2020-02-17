@@ -5,7 +5,7 @@ require export JUtils JArray JWord JWord_array JMemory.
 
 (* -------------------------------------------------------------------- *)
 op MULX_64 : W64.t -> W64.t -> (W64.t * W64.t).
-op IMULtimm_64 : W64.t -> W64.t -> (bool * bool * bool * bool * bool * W64.t).
+op IMULri_64 : W64.t -> W64.t -> (bool * bool * bool * bool * bool * W64.t).
 op ADOX_64 : W64.t -> W64.t -> bool -> (bool * W64.t).
 op ADCX_64 : W64.t -> W64.t -> bool -> (bool * W64.t).
 op XOR_64 : W64.t -> W64.t -> (bool * bool * bool * bool * bool * W64.t).
