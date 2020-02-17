@@ -165,45 +165,65 @@ Notation "'Let' ( n , t ) ':=' s '.[' x ']' 'in' body" :=
   (@on_arr_var _ s x (fun n (t:WArray.array n) => body))
   (at level 25, s at level 0).
 
+Inductive leakage := 
+  | LeakAdr of pointer
+  | LeakIdx of Z
+  | LeakCond of bool.
+
+Definition leakages := seq leakage.
+
 Section SEM_PEXPR.
 
 Context (gd: glob_decls).
 
-Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
+Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec (value * leakages) :=
   match e with
-  | Pconst z => ok (Vint z)
-  | Pbool b  => ok (Vbool b)
-  | Parr_init n => ok (Varr (WArray.empty n))
-  | Pvar v => get_var s.(evm) v
-  | Pglobal g => get_global gd g
+  | Pconst z => ok (Vint z, [::])
+  | Pbool b  => ok (Vbool b, [::])
+  | Parr_init n => ok (Varr (WArray.empty n), [::])
+  | Pvar x => Let v := get_var s.(evm) x in 
+              ok (v, [::])
+  | Pglobal g => Let v := get_global gd g in 
+                 ok (v, [::])
   | Pget ws x e =>
       Let (n, t) := s.[x] in
-      Let i := sem_pexpr s e >>= to_int in
+      Let vl := sem_pexpr s e in 
+      Let i := to_int vl.1 in 
       Let w := WArray.get ws t i in
-      ok (Vword w)
+      ok ((Vword w), rcons vl.2 (LeakIdx i))
   | Pload sz x e =>
     Let w1 := get_var s.(evm) x >>= to_pointer in
-    Let w2 := sem_pexpr s e >>= to_pointer in
-    Let w  := read_mem s.(emem) (w1 + w2) sz in
-    ok (@to_val (sword sz) w)
+    Let vl2 := sem_pexpr s e in 
+    Let w2 := to_pointer vl2.1 in
+    let adr := (w1 + w2)%R in 
+    Let w  := read_mem s.(emem) adr sz in
+    ok (@to_val (sword sz) w, rcons vl2.2 (LeakAdr adr))
   | Papp1 o e1 =>
-    Let v1 := sem_pexpr s e1 in
-    sem_sop1 o v1
+    Let vl := sem_pexpr s e1 in
+    Let v := sem_sop1 o vl.1 in 
+    ok (v, vl.2)
   | Papp2 o e1 e2 =>
-    Let v1 := sem_pexpr s e1 in
-    Let v2 := sem_pexpr s e2 in
-    sem_sop2 o v1 v2
+    Let vl1 := sem_pexpr s e1 in
+    Let vl2 := sem_pexpr s e2 in
+    Let v := sem_sop2 o vl1.1 vl2.1 in
+    ok (v, vl1.2 ++ vl2.2)
   | PappN op es =>
     Let vs := mapM (sem_pexpr s) es in
-    sem_opN op vs
+    Let v := sem_opN op (unzip1 vs) in
+    ok (v, flatten (unzip2 vs))
   | Pif t e e1 e2 =>
-    Let b := sem_pexpr s e >>= to_bool in
-    Let v1 := sem_pexpr s e1 >>= truncate_val t in
-    Let v2 := sem_pexpr s e2 >>= truncate_val t in
-    ok (if b then v1 else v2)
+    Let vl := sem_pexpr s e in
+    Let b := to_bool vl.1in
+    Let vl1 := sem_pexpr s e1 in
+    Let vl2 := sem_pexpr s e2 in
+    Let v1 := truncate_val t vl1.1 in
+    Let v2 := truncate_val t vl2.1 in
+    ok (if b then v1 else v2, vl.2 ++ vl1.2 ++ vl2.2)
   end.
 
-Definition sem_pexprs s := mapM (sem_pexpr s).
+Definition sem_pexprs s es :=
+  Let vls := mapM (sem_pexpr s) es in
+  ok (unzip1 vls, flatten (unzip2 vls)). 
 
 Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
   Let vm := set_var s.(evm) x v in
@@ -216,28 +236,33 @@ Definition write_none (s:estate) ty v :=
   on_vu (fun v => s) (if is_sbool ty then ok s else type_error)
           (pof_val ty v).
 
-Definition write_lval (l:lval) (v:value) (s:estate) : exec estate :=
+Definition write_lval (l:lval) (v:value) (s:estate) : exec (estate * leakages) :=
   match l with
-  | Lnone _ ty => write_none s ty v
-  | Lvar x => write_var x v s
+  | Lnone _ ty => Let v := write_none s ty v in ok (v, [::])
+  | Lvar x => Let v := write_var x v s in ok(v, [::])
   | Lmem sz x e =>
     Let vx := get_var (evm s) x >>= to_pointer in
-    Let ve := sem_pexpr s e >>= to_pointer in
+    Let vl := sem_pexpr s e in 
+    Let ve := to_pointer vl.1 in
     let p := (vx + ve)%R in (* should we add the size of value, i.e vx + sz * se *)
     Let w := to_word sz v in
+    (* I think there should be a leakage here but not sure as I already mentioned leakage due to p *)
     Let m :=  write_mem s.(emem) p sz w in
-    ok {| emem := m;  evm := s.(evm) |}
+    ok ({| emem := m;  evm := s.(evm) |}, rcons vl.2 (LeakAdr p))
   | Laset ws x i =>
     Let (n,t) := s.[x] in
-    Let i := sem_pexpr s i >>= to_int in
+    Let vl := sem_pexpr s i in 
+    Let i := to_int vl.1 in
     Let v := to_word ws v in
     Let t := WArray.set t i v in
     Let vm := set_var s.(evm) x (@to_val (sarr n) t) in
-    ok ({| emem := s.(emem); evm := vm |})
+    ok ({| emem := s.(emem); evm := vm |}, rcons vl.2 (LeakIdx i))
   end.
 
 Definition write_lvals (s:estate) xs vs :=
-   fold2 ErrType write_lval xs vs s.
+   fold2 ErrType (fun l v sl => Let sl' := write_lval l v sl.1 in ok (sl'.1, sl.2 ++ sl'.2))
+      xs vs (s, [::]).
+
 
 End SEM_PEXPR.
 
@@ -251,135 +276,139 @@ Notation gd := (p_globs P).
 
 Definition sem_range (s : estate) (r : range) :=
   let: (d,pe1,pe2) := r in
-  Let i1 := sem_pexpr gd s pe1 >>= to_int in
-  Let i2 := sem_pexpr gd s pe2 >>= to_int in
-  ok (wrange d i1 i2).
+  Let vl1 := sem_pexpr gd s pe1 in 
+  Let i1 := to_int vl1.1 in 
+  Let vl2 := sem_pexpr gd s pe2 in 
+  Let i2 := to_int vl2.1 in
+  ok (wrange d i1 i2, vl1.2 ++ vl2.2).
 
-Definition sem_sopn gd o m lvs args :=
-  sem_pexprs gd m args >>= exec_sopn o >>= write_lvals gd m lvs.
+Definition sem_sopn gd o m lvs args := 
+  Let vas := sem_pexprs gd m args in
+  Let vs := exec_sopn o vas.1 in 
+  Let ml := write_lvals gd m lvs vs in
+  ok (ml.1, vas.2 ++ ml.2).
 
-Inductive sem : estate -> cmd -> estate -> Prop :=
+Inductive sem : estate -> cmd -> leakages -> estate -> Prop :=
 | Eskip s :
-    sem s [::] s
+    sem s [::] [::] s
 
-| Eseq s1 s2 s3 i c :
-    sem_I s1 i s2 -> sem s2 c s3 -> sem s1 (i::c) s3
+| Eseq s1 s2 s3 i c li lc :
+    sem_I s1 i li s2 -> sem s2 c lc s3 -> sem s1 (i::c) (li ++ lc) s3
 
-with sem_I : estate -> instr -> estate -> Prop :=
-| EmkI ii i s1 s2:
-    sem_i s1 i s2 ->
-    sem_I s1 (MkI ii i) s2
+with sem_I : estate -> instr -> leakages -> estate -> Prop :=
+| EmkI ii i s1 s2 li:
+    sem_i s1 i li s2 ->
+    sem_I s1 (MkI ii i) li s2
 
-with sem_i : estate -> instr_r -> estate -> Prop :=
-| Eassgn s1 s2 (x:lval) tag ty e v v' :
-    sem_pexpr gd s1 e = ok v ->
+with sem_i : estate -> instr_r -> leakages -> estate -> Prop :=
+| Eassgn s1 s2 (x:lval) tag ty e v v' l1 l2:
+    sem_pexpr gd s1 e = ok (v,l1)  ->
     truncate_val ty v = ok v' →
-    write_lval gd x v' s1 = ok s2 ->
-    sem_i s1 (Cassgn x tag ty e) s2
+    write_lval gd x v' s1 = ok (s2, l2) ->
+    sem_i s1 (Cassgn x tag ty e) (l1 ++ l2) s2
 
-| Eopn s1 s2 t o xs es:
-    sem_sopn gd o s1 xs es = ok s2 ->
-    sem_i s1 (Copn xs t o es) s2
+| Eopn s1 s2 t o xs es lo:
+    sem_sopn gd o s1 xs es = ok (s2, lo) ->
+    sem_i s1 (Copn xs t o es) lo s2
 
-| Eif_true s1 s2 e c1 c2 :
-    sem_pexpr gd s1 e = ok (Vbool true) ->
-    sem s1 c1 s2 ->
-    sem_i s1 (Cif e c1 c2) s2
+| Eif_true s1 s2 e c1 c2 le lc:
+    sem_pexpr gd s1 e = ok (Vbool true, le) ->
+    sem s1 c1 lc s2 ->
+    sem_i s1 (Cif e c1 c2) (le ++ lc) s2
 
-| Eif_false s1 s2 e c1 c2 :
-    sem_pexpr gd s1 e = ok (Vbool false) ->
-    sem s1 c2 s2 ->
-    sem_i s1 (Cif e c1 c2) s2
+| Eif_false s1 s2 e c1 c2 le lc:
+    sem_pexpr gd s1 e = ok (Vbool false, le) ->
+    sem s1 c2 lc s2 ->
+    sem_i s1 (Cif e c1 c2) (le ++ lc) s2
 
-| Ewhile_true s1 s2 s3 s4 a c e c' :
-    sem s1 c s2 ->
-    sem_pexpr gd s2 e = ok (Vbool true) ->
-    sem s2 c' s3 ->
-    sem_i s3 (Cwhile a c e c') s4 ->
-    sem_i s1 (Cwhile a c e c') s4
+| Ewhile_true s1 s2 s3 s4 a c e c' lc le lc' lw:
+    sem s1 c lc s2 ->
+    sem_pexpr gd s2 e = ok (Vbool true, le) ->
+    sem s2 c' lc' s3 ->
+    sem_i s3 (Cwhile a c e c') lw s4 ->
+    sem_i s1 (Cwhile a c e c') (lc ++ le ++ lc' ++ lw)s4
 
-| Ewhile_false s1 s2 a c e c' :
-    sem s1 c s2 ->
-    sem_pexpr gd s2 e = ok (Vbool false) ->
-    sem_i s1 (Cwhile a c e c') s2
+| Ewhile_false s1 s2 a c e c' lc le:
+    sem s1 c lc s2 ->
+    sem_pexpr gd s2 e = ok (Vbool false, le) ->
+    sem_i s1 (Cwhile a c e c') (lc ++ le) s2
 
-| Efor s1 s2 (i:var_i) d lo hi c vlo vhi :
-    sem_pexpr gd s1 lo = ok (Vint vlo) ->
-    sem_pexpr gd s1 hi = ok (Vint vhi) ->
-    sem_for i (wrange d vlo vhi) s1 c s2 ->
-    sem_i s1 (Cfor i (d, lo, hi) c) s2
+| Efor s1 s2 (i:var_i) r c wr lr lf:
+    sem_range s1 r = ok (wr, lr) ->
+    sem_for i wr s1 c lf s2 ->
+    sem_i s1 (Cfor i r c) (lr ++ lf) s2
 
-| Ecall s1 m2 s2 ii xs f args vargs vs :
-    sem_pexprs gd s1 args = ok vargs ->
-    sem_call s1.(emem) f vargs m2 vs ->
-    write_lvals gd {|emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->
-    sem_i s1 (Ccall ii xs f args) s2
+| Ecall s1 m2 s2 ii xs f args vargs vs l1 lf l2:
+    sem_pexprs gd s1 args = ok (vargs, l1) ->
+    sem_call s1.(emem) f vargs lf m2 vs ->
+    write_lvals gd {|emem:= m2; evm := s1.(evm) |} xs vs = ok (s2, l2) ->
+    sem_i s1 (Ccall ii xs f args) (l1 ++ lf ++ l2) s2
 
-with sem_for : var_i -> seq Z -> estate -> cmd -> estate -> Prop :=
+with sem_for : var_i -> seq Z -> estate -> cmd -> leakages -> estate -> Prop :=
 | EForDone s i c :
-    sem_for i [::] s c s
+    sem_for i [::] s c [::] s
 
-| EForOne s1 s1' s2 s3 i w ws c :
+| EForOne s1 s1' s2 s3 i w ws c lc lw :
     write_var i (Vint w) s1 = ok s1' ->
-    sem s1' c s2 ->
-    sem_for i ws s2 c s3 ->
-    sem_for i (w :: ws) s1 c s3
+    sem s1' c lc s2 ->
+    sem_for i ws s2 c lw s3 ->
+    sem_for i (w :: ws) s1 c (lc ++ lw) s3
 
-with sem_call : mem -> funname -> seq value -> mem -> seq value -> Prop :=
-| EcallRun m1 m2 fn f vargs vargs' s1 vm2 vres vres' :
+with sem_call : mem -> funname -> seq value -> leakages -> mem -> seq value -> Prop :=
+| EcallRun m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc :
     get_fundef (p_funcs P) fn = Some f ->
     mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
     write_vars f.(f_params) vargs (Estate m1 vmap0) = ok s1 ->
-    sem s1 f.(f_body) (Estate m2 vm2) ->
+    sem s1 f.(f_body) lc (Estate m2 vm2) ->
     mapM (fun (x:var_i) => get_var vm2 x) f.(f_res) = ok vres ->
     mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
-    sem_call m1 fn vargs'  m2 vres'.
+    sem_call m1 fn vargs' lc m2 vres'.
 
-Lemma semE s c s' :
-  sem s c s' ->
+Lemma semE s c s' lc:
+  sem s c lc s' ->
   match c with
   | [::] => s' = s
-  | i :: c' => exists si, sem_I s i si /\ sem si c' s'
+  | i :: c' => exists si li lc', sem_I s i li si /\ sem si c' lc' s'
   end.
 Proof. by case; eauto. Qed.
 
-Lemma sem_IE s i s' :
-  sem_I s i s' ->
+Lemma sem_IE s i s' li:
+  sem_I s i li s' ->
   let 'MkI ii r := i in
-  sem_i s r s'.
+  sem_i s r li s'.
 Proof. by case. Qed.
 
-Lemma sem_iE s i s' :
-  sem_i s i s' ->
+Lemma sem_iE s i s' li:
+  sem_i s i li s' ->
   match i with
   | Cassgn lv _ ty e =>
-    ∃ v v',
-    [/\ sem_pexpr gd s e = ok v, truncate_val ty v = ok v' & write_lval gd lv v' s = ok s' ]
-  | Copn lvs _ op es => sem_sopn gd op s lvs es = ok s'
+    ∃ v v' le lw,
+    [/\ sem_pexpr gd s e = ok (v, le), truncate_val ty v = ok v' & write_lval gd lv v' s = ok (s', lw) ]
+  | Copn lvs _ op es => sem_sopn gd op s lvs es = ok (s', li)
   | Cif e th el =>
-    ∃ b, sem_pexpr gd s e = ok (Vbool b) ∧ sem s (if b then th else el) s'
-  | Cfor i (d, lo, hi) c =>
-    ∃ vlo vhi,
-    [/\ sem_pexpr gd s lo = ok (Vint vlo), sem_pexpr gd s hi = ok (Vint vhi) &
-        sem_for i (wrange d vlo vhi) s c s' ]
+    ∃ b le lc, sem_pexpr gd s e = ok (Vbool b, le) ∧ sem s (if b then th else el) lc s'
+  | Cfor i r c =>
+    ∃ wr lr lf,
+    [/\ sem_range s r = ok (wr, lr) &
+        sem_for i wr s c lf s' ]
   | Cwhile a c e c' =>
-    ∃ si b,
-       [/\ sem s c si, sem_pexpr gd si e = ok (Vbool b) &
-                       if b then ∃ sj, sem si c' sj ∧ sem_i sj (Cwhile a c e c') s' else si = s' ]
+    ∃ si b lc le,
+       [/\ sem s c lc si, sem_pexpr gd si e = ok (Vbool b, le) &
+                       if b then ∃ sj lc' lw, sem si c' lc' sj ∧ sem_i sj (Cwhile a c e c') lw s' else si = s' ]
   | Ccall _ xs f es =>
-    ∃ vs m2 rs,
-    [/\ sem_pexprs gd s es = ok vs, sem_call s.(emem) f vs m2 rs &
-       write_lvals gd {|emem:= m2; evm := s.(evm) |} xs rs = ok s' ]
+    ∃ vs m2 rs l1 lf l2,
+    [/\ sem_pexprs gd s es = ok (vs, l1), sem_call s.(emem) f vs lf m2 rs &
+       write_lvals gd {|emem:= m2; evm := s.(evm) |} xs rs = ok (s', l2) ]
   end.
 Proof.
-  case => {s i s'} //.
-  - by move => s s' x _ ty e v v' hv hv' hw; exists v, v'.
-  - by move => s s' e th el he hth; exists true.
-  - by move => s s' e th el he hel; exists false.
-  - by move => s si sj s' c e c' hc he hc' hrec; exists si, true; constructor => //; exists sj.
-  - by move => s s' c e c' hc he; exists s', false.
-  - by move => s s' i d lo hi c vlo vhi hlo hhi hc; exists vlo, vhi.
-  by move => s m s' _ xs f es vs rs hvs h hrs; exists vs, m, rs.
+  case => {s i li s'} //.
+  - by move => s s' x _ ty e v v' le lw hv hv' hw; exists v, v', le, lw.
+  - by move => s s' e th el le lc he hth; exists true, le, lc.
+  - by move => s s' e th el le lc he hel; exists false, le, lc.
+  - by move => s si sj s' a c e c' lc le lc' lw hc he hc' hrec; exists si, true, lc, le; constructor => //; exists sj, lc', lw.
+  - by move => s s' a c e c' lc le hc he; exists s', false, lc, le.
+  - by move => s s' i r c wr lr lf hr hf; exists wr, lr, lf.
+  by move => s m s' _ xs f es vs rs l1 lf l2 hvs h hrs; exists vs, m, rs, l1, lf, l2.
 Qed.
 
 Lemma sem_callE m1 fn vargs' m2 vres' :
