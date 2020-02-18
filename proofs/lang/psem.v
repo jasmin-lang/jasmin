@@ -238,7 +238,7 @@ Definition write_none (s:estate) ty v :=
 
 Definition write_lval (l:lval) (v:value) (s:estate) : exec (estate * leakages) :=
   match l with
-  | Lnone _ ty => Let v := write_none s ty v in ok (v, [::])
+  | Lnone _ ty => Let x := write_none s ty v in ok (x, [::])
   | Lvar x => Let v := write_var x v s in ok(v, [::])
   | Lmem sz x e =>
     Let vx := get_var (evm s) x >>= to_pointer in
@@ -890,16 +890,38 @@ Lemma sem_app P l1 l2 s1 s2 s3 ls1 ls2:
   sem P s1 l1 ls1 s2 -> sem P s2 l2 ls2 s3 ->
   sem P s1 (l1 ++ l2) (ls1 ++ ls2) s3.
 Proof.
+  intros.
+  induction H.
+  simpl; auto.
+  simpl.
+  rewrite <- catA.
+  generalize (IHsem H0).
+  intros.
+  apply Eseq with s2.
+  assumption.
+  assumption.
+Qed.
+
+(* Proof.
   elim: l1 s1;first by move => s1 /semE ->.
   move=> a l Hrec s1 /semE [si] [h1 hi] h.
   by apply (Eseq h1);apply Hrec.
+Qed.*)
+
+Lemma sem_seq1 P i s1 s2 li:
+  sem_I P s1 i li s2 -> sem P s1 [::i] li s2.
+Proof.
+  move=> Hi.
+  replace li with (li ++ [::]).
+  replace [::i] with (i :: [::]).
+  apply Eseq with s2; auto; constructor.
+  auto.
+  apply cats0.
 Qed.
 
-Lemma sem_seq1 P i s1 s2:
-  sem_I P s1 i s2 -> sem P s1 [::i] s2.
-Proof.
+(*Proof.
   move=> Hi; apply (Eseq Hi);constructor.
-Qed.
+Qed.*)
 
 Definition vmap_eq_except (s : Sv.t) (vm1 vm2 : vmap) :=
   forall x, ~Sv.In x s -> vm1.[x]%vmap = vm2.[x]%vmap.
@@ -949,11 +971,13 @@ Proof.
   by case:ifPn => // /eqP ? [->];split => //;right.
 Qed.
 
-Lemma vrvP gd (x:lval) v s1 s2 :
-  write_lval gd x v s1 = ok s2 ->
+(* FIXES NEEDED *)
+Lemma vrvP gd (x:lval) v s1 s2 lw:
+  write_lval gd x v s1 = ok (s2, lw) ->
   s1.(evm) = s2.(evm) [\ vrv x].
 Proof.
-  case x => /= [ _ ty | ? /vrvP_var| sz y e| sz y e] //.
+Admitted.
+(*case x => /= [ _ ty | ? /vrvP_var| sz y e| sz y e] //.
   + by move=> /write_noneP [->].
   + by t_xrbindP => ptr yv hyv hptr ptr' ev hev hptr' w hw m hm <-.
   apply: on_arr_varP => n t; case: y => -[] ty yn yi /subtypeEl [n' /= [-> hle]] hget.
@@ -961,30 +985,35 @@ Proof.
   apply: rbindP => v0 Hv0;apply rbindP => t' Ht'.
   rewrite /set_var /= => -[<-].
   move=> z Hz; rewrite Fv.setP_neq //;apply /eqP;SvD.fsetdec.
-Qed.
+Qed.*)
 
-Lemma vrvsP gd xs vs s1 s2 :
-  write_lvals gd s1 xs vs = ok s2 ->
+Lemma vrvsP gd xs vs s1 s2 lw:
+  write_lvals gd s1 xs vs = ok (s2, lw) ->
   s1.(evm) = s2.(evm) [\ vrvs xs].
 Proof.
-  elim: xs vs s1 s2 => [|x xs Hrec] [|v vs] s1 s2 //=.
-  + by move=> [<-].
-  apply: rbindP => s /vrvP Hrv /Hrec Hrvs.
-  rewrite vrvs_cons;apply: (@vmap_eq_exceptT (evm s)).
-  + by apply: vmap_eq_exceptI Hrv;SvD.fsetdec.
-  by apply: vmap_eq_exceptI Hrvs;SvD.fsetdec.
-Qed.
+Admitted.
+(*case x => /= [ _ ty | ? /vrvP_var| sz y e| sz y e] //.
+  + by move=> /write_noneP [->].
+  + by t_xrbindP => ptr yv hyv hptr ptr' ev hev hptr' w hw m hm <-.
+  apply: on_arr_varP => n t; case: y => -[] ty yn yi /subtypeEl [n' /= [-> hle]] hget.
+  apply: rbindP => we;apply: rbindP => ve He Hve.
+  apply: rbindP => v0 Hv0;apply rbindP => t' Ht'.
+  rewrite /set_var /= => -[<-].
+  move=> z Hz; rewrite Fv.setP_neq //;apply /eqP;SvD.fsetdec.
+Qed.*)
 
-Lemma writeP P c s1 s2 :
-   sem P s1 c s2 -> s1.(evm) = s2.(evm) [\ write_c c].
+Lemma writeP P c s1 s2 lc:
+   sem P s1 c lc s2 -> s1.(evm) = s2.(evm) [\ write_c c].
 Proof.
-  apply (@sem_Ind P (fun s1 c s2 => s1.(evm) = s2.(evm) [\ write_c c])
-                  (fun s1 i s2 => s1.(evm) = s2.(evm) [\ write_i i])
-                  (fun s1 i s2 => s1.(evm) = s2.(evm) [\ write_I i])
-                  (fun x ws s1 c s2 =>
+  
+  apply (@sem_Ind P (fun s1 c lc s2 => s1.(evm) = s2.(evm) [\ write_c c])
+                  (fun s1 i li s2 => s1.(evm) = s2.(evm) [\ write_i i])
+                  (fun s1 i li s2 => s1.(evm) = s2.(evm) [\ write_I i])
+                  (fun x ws s1 c lc s2 =>
                      s1.(evm) = s2.(evm) [\ (Sv.union (Sv.singleton x) (write_c c))])
-                  (fun _ _ _ _ _ => True)) => {c s1 s2} //.
+                  (fun _ _ _ _ _  _=> True)) => {c s1 s2} //.
   + move=> s1 s2 s3 i c _ Hi _ Hc z;rewrite write_c_cons => Hnin.
+    rewrite Hc.
     by rewrite Hi ?Hc //;SvD.fsetdec.
   + move=> s1 s2 x tag ty e v v' ? hty Hw z.
     by rewrite write_i_assgn;apply (vrvP Hw).
