@@ -1,0 +1,10 @@
+export fn test(reg u64 in) -> reg u64
+{
+  reg u32 u;
+  reg u64 r;
+
+  u = in;
+  u >>s= 16;
+  r = (64u)u;
+  return r;
+}
