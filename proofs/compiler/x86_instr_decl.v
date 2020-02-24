@@ -87,7 +87,9 @@ Variant asm_op : Type :=
 
   (* Bit shifts *)
 | ROR    of wsize    (* rotation / right *)
-| ROL    of wsize    (* rotation / left *)
+| ROL    of wsize    (* rotation / left  *)
+| RCR    of wsize    (* rotation / right with carry *)
+| RCL    of wsize    (* rotation / left  with carry *)
 | SHL    of wsize    (* unsigned / left  *)
 | SHR    of wsize    (* unsigned / right *)
 | SAL    of wsize    (*   signed / left; synonym of SHL *)
@@ -159,6 +161,7 @@ Definition w256_ty          := [:: sword256].
 
 Definition w2b_ty   sz sz'  := [:: sword sz; sword sz'; sbool].
 Definition ww8_ty   sz      := [:: sword sz; sword8].
+Definition ww8b_ty   sz     := [:: sword sz; sword8; sbool].
 Definition w2w8_ty   sz     := [:: sword sz; sword sz; sword8].
 Definition w128w8_ty        := [:: sword128; sword8].
 Definition w128ww8_ty sz    := [:: sword128; sword sz; sword8].
@@ -446,13 +449,45 @@ Definition x86_ROL sz (v: word sz) (i: u8) : ex_tpl (b2w_ty sz) :=
     let OF := if i == 1%R then Some (msb r != CF) else None in
     ok (:: OF, Some CF & r ).
 
+Definition x86_RCL sz (v: word sz) (i: u8) (cf:bool) : ex_tpl (b2w_ty sz) :=
+  Let _  := check_size_8_64 sz in
+  let i := wand i (x86_shift_mask sz) in
+  let im := 
+    match sz with
+    | U8 => Zmod (wunsigned i) 9 
+    | U16 => Zmod (wunsigned i) 17
+    | _  => wunsigned i
+    end in
+  let r := CoqWord.word.t2w [tuple of cf::CoqWord.word.w2t v] in 
+  let r := CoqWord.word.rotl r (Z.to_nat im) in 
+  let CF := CoqWord.word.msb r in
+  let r : word sz := CoqWord.word.t2w [tuple of behead (CoqWord.word.w2t r)] in
+  let OF := if i == 1%R then Some (msb r != CF) else None in
+  ok (:: OF, Some CF & r ).
+
+Definition x86_RCR sz (v: word sz) (i: u8) (cf:bool) : ex_tpl (b2w_ty sz) :=
+  Let _  := check_size_8_64 sz in
+  let i := wand i (x86_shift_mask sz) in
+  let im := 
+    match sz with
+    | U8 => Zmod (wunsigned i) 9 
+    | U16 => Zmod (wunsigned i) 17
+    | _  => wunsigned i
+    end in
+  let OF := if i == 1%R then Some (msb v != cf) else None in  
+  let r := CoqWord.word.t2w [tuple of rcons (CoqWord.word.w2t v) cf] in 
+  let r := CoqWord.word.rotr r (Z.to_nat im) in 
+  let CF := CoqWord.word.lsb r in
+  let r : word sz := CoqWord.word.t2w [tuple of rev (behead (rev (CoqWord.word.w2t r)))] in
+  ok (:: OF, Some CF & r ).
+
 Definition rflags_OF {s} sz (i:word s) (r:word sz) rc OF : ex_tpl (b5w_ty sz) :=
-    let OF := if i == 1%R then Some OF else None in
-    let CF := Some rc in
-    let SF := Some (SF_of_word r) in
-    let PF := Some (PF_of_word r) in
-    let ZF := Some (ZF_of_word r) in
-    ok (:: OF, CF, SF, PF, ZF & r).
+  let OF := if i == 1%R then Some OF else None in
+  let CF := Some rc in
+  let SF := Some (SF_of_word r) in
+  let PF := Some (PF_of_word r) in
+  let ZF := Some (ZF_of_word r) in
+  ok (:: OF, CF, SF, PF, ZF & r).
 
 Definition x86_SHL sz (v: word sz) (i: u8) : ex_tpl (b5w_ty sz) :=
   Let _  := check_size_8_64 sz in
@@ -760,6 +795,9 @@ Notation mk_instr_ww8_w_120 name semi check max_imm prc pp_asm := ((fun sz =>
 Notation mk_instr_ww8_b2w_0c0 name semi check max_imm prc pp_asm := ((fun sz =>
   mk_instr (pp_sz name sz) (ww8_ty sz) (b2w_ty sz) [:: E 0; ADExplicit 1 (Some RCX)] [::F OF; F CF; E 0] MSB_CLEAR (semi sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
+Notation mk_instr_ww8b_b2w_0c0 name semi check max_imm prc pp_asm := ((fun sz =>
+  mk_instr (pp_sz name sz) (ww8b_ty sz) (b2w_ty sz) [:: E 0; ADExplicit 1 (Some RCX); F CF] [::F OF; F CF; E 0] MSB_CLEAR (semi sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+
 Notation mk_instr_ww8_b5w_0c0 name semi check max_imm prc pp_asm := ((fun sz =>
   mk_instr (pp_sz name sz) (ww8_ty sz) (b5w_ty sz) [:: E 0; ADExplicit 1 (Some RCX)] (implicit_flags ++ [:: E 0]) MSB_CLEAR (semi sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
@@ -1010,18 +1048,26 @@ Definition Ox86_NOT_instr               :=
 
 Definition check_ror (_:wsize):= [::[::rm false; ri U8]].
 Definition Ox86_ROR_instr               := 
-  mk_instr_ww8_b2w_0c0 "ROR" x86_ROR check_ror imm8 (primP ROR) (pp_iname_w_8 "ROR").
+  mk_instr_ww8_b2w_0c0 "ROR" x86_ROR check_ror imm8 (primP ROR) (pp_iname_w_8 "ror").
 
 Definition Ox86_ROL_instr := 
-  mk_instr_ww8_b2w_0c0 "ROL" x86_ROL check_ror imm8 (primP ROL) (pp_iname_w_8 "ROL").
+  mk_instr_ww8_b2w_0c0 "ROL" x86_ROL check_ror imm8 (primP ROL) (pp_iname_w_8 "rol").
+
+Definition Ox86_RCR_instr := 
+  mk_instr_ww8b_b2w_0c0 "RCR" x86_RCR check_ror imm8 (primP RCR) (pp_iname_w_8 "rcr").
+
+Definition Ox86_RCL_instr := 
+  mk_instr_ww8b_b2w_0c0 "RCL" x86_RCL check_ror imm8 (primP RCL) (pp_iname_w_8 "rcl").
 
 Definition Ox86_SHL_instr := 
   mk_instr_ww8_b5w_0c0 "SHL" x86_SHL check_ror imm8 (primP SHL) (pp_iname_w_8 "shl").
 
 Definition Ox86_SHR_instr := 
   mk_instr_ww8_b5w_0c0 "SHR" x86_SHR check_ror imm8 (primP SHR) (pp_iname_w_8 "shr").
+
 Definition Ox86_SAL_instr := 
   mk_instr_ww8_b5w_0c0 "SAL" x86_SHL check_ror imm8 (primP SAL) (pp_iname_w_8 "sal"). 
+
 Definition Ox86_SAR_instr :=
   mk_instr_ww8_b5w_0c0 "SAR" x86_SAR check_ror imm8 (primP SAR) (pp_iname_w_8 "sar").
 
@@ -1204,6 +1250,8 @@ Definition instr_desc o : instr_desc_t :=
   | NOT sz             => Ox86_NOT_instr.1 sz
   | ROL sz             => Ox86_ROL_instr.1 sz
   | ROR sz             => Ox86_ROR_instr.1 sz
+  | RCL sz             => Ox86_RCL_instr.1 sz
+  | RCR sz             => Ox86_RCR_instr.1 sz
   | SHL sz             => Ox86_SHL_instr.1 sz
   | SHR sz             => Ox86_SHR_instr.1 sz
   | SAR sz             => Ox86_SAR_instr.1 sz
@@ -1282,6 +1330,8 @@ Definition prim_string :=
    Ox86_NOT_instr.2;
    Ox86_ROL_instr.2;
    Ox86_ROR_instr.2;
+   Ox86_RCL_instr.2;
+   Ox86_RCR_instr.2;
    Ox86_SHL_instr.2;
    Ox86_SHR_instr.2;
    Ox86_SAR_instr.2;
