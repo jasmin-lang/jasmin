@@ -841,7 +841,7 @@ Lemma wrange_cons lo hi : lo < hi ->
 Proof.
 set s1 := wrange _ _ _; set s2 := wrange _ _ _ => /=.
 move=> lt; apply/(@eq_from_nth _ 0) => /=.
-+ rewrite {}/s1 {}/s2 !size_wrange -Z2Nat.inj_succ; try lia.
++ rewrite {}/s1 {}/s2 !size_wrange -Z2Nat.inj_succ; last lia.
   by apply: Nat2Z.inj; rewrite !Z2Nat.id; lia.
 rewrite {1}/s1 size_wrange; case => [|i].
 + rewrite /s2 nth_wrange /=; try lia.
@@ -849,8 +849,8 @@ rewrite {1}/s1 size_wrange; case => [|i].
 move=> lti; rewrite -[nth _ (_ :: _) _]/(nth 0 s1 i) {}/s1 {}/s2.
 rewrite !nth_wrange; first lia; last first.
 + by apply/leP; move/leP: lti; lia.
-apply/leP/Nat2Z.inj_lt; rewrite Z2Nat.id; try lia.
-move/leP/Nat2Z.inj_lt: lti; try rewrite -Z2Nat.inj_succ; try lia.
+apply/leP/Nat2Z.inj_lt; rewrite Z2Nat.id; last lia.
+move/leP/Nat2Z.inj_lt: lti; try rewrite -Z2Nat.inj_succ; last lia.
 by rewrite Z2Nat.id; lia.
 Qed.
 
