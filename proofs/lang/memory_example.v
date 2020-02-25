@@ -867,6 +867,7 @@ Module MemoryI : MemoryT.
       have : wsize_size s <= 32 by case: (s).
       have := wsize_size_pos s.
       move: (wsize_size s) => x x_pos x_le_32 nx qx_range L K.
+      suff : 0 <= n ∧ 0 <= q;
       Psatz.nia.
     move => old_not_allocated; split; first by case.
     move/allP => new_allocated; elim: old_not_allocated => /= i /dup[] {}/new_allocated.
