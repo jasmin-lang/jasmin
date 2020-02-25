@@ -862,18 +862,6 @@ Qed.
 Definition fundef_eqMixin     := Equality.Mixin fundef_eq_axiom.
 Canonical  fundef_eqType      := Eval hnf in EqType fundef fundef_eqMixin.
 
-Definition prog_beq p1 p2 := (p_globs p1 == p_globs p2) && (p_funcs p1 == p_funcs p2).
-
-Lemma prog_eq_axiom : Equality.axiom prog_beq.
-Proof.
-  move=> [gd1 fs1] [gd2 fs2] /=.
-  apply (@equivP ((gd1 == gd2) && (fs1 == fs2)));first by apply idP.
-  by split => [/andP [] | []] /eqP -> /eqP ->.
-Qed.
-
-Definition prog_eqMixin     := Equality.Mixin prog_eq_axiom.
-Canonical  prog_eqType      := Eval hnf in EqType prog prog_eqMixin.
-
 Definition map_prog (F: fundef -> fundef) (p:prog) :=
   {| p_globs := p_globs p;
      p_funcs := map (fun f => (f.1, F f.2)) (p_funcs p) |}.

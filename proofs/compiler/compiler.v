@@ -44,7 +44,7 @@ Fixpoint unroll (n:nat) (p:prog) :=
   | O   => cferror Ferr_loop
   | S n =>
     Let p' := unroll1 p in
-    if p == p' then cfok p
+    if (p_funcs p == p_funcs p') then cfok p
     else unroll n p'
   end.
 
