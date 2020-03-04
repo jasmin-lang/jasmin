@@ -132,7 +132,7 @@ Variant lsem_fd (wrip: pointer) m1 fn va' m2 vr' : Prop :=
     get_fundef P.(lp_funcs) fn = Some fd ->
     alloc_stack m1 fd.(lfd_stk_size) = ok m1' ->
     let c := fd.(lfd_body) in
-    write_vars [:: S.vid (lfd_nstk fd)   ; S.vid P.(lp_rip)]
+    write_vars [:: S.vid P.(lp_stk_id)   ; S.vid P.(lp_rip)]
                [:: Vword (top_stack m1'); Vword wrip] (Estate m1' vmap0) = ok s1 ->
     mapM2 ErrType truncate_val fd.(lfd_tyin) va' = ok va ->
     write_vars fd.(lfd_arg) va s1 = ok s2 ->

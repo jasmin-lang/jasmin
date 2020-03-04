@@ -845,8 +845,7 @@ Section PROOF.
   Proof.
     move=> fn m1 va m2 vr [] {fn m1 va m2 vr}
       m1 m2 fn sf vargs vargs' s1 s2 m2' vm2 vres vres' m1' Hsf Halloc Hs1 Htyi Hs2 Hbody Hres Htyo Hfree.
-    have := linear_ok; rewrite /linear_prog; t_xrbindP.
-    move=> lfs H0' ?; subst p'.
+    move: linear_ok; apply: rbindP => funcs H0' [] ?; subst p'.
     have [f' [Hf'1 Hf'2]] := (get_map_cfprog H0' Hsf).
     have Hf'3 := Hf'1.
     apply: rbindP Hf'3=> [l Hc] [] Hf'3.

@@ -69,7 +69,6 @@ Definition find_label (lbl : label) (c : seq linstr) :=
 
 Record lfundef := LFundef {
  lfd_stk_size : Z;
- lfd_nstk : Ident.ident;
  lfd_tyin : seq stype;
  lfd_arg  : seq var_i;
  lfd_body : lcmd;
@@ -81,9 +80,10 @@ Record lfundef := LFundef {
 Definition signature_of_lfundef (lfd: lfundef) : function_signature :=
   (lfd_tyin lfd, lfd_tyout lfd).
 
-Record lprog := 
+Record lprog :=
  {  lp_rip   : Ident.ident;
     lp_globs : seq u8;
+    lp_stk_id: Ident.ident;
     lp_funcs : seq (funname * lfundef) }.
 
 (* --------------------------------------------------------------------------- *)
@@ -197,14 +197,15 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Ccall _ _ _ _ => cierror ii (Cerr_linear "call found in linear")
   end.
 
-Definition linear_fd nstk (fd: sfundef) :=
+Definition linear_fd (fd: sfundef) :=
   Let fd' := linear_c linear_i (sf_body fd) 1%positive [::] in
-  ok (LFundef (sf_stk_sz fd) nstk (sf_tyin fd) (sf_params fd) fd'.2 (sf_tyout fd) (sf_res fd) (sf_extra fd)).
+  ok (LFundef (sf_stk_sz fd) (sf_tyin fd) (sf_params fd) fd'.2 (sf_tyout fd) (sf_res fd) (sf_extra fd)).
 
 Definition linear_prog (p: sprog) : cfexec lprog :=
-  Let funcs := map_cfprog (linear_fd p.(sp_stk_id)) p.(sp_funcs) in
+  Let funcs := map_cfprog linear_fd p.(sp_funcs) in
   ok {| lp_rip   := p.(sp_rip);
         lp_globs := p.(sp_globs);
+        lp_stk_id := p.(sp_stk_id);
         lp_funcs := funcs |}.
 
 Module Eq_linstr.

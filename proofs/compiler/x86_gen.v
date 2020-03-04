@@ -31,18 +31,9 @@ Definition assemble_c rip (lc: lcmd) : ciexec (seq asm) :=
   mapM (assemble_i rip) lc.
 
 (* -------------------------------------------------------------------- *)
-Variant x86_gen_error_t :=
-| X86Error_InvalidStackPointer
-| X86Error_StackPointerInArguments of register
-.
-
-Definition x86_gen_error (e: x86_gen_error_t) : instr_error :=
+Definition x86_gen_error (sp: register) : instr_error :=
   (xH, Cerr_assembler (AsmErr_string
-  match e with
-  | X86Error_InvalidStackPointer => "Invalid stack pointer"
-  | X86Error_StackPointerInArguments sp =>
-    "Stack pointer (" ++ string_of_register sp ++ ") is also an argument"
-  end)).
+    ("Stack pointer (" ++ string_of_register sp ++ ") is also an argument"))).
 
 (* -------------------------------------------------------------------- *)
 
@@ -53,21 +44,16 @@ Definition assemble_saved_stack (x:stack_alloc.saved_stack) :=
   | stack_alloc.SavedStackStk z => ok (x86_sem.SavedStackStk z)
   end.
 
-Definition assemble_fd rip (fd: lfundef) :=
+Definition assemble_fd sp rip (fd: lfundef) :=
   Let fd' := assemble_c rip (lfd_body fd) in
+  Let arg := reg_of_vars xH (lfd_arg fd) in
+  Let res := reg_of_vars xH (lfd_res fd) in
+  Let _ :=
+    assert (~~ (sp \in arg)) (x86_gen_error sp) in
+  Let tosave := reg_of_vars xH (map (fun x => VarI x xH) (lfd_extra fd).1) in
+  Let saved  := assemble_saved_stack (lfd_extra fd).2 in
+  ciok (XFundef (lfd_stk_size fd) sp arg fd' res (tosave, saved)).
 
-  match (reg_of_string (lfd_nstk fd)) with
-  | Some sp =>
-      Let arg := reg_of_vars xH (lfd_arg fd) in
-      Let res := reg_of_vars xH (lfd_res fd) in
-      Let _ :=
-        assert (~~ (sp \in arg)) (x86_gen_error (X86Error_StackPointerInArguments sp)) in
-      Let tosave := reg_of_vars xH (map (fun x => VarI x xH) (lfd_extra fd).1) in
-      Let saved  := assemble_saved_stack (lfd_extra fd).2 in
-      ciok (XFundef (lfd_stk_size fd) sp arg fd' res (tosave, saved))
-
-  | None => Error (x86_gen_error X86Error_InvalidStackPointer)
-  end.
 
 (* -------------------------------------------------------------------- *)
 
@@ -77,9 +63,12 @@ Definition assemble_prog (p: lprog) : cfexec xprog :=
   let rip := mk_rip p.(lp_rip) in
   Let _ := assert (register_of_var rip == None)
                     (Ferr_msg (Cerr_assembler ( AsmErr_string "Invalid RIP: please report"))) in                       
-  Let fds := map_cfprog (assemble_fd rip) p.(lp_funcs) in
-  ok {| xp_globs := p.(lp_globs);
-        xp_funcs := fds |}.
+  match (reg_of_string p.(lp_stk_id)) with
+  | Some sp =>
+    Let fds := map_cfprog (assemble_fd sp rip) p.(lp_funcs) in
+    ok {| xp_globs := p.(lp_globs); xp_funcs := fds |}
+  | None => Error (Ferr_fun xH (Cerr_assembler (AsmErr_string "Invalid stack pointer")))
+  end.
 
 (* -------------------------------------------------------------------- *)
 Variant match_state rip (ls: lstate) (xs: x86_state) : Prop :=
@@ -282,18 +271,19 @@ case => m1' fd va' vm2 m2' s1 s2 vr' ok_fd ok_m1' /= [<-] {s1} ok_va'.
 set vm1 := (vm in {| evm := vm |}).
 move => ok_s2 hexec ok_vr' ok_vr -> {m2}.
 exists fd, va'. split; first exact: ok_fd. split; first exact: ok_va'.
-have [fds [hp' hrip ok_fds]]: exists fds, [/\ p' = {|xp_globs := p.(lp_globs); xp_funcs := fds |}, 
+have [fds [sp [hp' ok_sp hrip ok_fds]]]: exists fds rsp, [/\ p' = {|xp_globs := p.(lp_globs); xp_funcs := fds |}, 
+                       reg_of_string (lp_stk_id p) = Some rsp,
                        disj_rip rip &
-                       map_cfprog (assemble_fd rip) (lp_funcs p) = ok fds].
+                       map_cfprog (assemble_fd rsp rip) (lp_funcs p) = ok fds].
 + have := ok_p'.
-  rewrite /assemble_prog; t_xrbindP => _ /assertP /check_rip_ok hrip fds ok_fds <-.
-  by exists fds.
+  rewrite /assemble_prog; t_xrbindP => _ /assertP /check_rip_ok hrip.
+  case: reg_of_string => // rsp; t_xrbindP => fds ok_fds <-.
+  by exists fds, rsp.
 subst p'.
 have [fd' [h ok_fd']] := get_map_cfprog ok_fds ok_fd.
 exists fd'; split => //. 
 move => s1 hargs ?; subst m1.
 move: h; rewrite /assemble_fd; t_xrbindP => body ok_body.
-case ok_sp: (reg_of_string _) => [ sp | // ].
 t_xrbindP => args ok_args dsts ok_dsts _ /assertP hsp tosave ? savedstk ? [?]; subst fd'.
 set xr1 := mem_write_reg sp (top_stack m1') {| xmem := m1' ; xreg := s1.(xreg) ; xrip := wrip; xxreg := s1.(xxreg) ; xrf := rflagmap0 |}.
 have eqm1 : lom_eqv rip {| emem := m1' ; evm := vm1 |} xr1.
@@ -336,12 +326,11 @@ apply: (Forall2_trans value_uincl_trans).
 apply: get_reg_of_vars_uincl; eassumption.
 Qed.
 
-Lemma assemble_fd_stk_size fd xfd :
-  assemble_fd rip fd = ok xfd →
+Lemma assemble_fd_stk_size sp fd xfd :
+  assemble_fd sp rip fd = ok xfd →
   lfd_stk_size fd = xfd_stk_size xfd.
 Proof.
-rewrite /assemble_fd; t_xrbindP => c _.
-by case: reg_of_string => //; t_xrbindP => ? ? ? ? ? ? ? ? ? ? ? [<-].
+by rewrite /assemble_fd; t_xrbindP => c _ ? ? ? ? ? ? ? ? ? ? [<-].
 Qed.
 
 End PROG.

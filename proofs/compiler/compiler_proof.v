@@ -155,9 +155,8 @@ Proof.
   move=> Hin Hcall meml rip Hex Halloc.
   have Haok : alloc_ok pstk fn meml.
   + rewrite /alloc_ok=> fd Hfd.
-    move: Hpl; rewrite /linear_prog; t_xrbindP => fs hfs.
-    have [f' [Hf'1 Hf'2]] := get_map_cfprog hfs Hfd.
-    move=> heq; subst pl.
+    move: Hpl; apply: rbindP => lfuncs Hpl [] ?; subst pl.
+    move: (get_map_cfprog Hpl Hfd)=> [f' [Hf'1 Hf'2]].
     apply: rbindP Hf'1=> [fn' Hfn'] [] Hf'.
     have := Halloc _ Hf'2.
     by rewrite -Hf' /=.
@@ -212,12 +211,12 @@ Lemma compile_prog_to_x86P entries (p: prog) (xp: xprog) m1 fn va m2 vr :
 Proof.
 apply: rbindP=> lp hlp; t_xrbindP => /= _ /assertP /allP ok_sig hxp hfn hsem m1' rip Hex hsafe.
 have heq: xp_globs xp = lp_globs lp.
-+ by move: hxp; rewrite /assemble_prog; t_xrbindP => *; subst xp.
++ by move: hxp; rewrite /assemble_prog; t_xrbindP => _ _; case: x86_variables.reg_of_string => //; t_xrbindP => _ ? _ <-.
 rewrite heq in Hex.
 have hlsem := compile_progP hlp hfn hsem Hex.
 case: hlsem.
 - move => fd hfd.
-  move: hxp; rewrite /assemble_prog; t_xrbindP => ?? fs hfs ?; subst xp.
+  move: hxp; rewrite /assemble_prog; t_xrbindP => _ _; case: x86_variables.reg_of_string => // sp; t_xrbindP => fs hfs ?; subst xp.
   have [xfd [hxfd]] := get_map_cfprog hfs hfd.
   by move => /hsafe; rewrite (assemble_fd_stk_size hxfd).
 move/ok_sig: hfn.
