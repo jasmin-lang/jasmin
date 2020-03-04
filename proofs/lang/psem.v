@@ -2419,8 +2419,27 @@ Proof.
   case: H1 => le' Hl ->; auto.
 Qed.
 
-
 Lemma sem_range_uincl s1 vm2 r v1 le:
+  vm_uincl s1.(evm) vm2 →
+  sem_range p s1 r = ok (v1, le) →
+  sem_range p (Estate s1.(emem) vm2) r = ok (v1, le).
+Proof.
+ move=> Hvm; elim: r v1 le.
+ move=> [d p1] p2 v1 le /=.
+ t_xrbindP. 
+ move=> [v l] Hp h0 Hi [v' l'] Hp' h4 Hi' Hw Hle.
+ move: (sem_pexpr_uincl Hvm Hp) => [] v3 [] le3 Hpsem Hle2 Hv2.
+ move: (sem_pexpr_uincl Hvm Hp') => [] v4 [] le4 Hpsem' Hle3 Hv3.
+ rewrite Hpsem Hpsem' /=.
+ move: (value_uincl_int Hv2 Hi) => Hvi.
+ case: Hvi => Hv ->. rewrite Hv in Hi. rewrite Hi /=.
+ move: (value_uincl_int Hv3 Hi') => Hvi'.
+ case: Hvi' => Hv' ->. rewrite Hv' in Hi'. rewrite Hi' /=.
+ by rewrite Hw -Hle -Hle2 -Hle3 /=.
+Qed.
+
+
+(*Lemma sem_range_uincl s1 vm2 r v1 le:
   vm_uincl s1.(evm) vm2 →
   sem_range p s1 r = ok (v1, le) →
   exists2 v2, exists2 le',
@@ -2440,14 +2459,14 @@ Proof.
   move: (value_uincl_int Hv3 Hi') => Hvi'.
   case: Hvi' => Hv' ->. rewrite Hv' in Hi'. rewrite Hi' /=.
   by rewrite Hw -Hle -Hle2 -Hle3. auto. done.
-Qed.
+Qed.*)
 
 Local Lemma Hfor : sem_Ind_for p Pi_r Pfor.
 Proof.
   move=> s1 s2 i r wr c lr lf H' _ Hfor vm1 Hvm1.
   have [vm2 []??]:= Hfor _ Hvm1; exists vm2;split=>//.
   econstructor; eauto.
-  by move: (sem_range_uincl Hvm1 H') => [] v2 [] le2 -> -> ->.
+  by move: (sem_range_uincl Hvm1 H') => H.
 Qed.
 
 Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
