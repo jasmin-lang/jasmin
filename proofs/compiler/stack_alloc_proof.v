@@ -124,7 +124,8 @@ Qed.
 Section PROOF.
   Variable P: prog.
   Notation gd := (p_globs P).
-  Variable SP: sprog.
+  Variable nrsp: Ident.ident.
+  Variable SP: seq (funname * sfundef).
 
   Variable stk_size : Z.
   Variable rsp : pointer.
@@ -203,7 +204,7 @@ Section EXPR.
             (between rip glob_size w sz && is_align w sz);
     valid_vm   : eq_vm (evm s1) (evm s2);
     valid_rip  : get_var (evm s2) (vrip gm) = ok (Vword rip);
-    valid_rsp  : get_var (evm s2) (vrsp gm) = ok (Vword rsp);
+    valid_rsp  : get_var (evm s2) (vrsp nrsp) = ok (Vword rsp);
     valid_top_frame : ohead (frames (emem s2)) = Some (rsp, stk_size);
     valid_s    : valid_stk sm (evm s1) (evm s2) (emem s2);
     valid_m    : valid_map gm sm stk_size glob_size;
@@ -281,13 +282,13 @@ Section EXPR.
 
     Let X e : Prop :=
       ∀ e' v,
-        alloc_e gm sm e = ok e' →
+        alloc_e nrsp gm sm e = ok e' →
         sem_pexpr gd s e = ok v →
         ∃ v', sem_pexpr [::] s' e' = ok v' ∧ value_uincl v v'.
 
     Let Y es : Prop :=
       ∀ es' vs,
-        mapM (alloc_e gm sm) es = ok es' →
+        mapM (alloc_e nrsp gm sm) es = ok es' →
         sem_pexprs gd s es = ok vs →
         ∃ vs', sem_pexprs [::] s' es' = ok vs' ∧ List.Forall2 value_uincl vs vs'.
 
@@ -301,7 +302,7 @@ Section EXPR.
       by case heq: Mvar.get => [ [] | ] //= _; apply: check_varP.
     Qed.
 
-    Lemma get_vptr ms : get_var (evm s') (vptr gm ms) = ok (Vword (wptr ms)).
+    Lemma get_vptr ms : get_var (evm s') (vptr nrsp gm ms) = ok (Vword (wptr ms)).
     Proof.
       have hrsp := valid_rsp Hv; have hrip := valid_rip Hv.
       by rewrite /vptr /wptr ;case: ms => /=.
@@ -525,7 +526,7 @@ End EXPR.
   Qed.
 
   Lemma valid_set_uincl sm s1 s2 vi v v': 
-    vi != vrsp gm -> vi != vrip gm -> 
+    vi != vrsp nrsp -> vi != vrip gm -> 
     valid sm s1 s2 -> eval_uincl v v' ->
     valid (map_remove sm vi) {| emem := emem s1; evm := (evm s1).[vi <- v] |}
              {| emem := emem s2; evm := (evm s2).[vi <- v'] |}.
@@ -539,7 +540,7 @@ End EXPR.
   Qed.
 
   Lemma valid_write sm (vi : var_i) (s1 s2: estate) v v':
-    ~~ is_vrsp gm vi -> 
+    ~~ is_vrsp nrsp gm vi -> 
     ~~ is_vrip gm vi -> 
     valid sm s1 s2 -> value_uincl v v' -> 
     forall s1', write_var vi v s1 = ok s1' ->
@@ -1131,7 +1132,7 @@ End EXPR.
   Qed.
 
   Lemma check_memW sm sz (vi : var_i) (s1 s2: estate) v v' e e':
-    check_var sm vi -> alloc_e gm sm e = ok e' -> valid sm s1 s2 -> 
+    check_var sm vi -> alloc_e nrsp gm sm e = ok e' -> valid sm s1 s2 -> 
     value_uincl v v' ->
     forall s1', write_lval gd (Lmem sz vi e) v s1 = ok s1'->
     exists s2', write_lval [::] (Lmem sz vi e') v' s2 = ok s2' /\ valid sm s1' s2'.
@@ -1149,24 +1150,24 @@ End EXPR.
     exact: (valid_mem Hm').
   Qed.
 
-  Lemma check_vfresh_lvalP x tt : check_vfresh_lval gm x = ok tt ->
-     ~~ is_vrsp gm x /\ ~~ is_vrip gm x.
+  Lemma check_vfresh_lvalP x tt : check_vfresh_lval nrsp gm x = ok tt ->
+     ~~ is_vrsp nrsp gm x /\ ~~ is_vrip gm x.
   Proof. rewrite /check_vfresh_lval; case: ifP => //=; case: ifP => //=. Qed.
 
   Lemma check_lvarP sm sm' s1 s2 x v v':
     valid sm s1 s2 -> 
-    check_lvar gm x sm = ok sm' ->
+    check_lvar nrsp gm x sm = ok sm' ->
     value_uincl v v' ->
     ∀ s1' : estate, write_var x v s1 = ok s1' ->
     ∃ s2' : estate, write_var x v' s2 = ok s2' ∧ valid sm' s1' s2'.
   Proof.
-    rewrite /check_lvar => hv; t_xrbindP => ? /check_vfresh_lvalP /= [ nrsp nrip] ??.
+    rewrite /check_lvar => hv; t_xrbindP => ? /check_vfresh_lvalP /= [ not_rsp not_rip] ??.
     by subst sm';apply: valid_write.
   Qed.
 
   Lemma check_lvarsP sm sm' s1 s2 x v v':
     valid sm s1 s2 -> 
-    foldM (check_lvar gm) sm x = ok sm' ->
+    foldM (check_lvar nrsp gm) sm x = ok sm' ->
     List.Forall2 value_uincl v v' ->
     ∀ s1' : estate, write_vars x v s1 = ok s1' ->
     ∃ s2' : estate, write_vars x v' s2 = ok s2' ∧ valid sm' s1' s2'.
@@ -1182,7 +1183,7 @@ End EXPR.
   Qed.
 
   Lemma alloc_lvalP sm r1 r2 v v' ty (s1 s2: estate) :
-    alloc_lval gm sm r1 ty = ok r2 -> valid sm s1 s2 -> 
+    alloc_lval nrsp gm sm r1 ty = ok r2 -> valid sm s1 s2 -> 
     type_of_val v = ty -> value_uincl v v' ->
     forall s1', write_lval gd r1 v s1 = ok s1' ->
     exists s2', write_lval [::] r2.2 v' s2 = ok s2' /\ valid r2.1 s1' s2'.
@@ -1266,7 +1267,7 @@ End EXPR.
   Qed.
 
   Lemma alloc_lvalsP sm r1 r2 vs vs' ty (s1 s2: estate) :
-    alloc_lvals gm sm r1 ty = ok r2 -> valid sm s1 s2 ->
+    alloc_lvals nrsp gm sm r1 ty = ok r2 -> valid sm s1 s2 ->
     seq.map type_of_val vs = ty -> 
     List.Forall2 value_uincl vs vs' ->
     forall s1', write_lvals gd s1 r1 vs = ok s1' ->
@@ -1283,19 +1284,19 @@ End EXPR.
   Qed.
 
   Let Pi_r s1 (i1:instr_r) s2 :=
-    forall sm1 sm2 ii1 ii2 i2, alloc_i gm sm1 (MkI ii1 i1) = ok (sm2, MkI ii2 i2) ->
+    forall sm1 sm2 ii1 ii2 i2, alloc_i nrsp gm sm1 (MkI ii1 i1) = ok (sm2, MkI ii2 i2) ->
     forall s1', valid sm1 s1 s1' ->
-    exists s2', S.sem_i SP rip s1' i2 s2' /\ valid sm2 s2 s2'.
+    exists s2', S.sem_i {| sp_rip := gm.(stack_alloc.rip) ; sp_globs := data ; sp_funcs := SP ; sp_stk_id := nrsp |} rip s1' i2 s2' /\ valid sm2 s2 s2'.
 
   Let Pi s1 (i1:instr) s2 :=
-    forall sm1 sm2 i2, alloc_i gm sm1 i1 = ok (sm2, i2) ->
+    forall sm1 sm2 i2, alloc_i nrsp gm sm1 i1 = ok (sm2, i2) ->
     forall s1', valid sm1 s1 s1' ->
-    exists s2', S.sem_I SP rip s1' i2 s2' /\ valid sm2 s2 s2'.
+    exists s2', S.sem_I {| sp_rip := gm.(stack_alloc.rip) ; sp_globs := data ; sp_funcs := SP ; sp_stk_id := nrsp |} rip s1' i2 s2' /\ valid sm2 s2 s2'.
 
   Let Pc s1 (c1:cmd) s2 :=
-    forall sm1 sm2 c2,  fmapM (alloc_i gm) sm1 c1 = ok (sm2, c2) ->
+    forall sm1 sm2 c2,  fmapM (alloc_i nrsp gm) sm1 c1 = ok (sm2, c2) ->
     forall s1', valid sm1 s1 s1' ->
-    exists s2', S.sem SP rip s1' c2 s2' /\ valid sm2 s2 s2'.
+    exists s2', S.sem {| sp_rip := gm.(stack_alloc.rip) ; sp_globs := data ; sp_funcs := SP ; sp_stk_id := nrsp |} rip s1' c2 s2' /\ valid sm2 s2 s2'.
 
   Let Pfor (i1: var_i) (vs: seq Z) (s1: estate) (c: cmd) (s2: estate) := True.
 
@@ -1326,8 +1327,8 @@ End EXPR.
     sem_pexpr gd s1 e = ok v -> 
     truncate_val ty v = ok v' -> 
     write_lval gd x v' s1 = ok s2 -> 
-    Let ir := alloc_assgn gm sm1 ii1 x tag ty e in ok (ir.1, MkI ii1 ir.2) = ok (sm2, MkI ii2 i2) ->
-    forall s1', valid sm1 s1 s1' → ∃ s2' : estate, S.sem_i SP rip s1' i2 s2' ∧ valid sm2 s2 s2'.
+    Let ir := alloc_assgn nrsp gm sm1 ii1 x tag ty e in ok (ir.1, MkI ii1 ir.2) = ok (sm2, MkI ii2 i2) ->
+    forall s1', valid sm1 s1 s1' → ∃ s2' : estate, S.sem_i {| sp_rip := gm.(stack_alloc.rip) ; sp_globs := data ; sp_funcs := SP ; sp_stk_id := nrsp |} rip s1' i2 s2' ∧ valid sm2 s2 s2'.
   Proof.
     move=> hv htr Hw; rewrite /alloc_assgn.
     t_xrbindP => -[sm i'] e'; apply: add_iinfoP => he [sm' x'].
@@ -1641,8 +1642,8 @@ Proof.
   by exists sx;split=>//;split=>//;omega.
 Qed.
 
-Lemma getfun_alloc oracle oracle_g (P:prog) (SP:sprog) :
-  alloc_prog oracle oracle_g P = ok SP ->
+Lemma getfun_alloc nrsp oracle oracle_g (P:prog) (SP:sprog) :
+  alloc_prog nrsp oracle oracle_g P = ok SP ->
   exists lg mglob, 
     [/\ init_map (Z.of_nat (size SP.(sp_globs))) lg = ok mglob,
         check_globs (p_globs P) mglob SP.(sp_globs) &
@@ -1650,7 +1651,7 @@ Lemma getfun_alloc oracle oracle_g (P:prog) (SP:sprog) :
         get_fundef (p_funcs P) fn = Some fd ->
         exists fd', 
            get_fundef SP.(sp_funcs) fn = Some fd' /\
-           alloc_fd SP.(sp_rip) mglob oracle (fn, fd) = ok (fn,fd')].
+           alloc_fd nrsp SP.(sp_rip) mglob oracle (fn, fd) = ok (fn,fd')].
 Proof.
   rewrite /alloc_prog.
   case: (oracle_g P) => -[data rip] l.
@@ -1684,17 +1685,24 @@ Lemma all_In (T:Type) (P: T -> bool) (l:seq T) x :
   List.In x l -> P x.
 Proof. by elim: l => //= x' l hi /andP [] hp /hi h -[<- | /h]. Qed.
 
-Lemma valid_top (P : prog) (stk_size : Z) (rsp : u64) (glob_size : Z) 
+Lemma valid_top (P : prog) nrsp (stk_size : Z) (rsp : u64) (glob_size : Z) 
          (rip : u64) (data : seq u8) (gm : gmap) (sm : smap) 
          (s1 s2 : estate) :
-         valid P stk_size rsp glob_size rip data gm sm s1 s2 ->
+         valid P nrsp stk_size rsp glob_size rip data gm sm s1 s2 ->
  top_stack (emem s2) = rsp.
 Proof.
   by move=> /valid_top_frame; rewrite /top_stack; case: frames => //= ?? [->].
 Qed.
 
-Lemma alloc_fdP oracle oracle_g (P: prog) (SP: sprog) fn fd fd':
-  alloc_prog oracle oracle_g P = ok SP ->
+Lemma alloc_prog_stk_id nrsp oracle oracle_g P SP :
+  alloc_prog nrsp oracle oracle_g P = ok SP →
+  sp_stk_id SP = nrsp.
+Proof.
+  by rewrite /alloc_prog; case: (oracle_g _) => - []; t_xrbindP => ?????; case: ifP => // _; t_xrbindP => ?? <-.
+Qed.
+
+Lemma alloc_fdP nrsp oracle oracle_g (P: prog) SP fn fd fd':
+  alloc_prog nrsp oracle oracle_g P = ok SP ->
   get_fundef (p_funcs P) fn = Some fd ->
   get_fundef (sp_funcs SP) fn = Some fd' ->
   forall m1 va m1' vr rip, 
@@ -1707,14 +1715,15 @@ Lemma alloc_fdP oracle oracle_g (P: prog) (SP: sprog) fn fd fd':
       S.sem_call SP rip m2 fn va m2' vr'.
 Proof.
   move=> hap get Sget. 
+  have ? := alloc_prog_stk_id hap; subst nrsp.
   have [lg [mglob [higlob hcheck hf]]]:= getfun_alloc hap.
   have [fd1 [] {hf}]:= hf _ _ get.
   rewrite Sget => -[?];subst fd1.
   rewrite /alloc_fd.
-  case: (oracle (fn, fd)) => -[[stk_size isp] lv] ptrreg_of_reg .
+  case: (oracle (fn, fd)) => -[stk_size lv] ptrreg_of_reg .
   t_xrbindP => fd1 mstk; rewrite /add_err_fun.
   case histk : init_map => [mstk1 | //] [?]; subst mstk1.
-  set gm := {| rsp := _ |}; set sm0 := {| mstk := _ |}.
+  set gm := {| rip := _ |}; set sm0 := {| mstk := _ |}.
   move=> sm1; case hfold : foldM => [sm1' | //] [?]; subst sm1'.
   move=> [sme c]; apply: add_finfoP => hc /=.
   case: andP => // -[] hneq hres [?] ?;subst fd1 fd' => /=.
@@ -1748,9 +1757,9 @@ Proof.
     move=> /eqP => heq1; have := h5 _ _ _ heq1 heq' hsy; case: eqP => //.
     by have := size_of_pos h1; have := size_of_pos hsy; lia.
 
-  have hvalid : valid P stk_size (top_stack m2s) (Z.of_nat (size (sp_globs SP))) rip (sp_globs SP) gm sm0
+  have hvalid : valid P (sp_stk_id SP) stk_size (top_stack m2s) (Z.of_nat (size (sp_globs SP))) rip (sp_globs SP) gm sm0
                  {| emem := m1; evm := vmap0 |} 
-                 {| emem := m2s; evm := vmap0.[vrsp gm <- ok (pword_of_word (top_stack m2s))]
+                 {| emem := m2s; evm := vmap0.[vrsp (sp_stk_id SP) <- ok (pword_of_word (top_stack m2s))]
                                              .[vrip gm <- ok (pword_of_word rip)] |}.
   + case: hm2 => halign2 hread_eq hdisj hval hglob.
     have [hin hread_eqs hvals hal hdisjs htopf]:= Memory.alloc_stackP ha.
@@ -1763,7 +1772,7 @@ Proof.
 (*    + by move=> x hnin hnrsp hnrip;rewrite !Fv.setP_neq // eq_sym. *)
     + by rewrite /get_var Fv.setP_eq.
     + rewrite /get_var Fv.setP_neq ? Fv.setP_eq //.
-      by apply /eqP => -[?]; subst isp;move: hneq; rewrite eq_refl.
+      by apply/eqP => -[k]; move/eqP: hneq; rewrite k.
     + by rewrite htopf. 
     + move=> x; rewrite /find_gvar.
       case: ifP => his. 
@@ -1849,7 +1858,7 @@ Transparent Z.to_nat.
   move: H;rewrite get => -[?];subst f.
   have uvargs0 : List.Forall2 value_uincl vargs0 vargs0.
   + by apply List_Forall2_refl.
-  have [s2 [hwargs hvalid2 ]] := check_lvarsP SP hvalid hfold uvargs0 H1.
+  have [s2 [hwargs hvalid2 ]] := check_lvarsP hvalid hfold uvargs0 H1.
   have hdisj : 0 < stk_size -> 0 < Z.of_nat (size (sp_globs SP)) ->
        ((wunsigned (top_stack m2s) + stk_size <=? wunsigned rip)
                 || (wunsigned rip + Z.of_nat (size (sp_globs SP)) <=? wunsigned (top_stack m2s))).
@@ -1873,7 +1882,7 @@ Transparent Z.to_nat.
     + rewrite hvm2 is_align8 andbT;apply /orP;right.
       by rewrite /between wsize8; apply /andP; split; apply /ZleP; lia. 
     by rewrite wsize8; lia.   
-  have [s3 [hssem hvalid3]] := check_cP (P:= P) SP Hstk Hglob hdisj H2 hc hvalid2.
+  have [s3 [hssem hvalid3]] := check_cP (P:= P) SP.(sp_funcs) Hstk Hglob hdisj H2 hc hvalid2.
   have [vres1 [H1' uincl1]]:= check_varsP hres (valid_vm hvalid3) H3.
   have [vres2 htr uincl2]:= mapM2_truncate_val H4 uincl1.
   exists (free_stack (emem s3) stk_size), vres2.
@@ -1927,15 +1936,16 @@ Transparent Z.to_nat.
   econstructor;eauto.
   + by rewrite /=; f_equal; f_equal; f_equal; f_equal; rewrite /pword_of_word;f_equal; f_equal;
       apply (Eqdep_dec.UIP_dec Bool.bool_dec).
-  by have -> : {| emem := emem s3; evm := evm s3 |} = s3 by case: (s3).
+  rewrite /=.
+  by move: hssem => /=; case: (SP) => ????; case: (s3).
 Qed.
 
 Definition alloc_ok SP fn m1 :=
   forall fd, get_fundef (sp_funcs SP) fn = Some fd ->
   exists p, alloc_stack m1 (sf_stk_sz fd) = ok p.
 
-Lemma alloc_progP oracle oracle_g (P: prog) (SP: sprog) fn:
-  alloc_prog oracle oracle_g P = ok SP ->
+Lemma alloc_progP nrsp oracle oracle_g (P: prog) (SP: sprog) fn:
+  alloc_prog nrsp oracle oracle_g P = ok SP ->
   forall m1 va m1' vr rip, 
     sem_call P m1 fn va m1' vr ->
     forall m2, extend_mem m1 m2 rip SP.(sp_globs) ->

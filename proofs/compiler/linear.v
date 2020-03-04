@@ -197,12 +197,12 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Ccall _ _ _ _ => cierror ii (Cerr_linear "call found in linear")
   end.
 
-Definition linear_fd (fd: sfundef) :=
+Definition linear_fd nstk (fd: sfundef) :=
   Let fd' := linear_c linear_i (sf_body fd) 1%positive [::] in
-  ok (LFundef (sf_stk_sz fd) (sf_stk_id fd) (sf_tyin fd) (sf_params fd) fd'.2 (sf_tyout fd) (sf_res fd) (sf_extra fd)).
+  ok (LFundef (sf_stk_sz fd) nstk (sf_tyin fd) (sf_params fd) fd'.2 (sf_tyout fd) (sf_res fd) (sf_extra fd)).
 
 Definition linear_prog (p: sprog) : cfexec lprog :=
-  Let funcs := map_cfprog linear_fd p.(sp_funcs) in
+  Let funcs := map_cfprog (linear_fd p.(sp_stk_id)) p.(sp_funcs) in
   ok {| lp_rip   := p.(sp_rip);
         lp_globs := p.(sp_globs);
         lp_funcs := funcs |}.

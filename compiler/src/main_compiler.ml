@@ -264,8 +264,6 @@ let main () =
     let stk_alloc_fd cfd =
       let fd = Conv.fdef_of_cfdef tbl cfd in
       if !debug then Format.eprintf "START stack alloc@." ;
-      let stk_i =
-        Var0.Var.vname (Conv.cvar_of_var tbl Array_expand.vstack) in
       let alloc, sz, to_save, p_stack = Array_expand.stk_alloc_func fd in
       let alloc =
         let trans (v,i) = Conv.cvar_of_var tbl v, Conv.z_of_int i in
@@ -276,9 +274,9 @@ let main () =
         | None -> Stack_alloc.SavedStackNone
         | Some (`InReg x) -> Stack_alloc.SavedStackReg (Conv.cvar_of_var tbl x)
         | Some (`InStack p) -> Stack_alloc.SavedStackStk (Conv.z_of_int p) in
-      
+
       let to_save = List.map (Conv.cvar_of_var tbl) (Sv.elements to_save) in
-      ((sz, stk_i), alloc), (to_save, p_stack) 
+      (sz, alloc), (to_save, p_stack)
     in
 
     let stk_alloc_gl p =
@@ -337,6 +335,7 @@ let main () =
       Compiler.var_alloc_fd = apply "var alloc" Varalloc.merge_var_inline_fd;
       Compiler.share_stk_fd = apply "share stk" Varalloc.alloc_stack_fd;
       Compiler.reg_alloc_fd = apply "reg alloc" (Regalloc.regalloc translate_var);
+      Compiler.stk_pointer_name = Var0.Var.vname (Conv.cvar_of_var tbl Array_expand.vstack);
       Compiler.stk_alloc_fd = stk_alloc_fd;
       Compiler.stk_alloc_gl = stk_alloc_gl;
       Compiler.lowering_vars = lowering_vars;

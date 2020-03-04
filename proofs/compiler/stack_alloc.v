@@ -67,7 +67,6 @@ Canonical  saved_stack_eqType      := Eval hnf in EqType saved_stack saved_stack
 Record sfundef := MkSFun {
   sf_iinfo  : instr_info;
   sf_stk_sz : Z;
-  sf_stk_id : Ident.ident;
   sf_tyin   : seq stype;
   sf_params : seq var_i;
   sf_body   : cmd;
@@ -78,16 +77,16 @@ Record sfundef := MkSFun {
 
 Definition sfundef_beq fd1 fd2 :=
   match fd1, fd2 with
-  | MkSFun ii1 sz1 id1 ti1 p1 c1 to1 r1 e1, MkSFun ii2 sz2 id2 ti2 p2 c2 to2 r2 e2=>
-    (ii1 == ii2) && (sz1 == sz2) && (id1 == id2) &&
+  | MkSFun ii1 sz1 ti1 p1 c1 to1 r1 e1, MkSFun ii2 sz2 ti2 p2 c2 to2 r2 e2=>
+    (ii1 == ii2) && (sz1 == sz2) &&
     (ti1 == ti2) && (p1 == p2) && (c1 == c2) && (to1 == to2) && (r1 == r2) && (e1 == e2)
   end.
 
 Lemma sfundef_eq_axiom : Equality.axiom sfundef_beq.
 Proof.
-  move=> [i1 s1 id1 ti1 p1 c1 to1 r1 e1] [i2 s2 id2 ti2 p2 c2 to2 r2 e2] /=.
-  apply (@equivP ((i1 == i2) && (s1 == s2) && (id1 == id2) && (ti1 == ti2) && (p1 == p2) && (c1 == c2) && (to1 == to2) && (r1 == r2) && (e1 == e2)));first by apply idP.
-  by split=> [ /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] | [] ] /eqP -> /eqP->/eqP->/eqP->/eqP->/eqP->/eqP->/eqP->/eqP->.
+  move=> [i1 s1 ti1 p1 c1 to1 r1 e1] [i2 s2 ti2 p2 c2 to2 r2 e2] /=.
+  apply (@equivP ((i1 == i2) && (s1 == s2) && (ti1 == ti2) && (p1 == p2) && (c1 == c2) && (to1 == to2) && (r1 == r2) && (e1 == e2)));first by apply idP.
+  by split=> [ /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] | [] ] /eqP -> /eqP->/eqP->/eqP->/eqP->/eqP->/eqP->/eqP->.
 Qed.
 
 Definition sfundef_eqMixin   := Equality.Mixin sfundef_eq_axiom.
@@ -96,6 +95,7 @@ Canonical  sfundef_eqType      := Eval hnf in EqType sfundef sfundef_eqMixin.
 Record sprog := 
   { sp_rip   : Ident.ident;
     sp_globs : seq u8;
+    sp_stk_id: Ident.ident;
     sp_funcs : seq (funname * sfundef) }.
 
 Variant mem_space := 
@@ -141,9 +141,8 @@ Record mem_pos :=
     mp_id : option Ident.ident;
   }.
 
-Record gmap := MkGMap 
-  { rsp : Ident.ident;
-    rip : Ident.ident;
+Record gmap := MkGMap
+  { rip : Ident.ident;
     mglob: Mvar.t Z;
   }.                 
 
@@ -166,7 +165,7 @@ Definition aligned_for (ty: stype) (ofs: Z) : bool :=
   | sbool | sint => false
   end.
 
-Definition init_map (sz:Z) (l:list (var * Z)):=
+Definition init_map (sz:Z) (l:list (var * Z)) : cexec (Mvar.t Z) :=
   let add (vp:var*Z) (mp:Mvar.t Z * Z) :=
       let '(v, p) := vp in
     if (mp.2 <=? p)%Z then
@@ -176,14 +175,18 @@ Definition init_map (sz:Z) (l:list (var * Z)):=
       cok (Mvar.set mp.1 v p, p + s)%Z
     else cerror (Cerr_stk_alloc "not aligned")
     else cerror (Cerr_stk_alloc "overlap") in
-  Let mp := foldM add (Mvar.empty Z, 0%Z) l in 
+  Let mp := foldM add (Mvar.empty Z, 0%Z) l in
   if (mp.2 <=? sz)%Z then cok mp.1
   else cerror (Cerr_stk_alloc "stack size").
 
-Definition vrsp (m:gmap) :=  {|vtype := sword Uptr; vname := m.(rsp)|}.
+Section NRSP.
+
+Context (nrsp: Ident.ident).
+
+Definition vrsp := {| vtype := sword Uptr; vname := nrsp |}.
 
 Definition is_vrsp (m:gmap) (x:var) :=
-  x == (vrsp m).
+  x == vrsp.
 
 Definition vrip (m:gmap) :=  {|vtype := sword Uptr; vname := m.(rip)|}.
 
@@ -260,7 +263,7 @@ Definition find_gvar (gm:gmap) (mstk: Mvar.t alloc_pos) (x:gvar) :=
 Definition vptr gm mp := 
   match mp with
   | MSglob => vrip gm
-  | MSstack => vrsp gm
+  | MSstack => vrsp
   end.
 
 Fixpoint alloc_e (gm:gmap) (sm:smap) (e: pexpr) := 
@@ -371,7 +374,7 @@ Definition alloc_lval (gm:gmap) (sm:smap) (r:lval) ty :=
       if is_word_type (vtype x) is Some ws then
         if ty == sword ws then  
           let ofs := cast_const ofs in
-          let stk := {| v_var := vrsp gm; v_info := x.(v_info) |} in
+          let stk := {| v_var := vrsp; v_info := x.(v_info) |} in
           let sm := {| mstk := sm.(mstk); meqon := Sv.remove x sm.(meqon) |} in
           ok (sm, Lmem ws stk ofs)
         else cerror (Cerr_stk_alloc "invalid type for Lvar")
@@ -404,7 +407,7 @@ Definition alloc_lval (gm:gmap) (sm:smap) (r:lval) ty :=
               |} in
           let (bid, disp) := 
             if mp.(mp_id) is Some id then (id, 0%Z)
-            else (rsp gm, mp.(mp_ofs)) in
+            else (nrsp, mp.(mp_ofs)) in
           let bp := {| v_var := {| vname := bid; vtype := sword Uptr|}; v_info := x.(v_info) |} in
           let ofs := mk_ofs ws e1 disp in
           ok (sm, Lmem ws bp ofs)
@@ -547,17 +550,16 @@ Definition add_err_fun (A : Type) (f : funname) (r : cexec A) :=
   end.
 
 Definition alloc_fd rip mglob 
-    (stk_alloc_fd : fun_decl -> Z * Ident.ident * list (var * Z) * (list var * saved_stack))
+    (stk_alloc_fd : fun_decl -> Z * list (var * Z) * (list var * saved_stack))
     (f: fun_decl) :=
   let info := stk_alloc_fd f in
   let (fn, fd) := f in
   Let sfd :=  
-    let: (((size, rsp), l), saved) := info in 
+    let: ((size, l), saved) := info in
     Let mstk := add_err_fun fn (init_map size l) in
     let mstk := Mvar.map APmem mstk in
     let gm := 
         {| rip   := rip;
-           rsp   := rsp;
            mglob := mglob;
         |} in
     let sm0 :=  
@@ -567,10 +569,9 @@ Definition alloc_fd rip mglob
     
     Let sm1 := add_err_fun fn (foldM (check_lvar gm) sm0 fd.(f_params)) in
     Let body := add_finfo fn fn (fmapM (alloc_i gm) sm1 fd.(f_body)) in
-    if (rsp != rip) && all (check_var body.1) fd.(f_res) then
+    if (nrsp != rip) && all (check_var body.1) fd.(f_res) then
       ok {| sf_iinfo  := fd.(f_iinfo);
             sf_stk_sz := size;
-            sf_stk_id := rsp;
             sf_tyin   := fd.(f_tyin);
             sf_params := fd.(f_params);
             sf_body   := body.2;
@@ -606,6 +607,9 @@ Definition alloc_prog stk_alloc_fd (glob_alloc_p : prog -> seq u8 * Ident.ident 
     Let p_funs := mapM (alloc_fd rip mglob stk_alloc_fd) P.(p_funcs) in
     ok  {| sp_rip   := rip; 
            sp_globs := data; 
+           sp_stk_id := nrsp;
            sp_funcs := p_funs |}
   else 
      Error (Ferr_msg (Cerr_stk_alloc "invalid data: please report")).
+
+End NRSP.

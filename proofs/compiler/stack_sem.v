@@ -103,7 +103,7 @@ Module S.
   | EcallRun m1 m2 fn sf vargs vargs' s1 s2 m2' vm2 vres vres' m1':
     get_fundef P.(sp_funcs) fn = Some sf ->
     alloc_stack m1 (sf_stk_sz sf) = ok m1' ->
-    write_vars [:: vid (sf_stk_id sf)   ; vid P.(sp_rip)]
+    write_vars [:: vid P.(sp_stk_id)   ; vid P.(sp_rip)]
                [:: Vword (top_stack m1'); Vword ripv] (Estate m1' vmap0) = ok s1 ->
     mapM2 ErrType truncate_val sf.(sf_tyin) vargs' = ok vargs ->
     write_vars (sf_params sf) vargs s1 = ok s2 ->
