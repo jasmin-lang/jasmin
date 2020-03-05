@@ -14,9 +14,7 @@ before_install:
 branches:
   only:
   - master
-notifications:
-  email:
-  - false
+  - glob_array3
 script:
 - nix-shell --pure --run 'make -j $NIX_BUILD_CORES -C proofs'
 - nix-shell --pure --run 'make -C compiler CIL build check-ci'
