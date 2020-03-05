@@ -169,32 +169,20 @@ let vari_of_cvari tbl v =
   let loc =  get_loc tbl v.C.v_info in
   L.mk_loc loc (var_of_cvar tbl v.C.v_var)
 
-(* ------------------------------------------------------------------------ *)
+let cgvari_of_gvari tbl v = 
+  { C.gv = cvari_of_vari tbl v.gv;
+    C.gs = v.gs }
 
-let cglobal_of_global ws (g: Name.t) : Global.global =
-  {
-    size_of_global = ws;
-    ident_of_global = string0_of_string g;
-  }
-
-let global_of_cglobal (g: Global.global) : W.wsize * Name.t =
-  let { Global.size_of_global = ws ; Global.ident_of_global = n } = g in
-  ws, string_of_string0 n
-
-let cgd_of_gd (ws, g, z) = 
-  (cglobal_of_global ws g, z_of_bi z)
-  
-let gd_of_cgd (g, z) = 
-  let ws, n = global_of_cglobal g in
-  (ws, n, bi_of_z z)
+let gvari_of_cgvari tbl v = 
+  { gv = vari_of_cvari tbl v.C.gv;
+    gs = v.C.gs }
 
 (* ------------------------------------------------------------------------ *)
 let rec cexpr_of_expr tbl = function
   | Pconst z          -> C.Pconst (z_of_bi z)
   | Pbool  b          -> C.Pbool  b
   | Parr_init n       -> C.Parr_init (pos_of_bi n)
-  | Pvar x            -> C.Pvar (cvari_of_vari tbl x)
-  | Pglobal (ws, g)   -> C.Pglobal (cglobal_of_global ws g)
+  | Pvar x            -> C.Pvar (cgvari_of_gvari tbl x)
   | Pget (ws, x,e)    -> C.Pget (ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Pload (ws, x, e)  -> C.Pload(ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Papp1 (o, e)      -> C.Papp1(o, cexpr_of_expr tbl e)
@@ -209,8 +197,7 @@ let rec expr_of_cexpr tbl = function
   | C.Pconst z          -> Pconst (bi_of_z z)
   | C.Pbool  b          -> Pbool  b
   | C.Parr_init n       -> Parr_init (bi_of_pos n)
-  | C.Pvar x            -> Pvar (vari_of_cvari tbl x)
-  | C.Pglobal g         -> let ws, n = global_of_cglobal g in Pglobal (ws, n)
+  | C.Pvar x            -> Pvar (gvari_of_cgvari tbl x)
   | C.Pget (ws, x,e)    -> Pget (ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Pload (ws, x, e)  -> Pload(ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Papp1 (o, e)      -> Papp1(o, expr_of_cexpr tbl e)
@@ -420,6 +407,12 @@ let fdef_of_cfdef tbl (fn, fd) =
     f_ret  = List.map (vari_of_cvari tbl) fd.C.f_res;
   }
 
+let cgd_of_gd tbl (x, gd) = 
+  (cvar_of_var tbl x, gd)
+
+let gd_of_cgd tbl (x, gd) =
+  (var_of_cvar tbl x, gd)
+
 let cprog_of_prog (all_registers: var list) info p =
   let tbl = empty_tbl info in
   (* First add registers *)
@@ -427,9 +420,9 @@ let cprog_of_prog (all_registers: var list) info p =
     (fun x -> ignore (cvar_of_reg tbl x))
     all_registers;
   let fds = List.map (cfdef_of_fdef tbl) (snd p) in
-  let gd  = List.map cgd_of_gd (fst p) in
+  let gd  = List.map (cgd_of_gd tbl) (fst p) in
   tbl, { C.p_globs = gd; C.p_funcs = fds }
 
 let prog_of_cprog tbl p =
-  List.map gd_of_cgd p.C.p_globs,
+  List.map (gd_of_cgd tbl) p.C.p_globs,
   List.map (fdef_of_cfdef tbl) p.C.p_funcs

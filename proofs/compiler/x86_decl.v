@@ -53,6 +53,7 @@ Variant register : Type :=
   | RAX | RCX | RDX | RBX | RSP | RBP | RSI | RDI
   | R8  | R9  | R10 | R11 | R12 | R13 | R14 | R15.
 
+
 (* -------------------------------------------------------------------- *)
 Variant xmm_register : Type :=
   | XMM0 | XMM1 | XMM2 | XMM3
@@ -78,12 +79,18 @@ Coercion word_of_scale (s : scale) : pointer :=
 
 (* -------------------------------------------------------------------- *)
 (* disp + base + scale × offset *)
-Record address : Type := mkAddress {
+Record reg_address : Type := mkAddress {
   ad_disp   : pointer;
   ad_base   : option register;
   ad_scale  : scale;
   ad_offset : option register;
 }.
+
+Definition rip_address := pointer.
+
+Inductive address := 
+  | Areg of reg_address
+  | Arip of pointer. 
 
 (* -------------------------------------------------------------------- *)
 Variant condt : Type :=
@@ -182,17 +189,34 @@ Qed.
 Definition scale_eqMixin := Equality.Mixin scale_eq_axiom.
 Canonical scale_eqType := EqType scale scale_eqMixin.
 
-Definition address_beq (addr1: address) addr2 :=
+Definition reg_address_beq (addr1: reg_address) addr2 :=
   match addr1, addr2 with
   | mkAddress d1 b1 s1 o1, mkAddress d2 b2 s2 o2 =>
     [&& d1 == d2, b1 == b2, s1 == s2 & o1 == o2]
   end.
 
-Lemma address_eq_axiom : Equality.axiom address_beq.
+Lemma reg_address_eq_axiom : Equality.axiom reg_address_beq.
 Proof.
 case=> [d1 b1 s1 o1] [d2 b2 s2 o2]; apply: (iffP idP) => /=.
 + by case/and4P ; do 4! move/eqP=> ->.
 by case; do 4! move=> ->; rewrite !eqxx.
+Qed.
+
+Definition reg_address_eqMixin := Equality.Mixin reg_address_eq_axiom.
+Canonical reg_address_eqType := EqType reg_address reg_address_eqMixin.
+
+Definition address_beq (addr1: address) addr2 :=
+  match addr1, addr2 with
+  | Areg ra1, Areg ra2 => ra1 == ra2
+  | Arip p1, Arip p2   => p1 == p2
+  | _, _ => false
+  end.
+
+Lemma address_eq_axiom : Equality.axiom address_beq.
+Proof.
+ case=> [ra1 | p1] [ra2 | p2];apply: (iffP idP) => //=.
+ + by move=> /eqP ->. + by move=> [->].
+ + by move=> /eqP ->. + by move=> [->].
 Qed.
 
 Definition address_eqMixin := Equality.Mixin address_eq_axiom.
@@ -333,7 +357,6 @@ Canonical rflagv_eqType := EqType _ rflagv_eqMixin.
 Variant asm_arg : Type :=
   | Condt  `(condt)
   | Imm    `(ws:wsize) `(word ws)
-  | Glob   `(global)
   | Reg    `(register)
   | Adr    `(address)
   | XMM    `(xmm_register).
@@ -354,7 +377,6 @@ Definition asm_arg_beq (a1 a2:asm_arg) :=
   match a1, a2 with
   | Condt t1, Condt t2 => t1 == t2
   | Imm sz1 w1, Imm sz2 w2 => (sz1 == sz2) && (wunsigned w1 == wunsigned w2)
-  | Glob g1, Glob g2 => g1 == g2
   | Reg r1, Reg r2 => r1 == r2
   | Adr a1, Adr a2 => a1 == a2
   | XMM r1, XMM r2 => r1 == r2
@@ -367,7 +389,7 @@ Definition Imm_inj sz sz' w w' (e: @Imm sz w = @Imm sz' w') :
 
 Lemma asm_arg_eq_axiom : Equality.axiom asm_arg_beq.
 Proof.
-  case => [t1 | sz1 w1 | g1 | r1 | a1 | xr1] [t2 | sz2 w2 | g2 | r2 | a2 | xr2]; apply: (iffP idP) => //=.
+  case => [t1 | sz1 w1 | r1 | a1 | xr1] [t2 | sz2 w2 | r2 | a2 | xr2]; apply: (iffP idP) => //=.
   1, 5, 7, 9, 11: by move => /eqP ->.
   1, 4-7: by case => ->.
   + by move=> /andP [] /eqP ? /eqP; subst => /wunsigned_inj ->.

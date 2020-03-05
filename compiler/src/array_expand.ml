@@ -37,13 +37,13 @@ let init_tbl fc =
 
 let rec arrexp_e tbl e =
   match e with
-  | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ -> e
-  | Pvar x -> check_not_reg_arr "Pvar" x; e
+  | Pconst _ | Pbool _ | Parr_init _ -> e
+  | Pvar x -> check_not_reg_arr "Pvar" x.gv; e
 
   | Pget (ws, x,e) ->
     if is_reg_arr (L.unloc x) then
       let v = get_reg_arr tbl x e in
-      Pvar (L.mk_loc (L.loc x) v)
+      Pvar (gkvar (L.mk_loc (L.loc x) v))
     else Pget(ws, x, arrexp_e tbl e)
 
   | Pload(ws,x,e)  -> Pload(ws,x,arrexp_e tbl e)
@@ -103,7 +103,7 @@ let add_var tbl ws x =
 
 let rec array_access_e tbl e = 
   match e with
-  | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ | Pvar _ -> tbl
+  | Pconst _ | Pbool _ | Parr_init _ | Pvar _ -> tbl
   | Pget(ws, x, e) -> array_access_e (add_var tbl ws (L.unloc x)) e
   | Pload (_,_,e) | Papp1 (_,e) -> array_access_e tbl e 
   | Papp2(_,e1,e2) -> array_access_e (array_access_e tbl e1) e2
@@ -196,3 +196,103 @@ let stk_alloc_func fc =
   List.iter (check_stack_var "function return") fc.f_ret;
   init_stk fc 
 
+(* -------------------------------------------------------------- *)
+(* Perform global allocation                                       *)
+
+(* The variables are allocated in decreasing order of (base) size;
+   this ensures that the alignment constraints are satisfied. *)
+
+let add_gvar tbl ws x = 
+  let ws' = Mv.find_default Wsize.U8 x tbl in
+  if size_of_ws ws' <= size_of_ws ws then Mv.add x ws tbl
+  else tbl 
+
+let rec garray_access_e tbl e = 
+  match e with
+  | Pconst _ | Pbool _ | Parr_init _ | Pvar _ -> tbl
+  | Pget(_, _, e) -> garray_access_e tbl e
+  | Pload (_,_,e) | Papp1 (_,e) -> garray_access_e tbl e 
+  | Papp2(_,e1,e2) -> garray_access_e (garray_access_e tbl e1) e2
+  | PappN (_,es) -> garray_access_es tbl es
+  | Pif(_, e1,e2,e3) -> garray_access_es tbl [e1;e2;e3]
+
+and garray_access_es tbl es = List.fold_left garray_access_e tbl es 
+
+let rec garray_acces_i tbl i = 
+  match i.i_desc with
+  | Cassgn (_, _, _, e) -> garray_access_e tbl e
+  | Copn(_,_,_,es) | Ccall(_,_,_,es) -> garray_access_es tbl es
+  | Cif(e, c1, c2) | Cwhile(_, c1, e, c2)  -> 
+    garray_access_c (garray_access_c (garray_access_e tbl e) c1) c2
+  | Cfor(_,(_,e1,e2), c) ->
+    garray_access_c (garray_access_e (garray_access_e tbl e1) e2) c
+
+and garray_access_c tbl c = 
+  List.fold_left garray_acces_i tbl c
+
+let garray_access_f tbl fc = garray_access_c tbl (fc.f_body)
+  
+let init_glob (globs, funcs) =
+
+  let vars = List.map fst globs in
+
+  let add tbl x =
+    let ws = 
+      match x.v_ty with
+      | Bty (U ws) -> ws
+      | Arr (ws,_) -> ws
+      | _          -> assert false in
+    add_gvar tbl ws x in
+
+  let tbl = List.fold_left add Mv.empty vars in
+
+  let tbl = List.fold_left garray_access_f tbl funcs in
+
+  let size v =
+     match v.v_ty with
+     | Bty (U ws)  -> let s = size_of_ws ws in v, s, s
+     | Arr (ws', n) -> 
+       let ws = try Mv.find v tbl with Not_found -> assert false in
+       v, size_of_ws ws, arr_size ws' n
+     | _            -> assert false in
+
+  let vars = List.rev_map size vars in
+  let cmp (_, s1, _) (_, s2, _) = s2 - s1 in
+
+  let vars = List.sort cmp vars in 
+  let size = ref 0 in
+  let data = ref [] in
+  let get x = 
+    try List.assoc x globs with Not_found -> assert false in
+
+  let init_var (v, s, n) =
+    let pos = !size in
+    let pos = 
+      if pos mod s = 0 then pos
+      else 
+        let new_pos = (pos/s + 1) * s in
+        (* fill data with 0 *)
+        for i = 0 to new_pos - pos - 1 do
+          data := Word0.wrepr U8 (Conv.z_of_int 0) :: !data
+        done;
+        new_pos in
+    (* fill data with the corresponding values *)
+    begin match get v with
+    | Global.Gword(ws, w) ->
+      let w = Memory_model.LE.encode ws w in
+      data := List.rev_append w !data 
+(*    | Expr.Garr(p, t) ->
+      let ip = Prog.int_of_pos p in
+      for i = 0 to ip - 1 do
+        let w = 
+          match Warray.WArray.get p Warray.AAscale U8 t (Prog.z_of_int i) with
+          | Ok w -> w
+          | _    -> assert false in
+        data := w :: !data
+      done *)
+    end;
+    size := pos + n;
+    (v,pos) in
+  let alloc = List.map init_var vars in
+  let data = List.rev !data in
+  data, Prog.rip, alloc

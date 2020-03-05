@@ -49,44 +49,6 @@ Context (gd: glob_decls).
 Definition eqok_w (e1 e2:pexpr) st :=
   forall v, sem_pexpr gd st e1 = ok v -> sem_pexpr gd st e2 = ok v.
 
-(*
-Definition array_eq v1 v2 :=
-   if type_of_val v1 is sarr _ then v1 = v2 else True.
-
-Lemma array_eq_refl v : array_eq v v.
-Proof. by case v => //= -[]. Qed.
-Hint Resolve array_eq_refl.
-
-Definition value_uincl_a v1 v2 :=
-  value_uincl v1 v2 /\
-  array_eq v1 v2.
-
-Lemma value_uincl_a_refl v : value_uincl_a v v.
-Proof. done. Qed.
-Hint Resolve value_uincl_a_refl.
-
-Lemma of_val_uincl_a ty v1 v2 v1' :
-  value_uincl_a v1 v2 ->
-  of_val ty v1 = ok v1' ->
-  of_val ty v2 = ok v1'.
-Proof.
-  case: ty v1' => [||n|s] v1' [U Aeq];t_xrbindP.
-  + by move=> /(of_val_uincl U) /= [b [-> ]]; rewrite /val_uincl /= => ->.
-  + by move=> /(of_val_uincl U) /= [b [-> ]]; rewrite /val_uincl /= => ->.
-  + case: v1 v2 U Aeq => //;last by move=> [] //=???;case:ifP.
-    by move=> n1 a1 []//= n2 a2 hu /Varr_inj [??];subst.
-  by move=> /(of_val_uincl U) /=  /= [w [-> ]] => /andP [_ /eqP ->];rewrite zero_extend_u.
-Qed.
-
-Lemma truncate_value_uincl_a ty v1 v2 v1' :
-  value_uincl_a v1 v2 ->
-  truncate_val ty v1 = ok v1' ->
-  truncate_val ty v2 = ok v1'.
-Proof.
-  by rewrite /truncate_val => U;t_xrbindP => v /(of_val_uincl_a U) -> /= ->.
-Qed.
-*)
-
 Definition eqok (e1 e2:pexpr) st :=
   forall v, sem_pexpr gd st e1 = ok v ->
     exists v', sem_pexpr gd st e2 = ok v' /\ value_uincl v v'.
@@ -213,11 +175,6 @@ Proof.
   by case: eqP => [-> // | /= _];rewrite Hv1 //= Z.add_0_r.
 Qed.
 
-(*Check value_uincl_zero_ext.
-Lemma value_uincl_a_zero_ext (sz sz' : wsize) (w' : word sz'):
-  (sz ≤ sz')%CMP → value_uincl_a (Vword (zero_extend sz w')) (Vword w').
-Proof. by move=> hle;split;first by apply value_uincl_zero_ext. Qed.
-*)
 Local Hint Resolve value_uincl_zero_ext.
 
 Lemma sadd_wP sz e1 e2 : Papp2 (Oadd (Op_w sz)) e1 e2 =E sadd_w sz e1 e2.
@@ -650,34 +607,6 @@ Proof.
                       svaddP, svsubP, svmulP, svshlP, svshrP, svsarP.
 Qed.
 
-(* vuincl_sopn
-Lemma app_sopn_uincl_a T ts op vs vs' (vres: T) :
-  all is_not_sarr ts ->
-  app_sopn ts op vs = ok vres ->
-  List.Forall2 value_uincl_a vs vs' ->
-  app_sopn ts op vs' = ok vres.
-Proof.
-  elim: ts op vs vs' => /=.
-  + by move=> ? [] //= [] //= ???? /List_Forall2_inv_l.
-  move=> t ts hrec op [] //= v vs vs'' /andP [ ht hts];t_xrbindP => w hw hop.
-  case/List_Forall2_inv_l => v' [vs'] [->] {vs''} [hv hvs].
-  rewrite (of_val_uincl_a hv hw) /=.
-  by apply: hrec hvs.
-Qed.
-*)
-
-(* vuincl_sem_opN
-Lemma sem_opN_uincl_a op vs v vs' :
-  sem_opN op vs = ok v →
-  List.Forall2 value_uincl_a vs vs' →
-  ∃ v' : value, sem_opN op vs' = ok v' ∧ value_uincl_a v v'.
-Proof.
-  rewrite /sem_opN; apply: rbindP => w ok_v' [<-{v}] h.
-  rewrite (app_sopn_uincl_a _ ok_v' h) /=; first by eauto.
-  by case: op {w ok_v'} => //= sz p; rewrite all_nseq orbT.
-Qed.
-*)
-
 Lemma s_opNP op s es :
   sem_pexpr gd s (s_opN op es) = sem_pexpr gd s (PappN op es).
 Proof.
@@ -719,11 +648,11 @@ Section CONST_PROP_EP.
     - move => e rec es ih ?; rewrite /sem_pexprs /=.
       apply: rbindP => v /rec [v'] [->] hu.
       by apply: rbindP => vs /ih{ih}; rewrite -/(sem_pexprs gd s _) => - [vs'] -> hrec [<-] /=; eauto.
-    - move => x v.
+    - move => [x []] v; rewrite /= /get_gvar /=; last by eauto.
       move: Hvalid => /(_ x).
-      case: Mvar.get => [n /(_ _ erefl) | _ /= -> ]; last by eauto.
+      case: Mvar.get => [n /(_ _ erefl)| _ /= ]; last by rewrite /= /get_gvar /=;eauto.
       by case: n => [ n | sz w ] /= -> [<-]; rewrite /sem_sop1 /= ?wrepr_unsigned;
-           eexists;(split;first reflexivity) => //=.
+           eexists;(split;first reflexivity) => /=.
     - move => sz x e He v.
       apply:on_arr_varP; rewrite /on_arr_var => n t ? -> /=.
       t_xrbindP => z w /(He _) [v'] [->] /value_uincl_int h/h{h} [??];subst.
@@ -1340,15 +1269,6 @@ Section PROOF.
     exists vm2; split => //.
     by apply sem_seq1;constructor;econstructor;eauto.
   Qed.
-
-(*  Lemma mapM2_truncate_val_uincl_a ts v1 v2 v1' :
-    List.Forall2 value_uincl_a v1 v2 →
-    mapM2 ErrType truncate_val ts v1 = ok v1' →
-    mapM2 ErrType truncate_val ts v2 = ok v1'.
-  Proof.
-    move=> hall;elim: hall ts v1' => {v1 v2} [ | v1 v2 vs1 vs2 hv hall hrec];case => //= t ts v1'.
-    by t_xrbindP => v' /(truncate_value_uincl_a hv) -> vs' /hrec -> /= <-.
-  Qed. *)
 
   Local Lemma Hproc : sem_Ind_proc p Pc Pfun.
   Proof.

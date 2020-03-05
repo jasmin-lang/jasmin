@@ -88,30 +88,32 @@ let only_rel_print = ref false
 
 module MkUniq : sig
 
-  val mk_uniq : unit func -> unit prog -> (unit func * unit prog)
+  val mk_uniq : unit func -> unit prog -> (unit func * unit prog) 
 
 end = struct
   let ht_uniq = Hashtbl.create ~random:false 16
 
   let htv = Hashtbl.create ~random:false 16
 
-  let rec mk_gv v = v ^ "##g"
-
-  and mk_glob (ws, t, i) = (ws, mk_gv t, i)
+  let rec mk_glob (x, i) = (mk_v None x, i)
 
   and mk_globs globs = List.map mk_glob globs
 
   and mk_f f_decl =
     { f_decl with
-      f_args = List.map (mk_v f_decl.f_name.fn_name) f_decl.f_args;
-      f_body = mk_stmt f_decl.f_name.fn_name f_decl.f_body;
-      f_ret = List.map (mk_v_loc f_decl.f_name.fn_name) f_decl.f_ret }
+      f_args = List.map (mk_v (Some f_decl.f_name.fn_name)) f_decl.f_args;
+      f_body = mk_stmt (Some f_decl.f_name.fn_name) f_decl.f_body;
+      f_ret = List.map (mk_v_loc (Some f_decl.f_name.fn_name)) f_decl.f_ret }
 
   and mk_v fn v =
     if Hashtbl.mem htv (v.v_name, fn) then
       Hashtbl.find htv (v.v_name, fn)
     else if Hashtbl.mem ht_uniq v.v_name then
-      let nv = V.mk (v.v_name ^ "#" ^ fn) v.v_kind v.v_ty v.v_dloc in
+      let ext = 
+        match fn with
+        | None -> "##g"
+        | Some fn -> "#" ^ fn in
+      let nv = V.mk (v.v_name ^ ext) v.v_kind v.v_ty v.v_dloc in
       let () = Hashtbl.add htv (v.v_name, fn) nv in
       nv
     else
@@ -120,6 +122,10 @@ end = struct
       v
 
   and mk_v_loc fn v = L.mk_loc (L.loc v) (mk_v fn (L.unloc v))
+
+  and mk_gv fn v = 
+    let fn = if is_gkvar v then None else fn in
+    { v with gv = mk_v_loc fn v.gv }
 
   and mk_lval fn lv = match lv with
     | Lnone _ -> lv
@@ -151,8 +157,7 @@ end = struct
 
   and mk_expr fn expr = match expr with
     | Pconst _ | Pbool _ | Parr_init _ -> expr
-    | Pglobal (ws,t) -> Pglobal (ws, mk_gv t)
-    | Pvar v -> Pvar (mk_v_loc fn v)
+    | Pvar v -> Pvar (mk_gv fn v)
     | Pget (ws, v, e) -> Pget (ws, mk_v_loc fn v, mk_expr fn e)
     | Pload (ws, v, e) -> Pload (ws, mk_v_loc fn v, mk_expr fn e)
     | Papp1 (op, e) -> Papp1 (op, mk_expr fn e)
@@ -243,7 +248,6 @@ type atype =
 type mvar =
   | Temp of string * int * ty   (* Temporary variable *)
   | WTemp of string * int * ty  (* Temporary variable (weak updates) *)
-  | Mglobal of Name.t * ty      (* Global variable *)
   | Mvalue of atype             (* Variable value *)
   | MinValue of ty gvar         (* Variable initial value *)
   | MvarOffset of ty gvar       (* Variable offset *)
@@ -253,7 +257,6 @@ type mvar =
 let weak_update v = match v with
   | Mvalue _
   | MinValue _
-  | Mglobal _
   | Temp _
   | MNumInv _
   | MvarOffset _ -> false
@@ -272,7 +275,6 @@ let string_of_atype = function
 let string_of_mvar = function
   | Temp (s, i, _) -> "tmp_" ^ s ^ "_" ^ string_of_int i
   | WTemp (s, i, _) -> "wtmp_" ^ s ^ "_" ^ string_of_int i
-  | Mglobal (n,_) -> "g_" ^ n
   | MinValue s -> "inv_" ^ s.v_name
   | Mvalue at -> string_of_atype at
   | MvarOffset s -> "o_" ^ s.v_name
@@ -314,7 +316,6 @@ let ty_atype = function
 let ty_mvar = function
   | Temp (_,_,ty) -> ty
   | WTemp (_,_,ty) -> ty
-  | Mglobal (_,ty) -> ty
   | MinValue s -> s.v_ty
   | Mvalue at -> ty_atype at
   | MvarOffset _ -> Bty Int
@@ -362,9 +363,10 @@ let rec expand_arr_tys = function
 
 let rec expand_arr_exprs = function
   | [] -> []
-  | Pvar v :: t -> begin match (L.unloc v).v_ty with
+  | Pvar v :: t -> begin match (L.unloc v.gv).v_ty with
       | Arr (ws, n) ->
-        List.init n (fun i -> Pget (ws, v, Pconst (B.of_int i)))
+        assert (is_gkvar v); (* Not global array *)
+        List.init n (fun i -> Pget (ws, v.gv, Pconst (B.of_int i)))
         @ expand_arr_exprs t
       | _ -> Pvar v :: expand_arr_exprs t end
   | h :: t -> h :: expand_arr_exprs t
@@ -421,10 +423,13 @@ end = struct
     | Pconst _ -> dp
     | Pbool _ -> dp
     | Parr_init _ -> dp
-    | Pvar v' -> begin match (L.unloc v').v_ty with
-        | Bty _ -> add_dep dp v (L.unloc v') ct
-        | Arr _ -> dp end
-    | Pglobal _ -> dp (* We ignore global variables  *)
+    | Pvar v' -> 
+      if is_gkvar v' then dp (* We ignore global variables *)
+      else 
+        begin match (L.unloc v'.gv).v_ty with
+        | Bty _ -> add_dep dp v (L.unloc v'.gv) ct
+        | Arr _ -> dp 
+        end
 
     | Pget _ -> dp  (* We ignore array loads  *)
 
@@ -453,11 +458,13 @@ end = struct
      the state during memory loads. *)
   let expr_vars st e =
     let rec aux (acc,st) = function
-      | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ | Pget _ -> acc, st
+      | Pconst _ | Pbool _ | Parr_init _ | Pget _ -> acc, st
 
-      | Pvar v' -> begin match (L.unloc v').v_ty with
-          | Bty _ -> (L.unloc v') :: acc, st
-          | Arr _ -> acc, st end
+      | Pvar v' -> 
+        begin match (L.unloc v'.gv).v_ty with
+        | Bty _ -> (L.unloc v'.gv) :: acc, st
+        | Arr _ -> acc, st 
+        end
 
       (* We ignore loads for v, but we compute dependencies of v' in ei *)
       | Pload (_,v',ei) ->
@@ -491,7 +498,7 @@ end = struct
   let pa_expr st v e = { st with dp = app_expr st.dp v e st.ct }
 
   let pa_eq st v e = match e with
-    | Pvar v' -> { st with eq = add_eq st.eq v (L.unloc v')}
+    | Pvar v' -> { st with eq = add_eq st.eq v (L.unloc v'.gv)}
     | _ -> st
 
   let pa_lv st lv e = match lv with
@@ -545,7 +552,7 @@ end = struct
         else pa_func prog st fn in
 
       let st = List.fold_left2 (fun st lv ret ->
-          pa_lv st lv (Pvar ret))
+          pa_lv st lv (Pvar (gkvar ret)))
           st lvs f_decl.f_ret in
 
       let st = List.fold_left2 pa_expr st f_decl.f_args es in
@@ -2349,7 +2356,6 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
     | MmemRange (MemLoc v) ->
       if Sv.mem v v_pt then Ppl 0 else Nrd 0
 
-    | Mglobal _
     | Mvalue (AarrayEl _)
     | Mvalue (Aarray _) -> Nrd 0
 end
@@ -3323,17 +3329,9 @@ end
 
 module Mty = Map.Make (Tcmp)
 
-type s_env = { s_glob : (string * Type.stype) Ms.t;
-               m_locs : mem_loc list }
+type s_env = { m_globs : mvar list; m_locs : mem_loc list }
 
-let pp_s_env fmt env =
-  Format.printf fmt "@[<v>global variables:@;%a@]"
-    (pp_list (fun fmt (_,(x,sw)) ->
-         Format.fprintf fmt "@[%s: %a@]@,"
-           x Printer.pp_ty (Conv.ty_of_cty sw)))
-    (Ms.bindings env.s_glob)
-    (pp_list (fun fmt i -> Format.fprintf fmt "%d" i))
-
+(*
 let add_glob env x ws =
   let ty = Bty (U ws) in
   { env with s_glob = Ms.add x (x,Conv.cty_of_ty ty) env.s_glob }
@@ -3381,7 +3379,7 @@ let rec add_glob_instr s i =
   | Ccall(_,x,_,e) -> add_glob_exprs (add_glob_lvs s x) e
 
 and add_glob_body s c =  List.fold_left add_glob_instr s c
-
+ *)
 let get_wsize = function
   | Type.Coq_sword sz -> sz
   | _ -> raise (Aint_error "Not a Coq_sword")
@@ -3392,7 +3390,6 @@ let get_wsize = function
 (* Safety conditions *)
 (*********************)
 
-(* TODO A: share this with toEC *)
 type safe_cond =
   | Initv of var
   | Initai of var * wsize * expr
@@ -3454,7 +3451,7 @@ let v_compare v v' =
   if c <> 0 then c
   else Pervasives.compare (snd v) (snd v')
 
-let add64 x e = Papp2 (E.Oadd ( E.Op_w U64), Pvar x, e)
+let add64 x e = Papp2 (E.Oadd ( E.Op_w Wsize.U64), Pvar x, e)
 
 let in_bound x ws e =
   match (L.unloc x).v_ty with
@@ -3480,11 +3477,17 @@ let safe_var x = match (L.unloc x).v_ty with
   | _ -> Initv(L.unloc x)
 
 let rec safe_e_rec safe = function
-  | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ -> safe
-  | Pvar x -> safe_var x :: safe
-
+  | Pconst _ | Pbool _ | Parr_init _ -> safe
+  | Pvar x -> 
+    if is_gkvar x then safe_var x.gv :: safe
+    else safe
   | Pload (ws,x,e) -> Valid (ws, L.unloc x, e) :: safe_e_rec safe e
-  | Pget (ws, x, e) -> in_bound x ws e :: Initai(L.unloc x, ws, e) :: safe
+  | Pget (ws, x, e) -> 
+    let safe = 
+   (*   if is_gkvar x then *)
+        Initai(L.unloc x, ws, e) :: safe
+   (*   else safe *) in
+    in_bound x ws e :: safe
   | Papp1 (_, e) -> safe_e_rec safe e
   | Papp2 (op, e1, e2) -> safe_op2 e2 op @ safe_e_rec (safe_e_rec safe e1) e2
   | PappN (E.Opack _,_) -> safe
@@ -3501,7 +3504,8 @@ let safe_es = List.fold_left safe_e_rec []
 let safe_lval = function
   | Lnone _ | Lvar _ -> []
   | Lmem(ws, x, e) -> Valid (ws, L.unloc x, e) :: safe_e_rec [] e
-  | Laset(ws,x,e) -> in_bound x ws e :: safe_e_rec [] e
+  | Laset(ws,x,e) -> 
+    in_bound x ws e :: safe_e_rec [] e
 
 let safe_lvals = List.fold_left (fun safe x -> safe_lval x @ safe) []
 
@@ -3595,12 +3599,12 @@ let fun_rets_no_offsets f_decl =
 
 let get_mem_range env = List.map (fun x -> MmemRange x) env.m_locs
 
-let prog_globals env =
-  List.map (fun (_,(s,ty)) -> Mglobal (s, Conv.ty_of_cty ty))
+let prog_globals env = env.m_globs
+(*  List.map (fun (_,(s,ty)) -> Mglobal (s, Conv.ty_of_cty ty))
     (Ms.bindings env.s_glob)
   @ get_mem_range env
   |> expand_arr_vars
-  |> add_offsets
+  |> add_offsets *)
 
 let fun_vars f_decl env =
   fun_args f_decl
@@ -3759,13 +3763,13 @@ end = struct
 
   (* Try to evaluate e to a constant expression in abs *)
   let rec aeval_cst_int abs e = match e with
-    | Pvar x -> begin match (L.unloc x).v_ty with
-        | Bty Int -> aeval_cst_var abs x
+    | Pvar x -> begin match (L.unloc x.gv).v_ty with
+        | Bty Int -> aeval_cst_var abs x.gv
         | Bty (U ws) ->
           let env = AbsDom.get_env abs in
-          let line = Mtexpr.var env (mvar_of_var (L.unloc x)) in
+          let line = Mtexpr.var env (mvar_of_var (L.unloc x.gv)) in
           if linexpr_overflow abs line false (int_of_ws ws) then None
-          else aeval_cst_var abs x
+          else aeval_cst_var abs x.gv
         | _ -> raise (Aint_error "type error in aeval_cst_int") end
 
     | Pconst c -> Some (B.to_int c)
@@ -3807,8 +3811,7 @@ end = struct
     let rec aux acc e = match e with
       | Pbool _ | Parr_init _ | Pconst _ -> acc
 
-      | Pvar x -> mvar_of_var (L.unloc x) :: acc
-      | Pglobal (ws,x) -> Mglobal (x,Bty (U ws)) :: acc
+      | Pvar x -> mvar_of_var (L.unloc x.gv) :: acc
       | Pget(ws,x,ei) ->
         (abs_arr_range abs (L.unloc x) ws ei
          |> List.map (fun x -> Mvalue x))
@@ -3839,8 +3842,8 @@ end = struct
     | Pconst z -> mtexpr_of_bigint apr_env z
 
     | Pvar x ->
-      check_is_int (L.unloc x);
-      Mtexpr.var apr_env (Mvalue (Avar (L.unloc x)))
+      check_is_int (L.unloc x.gv);
+      Mtexpr.var apr_env (Mvalue (Avar (L.unloc x.gv)))
 
     | Papp1(E.Oint_of_word sz,e1) ->
       assert (ty_expr e1 = tu sz);
@@ -3873,13 +3876,9 @@ end = struct
 
     match e with
     | Pvar x ->
-      check_is_word (L.unloc x);
-      let lin = Mtexpr.var apr_env (Mvalue (Avar (L.unloc x))) in
+      check_is_word (L.unloc x.gv);
+      let lin = Mtexpr.var apr_env (Mvalue (Avar (L.unloc x.gv))) in
       wrap_if_overflow abs lin false (int_of_ws ws_e)
-
-    | Pglobal(ws, x) ->
-      let lin = Mtexpr.var apr_env (Mglobal (x,Bty (U ws))) in
-      wrap_if_overflow abs lin false (int_of_ws ws)
 
     | Papp1(E.Oword_of_int sz,e1) ->
       assert (ty_expr e1 = tint);
@@ -3944,7 +3943,7 @@ end = struct
     ('a * 'a Prog.gexpr * 'a Prog.gexpr * 'a Prog.gexpr) option = function
     | Pif (ty,e1,et,ef) -> Some (ty,e1,et,ef)
 
-    | Pconst _  | Pbool _ | Parr_init _ | Pvar _ | Pglobal _ -> None
+    | Pconst _  | Pbool _ | Parr_init _ | Pvar _ -> None
 
     | Pget(ws,x,e1) ->
       remove_if_expr_aux e1
@@ -4015,9 +4014,7 @@ end = struct
           else false_tcons1 (AbsDom.get_env abs) in
         BLeaf cons
 
-      | Pvar x -> BVar (string_of_mvar (Mvalue (Avar (L.unloc x))), true)
-
-      | Pglobal _ -> assert false (* Global variables are of type word *)
+      | Pvar x -> BVar (string_of_mvar (Mvalue (Avar (L.unloc x.gv))), true)
 
       | Pif(_,e1,et,ef) ->
         let bet, bef, be1 = aux et, aux ef, aux e1 in
@@ -4142,17 +4139,13 @@ end = struct
 
 
   let init_env : 'info prog -> mem_loc list -> s_env =
-    fun (glob_decls, fun_decls) mem_locs ->
-      let env = { s_glob = Ms.empty; m_locs = mem_locs } in
-      let env =
-        List.fold_left (fun env (ws, x, _) -> add_glob env x ws)
-          env glob_decls in
-
-      List.fold_left (fun env f_decl ->
-          { env with s_glob = List.fold_left (fun s_glob ginstr ->
-                add_glob_instr s_glob ginstr)
-                env.s_glob f_decl.f_body })
-        env fun_decls
+    fun (glob_decls, _fun_decls) mem_locs ->
+      let m_globs = 
+        let gl = List.map fst glob_decls in
+        List.map mvar_of_var gl
+        |> expand_arr_vars
+        |> add_offsets in
+      { m_globs; m_locs = mem_locs }
 
   let init_args f_args state =
     List.fold_left (fun state v -> match v with
@@ -4194,12 +4187,20 @@ end = struct
 
 
   let apply_glob globs abs =
-    List.fold_left (fun abs (ws,n,i) ->
+    List.fold_left (fun abs (x,e) ->
+      match e with
+      | Global.Gword (ws, w) -> 
+        let i = Conv.bi_of_word ws w in
         let env = AbsDom.get_env abs in
         let sexpr = mtexpr_of_bigint env i |> sexpr_from_simple_expr in
-        AbsDom.assign_sexpr abs (Mglobal (n, Bty (U ws))) sexpr)
+        AbsDom.assign_sexpr abs (Mvalue (Avar x)) sexpr
+      (*| `GArray(ws, es) ->
+        let add abs i e =
+          let env = AbsDom.get_env abs in
+          let sexpr = mtexpr_of_bigint env e |> sexpr_from_simple_expr in
+          AbsDom.assign_sexpr abs (Mvalue(AarrayEl(x,ws,i))) sexpr in
+        List.fold_lefti add abs (Array.to_list es)*)) 
       abs globs
-
 
   let init_state : unit func -> unit prog -> astate =
     fun main_decl (glob_decls, fun_decls) ->
@@ -4358,10 +4359,9 @@ end = struct
     | Lmem _ -> MLnone
     | Lvar x  ->
       let ux = L.unloc x in
-      begin match ux.v_kind, ux.v_ty with
-        | Global,_ -> MLvar (Mglobal (ux.v_name,ux.v_ty))
-        | _, Bty _ -> MLvar (Mvalue (Avar ux))
-        | _, Arr _ -> MLvar (Mvalue (Aarray ux)) end
+      begin match ux.v_ty with
+        | Bty _ -> MLvar (Mvalue (Avar ux))
+        | Arr _ -> MLvar (Mvalue (Aarray ux)) end
 
     | Laset (ws, x, ei) ->
       match abs_arr_range abs (L.unloc x) ws ei
@@ -4402,12 +4402,14 @@ end = struct
   (* Evaluate the offset abstraction *)
   let aeval_offset abs ws_o outmv e = match e with
     | Pvar y ->
+      let y = y.gv in
       if valid_offset_var abs ws_o y then
         apply_offset_expr abs outmv (L.unloc y) (pcast U64 (Pconst(B.of_int 0)))
       else aeval_top_offset abs outmv
 
     | Papp2 (op2,el,er) -> begin match op2,el with
         | E.Oadd ( E.Op_w U64), Pvar y ->
+          let y = y.gv in
           if valid_offset_var abs ws_o y then
             apply_offset_expr abs outmv (L.unloc y) er
           else aeval_top_offset abs outmv
@@ -4478,6 +4480,7 @@ end = struct
       | Arr _, MLvar mvar ->
         match e with
         | Pvar x ->
+          let x = x.gv in
           let apr_env = AbsDom.get_env state.abs in
           let se = Mtexpr.var apr_env (Mvalue (Aarray (L.unloc x))) in
           begin match mvar with
@@ -4568,7 +4571,7 @@ end = struct
             | None -> abs
             | Some rv ->
               let lrv = L.mk_loc L._dummy rv in
-              aeval_offset abs out_ty mlv (Pvar lrv))
+              aeval_offset abs out_ty mlv (Pvar (gkvar lrv)))
       abs ret_assigns
 
 

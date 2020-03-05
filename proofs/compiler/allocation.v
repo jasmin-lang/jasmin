@@ -184,18 +184,14 @@ Definition check_fundef (f1 f2: funname * fundef) (_:Datatypes.unit) :=
     add_finfo f1 f2 (
     Let r := add_iinfo fd1.(f_iinfo) (check_vars fd1.(f_params) fd2.(f_params) M.empty) in
     Let r := check_cmd fd1.(f_iinfo) fd1.(f_body) fd2.(f_body) r in
-    let es1 := map Pvar fd1.(f_res) in
-    let es2 := map Pvar fd2.(f_res) in
+    let es1 := map Plvar fd1.(f_res) in
+    let es2 := map Plvar fd2.(f_res) in
     Let _r := add_iinfo fd1.(f_iinfo) (check_es es1 es2 r) in
     ok tt)
   else cferror (Ferr_neqfun f1 f2).
 
-Definition check_prog_aux prog1 prog2 :=
-  fold2 Ferr_neqprog check_fundef (p_funcs prog1) (p_funcs prog2) tt.
-
-Definition check_prog prog1 prog2 :=
-  if prog1.(p_globs) == prog2.(p_globs) then check_prog_aux prog1 prog2
-  else cferror Ferr_glob_neq.
+Definition check_prog p_funcs1 p_funcs2 := 
+  fold2 Ferr_neqprog check_fundef p_funcs1 p_funcs2 tt.
 
 Lemma check_lvalsP gd xs1 xs2 vs1 vs2 r1 r2 s1 s2 vm1 :
   check_lvals xs1 xs2 r1 = ok r2 ->
@@ -219,14 +215,15 @@ Section PROOF.
 
   Variable p1 p2:prog.
   Notation gd := (p_globs p1).
-  Hypothesis Hcheck: check_prog_aux p1 p2 = ok tt.
+  
+  Hypothesis Hcheck: check_prog p1.(p_funcs) p2.(p_funcs) = ok tt.
   Hypothesis eq_globs : p_globs p1 = p_globs p2.
 
   Lemma all_checked : forall fn fd1,
     get_fundef (p_funcs p1) fn = Some fd1 ->
     exists fd2, get_fundef (p_funcs p2) fn = Some fd2 /\ check_fundef (fn,fd1) (fn,fd2) tt = ok tt.
   Proof.
-    move: Hcheck; rewrite /check_prog_aux;clear Hcheck eq_globs.
+    move: Hcheck; rewrite /check_prog;clear Hcheck eq_globs.
     move: (p_funcs p1) (p_funcs p2);clear p1 p2.
     elim => [ | [fn1' fd1'] p1 Hrec] [ | [fn2 fd2] p2] //.
     apply: rbindP => -[] Hc /Hrec {Hrec} Hrec.
@@ -548,11 +545,10 @@ Section PROOF.
 
 End PROOF.
 
-Lemma alloc_callP p1 p2 (H: check_prog p1 p2 = ok tt) f mem mem' va vr:
-    sem_call p1 mem f va mem' vr ->
-    exists vr', sem_call p2 mem f va mem' vr' /\ List.Forall2 value_uincl vr vr'.
+Lemma alloc_callP gd p1 p2 (H: check_prog p1 p2 = ok tt) f mem mem' va vr:
+    sem_call {|p_globs := gd; p_funcs := p1 |} mem f va mem' vr ->
+    exists vr', sem_call {|p_globs := gd; p_funcs := p2 |} mem f va mem' vr' /\ List.Forall2 value_uincl vr vr'.
 Proof.
-  move: H;rewrite /check_prog;case: eqP => // heq hc.
   by apply alloc_callP_aux.
 Qed.
 
@@ -1158,6 +1154,14 @@ Module CBAreg.
       end
     else cerror (Cerr_varalloc xi1 xi2 "type mismatch").
 
+  Definition check_gv (err: unit -> cexec M.t) x1 x2 (m:M.t) : cexec M.t := 
+    if x1.(gs) == x2.(gs) then
+      if is_lvar x1 then check_v x1.(gv) x2.(gv) m 
+      else 
+        if x1.(gv).(v_var) == x2.(gv).(v_var) then cok m
+        else err tt
+    else err tt.
+
   Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
     let err _ := cerror (Cerr_neqexpr e1 e2 salloc) in
     match e1, e2 with
@@ -1167,9 +1171,7 @@ Module CBAreg.
       if b1 == b2 then cok m else err tt
     | Parr_init n1, Parr_init n2 =>
       if n1 == n2 then cok m else err tt
-    | Pvar   x1, Pvar   x2 => check_v x1 x2 m
-    | Pglobal g1, Pglobal g2 =>
-      if g1 == g2 then cok m else err tt
+    | Pvar   x1, Pvar   x2 => check_gv err x1 x2 m
     | Pget w1 x1 e1, Pget w2 x2 e2 =>
       if w1 == w2 then check_v x1 x2 m >>= check_e e1 e2 else err tt
     | Pload w1 x1 e1, Pload w2 x2 e2 =>
@@ -1202,12 +1204,12 @@ Module CBAreg.
 
   Definition is_Pvar (e:option (stype * pexpr)) :=
     match e with
-    | Some (ty, Pvar x) => Some (ty,x)
+    | Some (ty, Pvar x) => if is_lvar x then Some (ty,x.(gv)) else None
     | _ => None
     end.
 
-  Lemma is_PvarP e ty x : is_Pvar e = Some (ty,x) -> e = Some (ty, Pvar x).
-  Proof. by case: e => //= -[? []] //= v [<- <-]. Qed.
+  Lemma is_PvarP e ty x : is_Pvar e = Some (ty,x) -> e = Some (ty, Plvar x).
+  Proof. by case: e => //= -[? []] //= [] v [] // [<- <-]. Qed.
 
   Definition check_lval (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec M.t :=
     let err _ := cerror (Cerr_neqlval x1 x2 salloc) in
@@ -1292,6 +1294,19 @@ Module CBAreg.
     by rewrite heq; case: (vm2.[_]) => //= a ?; eexists;split;first by reflexivity.
   Qed.
 
+  Lemma check_gvP E x1 x2 r re gd vm1 vm2 : 
+    check_gv (fun tt => cerror E) x1 x2 r = ok re ->
+    eq_alloc r vm1 vm2 ->
+    eq_alloc re vm1 vm2 /\
+    (forall v1 : value,
+       get_gvar gd vm1 x1 = ok v1 ->
+       exists v2 : value, get_gvar gd vm2 x2 = ok v2 /\ value_uincl v1 v2).
+  Proof.
+    rewrite /check_gv /get_gvar /is_lvar; case: x1 x2 => x1 k1 [x2 k2] /=.
+    case:eqP => [-> | //]; case:eqP => _; first by apply check_vP.
+    case:eqP => [-> [<-] ?| //]; split;eauto.
+  Qed.
+
   Section CHECK_EP.
     Context (gd: glob_decls) (vm2: vmap).
 
@@ -1328,9 +1343,7 @@ Module CBAreg.
     - move => n1 [] // n2 r re vm1.
       by case: eqP => //= <- [<-] ?; split => // ?? [<-]; eauto.
     - move => x1 [] // x2 r re vm1.
-      by move=> /check_vP Hv /Hv [Hea H].
-    - move => g1 [] // g2 r re vm1.
-      by case: ifPn => // /eqP <- [->] ?; split => //= ?? ->; eauto.
+      by move=> /check_gvP Hv /(Hv gd) [Hea H].
     - move => sz1 x1 e1 He1 [] // sz2 x2 e2 r re vm1.
       case: eqP => // ?; subst sz2.
       apply: rbindP => r' Hcv Hce Hea.

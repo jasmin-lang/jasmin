@@ -108,8 +108,8 @@ let set_same loc cfm x y =
 
 let rec same_i cfm i =
   match i.i_desc with
-  | Cassgn (Lvar x, tg, _, Pvar y) when is_same tg && kind_i x = kind_i y ->
-    set_same i.i_loc cfm (L.unloc x) (L.unloc y)
+  | Cassgn (Lvar x, tg, _, Pvar y) when is_same tg && is_gkvar y && kind_i x = kind_i y.gv ->
+    set_same i.i_loc cfm (L.unloc x) (L.unloc y.gv)
   | Cassgn (_, tg, _, _) when is_same tg ->
     hierror "at %a: cannot remove assignment %a@\nintroduced by inlining"
         Printer.pp_iloc i.i_loc

@@ -49,11 +49,16 @@ Module INCL. Section INCL.
     Let Q es : Prop :=
       ∀ vs, sem_pexprs gd1 s es = ok vs → sem_pexprs gd2 s es = ok vs.
 
+    Lemma gd_incl_gvar (x : gvar) (v : value) :
+      get_gvar gd1 (evm s) x = ok v → get_gvar gd2 (evm s) x = ok v.
+    Proof. by rewrite /get_gvar; case: x => x [] //=; apply: hincl. Qed.
+
     Lemma gd_incl_e_es : (∀ e, P e) ∧ (∀ es, Q es).
     Proof.
       apply: pexprs_ind_pair; split; subst P Q => //=.
       - move => e rec es ih q; t_xrbindP => v ok_v vs ok_vs <- {q}.
         by rewrite (rec _ ok_v) /= (ih _ ok_vs).
+      - by apply gd_incl_gvar.
       - move => sz x e rec v; apply: on_arr_varP => n t h1 h2; t_xrbindP => z v1 /rec -> hz w.
          by rewrite /on_arr_var h2 /= hz /= => -> <-.
       - by move => sz x e hrec v; t_xrbindP => ?? -> /= -> ?? /hrec -> /= -> ? /= -> <-.
@@ -222,17 +227,32 @@ Module EXTEND. Section PROOFS.
     by move=> i c hi hc gd1 gd2 /=;t_xrbindP => gd3 /hi h1 /hc; apply: gd_inclT.
   Qed.
 
+  (* TODO: Move *)
+  Lemma hasPP T (a : pred T) (s : seq T): reflect (exists2 x : T, List.In x s & a x) (has a s).
+  Proof.
+    elim: s => /=;first by constructor => -[]. 
+    move=> x l ih; apply (equivP orP);split.
+    + by move=> [ h| /ih []];eauto.
+    move=> [x' [<- ?| ??]];first by auto.
+    by right; apply /ih;eauto.
+  Qed.
+
+  Lemma assoc_memP (T : eqType) U (s : seq (T * U)) (x : T) (w : U): assoc s x = Some w → List.In (x, w) s.
+  Proof.
+    by elim: s => //= -[x' u] l ih; case: eqP => [-> [<-] | ? /ih];auto.
+  Qed.
+
   Local Lemma Hasgn: forall x tg ty e, Pr (Cassgn x tg ty e).
   Proof.
     move=> [ii ty|x|ws x e|ws x e] ?? e1 ??? //=. 1,3-4: by move=> [<-].
     case: ifP => ?; last by move=> [<-].
     case: e1 => // - [] // w [] // z; rewrite /add_glob.
     case:ifPn => hhas1; first by move=> [<-].
-    case:ifPn => // /hasP hhas2 [<-] g v.
-    rewrite /get_global /get_global_word /get_global_Z /=.
+    case:ifPn => // /hasPP hhas2 [<-] g v.
+    rewrite /get_global /get_global_value /=.
     case:eqP => heq //;subst g.
     case ha : assoc => [|// ].
-    have /assoc_mem hin := ha; elim hhas2;eauto.
+    by have hin := assoc_memP ha; elim hhas2;eauto.
   Qed.
 
   Local Lemma Hopn : forall xs t o es, Pr (Copn xs t o es).
@@ -281,7 +301,7 @@ Module RGP. Section PROOFS.
   Context (is_glob : var -> bool).
   Context (fresh_id : glob_decls -> var -> Ident.ident).
 
-  Notation venv := (Mvar.t global).
+  Notation venv := (Mvar.t var).
 
   Section FDS.
 
@@ -328,11 +348,12 @@ Module RGP. Section PROOFS.
       - by move => z _ _ [<-] [<-].
       - by move => b _ _ [<-] [<-].
       - by move => n _ _ [<-] [<-].
-      - move => x e' v; case: ifP => hx.
-        + case heq: (Mvar.get _ _) => [ g | // ] [<-].
-          by move => /(hm3 _ _ _ heq); apply.
-        by case => <- h; rewrite /= -hm1 // hx.
-      - by move => g _ v [<-].
+      -  move => [x []] e' v /=; rewrite /get_gvar /=.
+        + case : ifP => hx.
+          + case heq: (Mvar.get _ _) => [ g | // ] [<-].
+            by move => /(hm3 _ _ _ heq); apply.
+          by move=> [<-] h; rewrite /= /get_gvar -hm1 // hx.
+        by case => [<-] h;rewrite /= /get_gvar /=.
       - move => ws x e he q v; case: ifPn => // hx; t_xrbindP => e' ok_e' <- {q}.
         rewrite /= /on_arr_var (hm1 _ hx); t_xrbindP => -[] //= ?? -> /=.
         by t_xrbindP => ?? /he /= -> //= -> ? /= -> <-.
@@ -465,13 +486,14 @@ Module RGP. Section PROOFS.
   Local Lemma HmkI : sem_Ind_mkI P Pi_r Pi.
   Proof. done. Qed.
 
-  Lemma find_globP ii xi sz z g :
-    find_glob ii xi gd sz z = ok g ->
-    get_global gd g =  ok (Vword (wrepr sz z)).
+  Lemma find_globP ii xi sz (w:word sz) g :
+    find_glob ii xi gd w = ok g ->
+    get_global gd g =  ok (Vword w).
   Proof.
-    rewrite /find_glob /get_global /get_global_word /get_global_Z.
+    rewrite /find_glob /get_global /get_global_value.
     elim: gd uniq_gd => //= -[g' z'] gd hrec /andP /= [hg' huniq]; case: ifPn => /= /andP.
-    + by move=> [/eqP ? /eqP ? [?]] {hrec};subst; rewrite eq_refl.
+    + move=> [];case : z' => //= ws s /eqP heq /andP[] /eqP ? /eqP ? [?];subst.
+      by rewrite eq_refl /= heq eq_refl zero_extend_u.
     move=> hn /(hrec huniq) hget {hrec}.
     case: eqP => heq //; subst g'.
     case heq : assoc hget hg' => [z1 | //].
@@ -709,7 +731,7 @@ Module RGP. Section PROOFS.
     move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' hget hargs hwa _ hc hres hres'.
     rewrite /Pfun; have [f' [hget']]:= get_fundefP hget.
     rewrite /remove_glob_fundef; t_xrbindP => ? hparams res1 hres1 [m' c'] hrm ?;subst f'.
-    have hval: valid (Mvar.empty global) s1 s1 by split.
+    have hval: valid (Mvar.empty var) s1 s1 by split.
     have [[mem2 vm2'] [hs2' ws2]]:= hc _ _ _ _ hrm _ hval.
     case: (hs2') => /= hmem hm _ _; subst mem2.
     have hres2 : mapM (fun x : var_i => get_var vm2' x) (f_res f) = ok vres.

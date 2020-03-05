@@ -46,7 +46,7 @@ and written_vars_stmt allvars w s = List.fold_left (written_vars_instr allvars) 
 let ir (m: names) (x: var) (y: var) : unit instr =
   let x = Mv.find_default x x m in
   let v u = L.mk_loc L._dummy u in
-  let i_desc = Cassgn (Lvar (v y), AT_phinode, y.v_ty, Pvar (v x)) in
+  let i_desc = Cassgn (Lvar (v y), AT_phinode, y.v_ty, Pvar (gkvar (v x))) in
   { i_desc ; i_info = () ; i_loc = L._dummy,[] }
 
 let split_live_ranges (allvars: bool) (f: 'info func) : unit func =
@@ -113,10 +113,11 @@ let remove_phi_nodes (f: 'info func) : 'info func =
       (match tg with
        | AT_phinode ->
          (match x, e with
-          | Lvar v, Pvar v' -> if L.unloc v = L.unloc v' then [] else
+          | Lvar v, Pvar v' when is_gkvar v' -> 
+            if L.unloc v = L.unloc v'.gv then [] else
               let pv = Printer.pp_var ~debug:true in
               hierror "SSA: cannot remove assignment %a = %a"
-                pv (L.unloc v) pv (L.unloc v')
+                pv (L.unloc v) pv (L.unloc v'.gv)
           | _, _ -> [i])
        | _ -> [i])
     | Cif (b, s1, s2) -> [Cif (b, stmt s1, stmt s2)]

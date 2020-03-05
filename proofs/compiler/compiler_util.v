@@ -49,7 +49,8 @@ with fun_error   :=
   | Ferr_neqfun   : funname -> funname -> fun_error
   | Ferr_fun      : funname -> error_msg -> fun_error
   | Ferr_remove_glob     : instr_info -> var_i -> fun_error
-  | Ferr_remove_glob_dup : instr_info -> global -> fun_error
+  | Ferr_remove_glob_dup : instr_info -> var -> fun_error
+  | Ferr_msg      : error_msg -> fun_error
   | Ferr_neqprog  : fun_error
   | Ferr_loop     : fun_error
   | Ferr_uniqfun  : fun_error
@@ -91,6 +92,12 @@ Definition add_infun {A} (ii:instr_info) (r:cfexec A) : ciexec A :=
   | Error e => Error (ii, Cerr_in_fun e)
   end.
 
+Definition add_err_msg (A : Type) (r : cexec A) := 
+  match r with
+  | ok _ a => ok a
+  | Error e => Error (Ferr_msg e)
+  end.
+
 Lemma add_iinfoP A (a:A) (e:cexec A) ii (P:Prop):
   (e = ok a -> P) ->
   add_iinfo ii e = ok a -> P.
@@ -105,6 +112,11 @@ Lemma add_infunP A a ii (e:cfexec A) (P:Prop):
   (e = ok a -> P) ->
   add_infun ii e = ok a -> P.
 Proof. by case: e=> //= a' H [] Heq;apply H;rewrite Heq. Qed.
+
+Lemma add_err_msgP A (a: A) e (P:Prop):
+  (e = ok a -> P) ->
+  add_err_msg e = ok a -> P.
+Proof. by case: e => //= ? h [] heq; apply: h;rewrite heq. Qed.
 
 Definition map_cfprog {T1 T2} (F: T1 -> ciexec T2) :=
   mapM (fun (f:funname * T1) => Let x := add_finfo f.1 f.1 (F f.2) in cfok (f.1, x)).

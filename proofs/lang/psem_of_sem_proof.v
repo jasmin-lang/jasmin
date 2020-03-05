@@ -112,6 +112,13 @@ case: (vm.[x])%vmap (h x) => a /exec_val_simE.
 by move => ->.
 Qed.
 
+Lemma get_gvar_sim gd vm vm' :
+  vmap_sim vm vm' →
+  ∀ x, sem.get_gvar gd vm x = psem.get_gvar gd vm' x.
+Proof.
+by move => h x; rewrite /sem.get_gvar /psem.get_gvar (get_var_sim h).
+Qed.
+
 Lemma vmap_set_sim vm vm' x v v' :
   vmap_sim vm vm' →
   exec_val_sim v v' →
@@ -162,6 +169,7 @@ Section SEM_PEXPR_SIM.
   | h : ?p = ok _ |- _ => rewrite h /= => {h}
   | hm: sem.emem _ = _, h : context[sem.emem _] |- _ => rewrite hm in h
   | hvm: vmap_sim ?vm _, h : context[ sem.get_var ?vm _] |- _ => rewrite (get_var_sim hvm) in h
+  | hvm: vmap_sim ?vm _, h : context[ sem.get_gvar gd ?vm _] |- _ => rewrite (get_gvar_sim gd hvm) in h
   | h : sem.on_arr_var _ _ _ = ok _ |- _ => unfold sem.on_arr_var in h; unfold psem.on_arr_var
   | h : (if _ then _ else _) = ok _ |- _ =>
     move: h; case: eqP => // ->; rewrite eqxx

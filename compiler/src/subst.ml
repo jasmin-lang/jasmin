@@ -1,13 +1,12 @@
 open Prog
 module L = Location
 
-let rec gsubst_e (fty: 'ty1 -> 'ty2) (f: 'ty1 gvar_i -> 'ty2 gexpr) e =
+let rec gsubst_e (fty: 'ty1 -> 'ty2) (f: 'ty1 ggvar -> 'ty2 gexpr) e =
   match e with
   | Pconst c -> Pconst c
   | Pbool b  -> Pbool b
   | Parr_init n -> Parr_init n
   | Pvar v -> f v
-  | Pglobal (ws, g)  -> Pglobal (ws, g)
   | Pget  (ws, v, e) -> Pget(ws, gsubst_vdest f v, gsubst_e fty f e)
   | Pload (ws, v, e) -> Pload (ws, gsubst_vdest f v, gsubst_e fty f e)
   | Papp1 (o, e)     -> Papp1 (o, gsubst_e fty f e)
@@ -15,10 +14,15 @@ let rec gsubst_e (fty: 'ty1 -> 'ty2) (f: 'ty1 gvar_i -> 'ty2 gexpr) e =
   | PappN (o, es) -> PappN (o, List.map (gsubst_e fty f) es)
   | Pif   (ty, e, e1, e2)-> Pif(fty ty, gsubst_e fty f e, gsubst_e fty f e1, gsubst_e fty f e2)
 
-and gsubst_vdest f v =
+and gsubst_gvar f v = 
   match f v with
   | Pvar v -> v
   | _      -> assert false
+
+and gsubst_vdest f v =
+  let v = gsubst_gvar f (gkvar v) in
+  assert (is_gkvar v);
+  v.gv
 
 let gsubst_lval fty f lv =
   match lv with
@@ -55,6 +59,10 @@ let gsubst_func fty f fc =
     f_ret  = List.map (gsubst_vdest f) fc.f_ret
   }
 
+let subst_func f fc =
+  gsubst_func (fun ty -> ty)
+     (fun v -> if is_gkvar v then f v.gv else Pvar v) fc
+
 (* ---------------------------------------------------------------- *)
 
 type psubst = pexpr Mv.t
@@ -67,6 +75,8 @@ let psubst_ty fty f ty =
 let psubst_v subst =
   let subst = ref subst in
   let rec aux v : pexpr =
+    let k = v.gs in
+    let v = v.gv in
     let v_ = v.L.pl_desc in
     let e = 
       try Mpv.find v_ !subst
@@ -74,16 +84,26 @@ let psubst_v subst =
         assert (not (PV.is_glob v_));
         let ty = auxty v_.v_ty in
         let v' = PV.mk v_.v_name v_.v_kind ty v_.v_dloc in
-        let e = Pvar {v with L.pl_desc = v'} in
+        let v = {v with L.pl_desc = v'} in
+        let v = { gv = v; gs = k } in
+        let e = Pvar v in
         subst := Mpv.add v_ e !subst;
         e in
     match e with
-    | Pvar x -> Pvar {x with L.pl_loc = L.loc v}
+    | Pvar x -> 
+      let k = x.gs in
+      let x = {x.gv with L.pl_loc = L.loc v} in
+      let x = {gv = x; gs = k} in
+      Pvar x
     | _      -> e 
   and auxty (ty:pty) : pty = psubst_ty auxty aux ty in
   auxty, aux
 
-let psubst_prog (prog:'info pprog) : ((Name.t * pty) * pexpr) list * 'info pprog =
+let psubst_ge fty f = function
+  | GEword e -> GEword (gsubst_e fty f e)
+  | GEarray es -> GEarray (List.map (gsubst_e fty f) es)
+
+let psubst_prog (prog:'info pprog) =
   let subst = ref (Mpv.empty : pexpr Mpv.t) in
   let rec aux = function
     | [] -> [], []
@@ -94,8 +114,9 @@ let psubst_prog (prog:'info pprog) : ((Name.t * pty) * pexpr) list * 'info pprog
         g, p
     | MIglobal (v, e) :: items ->
       let g, p = aux items in
-      let fty, f = psubst_v !subst in 
-      let e = gsubst_e fty f e in
+      let fty, f = psubst_v !subst in
+      let e = psubst_ge fty f e in
+      subst := Mpv.add v (Pvar (gkglob (L.mk_loc L._dummy v))) !subst;
       (v, e) :: g, p
     | MIfun fc :: items ->
         let g, p = aux items in
@@ -110,7 +131,7 @@ let psubst_prog (prog:'info pprog) : ((Name.t * pty) * pexpr) list * 'info pprog
             f_tyout = List.map subst_ty fc.f_tyout;
             f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret
           } in
-        g, MIfun(fc)::p in
+        g, fc::p in
     aux prog
 
 (* ---------------------------------------------------------------- *)
@@ -128,7 +149,7 @@ let rec int_of_expr e =
   | Pconst i -> i
   | Papp2 (o, e1, e2) ->
       int_of_op2 o (int_of_expr e1) (int_of_expr e2)
-  | Pbool _ | Parr_init _ | Pvar _ | Pglobal _
+  | Pbool _ | Parr_init _ | Pvar _ 
   | Pget _ | Pload _ | Papp1 _ | PappN _ | Pif _ -> assert false
 
 
@@ -137,49 +158,60 @@ let isubst_ty = function
   | Arr(ty, e) -> Arr(ty, B.to_int (int_of_expr e))
 
 
-let isubst_prog (glob: ((Name.t * pty) * _) list) (prog:'info pprog) =
+let isubst_prog glob prog =
 
-  let isubst_v () =
-    let subst = ref Mpv.empty in
-    let aux v =
+  let isubst_v subst =
+    let aux v0 =
+      let k = v0.gs in
+      let v = v0.gv in
       let v_ = v.L.pl_desc in
       try Mpv.find v_ !subst
       with Not_found ->
-        assert (not (PV.is_glob v_));
         let ty = isubst_ty v_.v_ty in
-        let e =
-          Pvar {v with
-                 L.pl_desc = V.mk v_.v_name v_.v_kind ty v_.v_dloc } in
+        let v1 = V.mk v_.v_name v_.v_kind ty v_.v_dloc in
+        let v  = { v with L.pl_desc = v1 } in
+        let v0 = { gv = v; gs = k } in
+        let e = Pvar v0 in
         subst := Mpv.add v_ e !subst;
         e in
-    aux in
+    aux in 
 
-  let isubst_item = function
-    | MIglobal _
-    | MIparam _ -> assert false
-    | MIfun fc  ->
-      let subst_v = isubst_v () in
-      let dov v =
-        L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
-      let fc = {
-          fc with
-          f_tyin = List.map isubst_ty fc.f_tyin;
-          f_args = List.map dov fc.f_args;
-          f_body = gsubst_c isubst_ty subst_v fc.f_body;
-          f_tyout = List.map isubst_ty fc.f_tyout;
-          f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret
-        } in
-      fc in
+  let subst = ref Mpv.empty in
+  
+  let isubst_glob (x, gd) = 
+    let subst_v = isubst_v subst in
+    let x = 
+      let x = 
+        gsubst_gvar subst_v {gv = L.mk_loc L._dummy x; gs = Expr.Sglob} in
+      assert (not (is_gkvar x)); L.unloc x.gv in
 
-  let isubst_glob ((x,ty),e) = 
-    let subst_v = isubst_v () in
-    let ty = isubst_ty ty in
-    let e = gsubst_e isubst_ty subst_v e in
-    ((x,ty),e) in
+    let gd = 
+      match gd with
+      | GEword e -> GEword (gsubst_e isubst_ty subst_v e)
+      | GEarray es -> GEarray (List.map (gsubst_e isubst_ty subst_v) es) in
+    x, gd in
+  let glob = List.map isubst_glob glob in
+
+  let subst = !subst in
+
+  let isubst_item fc = 
+    let subst = ref subst in
+    let subst_v = isubst_v subst in
+    let dov v =
+      L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
+    let fc = {
+        fc with
+        f_tyin = List.map isubst_ty fc.f_tyin;
+        f_args = List.map dov fc.f_args;
+        f_body = gsubst_c isubst_ty subst_v fc.f_body;
+        f_tyout = List.map isubst_ty fc.f_tyout;
+        f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret
+      } in
+    fc in
 
   let prog = List.map isubst_item prog in
-  let glob = List.map isubst_glob glob in
   glob, prog 
+
 
 
 (* ---------------------------------------------------------------- *)
@@ -237,28 +269,45 @@ let rec constant_of_expr (e: Prog.expr) : Bigint.zint =
 let remove_params (prog : 'info pprog) =
   let globals, prog = psubst_prog prog in
   let globals, prog = isubst_prog globals prog in
-  let doglob ((x,ty),e) = 
-    let ws = 
-      match ty with
-      | Bty (U ws) -> ws 
-      | _ -> raise NotAConstantExpr in
-    ws, x, clamp ws (constant_of_expr e) in
-  let globals = List.map doglob globals in 
+  let mk_word ws e =  
+    Word0.wrepr ws (Conv.z_of_bi (clamp ws (constant_of_expr e))) in
+  let doglob (x, e) = 
+    match x.v_ty, e with
+    | Bty (U ws), GEword e ->
+      x, Global.Gword (ws, mk_word ws e) 
+    | Arr(_ws,_n), GEarray _es ->
+      assert false 
+(*
+      assert (List.length es = n);
+      let p = Prog.pos_of_int (n * size_of_ws ws) in
+      let t = ref (Warray.WArray.empty p) in
+      let doit i e = 
+        match Warray.WArray.set p ws !t  Warray.AAscale (Prog.z_of_int i) (mk_word ws e) with
+        | Ok t1 -> t := t1
+        | _ -> assert false in
+      List.iteri doit es;
+      x, Expr.Garr(p, !t) *)
+    | _, _ -> assert false
+  in
+  let globals = List.map doglob globals in
   globals, prog
 
+ 
 (* ---------------------------------------------------------------- *)
 (* Rename all variable using fresh variable                         *)
 
 let csubst_v () =
   let tbl = Hv.create 101 in
   let rec aux v =
-    let v_ = v.L.pl_desc in
-    let v' = 
-      try Hv.find tbl v_
-      with Not_found ->
-        let v' = V.clone v_ in
-        Hv.add tbl v_ v'; v' in
-    Pvar { v with L.pl_desc = v' } in 
+    if not (is_gkvar v) then Pvar v
+    else
+      let v_ = v.gv.L.pl_desc in
+      let v' = 
+        try Hv.find tbl v_
+        with Not_found ->
+          let v' = V.clone v_ in
+          Hv.add tbl v_ v'; v' in
+    Pvar (gkvar { v.gv with L.pl_desc = v' }) in
   aux
 
 let clone_func fc =
@@ -296,7 +345,9 @@ let vsubst_v s v = try Mv.find v s with Not_found -> v
 
 let vsubst_vi s v = {v with L.pl_desc = vsubst_v s (L.unloc v) }
 
-let vsubst_ve s v = Pvar (vsubst_vi s v) 
+let vsubst_gv s v = { v with gv = vsubst_vi s v.gv }
+
+let vsubst_ve s v = Pvar (vsubst_gv s v) 
   
 let vsubst_e  s = gsubst_e  (fun ty -> ty) (vsubst_ve s)
 let vsubst_es s = gsubst_es (fun ty -> ty) (vsubst_ve s) 

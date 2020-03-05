@@ -700,7 +700,6 @@ Definition check_arg_kind (a:asm_arg) (cond: arg_kind) :=
   match a, cond with
   | Condt _, CAcond => true
   | Imm sz _, CAimm sz' => sz == sz'
-  | Glob _, CAmem b => b
   | Reg _, CAreg => true
   | Adr _, CAmem _ => true
   | XMM _, CAxmm   => true

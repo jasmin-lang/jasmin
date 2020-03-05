@@ -307,10 +307,31 @@ Qed.
 Class alignment : Type :=
   Alignment {
       is_align : pointer -> wsize -> bool
-    ; is_align8 ptr : is_align ptr U8
-    ; is_align_array ptr sz j : is_align ptr sz → is_align (wrepr _ (wsize_size sz * j) + ptr) sz
+    ; is_align_add ptr1 ptr2 sz : is_align ptr1 sz -> is_align ptr2 sz -> is_align (ptr1 + ptr2) sz
+    ; is_align_mod ptr sz : (wunsigned ptr mod wsize_size sz = 0)%Z -> is_align ptr sz
     ; is_align_no_overflow ptr sz : is_align ptr sz → no_overflow ptr (wsize_size sz)
     }.
+
+Lemma cut_wbase_Uptr sz :
+  wbase Uptr = (wsize_size sz * CoqWord.word.modulus (nat63.+3 - (Nat.log2 (wsize_size_minus_1 sz))))%Z.
+Proof. by case: sz; vm_compute. Qed.
+
+Lemma is_align8 (AL:alignment) ptr : is_align ptr U8.
+Proof. by apply is_align_mod; rewrite wsize8 /= Z.mod_1_r. Qed.
+
+Lemma is_align_mul (AL:alignment) sz j : is_align (wrepr _ (wsize_size sz * j)) sz.
+Proof.
+  apply is_align_mod.
+  have hn := wsize_size_pos sz.
+  have hnz : wsize_size sz ≠ 0%Z by Psatz.lia.
+  rewrite wunsigned_repr.
+  rewrite -/(wbase Uptr) (cut_wbase_Uptr sz).
+  by rewrite (Z.mul_comm _ (CoqWord.word.modulus _)) mod_pq_mod_q // Z.mul_comm Z_mod_mult.
+Qed.
+
+Lemma is_align_array (AL:alignment) ptr sz j : 
+  is_align ptr sz → is_align (wrepr _ (wsize_size sz * j) + ptr) sz.
+Proof. by move=> hptr; apply is_align_add => //; apply is_align_mul. Qed.
 
 Class memory (mem: Type) : Type :=
   Memory {

@@ -1,6 +1,5 @@
 (* -------------------------------------------------------------------- *)
 open Wsize
-open Global
 open Prog
 
 type 'info coq_tbl
@@ -42,15 +41,12 @@ val vari_of_cvari : 'a coq_tbl -> Expr.var_i -> var L.located
 
 val lval_of_clval : 'a coq_tbl -> Expr.lval -> Prog.lval
 
-val global_of_cglobal : global -> wsize * Name.t
-
 val cexpr_of_expr : 'info coq_tbl -> expr -> Expr.pexpr
 val expr_of_cexpr : 'info coq_tbl -> Expr.pexpr -> expr
 
 val cfun_of_fun : 'info coq_tbl -> funname -> BinNums.positive
 val fun_of_cfun : 'info coq_tbl -> BinNums.positive -> funname
 
-val gd_of_cgd : global * BinNums.coq_Z -> wsize * Name.t * B.zint
 val get_iinfo   : 'info coq_tbl -> BinNums.positive -> (L.t * L.t list) * 'info
 
 val cfdef_of_fdef : 'info coq_tbl -> 'info func -> BinNums.positive * Expr.fundef

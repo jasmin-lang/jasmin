@@ -38,6 +38,8 @@ type tyerror =
   | InvalidCast         of P.pty pair
   | InvalidGlobal       of S.symbol
   | InvalidTypeForGlobal of P.pty
+  | GlobArrayNotWord    
+  | GlobWordNotArray
   | EqOpWithNoLValue
   | CallNotAllowed
   | PrimNotAllowed
@@ -97,6 +99,12 @@ let pp_tyerror fmt (code : tyerror) =
   | InvalidTypeForGlobal ty ->
       F.fprintf fmt "globals should have type word; found: ‘%a’"
         Printer.pp_ptype ty
+
+  | GlobArrayNotWord ->
+    F.fprintf fmt "the definition is an array and not a word"
+
+  | GlobWordNotArray ->
+    F.fprintf fmt "the definition is a word and not an array"
 
   | InvalidOperator o -> 
     F.fprintf fmt "invalid operator %s" 
@@ -190,8 +198,8 @@ module Env : sig
   end
 
   module Globals : sig
-    val push  : P.Name.t -> P.pty -> env -> env
-    val find  : S.symbol -> env -> (P.Name.t * P.pty) option
+    val push  : P.pvar -> env -> env
+    val find  : S.symbol -> env -> P.pvar option
   end
 
   module Funs : sig
@@ -207,7 +215,7 @@ module Env : sig
 end = struct
   type env = {
     e_vars    : (S.symbol, P.pvar) Map.t;
-    e_globals : (S.symbol, P.Name.t * P.pty) Map.t;
+    e_globals : (S.symbol, P.pvar) Map.t;
     e_funs    : (S.symbol, unit P.pfunc) Map.t;
     e_exec    : (P.funname * (Bigint.zint * Bigint.zint) list) list
   }
@@ -224,8 +232,8 @@ end = struct
   end
 
   module Globals = struct
-    let push (v : P.Name.t) (ty:P.pty) (env : env) =
-      { env with e_globals = Map.add v (v,ty) env.e_globals; }
+    let push (v : P.pvar) (env : env) =
+      { env with e_globals = Map.add v.P.v_name v env.e_globals; }
 
     let find (x : S.symbol) (env : env) =
       Map.Exceptionless.find x env.e_globals
@@ -285,16 +293,16 @@ let tt_var (mode:tt_mode) (env : Env.env) { L.pl_desc = x; L.pl_loc = lc; } =
   v
 
 let tt_var_global (mode:tt_mode) (env : Env.env) v = 
-  try `Var (tt_var mode env v) 
-  with TyError _ -> 
-    let x = v.L.pl_desc in
-    let lc = v.L.pl_loc in
-    if mode = `OnlyParam then rs_tyerror ~loc:lc (UnknownVar x);
-    match Env.Globals.find x env with
-    | Some ty -> `Glob ty
-    | None -> rs_tyerror ~loc:lc (UnknownVar x) 
-
-    
+  let lc = v.L.pl_loc in
+  let x, k = 
+    try tt_var mode env v, E.Slocal
+    with TyError _ -> 
+      let x = v.L.pl_desc in
+      if mode = `OnlyParam then rs_tyerror ~loc:lc (UnknownVar x);
+      match Env.Globals.find x env with
+      | Some v -> v, E.Sglob
+      | None -> rs_tyerror ~loc:lc (UnknownVar x) in
+  { P.gv = L.mk_loc lc x; P.gs = k }, x.P.v_ty
 
 (* -------------------------------------------------------------------- *)
 let tt_fun (env : Env.env) { L.pl_desc = x; L.pl_loc = lc; } =
@@ -715,11 +723,9 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
   | S.PEInt i ->
     P.Pconst i, P.tint
 
-  | S.PEVar ({ L.pl_loc = lc; } as x) ->
-    begin match tt_var_global mode env x with
-    | `Var x -> P.Pvar (L.mk_loc lc x), x.P.v_ty
-    | `Glob (x, ty) -> P.Pglobal (tt_as_word (lc, ty), x), ty
-    end
+  | S.PEVar x ->
+    let x, ty = tt_var_global mode env x in
+    P.Pvar x, ty
 
   | S.PEFetch me ->
     let ct, x, e = tt_mem_access ~mode env me in
@@ -1113,8 +1119,8 @@ let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (ty: P.pty) (e: P.pty P.gexp
 let rec is_constant e = 
   match e with 
   | P.Pconst _ | P.Pbool _ | P.Parr_init _ -> true
-  | P.Pvar x  -> P.kind_i x = P.Const || P.kind_i x = P.Inline
-  | P.Pglobal _  | P.Pget _ | P.Pload _ -> false
+  | P.Pvar x  -> P.kind_i x.P.gv = P.Const || P.kind_i x.P.gv = P.Inline
+  | P.Pget _ | P.Pload _ -> false
   | P.Papp1 (_, e) -> is_constant e
   | P.Papp2 (_, e1, e2) -> is_constant e1 && is_constant e2
   | P.PappN (_, es) -> List.for_all is_constant es
@@ -1138,7 +1144,7 @@ let check_call loc doInline lvs f es =
 
       | (P.Stack | P.Reg ) as k ->
         match e with
-        | Pvar z -> if P.kind_i z <> k then rs_tyerror ~loc (BadVariableKind(z, k))
+        | Pvar z -> if P.kind_i z.P.gv <> k then rs_tyerror ~loc (BadVariableKind(z.P.gv, k))
         | _      -> () in
     e in
   let es = List.map2 doarg f.P.f_args es in
@@ -1159,7 +1165,9 @@ let check_call loc doInline lvs f es =
           | None    -> Some y) !m in
     let check_arg x e = 
       match e with
-      | P.Pvar y -> let y = P.L.unloc y in add_var x y m_xy; add_var y x m_yx 
+      | P.Pvar y -> 
+        let y = y.P.gv in
+        let y = P.L.unloc y in add_var x y m_xy; add_var y x m_yx 
       | _      -> 
         F.eprintf "WARNING: at %a the argument %a is not a variable, inlining will introduce an assigment@."
           P.L.pp_loc loc Printer.pp_pexpr e                         
@@ -1320,28 +1328,47 @@ let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
   (Env.Funs.push fdef env, fdef)
 
 (* -------------------------------------------------------------------- *)
-let tt_global (env : Env.env) _loc (gd: S.pglobal) : Env.env * ((P.Name.t * P.pty) * P.pexpr) =
-  let pe, ety = tt_expr ~mode:`OnlyParam env gd.S.pgd_val in
+let tt_global_def env (gd:S.gpexpr) = 
+  let f e = 
+    let pe,ety = tt_expr ~mode:`OnlyParam env e in
+    (L.mk_loc e.pl_loc pe, ety) in
+  match gd with
+  | S.GEword e -> 
+    `Word (f e)
+  | S.GEarray es ->
+    `Array (List.map f es) 
 
-  let ty, ws =
-    match tt_type env gd.S.pgd_type with
-    | Bty (U ws) as ty -> ty, ws
-    | ty -> rs_tyerror ~loc:(L.loc gd.S.pgd_type) (InvalidTypeForGlobal ty)
-  in
+let tt_global (env : Env.env) _loc (gd: S.pglobal) : 
+  Env.env * (P.pvar * P.pty P.ggexpr) =
 
-  let pe =
-    let open P in
+  let open P in
+  let mk_pe ws (pe,ety) = 
     match ety with
-    | Bty (U ews) when Utils0.cmp_le W.wsize_cmp ws ews -> pe
-    | Bty Int -> Papp1 (Oword_of_int ws, pe)
-    | _ -> rs_tyerror ~loc:(L.loc gd.S.pgd_val) (TypeMismatch (ety, ty))
+    | Bty (U ews) when Utils0.cmp_le Wsize.wsize_cmp ws ews -> L.unloc pe
+    | Bty Int -> Papp1 (Oword_of_int ws, L.unloc pe)
+    | _ -> rs_tyerror ~loc:(L.loc pe) (TypeMismatch (ety, Bty (U ws)))
     in
 
-  let x = L.unloc gd.S.pgd_name in
+  let ty, d = 
+    match tt_type env gd.S.pgd_type, tt_global_def env gd.S.pgd_val with
+    | (Bty (U ws)) as ty, `Word (pe,ety) -> 
+      let pe = mk_pe ws (pe,ety) in
+      ty, P.GEword pe
+    | Bty _, `Array _ -> 
+      rs_tyerror ~loc:(L.loc gd.S.pgd_type) GlobArrayNotWord 
+    | Arr(ws, _n) as ty, `Array es ->
+      let pes = List.map (mk_pe ws) es in
+      ty, P.GEarray pes 
+    | Arr _, `Word _ ->
+      rs_tyerror ~loc:(L.loc gd.S.pgd_type) GlobWordNotArray
+    | ty,_ -> rs_tyerror ~loc:(L.loc gd.S.pgd_type) (InvalidTypeForGlobal ty)
+  in
 
-  let env = Env.Globals.push x ty env in
+  let x = P.PV.mk (L.unloc gd.S.pgd_name) P.Global ty (L.loc gd.S.pgd_name) in
 
-  (env, ((x,ty), pe))
+  let env = Env.Globals.push x env in
+
+  (env, (x, d))
 
 (* -------------------------------------------------------------------- *)
 let tt_item (env : Env.env) pt : Env.env * (unit P.pmod_item list) =

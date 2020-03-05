@@ -64,7 +64,7 @@ Definition sparams fd :=
   vrvs_rec Sv.empty (map Lvar fd.(f_params)).
 
 Definition locals_p fd :=
-  let s := read_es (map Pvar fd.(f_res)) in
+  let s := read_es (map Plvar fd.(f_res)) in
   let w := write_c_rec s fd.(f_body) in
   let r := read_c_rec w fd.(f_body) in
   vrvs_rec r (map Lvar fd.(f_params)).
@@ -131,7 +131,7 @@ Fixpoint inline_i (p:fun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
         ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es ++
                   init_array ++
                   (fd'.(f_body) ++
-                  assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Pvar fd'.(f_res))))
+                  assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Plvar fd'.(f_res))))
       else ciok (X, [::i])
     end
   end.
@@ -139,7 +139,7 @@ Fixpoint inline_i (p:fun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
 Definition inline_fd (p:fun_decls) (fd:fundef) :=
   match fd with
   | MkFun ii tyin params c tyout res =>
-    let s := read_es (map Pvar res) in
+    let s := read_es (map Plvar res) in
     Let c := inline_c (inline_i p) c s in
     ok (MkFun ii tyin params c.2 tyout res)
   end.

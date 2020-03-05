@@ -23,7 +23,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import all_ssreflect all_algebra.
 Require Import x86_gen expr.
 Import ZArith.
 Require Import compiler_util allocation inline dead_calls unrolling remove_globals
@@ -82,7 +82,8 @@ Record compiler_params := {
   inline_var   : var -> bool;
   is_var_in_memory : var_i → bool;
   reg_alloc_fd : funname -> fundef -> fundef;
-  stk_alloc_fd : fun_decl -> Z * Ident.ident * list (var * Z) * (list var * stack_alloc.saved_stack);
+  stk_alloc_gl : prog → seq u8 * Ident.ident * seq (var * Z);
+  stk_alloc_fd : fun_decl → Z * Ident.ident * seq (var * Z) * (seq var * stack_alloc.saved_stack);
   print_prog   : compiler_step -> prog -> prog;
   print_linear : lprog -> lprog;
   warning      : instr_info -> warning_msg -> instr_info;
@@ -124,13 +125,13 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
 
   let pv := var_alloc_prog p in
   let pv := cparams.(print_prog) AllocInlineAssgn pv in
-  Let _ := CheckAllocReg.check_prog p pv in
+  Let _ := CheckAllocReg.check_prog p.(p_funcs) pv.(p_funcs) in
   Let pv := dead_code_prog pv in
   let pv := cparams.(print_prog) DeadCode_AllocInlineAssgn pv in
 
   let ps := share_stack_prog pv in
   let ps := cparams.(print_prog) ShareStackVariable ps in
-  Let _ := CheckAllocReg.check_prog pv ps in
+  Let _ := CheckAllocReg.check_prog pv.(p_funcs) ps.(p_funcs) in
   Let ps := dead_code_prog ps in
   let ps := cparams.(print_prog) DeadCode_ShareStackVariable ps in
 
@@ -139,7 +140,7 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
 
   let pe := expand_prog pr in
   let pe := cparams.(print_prog) RegArrayExpansion pe in
-  Let _ := CheckExpansion.check_prog pr pe in
+  Let _ := CheckExpansion.check_prog pr.(p_funcs) pe.(p_funcs) in
 
   Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
   let pg := cparams.(print_prog) RemoveGlobal pg in
@@ -150,31 +151,30 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
 
     let pa := reg_alloc_prog pl in
     let pa := cparams.(print_prog) RegAllocation pa in
-    Let _ := CheckAllocReg.check_prog pl pa in
+    Let _ := CheckAllocReg.check_prog pl.(p_funcs) pa.(p_funcs) in
     Let pd := dead_code_prog pa in
     let pd := cparams.(print_prog) DeadCode_RegAllocation pd in
 
     (* stack_allocation                    *)
-    Let ps := stack_alloc.alloc_prog cparams.(stk_alloc_fd) pd in
+    Let ps := stack_alloc.alloc_prog cparams.(stk_alloc_fd) cparams.(stk_alloc_gl) pd in
     (* linearisation                     *)
     Let pl := linear_prog ps in
     let pl := cparams.(print_linear) pl in
     (* asm                               *)
-    cfok (p_globs pd, pl)
+    cfok (pl)
 
   else cferror Ferr_lowering.
 
 Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
-  if get_fundef lp fn is Some fd' then
+  if get_fundef lp.(lp_funcs) fn is Some fd' then
     if get_fundef (p_funcs p) fn is Some fd then
       signature_of_fundef fd == signature_of_lfundef fd'
     else true
   else true.
 
-Definition compile_prog_to_x86 entries (p: prog): result fun_error (glob_decls * xprog) :=
+Definition compile_prog_to_x86 entries (p: prog): result fun_error xprog :=
   Let lp := compile_prog entries p in
-  Let _ := assert (all (check_signature p lp.2) entries) Ferr_lowering in
-  Let lx := assemble_prog lp.2 in
-  ok (lp.1, lx).
+  Let _ := assert (all (check_signature p lp) entries) Ferr_lowering in
+  assemble_prog lp.
 
 End COMPILER.

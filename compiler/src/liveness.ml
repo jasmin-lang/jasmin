@@ -25,7 +25,7 @@ let writev_lvals s lvs = List.fold_left writev_lval s lvs
 
 let is_trivial_move x e =
   match x, e with
-  | Lvar x, Pvar y -> kind_i x = kind_i y
+  | Lvar x, Pvar y -> is_gkvar y && kind_i x = kind_i y.gv
   | _              -> false
 
 let is_move_op = function

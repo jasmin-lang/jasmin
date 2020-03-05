@@ -40,7 +40,7 @@ Section REMOVE.
   Context (is_glob : var -> bool).
   Context (fresh_id : glob_decls -> var -> Ident.ident).
 
-  Notation venv := (Mvar.t global).
+  Notation venv := (Mvar.t var).
 
   Fixpoint myfind (A B:Type) (f: A -> option B) (l:seq A) : option B :=
     match l with
@@ -50,23 +50,29 @@ Section REMOVE.
       if fa is None then myfind f l else fa
     end.
 
-  Definition find_glob ii (xi:var_i) (gd:glob_decls) (ws:wsize) (z:Z) :=
-    let test (gv:glob_decl) :=
-      if (ws == size_of_global gv.1) && (z == gv.2) then Some gv.1
-      else None in
-    match myfind test gd with
-    | None => cferror (Ferr_remove_glob ii xi)
-    | Some g => ok g
+  Definition check_data (d:glob_value) (ws:wsize) (w:word ws) := 
+    match d with
+    | @Gword ws' w' => (ws == ws') && (w == zero_extend ws w')
+(*    | _             => false *)
     end.
 
-  Definition add_glob ii (x:var) (gd:glob_decls) (ws:wsize) (z:Z) :=
-    let test (gv:glob_decl) :=
-      (ws == size_of_global gv.1) && (z == gv.2) in
-    if has test gd then ok gd
+  Definition find_glob ii (xi:var_i) (gd:glob_decls) (ws:wsize) (w:word ws) :=
+    let test (gv:glob_decl) := 
+      if (sword ws == vtype gv.1) && (check_data gv.2 w) then Some gv.1
+      else None in 
+    match myfind test gd with 
+    | None => cferror (Ferr_remove_glob ii xi)
+    | Some g => ok g
+    end. 
+
+  Definition add_glob ii (x:var) (gd:glob_decls) (ws:wsize) (w:word ws) :=
+    let test (gv:glob_decl) := 
+       (sword ws == vtype gv.1) && (check_data gv.2 w) in
+    if has test gd then ok gd 
     else
-      let g := Global ws (fresh_id gd x) in
-      if has (fun g' => g'.1 == g) gd then cferror (Ferr_remove_glob_dup ii g)
-      else ok ((g, z) :: gd).
+      let gx := {| vtype := vtype x; vname := fresh_id gd x |} in
+      if has (fun g' => g'.1 == gx) gd then cferror (Ferr_remove_glob_dup ii gx)
+      else ok ((gx, Gword w) :: gd).
 
   Fixpoint extend_glob_i  (i:instr) (gd:glob_decls) :=
     let (ii,i) := i in
@@ -77,7 +83,7 @@ Section REMOVE.
         let x := xi.(v_var) in
         if is_glob x then
           match e with
-          | Papp1 (Oword_of_int ws) (Pconst z) => add_glob ii x gd ws z
+          | Papp1 (Oword_of_int ws) (Pconst z) => add_glob ii x gd (wrepr ws z)
           | _                   => cferror (Ferr_remove_glob ii xi)
           end
         else ok gd
@@ -105,14 +111,17 @@ Section REMOVE.
       | Pconst _ | Pbool _ => ok e
       | Parr_init _ => ok e
       | Pvar xi =>
-        let x := xi.(v_var) in
-        if is_glob x then
-          match Mvar.get env x with
-          | Some g => ok (Pglobal g)
-          | None   => cferror (Ferr_remove_glob ii xi)
-          end
+        if is_lvar xi then
+          let vi := xi.(gv) in 
+          let x := vi.(v_var) in
+          if is_glob x then
+            match Mvar.get env x with
+            | Some g => ok (Pvar (mk_gvar (VarI g vi.(v_info))))
+            | None   => cferror (Ferr_remove_glob ii vi)
+            end 
+          else ok e
         else ok e
-      | Pglobal g => ok e
+
       | Pget ws xi e =>
         let x := xi.(v_var) in
         if is_glob x then cferror (Ferr_remove_glob ii xi)
@@ -177,7 +186,7 @@ Section REMOVE.
 
     End REMOVE_C.
 
-    Definition merge_glob (x:var) (o1 o2:option global) :=
+    Definition merge_glob (x:var) (o1 o2:option var) :=
       match o1, o2 with
       | Some g1, Some g2 => if g1 == g2 then o1 else None
       | _, _ => None
@@ -234,11 +243,11 @@ Section REMOVE.
           match lv with
           | Lvar xi =>
             let x := xi.(v_var) in
-            if is_glob x then
+            if is_glob x then 
               match e with
               | Papp1 (Oword_of_int ws) (Pconst z) =>
                 if (ty == sword ws) && (vtype x == sword ws) then
-                  Let g := find_glob ii xi gd ws z in
+                  Let g := find_glob ii xi gd (wrepr ws z) in
                   ok (Mvar.set env x g, [::])
                 else cferror (Ferr_remove_glob ii xi)
               | _ => cferror (Ferr_remove_glob ii xi)

@@ -67,8 +67,10 @@ reg u32 c;
 
 c = 0;
 c *= x;
-b -= c;
-a += b;
+b = 0;
+a = 0;
+b -= c;  // b is not initialized 
+a += b;  // a is not initialized
 
 return a;
 }

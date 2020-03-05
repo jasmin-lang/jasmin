@@ -9,7 +9,9 @@ let is_array_copy (x:lval) e =
     begin match (L.unloc z).v_ty with
     | Arr (ws, n) ->
       begin match e with
-      | Pvar y -> Some (z, ws, n, y)
+      | Pvar y -> 
+        assert (is_gkvar y);
+        Some (z, ws, n, y.gv)
       | _ -> None
       end
     | _ -> None
@@ -17,9 +19,11 @@ let is_array_copy (x:lval) e =
   | _ -> None
 
 let array_copy z ws n y =
-  let i = L.mk_loc (L.loc z) (V.mk "i" Inline (Bty Int) (L.loc z)) in
-  Cfor(i, (UpTo, Pconst B.zero, Pconst (B.of_int n)), [
-      let i_desc = Cassgn (Laset (ws, z, Pvar i), AT_none, Bty (U ws), Pget (ws, y, Pvar i)) in
+  let i = gkvar (L.mk_loc (L.loc z) (V.mk "i" Inline (Bty Int) (L.loc z))) in
+  Cfor(i.gv, (UpTo, Pconst B.zero, Pconst (B.of_int n)), [
+      let i_desc =
+        Cassgn (Laset (ws, z, Pvar i), AT_none, Bty (U ws), 
+                 Pget (ws, y, Pvar i)) in
       { i_desc ; i_loc = L.loc z, [] ; i_info = () }
     ])
 
@@ -39,10 +43,5 @@ and iac_instr_r ir =
 
 let iac_func f =
   { f with f_body = iac_stmt f.f_body }
-
-(*let iac_pmod_item =
-  function
-  | MIfun pf -> MIfun (iac_pfunc pf)
-  | pmi -> pmi *)
 
 let doit (p:unit Prog.prog) = (fst p, List.map iac_func (snd p))

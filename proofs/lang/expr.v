@@ -28,7 +28,7 @@ Require Import oseq.
 Require Export ZArith Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
-Require Export strings word utils type var global sem_type x86_decl x86_instr_decl.
+Require Export strings word utils type ident var global sem_type x86_decl x86_instr_decl.
 Require Import xseq.
 Import Utf8 ZArith.
 
@@ -327,6 +327,21 @@ Record var_i := VarI {
   v_info : var_info
 }.
 
+Definition var_i_beq x1 x2 :=
+  match x1, x2 with
+  | VarI x1 i1, VarI x2 i2 => (x1 == x2) && (i1 == i2)
+  end.
+
+Lemma var_i_eq_axiom : Equality.axiom var_i_beq.
+Proof.
+  move=> [x xi] [y yi] /=.
+  apply (@equivP ((x == y) /\ (xi == yi)));first by apply: andP.
+  by split => -[] => [/eqP -> /eqP| -> ] ->.
+Qed.
+
+Definition var_i_eqMixin     := Equality.Mixin var_i_eq_axiom.
+Canonical  var_i_eqType      := Eval hnf in EqType var_i var_i_eqMixin.
+
 Record var_attr := VarA {
   va_pub : bool
 }.
@@ -337,12 +352,47 @@ Definition var_info_to_attr (vi: var_info) :=
   | _ => VarA false
   end.
 
+Variant v_scope := 
+  | Slocal 
+  | Sglob.
+
+Scheme Equality for v_scope.
+
+Lemma v_scope_eq_axiom : Equality.axiom v_scope_beq.
+Proof.
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_v_scope_dec_bl.
+  by apply: internal_v_scope_dec_lb.
+Qed.
+
+Definition v_scope_eqMixin     := Equality.Mixin v_scope_eq_axiom.
+Canonical  v_scope_eqType      := Eval hnf in EqType v_scope v_scope_eqMixin.
+
+Record gvar := Gvar { gv :> var_i; gs : v_scope }.
+
+Definition mk_gvar x := {| gv := x; gs := Sglob  |}.
+Definition mk_lvar x := {| gv := x; gs := Slocal |}.
+
+Definition is_lvar (x:gvar) := x.(gs) == Slocal.
+Definition is_glob (x:gvar) := x.(gs) == Sglob.
+
+Definition gvar_beq (x1 x2:gvar) := 
+  (x1.(gs) == x2.(gs)) && (x1.(gv) == x2.(gv)).
+
+Lemma gvar_eq_axiom : Equality.axiom gvar_beq.
+Proof.
+  move=> [x1 k1] [x2 k2] /=; apply (equivP andP) => /=.
+  by split => [[]/eqP -> /eqP -> |[] -> ->].
+Qed.
+
+Definition gvar_eqMixin := Equality.Mixin gvar_eq_axiom.
+Canonical gvar_eqType := Eval hnf in EqType gvar gvar_eqMixin.
+
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
 | Parr_init : positive → pexpr
-| Pvar   :> var_i -> pexpr
-| Pglobal :> global -> pexpr
+| Pvar   :> gvar -> pexpr
 | Pget   : wsize -> var_i -> pexpr -> pexpr
 | Pload  : wsize -> var_i -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
@@ -351,6 +401,8 @@ Inductive pexpr : Type :=
 | Pif    : stype -> pexpr -> pexpr -> pexpr -> pexpr.
 
 Notation pexprs := (seq pexpr).
+
+Definition Plvar x := Pvar (mk_lvar x).
 
 Section ALL2.
    Variable T:Type.
@@ -384,7 +436,6 @@ Section PEXPR_RECT.
     (Hbool: ∀ b, P (Pbool b))
     (Harr_init: ∀ n, P (Parr_init n))
     (Hvar: ∀ x, P (Pvar x))
-    (Hglobal: ∀ g, P (Pglobal g))
     (Hget: ∀ sz x e, P e → P (Pget sz x e))
     (Hload: ∀ sz x e, P e → P (Pload sz x e))
     (Happ1: ∀ op e, P e → P (Papp1 op e))
@@ -405,7 +456,6 @@ Section PEXPR_RECT.
     | Pbool b => Hbool b
     | Parr_init n => Harr_init n
     | Pvar x => Hvar x
-    | Pglobal g => Hglobal g
     | Pget sz x e => Hget sz x (pexpr_rect e)
     | Pload sz x e => Hload sz x (pexpr_rect e)
     | Papp1 op e => Happ1 op (pexpr_rect e)
@@ -418,21 +468,6 @@ End PEXPR_RECT.
 
 Arguments pexpr_rect: clear implicits.
 
-Definition var_i_beq x1 x2 :=
-  match x1, x2 with
-  | VarI x1 i1, VarI x2 i2 => (x1 == x2) && (i1 == i2)
-  end.
-
-Lemma var_i_eq_axiom : Equality.axiom var_i_beq.
-Proof.
-  move=> [x xi] [y yi] /=.
-  apply (@equivP ((x == y) /\ (xi == yi)));first by apply: andP.
-  by split => -[] => [/eqP -> /eqP| -> ] ->.
-Qed.
-
-Definition var_i_eqMixin     := Equality.Mixin var_i_eq_axiom.
-Canonical  var_i_eqType      := Eval hnf in EqType var_i var_i_eqMixin.
-
 Module Eq_pexpr.
 
 Fixpoint eqb (e1 e2:pexpr) : bool :=
@@ -441,7 +476,6 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
   | Pbool  b1   , Pbool  b2    => b1 == b2
   | Parr_init n1, Parr_init n2 => n1 == n2
   | Pvar   x1   , Pvar   x2    => (x1 == x2)
-  | Pglobal g1, Pglobal g2 => g1 == g2
   | Pget sz1 x1 e1, Pget sz2 x2 e2 => (sz1 == sz2) && (x1 == x2) && eqb e1 e2
   | Pload sz1 x1 e1, Pload sz2 x2 e2 => (sz1 == sz2) && (x1 == x2) && eqb e1 e2
   | Papp1 o1 e1 , Papp1  o2 e2 => (o1 == o2) && eqb e1 e2
@@ -466,9 +500,9 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
 
   Lemma eq_axiom : Equality.axiom eqb.
   Proof.
-    elim => [n1|b1| n1 |x1|g1|w1 x1 e1 He1|w1 x1 e1 He1
+    elim => [n1|b1| n1 |x1|w1 x1 e1 He1|w1 x1 e1 He1
             |o1 e1 He1|o1 e11 e12 He11 He12 | o1 es1 Hes1 | st1 t1 e11 e12 Ht1 He11 He12]
-            [n2|b2| n2 |x2|g2|w2 x2 e2|w2 x2 e2|o2 e2|o2 e21 e22 | o2 es2 |st2 t2 e21 e22] /=;
+            [n2|b2| n2 |x2|w2 x2 e2|w2 x2 e2|o2 e2|o2 e21 e22 | o2 es2 |st2 t2 e21 e22] /=;
         try by constructor.
     + apply (@equivP (n1 = n2));first by apply: eqP.
       by split => [->|[]->].
@@ -477,8 +511,6 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
     + apply (@equivP (n1 = n2));first by apply eqP.
       by split => [->|[]->].
     + apply (@equivP (x1 = x2));first by apply: eqP.
-      by split => [->|[]->].
-    + apply (@equivP (g1 = g2));first by apply: eqP.
       by split => [->|[]->].
     + apply (@equivP (((w1 == w2) && (x1 == x2)) /\ eqb e1 e2));first by apply andP.
       split => [ [] /andP [] /eqP -> /eqP -> /He1 -> | [] -> -> <-] //.
@@ -520,7 +552,6 @@ Section PEXPR_IND.
     (Hbool: ∀ b, P (Pbool b))
     (Harr_init: ∀ n, P (Parr_init n))
     (Hvar: ∀ x, P (Pvar x))
-    (Hglobal: ∀ g, P (Pglobal g))
     (Hget: ∀ sz x e, P e → P (Pget sz x e))
     (Hload: ∀ sz x e, P e → P (Pload sz x e))
     (Happ1: ∀ op e, P e → P (Papp1 op e))
@@ -547,7 +578,6 @@ Section PEXPR_IND.
     | Pbool b => Hbool b
     | Parr_init n => Harr_init n
     | Pvar x => Hvar x
-    | Pglobal g => Hglobal g
     | Pget sz x e => Hget sz x (pexpr_ind e)
     | Pload sz x e => Hload sz x (pexpr_ind e)
     | Papp1 op e => Happ1 op (pexpr_ind e)
@@ -572,7 +602,6 @@ Section PEXPRS_IND.
     pexprs_bool: ∀ b, P (Pbool b);
     pexprs_arr_init: ∀ n, P (Parr_init n);
     pexprs_var: ∀ x, P (Pvar x);
-    pexprs_global: ∀ g, P (Pglobal g);
     pexprs_get: ∀ sz x e, P e → P (Pget sz x e);
     pexprs_load: ∀ sz x e, P e → P (Pload sz x e);
     pexprs_app1: ∀ op e, P e → P (Papp1 op e);
@@ -595,7 +624,6 @@ Section PEXPRS_IND.
     | Pbool b => pexprs_bool h b
     | Parr_init n => pexprs_arr_init h n
     | Pvar x => pexprs_var h x
-    | Pglobal g => pexprs_global h g
     | Pget sz x e => pexprs_get h sz x (pexpr_mut_ind e)
     | Pload sz x e => pexprs_load h sz x (pexpr_mut_ind e)
     | Papp1 op e => pexprs_app1 h op (pexpr_mut_ind e)
@@ -1090,13 +1118,16 @@ Ltac writeN := autorewrite with write_c write_i vrv.
 (* ** Compute read variables
  * -------------------------------------------------------------------- *)
 
+Definition read_gvar (x:gvar) := 
+  if is_lvar x then Sv.singleton x.(gv)
+  else Sv.empty.
+
 Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   match e with
   | Pconst _
   | Pbool  _
   | Parr_init _    => s
-  | Pvar   x       => Sv.add x s
-  | Pglobal _      => s
+  | Pvar   x       => Sv.union (read_gvar x) s
   | Pget _ x e     => read_e_rec (Sv.add x s) e
   | Pload _ x e    => read_e_rec (Sv.add x s) e
   | Papp1  _ e     => read_e_rec s e
@@ -1170,8 +1201,8 @@ Proof.
   by rewrite in_cons he' orbT.
 Qed.
 
-Lemma read_e_var (x:var_i) : Sv.Equal (read_e (Pvar x)) (Sv.singleton x).
-Proof. rewrite /read_e /=;SvD.fsetdec. Qed.
+Lemma read_e_var (x:gvar) : Sv.Equal (read_e (Pvar x))(read_gvar x).
+Proof. rewrite /read_e /= /read_gvar;case:ifP => _;SvD.fsetdec. Qed.
 
 Lemma read_esE es s : Sv.Equal (read_es_rec s es) (Sv.union (read_es es) s).
 Proof.
@@ -1322,14 +1353,17 @@ move => ->; exact: Is_reflect_some.
 Qed.
 
 (* --------------------------------------------------------------------- *)
-(* Test the equality of two expressions modulo variable info              *)
+(* Test the equality of two expressions modulo variable info             *)
+
+Definition eq_gvar x x' := 
+  (x.(gs) == x'.(gs)) && (v_var x.(gv) == v_var x'.(gv)).
+
 Fixpoint eq_expr e e' :=
   match e, e' with
   | Pconst z      , Pconst z'         => z == z'
   | Pbool  b      , Pbool  b'         => b == b'
   | Parr_init n   , Parr_init n'      => n == n'
-  | Pvar   x      , Pvar   x'         => v_var x == v_var x'
-  | Pglobal g, Pglobal g' => g == g'
+  | Pvar   x      , Pvar   x'         => eq_gvar x x'
   | Pget w x e    , Pget w' x' e'      => (w == w') && (v_var x == v_var x') && eq_expr e e'
   | Pload w x e, Pload w' x' e' => (w == w') && (v_var x == v_var x') && eq_expr e e'
   | Papp1  o e    , Papp1  o' e'      => (o == o') && eq_expr e e'
@@ -1340,10 +1374,13 @@ Fixpoint eq_expr e e' :=
   | _             , _                 => false
   end.
 
+Lemma eq_gvar_refl x : eq_gvar x x.
+Proof. by rewrite /eq_gvar ?eqxx. Qed.
+
 Lemma eq_expr_refl e : eq_expr e e.
 Proof.
-elim: e => //= [ ??? -> | ??? -> | ?? -> | ?? -> ? -> | ? es ih | ??-> ? -> ? -> ] //=;
-  rewrite ?eqxx //=.
+elim: e => //= [ ? | ??? -> | ??? -> | ?? -> | ?? -> ? -> | ? es ih | ??-> ? -> ? -> ] //=;
+  rewrite ?eqxx ?eq_gvar_refl //=.
 elim: es ih => // e es ih h /=; rewrite h.
 + by apply: ih => e' he'; apply: h; rewrite in_cons he' orbT.
 by rewrite in_cons eqxx.
@@ -1373,12 +1410,8 @@ Lemma eq_expr_const z1 z2 :
 Proof. by move/eqP. Qed.
 
 Lemma eq_expr_var x1 x2 :
-  eq_expr (Pvar x1) (Pvar x2) -> x1 = x2 :> var.
-Proof. by move/eqP. Qed.
-
-Lemma eq_expr_global g1 g2 :
-  eq_expr (Pglobal g1) (Pglobal g2) -> g1 = g2.
-Proof. by move/eqP. Qed.
+  eq_expr (Pvar x1) (Pvar x2) -> x1.(gs) = x2.(gs) /\ x1 = x2 :> var.
+Proof. by move => /andP[]/eqP -> /eqP ->. Qed.
 
 Lemma eq_expr_load w1 w2 v1 v2 e1 e2 :
      eq_expr (Pload w1 v1 e1) (Pload w2 v2 e2)

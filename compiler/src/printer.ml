@@ -105,12 +105,15 @@ let string_of_opN =
 (* -------------------------------------------------------------------- *)
 let pp_ge pp_var =
   let pp_var_i = pp_gvar_i pp_var in
+  let pp_gvar fmt x = 
+    let s = if is_gkvar x then "" else "##G" in
+    Format.fprintf fmt "%s%a" s pp_var_i x.gv in
+
   let rec pp_expr fmt = function
   | Pconst i    -> B.pp_print fmt i
   | Pbool  b    -> F.fprintf fmt "%b" b
   | Parr_init n -> F.fprintf fmt "array_init(%a)" B.pp_print n
-  | Pvar v      -> pp_var_i fmt v
-  | Pglobal (_, g) -> F.fprintf fmt "%s" g
+  | Pvar v      -> pp_gvar fmt v
   | Pget(ws,x,e)   -> F.fprintf fmt "%a[%a %a]"  pp_btype (U ws) pp_var_i x pp_expr e
   | Pload(ws,x,e) ->
     F.fprintf fmt "@[(load %a@ %a@ %a)@]"
@@ -256,6 +259,10 @@ let pp_gfun pp_info (pp_size:F.formatter -> 'size -> unit) pp_var fmt fd =
 
 let pp_noinfo _ _ = ()
 
+let pp_gexpr pp_var fmt = function
+  | GEword e -> pp_ge pp_var fmt e
+  | GEarray es -> Format.fprintf fmt "{@[%a@]}" (pp_ges pp_var) es
+
 let pp_pitem pp_var =
   let pp_size = pp_ge pp_var in
   let aux fmt = function
@@ -264,8 +271,9 @@ let pp_pitem pp_var =
       F.fprintf fmt "%a = %a"
         (pp_var_decl pp_var pp_size) x
         (pp_ge pp_var) e
-    | MIglobal ((x,ty), e) ->
-      F.fprintf fmt "Global %a %s = %a" (pp_gtype pp_size) ty x (pp_ge pp_var) e
+    | MIglobal (x, e) ->
+      F.fprintf fmt "%a = %a" 
+        (pp_var_decl pp_var pp_size) x (pp_gexpr pp_var) e
  in
   aux
 
@@ -340,20 +348,45 @@ let pp_glob fmt (ws, n, z) =
   Format.fprintf fmt "%a %s %a"
     pp_ty (Bty (U ws)) n B.pp_print z
 
+let pp_glob pp_var fmt (x, gd) = 
+  let pp_size fmt i = F.fprintf fmt "%i" i in
+  let pp_vd =  pp_var_decl pp_var pp_size in
+  let pp_gd fmt gd = 
+    match gd with
+    | Global.Gword(ws,w) -> 
+      Format.fprintf fmt "%a" Bigint.pp_print_X (Conv.bi_of_word ws w) 
+(*    | `GArray(_ws, t) ->
+      Format.fprintf fmt "@[{%a};@]"
+        (pp_list ",@ " Bigint.pp_print_X) 
+        (Array.to_list t) *) in
+  Format.fprintf fmt "@[%a =@ %a;@]"
+    pp_vd x pp_gd gd
+
+let pp_globs pp_var fmt gds = 
+  Format.fprintf fmt "@[<v>%a@]"
+    (pp_list "@ @ " (pp_glob pp_var)) gds
+
 let pp_iprog ~debug pp_info fmt (gd, funcs) =
   let pp_var = pp_var ~debug in
   Format.fprintf fmt "@[<v>%a@ %a@]"
-     (pp_list "@ @ " pp_glob) gd
+     (pp_globs pp_var) gd
      (pp_list "@ @ " (pp_fun ~pp_info pp_var)) (List.rev funcs)
 
-let pp_prog ~debug fmt (gd, funcs) =
+let pp_prog ~debug fmt ((gd, funcs):'info Prog.prog) =
   let pp_var = pp_var ~debug in
   Format.fprintf fmt "@[<v>%a@ %a@]"
-     (pp_list "@ @ " pp_glob) gd
+     (pp_globs pp_var) gd
      (pp_list "@ @ " (pp_fun pp_var)) (List.rev funcs)
+
+let pp_datas fmt data = 
+  let pp_w fmt w = 
+    let w = Conv.bi_of_int8 w in
+    Format.fprintf fmt ".byte %s" (Bigint.to_string w) in
+  Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " pp_w) data
 
 
 (* ----------------------------------------------------------------------- *)
 
 let pp_warning_msg fmt = function
   | Compiler_util.Use_lea -> Format.fprintf fmt "LEA instruction is used"
+

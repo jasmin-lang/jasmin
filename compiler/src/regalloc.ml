@@ -65,7 +65,11 @@ let find_equality_constraints (id: instruction) : arg_position list list =
 let find_var outs ins ap : _ option =
   match ap with
   | APout n -> (List.nth outs n |> function Lvar v -> Some v | _ -> None)
-  | APin n -> (List.nth ins n |> function Pvar v -> Some v | _ -> None)
+  | APin n -> 
+     (List.nth ins n |> 
+        function 
+        | Pvar v -> if is_gkvar v then Some v.gv else None 
+        | _ -> None)
 
 let x86_equality_constraints (tbl: int Hv.t) (k: int -> int -> unit)
     (k': int -> int -> unit)
@@ -78,8 +82,9 @@ let x86_equality_constraints (tbl: int Hv.t) (k: int -> int -> unit)
     with Not_found -> ()
   in
   begin match op, lvs, es with
-  | Ox86 (MOV _), [ Lvar x ], [ Pvar y ] when kind_i x = kind_i y ->
-    merge k' x y
+  | Ox86 (MOV _), [ Lvar x ], [ Pvar y ] when is_gkvar y && 
+                                              kind_i x = kind_i y.gv ->
+    merge k' x y.gv
   | _, _, _ ->
     let id = get_instr op in
       find_equality_constraints id |>
@@ -141,19 +146,19 @@ let collect_equality_constraints
     | Cfor (_, _, s)
       -> collect_stmt s
     | Copn (lvs, _, op, es) -> copn_constraints tbl (add ii) addf lvs op es
-    | Cassgn (Lvar x, (AT_rename | AT_phinode), _, Pvar y) ->
+    | Cassgn (Lvar x, (AT_rename | AT_phinode), _, Pvar y) when is_gkvar y ->
       let i = try Hv.find tbl (L.unloc x) with
         Not_found ->
           hierror "%s: unknown variable %a"
             msg
             (Printer.pp_var ~debug:true) (L.unloc x)
       in
-      let j = Hv.find tbl (L.unloc y) in
+      let j = Hv.find tbl (L.unloc y.gv) in
       add ii  i j
-    | Cassgn (Lvar x, _, _, Pvar y) when kind_i x = kind_i y ->
+    | Cassgn (Lvar x, _, _, Pvar y) when is_gkvar y && kind_i x = kind_i y.gv ->
       begin try
         let i = Hv.find tbl (L.unloc x) in
-        let j = Hv.find tbl (L.unloc y) in
+        let j = Hv.find tbl (L.unloc y.gv) in
         fr := set_friend i j !fr
       with Not_found -> ()
     end
@@ -401,7 +406,7 @@ struct
       allocate_one loc (L.unloc x) i y a
     in
     let mallocate_one x y a =
-      match x with Pvar x -> allocate_one x y a | _ -> a
+      match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> a
     in
     let id = get_instr op in 
     let a =
@@ -536,7 +541,7 @@ let subst_of_allocation (vars: int Hv.t)
     (a: allocation) (v: var_i) : expr =
   let m = L.loc v in
   let v = L.unloc v in
-  let q x = L.mk_loc m x in
+  let q x = gkvar (L.mk_loc m x) in
   try
     let i = Hv.find vars v in
     let w = IntMap.find i a in
@@ -556,7 +561,7 @@ let regalloc translate_var (f: 'info func) : unit func =
     allocate_forced_registers translate_var vars conflicts f IntMap.empty |>
     greedy_allocation vars nv conflicts fr |>
     subst_of_allocation vars
-  in Subst.gsubst_func (fun ty -> ty) a f
+  in Subst.subst_func a f
    |> Ssa.remove_phi_nodes
 
 let reverse_varmap (vars: int Hv.t) : var IntMap.t =
@@ -573,5 +578,5 @@ let split_live_ranges (f: 'info func) : unit func =
   let a =
     reverse_varmap vars |>
     subst_of_allocation vars
-  in Subst.gsubst_func (fun ty -> ty) a f
+  in Subst.subst_func a f
    |> Ssa.remove_phi_nodes

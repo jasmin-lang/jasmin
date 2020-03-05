@@ -347,8 +347,12 @@ pparam:
     { { ppa_ty = ty; ppa_name = x; ppa_init = pe; } }
 
 (* -------------------------------------------------------------------- *)
+pgexpr:
+| e=pexpr { GEword e }
+| LBRACE es = rtuple1(pexpr) RBRACE { GEarray es } 
+
 pglobal:
-| pgd_type=ptype pgd_name=ident EQ pgd_val=pexpr SEMICOLON
+| pgd_type=ptype pgd_name=ident EQ pgd_val=pgexpr SEMICOLON
   { { pgd_type ; pgd_name ; pgd_val  } }
 
 (* -------------------------------------------------------------------- *)

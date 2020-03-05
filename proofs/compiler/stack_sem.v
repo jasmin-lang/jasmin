@@ -42,12 +42,12 @@ Local Open Scope vmap.
 Local Open Scope seq_scope.
 
 Module S.
-  Notation vstk nstk := {|v_var := {|vtype := sword U64; vname := nstk|}; v_info := xH|}.
+  Notation vid ident := {|v_var := {|vtype := sword U64; vname := ident|}; v_info := xH|}.
 
   Section SEM.
 
   Variable P:sprog.
-  Context (gd: glob_decls).
+  Variable ripv : u64.
 
   Inductive sem : estate -> cmd -> estate -> Prop :=
   | Eskip s : sem s [::] s
@@ -62,48 +62,49 @@ Module S.
 
   with sem_i : estate -> instr_r -> estate -> Prop :=
   | Eassgn s1 s2 (x:lval) tag ty e v v' :
-    sem_pexpr gd s1 e = ok v ->
+    sem_pexpr [::] s1 e = ok v ->
     truncate_val ty v = ok v' ->
-    write_lval gd x v' s1 = ok s2 ->
+    write_lval [::] x v' s1 = ok s2 ->
     sem_i s1 (Cassgn x tag ty e) s2
 
   | Eopn s1 s2 t o xs es:
-    sem_sopn gd o s1 xs es = ok s2 ->
+    sem_sopn [::] o s1 xs es = ok s2 ->
     sem_i s1 (Copn xs t o es) s2
 
   | Eif_true s1 s2 e c1 c2 :
-    sem_pexpr gd s1 e = ok (Vbool true) ->
+    sem_pexpr [::] s1 e = ok (Vbool true) ->
     sem s1 c1 s2 ->
     sem_i s1 (Cif e c1 c2) s2
 
   | Eif_false s1 s2 e c1 c2 :
-    sem_pexpr gd s1 e = ok (Vbool false) ->
+    sem_pexpr [::] s1 e = ok (Vbool false) ->
     sem s1 c2 s2 ->
     sem_i s1 (Cif e c1 c2) s2
 
   | Ewhile_true s1 s2 s3 s4 a c e c' :
     sem s1 c s2 ->
-    sem_pexpr gd s2 e = ok (Vbool true) ->
+    sem_pexpr [::] s2 e = ok (Vbool true) ->
     sem s2 c' s3 ->
     sem_i s3 (Cwhile a c e c') s4 ->
     sem_i s1 (Cwhile a c e c') s4
 
   | Ewhile_false s1 s2 a c e c' :
     sem s1 c s2 ->
-    sem_pexpr gd s2 e = ok (Vbool false) ->
+    sem_pexpr [::] s2 e = ok (Vbool false) ->
     sem_i s1 (Cwhile a c e c') s2
 
   | Ecall s1 m2 s2 ii xs f args vargs vs :
-    sem_pexprs gd s1 args = ok vargs ->
+    sem_pexprs [::] s1 args = ok vargs ->
     sem_call s1.(emem) f vargs m2 vs ->
-    write_lvals gd {|emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->
+    write_lvals [::] {|emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->
     sem_i s1 (Ccall ii xs f args) s2
 
   with sem_call : mem -> funname -> seq value -> mem -> seq value -> Prop :=
   | EcallRun m1 m2 fn sf vargs vargs' s1 s2 m2' vm2 vres vres' m1':
-    get_fundef P fn = Some sf ->
+    get_fundef P.(sp_funcs) fn = Some sf ->
     alloc_stack m1 (sf_stk_sz sf) = ok m1' ->
-    write_var  (vstk (sf_stk_id sf)) (Vword (top_stack m1')) (Estate m1' vmap0) = ok s1 ->
+    write_vars [:: vid (sf_stk_id sf)   ; vid P.(sp_rip)]
+               [:: Vword (top_stack m1'); Vword ripv] (Estate m1' vmap0) = ok s1 ->
     mapM2 ErrType truncate_val sf.(sf_tyin) vargs' = ok vargs ->
     write_vars (sf_params sf) vargs s1 = ok s2 ->
     sem s2 (sf_body sf) {| emem := m2'; evm := vm2 |} ->
@@ -133,25 +134,25 @@ Module S.
     match i with
     | Cassgn x _ ty e =>
       exists v v',
-      [/\ sem_pexpr gd s1 e = ok v,
+      [/\ sem_pexpr [::] s1 e = ok v,
        truncate_val ty v = ok v' &
-       write_lval gd x v' s1 = ok s2]
-    | Copn xs _ op es => sem_sopn gd op s1 xs es = ok s2
+       write_lval [::] x v' s1 = ok s2]
+    | Copn xs _ op es => sem_sopn [::] op s1 xs es = ok s2
     | Cif e c1 c2 =>
       exists b,
-      sem_pexpr gd s1 e = ok (Vbool b) /\
+      sem_pexpr [::] s1 e = ok (Vbool b) /\
       sem p gd s1 (if b then c1 else c2) s2
     | Cfor _ _ _ => False
     | Cwhile a c1 e c2 =>
       exists si b,
       sem p gd s1 c1 si /\
-      sem_pexpr gd si e = ok (Vbool b) /\
+      sem_pexpr [::] si e = ok (Vbool b) /\
       if b then (exists sj, sem p gd si c2 sj /\ sem_i p gd sj (Cwhile a c1 e c2) s2) else si = s2
     | Ccall _ xs fn es =>
       exists vs m2 rs,
-      [/\ sem_pexprs gd s1 es = ok vs,
+      [/\ sem_pexprs [::] s1 es = ok vs,
           sem_call p gd (emem s1) fn vs m2 rs &
-          write_lvals gd {| emem := m2 ; evm := evm s1 |} xs rs = ok s2 ]
+          write_lvals [::] {| emem := m2 ; evm := evm s1 |} xs rs = ok s2 ]
     end.
   Proof.
     case => // {s1 s2 i} s1 s2.

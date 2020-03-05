@@ -139,10 +139,10 @@ Section PROOF.
   Proof. move=> ii i s1 s2 _ Hi. exact: Hi. Qed.
 
   Lemma check_nop_spec (r:lval) ty (e:pexpr): check_nop r ty e ->
-    exists x i1 i2, [/\ r = (Lvar (VarI x i1)), e = (Pvar(VarI x i2)) & ty = vtype x] .
+    exists x i1 i2, [/\ r = (Lvar (VarI x i1)), e = (Plvar(VarI x i2)) & ty = vtype x] .
   Proof.
-    case: r e => //= -[x1 i1] [] //= -[x2 i2] /= /andP [] /eqP <- /eqP ->.
-    by exists x1, i1, i2.
+    case: r e => //= -[x1 i1] [] //= [[x2 i2] k2] /andP [] /andP [] /eqP /= -> /eqP <- /eqP ->.
+    by exists x1, i1, i2. 
   Qed.
 
   Local Lemma Hassgn_aux ii m1 vm1 m2 vm2 v v' x tag ty e s2:
@@ -223,7 +223,7 @@ Section PROOF.
 
   Lemma check_nop_opn_spec (xs:lvals) (o:sopn) (es:pexprs): check_nop_opn xs o es ->
     exists x i1 sz i2,
-      [/\ xs = [:: Lvar (VarI (Var (sword sz) x) i1)], o = Ox86 (MOV sz) & es = [:: Pvar (VarI (Var (sword sz) x) i2)] ].
+      [/\ xs = [:: Lvar (VarI (Var (sword sz) x) i1)], o = Ox86 (MOV sz) & es = [:: Plvar (VarI (Var (sword sz) x) i2)] ].
   Proof.
     case: xs o es => // rv [] // [] // [] // sz [] // e [] //= /check_nop_spec [x [i1 [i2 []]]] -> -> /=.
     by case: x => ty xn /= <-;exists xn, i1, sz, i2.
@@ -507,10 +507,10 @@ Section PROOF.
     have [f' [Hf'1 Hf'2]] := get_map_cfprog dcok Hfun.
     case: f Hf'1 Hfun htra Hw Hsem Hc Hres Hfull=> ??? /= c ? res Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
     case: f' Hf'1 Hf'2=> ??? c' ? f'_res Hf'1 Hf'2.
-    case Hd: (dead_code_c dead_code_i c (read_es [seq Pvar i | i <- res])) Hf'1 =>// [[sv sc]] /= Heq.
+    case Hd: (dead_code_c dead_code_i c (read_es [seq Plvar i | i <- res])) Hf'1 =>// [[sv sc]] /= Heq.
     rewrite /ciok in Heq.
     move: Heq=> [Heqi Heqp Heqc Heqr].
-    move: Hc=> /(_ (read_es [seq Pvar i | i <- res])).
+    move: Hc=> /(_ (read_es [seq Plvar i | i <- res])).
     have /= /(_ wf_vmap0) Hwf := wf_write_vars _ Hw.
     rewrite Hd => /(_ Hwf (evm s1)) [//|vm2' [Hvm2'1 /= Hvm2'2]] ??;subst.
     case: s1 Hvm2'2 Hw Hsem Hwf => /= ?? Hvm2'2 Hw Hsem Hwf.

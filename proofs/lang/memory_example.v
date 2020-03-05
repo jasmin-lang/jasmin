@@ -87,17 +87,26 @@ Local Notation is_align ptr ws :=
   (let w := wunsigned ptr in
   (w mod wsize_size ws == 0)%Z).
 
-Lemma is_align_array ptr sz j :
-  is_align ptr sz → is_align (wrepr U64 (wsize_size sz * j) + ptr) sz.
+Lemma is_align_mod (ptr:pointer) sz : (wunsigned ptr mod wsize_size sz = 0)%Z -> is_align ptr sz.
+Proof. by move=> /= ->. Qed.
+  
+Lemma is_align_add (ptr1 ptr2:pointer) sz : is_align ptr1 sz -> is_align ptr2 sz -> is_align (ptr1 + ptr2) sz.
 Proof.
   have hn := wsize_size_pos sz.
   have hnz : wsize_size sz ≠ 0%Z by Psatz.lia.
-  move => /eqP /Zmod_divides [] // p hptr.
-  rewrite /wunsigned CoqWord.word.addwE -!/(wunsigned _) Zplus_mod hptr -Zplus_mod.
-  rewrite wunsigned_repr -/(wbase Uptr) (cut_wbase_Uptr sz).
-  rewrite (Z.mul_comm _ (CoqWord.word.modulus _)) mod_pq_mod_q // (Z.mul_comm _ p) Z_mod_plus.
-  2: Psatz.lia.
-  by rewrite mod_pq_mod_q //; apply/eqP/Zmod_divides; eauto.
+  move => /eqP /Zmod_divides [] // p1 hptr1 /eqP /Zmod_divides [] // p2 hptr2.
+  rewrite /wunsigned CoqWord.word.addwE -!/(wunsigned _) Zplus_mod hptr1 hptr2 -Zplus_mod.
+  rewrite -/(wbase Uptr) (cut_wbase_Uptr sz) -Z.mul_add_distr_l. 
+  by rewrite (Z.mul_comm _ (CoqWord.word.modulus _)) mod_pq_mod_q // Z.mul_comm Z_mod_mult.
+Qed.
+
+Lemma is_align_mul sz j : is_align (wrepr Uptr (wsize_size sz * j)) sz.
+Proof.
+  have hn := wsize_size_pos sz.
+  have hnz : wsize_size sz ≠ 0%Z by Psatz.lia.
+  rewrite wunsigned_repr; lazy zeta.
+  rewrite -/(wbase Uptr) (cut_wbase_Uptr sz).
+  by rewrite (Z.mul_comm _ (CoqWord.word.modulus _)) mod_pq_mod_q // Z.mul_comm Z_mod_mult.
 Qed.
 
 Lemma is_align_no_overflow ptr sz :
@@ -112,11 +121,8 @@ Proof.
   cut (q + 1 <= a)%Z; Psatz.nia.
 Qed.
 
-Lemma is_align8 (ptr:pointer) : is_align ptr U8.
-Proof. by rewrite wsize8 /= Z.mod_1_r. Qed.
-
 Instance A : alignment :=
-  Alignment is_align8 is_align_array is_align_no_overflow.
+  Alignment is_align_add is_align_mod is_align_no_overflow.
 
 End Align.
 

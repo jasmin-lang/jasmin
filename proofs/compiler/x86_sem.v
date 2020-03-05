@@ -50,6 +50,7 @@ Variant asm : Type :=
 Record x86_mem : Type := X86Mem {
   xmem : mem;
   xreg : regmap;
+  xrip : pointer;
   xxreg: xregmap;
   xrf  : rflagmap;
 }.
@@ -145,18 +146,22 @@ Definition st_get_rflag (rf : rflag) (s : x86_mem) :=
 
 (* -------------------------------------------------------------------- *)
 
-Definition decode_addr (s : x86_mem) (a : address) : pointer := nosimpl (
+Definition decode_reg_addr (s : x86_mem) (a : reg_address) : pointer := nosimpl (
   let: disp   := a.(ad_disp) in
   let: base   := odflt 0%R (Option.map (s.(xreg)) a.(ad_base)) in
   let: scale  := word_of_scale a.(ad_scale) in
   let: offset := odflt 0%R (Option.map (s.(xreg)) a.(ad_offset)) in
   disp + base + scale * offset)%R.
 
+Definition decode_addr (s:x86_mem) (a:address) : pointer := 
+  match a with
+  | Areg ra => decode_reg_addr s ra
+  | Arip ofs => (s.(xrip) + ofs)%R
+  end.
+
 (* -------------------------------------------------------------------- *)
 
 Section GLOB_DEFS.
-
-Context (gd: glob_decls).
 
 Definition check_oreg or ai :=
   match or, ai with
@@ -182,7 +187,6 @@ Definition eval_arg_in_v (s:x86_mem) (args:asm_args) (a:arg_desc) (ty:stype) : e
         | sword sz => ok (Vword (sign_extend sz w))
         | _        => type_error
         end
-      | Glob g    => Let w := get_global_word  gd g  in ok (Vword w)
       | Reg r     => ok (Vword (s.(xreg) r))
       | Adr adr   => 
         match ty with
@@ -211,6 +215,7 @@ Definition o2rflagv (b:option bool) : RflagMap.rflagv :=
 Definition mem_write_rflag (s : x86_mem) (f:rflag) (b:option bool) :=
   {| xmem  := s.(xmem);
      xreg  := s.(xreg);
+     xrip  := s.(xrip); 
      xxreg := s.(xxreg);
      xrf   := RflagMap.oset s.(xrf) f (o2rflagv b);
    |}.
@@ -220,6 +225,7 @@ Definition mem_write_mem (l : pointer) sz (w : word sz) (s : x86_mem) :=
   Let m := write_mem s.(xmem) l sz w in ok
   {| xmem := m;
      xreg := s.(xreg);
+     xrip  := s.(xrip); 
      xxreg := s.(xxreg);
      xrf  := s.(xrf);
   |}.
@@ -229,6 +235,7 @@ Definition mem_write_xreg (r: xmm_register) (w: u256) (m: x86_mem) :=
   {|
     xmem := m.(xmem);
     xreg := m.(xreg);
+    xrip  := m.(xrip); 
     xxreg := XRegMap.set m.(xxreg) r w;
     xrf  := m.(xrf);
   |}.
@@ -263,6 +270,7 @@ Definition mem_write_reg (r: register) sz (w: word sz) (m: x86_mem) :=
   {|
     xmem := m.(xmem);
     xreg := RegMap.set m.(xreg) r (word_extend_reg r w m);
+    xrip  := m.(xrip); 
     xxreg := m.(xxreg);
     xrf  := m.(xrf);
   |}.
@@ -298,7 +306,6 @@ Definition mem_write_ty (f:msb_flag) (s:x86_mem) (args:asm_args) (ad:arg_desc) (
   | sint     => fun _ => type_error
   | sarr _   => fun _ => type_error
   end.
-
 
 Definition oof_val (ty: stype) (v:value) : exec (sem_ot ty) :=
   match ty return exec (sem_ot ty) with
@@ -390,23 +397,33 @@ Record xfundef := XFundef {
  xfd_extra : list register * saved_stack;
 }.
 
-Definition xprog : Type :=
-  seq (funname * xfundef).
+Record xprog : Type :=
+  { xp_globs : seq u8;
+    xp_funcs : seq (funname * xfundef) }.
 
 (* TODO: flags may be preserved *)
 (* TODO: restore stack pointer of caller? *)
-Variant x86sem_fd (P: xprog) (gd: glob_decls) fn st st' : Prop :=
+Variant x86sem_fd (P: xprog) (wrip: pointer) fn st st' : Prop :=
 | X86Sem_fd fd mp st2
-   `(get_fundef P fn = Some fd)
+   `(get_fundef P.(xp_funcs) fn = Some fd)
    `(alloc_stack st.(xmem) fd.(xfd_stk_size) = ok mp)
-    (st1 := mem_write_reg fd.(xfd_nstk) (top_stack mp) {| xmem := mp ; xreg := st.(xreg) ; xxreg := st.(xxreg) ; xrf := rflagmap0 |})
+    (st1 := mem_write_reg fd.(xfd_nstk) (top_stack mp) 
+            {| xmem := mp; 
+               xreg := st.(xreg); 
+               xrip := wrip; 
+               xxreg := st.(xxreg); 
+               xrf := rflagmap0 |})
     (c := fd.(xfd_body))
-    `(x86sem gd {| xm := st1 ; xc := c ; xip := 0 |} {| xm := st2; xc := c; xip := size c |})
-    `(st' = {| xmem := free_stack st2.(xmem) fd.(xfd_stk_size) ; xreg := st2.(xreg) ; xxreg := st2.(xxreg) ; xrf := rflagmap0 |})
+    `(x86sem {| xm := st1 ; xc := c ; xip := 0 |} {| xm := st2; xc := c; xip := size c |})
+    `(st' = {| xmem := free_stack st2.(xmem) fd.(xfd_stk_size); 
+               xreg := st2.(xreg);
+               xrip := st2.(xrip);
+               xxreg := st2.(xxreg) ; 
+               xrf := rflagmap0 |})
     .
 
-Definition x86sem_trans gd s2 s1 s3 :
-  x86sem gd s1 s2 -> x86sem gd s2 s3 -> x86sem gd s1 s3 :=
+Definition x86sem_trans s2 s1 s3 :
+  x86sem s1 s2 -> x86sem s2 s3 -> x86sem s1 s3 :=
   rt_trans _ _ s1 s2 s3.
 
 

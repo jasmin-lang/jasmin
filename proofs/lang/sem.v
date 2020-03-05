@@ -438,16 +438,33 @@ Definition Vword_inj sz sz' w w' (e: @Vword sz w = @Vword sz' w') :
   ∃ e : sz = sz', eq_rect sz (λ s, (word s)) w sz' e = w' :=
   let 'Logic.eq_refl := e in (ex_intro _ erefl erefl).
 
+Definition get_global_value (gd: glob_decls) (g: var) : option glob_value :=
+  assoc gd g.
+
+Definition gv2val (gd:glob_value) := 
+  match gd with
+  | Gword ws w => Vword w
+(*  | Garr p a   => Varr a *)
+  end.
+
 Definition get_global gd g : exec value :=
-  Let w := get_global_word gd g in
-  ok (Vword w).
+  if get_global_value gd g is Some ga then
+    let v := gv2val ga in
+    if type_of_val v == vtype g then ok v
+    else type_error
+  else type_error.
 
 Lemma get_globalI gd g v :
   get_global gd g = ok v →
-  exists2 z : Z, get_global_Z gd g = Some z & v = Vword (wrepr (size_of_global g) z).
+  exists gv : glob_value, [/\ get_global_value gd g = Some gv, v = gv2val gv & type_of_val v = vtype g].
 Proof.
-  rewrite /get_global /get_global_word; case: get_global_Z => // z [<-];eauto.
+  rewrite /get_global; case: get_global_value => // gv.
+  by case:eqP => // <- [<-];exists gv.
 Qed.
+
+Definition get_gvar (gd: glob_decls) (vm: vmap) (x:gvar) :=
+  if is_lvar x then get_var vm x.(gv)
+  else get_global gd x.(gv).
 
 Definition is_defined (v: value) : bool :=
   if v is Vundef _ then false else true.
@@ -461,8 +478,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pconst z => ok (Vint z)
   | Pbool b  => ok (Vbool b)
   | Parr_init n => ok (Varr (WArray.empty n))
-  | Pvar v => get_var s.(evm) v
-  | Pglobal g => get_global gd g
+  | Pvar v => get_gvar gd s.(evm) v
   | Pget ws x e =>
       Let (n, t) := s.[x] in
       Let i := sem_pexpr s e >>= to_int in

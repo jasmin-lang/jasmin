@@ -32,8 +32,7 @@ let rec pp_expr tbl fmt =
   | E.Pconst z -> B.pp_print fmt (Conv.bi_of_z z)
   | E.Pbool b -> Pr.pp_bool fmt b
   | E.Parr_init n -> F.fprintf fmt "arr_init(%a)" B.pp_print (Conv.bi_of_pos n)
-  | E.Pvar x -> pp_var_i tbl fmt x
-  | E.Pglobal g -> F.fprintf fmt "%s" (Conv.global_of_cglobal g |> snd)
+  | E.Pvar x -> pp_var_i tbl fmt x.gv
   | E.Pget (ws, x, e) -> F.fprintf fmt "%a[%a %a]" pp_wsize ws (pp_var_i tbl) x pp_expr e
   | E.Pload (sz, x, e) -> F.fprintf fmt "(%a)[%a + %a]" pp_wsize sz (pp_var_i tbl) x pp_expr e
   | E.Papp1 (op, e) -> F.fprintf fmt "(%s %a)" (Pr.string_of_op1 op) pp_expr e
@@ -78,5 +77,7 @@ let pp_lfun tbl fmt (fn, fd) =
     (Pr.pp_list ",@ " (pp_var_i tbl)) fd.lfd_res
 
 let pp_prog tbl fmt lp =
-  F.fprintf fmt "@[<v>%a@]"
-    (Pr.pp_list "@ @ " (pp_lfun tbl)) (List.rev lp)
+  F.fprintf fmt "@[<v>%a@ @ %a@]"
+    Pr.pp_datas lp.lp_globs 
+    (Pr.pp_list "@ @ " (pp_lfun tbl)) (List.rev lp.lp_funcs)
+

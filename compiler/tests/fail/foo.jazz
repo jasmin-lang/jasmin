@@ -1,0 +1,18 @@
+fn f (stack u64[1] x) -> reg u64 {
+  reg u64 r;
+  x[0] = 0;
+  r = x[0];
+  return r;
+}
+
+export fn e (reg u64 i) -> reg u64 {
+  stack u64[1] y;
+  reg u64 r1 r2;
+  y[0] = i;
+  r1 = f(y);
+  r2 = y[0];
+  r1 += r2;
+  return r1;
+}
+  
+  

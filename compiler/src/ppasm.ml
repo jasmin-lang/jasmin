@@ -131,7 +131,7 @@ let pp_scale (scale : X86_decl.scale) =
   | Scale8 -> "8"
 
 (* -------------------------------------------------------------------- *)
-let pp_address (addr : X86_decl.address) =
+let pp_reg_address (addr : X86_decl.reg_address) =
   let disp = Conv.bi_of_int64 addr.ad_disp in
   let base = addr.ad_base in
   let off  = addr.ad_offset in
@@ -154,16 +154,21 @@ let pp_address (addr : X86_decl.address) =
         Printf.sprintf "%s(%s,%s,%s)" disp base off (pp_scale scal)
   end
 
+let global_datas = "glob_data" 
+
+let pp_address (addr : X86_decl.address) = 
+  match addr with 
+  | X86_decl.Areg ra -> pp_reg_address ra
+  | X86_decl.Arip d ->
+    let disp = Bigint.to_string (Conv.bi_of_int64 d) in
+    Printf.sprintf "%s + %s(%%rip)" global_datas disp
+
 (* -------------------------------------------------------------------- *)
 let pp_imm (imm : Bigint.zint) =
   Format.sprintf "$%s" (Bigint.to_string imm)
 
 (* -------------------------------------------------------------------- *)
 let pp_label = string_of_label
-
-(* -------------------------------------------------------------------- *)
-let pp_global (g: Global.global) =
-  Format.sprintf "%s(%%rip)" (Conv.global_of_cglobal g |> snd)
 
 (* -------------------------------------------------------------------- *)
 let pp_ct (ct : X86_decl.condt) =
@@ -215,7 +220,6 @@ let pp_asm_arg ((ws,op):(W.wsize * asm_arg)) =
   match op with
   | Condt  _   -> assert false 
   | Imm(ws, w) -> pp_imm (Conv.bi_of_word ws w)
-  | Glob g     -> pp_global g
   | Reg r      -> pp_register (rsize_of_wsize ws) r
   | Adr addr   -> pp_address addr
   | XMM r      -> pp_xmm_register ws r
@@ -300,50 +304,29 @@ let pp_align ws =
   let n = align_of_ws ws in
   Format.sprintf "%d" n
 
-let decl_of_ws =
-  function
-  | W.U8 -> Some ".byte"
-  | W.U16 -> Some ".word"
-  | W.U32 -> Some ".long"
-  | W.U64 -> Some ".quad"
-  | W.U128 | W.U256 -> None
+(* ----------------------------------------------------------------------- *)
 
-let bigint_to_bytes n z =
-  let base = Bigint.of_int 256 in
-  let res = ref [] in
-  let z = ref z in
-  for i = 1 to n do
-    let q, r = Bigint.ediv !z base in
-    z := q;
-    res := r :: !res
-  done;
-  !res
-
-let pp_const ws z =
-  match decl_of_ws ws with
-  | Some d -> [ `Instr (d, [Bigint.to_string z]) ]
-  | None ->
-    List.rev_map (fun b -> `Instr (".byte", [ Bigint.to_string b] ))
-      (bigint_to_bytes (Prog.size_of_ws ws) z)
-
-let pp_glob_def fmt (gd:Global.glob_decl) : unit =
-  let (ws,n,z) = Conv.gd_of_cgd gd in
-  let z = Prog.clamp ws z in
-  let m = mangle n in
-  pp_gens fmt ([
-    `Instr (".globl", [m]);
-    `Instr (".globl", [n]);
-    `Instr (".p2align", [pp_align ws]);
-    `Label m;
-    `Label n
-  ] @ pp_const ws z)
+let pp_glob_data fmt gd = 
+  if not (List.is_empty gd) then
+    let n = global_datas in
+    let m = mangle global_datas in
+    begin
+      pp_gens fmt ([
+            `Instr (".data", []);
+            `Instr (".globl", [m]);
+            `Instr (".globl", [n]);
+            `Instr (".p2align", [pp_align U256]);
+            `Label m;
+            `Label n]);
+      Printer.pp_datas fmt gd
+    end
 
 (* -------------------------------------------------------------------- *)
 type 'a tbl = 'a Conv.coq_tbl
 type  gd_t  = Global.glob_decl list 
 
 let pp_prog (tbl: 'info tbl) (fmt : Format.formatter) 
-   ((gd:gd_t), (asm : X86_sem.xprog)) =
+   (asm : X86_sem.xprog) =
   pp_gens fmt
     [`Instr (".text"   , []);
      `Instr (".p2align", ["5"])];
@@ -351,7 +334,7 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
   List.iter (fun (n, _) -> pp_gens fmt
     [`Instr (".globl", [mangle (string_of_funname tbl n)]);
      `Instr (".globl", [string_of_funname tbl n])])
-    asm;
+    asm.xp_funcs;
 
   let open X86_decl in
   let open X86_instr_decl in
@@ -385,10 +368,10 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
   
       | SavedStackStk p -> 
         let adr = 
-          Adr { ad_disp  = Conv.int64_of_bi (Conv.bi_of_z p);
-                ad_base   = Some RSP;
-                ad_scale  = Scale1;
-                ad_offset = None } in
+          Adr (Areg { ad_disp  = Conv.int64_of_bi (Conv.bi_of_z p);
+                      ad_base   = Some RSP;
+                      ad_scale  = Scale1;
+                      ad_offset = None }) in
         pp_instrs name fmt 
           [ AsmOp(MOV uptr, [Reg RBP; Reg RSP]);
             AsmOp(SUB uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi stsz)]);
@@ -403,9 +386,6 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
       List.iter (fun r ->
           pp_gens fmt [`Instr ("popq", [pp_register `U64 r])])
         (List.rev tosave);
-      pp_gens fmt [`Instr ("ret", [])]) asm;
-
-  if not (List.is_empty gd) then
-    pp_gens fmt [`Instr (".data", [])];
-
-  List.iter (pp_glob_def fmt) gd
+      pp_gens fmt [`Instr ("ret", [])]) asm.xp_funcs;
+  pp_glob_data fmt asm.xp_globs
+  

@@ -38,6 +38,9 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Local Open Scope Z_scope.
+
+Definition mk_scale ws := wsize_size ws.
+
 Module WArray.
 
   Definition arr_size (ws:wsize) (s:positive)  :=
@@ -331,16 +334,16 @@ Module WArray.
 
   Lemma get_bound ws len (t:array len) i w :
     get ws t i = ok w ->
-    (0 <= i * wsize_size ws /\ (i + 1) * wsize_size ws <= len)%Z.
+    (0 <= i * wsize_size ws /\ i * wsize_size ws + wsize_size ws<= len)%Z.
   Proof.
-    rewrite /get /CoreMem.read /= /validr /validw; t_xrbindP => ?? /assertP /in_rangeP; nia.
+    by rewrite /get /CoreMem.read /= /validr /validw; t_xrbindP => ?? /assertP /in_rangeP ? /assertP.
   Qed.
 
   Lemma set_bound ws len (a t:array len) i (w:word ws) :
     set a i w = ok t ->
-    (0 <= i * wsize_size ws /\ (i+1) * wsize_size ws <= len)%Z.
+    (0 <= i * wsize_size ws /\ i * wsize_size ws + wsize_size ws <= len)%Z.
   Proof.
-    rewrite /set /CoreMem.write /= /validw; t_xrbindP => ? /assertP /in_rangeP; nia.
+    by rewrite /set /CoreMem.write /= /validw; t_xrbindP => ? /assertP /in_rangeP.
   Qed.
 
   Lemma get_uget len (t:array len) i v :

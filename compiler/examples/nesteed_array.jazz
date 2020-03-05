@@ -1,0 +1,17 @@
+export fn foo (reg u64 x) -> reg u64 {
+  stack u64[256] a;
+  reg u64 r;
+  inline int i j;
+  for i = 0 to 32 {
+    for j = 0 to 8 {   
+      a[8*i + j] = x;   /* this currently doesn't work */
+    }   
+  }
+  r = 0;
+  for i = 0 to 256 {
+    r += a[i];
+  }   
+  return r;
+}
+    
+ 

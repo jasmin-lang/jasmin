@@ -133,6 +133,8 @@ and pp_comp_ferr tbl fmt = function
      Printer.pp_iloc i_loc
   | Ferr_remove_glob_dup (_, _) ->
     Format.fprintf fmt "duplicate global: please report"
+  | Compiler_util.Ferr_msg msg ->
+    pp_comp_err tbl fmt msg
 
 
 (* -------------------------------------------------------------------- *)
@@ -196,10 +198,12 @@ let main () =
       exit 0
     end;
 
+    (* FIXME: why this is not certified *)
     let prog = Inline_array_copy.doit prog in
 
     (* Generate the coq program if needed *)
     if !coqfile <> "" then begin
+      (* FIXME: remove this option and coq_printer *)
       assert false
 (*      let out = open_out !coqfile in
       let fmt = Format.formatter_of_out_channel out in
@@ -210,7 +214,9 @@ let main () =
     if !coqonly then exit 0;
 
     (* Now call the coq compiler *)
-    let tbl, cprog = Conv.cprog_of_prog Regalloc.X64.all_registers () prog in
+    let all_vars = Prog.rip :: Regalloc.X64.all_registers in
+    let tbl, cprog = Conv.cprog_of_prog all_vars () prog in
+
     if !debug then Printf.eprintf "translated to coq \n%!";
 
     let to_exec = Typing.Env.Exec.get env in
@@ -275,6 +281,17 @@ let main () =
       ((sz, stk_i), alloc), (to_save, p_stack) 
     in
 
+    let stk_alloc_gl p =
+      let p = Conv.prog_of_cprog tbl p in
+      if !debug then Format.eprintf "START stack alloc@.";
+      let (data, rip, alloc) = Array_expand.init_glob p in
+      let rip_i = 
+        Var0.Var.vname (Conv.cvar_of_var tbl rip) in
+      let alloc =
+        let trans (v,i) = Conv.cvar_of_var tbl v, Conv.z_of_int i in
+        List.map trans alloc in
+      (data, rip_i), alloc in
+
     let is_var_in_memory cv : bool =
       let v = Conv.vari_of_cvari tbl cv |> L.unloc in
       v.v_kind = Stack in
@@ -308,19 +325,11 @@ let main () =
       let x = Conv.var_of_cvar tbl x in
       x.v_kind = Global in
 
-    let fresh_id gd x =
-      let x = (Conv.var_of_cvar tbl x).v_name in
-      let ns = List.map (fun (g,_) -> snd (Conv.global_of_cglobal g)) gd in
-      let s = Ss.of_list ns in
-      let x =
-        if Ss.mem x s then
-          let rec aux i =
-            let x = x ^ "_" ^ string_of_int i in
-            if Ss.mem x s then aux (i+1)
-            else x in
-          aux 0
-        else x in
-      Conv.string0_of_string x in
+    let fresh_id _gd x =
+      let x = Conv.var_of_cvar tbl x in
+      let x' = Prog.V.clone x in
+      let cx = Conv.cvar_of_var tbl x' in
+      cx.Var0.Var.vname in
 
     let cparams = {
       Compiler.rename_fd    = rename_fd;
@@ -329,6 +338,7 @@ let main () =
       Compiler.share_stk_fd = apply "share stk" Varalloc.alloc_stack_fd;
       Compiler.reg_alloc_fd = apply "reg alloc" (Regalloc.regalloc translate_var);
       Compiler.stk_alloc_fd = stk_alloc_fd;
+      Compiler.stk_alloc_gl = stk_alloc_gl;
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;
       Compiler.print_prog   = (fun s p -> eprint s pp_cprog p; p);

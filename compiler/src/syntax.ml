@@ -245,7 +245,11 @@ type pfundef = {
 }
 
 (* -------------------------------------------------------------------- *)
-type pglobal = { pgd_type: ptype; pgd_name: pident ; pgd_val: pexpr }
+type gpexpr = 
+  | GEword  of pexpr
+  | GEarray of pexpr list 
+
+type pglobal = { pgd_type: ptype; pgd_name: pident ; pgd_val: gpexpr }
 
 (* -------------------------------------------------------------------- *)
 type pexec = {

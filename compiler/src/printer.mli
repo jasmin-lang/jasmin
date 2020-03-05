@@ -49,5 +49,6 @@ val pp_iprog : debug:bool -> (Format.formatter -> 'info -> unit) ->
 val pp_prog  : debug:bool ->
                Format.formatter -> 'info prog -> unit
 
-(* val pp_cprog : Format.formatter -> Expr.prog -> unit *)
+val pp_datas : Format.formatter -> Ssralg.GRing.ComRing.sort list -> unit
+
 

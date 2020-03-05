@@ -38,6 +38,11 @@ type 'ty gvar = private {
 
 type 'ty gvar_i = 'ty gvar L.located
 
+type 'ty ggvar = {
+  gv : 'ty gvar_i;
+  gs : E.v_scope;
+}
+
 type 'expr gty =
   | Bty of base_ty
   | Arr of wsize * 'expr (* Arr(n,de): array of n-bit integers with dim. *)
@@ -48,8 +53,7 @@ type 'ty gexpr =
   | Pconst of B.zint
   | Pbool  of bool
   | Parr_init of B.zint
-  | Pvar   of 'ty gvar_i
-  | Pglobal of wsize * Name.t
+  | Pvar   of 'ty ggvar
   | Pget   of wsize * 'ty gvar_i * 'ty gexpr
   | Pload  of wsize * 'ty gvar_i * 'ty gexpr
   | Papp1  of E.sop1 * 'ty gexpr
@@ -131,10 +135,14 @@ type ('ty,'info) gfunc = {
     f_ret  : 'ty gvar_i list
   }
 
+type 'ty ggexpr = 
+  | GEword of 'ty gexpr
+  | GEarray of 'ty gexprs
+
 type ('ty,'info) gmod_item =
   | MIfun   of ('ty,'info) gfunc
   | MIparam of ('ty gvar * 'ty gexpr)
-  | MIglobal of (Name.t * 'ty) * 'ty gexpr
+  | MIglobal of ('ty gvar * 'ty ggexpr)
 
 type ('ty,'info) gprog = ('ty,'info) gmod_item list
    (* first declaration occur at the end (i.e reverse order) *)
@@ -169,9 +177,12 @@ module PV : sig
   val is_glob : pvar -> bool
 end
 
+val gkglob : 'ty gvar_i -> 'ty ggvar
+val gkvar : 'ty gvar_i -> 'ty ggvar
+val is_gkvar : 'ty ggvar -> bool
+
 module Mpv : Map.S  with type key = pvar
 module Spv : Set.S  with type elt = pvar
-
 
 val pty_equal : pty -> pty -> bool
 val pexpr_equal : pexpr -> pexpr -> bool
@@ -192,7 +203,7 @@ type 'info stmt  = (ty,'info) gstmt
 
 type 'info func     = (ty,'info) gfunc
 type 'info mod_item = (ty,'info) gmod_item
-type global_decl    = wsize * Name.t * B.zint
+type global_decl    = var * Global.glob_value
 type 'info prog     = global_decl list * 'info func list
 
 
@@ -216,6 +227,8 @@ end
 module Sv : Set.S  with type elt = var
 module Mv : Map.S  with type key = var
 module Hv : Hash.S with type key = var
+
+val rip : var
 
 (* -------------------------------------------------------------------- *)
 val kind_i : 'ty gvar_i -> v_kind

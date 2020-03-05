@@ -27,7 +27,7 @@
 
 (* ** Imports and settings *)
 
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith.
 Require Import Utf8.
 Import Relations.
@@ -81,7 +81,10 @@ Record lfundef := LFundef {
 Definition signature_of_lfundef (lfd: lfundef) : function_signature :=
   (lfd_tyin lfd, lfd_tyout lfd).
 
-Definition lprog := seq (funname * lfundef).
+Record lprog := 
+ {  lp_rip   : Ident.ident;
+    lp_globs : seq u8;
+    lp_funcs : seq (funname * lfundef) }.
 
 (* --------------------------------------------------------------------------- *)
 (* Translation                                                                 *)
@@ -199,7 +202,10 @@ Definition linear_fd (fd: sfundef) :=
   ok (LFundef (sf_stk_sz fd) (sf_stk_id fd) (sf_tyin fd) (sf_params fd) fd'.2 (sf_tyout fd) (sf_res fd) (sf_extra fd)).
 
 Definition linear_prog (p: sprog) : cfexec lprog :=
-  map_cfprog linear_fd p.
+  Let funcs := map_cfprog linear_fd p.(sp_funcs) in
+  ok {| lp_rip   := p.(sp_rip);
+        lp_globs := p.(sp_globs);
+        lp_funcs := funcs |}.
 
 Module Eq_linstr.
   Definition eqb_r i1 i2 :=

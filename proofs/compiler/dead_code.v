@@ -76,7 +76,7 @@ Definition write_mem (r:lval) : bool :=
 
 Definition check_nop (rv:lval) ty (e:pexpr) :=
   match rv, e with
-  | Lvar x1, Pvar x2 => (x1.(v_var) == x2.(v_var)) && (ty == vtype x1.(v_var))
+  | Lvar x1, Pvar x2 => is_lvar x2 && (x1.(v_var) == x2.(v_var)) && (ty == vtype x1.(v_var))
   | _, _ => false
   end.
 
@@ -136,7 +136,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
 
 Definition dead_code_fd (fd: fundef) :=
   let 'MkFun ii tyi params c tyo res := fd in
-  let s := read_es (map Pvar res) in
+  let s := read_es (map Plvar res) in
   Let c := dead_code_c dead_code_i c s in
   ciok (MkFun ii tyi params c.2 tyo res).
 
