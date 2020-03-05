@@ -552,9 +552,9 @@ end
 
 (* -------------------------------------------------------------------- *)
 module Parray = struct
-  type 'a t = 'a array
-
   include Array
+
+  type 'a t = 'a array
 
   let empty = [||]
 
