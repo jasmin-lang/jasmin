@@ -8,7 +8,6 @@
 
 ssrmisc/oseq.v
 3rdparty/ssrring.v
-3rdparty/ssrify.v
 3rdparty/xseq.v
 compiler/allocation.v
 compiler/array_expansion.v
