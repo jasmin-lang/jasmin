@@ -180,7 +180,7 @@ Proof.
   rewrite surj_prog.
   apply: K'; first by move => vr' Hvr'; apply: (const_prop_callP _ va_refl); exact: Hvr'.
   apply: K'; first by move => vr' Hvr'; apply: (unrollP Hp1 _ va_refl); exact: Hvr'.
-  apply: Ki; first by move => vr'; exact: (dead_calls_err_seqP Hpca).
+  apply: Ki; first by move => vr'; exact: (dead_calls_err_seqP (sCP:= sCP_unit) Hpca).
   apply: K'; first by move => vr' Hvr'; apply: (inline_call_errP Hp0 va_refl); exact: Hvr'.
   apply: Ki; first by move => vr'; exact: psem_call.
   exists vr; split => //.

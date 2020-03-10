@@ -393,7 +393,7 @@ let cufdef_of_fdef tbl fd =
         C.f_body   = f_body;
         C.f_tyout  = List.map cty_of_ty fd.f_tyout;
         C.f_res    = f_res;
-        C.f_extra  = Obj.magic ();
+        C.f_extra  = ();
       }
 
 
@@ -423,7 +423,7 @@ let cuprog_of_prog (all_registers: var list) info p =
     all_registers;
   let fds = List.map (cufdef_of_fdef tbl) (snd p) in
   let gd  = List.map (cgd_of_gd tbl) (fst p) in
-  tbl, { C.p_globs = gd; C.p_funcs = fds; C.p_extra = Obj.magic () }
+  tbl, { C.p_globs = gd; C.p_funcs = fds; C.p_extra = () }
 
 let prog_of_cuprog tbl p =
   List.map (gd_of_cgd tbl) p.C.p_globs,
@@ -432,11 +432,11 @@ let prog_of_cuprog tbl p =
 
 let csfdef_of_fdef tbl ((fd,fe):'info sfundef) =
   let fn, fd = cufdef_of_fdef tbl fd in
-  fn, { fd with C.f_extra = Obj.magic fe }
+  fn, { fd with C.f_extra = fe }
 
 let fdef_of_csfdef tbl (fn, fd) =
   let fd' = fdef_of_cufdef tbl (fn, fd) in
-  fd', Obj.magic fd.C.f_extra
+  fd', fd.C.f_extra
 
 let prog_of_csprog tbl p =
-  List.map (fdef_of_csfdef tbl) p.C.p_funcs, Obj.magic p.C.p_extra
+  List.map (fdef_of_csfdef tbl) p.C.p_funcs, p.C.p_extra

@@ -989,10 +989,17 @@ Instance progUnit : progT [eqType of unit] :=
      extra_prog_t := unit;
   |}.
 
-Definition ufundef     := (@fundef _ progUnit).
-Definition uprog       := (@prog _ progUnit).
-Definition ufun_decl   := (@fun_decl _ progUnit).
-Definition ufun_decls  := (seq (@fun_decl _ progUnit)).
+Definition ufundef     := @fundef _ progUnit.
+Definition ufun_decl   := @fun_decl _ progUnit.
+Definition ufun_decls  := seq (@fun_decl _ progUnit).
+Definition uprog       := @prog _ progUnit.
+
+(* For extraction *)
+Definition _ufundef    := _fundef unit. 
+Definition _ufun_decl  := _fun_decl unit.
+Definition _ufun_decls :=  seq (_fun_decl unit).
+Definition _uprog      := _prog unit unit. 
+Definition to_uprog (p:_uprog) : uprog := p.
 
 (* ** Programs after stack/memory allocation 
  * -------------------------------------------------------------------- *)
@@ -1048,10 +1055,18 @@ Instance progStack : progT [eqType of stk_fun_extra] :=
   {| extra_val_t := pointer;
      extra_prog_t := sprog_extra  |}.
 
-Definition sfundef     := (@fundef  _ progStack).
-Definition sprog       := (@prog  _ progStack).
-Definition sfun_decl   := (@fun_decl _ progStack).
-Definition sfun_decls  := (seq (@fun_decl _ progStack)).
+Definition sfundef     := @fundef  _ progStack.
+Definition sfun_decl   := @fun_decl _ progStack.
+Definition sfun_decls  := seq (@fun_decl _ progStack).
+Definition sprog       := @prog  _ progStack.
+
+(* For extraction *)
+
+Definition _sfundef    := _fundef stk_fun_extra.
+Definition _sfun_decl  := _fun_decl stk_fun_extra. 
+Definition _sfun_decls := seq (_fun_decl  stk_fun_extra).
+Definition _sprog      := _prog stk_fun_extra sprog_extra.
+Definition to_sprog (p:_sprog) : sprog := p.
 
 (* ----------------------------------------------------------------------------- *)
 
