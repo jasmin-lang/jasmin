@@ -416,7 +416,7 @@ Record pp_asm_op := mk_pp_asm_op {
   pp_aop_args : seq (wsize * asm_arg);
 }.
 
-Inductive safe_cond :=
+Variant safe_cond :=
   | NotZero of wsize & nat. (* the nth argument of size sz is not zero *)
 
 Record instr_desc_t := mk_instr_desc {

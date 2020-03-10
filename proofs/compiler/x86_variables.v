@@ -182,10 +182,7 @@ Qed.
 
 Lemma register_of_var_of_register r :
   register_of_var (var_of_register r) = Some r.
-Proof.
-  rewrite /register_of_var /var_of_register /=.
-  by apply reg_of_stringK.
-Qed.
+Proof. exact: reg_of_stringK. Qed.
 
 Definition flag_of_var (v: var) : option rflag :=
   if v.(vtype) == sbool then rflag_of_string v.(vname)

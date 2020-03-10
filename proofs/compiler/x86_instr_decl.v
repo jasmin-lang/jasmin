@@ -677,14 +677,14 @@ Definition iCF := F CF.
 
 (* -------------------------------------------------------------------- *)
 
-Inductive prim_constructor :=
+Variant prim_constructor :=
   | PrimP of wsize & (wsize -> asm_op)
   | PrimM of asm_op
   | PrimV of (velem -> wsize -> asm_op)
   | PrimX of (wsize -> wsize -> asm_op)
   .
 
-Inductive arg_kind :=
+Variant arg_kind :=
   | CAcond
   | CAreg
   | CAxmm

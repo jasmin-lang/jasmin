@@ -247,7 +247,7 @@ move => sc x' ofs /(_ erefl); t_xrbindP => ? ? hx2 hx3 <- ? hx1 ? /xscale_ok -> 
 rewrite /decode_addr /= (xgetreg eqv ok_r1 ok_o ok_z) (xgetreg eqv hx1 hx2 hx3);ssring.
 Qed.
 
-Inductive check_sopn_argI ii max_imm args e : arg_desc -> stype -> Prop :=
+Variant check_sopn_argI ii max_imm args e : arg_desc -> stype -> Prop :=
 | CSA_Implicit i ty :
        (eq_expr e {| v_var := var_of_implicit i; v_info := 1%positive |})
     -> check_sopn_argI ii max_imm args e (ADImplicit i) ty
