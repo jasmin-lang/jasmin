@@ -396,7 +396,7 @@ Canonical msb_flag_eqType := EqType msb_flag msb_flag_eqMixin.
 
 (* -------------------------------------------------------------------- *)
 
-Definition check_arg_dest (ad:arg_desc) (ty:stype) := 
+Definition check_arg_dest (ad:arg_desc) (ty:stype) :=
   match ad with
   | ADImplicit _ => true
   | ADExplicit _ _ => ty != sbool
@@ -404,9 +404,9 @@ Definition check_arg_dest (ad:arg_desc) (ty:stype) :=
 
 Inductive pp_asm_op_ext :=
   | PP_error
-  | PP_name 
-  | PP_iname of wsize 
-  | PP_iname2 of wsize & wsize 
+  | PP_name
+  | PP_iname of wsize
+  | PP_iname2 of wsize & wsize
   | PP_viname of velem & bool (* long *)
   | PP_ct of asm_arg.
 
@@ -415,15 +415,15 @@ Record pp_asm_op := mk_pp_asm_op {
   pp_aop_ext  : pp_asm_op_ext;
   pp_aop_args : seq (wsize * asm_arg);
 }.
-   
-Inductive safe_cond := 
+
+Inductive safe_cond :=
   | NotZero of wsize & nat. (* the nth argument of size sz is not zero *)
 
 Record instr_desc_t := mk_instr_desc {
   (* Info for x86 sem *)
   id_msb_flag : msb_flag;
   id_tin      : seq stype;
-  id_in       : seq arg_desc; 
+  id_in       : seq arg_desc;
   id_tout     : seq stype;
   id_out      : seq arg_desc;
   id_semi     : sem_prod id_tin (exec (sem_tuple id_tout));
@@ -432,10 +432,10 @@ Record instr_desc_t := mk_instr_desc {
   (* Info for jasmin *)
   id_eq_size  : (size id_in == size id_tin) && (size id_out == size id_tout);
   id_max_imm  : option wsize;
-  id_tin_narr : all is_not_sarr id_tin; 
+  id_tin_narr : all is_not_sarr id_tin;
   id_str_jas  : unit -> string;
   id_check_dest : all2 check_arg_dest id_out id_tout;
   id_safe     : seq safe_cond;
   id_wsize    : wsize;  (* ..... *)
-  id_pp_asm   : asm_args -> pp_asm_op; 
+  id_pp_asm   : asm_args -> pp_asm_op;
 }.

@@ -466,11 +466,11 @@ Definition assemble_word ii (sz:wsize) max_imm (e:pexpr) :=
     match max_imm with
     | None =>  cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for oprd, constant not allowed"))
     | Some sz1 =>
-      let w := wrepr sz1 z in 
+      let w := wrepr sz1 z in
       let w1 := sign_extend sz w in
       let w2 := zero_extend sz (wrepr sz' z) in
-      Let _ := assert (w1 == w2) 
-                (ii, Cerr_assembler (AsmErr_string "Invalid pexpr for oprd: out of bound constant")) in 
+      Let _ := assert (w1 == w2)
+                (ii, Cerr_assembler (AsmErr_string "Invalid pexpr for oprd: out of bound constant")) in
       ciok (Imm w)
     end
   | Pvar x =>
@@ -632,6 +632,6 @@ Lemma arg_of_pexpr_eq_expr ii ty max_imm pe pe' o :
   arg_of_pexpr ii ty max_imm pe = arg_of_pexpr ii ty max_imm pe'.
 Proof.
 case: ty => //= [ | sz] heq; t_xrbindP.
-+ by move=> c /(assemble_cond_eq_expr heq) ->. 
++ by move=> c /(assemble_cond_eq_expr heq) ->.
 by move=> /(assemble_word_eq_expr heq) ->.
 Qed.
