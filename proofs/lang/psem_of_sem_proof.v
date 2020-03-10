@@ -151,6 +151,11 @@ Section SEM_PEXPR_SIM.
 
   Let Q es : Prop :=
     ∀ vs,
+      mapM (sem.sem_pexpr gd s) es = ok vs ->
+      mapM (psem.sem_pexpr gd s') es = ok vs.
+
+  Let Q' es : Prop :=
+    ∀ vs,
       sem.sem_pexprs gd s es = ok vs →
       psem.sem_pexprs gd s' es = ok vs.
 
@@ -167,13 +172,32 @@ Section SEM_PEXPR_SIM.
     move: h; case: eqP => // ->; rewrite eqxx
   | h : Let x := _ in _ = ok _ |- _ => move: h; t_xrbindP => *
   | h : match ?x with _ => _ end = ok _ |- _ => move: h; case: x => // *
+  | |- _ = _ => auto
   end.
 
   Lemma sem_pexpr_s_sim : (∀ e, P e) ∧ (∀ es, Q es).
   Proof.
-    case: hs => ??.
-    by apply: pexprs_ind_pair; subst P Q; split => //=; t_xrbindP => *;
-      rewrite -/(sem_pexprs _ _); sem_pexpr_sim_t.
+    case: hs => hvm Hvm.
+    apply: pexprs_ind_pair; subst P Q; split => //=.
+    + t_xrbindP=> *;sem_pexpr_sim_t.
+    + t_xrbindP=> *;sem_pexpr_sim_t.
+    + move=> sz x e H v. apply sem.on_arr_varP => n t Htx;rewrite /on_arr_var => Hg.
+      move: (get_var_sim Hvm). move=> Hg'. move: (Hg' x) => Hg''. t_xrbindP.
+      move=> y Hsem h0 Hint h2 Hw <-. rewrite -Hg'' /=. rewrite Hg /=.
+      move: (H y Hsem) => -> /=. rewrite Hint /=. by rewrite Hw /=.
+    + t_xrbindP=> *;sem_pexpr_sim_t.
+    + t_xrbindP=> *;sem_pexpr_sim_t.
+    + t_xrbindP=> *;sem_pexpr_sim_t.
+    + t_xrbindP=> *;sem_pexpr_sim_t.
+    t_xrbindP=> *;sem_pexpr_sim_t.
+Qed.
+
+  Lemma sem_pexpr_s_sim' : (∀ e, P e) ∧ (∀ es, Q' es).
+  Proof.
+    rewrite /Q'. rewrite /sem.sem_pexprs. rewrite /sem_pexprs.
+    move: (sem_pexpr_s_sim) => [] H1 H2. rewrite /Q in H2.
+    split; auto. move=> es vs. t_xrbindP => y Hm <-. move: (H2 es y) => H1'.
+    by rewrite H1' /=.
   Qed.
 
   End SEM_PEXPR_SIM.
@@ -182,6 +206,8 @@ Definition sem_pexpr_sim s e v s' h :=
   (@sem_pexpr_s_sim s s' h).1 e v.
 Definition sem_pexprs_sim s es vs s' h :=
   (@sem_pexpr_s_sim s s' h).2 es vs.
+Definition sem_pexprs_sim' s es vs s' h :=
+  (@sem_pexpr_s_sim' s s' h).2 es vs.
 
 Lemma write_var_sim s1 x v s2 s1' :
   estate_sim s1 s1' →
@@ -203,125 +229,154 @@ elim: xs vs s1 s1' s2.
 by move => x xs ih [] // v vs s1 s1' s3 hss'1 /=; apply: rbindP => s2 /(write_var_sim hss'1) [s2'] [hss'2 ->] /(ih _ _ _ _ hss'2).
 Qed.
 
-Lemma write_lval_sim s1 x v s2 s1' :
+Lemma write_lval_sim s1 x v s2 l2 s1' :
   estate_sim s1 s1' →
-  sem.write_lval gd x v s1 = ok s2 →
-  ∃ s2', estate_sim s2 s2' ∧ psem.write_lval gd x v s1' = ok s2'.
+  sem.write_lval gd x v s1 = ok (s2, l2) →
+  ∃ s2', estate_sim s2 s2' ∧ psem.write_lval gd x v s1' = ok (s2', l2).
 Proof.
 case => hm hvm; case: x => /=.
-- move => _ ty; rewrite /sem.write_none /psem.write_none; apply: on_vuP.
-  + move => w hw <- {s2}; exists s1'; split; first by [].
+- move => _ ty; rewrite /sem.write_none /psem.write_none; t_xrbindP. move=> y. apply: on_vuP.
+  + move => w hw <- <- <-; exists s1'; split; first by [].
     by case /exec_val_simE: (of_val_sim hw) => v' [-> _].
   case: is_sboolP => // ?;subst ty.
   move /of_val_undef_sim => /exec_val_simE /= -> /= [<-].
+  move => <- <-.
   by exists s1'.
-- move => x; exact: write_var_sim.
-- move => sz x e; t_xrbindP => ? ?;
-    rewrite hm (get_var_sim hvm) => -> /= -> ?? /(sem_pexpr_sim (conj hm hvm))
-        -> /= -> ? -> ? /= -> <- /=.
-  by eexists; split; split.
+- move=> x. t_xrbindP. move=> y H <- <-.
+  move: (write_var_sim). move=> Hw. move: (Hw s1 x v y s1' (conj hm hvm) H) => [] s2' [] Hvm -> /=.
+  by exists s2'.
+- move => sz x e; t_xrbindP.
+  move=> y h Hg H2 h2 Hs h4 H4 h6 Hw h8 Hm <- <-.
+  move: (get_var_sim hvm x) => H. rewrite H in Hg. rewrite Hg /= H2 /=.
+  move: (sem_pexpr_sim). move=> Hsem. move: (Hsem s1 e h2 s1' (conj hm hvm) Hs) => -> /=.
+  rewrite H4 /=. rewrite Hw /=. rewrite -hm Hm /=. exists {| emem := h8; evm := evm s1' |}. split.
+  by rewrite /estate_sim. auto.
 move => ws x e; rewrite /sem.on_arr_var /psem.on_arr_var (get_var_sim hvm).
 t_xrbindP => t -> /=.
-case: t => // n t; t_xrbindP => ?? /(sem_pexpr_sim (conj hm hvm)) -> /= -> ? -> /= ? -> ? /(set_var_sim hvm).
-case => vm' [] h /= -> <- /=.
-by eexists; split; split.
+case: t => // n t. t_xrbindP.
+move=> y Hs h0 Hi h2 Hw h4 Ha h6 Hs' <- <-.
+move: (sem_pexpr_sim) => H. move: (H s1 e y s1' (conj hm hvm)). move=> -> /=. rewrite Hi Hw /=.
+rewrite Ha /=. move: (set_var_sim hvm Hs') => [] h7 [] H2 H3. rewrite H3 /=.
+exists {| emem := emem s1'; evm := h7 |}. split. rewrite /estate_sim. split; auto.
+auto. auto.
 Qed.
 
-Corollary write_lvals_sim s1 xs vs s2 s1' :
+Corollary write_lvals_sim s1 xs vs s2 l2 s1' :
   estate_sim s1 s1' →
-  sem.write_lvals gd s1 xs vs = ok s2 →
-  ∃ s2', estate_sim s2 s2' ∧ psem.write_lvals gd s1' xs vs = ok s2'.
+  sem.write_lvals gd s1 xs vs = ok (s2, l2) →
+  ∃ s2', estate_sim s2 s2' ∧ psem.write_lvals gd s1' xs vs = ok (s2', l2).
 Proof.
-elim: xs vs s1 s1'.
-- by case => // ? ? h [<-]; eauto.
-move => x xs ih [] // v vs s1 s1' h /=; apply: rbindP => s' /(write_lval_sim h) [s2'] [h'] ->.
-exact: (ih _ _ _ h').
+rewrite /write_lvals. rewrite /sem.write_lvals.
+elim: xs vs s1 s1' [::] l2.
+- case => // s1 s1' l l2 h [<-] <-. exists s1'. split. by auto. auto.
+move => x xs ih [] // v vs s1 s1' l0 l2 h /=.
+t_xrbindP. move=> y [hv hl] Hsem He H. subst.
+move: (write_lval_sim). move=> Hw. move: (Hw s1 x v hv hl s1' h Hsem) => [] x0 [] h' hw /=.
+rewrite hw /=. move: (ih vs hv x0 (l0 ++ hl) l2 h' H) => [] s2' [] H' Hf. exists s2'.
+split. auto. auto.
 Qed.
 
-Let Pc s1 c s2 : Prop :=
+Let Pc s1 c lc s2 : Prop :=
   ∀ s1',
     estate_sim s1 s1' →
     ∃ s2',
-      estate_sim s2 s2' ∧ psem.sem p s1' c s2'.
+      estate_sim s2 s2' ∧ psem.sem p s1' c lc s2'.
 
-Let Pi_r s1 i s2 : Prop :=
+Let Pi_r s1 i li s2 : Prop :=
   ∀ s1',
     estate_sim s1 s1' →
     ∃ s2',
-      estate_sim s2 s2' ∧ psem.sem_i p s1' i s2'.
+      estate_sim s2 s2' ∧ psem.sem_i p s1' i li s2'.
 
-Let Pi s1 i s2 : Prop :=
+Let Pi s1 i li s2 : Prop :=
   ∀ s1',
     estate_sim s1 s1' →
     ∃ s2',
-      estate_sim s2 s2' ∧ psem.sem_I p s1' i s2'.
+      estate_sim s2 s2' ∧ psem.sem_I p s1' i li s2'.
 
-Let Pfor x ws s1 c s2 : Prop :=
+Let Pfor x ws s1 c lc s2 : Prop :=
   ∀ s1',
     estate_sim s1 s1' →
     ∃ s2',
-      estate_sim s2 s2' ∧ psem.sem_for p x ws s1' c s2'.
+      estate_sim s2 s2' ∧ psem.sem_for p x ws s1' c lc s2'.
 
 Let Pfun := psem.sem_call p.
 
-Lemma psem_call m fn va m' vr :
-  sem.sem_call p m fn va m' vr →
-  psem.sem_call p m fn va m' vr.
+Lemma sem_range_sim r s1 v l s1' :
+  estate_sim s1 s1' →
+  sem.sem_range p s1 r = ok (v, l) →
+  psem.sem_range p s1' r = ok (v, l).
 Proof.
-apply: (@sem.sem_call_Ind p Pc Pi_r Pi Pfor Pfun) => {m fn va m' vr}.
+ move=> Hvm. elim: r v l. move=> [d p1] p2 v1 le /=.
+ t_xrbindP. move=> y Hs h0 Hint y' Hs' h4 Hint' <- <-.
+ move: (sem_pexpr_sim). move=> H. move: (H s1 p1 y s1' Hvm Hs) => -> /=.
+ rewrite Hint /=. move: (sem_pexpr_sim). move=> H'. move: (H' s1 p2 y' s1' Hvm Hs') => -> /=.
+ by rewrite Hint' /=.
+Qed.
+
+
+Lemma psem_call m fn va m' l vr :
+  sem.sem_call p m fn va l m' vr →
+  psem.sem_call p m fn va l m' vr.
+Proof.
+apply: (@sem.sem_call_Ind p Pc Pi_r Pi Pfor Pfun) => {m fn va l m' vr}.
 - by move => s s' hss'; exists s'; split; first exact: hss'; constructor.
-- move => s1 s2 s3 [ii i] c [] {ii i s1 s2} ii i s1 s2 _ ihi _ ihc s1' hss'1.
+- move => s1 s2 s3 [ii i] c li lc [] {ii i s1 s2 li} ii i s1 s2 li _ ihi _ ihc s1' hss'1.
   case: (ihi s1' hss'1) => s2' [hss'2 hi].
   case: (ihc s2' hss'2) => s3' [hss'3 hc].
   by exists s3'; split; first exact: hss'3; econstructor; eauto.
-- move => ii i s1 s2 _ ih s1' hss'1.
+- move => ii i s1 s2 li _ ih s1' hss'1.
   case: (ih s1' hss'1) => s2' [hss'2 hi].
   by exists s2'; split; first exact: hss'2; constructor.
-- move => s1 s2 x tg ty e v1 v2 hv1 hv2 hw s1' hss'1.
+- move => s1 s2 x tg ty e v1 v2 le lw hv1 hv2 hw s1' hss'1.
   have hv1' := sem_pexpr_sim hss'1 hv1.
   case: (write_lval_sim hss'1 hw) => s2' [hss'2 hw'].
   exists s2'; split; first exact: hss'2.
   by econstructor; eauto.
-- move => s1 s2 tg op xs es; rewrite /sem.sem_sopn; t_xrbindP => vr va /sem_pexprs_sim hva hvr /write_lvals_sim hw s1' hss'1.
-  case: (hw _ hss'1) => s2' [hss'2 hw']; exists s2'; split; first exact: hss'2.
-  econstructor; eauto.
-  by rewrite /sem_sopn (hva) //= hvr.
-- move => s1 s2 e th el /sem_pexpr_sim he _ ih s1' hss'1.
+- move => s1 s2 tg op xs es lo. rewrite /sem.sem_sopn. rewrite /sem.sem_pexprs.
+  t_xrbindP. move=> y h Hm He h2 Hex [hv hl] Hw <- /= <-.
+  move=> s1' H.
+  move: (sem_pexprs_sim) => Hm'. move: (Hm' s1 es h s1' H Hm) => Hmm.
+  move: (write_lvals_sim) => Hw'. move: (Hw' s1 xs h2 hv hl s1' H Hw) => [] s2' [] Hvm' Hww. exists s2'.
+  split. auto.
+  constructor. rewrite /sem_sopn. rewrite /sem_pexprs. rewrite Hmm /=. rewrite -He /= in Hex. rewrite Hex /=.
+  rewrite Hww /=. by rewrite -He /=.
+- move => s1 s2 e th el le lc /sem_pexpr_sim he _ ih s1' hss'1.
   case: (ih _ hss'1) => s2' [hss'2 hth].
   exists s2'; split; first exact hss'2.
   once (econstructor; eauto; fail).
-- move => s1 s2 e th el /sem_pexpr_sim he _ ih s1' hss'1.
+- move => s1 s2 e th el le lc /sem_pexpr_sim he _ ih s1' hss'1.
   case: (ih _ hss'1) => s2' [hss'2 hel].
   exists s2'; split; first exact hss'2.
   once (econstructor; eauto; fail).
-- move => s1 s2 s3 s4 a c e c' _ ih /sem_pexpr_sim he _ ih' _ ihwh s1' hss'1.
+- move => s1 s2 s3 s4 a c e c' lc le lc' li  _ ih /sem_pexpr_sim he _ ih' _ ihwh s1' hss'1.
   case: (ih _ hss'1) => s2' [hss'2 hc].
   case: (ih' _ hss'2) => s3' [hss'3 hcc'].
   case: (ihwh _ hss'3) => s4' [hss'4 hwh].
   exists s4'; split; first exact: hss'4.
   once (econstructor; eauto; fail).
-- move => s1 s2 a c e c' _ ih /sem_pexpr_sim he s1' hss'1.
+- move => s1 s2 a c e c' lc le _ ih /sem_pexpr_sim he s1' hss'1.
   case: (ih _ hss'1) => s2' [hss'2 hc].
   exists s2'; split; first exact: hss'2.
   once (econstructor; eauto; fail).
-- move => s1 s2 x d lo hi c vlo vhi /sem_pexpr_sim hlo /sem_pexpr_sim hhi _ ih s1' hss'1.
+- move => s1 s2 i r wr c lr lf hhi _ ih s1' hss'1.
   case: (ih _ hss'1) => s2' [hss'2 hc].
   exists s2'; split; first exact: hss'2.
-  once (econstructor; eauto; fail).
+  move: (sem_range_sim hss'1 hhi) => hhii. apply Efor with wr; auto.
 - by move => s1 x c s1' hss'1; exists s1'; split => //; constructor.
-- move => s1 s2 s3 s4 x w ws c /write_var_sim hw _ ih _ ih' s1' hss'1.
+- move => s1 s2 s3 s4 x w ws c lc lf /write_var_sim hw _ ih _ ih' s1' hss'1.
   case: (hw _ hss'1) => s2' [hss'2 hw'].
   case: (ih _ hss'2) => s3' [hss'3 hc].
   case: (ih' _ hss'3) => s4' [hss'4 hf].
   exists s4'; split; first exact: hss'4.
   econstructor; eauto.
-- move => s1 m2 s2 ii xs fn args vargs vs /sem_pexprs_sim hargs _ ih /write_lvals_sim hres s1' [hm hvm].
+- move => s1 m2 s2 ii xs fn args vargs vs l1 lf lw /sem_pexprs_sim' hargs _ ih /write_lvals_sim hres s1' [hm hvm].
   rewrite hm in ih.
   case: (hres {| emem := m2 ; evm := evm s1' |} (conj erefl hvm)) => s2' [hss'2 hw].
   exists s2'; split; first exact: hss'2.
   econstructor; eauto.
   by apply: hargs; split.
-move => m m2 fn fd va va' s1 vm2 vr vr' hfn htyin /write_vars_sim => /(_ {| emem := m |} (conj erefl vmap0_sim)).
+move => m m2 fn fd va va' s1 vm2 vr vr' lc hfn htyin /write_vars_sim => /(_ {| emem := m |} (conj erefl vmap0_sim)).
 case => s1' [hss'1 hargs] _ /(_ _ hss'1) [[m2' vm2']] [] [] /= <- {m2'} hvm ih.
 rewrite (mapM_ext (λ x : var_i, get_var_sim hvm x) erefl) => hres htyout.
 econstructor; eauto.
