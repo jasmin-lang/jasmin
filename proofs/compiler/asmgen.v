@@ -10,27 +10,12 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Variant source_position :=
-  | InArgs of nat
-  | InRes  of nat.
-
 Definition pexpr_of_lval ii (lv:lval) : ciexec pexpr :=
   match lv with
   | Lvar x    => ok (Pvar x)
   | Lmem s x e  => ok (Pload s x e)
   | Lnone _ _
   | Laset _ _ _ => cierror ii (Cerr_assembler (AsmErr_string "pexpr_of_lval"))
-  end.
-
-Definition get_loarg ii (outx: seq lval) (inx:seq pexpr) (d:source_position) : ciexec pexpr :=
-  let o2e A (m: option A) :=
-      match m with
-      | Some pe => ok pe
-      | None => cierror ii (Cerr_assembler (AsmErr_string "get_loarg"))
-      end in
-  match d with
-  | InArgs x => o2e _ (onth inx x)
-  | InRes  x => o2e _ (onth outx x) >>= pexpr_of_lval ii
   end.
 
 Definition nmap (T:Type) := nat -> option T.
