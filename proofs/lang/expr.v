@@ -897,11 +897,7 @@ Class progT (eft:eqType) := {
 
 Definition extra_fun_t {eft} {pT: progT eft} := eft.
 
-Section PROG.
-
-Context {eft} {pT:progT eft}.
-
-Record fundef := MkFun {
+Record _fundef (extra_fun_t: Type) := MkFun {
   f_iinfo  : instr_info;
   f_tyin   : seq stype;
   f_params : seq var_i;
@@ -911,6 +907,20 @@ Record fundef := MkFun {
   f_extra  : extra_fun_t;
 }.
 
+Definition _fun_decl (extra_fun_t: Type) := (funname * _fundef extra_fun_t)%type.
+
+Record _prog (extra_fun_t: Type) (extra_prog_t: Type):= {
+  p_funcs : seq (_fun_decl extra_fun_t);
+  p_globs : glob_decls;
+  p_extra : extra_prog_t;
+}.
+
+Section PROG.
+
+Context {eft} {pT:progT eft}.
+
+Definition fundef := _fundef extra_fun_t.
+
 Definition function_signature : Type :=
   (seq stype * seq stype).
 
@@ -919,13 +929,9 @@ Definition signature_of_fundef (fd: fundef) : function_signature :=
 
 Definition fun_decl := (funname * fundef)%type.
 
-Record prog := {
-  p_funcs : seq fun_decl;
-  p_globs : glob_decls;
-  p_extra : extra_prog_t;
-}.
+Definition prog := _prog extra_fun_t extra_prog_t.
 
-Definition fundef_beq fd1 fd2 :=
+Definition fundef_beq (fd1 fd2:fundef) :=
   match fd1, fd2 with
   | MkFun ii1 tin1 x1 c1 tout1 r1 e1, MkFun ii2 tin2 x2 c2 tout2 r2 e2 =>
     (ii1 == ii2) && (tin1 == tin2) && (x1 == x2) && (c1 == c2) && (tout1 == tout2) && (r1 == r2) && (e1 == e2)
@@ -968,6 +974,8 @@ Proof. done. Qed.
 Lemma surj_prog (p:prog) : 
   {| p_globs := p_globs p; p_funcs := p_funcs p; p_extra := p_extra p |} = p.
 Proof. by case: p. Qed.
+
+Definition Build_prog p_funcs p_globs p_extra : prog := Build__prog p_funcs p_globs p_extra.
 
 End PROG.
 

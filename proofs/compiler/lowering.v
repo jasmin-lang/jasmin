@@ -67,7 +67,7 @@ Fixpoint vars_l (l: seq var_i) :=
 
 Context {T} {pT:progT T}.
 
-Definition vars_fd fd :=
+Definition vars_fd (fd:fundef) :=
   Sv.union (vars_l fd.(f_params)) (Sv.union (vars_l fd.(f_res)) (vars_c fd.(f_body))).
 
 Definition vars_p (p: fun_decls) :=

@@ -34,7 +34,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition unroll1 (p:uprog) :=
+Definition unroll1 (p:uprog) : cfexec uprog:=
   let p := unroll_prog p in
   let p := const_prop_prog p in
   dead_code_prog p.
@@ -44,7 +44,7 @@ Fixpoint unroll (n:nat) (p:uprog) :=
   | O   => cferror Ferr_loop
   | S n =>
     Let p' := unroll1 p in
-    if (p_funcs p == p_funcs p') then cfok p
+    if ((p_funcs p: ufun_decls) == (p_funcs p': ufun_decls)) then cfok p
     else unroll n p'
   end.
 
