@@ -595,7 +595,7 @@ Qed.
 
 Section SEM.
 
-Variable P:prog.
+Variable P:uprog.
 
 Notation gd := (p_globs P).
 

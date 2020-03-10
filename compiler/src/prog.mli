@@ -304,3 +304,7 @@ val destruct_move : ('ty, 'info) ginstr -> 'ty glval * assgn_tag * 'ty * 'ty gex
 (* -------------------------------------------------------------------- *)
 val clamp : wsize -> Bigint.zint -> Bigint.zint
 val clamp_pe : pelem -> Bigint.zint -> Bigint.zint
+
+(* -------------------------------------------------------------------- *)
+type 'info sfundef = 'info func * Expr.stk_fun_extra
+type 'info sprog   = 'info sfundef list * Expr.sprog_extra

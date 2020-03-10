@@ -238,7 +238,8 @@ Lemma addr_of_pexprP rip ii sz sz' (w:word sz') e adr m s:
 Proof.
   rewrite /addr_of_pexpr => hsz64 hsz lom he.
   case heq: mk_lea => [lea | //].
-  have hsemlea:= mk_leaP (p:= {| p_globs := [::]; p_funcs := [::] |}) hsz64 hsz heq he.
+  have hsemlea:= 
+     mk_leaP (p:= (Build_prog (pT := progUnit) [::] [::] tt)) hsz64 hsz heq he.
   case hb: lea_base => [b | ];last by apply (assemble_leaP hsz64 hsz lom hsemlea).
   case: eqP => [ | _]; last by apply (assemble_leaP hsz64 hsz lom hsemlea).
   t_xrbindP => hbrip _ /assertP /eqP ho <- /=.

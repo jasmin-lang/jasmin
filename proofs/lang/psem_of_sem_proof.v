@@ -32,7 +32,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Section PROOF.
-Context (p: prog).
+Context (p: uprog).
 Notation gd := (p_globs p).
 
 Definition word_sim (s: wsize) (w: word s) (w': pword s) : Prop :=
@@ -149,7 +149,7 @@ Qed.
 
 Section SEM_PEXPR_SIM.
 
-  Context (s: sem.estate) (s': estate) (hs: estate_sim s s').
+  Context s s' (hs: estate_sim s s').
 
   Let P e : Prop :=
     ∀ v,
@@ -194,7 +194,7 @@ Definition sem_pexprs_sim s es vs s' h :=
 Lemma write_var_sim s1 x v s2 s1' :
   estate_sim s1 s1' →
   sem.write_var x v s1 = ok s2 →
-  ∃ s2' : estate, estate_sim s2 s2' ∧ psem.write_var x v s1' = ok s2'.
+  ∃ s2', estate_sim s2 s2' ∧ psem.write_var x v s1' = ok s2'.
 Proof.
 case => hm hvm; rewrite /sem.write_var /psem.write_var; t_xrbindP => vm hw <- {s2}.
 case: (set_var_sim hvm hw) => vm' [hvm' ->].
@@ -204,7 +204,7 @@ Qed.
 Corollary write_vars_sim s1 xs vs s2 s1' :
   estate_sim s1 s1' →
   sem.write_vars xs vs s1 = ok s2 →
-  ∃ s2' : estate, estate_sim s2 s2' ∧ psem.write_vars xs vs s1' = ok s2'.
+  ∃ s2', estate_sim s2 s2' ∧ psem.write_vars xs vs s1' = ok s2'.
 Proof.
 elim: xs vs s1 s1' s2.
 - by case => // s1 s1' s2 h [<-]; exists s1'.
@@ -250,31 +250,31 @@ Let Pc s1 c s2 : Prop :=
   ∀ s1',
     estate_sim s1 s1' →
     ∃ s2',
-      estate_sim s2 s2' ∧ psem.sem p s1' c s2'.
+      estate_sim s2 s2' ∧ psem.sem p tt s1' c s2'.
 
 Let Pi_r s1 i s2 : Prop :=
   ∀ s1',
     estate_sim s1 s1' →
     ∃ s2',
-      estate_sim s2 s2' ∧ psem.sem_i p s1' i s2'.
+      estate_sim s2 s2' ∧ psem.sem_i p tt s1' i s2'.
 
 Let Pi s1 i s2 : Prop :=
   ∀ s1',
     estate_sim s1 s1' →
     ∃ s2',
-      estate_sim s2 s2' ∧ psem.sem_I p s1' i s2'.
+      estate_sim s2 s2' ∧ psem.sem_I p tt s1' i s2'.
 
 Let Pfor x ws s1 c s2 : Prop :=
   ∀ s1',
     estate_sim s1 s1' →
     ∃ s2',
-      estate_sim s2 s2' ∧ psem.sem_for p x ws s1' c s2'.
+      estate_sim s2 s2' ∧ psem.sem_for p tt x ws s1' c s2'.
 
-Let Pfun := psem.sem_call p.
+Let Pfun := psem.sem_call p tt.
 
 Lemma psem_call m fn va m' vr :
   sem.sem_call p m fn va m' vr →
-  psem.sem_call p m fn va m' vr.
+  psem.sem_call p tt m fn va m' vr.
 Proof.
 apply: (@sem.sem_call_Ind p Pc Pi_r Pi Pfor Pfun) => {m fn va m' vr}.
 - by move => s s' hss'; exists s'; split; first exact: hss'; constructor.
@@ -325,14 +325,15 @@ apply: (@sem.sem_call_Ind p Pc Pi_r Pi Pfor Pfun) => {m fn va m' vr}.
   econstructor; eauto.
 - move => s1 m2 s2 ii xs fn args vargs vs /sem_pexprs_sim hargs _ ih /write_lvals_sim hres s1' [hm hvm].
   rewrite hm in ih.
-  case: (hres {| emem := m2 ; evm := evm s1' |} (conj erefl hvm)) => s2' [hss'2 hw].
+  case: (hres (with_mem s1' m2) (conj erefl hvm)) => s2' [hss'2 hw].
   exists s2'; split; first exact: hss'2.
   econstructor; eauto.
-  by apply: hargs; split.
-move => m m2 fn fd va va' s1 vm2 vr vr' hfn htyin /write_vars_sim => /(_ {| emem := m |} (conj erefl vmap0_sim)).
+  + by apply: hargs; split.
+move => m m2 fn fd va va' s1 vm2 vr vr' hfn htyin.
+move=> /write_vars_sim -/(_ {| emem := m |} (conj erefl vmap0_sim)). 
 case => s1' [hss'1 hargs] _ /(_ _ hss'1) [[m2' vm2']] [] [] /= <- {m2'} hvm ih.
 rewrite (mapM_ext (λ x : var_i, get_var_sim hvm x) erefl) => hres htyout.
-econstructor; eauto.
+by econstructor; eauto.
 Qed.
 
 End PROOF.

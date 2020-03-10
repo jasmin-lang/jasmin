@@ -27,7 +27,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import Coq.Logic.Eqdep_dec.
-Require Import strings word utils type var expr low_memory sem.
+Require Import strings word utils type var expr low_memory.
 Require Import constant_prop.
 Require Import compiler_util.
 Require Import ZArith.
@@ -38,65 +38,6 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope vmap.
 Local Open Scope seq_scope.
-
-Variant saved_stack :=
-| SavedStackNone
-| SavedStackReg of var
-| SavedStackStk of Z.
-
-Definition saved_stack_beq (x y : saved_stack) :=
-  match x, y with
-  | SavedStackNone, SavedStackNone => true
-  | SavedStackReg v1, SavedStackReg v2 => v1 == v2
-  | SavedStackStk z1, SavedStackStk z2 => z1 == z2
-  | _, _ => false
-  end.
-
-Lemma saved_stack_eq_axiom : Equality.axiom saved_stack_beq.
-Proof.
-  move=> [ | v1 | z1] [ | v2 | z2] /=; try constructor => //.
-  + apply (@equivP (v1 = v2)); first by apply eqP.
-    by intuition congruence.
-  apply (@equivP (z1 = z2)); first by apply eqP.
-  by intuition congruence.
-Qed.
-
-Definition saved_stack_eqMixin   := Equality.Mixin saved_stack_eq_axiom.
-Canonical  saved_stack_eqType      := Eval hnf in EqType saved_stack saved_stack_eqMixin.
-
-Record sfundef := MkSFun {
-  sf_iinfo  : instr_info;
-  sf_stk_sz : Z;
-  sf_tyin   : seq stype;
-  sf_params : seq var_i;
-  sf_body   : cmd;
-  sf_tyout  : seq stype;
-  sf_res    : seq var_i;
-  sf_extra  : list var * saved_stack;
-}.
-
-Definition sfundef_beq fd1 fd2 :=
-  match fd1, fd2 with
-  | MkSFun ii1 sz1 ti1 p1 c1 to1 r1 e1, MkSFun ii2 sz2 ti2 p2 c2 to2 r2 e2=>
-    (ii1 == ii2) && (sz1 == sz2) &&
-    (ti1 == ti2) && (p1 == p2) && (c1 == c2) && (to1 == to2) && (r1 == r2) && (e1 == e2)
-  end.
-
-Lemma sfundef_eq_axiom : Equality.axiom sfundef_beq.
-Proof.
-  move=> [i1 s1 ti1 p1 c1 to1 r1 e1] [i2 s2 ti2 p2 c2 to2 r2 e2] /=.
-  apply (@equivP ((i1 == i2) && (s1 == s2) && (ti1 == ti2) && (p1 == p2) && (c1 == c2) && (to1 == to2) && (r1 == r2) && (e1 == e2)));first by apply idP.
-  by split=> [ /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] | [] ] /eqP -> /eqP->/eqP->/eqP->/eqP->/eqP->/eqP->/eqP->.
-Qed.
-
-Definition sfundef_eqMixin   := Equality.Mixin sfundef_eq_axiom.
-Canonical  sfundef_eqType      := Eval hnf in EqType sfundef sfundef_eqMixin.
-
-Record sprog := 
-  { sp_rip   : Ident.ident;
-    sp_globs : seq u8;
-    sp_stk_id: Ident.ident;
-    sp_funcs : seq (funname * sfundef) }.
 
 Variant mem_space := 
   | MSglob 
@@ -550,37 +491,38 @@ Definition add_err_fun (A : Type) (f : funname) (r : cexec A) :=
   end.
 
 Definition alloc_fd rip mglob 
-    (stk_alloc_fd : fun_decl -> Z * list (var * Z) * (list var * saved_stack))
-    (f: fun_decl) :=
+    (stk_alloc_fd : ufun_decl -> Z * list (var * Z) * (list var * saved_stack))
+    (f: ufun_decl) :=
   let info := stk_alloc_fd f in
-  let (fn, fd) := f in
-  Let sfd :=  
-    let: ((size, l), saved) := info in
-    Let mstk := add_err_fun fn (init_map size l) in
-    let mstk := Mvar.map APmem mstk in
-    let gm := 
-        {| rip   := rip;
-           mglob := mglob;
-        |} in
-    let sm0 :=  
-        {| mstk  := mstk;
-           meqon := Sv.empty;
-        |} in
-    
-    Let sm1 := add_err_fun fn (foldM (check_lvar gm) sm0 fd.(f_params)) in
-    Let body := add_finfo fn fn (fmapM (alloc_i gm) sm1 fd.(f_body)) in
-    if (nrsp != rip) && all (check_var body.1) fd.(f_res) then
-      ok {| sf_iinfo  := fd.(f_iinfo);
-            sf_stk_sz := size;
-            sf_tyin   := fd.(f_tyin);
-            sf_params := fd.(f_params);
-            sf_body   := body.2;
-            sf_tyout  := fd.(f_tyout);
-            sf_res    := fd.(f_res);
-            sf_extra  := saved;
-         |} 
-    else add_err_fun fn invalid_var in
-  ok (fn, sfd).
+  match f return result fun_error (sfun_decl) with
+  | (fn, fd) => 
+    Let sfd :=  
+      let: ((size, l), saved) := info in
+      Let mstk := add_err_fun fn (init_map size l) in
+      let mstk := Mvar.map APmem mstk in
+      let gm := 
+          {| rip   := rip;
+             mglob := mglob;
+          |} in
+      let sm0 :=  
+          {| mstk  := mstk;
+             meqon := Sv.empty;
+          |} in
+      
+      Let sm1 := add_err_fun fn (foldM (check_lvar gm) sm0 fd.(f_params)) in
+      Let body := add_finfo fn fn (fmapM (alloc_i gm) sm1 fd.(f_body)) in
+      if (nrsp != rip) && all (check_var body.1) fd.(f_res) then
+        ok {| f_iinfo  := fd.(f_iinfo);
+              f_tyin   := fd.(f_tyin);
+              f_params := fd.(f_params);
+              f_body   := body.2;
+              f_tyout  := fd.(f_tyout);
+              f_res    := fd.(f_res);
+              f_extra  := {| sf_stk_sz := size; sf_extra  := saved; |};
+           |}
+      else add_err_fun fn invalid_var in
+    ok (fn, sfd)
+  end.
 
 Definition check_glob (m: Mvar.t Z) (data:seq u8) (gd:glob_decl) := 
   let x := gd.1 in
@@ -600,15 +542,20 @@ Definition check_glob (m: Mvar.t Z) (data:seq u8) (gd:glob_decl) :=
 Definition check_globs (gd:glob_decls) (m:Mvar.t Z) (data:seq u8) := 
   all (check_glob m data) gd.
 
-Definition alloc_prog stk_alloc_fd (glob_alloc_p : prog -> seq u8 * Ident.ident * list (var * Z) ) P := 
+
+Definition alloc_prog stk_alloc_fd (glob_alloc_p : uprog -> seq u8 * Ident.ident * list (var * Z) ) P := 
   let: ((data, rip), l) := glob_alloc_p P in 
   Let mglob := add_err_msg (init_map (Z.of_nat (size data)) l) in
   if check_globs P.(p_globs) mglob data then
     Let p_funs := mapM (alloc_fd rip mglob stk_alloc_fd) P.(p_funcs) in
-    ok  {| sp_rip   := rip; 
-           sp_globs := data; 
-           sp_stk_id := nrsp;
-           sp_funcs := p_funs |}
+    ok  {| p_funcs  := p_funs;
+           p_globs := [::];
+           p_extra := {| 
+             sp_rip   := rip; 
+             sp_globs := data; 
+             sp_stk_id := nrsp;
+           |}
+        |}
   else 
      Error (Ferr_msg (Cerr_stk_alloc "invalid data: please report")).
 

@@ -78,17 +78,119 @@ Module Type CheckB.
     eq_alloc r1 s1.(evm) vm1 ->
     value_uincl v1 v2 ->
     oapp (fun te2 =>
-        sem_pexpr gd (Estate s1.(emem) vm1) te2.2 >>= truncate_val te2.1 = ok v2) true e2 ->
+        sem_pexpr gd (with_vm s1 vm1) te2.2 >>= truncate_val te2.1 = ok v2) true e2 ->
     write_lval gd x1 v1 s1 = ok s1' ->
     exists vm1',
-      write_lval gd x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1') /\
+      write_lval gd x2 v2 (with_vm s1 vm1) = ok (with_vm s1' vm1') /\
       eq_alloc r1' s1'.(evm) vm1'.
 
 End CheckB.
 
+Module Type CheckBE.
+  Include CheckB.
+
+  Parameter eft : eqType.
+  Declare Instance pT  : progT eft.
+  Declare Instance sCP : semCallParams.
+
+  Parameter init_alloc : 
+    extra_fun_t -> extra_prog_t -> extra_fun_t -> extra_prog_t -> cexec M.t.
+
+  Parameter init_allocP : 
+   forall (ef1 ef2:extra_fun_t) (ep1 ep2:extra_prog_t) ev s1 m r,
+     init_alloc ef1 ep1 ef2 ep2 = ok r ->
+     init_state ef1 ep1 ev (Estate m vmap0) = ok s1 ->
+     exists vm2, 
+       init_state ef2 ep2 ev (Estate m vmap0) = ok (with_vm s1 vm2) /\
+       eq_alloc r s1.(evm) vm2.
+
+End CheckBE.
+
+Module CheckBU (C:CheckB) <: CheckBE.
+
+  Include C.
+
+  Definition eft  := [eqType of unit].
+  Instance pT : progT eft := progUnit.
+  Instance sCP : semCallParams := sCP_unit.
+
+  Definition init_alloc (ef1:extra_fun_t) (ep1:extra_prog_t)
+                        (ef2:extra_fun_t) (ep2:extra_prog_t) : cexec M.t := 
+    ok M.empty.
+
+  Lemma init_allocP (ef1 ef2:extra_fun_t) (ep1 ep2:extra_prog_t) ev s1 m r :
+    init_alloc ef1 ep1 ef2 ep2 = ok r ->
+    init_state ef1 ep1 ev (Estate m vmap0) = ok s1 ->
+    exists vm2, 
+      init_state ef2 ep2 ev (Estate m vmap0) = ok (with_vm s1 vm2) /\
+      eq_alloc r s1.(evm) vm2.
+  Proof.
+    by move=> [<-] [<-]; exists vmap0; split => //=; apply eq_alloc_empty.
+  Qed.
+
+End CheckBU.
+
+Module CheckBS (C:CheckB) <: CheckBE.
+
+  Include C.
+  Definition eft := extra_fun_t (pT:= progStack).
+  Instance pT : progT eft := progStack.
+  Instance sCP : semCallParams := sCP_stack.
+
+  Definition check_lvals :=
+    fold2 (Cerr_fold2 "allocation:check_lvals") (check_lval None).
+
+  Definition check_var x1 x2 r := check_lval None (Lvar x1) (Lvar x2) r.
+
+  Definition check_vars xs1 xs2 r := check_lvals (map Lvar xs1) (map Lvar xs2) r.
+
+  Lemma check_lvalsP gd xs1 xs2 vs1 vs2 r1 r2 s1 s2 vm1 :
+    check_lvals xs1 xs2 r1 = ok r2 ->
+    eq_alloc r1 s1.(evm) vm1 ->
+    List.Forall2 value_uincl vs1 vs2 ->
+    write_lvals gd s1 xs1 vs1 = ok s2 ->
+    exists vm2,
+      write_lvals gd (with_vm s1 vm1) xs2 vs2 = ok (with_vm s2 vm2) /\
+      eq_alloc r2 s2.(evm) vm2.
+  Proof.
+    elim: xs1 xs2 vs1 vs2 r1 r2 s1 s2 vm1 => [ | x1 xs1 Hrec] [ | x2 xs2] //=
+      vs1 vs2 r1 r2 s1 s2 vm1.
+    + by move=> [<-] Hvm1 [] //= [<-];exists vm1.
+    apply: rbindP => r3 Hx Hcxs Hvm1 [] //= {vs1 vs2}.
+    move=> v1 v2 vs1 vs2 Hv Hvs;apply: rbindP => s3 Hw Hws.
+    have [ //| vm3 [->/= Hvm3]] := check_lvalP (e2:= None) Hx Hvm1 Hv _ Hw.
+    apply: Hrec Hcxs Hvm3 Hvs Hws.
+  Qed.
+
+  (* FIXME: change error msg *)
+  Definition init_alloc (ef1:extra_fun_t) (ep1:extra_prog_t)
+                        (ef2:extra_fun_t) (ep2:extra_prog_t) : cexec M.t := 
+    Let _ := assert (ef1.(sf_stk_sz) == ef2.(sf_stk_sz))
+                    (Cerr_linear "allocation: invalid stack size") in
+    check_vars [:: vid ep1.(sp_stk_id); vid ep1.(sp_rip)]
+               [:: vid ep2.(sp_stk_id); vid ep2.(sp_rip)] M.empty.
+
+  Lemma init_allocP (ef1 ef2:extra_fun_t) (ep1 ep2:extra_prog_t) ev s1 m r :
+    init_alloc ef1 ep1 ef2 ep2 = ok r ->
+    init_state ef1 ep1 ev (Estate m vmap0) = ok s1 ->
+    exists vm2, 
+      init_state ef2 ep2 ev (Estate m vmap0) = ok (with_vm s1 vm2) /\
+      eq_alloc r s1.(evm) vm2.
+  Proof.
+    rewrite /init_alloc /init_state /= /init_stk_state /check_vars.
+    t_xrbindP => _ /assertP -/eqP heq hc m' ha; rewrite (@write_vars_lvals [::]) => hw.
+    have [vm2 [hvm2 heq2]]:= check_lvalsP (s1 := (Estate m' vmap0)) hc eq_alloc_empty 
+                           (List_Forall2_refl _ (@value_uincl_refl)) hw.
+    Opaque write_vars.
+    by exists vm2; rewrite -heq ha /= (@write_vars_lvals [::]).
+    Transparent write_vars.
+  Qed.
+
+End CheckBS.
+
 Definition salloc : string := "allocation".
 
-Module MakeCheckAlloc (C:CheckB).
+Module MakeCheckAlloc (C:CheckBE).
 
 Import C.
 
@@ -177,12 +279,14 @@ with check_I i1 i2 r :=
 
 Definition check_cmd iinfo := fold2 (iinfo,cmd2_error) check_I.
 
-Definition check_fundef (f1 f2: funname * fundef) (_:Datatypes.unit) :=
+Definition check_fundef (ep1 ep2 : extra_prog_t) (f1 f2: funname * fundef) (_:Datatypes.unit) :=
   let (f1,fd1) := f1 in
   let (f2,fd2) := f2 in
-  if (f1 == f2) && (fd1.(f_tyin) == fd2.(f_tyin)) && (fd1.(f_tyout) == fd2.(f_tyout)) then
+  if (f1 == f2) && (fd1.(f_tyin) == fd2.(f_tyin)) && (fd1.(f_tyout) == fd2.(f_tyout)) &&
+      (fd1.(f_extra) == fd2.(f_extra)) then
     add_finfo f1 f2 (
-    Let r := add_iinfo fd1.(f_iinfo) (check_vars fd1.(f_params) fd2.(f_params) M.empty) in
+    Let r := add_iinfo fd1.(f_iinfo) (init_alloc fd1.(f_extra) ep1 fd2.(f_extra) ep2) in
+    Let r := add_iinfo fd1.(f_iinfo) (check_vars fd1.(f_params) fd2.(f_params) r) in
     Let r := check_cmd fd1.(f_iinfo) fd1.(f_body) fd2.(f_body) r in
     let es1 := map Plvar fd1.(f_res) in
     let es2 := map Plvar fd2.(f_res) in
@@ -190,8 +294,8 @@ Definition check_fundef (f1 f2: funname * fundef) (_:Datatypes.unit) :=
     ok tt)
   else cferror (Ferr_neqfun f1 f2).
 
-Definition check_prog p_funcs1 p_funcs2 := 
-  fold2 Ferr_neqprog check_fundef p_funcs1 p_funcs2 tt.
+Definition check_prog ep1 p_funcs1 ep2 p_funcs2 := 
+  fold2 Ferr_neqprog (check_fundef ep1 ep2) p_funcs1 p_funcs2 tt.
 
 Lemma check_lvalsP gd xs1 xs2 vs1 vs2 r1 r2 s1 s2 vm1 :
   check_lvals xs1 xs2 r1 = ok r2 ->
@@ -199,7 +303,7 @@ Lemma check_lvalsP gd xs1 xs2 vs1 vs2 r1 r2 s1 s2 vm1 :
   List.Forall2 value_uincl vs1 vs2 ->
   write_lvals gd s1 xs1 vs1 = ok s2 ->
   exists vm2,
-    write_lvals gd (Estate s1.(emem) vm1) xs2 vs2 = ok (Estate s2.(emem) vm2) /\
+    write_lvals gd (with_vm s1 vm1) xs2 vs2 = ok (with_vm s2 vm2) /\
     eq_alloc r2 s2.(evm) vm2.
 Proof.
   elim: xs1 xs2 vs1 vs2 r1 r2 s1 s2 vm1 => [ | x1 xs1 Hrec] [ | x2 xs2] //=
@@ -214,21 +318,26 @@ Qed.
 Section PROOF.
 
   Variable p1 p2:prog.
-  Notation gd := (p_globs p1).
-  
-  Hypothesis Hcheck: check_prog p1.(p_funcs) p2.(p_funcs) = ok tt.
+  Variable ev : extra_val_t.
+
+  Local Notation gd := (p_globs p1).
+  Local Notation ep1 := (p_extra p1).
+  Local Notation ep2 := (p_extra p2). 
+
+  Hypothesis Hcheck: check_prog ep1 p1.(p_funcs) ep2 p2.(p_funcs) = ok tt.
   Hypothesis eq_globs : p_globs p1 = p_globs p2.
 
   Lemma all_checked : forall fn fd1,
     get_fundef (p_funcs p1) fn = Some fd1 ->
-    exists fd2, get_fundef (p_funcs p2) fn = Some fd2 /\ check_fundef (fn,fd1) (fn,fd2) tt = ok tt.
+    exists fd2, get_fundef (p_funcs p2) fn = Some fd2 /\ 
+                check_fundef ep1 ep2 (fn,fd1) (fn,fd2) tt = ok tt.
   Proof.
     move: Hcheck; rewrite /check_prog;clear Hcheck eq_globs.
-    move: (p_funcs p1) (p_funcs p2);clear p1 p2.
-    elim => [ | [fn1' fd1'] p1 Hrec] [ | [fn2 fd2] p2] //.
+    move: (p_funcs p1) (p_funcs p2). 
+    elim => [ | [fn1' fd1'] pf1 Hrec] [ | [fn2 fd2] pf2] //.
     apply: rbindP => -[] Hc /Hrec {Hrec} Hrec.
     have ? : fn1' = fn2.
-    + by move: Hc;rewrite /check_fundef; case:ifP => // /andP[]/andP[]/eqP.
+    + by move: Hc;rewrite /check_fundef; case:ifP => // /andP[]/andP[]/andP[]/eqP.
     subst=> fn fd1;rewrite !get_fundef_cons.
     case:ifPn => [/eqP -> [] <-| _ /Hrec //].
     by exists fd2.
@@ -238,31 +347,31 @@ Section PROOF.
     forall ii r1 i2 r2 vm1, eq_alloc r1 (evm s1) vm1 ->
     check_i ii i1 i2 r1 = ok r2 ->
     exists vm2, eq_alloc r2 (evm s2) vm2 /\
-      sem_i p2 (Estate (emem s1) vm1) i2 (Estate (emem s2) vm2).
+      sem_i p2 ev (with_vm s1 vm1) i2 (with_vm s2 vm2).
 
   Let Pi s1 (i1:instr) s2:=
     forall r1 i2 r2 vm1, eq_alloc r1 (evm s1) vm1 ->
     check_I i1 i2 r1 = ok r2 ->
     exists vm2, eq_alloc r2 (evm s2) vm2 /\
-      sem_I p2 (Estate (emem s1) vm1) i2 (Estate (emem s2) vm2).
+      sem_I p2 ev (with_vm s1 vm1) i2 (with_vm s2 vm2).
 
   Let Pc s1 (c1:cmd) s2:=
     forall ii r1 c2 r2 vm1, eq_alloc r1 (evm s1) vm1 ->
     check_cmd ii c1 c2 r1 = ok r2 ->
     exists vm2, eq_alloc r2 (evm s2) vm2 /\
-      sem p2 (Estate (emem s1) vm1) c2 (Estate (emem s2) vm2).
+      sem p2 ev (with_vm s1 vm1) c2 (with_vm s2 vm2).
 
   Let Pfor (i1:var_i) vs s1 c1 s2 :=
     forall i2 ii r1 r1' c2 r2 vm1, eq_alloc r1 (evm s1) vm1 ->
     check_var i1 i2 r1 = ok r1' ->
     check_cmd ii c1 c2 r1' = ok r2 -> M.incl r1 r2 ->
     exists vm2, eq_alloc r1 (evm s2) vm2 /\
-      sem_for p2 i2 vs (Estate (emem s1) vm1) c2 (Estate (emem s2) vm2).
+      sem_for p2 ev i2 vs (with_vm s1 vm1) c2 (with_vm s2 vm2).
 
   Let Pfun m fn vargs1 m' vres :=
     forall vargs2, List.Forall2 value_uincl vargs1 vargs2 ->
     exists vres',
-       sem_call p2 m fn vargs2 m' vres' /\
+       sem_call p2 ev m fn vargs2 m' vres' /\
        List.Forall2 value_uincl vres vres'.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
@@ -270,14 +379,14 @@ Section PROOF.
     move=> s ii r1 [ | ??] //= r2 vm1 ? [] <-;exists vm1;split=>//;constructor.
   Qed.
 
-  Local Lemma Hcons : sem_Ind_cons p1 Pc Pi.
+  Local Lemma Hcons : sem_Ind_cons p1 ev Pc Pi.
   Proof.
     move=> s1 s2 s3 i c _ Hi _ Hc ? r1 [ | i2 c2] //= r2 vm1 /Hi Hvm1.
     apply: rbindP => r3 /Hvm1 [vm2 []] /Hc Hvm2 ? /Hvm2.
     by move=> [vm3 [??]];exists vm3;split=>//;econstructor;eauto.
   Qed.
 
-  Local Lemma HmkI : sem_Ind_mkI p1 Pi_r Pi.
+  Local Lemma HmkI : sem_Ind_mkI p1 ev Pi_r Pi.
   Proof.
     move=> ii i s1 s2 _ Hi  r1 [? i2] r2 vm1 /Hi Hvm /= /Hvm [vm2 [??]].
     by exists vm2;split=>//;constructor.
@@ -302,7 +411,7 @@ Section PROOF.
     eq_alloc r s.(evm) vm ->
     eq_alloc re s.(evm) vm /\
     forall v1,  sem_pexprs gd s e1 = ok v1 ->
-    exists v2, sem_pexprs (p_globs p2) (Estate s.(emem) vm) e2 = ok v2 /\
+    exists v2, sem_pexprs (p_globs p2) (with_vm s vm) e2 = ok v2 /\
                List.Forall2 value_uincl v1 v2.
   Proof.
     rewrite -eq_globs;case: s => sm svm.
@@ -310,7 +419,8 @@ Section PROOF.
     + by move=> [] <- ?;split=>// -[] //= ?;exists [::].
     move=> H Hea;apply: rbindP H => r' /(check_eP gd) /(_ Hea) [] Hea' He.
     move=> /Hrec /(_ Hea') [] Hre Hes;split=> // v1.
-    rewrite /sem_pexprs;apply: rbindP => ve1 /He [ve2 /=[-> Hve]].
+    rewrite /sem_pexprs;apply: rbindP => ve1 h. 
+    have [{h}ve2 /=[-> Hve]]:= He _ _ h.
     apply:rbindP => ev2 /Hes [ves2 []];rewrite /sem_pexprs => -> Hves [] <- /=.
     by exists (ve2 :: ves2);split => //;constructor.
   Qed.
@@ -328,11 +438,11 @@ Section PROOF.
     by exists vm2;split=>//;constructor;rewrite /sem_sopn He2 /= Ho' -eq_globs.
   Qed.
 
-  Local Lemma Hif_true : sem_Ind_if_true p1 Pc Pi_r.
+  Local Lemma Hif_true : sem_Ind_if_true p1 ev Pc Pi_r.
   Proof.
     move => s1 s2 e c1 c2.
     case: s1 => sm1 svm1 Hve _ Hc1 ii r1 [] //= e' c1' c2' r2 vm1 Hvm1.
-    apply: rbindP => r1';apply: add_iinfoP => /check_eP -/(_ gd _ _ Hvm1) [] Hr1'.
+    apply: rbindP => r1'; apply: add_iinfoP => /check_eP -/(_ gd _ _ Hvm1) [] Hr1'.
     move=> /(_ _ _ Hve) [ve' [Hve' /value_uincl_bool1 ?]];subst ve'.
     apply: rbindP => r3 Hr3;apply: rbindP => r4 Hr4 [] <-.
     have [vm2 [Hvm2 Hsem]]:= Hc1 ii _ _ _ _ Hr1' Hr3;exists vm2;split.
@@ -340,7 +450,7 @@ Section PROOF.
     by apply Eif_true => //;rewrite -eq_globs Hve'.
   Qed.
 
-  Local Lemma Hif_false : sem_Ind_if_false p1 Pc Pi_r.
+  Local Lemma Hif_false : sem_Ind_if_false p1 ev Pc Pi_r.
   Proof.
     move => s1 s2 e c1 c2.
     case: s1 => sm1 svm1 Hve _ Hc1 ii r1 [] //= e' c1' c2' r2 vm1 Hvm1.
@@ -364,7 +474,7 @@ Section PROOF.
     apply: (M.incl_trans H2); apply M.merge_incl_l.
   Qed.
 
-  Local Lemma Hwhile_true : sem_Ind_while_true p1 Pc Pi_r.
+  Local Lemma Hwhile_true : sem_Ind_while_true p1 ev Pc Pi_r.
   Proof.
     move => s1 s2 s3 s4 a c e c'.
     case: s2 => sm2 svm2 _ Hc Hse _ Hc' _ Hw ii r1 [] //= a2 c2 e2 c2' r2 vm1 Hvm1.
@@ -383,7 +493,7 @@ Section PROOF.
     by apply: Ewhile_true Hsw;eauto;rewrite -eq_globs Hse2.
   Qed.
 
-  Local Lemma Hwhile_false : sem_Ind_while_false p1 Pc Pi_r.
+  Local Lemma Hwhile_false : sem_Ind_while_false p1 ev Pc Pi_r.
   Proof.
     move => s1 s2 a c e c'.
     case: s2 => sm2 svm2 _ Hc Hse ii r1 [] //= a2 c2 e2 c2' r2 vm1 Hvm1.
@@ -410,7 +520,7 @@ Section PROOF.
     apply: (M.incl_trans H2); apply M.merge_incl_l.
   Qed.
 
-  Local Lemma Hfor : sem_Ind_for p1 Pi_r Pfor.
+  Local Lemma Hfor : sem_Ind_for p1 ev Pi_r Pfor.
   Proof.
     move => s1 s2 i d lo hi c vlo vhi.
     case: s1 => sm1 svm1.
@@ -419,7 +529,7 @@ Section PROOF.
     apply: rbindP => r1'; apply: add_iinfoP.
     apply: rbindP => r1'' /check_eP -/(_ gd _ _ Hvm1) [Hr1'' Heqlo].
     have [vlo'' [Hlo2 /value_uincl_int1 Hvlo']] := Heqlo _ _ Hlo;subst vlo''.
-    move=>  /check_eP -/(_ gd _ _ Hr1'') [Hr1' Heqhi].
+    move=> /check_eP -/(_ gd _ _ Hr1'') [Hr1' Heqhi].
     have [vhi'' [Hhi2 /value_uincl_int1 Hhi']] := Heqhi _ _ Hhi;subst vhi''.
     move=> /loopP [r2'] [];apply: rbindP => r2'';apply:add_iinfoP.
     move=> Hcv Hcc Hr2r1 Hr2r2.
@@ -433,7 +543,7 @@ Section PROOF.
     by move=> s i c i2 ii r1 r1' c2 r2 vm1 Ha ???;exists vm1;split=> //;constructor.
   Qed.
 
-  Local Lemma Hfor_cons : sem_Ind_for_cons p1 Pc Pfor.
+  Local Lemma Hfor_cons : sem_Ind_for_cons p1 ev Pc Pfor.
   Proof.
     move=> s1 s1' s2 s3 i w ws c Hwi _ Hc _ Hfor i2 ii r1 r1' c2 r2 vm2 Heq Hr1' Hcc Hincl.
     have [//|vm3 [Hwi2 Hvm3]] := check_lvalP (gd := gd) Hr1' Heq (value_uincl_refl _) _ Hwi.
@@ -442,7 +552,7 @@ Section PROOF.
     by exists vm5;split=>//;econstructor;eauto.
   Qed.
 
-  Local Lemma Hcall : sem_Ind_call p1 Pi_r Pfun.
+  Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.
   Proof.
     move=> s1 m2 s2 ii xs fn args vargs vs Hes Hsc Hfun Hw ii' r1 [] //= ii2 xs2 fn2 args2 r2 vm1 Hr1.
     case: eqP => //= ?;subst fn2;apply: add_iinfoP.
@@ -457,71 +567,83 @@ Section PROOF.
 
     Hypothesis eq_prog : p1 = p2.
 
-    Local Lemma Hproc_eq m1 m2 fn f vargs vargs' s1 vm2 vres vres':
+    Local Lemma Hproc_eq m1 m2 fn f vargs vargs' s0 s1 s2 vres vres':
       get_fundef (p_funcs p1) fn = Some f ->
       mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
-      write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
-      sem p1 s1 (f_body f) {| emem := m2; evm := vm2 |} ->
-      Pc s1 (f_body f) {| emem := m2; evm := vm2 |} ->
-      mapM (fun x : var_i => get_var vm2 x) (f_res f) = ok vres ->
+      init_state f.(f_extra) (p_extra p1) ev (Estate m1 vmap0) = ok s0 ->
+      write_vars (f_params f) vargs s0 = ok s1 ->
+      sem p1 ev s1 (f_body f) s2 ->
+      Pc s1 (f_body f) s2 ->
+      mapM (fun x : var_i => get_var s2.(evm) x) (f_res f) = ok vres ->
       mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
+      m2 = finalize f.(f_extra) s2.(emem) ->
       Pfun m1 fn vargs' m2 vres'.
     Proof.
-      move=> Hget Hca Hw Hsem _ Hres Hcr vargs2 Hvargs2;rewrite -eq_prog.
-      have: sem_call p1 m1 fn vargs' m2 vres' by econstructor;eauto.
+      move=> Hget Hca Hi Hw Hsem _ Hres Hcr Hfi vargs2 Hvargs2;rewrite -eq_prog.
+      have: sem_call p1 ev m1 fn vargs' m2 vres' by econstructor;eauto.
       by apply: sem_call_uincl.
     Qed.
 
-    Lemma alloc_funP_eq_aux fn f f' m1 vargs vargs' vres s1 s2 vres':
-      check_fundef (fn, f) (fn, f') tt = ok tt ->
+    Lemma alloc_funP_eq_aux fn f f' m1 m2 vargs vargs' vres s0 s1 s2 vres':
+      check_fundef ep1 ep2 (fn, f) (fn, f') tt = ok tt ->
       mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
-      write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
-      sem p1 s1 (f_body f) s2 ->
+      init_state f.(f_extra) (p_extra p1) ev (Estate m1 vmap0) = ok s0 ->
+      write_vars (f_params f) vargs s0 = ok s1 ->
+      sem p1 ev s1 (f_body f) s2 ->
       mapM (fun x : var_i => get_var (evm s2) x) (f_res f) = ok vres ->
       mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
-      exists s1' vm2 vres1 vres1',
+      m2 = finalize f.(f_extra) s2.(emem) ->
+      exists vm0' vm1' vm2' vres1 vres1',
        [ /\ mapM2 ErrType truncate_val f'.(f_tyin) vargs' = ok vargs,
-        write_vars (f_params f') vargs {| emem := m1; evm := vmap0 |} = ok s1',
-        sem p2 s1' (f_body f') (Estate (emem s2) vm2),
-        mapM (fun x : var_i => get_var vm2 x) (f_res f') = ok vres1 &
-        List.Forall2 value_uincl vres' vres1' /\
-        mapM2 ErrType truncate_val f'.(f_tyout) vres1 = ok vres1'].
+            init_state f'.(f_extra) (p_extra p2) ev (Estate m1 vmap0) = ok (with_vm s0 vm0') /\
+            write_vars (f_params f') vargs (with_vm s0 vm0') = ok (with_vm s1 vm1'),
+            sem p2 ev (with_vm s1 vm1') (f_body f') (with_vm s2 vm2'),
+            [ /\ mapM (fun x : var_i => get_var (evm (with_vm s2 vm2')) x) (f_res f') = ok vres1, 
+                 List.Forall2 value_uincl vres' vres1' &
+                mapM2 ErrType truncate_val f'.(f_tyout) vres1 = ok vres1'] &
+            m2 = finalize f'.(f_extra) s2.(emem) ].
     Proof.
       rewrite /check_fundef eq_refl => /=.
-      case: ifP => // /andP[]/eqP htyin /eqP htyout;apply: add_finfoP.
+      case: ifP => // /andP[]/andP[]/eqP htyin /eqP htyout /eqP hextra;apply: add_finfoP.
+      apply:rbindP => r0; apply: add_iinfoP => Hcinit.
       apply:rbindP => r1;apply:add_iinfoP => Hcparams.
       apply:rbindP => r2 Hcc;apply: rbindP => r3;apply: add_iinfoP => Hcres _ Hca.
+      move=> /(init_allocP Hcinit) [vm0 [Hi0 Hvm0]].
       rewrite (write_vars_lvals gd)=> /(check_lvalsP Hcparams).
-      move=> /(_ vargs _ eq_alloc_empty) [ | vm3 /= [Hw2 Hvm3]].
+      move=> /(_ vargs _ Hvm0) [ | vm3 /= [Hw2 Hvm3]].
       + by apply: List_Forall2_refl.
       move=> /(sem_Ind Hskip Hcons HmkI Hassgn Hopn Hif_true Hif_false
                 Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc_eq) Hc.
       have [vm4 /= [Hvm4 Hsc2] Hres Hcr]:= Hc _ _ _ _ _ Hvm3 Hcc.
       have := check_esP Hcres Hvm4.
       move=> [Hr3];rewrite sem_pexprs_get_var => /(_ _ Hres) [vres1' /= []].
-      rewrite sem_pexprs_get_var => hmap huincl.
+      rewrite sem_pexprs_get_var => hmap huincl ?.
       have [vres2' ??]:= mapM2_truncate_val Hcr huincl.
-      do 4 eexists;split;eauto.
+      do 5 eexists;split;eauto.
       + by rewrite -htyin.
-      + by rewrite (write_vars_lvals gd).
-      by rewrite -htyout;eauto.
+      + split;eauto.
+        by rewrite (write_vars_lvals gd).
+      + by rewrite -htyout;split;eauto.
+      by rewrite -hextra.
     Qed.
 
   End REFL.
 
-  Local Lemma Hproc : sem_Ind_proc p1 Pc Pfun.
+  Local Lemma Hproc : sem_Ind_proc p1 ev Pc Pfun.
   Proof.
-    move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' Hget Hca Hw _ Hc Hres Hcr.
+    move=> m1 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hget Hca Hi Hw _ Hc Hres Hcr Hfi.
     have [fd2 [Hget2 /=]]:= all_checked Hget.
-    rewrite eq_refl /=;case: ifP => // /andP[]/eqP htyin /eqP htyout.
-    apply:add_finfoP;apply:rbindP => r1;apply:add_iinfoP => Hcparams.
+    rewrite eq_refl /=;case: ifP => // /andP[]/andP[] /eqP htyin /eqP htyout /eqP hextra.
+    apply:add_finfoP; apply:rbindP => r0; apply: add_iinfoP => Hcinit.
+    apply:rbindP => r1;apply:add_iinfoP => Hcparams.
     apply:rbindP => r2 Hcc;apply: rbindP => r3;apply: add_iinfoP => Hcres _.
     move=> vargs2 Hvargs2.
+    have [vm0 [Hi0 Hvm0]]:= init_allocP Hcinit Hi.
     have [vs2 htr hall2]:= mapM2_truncate_val Hca Hvargs2.
     move: Hw;rewrite (write_vars_lvals gd)=> /(check_lvalsP Hcparams).
-    move=> /(_ _ _ eq_alloc_empty hall2) [vm3 /= [Hw2 Hvm3]].
+    move=> /(_ _ _ Hvm0 hall2) [vm3 /= [Hw2 Hvm3]].
     have [vm4 /= [Hvm4 Hsc2]]:= Hc _ _ _ _ _ Hvm3 Hcc.
-    have /(_ {| emem := emem s1; evm := vm2 |} vm4 Hvm4) := check_esP Hcres.
+    have := check_esP Hcres Hvm4.
     move=> [Hr3];rewrite sem_pexprs_get_var => /(_ _ Hres) [vres1' /= []].
     rewrite sem_pexprs_get_var => H1 H2.
     have [vs3 ??]:= mapM2_truncate_val Hcr H2.
@@ -529,45 +651,51 @@ Section PROOF.
     econstructor;eauto.
     + by rewrite -htyin; eauto.
     + by rewrite (write_vars_lvals gd).
-    by rewrite -htyout.
+    + by rewrite -htyout.
+    by rewrite -hextra.
   Qed.
 
   Lemma alloc_callP_aux f mem mem' va vr:
-    sem_call p1 mem f va mem' vr ->
-    exists vr', sem_call p2 mem f va mem' vr' /\ List.Forall2 value_uincl vr vr'.
+    sem_call p1 ev mem f va mem' vr ->
+    exists vr', sem_call p2 ev mem f va mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
     move=>
-      /(@sem_call_Ind p1 Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+      /(@sem_call_Ind _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
     move=> H;apply H.
-    apply List_Forall2_refl;apply value_uincl_refl.
+    by apply List_Forall2_refl.
   Qed.
 
 End PROOF.
 
-Lemma alloc_callP gd p1 p2 (H: check_prog p1 p2 = ok tt) f mem mem' va vr:
-    sem_call {|p_globs := gd; p_funcs := p1 |} mem f va mem' vr ->
-    exists vr', sem_call {|p_globs := gd; p_funcs := p2 |} mem f va mem' vr' /\ List.Forall2 value_uincl vr vr'.
+Lemma alloc_callP ev gd ep1 p1 ep2 p2 (H: check_prog ep1 p1 ep2 p2 = ok tt) f mem mem' va vr:
+    sem_call {|p_globs := gd; p_funcs := p1; p_extra := ep1; |} ev mem f va mem' vr ->
+    exists vr', 
+     sem_call {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev mem f va mem' vr' /\ 
+                List.Forall2 value_uincl vr vr'.
 Proof.
   by apply alloc_callP_aux.
 Qed.
 
-Lemma alloc_funP_eq p fn f f' m1 vargs vargs' vres vres' s1 s2:
-  check_fundef (fn, f) (fn, f') tt = ok tt ->
+Lemma alloc_funP_eq p ev fn f f' m1 m2 vargs vargs' vres vres' s0 s1 s2:
+  check_fundef (p_extra p) (p_extra p) (fn, f) (fn, f') tt = ok tt ->
   mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
-  write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
-  sem p s1 (f_body f) s2 ->
+  init_state (f_extra f) (p_extra p) ev (Estate m1 vmap0) = ok s0 ->
+  write_vars (f_params f) vargs s0 = ok s1 ->
+  sem p ev s1 (f_body f) s2 ->
   mapM (fun x : var_i => get_var (evm s2) x) (f_res f) = ok vres ->
   mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
-  exists s1' vm2 vres1 vres1',
-   [ /\  mapM2 ErrType truncate_val f'.(f_tyin) vargs' = ok vargs,
-    write_vars (f_params f') vargs {| emem := m1; evm := vmap0 |} = ok s1',
-    sem p s1' (f_body f') (Estate (emem s2) vm2),
-    mapM (fun x : var_i => get_var vm2 x) (f_res f') = ok vres1 &
-    List.Forall2 value_uincl vres' vres1' /\
-    mapM2 ErrType truncate_val f'.(f_tyout) vres1 = ok vres1'
-    ].
-Proof. by apply alloc_funP_eq_aux. Qed.
+  m2 = finalize f.(f_extra) s2.(emem) ->
+  exists vm0' vm1' vm2' vres1 vres1',
+       [ /\ mapM2 ErrType truncate_val f'.(f_tyin) vargs' = ok vargs,
+            init_state f'.(f_extra) (p_extra p) ev (Estate m1 vmap0) = ok (with_vm s0 vm0') /\
+            write_vars (f_params f') vargs (with_vm s0 vm0') = ok (with_vm s1 vm1'),
+            sem p ev (with_vm s1 vm1') (f_body f') (with_vm s2 vm2'),
+            [ /\ mapM (fun x : var_i => get_var (evm (with_vm s2 vm2')) x) (f_res f') = ok vres1, 
+                 List.Forall2 value_uincl vres' vres1' &
+                mapM2 ErrType truncate_val f'.(f_tyout) vres1 = ok vres1'] &
+            m2 = finalize f'.(f_extra) s2.(emem) ].
+  Proof. by apply alloc_funP_eq_aux. Qed.
 
 End MakeCheckAlloc.
 
@@ -1314,21 +1442,25 @@ Module CBAreg.
       ∀ e2 r re vm1, check_e e1 e2 r = ok re →
       eq_alloc r vm1 vm2 →
       eq_alloc re vm1 vm2 ∧
-      ∀ m v1, sem_pexpr gd {| emem := m ; evm := vm1 |} e1 = ok v1 →
-      ∃ v2, sem_pexpr gd {| emem := m ; evm := vm2 |} e2 = ok v2 ∧ value_uincl v1 v2.
+      ∀ m v1, 
+        sem_pexpr gd {| emem := m ; evm := vm1 |} e1 = ok v1 →
+      ∃ v2, sem_pexpr gd {| emem := m ; evm := vm2 |} e2 = ok v2 ∧ 
+            value_uincl v1 v2.
 
     Let Q es1 : Prop :=
       ∀ es2 r re vm1 err,
       fold2 err check_e es1 es2 r = ok re →
       eq_alloc r vm1 vm2 →
       eq_alloc re vm1 vm2 ∧
-      ∀ m vs1, sem_pexprs gd {| emem := m ; evm := vm1 |} es1 = ok vs1 →
-      ∃ vs2, sem_pexprs gd {| emem := m ; evm := vm2 |} es2 = ok vs2 ∧ List.Forall2 value_uincl vs1 vs2.
+      ∀  m vs1, 
+        sem_pexprs gd {| emem := m ; evm := vm1 |} es1 = ok vs1 →
+      ∃ vs2, sem_pexprs gd {| emem := m ; evm := vm2 |} es2 = ok vs2 ∧ 
+             List.Forall2 value_uincl vs1 vs2.
 
     Lemma check_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
     Proof.
       apply: pexprs_ind_pair; split; subst P Q => //=.
-      - by case => // r _ vm1 _ [<-] h; split => // m _ [<-] /=; eauto.
+      - case => // r _ vm1 _ [<-] h; split => // m _ [<-] /=; eauto.
       - move => e1 he1 es1 hes1 [] // e2 es2 r re vm1 err; t_xrbindP => r' ok_r' ok_re h.
         move: he1 => /(_ e2 r r' vm1 ok_r' h) [] h' he1.
         move: hes1 => /(_ es2 r' re vm1 err ok_re h') [] hre hes1.
@@ -1527,10 +1659,10 @@ Module CBAreg.
     eq_alloc r1 s1.(evm) vm1 ->
     value_uincl v1 v2 ->
     oapp (fun te2 =>
-        sem_pexpr gd (Estate s1.(emem) vm1) te2.2 >>= truncate_val te2.1 = ok v2) true e2 ->
+        sem_pexpr gd (with_vm s1 vm1) te2.2 >>= truncate_val te2.1 = ok v2) true e2 ->
     write_lval gd x1 v1 s1 = ok s1' ->
     exists vm1',
-      write_lval gd x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1') /\
+      write_lval gd x2 v2 (with_vm s1 vm1) = ok (with_vm s1' vm1') /\
       eq_alloc r1' s1'.(evm) vm1'.
   Proof.
     case: x1 x2 => /= [ii1 t1 | x1 | sz1 x1 p1 | sz1 x1 p1]
@@ -1546,16 +1678,17 @@ Module CBAreg.
       rewrite /write_var /set_var => -[ [u]| ].
       + move=> /(subtype_pof_val_ok hs) [v3].
         move=> /(pof_val_uincl Hu) [z' [-> ?]] /= ?.
-        eexists; split; eauto; apply eq_alloc_rm => //.
-        by apply eval_uincl_undef.
+        eexists; rewrite with_vm_idem;split; eauto. 
+        by apply eq_alloc_rm => //; apply eval_uincl_undef.
       move=> [hpof ?];subst t1; case : x2 hs => -[tx2 x2] ii2 /= /eqP ?;subst tx2.
       have [->|[b] ->] /= := pof_val_undef Hu hpof; eexists;(split; first by eauto);
         apply eq_alloc_rm => //.
     + rewrite /write_var=> Hc Hvm1 Hv Happ; apply rbindP => vm1' Hset [<-] /=.
       move: Hc;case: is_Pvar (@is_PvarP e2).
       + move=> [ty x] /(_ _ _ (refl_equal _)) ?;subst e2.
-        case: M.vsubtypeP => // ht;case:ifPn;
-          last by move=> ? hc;have [vm2' [-> /= ?]]:= check_varP Hvm1 hc Hset Hv;eauto.
+        case: M.vsubtypeP => // ht;case:ifPn; last first.
+        + move=> ? hc;have [vm2' [-> /= ?]]:= check_varP Hvm1 hc Hset Hv;eexists.
+          by rewrite !with_vm_idem;eauto.
         move=> /andP[]/andP[]/eqP ? /eqP heqt /eqP;subst ty.
         move: x1 x2 x heqt ht Hset Happ=> [[xt1 xn1] ii1] [[xt2 xn2] ii2] [x ii] /=.
         set x1 := {| vname := xn1 |}; set x2 := {| vname := xn2 |}.
@@ -1565,19 +1698,20 @@ Module CBAreg.
           apply: on_vuP Happ => //.
           move=> v2_ hv2_ ?;subst.
           have ?:= truncate_pto_val htr;subst v2.
-          rewrite pof_val_pto_val /=;eexists;split;first reflexivity.
+          rewrite pof_val_pto_val /=;eexists;rewrite !with_vm_idem;split;first reflexivity.
           have /= := @eq_alloc_add x1 (ok v1') r1 x2 (evm s1) vm1 ht Hvm1.
           rewrite hv2_ /= /pval_uincl => H;apply H;last by eauto.
           by apply (value_uincl_pof_val Hv1 Hv).
         move=> /= hniw hv1 ?;subst; rewrite hniw /=.
         apply: on_vuP Happ => //.
         move=> v2_ heq ?;subst;have ?:= truncate_pto_val htr;subst v2.
-        rewrite pof_val_pto_val /=;eexists;split;first reflexivity.
+        rewrite pof_val_pto_val /=;eexists;rewrite !with_vm_idem;split;first reflexivity.
         have /= := @eq_alloc_add x1 (pundef_addr xt2) r1 x2 (evm s1) vm1 ht Hvm1.
         rewrite heq /= apply_undef_pundef_addr=> H;apply H.
         + by apply eval_uincl_undef.
         by move /eqP: hniw => ->;right.
-      by move=> ? hc;have [vm2' [-> /= ?]]:= check_varcP Hvm1 hc Hset Hv;eauto.
+      by move=> ? hc;have [vm2' [-> /= ?]]:= check_varcP Hvm1 hc Hset Hv;eexists;
+       rewrite !with_vm_idem;eauto.
     + case: eqP => // -> /=.
       apply: rbindP => r2 Hcv Hce Hvm1 Hv Happ.
       apply: rbindP => wx;apply:rbindP => vx.
@@ -1609,4 +1743,9 @@ Module CBAreg.
 
 End CBAreg.
 
-Module CheckAllocReg :=  MakeCheckAlloc CBAreg.
+Module CBAregU := CheckBU CBAreg.
+Module CheckAllocRegU :=  MakeCheckAlloc CBAregU.
+
+Module CBAregS := CheckBS CBAreg.
+Module CheckAllocRegS := MakeCheckAlloc CBAregS.
+

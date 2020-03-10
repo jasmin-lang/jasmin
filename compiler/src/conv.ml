@@ -380,22 +380,24 @@ let get_finfo tbl n =
   try Hashtbl.find tbl.finfo (int_of_pos n)
   with Not_found -> assert false
 
-let cfdef_of_fdef tbl fd =
+let cufdef_of_fdef tbl fd =
   let fn = cfun_of_fun tbl fd.f_name in
   let f_iinfo = set_finfo tbl fd.f_loc fd.f_cc in
   let f_params =
     List.map (fun x -> cvari_of_vari tbl (L.mk_loc L._dummy x)) fd.f_args in
   let f_body = cstmt_of_stmt tbl fd.f_body [] in
   let f_res = List.map (cvari_of_vari tbl) fd.f_ret in
-  fn, { C.f_iinfo = f_iinfo;
-        C.f_tyin = List.map cty_of_ty fd.f_tyin;
+  fn, { C.f_iinfo  = f_iinfo;
+        C.f_tyin   = List.map cty_of_ty fd.f_tyin;
         C.f_params = f_params;
         C.f_body   = f_body;
-        C.f_tyout = List.map cty_of_ty fd.f_tyout;
-        C.f_res    = f_res }
+        C.f_tyout  = List.map cty_of_ty fd.f_tyout;
+        C.f_res    = f_res;
+        C.f_extra  = Obj.magic ();
+      }
 
 
-let fdef_of_cfdef tbl (fn, fd) =
+let fdef_of_cufdef tbl (fn, fd) =
   let f_loc, f_cc = get_finfo tbl fd.C.f_iinfo in
   { f_loc;
     f_cc;
@@ -413,16 +415,28 @@ let cgd_of_gd tbl (x, gd) =
 let gd_of_cgd tbl (x, gd) =
   (var_of_cvar tbl x, gd)
 
-let cprog_of_prog (all_registers: var list) info p =
+let cuprog_of_prog (all_registers: var list) info p =
   let tbl = empty_tbl info in
   (* First add registers *)
   List.iter
     (fun x -> ignore (cvar_of_reg tbl x))
     all_registers;
-  let fds = List.map (cfdef_of_fdef tbl) (snd p) in
+  let fds = List.map (cufdef_of_fdef tbl) (snd p) in
   let gd  = List.map (cgd_of_gd tbl) (fst p) in
-  tbl, { C.p_globs = gd; C.p_funcs = fds }
+  tbl, { C.p_globs = gd; C.p_funcs = fds; C.p_extra = Obj.magic () }
 
-let prog_of_cprog tbl p =
+let prog_of_cuprog tbl p =
   List.map (gd_of_cgd tbl) p.C.p_globs,
-  List.map (fdef_of_cfdef tbl) p.C.p_funcs
+  List.map (fdef_of_cufdef tbl) p.C.p_funcs
+
+
+let csfdef_of_fdef tbl ((fd,fe):'info sfundef) =
+  let fn, fd = cufdef_of_fdef tbl fd in
+  fn, { fd with C.f_extra = Obj.magic fe }
+
+let fdef_of_csfdef tbl (fn, fd) =
+  let fd' = fdef_of_cufdef tbl (fn, fd) in
+  fd', Obj.magic fd.C.f_extra
+
+let prog_of_csprog tbl p =
+  List.map (fdef_of_csfdef tbl) p.C.p_funcs, Obj.magic p.C.p_extra

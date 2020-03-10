@@ -30,6 +30,11 @@ Definition c_calls (c : Sp.t) (cmd : cmd) :=
   foldl i_calls c cmd.
 
 (* -------------------------------------------------------------------- *)
+
+Section Section.
+
+Context {T} {pT:progT T}.
+
 Definition live_calls (s: Sp.t) (p: fun_decls) : Sp.t :=
   foldl (λ c x, let '(n, d) := x in if Sp.mem n c then c_calls c (f_body d) else c) s p.
 
@@ -40,9 +45,12 @@ Definition dead_calls_err (c : Sp.t) (p : prog) : cfexec prog :=
   let fds := p_funcs p in
   let k := live_calls c fds in
   if Sp.subset (live_calls k fds) k then
-  cfok {| p_globs := p_globs p; p_funcs := dead_calls k fds |}
+  cfok {| p_funcs := dead_calls k fds; p_globs := p_globs p; p_extra := p_extra p |}
   else cferror Ferr_topo.
 
 (* -------------------------------------------------------------------- *)
-Definition dead_calls_err_seq (c : seq funname) (p : prog) : cfexec prog :=
+Definition dead_calls_err_seq (c : seq funname) (p : prog) : cfexec prog  :=
   dead_calls_err (foldl (fun f c => Sp.add c f) Sp.empty c) p.
+
+End Section.
+

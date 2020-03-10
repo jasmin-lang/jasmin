@@ -61,9 +61,16 @@ Fixpoint unroll_i (i:instr) : cmd :=
   | Ccall _ _ _ _  => [:: i ]
   end.
 
+Section Section.
+
+Context {T} {pT:progT T}.
+
 Definition unroll_fun (f:fundef) :=
-  let 'MkFun ii si p c so r := f in
-  MkFun ii si p (unroll_cmd unroll_i c) so r.
+  let 'MkFun ii si p c so r ev := f in
+  MkFun ii si p (unroll_cmd unroll_i c) so r ev.
 
 Definition unroll_prog (p:prog) := map_prog unroll_fun p.
+
+End Section.
+
 

@@ -100,7 +100,7 @@ Section REMOVE.
       foldM extend_glob_i gd c
     end.
 
-  Definition extend_glob_prog (p:prog) :=
+  Definition extend_glob_prog (p:uprog) :=
     foldM (fun f gd => foldM extend_glob_i gd f.2.(f_body)) (p_globs p) (p_funcs p).
 
   Section GD.
@@ -301,7 +301,7 @@ Section REMOVE.
 
     End INSTR.
 
-    Definition remove_glob_fundef (f:funname*fundef) :=
+    Definition remove_glob_fundef (f:funname*ufundef) :=
       let (fn,f) := f in
       let env := Mvar.empty _ in
       let check_var xi :=
@@ -310,19 +310,21 @@ Section REMOVE.
       Let _ := mapM check_var f.(f_res) in
       Let envc := remove_glob (remove_glob_i fn) env f.(f_body) in
       ok
-        (fn, {| f_iinfo := f.(f_iinfo);
-                f_tyin  := f.(f_tyin);
+        (fn, {| f_iinfo  := f.(f_iinfo);
+                f_tyin   := f.(f_tyin);
                 f_params := f.(f_params);
                 f_body   := envc.2;
-                f_tyout := f.(f_tyout);
-                f_res   := f.(f_res); |}).
+                f_tyout  := f.(f_tyout);
+                f_res    := f.(f_res); 
+                f_extra  := f.(f_extra);
+             |}).
   End GD.
 
-  Definition remove_glob_prog (p:prog) :=
+  Definition remove_glob_prog (p:uprog) :=
     Let gd := extend_glob_prog p in
     if uniq (map fst gd) then
       Let fs := mapM (remove_glob_fundef gd) (p_funcs p) in
-      ok {| p_globs := gd; p_funcs := fs |}
+      ok {| p_extra := p_extra p; p_globs := gd; p_funcs := fs |}
     else cferror Ferr_uniqglob.
 
 End REMOVE.

@@ -134,14 +134,19 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
     ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
   end.
 
+Section Section.
+
+Context {T} {pT:progT T}.
+
 Definition dead_code_fd (fd: fundef) :=
-  let 'MkFun ii tyi params c tyo res := fd in
+  let 'MkFun ii tyi params c tyo res ef := fd in
   let s := read_es (map Plvar res) in
   Let c := dead_code_c dead_code_i c s in
-  ciok (MkFun ii tyi params c.2 tyo res).
+  ciok (MkFun ii tyi params c.2 tyo res ef).
 
 Definition dead_code_prog (p: prog) : cfexec prog :=
   Let funcs := map_cfprog dead_code_fd (p_funcs p) in
-  ok {| p_globs := p_globs p; p_funcs := funcs |}.
+  ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
 
+End Section.
 

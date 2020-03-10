@@ -426,3 +426,8 @@ let clamp (sz : wsize) (z : Bigint.zint) =
 
 let clamp_pe (sz : pelem) (z : Bigint.zint) =
   Bigint.erem z (Bigint.lshift Bigint.one (int_of_pe sz))
+
+
+(* --------------------------------------------------------------------- *)
+type 'info sfundef = 'info func * Expr.stk_fun_extra
+type 'info sprog   = 'info sfundef list * Expr.sprog_extra

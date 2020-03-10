@@ -32,7 +32,7 @@ Require Import ZArith.
 Require Import Utf8.
 Import Relations.
 
-Require Import expr compiler_util stack_alloc.
+Require Import expr compiler_util.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -198,14 +198,16 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   end.
 
 Definition linear_fd (fd: sfundef) :=
-  Let fd' := linear_c linear_i (sf_body fd) 1%positive [::] in
-  ok (LFundef (sf_stk_sz fd) (sf_tyin fd) (sf_params fd) fd'.2 (sf_tyout fd) (sf_res fd) (sf_extra fd)).
+  Let fd' := linear_c linear_i (f_body fd) 1%positive [::] in
+  ok (LFundef (sf_stk_sz fd.(f_extra)) (f_tyin fd) (f_params fd) fd'.2 (f_tyout fd) (f_res fd) (sf_extra fd.(f_extra))).
 
 Definition linear_prog (p: sprog) : cfexec lprog :=
-  Let funcs := map_cfprog linear_fd p.(sp_funcs) in
-  ok {| lp_rip   := p.(sp_rip);
-        lp_globs := p.(sp_globs);
-        lp_stk_id := p.(sp_stk_id);
+  Let _ := assert (size p.(p_globs) == 0) 
+             (Ferr_msg (Cerr_linear "invalid p_globs, please report")) in
+  Let funcs := map_cfprog linear_fd p.(p_funcs) in
+  ok {| lp_rip   := p.(p_extra).(sp_rip);
+        lp_globs := p.(p_extra).(sp_globs);
+        lp_stk_id := p.(p_extra).(sp_stk_id);
         lp_funcs := funcs |}.
 
 Module Eq_linstr.

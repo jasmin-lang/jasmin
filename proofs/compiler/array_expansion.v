@@ -491,17 +491,16 @@ Module CBEA.
             (Hrn: eq_alloc r vm1 vm2).
 
     Let P e1 : Prop :=
-      ∀ e2 v1,
-        check_eb r e1 e2 →
+      ∀ e2 v1, check_eb r e1 e2 →
         sem_pexpr gd {| emem := m ; evm := vm1 |} e1 = ok v1 →
-        exists2 v2, sem_pexpr gd {| emem := m ; evm := vm2 |} e2 = ok v2 & value_uincl v1 v2.
+      exists2 v2, 
+        sem_pexpr gd {| emem := m ; evm := vm2 |} e2 = ok v2 & value_uincl v1 v2.
 
     Let Q es1 : Prop :=
-      ∀ es2 vs1,
-        all2 (check_eb r) es1 es2 →
+      ∀ es2 vs1, all2 (check_eb r) es1 es2 →
         sem_pexprs gd {| emem := m ; evm := vm1 |} es1 = ok vs1 →
-        exists2 vs2, sem_pexprs gd {| emem := m ; evm := vm2 |} es2 = ok vs2 &
-               List.Forall2 value_uincl vs1 vs2.
+      exists2 vs2, sem_pexprs gd {| emem := m ; evm := vm2 |} es2 = ok vs2 &
+        List.Forall2 value_uincl vs1 vs2.
 
     Lemma check_e_esbP : (∀ e, P e) ∧ (∀ es, Q es).
     Proof.
@@ -514,7 +513,7 @@ Module CBEA.
       - by move => z1 [] // z2 _ /eqP <- [<-] /=; exists z1.
       - by move => z1 [] // z2 _ /eqP <- [<-] /=; exists z1.
       - by move => n1 [] // n2 _ /eqP <- [<-] /=; eexists => //=.
-      - by move => x1 [] // x2 v; exact: check_gvarP.
+      - by move => x1 [] // x2 v h; apply: check_gvarP h.
       - move => sz1 [[ty1 x1] ii1] e1 ih1 [] //.
         + move=> [[[ty2 x2] ii2] []] //= v1.
           case: is_constP => //= ze /andP [] /eqP hget /eqP ?; subst ty2.
@@ -541,7 +540,7 @@ Module CBEA.
       move=> /andP[] /andP[] /eqP <- Hcv /He1 Hce;apply: rbindP => w1.
       t_xrbindP => vx1 /(check_varP Hrn Hcv) [] vx2 /= ->.
       move=> /value_uincl_word H/H{H} H.
-      move => w2 ve1 /Hce [] ve2 -> /=. rewrite H /= => {H}.
+      move => w2 ve1 /Hce [] ve2 -> /=; rewrite H /= => {H}.
       by move=>  /value_uincl_word H/H{H} -> /= h2 -> <- /=;exists (Vword h2) => //; exists erefl.
     - move => op1 e1 He1 [] //= op2 e2 v1.
       move=> /andP[]/eqP <- /He1 H; apply: rbindP => ve1 /H [ve2 ->].
@@ -574,7 +573,7 @@ Module CBEA.
     check_e e1 e2 r = ok re ->
     eq_alloc r vm1 vm2 ->
     eq_alloc re vm1 vm2 /\
-    forall m v1,  sem_pexpr gd (Estate m vm1) e1 = ok v1 ->
+    forall m v1, sem_pexpr gd (Estate m vm1) e1 = ok v1 ->
     exists v2, sem_pexpr gd (Estate m vm2) e2 = ok v2 /\ value_uincl v1 v2.
   Proof.
     rewrite /check_e; case: ifP => //= h [<-] hr; split => // m v1 ok_v1.
@@ -604,15 +603,15 @@ Module CBEA.
     value_uincl v1 v2 ->
     write_var x1 v1 s1 = ok s1' ->
     exists vm1' : vmap,
-      write_var x2 v2 {| emem := emem s1; evm := vm1 |} =
-         ok {| emem := emem s1'; evm := vm1' |} /\
+      write_var x2 v2 (with_vm s1 vm1) = ok (with_vm s1' vm1') /\
      eq_alloc r1 (evm s1') vm1'.
   Proof.
     move=> /andP[]/eqP Heq /Sv_memP Hin [] Hu Hget Huv.
     rewrite /write_var /=;apply:rbindP => vm1'.
     apply: set_varP => [v1' | ];rewrite -Heq /set_var.
     + move=> /(pof_val_uincl Huv) [v2' [->]] /= Hv' <- [<-] /=.
-      by eexists;split;eauto; apply: (@eq_alloc_set x1 (ok v1') (ok v2')).
+      eexists; rewrite !with_vm_idem.
+      by split; eauto; apply: (@eq_alloc_set x1 (ok v1') (ok v2')).
     move=> {Heq x2}; case: x1 Hin => -[tx1 nx1] ii /= Hin /eqP ?;subst tx1.
     move=> /pof_val_bool_undef ?;subst v1 => <- [<-] /=.
     set x1 := {| vname := nx1 |}.
@@ -626,10 +625,10 @@ Module CBEA.
     eq_alloc r1 s1.(evm) vm1 ->
     value_uincl v1 v2 ->
     oapp (fun te2 =>
-     sem_pexpr gd (Estate s1.(emem) vm1) te2.2 >>= truncate_val te2.1 = ok v2) true oe2 ->
+     sem_pexpr gd (with_vm s1 vm1) te2.2 >>= truncate_val te2.1 = ok v2) true oe2 ->
     write_lval gd x1 v1 s1 = ok s1' ->
     exists vm1',
-      write_lval gd x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1') /\
+      write_lval gd x2 v2 (with_vm s1 vm1) = ok (with_vm s1' vm1') /\
       eq_alloc r1' s1'.(evm) vm1'.
   Proof.
     move=> H1 H2 H3 _; move: H1 H2 H3.
@@ -641,7 +640,8 @@ Module CBEA.
     + case:ifP=>//= /andP[] /andP[] /eqP <- Hcx Hce [<-] Hea Hu.
       t_xrbindP => z1 vx1  /(check_varP Hea Hcx) [vx1' ->] /=.
       move=> /value_uincl_word H/H{H} -> we ve.
-      case: s1 Hea=> sm1 svm1 Hea /(check_ebP Hea Hce) [ve2 ->].
+      case: s1 Hea => sm1 svm1 Hea h. 
+      have [ve2 ->] := check_ebP Hea Hce h.
       move=> /value_uincl_word H/H{H} /= -> w /(value_uincl_word Hu) -> /=.
       by move=> m -> <- /=;eexists;eauto.
     + case:is_constP => //= i.
@@ -675,7 +675,8 @@ Module CBEA.
     apply: on_arr_varP;rewrite /on_arr_var => n t Htx1 /(check_varP Hea Hca) [v3 ->] /=.
     case: v3=> //= n0 t' Ht;subst.
     apply: rbindP => z;apply: rbindP => ve.
-    case: s1 Hea=> sm1 svm1 Hea /(check_ebP Hea Hce) [v3 ->] /value_uincl_int H /H [_ ->].
+    case: s1 Hea=> sm1 svm1 Hea h; have [v3 ->] := check_ebP Hea Hce h.
+    move=> /value_uincl_int H /H [_ ->].
     apply: rbindP => w /(value_uincl_word Hvu) -> /=.
     apply: rbindP => t'' /(WArray.uincl_set Ht) [t2 [-> ht'']].
     have /(check_rvarP Hca Hea) : value_uincl (Varr t'') (Varr t2) by done.
@@ -684,4 +685,5 @@ Module CBEA.
 
 End CBEA.
 
-Module CheckExpansion :=  MakeCheckAlloc CBEA.
+Module CBEAU := CheckBU CBEA.
+Module CheckExpansion :=  MakeCheckAlloc CBEAU.

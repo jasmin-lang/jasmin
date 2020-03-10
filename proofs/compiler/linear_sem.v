@@ -31,7 +31,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith Utf8.
         Import Relations.
 Require oseq.
-Require Import psem compiler_util stack_alloc stack_sem linear.
+Require Import psem compiler_util linear.
 
 Import Memory.
 
@@ -54,7 +54,7 @@ Record lstate := Lstate
     lc : lcmd;
     lpc  : nat; }.
 
-Definition to_estate (s:lstate) := Estate s.(lmem) s.(lvm).
+Definition to_estate (s:lstate) : estate := Estate s.(lmem) s.(lvm).
 Definition of_estate (s:estate) c pc := Lstate s.(emem) s.(evm) c pc.
 Definition setpc (s:lstate) pc :=  Lstate s.(lmem) s.(lvm) s.(lc) pc.
 Definition setc (s:lstate) c := Lstate s.(lmem) s.(lvm) c s.(lpc).
@@ -132,7 +132,7 @@ Variant lsem_fd (wrip: pointer) m1 fn va' m2 vr' : Prop :=
     get_fundef P.(lp_funcs) fn = Some fd ->
     alloc_stack m1 fd.(lfd_stk_size) = ok m1' ->
     let c := fd.(lfd_body) in
-    write_vars [:: S.vid P.(lp_stk_id)   ; S.vid P.(lp_rip)]
+    write_vars [:: vid P.(lp_stk_id)   ; vid P.(lp_rip)]
                [:: Vword (top_stack m1'); Vword wrip] (Estate m1' vmap0) = ok s1 ->
     mapM2 ErrType truncate_val fd.(lfd_tyin) va' = ok va ->
     write_vars fd.(lfd_arg) va s1 = ok s2 ->

@@ -65,6 +65,8 @@ Fixpoint vars_l (l: seq var_i) :=
   | h :: q => Sv.add h (vars_l q)
   end.
 
+Context {T} {pT:progT T}.
+
 Definition vars_fd fd :=
   Sv.union (vars_l fd.(f_params)) (Sv.union (vars_l fd.(f_res)) (vars_c fd.(f_body))).
 
@@ -733,7 +735,8 @@ Definition lower_fd (fd: fundef) : fundef :=
      f_params := f_params fd;
      f_body := lower_cmd lower_i (f_body fd);
      f_tyout := f_tyout fd;
-     f_res := f_res fd
+     f_res := f_res fd;
+     f_extra := f_extra fd;
   |}.
 
 Definition lower_prog (p: prog) := map_prog lower_fd p.

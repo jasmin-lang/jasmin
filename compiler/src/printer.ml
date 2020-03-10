@@ -384,6 +384,25 @@ let pp_datas fmt data =
     Format.fprintf fmt ".byte %s" (Bigint.to_string w) in
   Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " pp_w) data
 
+let pp_saved_stack tbl ~debug fmt = function
+  | Expr.SavedStackNone  -> Format.fprintf fmt "none"
+  | Expr.SavedStackReg x -> Format.fprintf fmt "in reg %a" (pp_var ~debug) (Conv.var_of_cvar tbl x) 
+  | Expr.SavedStackStk z -> Format.fprintf fmt "in stack %a" B.pp_print (Conv.bi_of_z z)
+
+let pp_sprog ~debug tbl fmt ((funcs, p_extra):'info Prog.sprog) =
+  let pp_var = pp_var ~debug in
+  let pp_f_extra fmt f_extra = 
+    Format.fprintf fmt "(* @[<v>stack size = %a;@ saved register = @[%a@];@ saved stack = %a@] *)"
+      B.pp_print (Conv.bi_of_z f_extra.Expr.sf_stk_sz)
+      (pp_list ",@ " (fun fmt x -> pp_var fmt (Conv.var_of_cvar tbl x))) (fst f_extra.Expr.sf_extra)
+      (pp_saved_stack tbl ~debug) (snd f_extra.Expr.sf_extra) in
+  let pp_fun fmt (f,f_extra) = 
+    Format.fprintf fmt "@[<v>%a@ %a]" pp_f_extra f_extra (pp_fun pp_var) f in
+  let pp_p_extra fmt p_extra = 
+    Format.fprintf fmt "global data:@    %a" pp_datas p_extra.Expr.sp_globs in
+  Format.fprintf fmt "@[<v>%a@ %a@]"
+     pp_p_extra p_extra
+     (pp_list "@ @ " pp_fun) (List.rev funcs)
 
 (* ----------------------------------------------------------------------- *)
 

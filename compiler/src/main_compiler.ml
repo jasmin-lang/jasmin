@@ -215,7 +215,7 @@ let main () =
 
     (* Now call the coq compiler *)
     let all_vars = Prog.rip :: Regalloc.X64.all_registers in
-    let tbl, cprog = Conv.cprog_of_prog all_vars () prog in
+    let tbl, cprog = Conv.cuprog_of_prog all_vars () prog in
 
     if !debug then Printf.eprintf "translated to coq \n%!";
 
@@ -252,17 +252,17 @@ let main () =
         ; fresh_multiplicand = (fun sz -> (f (Bty (U sz)) "multiplicand").vname)
         }) in
 
-    let fdef_of_cfdef fn cfd = Conv.fdef_of_cfdef tbl (fn,cfd) in
-    let cfdef_of_fdef fd = snd (Conv.cfdef_of_fdef tbl fd) in
+    let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef tbl (fn,cfd) in
+    let cufdef_of_fdef fd = snd (Conv.cufdef_of_fdef tbl fd) in
     let apply msg trans fn cfd =
       if !debug then Format.eprintf "START %s@." msg;
-      let fd = fdef_of_cfdef fn cfd in
+      let fd = fdef_of_cufdef fn cfd in
       if !debug then Format.eprintf "back to ocaml@.";
       let fd = trans fd in
-      cfdef_of_fdef fd in
+      cufdef_of_fdef fd in
 
     let stk_alloc_fd cfd =
-      let fd = Conv.fdef_of_cfdef tbl cfd in
+      let fd = Conv.fdef_of_cufdef tbl cfd in
       if !debug then Format.eprintf "START stack alloc@." ;
       let alloc, sz, to_save, p_stack = Array_expand.stk_alloc_func fd in
       let alloc =
@@ -271,16 +271,16 @@ let main () =
       let sz = Conv.z_of_int sz in
       let p_stack = 
         match p_stack with
-        | None -> Stack_alloc.SavedStackNone
-        | Some (`InReg x) -> Stack_alloc.SavedStackReg (Conv.cvar_of_var tbl x)
-        | Some (`InStack p) -> Stack_alloc.SavedStackStk (Conv.z_of_int p) in
+        | None -> Expr.SavedStackNone
+        | Some (`InReg x) -> Expr.SavedStackReg (Conv.cvar_of_var tbl x)
+        | Some (`InStack p) -> Expr.SavedStackStk (Conv.z_of_int p) in
 
       let to_save = List.map (Conv.cvar_of_var tbl) (Sv.elements to_save) in
       (sz, alloc), (to_save, p_stack)
     in
 
     let stk_alloc_gl p =
-      let p = Conv.prog_of_cprog tbl p in
+      let p = Conv.prog_of_cuprog tbl p in
       if !debug then Format.eprintf "START stack alloc@.";
       let (data, rip, alloc) = Array_expand.init_glob p in
       let rip_i = 
@@ -294,9 +294,13 @@ let main () =
       let v = Conv.vari_of_cvari tbl cv |> L.unloc in
       v.v_kind = Stack in
 
-    let pp_cprog fmt cp =
-      let p = Conv.prog_of_cprog tbl cp in
+    let pp_cuprog fmt cp =
+      let p = Conv.prog_of_cuprog tbl cp in
       Printer.pp_prog ~debug:true fmt p in
+
+    let pp_csprog fmt cp =
+      let p = Conv.prog_of_csprog tbl cp in
+      Printer.pp_sprog ~debug:true tbl fmt p in
 
     let pp_linear fmt lp =
       PrintLinear.pp_prog tbl fmt lp in
@@ -340,7 +344,8 @@ let main () =
       Compiler.stk_alloc_gl = stk_alloc_gl;
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;
-      Compiler.print_prog   = (fun s p -> eprint s pp_cprog p; p);
+      Compiler.print_uprog  = (fun s p -> eprint s pp_cuprog p; p);
+      Compiler.print_sprog  = (fun s p -> eprint s pp_csprog p; p);
       Compiler.print_linear = (fun p -> eprint Compiler.Linearisation pp_linear p; p);
       Compiler.warning      = warning;
       Compiler.inline_var   = inline_var;

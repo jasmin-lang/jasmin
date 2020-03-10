@@ -547,10 +547,15 @@ with const_prop_i (m:cpm) (i:instr) : cpm * cmd :=
   let (ii,ir) := i in
   const_prop_ir m ii ir.
 
+Section Section.
+
+Context {T} {pT:progT T}.
+
 Definition const_prop_fun (f:fundef) :=
-  let (ii,tin,p,c,tout,r) := f in
+  let 'MkFun ii si p c so r ev := f in
   let (_, c) := const_prop const_prop_i empty_cpm c in
-  MkFun ii tin p c tout r.
+  MkFun ii si p c so r ev.
 
 Definition const_prop_prog (p:prog) : prog := map_prog const_prop_fun p.
 
+End Section.

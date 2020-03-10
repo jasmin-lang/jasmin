@@ -32,7 +32,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith Utf8.
         Import Relations.
 
-Require Import psem compiler_util stack_alloc stack_sem.
+Require Import psem compiler_util.
 Require Export linear linear_sem.
         Import Memory.
 
@@ -41,14 +41,6 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Local Open Scope seq_scope.
-
-(*Lemma is_labelP i lbl: reflect (exists a, i.(li_i) = Llabel a lbl) (is_label lbl i).
-Proof.
-  rewrite /is_label;case:i => ii [|a l||] //=; try by constructor => -[].
-  apply:(@equivP (lbl = l)); first by apply eqP.
-  split=> [->|[? [? ->]] //];eauto.
-Qed.
-*)
 
 Lemma align_bind ii a p1 l :
   Let p := align ii a p1 in ok (p.1, p.2 ++ l) =
@@ -409,40 +401,46 @@ Section PROOF.
   Variable p:  sprog.
   Variable p': lprog.
   Variable wrip: u64.
+
   Hypothesis linear_ok : linear_prog p = ok p'.
+
+  Local Lemma p_globs_nil : p_globs p = [::].
+  Proof. 
+    by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ /assertP -/eqP -/size0nil.
+  Qed. 
 
   Let Pi (i:instr) :=
     forall lbl lbli li, linear_i i lbl [::] = ok (lbli, li) ->
     [/\ (lbl <=? lbli)%positive,
      valid lbl lbli li &
-     forall s1 s2, S.sem_I p wrip s1 i s2 ->
+     forall s1 s2, sem_I p wrip s1 i s2 ->
        lsem (of_estate s1 li 0) (of_estate s2 li (size li))].
 
   Let Pi_r (i:instr_r) :=
     forall ii lbl lbli li, linear_i (MkI ii i) lbl [::] = ok (lbli, li) ->
     [/\ (lbl <=? lbli)%positive,
      valid lbl lbli li &
-     forall s1 s2, S.sem_i p wrip s1 i s2 ->
+     forall s1 s2, sem_i p wrip s1 i s2 ->
        lsem (of_estate s1 li 0) (of_estate s2 li (size li))].
 
   Let Pc (c:cmd) :=
     forall lbl lblc lc, linear_c linear_i c lbl [::] = ok (lblc, lc) ->
     [/\ (lbl <=? lblc)%positive,
      valid lbl lblc lc &
-     forall s1 s2, S.sem p wrip s1 c s2 ->
+     forall s1 s2, sem p wrip s1 c s2 ->
        lsem (of_estate s1 lc 0) (of_estate s2 lc (size lc))].
 
   Let HmkI : forall i ii, Pi_r i -> Pi (MkI ii i).
   Proof.
     move=> i ii Hi_r lbl lbli li Hli.
     move: Hi_r=> /(_ ii lbl lbli li Hli) [H1 H2 H3]; split=> //.
-    move=> s1 s2 /S.sem_IE; apply: H3.
+    move=> s1 s2 /sem_IE; apply: H3.
   Qed.
 
   Let Hskip : Pc [::].
   Proof.
     move=> lbl lbli li /= [] <- <-;split=> //. apply Pos.leb_refl.
-    move=> s1 s2 /S.semE ->; apply: rt_refl.
+    move=> s1 s2 /semE ->; apply: rt_refl.
   Qed.
 
   Lemma of_estate_add_hd_c s li lc pc:
@@ -459,7 +457,7 @@ Section PROOF.
     have {Hi}[Hle2 Hvi Hi]:= Hi _ _ _ Heqi;split.
     + by apply /P_leP;move/P_leP: Hle1;move/P_leP: Hle2=> ??;omega.
     + by rewrite valid_cat (valid_le_min Hle1 Hvi) (valid_le_max Hle2 Hvc).
-    move=> [m1 vm1] s2 /S.semE [[m2 vm2]] [H3 H5].
+    move=> [m1 vm1] s2 /semE [[m2 vm2]] [H3 H5].
     apply (@lsem_trans (of_estate {| emem := m2; evm := vm2 |} (li ++ lc) (size li))).
     + by apply (lsem_cat_tl lc (Hi _ _ H3)).
     have Hvc1 : valid 1 lblc lc.
@@ -476,7 +474,7 @@ Section PROOF.
   Let Hassgn : forall x tag ty e, Pi_r (Cassgn x tag ty e).
   Proof.
     move=> x tag [] // sz e ii lbl lbl' l' /= [] <- <-; rewrite Pos.leb_refl; split => //.
-    move => -[m1 vm1] s2 /S.sem_iE [v] [v'] [ok_v].
+    move => -[m1 vm1] s2 /sem_iE [v] [v']; rewrite p_globs_nil => -[ok_v].
     apply: rbindP => w /of_val_word [sz'] [w'] [hle ? ?]; subst v w => - [<-] {v'} ok_s2.
     apply: LSem_step.
     rewrite /lsem1 /step /= /eval_instr /= !to_of_estate.
@@ -489,7 +487,7 @@ Section PROOF.
   Let Hopn : forall xs t o es, Pi_r (Copn xs t o es).
   Proof.
     move=> x t' e tag ii lbl lbl' l' [] <- <-;rewrite Pos.leb_refl;split=>//.
-    move=> -[m1 vm1] s2 /S.sem_iE ok_s2; apply LSem_step.
+    move=> -[m1 vm1] s2 /sem_iE;rewrite p_globs_nil => ok_s2; apply LSem_step.
     by rewrite /lsem1 /step /= /eval_instr /= !to_of_estate ok_s2.
   Qed.
 
@@ -510,9 +508,9 @@ Section PROOF.
       + by apply: Pos_leb_trans Hle.
       + rewrite /= valid_cat Pos.leb_refl (valid_le_min Hlen Hv2) /= Pos.leb_refl.
         by rewrite (Pos_lt_leb_trans (lt_next _) Hle).
-      move => [m1 vm1] s2 /S.sem_iE [b] [ok_b ok_s2].
+      move => [m1 vm1] s2 /sem_iE [b]; rewrite p_globs_nil => -[ok_b ok_s2].
       case: b ok_b ok_s2 => ok_b.
-      - move => /S.semE -> {s2}.
+      - move => /semE -> {s2}.
         apply: lsem_step.
         * rewrite /lsem1 /step /= /eval_instr /= !to_of_estate ok_b {ok_b} /=.
           rewrite -cat_cons find_label_cat_hd.
@@ -541,7 +539,7 @@ Section PROOF.
       + by apply: Pos_leb_trans Hle.
       + rewrite /= valid_cat Pos.leb_refl (valid_le_min Hlen Hv1) /= Pos.leb_refl.
         by rewrite (Pos_lt_leb_trans (lt_next _) Hle).
-      case => m1 vm1 s2 /S.sem_iE [b] []; case: b => ok_b.
+      case => m1 vm1 s2 /sem_iE [b] []; case: b; rewrite p_globs_nil => ok_b.
       + move => ok_s2.
         apply: lsem_step.
         + by rewrite /lsem1 /step /= /eval_instr /= ?to_of_estate (snot_spec ok_b) /= ok_b /=.
@@ -555,7 +553,7 @@ Section PROOF.
         apply LSem_step.
         rewrite /lsem1 /step /setc /find_instr /= onth_cat ltnn subnn /=.
         by rewrite /eval_instr /= size_cat /= addn1.
-      move => /S.semE -> {s2}.
+      move => /semE -> {s2}.
       apply: lsem_step.
       + rewrite /lsem1 /step /= /eval_instr /= ?to_of_estate (snot_spec ok_b) /= ok_b {ok_b} /=.
         rewrite -cat_cons find_label_cat_hd.
@@ -579,9 +577,9 @@ Section PROOF.
       rewrite Pos.leb_refl leL1 (Pos_lt_leb_trans (lt_next lbl) L1lbl2).
       rewrite (Pos_lt_leb_trans (lt_next _) L2lbl2).
       by rewrite (valid_le_min _ Hv2) // (valid_le_max Hle2 (valid_le_min lblL2 Hv1)).
-    move=> [m1 vm1] s2 /S.sem_iE [b] [].
+    move=> [m1 vm1] s2 /sem_iE [b] [].
     set C := (C in of_estate _ C _); rewrite -/C.
-    case: b => ok_b ok_s2.
+    case: b; rewrite p_globs_nil => ok_b ok_s2.
     + apply lsem_step with (of_estate {| emem := m1; evm := vm1 |} C ((size lc2) .+3)).
       + rewrite /lsem1 /step /= /eval_instr /=  ?to_of_estate ok_b /=.
         rewrite /C -cat_cons -cat_rcons find_label_cat_hd.
@@ -681,7 +679,7 @@ Section PROOF.
         rewrite /lsem1 /step /C /= /find_instr /= catA onth_cat size_cat ltnn subnn /=.
         by rewrite /eval_instr /= find_label_hd.
       by move=> ???? e0 ??? [????];subst e0 => //.
-    + by move=> /Hc [H1 H2 H3];split => // s1 s2 /S.sem_iE [si] [b] [?] [] [<-] {b} <-; apply: H3.
+    + by move=> /Hc [H1 H2 H3];split => // s1 s2 /sem_iE [si] [b] [?] [<-] {b} <-; apply: H3.
     case: c' Hc' => [ _ | i c' ].
     + rewrite linear_c_nil;case Heqc: linear_c => [[lblc lc]|] //= x; apply ok_inj in x.
       case/xseq.pair_inj: x => ? ?; subst lbli li.
@@ -699,17 +697,17 @@ Section PROOF.
       have HL : valid lbl (next_lbl lbl) L by rewrite/L/= Pos.leb_refl ltL1.
       have Hd : disjoint_lbl L lc by apply: valid_disjoint _ HL Hvc; by rewrite Pos.leb_refl.
       elim: _ {-1}_ _ / H (erefl (Cwhile a c e [::])) => // { s1 s2 }.
-      + move => s1 s2 s3 s4 a0 c0 e0 c'0 Hsem He Hsem' _ IH [????]; subst a0 c0 e0 c'0.
+      + rewrite p_globs_nil => s1 s2 s3 s4 a0 c0 e0 c'0 Hsem He Hsem' _ IH [????]; subst a0 c0 e0 c'0.
         specialize (IH (erefl _)).
         specialize (Hc _ _ Hsem).
-        move/S.semE: Hsem' => ?; subst s3.
+        move/semE: Hsem' => ?; subst s3.
         apply: lsem_trans.
         + have /(_ _ Hd) := lsem_cat_hd _ Hc.
           exact: (lsem_cat_tl [:: ι (Lcond e lbl)]).
         apply: lsem_step IH.
         rewrite /lsem1 /step /= setc_of_estate /find_instr /=.
         by rewrite onth_cat ltnn subnn /= /eval_instr /= to_of_estate He /= find_label_hd.
-      move=> s1 s2 a0 c0 e0 c'0 Hsem He [????]; subst a0 c0 e0 c'0.
+      rewrite p_globs_nil => s1 s2 a0 c0 e0 c'0 Hsem He [????]; subst a0 c0 e0 c'0.
       specialize (Hc _ _ Hsem).
       apply: lsem_trans.
       + have /(_ _ Hd) := lsem_cat_hd _ Hc.
@@ -765,7 +763,7 @@ Section PROOF.
       + by case: (a).
       by apply: (lsem_cat_hd _ h); rewrite /disjoint_lbl; case:(a).
     elim: _ {-1}_ _ / H Hs (erefl (Cwhile a c e c'))=> // {s1 s2}.
-    + move=> s1 s2 s3 s4 a0 c0 e0 c'0 Hsem0 He Hsem Hsemi IH Hs [] ????; subst a0 c0 e0 c'0.
+    + rewrite p_globs_nil=> s1 s2 s3 s4 a0 c0 e0 c'0 Hsem0 He Hsem Hsemi IH Hs [] ????; subst a0 c0 e0 c'0.
       apply (@lsem_trans (of_estate s2 C1 ( (size lc').+2 + size lc))).
       + have Hd: disjoint_lbl
           [:: {| li_ii := ii; li_i := Llabel (next_lbl lbl) |}
@@ -801,7 +799,7 @@ Section PROOF.
       apply: (lsem_trans H);apply: LSem_step.
       + by rewrite /lsem1 /step /= /find_instr /= onth_cat ltnn subnn /= /eval_instr /=;eauto.
       exact: IH.
-    + move=> s1 s2 c0 a0 e0 c0' Hs0 He Hs [????]; subst a0 e0 c0 c0'.
+    + rewrite p_globs_nil => s1 s2 c0 a0 e0 c0' Hs0 He Hs [????]; subst a0 e0 c0 c0'.
       apply (@lsem_trans (of_estate s2 C1 (size lc' + size lc).+2)).
       + have Hd: disjoint_lbl
           [:: {| li_ii := ii; li_i := Llabel (next_lbl lbl) |}
@@ -833,7 +831,7 @@ Section PROOF.
     linear_c linear_i c lbl [::] = ok (lblc, lc) ->
     [/\ (lbl <=? lblc)%positive,
      valid lbl lblc lc &
-     forall s1 s2, S.sem p wrip s1 c s2 ->
+     forall s1 s2, sem p wrip s1 c s2 ->
        lsem (of_estate s1 lc 0) (of_estate s2 lc (size lc))].
   Proof.
     apply (@cmd_rect Pi_r Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
@@ -841,11 +839,12 @@ Section PROOF.
 
   Lemma linear_fdP:
     forall fn m1 va m2 vr,
-    S.sem_call p wrip m1 fn va m2 vr -> lsem_fd p' wrip m1 fn va m2 vr.
+    sem_call p wrip m1 fn va m2 vr -> lsem_fd p' wrip m1 fn va m2 vr.
   Proof.
-    move=> fn m1 va m2 vr [] {fn m1 va m2 vr}
-      m1 m2 fn sf vargs vargs' s1 s2 m2' vm2 vres vres' m1' Hsf Halloc Hs1 Htyi Hs2 Hbody Hres Htyo Hfree.
-    move: linear_ok; apply: rbindP => funcs H0' [] ?; subst p'.
+    move=> fn m1 va m2 vr [] {fn m1 va m2 vr}.
+    move=> m1 m2 fn sf vargs vargs' s0 s1 s2 vres vres' Hsf Hargs Hi Hw Hbody Hres Htyo Hfi.
+    move: linear_ok; rewrite /linear_prog; t_xrbindP => _ /assertP _ funcs H0' hp'. 
+    rewrite -hp'. 
     have [f' [Hf'1 Hf'2]] := (get_map_cfprog H0' Hsf).
     have Hf'3 := Hf'1.
     apply: rbindP Hf'3=> [l Hc] [] Hf'3.
@@ -856,7 +855,10 @@ Section PROOF.
     have [_ _ H] := linear_cP Heq.
     move: Hbody=> /H /(@lsem_cat_tl [::]) Hs.
     rewrite -Hf'3 in Hf'2.
-    apply: LSem_fd; eauto=> /=.
+    move: Hi; rewrite /init_state /= /init_stk_state; t_xrbindP => /= m1' Halloc [].
+    rewrite /with_vm /= => ?;subst s0.
+    move: Hfi; rewrite /finalize /= /finalize_stk_mem => ?; subst m2.
+    apply: LSem_fd; eauto => //=.
     rewrite -Hl /=.
     move: Hs; rewrite /= Hz2 !setc_of_estate.
     have -> // : size lc' = size lc.

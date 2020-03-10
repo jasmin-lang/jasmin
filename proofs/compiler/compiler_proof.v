@@ -42,28 +42,29 @@ Section PROOF.
 
 Variable cparams : compiler_params.
 
-Hypothesis print_progP : forall s p, cparams.(print_prog) s p = p.
+Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
+Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
 Hypothesis print_linearP : forall p, cparams.(print_linear) p = p.
 
-Lemma unroll1P (fn: funname) (p p':prog) mem va va' mem' vr:
+Lemma unroll1P (fn: funname) (p p':uprog) ev mem va va' mem' vr:
   unroll1 p = ok p' ->
-  sem_call p mem fn va mem' vr ->
+  sem_call p ev mem fn va mem' vr ->
   List.Forall2 value_uincl va va' ->
-  exists vr', sem_call p' mem fn va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+  exists vr', sem_call p' ev mem fn va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
 Proof.
   rewrite /unroll1=> Heq Hsem Hall.
   have hsemu := unroll_callP Hsem.
   have [vr' [hsemc hall']]:= const_prop_callP hsemu Hall.
   exists vr'; split => //.
-  apply: (dead_code_callP Heq hsemc).
+  apply: (dead_code_callPu Heq hsemc).
 Qed.
 
 
-Lemma unrollP (fn: funname) (p p': prog) mem va va' mem' vr:
+Lemma unrollP (fn: funname) (p p': prog) ev mem va va' mem' vr:
   unroll Loop.nb p = ok p' ->
-  sem_call p mem  fn va mem' vr ->
+  sem_call p ev mem  fn va mem' vr ->
   List.Forall2 value_uincl va va' ->
-  exists vr', sem_call p' mem fn va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+  exists vr', sem_call p' ev mem fn va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
 Proof.
   elim: Loop.nb p va va' vr => /= [p //|n Hn] p va va' vr.
   apply: rbindP=> z Hz.
@@ -121,9 +122,6 @@ Let K' : ∀ vr (P Q: _ → Prop),
       let 'ex_intro vr2 (conj q v) := h _ p in
       ex_intro _ vr2 (conj (Forall2_trans value_uincl_trans u v) q).
 
-Lemma surj_prog p : {| p_globs := p_globs p; p_funcs := p_funcs p |} = p.
-Proof. by case: p. Qed.
-
 Lemma compile_progP entries (p: prog) (lp: lprog) mem fn va mem' vr:
   compile_prog cparams entries p = cfok lp ->
   fn \in entries ->
@@ -138,47 +136,47 @@ Lemma compile_progP entries (p: prog) (lp: lprog) mem fn va mem' vr:
     lsem_fd lp rip meml fn va meml' vr'.
 Proof.
   rewrite /compile_prog.
-  apply: rbindP=> p0 Hp0. rewrite !print_progP.
-  apply: rbindP=> pca Hpca. rewrite !print_progP.
-  apply: rbindP=> p1 Hp1. rewrite !print_progP.
-  apply: rbindP=> -[] Hv.
-  apply: rbindP=> pv Hpv. rewrite !print_progP.
+  apply: rbindP=> p0 Hp0. rewrite !print_uprogP.
+  apply: rbindP=> pca Hpca. rewrite !print_uprogP.
+  apply: rbindP=> p1 Hp1. rewrite !print_uprogP.
+  apply: rbindP => -[] Hv.
+  apply: rbindP=> pv Hpv. rewrite !print_uprogP.
   apply: rbindP=> -[] Hps.
-  apply: rbindP=> ps' Hps'. rewrite !print_progP.
+  apply: rbindP=> ps' Hps'. rewrite !print_uprogP.
   apply: rbindP=> -[] He.
-  apply: rbindP => pg Hpg. rewrite !print_progP.
+  apply: rbindP => pg Hpg. rewrite !print_uprogP.
   case Hlower: fvars_correct=> //.
   apply: rbindP=> -[] He'.
-  apply: rbindP=> pd Hpd. rewrite !print_progP.
-  apply: rbindP => pstk Hpstk.
+  apply: rbindP=> pd Hpd. rewrite !print_uprogP.
+  apply: rbindP => pstk Hpstk. rewrite !print_sprogP.
   apply: rbindP=> pl Hpl [] <-. rewrite !print_linearP.
   move=> Hin Hcall meml rip Hex Halloc.
   have Haok : alloc_ok pstk fn meml.
   + rewrite /alloc_ok=> fd Hfd.
-    move: Hpl; apply: rbindP => lfuncs Hpl [] ?; subst pl.
+    move: Hpl; rewrite /linear_prog; t_xrbindP => ?? lfuncs Hpl [] ?; subst pl.
     move: (get_map_cfprog Hpl Hfd)=> [f' [Hf'1 Hf'2]].
     apply: rbindP Hf'1=> [fn' Hfn'] [] Hf'.
     have := Halloc _ Hf'2.
     by rewrite -Hf' /=.
   have va_refl := List_Forall2_refl va value_uincl_refl.
-  have eqg : lp_globs pl = sp_globs pstk.
-  + by move: Hpl; apply rbindP => ?? [<-].
+  have eqg : lp_globs pl = sp_globs pstk.(p_extra).
+  + by move: Hpl; rewrite /linear_prog; t_xrbindP => ???? <-. 
   move: Hex; rewrite eqg => Hex.
-  apply: Kj; first by move => vr'; exact: (linear_fdP Hpl).
-  apply: Km.
-  + by move=> vr' Hvr'; apply: (stack_alloc_proof.alloc_progP Hpstk _ Hex Haok); exact: Hvr'.
-  apply: Ki; first by move => vr'; exact: (dead_code_callP Hpd).
-  apply: K'; first by move => vr' Hvr'; apply: (CheckAllocReg.alloc_callP He'); exact: Hvr'.
+  apply: Kj; first by exact: (linear_fdP Hpl).
+  apply: Km. 
+  + by move=> vr' Hvr'; apply: (stack_alloc_proof.alloc_progP (ev:= tt) Hpstk _ Hex Haok); exact: Hvr'.
+  apply: Ki; first by move => vr'; apply: (dead_code_callPu Hpd).
+  apply: K'; first by move => vr' Hvr'; apply: (CheckAllocRegU.alloc_callP He'); exact: Hvr'.
   apply: Ki; first by move => vr'; exact: (lower_callP _ _ _ Hlower).
   apply: Ki; first by move => vr';apply: (RGP.remove_globP Hpg).
   apply: K'; first by move => vr' Hvr'; apply: (CheckExpansion.alloc_callP He); exact: Hvr'.
   rewrite surj_prog.
-  apply: K'; first by move => vr' Hvr'; apply: (remove_init_fdP va_refl); exact: Hvr'.
-  apply: Ki; first by move => vr'; exact: (dead_code_callP Hps').
-  apply: K'; first by move => vr' Hvr'; apply: (CheckAllocReg.alloc_callP Hps); exact: Hvr'.
+  apply: K'; first by move => vr' Hvr'; apply: (remove_init_fdPu va_refl); exact: Hvr'.
+  apply: Ki; first by move => vr'; exact: (dead_code_callPu Hps').
+  apply: K'; first by move => vr' Hvr'; apply: (CheckAllocRegU.alloc_callP Hps); exact: Hvr'.
   rewrite surj_prog. 
-  apply: Ki; first by move => vr'; exact: (dead_code_callP Hpv).
-  apply: K'; first by move => vr' Hvr'; apply: (CheckAllocReg.alloc_callP Hv); exact: Hvr'.
+  apply: Ki; first by move => vr'; exact: (dead_code_callPu Hpv).
+  apply: K'; first by move => vr' Hvr'; apply: (CheckAllocRegU.alloc_callP Hv); exact: Hvr'.
   rewrite surj_prog.
   apply: K'; first by move => vr' Hvr'; apply: (const_prop_callP _ va_refl); exact: Hvr'.
   apply: K'; first by move => vr' Hvr'; apply: (unrollP Hp1 _ va_refl); exact: Hvr'.

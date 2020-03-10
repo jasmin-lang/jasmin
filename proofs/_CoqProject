@@ -32,7 +32,6 @@ compiler/lowering_proof.v
 compiler/remove_globals.v
 compiler/remove_globals_proof.v
 compiler/stack_alloc.v
-compiler/stack_sem.v
 compiler/stack_alloc_proof.v
 compiler/unrolling.v
 compiler/unrolling_proof.v

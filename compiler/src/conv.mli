@@ -49,10 +49,16 @@ val fun_of_cfun : 'info coq_tbl -> BinNums.positive -> funname
 
 val get_iinfo   : 'info coq_tbl -> BinNums.positive -> (L.t * L.t list) * 'info
 
-val cfdef_of_fdef : 'info coq_tbl -> 'info func -> BinNums.positive * Expr.fundef
-val fdef_of_cfdef : 'info coq_tbl -> BinNums.positive * Expr.fundef -> 'info func
+val cufdef_of_fdef : 'info coq_tbl -> 'info func -> BinNums.positive * Expr.ufundef
+val fdef_of_cufdef : 'info coq_tbl -> BinNums.positive * Expr.ufundef -> 'info func
 
-val cprog_of_prog : var list -> 'info -> 'info prog -> 'info coq_tbl * Expr.prog
-val prog_of_cprog : 'info coq_tbl -> Expr.prog -> 'info prog
+val cuprog_of_prog : var list -> 'info -> 'info prog -> 'info coq_tbl * Expr.uprog
+val prog_of_cuprog : 'info coq_tbl -> Expr.uprog -> 'info prog
+
+val csfdef_of_fdef : 'info coq_tbl -> 'info sfundef -> BinNums.positive * Expr.sfundef
+val fdef_of_csfdef : 'info coq_tbl -> BinNums.positive * Expr.sfundef -> 'info sfundef
+
+val prog_of_csprog : 'info coq_tbl -> Expr.sprog -> 'info sprog
 
 val fresh_cvar : 'info coq_tbl -> string -> ty -> Var0.Var.var
+

@@ -774,29 +774,6 @@ with instr := MkI : instr_info -> instr_r ->  instr.
 
 Notation cmd := (seq instr).
 
-Record fundef := MkFun {
-  f_iinfo  : instr_info;
-  f_tyin  : seq stype;
-  f_params : seq var_i;
-  f_body   : cmd;
-  f_tyout : seq stype;
-  f_res    : seq var_i;
-}.
-
-Definition function_signature : Type :=
-  (seq stype * seq stype).
-
-Definition signature_of_fundef (fd: fundef) : function_signature :=
-  (f_tyin fd, f_tyout fd).
-
-Definition fun_decl := (funname * fundef)%type.
-Notation fun_decls  := (seq fun_decl).
-
-Record prog := {
-  p_globs : glob_decls;
-  p_funcs : fun_decls;
-}.
-
 Definition instr_d (i:instr) :=
   match i with
   | MkI i _ => i
@@ -873,71 +850,6 @@ Qed.
 Definition instr_eqMixin     := Equality.Mixin instr_eq_axiom.
 Canonical  instr_eqType      := Eval hnf in EqType instr instr_eqMixin.
 
-Definition fundef_beq fd1 fd2 :=
-  match fd1, fd2 with
-  | MkFun ii1 tin1 x1 c1 tout1 r1, MkFun ii2 tin2 x2 c2 tout2 r2 =>
-    (ii1 == ii2) && (tin1 == tin2) && (x1 == x2) && (c1 == c2) && (tout1 == tout2) && (r1 == r2)
-  end.
-
-Lemma fundef_eq_axiom : Equality.axiom fundef_beq.
-Proof.
-  move=> [i1 tin1 p1 c1 tout1 r1] [i2 tin2 p2 c2 tout2 r2] /=.
-  apply (@equivP ((i1 == i2) && (tin1 == tin2) && (p1 == p2) &&
-           (c1 == c2) && (tout1 == tout2) &&(r1 == r2)));first by apply idP.
-  by split=> [/andP[]/andP[]/andP[]/andP[]/andP[] | []] /eqP->/eqP->/eqP->/eqP->/eqP->/eqP->.
-Qed.
-
-Definition fundef_eqMixin     := Equality.Mixin fundef_eq_axiom.
-Canonical  fundef_eqType      := Eval hnf in EqType fundef fundef_eqMixin.
-
-Definition map_prog (F: fundef -> fundef) (p:prog) :=
-  {| p_globs := p_globs p;
-     p_funcs := map (fun f => (f.1, F f.2)) (p_funcs p) |}.
-
-Lemma map_prog_globs F p : p_globs (map_prog F p) = p_globs p.
-Proof. done. Qed.
-
-Lemma get_map_prog F p fn :
-  get_fundef (p_funcs (map_prog F p)) fn = omap F (get_fundef (p_funcs p) fn).
-Proof. exact: assoc_map. Qed.
-
-Lemma get_fundef_cons {T} (fnd: funname * T) p fn:
-  get_fundef (fnd :: p) fn = if fn == fnd.1 then Some fnd.2 else get_fundef p fn.
-Proof. by case: fnd. Qed.
-
-Lemma get_fundef_in {T} p f (fd: T) : get_fundef p f = Some fd -> f \in [seq x.1 | x <- p].
-Proof. by rewrite/get_fundef; apply: assoc_mem_dom'. Qed.
-
-Lemma get_fundef_in' {T} p fn (fd: T):
-  get_fundef p fn = Some fd -> List.In (fn, fd) p.
-Proof. exact: assoc_mem'. Qed.
-
-Definition all_prog {aT bT cT} (s1: seq (funname * aT)) (s2: seq (funname * bT)) (ll: seq cT) f :=
-  (size s1 == size s2) && all2 (fun fs a => let '(fd1, fd2) := fs in (fd1.1 == fd2.1) && f a fd1.2 fd2.2) (zip s1 s2) ll.
-
-Lemma all_progP {aT bT cT} (s1: seq (funname * aT)) (s2: seq (funname * bT)) (l: seq cT) f:
-  all_prog s1 s2 l f ->
-  forall fn fd, get_fundef s1 fn = Some fd ->
-  exists fd' l', get_fundef s2 fn = Some fd' /\ f l' fd fd'.
-Proof.
-elim: s1 s2 l=> // [[fn fd] p IH] [|[fn' fd'] p'] // [|lh la] //.
-+ by rewrite /all_prog /= andbF.
-+ move=> /andP [/= Hs /andP [/andP [/eqP Hfn Hfd] Hall]].
-  move=> fn0 fd0.
-  case: ifP=> /eqP Hfn0.
-  + move=> [] <-.
-    exists fd', lh.
-    rewrite -Hfn Hfn0 /= eq_refl; split=> //.
-  + move=> H.
-    have [|fd'' [l' [IH1 IH2]]] := (IH p' la _ _ _ H).
-    apply/andP; split.
-    by rewrite -eqSS.
-    exact: Hall.
-    exists fd'', l'; split=> //.
-    rewrite /= -Hfn.
-    by case: ifP=> // /eqP.
-Qed.
-
 Section RECT.
   Variables (Pr:instr_r -> Type) (Pi:instr -> Type) (Pc : cmd -> Type).
   Hypothesis Hmk  : forall i ii, Pr i -> Pi (MkI ii i).
@@ -977,6 +889,201 @@ Section RECT.
   Definition cmd_rect := cmd_rect_aux instr_Rect.
 
 End RECT.
+
+Class progT (eft:eqType) := {
+  extra_prog_t : Type;
+  extra_val_t  : Type;
+}.
+
+Definition extra_fun_t {eft} {pT: progT eft} := eft.
+
+Section PROG.
+
+Context {eft} {pT:progT eft}.
+
+Record fundef := MkFun {
+  f_iinfo  : instr_info;
+  f_tyin   : seq stype;
+  f_params : seq var_i;
+  f_body   : cmd;
+  f_tyout  : seq stype;
+  f_res    : seq var_i;
+  f_extra  : extra_fun_t;
+}.
+
+Definition function_signature : Type :=
+  (seq stype * seq stype).
+
+Definition signature_of_fundef (fd: fundef) : function_signature :=
+  (f_tyin fd, f_tyout fd).
+
+Definition fun_decl := (funname * fundef)%type.
+
+Record prog := {
+  p_funcs : seq fun_decl;
+  p_globs : glob_decls;
+  p_extra : extra_prog_t;
+}.
+
+Definition fundef_beq fd1 fd2 :=
+  match fd1, fd2 with
+  | MkFun ii1 tin1 x1 c1 tout1 r1 e1, MkFun ii2 tin2 x2 c2 tout2 r2 e2 =>
+    (ii1 == ii2) && (tin1 == tin2) && (x1 == x2) && (c1 == c2) && (tout1 == tout2) && (r1 == r2) && (e1 == e2)
+  end.
+
+Lemma fundef_eq_axiom : Equality.axiom fundef_beq.
+Proof.
+  move=> [i1 tin1 p1 c1 tout1 r1 e1] [i2 tin2 p2 c2 tout2 r2 e2] /=.
+  apply (@equivP ((i1 == i2) && (tin1 == tin2) && (p1 == p2) &&
+           (c1 == c2) && (tout1 == tout2) && (r1 == r2) && (e1 == e2)));first by apply idP.
+  by split=> [/andP[]/andP[]/andP[]/andP[]/andP[]/andP[] | []] /eqP->/eqP->/eqP->/eqP->/eqP->/eqP->/eqP->.
+Qed.
+
+Definition fundef_eqMixin     := Equality.Mixin fundef_eq_axiom.
+Canonical  fundef_eqType      := Eval hnf in EqType fundef fundef_eqMixin.
+
+Definition map_prog_name (F: funname -> fundef -> fundef) (p:prog) :=
+  {| p_funcs := map (fun f => (f.1, F f.1 f.2)) (p_funcs p);
+     p_globs := p_globs p;
+     p_extra := p_extra p|}.
+
+Definition map_prog (F: fundef -> fundef) (p:prog) :=
+  map_prog_name (fun _ => F) p.
+
+Lemma get_map_prog_name F p fn :
+  get_fundef (p_funcs (map_prog_name F p)) fn = 
+  omap (F fn) (get_fundef (p_funcs p) fn).
+Proof. 
+  rewrite /get_fundef /map_prog_name /=.
+  by elim: p_funcs => // -[fn' fd] pfuns /= ->;case:eqP => [-> | ].
+Qed.
+
+Lemma get_map_prog F p fn :
+  get_fundef (p_funcs (map_prog F p)) fn = omap F (get_fundef (p_funcs p) fn).
+Proof. apply: get_map_prog_name. Qed.
+
+Lemma map_prog_globs F p : p_extra (map_prog F p) = p_extra p.
+Proof. done. Qed.
+
+Lemma surj_prog (p:prog) : 
+  {| p_globs := p_globs p; p_funcs := p_funcs p; p_extra := p_extra p |} = p.
+Proof. by case: p. Qed.
+
+End PROG.
+
+Notation fun_decls  := (seq fun_decl).
+
+(* ** Programs before stack/memory allocation 
+ * -------------------------------------------------------------------- *)
+
+Instance progUnit : progT [eqType of unit] := 
+  {| extra_val_t := unit;
+     extra_prog_t := unit;
+  |}.
+
+Definition ufundef     := (@fundef _ progUnit).
+Definition uprog       := (@prog _ progUnit).
+Definition ufun_decl   := (@fun_decl _ progUnit).
+Definition ufun_decls  := (seq (@fun_decl _ progUnit)).
+
+(* ** Programs after stack/memory allocation 
+ * -------------------------------------------------------------------- *)
+
+Variant saved_stack :=
+| SavedStackNone
+| SavedStackReg of var
+| SavedStackStk of Z.
+
+Definition saved_stack_beq (x y : saved_stack) :=
+  match x, y with
+  | SavedStackNone, SavedStackNone => true
+  | SavedStackReg v1, SavedStackReg v2 => v1 == v2
+  | SavedStackStk z1, SavedStackStk z2 => z1 == z2
+  | _, _ => false
+  end.
+
+Lemma saved_stack_eq_axiom : Equality.axiom saved_stack_beq.
+Proof.
+  move=> [ | v1 | z1] [ | v2 | z2] /=; try constructor => //.
+  + apply (@equivP (v1 = v2)); first by apply eqP.
+    by intuition congruence.
+  apply (@equivP (z1 = z2)); first by apply eqP.
+  by intuition congruence.
+Qed.
+
+Definition saved_stack_eqMixin   := Equality.Mixin saved_stack_eq_axiom.
+Canonical  saved_stack_eqType      := Eval hnf in EqType saved_stack saved_stack_eqMixin.
+
+Record stk_fun_extra := MkSFun {
+  sf_stk_sz : Z;
+  sf_extra  : list var * saved_stack;
+}.
+
+Definition sfe_beq (e1 e2: stk_fun_extra) := 
+  (e1.(sf_stk_sz) == e2.(sf_stk_sz)) && (e1.(sf_extra) == e2.(sf_extra)).
+
+Lemma sfe_eq_axiom : Equality.axiom sfe_beq.
+Proof. 
+  by move=> [sz1 e1] [sz2 e2]; apply (equivP andP); split => /= -[] /eqP -> /eqP ->.
+Qed.
+
+Definition sfe_eqMixin   := Equality.Mixin sfe_eq_axiom.
+Canonical  sfe_eqType      := Eval hnf in EqType stk_fun_extra sfe_eqMixin.
+
+Record sprog_extra := { 
+  sp_rip   : Ident.ident;
+  sp_globs : seq u8;
+  sp_stk_id: Ident.ident; 
+}.
+
+Instance progStack : progT [eqType of stk_fun_extra] := 
+  {| extra_val_t := pointer;
+     extra_prog_t := sprog_extra  |}.
+
+Definition sfundef     := (@fundef  _ progStack).
+Definition sprog       := (@prog  _ progStack).
+Definition sfun_decl   := (@fun_decl _ progStack).
+Definition sfun_decls  := (seq (@fun_decl _ progStack)).
+
+(* ----------------------------------------------------------------------------- *)
+
+Lemma get_fundef_cons {T} (fnd: funname * T) p fn:
+  get_fundef (fnd :: p) fn = if fn == fnd.1 then Some fnd.2 else get_fundef p fn.
+Proof. by case: fnd. Qed.
+
+Lemma get_fundef_in {T} p f (fd: T) : get_fundef p f = Some fd -> f \in [seq x.1 | x <- p].
+Proof. by rewrite/get_fundef; apply: assoc_mem_dom'. Qed.
+
+Lemma get_fundef_in' {T} p fn (fd: T):
+  get_fundef p fn = Some fd -> List.In (fn, fd) p.
+Proof. exact: assoc_mem'. Qed.
+
+Definition all_prog {aT bT cT} (s1: seq (funname * aT)) (s2: seq (funname * bT)) (ll: seq cT) f :=
+  (size s1 == size s2) && all2 (fun fs a => let '(fd1, fd2) := fs in (fd1.1 == fd2.1) && f a fd1.2 fd2.2) (zip s1 s2) ll.
+
+Lemma all_progP {aT bT cT} (s1: seq (funname * aT)) (s2: seq (funname * bT)) (l: seq cT) f:
+  all_prog s1 s2 l f ->
+  forall fn fd, get_fundef s1 fn = Some fd ->
+  exists fd' l', get_fundef s2 fn = Some fd' /\ f l' fd fd'.
+Proof.
+elim: s1 s2 l=> // [[fn fd] p IH] [|[fn' fd'] p'] // [|lh la] //.
++ by rewrite /all_prog /= andbF.
++ move=> /andP [/= Hs /andP [/andP [/eqP Hfn Hfd] Hall]].
+  move=> fn0 fd0.
+  case: ifP=> /eqP Hfn0.
+  + move=> [] <-.
+    exists fd', lh.
+    rewrite -Hfn Hfn0 /= eq_refl; split=> //.
+  + move=> H.
+    have [|fd'' [l' [IH1 IH2]]] := (IH p' la _ _ _ H).
+    apply/andP; split.
+    by rewrite -eqSS.
+    exact: Hall.
+    exists fd'', l'; split=> //.
+    rewrite /= -Hfn.
+    by case: ifP=> // /eqP.
+Qed.
+
 
 (* ** Compute written variables
  * -------------------------------------------------------------------- *)
@@ -1422,3 +1529,4 @@ Lemma eq_expr_app1 o1 o2 e1 e2 :
      eq_expr (Papp1 o1 e1) (Papp1 o2 e2)
   -> [/\ o1 = o2 & eq_expr e1 e2].
 Proof. by move=> /= /andP[/eqP-> ->]. Qed.
+

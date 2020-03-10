@@ -37,11 +37,11 @@ Definition x86_gen_error (sp: register) : instr_error :=
 
 (* -------------------------------------------------------------------- *)
 
-Definition assemble_saved_stack (x:stack_alloc.saved_stack) := 
+Definition assemble_saved_stack (x:expr.saved_stack) := 
   match x with
-  | stack_alloc.SavedStackNone  => ok (x86_sem.SavedStackNone)
-  | stack_alloc.SavedStackReg r => Let r := reg_of_var xH r in ok (x86_sem.SavedStackReg r)
-  | stack_alloc.SavedStackStk z => ok (x86_sem.SavedStackStk z)
+  | expr.SavedStackNone  => ok (x86_sem.SavedStackNone)
+  | expr.SavedStackReg r => Let r := reg_of_var xH r in ok (x86_sem.SavedStackReg r)
+  | expr.SavedStackStk z => ok (x86_sem.SavedStackStk z)
   end.
 
 Definition assemble_fd sp rip (fd: lfundef) :=
@@ -268,7 +268,8 @@ Lemma assemble_fdP wrip m1 fn va m2 vr :
         st2.(xmem) = m2.
 Proof.
 case => m1' fd va' vm2 m2' s1 s2 vr' ok_fd ok_m1' /= [<-] {s1} ok_va'.
-set vm1 := (vm in {| evm := vm |}).
+rewrite /with_vm /=.
+set vm1 := (vm in {| evm := vm |}). 
 move => ok_s2 hexec ok_vr' ok_vr -> {m2}.
 exists fd, va'. split; first exact: ok_fd. split; first exact: ok_va'.
 have [fds [sp [hp' ok_sp hrip ok_fds]]]: exists fds rsp, [/\ p' = {|xp_globs := p.(lp_globs); xp_funcs := fds |}, 
@@ -288,7 +289,7 @@ t_xrbindP => args ok_args dsts ok_dsts _ /assertP hsp tosave ? savedstk ? [?]; s
 set xr1 := mem_write_reg sp (top_stack m1') {| xmem := m1' ; xreg := s1.(xreg) ; xrip := wrip; xxreg := s1.(xxreg) ; xrf := rflagmap0 |}.
 have eqm1 : lom_eqv rip {| emem := m1' ; evm := vm1 |} xr1.
 + constructor => //.
-  - by rewrite /get_var /vm1 /= Fv.setP_eq.
+  - by rewrite /get_var /= /vm1 /= Fv.setP_eq.
   - rewrite /vm1 /= => r v.
     rewrite (inj_reg_of_string ok_sp (reg_of_stringK sp)).
     rewrite /get_var /var_of_register /RegMap.set ffunE; case: eqP.

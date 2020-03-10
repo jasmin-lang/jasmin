@@ -51,4 +51,6 @@ val pp_prog  : debug:bool ->
 
 val pp_datas : Format.formatter -> Ssralg.GRing.ComRing.sort list -> unit
 
+val pp_sprog : debug:bool -> 
+               'a Conv.coq_tbl -> Format.formatter -> 'info sprog -> unit
 
