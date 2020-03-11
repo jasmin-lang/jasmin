@@ -132,11 +132,11 @@ let rec array_acces_i tbl i =
 and array_access_c tbl c = 
   List.fold_left array_acces_i tbl c
 
-let init_stk fc =
+(*let init_stk fc =
   let fv = vars_fc fc in
   let allocatable = Regalloc.X64.allocatables in
   let free_regs = Sv.diff allocatable fv in
-  let vars = Sv.elements (Sv.filter is_stack_var (vars_fc fc)) in
+  let vars = Sv.elements (Sv.filter is_stack_var fv) in
   if vars == [] then 
     [], 0, Sv.inter Regalloc.X64.callee_save fv, None
   else
@@ -185,6 +185,46 @@ let init_stk fc =
     let alloc = List.map init_var vars in
     let to_save = Sv.inter Regalloc.X64.callee_save (Sv.add r fv) in
     alloc, !size, to_save, Some (`InReg r)
+ *)
+
+let init_stk fc extra_vars =
+  
+  let fv = vars_fc fc in
+  let vars = Sv.filter is_stack_var fv in
+  let extra = Sv.of_list (Array.to_list extra_vars) in
+  let vars' = Sv.union vars extra in
+  let tbl = array_access_c Mv.empty fc.f_body in
+  let get_size v =
+     match v.v_ty with
+     | Bty (U ws)  -> let s = size_of_ws ws in v, s, s
+     | Arr (ws', n) -> 
+       let ws = try Mv.find v tbl with Not_found -> assert false in
+       v, size_of_ws ws, arr_size ws' n
+     | _            -> assert false in
+  let vars' = List.rev_map get_size (Sv.elements vars') in
+  let cmp (_, s1, _) (_, s2, _) = s2 - s1 in
+
+  let size = ref 0 in  
+  (* FIXME: optimize this 
+     if pos mod s <> 0 then a hole appear in the stack,
+     in this case we can try to fill the hole with a variable 
+     of a smaller size allowing to align the next pos
+   *)
+  let init_var (v, s, n) =
+    let pos = !size in
+    let pos = 
+      if pos mod s = 0 then pos
+      else (pos/s + 1) * s in
+    size := pos + n;
+    (v,pos) in
+
+  let vars' = List.sort cmp vars' in
+  let alloc = List.map init_var vars' in
+  let find v = snd (List.find (fun (v',_) -> V.equal v v') alloc) in
+  let extra_vars = Array.map find extra_vars in
+  let isnot_extra (v,_) = not (Sv.mem v extra) in
+  let alloc = List.filter isnot_extra alloc in
+  alloc, !size, extra_vars
 
 let vstack = Regalloc.X64.rsp
 

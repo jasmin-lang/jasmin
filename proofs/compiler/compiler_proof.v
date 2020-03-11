@@ -145,21 +145,21 @@ Proof.
   apply: rbindP=> ps' Hps'. rewrite !print_uprogP.
   apply: rbindP=> -[] He.
   apply: rbindP => pg Hpg. rewrite !print_uprogP.
-  case Hlower: fvars_correct=> //.
-  apply: rbindP=> -[] He'.
-  apply: rbindP=> pd Hpd. rewrite !print_uprogP.
+  apply: rbindP => _ /assertP Hlower.
   apply: rbindP => pstk Hpstk. rewrite !print_sprogP.
+  apply: rbindP=> -[] He'.
+  apply: rbindP=> pd Hpd. rewrite !print_sprogP.
   apply: rbindP=> pl Hpl [] <-. rewrite !print_linearP.
   move=> Hin Hcall meml rip Hex Halloc.
-  have Haok : alloc_ok pstk fn meml.
+ (* have Haok : alloc_ok pstk fn meml.
   + rewrite /alloc_ok=> fd Hfd.
     move: Hpl; rewrite /linear_prog; t_xrbindP => ?? lfuncs Hpl [] ?; subst pl.
     move: (get_map_cfprog Hpl Hfd)=> [f' [Hf'1 Hf'2]].
     apply: rbindP Hf'1=> [fn' Hfn'] [] Hf'.
     have := Halloc _ Hf'2.
-    by rewrite -Hf' /=.
+    by rewrite -Hf' /=. *)
   have va_refl := List_Forall2_refl va value_uincl_refl.
-  have eqg : lp_globs pl = sp_globs pstk.(p_extra).
+  have eqg : lp_globs pl = sp_globs pd.(p_extra).
   + by move: Hpl; rewrite /linear_prog; t_xrbindP => ???? <-. 
   move: Hex; rewrite eqg => Hex.
   apply: Kj; first by exact: (linear_fdP Hpl).

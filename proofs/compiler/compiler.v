@@ -81,10 +81,10 @@ Record compiler_params := {
   lowering_vars    : fresh_vars;
   inline_var       : var -> bool;
   is_var_in_memory : var_i → bool;
-  reg_alloc_fd     : funname -> _ufundef -> _ufundef; (* Fixme : change this *)
   stk_alloc_gl     : _uprog → seq u8 * Ident.ident * seq (var * Z);
   stk_pointer_name : Ident.ident;
-  stk_alloc_fd     : _ufun_decl → Z * seq (var * Z) * (seq var * expr.saved_stack);
+  stk_alloc_fd     : _ufun_decl -> bool -> Z * list (var * Z) * Z;
+  reg_alloc_fd     : bool -> funname -> _ufundef -> _ufundef * list var * option var;
   print_uprog      : compiler_step -> _uprog -> _uprog;
   print_sprog      : compiler_step -> _sprog -> _sprog;
   print_linear     : lprog -> lprog;
@@ -102,63 +102,59 @@ Definition var_alloc_prog (p:uprog) := map_prog_name cparams.(var_alloc_fd) p.
 
 Definition share_stack_prog (p:uprog) := map_prog_name cparams.(share_stk_fd) p.
 
-Definition reg_alloc_prog (p:uprog) := map_prog_name cparams.(reg_alloc_fd) p.
-
 Definition compile_prog (entries : seq funname) (p:prog) :=
   Let p := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
-  let p := to_uprog (cparams.(print_uprog) Inlining p) in
+  let p := cparams.(print_uprog) Inlining p in
 
   Let p := dead_calls_err_seq entries p in
-  let p := to_uprog (cparams.(print_uprog) RemoveUnusedFunction p) in
+  let p := cparams.(print_uprog) RemoveUnusedFunction p in
 
   Let p := unroll Loop.nb p in
-  let p := to_uprog (cparams.(print_uprog) Unrolling p) in
+  let p := cparams.(print_uprog) Unrolling p in
 
   let p := const_prop_prog p in
-  let p := to_uprog (cparams.(print_uprog) Unrolling p) in
+  let p := cparams.(print_uprog) Unrolling p in
 
   let pv := var_alloc_prog p in
-  let pv := to_uprog (cparams.(print_uprog) AllocInlineAssgn pv) in
+  let pv := cparams.(print_uprog) AllocInlineAssgn pv in
   Let _ := CheckAllocRegU.check_prog p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
   Let pv := dead_code_prog pv in
-  let pv := to_uprog (cparams.(print_uprog) DeadCode_AllocInlineAssgn pv) in
+  let pv := cparams.(print_uprog) DeadCode_AllocInlineAssgn pv in
 
   let ps := share_stack_prog pv in
-  let ps := to_uprog (cparams.(print_uprog) ShareStackVariable ps) in
+  let ps := cparams.(print_uprog) ShareStackVariable ps in
   Let _ := CheckAllocRegU.check_prog pv.(p_extra) pv.(p_funcs) ps.(p_extra) ps.(p_funcs) in
   Let ps := dead_code_prog ps in
-  let ps := to_uprog (cparams.(print_uprog) DeadCode_ShareStackVariable ps) in
+  let ps := cparams.(print_uprog) DeadCode_ShareStackVariable ps in
 
   let pr := remove_init_prog ps in
-  let pr := to_uprog (cparams.(print_uprog) RemoveArrInit pr) in
+  let pr := cparams.(print_uprog) RemoveArrInit pr in
 
   let pe := expand_prog pr in
   let pe := cparams.(print_uprog) RegArrayExpansion pe in
   Let _ := CheckExpansion.check_prog pr.(p_extra) pr.(p_funcs) pe.(p_extra) pe.(p_funcs) in
 
   Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
-  let pg := to_uprog (cparams.(print_uprog) RemoveGlobal pg) in
+  let pg := cparams.(print_uprog) RemoveGlobal pg in
 
-  if (fvars_correct cparams.(lowering_vars) (p_funcs pg)) then
-    let pl := lower_prog cparams.(lowering_opt) cparams.(warning) cparams.(lowering_vars) cparams.(is_var_in_memory) pg in
-    let pl := to_uprog (cparams.(print_uprog) LowerInstruction pl) in
+  Let _ := assert (fvars_correct cparams.(lowering_vars) (p_funcs pg)) Ferr_lowering in
 
-    let pa := reg_alloc_prog pl in
-    let pa := to_uprog (cparams.(print_uprog) RegAllocation pa) in
-    Let _ := CheckAllocRegU.check_prog pl.(p_extra) pl.(p_funcs) pa.(p_extra) pa.(p_funcs) in
-    Let pd := dead_code_prog pa in
-    let pd := to_uprog (cparams.(print_uprog) DeadCode_RegAllocation pd) in
+  let pl := lower_prog cparams.(lowering_opt) cparams.(warning) cparams.(lowering_vars) cparams.(is_var_in_memory) pg in
+  let pl := cparams.(print_uprog) LowerInstruction pl in
 
-    (* stack_allocation                    *)
-    Let ps := stack_alloc.alloc_prog cparams.(stk_pointer_name) cparams.(stk_alloc_fd) cparams.(stk_alloc_gl) pd in
-    let ps := to_sprog (cparams.(print_sprog) StackAllocation ps) in
-    (* linearisation                     *)
-    Let pl := linear_prog ps in
-    let pl := cparams.(print_linear) pl in
-    (* asm                               *)
-    cfok (pl)
+  (* stack + register allocation *)
+  Let ps := 
+     stack_alloc.alloc_prog cparams.(stk_pointer_name) cparams.(stk_alloc_fd) 
+                            cparams.(reg_alloc_fd) cparams.(stk_alloc_gl) pl in
+  let ps := to_sprog (cparams.(print_sprog) StackAllocation ps) in
+  Let pd := dead_code_prog ps in
+  let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in
 
-  else cferror Ferr_lowering.
+  (* linearisation                     *)
+  Let pl := linear_prog pd in
+  let pl := cparams.(print_linear) pl in
+  (* asm                               *)
+  ok pl.
 
 Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
   if get_fundef lp.(lp_funcs) fn is Some fd' then

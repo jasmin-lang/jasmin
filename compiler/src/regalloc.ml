@@ -240,7 +240,7 @@ let collect_conflicts (tbl: int Hv.t) (tr: 'info trace) (f: (Sv.t * Sv.t) func) 
   and collect_stmt c s = List.fold_left collect_instr c s in
   collect_stmt IntMap.empty f.f_body
 
-let collect_variables (allvars: bool) (f: 'info func) : int Hv.t * int =
+let collect_variables (allvars: bool) (excluded:Sv.t) (f: 'info func) : int Hv.t * int =
   let fresh, total =
     let count = ref 0 in
     (fun () ->
@@ -250,8 +250,9 @@ let collect_variables (allvars: bool) (f: 'info func) : int Hv.t * int =
     (fun () -> !count)
   in
   let tbl : int Hv.t = Hv.create 97 in
+  (* Remove sp and rip *)
   let get (v: var) : unit =
-    if allvars || v.v_kind = Reg then
+    if allvars || (v.v_kind = Reg && not (Sv.mem v excluded)) then
     if not (Hv.mem tbl v)
     then
       let n = fresh () in
@@ -548,12 +549,29 @@ let subst_of_allocation (vars: int Hv.t)
     Pvar (q w)
   with Not_found -> Pvar (q v)
 
-let regalloc translate_var (f: 'info func) : unit func =
+let reverse_varmap (vars: int Hv.t) : var IntMap.t =
+  Hv.fold (fun v i m -> IntMap.add i v m) vars IntMap.empty
+
+let split_live_ranges (f: 'info func) : unit func =
+  let f = Ssa.split_live_ranges true f in
+  Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
+  let vars, nv = collect_variables true Sv.empty f in
+  let eqc, _tr, _fr = collect_equality_constraints "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
+  let vars = normalize_variables vars eqc in
+  let a =
+    reverse_varmap vars |>
+    subst_of_allocation vars
+  in Subst.subst_func a f
+   |> Ssa.remove_phi_nodes
+
+
+let reg_alloc translate_var (f: 'info func) : unit func =
+  let excluded = Sv.of_list [Prog.rip; X64.rsp] in
   let f = fill_in_missing_names f in
   let f = Ssa.split_live_ranges false f in
   Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
   let lf = Liveness.live_fd true f in
-  let vars, nv = collect_variables false f in
+  let vars, nv = collect_variables false excluded f in
   let eqc, tr, fr = collect_equality_constraints "Regalloc" x86_equality_constraints vars nv f in
   let vars = normalize_variables vars eqc in
   let conflicts = collect_conflicts vars tr lf in
@@ -564,19 +582,27 @@ let regalloc translate_var (f: 'info func) : unit func =
   in Subst.subst_func a f
    |> Ssa.remove_phi_nodes
 
-let reverse_varmap (vars: int Hv.t) : var IntMap.t =
-  Hv.fold (fun v i m -> IntMap.add i v m) vars IntMap.empty
+let regalloc translate_var stack_needed (f: 'info func) = 
+  let f = reg_alloc translate_var f in
+  let fv = vars_fc f in
+  let allocatable = X64.allocatables in
+  let free_regs = Sv.diff allocatable fv in
+  let to_save = Sv.inter X64.callee_save fv in
+  let to_save, stk = 
+    if stack_needed then
+      if Sv.is_empty free_regs then
+        to_save, None
+      else
+        let r = 
+          let s = Sv.diff free_regs X64.callee_save in
+          if Sv.is_empty s then Sv.any free_regs
+          else Sv.any s in
+        let to_save = Sv.inter X64.callee_save (Sv.add r fv) in
+        to_save, Some r
+    else 
+      to_save, None in
+  f, to_save, stk
+                  
 
-let split_live_ranges (f: 'info func) : unit func =
-  let f = Ssa.split_live_ranges true f in
-  Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
-(*  let lf = Liveness.live_fd false f in *)
-  let vars, nv = collect_variables true f in
-  let eqc, _tr, _fr = collect_equality_constraints "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
-  let vars = normalize_variables vars eqc in
-(*  let _ = collect_conflicts vars tr lf in (* May fail *) *)
-  let a =
-    reverse_varmap vars |>
-    subst_of_allocation vars
-  in Subst.subst_func a f
-   |> Ssa.remove_phi_nodes
+
+

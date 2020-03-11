@@ -261,23 +261,33 @@ let main () =
       let fd = trans fd in
       cufdef_of_fdef fd in
 
-    let stk_alloc_fd cfd =
+    let stk_alloc_fd cfd save_stack =
+      if !debug then Format.eprintf "START stack allocation@." ;
       let fd = Conv.fdef_of_cufdef tbl cfd in
-      if !debug then Format.eprintf "START stack alloc@." ;
-      let alloc, sz, to_save, p_stack = Array_expand.stk_alloc_func fd in
+      let to_save = 
+        if save_stack then [|Array_expand.vstack|] else [||] in
+      let alloc, sz, saved = Array_expand.stk_alloc_func fd to_save in
       let alloc =
         let trans (v,i) = Conv.cvar_of_var tbl v, Conv.z_of_int i in
         List.map trans alloc in
       let sz = Conv.z_of_int sz in
       let p_stack = 
-        match p_stack with
-        | None -> Expr.SavedStackNone
-        | Some (`InReg x) -> Expr.SavedStackReg (Conv.cvar_of_var tbl x)
-        | Some (`InStack p) -> Expr.SavedStackStk (Conv.z_of_int p) in
-
-      let to_save = List.map (Conv.cvar_of_var tbl) (Sv.elements to_save) in
-      (sz, alloc), (to_save, p_stack)
+        if save_stack then saved.(0) else 0 in
+      let p_stack = Conv.z_of_int p_stack in
+      (sz, alloc), p_stack 
     in
+
+    let translate_var = Conv.var_of_cvar tbl in
+
+    let regalloc_fd stack_needed fn cfd = 
+      if !debug then Format.eprintf "START register allocation@." ;
+      let fd = fdef_of_cufdef fn cfd in
+      let fd, to_save, stk = Regalloc.regalloc translate_var stack_needed fd in
+      let cfd = cufdef_of_fdef fd in
+      let to_save = 
+        List.map (Conv.cvar_of_var tbl) (Sv.elements to_save) in
+      let stk = omap (Conv.cvar_of_var tbl) stk in
+      ((cfd,to_save),stk) in
 
     let stk_alloc_gl p =
       let p = Conv.prog_of_cuprog tbl p in
@@ -289,6 +299,7 @@ let main () =
         let trans (v,i) = Conv.cvar_of_var tbl v, Conv.z_of_int i in
         List.map trans alloc in
       (data, rip_i), alloc in
+
 
     let is_var_in_memory cv : bool =
       let v = Conv.vari_of_cvari tbl cv |> L.unloc in
@@ -321,8 +332,7 @@ let main () =
       let x = Conv.var_of_cvar tbl x in
       x.v_kind = Inline in
 
-    let translate_var = Conv.var_of_cvar tbl in
-
+   
     let is_glob x =
       let x = Conv.var_of_cvar tbl x in
       x.v_kind = Global in
@@ -338,9 +348,9 @@ let main () =
       Compiler.expand_fd    = apply "arr exp" Array_expand.arrexp_func;
       Compiler.var_alloc_fd = apply "var alloc" Varalloc.merge_var_inline_fd;
       Compiler.share_stk_fd = apply "share stk" Varalloc.alloc_stack_fd;
-      Compiler.reg_alloc_fd = apply "reg alloc" (Regalloc.regalloc translate_var);
       Compiler.stk_pointer_name = Var0.Var.vname (Conv.cvar_of_var tbl Array_expand.vstack);
       Compiler.stk_alloc_fd = stk_alloc_fd;
+      Compiler.reg_alloc_fd = regalloc_fd;
       Compiler.stk_alloc_gl = stk_alloc_gl;
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;

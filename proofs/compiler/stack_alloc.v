@@ -28,8 +28,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import Coq.Logic.Eqdep_dec.
 Require Import strings word utils type var expr low_memory.
-Require Import constant_prop.
-Require Import compiler_util.
+Require Import constant_prop compiler_util allocation.
 Require Import ZArith.
 
 Set Implicit Arguments.
@@ -490,15 +489,36 @@ Definition add_err_fun (A : Type) (f : funname) (r : cexec A) :=
   | Error e => Error (Ferr_fun f e)
   end.
 
-Definition alloc_fd rip mglob 
-    (stk_alloc_fd : ufun_decl -> Z * list (var * Z) * (list var * saved_stack))
-    (f: ufun_decl) :=
-  let info := stk_alloc_fd f in
-  match f return result fun_error (sfun_decl) with
+(* We start by doing 
+   1/ stack allocation
+   2/ Reg allocation
+   3/ if we have remaining register to save the stack pointer we use on those register 
+      else 
+        4/ we restart stack allocation and we keep one position in the stack to save the stack pointer 
+        5/ Reg allocation
+*)
+ 
+Definition with_body eft (fd:_fundef eft) body := {|
+  f_iinfo  := fd.(f_iinfo);
+  f_tyin   := fd.(f_tyin);
+  f_params := fd.(f_params);
+  f_body   := body;
+  f_tyout  := fd.(f_tyout);
+  f_res    := fd.(f_res);
+  f_extra  := fd.(f_extra); 
+|}.
+
+Definition alloc_fd_aux
+   rip mglob  
+   (stk_alloc_fd : ufun_decl -> bool -> Z * list (var * Z) * Z)
+   (reg_alloc_fd : bool -> funname -> ufundef -> ufundef * list var * option var)
+   (save_stack : bool)
+   (f: ufun_decl) :=
+  match f return result fun_error (option (ufundef * ufundef * stk_fun_extra)) with
   | (fn, fd) => 
-    Let sfd :=  
-      let: ((size, l), saved) := info in
-      Let mstk := add_err_fun fn (init_map size l) in
+      let info := stk_alloc_fd f save_stack in
+      let '(sz, sfd, stk_pos) := info in
+      Let mstk := add_err_fun fn (init_map sz sfd) in
       let mstk := Mvar.map APmem mstk in
       let gm := 
           {| rip   := rip;
@@ -512,18 +532,59 @@ Definition alloc_fd rip mglob
       Let sm1 := add_err_fun fn (foldM (check_lvar gm) sm0 fd.(f_params)) in
       Let body := add_finfo fn fn (fmapM (alloc_i gm) sm1 fd.(f_body)) in
       if (nrsp != rip) && all (check_var body.1) fd.(f_res) then
-        ok {| f_iinfo  := fd.(f_iinfo);
-              f_tyin   := fd.(f_tyin);
-              f_params := fd.(f_params);
-              f_body   := body.2;
-              f_tyout  := fd.(f_tyout);
-              f_res    := fd.(f_res);
-              f_extra  := {| sf_stk_sz := size; sf_extra  := saved; |};
-           |}
-      else add_err_fun fn invalid_var in
-    ok (fn, sfd)
-  end.
+        let fd1 := with_body fd body.2 in
+        let '(fd2, to_save, oreg) := reg_alloc_fd (sz == 0) fn fd1 in
+        (* FIXME : did we need this if the stack_frame is empty *)
+        if sz == 0 then 
+          let f_extra := {| sf_stk_sz := sz; sf_extra := (to_save, SavedStackNone) |} in
+          ok (Some (fd1, fd2, f_extra))
+        else match oreg with
+        | Some r => 
+          let f_extra := {| sf_stk_sz := sz; sf_extra := (to_save, SavedStackReg r) |} in
+          ok (Some (fd1, fd2, f_extra))
+        | None => 
+          if save_stack then 
+            let f_extra := {| sf_stk_sz := sz; sf_extra := (to_save, SavedStackStk stk_pos) |} in
+            ok (Some(fd1, fd2, f_extra)) 
+          else ok None
+        end
+      else add_err_fun fn invalid_var         
+   end.
 
+Definition swith_extra (fd:ufundef) f_extra : sfundef := {|
+  f_iinfo  := fd.(f_iinfo);
+  f_tyin   := fd.(f_tyin);
+  f_params := fd.(f_params);
+  f_body   := fd.(f_body);
+  f_tyout  := fd.(f_tyout);
+  f_res    := fd.(f_res);
+  f_extra  := f_extra; 
+|}.
+
+
+Definition check_reg_alloc p_extra fn (fd1 fd2:ufundef) f_extra := 
+  let fd1 := swith_extra fd1 f_extra in
+  let fd2 := swith_extra fd2 f_extra in
+  Let _ := CheckAllocRegS.check_fundef p_extra p_extra (fn,fd1) (fn, fd2) tt in
+  ok (fn, fd2).
+
+Definition alloc_fd p_extra mglob 
+    (stk_alloc_fd : ufun_decl -> bool -> Z * list (var * Z) * Z)
+    (reg_alloc_fd : bool -> funname -> ufundef -> ufundef * list var * option var)
+    (f: ufun_decl) :=
+  let rip := p_extra.(sp_rip) in
+  Let info := alloc_fd_aux rip mglob stk_alloc_fd reg_alloc_fd false f in
+  match info with
+  | Some (fd1, fd2, f_extra) => check_reg_alloc p_extra f.1 fd1 fd2 f_extra 
+  | None =>
+    Let info := alloc_fd_aux rip mglob stk_alloc_fd reg_alloc_fd true f in
+    match info with
+    | Some (fd1, fd2, f_extra) => check_reg_alloc p_extra f.1 fd1 fd2 f_extra 
+              (* FIXME: error msg *)
+    | None => Error (Ferr_msg (Cerr_linear "alloc_fd: assert false"))
+    end
+  end.    
+  
 Definition check_glob (m: Mvar.t Z) (data:seq u8) (gd:glob_decl) := 
   let x := gd.1 in
   match Mvar.get m x with
@@ -542,19 +603,20 @@ Definition check_glob (m: Mvar.t Z) (data:seq u8) (gd:glob_decl) :=
 Definition check_globs (gd:glob_decls) (m:Mvar.t Z) (data:seq u8) := 
   all (check_glob m data) gd.
 
-
-Definition alloc_prog stk_alloc_fd (glob_alloc_p : uprog -> seq u8 * Ident.ident * list (var * Z) ) P := 
+Definition alloc_prog stk_alloc_fd reg_alloc_fd 
+      (glob_alloc_p : uprog -> seq u8 * Ident.ident * list (var * Z) ) P := 
   let: ((data, rip), l) := glob_alloc_p P in 
   Let mglob := add_err_msg (init_map (Z.of_nat (size data)) l) in
+  let p_extra :=  {| 
+    sp_rip   := rip; 
+    sp_globs := data; 
+    sp_stk_id := nrsp;
+  |} in
   if check_globs P.(p_globs) mglob data then
-    Let p_funs := mapM (alloc_fd rip mglob stk_alloc_fd) P.(p_funcs) in
+    Let p_funs := mapM (alloc_fd p_extra mglob stk_alloc_fd reg_alloc_fd) P.(p_funcs) in
     ok  {| p_funcs  := p_funs;
            p_globs := [::];
-           p_extra := {| 
-             sp_rip   := rip; 
-             sp_globs := data; 
-             sp_stk_id := nrsp;
-           |}
+           p_extra := p_extra;
         |}
   else 
      Error (Ferr_msg (Cerr_stk_alloc "invalid data: please report")).

@@ -10,6 +10,7 @@ module X64 : sig
   val all_registers : var list
 end
 
-val regalloc : (Var0.Var.var -> var) -> 'i1 func -> unit func
+val regalloc : 
+  (Var0.Var.var -> var) -> bool -> 'i1 func -> unit func * Sv.t * var option
 
 val split_live_ranges : 'info func -> unit func
