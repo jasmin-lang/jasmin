@@ -21,12 +21,14 @@ type base_ty =
   | U   of wsize (* U(n): unsigned n-bit integer *)
   [@@deriving compare,sexp]
 
+type pointer = Direct | Pointer
+
 type v_kind =
-  | Const         (* global parameter  *)
-  | Stack         (* stack variable    *)
-  | Reg           (* register variable *)
-  | Inline        (* inline variable   *)
-  | Global        (* global (in memory) constant *) 
+  | Const            (* global parameter  *)
+  | Stack of pointer (* stack variable    *)
+  | Reg   of pointer (* register variable *)
+  | Inline           (* inline variable   *)
+  | Global           (* global (in memory) constant *) 
   [@@deriving compare,sexp]
 
 type 'ty gvar = {
@@ -55,7 +57,7 @@ type 'ty gexpr =
   | Pbool  of bool
   | Parr_init of B.zint
   | Pvar   of 'ty ggvar
-  | Pget   of wsize * 'ty gvar_i * 'ty gexpr
+  | Pget   of wsize * 'ty ggvar * 'ty gexpr
   | Pload  of wsize * 'ty gvar_i * 'ty gexpr
   | Papp1  of E.sop1 * 'ty gexpr
   | Papp2  of E.sop2 * 'ty gexpr * 'ty gexpr
@@ -77,6 +79,21 @@ let tint  = Bty Int
 let kind_i v = (L.unloc v).v_kind
 let ty_i v = (L.unloc v).v_ty
 
+let is_stack_kind k = 
+  match k with
+  | Stack _ -> true
+  | _       -> false
+
+let is_reg_kind k = 
+  match k with
+  | Reg _ -> true
+  | _     -> false
+
+let is_ptr k = 
+  match k with
+  | Stack k | Reg k -> k = Pointer 
+  | _ -> false
+
 (* ------------------------------------------------------------------------ *)
 
 type assgn_tag =
@@ -85,6 +102,7 @@ type assgn_tag =
   | AT_rename (* use as equality constraint in reg-alloc and compile to no-op *)
   | AT_inline (* the assignement should be inline, and propagate *)
   | AT_phinode (* renaming during SSA transformation *)
+  | AT_address (* get the address of the right value *)
 
 type 'ty glval =
  | Lnone of L.t * 'ty
@@ -216,7 +234,7 @@ and pexpr_equal e1 e2 =
  | Pconst n1, Pconst n2 -> B.equal n1 n2
  | Pbool b1, Pbool b2 -> b1 = b2
  | Pvar v1, Pvar v2 -> PV.gequal v1 v2
- | Pget(b1,v1,e1), Pget(b2,v2,e2) -> b1 = b2 && PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
+ | Pget(b1,v1,e1), Pget(b2,v2,e2) -> b1 = b2 && PV.gequal v1 v2 && pexpr_equal e1 e2
  | Pload(b1,v1,e1), Pload(b2,v2,e2) -> b1 = b2 && PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
  | Papp1(o1,e1), Papp1(o2,e2) -> o1 = o2 && pexpr_equal e1 e2
  | Papp2(o1,e11,e12), Papp2(o2,e21,e22) -> o1 = o2 &&  pexpr_equal e11 e21 && pexpr_equal e12 e22
@@ -251,7 +269,7 @@ module Sv = Set.Make  (V)
 module Mv = Map.Make  (V)
 module Hv = Hash.Make (V)
 
-let rip = V.mk "RIP" Reg u64 L._dummy 
+let rip = V.mk "RIP" (Reg Direct) u64 L._dummy 
 (* ------------------------------------------------------------------------ *)
 (* Function name                                                            *)
 
@@ -282,7 +300,7 @@ let rvars_v x s =
 let rec rvars_e s = function
   | Pconst _ | Pbool _ | Parr_init _ -> s
   | Pvar x         -> rvars_v x s
-  | Pget(_,x,e)    -> rvars_e (Sv.add (L.unloc x) s) e
+  | Pget(_,x,e)    -> rvars_e (rvars_v x s) e
   | Pload(_,x,e)   -> rvars_e (Sv.add (L.unloc x) s) e
   | Papp1(_, e)    -> rvars_e s e
   | Papp2(_,e1,e2) -> rvars_e (rvars_e s e1) e2
@@ -380,10 +398,11 @@ let arr_size ws i = size_of_ws ws * i
 (* -------------------------------------------------------------------- *)
 (* Functions over variables                                             *)
 
-let is_stack_var v = v.v_kind = Stack
+let is_stack_var v = 
+  is_stack_kind v.v_kind 
 
 let is_reg_arr v =
-  v.v_kind = Reg && is_ty_arr v.v_ty
+  v.v_kind = Reg Direct && is_ty_arr v.v_ty
 
 (* -------------------------------------------------------------------- *)
 (* Functions over expressions                                           *)
@@ -410,7 +429,7 @@ let expr_of_lval = function
   | Lnone _         -> None
   | Lvar x          -> Some (Pvar (gkvar x))
   | Lmem (ws, x, e) -> Some (Pload(ws,x,e))
-  | Laset(ws, x, e) -> Some (Pget(ws,x,e))
+  | Laset(ws, x, e) -> Some (Pget(ws,gkvar x,e))
 
 (* -------------------------------------------------------------------- *)
 (* Functions over instruction                                           *)

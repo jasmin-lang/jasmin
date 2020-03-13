@@ -27,7 +27,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import Coq.Logic.Eqdep_dec.
-Require Import strings word utils type var expr low_memory.
+Require Import strings word utils type var expr low_memory sem.
 Require Import constant_prop compiler_util allocation.
 Require Import ZArith.
 
@@ -198,8 +198,6 @@ Definition find_gvar (gm:gmap) (mstk: Mvar.t alloc_pos) (x:gvar) :=
     | None     => None
     end.
 
-(* Definition vptr m (x:gvar) := if is_lvar x then vrsp m else vrip m. *)
-
 Definition vptr gm mp := 
   match mp with
   | MSglob => vrip gm
@@ -226,21 +224,21 @@ Fixpoint alloc_e (gm:gmap) (sm:smap) (e: pexpr) :=
     end
   | Pget ws x e1 =>
     Let e1 := alloc_e gm sm e1 in
-    match find_gvar gm sm (mk_lvar x) with 
+    match find_gvar gm sm x with 
     | Some mp =>
       let ofs := mp.(mp_ofs) in      
       if is_align (wrepr _ ofs) ws then
         let ptr :=
           if mp.(mp_id) is Some r then {| vname := r; vtype := sword Uptr|}
           else vptr gm mp.(mp_s) in
-        let x := {| v_var := ptr; v_info := x.(v_info) |} in
+        let x := {| v_var := ptr; v_info := x.(gv).(v_info) |} in
         
         let ofs := mk_ofs ws e1 (if mp.(mp_id) is None then mp.(mp_ofs) else 0) in
         ok (Pload ws x ofs)
       else not_aligned
     
     | None =>
-      Let _ := check_vfresh sm (mk_lvar x) in
+      Let _ := check_vfresh sm x in
       ok (Pget ws x e1)
     end
 
@@ -446,12 +444,48 @@ End LOOP.
 
 Section ALLOC.
 
+Variable ptrreg_of_reg : var -> var.
+
+Definition alloc_address (gm:gmap) (sm: smap) ii r e := 
+  match r with
+  | Lvar r  =>
+    if is_var e is Some x then
+      if subtype (vtype r) (vtype x.(gv)) then 
+        match find_gvar gm sm x with 
+        | Some mp =>
+          let xv := x.(gv) in
+          let ofs := mp.(mp_ofs) in
+          let r' := ptrreg_of_reg r in
+          let idr := r'.(vname) in
+          let ar := {| v_var := {| vname := idr; vtype := sword Uptr |}; v_info := r.(v_info) |} in
+          Let _ :=  add_iinfo ii (check_vfresh_lval gm ar) in 
+          let sm := {| 
+            mstk  := Mvar.set (Mvar_filter (keep_addrvar idr) sm.(mstk)) r (APreg idr mp.(mp_s) ofs);
+            meqon := Sv.remove r (Sv.remove ar sm.(meqon)); |} in
+          let i := 
+            if mp.(mp_id) is Some idx then
+              let ax := {| v_var := {| vname := idx; vtype := sword Uptr |}; v_info := r.(v_info) |} in
+              Cassgn (Lvar ar) AT_none (sword Uptr) (Pvar (mk_lvar ax))
+            else
+              let esp := Pvar (mk_lvar {| v_var := vptr gm mp.(mp_s); v_info := xv.(v_info) |}) in
+              Copn [::Lvar ar] AT_none (Ox86 (LEA Uptr)) [:: cast_const ofs; esp; cast_const 1; cast_const 0] in
+              ok (sm, i)
+        | None     => cierror ii (Cerr_stk_alloc "Not able to find the address")
+        end
+      else cierror ii (Cerr_stk_alloc "Not able to find the address: subtype")
+    else cierror ii (Cerr_stk_alloc "Not able to find the address: is_var")
+  | _ => cierror ii (Cerr_stk_alloc "the left part of assignement address is not a variable")
+  end.
+
 Fixpoint alloc_i (gm:gmap) (sm: smap) (i: instr) : result instr_error (smap * instr) :=
   let (ii, ir) := i in
   Let ir := 
     match ir with
     | Cassgn r t ty e => 
-      alloc_assgn gm sm ii r t ty e
+      if t == AT_address then
+        alloc_address gm sm ii r e  
+      else
+        alloc_assgn gm sm ii r t ty e
 
     | Copn rs t o e => 
       Let e  := add_iinfo ii (mapM (alloc_e gm sm) e) in
@@ -510,13 +544,13 @@ Definition with_body eft (fd:_fundef eft) body := {|
 
 Definition alloc_fd_aux
    rip mglob  
-   (stk_alloc_fd : ufun_decl -> bool -> Z * list (var * Z) * Z)
+   (stk_alloc_fd : ufun_decl -> bool -> (Z * list (var * Z) * Z) * (var -> var))
    (reg_alloc_fd : bool -> funname -> ufundef -> ufundef * list var * option var)
    (save_stack : bool)
    (f: ufun_decl) :=
   match f return result fun_error (option (ufundef * ufundef * stk_fun_extra)) with
   | (fn, fd) => 
-      let info := stk_alloc_fd f save_stack in
+      let (info,ptrreg_of_reg) := stk_alloc_fd f save_stack in
       let '(sz, sfd, stk_pos) := info in
       Let mstk := add_err_fun fn (init_map sz sfd) in
       let mstk := Mvar.map APmem mstk in
@@ -530,7 +564,7 @@ Definition alloc_fd_aux
           |} in
       
       Let sm1 := add_err_fun fn (foldM (check_lvar gm) sm0 fd.(f_params)) in
-      Let body := add_finfo fn fn (fmapM (alloc_i gm) sm1 fd.(f_body)) in
+      Let body := add_finfo fn fn (fmapM (alloc_i ptrreg_of_reg gm) sm1 fd.(f_body)) in
       if (nrsp != rip) && all (check_var body.1) fd.(f_res) then
         let fd1 := with_body fd body.2 in
         let '(fd2, to_save, oreg) := reg_alloc_fd (sz == 0) fn fd1 in
@@ -569,7 +603,7 @@ Definition check_reg_alloc p_extra fn (fd1 fd2:ufundef) f_extra :=
   ok (fn, fd2).
 
 Definition alloc_fd p_extra mglob 
-    (stk_alloc_fd : ufun_decl -> bool -> Z * list (var * Z) * Z)
+    stk_alloc_fd 
     (reg_alloc_fd : bool -> funname -> ufundef -> ufundef * list var * option var)
     (f: ufun_decl) :=
   let rip := p_extra.(sp_rip) in
@@ -597,6 +631,14 @@ Definition check_glob (m: Mvar.t Z) (data:seq u8) (gd:glob_decl) :=
       let s := Z.to_nat (wsize_size ws) in 
       (s <= size data) && 
       (LE.decode ws (take s data) == w)
+    | @Garr p t =>
+      let s := Z.to_nat p in
+      (s <= size data) &&
+      all (fun i => 
+             match WArray.get U8 t (Z.of_nat i) with
+             | Ok w => nth 0%R data i == w
+             | _    => false
+             end) (iota 0 s)
     end
   end.
 

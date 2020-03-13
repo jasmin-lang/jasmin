@@ -1,11 +1,11 @@
 export
-fn test_sum_u8(reg u64 ptr, reg u64 len) -> reg u8 {
+fn test_sum_u8(reg u64 ptr_, reg u64 len) -> reg u8 {
   reg u8 r;
   reg u64 off;
   r = 0;
   off = 0;
   while (off < len) {
-    r += (u8)[ptr + off];
+    r += (u8)[ptr_ + off];
     off += 1;
   }
   return r;
@@ -13,41 +13,41 @@ fn test_sum_u8(reg u64 ptr, reg u64 len) -> reg u8 {
 
 
 export
-fn test_xor_u16(reg u64 ptr, reg u64 len) -> reg u16 {
+fn test_xor_u16(reg u64 ptr_, reg u64 len) -> reg u16 {
   reg u16 r;
   reg u64 off;
   r = 0;
   off = 0;
   while (off < len) {
-    r ^= (u16)[ptr + off * 2];
+    r ^= (u16)[ptr_ + off * 2];
     off += 1;
   }
   return r;
 }
 
 export
-fn test_swap_u32(reg u64 ptr) -> reg u64 {
+fn test_swap_u32(reg u64 ptr_) -> reg u64 {
   reg u32[2] w;
   reg u64 z;
   inline int i;
   for i = 0 to 2 {
-    w[i] = (u32)[ptr + i * 4];
+    w[i] = (u32)[ptr_ + i * 4];
   }
   for i = 0 to 2 {
-    (u32)[ptr + (1 - i) * 4] = w[i];
+    (u32)[ptr_ + (1 - i) * 4] = w[i];
   }
   z = 0;
   return z;
 }
 
 export
-fn test_u128(reg u64 ptr) -> reg u64 {
+fn test_u128(reg u64 ptr_) -> reg u64 {
 reg u64 r;
 reg u128 t;
 r = 0;
 
-t = (u128)[ptr + 16 * 0];
-(u128)[ptr + 16 * 1] = t;
+t = (u128)[ptr_ + 16 * 0];
+(u128)[ptr_ + 16 * 1] = t;
 
 return r;
 }

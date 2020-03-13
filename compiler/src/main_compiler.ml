@@ -242,7 +242,9 @@ let main () =
 
 
     let lowering_vars = Lowering.(
-        let f ty n = Conv.fresh_cvar tbl n ty in
+        let f ty n = 
+          let v = V.mk n (Reg Direct) ty L._dummy in
+          Conv.cvar_of_var tbl v in
         let b = f tbool in
         { fresh_OF = (b "OF").vname
         ; fresh_CF = (b "CF").vname
@@ -261,6 +263,8 @@ let main () =
       let fd = trans fd in
       cufdef_of_fdef fd in
 
+    let translate_var = Conv.var_of_cvar tbl in
+
     let stk_alloc_fd cfd save_stack =
       if !debug then Format.eprintf "START stack allocation@." ;
       let fd = Conv.fdef_of_cufdef tbl cfd in
@@ -274,10 +278,21 @@ let main () =
       let p_stack = 
         if save_stack then saved.(0) else 0 in
       let p_stack = Conv.z_of_int p_stack in
-      (sz, alloc), p_stack 
+
+      let vtbl = Hv.create 100 in
+      let ptrreg_of_reg x = 
+        let x = translate_var x in
+        try Hv.find vtbl x 
+        with Not_found ->
+          let x' = V.mk x.v_name (Reg Direct) (tu uptr) x.v_dloc in
+          let x' = Conv.cvar_of_var tbl x' in
+          Hv.add vtbl x x';
+          x'
+      in
+      ((sz, alloc), p_stack), ptrreg_of_reg 
     in
 
-    let translate_var = Conv.var_of_cvar tbl in
+
 
     let regalloc_fd stack_needed fn cfd = 
       if !debug then Format.eprintf "START register allocation@." ;
@@ -287,7 +302,7 @@ let main () =
       let to_save = 
         List.map (Conv.cvar_of_var tbl) (Sv.elements to_save) in
       let stk = omap (Conv.cvar_of_var tbl) stk in
-      ((cfd,to_save),stk) in
+      (cfd,to_save),stk in
 
     let stk_alloc_gl p =
       let p = Conv.prog_of_cuprog tbl p in
@@ -300,10 +315,9 @@ let main () =
         List.map trans alloc in
       (data, rip_i), alloc in
 
-
     let is_var_in_memory cv : bool =
       let v = Conv.vari_of_cvari tbl cv |> L.unloc in
-      v.v_kind = Stack in
+      is_stack_kind v.v_kind in
 
     let pp_cuprog fmt cp =
       let p = Conv.prog_of_cuprog tbl cp in

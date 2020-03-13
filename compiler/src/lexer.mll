@@ -34,6 +34,7 @@
     "if"    , IF     ;
     "inline", INLINE ;
     "param" , PARAM  ;
+    "ptr"   , POINTER;
     "reg"   , REG    ;
     "return", RETURN ;
     "stack" , STACK  ;

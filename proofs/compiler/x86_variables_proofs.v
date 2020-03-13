@@ -99,7 +99,7 @@ Qed.
 
 Lemma gxgetflag_ex ii m rf (x:gvar) f v :
   eqflags m rf →
-  rflag_of_var ii x = ok f →
+  rflag_of_var ii x.(gv) = ok f →
   get_gvar [::] (evm m) x = ok v →
   value_uincl v (of_rbool (rf f)).
 Proof.
@@ -122,7 +122,7 @@ Qed.
 
 Corollary gxgetflag ii m rf (x:gvar) f v b :
   eqflags m rf →
-  rflag_of_var ii x = ok f →
+  rflag_of_var ii x.(gv) = ok f →
   get_gvar [::] (evm m) x = ok v →
   to_bool v = ok b →
   rf f = Def b.

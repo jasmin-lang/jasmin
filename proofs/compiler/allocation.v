@@ -1301,7 +1301,7 @@ Module CBAreg.
       if n1 == n2 then cok m else err tt
     | Pvar   x1, Pvar   x2 => check_gv err x1 x2 m
     | Pget w1 x1 e1, Pget w2 x2 e2 =>
-      if w1 == w2 then check_v x1 x2 m >>= check_e e1 e2 else err tt
+      if w1 == w2 then check_gv err x1 x2 m >>= check_e e1 e2 else err tt
     | Pload w1 x1 e1, Pload w2 x2 e2 =>
       if w1 == w2 then check_v x1 x2 m >>= check_e e1 e2 else err tt
     | Papp1 o1 e1, Papp1 o2 e2 =>
@@ -1479,9 +1479,9 @@ Module CBAreg.
     - move => sz1 x1 e1 He1 [] // sz2 x2 e2 r re vm1.
       case: eqP => // ?; subst sz2.
       apply: rbindP => r' Hcv Hce Hea.
-      have [Hea' Hget]:= check_vP Hcv Hea.
+      have [Hea' Hget]:= check_gvP gd Hcv Hea.
       have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= m v1.
-      apply: on_arr_varP => n t Heqt /Hget [v2 []].
+      apply: on_arr_gvarP => n t Heqt /Hget [v2 []].
       rewrite /on_arr_var; case: v2 => //= n' t' -> Ht.
       apply: rbindP => w;apply: rbindP => ve /Hse1 [v2 [-> U2 Hto]].
       have [_ -> /=]:= value_uincl_int U2 Hto.

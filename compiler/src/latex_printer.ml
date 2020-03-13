@@ -86,6 +86,7 @@ let pp_op2 fmt =
   | `Gt s -> f s ">"
   | `Ge s -> f s ">="
   | `Raw -> ret ""
+  | `Adr -> assert false
 
 type prio =
   | Pmin
@@ -182,11 +183,16 @@ and pp_type fmt ty =
 and pp_ws fmt w = F.fprintf fmt "%a" ptype (string_of_wsize w)
 and pp_expr fmt e = pp_expr_rec Pmin fmt e
 
+let pp_pointer = function
+  | `Pointer -> " ptr"
+  | `Direct  -> ""
+  
+  
 let pp_storage fmt s =
   latex "storageclass" fmt
     (match s with
-     | `Reg -> "reg"
-     | `Stack -> "stack"
+     | `Reg ptr -> "reg" ^ (pp_pointer ptr)
+     | `Stack ptr -> "stack" ^ (pp_pointer ptr)
      | `Inline -> "inline"
      | `Global -> "global")
 
@@ -230,7 +236,9 @@ let pp_lv fmt x =
   | PLMem me -> pp_mem_access fmt me 
 
 let pp_eqop fmt op =
-  F.fprintf fmt "%a=" pp_op2 op
+  match op with
+  | `Adr -> F.fprintf fmt "=&"
+  | _ -> F.fprintf fmt "%a=" pp_op2 op
 
 let pp_sidecond fmt =
   F.fprintf fmt " %a %a" kw "if" pp_expr

@@ -27,7 +27,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import xseq.
-Require Export xseq ZArith strings word utils var type.
+Require Export xseq ZArith strings word utils var type warray_.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -39,7 +39,7 @@ Local Unset Elimination Schemes.
 
 Variant glob_value := 
   | Gword : forall (ws:wsize), word ws -> glob_value
-  (* | Garr  : forall (p:positive), WArray.array p -> glob_value *).
+  | Garr  : forall (p:positive), WArray.array p -> glob_value.
 
 (* ---------------------------------------------------------------------- *)
 

@@ -1957,13 +1957,13 @@ Section PROOF.
         es = [:: x ; y ; b ] ∧
         ((b = Pbool false ∧ vi = var_info_of_lval r ∧ op = (if sub then SUB else ADD) ∧ es' = [:: x ; y ])
          ∨
-         (∃ cfi, b = Pvar cfi ∧ vi = v_info cfi ∧ op = (if sub then SBB else ADC) ∧ es' = es))
+         (∃ cfi, b = Plvar cfi ∧ vi = v_info cfi ∧ op = (if sub then SBB else ADC) ∧ es' = es))
     else True.
   Proof. clear.
     case xs => // cf [] // r [] //.
     case es => // x [] // y [] // [] //.
-    by move => [] // [] //=; eauto 10.
-    by move=> cfi [] //=; eauto 11.
+    + by move => [] // [] //=; eauto 10.
+    by rewrite /Plvar /mk_lvar => -[cfi []] // [] //=; eauto 11.
   Qed.
 
   Lemma lower_addcarry_correct ii si so si' sub sz xs t es x v :

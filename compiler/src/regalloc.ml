@@ -12,7 +12,7 @@ let fill_in_missing_names (f: 'info func) : 'info func =
     fun loc ty ->
       let n = Printf.sprintf " _%d" !count in
       incr count;
-      L.mk_loc loc (V.mk n Reg ty L._dummy)
+      L.mk_loc loc (V.mk n (Reg Direct) ty L._dummy)
   in
   let fill_lv =
     function
@@ -252,7 +252,7 @@ let collect_variables (allvars: bool) (excluded:Sv.t) (f: 'info func) : int Hv.t
   let tbl : int Hv.t = Hv.create 97 in
   (* Remove sp and rip *)
   let get (v: var) : unit =
-    if allvars || (v.v_kind = Reg && not (Sv.mem v excluded)) then
+    if allvars || (is_reg_kind v.v_kind && not (Sv.mem v excluded)) then
     if not (Hv.mem tbl v)
     then
       let n = fresh () in
@@ -306,39 +306,41 @@ let conflicting_registers (i: int) (cnf: conflicts) (a: allocation) : var option
 module X64 =
 struct
 
-  let rax = V.mk "RAX" Reg (Bty (U U64)) L._dummy
-  let rbx = V.mk "RBX" Reg (Bty (U U64)) L._dummy
-  let rcx = V.mk "RCX" Reg (Bty (U U64)) L._dummy
-  let rdx = V.mk "RDX" Reg (Bty (U U64)) L._dummy
-  let rsp = V.mk "RSP" Reg (Bty (U U64)) L._dummy
-  let rbp = V.mk "RBP" Reg (Bty (U U64)) L._dummy
-  let rsi = V.mk "RSI" Reg (Bty (U U64)) L._dummy
-  let rdi = V.mk "RDI" Reg (Bty (U U64)) L._dummy
-  let r8 = V.mk "R8" Reg (Bty (U U64)) L._dummy
-  let r9 = V.mk "R9" Reg (Bty (U U64)) L._dummy
-  let r10 = V.mk "R10" Reg (Bty (U U64)) L._dummy
-  let r11 = V.mk "R11" Reg (Bty (U U64)) L._dummy
-  let r12 = V.mk "R12" Reg (Bty (U U64)) L._dummy
-  let r13 = V.mk "R13" Reg (Bty (U U64)) L._dummy
-  let r14 = V.mk "R14" Reg (Bty (U U64)) L._dummy
-  let r15 = V.mk "R15" Reg (Bty (U U64)) L._dummy
+  let reg_k = Prog.Reg Prog.Direct
 
-  let xmm0 = V.mk "XMM0" Reg (Bty (U U256)) L._dummy
-  let xmm1 = V.mk "XMM1" Reg (Bty (U U256)) L._dummy
-  let xmm2 = V.mk "XMM2" Reg (Bty (U U256)) L._dummy
-  let xmm3 = V.mk "XMM3" Reg (Bty (U U256)) L._dummy
-  let xmm4 = V.mk "XMM4" Reg (Bty (U U256)) L._dummy
-  let xmm5 = V.mk "XMM5" Reg (Bty (U U256)) L._dummy
-  let xmm6 = V.mk "XMM6" Reg (Bty (U U256)) L._dummy
-  let xmm7 = V.mk "XMM7" Reg (Bty (U U256)) L._dummy
-  let xmm8 = V.mk "XMM8" Reg (Bty (U U256)) L._dummy
-  let xmm9 = V.mk "XMM9" Reg (Bty (U U256)) L._dummy
-  let xmm10 = V.mk "XMM10" Reg (Bty (U U256)) L._dummy
-  let xmm11 = V.mk "XMM11" Reg (Bty (U U256)) L._dummy
-  let xmm12 = V.mk "XMM12" Reg (Bty (U U256)) L._dummy
-  let xmm13 = V.mk "XMM13" Reg (Bty (U U256)) L._dummy
-  let xmm14 = V.mk "XMM14" Reg (Bty (U U256)) L._dummy
-  let xmm15 = V.mk "XMM15" Reg (Bty (U U256)) L._dummy
+  let rax = V.mk "RAX" reg_k (Bty (U U64)) L._dummy
+  let rbx = V.mk "RBX" reg_k (Bty (U U64)) L._dummy
+  let rcx = V.mk "RCX" reg_k (Bty (U U64)) L._dummy
+  let rdx = V.mk "RDX" reg_k (Bty (U U64)) L._dummy
+  let rsp = V.mk "RSP" reg_k (Bty (U U64)) L._dummy
+  let rbp = V.mk "RBP" reg_k (Bty (U U64)) L._dummy
+  let rsi = V.mk "RSI" reg_k (Bty (U U64)) L._dummy
+  let rdi = V.mk "RDI" reg_k (Bty (U U64)) L._dummy
+  let r8 = V.mk "R8" reg_k (Bty (U U64)) L._dummy
+  let r9 = V.mk "R9" reg_k (Bty (U U64)) L._dummy
+  let r10 = V.mk "R10" reg_k (Bty (U U64)) L._dummy
+  let r11 = V.mk "R11" reg_k (Bty (U U64)) L._dummy
+  let r12 = V.mk "R12" reg_k (Bty (U U64)) L._dummy
+  let r13 = V.mk "R13" reg_k (Bty (U U64)) L._dummy
+  let r14 = V.mk "R14" reg_k (Bty (U U64)) L._dummy
+  let r15 = V.mk "R15" reg_k (Bty (U U64)) L._dummy
+
+  let xmm0 = V.mk "XMM0" reg_k (Bty (U U256)) L._dummy
+  let xmm1 = V.mk "XMM1" reg_k (Bty (U U256)) L._dummy
+  let xmm2 = V.mk "XMM2" reg_k (Bty (U U256)) L._dummy
+  let xmm3 = V.mk "XMM3" reg_k (Bty (U U256)) L._dummy
+  let xmm4 = V.mk "XMM4" reg_k (Bty (U U256)) L._dummy
+  let xmm5 = V.mk "XMM5" reg_k (Bty (U U256)) L._dummy
+  let xmm6 = V.mk "XMM6" reg_k (Bty (U U256)) L._dummy
+  let xmm7 = V.mk "XMM7" reg_k (Bty (U U256)) L._dummy
+  let xmm8 = V.mk "XMM8" reg_k (Bty (U U256)) L._dummy
+  let xmm9 = V.mk "XMM9" reg_k (Bty (U U256)) L._dummy
+  let xmm10 = V.mk "XMM10" reg_k (Bty (U U256)) L._dummy
+  let xmm11 = V.mk "XMM11" reg_k (Bty (U U256)) L._dummy
+  let xmm12 = V.mk "XMM12" reg_k (Bty (U U256)) L._dummy
+  let xmm13 = V.mk "XMM13" reg_k (Bty (U U256)) L._dummy
+  let xmm14 = V.mk "XMM14" reg_k (Bty (U U256)) L._dummy
+  let xmm15 = V.mk "XMM15" reg_k (Bty (U U256)) L._dummy
 
   let allocatable = [
       rax; rcx; rdx;
@@ -381,12 +383,12 @@ struct
      of jasmin program *)
   let callee_save = Sv.of_list [ rbp; rbx; r12; r13; r14; r15 ]
   
-  let f_c = V.mk "CF" Reg (Bty Bool) L._dummy
-  let f_d = V.mk "DF" Reg (Bty Bool) L._dummy
-  let f_o = V.mk "OF" Reg (Bty Bool) L._dummy
-  let f_p = V.mk "PF" Reg (Bty Bool) L._dummy
-  let f_s = V.mk "SF" Reg (Bty Bool) L._dummy
-  let f_z = V.mk "ZF" Reg (Bty Bool) L._dummy
+  let f_c = V.mk "CF" reg_k (Bty Bool) L._dummy
+  let f_d = V.mk "DF" reg_k (Bty Bool) L._dummy
+  let f_o = V.mk "OF" reg_k (Bty Bool) L._dummy
+  let f_p = V.mk "PF" reg_k (Bty Bool) L._dummy
+  let f_s = V.mk "SF" reg_k (Bty Bool) L._dummy
+  let f_z = V.mk "ZF" reg_k (Bty Bool) L._dummy
 
   let flags = [f_c; f_d; f_o; f_p; f_s; f_z]
 

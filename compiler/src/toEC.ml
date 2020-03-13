@@ -522,8 +522,9 @@ let rec pp_expr env fmt (e:expr) =
     pp_ovar env fmt (L.unloc x.gv)
 
   | Pget(ws, x, e) -> 
-    assert (check_array env x);
+    assert (check_array env x.gv);
     let pp fmt (x,e) = 
+      let x = x.gv in
       let x = L.unloc x in
       let (xws,n) = array_kind x.v_ty in
       if ws = xws then
@@ -532,7 +533,7 @@ let rec pp_expr env fmt (e:expr) =
         Format.fprintf fmt "@[(get%i@ %a@ %a)@]" 
           (int_of_ws ws) (pp_initi env) (x, n, xws) (pp_expr env) e in
     let option = 
-      for_safety env &&  snd (Mv.find (L.unloc x) env.vars) in
+      for_safety env &&  snd (Mv.find (L.unloc x.gv) env.vars) in
     pp_oget option pp fmt (x,e)
 
   | Pload (sz, x, e) -> 
@@ -818,6 +819,7 @@ module Leak = struct
       is_init env x (Valid (ws, snd (add64 (gkvar x) e)) :: safe_e_rec env safe e)
     | Papp1 (_, e) -> safe_e_rec env safe e
     | Pget (ws, x, e) -> 
+      let x = x.gv in
       let safe = 
         let (_s,option) = Mv.find (L.unloc x) env.vars in
         if option then Initai(ws, L.unloc x, e) :: safe 
@@ -1080,6 +1082,15 @@ let pp_glob_decl env fmt (x,d) =
   | Global.Gword(ws, w) -> 
     Format.fprintf fmt "@[abbrev %a = %a.of_int %a.@]@ "
       (pp_var env) x pp_Tsz ws B.pp_print (Conv.bi_of_word ws w)
+  | Global.Garr(p,t) ->
+    let wz, t = Conv.to_array x.v_ty p t in
+    let pp_elem fmt z = 
+      Format.fprintf fmt "%a.of_int %a" pp_Tsz wz B.pp_print z in
+    Format.fprintf fmt "@[abbrev %a = Array%i.of_list witness [%a].@]@ "
+       (pp_var env) x (Array.length t) 
+       (pp_list ";@ " pp_elem) (Array.to_list t)
+
+
 
 let add_arrsz env f = 
   let add_sz x sz = 

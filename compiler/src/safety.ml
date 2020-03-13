@@ -158,7 +158,7 @@ end = struct
   and mk_expr fn expr = match expr with
     | Pconst _ | Pbool _ | Parr_init _ -> expr
     | Pvar v -> Pvar (mk_gv fn v)
-    | Pget (ws, v, e) -> Pget (ws, mk_v_loc fn v, mk_expr fn e)
+    | Pget (ws, v, e) -> Pget (ws, mk_gv fn v, mk_expr fn e)
     | Pload (ws, v, e) -> Pload (ws, mk_v_loc fn v, mk_expr fn e)
     | Papp1 (op, e) -> Papp1 (op, mk_expr fn e)
     | Papp2 (op, e1, e2) -> Papp2 (op, mk_expr fn e1, mk_expr fn e2)
@@ -284,7 +284,7 @@ let string_of_mvar = function
 let pp_mvar fmt v = Format.fprintf fmt "%s" (string_of_mvar v)
 
 let dummy_mvar = Mvalue (Avar (V.mk "__absint_empty_env"
-                                 Reg (Bty (U U8)) (L._dummy)))
+                                 (Reg Direct) (Bty (U U8)) (L._dummy)))
 
 
 let svariables_ignore vs =
@@ -365,8 +365,7 @@ let rec expand_arr_exprs = function
   | [] -> []
   | Pvar v :: t -> begin match (L.unloc v.gv).v_ty with
       | Arr (ws, n) ->
-        assert (is_gkvar v); (* Not global array *)
-        List.init n (fun i -> Pget (ws, v.gv, Pconst (B.of_int i)))
+        List.init n (fun i -> Pget (ws, v, Pconst (B.of_int i)))
         @ expand_arr_exprs t
       | _ -> Pvar v :: expand_arr_exprs t end
   | h :: t -> h :: expand_arr_exprs t
@@ -3484,10 +3483,10 @@ let rec safe_e_rec safe = function
   | Pload (ws,x,e) -> Valid (ws, L.unloc x, e) :: safe_e_rec safe e
   | Pget (ws, x, e) -> 
     let safe = 
-   (*   if is_gkvar x then *)
-        Initai(L.unloc x, ws, e) :: safe
-   (*   else safe *) in
-    in_bound x ws e :: safe
+      if is_gkvar x then 
+        Initai(L.unloc x.gv, ws, e) :: safe
+      else safe  in
+    in_bound x.gv ws e :: safe
   | Papp1 (_, e) -> safe_e_rec safe e
   | Papp2 (op, e1, e2) -> safe_op2 e2 op @ safe_e_rec (safe_e_rec safe e1) e2
   | PappN (E.Opack _,_) -> safe
@@ -3813,7 +3812,7 @@ end = struct
 
       | Pvar x -> mvar_of_var (L.unloc x.gv) :: acc
       | Pget(ws,x,ei) ->
-        (abs_arr_range abs (L.unloc x) ws ei
+        (abs_arr_range abs (L.unloc x.gv) ws ei
          |> List.map (fun x -> Mvalue x))
         @ acc
 
@@ -3922,7 +3921,7 @@ end = struct
           raise (Binop_not_supported op2) end
 
     | Pget(ws,x,ei) ->
-      begin match abs_arr_range abs (L.unloc x) ws ei with
+      begin match abs_arr_range abs (L.unloc x.gv) ws ei with
         | [] -> assert false
         | [at] ->
           let lin = Mtexpr.var apr_env (Mvalue at) in
@@ -4194,12 +4193,13 @@ end = struct
         let env = AbsDom.get_env abs in
         let sexpr = mtexpr_of_bigint env i |> sexpr_from_simple_expr in
         AbsDom.assign_sexpr abs (Mvalue (Avar x)) sexpr
-      (*| `GArray(ws, es) ->
+      | Global.Garr(p,t) -> 
+        let ws, es = Conv.to_array x.v_ty p t in
         let add abs i e =
           let env = AbsDom.get_env abs in
           let sexpr = mtexpr_of_bigint env e |> sexpr_from_simple_expr in
           AbsDom.assign_sexpr abs (Mvalue(AarrayEl(x,ws,i))) sexpr in
-        List.fold_lefti add abs (Array.to_list es)*)) 
+        List.fold_lefti add abs (Array.to_list es)) 
       abs globs
 
   let init_state : unit func -> unit prog -> astate =

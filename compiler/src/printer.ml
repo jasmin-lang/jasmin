@@ -114,7 +114,7 @@ let pp_ge pp_var =
   | Pbool  b    -> F.fprintf fmt "%b" b
   | Parr_init n -> F.fprintf fmt "array_init(%a)" B.pp_print n
   | Pvar v      -> pp_gvar fmt v
-  | Pget(ws,x,e)   -> F.fprintf fmt "%a[%a %a]"  pp_btype (U ws) pp_var_i x pp_expr e
+  | Pget(ws,x,e)   -> F.fprintf fmt "%a[%a %a]"  pp_btype (U ws) pp_gvar x pp_expr e
   | Pload(ws,x,e) ->
     F.fprintf fmt "@[(load %a@ %a@ %a)@]"
       pp_btype (U ws) pp_var_i x pp_expr e
@@ -158,11 +158,12 @@ let pp_opn o =
 
 (* -------------------------------------------------------------------- *)
 let pp_tag = function
-  | AT_none    -> ""
-  | AT_keep    -> ":k"
-  | AT_rename  -> ":r"
-  | AT_inline  -> ":i"
-  | AT_phinode -> ":φ"
+  | AT_none    -> "="
+  | AT_keep    -> ":k="
+  | AT_rename  -> ":r="
+  | AT_inline  -> ":i="
+  | AT_phinode -> ":φ="
+  | AT_address -> "=&"
 
 let pp_align fmt = function 
   | E.Align -> Format.fprintf fmt "align "
@@ -172,7 +173,7 @@ let rec pp_gi pp_info pp_ty pp_var fmt i =
   F.fprintf fmt "%a" pp_info i.i_info;
   match i.i_desc with
   | Cassgn(x , tg, ty, e) ->
-    F.fprintf fmt "@[<hov 2>%a %s=(%a)@ %a;@]"
+    F.fprintf fmt "@[<hov 2>%a %s(%a)@ %a;@]"
       (pp_glv pp_var) x (pp_tag tg)
       pp_ty ty
       (pp_ge pp_var) e
@@ -228,12 +229,16 @@ and pp_cblock pp_info pp_ty pp_var fmt c =
 
 (* -------------------------------------------------------------------- *)
 
+let pp_pointer fmt = function
+  | Direct  -> ()
+  | Pointer -> Format.fprintf fmt " ptr"
+
 let pp_kind fmt = function
-  | Const  ->  F.fprintf fmt "Const"
-  | Stack  ->  F.fprintf fmt "Stack"
-  | Reg    ->  F.fprintf fmt "Reg"
-  | Inline ->  F.fprintf fmt "Inline"
-  | Global ->  F.fprintf fmt "Global" 
+  | Const     ->  F.fprintf fmt "Const"
+  | Stack ptr ->  F.fprintf fmt "Stack%a" pp_pointer ptr
+  | Reg   ptr ->  F.fprintf fmt "Reg%a" pp_pointer ptr
+  | Inline    ->  F.fprintf fmt "Inline"
+  | Global    ->  F.fprintf fmt "Global" 
 
 let pp_ty_decl (pp_size:F.formatter -> 'size -> unit) fmt v =
   F.fprintf fmt "%a %a" pp_kind v.v_kind (pp_gtype pp_size) v.v_ty
@@ -243,7 +248,6 @@ let pp_var_decl pp_var pp_size fmt v =
 
 let pp_gfun pp_info (pp_size:F.formatter -> 'size -> unit) pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_size in
-(*  let locals = locals fd in *)
   let ret = List.map L.unloc fd.f_ret in
   let pp_ret fmt () =
     F.fprintf fmt "return @[(%a)@];"
@@ -253,7 +257,6 @@ let pp_gfun pp_info (pp_size:F.formatter -> 'size -> unit) pp_var fmt fd =
    fd.f_name.fn_name
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_size)) ret
-(*   (pp_list ";@ " pp_vd) (Sv.elements locals) *)
    (pp_gc pp_info (pp_gtype pp_size) pp_var) fd.f_body
    pp_ret ()
 
@@ -355,10 +358,11 @@ let pp_glob pp_var fmt (x, gd) =
     match gd with
     | Global.Gword(ws,w) -> 
       Format.fprintf fmt "%a" Bigint.pp_print_X (Conv.bi_of_word ws w) 
-(*    | `GArray(_ws, t) ->
+    | Global.Garr(p, t) ->
+      let _, t = Conv.to_array x.v_ty p t in
       Format.fprintf fmt "@[{%a};@]"
         (pp_list ",@ " Bigint.pp_print_X) 
-        (Array.to_list t) *) in
+        (Array.to_list t)  in
   Format.fprintf fmt "@[%a =@ %a;@]"
     pp_vd x pp_gd gd
 

@@ -83,7 +83,7 @@ Record compiler_params := {
   is_var_in_memory : var_i → bool;
   stk_alloc_gl     : _uprog → seq u8 * Ident.ident * seq (var * Z);
   stk_pointer_name : Ident.ident;
-  stk_alloc_fd     : _ufun_decl -> bool -> Z * list (var * Z) * Z;
+  stk_alloc_fd     : _ufun_decl -> bool -> (Z * list (var * Z) * Z) * (var -> var);
   reg_alloc_fd     : bool -> funname -> _ufundef -> _ufundef * list var * option var;
   print_uprog      : compiler_step -> _uprog -> _uprog;
   print_sprog      : compiler_step -> _sprog -> _sprog;

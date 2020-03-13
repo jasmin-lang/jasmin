@@ -303,7 +303,7 @@ Definition rflag_of_var ii (v: var) :=
 Definition assemble_cond ii (e: pexpr) : ciexec condt :=
   match e with
   | Pvar v =>
-    Let r := rflag_of_var ii v in
+    Let r := rflag_of_var ii v.(gv) in
     match r with
     | OF => ok O_ct
     | CF => ok B_ct
@@ -314,7 +314,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     end
 
   | Papp1 Onot (Pvar v) =>
-    Let r := rflag_of_var ii v in
+    Let r := rflag_of_var ii v.(gv) in
     match r with
     | OF => ok NO_ct
     | CF => ok NB_ct
@@ -325,41 +325,41 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     end
 
   | Papp2 Oor (Pvar vcf) (Pvar vzf) =>
-    Let rcf := rflag_of_var ii vcf in
-    Let rzf := rflag_of_var ii vzf in
+    Let rcf := rflag_of_var ii vcf.(gv) in
+    Let rzf := rflag_of_var ii vzf.(gv) in
     if ((rcf == CF) && (rzf == ZF)) then
       ok BE_ct
     else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (BE)"))
 
   | Papp2 Oand (Papp1 Onot (Pvar vcf)) (Papp1 Onot (Pvar vzf)) =>
-    Let rcf := rflag_of_var ii vcf in
-    Let rzf := rflag_of_var ii vzf in
+    Let rcf := rflag_of_var ii vcf.(gv) in
+    Let rzf := rflag_of_var ii vzf.(gv) in
     if ((rcf == CF) && (rzf == ZF)) then
       ok NBE_ct
     else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NBE)"))
 
   | Pif _ (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2) =>
-    Let rsf := rflag_of_var ii vsf in
-    Let rof1 := rflag_of_var ii vof1 in
-    Let rof2 := rflag_of_var ii vof2 in
+    Let rsf := rflag_of_var ii vsf.(gv) in
+    Let rof1 := rflag_of_var ii vof1.(gv) in
+    Let rof2 := rflag_of_var ii vof2.(gv) in
     if ((rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok L_ct
     else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (L)"))
 
   | Pif _ (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2)) =>
-    Let rsf := rflag_of_var ii vsf in
-    Let rof1 := rflag_of_var ii vof1 in
-    Let rof2 := rflag_of_var ii vof2 in
+    Let rsf := rflag_of_var ii vsf.(gv) in
+    Let rof1 := rflag_of_var ii vof1.(gv) in
+    Let rof2 := rflag_of_var ii vof2.(gv) in
     if ((rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok NL_ct
     else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NL)"))
 
   | Papp2 Oor (Pvar vzf)
           (Pif _ (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2)) =>
-    Let rzf := rflag_of_var ii vzf in
-    Let rsf := rflag_of_var ii vsf in
-    Let rof1 := rflag_of_var ii vof1 in
-    Let rof2 := rflag_of_var ii vof2 in
+    Let rzf := rflag_of_var ii vzf.(gv) in
+    Let rsf := rflag_of_var ii vsf.(gv) in
+    Let rof1 := rflag_of_var ii vof1.(gv) in
+    Let rof2 := rflag_of_var ii vof2.(gv) in
     if ((rzf == ZF) && (rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok LE_ct
     else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (LE)"))
@@ -367,10 +367,10 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
   | Papp2 Oand
              (Papp1 Onot (Pvar vzf))
              (Pif _ (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2))) =>
-    Let rzf := rflag_of_var ii vzf in
-    Let rsf := rflag_of_var ii vsf in
-    Let rof1 := rflag_of_var ii vof1 in
-    Let rof2 := rflag_of_var ii vof2 in
+    Let rzf := rflag_of_var ii vzf.(gv) in
+    Let rsf := rflag_of_var ii vsf.(gv) in
+    Let rof1 := rflag_of_var ii vof1.(gv) in
+    Let rof2 := rflag_of_var ii vof2.(gv) in
     if ((rzf == ZF) && (rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok NLE_ct
     else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NLE)"))

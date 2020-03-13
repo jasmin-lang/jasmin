@@ -11,7 +11,7 @@ let fresh_name (m: names) (x: var) : var * names =
 
 let rename_lval (allvars: bool) ((m, xs): names * lval list) : lval -> names * lval list =
   function
-  | Lvar x when allvars || (L.unloc x).v_kind = Reg ->
+  | Lvar x when allvars || is_reg_kind (L.unloc x).v_kind ->
     let y, m = fresh_name m (L.unloc x) in
     m, Lvar (L.mk_loc (L.loc x) y) :: xs
   | x -> m, Subst.vsubst_lval m x :: xs
@@ -22,7 +22,7 @@ let rename_lvals allvars (m: names) (xs: lval list) : names * lval list =
 
 let written_vars_lvar allvars (w: Sv.t) =
   function
-  | Lvar x when allvars || (L.unloc x).v_kind = Reg ->
+  | Lvar x when allvars || is_reg_kind (L.unloc x).v_kind ->
     Sv.add (L.unloc x) w
   | _ -> w
 

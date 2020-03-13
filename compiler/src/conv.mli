@@ -60,5 +60,6 @@ val fdef_of_csfdef : 'info coq_tbl -> BinNums.positive * Expr._sfundef -> 'info 
 
 val prog_of_csprog : 'info coq_tbl -> Expr._sprog -> 'info sprog
 
-val fresh_cvar : 'info coq_tbl -> string -> ty -> Var0.Var.var
+val to_array : 
+  Prog.ty -> BinNums.positive -> Warray_.WArray.array -> wsize * Prog.B.zint array
 

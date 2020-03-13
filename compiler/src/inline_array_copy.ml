@@ -3,20 +3,22 @@ open Prog
 
 module L = Location
 
-let is_array_copy (x:lval) e =
-  match x with
-  | Lvar z ->
-    begin match (L.unloc z).v_ty with
-    | Arr (ws, n) ->
-      begin match e with
-      | Pvar y -> 
-        assert (is_gkvar y);
-        Some (z, ws, n, y.gv)
+let is_array_copy (x:lval) kind e =
+  if kind = AT_address then None
+  else
+    match x with
+    | Lvar z ->
+      begin match (L.unloc z).v_ty with
+      | Arr (ws, n) ->
+        begin match e with
+        | Pvar y -> 
+          assert (is_gkvar y);
+          Some (z, ws, n, y)
+        | _ -> None
+        end
       | _ -> None
       end
     | _ -> None
-    end
-  | _ -> None
 
 let array_copy z ws n y =
   let i = gkvar (L.mk_loc (L.loc z) (V.mk "i" Inline (Bty Int) (L.loc z))) in
@@ -31,8 +33,8 @@ let rec iac_stmt is = List.map iac_instr is
 and iac_instr i = { i with i_desc = iac_instr_r i.i_desc }
 and iac_instr_r ir =
   match ir with
-  | Cassgn (x, _, _, e) ->
-    begin match is_array_copy x e with
+  | Cassgn (x, k, _, e) ->
+    begin match is_array_copy x k e with
     | None -> ir
     | Some (z, ws, n, y) -> array_copy z ws n y
     end

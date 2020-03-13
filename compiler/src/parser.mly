@@ -55,6 +55,7 @@
 %token PIPE
 %token PIPEPIPE
 %token PLUS
+%token POINTER
 %token QUESTIONMARK
 %token RARROW
 %token REG
@@ -229,6 +230,7 @@ pexpr:
 (* -------------------------------------------------------------------- *)
 peqop:
 |                EQ  { `Raw    }
+| EQ AMP             { `Adr    }
 | PLUS  c=castop EQ  { `Add  c }
 | MINUS c=castop EQ  { `Sub  c }
 | STAR  c=castop EQ  { `Mul  c }
@@ -304,11 +306,14 @@ pblock:
 stor_type:
 | sto=storage ty=ptype { (sto, ty) }
 
+ptr:
+| o=POINTER? { if o = None then `Direct else `Pointer}
+
 storage:
-| REG    { `Reg    }
-| STACK  { `Stack  }
-| INLINE { `Inline }
-| GLOBAL { `Global }
+| REG    ptr=ptr { `Reg ptr}
+| STACK  ptr=ptr { `Stack ptr }
+| INLINE         { `Inline }
+| GLOBAL         { `Global }
 
 %inline pvardecl(S):
 | ty=stor_type vs=separated_nonempty_list(S, var) { (ty, vs) }

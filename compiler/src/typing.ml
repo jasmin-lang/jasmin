@@ -38,6 +38,7 @@ type tyerror =
   | InvalidCast         of P.pty pair
   | InvalidGlobal       of S.symbol
   | InvalidTypeForGlobal of P.pty
+  | NotAPointer          of P.pty P.glval
   | GlobArrayNotWord    
   | GlobWordNotArray
   | EqOpWithNoLValue
@@ -99,6 +100,10 @@ let pp_tyerror fmt (code : tyerror) =
   | InvalidTypeForGlobal ty ->
       F.fprintf fmt "globals should have type word; found: ‘%a’"
         Printer.pp_ptype ty
+
+  | NotAPointer x -> 
+    F.fprintf fmt "The variable %a should be a pointer"
+      Printer. pp_plval x
 
   | GlobArrayNotWord ->
     F.fprintf fmt "the definition is an array and not a word"
@@ -269,12 +274,17 @@ let tt_ws (ws : S.wsize) =
   | `W256 -> W.U256
 
 (* -------------------------------------------------------------------- *)
+let tt_pointer (p:S.ptr) : P.pointer = 
+  match p with
+  | `Pointer -> P.Pointer
+  | `Direct  -> P.Direct
+
 let tt_sto (sto : S.pstorage) : P.v_kind =
   match sto with
-  | `Inline -> P.Inline
-  | `Reg    -> P.Reg
-  | `Stack  -> P.Stack
-  | `Global -> P.Global
+  | `Inline  -> P.Inline
+  | `Reg   p -> P.Reg (tt_pointer p)
+  | `Stack p -> P.Stack (tt_pointer p)
+  | `Global  -> P.Global
 
 type tt_mode = [
   | `AllVar
@@ -609,6 +619,7 @@ let op1_of_pop1 exn ty (op: S.peop1) =
 let peop2_of_eqop (eqop : S.peqop) =
   match eqop with
   | `Raw    -> None
+  | `Adr    -> assert false
   | `Add  s -> Some (`Add s)
   | `Sub  s -> Some (`Sub s)
   | `Mul  s -> Some (`Mul s)
@@ -732,13 +743,13 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     P.Pload (ct, x, e), P.Bty (P.U ct)
 
   | S.PEGet (ws, ({ L.pl_loc = xlc } as x), pi) ->
-    let x  = tt_var mode env x in
-    let ty = tt_as_array (xlc, x.P.v_ty) in
+    let x, ty = tt_var_global mode env x in
+    let ty = tt_as_array (xlc, ty) in
     let ws = omap_dfl tt_ws (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
     let i,ity  = tt_expr ~mode env pi in
     check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
-    P.Pget (ws, L.mk_loc xlc x, i), ty
+    P.Pget (ws, x, i), ty
 
   | S.PEOp1 (op, pe) ->
     let e, ety = tt_expr ~mode env pe in
@@ -1142,7 +1153,7 @@ let check_call loc doInline lvs f es =
       
       | P.Global -> ()
 
-      | (P.Stack | P.Reg ) as k ->
+      | (P.Stack _ | P.Reg _ ) as k ->
         match e with
         | Pvar z -> if P.kind_i z.P.gv <> k then rs_tyerror ~loc (BadVariableKind(z.P.gv, k))
         | _      -> () in
@@ -1181,7 +1192,12 @@ let check_call loc doInline lvs f es =
           P.L.pp_loc loc Printer.pp_plval l
     in
     List.iter2 check_res f.P.f_ret lvs
-    
+ 
+let check_lval_pointer loc x =  
+  match x with
+  | P.Lvar x when P.is_ptr (L.unloc x).P.v_kind -> () 
+  | _ -> rs_tyerror ~loc (NotAPointer x)
+
 let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
 
   let instr = match L.unloc pi with
@@ -1225,6 +1241,15 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
             | _ -> AT_none) in
       cassgn_for v tg ety e
 
+    | PIAssign([lv], `Adr, pe, None) ->
+      let _, flv, vty = tt_lvalue env lv in
+      let e, ety = tt_expr ~mode:`AllVar env pe in
+      let e = vty |> omap_dfl (cast (L.loc pe) e ety) e in
+      let v = flv ety in
+      check_lval_pointer (L.loc lv) v;
+      let tg = P.AT_address in
+      cassgn_for v tg ety e
+        
     | PIAssign(ls, `Raw, pe, None) ->
       (* Try to match addc, subc, mulu *)
       let pe = prim_of_pe pe in
@@ -1302,7 +1327,7 @@ let check_return_stack fd =
   let args = P.Spv.of_list fd.P.f_args in
   let check vi = 
     let v = P.L.unloc vi in
-    if v.P.v_kind = Stack && not (P.Spv.mem v args) && 
+    if P.is_stack_kind v.P.v_kind && not (P.Spv.mem v args) && 
        fd.P.f_cc = P.Export then 
       rs_tyerror ~loc:(P.L.loc vi) (ReturnLocalStack v.P.v_name)
   in

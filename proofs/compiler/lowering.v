@@ -665,7 +665,7 @@ Definition lower_addcarry_classify (sub: bool) (xs: lvals) (es: pexprs) :=
   | [:: cf ; r ], [:: x ; y ; Pbool false ] =>
     let vi := var_info_of_lval r in
     Some (vi, if sub then SUB else ADD, [:: x ; y ], cf, r)
-  | [:: cf ; r ], [:: _ ; _ ; Pvar cfi ] =>
+  | [:: cf ; r ], [:: _ ; _ ; Pvar {| gv := cfi; gs := Slocal |} ] =>
     let vi := v_info cfi in
     Some (vi, (if sub then SBB else ADC), es, cf, r)
   | _, _ => None

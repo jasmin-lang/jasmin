@@ -28,7 +28,7 @@ let init_tbl fc =
     let ws, sz = array_kind v.v_ty in
     let ty = Bty (U ws) in
     let vi i =
-      V.mk (v.v_name ^ "#" ^ string_of_int i) Reg ty v.v_dloc in
+      V.mk (v.v_name ^ "#" ^ string_of_int i) (Reg Direct) ty v.v_dloc in
     let t = Array.init sz vi in
     Hv.add tbl v t in
   let vars = Sv.filter is_reg_arr (vars_fc fc) in
@@ -41,9 +41,9 @@ let rec arrexp_e tbl e =
   | Pvar x -> check_not_reg_arr "Pvar" x.gv; e
 
   | Pget (ws, x,e) ->
-    if is_reg_arr (L.unloc x) then
-      let v = get_reg_arr tbl x e in
-      Pvar (gkvar (L.mk_loc (L.loc x) v))
+    if is_reg_arr (L.unloc x.gv) then
+      let v = get_reg_arr tbl x.gv e in
+      Pvar (gkvar (L.mk_loc (L.loc x.gv) v))
     else Pget(ws, x, arrexp_e tbl e)
 
   | Pload(ws,x,e)  -> Pload(ws,x,arrexp_e tbl e)
@@ -104,7 +104,7 @@ let add_var tbl ws x =
 let rec array_access_e tbl e = 
   match e with
   | Pconst _ | Pbool _ | Parr_init _ | Pvar _ -> tbl
-  | Pget(ws, x, e) -> array_access_e (add_var tbl ws (L.unloc x)) e
+  | Pget(ws, x, e) -> array_access_e (add_var tbl ws (L.unloc x.gv)) e
   | Pload (_,_,e) | Papp1 (_,e) -> array_access_e tbl e 
   | Papp2(_,e1,e2) -> array_access_e (array_access_e tbl e1) e2
   | PappN (_,es) -> array_access_es tbl es
@@ -321,15 +321,15 @@ let init_glob (globs, funcs) =
     | Global.Gword(ws, w) ->
       let w = Memory_model.LE.encode ws w in
       data := List.rev_append w !data 
-(*    | Expr.Garr(p, t) ->
-      let ip = Prog.int_of_pos p in
+    | Global.Garr(p, t) ->
+      let ip = Conv.int_of_pos p in
       for i = 0 to ip - 1 do
         let w = 
-          match Warray.WArray.get p Warray.AAscale U8 t (Prog.z_of_int i) with
+          match Warray_.WArray.get p U8 t (Conv.z_of_int i) with
           | Ok w -> w
           | _    -> assert false in
         data := w :: !data
-      done *)
+      done 
     end;
     size := pos + n;
     (v,pos) in

@@ -145,10 +145,6 @@ let var_of_cvar tbl cv =
   try Hashtbl.find tbl.var cv
   with Not_found -> assert false
 
-let fresh_cvar tbl n ty =
-  let v = V.mk n Reg ty L._dummy in
-  cvar_of_var tbl v
-
 (* ------------------------------------------------------------------------ *)
 
 let get_loc tbl p =
@@ -183,7 +179,7 @@ let rec cexpr_of_expr tbl = function
   | Pbool  b          -> C.Pbool  b
   | Parr_init n       -> C.Parr_init (pos_of_bi n)
   | Pvar x            -> C.Pvar (cgvari_of_gvari tbl x)
-  | Pget (ws, x,e)    -> C.Pget (ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
+  | Pget (ws, x,e)    -> C.Pget (ws, cgvari_of_gvari tbl x, cexpr_of_expr tbl e)
   | Pload (ws, x, e)  -> C.Pload(ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Papp1 (o, e)      -> C.Papp1(o, cexpr_of_expr tbl e)
   | Papp2 (o, e1, e2) -> C.Papp2(o, cexpr_of_expr tbl e1, cexpr_of_expr tbl e2)
@@ -198,7 +194,7 @@ let rec expr_of_cexpr tbl = function
   | C.Pbool  b          -> Pbool  b
   | C.Parr_init n       -> Parr_init (bi_of_pos n)
   | C.Pvar x            -> Pvar (gvari_of_cgvari tbl x)
-  | C.Pget (ws, x,e)    -> Pget (ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
+  | C.Pget (ws, x,e)    -> Pget (ws, gvari_of_cgvari tbl x, expr_of_cexpr tbl e)
   | C.Pload (ws, x, e)  -> Pload(ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Papp1 (o, e)      -> Papp1(o, expr_of_cexpr tbl e)
   | C.Papp2 (o, e1, e2) -> Papp2(o, expr_of_cexpr tbl e1, expr_of_cexpr tbl e2)
@@ -238,12 +234,14 @@ let cat_of_at = function
   | AT_rename  -> C.AT_rename
   | AT_inline  -> C.AT_inline
   | AT_phinode -> assert false
+  | AT_address -> C.AT_address
 
 let at_of_cat = function
   | C.AT_none   -> AT_none
   | C.AT_keep   -> AT_keep
   | C.AT_rename -> AT_rename
   | C.AT_inline -> AT_inline
+  | C.AT_address -> AT_address
 
 (* ------------------------------------------------------------------------ *)
 
@@ -440,3 +438,12 @@ let fdef_of_csfdef tbl (fn, fd) =
 
 let prog_of_csprog tbl p =
   List.map (fdef_of_csfdef tbl) p.C.p_funcs, p.C.p_extra
+
+(* ---------------------------------------------------------------------------- *)
+let to_array ty p t = 
+  let ws, n = array_kind ty in
+  let get i = 
+    match Warray_.WArray.get p ws t (z_of_int i) with
+    | Utils0.Ok w -> bi_of_word ws w
+    | _    -> assert false in
+  ws, Array.init n get

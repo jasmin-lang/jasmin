@@ -13,15 +13,15 @@ fn f64(reg u64 x, reg u64 y) -> reg u64 {
 }
 
 export
-fn m32(reg u32 x, reg u64 ptr) -> reg u32 {
+fn m32(reg u32 x, reg u64 p) -> reg u32 {
   reg u32 z;
-  z = !x & (u32)[ptr + 0];
+  z = !x & (u32)[p + 0];
   return z;
 }
 
 export
-fn m64(reg u64 x, reg u64 ptr) -> reg u64 {
+fn m64(reg u64 x, reg u64 p) -> reg u64 {
   reg u64 z;
-  z = !x & [ptr + 0];
+  z = !x & [p + 0];
   return z;
 }

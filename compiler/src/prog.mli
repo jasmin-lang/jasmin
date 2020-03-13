@@ -20,12 +20,14 @@ type base_ty =
 
   [@@deriving compare,sexp]
 
+type pointer = Direct | Pointer
+
 type v_kind =
-  | Const         (* global parameter  *)
-  | Stack         (* stack variable    *)
-  | Reg           (* register variable *)
-  | Inline        (* inline variable   *)
-  | Global        (* global (in memory) constant *) 
+  | Const             (* global parameter  *)
+  | Stack of pointer  (* stack variable    *)
+  | Reg   of pointer  (* register variable *)
+  | Inline            (* inline variable   *)
+  | Global            (* global (in memory) constant *) 
   [@@deriving compare,sexp]
 
 type 'ty gvar = private {
@@ -54,7 +56,7 @@ type 'ty gexpr =
   | Pbool  of bool
   | Parr_init of B.zint
   | Pvar   of 'ty ggvar
-  | Pget   of wsize * 'ty gvar_i * 'ty gexpr
+  | Pget   of wsize * 'ty ggvar * 'ty gexpr
   | Pload  of wsize * 'ty gvar_i * 'ty gexpr
   | Papp1  of E.sop1 * 'ty gexpr
   | Papp2  of E.sop2 * 'ty gexpr * 'ty gexpr
@@ -72,6 +74,11 @@ val u256  : 'e gty
 val tu    : wsize -> 'e gty
 val tint  : 'e gty
 val tbool : 'e gty
+
+val is_stack_kind : v_kind -> bool
+val is_reg_kind   : v_kind -> bool
+val is_ptr        : v_kind -> bool
+
 (* ------------------------------------------------------------------------ *)
 
 type assgn_tag =
@@ -80,6 +87,7 @@ type assgn_tag =
   | AT_rename (* use as equality constraint in reg-alloc and compile to no-op *)
   | AT_inline (* the assignement should be inline, and propagate *)
   | AT_phinode (* renaming during SSA transformation *)
+  | AT_address (* get the address of the right value *)
 
 type 'ty glval =
  | Lnone of L.t * 'ty

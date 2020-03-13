@@ -398,31 +398,6 @@ Record estate := Estate {
   evm  : vmap
 }.
 
-Definition on_arr_var A (s:estate) (x:var) (f:forall n, WArray.array n -> exec A) :=
-  Let v := get_var s.(evm) x in
-  match v with
-  | Varr n t => f n t
-  | _ => type_error
-  end.
-
-Notation "'Let' ( n , t ) ':=' s '.[' x ']' 'in' body" :=
-  (@on_arr_var _ s x (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
-
-Lemma on_arr_varP A (f : forall n, WArray.array n -> exec A) v s x P:
-  (forall n t, vtype x = sarr n ->
-               get_var (evm s) x = ok (@Varr n t) ->
-               f n t = ok v -> P) ->
-  on_arr_var s x f = ok v -> P.
-Proof.
-  rewrite /on_arr_var=> H;apply: rbindP => vx.
-  case: x H => -[ | | n | sz ] nx;rewrite /get_var => H;
-    case Heq : ((evm s).[_])%vmap => [v' | e] //=.
-  + by move=> [<-]. + by case: (e) => // -[<-].
-  + by move=> [<-]. + by case: (e) => // -[<-].
-  + by move=> [<-]; apply: H => //;rewrite Heq. + by case: (e) => // -[<-].
-  + by move=> [<-]. + by case: (e) => // -[<-].
-Qed.
-
 Definition Varr_inj n n' t t' (e: @Varr n t = @Varr n' t') :
   ∃ (en: n = n'),
       eq_rect n (λ s, WArray.array s) t n' en = t' :=
@@ -444,7 +419,7 @@ Definition get_global_value (gd: glob_decls) (g: var) : option glob_value :=
 Definition gv2val (gd:glob_value) := 
   match gd with
   | Gword ws w => Vword w
-(*  | Garr p a   => Varr a *)
+  | Garr p a   => Varr a 
   end.
 
 Definition get_global gd g : exec value :=
@@ -466,6 +441,59 @@ Definition get_gvar (gd: glob_decls) (vm: vmap) (x:gvar) :=
   if is_lvar x then get_var vm x.(gv)
   else get_global gd x.(gv).
 
+Definition on_arr_var A (v:exec value) (f:forall n, WArray.array n -> exec A) :=
+  Let v := v  in
+  match v with
+  | Varr n t => f n t
+  | _ => type_error
+  end.
+
+Notation "'Let' ( n , t ) ':=' s '.[' v ']' 'in' body" :=
+  (@on_arr_var _ (get_var s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
+
+Notation "'Let' ( n , t ) ':=' gd ',' s '.[' v ']' 'in' body" :=
+  (@on_arr_var _ (get_gvar gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0).
+
+Lemma type_of_get_var x vm v :
+  get_var vm x = ok v ->
+  type_of_val v = x.(vtype).
+Proof. by rewrite /get_var; apply : on_vuP => // t _ <-; apply type_of_to_val. Qed.
+
+Lemma on_arr_varP A (f : forall n, WArray.array n -> exec A) v s x P:
+  (forall n t, vtype x = sarr n ->
+               get_var (evm s) x = ok (@Varr n t) ->
+               f n t = ok v -> P) ->
+  on_arr_var (get_var (evm s) x) f = ok v -> P.
+Proof.
+  rewrite /on_arr_var=> H;apply: rbindP => vx hx.
+  have h := type_of_get_var hx; case: vx h hx => // len t h.
+  by apply: H;rewrite -h.
+Qed.
+
+Lemma type_of_get_global gd g v :
+  get_global gd g = ok v -> type_of_val v = vtype g. 
+Proof. by move=> /get_globalI [?[]]. Qed.
+
+Lemma type_of_get_gvar x gd vm v :
+  get_gvar gd vm x = ok v ->
+  type_of_val v = vtype x.(gv).
+Proof. 
+  rewrite /get_gvar;case:ifP => ?.
+  + by apply type_of_get_var.
+  by apply type_of_get_global.
+Qed.
+
+Lemma on_arr_gvarP A (f : forall n, WArray.array n -> exec A) v gd s x P:
+  (forall n t, vtype x.(gv) = sarr n ->
+               get_gvar gd s x = ok (@Varr n t) ->
+               f n t = ok v -> P) ->
+  on_arr_var (get_gvar gd s x) f = ok v -> P.
+Proof.
+  rewrite /on_arr_var=> H;apply: rbindP => vx hx.
+  have h := type_of_get_gvar hx; case: vx h hx => // len t h.
+  by apply: H;rewrite -h.
+Qed.
+
 Definition is_defined (v: value) : bool :=
   if v is Vundef _ then false else true.
 
@@ -480,7 +508,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Parr_init n => ok (Varr (WArray.empty n))
   | Pvar v => get_gvar gd s.(evm) v
   | Pget ws x e =>
-      Let (n, t) := s.[x] in
+      Let (n, t) := gd, s.[x] in
       Let i := sem_pexpr s e >>= to_int in
       Let w := WArray.get ws t i in
       ok (Vword w)

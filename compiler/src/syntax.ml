@@ -173,7 +173,8 @@ and ptype_r = TBool | TInt | TWord of wsize | TArray of wsize * pexpr
 and ptype   = ptype_r L.located
 
 (* -------------------------------------------------------------------- *)
-type pstorage = [ `Reg | `Stack | `Inline | `Global]
+type ptr      = [`Pointer | `Direct ]
+type pstorage = [ `Reg of ptr | `Stack of ptr | `Inline | `Global]
 
 (* -------------------------------------------------------------------- *)
 type pstotype = pstorage * ptype
@@ -190,6 +191,7 @@ type plvalue = plvalue_r L.located
 (* -------------------------------------------------------------------- *)
 type peqop = [
   | `Raw
+  | `Adr 
   | `Add  of castop 
   | `Sub  of castop
   | `Mul  of castop

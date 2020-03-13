@@ -59,7 +59,7 @@ let live_init_fd fd =
 
 let alloc_stack_fd fd =
   (* collect all stack variables occuring in fd *)
-  let vars = Sv.filter (fun v -> v.v_kind = Stack) (vars_fc fd) in
+  let vars = Sv.filter is_stack_var (vars_fc fd) in
   let vars = Sv.elements vars in
   (* liveness analysis *)
   let fd' = live_init_fd fd in
@@ -95,7 +95,7 @@ let alloc_stack_fd fd =
 (* --------------------------------------------------------------------- *)
 
 let is_same = function
-  | AT_none | AT_keep | AT_inline -> false
+  | AT_none | AT_keep | AT_inline | AT_address -> false
   | AT_rename | AT_phinode -> true
 
 let set_same loc cfm x y =

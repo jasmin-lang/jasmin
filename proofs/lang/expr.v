@@ -368,7 +368,7 @@ Qed.
 Definition v_scope_eqMixin     := Equality.Mixin v_scope_eq_axiom.
 Canonical  v_scope_eqType      := Eval hnf in EqType v_scope v_scope_eqMixin.
 
-Record gvar := Gvar { gv :> var_i; gs : v_scope }.
+Record gvar := Gvar { gv : var_i; gs : v_scope }.
 
 Definition mk_gvar x := {| gv := x; gs := Sglob  |}.
 Definition mk_lvar x := {| gv := x; gs := Slocal |}.
@@ -393,7 +393,7 @@ Inductive pexpr : Type :=
 | Pbool  :> bool -> pexpr
 | Parr_init : positive → pexpr
 | Pvar   :> gvar -> pexpr
-| Pget   : wsize -> var_i -> pexpr -> pexpr
+| Pget   : wsize -> gvar  -> pexpr -> pexpr
 | Pload  : wsize -> var_i -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
@@ -709,7 +709,9 @@ Variant assgn_tag :=
   | AT_none       (* assignment introduced by the develloper that can be removed *)
   | AT_keep       (* assignment that should be keep *)
   | AT_rename     (* equality constraint introduced by inline *)
-  | AT_inline.    (* assignment to be removed later : introduce by unrolling or inlining *)
+  | AT_inline     (* assignment to be removed later : introduce by unrolling or inlining *)
+  | AT_address    (* Take the address of the expression *)
+  .
 
 Scheme Equality for assgn_tag.
 
@@ -1258,7 +1260,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Pbool  _
   | Parr_init _    => s
   | Pvar   x       => Sv.union (read_gvar x) s
-  | Pget _ x e     => read_e_rec (Sv.add x s) e
+  | Pget _ x e     => read_e_rec (Sv.union (read_gvar x) s) e
   | Pload _ x e    => read_e_rec (Sv.add x s) e
   | Papp1  _ e     => read_e_rec s e
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
@@ -1494,7 +1496,7 @@ Fixpoint eq_expr e e' :=
   | Pbool  b      , Pbool  b'         => b == b'
   | Parr_init n   , Parr_init n'      => n == n'
   | Pvar   x      , Pvar   x'         => eq_gvar x x'
-  | Pget w x e    , Pget w' x' e'      => (w == w') && (v_var x == v_var x') && eq_expr e e'
+  | Pget w x e    , Pget w' x' e'      => (w == w') && (eq_gvar x x') && eq_expr e e'
   | Pload w x e, Pload w' x' e' => (w == w') && (v_var x == v_var x') && eq_expr e e'
   | Papp1  o e    , Papp1  o' e'      => (o == o') && eq_expr e e'
   | Papp2  o e1 e2, Papp2  o' e1' e2' => (o == o') && eq_expr e1 e1' && eq_expr e2 e2'
@@ -1540,7 +1542,7 @@ Lemma eq_expr_const z1 z2 :
 Proof. by move/eqP. Qed.
 
 Lemma eq_expr_var x1 x2 :
-  eq_expr (Pvar x1) (Pvar x2) -> x1.(gs) = x2.(gs) /\ x1 = x2 :> var.
+  eq_expr (Pvar x1) (Pvar x2) -> x1.(gs) = x2.(gs) /\ x1.(gv) = x2.(gv) :> var.
 Proof. by move => /andP[]/eqP -> /eqP ->. Qed.
 
 Lemma eq_expr_load w1 w2 v1 v2 e1 e2 :
