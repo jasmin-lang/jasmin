@@ -4,9 +4,14 @@ val vstack : var
 
 val arrexp_func : 'info func -> 'info func
 
+type ptr_kind =
+  | Pstack of int
+  | Pregptr of var 
+  | Pstkptr of int
+
 val stk_alloc_func : 
   'info func -> var array ->
-   (var * int) list * int * int array
+   (var * ptr_kind) list * int * ptr_kind array
 
 val init_glob : 'info prog -> 
       Ssralg.GRing.ComRing.sort list * Prog.var * (Prog.var * int) list

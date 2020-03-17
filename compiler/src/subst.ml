@@ -275,18 +275,16 @@ let remove_params (prog : 'info pprog) =
     match x.v_ty, e with
     | Bty (U ws), GEword e ->
       x, Global.Gword (ws, mk_word ws e) 
-    | Arr(_ws,_n), GEarray _es ->
-      assert false 
-(*
+    | Arr(ws,n), GEarray es ->
       assert (List.length es = n);
-      let p = Prog.pos_of_int (n * size_of_ws ws) in
-      let t = ref (Warray.WArray.empty p) in
+      let p = Conv.pos_of_int (n * size_of_ws ws) in
+      let t = ref (Warray_.WArray.empty p) in
       let doit i e = 
-        match Warray.WArray.set p ws !t  Warray.AAscale (Prog.z_of_int i) (mk_word ws e) with
+        match Warray_.WArray.set p ws !t  (Conv.z_of_int i) (mk_word ws e) with
         | Ok t1 -> t := t1
         | _ -> assert false in
       List.iteri doit es;
-      x, Expr.Garr(p, !t) *)
+      x, Global.Garr(p, !t) 
     | _, _ -> assert false
   in
   let globals = List.map doglob globals in

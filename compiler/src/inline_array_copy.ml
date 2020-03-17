@@ -12,8 +12,8 @@ let is_array_copy (x:lval) kind e =
       | Arr (ws, n) ->
         begin match e with
         | Pvar y -> 
-          assert (is_gkvar y);
-          Some (z, ws, n, y)
+          if is_ptr (L.unloc z).v_kind && is_ptr (L.unloc y.gv).v_kind then None
+          else Some (z, ws, n, y)
         | _ -> None
         end
       | _ -> None

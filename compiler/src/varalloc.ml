@@ -84,7 +84,7 @@ let alloc_stack_fd fd =
   let cfm = ref (init_classes cf) in
   let alloc x =
     let cx = get_conflict !cfm x in
-    let test y = x.v_ty = y.v_ty && not (Sv.mem y cx) && 
+    let test y = x.v_ty = y.v_ty && x.v_kind = y.v_kind && not (Sv.mem y cx) && 
                    try ignore(set_same !cfm x y); true
                    with SetSameConflict -> false in
     let x' = List.find test vars in

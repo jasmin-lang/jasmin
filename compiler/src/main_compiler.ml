@@ -272,27 +272,28 @@ let main () =
         if save_stack then [|Array_expand.vstack|] else [||] in
       let alloc, sz, saved = Array_expand.stk_alloc_func fd to_save in
       let alloc =
-        let trans (v,i) = Conv.cvar_of_var tbl v, Conv.z_of_int i in
+        let trans (v,k) = 
+          let k =
+            match k with
+            | Array_expand.Pstack i  -> 
+              Stack_alloc.Pstack (Conv.z_of_int i)
+            | Array_expand.Pregptr x -> 
+              Stack_alloc.Pregptr (Conv.cvar_of_var tbl x)
+            | Array_expand.Pstkptr i -> 
+              Stack_alloc.Pstkptr (Conv.z_of_int i)
+          in
+          Conv.cvar_of_var tbl v, k in
         List.map trans alloc in
       let sz = Conv.z_of_int sz in
       let p_stack = 
-        if save_stack then saved.(0) else 0 in
-      let p_stack = Conv.z_of_int p_stack in
+        if save_stack then 
+          match saved.(0) with
+          | Array_expand.Pstack i -> Conv.z_of_int i 
+          | _ -> assert false
+        else Conv.z_of_int 0 in
 
-      let vtbl = Hv.create 100 in
-      let ptrreg_of_reg x = 
-        let x = translate_var x in
-        try Hv.find vtbl x 
-        with Not_found ->
-          let x' = V.mk x.v_name (Reg Direct) (tu uptr) x.v_dloc in
-          let x' = Conv.cvar_of_var tbl x' in
-          Hv.add vtbl x x';
-          x'
-      in
-      ((sz, alloc), p_stack), ptrreg_of_reg 
+      (sz, alloc), p_stack
     in
-
-
 
     let regalloc_fd stack_needed fn cfd = 
       if !debug then Format.eprintf "START register allocation@." ;

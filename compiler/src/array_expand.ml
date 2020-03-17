@@ -94,8 +94,10 @@ let arrexp_func fc =
 (* The variables are allocated in decreasing order of (base) size;
    this ensures that the alignment constraints are satisfied. *)
 
+let is_stack_k_var pkind x = x.v_kind = Stack pkind 
+
 let add_var tbl ws x = 
-  if is_stack_var x then
+  if is_stack_k_var Direct x then 
     let ws' = Mv.find_default Wsize.U8 x tbl in
     if size_of_ws ws' <= size_of_ws ws then Mv.add x ws tbl
     else tbl 
@@ -132,91 +134,45 @@ let rec array_acces_i tbl i =
 and array_access_c tbl c = 
   List.fold_left array_acces_i tbl c
 
-(*let init_stk fc =
-  let fv = vars_fc fc in
-  let allocatable = Regalloc.X64.allocatables in
-  let free_regs = Sv.diff allocatable fv in
-  let vars = Sv.elements (Sv.filter is_stack_var fv) in
-  if vars == [] then 
-    [], 0, Sv.inter Regalloc.X64.callee_save fv, None
-  else
-
-  let tbl = array_access_c Mv.empty fc.f_body in
-  let get_size v =
-     match v.v_ty with
-     | Bty (U ws)  -> let s = size_of_ws ws in v, s, s
-     | Arr (ws', n) -> 
-       let ws = try Mv.find v tbl with Not_found -> assert false in
-       v, size_of_ws ws, arr_size ws' n
-     | _            -> assert false in
-  let vars = List.rev_map get_size vars in
-  let cmp (_, s1, _) (_, s2, _) = s2 - s1 in
-
-  let size = ref 0 in  
-  (* FIXME: optimize this 
-     if pos mod s <> 0 then a hole appear in the stack,
-     in this case we can try to fill the hole with a variable 
-     of a smaller size allowing to align the next pos
-   *)
-  let init_var (v, s, n) =
-    let pos = !size in
-    let pos = 
-      if pos mod s = 0 then pos
-      else (pos/s + 1) * s in
-    size := pos + n;
-    (v,pos) in
-
-  if Sv.is_empty free_regs then
-    let saved_stack = V.mk "saved_stack" Stack (tu uptr) L._dummy in
-    let vars = get_size saved_stack :: vars in
-    let vars = List.sort cmp vars in 
-    let alloc = List.map init_var vars in
-    let is_saved_stack (v, _) = V.equal v saved_stack in
-    let (_, p_stack) = List.find is_saved_stack alloc in
-    let alloc = List.filter (fun p -> not (is_saved_stack p)) alloc in
-    let to_save = Sv.inter Regalloc.X64.callee_save fv in
-    alloc, !size, to_save, Some (`InStack p_stack)
-  else
-    let r = 
-      let s = Sv.diff free_regs Regalloc.X64.callee_save in
-      if Sv.is_empty s then Sv.any free_regs
-      else Sv.any s in
-    let vars = List.sort cmp vars in 
-    let alloc = List.map init_var vars in
-    let to_save = Sv.inter Regalloc.X64.callee_save (Sv.add r fv) in
-    alloc, !size, to_save, Some (`InReg r)
- *)
+type ptr_kind =
+  | Pstack of int
+  | Pregptr of var 
+  | Pstkptr of int
 
 let init_stk fc extra_vars =
-  
   let fv = vars_fc fc in
   let vars = Sv.filter is_stack_var fv in
   let extra = Sv.of_list (Array.to_list extra_vars) in
   let vars' = Sv.union vars extra in
   let tbl = array_access_c Mv.empty fc.f_body in
   let get_size v =
-     match v.v_ty with
-     | Bty (U ws)  -> let s = size_of_ws ws in v, s, s
-     | Arr (ws', n) -> 
-       let ws = try Mv.find v tbl with Not_found -> assert false in
-       v, size_of_ws ws, arr_size ws' n
-     | _            -> assert false in
+    if is_stack_k_var Pointer v then 
+      let s = size_of_ws U64 in v, s, s
+    else
+      match v.v_ty with
+      | Bty (U ws)  -> let s = size_of_ws ws in v, s, s
+      | Arr (ws', n) -> 
+        let ws = try Mv.find v tbl with Not_found -> assert false in
+        v, size_of_ws ws, arr_size ws' n
+      | _            -> assert false in
   let vars' = List.rev_map get_size (Sv.elements vars') in
   let cmp (_, s1, _) (_, s2, _) = s2 - s1 in
-
   let size = ref 0 in  
   (* FIXME: optimize this 
      if pos mod s <> 0 then a hole appear in the stack,
      in this case we can try to fill the hole with a variable 
      of a smaller size allowing to align the next pos
    *)
+  let mk_pos v pos = 
+    if is_stack_k_var Pointer v then Pstkptr pos
+    else Pstack pos in
   let init_var (v, s, n) =
     let pos = !size in
     let pos = 
       if pos mod s = 0 then pos
       else (pos/s + 1) * s in
     size := pos + n;
-    (v,pos) in
+    (v, mk_pos v pos) in
 
   let vars' = List.sort cmp vars' in
   let alloc = List.map init_var vars' in
@@ -224,7 +180,12 @@ let init_stk fc extra_vars =
   let extra_vars = Array.map find extra_vars in
   let isnot_extra (v,_) = not (Sv.mem v extra) in
   let alloc = List.filter isnot_extra alloc in
-  alloc, !size, extra_vars
+  let regp = Sv.filter (fun v -> v.v_kind = Reg Pointer) fv in
+  let regp = 
+    let mk v = 
+      (v, Pregptr (V.mk v.v_name (Reg Direct) u64 v.v_dloc)) in
+    List.map mk (Sv.elements regp) in
+  regp @ alloc, !size, extra_vars
 
 let vstack = Regalloc.X64.rsp
 

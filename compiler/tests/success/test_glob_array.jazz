@@ -1,0 +1,34 @@
+u32[9] t32 ={4, 0, 5, 0, 6, 0, 7, 0, 8};
+u64[4] glob_t = { 0, 1, 2, 3 };
+
+export fn sum (reg u64 x) -> reg u64 {
+  reg u64 r;
+  reg ptr u64[4] t;
+  r = x;
+  r += glob_t[0];
+  r += glob_t[1];
+  r += glob_t[2];
+  r += glob_t[3];
+  return r;
+
+}
+
+export fn sum32 (reg u64 x) -> reg u64 {
+  reg u64 r;
+  r = x;
+  r += t32[u64 0];
+  r += t32[u64 1];
+  r += t32[u64 2];
+  r += t32[u64 3];
+  return r;
+}
+
+export fn suma (reg u32 x) -> reg u32 {
+  reg u32 r;
+  r = x;
+  r += t32[0];
+  r += t32[1];
+  r += t32[2];
+  r += t32[3];
+  return r;
+}
