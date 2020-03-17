@@ -13,6 +13,18 @@ export fn sum (reg u64 x) -> reg u64 {
 
 }
 
+export fn sum1 (reg u64 x) -> reg u64 {
+  reg u64 r;
+  reg ptr u64[4] t;
+  inline int i;
+  r = x;
+  for i = 0 to 4 {
+    r += glob_t[i];
+  }
+  return r;
+
+}
+
 export fn sum32 (reg u64 x) -> reg u64 {
   reg u64 r;
   r = x;
