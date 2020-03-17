@@ -29,7 +29,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import Psatz xseq.
-Require Export array expr gen_map low_memory warray_ sem_type.
+Require Export array expr gen_map leakage low_memory warray_ sem_type.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -452,12 +452,6 @@ Qed.
 Definition is_defined (v: value) : bool :=
   if v is Vundef _ then false else true.
 
-Inductive leakage_e := 
-  | LeakAdr of pointer
-  | LeakIdx of Z.
-
-Definition leakages_e := seq leakage_e.
-
 Section SEM_PEXPR.
 
 Context (gd: glob_decls).
@@ -621,27 +615,6 @@ Definition sem_sopn gd o m lvs args :=
   Let vs := exec_sopn o vas.1 in 
   Let ml := write_lvals gd m lvs vs in
   ok (ml.1, (vas.2 ++ ml.2)).
-
-Inductive leakage_c : Type := 
-  | Lempty : leakage_c
-  | Lcons : leakage_i -> leakage_c -> leakage_c
-
-with leakage_i : Type :=
-  | Lassgn : leakages_e -> leakage_i
-  | Lopn  : leakages_e ->leakage_i
-  | Lcond  : leakages_e -> bool -> leakage_c -> leakage_i
-  | Lwhile_true : leakage_c -> leakages_e -> leakage_c -> leakage_i -> leakage_i 
-  | Lwhile_false : leakage_c -> leakages_e -> leakage_i
-  | Lfor : leakages_e -> leakage_for -> leakage_i
-  | Lcall : leakages_e -> leakage_fun -> leakages_e -> leakage_i
-
-with leakage_for : Type := 
-  | Lfor_empty : leakage_for
-  | Lfor_one : leakage_c -> leakage_for -> leakage_for
-
-with leakage_fun : Type :=
-  | Lfun : leakage_c -> leakage_fun.
-
 
 Inductive sem : estate -> cmd -> leakage_c -> estate -> Prop :=
 | Eskip s :
