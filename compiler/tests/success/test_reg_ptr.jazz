@@ -1,0 +1,10 @@
+u64[4] glob_t = { 0, 1, 2, 3 };
+
+export fn foo (reg u64 x) -> reg u64 {
+  reg u64 r;
+  reg ptr u64[4] s;
+  s = glob_t;
+  s[0] = 1;
+  r = s[0];
+  return r;
+}

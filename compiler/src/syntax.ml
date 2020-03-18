@@ -191,7 +191,6 @@ type plvalue = plvalue_r L.located
 (* -------------------------------------------------------------------- *)
 type peqop = [
   | `Raw
-  | `Adr 
   | `Add  of castop 
   | `Sub  of castop
   | `Mul  of castop

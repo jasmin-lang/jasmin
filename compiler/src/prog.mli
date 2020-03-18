@@ -87,7 +87,6 @@ type assgn_tag =
   | AT_rename (* use as equality constraint in reg-alloc and compile to no-op *)
   | AT_inline (* the assignement should be inline, and propagate *)
   | AT_phinode (* renaming during SSA transformation *)
-  | AT_address (* get the address of the right value *)
 
 type 'ty glval =
  | Lnone of L.t * 'ty

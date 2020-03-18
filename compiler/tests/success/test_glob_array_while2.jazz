@@ -8,7 +8,7 @@ export fn sum (reg u64 x) -> reg u64 {
 
   r = 0; 
   i = 0;
-  gt1 =& glob_t;
+  gt1 = glob_t;
   while (i < 4) {
     r += gt1[(int)i];
   }

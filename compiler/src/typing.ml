@@ -52,6 +52,7 @@ type tyerror =
   | PrimIsX of S.symbol
   | PrimNotX of S.symbol
   | ReturnLocalStack    of S.symbol
+  | PtrOnlyForArray
   | ArgumentNotVar      
   | BadVariableKind     of P.v_kind
   | PackSigned
@@ -176,6 +177,9 @@ let pp_tyerror fmt (code : tyerror) =
 
   | ReturnLocalStack v ->
       F.fprintf fmt "can not return the local stack variable %s" v
+
+  | PtrOnlyForArray -> 
+    F.fprintf fmt "Pointer allowed only on array"
 
   | ArgumentNotVar ->
     F.fprintf fmt "the expression should be a variable"
@@ -625,7 +629,6 @@ let op1_of_pop1 exn ty (op: S.peop1) =
 let peop2_of_eqop (eqop : S.peqop) =
   match eqop with
   | `Raw    -> None
-  | `Adr    -> assert false
   | `Add  s -> Some (`Add s)
   | `Sub  s -> Some (`Sub s)
   | `Mul  s -> Some (`Mul s)
@@ -858,6 +861,8 @@ let tt_expr_int  env pe = tt_expr_ty env pe P.tint
 let tt_vardecl (env : Env.env) ((sto, xty), x) =
   let { L.pl_desc = x; L.pl_loc = xlc; } = x in
   let (sto, xty) = (tt_sto sto, tt_type env xty) in
+  if P.is_ptr sto && not (P.is_ty_arr xty) then
+    rs_tyerror ~loc:xlc PtrOnlyForArray;
   L.mk_loc xlc (P.PV.mk x sto xty xlc)
 
 (* -------------------------------------------------------------------- *)
@@ -1168,8 +1173,8 @@ let extra_ret es xs =
               if not (P.is_gkvar y) then
                  rs_tyerror ~loc (BadVariableKind x.v_kind);
               let y = y.P.gv in
-              if x.v_kind <> (L.unloc y).v_kind then 
-                rs_tyerror ~loc (BadVariableKind x.v_kind);    
+(*              if x.v_kind <> (L.unloc y).v_kind then 
+                rs_tyerror ~loc (BadVariableKind x.v_kind);  *)
               y
             | _ -> rs_tyerror ~loc ArgumentNotVar
             in
@@ -1218,15 +1223,6 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
         P.(match v with
             | Lvar v -> (match kind_i v with Inline -> AT_inline | _ -> AT_none)
             | _ -> AT_none) in
-      cassgn_for v tg ety e
-
-    | PIAssign([lv], `Adr, pe, None) ->
-      let _, flv, vty = tt_lvalue env lv in
-      let e, ety = tt_expr ~mode:`AllVar env pe in
-      let e = vty |> omap_dfl (cast (L.loc pe) e ety) e in
-      let v = flv ety in
-      check_lval_pointer (L.loc lv) v;
-      let tg = P.AT_address in
       cassgn_for v tg ety e
         
     | PIAssign(ls, `Raw, pe, None) ->

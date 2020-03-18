@@ -95,7 +95,7 @@ let alloc_stack_fd fd =
 (* --------------------------------------------------------------------- *)
 
 let is_same = function
-  | AT_none | AT_keep | AT_inline | AT_address -> false
+  | AT_none | AT_keep | AT_inline -> false
   | AT_rename | AT_phinode -> true
 
 let set_same loc cfm x y =

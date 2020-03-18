@@ -4,7 +4,7 @@ export fn sum (reg u64 x) -> reg u64 {
   reg u64 r;
   reg u64 i;
   reg ptr u64[4] gt1 gt2;
-  gt1 =& glob_t;
+  gt1 = glob_t;
   gt2 = gt1;
   r = 0; 
   i = 0;

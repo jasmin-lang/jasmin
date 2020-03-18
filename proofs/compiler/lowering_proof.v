@@ -1584,8 +1584,6 @@ Section PROOF.
     have Hv' := sem_pexpr_same Hdisje Hs1' Hv.
     have [s2' [Hw' Hs2']] := write_lval_same Hdisjl Hs1' Hw.
     rewrite /= /lower_cassgn.
-    case:eqP => _.
-    + by exists s2';split => //; apply sem_seq1; do 2 econstructor; eauto.
     have := lower_cassgn_classifyP Hv' hty Hw'.
     case: (lower_cassgn_classify is_var_in_memory _ e l).
     (* LowerMov *)

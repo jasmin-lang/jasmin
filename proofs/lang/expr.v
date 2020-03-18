@@ -719,7 +719,6 @@ Variant assgn_tag :=
   | AT_keep       (* assignment that should be keep *)
   | AT_rename     (* equality constraint introduced by inline *)
   | AT_inline     (* assignment to be removed later : introduce by unrolling or inlining *)
-  | AT_address    (* Take the address of the expression *)
   .
 
 Scheme Equality for assgn_tag.

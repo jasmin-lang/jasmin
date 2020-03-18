@@ -122,6 +122,11 @@ Record pos_map := {
   locals  : Mvar.t ptr_kind;
   vnew    : Sv.t;
 }.
+(* Remark: 
+   We have the following invariant:
+   - If Mvar.get x pmap.(locals) = (Pregptr r | Pstkptr z) then 
+     x is an array 
+*)
 
 Module Region.
 
@@ -412,21 +417,21 @@ Definition is_Pvar e :=
   | _      => None
   end.
 
-Definition is_var e := 
+(*Definition is_var e := 
   match e with
   | Pvar x => if is_lvar x then Some x.(gv) else None
   | _      => None
   end.
-
+*)
 Definition is_lv_var lv := 
   match lv with
   | Lvar x => Some x
   | _      => None
   end.
 
-Definition get_e_pointer x (k:option ptr_kind) :=
+(*Definition get_e_pointer x (k:option ptr_kind) :=
   match k with
-  | None => None
+  | None => None    
   | Some (Pstack _)  => None
   | Some (Pregptr p) => Some (Pvar (mk_lvar (with_var x p)))
   | Some (Pstkptr z) => Some (Pload Uptr (with_var x pmap.(vrsp)) (cast_const z))
@@ -440,75 +445,69 @@ Definition get_lv_pointer x (k:option ptr_kind) :=
   | Some (Pstkptr z) => Some (Lmem Uptr (with_var x pmap.(vrsp)) (cast_const z))
   end.
 
-Definition is_move_ptr_to_stack (rmap: regions) xk y :=
-  match xk with
-  | Some (Pstack z) =>
-    match check_valid rmap y with
-    | Ok mp => 
-      if (mp == {| mp_s := MSstack; mp_ofs := z |}) then true
-      else false
-    | _ => false
-    end
-  | _ => false
+Definition get_addr y := 
+  if is_glob y then lea rip ofs_y
+  else match get_local y with
+  | None => assert false
+  | Some (Pstack z)  => lea sp z
+  | Some (Pregptr p) => Pvar (with_var y p))
+  | Some (Pstkptr z) => Pload Uptr (with_var y pmap.(vrsp)) (cast_const z))
   end.
+*)
 
-Definition is_move_ptr_x (rmap: regions) x ty y := 
-  match is_lv_var x, is_var y with
-  | Some x, Some y =>
-    if (ty == x.(vtype)) && (ty == y.(vtype)) then
-      let xk := get_local x in
-      if is_move_ptr_to_stack rmap xk y then Some((x,y),None)
-      else 
-        let yk := get_local y in
-        match get_lv_pointer x xk, get_e_pointer y yk with
-        | Some xpofs, Some ypofs => Some ((x,y), Some(xpofs, ypofs))
-        | _, _ => None 
-        end
-    else None
-  | _, _ => None
-  end.
+Definition nop := Copn [::] AT_none Onop [::]. 
 
-Definition is_move_ptr (rmap: regions) (i:instr_r) := 
-  match i with
-  | Cassgn x _ ty e => is_move_ptr_x rmap x ty e
-  | Copn [::x] _ (Ox86 (MOV ws)) [::e] => is_move_ptr_x rmap x (sword ws) e
-  | _ => None
-  end.
+Definition lea_ptr x y ptr ofs := 
+  Copn [::x] AT_none (Ox86 (LEA Uptr)) 
+       [:: add (Pvar (mk_lvar (with_var y ptr))) (cast_const ofs)].
 
 Definition mov_ptr x y :=
   Copn [:: x] AT_none (Ox86 (MOV Uptr)) [::y].
 
-Definition lea_ptr x y ptr ofs := 
-  Copn [::x] AT_none (Ox86 (LEA Uptr)) 
-       [:: add (Pvar (mk_lvar (with_var y ptr))) (cast_ptr ofs)].
+Definition get_addr rmap x dx y := 
+  let vy := y.(gv) in 
+  if is_glob y then 
+    Let ofs := get_global vy in
+    let rmap := Region.set_move_glob rmap x ofs in
+    ok (rmap, lea_ptr dx vy pmap.(vrip) ofs)
+  else 
+    match get_local vy with
+    | None => cerror "register array remain" 
+    | Some pk => 
+      Let rmap := Region.set_move rmap x vy in
+      let ir := 
+        match pk with
+        | Pstack ofs  => lea_ptr dx vy pmap.(vrsp) ofs
+        | Pregptr p   => mov_ptr dx (Pvar (mk_lvar (with_var vy p)))
+        | Pstkptr z   => mov_ptr dx (Pload Uptr (with_var vy pmap.(vrsp)) (cast_const z))
+        end in
+      ok(rmap, ir)
+    end.
 
-(* x =& y *)
-Definition alloc_address rmap r ty e :=
+(* Precondition is_sarr ty *)
+Definition alloc_array_move rmap r e :=
   match is_lv_var r, is_Pvar e with
   | Some x, Some y =>
-    if (ty == x.(vtype)) && (ty == y.(gv).(vtype)) then
-      let xk := get_local x in
-      match get_lv_pointer x xk with 
-      | Some xp => 
-        if is_glob y then
-          let y := y.(gv) in
-          Let ofs := get_global y in
-          let rmap := Region.set_move_glob rmap x ofs in
-          ok (rmap, lea_ptr xp y pmap.(vrip) ofs)
-        else 
-          let y := y.(gv) in
-          match get_local y with
-          | Some (Pstack ofs) => 
-            Let rmap := Region.set_move rmap x y in
-            ok (rmap, lea_ptr xp y pmap.(vrsp) ofs)
-          | None => cerror "can compute the address of a register"
-          | Some (Pregptr _) => cerror "can compute the address of a reg ptr"
-          | Some (Pstkptr z) => cerror "can compute the address of a stack ptr"
-          end 
-      | None => cerror "cannot compute the address of the destination"
+    let xk := get_local x in
+    match xk with
+    | None => cerror "register array remains" 
+    | Some pk1 =>
+      match pk1 with
+      | Pstack z1 =>
+        Let _  := assert (is_lvar y)
+                   (Cerr_stk_alloc "invalid move: global to stack") in 
+        Let mp := Region.check_valid rmap y.(gv) in
+        Let _  := assert (mp == {| mp_s := MSstack; mp_ofs := z1 |})
+                   (Cerr_stk_alloc "invalid move: check alias") in  
+        let rmap := Region.rm_set rmap x mp in
+        ok (rmap, nop)
+      | Pregptr p =>
+        get_addr rmap x (Lvar (with_var x p)) y
+      | Pstkptr z =>
+        get_addr rmap x (Lmem Uptr (with_var x pmap.(vrsp)) (cast_ptr z)) y
       end
-    else cerror "invalid type in =&" 
-  | _, _ => cerror "invalid =&"
+    end
+  | _, _ => cerror "invalid array assignement"
   end.
   
 Definition fmapM {eT aT bT cT} (f : aT -> bT -> result eT (aT * cT))  : aT -> seq bT -> result eT (aT * seq cT) :=
@@ -555,26 +554,14 @@ Section LOOP.
 
 End LOOP.
 
-Definition nop := Copn [::] AT_none Onop [::]. 
+
 
 Fixpoint alloc_i (rmap:regions) (i: instr) : result instr_error (regions * instr) :=
   let (ii, ir) := i in
-  Let ir := 
-    let mv_sp := is_move_ptr rmap ir in
-    match mv_sp with
-    | Some ((x,y), mv) =>
-      let ir := 
-        match mv with
-        | Some (xp,yp) => mov_ptr xp yp
-        | None         => nop 
-        end in
-      Let rmap := add_iinfo ii (Region.set_move rmap x.(v_var) y.(v_var)) in
-      ok (rmap, ir)
-    | None =>
+  Let ir :=
     match ir with
     | Cassgn r t ty e => 
-      if t == AT_address then
-        add_iinfo ii (alloc_address rmap r ty e)
+      if is_sarr ty then add_iinfo ii (alloc_array_move rmap r e) 
       else
         Let e := add_iinfo ii (alloc_e rmap e) in
         Let r := add_iinfo ii (alloc_lval rmap r ty) in
@@ -604,7 +591,7 @@ Fixpoint alloc_i (rmap:regions) (i: instr) : result instr_error (regions * instr
   
     | Cfor _ _ _  => cierror ii (Cerr_stk_alloc "don't deal with for loop")
     | Ccall _ _ _ _ => cierror ii (Cerr_stk_alloc "don't deal with call")
-    end end in
+    end in
   ok (ir.1, MkI ii ir.2).
 
 Definition size_of (t:stype) :=

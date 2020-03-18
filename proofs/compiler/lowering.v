@@ -716,10 +716,8 @@ Definition lower_cmd (lower_i: instr -> cmd) (c:cmd) : cmd :=
 Fixpoint lower_i (i:instr) : cmd :=
   let (ii, ir) := i in
   match ir with
-  | Cassgn l tg ty e => 
-    if tg == AT_address then [::i]
-    else lower_cassgn ii l tg ty e
-  | Copn l t o e =>   map (MkI ii) (lower_copn l t o e)
+  | Cassgn l tg ty e => lower_cassgn ii l tg ty e
+  | Copn l t o e => map (MkI ii) (lower_copn l t o e)
   | Cif e c1 c2  =>
      let '(pre, e) := lower_condition xH e in
        map (MkI ii) (rcons pre (Cif e (lower_cmd lower_i c1) (lower_cmd lower_i c2)))

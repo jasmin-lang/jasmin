@@ -163,7 +163,6 @@ let pp_tag = function
   | AT_rename  -> ":r="
   | AT_inline  -> ":i="
   | AT_phinode -> ":φ="
-  | AT_address -> "=&"
 
 let pp_align fmt = function 
   | E.Align -> Format.fprintf fmt "align "

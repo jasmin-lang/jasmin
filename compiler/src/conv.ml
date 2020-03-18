@@ -234,14 +234,12 @@ let cat_of_at = function
   | AT_rename  -> C.AT_rename
   | AT_inline  -> C.AT_inline
   | AT_phinode -> assert false
-  | AT_address -> C.AT_address
 
 let at_of_cat = function
   | C.AT_none   -> AT_none
   | C.AT_keep   -> AT_keep
   | C.AT_rename -> AT_rename
   | C.AT_inline -> AT_inline
-  | C.AT_address -> AT_address
 
 (* ------------------------------------------------------------------------ *)
 

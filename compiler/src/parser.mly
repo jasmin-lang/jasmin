@@ -230,7 +230,6 @@ pexpr:
 (* -------------------------------------------------------------------- *)
 peqop:
 |                EQ  { `Raw    }
-| EQ AMP             { `Adr    }
 | PLUS  c=castop EQ  { `Add  c }
 | MINUS c=castop EQ  { `Sub  c }
 | STAR  c=castop EQ  { `Mul  c }
