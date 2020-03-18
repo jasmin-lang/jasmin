@@ -440,16 +440,30 @@ Definition get_lv_pointer x (k:option ptr_kind) :=
   | Some (Pstkptr z) => Some (Lmem Uptr (with_var x pmap.(vrsp)) (cast_const z))
   end.
 
+Definition is_move_ptr_to_stack (rmap: regions) xk y :=
+  match xk with
+  | Some (Pstack z) =>
+    match check_valid rmap y with
+    | Ok mp => 
+      if (mp == {| mp_s := MSstack; mp_ofs := z |}) then true
+      else false
+    | _ => false
+    end
+  | _ => false
+  end.
+
 Definition is_move_ptr_x (rmap: regions) x ty y := 
   match is_lv_var x, is_var y with
   | Some x, Some y =>
     if (ty == x.(vtype)) && (ty == y.(vtype)) then
       let xk := get_local x in
-      let yk := get_local y in
-      match get_lv_pointer x xk, get_e_pointer y yk with
-      | Some xpofs, Some ypofs => Some (x, xpofs, y, ypofs)
-      | _, _ => None 
-      end
+      if is_move_ptr_to_stack rmap xk y then Some((x,y),None)
+      else 
+        let yk := get_local y in
+        match get_lv_pointer x xk, get_e_pointer y yk with
+        | Some xpofs, Some ypofs => Some ((x,y), Some(xpofs, ypofs))
+        | _, _ => None 
+        end
     else None
   | _, _ => None
   end.
@@ -541,14 +555,24 @@ Section LOOP.
 
 End LOOP.
 
+(* FIXME: this is durty *)
+Definition nop xi :=
+  let x := {| v_var := pmap.(vrsp); v_info := xi |} in
+  Cassgn (Lvar x) AT_none (sword Uptr) (Pvar (mk_lvar x)).
+
 Fixpoint alloc_i (rmap:regions) (i: instr) : result instr_error (regions * instr) :=
   let (ii, ir) := i in
   Let ir := 
     let mv_sp := is_move_ptr rmap ir in
     match mv_sp with
-    | Some (x, xp, y, yp) =>
+    | Some ((x,y), mv) =>
+      let ir := 
+        match mv with
+        | Some (xp,yp) => mov_ptr xp yp
+        | None         => nop y.(v_info) 
+        end in
       Let rmap := add_iinfo ii (Region.set_move rmap x.(v_var) y.(v_var)) in
-      ok (rmap, mov_ptr xp yp)
+      ok (rmap, ir)
     | None =>
     match ir with
     | Cassgn r t ty e => 
