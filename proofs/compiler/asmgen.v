@@ -166,6 +166,7 @@ Definition assemble_x86_opn rip ii op (outx : lvals) (inx : pexprs) :=
 
 Definition assemble_sopn rip ii op (outx : lvals) (inx : pexprs) :=
   match op with
+  | Onop
   | Omulu     _ 
   | Oaddcarry _ 
   | Osubcarry _ =>

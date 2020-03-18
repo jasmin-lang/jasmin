@@ -555,10 +555,7 @@ Section LOOP.
 
 End LOOP.
 
-(* FIXME: this is durty *)
-Definition nop xi :=
-  let x := {| v_var := pmap.(vrsp); v_info := xi |} in
-  Cassgn (Lvar x) AT_none (sword Uptr) (Pvar (mk_lvar x)).
+Definition nop := Copn [::] AT_none Onop [::]. 
 
 Fixpoint alloc_i (rmap:regions) (i: instr) : result instr_error (regions * instr) :=
   let (ii, ir) := i in
@@ -569,7 +566,7 @@ Fixpoint alloc_i (rmap:regions) (i: instr) : result instr_error (regions * instr
       let ir := 
         match mv with
         | Some (xp,yp) => mov_ptr xp yp
-        | None         => nop y.(v_info) 
+        | None         => nop 
         end in
       Let rmap := add_iinfo ii (Region.set_move rmap x.(v_var) y.(v_var)) in
       ok (rmap, ir)

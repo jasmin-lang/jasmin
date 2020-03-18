@@ -52,7 +52,8 @@ type tyerror =
   | PrimIsX of S.symbol
   | PrimNotX of S.symbol
   | ReturnLocalStack    of S.symbol
-  | BadVariableKind     of P.pvar_i * P.v_kind
+  | ArgumentNotVar      
+  | BadVariableKind     of P.v_kind
   | PackSigned
   | PackWrongWS of int
   | PackWrongPE of int
@@ -175,9 +176,13 @@ let pp_tyerror fmt (code : tyerror) =
 
   | ReturnLocalStack v ->
       F.fprintf fmt "can not return the local stack variable %s" v
-  | BadVariableKind(x,kind) ->
-    F.fprintf fmt "the variable %a has kind %a instead of %a"
-       Printer.pp_pvar (L.unloc x) Printer.pp_kind (P.kind_i x) Printer.pp_kind kind
+
+  | ArgumentNotVar ->
+    F.fprintf fmt "the expression should be a variable"
+
+  | BadVariableKind kind ->
+    F.fprintf fmt "the variable should have kind %a"
+       Printer.pp_kind kind
 
   | PackSigned ->
     F.fprintf fmt "packs should be unsigned"
@@ -208,8 +213,8 @@ module Env : sig
   end
 
   module Funs : sig
-    val push  : unit P.pfunc -> env -> env
-    val find  : S.symbol -> env -> unit P.pfunc option
+    val push  : unit P.pfunc -> P.pty list -> env -> env
+    val find  : S.symbol -> env -> (unit P.pfunc * P.pty list) option
   end
 
   module Exec : sig
@@ -221,7 +226,7 @@ end = struct
   type env = {
     e_vars    : (S.symbol, P.pvar) Map.t;
     e_globals : (S.symbol, P.pvar) Map.t;
-    e_funs    : (S.symbol, unit P.pfunc) Map.t;
+    e_funs    : (S.symbol, unit P.pfunc * P.pty list) Map.t;
     e_exec    : (P.funname * (Bigint.zint * Bigint.zint) list) list
   }
 
@@ -248,11 +253,12 @@ end = struct
     let find (x : S.symbol) (env : env) =
       Map.Exceptionless.find x env.e_funs
 
-    let push (v : unit P.pfunc) (env : env) =
+    let push (v : unit P.pfunc) rty (env : env) =
       let name = v.P.f_name.P.fn_name in
       match find name env with
-      | None -> { env with e_funs = Map.add name v env.e_funs; }
-      | Some fd -> rs_tyerror ~loc:v.P.f_loc (DuplicateFun(name, fd.P.f_loc))
+      | None -> { env with e_funs = Map.add name (v,rty) env.e_funs; }
+      | Some (fd,_) -> 
+        rs_tyerror ~loc:v.P.f_loc (DuplicateFun(name, fd.P.f_loc))
 
   end
 
@@ -852,12 +858,13 @@ let tt_expr_int  env pe = tt_expr_ty env pe P.tint
 let tt_vardecl (env : Env.env) ((sto, xty), x) =
   let { L.pl_desc = x; L.pl_loc = xlc; } = x in
   let (sto, xty) = (tt_sto sto, tt_type env xty) in
-  P.PV.mk x sto xty xlc
+  L.mk_loc xlc (P.PV.mk x sto xty xlc)
 
 (* -------------------------------------------------------------------- *)
 let tt_vardecls_push (env : Env.env) pxs =
   let xs  = List.map (tt_vardecl env) pxs in
-  let env = List.fold_left ((^~) Env.Vars.push) env xs in
+  let env = 
+    List.fold_left (fun env x -> Env.Vars.push (L.unloc x) env) env xs in
   (env, xs)
 
 (* -------------------------------------------------------------------- *)
@@ -1137,67 +1144,40 @@ let rec is_constant e =
   | P.PappN (_, es) -> List.for_all is_constant es
   | P.Pif(_, e1, e2, e3)   -> is_constant e1 && is_constant e2 && is_constant e3
 
-let check_call loc doInline lvs f es =
-  (* Check that arguments have the same kind than parameters *)
-  let doarg x e = 
-    let loc = L.loc e in
-    let e   = L.unloc e in
-    let _ = 
-      match x.P.v_kind with
-      | P.Const -> assert false
-      | P.Inline ->
-        if not (is_constant e) then 
-          F.eprintf
-            "WARNING: at %a, the expression %a will not be evaluated to a constant expression, inlining will introduce an assigment@."
-            L.pp_loc loc Printer.pp_pexpr e
-      
-      | P.Global -> ()
 
-      | (P.Stack _ | P.Reg _ ) as k ->
-        match e with
-        | Pvar z -> if P.kind_i z.P.gv <> k then rs_tyerror ~loc (BadVariableKind(z.P.gv, k))
-        | _      -> () in
-    e in
-  let es = List.map2 doarg f.P.f_args es in
-
-  (* Extra check for inlining *)
-  if doInline = P.DoInline then
-    let warning x y y' = 
-      F.eprintf "WARNING: at %a, variables %s and %s will be merged to %s@."
-                     P.L.pp_loc loc y.P.v_name y'.P.v_name x.P.v_name in
-      
-    let m_xy = ref P.Mpv.empty in
-    let m_yx = ref P.Mpv.empty in
-    let add_var x y m =
-      m := 
-        P.Mpv.modify_opt x (fun o ->
-          match o with
-          | Some y' -> if not (P.PV.equal y y') then warning x y y';o
-          | None    -> Some y) !m in
-    let check_arg x e = 
-      match e with
-      | P.Pvar y -> 
-        let y = y.P.gv in
-        let y = P.L.unloc y in add_var x y m_xy; add_var y x m_yx 
-      | _      -> 
-        F.eprintf "WARNING: at %a the argument %a is not a variable, inlining will introduce an assigment@."
-          P.L.pp_loc loc Printer.pp_pexpr e                         
-    in
-    List.iter2 check_arg f.P.f_args es;
-    let check_res x l = 
-      match l with
-      | P.Lvar y -> let x = P.L.unloc x in let y = P.L.unloc y in add_var x y m_xy; add_var y x m_yx 
-      | _        -> 
-        F.eprintf "WARNING: at %a the lval %a is not a variable, inlining will introduce an assigment@."
-          P.L.pp_loc loc Printer.pp_plval l
-    in
-    List.iter2 check_res f.P.f_ret lvs
- 
 let check_lval_pointer loc x =  
   match x with
   | P.Lvar x when P.is_ptr (L.unloc x).P.v_kind -> () 
   | _ -> rs_tyerror ~loc (NotAPointer x)
 
+let extra_ret es xs = 
+  let rec aux extra es xs = 
+    match es, xs with
+    | [], [] -> List.rev extra
+    | e::es, x::xs ->
+      let extra =
+        match x.P.v_kind with
+        | P.Const | P.Global | P.Inline -> extra
+        | P.Stack Direct | P.Reg Direct -> extra
+        | P.Stack Pointer | P.Reg Pointer -> 
+          let loc = L.loc e in
+          let e = L.unloc e in
+          let y = 
+            match e with
+            | P.Pvar y -> 
+              if not (P.is_gkvar y) then
+                 rs_tyerror ~loc (BadVariableKind x.v_kind);
+              let y = y.P.gv in
+              if x.v_kind <> (L.unloc y).v_kind then 
+                rs_tyerror ~loc (BadVariableKind x.v_kind);    
+              y
+            | _ -> rs_tyerror ~loc ArgumentNotVar
+            in
+            P.Lvar y::extra in
+      aux extra es xs
+    | _, _ -> assert false in
+  aux [] es xs 
+  
 let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
 
   let instr = match L.unloc pi with
@@ -1207,14 +1187,13 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       arr_init xi
   
     | S.PIAssign (ls, `Raw, { pl_desc = PECall (f, args) }, None) ->
-      let f = tt_fun env f in
-      let tlvs, tes = f_sig f in
+      let (f,tlvs) = tt_fun env f in
+      let _tlvs, tes = f_sig f in
       let lvs = tt_lvalues env ls tlvs in
       let es  = tt_exprs_cast env args tes in
-      let doInline = P.DoInline in
       let les = List.map2 (fun l e -> L.mk_loc (L.loc l) e) args es in
-      check_call (L.loc pi) doInline lvs f les;
-      P.Ccall (P.DoInline, lvs, f.P.f_name, es)
+      let ptr_lvs = extra_ret les f.P.f_args in
+      P.Ccall (P.DoInline, ptr_lvs@lvs, f.P.f_name, es)
 
     | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim f in
@@ -1323,7 +1302,7 @@ let tt_call_conv = function
 
 
 (* -------------------------------------------------------------------- *)
-let check_return_stack fd = 
+(*let check_return_stack fd = 
   let args = P.Spv.of_list fd.P.f_args in
   let check vi = 
     let v = P.L.unloc vi in
@@ -1331,26 +1310,34 @@ let check_return_stack fd =
        fd.P.f_cc = P.Export then 
       rs_tyerror ~loc:(P.L.loc vi) (ReturnLocalStack v.P.v_name)
   in
-  List.iter check fd.P.f_ret
+  List.iter check fd.P.f_ret *)
       
+
 let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
   let envb, args = tt_vardecls_push env pf.pdf_args in
   let rty  = odfl [] (omap (List.map (tt_type env |- snd)) pf.pdf_rty) in
-  let body = tt_funbody envb pf.pdf_body in
+  let body, xret = tt_funbody envb pf.pdf_body in
+  (* add the extra return value *)
+  let ptr_args = List.filter (fun x -> P.is_ptr (L.unloc x).P.v_kind) args in
+  let args = List.map L.unloc args in
+  let full_xret = ptr_args @ xret in
+  let full_rty = 
+    List.map (fun x -> (L.unloc x).P.v_ty) ptr_args @ rty in
+
   let fdef =
     { P.f_loc = loc;
       P.f_cc   = tt_call_conv pf.pdf_cc;
       P.f_name = P.F.mk (L.unloc pf.pdf_name); 
       P.f_tyin = List.map (fun { P.v_ty } -> v_ty) args;
       P.f_args = args;
-      P.f_body = fst body;
-      P.f_tyout = rty;
-      P.f_ret  = snd body; } in
+      P.f_body = body;
+      P.f_tyout =  full_rty;
+      P.f_ret  = full_xret; } in
 
   check_sig ~loc:(`IfEmpty (L.loc pf.S.pdf_name)) rty
-    (List.map (fun x -> (L.loc x, (L.unloc x).P.v_ty)) fdef.P.f_ret);
-  check_return_stack fdef;
-  (Env.Funs.push fdef env, fdef)
+    (List.map (fun x -> (L.loc x, (L.unloc x).P.v_ty)) xret);
+ (* check_return_stack fdef; *)
+  (Env.Funs.push fdef rty env, fdef)
 
 (* -------------------------------------------------------------------- *)
 let tt_global_def env (gd:S.gpexpr) = 
@@ -1401,7 +1388,7 @@ let tt_item (env : Env.env) pt : Env.env * (unit P.pmod_item list) =
   | S.PParam  pp -> snd_map (fun x -> [P.MIparam x]) (tt_param  env (L.loc pt) pp)
   | S.PFundef pf -> snd_map (fun x -> [P.MIfun   x]) (tt_fundef env (L.loc pt) pf)
   | S.PGlobal pg -> snd_map (fun (x, y) -> [P.MIglobal (x, y)]) (tt_global env (L.loc pt) pg)
-  | S.Pexec   pf -> Env.Exec.push (tt_fun env pf.pex_name).P.f_name pf.pex_mem env, []
+  | S.Pexec   pf -> Env.Exec.push (fst (tt_fun env pf.pex_name)).P.f_name pf.pex_mem env, []
 
 (* -------------------------------------------------------------------- *)
 let tt_program (env : Env.env) (pm : S.pprogram) : Env.env * unit P.pprog =

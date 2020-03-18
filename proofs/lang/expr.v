@@ -106,6 +106,7 @@ Variant opN :=
 
 Variant sopn : Set :=
 (* Generic operation *)
+| Onop
 | Omulu     of wsize   (* cpu   : [sword; sword]        -> [sword;sword] *)
 | Oaddcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
 | Osubcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
@@ -237,8 +238,16 @@ Definition Ox86MOVZX32_instr :=
            (λ x : u32, ok (zero_extend U64 x)) 
            U32 [::].
 
+Definition Onop_instr := 
+  mk_instr (pp_s "NOP")
+           [::] [::]
+           [::] [::]
+           (ok tt)
+           U64 [::].
+
 Definition get_instr o :=
   match o with
+  | Onop         => Onop_instr
   | Omulu     sz => Omulu_instr sz
   | Oaddcarry sz => Oaddcarry_instr sz
   | Osubcarry sz => Osubcarry_instr sz
