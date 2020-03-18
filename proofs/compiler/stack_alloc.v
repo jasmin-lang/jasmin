@@ -720,7 +720,7 @@ Definition alloc_fd_aux
     Let body := add_finfo fn fn (fmapM (alloc_i pmap) rmap fd.(f_body)) in
     Let _ := add_err_fun fn (mapM (fun (x:var_i) => check_var pmap x) fd.(f_res)) in
     let fd1 := with_body fd body.2 in
-    let '(fd2, to_save, oreg) := reg_alloc_fd (sz == 0) fn fd1 in
+    let '(fd2, to_save, oreg) := reg_alloc_fd (sz != 0) fn fd1 in
     if sz == 0 then 
       let f_extra := {| sf_stk_sz := sz; sf_extra := (to_save, SavedStackNone) |} in
       ok (Some (fd1, fd2, f_extra))
