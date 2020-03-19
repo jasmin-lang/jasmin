@@ -220,7 +220,19 @@ Definition dead_code_fd (fd: fundef) :=
   let: (sc, c, F) := c' in 
   ciok (MkFun ii tyi params c tyo res, leak_fun F).
 
+Definition dead_code_fd' (fdl : fun_decl) : funname * fundef * leakage_f_trans := 
+  let fd := fdl.2 in 
+  let 'MkFun ii tyi params c tyo res := fd in
+  let s := read_es (map Pvar res) in
+  Let c' := dead_code_c dead_code_i c s in
+  let: (sc, c, F) := c' in 
+  (fdl.1, MkFun ii tyi params c tyo res, leak_fun F).
+
 Print dead_code_fd.
+
+Check dead_code_fd.
+
+(* We also need to return (funname * (fundef * (leakage_f_trans))) in dead_code_fd *)
 
 (*Definition dead_code_fd (fd: fundef) : fundef * leakage_f_trans :=
   let 'MkFun ii tyi params c tyo res := fd in
@@ -230,6 +242,7 @@ Print dead_code_fd.
   ciok (MkFun ii tyi params c tyo res, leak_fun F).*)
 
 End Section.
+
 
 
 Definition dead_code_prog (p: prog) : cfexec prog :=
