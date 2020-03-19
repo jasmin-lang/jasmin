@@ -10,6 +10,8 @@ op ADOX_64 : W64.t -> W64.t -> bool -> (bool * W64.t).
 op ADCX_64 : W64.t -> W64.t -> bool -> (bool * W64.t).
 op XOR_64 : W64.t -> W64.t -> (bool * bool * bool * bool * bool * W64.t).
 op SAR_64 : W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
+op AND_64 : W64.t -> W64.t -> (bool * bool * bool * bool * bool * W64.t).
+op RCR_64 : W64.t -> W8.t -> bool -> (bool * bool * W64.t).
 op set0_64 = (false,false,false,false,false, W64.of_int(0)).
 
 (* -------------------------------------------------------------------- *)
