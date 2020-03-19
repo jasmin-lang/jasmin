@@ -26,6 +26,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect.
 Require Import expr compiler_util ZArith.
+Require Export leakage.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -34,36 +35,98 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
-Definition leak_i_trans := leakage_i -> leakage_c.
-Definition leak_c_trans := leakage_c -> leakage_c.
-Definition leak_f_trans := leakage_fun -> leakage_fun.
+Definition leakage_i_trans := leakage_i -> leakage_c.
+
+Definition leakage_c_trans := leakage_c -> leakage_c.
+
+Definition leakage_f_trans := leakage_fun -> leakage_fun.
+
+Definition leakage_empty : leakage_i_trans := fun _ => Lempty.
+
+Definition leakage_c_empty : leakage_c_trans := fun _ => Lempty.
+
+Definition leakage_seq1 : leakage_i_trans := fun li => Lcons li Lempty.
+
+Definition leakage_if (F1 F2: leakage_c_trans) (li : leakage_i) : leakage_c := 
+  match li with
+  | Lcond le b lc => 
+    leakage_seq1 (Lcond le b (if b then F1 lc else F2 lc))
+  | _ => Lempty
+  end.
+
+Fixpoint leak_for (Fc : leakage_c_trans) (lf : leakage_for) : leakage_for :=
+  match lf with 
+  | Lfor_empty => Lfor_empty
+  | Lfor_one lc lf => (Lfor_one (Fc lc) (leak_for Fc lf))
+end.
+
+Fixpoint leakage_for (Fc : leakage_c_trans) (li : leakage_i) : leakage_c :=
+  match li with 
+  | Lfor le lf => leakage_seq1 (Lfor le (leak_for Fc lf))
+  | _ => Lempty
+  end.
+
+Fixpoint leak_while (Fc : leakage_c_trans) (Fc' : leakage_c_trans) (li : leakage_i) : leakage_i :=
+  match li with
+  | Lwhile_true lc le lc' lw => (Lwhile_true (Fc lc) le (Fc' lc) (leak_while Fc Fc' lw))
+  | Lwhile_false lc le => (Lwhile_false (Fc lc) le)
+  | _ => li
+  end.
+
+Fixpoint leakage_while (Fc : leakage_c_trans) (Fc' : leakage_c_trans) (li : leakage_i) : leakage_c :=
+  match li with
+  | Lwhile_true lc le lc' lw => leakage_seq1 (Lwhile_true (Fc lc) le (Fc' lc) (leak_while Fc Fc' lw))
+  | Lwhile_false lc le => leakage_seq1 (Lwhile_false (Fc lc) le)
+  | _ => Lempty
+  end.
+
+Definition leak_fun (Fc : leakage_c_trans) (lf : leakage_fun) : leakage_fun :=
+  match lf with 
+  | Lfun lc => Lfun (Fc lc)
+  end.
 
 
-Definition dead_code_c (dead_code_i: instr -> Sv.t -> ciexec (Sv.t * cmd * leak_c_trans))
-                       c s :  ciexec (Sv.t * cmd):=
+Definition leakage_fun_f (Fc : leakage_c_trans) (li : leakage_i) : leakage_c := 
+  match li with 
+  | Lcall le lf le' => leakage_seq1 (Lcall le (leak_fun Fc lf) le')
+  | _ => Lempty
+  end.
+
+
+Fixpoint leakage_i_c (Fc : leakage_c_trans) (Fi : leakage_i_trans) (lc : leakage_c) : leakage_c := 
+  match lc with 
+  | Lempty => Lempty
+  | Lcons li lc' => (Fi li) ++l (leakage_i_c Fc Fi lc')
+  end.
+
+Definition dead_code_c (dead_code_i: instr -> Sv.t -> ciexec (Sv.t * cmd * leakage_i_trans))
+                       c s :  ciexec (Sv.t * cmd * leakage_c_trans):=
   foldr (fun i r =>
     Let r := r in
-    Let ri := dead_code_i i r.1 in
-    ciok (ri.1, ri.2 ++ r.2)) (ciok (s,[::])) c.
+    let: (s1, c1, Fc) := r in 
+    Let ri := dead_code_i i s1 in
+    let: (si, ci, Fi) := ri in
+    ciok (si, ci ++ c1, fun lc => leakage_i_c Fc Fi lc)) (ciok (s,[::],leakage_c_empty)) c.
+
 
 Section LOOP.
 
-  Variable dead_code_c : Sv.t -> ciexec (Sv.t * cmd * leak_c_trans)).
-  Variable dead_code_c2 : Sv.t -> ciexec (Sv.t * (Sv.t * (cmd*cmd) * (leak_c_trans * leak_c_trans))).
+  Variable dead_code_c : Sv.t -> ciexec (Sv.t * cmd * leakage_c_trans).
+  Variable dead_code_c2 : Sv.t -> ciexec (Sv.t * (Sv.t * (cmd*cmd) * (leakage_c_trans * leakage_c_trans))).
   Variable ii : instr_info.
 
-  Fixpoint loop (n:nat) (rx:Sv.t) (wx:Sv.t) (s:Sv.t) : ciexec (Sv.t * cmd * leak_c_trans) :=
+  Fixpoint loop (n:nat) (rx:Sv.t) (wx:Sv.t) (s:Sv.t) : ciexec (Sv.t * cmd * leakage_c_trans) :=
     match n with
     | O => cierror ii (Cerr_Loop "dead_code")
     | S n =>
       Let sc := dead_code_c s in
-      let: (s',c') := sc in
+      let: (s',c', F') := sc in
       let s' := Sv.union rx (Sv.diff s' wx) in
-      if Sv.subset s' s then ciok (s,c')
+      if Sv.subset s' s then ciok (s,c', F')
       else loop n rx wx (Sv.union s s')
     end.
 
-  Fixpoint wloop (n:nat) (s:Sv.t) : ciexec (Sv.t * (cmd * cmd) * (leak_c_trans * leak_c_trans)) :=
+  Fixpoint wloop (n:nat) (s:Sv.t) : ciexec (Sv.t * (cmd * cmd) * (leakage_c_trans * leakage_c_trans)) :=
     match n with
     | O =>  cierror ii (Cerr_Loop "dead_code")
     | S n =>
@@ -90,89 +153,81 @@ Definition check_nop_opn (xs:lvals) (o: sopn) (es:pexprs) :=
   | _, _, _ => false
   end.
 
-Definition leak_empty : leak_i_trans :=
-  fun Ffun (_:leakage_i) => Lempty.
-
-Definition leak_seq1 : leak_i_trans := 
-   fun Ffun li => Lcons li Lempty.
-
-Definition leak_if (F1 F2: leak_c_trans) : leakage_c := 
-  fun Ffun (li:leakage_i) => 
-  match li with
-  | Lcond le b lc => 
-    leak_seq1 (Lcond le b (if b then F1 Ffun lc else F2 Ffun lc))
-  | _ => Lempty
-  end.
-
-Fixpoint leak_while Fc Fc' (li:leakage_i) := 
-  match li with
-  | Lwhile_true lc le lc' lw => 
-    leak_seq1 (Lwhile_true (Fc lc) le (Fc' lc') (leak_while Fc Fc' lw))
-  | Lwhile_false lc le =>
-    leak_seq1 (Lwhile_false (Fc lc) le)
-  | _ => Lempty
-  end.
-
 Section Section.
 
-Variable (Ff: seq (funname * leaf_f_trans)).
+Definition Ff := seq (funname * leakage_c_trans).
 
-Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd * leak_i_trans ) :=
+Fixpoint find_f_l (f : Ff) (fn : funname) : leakage_c_trans :=
+  match f with 
+  | x :: xl => if x.1 == fn then x.2 else find_f_l xl fn
+  | [::] => leakage_c_empty
+  end.
+
+Variable ff : Ff.
+
+Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd * leakage_i_trans) :=
   let (ii,ir) := i in
   match ir with
   | Cassgn x tag ty e =>
     let w := write_i ir in
     if tag != AT_keep then
-      if disjoint s w && negb (write_mem x) then ciok (s, [::], leak_empty)
-      else if check_nop x ty e then ciok (s, [::])
-      else ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ], leak_seq1)
-    else   ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ], leak_seq1)
+      if disjoint s w && negb (write_mem x) then ciok (s, [::], leakage_empty)
+      else if check_nop x ty e then ciok (s, [::], leakage_empty)
+      else ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ], leakage_seq1)
+    else   ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ], leakage_seq1)
 
   | Copn xs tag o es =>
     let w := vrvs xs in
     if tag != AT_keep then
-      if disjoint s w && negb (has write_mem xs) then ciok (s, [::], leak_empty)
-      else if check_nop_opn xs o es then ciok (s, [::])
-      else ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
-    else ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
+      if disjoint s w && negb (has write_mem xs) then ciok (s, [::], leakage_empty)
+      else if check_nop_opn xs o es then ciok (s, [::], leakage_empty)
+      else ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i], leakage_seq1)
+    else ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i], leakage_seq1)
 
   | Cif b c1 c2 =>
     Let sc1 := dead_code_c dead_code_i c1 s in
     Let sc2 := dead_code_c dead_code_i c2 s in
     let: (s1,c1,F1) := sc1 in
     let: (s2,c2,F2) := sc2 in
-    ciok (read_e_rec (Sv.union s1 s2) b, [:: MkI ii (Cif b c1 c2)], leak_if F1 F2)
+    ciok (read_e_rec (Sv.union s1 s2) b, [:: MkI ii (Cif b c1 c2)], leakage_if F1 F2)
 
   | Cfor x (dir, e1, e2) c =>
     Let sc := loop (dead_code_c dead_code_i c) ii Loop.nb
                    (read_rv (Lvar x)) (vrv (Lvar x)) s in
-    let: (s, c) := sc in
-    ciok (read_e_rec (read_e_rec s e2) e1,[:: MkI ii (Cfor x (dir,e1,e2) c) ])
+    let: (s, c, F) := sc in
+    ciok (read_e_rec (read_e_rec s e2) e1,[:: MkI ii (Cfor x (dir,e1,e2) c) ], leakage_for F)
 
   | Cwhile a c e c' =>
     let dobody s_o :=
-      let s_o' := read_e_rec s_o e in
-      Let sci := dead_code_c dead_code_i c s_o' in
-      let: (s_i, c, Fc) := sci in
-      Let sci' := dead_code_c dead_code_i c' s_i in
-      let: (s_i', c', Fc') := sci' in
-      ok (s_i', (s_i, (c,c'), (Fc,Fc'))) in
+    let s_o' := read_e_rec s_o e in
+    Let sci := dead_code_c dead_code_i c s_o' in
+    let: (s_i, c, Fc) := sci in
+    Let sci' := dead_code_c dead_code_i c' s_i in
+    let: (s_i', c', Fc') := sci' in
+    ok (s_i', (s_i, (c,c'), (Fc,Fc'))) in
     Let sc := wloop dobody ii Loop.nb s in
     let: (s, (c,c'), (Fc,Fc')) := sc in
-    ciok (s, [:: MkI ii (Cwhile a c e c') ], leak_while Fc Fc')
+    ciok (s, [:: MkI ii (Cwhile a c e c') ], leakage_while Fc Fc')
 
   | Ccall _ xs f es =>
-    let Ff := Ffun f in
-    ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i], (fun Ffun =>  )
-
-    end
+    ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i], leakage_fun_f (find_f_l ff f))
   end.
 
-Definition dead_code_fd (fd: fundef) : fundef * leak_f_trans :=
+Definition dead_code_fd (fd: fundef) :=
   let 'MkFun ii tyi params c tyo res := fd in
   let s := read_es (map Pvar res) in
-  Let c := dead_code_c dead_code_i c s in
-  ciok (MkFun ii tyi params c.2 tyo res, ....).
+  Let c' := dead_code_c dead_code_i c s in
+  let: (sc, c, F) := c' in 
+  ciok (MkFun ii tyi params c tyo res, leak_fun F).
+
+Print dead_code_fd.
+
+(*Definition dead_code_fd (fd: fundef) : fundef * leakage_f_trans :=
+  let 'MkFun ii tyi params c tyo res := fd in
+  let s := read_es (map Pvar res) in
+  Let c' := dead_code_c dead_code_i c s in
+  let: (sc, c, F) := c' in 
+  ciok (MkFun ii tyi params c tyo res, leak_fun F).*)
 
 End Section.
 
