@@ -254,7 +254,7 @@ Definition dead_code_fd_cons (ffd:fun_decl) (p:cfexec (seq (funname * (fundef * 
 
 Check dead_code_fd_cons.
 
-Definition dead_code_prog (p:prog) :=
+Definition dead_code_prog' (p:prog) :=
   let fds :=  p_funcs p in 
   foldr dead_code_fd_cons (cfok [::]) fds.
 
@@ -270,13 +270,15 @@ Fixpoint map_funname_def (p : seq (funname * (fundef * leakage_f_trans))) : seq 
   | (x, (y, z)) :: xl => (x, y) :: map_funname_def xl
   end.
 
-Print dead_code_prog.
+Print dead_code_prog'.
 
-Definition dead_code_prog' (p : prog) : cfexec (prog * (seq (funname * leakage_f_trans))) := 
+Definition dead_code_prog (p : prog) : cfexec (prog * (seq (funname * leakage_f_trans))) := 
   Let f := foldr dead_code_fd_cons (cfok [::]) (p_funcs p) in 
   let leaks := map_funname_leak f in
   let defs := map_funname_def f in
   ok ({| p_globs := p_globs p; p_funcs := defs |}, leaks).
+
+Print dead_code_prog.
 
 End Section.
 
