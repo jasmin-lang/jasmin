@@ -213,24 +213,23 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd * leakag
     ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i], leakage_fun_f (find_f_l ff f))
   end.
 
-Definition dead_code_fd (fd: fundef) :=
-  let 'MkFun ii tyi params c tyo res := fd in
+(* The type of dead_code_fd : : fundef ->
+       result instr_error
+         (fundef * (leakage_fun -> leakage_fun)) *)
+Definition dead_code_fd (fd: fun_decl) :=
+  let 'MkFun ii tyi params c tyo res := fd.2 in
   let s := read_es (map Pvar res) in
   Let c' := dead_code_c dead_code_i c s in
   let: (sc, c, F) := c' in 
   ciok (MkFun ii tyi params c tyo res, leak_fun F).
 
-Definition dead_code_fd' (fdl : fun_decl) : funname * fundef * leakage_f_trans := 
-  let fd := fdl.2 in 
-  let 'MkFun ii tyi params c tyo res := fd in
-  let s := read_es (map Pvar res) in
-  Let c' := dead_code_c dead_code_i c s in
-  let: (sc, c, F) := c' in 
-  (fdl.1, MkFun ii tyi params c tyo res, leak_fun F).
 
-Print dead_code_fd.
-
-Check dead_code_fd.
+(*Definition dead_code_fd_cons (ffd : funname * fundef) (p : ciexec (seq (funname * (fundef * leakage_f_trans)))) :=
+  Let p := p in 
+  let f := ffd.1 in
+  Let fd := (dead_code_fd ffd.2) in 
+  let: (fd', F) := fd in 
+  ciok ((f, (fd', F)) :: p).*)
 
 (* We also need to return (funname * (fundef * (leakage_f_trans))) in dead_code_fd *)
 
@@ -241,11 +240,50 @@ Check dead_code_fd.
   let: (sc, c, F) := c' in 
   ciok (MkFun ii tyi params c tyo res, leak_fun F).*)
 
+(*Fixpoint dead_code_fd_cons (p : fun_decls) :=
+  match p with
+  | [::] => [::]
+  | x :: xl => dead_code_fd x :: dead_code_fd_cons xl
+  end.*)
+
+Definition dead_code_fd_cons (ffd:fun_decl) (p:cfexec (seq (funname * (fundef * leakage_f_trans)))) :=
+  Let p := p in
+  let f := ffd.1 in
+  Let fd := add_finfo f f (dead_code_fd ffd) in
+  cfok ((f,(fd.1, fd.2)):: p).
+
+Check dead_code_fd_cons.
+
+Definition dead_code_prog (p:prog) :=
+  let fds :=  p_funcs p in 
+  foldr dead_code_fd_cons (cfok [::]) fds.
+
 End Section.
 
 
+Fixpoint map_funname_leak (p : seq (funname * (fundef * leakage_f_trans))) : seq (funname * leakage_f_trans) :=
+  match p with 
+  | [::] => [::]
+  | (x, (y, z)) :: xl => (x, z) :: map_funname_leak xl
+  end.
 
-Definition dead_code_prog (p: prog) : cfexec prog :=
+Fixpoint map_funname_def (p : seq (funname * (fundef * leakage_f_trans))) : seq (funname * fundef) :=
+  match p with
+  | [::] => [::]
+  | (x, (y, z)) :: xl => (x, y) :: map_funname_def xl
+  end.
+
+Print foldr.
+
+
+(*Definition dead_code_prog (p : prog) : cfexec prog := 
+  Let f := dead_code_fd_cons (p_funcs p) in 
+  let leaks := map_funname_leak f in
+  let defs := map_funname_def f in
+  ok ({| p_globs := p_globs p; p_funcs := defs |}, leaks).*)
+
+
+(*Definition dead_code_prog (p: prog) : cfexec prog :=
   Let funcs := map_cfprog dead_code_fd (p_funcs p) in
             : list (funname * (fundef * leak_f_trans))
   Let leaks := map (fun (fn, (fd,Ff)) => (fn, Ff)) funcs in
@@ -257,4 +295,4 @@ Definition leak_f
 
 [f1 ; f2 ]
 
-f2 { f1 } 
+f2 { f1 } *)
