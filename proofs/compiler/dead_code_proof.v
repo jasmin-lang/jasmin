@@ -45,7 +45,7 @@ Lemma write_memP gd (x:lval) v s1 s2:
   write_lval gd x v s1 = ok s2 ->
   emem s1 = emem s2.
 Proof.
-  case: x=> //= [v0 t|v0|ws v0 p] _.
+  case: x=> //= [v0 t|v0|aa ws v0 p] _.
   + by move => /write_noneP [-> _]. 
   + by apply: rbindP=> z Hz [] <-; rewrite emem_with_vm.
   apply: on_arr_varP=> n t Ht Hval.

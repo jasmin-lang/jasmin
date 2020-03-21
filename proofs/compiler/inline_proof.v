@@ -843,7 +843,7 @@ Section REMOVE_INIT.
       move: hsub;rewrite /truncate_val;case: ty => //= nty.
       rewrite /WArray.cast.
       case: ZleP => //= ? -[?];subst.
-      case: x hwr => [vi t | [[xt xn] xi] | ws x e | ws x e] /=.
+      case: x hwr => [vi t | [[xt xn] xi] | ws x e | aa ws x e] /=.
       + by move=> /write_noneP [->];exists vm1;split=> //;constructor.
       + apply: rbindP => vm1';apply: on_vuP => //=.
         + case: xt => //= p0 t -[?] ? [?];subst => /= Wf1.

@@ -229,7 +229,7 @@ case => hm hvm; case: x => /=.
     rewrite hm (get_var_sim hvm) => -> /= -> ?? /(sem_pexpr_sim (conj hm hvm))
         -> /= -> ? -> ? /= -> <- /=.
   by eexists; split; split.
-move => ws x e.
+move => aa ws x e.
 rewrite /on_arr_var (get_var_sim hvm); t_xrbindP => t -> /=.
 case: t => // n t; t_xrbindP => ?? /(sem_pexpr_sim (conj hm hvm)) -> /= -> ? -> /= ? -> ? /(set_var_sim hvm).
 case => vm' [] h /= -> <- /=.

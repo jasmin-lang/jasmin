@@ -657,7 +657,7 @@ Section CONST_PROP_EP.
       case: Mvar.get => [n /(_ _ erefl)| _ /= ]; last by rewrite /= /get_gvar /=;eauto.
       by case: n => [ n | sz w ] /= -> [<-]; rewrite /sem_sop1 /= ?wrepr_unsigned;
            eexists;(split;first reflexivity) => /=.
-    - move => sz x e He v.
+    - move => aa sz x e He v.
       apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
       t_xrbindP => z w /(He _) [v'] [->] /value_uincl_int h/h{h} [??];subst.
       move => a ha ?; subst; rewrite /= ha.
@@ -753,7 +753,7 @@ Lemma const_prop_rvP s1 s2 m x v:
   valid_cpm (evm s2) (const_prop_rv m x).1 /\
   write_lval gd (const_prop_rv m x).2 v s1 = ok s2.
 Proof.
-  case:x => [ii t | x | sz x p | sz x p] /= Hv.
+  case:x => [ii t | x | sz x p | aa sz x p] /= Hv.
   + by move=> H; have [??]:= write_noneP H; subst s2.
   + by move=> H;split=>//;apply: remove_cpm1P H Hv.
   + apply: rbindP => z Hz;rewrite Hz /=.
@@ -835,7 +835,7 @@ Proof.
   move=> m1 m2 Hm e e' <- {e'}.
   elim: e => //=.
   + by move=> ?;rewrite Hm.
-  + by move=> ??? ->.
+  + by move=> ???? ->.
   + by move=> ??? ->.
   + by move=> ?? ->.
   + by move=> ?? -> ? ->.
@@ -850,7 +850,7 @@ Instance const_prop_rv_m :
   Proper (@Mvar_eq const_v ==> eq ==> RelationPairs.RelProd (@Mvar_eq const_v) eq) const_prop_rv.
 Proof.
   move=> m1 m2 Hm rv rv' <- {rv'}.
-  by case: rv => [ v | v | sz v p | sz v p] //=;rewrite Hm.
+  by case: rv => [ v | v | sz v p | aa sz v p] //=;rewrite Hm.
 Qed.
 
 Instance const_prop_rvs_m :
