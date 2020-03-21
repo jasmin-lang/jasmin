@@ -33,7 +33,9 @@ let rec pp_expr tbl fmt =
   | E.Pbool b -> Pr.pp_bool fmt b
   | E.Parr_init n -> F.fprintf fmt "arr_init(%a)" B.pp_print (Conv.bi_of_pos n)
   | E.Pvar x -> pp_var_i tbl fmt x.gv
-  | E.Pget (ws, x, e) -> F.fprintf fmt "%a[%a %a]" pp_wsize ws (pp_var_i tbl) x.gv pp_expr e
+  | E.Pget (aa, ws, x, e) -> 
+    Pr.pp_arr_access (pp_var_i tbl) pp_expr fmt aa ws x.gv e
+
   | E.Pload (sz, x, e) -> F.fprintf fmt "(%a)[%a + %a]" pp_wsize sz (pp_var_i tbl) x pp_expr e
   | E.Papp1 (op, e) -> F.fprintf fmt "(%s %a)" (Pr.string_of_op1 op) pp_expr e
   | E.Papp2 (op, e1, e2) -> F.fprintf fmt "(%a %s %a)" pp_expr e1 (Pr.string_of_op2 op) pp_expr e2
@@ -45,7 +47,8 @@ let pp_lval tbl fmt =
   | E.Lnone (_, ty) -> F.fprintf fmt "(_: %a)" pp_stype ty
   | E.Lvar x -> pp_var_i tbl fmt x
   | E.Lmem (sz, x, e) -> F.fprintf fmt "(%a)[%a + %a]" pp_wsize sz (pp_var_i tbl) x (pp_expr tbl) e
-  | E.Laset (ws, x, e) -> F.fprintf fmt "%a[%a %a]" pp_wsize ws (pp_var_i tbl) x (pp_expr tbl) e
+  | E.Laset (aa, ws, x, e) -> 
+    Pr.pp_arr_access (pp_var_i tbl) (pp_expr tbl) fmt aa ws x e
 
 let pp_label fmt lbl =
   F.fprintf fmt "%a" B.pp_print (Conv.bi_of_pos lbl)

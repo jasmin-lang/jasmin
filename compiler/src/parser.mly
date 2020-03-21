@@ -31,6 +31,7 @@
 %token BANGEQ
 %token COLON
 %token COMMA
+%token DOT
 %token DOWNTO
 %token ELSE
 %token EQ
@@ -181,12 +182,16 @@ prim:
 | ct=parens(utype)? LBRACKET v=var e=mem_ofs? RBRACKET 
   { ct, v, e }
   
+arr_access:
+ | i=brackets(ws=utype? e=pexpr {ws, e}) { Warray_.AAscale, i }
+ | DOT i=brackets(ws=utype? e=pexpr {ws, e}) { Warray_.AAdirect, i } 
+
 pexpr_r:
 | v=var
     { PEVar v }
 
-| v=var i=brackets(ws=utype? e=pexpr {ws, e})
-    { let ws, e = i in PEGet (ws, v, e) }
+| v=var i=arr_access 
+    { let aa, (ws, e) = i in PEGet (aa, ws, v, e) }
 
 | TRUE
     { PEBool true }
@@ -248,8 +253,8 @@ plvalue_r:
 | x=var
     { PLVar x }
 
-| x=var i=brackets(ws=utype? e=pexpr {ws, e})
-    { let ws,e = i in PLArray (ws, x, e) }
+| x=var i=arr_access 
+    { let a,(ws,e) = i in PLArray (a, ws, x, e) }
 
 | ma=mem_access 
     { let ct,v,e = ma in PLMem (ct, v, e) }
@@ -261,7 +266,7 @@ plvalue:
  * -------------------------------------------------------------------- *)
 
 pinstr_r:
-| ARRAYINIT LPAREN x=var RPAREN SEMICOLON
+| ARRAYINIT x=parens(var) SEMICOLON
     { PIArrayInit x }
 
 | x=tuple1(plvalue) o=peqop e=pexpr c=prefix(IF, pexpr)? SEMICOLON

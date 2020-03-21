@@ -1300,8 +1300,8 @@ Module CBAreg.
     | Parr_init n1, Parr_init n2 =>
       if n1 == n2 then cok m else err tt
     | Pvar   x1, Pvar   x2 => check_gv err x1 x2 m
-    | Pget w1 x1 e1, Pget w2 x2 e2 =>
-      if w1 == w2 then check_gv err x1 x2 m >>= check_e e1 e2 else err tt
+    | Pget aa1 w1 x1 e1, Pget aa2 w2 x2 e2 =>
+      if (aa1 == aa2) && (w1 == w2) then check_gv err x1 x2 m >>= check_e e1 e2 else err tt
     | Pload w1 x1 e1, Pload w2 x2 e2 =>
       if w1 == w2 then check_v x1 x2 m >>= check_e e1 e2 else err tt
     | Papp1 o1 e1, Papp1 o2 e2 =>
@@ -1359,8 +1359,8 @@ Module CBAreg.
       end
     | Lmem w1 x1 e1, Lmem w2 x2 e2  =>
       if w1 == w2 then check_v x1 x2 m >>= check_e e1 e2 else err tt
-    | Laset w1 x1 e1, Laset w2 x2 e2 =>
-      if w1 == w2 then check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2
+    | Laset aa1 w1 x1 e1, Laset aa2 w2 x2 e2 =>
+      if (aa1 == aa2) && (w1 == w2) then check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2
       else err tt
     | _          , _           => err tt
     end.
@@ -1476,8 +1476,8 @@ Module CBAreg.
       by case: eqP => //= <- [<-] ?; split => // ?? [<-]; eauto.
     - move => x1 [] // x2 r re vm1.
       by move=> /check_gvP Hv /(Hv gd) [Hea H].
-    - move => sz1 x1 e1 He1 [] // sz2 x2 e2 r re vm1.
-      case: eqP => // ?; subst sz2.
+    - move => aa1 sz1 x1 e1 He1 [] // aa2 sz2 x2 e2 r re vm1.
+      case: andP  => // -[/eqP ? /eqP ?]; subst aa2 sz2.
       apply: rbindP => r' Hcv Hce Hea.
       have [Hea' Hget]:= check_gvP gd Hcv Hea.
       have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= m v1.
@@ -1665,8 +1665,8 @@ Module CBAreg.
       write_lval gd x2 v2 (with_vm s1 vm1) = ok (with_vm s1' vm1') /\
       eq_alloc r1' s1'.(evm) vm1'.
   Proof.
-    case: x1 x2 => /= [ii1 t1 | x1 | sz1 x1 p1 | sz1 x1 p1]
-                      [ii2 t2 | x2 | sz2 x2 p2 | sz2 x2 p2] //=.
+    case: x1 x2 => /= [ii1 t1 | x1 | sz1 x1 p1 | aa1 sz1 x1 p1]
+                      [ii2 t2 | x2 | sz2 x2 p2 | aa2 sz2 x2 p2] //=.
     + case:ifP => //= hs [] <- ? Hv _ H.
       have [-> [ [u hpof]| [hpof ?]]]:= write_noneP H; rewrite /write_none.
       + have [v1' ]:= subtype_pof_val_ok hs hpof.
@@ -1723,7 +1723,7 @@ Module CBAreg.
       move=> /(value_uincl_word Hve) /= -> /=.
       apply: rbindP => w /(value_uincl_word Hv) -> /=.
       by apply: rbindP => ? -> -[<-];exists vm1.
-    case: eqP => // -> /=.
+    case: andP => // -[/eqP -> /eqP ->] /=.
     apply: rbindP => r2;apply:rbindP=> r3 Hcv Hce Hcva Hvm1 Hv Happ.
     apply: on_arr_varP => n t Htx;rewrite /on_arr_var /=.
     have [Hr3 H/H{H} [vx2 [->]]]:= check_vP Hcv Hvm1.

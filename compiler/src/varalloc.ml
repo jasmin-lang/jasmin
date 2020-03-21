@@ -13,7 +13,7 @@ let init_lval init x =
   | Lnone _        -> init
   | Lvar x         -> Sv.add (L.unloc x) init
   | Lmem _         -> init
-  | Laset(_, x, _) -> Sv.add (L.unloc x) init
+  | Laset(_, _, x, _) -> Sv.add (L.unloc x) init
 
 let init_lvals init xs = List.fold_left init_lval init xs
 

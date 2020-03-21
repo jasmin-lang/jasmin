@@ -48,7 +48,7 @@ let for_safety    env = env.model = Utils.Safety
 let rec read_mem_e = function
   | Pconst _ | Pbool _ | Parr_init _ |Pvar _ -> false
   | Pload _ -> true
-  | Papp1 (_, e) | Pget (_, _, e) -> read_mem_e e
+  | Papp1 (_, e) | Pget (_, _, _, e) -> read_mem_e e
   | Papp2 (_, e1, e2) -> read_mem_e e1 || read_mem_e e2
   | PappN (_, es) -> read_mem_es es
   | Pif  (_, e1, e2, e3) -> read_mem_e e1 || read_mem_e e2 || read_mem_e e3
@@ -58,7 +58,7 @@ and read_mem_es es = List.exists read_mem_e es
 let read_mem_lval = function
   | Lnone _ | Lvar _ -> false
   | Lmem (_,_,_) -> true 
-  | Laset (_,_,e) -> read_mem_e e
+  | Laset (_,_,_,e) -> read_mem_e e
 
 let write_mem_lval = function
   | Lnone _ | Lvar _ | Laset _ -> false
@@ -110,7 +110,7 @@ let rec leaks_e_rec leaks e =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ |Pvar _ -> leaks
   | Pload (_,x,e) -> leaks_e_rec (int_of_word U64 (snd (add64 (gkvar x) e)) :: leaks) e
-  | Pget (_,_, e) -> leaks_e_rec (e::leaks) e 
+  | Pget (_,_,_, e) -> leaks_e_rec (e::leaks) e 
   | Papp1 (_, e) -> leaks_e_rec leaks e
   | Papp2 (_, e1, e2) -> leaks_e_rec (leaks_e_rec leaks e1) e2
   | PappN (_, es) -> leaks_es_rec leaks es
@@ -122,7 +122,7 @@ let leaks_es es = leaks_es_rec [] es
 
 let leaks_lval = function
   | Lnone _ | Lvar _ -> []
-  | Laset (_,_, e) -> leaks_e_rec [e] e
+  | Laset (_,_,_, e) -> leaks_e_rec [e] e
   | Lmem (_, x,e) -> leaks_e_rec [int_of_word U64 (snd (add64 (gkvar x) e))] e
 
 (* FIXME: generate this list automatically *)
@@ -325,7 +325,7 @@ let ty_lval = function
   | Lnone (_, ty) -> ty
   | Lvar x -> (L.unloc x).v_ty
   | Lmem (ws,_,_) -> Bty (U ws)
-  | Laset(ws, _, _) -> Bty (U ws)
+  | Laset(_,ws, _, _) -> Bty (U ws)
 
 let pp_ty _option fmt ty = 
   match ty with
@@ -480,7 +480,7 @@ let rec ty_expr = function
   | Parr_init _    -> assert false 
   | Pvar x         -> x.gv.L.pl_desc.v_ty
   | Pload (sz,_,_) -> tu sz
-  | Pget  (sz,_,_) -> tu sz
+  | Pget  (_,sz,_,_) -> tu sz
   | Papp1 (op,_)   -> out_ty_op1 op
   | Papp2 (op,_,_) -> out_ty_op2 op
   | PappN (op, _)  -> out_ty_opN op
@@ -521,7 +521,8 @@ let rec pp_expr env fmt (e:expr) =
   | Pvar x ->
     pp_ovar env fmt (L.unloc x.gv)
 
-  | Pget(ws, x, e) -> 
+  | Pget(aa, ws, x, e) -> 
+    assert (aa = Warray_.AAscale); (* Not implemented *)
     assert (check_array env x.gv);
     let pp fmt (x,e) = 
       let x = x.gv in
@@ -625,7 +626,8 @@ let pp_lval1 env pp_e fmt (lv, (ety, e)) =
       (pp_wcast env) (add64 (gkvar x) e1) pp_e e
   | Lvar x  -> 
     Format.fprintf fmt "@[%a <-@ %a;@]" (pp_var env) (L.unloc x) pp_e e
-  | Laset (ws, x,e1) -> 
+  | Laset (aa, ws, x,e1) -> 
+    assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
     assert (check_array env x);
     let x = L.unloc x in
     let (xws,n) = array_kind x.v_ty in
@@ -818,7 +820,8 @@ module Leak = struct
     | Pload (ws,x,e) -> 
       is_init env x (Valid (ws, snd (add64 (gkvar x) e)) :: safe_e_rec env safe e)
     | Papp1 (_, e) -> safe_e_rec env safe e
-    | Pget (ws, x, e) -> 
+    | Pget (aa, ws, x, e) -> 
+      assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
       let x = x.gv in
       let safe = 
         let (_s,option) = Mv.find (L.unloc x) env.vars in
@@ -846,7 +849,9 @@ module Leak = struct
     | Lnone _ | Lvar _ -> []
     | Lmem(ws, x, e) -> 
       is_init env x (Valid (ws, snd (add64 (gkvar x) e)) :: safe_e_rec env [] e)
-    | Laset(ws, x,e) -> in_bound ws x e :: safe_e_rec env [] e 
+    | Laset(aa, ws, x,e) -> 
+      assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
+      in_bound ws x e :: safe_e_rec env [] e 
 
   let pp_safe_e env fmt = function
     | Initv x -> Format.fprintf fmt "is_init %a" (pp_var env) x

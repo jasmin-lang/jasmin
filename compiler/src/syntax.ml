@@ -12,6 +12,8 @@ type symbol = string
 type pident = symbol L.located
 
 (* -------------------------------------------------------------------- *)
+type arr_access = Warray_.arr_access 
+
 type wsize = [ `W8 | `W16 | `W32 | `W64 | `W128 | `W256 ]
 
 type sign = [ `Unsigned | `Signed ]
@@ -153,7 +155,7 @@ let string_of_peop2 : peop2 -> string =
 type pexpr_r =
   | PEParens of pexpr
   | PEVar    of pident
-  | PEGet    of wsize option * pident * pexpr
+  | PEGet    of arr_access * wsize option * pident * pexpr
   | PEFetch  of mem_access
   | PEpack   of svsize * pexpr list
   | PEBool   of bool
@@ -183,7 +185,7 @@ type pstotype = pstorage * ptype
 type plvalue_r =
   | PLIgnore
   | PLVar   of pident
-  | PLArray of wsize option * pident * pexpr
+  | PLArray of arr_access * wsize option * pident * pexpr
   | PLMem   of mem_access 
 
 type plvalue = plvalue_r L.located

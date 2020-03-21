@@ -143,19 +143,21 @@ Definition empty := {|
 Definition check_valid (rmap:regions) (x:var) := 
   match Mvar.get rmap.(var_region) x with
   | Some mp =>
-    match Mmp.get rmap.(region_vars) mp with
-    | Some xs => 
-      if Sv.mem x xs then ok mp
-      else cerror "invalid variable (check alias)"
-    | None => cerror "invalid variable (check alias)"
-    end
+    Let _ := 
+      match Mmp.get rmap.(region_vars) mp with
+      | Some xs => 
+        if Sv.mem x xs then ok tt
+        else cerror "invalid variable (check alias)"
+      | None => cerror "invalid variable (check alias)"
+      end in
+    ok mp
   | None => cerror "no associated region"
   end.
 
 Definition check (rmap:regions) (x:var) ws := 
   Let mp := check_valid rmap x in
-  if is_align (wrepr _ mp.(mp_ofs)) ws then ok tt
-  else cerror "unaligned access: please report".
+  assert (is_align (wrepr _ mp.(mp_ofs)) ws)
+     (Cerr_stk_alloc "unaligned access: please report").
 
 Definition set_word (rmap:regions) (x:var) := 
   match Mvar.get rmap.(var_region) x with
@@ -256,8 +258,8 @@ Definition cast_word e :=
   | _  => cast_ptr e
   end.
 
-Definition mk_ofs ws e1 ofs := 
-  let sz := mk_scale ws in
+Definition mk_ofs aa ws e1 ofs := 
+  let sz := mk_scale aa ws in
   if is_const e1 is Some i then 
     cast_const (i * sz + ofs)%Z
   else 
@@ -285,66 +287,82 @@ Definition check_diff (x:var) :=
 
 Definition check_var (x:var) := 
   match get_local x with
-  | None => check_diff x
-  | _   => cerror "not a reg variable" 
+  | None => ok tt
+  | Some _ => cerror "not a reg variable"
   end.
+
+Inductive vptr_kind := 
+  | VKglob of Z
+  | VKptr  of ptr_kind.
+
+Definition var_kind := option vptr_kind.
 
 Definition with_var xi x := 
   {| v_var := x; v_info := xi.(v_info) |}.
 
-Definition mk_addr x ws (pk:ptr_kind) (e1:pexpr) := 
+Definition mk_addr_ptr x aa ws (pk:ptr_kind) (e1:pexpr) := 
   match pk with
-  | Pstack z  => ok (with_var x pmap.(vrsp), mk_ofs ws e1 z)
-  | Pregptr p => ok (with_var x p,    mk_ofs ws e1 0)
+  | Pstack z  => ok (with_var x pmap.(vrsp), mk_ofs aa ws e1 z)
+  | Pregptr p => ok (with_var x p,    mk_ofs aa ws e1 0)
   | Pstkptr z => cerror "stack pointer in expression" 
   end.
+
+Definition mk_addr x aa ws (pk:vptr_kind) (e1:pexpr) := 
+  match pk with
+  | VKglob z => ok (with_var x pmap.(vrip), mk_ofs aa ws e1 z)
+  | VKptr pk => mk_addr_ptr x aa ws pk e1
+  end.
  
+Definition get_var_kind x :=
+  let xv := x.(gv) in
+  if is_glob x then
+    Let z := get_global xv in
+    ok (Some (VKglob z))
+  else 
+    ok (omap VKptr (get_local xv)).
+
+Definition check_vpk_word rmap xv vpk ws :=
+  match vpk with
+  | VKglob z => 
+    assert (is_align (wrepr _ z) ws) 
+      (Cerr_stk_alloc "not aligned global array access: please report") 
+  | VKptr pk => Region.check rmap xv ws
+  end.
+
 Fixpoint alloc_e (e:pexpr) := 
   match e with
   | Pconst _ | Pbool _ | Parr_init _ => ok e
-
   | Pvar   x =>
-
     let xv := x.(gv) in
-    if is_glob x then
-      Let z := get_global xv in
+    Let vk := get_var_kind x in
+    match vk with
+    | None => ok e
+    | Some vpk => 
       if is_word_type (vtype xv) is Some ws then
-        if is_align (wrepr _ z) ws then
-          ok (Pload ws (with_var xv pmap.(vrip)) (cast_const z))
-        else cerror "not aligned global: please report"
-      else cerror "not a word variable in expression" 
-    else
-      match get_local xv with 
-      | None => 
-        Let _ := check_diff xv in ok e
-      | Some pk => 
-        if is_word_type (vtype xv) is Some ws then 
-          Let _ := Region.check rmap xv ws in
-          Let pofs := mk_addr xv ws pk (Pconst 0) in
-          ok (Pload ws pofs.1 pofs.2)
-        else cerror "not a word variable in expression" 
-      end
-
-  | Pget ws x e1 =>
-
-    Let e1 := alloc_e e1 in
-    let xv := x.(gv) in
-    if is_glob x then
-      Let z := get_global xv in
-      if is_const e1 is Some _ then
-        if is_align (wrepr _ z) ws then
-          let ofs := mk_ofs ws e1 z in 
-          ok (Pload ws (with_var xv pmap.(vrip)) ofs)
-        else cerror "not aligned global array access: please report"
-      else cerror "not constant global array index: use pointer"
-    else
-      match get_local xv with 
-      | None => Let _ := check_diff x.(gv) in ok e 
-      | Some pk => 
-        Let _ := Region.check rmap xv ws in
-        Let pofs := mk_addr xv ws pk e1 in
+        Let _ := check_vpk_word rmap xv vpk ws in
+        Let pofs := mk_addr xv AAdirect ws vpk (Pconst 0) in
         ok (Pload ws pofs.1 pofs.2)
-      end
+      else cerror "not a word variable in expression, please report"
+    end
+
+  | Pget aa ws x e1 =>
+    let xv := x.(gv) in
+    Let e1 := alloc_e e1 in
+    Let _ := 
+      (* This is not necessary for the proof, it is here just to ensure that 
+         the compilation will not fail later *)
+      if is_glob x then
+        if is_const e1 is Some _ then ok tt
+        else cerror "not constant global array index: use pointer"
+      else ok tt in
+    Let vk := get_var_kind x in
+    match vk with
+    | None => ok (Pget aa ws x e1)
+    | Some vpk => 
+      Let _ := check_vpk_word rmap xv vpk ws in
+      Let pofs := mk_addr xv aa ws vpk e1 in
+      ok (Pload ws pofs.1 pofs.2)
+    end             
 
   | Pload ws x e1 =>
     Let _ := check_var x in
@@ -385,7 +403,7 @@ Definition alloc_lval (rmap: regions) (r:lval) ty :=
     | Some pk => 
       if is_word_type (vtype x) is Some ws then 
         if ty == sword ws then 
-          Let pofs := mk_addr x ws pk (Pconst 0) in
+          Let pofs := mk_addr_ptr x AAdirect ws pk (Pconst 0) in
           let r := Lmem ws pofs.1 pofs.2 in
           Let rmap := Region.set_word rmap x in
           ok (rmap, r)
@@ -393,13 +411,13 @@ Definition alloc_lval (rmap: regions) (r:lval) ty :=
       else cerror "not a word variable in assignment"
     end
 
-  | Laset ws x e1 =>
+  | Laset aa ws x e1 =>
     Let e1 := alloc_e rmap e1 in
     match get_local x with
-    | None => Let _ := check_diff x in ok (rmap, r)
+    | None => cerror "array remains in assignment" 
     | Some pk => 
       Let _ := Region.check rmap x ws in
-      Let pofs := mk_addr x ws pk e1 in
+      Let pofs := mk_addr_ptr x aa ws pk e1 in
       let r := Lmem ws pofs.1 pofs.2 in
       Let rmap := Region.set_word rmap x in
       ok (rmap, r)
@@ -417,43 +435,11 @@ Definition is_Pvar e :=
   | _      => None
   end.
 
-(*Definition is_var e := 
-  match e with
-  | Pvar x => if is_lvar x then Some x.(gv) else None
-  | _      => None
-  end.
-*)
 Definition is_lv_var lv := 
   match lv with
   | Lvar x => Some x
   | _      => None
   end.
-
-(*Definition get_e_pointer x (k:option ptr_kind) :=
-  match k with
-  | None => None    
-  | Some (Pstack _)  => None
-  | Some (Pregptr p) => Some (Pvar (mk_lvar (with_var x p)))
-  | Some (Pstkptr z) => Some (Pload Uptr (with_var x pmap.(vrsp)) (cast_const z))
-  end.
-
-Definition get_lv_pointer x (k:option ptr_kind) := 
-  match k with
-  | None => None
-  | Some (Pstack _)  => None
-  | Some (Pregptr p) => Some (Lvar (with_var x p))
-  | Some (Pstkptr z) => Some (Lmem Uptr (with_var x pmap.(vrsp)) (cast_const z))
-  end.
-
-Definition get_addr y := 
-  if is_glob y then lea rip ofs_y
-  else match get_local y with
-  | None => assert false
-  | Some (Pstack z)  => lea sp z
-  | Some (Pregptr p) => Pvar (with_var y p))
-  | Some (Pstkptr z) => Pload Uptr (with_var y pmap.(vrsp)) (cast_const z))
-  end.
-*)
 
 Definition nop := Copn [::] AT_none Onop [::]. 
 
@@ -553,8 +539,6 @@ Section LOOP.
     end.
 
 End LOOP.
-
-
 
 Fixpoint alloc_i (rmap:regions) (i: instr) : result instr_error (regions * instr) :=
   let (ii, ir) := i in
@@ -774,7 +758,7 @@ Definition check_glob (m: Mvar.t Z) (data:seq u8) (gd:glob_decl) :=
       let s := Z.to_nat p in
       (s <= size data) &&
       all (fun i => 
-             match WArray.get U8 t (Z.of_nat i) with
+             match WArray.get AAdirect U8 t (Z.of_nat i) with
              | Ok w => nth 0%R data i == w
              | _    => false
              end) (iota 0 s)

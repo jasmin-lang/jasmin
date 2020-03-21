@@ -103,6 +103,13 @@ let string_of_opN =
       (int_of_pe pe)
 
 (* -------------------------------------------------------------------- *)
+
+let pp_arr_access pp_gvar pp_expr fmt aa ws x e = 
+  F.fprintf fmt "%a%s[%a %a]" 
+    pp_gvar x 
+    (if aa = Warray_.AAdirect then "." else "")
+    pp_btype (U ws) pp_expr e
+
 let pp_ge pp_var =
   let pp_var_i = pp_gvar_i pp_var in
   let pp_gvar fmt x = 
@@ -114,9 +121,10 @@ let pp_ge pp_var =
   | Pbool  b    -> F.fprintf fmt "%b" b
   | Parr_init n -> F.fprintf fmt "array_init(%a)" B.pp_print n
   | Pvar v      -> pp_gvar fmt v
-  | Pget(ws,x,e)   -> F.fprintf fmt "%a[%a %a]"  pp_btype (U ws) pp_gvar x pp_expr e
+  | Pget(aa,ws,x,e) -> 
+    pp_arr_access pp_gvar pp_expr fmt aa ws x e
   | Pload(ws,x,e) ->
-    F.fprintf fmt "@[(load %a@ %a@ %a)@]"
+    F.fprintf fmt "@[(%a)[%a@ %a]@]"
       pp_btype (U ws) pp_var_i x pp_expr e
   | Papp1(o, e) ->
     F.fprintf fmt "@[(%s@ %a)@]" (string_of_op1 o) pp_expr e
@@ -136,10 +144,10 @@ let pp_glv pp_var fmt = function
   | Lnone (_, ty) -> F.fprintf fmt "_{%a}" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
   | Lvar x  -> pp_gvar_i pp_var fmt x
   | Lmem (ws, x, e) ->
-    F.fprintf fmt "@[store %a@ %a@ %a@]"
+    F.fprintf fmt "@[(%a)[%a@ %a]@]"
      pp_btype (U ws) (pp_gvar_i pp_var) x (pp_ge pp_var) e
-  | Laset(ws, x,e) ->
-    F.fprintf fmt "%a[%a %a]" pp_btype (U ws) (pp_gvar_i pp_var) x (pp_ge pp_var) e
+  | Laset(aa, ws, x, e) ->
+    pp_arr_access (pp_gvar_i pp_var) (pp_ge pp_var) fmt aa ws x e
 
 (* -------------------------------------------------------------------- *)
 let pp_ges pp_var fmt es =

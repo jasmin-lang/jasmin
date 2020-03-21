@@ -154,6 +154,7 @@ rule main = parse
   | ">=" (signletter as s)? { GE   (mk_sign s) }
   | ">"  (signletter as s)? { GT   (mk_sign s) }
 
+  | "."  { DOT      }
   | "!"  { BANG     }
   | "+"  { PLUS     }
   | "-"  { MINUS    }

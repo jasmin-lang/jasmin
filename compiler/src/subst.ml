@@ -7,7 +7,7 @@ let rec gsubst_e (fty: 'ty1 -> 'ty2) (f: 'ty1 ggvar -> 'ty2 gexpr) e =
   | Pbool b  -> Pbool b
   | Parr_init n -> Parr_init n
   | Pvar v -> f v
-  | Pget  (ws, v, e) -> Pget(ws, gsubst_gvar f v, gsubst_e fty f e)
+  | Pget  (aa, ws, v, e) -> Pget(aa, ws, gsubst_gvar f v, gsubst_e fty f e)
   | Pload (ws, v, e) -> Pload (ws, gsubst_vdest f v, gsubst_e fty f e)
   | Papp1 (o, e)     -> Papp1 (o, gsubst_e fty f e)
   | Papp2 (o, e1, e2)-> Papp2 (o, gsubst_e fty f e1, gsubst_e fty f e2)
@@ -29,7 +29,7 @@ let gsubst_lval fty f lv =
   | Lnone(i,ty)  -> Lnone(i, fty ty)
   | Lvar v       -> Lvar (gsubst_vdest f v)
   | Lmem (w,v,e) -> Lmem(w, gsubst_vdest f v, gsubst_e fty f e)
-  | Laset(w,v,e) -> Laset(w, gsubst_vdest f v, gsubst_e fty f e)
+  | Laset(aa,w,v,e) -> Laset(aa, w, gsubst_vdest f v, gsubst_e fty f e)
 
 let gsubst_lvals fty f  = List.map (gsubst_lval fty f)
 let gsubst_es fty f = List.map (gsubst_e fty f)
@@ -280,7 +280,7 @@ let remove_params (prog : 'info pprog) =
       let p = Conv.pos_of_int (n * size_of_ws ws) in
       let t = ref (Warray_.WArray.empty p) in
       let doit i e = 
-        match Warray_.WArray.set p ws !t  (Conv.z_of_int i) (mk_word ws e) with
+        match Warray_.WArray.set p ws !t Warray_.AAscale (Conv.z_of_int i) (mk_word ws e) with
         | Ok t1 -> t := t1
         | _ -> assert false in
       List.iteri doit es;

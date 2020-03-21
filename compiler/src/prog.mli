@@ -56,7 +56,7 @@ type 'ty gexpr =
   | Pbool  of bool
   | Parr_init of B.zint
   | Pvar   of 'ty ggvar
-  | Pget   of wsize * 'ty ggvar * 'ty gexpr
+  | Pget   of Warray_.arr_access * wsize * 'ty ggvar * 'ty gexpr
   | Pload  of wsize * 'ty gvar_i * 'ty gexpr
   | Papp1  of E.sop1 * 'ty gexpr
   | Papp2  of E.sop2 * 'ty gexpr * 'ty gexpr
@@ -92,7 +92,7 @@ type 'ty glval =
  | Lnone of L.t * 'ty
  | Lvar  of 'ty gvar_i
  | Lmem  of wsize * 'ty gvar_i * 'ty gexpr
- | Laset of wsize * 'ty gvar_i * 'ty gexpr
+ | Laset of Warray_.arr_access * wsize * 'ty gvar_i * 'ty gexpr
 
 type 'ty glvals = 'ty glval list
 

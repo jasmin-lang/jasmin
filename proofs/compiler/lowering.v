@@ -102,13 +102,13 @@ Definition fvars_correct p :=
 Definition var_info_of_lval (x: lval) : var_info :=
   match x with
   | Lnone i t => i
-  | Lvar x | Lmem _ x _ | Laset _ x _ => v_info x
+  | Lvar x | Lmem _ x _ | Laset _ _ x _ => v_info x
   end.
 
 Definition stype_of_lval (x: lval) : stype :=
   match x with
   | Lnone _ t => t
-  | Lvar v | Lmem _ v _ | Laset _ v _ => v.(vtype)
+  | Lvar v | Lmem _ v _ | Laset _ _ v _ => v.(vtype)
   end.
 
 Definition wsize_of_stype (ty: stype) : wsize :=
@@ -121,7 +121,7 @@ Definition wsize_of_lval (lv: lval) : wsize :=
   match lv with
   | Lnone _ ty
   | Lvar {| v_var := {| vtype := ty |} |} => wsize_of_stype ty
-  | Laset sz _  _
+  | Laset _ sz _ _ 
   | Lmem sz _ _ => sz
   end.
 
@@ -269,7 +269,7 @@ Definition is_lval_in_memory (x: lval) : bool :=
   match x with
   | Lnone _ _ => false
   | Lvar v
-  | Laset _ v _
+  | Laset _ _ v _
     => is_var_in_memory v
   | Lmem _ _ _ => true
   end.

@@ -23,8 +23,8 @@ let array_copy z ws n y =
   let i = gkvar (L.mk_loc (L.loc z) (V.mk "i" Inline (Bty Int) (L.loc z))) in
   Cfor(i.gv, (UpTo, Pconst B.zero, Pconst (B.of_int n)), [
       let i_desc =
-        Cassgn (Laset (ws, z, Pvar i), AT_none, Bty (U ws), 
-                 Pget (ws, y, Pvar i)) in
+        Cassgn (Laset (Warray_.AAscale, ws, z, Pvar i), AT_none, Bty (U ws), 
+                 Pget (Warray_.AAscale, ws, y, Pvar i)) in
       { i_desc ; i_loc = L.loc z, [] ; i_info = () }
     ])
 

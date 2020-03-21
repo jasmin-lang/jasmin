@@ -131,7 +131,7 @@ end = struct
     | Lnone _ -> lv
     | Lvar v -> Lvar (mk_v_loc fn v)
     | Lmem (ws,ty,e) -> Lmem (ws, mk_v_loc fn ty, mk_expr fn e)
-    | Laset (ws,v,e) -> Laset (ws, mk_v_loc fn v, mk_expr fn e)
+    | Laset (aa,ws,v,e) -> Laset (aa,ws, mk_v_loc fn v, mk_expr fn e)
 
   and mk_range fn (dir, e1, e2) = (dir, mk_expr fn e1, mk_expr fn e2)
 
@@ -158,7 +158,7 @@ end = struct
   and mk_expr fn expr = match expr with
     | Pconst _ | Pbool _ | Parr_init _ -> expr
     | Pvar v -> Pvar (mk_gv fn v)
-    | Pget (ws, v, e) -> Pget (ws, mk_gv fn v, mk_expr fn e)
+    | Pget (aa,ws, v, e) -> Pget (aa,ws, mk_gv fn v, mk_expr fn e)
     | Pload (ws, v, e) -> Pload (ws, mk_v_loc fn v, mk_expr fn e)
     | Papp1 (op, e) -> Papp1 (op, mk_expr fn e)
     | Papp2 (op, e1, e2) -> Papp2 (op, mk_expr fn e1, mk_expr fn e2)
@@ -365,7 +365,7 @@ let rec expand_arr_exprs = function
   | [] -> []
   | Pvar v :: t -> begin match (L.unloc v.gv).v_ty with
       | Arr (ws, n) ->
-        List.init n (fun i -> Pget (ws, v, Pconst (B.of_int i)))
+        List.init n (fun i -> Pget (Warray_.AAscale, ws, v, Pconst (B.of_int i)))
         @ expand_arr_exprs t
       | _ -> Pvar v :: expand_arr_exprs t end
   | h :: t -> h :: expand_arr_exprs t
@@ -3481,7 +3481,8 @@ let rec safe_e_rec safe = function
     if is_gkvar x then safe_var x.gv :: safe
     else safe
   | Pload (ws,x,e) -> Valid (ws, L.unloc x, e) :: safe_e_rec safe e
-  | Pget (ws, x, e) -> 
+  | Pget (aa, ws, x, e) -> 
+    assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
     let safe = 
       if is_gkvar x then 
         Initai(L.unloc x.gv, ws, e) :: safe
@@ -3503,7 +3504,8 @@ let safe_es = List.fold_left safe_e_rec []
 let safe_lval = function
   | Lnone _ | Lvar _ -> []
   | Lmem(ws, x, e) -> Valid (ws, L.unloc x, e) :: safe_e_rec [] e
-  | Laset(ws,x,e) -> 
+  | Laset(aa,ws,x,e) -> 
+    assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
     in_bound x ws e :: safe_e_rec [] e
 
 let safe_lvals = List.fold_left (fun safe x -> safe_lval x @ safe) []
@@ -3811,7 +3813,8 @@ end = struct
       | Pbool _ | Parr_init _ | Pconst _ -> acc
 
       | Pvar x -> mvar_of_var (L.unloc x.gv) :: acc
-      | Pget(ws,x,ei) ->
+      | Pget(aa,ws,x,ei) ->
+        assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
         (abs_arr_range abs (L.unloc x.gv) ws ei
          |> List.map (fun x -> Mvalue x))
         @ acc
@@ -3920,7 +3923,8 @@ end = struct
         | Some Texpr1.Div | Some Texpr1.Pow | None ->
           raise (Binop_not_supported op2) end
 
-    | Pget(ws,x,ei) ->
+    | Pget(aa,ws,x,ei) ->
+      assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
       begin match abs_arr_range abs (L.unloc x.gv) ws ei with
         | [] -> assert false
         | [at] ->
@@ -3944,9 +3948,9 @@ end = struct
 
     | Pconst _  | Pbool _ | Parr_init _ | Pvar _ -> None
 
-    | Pget(ws,x,e1) ->
+    | Pget(aa,ws,x,e1) ->
       remove_if_expr_aux e1
-      |> map_f (fun ex -> Pget(ws,x,ex))
+      |> map_f (fun ex -> Pget(aa,ws,x,ex))
 
     | Pload (sz, x, e1) ->
       remove_if_expr_aux e1
@@ -4363,7 +4367,8 @@ end = struct
         | Bty _ -> MLvar (Mvalue (Avar ux))
         | Arr _ -> MLvar (Mvalue (Aarray ux)) end
 
-    | Laset (ws, x, ei) ->
+    | Laset (aa,ws, x, ei) ->
+      assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
       match abs_arr_range abs (L.unloc x) ws ei
             |> List.map (fun v -> Mvalue v) with
       | [] -> assert false

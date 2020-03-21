@@ -182,10 +182,10 @@ let pp_val fmt v =
     Format.fprintf fmt "@[[";
     for i = 0 to ip-2 do
       let i = Conv.z_of_int i in
-      Format.fprintf fmt "%a;@ " pp_res (WArray.get p U8 t i);
+      Format.fprintf fmt "%a;@ " pp_res (WArray.get p AAscale U8 t i);
     done;
     if 0 < ip then 
-      pp_res fmt (WArray.get p U8 t (Conv.z_of_int (ip-1)));
+      pp_res fmt (WArray.get p AAscale U8 t (Conv.z_of_int (ip-1)));
     Format.fprintf fmt "]@]";
   | Vword(ws, w) -> pp_word fmt ws w
   | Vundef ty -> pp_undef fmt ty

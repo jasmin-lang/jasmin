@@ -59,8 +59,8 @@ Module INCL. Section INCL.
       - move => e rec es ih q; t_xrbindP => v ok_v vs ok_vs <- {q}.
         by rewrite (rec _ ok_v) /= (ih _ ok_vs).
       - by apply gd_incl_gvar.
-      - move => sz x e rec v; apply: on_arr_varP => n t h1 h2; t_xrbindP => z v1 /rec -> hz w.
-         by rewrite /on_arr_var h2 /= hz /= => -> <-.
+      - move => sz x e rec v; apply: on_arr_gvarP => n t h1 h2; t_xrbindP => z v1 /rec -> hz w.
+        by rewrite /on_arr_var (gd_incl_gvar h2) /= hz /= => -> <-.
       - by move => sz x e hrec v; t_xrbindP => ?? -> /= -> ?? /hrec -> /= -> ? /= -> <-.
       - by move=> ? e hrec v; t_xrbindP => ? /hrec -> <-.
       - by move=> ? e1 hrec1 e2 hrec2 v; t_xrbindP => ? /hrec1 -> ? /= /hrec2 -> <-.
@@ -354,9 +354,11 @@ Module RGP. Section PROOFS.
             by move => /(hm3 _ _ _ heq); apply.
           by move=> [<-] h; rewrite /= /get_gvar -hm1 // hx.
         by case => [<-] h;rewrite /= /get_gvar /=.
-      - move => ws x e he q v; case: ifPn => // hx; t_xrbindP => e' ok_e' <- {q}.
-        rewrite /= /on_arr_var (hm1 _ hx); t_xrbindP => -[] //= ?? -> /=.
-        by t_xrbindP => ?? /he /= -> //= -> ? /= -> <-.
+      - move => ws x e he q v; case: ifPn => // hx; t_xrbindP => e' ok_e' <- {q} /=.
+        apply: on_arr_gvarP; rewrite /on_arr_var => ???.
+        have -> : (get_gvar gd s1.(evm) x) = (get_gvar gd s2.(evm) x).
+        + by rewrite /get_gvar; case:ifP hx => //= hx /hm1.        
+        by move=> -> /=; t_xrbindP => ?? /he /= -> //= -> /= ? -> /= ->.
       - move => ??? ih ??; case: ifPn => // hn.
         t_xrbindP => ? /ih h <- /= ??; rewrite (hm1 _ hn) => -> /= -> ?? /h -> /= -> ? /=.
         by rewrite hmem => -> <-.

@@ -658,7 +658,7 @@ Section CONST_PROP_EP.
       by case: n => [ n | sz w ] /= -> [<-]; rewrite /sem_sop1 /= ?wrepr_unsigned;
            eexists;(split;first reflexivity) => /=.
     - move => sz x e He v.
-      apply:on_arr_varP; rewrite /on_arr_var => n t ? -> /=.
+      apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
       t_xrbindP => z w /(He _) [v'] [->] /value_uincl_int h/h{h} [??];subst.
       move => a ha ?; subst; rewrite /= ha.
       by eexists; (split; first reflexivity) => /=.

@@ -25,7 +25,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import psem compiler_util inline_proof.
+Require Import psem compiler_util.
 Require Export dead_code.
 Import Utf8.
 
