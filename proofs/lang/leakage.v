@@ -41,53 +41,23 @@ Inductive leakage_e :=
 
 Definition leakages_e := seq leakage_e.
 
-Inductive leakage_c : Type := 
-  | Lempty : leakage_c
-  | Lcons : leakage_i -> leakage_c -> leakage_c
-
-with leakage_i : Type :=
+Inductive leakage_i : Type :=
   | Lassgn : leakages_e -> leakage_i
   | Lopn  : leakages_e ->leakage_i
-  | Lcond  : leakages_e -> bool -> leakage_c -> leakage_i
-  | Lwhile_true : leakage_c -> leakages_e -> leakage_c -> leakage_i -> leakage_i 
-  | Lwhile_false : leakage_c -> leakages_e -> leakage_i
-  | Lfor : leakages_e -> leakage_for -> leakage_i
-  | Lcall : leakages_e -> leakage_fun -> leakages_e -> leakage_i
+  | Lcond  : leakages_e -> bool -> seq leakage_i -> leakage_i
+  | Lwhile_true : seq leakage_i -> leakages_e -> seq leakage_i -> leakage_i -> leakage_i 
+  | Lwhile_false : seq leakage_i -> leakages_e -> leakage_i
+  | Lfor : leakages_e -> seq (seq leakage_i) -> leakage_i
+  | Lcall : leakages_e -> (funname * seq leakage_i) -> leakages_e -> leakage_i.
 
-with leakage_for : Type := 
-  | Lfor_empty : leakage_for
-  | Lfor_one : leakage_c -> leakage_for -> leakage_for
+Notation leakage_c := (seq leakage_i).
 
-with leakage_fun : Type :=
-  | Lfun : leakage_c -> leakage_fun.
+Notation leakage_for := (seq leakage_c) (only parsing).
 
-
-Infix "::l" := Lcons (at level 60, right associativity) : leakage_scope.
-
-Infix "[::l]" := Lempty (at level 60, right associativity) : leakage_scope.
+Notation leakage_fun := (funname * leakage_c)%type.
 
 
-Fixpoint app_leakage_c s1 s2 := if s1 is x ::l s1' then x ::l (app_leakage_c s1' s2) else s2.
 
-Infix "++l" := app_leakage_c (right associativity, at level 60) : leakage_scope.
 
-Lemma leakage_c0 s : Lempty ++l s = s.
-Proof.
-reflexivity.
-Qed.
-
-Lemma leakage_cA s1 s2 s3 : s1 ++l s2 ++l s3 = (s1 ++l s2) ++l s3.
-Proof.
-by elim: s1 => //= x s1 ->. Qed.
-
-Lemma leakage_Lcons x s1 s2 : (x ::l s1) ++l s2 = x ::l s1 ++l s2. 
-Proof. by []. Qed.
-
-Definition leakage_uincl (l1 l2 : leakage_e) :=
- match l1, l2 with 
-  | LeakAdr p1, LeakAdr p2 => p1 = p2
-  | LeakIdx z1, LeakIdx z2 => z1 = z2 
-  | _, _ => False
-end.
 
 
