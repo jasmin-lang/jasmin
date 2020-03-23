@@ -317,8 +317,8 @@ let pp_glob_data fmt gd =
             `Instr (".globl", [n]);
             `Instr (".p2align", [pp_align U256]);
             `Label m;
-            `Label n]);
-      Printer.pp_datas fmt gd
+            `Label n]);   
+      Format.fprintf fmt "      %a\n%!" Printer.pp_datas gd
     end
 
 (* -------------------------------------------------------------------- *)
