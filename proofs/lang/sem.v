@@ -618,10 +618,10 @@ Definition sem_sopn gd o m lvs args :=
 
 Inductive sem : estate -> cmd -> leakage_c -> estate -> Prop :=
 | Eskip s :
-    sem s [::] Lempty s
+    sem s [::] [::] s
 
 | Eseq s1 s2 s3 i c li lc :
-    sem_I s1 i li s2 -> sem s2 c lc s3 -> sem s1 (i::c) (Lcons li lc) s3
+    sem_I s1 i li s2 -> sem s2 c lc s3 -> sem s1 (i::c) (li :: lc) s3
 
 with sem_I : estate -> instr -> leakage_i -> estate -> Prop :=
 | EmkI ii i s1 s2 li:
@@ -674,13 +674,13 @@ with sem_i : estate -> instr_r -> leakage_i -> estate -> Prop :=
 
 with sem_for : var_i -> seq Z -> estate -> cmd -> leakage_for -> estate -> Prop :=
 | EForDone s i c :
-    sem_for i [::] s c Lfor_empty s
+    sem_for i [::] s c [::] s
 
 | EForOne s1 s1' s2 s3 i w ws c lc lw :
     write_var i (Vint w) s1 = ok s1' ->
     sem s1' c lc s2 ->
     sem_for i ws s2 c lw s3 ->
-    sem_for i (w :: ws) s1 c (Lfor_one lc lw) s3
+    sem_for i (w :: ws) s1 c (lc :: lw) s3
 
 with sem_call : mem -> funname -> seq value -> leakage_fun -> mem -> seq value -> Prop :=
 | EcallRun m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc :
@@ -690,7 +690,7 @@ with sem_call : mem -> funname -> seq value -> leakage_fun -> mem -> seq value -
     sem s1 f.(f_body) lc (Estate m2 vm2) ->
     mapM (fun (x:var_i) => get_var vm2 x) f.(f_res) = ok vres ->
     mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
-    sem_call m1 fn vargs' (Lfun lc) m2 vres'.
+    sem_call m1 fn vargs' (fn, lc) m2 vres'.
 
 (* -------------------------------------------------------------------- *)
 (* The generated scheme is borring to use *)
@@ -711,11 +711,11 @@ Section SEM_IND.
     (Pfun : mem -> funname -> seq value -> leakage_fun -> mem -> seq value -> Prop).
 
   Definition sem_Ind_nil : Prop :=
-    forall s : estate, Pc s [::] Lempty s.
+    forall s : estate, Pc s [::] [::] s.
 
   Definition sem_Ind_cons : Prop :=
     forall (s1 s2 s3 : estate) (i : instr) (c : cmd) (li : leakage_i) (lc : leakage_c),
-      sem_I s1 i li s2 -> Pi s1 i li s2 -> sem s2 c lc s3 -> Pc s2 c lc s3 -> Pc s1 (i :: c) (Lcons li lc) s3.
+      sem_I s1 i li s2 -> Pi s1 i li s2 -> sem s2 c lc s3 -> Pc s2 c lc s3 -> Pc s1 (i :: c) (li :: lc) s3.
 
   Hypotheses
     (Hnil: sem_Ind_nil)
@@ -783,13 +783,13 @@ Section SEM_IND.
 
   Definition sem_Ind_for_nil : Prop :=
     forall (s : estate) (i : var_i) (c : cmd),
-      Pfor i [::] s c Lfor_empty s.
+      Pfor i [::] s c [::] s.
 
   Definition sem_Ind_for_cons : Prop :=
     forall (s1 s1' s2 s3 : estate) (i : var_i) (w : Z) (ws : seq Z) (c : cmd) (lc : leakage_c) (lf : leakage_for),
       write_var i w s1 = Ok error s1' ->
       sem s1' c lc s2 -> Pc s1' c lc s2 ->
-      sem_for i ws s2 c lf s3 -> Pfor i ws s2 c lf s3 -> Pfor i (w :: ws) s1 c (Lfor_one lc lf) s3.
+      sem_for i ws s2 c lf s3 -> Pfor i ws s2 c lf s3 -> Pfor i (w :: ws) s1 c (lc :: lf) s3.
 
   Hypotheses
     (Hfor: sem_Ind_for)
@@ -816,7 +816,7 @@ Section SEM_IND.
       Pc s1 (f_body f) lc {| emem := m2; evm := vm2 |} ->
       mapM (fun x : var_i => get_var vm2 x) (f_res f) = ok vres ->
       mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
-      Pfun m1 fn vargs' (Lfun lc) m2 vres'.
+      Pfun m1 fn vargs' (fn, lc) m2 vres'.
 
   Hypotheses
     (Hcall: sem_Ind_call)
