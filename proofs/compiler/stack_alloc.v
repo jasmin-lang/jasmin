@@ -159,14 +159,19 @@ Definition check (rmap:regions) (x:var) ws :=
   assert (is_align (wrepr _ mp.(mp_ofs)) ws)
      (Cerr_stk_alloc "unaligned access: please report").
 
-Definition set_word (rmap:regions) (x:var) := 
+Definition rset_word rmap x mp :=
+   {| var_region := rmap.(var_region);
+      region_vars := Mmp.set rmap.(region_vars) mp (Sv.singleton x) |}.
+
+Definition set_word (rmap:regions) (x:var) ws := 
   match Mvar.get rmap.(var_region) x with
   | Some mp => 
     if mp.(mp_s) == MSglob then cerror "try to write global region"
     else 
-      let rv := Mmp.set rmap.(region_vars) mp (Sv.singleton x) in
-      ok {| var_region := rmap.(var_region);
-            region_vars := rv |}
+      Let _ := 
+         assert (is_align (wrepr _ mp.(mp_ofs)) ws)
+           (Cerr_stk_alloc "unaligned write: please report") in
+      ok (rset_word rmap x mp)
   | None => cerror "unknown region: please report"
   end.
 
@@ -405,7 +410,7 @@ Definition alloc_lval (rmap: regions) (r:lval) ty :=
         if ty == sword ws then 
           Let pofs := mk_addr_ptr x AAdirect ws pk (Pconst 0) in
           let r := Lmem ws pofs.1 pofs.2 in
-          Let rmap := Region.set_word rmap x in
+          Let rmap := Region.set_word rmap x ws in
           ok (rmap, r)
         else cerror "invalid type for assignment"
       else cerror "not a word variable in assignment"
@@ -414,12 +419,12 @@ Definition alloc_lval (rmap: regions) (r:lval) ty :=
   | Laset aa ws x e1 =>
     Let e1 := alloc_e rmap e1 in
     match get_local x with
-    | None => cerror "array remains in assignment" 
+    | None => Let _ := check_diff x in ok (rmap, Laset aa ws x e1)
     | Some pk => 
       Let _ := Region.check rmap x ws in
       Let pofs := mk_addr_ptr x aa ws pk e1 in
       let r := Lmem ws pofs.1 pofs.2 in
-      Let rmap := Region.set_word rmap x in
+      Let rmap := Region.set_word rmap x ws in
       ok (rmap, r)
     end   
 

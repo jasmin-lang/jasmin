@@ -650,10 +650,11 @@ Module CBEA.
       case: x1 x2 => -[tx1 nx1] ii1 [[tx2 nx2] ii2] /=.
       set x1 := {| vname := nx1 |}; set x2 := {|vname := nx2|}.
       case:ifP=>//= /eqP ? [?] heqa huv; subst tx2 r1'.
-      apply: on_arr_varP => n t /subtypeEl [n' /= [? hnn']] Hget; subst tx1.
+      apply: on_arr_varP => n t /= ? Hget; subst tx1.
       t_xrbindP=> w /(value_uincl_word huv) H => {huv} t' Ht' vm1' Hset <- /=.
       move: Hget Hset; rewrite /get_var/set_var/=;apply:on_vuP => //=.
-      move=> t'' Hget /Varr_inj [?]; subst n' => /= ? [?]; subst t'' vm1'.
+      move=> t'' Hget /Varr_inj [] heq.
+      rewrite (Eqdep_dec.UIP_dec Pos.eq_dec heq erefl) /= => {heq} ? [?]; subst t'' vm1'.
       rewrite /write_var /set_var /= (to_word_to_pword H) /=.
       eexists;split;first reflexivity.
       rewrite /WArray.inject Z.ltb_irrefl.

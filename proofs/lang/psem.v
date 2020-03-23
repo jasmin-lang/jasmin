@@ -717,7 +717,7 @@ Proof.
 Qed.
 
 Lemma on_arr_varP A (f : forall n, WArray.array n -> exec A) v vm x P:
-  (forall n t, subtype (sarr n) (vtype x) -> 
+  (forall n t, vtype x = sarr n -> 
                get_var vm x = ok (@Varr n t) ->
                f n t = ok v -> P) ->
   on_arr_var (get_var vm x) f = ok v -> P.
@@ -727,14 +727,13 @@ Proof.
     case Heq : (vm.[_])%vmap => [v' | e] //=; rewrite /= in H.
   + by move=> [<-]. + by case: (e) => // -[<-].
   + by move=> [<-]. + by case: (e) => // -[<-].
-  + move=> [<-]; apply: H => /=; first by apply Z.leb_refl.
-    by rewrite Heq /=.
+  + by move=> [<-]; apply: H => //=; rewrite Heq /=.
   + by case: (e) => // -[<-].
   by move=> [<-]. + by case: (e) => // -[<-].
 Qed.
 
 Lemma on_arr_gvarP A (f : forall n, WArray.array n -> exec A) v gd vm x P0:
-  (forall n t, subtype (sarr n) (vtype x.(gv)) ->
+  (forall n t, vtype x.(gv) = sarr n ->
        get_gvar gd vm x = ok (@Varr n t) ->
        f n t = ok v -> P0) ->
   on_arr_var (get_gvar gd vm x) f = ok v -> P0.
@@ -972,7 +971,7 @@ Proof.
   case x => /= [ _ ty | ? /vrvP_var| sz y e| aa sz y e] //.
   + by move=> /write_noneP [->].
   + by t_xrbindP => ptr yv hyv hptr ptr' ev hev hptr' w hw m hm <-.
-  apply: on_arr_varP => n t; case: y => -[] ty yn yi /subtypeEl [n' /= [-> hle]] hget.
+  apply: on_arr_varP => n t; case: y => -[] ty yn yi /= -> hget.
   apply: rbindP => we;apply: rbindP => ve He Hve.
   apply: rbindP => v0 Hv0;apply rbindP => t' Ht'.
   rewrite /set_var /= => -[<-].
