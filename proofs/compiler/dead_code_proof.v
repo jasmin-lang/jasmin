@@ -25,7 +25,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import psem compiler_util inline_proof.
+Require Import psem compiler_util (*inline_proof*).
 Require Export dead_code.
 Import Utf8.
 
@@ -36,18 +36,18 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
-Lemma write_memP gd (x:lval) v m1 m2 vm1 vm2:
+Lemma write_memP gd (x:lval) v m1 m2 vm1 vm2 l:
   ~~ write_mem x ->
-  write_lval gd x v {| emem := m1; evm := vm1 |} = ok {| emem := m2; evm := vm2 |} ->
+  write_lval gd x v {| emem := m1; evm := vm1 |} = ok ({| emem := m2; evm := vm2 |}, l) ->
   m1 = m2.
 Proof.
   case: x=> //= [v0 t|v0|ws v0 p] _.
-  + by move=> /write_noneP [[]] ->.
-  + by apply: rbindP=> z Hz [] ->.
+  + t_xrbindP => y /write_noneP H. case H => H1 H2 H3 Hl.
+    rewrite H1 in H3. by case: H3 => -> _ .
+  + t_xrbindP => z. unfold write_var. t_xrbindP => z0 Hs Hm He Hl.
+    rewrite -Hm in He. by case: He => -> _.
   apply: on_arr_varP=> n t Ht Hval.
-  apply: rbindP=> i; apply: rbindP=> x Hx Hi.
-  apply: rbindP=> v1 Hv; apply: rbindP=> t0 Ht0.
-  by apply: rbindP=> vm Hvm /= [] ->.
+  by t_xrbindP => y H h0 Hi h2 Hw h4 Ha h6 Hs -> _ _.
 Qed.
 
 Section PROOF.
@@ -55,7 +55,16 @@ Section PROOF.
   Variables p p' : prog.
   Notation gd := (p_globs p).
 
-  Hypothesis dead_code_ok : dead_code_prog p = ok p'.
+  Definition get_leakage_prog (p : prog) : result fun_error leak_trans_fs :=
+  Let r := (dead_code_prog p) in 
+  let: (r1,f1) := r in  ok f1.
+
+  Hypothesis dead_code_ok : dead_code_prog p = ok (p').
+
+  Hypothesis dead_code_ok :
+             Let f := get_leakage_prog p in 
+             dead_code_prog p = ok(p', f).
+
 
   Lemma eq_globs : gd = p_globs p'.
   Proof. by move: dead_code_ok; rewrite /dead_code_prog; t_xrbindP => ? _ <-. Qed.
