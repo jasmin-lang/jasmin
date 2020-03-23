@@ -2663,3 +2663,108 @@ Proof.
 Qed.
 
 (* ------------------------------------------------------------------------------ *)
+
+Section WF.
+
+Local Open Scope vmap.
+
+  Definition wf_vm (vm:vmap) :=
+    forall x,
+      match vm.[x], vtype x with
+      | Ok _   , _      => True
+      | Error ErrAddrUndef, sarr _ => False
+      | Error ErrAddrUndef, _ => True
+      | _, _ => false
+      end.
+
+  Lemma wf_set_var x ve vm1 vm2 :
+    wf_vm vm1 -> set_var vm1 x ve = ok vm2 -> wf_vm vm2.
+  Proof.
+    move=> Hwf;apply: set_varP => [v | _ ] ? <- /= z.
+    + case: (x =P z) => [ <- | /eqP Hne];first by rewrite Fv.setP_eq.
+      by rewrite Fv.setP_neq //;apply (Hwf z).
+    case: (x =P z) => [ <- | /eqP Hne].
+    + by rewrite Fv.setP_eq; case (vtype x).
+    by rewrite Fv.setP_neq //;apply (Hwf z).
+  Qed.
+
+  Lemma wf_write_var x ve s1 s2 :
+    wf_vm (evm s1) -> write_var x ve s1 = ok s2 -> wf_vm (evm s2).
+  Proof.
+    by move=> HWf; apply: rbindP => vm Hset [<-] /=;apply: wf_set_var Hset.
+  Qed.
+
+  Lemma wf_write_vars x ve s1 s2 :
+    wf_vm (evm s1) -> write_vars x ve s1 = ok s2 -> wf_vm (evm s2).
+  Proof.
+    elim: x ve s1 s2=> [ | x xs Hrec] [ | e es] //= s1 s2.
+    + by move=> ? [<-].
+    by move=> Hwf; apply: rbindP => vm /(wf_write_var Hwf) -/Hrec H/H.
+  Qed.
+
+  Lemma wf_write_lval gd x ve s1 s2 l :
+    wf_vm (evm s1) -> write_lval gd x ve s1 = ok (s2, l) -> wf_vm (evm s2).
+  Proof.
+    case: x => [vi t|v|sz v e|sz v e] /= Hwf.
+    + t_xrbindP => y /write_noneP H <- Hl. by case: H => -> _.
+    + t_xrbindP => y /wf_write_var H1 <- Hl. by apply H1.
+    + by t_rbindP => -[<-].
+    apply: on_arr_varP => n t ? ?.
+    t_xrbindP => y H h0 Hi h2 Hw h4 Ha h6 /wf_set_var Hs <- /= Hl.
+    by apply Hs.
+  Qed.
+
+  Lemma wf_write_lvals gd xs vs s1 s2 l:
+    wf_vm (evm s1) -> write_lvals gd s1 xs vs = ok (s2, l) -> wf_vm (evm s2).
+  Proof.
+    rewrite /write_lvals.
+    elim: xs vs s1 [::] l => [ | x xs Hrec] [ | v vs] s1 l0 l //= Hwf => [[<-]//| ].
+    t_xrbindP => p [y h] Hw. move: (wf_write_lval Hwf Hw) => Hy Hp Hf.
+    move: (Hrec vs y (l0++h) l Hy) => Hf'. rewrite -Hp in Hf. by move: (Hf' Hf) => H.
+  Qed.
+
+  Lemma wf_sem p s1 c lc s2 :
+    sem p s1 c lc s2 -> wf_vm (evm s1) -> wf_vm (evm s2).
+  Proof.
+    apply (@cmd_rect
+             (fun i => forall s1 li s2, sem_i p s1 i li s2 -> wf_vm (evm s1) -> wf_vm (evm s2))
+             (fun i => forall s1 li s2, sem_I p s1 i li s2 -> wf_vm (evm s1) -> wf_vm (evm s2))
+             (fun c => forall s1 lc s2, sem   p s1 c lc s2 -> wf_vm (evm s1) -> wf_vm (evm s2)))=>
+      {s1 s2 c}.
+    + by move=> i ii Hrec s1 li s2 /sem_IE; apply: Hrec.
+    + by move => s1 lc0 s2 /semE [-> Hl] Hw.
+    + move=> i c Hi Hc s1 lc0 s2 /semE [si] [li] [lc0'] [] /Hi {Hi} Hi Hs Hl /Hi.
+      by move: (Hc si lc0' s2 Hs) => H3.
+    + move=> x t ty e s1 li s2 /sem_iE [v] [v'] [le] [lw] [hv hv' ok_s2] hw.
+      by apply: wf_write_lval ok_s2.
+    + move=> xs t o es s1 li s2 /sem_iE.
+      t_xrbindP => Ho. case Ho. rewrite /sem_sopn. t_xrbindP.
+      by move=> h [yv yl] Hes h1 Hs [hv hl] /wf_write_lvals hvm <- Hl' /=.
+    + move=> e c1 c2 Hc1 Hc2 s1 lc0 s2 /sem_iE [b] [le] [lc1]. case: b => Hp. case Hp => Hp1 Hp2.
+      by move: (Hc1 s1 lc1 s2 Hp2) => H. case Hp => Hp1 Hp2.
+      by move: (Hc2 s1 lc1 s2 Hp2) => H.
+    + move=> i dir lo hi c Hc s1 lc0 s2 /sem_iE [wr] [lr] [lf] [hr hfor].
+      elim: hfor Hc => // s0 s1' s3 s4 io w ws c0 lc1 lw Hw Hsc Hsf Hrec Hc.
+      by move=> /wf_write_var -/(_ _ _ _ Hw) -/(Hc _ _ _ Hsc) ;apply: Hrec Hc.
+    + move=> a c e c' Hc Hc' s1 lc0 s2 H.
+      move: {1 2}(Cwhile a c e c') H (refl_equal (Cwhile a c e c'))=> i;elim=> //=.
+      move=> ???????????? Hsc ? Hsc' Hsw Hrec [????];subst.
+      move=> /(Hc _ _ _ Hsc).
+      by move=> /(Hc' _ _ _ Hsc'); apply Hrec.
+    + move=> ???????? Hsc ? [????];subst.
+      exact: (Hc _ _ _ Hsc).
+    move=> i xs f es s1 li s2 /sem_iE [vs] [m2] [rs] [l1] [lf] [l2] [_ _ ok_s2] hw.
+    by apply: wf_write_lvals ok_s2.
+  Qed.
+
+  Lemma wf_vm_uincl vm : wf_vm vm -> vm_uincl vmap0 vm.
+  Proof.
+    move=> Hwf x;have := Hwf x;rewrite /vmap0 Fv.get0.
+    case: vm.[x] => [a _ | ];first by apply eval_uincl_undef.
+    move=> [] //=;case:(vtype x) => //=.
+  Qed.
+
+  Lemma wf_vmap0 : wf_vm vmap0.
+  Proof. by move=> x;rewrite /vmap0 Fv.get0;case:vtype. Qed.
+
+End WF.
