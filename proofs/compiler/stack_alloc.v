@@ -38,8 +38,13 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
-Definition cerror {A} msg := 
+Local
+Definition cerror {A} msg :=
   @cerror (Cerr_stk_alloc msg) A.
+
+Local
+Definition cferror {A} fn msg :=
+  @Error _ A (Ferr_fun fn (Cerr_stk_alloc msg)).
 
 Variant mem_space := 
   | MSglob 
@@ -585,9 +590,9 @@ Fixpoint alloc_i (rmap:regions) (i: instr) : result instr_error (regions * instr
 
 Definition size_of (t:stype) :=
   match t with
-  | sword sz => ok (wsize_size sz)
-  | sarr n   => ok (Zpos n)
-  | _      => cerror "size_of"
+  | sword sz => wsize_size sz
+  | sarr n   => Zpos n
+  | sbool | sint => 0%Z
   end.
 
 Definition aligned_for (ty: stype) (ofs: Z) : bool :=
@@ -597,21 +602,21 @@ Definition aligned_for (ty: stype) (ofs: Z) : bool :=
   | sbool | sint => false
   end.
 
-Definition init_local_map vrip vrsp 
-    (sz:Z) (l:list (var * ptr_kind)) : cexec (Mvar.t ptr_kind * regions * Sv.t) :=
+Definition init_local_map vrip vrsp fn
+    (sz:Z) (l:list (var * ptr_kind)) : cfexec (Mvar.t ptr_kind * regions * Sv.t) :=
   let check_diff x := 
       if (x == vrip) || (x == vrsp) then
-        cerror "invalid reg pointer, please report" 
+        cferror fn "invalid reg pointer, please report"
       else ok tt in
 
   let add_ty x pk ty p (mp:Mvar.t ptr_kind * Z * regions * Sv.t) := 
     let '(lmap, ofs, rmap, sv) := mp in
     if (ofs <=? p)%Z then
       if aligned_for ty p then
-        Let s := size_of ty in
+        let s := size_of ty in
         ok (Mvar.set lmap x pk, p + s, Region.set_init rmap x pk, sv)%Z
-      else cerror "not aligned"
-    else cerror "overlap" in
+      else cferror fn "not aligned"
+    else cferror fn "overlap" in
 
   let add (vp:var*ptr_kind) (mp:Mvar.t ptr_kind * Z * regions * Sv.t) :=
     let '(v, pk) := vp in
@@ -624,14 +629,14 @@ Definition init_local_map vrip vrsp
       Let _ := check_diff x in
       if vtype x == sword Uptr then 
         ok (Mvar.set lmap v pk, ofs, Region.set_init rmap x pk, Sv.add x sv)%Z    
-      else cerror "invalid pointer type, please report" 
+      else cferror fn "invalid pointer type, please report"
     end in
 
   let sv := Sv.add vrip (Sv.add vrsp Sv.empty) in
   Let mp := foldM add (Mvar.empty ptr_kind, 0%Z, Region.empty, sv) l in
   let '(lmap, ofs, rmap, sv) := mp in
   if (ofs <=? sz)%Z then ok (lmap, rmap, sv)
-  else cerror "stack size, please report".
+  else cferror fn "stack size, please report".
 
 End Section.
 
@@ -670,7 +675,7 @@ Definition alloc_fd_aux
   match f return result fun_error (option (ufundef * ufundef * stk_fun_extra)) with
   | (fn, fd) => 
     let '(sz, sfd, stk_pos) := stk_alloc_fd f save_stack in
-    Let mstk := add_err_fun fn (init_local_map vrip vrsp sz sfd) in
+    Let mstk := init_local_map vrip vrsp fn sz sfd in
     let '(lmap, rmap, sv) := mstk in
     let pmap := {| 
       vrip    := vrip;
@@ -765,7 +770,7 @@ Definition init_map (sz:Z) (l:list (var * Z)) : cexec (Mvar.t Z) :=
     if (mp.2 <=? p)%Z then
       let ty := vtype v in
       if aligned_for ty vp.2 then
-      Let s := size_of ty in
+      let s := size_of ty in
       cok (Mvar.set mp.1 v p, p + s)%Z
     else cerror "not aligned"
     else cerror "overlap" in
