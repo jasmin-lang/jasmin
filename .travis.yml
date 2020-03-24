@@ -16,5 +16,5 @@ branches:
   - master
   - glob_array3
 script:
-- nix-shell --pure --run 'make -j $NIX_BUILD_CORES -C proofs'
+- nix-shell --pure --run 'make -j $NIX_BUILD_CORES -C proofs compiler/compiler.vo'
 - nix-shell --pure --run 'make -C compiler CIL build check-ci'
