@@ -47,7 +47,7 @@ Definition size_of (t:stype) :=
   match t with
   | sword sz => wsize_size sz
   | sarr n   => Zpos n
-  | _        => 0
+  | _        => 1
   end.
 
 Section Section.
@@ -62,23 +62,9 @@ Hypothesis (rsp_bound : wunsigned rsp + stk_size <= wbase Uptr)
 
 Hypothesis disj_rsp_rip :
   0 < stk_size -> 0 < glob_size ->
-  ((wunsigned rsp + stk_size <=? wunsigned rip) || (wunsigned rip + glob_size <=? wunsigned rsp)).
+  wunsigned rsp + stk_size <= wunsigned rip \/ wunsigned rip + glob_size <= wunsigned rsp.
 
 Hint Resolve is_align_no_overflow Memory.valid_align.
-
-Lemma between_rsp_rip_disj p1 p2 sz1 sz2 :
-    between rsp stk_size p1 sz1 && is_align p1 sz1 ->
-    between rip glob_size p2 sz2 && is_align p2 sz2 -> 
-    disjoint_range p1 sz1 p2 sz2.
-Proof.
-  rewrite /between /disjoint_range /disjoint_zrange => 
-      /andP[]/andP[] /ZleP? /ZleP? ha1 /andP[]/andP[] /ZleP? /ZleP? ha2; split; eauto.
-  have h1:  0 < stk_size.
-  + have := wsize_size_pos sz1; lia.
-  have h2: 0 < glob_size.
-  + have := wsize_size_pos sz2; lia.
-  move: (disj_rsp_rip h1 h2) => /orP [/ZleP ?| /ZleP ?]; lia.
-Qed.
 
 Definition global_pos x := 
   omap (fun z => (z, vtype x)) (Mvar.get pmap.(globals) x).
@@ -132,17 +118,16 @@ Definition valid_mp mp ty :=
 Definition eq_vm (vm1 vm2:vmap) := 
   forall (x:var), get_local pmap x = None -> get_var vm1 x = get_var vm2 x.
 
-Definition disjoint_ptr m :=
-  forall w sz,
-    valid_pointer m w sz ->
-    ~((wunsigned rsp <? wunsigned w + wsize_size sz) && (wunsigned w <? wunsigned rsp + stk_size)) /\
-    ~((wunsigned rip <? wunsigned w + wsize_size sz) && (wunsigned w <? wunsigned rip + glob_size)).
-
 Definition wptr ms := 
   if ms == MSglob then rip else rsp.
 
 Definition wptr_size ms :=
   if ms == MSstack then stk_size else glob_size.
+
+Definition disjoint_ptr m :=
+  forall w sz ms,
+    valid_pointer m w sz ->
+    ~ ( wunsigned (wptr ms) < wunsigned w + wsize_size sz /\ wunsigned w < wunsigned (wptr ms) + wptr_size ms).
 
 Definition mp_addr mp := 
   (wptr mp.(mp_s) + wrepr _ mp.(mp_ofs))%R.
@@ -613,6 +598,16 @@ Qed.
 Lemma wsize_size_le ws ws': (ws ≤ ws')%CMP -> (wsize_size ws <= wsize_size ws').
 Proof. by case: ws ws' => -[]. Qed.
 
+Lemma size_of_le ty ty' : subtype ty ty' -> size_of ty <= size_of ty'.
+Proof.
+  case: ty => [||p|ws]; case:ty' => [||p'|ws'] //.
+  + by move=> /ZleP.
+  by apply wsize_size_le.
+Qed.
+  
+Lemma gt0_size_of ty : 0 < size_of ty.
+Proof. by case: ty. Qed.
+
 Lemma check_gvalid_rset_word rmap x y mp mpy: 
   mp_s mp = MSstack ->
   Mvar.get (var_region rmap) x = Some mp ->
@@ -633,91 +628,210 @@ Proof.
   by rewrite /check_valid hgy hg hin.
 Qed.
 
+Lemma get_global_pos x ofs: 
+  get_global pmap x = ok ofs ->
+  global_pos x = Some (ofs, vtype x).
+Proof. by rewrite get_globalP /global_pos => ->. Qed.
+
+Lemma get_local_pos x ofs:
+  get_local pmap x = Some (Pstack ofs) ->
+  local_pos x = Some (ofs, vtype x).
+Proof. by rewrite /local_pos => ->. Qed.
+
+Lemma valid_mp_bound mp ty : 
+  valid_mp mp ty ->
+  0 <= mp_ofs mp ∧ 
+  mp_ofs mp + size_of ty <= wptr_size (mp_s mp).
+Proof.
+  move=> [x [/size_of_le hsub hv]].
+  case: eqP hv => heq.
+  + rewrite heq => /get_global_pos hgp. 
+    assert (h:= wfg_ofs wf_globals hgp); rewrite /wptr_size /=; lia.
+  move=> /get_local_pos hgx.
+  assert (h:= wfg_ofs wf_locals hgx).
+  have -> : mp_s mp = MSstack by case: (mp_s mp) heq.
+  rewrite /wptr_size /=; lia.
+Qed.
+
+Lemma valid_mp_addr mp ty: 
+  valid_mp mp ty ->
+  wunsigned (mp_addr mp) = wunsigned (wptr (mp_s mp)) + (mp_ofs mp).
+Proof.
+  move=> /valid_mp_bound; rewrite /mp_addr => h.
+  apply wunsigned_add; have ? := gt0_size_of ty.
+  have := @ge0_wunsigned Uptr (wptr (mp_s mp)).
+  by case: (mp_s mp) h; rewrite /wptr /wptr_size /=; lia.
+Qed.
+
+Lemma valid_mp_addr_bound mp ty: 
+  valid_mp mp ty ->
+  wunsigned (wptr (mp_s mp)) <= wunsigned (mp_addr mp) /\
+  wunsigned (mp_addr mp) + size_of ty <= wunsigned (wptr (mp_s mp)) + wptr_size (mp_s mp).
+Proof.
+  move=> h; rewrite (valid_mp_addr h); have := (valid_mp_bound h); lia.
+Qed.
+
+Lemma ms_bound s : wunsigned (wptr s) + wptr_size s <= wbase Uptr.
+Proof. by case: s. Qed.
+
+Lemma disjoint_eq_mp_val p mp ty mem1 mem2 ws w v: 
+  valid_mp mp ty ->
+  disjoint_zrange p (wsize_size ws) (mp_addr mp) (size_of ty) ->
+  write_mem mem1 p ws w = ok mem2 ->
+  eq_mp_val ty mem1 mp v → 
+  eq_mp_val ty mem2 mp v.
+Proof.
+  have hba := @ms_bound (mp_s mp); have hge0 := @ge0_wunsigned Uptr (mp_addr mp).
+  move=> /valid_mp_addr_bound.
+  case: ty => // [pt | ws']; rewrite /size_of => hbound hd hw /=.
+  + move=> [t] [-> heq]; exists t;split => // off hoff v1 /(heq _ hoff) <-.     
+    apply: (Memory.writeP_neq hw).
+    case: hd => hno1 hno2 hd; rewrite /disjoint_range /disjoint_zrange wsize8.
+    rewrite wrepr_add (GRing.addrC (wrepr _ _)) GRing.addrA -/(mp_addr mp).
+    have heqa : wunsigned (mp_addr mp + wrepr U64 off) = wunsigned (mp_addr mp) + off.
+    + rewrite wunsigned_add //; lia.
+    split => //; rewrite /no_overflow ?zify; lia.
+  move=> [w1] [-> heq]; exists w1; split => //; rewrite -heq.
+  by apply: (Memory.writeP_neq hw). 
+Qed.
+
+Lemma valid_mp_disjoint mp1 mp2 ty1 ty2: 
+  valid_mp mp1 ty1 -> 
+  valid_mp mp2 ty2 ->
+  mp1 <> mp2 -> 
+  wunsigned (mp_addr mp1) + size_of ty1 <= wunsigned (mp_addr mp2) ∨ 
+  wunsigned (mp_addr mp2) + size_of ty2 <= wunsigned (mp_addr mp1).
+Proof.
+  move=> h1 h2; rewrite (valid_mp_addr h1) (valid_mp_addr h2).
+  case: mp1 mp2 h1 h2 => [ms1 ofs1] [ms2 ofs2].
+  move=> [x1 [/size_of_le hle1 /= hget1]] [x2 [/size_of_le hle2 /= hget2]].
+  have ? := gt0_size_of (vtype x1); have ? := gt0_size_of (vtype x2).
+  assert (wfg := wf_globals); assert (wfl := wf_locals).
+  case: ms1 hget1 => /= [/get_global_pos | /get_local_pos] h1.
+  + have hg1 := wfg_ofs wfg h1; have hg2 := wfg_disj wfg _ h1.
+    case: ms2 hget2 => /= [/get_global_pos | /get_local_pos] h2 hd.
+    + have hxd: x1 <> x2 by move=> h;apply hd; move: h2; rewrite -h h1 => -[->].
+      by have:= hg2 _ _ _ hxd h2; lia.
+    have hl2:=  wfg_ofs wfl h2; rewrite /wptr /wptr_size /=; lia.
+  have hl1 := wfg_ofs wfl h1; have hl2 := wfg_disj wfl _ h1.
+  case: ms2 hget2 => /= [/get_global_pos | /get_local_pos] h2 hd.
+  + have hg2:=  wfg_ofs wfg h2; rewrite /wptr /wptr_size /=; lia.
+  have hxd: x1 <> x2 by move=> h;apply hd; move: h2; rewrite -h h1 => -[->].
+  by have:= hl2 _ _ _ hxd h2; lia.
+Qed.
 
 Lemma eq_mp_val_write_disj rmap m0 s1 s2 x y mp mpy mem2 v ws w p:
   valid_state rmap m0 s1 s2 ->  
-  mp ≠ mpy ->
   Mvar.get (var_region rmap) x = Some mp ->
-  check_gvalid rmap y = Some mpy ->
   mp_s mp = MSstack ->
   between (mp_addr mp) (size_of (vtype x)) p ws ->
+  check_gvalid rmap y = Some mpy ->
+  mp ≠ mpy ->
   write_mem (emem s2) p ws w = ok mem2 ->
   eq_mp_val (vtype (gv y)) (emem s2) mpy v → 
   eq_mp_val (vtype (gv y)) mem2 mpy v.
 Proof.
-  move=> hvs hdm hgx hcy hs hb hw.
-  assert (h := wfr_valid_mp hgx); move: h => -[x' []]; rewrite hs /= => hsubx hgx'.
-  have [y' [hsuby hgy']] := check_gvalid_mp hvs hcy.
-  case hty: vtype => [||pt | ws'] //=.
-  + move=> [t [? heqo]]; subst v; exists t; split => //.
-    move=> ofs hofs v hv. rewrite -(heqo _ hofs _ hv).
-    apply: (Memory.writeP_neq hw).
-    move: hgy'; rewrite /mp_addr.
-    case: eqP => hsy hgy' /=.
-    + rewrite hsy;apply: between_rsp_rip_disj; rewrite -?hs -?hsy.
-      + rewrite (Memory.valid_align (write_mem_valid_pointer hw)) andbT.
-      apply: between_leb hb.
-Search between.
-         
-Print valid_mp.
-Print size_of.
+  move=> hvs hgx hs hb hcv hd.
+  have hmpy := check_gvalid_mp hvs hcv; assert (hmp := wfr_valid_mp hgx).
+  apply: disjoint_eq_mp_val => //.
+  move: hb; rewrite /between !zify.
+  have ? := valid_mp_addr_bound hmp; have ? := valid_mp_addr_bound hmpy.
+  have ? := @ms_bound (mp_s mp); have ? := @ms_bound (mp_s mpy).
+  split; rewrite /no_overflow ?zify. 
+  + lia. + lia. 
+  have := valid_mp_disjoint hmp hmpy hd; lia.
+Qed.
 
+Lemma get_local_pos_sptr x ofs : get_local pmap x = Some (Pstkptr ofs) -> local_pos x = Some(ofs, sword Uptr).
+Proof. by rewrite /local_pos => ->. Qed.
 
-subtype (vtype x) (vtype x')
-get_local pmap x' = Some (Pstack (mp_ofs mp))
+Lemma sptr_addr x ofs: 
+  local_pos x = Some (ofs, sword Uptr) ->
+  wunsigned (mp_addr {| mp_s := MSstack; mp_ofs := ofs |}) = wunsigned rsp + ofs.
+Proof.
+  move=> h; assert (h1:= wfg_ofs wf_locals h).
+  rewrite /mp_addr /wptr /=; apply wunsigned_add.
+  move: (gt0_size_of (sword Uptr)) (@ge0_wunsigned Uptr rsp); lia.
+Qed.
 
+Lemma sptr_addr_bound x ofs:
+  local_pos x = Some (ofs, sword Uptr) ->
+  wunsigned rsp <= wunsigned (mp_addr {| mp_s := MSstack; mp_ofs := ofs |}) /\
+  wunsigned (mp_addr {| mp_s := MSstack; mp_ofs := ofs |}) + wsize_size Uptr <= wunsigned rsp + stk_size.
+Proof.
+  move=> h; rewrite (sptr_addr h).
+  assert (h1:= wfg_ofs wf_locals h); move: h1 => /=; lia.
+Qed.
 
+Lemma wfr_PTR_rset_word rmap m0 s1 s2 x mp p ws w mem2:
+  valid_state rmap m0 s1 s2 ->  
+  Mvar.get (var_region rmap) x = Some mp ->
+  mp_s mp = MSstack ->
+  between (mp_addr mp) (size_of (vtype x)) p ws ->
+  write_mem (emem s2) p ws w = ok mem2 ->
+  wfr_PTR rmap s2 ->
+  wfr_PTR (rset_word rmap x mp) (with_mem s2 mem2).
+Proof.
+  move=> hvs hgx hms hb hw hwf y mpy /hwf [pk] [hgl hvpk]; exists pk;split => //.
+  case: pk hgl hvpk => //= ofs hy <-.
+  apply: (Memory.writeP_neq hw).
+  assert (hmp := wfr_valid_mp hgx).
+  case: (hmp) => x' [] /size_of_le hle; rewrite hms /= => hx.
+  have hly:= get_local_pos_sptr hy; have hlx := get_local_pos hx.
+  split.
+  + by apply (is_align_no_overflow (Memory.valid_align (write_mem_valid_pointer hw))).
+  + rewrite /no_overflow zify.
+    have := sptr_addr_bound hly; lia.
+  move: hb; rewrite /between !zify.
+  assert (hwl := wf_locals).
+  have hd : y <> x' by move=> heq;move: hy;rewrite heq hx.
+  have /= := wfg_disj hwl hd hly hlx.
+  rewrite (sptr_addr hly) (valid_mp_addr hmp) hms /wptr /=; lia.
+Qed.
 
- Lemma find_between sm x mp :
-    valid_map gm sm stk_size glob_size ->
-    find_gvar gm sm x = Some mp ->
-    match vtype x.(gv) with
-    | sword ws => between (wptr mp.(mp_s)) (ptr_size stk_size glob_size mp.(mp_s)) 
-                                            (wptr mp.(mp_s) + wrepr Uptr mp.(mp_ofs)) ws &&
-                  is_align (wptr mp.(mp_s) + wrepr Uptr mp.(mp_ofs)) ws
-                  
-    | sarr n   => forall i, 0 <= i < n -> 
-                  between (wptr mp.(mp_s)) (ptr_size stk_size glob_size mp.(mp_s)) 
-                                           (wptr mp.(mp_s) + wrepr Uptr (i + mp.(mp_ofs))) U8 &&
-                  is_align (wptr mp.(mp_s) + wrepr Uptr (i + mp.(mp_ofs))) U8
-    | _        => True
-    end. 
-  Proof.
-    move=> validm hfind.
-    have [sx]:= validm _ _ hfind.
-    have [hstk halign] := wptr_add mp.(mp_s).
-    case: vtype => //= [p | ws] [] [<-] [] h1 h2 h3 h4 => [i hi| ];
-    [have ? : wsize_size U8 = 1 by done| have ? := wsize_size_pos ws].
-    + apply/andP;split.
-      + by apply /andP;rewrite wunsigned_wptr_add;first (split;apply /ZleP); lia.
-      by rewrite halign;apply is_align8.
-    apply/andP;split.
-    + by apply /andP;rewrite wunsigned_wptr_add;first (split;apply /ZleP); lia.
-    by rewrite halign.
-  Qed.
+Lemma eq_glob_rset_word rmap m0 s1 s2 x mp p ws w mem2:
+  valid_state rmap m0 s1 s2 ->  
+  Mvar.get (var_region rmap) x = Some mp ->
+  mp_s mp = MSstack ->
+  between (mp_addr mp) (size_of (vtype x)) p ws ->
+  write_mem (emem s2) p ws w = ok mem2 ->
+  eq_glob (emem s1) (emem s2) ->
+  eq_glob (emem s1) mem2.
+Proof.
+  move=> hvs hgx hms hb hw heg p1 ws1 hvp.
+  rewrite (heg _ _ hvp); symmetry; apply: (Memory.writeP_neq hw).
+  assert (hd:= vs_disj (ms:= mp_s mp) hvp); move:hd; rewrite hms /wptr /wptr_size /= => hd.
+  assert (hmp := wfr_valid_mp hgx).
+  case: (hmp) => x' [] /size_of_le hle; rewrite hms /= => hx.
+  split.
+  + by apply (is_align_no_overflow (Memory.valid_align (write_mem_valid_pointer hw))).
+  + by apply: is_align_no_overflow (Memory.valid_align hvp).
+  move: hb; rewrite /between !zify.
+  assert (hwl := wfg_ofs wf_locals (get_local_pos hx)).
+  rewrite (valid_mp_addr hmp) /wptr hms /=; lia.
+Qed.
 
-admit.
-      rewrite is_align8 andbT. 
-      rewrite /between.     
-
-Search is_align U8.      
-Search write_mem valid_pointer.
-
-between_rsp_rip_disj
-      apply /andP.
-
-Search _ disjoint_range.
-    + 
-
-between_rsp_rip_disj
-between_rsp_rip_disj
-
-Print disjoint_range.
-Print disjoint_zrange.
-Search write_mem.
-
-heqm; rewrite /eq_mp_array /eq_mp_word.
-
+Lemma eq_not_mod_rset_word rmap m0 s1 s2 x mp p ws w mem2:
+  valid_state rmap m0 s1 s2 ->  
+  Mvar.get (var_region rmap) x = Some mp ->
+  mp_s mp = MSstack ->
+  between (mp_addr mp) (size_of (vtype x)) p ws ->
+  write_mem (emem s2) p ws w = ok mem2 ->
+  eq_not_mod m0 (emem s2) -> 
+  eq_not_mod m0 mem2. 
+Proof.
+  move=> hvs hgx hms hb hw heg p1 ws1 hvp.
+  rewrite (heg _ _ hvp) //; symmetry; apply: (Memory.writeP_neq hw).
+  assert (hmp := wfr_valid_mp hgx).
+  case: (hmp) => x' [] /size_of_le hle; rewrite hms /= => hx.
+  split.
+  + by apply (is_align_no_overflow (Memory.valid_align (write_mem_valid_pointer hw))).
+  + by apply: is_align_no_overflow; apply is_align8.
+  move: hb; rewrite /between !zify.
+  have:= hvp _ _ _ (get_local_pos hx).
+  rewrite wunsigned_add; last by have := @ge0_wunsigned _ rsp; lia.
+  rewrite (valid_mp_addr hmp) /wptr hms wsize8 /=; lia.
+Qed.
 
 Lemma alloc_lvalP rmap r1 r2 v ty m0 (s1 s2: estate) :
   alloc_lval pmap rmap r1 ty = ok r2 -> 
@@ -728,8 +842,11 @@ Lemma alloc_lvalP rmap r1 r2 v ty m0 (s1 s2: estate) :
 Proof.
   move=> ha hvs ?; subst ty.
   case: r1 ha => /=.
+  (* Lnone *)
   + move=> vi ty1 [<-] /= s1' /write_noneP [->] h; exists s2; split => //.
     by rewrite /write_none; case: h => [ [? ->]| [-> ->]].
+
+  (* Lvar *)
   + move=> x; case hlx: get_local => [pk | ]; last first.
     + t_xrbindP => ? /check_diffP hnnew <- s1'.
       rewrite /write_var; t_xrbindP => vm1 hvm1 <- /=.
@@ -746,20 +863,21 @@ Proof.
     set x := {| vtype := sword ws; vname := xn |} => hlx hgetr /= w.
     move=> /(type_of_val_to_pword htyv) [w' [??]] ?; subst v vm1' => /=.
     rewrite truncate_word_u /= wrepr0 GRing.addr0.
+    assert (hmp := wfr_valid_mp hgetr).
+    have ha := valid_mp_addr hmp; have /= hab:= valid_mp_addr_bound hmp.
+    have hmpb := valid_mp_bound hmp; have hmsb:= @ms_bound (mp_s mp).
     have hvp: valid_pointer (emem s2) (mp_addr mp) ws.
     + apply Memory.is_align_valid_pointer => //.
-      move=> k hk; rewrite /mp_addr -GRing.addrA -wrepr_add.
-      apply vs_val_ptr; rewrite hins; split; first by apply ge0_wunsigned.
-      assert (h := wfr_valid_mp hgetr); assert (h' :=  wfg_ofs wf_locals); move: h h'.
-      rewrite /valid_mp hins /= => -[x' [hsz]] hgetx' /(_ x' (mp_ofs mp) (vtype x')).
-      rewrite /local_pos hgetx' => /(_ erefl) [] h0 [] z [].
-      case: (vtype x') hsz => //= ws' hws' [<-] ?; rewrite /wptr_size.
-      have ? := wsize_size_le hws'.
+      move=> k hk.
+      rewrite /mp_addr -GRing.addrA -wrepr_add.
+      apply vs_val_ptr; split; first by apply ge0_wunsigned.
       by apply: Z.le_lt_trans; first apply wunsigned_repr_le; lia.
     have /Memory.writeV -/(_ w') [mem2 hmem2] := hvp.
     rewrite hmem2 /=; eexists;split;first by reflexivity.
     (* valid_state update word *)
     case:(hvs) => vptr hdisj hrip hrsp hf heqvm hwfr heqg hnotm. 
+    have hbet: between (mp_addr mp) (size_of (vtype x)) (mp_addr mp) ws.
+    + by rewrite /between /x /= !Z.leb_refl.
     constructor => //=.
     + by move=> ???; rewrite (Memory.write_valid _ _ hmem2); apply vptr.
     + by rewrite -(ss_frames (Memory.write_mem_stable hmem2)).
@@ -774,136 +892,165 @@ Proof.
           move=> [<-]; exists w';split;first by subst w.
           by apply: Memory.writeP_eq hmem2.
         move=> [hd hdm hcv]; rewrite get_gvar_neq // => /h2 -/(_ _ hcv) /=.
+        by apply: (eq_mp_val_write_disj hvs hgetr) hmem2.
+      by apply: wfr_PTR_rset_word hmem2 h3.
+    + by apply: (eq_glob_rset_word hvs hgetr) hmem2 heqg.
+    by apply: (eq_not_mod_rset_word hvs hgetr) hmem2 hnotm.
+
+  (* Lmem *)
+  + move=> ws x e1; t_xrbindP => ? /check_varP hx e1' /(alloc_eP hvs) he1 <-.
+    move=> s1' xp ? hgx hxp w1 v1 /he1 he1' hv1 w hvw mem2 hw <- /=.
+    have := get_var_kindP hvs hx; rewrite /get_gvar /= => /(_ _ hgx) -> /=.
+    rewrite he1' hxp /= hv1 /= hvw /=.
+    have hvp1 := write_mem_valid_pointer hw.
+    have hvp2: valid_pointer (emem s2) (xp + w1) ws.
+    + by apply /Memory.readV; assert (h := vs_eq_mem hvp1); rewrite -h; apply /Memory.readV.
+    have /Memory.writeV  -/(_ w) [mem2' hmem2] := hvp2.
+    rewrite hmem2 /=; eexists;split;first reflexivity.
+    (* valid_state update mem *)
+    case:(hvs) => vptr hdisj hrip hrsp hf heqvm hwfr heqg hnotm. 
+    have ha1 := Memory.valid_align hvp1.
+    have hno1 := is_align_no_overflow ha1.
+    constructor => //=.
+    + by move=> ???; rewrite (Memory.write_valid _ _ hmem2); apply vptr.
+    + by move=> ??; rewrite (Memory.write_valid _ _ hw); apply hdisj.
+    + by rewrite -(ss_frames (Memory.write_mem_stable hmem2)).
+    + case: (hwfr) => h1 h2 h3; constructor => //=.
+      + move=> y mpy vy hcv hgy.
+        have hmp := check_gvalid_mp hvs hcv.
+        apply: (disjoint_eq_mp_val hmp _ hmem2 (h2 _ _ _ hcv hgy)).
+        have hb1 := valid_mp_addr_bound hmp; have hb2 := @ms_bound (mp_s mpy).
+        split => //.
+        + by rewrite /no_overflow !zify; lia.
+        by have:= hdisj _ _ (mp_s mpy) hvp1; lia.
+      move=> y mpy hgy.
+      have [pk [hgpk hvpk]] := h3 _ _ hgy; exists pk; split => //.
+      case: pk hgpk hvpk => //= ofs /get_local_pos_sptr hgpk <-.
+      apply: (Memory.writeP_neq hmem2).
+      have h := sptr_addr_bound hgpk; split => //.
+      + rewrite /no_overflow !zify; lia.
+      by have:= hdisj _ _ MSstack hvp1; rewrite /wptr /wptr_size /=; lia.
+    + move=> w2 sz; rewrite (Memory.write_valid _ _ hw) => hv.
+      by apply: Memory.read_write_any_mem (hw) (hmem2) => //; apply heqg.
+    move=> ofs hofs hl; rewrite hnotm //.
+    symmetry; apply: (Memory.writeP_neq hmem2).
+    split => //.
+    + by rewrite /no_overflow zify wsize8; have := wunsigned_range (rsp + wrepr U64 ofs); lia.
+    rewrite wsize8 wunsigned_add; last by have := @ge0_wunsigned _ rsp; lia.
+    by have:= hdisj _ _ MSstack hvp1; rewrite /wptr /wptr_size /=; lia.
   
+  (* Laset *)
+  move=> aa ws x e1; t_xrbindP => e1' /(alloc_eP hvs) he1.
+  move=> hr2 s1'; apply on_arr_varP => n t hty hxt.
+  t_xrbindP => i1 v1 /he1 he1' hi1 w hvw t' htt' vm1 hvm1 ?; subst s1'.
+  case hlx: get_local hr2 => [pk | ]; last first.
+  + t_xrbindP => ? /check_diffP hnnew <-.
+    have /get_var_kindP -/(_ _ hxt) : get_var_kind pmap (mk_lvar x) = ok None.
+    + by rewrite /get_var_kind /= hlx.
+    rewrite /get_gvar /= => hxt2.
+    rewrite he1' /= hi1 hxt2 /= hvw /= htt' /=.
+    apply: set_varP hvm1=> [v' hv <- | ]; last by rewrite {1} hty.
+    rewrite /set_var hv /=.
+    by eexists;(split;first by reflexivity); apply valid_state_set_var. 
+  rewrite /check; t_xrbindP => ? mp hc /assertP halign -[xi ei] ha rmap2 hsetw <- /=.
+  have {he1} he1 : sem_pexpr [::] s2 e1' >>= to_int = ok i1 by rewrite he1'.
+  have [mp' [hgetr hins hal ->]] := set_wordP hsetw. 
+  have ? : mp = mp'.
+  + by move /check_validP : hc; rewrite hgetr => -[[->]].
+  subst mp'.
+  have [wx [wi [-> -> /= <- hmpal]]]:= check_mk_addr_ptr hvs he1 hlx hgetr hal ha.
+  move: hvm1; apply set_varP; last by rewrite {1}hty.
+  move=> {ha hsetw}; case: x hty hlx hxt hc hgetr => -[xty xn] xii /= ->.
+  set x := {| vtype := sarr n; vname := xn |} => hlx hxt hc hgetr /= ti [?] ?; subst ti vm1.
+  rewrite hvw /=.
+  have [hge0 hlen haa] := WArray.set_bound htt'.
+  assert (hmp := wfr_valid_mp hgetr).
+  have ha := valid_mp_addr hmp; have /= hab:= valid_mp_addr_bound hmp.
+  have /= hmpb := valid_mp_bound hmp; have hmsb:= @ms_bound (mp_s mp).
+  have hvp: valid_pointer (emem s2) (mp_addr mp + wrepr Uptr (i1 * mk_scale aa ws)) ws.
+  + apply Memory.is_align_valid_pointer. 
+    + by apply is_align_add => //; apply arr_is_align. 
+    move=> k hk; rewrite /mp_addr -!GRing.addrA -!wrepr_add.
+    apply vs_val_ptr; split; first by apply ge0_wunsigned.
+    by apply: Z.le_lt_trans; first apply wunsigned_repr_le; lia.
+  have /Memory.writeV -/(_ w) [mem2 hmem2] := hvp.
+  rewrite hmem2 /=; eexists;split;first by reflexivity.
+  (* valid_state update array *)
+  have hgt0ws := wsize_size_pos ws; have ge0_mps := @ge0_wunsigned _ (wptr (mp_s mp)).
+  have heqa : wunsigned (mp_addr mp + wrepr U64 (i1 * mk_scale aa ws)) = 
+              wunsigned (mp_addr mp) + i1 * mk_scale aa ws.
+  + by apply wunsigned_add; lia.
+  case:(hvs) => vptr hdisj hrip hrsp hf heqvm hwfr heqg hnotm. 
+  have hbet: between (mp_addr mp) (size_of (vtype x)) (mp_addr mp + wrepr U64 (i1 * mk_scale aa ws)) ws.
+  + by rewrite /between /x /= !zify; lia.
+  constructor => //=.
+  + by move=> ???; rewrite (Memory.write_valid _ _ hmem2); apply vptr.
+  + by rewrite -(ss_frames (Memory.write_mem_stable hmem2)).
+  + move=> y hy; rewrite get_var_neq; first by apply heqvm.
+    by move=> heq;move: hy; rewrite -heq hlx.
+  + case: (hwfr) => h1 h2 h3; constructor => //=.
+    + move=> y mpy vy /(check_gvalid_rset_word hins hgetr) [].
+      + move=> [ hng heq ?]; subst mpy.
+        have -> : y = mk_lvar {|v_var := x; v_info := v_info (gv y) |}.
+        + by case: y hng heq => -[yv vi] [] //= _ ->.
+        set X := (mk_lvar {| v_var := x; v_info := v_info (gv y) |}).
+        have /= -> // := @get_gvar_eq gd X (evm s1) (ok (WArray.inject n t')).
+        move=> [<-]; eexists (WArray.inject n t');split => //.
+        move=> off hoff v0.
+        have -> :  WArray.get AAscale U8 (WArray.inject n t') off = WArray.get AAscale U8 t' off.
+        + by rewrite /WArray.inject Z.ltb_irrefl.
+        rewrite Z.add_comm wrepr_add GRing.addrA -/(mp_addr mp) (WArray.set_get8 off htt') /=.
+        have -> /= := Memory.write_read8 (mp_addr mp + wrepr U64 off) hmem2.
+        set t1 := (x in (if x then _ else _)).
+        set t2 := (x in _ -> (if x then _ else _) = _).
+        have <- : t1 = t2.
+        + rewrite Bool.eq_iff_eq_true -/(is_true t1) -/(is_true t2) /t1 /t2 !zify.
+          by rewrite !(@wunsigned_add _ (mp_addr mp)); lia.
+        case:ifPn; rewrite /t1 !zify => hi {t1 t2}.
+        + move=> [<-]; do 2 f_equal; rewrite !(@wunsigned_add _ (mp_addr mp)); lia.
+        move=> hh; have hcg : check_gvalid rmap X = Some mp.
+        + by rewrite /check_gvalid /= hc.
+        have /= [t1 [/Varr_inj]]:= h2 _ _ _ hcg hxt.
+        move=> [heq1]; rewrite (Eqdep_dec.UIP_dec Pos.eq_dec heq1 erefl) /= => ?; subst t1 => {heq1}.
+        by move=> /(_ _ hoff _ hh) <-; rewrite Z.add_comm wrepr_add GRing.addrA -/(mp_addr mp).
+      move=> [hd hdm hcv]; rewrite get_gvar_neq // => /h2 -/(_ _ hcv) /=.
+      by apply: (eq_mp_val_write_disj hvs hgetr) hmem2.
+    by apply: wfr_PTR_rset_word hmem2 h3.
+  + by apply: (eq_glob_rset_word hvs hgetr) hmem2 heqg.
+  by apply: (eq_not_mod_rset_word hvs hgetr) hmem2 hnotm.
+Qed.
 
 
 
-Memory.writeP_neq
-   ∀ (m m' : mem) (p : u64) (s : wsize) (v : word s) (p' : u64) (s' : wsize),
-     write_mem m p s v = ok m' → disjoint_range p s p' s' → read_mem m' p' s' = read_mem m p' s'
-
-Search write_mem.
-Print size_of.       
-
-
-forall k, 0 <= k <= size_of t => 
-forall p, 
-  
-m1 = m2 
-
-
-Mvar.get (var_region rmap) x = Some mp
-
-valid_state rmap m0 s1 s2
-
-        move=> [].
-
-Print wfr_VAL.
- hcv).
-        move=>  
-Search read_mem write_mem.
-rewrite /eq_mp_word.
-
-Search _ pw_word pword_of_word.
-eexists; split.
-Print p
- (pw_word w);split => //.
- first reflexivity.
 
 
 
 
 
-Mvar.get (var_region rmap) x = Some mp ->
-mp_s mp = MSstack ->
-wfr_VAL rmap s1 s2 ->
-
-  → get_gvar gd (evm (with_vm s1 (evm s1).[{| vtype := sword ws; vname := xn |} <- ok w])) y = ok v
-    → eq_mp_val (vtype (gv y)) (emem (with_mem s2 mem2)) mpy v
-
-wfr_VAL (rset_word rmap x mp) (with_vm s1 (evm s1).[x <- ok w]) (with_mem s2 mem2)
 
 
 
 
 
- move=> y mpy v; rewrite check_gvalid_rset_word.
-        case: ifPn => hyg.
-        + rewrite get_gvar_neq ?hyg //.
-
-write_mem (emem s2) (mp_addr mp) ws w' = ok mem2
- wfr_VAL rmap s1 s2 ->
-check_gvalid rmap y = Some mpy → get_gvar gd (evm s1) y = ok v → eq_mp_val (vtype (gv y)) (emem (with_mem s2 mem2)) mpy v
-
-write_mem (emem s2) (mp_addr mp) ws w' = ok mem2
-
-
-Print check_gvalid.
-Print check_valid.
 
 
 
-Definition 
-
-subst y; move:
-Search write_mem.
-Print stack_stable.
-  + by rewrite get_var_neq //; assert (h:=rip_in_new); SvD.fsetdec.
-  + by rewrite get_var_neq //; assert (h:=rsp_in_new); SvD.fsetdec.
-  + by move=> y hy; apply get_var_set_eq; apply heqvm.
-
-    move=> /(_ w') [].
-
-Search write_mem.
-    Memory.writeV  ∀ (m : mem) (p : u64) (s : wsize) (v : word s), reflect (∃ m' : mem, write_mem m p s v = ok m') (valid_pointer m p s)
-
-    assert (h := wfr_valid_mp hgetr); assert (h' := wf_locals). 
-    move: h h'; rewrite /valid_mp /= hins /=.
-    move=> [x' [? ]] hgetx' hwf. have := wfg_ofs hwf.
-    move=> /(_ x' (mp_ofs mp) (vtype x')); rewrite /local_pos hgetx' => -[] //.
-rewrite wf_pos.
-
-
- hty.
-    
-
-    forall x mp, Mvar.get rmap.(var_region) x = Some mp -> valid_mp mp (vtype x);
-
-Print check_gvalid.
-
-Search _ pof_val.
-
-Search _ set_var.
-Search type_of_val.
-
-Search _ to_word.
-Print to_word.
-Print set_word.
-
-Print check.
-
-Print set_word.
-Print check.
-
-    move=> /=.
-
-    rewrite /write_var; t
-Print write_var.    
-    ca
 
 
 
-        admit.
-Print set_var.
-Search set_var.
-Print write_var.
-Search write_var.
 
-  Print check_diff.
 
-Search write_none.
-  rewrite /alloc_lval.
-Print lval.  
+
+
+
+
+
+
+
+
+
+
+
 
 
 

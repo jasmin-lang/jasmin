@@ -249,10 +249,10 @@ Module WArray.
 
   Lemma set_get8 len (m m':array len) aa p ws (v: word ws) k :    
     set m aa p v = ok m' ->
-    get aa U8 m' k= 
+    get AAscale U8 m' k = 
       let i := (k - p * mk_scale aa ws)%Z in
        if ((0 <=? i) && (i <? wsize_size ws))%Z then ok (LE.wread8 v i)
-       else get aa U8 m k.
+       else get AAscale U8 m k.
   Proof. 
     by move=> hs; have := CoreMem.write_read8 k hs; rewrite /get mk_scale_U8 Z.mul_1_r. 
   Qed.
