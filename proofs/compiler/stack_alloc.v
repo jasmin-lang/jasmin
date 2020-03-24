@@ -647,97 +647,59 @@ Definition add_err_fun (A : Type) (f : funname) (r : cexec A) :=
   | Error e => Error (Ferr_fun f e)
   end.
 
-(* We start by doing 
+(** For each function, the oracle returns:
+  - the size of the stack block;
+  - an allocation for local variables;
+  - an allocation for the variables to save;
+  - where to save the stack pointer (of the caller). (* TODO: merge with above? *)
+
+  It can call back the partial stack-alloc transformation that given an oracle (size of the stack block and allocation of stack variables)
+  will transform the body of the current function.
+
+  The oracle is implemented as follows:
    1/ stack allocation
    2/ Reg allocation
-   3/ if we have remaining register to save the stack pointer we use on those register 
-      else 
-        4/ we restart stack allocation and we keep one position in the stack to save the stack pointer 
+   3/ if we have remaining register to save the stack pointer we use on those register
+      else
+        4/ we restart stack allocation and we keep one position in the stack to save the stack pointer
         5/ Reg allocation
 *)
- 
-Definition with_body eft (fd:_fundef eft) body := {|
-  f_iinfo  := fd.(f_iinfo);
-  f_tyin   := fd.(f_tyin);
-  f_params := fd.(f_params);
-  f_body   := body;
-  f_tyout  := fd.(f_tyout);
-  f_res    := fd.(f_res);
-  f_extra  := fd.(f_extra); 
-|}.
+Record stk_alloc_oracle_t :=
+  { sao_size: Z
+  ; sao_alloc: seq (var * ptr_kind)
+  ; sao_to_save: seq var (* TODO: allocate them in the stack rather than push/pop *)
+  ; sao_rsp: saved_stack
+  }.
 
-Definition alloc_fd_aux
-   vrip vrsp mglob  
-   (stk_alloc_fd : ufun_decl -> bool -> (Z * list (var * ptr_kind) * Z))
-   (reg_alloc_fd : bool -> funname -> ufundef -> ufundef * list var * option var)
-   (save_stack : bool)
-   (f: ufun_decl) :=
-  match f return result fun_error (option (ufundef * ufundef * stk_fun_extra)) with
-  | (fn, fd) => 
-    let '(sz, sfd, stk_pos) := stk_alloc_fd f save_stack in
-    Let mstk := init_local_map vrip vrsp fn sz sfd in
-    let '(lmap, rmap, sv) := mstk in
-    let pmap := {| 
-      vrip    := vrip;
-      vrsp    := vrsp;
-      globals := mglob; 
-      locals  := lmap;
-      vnew    := sv;
-    |} in
-    Let body := add_finfo fn fn (fmapM (alloc_i pmap) rmap fd.(f_body)) in
-    Let _ := add_err_fun fn (mapM (fun (x:var_i) => check_var pmap x) fd.(f_res)) in
-    let fd1 := with_body fd body.2 in
-    let '(fd2, to_save, oreg) := reg_alloc_fd (sz != 0) fn fd1 in
-    if sz == 0 then 
-      let f_extra := {| sf_stk_sz := sz; sf_extra := (to_save, SavedStackNone) |} in
-      ok (Some (fd1, fd2, f_extra))
-    else match oreg with
-    | Some r => 
-      let f_extra := {| sf_stk_sz := sz; sf_extra := (to_save, SavedStackReg r) |} in
-      ok (Some (fd1, fd2, f_extra))
-    | None => 
-      if save_stack then 
-        let f_extra := {| sf_stk_sz := sz; sf_extra := (to_save, SavedStackStk stk_pos) |} in
-        ok (Some(fd1, fd2, f_extra)) 
-      else ok None
-    end
-  end.
-
-Definition swith_extra (fd:ufundef) f_extra : sfundef := {|
-  f_iinfo  := fd.(f_iinfo);
-  f_tyin   := fd.(f_tyin);
-  f_params := fd.(f_params);
-  f_body   := fd.(f_body);
-  f_tyout  := fd.(f_tyout);
-  f_res    := fd.(f_res);
-  f_extra  := f_extra; 
-|}.
-
-
-Definition check_reg_alloc p_extra fn (fd1 fd2:ufundef) f_extra := 
+Definition alloc_fd p_extra mglob
+    (stk_alloc_oracle : ufun_decl -> (stk_alloc_oracle_t -> cfexec ufundef) -> cfexec stk_alloc_oracle_t)
+    (reg_alloc_fd : stk_alloc_oracle_t -> funname -> ufundef -> ufundef)
+    (f: ufun_decl) :=
+  let vrip := {| vtype := sword Uptr; vname := p_extra.(sp_rip) |} in
+  let vrsp := {| vtype := sword Uptr; vname := p_extra.(sp_stk_id) |} in
+  let: (fn, fd) := f return result fun_error _ in
+  let cb sao :=
+      Let mstk := init_local_map vrip vrsp fn sao.(sao_size) sao.(sao_alloc) in
+      let: (lmap, rmap, sv) := mstk in
+      let pmap := {|
+            vrip    := vrip;
+            vrsp    := vrsp;
+            globals := mglob;
+            locals  := lmap;
+            vnew    := sv;
+          |} in
+      Let body := add_finfo fn fn (fmapM (alloc_i pmap) rmap fd.(f_body)) in
+      Let _ := add_err_fun fn (mapM (fun (x:var_i) => check_var pmap x) fd.(f_res)) in
+      ok (with_body fd body.2) in
+  Let sao := stk_alloc_oracle f cb in
+  Let fd1 := cb sao in
+  let fd2 := reg_alloc_fd sao fn fd1 in
+  let f_extra := {| sf_stk_sz := sao.(sao_size) ; sf_to_save := sao.(sao_to_save) ; sf_save_stack := sao.(sao_rsp) |} in
   let fd1 := swith_extra fd1 f_extra in
   let fd2 := swith_extra fd2 f_extra in
   Let _ := CheckAllocRegS.check_fundef p_extra p_extra (fn,fd1) (fn, fd2) tt in
   ok (fn, fd2).
 
-Definition alloc_fd p_extra mglob 
-    (stk_alloc_fd : ufun_decl -> bool -> Z * seq (var * ptr_kind) * Z)
-    (reg_alloc_fd : bool -> funname -> ufundef -> ufundef * list var * option var)
-    (f: ufun_decl) :=
-  let vrip := {| vtype := sword Uptr; vname := p_extra.(sp_rip) |} in
-  let vrsp := {| vtype := sword Uptr; vname := p_extra.(sp_stk_id) |} in
-  Let info := alloc_fd_aux vrip vrsp mglob stk_alloc_fd reg_alloc_fd false f in
-  match info with
-  | Some (fd1, fd2, f_extra) => check_reg_alloc p_extra f.1 fd1 fd2 f_extra 
-  | None =>
-    Let info := alloc_fd_aux vrip vrsp mglob stk_alloc_fd reg_alloc_fd true f in
-    match info with
-    | Some (fd1, fd2, f_extra) => check_reg_alloc p_extra f.1 fd1 fd2 f_extra 
-              (* FIXME: error msg *)
-    | None => Error (Ferr_msg (Cerr_stk_alloc "alloc_fd: assert false"))
-    end
-  end.    
-  
 Definition check_glob (m: Mvar.t Z) (data:seq u8) (gd:glob_decl) := 
   let x := gd.1 in
   match Mvar.get m x with

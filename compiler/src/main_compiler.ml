@@ -265,9 +265,8 @@ let main () =
 
     let translate_var = Conv.var_of_cvar tbl in
 
-    let stk_alloc_fd cfd save_stack =
+    let legacy_stk_alloc_fd fd save_stack =
       if !debug then Format.eprintf "START stack allocation@." ;
-      let fd = Conv.fdef_of_cufdef tbl cfd in
       let to_save = 
         if save_stack then [|Array_expand.vstack|] else [||] in
       let alloc, sz, saved = Array_expand.stk_alloc_func fd to_save in
@@ -288,22 +287,57 @@ let main () =
       let p_stack = 
         if save_stack then 
           match saved.(0) with
-          | Array_expand.Pstack i -> Conv.z_of_int i 
+          | Array_expand.Pstack i -> Expr.SavedStackStk (Conv.z_of_int i)
           | _ -> assert false
-        else Conv.z_of_int 0 in
+        else Expr.SavedStackNone in
 
-      (sz, alloc), p_stack
+      sz, alloc, p_stack
     in
 
-    let regalloc_fd stack_needed fn cfd = 
+    let legacy_regalloc_fd stack_needed fd =
       if !debug then Format.eprintf "START register allocation@." ;
-      let fd = fdef_of_cufdef fn cfd in
-      let fd, to_save, stk = Regalloc.regalloc translate_var stack_needed fd in
-      let cfd = cufdef_of_fdef fd in
-      let to_save = 
+      let _, to_save, stk = Regalloc.regalloc translate_var stack_needed fd in
+      let to_save =
         List.map (Conv.cvar_of_var tbl) (Sv.elements to_save) in
       let stk = omap (Conv.cvar_of_var tbl) stk in
-      (cfd,to_save),stk in
+      to_save, stk
+    in
+
+    let stk_alloc_oracle (fn, _ as cfd) cb =
+      if !debug then Format.eprintf "START stack-alloc oracle@." ;
+      let fd = Conv.fdef_of_cufdef tbl cfd in
+      let sz, alloc, rsp = legacy_stk_alloc_fd fd false in
+      let sao = Stack_alloc.({ sao_size = sz ; sao_alloc = alloc ; sao_to_save = [] ; sao_rsp = rsp }) in
+      Utils0.Result.bind
+        (fun fd1 ->
+          let fd1 = fdef_of_cufdef fn fd1 in
+          let has_stack = sz <> BinNums.Z0 in
+          let to_save, _ = legacy_regalloc_fd has_stack fd1 in
+          if has_stack then begin
+            let sz, alloc, rsp = legacy_stk_alloc_fd fd true in
+            let sao = Stack_alloc.({ sao_size = sz ; sao_alloc = alloc ; sao_to_save = [] ; sao_rsp = rsp }) in
+            Utils0.Result.map
+              (fun fd1 ->
+                let fd1 = fdef_of_cufdef fn fd1 in
+                let to_save, stk = legacy_regalloc_fd has_stack fd1 in
+                match stk with
+                | Some r -> { sao with Stack_alloc.sao_to_save = to_save ; Stack_alloc.sao_rsp = Expr.SavedStackReg r }
+                | None -> { sao with Stack_alloc.sao_to_save = to_save }
+              )
+              (cb sao)
+            end
+          else Utils0.Ok { sao with Stack_alloc.sao_to_save = to_save }
+        )
+        (cb sao)
+    in
+
+    let regalloc_fd sao fn cfd =
+      if !debug then Format.eprintf "START register allocation@." ;
+      let fd = fdef_of_cufdef fn cfd in
+      let stack_needed = sao.Stack_alloc.sao_size <> BinNums.Z0 in
+      let fd, _, _ = Regalloc.regalloc translate_var stack_needed fd in
+      cufdef_of_fdef fd
+    in
 
     let stk_alloc_gl p =
       let p = Conv.prog_of_cuprog tbl p in
@@ -363,7 +397,7 @@ let main () =
       Compiler.share_stk_fd = apply "share stk" Varalloc.alloc_stack_fd;
       Compiler.stk_pointer_name = Var0.Var.vname (Conv.cvar_of_var tbl Array_expand.vstack);
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
-      Compiler.stk_alloc_fd = stk_alloc_fd;
+      Compiler.stk_alloc_oracle = stk_alloc_oracle;
       Compiler.reg_alloc_fd = regalloc_fd;
       Compiler.stk_alloc_gl = stk_alloc_gl;
       Compiler.lowering_vars = lowering_vars;

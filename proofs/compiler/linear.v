@@ -74,7 +74,8 @@ Record lfundef := LFundef {
  lfd_body : lcmd;
  lfd_tyout : seq stype;
  lfd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)
- lfd_extra : list var * saved_stack;
+ lfd_to_save: seq var;
+ lfd_save_stack: saved_stack;
 }.
 
 Definition signature_of_lfundef (lfd: lfundef) : function_signature :=
@@ -199,7 +200,8 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
 
 Definition linear_fd (fd: sfundef) :=
   Let fd' := linear_c linear_i (f_body fd) 1%positive [::] in
-  ok (LFundef (sf_stk_sz fd.(f_extra)) (f_tyin fd) (f_params fd) fd'.2 (f_tyout fd) (f_res fd) (sf_extra fd.(f_extra))).
+  let e := fd.(f_extra) in
+  ok (LFundef (sf_stk_sz e) (f_tyin fd) (f_params fd) fd'.2 (f_tyout fd) (f_res fd) (sf_to_save e) (sf_save_stack e)).
 
 Definition linear_prog (p: sprog) : cfexec lprog :=
   Let _ := assert (size p.(p_globs) == 0) 

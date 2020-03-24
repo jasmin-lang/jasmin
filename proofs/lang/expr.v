@@ -1040,15 +1040,18 @@ Canonical  saved_stack_eqType      := Eval hnf in EqType saved_stack saved_stack
 
 Record stk_fun_extra := MkSFun {
   sf_stk_sz : Z;
-  sf_extra  : list var * saved_stack;
+  sf_to_save: seq var;
+  sf_save_stack: saved_stack;
 }.
 
 Definition sfe_beq (e1 e2: stk_fun_extra) := 
-  (e1.(sf_stk_sz) == e2.(sf_stk_sz)) && (e1.(sf_extra) == e2.(sf_extra)).
+  (e1.(sf_stk_sz) == e2.(sf_stk_sz)) && (e1.(sf_to_save) == e2.(sf_to_save)) && (e1.(sf_save_stack) == e2.(sf_save_stack)).
 
 Lemma sfe_eq_axiom : Equality.axiom sfe_beq.
-Proof. 
-  by move=> [sz1 e1] [sz2 e2]; apply (equivP andP); split => /= -[] /eqP -> /eqP ->.
+Proof.
+    case => a b c [] a' b' c'; apply: (equivP andP) => /=; split.
+    + by case => /andP[] /eqP <- /eqP <- /eqP <-.
+    by case => <- <- <-; rewrite !eqxx.
 Qed.
 
 Definition sfe_eqMixin   := Equality.Mixin sfe_eq_axiom.
@@ -1076,6 +1079,27 @@ Definition _sfun_decl  := _fun_decl stk_fun_extra.
 Definition _sfun_decls := seq (_fun_decl  stk_fun_extra).
 Definition _sprog      := _prog stk_fun_extra sprog_extra.
 Definition to_sprog (p:_sprog) : sprog := p.
+
+(* Update functions *)
+Definition with_body eft (fd:_fundef eft) body := {|
+  f_iinfo  := fd.(f_iinfo);
+  f_tyin   := fd.(f_tyin);
+  f_params := fd.(f_params);
+  f_body   := body;
+  f_tyout  := fd.(f_tyout);
+  f_res    := fd.(f_res);
+  f_extra  := fd.(f_extra);
+|}.
+
+Definition swith_extra (fd:ufundef) f_extra : sfundef := {|
+  f_iinfo  := fd.(f_iinfo);
+  f_tyin   := fd.(f_tyin);
+  f_params := fd.(f_params);
+  f_body   := fd.(f_body);
+  f_tyout  := fd.(f_tyout);
+  f_res    := fd.(f_res);
+  f_extra  := f_extra;
+|}.
 
 (* ----------------------------------------------------------------------------- *)
 

@@ -84,8 +84,8 @@ Record compiler_params := {
   global_static_data_symbol: Ident.ident;
   stk_alloc_gl     : _uprog → seq u8 * seq (var * Z);
   stk_pointer_name : Ident.ident;
-  stk_alloc_fd     : (_ufun_decl → bool → Z * seq (var * ptr_kind) * Z);
-  reg_alloc_fd     : bool -> funname -> _ufundef -> _ufundef * list var * option var;
+  stk_alloc_oracle : _ufun_decl → (stk_alloc_oracle_t → cfexec _ufundef) → cfexec stk_alloc_oracle_t;
+  reg_alloc_fd     : stk_alloc_oracle_t → funname → _ufundef → _ufundef;
   print_uprog      : compiler_step -> _uprog -> _uprog;
   print_sprog      : compiler_step -> _sprog -> _sprog;
   print_linear     : lprog -> lprog;
@@ -145,7 +145,7 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
 
   (* stack + register allocation *)
   Let ps := 
-     stack_alloc.alloc_prog cparams.(stk_pointer_name) cparams.(global_static_data_symbol) cparams.(stk_alloc_fd)
+     stack_alloc.alloc_prog cparams.(stk_pointer_name) cparams.(global_static_data_symbol) cparams.(stk_alloc_oracle)
                             cparams.(reg_alloc_fd) cparams.(stk_alloc_gl) pl in
   let ps := to_sprog (cparams.(print_sprog) StackAllocation ps) in
   Let pd := dead_code_prog ps in

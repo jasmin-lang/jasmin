@@ -50,8 +50,8 @@ Definition assemble_fd sp rip (fd: lfundef) :=
   Let res := reg_of_vars xH (lfd_res fd) in
   Let _ :=
     assert (~~ (sp \in arg)) (x86_gen_error sp) in
-  Let tosave := reg_of_vars xH (map (fun x => VarI x xH) (lfd_extra fd).1) in
-  Let saved  := assemble_saved_stack (lfd_extra fd).2 in
+  Let tosave := reg_of_vars xH (map (fun x => VarI x xH) (lfd_to_save fd)) in
+  Let saved  := assemble_saved_stack (lfd_save_stack fd) in
   ciok (XFundef (lfd_stk_size fd) sp arg fd' res (tosave, saved)).
 
 
