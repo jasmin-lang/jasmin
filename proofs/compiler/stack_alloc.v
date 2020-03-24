@@ -597,20 +597,6 @@ Definition aligned_for (ty: stype) (ofs: Z) : bool :=
   | sbool | sint => false
   end.
 
-Definition init_global_map (sz:Z) (l:list (var * Z)) : cexec (Mvar.t Z) :=
-  let add (vp:var*Z) (mp:Mvar.t Z * Z) :=
-    let '(v, p) := vp in
-    if (mp.2 <=? p)%Z then
-      let ty := vtype v in
-      if aligned_for ty p then
-      Let s := size_of ty in
-      cok (Mvar.set mp.1 v p, p + s)%Z
-    else cerror "not aligned"
-    else cerror "overlap" in
-  Let mp := foldM add (Mvar.empty Z, 0%Z) l in
-  if (mp.2 <=? sz)%Z then cok mp.1
-  else cerror "global size".
-
 Definition init_local_map vrip vrsp 
     (sz:Z) (l:list (var * ptr_kind)) : cexec (Mvar.t ptr_kind * regions * Sv.t) :=
   let check_diff x := 
@@ -743,7 +729,7 @@ Definition alloc_fd p_extra mglob
     match info with
     | Some (fd1, fd2, f_extra) => check_reg_alloc p_extra f.1 fd1 fd2 f_extra 
               (* FIXME: error msg *)
-    | None => Error (Ferr_msg (Cerr_linear "alloc_fd: assert false"))
+    | None => Error (Ferr_msg (Cerr_stk_alloc "alloc_fd: assert false"))
     end
   end.    
   
