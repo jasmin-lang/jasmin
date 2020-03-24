@@ -308,13 +308,11 @@ let main () =
     let stk_alloc_gl p =
       let p = Conv.prog_of_cuprog tbl p in
       if !debug then Format.eprintf "START stack alloc@.";
-      let (data, rip, alloc) = Array_expand.init_glob p in
-      let rip_i = 
-        Var0.Var.vname (Conv.cvar_of_var tbl rip) in
+      let data, alloc = Array_expand.init_glob p in
       let alloc =
         let trans (v,i) = Conv.cvar_of_var tbl v, Conv.z_of_int i in
         List.map trans alloc in
-      (data, rip_i), alloc in
+      data, alloc in
 
     let is_var_in_memory cv : bool =
       let v = Conv.vari_of_cvari tbl cv |> L.unloc in
@@ -364,6 +362,7 @@ let main () =
       Compiler.var_alloc_fd = apply "var alloc" Varalloc.merge_var_inline_fd;
       Compiler.share_stk_fd = apply "share stk" Varalloc.alloc_stack_fd;
       Compiler.stk_pointer_name = Var0.Var.vname (Conv.cvar_of_var tbl Array_expand.vstack);
+      Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
       Compiler.stk_alloc_fd = stk_alloc_fd;
       Compiler.reg_alloc_fd = regalloc_fd;
       Compiler.stk_alloc_gl = stk_alloc_gl;

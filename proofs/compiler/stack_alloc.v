@@ -730,7 +730,7 @@ Definition check_reg_alloc p_extra fn (fd1 fd2:ufundef) f_extra :=
   ok (fn, fd2).
 
 Definition alloc_fd p_extra mglob 
-    stk_alloc_fd 
+    (stk_alloc_fd : ufun_decl -> bool -> Z * seq (var * ptr_kind) * Z)
     (reg_alloc_fd : bool -> funname -> ufundef -> ufundef * list var * option var)
     (f: ufun_decl) :=
   let vrip := {| vtype := sword Uptr; vname := p_extra.(sp_rip) |} in
@@ -787,12 +787,12 @@ Definition init_map (sz:Z) (l:list (var * Z)) : cexec (Mvar.t Z) :=
   if (mp.2 <=? sz)%Z then cok mp.1
   else cerror "global size".
 
-Definition alloc_prog nrsp stk_alloc_fd reg_alloc_fd 
-      (glob_alloc_p : uprog -> seq u8 * Ident.ident * list (var * Z) ) P := 
-  let: ((data, rip), l) := glob_alloc_p P in 
+Definition alloc_prog nrsp rip stk_alloc_fd reg_alloc_fd
+      (glob_alloc_p : uprog -> seq u8 * list (var * Z) ) P :=
+  let: (data, l) := glob_alloc_p P in
   Let mglob := add_err_msg (init_map (Z.of_nat (size data)) l) in
-  let p_extra :=  {| 
-    sp_rip   := rip; 
+  let p_extra :=  {|
+    sp_rip   := rip;
     sp_globs := data; 
     sp_stk_id := nrsp;
   |} in

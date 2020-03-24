@@ -13,5 +13,5 @@ val stk_alloc_func :
   'info func -> var array ->
    (var * ptr_kind) list * int * ptr_kind array
 
-val init_glob : 'info prog -> 
-      Ssralg.GRing.ComRing.sort list * Prog.var * (Prog.var * int) list
+val init_glob : 'info prog ->
+      Ssralg.GRing.ComRing.sort list * (Prog.var * int) list

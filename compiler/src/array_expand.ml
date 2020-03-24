@@ -296,4 +296,4 @@ let init_glob (globs, funcs) =
     (v,pos) in
   let alloc = List.map init_var vars in
   let data = List.rev !data in
-  data, Prog.rip, alloc
+  data, alloc
