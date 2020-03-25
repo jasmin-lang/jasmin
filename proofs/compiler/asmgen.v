@@ -341,7 +341,7 @@ Proof.
     move=> b' [[<-]] {hb}; case: v => // [b1 | [] //] -> ?. 
     by exists b'.
   move=> haw hcomp -> /=; case: e haw => //=.
-  + rewrite /get_gvar; move=> x; t_xrbindP => _ /assertP => ->.
+  + rewrite /get_gvar /eval_asm_arg; move=> x; t_xrbindP => _ /assertP => ->.
     case heq: xmm_register_of_var => [r | ].
     + move => h; case: h hcomp => <-.
       rewrite /compat_imm orbF => /eqP <- vt /(xxgetreg_ex eqm heq) h1 h2.
@@ -358,7 +358,7 @@ Proof.
     by case: eqm => <- ?????; rewrite hwr /=; eauto.
   case => //= w' [] //= z; case: max_imm => //= w1.
   t_xrbindP => ? /assertP /eqP heq h.
-  case: h hcomp => <-; rewrite /compat_imm => /orP [/eqP <- | ].
+  case: h hcomp => <-; rewrite /compat_imm /eval_asm_arg => /orP [/eqP <- | ].
   + move=> w [] <- /truncate_wordP [hsz ->].
     rewrite heq; eexists; split; first reflexivity.
     by rewrite /to_word truncate_word_u.

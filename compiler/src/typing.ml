@@ -1198,7 +1198,8 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       let es  = tt_exprs_cast env args tes in
       let les = List.map2 (fun l e -> L.mk_loc (L.loc l) e) args es in
       let ptr_lvs = extra_ret les f.P.f_args in
-      P.Ccall (P.DoInline, ptr_lvs@lvs, f.P.f_name, es)
+      let is_inline = match f.P.f_cc with P.Internal -> P.DoInline | P.Export | P.Subroutine -> P.NoInline in
+      P.Ccall (is_inline, ptr_lvs@lvs, f.P.f_name, es)
 
     | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim f in
@@ -1291,7 +1292,7 @@ let tt_funbody (env : Env.env) (pb : S.pfunbody) =
   (bdy, ret)
 
 let tt_call_conv = function
-  | None         -> P.Internal
+  | None         -> P.Subroutine
   | Some `Inline -> P.Internal
   | Some `Export -> P.Export
 

@@ -547,6 +547,10 @@ Section LOOP.
 
 End LOOP.
 
+Section PROG.
+
+Context (p: uprog).
+
 Fixpoint alloc_i (rmap:regions) (i: instr) : result instr_error (regions * instr) :=
   let (ii, ir) := i in
   Let ir :=
@@ -579,11 +583,19 @@ Fixpoint alloc_i (rmap:regions) (i: instr) : result instr_error (regions * instr
         ok ((sm, c2.1), (e, (c1.2, c2.2))) in
       Let r := loop2 ii check_c Loop.nb rmap in
       ok (r.1, Cwhile a r.2.2.1 r.2.1 r.2.2.2)
-  
+
+    | Ccall ini rs fn es =>
+      if get_fundef (p_funcs p) fn is Some fd then
+        Let es := add_iinfo ii (alloc_es rmap es) in
+        Let rs := add_iinfo ii (alloc_lvals rmap rs (f_tyout fd)) in
+        ok (rs.1, Ccall ini rs.2 fn es)
+      else cierror ii (Cerr_stk_alloc "call to unknown function")
+
     | Cfor _ _ _  => cierror ii (Cerr_stk_alloc "don't deal with for loop")
-    | Ccall _ _ _ _ => cierror ii (Cerr_stk_alloc "don't deal with call")
     end in
   ok (ir.1, MkI ii ir.2).
+
+End PROG.
 
 Definition size_of (t:stype) :=
   match t with
@@ -648,7 +660,8 @@ Definition add_err_fun (A : Type) (f : funname) (r : cexec A) :=
   - the size of the stack block;
   - an allocation for local variables;
   - an allocation for the variables to save;
-  - where to save the stack pointer (of the caller). (* TODO: merge with above? *)
+  - where to save the stack pointer (of the caller); (* TODO: merge with above? *)
+  - how to pass the return address (non-export functions only)
 
   It can call back the partial stack-alloc transformation that given an oracle (size of the stack block and allocation of stack variables)
   will transform the body of the current function.
@@ -666,9 +679,10 @@ Record stk_alloc_oracle_t :=
   ; sao_alloc: seq (var * ptr_kind)
   ; sao_to_save: seq var (* TODO: allocate them in the stack rather than push/pop *)
   ; sao_rsp: saved_stack
+  ; sao_return_address: option var
   }.
 
-Definition alloc_fd p_extra mglob
+Definition alloc_fd p p_extra mglob
     (stk_alloc_oracle : ufun_decl -> (stk_alloc_oracle_t -> cfexec ufundef) -> cfexec stk_alloc_oracle_t)
     (reg_alloc_fd : stk_alloc_oracle_t -> funname -> ufundef -> ufundef)
     (f: ufun_decl) :=
@@ -685,13 +699,18 @@ Definition alloc_fd p_extra mglob
             locals  := lmap;
             vnew    := sv;
           |} in
-      Let body := add_finfo fn fn (fmapM (alloc_i pmap) rmap fd.(f_body)) in
+      Let body := add_finfo fn fn (fmapM (alloc_i pmap p) rmap fd.(f_body)) in
       Let _ := add_err_fun fn (mapM (fun (x:var_i) => check_var pmap x) fd.(f_res)) in
       ok (with_body fd body.2) in
   Let sao := stk_alloc_oracle f cb in
   Let fd1 := cb sao in
   let fd2 := reg_alloc_fd sao fn fd1 in
-  let f_extra := {| sf_stk_sz := sao.(sao_size) ; sf_to_save := sao.(sao_to_save) ; sf_save_stack := sao.(sao_rsp) |} in
+  let f_extra := {|
+        sf_stk_sz := sao.(sao_size);
+        sf_to_save := sao.(sao_to_save);
+        sf_save_stack := sao.(sao_rsp);
+        sf_return_address := sao.(sao_return_address);
+      |} in
   let fd1 := swith_extra fd1 f_extra in
   let fd2 := swith_extra fd2 f_extra in
   Let _ := CheckAllocRegS.check_fundef p_extra p_extra (fn,fd1) (fn, fd2) tt in
@@ -748,7 +767,7 @@ Definition alloc_prog nrsp rip stk_alloc_fd reg_alloc_fd
   |} in
   if rip == nrsp then Error (Ferr_msg (Cerr_stk_alloc "rip and rsp clash, please report"))
   else if check_globs P.(p_globs) mglob data then
-    Let p_funs := mapM (alloc_fd p_extra mglob stk_alloc_fd reg_alloc_fd) P.(p_funcs) in
+    Let p_funs := mapM (alloc_fd P p_extra mglob stk_alloc_fd reg_alloc_fd) P.(p_funcs) in
     ok  {| p_funcs  := p_funs;
            p_globs := [::];
            p_extra := p_extra;

@@ -47,6 +47,12 @@ Unset Printing Implicit Defensive.
 
 (* ==================================================================== *)
 Definition label := positive.
+Definition remote_label := (funname * label)%type.
+
+(* Indirect jumps use labels encoded as pointers: we assume such an encoding exists. *)
+Parameter encode_label : remote_label → option pointer.
+Parameter decode_label : pointer → option remote_label.
+Axiom decode_encode_label : ∀ lbl, obind decode_label (encode_label lbl) = Some lbl.
 
 (* -------------------------------------------------------------------- *)
 Variant register : Type :=

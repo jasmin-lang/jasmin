@@ -11,6 +11,6 @@ module X64 : sig
 end
 
 val regalloc : 
-  (Var0.Var.var -> var) -> bool -> 'i1 func -> unit func * Sv.t * var option
+  (Var0.Var.var -> var) -> bool -> 'i1 func -> unit func * Sv.t * var option * var option
 
 val split_live_ranges : 'info func -> unit func

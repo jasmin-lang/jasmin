@@ -42,15 +42,17 @@ Local Open Scope seq_scope.
 (* --------------------------------------------------------------------------- *)
 (* Syntax                                                                      *)
 
-Definition label := positive.
-
 Variant linstr_r :=
   | Lopn   : lvals -> sopn -> pexprs -> linstr_r
   | Lalign : linstr_r
   | Llabel : label -> linstr_r
-  | Lgoto  : label -> linstr_r
+  | Lgoto  : remote_label -> linstr_r
+  | Ligoto : pexpr -> linstr_r (* Absolute indirect jump *)
+  | LstoreLabel : lval -> label -> linstr_r
   | Lcond  : pexpr -> label -> linstr_r
 .
+
+Arguments Llabel _%positive_scope.
 
 Record linstr : Type := MkLI { li_ii : instr_info; li_i : linstr_r }.
 
@@ -131,6 +133,10 @@ Definition align ii a (lc:ciexec (label * lcmd)) : ciexec (label * lcmd) :=
   Let p := lc in
   ok (p.1, add_align ii a p.2).
 
+Section PROG.
+
+Context (p: sprog) (fn: funname).
+
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
@@ -158,7 +164,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
     let lbl := next_lbl L2 in
                            MkLI ii (Lcond e L1) >;
                            linear_c linear_i c2 ;;
-                           MkLI ii (Lgoto L2) >;
+                           MkLI ii (Lgoto (fn, L2)) >;
     MkLI ii (Llabel L1) >; linear_c linear_i c1 lbl
    (MkLI ii (Llabel L2) :: lc)
 
@@ -170,7 +176,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       align ii a (
       MkLI ii (Llabel L1) >; linear_c linear_i c ;;
                              linear_c linear_i c' lbl
-                             (MkLI ii (Lgoto L1) :: lc))
+                             (MkLI ii (Lgoto (fn, L1)) :: lc))
 
     | Some false =>
       linear_c linear_i c lbl lc
@@ -186,27 +192,44 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       let L1 := lbl in
       let L2 := next_lbl L1 in
       let lbl := next_lbl L2 in
-                             MkLI ii (Lgoto L1) >;
+                             MkLI ii (Lgoto (fn, L1)) >;
       align ii a (MkLI ii (Llabel L2) >; linear_c linear_i c' ;;
       MkLI ii (Llabel L1) >; linear_c linear_i c lbl
                              (MkLI ii (Lcond e L2) :: lc))
       end
     end
 
-  | Cfor _ _ _ => cierror ii (Cerr_linear "for found in linear")
+  | Ccall _ xs fn es =>
+    if get_fundef (p_funcs p) fn is Some fd then
+    if all2 (λ e a, if e is Pvar (Gvar v _) then v_var v == v_var a else false) es (f_params fd)
+    then if all2 (λ x r, if x is Lvar v then v_var v == v_var r else false) xs (f_res fd)
+    then if sf_return_address (f_extra fd) is Some ra then
+      let lret := next_lbl lbl in
+      ok (lret, MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret) :: MkLI ii (Lgoto (fn, xH)) :: MkLI ii (Llabel lret) :: lc)
+    else cierror ii (Cerr_linear "nowhere to store the return address")
+    else cierror ii (Cerr_linear "bad call dests")
+    else cierror ii (Cerr_linear "bad call args")
+    else cierror ii (Cerr_linear "call to unknown function")
 
-  | Ccall _ _ _ _ => cierror ii (Cerr_linear "call found in linear")
+  | Cfor _ _ _ => cierror ii (Cerr_linear "for found in linear")
   end.
 
 Definition linear_fd (fd: sfundef) :=
-  Let fd' := linear_c linear_i (f_body fd) 1%positive [::] in
+  let: (tail, head, lbl) :=
+     if sf_return_address (f_extra fd) is Some r
+     then ([:: MkLI xH (Ligoto (Pvar {| gv := VarI r xH ; gs := Slocal |})) ], [:: MkLI xH (Llabel 1) ], 2%positive)
+     else ([::], [::], 1%positive)
+  in
+  Let fd' := linear_c linear_i (f_body fd) lbl tail in
   let e := fd.(f_extra) in
-  ok (LFundef (sf_stk_sz e) (f_tyin fd) (f_params fd) fd'.2 (f_tyout fd) (f_res fd) (sf_to_save e) (sf_save_stack e)).
+  ok (LFundef (sf_stk_sz e) (f_tyin fd) (f_params fd) (head ++ fd'.2) (f_tyout fd) (f_res fd) (sf_to_save e) (sf_save_stack e)).
+
+End PROG.
 
 Definition linear_prog (p: sprog) : cfexec lprog :=
   Let _ := assert (size p.(p_globs) == 0) 
              (Ferr_msg (Cerr_linear "invalid p_globs, please report")) in
-  Let funcs := map_cfprog linear_fd p.(p_funcs) in
+  Let funcs := map_cfprog_name (linear_fd p) p.(p_funcs) in
   ok {| lp_rip   := p.(p_extra).(sp_rip);
         lp_globs := p.(p_extra).(sp_globs);
         lp_stk_id := p.(p_extra).(sp_stk_id);
@@ -219,19 +242,23 @@ Module Eq_linstr.
     | Lalign, Lalign => true
     | Llabel l1, Llabel l2 => l1 == l2
     | Lgoto l1, Lgoto l2 => l1 == l2
+    | Ligoto e1, Ligoto e2 => e1 == e2
+    | LstoreLabel lv1 lbl1, LstoreLabel lv2 lbl2 => (lv1 == lv2) && (lbl1 == lbl2)
     | Lcond e1 l1, Lcond e2 l2 => (e1 == e2) && (l1 == l2)
     | _, _ => false
     end.
 
   Lemma eqb_r_axiom : Equality.axiom eqb_r.
   Proof.
-    case => [lv1 o1 e1||l1|l1|e1 l1] [lv2 o2 e2||l2|l2|e2 l2] //=;try by constructor.
+    case => [lv1 o1 e1||l1|l1|e1|lv1 l1|e1 l1] [lv2 o2 e2||l2|l2|e2|lv2 l2|e2 l2] //=;try by constructor.
     + apply (@equivP (((lv1 == lv2) && (o1 == o2)) /\ e1 == e2 ));first by apply andP.
       by split => [ [] /andP [] /eqP -> /eqP -> /eqP -> //| [] -> -> ->];rewrite !eqxx.
-    + apply (@equivP (l1 = l2));first by apply eqP.
-      by split => [->|[]->].
-    + apply (@equivP (l1 = l2));first by apply eqP.
-      by split => [->|[]->].
+    + by apply: (equivP eqP); split; congruence.
+    + by apply: (equivP eqP); split; congruence.
+    + by apply: (equivP eqP); split; congruence.
+    + apply: (equivP andP); split.
+      * by case=> /eqP <- /eqP <-.
+      by case => <- <-; rewrite !eqxx.
     apply (@equivP ((e1 == e2) /\ (l1 == l2)));first by apply andP.
     by split => [ [] /eqP -> /eqP -> //| [] -> ->];rewrite !eqxx.
   Qed.

@@ -118,6 +118,9 @@ Lemma add_err_msgP A (a: A) e (P:Prop):
   add_err_msg e = ok a -> P.
 Proof. by case: e => //= ? h [] heq; apply: h;rewrite heq. Qed.
 
+Definition map_cfprog_name {T1 T2} (F: funname -> T1 -> ciexec T2) :=
+  mapM (fun (f:funname * T1) => Let x := add_finfo f.1 f.1 (F f.1 f.2) in cfok (f.1, x)).
+
 Definition map_cfprog {T1 T2} (F: T1 -> ciexec T2) :=
   mapM (fun (f:funname * T1) => Let x := add_finfo f.1 f.1 (F f.2) in cfok (f.1, x)).
 

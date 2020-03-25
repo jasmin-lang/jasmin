@@ -137,7 +137,7 @@ End CAT.
 Definition valid min max lc :=
   all (fun (i: linstr) => let (ii, ir) := i in match ir with
        | Llabel   lbl => ((min <=? lbl) && (lbl <? max))%positive
-       | Lgoto    lbl => ((min <=? lbl) && (lbl <? max))%positive
+       | Lgoto (Local lbl) => ((min <=? lbl) && (lbl <? max))%positive
        | Lcond _  lbl => ((min <=? lbl) && (lbl <? max))%positive
        | _            => true
        end) lc.

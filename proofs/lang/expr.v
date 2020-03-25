@@ -1042,16 +1042,20 @@ Record stk_fun_extra := MkSFun {
   sf_stk_sz : Z;
   sf_to_save: seq var;
   sf_save_stack: saved_stack;
+  sf_return_address: option var; (* TODO: 3 cases: export function; return to register; return to stack *)
 }.
 
-Definition sfe_beq (e1 e2: stk_fun_extra) := 
-  (e1.(sf_stk_sz) == e2.(sf_stk_sz)) && (e1.(sf_to_save) == e2.(sf_to_save)) && (e1.(sf_save_stack) == e2.(sf_save_stack)).
+Definition sfe_beq (e1 e2: stk_fun_extra) : bool :=
+  (e1.(sf_stk_sz) == e2.(sf_stk_sz)) &&
+  (e1.(sf_to_save) == e2.(sf_to_save)) &&
+  (e1.(sf_save_stack) == e2.(sf_save_stack)) &&
+  (e1.(sf_return_address) == e2.(sf_return_address)).
 
 Lemma sfe_eq_axiom : Equality.axiom sfe_beq.
 Proof.
-    case => a b c [] a' b' c'; apply: (equivP andP) => /=; split.
-    + by case => /andP[] /eqP <- /eqP <- /eqP <-.
-    by case => <- <- <-; rewrite !eqxx.
+    case => a b c d [] a' b' c' d'; apply: (equivP andP) => /=; split.
+    + by case => /andP[] /andP[] /eqP <- /eqP <- /eqP <- /eqP <-.
+    by case => <- <- <- <-; rewrite !eqxx.
 Qed.
 
 Definition sfe_eqMixin   := Equality.Mixin sfe_eq_axiom.

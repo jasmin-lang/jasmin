@@ -65,10 +65,10 @@ let find_equality_constraints (id: instruction) : arg_position list list =
 let find_var outs ins ap : _ option =
   match ap with
   | APout n -> (List.nth outs n |> function Lvar v -> Some v | _ -> None)
-  | APin n -> 
-     (List.nth ins n |> 
-        function 
-        | Pvar v -> if is_gkvar v then Some v.gv else None 
+  | APin n ->
+     (List.nth ins n |>
+        function
+        | Pvar v -> if is_gkvar v then Some v.gv else None
         | _ -> None)
 
 let x86_equality_constraints (tbl: int Hv.t) (k: int -> int -> unit)
@@ -82,7 +82,7 @@ let x86_equality_constraints (tbl: int Hv.t) (k: int -> int -> unit)
     with Not_found -> ()
   in
   begin match op, lvs, es with
-  | Ox86 (MOV _), [ Lvar x ], [ Pvar y ] when is_gkvar y && 
+  | Ox86 (MOV _), [ Lvar x ], [ Pvar y ] when is_gkvar y &&
                                               kind_i x = kind_i y.gv ->
     merge k' x y.gv
   | _, _, _ ->
@@ -387,10 +387,10 @@ struct
     rsp
   ]
 
-  (* rsp does not need to be saved since it is an invariant 
+  (* rsp does not need to be saved since it is an invariant
      of jasmin program *)
   let callee_save = Sv.of_list [ rbp; rbx; r12; r13; r14; r15 ]
-  
+
   let f_c = V.mk "CF" reg_k (Bty Bool) L._dummy
   let f_d = V.mk "DF" reg_k (Bty Bool) L._dummy
   let f_o = V.mk "OF" reg_k (Bty Bool) L._dummy
@@ -413,22 +413,22 @@ struct
     let mallocate_one x y a =
       match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> a
     in
-    let id = get_instr op in 
+    let id = get_instr op in
     let a =
       List.fold_left2 (fun acc ad lv ->
           match ad with
           | ADImplicit v ->
-            begin match lv with 
-            | Lvar w -> allocate_one w (translate_var (Asmgen.var_of_implicit v)) acc 
-            | _ -> assert false 
+            begin match lv with
+            | Lvar w -> allocate_one w (translate_var (Asmgen.var_of_implicit v)) acc
+            | _ -> assert false
             end
           | ADExplicit _ -> acc) a id.i_out lvs
     in
     List.fold_left2 (fun acc ad e ->
         match ad with
-        | ADImplicit v -> 
+        | ADImplicit v ->
           mallocate_one e (translate_var (Asmgen.var_of_implicit v)) acc
-        | ADExplicit (_, Some r) -> 
+        | ADExplicit (_, Some r) ->
           mallocate_one e (translate_var (X86_variables.var_of_register r)) acc
         | ADExplicit (_, None) -> acc) a id.i_in es
 
@@ -481,7 +481,11 @@ let allocate_forced_registers translate_var (vars: int Hv.t) (cnf: conflicts)
         -> alloc_stmt (alloc_stmt a s1) s2
     | Cassgn _
       -> a
-    | Ccall _ -> a (* TODO *)
+    | Ccall (_, lvs, _, es) ->
+       let args = List.map (function Pvar { gv ; gs = Slocal } -> (L.unloc gv) | _ -> assert false) es in
+       let dsts = List.map (function Lvar gv -> gv | _ -> assert false) lvs in
+       let a = alloc_args loc a args in
+       alloc_ret loc a dsts
   and alloc_instr a { i_loc; i_desc } = alloc_instr_r i_loc a i_desc
   and alloc_stmt a s = List.fold_left alloc_instr a s
   in
@@ -586,27 +590,30 @@ let reg_alloc translate_var (f: 'info func) : unit func =
   in Subst.subst_func a f
    |> Ssa.remove_phi_nodes
 
-let regalloc translate_var stack_needed (f: 'info func) = 
+let regalloc translate_var stack_needed (f: 'info func) =
   let f = reg_alloc translate_var f in
   let fv = vars_fc f in
   let allocatable = X64.allocatables in
   let free_regs = Sv.diff allocatable fv in
+  (* choose a register for the return address *)
+  let free_regs, ra =
+    if f.f_cc = Subroutine then
+      let ra = Sv.any free_regs in
+      Sv.remove ra free_regs, Some ra
+    else free_regs, None
+  in
   let to_save = Sv.inter X64.callee_save fv in
-  let to_save, stk = 
+  let to_save, stk =
     if stack_needed then
       if Sv.is_empty free_regs then
         to_save, None
       else
-        let r = 
+        let r =
           let s = Sv.diff free_regs X64.callee_save in
           if Sv.is_empty s then Sv.any free_regs
           else Sv.any s in
         let to_save = Sv.inter X64.callee_save (Sv.add r fv) in
         to_save, Some r
-    else 
+    else
       to_save, None in
-  f, to_save, stk
-                  
-
-
-
+  f, to_save, stk, ra

@@ -129,6 +129,7 @@ and ('ty,'info) gstmt = ('ty,'info) ginstr list
 (* ------------------------------------------------------------------------ *)
 type call_conv =
   | Export     (* The function should be exported to the outside word *)
+  | Subroutine (* internal function that should not be inlined *)
   | Internal   (* internal function that should be inlined *)
 
 type ('ty,'info) gfunc = {
