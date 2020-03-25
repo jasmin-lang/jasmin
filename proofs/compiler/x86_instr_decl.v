@@ -507,7 +507,7 @@ Definition x86_SHLD sz (v1 v2: word sz) (i: u8) : ex_tpl (b5w_ty sz) :=
   else
     let rc := msb (wshl v1 (wunsigned i - 1)) in
     let r1 := wshl v1 (wunsigned i) in
-    let r2 := wsar v2 (wsize_bits sz - (wunsigned i)) in
+    let r2 := wshr v2 (wsize_bits sz - (wunsigned i)) in
     let r  := wor r1 r2 in
     rflags_OF i r rc (msb r (+) rc).
 
