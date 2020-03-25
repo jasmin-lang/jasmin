@@ -426,7 +426,7 @@ Definition alloc_lval (rmap: regions) (r:lval) ty :=
     match get_local x with
     | None => Let _ := check_diff x in ok (rmap, Laset aa ws x e1)
     | Some pk => 
-      Let _ := Region.check rmap x ws in
+      Let _ := check_valid rmap x in
       Let pofs := mk_addr_ptr x aa ws pk e1 in
       let r := Lmem ws pofs.1 pofs.2 in
       Let rmap := Region.set_word rmap x ws in
