@@ -2219,7 +2219,7 @@ abstract theory BitWordSH.
       let CF = ALU.SF_of r in
       let OF = if i = 1 then CF <> ALU.SF_of v else undefined_flag in
       (OF , CF,  r)
-  axiomatized by ROL_XX_E.
+  axiomatized by ROR_XX_E.
   
   op ROL_XX (v: t) (i: W8.t) =
     let i = shift_mask i in
