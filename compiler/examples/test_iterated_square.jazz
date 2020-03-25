@@ -1,5 +1,6 @@
 u64 __38 = 38;
 
+inline
 fn reduce(reg u64[8] z) -> reg u64[4] {
 
   reg u64[4] xa;
@@ -54,6 +55,7 @@ fn reduce(reg u64[8] z) -> reg u64[4] {
   return xa;
 }
 
+inline
 fn iterated_square(reg u64[4] xa, stack u64 n) -> reg u64[4] {
 
   reg u64[8] z;

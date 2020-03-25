@@ -136,6 +136,7 @@ fn gimli_body (reg u128 x, reg u128 y, reg u128 z) -> reg u128, reg u128, reg u1
   return (x,y,z);
 }
 
+export
 fn gimli1(reg u64 state) {
   reg u128 x, y, z;
 

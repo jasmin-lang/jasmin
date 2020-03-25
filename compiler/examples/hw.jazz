@@ -1,3 +1,4 @@
+inline
 fn cswap(stack u64[4] x, stack u64[4] y, reg u64 swap)
 -> (stack u64[4] , stack u64[4]) {
 

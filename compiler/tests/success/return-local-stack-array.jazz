@@ -1,3 +1,4 @@
+inline
 fn squarea(stack u64[1] x) -> stack u64[1] {
   reg u64[1] r;
   stack u64[1] ra;
@@ -7,6 +8,7 @@ fn squarea(stack u64[1] x) -> stack u64[1] {
   return ra;
 }
 
+inline
 fn invert(stack u64[1] xa) {
   stack u64[1] t;
   reg u64 k;

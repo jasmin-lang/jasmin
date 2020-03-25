@@ -1,3 +1,4 @@
+inline
 fn use(stack u32[17] t) -> reg u32 {
   inline int i;
   reg u32 s;

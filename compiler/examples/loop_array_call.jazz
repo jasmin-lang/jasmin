@@ -1,9 +1,11 @@
+inline
 fn reduce() -> reg u64[1] {
 	reg u64[1] xa;
 	xa[0] = 0;
 	return xa;
 }
 
+inline
 fn iterated_square(reg u64[1] xa, stack u64 n) -> reg u64[1] {
 	reg bool cf;
 	while {

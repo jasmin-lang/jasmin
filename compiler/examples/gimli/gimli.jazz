@@ -1,8 +1,10 @@
+inline
 fn mask32(reg u64 x) -> reg u64 {
   x = x & 0xffffffff;
   return x;
 }
 
+inline
 fn rotate(reg u64 x, inline int bits) -> reg u64 
 {
   /*

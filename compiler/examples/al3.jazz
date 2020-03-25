@@ -1,3 +1,4 @@
+inline
 fn swap(reg u64[2] u) -> reg u64[2] {
 reg u64[2] z;
 z[1] = u[0];

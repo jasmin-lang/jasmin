@@ -1,6 +1,7 @@
 u64 x0 = 0;
 u64 x1 = 1;
 
+inline
 fn test () -> reg u64[2] {
   inline int i;
   inline u64[2] t; 

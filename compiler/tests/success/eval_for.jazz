@@ -24,6 +24,7 @@ return sum;
 
 exec test_for ()
 
+inline
 fn test_param() -> inline int {
 inline int i;
 i = n;

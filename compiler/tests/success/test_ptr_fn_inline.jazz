@@ -1,3 +1,4 @@
+inline
 fn init (reg ptr u64[3] p) {
    inline int i;
    for i = 0 to 3 {

@@ -1,3 +1,4 @@
+inline
 fn test1() -> inline int {
 
   inline int i;
@@ -12,6 +13,7 @@ fn test1() -> inline int {
   return j;
 }
 
+inline
 fn test2() -> inline u64 {
 
   inline int i;

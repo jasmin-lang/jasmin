@@ -1,3 +1,4 @@
+inline
 fn add (reg u64 x, reg u64 y) -> reg u64 {
    reg bool c;
    reg u64 z;
@@ -5,6 +6,7 @@ fn add (reg u64 x, reg u64 y) -> reg u64 {
    return z;
 }
 
+inline
 fn addc (reg u64 x, reg u64 y) -> (reg bool, reg u64) {
    reg bool c;
    reg u64 z;
@@ -12,9 +14,11 @@ fn addc (reg u64 x, reg u64 y) -> (reg bool, reg u64) {
    return (c, z);
 }
 
-fn main() -> () {
+export
+fn main() -> reg u64 {
    reg bool c;
    reg u64 z;
    (c, z) = addc(0, 0);
    z = add(0,z);
+   return z;
 }

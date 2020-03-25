@@ -1,3 +1,4 @@
+inline
 fn sub(reg u64[1] z) {
 z[0] = 1;
 }

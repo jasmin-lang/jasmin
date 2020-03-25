@@ -1,3 +1,4 @@
+inline
 fn addn (reg u64 r, inline u64 n) -> reg u64 {
   r = r + n;
   r = r + (n + n);

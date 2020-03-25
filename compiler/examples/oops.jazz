@@ -1,3 +1,4 @@
+inline
 fn f(reg u64[1] x) {
 reg u64[1] y;
 reg u64 r;

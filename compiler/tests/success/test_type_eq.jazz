@@ -1,4 +1,6 @@
 param int n = 0;
+
+inline
 fn f(reg u64[n] x) -> reg u64[n] { return x; }
 fn g() {
 reg u64[n] a;

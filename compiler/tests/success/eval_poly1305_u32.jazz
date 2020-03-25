@@ -186,6 +186,7 @@ fn poly1305(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k) -> reg u64 {
 
 u256 key = 0x1bf54941aff6bf4afdb20dfb8a800301a806d542fe52447f336d555778bed685;
 
+inline
 fn test_poly1305() -> reg u8[16] {
 reg u64 in, out, inlen, k, tmp;
 reg u8[16] result;

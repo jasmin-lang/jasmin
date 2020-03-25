@@ -1,3 +1,4 @@
+inline
 fn xor64(reg u256 x, inline int i, inline u64 c) -> reg u256 {
   reg u128 y;
   reg u64 r;

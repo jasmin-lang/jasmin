@@ -1,3 +1,4 @@
+inline
 fn f(stack u64[1] x) {
 stack u64[1] y;
 reg u64 r;
