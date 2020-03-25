@@ -1505,6 +1505,9 @@ op IMULt_XX (v1 v2: t) =
   let ov = IMUL_overflow hi lo in
   flags_w (rflags_of_mul ov) lo.
 
+op IMULr_XX = IMULt_XX.
+op IMULri_XX = IMULt_XX.
+
 op DIV_XX (hi lo dv: t) =
   let dd = wdwordu hi lo in
   let dv = to_uint dv in
@@ -1572,14 +1575,9 @@ op DEC_XX (w: t) =
     (w - of_int 1)
     (to_sint w - 1).
 
-(* FIXME 
-op BT sz (x y: t) : ex_tpl (b_ty) :=
-  ok (Some (wbit x y)).
+op BT_XX (x y: t) = x.[to_uint y %% size].
 
-op LEA sz (addr: t) : ex_tpl (w_ty sz) :=
-  Let _  := check_size_16_64 sz in
-  ok (addr).
-*)
+op LEA_XX (addr: t) = addr.
 
 op TEST_XX (x y: t) =
   rflags_of_bwop (x `&` y).
@@ -1670,7 +1668,8 @@ theory W8.
       let r = ror v i in
       let CF = ALU.SF_of r in
       let OF = if i = 1 then CF <> ALU.SF_of v else undefined_flag in
-      (OF , CF,  r).
+      (OF , CF,  r)
+  axiomatized by ROR_XX_E.
   
   op ROL_XX (v: t) (i: W8.t) =
     let i = shift_mask i in
@@ -1679,7 +1678,8 @@ theory W8.
       let r = rol v i in
       let CF = ALU.PF_of r in
       let OF = if i = 1 then ALU.SF_of r <> CF else undefined_flag in
-      (OF, CF, r).
+      (OF, CF, r)
+  axiomatized by ROL_XX_E.
   
   op im i = 
     if size = 8 then i %% 9
@@ -2218,7 +2218,8 @@ abstract theory BitWordSH.
       let r = ror v i in
       let CF = ALU.SF_of r in
       let OF = if i = 1 then CF <> ALU.SF_of v else undefined_flag in
-      (OF , CF,  r).
+      (OF , CF,  r)
+  axiomatized by ROL_XX_E.
   
   op ROL_XX (v: t) (i: W8.t) =
     let i = shift_mask i in
@@ -2227,7 +2228,8 @@ abstract theory BitWordSH.
       let r = rol v i in
       let CF = ALU.PF_of r in
       let OF = if i = 1 then ALU.SF_of r <> CF else undefined_flag in
-      (OF, CF, r).
+      (OF, CF, r)
+  axiomatized by ROL_XX_E.
   
   op im i = 
     if size = 8 then i %% 9
