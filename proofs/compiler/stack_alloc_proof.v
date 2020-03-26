@@ -1050,64 +1050,66 @@ Let P' : sprog :=
     |}. *)
 
 Variable (P' : sprog).
+Hypothesis P'_globs : P'.(p_globs) = [::].
+Variable (m0:mem).
 
 Let Pi_r s1 (i1:instr_r) s2 :=
   forall rmap1 rmap2 ii1 ii2 i2, alloc_i pmap rmap1 (MkI ii1 i1) = ok (rmap2, MkI ii2 i2) ->
-  forall m0 s1', valid_state rmap1 m0 s1 s1' ->
+  forall s1', valid_state rmap1 m0 s1 s1' ->
   exists s2', sem_i (sCP:= sCP_stack) P' rip s1' i2 s2' /\ valid_state rmap2 m0 s2 s2'.
 
 Let Pi s1 (i1:instr) s2 :=
   forall rmap1 rmap2 i2, alloc_i pmap rmap1 i1 = ok (rmap2, i2) ->
-  forall m0 s1', valid_state rmap1 m0 s1 s1' ->
+  forall s1', valid_state rmap1 m0 s1 s1' ->
   exists s2', sem_I (sCP:= sCP_stack) P' rip s1' i2 s2' /\ valid_state rmap2 m0 s2 s2'.
 
 Let Pc s1 (c1:cmd) s2 :=
   forall rmap1 rmap2 c2,  fmapM (alloc_i pmap) rmap1 c1 = ok (rmap2, c2) ->
-  forall s1', valid sm1 s1 s1' ->
+  forall s1', valid_state rmap1 m0 s1 s1' ->
   exists s2', sem (sCP:= sCP_stack) P' rip s1' c2 s2' /\ valid_state rmap2 m0 s2 s2'.
 
 Let Pfor (i1: var_i) (vs: seq Z) (s1: estate) (c: cmd) (s2: estate) := True.
 
 Let Pfun (m1: mem) (fn: funname) (vargs: seq value) (m2: mem) (vres: seq value) := True.
 
-  Local Lemma Hskip : sem_Ind_nil Pc.
-  Proof.
-    move=> s sm1 sm2 /= c2 [??] s' hv;subst sm1 c2.
-    exists s'; split => //; exact: Eskip. 
-  Qed.
+Local Lemma Hskip : sem_Ind_nil Pc.
+Proof.
+  move=> s rmap1 rmap2 /= c2 [??] s' hv;subst rmap1 c2.
+  exists s'; split => //; exact: Eskip. 
+Qed.
 
-  Local Lemma Hcons : sem_Ind_cons P ev Pc Pi.
-  Proof.
-    move=> s1 s2 s3 i c _ Hi _ Hc sm1 _sm3 c1 /=;t_xrbindP => -[sm2 i'] hi [sm3 c'] hc /= ?? s1' hv. 
-    subst c1 _sm3.
-    have [s2' [si hv2]]:= Hi _ _ _ hi _ hv.
-    have [s3' [sc hv3]]:= Hc _ _ _ hc _ hv2.
-    exists s3'; split => //; apply: Eseq; [exact: si|exact: sc].
-  Qed.
+Local Lemma Hcons : sem_Ind_cons P ev Pc Pi.
+Proof.
+  move=> s1 s2 s3 i c _ Hi _ Hc sm1 _sm3 c1 /=;t_xrbindP => -[sm2 i'] hi [sm3 c'] hc /= ?? s1' hv. 
+  subst c1 _sm3.
+  have [s2' [si hv2]]:= Hi _ _ _ hi _ hv.
+  have [s3' [sc hv3]]:= Hc _ _ _ hc _ hv2.
+  exists s3'; split => //; apply: Eseq; [exact: si|exact: sc].
+Qed.
 
-  Local Lemma HmkI : sem_Ind_mkI P ev Pi_r Pi.
-  Proof.
-    move=> ii i s1 s2 _ Hi sm1 sm2 [ii' ir'] ha s1' hv.
-    by have [s2' [Hs2'1 Hs2'2]] := Hi _ _ _ _ _ ha _ hv; exists s2'; split.
-  Qed.
-
-  Lemma alloc_assgnP s1 s2 x tag ty e v v' ii1 ii2 i2 sm1 sm2:
-    sem_pexpr gd s1 e = ok v -> 
-    truncate_val ty v = ok v' -> 
-    write_lval gd x v' s1 = ok s2 -> 
-    Let ir := alloc_assgn nrsp gm sm1 ii1 x tag ty e in ok (ir.1, MkI ii1 ir.2) = ok (sm2, MkI ii2 i2) ->
-    forall s1', valid sm1 s1 s1' → 
-     ∃ s2', sem_i (sCP:= sCP_stack) P' rip s1' i2 s2' ∧ valid sm2 s2 s2'.
-  Proof.
-    move=> hv htr Hw; rewrite /alloc_assgn.
-    t_xrbindP => -[sm i'] e'; apply: add_iinfoP => he [sm' x'].
-    apply: add_iinfoP => ha /= [?] ???? s1' hs1; subst i' sm sm' ii1 i2.
-    have [v1 [He' Uvv1]] := alloc_eP he hs1 hv.
-    have [v1' htr' Uvv1']:= truncate_value_uincl Uvv1 htr.
-    have hty := truncate_val_has_type htr.
-    have [s2' [Hw' Hs2']] := alloc_lvalP ha hs1 hty Uvv1' Hw.
-    by exists s2'; split=> //;apply: Eassgn;eauto.
-  Qed.
+Local Lemma HmkI : sem_Ind_mkI P ev Pi_r Pi.
+Proof.
+  move=> ii i s1 s2 _ Hi sm1 sm2 [ii' ir'] ha s1' hv.
+  by have [s2' [Hs2'1 Hs2'2]] := Hi _ _ _ _ _ ha _ hv; exists s2'; split.
+Qed.
+(*
+Lemma alloc_assgnP s1 s2 x tag ty e v v' ii1 ii2 i2 sm1 sm2:
+  sem_pexpr gd s1 e = ok v -> 
+  truncate_val ty v = ok v' -> 
+  write_lval gd x v' s1 = ok s2 -> 
+  Let ir := alloc_assgn nrsp gm sm1 ii1 x tag ty e in ok (ir.1, MkI ii1 ir.2) = ok (sm2, MkI ii2 i2) ->
+  forall s1', valid sm1 s1 s1' → 
+   ∃ s2', sem_i (sCP:= sCP_stack) P' rip s1' i2 s2' ∧ valid sm2 s2 s2'.
+Proof.
+  move=> hv htr Hw; rewrite /alloc_assgn.
+  t_xrbindP => -[sm i'] e'; apply: add_iinfoP => he [sm' x'].
+  apply: add_iinfoP => ha /= [?] ???? s1' hs1; subst i' sm sm' ii1 i2.
+  have [v1 [He' Uvv1]] := alloc_eP he hs1 hv.
+  have [v1' htr' Uvv1']:= truncate_value_uincl Uvv1 htr.
+  have hty := truncate_val_has_type htr.
+  have [s2' [Hw' Hs2']] := alloc_lvalP ha hs1 hty Uvv1' Hw.
+  by exists s2'; split=> //;apply: Eassgn;eauto.
+Qed.
 
   Lemma is_arr_typeP ty : is_arr_type ty -> exists n, ty = sarr n.
   Proof. case ty => //;eauto. Qed.
@@ -1121,10 +1123,137 @@ Let Pfun (m1: mem) (fn: funname) (vargs: seq value) (m2: mem) (vres: seq value) 
   Proof.
     by rewrite /find_gvar; case: ifP => //= ?; rewrite Mvar.setP; case: ifP.
   Qed.
+*)
 
-  Local Lemma Hassgn : sem_Ind_assgn P Pi_r.
-  Proof.
-    move=> s1 s2 x tag ty e v v' hv htr Hw sm1 sm2 ii1 ii2 i2 /=.
+Lemma is_sarrP ty : reflect (exists n, ty = sarr n) (is_sarr ty).
+Proof.
+  case: ty => /= [||n|ws]; constructor; try by move => -[].
+  by exists n.
+Qed.
+
+Lemma get_rm_set rmap x mp y :
+  Mvar.get (var_region (rm_set rmap x mp)) y = 
+  if x == y then Some mp else Mvar.get (var_region rmap) y.
+Proof.
+  rewrite /rm_set /= Mvar.setP; case: ifPn => // hne.
+  rewrite /remove; case: (Mvar.get _ x) => // mpx /=.
+  by rewrite Mvar.removeP_neq.
+Qed.
+
+Lemma rm_set_VALID rmap x mp: 
+  valid_mp mp (vtype x) -> wfr_VALID rmap -> wfr_VALID (rm_set rmap x mp).    
+Proof.
+  by move=> hv hV y mpy; rewrite get_rm_set; case: eqP => [<- [<-]| _ /hV ].
+Qed.
+
+Lemma alloc_array_moveP s1 s2 s1' rmap1 rmap2 x e v v' n i2 : 
+  valid_state rmap1 m0 s1 s1' ->
+  sem_pexpr gd s1 e = ok v ->
+  truncate_val (sarr n) v = ok v' ->
+  write_lval gd x v' s1 = ok s2 ->
+  alloc_array_move pmap rmap1 x e = ok (rmap2, i2) → 
+  ∃ s2' : estate, sem_i P' rip s1' i2 s2' ∧ valid_state rmap2 m0 s2 s2'.
+Proof.
+  move=> hvs he htr hw.
+  rewrite /alloc_array_move.
+  case: x hw => //= x.
+  rewrite /write_var; t_xrbindP => vm1 hvm1 <- /=.
+  have hu := value_uincl_truncate_val htr.
+  have /type_of_val_arr := truncate_val_has_type htr.
+  case => -[n' ?];subst v'.
+  + apply: set_varP hvm1.
+    + by move=> ? /pof_val_undef_ok. 
+    by move=> /is_sboolP h1 h2; elimtype False; move: h2; rewrite h1.
+  apply: set_varP hvm1; last first.
+  by move=> /is_sboolP h1 h2; elimtype False; move: h2; rewrite h1.
+  case: x => -[[]// sx xn] xii /= t [?] ?; subst t vm1.
+  set x := {|vname := xn|}.
+  case: e he => //= y hy.
+  case hglx : get_local => [[ofs | p | ofs] | //].
+  + t_xrbindP => _ /assertP; rewrite is_lvar_is_glob => /negP hngy mpy hcvy.
+    move=> _ /assertP -/eqP ???; subst mpy rmap2 i2.
+    exists s1';split;first by constructor.
+    + case: (hvs) => vptr hdisj hrip hrsp hf heqvm hwfr heqg hnotm. 
+      constructor => //.
+      + move=> x1 hx1; rewrite -heqvm // get_var_neq //.
+        by move=> heq;move: hx1;rewrite -heq hglx.
+      + case: (hwfr) => h1 h2 h3; constructor => //=.
+        + by apply: rm_set_VALID => //; exists x; split.
+      + move=> x1 mp1 v1.
+Print check_valid.
+admit.
+move=> ?.
+check_gvalid (rm_set rmap x {| mp_s := MSstack; mp_ofs := ofs |}) y = 
+if is_glob y || x != (gv y) then check_gvalid rmap y
+else 
+  exists xs, 
+
+ have := h2 x1 mp1 v1; rewrite /check_gvalid.
+        case: ifPn => [ hg h /h| hng ]; first by rewrite get_gvar_neq ?hg.
+        rewrite /check_valid.
+admit.        
+      + move=> x1.
+
+
+
+        Print check_valid.
+Lemma rm_setP x
+Print rm_set.        
+Print 
+Search rm_set.
+
+          + apply h1 => //. by apply /eqP.
+          have := h1 _.
+        Search _ Mvar.get Mvar.remove.
+        case: 
+Print get_local.
+        Search remove.
+Print valid_mp.
+exists (mk_lvar {|v_var := x; v_info := xii|}).
+Print valid_mp.
+Search _ Mvar.get Mvar.set.
+Check wfr_PTR_rset_word.
+Print rset_word.
+      + move=> y mpy v /(check_gvalid_rset_word hins hgetr) [].
+        + move=> [ hng heq ?]; subst mpy.
+          have -> : y = mk_lvar {|v_var := x; v_info := v_info (gv y) |}.
+          + by case: y hng heq => -[yv vi] [] //= _ ->.
+          have /= -> // := @get_gvar_eq gd (mk_lvar {| v_var := x; v_info := v_info (gv y) |}) (evm s1) (ok w).
+          move=> [<-]; exists w';split;first by subst w.
+          by apply: Memory.writeP_eq hmem2.
+        move=> [hd hdm hcv]; rewrite get_gvar_neq // => /h2 -/(_ _ hcv) /=.
+        by apply: (eq_mp_val_write_disj hvs hgetr) hmem2.
+      by apply: wfr_PTR_rset_word hmem2 h3.
+    + by apply: (eq_glob_rset_word hvs hgetr) hmem2 heqg.
+    by apply: (eq_not_mod_rset_word hvs hgetr) hmem2 hnotm.
+
+
+Search _ is_lvar.
+Print is_Pvar.
+Search _ is_Pvar.
+Print is_lv_var.
+Search _ is_lv_var.
+*)
+Local Lemma Hassgn : sem_Ind_assgn P Pi_r.
+Proof.
+  move=> s1 s2 x tag ty e v v' hv htr hw rmap1 rmap2 ii1 ii2 i2 /=.
+  t_xrbindP => -[rmap2' i2'] h /= ??? s1' hvs; subst rmap2' ii1 i2'.
+  have htyv':= truncate_val_has_type htr.
+  case: ifPn h => [/is_sarrP [n ?]| _ ].
+  + subst ty; apply: add_iinfoP.
+
+
+    admit.
+  t_xrbindP => e'; apply: add_iinfoP => /(alloc_eP hvs) he [rmap2' x'].
+  apply: add_iinfoP => hax /= ??; subst rmap2' i2.
+  have [s2' [/= hw' hvs']]:= alloc_lvalP hax hvs htyv' hw.
+  exists s2';split => //.
+  apply: Eassgn; eauto; rewrite P'_globs; auto.
+Qed.
+  assert (hx := alloc_lvalP hax).
+Check add_iinfoP.
+
+Search add_iinfo.
     case:x hv htr Hw => [??| x|???|????]; try by apply: alloc_assgnP.
 (*    case: ifP => hty. last by apply: alloc_assgnP.
     case he : is_var => [y | ]; last by apply: alloc_assgnP.
