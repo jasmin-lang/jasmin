@@ -286,17 +286,25 @@ type allocation = var IntMap.t
 
 exception AlreadyAllocated
 
-let allocate_one loc (x_:var) (x: int) (r: var) (a: allocation) : allocation =
+let allocate_one loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: allocation) : allocation =
   match IntMap.find x a with
   | r' when r' = r -> a
   | r' ->
-    hierror "at line %a: can not allocate %a into %a, the variable is already allocated in %a"
+     let pv = Printer.pp_var ~debug: true in
+     hierror "at line %a: can not allocate %a into %a, the variable is already allocated in %a"
        Printer.pp_iloc loc
-       (Printer.pp_var ~debug:true) x_
-       (Printer.pp_var ~debug:true) r
-       (Printer.pp_var ~debug:true) r'
+       pv x_
+       pv r
+       pv r'
 
-  | exception Not_found -> IntMap.add x r a
+  | exception Not_found ->
+     let c = get_conflicts x cnf in
+     IntMap.iter (fun i r' ->
+         if V.equal r r' && IntSet.mem i c
+         then let pv = Printer.pp_var ~debug:true in
+              hierror "Register allocation at line %a: variable %a must be allocated to conflicting register %a" Printer.pp_iloc loc pv x_ pv r
+       ) a;
+     IntMap.add x r a
 
 let conflicting_registers (i: int) (cnf: conflicts) (a: allocation) : var option list =
   get_conflicts i cnf |>
@@ -400,13 +408,7 @@ struct
     let f x = Hv.find vars (L.unloc x) in
     let allocate_one x y a =
       let i = f x in
-      let c = conflicting_registers i cnf a in
-      if List.mem (Some y) c
-      then (
-        let pv = Printer.pp_var ~debug:true in
-        hierror "Register allocation: variable %a must be allocated to conflicting register %a" pv (L.unloc x) pv y
-      );
-      allocate_one loc (L.unloc x) i y a
+      allocate_one loc cnf (L.unloc x) i y a
     in
     let mallocate_one x y a =
       match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> a
@@ -461,7 +463,7 @@ let allocate_forced_registers translate_var (vars: int Hv.t) (cnf: conflicts)
               hierror "Register allocation: unknown type %a for forced register %a"
                 Printer.pp_ty ty (Printer.pp_var ~debug:true) p
           in
-          (rs, xs, allocate_one loc p i d a)
+          (rs, xs, allocate_one loc cnf p i d a)
         | exception Not_found -> (rs, xs, a))
       (rs, xs, a)
       vs
