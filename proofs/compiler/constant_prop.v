@@ -40,6 +40,11 @@ Local Open Scope Z_scope.
 (* -------------------------------------------------------------------------- *)
 (* ** Smart constructors                                                      *)
 (* -------------------------------------------------------------------------- *)
+Inductive leak_expr_trans :=
+| LET_id  
+| LET_remove 
+| LET_sub of seq leak_expr_trans.
+
 
 Definition sword_of_int sz (e: pexpr) :=
   Papp1 (Oword_of_int sz) e.
@@ -59,11 +64,28 @@ Definition szero_extend sz sz' (e: pexpr) :=
   then Papp1 (Oword_of_int sz) (Pconst (wunsigned (zero_extend sz w)))
   else Papp1 (Ozeroext sz sz') e.
 
+(*LEempty
+  LEIdx
+  LEAdr
+  LEsub of seq leak_expr *)
+
+leakages_e <=> leak_expr
+
+leak_expr & leak_expr_trans => leak_expr 
+
+match lt, le with
+| LET_id, _ => le
+| LET_rm, _ => LEempty
+| LET_sub lts, LEsub les =>
+  LEsub (map2 lts les)
+
+
+
 Definition snot_bool (e:pexpr) :=
   match e with
-  | Pbool b      => negb b
-  | Papp1 Onot e => e
-  | _            => Papp1 Onot e
+  | Pbool b      => negb b, 
+  | Papp1 Onot e => e, 
+  | _            => Papp1 Onot e, 
   end.
 
 Definition snot_w (sz: wsize) (e:pexpr) :=
@@ -97,12 +119,17 @@ Definition s_op1 o e :=
   | Oneg (Op_w sz) => sneg_w sz e
   end.
 
+Definition s_op1_lt o e := 
+  let e' := s_op1 o e.1 in
+  (e', LETsub e.2)
+
 (* ------------------------------------------------------------------------ *)
+
 Definition sand e1 e2 :=
-  match is_bool e1, is_bool e2 with
-  | Some b, _ => if b then e2 else false
-  | _, Some b => if b then e1 else false
-  | _, _      => Papp2 Oand e1 e2
+  match is_bool e1.1, is_bool e2.1 with
+  | Some b, _ => if b then e2.1, LET_sub [::LET_remove, e2.2] else false, LET_remove
+  | _, Some b => if b then e1.1 else false, LET_remove
+  | _, _      => Papp2 Oand e1.1 e2.1
   end.
 
 Definition sor e1 e2 :=
