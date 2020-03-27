@@ -180,6 +180,7 @@ Definition set_word (rmap:regions) (x:var) ws :=
   | None => cerror "unknown region: please report"
   end.
 
+(*
 Definition remove rmap x := 
   match Mvar.get rmap.(var_region) x with
   | None => rmap
@@ -192,32 +193,28 @@ Definition remove rmap x :=
     {| var_region  := Mvar.remove rmap.(var_region) x;
        region_vars := rv |}
   end.
-
+*)
 Definition set rmap x mp := 
-  let xs := 
-     match Mmp.get rmap.(region_vars) mp with
-     | Some xs => xs
-     | None    => Sv.empty 
-      end in  
+  let xs := odflt Sv.empty (Mmp.get rmap.(region_vars) mp) in
   {| var_region  := Mvar.set rmap.(var_region) x mp;
      region_vars := Mmp.set rmap.(region_vars) mp (Sv.add x xs) |}.
 
-Definition rm_set rmap x mp := 
-  set (remove rmap x) x mp.
+(*Definition rm_set rmap x mp := 
+  set (remove rmap x) x mp. *)
 
 Definition set_move (rmap:regions) (x y:var) := 
   Let mp := check_valid rmap y in
-  ok (rm_set rmap x mp).
+  ok (set rmap x mp).
 
 Definition set_move_glob (rmap:regions) (x:var) (ofs:Z) := 
   let mp := {| mp_s := MSglob; mp_ofs := ofs |} in
-  rm_set rmap x mp.
+  set rmap x mp.
 
 Definition set_init (rmap:regions) x pk := 
   match pk with
   | Pstack z =>
     let mp := {| mp_s := MSstack; mp_ofs := z |} in
-    let rmap := remove rmap x in
+(*  let rmap := remove rmap x in *)
     set rmap x mp
 
   | Pstkptr _ => rmap
@@ -495,7 +492,7 @@ Definition alloc_array_move rmap r e :=
         Let mp := Region.check_valid rmap y.(gv) in
         Let _  := assert (mp == {| mp_s := MSstack; mp_ofs := z1 |})
                    (Cerr_stk_alloc "invalid move: check alias") in  
-        let rmap := Region.rm_set rmap x mp in
+        let rmap := Region.set rmap x mp in
         ok (rmap, nop)
       | Pregptr p =>
         get_addr rmap x (Lvar (with_var x p)) y

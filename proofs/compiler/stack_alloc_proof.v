@@ -1131,19 +1131,80 @@ Proof.
   by exists n.
 Qed.
 
-Lemma get_rm_set rmap x mp y :
-  Mvar.get (var_region (rm_set rmap x mp)) y = 
+Lemma get_set_region rmap x mp y :
+  Mvar.get (var_region (set rmap x mp)) y = 
   if x == y then Some mp else Mvar.get (var_region rmap) y.
+Proof. rewrite /set /= Mvar.setP; case: ifPn => // hne. Qed.
+
+Lemma set_VALID rmap x mp: 
+  valid_mp mp (vtype x) -> wfr_VALID rmap -> wfr_VALID (set rmap x mp).    
 Proof.
-  rewrite /rm_set /= Mvar.setP; case: ifPn => // hne.
-  rewrite /remove; case: (Mvar.get _ x) => // mpx /=.
-  by rewrite Mvar.removeP_neq.
+  by move=> hv hV y mpy; rewrite get_set_region; case: eqP => [<- [<-]| _ /hV ].
 Qed.
 
-Lemma rm_set_VALID rmap x mp: 
-  valid_mp mp (vtype x) -> wfr_VALID rmap -> wfr_VALID (rm_set rmap x mp).    
+Lemma check_gvalid_set rmap x mp y: 
+  check_gvalid (set rmap x mp) y = 
+    if (x == (gv y)) && ~~is_glob y then Some mp 
+    else check_gvalid rmap y.
 Proof.
-  by move=> hv hV y mpy; rewrite get_rm_set; case: eqP => [<- [<-]| _ /hV ].
+  rewrite /check_gvalid; case: ifPn => ? /=; first by rewrite andbF.
+  rewrite andbT /check_valid get_set_region; case: eqP => [-> | hne].
+  + by rewrite /set /= Mmp.setP_eq SvP.add_mem_1.
+  case: Mvar.get => // mpy.
+  rewrite /set /= Mmp.setP; case: eqP => // <-.
+  by rewrite SvD.F.add_neq_b //; case: Mmp.get.
+Qed.
+
+Lemma set_VAL rmap x mp v s s': 
+  eq_mp_val (vtype x) (emem s') mp (pto_val v) ->
+  wfr_VAL rmap s s' -> 
+  wfr_VAL (set rmap x mp) (with_vm s (evm s).[x <- ok v]) s'.
+Proof.
+  move=> hv hV y mpy vy; rewrite check_gvalid_set.
+  case: ifPn => [ /andP[]/eqP heq /negP ? [<-]| ].
+  + by subst x; rewrite get_gvar_eq /= => [[<-]| ].
+  move=> h /hV hc;rewrite get_gvar_neq => [/hc // |/negP hn ].
+  by move: h;rewrite hn andbT => /eqP. 
+Qed.
+
+Lemma type_of_get_var x vm v: get_var vm x = ok v → subtype (type_of_val v) (vtype x).
+Proof.
+  rewrite /get_var; apply on_vuP => // v' _ <-; apply subtype_type_of_val.
+Qed.
+
+Lemma type_of_get_gvar x gd vm v: get_gvar gd vm x = ok v → subtype (type_of_val v) (vtype (gv x)).
+Proof.
+  by rewrite /get_gvar; case: ifPn => [ ? /type_of_get_var | ? /type_of_get_global ->].
+Qed.
+
+Definition lea_ptr' y ptr ofs := 
+  add (Pvar (mk_lvar (with_var y ptr))) (cast_const ofs).
+
+Lemma get_addrP s1 s1' rmap1 rmap2 i2 x dx y:
+  valid_state rmap1 m0 s1 s1' ->
+  get_addr pmap rmap1 x dx y = ok (rmap2, i2) ->
+  exists mp, 
+    [/\ check_gvalid rmap1 y = Some mp,
+        rmap2 = set rmap1 x mp &
+        forall s2', write_lval [::] dx (Vword (mp_addr mp)) s1' = ok s2' ->
+                     sem_i P' rip s1' i2 s2'].
+Proof.
+  move=> hvs; rewrite /get_addr /check_gvalid.   
+  case: ifPn => hglob.             
+  + t_xrbindP => ofs /get_globalP -> <- <- /=.
+    exists {| mp_s := MSglob; mp_ofs := ofs |}.
+    split => //= s2' hs; constructor.
+    by rewrite /sem_sopn /= P'_globs /get_gvar /= vs_rip /= /sem_sop2 /= !zero_extend_u hs.
+  case heq: get_local => [pk | //].         
+  rewrite /set_move; t_xrbindP => rmap2' mp hva <- <- <-; rewrite hva.
+  case /check_validP : hva => hgmp _.
+  assert (h := wfr_ptr hgmp); case: h => pk' [];rewrite heq => -[?] hvp {heq}; subst pk'.
+  exists mp; split => // s2' hs .
+  case: pk hvp => /= [ofs | p | ofs] h.
+  + subst mp; constructor.
+    by rewrite /sem_sopn /= P'_globs /get_gvar /= vs_rsp /= /sem_sop2 /= !zero_extend_u hs.
+  + by constructor; rewrite /sem_sopn /= P'_globs /get_gvar /= h /= !zero_extend_u hs.
+  by constructor; rewrite /sem_sopn /= P'_globs vs_rsp /= !zero_extend_u h /= !zero_extend_u hs.
 Qed.
 
 Lemma alloc_array_moveP s1 s2 s1' rmap1 rmap2 x e v v' n i2 : 
@@ -1160,32 +1221,161 @@ Proof.
   rewrite /write_var; t_xrbindP => vm1 hvm1 <- /=.
   have hu := value_uincl_truncate_val htr.
   have /type_of_val_arr := truncate_val_has_type htr.
-  case => -[n' ?];subst v'.
+  case => -[t ?];subst v'.
   + apply: set_varP hvm1.
     + by move=> ? /pof_val_undef_ok. 
     by move=> /is_sboolP h1 h2; elimtype False; move: h2; rewrite h1.
   apply: set_varP hvm1; last first.
   by move=> /is_sboolP h1 h2; elimtype False; move: h2; rewrite h1.
-  case: x => -[[]// sx xn] xii /= t [?] ?; subst t vm1.
+  case: x => -[[]// sx xn] xii /= t' [?] ?; subst t' vm1.
   set x := {|vname := xn|}.
   case: e he => //= y hy.
+  have [sy [htyy hsy]]: exists sy, vtype (gv y) = sarr sy /\ n <= sy. 
+  + have /= := subtype_trans (value_uincl_subtype hu) (type_of_get_gvar hy) .
+    by case: vtype => // => sy /ZleP ?;eauto.
+  have [sv [tv ? htv]] := value_uinclE hu; subst v.
+
+  have heqma: forall mp, eq_mp_array (emem s1') mp sy (Varr tv) → 
+                   eq_mp_array (emem s1') mp sx (Varr (WArray.inject sx t)).
+  + rewrite /eq_mp_array => mp [tv' []] /Varr_inj [?]; subst sv => /= ? hgtv; subst tv'.
+     eexists; split;first reflexivity.
+     move=> off hoff v0 hget.
+     have [hoffsy hgettv]: (off < sy)%Z /\  @WArray.get sy AAscale U8 tv off = ok v0.
+     + move: hget; rewrite /WArray.get /CoreMem.read /= /wsize_size Z.mul_1_r /WArray.validr /WArray.validw /=.
+       rewrite Z.add_0_r !andbT /CoreMem.uread /= /WArray.uget /WArray.add Z.add_0_r.
+       rewrite WArray.zget_inject //; t_xrbindP => ??? /assertP hr /assertP -> /assertP.
+       case: ZltP => // hlt hget hdec.  
+       have -> /= : (WArray.in_range sy off U8).
+       + move: hr;rewrite /WArray.in_range !zify /wsize_size; lia.
+       case: htv => _ h; case heq: Mz.get hget hdec => [w | ] //= _.
+       by rewrite (h _ _ _ heq); [ move=> <- /=;split => // | ]; lia.
+     by apply hgtv => //; lia.
+
   case hglx : get_local => [[ofs | p | ofs] | //].
   + t_xrbindP => _ /assertP; rewrite is_lvar_is_glob => /negP hngy mpy hcvy.
     move=> _ /assertP -/eqP ???; subst mpy rmap2 i2.
     exists s1';split;first by constructor.
-    + case: (hvs) => vptr hdisj hrip hrsp hf heqvm hwfr heqg hnotm. 
-      constructor => //.
-      + move=> x1 hx1; rewrite -heqvm // get_var_neq //.
-        by move=> heq;move: hx1;rewrite -heq hglx.
-      + case: (hwfr) => h1 h2 h3; constructor => //=.
-        + by apply: rm_set_VALID => //; exists x; split.
-      + move=> x1 mp1 v1.
+    case: (hvs) => vptr hdisj hrip hrsp hf heqvm hwfr heqg hnotm. 
+    constructor => //.
+    + move=> x1 hx1; rewrite -heqvm // get_var_neq //.
+      by move=> heq;move: hx1;rewrite -heq hglx.
+    case: (hwfr) => h1 h2 h3; constructor => //=.
+    + by apply: set_VALID => //; exists x; split.
+    + apply: set_VAL => //=.
+      have : check_gvalid rmap1 y = Some {| mp_s := MSstack; mp_ofs := ofs |}.
+      + by move/negP:hngy; rewrite /check_gvalid hcvy => /negbTE ->.
+      by move=> /h2 -/(_ _ hy); rewrite htyy /=; apply heqma.
+    move=> x1 mp1; rewrite get_set_region; case: eqP => [<- [<-]| _ /h3 //].
+    rewrite hglx; move /check_validP: hcvy => [] /h3 [pk] [] ???.
+    by exists (Pstack ofs).
+
+  + move=> /get_addrP => -[mp [hcmp ?]]; subst rmap2.
+    rewrite /write_lval /write_var /= /set_var.
+    assert (hp := wt_rptr hglx) => {hglx}.
+    rewrite (var_surj p) hp /=.
+    move=> /(_ _ erefl) ?;eexists;split; first by eauto.
+    case: (hvs) => vptr hdisj hrip hrsp hf heqvm hwfr heqg hnotm. 
+    constructor => //.
+    + assert (h:=disj_ptr).
+    + 
+    + move=> x1 hx1; rewrite -heqvm // get_var_neq //.
+      by move=> heq;move: hx1;rewrite -heq hglx.
+    case: (hwfr) => h1 h2 h3; constructor => //=.
+    + by apply: set_VALID => //; exists x; split.
+    + apply: set_VAL => //=.
+      have : check_gvalid rmap1 y = Some {| mp_s := MSstack; mp_ofs := ofs |}.
+      + by move/negP:hngy; rewrite /check_gvalid hcvy => /negbTE ->.
+      by move=> /h2 -/(_ _ hy); rewrite htyy /=; apply heqma.
+    move=> x1 mp1; rewrite get_set_region; case: eqP => [<- [<-]| _ /h3 //].
+    rewrite hglx; move /check_validP: hcvy => [] /h3 [pk] [] ???.
+    by exists (Pstack ofs).
+    case: p hp => pty pn.
+Search vtype.
+Search set_var.
+Search write_var.
+
+  get_addrP
+Print instr_r.
+
+  + rewrite /get_addr.
+   
+       
+
+Search g
+
+Search _ check_valid.
+
+hv hV y mpy; rewrite get_set_region; case: eqP => [<- [<-]| _ /hV ].
+Print wfr_PTR.
+          rewrite /eq_mp_array. => -[tv' []] /Varr_inj [?]. subst sv => /= ? hgtv; subst tv'.
+          eexists; split;first reflexivity.
+          move=> off hoff v0 hget.
+  
+
+          apply hgtv; first admit. 
+Set Printing Implicit.
+Set Printing Coer
+          move: hget; rewrite /WArray.get /CoreMem.read /= /wsize_size Z.mul_1_r /WArray.validr /WArray.validw /=.
+          rewrite Z.add_0_r !andbT /CoreMem.uread /= /WArray.uget /WArray.add Z.add_0_r.
+          rewrite WArray.zget_inject //; t_xrbindP => ??? /assertP hr /assertP hal /assertP.
+          case: ZltP => // hlt hget hdec.       
+          have -> : (WArray.in_range sy off U8).
+          + move: hr;rewrite /WArray.in_range !zify; lia.
+          case:ifP =
+            
+
+Search WArray.inject.
+          have : off < sy /\ WArray.get AAscale U8 t off = ok v0.
+          + move: 
+Print WArray.uincl.
+          case: (ZltP off sy) => hoffsy.
+          + apply hgtv. lia. 
+            move: hget; rewrite /WArray.get /CoreMem.read /= /wsize_size Z.mul_1_r /WArray.validr /WArray.validw /=.
+            rewrite /CoreMem.uread WArray.zget_inject Z.
+
+Search WArray.inject.
+
+
+
+sy < sx 
+
+t : arr n
+tv : arr sy
+
+Print subtype.
+          have := htv.          
+rewrite /WArray.uincl.
+Print WArray.inject.
+          rewrite /WArray.get /CoreMem.read /= /wsize_size Z.mul_1_r.
+          t_xrbindP.
+          
+Search CoreMem.read.
+ hget.
+
+Search WArray.get.
+Search WArray.validr. 
+
+          have /= []:= WArray.get_bound hget.
+          rewrite /wsize_size.
+
+          have := WArray.get_uget hget. rewrite /WArray.uget.
+          Search WArray.uget.
+Search eq_mp_val.
+Print WArray.uincl.
+Search _ value_uincl.
+
+Search WArray.inject.
+          have := h2 y.
+rewrite /eq_mp_array.
+Search eq_mp_val.
+
+        + move=> x1 mp1 v1.
+
+  get_gvar 
 Print check_valid.
 admit.
 move=> ?.
-check_gvalid (rm_set rmap x {| mp_s := MSstack; mp_ofs := ofs |}) y = 
-if is_glob y || x != (gv y) then check_gvalid rmap y
-else 
+
   exists xs, 
 
  have := h2 x1 mp1 v1; rewrite /check_gvalid.
