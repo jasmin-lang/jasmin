@@ -363,38 +363,40 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
       List.iter (fun r ->
         pp_gens fmt [`Instr ("pushq", [pp_register `U64 r])])
         tosave;
-      begin match saved_stack with
-      | SavedStackNone  ->
-        assert (Bigint.equal stsz Bigint.zero);
-        pp_instrs tbl name fmt d.X86_sem.xfd_body;
-      | SavedStackReg r ->
-        pp_instrs tbl name fmt
+
+      let prologue, epilogue =
+        match saved_stack with
+        | SavedStackNone  ->
+          assert (Bigint.equal stsz Bigint.zero);
+          [], []
+
+        | SavedStackReg r ->
           [ AsmOp(MOV uptr, [Reg r; Reg RSP]);
             AsmOp(SUB uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi stsz)]);
             AsmOp(AND uptr, [Reg RSP; Imm(U32,
                                           Conv.int32_of_bi (B.of_int (-32)))]);
-          ];
-        pp_instrs tbl name fmt d.X86_sem.xfd_body;
-        pp_instrs tbl name fmt
+          ],
           [ AsmOp(MOV uptr, [Reg RSP; Reg r]) ]
 
-      | SavedStackStk p ->
-        let adr =
-          Adr (Areg { ad_disp  = Conv.int64_of_bi (Conv.bi_of_z p);
-                      ad_base   = Some RSP;
-                      ad_scale  = Scale1;
-                      ad_offset = None }) in
-        pp_instrs tbl name fmt
+        | SavedStackStk p ->
+          let adr =
+            Adr (Areg { ad_disp  = Conv.int64_of_bi (Conv.bi_of_z p);
+                ad_base   = Some RSP;
+                ad_scale  = Scale1;
+                ad_offset = None }) in
           [ AsmOp(MOV uptr, [Reg RBP; Reg RSP]);
             AsmOp(SUB uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi stsz)]);
             AsmOp(AND uptr, [Reg RSP; Imm(U32,
                                           Conv.int32_of_bi (B.of_int (-32)))]);
             AsmOp(MOV uptr, [adr; Reg RBP])
-          ];
-        pp_instrs tbl name fmt d.X86_sem.xfd_body;
-        pp_instrs tbl name fmt
+          ],
           [ AsmOp(MOV uptr, [Reg RSP; adr]) ]
-      end;
+      in
+
+      pp_instrs tbl name fmt prologue;
+      pp_instrs tbl name fmt d.X86_sem.xfd_body;
+      pp_instrs tbl name fmt epilogue;
+
       List.iter (fun r ->
           pp_gens fmt [`Instr ("popq", [pp_register `U64 r])])
         (List.rev tosave);
