@@ -602,7 +602,7 @@ let regalloc translate_var stack_needed (f: 'info func) =
       Sv.remove ra free_regs, Some ra
     else free_regs, None
   in
-  let to_save = Sv.inter X64.callee_save fv in
+  let to_save = if f.f_cc = Subroutine then fv else Sv.inter X64.callee_save fv in
   let to_save, stk =
     if stack_needed then
       if Sv.is_empty free_regs then
