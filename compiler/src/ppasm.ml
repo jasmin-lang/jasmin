@@ -153,10 +153,10 @@ let pp_reg_address (addr : X86_decl.reg_address) =
         Printf.sprintf "%s(%s,%s,%s)" disp base off (pp_scale scal)
   end
 
-let global_datas = "glob_data" 
+let global_datas = "glob_data"
 
-let pp_address (addr : X86_decl.address) = 
-  match addr with 
+let pp_address (addr : X86_decl.address) =
+  match addr with
   | X86_decl.Areg ra -> pp_reg_address ra
   | X86_decl.Arip d ->
     let disp = Bigint.to_string (Conv.bi_of_int64 d) in
@@ -218,9 +218,9 @@ let pp_xmm_register (ws: W.wsize) (r: X86_decl.xmm_register) : string =
      | XMM15 -> 15)
 
 (* -------------------------------------------------------------------- *)
-let pp_asm_arg ((ws,op):(W.wsize * asm_arg)) = 
+let pp_asm_arg ((ws,op):(W.wsize * asm_arg)) =
   match op with
-  | Condt  _   -> assert false 
+  | Condt  _   -> assert false
   | Imm(ws, w) -> pp_imm (Conv.bi_of_word ws w)
   | Reg r      -> pp_register (rsize_of_wsize ws) r
   | Adr addr   -> pp_address addr
@@ -251,15 +251,15 @@ let pp_instr_velem_long =
   | W.VE32 -> "dq"
   | W.VE64 -> "qdq"
 
-let pp_ext = function 
-  | PP_error            -> assert false 
+let pp_ext = function
+  | PP_error            -> assert false
   | PP_name             -> ""
   | PP_iname ws         -> pp_instr_wsize ws
   | PP_iname2(ws1, ws2) -> Printf.sprintf "%s%s" (pp_instr_wsize ws2) (pp_instr_wsize ws1)
   | PP_viname (ve,long) -> if long then pp_instr_velem_long ve else pp_instr_velem ve
-  | PP_ct ct            -> pp_ct (match ct with Condt ct -> ct | _ -> assert false) 
+  | PP_ct ct            -> pp_ct (match ct with Condt ct -> ct | _ -> assert false)
 
-let pp_name_ext pp_op = 
+let pp_name_ext pp_op =
   Printf.sprintf "%s%s" (Conv.string_of_string0 pp_op.pp_aop_name) (pp_ext pp_op.pp_aop_ext)
 
 (* -------------------------------------------------------------------- *)
@@ -271,7 +271,7 @@ let pp_instr tbl name (i : X86_sem.asm) =
   match i with
   | ALIGN ->
     `Instr (".p2align", ["5"])
-    
+
   | LABEL lbl ->
     `Label (pp_label name lbl)
 
@@ -286,7 +286,7 @@ let pp_instr tbl name (i : X86_sem.asm) =
     let iname = Printf.sprintf "j%s" (pp_ct ct) in
     `Instr (iname, [pp_label name lbl])
   | AsmOp(op, args) ->
-    let id = X86_instr_decl.instr_desc op in 
+    let id = X86_instr_decl.instr_desc op in
     let pp = id.id_pp_asm args in
     let name = pp_name_ext pp in
     let args = pp_asm_args pp.pp_aop_args in
@@ -318,7 +318,7 @@ let pp_align ws =
 
 (* ----------------------------------------------------------------------- *)
 
-let pp_glob_data fmt gd = 
+let pp_glob_data fmt gd =
   if not (List.is_empty gd) then
     let n = global_datas in
     let m = mangle global_datas in
@@ -329,15 +329,15 @@ let pp_glob_data fmt gd =
             `Instr (".globl", [n]);
             `Instr (".p2align", [pp_align U256]);
             `Label m;
-            `Label n]);   
+            `Label n]);
       Format.fprintf fmt "      %a\n%!" Printer.pp_datas gd
     end
 
 (* -------------------------------------------------------------------- *)
 type 'a tbl = 'a Conv.coq_tbl
-type  gd_t  = Global.glob_decl list 
+type  gd_t  = Global.glob_decl list
 
-let pp_prog (tbl: 'info tbl) (fmt : Format.formatter) 
+let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
    (asm : X86_sem.xprog) =
   pp_gens fmt
     [`Instr (".text"   , []);
@@ -364,22 +364,22 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
         pp_gens fmt [`Instr ("pushq", [pp_register `U64 r])])
         tosave;
       begin match saved_stack with
-      | SavedStackNone  -> 
+      | SavedStackNone  ->
         assert (Bigint.equal stsz Bigint.zero);
         pp_instrs tbl name fmt d.X86_sem.xfd_body;
       | SavedStackReg r ->
         pp_instrs tbl name fmt
           [ AsmOp(MOV uptr, [Reg r; Reg RSP]);
             AsmOp(SUB uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi stsz)]);
-            AsmOp(AND uptr, [Reg RSP; Imm(U32, 
+            AsmOp(AND uptr, [Reg RSP; Imm(U32,
                                           Conv.int32_of_bi (B.of_int (-32)))]);
           ];
         pp_instrs tbl name fmt d.X86_sem.xfd_body;
         pp_instrs tbl name fmt
           [ AsmOp(MOV uptr, [Reg RSP; Reg r]) ]
-  
-      | SavedStackStk p -> 
-        let adr = 
+
+      | SavedStackStk p ->
+        let adr =
           Adr (Areg { ad_disp  = Conv.int64_of_bi (Conv.bi_of_z p);
                       ad_base   = Some RSP;
                       ad_scale  = Scale1;
@@ -387,17 +387,17 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
         pp_instrs tbl name fmt
           [ AsmOp(MOV uptr, [Reg RBP; Reg RSP]);
             AsmOp(SUB uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi stsz)]);
-            AsmOp(AND uptr, [Reg RSP; Imm(U32, 
+            AsmOp(AND uptr, [Reg RSP; Imm(U32,
                                           Conv.int32_of_bi (B.of_int (-32)))]);
             AsmOp(MOV uptr, [adr; Reg RBP])
           ];
         pp_instrs tbl name fmt d.X86_sem.xfd_body;
         pp_instrs tbl name fmt
-          [ AsmOp(MOV uptr, [Reg RSP; adr]) ] 
+          [ AsmOp(MOV uptr, [Reg RSP; adr]) ]
       end;
       List.iter (fun r ->
           pp_gens fmt [`Instr ("popq", [pp_register `U64 r])])
         (List.rev tosave);
       pp_gens fmt [`Instr ("ret", [])]) asm.xp_funcs;
   pp_glob_data fmt asm.xp_globs
-  
+
