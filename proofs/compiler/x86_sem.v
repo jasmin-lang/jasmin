@@ -61,6 +61,7 @@ Record xfundef := XFundef {
  xfd_body : seq asm;
  xfd_res  : seq register;
  xfd_extra : list register * saved_stack;
+ xfd_export: bool;
 }.
 
 Record xprog : Type :=

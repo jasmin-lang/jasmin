@@ -343,7 +343,8 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
     [`Instr (".text"   , []);
      `Instr (".p2align", ["5"])];
 
-  List.iter (fun (n, _) -> pp_gens fmt
+  List.iter (fun (n, d) ->
+      if d.X86_sem.xfd_export then pp_gens fmt
     [`Instr (".globl", [mangle (string_of_funname tbl n)]);
      `Instr (".globl", [string_of_funname tbl n])])
     asm.xp_funcs;
@@ -354,12 +355,15 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
   let open Prog in
   List.iter (fun (n, d) ->
       let name = string_of_funname tbl n in
+      let export = d.xfd_export in
       let stsz  = Conv.bi_of_z d.xfd_stk_size in
       let tosave, saved_stack = d.xfd_extra in
+      if export then
       pp_gens fmt [
         `Label (mangle (string_of_funname tbl n));
         `Label name
       ];
+      if export then
       List.iter (fun r ->
         pp_gens fmt [`Instr ("pushq", [pp_register `U64 r])])
         tosave;
@@ -393,13 +397,20 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
           [ AsmOp(MOV uptr, [Reg RSP; adr]) ]
       in
 
+      if export then
       pp_instrs tbl name fmt prologue;
+
       pp_instrs tbl name fmt d.X86_sem.xfd_body;
+
+      if export then
       pp_instrs tbl name fmt epilogue;
 
+      if export then
       List.iter (fun r ->
           pp_gens fmt [`Instr ("popq", [pp_register `U64 r])])
         (List.rev tosave);
-      pp_gens fmt [`Instr ("ret", [])]) asm.xp_funcs;
+      if export then
+      pp_gens fmt [`Instr ("ret", [])]
+    ) asm.xp_funcs;
   pp_glob_data fmt asm.xp_globs
 

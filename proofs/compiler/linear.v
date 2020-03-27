@@ -78,6 +78,7 @@ Record lfundef := LFundef {
  lfd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)
  lfd_to_save: seq var;
  lfd_save_stack: saved_stack;
+ lfd_export: bool;
 }.
 
 Definition signature_of_lfundef (lfd: lfundef) : function_signature :=
@@ -222,7 +223,8 @@ Definition linear_fd (fd: sfundef) :=
   in
   Let fd' := linear_c linear_i (f_body fd) lbl tail in
   let e := fd.(f_extra) in
-  ok (LFundef (sf_stk_sz e) (f_tyin fd) (f_params fd) (head ++ fd'.2) (f_tyout fd) (f_res fd) (sf_to_save e) (sf_save_stack e)).
+  ok (LFundef (sf_stk_sz e) (f_tyin fd) (f_params fd) (head ++ fd'.2) (f_tyout fd) (f_res fd) (sf_to_save e) (sf_save_stack e)
+              (sf_return_address e == None)).
 
 End PROG.
 
