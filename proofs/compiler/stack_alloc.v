@@ -48,15 +48,21 @@ Definition cferror {A} fn msg :=
 
 Variant mem_space := 
   | MSglob 
-  | MSstack.
+  | MSstack
+  | MSparam of var.
 
-Scheme Equality for mem_space. 
+Definition mem_space_beq ms1 ms2 := 
+  match ms1, ms2 with
+  | MSglob    , MSglob     => true
+  | MSstack   , MSstack    => true
+  | MSparam x1, MSparam x2 => x1 == x2
+  | _, _ => false
+  end.
 
 Lemma mem_space_axiom : Equality.axiom mem_space_beq. 
 Proof. 
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_mem_space_dec_bl.
-  by apply: internal_mem_space_dec_lb.
+  move=> [||x1] [||x2] => /=; try by constructor.
+  by apply:(iffP idP) => [ /eqP | []] ->.
 Qed.
 
 Definition mem_space_eqMixin     := Equality.Mixin mem_space_axiom.
@@ -64,23 +70,29 @@ Canonical  mem_space_eqType      := Eval hnf in EqType mem_space mem_space_eqMix
 
 Definition mem_space_cmp (ms1 ms2:mem_space) := 
   match ms1, ms2 with
-  | MSglob, MSglob => Eq
-  | MSglob, MSstack => Lt
-  | MSstack, MSglob => Gt
-  | MSstack, MSstack => Eq
+  | MSglob, MSglob         => Eq
+  | MSglob, _              => Lt
+  | MSstack, MSglob        => Gt
+  | MSstack, MSstack       => Eq
+  | MSstack, MSparam _     => Lt
+  | MSparam x1, MSparam x2 => var_cmp x1 x2
+  | MSparam _, _           => Gt 
   end.
 
 Instance mem_spaceO : Cmp mem_space_cmp.
 Proof.
   constructor.
-  + by case;case.
-  + by case;case;case => //= ? [].
-  by case;case.
+  + move=> [||x1] [||x2] => //=; apply cmp_sym.
+  + move=> [||x1] [||x2] [||x3] c //=; try by move=> h; injection h => ->.
+    + by apply: ctrans_Lt. + by apply: ctrans_Lt.
+    + by rewrite ctransC;apply ctrans_Gt. + by rewrite ctransC;apply ctrans_Gt.
+    by apply cmp_ctrans.
+  by move=> [||x1] [||x2] => //= /(@cmp_eq _ _ varO) ->.
 Qed.
 
 Record mem_pos := 
   { mp_s : mem_space;             (* where is stored the data, stack or global *)
-    mp_ofs : Z;                   (* the offset *)
+    mp_ofs : Z;                   (* the offset *) 
   }.
 
 Definition mem_pos_beq (mp1 mp2:mem_pos) := 
@@ -96,7 +108,7 @@ Qed.
 Definition mem_pos_eqMixin     := Equality.Mixin mem_pos_axiom.
 Canonical  mem_pos_eqType      := Eval hnf in EqType mem_pos mem_pos_eqMixin.
 
-Module  CmpMp.
+Module CmpMp.
 
   Definition t := [eqType of mem_pos].
 
@@ -114,17 +126,28 @@ Module  CmpMp.
 End CmpMp.
 
 Module Mmp :=  Mmake CmpMp.
- 
+
 Inductive ptr_kind :=
   | Pstack of Z
   | Pregptr of var 
   | Pstkptr of Z.
+
+Record ptr_param_info := { 
+  pp_writable : bool;
+  pp_align    : wsize;
+}.
+
+Record param_info := { 
+  pp_ptr      : var;
+  pp_info     : ptr_param_info;
+}.
 
 Record pos_map := {
   vrip    : var;
   vrsp    : var;
   globals : Mvar.t Z;
   locals  : Mvar.t ptr_kind;
+  params  : Mvar.t ptr_param_info;
   vnew    : Sv.t;
 }.
 (* Remark: 
@@ -132,6 +155,33 @@ Record pos_map := {
    - If Mvar.get x pmap.(locals) = (Pregptr r | Pstkptr z) then 
      x is an array 
 *)
+
+Definition check_align_base pmap mp ws := 
+  match mp with
+  | MSglob    => ok tt
+  | MSstack   => ok tt
+  | MSparam p => 
+    match Mvar.get pmap.(params) p with
+    | Some ppi => if (ppi.(pp_align) == ws) then ok tt else cerror "bad alignment for the base pointer"
+    | _        => cerror "no info for param pointer: please report"
+    end
+  end.
+
+Definition check_align pmap mp ws :=
+  Let _ := check_align_base pmap mp.(mp_s) ws in 
+  assert (is_align (wrepr _ mp.(mp_ofs)) ws) 
+    (Cerr_stk_alloc "unaligned offset").
+
+Definition writable pmap mp := 
+  match mp.(mp_s) with
+  | MSstack => ok tt 
+  | MSglob  => cerror "try to write global region"
+  | MSparam p => 
+    match Mvar.get pmap.(params) p with
+    | Some ppi => if ppi.(pp_writable) then ok tt else cerror "try to write constant pointer"
+    | _        => cerror "no info for param pointer: please report"
+    end
+  end.
 
 Module Region.
 
@@ -159,48 +209,23 @@ Definition check_valid (rmap:regions) (x:var) :=
   | None => cerror "no associated region"
   end.
 
-Definition check (rmap:regions) (x:var) ws := 
-  Let mp := check_valid rmap x in
-  assert (is_align (wrepr _ mp.(mp_ofs)) ws)
-     (Cerr_stk_alloc "unaligned access: please report").
-
 Definition rset_word rmap x mp :=
    {| var_region := rmap.(var_region);
       region_vars := Mmp.set rmap.(region_vars) mp (Sv.singleton x) |}.
 
-Definition set_word (rmap:regions) (x:var) ws := 
+Definition set_word pmap (rmap:regions) (x:var) ws := 
   match Mvar.get rmap.(var_region) x with
   | Some mp => 
-    if mp.(mp_s) == MSglob then cerror "try to write global region"
-    else 
-      Let _ := 
-         assert (is_align (wrepr _ mp.(mp_ofs)) ws)
-           (Cerr_stk_alloc "unaligned write: please report") in
-      ok (rset_word rmap x mp)
+    Let _ := writable pmap mp in
+    Let _ := check_align pmap mp ws in
+    ok (rset_word rmap x mp)
   | None => cerror "unknown region: please report"
   end.
 
-(*
-Definition remove rmap x := 
-  match Mvar.get rmap.(var_region) x with
-  | None => rmap
-  | Some mp => 
-    let rv := 
-      match Mmp.get rmap.(region_vars) mp with
-      | Some xs => Mmp.set rmap.(region_vars) mp (Sv.remove x xs)
-      | None    => rmap.(region_vars)
-      end in
-    {| var_region  := Mvar.remove rmap.(var_region) x;
-       region_vars := rv |}
-  end.
-*)
 Definition set rmap x mp := 
   let xs := odflt Sv.empty (Mmp.get rmap.(region_vars) mp) in
   {| var_region  := Mvar.set rmap.(var_region) x mp;
      region_vars := Mmp.set rmap.(region_vars) mp (Sv.add x xs) |}.
-
-(*Definition rm_set rmap x mp := 
-  set (remove rmap x) x mp. *)
 
 Definition set_move (rmap:regions) (x y:var) := 
   Let mp := check_valid rmap y in
@@ -214,7 +239,6 @@ Definition set_init (rmap:regions) x pk :=
   match pk with
   | Pstack z =>
     let mp := {| mp_s := MSstack; mp_ofs := z |} in
-(*  let rmap := remove rmap x in *)
     set rmap x mp
 
   | Pstkptr _ => rmap
@@ -328,13 +352,13 @@ Definition get_var_kind x :=
   else 
     ok (omap VKptr (get_local xv)).
 
-Definition check_vpk_word rmap xv vpk ws :=
-  match vpk with
-  | VKglob z => 
-    assert (is_align (wrepr _ z) ws) 
-      (Cerr_stk_alloc "not aligned global array access: please report") 
-  | VKptr pk => Region.check rmap xv ws
-  end.
+Definition check_vpk_word rmap x vpk ws :=
+  Let mp := 
+    match vpk with
+    | VKglob z => ok {| mp_s := MSglob; mp_ofs := z |}
+    | VKptr pk => check_valid rmap x 
+    end in
+  check_align pmap mp ws.
 
 Fixpoint alloc_e (e:pexpr) := 
   match e with
@@ -412,7 +436,7 @@ Definition alloc_lval (rmap: regions) (r:lval) ty :=
         if ty == sword ws then 
           Let pofs := mk_addr_ptr x AAdirect ws pk (Pconst 0) in
           let r := Lmem ws pofs.1 pofs.2 in
-          Let rmap := Region.set_word rmap x ws in
+          Let rmap := Region.set_word pmap rmap x ws in
           ok (rmap, r)
         else cerror "invalid type for assignment"
       else cerror "not a word variable in assignment"
@@ -426,7 +450,7 @@ Definition alloc_lval (rmap: regions) (r:lval) ty :=
       Let _ := check_valid rmap x in
       Let pofs := mk_addr_ptr x aa ws pk e1 in
       let r := Lmem ws pofs.1 pofs.2 in
-      Let rmap := Region.set_word rmap x ws in
+      Let rmap := Region.set_word pmap rmap x ws in
       ok (rmap, r)
     end   
 
