@@ -656,6 +656,22 @@ Definition add_err_fun (A : Type) (f : funname) (r : cexec A) :=
   | Error e => Error (Ferr_fun f e)
   end.
 
+Definition stack_alloc_trans_fd rip nstk (p: _uprog) mglob fn sz al (fd: _ufundef) : cfexec _ufundef :=
+  let vrip := {| vtype := sword Uptr; vname := rip |} in
+  let vrsp := {| vtype := sword Uptr; vname := nstk |} in
+  Let mstk := init_local_map vrip vrsp fn sz al in
+  let: (lmap, rmap, sv) := mstk in
+  let pmap := {|
+        vrip    := vrip;
+        vrsp    := vrsp;
+        globals := mglob;
+        locals  := lmap;
+        vnew    := sv;
+      |} in
+  Let body := add_finfo fn fn (fmapM (alloc_i pmap p) rmap fd.(f_body)) in
+  Let _ := add_err_fun fn (mapM (fun (x:var_i) => check_var pmap x) fd.(f_res)) in
+  ok (with_body fd body.2).
+
 (** For each function, the oracle returns:
   - the size of the stack block;
   - an allocation for local variables;
@@ -682,39 +698,17 @@ Record stk_alloc_oracle_t :=
   ; sao_return_address: option var
   }.
 
-Definition alloc_fd p p_extra mglob
-    (stk_alloc_oracle : ufun_decl -> (stk_alloc_oracle_t -> cfexec ufundef) -> cfexec stk_alloc_oracle_t)
-    (reg_alloc_fd : stk_alloc_oracle_t -> funname -> ufundef -> ufundef)
-    (f: ufun_decl) :=
-  let vrip := {| vtype := sword Uptr; vname := p_extra.(sp_rip) |} in
-  let vrsp := {| vtype := sword Uptr; vname := p_extra.(sp_stk_id) |} in
-  let: (fn, fd) := f return result fun_error _ in
-  let cb sao :=
-      Let mstk := init_local_map vrip vrsp fn sao.(sao_size) sao.(sao_alloc) in
-      let: (lmap, rmap, sv) := mstk in
-      let pmap := {|
-            vrip    := vrip;
-            vrsp    := vrsp;
-            globals := mglob;
-            locals  := lmap;
-            vnew    := sv;
-          |} in
-      Let body := add_finfo fn fn (fmapM (alloc_i pmap p) rmap fd.(f_body)) in
-      Let _ := add_err_fun fn (mapM (fun (x:var_i) => check_var pmap x) fd.(f_res)) in
-      ok (with_body fd body.2) in
-  Let sao := stk_alloc_oracle f cb in
-  Let fd1 := cb sao in
-  let fd2 := reg_alloc_fd sao fn fd1 in
+Definition alloc_fd p p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) (f: ufun_decl) :=
+  let: (fn, fd) := f in
+  let: sao := local_alloc fn in
+  Let fd := stack_alloc_trans_fd p_extra.(sp_rip) p_extra.(sp_stk_id) p mglob fn sao.(sao_size) sao.(sao_alloc) fd in
   let f_extra := {|
         sf_stk_sz := sao.(sao_size);
         sf_to_save := sao.(sao_to_save);
         sf_save_stack := sao.(sao_rsp);
         sf_return_address := sao.(sao_return_address);
       |} in
-  let fd1 := swith_extra fd1 f_extra in
-  let fd2 := swith_extra fd2 f_extra in
-  Let _ := CheckAllocRegS.check_fundef p_extra p_extra (fn,fd1) (fn, fd2) tt in
-  ok (fn, fd2).
+  ok (fn, swith_extra fd f_extra).
 
 Definition check_glob (m: Mvar.t Z) (data:seq u8) (gd:glob_decl) := 
   let x := gd.1 in
@@ -756,18 +750,16 @@ Definition init_map (sz:Z) (l:list (var * Z)) : cexec (Mvar.t Z) :=
   if (mp.2 <=? sz)%Z then cok mp.1
   else cerror "global size".
 
-Definition alloc_prog nrsp rip stk_alloc_fd reg_alloc_fd
-      (glob_alloc_p : uprog -> seq u8 * list (var * Z) ) P :=
-  let: (data, l) := glob_alloc_p P in
-  Let mglob := add_err_msg (init_map (Z.of_nat (size data)) l) in
+Definition alloc_prog nrsp rip global_data global_alloc local_alloc P :=
+  Let mglob := add_err_msg (init_map (Z.of_nat (size global_data)) global_alloc) in
   let p_extra :=  {|
     sp_rip   := rip;
-    sp_globs := data; 
+    sp_globs := global_data;
     sp_stk_id := nrsp;
   |} in
   if rip == nrsp then Error (Ferr_msg (Cerr_stk_alloc "rip and rsp clash, please report"))
-  else if check_globs P.(p_globs) mglob data then
-    Let p_funs := mapM (alloc_fd P p_extra mglob stk_alloc_fd reg_alloc_fd) P.(p_funcs) in
+  else if check_globs P.(p_globs) mglob global_data then
+    Let p_funs := mapM (alloc_fd P p_extra mglob local_alloc) P.(p_funcs) in
     ok  {| p_funcs  := p_funs;
            p_globs := [::];
            p_extra := p_extra;

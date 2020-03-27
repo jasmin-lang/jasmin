@@ -256,6 +256,10 @@ let main () =
 
     let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef tbl (fn,cfd) in
     let cufdef_of_fdef fd = snd (Conv.cufdef_of_fdef tbl fd) in
+
+    let fdef_of_csfdef fn cfd = Conv.fdef_of_csfdef tbl (fn,cfd) in
+    let csfdef_of_fdef fd = snd (Conv.csfdef_of_fdef tbl fd) in
+
     let apply msg trans fn cfd =
       if !debug then Format.eprintf "START %s@." msg;
       let fd = fdef_of_cufdef fn cfd in
@@ -304,9 +308,20 @@ let main () =
       to_save, stk, ra
     in
 
-    let stk_alloc_oracle (fn, _ as cfd) cb =
+    let stk_alloc_oracle (p: Expr._uprog) mglob fn fd =
+      let cb sao =
+        Stack_alloc.stack_alloc_trans_fd
+          (Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip))
+          (Var0.Var.vname (Conv.cvar_of_var tbl Array_expand.vstack))
+          p
+          mglob
+          fn
+          sao.Stack_alloc.sao_size
+          sao.Stack_alloc.sao_alloc
+          fd
+      in
       if !debug then Format.eprintf "START stack-alloc oracle@." ;
-      let fd = Conv.fdef_of_cufdef tbl cfd in
+      let fd = Conv.fdef_of_cufdef tbl (fn, fd) in
       let sz, alloc, rsp = legacy_stk_alloc_fd fd false in
       let sao = Stack_alloc.({ sao_size = sz ; sao_alloc = alloc ; sao_to_save = [] ; sao_rsp = rsp ; sao_return_address = None }) in
       Utils0.Result.bind
@@ -336,20 +351,41 @@ let main () =
 
     let regalloc_fd sao fn cfd =
       if !debug then Format.eprintf "START register allocation@." ;
-      let fd = fdef_of_cufdef fn cfd in
+      let fd, extra = fdef_of_csfdef fn cfd in
       let stack_needed = sao.Stack_alloc.sao_size <> BinNums.Z0 in
       let fd, _, _, _ = Regalloc.regalloc translate_var stack_needed fd in
-      cufdef_of_fdef fd
+      csfdef_of_fdef (fd, extra)
     in
 
-    let stk_alloc_gl p =
-      let p = Conv.prog_of_cuprog tbl p in
-      if !debug then Format.eprintf "START stack alloc@.";
-      let data, alloc = Array_expand.init_glob p in
-      let alloc =
+    let global_analysis up : Compiler.alloc_oracles =
+      if !debug then Format.eprintf "START global analysis@.";
+      let p = Conv.prog_of_cuprog tbl up in
+      let global_data, global_alloc = Array_expand.init_glob p in
+      let global_alloc =
         let trans (v,i) = Conv.cvar_of_var tbl v, Conv.z_of_int i in
-        List.map trans alloc in
-      data, alloc in
+        List.map trans global_alloc
+      in
+
+      let force x = match x with Utils0.Ok r -> r | _ -> assert false in
+
+      let mglob = Stack_alloc.init_map (BinInt.Z.of_nat (Seq.size global_data)) global_alloc |> force in
+
+      let table : (Utils0.funname, Stack_alloc.stk_alloc_oracle_t) Hashtbl.t = Hashtbl.create 17 in
+      let get fn = Hashtbl.find table fn in
+
+      List.iter (fun (fn, fd) ->
+          let r = stk_alloc_oracle up mglob fn fd |> force in
+          Hashtbl.add table fn r
+        ) up.Expr.p_funcs;
+
+      Compiler.({
+        ao_globals = global_data;
+        ao_global_alloc = global_alloc;
+        ao_stack_alloc = get;
+        ao_reg_alloc = (fun fn -> regalloc_fd (get fn) fn);
+      })
+
+    in
 
     let is_var_in_memory cv : bool =
       let v = Conv.vari_of_cvari tbl cv |> L.unloc in
@@ -400,9 +436,7 @@ let main () =
       Compiler.share_stk_fd = apply "share stk" Varalloc.alloc_stack_fd;
       Compiler.stk_pointer_name = Var0.Var.vname (Conv.cvar_of_var tbl Array_expand.vstack);
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
-      Compiler.stk_alloc_oracle = stk_alloc_oracle;
-      Compiler.reg_alloc_fd = regalloc_fd;
-      Compiler.stk_alloc_gl = stk_alloc_gl;
+      Compiler.global_analysis = global_analysis;
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;
       Compiler.print_uprog  = (fun s p -> eprint s pp_cuprog p; p);

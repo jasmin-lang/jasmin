@@ -73,6 +73,14 @@ Variant compiler_step :=
   | Linearisation               : compiler_step
   | Assembly                    : compiler_step.
 
+Record alloc_oracles : Type :=
+  {
+    ao_globals: seq u8; (* static global data: one array holding all data *)
+    ao_global_alloc: seq (var * Z); (* allocation of global variables in the previous array *)
+    ao_stack_alloc: funname → stk_alloc_oracle_t;
+    ao_reg_alloc: funname → _sfundef → _sfundef;
+  }.
+
 Record compiler_params := {
   rename_fd        : instr_info -> funname -> _ufundef -> _ufundef;
   expand_fd        : funname -> _ufundef -> _ufundef;
@@ -82,10 +90,8 @@ Record compiler_params := {
   inline_var       : var -> bool;
   is_var_in_memory : var_i → bool;
   global_static_data_symbol: Ident.ident;
-  stk_alloc_gl     : _uprog → seq u8 * seq (var * Z);
   stk_pointer_name : Ident.ident;
-  stk_alloc_oracle : _ufun_decl → (stk_alloc_oracle_t → cfexec _ufundef) → cfexec stk_alloc_oracle_t;
-  reg_alloc_fd     : stk_alloc_oracle_t → funname → _ufundef → _ufundef;
+  global_analysis : _uprog → alloc_oracles;
   print_uprog      : compiler_step -> _uprog -> _uprog;
   print_sprog      : compiler_step -> _sprog -> _sprog;
   print_linear     : lprog -> lprog;
@@ -102,6 +108,8 @@ Definition expand_prog (p:uprog) := map_prog_name cparams.(expand_fd) p.
 Definition var_alloc_prog (p:uprog) := map_prog_name cparams.(var_alloc_fd) p.
 
 Definition share_stack_prog (p:uprog) := map_prog_name cparams.(share_stk_fd) p.
+
+Definition reg_alloc_prog ao (p: sprog) : sprog := map_prog_name ao.(ao_reg_alloc) p.
 
 Definition compile_prog (entries : seq funname) (p:prog) :=
   Let p := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
@@ -144,11 +152,20 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
   let pl := cparams.(print_uprog) LowerInstruction pl in
 
   (* stack + register allocation *)
-  Let ps := 
-     stack_alloc.alloc_prog cparams.(stk_pointer_name) cparams.(global_static_data_symbol) cparams.(stk_alloc_oracle)
-                            cparams.(reg_alloc_fd) cparams.(stk_alloc_gl) pl in
-  let ps := to_sprog (cparams.(print_sprog) StackAllocation ps) in
-  Let pd := dead_code_prog ps in
+  let ao := cparams.(global_analysis) pl in
+
+  Let ps :=
+     stack_alloc.alloc_prog cparams.(stk_pointer_name)
+       cparams.(global_static_data_symbol) ao.(ao_globals) ao.(ao_global_alloc)
+       ao.(ao_stack_alloc) pl in
+
+  let ps : sprog := cparams.(print_sprog) StackAllocation ps in
+
+  let pa := reg_alloc_prog ao ps in
+  let pa : sprog := cparams.(print_sprog) RegAllocation pa in
+  Let _ := CheckAllocRegS.check_prog ps.(p_extra) ps.(p_funcs) pa.(p_extra) pa.(p_funcs) in
+
+  Let pd := dead_code_prog pa in
   let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in
 
   (* linearisation                     *)
