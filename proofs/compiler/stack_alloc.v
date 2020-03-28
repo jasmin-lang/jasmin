@@ -460,16 +460,16 @@ Definition alloc_lval (rmap: regions) (r:lval) ty :=
     ok (rmap, Lmem ws x e1)
   end.
 
-Definition is_Pvar e := 
+Definition get_Pvar e := 
   match e with
-  | Pvar x => Some x 
-  | _      => None
+  | Pvar x => ok x 
+  | _      => cerror "variable excepted" 
   end.
 
-Definition is_lv_var lv := 
+Definition get_Lvar lv := 
   match lv with
-  | Lvar x => Some x
-  | _      => None
+  | Lvar x => ok x
+  | _      => cerror "variable excepted"
   end.
 
 Definition nop := Copn [::] AT_none Onop [::]. 
@@ -503,30 +503,28 @@ Definition get_addr rmap x dx y :=
 
 (* Precondition is_sarr ty *)
 Definition alloc_array_move rmap r e :=
-  match is_lv_var r, is_Pvar e with
-  | Some x, Some y =>
-    let xk := get_local x in
-    match xk with
-    | None => cerror "register array remains" 
-    | Some pk1 =>
-      match pk1 with
-      | Pstack z1 =>
-        Let _  := assert (is_lvar y)
-                   (Cerr_stk_alloc "invalid move: global to stack") in 
-        Let mp := Region.check_valid rmap y.(gv) in
-        Let _  := assert (mp == {| mp_s := MSstack; mp_ofs := z1 |})
-                   (Cerr_stk_alloc "invalid move: check alias") in  
-        let rmap := Region.set rmap x mp in
-        ok (rmap, nop)
-      | Pregptr p =>
-        get_addr rmap x (Lvar (with_var x p)) y
-      | Pstkptr z =>
-        get_addr rmap x (Lmem Uptr (with_var x pmap.(vrsp)) (cast_ptr z)) y
-      end
+  Let x := get_Lvar r in
+  Let y := get_Pvar e in
+  let xk := get_local (v_var x) in
+  match xk with
+  | None => cerror "register array remains" 
+  | Some pk1 =>
+    match pk1 with
+    | Pstack z1 =>
+      Let _  := assert (is_lvar y)
+                 (Cerr_stk_alloc "invalid move: global to stack") in 
+      Let mp := Region.check_valid rmap y.(gv) in
+      Let _  := assert (mp == {| mp_s := MSstack; mp_ofs := z1 |})
+                 (Cerr_stk_alloc "invalid move: check alias") in  
+      let rmap := Region.set rmap x mp in
+      ok (rmap, nop)
+    | Pregptr p =>
+      get_addr rmap x (Lvar (with_var x p)) y
+    | Pstkptr z =>
+      get_addr rmap x (Lmem Uptr (with_var x pmap.(vrsp)) (cast_ptr z)) y
     end
-  | _, _ => cerror "invalid array assignement"
   end.
-  
+ 
 Definition fmapM {eT aT bT cT} (f : aT -> bT -> result eT (aT * cT))  : aT -> seq bT -> result eT (aT * seq cT) :=
   fix mapM a xs :=
     match xs with
@@ -571,9 +569,102 @@ Section LOOP.
 
 End LOOP.
 
+Record stk_alloc_oracle_t :=
+  { sao_size: Z
+  ; sao_params : seq (option param_info)  (* Allocation of pointer params *)
+  ; sao_return : seq (option nat)         (* Where to find the param input region *)
+  ; sao_alloc: seq (var * ptr_kind)       (* Allocation of local variables without params *)
+  ; sao_to_save: seq var (* TODO: allocate them in the stack rather than push/pop *)
+  ; sao_rsp: saved_stack
+  ; sao_return_address: option var
+  }.
+
 Section PROG.
 
-Context (p: uprog).
+Context (p: uprog) (local_alloc: funname -> stk_alloc_oracle_t).
+
+Definition alloc_call_arg rmap (sao_param: option param_info) (e:pexpr) := 
+  Let x := get_Pvar e in
+  Let _ := assert (~~is_glob x) 
+                  (Cerr_stk_alloc "global variable in argument of a call") in
+  let xv := gv x in
+  match sao_param, get_local xv with
+  | None, None =>  
+    ok (None, Pvar x)
+  | None, Some _ => cerror "argument not a reg" 
+  | Some pi, Some (Pregptr p) => 
+    let ppi := pi.(pp_info) in
+    Let mp := Region.check_valid rmap xv in
+    Let _  := if ppi.(pp_writable) then writable pmap mp else ok tt in
+    Let _  := check_align pmap mp ppi.(pp_align) in
+    ok (Some ((ppi.(pp_writable),mp),xv.(v_var)), Pvar (mk_lvar (with_var xv p)))
+  | Some _, _ => cerror "the argument should be a reg ptr" 
+  end.
+
+Fixpoint check_all_disj (notwritables writables:seq mem_pos) (mps:seq (option ((bool * mem_pos) * var) * pexpr)) := 
+  match mps with
+  | [::] => true
+  | (None, _) :: mps => check_all_disj notwritables writables mps
+  | (Some ((writable, mp),_), _) :: mps => 
+    if mp \in writables then false
+    else
+      if writable then 
+        if (mp \in notwritables) then false
+        else check_all_disj notwritables (mp::writables) mps
+      else   check_all_disj (mp::notwritables) writables mps
+  end.
+
+Definition alloc_call_args rmap (sao_params: seq (option param_info)) (es:seq pexpr) := 
+  Let es  := mapM2 (Cerr_stk_alloc "bad params info:please report") (alloc_call_arg rmap) sao_params es in
+  Let _ := assert (check_all_disj [::] [::] es) 
+           (Cerr_stk_alloc "some writable reg ptr are not disjoints") in
+  ok es.
+
+Definition check_lval_reg_call (r:lval) := 
+  match r with
+  | Lnone _ _ => ok tt
+  | Lvar x =>
+    match get_local x with 
+    | None   => Let _ := check_diff x in ok tt
+    | Some _ => cerror "call result should be stored in reg"
+    end
+  | Laset aa ws x e1 => cerror "array assignement in lval of a call"
+  | Lmem ws x e1     => cerror "call result should be stored in reg"
+  end.
+
+Definition check_is_Lvar r (x:var) :=
+  match r with
+  | Lvar x' => x == x' 
+  | _       => false 
+  end.
+
+Definition alloc_lval_call (mps:seq (option ((bool * mem_pos) * var) * pexpr)) rmap (r: lval) (i:option nat) :=
+  match i with
+  | None => 
+    Let _ := check_lval_reg_call r in
+    ok (rmap, Some r)
+  | Some i => 
+    match nth (None, Pconst 0) mps i with
+    | (Some ((_, mp),x), _) =>
+      Let _ := assert (check_is_Lvar r x) (Cerr_stk_alloc "check_is_Lvar: please report") in
+      let rmap := Region.rset_word rmap x mp in
+      ok (rmap, None)
+    | (None, _) => cerror "alloc_r_call : please report"
+    end
+  end.
+
+Definition alloc_call_res rmap mps ret_pos rs := 
+  Let rs := fmapM2 bad_lval_number (alloc_lval_call mps) rmap rs ret_pos in
+  ok (rs.1, seq.pmap id rs.2).
+
+Definition alloc_call rmap ini rs fn es := 
+  if get_fundef (p_funcs p) fn is Some fd then
+    let sao := local_alloc fn in
+    Let es  := alloc_call_args rmap sao.(sao_params) es in
+    Let rs  := alloc_call_res  rmap es sao.(sao_return) rs in
+    let es  := map snd es in
+    ok (rs.1, Ccall ini rs.2 fn es)
+  else cerror "call to unknown function".
 
 Fixpoint alloc_i (rmap:regions) (i: instr) : result instr_error (regions * instr) :=
   let (ii, ir) := i in
@@ -609,11 +700,7 @@ Fixpoint alloc_i (rmap:regions) (i: instr) : result instr_error (regions * instr
       ok (r.1, Cwhile a r.2.2.1 r.2.1 r.2.2.2)
 
     | Ccall ini rs fn es =>
-      if get_fundef (p_funcs p) fn is Some fd then
-        Let es := add_iinfo ii (alloc_es rmap es) in
-        Let rs := add_iinfo ii (alloc_lvals rmap rs (f_tyout fd)) in
-        ok (rs.1, Ccall ini rs.2 fn es)
-      else cierror ii (Cerr_stk_alloc "call to unknown function")
+      add_iinfo ii (alloc_call rmap ini rs fn es) 
 
     | Cfor _ _ _  => cierror ii (Cerr_stk_alloc "don't deal with for loop")
     end in
@@ -714,13 +801,6 @@ Definition stack_alloc_trans_fd rip nstk (p: _uprog) mglob fn sz al (fd: _ufunde
         4/ we restart stack allocation and we keep one position in the stack to save the stack pointer
         5/ Reg allocation
 *)
-Record stk_alloc_oracle_t :=
-  { sao_size: Z
-  ; sao_alloc: seq (var * ptr_kind)
-  ; sao_to_save: seq var (* TODO: allocate them in the stack rather than push/pop *)
-  ; sao_rsp: saved_stack
-  ; sao_return_address: option var
-  }.
 
 Definition alloc_fd p p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) (f: ufun_decl) :=
   let: (fn, fd) := f in
