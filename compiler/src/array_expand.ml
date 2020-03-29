@@ -134,8 +134,14 @@ let rec array_acces_i tbl i =
 and array_access_c tbl c = 
   List.fold_left array_acces_i tbl c
 
+type param_info = { 
+  pp_ptr      : var;
+  pp_writable : bool;
+  pp_align    : Wsize.wsize;
+}
+
 type ptr_kind =
-  | Pstack of int
+  | Pstack of int * Wsize.wsize
   | Pregptr of var 
   | Pstkptr of int
 
@@ -147,32 +153,34 @@ let init_stk fc extra_vars =
   let tbl = array_access_c Mv.empty fc.f_body in
   let get_size v =
     if is_stack_k_var Pointer v then 
-      let s = size_of_ws U64 in v, s, s
+      let s = size_of_ws U64 in v, Wsize.U64, s, s
     else
       match v.v_ty with
-      | Bty (U ws)  -> let s = size_of_ws ws in v, s, s
+      | Bty (U ws)   -> let s = size_of_ws ws in v, ws, s, s
       | Arr (ws', n) -> 
         let ws = try Mv.find v tbl with Not_found -> assert false in
-        v, size_of_ws ws, arr_size ws' n
-      | _            -> assert false in
+        v, ws, size_of_ws ws, arr_size ws' n
+      | t -> 
+        Format.eprintf "%a@." Printer.pp_ty t;
+        assert false in
   let vars' = List.rev_map get_size (Sv.elements vars') in
-  let cmp (_, s1, _) (_, s2, _) = s2 - s1 in
+  let cmp (_, _, s1, _) (_, _, s2, _) = s2 - s1 in
   let size = ref 0 in  
   (* FIXME: optimize this 
      if pos mod s <> 0 then a hole appear in the stack,
      in this case we can try to fill the hole with a variable 
      of a smaller size allowing to align the next pos
    *)
-  let mk_pos v pos = 
+  let mk_pos v pos ws = 
     if is_stack_k_var Pointer v then Pstkptr pos
-    else Pstack pos in
-  let init_var (v, s, n) =
+    else Pstack (pos,ws) in
+  let init_var (v, ws, s, n) =
     let pos = !size in
     let pos = 
       if pos mod s = 0 then pos
       else (pos/s + 1) * s in
     size := pos + n;
-    (v, mk_pos v pos) in
+    (v, mk_pos v pos ws) in
 
   let vars' = List.sort cmp vars' in
   let alloc = List.map init_var vars' in
@@ -185,7 +193,31 @@ let init_stk fc extra_vars =
     let mk v = 
       (v, Pregptr (V.mk v.v_name (Reg Direct) u64 v.v_dloc)) in
     List.map mk (Sv.elements regp) in
-  regp @ alloc, !size, extra_vars
+  (* --------------------- *)
+  let do_param v = 
+    if is_ptr v.v_kind then 
+      let (ws,_) = array_kind v.v_ty in (* FIXME *)
+      assert (is_reg_kind v.v_kind); (* FIXME *)
+      let info = {
+          pp_ptr      = V.mk v.v_name (Reg Direct) u64 v.v_dloc;
+          pp_writable = true; (* FIXME *)
+          pp_align    = ws; 
+        } in 
+      Some info
+    else 
+      None in
+  let params = List.map do_param fc.f_args in
+  let do_res v = 
+    let x = L.unloc v in
+    if is_ptr x.v_kind then
+      let rec aux i l = 
+        match l with
+        | []      -> assert false (* FIXME *)
+        | x' :: l -> if V.equal x x' then i else aux (i+1) l in
+      Some (aux 0 fc.f_args) 
+    else None in
+  let results = List.map do_res fc.f_ret in
+  params, results, regp @ alloc, !size, extra_vars
 
 let vstack = Regalloc.X64.rsp
 
@@ -211,7 +243,9 @@ let add_gvar tbl ws x =
 let rec garray_access_e tbl e = 
   match e with
   | Pconst _ | Pbool _ | Parr_init _ | Pvar _ -> tbl
-  | Pget(_, _, _, e) -> garray_access_e tbl e
+  | Pget(_, ws , x, e) -> 
+    let tbl = if is_gkvar x then tbl else add_gvar tbl ws (L.unloc x.gv) in
+    garray_access_e tbl e
   | Pload (_,_,e) | Papp1 (_,e) -> garray_access_e tbl e 
   | Papp2(_,e1,e2) -> garray_access_e (garray_access_e tbl e1) e2
   | PappN (_,es) -> garray_access_es tbl es
@@ -251,14 +285,14 @@ let init_glob (globs, funcs) =
 
   let size v =
      match v.v_ty with
-     | Bty (U ws)  -> let s = size_of_ws ws in v, s, s
+     | Bty (U ws)  -> let s = size_of_ws ws in v, ws, s, s
      | Arr (ws', n) -> 
        let ws = try Mv.find v tbl with Not_found -> assert false in
-       v, size_of_ws ws, arr_size ws' n
+       v, ws, size_of_ws ws, arr_size ws' n
      | _            -> assert false in
 
   let vars = List.rev_map size vars in
-  let cmp (_, s1, _) (_, s2, _) = s2 - s1 in
+  let cmp (_, _, s1, _) (_, _, s2, _) = s2 - s1 in
 
   let vars = List.sort cmp vars in 
   let size = ref 0 in
@@ -266,7 +300,7 @@ let init_glob (globs, funcs) =
   let get x = 
     try List.assoc x globs with Not_found -> assert false in
 
-  let init_var (v, s, n) =
+  let init_var (v, ws, s, n) =
     let pos = !size in
     let pos = 
       if pos mod s = 0 then pos
@@ -293,7 +327,7 @@ let init_glob (globs, funcs) =
       done 
     end;
     size := pos + n;
-    (v,pos) in
+    (v,(pos,ws)) in
   let alloc = List.map init_var vars in
   let data = List.rev !data in
   data, alloc

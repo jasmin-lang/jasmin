@@ -273,13 +273,14 @@ let main () =
       if !debug then Format.eprintf "START stack allocation@." ;
       let to_save = 
         if save_stack then [|Array_expand.vstack|] else [||] in
-      let alloc, sz, saved = Array_expand.stk_alloc_func fd to_save in
+      let params, returns, alloc, sz, saved = 
+        Array_expand.stk_alloc_func fd to_save in
       let alloc =
         let trans (v,k) = 
           let k =
             match k with
-            | Array_expand.Pstack i  -> 
-              Stack_alloc.Pstack (Conv.z_of_int i)
+            | Array_expand.Pstack(i,ws)  -> 
+              Stack_alloc.Pstack (Conv.z_of_int i,ws)
             | Array_expand.Pregptr x -> 
               Stack_alloc.Pregptr (Conv.cvar_of_var tbl x)
             | Array_expand.Pstkptr i -> 
@@ -291,11 +292,18 @@ let main () =
       let p_stack = 
         if save_stack then 
           match saved.(0) with
-          | Array_expand.Pstack i -> Expr.SavedStackStk (Conv.z_of_int i)
+          | Array_expand.Pstack (i,_) -> Expr.SavedStackStk (Conv.z_of_int i)
           | _ -> assert false
         else Expr.SavedStackNone in
-
-      sz, alloc, p_stack
+      let do_param pi = 
+        omap (fun pi -> Stack_alloc.({
+         pp_ptr      = Conv.cvar_of_var tbl pi.Array_expand.pp_ptr;
+         pp_writable = pi.Array_expand.pp_writable;
+         pp_align    = pi.Array_expand.pp_align;
+        })) pi in
+      let params = List.map do_param params in
+      let returns = List.map (omap Conv.nat_of_int) returns in
+      params, returns, sz, alloc, p_stack
     in
 
     let legacy_regalloc_fd stack_needed fd =
@@ -308,22 +316,22 @@ let main () =
       to_save, stk, ra
     in
 
-    let stk_alloc_oracle (p: Expr._uprog) mglob fn fd =
+    let stk_alloc_oracle p_extra local_alloc mglob fn fd =
       let cb sao =
-        Stack_alloc.stack_alloc_trans_fd
-          (Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip))
-          (Var0.Var.vname (Conv.cvar_of_var tbl Array_expand.vstack))
-          p
-          mglob
-          fn
-          sao.Stack_alloc.sao_size
-          sao.Stack_alloc.sao_alloc
-          fd
+        Stack_alloc.alloc_fd_aux p_extra mglob local_alloc sao (fn,fd)
       in
       if !debug then Format.eprintf "START stack-alloc oracle@." ;
       let fd = Conv.fdef_of_cufdef tbl (fn, fd) in
-      let sz, alloc, rsp = legacy_stk_alloc_fd fd false in
-      let sao = Stack_alloc.({ sao_size = sz ; sao_alloc = alloc ; sao_to_save = [] ; sao_rsp = rsp ; sao_return_address = None }) in
+      Format.eprintf "%s@." fd.f_name.fn_name;
+      let params, returns, sz, alloc, rsp = legacy_stk_alloc_fd fd false in
+      let sao = 
+        Stack_alloc.({ sao_size = sz ; 
+                       sao_params = params;
+                       sao_return = returns;
+                       sao_alloc = alloc; 
+                       sao_to_save = []; 
+                       sao_rsp = rsp; 
+                       sao_return_address = None }) in
       Utils0.Result.bind
         (fun fd1 ->
           let fd1 = fdef_of_cufdef fn fd1 in
@@ -334,8 +342,16 @@ let main () =
           | Some rsp -> Ok { sao with Stack_alloc.sao_rsp = Expr.SavedStackReg rsp }
           | None ->
              if has_stack then
-               let sz, alloc, rsp = legacy_stk_alloc_fd fd true in
-               let sao = Stack_alloc.({ sao_size = sz ; sao_alloc = alloc ; sao_to_save = [] ; sao_rsp = rsp ; sao_return_address = None }) in
+               let params, returns, sz, alloc, rsp = 
+                 legacy_stk_alloc_fd fd true in
+               let sao = 
+                 Stack_alloc.({ sao_size = sz ; 
+                                sao_alloc = alloc ; 
+                                sao_params = params;
+                                sao_return = returns;
+                                sao_to_save = [] ; 
+                                sao_rsp = rsp ; 
+                                sao_return_address = None }) in
                Utils0.Result.map
                  (fun fd1 ->
                    let fd1 = fdef_of_cufdef fn fd1 in
@@ -362,21 +378,37 @@ let main () =
       let p = Conv.prog_of_cuprog tbl up in
       let global_data, global_alloc = Array_expand.init_glob p in
       let global_alloc =
-        let trans (v,i) = Conv.cvar_of_var tbl v, Conv.z_of_int i in
+        let trans (v,(i,ws)) = Conv.cvar_of_var tbl v, (Conv.z_of_int i,ws) in
         List.map trans global_alloc
       in
 
-      let force x = match x with Utils0.Ok r -> r | _ -> assert false in
+      let force x =
+        match x with 
+        | Utils0.Ok r -> r 
+        | _ -> assert false in
 
       let mglob = Stack_alloc.init_map (BinInt.Z.of_nat (Seq.size global_data)) global_alloc |> force in
-
+   
+      let p_extra = Expr.({
+        sp_rip    = (Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip));
+        sp_globs  = global_data;
+        sp_stk_id = (Var0.Var.vname (Conv.cvar_of_var tbl Array_expand.vstack));
+      }) in
       let table : (Utils0.funname, Stack_alloc.stk_alloc_oracle_t) Hashtbl.t = Hashtbl.create 17 in
-      let get fn = Hashtbl.find table fn in
+      let get fn = 
+        try Hashtbl.find table fn with Not_found -> assert false in
+      let force x =
+        match x with 
+        | Utils0.Ok r -> r 
+        | Utils0.Error e ->
+          Utils.hierror "compilation error %a@.PLEASE REPORT"
+            (pp_comp_ferr tbl) e 
+      in
 
       List.iter (fun (fn, fd) ->
-          let r = stk_alloc_oracle up mglob fn fd |> force in
+          let r = stk_alloc_oracle p_extra get mglob fn fd |> force in
           Hashtbl.add table fn r
-        ) up.Expr.p_funcs;
+        ) (List.rev up.Expr.p_funcs);
 
       Compiler.({
         ao_globals = global_data;

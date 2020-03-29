@@ -198,7 +198,7 @@ Definition check_valid (rmap:regions) (x:var) :=
   end.
 
 Definition rset_word rmap x mp :=
-   {| var_region := rmap.(var_region);
+   {| var_region  := Mvar.set rmap.(var_region) x mp;
       region_vars := Mmp.set rmap.(region_vars) mp (Sv.singleton x) |}.
 
 Definition set_word (rmap:regions) (x:var) ws mp := 
@@ -799,27 +799,25 @@ Definition check_results pmap rmap params oi res :=
   Let res := mapM2 (Cerr_stk_alloc "invalid function info:please report")
                (check_result pmap rmap params) oi res in
   ok (seq.pmap id res).               
-Print param_info.
 
 Definition init_param accu pi (x:var_i) := 
   let: (disj, rmap) := accu in
   match pi with
-  | None => ok (accu, None)
+  | None => ok (accu, (None, x))
   | Some pi => 
     Let _ := assert (vtype pi.(pp_ptr) == sword Uptr) (Cerr_stk_alloc "bad ptr type: please report") in
     Let _ := assert (~~Sv.mem pi.(pp_ptr) disj) (Cerr_stk_alloc "duplicate region: please report") in
     let mp := 
       {| mp_s := pi.(pp_ptr); mp_ofs := 0; mp_align := pi.(pp_align); mp_writable := pi.(pp_writable) |} in
-    ok ((Sv.add pi.(pp_ptr) disj, rset_word rmap x mp), Some mp)
+    ok ((Sv.add pi.(pp_ptr) disj, rset_word rmap x mp), (Some mp, with_var x pi.(pp_ptr)))
   end. 
 
 Definition init_params vrip vrsp rmap sao_params params :=
   fmapM2 (Cerr_stk_alloc "invalid function info:please report")
     init_param (Sv.add vrip (Sv.singleton vrsp), rmap) sao_params params.
-    
-Definition alloc_fd p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) (f: ufun_decl) :=
+   
+Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) sao (f: _ufun_decl) : cfexec _ufundef :=
   let: (fn, fd) := f in
-  let: sao := local_alloc fn in
   let vrip := {| vtype := sword Uptr; vname := p_extra.(sp_rip) |} in
   let vrsp := {| vtype := sword Uptr; vname := p_extra.(sp_stk_id) |} in
   Let mstk := init_local_map vrip vrsp fn sao.(sao_size) sao.(sao_alloc) in
@@ -827,7 +825,9 @@ Definition alloc_fd p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) (
   (* adding params to the map *)
   Let rparams := 
     add_err_fun fn (init_params vrip vrsp rmap sao.(sao_params) fd.(f_params)) in
-  let: (_, rmap, params) := rparams in
+  let: (_, rmap, alloc_params) := rparams in
+  let paramsi := map fst alloc_params in
+  let params : seq var_i := map snd alloc_params in
   let pmap := {|
         vrip    := vrip;
         vrsp    := vrsp;
@@ -837,16 +837,27 @@ Definition alloc_fd p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) (
       |} in
   Let rbody := add_finfo fn fn (fmapM (alloc_i pmap local_alloc) rmap fd.(f_body)) in
   let: (rmap, body) := rbody in
-  Let f_res := 
-      add_err_fun fn (check_results pmap rmap params sao.(sao_return) fd.(f_res)) in
-  let fd := with_body fd body in
+  Let res := 
+      add_err_fun fn (check_results pmap rmap paramsi sao.(sao_return) fd.(f_res)) in
+  ok {|
+    f_iinfo := f_iinfo fd;
+    f_tyin := List.map (fun x => vtype (v_var x)) params; 
+    f_params := params;
+    f_body := body;
+    f_tyout := List.map (fun x => vtype (v_var x)) res; 
+    f_res := res;
+    f_extra := f_extra fd |}.
+
+Definition alloc_fd p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) (f: ufun_decl) :=
+  let: sao := local_alloc f.1 in
+  Let fd := alloc_fd_aux p_extra mglob local_alloc sao f in
   let f_extra := {|
         sf_stk_sz := sao.(sao_size);
         sf_to_save := sao.(sao_to_save);
         sf_save_stack := sao.(sao_rsp);
         sf_return_address := sao.(sao_return_address);
       |} in
-  ok (fn, swith_extra fd f_extra).
+  ok (f.1, swith_extra fd f_extra). 
 
 Definition check_glob (m: Mvar.t (Z*wsize)) (data:seq u8) (gd:glob_decl) := 
   let x := gd.1 in

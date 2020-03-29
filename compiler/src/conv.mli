@@ -7,8 +7,9 @@ type 'info coq_tbl
 val string0_of_string : string -> 'a (* coq string *)
 val string_of_string0 : 'a (* coq string *) -> string
 
-val bi_of_nat : Datatypes.nat -> Bigint.zint
+val bi_of_nat  : Datatypes.nat -> Bigint.zint
 val int_of_nat : Datatypes.nat -> int
+val nat_of_int : int -> Datatypes.nat
 
 val pos_of_int : int -> BinNums.positive
 val z_of_int   : int -> BinNums.coq_Z
