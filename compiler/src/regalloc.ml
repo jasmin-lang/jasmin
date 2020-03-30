@@ -133,6 +133,7 @@ type 'info collect_equality_constraints_state =
   { mutable cac_friends : friend; mutable cac_eqc: Puf.t ; cac_trace: 'info instr list array }
 
 let collect_equality_constraints_in_func
+      ~(with_returned_params: (funname -> 'info func) option)
       ~(with_call_sites: (funname -> 'info func) option)
       (msg: string)
       (int_of_var: var_i -> int option)
@@ -169,27 +170,45 @@ let collect_equality_constraints_in_func
        end
     | Cassgn _ -> ()
     | Ccall (_, xs, fn, es) ->
-       begin match with_call_sites with
-       | None -> ()
-       | Some get_func ->
-          let g = get_func fn in
-          List.iter2 (fun a p ->
-              match a with
-              | Pvar { gs = Expr.Slocal ; gv } -> addv ii gv Location.(mk_loc _dummy p)
-              | _ -> hierror "%s: argument is not a local variable" msg
-            ) es g.f_args;
-          List.iter2 (fun r x ->
-              match x with
-              | Lvar v -> addv ii r v
-              | _ -> hierror "%s: return destination is not a variable" msg
-            ) g.f_ret xs
-       end
+      let get_Pvar a = 
+        match a with
+        | Pvar { gs = Expr.Slocal ; gv } -> gv
+        | _ -> hierror "%s: argument is not a local variable" msg in
+      let get_Lvar x = 
+        match x with
+        | Lvar v -> v 
+        | _ -> hierror "%s: return destination is not a variable" msg in
+      begin match with_returned_params with
+      | None -> ()
+      | Some get_func ->
+        let g = get_func fn in
+        match g.f_cc with
+        | Subroutine { returned_params } ->
+          List.iter2 (fun i xr -> 
+             match i with
+             | None -> ()
+             | Some i -> 
+               let e = List.nth es i in
+               addv ii (get_Lvar xr) (get_Pvar e)) 
+            returned_params xs
+        | _ -> ()
+      end;
+      begin match with_call_sites with
+      | None -> ()
+      | Some get_func ->
+        let g = get_func fn in
+        List.iter2 (fun a p -> addv ii (get_Pvar a) Location.(mk_loc _dummy p))
+          es g.f_args;
+        List.iter2 (fun r x -> addv ii r (get_Lvar x))
+          g.f_ret xs
+      end
     | (Cwhile (_, s1, _, s2) | Cif (_, s1, s2)) -> collect_stmt s1; collect_stmt s2
   and collect_instr ({ i_desc } as i) = collect_instr_r i i_desc
   and collect_stmt s = List.iter collect_instr s in
   collect_stmt f.f_body
 
 let collect_equality_constraints
+    ~with_returned_params
     (msg: string)
     copn_constraints
     (tbl: int Hv.t)
@@ -197,7 +216,7 @@ let collect_equality_constraints
     (f: 'info func) : Puf.t * 'info trace * friend =
   let int_of_var x = Hv.find_option tbl (L.unloc x) in
   let s = { cac_friends = IntMap.empty ; cac_eqc = Puf.create nv ; cac_trace = Array.make nv [] } in
-  collect_equality_constraints_in_func ~with_call_sites:None msg int_of_var copn_constraints s f;
+  collect_equality_constraints_in_func ~with_returned_params ~with_call_sites:None msg int_of_var copn_constraints s f;
   let eqc = s.cac_eqc in
   eqc, normalize_trace eqc s.cac_trace, s.cac_friends
 
@@ -213,7 +232,7 @@ let collect_equality_constraints_in_prog
   let get_var n = Hf.find tbl n in
   let () = List.fold_right (fun f () ->
                Hf.add tbl f.f_name f;
-               collect_equality_constraints_in_func ~with_call_sites:(Some get_var) msg int_of_var copn_constraints s f)
+               collect_equality_constraints_in_func ~with_returned_params:None ~with_call_sites:(Some get_var) msg int_of_var copn_constraints s f)
              f ()
   in
   let eqc = s.cac_eqc in
@@ -627,35 +646,25 @@ let subst_of_allocation (vars: int Hv.t)
 let reverse_varmap (vars: int Hv.t) : var IntMap.t =
   Hv.fold (fun v i m -> IntMap.add i v m) vars IntMap.empty
 
-let split_live_ranges (f: 'info func) : unit func =
-  let f = Ssa.split_live_ranges true f in
-  Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
-  let vars, nv = collect_variables ~allvars:true Sv.empty f in
-  let eqc, _tr, _fr = collect_equality_constraints "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
-  let vars = normalize_variables vars eqc in
-  let a =
-    reverse_varmap vars |>
-    subst_of_allocation vars
-  in Subst.subst_func a f
-   |> Ssa.remove_phi_nodes
+let split_live_ranges (fds: 'info func list) : unit func list =
+  let get fn = 
+    List.find (fun fd -> F.equal fn fd.f_name) fds in
+  let doit f = 
+    let f = Ssa.split_live_ranges true f in
+    Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
+    let vars, nv = collect_variables ~allvars:true Sv.empty f in
+    let eqc, _tr, _fr = collect_equality_constraints ~with_returned_params:(Some get) "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
+    let vars = normalize_variables vars eqc in
+    let a =
+      reverse_varmap vars |>
+        subst_of_allocation vars
+    in Subst.subst_func a f
+       |> Ssa.remove_phi_nodes in
+  List.map doit fds 
 
-
-let reg_alloc translate_var (f: 'info func) : unit func =
-  let excluded = Sv.of_list [Prog.rip; X64.rsp] in
-  let f = fill_in_missing_names f in
-  let f = Ssa.split_live_ranges false f in
-  Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
-  let lf = Liveness.live_fd true f in
-  let vars, nv = collect_variables ~allvars:false excluded f in
-  let eqc, tr, fr = collect_equality_constraints "Regalloc" x86_equality_constraints vars nv f in
-  let vars = normalize_variables vars eqc in
-  let conflicts = collect_conflicts Sv.empty vars tr lf IntMap.empty in
-  let a =
-    allocate_forced_registers translate_var vars conflicts f IntMap.empty |>
-    greedy_allocation vars nv conflicts fr |>
-    subst_of_allocation vars
-  in Subst.subst_func a f
-   |> Ssa.remove_phi_nodes
+let is_subroutine = function
+  | Subroutine _ -> true
+  | _            -> false
 
 let post_process ~stack_needed (f: _ func) : _ func * Sv.t * var option * var option =
   let fv = vars_fc f in
@@ -663,12 +672,12 @@ let post_process ~stack_needed (f: _ func) : _ func * Sv.t * var option * var op
   let free_regs = Sv.diff allocatable fv in
   (* choose a register for the return address *)
   let free_regs, ra =
-    if f.f_cc = Subroutine then
+    if is_subroutine f.f_cc then
       let ra = Sv.any free_regs in
       Sv.remove ra free_regs, Some ra
     else free_regs, None
   in
-  let to_save = if f.f_cc = Subroutine then fv else Sv.inter X64.callee_save fv in
+  let to_save = if is_subroutine f.f_cc then fv else Sv.inter X64.callee_save fv in
   let to_save, stk =
     if stack_needed then
       if Sv.is_empty free_regs then
@@ -683,10 +692,6 @@ let post_process ~stack_needed (f: _ func) : _ func * Sv.t * var option * var op
     else
       to_save, None in
   f, to_save, stk, ra
-
-  let regalloc translate_var ~stack_needed (f: _ func) =
-    let f = reg_alloc translate_var f in
-    post_process ~stack_needed f
 
 let collect_call_sites (cb: funname -> Sv.t -> unit) (f: (Sv.t * Sv.t) func) : unit =
   let rec collect_instr_r ii =

@@ -91,18 +91,31 @@ module Region = struct
       region_var = Mmp.empty; 
     }
 
+  let pp_rmap fmt rmap = 
+    let pp_var = (Printer.pp_var ~debug:true) in
+    Format.fprintf fmt "@[<v>%a@ ------@ %a@]"
+      (Printer.pp_list "@ " (fun fmt (x,mp) -> 
+           Format.fprintf fmt "%a -> %a" pp_var x pp_var mp.mp_s))
+      (Mv.bindings rmap.var_region)
+      (Printer.pp_list "@ " (fun fmt (mp,xs) ->
+           Format.fprintf fmt "%a -> {@[%a@]}" pp_var mp.mp_s
+            (Printer.pp_list ",@ " pp_var) (Sv.elements xs)))
+      (Mmp.bindings rmap.region_var) 
+    
   let check_valid rmap (x:var_i) =
+(*    Format.eprintf "check_valid@.";
+    Format.eprintf "%a@." pp_rmap rmap; *)
     let xv = L.unloc x in
     let mp = 
       try Mv.find xv rmap.var_region
       with Not_found ->
-        hierror "no associated region for %a" pp_var x in
+        hierror "1:no associated region for %a" (Printer.pp_var ~debug:true) (L.unloc x) in
     let xs = 
       try Mmp.find mp rmap.region_var
       with Not_found ->
         hierror "invalid variable %a (check alias)" pp_var x in
     if not (Sv.mem xv xs) then 
-      hierror "no associated region for %a" pp_var x;
+      hierror "2: no associated region for %a" pp_var x;
     mp
 
   let set_align (x:var_i) mp ws =
@@ -588,8 +601,8 @@ let alloc_prog (globs, fds) =
     Hf.add tbl fd.f_name sao;
     sao, fd in
 
-  let fds = List.map do_fd fds in
-  pmap, fds
+  let fds = List.map do_fd (List.rev fds) in
+  pmap, (List.rev fds)
 
 
 (* ---------------------------------------------------------- *)

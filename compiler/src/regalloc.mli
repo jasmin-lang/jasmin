@@ -10,6 +10,14 @@ module X64 : sig
   val all_registers : var list
 end
 
+val split_live_ranges : unit func list -> unit func list
+
+type reg_oracle_t = {
+    ro_to_save: var list;  (* TODO: allocate them in the stack rather than push/pop *)
+    ro_rsp: var option;
+    ro_return_address: var option;
+  }
+
 (** Returns:
   - the input function with variables turned into registers
   - the set of killed registers (see note below)
@@ -20,16 +28,5 @@ Note: Export functions can freely use caller-saved registers: they are not
 reported as killed. Subroutines report ALL killed registers.
 
  *)
-val regalloc :
-  (Var0.Var.var -> var) -> stack_needed:bool -> 'info func -> unit func * Sv.t * var option * var option
-
-val split_live_ranges : 'info func -> unit func
-
-type reg_oracle_t = {
-    ro_to_save: var list;  (* TODO: allocate them in the stack rather than push/pop *)
-    ro_rsp: var option;
-    ro_return_address: var option;
-  }
-
 val alloc_prog : (Var0.Var.var -> var) -> ('a -> bool) ->
  ('a * 'info func) list -> ('a * reg_oracle_t * unit func) list

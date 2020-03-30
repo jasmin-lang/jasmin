@@ -142,10 +142,14 @@ and ('ty,'info) ginstr = {
 and ('ty,'info) gstmt = ('ty,'info) ginstr list
 
 (* ------------------------------------------------------------------------ *)
+type subroutine_info = {
+    returned_params : int option list; 
+  }
+
 type call_conv =
-  | Export     (* The function should be exported to the outside word *)
-  | Subroutine (* internal function that should not be inlined *)
-  | Internal   (* internal function that should be inlined *)
+  | Export                 (* The function should be exported to the outside word *)
+  | Subroutine of subroutine_info (* internal function that should not be inlined *)
+  | Internal                   (* internal function that should be inlined *)
 
 type ('ty,'info) gfunc = {
     f_loc  : L.t;

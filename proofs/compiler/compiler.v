@@ -83,8 +83,8 @@ Record stack_alloc_oracles : Type :=
 Record compiler_params := {
   rename_fd        : instr_info -> funname -> _ufundef -> _ufundef;
   expand_fd        : funname -> _ufundef -> _ufundef;
-  var_alloc_fd     : funname -> _ufundef -> _ufundef;
-  share_stk_fd     : funname -> _ufundef -> _ufundef;
+  var_alloc_prog   : _uprog -> _uprog;
+  share_stk_prog   : _uprog -> _uprog;
   lowering_vars    : fresh_vars;
   inline_var       : var -> bool;
   is_var_in_memory : var_i → bool;
@@ -105,10 +105,6 @@ Variable cparams : compiler_params.
 
 Definition expand_prog (p:uprog) := map_prog_name cparams.(expand_fd) p.
 
-Definition var_alloc_prog (p:uprog) := map_prog_name cparams.(var_alloc_fd) p.
-
-Definition share_stack_prog (p:uprog) := map_prog_name cparams.(share_stk_fd) p.
-
 Definition compile_prog (entries : seq funname) (p:prog) :=
   Let p := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
   let p := cparams.(print_uprog) Inlining p in
@@ -122,13 +118,13 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
   let p := const_prop_prog p in
   let p := cparams.(print_uprog) Unrolling p in
 
-  let pv := var_alloc_prog p in
+  let pv := var_alloc_prog cparams p in
   let pv := cparams.(print_uprog) AllocInlineAssgn pv in
   Let _ := CheckAllocRegU.check_prog p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
   Let pv := dead_code_prog pv in
   let pv := cparams.(print_uprog) DeadCode_AllocInlineAssgn pv in
 
-  let ps := share_stack_prog pv in
+  let ps := share_stk_prog cparams pv in
   let ps := cparams.(print_uprog) ShareStackVariable ps in
   Let _ := CheckAllocRegU.check_prog pv.(p_extra) pv.(p_funcs) ps.(p_extra) ps.(p_funcs) in
   Let ps := dead_code_prog ps in

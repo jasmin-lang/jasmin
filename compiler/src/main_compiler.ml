@@ -379,6 +379,8 @@ let main () =
       if !debug then Format.eprintf "START global analysis@.";
       let p = Conv.prog_of_cuprog tbl up in
       let pmap, fds = StackAlloc.alloc_prog p in
+      Format.eprintf "After stackAlloc@.%a@."
+        (Printer.pp_prog ~debug:true) ([], (List.map snd fds));
       let fds = Regalloc.alloc_prog translate_var (fun sao -> sao.sao_has_stack) fds in
       let atbl = Hf.create 117 in 
       let mk_oas (sao, ro, fd) = 
@@ -488,11 +490,29 @@ let main () =
       let cx = Conv.cvar_of_var tbl x' in
       cx.Var0.Var.vname in
 
+    let var_alloc_prog up = 
+      let (_glob,fds) = Conv.prog_of_cuprog tbl up in
+      let fds = Regalloc.split_live_ranges fds in
+      let fds = List.map (Conv.cufdef_of_fdef tbl) fds in
+      Expr.({
+        p_funcs = fds;
+        p_globs = up.p_globs;
+        p_extra = up.p_extra; }) in
+ 
+    let share_stk_prog up = 
+      let (_glob,fds) = Conv.prog_of_cuprog tbl up in
+      let fds = List.map Varalloc.alloc_stack_fd fds in
+      let fds = List.map (Conv.cufdef_of_fdef tbl) fds in
+      Expr.({
+        p_funcs = fds;
+        p_globs = up.p_globs;
+        p_extra = up.p_extra; }) in
+      
     let cparams = {
       Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = apply "arr exp" Array_expand.arrexp_func;
-      Compiler.var_alloc_fd = apply "var alloc" Varalloc.merge_var_inline_fd;
-      Compiler.share_stk_fd = apply "share stk" Varalloc.alloc_stack_fd;
+      Compiler.var_alloc_prog = (*apply "var alloc" *) var_alloc_prog;
+      Compiler.share_stk_prog = (*apply "share stk" *) share_stk_prog;
       Compiler.stk_pointer_name = Var0.Var.vname (Conv.cvar_of_var tbl Array_expand.vstack);
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
       Compiler.global_analysis = stack_analysis;

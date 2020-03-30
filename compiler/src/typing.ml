@@ -1198,7 +1198,10 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       let es  = tt_exprs_cast env args tes in
       let les = List.map2 (fun l e -> L.mk_loc (L.loc l) e) args es in
       let ptr_lvs = extra_ret les f.P.f_args in
-      let is_inline = match f.P.f_cc with P.Internal -> P.DoInline | P.Export | P.Subroutine -> P.NoInline in
+      let is_inline = 
+        match f.P.f_cc with 
+        | P.Internal -> P.DoInline 
+        | P.Export | P.Subroutine _ -> P.NoInline in
       P.Ccall (is_inline, ptr_lvs@lvs, f.P.f_name, es)
 
     | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
@@ -1291,8 +1294,8 @@ let tt_funbody (env : Env.env) (pb : S.pfunbody) =
   let bdy =  List.map (tt_instr env) pb.S.pdb_instr in
   (bdy, ret)
 
-let tt_call_conv = function
-  | None         -> P.Subroutine
+let tt_call_conv returned_params = function
+  | None         -> P.Subroutine returned_params
   | Some `Inline -> P.Internal
   | Some `Export -> P.Export
 
@@ -1318,12 +1321,14 @@ let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
   let ptr_args = List.filter (fun x -> P.is_ptr (L.unloc x).P.v_kind) args in
   let args = List.map L.unloc args in
   let full_xret = ptr_args @ xret in
+  let returned_params = 
+    List.map (fun x -> Some (oget (List.index_of (L.unloc x) args))) ptr_args @ List.map (fun _ -> None) xret in
   let full_rty = 
     List.map (fun x -> (L.unloc x).P.v_ty) ptr_args @ rty in
 
   let fdef =
     { P.f_loc = loc;
-      P.f_cc   = tt_call_conv pf.pdf_cc;
+      P.f_cc   = tt_call_conv {returned_params} pf.pdf_cc;
       P.f_name = P.F.mk (L.unloc pf.pdf_name); 
       P.f_tyin = List.map (fun { P.v_ty } -> v_ty) args;
       P.f_args = args;
