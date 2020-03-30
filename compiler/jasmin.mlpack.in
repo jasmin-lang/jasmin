@@ -24,6 +24,7 @@ src/Subst
 src/Syntax
 src/ToEC
 src/Safety
+src/StackAlloc
 src/Typing
 src/Utils
 src/Varalloc
