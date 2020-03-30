@@ -257,9 +257,9 @@ let main () =
     let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef tbl (fn,cfd) in
     let cufdef_of_fdef fd = snd (Conv.cufdef_of_fdef tbl fd) in
 
-    let fdef_of_csfdef fn cfd = Conv.fdef_of_csfdef tbl (fn,cfd) in
+ (*   let fdef_of_csfdef fn cfd = Conv.fdef_of_csfdef tbl (fn,cfd) in
     let csfdef_of_fdef fd = snd (Conv.csfdef_of_fdef tbl fd) in
-
+  *)
     let apply msg trans fn cfd =
       if !debug then Format.eprintf "START %s@." msg;
       let fd = fdef_of_cufdef fn cfd in
@@ -269,7 +269,7 @@ let main () =
 
     let translate_var = Conv.var_of_cvar tbl in
 
-    let legacy_stk_alloc_fd fd save_stack =
+(*    let legacy_stk_alloc_fd fd save_stack =
       if !debug then Format.eprintf "START stack allocation@." ;
       let to_save = 
         if save_stack then [|Array_expand.vstack|] else [||] in
@@ -314,9 +314,9 @@ let main () =
       let stk = omap (Conv.cvar_of_var tbl) stk in
       let ra = omap (Conv.cvar_of_var tbl) ra in
       to_save, stk, ra
-    in
+    in *)
 
-    let stk_alloc_oracle p_extra local_alloc mglob fn fd =
+(*    let stk_alloc_oracle p_extra local_alloc mglob fn fd =
       let cb sao =
         Stack_alloc.alloc_fd_aux p_extra mglob local_alloc sao (fn,fd)
       in
@@ -372,8 +372,8 @@ let main () =
       let fd, _, _, _ = Regalloc.regalloc translate_var stack_needed fd in
       csfdef_of_fdef (fd, extra)
     in
-
-    let stack_analysis up : Compiler.alloc_oracles =
+ *)
+    let stack_analysis up : Compiler.stack_alloc_oracles =
       let open StackAlloc in
       let open Regalloc in
       if !debug then Format.eprintf "START global analysis@.";
@@ -431,6 +431,21 @@ let main () =
          
     in
 
+    let global_regalloc sp = 
+      let (fds,_data) = Conv.prog_of_csprog tbl sp in
+      let fds = List.map (fun (x,y) -> y,x) fds in
+      let fds = 
+        Regalloc.alloc_prog (fun extra ->
+            match extra.Expr.sf_save_stack with
+            | Expr.SavedStackReg _ | Expr.SavedStackStk _ -> true
+            | Expr.SavedStackNone -> false) fds in
+      let fds = List.map (fun (y,_,x) -> x,y) fds in
+      let fds = List.map (Conv.csfdef_of_fdef tbl) fds in
+      Expr.({
+        p_funcs = fds;
+        p_globs = sp.p_globs;
+        p_extra = sp.p_extra; }) in
+
     let is_var_in_memory cv : bool =
       let v = Conv.vari_of_cvari tbl cv |> L.unloc in
       is_stack_kind v.v_kind in
@@ -480,7 +495,8 @@ let main () =
       Compiler.share_stk_fd = apply "share stk" Varalloc.alloc_stack_fd;
       Compiler.stk_pointer_name = Var0.Var.vname (Conv.cvar_of_var tbl Array_expand.vstack);
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
-      Compiler.global_analysis = global_analysis;
+      Compiler.global_analysis = stack_analysis;
+      Compiler.regalloc      = global_regalloc;
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;
       Compiler.print_uprog  = (fun s p -> eprint s pp_cuprog p; p);
