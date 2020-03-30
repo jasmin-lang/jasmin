@@ -373,71 +373,62 @@ let main () =
       csfdef_of_fdef (fd, extra)
     in
 
-    let global_analysis up : Compiler.alloc_oracles =
+    let stack_analysis up : Compiler.alloc_oracles =
+      let open StackAlloc in
+      let open Regalloc in
       if !debug then Format.eprintf "START global analysis@.";
       let p = Conv.prog_of_cuprog tbl up in
       let pmap, fds = StackAlloc.alloc_prog p in
-      let fds = Regalloc.alloc_prog (fun sao -> sao.StackAlloc.sao_has_stack) fds in
-      assert false
-      (*
-      stbl, rtbl -> 
- { sao_size: Z
-  ; sao_params : seq (option param_info)  (* Allocation of pointer params *)
-  ; sao_return : seq (option nat)         (* Where to find the param input region *)
-  ; sao_alloc: seq (var * ptr_kind)       (* Allocation of local variables without params *)
- * ; sao_to_save: seq var (* TODO: allocate them in the stack rather than push/pop *)
- * ; sao_rsp: saved_stack
- * ; sao_return_address: option var
-  }.
-      
-       *)
-      
-      
-(*
+      let fds = Regalloc.alloc_prog (fun sao -> sao.sao_has_stack) fds in
+      let atbl = Hf.create 117 in 
+      let mk_oas (sao, ro, fd) = 
+        let extra =
+          if sao.sao_has_stack && ro.ro_rsp = None then [V.clone rsp] 
+          else [] in
+        let alloc, size, extrapos = 
+          StackAlloc.alloc_stack sao.sao_alloc extra in
+        let saved_stack = 
+          if sao.sao_has_stack then
+            match ro.ro_rsp with
+            | Some x -> Expr.SavedStackReg (Conv.cvar_of_var tbl x)
+            | None   -> Expr.SavedStackStk (Conv.z_of_int (List.hd extrapos))
+          else Expr.SavedStackNone in
 
-
-
-      let global_data, global_alloc = Array_expand.init_glob p in
-      let global_alloc =
-        let trans (v,(i,ws)) = Conv.cvar_of_var tbl v, (Conv.z_of_int i,ws) in
-        List.map trans global_alloc
-      in
-
-      let force x =
-        match x with 
-        | Utils0.Ok r -> r 
-        | _ -> assert false in
-
-      let mglob = Stack_alloc.init_map (BinInt.Z.of_nat (Seq.size global_data)) global_alloc |> force in
-   
-      let p_extra = Expr.({
-        sp_rip    = (Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip));
-        sp_globs  = global_data;
-        sp_stk_id = (Var0.Var.vname (Conv.cvar_of_var tbl Array_expand.vstack));
-      }) in
-      let table : (Utils0.funname, Stack_alloc.stk_alloc_oracle_t) Hashtbl.t = Hashtbl.create 17 in
-      let get fn = 
-        try Hashtbl.find table fn with Not_found -> assert false in
-      let force x =
-        match x with 
-        | Utils0.Ok r -> r 
-        | Utils0.Error e ->
-          Utils.hierror "compilation error %a@.PLEASE REPORT"
-            (pp_comp_ferr tbl) e 
-      in
-
-      List.iter (fun (fn, fd) ->
-          let r = stk_alloc_oracle p_extra get mglob fn fd |> force in
-          Hashtbl.add table fn r
-        ) (List.rev up.Expr.p_funcs);
-
+        let conv_pi pi = 
+          Stack_alloc.({
+            pp_ptr = Conv.cvar_of_var tbl pi.pi_ptr;
+            pp_writable = pi.pi_writable;
+            pp_align    = pi.pi_align;
+          }) in
+        let conv_ptr_kind = function
+          | Pstack(i, ws) -> Stack_alloc.Pstack (Conv.z_of_int i, ws)
+          | Pregptr p     -> Stack_alloc.Pregptr(Conv.cvar_of_var tbl p);
+          | Pstkptr i     -> Stack_alloc.Pstkptr(Conv.z_of_int i) in
+        let conv_alloc (x,k) = Conv.cvar_of_var tbl x, conv_ptr_kind k in
+        
+        let sao = 
+          Stack_alloc.({
+            sao_size = Conv.z_of_int size;
+            sao_params = List.map (omap conv_pi) sao.sao_params;
+            sao_return = List.map (omap Conv.nat_of_int) sao.sao_return;
+            sao_alloc  = List.map conv_alloc alloc; 
+            sao_to_save = List.map (Conv.cvar_of_var tbl) ro.ro_to_save;
+            sao_rsp  = saved_stack;
+            sao_return_address = omap (Conv.cvar_of_var tbl) ro.ro_return_address;
+          }) in
+        Hf.add atbl fd.f_name sao in
+      List.iter mk_oas fds;
+      let data, alloc = StackAlloc.alloc_mem pmap (fst p) in
+      let tog (x,(i,ws)) = (Conv.cvar_of_var tbl x, (Conv.z_of_int i, ws)) in
       Compiler.({
-        ao_globals = global_data;
-        ao_global_alloc = global_alloc;
-        ao_stack_alloc = get;
-        ao_reg_alloc = (fun fn -> regalloc_fd (get fn) fn);
+        ao_globals      = data;
+        ao_global_alloc = List.map tog alloc;
+        ao_stack_alloc  = 
+          fun fn -> 
+          try Hf.find atbl (Conv.fun_of_cfun tbl fn)
+          with Not_found -> assert false
       })
- *)
+         
     in
 
     let is_var_in_memory cv : bool =

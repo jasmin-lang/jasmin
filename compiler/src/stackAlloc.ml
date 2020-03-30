@@ -599,7 +599,7 @@ type pos_kind =
   | Pregptr of var 
   | Pstkptr of int
 
-let alloc_stackmem xmem pmap = 
+let init_alloc xmem pmap = 
   let vars = ref [] in
   let alloc = ref [] in
   let add_var x mp =
@@ -618,19 +618,31 @@ let alloc_stackmem xmem pmap =
               Format.eprintf "%a@." Printer.pp_ty t;
               assert false in
           ws, s in
-      vars := (x,ws,s) :: !vars
+      vars := (false,x,ws,s) :: !vars
     | Pregptr p -> 
       alloc := (x, Pregptr p) :: !alloc 
   in
   Mv.iter add_var pmap;
-  let cmp (_,ws1,_) (_,ws2,_) = 
-    match Wsize.wsize_cmp ws1 ws2 with
-    | Lt -> -1
-    | Eq -> 0
-    | Gt -> 1 
-  in
+  vars, alloc
+
+let cmp (_,_,ws1,_) (_,_,ws2,_) = 
+  match Wsize.wsize_cmp ws1 ws2 with
+  | Lt -> -1
+  | Eq -> 0
+  | Gt -> 1 
+ 
+let alloc_stack pmap extra = 
+  let vars, alloc = init_alloc rsp pmap in
+
+  let add_extra x = 
+    let ws = ws_of_ty x.v_ty in
+    let s  = size_of_ws ws in
+    vars := (true,x,ws,s)::!vars in
+  List.iter add_extra extra;
+
   let vars = List.sort cmp !vars in
-  
+  let etbl = Hv.create 17 in
+
   let mk_pos x pos ws = 
     let dest = 
       if x.v_kind = Stack Pointer then Pstkptr pos
@@ -638,28 +650,63 @@ let alloc_stackmem xmem pmap =
     alloc := (x, dest) :: !alloc in
 
   let size = ref 0 in
-  let init_var (x,ws,n) =
+  let init_var (isextra,x,ws,n) =
     let s = size_of_ws ws in
     let pos = !size in
     let pos = 
       if pos mod s = 0 then pos
       else (pos/s + 1) * s in
     size := pos + n;
-    mk_pos x pos ws in
+    if isextra then Hv.add etbl x pos
+    else mk_pos x pos ws in
 
   List.iter init_var vars;
+  let extra = List.map (fun x -> Hv.find etbl x) extra in
 
-  List.rev !alloc
+  List.rev !alloc, !size, extra
 
-let alloc_stack pmap = 
-  alloc_stackmem rsp pmap
+let alloc_mem pmap globs = 
+  let vars, _alloc = init_alloc rip pmap in
+  let vars = List.sort cmp !vars in
 
-let alloc_mem pmap = 
-  let alloc = alloc_stackmem rip pmap in
-  let to_mem = function
-    | (x,Pstack(i,ws)) -> (x,(i,ws))
-    | _ -> assert false in
-  List.map to_mem alloc
+  let size = ref 0 in
+  let data = ref [] in
+  let get x = 
+    try List.assoc x globs with Not_found -> assert false in
+
+  let init_var (_, v, ws, n) =
+    let pos = !size in
+    let pos = 
+      let s = size_of_ws ws in
+      if pos mod s = 0 then pos
+      else 
+        let new_pos = (pos/s + 1) * s in
+        (* fill data with 0 *)
+        for i = 0 to new_pos - pos - 1 do
+          data := Word0.wrepr U8 (Conv.z_of_int 0) :: !data
+        done;
+        new_pos in
+    (* fill data with the corresponding values *)
+    begin match get v with
+    | Global.Gword(ws, w) ->
+      let w = Memory_model.LE.encode ws w in
+      data := List.rev_append w !data 
+    | Global.Garr(p, t) ->
+      let ip = Conv.int_of_pos p in
+      for i = 0 to ip - 1 do
+        let w = 
+          match Warray_.WArray.get p Warray_.AAdirect U8 t (Conv.z_of_int i) with
+          | Ok w -> w
+          | _    -> assert false in
+        data := w :: !data
+      done 
+    end;
+    size := pos + n;
+    (v,(pos,ws)) in
+  let alloc = List.map init_var vars in
+  let data = List.rev !data in
+  data, alloc
+
 
 
   
