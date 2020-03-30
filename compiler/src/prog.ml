@@ -270,6 +270,7 @@ module Mv = Map.Make  (V)
 module Hv = Hash.Make (V)
 
 let rip = V.mk "RIP" (Reg Direct) u64 L._dummy 
+let rsp = V.mk "RSP" (Reg Direct) u64 L._dummy 
 (* ------------------------------------------------------------------------ *)
 (* Function name                                                            *)
 
@@ -367,6 +368,11 @@ let size_of_ws = function
   | U128 -> 16
   | U256 -> 32
 
+let string_of_ws ws = Format.sprintf "u%i" (int_of_ws ws)
+
+let wsize_lt ws1 ws2 = Wsize.wsize_cmp ws1 ws2 = Datatypes.Lt
+let wsize_le ws1 ws2 = Wsize.wsize_cmp ws1 ws2 <> Datatypes.Gt
+
 let uptr = U64 (* Warning this should be arch dependent *)
 
 let int_of_pe =
@@ -379,6 +385,7 @@ let int_of_pe =
   | PE32  -> 32
   | PE64  -> 64
   | PE128 -> 128
+
 
 let int_of_velem ve = int_of_ws (wsize_of_velem ve)
 

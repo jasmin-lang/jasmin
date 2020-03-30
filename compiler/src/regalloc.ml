@@ -320,7 +320,7 @@ struct
   let rbx = V.mk "RBX" reg_k (Bty (U U64)) L._dummy
   let rcx = V.mk "RCX" reg_k (Bty (U U64)) L._dummy
   let rdx = V.mk "RDX" reg_k (Bty (U U64)) L._dummy
-  let rsp = V.mk "RSP" reg_k (Bty (U U64)) L._dummy
+  let rsp = Prog.rsp 
   let rbp = V.mk "RBP" reg_k (Bty (U U64)) L._dummy
   let rsi = V.mk "RSI" reg_k (Bty (U U64)) L._dummy
   let rdi = V.mk "RDI" reg_k (Bty (U U64)) L._dummy
@@ -617,3 +617,12 @@ let regalloc translate_var stack_needed (f: 'info func) =
     else
       to_save, None in
   f, to_save, stk, ra
+
+type reg_oracle_t = {
+    ro_to_save: var list;  (* TODO: allocate them in the stack rather than push/pop *)
+    ro_rsp: var option;
+    ro_return_address: var option;
+  }
+
+
+let alloc_prog _ _ = assert false

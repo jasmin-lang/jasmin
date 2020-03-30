@@ -376,6 +376,27 @@ let main () =
     let global_analysis up : Compiler.alloc_oracles =
       if !debug then Format.eprintf "START global analysis@.";
       let p = Conv.prog_of_cuprog tbl up in
+      let pmap, fds = StackAlloc.alloc_prog p in
+      let fds = Regalloc.alloc_prog (fun sao -> sao.StackAlloc.sao_has_stack) fds in
+      assert false
+      (*
+      stbl, rtbl -> 
+ { sao_size: Z
+  ; sao_params : seq (option param_info)  (* Allocation of pointer params *)
+  ; sao_return : seq (option nat)         (* Where to find the param input region *)
+  ; sao_alloc: seq (var * ptr_kind)       (* Allocation of local variables without params *)
+ * ; sao_to_save: seq var (* TODO: allocate them in the stack rather than push/pop *)
+ * ; sao_rsp: saved_stack
+ * ; sao_return_address: option var
+  }.
+      
+       *)
+      
+      
+(*
+
+
+
       let global_data, global_alloc = Array_expand.init_glob p in
       let global_alloc =
         let trans (v,(i,ws)) = Conv.cvar_of_var tbl v, (Conv.z_of_int i,ws) in
@@ -416,7 +437,7 @@ let main () =
         ao_stack_alloc = get;
         ao_reg_alloc = (fun fn -> regalloc_fd (get fn) fn);
       })
-
+ *)
     in
 
     let is_var_in_memory cv : bool =

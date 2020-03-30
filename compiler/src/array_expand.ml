@@ -219,7 +219,7 @@ let init_stk fc extra_vars =
   let results = List.map do_res fc.f_ret in
   params, results, regp @ alloc, !size, extra_vars
 
-let vstack = Regalloc.X64.rsp
+let vstack = rsp
 
 let check_stack_var =
   check_not_pred "in stack" is_stack_var

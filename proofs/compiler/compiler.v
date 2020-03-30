@@ -73,12 +73,11 @@ Variant compiler_step :=
   | Linearisation               : compiler_step
   | Assembly                    : compiler_step.
 
-Record alloc_oracles : Type :=
+Record stack_alloc_oracles : Type :=
   {
     ao_globals: seq u8; (* static global data: one array holding all data *)
     ao_global_alloc: seq (var * (Z * wsize)); (* allocation of global variables in the previous array *)
     ao_stack_alloc: funname → stk_alloc_oracle_t;
-    ao_reg_alloc: funname → _sfundef → _sfundef;
   }.
 
 Record compiler_params := {
@@ -91,7 +90,8 @@ Record compiler_params := {
   is_var_in_memory : var_i → bool;
   global_static_data_symbol: Ident.ident;
   stk_pointer_name : Ident.ident;
-  global_analysis : _uprog → alloc_oracles;
+  global_analysis  : _uprog → alloc_oracles;
+  regalloc         : _sprog -> _sprog;
   print_uprog      : compiler_step -> _uprog -> _uprog;
   print_sprog      : compiler_step -> _sprog -> _sprog;
   print_linear     : lprog -> lprog;

@@ -46,52 +46,6 @@ Local
 Definition cferror {A} fn msg :=
   @Error _ A (Ferr_fun fn (Cerr_stk_alloc msg)).
 
-(*
-Variant mem_space := 
-  | MSglob 
-  | MSstack
-  | MSparam of var.
-
-Definition mem_space_beq ms1 ms2 := 
-  match ms1, ms2 with
-  | MSglob    , MSglob     => true
-  | MSstack   , MSstack    => true
-  | MSparam x1, MSparam x2 => x1 == x2
-  | _, _ => false
-  end.
-
-Lemma mem_space_axiom : Equality.axiom mem_space_beq. 
-Proof. 
-  move=> [||x1] [||x2] => /=; try by constructor.
-  by apply:(iffP idP) => [ /eqP | []] ->.
-Qed.
-
-Definition mem_space_eqMixin     := Equality.Mixin mem_space_axiom.
-Canonical  mem_space_eqType      := Eval hnf in EqType mem_space mem_space_eqMixin.
-
-Definition mem_space_cmp (ms1 ms2:mem_space) := 
-  match ms1, ms2 with
-  | MSglob, MSglob         => Eq
-  | MSglob, _              => Lt
-  | MSstack, MSglob        => Gt
-  | MSstack, MSstack       => Eq
-  | MSstack, MSparam _     => Lt
-  | MSparam x1, MSparam x2 => var_cmp x1 x2
-  | MSparam _, _           => Gt 
-  end.
-
-Instance mem_spaceO : Cmp mem_space_cmp.
-Proof.
-  constructor.
-  + move=> [||x1] [||x2] => //=; apply cmp_sym.
-  + move=> [||x1] [||x2] [||x3] c //=; try by move=> h; injection h => ->.
-    + by apply: ctrans_Lt. + by apply: ctrans_Lt.
-    + by rewrite ctransC;apply ctrans_Gt. + by rewrite ctransC;apply ctrans_Gt.
-    by apply cmp_ctrans.
-  by move=> [||x1] [||x2] => //= /(@cmp_eq _ _ varO) ->.
-Qed.
-*)
-
 Definition mem_space := var.
 
 Record mem_pos := 
@@ -215,9 +169,6 @@ Definition set_move (rmap:regions) (x y:var) :=
   Let mp := check_valid rmap y in
   ok (set rmap x mp).
 
-(*Definition set_move_glob rip (rmap:regions) (x:var) (ofs:Z) (align:wsize) := 
-  set rmap x (mp_glob rip ofs align). *)
-
 Definition set_init rsp (rmap:regions) x pk := 
   match pk with
   | Pstack ofs align => set rmap x (mp_stack rsp ofs align)
@@ -229,10 +180,9 @@ Definition incl (r1 r2:regions) :=
   Mvar.fold 
     (fun x mp b => b && Mvar.get r2.(var_region) x == Some mp) r1.(var_region) true &&
   Mmp.fold 
-    (fun mp xs b => b && match Mmp.get r2.(region_vars) mp with
-                         | Some xs' => Sv.subset xs xs'
-                         | None => false
-                         end) r1.(region_vars) true.
+    (fun mp xs b => b && 
+       let xs' := odflt Sv.empty (Mmp.get r2.(region_vars) mp) in
+       Sv.subset xs xs') r1.(region_vars) true.
 
 Definition merge (r1 r2:regions) := 
   let vr := r2.(var_region) in
@@ -674,12 +624,12 @@ Fixpoint alloc_i (rmap:regions) (i: instr) : result instr_error (regions * instr
       ok (rmap, Cif e c1.2 c2.2)
   
     | Cwhile a c1 e c2 => 
-      let check_c sm := 
+      let check_c rmap := 
         Let c1 := fmapM alloc_i rmap c1 in
-        let sm := c1.1 in
-        Let e := add_iinfo ii (alloc_e rmap e) in
-        Let c2 := fmapM alloc_i rmap c2 in
-        ok ((sm, c2.1), (e, (c1.2, c2.2))) in
+        let rmap1 := c1.1 in
+        Let e := add_iinfo ii (alloc_e rmap1 e) in
+        Let c2 := fmapM alloc_i rmap1 c2 in
+        ok ((rmap1, c2.1), (e, (c1.2, c2.2))) in
       Let r := loop2 ii check_c Loop.nb rmap in
       ok (r.1, Cwhile a r.2.2.1 r.2.1 r.2.2.2)
 
@@ -841,10 +791,10 @@ Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_
       add_err_fun fn (check_results pmap rmap paramsi sao.(sao_return) fd.(f_res)) in
   ok {|
     f_iinfo := f_iinfo fd;
-    f_tyin := List.map (fun x => vtype (v_var x)) params; 
+    f_tyin := List.map (fun x => vtype (v_var x)) params; (* FIXME *)
     f_params := params;
     f_body := body;
-    f_tyout := List.map (fun x => vtype (v_var x)) res; 
+    f_tyout := List.map (fun x => vtype (v_var x)) res; (* FIXME *)
     f_res := res;
     f_extra := f_extra fd |}.
 

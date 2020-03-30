@@ -237,6 +237,7 @@ module Mv : Map.S  with type key = var
 module Hv : Hash.S with type key = var
 
 val rip : var
+val rsp : var 
 
 (* -------------------------------------------------------------------- *)
 val kind_i : 'ty gvar_i -> v_kind
@@ -272,8 +273,13 @@ val locals  : 'info func -> Sv.t
 (* Functions on types                                                   *)
 
 val int_of_ws  : wsize -> int
+val string_of_ws : wsize -> string
 val size_of_ws : wsize -> int
 val uptr       : wsize 
+
+val wsize_lt : wsize -> wsize -> bool
+val wsize_le : wsize -> wsize -> bool
+
 val int_of_pe  : pelem -> int
 
 val int_of_velem : velem -> int 
