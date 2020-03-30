@@ -1,0 +1,9 @@
+fn id(reg u64 x) -> reg u64 { reg u64 r; r = x; return r; }
+
+export
+fn a(reg u64 x, reg u64 y) -> reg u64 {
+reg u64 r;
+r = id(y);
+r += x;
+return r;
+}
