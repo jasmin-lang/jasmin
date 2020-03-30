@@ -21,7 +21,7 @@ reported as killed. Subroutines report ALL killed registers.
 
  *)
 val regalloc :
-  (Var0.Var.var -> var) -> bool -> 'i1 func -> unit func * Sv.t * var option * var option
+  (Var0.Var.var -> var) -> stack_needed:bool -> 'info func -> unit func * Sv.t * var option * var option
 
 val split_live_ranges : 'info func -> unit func
 
@@ -31,5 +31,5 @@ type reg_oracle_t = {
     ro_return_address: var option;
   }
 
-val alloc_prog : ('a -> bool) ->
- ('a * 'info func) list -> ('a * reg_oracle_t * 'info func) list
+val alloc_prog : (Var0.Var.var -> var) -> ('a -> bool) ->
+ ('a * 'info func) list -> ('a * reg_oracle_t * unit func) list

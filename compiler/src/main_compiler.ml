@@ -379,7 +379,7 @@ let main () =
       if !debug then Format.eprintf "START global analysis@.";
       let p = Conv.prog_of_cuprog tbl up in
       let pmap, fds = StackAlloc.alloc_prog p in
-      let fds = Regalloc.alloc_prog (fun sao -> sao.sao_has_stack) fds in
+      let fds = Regalloc.alloc_prog translate_var (fun sao -> sao.sao_has_stack) fds in
       let atbl = Hf.create 117 in 
       let mk_oas (sao, ro, fd) = 
         let extra =
@@ -435,7 +435,7 @@ let main () =
       let (fds,_data) = Conv.prog_of_csprog tbl sp in
       let fds = List.map (fun (x,y) -> y,x) fds in
       let fds = 
-        Regalloc.alloc_prog (fun extra ->
+        Regalloc.alloc_prog translate_var (fun extra ->
             match extra.Expr.sf_save_stack with
             | Expr.SavedStackReg _ | Expr.SavedStackStk _ -> true
             | Expr.SavedStackNone -> false) fds in

@@ -71,15 +71,16 @@ let find_var outs ins ap : _ option =
         | Pvar v -> if is_gkvar v then Some v.gv else None
         | _ -> None)
 
-let x86_equality_constraints (tbl: int Hv.t) (k: int -> int -> unit)
+let x86_equality_constraints (int_of_var: var_i -> int option) (k: int -> int -> unit)
     (k': int -> int -> unit)
     (lvs: 'ty glvals) (op: sopn) (es: 'ty gexprs) : unit =
   let merge k v w =
-    try
-      let i = Hv.find tbl (L.unloc v) in
-      let j = Hv.find tbl (L.unloc w) in
-      k i j
-    with Not_found -> ()
+    match int_of_var v with
+    | None -> ()
+    | Some i ->
+       match int_of_var w with
+       | None -> ()
+       | Some j -> k i j
   in
   begin match op, lvs, es with
   | Ox86 (MOV _), [ Lvar x ], [ Pvar y ] when is_gkvar y &&
@@ -128,50 +129,95 @@ let set_friend i j (f: friend) : friend =
   |> IntMap.modify_def (IntSet.singleton j) i (IntSet.add j)
   |> IntMap.modify_def (IntSet.singleton i) j (IntSet.add i)
 
+type 'info collect_equality_constraints_state =
+  { mutable cac_friends : friend; mutable cac_eqc: Puf.t ; cac_trace: 'info instr list array }
+
+let collect_equality_constraints_in_func
+      ~(with_call_sites: (funname -> 'info func) option)
+      (msg: string)
+      (int_of_var: var_i -> int option)
+      copn_constraints
+      (s: 'info collect_equality_constraints_state)
+      (f: 'info func)
+    : unit
+  =
+  let get_var x =
+    match int_of_var x with
+    | Some i -> i
+    | None -> hierror "%s: unknown variable %a" msg (Printer.pp_var ~debug:true) (L.unloc x)
+  in
+  let add ii x y =
+    s.cac_trace.(x) <- ii :: s.cac_trace.(x);
+    s.cac_eqc <- Puf.union s.cac_eqc x y
+  in
+  let addv ii x y =
+    let i = get_var x in
+    let j = get_var y in
+    add ii i j
+  in
+  let addf i j = s.cac_friends <- set_friend i j s.cac_friends in
+  let rec collect_instr_r ii =
+    function
+    | Cfor (_, _, s) -> collect_stmt s
+    | Copn (lvs, _, op, es) -> copn_constraints int_of_var (add ii) addf lvs op es
+    | Cassgn (Lvar x, (AT_rename | AT_phinode), _, Pvar y) when is_gkvar y ->
+       addv ii x y.gv
+    | Cassgn (Lvar x, _, _, Pvar y) when is_gkvar y && kind_i x = kind_i y.gv ->
+       begin match int_of_var x, int_of_var y.gv with
+       | Some i, Some j -> addf i j
+       | (None, _) | (_, None) -> ()
+       end
+    | Cassgn _ -> ()
+    | Ccall (_, xs, fn, es) ->
+       begin match with_call_sites with
+       | None -> ()
+       | Some get_func ->
+          let g = get_func fn in
+          List.iter2 (fun a p ->
+              match a with
+              | Pvar { gs = Expr.Slocal ; gv } -> addv ii gv Location.(mk_loc _dummy p)
+              | _ -> hierror "%s: argument is not a local variable" msg
+            ) es g.f_args;
+          List.iter2 (fun r x ->
+              match x with
+              | Lvar v -> addv ii r v
+              | _ -> hierror "%s: return destination is not a variable" msg
+            ) g.f_ret xs
+       end
+    | (Cwhile (_, s1, _, s2) | Cif (_, s1, s2)) -> collect_stmt s1; collect_stmt s2
+  and collect_instr ({ i_desc } as i) = collect_instr_r i i_desc
+  and collect_stmt s = List.iter collect_instr s in
+  collect_stmt f.f_body
+
 let collect_equality_constraints
     (msg: string)
     copn_constraints
-    (tbl: int Hv.t) (nv: int)
+    (tbl: int Hv.t)
+    (nv: int)
     (f: 'info func) : Puf.t * 'info trace * friend =
-  let p = ref (Puf.create nv) in
-  let tr = Array.make nv [] in
-  let fr = ref IntMap.empty in
-  let add ii x y =
-      tr.(x) <- ii :: tr.(x);
-      p := Puf.union !p x y
+  let int_of_var x = Hv.find_option tbl (L.unloc x) in
+  let s = { cac_friends = IntMap.empty ; cac_eqc = Puf.create nv ; cac_trace = Array.make nv [] } in
+  collect_equality_constraints_in_func ~with_call_sites:None msg int_of_var copn_constraints s f;
+  let eqc = s.cac_eqc in
+  eqc, normalize_trace eqc s.cac_trace, s.cac_friends
+
+let collect_equality_constraints_in_prog
+      (msg: string)
+      copn_constraints
+      (tbl: int Hv.t)
+      (nv: int)
+      (f: 'info func list) : Puf.t * 'info trace * friend =
+  let int_of_var x = Hv.find_option tbl (L.unloc x) in
+  let s = { cac_friends = IntMap.empty ; cac_eqc = Puf.create nv ; cac_trace = Array.make nv [] } in
+  let tbl = Hf.create 17 in
+  let get_var n = Hf.find tbl n in
+  let () = List.fold_right (fun f () ->
+               Hf.add tbl f.f_name f;
+               collect_equality_constraints_in_func ~with_call_sites:(Some get_var) msg int_of_var copn_constraints s f)
+             f ()
   in
-  let addf x y = fr := set_friend x y !fr in
-  let rec collect_instr_r ii =
-    function
-    | Cfor (_, _, s)
-      -> collect_stmt s
-    | Copn (lvs, _, op, es) -> copn_constraints tbl (add ii) addf lvs op es
-    | Cassgn (Lvar x, (AT_rename | AT_phinode), _, Pvar y) when is_gkvar y ->
-      let i = try Hv.find tbl (L.unloc x) with
-        Not_found ->
-          hierror "%s: unknown variable %a"
-            msg
-            (Printer.pp_var ~debug:true) (L.unloc x)
-      in
-      let j = Hv.find tbl (L.unloc y.gv) in
-      add ii  i j
-    | Cassgn (Lvar x, _, _, Pvar y) when is_gkvar y && kind_i x = kind_i y.gv ->
-      begin try
-        let i = Hv.find tbl (L.unloc x) in
-        let j = Hv.find tbl (L.unloc y.gv) in
-        fr := set_friend i j !fr
-      with Not_found -> ()
-    end
-    | Cassgn _
-    | Ccall _
-      -> ()
-    | Cwhile (_, s1, _, s2)
-    | Cif (_, s1, s2) -> collect_stmt s1; collect_stmt s2
-  and collect_instr ({ i_desc } as i) = collect_instr_r i i_desc
-  and collect_stmt s = List.iter collect_instr s in
-  collect_stmt f.f_body;
-  let eqc = !p in
-  eqc, normalize_trace eqc tr, !fr
+  let eqc = s.cac_eqc in
+  eqc, normalize_trace eqc s.cac_trace, s.cac_friends
 
 (* Conflicting variables: variables that may be live simultaneously
    and thus must be allocated to distinct registers.
@@ -202,7 +248,9 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   in
   fun a -> loop a e
 
-let collect_conflicts (tbl: int Hv.t) (tr: 'info trace) (f: (Sv.t * Sv.t) func) : conflicts =
+let collect_conflicts
+      (live: Sv.t) (* A set of globally live variables *)
+      (tbl: int Hv.t) (tr: 'info trace) (f: (Sv.t * Sv.t) func) (c: conflicts) : conflicts =
   let add_one_aux (v: int) (w: int) (c: conflicts) : conflicts =
       let x = get_conflicts v c in
       IntMap.add v (IntSet.add w x) c
@@ -220,6 +268,8 @@ let collect_conflicts (tbl: int Hv.t) (tr: 'info trace) (f: (Sv.t * Sv.t) func) 
     with Not_found -> c
   in
   let add (c: conflicts) loc ((i, j): (Sv.t * Sv.t)) : conflicts =
+    let i = Sv.union live i in
+    let j = Sv.union live j in
     c
     |> conflicts_in i (add_one loc)
     |> conflicts_in j (add_one loc)
@@ -238,43 +288,54 @@ let collect_conflicts (tbl: int Hv.t) (tr: 'info trace) (f: (Sv.t * Sv.t) func) 
   and collect_instr c { i_desc ; i_loc ; i_info } =
     collect_instr_r (add c i_loc i_info) i_desc
   and collect_stmt c s = List.fold_left collect_instr c s in
-  collect_stmt IntMap.empty f.f_body
+  collect_stmt c f.f_body
 
-let collect_variables (allvars: bool) (excluded:Sv.t) (f: 'info func) : int Hv.t * int =
-  let fresh, total =
-    let count = ref 0 in
-    (fun () ->
+let iter_variables (cb: var -> unit) (f: 'info func) : unit =
+  let iter_sv = Sv.iter cb in
+  let iter_lv lv = rvars_lv Sv.empty lv |> iter_sv in
+  let iter_lvs lvs = List.fold_left rvars_lv Sv.empty lvs |> iter_sv in
+  let iter_expr e = vars_e e |> iter_sv in
+  let iter_exprs es = vars_es es |> iter_sv in
+  let rec iter_instr_r =
+    function
+    | Cassgn (lv, _, _, e) -> iter_lv lv; iter_expr e
+    | (Ccall (_, lvs, _, es) | Copn (lvs, _, _, es)) -> iter_lvs lvs; iter_exprs es
+    | (Cwhile (_, s1, e, s2) | Cif (e, s1, s2)) -> iter_expr e; iter_stmt s1; iter_stmt s2
+    | Cfor _ -> assert false
+  and iter_instr { i_desc } = iter_instr_r i_desc
+  and iter_stmt s = List.iter iter_instr s in
+  iter_stmt f.f_body;
+  List.iter cb f.f_args
+
+let make_counter () =
+  let count = ref 0 in
+  (fun () ->
     let n = !count in
     incr count;
     n),
-    (fun () -> !count)
-  in
-  let tbl : int Hv.t = Hv.create 97 in
+  (fun () -> !count)
+
+let collect_variables_aux ~(allvars: bool) (excluded: Sv.t) (fresh: unit -> int) (tbl: int Hv.t) (f: 'info func) : unit =
   (* Remove sp and rip *)
   let get (v: var) : unit =
     if allvars || (is_reg_kind v.v_kind && not (Sv.mem v excluded)) then
-    if not (Hv.mem tbl v)
-    then
-      let n = fresh () in
-      Hv.add tbl v n
+      if not (Hv.mem tbl v)
+      then
+        let n = fresh () in
+        Hv.add tbl v n
   in
-  let collect_sv = Sv.iter get in
-  let collect_lv lv = rvars_lv Sv.empty lv |> collect_sv in
-  let collect_lvs lvs = List.fold_left rvars_lv Sv.empty lvs |> collect_sv in
-  let collect_expr e = vars_e e |> collect_sv in
-  let collect_exprs es = vars_es es |> collect_sv in
-  let rec collect_instr_r =
-    function
-    | Cassgn (lv, _, _, e) -> collect_lv lv; collect_expr e
-    | Ccall (_, lvs, _, es)
-    | Copn (lvs, _, _, es) -> collect_lvs lvs; collect_exprs es
-    | Cwhile (_, s1, e, s2)
-    | Cif (e, s1, s2) -> collect_expr e; collect_stmt s1; collect_stmt s2
-    | Cfor _ -> assert false
-  and collect_instr { i_desc } = collect_instr_r i_desc
-  and collect_stmt s = List.iter collect_instr s in
-  collect_stmt f.f_body;
-  List.iter get f.f_args;
+  iter_variables get f
+
+let collect_variables ~(allvars: bool) (excluded:Sv.t) (f: 'info func) : int Hv.t * int =
+  let fresh, total = make_counter () in
+  let tbl : int Hv.t = Hv.create 97 in
+  collect_variables_aux ~allvars excluded fresh tbl f;
+  tbl, total ()
+
+let collect_variables_in_prog ~(allvars: bool) (excluded:Sv.t) (f: 'info func list) : int Hv.t * int =
+  let fresh, total = make_counter () in
+  let tbl : int Hv.t = Hv.create 97 in
+  List.iter (collect_variables_aux ~allvars excluded fresh tbl) f;
   tbl, total ()
 
 let normalize_variables (tbl: int Hv.t) (eqc: Puf.t) : int Hv.t =
@@ -482,16 +543,22 @@ let allocate_forced_registers translate_var (vars: int Hv.t) (cnf: conflicts)
     | Cassgn _
       -> a
     | Ccall (_, lvs, _, es) ->
+       (* TODO: check this *)
+       (*
        let args = List.map (function Pvar { gv ; gs = Slocal } -> (L.unloc gv) | _ -> assert false) es in
        let dsts = List.map (function Lvar gv -> gv | _ -> assert false) lvs in
        let a = alloc_args loc a args in
        alloc_ret loc a dsts
+        *)
+       ignore lvs;
+       ignore es;
+       a
   and alloc_instr a { i_loc; i_desc } = alloc_instr_r i_loc a i_desc
   and alloc_stmt a s = List.fold_left alloc_instr a s
   in
   let loc = (f.f_loc, []) in
-  let a = alloc_args loc a f.f_args in
-  let a = alloc_ret loc a f.f_ret in
+  let a = if f.f_cc = Export then alloc_args loc a f.f_args else a in
+  let a = if f.f_cc = Export then alloc_ret loc a f.f_ret else a in
   alloc_stmt a f.f_body
 
 let find_vars (vars: int Hv.t) (n: int) : var list =
@@ -563,7 +630,7 @@ let reverse_varmap (vars: int Hv.t) : var IntMap.t =
 let split_live_ranges (f: 'info func) : unit func =
   let f = Ssa.split_live_ranges true f in
   Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
-  let vars, nv = collect_variables true Sv.empty f in
+  let vars, nv = collect_variables ~allvars:true Sv.empty f in
   let eqc, _tr, _fr = collect_equality_constraints "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
   let vars = normalize_variables vars eqc in
   let a =
@@ -579,10 +646,10 @@ let reg_alloc translate_var (f: 'info func) : unit func =
   let f = Ssa.split_live_ranges false f in
   Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
   let lf = Liveness.live_fd true f in
-  let vars, nv = collect_variables false excluded f in
+  let vars, nv = collect_variables ~allvars:false excluded f in
   let eqc, tr, fr = collect_equality_constraints "Regalloc" x86_equality_constraints vars nv f in
   let vars = normalize_variables vars eqc in
-  let conflicts = collect_conflicts vars tr lf in
+  let conflicts = collect_conflicts Sv.empty vars tr lf IntMap.empty in
   let a =
     allocate_forced_registers translate_var vars conflicts f IntMap.empty |>
     greedy_allocation vars nv conflicts fr |>
@@ -590,8 +657,7 @@ let reg_alloc translate_var (f: 'info func) : unit func =
   in Subst.subst_func a f
    |> Ssa.remove_phi_nodes
 
-let regalloc translate_var stack_needed (f: 'info func) =
-  let f = reg_alloc translate_var f in
+let post_process ~stack_needed (f: _ func) : _ func * Sv.t * var option * var option =
   let fv = vars_fc f in
   let allocatable = X64.allocatables in
   let free_regs = Sv.diff allocatable fv in
@@ -618,11 +684,75 @@ let regalloc translate_var stack_needed (f: 'info func) =
       to_save, None in
   f, to_save, stk, ra
 
+  let regalloc translate_var ~stack_needed (f: _ func) =
+    let f = reg_alloc translate_var f in
+    post_process ~stack_needed f
+
+let collect_call_sites (cb: funname -> Sv.t -> unit) (f: (Sv.t * Sv.t) func) : unit =
+  let rec collect_instr_r ii =
+    function
+    | (Cassgn _ | Copn _) -> ()
+    | (Cif (_, s1, s2) | Cwhile (_, s1, _, s2)) -> collect_stmt s1; collect_stmt s2
+    | Cfor (_, _, s) -> collect_stmt s
+    | Ccall (_, xs, fn, _) ->
+       let d = Liveness.dep_lvs (snd ii) xs in
+       cb fn d
+  and collect_instr { i_info ; i_desc } = collect_instr_r i_info i_desc
+  and collect_stmt s = List.iter collect_instr s in
+  collect_stmt f.f_body
+
+let global_allocation translate_var (funcs: 'info func list) : unit func list =
+  (* Preprocessing of functions:
+    - ensure all variables are named (no anonymous assign)
+    - split live ranges (caveat: do not forget to remove φ-nodes at the end)
+    - compute liveness information
+
+    Initial 'info are preserved in the result.
+   *)
+  let liveness_table : (Sv.t * Sv.t) func Hf.t = Hf.create 17 in
+  let preprocess f =
+    let f = f |> fill_in_missing_names |> Ssa.split_live_ranges false in
+    Hf.add liveness_table f.f_name (Liveness.live_fd true f);
+    f
+  in
+  let funcs : unit func list = List.map preprocess funcs in
+  (* Live variables at the end of each function, in addition to returned local variables *)
+  let live : Sv.t Hf.t = Hf.create 17 in
+  let collect_call_sites _fn f =
+    collect_call_sites (fun fn s -> Hf.modify_def s fn (Sv.union s) live) f
+  in
+  Hf.iter collect_call_sites liveness_table;
+  let excluded = Sv.of_list [Prog.rip; X64.rsp] in
+  let vars, nv = collect_variables_in_prog ~allvars:false excluded funcs in
+  let eqc, tr, fr = collect_equality_constraints_in_prog "Regalloc" x86_equality_constraints vars nv funcs in
+  let vars = normalize_variables vars eqc in
+  let conflicts =
+    Hf.fold (fun fn lf conflicts ->
+        collect_conflicts (Hf.find_default live fn Sv.empty) vars tr lf conflicts
+      )
+      liveness_table
+      IntMap.empty
+  in
+  let a = List.fold_left (fun a f -> allocate_forced_registers translate_var vars conflicts f a) IntMap.empty funcs in
+  let a = greedy_allocation vars nv conflicts fr a in
+  let subst = subst_of_allocation vars a in
+
+  List.map (fun f -> f |> Subst.subst_func subst |> Ssa.remove_phi_nodes) funcs
+
 type reg_oracle_t = {
     ro_to_save: var list;  (* TODO: allocate them in the stack rather than push/pop *)
     ro_rsp: var option;
     ro_return_address: var option;
   }
 
-
-let alloc_prog _ _ = assert false
+let alloc_prog translate_var (has_stack: 'a -> bool) (dfuncs: ('a * 'info func) list) : ('a * reg_oracle_t * unit func) list =
+  let extra : 'a Hf.t = Hf.create 17 in
+  dfuncs
+  |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
+  |> global_allocation translate_var
+  |> List.map (fun f ->
+         let e = Hf.find extra f.f_name in
+         let stack_needed = has_stack e in
+         let f, to_save, ro_rsp, ro_return_address = post_process ~stack_needed f in
+         e, { ro_to_save = Sv.elements to_save ; ro_rsp ; ro_return_address }, f
+       )
