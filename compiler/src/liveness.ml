@@ -6,12 +6,6 @@ let dep_lv s_o x =
   | Lvar x -> Sv.remove (L.unloc x) s_o
   | _      -> rvars_lv s_o x
 
-(* Variables live before a write_lvals:
-   this is tricky when a variable occurs several times,
-   sometimes written, sometimes read;
-   this correctly reflects the semantics which writes ℓ-values
-   from left to right.
- *)
 let dep_lvs s_o xs =
   List.fold_left dep_lv s_o xs
 
