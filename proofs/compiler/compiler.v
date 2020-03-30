@@ -90,7 +90,7 @@ Record compiler_params := {
   is_var_in_memory : var_i → bool;
   global_static_data_symbol: Ident.ident;
   stk_pointer_name : Ident.ident;
-  global_analysis  : _uprog → alloc_oracles;
+  global_analysis  : _uprog → stack_alloc_oracles;
   regalloc         : _sprog -> _sprog;
   print_uprog      : compiler_step -> _uprog -> _uprog;
   print_sprog      : compiler_step -> _sprog -> _sprog;
@@ -108,8 +108,6 @@ Definition expand_prog (p:uprog) := map_prog_name cparams.(expand_fd) p.
 Definition var_alloc_prog (p:uprog) := map_prog_name cparams.(var_alloc_fd) p.
 
 Definition share_stack_prog (p:uprog) := map_prog_name cparams.(share_stk_fd) p.
-
-Definition reg_alloc_prog ao (p: sprog) : sprog := map_prog_name ao.(ao_reg_alloc) p.
 
 Definition compile_prog (entries : seq funname) (p:prog) :=
   Let p := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
@@ -161,7 +159,7 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
 
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
 
-  let pa := reg_alloc_prog ao ps in
+  let pa := cparams.(regalloc) ps in
   let pa : sprog := cparams.(print_sprog) RegAllocation pa in
   Let _ := CheckAllocRegS.check_prog ps.(p_extra) ps.(p_funcs) pa.(p_extra) pa.(p_funcs) in
 
