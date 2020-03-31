@@ -14,7 +14,7 @@ val liveness : bool -> 'info prog -> (Sv.t * Sv.t) prog
 
 (** [iter_call_sites cb f] runs the [cb] function for all call site in [f] with
     the name of the called function, the ℓ-values, and the set of live variables
-    during the call (i.e., arguments not included).
+    after the call (i.e., arguments not included).
 
     Requires the function [f] to be annotated with liveness information
 *)

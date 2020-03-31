@@ -10,14 +10,13 @@ export
 fn main(reg u64 z) -> reg u64 {
 inline int i;
 stack u64[2] stk;
-reg u64 n m result;
+reg u64 n result;
 
 for i = 0 to 2 { stk[i] = z; }
 
 n = 0;
 n = load(g, n);
-m = n; // TODO: why is this needed?
-result = load(stk, m);
+result = load(stk, n);
 
 return result;
 }

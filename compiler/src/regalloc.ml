@@ -716,7 +716,9 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
   let get_liveness =
     let live : Sv.t Hf.t = Hf.create 17 in
     let collect_call_sites _fn f =
-      Liveness.iter_call_sites (fun fn _xs s -> Hf.modify_def s fn (Sv.union s) live) f
+      Liveness.iter_call_sites (fun fn xs s ->
+          let s = Liveness.dep_lvs s xs in
+          Hf.modify_def s fn (Sv.union s) live) f
     in
     Hf.iter collect_call_sites liveness_table;
     fun fn -> Hf.find_default live fn Sv.empty
