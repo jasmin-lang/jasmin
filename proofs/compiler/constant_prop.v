@@ -43,18 +43,32 @@ Local Open Scope Z_scope.
 (* -------------------------------------------------------------------------- *)
 
 
-Inductive leak_expr_trans :=
+Inductive leaktrans_e :=
 | LET_id
-| LET_adr
 | LET_remove 
 | LET_sub of seq leak_expr_trans.
 
-Inductive leakage_e_cp :=
+Inductive leak_e_tree :=
 | LEempty
-| LEIdx
-| LEAdr
+| LEIdx of Z
+| LEAdr of pointer 
 | LESub of (seq leakage_e_cp).
 
+Fixpoint trans_leakage (lt: leak_expr_trans) (le:leakage_e_cp) : leakage_e_cp :=
+  match lt, le with 
+  | LET_id, _ => le
+  | LET_remove, _ => LEempty 
+  | LET_sub lts, LESub les => LESub (map2 trans_leakage lts les)
+  | LET_sub _  , le        => LEempty (* assert false *)
+  end.
+(*
+const_prop_e e = e', lt ->
+sem_pexpr_e s e = ok (v,le) ->
+exists v', sem_pexpr_e s e' = ok (v, trans_leakage lt le) /\ value_uincl v v'.
+*)
+
+
+(*
 Fixpoint l_to_lcp (le : leakages_e) : leakage_e_cp :=
 match le with 
 | [::] => LEempty
@@ -63,7 +77,7 @@ match le with
              | LeakIdx i => LESub (LEIdx :: [::l_to_lcp ls])
              end 
 end.
-
+*)
 Section LCP_TO_L.
 
 Variable (lcp_to_l : leakage_e_cp -> leakages_e).
@@ -80,17 +94,17 @@ match le with
 | LEAdr  => [:: LeakAdr _]
 | LESub ls => lcps_to_l lcp_to_l ls
 end.*)
-
+(*
 Section LEAK_EXPR_TRANS_LOOP.
 
 Variable (lt_le : leak_expr_trans -> leakage_e_cp -> leakages_e).
-
 
 Definition lt_les (lt:seq leak_expr_trans) (lc:seq leakage_e_cp) : leakages_e := 
     flatten (map2b lt_le lt lc).
 
 End LEAK_EXPR_TRANS_LOOP.
-
+*)
+(*
 Fixpoint lt_le (lt : leak_expr_trans) (l : leakage_e_cp) : leakages_e := 
 match lt, l with 
 | LET_remove, _ => [::]
@@ -102,7 +116,7 @@ match lt, l with
 | LET_sub lt1, LESub les => lt_les lt_le lt1 les
 | _, _ => [::]
 end.
-
+*)
 (** WE NEED TO WRITE A FUNCTION THAT TAKES leak_expr_trans and leakages_e and returns .....**)
 
 (*Fixpoint leakage_e_cp_to_leakage_e (le : leakage_e_cp) : leakages_e :=
@@ -121,13 +135,13 @@ match lt, le with
 | LET_sub lts, les => LESub (map lt les)
 end.*)
 
-Definition sword_of_int sz (e: pexpr*leakages_e) :=
-  (Papp1 (Oword_of_int sz) e.1, l_to_lcp e.2).
+Definition sword_of_int sz (e: pexpr*leak_expr_trans1) :=
+  (Papp1 (Oword_of_int sz) e.1, LET_sub [::e.2]).
 
-Definition sint_of_word sz (e: pexpr*leakages_e) :=
+Definition sint_of_word sz (e: pexpr*leakages_expr_trans1) :=
   if is_wconst sz e.1 is Some w
-  then (Pconst (wunsigned w), LEempty)
-  else (Papp1 (Oint_of_word sz) e.1, l_to_lcp e.2).
+  then (Pconst (wunsigned w), LET_remove)
+  else (Papp1 (Oint_of_word sz) e.1, LET_sub [::e.2]).
 
 Definition ssign_extend sz sz' (e: pexpr*leakages_e) :=
   if is_wconst sz' e.1 is Some w
