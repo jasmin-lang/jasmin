@@ -1,13 +1,5 @@
 open Prog
 
-(* Variables live before a write_lvals:
-   this is tricky when a variable occurs several times,
-   sometimes written, sometimes read;
-   this correctly reflects the semantics which writes ℓ-values
-   from left to right.
- *)
-val dep_lvs : Sv.t -> lval list -> Sv.t
-
 val live_fd : bool -> 'info func -> (Sv.t * Sv.t) func
 
 val liveness : bool -> 'info prog -> (Sv.t * Sv.t) prog
