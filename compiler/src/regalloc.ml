@@ -654,7 +654,8 @@ let split_live_ranges (fds: 'info func list) : unit func list =
     let f = Ssa.split_live_ranges true f in
     Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
     let vars, nv = collect_variables ~allvars:true Sv.empty f in
-    let eqc, _tr, _fr = collect_equality_constraints ~with_returned_params:(Some get) "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
+    let eqc, _tr, _fr = collect_equality_constraints ~with_returned_params:None
+(*(Some get)*) "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
     let vars = normalize_variables vars eqc in
     let a =
       reverse_varmap vars |>

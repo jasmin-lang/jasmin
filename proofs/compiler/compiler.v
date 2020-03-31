@@ -67,9 +67,11 @@ Variant compiler_step :=
   | RemoveArrInit               : compiler_step
   | RemoveGlobal                : compiler_step
   | LowerInstruction            : compiler_step
+  | StackAllocation             : compiler_step
+  | RemoveReturn                : compiler_step
+  | DeadCode_RemoveReturn       : compiler_step
   | RegAllocation               : compiler_step
   | DeadCode_RegAllocation      : compiler_step
-  | StackAllocation             : compiler_step
   | Linearisation               : compiler_step
   | Assembly                    : compiler_step.
 
@@ -91,6 +93,7 @@ Record compiler_params := {
   global_static_data_symbol: Ident.ident;
   stk_pointer_name : Ident.ident;
   stackalloc       : _uprog → stack_alloc_oracles;
+  removereturn     : _sprog -> _sprog;
   regalloc         : _sprog -> _sprog;
   print_uprog      : compiler_step -> _uprog -> _uprog;
   print_sprog      : compiler_step -> _sprog -> _sprog;
@@ -104,7 +107,7 @@ Record compiler_params := {
 Variable cparams : compiler_params.
 
 Definition expand_prog (p:uprog) := map_prog_name cparams.(expand_fd) p.
-
+Set Printing All.
 Definition compile_prog (entries : seq funname) (p:prog) :=
   Let p := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
   let p := cparams.(print_uprog) Inlining p in
@@ -155,9 +158,14 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
 
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
 
-  let pa := cparams.(regalloc) ps in
+  let pr : sprog := cparams.(removereturn) ps in
+  let pr : sprog := cparams.(print_sprog) RemoveReturn pr in
+  Let pr := dead_code_prog pr in
+  let pr := cparams.(print_sprog) DeadCode_RemoveReturn pr in
+
+  let pa := cparams.(regalloc) pr in
   let pa : sprog := cparams.(print_sprog) RegAllocation pa in
-  Let _ := CheckAllocRegS.check_prog ps.(p_extra) ps.(p_funcs) pa.(p_extra) pa.(p_funcs) in
+  Let _ := CheckAllocRegS.check_prog pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
 
   Let pd := dead_code_prog pa in
   let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in

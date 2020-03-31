@@ -15,10 +15,10 @@ export fn foo() -> reg u64 {
   // init(s) and the typing should do the transformation
   ps = s;
   ps = init(ps);  // s = init(s);
-  s = ps;      
+ 
   r = 0;
   for i = 0 to 3 {
-   r += s[i];
+   r += ps[i];
   }
   return r;
 }

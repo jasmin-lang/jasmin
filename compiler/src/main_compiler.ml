@@ -402,6 +402,18 @@ let main () =
         p_funcs = fds;
         p_globs = up.p_globs;
         p_extra = up.p_extra; }) in
+
+    let removereturn sp = 
+      let (fds,_data) = Conv.prog_of_csprog tbl sp in
+      let fds' = RemoveUnusedResults.doit (List.map fst fds) in 
+      let fds = List.map2 (fun fd (_, ex) -> fd,ex) fds' fds in
+      let fds = List.map (Conv.csfdef_of_fdef tbl) fds in
+      Expr.({
+        p_funcs = fds;
+        p_globs = sp.p_globs;
+        p_extra = sp.p_extra; }) in
+
+    
       
     let cparams = {
       Compiler.rename_fd    = rename_fd;
@@ -411,6 +423,7 @@ let main () =
       Compiler.stk_pointer_name = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rsp);
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
       Compiler.stackalloc    = memory_analysis;
+      Compiler.removereturn  = removereturn;
       Compiler.regalloc      = global_regalloc;
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;

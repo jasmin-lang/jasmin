@@ -74,6 +74,10 @@ let print_strings = function
   | Compiler.LowerInstruction            -> "lowering" , "lowering of instructions"
   | Compiler.RegAllocation               -> "ralloc"   , "register allocation"
   | Compiler.DeadCode_RegAllocation      -> "rallocd"  , "dead code after register allocation"
+  | Compiler.RemoveReturn                -> "rmreturn" , "remove unused returned values"
+
+  | Compiler.DeadCode_RemoveReturn       -> "rmreturnd", "dead code after rmreturn"
+
   | Compiler.StackAllocation             -> "stkalloc" , "stack allocation"
   | Compiler.Linearisation               -> "linear"   , "linearisation"
   | Compiler.Assembly                    -> "asm"      , "generation of assembly"

@@ -276,7 +276,8 @@ let pp_instr tbl name (i : X86_sem.asm) =
     `Label (pp_label name lbl)
 
   | STORELABEL (dst, lbl) ->
-     `Instr (Printf.sprintf "mov%s" (pp_instr_wsize W.U64), [string_of_label name lbl ; pp_asm_arg (W.U64, dst)])
+     `Instr (Printf.sprintf "lea%s\t%s(%%rip), " (pp_instr_wsize W.U64) (string_of_label name lbl),
+        [pp_asm_arg (W.U64, dst)])
 
   | JMP lbl ->
      `Instr ("jmp", [pp_remote_label tbl lbl])
