@@ -533,15 +533,15 @@ Definition alloc_call_arg rmap (sao_param: option param_info) (e:pexpr) :=
     Let mp := Region.check_valid rmap xv in
     Let _  := if pi.(pp_writable) then writable mp else ok tt in
     Let _  := check_align mp pi.(pp_align) in
-    ok (Some ((pi.(pp_writable),mp),xv.(v_var)), Pvar (mk_lvar (with_var xv p)))
+    ok (Some (pi.(pp_writable),mp), Pvar (mk_lvar (with_var xv p)))
   | Some _, _ => cerror "the argument should be a reg ptr" 
   end.
 
-Fixpoint check_all_disj (notwritables writables:seq mem_pos) (mps:seq (option ((bool * mem_pos) * var) * pexpr)) := 
+Fixpoint check_all_disj (notwritables writables:seq mem_pos) (mps:seq (option (bool * mem_pos) * pexpr)) := 
   match mps with
   | [::] => true
   | (None, _) :: mps => check_all_disj notwritables writables mps
-  | (Some ((writable, mp),_), _) :: mps => 
+  | (Some (writable, mp), _) :: mps => 
     if mp \in writables then false
     else
       if writable then 
@@ -574,24 +574,30 @@ Definition check_is_Lvar r (x:var) :=
   | _       => false 
   end.
 
-Definition alloc_lval_call (mps:seq (option ((bool * mem_pos) * var) * pexpr)) rmap (r: lval) (i:option nat) :=
+Definition get_regptr (x:var_i) := 
+  match get_local x with
+  | Some (Pregptr p) => ok (with_var x p)
+  | _ => cerror "variable should be a reg ptr" 
+  end.
+
+Definition alloc_lval_call (mps:seq (option (bool * mem_pos) * pexpr)) rmap (r: lval) (i:option nat) :=
   match i with
   | None => 
     Let _ := check_lval_reg_call r in
-    ok (rmap, Some r)
+    ok (rmap, r)
   | Some i => 
     match nth (None, Pconst 0) mps i with
-    | (Some ((_, mp),x), _) =>
-      Let _ := assert (check_is_Lvar r x) (Cerr_stk_alloc "check_is_Lvar: please report") in
-      let rmap := Region.rset_word rmap x mp in
-      ok (rmap, None)
+    | (Some (_,mp), _) =>
+      Let x := get_Lvar r in
+      Let p := get_regptr x in
+      let rmap := Region.rset_word rmap (v_var x) mp in
+      ok (rmap, Lvar p)
     | (None, _) => cerror "alloc_r_call : please report"
     end
   end.
 
 Definition alloc_call_res rmap mps ret_pos rs := 
-  Let rs := fmapM2 bad_lval_number (alloc_lval_call mps) rmap rs ret_pos in
-  ok (rs.1, seq.pmap id rs.2).
+  fmapM2 bad_lval_number (alloc_lval_call mps) rmap rs ret_pos.
 
 Definition alloc_call rmap ini rs fn es := 
   let sao := local_alloc fn in
@@ -719,19 +725,19 @@ Definition check_result pmap rmap params oi (x:var_i) :=
     match nth None params i with
     | Some mp => 
       Let mp' := check_valid rmap x in
-      Let _ := assert (mp == mp') (Cerr_stk_alloc "invalid reg ptr in result") in
-      ok None
+      Let _   := assert (mp == mp') (Cerr_stk_alloc "invalid reg ptr in result") in
+      Let p   := get_regptr pmap x in
+      ok p
     | None => cerror "invalid function info:please report"
     end
   | None => 
     Let _ := check_var pmap x in
-    ok (Some x)
+    ok x
   end.
 
 Definition check_results pmap rmap params oi res := 
-  Let res := mapM2 (Cerr_stk_alloc "invalid function info:please report")
-               (check_result pmap rmap params) oi res in
-  ok (seq.pmap id res).               
+  mapM2 (Cerr_stk_alloc "invalid function info:please report")
+        (check_result pmap rmap params) oi res.
 
 Definition init_param accu pi (x:var_i) := 
   let: (disj, lmap, rmap) := accu in
@@ -777,10 +783,10 @@ Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_
       add_err_fun fn (check_results pmap rmap paramsi sao.(sao_return) fd.(f_res)) in
   ok {|
     f_iinfo := f_iinfo fd;
-    f_tyin := List.map (fun x => vtype (v_var x)) params; (* FIXME *)
+    f_tyin := map2 (fun o ty => if o is Some _ then sword Uptr else ty) sao.(sao_params) fd.(f_tyin); 
     f_params := params;
     f_body := body;
-    f_tyout := List.map (fun x => vtype (v_var x)) res; (* FIXME *)
+    f_tyout := map2 (fun o ty => if o is Some _ then sword Uptr else ty) sao.(sao_return) fd.(f_tyout);
     f_res := res;
     f_extra := f_extra fd |}.
 

@@ -338,7 +338,7 @@ let alloc_call_arg pmap rmap sao_param e =
       let mp = Region.check_valid rmap xv in
       Region.set_align xv mp pi.pi_align;
       if pi.pi_writable then Region.set_writable xv mp;
-      (Some (mp,L.unloc xv), Pvar (gkvar (mk_addr xv pk)))
+      (Some mp, Pvar (gkvar (mk_addr xv pk)))
     end
   | _ -> 
     hierror "the expression %a is not a variable" 
@@ -360,26 +360,28 @@ let check_lval_reg_call (r:lval) =
       hierror "%a should be a register" pp_var x
   | _ -> raise (CallRetReg r)
 
-let check_is_Lvar r (x:var) =
-  match r with
-  | Lvar x' -> V.equal (L.unloc x') x
-  | _       -> false
-
-let alloc_lval_call mps rmap r i =
+let alloc_lval_call mps pmap rmap r i =
   match i with
   | None -> 
     check_lval_reg_call r;
-    (rmap, Some r)
+    (rmap, r)
   | Some i ->
     match List.nth mps i with
-    | (Some (mp,x),_) ->
-      let rmap = Region.rset_word rmap x mp in
-      rmap, None
     | (None,_) -> assert false
+    | (Some mp,_) ->
+      match r with
+      | Lvar x ->
+        if not (is_reg_ptr_kind (L.unloc x).v_kind) then
+          hierror "%a should be a reg ptr" pp_var x;
+        let pk = get_pk pmap x in
+        let rmap = Region.rset_word rmap (L.unloc x) mp in
+        rmap, Lvar (mk_addr x pk)
+      | _ -> hierror "%a should be a reg ptr" (Printer.pp_glv (Printer.pp_var ~debug:false)) r
 
-let alloc_call_res rmap mps ret_pos rs = 
-  let (rmap, rs) = List.map_fold2 (alloc_lval_call mps) rmap rs ret_pos in
-  rmap, List.filter_map (fun x -> x) rs 
+
+let alloc_call_res pmap rmap mps ret_pos rs = 
+  let (rmap, rs) = List.map_fold2 (alloc_lval_call mps pmap) rmap rs ret_pos in
+  rmap, rs 
 
 
 (* ---------------------------------------------------------- *)
@@ -387,7 +389,7 @@ let alloc_call_res rmap mps ret_pos rs =
 let alloc_call local_alloc pmap rmap ini rs fn es = 
   let sao = local_alloc fn in
   let es  = alloc_call_args pmap rmap sao.sao_params es in
-  let (rmap,rs)  = alloc_call_res  rmap es sao.sao_return rs in
+  let (rmap,rs)  = alloc_call_res pmap rmap es sao.sao_return rs in
   let es  = List.map snd es in
   (rmap, Ccall(ini, rs, fn, es))
 
@@ -465,8 +467,7 @@ let init_locals pmap rmap fd =
   let fv = Sv.diff fv (Sv.of_list params) in
   let pmap = ref pmap in
   let rmap = ref rmap in
-  let posi = ref Mv.empty in
-  let add_param i x =
+  let add_param x =
     match x.v_kind with
     | Reg (Pointer writable) ->
       assert (is_ty_arr x.v_ty);
@@ -478,14 +479,13 @@ let init_locals pmap rmap fd =
         mp_writable = Info.init (writable=Writable) false; } in
       pmap := Mv.add x (Pmem mp) !pmap;
       rmap := Region.rset_word !rmap x mp;
-      posi := Mv.add x i !posi;
       Some mp
     | Reg Direct -> 
       None
     | _ -> hierror "kind of %a should be reg of reg ptr" 
              (Printer.pp_var ~debug:false) x in
 
-  let paramsi = List.mapi add_param params in
+  let paramsi = List.map add_param params in
 
   let has_stack = ref false in
   let add_local x = 
@@ -517,33 +517,36 @@ let init_locals pmap rmap fd =
     | _ -> assert false
   in
   Sv.iter add_local fv;
-  !posi, paramsi, !pmap, !rmap, fv, !has_stack
+  paramsi, !pmap, !rmap, fv, !has_stack
 
 (* ---------------------------------------------------------- *)
 
 let alloc_fd local_alloc pmap rmap fd =
   try 
-  let posi, paramsi, pmap, rmap, locals, sao_has_stack = 
+  let sao_return = 
+    match fd.f_cc with
+    | Export -> List.map (fun _ -> None) fd.f_ret 
+    | Subroutine {returned_params} -> returned_params
+    | Internal -> assert false in
+
+  let paramsi, pmap, rmap, locals, sao_has_stack = 
     init_locals pmap rmap fd in
   let rmap, f_body = alloc_c local_alloc pmap rmap fd.f_body in
   
-  let do_res x =
+  let do_res x oi=
     let xv = L.unloc x in
-    match xv.v_kind with
-    | Reg Direct -> 
-      None, Some x
-    | Reg (Pointer _) ->
+    match xv.v_kind, oi with
+    | Reg Direct, None -> x
+    | Reg (Pointer _), Some i ->
       let mp = Region.check_valid rmap x in
-      if not (V.equal xv mp.mp_s) then
+      let mpi = oget (List.nth paramsi i) in
+      if not (V.equal mpi.mp_s mp.mp_s) then
         hierror "invalid reg ptr %a" pp_var x;
-      let i = 
-        try Mv.find xv posi 
-        with Not_found -> assert false in
-      Some i, None
+      let pk = get_pk pmap x in
+      mk_addr x pk
     | _ -> assert false in
 
-  let sao_return, ret = List.split (List.map do_res fd.f_ret) in
-  let f_ret = List.filter_map (fun x -> x) ret in
+  let f_ret = List.map2 do_res fd.f_ret sao_return in
   
   let do_arg o x = 
     match o with
