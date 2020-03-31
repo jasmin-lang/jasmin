@@ -694,23 +694,6 @@ Definition add_err_fun (A : Type) (f : funname) (r : cexec A) :=
   | Error e => Error (Ferr_fun f e)
   end.
 
-(*
-Definition stack_alloc_trans_fd rip nstk (p: _uprog) mglob fn sz al (fd: _ufundef) : cfexec _ufundef :=
-  let vrip := {| vtype := sword Uptr; vname := rip |} in
-  let vrsp := {| vtype := sword Uptr; vname := nstk |} in
-  Let mstk := init_local_map vrip vrsp fn sz al in
-  let: (lmap, rmap, sv) := mstk in
-  let pmap := {|
-        vrip    := vrip;
-        vrsp    := vrsp;
-        globals := mglob;
-        locals  := lmap;
-        vnew    := sv;
-      |} in
-  Let body := add_finfo fn fn (fmapM (alloc_i pmap p) rmap fd.(f_body)) in
-  Let _ := add_err_fun fn (mapM (fun (x:var_i) => check_var pmap x) fd.(f_res)) in
-  ok (with_body fd body.2).
-*)
 (** For each function, the oracle returns:
   - the size of the stack block;
   - an allocation for local variables;
@@ -751,7 +734,7 @@ Definition check_results pmap rmap params oi res :=
   ok (seq.pmap id res).               
 
 Definition init_param accu pi (x:var_i) := 
-  let: (disj, rmap) := accu in
+  let: (disj, lmap, rmap) := accu in
   match pi with
   | None => ok (accu, (None, x))
   | Some pi => 
@@ -759,12 +742,15 @@ Definition init_param accu pi (x:var_i) :=
     Let _ := assert (~~Sv.mem pi.(pp_ptr) disj) (Cerr_stk_alloc "duplicate region: please report") in
     let mp := 
       {| mp_s := pi.(pp_ptr); mp_ofs := 0; mp_align := pi.(pp_align); mp_writable := pi.(pp_writable) |} in
-    ok ((Sv.add pi.(pp_ptr) disj, rset_word rmap x mp), (Some mp, with_var x pi.(pp_ptr)))
+    ok (Sv.add pi.(pp_ptr) disj, 
+        Mvar.set lmap x (Pregptr pi.(pp_ptr)),
+        rset_word rmap x mp, 
+        (Some mp, with_var x pi.(pp_ptr)))
   end. 
 
-Definition init_params vrip vrsp rmap sao_params params :=
+Definition init_params vrip vrsp lmap rmap sao_params params :=
   fmapM2 (Cerr_stk_alloc "invalid function info:please report")
-    init_param (Sv.add vrip (Sv.singleton vrsp), rmap) sao_params params.
+    init_param (Sv.add vrip (Sv.singleton vrsp), lmap, rmap) sao_params params.
    
 Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) sao (f: _ufun_decl) : cfexec _ufundef :=
   let: (fn, fd) := f in
@@ -774,8 +760,8 @@ Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_
   let: (lmap, rmap, sv) := mstk in
   (* adding params to the map *)
   Let rparams := 
-    add_err_fun fn (init_params vrip vrsp rmap sao.(sao_params) fd.(f_params)) in
-  let: (_, rmap, alloc_params) := rparams in
+    add_err_fun fn (init_params vrip vrsp lmap rmap sao.(sao_params) fd.(f_params)) in
+  let: (_, lmap, rmap, alloc_params) := rparams in
   let paramsi := map fst alloc_params in
   let params : seq var_i := map snd alloc_params in
   let pmap := {|
