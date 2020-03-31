@@ -632,16 +632,17 @@ let greedy_allocation
   done;
   !a
 
-let subst_of_allocation (vars: int Hv.t)
-    (a: allocation) (v: var_i) : expr =
-  let m = L.loc v in
-  let v = L.unloc v in
-  let q x = gkvar (L.mk_loc m x) in
+let var_subst_of_allocation (vars: int Hv.t)
+    (a: allocation) (v: var) : var =
   try
     let i = Hv.find vars v in
-    let w = IntMap.find i a in
-    Pvar (q w)
-  with Not_found -> Pvar (q v)
+    IntMap.find i a
+  with Not_found -> v
+
+let subst_of_allocation vars a v : expr =
+  let m = L.loc v in
+  let v = L.unloc v in
+  Pvar (gkvar (L.mk_loc m (var_subst_of_allocation vars a v)))
 
 let reverse_varmap (vars: int Hv.t) : var IntMap.t =
   Hv.fold (fun v i m -> IntMap.add i v m) vars IntMap.empty
@@ -666,10 +667,10 @@ let is_subroutine = function
   | Subroutine _ -> true
   | _            -> false
 
-let post_process ~stack_needed (f: _ func) : _ func * Sv.t * var option * var option =
+let post_process ~stack_needed (live: Sv.t) (f: _ func) : _ func * Sv.t * var option * var option =
   let fv = vars_fc f in
   let allocatable = X64.allocatables in
-  let free_regs = Sv.diff allocatable fv in
+  let free_regs = Sv.diff allocatable (Sv.union live fv) in
   (* choose a register for the return address *)
   let free_regs, ra =
     if is_subroutine f.f_cc then
@@ -706,7 +707,7 @@ let collect_call_sites (cb: funname -> Sv.t -> unit) (f: (Sv.t * Sv.t) func) : u
   and collect_stmt s = List.iter collect_instr s in
   collect_stmt f.f_body
 
-let global_allocation translate_var (funcs: 'info func list) : unit func list =
+let global_allocation translate_var (funcs: 'info func list) : unit func list * (funname -> Sv.t) * (var -> var) =
   (* Preprocessing of functions:
     - ensure all variables are named (no anonymous assign)
     - split live ranges (caveat: do not forget to remove φ-nodes at the end)
@@ -722,18 +723,21 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list =
   in
   let funcs : unit func list = List.map preprocess funcs in
   (* Live variables at the end of each function, in addition to returned local variables *)
-  let live : Sv.t Hf.t = Hf.create 17 in
-  let collect_call_sites _fn f =
-    collect_call_sites (fun fn s -> Hf.modify_def s fn (Sv.union s) live) f
+  let get_liveness =
+    let live : Sv.t Hf.t = Hf.create 17 in
+    let collect_call_sites _fn f =
+      collect_call_sites (fun fn s -> Hf.modify_def s fn (Sv.union s) live) f
+    in
+    Hf.iter collect_call_sites liveness_table;
+    fun fn -> Hf.find_default live fn Sv.empty
   in
-  Hf.iter collect_call_sites liveness_table;
   let excluded = Sv.of_list [Prog.rip; X64.rsp] in
   let vars, nv = collect_variables_in_prog ~allvars:false excluded funcs in
   let eqc, tr, fr = collect_equality_constraints_in_prog "Regalloc" x86_equality_constraints vars nv funcs in
   let vars = normalize_variables vars eqc in
   let conflicts =
     Hf.fold (fun fn lf conflicts ->
-        collect_conflicts (Hf.find_default live fn Sv.empty) vars tr lf conflicts
+        collect_conflicts (get_liveness fn) vars tr lf conflicts
       )
       liveness_table
       IntMap.empty
@@ -742,7 +746,9 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list =
   let a = greedy_allocation vars nv conflicts fr a in
   let subst = subst_of_allocation vars a in
 
-  List.map (fun f -> f |> Subst.subst_func subst |> Ssa.remove_phi_nodes) funcs
+  List.map (fun f -> f |> Subst.subst_func subst |> Ssa.remove_phi_nodes) funcs,
+  get_liveness,
+  var_subst_of_allocation vars a
 
 type reg_oracle_t = {
     ro_to_save: var list;  (* TODO: allocate them in the stack rather than push/pop *)
@@ -752,12 +758,15 @@ type reg_oracle_t = {
 
 let alloc_prog translate_var (has_stack: 'a -> bool) (dfuncs: ('a * 'info func) list) : ('a * reg_oracle_t * unit func) list =
   let extra : 'a Hf.t = Hf.create 17 in
-  dfuncs
-  |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
-  |> global_allocation translate_var
-  |> List.map (fun f ->
-         let e = Hf.find extra f.f_name in
-         let stack_needed = has_stack e in
-         let f, to_save, ro_rsp, ro_return_address = post_process ~stack_needed f in
-         e, { ro_to_save = Sv.elements to_save ; ro_rsp ; ro_return_address }, f
-       )
+  let funcs, get_liveness, subst =
+    dfuncs
+    |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
+    |> global_allocation translate_var
+  in
+  List.map (fun f ->
+      let e = Hf.find extra f.f_name in
+      let stack_needed = has_stack e in
+      let f, to_save, ro_rsp, ro_return_address = post_process ~stack_needed (Sv.map subst (get_liveness f.f_name)) f in
+      e, { ro_to_save = Sv.elements to_save ; ro_rsp ; ro_return_address }, f
+    )
+    funcs
