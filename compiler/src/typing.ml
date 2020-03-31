@@ -1156,34 +1156,6 @@ let check_lval_pointer loc x =
   | P.Lvar x when P.is_ptr (L.unloc x).P.v_kind -> () 
   | _ -> rs_tyerror ~loc (NotAPointer x)
 
-let extra_ret es xs = 
-  let rec aux extra es xs = 
-    match es, xs with
-    | [], [] -> List.rev extra
-    | e::es, x::xs ->
-      let extra =
-        match x.P.v_kind with
-        | P.Const | P.Global | P.Inline -> extra
-        | P.Stack Direct | P.Reg Direct -> extra
-        | P.Stack (Pointer _) | P.Reg (Pointer _) -> 
-          let loc = L.loc e in
-          let e = L.unloc e in
-          let y = 
-            match e with
-            | P.Pvar y -> 
-              if not (P.is_gkvar y) then
-                 rs_tyerror ~loc (BadVariableKind x.v_kind);
-              let y = y.P.gv in
-(*              if x.v_kind <> (L.unloc y).v_kind then 
-                rs_tyerror ~loc (BadVariableKind x.v_kind);  *)
-              y
-            | _ -> rs_tyerror ~loc ArgumentNotVar
-            in
-            P.Lvar y::extra in
-      aux extra es xs
-    | _, _ -> assert false in
-  aux [] es xs 
-  
 let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
 
   let instr = match L.unloc pi with
@@ -1197,13 +1169,11 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       let _tlvs, tes = f_sig f in
       let lvs = tt_lvalues env ls tlvs in
       let es  = tt_exprs_cast env args tes in
-      let les = List.map2 (fun l e -> L.mk_loc (L.loc l) e) args es in
-      let ptr_lvs = extra_ret les f.P.f_args in
       let is_inline = 
         match f.P.f_cc with 
         | P.Internal -> P.DoInline 
         | P.Export | P.Subroutine _ -> P.NoInline in
-      P.Ccall (is_inline, ptr_lvs@lvs, f.P.f_name, es)
+      P.Ccall (is_inline, lvs, f.P.f_name, es)
 
     | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim f in
@@ -1318,24 +1288,26 @@ let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
   let envb, args = tt_vardecls_push env pf.pdf_args in
   let rty  = odfl [] (omap (List.map (tt_type env |- snd)) pf.pdf_rty) in
   let body, xret = tt_funbody envb pf.pdf_body in
-  (* add the extra return value *)
-  let ptr_args = List.filter (fun x -> P.is_ptr (L.unloc x).P.v_kind) args in
   let args = List.map L.unloc args in
-  let full_xret = ptr_args @ xret in
-  let returned_params = 
-    List.map (fun x -> Some (oget (List.index_of (L.unloc x) args))) ptr_args @ List.map (fun _ -> None) xret in
-  let full_rty = 
-    List.map (fun x -> (L.unloc x).P.v_ty) ptr_args @ rty in
+  (* Each returend ptr variables must be a parameter *)
+  let returned_params =
+    List.map (fun x ->
+        let x = L.unloc x in
+        if P.is_ptr x.P.v_kind
+        then Some (oget (List.index_of x args))
+        else None
+      ) xret
+  in
 
   let fdef =
     { P.f_loc = loc;
       P.f_cc   = tt_call_conv {returned_params} pf.pdf_cc;
-      P.f_name = P.F.mk (L.unloc pf.pdf_name); 
+      P.f_name = P.F.mk (L.unloc pf.pdf_name);
       P.f_tyin = List.map (fun { P.v_ty } -> v_ty) args;
       P.f_args = args;
       P.f_body = body;
-      P.f_tyout =  full_rty;
-      P.f_ret  = full_xret; } in
+      P.f_tyout =  rty;
+      P.f_ret  = xret; } in
 
   check_sig ~loc:(`IfEmpty (L.loc pf.S.pdf_name)) rty
     (List.map (fun x -> (L.loc x, (L.unloc x).P.v_ty)) xret);
