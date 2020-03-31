@@ -19,6 +19,7 @@ src/PrintLinear
 src/Prog
 src/Puf
 src/Regalloc
+src/RemoveUnusedResults
 src/Ssa
 src/Subst
 src/Syntax
