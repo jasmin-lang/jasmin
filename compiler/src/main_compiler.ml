@@ -199,6 +199,10 @@ let main () =
     end;
 
     (* FIXME: why this is not certified *)
+    let prog = MakeReferenceArguments.doit prog in
+    eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
+
+    (* FIXME: why this is not certified *)
     let prog = Inline_array_copy.doit prog in
 
     (* Generate the coq program if needed *)

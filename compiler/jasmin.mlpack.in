@@ -11,6 +11,7 @@ src/Liveness
 src/Location
 src/Glob_options
 src/Main_compiler
+src/MakeReferenceArguments
 src/Parseio
 src/Parser
 src/Ppasm
