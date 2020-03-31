@@ -177,7 +177,7 @@ Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
 
 Definition compile_prog_to_x86 entries (p: prog): result fun_error xprog :=
   Let lp := compile_prog entries p in
-  Let _ := assert (all (check_signature p lp) entries) Ferr_lowering in
+(*  Let _ := assert (all (check_signature p lp) entries) Ferr_lowering in *)
   assemble_prog lp.
 
 End COMPILER.
