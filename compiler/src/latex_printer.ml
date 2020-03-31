@@ -189,8 +189,12 @@ and pp_arr_access fmt aa ws x e =
     (if aa = Warray_.AAdirect then "." else "")
     (pp_opt pp_ws) ws (pp_opt pp_space) ws pp_expr e 
 
+let pp_writable = function
+  | `Constant -> " const"
+  | `Writable -> ""
+
 let pp_pointer = function
-  | `Pointer -> " ptr"
+  | `Pointer w-> pp_writable w ^ " ptr"
   | `Direct  -> ""
   
   

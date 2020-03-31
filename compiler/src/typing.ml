@@ -286,7 +286,8 @@ let tt_ws (ws : S.wsize) =
 (* -------------------------------------------------------------------- *)
 let tt_pointer (p:S.ptr) : P.pointer = 
   match p with
-  | `Pointer -> P.Pointer
+  | `Pointer `Writable -> P.Pointer P.Writable
+  | `Pointer `Constant -> P.Pointer P.Constant
   | `Direct  -> P.Direct
 
 let tt_sto (sto : S.pstorage) : P.v_kind =
@@ -1164,7 +1165,7 @@ let extra_ret es xs =
         match x.P.v_kind with
         | P.Const | P.Global | P.Inline -> extra
         | P.Stack Direct | P.Reg Direct -> extra
-        | P.Stack Pointer | P.Reg Pointer -> 
+        | P.Stack (Pointer _) | P.Reg (Pointer _) -> 
           let loc = L.loc e in
           let e = L.unloc e in
           let y = 

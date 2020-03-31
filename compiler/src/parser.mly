@@ -31,6 +31,7 @@
 %token BANGEQ
 %token COLON
 %token COMMA
+%token CONSTANT
 %token DOT
 %token DOWNTO
 %token ELSE
@@ -51,6 +52,7 @@
 %token <Syntax.sign> LT
 %token               LTLT
 %token MINUS
+%token MUTABLE
 %token PARAM
 %token PERCENT
 %token PIPE
@@ -310,8 +312,19 @@ pblock:
 stor_type:
 | sto=storage ty=ptype { (sto, ty) }
 
+writable:
+| CONSTANT    {`Constant }
+| MUTABLE     {`Writable } 
+
+pointer:
+| o=writable? POINTER { Utils.odfl `Writable o }
+
 ptr:
-| o=POINTER? { if o = None then `Direct else `Pointer}
+| o=pointer? { 
+   match o with 
+   | Some w -> `Pointer w
+   | None   -> `Direct 
+   } 
 
 storage:
 | REG    ptr=ptr { `Reg ptr}

@@ -270,8 +270,8 @@ let get_addr rmap x dx y =
     if is_gkvar y then
       match (L.unloc yv).v_kind with
       | Stack Direct  -> lea_ptr dx py
-      | Stack Pointer -> mov_ptr dx (Pload(U64, py,icnst 0))
-      | Reg Pointer   -> mov_ptr dx (Pvar (gkvar py))
+      | Stack (Pointer _) -> mov_ptr dx (Pload(U64, py,icnst 0))
+      | Reg (Pointer _)  -> mov_ptr dx (Pvar (gkvar py))
       | _ -> assert false 
     else lea_ptr dx py in
   (rmap, i)
@@ -292,9 +292,9 @@ let alloc_array_move pmap rmap r e =
           hierror "invalid move: check alias";
         let rmap = Region.set rmap x mpy in
         (rmap, nop)
-      | Stack Pointer ->
+      | Stack (Pointer _)->
         get_addr rmap x (Lmem(U64, mk_addr x pk, icnst 0)) y
-      | Reg Pointer ->
+      | Reg (Pointer _) ->
         get_addr rmap x (Lvar (mk_addr x pk)) y
       | _ -> assert false 
       end          
@@ -333,7 +333,7 @@ let alloc_call_arg pmap rmap sao_param e =
       hierror "%a should be a reg ptr" pp_var xv;
 
     | Some pi, Some pk -> 
-      if k <> Reg Pointer then
+      if not (is_reg_ptr_kind k) then
          hierror "%a should be a reg ptr" pp_var xv;
       let mp = Region.check_valid rmap xv in
       Region.set_align xv mp pi.pi_align;
@@ -468,14 +468,14 @@ let init_locals pmap rmap fd =
   let posi = ref Mv.empty in
   let add_param i x =
     match x.v_kind with
-    | Reg Pointer ->
+    | Reg (Pointer writable) ->
       assert (is_ty_arr x.v_ty);
       let xp = V.mk x.v_name (Reg Direct) (tu uptr) x.v_dloc in
       let mp = {
         mp_s = x;
         mp_p = xp;
         mp_align = Info.init U8 true;
-        mp_writable = Info.init false true; } in
+        mp_writable = Info.init (writable=Writable) false; } in
       pmap := Mv.add x (Pmem mp) !pmap;
       rmap := Region.rset_word !rmap x mp;
       posi := Mv.add x i !posi;
@@ -500,7 +500,7 @@ let init_locals pmap rmap fd =
       has_stack := true;
       pmap := Mv.add x (Pmem mp) !pmap;
       rmap := Region.rset_word !rmap x mp
-    | Stack Pointer ->
+    | Stack (Pointer _) ->
       let mp = {
         mp_s = x;
         mp_p = rsp;
@@ -511,7 +511,7 @@ let init_locals pmap rmap fd =
       pmap := Mv.add x (Pmem mp) !pmap
     | Reg Direct ->
       ()
-    | Reg Pointer -> 
+    | Reg (Pointer _) -> 
       let xp = V.mk x.v_name (Reg Direct) (tu uptr) x.v_dloc in
       pmap := Mv.add x (Pregptr xp) !pmap
     | _ -> assert false
@@ -532,7 +532,7 @@ let alloc_fd local_alloc pmap rmap fd =
     match xv.v_kind with
     | Reg Direct -> 
       None, Some x
-    | Reg Pointer ->
+    | Reg (Pointer _) ->
       let mp = Region.check_valid rmap x in
       if not (V.equal xv mp.mp_s) then
         hierror "invalid reg ptr %a" pp_var x;
@@ -620,7 +620,7 @@ let init_alloc xmem pmap =
     | Pmem mp ->
       assert (V.equal mp.mp_p xmem);
       let ws, s = 
-        if x.v_kind = Stack Pointer then uptr, size_of_ws uptr
+        if is_stk_ptr_kind x.v_kind then uptr, size_of_ws uptr
         else
           let ws = Info.info mp.mp_align in
           let s = 
@@ -658,7 +658,7 @@ let alloc_stack pmap extra =
 
   let mk_pos x pos ws = 
     let dest = 
-      if x.v_kind = Stack Pointer then Pstkptr pos
+      if is_stk_ptr_kind x.v_kind then Pstkptr pos
       else Pstack(pos, ws) in
     alloc := (x, dest) :: !alloc in
 

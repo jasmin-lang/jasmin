@@ -20,7 +20,8 @@ type base_ty =
 
   [@@deriving compare,sexp]
 
-type pointer = Direct | Pointer
+type writable = Constant | Writable
+type pointer = Direct | Pointer of writable
 
 type v_kind =
   | Const             (* global parameter  *)
@@ -75,9 +76,12 @@ val tu    : wsize -> 'e gty
 val tint  : 'e gty
 val tbool : 'e gty
 
-val is_stack_kind : v_kind -> bool
-val is_reg_kind   : v_kind -> bool
-val is_ptr        : v_kind -> bool
+val is_stack_kind   : v_kind -> bool
+val is_reg_kind     : v_kind -> bool
+val is_ptr          : v_kind -> bool
+val is_reg_ptr_kind : v_kind -> bool
+val is_stk_ptr_kind : v_kind -> bool
+
 
 (* ------------------------------------------------------------------------ *)
 

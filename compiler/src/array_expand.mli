@@ -1,9 +1,10 @@
 open Prog
 
-val vstack : var
+(* val vstack : var *)
 
 val arrexp_func : 'info func -> 'info func
 
+(*
 type param_info = { 
   pp_ptr      : var;
   pp_writable : bool;
@@ -22,3 +23,4 @@ val stk_alloc_func :
 
 val init_glob : 'info prog ->
       Ssralg.GRing.ComRing.sort list * (Prog.var * (int * Wsize.wsize)) list
+ *)

@@ -175,7 +175,8 @@ and ptype_r = TBool | TInt | TWord of wsize | TArray of wsize * pexpr
 and ptype   = ptype_r L.located
 
 (* -------------------------------------------------------------------- *)
-type ptr      = [`Pointer | `Direct ]
+type writable = [`Constant | `Writable]
+type ptr      = [`Pointer of writable | `Direct ]
 type pstorage = [ `Reg of ptr | `Stack of ptr | `Inline | `Global]
 
 (* -------------------------------------------------------------------- *)

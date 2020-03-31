@@ -235,10 +235,13 @@ and pp_cblock pp_info pp_ty pp_var fmt c =
   F.fprintf fmt "{@   %a@ }" (pp_gc pp_info pp_ty pp_var) c
 
 (* -------------------------------------------------------------------- *)
+let pp_writable fmt = function
+  | Constant -> Format.fprintf fmt " const"
+  | Writable -> Format.fprintf fmt " mut"
 
 let pp_pointer fmt = function
   | Direct  -> ()
-  | Pointer -> Format.fprintf fmt " ptr"
+  | Pointer w -> Format.fprintf fmt "%a ptr" pp_writable w
 
 let pp_kind fmt = function
   | Const     ->  F.fprintf fmt "Const"

@@ -257,9 +257,6 @@ let main () =
     let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef tbl (fn,cfd) in
     let cufdef_of_fdef fd = snd (Conv.cufdef_of_fdef tbl fd) in
 
- (*   let fdef_of_csfdef fn cfd = Conv.fdef_of_csfdef tbl (fn,cfd) in
-    let csfdef_of_fdef fd = snd (Conv.csfdef_of_fdef tbl fd) in
-  *)
     let apply msg trans fn cfd =
       if !debug then Format.eprintf "START %s@." msg;
       let fd = fdef_of_cufdef fn cfd in
@@ -268,15 +265,16 @@ let main () =
       cufdef_of_fdef fd in
 
     let translate_var = Conv.var_of_cvar tbl in
-
-    let stack_analysis up : Compiler.stack_alloc_oracles =
+    
+    let memory_analysis up : Compiler.stack_alloc_oracles =
       let open StackAlloc in
       let open Regalloc in
-      if !debug then Format.eprintf "START global analysis@.";
+      if !debug then Format.eprintf "START memory analysis@.";
       let p = Conv.prog_of_cuprog tbl up in
       let pmap, fds = StackAlloc.alloc_prog p in
-      Format.eprintf "After stackAlloc@.%a@."
-        (Printer.pp_prog ~debug:true) ([], (List.map snd fds));
+      if !debug then
+        Format.eprintf "After memory analysis@.%a@."
+          (Printer.pp_prog ~debug:true) ([], (List.map snd fds));
       let fds = Regalloc.alloc_prog translate_var (fun sao -> sao.sao_has_stack) fds in
       let atbl = Hf.create 117 in 
       let mk_oas (sao, ro, fd) = 
@@ -330,6 +328,7 @@ let main () =
     in
 
     let global_regalloc sp = 
+      if !debug then Format.eprintf "START regalloc@.";
       let (fds,_data) = Conv.prog_of_csprog tbl sp in
       let fds = List.map (fun (x,y) -> y,x) fds in
       let fds = 
@@ -409,9 +408,9 @@ let main () =
       Compiler.expand_fd    = apply "arr exp" Array_expand.arrexp_func;
       Compiler.var_alloc_prog = (*apply "var alloc" *) var_alloc_prog;
       Compiler.share_stk_prog = (*apply "share stk" *) share_stk_prog;
-      Compiler.stk_pointer_name = Var0.Var.vname (Conv.cvar_of_var tbl Array_expand.vstack);
+      Compiler.stk_pointer_name = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rsp);
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
-      Compiler.global_analysis = stack_analysis;
+      Compiler.stackalloc    = memory_analysis;
       Compiler.regalloc      = global_regalloc;
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;

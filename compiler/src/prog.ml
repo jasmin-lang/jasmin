@@ -21,7 +21,8 @@ type base_ty =
   | U   of wsize (* U(n): unsigned n-bit integer *)
   [@@deriving compare,sexp]
 
-type pointer = Direct | Pointer
+type writable = Constant | Writable
+type pointer = Direct | Pointer of writable
 
 type v_kind =
   | Const            (* global parameter  *)
@@ -89,9 +90,19 @@ let is_reg_kind k =
   | Reg _ -> true
   | _     -> false
 
+let is_reg_ptr_kind k = 
+  match k with
+  | Reg (Pointer _) -> true
+  | _ -> false
+
+let is_stk_ptr_kind k = 
+  match k with
+  | Stack (Pointer _) -> true
+  | _ -> false
+
 let is_ptr k = 
   match k with
-  | Stack k | Reg k -> k = Pointer 
+  | Stack k | Reg k -> k <> Direct 
   | _ -> false
 
 (* ------------------------------------------------------------------------ *)

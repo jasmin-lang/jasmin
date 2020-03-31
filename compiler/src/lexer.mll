@@ -23,7 +23,8 @@
     "bool"  , T_BOOL ;
     "int"   , T_INT  ;
 
-    "align" , ALIGN  ;  
+    "align" , ALIGN  ;
+    "const" , CONSTANT;    
     "downto", DOWNTO ;
     "else"  , ELSE   ;
     "exec"  , EXEC   ;
@@ -33,6 +34,7 @@
     "global", GLOBAL ;
     "if"    , IF     ;
     "inline", INLINE ;
+    "mut"   , MUTABLE;
     "param" , PARAM  ;
     "ptr"   , POINTER;
     "reg"   , REG    ;

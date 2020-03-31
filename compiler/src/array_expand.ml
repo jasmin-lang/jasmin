@@ -93,7 +93,7 @@ let arrexp_func fc =
 
 (* The variables are allocated in decreasing order of (base) size;
    this ensures that the alignment constraints are satisfied. *)
-
+(*
 let is_stack_k_var pkind x = x.v_kind = Stack pkind 
 
 let add_var tbl ws x = 
@@ -331,3 +331,4 @@ let init_glob (globs, funcs) =
   let alloc = List.map init_var vars in
   let data = List.rev !data in
   data, alloc
+ *)
