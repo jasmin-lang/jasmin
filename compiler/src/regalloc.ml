@@ -694,19 +694,6 @@ let post_process ~stack_needed (live: Sv.t) (f: _ func) : _ func * Sv.t * var op
       to_save, None in
   f, to_save, stk, ra
 
-let collect_call_sites (cb: funname -> Sv.t -> unit) (f: (Sv.t * Sv.t) func) : unit =
-  let rec collect_instr_r ii =
-    function
-    | (Cassgn _ | Copn _) -> ()
-    | (Cif (_, s1, s2) | Cwhile (_, s1, _, s2)) -> collect_stmt s1; collect_stmt s2
-    | Cfor (_, _, s) -> collect_stmt s
-    | Ccall (_, xs, fn, _) ->
-       let d = Liveness.dep_lvs (snd ii) xs in
-       cb fn d
-  and collect_instr { i_info ; i_desc } = collect_instr_r i_info i_desc
-  and collect_stmt s = List.iter collect_instr s in
-  collect_stmt f.f_body
-
 let global_allocation translate_var (funcs: 'info func list) : unit func list * (funname -> Sv.t) * (var -> var) =
   (* Preprocessing of functions:
     - ensure all variables are named (no anonymous assign)
@@ -726,7 +713,7 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
   let get_liveness =
     let live : Sv.t Hf.t = Hf.create 17 in
     let collect_call_sites _fn f =
-      collect_call_sites (fun fn s -> Hf.modify_def s fn (Sv.union s) live) f
+      Liveness.iter_call_sites (fun fn s -> Hf.modify_def s fn (Sv.union s) live) f
     in
     Hf.iter collect_call_sites liveness_table;
     fun fn -> Hf.find_default live fn Sv.empty

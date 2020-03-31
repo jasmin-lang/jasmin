@@ -89,6 +89,19 @@ let liveness weak prog =
   let fds = List.map (live_fd weak) (snd prog) in
   fst prog, fds
 
+let iter_call_sites (cb: funname -> Sv.t -> unit) (f: (Sv.t * Sv.t) func) : unit =
+  let rec iter_instr_r ii =
+    function
+    | (Cassgn _ | Copn _) -> ()
+    | (Cif (_, s1, s2) | Cwhile (_, s1, _, s2)) -> iter_stmt s1; iter_stmt s2
+    | Cfor (_, _, s) -> iter_stmt s
+    | Ccall (_, xs, fn, _) ->
+       let d = dep_lvs (snd ii) xs in
+       cb fn d
+  and iter_instr { i_info ; i_desc } = iter_instr_r i_info i_desc
+  and iter_stmt s = List.iter iter_instr s in
+  iter_stmt f.f_body
+
 let pp_info fmt (s1, s2) =
   Format.fprintf fmt "before: %a; after %a@ "
     (Printer.pp_list " " (Printer.pp_var ~debug:true)) (Sv.elements s1)
