@@ -199,8 +199,10 @@ let collect_equality_constraints_in_func
         let g = get_func fn in
         List.iter2 (fun a p -> addv ii (get_Pvar a) Location.(mk_loc _dummy p))
           es g.f_args;
+        Format.eprintf "ICI@.";
         List.iter2 (fun r x -> addv ii r (get_Lvar x))
-          g.f_ret xs
+          g.f_ret xs;
+        Format.eprintf "La@."
       end
     | (Cwhile (_, s1, _, s2) | Cif (_, s1, s2)) -> collect_stmt s1; collect_stmt s2
   and collect_instr ({ i_desc } as i) = collect_instr_r i i_desc

@@ -428,13 +428,13 @@ let prog_of_cuprog tbl p =
   List.map (fdef_of_cufdef tbl) p.C.p_funcs
 
 
-let csfdef_of_fdef tbl ((fd,fe):'info sfundef) =
+let csfdef_of_fdef tbl ((fe,fd):'info sfundef) =
   let fn, fd = cufdef_of_fdef tbl fd in
   fn, { fd with C.f_extra = fe }
 
 let fdef_of_csfdef tbl (fn, fd) =
   let fd' = fdef_of_cufdef tbl (fn, fd) in
-  fd', fd.C.f_extra
+  fd.C.f_extra, fd'
 
 let prog_of_csprog tbl p =
   List.map (fdef_of_csfdef tbl) p.C.p_funcs, p.C.p_extra

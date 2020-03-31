@@ -275,7 +275,13 @@ let main () =
       if !debug then
         Format.eprintf "After memory analysis@.%a@."
           (Printer.pp_prog ~debug:true) ([], (List.map snd fds));
+      let fds = RemoveUnusedResults.doit fds in
+      if !debug then
+        Format.eprintf "After remove unused return @.%a@."
+          (Printer.pp_prog ~debug:true) ([], (List.map snd fds));
+      (* Add dead code *)
       let fds = Regalloc.alloc_prog translate_var (fun sao -> sao.sao_has_stack) fds in
+
       let atbl = Hf.create 117 in 
       let mk_oas (sao, ro, fd) = 
         let extra =
@@ -330,13 +336,12 @@ let main () =
     let global_regalloc sp = 
       if !debug then Format.eprintf "START regalloc@.";
       let (fds,_data) = Conv.prog_of_csprog tbl sp in
-      let fds = List.map (fun (x,y) -> y,x) fds in
       let fds = 
         Regalloc.alloc_prog translate_var (fun extra ->
             match extra.Expr.sf_save_stack with
             | Expr.SavedStackReg _ | Expr.SavedStackStk _ -> true
             | Expr.SavedStackNone -> false) fds in
-      let fds = List.map (fun (y,_,x) -> x,y) fds in
+      let fds = List.map (fun (y,_,x) -> y, x) fds in
       let fds = List.map (Conv.csfdef_of_fdef tbl) fds in
       Expr.({
         p_funcs = fds;
@@ -405,8 +410,7 @@ let main () =
 
     let removereturn sp = 
       let (fds,_data) = Conv.prog_of_csprog tbl sp in
-      let fds' = RemoveUnusedResults.doit (List.map fst fds) in 
-      let fds = List.map2 (fun fd (_, ex) -> fd,ex) fds' fds in
+      let fds = RemoveUnusedResults.doit fds in 
       let fds = List.map (Conv.csfdef_of_fdef tbl) fds in
       Expr.({
         p_funcs = fds;

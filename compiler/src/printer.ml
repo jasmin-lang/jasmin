@@ -410,7 +410,7 @@ let pp_sprog ~debug tbl fmt ((funcs, p_extra):'info Prog.sprog) =
       B.pp_print (Conv.bi_of_z f_extra.Expr.sf_stk_sz)
       (pp_list ",@ " (fun fmt x -> pp_var fmt (Conv.var_of_cvar tbl x))) (f_extra.Expr.sf_to_save)
       (pp_saved_stack tbl ~debug) (f_extra.Expr.sf_save_stack) in
-  let pp_fun fmt (f,f_extra) = 
+  let pp_fun fmt (f_extra,f) = 
     Format.fprintf fmt "@[<v>%a@ %a]" pp_f_extra f_extra (pp_fun pp_var) f in
   let pp_p_extra fmt p_extra = 
     Format.fprintf fmt "global data:@    %a" pp_datas p_extra.Expr.sp_globs in

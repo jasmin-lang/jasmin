@@ -8,4 +8,4 @@ returned values that are never used by the callers.
 FIXME: this assumes that the program never calls export functions.
 
 *)
-val doit : 'info func list -> 'info func list
+val doit : ('a * 'info func) list -> ('a * 'info func) list
