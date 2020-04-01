@@ -8,6 +8,20 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (* -------------------------------------------------------------------- *)
+Lemma xreg_of_varI ii x y :
+  xreg_of_var ii x = ok y →
+  match y with
+  | Reg r => register_of_var x = Some r
+  | XMM r => xmm_register_of_var x = Some r
+  | _ => False
+  end.
+Proof.
+  rewrite /xreg_of_var.
+  case: xmm_register_of_var; last case: register_of_var; last by [].
+  all: by move => r [<-].
+Qed.
+
+(* -------------------------------------------------------------------- *)
 Lemma inj_rflag_of_var ii x y v :
      rflag_of_var ii x = ok v
   -> rflag_of_var ii y = ok v

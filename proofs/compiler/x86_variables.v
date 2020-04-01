@@ -457,6 +457,11 @@ Definition addr_of_pexpr ii s (e: pexpr) :=
     cierror ii (Cerr_assembler (AsmErr_string "Invalid address expression"))
   end.
 
+Definition xreg_of_var ii (x: var) : ciexec asm_arg :=
+  if xmm_register_of_var x is Some r then ok (XMM r)
+  else if register_of_var x is Some r then ok (Reg r)
+  else cierror ii (Cerr_assembler (AsmErr_string "Not a (x)register")).
+
 Definition assemble_word ii (sz:wsize) max_imm (e:pexpr) :=
   match e with
   | Papp1 (Oword_of_int sz') (Pconst z) =>
@@ -470,10 +475,7 @@ Definition assemble_word ii (sz:wsize) max_imm (e:pexpr) :=
                 (ii, Cerr_assembler (AsmErr_string "Invalid pexpr for oprd: out of bound constant")) in
       ciok (Imm w)
     end
-  | Pvar x =>
-    if xmm_register_of_var x is Some r then ok (XMM r)
-    else Let s := reg_of_var ii x in
-    ok (Reg s)
+  | Pvar x => xreg_of_var ii x
   | Pglobal g =>
     ok (Glob g)
   | Pload sz' v e =>
