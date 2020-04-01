@@ -200,11 +200,11 @@ Lemma compile_prog_to_x86P entries (p: prog) (xp: xprog) m1 fn va m2 vr :
     mapM2 ErrType truncate_val (f_tyin fd) va = ok va' ∧
   ∃ fd', get_fundef xp.(xp_funcs) fn = Some fd' ∧
   ∀ st1,
-    List.Forall2 value_uincl va' (get_reg_values st1 fd'.(xfd_arg)) →
+    List.Forall2 value_uincl va' (get_arg_values st1 fd'.(xfd_arg)) →
     st1.(xmem) = m1' →
   ∃ st2,
     x86sem_fd xp wrip fn st1 st2 ∧
-    List.Forall2 value_uincl vr (get_reg_values st2 fd'.(xfd_res)) ∧
+    List.Forall2 value_uincl vr (get_arg_values st2 fd'.(xfd_res)) ∧
     extend_mem m2 st2.(xmem) wrip xp.(xp_globs).
 Proof.
 apply: rbindP=> lp hlp; t_xrbindP => /= _ /assertP /allP ok_sig hxp hfn hsem m1' rip Hex hsafe.
