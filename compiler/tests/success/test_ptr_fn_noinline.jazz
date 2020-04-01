@@ -1,11 +1,28 @@
-fn init (reg ptr u64[3] p) -> reg ptr u64[3] {
+fn init (reg ptr u64[3] p) -> reg ptr u64[3]  {
    inline int i;
    for i = 0 to 3 {
       p[i] = 0;
    }
-   return p;
+  return p; 
 }
 
+fn set (reg ptr u64[3] p) -> reg u64 {
+   reg u64 r;
+   p[0] = 1;
+   r = p[1];
+   return r;
+}
+
+
+// u64[3] g = {0,1,2};
+/*
+export fn test () {
+  reg ptr u64[3] ps;
+  ps = g;
+  ps = init(ps);
+}
+*/
+/*
 export fn foo1() -> reg u64 {
   stack u64[3] s;
   reg ptr u64[3] ps;
@@ -49,7 +66,8 @@ export fn foo3() -> reg u64 {
   }
   return r;
 }
-
+*/
+/*
 export fn foo4() -> reg u64 {
   stack u64[3] s;
   reg u64 r;
@@ -62,4 +80,18 @@ export fn foo4() -> reg u64 {
   }
   return r;
 }
+*/
+
+export fn foo5() -> reg u64 {
+  stack u64[3] s;
+  reg u64 r;
+  inline int i;
+  s = init(s);  
+  r = set(s);
+  r += s[0];
+  return r;
+}
+
+/* check that writable are returned
+   check rsi. */
 
