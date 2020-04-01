@@ -6,11 +6,11 @@ fn init (reg ptr u64[3] p) -> reg ptr u64[3]  {
   return p; 
 }
 
-fn set (reg ptr u64[3] p) -> reg u64 {
+fn set (reg ptr u64[3] p) -> reg ptr u64[3], reg u64 {
    reg u64 r;
    p[0] = 1;
    r = p[1];
-   return r;
+   return (p,r);
 }
 
 
@@ -87,7 +87,7 @@ export fn foo5() -> reg u64 {
   reg u64 r;
   inline int i;
   s = init(s);  
-  r = set(s);
+  s,r = set(s);
   r += s[0];
   return r;
 }
