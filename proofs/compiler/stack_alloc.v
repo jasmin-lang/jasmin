@@ -151,6 +151,10 @@ Definition check_valid (rmap:regions) (x:var) :=
   | None => cerror "no associated region"
   end.
 
+Definition remove rmap mp := 
+  {| var_region  := rmap.(var_region);
+     region_vars := Mmp.remove rmap.(region_vars) mp |}.
+
 Definition rset_word rmap x mp :=
    {| var_region  := Mvar.set rmap.(var_region) x mp;
       region_vars := Mmp.set rmap.(region_vars) mp (Sv.singleton x) |}.
@@ -462,28 +466,6 @@ Definition alloc_array_move rmap r e :=
     end
   end.
  
-Definition fmapM {eT aT bT cT} (f : aT -> bT -> result eT (aT * cT))  : aT -> seq bT -> result eT (aT * seq cT) :=
-  fix mapM a xs :=
-    match xs with
-    | [::] => Ok eT (a, [::])
-    | [:: x & xs] =>
-      Let y := f a x in
-      Let ys := mapM y.1 xs in
-      Ok eT (ys.1, y.2 :: ys.2)
-    end.
-
-Definition fmapM2 {eT aT bT cT dT} (e:eT) (f : aT -> bT -> cT -> result eT (aT * dT)) : 
-   aT -> seq bT -> seq cT -> result eT (aT * seq dT) :=
-  fix mapM a lb lc :=
-    match lb, lc with
-    | [::], [::] => Ok eT (a, [::])
-    | [:: b & bs], [:: c & cs] =>
-      Let y := f a b c in
-      Let ys := mapM y.1 bs cs in
-      Ok eT (ys.1, y.2 :: ys.2)
-    | _, _ => Error e
-    end.
-
 Definition bad_lval_number := Cerr_stk_alloc "invalid number of lval".
 
 Definition alloc_lvals rmap rs tys := 
@@ -596,7 +578,15 @@ Definition alloc_lval_call (mps:seq (option (bool * mem_pos) * pexpr)) rmap (r: 
     end
   end.
 
+Definition remove_writable_arg rmap (mpe: option (bool * mem_pos) * pexpr) := 
+  match mpe.1 with
+  | Some(writable, mp) => if writable then Region.remove rmap mp else rmap
+  | _                  => rmap
+  end.
+
 Definition alloc_call_res rmap mps ret_pos rs := 
+  (* remove form rmap all arguments that are writable *)  
+  let rmap := foldl remove_writable_arg rmap mps in 
   fmapM2 bad_lval_number (alloc_lval_call mps) rmap rs ret_pos.
 
 Definition alloc_call rmap ini rs fn es := 

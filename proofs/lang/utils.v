@@ -411,6 +411,28 @@ Section MAP2.
 
 End MAP2.
 
+Definition fmapM {eT aT bT cT} (f : aT -> bT -> result eT (aT * cT))  : aT -> seq bT -> result eT (aT * seq cT) :=
+  fix mapM a xs :=
+    match xs with
+    | [::] => Ok eT (a, [::])
+    | [:: x & xs] =>
+      Let y := f a x in
+      Let ys := mapM y.1 xs in
+      Ok eT (ys.1, y.2 :: ys.2)
+    end.
+
+Definition fmapM2 {eT aT bT cT dT} (e:eT) (f : aT -> bT -> cT -> result eT (aT * dT)) : 
+   aT -> seq bT -> seq cT -> result eT (aT * seq dT) :=
+  fix mapM a lb lc :=
+    match lb, lc with
+    | [::], [::] => Ok eT (a, [::])
+    | [:: b & bs], [:: c & cs] =>
+      Let y := f a b c in
+      Let ys := mapM y.1 bs cs in
+      Ok eT (ys.1, y.2 :: ys.2)
+    | _, _ => Error e
+    end.
+
 (* Inversion lemmas *)
 (* -------------------------------------------------------------- *)
 Lemma seq_eq_injL A (m n: seq A) (h: m = n) :
