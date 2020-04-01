@@ -1,0 +1,32 @@
+fn aux(reg u256 a b c) -> reg u256, reg u256, reg u256 {
+reg u256 x y z;
+
+x = a ^ b;
+y = a ^ c;
+z = b ^ c;
+
+return x, y, z;
+}
+
+inline
+fn f(reg u256 x y) -> reg u256 {
+reg u256 m n p r;
+
+m = x;
+m, n, p = aux(x, m, y);
+
+r = m ^ p;
+
+return r;
+}
+
+export
+fn main(reg u64 q) {
+reg u256 u v w;
+
+u = (u256)[q + 0];
+v = (u256)[q + 32];
+w = f(u, v);
+
+(u256)[q + 64] = w;
+}
