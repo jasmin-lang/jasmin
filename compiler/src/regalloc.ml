@@ -133,7 +133,6 @@ type 'info collect_equality_constraints_state =
   { mutable cac_friends : friend; mutable cac_eqc: Puf.t ; cac_trace: 'info instr list array }
 
 let collect_equality_constraints_in_func
-      ~(with_returned_params: (funname -> 'info func) option)
       ~(with_call_sites: (funname -> 'info func) option)
       (msg: string)
       (int_of_var: var_i -> int option)
@@ -178,21 +177,6 @@ let collect_equality_constraints_in_func
         match x with
         | Lvar v -> v 
         | _ -> hierror "%s: return destination is not a variable" msg in
-      begin match with_returned_params with
-      | None -> ()
-      | Some get_func ->
-        let g = get_func fn in
-        match g.f_cc with
-        | Subroutine { returned_params } ->
-          List.iter2 (fun i xr -> 
-             match i with
-             | None -> ()
-             | Some i -> 
-               let e = List.nth es i in
-               addv ii (get_Lvar xr) (get_Pvar e)) 
-            returned_params xs
-        | _ -> ()
-      end;
       begin match with_call_sites with
       | None -> ()
       | Some get_func ->
@@ -210,7 +194,6 @@ let collect_equality_constraints_in_func
   collect_stmt f.f_body
 
 let collect_equality_constraints
-    ~with_returned_params
     (msg: string)
     copn_constraints
     (tbl: int Hv.t)
@@ -218,7 +201,7 @@ let collect_equality_constraints
     (f: 'info func) : Puf.t * 'info trace * friend =
   let int_of_var x = Hv.find_option tbl (L.unloc x) in
   let s = { cac_friends = IntMap.empty ; cac_eqc = Puf.create nv ; cac_trace = Array.make nv [] } in
-  collect_equality_constraints_in_func ~with_returned_params ~with_call_sites:None msg int_of_var copn_constraints s f;
+  collect_equality_constraints_in_func ~with_call_sites:None msg int_of_var copn_constraints s f;
   let eqc = s.cac_eqc in
   eqc, normalize_trace eqc s.cac_trace, s.cac_friends
 
@@ -234,7 +217,7 @@ let collect_equality_constraints_in_prog
   let get_var n = Hf.find tbl n in
   let () = List.fold_right (fun f () ->
                Hf.add tbl f.f_name f;
-               collect_equality_constraints_in_func ~with_returned_params:None ~with_call_sites:(Some get_var) msg int_of_var copn_constraints s f)
+               collect_equality_constraints_in_func ~with_call_sites:(Some get_var) msg int_of_var copn_constraints s f)
              f ()
   in
   let eqc = s.cac_eqc in
@@ -650,14 +633,13 @@ let reverse_varmap (vars: int Hv.t) : var IntMap.t =
   Hv.fold (fun v i m -> IntMap.add i v m) vars IntMap.empty
 
 let split_live_ranges (fds: 'info func list) : unit func list =
-  let get fn = 
-    List.find (fun fd -> F.equal fn fd.f_name) fds in
   let doit f = 
     let f = Ssa.split_live_ranges true f in
     Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
     let vars, nv = collect_variables ~allvars:true Sv.empty f in
-    let eqc, _tr, _fr = collect_equality_constraints ~with_returned_params:None
-(*(Some get)*) "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
+    let eqc, _tr, _fr = 
+      collect_equality_constraints
+        "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
     let vars = normalize_variables vars eqc in
     let a =
       reverse_varmap vars |>
