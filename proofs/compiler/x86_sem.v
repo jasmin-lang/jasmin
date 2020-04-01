@@ -384,9 +384,9 @@ Variant saved_stack :=
 Record xfundef := XFundef {
  xfd_stk_size : Z;
  xfd_nstk : register;
- xfd_arg  : seq register;
+ xfd_arg  : asm_args;
  xfd_body : seq asm;
- xfd_res  : seq register;
+ xfd_res  : asm_args;
  xfd_extra : list register * saved_stack;
 }.
 
