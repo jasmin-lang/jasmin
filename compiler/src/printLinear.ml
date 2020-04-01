@@ -80,15 +80,20 @@ let pp_stackframe fmt sz =
   F.fprintf fmt "stack: %a"
     B.pp_print (Conv.bi_of_z sz)
 
+let pp_return tbl is_export fmt =
+  function
+  | [] -> if is_export then F.fprintf fmt "@ return"
+  | res -> F.fprintf fmt "@ return %a" (Pr.pp_list ",@ " (pp_var_i tbl)) res
+
 let pp_lfun tbl fmt (fn, fd) =
   let name = Conv.fun_of_cfun tbl fn in
-  F.fprintf fmt "@[<v>fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ return %a@]@ }@]"
+  F.fprintf fmt "@[<v>fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a%a@]@ }@]"
     name.P.fn_name
     (Pr.pp_list ",@ " (pp_var_i tbl)) fd.lfd_arg
     (Pr.pp_list ",@ " pp_stype) fd.lfd_tyout
     pp_stackframe fd.lfd_stk_size
     (Pr.pp_list ";@ " (pp_instr tbl)) fd.lfd_body
-    (Pr.pp_list ",@ " (pp_var_i tbl)) fd.lfd_res
+    (pp_return tbl fd.lfd_export) fd.lfd_res
 
 let pp_prog tbl fmt lp =
   F.fprintf fmt "@[<v>%a@ @ %a@]"

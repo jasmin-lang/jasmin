@@ -223,8 +223,10 @@ Definition linear_fd (fd: sfundef) :=
   in
   Let fd' := linear_c linear_i (f_body fd) lbl tail in
   let e := fd.(f_extra) in
-  ok (LFundef (sf_stk_sz e) (f_tyin fd) (f_params fd) (head ++ fd'.2) (f_tyout fd) (f_res fd) (sf_to_save e) (sf_save_stack e)
-              (sf_return_address e == None)).
+  let is_export := sf_return_address e == None in
+  let res := if is_export then f_res fd else [::] in
+  ok (LFundef (sf_stk_sz e) (f_tyin fd) (f_params fd) (head ++ fd'.2) (f_tyout fd) res (sf_to_save e) (sf_save_stack e)
+              is_export).
 
 End PROG.
 
