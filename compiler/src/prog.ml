@@ -364,6 +364,27 @@ let locals fc =
   let s2 = Sv.diff (vars_fc fc) s1 in
   Sv.filter V.is_local s2
 
+let written_lv s =
+  function
+  | Lvar x -> Sv.add (L.unloc x) s
+  | _ -> s
+
+let rec written_vars_i acc i =
+  match i.i_desc with
+  | Cassgn(x, _, _, _) -> written_lv acc x
+  | Copn(xs, _, _, _)
+  | Ccall(_, xs, _, _)
+    -> List.fold_left written_lv acc xs
+  | Cif(_, s1, s2)
+  | Cwhile(_, s1, _, s2)
+    -> written_vars_stmt (written_vars_stmt acc s1) s2
+  | Cfor(_, _, s) -> written_vars_stmt acc s
+and written_vars_stmt acc s =
+  List.fold_left written_vars_i acc s
+
+let written_vars_fc fc =
+  written_vars_stmt Sv.empty fc.f_body
+
 (* -------------------------------------------------------------------- *)
 (* Functions on types                                                   *)
 

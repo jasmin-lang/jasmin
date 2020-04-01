@@ -651,7 +651,7 @@ let is_subroutine = function
   | _            -> false
 
 let post_process ~stack_needed (live: Sv.t) (f: _ func) : _ func * Sv.t * var option * var option =
-  let fv = vars_fc f in
+  let fv = written_vars_fc f in
   let allocatable = X64.allocatables in
   let free_regs = Sv.diff allocatable (Sv.union live fv) in
   (* choose a register for the return address *)

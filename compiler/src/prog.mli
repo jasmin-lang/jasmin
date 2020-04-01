@@ -277,6 +277,11 @@ val vars_c  : 'info stmt  -> Sv.t
 val vars_fc : 'info func  -> Sv.t
 
 val locals  : 'info func -> Sv.t
+
+(* -------------------------------------------------------------------- *)
+(* Written variables *)
+val written_vars_fc : 'info func -> Sv.t
+
 (* -------------------------------------------------------------------- *)
 (* Functions on types                                                   *)
 
