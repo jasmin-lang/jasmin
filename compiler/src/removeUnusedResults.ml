@@ -10,36 +10,7 @@ let used_results (live: Sv.t) : lvals -> Sint.t =
     )
     Sint.empty
 
-let update_list (keep: Sint.t) (m: 'a list) : 'a list =
-  List.fold_lefti (fun acc i a -> if Sint.mem i keep then a :: acc else acc) [] m
-  |> List.rev
-
-let update_func (live_results: funname -> Sint.t) (extra,f) =
-  let rec update_instr_r =
-    function
-    | (Cassgn _ | Copn _) as i -> i
-    | Cif (e, s1, s2) -> Cif (e, update_stmt s1, update_stmt s2)
-    | Cfor (n, r, s) -> Cfor (n, r, update_stmt s)
-    | Cwhile (a, s1, e, s2) -> Cwhile (a, update_stmt s1, e, update_stmt s2)
-    | Ccall (ii, xs, fn, es) ->
-       let r = live_results fn in
-       Ccall (ii, update_list r xs, fn, es)
-  and update_instr i = { i with i_desc = update_instr_r i.i_desc }
-  and update_stmt s =
-    List.map update_instr s
-  in
-  let f = 
-    let f_body = update_stmt f.f_body in
-    if f.f_cc = Export then { f with f_body } else
-    let r = live_results f.f_name in
-    { f with
-      f_tyout = update_list r f.f_tyout;
-      f_ret = update_list r f.f_ret;
-      f_body
-    } in
-  extra, f
-
-let doit funcs =
+let analyse funcs = 
   let liveness_table : (Sv.t * Sv.t) func Hf.t = Hf.create 17 in
   List.iter (fun (_,f) -> Hf.add liveness_table f.f_name (Liveness.live_fd true f)) funcs;
   let live_results =
@@ -50,5 +21,17 @@ let doit funcs =
       )) liveness_table;
     fun fn -> Hf.find_default live fn Sint.empty
   in
-  List.map (update_func live_results) funcs
-
+  let live = Hf.create 17 in
+  let add (_,fd) = 
+    let info = 
+      if fd.f_cc = Export then None
+      else
+        let keep = live_results fd.f_name in
+        let keep = List.mapi (fun i _ -> Sint.mem i keep) fd.f_ret in
+        if List.for_all (fun x -> x) keep then None
+        else Some keep in
+    Hf.add live fd.f_name info in
+  List.iter add funcs;
+  fun fn -> Hf.find_default live fn None
+  
+          

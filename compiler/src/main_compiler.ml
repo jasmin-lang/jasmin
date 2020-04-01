@@ -279,11 +279,24 @@ let main () =
       if !debug then
         Format.eprintf "After memory analysis@.%a@."
           (Printer.pp_prog ~debug:true) ([], (List.map snd fds));
-      let fds = RemoveUnusedResults.doit fds in
+
+      (* remove unused result *)
+      let tokeep = RemoveUnusedResults.analyse fds in
+      let tokeep fn = tokeep (Conv.fun_of_cfun tbl fn) in
+      let deadcode (extra, fd) =
+        let (fn, cfd) = Conv.cufdef_of_fdef tbl fd in
+        let fd = 
+          match Dead_code.dead_code_fd tokeep fn cfd with
+          | Utils0.Ok cfd -> Conv.fdef_of_cufdef tbl (fn, cfd) 
+          | Utils0.Error _ -> (* ignore the error !! *) fd
+        in
+        (extra,fd) in
+      let fds = List.map deadcode fds in
       if !debug then
         Format.eprintf "After remove unused return @.%a@."
           (Printer.pp_prog ~debug:true) ([], (List.map snd fds));
-      (* Add dead code *)
+
+      (* register allocation *)
       let fds = Regalloc.alloc_prog translate_var (fun sao -> sao.sao_has_stack) fds in
 
       let atbl = Hf.create 117 in 
@@ -414,14 +427,9 @@ let main () =
 
     let removereturn sp = 
       let (fds,_data) = Conv.prog_of_csprog tbl sp in
-      let fds = RemoveUnusedResults.doit fds in 
-      let fds = List.map (Conv.csfdef_of_fdef tbl) fds in
-      Expr.({
-        p_funcs = fds;
-        p_globs = sp.p_globs;
-        p_extra = sp.p_extra; }) in
-
-    
+      let tokeep = RemoveUnusedResults.analyse  fds in 
+      let tokeep fn = tokeep (Conv.fun_of_cfun tbl fn) in
+      tokeep in
       
     let cparams = {
       Compiler.rename_fd    = rename_fd;
@@ -453,7 +461,7 @@ let main () =
     begin match
       Compiler.compile_prog_to_x86 cparams entries (Expr.to_uprog cprog) with
     | Utils0.Error e ->
-      Utils.hierror "compilation error %a@.PLEASE REPORT"
+      Utils.hierror "compilation error %a@."
          (pp_comp_ferr tbl) e
     | Utils0.Ok asm ->
       if !outfile <> "" then begin

@@ -86,6 +86,24 @@ Definition check_nop_opn (xs:lvals) (o: sopn) (es:pexprs) :=
   | _, _, _ => false
   end.
 
+Fixpoint keep_only {T:Type} (l:seq T) (tokeep : seq bool) := 
+  match l, tokeep with
+  | [::], _ | _, [::] => [::]
+  | x::l, b::tokeep => 
+    let l := keep_only l tokeep in 
+    if b then x::l else l
+  end.
+
+Section ONFUN.
+
+Context (onfun: funname -> option (seq bool)).
+
+Definition fn_keep_only {T:Type} (fn:funname) (l:seq T) := 
+  match onfun fn with
+  | None => l
+  | Some tokeep => keep_only l tokeep
+  end.
+
 Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
   let (ii,ir) := i in
   match ir with
@@ -130,23 +148,31 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
     let: (s, (c,c')) := sc in
     ciok (s, [:: MkI ii (Cwhile a c e c') ])
 
-  | Ccall _ xs _ es =>
-    ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
+  | Ccall ini xs fn es =>
+    let xs := fn_keep_only fn xs in
+    ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: MkI ii (Ccall ini xs fn es)])
   end.
 
 Section Section.
 
 Context {T} {pT:progT T}.
 
-Definition dead_code_fd (fd: fundef) :=
+Definition dead_code_fd {eft} fn (fd: _fundef eft) :=
   let 'MkFun ii tyi params c tyo res ef := fd in
+  let res := fn_keep_only fn res in
+  let tyo := fn_keep_only fn tyo in
   let s := read_es (map Plvar res) in
   Let c := dead_code_c dead_code_i c s in
   ciok (MkFun ii tyi params c.2 tyo res ef).
 
-Definition dead_code_prog (p: prog) : cfexec prog :=
-  Let funcs := map_cfprog dead_code_fd (p_funcs p) in
+Definition dead_code_prog_tokeep (p: prog) : cfexec prog :=
+  Let funcs := map_cfprog_name dead_code_fd (p_funcs p) in
   ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
 
 End Section.
 
+End ONFUN.
+
+Definition dead_code_prog {T} {pT:progT T} (p:prog) :=
+  @dead_code_prog_tokeep (fun _ => None) T pT p.
+  
