@@ -72,13 +72,12 @@ let print_strings = function
   | Compiler.RemoveGlobal                -> "rmglobals" , "remove globals variables"
   | Compiler.RegArrayExpansion           -> "arrexp"   , "expansion of register arrays"
   | Compiler.LowerInstruction            -> "lowering" , "lowering of instructions"
+  | Compiler.MakeRefArguments             -> "makeref"   , "add assignments before and after call to ensure that arguments and results are ref ptr"
+  | Compiler.StackAllocation             -> "stkalloc" , "stack allocation"
+  | Compiler.RemoveReturn                -> "rmreturn" , "remove unused returned values"
   | Compiler.RegAllocation               -> "ralloc"   , "register allocation"
   | Compiler.DeadCode_RegAllocation      -> "rallocd"  , "dead code after register allocation"
-  | Compiler.RemoveReturn                -> "rmreturn" , "remove unused returned values"
-
-  | Compiler.DeadCode_RemoveReturn       -> "rmreturnd", "dead code after rmreturn"
-
-  | Compiler.StackAllocation             -> "stkalloc" , "stack allocation"
+ 
   | Compiler.Linearisation               -> "linear"   , "linearisation"
   | Compiler.Assembly                    -> "asm"      , "generation of assembly"
 

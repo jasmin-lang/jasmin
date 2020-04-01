@@ -67,9 +67,9 @@ Variant compiler_step :=
   | RemoveArrInit               : compiler_step
   | RemoveGlobal                : compiler_step
   | LowerInstruction            : compiler_step
+  | MakeRefArguments             : compiler_step
   | StackAllocation             : compiler_step
   | RemoveReturn                : compiler_step
-  | DeadCode_RemoveReturn       : compiler_step
   | RegAllocation               : compiler_step
   | DeadCode_RegAllocation      : compiler_step
   | Linearisation               : compiler_step
@@ -92,6 +92,7 @@ Record compiler_params := {
   is_var_in_memory : var_i → bool;
   global_static_data_symbol: Ident.ident;
   stk_pointer_name : Ident.ident;
+  makerefarguments : _uprog -> _uprog;
   stackalloc       : _uprog → stack_alloc_oracles;
   removereturn     : _sprog -> (funname -> option (seq bool));
   regalloc         : _sprog -> _sprog;
@@ -143,24 +144,28 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
   Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
-  Let _ := assert (fvars_correct cparams.(lowering_vars) (p_funcs pg)) Ferr_lowering in
+  let pa := cparams.(makerefarguments) pg in
+  let pa := cparams.(print_uprog) MakeRefArguments pa in
+  (* FIXME *)
+(*  Let _ := CheckAllocRegU.check_prog pg.(p_extra) pg.(p_funcs) pa.(p_extra) pa.(p_funcs) in *)
+ 
+  Let _ := assert (fvars_correct cparams.(lowering_vars) (p_funcs pa)) Ferr_lowering in
 
-  let pl := lower_prog cparams.(lowering_opt) cparams.(warning) cparams.(lowering_vars) cparams.(is_var_in_memory) pg in
+  let pl := lower_prog cparams.(lowering_opt) cparams.(warning) cparams.(lowering_vars) cparams.(is_var_in_memory) pa in
   let pl := cparams.(print_uprog) LowerInstruction pl in
 
   (* stack + register allocation *)
+ 
   let ao := cparams.(stackalloc) pl in
-
   Let ps :=
      stack_alloc.alloc_prog cparams.(stk_pointer_name)
        cparams.(global_static_data_symbol) ao.(ao_globals) ao.(ao_global_alloc)
        ao.(ao_stack_alloc) pl in
-
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
 
   let rminfo := cparams.(removereturn) ps in
   Let pr := dead_code_prog_tokeep rminfo ps in
-  let pr := cparams.(print_sprog) DeadCode_RemoveReturn pr in
+  let pr := cparams.(print_sprog) RemoveReturn pr in
 
   let pa := cparams.(regalloc) pr in
   let pa : sprog := cparams.(print_sprog) RegAllocation pa in

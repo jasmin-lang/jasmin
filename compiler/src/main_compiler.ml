@@ -199,10 +199,6 @@ let main () =
     end;
 
     (* FIXME: why this is not certified *)
-    let prog = MakeReferenceArguments.doit prog in
-    eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
-
-    (* FIXME: why this is not certified *)
     let prog = Inline_array_copy.doit prog in
 
     (* Generate the coq program if needed *)
@@ -430,6 +426,17 @@ let main () =
       let tokeep = RemoveUnusedResults.analyse  fds in 
       let tokeep fn = tokeep (Conv.fun_of_cfun tbl fn) in
       tokeep in
+
+    let makerefarguments up =
+      let p = Conv.prog_of_cuprog tbl up in
+      let (_,fds) = MakeReferenceArguments.doit p in
+      let fds = List.map (Conv.cufdef_of_fdef tbl) fds in
+      Expr.({
+        p_funcs = fds;
+        p_globs = up.p_globs;
+        p_extra = up.p_extra; }) in
+
+
       
     let cparams = {
       Compiler.rename_fd    = rename_fd;
@@ -438,6 +445,7 @@ let main () =
       Compiler.share_stk_prog = (*apply "share stk" *) share_stk_prog;
       Compiler.stk_pointer_name = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rsp);
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
+      Compiler.makerefarguments = makerefarguments;
       Compiler.stackalloc    = memory_analysis;
       Compiler.removereturn  = removereturn;
       Compiler.regalloc      = global_regalloc;
