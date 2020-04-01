@@ -8,6 +8,20 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (* -------------------------------------------------------------------- *)
+Lemma xreg_of_varI ii x y :
+  xreg_of_var ii x = ok y →
+  match y with
+  | Reg r => register_of_var x = Some r
+  | XMM r => xmm_register_of_var x = Some r
+  | _ => False
+  end.
+Proof.
+  rewrite /xreg_of_var.
+  case: xmm_register_of_var; last case: register_of_var; last by [].
+  all: by move => r [<-].
+Qed.
+
+(* -------------------------------------------------------------------- *)
 Lemma inj_rflag_of_var ii x y v :
      rflag_of_var ii x = ok v
   -> rflag_of_var ii y = ok v
@@ -51,29 +65,12 @@ Definition value_of_bool (b: exec bool) : exec value :=
   end.
 
 (* -------------------------------------------------------------------- *)
-Lemma xgetreg_ex rip ii x r v s xs :
+Lemma xgetreg_ex rip x r v s xs :
   lom_eqv rip s xs →
-  reg_of_var ii x = ok r →
+  register_of_var x = Some r →
   get_var s.(evm) x = ok v →
   value_uincl v (Vword (xs.(xreg) r)).
-Proof.
-move: (@var_of_register_of_var x).
-move => h [_ _ _ eqv _ _]; case: x h => -[] //= [] // x.
-rewrite /register_of_var /=.
-case: reg_of_string => [vx|] // /(_ _ erefl) <- {x} [<-] ok_v.
-exact: eqv.
-Qed.
-
-Corollary xgetreg rip ii x r v s xs w :
-  lom_eqv rip s xs →
-  reg_of_var ii x = ok r →
-  get_var s.(evm) x = ok v →
-  to_word U64 v = ok w →
-  xreg xs r = w.
-Proof.
-  move => eqm hx hv hw; move: (xgetreg_ex eqm hx hv) => /value_uincl_word -/(_ _ _ hw) [].
-  by rewrite zero_extend_u.
-Qed.
+Proof. case => _ _ _ eqv _ _ /var_of_register_of_var <-{x}; exact: eqv. Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xxgetreg_ex rip x r v s xs :

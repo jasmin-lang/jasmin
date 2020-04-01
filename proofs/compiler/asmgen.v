@@ -342,14 +342,12 @@ Proof.
     by exists b'.
   move=> haw hcomp -> /=; case: e haw => //=.
   + rewrite /get_gvar /eval_asm_arg; move=> x; t_xrbindP => _ /assertP => ->.
-    case heq: xmm_register_of_var => [r | ].
-    + move => h; case: h hcomp => <-.
-      rewrite /compat_imm orbF => /eqP <- vt /(xxgetreg_ex eqm heq) h1 h2.
-      by have := value_uincl_word_of_val (ty := sword ws) h1 h2; eauto.
-    t_xrbindP => r /reg_of_var_register_of_var -/var_of_register_of_var <- h.
-    move: hcomp; rewrite -h /compat_imm orbF => /eqP <- w {h}.
-    case: eqm => ??? h ?? /h hu hw.
-    by have := value_uincl_word_of_val (ty := sword ws) hu hw; eauto.
+    case: eqm => _ _ _ eqr eqx _.
+    move=> /xreg_of_varI; case: a' hcomp => // r; rewrite /compat_imm orbF => /eqP <- {a} xr w ok_v ok_w;
+    (eexists; split; first reflexivity);
+    apply: (value_uincl_word _ ok_w).
+    + by apply: eqr; rewrite (var_of_register_of_var xr).
+    by apply: eqx; rewrite (xmm_register_of_varI xr).
   + move=> sz x p; case: eqP => [<- | //].
     t_xrbindP => r hr ?; subst a'.
     move: hcomp; rewrite /compat_imm orbF => /eqP <-.
@@ -492,48 +490,30 @@ Proof.
     case: ty hty vt hw => //= sz _ vt.
     rewrite /write_var; t_xrbindP => vm hset <-.
     apply: set_varP hset; last by move=> /eqP heq heq'; rewrite heq in heq'.
-    move=> t ht <-; rewrite truncate_word_u /= heq1 hc /=.
-    case hx: xmm_register_of_var => [r | ].
-    + move=> [<-] /=; eexists; split;first reflexivity.
-      move: t ht; rewrite -(xmm_register_of_varI hx) => t ht.
-      constructor => //.
-      + by case:hlom => ? hget hd _ _ _;rewrite /get_var Fv.setP_neq //; apply /eqP;case: hd.     
-      + move=> r' v'; rewrite /get_var /on_vu /=. 
-        by rewrite Fv.setP_neq //; apply h2.
-      + move=> r' v';rewrite /get_var /on_vu /=.
-        rewrite /XRegMap.set ffunE.
-        case: eqP => [-> | hne].
-        + rewrite Fv.setP_eq => -[<-] /=.
-          apply word_uincl_update_u256.
-          move: ht => /=; case: Sumbool.sumbool_of_bool => hsz [<-] //.
-          rewrite /pword_of_word /=.
-          have ? : sz = U256. 
-          + by apply cmp_le_antisym;[apply wsize_ge_U256 | apply cmp_nle_le; rewrite hsz].
-          by subst sz; rewrite zero_extend_u.
-        rewrite Fv.setP_neq; last by apply /eqP => h; apply hne; apply var_of_xmm_register_inj.
-        by apply h3.
-      move=> f v'; rewrite /get_var /on_vu /=. 
-      by rewrite Fv.setP_neq //; apply h4.
-    t_xrbindP => r hr <-; eexists;split;first reflexivity.
-    have /= ? := var_of_reg_of_var hr; subst x.
-    move: t ht => /= t [] ?;subst t.
-    constructor => //=.
-    + by case:hlom => ? hget hd _ _ _;rewrite /get_var Fv.setP_neq //; apply /eqP;case: hd.
-    + move=> r' v'; rewrite /get_var /on_vu /= /RegMap.set ffunE.
-      case: eqP => [-> | hne].
-      + rewrite Fv.setP_eq /word_extend_reg=> -[<-] /= .
-        case : Sumbool.sumbool_of_bool => /= hsz.
-        + have heq := zero_extend_u vt.
-          by rewrite -{1}heq; apply word_uincl_ze_mw.
-        rewrite -(@zero_extend_idem sz U64 sz vt); last by apply cmp_nle_le; rewrite hsz.
-        rewrite zero_extend_u. 
-        by apply word_uincl_ze_mw => //; apply cmp_nle_le; rewrite hsz.
-      rewrite Fv.setP_neq; last by apply /eqP => h; apply hne; apply var_of_register_inj.
-      by apply h2. 
-    + move=> r' v'; rewrite /get_var /on_vu /=.
-      by rewrite Fv.setP_neq //; apply h3.
-    move=> f v'; rewrite /get_var /on_vu /=.
-    by rewrite Fv.setP_neq //; apply h4. 
+    move=> t ht <-; rewrite truncate_word_u /= heq1 hc /= => /xreg_of_varI.
+    case: a heq1 hc => // r heq1 hc => [ /var_of_register_of_var | /xmm_register_of_varI ] ?; subst x;
+      (eexists; split; first reflexivity); constructor => //=.
+    2-4, 6-8: move => r' v'.
+    1-8: rewrite /get_var/on_vu.
+    1, 8: rewrite Fv.setP_neq; first exact: hrip; by apply/eqP; case: hnrip.
+    + rewrite /RegMap.set ffunE; case: eqP.
+      * move => ->{r'}; rewrite Fv.setP_eq => -[<-]{v'}.
+        case: ht => <-{t}; case: Sumbool.sumbool_of_bool => hsz /=.
+        - by rewrite -{1}(zero_extend_u vt); apply: word_uincl_ze_mw.
+        apply: word_uincl_ze_mw => //.
+        by apply: cmp_nle_le; rewrite hsz.
+      * move => hne; rewrite Fv.setP_neq; first exact: h2.
+        by apply/eqP => /var_of_register_inj ?; apply: hne.
+    1-3, 5: rewrite Fv.setP_neq //.
+    + exact: h3.
+    1, 3: exact: h4.
+    + exact: h2.
+    rewrite /XRegMap.set ffunE; case: eqP.
+    + move => ->{r'}; rewrite Fv.setP_eq => -[<-]{v'}.
+      apply: word_uincl_update_u256.
+      by case: ht => <-{t}; rewrite (sumbool_of_boolET (wsize_ge_U256 sz)).
+    move => hne; rewrite Fv.setP_neq; first exact: h3.
+    apply/eqP => /var_of_xmm_register_inj ?; exact: hne.
   move=> sz [x xii] /= e; t_xrbindP.
   move=> wp vp hget hp wofs vofs he hofs w hw m1 hm1 ??; subst m' e1.
   case: ty hty vt hw => //= sz' _ vt hw.
@@ -674,9 +654,9 @@ Proof.
       rewrite /check_sopn_arg /=.
       case: asm_args hidc hcd => //= a0 [ // | ] a1 [] //= hidc hcd;
        last by rewrite /check_args_kinds /= !andbF. 
-      case: xmm_register_of_var => /=.
-      + by move=> r; rewrite /compat_imm !orbF !andbT=> /eqP ? /eqP ?; subst a0 a1.
-      case: reg_of_var => //= r; rewrite /compat_imm !orbF !andbT => /eqP ? /eqP ? _; subst a0 a1.
+      case: xreg_of_var (@xreg_of_varI ii x) => // y /(_ _ erefl) ok_y.
+      rewrite !andbT /compat_imm.
+      case: y ok_y => // r xr; rewrite !orbF => /eqP ? /eqP ? _; subst a0 a1; last by [].
       rewrite /eval_op /exec_instr_op /= /eval_instr_op /=.
       rewrite /truncate_word /x86_XOR /check_size_8_64 hsz64 /= wxor_xx.
       set id := instr_desc (XOR sz) => hlo.
@@ -693,10 +673,10 @@ Proof.
     case: asm_args hidc hcd => //= a0 [// | ] a1 [] //= a2 [] //=;
       last by rewrite /check_args_kinds /= !andbF.  
     rewrite orbF => hidc hcd.
-    case: xmm_register_of_var => /=; last first.
-    + case: reg_of_var => //= r ; rewrite /compat_imm !orbF !andbT=> /eqP ? /eqP ?; subst a1 a2.
-      by move: hidc; rewrite /check_args_kinds /= andbF.
-    move=> r;rewrite /compat_imm !orbF !andbT => /eqP ? /eqP ? _; subst a1 a2.
+    case: xreg_of_var (@xreg_of_varI ii x) => // y /(_ _ erefl) ok_y.
+    rewrite !andbT /compat_imm.
+    case: y ok_y => // r xr; rewrite !orbF => /eqP ? /eqP ? _; subst a1 a2.
+    + by move: hidc; rewrite /check_args_kinds /= andbF.
     rewrite /eval_op /exec_instr_op /= /eval_instr_op /=.
     rewrite /truncate_word /x86_VPXOR hidc /= /x86_u128_binop /check_size_128_256 wsize_ge_U256. 
     have -> /= : (U128 ≤ sz)%CMP by case: (sz) hsz64. 
@@ -720,15 +700,14 @@ Proof.
     rewrite /= in hidc;rewrite hidc.
     have [v' /= [-> /= ->] /=]:= check_sopn_arg_sem_eval hlo hca1 hva htwa.
     move: hcd; rewrite /check_sopn_dests /= /check_sopn_dest /= => /andP -[].
-    case: xmm_register_of_var => /=.
-    + by move=> ? /andP[] /eqP ?;subst a0.
-    case heq: reg_of_var => [r | ] //= /andP [] /eqP ? _ _; subst a0.
-    rewrite /mem_write_vals /=.
+    case: xreg_of_var (@xreg_of_varI ii x) => // y /(_ _ erefl) ok_y.
+    rewrite andbT => /eqP ? _; subst a0.
+    case: y hidc hca1 ok_y => // r hidc hca1 /var_of_register_of_var xr.
+    rewrite /mem_write_vals.
     eexists; split; first reflexivity.
     case: hlo => h1 hrip hd h2 h3 h4.
     move: hwx; rewrite /write_var /set_var.
-    have /= <- /= := var_of_reg_of_var heq.
-    move=> [<-].
+    rewrite -xr => -[<-]{m'}.
     constructor => //=.
     + by rewrite /get_var Fv.setP_neq //; apply /eqP;case: hd.
     + move=> r' v''; rewrite /get_var /on_vu /= /RegMap.set ffunE.

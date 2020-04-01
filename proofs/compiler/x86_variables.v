@@ -449,6 +449,11 @@ Definition addr_of_pexpr (rip:var) ii sz (e: pexpr) :=
 Definition addr_of_xpexpr rip ii sz v e := 
   addr_of_pexpr rip ii sz (Papp2 (Oadd (Op_w sz)) (Plvar v) e).
 
+Definition xreg_of_var ii (x: var) : ciexec asm_arg :=
+  if xmm_register_of_var x is Some r then ok (XMM r)
+  else if register_of_var x is Some r then ok (Reg r)
+  else cierror ii (Cerr_assembler (AsmErr_string "Not a (x)register")).
+
 Definition assemble_word rip ii (sz:wsize) max_imm (e:pexpr) :=
   match e with
   | Papp1 (Oword_of_int sz') (Pconst z) =>
@@ -466,9 +471,7 @@ Definition assemble_word rip ii (sz:wsize) max_imm (e:pexpr) :=
     Let _ := assert (is_lvar x)
               (ii, Cerr_assembler (AsmErr_string "Global variables remain")) in
     let x := x.(gv) in
-    if xmm_register_of_var x is Some r then ok (XMM r)
-    else Let s := reg_of_var ii x in
-    ok (Reg s)
+    xreg_of_var ii x
   | Pload sz' v e =>
     if (sz == sz') then
       Let w := addr_of_xpexpr rip ii Uptr v e in

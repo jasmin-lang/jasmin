@@ -150,13 +150,11 @@ Lemma eval_assemble_word rip ii sz e a s xs v :
 Proof.
   move => eqm.
   case: e => //=; t_xrbindP.
-  - move => x _ /assertP ok_x.
-    rewrite /get_gvar ok_x => h ok_v; move: h.
-    have := xxgetreg_ex eqm _ ok_v.
-    case: (xmm_register_of_var _).
-    + by move => xr /(_ _ erefl) h [<-] /=; eexists; first reflexivity.
-    t_xrbindP => _ r ok_r <-; eexists; first reflexivity.
-    exact: (xgetreg_ex eqm ok_r ok_v).
+  - move => x _ /assertP ok_x /xreg_of_varI h.
+    rewrite /get_gvar ok_x => ok_v.
+    case: a h => // r ok_r; (eexists; first reflexivity).
+    + exact: (xgetreg_ex eqm ok_r ok_v).
+    exact: (xxgetreg_ex eqm ok_r ok_v).
   - move => sz' ??; case: eqP => // <-{sz'}; t_xrbindP => d ok_d <- ptr w ok_w ok_ptr uptr u ok_u ok_uptr ? ok_rd ?; subst v => /=.
     case: (eqm) => eqmem _ _ _ _ _.
     rewrite (addr_of_xpexprP eqm ok_d ok_w ok_ptr ok_u ok_uptr) -eqmem ok_rd.
