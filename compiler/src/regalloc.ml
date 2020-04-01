@@ -661,7 +661,7 @@ let post_process ~stack_needed (live: Sv.t) (f: _ func) : _ func * Sv.t * var op
       Sv.remove ra free_regs, Some ra
     else free_regs, None
   in
-  let to_save = if is_subroutine f.f_cc then fv else Sv.inter X64.callee_save fv in
+  let to_save = if is_subroutine f.f_cc then Sv.inter live fv else Sv.inter X64.callee_save fv in
   let to_save, stk =
     if stack_needed then
       if Sv.is_empty free_regs then
