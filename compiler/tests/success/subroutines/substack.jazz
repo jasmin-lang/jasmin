@@ -1,0 +1,17 @@
+fn double(reg u64 x) -> reg u64 {
+  stack u64 y;
+  y = x;
+  x += y;
+  return x;
+}
+
+export
+fn main(reg u64 x) -> reg u64 {
+  reg u64 r;
+
+  r = x;
+  r = double(r);
+  r = double(r);
+
+  return r;
+}
