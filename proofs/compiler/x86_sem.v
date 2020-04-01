@@ -60,7 +60,7 @@ Record xfundef := XFundef {
  xfd_arg  : asm_args;
  xfd_body : seq asm;
  xfd_res  : asm_args;
- xfd_extra : list register * saved_stack;
+ xfd_extra : asm_args * saved_stack;
  xfd_export: bool;
 }.
 

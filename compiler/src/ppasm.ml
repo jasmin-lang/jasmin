@@ -365,8 +365,10 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
         `Label name
       ];
       if export then
-      List.iter (fun r ->
-        pp_gens fmt [`Instr ("pushq", [pp_register `U64 r])])
+      List.iter (function
+          | X86_decl.Reg r ->
+             pp_gens fmt [`Instr ("pushq", [pp_register `U64 r])]
+          | _ -> assert false)
         tosave;
 
       let prologue, epilogue =
@@ -407,8 +409,10 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
       pp_instrs tbl name fmt epilogue;
 
       if export then
-      List.iter (fun r ->
-          pp_gens fmt [`Instr ("popq", [pp_register `U64 r])])
+      List.iter (function
+        | X86_decl.Reg r ->
+           pp_gens fmt [`Instr ("popq", [pp_register `U64 r])]
+        | _ -> assert false)
         (List.rev tosave);
       if export then
       pp_gens fmt [`Instr ("ret", [])]
