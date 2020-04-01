@@ -1,0 +1,7 @@
+fn init (reg const ptr u64[3] p) -> reg ptr u64[3] {
+   inline int i;
+   for i = 0 to 3 {
+      p[i] = 0;
+   }
+   return p;
+}
