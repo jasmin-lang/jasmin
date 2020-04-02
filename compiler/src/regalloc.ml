@@ -251,7 +251,6 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   fun a -> loop a e
 
 let collect_conflicts
-      (live: Sv.t) (* A set of globally live variables *)
       (tbl: int Hv.t) (tr: 'info trace) (f: (Sv.t * Sv.t) func) (c: conflicts) : conflicts =
   let add_one_aux (v: int) (w: int) (c: conflicts) : conflicts =
       let x = get_conflicts v c in
@@ -270,8 +269,6 @@ let collect_conflicts
     with Not_found -> c
   in
   let add (c: conflicts) loc ((i, j): (Sv.t * Sv.t)) : conflicts =
-    let i = Sv.union live i in
-    let j = Sv.union live j in
     c
     |> conflicts_in i (add_one loc)
     |> conflicts_in j (add_one loc)
@@ -650,34 +647,48 @@ let is_subroutine = function
   | Subroutine _ -> true
   | _            -> false
 
-let post_process ~stack_needed (live: Sv.t) ~(killed: funname -> Sv.t) (f: _ func) : _ func * Sv.t * var option * var option =
-  let fv, cg = written_vars_fc f in
-  let killed_by_calls = Sf.fold (fun n -> Sv.union (killed n)) cg Sv.empty in
-  let fv = Sv.union fv killed_by_calls in
-  let allocatable = X64.allocatables in
-  let free_regs = Sv.diff allocatable (Sv.union live fv) in
-  (* choose a register for the return address *)
-  let free_regs, ra =
-    if is_subroutine f.f_cc then
-      let ra = Sv.any free_regs in
-      Sv.remove ra free_regs, Some ra
-    else free_regs, None
+(** Returns extra information (k, rsp, ra) depending on the calling convention.
+
+ - Subroutines:
+   - ra: a free register for the return address of f (caveat: may be live at the call-site)
+   - k: all registers overwritten by a call to f (including ra)
+   - rsp: None
+
+ - Export:
+    - k: all callee-saved registers overwritten by this function (including rsp)
+    - rsp: if ~stack_needed and if there is a free register, a free register to hold the stack pointer of the caller (aka environment)
+    - ra: None
+
+*)
+let post_process ~stack_needed (live: Sv.t) ~(killed: funname -> Sv.t) (f: _ func) : Sv.t * var option * var option =
+  let killed_in_f =
+    let fv, cg = written_vars_fc f in
+    let killed_by_calls = Sf.fold (fun n -> Sv.union (killed n)) cg Sv.empty in
+    Sv.union fv killed_by_calls
   in
-  let to_save = if is_subroutine f.f_cc then Sv.union killed_by_calls (Sv.inter live fv) else Sv.inter X64.callee_save fv in
-  let to_save, stk =
-    if stack_needed then
-      if Sv.is_empty free_regs then
-        to_save, None
-      else
-        let r =
-          let s = Sv.diff free_regs X64.callee_save in
-          if Sv.is_empty s then Sv.any free_regs
-          else Sv.any s in
-        let to_save = Sv.inter X64.callee_save (Sv.add r fv) in
-        to_save, Some r
-    else
-      to_save, None in
-  f, to_save, stk, ra
+  let allocatable = X64.allocatables in
+  let free_regs = Sv.diff allocatable killed_in_f in
+  match f.f_cc with
+  | Internal -> assert false
+  | Subroutine _ ->
+     begin
+       assert (not stack_needed);
+       let globally_free_regs = Sv.diff free_regs live in
+       let ra =
+         match Sv.Exceptionless.any globally_free_regs with
+         | None -> Sv.Exceptionless.any free_regs
+         | r -> r
+       in
+       killed_in_f, None, ra
+     end
+  | Export ->
+     begin
+       assert (Sv.is_empty live);
+       let to_save = Sv.inter X64.callee_save killed_in_f in
+       if stack_needed && Sv.is_empty to_save then
+         to_save, Sv.Exceptionless.any (Sv.diff free_regs X64.callee_save), None
+       else to_save, None, None
+     end
 
 let global_allocation translate_var (funcs: 'info func list) : unit func list * (funname -> Sv.t) * (var -> var) =
   (* Preprocessing of functions:
@@ -710,8 +721,8 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
   let eqc, tr, fr = collect_equality_constraints_in_prog "Regalloc" x86_equality_constraints vars nv funcs in
   let vars = normalize_variables vars eqc in
   let conflicts =
-    Hf.fold (fun fn lf conflicts ->
-        collect_conflicts (get_liveness fn) vars tr lf conflicts
+    Hf.fold (fun _fn lf conflicts ->
+        collect_conflicts vars tr lf conflicts
       )
       liveness_table
       IntMap.empty
@@ -743,7 +754,7 @@ let alloc_prog translate_var (has_stack: 'a -> bool) (dfuncs: ('a * 'info func) 
   List.rev_map (fun f ->
       let e = Hf.find extra f.f_name in
       let stack_needed = has_stack e in
-      let f, to_save, ro_rsp, ro_return_address = post_process ~stack_needed ~killed (Sv.map subst (get_liveness f.f_name)) f in
+      let to_save, ro_rsp, ro_return_address = post_process ~stack_needed ~killed (Sv.map subst (get_liveness f.f_name)) f in
       let to_save = match ro_return_address with Some ra -> Sv.add ra to_save | None -> to_save in
       Hf.add killed_map f.f_name to_save;
       e, { ro_to_save = Sv.elements to_save ; ro_rsp ; ro_return_address }, f
