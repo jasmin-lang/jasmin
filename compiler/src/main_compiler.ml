@@ -85,8 +85,11 @@ let rec pp_comp_err tbl fmt =
   | Compiler_util.Cerr_linear s ->
     Format.fprintf fmt "linearisation error %a"
       pp_string0 s
-  | Compiler_util.Cerr_needspill _xs ->
-    Format.fprintf fmt "Need spilling" 
+  | Compiler_util.Cerr_needspill xs ->
+    let xs = Var0.Sv.elements xs in
+    let xs = List.map (Conv.var_of_cvar tbl) (Obj.magic xs) in
+    Format.fprintf fmt "Need to spill @[%a@]" 
+      (pp_list "@, " (pp_var ~debug:false)) xs
   | Compiler_util.Cerr_assembler c ->
     begin match c with
     | Compiler_util.AsmErr_string s ->
