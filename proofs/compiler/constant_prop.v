@@ -561,21 +561,21 @@ Definition merge_cpm : cpm -> cpm -> cpm :=
 Definition remove_cpm (m:cpm) (s:Sv.t): cpm :=
   Sv.fold (fun x m => Mvar.remove m x) s m.
 
-Definition const_prop_rv (m:cpm) (rv:lval) : cpm * lval :=
+Definition const_prop_rv (m:cpm) (rv:lval) : cpm * lval * leaktrans_e :=
   match rv with
-  | Lnone _ _    => (m, rv)
-  | Lvar  x      => (Mvar.remove m x, rv)
-  | Lmem  sz x e => (m, Lmem sz x (const_prop_e m e))
-  | Laset sz x e => (Mvar.remove m x, Laset sz x (const_prop_e m e))
+  | Lnone _ _    => (m, rv, LET_remove)
+  | Lvar  x      => (Mvar.remove m x, rv, LET_id)
+  | Lmem  sz x e => let v := const_prop_e m e in (m, Lmem sz x v.1, v.2)
+  | Laset sz x e => let v := const_prop_e m e in (Mvar.remove m x, Laset sz x v.1, v.2)
   end.
 
-Fixpoint const_prop_rvs (m:cpm) (rvs:lvals) : cpm * lvals :=
+Fixpoint const_prop_rvs (m:cpm) (rvs:lvals) : cpm * lvals * leaktrans_e :=
   match rvs with
-  | [::] => (m, [::])
+  | [::] => (m, [::], LET_sub [::])
   | rv::rvs =>
-    let (m,rv)  := const_prop_rv m rv in
-    let (m,rvs) := const_prop_rvs m rvs in
-    (m, rv::rvs)
+    let: (m,rv, lt)  := const_prop_rv m rv in
+    let: (m,rvs, lts) := const_prop_rvs m rvs in
+    (m, rv::rvs, LET_sub [:: lt ; lts])
   end.
 
 Definition wsize_of_stype (ty: stype) : wsize :=
@@ -602,79 +602,167 @@ Definition add_cpm (m:cpm) (rv:lval) tag ty e :=
 
 Section CMD.
 
+Inductive leaktrans_i : Type:=
+  | LETremove : leaktrans_i
+  | LETkeep : leaktrans_i
+  | LETleake : leaktrans_e -> leaktrans_i
+  | LETsub0 : leaktrans_i -> leaktrans_i -> leaktrans_i
+  | LETsub : leaktrans_i -> seq leaktrans_i -> leaktrans_i
+  | LETsub1 : seq leaktrans_i -> leaktrans_i
+  | LETsub2 : seq leaktrans_i -> seq leaktrans_i -> leaktrans_i
+  | LETsub3 : leaktrans_i -> seq leaktrans_i -> seq leaktrans_i -> leaktrans_i.
+
+Notation leaktrans_c := (seq leaktrans_i).
+
   Variable const_prop_i : cpm -> instr -> cpm * cmd * leaktrans_i.
 
   Fixpoint const_prop (m:cpm) (c:cmd) : cpm * cmd * leaktrans_c :=
     match c with
-    | [::] => (m, [::])
+    | [::] => (m, [::], [::])
     | i::c =>
-      let (m,ic) := const_prop_i m i in
-      let (m, c) := const_prop m c in
-      (m, ic ++ c)
+      let: (m,ic,lti) := const_prop_i m i in
+      let: (m, c, ltc) := const_prop m c in
+      (m, ic ++ c, ([:: lti] ++ ltc))
     end.
 
 End CMD.
 
-
-
 Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leaktrans_i :=
   match ir with
   | Cassgn x tag ty e =>
-    let e := const_prop_e m e in
-    let (m,x) := const_prop_rv m x in
-    let m := add_cpm m x tag ty e in
-    (m, [:: MkI ii (Cassgn x tag ty e)])
+    let: (v, l1) := const_prop_e m e in
+    let: (m,x, l2) := const_prop_rv m x in
+    let m := add_cpm m x tag ty v in
+    (m, [:: MkI ii (Cassgn x tag ty e)], (LETleake (LET_sub ([:: l1] ++ [:: l2]))))
 
   | Copn xs t o es =>
     (* TODO: Improve this *)
     let es := map (const_prop_e m) es in
-    let (m,xs) := const_prop_rvs m xs in
-    (m, [:: MkI ii (Copn xs t o es) ])
+    let: (m,xs, ls) := const_prop_rvs m xs in
+    (m, [:: MkI ii (Copn xs t o (unzip1 es))], (LETleake (LET_sub ((unzip2 es) ++ [:: ls]))))
 
   | Cif b c1 c2 =>
-    let b := const_prop_e m b in
+    let: (b, l) := const_prop_e m b in
     match is_bool b with
     | Some b =>
       let c := if b then c1 else c2 in
-      const_prop const_prop_i m c
+      let: (v1, cm1, lc1) := const_prop const_prop_i m c1 in
+      let: (v2, cm2, lc2) := const_prop const_prop_i m c2 in 
+      (if b then v1 else v2, if b then cm1 else cm2, LETsub3 LETremove lc1 lc2)
     | None =>
-      let (m1,c1) := const_prop const_prop_i m c1 in
-      let (m2,c2) := const_prop const_prop_i m c2 in
-      (merge_cpm m1 m2, [:: MkI ii (Cif b c1 c2) ])
+      let: (m1,c1, lc1) := const_prop const_prop_i m c1 in
+      let: (m2,c2, lc2) := const_prop const_prop_i m c2 in
+      (merge_cpm m1 m2, [:: MkI ii (Cif b c1 c2) ], (LETsub3 (LETleake l) lc1 lc2))
     end
 
   | Cfor x (dir, e1, e2) c =>
-    let e1 := const_prop_e m e1 in
-    let e2 := const_prop_e m e2 in
+    let: (e1, l1) := const_prop_e m e1 in
+    let: (e2, l2) := const_prop_e m e2 in
     let m := remove_cpm m (write_i ir) in
-    let (_,c) := const_prop const_prop_i m c in
-    (m, [:: MkI ii (Cfor x (dir, e1, e2) c) ])
+    let: (_,c, lc) := const_prop const_prop_i m c in
+    (m, [:: MkI ii (Cfor x (dir, e1, e2) c) ], (LETsub (LETleake (LET_sub ([:: l1] ++ [:: l2]))) lc))
 
   | Cwhile a c e c' =>
     let m := remove_cpm m (write_i ir) in
-    let (m',c) := const_prop const_prop_i m c in
-    let e := const_prop_e m' e in
-    let (_,c') := const_prop const_prop_i m' c' in
-    let cw :=
+    let: (m',c, lc) := const_prop const_prop_i m c in
+    let: (e, l) := const_prop_e m' e in
+    let: (_,c', lc') := const_prop const_prop_i m' c' in
+    let: (cw, cwl) :=
       match is_bool e with
-      | Some false => c
-      | _          => [:: MkI ii (Cwhile a c e c')]
+      | Some false => (c, (LETsub (LETleake LET_remove) lc))
+      | _          => ([:: MkI ii (Cwhile a c e c')], (LETsub3 (LETleake l) lc lc'))
       end in
-    (m', cw)
+    (m', cw, cwl)
   | Ccall fi xs f es =>
     let es := map (const_prop_e m) es in
-    let (m,xs) := const_prop_rvs m xs in
-    (m, [:: MkI ii (Ccall fi xs f es) ])
+    let: (m,xs, ls) := const_prop_rvs m xs in
+    (m, [:: MkI ii (Ccall fi xs f (unzip1 es)) ], LETsub0 (LETleake (LET_sub (unzip2 es))) (LETleake ls))
   end
 
-with const_prop_i (m:cpm) (i:instr) : cpm * cmd :=
+with const_prop_i (m:cpm) (i:instr) : cpm * cmd * leaktrans_i :=
   let (ii,ir) := i in
   const_prop_ir m ii ir.
 
 Definition const_prop_fun (f:fundef) :=
   let (ii,tin,p,c,tout,r) := f in
-  let (_, c) := const_prop const_prop_i empty_cpm c in
-  MkFun ii tin p c tout r.
+  let: (_, c, lc) := const_prop const_prop_i empty_cpm c in
+  (MkFun ii tin p c tout r, lc).
 
-Definition const_prop_prog (p:prog) : prog := map_prog const_prop_fun p.
+Definition leaktrans_fs := seq (funname * (seq leaktrans_i)).
+
+Print prog.
+
+(**** NEED TO FIX **)
+(*Definition map_prog (F: fundef -> fundef * seq leaktrans_i) (p:prog) :=
+  {| p_globs := p_globs p;
+     p_funcs := map (fun f => (f.1, F f.2.1)) (p_funcs p) |}.*)
+
+
+(*Definition const_prop_prog (p:prog) : (prog * leak_trans_fs) := 
+  map_prog const_prop_fun p.*)
+
+Section LEAK_TRANS.
+
+Variable (Ffs : seq (funname * seq leaktrans_i)).
+
+Section LEAK_TRANS_LOOP.
+
+  Variable (lrm_i : leaktrans_i -> leakage_i -> leakage_c).
+
+  Definition lrm_c (lt: seq leaktrans_i) (lc:leakage_c) : leakage_c := 
+    flatten (map2b lrm_i lt lc).
+
+  Definition lrm_w_false (lt : leaktrans_e) (lt1 : seq leaktrans_i) (li: leakage_i) : leakage_i := 
+    match li with
+    | Lwhile_false lc1 le => 
+      Lwhile_false (lrm_c lt1 lc1) (lest_to_les (trans_leakage lt (les_to_lest le)))
+    | _ => (* absurd *)
+      li
+    end.
+
+  Fixpoint lrm_w_true (lt : leaktrans_e) (lt1 lt2: seq leaktrans_i) (li: leakage_i) : leakage_i := 
+    match li with
+    | Lwhile_true lc1 le lc2 li => 
+      Lwhile_true (lrm_c lt1 lc1) (lest_to_les (trans_leakage lt (les_to_lest le))) (lrm_c lt2 lc2) (lrm_w_true lt lt1 lt2 li)
+    | _ => (* absurd *)
+      li
+    end.
+
+Definition lrm_for (lt:seq leaktrans_i) (lfor:leakage_for) :=
+    map (lrm_c lt) lfor.
+
+  Definition lrm_fun (lf: leakage_fun) := 
+    let fn := lf.1 in
+    let lt := odflt [::] (get_fundef Ffs fn) in
+    (fn, lrm_c lt lf.2).
+
+End LEAK_TRANS_LOOP.
+
+Fixpoint leaktrm_i (lt : leaktrans_i) (li : leakage_i) {struct li} : leakage_c :=
+match lt, li with 
+  | LETremove, _ => [::]
+  | LETsub0 (LETleake lt1) (LETleake lt2), Lcall la lf le =>
+    [:: Lcall (lest_to_les (trans_leakage lt1 (les_to_lest la))) 
+              (lrm_fun leaktrm_i lf) 
+              (lest_to_les (trans_leakage lt1 (les_to_lest le)))]
+  | LETkeep, _ => [:: li]
+    (* This is the case when b is evaluated to boolean then we make a choice *)
+  | LETsub3 LETremove lt1 lt2, Lcond le b lc => [:: Lcond le b (lrm_c leaktrm_i (if b then lt1 else lt2) lc)]
+  | LETsub3 (LETleake lt) lt1 lt2, Lcond le b lc =>
+    (* This is the case when b is not evaluated to boolean *)
+    [:: Lcond (lest_to_les (trans_leakage lt (les_to_lest le))) b (lrm_c leaktrm_i (if b then lt1 else lt2) lc)]
+  | LETsub (LETleake lt1) lt2, Lfor le lfor => 
+    [:: Lfor (lest_to_les (trans_leakage lt1 (les_to_lest le))) (lrm_for leaktrm_i lt2 lfor)]
+  | LETsub (LETleake lt) lt1, (Lwhile_false _ _) =>
+    [:: lrm_w_false leaktrm_i lt lt1 li]
+  | LETsub3 (LETleake lt) lt1 lt2, (Lwhile_true _ _ _ _) =>
+    [ :: lrm_w_true leaktrm_i lt lt1 lt2 li]
+  | LETleake le, Lassgn le' => [:: Lassgn (lest_to_les (trans_leakage le (les_to_lest le')))]
+  | LETleake le, Lopn le' => [:: Lopn (lest_to_les (trans_leakage le (les_to_lest le')))]
+  | _, _ => [:: li]
+end.
+
+End LEAK_TRANS.
+
+
 
