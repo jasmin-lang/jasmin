@@ -33,6 +33,7 @@ Require Import Utf8.
 Import Relations.
 
 Require Import expr compiler_util.
+Import ssrZ.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -138,6 +139,18 @@ Section PROG.
 
 Context (p: sprog) (fn: funname).
 
+Let rsp : var := Var (sword Uptr) p.(p_extra).(sp_stk_id).
+Let rspi : var_i := VarI rsp xH.
+Let rspg : gvar := Gvar rspi Slocal.
+
+Definition round32 (sz: Z) : Z :=
+  (let _32 := 32 in if sz mod _32 == 0 then sz else ((sz + 1) / _32) * _32)%Z.
+
+(*TODO: use cast_const *)
+Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : linstr :=
+  let m i := {| li_ii := ii ; li_i := i |} in
+  m (Lopn [:: Lvar rspi] (Ox86 ((if free then ADD else SUB) Uptr)) [:: Pvar rspg; Papp1 (Oword_of_int Uptr) (Pconst sz) ]).
+
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
@@ -204,10 +217,18 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
     if get_fundef (p_funcs p) fn is Some fd then
     if all2 (λ e a, if e is Pvar (Gvar v _) then v_var v == v_var a else false) es (f_params fd)
     then if all2 (λ x r, if x is Lvar v then v_var v == v_var r else false) xs (f_res fd)
-    then if sf_return_address (f_extra fd) is Some ra then
-      let lret := next_lbl lbl in
-      ok (lret, MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret) :: MkLI ii (Lgoto (fn, xH)) :: MkLI ii (Llabel lret) :: lc)
-    else cierror ii (Cerr_linear "nowhere to store the return address")
+    then
+      let e := f_extra fd in
+      if sf_return_address e is Some ra then
+      if sf_to_save e is [::] then
+        let sz := round32 (sf_stk_sz e) in
+        let: (before, after) :=
+           if sz == 0 then ([::], [::]) else ([:: allocate_stack_frame false ii sz ], [:: allocate_stack_frame true ii sz ])
+        in
+        let lret := next_lbl lbl in
+        ok (lret, MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret) :: before ++ MkLI ii (Lgoto (fn, xH)) :: MkLI ii (Llabel lret) :: after ++ lc)
+      else cierror ii (Cerr_linear "called function will destroy local variables")
+      else cierror ii (Cerr_linear "nowhere to store the return address")
     else cierror ii (Cerr_linear "bad call dests")
     else cierror ii (Cerr_linear "bad call args")
     else cierror ii (Cerr_linear "call to unknown function")
