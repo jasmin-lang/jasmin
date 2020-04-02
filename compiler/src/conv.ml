@@ -285,9 +285,10 @@ let set_iinfo tbl loc ii =
   pos_of_int n
 
 let get_iinfo tbl n =
-  try Hashtbl.find tbl.iinfo (int_of_pos n)
+  let n = int_of_pos n in
+  try Hashtbl.find tbl.iinfo n
   with Not_found ->
-    Format.eprintf "WARNING: CAN NOT FIND IINFO %i@." (int_of_pos n);
+    if 1 < n then Format.eprintf "WARNING: CAN NOT FIND IINFO %i@." n;
     (L._dummy, []), tbl.dft_info
 
 let rec cinstr_of_instr tbl i c =
