@@ -385,7 +385,7 @@ Definition linear_fd (fd: sfundef) :=
   let e := fd.(f_extra) in
   let is_export := sf_return_address e == None in
   let res := if is_export then f_res fd else [::] in
-  LFundef (sf_stk_sz e) (f_tyin fd) (f_params fd) (head ++ fd'.2) (f_tyout fd) res (sf_to_save e) (sf_save_stack e)
+  LFundef (sf_stk_sz e) (f_tyin fd) (f_params fd) (head ++ fd'.2) (f_tyout fd) res (if is_export then sf_to_save e else [::]) (sf_save_stack e)
               is_export.
 
 End FUN.

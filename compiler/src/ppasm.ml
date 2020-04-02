@@ -372,7 +372,8 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
         tosave;
 
       let prologue, epilogue =
-        match saved_stack with
+        if not export then [], []
+        else match saved_stack with
         | SavedStackNone  ->
           assert (Bigint.equal stsz Bigint.zero);
           [], []

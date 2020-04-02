@@ -582,6 +582,7 @@ let alloc_fd local_alloc pmap rmap fd =
 
   let sao_alloc = Mv.filter (fun x _mp -> Sv.mem x locals) pmap in
 
+  let sao_has_stack = sao_has_stack && fd.f_cc = Export in
   let sao = 
     { sao_has_stack; sao_params; sao_return; sao_alloc } in
 
