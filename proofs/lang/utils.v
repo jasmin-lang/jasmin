@@ -358,6 +358,12 @@ Section FOLDM.
     | [:: a & la ] => f a acc >>= fun acc => foldM acc la
     end.
 
+  Fixpoint foldrM (acc : bT) (l : seq aT) :=
+    match l with
+    | [::]         => Ok eT acc
+    | [:: a & la ] => foldrM acc la >>= f a
+    end.
+
   Definition isOk e a (r : result e a) :=
     if r is Ok _ then true else false.
 

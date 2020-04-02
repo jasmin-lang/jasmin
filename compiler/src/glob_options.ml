@@ -33,11 +33,14 @@ let poptions = [
   ; Compiler.ShareStackVariable
   ; Compiler.DeadCode_ShareStackVariable
   ; Compiler.RegArrayExpansion
+  ; Compiler.RemoveArrInit 
   ; Compiler.RemoveGlobal
+  ; Compiler.RegArrayExpansion
+  ; Compiler.MakeRefArguments
   ; Compiler.LowerInstruction
+  ; Compiler.StackAllocation
   ; Compiler.RegAllocation
   ; Compiler.DeadCode_RegAllocation
-  ; Compiler.StackAllocation
   ; Compiler.Linearisation
   ; Compiler.Assembly ]
 

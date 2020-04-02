@@ -427,16 +427,9 @@ let main () =
       let tokeep fn = tokeep (Conv.fun_of_cfun tbl fn) in
       tokeep in
 
-    let makerefarguments up =
-      let p = Conv.prog_of_cuprog tbl up in
-      let (_,fds) = MakeReferenceArguments.doit p in
-      let fds = List.map (Conv.cufdef_of_fdef tbl) fds in
-      Expr.({
-        p_funcs = fds;
-        p_globs = up.p_globs;
-        p_extra = up.p_extra; }) in
-
-
+    let is_reg_ptr x = 
+      let x = Conv.var_of_cvar tbl x in
+      is_reg_ptr_kind x.v_kind in
       
     let cparams = {
       Compiler.rename_fd    = rename_fd;
@@ -445,7 +438,6 @@ let main () =
       Compiler.share_stk_prog = (*apply "share stk" *) share_stk_prog;
       Compiler.stk_pointer_name = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rsp);
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
-      Compiler.makerefarguments = makerefarguments;
       Compiler.stackalloc    = memory_analysis;
       Compiler.removereturn  = removereturn;
       Compiler.regalloc      = global_regalloc;
@@ -460,6 +452,7 @@ let main () =
                                          use_set0 = !Glob_options.set0; };
       Compiler.is_glob     = is_glob;
       Compiler.fresh_id    = fresh_id;
+      Compiler.is_reg_ptr  = is_reg_ptr;
     } in
 
     let entries =

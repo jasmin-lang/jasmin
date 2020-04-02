@@ -27,7 +27,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import x86_gen expr.
 Import ZArith.
 Require Import compiler_util allocation inline dead_calls unrolling remove_globals
-   constant_prop dead_code array_expansion lowering stack_alloc linear x86_sem.
+   constant_prop dead_code array_expansion lowering makeReferenceArguments stack_alloc linear x86_sem.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -92,7 +92,6 @@ Record compiler_params := {
   is_var_in_memory : var_i → bool;
   global_static_data_symbol: Ident.ident;
   stk_pointer_name : Ident.ident;
-  makerefarguments : _uprog -> _uprog;
   stackalloc       : _uprog → stack_alloc_oracles;
   removereturn     : _sprog -> (funname -> option (seq bool));
   regalloc         : _sprog -> _sprog;
@@ -103,6 +102,7 @@ Record compiler_params := {
   lowering_opt     : lowering_options;
   is_glob          : var -> bool;
   fresh_id         : glob_decls -> var -> Ident.ident;
+  is_reg_ptr       : var -> bool;
 }.
 
 Variable cparams : compiler_params.
@@ -144,10 +144,8 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
   Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
-  let pa := cparams.(makerefarguments) pg in
+  Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_id) pg in
   let pa := cparams.(print_uprog) MakeRefArguments pa in
-  (* FIXME *)
-(*  Let _ := CheckAllocRegU.check_prog pg.(p_extra) pg.(p_funcs) pa.(p_extra) pa.(p_funcs) in *)
  
   Let _ := assert (fvars_correct cparams.(lowering_vars) (p_funcs pa)) Ferr_lowering in
 
