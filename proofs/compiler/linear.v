@@ -368,8 +368,9 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
            if sz == 0 then ([::], [::]) 
            else ([:: allocate_stack_frame false ii sz ], [:: allocate_stack_frame true ii sz ])
         in
-        let lret := next_lbl lbl in
-        (lret, MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret) :: before ++ MkLI ii (Lgoto (fn, xH)) :: MkLI ii (Llabel lret) :: after ++ lc)
+        let lret := lbl in
+        let lbl := next_lbl lbl in
+        (lbl, MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret) :: before ++ MkLI ii (Lgoto (fn, xH)) :: MkLI ii (Llabel lret) :: after ++ lc)
       else (lbl, lc)
     else (lbl, lc )
   | Cfor _ _ _ => (lbl, lc)
