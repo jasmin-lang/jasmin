@@ -144,12 +144,16 @@ Let rspi : var_i := VarI rsp xH.
 Let rspg : gvar := Gvar rspi Slocal.
 
 Definition round32 (sz: Z) : Z :=
-  (let _32 := 32 in if sz mod _32 == 0 then sz else ((sz + 1) / _32) * _32)%Z.
+  (let _32 := 32 in if sz mod _32 == 0 then sz else ((sz + 31) / _32) * _32)%Z.
 
 (*TODO: use cast_const *)
 Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : linstr :=
   let m i := {| li_ii := ii ; li_i := i |} in
-  m (Lopn [:: Lvar rspi] (Ox86 ((if free then ADD else SUB) Uptr)) [:: Pvar rspg; Papp1 (Oword_of_int Uptr) (Pconst sz) ]).
+  m (Lopn [:: Lvar rspi] (Ox86 (LEA Uptr))
+          [:: Papp2 ((if free then Oadd else Osub) (Op_w Uptr))
+              (Pvar rspg)
+              (Papp1 (Oword_of_int Uptr) (Pconst sz))
+    ]).
 
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
