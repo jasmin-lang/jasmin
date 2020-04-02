@@ -189,7 +189,9 @@ Section CHECK.
     let (ii,ir) := i in
     match ir with
     | Cassgn x tag ty e => 
-      ok (read_rv_rec (read_e_rec (Sv.diff D (vrv x)) e) x)
+      if ty is sword sz then
+        ok (read_rv_rec (read_e_rec (Sv.diff D (vrv x)) e) x)
+      else cierror ii (Cerr_linear "assign not a word")
     | Copn xs tag o es =>
       ok (read_es_rec (read_rvs_rec (Sv.diff D (vrvs xs)) xs) es)
     | Cif b c1 c2 =>
@@ -203,6 +205,8 @@ Section CHECK.
       else wloop check_i ii c e c' Loop.nb D
     | Ccall _ xs fn es => 
       if get_fundef (p_funcs p) fn is Some fd then
+        Let _ := assert (sf_return_address (f_extra fd) != None)  
+          (ii, Cerr_linear "nowhere to store the return address") in
         Let _ := assert 
           (all2 (λ e a, if e is Pvar (Gvar v _) then v_var v == v_var a else false) es (f_params fd))
           (ii, Cerr_linear "bad call args") in
@@ -216,7 +220,7 @@ Section CHECK.
         ok (read_es_rec D1 es)
       else cierror ii (Cerr_linear "call to unknown function")
     end.
-
+ 
   Definition check_fd (ffd:sfun_decl) := 
     let (fn,fd) := ffd in
     let O := read_es (map Plvar fd.(f_res)) in
@@ -233,19 +237,19 @@ End CHECK.
 (* --------------------------------------------------------------------------- *)
 (* Translation                                                                 *)
 
-Notation "c1 ';;' c2" :=  (c2 >>= (fun p => c1 p.1 p.2))
+Notation "c1 ';;' c2" :=  (let: (lbl,lc) := c2 in c1 lbl lc)
    (at level 26, right associativity).
 
-Notation "c1 '>;' c2" :=  (c2 >>= (fun p => ok (p.1, c1 :: p.2)))
+Notation "c1 '>;' c2" :=  (let: (lbl,lc) := c2 in (lbl, c1::lc))
    (at level 26, right associativity).
 
 Section LINEAR_C.
 
-  Variable linear_i : instr -> label -> lcmd -> ciexec (label * lcmd).
+  Variable linear_i : instr -> label -> lcmd -> label * lcmd.
 
   Fixpoint linear_c (c:cmd) (lbl:label) (lc:lcmd) :=
     match c with
-    | [::] => ciok (lbl, lc)
+    | [::] => (lbl, lc)
     | i::c =>
       linear_i i ;; linear_c c lbl lc
     end.
@@ -270,13 +274,12 @@ Definition add_align ii a (lc:lcmd) :=
   | Align   =>  MkLI ii Lalign :: lc
   end.
 
-Definition align ii a (lc:ciexec (label * lcmd)) : ciexec (label * lcmd) :=
-  Let p := lc in
-  ok (p.1, add_align ii a p.2).
+Definition align ii a (p:label * lcmd) : label * lcmd :=
+  (p.1, add_align ii a p.2).
 
-Section PROG.
+Section FUN.
 
-Context (p: sprog) (fn: funname).
+Context (fn: funname).
 
 Let rsp : var := Var (sword Uptr) p.(p_extra).(sp_stk_id).
 Let rspi : var_i := VarI rsp xH.
@@ -297,13 +300,13 @@ Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : linstr :
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
-  | Cassgn x _ ty e =>
+  | Cassgn x _ ty e => 
     if ty is sword sz
     then
       let op := if (sz ≤ U64)%CMP then (MOV sz) else (VMOVDQU sz) in
-      ok (lbl, MkLI ii (Lopn [:: x ] (Ox86 op) [:: e]) :: lc)
-    else cierror ii (Cerr_linear "assign not a word")
-  | Copn xs _ o es => ok (lbl, MkLI ii (Lopn xs o es) :: lc)
+      (lbl, MkLI ii (Lopn [:: x ] (Ox86 op) [:: e]) :: lc)
+    else (lbl, lc)
+  | Copn xs _ o es => (lbl, MkLI ii (Lopn xs o es) :: lc)
 
   | Cif e [::] c2 =>
     let L1 := lbl in
@@ -358,25 +361,18 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
 
   | Ccall _ xs fn es =>
     if get_fundef (p_funcs p) fn is Some fd then
-    if all2 (λ e a, if e is Pvar (Gvar v _) then v_var v == v_var a else false) es (f_params fd)
-    then if all2 (λ x r, if x is Lvar v then v_var v == v_var r else false) xs (f_res fd)
-    then
       let e := f_extra fd in
       if sf_return_address e is Some ra then
-      if sf_to_save e is [::] then
         let sz := round32 (sf_stk_sz e) in
         let: (before, after) :=
-           if sz == 0 then ([::], [::]) else ([:: allocate_stack_frame false ii sz ], [:: allocate_stack_frame true ii sz ])
+           if sz == 0 then ([::], [::]) 
+           else ([:: allocate_stack_frame false ii sz ], [:: allocate_stack_frame true ii sz ])
         in
         let lret := next_lbl lbl in
-        ok (lret, MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret) :: before ++ MkLI ii (Lgoto (fn, xH)) :: MkLI ii (Llabel lret) :: after ++ lc)
-      else cierror ii (Cerr_linear "called function will destroy local variables")
-      else cierror ii (Cerr_linear "nowhere to store the return address")
-    else cierror ii (Cerr_linear "bad call dests")
-    else cierror ii (Cerr_linear "bad call args")
-    else cierror ii (Cerr_linear "call to unknown function")
-
-  | Cfor _ _ _ => cierror ii (Cerr_linear "for found in linear")
+        (lret, MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret) :: before ++ MkLI ii (Lgoto (fn, xH)) :: MkLI ii (Llabel lret) :: after ++ lc)
+      else (lbl, lc)
+    else (lbl, lc )
+  | Cfor _ _ _ => (lbl, lc)
   end.
 
 Definition linear_fd (fd: sfundef) :=
@@ -385,23 +381,28 @@ Definition linear_fd (fd: sfundef) :=
      then ([:: MkLI xH (Ligoto (Pvar {| gv := VarI r xH ; gs := Slocal |})) ], [:: MkLI xH (Llabel 1) ], 2%positive)
      else ([::], [::], 1%positive)
   in
-  Let fd' := linear_c linear_i (f_body fd) lbl tail in
+  let fd' := linear_c linear_i (f_body fd) lbl tail in
   let e := fd.(f_extra) in
   let is_export := sf_return_address e == None in
   let res := if is_export then f_res fd else [::] in
-  ok (LFundef (sf_stk_sz e) (f_tyin fd) (f_params fd) (head ++ fd'.2) (f_tyout fd) res (sf_to_save e) (sf_save_stack e)
-              is_export).
+  LFundef (sf_stk_sz e) (f_tyin fd) (f_params fd) (head ++ fd'.2) (f_tyout fd) res (sf_to_save e) (sf_save_stack e)
+              is_export.
 
-End PROG.
+End FUN.
 
-Definition linear_prog (p: sprog) : cfexec lprog :=
+Definition linear_prog : cfexec lprog :=
+  let wmap := mk_wmap in
+  Let _ := assert (check_wmap wmap) (Ferr_msg (Cerr_linear "invalid wmap")) in 
+  Let _ := check_prog (get_wmap wmap) in
   Let _ := assert (size p.(p_globs) == 0) 
              (Ferr_msg (Cerr_linear "invalid p_globs, please report")) in
-  Let funcs := map_cfprog_name (linear_fd p) p.(p_funcs) in
+  let funcs := map (fun '(f,fd) => (f, linear_fd f fd)) p.(p_funcs) in
   ok {| lp_rip   := p.(p_extra).(sp_rip);
         lp_globs := p.(p_extra).(sp_globs);
         lp_stk_id := p.(p_extra).(sp_stk_id);
         lp_funcs := funcs |}.
+
+End PROG.
 
 Module Eq_linstr.
   Definition eqb_r i1 i2 :=
