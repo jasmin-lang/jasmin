@@ -85,6 +85,8 @@ let rec pp_comp_err tbl fmt =
   | Compiler_util.Cerr_linear s ->
     Format.fprintf fmt "linearisation error %a"
       pp_string0 s
+  | Compiler_util.Cerr_needspill _xs ->
+    Format.fprintf fmt "Need spilling" 
   | Compiler_util.Cerr_assembler c ->
     begin match c with
     | Compiler_util.AsmErr_string s ->
