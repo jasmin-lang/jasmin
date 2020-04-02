@@ -279,8 +279,8 @@ val vars_fc : 'info func  -> Sv.t
 val locals  : 'info func -> Sv.t
 
 (* -------------------------------------------------------------------- *)
-(* Written variables *)
-val written_vars_fc : 'info func -> Sv.t
+(* Written variables & called functions *)
+val written_vars_fc : 'info func -> Sv.t * Sf.t
 
 (* -------------------------------------------------------------------- *)
 (* Functions on types                                                   *)

@@ -650,8 +650,10 @@ let is_subroutine = function
   | Subroutine _ -> true
   | _            -> false
 
-let post_process ~stack_needed (live: Sv.t) (f: _ func) : _ func * Sv.t * var option * var option =
-  let fv = written_vars_fc f in
+let post_process ~stack_needed (live: Sv.t) ~(killed: funname -> Sv.t) (f: _ func) : _ func * Sv.t * var option * var option =
+  let fv, cg = written_vars_fc f in
+  let killed_by_calls = Sf.fold (fun n -> Sv.union (killed n)) cg Sv.empty in
+  let fv = Sv.union fv killed_by_calls in
   let allocatable = X64.allocatables in
   let free_regs = Sv.diff allocatable (Sv.union live fv) in
   (* choose a register for the return address *)
@@ -661,7 +663,7 @@ let post_process ~stack_needed (live: Sv.t) (f: _ func) : _ func * Sv.t * var op
       Sv.remove ra free_regs, Some ra
     else free_regs, None
   in
-  let to_save = if is_subroutine f.f_cc then Sv.inter live fv else Sv.inter X64.callee_save fv in
+  let to_save = if is_subroutine f.f_cc then Sv.union killed_by_calls (Sv.inter live fv) else Sv.inter X64.callee_save fv in
   let to_save, stk =
     if stack_needed then
       if Sv.is_empty free_regs then
@@ -735,10 +737,14 @@ let alloc_prog translate_var (has_stack: 'a -> bool) (dfuncs: ('a * 'info func) 
     |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
     |> global_allocation translate_var
   in
-  List.map (fun f ->
+  let killed_map : Sv.t Hf.t = Hf.create 17 in
+  let killed fn = Hf.find_default killed_map fn Sv.empty in
+  funcs |> List.rev |>
+  List.rev_map (fun f ->
       let e = Hf.find extra f.f_name in
       let stack_needed = has_stack e in
-      let f, to_save, ro_rsp, ro_return_address = post_process ~stack_needed (Sv.map subst (get_liveness f.f_name)) f in
+      let f, to_save, ro_rsp, ro_return_address = post_process ~stack_needed ~killed (Sv.map subst (get_liveness f.f_name)) f in
+      let to_save = match ro_return_address with Some ra -> Sv.add ra to_save | None -> to_save in
+      Hf.add killed_map f.f_name to_save;
       e, { ro_to_save = Sv.elements to_save ; ro_rsp ; ro_return_address }, f
     )
-    funcs

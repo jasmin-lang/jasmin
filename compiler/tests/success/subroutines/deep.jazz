@@ -1,0 +1,13 @@
+fn f5(reg u64 x) -> reg u64 { return x; }
+fn f4(reg u64 x) -> reg u64 { x = f5(x); return x; }
+fn f3(reg u64 x) -> reg u64 { x = f4(x); return x; }
+fn f2(reg u64 x) -> reg u64 { x = f3(x); return x; }
+fn f1(reg u64 x) -> reg u64 { x = f2(x); return x; }
+
+export
+fn main(reg u64 a) -> reg u64 {
+reg u64 r;
+r = a;
+r = f1(r);
+return r;
+}
