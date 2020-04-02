@@ -564,7 +564,7 @@ Definition remove_cpm (m:cpm) (s:Sv.t): cpm :=
 Definition const_prop_rv (m:cpm) (rv:lval) : cpm * lval * leaktrans_e :=
   match rv with
   | Lnone _ _    => (m, rv, LET_remove)
-  | Lvar  x      => (Mvar.remove m x, rv, LET_id)
+  | Lvar  x      => (Mvar.remove m x, rv, LET_remove)
   | Lmem  sz x e => let v := const_prop_e m e in (m, Lmem sz x v.1, v.2)
   | Laset sz x e => let v := const_prop_e m e in (Mvar.remove m x, Laset sz x v.1, v.2)
   end.
@@ -763,6 +763,28 @@ match lt, li with
 end.
 
 End LEAK_TRANS.
+
+Section Leakages_proof.
+
+Context (gd: glob_decls).
+
+Lemma eq_sem_pexpr_l_sem_pexpr_e_l s1 e v l:
+sem_pexpr gd s1 e = ok (v, l) ->
+exists2 ve, exists2 le,
+sem_pexpr_e gd s1 e = ok (ve, le) &
+l = (lest_to_les le) &
+value_uincl v ve.
+Proof.
+elim e.
++ move=> z H. exists z. exists LEempty. constructor. by case: H => H <- /=.
+  by case: H => -> _ /=.
++ move=> b H. exists b. exists LEempty. constructor. by case: H => H <- /=.
+  by case: H => -> _ /=.
++ move=> n H. exists (Varr (WArray.empty n)). exists LEempty. constructor.
+  by case: H => H <- /=. by case: H => -> _ /=.
++ move=> x. rewrite /sem_pexpr. t_xrbindP.
+  move=> y Hg He Hl. exists y. exists LEempty. econstructor.
+  by case: H => H <- /=. by case: H => -> _ /=.
 
 
 
