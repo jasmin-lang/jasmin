@@ -17,6 +17,65 @@ Variant warning_msg : Set :=
 (* ** Compiler error
  * -------------------------------------------------------------------------- *)
 
+(*
+Variant box := 
+  | Vbox
+  | Hbox
+  | HoVbox.
+
+Inductive pp_error :=
+  | PPEstring  `(string)
+  | PPEvar     `(var)
+  | PPEop1     `(sop1)
+  | PPEop2     `(sop2)
+  | PPEopN     `(opN)
+  | PPEsopn    `(sopn)
+  | PPEexpr    `(pexpr)
+  | PPElval    `(lval)
+  | PPEfunname `(funname)
+  | PPEinstr   `(instr_r)
+  | PPEiinfo   `(instr_info)
+  | PPEbox     `(box) `(seq pp_error)
+  | PPEbreack.
+
+(*
+Fixpoint pp_seq_aux sep (xs: list pp_error) := 
+  match xs with
+  | [::] => [::]
+  | x::xs => sep :: x:: pp_seq_aux sep xs
+  end.
+
+Definition pp_seq_sep sep xs := 
+  PPEseq match xs with
+  | [::] => [::]
+  | [::x] => [::x]
+  | x::xs => x:: pp_seq_aux sep xs
+  end.
+
+Definition pp_seq := pp_seq_sep PPEbreack.
+
+Definition pp_list_sep {A:Type} sep (pp_e: A -> pp_error) xs :=
+  pp_seq_sep sep (map pp_e xs).
+
+Definition pp_list A := @pp_list_sep A PPEbreack.
+*)
+
+Definition pp_hov  := PPEbox HoVbox.
+Definition pp_box := PPEbox Hbox.
+Definition pp_vbox := PPEbox Vbox.
+
+Definition pp_s    := PPEstring.
+Definition pp_v    := PPEvar.
+Definition pp_op1  := PPEop1.
+
+Definition pp_neq {A:Type} (pp_e: A -> pp_error) e1 e2 (_: unit):=
+  pp_hov [:: pp_e e1; pp_s "should be equal to"; pp_e e2].
+
+Definition pp_at (ii:instr_info) (e:pp_error) := 
+  pp_box [:: pp_s "at "; PPEiinfo ii].
+*)
+
+
 Variant asm_error :=
   | AsmErr_string : string -> asm_error
   | AsmErr_cond   : pexpr -> asm_error.
