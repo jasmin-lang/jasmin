@@ -120,8 +120,8 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
     if tag != AT_keep then
       if disjoint s w && negb (has write_mem xs) then ciok (s, [::])
       else if check_nop_opn xs o es then ciok (s, [::])
-      else ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
-    else ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
+      else ciok (read_es_rec (read_rvs_rec (Sv.diff s w) xs) es, [:: i])
+    else ciok (read_es_rec (read_rvs_rec (Sv.diff s w) xs) es, [:: i])
 
   | Cif b c1 c2 =>
     Let sc1 := dead_code_c dead_code_i c1 s in
