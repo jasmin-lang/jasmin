@@ -12,7 +12,7 @@ let ecfile = ref ""
 let ec_list = ref []
 let check_safety = ref false
 let safety_param = ref None
-
+let stop_after = ref None
 let lea = ref false
 let set0 = ref false
 let model = ref Normal
@@ -46,6 +46,9 @@ let poptions = [
 
 let set_printing p () =
   print_list := p :: !print_list
+
+let set_stop_after p () = 
+  stop_after := Some p
 
 let set_all_print () =
   print_list := poptions
@@ -88,6 +91,10 @@ let print_option p =
   let s, msg = print_strings p in
   ("-p"^s, Arg.Unit (set_printing p), "print program after "^msg)
 
+let stop_after_option p = 
+  let s, msg = print_strings p in
+  ("-until_"^s, Arg.Unit (set_stop_after p), "stop after "^msg)
+
 let options = [
     "-o"       , Arg.Set_string outfile, "[filename]: name of the output file";
     "-typeonly", Arg.Set typeonly      , ": stop after typechecking";
@@ -112,7 +119,7 @@ let options = [
      v_1,...,v_n;v_1',...,v_k'\n\
      v_1,...,v_n: list of pointer variables that have to be considered together\n\
      v_1',...,v_k': list of relational variables"
-  ] @  List.map print_option poptions
+  ] @  List.map print_option poptions @ List.map stop_after_option poptions
 
 let usage_msg = "Usage : jasminc [option] filename"
 
@@ -120,9 +127,13 @@ let usage_msg = "Usage : jasminc [option] filename"
 
 (* -------------------------------------------------------------------- *)
 let eprint step pp_prog p =
-  if List.mem step !print_list then
+  if List.mem step !print_list then begin
     let (_, msg) = print_strings step in
     Format.eprintf
 "(* -------------------------------------------------------------------- *)@.";
     Format.eprintf "(* After %s *)@.@." msg;
     Format.eprintf "%a@.@.@." pp_prog p
+    end;
+  if !stop_after = Some step then exit 0
+
+                                      
