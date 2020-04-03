@@ -288,7 +288,7 @@ let get_iinfo tbl n =
   let n = int_of_pos n in
   try Hashtbl.find tbl.iinfo n
   with Not_found ->
-    if 1 < n then Format.eprintf "WARNING: CAN NOT FIND IINFO %i@." n;
+    Format.eprintf "WARNING: CAN NOT FIND IINFO %i@." n;
     (L._dummy, []), tbl.dft_info
 
 let rec cinstr_of_instr tbl i c =
@@ -416,6 +416,8 @@ let gd_of_cgd tbl (x, gd) =
 
 let cuprog_of_prog (all_registers: var list) info p =
   let tbl = empty_tbl info in
+  (* init dummy iinfo *)
+  let _ = set_iinfo tbl (L._dummy, []) info in
   (* First add registers *)
   List.iter
     (fun x -> ignore (cvar_of_reg tbl x))
