@@ -1,0 +1,16 @@
+fn init () -> stack u64[2] {
+   stack u64[2] t;
+   t[0] = 0;
+   t[1] = 0;
+   return t;
+}
+
+export fn main() -> reg u64 {
+  stack u64[2] t;
+  reg u64 r;
+  t = init();
+  r = t[0];
+  r += t[1];
+  return r;
+}
+
