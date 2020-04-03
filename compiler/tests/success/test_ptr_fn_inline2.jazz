@@ -1,0 +1,21 @@
+inline fn init () -> stack u64[1] {
+   stack u64[1] H;
+   H[0] = 0;
+   return H;
+}
+
+inline fn foo (reg ptr u64[1] t) -> reg ptr u64[1] {
+   t[0] = 1;
+   return t;
+}
+
+export fn main () -> reg u64 {
+  stack u64[1] H;
+  reg ptr u64[1] t;
+  reg u64 r;
+
+  H = init();
+  t = foo(H);
+  r = t[0];
+  return r;       
+}
