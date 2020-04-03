@@ -160,7 +160,8 @@ let collect_equality_constraints_in_func
     function
     | Cfor (_, _, s) -> collect_stmt s
     | Copn (lvs, _, op, es) -> copn_constraints int_of_var (add ii) addf lvs op es
-    | Cassgn (Lvar x, (AT_rename | AT_phinode), _, Pvar y) when is_gkvar y ->
+    | Cassgn (Lvar x, (AT_rename | AT_phinode), _, Pvar y) when 
+          is_gkvar y && kind_i x = kind_i y.gv ->
        addv ii x y.gv
     | Cassgn (Lvar x, _, _, Pvar y) when is_gkvar y && kind_i x = kind_i y.gv ->
        begin match int_of_var x, int_of_var y.gv with
