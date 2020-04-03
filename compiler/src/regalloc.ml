@@ -251,24 +251,25 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   in
   fun a -> loop a e
 
+let conflicts_add_one tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
+  let add_one_aux (v: int) (w: int) (c: conflicts) : conflicts =
+    let x = get_conflicts v c in
+    IntMap.add v (IntSet.add w x) c
+  in
+  try
+    let i = Hv.find tbl v in
+    let j = Hv.find tbl w in
+    if i = j then hierror "%a: conflicting variables %a and %a must be merged due to:@.%a"
+                    Printer.pp_iloc loc
+                    (Printer.pp_var ~debug:true) v
+                    (Printer.pp_var ~debug:true) w
+                    (pp_trace i) tr;
+    c |> add_one_aux i j |> add_one_aux j i
+  with Not_found -> c
+
 let collect_conflicts
       (tbl: int Hv.t) (tr: 'info trace) (f: (Sv.t * Sv.t) func) (c: conflicts) : conflicts =
-  let add_one_aux (v: int) (w: int) (c: conflicts) : conflicts =
-      let x = get_conflicts v c in
-      IntMap.add v (IntSet.add w x) c
-  in
-  let add_one loc (v: var) (w: var) (c: conflicts) : conflicts =
-    try
-      let i = Hv.find tbl v in
-      let j = Hv.find tbl w in
-      if i = j then hierror "%a: conflicting variables %a and %a must be merged due to:@.%a"
-          Printer.pp_iloc loc
-          (Printer.pp_var ~debug:true) v
-          (Printer.pp_var ~debug:true) w
-          (pp_trace i) tr;
-      c |> add_one_aux i j |> add_one_aux j i
-    with Not_found -> c
-  in
+  let add_one = conflicts_add_one tbl tr in
   let add (c: conflicts) loc ((i, j): (Sv.t * Sv.t)) : conflicts =
     c
     |> conflicts_in i (add_one loc)
@@ -289,6 +290,13 @@ let collect_conflicts
     collect_instr_r (add c i_loc i_info) i_desc
   and collect_stmt c s = List.fold_left collect_instr c s in
   collect_stmt c f.f_body
+
+(** May-conflicts: local variables of function f may-conflict with variables
+that are live at some call-site *)
+let collect_may_conflicts tbl tr (live: Sv.t) (f: 'info func) (cnf: conflicts) : conflicts =
+  let add_conflicts s x = Sv.fold (conflicts_add_one tbl tr (Location._dummy, []) x) s in
+  let vars = vars_c f.f_body in
+  cnf |> Sv.fold (add_conflicts vars) live |> Sv.fold (add_conflicts live) vars
 
 let iter_variables (cb: var -> unit) (f: 'info func) : unit =
   let iter_sv = Sv.iter cb in
@@ -587,7 +595,7 @@ let type_of_vars (vars: var list) : ty =
 
 let greedy_allocation
     (vars: int Hv.t)
-    (nv: int) (cnf: conflicts)
+    (nv: int) (cnf: conflicts) (may_cnf: conflicts)
     (fr: friend)
     (a: allocation) : allocation =
   let a = ref a in
@@ -597,6 +605,8 @@ let greedy_allocation
       if vi <> [] then (
       let c = conflicting_registers i cnf !a in
       let has_no_conflict v = not (List.mem (Some v) c) in
+      let mc = conflicting_registers i may_cnf !a in
+      let has_no_may_conflict v = not (List.mem (Some v) mc) in
       let bank =
         match kind_of_type (type_of_vars vi) with
         | Word -> X64.allocatable
@@ -604,10 +614,16 @@ let greedy_allocation
         | Unknown ty -> hierror "Register allocation: no register bank for type %a" Printer.pp_ty ty
       in
       match List.filter has_no_conflict bank with
-      | x :: regs ->
-        let y = get_friend_registers x fr !a i regs in
-        a := IntMap.add i y !a
-      | _ -> hierror "Register allocation: no more register to allocate %a" Printer.(pp_list "; " (pp_var ~debug:true)) vi
+      | (x :: regs) as bank ->
+         begin match List.filter has_no_may_conflict bank with
+         | x :: regs ->
+            let y = get_friend_registers x fr !a i regs in
+            a := IntMap.add i y !a
+         | [] ->
+            let y = get_friend_registers x fr !a i regs in
+            a := IntMap.add i y !a
+         end
+      | [] -> hierror "Register allocation: no more register to allocate %a" Printer.(pp_list "; " (pp_var ~debug:true)) vi
     )
     )
   done;
@@ -728,8 +744,9 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
       liveness_table
       IntMap.empty
   in
+  let may_conflicts = List.fold_left (fun a f -> collect_may_conflicts vars tr (get_liveness f.f_name) f a) IntMap.empty funcs in
   let a = List.fold_left (fun a f -> allocate_forced_registers translate_var vars conflicts f a) IntMap.empty funcs in
-  let a = greedy_allocation vars nv conflicts fr a in
+  let a = greedy_allocation vars nv conflicts may_conflicts fr a in
   let subst = subst_of_allocation vars a in
 
   List.map (fun f -> f |> Subst.subst_func subst |> Ssa.remove_phi_nodes) funcs,
