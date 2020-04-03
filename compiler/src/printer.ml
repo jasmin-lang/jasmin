@@ -370,7 +370,7 @@ let pp_glob pp_var fmt (x, gd) =
       Format.fprintf fmt "%a" Bigint.pp_print_X (Conv.bi_of_word ws w) 
     | Global.Garr(p, t) ->
       let _, t = Conv.to_array x.v_ty p t in
-      Format.fprintf fmt "@[{%a};@]"
+      Format.fprintf fmt "@[{%a}@]"
         (pp_list ",@ " Bigint.pp_print_X) 
         (Array.to_list t)  in
   Format.fprintf fmt "@[%a =@ %a;@]"
