@@ -30,7 +30,7 @@ let string_of_funname tbl (p : Utils0.funname) : string =
 (* ---------------------------------------------------------------- *)
 let pp_var_i tbl fmt x =
   let y = Conv.var_of_cvar tbl x.E.v_var in
-  F.fprintf fmt "%s.%i" y.P.v_name (P.int_of_uid y.P.v_id)
+  F.fprintf fmt "%s" y.P.v_name
 
 let rec pp_expr tbl fmt =
   let pp_expr = pp_expr tbl in
@@ -73,8 +73,12 @@ let pp_instr tbl fmt i =
   | Llabel lbl -> F.fprintf fmt "Label %a" pp_label lbl
   | Lgoto lbl -> F.fprintf fmt "Goto %a" (pp_remote_label tbl) lbl
   | Ligoto e -> F.fprintf fmt "IGoto %a" (pp_expr tbl) e
-  | LstoreLabel (lv, lbl) -> F.fprintf fmt "StoreLabel %a %a" (pp_lval tbl) lv pp_label lbl
+  | LstoreLabel (lv, lbl) -> F.fprintf fmt "%a = Label %a" (pp_lval tbl) lv pp_label lbl
   | Lcond (e, lbl) -> F.fprintf fmt "If %a goto %a" (pp_expr tbl) e pp_label lbl
+
+let pp_param tbl fmt x =
+  let y = Conv.var_of_cvar tbl x.E.v_var in
+  F.fprintf fmt "%a %a %s" Pr.pp_ty y.P.v_ty Pr.pp_kind y.P.v_kind y.P.v_name
 
 let pp_stackframe fmt sz =
   F.fprintf fmt "stack: %a"
@@ -89,7 +93,7 @@ let pp_lfun tbl fmt (fn, fd) =
   let name = Conv.fun_of_cfun tbl fn in
   F.fprintf fmt "@[<v>fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a%a@]@ }@]"
     name.P.fn_name
-    (Pr.pp_list ",@ " (pp_var_i tbl)) fd.lfd_arg
+    (Pr.pp_list ",@ " (pp_param tbl)) fd.lfd_arg
     (Pr.pp_list ",@ " pp_stype) fd.lfd_tyout
     pp_stackframe fd.lfd_stk_size
     (Pr.pp_list ";@ " (pp_instr tbl)) fd.lfd_body
