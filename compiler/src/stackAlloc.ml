@@ -44,10 +44,12 @@ type mem_pos = {
 
 let mp_equal mp1 mp2 = V.equal mp1.mp_s mp2.mp_s
   
-module Mmp = Map.Make (struct
+module MpCmp = struct 
   type t = mem_pos   
   let compare x y = V.compare x.mp_s y.mp_s
-end)
+end
+module Mmp = Map.Make (MpCmp)
+module Smp = Set.Make (MpCmp)
 
 (* ----------------------------------------------------------------- *)
 type ptr_kind = 
@@ -72,17 +74,37 @@ let ptr_of_pk pk =
 (* ----------------------------------------------------------------- *)
 
 let pp_var fmt x =
-  Format.fprintf fmt "%a" (Printer.pp_var ~debug:false) (L.unloc x)
+  Format.fprintf fmt "%a" (Printer.pp_var ~debug:true) (L.unloc x)
 
 let pp_iloc = Printer.pp_iloc
 
 (* ----------------------------------------------------------------- *)
 
 
-module Region = struct
+module Region : 
+sig
+  type regions 
+  val empty        : regions
+(*  val pp_rmap      : Format.formatter -> regions -> unit *)
+  val check_valid  : regions -> Prog.var_i -> mem_pos
+  val set_align    : Prog.var_i -> mem_pos -> Wsize.wsize -> unit
+  val set_writable : Prog.var_i -> mem_pos -> unit
+  val rset_word    : regions -> Prog.Mv.key -> Mmp.key -> regions
+  val set_word     : regions -> Prog.var_i -> Wsize.wsize -> Mmp.key -> regions
+  val set          : regions -> Prog.Mv.key Prog.L.located -> Mmp.key -> regions
+  val set_move     : regions -> Prog.Mv.key Prog.L.located -> Prog.var_i -> regions
+  val set_init     : regions -> Prog.Mv.key Prog.L.located -> ptr_kind -> regions
+  val incl         : regions -> regions -> bool
+  val merge        : regions -> regions -> regions
+end 
+= struct
+
+  type internal_mem_pos = 
+    | IMP of mem_pos
+    | IMP_error of Smp.t option 
 
   type regions = {
-      var_region  : mem_pos Mv.t;
+      var_region  : internal_mem_pos Mv.t;
       region_var : Sv.t Mmp.t;
     }
 
@@ -91,7 +113,7 @@ module Region = struct
       region_var = Mmp.empty; 
     }
 
-  let pp_rmap fmt rmap = 
+(*  let pp_rmap fmt rmap = 
     let pp_var = (Printer.pp_var ~debug:true) in
     Format.fprintf fmt "@[<v>%a@ ------@ %a@]"
       (Printer.pp_list "@ " (fun fmt (x,mp) -> 
@@ -100,22 +122,40 @@ module Region = struct
       (Printer.pp_list "@ " (fun fmt (mp,xs) ->
            Format.fprintf fmt "%a -> {@[%a@]}" pp_var mp.mp_s
             (Printer.pp_list ",@ " pp_var) (Sv.elements xs)))
-      (Mmp.bindings rmap.region_var) 
+      (Mmp.bindings rmap.region_var) *)
     
+  let get_mp rmap (x:var_i) = 
+    let xv = L.unloc x in
+    let imp = 
+      try Mv.find xv rmap.var_region
+      with Not_found ->
+        hierror "no associated region for %a (the pointer may be not initialized)" 
+          (Printer.pp_var ~debug:true) xv in
+    match imp with
+    | IMP mp -> mp 
+    | IMP_error None ->
+      hierror "@[At %a: some path do not initialize the variable %a@]" 
+        L.pp_loc (L.loc x) (Printer.pp_var ~debug:true) xv 
+    | IMP_error Some smp ->
+      let pp_from fmt mp = 
+        let y = mp.mp_s in
+        Format.fprintf fmt "%a declared at %a" (Printer.pp_var ~debug:true) y L.pp_loc y.v_dloc in
+      hierror "@[the variable %a is bound to different regions: %a@]"
+        (Printer.pp_var ~debug:true) xv 
+        (pp_list ",@ " pp_from) (Smp.elements smp)
+      
   let check_valid rmap (x:var_i) =
 (*    Format.eprintf "check_valid@.";
     Format.eprintf "%a@." pp_rmap rmap; *)
-    let xv = L.unloc x in
-    let mp = 
-      try Mv.find xv rmap.var_region
-      with Not_found ->
-        hierror "1:no associated region for %a" (Printer.pp_var ~debug:true) (L.unloc x) in
+    let mp = get_mp rmap x in
+    let pp_error xs = 
+      hierror
+      "@[<v>(check alias) the variable %a points to the region of %a,@ which only contains the values of variables {@[%a@]}@]"
+      L.pp_loc (L.loc x) (Printer.pp_var ~debug:true) (L.unloc x) (Printer.pp_var ~debug:true) mp.mp_s
+      (pp_list ",@ " (Printer.pp_var ~debug:true)) (Sv.elements xs) in
     let xs = 
-      try Mmp.find mp rmap.region_var
-      with Not_found ->
-        hierror "invalid variable %a (check alias)" pp_var x in
-    if not (Sv.mem xv xs) then 
-      hierror "2: no associated region for %a" pp_var x;
+      try Mmp.find mp rmap.region_var with Not_found -> pp_error Sv.empty in
+    if not (Sv.mem (L.unloc x) xs) then pp_error xs;
     mp
 
   let set_align (x:var_i) mp ws =
@@ -133,7 +173,7 @@ module Region = struct
         hierror "%a is not writable" pp_var x
 
   let rset_word rmap x mp = 
-    { var_region = Mv.add x mp rmap.var_region;
+    { var_region = Mv.add x (IMP mp) rmap.var_region;
       region_var = Mmp.add mp (Sv.singleton x) rmap.region_var }
 
   let set_word rmap x ws mp =
@@ -144,7 +184,7 @@ module Region = struct
   let set rmap x mp = 
     let x = L.unloc x in
     let xs = Mmp.find_default Sv.empty mp rmap.region_var in
-    { var_region = Mv.add x mp rmap.var_region;
+    { var_region = Mv.add x (IMP mp) rmap.var_region;
       region_var = Mmp.add mp (Sv.add x xs) rmap.region_var }
 
   let set_move rmap x y = 
@@ -156,18 +196,39 @@ module Region = struct
     | Pmem mp   -> set rmap x mp
     | Pregptr _ -> rmap
 
+  let imp_incl imp1 imp2 = 
+    match imp1, imp2 with
+    | IMP mp1, IMP mp2 -> mp_equal mp1 mp2
+    | IMP _,  IMP_error _ -> false
+    | IMP_error _, _ -> true
+    
   let incl r1 r2 = 
-    Mv.for_all (fun x mp -> 
-        try mp_equal (Mv.find x r2.var_region) mp 
-        with Not_found -> false) r1.var_region &&
+    Mv.for_all (fun x imp1 -> 
+        try imp_incl imp1 (Mv.find x r2.var_region) 
+        with Not_found -> 
+          match imp1 with
+          | IMP _ -> false
+          | IMP_error _  -> true) r1.var_region &&
     Mmp.for_all (fun x xs ->
         Sv.subset xs (Mmp.find_default Sv.empty x r2.region_var)) r1.region_var 
         
   let merge r1 r2 = 
     let merge_mp _ o1 o2 = 
       match o1, o2 with
-      | Some mp1, Some mp2 -> if mp_equal mp1 mp2 then Some mp1 else None
-      | _, _ -> None in
+      | Some (IMP mp1), Some (IMP mp2) -> 
+        if mp_equal mp1 mp2 then o1 else Some (IMP_error (Some (Smp.of_list [mp1;mp2])))
+      | Some imp1, Some imp2 ->
+        let get_error = function
+          | IMP mp1 -> Some (Smp.singleton mp1)
+          | IMP_error e -> e in
+        let os = match get_error imp1, get_error imp2 with 
+        | Some s1, Some s2 -> Some (Smp.union s1 s2)
+        | _, _ -> None
+        in
+        Some (IMP_error os)
+      | None, Some _ | Some _, None -> Some (IMP_error None) 
+      | None, None -> None 
+    in
     let merge_xs _ o1 o2 =
       match o1, o2 with
       | Some xs1, Some xs2 -> Some (Sv.inter xs1 xs2)
@@ -289,7 +350,8 @@ let alloc_array_move pmap rmap r e =
         let y = y.gv in
         let mpy = Region.check_valid rmap y in
         if not (V.equal (L.unloc x) mpy.mp_s) then 
-          hierror "invalid move: check alias";
+          hierror "(check alias) invalid move, the variable %a points to the region of %a instead of %a"
+             pp_var y (Printer.pp_var ~debug:true) mpy.mp_s pp_var x;
         let rmap = Region.set rmap x mpy in
         (rmap, nop)
       | Stack (Pointer _)->
@@ -432,7 +494,7 @@ let rec alloc_i local_alloc pmap rmap i =
       | Cfor _  -> assert false 
       end
     with HiError s ->
-      hierror "At %a: %s" Printer.pp_iloc i.i_loc s
+      hierror "@[<v>At %a:@ %s@]" Printer.pp_iloc i.i_loc s
   in
   rmap, { i with i_desc = i_desc }
 
