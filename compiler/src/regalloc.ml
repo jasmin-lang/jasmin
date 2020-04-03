@@ -684,7 +684,8 @@ let post_process ~stack_needed (live: Sv.t) ~(killed: funname -> Sv.t) (f: _ fun
     Sv.union fv killed_by_calls
   in
   let allocatable = X64.allocatables in
-  let free_regs = Sv.diff allocatable killed_in_f in
+  let used_in_f = List.fold_left (fun s x -> Sv.add x s) killed_in_f f.f_args in
+  let free_regs = Sv.diff allocatable used_in_f in
   match f.f_cc with
   | Internal -> assert false
   | Subroutine _ ->
