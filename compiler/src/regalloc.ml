@@ -569,9 +569,6 @@ let allocate_forced_registers translate_var (vars: int Hv.t) (cnf: conflicts)
   let a = if f.f_cc = Export then alloc_ret loc a f.f_ret else a in
   alloc_stmt a f.f_body
 
-let find_vars (vars: int Hv.t) (n: int) : var list =
-  Hv.fold (fun v m i -> if n = m then v :: i else i) vars []
-
 (* Returns a variable from [regs] that is allocated to a friend variable of [i]. Defaults to [dflt]. *)
 let get_friend_registers (dflt: var) (fr: friend) (a: allocation) (i: int) (regs: var list) : var =
   let fregs =
@@ -598,10 +595,12 @@ let greedy_allocation
     (nv: int) (cnf: conflicts) (may_cnf: conflicts)
     (fr: friend)
     (a: allocation) : allocation =
+  let classes : var list array = Array.create nv [] in
+  Hv.iter (fun v i -> classes.(i) <- v :: classes.(i)) vars;
   let a = ref a in
   for i = 0 to nv - 1 do
     if not (IntMap.mem i !a) then (
-      let vi = find_vars vars i in
+      let vi = classes.(i) in
       if vi <> [] then (
       let c = conflicting_registers i cnf !a in
       let has_no_conflict v = not (List.mem (Some v) c) in
