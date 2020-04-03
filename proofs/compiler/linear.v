@@ -225,7 +225,12 @@ Section CHECK.
     let (fn,fd) := ffd in
     let O := read_es (map Plvar fd.(f_res)) in
     Let I := add_finfo fn fn (check_c check_i fd.(f_body) O) in
-    ok tt.
+    match fd.(f_extra).(sf_return_address) with
+    | Some ra => 
+      Let _ := assert (~~Sv.mem ra (writefun fn)) (Ferr_fun fn (Cerr_linear "the function writes its return address")) in
+      assert(~~Sv.mem ra I)  (Ferr_fun fn (Cerr_linear "the function depends of its return address"))
+    | None => ok tt
+    end.
 
   Definition check_prog := 
     Let _ := mapM check_fd (p_funcs p) in
