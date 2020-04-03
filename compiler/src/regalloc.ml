@@ -160,7 +160,7 @@ let collect_equality_constraints_in_func
     function
     | Cfor (_, _, s) -> collect_stmt s
     | Copn (lvs, _, op, es) -> copn_constraints int_of_var (add ii) addf lvs op es
-    | Cassgn (Lvar x, (AT_rename | AT_phinode), _, Pvar y) when 
+    | Cassgn (Lvar x, (AT_rename | AT_phinode), _, Pvar y) when
           is_gkvar y && kind_i x = kind_i y.gv ->
        addv ii x y.gv
     | Cassgn (Lvar x, _, _, Pvar y) when is_gkvar y && kind_i x = kind_i y.gv ->
@@ -170,13 +170,13 @@ let collect_equality_constraints_in_func
        end
     | Cassgn _ -> ()
     | Ccall (_, xs, fn, es) ->
-      let get_Pvar a = 
+      let get_Pvar a =
         match a with
         | Pvar { gs = Expr.Slocal ; gv } -> gv
         | _ -> hierror "%s: argument is not a local variable" msg in
-      let get_Lvar x = 
+      let get_Lvar x =
         match x with
-        | Lvar v -> v 
+        | Lvar v -> v
         | _ -> hierror "%s: return destination is not a variable" msg in
       begin match with_call_sites with
       | None -> ()
@@ -389,7 +389,7 @@ struct
   let rbx = V.mk "RBX" reg_k (Bty (U U64)) L._dummy
   let rcx = V.mk "RCX" reg_k (Bty (U U64)) L._dummy
   let rdx = V.mk "RDX" reg_k (Bty (U U64)) L._dummy
-  let rsp = Prog.rsp 
+  let rsp = Prog.rsp
   let rbp = V.mk "RBP" reg_k (Bty (U U64)) L._dummy
   let rsi = V.mk "RSI" reg_k (Bty (U U64)) L._dummy
   let rdi = V.mk "RDI" reg_k (Bty (U U64)) L._dummy
@@ -645,11 +645,11 @@ let reverse_varmap (vars: int Hv.t) : var IntMap.t =
   Hv.fold (fun v i m -> IntMap.add i v m) vars IntMap.empty
 
 let split_live_ranges (fds: 'info func list) : unit func list =
-  let doit f = 
+  let doit f =
     let f = Ssa.split_live_ranges true f in
     Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
     let vars, nv = collect_variables ~allvars:true Sv.empty f in
-    let eqc, _tr, _fr = 
+    let eqc, _tr, _fr =
       collect_equality_constraints
         "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
     let vars = normalize_variables vars eqc in
@@ -658,7 +658,7 @@ let split_live_ranges (fds: 'info func list) : unit func list =
         subst_of_allocation vars
     in Subst.subst_func a f
        |> Ssa.remove_phi_nodes in
-  List.map doit fds 
+  List.map doit fds
 
 let is_subroutine = function
   | Subroutine _ -> true
