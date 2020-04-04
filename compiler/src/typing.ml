@@ -59,8 +59,18 @@ type tyerror =
   | PackWrongWS of int
   | PackWrongPE of int
   | PackWrongLength of int * int
+  | StringError of string
 
 exception TyError of L.t * tyerror
+
+let string_error fmt =
+  let buf  = Buffer.create 127 in
+  let bfmt = Format.formatter_of_buffer buf in
+  Format.kfprintf
+    (fun bfmt ->
+      Format.pp_print_flush bfmt ();
+      (StringError (Buffer.contents buf)))
+    bfmt fmt
 
 let tyerror ~loc (code : tyerror) =
   TyError (loc, code)
@@ -199,6 +209,9 @@ let pp_tyerror fmt (code : tyerror) =
 
   | PackWrongLength (e, f) ->
     F.fprintf fmt "wrong length of pack; expected: %d; found: %d" e f
+  
+  | StringError s ->
+    F.fprintf fmt "%s" s
 
 (* -------------------------------------------------------------------- *)
 module Env : sig
@@ -1265,53 +1278,71 @@ let tt_funbody (env : Env.env) (pb : S.pfunbody) =
   let bdy =  List.map (tt_instr env) pb.S.pdb_instr in
   (bdy, ret)
 
-let tt_call_conv returned_params = function
-  | None         -> P.Subroutine returned_params
-  | Some `Inline -> P.Internal
-  | Some `Export -> P.Export
-
-
 
 (* -------------------------------------------------------------------- *)
-(*let check_return_stack fd = 
-  let args = P.Spv.of_list fd.P.f_args in
-  let check vi = 
-    let v = P.L.unloc vi in
-    if P.is_stack_kind v.P.v_kind && not (P.Spv.mem v args) && 
-       fd.P.f_cc = P.Export then 
-      rs_tyerror ~loc:(P.L.loc vi) (ReturnLocalStack v.P.v_name)
-  in
-  List.iter check fd.P.f_ret *)
       
+let tt_call_conv loc params returns cc =
+  match cc with
+  | Some `Inline -> 
+    P.Internal
+
+  | Some `Export ->
+    let check s x = 
+      if (L.unloc x).P.v_kind <> Reg Direct then 
+        rs_tyerror ~loc:(L.loc x) 
+          (string_error "%a has kind %a, only reg are allowed in %s of export function"
+            Printer.pp_pvar (L.unloc x)
+            Printer.pp_kind (L.unloc x).P.v_kind s) in
+    List.iter (check "parameter") params;
+    List.iter (check "result") returns;
+    if 1 < List.length returns then 
+      rs_tyerror ~loc (string_error "export function should return at most one argument");
+    P.Export 
+
+  | None         -> 
+    let check s x =
+      if not (P.is_reg_kind (L.unloc x).P.v_kind) then 
+        rs_tyerror ~loc:(L.loc x) 
+          (string_error "%a has kind %a, only reg or reg ptr are allowed in %s of non inlined function"
+            Printer.pp_pvar (L.unloc x)
+            Printer.pp_kind (L.unloc x).P.v_kind s) in
+    List.iter (check "parameter") params;
+    List.iter (check "result") returns;
+    let returned_params =
+      let args = List.map L.unloc params in
+      List.map (fun x ->
+        let loc = L.loc x in
+        let x = L.unloc x in
+        if P.is_ptr x.P.v_kind then
+          (let i = List.index_of x args in
+           if i = None then 
+             rs_tyerror ~loc (string_error "%a should be one of the paramaters"
+                                Printer.pp_pvar x);
+           i)
+        else None) returns in
+    P.Subroutine {returned_params}
+
+(* -------------------------------------------------------------------- *)
 
 let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
   let envb, args = tt_vardecls_push env pf.pdf_args in
   let rty  = odfl [] (omap (List.map (tt_type env |- snd)) pf.pdf_rty) in
   let body, xret = tt_funbody envb pf.pdf_body in
+  let f_cc = tt_call_conv loc args xret pf.pdf_cc in
   let args = List.map L.unloc args in
-  (* Each returend ptr variables must be a parameter *)
-  let returned_params =
-    List.map (fun x ->
-        let x = L.unloc x in
-        if P.is_ptr x.P.v_kind
-        then Some (oget (List.index_of x args))
-        else None
-      ) xret
-  in
-
   let fdef =
-    { P.f_loc = loc;
-      P.f_cc   = tt_call_conv {returned_params} pf.pdf_cc;
-      P.f_name = P.F.mk (L.unloc pf.pdf_name);
-      P.f_tyin = List.map (fun { P.v_ty } -> v_ty) args;
-      P.f_args = args;
-      P.f_body = body;
-      P.f_tyout =  rty;
-      P.f_ret  = xret; } in
+    { P.f_loc   = loc;
+      P.f_cc    = f_cc;
+      P.f_name  = P.F.mk (L.unloc pf.pdf_name);
+      P.f_tyin  = List.map (fun { P.v_ty } -> v_ty) args;
+      P.f_args  = args;
+      P.f_body  = body;
+      P.f_tyout = rty;
+      P.f_ret   = xret; } in
 
   check_sig ~loc:(`IfEmpty (L.loc pf.S.pdf_name)) rty
     (List.map (fun x -> (L.loc x, (L.unloc x).P.v_ty)) xret);
- (* check_return_stack fdef; *)
+
   (Env.Funs.push fdef rty env, fdef)
 
 (* -------------------------------------------------------------------- *)
