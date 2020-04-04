@@ -1,4 +1,3 @@
-export
 fn f() -> (reg u32, reg u32) {
   reg u32 b, c;
   b = 5;
