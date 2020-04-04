@@ -766,3 +766,32 @@ type model =
   | ConstantTime
   | Safety
   | Normal
+
+(* -------------------------------------------------------------------- *)
+
+type warning = 
+  | ExtraAssignment 
+  | UseLea
+  | IntroduceNone 
+
+let warns = ref None
+
+let add_warning (w:warning) () = 
+  match !warns with
+  | None -> warns  := Some [w]
+  | Some ws ->
+    if not (List.mem w ws) then
+      warns := Some( w :: ws)
+
+let nowarning () = warns := Some []
+
+let to_warn w = 
+  match !warns with
+  | None -> true
+  | Some ws -> List.mem w ws
+
+let warning (w:warning) fmt =
+  (if to_warn w then Format.fprintf 
+   else Format.ifprintf) 
+    Format.err_formatter (format_of_string "warning: " ^^ fmt ^^ format_of_string "@.")
+

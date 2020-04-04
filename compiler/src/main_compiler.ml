@@ -143,6 +143,36 @@ and pp_comp_ferr tbl fmt = function
 
 
 (* -------------------------------------------------------------------- *)
+
+let rec warn_extra_i i = 
+  match i.i_desc with
+  | Cassgn (_, tag, _, _) | Copn (_, tag, _, _) ->
+    begin match tag with
+    | AT_rename ->
+      warning ExtraAssignment 
+        ": @[<v> at @[%a@] extra assignment introduced@ @[%a@]@]"
+        Printer.pp_iloc i.i_loc
+        (Printer.pp_instr ~debug:false) i
+    | AT_inline ->
+      hierror 
+        "@[<v> at @[%a@] AT_inline flag remains @ @[%a@]@]@ PLEASE REPORT" 
+        Printer.pp_iloc i.i_loc
+        (Printer.pp_instr ~debug:false) i
+    | _ -> ()
+    end
+  | Cif(_, c1, c2) | Cwhile(_,c1,_,c2) ->
+    List.iter warn_extra_i c1;
+    List.iter warn_extra_i c2;
+  | Cfor _ ->
+    hierror "at @[%a@] for loop remains"
+      Printer.pp_iloc i.i_loc
+  | Ccall _ -> ()
+
+let warn_extra_fd (_, fd) =
+  List.iter warn_extra_i fd.f_body
+
+  
+(* -------------------------------------------------------------------- *)
 let main () =
   try
 
@@ -162,7 +192,6 @@ let main () =
 
     let env, pprog  = Typing.tt_program Typing.Env.empty ast in
     eprint Compiler.Typing Printer.pp_pprog pprog;
-    if !typeonly then exit 0;
 
     let prog = Subst.remove_params pprog in
     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
@@ -390,7 +419,7 @@ let main () =
 
     let warning ii msg =
       let loc,_ = Conv.get_iinfo tbl ii in
-      Format.eprintf "WARNING: at %a, %a@." Printer.pp_iloc loc Printer.pp_warning_msg msg;
+      warning UseLea "at %a, %a" Printer.pp_iloc loc Printer.pp_warning_msg msg;
       ii in
 
     let inline_var x =
@@ -436,6 +465,11 @@ let main () =
       let x = Conv.var_of_cvar tbl x in
       is_reg_ptr_kind x.v_kind in
       
+    let warn_extra s p =
+      if s = Compiler.DeadCode_RegAllocation then
+        let (fds, _) = Conv.prog_of_csprog tbl p in
+        List.iter warn_extra_fd fds in
+
     let cparams = {
       Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = apply "arr exp" Array_expand.arrexp_func;
@@ -449,7 +483,8 @@ let main () =
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;
       Compiler.print_uprog  = (fun s p -> eprint s pp_cuprog p; p);
-      Compiler.print_sprog  = (fun s p -> eprint s pp_csprog p; p);
+      Compiler.print_sprog  = (fun s p -> warn_extra s p;
+                                          eprint s pp_csprog p; p);
       Compiler.print_linear = (fun p -> eprint Compiler.Linearisation pp_linear p; p);
       Compiler.warning      = warning;
       Compiler.inline_var   = inline_var;

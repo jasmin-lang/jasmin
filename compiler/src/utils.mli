@@ -348,3 +348,13 @@ type model =
   | Safety
   | Normal
   
+(* -------------------------------------------------------------------- *)
+type warning = 
+  | ExtraAssignment 
+  | UseLea
+  | IntroduceNone 
+
+val nowarning : unit -> unit
+val add_warning : warning -> unit -> unit 
+val warning : warning -> ('a, Format.formatter, unit) format -> 'a
+

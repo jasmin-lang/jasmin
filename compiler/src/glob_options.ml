@@ -3,7 +3,6 @@ open Utils
 let infile = ref ""
 let outfile = ref ""
 let latexfile = ref ""
-let typeonly = ref false
 let debug = ref false
 let coqfile = ref ""
 let coqonly = ref false
@@ -97,7 +96,6 @@ let stop_after_option p =
 
 let options = [
     "-o"       , Arg.Set_string outfile, "[filename]: name of the output file";
-    "-typeonly", Arg.Set typeonly      , ": stop after typechecking";
     "-debug"   , Arg.Set debug         , ": print debug information";
     "-latex"     , Arg.Set_string latexfile, "[filename]: generate the corresponding LATEX file";
     "-coq"     , Arg.Set_string coqfile, "[filename]: generate the corresponding coq file";
@@ -118,7 +116,11 @@ let options = [
      where each p_i is of the form:\n\
      v_1,...,v_n;v_1',...,v_k'\n\
      v_1,...,v_n: list of pointer variables that have to be considered together\n\
-     v_1',...,v_k': list of relational variables"
+     v_1',...,v_k': list of relational variables";
+    "-wlea", Arg.Unit (add_warning UseLea), ": print warning when lea is used";
+    "-w_"  , Arg.Unit (add_warning IntroduceNone), ": print warning when extra _ is introduced";
+    "-wea", Arg.Unit (add_warning ExtraAssignment), ": print warning when assignment is introduced";
+    "-nowarning", Arg.Unit (nowarning), ": do no print warning"
   ] @  List.map print_option poptions @ List.map stop_after_option poptions
 
 let usage_msg = "Usage : jasminc [option] filename"

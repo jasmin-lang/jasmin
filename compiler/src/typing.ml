@@ -1124,7 +1124,7 @@ let tt_lvalues env pls tys =
     if n1 < n2 then
       let n = n2 - n1 in
       let loc = loc_of_tuples None (List.map P.L.loc pls) in
-      F.eprintf "WARNING: introduce %d _ lvalues at %a@." n P.L.pp_sloc loc;
+      warning IntroduceNone "at %a, introduce %d _ lvalues" P.L.pp_sloc loc n;
       List.make n (loc, (fun ty ->  P.Lnone(loc,ty)), None) @ ls
     else ls in
   check_sig_lvs tys ls

@@ -69,7 +69,7 @@ Definition fmap2 {aT bT cT} (f : aT -> bT -> cT -> aT * cT) :
 Definition do_prologue ii acc x e :=
   match is_reg_ptr_expr x e with
   | Some x => 
-    (MkI ii (Cassgn (Lvar x) AT_none (vtype x) e) :: acc, Plvar x)
+    (MkI ii (Cassgn (Lvar x) AT_rename (vtype x) e) :: acc, Plvar x)
   | None => (acc, e)
   end.
 
@@ -79,7 +79,7 @@ Definition make_prologue ii xs es :=
 Definition do_epilogue ii acc x r :=
   match is_reg_ptr_lval x r with
   | Some x => 
-    (MkI ii (Cassgn r AT_none (vtype x) (Plvar x)) :: acc, Lvar x)
+    (MkI ii (Cassgn r AT_rename (vtype x) (Plvar x)) :: acc, Lvar x)
   | None => (acc, r)
   end.
 
