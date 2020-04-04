@@ -1169,6 +1169,21 @@ let check_lval_pointer loc x =
   | P.Lvar x when P.is_ptr (L.unloc x).P.v_kind -> () 
   | _ -> rs_tyerror ~loc (NotAPointer x)
 
+let mk_call loc is_inline lvs f es =
+  begin match f.P.f_cc with 
+  | P.Internal | P.Export -> ()
+  | P.Subroutine _ ->
+    let check_lval = function
+      | P.Lnone _ | Lvar _ -> ()
+      | Lmem _ | Laset _ -> rs_tyerror ~loc (string_error "memory/array assignment are not allowed here") in
+    let check_e = function
+      | P.Pvar _ -> ()
+      | _ -> rs_tyerror ~loc (string_error "only variables are allowed in arguments of non-inlined function") in
+    List.iter check_lval lvs;
+    List.iter check_e es
+  end;
+  P.Ccall (is_inline, lvs, f.P.f_name, es)
+
 let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
 
   let instr = match L.unloc pi with
@@ -1186,7 +1201,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
         match f.P.f_cc with 
         | P.Internal -> P.DoInline 
         | P.Export | P.Subroutine _ -> P.NoInline in
-      P.Ccall (is_inline, lvs, f.P.f_name, es)
+      mk_call (L.loc pi) is_inline lvs f es
 
     | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim f in
