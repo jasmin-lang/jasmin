@@ -418,8 +418,10 @@ let main () =
       apply "rename_fd" doit fn cfd in
 
     let warning ii msg =
-      let loc,_ = Conv.get_iinfo tbl ii in
-      warning UseLea "at %a, %a" Printer.pp_iloc loc Printer.pp_warning_msg msg;
+      if not !Glob_options.lea then begin
+          let loc,_ = Conv.get_iinfo tbl ii in
+          warning UseLea "at %a, %a" Printer.pp_iloc loc Printer.pp_warning_msg msg
+        end;
       ii in
 
     let inline_var x =
