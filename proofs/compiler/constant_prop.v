@@ -692,14 +692,51 @@ Definition leaktrans_fs := seq (funname * (seq leaktrans_i)).
 
 Print prog.
 
-(**** NEED TO FIX **)
-(*Definition map_prog (F: fundef -> fundef * seq leaktrans_i) (p:prog) :=
-  {| p_globs := p_globs p;
-     p_funcs := map (fun f => (f.1, F f.2.1)) (p_funcs p) |}.*)
+Check const_prop_fun.
+
+Check fun_decls.
+
+Print fun_decls.
+
+Fixpoint get_funnames (fdls : seq fun_decl) : seq funname :=
+match fdls with 
+| [::] => [::]
+| fd :: fds => fst fd :: get_funnames fds
+end.
+
+Fixpoint get_fundefs (fdls : seq fun_decl) : seq fundef :=
+match fdls with 
+| [::] => [::]
+| fd :: fds => (snd fd) :: get_fundefs fds
+end.
+
+Fixpoint seq_fn_leaktrans_c (s1 : seq funname) (s2 : seq (fundef * seq leaktrans_i)) : seq (funname * (seq leaktrans_i)) :=
+match s1, s2 with 
+| x :: xl, y :: yl => (x, y.2) :: seq_fn_leaktrans_c xl yl 
+| _, _ => [::]
+end.
+
+Fixpoint seq_fn_fd (s1 : seq funname) (s2 : seq (fundef * seq leaktrans_i)) : seq (funname * fundef) :=
+match s1, s2 with 
+| x :: xl, y :: yl => (x, y.1) :: seq_fn_fd xl yl 
+| _, _ => [::]
+end.
+
+Definition get_fn_leaktrans_fs p := 
+let fns := get_funnames (p_funcs p) in 
+seq_fn_leaktrans_c fns (map const_prop_fun (get_fundefs (p_funcs p))).
+
+Definition get_fds p := 
+let fns := get_funnames (p_funcs p) in 
+seq_fn_fd fns (map const_prop_fun (get_fundefs (p_funcs p))).
+
+Definition const_prop_prog (p : prog) : (prog * leaktrans_fs) := 
+({| p_globs := p_globs p; p_funcs := get_fds p |},
+  (get_fn_leaktrans_fs p)).
 
 
-(*Definition const_prop_prog (p:prog) : (prog * leak_trans_fs) := 
-  map_prog const_prop_fun p.*)
+(*Definition const_prop_prog (p:prog) := 
+  map_prog const_prop_fun p. *)
 
 Section LEAK_TRANS.
 
@@ -764,9 +801,29 @@ end.
 
 End LEAK_TRANS.
 
-Section Leakages_proof.
+(*Section Leakages_proof.
 
 Context (gd: glob_decls).
+
+Definition flatten_exec (p : exec (value * leak_e_tree)) := 
+Let v := p in 
+ok (v.1, lest_to_les v.2).
+
+
+(*Lemma eq_sem_pexpr_l_sem_pexpr_e s1 e:
+sem_pexpr gd s1 e = flatten_exec (sem_pexpr_e gd s1 e).
+Proof.
+rewrite /sem_pexpr. rewrite /sem_pexpr_e.
+elim e.
++ by move=> z /=.
++ by move=> b /=.
++ by move=> n /=.
++ t_xrbindP. move=> h. rewrite /flatten_exec. t_xrbindP.
+ simpl. intros. t_xrbindP.
+  
+
+ t_xrbindP. apply: rbindP. t_xrbindP.*)
+
 
 Lemma eq_sem_pexpr_l_sem_pexpr_e_l s1 e v l:
 sem_pexpr gd s1 e = ok (v, l) ->
@@ -775,16 +832,16 @@ sem_pexpr_e gd s1 e = ok (ve, le) &
 l = (lest_to_les le) &
 value_uincl v ve.
 Proof.
-elim e.
-+ move=> z H. exists z. exists LEempty. constructor. by case: H => H <- /=.
+elim: e v l.
++ move=> z v l H. exists z. exists LEempty. constructor. by case: H => H <- /=.
   by case: H => -> _ /=.
-+ move=> b H. exists b. exists LEempty. constructor. by case: H => H <- /=.
++ move=> b v l H. exists b. exists LEempty. constructor. by case: H => H <- /=.
   by case: H => -> _ /=.
-+ move=> n H. exists (Varr (WArray.empty n)). exists LEempty. constructor.
++ move=> n v l H. exists (Varr (WArray.empty n)). exists LEempty. constructor.
   by case: H => H <- /=. by case: H => -> _ /=.
-+ move=> x. rewrite /sem_pexpr. t_xrbindP.
-  move=> y Hg He Hl. exists y. exists LEempty. econstructor.
-  by case: H => H <- /=. by case: H => -> _ /=.
-
++ move=> x v l H. rewrite /sem_pexpr in H.
+  exists v. exists LEempty. simpl.
+  destruct LEempty.
++ move=> g H. exists v. exists LEempty. constructor. *)
 
 
