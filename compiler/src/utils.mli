@@ -353,6 +353,7 @@ type warning =
   | ExtraAssignment 
   | UseLea
   | IntroduceNone 
+  | Always
 
 val nowarning : unit -> unit
 val add_warning : warning -> unit -> unit 

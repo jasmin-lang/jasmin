@@ -317,7 +317,7 @@ writable:
 | MUTABLE     {`Writable } 
 
 pointer:
-| o=writable? POINTER { Utils.odfl `Writable o }
+| o=writable? POINTER { o }
 
 ptr:
 | o=pointer? { 

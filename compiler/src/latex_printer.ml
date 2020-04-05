@@ -190,8 +190,9 @@ and pp_arr_access fmt aa ws x e =
     (pp_opt pp_ws) ws (pp_opt pp_space) ws pp_expr e 
 
 let pp_writable = function
-  | `Constant -> " const"
-  | `Writable -> ""
+  | Some `Constant -> " const"
+  | Some `Writable -> " mut"
+  | None  -> ""
 
 let pp_pointer = function
   | `Pointer w-> pp_writable w ^ " ptr"

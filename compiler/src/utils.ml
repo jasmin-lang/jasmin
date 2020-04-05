@@ -773,6 +773,7 @@ type warning =
   | ExtraAssignment 
   | UseLea
   | IntroduceNone 
+  | Always
 
 let warns = ref None
 
@@ -788,7 +789,7 @@ let nowarning () = warns := Some []
 let to_warn w = 
   match !warns with
   | None -> true
-  | Some ws -> List.mem w ws
+  | Some ws -> w = Always || List.mem w ws 
 
 let warning (w:warning) fmt =
   (if to_warn w then Format.fprintf 

@@ -297,17 +297,19 @@ let tt_ws (ws : S.wsize) =
   | `W256 -> W.U256
 
 (* -------------------------------------------------------------------- *)
-let tt_pointer (p:S.ptr) : P.pointer = 
+let tt_pointer dfl_writable (p:S.ptr) : P.pointer = 
   match p with
-  | `Pointer `Writable -> P.Pointer P.Writable
-  | `Pointer `Constant -> P.Pointer P.Constant
+  | `Pointer (Some `Writable) -> P.Pointer P.Writable
+  | `Pointer (Some `Constant) -> P.Pointer P.Constant
+  | `Pointer None             -> 
+    P.Pointer (if dfl_writable then P.Writable else P.Constant)
   | `Direct  -> P.Direct
 
-let tt_sto (sto : S.pstorage) : P.v_kind =
+let tt_sto dfl_writable (sto : S.pstorage) : P.v_kind =
   match sto with
   | `Inline  -> P.Inline
-  | `Reg   p -> P.Reg (tt_pointer p)
-  | `Stack p -> P.Stack (tt_pointer p)
+  | `Reg   p -> P.Reg (tt_pointer dfl_writable p)
+  | `Stack p -> P.Stack (tt_pointer dfl_writable p)
   | `Global  -> P.Global
 
 type tt_mode = [
@@ -872,23 +874,23 @@ let tt_expr_bool env pe = tt_expr_ty env pe P.tbool
 let tt_expr_int  env pe = tt_expr_ty env pe P.tint
 
 (* -------------------------------------------------------------------- *)
-let tt_vardecl (env : Env.env) ((sto, xty), x) =
+let tt_vardecl dfl_writable (env : Env.env) ((sto, xty), x) =
   let { L.pl_desc = x; L.pl_loc = xlc; } = x in
-  let (sto, xty) = (tt_sto sto, tt_type env xty) in
+  let (sto, xty) = (tt_sto (dfl_writable x) sto, tt_type env xty) in
   if P.is_ptr sto && not (P.is_ty_arr xty) then
     rs_tyerror ~loc:xlc PtrOnlyForArray;
   L.mk_loc xlc (P.PV.mk x sto xty xlc)
 
 (* -------------------------------------------------------------------- *)
-let tt_vardecls_push (env : Env.env) pxs =
-  let xs  = List.map (tt_vardecl env) pxs in
+let tt_vardecls_push dfl_writable (env : Env.env) pxs =
+  let xs  = List.map (tt_vardecl dfl_writable env) pxs in
   let env = 
     List.fold_left (fun env x -> Env.Vars.push (L.unloc x) env) env xs in
   (env, xs)
 
 (* -------------------------------------------------------------------- *)
-let tt_vardecl_push (env : Env.env) px =
-  snd_map as_seq1 (tt_vardecls_push env [px])
+let tt_vardecl_push dfl_writable (env : Env.env) px =
+  snd_map as_seq1 (tt_vardecls_push dfl_writable env [px])
 
 (* -------------------------------------------------------------------- *)
 let tt_param (env : Env.env) _loc (pp : S.pparam) : Env.env * (P.pvar * P.pexpr) =
@@ -1286,7 +1288,7 @@ and tt_block (env : Env.env) (pb : S.pblock) =
 (* -------------------------------------------------------------------- *)
 let tt_funbody (env : Env.env) (pb : S.pfunbody) =
   let vars = List.(pb.pdb_vars |> map (fun (ty, vs) -> map (fun v -> (ty, v)) vs) |> flatten) in
-  let env = fst (tt_vardecls_push env vars) in
+  let env = fst (tt_vardecls_push (fun _ -> true) env vars) in
   let ret =
     let for1 x = L.mk_loc (L.loc x) (tt_var `AllVar env x) in
     List.map for1 (odfl [] pb.pdb_ret) in
@@ -1328,19 +1330,34 @@ let tt_call_conv loc params returns cc =
       List.map (fun x ->
         let loc = L.loc x in
         let x = L.unloc x in
-        if P.is_ptr x.P.v_kind then
-          (let i = List.index_of x args in
-           if i = None then 
-             rs_tyerror ~loc (string_error "%a should be one of the paramaters"
-                                Printer.pp_pvar x);
-           i)
-        else None) returns in
+        match x.P.v_kind with
+        | P.Reg Direct -> None
+        | P.Reg (Pointer writable) -> 
+          if writable = Constant then
+            warning Always "At %a, not need to return a [reg const ptr] %a"
+              L.pp_loc loc Printer.pp_pvar x;
+          let i = List.index_of x args in
+          if i = None then 
+            rs_tyerror ~loc (string_error "%a should be one of the paramaters"
+                               Printer.pp_pvar x);
+          i
+        | _ -> assert false) returns in
+    let check_writable_param i x = 
+      let loc = L.loc x in
+      let x = L.unloc x in
+      if x.P.v_kind = Reg (Pointer Writable) then
+        if not (List.exists ((=) (Some i)) returned_params) then
+          rs_tyerror ~loc (string_error "%a is mutable, it should be returned"
+                             Printer.pp_pvar x) in
+    List.iteri check_writable_param params;
     P.Subroutine {returned_params}
 
 (* -------------------------------------------------------------------- *)
 
 let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
-  let envb, args = tt_vardecls_push env pf.pdf_args in
+  let inret = odfl [] (omap (List.map L.unloc) pf.pdf_body.pdb_ret) in
+  let dfl_mut x = List.mem x inret in
+  let envb, args = tt_vardecls_push dfl_mut env pf.pdf_args in
   let rty  = odfl [] (omap (List.map (tt_type env |- snd)) pf.pdf_rty) in
   let body, xret = tt_funbody envb pf.pdf_body in
   let f_cc = tt_call_conv loc args xret pf.pdf_cc in
