@@ -89,6 +89,7 @@ sig
   val check_valid  : regions -> Prog.var_i -> mem_pos
   val set_align    : Prog.var_i -> mem_pos -> Wsize.wsize -> unit
   val set_writable : Prog.var_i -> mem_pos -> unit
+  val remove       : regions -> mem_pos -> regions 
   val rset_word    : regions -> Prog.Mv.key -> Mmp.key -> regions
   val set_word     : regions -> Prog.var_i -> Wsize.wsize -> Mmp.key -> regions
   val set          : regions -> Prog.Mv.key Prog.L.located -> Mmp.key -> regions
@@ -151,7 +152,7 @@ end
     let pp_error xs = 
       hierror
       "@[<v>(check alias) the variable %a points to the region of %a,@ which only contains the values of variables {@[%a@]}@]"
-      L.pp_loc (L.loc x) (Printer.pp_var ~debug:true) (L.unloc x) (Printer.pp_var ~debug:true) mp.mp_s
+      (Printer.pp_var ~debug:true) (L.unloc x) (Printer.pp_var ~debug:true) mp.mp_s
       (pp_list ",@ " (Printer.pp_var ~debug:true)) (Sv.elements xs) in
     let xs = 
       try Mmp.find mp rmap.region_var with Not_found -> pp_error Sv.empty in
@@ -171,6 +172,10 @@ end
       try update true mp.mp_writable
       with NotModifiable ->
         hierror "%a is not writable" pp_var x
+
+  let remove rmap mp = 
+    { rmap with
+      region_var = Mmp.remove mp rmap.region_var }
 
   let rset_word rmap x mp = 
     { var_region = Mv.add x (IMP mp) rmap.var_region;
@@ -400,7 +405,7 @@ let alloc_call_arg pmap rmap sao_param e =
       let mp = Region.check_valid rmap xv in
       Region.set_align xv mp pi.pi_align;
       if pi.pi_writable then Region.set_writable xv mp;
-      (Some mp, Pvar (gkvar (mk_addr xv pk)))
+      (Some (pi.pi_writable, mp), Pvar (gkvar (mk_addr xv pk)))
     end
   | _ -> 
     hierror "the expression %a is not a variable" 
@@ -430,7 +435,7 @@ let alloc_lval_call mps pmap rmap r i =
   | Some i ->
     match List.nth mps i with
     | (None,_) -> assert false
-    | (Some mp,_) ->
+    | (Some (_,mp),_) ->
       match r with
       | Lvar x ->
         if not (is_reg_ptr_kind (L.unloc x).v_kind) then
@@ -441,7 +446,13 @@ let alloc_lval_call mps pmap rmap r i =
       | _ -> hierror "%a should be a reg ptr" (Printer.pp_glv (Printer.pp_var ~debug:false)) r
 
 
+let remove_writable_arg rmap (mp,_e) = 
+  match mp with
+  | Some (writable, mp) -> if writable then Region.remove rmap mp else rmap
+  | _ -> rmap 
+
 let alloc_call_res pmap rmap mps ret_pos rs = 
+  let rmap = List.fold_left remove_writable_arg rmap mps in
   let (rmap, rs) = List.map_fold2 (alloc_lval_call mps pmap) rmap rs ret_pos in
   rmap, rs 
 
