@@ -1,0 +1,28 @@
+inline fn mul5 (reg u64 x) -> reg u64 {
+  stack u64[4] t;
+  inline int i;
+  for i = 0 to 4 {
+    t[i] = x;
+  }
+  for i = 0 to 4 {
+    x += t[i];
+  }
+  return x;
+}
+
+/* the size of the stack frame should be 32 */
+export fn main(reg u64 in) -> reg u64 {
+  reg u64 x;
+  reg u64 r;
+  inline int i;
+  x = in;
+
+  x = mul5(x);
+  x = mul5(x);
+  x = mul5(x);
+
+  r = x;
+  return r;
+}
+     
+       

@@ -1,0 +1,27 @@
+inline fn incr (reg ptr u64[1] t) -> reg ptr u64[1] {
+  t[0] += 1;
+  return t;
+}
+
+inline fn sum (stack u64[1] a, stack u64[1] b) -> stack u64[1] {
+   reg u64 aux;
+   stack u64[1] d;
+   aux = a[0];
+   aux += b[0];
+   d[0] = aux;
+   return d;
+}
+
+export fn test() -> reg u64 {
+  stack u64[1] a1;
+  stack u64[1] a2;
+  stack u64[1] a3;
+  reg u64 res;
+
+  a1[0] = 1;
+  a2[0] = 1;
+  a3 = sum(a1, a2);
+  a3 = incr(a3);  
+  res = a3[0];
+  return res;
+}
