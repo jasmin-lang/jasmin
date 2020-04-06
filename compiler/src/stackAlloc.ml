@@ -276,6 +276,7 @@ let alloc_e pmap rmap e =
         let p = mk_addr x pk in
         Pload(ws, p, e1) (* not well typed, but not important *)
       end
+    | Psub _ -> assert false
     | Pload(ws, x, e)  -> Pload(ws, x, alloc_e e)
     | Papp1(o,e)       -> Papp1(o, alloc_e e) 
     | Papp2(o,e1,e2)   -> Papp2(o, alloc_e e1, alloc_e e2)
@@ -311,7 +312,7 @@ let alloc_lval pmap rmap (r:lval) =
       let r = Lmem (ws, mk_addr x pk, e1) in
       (rmap, r)
     end
-     
+  | Lasub _ -> assert false
   | Lmem(ws, x, e1) -> 
     let e1 = alloc_e pmap rmap e1 in
     (rmap, Lmem(ws, x, e1))
@@ -443,7 +444,7 @@ let alloc_lval_call mps pmap rmap r i =
         let pk = get_pk pmap x in
         let rmap = Region.rset_word rmap (L.unloc x) mp in
         rmap, Lvar (mk_addr x pk)
-      | _ -> hierror "%a should be a reg ptr" (Printer.pp_glv (Printer.pp_var ~debug:false)) r
+      | _ -> hierror "%a should be a reg ptr" (Printer.pp_lval ~debug:false) r
 
 
 let remove_writable_arg rmap (mp,_e) = 

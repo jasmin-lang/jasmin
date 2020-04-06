@@ -13,12 +13,10 @@ val pp_string0 : Format.formatter -> char list -> unit
 
 val pp_kind  : Format.formatter -> v_kind -> unit
 
-val pp_glv : (Format.formatter -> 'a Prog.gty Prog.gvar -> unit) -> Format.formatter -> 'a Prog.gty Prog.glval -> unit
-
 val pp_iloc  : Format.formatter -> i_loc -> unit 
 val pp_pvar  : Format.formatter -> pvar -> unit
 val pp_ptype : Format.formatter -> pty -> unit
-val pp_plval : Format.formatter -> pty glval -> unit
+val pp_plval : Format.formatter -> pexpr glval -> unit
 val pp_pexpr : Format.formatter -> pexpr -> unit
 val pp_pprog : Format.formatter -> 'info pprog -> unit
 
@@ -34,9 +32,13 @@ val pp_ty : Format.formatter -> ty -> unit
 val pp_arr_access : 
   (Format.formatter -> 'a -> unit) -> 
   (Format.formatter -> 'b -> unit) -> 
-  Format.formatter -> Warray_.arr_access -> Wsize.wsize -> 'a -> 'b -> unit
+  (Format.formatter -> 'c -> unit) -> 
+  Format.formatter -> Warray_.arr_access -> Wsize.wsize -> 'a -> 'b -> 'c option-> unit
+
+val pp_len   : Format.formatter -> int -> unit
 
 val pp_expr  : debug:bool -> Format.formatter -> expr -> unit
+val pp_lval  : debug:bool -> Format.formatter -> lval -> unit
 
 val pp_instr : debug:bool -> Format.formatter -> 'info instr -> unit
 

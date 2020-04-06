@@ -48,7 +48,7 @@ let for_safety    env = env.model = Utils.Safety
 let rec read_mem_e = function
   | Pconst _ | Pbool _ | Parr_init _ |Pvar _ -> false
   | Pload _ -> true
-  | Papp1 (_, e) | Pget (_, _, _, e) -> read_mem_e e
+  | Papp1 (_, e) | Pget (_, _, _, e) | Psub (_, _, _, _, e) -> read_mem_e e
   | Papp2 (_, e1, e2) -> read_mem_e e1 || read_mem_e e2
   | PappN (_, es) -> read_mem_es es
   | Pif  (_, e1, e2, e3) -> read_mem_e e1 || read_mem_e e2 || read_mem_e e3
@@ -58,10 +58,11 @@ and read_mem_es es = List.exists read_mem_e es
 let read_mem_lval = function
   | Lnone _ | Lvar _ -> false
   | Lmem (_,_,_) -> true 
-  | Laset (_,_,_,e) -> read_mem_e e
+  | Laset (_,_,_,e) | Lasub (_,_,_,_,e)-> read_mem_e e
+
 
 let write_mem_lval = function
-  | Lnone _ | Lvar _ | Laset _ -> false
+  | Lnone _ | Lvar _ | Laset _ | Lasub _ -> false
   | Lmem _ -> true
 
 let read_mem_lvals = List.exists read_mem_lval
@@ -111,6 +112,7 @@ let rec leaks_e_rec leaks e =
   | Pconst _ | Pbool _ | Parr_init _ |Pvar _ -> leaks
   | Pload (_,x,e) -> leaks_e_rec (int_of_word U64 (snd (add64 (gkvar x) e)) :: leaks) e
   | Pget (_,_,_, e) -> leaks_e_rec (e::leaks) e 
+  | Psub _ -> assert false (* NOT IMPLEMENTED *)
   | Papp1 (_, e) -> leaks_e_rec leaks e
   | Papp2 (_, e1, e2) -> leaks_e_rec (leaks_e_rec leaks e1) e2
   | PappN (_, es) -> leaks_es_rec leaks es
@@ -123,6 +125,7 @@ let leaks_es es = leaks_es_rec [] es
 let leaks_lval = function
   | Lnone _ | Lvar _ -> []
   | Laset (_,_,_, e) -> leaks_e_rec [e] e
+  | Lasub _ -> assert false (* NOT IMPLEMENTED *)
   | Lmem (_, x,e) -> leaks_e_rec [int_of_word U64 (snd (add64 (gkvar x) e))] e
 
 (* FIXME: generate this list automatically *)
@@ -326,6 +329,7 @@ let ty_lval = function
   | Lvar x -> (L.unloc x).v_ty
   | Lmem (ws,_,_) -> Bty (U ws)
   | Laset(_,ws, _, _) -> Bty (U ws)
+  | Lasub _ -> assert false (* NOT IMPLEMENTED *)
 
 let pp_ty _option fmt ty = 
   match ty with
@@ -481,6 +485,7 @@ let rec ty_expr = function
   | Pvar x         -> x.gv.L.pl_desc.v_ty
   | Pload (sz,_,_) -> tu sz
   | Pget  (_,sz,_,_) -> tu sz
+  | Psub _ -> assert false (* NOT IMPLEMENTED *)
   | Papp1 (op,_)   -> out_ty_op1 op
   | Papp2 (op,_,_) -> out_ty_op2 op
   | PappN (op, _)  -> out_ty_opN op
@@ -536,6 +541,8 @@ let rec pp_expr env fmt (e:expr) =
     let option = 
       for_safety env &&  snd (Mv.find (L.unloc x.gv) env.vars) in
     pp_oget option pp fmt (x,e)
+
+  | Psub _ -> assert false (* NOT IMPLEMENTED *)
 
   | Pload (sz, x, e) -> 
     Format.fprintf fmt "(loadW%a Glob.mem (W64.to_uint %a))" 
@@ -641,13 +648,15 @@ let pp_lval1 env pp_e fmt (lv, (ety, e)) =
         "@[%a =@ @[Array%i.init@ (WArray%i.get%i (WArray%i.set%i %a %a %a));@]@]"
         (pp_var env) x n nws8 (int_of_ws xws) nws8 (int_of_ws ws)
         (pp_initi env) (x, n, xws) (pp_expr env) e1 pp_e e
- 
+  | Lasub _ -> assert false (* NOT IMPLEMENTED *)
+
 let pp_lval env fmt = function
   | Lnone _ -> assert false
   | Lmem _ -> assert false 
   | Lvar x  -> pp_var env fmt (L.unloc x)
   | Laset _  -> assert false 
- 
+  | Lasub _ -> assert false 
+
 let pp_lvals env fmt xs = 
   match xs with
   | []  -> assert false
@@ -828,6 +837,7 @@ module Leak = struct
         if option then Initai(ws, L.unloc x, e) :: safe 
         else safe in
       in_bound ws x e :: safe 
+    | Psub _ -> assert false (* NOT IMPLEMENTED *) 
     | Papp2 (op, e1, e2) -> 
       safe_op2 (safe_e_rec env (safe_e_rec env safe e1) e2) e1 e2 op
     | PappN (_op, _es) -> assert false (* TODO: nary *)
@@ -852,6 +862,7 @@ module Leak = struct
     | Laset(aa, ws, x,e) -> 
       assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
       in_bound ws x e :: safe_e_rec env [] e 
+    | Lasub _ -> assert false (* NOT IMPLEMENTED *) 
 
   let pp_safe_e env fmt = function
     | Initv x -> Format.fprintf fmt "is_init %a" (pp_var env) x
@@ -955,6 +966,7 @@ module Leak = struct
         else pp fmt e 
       | Lmem _ -> pp fmt e
       | Laset _ -> pp fmt e
+      | Lasub _ -> assert false (* NOT IMPLEMENTED *) 
     else pp fmt e
 
   let pp_assgn_i env fmt lv (ety, aux) = 

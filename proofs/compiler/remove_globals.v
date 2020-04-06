@@ -106,29 +106,36 @@ Section REMOVE.
   Section GD.
     Context (gd:glob_decls).
 
+    Definition get_var ii (env:venv) (xi:gvar) := 
+      if is_lvar xi then
+        let vi := xi.(gv) in 
+        let x := vi.(v_var) in
+        if is_glob x then
+          match Mvar.get env x with
+          | Some g => ok (mk_gvar (VarI g vi.(v_info)))
+          | None   => cferror (Ferr_remove_glob ii vi)
+          end 
+        else ok xi
+      else ok xi.
+
     Fixpoint remove_glob_e ii (env:venv) (e:pexpr) :=
       match e with
       | Pconst _ | Pbool _ => ok e
       | Parr_init _ => ok e
       | Pvar xi =>
-        if is_lvar xi then
-          let vi := xi.(gv) in 
-          let x := vi.(v_var) in
-          if is_glob x then
-            match Mvar.get env x with
-            | Some g => ok (Pvar (mk_gvar (VarI g vi.(v_info))))
-            | None   => cferror (Ferr_remove_glob ii vi)
-            end 
-          else ok e
-        else ok e
+        Let xi := get_var ii env xi in
+        ok (Pvar xi)
 
       | Pget aa ws xi e =>
-        let vi := xi.(gv) in
-        let x := vi.(v_var) in
-        if is_lvar xi && is_glob x then cferror (Ferr_remove_glob ii vi)
-        else
-          Let e := remove_glob_e ii env e in
-          ok (Pget aa ws xi e)
+        Let e  := remove_glob_e ii env e in
+        Let xi := get_var ii env xi in
+        ok (Pget aa ws xi e)
+
+      | Psub aa ws len xi e =>
+        Let e  := remove_glob_e ii env e in
+        Let xi := get_var ii env xi in
+        ok (Psub aa ws len xi e)
+
       | Pload ws xi e =>
         let x := xi.(v_var) in
         if is_glob x then cferror (Ferr_remove_glob ii xi)
@@ -171,6 +178,12 @@ Section REMOVE.
         else
           Let e := remove_glob_e ii env e in
           ok (Laset aa ws xi e)
+      | Lasub aa ws len xi e =>
+        let x := xi.(v_var) in
+        if is_glob x then cferror (Ferr_remove_glob ii xi)
+        else
+          Let e := remove_glob_e ii env e in
+          ok (Lasub aa ws len xi e)
       end.
 
     Section REMOVE_C.

@@ -19,7 +19,8 @@ Definition pexpr_of_lval ii (lv:lval) : ciexec pexpr :=
   | Lvar x    => ok (Plvar x)
   | Lmem s x e  => ok (Pload s x e)
   | Lnone _ _
-  | Laset _ _ _ _ => cierror ii (Cerr_assembler (AsmErr_string "pexpr_of_lval"))
+  | Laset _ _ _ _ 
+  | Lasub _ _ _ _ _ => cierror ii (Cerr_assembler (AsmErr_string "pexpr_of_lval"))
   end.
 
 Definition get_loarg ii (outx: seq lval) (inx:seq pexpr) (d:source_position) : ciexec pexpr :=

@@ -1,18 +1,24 @@
 open Prog
 module L = Location
 
-let rec gsubst_e (fty: 'ty1 -> 'ty2) (f: 'ty1 ggvar -> 'ty2 gexpr) e =
+let gsubst_ty (flen: 'len1 -> 'len2) ty = 
+  match ty with
+  | Bty ty -> Bty ty
+  | Arr(ty, e) -> Arr(ty, flen e)
+
+let rec gsubst_e (flen: 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gexpr) e =
   match e with
   | Pconst c -> Pconst c
   | Pbool b  -> Pbool b
   | Parr_init n -> Parr_init n
   | Pvar v -> f v
-  | Pget  (aa, ws, v, e) -> Pget(aa, ws, gsubst_gvar f v, gsubst_e fty f e)
-  | Pload (ws, v, e) -> Pload (ws, gsubst_vdest f v, gsubst_e fty f e)
-  | Papp1 (o, e)     -> Papp1 (o, gsubst_e fty f e)
-  | Papp2 (o, e1, e2)-> Papp2 (o, gsubst_e fty f e1, gsubst_e fty f e2)
-  | PappN (o, es) -> PappN (o, List.map (gsubst_e fty f) es)
-  | Pif   (ty, e, e1, e2)-> Pif(fty ty, gsubst_e fty f e, gsubst_e fty f e1, gsubst_e fty f e2)
+  | Pget (aa, ws, v, e) -> Pget(aa, ws, gsubst_gvar f v, gsubst_e flen f e)
+  | Psub (aa, ws, len, v, e) -> Psub(aa,ws,flen len, gsubst_gvar f v, gsubst_e flen f e)
+  | Pload (ws, v, e) -> Pload (ws, gsubst_vdest f v, gsubst_e flen f e)
+  | Papp1 (o, e)     -> Papp1 (o, gsubst_e flen f e)
+  | Papp2 (o, e1, e2)-> Papp2 (o, gsubst_e flen f e1, gsubst_e flen f e2)
+  | PappN (o, es) -> PappN (o, List.map (gsubst_e flen f) es)
+  | Pif   (ty, e, e1, e2)-> Pif(gsubst_ty flen ty, gsubst_e flen f e, gsubst_e flen f e1, gsubst_e flen f e2)
 
 and gsubst_gvar f v = 
   match f v with
@@ -24,38 +30,39 @@ and gsubst_vdest f v =
   assert (is_gkvar v);
   v.gv
 
-let gsubst_lval fty f lv =
+let gsubst_lval flen f lv =
   match lv with
-  | Lnone(i,ty)  -> Lnone(i, fty ty)
+  | Lnone(i,ty)  -> Lnone(i, gsubst_ty flen ty)
   | Lvar v       -> Lvar (gsubst_vdest f v)
-  | Lmem (w,v,e) -> Lmem(w, gsubst_vdest f v, gsubst_e fty f e)
-  | Laset(aa,w,v,e) -> Laset(aa, w, gsubst_vdest f v, gsubst_e fty f e)
+  | Lmem (w,v,e) -> Lmem(w, gsubst_vdest f v, gsubst_e flen f e)
+  | Laset(aa,w,v,e) -> Laset(aa, w, gsubst_vdest f v, gsubst_e flen f e)
+  | Lasub(aa,w,len,v,e) -> Lasub(aa, w, flen len, gsubst_vdest f v, gsubst_e flen f e)
 
-let gsubst_lvals fty f  = List.map (gsubst_lval fty f)
-let gsubst_es fty f = List.map (gsubst_e fty f)
+let gsubst_lvals flen f  = List.map (gsubst_lval flen f)
+let gsubst_es flen f = List.map (gsubst_e flen f)
 
-let rec gsubst_i fty f i =
+let rec gsubst_i flen f i =
   let i_desc =
     match i.i_desc with
-    | Cassgn(x, tg, ty, e) -> Cassgn(gsubst_lval fty f x, tg, fty ty, gsubst_e fty f e)
-    | Copn(x,t,o,e)   -> Copn(gsubst_lvals fty f x, t, o, gsubst_es fty f e)
-    | Cif(e,c1,c2)  -> Cif(gsubst_e fty f e, gsubst_c fty f c1, gsubst_c fty f c2)
+    | Cassgn(x, tg, ty, e) -> Cassgn(gsubst_lval flen f x, tg, gsubst_ty flen ty, gsubst_e flen f e)
+    | Copn(x,t,o,e)   -> Copn(gsubst_lvals flen f x, t, o, gsubst_es flen f e)
+    | Cif(e,c1,c2)  -> Cif(gsubst_e flen f e, gsubst_c flen f c1, gsubst_c flen f c2)
     | Cfor(x,(d,e1,e2),c) ->
-        Cfor(gsubst_vdest f x, (d, gsubst_e fty f e1, gsubst_e fty f e2), gsubst_c fty f c)
+        Cfor(gsubst_vdest f x, (d, gsubst_e flen f e1, gsubst_e flen f e2), gsubst_c flen f c)
     | Cwhile(a, c, e, c') -> 
-      Cwhile(a, gsubst_c fty f c, gsubst_e fty f e, gsubst_c fty f c')
-    | Ccall(ii,x,fn,e) -> Ccall(ii, gsubst_lvals fty f x, fn, gsubst_es fty f e) in
+      Cwhile(a, gsubst_c flen f c, gsubst_e flen f e, gsubst_c flen f c')
+    | Ccall(ii,x,fn,e) -> Ccall(ii, gsubst_lvals flen f x, fn, gsubst_es flen f e) in
   { i with i_desc }
 
-and gsubst_c fty f c = List.map (gsubst_i fty f) c
+and gsubst_c flen f c = List.map (gsubst_i flen f) c
 
-let gsubst_func fty f fc =
+let gsubst_func flen f fc =
   let dov v = L.unloc (gsubst_vdest f (L.mk_loc L._dummy v)) in
   { fc with
-    f_tyin = List.map fty fc.f_tyin;
+    f_tyin = List.map (gsubst_ty flen) fc.f_tyin;
     f_args = List.map dov fc.f_args;
-    f_body = gsubst_c fty f fc.f_body;
-    f_tyout = List.map fty fc.f_tyout;
+    f_body = gsubst_c flen f fc.f_body;
+    f_tyout = List.map (gsubst_ty flen) fc.f_tyout;
     f_ret  = List.map (gsubst_vdest f) fc.f_ret
   }
 
@@ -67,10 +74,14 @@ let subst_func f fc =
 
 type psubst = pexpr Mv.t
 
-let psubst_ty fty f ty = 
+let rec psubst_e (f: pexpr ggvar -> pexpr) e = 
+  gsubst_e (psubst_e f) f e
+  
+
+let psubst_ty f (ty:pty) : pty = 
   match ty with
   | Bty ty -> Bty ty
-  | Arr(ty, e) -> Arr(ty, gsubst_e fty f e)
+  | Arr(ty, e) -> Arr(ty, psubst_e f e)
 
 let psubst_v subst =
   let subst = ref subst in
@@ -82,7 +93,7 @@ let psubst_v subst =
       try Mpv.find v_ !subst
       with Not_found ->
         assert (not (PV.is_glob v_));
-        let ty = auxty v_.v_ty in
+        let ty = psubst_ty aux v_.v_ty in
         let v' = PV.mk v_.v_name v_.v_kind ty v_.v_dloc in
         let v = {v with L.pl_desc = v'} in
         let v = { gv = v; gs = k } in
@@ -95,13 +106,12 @@ let psubst_v subst =
       let x = {x.gv with L.pl_loc = L.loc v} in
       let x = {gv = x; gs = k} in
       Pvar x
-    | _      -> e 
-  and auxty (ty:pty) : pty = psubst_ty auxty aux ty in
-  auxty, aux
+    | _      -> e in
+  aux
 
-let psubst_ge fty f = function
-  | GEword e -> GEword (gsubst_e fty f e)
-  | GEarray es -> GEarray (List.map (gsubst_e fty f) es)
+let psubst_ge f = function
+  | GEword e -> GEword (psubst_e f e)
+  | GEarray es -> GEarray (List.map (psubst_e f) es)
 
 let psubst_prog (prog:'info pprog) =
   let subst = ref (Mpv.empty : pexpr Mpv.t) in
@@ -109,25 +119,26 @@ let psubst_prog (prog:'info pprog) =
     | [] -> [], []
     | MIparam(v,e) :: items ->
         let g, p = aux items in
-        let fty, f = psubst_v !subst in 
-        subst := Mpv.add v (gsubst_e fty f e) !subst;
+        let f = psubst_v !subst in 
+        subst := Mpv.add v (psubst_e f e) !subst;
         g, p
     | MIglobal (v, e) :: items ->
       let g, p = aux items in
-      let fty, f = psubst_v !subst in
-      let e = psubst_ge fty f e in
+      let f = psubst_v !subst in
+      let e = psubst_ge f e in
       subst := Mpv.add v (Pvar (gkglob (L.mk_loc L._dummy v))) !subst;
       (v, e) :: g, p
     | MIfun fc :: items ->
         let g, p = aux items in
-        let subst_ty, subst_v = psubst_v !subst in
+        let subst_v = psubst_v !subst in
+        let subst_ty = psubst_ty subst_v in
         let dov v =
           L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
         let fc = {
             fc with
             f_tyin = List.map subst_ty fc.f_tyin;
             f_args = List.map dov fc.f_args;
-            f_body = gsubst_c subst_ty subst_v fc.f_body;
+            f_body = gsubst_c (psubst_e subst_v) subst_v fc.f_body;
             f_tyout = List.map subst_ty fc.f_tyout;
             f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret
           } in
@@ -150,12 +161,14 @@ let rec int_of_expr e =
   | Papp2 (o, e1, e2) ->
       int_of_op2 o (int_of_expr e1) (int_of_expr e2)
   | Pbool _ | Parr_init _ | Pvar _ 
-  | Pget _ | Pload _ | Papp1 _ | PappN _ | Pif _ -> assert false
+  | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _ -> assert false
 
+
+let isubst_len e = B.to_int (int_of_expr e)
 
 let isubst_ty = function
   | Bty ty -> Bty ty
-  | Arr(ty, e) -> Arr(ty, B.to_int (int_of_expr e))
+  | Arr(ty, e) -> Arr(ty, isubst_len e)
 
 
 let isubst_prog glob prog =
@@ -187,8 +200,8 @@ let isubst_prog glob prog =
 
     let gd = 
       match gd with
-      | GEword e -> GEword (gsubst_e isubst_ty subst_v e)
-      | GEarray es -> GEarray (List.map (gsubst_e isubst_ty subst_v) es) in
+      | GEword e -> GEword (gsubst_e isubst_len subst_v e)
+      | GEarray es -> GEarray (List.map (gsubst_e isubst_len subst_v) es) in
     x, gd in
   let glob = List.map isubst_glob glob in
 
@@ -203,7 +216,7 @@ let isubst_prog glob prog =
         fc with
         f_tyin = List.map isubst_ty fc.f_tyin;
         f_args = List.map dov fc.f_args;
-        f_body = gsubst_c isubst_ty subst_v fc.f_body;
+        f_body = gsubst_c isubst_len subst_v fc.f_body;
         f_tyout = List.map isubst_ty fc.f_tyout;
         f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret
       } in

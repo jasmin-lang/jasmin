@@ -38,7 +38,7 @@ type tyerror =
   | InvalidCast         of P.pty pair
   | InvalidGlobal       of S.symbol
   | InvalidTypeForGlobal of P.pty
-  | NotAPointer          of P.pty P.glval
+  | NotAPointer         of P.plval
   | GlobArrayNotWord    
   | GlobWordNotArray
   | EqOpWithNoLValue
@@ -767,14 +767,21 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     let ct, x, e = tt_mem_access ~mode env me in
     P.Pload (ct, x, e), P.Bty (P.U ct)
 
-  | S.PEGet (aa, ws, ({ L.pl_loc = xlc } as x), pi) ->
+  | S.PEGet (aa, ws, ({ L.pl_loc = xlc } as x), pi, olen) ->
     let x, ty = tt_var_global mode env x in
     let ty = tt_as_array (xlc, ty) in
     let ws = omap_dfl tt_ws (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
     let i,ity  = tt_expr ~mode env pi in
     check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
-    P.Pget (aa, ws, x, i), ty
+    begin match olen with
+    | None -> P.Pget (aa, ws, x, i), ty
+    | Some plen ->
+      let len,ity  = tt_expr ~mode:`OnlyParam env plen in
+      check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.tint;
+      let ty = P.Arr(ws, len) in
+      P.Psub (aa, ws, len, x, i), ty
+    end
 
   | S.PEOp1 (op, pe) ->
     let e, ety = tt_expr ~mode env pe in
@@ -914,14 +921,22 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     let x = tt_var `AllVar env x in
     loc, (fun _ -> P.Lvar (L.mk_loc loc x)), Some x.P.v_ty
 
-  | S.PLArray (aa, ws, ({ pl_loc = xlc } as x), pi) ->
+  | S.PLArray (aa, ws, ({ pl_loc = xlc } as x), pi, olen) ->
     let x  = tt_var `AllVar env x in
     let ty = tt_as_array (xlc, x.P.v_ty) in
     let ws = omap_dfl tt_ws (P.ws_of_ty ty) ws in 
     let ty = P.tu ws in
     let i,ity  = tt_expr env ~mode:`AllVar pi in
     check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
-    loc, (fun _ -> P.Laset (aa, ws, L.mk_loc xlc x, i)), Some ty 
+    begin match olen with
+    | None -> 
+      loc, (fun _ -> P.Laset (aa, ws, L.mk_loc xlc x, i)), Some ty
+    | Some plen ->
+      let len,ity  = tt_expr ~mode:`OnlyParam env plen in
+      check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.tint;
+      let ty = P.Arr(ws, len) in
+      loc, (fun _ -> P.Lasub (aa, ws, len, L.mk_loc xlc x, i)), Some ty
+    end
 
   | S.PLMem me ->
     let ct, x, e = tt_mem_access ~mode:`AllVar env me in
@@ -1114,7 +1129,7 @@ let pexpr_of_plvalue exn l =
   match L.unloc l with
   | S.PLIgnore      -> raise exn
   | S.PLVar  x      -> L.mk_loc (L.loc l) (S.PEVar x)
-  | S.PLArray(aa,ws,x,e)  -> L.mk_loc (L.loc l) (S.PEGet(aa,ws,x,e))
+  | S.PLArray(aa,ws,x,e,len)  -> L.mk_loc (L.loc l) (S.PEGet(aa,ws,x,e,len))
   | S.PLMem(ty,x,e) -> L.mk_loc (L.loc l) (S.PEFetch(ty,x,e))
 
 
@@ -1151,15 +1166,15 @@ let arr_init xi =
   | _           -> 
     rs_tyerror ~loc:(L.loc xi) (InvalidType( x.P.v_ty, TPArray))
 
-let cassgn_for (x: P.pty P.glval) (tg: P.assgn_tag) (ty: P.pty) (e: P.pty P.gexpr) :
-  (P.pty, unit) P.ginstr_r =
+let cassgn_for (x: P.plval) (tg: P.assgn_tag) (ty: P.pty) (e: P.pexpr) :
+  (P.pexpr, unit) P.ginstr_r =
   Cassgn (x, tg, ty, e)
 
 let rec is_constant e = 
   match e with 
   | P.Pconst _ | P.Pbool _ | P.Parr_init _ -> true
   | P.Pvar x  -> P.kind_i x.P.gv = P.Const || P.kind_i x.P.gv = P.Inline
-  | P.Pget _ | P.Pload _ -> false
+  | P.Pget _ | P.Psub _ | P.Pload _ -> false
   | P.Papp1 (_, e) -> is_constant e
   | P.Papp2 (_, e1, e2) -> is_constant e1 && is_constant e2
   | P.PappN (_, es) -> List.for_all is_constant es
@@ -1177,7 +1192,7 @@ let mk_call loc is_inline lvs f es =
   | P.Subroutine _ ->
     let check_lval = function
       | P.Lnone _ | Lvar _ -> ()
-      | Lmem _ | Laset _ -> rs_tyerror ~loc (string_error "memory/array assignment are not allowed here") in
+      | Lmem _ | Laset _ | Lasub _ -> rs_tyerror ~loc (string_error "memory/array assignment are not allowed here") in
     let check_e = function
       | P.Pvar _ -> ()
       | _ -> rs_tyerror ~loc (string_error "only variables are allowed in arguments of non-inlined function") in
@@ -1389,7 +1404,7 @@ let tt_global_def env (gd:S.gpexpr) =
     `Array (List.map f es) 
 
 let tt_global (env : Env.env) _loc (gd: S.pglobal) : 
-  Env.env * (P.pvar * P.pty P.ggexpr) =
+  Env.env * (P.pvar * P.pexpr P.ggexpr) =
 
   let open P in
   let mk_pe ws (pe,ety) = 

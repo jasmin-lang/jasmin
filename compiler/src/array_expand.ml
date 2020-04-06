@@ -45,7 +45,9 @@ let rec arrexp_e tbl e =
       let v = get_reg_arr tbl x.gv e in
       Pvar (gkvar (L.mk_loc (L.loc x.gv) v))
     else Pget(aa, ws, x, arrexp_e tbl e)
-
+  | Psub(aa, ws, len, x, e) ->
+    assert (not (is_reg_arr (L.unloc x.gv)));
+    Psub(aa, ws, len, x, arrexp_e tbl e)
   | Pload(ws,x,e)  -> Pload(ws,x,arrexp_e tbl e)
   | Papp1 (o, e)   -> Papp1(o, arrexp_e tbl e)
   | Papp2(o,e1,e2) -> Papp2(o,arrexp_e tbl e1, arrexp_e tbl e2)
@@ -54,11 +56,14 @@ let rec arrexp_e tbl e =
 
 let arrexp_lv tbl lv =
   match lv with
-  | Laset(aa, ws, x,e) ->
+  | Laset(aa, ws, x, e) ->
     if is_reg_arr (L.unloc x) then
       let v = get_reg_arr tbl x e in
       Lvar (L.mk_loc (L.loc x) v)
     else Laset(aa, ws, x, arrexp_e tbl e)
+  | Lasub(aa, ws, len, x, e) ->
+    assert (not (is_reg_arr (L.unloc x)));
+    Lasub(aa, ws, len, x, arrexp_e tbl e)
   | Lvar x       -> check_not_reg_arr "Lvar" x; lv
   | Lnone _      -> lv
   | Lmem(ws,x,e) -> Lmem(ws,x,arrexp_e tbl e)

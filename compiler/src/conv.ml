@@ -182,6 +182,8 @@ let rec cexpr_of_expr tbl = function
   | Parr_init n       -> C.Parr_init (pos_of_bi n)
   | Pvar x            -> C.Pvar (cgvari_of_gvari tbl x)
   | Pget (aa,ws, x,e) -> C.Pget (aa, ws, cgvari_of_gvari tbl x, cexpr_of_expr tbl e)
+  | Psub (aa,ws,len, x,e) -> 
+    C.Psub (aa, ws, pos_of_int len, cgvari_of_gvari tbl x, cexpr_of_expr tbl e)
   | Pload (ws, x, e)  -> C.Pload(ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Papp1 (o, e)      -> C.Papp1(o, cexpr_of_expr tbl e)
   | Papp2 (o, e1, e2) -> C.Papp2(o, cexpr_of_expr tbl e1, cexpr_of_expr tbl e2)
@@ -197,6 +199,7 @@ let rec expr_of_cexpr tbl = function
   | C.Parr_init n       -> Parr_init (bi_of_pos n)
   | C.Pvar x            -> Pvar (gvari_of_cgvari tbl x)
   | C.Pget (aa,ws, x,e) -> Pget (aa, ws, gvari_of_cgvari tbl x, expr_of_cexpr tbl e)
+  | C.Psub (aa,ws,len,x,e) -> Psub (aa, ws, int_of_pos len, gvari_of_cgvari tbl x, expr_of_cexpr tbl e)
   | C.Pload (ws, x, e)  -> Pload(ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Papp1 (o, e)      -> Papp1(o, expr_of_cexpr tbl e)
   | C.Papp2 (o, e1, e2) -> Papp2(o, expr_of_cexpr tbl e1, expr_of_cexpr tbl e2)
@@ -213,12 +216,16 @@ let clval_of_lval tbl = function
   | Lvar x          -> C.Lvar  (cvari_of_vari tbl x)
   | Lmem (ws, x, e) -> C.Lmem (ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Laset(aa,ws,x,e)-> C.Laset (aa, ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
+  | Lasub(aa,ws,len,x,e)-> 
+    C.Lasub (aa, ws, pos_of_int len, cvari_of_vari tbl x, cexpr_of_expr tbl e)
 
 let lval_of_clval tbl = function
   | C.Lnone(p,ty)   -> Lnone (get_loc tbl p, ty_of_cty ty)
   | C.Lvar x        -> Lvar (vari_of_cvari tbl x)
   | C.Lmem(ws,x,e)  -> Lmem (ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Laset(aa,ws,x,e) -> Laset (aa,ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
+  | C.Lasub(aa,ws,len,x,e) -> 
+    Lasub (aa,ws, int_of_pos len, vari_of_cvari tbl x, expr_of_cexpr tbl e)
 
 (* ------------------------------------------------------------------------ *)
 

@@ -184,16 +184,23 @@ prim:
 | ct=parens(utype)? LBRACKET v=var e=mem_ofs? RBRACKET 
   { ct, v, e }
   
+arr_access_len: 
+| COLON e=pexpr { e }
+
+arr_access_i:
+| ws=utype? e=pexpr len=arr_access_len? {ws, e, len} 
+
 arr_access:
- | i=brackets(ws=utype? e=pexpr {ws, e}) { Warray_.AAscale, i }
- | DOT i=brackets(ws=utype? e=pexpr {ws, e}) { Warray_.AAdirect, i } 
+ | s=DOT?  i=brackets(arr_access_i) {
+   let s = if s = None then Warray_.AAscale else Warray_.AAdirect in
+   s, i }
 
 pexpr_r:
 | v=var
     { PEVar v }
 
 | v=var i=arr_access 
-    { let aa, (ws, e) = i in PEGet (aa, ws, v, e) }
+    { let aa, (ws, e, len) = i in PEGet (aa, ws, v, e, len) }
 
 | TRUE
     { PEBool true }
@@ -256,7 +263,7 @@ plvalue_r:
     { PLVar x }
 
 | x=var i=arr_access 
-    { let a,(ws,e) = i in PLArray (a, ws, x, e) }
+    { let a,(ws,e,len) = i in PLArray (a, ws, x, e, len) }
 
 | ma=mem_access 
     { let ct,v,e = ma in PLMem (ct, v, e) }

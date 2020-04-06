@@ -21,7 +21,7 @@ let pp_var_i tbl fmt vi =
 
 let pp_clval tbl fmt lv =
   Conv.lval_of_clval tbl lv |>
-  Printer.(pp_glv (pp_var ~debug:true)) fmt
+  Printer.(pp_lval ~debug:true) fmt
 
 let rec pp_comp_err tbl fmt =
   let open Printer in

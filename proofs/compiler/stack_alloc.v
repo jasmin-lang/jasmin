@@ -328,6 +328,8 @@ Fixpoint alloc_e (e:pexpr) :=
       Let pofs := mk_addr xv aa ws vpk e1 in
       ok (Pload ws pofs.1 pofs.2)
     end             
+  | Psub aa ws len x e1 =>
+    cerror "Psub"
 
   | Pload ws x e1 =>
     Let _ := check_var x in
@@ -394,7 +396,8 @@ Definition alloc_lval (rmap: regions) (r:lval) ty :=
       Let rmap := Region.set_word rmap x ws mp in
       ok (rmap, r)
     end   
-
+  | Lasub aa ws len x e1 =>
+    cerror "Lasub"
   | Lmem ws x e1 =>
     Let _ := check_var x in
     Let e1 := alloc_e rmap e1 in
@@ -547,6 +550,7 @@ Definition check_lval_reg_call (r:lval) :=
     | Some _ => cerror "call result should be stored in reg"
     end
   | Laset aa ws x e1 => cerror "array assignement in lval of a call"
+  | Lasub aa ws len x e1 => cerror "sub array assignement in lval of a call"
   | Lmem ws x e1     => cerror "call result should be stored in reg"
   end.
 

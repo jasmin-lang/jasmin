@@ -6,7 +6,7 @@ let used_results (live: Sv.t) : lvals -> Sint.t =
       function
       | Lnone _ -> s
       | Lvar x -> if Sv.mem (L.unloc x) live then Sint.add i s else s
-      | (Lmem _ | Laset _) -> Sint.add i s
+      | (Lmem _ | Laset _ | Lasub _) -> Sint.add i s
     )
     Sint.empty
 

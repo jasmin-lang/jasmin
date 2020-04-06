@@ -132,6 +132,7 @@ end = struct
     | Lvar v -> Lvar (mk_v_loc fn v)
     | Lmem (ws,ty,e) -> Lmem (ws, mk_v_loc fn ty, mk_expr fn e)
     | Laset (aa,ws,v,e) -> Laset (aa,ws, mk_v_loc fn v, mk_expr fn e)
+    | Lasub _ -> assert false
 
   and mk_range fn (dir, e1, e2) = (dir, mk_expr fn e1, mk_expr fn e2)
 
@@ -159,6 +160,7 @@ end = struct
     | Pconst _ | Pbool _ | Parr_init _ -> expr
     | Pvar v -> Pvar (mk_gv fn v)
     | Pget (aa,ws, v, e) -> Pget (aa,ws, mk_gv fn v, mk_expr fn e)
+    | Psub _             -> assert false
     | Pload (ws, v, e) -> Pload (ws, mk_v_loc fn v, mk_expr fn e)
     | Papp1 (op, e) -> Papp1 (op, mk_expr fn e)
     | Papp2 (op, e1, e2) -> Papp2 (op, mk_expr fn e1, mk_expr fn e2)
@@ -238,19 +240,19 @@ end
 (************************)
 
 (* Memory locations *)
-type mem_loc = MemLoc of ty gvar
+type mem_loc = MemLoc of var
 
 type atype =
-  | Avar of ty gvar                     (* Variable *)
-  | Aarray of ty gvar                   (* Array *)
-  | AarrayEl of ty gvar * wsize * int   (* Array element *)
+  | Avar of var                     (* Variable *)
+  | Aarray of var                   (* Array *)
+  | AarrayEl of var * wsize * int   (* Array element *)
 
 type mvar =
   | Temp of string * int * ty   (* Temporary variable *)
   | WTemp of string * int * ty  (* Temporary variable (weak updates) *)
   | Mvalue of atype             (* Variable value *)
-  | MinValue of ty gvar         (* Variable initial value *)
-  | MvarOffset of ty gvar       (* Variable offset *)
+  | MinValue of var         (* Variable initial value *)
+  | MvarOffset of var       (* Variable offset *)
   | MNumInv of L.t              (* Numerical Invariants *)
   | MmemRange of mem_loc        (* Memory location range *)
 
@@ -394,9 +396,9 @@ module Pa : sig
   type pa_res = { pa_dp : dp;
                   pa_eq : dp;
                   while_vars : Sv.t;
-                  if_conds : ty gexpr list }
+                  if_conds : expr list }
 
-  val dp_v : dp -> ty gvar -> Sv.t
+  val dp_v : dp -> var -> Sv.t
   val pa_make : unit func -> unit prog -> pa_res
 
 end = struct
@@ -407,7 +409,7 @@ end = struct
   type pa_res = { pa_dp : dp;
                   pa_eq : dp;
                   while_vars : Sv.t;
-                  if_conds : ty gexpr list }
+                  if_conds : expr list }
 
   let dp_v dp v = Mv.find_default Sv.empty v dp
 
@@ -431,6 +433,7 @@ end = struct
         end
 
     | Pget _ -> dp  (* We ignore array loads  *)
+    | Psub _ -> assert false 
 
     (* We ignore loads for v, but we compute dependencies of v' in ei *)
     | Pload (_,v',ei) -> app_expr dp (L.unloc v') ei ct
@@ -449,7 +452,7 @@ end = struct
   type pa_st = { dp : dp;
                  eq : dp;
                  while_vars : Sv.t;
-                 if_conds : ty gexpr list;
+                 if_conds : expr list;
                  f_done : Ss.t;
                  ct : Sv.t }
 
@@ -458,7 +461,7 @@ end = struct
   let expr_vars st e =
     let rec aux (acc,st) = function
       | Pconst _ | Pbool _ | Parr_init _ | Pget _ -> acc, st
-
+      | Psub _ -> assert false
       | Pvar v' -> 
         begin match (L.unloc v'.gv).v_ty with
         | Bty _ -> (L.unloc v'.gv) :: acc, st
@@ -502,6 +505,7 @@ end = struct
 
   let pa_lv st lv e = match lv with
     | Lnone _ | Laset _ -> st   (* We ignore array stores *)
+    | Lasub _ -> assert false
     | Lvar v -> pa_expr st (L.unloc v) e
 
     (* For memory stores, we are only interested in v and ei *)
@@ -3394,7 +3398,7 @@ type safe_cond =
   | Initai of var * wsize * expr
   | Inita of var * int
   | InBound of int * wsize * expr
-  | Valid of wsize * ty gvar * expr
+  | Valid of wsize * var * expr
   | NotZero of wsize * expr
   | Termination
 
@@ -3488,6 +3492,7 @@ let rec safe_e_rec safe = function
         Initai(L.unloc x.gv, ws, e) :: safe
       else safe  in
     in_bound x.gv ws e :: safe
+  | Psub _ -> assert false (* NOT IMPLEMENTED *)
   | Papp1 (_, e) -> safe_e_rec safe e
   | Papp2 (op, e1, e2) -> safe_op2 e2 op @ safe_e_rec (safe_e_rec safe e1) e2
   | PappN (E.Opack _,_) -> safe
@@ -3507,6 +3512,7 @@ let safe_lval = function
   | Laset(aa,ws,x,e) -> 
     assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
     in_bound x ws e :: safe_e_rec [] e
+  | Lasub _ -> assert false (* NOT IMPLEMENTED *)
 
 let safe_lvals = List.fold_left (fun safe x -> safe_lval x @ safe) []
 
@@ -3818,7 +3824,7 @@ end = struct
         (abs_arr_range abs (L.unloc x.gv) ws ei
          |> List.map (fun x -> Mvalue x))
         @ acc
-
+      | Psub _ -> assert false (* NOT IMPLEMENTED *)
       | Papp1 (_, e1) -> aux acc e1
       | PappN (_, es) -> List.fold_left aux acc es
 
@@ -3872,7 +3878,7 @@ end = struct
 
     | _ -> assert false
 
-  and linearize_wexpr abs (e : ty gexpr) =
+  and linearize_wexpr abs (e : expr) =
     let apr_env = AbsDom.get_env abs in
     let ws_e = ws_of_ty (ty_expr e) in
 
@@ -3942,8 +3948,8 @@ end = struct
     | None -> None
     | Some (ty,b,el,er) -> Some (ty, b, f el, f er)
 
-  let rec remove_if_expr_aux : 'a Prog.gexpr ->
-    ('a * 'a Prog.gexpr * 'a Prog.gexpr * 'a Prog.gexpr) option = function
+  let rec remove_if_expr_aux : expr ->
+    (ty * expr * expr * expr) option = function
     | Pif (ty,e1,et,ef) -> Some (ty,e1,et,ef)
 
     | Pconst _  | Pbool _ | Parr_init _ | Pvar _ -> None
@@ -3951,7 +3957,7 @@ end = struct
     | Pget(aa,ws,x,e1) ->
       remove_if_expr_aux e1
       |> map_f (fun ex -> Pget(aa,ws,x,ex))
-
+    | Psub _ -> assert false (* NOT IMPLEMENTED *)
     | Pload (sz, x, e1) ->
       remove_if_expr_aux e1
       |> map_f (fun ex -> Pload (sz,x,ex))
@@ -3980,7 +3986,7 @@ end = struct
         Some (ty, b, PappN (opn, repi el), PappN (opn, repi er))
 
 
-  let rec remove_if_expr (e : 'a Prog.gexpr) = match remove_if_expr_aux e with
+  let rec remove_if_expr (e : expr) = match remove_if_expr_aux e with
     | Some (_,b,el,er) ->
       List.map (fun (l_bool,expr) ->
           (b :: l_bool,expr))
@@ -4107,7 +4113,7 @@ end = struct
           (b_list, lin_expr))
         (remove_if_expr e)
 
-  let linearize_if_wexpr : int -> ty gexpr -> AbsDom.t -> s_expr =
+  let linearize_if_wexpr : int -> expr -> AbsDom.t -> s_expr =
     fun out_sw e abs ->
       List.map (fun (bexpr_list, expr) ->
           let f x = bexpr_to_btcons x abs in
@@ -4369,12 +4375,14 @@ end = struct
 
     | Laset (aa,ws, x, ei) ->
       assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
-      match abs_arr_range abs (L.unloc x) ws ei
+      begin match abs_arr_range abs (L.unloc x) ws ei
             |> List.map (fun v -> Mvalue v) with
       | [] -> assert false
       | [mv] -> MLvar (mv)
       | _ as mvs -> MLvars mvs
-
+      end
+    | Lasub _ -> assert false (* NOT IMPLEMENTED *)
+      
 
   let apply_offset_expr abs outmv inv offset_expr =
     match ty_gvar_of_mvar outmv with
@@ -4451,7 +4459,7 @@ end = struct
     | _ -> false
 
   (* Abstract evaluation of an assignment *)
-  let abs_assign : astate -> 'a gty -> mlvar -> ty gexpr -> astate =
+  let abs_assign : astate -> ty -> mlvar -> expr -> astate =
     fun state out_ty out_mvar e ->
       assert (not (omvar_is_offset out_mvar));
       match ty_expr e, out_mvar with
@@ -4759,7 +4767,7 @@ end = struct
       L.pp_sloc (fst ginstr.i_loc)
 
 
-  let rec aeval_ginstr : ('ty,'info) ginstr -> astate -> astate =
+  let rec aeval_ginstr : 'info instr -> astate -> astate =
     fun ginstr state ->
       debug (print_ginstr ginstr state.abs);
 
@@ -4771,7 +4779,7 @@ end = struct
         let state = check_safety state (InProg (fst ginstr.i_loc)) conds in
         aeval_ginstr_aux ginstr state
 
-  and aeval_ginstr_aux : ('ty,'info) ginstr -> astate -> astate =
+  and aeval_ginstr_aux : 'info instr -> astate -> astate =
     fun ginstr state -> match ginstr.i_desc with
       | Cassgn (lv, _, _, e) ->
         abs_assign state (ty_lval lv) (mvar_of_lvar state.abs lv) e
@@ -5020,7 +5028,7 @@ end = struct
             (Printer.pp_expr ~debug:true) e2;
           assert false
 
-  and aeval_call : funname -> 'a gty gexprs -> astate -> astate =
+  and aeval_call : funname -> exprs -> astate -> astate =
     fun f es state ->
       let f_decl = get_fun_def state.prog f |> oget in
 
@@ -5029,7 +5037,7 @@ end = struct
       aeval_gstmt f_decl.f_body state
 
 
-  and aeval_call_widening : funname -> 'a gty gexprs -> L.t -> astate -> astate =
+  and aeval_call_widening : funname -> exprs -> L.t -> astate -> astate =
     fun f es callsite state ->
       let itk = ItFunIn (f,callsite) in
       if ItMap.mem itk state.it then
@@ -5056,7 +5064,7 @@ end = struct
         let state = aeval_call f es state in
         { state with it = ItMap.add itk (in_abs,state.abs) state.it }
 
-  and aeval_gstmt : ('ty,'i) gstmt -> astate -> astate =
+  and aeval_gstmt : 'info stmt -> astate -> astate =
     fun gstmt state ->
       let state = List.fold_left (fun state ginstr ->
           aeval_ginstr ginstr state)

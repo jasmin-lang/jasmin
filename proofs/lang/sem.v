@@ -512,6 +512,11 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
       Let i := sem_pexpr s e >>= to_int in
       Let w := WArray.get aa ws t i in
       ok (Vword w)
+  | Psub aa ws len x e =>
+      Let (n, t) := gd, s.[x] in
+      Let i := sem_pexpr s e >>= to_int in
+      Let t' := WArray.get_sub aa ws len t i in
+      ok (Varr t')
   | Pload sz x e =>
     Let w1 := get_var s.(evm) x >>= to_pointer in
     Let w2 := sem_pexpr s e >>= to_pointer in
@@ -563,6 +568,13 @@ Definition write_lval (l:lval) (v:value) (s:estate) : exec estate :=
     Let i := sem_pexpr s i >>= to_int in
     Let v := to_word ws v in
     Let t := WArray.set t aa i v in
+    Let vm := set_var s.(evm) x (@to_val (sarr n) t) in
+    ok ({| emem := s.(emem); evm := vm |})
+  | Lasub aa ws len x i =>
+    Let (n,t) := s.[x] in
+    Let i := sem_pexpr s i >>= to_int in
+    Let t' := to_arr (Z.to_pos (arr_size ws len)) v in 
+    Let t := @WArray.set_sub n aa ws len t i t' in
     Let vm := set_var s.(evm) x (@to_val (sarr n) t) in
     ok ({| emem := s.(emem); evm := vm |})
   end.

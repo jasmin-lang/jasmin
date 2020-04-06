@@ -1094,6 +1094,8 @@ Module CBAreg.
     | Pvar   x1, Pvar   x2 => check_gv err x1 x2 m
     | Pget aa1 w1 x1 e1, Pget aa2 w2 x2 e2 =>
       if (aa1 == aa2) && (w1 == w2) then check_gv err x1 x2 m >>= check_e e1 e2 else err tt
+    | Psub aa1 w1 len1 x1 e1, Psub aa2 w2 len2 x2 e2 =>
+      if (aa1 == aa2) && (w1 == w2) && (len1 == len2) then check_gv err x1 x2 m >>= check_e e1 e2 else err tt
     | Pload w1 x1 e1, Pload w2 x2 e2 =>
       if w1 == w2 then check_v x1 x2 m >>= check_e e1 e2 else err tt
     | Papp1 o1 e1, Papp1 o2 e2 =>
@@ -1154,6 +1156,10 @@ Module CBAreg.
     | Laset aa1 w1 x1 e1, Laset aa2 w2 x2 e2 =>
       if (aa1 == aa2) && (w1 == w2) then check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2
       else err tt
+    | Lasub aa1 w1 len1 x1 e1, Lasub aa2 w2 len2 x2 e2 =>
+      if (aa1 == aa2) && (w1 == w2) && (len1 == len2) then check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2
+      else err tt
+ 
     | _          , _           => err tt
     end.
 
@@ -1278,6 +1284,17 @@ Module CBAreg.
       apply: rbindP => w;apply: rbindP => ve /Hse1 [v2 [-> U2 Hto]].
       have [_ -> /=]:= value_uincl_int U2 Hto.
       by apply: rbindP => w' /(WArray.uincl_get Ht) -> [] <-; exists (Vword w').
+    - move => aa1 sz1 len1 x1 e1 He1 [] // aa2 sz2 len2 x2 e2 r re vm1.
+      case: andP => // -[] /andP[] /eqP ? /eqP ? /eqP ?; subst aa2 sz2 len2.
+      apply: rbindP => r' Hcv Hce Hea.
+      have [Hea' Hget]:= check_gvP gd Hcv Hea.
+      have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= m v1.
+      apply: on_arr_gvarP => n t Heqt /Hget [v2 []].
+      rewrite /on_arr_var; case: v2 => //= n' t' -> Ht.
+      apply: rbindP => w;apply: rbindP => ve /Hse1 [v2 [-> U2 Hto]].
+      have [_ -> /=]:= value_uincl_int U2 Hto.
+      apply: rbindP => t1 /(WArray.uincl_get_sub Ht) [t2] -> ? [] <- /=.
+      by exists (Varr t2).
     - move => sz1 x1 e1 He1 [] // sz2 x2 e2 r re vm1.
       case: eqP => // ->.
       apply: rbindP => r' Hcv Hce Hea.
@@ -1457,8 +1474,8 @@ Module CBAreg.
       write_lval gd x2 v2 (with_vm s1 vm1) = ok (with_vm s1' vm1') /\
       eq_alloc r1' s1'.(evm) vm1'.
   Proof.
-    case: x1 x2 => /= [ii1 t1 | x1 | sz1 x1 p1 | aa1 sz1 x1 p1]
-                      [ii2 t2 | x2 | sz2 x2 p2 | aa2 sz2 x2 p2] //=.
+    case: x1 x2 => /= [ii1 t1 | x1 | sz1 x1 p1 | aa1 sz1 x1 p1 | aa1 sz1 len1 x1 p1]
+                      [ii2 t2 | x2 | sz2 x2 p2 | aa2 sz2 x2 p2 | aa2 sz2 len2 x2 p2] //=.
     + case:ifP => //= hs [] <- ? Hv _ H.
       have [-> [ [u hpof]| [hpof ?]]]:= write_noneP H; rewrite /write_none.
       + have [v1' ]:= subtype_pof_val_ok hs hpof.
@@ -1515,7 +1532,23 @@ Module CBAreg.
       move=> /(value_uincl_word Hve) /= -> /=.
       apply: rbindP => w /(value_uincl_word Hv) -> /=.
       by apply: rbindP => ? -> -[<-];exists vm1.
-    case: andP => // -[/eqP -> /eqP ->] /=.
+    + case: andP => // -[/eqP -> /eqP ->] /=.
+      apply: rbindP => r2;apply:rbindP=> r3 Hcv Hce Hcva Hvm1 Hv Happ.
+      apply: on_arr_varP => n t Htx;rewrite /on_arr_var /=.
+      have [Hr3 H/H{H} [vx2 [->]]]:= check_vP Hcv Hvm1.
+      case: vx2 => //= n0 t2 Ht.
+      apply: rbindP => we;apply:rbindP => ve.
+      case: (s1) Hvm1 Hr3 => sm1 svm1 /= Hvm1 Hr3.
+      have [Hr1' H/H{H} [ve' [-> Hve]]]:= check_eP gd Hce Hr3.
+      move=> /(value_uincl_int Hve) [_ ->] /=.
+      apply: rbindP => w /(value_uincl_word Hv) -> /=.
+      apply: rbindP => t1' Ht1'.
+      apply: rbindP => vm2 Hvm2 [<-] /=.
+      have [t2' [-> Ht2' /=]]:= WArray.uincl_set Ht Ht1'.
+      have Hu: value_uincl (Varr t1') (Varr t2') := Ht2'.
+      have [vm2' [-> ?] /=]:= check_varcP Hr1' Hcva Hvm2 Hu.
+      by exists vm2'.
+    case: andP => // -[] /andP[] /eqP -> /eqP -> /eqP -> /=.
     apply: rbindP => r2;apply:rbindP=> r3 Hcv Hce Hcva Hvm1 Hv Happ.
     apply: on_arr_varP => n t Htx;rewrite /on_arr_var /=.
     have [Hr3 H/H{H} [vx2 [->]]]:= check_vP Hcv Hvm1.
@@ -1524,10 +1557,10 @@ Module CBAreg.
     case: (s1) Hvm1 Hr3 => sm1 svm1 /= Hvm1 Hr3.
     have [Hr1' H/H{H} [ve' [-> Hve]]]:= check_eP gd Hce Hr3.
     move=> /(value_uincl_int Hve) [_ ->] /=.
-    apply: rbindP => w /(value_uincl_word Hv) -> /=.
+    apply: rbindP => w /(value_uincl_arr Hv) [w'] -> huw /=.
     apply: rbindP => t1' Ht1'.
-    apply: rbindP => vm2 Hvm2 [<-] /=.
-    have [t2' [-> Ht2' /=]]:= WArray.uincl_set Ht Ht1'.
+    apply: rbindP => vm2 Hvm2 [<-] /=.    
+    have [t2' [-> Ht2' /=]]:= WArray.uincl_set_sub Ht huw Ht1'.
     have Hu: value_uincl (Varr t1') (Varr t2') := Ht2'.
     have [vm2' [-> ?] /=]:= check_varcP Hr1' Hcva Hvm2 Hu.
     by exists vm2'.

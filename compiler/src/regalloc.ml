@@ -7,7 +7,7 @@ module IntSet = Sint
 module IntMap = Mint
 
 let fill_in_missing_names (f: 'info func) : 'info func =
-  let fresh_name : L.t -> ty -> ty gvar_i =
+  let fresh_name : L.t -> ty -> var_i =
     let count = ref 0 in
     fun loc ty ->
       let n = Printf.sprintf " _%d" !count in
@@ -621,7 +621,7 @@ let greedy_allocation
     (nv: int) (cnf: conflicts) (may_cnf: conflicts)
     (fr: friend)
     (a: A.allocation) : A.allocation =
-  let classes : var list array = Array.create nv [] in
+  let classes : var list array = Array.make nv [] in
   Hv.iter (fun v i -> classes.(i) <- v :: classes.(i)) vars;
   let a = ref a in
   for i = 0 to nv - 1 do

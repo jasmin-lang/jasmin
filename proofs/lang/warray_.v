@@ -167,6 +167,29 @@ Module WArray.
   Definition set {len ws} (a:array len) aa p (v:word ws) : exec (array len) :=   
     CoreMem.write a (p * mk_scale aa ws)%Z v.
 
+  Definition get_sub lena (aa:arr_access) ws len (a:array lena) p  : exec (array (Z.to_pos (arr_size ws len))) := 
+     let size := arr_size ws len in 
+     let start := (p * mk_scale aa ws)%Z in
+     if (0 <= start)%CMP && (start + size <= lena)%CMP then
+       ok (Build_array (Z.to_pos size) 
+             (Mz.fold (fun i w t => if (start <= i)%CMP && (i < start + size)%CMP then Mz.set t (i - start) w else t)
+             a.(arr_data) (Mz.empty _)))
+     else Error ErrOob.
+
+  Definition set_sub lena (aa:arr_access) ws len (a:array lena) p (b:array (Z.to_pos (arr_size ws len))) : exec (array lena) := 
+    let size := arr_size ws len in 
+    let start := (p * mk_scale aa ws)%Z in
+    if (0 <= start)%CMP && (start + size <= lena)%CMP then
+      let data := 
+        foldl (fun data i => 
+          let i := Z.of_nat i in 
+          match Mz.get b.(arr_data) i with
+          | None => Mz.remove data i
+          | Some w => Mz.set data i w
+          end) a.(arr_data) (iota 0 (Z.to_nat size)) in
+      ok (Build_array lena data)
+    else Error ErrOob.
+
   Definition cast len len' (a:array len) : result error (array len') :=
     if (len' <=? len)%Z then ok {| arr_data := a.(arr_data) |}
     else type_error.
@@ -411,6 +434,22 @@ Module WArray.
     rewrite /get /CoreMem.read /= /validr /validw /= /in_range mk_scale_U8 wsize8 Z.mul_1_r is_align8.
     case: andP => //; rewrite !zify; lia.
   Qed.
+
+  Lemma uincl_get_sub {len1 len2} (a1 : array len1) (a2 : array len2) 
+      aa ws len i t1 :
+    uincl a1 a2 ->
+    get_sub aa ws len a1 i = ok t1 ->
+    exists2 t2, get_sub aa ws len a2 i = ok t2 & uincl t1 t2.
+  Proof. 
+  Admitted.
+
+  Lemma uincl_set_sub {ws len1 len2 len} (a1 a1': array len1) (a2: array len2) aa i 
+        (t1 t2:array (Z.to_pos (arr_size ws len))) :
+    uincl a1 a2 -> uincl t1 t2 ->
+    set_sub aa a1 i t1 = ok a1' ->
+    exists a2', set_sub aa a2 i t2 = ok a2' /\ uincl a1' a2'.
+  Proof.
+  Admitted.
 
 End WArray.
 

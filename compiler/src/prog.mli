@@ -20,6 +20,12 @@ type base_ty =
 
   [@@deriving compare,sexp]
 
+type 'len gty =
+  | Bty of base_ty
+  | Arr of wsize * 'len (* Arr(n,de): array of n-bit integers with dim. *)
+           (* invariant only Const variable can be used in expression *)
+           (* the type of the expression is [Int] *)
+
 type writable = Constant | Writable
 type pointer = Direct | Pointer of writable
 
@@ -31,40 +37,36 @@ type v_kind =
   | Global            (* global (in memory) constant *) 
   [@@deriving compare,sexp]
 
-type 'ty gvar = private {
+type 'len gvar = private {
   v_name : Name.t;
   v_id   : uid;
   v_kind : v_kind;
-  v_ty   : 'ty;
+  v_ty   : 'len gty;
   v_dloc : L.t   (* location where declared *)
 }
 
-type 'ty gvar_i = 'ty gvar L.located
+type 'len gvar_i = 'len gvar L.located
 
-type 'ty ggvar = {
-  gv : 'ty gvar_i;
+type 'len ggvar = {
+  gv : 'len gvar_i;
   gs : E.v_scope;
 }
 
-type 'expr gty =
-  | Bty of base_ty
-  | Arr of wsize * 'expr (* Arr(n,de): array of n-bit integers with dim. *)
-           (* invariant only Const variable can be used in expression *)
-           (* the type of the expression is [Int] *)
 
-type 'ty gexpr =
+type 'len gexpr =
   | Pconst of B.zint
   | Pbool  of bool
   | Parr_init of B.zint
-  | Pvar   of 'ty ggvar
-  | Pget   of Warray_.arr_access * wsize * 'ty ggvar * 'ty gexpr
-  | Pload  of wsize * 'ty gvar_i * 'ty gexpr
-  | Papp1  of E.sop1 * 'ty gexpr
-  | Papp2  of E.sop2 * 'ty gexpr * 'ty gexpr
-  | PappN of E.opN * 'ty gexpr list
-  | Pif    of 'ty * 'ty gexpr * 'ty gexpr * 'ty gexpr
+  | Pvar   of 'len ggvar
+  | Pget   of Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
+  | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr
+  | Pload  of wsize * 'len gvar_i * 'len gexpr
+  | Papp1  of E.sop1 * 'len gexpr
+  | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
+  | PappN of E.opN * 'len gexpr list
+  | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
 
-type 'ty gexprs = 'ty gexpr list
+type 'len gexprs = 'len gexpr list
 
 val u8    : 'e gty
 val u16   : 'e gty
@@ -92,13 +94,14 @@ type assgn_tag =
   | AT_inline (* the assignement should be inline, and propagate *)
   | AT_phinode (* renaming during SSA transformation *)
 
-type 'ty glval =
- | Lnone of L.t * 'ty
- | Lvar  of 'ty gvar_i
- | Lmem  of wsize * 'ty gvar_i * 'ty gexpr
- | Laset of Warray_.arr_access * wsize * 'ty gvar_i * 'ty gexpr
+type 'len glval =
+ | Lnone of L.t * 'len gty
+ | Lvar  of 'len gvar_i
+ | Lmem  of wsize * 'len gvar_i * 'len gexpr
+ | Laset of Warray_.arr_access * wsize * 'len gvar_i * 'len gexpr
+ | Lasub of Warray_.arr_access * wsize * 'len * 'len gvar_i * 'len gexpr
 
-type 'ty glvals = 'ty glval list
+type 'len glvals = 'len glval list
 
 type inline_info =
   | DoInline
@@ -110,25 +113,25 @@ type funname = private {
 }
 
 type range_dir = UpTo | DownTo
-type 'ty grange = range_dir * 'ty gexpr * 'ty gexpr
+type 'len grange = range_dir * 'len gexpr * 'len gexpr
 
 type i_loc = L.t * L.t list
 
-type ('ty,'info) ginstr_r =
-  | Cassgn of 'ty glval * assgn_tag * 'ty * 'ty gexpr
-  | Copn   of 'ty glvals * assgn_tag * E.sopn * 'ty gexprs
-  | Cif    of 'ty gexpr * ('ty,'info) gstmt * ('ty,'info) gstmt
-  | Cfor   of 'ty gvar_i * 'ty grange * ('ty,'info) gstmt
-  | Cwhile of E.align * ('ty,'info) gstmt * 'ty gexpr * ('ty,'info) gstmt
-  | Ccall  of inline_info * 'ty glvals * funname * 'ty gexprs
+type ('len,'info) ginstr_r =
+  | Cassgn of 'len glval * assgn_tag * 'len gty * 'len gexpr
+  | Copn   of 'len glvals * assgn_tag * E.sopn * 'len gexprs
+  | Cif    of 'len gexpr * ('len,'info) gstmt * ('len,'info) gstmt
+  | Cfor   of 'len gvar_i * 'len grange * ('len,'info) gstmt
+  | Cwhile of E.align * ('len,'info) gstmt * 'len gexpr * ('len,'info) gstmt
+  | Ccall  of inline_info * 'len glvals * funname * 'len gexprs
 
-and ('ty,'info) ginstr = {
-  i_desc : ('ty,'info) ginstr_r;
+and ('len,'info) ginstr = {
+  i_desc : ('len,'info) ginstr_r;
   i_loc  : i_loc;
   i_info : 'info;
 }
 
-and ('ty,'info) gstmt = ('ty,'info) ginstr list
+and ('len,'info) gstmt = ('len,'info) ginstr list
 
 (* ------------------------------------------------------------------------ *)
 type subroutine_info = {
@@ -140,43 +143,45 @@ type call_conv =
   | Subroutine of subroutine_info (* internal function that should not be inlined *)
   | Internal                   (* internal function that should be inlined *)
 
-type ('ty,'info) gfunc = {
+type ('len,'info) gfunc = {
     f_loc  : L.t;
     f_cc   : call_conv;
     f_name : funname;
-    f_tyin : 'ty list;
-    f_args : 'ty gvar list;
-    f_body : ('ty,'info) gstmt;
-    f_tyout : 'ty list;
-    f_ret  : 'ty gvar_i list
+    f_tyin : 'len gty list;
+    f_args : 'len gvar list;
+    f_body : ('len,'info) gstmt;
+    f_tyout : 'len gty list;
+    f_ret  : 'len gvar_i list
   }
 
-type 'ty ggexpr = 
-  | GEword of 'ty gexpr
-  | GEarray of 'ty gexprs
+type 'len ggexpr = 
+  | GEword of 'len gexpr
+  | GEarray of 'len gexprs
 
-type ('ty,'info) gmod_item =
-  | MIfun   of ('ty,'info) gfunc
-  | MIparam of ('ty gvar * 'ty gexpr)
-  | MIglobal of ('ty gvar * 'ty ggexpr)
+type ('len,'info) gmod_item =
+  | MIfun   of ('len,'info) gfunc
+  | MIparam of ('len gvar * 'len gexpr)
+  | MIglobal of ('len gvar * 'len ggexpr)
 
-type ('ty,'info) gprog = ('ty,'info) gmod_item list
+type ('len,'info) gprog = ('len,'info) gmod_item list
    (* first declaration occur at the end (i.e reverse order) *)
 
 (* ------------------------------------------------------------------------ *)
 (* Parametrized expression *)
 
 type pty    = pexpr gty
-and  pvar   = pty gvar
-and  pvar_i = pty gvar_i
-and  pexpr  = pty gexpr
+and  pvar   = pexpr gvar
+and  pvar_i = pexpr gvar_i
+and  plval  = pexpr glval
+and  plvals = pexpr glvals
+and  pexpr  = pexpr gexpr
 
-type 'info pinstr = (pty,'info) ginstr
-type 'info pstmt  = (pty,'info) gstmt
+type 'info pinstr = (pexpr,'info) ginstr
+type 'info pstmt  = (pexpr,'info) gstmt
 
-type 'info pfunc     = (pty,'info) gfunc
-type 'info pmod_item = (pty,'info) gmod_item
-type 'info pprog     = (pty,'info) gprog
+type 'info pfunc     = (pexpr,'info) gfunc
+type 'info pmod_item = (pexpr,'info) gmod_item
+type 'info pprog     = (pexpr,'info) gprog
 
 (* -------------------------------------------------------------------- *)
 module PV : sig
@@ -193,9 +198,9 @@ module PV : sig
   val is_glob : pvar -> bool
 end
 
-val gkglob : 'ty gvar_i -> 'ty ggvar
-val gkvar : 'ty gvar_i -> 'ty ggvar
-val is_gkvar : 'ty ggvar -> bool
+val gkglob : 'len gvar_i -> 'len ggvar
+val gkvar : 'len gvar_i -> 'len ggvar
+val is_gkvar : 'len ggvar -> bool
 
 module Mpv : Map.S  with type key = pvar
 module Spv : Set.S  with type elt = pvar
@@ -207,18 +212,18 @@ val pexpr_equal : pexpr -> pexpr -> bool
 (* Non parametrized expression                                              *)
 
 type ty    = int gty
-type var   = ty gvar
-type var_i = ty gvar_i
-type lval  = ty glval
-type lvals = ty glval list
-type expr  = ty gexpr
-type exprs = ty gexpr list
+type var   = int gvar
+type var_i = int gvar_i
+type lval  = int glval
+type lvals = int glval list
+type expr  = int gexpr
+type exprs = int gexpr list
 
-type 'info instr = (ty,'info) ginstr
-type 'info stmt  = (ty,'info) gstmt
+type 'info instr = (int,'info) ginstr
+type 'info stmt  = (int,'info) gstmt
 
-type 'info func     = (ty,'info) gfunc
-type 'info mod_item = (ty,'info) gmod_item
+type 'info func     = (int,'info) gfunc
+type 'info mod_item = (int,'info) gmod_item
 type global_decl    = var * Global.glob_value
 type 'info prog     = global_decl list * 'info func list
 
@@ -248,8 +253,8 @@ val rip : var
 val rsp : var 
 
 (* -------------------------------------------------------------------- *)
-val kind_i : 'ty gvar_i -> v_kind
-val ty_i   : 'ty gvar_i -> 'ty
+val kind_i : 'len gvar_i -> v_kind
+val ty_i   : 'len gvar_i -> 'len gty 
 
 (* -------------------------------------------------------------------- *)
 module F : sig
@@ -321,12 +326,12 @@ val cast64 : expr -> expr
 (* -------------------------------------------------------------------- *)
 (* Functions over lvalue                                                *)
 
-val expr_of_lval : 'ty glval -> 'ty gexpr option
+val expr_of_lval : 'len glval -> 'len gexpr option
 
 (* -------------------------------------------------------------------- *)
 (* Functions over instruction                                           *)
 
-val destruct_move : ('ty, 'info) ginstr -> 'ty glval * assgn_tag * 'ty * 'ty gexpr
+val destruct_move : ('len, 'info) ginstr -> 'len glval * assgn_tag * 'len gty * 'len gexpr
 
 (* -------------------------------------------------------------------- *)
 val clamp : wsize -> Bigint.zint -> Bigint.zint

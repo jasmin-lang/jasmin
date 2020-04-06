@@ -200,7 +200,8 @@ Section PROOF.
     + by move => _ [] //; rewrite /write_none /= => sz'; case: eqP.
     + by case => - [] [] // sz' vn vi; rewrite /write_var /set_var /=; case: eqP.
     + by move => sz' v e; t_xrbindP; case: ifP.
-    by move => aa ws [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
+    + by move => aa ws [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
+    by move => aa ws len [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
   Qed.
 
   Lemma type_of_get_var vm sz vn v:
@@ -361,10 +362,11 @@ Section PROOF.
     write_lval gd l v s = ok s' →
     ∃ sz', type_of_val v = sword sz'.
   Proof.
-  case: l => /= [ _ [] // sz' | [[vt vn] vi] | sz' [[vt vn] vi] e | aa sz' [[vt vn] vi] e ] /=.
+  case: l => /= [ _ [] // sz' | [[vt vn] vi] | sz' [[vt vn] vi] e | aa sz' [[vt vn] vi] e |  aa sz' len [[vt vn] vi] e ] /=.
   - case => ->; case: v => //=; eauto => -[] //=; eauto.
   - move => ->; case: v => //=; eauto => -[] //=; eauto.
   - move => ->; t_xrbindP => w1 v1 _ h1 w n _ hn w' /of_val_word [ws] [?] [??]; subst => /=; eauto.
+  - by move => ->; apply: on_arr_varP.
   by move => ->; apply: on_arr_varP.
   Qed.
 
@@ -1046,7 +1048,7 @@ Section PROOF.
     end.
   Proof.
     rewrite /lower_cassgn_classify.
-    move: e Hs=> [z|b|n|x|x e|sz x e|o e|o e1 e2| op es |e e1 e2] //.
+    move: e Hs=> [z|b|n|x|aa ws x e | aa ws len x e |sz x e| o e|o e1 e2| op es |e e1 e2] //.
     + case: x => - [] [] [] // sz vn vi [] //=.
       rewrite /get_gvar /= => /type_of_get_var [sz'] [Hs Hs'].
       have := truncate_val_subtype Hv'. rewrite Hs -(truncate_val_has_type Hv').

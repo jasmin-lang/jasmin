@@ -14,6 +14,7 @@ let init_lval init x =
   | Lvar x         -> Sv.add (L.unloc x) init
   | Lmem _         -> init
   | Laset(_, _, x, _) -> Sv.add (L.unloc x) init
+  | Lasub(_,_,_,x,_)  -> Sv.add (L.unloc x) init
 
 let init_lvals init xs = List.fold_left init_lval init xs
 
@@ -61,7 +62,7 @@ type pointsto = Sv.t Mv.t
 
 let expr_pointsto pt =
   function
-  | Pvar x ->
+  | Pvar x | Psub (_,_,_,x,_) ->
      let x = L.unloc x.gv in
      if is_ptr x.v_kind
      then Mv.find_default Sv.empty x pt

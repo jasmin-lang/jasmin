@@ -36,7 +36,8 @@ Definition assemble_i rip (i: linstr) : ciexec asm :=
       else fail "bad mem"
 *)
       fail "todo"%string
-    | Laset _ _ _ _ => fail "array"%string
+    | Laset _ _ _ _ => fail "set array"%string
+    | Lasub _ _ _ _ _ => fail "sub array"%string
     | Lnone _ _ => fail "none"%string
     end in
     ciok (STORELABEL dst lbl)

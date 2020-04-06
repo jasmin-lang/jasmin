@@ -140,8 +140,8 @@ let rec pp_expr_rec prio fmt pe =
   match L.unloc pe with
   | PEParens e -> pp_expr_rec prio fmt e
   | PEVar x -> pp_var fmt x
-  | PEGet (aa, ws, x, e) -> 
-    pp_arr_access fmt aa ws x e
+  | PEGet (aa, ws, x, e, len) -> 
+    pp_arr_access fmt aa ws x e len
   | PEFetch me -> pp_mem_access fmt me 
   | PEpack (vs,es) ->
     F.fprintf fmt "(%a)[@[%a@]]" pp_svsize vs (pp_list ",@ " pp_expr) es
@@ -183,11 +183,15 @@ and pp_type fmt ty =
 and pp_ws fmt w = F.fprintf fmt "%a" ptype (string_of_wsize w)
 and pp_expr fmt e = pp_expr_rec Pmin fmt e
 
-and pp_arr_access fmt aa ws x e = 
- F.fprintf fmt "%a%s[%a%a%a]" 
+and pp_arr_access fmt aa ws x e len= 
+ let pp_olen fmt len = 
+   match len with
+   | None -> ()
+   | Some len -> Format.fprintf fmt " : %a" pp_expr len in
+ F.fprintf fmt "%a%s[%a%a%a%a]" 
     pp_var x 
     (if aa = Warray_.AAdirect then "." else "")
-    (pp_opt pp_ws) ws (pp_opt pp_space) ws pp_expr e 
+    (pp_opt pp_ws) ws (pp_opt pp_space) ws pp_expr e pp_olen len
 
 let pp_writable = function
   | Some `Constant -> " const"
@@ -243,7 +247,7 @@ let pp_lv fmt x =
   match L.unloc x with
   | PLIgnore -> F.fprintf fmt "_"
   | PLVar x -> pp_var fmt x
-  | PLArray (aa, ws, x, e) -> pp_arr_access fmt aa ws x e
+  | PLArray (aa, ws, x, e, len) -> pp_arr_access fmt aa ws x e len
   | PLMem me -> pp_mem_access fmt me 
 
 let pp_eqop fmt op =
