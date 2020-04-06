@@ -371,6 +371,9 @@ end
 
 exception AlreadyAllocated
 
+let does_not_conflict i (cnf: conflicts) (a: A.allocation) (x: var) : bool =
+  IntSet.inter (get_conflicts i cnf) (A.rfind x a) |> IntSet.is_empty
+
 let allocate_one loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.allocation) : unit =
   match A.find x a with
   | Some r' when r' = r -> ()
@@ -383,17 +386,11 @@ let allocate_one loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.allocatio
        pv r'
 
   | None ->
-     let c = get_conflicts x cnf in
-     begin if not (IntSet.is_empty (IntSet.inter c (A.rfind r a)))
-     then let pv = Printer.pp_var ~debug:true in
-          hierror "Register allocation at line %a: variable %a must be allocated to conflicting register %a" Printer.pp_iloc loc pv x_ pv r
-     end;
-     A.set x r a
-
-let conflicting_registers (i: int) (cnf: conflicts) (a: A.allocation) : var option list =
-  get_conflicts i cnf |>
-  IntSet.elements |>
-  List.map (fun k -> A.find k a)
+     if does_not_conflict x cnf a r
+     then A.set x r a
+     else
+       let pv = Printer.pp_var ~debug:true in
+       hierror "Register allocation at line %a: variable %a must be allocated to conflicting register %a" Printer.pp_iloc loc pv x_ pv r
 
 module X64 =
 struct
@@ -615,10 +612,8 @@ let greedy_allocation
     if not (A.mem i a) then (
       let vi = classes.(i) in
       if vi <> [] then (
-      let c = conflicting_registers i cnf a in
-      let has_no_conflict v = not (List.mem (Some v) c) in
-      let mc = conflicting_registers i may_cnf a in
-      let has_no_may_conflict v = not (List.mem (Some v) mc) in
+      let has_no_conflict v = does_not_conflict i cnf a v in
+      let has_no_may_conflict v = does_not_conflict i may_cnf a v in
       let bank =
         match kind_of_type (type_of_vars vi) with
         | Word -> X64.allocatable
