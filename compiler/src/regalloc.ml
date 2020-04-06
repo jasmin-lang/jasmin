@@ -351,40 +351,29 @@ let normalize_variables (tbl: int Hv.t) (eqc: Puf.t) : int Hv.t =
     Hv.iter (fun v n -> Hv.add r v (Puf.find eqc n)) tbl;
     r
 
-(* FIXME: the functional interface is a lie: this is imperative *)
 module A : sig
   type allocation
   val empty: int -> allocation
   val find: int -> allocation -> var option
   val rfind : var -> allocation -> IntSet.t
-  (*val iter: (int -> var -> unit) -> allocation -> unit*)
-  val set: int -> var -> allocation -> allocation
+  val set: int -> var -> allocation -> unit
   val mem: int -> allocation -> bool
 end = struct
-type allocation = var IntMap.t * IntSet.t Hv.t
-let empty nv = IntMap.empty, Hv.create nv
-let find n (a, _) = IntMap.Exceptionless.find n a
+type allocation = var option array * IntSet.t Hv.t
+let empty nv = Array.create nv None, Hv.create nv
+let find n (a, _) = a.(n)
 let rfind x (_, r) = Hv.find_default r x IntSet.empty
-(*let iter f (a, _) = IntMap.iter f a*)
 let set n x (a, r) =
   Hv.modify_def (IntSet.singleton n) x (IntSet.add n) r;
-  IntMap.add n x a, r
-let mem n (a, _) = IntMap.mem n a
-(*
-  type allocation = var option array
-  let empty nv = Array.create nv None
-  let find n a = a.(n)
-  let iter f a = Array.iteri (fun i -> function Some x -> f i x | None -> ()) a
-  let set n x a = a.(n) <- Some x; a
-  let mem n a = a.(n) <> None
-   *)
+  a.(n) <- Some x
+let mem n (a, _) = a.(n) <> None
 end
 
 exception AlreadyAllocated
 
-let allocate_one loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.allocation) : A.allocation =
+let allocate_one loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.allocation) : unit =
   match A.find x a with
-  | Some r' when r' = r -> a
+  | Some r' when r' = r -> ()
   | Some r' ->
      let pv = Printer.pp_var ~debug: true in
      hierror "at line %a: can not allocate %a into %a, the variable is already allocated in %a"
@@ -499,33 +488,31 @@ struct
 
   let forced_registers translate_var loc (vars: int Hv.t) (cnf: conflicts)
       (lvs: 'ty glvals) (op: sopn) (es: 'ty gexprs)
-      (a: A.allocation) : A.allocation =
+      (a: A.allocation) : unit =
     let f x = Hv.find vars (L.unloc x) in
     let allocate_one x y a =
       let i = f x in
       allocate_one loc cnf (L.unloc x) i y a
     in
     let mallocate_one x y a =
-      match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> a
+      match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> ()
     in
     let id = get_instr op in
-    let a =
-      List.fold_left2 (fun acc ad lv ->
-          match ad with
-          | ADImplicit v ->
-            begin match lv with
-            | Lvar w -> allocate_one w (translate_var (Asmgen.var_of_implicit v)) acc
-            | _ -> assert false
-            end
-          | ADExplicit _ -> acc) a id.i_out lvs
-    in
-    List.fold_left2 (fun acc ad e ->
+    List.iter2 (fun ad lv ->
         match ad with
         | ADImplicit v ->
-          mallocate_one e (translate_var (Asmgen.var_of_implicit v)) acc
+           begin match lv with
+           | Lvar w -> allocate_one w (translate_var (Asmgen.var_of_implicit v)) a
+           | _ -> assert false
+           end
+        | ADExplicit _ -> ()) id.i_out lvs;
+    List.iter2 (fun ad e ->
+        match ad with
+        | ADImplicit v ->
+           mallocate_one e (translate_var (Asmgen.var_of_implicit v)) a
         | ADExplicit (_, Some r) ->
-          mallocate_one e (translate_var (X86_variables.var_of_register r)) acc
-        | ADExplicit (_, None) -> acc) a id.i_in es
+           mallocate_one e (translate_var (X86_variables.var_of_register r)) a
+        | ADExplicit (_, None) -> ()) id.i_in es
 
 end
 
@@ -538,10 +525,10 @@ let kind_of_type =
   | ty -> Unknown ty
 
 let allocate_forced_registers translate_var (vars: int Hv.t) (cnf: conflicts)
-    (f: 'info func) (a: A.allocation) : A.allocation =
-  let alloc_from_list loc rs xs q a vs =
+    (f: 'info func) (a: A.allocation) : unit =
+  let alloc_from_list loc rs xs q vs : unit =
     let f x = Hv.find vars x in
-    List.fold_left (fun (rs, xs, a) p ->
+    List.fold_left (fun (rs, xs) p ->
         let p = q p in
         match f p with
         | i ->
@@ -558,24 +545,25 @@ let allocate_forced_registers translate_var (vars: int Hv.t) (cnf: conflicts)
               hierror "Register allocation: unknown type %a for forced register %a"
                 Printer.pp_ty ty (Printer.pp_var ~debug:true) p
           in
-          (rs, xs, allocate_one loc cnf p i d a)
-        | exception Not_found -> (rs, xs, a))
-      (rs, xs, a)
+          allocate_one loc cnf p i d a;
+          (rs, xs)
+        | exception Not_found -> (rs, xs))
+      (rs, xs)
       vs
-    |> fun (_, _, a) -> a
+    |> (ignore : var list * var list -> unit)
   in
   let alloc_args loc = alloc_from_list loc X64.arguments X64.xmm_arguments identity in
   let alloc_ret loc = alloc_from_list loc X64.ret X64.xmm_ret L.unloc in
-  let rec alloc_instr_r loc a =
+  let rec alloc_instr_r loc =
     function
     | Cfor (_, _, s)
-      -> alloc_stmt a s
+      -> alloc_stmt s
     | Copn (lvs, _, op, es) -> X64.forced_registers translate_var loc vars cnf lvs op es a
     | Cwhile (_, s1, _, s2)
     | Cif (_, s1, s2)
-        -> alloc_stmt (alloc_stmt a s1) s2
+        -> alloc_stmt s1; alloc_stmt s2
     | Cassgn _
-      -> a
+      -> ()
     | Ccall (_, lvs, _, es) ->
        (* TODO: check this *)
        (*
@@ -586,14 +574,14 @@ let allocate_forced_registers translate_var (vars: int Hv.t) (cnf: conflicts)
         *)
        ignore lvs;
        ignore es;
-       a
-  and alloc_instr a { i_loc; i_desc } = alloc_instr_r i_loc a i_desc
-  and alloc_stmt a s = List.fold_left alloc_instr a s
+       ()
+  and alloc_instr { i_loc; i_desc } = alloc_instr_r i_loc i_desc
+  and alloc_stmt s = List.iter alloc_instr s
   in
   let loc = (f.f_loc, []) in
-  let a = if f.f_cc = Export then alloc_args loc a f.f_args else a in
-  let a = if f.f_cc = Export then alloc_ret loc a f.f_ret else a in
-  alloc_stmt a f.f_body
+  if f.f_cc = Export then alloc_args loc f.f_args;
+  if f.f_cc = Export then alloc_ret loc f.f_ret;
+  alloc_stmt f.f_body
 
 (* Returns a variable from [regs] that is allocated to a friend variable of [i]. Defaults to [dflt]. *)
 let get_friend_registers (dflt: var) (fr: friend) (a: A.allocation) (i: int) (regs: var list) : var =
@@ -620,17 +608,16 @@ let greedy_allocation
     (vars: int Hv.t)
     (nv: int) (cnf: conflicts) (may_cnf: conflicts)
     (fr: friend)
-    (a: A.allocation) : A.allocation =
+    (a: A.allocation) : unit =
   let classes : var list array = Array.make nv [] in
   Hv.iter (fun v i -> classes.(i) <- v :: classes.(i)) vars;
-  let a = ref a in
   for i = 0 to nv - 1 do
-    if not (A.mem i !a) then (
+    if not (A.mem i a) then (
       let vi = classes.(i) in
       if vi <> [] then (
-      let c = conflicting_registers i cnf !a in
+      let c = conflicting_registers i cnf a in
       let has_no_conflict v = not (List.mem (Some v) c) in
-      let mc = conflicting_registers i may_cnf !a in
+      let mc = conflicting_registers i may_cnf a in
       let has_no_may_conflict v = not (List.mem (Some v) mc) in
       let bank =
         match kind_of_type (type_of_vars vi) with
@@ -642,17 +629,16 @@ let greedy_allocation
       | (x :: regs) as bank ->
          begin match List.filter has_no_may_conflict bank with
          | x :: regs ->
-            let y = get_friend_registers x fr !a i regs in
-            a := A.set i y !a
+            let y = get_friend_registers x fr a i regs in
+            A.set i y a
          | [] ->
-            let y = get_friend_registers x fr !a i regs in
-            a := A.set i y !a
+            let y = get_friend_registers x fr a i regs in
+            A.set i y a
          end
       | [] -> hierror "Register allocation: no more register to allocate %a" Printer.(pp_list "; " (pp_var ~debug:true)) vi
     )
     )
-  done;
-  !a
+  done
 
 let var_subst_of_allocation (vars: int Hv.t)
     (a: A.allocation) (v: var) : var =
@@ -667,7 +653,9 @@ let subst_of_allocation vars (a: A.allocation) v : expr =
   Pvar (gkvar (L.mk_loc m (var_subst_of_allocation vars a v)))
 
 let reverse_varmap nv (vars: int Hv.t) : A.allocation =
-  Hv.fold (fun v i m -> A.set i v m) vars (A.empty nv)
+  let a = A.empty nv in
+  Hv.iter (fun v i -> A.set i v a) vars;
+  a
 
 let split_live_ranges (fds: 'info func list) : unit func list =
   let doit f =
@@ -771,8 +759,9 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
       IntMap.empty
   in
   let may_conflicts = List.fold_left (fun a f -> collect_may_conflicts vars tr (get_liveness f.f_name) f a) IntMap.empty funcs in
-  let a = List.fold_left (fun a f -> allocate_forced_registers translate_var vars conflicts f a) (A.empty nv) funcs in
-  let a = greedy_allocation vars nv conflicts may_conflicts fr a in
+  let a = A.empty nv in
+  List.iter (fun f -> allocate_forced_registers translate_var vars conflicts f a) funcs;
+  greedy_allocation vars nv conflicts may_conflicts fr a;
   let subst = subst_of_allocation vars a in
 
   List.map (fun f -> f |> Subst.subst_func subst |> Ssa.remove_phi_nodes) funcs,
