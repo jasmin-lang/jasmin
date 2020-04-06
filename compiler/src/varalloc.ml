@@ -57,7 +57,93 @@ let live_init_fd fd =
   let _, f_body = rm_uninitialized_c init fd.f_body in
   { fd with f_body } 
 
-let alloc_stack_fd fd =
+type pointsto = Sv.t Mv.t
+
+let expr_pointsto pt =
+  function
+  | Pvar x ->
+     let x = L.unloc x.gv in
+     if is_ptr x.v_kind
+     then Mv.find_default Sv.empty x pt
+     else Sv.singleton x
+  | Parr_init _ -> Sv.empty
+  | e -> hierror "expr_pointsto: %a" (Printer.pp_expr ~debug:true) e
+
+let pointsto_merge pt1 pt2 =
+  Mv.merge (fun _x o1 o2 ->
+      let s1 = odfl Sv.empty o1 in
+      let s2 = odfl Sv.empty o2 in
+      Some (Sv.union s1 s2)
+    ) pt1 pt2
+
+let merge_aliases_merge (cf1, pt1) (cf2, pt2) =
+  (var_classes_merge cf1 cf2, pointsto_merge pt1 pt2)
+
+(* p ≤ merge p q *)
+let pointsto_incl pt1 pt2 =
+  Mv.for_all (fun x s1 ->
+      let s2 = Mv.find_default Sv.empty x pt2 in
+      Sv.subset s1 s2
+    ) pt1
+
+let merge_aliases_incl (cf1, pt1) (cf2, pt2) =
+  var_classes_incl cf1 cf2 && pointsto_incl pt1 pt2
+
+(* TODO: move *)
+let is_stack_array x = 
+  let x = L.unloc x in
+  is_ty_arr x.v_ty && x.v_kind = Stack Direct
+
+let set_same_all cf x s =
+  Sv.fold (fun y cf -> set_same cf x y) s cf
+
+let merge_aliases_assgn ((cf, pt) as acc) lv e =
+  match lv with
+  | Lvar x when is_ptr (L.unloc x).v_kind ->
+     (cf, Mv.add (L.unloc x) (expr_pointsto pt e) pt)
+  | Lvar x when is_stack_array x ->
+     (set_same_all cf (L.unloc x) (expr_pointsto pt e), pt)
+  | _ -> acc
+
+let rec merge_aliases_instr get_fun acc i =
+  match i .i_desc with
+  | Cassgn (x, _, _, e) -> merge_aliases_assgn acc x e
+  | Ccall (_, xs, fn, es) ->
+     let ra =
+       let f = get_fun fn in
+       match f.f_cc with
+       | Subroutine { returned_params } -> returned_params
+       | (Internal | Export) -> assert false
+     in
+     List.fold_left2 (fun acc oi x ->
+         match oi with
+         | None -> acc
+         | Some i -> merge_aliases_assgn acc x (List.nth es i))
+       acc ra xs
+  | Copn _ -> acc
+  | Cfor _ -> assert false
+  | Cif (_, s1, s2) ->
+     let r1 = merge_aliases_stmt get_fun acc s1 in
+     let r2 = merge_aliases_stmt get_fun acc s2 in
+     merge_aliases_merge r1 r2
+  | Cwhile (_, s1, _, s2) ->
+     (* s1 ; while e do { s2 ; s1 } *)
+     let rec loop acc =
+       let r1 = merge_aliases_stmt get_fun acc s1 in
+       let r2 = merge_aliases_stmt get_fun r1 s2 in
+       if merge_aliases_incl r2 acc
+       then r1
+       else loop (merge_aliases_merge acc r2)
+     in loop acc
+  and merge_aliases_stmt get_fun acc s =
+    List.fold_left (merge_aliases_instr get_fun) acc s
+
+let merge_aliases get_fun (cf: Liveness.var_classes) (fd: _ Prog.func) : Liveness.var_classes =
+  let pt : pointsto = Mv.empty in
+  merge_aliases_stmt get_fun (cf, pt) fd.f_body
+  |> fst
+
+let alloc_stack_fd get_fun fd =
   (* collect all stack variables occuring in fd *)
   let vars = Sv.filter is_stack_var (vars_fc fd) in
   let vars = Sv.elements vars in
@@ -78,10 +164,10 @@ let alloc_stack_fd fd =
         pp_var x (Printer.pp_list ", " pp_var) (Sv.elements s)) cf;
   Format.eprintf "dependency done@."; *)
 
-
-
   (* allocated variables *)
-  let cfm = ref (init_classes cf) in
+  let cfm = init_classes cf in
+  let cfm = merge_aliases get_fun cfm fd in
+  let cfm = ref cfm in
   let alloc x =
     let cx = get_conflict !cfm x in
     let test y = x.v_ty = y.v_ty && x.v_kind = y.v_kind && not (Sv.mem y cx) && 

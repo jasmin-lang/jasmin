@@ -59,12 +59,7 @@ let split_live_ranges (allvars: bool) (f: 'info func) : unit func =
     function
     | Cassgn (x, tg, ty, e) ->
       let e = rename_expr m e in
-      let m, y = 
-        match x, e with
-        | Lvar x1, Pvar z when is_stack_array x1 && is_ptr (L.unloc z.gv).v_kind ->
-          m, [Subst.vsubst_lval m x]
-        | _, _ -> rename_lval allvars (m, []) x 
-      in
+      let m, y = rename_lval allvars (m, []) x in
       m, Cassgn (List.hd y, tg, ty, e)
     | Copn (xs, tg, op, es) ->
       let es = List.map (rename_expr m) es in

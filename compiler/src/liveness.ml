@@ -192,3 +192,14 @@ let set_same (cf, m as cfm) x y =
         raise SetSameConflict
       end;
     merge_class1 cf rx xc ry yc, Mv.add rx ry m
+
+let var_classes_merge cfm1 (_cf2, m2) =
+  Mv.fold (fun x _ cfm ->
+      let r = get_repr m2 x in
+      set_same cfm x r
+    ) m2 cfm1
+
+let var_classes_incl (_cf1, m1) (_cf2, m2) =
+  Mv.for_all (fun x y ->
+      V.equal (get_repr m2 x) (get_repr m2 y)
+    ) m1

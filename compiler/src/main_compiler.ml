@@ -450,7 +450,8 @@ let main () =
  
     let share_stk_prog up = 
       let (_glob,fds) = Conv.prog_of_cuprog tbl up in
-      let fds = List.map Varalloc.alloc_stack_fd fds in
+      let get_fun fn = List.find (fun fd -> F.equal fn fd.f_name) fds in
+      let fds = List.map (Varalloc.alloc_stack_fd get_fun) fds in
       let fds = List.map (Conv.cufdef_of_fdef tbl) fds in
       Expr.({
         p_funcs = fds;

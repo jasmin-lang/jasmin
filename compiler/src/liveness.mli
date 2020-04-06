@@ -39,3 +39,7 @@ exception SetSameConflict
 val set_same : var_classes -> var -> var -> var_classes
 
 val get_conflict : var_classes -> var -> Sv.t
+
+val var_classes_merge : var_classes -> var_classes -> var_classes
+
+val var_classes_incl : var_classes -> var_classes -> bool
