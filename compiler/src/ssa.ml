@@ -15,7 +15,7 @@ let is_stack_array x =
 
 let rename_lval (allvars: bool) ((m, xs): names * lval list) : lval -> names * lval list =
   function
-  | Lvar x when (allvars && not (is_stack_array x)) || is_reg_kind (L.unloc x).v_kind ->
+  | Lvar x when (allvars (*&& not (is_stack_array x)*)) || is_reg_kind (L.unloc x).v_kind ->
     let y, m = fresh_name m (L.unloc x) in
     m, Lvar (L.mk_loc (L.loc x) y) :: xs
   | x -> m, Subst.vsubst_lval m x :: xs
