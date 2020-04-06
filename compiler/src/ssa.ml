@@ -9,13 +9,9 @@ let fresh_name (m: names) (x: var) : var * names =
   let y = V.clone x in
   y, Mv.add x y m
 
-let is_stack_array x = 
-  let x = L.unloc x in
-  is_ty_arr x.v_ty && x.v_kind = Stack Direct
-
 let rename_lval (allvars: bool) ((m, xs): names * lval list) : lval -> names * lval list =
   function
-  | Lvar x when (allvars (*&& not (is_stack_array x)*)) || is_reg_kind (L.unloc x).v_kind ->
+  | Lvar x when allvars || is_reg_kind (L.unloc x).v_kind ->
     let y, m = fresh_name m (L.unloc x) in
     m, Lvar (L.mk_loc (L.loc x) y) :: xs
   | x -> m, Subst.vsubst_lval m x :: xs
@@ -53,13 +49,22 @@ let ir (m: names) (x: var) (y: var) : unit instr =
   let i_desc = Cassgn (Lvar (v y), AT_phinode, y.v_ty, Pvar (gkvar (v x))) in
   { i_desc ; i_info = () ; i_loc = L._dummy,[] }
 
+let is_stack_array x = 
+  let x = L.unloc x in
+  is_ty_arr x.v_ty && x.v_kind = Stack Direct
+
 let split_live_ranges (allvars: bool) (f: 'info func) : unit func =
   let f = Liveness.live_fd false f in
   let rec instr_r (li: Sv.t) (lo: Sv.t) (m: names) =
     function
     | Cassgn (x, tg, ty, e) ->
       let e = rename_expr m e in
-      let m, y = rename_lval allvars (m, []) x in
+      let m, y = 
+        match x, e with
+        | Lvar x1, Pvar z when is_stack_array x1 && is_ptr (L.unloc z.gv).v_kind ->
+          m, [Subst.vsubst_lval m x]
+        | _, _ -> rename_lval allvars (m, []) x 
+      in
       m, Cassgn (List.hd y, tg, ty, e)
     | Copn (xs, tg, op, es) ->
       let es = List.map (rename_expr m) es in
