@@ -1,0 +1,14 @@
+fn load (reg u64 p) -> reg u64 {
+  reg u64 x;
+  x = [p];
+  return x;
+}
+
+export
+fn main(reg u64 cptr) -> reg u64 {
+  reg u64  tmp result;
+  tmp = cptr;
+  result = load(tmp);
+  result += tmp;
+  return result;
+}

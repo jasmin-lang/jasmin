@@ -295,7 +295,7 @@ let collect_conflicts
 that are live at some call-site *)
 let collect_may_conflicts tbl tr (live: Sv.t) (f: 'info func) (cnf: conflicts) : conflicts =
   let add_conflicts s x = Sv.fold (conflicts_add_one tbl tr (Location._dummy, []) x) s in
-  let vars = vars_c f.f_body in
+  let vars, _ = written_vars_fc f in
   cnf |> Sv.fold (add_conflicts vars) live |> Sv.fold (add_conflicts live) vars
 
 let iter_variables (cb: var -> unit) (f: 'info func) : unit =
