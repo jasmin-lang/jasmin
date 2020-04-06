@@ -9,9 +9,13 @@ let fresh_name (m: names) (x: var) : var * names =
   let y = V.clone x in
   y, Mv.add x y m
 
+let is_stack_array x = 
+  let x = L.unloc x in
+  is_ty_arr x.v_ty && x.v_kind = Stack Direct
+
 let rename_lval (allvars: bool) ((m, xs): names * lval list) : lval -> names * lval list =
   function
-  | Lvar x when allvars || is_reg_kind (L.unloc x).v_kind ->
+  | Lvar x when (allvars && not (is_stack_array x)) || is_reg_kind (L.unloc x).v_kind ->
     let y, m = fresh_name m (L.unloc x) in
     m, Lvar (L.mk_loc (L.loc x) y) :: xs
   | x -> m, Subst.vsubst_lval m x :: xs
