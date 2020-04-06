@@ -12,6 +12,7 @@ stack u64[1] a b;
 
 a[0] = x;
 
+ArrayInit(b);
 b = copy(b, a);
 
 result = b[0];
