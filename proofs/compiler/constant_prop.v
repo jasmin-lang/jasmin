@@ -200,15 +200,15 @@ Definition s_op1 o e :=
 
 Definition sand e1 e2 :=
   match is_bool e1.1, is_bool e2.1 with
-  | Some b, _ => if b then (e2.1, LET_sub [::LET_remove ; LET_sub [:: e2.2]]) else (Pbool false, LET_remove)
-  | _, Some b => if b then (e1.1, LET_sub [::LET_remove ; LET_sub [:: e1.2]]) else (Pbool false, LET_remove)
-  | _, _      => (Papp2 Oand e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+  | Some b, _ => if b then (e2.1, LET_sub [::LET_remove ; e2.2]) else (Pbool false, LET_remove)
+  | _, Some b => if b then (e1.1, LET_sub [::e1.2; LET_remove]) else (Pbool false, LET_remove)
+  | _, _      => (Papp2 Oand e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 Definition sor e1 e2 :=
    match is_bool e1.1, is_bool e2.1 with
   | Some b, _ => if b then (Pbool true, LET_remove) else (e2.1, LET_sub [:: LET_remove; LET_sub [:: e2.2]])
-  | _, Some b => if b then (Pbool true, LET_remove) else (e1.1, LET_sub [:: LET_remove; LET_sub [:: e2.2]])
+  | _, Some b => if b then (Pbool true, LET_remove) else (e1.1, LET_sub [:: e1.2; LET_remove])
   | _, _       => (Papp2 Oor e1.1 e2.1, LET_sub ([::LET_sub [:: e1.2]] ++ [::LET_sub [:: e2.2]]))
   end.
 
@@ -477,9 +477,9 @@ Definition s_opN op es :=
 
 Definition s_if t e e1 e2 :=
   match is_bool e.1 with
-  | Some b => if b then (e1.1, LET_sub [:: e1.2]) else (e2.1, LET_sub [:: e2.2])
+  | Some b => if b then (e1.1, LET_sub [:: LET_remove; e1.2; LET_remove]) else (e2.1, LET_sub [::  LET_remove; LET_remove;e2.2])
   | None   => (Pif t e.1 e1.1 e2.1, 
-               LET_sub ([:: LET_sub [:: e.2]] ++ [:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+               LET_sub ([:: e.2; e1.2; e2.2]))
   end.
 
 (* ** constant propagation
@@ -532,19 +532,19 @@ Fixpoint const_prop_e (m:cpm) e : (pexpr * leaktrans_e) :=
   | Pbool  _
   | Parr_init _
     => (e, LET_remove)
-  | Pvar  x       => if Mvar.get m x is Some n then (const n, LET_remove) else (e, LET_sub [:: LET_id])
-  | Pglobal _     => (e, LET_sub [:: LET_id])
+  | Pvar  x       => if Mvar.get m x is Some n then (const n, LET_remove) else (e, LET_id)
+  | Pglobal _     => (e, LET_id)
   | Pget  sz x e0  => let v := (const_prop_e m e0) in (Pget sz x v.1, LET_sub ([:: v.2] ++ [:: LET_id]))
   | Pload sz x e0  => let v := (const_prop_e m e0) in (Pload sz x v.1, LET_sub ([:: v.2] ++ [:: LET_id]))
-  | Papp1 o e0     => let v := (const_prop_e m e0) in (s_op1 o (v.1, v.2))
+  | Papp1 o e0     => let v := (const_prop_e m e0) in (s_op1 o v)
   | Papp2 o e1 e2 => let v1 := (const_prop_e m e1) in
                      let v2 := (const_prop_e m e2) in 
-                     s_op2 o (v1.1, v1.2) (v2.1, v2.2)
+                     s_op2 o v1 v2 
   | PappN op es   => s_opN op (map (const_prop_e m) es) 
   | Pif t e0 e1 e2 => let v1 := (const_prop_e m e0) in
                       let v2 := (const_prop_e m e1) in 
                       let v3 := (const_prop_e m e2) in 
-                      s_if t (v1.1, v1.2) (v2.1, v2.2) (v3.1, v3.2)
+                      s_if t v1 v2 v3 
   end.
 
 Definition empty_cpm : cpm := @Mvar.empty const_v.
@@ -563,10 +563,10 @@ Definition remove_cpm (m:cpm) (s:Sv.t): cpm :=
 
 Definition const_prop_rv (m:cpm) (rv:lval) : cpm * lval * leaktrans_e :=
   match rv with
-  | Lnone _ _    => (m, rv, LET_remove)
-  | Lvar  x      => (Mvar.remove m x, rv, LET_remove)
-  | Lmem  sz x e => let v := const_prop_e m e in (m, Lmem sz x v.1, v.2)
-  | Laset sz x e => let v := const_prop_e m e in (Mvar.remove m x, Laset sz x v.1, v.2)
+  | Lnone _ _    => (m, rv, LET_id)
+  | Lvar  x      => (Mvar.remove m x, rv, LET_id)
+  | Lmem  sz x e => let v := const_prop_e m e in (m, Lmem sz x v.1, LET_sub [::v.2; LET_id])
+  | Laset sz x e => let v := const_prop_e m e in (Mvar.remove m x, Laset sz x v.1, LET_sub [::v.2; LET_id])
   end.
 
 Fixpoint const_prop_rvs (m:cpm) (rvs:lvals) : cpm * lvals * leaktrans_e :=
@@ -633,13 +633,13 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leaktrans_i :=
     let: (v, l1) := const_prop_e m e in
     let: (m,x, l2) := const_prop_rv m x in
     let m := add_cpm m x tag ty v in
-    (m, [:: MkI ii (Cassgn x tag ty e)], (LETleake (LET_sub ([:: l1] ++ [:: l2]))))
+    (m, [:: MkI ii (Cassgn x tag ty e)], (LETleake (LET_sub ([:: l1; l2]))))
 
   | Copn xs t o es =>
     (* TODO: Improve this *)
     let es := map (const_prop_e m) es in
     let: (m,xs, ls) := const_prop_rvs m xs in
-    (m, [:: MkI ii (Copn xs t o (unzip1 es))], (LETleake (LET_sub ((unzip2 es) ++ [:: ls]))))
+    (m, [:: MkI ii (Copn xs t o (unzip1 es))], (LETleake (LET_sub [::LET_sub (unzip2 es); ls])))
 
   | Cif b c1 c2 =>
     let: (b, l) := const_prop_e m b in
@@ -801,13 +801,31 @@ end.
 
 End LEAK_TRANS.
 
-(*Section Leakages_proof.
+Section Leakages_proof.
 
 Context (gd: glob_decls).
 
+  Context (s:estate).
 Definition flatten_exec (p : exec (value * leak_e_tree)) := 
 Let v := p in 
 ok (v.1, lest_to_les v.2).
+
+  Let P e : Prop := sem_pexpr gd s e = flatten_exec (sem_pexpr_e gd s e).
+  Let Q (es:pexprs) : Prop := True.
+(*sem_pexprs gd s es = flattens_exec (sem_pexpr_es gd s es).*)
+
+
+  Lemma const_prop_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
+  Proof.
+    apply: pexprs_ind_pair; subst P Q; split => /=.
+
+
+if b[1] then a[1] else a[2]   [ LeakId 1; LeakId 1; LeakId 2]
+                           LEsub [ LEId 1; LEId 1; LEId 2]
+
+(b[1] + a[1]) + a[2]         [ LeakId 1; LeakId 1; LeakId 2]
+                        LEsub [LEsub [ LEId 1; LEId 1]; LEid 2]
+
 
 
 (*Lemma eq_sem_pexpr_l_sem_pexpr_e s1 e:
