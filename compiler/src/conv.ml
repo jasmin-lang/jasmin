@@ -102,7 +102,7 @@ type 'info coq_tbl = {
      iinfo         : (int, (L.t * L.t list) * 'info) Hashtbl.t;
      funname       : (funname, BinNums.positive) Hashtbl.t;
      cfunname      : (BinNums.positive, funname) Hashtbl.t;
-     finfo         : (int, L.t * call_conv) Hashtbl.t;
+     finfo         : (int, L.t * (string * string) list * call_conv) Hashtbl.t;
   }
 
 let new_count tbl =
@@ -377,9 +377,9 @@ and stmt_of_cstmt tbl c =
 
 (* ------------------------------------------------------------------------ *)
 
-let set_finfo tbl loc cc =
+let set_finfo tbl loc annot cc =
   let n = new_count tbl in
-  Hashtbl.add tbl.finfo n (loc, cc);
+  Hashtbl.add tbl.finfo n (loc, annot, cc);
   pos_of_int n
 
 let get_finfo tbl n =
@@ -388,7 +388,7 @@ let get_finfo tbl n =
 
 let cufdef_of_fdef tbl fd =
   let fn = cfun_of_fun tbl fd.f_name in
-  let f_iinfo = set_finfo tbl fd.f_loc fd.f_cc in
+  let f_iinfo = set_finfo tbl fd.f_loc fd.f_annot fd.f_cc in
   let f_params =
     List.map (fun x -> cvari_of_vari tbl (L.mk_loc L._dummy x)) fd.f_args in
   let f_body = cstmt_of_stmt tbl fd.f_body [] in
@@ -404,8 +404,9 @@ let cufdef_of_fdef tbl fd =
 
 
 let fdef_of_cufdef tbl (fn, fd) =
-  let f_loc, f_cc = get_finfo tbl fd.C.f_iinfo in
+  let f_loc, f_annot, f_cc = get_finfo tbl fd.C.f_iinfo in
   { f_loc;
+    f_annot;
     f_cc;
     f_name = fun_of_cfun tbl fn;
     f_tyin = List.map ty_of_cty fd.C.f_tyin;
