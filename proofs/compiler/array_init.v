@@ -118,7 +118,7 @@ Definition add_init_aux ii x c :=
   | sarr n =>
     if ~~ is_ptr x then
       let x := VarI x dummy_info in
-      MkI ii (Cassgn (Lvar x) AT_inline (sarr n) (Parr_init n)) :: c
+      MkI ii (Cassgn (Lvar x) AT_keep (sarr n) (Parr_init n)) :: c
     else c
   | _ => c
   end.
