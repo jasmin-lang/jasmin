@@ -86,21 +86,6 @@ Definition get_fun (p:ufun_decls) iinfo (f:funname) :=
 
 Variable rename_fd : instr_info -> funname -> ufundef -> ufundef.
 
-Definition dummy_info := xH.
-
-Definition mkdV x := {| v_var := x; v_info := dummy_info |}.
-
-Definition arr_init p := Parr_init p.
-
-Definition array_init iinfo (X: Sv.t) :=
-  let assgn x c :=
-    match x.(vtype) with
-    | sarr p =>
-      MkI iinfo (Cassgn (Lvar (mkdV x)) AT_rename x.(vtype) (arr_init p)) :: c
-    | _      => c
-    end in
-  Sv.fold assgn X [::].
-
 Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
   match i with
   | MkI iinfo ir =>
@@ -125,11 +110,8 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
       if inline is InlineFun then
         Let fd := get_fun p iinfo f in
         let fd' := rename_fd iinfo f fd in
-        (* FIXME : locals is computed 2 times (one in check_rename) *)
         Let _ := check_rename iinfo f fd fd' (Sv.union (vrvs xs) X) in
-        let init_array := array_init iinfo (locals fd') in
         ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es ++
-                  init_array ++
                   (fd'.(f_body) ++
                   assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Plvar fd'.(f_res))))
       else ciok (X, [::i])
@@ -158,52 +140,5 @@ Definition inline_prog_err (p:uprog) :=
     Let fds := inline_prog (p_funcs p) in
     ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := fds |}
   else cferror Ferr_uniqfun.
-
-Definition is_array_init e :=
-  match e with
-  | Parr_init _ => true
-  | _           => false
-  end.
-
-Fixpoint remove_init_i i :=
-  match i with
-  | MkI ii ir =>
-    match ir with
-    | Cassgn x _ _ e => if is_array_init e then [::] else [::i]
-    | Copn _ _ _ _   => [::i]
-    | Cif e c1 c2  =>
-      let c1 := foldr (fun i c => remove_init_i i ++ c) [::] c1 in
-      let c2 := foldr (fun i c => remove_init_i i ++ c) [::] c2 in
-      [:: MkI ii (Cif e c1 c2) ]
-    | Cfor x r c   =>
-      let c := foldr (fun i c => remove_init_i i ++ c) [::] c in
-      [:: MkI ii (Cfor x r c) ]
-    | Cwhile a c e c' =>
-      let c := foldr (fun i c => remove_init_i i ++ c) [::] c in
-      let c' := foldr (fun i c => remove_init_i i ++ c) [::] c' in
-      [:: MkI ii (Cwhile a c e c') ]
-    | Ccall _ _ _ _  => [::i]
-    end
-  end.
-
-Definition remove_init_c c :=  foldr (fun i c => remove_init_i i ++ c) [::] c.
-
-Section Section.
-
-Context {T} {pT:progT T}.
-
-Definition remove_init_fd (fd:fundef) :=
-  {| f_iinfo  := fd.(f_iinfo);
-     f_tyin   := fd.(f_tyin);
-     f_params := fd.(f_params);
-     f_body   := remove_init_c fd.(f_body);
-     f_tyout  := fd.(f_tyout);
-     f_res    := fd.(f_res);
-     f_extra  := fd.(f_extra);
-  |}.
-
-Definition remove_init_prog (p:prog) := map_prog remove_init_fd p.
-
-End Section.
 
 End INLINE.

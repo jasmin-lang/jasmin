@@ -467,6 +467,10 @@ let main () =
     let is_reg_ptr x = 
       let x = Conv.var_of_cvar tbl x in
       is_reg_ptr_kind x.v_kind in
+
+    let is_ptr x = 
+      let x = Conv.var_of_cvar tbl x in
+      is_ptr x.v_kind in
       
     let warn_extra s p =
       if s = Compiler.DeadCode_RegAllocation then
@@ -496,6 +500,7 @@ let main () =
       Compiler.is_glob     = is_glob;
       Compiler.fresh_id    = fresh_id;
       Compiler.is_reg_ptr  = is_reg_ptr;
+      Compiler.is_ptr      = is_ptr;
     } in
 
     let entries =

@@ -26,7 +26,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import x86_gen expr.
 Import ZArith.
-Require Import compiler_util allocation inline dead_calls unrolling remove_globals
+Require Import compiler_util allocation array_init inline dead_calls unrolling remove_globals
    constant_prop dead_code array_expansion lowering makeReferenceArguments stack_alloc linear x86_sem.
 Import Utf8.
 
@@ -55,6 +55,7 @@ Section COMPILER.
 Variant compiler_step :=
   | Typing                      : compiler_step
   | ParamsExpansion             : compiler_step
+  | AddArrInit                  : compiler_step
   | Inlining                    : compiler_step
   | RemoveUnusedFunction        : compiler_step
   | Unrolling                   : compiler_step
@@ -103,6 +104,7 @@ Record compiler_params := {
   is_glob          : var -> bool;
   fresh_id         : glob_decls -> var -> Ident.ident;
   is_reg_ptr       : var -> bool;
+  is_ptr           : var -> bool;
 }.
 
 Variable cparams : compiler_params.
@@ -110,6 +112,10 @@ Variable cparams : compiler_params.
 Definition expand_prog (p:uprog) := map_prog_name cparams.(expand_fd) p.
 
 Definition compile_prog (entries : seq funname) (p:prog) :=
+
+  let p := add_init_prog cparams.(is_ptr) p in
+  let p := cparams.(print_uprog) AddArrInit p in
+
   Let p := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
   let p := cparams.(print_uprog) Inlining p in
 

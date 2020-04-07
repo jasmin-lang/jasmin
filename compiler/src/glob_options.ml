@@ -23,6 +23,7 @@ let set_coqonly s =
 let poptions = [
     Compiler.Typing
   ; Compiler.ParamsExpansion
+  ; Compiler.AddArrInit
   ; Compiler.Inlining
   ; Compiler.RemoveUnusedFunction
   ; Compiler.Unrolling
@@ -65,6 +66,7 @@ let set_safetyparam s = safety_param := Some s
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
   | Compiler.ParamsExpansion             -> "cstexp"   , "constant expansion"
+  | Compiler.AddArrInit                  -> "addarrinit", "add array initialisation"
   | Compiler.Inlining                    -> "inline"   , "inlining"
   | Compiler.RemoveUnusedFunction        -> "rmfunc"   , "remove unused function"
   | Compiler.Unrolling                   -> "unroll"   , "unrolling"
@@ -73,7 +75,7 @@ let print_strings = function
   | Compiler.DeadCode_AllocInlineAssgn   -> "vallocd"  , "dead code after inlined variables allocation"
   | Compiler.ShareStackVariable          -> "vshare"   , "sharing of stack variables"
   | Compiler.DeadCode_ShareStackVariable -> "vshared"  , "dead code after sharing of stack variables"
-  | Compiler.RemoveArrInit               -> "rmarrinit" , "remove array init"
+  | Compiler.RemoveArrInit               -> "rmarrinit" , "remove array initialisation"
   | Compiler.RemoveGlobal                -> "rmglobals" , "remove globals variables"
   | Compiler.RegArrayExpansion           -> "arrexp"   , "expansion of register arrays"
   | Compiler.LowerInstruction            -> "lowering" , "lowering of instructions"
