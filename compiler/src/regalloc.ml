@@ -702,7 +702,12 @@ let post_process ~stack_needed (live: Sv.t) ~(killed: funname -> Sv.t) (f: _ fun
        let globally_free_regs = Sv.diff free_regs live in
        let ra =
          match Sv.Exceptionless.any globally_free_regs with
-         | None -> Sv.Exceptionless.any free_regs
+         | None ->
+            begin match Sv.any free_regs with
+            | r -> Some r
+            | exception Not_found ->
+               hierror "There is no free register for the return address in function “%s”" f.f_name.fn_name
+            end
          | r -> r
        in
        killed_in_f, None, ra
