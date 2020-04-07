@@ -124,6 +124,8 @@ rule main = parse
   | "//" [^'\n']* newline { Lexing.new_line lexbuf; main lexbuf }
   | "//" [^'\n']* eof     { main lexbuf }
 
+  | '"' ([^'"']* as s) '"' { STRING s } (* TODO: escape sequences *)
+
   (* Why this is needed *)
   | ((*'-'?*) digit+) as s   
       { INT (Bigint.of_string s) } 
@@ -136,6 +138,7 @@ rule main = parse
 
   | (size as sw) (signletter as s)                { SWSIZE(mksizesign sw s)  }
   | (vsize as r) (signletter as s) (gensize as g) { SVSIZE(mkvsizesign r s g)}
+  | "#[" { SHARPLBRACKET }
   | "#"     { SHARP      }
   | "["     { LBRACKET   }
   | "]"     { RBRACKET   }

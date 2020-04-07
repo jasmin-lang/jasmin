@@ -241,6 +241,7 @@ type pcall_conv = [
 ]
 
 type pfundef = {
+  pdf_annot : (string * string) list;
   pdf_cc   : pcall_conv option;
   pdf_name : pident;
   pdf_args : (pstotype * pident) list;

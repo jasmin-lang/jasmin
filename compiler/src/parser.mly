@@ -15,6 +15,7 @@
 
 %token LBRACKET
 %token RBRACKET
+%token SHARPLBRACKET
 %token LBRACE
 %token RBRACE
 %token LPAREN
@@ -77,6 +78,7 @@
 %token ARRAYINIT
 %token <string> NID
 %token <Bigint.zint> INT
+%token <string> STRING
 
 %nonassoc COLON QUESTIONMARK
 %left PIPEPIPE
@@ -102,6 +104,17 @@
 
 var:
 | x=ident { x }
+
+(* ** Annotations
+* -------------------------------------------------------------------- *)
+attribute:
+  | k=NID EQ v=STRING { (k, v) }
+
+annotation:
+  | SHARPLBRACKET a=separated_list(COMMA, attribute) RBRACKET { a }
+
+annotations:
+  | a = list(annotation) { List.concat a }
 
 (* ** Type expressions
  * -------------------------------------------------------------------- *)
@@ -357,13 +370,16 @@ call_conv :
 | INLINE { `Inline }
 
 pfundef:
-| cc=call_conv? FN
+|  pdf_annot = annotations
+    cc=call_conv?
+    FN
     name = ident
     args = parens_tuple(pvardecl(empty))
     rty  = prefix(RARROW, tuple(stor_type))?
     body = pfunbody
 
-  { { pdf_cc   = cc;
+  { { pdf_annot;
+      pdf_cc   = cc;
       pdf_name = name;
       pdf_args = 
         List.flatten (List.map (fun (str, ids) -> List.map (fun id -> (str, id)) ids) args);
