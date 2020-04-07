@@ -28,9 +28,12 @@ let string_of_funname tbl (p : Utils0.funname) : string =
 (* -------------------------------------------------------------------- *)
 
 (* ---------------------------------------------------------------- *)
-let pp_var_i tbl fmt x =
-  let y = Conv.var_of_cvar tbl x.E.v_var in
+let pp_var tbl fmt x =
+  let y = Conv.var_of_cvar tbl x in
   F.fprintf fmt "%s" y.P.v_name
+
+let pp_var_i tbl fmt x =
+  pp_var tbl fmt x.E.v_var
 
 let rec pp_expr tbl fmt =
   let pp_expr = pp_expr tbl in
@@ -98,11 +101,12 @@ let pp_return tbl is_export fmt =
 
 let pp_lfun tbl fmt (fn, fd) =
   let name = Conv.fun_of_cfun tbl fn in
-  F.fprintf fmt "@[<v>fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a%a@]@ }@]"
+  F.fprintf fmt "@[<v>fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a%a@]@ }@]"
     name.P.fn_name
     (Pr.pp_list ",@ " (pp_param tbl)) fd.lfd_arg
     (Pr.pp_list ",@ " pp_stype) fd.lfd_tyout
     pp_stackframe fd.lfd_stk_size
+    (Pr.pp_list ",@ " (pp_var tbl)) fd.lfd_to_save
     (Pr.pp_list ";@ " (pp_instr tbl)) fd.lfd_body
     (pp_return tbl fd.lfd_export) fd.lfd_res
 
