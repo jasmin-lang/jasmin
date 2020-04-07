@@ -1054,11 +1054,33 @@ Qed.
 Definition saved_stack_eqMixin   := Equality.Mixin saved_stack_eq_axiom.
 Canonical  saved_stack_eqType      := Eval hnf in EqType saved_stack saved_stack_eqMixin.
 
+Variant return_address_location :=
+| RAnone
+| RAreg of var
+| RAstack of Z.
+
+Definition return_address_location_beq (r1 r2: return_address_location) : bool :=
+  match r1 with
+  | RAnone => if r2 is RAnone then true else false
+  | RAreg x1 => if r2 is RAreg x2 then x1 == x2 else false
+  | RAstack z1 => if r2 is RAstack z2 then z1 == z2 else false
+  end.
+
+Lemma return_address_location_eq_axiom : Equality.axiom return_address_location_beq.
+Proof.
+case => [ | x1 | z1 ] [ | x2 | z2 ] /=.
+1-4, 6-8: by constructor.
+all: apply: (equivP eqP); intuition congruence.
+Qed.
+
+Definition return_address_location_eqMixin := Equality.Mixin return_address_location_eq_axiom.
+Canonical  return_address_location_eqType := Eval hnf in EqType return_address_location return_address_location_eqMixin.
+
 Record stk_fun_extra := MkSFun {
   sf_stk_sz : Z;
   sf_to_save: seq var;
   sf_save_stack: saved_stack;
-  sf_return_address: option var; (* TODO: 3 cases: export function; return to register; return to stack *)
+  sf_return_address: return_address_location;
 }.
 
 Definition sfe_beq (e1 e2: stk_fun_extra) : bool :=

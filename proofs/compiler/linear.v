@@ -104,14 +104,14 @@ Section WRITE1.
 
   Context (writefun: funname -> Sv.t).
 
-  Definition writefun_ra (fn:funname) := 
-    let ra := 
+  Definition writefun_ra (fn:funname) :=
+    let ra :=
       match get_fundef (p_funcs p) fn with
       | None => Sv.empty
       | Some fd =>
         match fd.(f_extra).(sf_return_address) with
-        | None => Sv.empty
-        | Some ra => Sv.singleton ra
+        | RAnone | RAstack _ => Sv.empty
+        | RAreg ra => Sv.singleton ra
         end
       end in
     Sv.union (writefun fn) ra.
@@ -205,7 +205,7 @@ Section CHECK.
       else wloop check_i ii c e c' Loop.nb D
     | Ccall _ xs fn es => 
       if get_fundef (p_funcs p) fn is Some fd then
-        Let _ := assert (sf_return_address (f_extra fd) != None)  
+        Let _ := assert (sf_return_address (f_extra fd) != RAnone)
           (ii, Cerr_linear "nowhere to store the return address") in
         Let _ := assert 
           (all2 (λ e a, if e is Pvar (Gvar v _) then v_var v == v_var a else false) es (f_params fd))
@@ -226,10 +226,10 @@ Section CHECK.
     let O := read_es (map Plvar fd.(f_res)) in
     Let I := add_finfo fn fn (check_c check_i fd.(f_body) O) in
     match fd.(f_extra).(sf_return_address) with
-    | Some ra => 
+    | RAreg ra =>
       Let _ := assert (~~Sv.mem ra (writefun fn)) (Ferr_fun fn (Cerr_linear "the function writes its return address")) in
       assert(~~Sv.mem ra I)  (Ferr_fun fn (Cerr_linear "the function depends of its return address"))
-    | None => ok tt
+    | RAnone | RAstack _ => ok tt
     end.
 
   Definition check_prog := 
@@ -294,12 +294,14 @@ Definition round32 (sz: Z) : Z :=
   (let _32 := 32 in if sz mod _32 == 0 then sz else ((sz + 31) / _32) * _32)%Z.
 
 (*TODO: use cast_const *)
+Let cast_const sz := Papp1 (Oword_of_int Uptr) (Pconst sz).
+
 Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : linstr :=
   let m i := {| li_ii := ii ; li_i := i |} in
   m (Lopn [:: Lvar rspi] (Ox86 (LEA Uptr))
           [:: Papp2 ((if free then Oadd else Osub) (Op_w Uptr))
               (Pvar rspg)
-              (Papp1 (Oword_of_int Uptr) (Pconst sz))
+              (cast_const sz)
     ]).
 
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
@@ -367,29 +369,38 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Ccall _ xs fn es =>
     if get_fundef (p_funcs p) fn is Some fd then
       let e := f_extra fd in
-      if sf_return_address e is Some ra then
+      let ra := sf_return_address e in
+      if ra == RAnone then (lbl, lc)
+      else
         let sz := round32 (sf_stk_sz e) in
         let: (before, after) :=
-           if sz == 0 then ([::], [::]) 
+           if sz == 0 then ([::], [::])
            else ([:: allocate_stack_frame false ii sz ], [:: allocate_stack_frame true ii sz ])
         in
         let lret := lbl in
         let lbl := next_lbl lbl in
-        (lbl, MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret) :: before ++ MkLI ii (Lgoto (fn, xH)) :: MkLI ii (Llabel lret) :: after ++ lc)
-      else (lbl, lc)
+        match sf_return_address e with
+        | RAreg ra =>
+          (lbl, before ++ MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret) :: MkLI ii (Lgoto (fn, xH)) :: MkLI ii (Llabel lret) :: after ++ lc)
+        | RAstack z =>
+          (lbl, before ++ MkLI ii (LstoreLabel (Lmem Uptr rspi (cast_const z)) lret) :: MkLI ii (Lgoto (fn, xH)) :: MkLI ii (Llabel lret) :: after ++ lc)
+        | RAnone => (lbl, lc)
+        end
     else (lbl, lc )
   | Cfor _ _ _ => (lbl, lc)
   end.
 
 Definition linear_fd (fd: sfundef) :=
+  let e := fd.(f_extra) in
   let: (tail, head, lbl) :=
-     if sf_return_address (f_extra fd) is Some r
-     then ([:: MkLI xH (Ligoto (Pvar {| gv := VarI r xH ; gs := Slocal |})) ], [:: MkLI xH (Llabel 1) ], 2%positive)
-     else ([::], [::], 1%positive)
+     match sf_return_address e with
+     | RAreg r => ([:: MkLI xH (Ligoto (Pvar {| gv := VarI r xH ; gs := Slocal |})) ], [:: MkLI xH (Llabel 1) ], 2%positive)
+     | RAstack z => ([:: MkLI xH (Ligoto (Pload Uptr rspi (cast_const z))) ], [:: MkLI xH (Llabel 1) ], 2%positive)
+     | RAnone => ([::], [::], 1%positive)
+     end
   in
   let fd' := linear_c linear_i (f_body fd) lbl tail in
-  let e := fd.(f_extra) in
-  let is_export := sf_return_address e == None in
+  let is_export := sf_return_address e == RAnone in
   let res := if is_export then f_res fd else [::] in
   LFundef (sf_stk_sz e) (f_tyin fd) (f_params fd) (head ++ fd'.2) (f_tyout fd) res (if is_export then sf_to_save e else [::]) (sf_save_stack e)
               is_export.

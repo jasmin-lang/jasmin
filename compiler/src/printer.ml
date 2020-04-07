@@ -411,8 +411,9 @@ let pp_saved_stack tbl ~debug fmt = function
   | Expr.SavedStackStk z -> Format.fprintf fmt "in stack %a" B.pp_print (Conv.bi_of_z z)
 
 let pp_return_address tbl ~debug fmt = function
-  | Some x -> Format.fprintf fmt "%a" (pp_var ~debug) (Conv.var_of_cvar tbl x)
-  | None   -> Format.fprintf fmt "_"
+  | Expr.RAreg x -> Format.fprintf fmt "%a" (pp_var ~debug) (Conv.var_of_cvar tbl x)
+  | Expr.RAstack z -> Format.fprintf fmt "RSP + %a" B.pp_print (Conv.bi_of_z z)
+  | Expr.RAnone   -> Format.fprintf fmt "_"
 
 let pp_sprog ~debug tbl fmt ((funcs, p_extra):'info Prog.sprog) =
   let pp_var = pp_var ~debug in

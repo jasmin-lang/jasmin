@@ -373,7 +373,10 @@ let main () =
             sao_alloc  = List.map conv_alloc alloc; 
             sao_to_save = List.map (Conv.cvar_of_var tbl) ro.ro_to_save;
             sao_rsp  = saved_stack;
-            sao_return_address = omap (Conv.cvar_of_var tbl) ro.ro_return_address;
+            sao_return_address =
+              match ro.ro_return_address with
+              | None -> RAnone
+              | Some ra -> RAreg (Conv.cvar_of_var tbl ra)
           }) in
         Hf.add atbl fd.f_name sao in
       List.iter mk_oas fds;

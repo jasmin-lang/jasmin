@@ -498,7 +498,7 @@ Record stk_alloc_oracle_t :=
   ; sao_alloc: seq (var * ptr_kind)       (* Allocation of local variables without params *)
   ; sao_to_save: seq var (* TODO: allocate them in the stack rather than push/pop *)
   ; sao_rsp: saved_stack
-  ; sao_return_address: option var
+  ; sao_return_address: return_address_location
   }.
 
 Section PROG.
