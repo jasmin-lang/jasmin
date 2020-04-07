@@ -1,3 +1,4 @@
+#[stacksize="8"]
 fn test1 (reg u64 x) -> reg u64 {
   stack u64[1] a, b;
   a[0] = x;
@@ -7,6 +8,7 @@ fn test1 (reg u64 x) -> reg u64 {
   return x;
 }
 
+#[stacksize="8"]
 fn test2 (reg u64 x) -> reg u64 {
   stack u64[1] a, b;
   if (x == 1) {
@@ -21,6 +23,7 @@ fn test2 (reg u64 x) -> reg u64 {
   return x;
 }
 
+#[stacksize="0"]
 export fn test (reg u64 x) -> reg u64 {
   reg u64 r;
   r = x;
