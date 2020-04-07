@@ -1009,6 +1009,8 @@ Proof.
 admit.
 Admitted.
 
+End SEM_LEAKAGES_PROOF.
+
 (** NEED TO HAVE A THEOREM ABOUT SEM AND SEM_E **)
 
 
