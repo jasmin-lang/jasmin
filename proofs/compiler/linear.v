@@ -71,6 +71,7 @@ Definition find_label (lbl : label) (c : seq linstr) :=
   if idx < size c then ok idx else type_error.
 
 Record lfundef := LFundef {
+ lfd_align : wsize;
  lfd_stk_size : Z;
  lfd_tyin : seq stype;
  lfd_arg  : seq var_i;
@@ -156,7 +157,7 @@ End WMAP.
 Section CHECK.
 
   Context (writefun: funname -> Sv.t).
-    
+  
   Section CHECK_c.
 
     Context (check_i: instr -> Sv.t -> ciexec Sv.t).
@@ -185,6 +186,10 @@ Section CHECK.
 
   End CHECK_c.
 
+  Section CHECK_i.
+ 
+  Context (stack_align : wsize).
+ 
   Fixpoint check_i (i:instr) (D:Sv.t) := 
     let (ii,ir) := i in
     match ir with
@@ -205,7 +210,9 @@ Section CHECK.
       else wloop check_i ii c e c' Loop.nb D
     | Ccall _ xs fn es => 
       if get_fundef (p_funcs p) fn is Some fd then
-        Let _ := assert (sf_return_address (f_extra fd) != RAnone)
+        Let _ := assert (sf_align (f_extra fd) <= stack_align)%CMP
+          (ii, Cerr_linear "caller need alignment greater than callee") in
+        Let _ := assert (sf_return_address (f_extra fd) != RAnone)  
           (ii, Cerr_linear "nowhere to store the return address") in
         Let _ := assert 
           (all2 (λ e a, if e is Pvar (Gvar v _) then v_var v == v_var a else false) es (f_params fd))
@@ -221,10 +228,13 @@ Section CHECK.
       else cierror ii (Cerr_linear "call to unknown function")
     end.
  
+  End CHECK_i.
+
   Definition check_fd (ffd:sfun_decl) := 
     let (fn,fd) := ffd in
     let O := read_es (map Plvar fd.(f_res)) in
-    Let I := add_finfo fn fn (check_c check_i fd.(f_body) O) in
+    let stack_align := fd.(f_extra).(sf_align) in
+    Let I := add_finfo fn fn (check_c (check_i stack_align) fd.(f_body) O) in
     match fd.(f_extra).(sf_return_address) with
     | RAreg ra =>
       Let _ := assert (~~Sv.mem ra (writefun fn)) (Ferr_fun fn (Cerr_linear "the function writes its return address")) in
@@ -284,14 +294,16 @@ Definition align ii a (p:label * lcmd) : label * lcmd :=
 
 Section FUN.
 
-Context (fn: funname).
+Context (fn: funname) (fn_align: wsize).
 
 Let rsp : var := Var (sword Uptr) p.(p_extra).(sp_stk_id).
 Let rspi : var_i := VarI rsp xH.
 Let rspg : gvar := Gvar rspi Slocal.
 
-Definition round32 (sz: Z) : Z :=
-  (let _32 := 32 in if sz mod _32 == 0 then sz else ((sz + 31) / _32) * _32)%Z.
+Definition round_ws (ws:wsize) (sz: Z) : Z :=
+  (let d := wsize_size ws in
+   let (q,r) := Z.div_eucl sz d in
+   if r == 0 then sz else (q + 1) * d)%Z.
 
 (*TODO: use cast_const *)
 Let cast_const sz := Papp1 (Oword_of_int Uptr) (Pconst sz).
@@ -372,7 +384,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       let ra := sf_return_address e in
       if ra == RAnone then (lbl, lc)
       else
-        let sz := round32 (sf_stk_sz e) in
+        let sz := round_ws (sf_align e) (sf_stk_sz e) in
         let: (before, after) :=
            if sz == 0 then ([::], [::])
            else ([:: allocate_stack_frame false ii sz ], [:: allocate_stack_frame true ii sz ])
@@ -402,7 +414,7 @@ Definition linear_fd (fd: sfundef) :=
   let fd' := linear_c linear_i (f_body fd) lbl tail in
   let is_export := sf_return_address e == RAnone in
   let res := if is_export then f_res fd else [::] in
-  LFundef (sf_stk_sz e) (f_tyin fd) (f_params fd) (head ++ fd'.2) (f_tyout fd) res (if is_export then sf_to_save e else [::]) (sf_save_stack e)
+  LFundef (sf_align e) (sf_stk_sz e) (f_tyin fd) (f_params fd) (head ++ fd'.2) (f_tyout fd) res (if is_export then sf_to_save e else [::]) (sf_save_stack e)
               is_export.
 
 End FUN.

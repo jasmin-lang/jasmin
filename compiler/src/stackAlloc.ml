@@ -98,7 +98,9 @@ sig
   val incl         : regions -> regions -> bool
   val merge        : regions -> regions -> regions
   val has_stack    : regions -> bool 
-  val set_stack    : regions -> regions  
+  val call_align   : regions -> wsize
+  val set_call     : regions -> bool -> wsize -> regions  
+  val set_stack    : regions -> regions
 end 
 = struct
 
@@ -107,19 +109,30 @@ end
     | IMP_error of Smp.t option 
 
   type regions = {
+      call_align : wsize;
       has_stack  : bool;
       var_region : internal_mem_pos Mv.t;
       region_var : Sv.t Mmp.t;
     }
 
   let empty = {
+      call_align = U8;
       has_stack  = false;
       var_region = Mv.empty;
       region_var = Mmp.empty; 
     }
 
+  let set_call rmap has_stack call_align = 
+    {rmap with 
+      has_stack = has_stack || rmap.has_stack;
+      call_align = if wsize_le call_align rmap.call_align then rmap.call_align else call_align;
+    }
+
   let set_stack rmap = {rmap with has_stack = true }
+
   let has_stack rmap = rmap.has_stack
+
+  let call_align rmap = rmap.call_align
 
 (*  let pp_rmap fmt rmap = 
     let pp_var = (Printer.pp_var ~debug:true) in
@@ -185,7 +198,7 @@ end
       region_var = Mmp.remove mp rmap.region_var }
 
   let rset_word rmap x mp = 
-    { has_stack = rmap.has_stack;
+    { rmap with 
       var_region = Mv.add x (IMP mp) rmap.var_region;
       region_var = Mmp.add mp (Sv.singleton x) rmap.region_var }
 
@@ -197,7 +210,7 @@ end
   let set rmap x mp = 
     let x = L.unloc x in
     let xs = Mmp.find_default Sv.empty mp rmap.region_var in
-    { has_stack = rmap.has_stack;
+    { rmap with 
       var_region = Mv.add x (IMP mp) rmap.var_region;
       region_var = Mmp.add mp (Sv.add x xs) rmap.region_var }
 
@@ -218,6 +231,7 @@ end
     
   let incl r1 r2 = 
     (* r2.has_stack => r1.has_stack *)
+    ( wsize_le r2.call_align r1.call_align) && 
     ( not r2.has_stack || r1.has_stack ) && 
     Mv.for_all (fun x imp1 -> 
         try imp_incl imp1 (Mv.find x r2.var_region) 
@@ -250,6 +264,7 @@ end
       | Some xs1, Some xs2 -> Some (Sv.inter xs1 xs2)
       | _, _               -> None in
     { 
+      call_align = if wsize_le r1.call_align r2.call_align then r2.call_align else r1.call_align;
       has_stack  = r1.has_stack  || r2.has_stack;
       var_region = Mv.merge merge_mp r1.var_region r2.var_region;
       region_var = Mmp.merge merge_xs r1.region_var r2.region_var; }
@@ -391,8 +406,9 @@ type param_info = {
 }
 
 type stk_alloc_oracle_t =
-  { sao_has_stack : bool;
-    sao_params : param_info option list (* Allocation of pointer params *)
+  { sao_align : wsize
+  ; sao_has_stack : bool
+  ; sao_params : param_info option list (* Allocation of pointer params *)
   ; sao_return : int option list        (* Where to find the param input region *)
   ; sao_alloc  : pmap                   (* info to finalize stack_alloc *)
   }
@@ -475,7 +491,7 @@ let alloc_call_res pmap rmap mps ret_pos rs =
 
 let alloc_call local_alloc pmap rmap ini rs fn es = 
   let sao = local_alloc fn in
-  let rmap = if sao.sao_has_stack then Region.set_stack rmap else rmap in
+  let rmap = Region.set_call rmap sao.sao_has_stack sao.sao_align in
   let es  = alloc_call_args pmap rmap sao.sao_params es in
   let (rmap,rs)  = alloc_call_res pmap rmap es sao.sao_return rs in
   let es  = List.map snd es in
@@ -671,8 +687,15 @@ let alloc_fd local_alloc pmap rmap fd =
   let sao_alloc = Mv.filter (fun x _mp -> Sv.mem x locals) pmap in
 
   let sao_has_stack = sao_has_stack (*&& fd.f_cc = Export *) in 
+  let doit _ pk align = 
+    match pk with
+    | Pmem mp -> 
+      let ws = Info.info mp.mp_align in
+      if wsize_le align ws then ws else align
+    | Pregptr _ -> align in
+  let sao_align = Mv.fold doit sao_alloc (Region.call_align rmap) in
   let sao = 
-    { sao_has_stack; sao_params; sao_return; sao_alloc } in
+    { sao_align; sao_has_stack; sao_params; sao_return; sao_alloc } in
 
   sao, fd
   

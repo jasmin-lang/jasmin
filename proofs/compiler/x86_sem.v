@@ -55,6 +55,7 @@ Variant saved_stack :=
 | SavedStackStk of Z.
 
 Record xfundef := XFundef {
+ xfd_align : wsize;
  xfd_stk_size : Z;
  xfd_nstk : register;
  xfd_arg  : asm_args;
@@ -434,7 +435,7 @@ End PROG.
 Variant x86sem_fd (P: xprog) (wrip: pointer) fn st st' : Prop :=
 | X86Sem_fd fd mp st2
    `(get_fundef P.(xp_funcs) fn = Some fd)
-   `(alloc_stack st.(xmem) fd.(xfd_stk_size) = ok mp)
+   `(alloc_stack st.(xmem) fd.(xfd_align) fd.(xfd_stk_size) = ok mp)
     (st1 := mem_write_reg fd.(xfd_nstk) (top_stack mp) 
             {| xmem := mp; 
                xreg := st.(xreg); 

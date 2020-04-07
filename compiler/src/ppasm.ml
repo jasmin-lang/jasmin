@@ -379,31 +379,29 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
           [], []
 
         | SavedStackReg r ->
-          (if (Bigint.equal stsz Bigint.zero) then 
-           [ AsmOp(MOV uptr, [Reg r; Reg RSP]);
-             AsmOp(AND uptr, [Reg RSP; Imm(U32,
-                                          Conv.int32_of_bi (B.of_int (-32)))]);
-           ]
-          else
-           [ AsmOp(MOV uptr, [Reg r; Reg RSP]);
-             AsmOp(SUB uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi stsz)]);
-             AsmOp(AND uptr, [Reg RSP; Imm(U32,
-                                           Conv.int32_of_bi (B.of_int (-32)))]);
-           ]),
+          let i = size_of_ws d.xfd_align in
+          let sub = 
+            if Bigint.equal stsz Bigint.zero then [] 
+            else [ AsmOp(SUB uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi stsz)])] in
+          [AsmOp(MOV uptr, [Reg r; Reg RSP])] @
+            sub @
+              [AsmOp(AND uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi (B.of_int (-i)))])],
           [ AsmOp(MOV uptr, [Reg RSP; Reg r]) ]
 
         | SavedStackStk p ->
+          let i = size_of_ws d.xfd_align in
           let adr =
             Adr (Areg { ad_disp  = Conv.int64_of_bi (Conv.bi_of_z p);
                 ad_base   = Some RSP;
                 ad_scale  = Scale1;
                 ad_offset = None }) in
-          [ AsmOp(MOV uptr, [Reg RBP; Reg RSP]);
-            AsmOp(SUB uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi stsz)]);
-            AsmOp(AND uptr, [Reg RSP; Imm(U32,
-                                          Conv.int32_of_bi (B.of_int (-32)))]);
-            AsmOp(MOV uptr, [adr; Reg RBP])
-          ],
+          let sub = 
+            if Bigint.equal stsz Bigint.zero then [] 
+            else [AsmOp(SUB uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi stsz)])] in
+          [ AsmOp(MOV uptr, [Reg RBP; Reg RSP])] @
+            sub @
+            [ AsmOp(AND uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi (B.of_int (-i)))]);
+              AsmOp(MOV uptr, [adr; Reg RBP]) ],
           [ AsmOp(MOV uptr, [Reg RSP; adr]) ]
       in
 

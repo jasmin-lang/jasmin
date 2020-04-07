@@ -340,7 +340,7 @@ Class memory (mem: Type) : Type :=
     ; valid_pointer : mem -> pointer -> wsize -> bool
     ; stack_root : mem -> pointer
     ; frames : mem -> seq (pointer * Z)
-    ; alloc_stack : mem -> Z -> exec mem
+    ; alloc_stack : mem -> wsize -> Z -> exec mem
     ; free_stack : mem -> Z -> mem
     ; init : seq (pointer * Z) → pointer → exec mem
     }.
@@ -354,7 +354,7 @@ Definition top_stack {mem: Type} {M: memory mem} (m: mem) : pointer :=
 
 Section SPEC.
   Context (AL: alignment) mem (M: memory mem)
-    (m: mem) (sz: Z) (m': mem).
+    (m: mem) (ws:wsize) (sz: Z) (m': mem).
   Let pstk := top_stack m'.
 
   Record alloc_stack_spec : Prop := mkASS {
@@ -364,7 +364,8 @@ Section SPEC.
       valid_pointer m' p s =
       valid_pointer m p s || (between pstk sz p s && is_align p s);
     ass_align    : forall ofs s,
-      is_align (pstk + wrepr _ ofs) s = is_align (wrepr _ ofs) s;
+      (s <= ws)%CMP ->
+      is_align (pstk + wrepr _ ofs) s = is_align (wrepr _ ofs) s ;
     ass_fresh    : forall p s, valid_pointer m p s ->
       (wunsigned p + wsize_size s <= wunsigned pstk \/
        wunsigned pstk + sz <= wunsigned p)%Z;
@@ -448,8 +449,8 @@ Parameter read_write_any_mem :
     read_mem m2 pr szr = read_mem m2' pr szr.
 
 (* -------------------------------------------------------------------- *)
-Parameter alloc_stackP : forall m m' sz,
-  alloc_stack m sz = ok m' -> alloc_stack_spec m sz m'.
+Parameter alloc_stackP : forall m m' ws sz,
+  alloc_stack m ws sz = ok m' -> alloc_stack_spec m ws sz m'.
 
 Parameter write_mem_stable : forall m m' p s v,
   write_mem m p s v = ok m' -> stack_stable m m'.

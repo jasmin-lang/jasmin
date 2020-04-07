@@ -492,7 +492,8 @@ Section LOOP.
 End LOOP.
 
 Record stk_alloc_oracle_t :=
-  { sao_size: Z
+  { sao_align : wsize 
+  ; sao_size: Z
   ; sao_params : seq (option param_info)  (* Allocation of pointer params *)
   ; sao_return : seq (option nat)         (* Where to find the param input region *)
   ; sao_alloc: seq (var * ptr_kind)       (* Allocation of local variables without params *)
@@ -650,7 +651,7 @@ Definition size_of (t:stype) :=
   end.
 
 Definition init_local_map vrip vrsp fn
-    (sz:Z) (l:list (var * ptr_kind)) : cfexec (Mvar.t ptr_kind * regions * Sv.t) :=
+    (ws_align: wsize) (sz:Z) (l:list (var * ptr_kind)) : cfexec (Mvar.t ptr_kind * regions * Sv.t) :=
   let check_diff x := 
     if (x == vrip) || (x == vrsp) then
       cferror fn "invalid reg pointer, please report"
@@ -658,12 +659,14 @@ Definition init_local_map vrip vrsp fn
 
   let add_ty x pk ty ws p (mp : Mvar.t ptr_kind * Z * regions * Sv.t) := 
     let '(lmap, ofs, rmap, sv) := mp in
-    if (ofs <=? p)%Z then
-      if is_align (wrepr _ p) ws then 
-        let s := size_of ty in
-        ok (Mvar.set lmap x pk, p + s, Region.set_init vrsp rmap x pk, sv)%Z
-      else cferror fn "not aligned"
-    else cferror fn "overlap" in
+    if (ws <= ws_align)%CMP then
+      if (ofs <=? p)%Z then
+        if is_align (wrepr _ p) ws then 
+          let s := size_of ty in
+          ok (Mvar.set lmap x pk, p + s, Region.set_init vrsp rmap x pk, sv)%Z
+        else cferror fn "not aligned"
+      else cferror fn "overlap"
+    else cferror fn "bad stack alignment" in
 
   let add (vp:var*ptr_kind) (mp:Mvar.t ptr_kind * Z * regions * Sv.t) :=
     let '(v, pk) := vp in
@@ -756,7 +759,7 @@ Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_
   let: (fn, fd) := f in
   let vrip := {| vtype := sword Uptr; vname := p_extra.(sp_rip) |} in
   let vrsp := {| vtype := sword Uptr; vname := p_extra.(sp_stk_id) |} in
-  Let mstk := init_local_map vrip vrsp fn sao.(sao_size) sao.(sao_alloc) in
+  Let mstk := init_local_map vrip vrsp fn sao.(sao_align) sao.(sao_size) sao.(sao_alloc) in
   let: (lmap, rmap, sv) := mstk in
   (* adding params to the map *)
   Let rparams := 
@@ -788,6 +791,7 @@ Definition alloc_fd p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) (
   let: sao := local_alloc f.1 in
   Let fd := alloc_fd_aux p_extra mglob local_alloc sao f in
   let f_extra := {|
+        sf_align  := sao.(sao_align);
         sf_stk_sz := sao.(sao_size);
         sf_to_save := sao.(sao_to_save);
         sf_save_stack := sao.(sao_rsp);

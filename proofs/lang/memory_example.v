@@ -362,7 +362,7 @@ Module MemoryI : MemoryT.
     apply: m.(stk_freeP); Psatz.lia.
   Qed.
 
-  Definition alloc_stack (m: mem) (s: Z) : exec mem :=
+  Definition alloc_stack (m: mem) (ws:wsize) (s: Z) : exec mem :=
     match Sumbool.sumbool_of_bool (valid_frame s && (s + frames_size m.(frames) <=? wunsigned m.(stk_root))) with
     | right _ => Error ErrStack
     | left C =>
@@ -638,7 +638,7 @@ Module MemoryI : MemoryT.
     exists (a + c). Psatz.lia.
   Qed.
 
-  Lemma ass_mod (m m': mem) sz: alloc_stack m sz = ok m' -> wunsigned (top_stack m') + sz <= wbase Uptr.
+  Lemma ass_mod (m m': mem) ws sz: alloc_stack m ws sz = ok m' -> wunsigned (top_stack m') + sz <= wbase Uptr.
   Proof.
     rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-] /=.
     rewrite /top_stack /=.
@@ -648,8 +648,8 @@ Module MemoryI : MemoryT.
     rewrite wunsigned_add; Psatz.lia.
   Qed.
 
-  Lemma ass_valid m sz m' :
-    alloc_stack m sz = ok m' →
+  Lemma ass_valid m ws_stk sz m' :
+    alloc_stack m ws_stk sz = ok m' →
     ∀ p s,
     valid_pointer m' p s =
     valid_pointer m p s || between (top_stack m') sz p s && is_align p s.
@@ -700,8 +700,8 @@ Module MemoryI : MemoryT.
     Psatz.nia.
   Qed.
 
-  Lemma ass_read_old m sz m' :
-    alloc_stack m sz = ok m' →
+  Lemma ass_read_old m ws_stk sz m' :
+    alloc_stack m ws_stk sz = ok m' →
     ∀ p s,
     valid_pointer m p s →
     read_mem m p s = read_mem m' p s.
@@ -714,13 +714,14 @@ Module MemoryI : MemoryT.
     by rewrite /read_mem /CoreMem.read /= /CoreMem.uread /= /valid ok_m_p_s => ->.
   Qed.
 
-  Lemma ass_align m sz m' :
-    alloc_stack m sz = ok m' →
+  Lemma ass_align m ws_stk sz m' :
+    alloc_stack m ws_stk sz = ok m' →
     ∀ ofs s,
+      (s <= ws_stk)%CMP → 
       is_align (top_stack m' + wrepr U64 ofs) s = is_align (wrepr U64 ofs) s.
   Proof.
     rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-].
-    rewrite /is_align /top_stack /= => ofs s.
+    rewrite /is_align /top_stack /= => ofs s hws_le.
     case/andP: h => /andP[] /lezP sz_pos.
     have := frames_size_align m.
     have := m.(stk_root_aligned).
@@ -757,8 +758,8 @@ Module MemoryI : MemoryT.
     by rewrite fs_align.
   Qed.
 
-  Lemma ass_fresh m sz m' :
-    alloc_stack m sz = ok m' →
+  Lemma ass_fresh m ws_stk sz m' :
+    alloc_stack m ws_stk sz = ok m' →
     ∀ p s,
       valid_pointer m p s →
       (wunsigned p + wsize_size s <= wunsigned (top_stack m') ∨ wunsigned (top_stack m') + sz <= wunsigned p).
@@ -777,8 +778,8 @@ Module MemoryI : MemoryT.
     Psatz.lia.
   Qed.
 
-  Lemma ass_frames m sz m' :
-    alloc_stack m sz = ok m' →
+  Lemma ass_frames m ws_stk sz m' :
+    alloc_stack m ws_stk sz = ok m' →
     stack_frames m' = (top_stack m', sz) :: stack_frames m.
   Proof.
     rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-] /=.
@@ -792,8 +793,8 @@ Module MemoryI : MemoryT.
     Psatz.lia.
   Qed.
 
-  Lemma alloc_stackP m m' sz :
-    alloc_stack m sz = ok m' -> alloc_stack_spec m sz m'.
+  Lemma alloc_stackP m m' ws_stk sz :
+    alloc_stack m ws_stk sz = ok m' -> alloc_stack_spec m ws_stk sz m'.
   Proof.
     move => o.
     split; rewrite ?top_stackE.

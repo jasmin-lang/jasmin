@@ -367,7 +367,8 @@ let main () =
         
         let sao = 
           Stack_alloc.({
-            sao_size = Conv.z_of_int size;
+            sao_align  = sao.sao_align;
+            sao_size   = Conv.z_of_int size;
             sao_params = List.map (omap conv_pi) sao.sao_params;
             sao_return = List.map (omap Conv.nat_of_int) sao.sao_return;
             sao_alloc  = List.map conv_alloc alloc; 

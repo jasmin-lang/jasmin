@@ -73,7 +73,7 @@ Definition assemble_fd sp rip (fd: lfundef) :=
     assert (~~ (Reg sp \in arg)) (x86_gen_error sp) in
   Let tosave := mapM (xreg_of_var xH) (lfd_to_save fd) in
   Let saved  := assemble_saved_stack (lfd_save_stack fd) in
-  ciok (XFundef (lfd_stk_size fd) sp arg fd' res (tosave, saved) (lfd_export fd)).
+  ciok (XFundef (lfd_align fd) (lfd_stk_size fd) sp arg fd' res (tosave, saved) (lfd_export fd)).
 
 
 (* -------------------------------------------------------------------- *)

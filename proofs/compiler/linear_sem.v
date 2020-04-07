@@ -148,7 +148,7 @@ End LSEM.
 Variant lsem_fd (wrip: pointer) m1 fn va' m2 vr' : Prop :=
 | LSem_fd : forall m1' fd va vm2 m2' s1 s2 vr,
     get_fundef P.(lp_funcs) fn = Some fd ->
-    alloc_stack m1 fd.(lfd_stk_size) = ok m1' ->
+    alloc_stack m1 fd.(lfd_align) fd.(lfd_stk_size) = ok m1' ->
     let c := fd.(lfd_body) in
     write_vars [:: vid P.(lp_stk_id)   ; vid P.(lp_rip)]
                [:: Vword (top_stack m1'); Vword wrip] (Estate m1' vmap0) = ok s1 ->
