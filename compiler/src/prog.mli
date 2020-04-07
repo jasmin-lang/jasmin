@@ -56,7 +56,7 @@ type 'len ggvar = {
 type 'len gexpr =
   | Pconst of B.zint
   | Pbool  of bool
-  | Parr_init of B.zint
+  | Parr_init of 'len
   | Pvar   of 'len ggvar
   | Pget   of Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
   | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr
@@ -317,11 +317,11 @@ val is_reg_arr   : var -> bool
 (* -------------------------------------------------------------------- *)
 (* Functions over expressions                                           *)
 
-val ( ++ ) : expr -> expr -> expr
-val ( ** ) : expr -> expr -> expr
-val cnst   : B.zint -> expr
-val icnst  : int -> expr
-val cast64 : expr -> expr
+val ( ++ ) : 'len gexpr -> 'len gexpr -> 'len gexpr
+val ( ** ) : 'len gexpr -> 'len gexpr -> 'len gexpr
+val cnst   : B.zint -> 'len gexpr
+val icnst  : int -> 'len gexpr
+val cast64 : 'len gexpr -> 'len gexpr
 
 (* -------------------------------------------------------------------- *)
 (* Functions over lvalue                                                *)

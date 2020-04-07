@@ -10,7 +10,7 @@ let rec gsubst_e (flen: 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gexpr) e =
   match e with
   | Pconst c -> Pconst c
   | Pbool b  -> Pbool b
-  | Parr_init n -> Parr_init n
+  | Parr_init n -> Parr_init (flen n)
   | Pvar v -> f v
   | Pget (aa, ws, v, e) -> Pget(aa, ws, gsubst_gvar f v, gsubst_e flen f e)
   | Psub (aa, ws, len, v, e) -> Psub(aa,ws,flen len, gsubst_gvar f v, gsubst_e flen f e)

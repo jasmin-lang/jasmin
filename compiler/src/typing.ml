@@ -1159,10 +1159,9 @@ let tt_exprs_cast env les tys =
 let arr_init xi = 
   let x = L.unloc xi in 
   match x.P.v_ty with
-  | P.Arr(ws, P.Pconst n) as ty ->
-    P.Cassgn (Lvar xi, P.AT_inline, ty, 
-              P.Parr_init (P.B.of_int (P.arr_size ws (P.B.to_int n))))
-    (* FIXME: should not fail when the array size is a parameter *)
+  | P.Arr(ws, e) as ty ->
+    let size =  let open P in (icnst (size_of_ws ws) ** e) in
+    P.Cassgn (Lvar xi, P.AT_inline, ty, P.Parr_init size)
   | _           -> 
     rs_tyerror ~loc:(L.loc xi) (InvalidType( x.P.v_ty, TPArray))
 

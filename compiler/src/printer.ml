@@ -122,7 +122,7 @@ let pp_ge pp_len pp_var =
   let rec pp_expr fmt = function
   | Pconst i    -> B.pp_print fmt i
   | Pbool  b    -> F.fprintf fmt "%b" b
-  | Parr_init n -> F.fprintf fmt "array_init(%a)" B.pp_print n
+  | Parr_init n -> F.fprintf fmt "array_init(%a)" pp_len n
   | Pvar v      -> pp_gvar fmt v
   | Pget(aa,ws,x,e) -> 
     pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e None

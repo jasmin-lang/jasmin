@@ -56,7 +56,7 @@ type 'len ggvar = {
 type 'len gexpr =
   | Pconst of B.zint
   | Pbool  of bool
-  | Parr_init of B.zint
+  | Parr_init of 'len
   | Pvar   of 'len ggvar
   | Pget   of Warray_.arr_access * wsize * 'len ggvar * 'len gexpr 
   | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr 
