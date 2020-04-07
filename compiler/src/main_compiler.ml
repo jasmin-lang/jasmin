@@ -327,17 +327,19 @@ let main () =
           (Printer.pp_prog ~debug:true) ([], (List.map snd fds));
 
       (* register allocation *)
-      let fds = Regalloc.alloc_prog translate_var (fun sao -> sao.sao_has_stack) fds in
+      let has_stack cc sao = cc = Export && sao.sao_has_stack in
+      let fds = Regalloc.alloc_prog translate_var has_stack fds in
 
       let atbl = Hf.create 117 in 
       let mk_oas (sao, ro, fd) = 
+        let has_stack = has_stack fd.f_cc sao in
         let extra =
-          if sao.sao_has_stack && ro.ro_rsp = None then [V.clone rsp] 
+          if has_stack && ro.ro_rsp = None then [V.clone rsp] 
           else [] in
         let alloc, size, extrapos = 
           StackAlloc.alloc_stack sao.sao_alloc extra in
         let saved_stack = 
-          if sao.sao_has_stack then
+          if has_stack then
             match ro.ro_rsp with
             | Some x -> Expr.SavedStackReg (Conv.cvar_of_var tbl x)
             | None   -> Expr.SavedStackStk (Conv.z_of_int (List.hd extrapos))
@@ -384,7 +386,7 @@ let main () =
       if !debug then Format.eprintf "START regalloc@.";
       let (fds,_data) = Conv.prog_of_csprog tbl sp in
       let fds = 
-        Regalloc.alloc_prog translate_var (fun extra ->
+        Regalloc.alloc_prog translate_var (fun _cc extra ->
             match extra.Expr.sf_save_stack with
             | Expr.SavedStackReg _ | Expr.SavedStackStk _ -> true
             | Expr.SavedStackNone -> false) fds in

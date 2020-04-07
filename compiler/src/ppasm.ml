@@ -379,11 +379,17 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
           [], []
 
         | SavedStackReg r ->
-          [ AsmOp(MOV uptr, [Reg r; Reg RSP]);
-            AsmOp(SUB uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi stsz)]);
-            AsmOp(AND uptr, [Reg RSP; Imm(U32,
+          (if (Bigint.equal stsz Bigint.zero) then 
+           [ AsmOp(MOV uptr, [Reg r; Reg RSP]);
+             AsmOp(AND uptr, [Reg RSP; Imm(U32,
                                           Conv.int32_of_bi (B.of_int (-32)))]);
-          ],
+           ]
+          else
+           [ AsmOp(MOV uptr, [Reg r; Reg RSP]);
+             AsmOp(SUB uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi stsz)]);
+             AsmOp(AND uptr, [Reg RSP; Imm(U32,
+                                           Conv.int32_of_bi (B.of_int (-32)))]);
+           ]),
           [ AsmOp(MOV uptr, [Reg RSP; Reg r]) ]
 
         | SavedStackStk p ->

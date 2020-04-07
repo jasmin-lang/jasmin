@@ -86,17 +86,19 @@ sig
   type regions 
   val empty        : regions
 (*  val pp_rmap      : Format.formatter -> regions -> unit *)
-  val check_valid  : regions -> Prog.var_i -> mem_pos
-  val set_align    : Prog.var_i -> mem_pos -> Wsize.wsize -> unit
-  val set_writable : Prog.var_i -> mem_pos -> unit
+  val check_valid  : regions -> var_i -> mem_pos
+  val set_align    : var_i -> mem_pos -> Wsize.wsize -> unit
+  val set_writable : var_i -> mem_pos -> unit
   val remove       : regions -> mem_pos -> regions 
-  val rset_word    : regions -> Prog.Mv.key -> Mmp.key -> regions
-  val set_word     : regions -> Prog.var_i -> Wsize.wsize -> Mmp.key -> regions
-  val set          : regions -> Prog.Mv.key Prog.L.located -> Mmp.key -> regions
-  val set_move     : regions -> Prog.Mv.key Prog.L.located -> Prog.var_i -> regions
-  val set_init     : regions -> Prog.Mv.key Prog.L.located -> ptr_kind -> regions
+  val rset_word    : regions -> var -> mem_pos -> regions
+  val set_word     : regions -> var_i -> Wsize.wsize -> Mmp.key -> regions
+  val set          : regions -> var_i -> mem_pos -> regions
+  val set_move     : regions -> var_i -> var_i -> regions
+  val set_init     : regions -> var_i -> ptr_kind -> regions
   val incl         : regions -> regions -> bool
   val merge        : regions -> regions -> regions
+  val has_stack    : regions -> bool 
+  val set_stack    : regions -> regions  
 end 
 = struct
 
@@ -105,14 +107,19 @@ end
     | IMP_error of Smp.t option 
 
   type regions = {
-      var_region  : internal_mem_pos Mv.t;
+      has_stack  : bool;
+      var_region : internal_mem_pos Mv.t;
       region_var : Sv.t Mmp.t;
     }
 
   let empty = {
+      has_stack  = false;
       var_region = Mv.empty;
       region_var = Mmp.empty; 
     }
+
+  let set_stack rmap = {rmap with has_stack = true }
+  let has_stack rmap = rmap.has_stack
 
 (*  let pp_rmap fmt rmap = 
     let pp_var = (Printer.pp_var ~debug:true) in
@@ -178,7 +185,8 @@ end
       region_var = Mmp.remove mp rmap.region_var }
 
   let rset_word rmap x mp = 
-    { var_region = Mv.add x (IMP mp) rmap.var_region;
+    { has_stack = rmap.has_stack;
+      var_region = Mv.add x (IMP mp) rmap.var_region;
       region_var = Mmp.add mp (Sv.singleton x) rmap.region_var }
 
   let set_word rmap x ws mp =
@@ -189,7 +197,8 @@ end
   let set rmap x mp = 
     let x = L.unloc x in
     let xs = Mmp.find_default Sv.empty mp rmap.region_var in
-    { var_region = Mv.add x (IMP mp) rmap.var_region;
+    { has_stack = rmap.has_stack;
+      var_region = Mv.add x (IMP mp) rmap.var_region;
       region_var = Mmp.add mp (Sv.add x xs) rmap.region_var }
 
   let set_move rmap x y = 
@@ -208,6 +217,8 @@ end
     | IMP_error _, _ -> true
     
   let incl r1 r2 = 
+    (* r2.has_stack => r1.has_stack *)
+    ( not r2.has_stack || r1.has_stack ) && 
     Mv.for_all (fun x imp1 -> 
         try imp_incl imp1 (Mv.find x r2.var_region) 
         with Not_found -> 
@@ -238,7 +249,9 @@ end
       match o1, o2 with
       | Some xs1, Some xs2 -> Some (Sv.inter xs1 xs2)
       | _, _               -> None in
-    { var_region = Mv.merge merge_mp r1.var_region r2.var_region;
+    { 
+      has_stack  = r1.has_stack  || r2.has_stack;
+      var_region = Mv.merge merge_mp r1.var_region r2.var_region;
       region_var = Mmp.merge merge_xs r1.region_var r2.region_var; }
 
 end
@@ -462,6 +475,7 @@ let alloc_call_res pmap rmap mps ret_pos rs =
 
 let alloc_call local_alloc pmap rmap ini rs fn es = 
   let sao = local_alloc fn in
+  let rmap = if sao.sao_has_stack then Region.set_stack rmap else rmap in
   let es  = alloc_call_args pmap rmap sao.sao_params es in
   let (rmap,rs)  = alloc_call_res pmap rmap es sao.sao_return rs in
   let es  = List.map snd es in
@@ -561,7 +575,6 @@ let init_locals pmap rmap fd =
 
   let paramsi = List.map add_param params in
 
-  let has_stack = ref false in
   let add_local x = 
     match x.v_kind with
     | Stack Direct ->
@@ -571,7 +584,7 @@ let init_locals pmap rmap fd =
         mp_align = Info.init (initial_alignment x) true;
         mp_writable = Info.init true true;
       } in 
-      has_stack := true;
+      rmap := Region.set_stack !rmap;
       pmap := Mv.add x (Pmem mp) !pmap;
       rmap := Region.rset_word !rmap x mp
     | Stack (Pointer _) ->
@@ -581,7 +594,7 @@ let init_locals pmap rmap fd =
         mp_align = Info.init uptr false;
         mp_writable = Info.init true false;
       } in 
-      has_stack := true;
+      rmap := Region.set_stack !rmap;
       pmap := Mv.add x (Pmem mp) !pmap
     | Reg Direct ->
       ()
@@ -591,7 +604,7 @@ let init_locals pmap rmap fd =
     | _ -> assert false
   in
   Sv.iter add_local fv;
-  paramsi, !pmap, !rmap, fv, !has_stack
+  paramsi, !pmap, !rmap, fv
 
 (* ---------------------------------------------------------- *)
 
@@ -603,10 +616,11 @@ let alloc_fd local_alloc pmap rmap fd =
     | Subroutine {returned_params} -> returned_params
     | Internal -> assert false in
 
-  let paramsi, pmap, rmap, locals, sao_has_stack = 
-    init_locals pmap rmap fd in
+  let paramsi, pmap, rmap, locals = init_locals pmap rmap fd in
   let rmap, f_body = alloc_c local_alloc pmap rmap fd.f_body in
-  
+
+  let sao_has_stack = Region.has_stack rmap in
+
   let do_res x oi=
     let xv = L.unloc x in
     match xv.v_kind, oi with
@@ -656,7 +670,7 @@ let alloc_fd local_alloc pmap rmap fd =
 
   let sao_alloc = Mv.filter (fun x _mp -> Sv.mem x locals) pmap in
 
-  let sao_has_stack = sao_has_stack && fd.f_cc = Export in
+  let sao_has_stack = sao_has_stack (*&& fd.f_cc = Export *) in 
   let sao = 
     { sao_has_stack; sao_params; sao_return; sao_alloc } in
 
