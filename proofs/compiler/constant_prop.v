@@ -27,6 +27,7 @@
 From CoqWord Require Import ssrZ.
 Require Import expr ZArith psem.
 Require Import dead_code.
+Require Export low_memory.
 Import all_ssreflect all_algebra.
 Import Utf8.
 Import oseq.
@@ -54,6 +55,21 @@ Inductive leak_e_tree :=
 | LEAdr of pointer
 | LESub of (seq leak_e_tree).
 
+Inductive leakage_i_tree : Type :=
+  | Lassgn_tree : leak_e_tree -> leakage_i_tree
+  | Lopn_tree  : leak_e_tree ->leakage_i_tree
+  | Lcond_tree  : leak_e_tree -> bool -> seq leakage_i_tree -> leakage_i_tree
+  | Lwhile_true_tree : seq leakage_i_tree -> leak_e_tree -> seq leakage_i_tree -> leakage_i_tree -> leakage_i_tree
+  | Lwhile_false_tree : seq leakage_i_tree -> leak_e_tree -> leakage_i_tree
+  | Lfor_tree : leak_e_tree -> seq (seq leakage_i_tree) -> leakage_i_tree
+  | Lcall_tree : leak_e_tree -> (funname * seq leakage_i_tree) -> leak_e_tree -> leakage_i_tree.
+
+Notation leakage_c_tree := (seq leakage_i_tree).
+
+Notation leakage_for_tree := (seq leakage_c_tree) (only parsing).
+
+Notation leakage_fun_tree := (funname * leakage_c_tree)%type.
+
 Fixpoint trans_leakage (lt: leaktrans_e) (le:leak_e_tree) : leak_e_tree :=
   match lt, le with 
   | LET_id, _ => le
@@ -62,14 +78,15 @@ Fixpoint trans_leakage (lt: leaktrans_e) (le:leak_e_tree) : leak_e_tree :=
   | LET_sub _  , le        => LEempty (* assert false *)
   end.
 
-Fixpoint les_to_lest (les : leakages_e) : leak_e_tree := 
+(* WRONG: Two diff leakages can end up getting same leak_e_tree in this case *)
+(*Fixpoint les_to_lest (les : leakages_e) : leak_e_tree := 
   match les with 
   | [::] => LEempty 
   | l :: ls => match l with 
                | LeakAdr p => LESub [:: LEAdr p ; les_to_lest ls]
                | LeakIdx i => LESub [:: LEIdx i ; les_to_lest ls]
   end
-  end.
+  end.*)
 
 Section LEST_TO_LES.
 
@@ -87,57 +104,6 @@ Fixpoint lest_to_les (les : leak_e_tree) : leakages_e :=
   | LEAdr p => [:: LeakAdr p]
   | LESub les => lests_to_les lest_to_les les
   end.
-
-Section SEM_PEXPR_E.
-
-Context (gd: glob_decls).
-
-Fixpoint sem_pexpr_e (s:estate) (e : pexpr) : exec (value * leak_e_tree) :=
-  match e with
-  | Pconst z => ok (Vint z, LEempty)
-  | Pbool b  => ok (Vbool b, LEempty)
-  | Parr_init n => ok (Varr (WArray.empty n), LEempty)
-  | Pvar x => Let v := get_var s.(evm) x in 
-              ok (v, LEempty)
-  | Pglobal g => Let v := get_global gd g in 
-                 ok (v, LEempty)
-  | Pget ws x e =>
-      Let (n, t) := s.[x] in
-      Let vl := sem_pexpr_e s e in 
-      Let i := to_int vl.1 in 
-      Let w := WArray.get ws t i in
-      ok ((Vword w), LESub [:: vl.2; (LEIdx i)])
-  | Pload sz x e =>
-    Let w1 := get_var s.(evm) x >>= to_pointer in
-    Let vl2 := sem_pexpr_e s e in 
-    Let w2 := to_pointer vl2.1 in
-    let adr := (w1 + w2)%R in 
-    Let w  := read_mem s.(emem) adr sz in
-    ok (@to_val (sword sz) w, LESub [:: vl2.2; (LEAdr adr)])
-  | Papp1 o e1 =>
-    Let vl := sem_pexpr_e s e1 in
-    Let v := sem_sop1 o vl.1 in 
-    ok (v, vl.2)
-  | Papp2 o e1 e2 =>
-    Let vl1 := sem_pexpr_e s e1 in
-    Let vl2 := sem_pexpr_e s e2 in
-    Let v := sem_sop2 o vl1.1 vl2.1 in
-    ok (v, LESub ([:: vl1.2] ++ [:: vl2.2]))
-  | PappN op es =>
-    Let vs := mapM (sem_pexpr_e s) es in
-    Let v := sem_opN op (unzip1 vs) in
-    ok (v, LESub (unzip2 vs))
-  | Pif t e e1 e2 =>
-    Let vl := sem_pexpr_e s e in
-    Let b := to_bool vl.1in
-    Let vl1 := sem_pexpr_e s e1 in
-    Let vl2 := sem_pexpr_e s e2 in
-    Let v1 := truncate_val t vl1.1 in
-    Let v2 := truncate_val t vl2.1 in
-    ok (if b then v1 else v2, LESub ([:: vl.2] ++ [:: vl1.2] ++ [:: vl2.2]))
-  end.
-
-End SEM_PEXPR_E.
 
 Definition sword_of_int sz (e: pexpr*leaktrans_e) :=
   (Papp1 (Oword_of_int sz) e.1, LET_sub [::e.2]).
@@ -166,7 +132,7 @@ Definition snot_bool (e:pexpr*leaktrans_e) : (pexpr*leaktrans_e) :=
 
 Definition snot_w (sz: wsize) (e:pexpr*leaktrans_e) : (pexpr*leaktrans_e) :=
   match is_wconst sz e.1 with
-  | Some n => (wconst (wnot n),LET_sub [:: e.2])
+  | Some n => (wconst (wnot n),LET_remove)
   | None   => (Papp1 (Olnot sz) e.1, LET_sub [:: e.2])
   end.
 
@@ -200,40 +166,40 @@ Definition s_op1 o e :=
 
 Definition sand e1 e2 :=
   match is_bool e1.1, is_bool e2.1 with
-  | Some b, _ => if b then (e2.1, LET_sub [::LET_remove ; e2.2]) else (Pbool false, LET_remove)
-  | _, Some b => if b then (e1.1, LET_sub [::e1.2; LET_remove]) else (Pbool false, LET_remove)
+  | Some b, _ => if b then (e2.1, LET_sub [::LET_remove ; e2.2]) else (Pbool false, LET_sub [:: LET_remove; LET_remove])
+  | _, Some b => if b then (e1.1, LET_sub [::e1.2; LET_remove]) else (Pbool false, LET_sub [:: LET_remove; LET_remove])
   | _, _      => (Papp2 Oand e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 Definition sor e1 e2 :=
    match is_bool e1.1, is_bool e2.1 with
-  | Some b, _ => if b then (Pbool true, LET_remove) else (e2.1, LET_sub [:: LET_remove; LET_sub [:: e2.2]])
-  | _, Some b => if b then (Pbool true, LET_remove) else (e1.1, LET_sub [:: e1.2; LET_remove])
-  | _, _       => (Papp2 Oor e1.1 e2.1, LET_sub ([::LET_sub [:: e1.2]] ++ [::LET_sub [:: e2.2]]))
+  | Some b, _ => if b then (Pbool true, LET_sub [:: LET_remove; LET_remove]) else (e2.1, LET_sub [:: LET_remove; e2.2])
+  | _, Some b => if b then (Pbool true, LET_sub [:: LET_remove; LET_remove]) else (e1.1, LET_sub [:: e1.2; LET_remove])
+  | _, _       => (Papp2 Oor e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 (* ------------------------------------------------------------------------ *)
 
 Definition sadd_int e1 e2 :=
   match is_const e1.1, is_const e2.1 with
-  | Some n1, Some n2 => (Pconst (n1 + n2), LET_remove)
+  | Some n1, Some n2 => (Pconst (n1 + n2), LET_sub [:: LET_remove; LET_remove])
   | Some n, _ =>
-    if (n == 0)%Z then (e2.1, LET_sub [:: e2.2]) 
-                  else (Papp2 (Oadd Op_int) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+    if (n == 0)%Z then (e2.1, LET_sub [:: LET_remove; e2.2]) 
+                  else (Papp2 (Oadd Op_int) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   | _, Some n =>
-    if (n == 0)%Z then (e1.1, LET_sub [:: e1.2]) 
-                  else (Papp2 (Oadd Op_int) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
-  | _, _ => (Papp2 (Oadd Op_int) e1.1 e2.1, LET_sub ([::LET_sub [:: e1.2]] ++ [::LET_sub [:: e2.2]]))
+    if (n == 0)%Z then (e1.1, LET_sub [:: e1.2; LET_remove]) 
+                  else (Papp2 (Oadd Op_int) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
+  | _, _ => (Papp2 (Oadd Op_int) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 Definition sadd_w sz e1 e2 :=
   match is_wconst sz e1.1, is_wconst sz e2.1 with
-  | Some n1, Some n2 => (wconst (n1 + n2), LET_remove)
-  | Some n, _ => if n == 0%R then (e2.1, LET_sub [:: e2.2]) 
-                             else (Papp2 (Oadd (Op_w sz)) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
-  | _, Some n => if n == 0%R then (e1.1, LET_sub [:: e1.2]) 
-                             else (Papp2 (Oadd (Op_w sz)) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
-  | _, _ => (Papp2 (Oadd (Op_w sz)) e1.1 e2.1, LET_sub ([::LET_sub [:: e1.2]] ++ [::LET_sub [:: e2.2]]))
+  | Some n1, Some n2 => (wconst (n1 + n2), LET_sub [:: LET_remove; LET_remove])
+  | Some n, _ => if n == 0%R then (e2.1, LET_sub [:: LET_remove; e2.2]) 
+                             else (Papp2 (Oadd (Op_w sz)) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
+  | _, Some n => if n == 0%R then (e1.1, LET_sub [:: e1.2; LET_remove]) 
+                             else (Papp2 (Oadd (Op_w sz)) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
+  | _, _ => (Papp2 (Oadd (Op_w sz)) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 Definition sadd ty :=
@@ -244,19 +210,19 @@ Definition sadd ty :=
 
 Definition ssub_int e1 e2 :=
   match is_const e1.1, is_const e2.1 with
-  | Some n1, Some n2 => (Pconst (n1 - n2), LET_remove)
+  | Some n1, Some n2 => (Pconst (n1 - n2), LET_sub [:: LET_remove; LET_remove])
   | _, Some n =>
-    if (n == 0)%Z then (e1.1, LET_sub [:: e1.2]) 
-                  else (Papp2 (Osub Op_int) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
-  | _, _ => (Papp2 (Osub Op_int) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+    if (n == 0)%Z then (e1.1, LET_sub [:: e1.2; LET_remove]) 
+                  else (Papp2 (Osub Op_int) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
+  | _, _ => (Papp2 (Osub Op_int) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 Definition ssub_w sz e1 e2 :=
   match is_wconst sz e1.1, is_wconst sz e2.1 with
-  | Some n1, Some n2 => (wconst (n1 - n2), LET_remove)
-  | _, Some n => if n == 0%R then (e1.1, LET_sub [:: e1.2]) 
-                             else (Papp2 (Osub (Op_w sz)) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
-  | _, _ => (Papp2 (Osub (Op_w sz)) e1.1 e2.1, LET_sub ([:: LET_sub [::e1.2]] ++ [:: LET_sub [::e2.2]]))
+  | Some n1, Some n2 => (wconst (n1 - n2), LET_sub [:: LET_remove; LET_remove])
+  | _, Some n => if n == 0%R then (e1.1, LET_sub [:: e1.2; LET_remove]) 
+                             else (Papp2 (Osub (Op_w sz)) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
+  | _, _ => (Papp2 (Osub (Op_w sz)) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 Definition ssub ty :=
@@ -267,30 +233,30 @@ Definition ssub ty :=
 
 Definition smul_int e1 e2 :=
   match is_const e1.1, is_const e2.1 with
-  | Some n1, Some n2 => (Pconst (n1 * n2), LET_remove)
+  | Some n1, Some n2 => (Pconst (n1 * n2), LET_sub [:: LET_remove; LET_remove])
   | Some n, _ =>
-    if (n == 0)%Z then (Pconst 0, LET_remove)
-    else if (n == 1)%Z then (e2.1, LET_sub [:: e2.2])
-    else (Papp2 (Omul Op_int) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+    if (n == 0)%Z then (Pconst 0, LET_sub [:: LET_remove; LET_remove])
+    else if (n == 1)%Z then (e2.1, LET_sub [:: LET_remove; e2.2])
+    else (Papp2 (Omul Op_int) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   | _, Some n =>
-    if (n == 0)%Z then (Pconst 0, LET_remove)
-    else if (n == 1)%Z then (e1.1, LET_sub [:: e1.2])
-    else (Papp2 (Omul Op_int) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
-  | _, _ => (Papp2 (Omul Op_int) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+    if (n == 0)%Z then (Pconst 0, LET_sub [:: LET_remove; LET_remove])
+    else if (n == 1)%Z then (e1.1, LET_sub [:: e1.2; LET_remove])
+    else (Papp2 (Omul Op_int) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
+  | _, _ => (Papp2 (Omul Op_int) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 Definition smul_w sz e1 e2 :=
   match is_wconst sz e1.1, is_wconst sz e2.1 with
-  | Some n1, Some n2 => (wconst (n1 * n2), LET_remove)
+  | Some n1, Some n2 => (wconst (n1 * n2), LET_sub [:: LET_remove; LET_remove])
   | Some n, _ =>
-    if n == 0%R then (@wconst sz 0, LET_remove)
-    else if n == 1%R then (e2.1, LET_sub [::LET_remove ; LET_sub [:: e2.2]])
-    else (Papp2 (Omul (Op_w sz)) (wconst n) e2.1, LET_sub [::LET_remove ; LET_sub [:: e2.2]])
+    if n == 0%R then (@wconst sz 0, LET_sub [:: LET_remove; LET_remove])
+    else if n == 1%R then (e2.1, LET_sub [::LET_remove ; e2.2])
+    else (Papp2 (Omul (Op_w sz)) (wconst n) e2.1, LET_sub [::LET_remove ; e2.2])
   | _, Some n =>
-    if n == 0%R then (@wconst sz 0, LET_remove)
-    else if n == 1%R then (e1.1, LET_sub [::LET_remove ; LET_sub [:: e1.2]])
-    else (Papp2 (Omul (Op_w sz)) e1.1 (wconst n), LET_sub [::LET_remove ; LET_sub [:: e1.2]])
-  | _, _ => (Papp2 (Omul (Op_w sz)) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+    if n == 0%R then (@wconst sz 0, LET_sub [:: LET_remove; LET_remove])
+    else if n == 1%R then (e1.1, LET_sub [::e1.2; LET_remove])
+    else (Papp2 (Omul (Op_w sz)) e1.1 (wconst n), LET_sub [::e1.2; LET_remove])
+  | _, _ => (Papp2 (Omul (Op_w sz)) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 Definition smul ty :=
@@ -300,25 +266,25 @@ Definition smul ty :=
   end.
 
 Definition s_eq ty e1 e2 :=
-  if eq_expr e1.1 e2.1 then (Pbool true, LET_remove)
+  if eq_expr e1.1 e2.1 then (Pbool true, LET_sub [:: LET_remove; LET_remove])
   else
     match ty with
     | Op_int =>
       match is_const e1.1, is_const e2.1 with
-      | Some i1, Some i2 => (Pbool (i1 == i2), LET_remove)
-      | _, _             => (Papp2 (Oeq ty) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+      | Some i1, Some i2 => (Pbool (i1 == i2), LET_sub [:: LET_remove; LET_remove])
+      | _, _             => (Papp2 (Oeq ty) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
       end
     | Op_w sz =>
       match is_wconst sz e1.1, is_wconst sz e2.1 with
-      | Some i1, Some i2 => (Pbool (i1 == i2), LET_remove)
-      | _, _             => (Papp2 (Oeq ty) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+      | Some i1, Some i2 => (Pbool (i1 == i2), LET_sub [:: LET_remove; LET_remove])
+      | _, _             => (Papp2 (Oeq ty) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
       end
     end.
 
 Definition sneq ty e1 e2 :=
   match is_bool (s_eq ty e1 e2).1 with
   | Some b => (Pbool (~~ b), LET_remove)
-  | None      => (Papp2 (Oneq ty) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+  | None      => (Papp2 (Oneq ty) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 Definition is_cmp_const (ty: cmp_kind) (e: pexpr) : option Z :=
@@ -335,49 +301,49 @@ Definition is_cmp_const (ty: cmp_kind) (e: pexpr) : option Z :=
 Definition slt ty e1 e2 :=
   if eq_expr e1.1 e2.1 then (Pbool false, LET_remove)
   else match is_cmp_const ty e1.1, is_cmp_const ty e2.1 with
-  | Some n1, Some n2 => (Pbool (n1 <? n2)%Z, LET_remove)
-  | _      , _       => (Papp2 (Olt ty) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+  | Some n1, Some n2 => (Pbool (n1 <? n2)%Z, LET_sub [:: LET_remove; LET_remove])
+  | _      , _       => (Papp2 (Olt ty) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 Definition sle ty e1 e2 :=
   if eq_expr e1.1 e2.1 then (Pbool true, LET_remove)
   else match is_cmp_const ty e1.1, is_cmp_const ty e2.1 with
-  | Some n1, Some n2 => (Pbool (n1 <=? n2)%Z, LET_remove)
-  | _      , _       => (Papp2 (Ole ty) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+  | Some n1, Some n2 => (Pbool (n1 <=? n2)%Z, LET_sub [:: LET_remove; LET_remove])
+  | _      , _       => (Papp2 (Ole ty) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 Definition sgt ty e1 e2 :=
   if eq_expr e1.1 e2.1 then (Pbool false, LET_remove)
   else match is_cmp_const ty e1.1, is_cmp_const ty e2.1 with
-  | Some n1, Some n2 => (Pbool (n1 >? n2)%Z, LET_remove)
-  | _      , _       => (Papp2 (Ogt ty) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+  | Some n1, Some n2 => (Pbool (n1 >? n2)%Z, LET_sub [:: LET_remove; LET_remove])
+  | _      , _       => (Papp2 (Ogt ty) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 Definition sge ty e1 e2 :=
   if eq_expr e1.1 e2.1 then (Pbool true, LET_remove)
   else match is_cmp_const ty e1.1, is_cmp_const ty e2.1 with
-  | Some n1, Some n2 => (Pbool (n1 >=? n2)%Z, LET_remove)
-  | _      , _       => (Papp2 (Oge ty) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+  | Some n1, Some n2 => (Pbool (n1 >=? n2)%Z, LET_sub [:: LET_remove; LET_remove])
+  | _      , _       => (Papp2 (Oge ty) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 Definition sbitw i (z: ∀ sz, word sz → word sz → word sz) sz e1 e2 :=
   match is_wconst sz e1.1, is_wconst sz e2.1 with
-  | Some n1, Some n2 => (wconst (z sz n1 n2), LET_remove)
-  | _, _ => (Papp2 (i sz) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+  | Some n1, Some n2 => (wconst (z sz n1 n2), LET_sub [:: LET_remove; LET_remove])
+  | _, _ => (Papp2 (i sz) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 Definition soint i f e1 e2 :=
   match is_const e1.1, is_const e2.1 with
-  | Some n1, Some n2 =>  (Pconst (f n1 n2), LET_remove)
-  | _, _ => (Papp2 (i Cmp_int) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+  | Some n1, Some n2 =>  (Pconst (f n1 n2), LET_sub [:: LET_remove; LET_remove])
+  | _, _ => (Papp2 (i Cmp_int) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 Definition sbituw i (z: signedness -> ∀ sz, word sz → word sz → word sz) u sz e1 e2 :=
   match is_wconst sz e1.1, is_wconst sz e2.1 with
   | Some n1, Some n2 =>
-    if n2 == 0%R then (Papp2 (i (Cmp_w u sz)) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
-    else (wconst (z u sz n1 n2), LET_remove)
-  | _, _ => (Papp2 (i (Cmp_w u sz)) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+    if n2 == 0%R then (Papp2 (i (Cmp_w u sz)) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
+    else (wconst (z u sz n1 n2), LET_sub [:: LET_remove; LET_remove])
+  | _, _ => (Papp2 (i (Cmp_w u sz)) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 Definition sdiv ty (e1 e2:pexpr*leaktrans_e) :=
@@ -399,8 +365,8 @@ Definition slxor := sbitw Olxor (@wxor).
 
 Definition sbitw8 i (z: ∀ sz, word sz → u8 → word sz) sz e1 e2 :=
   match is_wconst sz e1.1, is_wconst U8 e2.1 with
-  | Some n1, Some n2 => (wconst (z sz n1 n2), LET_remove)
-  | _, _ => (Papp2 (i sz) e1.1 e2.1, LET_sub ([:: LET_sub [:: e1.2]] ++ [:: LET_sub [:: e2.2]]))
+  | Some n1, Some n2 => (wconst (z sz n1 n2), LET_sub [:: LET_remove; LET_remove])
+  | _, _ => (Papp2 (i sz) e1.1 e2.1, LET_sub ([:: e1.2; e2.2]))
   end.
 
 Definition sshr sz e1 e2 :=
@@ -534,8 +500,8 @@ Fixpoint const_prop_e (m:cpm) e : (pexpr * leaktrans_e) :=
     => (e, LET_remove)
   | Pvar  x       => if Mvar.get m x is Some n then (const n, LET_remove) else (e, LET_id)
   | Pglobal _     => (e, LET_id)
-  | Pget  sz x e0  => let v := (const_prop_e m e0) in (Pget sz x v.1, LET_sub ([:: v.2] ++ [:: LET_id]))
-  | Pload sz x e0  => let v := (const_prop_e m e0) in (Pload sz x v.1, LET_sub ([:: v.2] ++ [:: LET_id]))
+  | Pget  sz x e0  => let v := (const_prop_e m e0) in (Pget sz x v.1, LET_sub [:: v.2 ; LET_id])
+  | Pload sz x e0  => let v := (const_prop_e m e0) in (Pload sz x v.1, LET_sub [:: v.2 ; LET_id])
   | Papp1 o e0     => let v := (const_prop_e m e0) in (s_op1 o v)
   | Papp2 o e1 e2 => let v1 := (const_prop_e m e1) in
                      let v2 := (const_prop_e m e2) in 
@@ -738,7 +704,8 @@ Definition const_prop_prog (p : prog) : (prog * leaktrans_fs) :=
 (*Definition const_prop_prog (p:prog) := 
   map_prog const_prop_fun p. *)
 
-Section LEAK_TRANS.
+(****** NEED TO REDO THIS ********)
+(*Section LEAK_TRANS.
 
 Variable (Ffs : seq (funname * seq leaktrans_i)).
 
@@ -799,67 +766,258 @@ match lt, li with
   | _, _ => [:: li]
 end.
 
-End LEAK_TRANS.
+End LEAK_TRANS.*)
 
-Section Leakages_proof.
+Section SEM_PEXPR_E.
 
 Context (gd: glob_decls).
 
-  Context (s:estate).
+Fixpoint sem_pexpr_e (s:estate) (e : pexpr) : exec (value * leak_e_tree) :=
+  match e with
+  | Pconst z => ok (Vint z, LEempty)
+  | Pbool b  => ok (Vbool b, LEempty)
+  | Parr_init n => ok (Varr (WArray.empty n), LEempty)
+  | Pvar x => Let v := get_var s.(evm) x in 
+              ok (v, LEempty)
+  | Pglobal g => Let v := get_global gd g in 
+                 ok (v, LEempty)
+  | Pget ws x e =>
+      Let (n, t) := s.[x] in
+      Let vl := sem_pexpr_e s e in 
+      Let i := to_int vl.1 in 
+      Let w := WArray.get ws t i in
+      ok ((Vword w), LESub [:: vl.2; (LEIdx i)])
+  | Pload sz x e =>
+    Let w1 := get_var s.(evm) x >>= to_pointer in
+    Let vl2 := sem_pexpr_e s e in 
+    Let w2 := to_pointer vl2.1 in
+    let adr := (w1 + w2)%R in 
+    Let w  := read_mem s.(emem) adr sz in
+    ok (@to_val (sword sz) w, LESub [:: vl2.2; (LEAdr adr)])
+  | Papp1 o e1 =>
+    Let vl := sem_pexpr_e s e1 in
+    Let v := sem_sop1 o vl.1 in 
+    ok (v, LESub [:: vl.2])
+  | Papp2 o e1 e2 =>
+    Let vl1 := sem_pexpr_e s e1 in
+    Let vl2 := sem_pexpr_e s e2 in
+    Let v := sem_sop2 o vl1.1 vl2.1 in
+    ok (v, LESub ([:: vl1.2] ++ [:: vl2.2]))
+  | PappN op es =>
+    Let vs := mapM (sem_pexpr_e s) es in
+    Let v := sem_opN op (unzip1 vs) in
+    ok (v, LESub (unzip2 vs))
+  | Pif t e e1 e2 =>
+    Let vl := sem_pexpr_e s e in
+    Let b := to_bool vl.1in
+    Let vl1 := sem_pexpr_e s e1 in
+    Let vl2 := sem_pexpr_e s e2 in
+    Let v1 := truncate_val t vl1.1 in
+    Let v2 := truncate_val t vl2.1 in
+    ok (if b then v1 else v2, LESub ([:: vl.2] ++ [:: vl1.2] ++ [:: vl2.2]))
+  end.
+
+Definition sem_pexprs_e s es :=
+  Let vls := mapM (sem_pexpr_e s) es in
+  ok (unzip1 vls, LESub (unzip2 vls)).
+
+Definition write_lval_e (l:lval) (v:value) (s:estate) : exec (estate * leak_e_tree) :=
+  match l with
+  | Lnone _ ty => Let x := write_none s ty v in ok (x, LEempty)
+  | Lvar x => Let v' := write_var x v s in ok(v', LEempty)
+  | Lmem sz x e =>
+    Let vx := get_var (evm s) x >>= to_pointer in
+    Let vl := sem_pexpr_e s e in 
+    Let ve := to_pointer vl.1 in
+    let p := (vx + ve)%R in
+    Let w := to_word sz v in
+    Let m :=  write_mem s.(emem) p sz w in
+    ok ({| emem := m;  evm := s.(evm) |}, LESub [:: vl.2; (LEAdr p)])
+  | Laset ws x i =>
+    Let (n,t) := s.[x] in
+    Let vl := sem_pexpr_e s i in 
+    Let i := to_int vl.1 in
+    Let v := to_word ws v in
+    Let t := WArray.set t i v in
+    Let vm := set_var s.(evm) x (@to_val (sarr n) t) in
+    ok ({| emem := s.(emem); evm := vm |}, LESub [:: vl.2; (LEIdx i)])
+  end.
+
+Definition write_lvals_e (s:estate) xs vs :=
+   fold2 ErrType (fun l v sl => Let sl' := write_lval_e l v sl.1 in ok (sl'.1, LESub [:: sl.2 ; sl'.2]))
+      xs vs (s, LEempty).
+
+
+End SEM_PEXPR_E.
+
+Section Sem_e_Leakages_proof.
+
+Context (gd: glob_decls).
+
+Context (s:estate).
+
 Definition flatten_exec (p : exec (value * leak_e_tree)) := 
 Let v := p in 
 ok (v.1, lest_to_les v.2).
 
+Definition flatten_estate (p : exec (estate * leak_e_tree)) := 
+Let v := p in 
+ok (v.1, lest_to_les v.2).
+
+Definition flatten_range (p : exec (seq Z * leak_e_tree)) := 
+Let v := p in 
+ok (v.1, lest_to_les v.2).
+
+Fixpoint vlest_to_vles (p : seq (value * leak_e_tree)) := 
+match p with 
+| [::] => ([::])
+| x :: xl => ((x.1, lest_to_les x.2) :: vlest_to_vles xl)
+end.
+
+Definition flatten_execs (p : exec (seq (value * leak_e_tree))) := 
+Let v := p in 
+ok (vlest_to_vles v).
+
   Let P e : Prop := sem_pexpr gd s e = flatten_exec (sem_pexpr_e gd s e).
-  Let Q (es:pexprs) : Prop := True.
-(*sem_pexprs gd s es = flattens_exec (sem_pexpr_es gd s es).*)
+
+  Let Q (es:pexprs) : Prop := mapM (sem_pexpr gd s) es = flatten_execs (mapM (sem_pexpr_e gd s) es).
 
 
   Lemma const_prop_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
   Proof.
-    apply: pexprs_ind_pair; subst P Q; split => /=.
+    (*apply: pexprs_ind_pair; subst P Q; split => /=.*) admit.
+  Admitted.
+
+Lemma write_lval_cp s1 x v:
+  write_lval gd x v s1 = flatten_estate (write_lval_e gd x v s1).
+Proof.
+admit.
+Admitted.
+
+Lemma write_lvals_cp s1 x v:
+  write_lvals gd x v s1 = flatten_estate (write_lvals_e gd x v s1).
+Proof.
+admit.
+Admitted.
+
+End Sem_e_Leakages_proof.
+
+Section SEM_E.
+
+Variable P:prog.
+Notation gd := (p_globs P).
+
+Definition sem_range_e (s : estate) (r : range) :=
+  let: (d,pe1,pe2) := r in
+  Let vl1 := sem_pexpr_e gd s pe1 in 
+  Let i1 := to_int vl1.1 in 
+  Let vl2 := sem_pexpr_e gd s pe2 in 
+  Let i2 := to_int vl2.1 in
+  ok (wrange d i1 i2, LESub ([:: vl1.2] ++ [:: vl2.2])).
+
+Definition sem_sopn_e gd o m lvs args := 
+  Let vas := sem_pexprs_e gd m args in
+  Let vs := exec_sopn o vas.1 in 
+  Let ml := write_lvals_e gd m lvs vs in
+  ok (ml.1, LESub ([:: vas.2] ++ [::ml.2])).
 
 
-if b[1] then a[1] else a[2]   [ LeakId 1; LeakId 1; LeakId 2]
+Inductive sem_e : estate -> cmd -> leakage_c_tree -> estate -> Prop :=
+| Eskip_e s :
+    sem_e s [::] [::] s
+
+| Eseq_e s1 s2 s3 i c li lc :
+    sem_I_e s1 i li s2 -> sem_e s2 c lc s3 -> sem_e s1 (i::c) (li :: lc) s3
+
+with sem_I_e : estate -> instr -> leakage_i_tree -> estate -> Prop :=
+| EmkI_e ii i s1 s2 li:
+    sem_i_e s1 i li s2 ->
+    sem_I_e s1 (MkI ii i) li s2
+
+with sem_i_e : estate -> instr_r -> leakage_i_tree -> estate -> Prop :=
+| Eassgn_e s1 s2 (x:lval) tag ty e v v' l1 l2:
+    sem_pexpr_e gd s1 e = ok (v,l1) ->
+    truncate_val ty v = ok v' →
+    write_lval_e gd x v' s1 = ok (s2, l2) ->
+    sem_i_e s1 (Cassgn x tag ty e) (Lassgn_tree (LESub [::l1 ;l2])) s2
+
+| Eopn_e s1 s2 t o xs es lo:
+    sem_sopn_e gd o s1 xs es = ok (s2, lo) ->
+    sem_i_e s1 (Copn xs t o es) (Lopn_tree lo) s2
+
+| Eif_true_e s1 s2 e c1 c2 le lc:
+    sem_pexpr_e gd s1 e = ok (Vbool true, le) ->
+    sem_e s1 c1 lc s2 ->
+    sem_i_e s1 (Cif e c1 c2) (Lcond_tree le true lc) s2
+
+| Eif_false_e s1 s2 e c1 c2 le lc:
+    sem_pexpr_e gd s1 e = ok (Vbool false, le) ->
+    sem_e s1 c2 lc s2 ->
+    sem_i_e s1 (Cif e c1 c2) (Lcond_tree le false lc) s2
+
+| Ewhile_true_e s1 s2 s3 s4 a c e c' lc le lc' lw:
+    sem_e s1 c lc s2 ->
+    sem_pexpr_e gd s2 e = ok (Vbool true, le) ->
+    sem_e s2 c' lc' s3 ->
+    sem_i_e s3 (Cwhile a c e c') lw s4 ->
+    sem_i_e s1 (Cwhile a c e c') (Lwhile_true_tree lc le lc' lw) s4
+
+| Ewhile_false_e s1 s2 a c e c' lc le:
+    sem_e s1 c lc s2 ->
+    sem_pexpr_e gd s2 e = ok (Vbool false, le) ->
+    sem_i_e s1 (Cwhile a c e c') (Lwhile_false_tree lc le) s2
+
+| Efor_e s1 s2 (i:var_i) r c wr lr lf:
+    sem_range_e s1 r = ok (wr, lr) ->
+    sem_for_e i wr s1 c lf s2 ->
+    sem_i_e s1 (Cfor i r c) (Lfor_tree lr lf) s2
+
+| Ecall_e s1 m2 s2 ii xs f args vargs vs l1 lf l2:
+    sem_pexprs_e gd s1 args = ok (vargs, l1) ->
+    sem_call_e s1.(emem) f vargs lf m2 vs ->
+    write_lvals_e gd {|emem:= m2; evm := s1.(evm) |} xs vs = ok (s2, l2) ->
+    sem_i_e s1 (Ccall ii xs f args) (Lcall_tree l1 lf l2) s2
+
+with sem_for_e : var_i -> seq Z -> estate -> cmd -> leakage_for_tree -> estate -> Prop :=
+| EForDone_e s i c :
+    sem_for_e i [::] s c [::] s
+
+| EForOne_e s1 s1' s2 s3 i w ws c lc lw :
+    write_var i (Vint w) s1 = ok s1' ->
+    sem_e s1' c lc s2 ->
+    sem_for_e i ws s2 c lw s3 ->
+    sem_for_e i (w :: ws) s1 c (lc :: lw) s3
+
+with sem_call_e : Memory.mem -> funname -> seq value -> leakage_fun_tree -> Memory.mem -> seq value -> Prop :=
+| EcallRun_e m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc :
+    get_fundef (p_funcs P) fn = Some f ->
+    mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
+    write_vars f.(f_params) vargs (Estate m1 vmap0) = ok s1 ->
+    sem_e s1 f.(f_body) lc (Estate m2 vm2) ->
+    mapM (fun (x:var_i) => get_var vm2 x) f.(f_res) = ok vres ->
+    mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
+    sem_call_e m1 fn vargs' (fn, lc) m2 vres'.
+
+End SEM_E.
+
+Section SEM_LEAKAGES_PROOF.
+
+
+Lemma sem_range_cp p s1 r:
+  sem_range p s1 r = flatten_range (sem_range_e p s1 r).
+Proof.
+admit.
+Admitted.
+
+(** NEED TO HAVE A THEOREM ABOUT SEM AND SEM_E **)
+
+
+(*if b[1] then a[1] else a[2]   [ LeakId 1; LeakId 1; LeakId 2]
                            LEsub [ LEId 1; LEId 1; LEId 2]
 
 (b[1] + a[1]) + a[2]         [ LeakId 1; LeakId 1; LeakId 2]
-                        LEsub [LEsub [ LEId 1; LEId 1]; LEid 2]
+                        LEsub [LEsub [ LEId 1; LEId 1]; LEid 2]*)
 
 
-
-(*Lemma eq_sem_pexpr_l_sem_pexpr_e s1 e:
-sem_pexpr gd s1 e = flatten_exec (sem_pexpr_e gd s1 e).
-Proof.
-rewrite /sem_pexpr. rewrite /sem_pexpr_e.
-elim e.
-+ by move=> z /=.
-+ by move=> b /=.
-+ by move=> n /=.
-+ t_xrbindP. move=> h. rewrite /flatten_exec. t_xrbindP.
- simpl. intros. t_xrbindP.
-  
-
- t_xrbindP. apply: rbindP. t_xrbindP.*)
-
-
-Lemma eq_sem_pexpr_l_sem_pexpr_e_l s1 e v l:
-sem_pexpr gd s1 e = ok (v, l) ->
-exists2 ve, exists2 le,
-sem_pexpr_e gd s1 e = ok (ve, le) &
-l = (lest_to_les le) &
-value_uincl v ve.
-Proof.
-elim: e v l.
-+ move=> z v l H. exists z. exists LEempty. constructor. by case: H => H <- /=.
-  by case: H => -> _ /=.
-+ move=> b v l H. exists b. exists LEempty. constructor. by case: H => H <- /=.
-  by case: H => -> _ /=.
-+ move=> n v l H. exists (Varr (WArray.empty n)). exists LEempty. constructor.
-  by case: H => H <- /=. by case: H => -> _ /=.
-+ move=> x v l H. rewrite /sem_pexpr in H.
-  exists v. exists LEempty. simpl.
-  destruct LEempty.
-+ move=> g H. exists v. exists LEempty. constructor. *)
 
 
