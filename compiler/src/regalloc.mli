@@ -29,4 +29,4 @@ reported as killed. Subroutines report ALL killed registers.
 
  *)
 val alloc_prog : (Var0.Var.var -> var) -> (call_conv -> 'a -> bool) ->
- ('a * 'info func) list -> ('a * reg_oracle_t * unit func) list
+ ('a * 'info func) list -> ('a * reg_oracle_t * unit func) list * (var -> Sv.t)

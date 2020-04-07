@@ -216,7 +216,7 @@ Section CHECK.
         let W := writefun_ra writefun fn in
         let D1 := read_rvs_rec (Sv.diff D (vrvs xs)) xs in (* Remark read_rvs xs is empty since all variables *)
         let inter := Sv.inter D1 W in
-        Let _ := assert (Sv.is_empty inter) (ii, Cerr_needspill inter) in 
+        Let _ := assert (Sv.is_empty inter) (ii, Cerr_needspill (Sv.elements inter)) in
         ok (read_es_rec D1 es)
       else cierror ii (Cerr_linear "call to unknown function")
     end.

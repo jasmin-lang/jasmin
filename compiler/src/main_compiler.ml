@@ -23,6 +23,8 @@ let pp_clval tbl fmt lv =
   Conv.lval_of_clval tbl lv |>
   Printer.(pp_lval ~debug:true) fmt
 
+let saved_rev_alloc : (var -> Sv.t) option ref = ref None
+
 let rec pp_comp_err tbl fmt =
   let open Printer in
   function
@@ -86,10 +88,16 @@ let rec pp_comp_err tbl fmt =
     Format.fprintf fmt "linearisation error %a"
       pp_string0 s
   | Compiler_util.Cerr_needspill xs ->
-    let xs = Var0.Sv.elements xs in
-    let xs = List.map (Conv.var_of_cvar tbl) (Obj.magic xs) in
-    Format.fprintf fmt "Need to spill @[%a@]" 
-      (pp_list "@, " (pp_var ~debug:false)) xs
+     let pp =
+       match !saved_rev_alloc with
+       | None -> pp_var ~debug:false
+       | Some rev_alloc ->
+          fun fmt x ->
+          let s = rev_alloc x |> Sv.elements in
+          Format.fprintf fmt "%a { %a }" (pp_var ~debug: false) x (pp_list ";@ " (pp_var ~debug:true)) s
+     in
+     let xs = List.map (Conv.var_of_cvar tbl) xs in
+     Format.fprintf fmt "Need to spill @[%a@]" (pp_list "@ " pp) xs
   | Compiler_util.Cerr_assembler c ->
     begin match c with
     | Compiler_util.AsmErr_string s ->
@@ -328,7 +336,7 @@ let main () =
 
       (* register allocation *)
       let has_stack cc sao = cc = Export && sao.sao_has_stack in
-      let fds = Regalloc.alloc_prog translate_var has_stack fds in
+      let fds, _rev_alloc = Regalloc.alloc_prog translate_var has_stack fds in
 
       let atbl = Hf.create 117 in 
       let mk_oas (sao, ro, fd) = 
@@ -385,11 +393,12 @@ let main () =
     let global_regalloc sp = 
       if !debug then Format.eprintf "START regalloc@.";
       let (fds,_data) = Conv.prog_of_csprog tbl sp in
-      let fds = 
+      let fds, rev_alloc =
         Regalloc.alloc_prog translate_var (fun _cc extra ->
             match extra.Expr.sf_save_stack with
             | Expr.SavedStackReg _ | Expr.SavedStackStk _ -> true
             | Expr.SavedStackNone -> false) fds in
+      saved_rev_alloc := Some rev_alloc;
       let fds = List.map (fun (y,_,x) -> y, x) fds in
       let fds = List.map (Conv.csfdef_of_fdef tbl) fds in
       Expr.({

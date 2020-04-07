@@ -721,7 +721,21 @@ let post_process ~stack_needed (live: Sv.t) ~(killed: funname -> Sv.t) (f: _ fun
        else to_save, None, None
      end
 
-let global_allocation translate_var (funcs: 'info func list) : unit func list * (funname -> Sv.t) * (var -> var) =
+(** Useful for error messages: maps each register (after allocation) to the set
+of variables (before allocation) it implements *)
+let reverse_allocation nv vars (a: A.allocation) : var -> Sv.t =
+  let classes : Sv.t array lazy_t =
+    lazy (
+        let classes : var list array = Array.make nv [] in
+        Hv.iter (fun v i -> classes.(i) <- v :: classes.(i)) vars;
+        Array.map Sv.of_list classes
+      )
+  in
+  fun x ->
+  let s = A.rfind x a in
+  IntSet.fold (fun i -> Sv.union (Lazy.force classes).(i)) s Sv.empty
+
+let global_allocation translate_var (funcs: 'info func list) : unit func list * (funname -> Sv.t) * (var -> var) * (var -> Sv.t) =
   (* Preprocessing of functions:
     - ensure all variables are named (no anonymous assign)
     - split live ranges (caveat: do not forget to remove φ-nodes at the end)
@@ -766,7 +780,8 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
 
   List.map (fun f -> f |> Subst.subst_func subst |> Ssa.remove_phi_nodes) funcs,
   get_liveness,
-  var_subst_of_allocation vars a
+  var_subst_of_allocation vars a,
+  reverse_allocation nv vars a
 
 type reg_oracle_t = {
     ro_to_save: var list;  (* TODO: allocate them in the stack rather than push/pop *)
@@ -774,9 +789,10 @@ type reg_oracle_t = {
     ro_return_address: var option;
   }
 
-let alloc_prog translate_var (has_stack: call_conv -> 'a -> bool) (dfuncs: ('a * 'info func) list) : ('a * reg_oracle_t * unit func) list =
+let alloc_prog translate_var (has_stack: call_conv -> 'a -> bool) (dfuncs: ('a * 'info func) list)
+    : ('a * reg_oracle_t * unit func) list * (var -> Sv.t) =
   let extra : 'a Hf.t = Hf.create 17 in
-  let funcs, get_liveness, subst =
+  let funcs, get_liveness, subst, reva =
     dfuncs
     |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
     |> global_allocation translate_var
@@ -792,3 +808,4 @@ let alloc_prog translate_var (has_stack: call_conv -> 'a -> bool) (dfuncs: ('a *
       Hf.add killed_map f.f_name to_save;
       e, { ro_to_save = Sv.elements to_save ; ro_rsp ; ro_return_address }, f
     )
+  , reva
