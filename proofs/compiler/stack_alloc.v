@@ -184,28 +184,24 @@ Definition set_init rsp (rmap:regions) x pk :=
   end.
 
 Definition incl (r1 r2:regions) := 
-  Mvar.fold 
-    (fun x mp b => b && Mvar.get r2.(var_region) x == Some mp) r1.(var_region) true &&
-  Mmp.fold 
-    (fun mp xs b => b && 
-       let xs' := odflt Sv.empty (Mmp.get r2.(region_vars) mp) in
-       Sv.subset xs xs') r1.(region_vars) true.
+  Mvar.incl (fun x mp1 mp2 => mp1 == mp2) r1.(var_region) r2.(var_region) &&
+  Mmp.incl (fun x xs1 xs2 => Sv.subset xs1 xs2) r1.(region_vars) r2.(region_vars).
 
 Definition merge (r1 r2:regions) := 
   let vr := r2.(var_region) in
   let rv := r2.(region_vars) in
   {| var_region := 
-       Mvar.fold (fun x mp m =>
-         match Mvar.get vr x with
-         | Some mp' => if mp == mp' then Mvar.set m x mp else m
-         | None     => m
-         end) r1.(var_region) (Mvar.empty _);
+       Mvar.map2 (fun _ omp1 omp2 =>
+        match omp1, omp2 with
+        | Some mp1, Some mp2 => if mp1 == mp2 then omp1 else None
+        | _, _ => None
+        end) r1.(var_region) r2.(var_region);
      region_vars := 
-       Mmp.fold (fun mp xs m =>
-         match Mmp.get rv mp with
-         | Some xs' => Mmp.set m mp (Sv.inter xs xs')
-         | None     => m
-         end) r1.(region_vars) (Mmp.empty _); |}.
+       Mmp.map2 (fun _ oxs1 oxs2 =>
+         match oxs1, oxs2 with
+         | Some xs1, Some xs2 => Some (Sv.inter xs1 xs2)
+         | _ , _ => None
+         end) r1.(region_vars) r2.(region_vars) |}.
   
 End Region.
 

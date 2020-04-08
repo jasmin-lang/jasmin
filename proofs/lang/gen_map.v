@@ -138,6 +138,19 @@ Module Type MAP.
     (K.t -> option T1 -> option T2 -> option T3) ->
     t T1 -> t T2 -> t T3.
 
+  Parameter incl : forall {T1 T2},
+     (K.t -> T1 -> T2 -> bool) ->
+     t T1 -> t T2 -> bool.
+
+  Parameter all : forall {T},
+    (K.t -> T -> bool) ->
+    t T -> bool.
+  
+  Parameter has : 
+    forall {T},
+      (K.t -> T -> bool) ->
+      t T -> bool.
+
   Parameter elements : forall {T}, t T -> seq (K.t * T).
   Parameter fold : forall {T A}, (K.t -> T -> A -> A) -> t T -> A -> A.
 
@@ -186,6 +199,21 @@ Module Type MAP.
   Parameter foldP : forall {T A} (f:K.t -> T -> A -> A) m a,
     fold f m a = foldl (fun a (kv:K.t * T) => f kv.1 kv.2 a) a (elements m).
 
+  Parameter inclP : forall {T1 T2} (f:K.t -> T1 -> T2 -> bool) (m1: t T1) (m2: t T2),
+     incl f m1 m2 ->
+     forall k, 
+       match get m1 k, get m2 k with
+       | None, _          => true
+       | Some _, None     => false
+       | Some t1, Some t2 => f k t1 t2
+       end.
+
+  Parameter allP : forall {T} (f: K.t -> T -> bool) (m: t T),
+    all f m <-> (forall k t, get m k = Some t -> f k t).
+
+  Parameter hasP : forall {T} (f: K.t -> T -> bool) (m: t T),
+    has f m <-> (exists k t, get m k = Some t /\ f k t).
+
   Parameter in_codomP : forall {T:eqType} (m:t T) v,
     in_codom v m <-> exists k, m.[k] = Some v.
 
@@ -225,8 +253,42 @@ Module Mmake (K':CmpType) <: MAP.
 
   Definition fold     := Map.fold.
 
+  Section QUANT.
+    Context (T1:Type) (T2:Type) (f: K.t -> T1 -> bool) (f2: K.t -> T1 -> T2 -> bool).
+
+    Fixpoint all_t (t:Map.Raw.tree T1) := 
+      match t with
+      | Map.Raw.Leaf => true
+      | Map.Raw.Node t1 k x t2 _ => f k x && all_t t1 && all_t t2
+      end.
+
+    Fixpoint has_t (t:Map.Raw.tree T1) := 
+      match t with
+      | Map.Raw.Leaf => false
+      | Map.Raw.Node t1 k x t2 _ => f k x || has_t t1 || has_t t2
+      end.
+
+    Fixpoint incl_t (t1:Map.Raw.tree T1) (t2:Map.Raw.tree T2) :=
+      match t1 with
+      | Map.Raw.Leaf => true
+      | Map.Raw.Node t11 k x1 t12 _ =>
+        let '(Map.Raw.mktriple t21 ox2 t22) := Map.Raw.split k t2 in
+        match ox2 with
+        | None => false
+        | Some x2 => 
+          f2 k x1 x2 && incl_t t11 t21 && incl_t t12 t22
+        end
+      end.
+
+    Definition all (m: t T1) := all_t (Map.this m).
+    Definition has (m: t T1) := has_t (Map.this m).
+
+    Definition incl (m1: t T1) (m2: t T2) := incl_t (Map.this m1) (Map.this m2).
+    
+   End QUANT.
+
   Definition in_codom {T:eqType} v (m:t T) :=
-    fold (fun k (v':T) b => b || (v == v')) m false.
+    has (fun _ v' => v == v') m.
 
   Lemma raw_map2_bst {T1 T2 T3} (f:K.t -> option T1 -> option T2 -> option T3) m1 m2:
     Map.Raw.bst (raw_map2 f (Map.this m1) (Map.this m2)).
@@ -375,22 +437,33 @@ Module Mmake (K':CmpType) <: MAP.
     by elim: Map.elements a=> //=.
   Qed.
 
+  Lemma allP {T} (f: K.t -> T -> bool) (m: t T) :
+    all f m <-> (forall k t, get m k = Some t -> f k t).
+  Proof.
+  Admitted.
+
+  Lemma hasP : forall {T} (f: K.t -> T -> bool) (m: t T),
+    has f m <-> (exists k t, get m k = Some t /\ f k t).
+  Proof.
+  Admitted.
+
+  Lemma inclP : forall {T1 T2} (f:K.t -> T1 -> T2 -> bool) (m1: t T1) (m2: t T2),
+     incl f m1 m2 ->
+     forall k, 
+       match get m1 k, get m2 k with
+       | None, _          => true
+       | Some _, None     => false
+       | Some t1, Some t2 => f k t1 t2
+       end.
+  Proof.
+  Admitted.
+
   Lemma in_codomP : forall {T:eqType} (m:t T) v,
     in_codom v m <-> exists k, m.[k] = Some v.
   Proof.
-    rewrite /in_codom=> T m v;rewrite foldP.
-    have ->: (exists k : K.t, m.[k] = Some v) <->
-             (exists k : K.t, (k,v) \in elements m).
-    + by split;move=> [k /(elementsP (k,v)) H];exists k.
-    elim: (elements m) => /= [ | k ks Hrec].
-    + by split => // -[k H].
-    case: eqP => [-> | Hdiff].
-    + have -> : foldl (fun (a : bool) (p : Map.key * T) => a || (k.2 == p.2))true ks.
-      + elim ks => //=.
-      by split=> // _;exists k.1;case k=> /= ??;rewrite in_cons eq_refl.
-    rewrite Hrec;split=> -[k' Hk];exists k'.
-    + by rewrite in_cons orbC Hk.
-    by move: Hk;rewrite in_cons => /orP [/eqP H|//];subst;elim:Hdiff.
+    rewrite /in_codom => T m v; rewrite hasP; split.
+    + by move=> [k [t [H1 /eqP ->]]]; exists k.
+    by move=> [k H];exists k, v.
   Qed.
 
 End Mmake.
