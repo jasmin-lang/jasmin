@@ -94,10 +94,10 @@ let rec pp_comp_err tbl fmt =
        | Some rev_alloc ->
           fun fmt x ->
           let s = rev_alloc x |> Sv.elements in
-          Format.fprintf fmt "%a { %a }" (pp_var ~debug: false) x (pp_list ";@ " (pp_var ~debug:true)) s
+          Format.fprintf fmt "@[%a {@[ %a @]}@]" (pp_var ~debug: false) x (pp_list ";@ " (pp_var ~debug:true)) s
      in
      let xs = List.map (Conv.var_of_cvar tbl) xs in
-     Format.fprintf fmt "Need to spill @[%a@]" (pp_list "@ " pp) xs
+     Format.fprintf fmt "Need to spill @[<v>%a@]" (pp_list "@ " pp) xs
   | Compiler_util.Cerr_assembler c ->
     begin match c with
     | Compiler_util.AsmErr_string s ->
