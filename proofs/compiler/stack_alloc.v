@@ -431,17 +431,19 @@ Definition move_pk pk dx vy :=
   | Pstkptr z     => mov_ptr dx (Pload Uptr (with_var vy pmap.(vrsp)) (cast_const z))
   end.
 
-Definition get_addr rmap x dx y := 
+Definition get_addr is_spilling rmap x dx y := 
   let vy := y.(gv) in 
   Let ir := 
     if is_glob y then 
       Let ofsa := get_global vy in
       let mpy := (mp_glob pmap.(vrip) ofsa) in
       let ir := 
-        match Mvar.get rmap.(var_region) x with
-        | None => lea_ptr dx vy pmap.(vrip) ofsa.1
-        | Some mpx => if mem_pos_same mpx mpy then nop else lea_ptr dx vy pmap.(vrip) ofsa.1 
-        end in
+        if is_spilling then
+          match Mvar.get rmap.(var_region) x with
+          | None => lea_ptr dx vy pmap.(vrip) ofsa.1
+          | Some mpx => if (mpx == mpy) then nop else lea_ptr dx vy pmap.(vrip) ofsa.1 
+          end 
+        else lea_ptr dx vy pmap.(vrip) ofsa.1 in
       ok (mpy, ir)
     else
       match get_local vy with
@@ -449,10 +451,13 @@ Definition get_addr rmap x dx y :=
       | Some pk => 
         Let mpy := Region.check_valid rmap vy in   
         let ir := 
-          match Mvar.get rmap.(var_region) x with
-          | None => move_pk pk dx vy
-          | Some mpx => if mpx == mpy then nop else move_pk pk dx vy
-          end in
+          if is_spilling then 
+            match Mvar.get rmap.(var_region) x with
+            | None => move_pk pk dx vy
+            | Some mpx => if mpx == mpy then nop else move_pk pk dx vy
+            end
+          else move_pk pk dx vy
+        in
         ok (mpy, ir)
       end in
   let rmap := Region.set rmap x ir.1 in
@@ -476,9 +481,9 @@ Definition alloc_array_move rmap r e :=
       let rmap := Region.set rmap x mp in
       ok (rmap, nop)
     | Pregptr p =>
-      get_addr rmap x (Lvar (with_var x p)) y
+      get_addr false rmap x (Lvar (with_var x p)) y
     | Pstkptr z =>
-      get_addr rmap x (Lmem Uptr (with_var x pmap.(vrsp)) (cast_ptr z)) y
+      get_addr true rmap x (Lmem Uptr (with_var x pmap.(vrsp)) (cast_ptr z)) y
     end
   end.
  

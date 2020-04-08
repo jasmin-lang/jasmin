@@ -363,13 +363,13 @@ let lea_ptr x ptr =
 let mov_ptr x ptr =
   Copn([x], AT_none, Expr.Ox86 (MOV U64), [ptr])
 
-let get_addr rmap x dx y = 
+let get_addr is_spilling rmap x dx y = 
   let yv = y.gv in
   let mpy = Region.check_valid rmap y.gv in
   let py = L.mk_loc (L.loc yv) mpy.mp_p in
   let i = 
     match Region.get_mp_opt rmap x with
-    | Some mpx when mp_equal mpx mpy -> nop
+    | Some mpx when is_spilling && mp_equal mpx mpy -> nop
     | _ ->
       if is_gkvar y then
         match (L.unloc yv).v_kind with
@@ -399,9 +399,9 @@ let alloc_array_move pmap rmap r e =
         let rmap = Region.set rmap x mpy in
         (rmap, nop)
       | Stack (Pointer _)->
-        get_addr rmap x (Lmem(U64, mk_addr x pk, icnst 0)) y
+        get_addr true rmap x (Lmem(U64, mk_addr x pk, icnst 0)) y
       | Reg (Pointer _) ->
-        get_addr rmap x (Lvar (mk_addr x pk)) y
+        get_addr false rmap x (Lvar (mk_addr x pk)) y
       | _ -> assert false 
       end          
     end
