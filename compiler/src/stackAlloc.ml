@@ -237,9 +237,9 @@ end
     | IMP_error _, _ -> true
     
   let incl r1 r2 = 
-    (* r2.has_stack => r1.has_stack *)
-    ( wsize_le r2.call_align r1.call_align) && 
-    ( not r2.has_stack || r1.has_stack ) && 
+    ( wsize_le r1.call_align r2.call_align) && 
+    (* r1.has_stack => r2.has_stack *)
+    ( not r1.has_stack || r2.has_stack ) && 
     Mv.for_all (fun x imp1 -> 
         try imp_incl imp1 (Mv.find x r2.var_region) 
         with Not_found -> 
