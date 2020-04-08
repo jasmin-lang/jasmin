@@ -408,9 +408,9 @@ let main () =
       if !debug then Format.eprintf "START regalloc@.";
       let (fds,_data) = Conv.prog_of_csprog tbl sp in
       (* TODO: move *)
-      (* Check the stacksize annotation, if any *)
-      List.iter (fun ({ Expr.sf_stk_sz }, { f_annot ; f_name }) ->
-          match List.assoc_opt "stacksize" f_annot with
+      (* Check the stacksize & stackalign annotations, if any *)
+      List.iter (fun ({ Expr.sf_stk_sz ; Expr.sf_align }, { f_annot ; f_name }) ->
+          begin match List.assoc_opt "stacksize" f_annot with
           | None -> ()
           | Some ssz ->
              let actual = Conv.bi_of_z sf_stk_sz in
@@ -418,6 +418,15 @@ let main () =
              if B.equal actual expected
              then (if !debug then Format.eprintf "INFO: %s has the expected stack size (%s)@." f_name.fn_name ssz)
              else hierror "Function %s has a stack of size %a (expected: %s)" f_name.fn_name B.pp_print actual ssz
+          end;
+          begin match List.assoc_opt "stackalign" f_annot with
+          | None -> ()
+          | Some expected ->
+             let actual = string_of_ws sf_align in
+             if String.equal actual expected
+             then (if !debug then Format.eprintf "INFO: %s has the expected stack alignment (%s)@." f_name.fn_name expected)
+             else hierror "Function %s has a stack alignment %s (expected: %s)" f_name.fn_name actual expected
+          end
         ) fds;
       let fds, rev_alloc, extra_free_registers =
         Regalloc.alloc_prog translate_var (fun _cc extra ->

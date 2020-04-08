@@ -14,3 +14,20 @@ reg u64 result;
 result = copy(arg);
 return result;
 }
+
+#[returnaddress="stack"]
+fn copy32(reg u32 x) -> reg u32 {
+reg u32 r;
+stack u32 t;
+t = x;
+r = t;
+return r;
+}
+
+#[stacksize="0", stackalign="u64"]
+export
+fn main32(reg u32 arg) -> reg u32 {
+reg u32 result;
+result = copy32(arg);
+return result;
+}
