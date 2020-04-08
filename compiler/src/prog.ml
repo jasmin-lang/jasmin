@@ -383,7 +383,7 @@ let rec written_vars_i ((v, f) as acc) i =
   | Copn(xs, _, _, _)
     -> List.fold_left written_lv v xs, f
   | Ccall(_, xs, fn, _) ->
-     List.fold_left written_lv v xs, Sf.add fn f
+     List.fold_left written_lv v xs, Mf.modify_def [ i.i_loc ] fn (fun old -> i.i_loc :: old) f
   | Cif(_, s1, s2)
   | Cwhile(_, s1, _, s2)
     -> written_vars_stmt (written_vars_stmt acc s1) s2
@@ -392,7 +392,7 @@ and written_vars_stmt acc s =
   List.fold_left written_vars_i acc s
 
 let written_vars_fc fc =
-  written_vars_stmt (Sv.empty, Sf.empty) fc.f_body
+  written_vars_stmt (Sv.empty, Mf.empty) fc.f_body
 
 (* -------------------------------------------------------------------- *)
 (* Functions on types                                                   *)

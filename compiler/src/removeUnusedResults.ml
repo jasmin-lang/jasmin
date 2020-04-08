@@ -15,7 +15,7 @@ let analyse funcs =
   List.iter (fun (_,f) -> Hf.add liveness_table f.f_name (Liveness.live_fd false f)) funcs;
   let live_results =
     let live : Sint.t Hf.t = Hf.create 17 in
-    Hf.iter (fun _fn -> Liveness.iter_call_sites (fun fn xs s ->
+    Hf.iter (fun _fn -> Liveness.iter_call_sites (fun _loc fn xs s ->
                             let r = used_results s xs in
                             Hf.modify_def r fn (Sint.union r) live
       )) liveness_table;

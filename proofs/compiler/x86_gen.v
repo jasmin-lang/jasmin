@@ -24,22 +24,15 @@ Definition assemble_i rip (i: linstr) : ciexec asm :=
   | Ligoto e =>
     Let arg := assemble_word rip ii Uptr None e in
     ciok (JMPI arg)
-
   | LstoreLabel x lbl =>
     let fail (msg: string) := cierror ii (Cerr_assembler (AsmErr_string ("store-label: " ++ msg))) in
     Let dst := match x with
-    | Lvar x => if register_of_var x is Some r then ok (Reg r) else fail "bad var"%string
-    | Lmem sz b ofs =>
-      (*
-      if register_of_var b is Some r then
-        ok (inr (Areg (mkAddress 
-      else fail "bad mem"
-*)
-      fail "todo"%string
-    | Laset _ _ _ _ => fail "set array"%string
-    | Lasub _ _ _ _ _ => fail "sub array"%string
-    | Lnone _ _ => fail "none"%string
-    end in
+    | Lvar x => if register_of_var x is Some r then ok (Reg r) else fail "bad var"
+    | Lmem _ _ _ => fail "set mem"
+    | Laset _ _ _ _ => fail "set array"
+    | Lasub _ _ _ _ _ => fail "sub array"
+    | Lnone _ _ => fail "none"
+    end%string in
     ciok (STORELABEL dst lbl)
 
   | Lcond e l =>
@@ -120,7 +113,7 @@ Lemma assemble_i_is_label rip a b lbl :
   linear.is_label lbl a = x86_sem.is_label lbl b.
 Proof.
 by (rewrite /assemble_i /linear.is_label ; case a =>  ii []; t_xrbindP) => /=
-  [????? <- | [<-] | ? [<-] | ? [<-] | _ ? _ [<-] | [] // _ ?? _ [<-] | ???? [<-]].
+  [????? <- | [<-] | ? [<-] | ? [<-] | _ ? _ [<-] | _ ?? _ [<-] | ???? [<-]].
 Qed.
 
 Lemma assemble_c_find_is_label rip c i lbl:

@@ -98,7 +98,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     else type_error
   | LstoreLabel x lbl =>
     if encode_label (lfn s1, lbl) is Some p then
-      Let s2 := sem_sopn [::]  (Ox86 (MOV Uptr)) (to_estate s1) [:: x ] [:: wconst p ] in
+      Let s2 := sem_sopn [::]  (Ox86 (LEA Uptr)) (to_estate s1) [:: x ] [:: wconst p ] in
       ok (of_estate s2 s1.(lfn) s1.(lc) s1.(lpc).+1)
     else type_error
   | Lcond e lbl =>

@@ -642,10 +642,13 @@ let var_subst_of_allocation (vars: int Hv.t)
     oget ~exn:Not_found (A.find i a)
   with Not_found -> v
 
-let subst_of_allocation vars (a: A.allocation) v : expr =
+let subst_of_var_subst (s: var -> var) (v: var L.located) : expr =
   let m = L.loc v in
   let v = L.unloc v in
-  Pvar (gkvar (L.mk_loc m (var_subst_of_allocation vars a v)))
+  Pvar (gkvar (L.mk_loc m (s v)))
+
+let subst_of_allocation vars a =
+  var_subst_of_allocation vars a |> subst_of_var_subst
 
 let reverse_varmap nv (vars: int Hv.t) : A.allocation =
   let a = A.empty nv in
@@ -675,7 +678,8 @@ let is_subroutine = function
 (** Returns extra information (k, rsp, ra) depending on the calling convention.
 
  - Subroutines:
-   - ra: a free register for the return address of f (caveat: may be live at the call-site)
+   - ra: a free register for the return address of f (caveat: may be live at the call-site),
+        unless the function is annotated with “returnaddress="stack"”
    - k: all registers overwritten by a call to f (including ra)
    - rsp: None
 
@@ -685,10 +689,18 @@ let is_subroutine = function
     - ra: None
 
 *)
-let post_process ~stack_needed (live: Sv.t) ~(killed: funname -> Sv.t) (f: _ func) : Sv.t * var option * var option =
+let post_process ~stack_needed ~extra_free_registers (live: Sv.t) ~(killed: funname -> Sv.t) (f: _ func) : Sv.t * var option * var option =
   let killed_in_f =
     let fv, cg = written_vars_fc f in
-    let killed_by_calls = Sf.fold (fun n -> Sv.union (killed n)) cg Sv.empty in
+    let killed_by_calls =
+      Mf.fold (fun n locs acc ->
+          let acc = Sv.union (killed n) acc in
+          List.fold_left (fun acc loc ->
+              match extra_free_registers loc with
+              | None -> acc
+              | Some r -> Sv.add r acc
+            ) acc locs
+        ) cg Sv.empty in
     Sv.union fv killed_by_calls
   in
   let allocatable = X64.allocatables in
@@ -699,9 +711,12 @@ let post_process ~stack_needed (live: Sv.t) ~(killed: funname -> Sv.t) (f: _ fun
   | Subroutine _ ->
      begin
        assert (not stack_needed);
-       let globally_free_regs = Sv.diff free_regs live in
        let ra =
-         match Sv.Exceptionless.any globally_free_regs with
+       match List.assoc "returnaddress" f.f_annot with
+       | exception Not_found
+       | "reg" ->
+         let globally_free_regs = Sv.diff free_regs live in
+         begin match Sv.Exceptionless.any globally_free_regs with
          | None ->
             begin match Sv.any free_regs with
             | r -> Some r
@@ -709,6 +724,8 @@ let post_process ~stack_needed (live: Sv.t) ~(killed: funname -> Sv.t) (f: _ fun
                hierror "There is no free register for the return address in function “%s”" f.f_name.fn_name
             end
          | r -> r
+         end
+       | _ -> None
        in
        killed_in_f, None, ra
      end
@@ -735,7 +752,28 @@ let reverse_allocation nv vars (a: A.allocation) : var -> Sv.t =
   let s = A.rfind x a in
   IntSet.fold (fun i -> Sv.union (Lazy.force classes).(i)) s Sv.empty
 
-let global_allocation translate_var (funcs: 'info func list) : unit func list * (funname -> Sv.t) * (var -> var) * (var -> Sv.t) =
+(** Implementing the calling conventions (storing the return address on the stack) may need an extra register
+      This chooses a free register for each call site (to a rastack). *)
+let chose_extra_free_registers get_annot (live: Sv.t) (f: (Sv.t * Sv.t) func) (subst: var -> var) (tbl: (i_loc, var) Hashtbl.t) : unit =
+  let live = Sv.map subst live in
+  Liveness.iter_call_sites (fun i fn _xs s ->
+      match List.assoc "returnaddress" (get_annot fn) with
+      | "stack" ->
+      begin
+        let all = X64.allocatable |> Sv.of_list in
+        let locally_free = Sv.diff all (Sv.map subst s) in
+        let globally_free = Sv.diff locally_free live in
+        match Sv.Exceptionless.any globally_free with
+        | Some r -> Hashtbl.add tbl i r
+        | None ->
+           match Sv.Exceptionless.any locally_free with
+           | Some r -> Hashtbl.add tbl i r
+           | None -> () (* TODO: warning? *)
+      end
+      | _ | exception Not_found -> ()
+    ) f
+
+let global_allocation translate_var (funcs: 'info func list) : unit func list * (funname -> Sv.t) * (var -> var) * (var -> Sv.t) * (i_loc -> var option) =
   (* Preprocessing of functions:
     - ensure all variables are named (no anonymous assign)
     - split live ranges (caveat: do not forget to remove φ-nodes at the end)
@@ -743,8 +781,11 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
 
     Initial 'info are preserved in the result.
    *)
+  let annot_table : (string * string) list Hf.t = Hf.create 17 in
+  let get_annot fn = Hf.find_default annot_table fn [] in
   let liveness_table : (Sv.t * Sv.t) func Hf.t = Hf.create 17 in
   let preprocess f =
+    Hf.add annot_table f.f_name f.f_annot;
     let f = f |> fill_in_missing_names |> Ssa.split_live_ranges false in
     Hf.add liveness_table f.f_name (Liveness.live_fd true f);
     f
@@ -754,7 +795,7 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
   let get_liveness =
     let live : Sv.t Hf.t = Hf.create 17 in
     let collect_call_sites _fn f =
-      Liveness.iter_call_sites (fun fn xs s ->
+      Liveness.iter_call_sites (fun _loc fn xs s ->
           let s = Liveness.dep_lvs s xs in
           Hf.modify_def s fn (Sv.union s) live) f
     in
@@ -776,12 +817,18 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
   let a = A.empty nv in
   List.iter (fun f -> allocate_forced_registers translate_var vars conflicts f a) funcs;
   greedy_allocation vars nv conflicts may_conflicts fr a;
-  let subst = subst_of_allocation vars a in
+  let subst = var_subst_of_allocation vars a in
 
-  List.map (fun f -> f |> Subst.subst_func subst |> Ssa.remove_phi_nodes) funcs,
+  let extra_free_registers = Hashtbl.create 137 in
+  Hf.iter (fun fn f ->
+      chose_extra_free_registers get_annot (get_liveness fn) f subst extra_free_registers
+    ) liveness_table;
+
+  List.map (fun f -> f |> Subst.subst_func (subst_of_var_subst subst) |> Ssa.remove_phi_nodes) funcs,
   get_liveness,
   var_subst_of_allocation vars a,
   reverse_allocation nv vars a
+  , Hashtbl.find_opt extra_free_registers
 
 type reg_oracle_t = {
     ro_to_save: var list;  (* TODO: allocate them in the stack rather than push/pop *)
@@ -790,9 +837,9 @@ type reg_oracle_t = {
   }
 
 let alloc_prog translate_var (has_stack: call_conv -> 'a -> bool) (dfuncs: ('a * 'info func) list)
-    : ('a * reg_oracle_t * unit func) list * (var -> Sv.t) =
+    : ('a * reg_oracle_t * unit func) list * (var -> Sv.t) * (i_loc -> var option) =
   let extra : 'a Hf.t = Hf.create 17 in
-  let funcs, get_liveness, subst, reva =
+  let funcs, get_liveness, subst, reva, extra_free_registers =
     dfuncs
     |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
     |> global_allocation translate_var
@@ -803,9 +850,10 @@ let alloc_prog translate_var (has_stack: call_conv -> 'a -> bool) (dfuncs: ('a *
   List.rev_map (fun f ->
       let e = Hf.find extra f.f_name in
       let stack_needed = has_stack f.f_cc e in
-      let to_save, ro_rsp, ro_return_address = post_process ~stack_needed ~killed (Sv.map subst (get_liveness f.f_name)) f in
+      let to_save, ro_rsp, ro_return_address = post_process ~stack_needed ~killed ~extra_free_registers (Sv.map subst (get_liveness f.f_name)) f in
       let to_save = match ro_return_address with Some ra -> Sv.add ra to_save | None -> to_save in
       Hf.add killed_map f.f_name to_save;
       e, { ro_to_save = Sv.elements to_save ; ro_rsp ; ro_return_address }, f
     )
   , reva
+  , extra_free_registers

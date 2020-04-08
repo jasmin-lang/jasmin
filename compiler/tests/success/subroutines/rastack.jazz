@@ -1,0 +1,16 @@
+#[returnaddress="stack", stacksize="16"]
+fn copy(reg u64 x) -> reg u64 {
+reg u64 r;
+stack u64 t;
+t = x;
+r = t;
+return r;
+}
+
+#[stacksize="0"]
+export
+fn main(reg u64 arg) -> reg u64 {
+reg u64 result;
+result = copy(arg);
+return result;
+}

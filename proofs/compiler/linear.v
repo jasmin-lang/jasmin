@@ -99,7 +99,7 @@ Record lprog :=
 (* Uniq vmap                                                                   *)
 
 Section PROG.
-Context (p:sprog).
+Context (p:sprog) (extra_free_registers: instr_info -> option var).
 
 Section WRITE1.
 
@@ -128,7 +128,11 @@ Section WRITE1.
     end
   with write_I_rec s i :=
     match i with
-    | MkI _ i => write_i_rec s i
+    | MkI ii i =>
+      let result := write_i_rec s i in
+      if extra_free_registers ii is Some r
+      then Sv.add r result
+      else result
     end.
 
   Definition write_c := foldl write_I_rec (Sv.empty).
@@ -214,6 +218,8 @@ Section CHECK.
           (ii, Cerr_linear "caller need alignment greater than callee") in
         Let _ := assert (sf_return_address (f_extra fd) != RAnone)  
           (ii, Cerr_linear "nowhere to store the return address") in
+        Let _ := assert (if sf_return_address (f_extra fd) is RAstack _ then extra_free_registers ii != None else true)
+          (ii, Cerr_linear "no extra free register to compute the return address") in
         Let _ := assert 
           (all2 (λ e a, if e is Pvar (Gvar v _) then v_var v == v_var a else false) es (f_params fd))
           (ii, Cerr_linear "bad call args") in
@@ -224,7 +230,10 @@ Section CHECK.
         let D1 := read_rvs_rec (Sv.diff D (vrvs xs)) xs in (* Remark read_rvs xs is empty since all variables *)
         let inter := Sv.inter D1 W in
         Let _ := assert (Sv.is_empty inter) (ii, Cerr_needspill (Sv.elements inter)) in
-        ok (read_es_rec D1 es)
+        let D2 := read_es_rec D1 es in
+        Let _ := assert (if extra_free_registers ii is Some r then negb (Sv.mem r D2) else true)
+                        (ii, Cerr_linear "extra register for rastack is not free") in
+        ok D2
       else cierror ii (Cerr_linear "call to unknown function")
     end.
  
@@ -396,7 +405,13 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
         | RAreg ra =>
           (lbl, before ++ MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret) :: MkLI ii (Lgoto (fn, xH)) :: MkLI ii (Llabel lret) :: after ++ lc)
         | RAstack z =>
-          (lbl, before ++ MkLI ii (LstoreLabel (Lmem Uptr rspi (cast_const z)) lret) :: MkLI ii (Lgoto (fn, xH)) :: MkLI ii (Llabel lret) :: after ++ lc)
+          if extra_free_registers ii is Some ra
+          then (lbl,
+                before ++
+                       MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret) ::
+                       MkLI ii (Lopn [::Lmem Uptr rspi (cast_const z)] (Ox86 (MOV Uptr)) [:: Pvar {| gv := VarI ra xH ; gs := Slocal |} ]) ::
+                       MkLI ii (Lgoto (fn, xH)) :: MkLI ii (Llabel lret) :: after ++ lc)
+          else (lbl, lc)
         | RAnone => (lbl, lc)
         end
     else (lbl, lc )

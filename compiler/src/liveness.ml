@@ -90,15 +90,15 @@ let liveness weak prog =
   let fds = List.map (live_fd weak) (snd prog) in
   fst prog, fds
 
-let iter_call_sites (cb: funname -> lvals -> Sv.t -> unit) (f: (Sv.t * Sv.t) func) : unit =
-  let rec iter_instr_r ii =
+let iter_call_sites (cb: i_loc -> funname -> lvals -> Sv.t -> unit) (f: (Sv.t * Sv.t) func) : unit =
+  let rec iter_instr_r loc ii =
     function
     | (Cassgn _ | Copn _) -> ()
     | (Cif (_, s1, s2) | Cwhile (_, s1, _, s2)) -> iter_stmt s1; iter_stmt s2
     | Cfor (_, _, s) -> iter_stmt s
     | Ccall (_, xs, fn, _) ->
-       cb fn xs (snd ii)
-  and iter_instr { i_info ; i_desc } = iter_instr_r i_info i_desc
+       cb loc fn xs (snd ii)
+  and iter_instr { i_loc ; i_info ; i_desc } = iter_instr_r i_loc i_info i_desc
   and iter_stmt s = List.iter iter_instr s in
   iter_stmt f.f_body
 

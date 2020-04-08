@@ -24,6 +24,7 @@ let pp_clval tbl fmt lv =
   Printer.(pp_lval ~debug:true) fmt
 
 let saved_rev_alloc : (var -> Sv.t) option ref = ref None
+let saved_extra_free_registers : (i_loc -> var option) ref = ref (fun _ -> None)
 
 let rec pp_comp_err tbl fmt =
   let open Printer in
@@ -336,14 +337,21 @@ let main () =
 
       (* register allocation *)
       let has_stack cc sao = cc = Export && sao.sao_has_stack in
-      let fds, _rev_alloc = Regalloc.alloc_prog translate_var has_stack fds in
+      let fds, _rev_alloc, _extra_free_registers = Regalloc.alloc_prog translate_var has_stack fds in
 
       let atbl = Hf.create 117 in 
       let mk_oas (sao, ro, fd) = 
         let has_stack = has_stack fd.f_cc sao in
+        let rastack =
+          match List.assoc "returnaddress" fd.f_annot with
+          | "stack" -> true
+          | "reg" | exception Not_found -> false
+          | v -> hierror "Bad value for “returnaddress” annotation (expected “reg” or “stack”): %s" v
+        in
         let extra =
-          if has_stack && ro.ro_rsp = None then [V.clone rsp] 
-          else [] in
+          let extra = if rastack then [V.mk "RA" (Stack Direct) u64 L._dummy] else [] in
+          if has_stack && ro.ro_rsp = None then V.clone rsp :: extra
+          else extra in
         let alloc, size, extrapos = 
           StackAlloc.alloc_stack sao.sao_alloc extra in
         let saved_stack = 
@@ -375,9 +383,11 @@ let main () =
             sao_to_save = List.map (Conv.cvar_of_var tbl) ro.ro_to_save;
             sao_rsp  = saved_stack;
             sao_return_address =
-              match ro.ro_return_address with
-              | None -> RAnone
-              | Some ra -> RAreg (Conv.cvar_of_var tbl ra)
+              if rastack
+              then RAstack (Conv.z_of_int (List.last extrapos))
+              else match ro.ro_return_address with
+                   | None -> RAnone
+                   | Some ra -> RAreg (Conv.cvar_of_var tbl ra)
           }) in
         Hf.add atbl fd.f_name sao in
       List.iter mk_oas fds;
@@ -409,12 +419,13 @@ let main () =
              then (if !debug then Format.eprintf "INFO: %s has the expected stack size (%s)@." f_name.fn_name ssz)
              else hierror "Function %s has a stack of size %a (expected: %s)" f_name.fn_name B.pp_print actual ssz
         ) fds;
-      let fds, rev_alloc =
+      let fds, rev_alloc, extra_free_registers =
         Regalloc.alloc_prog translate_var (fun _cc extra ->
             match extra.Expr.sf_save_stack with
             | Expr.SavedStackReg _ | Expr.SavedStackStk _ -> true
             | Expr.SavedStackNone -> false) fds in
       saved_rev_alloc := Some rev_alloc;
+      saved_extra_free_registers := extra_free_registers;
       let fds = List.map (fun (y,_,x) -> y, x) fds in
       let fds = List.map (Conv.csfdef_of_fdef tbl) fds in
       Expr.({
@@ -514,6 +525,10 @@ let main () =
       Compiler.stackalloc    = memory_analysis;
       Compiler.removereturn  = removereturn;
       Compiler.regalloc      = global_regalloc;
+      Compiler.extra_free_registers = (fun ii ->
+        let loc, _ = Conv.get_iinfo tbl ii in
+        (!saved_extra_free_registers) loc |> omap (Conv.cvar_of_var tbl)
+      );
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;
       Compiler.print_uprog  = (fun s p -> eprint s pp_cuprog p; p);

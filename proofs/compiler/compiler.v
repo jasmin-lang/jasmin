@@ -96,6 +96,7 @@ Record compiler_params := {
   stackalloc       : _uprog → stack_alloc_oracles;
   removereturn     : _sprog -> (funname -> option (seq bool));
   regalloc         : _sprog -> _sprog;
+  extra_free_registers : instr_info → option var;
   print_uprog      : compiler_step -> _uprog -> _uprog;
   print_sprog      : compiler_step -> _sprog -> _sprog;
   print_linear     : lprog -> lprog;
@@ -179,7 +180,7 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
   let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in
 
   (* linearisation                     *)
-  Let pl := linear_prog pd in
+  Let pl := linear_prog pd cparams.(extra_free_registers) in
   let pl := cparams.(print_linear) pl in
   (* asm                               *)
   ok pl.
