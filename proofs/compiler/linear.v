@@ -232,7 +232,8 @@ Section CHECK.
 
   Definition check_fd (ffd:sfun_decl) := 
     let (fn,fd) := ffd in
-    let O := read_es (map Plvar fd.(f_res)) in
+    let saved_rsp := match fd.(f_extra).(sf_save_stack) with SavedStackNone | SavedStackStk _ => Sv.empty | SavedStackReg r => Sv.singleton r end in
+    let O := read_es_rec saved_rsp (map Plvar fd.(f_res)) in
     let stack_align := fd.(f_extra).(sf_align) in
     Let I := add_finfo fn fn (check_c (check_i stack_align) fd.(f_body) O) in
     match fd.(f_extra).(sf_return_address) with
