@@ -49,7 +49,7 @@ Definition cferror {A} fn msg :=
 Definition mem_space := var.
 
 Record mem_pos := 
-  { mp_s : mem_space;             (* where is stored the data, stack or global *)
+  { mp_s : var;                   (* where is stored the data, stack or global *)
     mp_ofs : Z;                   (* the offset                                *) 
     mp_align : wsize;             (* the alignment of the corresponding region *)
     mp_writable : bool;           (* the region is writable or not             *)
@@ -60,6 +60,9 @@ Definition mem_pos_beq (mp1 mp2:mem_pos) :=
       mp1.(mp_ofs)      == mp2.(mp_ofs),
       mp1.(mp_align)    == mp2.(mp_align) &
       mp1.(mp_writable) == mp2.(mp_writable)].
+
+Definition mem_pos_same (mp1 mp2:mem_pos) := 
+  (mp1.(mp_s) == mp2.(mp_s)) && (mp1.(mp_ofs) == mp2.(mp_ofs)).
 
 Lemma mem_pos_axiom : Equality.axiom mem_pos_beq.
 Proof.
@@ -425,25 +428,39 @@ Definition lea_ptr x y ptr ofs :=
 Definition mov_ptr x y :=
   Copn [:: x] AT_none (Ox86 (MOV Uptr)) [::y].
 
+Definition move_pk pk dx vy := 
+  match pk with
+  | Pstack ofs _  => lea_ptr dx vy pmap.(vrsp) ofs
+  | Pregptr p     => mov_ptr dx (Pvar (mk_lvar (with_var vy p)))
+  | Pstkptr z     => mov_ptr dx (Pload Uptr (with_var vy pmap.(vrsp)) (cast_const z))
+  end.
+
 Definition get_addr rmap x dx y := 
   let vy := y.(gv) in 
-  if is_glob y then 
-    Let ofsa := get_global vy in
-    let rmap := Region.set rmap x (mp_glob pmap.(vrip) ofsa) in
-    ok (rmap, lea_ptr dx vy pmap.(vrip) ofsa.1)
-  else 
-    match get_local vy with
-    | None => cerror "register array remain" 
-    | Some pk => 
-      Let rmap := Region.set_move rmap x vy in
+  Let ir := 
+    if is_glob y then 
+      Let ofsa := get_global vy in
+      let mpy := (mp_glob pmap.(vrip) ofsa) in
       let ir := 
-        match pk with
-        | Pstack ofs _  => lea_ptr dx vy pmap.(vrsp) ofs
-        | Pregptr p     => mov_ptr dx (Pvar (mk_lvar (with_var vy p)))
-        | Pstkptr z     => mov_ptr dx (Pload Uptr (with_var vy pmap.(vrsp)) (cast_const z))
+        match Mvar.get rmap.(var_region) x with
+        | None => lea_ptr dx vy pmap.(vrip) ofsa.1
+        | Some mpx => if mem_pos_same mpx mpy then nop else lea_ptr dx vy pmap.(vrip) ofsa.1 
         end in
-      ok(rmap, ir)
-    end.
+      ok (mpy, ir)
+    else
+      match get_local vy with
+      | None => cerror "register array remain" 
+      | Some pk => 
+        Let mpy := Region.check_valid rmap vy in   
+        let ir := 
+          match Mvar.get rmap.(var_region) x with
+          | None => move_pk pk dx vy
+          | Some mpx => if mpx == mpy then nop else move_pk pk dx vy
+          end in
+        ok (mpy, ir)
+      end in
+  let rmap := Region.set rmap x ir.1 in
+  ok (rmap, ir.2).
 
 (* Precondition is_sarr ty *)
 Definition alloc_array_move rmap r e :=
@@ -458,7 +475,7 @@ Definition alloc_array_move rmap r e :=
       Let _  := assert (is_lvar y)
                  (Cerr_stk_alloc "invalid move: global to stack") in 
       Let mp := Region.check_valid rmap y.(gv) in
-      Let _  := assert (mp == mp_stack pmap.(vrsp) z1 ws) 
+      Let _  := assert (mem_pos_same mp (mp_stack pmap.(vrsp) z1 ws))
                  (Cerr_stk_alloc "invalid move: check alias") in  
       let rmap := Region.set rmap x mp in
       ok (rmap, nop)

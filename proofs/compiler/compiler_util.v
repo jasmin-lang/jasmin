@@ -75,7 +75,6 @@ Definition pp_at (ii:instr_info) (e:pp_error) :=
   pp_box [:: pp_s "at "; PPEiinfo ii].
 *)
 
-
 Variant asm_error :=
   | AsmErr_string : string -> asm_error
   | AsmErr_cond   : pexpr -> asm_error.

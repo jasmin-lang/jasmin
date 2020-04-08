@@ -87,6 +87,7 @@ sig
   val empty        : regions
 (*  val pp_rmap      : Format.formatter -> regions -> unit *)
   val check_valid  : regions -> var_i -> mem_pos
+  val get_mp_opt   : regions -> var_i -> mem_pos option
   val set_align    : var_i -> mem_pos -> Wsize.wsize -> unit
   val set_writable : var_i -> mem_pos -> unit
   val remove       : regions -> mem_pos -> regions 
@@ -145,6 +146,12 @@ end
             (Printer.pp_list ",@ " pp_var) (Sv.elements xs)))
       (Mmp.bindings rmap.region_var) *)
     
+  let get_mp_opt rmap (x:var_i) =
+    let xv = L.unloc x in
+    match Mv.Exceptionless.find xv rmap.var_region with
+    | Some (IMP mp) -> Some mp
+    | _ -> None
+
   let get_mp rmap (x:var_i) = 
     let xv = L.unloc x in
     let imp = 
@@ -359,16 +366,19 @@ let mov_ptr x ptr =
 let get_addr rmap x dx y = 
   let yv = y.gv in
   let mpy = Region.check_valid rmap y.gv in
-  let rmap = Region.set rmap x mpy in 
   let py = L.mk_loc (L.loc yv) mpy.mp_p in
   let i = 
-    if is_gkvar y then
-      match (L.unloc yv).v_kind with
-      | Stack Direct  -> lea_ptr dx py
-      | Stack (Pointer _) -> mov_ptr dx (Pload(U64, py,icnst 0))
-      | Reg (Pointer _)  -> mov_ptr dx (Pvar (gkvar py))
-      | _ -> assert false 
-    else lea_ptr dx py in
+    match Region.get_mp_opt rmap x with
+    | Some mpx when mp_equal mpx mpy -> nop
+    | _ ->
+      if is_gkvar y then
+        match (L.unloc yv).v_kind with
+        | Stack Direct  -> lea_ptr dx py
+        | Stack (Pointer _) -> mov_ptr dx (Pload(U64, py,icnst 0))
+        | Reg (Pointer _)  -> mov_ptr dx (Pvar (gkvar py))
+        | _ -> assert false 
+      else lea_ptr dx py in
+  let rmap = Region.set rmap x mpy in 
   (rmap, i)
 
 let alloc_array_move pmap rmap r e = 
