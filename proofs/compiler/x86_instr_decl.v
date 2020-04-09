@@ -112,8 +112,8 @@ Variant asm_op : Type :=
 | VPADD    `(velem) `(wsize)
 | VPSUB    `(velem) `(wsize)
 | VPMULL   `(velem) `(wsize)
-| VPMULHW  `(wsize)   (* signed multiplication *)
-| VPMULHUW `(wsize)
+| VPMULH  `(velem) `(wsize)   (* signed multiplication of 16-bits*)
+| VPMULHU `(velem) `(wsize)
 | VPMULU   `(wsize)
 | VPEXTR   `(wsize)
 | VPINSR   `(velem)
@@ -582,10 +582,12 @@ Definition x86_VPMULU sz := x86_u128_binop (@wpmulu sz).
 
 (* ---------------------------------------------------------------- *)
 
-Definition x86_VPMULHW sz v1 v2 := 
+Definition x86_VPMULH ve sz v1 v2 :=
+  Let _ := assert (ve == VE16) ErrType in
   x86_u128_binop (lift2_vec U16 (@wmulhs U16) sz) v1 v2.
 
-Definition x86_VPMULHUW sz v1 v2 := 
+Definition x86_VPMULHU ve sz v1 v2 :=
+  Let _ := assert (ve == VE16) ErrType in
   x86_u128_binop (lift2_vec U16 (@wmulhu U16) sz) v1 v2.
 
 (* ---------------------------------------------------------------- *)
@@ -1115,15 +1117,8 @@ Definition Ox86_VPSUB_instr  := mk_ve_instr_w2_w_120 "VPSUB"   x86_VPSUB  check_
 Definition Ox86_VPMULL_instr := mk_ve_instr_w2_w_120 "VPMULL" x86_VPMULL check_xmm_xmm_xmmm no_imm (PrimV VPMULL) (pp_viname "vpmull").
 Definition Ox86_VPMULU_instr := ((fun sz => mk_instr (pp_s "VPMULU") (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] MSB_CLEAR (@x86_VPMULU sz) (check_xmm_xmm_xmmm sz) 3 sz (no_imm sz) [::] (pp_name "vpmuludq" sz)), ("VPMULU"%string, (PrimP U128 VPMULU))).
 
-Definition Ox86_VPMULHW_instr := 
-  ((fun sz => mk_instr (pp_s "VPMULHW") (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] 
-              MSB_CLEAR (@x86_VPMULHW sz) (check_xmm_xmm_xmmm sz) 3 sz (no_imm sz) [::] (pp_name "vpmulhw" sz)), 
-  ("VPMULHW"%string, (PrimP U128 VPMULHW))).
-
-Definition Ox86_VPMULHUW_instr := 
-  ((fun sz => mk_instr (pp_s "VPMULHUW") (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] 
-              MSB_CLEAR (@x86_VPMULHUW sz) (check_xmm_xmm_xmmm sz) 3 sz (no_imm sz) [::] (pp_name "vpmulhuw" sz)), 
-  ("VPMULHUW"%string, (PrimP U128 VPMULHUW))).
+Definition Ox86_VPMULH_instr := mk_ve_instr_w2_w_120 "VPMULH" x86_VPMULH check_xmm_xmm_xmmm no_imm (PrimV VPMULH) (pp_viname "vpmulh").
+Definition Ox86_VPMULHU_instr := mk_ve_instr_w2_w_120 "VPMULHU" x86_VPMULHU check_xmm_xmm_xmmm no_imm (PrimV VPMULHU) (pp_viname "vpmulhu").
 
 Definition check_vpextr (_:wsize) :=  [:: [:: rm false; xmm; i U8] ].
 
@@ -1288,8 +1283,8 @@ Definition instr_desc o : instr_desc_t :=
   | VPSUB sz sz'       => Ox86_VPSUB_instr.1 sz sz'
   | VPMULL sz sz'      => Ox86_VPMULL_instr.1 sz sz'
   | VPMULU sz          => Ox86_VPMULU_instr.1 sz
-  | VPMULHW sz         => Ox86_VPMULHW_instr.1 sz
-  | VPMULHUW sz        => Ox86_VPMULHUW_instr.1 sz
+  | VPMULH ve sz       => Ox86_VPMULH_instr.1 ve sz
+  | VPMULHU ve sz      => Ox86_VPMULHU_instr.1 ve sz
   | VPSLL sz sz'       => Ox86_VPSLL_instr.1 sz sz'
   | VPSRL sz sz'       => Ox86_VPSRL_instr.1 sz sz'
   | VPSRA sz sz'       => Ox86_VPSRA_instr.1 sz sz'
@@ -1370,8 +1365,8 @@ Definition prim_string :=
    Ox86_VPSUB_instr.2;
    Ox86_VPMULL_instr.2;
    Ox86_VPMULU_instr.2;
-   Ox86_VPMULHW_instr.2;
-   Ox86_VPMULHUW_instr.2;
+   Ox86_VPMULH_instr.2;
+   Ox86_VPMULHU_instr.2;
    Ox86_VPSLL_instr.2;
    Ox86_VPSRL_instr.2;
    Ox86_VPSRA_instr.2;

@@ -4,15 +4,15 @@ export fn test (reg u64 in) {
 
   x = (u128)[in];
   y = x;
-  z = #VPMULHW(x,y);
+  z = #VPMULH_8u16(x,y);
   (u128)[in] = z;
-  z = #VPMULHUW(x,y);
+  z = #VPMULHU_8u16(x,y);
   (u128)[in] = z;
 
   xx = (u256)[in];
   yy = xx;
-  zz = #VPMULHW_256(xx,yy);
+  zz = #VPMULH_16u16(xx,yy);
   (u256)[in] = zz;
-  zz = #VPMULHUW_256(xx,yy);
+  zz = #VPMULHU_16u16(xx,yy);
   (u256)[in] = zz;
 }
