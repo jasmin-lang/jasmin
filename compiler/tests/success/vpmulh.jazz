@@ -1,0 +1,18 @@
+export fn test (reg u64 in) { 
+  reg u128 x y z;
+  reg u256 xx yy zz;
+
+  x = (u128)[in];
+  y = x;
+  z = #VPMULHW(x,y);
+  (u128)[in] = z;
+  z = #VPMULHUW(x,y);
+  (u128)[in] = z;
+
+  xx = (u256)[in];
+  yy = xx;
+  zz = #VPMULHW_256(xx,yy);
+  (u256)[in] = zz;
+  zz = #VPMULHUW_256(xx,yy);
+  (u256)[in] = zz;
+}
