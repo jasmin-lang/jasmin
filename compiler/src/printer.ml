@@ -418,8 +418,9 @@ let pp_return_address tbl ~debug fmt = function
 let pp_sprog ~debug tbl fmt ((funcs, p_extra):'info Prog.sprog) =
   let pp_var = pp_var ~debug in
   let pp_f_extra fmt f_extra = 
-    Format.fprintf fmt "(* @[<v>stack size = %a;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a@] *)"
+    Format.fprintf fmt "(* @[<v>stack size = %a; alignment = %s;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a@] *)"
       B.pp_print (Conv.bi_of_z f_extra.Expr.sf_stk_sz)
+      (string_of_ws f_extra.Expr.sf_align)
       (pp_list ",@ " (fun fmt x -> pp_var fmt (Conv.var_of_cvar tbl x))) (f_extra.Expr.sf_to_save)
       (pp_saved_stack tbl ~debug) (f_extra.Expr.sf_save_stack) 
       (pp_return_address tbl ~debug)  (f_extra.Expr.sf_return_address) 

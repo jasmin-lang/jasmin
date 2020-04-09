@@ -90,9 +90,9 @@ let pp_param tbl fmt x =
   let y = Conv.var_of_cvar tbl x.E.v_var in
   F.fprintf fmt "%a %a %s" Pr.pp_ty y.P.v_ty Pr.pp_kind y.P.v_kind y.P.v_name
 
-let pp_stackframe fmt sz =
-  F.fprintf fmt "stack: %a"
-    B.pp_print (Conv.bi_of_z sz)
+let pp_stackframe fmt (sz, ws) =
+  F.fprintf fmt "stack: %a, alignment = %s"
+    B.pp_print (Conv.bi_of_z sz) (P.string_of_ws ws)
 
 let pp_return tbl is_export fmt =
   function
@@ -105,7 +105,7 @@ let pp_lfun tbl fmt (fn, fd) =
     name.P.fn_name
     (Pr.pp_list ",@ " (pp_param tbl)) fd.lfd_arg
     (Pr.pp_list ",@ " pp_stype) fd.lfd_tyout
-    pp_stackframe fd.lfd_stk_size
+    pp_stackframe (fd.lfd_stk_size, fd.lfd_align)
     (Pr.pp_list ",@ " (pp_var tbl)) fd.lfd_to_save
     (Pr.pp_list ";@ " (pp_instr tbl)) fd.lfd_body
     (pp_return tbl fd.lfd_export) fd.lfd_res
