@@ -1,0 +1,35 @@
+inline
+fn f(reg u64 x) -> reg u64 {
+reg u64 r;
+stack u64[1] a b;
+
+if (x > 0) {
+
+a[0] = x;
+x += a[0];
+
+b[0] = x;
+r = b[0];
+
+} else {
+
+a[0] = x;
+x += a[0];
+
+b[0] = x;
+r = b[0];
+
+}
+
+return r;
+}
+
+
+#[stacksize="8"]
+export
+fn main(reg u64 x) -> reg u64 {
+reg u64 result;
+
+result = f(x);
+return result;
+}
