@@ -911,11 +911,12 @@ let init_alloc xmem pmap =
   Mv.iter add_var pmap;
   vars, alloc, align
 
+(* Bigger since first *)
 let cmp (_,_,ws1,_) (_,_,ws2,_) = 
   match Wsize.wsize_cmp ws1 ws2 with
-  | Lt -> -1
+  | Lt -> 1
   | Eq -> 0
-  | Gt -> 1 
+  | Gt -> -1 
  
 let alloc_stack pmap extra = 
   let vars, alloc, align = init_alloc rsp pmap in
