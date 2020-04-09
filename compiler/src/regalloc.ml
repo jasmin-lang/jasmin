@@ -712,20 +712,18 @@ let post_process ~stack_needed ~extra_free_registers (live: Sv.t) ~(killed: funn
      begin
        assert (not stack_needed);
        let ra =
-       match List.assoc "returnaddress" f.f_annot with
-       | exception Not_found
-       | "reg" ->
-         let globally_free_regs = Sv.diff free_regs live in
-         begin match Sv.Exceptionless.any globally_free_regs with
-         | None ->
-            begin match Sv.any free_regs with
-            | r -> Some r
-            | exception Not_found ->
+         if f.f_annot.retaddr_kind <> Some OnStack then 
+           let globally_free_regs = Sv.diff free_regs live in
+           begin match Sv.Exceptionless.any globally_free_regs with
+           | None ->
+             begin match Sv.any free_regs with
+             | r -> Some r
+             | exception Not_found ->
                hierror "There is no free register for the return address in function “%s”" f.f_name.fn_name
-            end
-         | r -> r
-         end
-       | _ -> None
+             end
+           | r -> r
+           end
+         else None
        in
        killed_in_f, None, ra
      end
@@ -757,21 +755,17 @@ let reverse_allocation nv vars (a: A.allocation) : var -> Sv.t =
 let chose_extra_free_registers get_annot (live: Sv.t) (f: (Sv.t * Sv.t) func) (subst: var -> var) (tbl: (i_loc, var) Hashtbl.t) : unit =
   let live = Sv.map subst live in
   Liveness.iter_call_sites (fun i fn _xs s ->
-      match List.assoc "returnaddress" (get_annot fn) with
-      | "stack" ->
-      begin
+      if (get_annot fn).retaddr_kind = Some OnStack then
         let all = X64.allocatable |> Sv.of_list in
         let locally_free = Sv.diff all (Sv.map subst s) in
         let globally_free = Sv.diff locally_free live in
         match Sv.Exceptionless.any globally_free with
         | Some r -> Hashtbl.add tbl i r
         | None ->
-           match Sv.Exceptionless.any locally_free with
-           | Some r -> Hashtbl.add tbl i r
-           | None -> () (* TODO: warning? *)
-      end
-      | _ | exception Not_found -> ()
-    ) f
+          match Sv.Exceptionless.any locally_free with
+          | Some r -> Hashtbl.add tbl i r
+          | None -> () (* TODO: warning? *))
+    f
 
 let global_allocation translate_var (funcs: 'info func list) : unit func list * (funname -> Sv.t) * (var -> var) * (var -> Sv.t) * (i_loc -> var option) =
   (* Preprocessing of functions:
@@ -781,8 +775,8 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
 
     Initial 'info are preserved in the result.
    *)
-  let annot_table : (string * string) list Hf.t = Hf.create 17 in
-  let get_annot fn = Hf.find_default annot_table fn [] in
+  let annot_table : f_annot Hf.t = Hf.create 17 in
+  let get_annot fn = Hf.find_default annot_table fn f_annot_empty in
   let liveness_table : (Sv.t * Sv.t) func Hf.t = Hf.create 17 in
   let preprocess f =
     Hf.add annot_table f.f_name f.f_annot;

@@ -337,17 +337,13 @@ let main () =
 
       (* register allocation *)
       let has_stack cc sao = cc = Export && sao.sao_has_stack in
-      let fds, _rev_alloc, _extra_free_registers = Regalloc.alloc_prog translate_var has_stack fds in
+      let fds, _rev_alloc, _extra_free_registers = 
+        Regalloc.alloc_prog translate_var has_stack fds in
 
       let atbl = Hf.create 117 in 
       let mk_oas (sao, ro, fd) = 
         let has_stack = has_stack fd.f_cc sao in
-        let rastack =
-          match List.assoc "returnaddress" fd.f_annot with
-          | "stack" -> true
-          | "reg" | exception Not_found -> false
-          | v -> hierror "Bad value for “returnaddress” annotation (expected “reg” or “stack”): %s" v
-        in
+        let rastack = odfl OnReg fd.f_annot.retaddr_kind = OnStack in
         let extra =
           let extra = if rastack then [V.mk "RA" (Stack Direct) u64 L._dummy] else [] in
           if has_stack && ro.ro_rsp = None then V.clone rsp :: extra
@@ -410,22 +406,21 @@ let main () =
       (* TODO: move *)
       (* Check the stacksize & stackalign annotations, if any *)
       List.iter (fun ({ Expr.sf_stk_sz ; Expr.sf_align }, { f_annot ; f_name }) ->
-          begin match List.assoc_opt "stacksize" f_annot with
-          | None -> ()
-          | Some ssz ->
-             let actual = Conv.bi_of_z sf_stk_sz in
-             let expected = B.of_int (int_of_string ssz) in
-             if B.equal actual expected
-             then (if !debug then Format.eprintf "INFO: %s has the expected stack size (%s)@." f_name.fn_name ssz)
-             else hierror "Function %s has a stack of size %a (expected: %s)" f_name.fn_name B.pp_print actual ssz
-          end;
-          begin match List.assoc_opt "stackalign" f_annot with
+          begin match f_annot.stack_size with
           | None -> ()
           | Some expected ->
-             let actual = string_of_ws sf_align in
-             if String.equal actual expected
-             then (if !debug then Format.eprintf "INFO: %s has the expected stack alignment (%s)@." f_name.fn_name expected)
-             else hierror "Function %s has a stack alignment %s (expected: %s)" f_name.fn_name actual expected
+             let actual = Conv.bi_of_z sf_stk_sz in
+             if B.equal actual expected
+             then (if !debug then Format.eprintf "INFO: %s has the expected stack size (%a)@." f_name.fn_name B.pp_print expected)
+             else hierror "Function %s has a stack of size %a (expected: %a)" f_name.fn_name B.pp_print actual B.pp_print expected
+          end;
+          begin match f_annot.stack_align with
+          | None -> ()
+          | Some expected ->
+             let actual = sf_align in
+             if actual = expected
+             then (if !debug then Format.eprintf "INFO: %s has the expected stack alignment (%s)@." f_name.fn_name (string_of_ws expected))
+             else hierror "Function %s has a stack alignment %s (expected: %s)" f_name.fn_name (string_of_ws actual) (string_of_ws expected)
           end
         ) fds;
       let fds, rev_alloc, extra_free_registers =

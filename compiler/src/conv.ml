@@ -102,7 +102,7 @@ type 'info coq_tbl = {
      iinfo         : (int, (L.t * L.t list) * 'info) Hashtbl.t;
      funname       : (funname, BinNums.positive) Hashtbl.t;
      cfunname      : (BinNums.positive, funname) Hashtbl.t;
-     finfo         : (int, L.t * (string * string) list * call_conv) Hashtbl.t;
+     finfo         : (int, L.t * f_annot * call_conv) Hashtbl.t;
   }
 
 let new_count tbl =

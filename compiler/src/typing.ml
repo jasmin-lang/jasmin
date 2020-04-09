@@ -1368,6 +1368,44 @@ let tt_call_conv loc params returns cc =
 
 (* -------------------------------------------------------------------- *)
 
+let ws_of_string = 
+  let l = List.map (fun ws -> P.string_of_ws ws, ws) 
+            [U8;U16;U32;U64;U128;U256] in
+  fun s -> List.assoc s l 
+
+let process_f_annot loc annot = 
+  let open P in
+  let do1 name mk_info = 
+    match List.assoc name annot with
+    | v -> Some (mk_info v)
+    | exception Not_found -> None in
+
+  let mk_ra = function
+    | "stack" -> OnStack
+    | "reg"   -> OnReg
+    | s       -> 
+      rs_tyerror ~loc 
+        (string_error
+    "Bad value for “returnaddress” annotation (expected “reg” or “stack”): %s" 
+    s) in
+
+  let mk_stksize s =
+    try B.of_string s 
+    with B.InvalidString ->
+      rs_tyerror ~loc (string_error "Bad value for “stacksize”") in
+  
+  let mk_stkalign s =
+    try ws_of_string s 
+    with Not_found ->
+      rs_tyerror ~loc (string_error "Bad value for “stackalign”") in
+
+  { retaddr_kind = do1 "returnaddress" mk_ra;
+    stack_size = do1 "stacksize" mk_stksize;
+    stack_align = do1 "stackalign" mk_stkalign; }
+
+
+
+(* -------------------------------------------------------------------- *)
 let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
   let inret = odfl [] (omap (List.map L.unloc) pf.pdf_body.pdb_ret) in
   let dfl_mut x = List.mem x inret in
@@ -1378,7 +1416,7 @@ let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
   let args = List.map L.unloc args in
   let fdef =
     { P.f_loc   = loc;
-      P.f_annot = pf.pdf_annot;
+      P.f_annot = process_f_annot loc pf.pdf_annot;
       P.f_cc    = f_cc;
       P.f_name  = P.F.mk (L.unloc pf.pdf_name);
       P.f_tyin  = List.map (fun { P.v_ty } -> v_ty) args;

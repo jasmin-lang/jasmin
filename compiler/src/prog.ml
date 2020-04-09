@@ -164,9 +164,25 @@ type call_conv =
   | Subroutine of subroutine_info (* internal function that should not be inlined *)
   | Internal                   (* internal function that should be inlined *)
 
+type returnaddress_kind = 
+  | OnStack
+  | OnReg
+
+type f_annot = { 
+    retaddr_kind  : returnaddress_kind option;
+    stack_size    : B.zint option;
+    stack_align   : wsize option;
+  }
+
+let f_annot_empty = {
+    retaddr_kind  = None;
+    stack_size    = None;
+    stack_align   = None;
+  } 
+    
 type ('len,'info) gfunc = {
     f_loc  : L.t;
-    f_annot : (string * string) list;
+    f_annot : f_annot; 
     f_cc   : call_conv;
     f_name : funname;
     f_tyin : 'len gty list;

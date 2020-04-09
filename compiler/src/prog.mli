@@ -143,9 +143,21 @@ type call_conv =
   | Subroutine of subroutine_info (* internal function that should not be inlined *)
   | Internal                   (* internal function that should be inlined *)
 
+type returnaddress_kind = 
+  | OnStack
+  | OnReg
+
+type f_annot = { 
+    retaddr_kind  : returnaddress_kind option;
+    stack_size    : B.zint option;
+    stack_align   : wsize option;
+  }
+
+val f_annot_empty : f_annot
+
 type ('len,'info) gfunc = {
     f_loc  : L.t;
-    f_annot : (string * string) list;
+    f_annot : f_annot;
     f_cc   : call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
@@ -341,3 +353,7 @@ val clamp_pe : pelem -> Bigint.zint -> Bigint.zint
 (* -------------------------------------------------------------------- *)
 type 'info sfundef = Expr.stk_fun_extra * 'info func 
 type 'info sprog   = 'info sfundef list * Expr.sprog_extra
+
+
+
+
