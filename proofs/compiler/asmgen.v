@@ -10,10 +10,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Variant source_position :=
-  | InArgs of nat
-  | InRes  of nat.
-
 Definition pexpr_of_lval ii (lv:lval) : ciexec pexpr :=
   match lv with
   | Lvar x    => ok (Plvar x)
@@ -21,17 +17,6 @@ Definition pexpr_of_lval ii (lv:lval) : ciexec pexpr :=
   | Lnone _ _
   | Laset _ _ _ _ 
   | Lasub _ _ _ _ _ => cierror ii (Cerr_assembler (AsmErr_string "pexpr_of_lval"))
-  end.
-
-Definition get_loarg ii (outx: seq lval) (inx:seq pexpr) (d:source_position) : ciexec pexpr :=
-  let o2e A (m: option A) :=
-      match m with
-      | Some pe => ok pe
-      | None => cierror ii (Cerr_assembler (AsmErr_string "get_loarg"))
-      end in
-  match d with
-  | InArgs x => o2e _ (onth inx x)
-  | InRes  x => o2e _ (onth outx x) >>= pexpr_of_lval ii
   end.
 
 Definition nmap (T:Type) := nat -> option T.
@@ -267,7 +252,7 @@ Proof.
   by rewrite !zero_extend_u => h;apply h.
 Qed.
 
-Inductive check_sopn_argI rip ii max_imm args e : arg_desc -> stype -> Prop :=
+Variant check_sopn_argI rip ii max_imm args e : arg_desc -> stype -> Prop :=
 | CSA_Implicit i ty :
        (eq_expr e (Plvar {| v_var := var_of_implicit i; v_info := 1%positive |}))
     -> check_sopn_argI rip ii max_imm args e (ADImplicit i) ty

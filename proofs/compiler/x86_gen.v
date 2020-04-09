@@ -68,7 +68,6 @@ Definition assemble_fd sp rip (fd: lfundef) :=
   Let saved  := assemble_saved_stack (lfd_save_stack fd) in
   ciok (XFundef (lfd_align fd) (lfd_stk_size fd) sp arg fd' res (tosave, saved) (lfd_export fd)).
 
-
 (* -------------------------------------------------------------------- *)
 
 Definition mk_rip name := {| vtype := sword Uptr; vname := name |}.

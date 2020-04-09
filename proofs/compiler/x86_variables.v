@@ -182,10 +182,7 @@ Qed.
 
 Lemma register_of_var_of_register r :
   register_of_var (var_of_register r) = Some r.
-Proof.
-  rewrite /register_of_var /var_of_register /=.
-  by apply reg_of_stringK.
-Qed.
+Proof. exact: reg_of_stringK. Qed.
 
 Definition flag_of_var (v: var) : option rflag :=
   if v.(vtype) == sbool then rflag_of_string v.(vname)
@@ -446,7 +443,7 @@ Definition addr_of_pexpr (rip:var) ii sz (e: pexpr) :=
   | None => cierror ii (Cerr_assembler (AsmErr_string "lea: not able to assemble address"))
   end.
 
-Definition addr_of_xpexpr rip ii sz v e := 
+Definition addr_of_xpexpr rip ii sz v e :=
   addr_of_pexpr rip ii sz (Papp2 (Oadd (Op_w sz)) (Plvar v) e).
 
 Definition xreg_of_var ii (x: var) : ciexec asm_arg :=
@@ -460,11 +457,11 @@ Definition assemble_word rip ii (sz:wsize) max_imm (e:pexpr) :=
     match max_imm with
     | None =>  cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for oprd, constant not allowed"))
     | Some sz1 =>
-      let w := wrepr sz1 z in 
+      let w := wrepr sz1 z in
       let w1 := sign_extend sz w in
       let w2 := zero_extend sz (wrepr sz' z) in
-      Let _ := assert (w1 == w2) 
-                (ii, Cerr_assembler (AsmErr_string "Invalid pexpr for oprd: out of bound constant")) in 
+      Let _ := assert (w1 == w2)
+                (ii, Cerr_assembler (AsmErr_string "Invalid pexpr for oprd: out of bound constant")) in
       ciok (Imm w)
     end
   | Pvar x =>
@@ -488,4 +485,3 @@ Definition arg_of_pexpr rip ii (ty:stype) max_imm (e:pexpr) :=
   | sint  => cierror ii (Cerr_assembler (AsmErr_string "sint ???"))
   | sarr _ => cierror ii (Cerr_assembler (AsmErr_string "sarr ???"))
   end.
-

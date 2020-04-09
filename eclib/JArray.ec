@@ -1,5 +1,6 @@
 require import AllCore SmtMap List.
 (*---*) import CoreMap.
+
 require import JUtils.
 
 (*-------------------------------------------------------------------- *)
@@ -158,6 +159,15 @@ abstract theory MonoArray.
   proof.
     apply tP => i hi;rewrite get_of_list // (nth_map 0) 1:size_iota 1:/#.
     by rewrite nth_iota // initiE.
+  qed.
+
+  lemma of_listW (p : elem -> bool) (xs : elem list) :
+        all p xs
+     => size <= size xs
+     => forall (i : int), 0 <= i < size => p (of_list xs).[i].
+  proof.
+  move=> pxs ge128_sz_xs i rg_i; rewrite get_of_list //.
+  by move/allP: pxs; apply; rewrite mem_nth /#.
   qed.
 
   (* hint simplify init_of_list@1. *)
