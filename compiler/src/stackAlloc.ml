@@ -99,8 +99,8 @@ sig
   val incl         : regions -> regions -> bool
   val merge        : regions -> regions -> regions
   val has_stack    : regions -> bool 
-  val call_align   : regions -> wsize
-  val set_call     : regions -> bool -> wsize -> regions  
+  val calls        : regions -> Sf.t
+  val set_call     : regions -> funname -> bool -> regions  
   val set_stack    : regions -> regions
 end 
 = struct
@@ -110,30 +110,30 @@ end
     | IMP_error of Smp.t option 
 
   type regions = {
-      call_align : wsize;
+      calls      : Sf.t;
       has_stack  : bool;
       var_region : internal_mem_pos Mv.t;
       region_var : Sv.t Mmp.t;
     }
 
   let empty = {
-      call_align = U8;
+      calls      = Sf.empty;
       has_stack  = false;
       var_region = Mv.empty;
       region_var = Mmp.empty; 
     }
 
-  let set_call rmap has_stack call_align = 
+  let set_call rmap fn has_stack = 
     {rmap with 
       has_stack = has_stack || rmap.has_stack;
-      call_align = if wsize_le call_align rmap.call_align then rmap.call_align else call_align;
+      calls     = Sf.add fn rmap.calls;
     }
 
   let set_stack rmap = {rmap with has_stack = true }
 
   let has_stack rmap = rmap.has_stack
 
-  let call_align rmap = rmap.call_align
+  let calls rmap = rmap.calls
 
 (*  let pp_rmap fmt rmap = 
     let pp_var = (Printer.pp_var ~debug:true) in
@@ -237,7 +237,7 @@ end
     | IMP_error _, _ -> true
     
   let incl r1 r2 = 
-    ( wsize_le r1.call_align r2.call_align) && 
+    ( Sf.subset r1.calls r2.calls) && 
     (* r1.has_stack => r2.has_stack *)
     ( not r1.has_stack || r2.has_stack ) && 
     Mv.for_all (fun x imp1 -> 
@@ -271,7 +271,7 @@ end
       | Some xs1, Some xs2 -> Some (Sv.inter xs1 xs2)
       | _, _               -> None in
     { 
-      call_align = if wsize_le r1.call_align r2.call_align then r2.call_align else r1.call_align;
+      calls      = Sf.union r1.calls r2.calls;
       has_stack  = r1.has_stack  || r2.has_stack;
       var_region = Mv.merge merge_mp r1.var_region r2.var_region;
       region_var = Mmp.merge merge_xs r1.region_var r2.region_var; }
@@ -416,8 +416,8 @@ type param_info = {
 }
 
 type stk_alloc_oracle_t =
-  { sao_align : wsize
-  ; sao_has_stack : bool
+  { sao_has_stack : bool
+  ; sao_calls  : Sf.t
   ; sao_params : param_info option list (* Allocation of pointer params *)
   ; sao_return : int option list        (* Where to find the param input region *)
   ; sao_alloc  : pmap                   (* info to finalize stack_alloc *)
@@ -501,7 +501,7 @@ let alloc_call_res pmap rmap mps ret_pos rs =
 
 let alloc_call local_alloc pmap rmap ini rs fn es = 
   let sao = local_alloc fn in
-  let rmap = Region.set_call rmap sao.sao_has_stack sao.sao_align in
+  let rmap = Region.set_call rmap fn sao.sao_has_stack in
   let es  = alloc_call_args pmap rmap sao.sao_params es in
   let (rmap,rs)  = alloc_call_res pmap rmap es sao.sao_return rs in
   let es  = List.map snd es in
@@ -645,7 +645,7 @@ let alloc_fd local_alloc pmap rmap fd =
   let paramsi, pmap, rmap, locals = init_locals pmap rmap fd in
   let rmap, f_body = alloc_c local_alloc pmap rmap fd.f_body in
 
-  let sao_has_stack = Region.has_stack rmap in
+  let sao_has_stack = Region.has_stack rmap || fd.f_annot.retaddr_kind = Some OnStack in
 
   let do_res x oi=
     let xv = L.unloc x in
@@ -696,16 +696,9 @@ let alloc_fd local_alloc pmap rmap fd =
 
   let sao_alloc = Mv.filter (fun x _mp -> Sv.mem x locals) pmap in
 
-  let sao_has_stack = sao_has_stack (*&& fd.f_cc = Export *) in 
-  let doit _ pk align = 
-    match pk with
-    | Pmem mp -> 
-      let ws = Info.info mp.mp_align in
-      if wsize_le align ws then ws else align
-    | Pregptr _ -> align in
-  let sao_align = Mv.fold doit sao_alloc (Region.call_align rmap) in
+  let sao_calls = Region.calls rmap in
   let sao = 
-    { sao_align; sao_has_stack; sao_params; sao_return; sao_alloc } in
+    { sao_calls; sao_has_stack; sao_params; sao_return; sao_alloc } in
 
   sao, fd
   
@@ -737,9 +730,14 @@ type pos_kind =
   | Pregptr of var 
   | Pstkptr of int
 
+let set_align align ws = 
+  if wsize_lt !align ws then align := ws 
+
 let init_alloc xmem pmap = 
   let vars = ref [] in
   let alloc = ref [] in
+  let align = ref U8 in
+
   let add_var x mp =
     match mp with
     | Pmem mp ->
@@ -756,12 +754,13 @@ let init_alloc xmem pmap =
               Format.eprintf "%a@." Printer.pp_ty t;
               assert false in
           ws, s in
+      set_align align ws;
       vars := (false,x,ws,s) :: !vars
     | Pregptr p -> 
       alloc := (x, Pregptr p) :: !alloc 
   in
   Mv.iter add_var pmap;
-  vars, alloc
+  vars, alloc, align
 
 let cmp (_,_,ws1,_) (_,_,ws2,_) = 
   match Wsize.wsize_cmp ws1 ws2 with
@@ -770,11 +769,12 @@ let cmp (_,_,ws1,_) (_,_,ws2,_) =
   | Gt -> 1 
  
 let alloc_stack pmap extra = 
-  let vars, alloc = init_alloc rsp pmap in
+  let vars, alloc, align = init_alloc rsp pmap in
 
   let add_extra x = 
     let ws = ws_of_ty x.v_ty in
     let s  = size_of_ws ws in
+    set_align align ws;
     vars := (true,x,ws,s)::!vars in
   List.iter add_extra extra;
 
@@ -801,10 +801,11 @@ let alloc_stack pmap extra =
   List.iter init_var vars;
   let extra = List.map (fun x -> Hv.find etbl x) extra in
 
-  List.rev !alloc, !size, extra
+  List.rev !alloc, !size, !align, extra
 
 let alloc_mem pmap globs = 
-  let vars, _alloc = init_alloc rip pmap in
+  (* FIXME: propagate the alignment of globs *)
+  let vars, _alloc, _ = init_alloc rip pmap in
   let vars = List.sort cmp !vars in
 
   let size = ref 0 in

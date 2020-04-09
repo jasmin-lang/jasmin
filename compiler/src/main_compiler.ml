@@ -341,6 +341,7 @@ let main () =
         Regalloc.alloc_prog translate_var has_stack fds in
 
       let atbl = Hf.create 117 in 
+      let get_sao fn = try Hf.find atbl fn with Not_found -> assert false in
       let mk_oas (sao, ro, fd) = 
         let has_stack = has_stack fd.f_cc sao in
         let rastack = odfl OnReg fd.f_annot.retaddr_kind = OnStack in
@@ -348,8 +349,13 @@ let main () =
           let extra = if rastack then [V.mk "RA" (Stack Direct) u64 L._dummy] else [] in
           if has_stack && ro.ro_rsp = None then V.clone rsp :: extra
           else extra in
-        let alloc, size, extrapos = 
+        let alloc, size, align, extrapos = 
           StackAlloc.alloc_stack sao.sao_alloc extra in
+        let align = 
+          Sf.fold (fun fn align ->
+              let fn_algin = (get_sao fn).Stack_alloc.sao_align in
+              if wsize_lt align fn_algin then fn_algin else align) sao.sao_calls align in
+
         let saved_stack = 
           if has_stack then
             match ro.ro_rsp with
@@ -371,7 +377,7 @@ let main () =
         
         let sao = 
           Stack_alloc.({
-            sao_align  = sao.sao_align;
+            sao_align  = align;
             sao_size   = Conv.z_of_int size;
             sao_params = List.map (omap conv_pi) sao.sao_params;
             sao_return = List.map (omap Conv.nat_of_int) sao.sao_return;
@@ -386,7 +392,7 @@ let main () =
                    | Some ra -> RAreg (Conv.cvar_of_var tbl ra)
           }) in
         Hf.add atbl fd.f_name sao in
-      List.iter mk_oas fds;
+      List.iter mk_oas (List.rev fds);
       let data, alloc = StackAlloc.alloc_mem pmap (fst p) in
       let tog (x,(i,ws)) = (Conv.cvar_of_var tbl x, (Conv.z_of_int i, ws)) in
       Compiler.({
