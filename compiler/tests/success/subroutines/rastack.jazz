@@ -47,3 +47,24 @@ reg u32 result;
 result = copy32_32(arg);
 return result;
 }
+
+#[returnaddress="stack", stacksize="28", stackalign="u128"]
+fn copy128(reg u128 x) -> reg u128 {
+reg u128 r w;
+stack u128 t;
+stack u32 q;
+t = x;
+q = 0;
+r = #MOVD_32(q);
+w = t;
+r +4u32= w;
+return r;
+}
+
+#[stacksize="0"]
+export
+fn main128(reg u128 arg) -> reg u128 {
+reg u128 result;
+result = copy128(arg);
+return result;
+}
