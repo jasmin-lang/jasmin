@@ -46,10 +46,53 @@ let mp_equal mp1 mp2 = V.equal mp1.mp_s mp2.mp_s
   
 module MpCmp = struct 
   type t = mem_pos   
-  let compare x y = V.compare x.mp_s y.mp_s
+  let compare (x:t) (y:t) = V.compare x.mp_s y.mp_s
 end
 module Mmp = Map.Make (MpCmp)
 module Smp = Set.Make (MpCmp)
+
+(* ------------------------------------------------------------------ *)
+type sub_mp = {
+    smp_ofs : int;
+    smp_len : int;
+  }
+
+module SMpCmp = struct 
+  type t = sub_mp   
+  let compare (x:t) (y:t) = compare x y
+end
+module Msmp = Map.Make (SMpCmp)
+module Ssmp = Set.Make (SMpCmp)
+ 
+let disjoint_sub_mp smp1 smp2 = 
+  smp1.smp_ofs + smp1.smp_len <= smp2.smp_ofs || 
+  smp2.smp_ofs + smp2.smp_len <= smp1.smp_ofs
+
+(* ------------------------------------------------------------------ *)
+type mem_pos_sub = {
+    mps_mp : mem_pos;
+    mps_sub: sub_mp option;
+  }
+
+let mps_equal mps1 mps2 = 
+  mp_equal mps1.mps_mp mps2.mps_mp && 
+    mps1.mps_sub = mps2.mps_sub
+
+module MpsCmp = struct
+  type t = mem_pos_sub
+  let compare x y = 
+    let c = MpCmp.compare x.mps_mp y.mps_mp in
+    if c = 0 then 
+      match x.mps_sub, y.mps_sub with
+      | None, None -> 0
+      | Some _, None -> 1
+      | None, Some _ -> -1
+      | Some xsmp, Some ysmp -> SMpCmp.compare xsmp ysmp
+    else c
+end
+
+module Mmps = Map.Make(MpsCmp)
+module Smps = Set.Make(MpsCmp)
 
 (* ----------------------------------------------------------------- *)
 type ptr_kind = 
@@ -86,15 +129,15 @@ sig
   type regions 
   val empty        : regions
 (*  val pp_rmap      : Format.formatter -> regions -> unit *)
-  val check_valid  : regions -> var_i -> mem_pos
-  val get_mp_opt   : regions -> var_i -> mem_pos option
-  val set_align    : var_i -> mem_pos -> Wsize.wsize -> unit
-  val set_writable : var_i -> mem_pos -> unit
-  val remove       : regions -> mem_pos -> regions 
-  val rset_word    : regions -> var -> mem_pos -> regions
-  val set_word     : regions -> var_i -> Wsize.wsize -> Mmp.key -> regions
-  val set          : regions -> var_i -> mem_pos -> regions
-  val set_move     : regions -> var_i -> var_i -> regions
+  val check_valid  : regions -> var_i -> mem_pos_sub
+  val get_mp_opt   : regions -> var_i -> mem_pos_sub option
+  val set_align    : var_i -> mem_pos_sub -> Wsize.wsize -> unit
+  val set_writable : var_i -> mem_pos_sub -> unit
+  val remove       : regions -> mem_pos_sub -> regions 
+  val rset_word    : regions -> var -> int option -> int -> mem_pos_sub -> regions
+  val rset_full    : regions -> var -> mem_pos -> regions
+  val set_word     : regions -> var_i -> int option -> Wsize.wsize -> mem_pos_sub -> regions
+  val set          : regions -> var_i -> mem_pos_sub -> regions
   val set_init     : regions -> var_i -> ptr_kind -> regions
   val incl         : regions -> regions -> bool
   val merge        : regions -> regions -> regions
@@ -106,14 +149,18 @@ end
 = struct
 
   type internal_mem_pos = 
-    | IMP of mem_pos
-    | IMP_error of Smp.t option 
+    | IMP of mem_pos_sub
+    | IMP_error of Smps.t option 
 
+  type sub_map = {
+      sm_base : Sv.t;
+      sm_sub  : Sv.t Msmp.t;
+    }
   type regions = {
       calls      : Sf.t;
       has_stack  : bool;
       var_region : internal_mem_pos Mv.t;
-      region_var : Sv.t Mmp.t;
+      region_var : sub_map Mmp.t;
     }
 
   let empty = {
@@ -164,14 +211,29 @@ end
     | IMP_error None ->
       hierror "@[At %a: some path do not initialize the variable %a@]" 
         L.pp_loc (L.loc x) (Printer.pp_var ~debug:true) xv 
-    | IMP_error Some smp ->
-      let pp_from fmt mp = 
-        let y = mp.mp_s in
+    | IMP_error (Some smp) ->
+      let pp_from fmt mps = 
+        let y = mps.mps_mp.mp_s in
         Format.fprintf fmt "%a declared at %a" (Printer.pp_var ~debug:true) y L.pp_loc y.v_dloc in
       hierror "@[the variable %a is bound to different regions: %a@]"
         (Printer.pp_var ~debug:true) xv 
-        (pp_list ",@ " pp_from) (Smp.elements smp)
+        (pp_list ",@ " pp_from) (Smps.elements smp)
       
+   
+  let empty_sub_map = {
+      sm_base = Sv.empty;
+      sm_sub  = Msmp.empty;
+    }
+
+  let get_sub_map mp rmap  = 
+    Mmp.find_default empty_sub_map mp rmap.region_var 
+    
+  let get_xs mps rmap = 
+    let sub_map = get_sub_map mps.mps_mp rmap in
+    match mps.mps_sub with
+    | None -> sub_map.sm_base
+    | Some sub -> Msmp.find_default Sv.empty sub sub_map.sm_sub
+
   let check_valid rmap (x:var_i) =
 (*    Format.eprintf "check_valid@.";
     Format.eprintf "%a@." pp_rmap rmap; *)
@@ -179,63 +241,115 @@ end
     let pp_error xs = 
       hierror
       "@[<v>(check alias) the variable %a points to the region of %a,@ which only contains the values of variables {@[%a@]}@]"
-      (Printer.pp_var ~debug:true) (L.unloc x) (Printer.pp_var ~debug:true) mp.mp_s
+      (Printer.pp_var ~debug:true) (L.unloc x) (Printer.pp_var ~debug:true) mp.mps_mp.mp_s
       (pp_list ",@ " (Printer.pp_var ~debug:true)) (Sv.elements xs) in
-    let xs = 
-      try Mmp.find mp rmap.region_var with Not_found -> pp_error Sv.empty in
+    let xs = get_xs mp rmap in
     if not (Sv.mem (L.unloc x) xs) then pp_error xs;
     mp
 
-  let set_align (x:var_i) mp ws =
-    let xws = info mp.mp_align in
+  let set_align (x:var_i) {mps_mp = mp; mps_sub = _sub} ws =
+    (* FIXME: should we check that sub.mps_ofs is agree with the alignment *)
+    let xws = info mp.mp_align in   
     if wsize_lt xws ws then 
       try update ws mp.mp_align 
       with NotModifiable ->
         hierror "the alignment of %a is forced to %s, and %s is required" 
           pp_var x (string_of_ws xws) (string_of_ws ws)
+           
 
-  let set_writable (x:var_i) mp = 
+  let set_writable (x:var_i) {mps_mp = mp} = 
     if not (info mp.mp_writable) then
       try update true mp.mp_writable
       with NotModifiable ->
         hierror "%a is not writable" pp_var x
 
-  let remove rmap mp = 
-    { rmap with
-      region_var = Mmp.remove mp rmap.region_var }
+  
+  let remove_sub sub sub_map = 
+    { sm_base = Sv.empty;
+      sm_sub  = Msmp.filter (fun sub' _xs -> disjoint_sub_mp sub sub') sub_map.sm_sub; }
 
-  let rset_word rmap x mp = 
+  let remove rmap {mps_mp = mp; mps_sub = sub } = 
+    let region_var = 
+      match sub with
+      | None -> Mmp.remove mp rmap.region_var
+      | Some sub ->
+        let sub_map = get_sub_map mp rmap in
+        let sub_map = remove_sub sub sub_map in
+        Mmp.add mp sub_map rmap.region_var in
+    { rmap with region_var }
+
+
+  let remove_sub sub sub_map = 
+    { sm_base = Sv.empty;
+      sm_sub  = Msmp.filter (fun sub' _xs -> disjoint_sub_mp sub sub') sub_map.sm_sub; }
+
+  let set_sub_map x sub sub_map = 
+    { sub_map with sm_sub = Msmp.add sub (Sv.singleton x) sub_map.sm_sub }
+  (* [ofs:len] is assumed to be a sub region of mps.mps_sub *)
+  let rset_word rmap x ofs len ({mps_mp = mp; mps_sub = sub} as mps) =
+    let sub_map = 
+      match sub, ofs with
+      | None, None -> 
+        { sm_base = Sv.singleton x;
+          sm_sub  = Msmp.empty }
+      | None, Some ofs ->
+        let subr = { smp_ofs = ofs; smp_len = len } in
+        let sub_map = remove_sub subr (get_sub_map mp rmap) in
+        { sub_map with sm_base = Sv.singleton x }
+      | Some sub, None ->
+        let subr = sub in
+        let sub_map = remove_sub subr (get_sub_map mp rmap) in
+        set_sub_map x sub sub_map
+      | Some sub, Some ofs -> 
+        let subr = { smp_ofs = sub.smp_ofs + ofs; smp_len = len } in
+        let sub_map = remove_sub subr (get_sub_map mp rmap) in
+        set_sub_map x sub sub_map
+    in
+ 
     { rmap with 
-      var_region = Mv.add x (IMP mp) rmap.var_region;
-      region_var = Mmp.add mp (Sv.singleton x) rmap.region_var }
+      var_region = Mv.add x (IMP mps) rmap.var_region;
+      region_var = Mmp.add mp sub_map rmap.region_var }
 
-  let set_word rmap x ws mp =
+  let rset_full rmap x mp = 
+    rset_word rmap x None 0 {mps_mp = mp; mps_sub = None}
+
+  let set_word rmap x ofs ws mp =
     set_writable x mp;
     set_align x mp ws;
-    rset_word rmap (L.unloc x) mp
+    rset_word rmap (L.unloc x) ofs (size_of_ws ws) mp
 
-  let set rmap x mp = 
+  let set_sub x sub sub_map = 
+    match sub with
+    | None -> { sub_map with sm_base = Sv.add x sub_map.sm_base }
+    | Some sub ->
+      { sub_map with 
+        sm_sub = 
+          let xs = Msmp.find_default Sv.empty sub sub_map.sm_sub in
+          Msmp.add sub (Sv.add x xs) sub_map.sm_sub }
+
+  let set rmap x ({mps_mp = mp; mps_sub = sub} as mps) = 
     let x = L.unloc x in
-    let xs = Mmp.find_default Sv.empty mp rmap.region_var in
+    let sub_map = set_sub x sub (get_sub_map mp rmap) in
     { rmap with 
-      var_region = Mv.add x (IMP mp) rmap.var_region;
-      region_var = Mmp.add mp (Sv.add x xs) rmap.region_var }
-
-  let set_move rmap x y = 
-    let mp = check_valid rmap y in
-    set rmap x mp
+      var_region = Mv.add x (IMP mps) rmap.var_region;
+      region_var = Mmp.add mp sub_map rmap.region_var }
 
   let set_init rmap x pk = 
     match pk with
-    | Pmem mp   -> set rmap x mp
+    | Pmem mp   -> set rmap x {mps_mp = mp; mps_sub = None}
     | Pregptr _ -> rmap
 
   let imp_incl imp1 imp2 = 
     match imp1, imp2 with
-    | IMP mp1, IMP mp2 -> mp_equal mp1 mp2
+    | IMP mp1, IMP mp2 -> mps_equal mp1 mp2
     | IMP _,  IMP_error _ -> false
     | IMP_error _, _ -> true
     
+  let incl_sub_map sub_map1 sub_map2 = 
+    Sv.subset sub_map1.sm_base sub_map2.sm_base &&
+      Msmp.for_all (fun sub xs ->
+          Sv.subset xs (Msmp.find_default Sv.empty sub sub_map2.sm_sub)) sub_map1.sm_sub
+
   let incl r1 r2 = 
     ( Sf.subset r1.calls r2.calls) && 
     (* r1.has_stack => r2.has_stack *)
@@ -246,35 +360,42 @@ end
           match imp1 with
           | IMP _ -> false
           | IMP_error _  -> true) r1.var_region &&
-    Mmp.for_all (fun x xs ->
-        Sv.subset xs (Mmp.find_default Sv.empty x r2.region_var)) r1.region_var 
+    Mmp.for_all (fun mp sub_map1 ->
+        incl_sub_map sub_map1 (get_sub_map mp r2)) r1.region_var
         
+  let merge_sub_map _ osm1 osm2 =
+    match osm1, osm2 with
+    | Some sm1, Some sm2 ->
+      let merge_xs _ o1 o2 =
+        match o1, o2 with
+        | Some xs1, Some xs2 -> Some (Sv.inter xs1 xs2)
+        | _, _               -> None in
+      Some { sm_base = Sv.inter sm1.sm_base sm2.sm_base;
+             sm_sub  = Msmp.merge merge_xs sm1.sm_sub sm2.sm_sub }
+    | _, _ -> None
+    
   let merge r1 r2 = 
     let merge_mp _ o1 o2 = 
       match o1, o2 with
       | Some (IMP mp1), Some (IMP mp2) -> 
-        if mp_equal mp1 mp2 then o1 else Some (IMP_error (Some (Smp.of_list [mp1;mp2])))
+        if mps_equal mp1 mp2 then o1 else Some (IMP_error (Some (Smps.of_list [mp1;mp2])))
       | Some imp1, Some imp2 ->
         let get_error = function
-          | IMP mp1 -> Some (Smp.singleton mp1)
+          | IMP mp1 -> Some (Smps.singleton mp1)
           | IMP_error e -> e in
         let os = match get_error imp1, get_error imp2 with 
-        | Some s1, Some s2 -> Some (Smp.union s1 s2)
+        | Some s1, Some s2 -> Some (Smps.union s1 s2)
         | _, _ -> None
         in
         Some (IMP_error os)
       | None, Some _ | Some _, None -> Some (IMP_error None) 
       | None, None -> None 
     in
-    let merge_xs _ o1 o2 =
-      match o1, o2 with
-      | Some xs1, Some xs2 -> Some (Sv.inter xs1 xs2)
-      | _, _               -> None in
     { 
       calls      = Sf.union r1.calls r2.calls;
       has_stack  = r1.has_stack  || r2.has_stack;
       var_region = Mv.merge merge_mp r1.var_region r2.var_region;
-      region_var = Mmp.merge merge_xs r1.region_var r2.region_var; }
+      region_var = Mmp.merge merge_sub_map r1.region_var r2.region_var; }
 
 end
 
@@ -322,6 +443,11 @@ let alloc_e pmap rmap e =
 let alloc_es pmap rmap es = List.map (alloc_e pmap rmap) es
 
 (* ---------------------------------------------------------- *)
+let get_ofs aa ws e = 
+  match e with
+  | Pconst i ->
+    Some (if aa = Warray_.AAdirect then B.to_int i else size_of_ws ws * (B.to_int i))
+  | _ -> None 
 
 let alloc_lval pmap rmap (r:lval) =
   match r with
@@ -332,18 +458,18 @@ let alloc_lval pmap rmap (r:lval) =
     | Some (Pregptr _) -> assert false (* pointer to word *)
     | Some (Pmem mp as pk) ->
       let ws = ws_of_ty (L.unloc x).v_ty in
-      let rmap = Region.set_word rmap x ws mp in
+      let rmap = Region.set_word rmap x None ws { mps_mp = mp; mps_sub = None } in
       let r = Lmem(ws, mk_addr x pk, icnst 0) in (* not well typed, but ... *)
       (rmap, r)
     end
 
-  | Laset (_,ws,x,e1) -> 
+  | Laset (aa,ws,x,e1) -> 
     let e1 = alloc_e pmap rmap e1 in
     begin match get_var_kind pmap x with
     | None -> (rmap, r)
     | Some pk ->
       let mp = Region.check_valid rmap x in
-      let rmap = Region.set_word rmap x ws mp in
+      let rmap = Region.set_word rmap x (get_ofs aa ws e1) ws mp in
       let r = Lmem (ws, mk_addr x pk, e1) in
       (rmap, r)
     end
@@ -366,10 +492,10 @@ let mov_ptr x ptr =
 let get_addr is_spilling rmap x dx y = 
   let yv = y.gv in
   let mpy = Region.check_valid rmap y.gv in
-  let py = L.mk_loc (L.loc yv) mpy.mp_p in
+  let py = L.mk_loc (L.loc yv) mpy.mps_mp.mp_p in
   let i = 
     match Region.get_mp_opt rmap x with
-    | Some mpx when is_spilling && mp_equal mpx mpy -> nop
+    | Some mpx when is_spilling && mps_equal mpx mpy -> nop
     | _ ->
       if is_gkvar y then
         match (L.unloc yv).v_kind with
@@ -393,9 +519,10 @@ let alloc_array_move pmap rmap r e =
           hierror "can not move global to stack";
         let y = y.gv in
         let mpy = Region.check_valid rmap y in
-        if not (V.equal (L.unloc x) mpy.mp_s) then 
+        (* FIXME CHECK SUB REGION = None *)
+        if not (V.equal (L.unloc x) mpy.mps_mp.mp_s) then 
           hierror "(check alias) invalid move, the variable %a points to the region of %a instead of %a"
-             pp_var y (Printer.pp_var ~debug:true) mpy.mp_s pp_var x;
+             pp_var y (Printer.pp_var ~debug:true) mpy.mps_mp.mp_s pp_var x;
         let rmap = Region.set rmap x mpy in
         (rmap, nop)
       | Stack (Pointer _)->
@@ -451,9 +578,35 @@ let alloc_call_arg pmap rmap sao_param e =
     hierror "the expression %a is not a variable" 
       (Printer.pp_expr ~debug:false) e
 
+let mp_in mps = 
+  List.exists (fun mps' ->
+      mp_equal mps.mps_mp mps'.mps_mp && 
+        match mps.mps_sub, mps'.mps_sub with
+        | None, _ | _, None -> true
+        | Some sub, Some sub' -> not (disjoint_sub_mp sub sub')) 
+
+let rec check_all_disj (notwritables:mem_pos_sub list) (writables:mem_pos_sub list)
+                       (mps: ((bool * mem_pos_sub) option * expr) list) = 
+  match mps with
+  | [] -> true
+  | (None, _) :: mps -> check_all_disj notwritables writables mps
+  | (Some (writable, mp), _) :: mps -> 
+    if mp_in mp writables then false
+    else
+      if writable then 
+        if mp_in mp notwritables then false
+        else check_all_disj notwritables (mp::writables) mps
+      else   check_all_disj (mp::notwritables) writables mps
+  
+
+
 (* Remark we did not check disjointness here *)
 let alloc_call_args pmap rmap soa_params es = 
-  List.map2 (alloc_call_arg pmap rmap) soa_params es 
+  let mps = List.map2 (alloc_call_arg pmap rmap) soa_params es in
+  if not (check_all_disj [] [] mps) then
+    hierror "the pointers arguments are not disjoints";
+  mps
+  
 
 
 (* ---------------------------------------------------------- *)
@@ -481,7 +634,9 @@ let alloc_lval_call mps pmap rmap r i =
         if not (is_reg_ptr_kind (L.unloc x).v_kind) then
           hierror "%a should be a reg ptr" pp_var x;
         let pk = get_pk pmap x in
-        let rmap = Region.rset_word rmap (L.unloc x) mp in
+        let xv = L.unloc x in
+        let len = size_of xv.v_ty in
+        let rmap = Region.rset_word rmap xv (Some 0) len mp in
         rmap, Lvar (mk_addr x pk)
       | _ -> hierror "%a should be a reg ptr" (Printer.pp_lval ~debug:false) r
 
@@ -568,7 +723,7 @@ let init_globals globs =
         mp_align = Info.init (initial_alignment x) true;
         mp_writable = Info.init false false; } in
     pmap := Mv.add x (Pmem mp) !pmap;
-    rmap := Region.rset_word !rmap x mp
+    rmap := Region.rset_full !rmap x mp
   in
   List.iter add globs;
   !pmap, !rmap
@@ -592,7 +747,7 @@ let init_locals pmap rmap fd =
         mp_align = Info.init U8 true;
         mp_writable = Info.init (writable=Writable) false; } in
       pmap := Mv.add x (Pmem mp) !pmap;
-      rmap := Region.rset_word !rmap x mp;
+      rmap := Region.rset_full !rmap x mp;
       Some mp
     | Reg Direct -> 
       None
@@ -612,7 +767,7 @@ let init_locals pmap rmap fd =
       } in 
       rmap := Region.set_stack !rmap;
       pmap := Mv.add x (Pmem mp) !pmap;
-      rmap := Region.rset_word !rmap x mp
+      rmap := Region.rset_full !rmap x mp;
     | Stack (Pointer _) ->
       let mp = {
         mp_s = x;
@@ -654,7 +809,7 @@ let alloc_fd local_alloc pmap rmap fd =
     | Reg (Pointer _), Some i ->
       let mp = Region.check_valid rmap x in
       let mpi = oget (List.nth paramsi i) in
-      if not (V.equal mpi.mp_s mp.mp_s) then
+      if not (V.equal mpi.mp_s mp.mps_mp.mp_s && mp.mps_sub = None ) then
         hierror "invalid reg ptr %a" pp_var x;
       let pk = get_pk pmap x in
       mk_addr x pk
@@ -746,13 +901,7 @@ let init_alloc xmem pmap =
         if is_stk_ptr_kind x.v_kind then uptr, size_of_ws uptr
         else
           let ws = Info.info mp.mp_align in
-          let s = 
-            match x.v_ty with
-            | Bty (U ws) -> size_of_ws ws
-            | Arr (ws', n) -> arr_size ws' n 
-            | t -> 
-              Format.eprintf "%a@." Printer.pp_ty t;
-              assert false in
+          let s  = size_of x.v_ty in
           ws, s in
       set_align align ws;
       vars := (false,x,ws,s) :: !vars

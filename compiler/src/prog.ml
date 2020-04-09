@@ -463,6 +463,13 @@ let ws_of_ty = function
   | _ -> assert false
 
 let arr_size ws i = size_of_ws ws * i
+
+let size_of t = 
+  match t with
+  | Bty (U ws) -> size_of_ws ws
+  | Arr (ws', n) -> arr_size ws' n 
+  | _ -> assert false 
+
 (* -------------------------------------------------------------------- *)
 (* Functions over variables                                             *)
 
