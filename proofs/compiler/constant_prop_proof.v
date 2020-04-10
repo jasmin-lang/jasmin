@@ -49,6 +49,9 @@ Context (gd: glob_decls).
 Definition eqok_w (e1 e2:pexpr) st :=
   forall v, sem_pexpr gd st e1 = ok v -> sem_pexpr gd st e2 = ok v.
 
+Definition eqok_wl (e1 e2:pexpr) st :=
+  forall v, sem_pexpr_e gd st e1 = ok v -> sem_pexpr_e gd st e2 = ok v.
+
 (*
 Definition array_eq v1 v2 :=
    if type_of_val v1 is sarr _ then v1 = v2 else True.
@@ -89,10 +92,20 @@ Qed.
 
 Definition eqok (e1 e2:pexpr) st :=
   forall v, sem_pexpr gd st e1 = ok v ->
-    exists v', sem_pexpr gd st e2 = ok v' /\ value_uincl v v'.
+    exists v', sem_pexpr gd st e2 = ok v' /\ value_uincl v.1 v'.1 /\ v.2 = v'.2.
+
+(* Here leakage is represented using leak_e_tree *)
+Definition eqokl (e1 e2:pexpr) st :=
+  forall v, sem_pexpr_e gd st e1 = ok v ->
+    exists v', sem_pexpr_e gd st e2 = ok v' /\ value_uincl v.1 v'.1 /\ v'.2 = v.2.
+
 
 Lemma eqok_weaken e1 e2 st : eqok_w e1 e2 st -> eqok e1 e2 st.
 Proof. by move=> h v /h h';exists v. Qed.
+
+Lemma eqok_weakenl e1 e2 st : eqok_wl e1 e2 st -> eqokl e1 e2 st.
+Proof. by move=> h v /h h'; exists v. Qed.
+
 
 Notation "e1 '=[' st ']' e2" := (eqok e1 e2 st)
  (at level 70, no associativity).
@@ -100,7 +113,12 @@ Notation "e1 '=[' st ']' e2" := (eqok e1 e2 st)
 Definition eeq_w (e1 e2:pexpr) := forall rho, eqok_w e1 e2 rho.
 Definition eeq (e1 e2:pexpr) := forall rho, e1 =[rho] e2.
 
+Definition eeq_wl (e1 e2: pexpr) := forall rho, eqok_wl e1 e2 rho.
+Definition eeql (e1 e2:pexpr) := forall rho, e1 =[rho] e2.
+
 Notation "e1 '=E' e2" := (eeq e1 e2) (at level 70, no associativity).
+
+Notation "e1 '=EL' e2" := (eeql e1 e2) (at level 70, no associativity).
 
 Lemma eeq_w_refl : Reflexive (@eeq_w).
 Proof. by move=> ???;eauto. Qed.
@@ -113,9 +131,44 @@ Hint Resolve eeq_refl eeq_w_refl.
 Lemma eeq_weaken e1 e2 : eeq_w e1 e2 -> e1 =E e2.
 Proof. by move=> h ?;apply eqok_weaken;apply h. Qed.
 
-Lemma sint_of_wordP sz e : Papp1 (Oint_of_word sz) e =E sint_of_word sz e.
+(* Here l is the leaktrans_e *)
+(* We have a function trans_leakage which takes leaktrans_e and leak_e_tree and produces leak_e_tree *)
+(* We have a function lest_to_les which converts leak_e_tree to leakages_e *)
+Lemma sint_of_wordP st sz e F l l' v: 
+sem_pexpr_e gd st (Papp1 (Oint_of_word sz) e) = ok (v, l) ->
+eqok_w (Papp1 (Oint_of_word sz) e) (sint_of_word sz (e, F)).1 st /\
+ trans_leakage F l = l' /\ 
+ sem_pexpr gd st (Papp1 (Oint_of_word sz) e) = ok (v, lest_to_les l').
 Proof.
-  rewrite /sint_of_word => s.
+rewrite /sint_of_word.
+case: (is_wconst _ _) (@is_wconstP gd st sz e).
+move => w /(_ _ erefl). 
+t_xrbindP. move=> [yv yl] Hsem Hw Hsem_e.
+rewrite /eqok_w. split.
+move=> [yv' yl'] H /=. 
+move=> yv.
+
+
+
+
+
+
+ => v ok_v ok_w v'.
+rewrite /= /sem_sop1 /= ok_v /= ok_w => - [<-{v'}]; eauto.
+  exists v. split. admit.
+  split. admit. admit.
+  move=> H. simpl.
+  last by move => _ ?; eauto.
+
+(* l has type leaktrans_e *)
+Lemma sint_of_wordP s sz v e l l' F :
+ (sem_pexpr gd s (Papp1 (Oint_of_word sz) e)) = ok (v, l') ->
+ (sem_pexpr_e gd s (Papp1 (Oint_of_word sz) e)) = ok (v, l) ->
+ (sint_of_word sz (e, F)).1 =E (Papp1 (Oint_of_word sz) e) /\
+ trans_leakage (sint_of_word sz (e, F)).2 l = l.
+ 
+Proof.
+  rewrite /sint_of_word.
   case: (is_wconst _ _) (@is_wconstP gd s sz e); last by move => _ ?; eauto.
   move => w /(_ _ erefl); t_xrbindP => v ok_v ok_w v'.
   rewrite /= /sem_sop1 /= ok_v /= ok_w => - [<-{v'}]; eauto.
