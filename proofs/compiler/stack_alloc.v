@@ -431,31 +431,33 @@ Definition move_pk pk dx vy :=
   | Pstkptr z     => mov_ptr dx (Pload Uptr (with_var vy pmap.(vrsp)) (cast_const z))
   end.
 
+Definition is_nop is_spilling rmap x mpy : bool :=
+  if is_spilling then
+  if Mvar.get rmap.(var_region) x is Some mpx then
+  mpx == mpy
+  else false
+  else false.
+
 Definition get_addr is_spilling rmap x dx y := 
   let vy := y.(gv) in 
   Let ir := 
     if is_glob y then 
       Let ofsa := get_global vy in
       let mpy := (mp_glob pmap.(vrip) ofsa) in
-      let ir := 
-        if is_spilling then
-          match Mvar.get rmap.(var_region) x with
-          | None => lea_ptr dx vy pmap.(vrip) ofsa.1
-          | Some mpx => if (mpx == mpy) then nop else lea_ptr dx vy pmap.(vrip) ofsa.1 
-          end 
-        else lea_ptr dx vy pmap.(vrip) ofsa.1 in
+      let ir :=
+        if is_nop is_spilling rmap x mpy
+        then nop
+        else lea_ptr dx vy pmap.(vrip) ofsa.1
+      in
       ok (mpy, ir)
     else
       match get_local vy with
       | None => cerror "register array remain" 
       | Some pk => 
         Let mpy := Region.check_valid rmap vy in   
-        let ir := 
-          if is_spilling then 
-            match Mvar.get rmap.(var_region) x with
-            | None => move_pk pk dx vy
-            | Some mpx => if mpx == mpy then nop else move_pk pk dx vy
-            end
+        let ir :=
+          if is_nop is_spilling rmap x mpy
+          then nop
           else move_pk pk dx vy
         in
         ok (mpy, ir)
