@@ -114,31 +114,31 @@ Fixpoint leak_F (t:leak_tr) (l:leak)  : leak :=
   | _, _ => Lempty (* absurd cases *)
   end.
 
+Definition trans_sem t (vl:bool * leak) := (vl.1, leak_F t vl.2).
+
+Lemma surj_pairing {T1 T2:Type} (p:T1 * T2) : (p.1,p.2) = p. 
+Proof. by case: p. Qed.
+Hint Resolve surj_pairing.
+
 Lemma sand_lP vm e1 e2: 
   let e := (sand_l e1 e2).1 in
   let t := (sand_l e1 e2).2 in
-  (sem_e vm e).1 = (sem_e vm (Eand e1 e2)).1 /\
-  (sem_e vm e).2 = leak_F t (sem_e vm (Eand e1 e2)).2.
+  trans_sem t (sem_e vm (Eand e1 e2)) = sem_e vm e.
 Proof.
-  rewrite /sand_l.
+  rewrite /sand_l /trans_sem.
   case heq1 : (is_bool e1) => [b1 | ].
-  + by have -> /= := is_boolP heq1; case: (b1).
+  + by have -> /= := is_boolP heq1; case: (b1) => /=. 
   case heq2 : (is_bool e2) => [b2 | //].
-  by have -> /= := is_boolP heq2; case: (b2); rewrite ?andbT ?andbF.
+  by have -> /= := is_boolP heq2; case: (b2); rewrite ?andbT ?andbF /=.
 Qed.
 
 Lemma compile_lP e vm: 
   let e' := (compile_l e).1 in
   let t  := (compile_l e).2 in
-  (sem_e vm e).1 = (sem_e vm e').1 /\
-  (sem_e vm e').2 = leak_F t (sem_e vm e).2.
+  trans_sem t (sem_e vm e) = sem_e vm e'.
 Proof.
   elim:e => //= e1 he1 e2 he2.
-  case: he1 => -> he1; case: he2 => -> he2. 
-  have /= [hand1 hand2]:= sand_lP vm (compile_l e1).1 (compile_l e2).1.
-  split.
-  + by rewrite hand1.
-  by rewrite hand2 -he1 -he2.
+  by rewrite -sand_lP /= -he1 -he2 /trans_sem /=.
 Qed.
 
 Inductive leak_base :=
