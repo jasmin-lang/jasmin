@@ -1193,14 +1193,21 @@ Definition Ox86_VPBLENDD_instr :=
   mk_instr_w2w8_w_1230 "VPBLENDD" x86_VPBLENDD check_xmm_xmm_xmmm_imm8 imm8 (PrimP U128 VPBLENDD) (pp_name "vpblendd").
 
 Definition pp_vpbroadcast ve sz args :=
+  let ws := wsize_of_velem ve in
+  let ws := 
+    match args with
+    | [:: _; XMM _] => U128
+    | [:: _; Reg _] => if (ws <= U32)%CMP then U32 else ws
+    | _ => ws
+    end in
   {| pp_aop_name := "vpbroadcast";
      pp_aop_ext  := PP_viname ve false;
-     pp_aop_args := zip [::sz; U128] args; |}.
+     pp_aop_args := zip [::sz; ws] args; |}.
 
-Definition check_xmm_xmmm (_:wsize) := [:: [:: xmm; xmmm true]].
+Definition check_xmm_rm (_:wsize) := [:: [:: xmm; xmmm true]; [::xmm; r] ].
 
 Definition Ox86_VPBROADCAST_instr       :=
-  mk_ve_instr_w_w_10 "VPBROADCAST" x86_VPBROADCAST check_xmm_xmmm no_imm (PrimV VPBROADCAST) pp_vpbroadcast.
+  mk_ve_instr_w_w_10 "VPBROADCAST" x86_VPBROADCAST check_xmm_rm no_imm (PrimV VPBROADCAST) pp_vpbroadcast.
 
 (* 256 *)
 
