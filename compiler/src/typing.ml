@@ -1190,11 +1190,11 @@ let mk_call loc is_inline lvs f es =
   | P.Internal | P.Export -> ()
   | P.Subroutine _ ->
     let check_lval = function
-      | P.Lnone _ | Lvar _ -> ()
-      | Lmem _ | Laset _ | Lasub _ -> rs_tyerror ~loc (string_error "memory/array assignment are not allowed here") in
+      | P.Lnone _ | Lvar _ | Lasub _ -> ()
+      | Lmem _ | Laset _ -> rs_tyerror ~loc (string_error "memory/array assignment are not allowed here") in
     let check_e = function
-      | P.Pvar _ -> ()
-      | _ -> rs_tyerror ~loc (string_error "only variables are allowed in arguments of non-inlined function") in
+      | P.Pvar _ | P.Psub _ -> ()
+      | _ -> rs_tyerror ~loc (string_error "only variables and subarray are allowed in arguments of non-inlined function") in
     List.iter check_lval lvs;
     List.iter check_e es
   end;

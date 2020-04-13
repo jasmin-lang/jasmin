@@ -28,7 +28,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import Coq.Logic.Eqdep_dec.
 Require Import strings word utils gen_map type var expr low_memory sem.
-Require Import constant_prop compiler_util allocation.
+Require Import constant_prop compiler_util allocation byteset.
 Require Import ZArith.
 
 Set Implicit Arguments.
@@ -37,6 +37,13 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope vmap.
 Local Open Scope seq_scope.
+
+Definition size_of (t:stype) :=
+  match t with
+  | sword sz => wsize_size sz
+  | sarr n   => Zpos n
+  | sbool | sint => 0%Z
+  end.
 
 Local
 Definition cerror {A} msg :=
@@ -95,6 +102,92 @@ End CmpMp.
 
 Module Mmp :=  Mmake CmpMp.
 
+
+(* ------------------------------------------------------------------ *)
+Record sub_mp := {
+  smp_ofs : Z;
+  smp_len : Z;
+}.
+
+Scheme Equality for sub_mp.
+
+Lemma sub_mp_eq_axiom : Equality.axiom sub_mp_beq.
+Proof.
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_sub_mp_dec_bl.
+  by apply: internal_sub_mp_dec_lb.
+Qed.
+
+Definition sub_mp_eqMixin := Equality.Mixin sub_mp_eq_axiom.
+Canonical sub_mp_eqType := EqType sub_mp sub_mp_eqMixin.
+
+Module CmpSub.
+
+  Definition t := [eqType of sub_mp].
+
+  Definition cmp (sub1 sub2: t) := 
+    Lex (Z.compare sub1.(smp_ofs) sub2.(smp_ofs))
+        (Z.compare sub1.(smp_len) sub2.(smp_len)).
+
+  Instance cmpO : Cmp cmp.
+  Proof.
+    constructor => [x y | y x z c | [??] [??]]; rewrite /cmp !Lex_lex.
+    + by apply lex_sym; apply cmp_sym.
+    + by apply lex_trans=> /=; apply cmp_ctrans.
+    move=> /lex_eq [] /= h1 h2.
+    by rewrite (cmp_eq h1) (cmp_eq h2).
+  Qed.
+
+End CmpSub.
+
+Module Msmp := Mmake (CmpSub).
+Module Ssmp := Smake (CmpSub).
+ 
+Definition disjoint_sub_mp smp1 smp2 := 
+  (((smp1.(smp_ofs) + smp1.(smp_len))%Z <= smp2.(smp_ofs)) || 
+   ((smp2.(smp_ofs) + smp2.(smp_len))%Z <= smp1.(smp_ofs)))%CMP.
+
+(* ------------------------------------------------------------------ *)
+Record mem_pos_sub := {
+    mps_mp : mem_pos;
+    mps_sub: sub_mp;
+  }.
+
+Definition mem_pos_sub_beq mps1 mps2 := 
+  (mps1.(mps_mp) == mps2.(mps_mp)) && (mps1.(mps_sub) == mps2.(mps_sub)).
+
+Lemma mem_pos_sub_eq_axiom : Equality.axiom mem_pos_sub_beq.
+Proof.
+  rewrite /mem_pos_sub_beq => -[mp1 sub1] [mp2 sub2].
+  by apply:(iffP andP) => /= [[/eqP -> /eqP ->] | [-> ->]].
+Qed.
+
+Definition mem_pos_sub_eqMixin := Equality.Mixin mem_pos_sub_eq_axiom.
+Canonical mem_pos_sub_eqType := EqType mem_pos_sub mem_pos_sub_eqMixin.
+
+Module CmpMps.
+  Definition t := [eqType of mem_pos_sub].
+
+  Definition cmp (mps1 mps2: t) := 
+    Lex (CmpMp.cmp mps1.(mps_mp) mps2.(mps_mp))
+        (CmpSub.cmp mps1.(mps_sub) mps2.(mps_sub)).
+
+  Instance cmpO : Cmp cmp.
+  Proof.
+    constructor => [x y | y x z c | [??] [??]]; rewrite /cmp !Lex_lex.
+    + by apply lex_sym; apply cmp_sym.
+    + by apply lex_trans=> /=; apply cmp_ctrans.
+    move=> /lex_eq [] /= h1 h2.
+    by rewrite (cmp_eq h1) (cmp_eq h2).
+  Qed.
+
+End CmpMps.
+
+Module Mmps := Mmake(CmpMps).
+Module Smps := Smake(CmpMps).
+
+(* ------------------------------------------------------------------ *)
+
 Inductive ptr_kind :=
   | Pstack  `(Z) `(wsize)
   | Pregptr `(var)
@@ -130,78 +223,198 @@ Definition mp_glob rip ofs_align :=
 
 Module Region.
 
-Record regions := {
-  var_region : Mvar.t mem_pos;  (* The region where the value is initialy stored            *)
-  region_vars : Mmp.t Sv.t;     (* The set of source variables whose value is in the region *)
+Record subspace := {
+  xs    : Sv.t;
+  bytes : ByteSet.t;
 }.
 
+Definition sub_map := Msmp.t subspace.
+
+Record regions := {
+  var_region : Mvar.t mem_pos_sub;  (* The region where the value is initialy stored            *)
+  region_var : Mmp.t  sub_map;  (* The set of source variables whose value is in the region *)
+}.
+
+Definition empty_subspace := {|
+    xs    := Sv.empty;
+    bytes := ByteSet.empty;
+  |}.
+
+Definition empty_sub_map := Msmp.empty subspace.
+
 Definition empty := {|
-  var_region   := Mvar.empty _;
-  region_vars := Mmp.empty _;
+  var_region := Mvar.empty _;
+  region_var := Mmp.empty sub_map;
 |}.
 
-Definition check_valid (rmap:regions) (x:var) := 
+Definition get_mps (rmap : regions) (x:var) := 
   match Mvar.get rmap.(var_region) x with
-  | Some mp =>
-    Let _ := 
-      match Mmp.get rmap.(region_vars) mp with
-      | Some xs => 
-        if Sv.mem x xs then ok tt
-        else cerror "invalid variable (check alias)"
-      | None => cerror "invalid variable (check alias)"
-      end in
-    ok mp
+  | Some mps => ok mps
   | None => cerror "no associated region"
   end.
 
-Definition remove rmap mp := 
-  {| var_region  := rmap.(var_region);
-     region_vars := Mmp.remove rmap.(region_vars) mp |}.
+Definition get_sub_map mp rmap := 
+  match Mmp.get rmap.(region_var) mp with
+  | None => empty_sub_map
+  | Some submap => submap
+  end.
 
-Definition rset_word rmap x mp :=
-   {| var_region  := Mvar.set rmap.(var_region) x mp;
-      region_vars := Mmp.set rmap.(region_vars) mp (Sv.singleton x) |}.
+Definition get_subspace mps rmap := 
+  let sub_map := get_sub_map mps.(mps_mp) rmap in
+  match Msmp.get sub_map mps.(mps_sub) with
+  | None => empty_subspace
+  | Some ss => ss
+  end.
 
-Definition set_word (rmap:regions) (x:var) ws mp := 
+Definition interval_of_sub sub := 
+  {| imin := sub.(smp_ofs); imax := sub.(smp_ofs) + sub.(smp_len) |}.
+ 
+Definition sub_ofs sub ofs len := 
+  match ofs with
+  | None => sub
+  | Some ofs => {| smp_ofs := sub.(smp_ofs) + ofs; smp_len := len |}
+  end.
+ 
+Definition interval_ofs sub ofs len := 
+  interval_of_sub (sub_ofs sub ofs len).
+  
+Definition check_valid (rmap:regions) (x:var) ofs len := 
+  Let mps := get_mps rmap x in
+  let ss  := get_subspace mps rmap in
+  Let _   := assert (Sv.mem x ss.(xs)) (Cerr_stk_alloc "invalid variable 1") in
+  let sub_ofs  := sub_ofs mps.(mps_sub) ofs len in
+  let isub_ofs := interval_of_sub sub_ofs in 
+  Let _   := assert (ByteSet.mem isub_ofs ss.(bytes)) (Cerr_stk_alloc "check_valid: the region partial region") in
+  ok {| mps_mp := mps.(mps_mp); mps_sub := sub_ofs |}.
+
+Definition set_word rmap x mp ws :=
+  let sub := {| smp_ofs := 0;  smp_len := wsize_size ws |} in
+  let mps := {| mps_mp  := mp; mps_sub := sub |} in
   Let _ := writable mp in
   Let _ := check_align mp ws in
-  ok (rset_word rmap x mp).
+  let full := ByteSet.full (interval_of_sub sub) in
+  let sub_map := Msmp.set (Msmp.empty _) sub {| xs := Sv.singleton x; bytes := full |} in
+  ok {| var_region := Mvar.set rmap.(var_region) x mps ;
+      region_var := Mmp.set rmap.(region_var) mps.(mps_mp) sub_map |}.
 
-Definition set rmap x mp := 
-  let xs := odflt Sv.empty (Mmp.get rmap.(region_vars) mp) in
-  {| var_region  := Mvar.set rmap.(var_region) x mp;
-     region_vars := Mmp.set rmap.(region_vars) mp (Sv.add x xs) |}.
+Definition set_arr_word rmap x ofs ws :=
+  let len := wsize_size ws in
+  Let mps := get_mps rmap x in
+  let mp  := mps.(mps_mp) in
+  let ss  := get_subspace mps rmap in
+  Let _ := assert (Sv.mem x ss.(xs)) (Cerr_stk_alloc "invalid variable 2") in
+  Let _ := writable mp in
+  Let _ := check_align mp ws in
+  let sub_map   := get_sub_map mp rmap in
+  let sub       := mps.(mps_sub) in
+  let inter_ofs := interval_ofs sub ofs len in
+  let doit sub' subspace :=
+    if sub == sub' then 
+      let bytes := 
+        match ofs with 
+        | None   => subspace.(bytes)
+        | Some i => ByteSet.add {| imin := i; imax := i + len |} subspace.(bytes)
+        end in
+      {| xs := Sv.singleton x; bytes := bytes |}
+    else {| xs    := subspace.(xs);
+            bytes := ByteSet.remove inter_ofs subspace.(bytes) |} in
+  let sub_map := Msmp.mapi doit sub_map in
+  ok {| var_region := Mvar.set rmap.(var_region) x mps ;
+        region_var := Mmp.set rmap.(region_var) mps.(mps_mp) sub_map |}.
 
-Definition set_move (rmap:regions) (x y:var) := 
-  Let mp := check_valid rmap y in
-  ok (set rmap x mp).
+Definition set_arr_call rmap x mps :=
+  let sub := mps.(mps_sub) in
+  let inter_ofs := interval_of_sub sub  in
+  let sub_map := get_sub_map mps.(mps_mp) rmap in
+  let doit sub' subspace :=
+    if sub == sub' then 
+      {| xs    := Sv.singleton x; 
+         bytes := ByteSet.full inter_ofs |}
+    else {| xs    := subspace.(xs);
+            bytes := ByteSet.remove inter_ofs subspace.(bytes) |} in
+  let sub_map := Msmp.mapi doit sub_map in
+  {| var_region := Mvar.set rmap.(var_region) x mps ;
+     region_var := Mmp.set  rmap.(region_var) mps.(mps_mp) sub_map |}.
+
+Definition set_arr_sub rmap x ofs len mps_from := 
+  Let mps := get_mps rmap x in
+  let ss := get_subspace mps rmap in
+  Let _ := assert (Sv.mem x ss.(xs)) (Cerr_stk_alloc "invalid variable 3") in 
+  let sub := mps.(mps_sub) in
+  let sub_ofs := {| smp_ofs := sub.(smp_ofs) + ofs; smp_len := len |} in
+  Let _ := assert (mem_pos_same mps.(mps_mp) mps_from.(mps_mp))
+                  (Cerr_stk_alloc "set array: source and destination are not equal") in
+  Let _ := assert (sub_ofs == mps_from.(mps_sub))
+                  (Cerr_stk_alloc "set array: sub are not equal") in
+  let sub_map := get_sub_map mps.(mps_mp) rmap in
+  let ss :=        
+    {| xs    := Sv.singleton x; 
+       bytes := ByteSet.add (interval_of_sub sub_ofs) ss.(bytes) |} in
+  let sub_map := Msmp.set sub_map sub ss in
+  ok {| var_region := Mvar.set rmap.(var_region) x mps ;
+        region_var := Mmp.set  rmap.(region_var) mps.(mps_mp) sub_map  |}.
+  
+Definition set_move rmap x mps :=
+  let sub_map := get_sub_map mps.(mps_mp) rmap in
+  let ss := 
+    match Msmp.get sub_map mps.(mps_sub) with
+    | Some ss => ss 
+    | None => 
+      {| xs    := Sv.empty; 
+         bytes := ByteSet.full (interval_of_sub mps.(mps_sub)) |}
+    end in
+  let ss := {| xs := Sv.add x ss.(xs); bytes := ss.(bytes) |} in
+  let sub_map := Msmp.set sub_map mps.(mps_sub) ss in
+  {| var_region := Mvar.set rmap.(var_region) x mps;
+     region_var := Mmp.set  rmap.(region_var) mps.(mps_mp) sub_map |}.
+
+Definition set_full rmap x mp := 
+  let len := size_of x.(vtype) in
+  let sub := {| smp_ofs := 0;  smp_len := len |} in
+  let mps := {| mps_mp  := mp; mps_sub := sub |} in
+  let ss :=  {| xs := Sv.singleton x; bytes := ByteSet.full (interval_of_sub sub) |} in
+  let sub_map := Msmp.set (Msmp.empty _) sub ss in
+  {| var_region := Mvar.set rmap.(var_region) x mps;
+     region_var := Mmp.set  rmap.(region_var) mp sub_map |}.
 
 Definition set_init rsp (rmap:regions) x pk := 
   match pk with
-  | Pstack ofs align => set rmap x (mp_stack rsp ofs align)
+  | Pstack ofs align => set_full rmap x (mp_stack rsp ofs align)
   | Pstkptr _ => rmap
   | Pregptr _ => rmap
   end.
 
+Definition incl_sub_map (mp:mem_pos) (sm1 sm2: sub_map) :=
+  Msmp.incl (fun sub ss1 ss2 =>
+               Sv.subset ss1.(xs) ss2.(xs) &&
+               ByteSet.subset ss1.(bytes) ss2.(bytes)) sm1 sm2.
+
 Definition incl (r1 r2:regions) := 
   Mvar.incl (fun x mp1 mp2 => mp1 == mp2) r1.(var_region) r2.(var_region) &&
-  Mmp.incl (fun x xs1 xs2 => Sv.subset xs1 xs2) r1.(region_vars) r2.(region_vars).
+  Mmp.incl incl_sub_map r1.(region_var) r2.(region_var).
+
+Definition merge_sub_map (sm1 sm2: sub_map) :=
+  Msmp.map2 (fun _ ss1 ss2 =>
+     match ss1, ss2 with
+     | Some ss1, Some ss2 => 
+       Some {| xs := Sv.inter ss1.(xs) ss2.(xs);
+               bytes := ByteSet.inter ss1.(bytes) ss2.(bytes) |}
+     | _, _ => None
+     end) sm1 sm2.
 
 Definition merge (r1 r2:regions) := 
-  let vr := r2.(var_region) in
-  let rv := r2.(region_vars) in
   {| var_region := 
        Mvar.map2 (fun _ omp1 omp2 =>
         match omp1, omp2 with
         | Some mp1, Some mp2 => if mp1 == mp2 then omp1 else None
         | _, _ => None
         end) r1.(var_region) r2.(var_region);
-     region_vars := 
+     region_var := 
        Mmp.map2 (fun _ oxs1 oxs2 =>
          match oxs1, oxs2 with
-         | Some xs1, Some xs2 => Some (Sv.inter xs1 xs2)
+         | Some sm1, Some sm2 => Some (merge_sub_map sm1 sm2)
          | _ , _ => None
-         end) r1.(region_vars) r2.(region_vars) |}.
+         end) r1.(region_var) r2.(region_var) |}.
   
 End Region.
 
@@ -228,6 +441,10 @@ Definition mk_ofs aa ws e1 ofs :=
     cast_const (i * sz + ofs)%Z
   else 
     add (mul (cast_const sz) (cast_word e1)) (cast_const ofs).
+
+Definition mk_ofsi aa ws e1 := 
+  if is_const e1 is Some i then Some (i * (mk_scale aa ws))%Z
+  else None.
 
 Section Section.
 
@@ -289,7 +506,9 @@ Definition check_vpk_word rmap x vpk ws :=
   Let mp := 
     match vpk with
     | VKglob z => ok (mp_glob pmap.(vrip) z)
-    | VKptr pk => check_valid rmap x 
+    | VKptr pk => 
+      Let mps := check_valid rmap x (Some 0%Z) (wsize_size ws) in
+      ok mps.(mps_mp)
     end in
   check_align mp ws.
 
@@ -312,13 +531,6 @@ Fixpoint alloc_e (e:pexpr) :=
   | Pget aa ws x e1 =>
     let xv := x.(gv) in
     Let e1 := alloc_e e1 in
-    Let _ := 
-      (* This is not necessary for the proof, it is here just to ensure that 
-         the compilation will not fail later *)
-      if is_glob x then
-        if is_const e1 is Some _ then ok tt
-        else cerror "not constant global array index: use pointer"
-      else ok tt in
     Let vk := get_var_kind x in
     match vk with
     | None => ok (Pget aa ws x e1)
@@ -378,7 +590,7 @@ Definition alloc_lval (rmap: regions) (r:lval) ty :=
           Let pofs := mk_addr_ptr x AAdirect ws pk (Pconst 0) in
           Let mp   := mp_pk pk in
           let r := Lmem ws pofs.1 pofs.2 in
-          Let rmap := Region.set_word rmap x ws mp in
+          Let rmap := Region.set_word rmap x mp ws in
           ok (rmap, r)
         else cerror "invalid type for assignment"
       else cerror "not a word variable in assignment"
@@ -389,10 +601,10 @@ Definition alloc_lval (rmap: regions) (r:lval) ty :=
     match get_local x with
     | None => Let _ := check_diff x in ok (rmap, Laset aa ws x e1)
     | Some pk => 
-      Let mp := check_valid rmap x in
+      let ofs := mk_ofsi aa ws e1 in 
+      Let rmap := set_arr_word rmap x ofs ws in
       Let pofs := mk_addr_ptr x aa ws pk e1 in
       let r := Lmem ws pofs.1 pofs.2 in
-      Let rmap := Region.set_word rmap x ws mp in
       ok (rmap, r)
     end   
   | Lasub aa ws len x e1 =>
@@ -403,89 +615,119 @@ Definition alloc_lval (rmap: regions) (r:lval) ty :=
     ok (rmap, Lmem ws x e1)
   end.
 
-Definition get_Pvar e := 
-  match e with
-  | Pvar x => ok x 
-  | _      => cerror "variable excepted" 
-  end.
-
-Definition get_Lvar lv := 
-  match lv with
-  | Lvar x => ok x
-  | _      => cerror "variable excepted"
-  end.
-
 Definition nop := Copn [::] AT_none Onop [::]. 
 
-Definition lea_ptr x y ptr ofs := 
-  Copn [::x] AT_none (Ox86 (LEA Uptr)) 
-       [:: add (Pvar (mk_lvar (with_var y ptr))) (cast_const ofs)].
+Definition lea_ptr x y ofs := 
+  Copn [::x] AT_none (Ox86 (LEA Uptr)) [:: add y (cast_const ofs)].
 
 Definition mov_ptr x y :=
   Copn [:: x] AT_none (Ox86 (MOV Uptr)) [::y].
 
-Definition move_pk pk dx vy := 
-  match pk with
-  | Pstack ofs _  => lea_ptr dx vy pmap.(vrsp) ofs
-  | Pregptr p     => mov_ptr dx (Pvar (mk_lvar (with_var vy p)))
-  | Pstkptr z     => mov_ptr dx (Pload Uptr (with_var vy pmap.(vrsp)) (cast_const z))
-  end.
+Inductive mov_kind := 
+  | MK_LEA 
+  | MK_MOV.
+
+Definition mov_ofs x mk y ofs := 
+  if mk is MK_LEA then lea_ptr x y ofs 
+  else
+    if ofs == 0%Z then mov_ptr x y else lea_ptr x y ofs.
 
 Definition is_nop is_spilling rmap x mpy : bool :=
   if is_spilling then
-  if Mvar.get rmap.(var_region) x is Some mpx then
-  mpx == mpy
-  else false
+    if Mvar.get rmap.(var_region) x is Some mpx then mpx == mpy
+    else false
   else false.
 
-Definition get_addr is_spilling rmap x dx y := 
-  let vy := y.(gv) in 
-  Let ir := 
-    if is_glob y then 
-      Let ofsa := get_global vy in
-      let mpy := (mp_glob pmap.(vrip) ofsa) in
-      let ir :=
-        if is_nop is_spilling rmap x mpy
-        then nop
-        else lea_ptr dx vy pmap.(vrip) ofsa.1
-      in
-      ok (mpy, ir)
-    else
-      match get_local vy with
-      | None => cerror "register array remain" 
-      | Some pk => 
-        Let mpy := Region.check_valid rmap vy in   
-        let ir :=
-          if is_nop is_spilling rmap x mpy
-          then nop
-          else move_pk pk dx vy
-        in
-        ok (mpy, ir)
-      end in
-  let rmap := Region.set rmap x ir.1 in
-  ok (rmap, ir.2).
+Definition get_addr is_spilling rmap x dx mpy mk y ofs := 
+  let ir := 
+    if is_nop is_spilling rmap x mpy then nop
+    else mov_ofs dx mk y ofs in
+  let rmap := Region.set_move rmap x mpy in
+  (rmap, ir).
+
+Definition get_ofs_sub aa ws e1 := 
+  match mk_ofsi aa ws e1 with
+  | None     => cerror "cannot take/set a subarray on a unknown starting position" 
+  | Some ofs => ok ofs
+  end.
+
+Definition get_Lvar_sub lv := 
+  match lv with
+  | Lvar x => ok (x, None)
+  | Lasub aa ws len x e1 =>
+    Let ofs := get_ofs_sub aa ws e1 in
+    ok (x, Some (ofs, arr_size ws len))
+  | _      => cerror "variable/subarray excepted : 1"
+  end.
+
+Definition get_Pvar_sub e := 
+  match e with
+  | Pvar x => ok (x, None)
+  | Psub aa ws len x e1 =>
+    Let ofs := get_ofs_sub aa ws e1 in
+    ok (x, Some (ofs, arr_size ws len))
+  | _      => cerror "variable/subarray excepted : 2" 
+  end.
 
 (* Precondition is_sarr ty *)
 Definition alloc_array_move rmap r e :=
-  Let x := get_Lvar r in
-  Let y := get_Pvar e in
-  let xk := get_local (v_var x) in
-  match xk with
-  | None => cerror "register array remains" 
-  | Some pk1 =>
-    match pk1 with
-    | Pstack z1 ws =>
-      Let _  := assert (is_lvar y)
-                 (Cerr_stk_alloc "invalid move: global to stack") in 
-      Let mp := Region.check_valid rmap y.(gv) in
-      Let _  := assert (mem_pos_same mp (mp_stack pmap.(vrsp) z1 ws))
-                 (Cerr_stk_alloc "invalid move: check alias") in  
-      let rmap := Region.set rmap x mp in
+  Let xsub := get_Lvar_sub r in
+  Let ysub := get_Pvar_sub e in
+  let '(x,subx) := xsub in
+  let '(y,suby) := ysub in
+
+  Let mpyl := 
+    let vy := y.(gv) in
+    Let vk := get_var_kind y in
+    let (ofs, len) := 
+      match suby with
+      | None => (0%Z, size_of vy.(vtype))
+      | Some p => p
+      end in
+    match vk with
+    | None => cerror "alloc_array_move"
+    | Some (VKglob (ofsy, ws)) =>
+      let mpy := 
+        {| mps_mp := mp_glob pmap.(vrip) (ofsy, ws); mps_sub := {| smp_ofs := ofs; smp_len := len |} |} in
+      ok (mpy, MK_LEA, Plvar (with_var vy pmap.(vrip)), (ofsy + ofs)%Z)
+    | Some (VKptr pk) =>
+      Let mpy := Region.check_valid rmap vy (Some ofs) len in
+      let '(mk, l, ofs) := 
+        match pk with
+        | Pstack ofsy ws => (MK_LEA, Plvar (with_var vy pmap.(vrsp)), (ofsy + ofs)%Z)
+        | Pregptr p      => (MK_MOV, Plvar (with_var vy p), ofs)
+        | Pstkptr ofsy   => (MK_MOV, Pload Uptr (with_var vy pmap.(vrsp)) (cast_const ofsy), ofs)
+        end in
+      ok (mpy, mk, l, ofs) 
+     end in
+  let '(mpy, mk, ey, ofs) := mpyl in
+  match subx with
+  | None =>
+    match get_local (v_var x) with
+    | None    => cerror "register array remains" 
+    | Some pk => 
+      match pk with
+      | Pstack z1 ws =>
+        Let _  := assert (is_lvar y)
+                         (Cerr_stk_alloc "invalid move: global to stack") in 
+        let subx := {| smp_ofs := 0; smp_len := size_of x.(vtype) |} in
+        Let _  := assert (mem_pos_same mpy.(mps_mp) (mp_stack pmap.(vrsp) z1 ws) && 
+                            (subx == mpy.(mps_sub)))
+                         (Cerr_stk_alloc "invalid source") in
+        let rmap := Region.set_move rmap x mpy in
+        ok (rmap, nop)
+      | Pregptr p =>
+        ok (get_addr false rmap x (Lvar (with_var x p)) mpy mk ey ofs)
+      | Pstkptr z =>
+        ok (get_addr true rmap x (Lmem Uptr (with_var x pmap.(vrsp)) (cast_ptr z)) mpy mk ey ofs)
+      end
+    end
+  | Some (ofs, len) =>
+    match get_local (v_var x) with
+    | None   => cerror "register array remains 2"
+    | Some _ => 
+      Let rmap := Region.set_arr_sub rmap x ofs len mpy in
       ok (rmap, nop)
-    | Pregptr p =>
-      get_addr false rmap x (Lvar (with_var x p)) y
-    | Pstkptr z =>
-      get_addr true rmap x (Lmem Uptr (with_var x pmap.(vrsp)) (cast_ptr z)) y
     end
   end.
  
@@ -526,6 +768,12 @@ Section PROG.
 
 Context (local_alloc: funname -> stk_alloc_oracle_t).
 
+Definition get_Pvar e := 
+  match e with
+  | Pvar x => ok x
+  | _      => cerror "get_Pvar: variable excepted" 
+  end.
+
 Definition alloc_call_arg rmap (sao_param: option param_info) (e:pexpr) := 
   Let x := get_Pvar e in
   Let _ := assert (~~is_glob x) 
@@ -536,24 +784,29 @@ Definition alloc_call_arg rmap (sao_param: option param_info) (e:pexpr) :=
     ok (None, Pvar x)
   | None, Some _ => cerror "argument not a reg" 
   | Some pi, Some (Pregptr p) => 
-    Let mp := Region.check_valid rmap xv in
-    Let _  := if pi.(pp_writable) then writable mp else ok tt in
-    Let _  := check_align mp pi.(pp_align) in
-    ok (Some (pi.(pp_writable),mp), Pvar (mk_lvar (with_var xv p)))
+    Let mps := Region.check_valid rmap xv (Some 0%Z) (size_of xv.(vtype))in
+    Let _  := if pi.(pp_writable) then writable mps.(mps_mp) else ok tt in
+    Let _  := check_align mps.(mps_mp) pi.(pp_align) in
+    ok (Some (pi.(pp_writable),mps), Pvar (mk_lvar (with_var xv p)))
   | Some _, _ => cerror "the argument should be a reg ptr" 
   end.
 
-Fixpoint check_all_disj (notwritables writables:seq mem_pos) (mps:seq (option (bool * mem_pos) * pexpr)) := 
+Definition disj_mps mps1 mps2 :=
+  ~~(mem_pos_same mps1.(mps_mp) mps2.(mps_mp)) || 
+  disjoint_sub_mp mps1.(mps_sub) mps2.(mps_sub).
+
+Fixpoint check_all_disj (notwritables writables:seq mem_pos_sub) (mps:seq (option (bool * mem_pos_sub) * pexpr)) := 
   match mps with
   | [::] => true
   | (None, _) :: mps => check_all_disj notwritables writables mps
   | (Some (writable, mp), _) :: mps => 
-    if mp \in writables then false
-    else
+    if all (disj_mps mp) writables then 
       if writable then 
-        if (mp \in notwritables) then false
-        else check_all_disj notwritables (mp::writables) mps
-      else   check_all_disj (mp::notwritables) writables mps
+        if all (disj_mps mp) notwritables then 
+          check_all_disj notwritables (mp::writables) mps
+        else false 
+      else check_all_disj (mp::notwritables) writables mps
+    else false 
   end.
 
 Definition alloc_call_args rmap (sao_params: seq (option param_info)) (es:seq pexpr) := 
@@ -587,7 +840,13 @@ Definition get_regptr (x:var_i) :=
   | _ => cerror "variable should be a reg ptr" 
   end.
 
-Definition alloc_lval_call (mps:seq (option (bool * mem_pos) * pexpr)) rmap (r: lval) (i:option nat) :=
+Definition get_Lvar lv := 
+  match lv with
+  | Lvar x => ok x
+  | _      => cerror "get_Lvar variable excepted"
+  end.
+
+Definition alloc_lval_call (mps:seq (option (bool * mem_pos_sub) * pexpr)) rmap (r: lval) (i:option nat) :=
   match i with
   | None => 
     Let _ := check_lval_reg_call r in
@@ -597,21 +856,13 @@ Definition alloc_lval_call (mps:seq (option (bool * mem_pos) * pexpr)) rmap (r: 
     | (Some (_,mp), _) =>
       Let x := get_Lvar r in
       Let p := get_regptr x in
-      let rmap := Region.rset_word rmap (v_var x) mp in
+      let rmap := Region.set_arr_call rmap (v_var x) mp in
       ok (rmap, Lvar p)
     | (None, _) => cerror "alloc_r_call : please report"
     end
   end.
 
-Definition remove_writable_arg rmap (mpe: option (bool * mem_pos) * pexpr) := 
-  match mpe.1 with
-  | Some(writable, mp) => if writable then Region.remove rmap mp else rmap
-  | _                  => rmap
-  end.
-
 Definition alloc_call_res rmap mps ret_pos rs := 
-  (* remove form rmap all arguments that are writable *)  
-  let rmap := foldl remove_writable_arg rmap mps in 
   fmapM2 bad_lval_number (alloc_lval_call mps) rmap rs ret_pos.
 
 Definition alloc_call rmap ini rs fn es := 
@@ -662,13 +913,6 @@ Fixpoint alloc_i (rmap:regions) (i: instr) : result instr_error (regions * instr
   ok (ir.1, MkI ii ir.2).
 
 End PROG.
-
-Definition size_of (t:stype) :=
-  match t with
-  | sword sz => wsize_size sz
-  | sarr n   => Zpos n
-  | sbool | sint => 0%Z
-  end.
 
 Definition init_local_map vrip vrsp fn
     (ws_align: wsize) (sz:Z) (l:list (var * ptr_kind)) : cfexec (Mvar.t ptr_kind * regions * Sv.t) :=
@@ -741,8 +985,8 @@ Definition check_result pmap rmap params oi (x:var_i) :=
   | Some i =>
     match nth None params i with
     | Some mp => 
-      Let mp' := check_valid rmap x in
-      Let _   := assert (mp == mp') (Cerr_stk_alloc "invalid reg ptr in result") in
+      Let mps := check_valid rmap x (Some 0%Z) (size_of x.(vtype))in
+      Let _   := assert (mp == mps.(mps_mp)) (Cerr_stk_alloc "invalid reg ptr in result") in
       Let p   := get_regptr pmap x in
       ok p
     | None => cerror "invalid function info:please report"
@@ -767,7 +1011,7 @@ Definition init_param accu pi (x:var_i) :=
       {| mp_s := pi.(pp_ptr); mp_ofs := 0; mp_align := pi.(pp_align); mp_writable := pi.(pp_writable) |} in
     ok (Sv.add pi.(pp_ptr) disj, 
         Mvar.set lmap x (Pregptr pi.(pp_ptr)),
-        rset_word rmap x mp, 
+        Region.set_full rmap x mp, 
         (Some mp, with_var x pi.(pp_ptr)))
   end. 
 

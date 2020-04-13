@@ -45,13 +45,17 @@ Definition with_var xi x :=
 Definition is_reg_ptr_expr x e := 
   match e with
   | Pvar x' => 
-    if is_reg_ptr x && (is_glob x' || ~~is_reg_ptr x'.(gv)) then Some (with_var x'.(gv) x) else None
+    if is_reg_ptr x && (is_glob x' || ~~is_reg_ptr x'.(gv)) then 
+      Some (with_var x'.(gv) x) 
+    else None
+  | Psub _ _ _ x' _ =>  Some (with_var x'.(gv) x)
   | _      => None 
   end.
 
 Definition is_reg_ptr_lval x r := 
   match r with
   | Lvar x' => if is_reg_ptr x && ~~is_reg_ptr x' then Some (with_var x' x) else None
+  | Lasub _ _ _ x' _ => Some (with_var x' x)
   | _      => None 
   end.
 

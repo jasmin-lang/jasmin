@@ -22,8 +22,7 @@ export fn test () {
   ps = init(ps);
 }
 */
-/*
-export fn foo1() -> reg u64 {
+/* fn foo1() -> reg u64 {
   stack u64[3] s;
   reg ptr u64[3] ps;
   reg u64 r;
@@ -92,6 +91,4 @@ export fn foo5() -> reg u64 {
   return r;
 }
 
-/* check that writable are returned
-   check rsi. */
 

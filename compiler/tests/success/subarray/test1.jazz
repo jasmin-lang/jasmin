@@ -1,38 +1,12 @@
-/*
-fn foo (reg ptr u64[3] t, reg u64 x) -> reg u64 {
-  reg int i;
-  reg u64 r;
-  i = (int)x;
-  r = t[i];
-  return r;
-}
-
-
-i -> x   x -> i
-
-Si i est ecrit on vire le x -> i 
-On pourra plus utiliser le i pour t1 = t[i:len]
-
-Si i est ecrit on vire les info sur i 
-
-On a les regions de base.
-On region peut etre une 
-Une region peut etre contenir une sous region
-
-
-export 
-*/
-
-
 export fn test () -> reg u64 {
-  stack u64[10] t;
-  reg ptr u64[1] s;
+  stack u64[10] s;
+  reg ptr u64[1] t;
   inline int i;
   reg u64 r;
-  s = t[0:1];
-  s.[0] = 0;
-  t[0:1] = s;  
-  r = t[0];
+  t = s[0:1];
+  t.[0] = 0;
+  s[0:1] = t;  
+  r = s[0];
   return r;
 }
    
