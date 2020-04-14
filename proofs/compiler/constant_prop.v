@@ -781,7 +781,7 @@ Fixpoint sem_pexpr_e (s:estate) (e : pexpr) : exec (value * leak_e_tree) :=
   | Papp1 o e1 =>
     Let vl := sem_pexpr_e s e1 in
     Let v := sem_sop1 o vl.1 in 
-    ok (v, LSub [:: vl.2])
+    ok (v, vl.2)
   | Papp2 o e1 e2 =>
     Let vl1 := sem_pexpr_e s e1 in
     Let vl2 := sem_pexpr_e s e2 in
@@ -902,8 +902,7 @@ Let Q'' es : Prop := forall vs, sem_pexprs_e gd s es = ok vs ->
     by rewrite cats1.
   + move=> op e Hs. t_xrbindP.
     move=> [hv hl] [yv yl] Hse h1 Hop He. move: (Hs (yv, yl) Hse) => -> /=.
-    rewrite Hop /=. case: He => -> <- /=. rewrite /lests_to_les /=.
-    by rewrite cats0.
+    rewrite Hop /=. case: He => -> <- /=. by rewrite /lests_to_les /=.
   + move=> op e1 H1 e2 H2 [v l]. t_xrbindP.
     move=> [yv yl] Hs [hv hl] Hs' v' Hop <- <- /=.
     move: (H1 (yv, yl) Hs) => -> /=. move: (H2 (hv, hl) Hs') => -> /=.
@@ -931,16 +930,64 @@ Let Q'' es : Prop := forall vs, sem_pexprs_e gd s es = ok vs ->
 
 End Sem_e_Leakages_proof.
 
-  Lemma sem_pexpr_e_to_sem_pexpr gd s e v l' :
+Definition const_prop_e_esP_sem_pexpr_e gd s e v:=
+  (@const_prop_e_esP gd s).1 e v.
+
+Definition const_prop_e_esP_sem_pexprs_e gd s es v:=
+  (@const_prop_e_esP gd s).2 es v.
+
+  Lemma sem_pexpr_e_to_sem_pexpr gd s e v l':
   sem_pexpr gd s e = ok (v, l') ->
   exists l, l' = lest_to_les l /\ sem_pexpr_e gd s e = ok (v, l).
   Proof.
+  elim: e v l'.
+  + move=> z v l' [] <- <- /=. exists LEmpty. split; auto.
+  + move=> b v l' [] <- <- /=. exists LEmpty. split; auto.
+  + move=> n v l' [] <- <- /=. exists LEmpty. split; auto.
+  + move=> x v l'. rewrite /sem_pexpr. t_xrbindP.
+    move=> y Hg <- <- /=. rewrite Hg /=. exists LEmpty. split; auto.
+  + move=> g v l. rewrite /sem_pexpr. t_xrbindP.
+    move=> y Hg <- <- /=. rewrite Hg /=. exists LEmpty. split; auto.
+  + move=> sz x e He v l' /=. apply: on_arr_varP => n t Hsub; rewrite /on_arr_var => Hg.
+    t_xrbindP. move=> [yv yl] He' z Hi w Ha Hv Hl /=.
+    move: (He yv yl He') => [] l [] Hs Hs'. rewrite Hs' /=.
+    rewrite Hg /=. rewrite Hi /=. rewrite Ha /=. 
+    exists (LSub [:: l; LIdx z]). split. rewrite -Hl /=.
+    rewrite Hs /=. rewrite /lests_to_les /=. by rewrite cats1.
+    by rewrite -Hv.
+  + move=> sz x e He /=. t_xrbindP.
+    move=> v l y v1 Hg Hp [yv yl] He' h6 Hp' h8 Hr Hv Hl /=.
+    move: (He yv yl He') => [] l' [] Hs Hs'. rewrite Hg /=.
+    rewrite Hp /=. rewrite Hs' /=. rewrite Hp' /=. rewrite Hr /=.
+    exists (LSub [:: l'; LAdr (y + h6)]). split. rewrite -Hl /=.
+    rewrite /lests_to_les /=. rewrite -Hs /=. by rewrite cats1.
+    by rewrite -Hv.
+  + move=> op e He /=. t_xrbindP.
+    move=> v l [yv yl] He' h2 Ho Hv Hl.
+    move: (He yv yl He') => [] l' [] Hs Hs'. rewrite Hs' /=.
+    rewrite Ho /=. exists l'. split.
+    rewrite -Hl /=. rewrite Hs /=. by rewrite /lests_to_les /=.
+    by rewrite Hv.
+  + move=> op e1 He1 e2 He2 /=. t_xrbindP.
+    move=> v l' [yv yl] He1' [yv' yl'] He2' v' Ho Hv Hl /=.
+    move: (He1 yv yl He1') => [] l1 [] Hs1 Hs1'. rewrite Hs1' /=.
+    move: (He2 yv' yl' He2') => [] l2 [] Hs2 Hs2'. rewrite Hs2' /=.
+    exists (LSub [:: l1; l2]). split.
+    rewrite -Hl /=. rewrite Hs1 Hs2 /=. rewrite /lests_to_les /=.
+    by rewrite cats0. rewrite Ho /=. by rewrite Hv.
+  + move=> op es He /=. t_xrbindP.
+    move=> h h0 y Hm h2 Ho Hv Hl /=.
+    admit.
+  + move=> t e He e1 He1 e2 He2 /=. t_xrbindP.
+    move=> h h0 [yv yl] He' b Hb [yv' yl'] He1' [yv'' yl''] He2' h8 Ht h9 Ht' Hv Hl.
+    move: (He yv yl He') => [] x [] Hs Hs'. rewrite Hs' /=.
+    rewrite Hb /=. move: (He1 yv' yl' He1') => [] x0 [] Hs1 Hs1'. rewrite Hs1' /=.
+    move: (He2 yv'' yl'' He2') => [] x0' [] Hs2 Hs2'. rewrite Hs2' /=. 
+    rewrite Ht /=. rewrite Ht' /=. rewrite Hv /=.
+    exists (LDual x (LDual x0 x0')). split. rewrite -Hl /=. by rewrite Hs Hs1 Hs2 /=.
+    auto.
   Admitted.
 
-
-
-Definition const_prop_e_esP_sem_pexpr_e gd s e v:=
-  (@const_prop_e_esP gd s).1 e v.
 
   Lemma write_lval_cp gd s1 x v s2 l:
   write_lval_e gd x v s1 = ok (s2, l) ->
