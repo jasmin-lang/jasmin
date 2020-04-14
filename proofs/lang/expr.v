@@ -1104,7 +1104,7 @@ Canonical  sfe_eqType      := Eval hnf in EqType stk_fun_extra sfe_eqMixin.
 Record sprog_extra := { 
   sp_rip   : Ident.ident;
   sp_globs : seq u8;
-  sp_stk_id: Ident.ident; 
+  sp_stk_id: Ident.ident;
 }.
 
 Instance progStack : progT [eqType of stk_fun_extra] := 

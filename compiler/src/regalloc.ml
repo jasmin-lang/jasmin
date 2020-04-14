@@ -479,7 +479,7 @@ struct
   let f_s = V.mk "SF" reg_k (Bty Bool) L._dummy
   let f_z = V.mk "ZF" reg_k (Bty Bool) L._dummy
 
-  let flags = [f_c; f_d; f_o; f_p; f_s; f_z]
+  let flags = [f_d ;f_o; f_c; f_s; f_p; f_z]
 
   let all_registers = reserved @ allocatable @ xmm_allocatable @ flags
 

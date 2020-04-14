@@ -6,7 +6,8 @@ module X64 : sig
   (* val rsp : var *)
   val allocatables : Sv.t
   val callee_save  : Sv.t
-  
+
+  val flags : var list
   val all_registers : var list
 end
 

@@ -90,6 +90,7 @@ Record lprog :=
  {  lp_rip   : Ident.ident;
     lp_globs : seq u8;
     lp_stk_id: Ident.ident;
+    lp_eflags : seq var;
     lp_funcs : seq (funname * lfundef) }.
 
 
@@ -99,7 +100,7 @@ Record lprog :=
 (* Uniq vmap                                                                   *)
 
 Section PROG.
-Context (p:sprog) (extra_free_registers: instr_info -> option var).
+Context (eflags: seq var) (p:sprog) (extra_free_registers: instr_info -> option var).
 
 Section WRITE1.
 
@@ -447,6 +448,7 @@ Definition linear_prog : cfexec lprog :=
   ok {| lp_rip   := p.(p_extra).(sp_rip);
         lp_globs := p.(p_extra).(sp_globs);
         lp_stk_id := p.(p_extra).(sp_stk_id);
+        lp_eflags := eflags;
         lp_funcs := funcs |}.
 
 End PROG.
