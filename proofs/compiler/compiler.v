@@ -68,7 +68,7 @@ Variant compiler_step :=
   | RemoveArrInit               : compiler_step
   | RemoveGlobal                : compiler_step
   | LowerInstruction            : compiler_step
-  | MakeRefArguments             : compiler_step
+  | MakeRefArguments            : compiler_step
   | StackAllocation             : compiler_step
   | RemoveReturn                : compiler_step
   | RegAllocation               : compiler_step

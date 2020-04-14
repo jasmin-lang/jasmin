@@ -87,9 +87,10 @@ Definition check_nop_opn (xs:lvals) (o: sopn) (es:pexprs) :=
   end.
 
 Fixpoint keep_only {T:Type} (l:seq T) (tokeep : seq bool) := 
-  match l, tokeep with
-  | [::], _ | _, [::] => [::]
-  | x::l, b::tokeep => 
+  match tokeep, l with
+  | [::], _ => l 
+  | b::tokeep, [::] => [::]
+  | b::tokeep, x::l => 
     let l := keep_only l tokeep in 
     if b then x::l else l
   end.
