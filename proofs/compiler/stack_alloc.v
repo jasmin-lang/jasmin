@@ -188,10 +188,10 @@ Module Smps := Smake(CmpMps).
 
 (* ------------------------------------------------------------------ *)
 
-Inductive ptr_kind :=
-  | Pstack  `(Z) `(wsize)
-  | Pregptr `(var)
-  | Pstkptr `(Z).
+Variant ptr_kind :=
+| Pstack  of Z & wsize
+| Pregptr of var
+| Pstkptr of Z.
 
 Record param_info := { 
   pp_ptr      : var;
@@ -759,7 +759,7 @@ Record stk_alloc_oracle_t :=
   ; sao_params : seq (option param_info)  (* Allocation of pointer params *)
   ; sao_return : seq (option nat)         (* Where to find the param input region *)
   ; sao_alloc: seq (var * ptr_kind)       (* Allocation of local variables without params *)
-  ; sao_to_save: seq var (* TODO: allocate them in the stack rather than push/pop *)
+  ; sao_to_save: seq (var * Z)
   ; sao_rsp: saved_stack
   ; sao_return_address: return_address_location
   }.

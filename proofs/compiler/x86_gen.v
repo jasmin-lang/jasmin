@@ -64,7 +64,7 @@ Definition assemble_fd sp rip (fd: lfundef) :=
   Let res := mapM (xreg_of_var xH \o v_var) (lfd_res fd) in
   Let _ :=
     assert (~~ (Reg sp \in arg)) (x86_gen_error sp) in
-  Let tosave := mapM (xreg_of_var xH) (lfd_to_save fd) in
+  Let tosave := mapM (λ '(x, ofs), Let y := xreg_of_var xH x in ok (y, ofs)) (lfd_to_save fd) in
   Let saved  := assemble_saved_stack (lfd_save_stack fd) in
   ciok (XFundef (lfd_align fd) (lfd_stk_size fd) sp arg fd' res (tosave, saved) (lfd_export fd)).
 

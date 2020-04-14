@@ -78,7 +78,7 @@ Record lfundef := LFundef {
  lfd_body : lcmd;
  lfd_tyout : seq stype;
  lfd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)
- lfd_to_save: seq var;
+ lfd_to_save: seq (var * Z);
  lfd_save_stack: saved_stack;
  lfd_export: bool;
 }.
@@ -245,7 +245,9 @@ Section CHECK.
     let O := read_es_rec saved_rsp (map Plvar fd.(f_res)) in
     let stack_align := fd.(f_extra).(sf_align) in
     Let I := add_finfo fn fn (check_c (check_i stack_align) fd.(f_body) O) in
-    match fd.(f_extra).(sf_return_address) with
+    let e := fd.(f_extra) in
+    Let _ := assert ((e.(sf_return_address) != RAnone) || (all (λ '(x, _), is_word_type x.(vtype) != None) e.(sf_to_save))) (Ferr_fun fn (Cerr_linear "bad to-save")) in
+    match e.(sf_return_address) with
     | RAreg ra =>
       Let _ := assert (~~Sv.mem ra (writefun fn)) (Ferr_fun fn (Cerr_linear "the function writes its return address")) in
       assert(~~Sv.mem ra I)  (Ferr_fun fn (Cerr_linear "the function depends of its return address"))

@@ -1079,7 +1079,7 @@ Canonical  return_address_location_eqType := Eval hnf in EqType return_address_l
 Record stk_fun_extra := MkSFun {
   sf_align : wsize;
   sf_stk_sz : Z;
-  sf_to_save: seq var;
+  sf_to_save: seq (var * Z);
   sf_save_stack: saved_stack;
   sf_return_address: return_address_location;
 }.

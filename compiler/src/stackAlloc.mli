@@ -25,5 +25,5 @@ type pos_kind =
   | Pregptr of var
   | Pstkptr of int
 
-val alloc_stack: pmap -> var list -> (var * pos_kind) list * int * wsize * int list
+val alloc_stack: pmap -> var list -> (var * pos_kind) list * int * wsize * (var * int) list
 val alloc_mem: pmap -> (var * glob_value) list -> Obj.t list * (var * (int * wsize)) list

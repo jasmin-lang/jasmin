@@ -1134,7 +1134,7 @@ let alloc_stack pmap extra =
     else mk_pos x pos ws in
 
   List.iter init_var vars;
-  let extra = List.map (fun x -> Hv.find etbl x) extra in
+  let extra = List.map (fun x -> x, Hv.find etbl x) extra in
 
   List.rev !alloc, !size, !align, extra
 
@@ -1180,29 +1180,3 @@ let alloc_mem pmap globs =
   let alloc = List.map init_var vars in
   let data = List.rev !data in
   data, alloc
-
-
-
-  
-  
-    
-    
-
-
-
-  
-
-
-
-
-
-    
-
-    
-
-
-
-
-
-    
-

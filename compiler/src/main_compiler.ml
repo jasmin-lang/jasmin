@@ -342,12 +342,16 @@ let main () =
 
       let atbl = Hf.create 117 in 
       let get_sao fn = try Hf.find atbl fn with Not_found -> assert false in
-      let mk_oas (sao, ro, fd) = 
-        let has_stack = has_stack fd.f_cc sao in
+      let mk_oas (sao, ro, fd) =
+        let to_save = if fd.f_cc = Export then ro.ro_to_save else [] in
+        let has_stack = has_stack fd.f_cc sao || to_save <> [] in
         let rastack = odfl OnReg fd.f_annot.retaddr_kind = OnStack in
+        let rsp = V.clone rsp in
+        let ra = V.mk "RA" (Stack Direct) u64 L._dummy in
         let extra =
-          let extra = if rastack then [V.mk "RA" (Stack Direct) u64 L._dummy] else [] in
-          if has_stack && ro.ro_rsp = None then V.clone rsp :: extra
+          let extra = to_save in
+          let extra = if rastack then ra :: extra else extra in
+          if has_stack && ro.ro_rsp = None then rsp :: extra
           else extra in
         let alloc, size, align, extrapos = 
           StackAlloc.alloc_stack sao.sao_alloc extra in
@@ -360,7 +364,7 @@ let main () =
           if has_stack then
             match ro.ro_rsp with
             | Some x -> Expr.SavedStackReg (Conv.cvar_of_var tbl x)
-            | None   -> Expr.SavedStackStk (Conv.z_of_int (List.hd extrapos))
+            | None   -> Expr.SavedStackStk (Conv.z_of_int (List.assoc rsp extrapos))
           else Expr.SavedStackNone in
 
         let conv_pi pi = 
@@ -374,7 +378,12 @@ let main () =
           | Pregptr p     -> Stack_alloc.Pregptr(Conv.cvar_of_var tbl p);
           | Pstkptr i     -> Stack_alloc.Pstkptr(Conv.z_of_int i) in
         let conv_alloc (x,k) = Conv.cvar_of_var tbl x, conv_ptr_kind k in
-        
+
+        let conv_to_save x =
+          Conv.cvar_of_var tbl x,
+          (try List.assoc x extrapos with Not_found -> -1) |> Conv.z_of_int
+        in
+
         let sao = 
           Stack_alloc.({
             sao_align  = align;
@@ -382,11 +391,11 @@ let main () =
             sao_params = List.map (omap conv_pi) sao.sao_params;
             sao_return = List.map (omap Conv.nat_of_int) sao.sao_return;
             sao_alloc  = List.map conv_alloc alloc; 
-            sao_to_save = List.map (Conv.cvar_of_var tbl) ro.ro_to_save;
+            sao_to_save = List.map conv_to_save ro.ro_to_save;
             sao_rsp  = saved_stack;
             sao_return_address =
               if rastack
-              then RAstack (Conv.z_of_int (List.last extrapos))
+              then RAstack (Conv.z_of_int (List.assoc ra extrapos))
               else match ro.ro_return_address with
                    | None -> RAnone
                    | Some ra -> RAreg (Conv.cvar_of_var tbl ra)

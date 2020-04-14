@@ -366,7 +366,7 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
       ];
       if export then
       List.iter (function
-          | X86_decl.Reg r ->
+          | X86_decl.Reg r, _->
              pp_gens fmt [`Instr ("pushq", [pp_register `U64 r])]
           | _ -> assert false)
         tosave;
@@ -415,7 +415,7 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
 
       if export then
       List.iter (function
-        | X86_decl.Reg r ->
+        | X86_decl.Reg r, _ ->
            pp_gens fmt [`Instr ("popq", [pp_register `U64 r])]
         | _ -> assert false)
         (List.rev tosave);
