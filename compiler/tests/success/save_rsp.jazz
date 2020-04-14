@@ -1,0 +1,62 @@
+param int n = 8;
+
+export
+fn test0(reg u64 x) -> reg u64 {
+reg u64 result;
+reg u64[n] tab;
+inline int i;
+
+for i = 0 to n { tab[i] = x; }
+
+result = 0;
+for i = 0 to n { result += tab[i]; }
+
+return result;
+}
+
+export
+fn test1(reg u64 x) -> reg u64 {
+reg u64 result;
+reg u64[n] tab;
+inline int i;
+stack u64 t;
+
+t = x;
+
+
+for i = 0 to n { tab[i] = x; }
+
+result = t;
+for i = 0 to n { result += tab[i]; }
+
+return result;
+}
+
+export
+fn test2(reg u64 x) -> reg u64 {
+reg u64 result;
+stack u64[1] t;
+
+t[0] = x;
+
+result = t[0];
+
+return result;
+}
+
+fn copy(reg u64 x) -> reg u64 {
+stack u64[1] t;
+t[0] = x;
+x = t[0];
+return x;
+}
+
+#[stacksize="0", stackalign="u64"]
+export
+fn test3(reg u64 x) -> reg u64 {
+reg u64 result;
+
+result = copy(x);
+
+return result;
+}
