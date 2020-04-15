@@ -90,11 +90,6 @@ let pointsto_incl pt1 pt2 =
 let merge_aliases_incl (cf1, pt1) (cf2, pt2) =
   var_classes_incl cf1 cf2 && pointsto_incl pt1 pt2
 
-(* TODO: move *)
-let is_stack_array x = 
-  let x = L.unloc x in
-  is_ty_arr x.v_ty && x.v_kind = Stack Direct
-
 let set_same_all cf x s =
   Sv.fold (fun y cf -> set_same cf x y) s cf
 
@@ -102,7 +97,7 @@ let merge_aliases_assgn ((cf, pt) as acc) lv e =
   match lv with
   | Lvar x when is_ptr (L.unloc x).v_kind ->
      (cf, Mv.add (L.unloc x) (expr_pointsto pt e) pt)
-  | Lvar x when is_stack_array x ->
+  | Lvar x when is_stack_array x && is_var e ->
      (set_same_all cf (L.unloc x) (expr_pointsto pt e), pt)
   | _ -> acc
 

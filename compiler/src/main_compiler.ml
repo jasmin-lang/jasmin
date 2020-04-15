@@ -528,10 +528,10 @@ let main () =
       let x = Conv.var_of_cvar tbl x in
       is_ptr x.v_kind in
 
-    let is_reg_array x = 
-      let x = Conv.var_of_cvar tbl x in
-      x.v_kind = Reg Direct in
-      
+    let is_reg_array x =
+      is_reg_arr (Conv.var_of_cvar tbl x)
+    in
+
     let warn_extra s p =
       if s = Compiler.DeadCode_RegAllocation then
         let (fds, _) = Conv.prog_of_csprog tbl p in

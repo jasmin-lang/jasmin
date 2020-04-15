@@ -325,7 +325,7 @@ val size_of  : ty -> int
 
 val is_stack_var : var -> bool
 val is_reg_arr   : var -> bool
-
+val is_stack_array : var_i -> bool
 
 (* -------------------------------------------------------------------- *)
 (* Functions over expressions                                           *)
@@ -335,6 +335,7 @@ val ( ** ) : 'len gexpr -> 'len gexpr -> 'len gexpr
 val cnst   : B.zint -> 'len gexpr
 val icnst  : int -> 'len gexpr
 val cast64 : 'len gexpr -> 'len gexpr
+val is_var : 'len gexpr -> bool
 
 (* -------------------------------------------------------------------- *)
 (* Functions over lvalue                                                *)

@@ -479,6 +479,10 @@ let is_stack_var v =
 let is_reg_arr v =
   v.v_kind = Reg Direct && is_ty_arr v.v_ty
 
+let is_stack_array x =
+  let x = L.unloc x in
+  is_ty_arr x.v_ty && x.v_kind = Stack Direct
+
 (* -------------------------------------------------------------------- *)
 (* Functions over expressions                                           *)
 
@@ -496,6 +500,10 @@ let cnst i = Pconst i
 let icnst i = cnst (B.of_int i)
 
 let cast64 e = Papp1 (Oword_of_int U64, e)
+
+let is_var = function
+  | Pvar _ -> true
+  | _ -> false
 
 (* -------------------------------------------------------------------- *)
 (* Functions over lvalue                                                *)
