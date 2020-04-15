@@ -71,8 +71,23 @@ Module WArray.
 
   Local Notation pointer := [eqType of Z].
 
-  Definition add x y := (x + y)%Z.
-  Definition sub x y := (x - y)%Z.
+  Local Instance PointerZ : pointer_op pointer.
+    refine {|
+        add x y := (x + y)%Z;
+        sub x y := (x - y)%Z;
+      |}.
+  Proof.
+    - abstract (move => /= ??; ring).
+    - abstract (move => /= ?; ring).
+  Defined.
+
+  Lemma addE x y : add x y = (x + y)%Z.
+  Proof. by []. Qed.
+
+  Lemma subE x y : sub x y = (x - y)%Z.
+  Proof. by []. Qed.
+
+  Global Opaque PointerZ.
 
   Section CM.
     Variable (s:positive).
@@ -109,14 +124,8 @@ Module WArray.
       assert (all (fun i => Mz.get m.(arr_data) (p+i)%Z != None) (ziota 0 (wsize_size ws)))
              ErrAddrInvalid.
 
-    Lemma add_sub p k: add p (sub k p) = k.
-    Proof. rewrite /add /sub; ring. Qed.
-
     Lemma sub_add m p sw i t: validw m p sw = ok t -> (0 <= i < wsize_size sw)%Z -> sub (add p i) p = i.
-    Proof. move=> ?;rewrite /add /sub => _; ring. Qed.
-
-    Lemma add_0 p: add p 0 = p.
-    Proof. rewrite /add; ring. Qed.
+    Proof. rewrite addE subE => _ _; ring. Qed.
 
     Lemma validw_uset m p v p' sw: validw (uset m p v) p' sw = validw m p' sw.
     Proof. done. Qed.
@@ -126,7 +135,7 @@ Module WArray.
       validw m1 p sw = ok t -> validw m2 (add p i) U8 = ok tt.
     Proof.
       move=> hi;rewrite /validw /assert is_align8; case: in_rangeP => // h1 _. 
-      by case: in_rangeP => //; rewrite /wsize_size /add; Psatz.nia.
+      by case: in_rangeP => //; rewrite /wsize_size addE; Psatz.nia.
     Qed.
 
     Lemma validrP m p sw i t:
@@ -155,8 +164,8 @@ Module WArray.
       uget (uset m z1 v) z2 = if z1 == z2 then v else uget m z2.
     Proof. by rewrite /uget /uset /= Mz.setP; case: eqP. Qed.
 
-    Global Instance array_CM : coreMem (array s) pointer :=
-      CoreMem add_sub sub_add add_0 validw_uset
+    Global Instance array_CM : coreMem PointerZ (array s) :=
+      CoreMem sub_add validw_uset
         validrP validw_validr usetP.
 
   End CM.
@@ -344,7 +353,7 @@ Module WArray.
   Proof.
     move=> hp h1;have := CoreMem.writeP_neq h1.
     rewrite /get /CoreMem.read /= (set_validr_neq hp h1) /= => -> //.
-    rewrite /CoreMem.disjoint_range /= /add => ??; move/eqP : hp; nia.
+    move: hp => /eqP hp ????; rewrite !addE; nia.
   Qed.
 
   Lemma setP len (m m':array len) p1 p2 ws (v: word ws) :

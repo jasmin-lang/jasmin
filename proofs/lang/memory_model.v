@@ -73,20 +73,27 @@ Module LE.
 
 End LE.
 
-Class coreMem (core_mem:Type) (pointer:eqType) := CoreMem {
+Class pointer_op (pointer: eqType) : Type := PointerOp {
   add : pointer -> Z -> pointer;
   sub : pointer -> pointer -> Z;
 
+  add_sub : forall p k, add p (sub k p) = k;
+  add_0   : forall p, add p 0 = p;
+}.
+
+Section POINTER.
+
+Context (pointer: eqType) (Pointer: pointer_op pointer).
+
+Class coreMem (core_mem: Type) := CoreMem {
   uget : core_mem -> pointer -> u8;
   uset : core_mem -> pointer -> u8 -> core_mem;
 
   validr : core_mem -> pointer -> wsize -> exec unit;
   validw : core_mem -> pointer -> wsize -> exec unit;
 
-  add_sub : forall p k, add p (sub k p) = k;
   sub_add : forall m p s i t,
     validw m p s = ok t -> 0 <= i < wsize_size s -> sub (add p i) p = i;
-  add_0   : forall p, add p 0 = p;
 
   validw_uset m p v p' s: validw (uset m p v) p' s = validw m p' s;
 
@@ -105,10 +112,13 @@ Class coreMem (core_mem:Type) (pointer:eqType) := CoreMem {
 
 }.
 
+End POINTER.
+
 Module CoreMem.
 Section CoreMem.
 
-  Context {core_mem:Type} {pointer:eqType} {CM:coreMem core_mem pointer}.
+  Context {pointer: eqType} {Pointer: pointer_op pointer}.
+  Context {core_mem: Type} {CM: coreMem Pointer core_mem}.
 
   Definition uread (m: core_mem) (ptr: pointer) n :=
     map (fun o => uget m (add ptr o)) (ziota 0 n).
@@ -391,16 +401,36 @@ Arguments alloc_stack_spec {_ _ _} _ _ _.
 Arguments stack_stable {_ _} _ _.
 Arguments free_stack_spec {_ _} _ _ _.
 
+(** Pointer arithmetic *)
+Instance Pointer : pointer_op pointer.
+Proof.
+refine
+  {| add p k := (p + wrepr Uptr k)%R
+   ; sub p1 p2 := wunsigned p1 - wunsigned p2
+  |}.
+- abstract (move => p k; rewrite wrepr_sub !wrepr_unsigned; ssrring.ssring).
+- abstract (move => p; rewrite wrepr0; ssrring.ssring).
+Defined.
+
+Lemma addE p k : add p k = (p + wrepr Uptr k)%R.
+Proof. by []. Qed.
+
+Lemma subE p1 p2 : sub p1 p2 = wunsigned p1 - wunsigned p2.
+Proof. by []. Qed.
+
+Lemma addC p i j : add (add p i) j = add p (i + j).
+Proof. rewrite /= wrepr_add; ssrring.ssring. Qed.
+
+Global Opaque Pointer.
+
 Module Type MemoryT.
 
 Declare Instance A : alignment.
 
 Parameter mem : Type.
 
-Declare Instance CM : coreMem mem pointer.
+Declare Instance CM : coreMem Pointer mem.
 Declare Instance M : memory mem.
-
-Parameter addP : forall p k, add p k = (p + wrepr U64 k)%R.
 
 Parameter readV : forall m p s,
   reflect (exists v, read_mem m p s = ok v) (valid_pointer m p s).

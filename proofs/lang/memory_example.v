@@ -126,20 +126,6 @@ Instance A : alignment :=
 
 End Align.
 
-(** Pointer arithmetic *)
-Definition add (p:pointer) (o:Z) := (p + wrepr U64  o)%R.
-
-Definition sub (p1 p2:pointer)  := wunsigned p1 - wunsigned p2.
-
-Lemma add_0 p: add p 0 = p.
-Proof. by rewrite /add wrepr0; ssrring.ssring. Qed.
-
-Lemma addC p i j : add (add p i) j = add p (i + j).
-Proof. rewrite /add wrepr_add; ssrring.ssring. Qed.
-
-Lemma add_sub p k: add p (sub k p) = k.
-Proof. rewrite /add /sub wrepr_sub !wrepr_unsigned; ssrring.ssring. Qed.
-
 (** An example instance of the memory *)
 Module MemoryI : MemoryT.
 
@@ -216,7 +202,7 @@ Module MemoryI : MemoryT.
   Proof.
     rewrite /valid => /assertP; rewrite /valid_pointer => /andP [].
     move=> /is_align_no_overflow; rewrite /no_overflow !zify => ha _ hi.
-    have ? := wunsigned_range p; rewrite /sub /add wunsigned_add; Psatz.lia.
+    have ? := wunsigned_range p; rewrite subE addE wunsigned_add; Psatz.lia.
   Qed.
 
   Lemma validw_uset m p v p' s : valid (uset m p v) p' s = valid m p' s.
@@ -247,8 +233,8 @@ Module MemoryI : MemoryT.
     by rewrite /uget /uset /= Mz.setP (eqtype.inj_eq (@wunsigned_inj _)); case: eqP.
   Qed.
 
-  Instance CM : coreMem mem pointer :=
-    CoreMem add_sub sub_add add_0 validw_uset validrP validw_validr setP.
+  Instance CM : coreMem Pointer mem :=
+    CoreMem sub_add validw_uset validrP validw_validr setP.
 
   Definition read_mem (m: mem) (ptr: pointer) (ws: wsize) : exec (word ws) :=
     CoreMem.read m ptr ws.
@@ -586,7 +572,7 @@ Module MemoryI : MemoryT.
     rewrite /read_mem /CoreMem.read /= /valid => hw [ /ZleP hno /ZleP hno' hd].
     rewrite (write_valid p' s' hw); case:valid_pointer => //=.
     rewrite (CoreMem.writeP_neq hw) // => i i' hi hi'.
-    rewrite /= /add => heq.
+    rewrite !addE => heq.
     have : wunsigned (p + wrepr U64 i)%R = wunsigned (p' + wrepr U64 i')%R by rewrite heq.
     have hp := wunsigned_range p; have hp' := wunsigned_range p'.
     rewrite !wunsigned_add; Psatz.lia.
@@ -733,7 +719,7 @@ Module MemoryI : MemoryT.
     have ns_nz : n * wsize_size s ≠ 0 by Psatz.lia.
     move: ws => -> /eqP rt_align /eqP fs_align /eqP /Z.mod_opp_l_z - /(_ ns_nz) sz_align _.
 
-    rewrite /add wunsigned_repr /=.
+    rewrite wunsigned_repr /=.
     rewrite /wunsigned /=.
     rewrite !word.addwE.
     rewrite !word.mkwordK.
@@ -831,7 +817,7 @@ Module MemoryI : MemoryT.
         rewrite set_allocP; case: andP => // - []; rewrite !zify => X Y.
         case: disj; rewrite /top_stack => /lezP noo /lezP noo'.
         have p_range := wunsigned_range p.
-        have pi_range := wunsigned_range (add p i).
+        have pi_range : 0 <= wunsigned (add p i) < wbase U64 by exact: wunsigned_range (add p i).
         rewrite wunsigned_add; last by Psatz.lia.
         rewrite wunsigned_add in X; last by Psatz.lia.
         rewrite wunsigned_add in Y; last by Psatz.lia.
