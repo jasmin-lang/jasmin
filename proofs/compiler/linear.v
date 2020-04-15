@@ -86,7 +86,6 @@ Definition signature_of_lfundef (lfd: lfundef) : function_signature :=
 Record lprog :=
  {  lp_rip   : Ident.ident;
     lp_globs : seq u8;
-    lp_stk_id: Ident.ident;
     lp_funcs : seq (funname * lfundef) }.
 
 
@@ -305,7 +304,7 @@ Section FUN.
 
 Context (fn: funname) (fn_align: wsize).
 
-Let rsp : var := Var (sword Uptr) p.(p_extra).(sp_stk_id).
+Let rsp : var := var_of_register RSP.
 Let rspi : var_i := VarI rsp xH.
 Let rspg : gvar := Gvar rspi Slocal.
 
@@ -483,7 +482,6 @@ Definition linear_prog : cfexec lprog :=
   let funcs := map (fun '(f,fd) => (f, linear_fd f fd)) p.(p_funcs) in
   ok {| lp_rip   := p.(p_extra).(sp_rip);
         lp_globs := p.(p_extra).(sp_globs);
-        lp_stk_id := p.(p_extra).(sp_stk_id);
         lp_funcs := funcs |}.
 
 End PROG.

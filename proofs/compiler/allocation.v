@@ -29,6 +29,7 @@ From CoqWord Require Import ssrZ.
 Require Import psem.
 Require Import compiler_util ZArith.
 Import Utf8.
+Import x86_variables.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -169,8 +170,8 @@ Module CheckBS (C:CheckB) <: CheckBE.
                     (Cerr_linear "allocation: invalid stack size") in
     Let _ := assert (ef1.(sf_align) == ef2.(sf_align)) 
                     (Cerr_linear "allocation: invalid stack alignment") in
-    check_vars [:: vid ep1.(sp_stk_id); vid ep1.(sp_rip)]
-               [:: vid ep2.(sp_stk_id); vid ep2.(sp_rip)] M.empty.
+    check_vars [:: vid (string_of_register RSP); vid ep1.(sp_rip)]
+               [:: vid (string_of_register RSP); vid ep2.(sp_rip)] M.empty.
 
   Lemma init_allocP (ef1 ef2:extra_fun_t) (ep1 ep2:extra_prog_t) ev s1 m r :
     init_alloc ef1 ep1 ef2 ep2 = ok r ->

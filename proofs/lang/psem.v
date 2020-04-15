@@ -29,6 +29,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import Psatz xseq.
 Require Export expr low_memory sem.
+Require Import x86_variables.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -2418,7 +2419,7 @@ Definition init_stk_state (sf : stk_fun_extra) (pe:sprog_extra) (wrip:pointer) (
   let m1   := s.(emem) in
   let vm1  := s.(evm) in
   Let m1' := alloc_stack m1 sf.(sf_align) sf.(sf_stk_sz) in
-  write_vars [:: vid pe.(sp_stk_id)   ; vid pe.(sp_rip)]
+  write_vars [:: vid (string_of_register RSP) ; vid pe.(sp_rip)]
              [:: Vword (top_stack m1'); Vword wrip] (Estate m1' vmap0).
 
 Definition finalize_stk_mem (sf : stk_fun_extra) (m:mem) := 

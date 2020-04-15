@@ -92,7 +92,6 @@ Record compiler_params := {
   inline_var       : var -> bool;
   is_var_in_memory : var_i → bool;
   global_static_data_symbol: Ident.ident;
-  stk_pointer_name : Ident.ident;
   stackalloc       : _uprog → stack_alloc_oracles;
   removereturn     : _sprog -> (funname -> option (seq bool));
   regalloc         : _sprog -> _sprog;
@@ -164,7 +163,7 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
  
   let ao := cparams.(stackalloc) pl in
   Let ps :=
-     stack_alloc.alloc_prog cparams.(stk_pointer_name)
+     stack_alloc.alloc_prog
        cparams.(global_static_data_symbol) ao.(ao_globals) ao.(ao_global_alloc)
        ao.(ao_stack_alloc) pl in
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in

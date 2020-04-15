@@ -67,23 +67,19 @@ Definition assemble_prog (p: lprog) : cfexec xprog :=
   let rip := mk_rip p.(lp_rip) in
   Let _ := assert (register_of_var rip == None)
                     (Ferr_msg (Cerr_assembler ( AsmErr_string "Invalid RIP: please report"))) in                       
-  match (reg_of_string p.(lp_stk_id)) with
-  | Some RSP =>
-    Let fds := map_cfprog (assemble_fd RSP rip) p.(lp_funcs) in
-    ok {| xp_globs := p.(lp_globs); xp_funcs := fds |}
-  | _ => Error (Ferr_fun xH (Cerr_assembler (AsmErr_string "Invalid stack pointer")))
-  end.
+  Let fds := map_cfprog (assemble_fd RSP rip) p.(lp_funcs) in
+  ok {| xp_globs := p.(lp_globs); xp_funcs := fds |}
+  .
 
 Lemma assemble_progP p p' :
   assemble_prog p = ok p' →
   let rip := mk_rip p.(lp_rip) in
   [/\ disj_rip rip,
-   xp_globs p' = lp_globs p,
-  reg_of_string p.(lp_stk_id) = Some RSP &
+   xp_globs p' = lp_globs p &
   map_cfprog (assemble_fd RSP rip) p.(lp_funcs) = ok (xp_funcs p') ].
 Proof.
   apply: rbindP => _ /assertP /eqP h.
-  case: (reg_of_string _) => // - [] //; apply: rbindP => fds ok_fds [<-].
+  apply: rbindP => fds ok_fds [<-].
   split => //.
   split => r heq //.
   by move: h; rewrite -heq register_of_var_of_register.
@@ -155,7 +151,7 @@ Lemma ok_get_fundef fn fd :
   get_fundef (lp_funcs p) fn = Some fd →
   exists2 fd', get_fundef (xp_funcs p') fn = Some fd' & assemble_fd RSP (mk_rip p.(lp_rip)) fd = ok fd'.
 Proof.
-  have [_ _ _ x y ] := assemble_progP ok_p'.
+  have [_ _ x y ] := assemble_progP ok_p'.
   have [fd' [??]] := get_map_cfprog x y.
   by exists fd'.
 Qed.

@@ -542,7 +542,6 @@ let main () =
       Compiler.expand_fd    = apply "arr exp" Array_expand.arrexp_func;
       Compiler.var_alloc_prog = (*apply "var alloc" *) var_alloc_prog;
       Compiler.share_stk_prog = (*apply "share stk" *) share_stk_prog;
-      Compiler.stk_pointer_name = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rsp);
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
       Compiler.stackalloc    = memory_analysis;
       Compiler.removereturn  = removereturn;
