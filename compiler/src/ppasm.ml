@@ -350,75 +350,18 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
      `Instr (".globl", [string_of_funname tbl n])])
     asm.xp_funcs;
 
-  let open X86_decl in
-  let open X86_instr_decl in
   let open X86_sem in
-  let open Prog in
   List.iter (fun (n, d) ->
       let name = string_of_funname tbl n in
       let export = d.xfd_export in
-      let stsz  = Conv.bi_of_z d.xfd_stk_size in
-      let tosave, saved_stack = d.xfd_extra in
       if export then
       pp_gens fmt [
         `Label (mangle (string_of_funname tbl n));
         `Label name
       ];
-      if export then
-      List.iter (function
-          | X86_decl.Reg r, _->
-             pp_gens fmt [`Instr ("pushq", [pp_register `U64 r])]
-          | _ -> assert false)
-        tosave;
 
-      let prologue, epilogue =
-        if not export then [], []
-        else match saved_stack with
-        | SavedStackNone  ->
-          assert (Bigint.equal stsz Bigint.zero);
-          [], []
+      pp_instrs tbl name fmt d.xfd_body;
 
-        | SavedStackReg r ->
-          let i = size_of_ws d.xfd_align in
-          let sub =
-            if Bigint.equal stsz Bigint.zero then []
-            else [ AsmOp(SUB uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi stsz)])] in
-          [AsmOp(MOV uptr, [Reg r; Reg RSP])] @
-            sub @
-              [AsmOp(AND uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi (B.of_int (-i)))])],
-          [ AsmOp(MOV uptr, [Reg RSP; Reg r]) ]
-
-        | SavedStackStk p ->
-          let i = size_of_ws d.xfd_align in
-          let adr =
-            Adr (Areg { ad_disp  = Conv.int64_of_bi (Conv.bi_of_z p);
-                ad_base   = Some RSP;
-                ad_scale  = Scale1;
-                ad_offset = None }) in
-          let sub =
-            if Bigint.equal stsz Bigint.zero then []
-            else [AsmOp(SUB uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi stsz)])] in
-          [ AsmOp(MOV uptr, [Reg RAX; Reg RSP])] @
-            sub @
-            [ AsmOp(AND uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi (B.of_int (-i)))]);
-              AsmOp(MOV uptr, [adr; Reg RAX]) ],
-          [ AsmOp(MOV uptr, [Reg RSP; adr]) ]
-      in
-
-      if export then
-      pp_instrs tbl name fmt prologue;
-
-      pp_instrs tbl name fmt d.X86_sem.xfd_body;
-
-      if export then
-      pp_instrs tbl name fmt epilogue;
-
-      if export then
-      List.iter (function
-        | X86_decl.Reg r, _ ->
-           pp_gens fmt [`Instr ("popq", [pp_register `U64 r])]
-        | _ -> assert false)
-        (List.rev tosave);
       if export then
       pp_gens fmt [`Instr ("ret", [])]
     ) asm.xp_funcs;

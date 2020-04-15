@@ -145,6 +145,7 @@ Definition lsem_trans s2 s1 s3 :
 
 End LSEM.
 
+(*
 Variant lsem_fd (wrip: pointer) m1 fn va' m2 vr' : Prop :=
 | LSem_fd : forall m1' fd va vm2 m2' s1 s2 vr,
     get_fundef P.(lp_funcs) fn = Some fd ->
@@ -160,5 +161,6 @@ Variant lsem_fd (wrip: pointer) m1 fn va' m2 vr' : Prop :=
     mapM2 ErrType truncate_val fd.(lfd_tyout) vr = ok vr' ->
     m2 = free_stack m2' fd.(lfd_stk_size) ->
     lsem_fd wrip m1 fn va' m2 vr'.
+*)
 
 End SEM.

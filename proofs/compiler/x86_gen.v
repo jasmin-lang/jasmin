@@ -51,22 +51,13 @@ Definition x86_gen_error (sp: register) : instr_error :=
 
 (* -------------------------------------------------------------------- *)
 
-Definition assemble_saved_stack (x:expr.saved_stack) := 
-  match x with
-  | expr.SavedStackNone  => ok (x86_sem.SavedStackNone)
-  | expr.SavedStackReg r => Let r := reg_of_var xH r in ok (x86_sem.SavedStackReg r)
-  | expr.SavedStackStk z => ok (x86_sem.SavedStackStk z)
-  end.
-
 Definition assemble_fd sp rip (fd: lfundef) :=
   Let fd' := assemble_c rip (lfd_body fd) in
   Let arg := mapM (xreg_of_var xH \o v_var) (lfd_arg fd) in
   Let res := mapM (xreg_of_var xH \o v_var) (lfd_res fd) in
   Let _ :=
     assert (~~ (Reg sp \in arg)) (x86_gen_error sp) in
-  Let tosave := mapM (λ '(x, ofs), Let y := xreg_of_var xH x in ok (y, ofs)) (lfd_to_save fd) in
-  Let saved  := assemble_saved_stack (lfd_save_stack fd) in
-  ciok (XFundef (lfd_align fd) (lfd_stk_size fd) sp arg fd' res (tosave, saved) (lfd_export fd)).
+  ciok (XFundef (lfd_align fd) sp arg fd' res (lfd_export fd)).
 
 (* -------------------------------------------------------------------- *)
 
@@ -339,6 +330,7 @@ case: r ok_r => // r => [ /var_of_register_of_var | /xmm_register_of_varI ] rx.
 by apply: hxr; rewrite rx.
 Qed.
 
+(*
 Lemma assemble_fdP wrip m1 fn va m2 vr :
   lsem_fd p wrip m1 fn va m2 vr →
   ∃ fd va',
@@ -405,12 +397,6 @@ apply: (Forall2_trans value_uincl_trans).
 + apply: (mapM2_Forall2 _ ok_vr) => a b r _; exact: truncate_val_uincl.
 apply: get_xreg_of_vars_uincl; eassumption.
 Qed.
-
-Lemma assemble_fd_stk_size sp fd xfd :
-  assemble_fd sp rip fd = ok xfd →
-  lfd_stk_size fd = xfd_stk_size xfd.
-Proof.
-by rewrite /assemble_fd; t_xrbindP => c _ ? ? ? ? ? ? ? ? ? ? [<-].
-Qed.
+*)
 
 End PROG.

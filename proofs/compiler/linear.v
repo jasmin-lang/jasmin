@@ -72,14 +72,11 @@ Definition find_label (lbl : label) (c : seq linstr) :=
 
 Record lfundef := LFundef {
  lfd_align : wsize;
- lfd_stk_size : Z;
  lfd_tyin : seq stype;
  lfd_arg  : seq var_i;
  lfd_body : lcmd;
  lfd_tyout : seq stype;
  lfd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)
- lfd_to_save: seq (var * Z);
- lfd_save_stack: saved_stack;
  lfd_export: bool;
 }.
 
@@ -320,13 +317,35 @@ Definition round_ws (ws:wsize) (sz: Z) : Z :=
 (*TODO: use cast_const *)
 Let cast_const sz := Papp1 (Oword_of_int Uptr) (Pconst sz).
 
-Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : linstr :=
-  let m i := {| li_ii := ii ; li_i := i |} in
-  m (Lopn [:: Lvar rspi] (Ox86 (LEA Uptr))
-          [:: Papp2 ((if free then Oadd else Osub) (Op_w Uptr))
-              (Pvar rspg)
-              (cast_const sz)
-    ]).
+Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : lcmd :=
+  if sz == 0%Z then [::]
+  else
+    [:: let m i := {| li_ii := ii ; li_i := i |} in
+        m (Lopn [:: Lvar rspi] (Ox86 (LEA Uptr))
+                [:: Papp2 ((if free then Oadd else Osub) (Op_w Uptr))
+                    (Pvar rspg)
+                    (cast_const sz)
+          ])
+    ].
+
+Definition eflags := Eval vm_compute in List.map (λ x, Lvar (VarI (var_of_flag x) xH)) [:: OF ; CF ; SF ; PF ; ZF ].
+
+Definition ensure_rsp_alignment ii (al: wsize) : linstr :=
+  MkLI ii (Lopn (eflags ++ [:: Lvar rspi ]) (Ox86 (AND Uptr)) [:: Pvar rspg ; Papp1 (Oword_of_int Uptr) (Pconst (- wsize_size al)) ]).
+
+Definition push_to_save ii (to_save: seq (var * Z)) : lcmd :=
+  List.map (λ '(x, ofs),
+            if is_word_type x.(vtype) is Some ws
+            then MkLI ii (Lopn [:: Lmem ws rspi (cast_const ofs) ] (Ox86 (MOV ws)) [:: Pvar {| gv := VarI x xH ; gs := Slocal |} ])
+            else MkLI ii Lalign (* absurd case *))
+           to_save.
+
+Definition pop_to_save ii (to_save: seq (var * Z)) : lcmd :=
+  List.map (λ '(x, ofs),
+            if is_word_type x.(vtype) is Some ws
+            then MkLI ii (Lopn [:: Lvar (VarI x xH) ] (Ox86 (MOV ws)) [:: Pload ws rspi (cast_const ofs) ])
+            else MkLI ii Lalign (* absurd case *))
+           to_save.
 
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
@@ -397,10 +416,8 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       if ra == RAnone then (lbl, lc)
       else
         let sz := round_ws (sf_align e) (sf_stk_sz e) in
-        let: (before, after) :=
-           if sz == 0 then ([::], [::])
-           else ([:: allocate_stack_frame false ii sz ], [:: allocate_stack_frame true ii sz ])
-        in
+        let before := allocate_stack_frame false ii sz in
+        let after := allocate_stack_frame true ii sz in
         let lret := lbl in
         let lbl := next_lbl lbl in
         match sf_return_address e with
@@ -426,13 +443,33 @@ Definition linear_fd (fd: sfundef) :=
      match sf_return_address e with
      | RAreg r => ([:: MkLI xH (Ligoto (Pvar {| gv := VarI r xH ; gs := Slocal |})) ], [:: MkLI xH (Llabel 1) ], 2%positive)
      | RAstack z => ([:: MkLI xH (Ligoto (Pload Uptr rspi (cast_const z))) ], [:: MkLI xH (Llabel 1) ], 2%positive)
-     | RAnone => ([::], [::], 1%positive)
+     | RAnone =>
+       match sf_save_stack e with
+       | SavedStackNone => ([::], [::], 1%positive)
+       | SavedStackReg x =>
+         let r := VarI x xH in
+         (pop_to_save xH e.(sf_to_save) ++ [:: MkLI xH (Lopn [:: Lvar rspi ] (Ox86 (MOV Uptr)) [:: Pvar {| gv := r ; gs := Slocal |} ]) ],
+          [:: MkLI xH (Lopn [:: Lvar r ] (Ox86 (MOV Uptr)) [:: Pvar rspg ] ) ]
+          ++ allocate_stack_frame false xH e.(sf_stk_sz)
+          ++ ensure_rsp_alignment xH e.(sf_align)
+          :: push_to_save xH e.(sf_to_save), (** FIXME: here to_save is always empty *)
+          1%positive)
+       | SavedStackStk ofs =>
+         let rax := VarI (var_of_register RAX) xH in
+         (pop_to_save xH e.(sf_to_save) ++ [:: MkLI xH (Lopn [:: Lvar rspi ] (Ox86 (MOV Uptr)) [:: Pload Uptr rspi (cast_const ofs) ]) ],
+          [:: MkLI xH (Lopn [:: Lvar rax ] (Ox86 (MOV Uptr)) [:: Pvar rspg ] ) ]
+          ++ allocate_stack_frame false xH e.(sf_stk_sz)
+          ++ ensure_rsp_alignment xH e.(sf_align)
+          :: MkLI xH (Lopn [:: Lmem Uptr rspi (cast_const ofs) ] (Ox86 (MOV Uptr)) [:: Pvar {| gv := rax ; gs := Slocal |} ])
+          :: push_to_save xH e.(sf_to_save),
+          1%positive)
+       end
      end
   in
   let fd' := linear_c linear_i (f_body fd) lbl tail in
   let is_export := sf_return_address e == RAnone in
   let res := if is_export then f_res fd else [::] in
-  LFundef (sf_align e) (sf_stk_sz e) (f_tyin fd) (f_params fd) (head ++ fd'.2) (f_tyout fd) res (if is_export then sf_to_save e else [::]) (sf_save_stack e)
+  LFundef (sf_align e) (f_tyin fd) (f_params fd) (head ++ fd'.2) (f_tyout fd) res
               is_export.
 
 End FUN.

@@ -49,19 +49,12 @@ Variant asm : Type :=
 | AsmOp     of asm_op & asm_args.
 
 (* -------------------------------------------------------------------- *)
-Variant saved_stack :=
-| SavedStackNone
-| SavedStackReg of register
-| SavedStackStk of Z.
-
 Record xfundef := XFundef {
  xfd_align : wsize;
- xfd_stk_size : Z;
  xfd_nstk : register;
  xfd_arg  : asm_args;
  xfd_body : seq asm;
  xfd_res  : asm_args;
- xfd_extra : seq (asm_arg * Z) * saved_stack;
  xfd_export: bool;
 }.
 
@@ -432,6 +425,7 @@ End PROG.
 (* -------------------------------------------------------------------- *)
 (* TODO: flags may be preserved *)
 (* TODO: restore stack pointer of caller? *)
+(*
 Variant x86sem_fd (P: xprog) (wrip: pointer) fn st st' : Prop :=
 | X86Sem_fd fd mp st2
    `(get_fundef P.(xp_funcs) fn = Some fd)
@@ -450,7 +444,7 @@ Variant x86sem_fd (P: xprog) (wrip: pointer) fn st st' : Prop :=
                xxreg := st2.(xxreg) ; 
                xrf := rflagmap0 |})
     .
-
+*)
 Definition x86sem_trans P s2 s1 s3 :
   x86sem P s1 s2 -> x86sem P s2 s3 -> x86sem P s1 s3 :=
   rt_trans _ _ s1 s2 s3.
