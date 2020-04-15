@@ -107,6 +107,7 @@ Record compiler_params := {
   fresh_id         : glob_decls -> var -> Ident.ident;
   is_reg_ptr       : var -> bool;
   is_ptr           : var -> bool;
+  is_reg_array     : var -> bool;
 }.
 
 Variable cparams : compiler_params.
@@ -142,7 +143,7 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
   Let ps := dead_code_prog ps in
   let ps := cparams.(print_uprog) DeadCode_ShareStackVariable ps in
 
-  let pr := remove_init_prog ps in
+  let pr := remove_init_prog cparams.(is_reg_array) ps in
   let pr := cparams.(print_uprog) RemoveArrInit pr in
 
   let pe := expand_prog pr in

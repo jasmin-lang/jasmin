@@ -339,7 +339,6 @@ let main () =
       let has_stack cc sao = cc = Export && sao.sao_has_stack in
       let fds, _rev_alloc, _extra_free_registers = 
         Regalloc.alloc_prog translate_var has_stack fds in
-
       let atbl = Hf.create 117 in 
       let get_sao fn = try Hf.find atbl fn with Not_found -> assert false in
       let mk_oas (sao, ro, fd) =
@@ -528,6 +527,10 @@ let main () =
     let is_ptr x = 
       let x = Conv.var_of_cvar tbl x in
       is_ptr x.v_kind in
+
+    let is_reg_array x = 
+      let x = Conv.var_of_cvar tbl x in
+      x.v_kind = Reg Direct in
       
     let warn_extra s p =
       if s = Compiler.DeadCode_RegAllocation then
@@ -563,6 +566,7 @@ let main () =
       Compiler.fresh_id    = fresh_id;
       Compiler.is_reg_ptr  = is_reg_ptr;
       Compiler.is_ptr      = is_ptr;
+      Compiler.is_reg_array = is_reg_array;
     } in
 
     let entries =

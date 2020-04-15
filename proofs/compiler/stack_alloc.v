@@ -353,7 +353,7 @@ Definition set_arr_sub rmap x ofs len mps_from :=
   let sub_map := Msmp.set sub_map sub ss in
   ok {| var_region := Mvar.set rmap.(var_region) x mps ;
         region_var := Mmp.set  rmap.(region_var) mps.(mps_mp) sub_map  |}.
-  
+   
 Definition set_move rmap x mps :=
   let sub_map := get_sub_map mps.(mps_mp) rmap in
   let ss := 
@@ -367,6 +367,19 @@ Definition set_move rmap x mps :=
   let sub_map := Msmp.set sub_map mps.(mps_sub) ss in
   {| var_region := Mvar.set rmap.(var_region) x mps;
      region_var := Mmp.set  rmap.(region_var) mps.(mps_mp) sub_map |}.
+
+Definition set_arr_init rmap x mps := 
+  let mp  := mps.(mps_mp) in
+  let sub := mps.(mps_sub) in
+  let isub := interval_of_sub sub in
+  let ss := get_subspace mps rmap in
+  let ss := 
+    if ByteSet.mem isub ss.(bytes) then {| xs := Sv.add x ss.(xs); bytes := ss.(bytes) |}
+    else {| xs := Sv.singleton x; bytes := ByteSet.full (interval_of_sub sub) |} in
+  let sub_map := get_sub_map mp rmap in
+  let sub_map := Msmp.set sub_map sub ss in
+  {| var_region := Mvar.set rmap.(var_region) x mps;
+     region_var := Mmp.set  rmap.(region_var) mp sub_map |}.
 
 Definition set_full rmap x mp := 
   let len := size_of x.(vtype) in
@@ -730,6 +743,40 @@ Definition alloc_array_move rmap r e :=
       ok (rmap, nop)
     end
   end.
+
+Definition is_array_init e := 
+  match e with
+  | Parr_init _ => true
+  | _ => false
+  end.
+
+Definition alloc_array_move_init rmap r e :=
+  if is_array_init e then
+    Let xsub := get_Lvar_sub r in
+    let '(x,subx) := xsub in
+    let (ofs, len) := 
+      match subx with
+      | None => (0%Z, size_of (v_var x).(vtype))
+      | Some p => p
+      end in
+    Let mps := 
+      match get_local (v_var x) with
+      | None    => cerror "register array remains" 
+      | Some pk => 
+        match pk with
+        | Pstack z1 ws =>
+          let sub := {| smp_ofs := ofs; smp_len := len |} in
+          let mp := mp_stack pmap.(vrsp) z1 ws in
+          ok {| mps_mp := mp; mps_sub := sub |}
+        | _ => 
+          Let mps := get_mps rmap x in
+          let sub := {| smp_ofs := mps.(mps_sub).(smp_ofs) + ofs; smp_len := len |} in
+          ok {| mps_mp := mps.(mps_mp); mps_sub := sub |}
+        end
+      end in
+    let rmap := Region.set_arr_init rmap x mps in
+    ok (rmap, nop)
+  else alloc_array_move rmap r e.
  
 Definition bad_lval_number := Cerr_stk_alloc "invalid number of lval".
 
@@ -877,7 +924,7 @@ Fixpoint alloc_i (rmap:regions) (i: instr) : result instr_error (regions * instr
   Let ir :=
     match ir with
     | Cassgn r t ty e => 
-      if is_sarr ty then add_iinfo ii (alloc_array_move rmap r e) 
+      if is_sarr ty then add_iinfo ii (alloc_array_move_init rmap r e) 
       else
         Let e := add_iinfo ii (alloc_e rmap e) in
         Let r := add_iinfo ii (alloc_lval rmap r ty) in

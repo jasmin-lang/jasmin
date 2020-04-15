@@ -40,6 +40,10 @@ Local Open Scope seq_scope.
 (* ----------------------------------------------------------------------- *)
 (* Remove array initialisation                                             *)
 
+Section Section.
+
+Context (is_reg_array : var -> bool).
+
 Definition is_array_init e :=
   match e with
   | Parr_init _ => true
@@ -50,7 +54,16 @@ Fixpoint remove_init_i i :=
   match i with
   | MkI ii ir =>
     match ir with
-    | Cassgn x _ _ e => if is_array_init e then [::] else [::i]
+    | Cassgn x _ _ e => 
+      if is_array_init e then 
+        let t := 
+          match x with
+          | Lvar x => is_reg_array x
+          | Lasub _ _ _ x _ => is_reg_array x
+          | _ => true 
+          end in
+        if t then [::] else [::i]
+      else [::i]
     | Copn _ _ _ _   => [::i]
     | Cif e c1 c2  =>
       let c1 := foldr (fun i c => remove_init_i i ++ c) [::] c1 in
@@ -68,8 +81,6 @@ Fixpoint remove_init_i i :=
   end.
 
 Definition remove_init_c c :=  foldr (fun i c => remove_init_i i ++ c) [::] c.
-
-Section Section.
 
 Context {T} {pT:progT T}.
 

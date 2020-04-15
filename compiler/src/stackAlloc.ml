@@ -222,7 +222,7 @@ sig
   val get_mp_opt   : regions -> var_i -> mem_pos_sub option 
   val set_align    : var_i -> mem_pos_sub -> Wsize.wsize -> unit
   val set_writable : var_i -> mem_pos_sub -> unit
-
+  val set_arr_init : regions -> var -> mem_pos_sub -> regions
   val set_full     : regions -> var -> mem_pos -> regions 
   val set_word     : regions -> var_i -> mem_pos -> wsize -> regions
   val set_arr_word : regions -> var_i -> int option -> wsize -> regions
@@ -474,6 +474,22 @@ end
       var_region = Mv.add xv (IMP mps) rmap.var_region;
       region_var = Mmp.add mps.mps_mp sub_map rmap.region_var }
 
+  let set_arr_init rmap x mps = 
+    let mp  = mps.mps_mp in
+    let sub = mps.mps_sub in
+    let isub = interval_of_sub sub in
+    let ss = get_subspace mps rmap in
+    let ss = 
+      if ByteSet.mem isub ss.bytes then 
+        { xs = Sv.add x ss.xs; bytes = ss.bytes}
+      else 
+        { xs = Sv.singleton x; bytes = ByteSet.full isub } in
+    let sub_map = get_sub_map mp rmap in
+    let sub_map = Msmp.add sub ss sub_map in
+    { rmap with
+      var_region = Mv.add x (IMP mps) rmap.var_region;
+      region_var = Mmp.add mp sub_map rmap.region_var}
+
   let set_full rmap x mp = 
     let len = size_of x.v_ty in
     let sub = { smp_ofs = 0; smp_len = len } in
@@ -684,7 +700,7 @@ let alloc_array_move pmap rmap r e =
     | Lasub(aa,ws,len,x,e1) -> 
       let ofs = get_ofs_sub aa ws e1 in
       x, Some(ofs, arr_size ws len) 
-    | _ -> hierror "can not reconnize lvalue of an array move" in
+    | _ -> hierror "cannot reconnize lvalue of an array move" in
   let y, mpsy, ofs = 
     match e with
     | Pvar y -> 
@@ -696,7 +712,7 @@ let alloc_array_move pmap rmap r e =
       let len = arr_size ws len in
       let mps = Region.check_valid rmap y.gv (Some ofs) len in
       y, mps, ofs 
-    | _ -> hierror "can not reconnize expression of an array move" in
+    | _ -> hierror "cannot reconnize expression of an array move" in
 
   match xsub with
   | None ->
@@ -728,6 +744,40 @@ let alloc_array_move pmap rmap r e =
     | None -> hierror "register array remains %a, please report" pp_var x
     | Some _ -> Region.set_arr_sub rmap x ofs len mpsy, nop
     end
+ 
+
+let is_array_init e = 
+  match e with
+  | Parr_init _ -> true
+  | _ -> false
+ 
+let alloc_array_move_init pmap rmap r e =
+  if is_array_init e then
+    let x,ofs,len = 
+      match r with
+      | Lvar x -> 
+        x, 0, size_of (L.unloc x).v_ty 
+      | Lasub(aa,ws,len,x,e1) -> 
+        let ofs = get_ofs_sub aa ws e1 in
+        x, ofs, arr_size ws len
+      | _ -> hierror "cannot reconnize lvalue of an array move" in
+    let mps = 
+      match (L.unloc x).v_kind with
+      | Stack Direct ->
+        begin match get_var_kind pmap x with
+        | Some (Pmem mp) -> 
+          {mps_mp = mp; mps_sub = {smp_ofs = ofs; smp_len = len }}
+        | _              -> assert false 
+        end
+      | _ -> 
+        match Region.get_mp_opt rmap x with
+        | Some mps -> 
+          { mps with mps_sub = { smp_ofs = mps.mps_sub.smp_ofs + ofs; smp_len = len}}
+        | _ -> hierror "no region associated to %a" pp_var x in
+
+    let rmap = Region.set_arr_init rmap (L.unloc x) mps in
+    (rmap, nop)
+  else alloc_array_move pmap rmap r e
  
 
 (* ---------------------------------------------------------- *)
@@ -853,7 +903,7 @@ let rec alloc_i local_alloc pmap rmap i =
     try 
       begin match i.i_desc with
       | Cassgn(r, t, ty, e) ->
-        if is_ty_arr ty then alloc_array_move pmap rmap r e
+        if is_ty_arr ty then alloc_array_move_init pmap rmap r e
         else
           let e = alloc_e pmap rmap e in
           let rmap, r = alloc_lval pmap rmap r in
