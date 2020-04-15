@@ -544,7 +544,6 @@ let main () =
       Compiler.share_stk_prog = (*apply "share stk" *) share_stk_prog;
       Compiler.stk_pointer_name = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rsp);
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
-      Compiler.eflags = List.map (Conv.cvar_of_var tbl) Regalloc.X64.flags;
       Compiler.stackalloc    = memory_analysis;
       Compiler.removereturn  = removereturn;
       Compiler.regalloc      = global_regalloc;

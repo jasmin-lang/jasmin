@@ -93,7 +93,6 @@ Record compiler_params := {
   is_var_in_memory : var_i → bool;
   global_static_data_symbol: Ident.ident;
   stk_pointer_name : Ident.ident;
-  eflags : seq var;
   stackalloc       : _uprog → stack_alloc_oracles;
   removereturn     : _sprog -> (funname -> option (seq bool));
   regalloc         : _sprog -> _sprog;
@@ -182,7 +181,7 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
   let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in
 
   (* linearisation                     *)
-  Let pl := linear_prog cparams.(eflags) pd cparams.(extra_free_registers) in
+  Let pl := linear_prog pd cparams.(extra_free_registers) in
   let pl := cparams.(print_linear) pl in
   (* asm                               *)
   ok pl.
