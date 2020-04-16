@@ -465,29 +465,177 @@ case: e => //.
   rewrite Hb' /= => h21 h22 [] <- <- <- _. by rewrite -Hh.
 Admitted.
 
-  
+Lemma sneg_intPl s e v l:
+let e' := (sneg_int e).1 in
+let t := (sneg_int e).2 in
+sem_pexpr_e gd s (Papp1 (Oneg Op_int) e)  = ok (v, l) ->
+exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
+trans_sem t (v, l) = (v', l').
+Proof.
+rewrite /trans_sem. case: e => //.
++ move=> z /= [] <- _. exists (- z)%Z. exists LEmpty.
+  by split.
++ move=> x /=. t_xrbindP.
+  move=> [yv yl] h Hg Hh. rewrite /sem_sop1 /=.
+  t_xrbindP. move=> h0 y Hi Hh0 <- <-. rewrite Hg /=.
+  exists h0. exists LEmpty.
+  case: Hh => Hh1 <-.
+  rewrite -Hh1 in Hi. rewrite Hi /=. split.
+  by rewrite Hh0. auto.
++ move=> g /=. t_xrbindP.
+  move=> [yv yl] h Hg h2. rewrite /sem_sop1 /=. t_xrbindP.
+  move=> h0 y Hi <- <- <-. exists (- y)%Z. exists yl. 
+  rewrite Hg /=. case: h2 => -> <-.
+  rewrite Hi /= => []. by split.
+Admitted.
 
-Lemma sneg_intP e : Papp1 (Oneg Op_int) e =E sneg_int e.
+(*Lemma sneg_intP e : Papp1 (Oneg Op_int) e =E sneg_int e.
 Proof.
 apply: eeq_weaken; case: e => // [ z s v [] <- // | [] ] // [] // e s v /=; t_xrbindP => ? ? -> /=.
 rewrite /sem_sop1; t_xrbindP => ? /of_val_int -> <- /= ? [<-] <-.
 by rewrite Z.opp_involutive.
+Qed.*)
+
+Lemma sneg_wP s sz e v v' l l': 
+sem_pexpr_e gd s (Papp1 (Oneg (Op_w sz)) e) = ok (v, l) ->
+sem_pexpr_e gd s (sneg_w sz e).1 = ok (v', l') ->
+v = v'.
+Proof.
+rewrite /sneg_w.
+case: is_wconst (@is_wconstP gd s sz e).
++ move => w /(_ _ erefl) /=. t_xrbindP.
+  move=> [yv yl] He Hw [yv' yl'] He'.
+  rewrite /sem_sop1 /=. t_xrbindP.
+  move=> h y Hw' <- <- _ <- _.
+  rewrite wrepr_unsigned.
+  move: (const_prop_e_esP_sem_pexpr_e He') => Hc.
+  rewrite He in Hc. case: Hc => Hc1 Hc2.
+  rewrite Hc1 in Hw. rewrite Hw' in Hw.
+  by case: Hw => <-.
++ move=> _ /=. t_xrbindP. move=> [yv yl] He.
+  rewrite /sem_sop1 /=. t_xrbindP.
+  move=> h y Hw <- <- _. rewrite He /= => h4 [] <-.
+  by rewrite Hw /= => h6 h7 [] <- <- <- _.
 Qed.
 
-Lemma sneg_wP sz e : Papp1 (Oneg (Op_w sz)) e =E sneg_w sz e.
+Lemma sneg_wPl sz s e v l:
+let e' := (sneg_w sz e).1 in
+let t := (sneg_w sz e).2 in
+sem_pexpr_e gd s (Papp1 (Oneg (Op_w sz)) e) = ok (v, l) ->
+exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
+trans_sem t (v, l) = (v', l').
+Proof.
+rewrite /sneg_w. rewrite /trans_sem.
+case: is_wconst (@is_wconstP gd s sz e).
++ move => w /(_ _ erefl) /=. t_xrbindP.
+  move=> [yv yl] He Hw [yv' yl'] He'.
+  rewrite /sem_sop1 /=. t_xrbindP.
+  move=> h y Hw' <- <- Hl. rewrite wrepr_unsigned.
+  exists (Vword (- w)). exists LEmpty.
+  move: (const_prop_e_esP_sem_pexpr_e He') => Hc.
+  rewrite He in Hc. case: Hc => Hc1 Hc2.
+  rewrite Hc1 in Hw. rewrite Hw' in Hw.
+  by case: Hw => <-.
++ move=> _ /=. t_xrbindP. move=> [yv yl] He.
+  rewrite /sem_sop1 /=. t_xrbindP.
+  move=> h y Hw <- <- <-. rewrite He /=.
+  rewrite Hw /=. exists (Vword (-y)). exists yl.
+  by split.
+Qed.
+
+(*Lemma sneg_wP sz e : Papp1 (Oneg (Op_w sz)) e =E sneg_w sz e.
 Proof.
 apply: eeq_weaken; rewrite /sneg_w; case heq: is_wconst => [ w | ] // s v /=.
 by rewrite /= -bindA (is_wconstP gd s heq) /= => -[<-]; rewrite /sem_sop1 /= wrepr_unsigned.
+Qed.*)
+
+Lemma s_op1 s o e v v' l l': 
+sem_pexpr_e gd s (Papp1 o e) = ok (v, l) ->
+sem_pexpr_e gd s (s_op1 o e).1 = ok (v', l') ->
+v = v'.
+Proof.
+case: o => [w|w|w w0|w w0||w|[|o]];
+eauto using sint_of_wordP, ssign_extendP, szero_extendP,
+snot_boolP, snot_wP, sneg_intP, sneg_wP. rewrite /=.
+t_xrbindP. move=> [yv yl] He. rewrite /sem_sop1 /=. t_xrbindP.
+move=> h y Hi Hh <- Hl h4 He'. rewrite He in He'.
+case: He' => <- He2. rewrite Hi /= => // h7 [] <- <-.
+rewrite Hh. by move=> <- _.
 Qed.
 
-Lemma s_op1P o e : Papp1 o e =E s_op1 o e.
+(*Lemma s_op1l s o e v l:
+let e' := (s_op1 o e).1 in
+let t := (s_op1 o e).2 in
+sem_pexpr_e gd s (Papp1 o e) = ok (v, l) ->
+exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
+trans_sem t (v, l) = (v', l').
+Proof.*)
+
+(*Lemma s_op1P o e : Papp1 o e =E s_op1 o e.
 Proof.
   case: o => [?|?|??|??||?|[|?]];
   eauto using sint_of_wordP, ssign_extendP, szero_extendP,
     snot_boolP, snot_wP, sneg_intP, sneg_wP.
-Qed.
+Qed.*)
 
 (* * -------------------------------------------------------------------- *)
+
+Lemma sandP s e1 e2 v v' l l': 
+sem_pexpr_e gd s (Papp2 Oand e1 e2) = ok (v, l) ->
+sem_pexpr_e gd s (sand e1 e2).1 = ok (v', l') ->
+v = v'.
+Proof.
+rewrite /sand.
+case: is_boolP => [b1 /=| {e1} e1].
++ t_xrbindP.
+  move=> [yv yl] He. rewrite /sem_sop2 /=. case: b1.
+  - t_xrbindP. move=> h y /to_boolI <- <- <- _ He'. rewrite He in He'.
+    by case: He' => <- _.
+  t_xrbindP. move=> h y Hb <- <- Hl /= He' /=.
+  by case: He' => <- _.
+case: is_boolP => [b2 /=| {e2} e2].
++ t_xrbindP. move=> [yv yl] He. rewrite /sem_sop2 /=. case: b2.
+  - t_xrbindP. move=> h y Hb <- <- _ He'. rewrite He in He'.
+    apply to_boolI in Hb. case: He' => <- _. rewrite Hb.
+    by rewrite andbT.
+  t_xrbindP. move=> h y /to_boolI Hy <- <- _ /= He'.
+  case: He' => <- _. by rewrite andbF.
++ rewrite /=. t_xrbindP. move=> [yv1 yl1] He1 [yv2 yl2] He2.
+  rewrite /sem_sop2 /=. t_xrbindP. move=> h y Hb1 h1 Hb2 <- <- _.
+  rewrite He1 He2 /=. move=> h6 [] <- h8 [] <-. rewrite Hb1 Hb2 /=.
+  by move=> h10 h11 [] <- h13 [] <- -> <- _.
+Qed.
+
+Lemma sandPl s e1 e2 v l:
+let e' := (sand e1 e2).1 in
+let t := (sand e1 e2).2 in
+sem_pexpr_e gd s (Papp2 Oand e1 e2)  = ok (v, l) ->
+exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
+trans_sem t (v, l) = (v', l').
+Proof.
+rewrite /sand. rewrite /trans_sem.
+case: is_boolP => [b1 /=| {e1} e1].
++ t_xrbindP.
+  move=> [yv yl] He. rewrite /sem_sop2 /=. case: b1.
+  - t_xrbindP. move=> h y /to_boolI <- <- <- Hl.
+    exists yv. exists yl. split.
+    by rewrite He /=. rewrite /=. rewrite -Hl /=. case: l. simpl.
+ move=> He'. rewrite He in He'.
+    by case: He' => <- _.
+  t_xrbindP. move=> h y Hb <- <- Hl /= He' /=.
+  by case: He' => <- _.
+case: is_boolP => [b2 /=| {e2} e2].
++ t_xrbindP. move=> [yv yl] He. rewrite /sem_sop2 /=. case: b2.
+  - t_xrbindP. move=> h y Hb <- <- _ He'. rewrite He in He'.
+    apply to_boolI in Hb. case: He' => <- _. rewrite Hb.
+    by rewrite andbT.
+  t_xrbindP. move=> h y /to_boolI Hy <- <- _ /= He'.
+  case: He' => <- _. by rewrite andbF.
++ rewrite /=. t_xrbindP. move=> [yv1 yl1] He1 [yv2 yl2] He2.
+  rewrite /sem_sop2 /=. t_xrbindP. move=> h y Hb1 h1 Hb2 <- <- _.
+  rewrite He1 He2 /=. move=> h6 [] <- h8 [] <-. rewrite Hb1 Hb2 /=.
+  by move=> h10 h11 [] <- h13 [] <- -> <- _.
+Qed.
 
 Lemma sandP e1 e2 : Papp2 Oand e1 e2 =E sand e1 e2.
 Proof.
