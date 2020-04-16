@@ -105,6 +105,21 @@ Definition fn_keep_only {T:Type} (fn:funname) (l:seq T) :=
   | Some tokeep => keep_only l tokeep
   end.
 
+Fixpoint check_keep_only ii (xs:lvals) (tokeep: seq bool) s := 
+  match tokeep, xs with
+  | [::], _ => ok (read_rvs_rec (Sv.diff s (vrvs xs)) xs, xs)
+  | b::tokeep, [::] => ok (s, [::])
+  | b::tokeep, x::xs =>
+    Let sxs := check_keep_only ii xs tokeep s in
+    let '(s,xs) := sxs in
+    if b then
+      ok (read_rv_rec (Sv.diff s (vrv x)) x, x::xs)
+    else
+      let w := vrv x in
+      if disjoint s w && negb (write_mem x) then ok (s, xs)
+      else cierror ii (Cerr_linear "dead code: check_keep_only")
+  end.
+
 Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
   let (ii,ir) := i in
   match ir with
@@ -150,8 +165,14 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
     ciok (s, [:: MkI ii (Cwhile a c e c') ])
 
   | Ccall ini xs fn es =>
-    let xs := fn_keep_only fn xs in
-    ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: MkI ii (Ccall ini xs fn es)])
+    match onfun fn with
+    | None =>
+      ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: MkI ii (Ccall ini xs fn es)])
+    | Some bs =>
+      Let sxs := check_keep_only ii xs bs s in
+      let '(si,xs) := sxs in
+      ciok (read_es_rec si es, [:: MkI ii (Ccall ini xs fn es)])
+    end
   end.
 
 Section Section.

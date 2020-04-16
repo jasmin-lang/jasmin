@@ -458,7 +458,7 @@ Section PROOF.
     exact: Hvm2'2.
     exact: Hvm3'2.
   Qed.
-
+(*
   Lemma onfun_write_lvals_eq_on fn (X : Sv.t) xs vs (s1 s2 : estate) (vm1 : vmap):
     Sv.Subset (read_rvs (fn_keep_only onfun fn xs)) X
     → write_lvals gd s1 xs vs = ok s2
@@ -482,6 +482,7 @@ Section PROOF.
       + by rewrite vrvs_cons; apply: eq_onI heqon2; SvD.fsetdec.
       by rewrite /= hw' /= hws'.
     t_xrbindP => hsub s1' hw' hws'.
+Print write_lvals.
 
 move=> h1 h2 h3.
       have := write_lvals_eq_on (vs:= v::vs) h1 h2.
@@ -499,12 +500,12 @@ case: vs.
  [|b bs] //=.
 admit.
 
-
+*)
 
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 m2 s2 ii xs fn args vargs vs Hexpr Hcall Hfun Hw ii' sv0.
+    move=> s1 m2 s2 ii xs fn args vargs vs Hexpr Hcall Hfun Hw ii' sv0 /=.
     rewrite /= => Hwf vm1';rewrite read_esE read_rvsE => Hvm.
 
  
