@@ -90,20 +90,29 @@ let pointsto_incl pt1 pt2 =
 let merge_aliases_incl (cf1, pt1) (cf2, pt2) =
   var_classes_incl cf1 cf2 && pointsto_incl pt1 pt2
 
-let set_same_all cf x s =
-  Sv.fold (fun y cf -> set_same cf x y) s cf
+let set_same_all i cf x s =
+  Sv.fold (fun y cf ->
+      try set_same cf x y
+      with SetSameConflict ->
+        Format.eprintf "Varalloc: cannot merge conflicting variables %a and %a@.%a %a@."
+           (Printer.pp_var ~debug: true) x
+           (Printer.pp_var ~debug: true) y
+           Printer.pp_iloc i.i_loc
+           (Printer.pp_instr ~debug:true) i;
+        cf
+    ) s cf
 
-let merge_aliases_assgn ((cf, pt) as acc) lv e =
+let merge_aliases_assgn i ((cf, pt) as acc) lv e =
   match lv with
   | Lvar x when is_ptr (L.unloc x).v_kind ->
      (cf, Mv.add (L.unloc x) (expr_pointsto pt e) pt)
   | Lvar x when is_stack_array x && is_var e ->
-     (set_same_all cf (L.unloc x) (expr_pointsto pt e), pt)
+     (set_same_all i cf (L.unloc x) (expr_pointsto pt e), pt)
   | _ -> acc
 
 let rec merge_aliases_instr get_fun acc i =
-  match i .i_desc with
-  | Cassgn (x, _, _, e) -> merge_aliases_assgn acc x e
+  match i.i_desc with
+  | Cassgn (x, _, _, e) -> merge_aliases_assgn i acc x e
   | Ccall (_, xs, fn, es) ->
      let ra =
        let f = get_fun fn in
@@ -114,7 +123,7 @@ let rec merge_aliases_instr get_fun acc i =
      List.fold_left2 (fun acc oi x ->
          match oi with
          | None -> acc
-         | Some i -> merge_aliases_assgn acc x (List.nth es i))
+         | Some n -> merge_aliases_assgn i acc x (List.nth es n))
        acc ra xs
   | Copn _ -> acc
   | Cfor _ -> assert false
