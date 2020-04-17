@@ -969,15 +969,6 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
 let f_sig f =
   List.map P.ty_i f.P.f_ret, List.map (fun v -> v.P.v_ty) f.P.f_args
 
-let b_5      = [P.tbool; P.tbool; P.tbool; P.tbool; P.tbool]
-let b_5u64   = [P.tbool; P.tbool; P.tbool; P.tbool; P.tbool; P.u64]
-let b_4u64   = [P.tbool; P.tbool; P.tbool; P.tbool; P.u64]
-let b_5u64_2 = [P.tbool; P.tbool; P.tbool; P.tbool; P.tbool; P.u64; P.u64]
-let u64_2b   = [P.u64; P.u64; P.tbool]
-let u64_2    = [P.u64; P.u64]
-let u64_3    = [P.u64; P.u64; P.u64]
-let u64_4    = [P.u64; P.u64; P.u64; P.u64]
-
 let prim_sig (type a) p : a P.gty list * a P.gty list =
   let f = conv_ty in
   List.map f (E.sopn_tout p),
