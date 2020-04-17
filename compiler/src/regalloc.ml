@@ -126,8 +126,8 @@ let get_friend (i: int) (f: friend) : IntSet.t =
 
 let set_friend i j (f: friend) : friend =
   f
-  |> IntMap.modify_def (IntSet.singleton j) i (IntSet.add j)
-  |> IntMap.modify_def (IntSet.singleton i) j (IntSet.add i)
+  |> IntMap.modify_def IntSet.empty i (IntSet.add j)
+  |> IntMap.modify_def IntSet.empty j (IntSet.add i)
 
 type 'info collect_equality_constraints_state =
   { mutable cac_friends : friend; mutable cac_eqc: Puf.t ; cac_trace: 'info instr list array }
@@ -364,7 +364,7 @@ let empty nv = Array.create nv None, Hv.create nv
 let find n (a, _) = a.(n)
 let rfind x (_, r) = Hv.find_default r x IntSet.empty
 let set n x (a, r) =
-  Hv.modify_def (IntSet.singleton n) x (IntSet.add n) r;
+  Hv.modify_def IntSet.empty x (IntSet.add n) r;
   a.(n) <- Some x
 let mem n (a, _) = a.(n) <> None
 end
@@ -791,7 +791,7 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
     let collect_call_sites _fn f =
       Liveness.iter_call_sites (fun _loc fn xs s ->
           let s = Liveness.dep_lvs s xs in
-          Hf.modify_def s fn (Sv.union s) live) f
+          Hf.modify_def Sv.empty fn (Sv.union s) live) f
     in
     Hf.iter collect_call_sites liveness_table;
     fun fn -> Hf.find_default live fn Sv.empty
