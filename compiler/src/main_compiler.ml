@@ -548,7 +548,7 @@ let main () =
       Compiler.regalloc      = global_regalloc;
       Compiler.extra_free_registers = (fun ii ->
         let loc, _ = Conv.get_iinfo tbl ii in
-        (!saved_extra_free_registers) loc |> omap (Conv.cvar_of_var tbl)
+        !saved_extra_free_registers loc |> omap (Conv.cvar_of_var tbl)
       );
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;

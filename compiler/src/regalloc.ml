@@ -126,8 +126,8 @@ let get_friend (i: int) (f: friend) : IntSet.t =
 
 let set_friend i j (f: friend) : friend =
   f
-  |> IntMap.modify_def (IntSet.singleton j) i (IntSet.add j)
-  |> IntMap.modify_def (IntSet.singleton i) j (IntSet.add i)
+  |> IntMap.modify_def IntSet.empty i (IntSet.add j)
+  |> IntMap.modify_def IntSet.empty j (IntSet.add i)
 
 type 'info collect_equality_constraints_state =
   { mutable cac_friends : friend; mutable cac_eqc: Puf.t ; cac_trace: 'info instr list array }
@@ -369,7 +369,7 @@ let empty nv = Array.create nv None, Hv.create nv
 let find n (a, _) = a.(n)
 let rfind x (_, r) = Hv.find_default r x IntSet.empty
 let set n x (a, r) =
-  Hv.modify_def (IntSet.singleton n) x (IntSet.add n) r;
+  Hv.modify_def IntSet.empty x (IntSet.add n) r;
   a.(n) <- Some x
 let mem n (a, _) = a.(n) <> None
 end
@@ -759,7 +759,7 @@ let reverse_allocation nv vars (a: A.allocation) : var -> Sv.t =
       This chooses a free register for each call site (to a rastack). *)
 let chose_extra_free_registers get_annot (live: Sv.t) (f: (Sv.t * Sv.t) func) (subst: var -> var) (tbl: (i_loc, var) Hashtbl.t) : unit =
   let live = Sv.map subst live in
-  Liveness.iter_call_sites (fun i fn _xs s ->
+  Liveness.iter_call_sites (fun i fn _xs (s, _) ->
       if (get_annot fn).retaddr_kind = Some OnStack then
         let all = X64.allocatable |> Sv.of_list in
         let locally_free = Sv.diff all (Sv.map subst s) in
@@ -794,9 +794,9 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
   let get_liveness =
     let live : Sv.t Hf.t = Hf.create 17 in
     let collect_call_sites _fn f =
-      Liveness.iter_call_sites (fun _loc fn xs s ->
+      Liveness.iter_call_sites (fun _loc fn xs (_, s) ->
           let s = Liveness.dep_lvs s xs in
-          Hf.modify_def s fn (Sv.union s) live) f
+          Hf.modify_def Sv.empty fn (Sv.union s) live) f
     in
     Hf.iter collect_call_sites liveness_table;
     fun fn -> Hf.find_default live fn Sv.empty
