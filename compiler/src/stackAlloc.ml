@@ -570,13 +570,6 @@ let mk_addr x pk =
 
 (* ---------------------------------------------------------- *)
 
-let get_ofs aa ws e = 
-  match e with
-  | Pconst i ->
-    Some (if aa = Warray_.AAdirect then B.to_int i else size_of_ws ws * (B.to_int i))
-  | _ -> None 
-
-
 let alloc_e pmap rmap e =
   let rec alloc_e e = 
     match e with

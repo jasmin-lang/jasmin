@@ -336,6 +336,7 @@ val cnst   : B.zint -> 'len gexpr
 val icnst  : int -> 'len gexpr
 val cast64 : 'len gexpr -> 'len gexpr
 val is_var : 'len gexpr -> bool
+val get_ofs : Warray_.arr_access -> Wsize.wsize -> 'len gexpr -> int option
 
 (* -------------------------------------------------------------------- *)
 (* Functions over lvalue                                                *)

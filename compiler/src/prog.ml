@@ -505,6 +505,16 @@ let is_var = function
   | Pvar _ -> true
   | _ -> false
 
+let get_ofs aa ws e =
+  match e with
+  | Pconst i ->
+     Some
+       (match aa with
+        | Warray_.AAdirect -> B.to_int i
+        | Warray_.AAscale -> size_of_ws ws * B.to_int i
+       )
+  | _ -> None
+
 (* -------------------------------------------------------------------- *)
 (* Functions over lvalue                                                *)
 
