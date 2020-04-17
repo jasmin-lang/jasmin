@@ -754,7 +754,7 @@ let reverse_allocation nv vars (a: A.allocation) : var -> Sv.t =
       This chooses a free register for each call site (to a rastack). *)
 let chose_extra_free_registers get_annot (live: Sv.t) (f: (Sv.t * Sv.t) func) (subst: var -> var) (tbl: (i_loc, var) Hashtbl.t) : unit =
   let live = Sv.map subst live in
-  Liveness.iter_call_sites (fun i fn _xs s ->
+  Liveness.iter_call_sites (fun i fn _xs (s, _) ->
       if (get_annot fn).retaddr_kind = Some OnStack then
         let all = X64.allocatable |> Sv.of_list in
         let locally_free = Sv.diff all (Sv.map subst s) in
@@ -789,7 +789,7 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
   let get_liveness =
     let live : Sv.t Hf.t = Hf.create 17 in
     let collect_call_sites _fn f =
-      Liveness.iter_call_sites (fun _loc fn xs s ->
+      Liveness.iter_call_sites (fun _loc fn xs (_, s) ->
           let s = Liveness.dep_lvs s xs in
           Hf.modify_def Sv.empty fn (Sv.union s) live) f
     in
