@@ -1,46 +1,74 @@
 open Utils
 open Prog
 
+
+
 type live_elem = 
   | NotArray (* the full variable is in live *)
   | Array of ByteSet.t (* The set of bytes in live *)
 
-type inlive = live_elem Mv.t 
+module Live : sig
+  type t
+  val empty : t 
+  val incl  : t -> t -> bool
+  val union : t -> t -> t 
+  val get   : var -> t -> live_elem 
+  val set   : var -> live_elem -> t -> t
+  val remove : var -> t -> t
+end = struct 
 
-exception NotIncl 
+  (* Invariant : if [Array bs] in [m] then bs is not empty *)
+  type t = live_elem Mv.t
 
-let incl il1 il2 =
-  let merge_elem _x oe1 oe2 = 
-    match oe1, oe2 with
-    | None, _ -> None
-    | Some _, None -> raise NotIncl
-    | Some elem1, Some elem2 ->
-      begin match elem1, elem2 with
-      | NotArray, NotArray -> None
-      | Array bs1, Array bs2 -> 
-        if not (ByteSet.subset bs1 bs2) then raise NotIncl;
-        None
-      | _, _ -> assert false
-      end in
-  try ignore (Mv.merge merge_elem il1 il2); true
-  with NotIncl -> false
+  let empty = Mv.empty 
 
-let merge il1 il2 = 
-  let merge_elem _x oe1 oe2 = 
-    match oe1, oe2 with
-    | None, _ | _, None -> None
-    | Some NotArray, Some NotArray -> oe1
-    | Some (Array bs1), Some (Array bs2) -> 
-      let bs = ByteSet.union bs1 bs2 in
-      if ByteSet.is_empty bs then None
-      else Some(Array bs) 
-    | Some _, Some _ -> assert false in
-  Mv.merge merge_elem il1 il2
+  exception NotIncl 
 
+  let incl (il1:t) (il2:t) =
+    let merge_elem _x oe1 oe2 = 
+      match oe1, oe2 with
+      | None, _ -> None
+      | Some _, None -> raise NotIncl
+      | Some elem1, Some elem2 ->
+        begin match elem1, elem2 with
+        | NotArray, NotArray -> None
+        | Array bs1, Array bs2 -> 
+          if not (ByteSet.subset bs1 bs2) then raise NotIncl;
+          None
+        | _, _ -> assert false
+        end in
+    try ignore (Mv.merge merge_elem il1 il2); true
+    with NotIncl -> false
+
+  let union il1 il2 = 
+    let merge_elem _x oe1 oe2 = 
+      match oe1, oe2 with
+      | None, _ | _, None -> None
+      | Some NotArray, Some NotArray -> oe1
+      | Some (Array bs1), Some (Array bs2) -> 
+        let bs = ByteSet.union bs1 bs2 in
+        Some(Array bs) 
+      | Some _, Some _ -> assert false in
+    Mv.merge merge_elem il1 il2
+
+  let get x t = Mv.find x t
+   
+  let set x e t = 
+    match e with
+    | NotArray -> 
+      assert (not (is_ty_arr x.v_ty));
+      Mv.add x e t
+    | Array bs ->
+      assert (is_ty_arr x.v_ty);
+      if ByteSet.is_empty bs then Mv.remove x t 
+      else Mv.add x e t
+
+  let remove x t = Mv.remove x t
+end  
 
 type live_info = {
-    before : inlive;
-    after  : inlive;
+    before : Live.t;
+    after  : Live.t;
   }
 (* FIXME word_of_int *)
 let get_index e = 
@@ -51,22 +79,20 @@ let get_index e =
 let full_array x = 
   ByteSet.full ByteSet.({min = 0; max = size_of x.v_ty})
 
-let get_live_array x s =
+let get_live_array x (s:Live.t) =
   try 
-    match Mv.find x s with
+    match Live.get x s with
     | NotArray -> assert false
     | Array bs -> bs 
-  with Not_found -> ByteSet.empty (* full_array x *)
+  with Not_found -> ByteSet.empty 
     
-let set_live_array x bs s =
-  if ByteSet.is_empty bs then Mv.remove x s 
-  else Mv.add x (Array bs) s
+let set_live_array x bs s = Live.set x (Array bs) s
 
 let set_live x s = 
   let elem = 
     if is_ty_arr x.v_ty then Array (full_array x)
     else NotArray in
-  Mv.add x elem s
+  Live.set x elem s
 
 let get_ofs aa ws i = 
   if aa = Warray_.AAdirect then B.to_int i 
@@ -116,7 +142,7 @@ let dep_lv x s_o =
 
   | Lmem(_,x,e) -> live_e (set_live (L.unloc x) s_o) e 
 
-  | Lvar x -> Mv.remove (L.unloc x) s_o
+  | Lvar x -> Live.remove (L.unloc x) s_o
 
   | Laset (aa, ws, x, e) ->
     let x = L.unloc x in
@@ -163,7 +189,7 @@ and live_d d s_o =
   | Cif(e,c1,c2) -> 
     let s1, c1 = live_c c1 s_o in
     let s2, c2 = live_c c2 s_o in
-    live_e (merge s1 s2) e, Cif(e,c1,c2)
+    live_e (Live.union s1 s2) e, Cif(e,c1,c2)
 
   | Cfor _ -> assert false (* Should have been removed before *)
 
@@ -173,8 +199,8 @@ and live_d d s_o =
       let s_o' = live_e s_o e in
       let s_i, c = live_c c s_o' in
       let s_i', c' = live_c c' s_i in
-      if incl s_i' s_o then s_i, (c,c')
-      else loop (merge s_i' s_o) in
+      if Live.incl s_i' s_o then s_i, (c,c')
+      else loop (Live.union s_i' s_o) in
     let s_i, (c,c') = loop s_o in
     s_i, Cwhile(a, c, e, c')
 
@@ -190,7 +216,7 @@ and live_c c s_o =
 
 let live_fd fd =
   let s_o = 
-    List.fold_left (fun s x -> set_live (L.unloc x) s) Mv.empty fd.f_ret in
+    List.fold_left (fun s x -> set_live (L.unloc x) s) Live.empty fd.f_ret in
   let _, c = live_c fd.f_body s_o in
   { fd with f_body = c }
 
