@@ -3,21 +3,21 @@ open Printer
 open Prog
 
 (* Interval within a variable; [lo; hi[ *)
-type slice = { in_var : int ggvar ; range : int * int }
+type slice = { in_var : var ; scope : E.v_scope  ; range : int * int }
 
 type alias = slice Mv.t
 
 (* --------------------------------------------------- *)
 let pp_var fmt x = pp_var ~debug:true fmt x
 
-let pp_ggvar fmt { gv ; gs } =
-  Format.fprintf fmt "%s%a" (if gs = Expr.Slocal then "" else "#g:") pp_var (L.unloc gv)
+let pp_scope fmt s =
+  Format.fprintf fmt "%s" (if s = E.Slocal then "" else "#g:")
 
 let pp_range fmt (lo, hi) =
   Format.fprintf fmt "%d; %d" lo hi
 
 let pp_slice fmt s =
-  Format.fprintf fmt "%a[%a[" pp_ggvar s.in_var pp_range s.range
+  Format.fprintf fmt "%a%a[%a[" pp_scope s.scope pp_var s.in_var pp_range s.range
 
 let pp_binding fmt x s =
   Format.fprintf fmt "%a ↦ %a;@ " pp_var x pp_slice s
@@ -32,50 +32,65 @@ let pp_alias fmt a =
 (* --------------------------------------------------- *)
 let size_of_range (lo, hi) = hi - lo
 
-let range_in_slice (lo, hi) { in_var ; range = (u, v) } =
+let range_in_slice (lo, hi) s =
+  let (u, v) = s.range in
   if u + hi <= v
-  then { in_var ; range = u + lo, u + hi }
+  then { s with range = u + lo, u + hi }
   else hierror "range_in_slice: range not included"
 
 let range_of_var x =
   0, size_of x.v_ty
 
-let slice_of_var gv =
-  let range = range_of_var (L.unloc gv) in
-  { in_var = { gv ; gs = E.Slocal } ; range }
+let slice_of_var ?(scope=E.Slocal) in_var =
+  let range = range_of_var in_var in
+  { in_var ; scope ; range }
 
-let normalize_slice a s =
-  let rec loop b s =
-    match s with
-    | { in_var = { gs = E.Sglob } } as s -> b, s
-    | { in_var = { gv } ; range } ->
-       let x = L.unloc gv in
-       match Mv.find x a with
-       | exception Not_found -> b, s
-       | s -> loop true (range_in_slice range s)
-  in
-  let b, s' = loop false s in
-  let a' = if b then Mv.add (L.unloc s.in_var.gv) s' a else a in
-  a', s'
+let rec normalize_var a x =
+  match Mv.find x a with
+  | exception Not_found -> slice_of_var x
+  | s -> normalize_slice a s
+and normalize_slice a =
+  function
+  | { scope = E.Sglob } as s -> s
+  | { in_var ; range } ->
+     range_in_slice range (normalize_var a in_var)
 
-let range_of_asub aa ws len i =
-  match get_ofs aa ws i with
-  | None -> assert false
-  | Some start -> start, start + arr_size ws len
+let normalize_gvar a { gv ; gs } =
+  let x = L.unloc gv in
+  if gs = E.Sglob then slice_of_var ~scope:gs x
+  else normalize_var a x
 
-let normalize_asub a aa ws len gv i =
-  normalize_slice a { in_var = { gv ; gs = E.Slocal } ; range = range_of_asub aa ws len i }
+let normalize_map a : alias =
+  Mv.fold (fun x s acc ->
+      Mv.add x (normalize_slice a s) acc
+    ) a Mv.empty
+
+exception NotIncluded
+
+(* Precondition: both maps are normalized *)
+let incl a1 a2 =
+  (* Format.eprintf "%a ≤ %a ?@." pp_alias a1 pp_alias a2; *)
+  try
+    let _ =
+      Mv.merge (fun _x s1 s2 ->
+          match s1 with
+          | None -> None
+          | Some x1 ->
+             match s2 with
+             | None -> raise NotIncluded
+             | Some x2 -> if x1 = x2 then None else raise NotIncluded
+        ) a1 a2
+    in true
+  with NotIncluded -> false
 
 (* Partial order on variables, by scope and size *)
-let compare_ggvar gx gy =
-  if gx = gy
-  then 0
+let compare_gvar x gx y gy =
+  if V.equal x y
+  then (assert (gx = gy); 0)
   else
-    let x = L.unloc gx.gv in
-    let y = L.unloc gy.gv in
     let sx = size_of x.v_ty in
     let sy = size_of y.v_ty in
-    match gx.gs, gy.gs with
+    match gx, gy with
     | E.Sglob, E.Sglob -> assert false
     | E.Sglob, E.Slocal -> assert(sy <= sx); 1
     | E.Slocal, E.Sglob -> assert (sx <= sy); -1
@@ -84,134 +99,89 @@ let compare_ggvar gx gy =
        if c = 0 then V.compare x y
        else c
 
+(* Precondition: s1 and s2 are normal forms (aka roots) in a *)
 (* x1[e1:n1] = x2[e2:n2] *)
-let merge_slices _loc a s1 s2 =
+let merge_slices a s1 s2 =
   (* Format.eprintf "Alias: merging slices at %a: %a and %a@." pp_iloc loc pp_slice s1 pp_slice s2; *)
   assert (size_of_range s1.range = size_of_range s2.range);
-  let c = compare_ggvar s1.in_var s2.in_var in
+  let c = compare_gvar s1.in_var s1.scope s2.in_var s2.scope in
   if c = 0 then (assert (s1 = s2); a)
   else
-    if c < 0
-    then
-      let x = L.unloc s1.in_var.gv in
-      let lo = fst s2.range - fst s1.range in
-      Mv.add x { s2 with range = lo, lo + size_of x.v_ty } a
-    else (* c > 0 *)
-      let x = L.unloc s2.in_var.gv in
-      let lo = fst s1.range - fst s2.range in
-      Mv.add x { s1 with range = lo, lo + size_of x.v_ty } a
+    let s1, s2 = if c < 0 then s1, s2 else s2, s1 in
+    let x = s1.in_var in
+    let lo = fst s2.range - fst s1.range in
+    Mv.add x { s2 with range = lo, lo + size_of x.v_ty } a
 
-let kill a =
-  function
-  | Lvar x -> assert (not (Mv.mem (L.unloc x) a)); a
-  | Lasub _ -> assert false
-  | Lnone _ | Lmem _ | Laset _ -> a
-
-let assign_var a x =
-  function
-  | Pvar ({ gv ; gs = E.Slocal } as in_var) ->
-     let a, s =  normalize_slice a { in_var ; range = range_of_var (L.unloc gv) } in
-     if L.unloc s.in_var.gv = x
-     then a
-     else Mv.add x s a
-  | Pvar ({ gs = E.Sglob } as in_var) ->
-     let range = range_of_var x in
-     Mv.add x { in_var ; range } a
-  | Parr_init _ -> assert (not (Mv.mem x a)); a
-  | Psub (aa, ws, len, y, i) ->
-     assert (y.gs = E.Slocal); (* TODO? *)
-     let a, s = normalize_asub a aa ws len y.gv i in
-     begin match Mv.find x a with
-     | exception Not_found -> Mv.add x s a
-     | s' -> assert (s = s'); a (* FIXME *)
-     end
-  | (Pconst _ | Pbool _ | Pget _ | Pload _ | Papp1 _ | Papp2 _ | PappN _ | Pif _) -> assert false
-
-let assign_sub loc a s =
-  function
-  | Pvar ({ gv ; gs = E.Slocal } as in_var) ->
-     let a, s' =  normalize_slice a { in_var ; range = range_of_var (L.unloc gv) } in
-     merge_slices loc a s s'
-  | _ -> hierror "assign_sub: unexpected RHS"
-
-let assign_arr loc a x e =
-  match x with
-  | Lvar x -> assign_var a (L.unloc x) e
-  | Lasub (aa, ws, len, x, i) ->
-     let a, s = normalize_asub a aa ws len x i in
-     assign_sub loc a s e
-  | Lnone _ | Lmem _ | Laset _ -> a
-
-(** FIXME: union and inclusion test are garbage *)
-let merge_slice loc x x1 x2 =
-  if x1 = x2 then Some x1
-  else
-    hierror "Alias: at %a cannot merge slices for variable %a: %a and %a" pp_iloc loc pp_var x pp_slice x1 pp_slice x2
-
-let merge loc a1 a2 =
-  Format.eprintf "Merging alias at %a: %a and %a@." pp_iloc loc pp_alias a1 pp_alias a2;
-  Mv.merge (fun x s1 s2 ->
-      match s1 with
-      | None -> s2
-      | Some x1 ->
-         match s2 with
-         | None -> s1
-         | Some x2 -> merge_slice loc x x1 x2
+(* Precondition: both maps are normalized *)
+let merge a1 a2 =
+  Mv.fold (fun x s a ->
+      let s1 = normalize_slice a s in
+      let s2 = normalize_slice a (slice_of_var x) in
+      merge_slices a s1 s2
     ) a1 a2
 
-let incl_slice loc x x1 x2 =
-  if x1 = x2
-  then true
-  else
-    hierror "Alias: at %a cannot compare slices for variable %a: %a and %a" pp_iloc loc pp_var x pp_slice x1 pp_slice x2
+let range_of_asub aa ws len i =
+  match get_ofs aa ws i with
+  | None -> assert false
+  | Some start -> start, start + arr_size ws len
 
-exception NotIncluded
+let normalize_asub a aa ws len x i =
+  let s = normalize_gvar a x in
+  range_in_slice (range_of_asub aa ws len i) s
 
-let incl loc a1 a2 =
-  try
-    let _ =
-      Mv.merge (fun x s1 s2 ->
-          match s1 with
-          | None -> Some ()
-          | Some x1 ->
-             match s2 with
-             | None -> raise NotIncluded
-             | Some x2 -> if incl_slice loc x x1 x2 then Some () else raise NotIncluded
-        ) a1 a2
-    in true
-  with NotIncluded -> false
+let slice_of_pexpr a =
+  function
+  | Parr_init _ -> None
+  | Pvar x -> Some (normalize_gvar a x)
+  | Psub (aa, ws, len, x, i) -> Some (normalize_asub a aa ws len x i)
+  | (Pconst _ | Pbool _ | Pget _ | Pload _ | Papp1 _ | Papp2 _ | PappN _ | Pif _) -> assert false
 
-let rec analyze_instr cc a loc =
+let slice_of_lval a =
+  function
+  | Lvar x -> Some (normalize_var a (L.unloc x))
+  | Lasub (aa, ws, len, gv, i) -> Some (normalize_asub a aa ws len { gv ; gs = E.Slocal } i)
+  | (Lmem _ | Laset _ | Lnone _) -> None
+
+let assign_arr a x e =
+  match slice_of_lval a x, slice_of_pexpr a e with
+  | None, _ | _, None -> a
+  | Some d, Some s -> merge_slices a d s
+
+let rec analyze_instr_r cc a =
   function
   | Cfor _ -> assert false
   | Ccall (_, xs, fn, es) ->
      List.fold_left2 (fun a x ->
          function
-         | None -> kill a x
-         | Some n -> assign_arr loc a x (List.nth es n)
+         | None -> a
+         | Some n -> assign_arr a x (List.nth es n)
        )
        a xs (cc fn).returned_params
-  | Cassgn (x, _, ty, e) -> if is_ty_arr ty then assign_arr loc a x e else kill a x
-  | Copn (xs, _, _, _) -> List.fold_left kill a xs
+  | Cassgn (x, _, ty, e) -> if is_ty_arr ty then assign_arr a x e else a
+  | Copn _ -> a
   | Cif(_, s1, s2) ->
-     let a1 = analyze_stmt cc a s1 in
-     let a2 = analyze_stmt cc a s2 in
-     merge loc a1 a2
+     let a1 = analyze_stmt cc a s1 |> normalize_map in
+     let a2 = analyze_stmt cc a s2 |> normalize_map in
+     merge a1 a2
   | Cwhile (_, s1, _, s2) ->
+     (* Precondition: a is in normal form *)
      let rec loop a =
        let a' = a in
        let a' = analyze_stmt cc a' s2 in
        let a' = analyze_stmt cc a' s1 in
-       if incl loc a' a
-       then a
-       else loop (merge loc a' a)
-     in loop (analyze_stmt cc a s1)
-and analyze_instr_r cc a { i_loc ; i_desc } = analyze_instr cc a i_loc i_desc
+       let a' = normalize_map a' in
+       if incl a' a
+       then a'
+       else loop (merge a' a |> normalize_map)
+     in loop (analyze_stmt cc a s1 |> normalize_map)
+and analyze_instr cc a { i_loc ; i_desc } =
+  try analyze_instr_r cc a i_desc
+  with HiError e -> hierror "At %a: %s" pp_iloc i_loc e
 and analyze_stmt cc a s =
-  List.fold_left (analyze_instr_r cc) a s
+  List.fold_left (analyze_instr cc) a s
 
 let analyze_fd cc fd =
-  let a = analyze_stmt cc Mv.empty fd.f_body in
+  let a = analyze_stmt cc Mv.empty fd.f_body |> normalize_map in
   Format.eprintf "Aliasing forest for function %s:@.%a@." fd.f_name.fn_name pp_alias a
 
 let analyze_prog fds =
