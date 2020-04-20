@@ -3,6 +3,7 @@ src/Arch
 src/Array_expand
 src/Bigint
 src/BigintCore
+src/ByteSet
 src/Conv
 src/Evaluator
 src/Inline_array_copy
@@ -27,6 +28,7 @@ src/Syntax
 src/ToEC
 src/Safety
 src/StackAlloc
+src/Stackliveness
 src/Typing
 src/Utils
 src/Varalloc
