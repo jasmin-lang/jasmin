@@ -36,7 +36,7 @@ open Info
 
 (* ------------------------------------------------------------------ *)
 type mem_pos = {
-    mp_s        : var;           (* a program variable representing a region disjoint from the other *)
+    mp_s        : var;           (* the original program variable                *)
     mp_p        : var;           (* the pointer to the region, a target variable *)
     mp_align    : wsize Info.t;  (* Alignment of the variable                    *)
     mp_writable : bool Info.t;   (* the region is writable of not                *)
@@ -91,8 +91,7 @@ module Smps = Set.Make(MpsCmp)
 
 (* ----------------------------------------------------------------- *)
 type ptr_kind = 
-  | Pmem    of mem_pos_sub
-  | Pstkptr
+  | Pmem    of mem_pos
   | Pregptr of var               (* Name of the corresponding pointer *)
 
 type pmap = ptr_kind Mv.t
@@ -105,6 +104,11 @@ let get_var_kind pmap x =
   if (L.unloc x).v_kind = Reg Direct then None
   else Some (get_pk pmap x)
   
+let ptr_of_pk pk = 
+  match pk with
+  | Pmem mp -> mp.mp_p
+  | Pregptr p -> p
+
 (* ----------------------------------------------------------------- *)
 
 let pp_var fmt x =
@@ -220,7 +224,7 @@ sig
   val set_writable : var_i -> mem_pos_sub -> unit
   val set_arr_init : regions -> var -> mem_pos_sub -> regions
   val set_full     : regions -> var -> mem_pos -> regions 
-  val set_word     : regions -> var_i -> mem_pos_sub -> wsize -> regions
+  val set_word     : regions -> var_i -> mem_pos -> wsize -> regions
   val set_arr_word : regions -> var_i -> int option -> wsize -> regions
   val set_arr_sub  : regions -> var_i -> int -> int -> mem_pos_sub -> regions 
   val set_move     : regions -> var_i -> mem_pos_sub -> regions
@@ -381,10 +385,11 @@ end
       with NotModifiable ->
         hierror "%a is not writable" pp_var x
       
-  let set_word rmap x mps ws =
+  let set_word rmap x mp ws =
+    let sub = { smp_ofs = 0; smp_len = size_of_ws ws} in
+    let mps = { mps_mp = mp; mps_sub = sub } in
     set_writable x mps;
     set_align x mps ws;
-    let sub = mps.mps_sub in
     let full = ByteSet.full (interval_of_sub sub) in
     let x = L.unloc x in
     let sub_map = 
@@ -559,23 +564,9 @@ end
 end
 
 (* ---------------------------------------------------------- *)
-let ptr_of_pk pk = 
-  match pk with
-  | Pmem mps -> mps.mps_mp.mp_p, mps.mps_sub.smp_ofs
-  | Pstkptr  -> hierror "stack pointer in expression"  
-  | Pregptr p -> p, 0
 
-(* This is incorrect in term of address but correct in term of needed register *)
 let mk_addr x pk = 
-  let p, ofs = ptr_of_pk pk in
-  L.mk_loc (L.loc x) p, ofs 
-
-let mps_pk pk = 
-  match pk with
-  | Pmem mps -> 
-    if not (V.equal mps.mps_mp.mp_p rsp) then hierror "not a pointer to stack:please report";
-    mps
-  | _ -> hierror "not a pointer to stack:please report"
+  L.mk_loc (L.loc x) (ptr_of_pk pk)
 
 (* ---------------------------------------------------------- *)
 
@@ -591,8 +582,8 @@ let alloc_e pmap rmap e =
         let ws = ws_of_ty (L.unloc x).v_ty in
         let mp = Region.check_valid rmap x (Some 0) (size_of_ws ws) in
         Region.set_align x mp ws;
-        let p,ofs = mk_addr x pk in
-        Pload(ws, p, icnst ofs) (* not well typed, but not important *)
+        let p = mk_addr x pk in
+        Pload(ws, p, icnst 0) (* not well typed, but not important *)
       end
     | Pget(aa, ws, x, e1) ->
       let x = x.gv in
@@ -603,9 +594,8 @@ let alloc_e pmap rmap e =
         let ofs = get_ofs aa ws e1 in
         let mp = Region.check_valid rmap x ofs (size_of_ws ws) in
         Region.set_align x mp ws;
-        let p,_ = mk_addr x pk in
-        Pload(ws, p, e1) (* not well typed, but not important, 
-                            the ofs is ignored but it is ok for regalloc *)
+        let p = mk_addr x pk in
+        Pload(ws, p, e1) (* not well typed, but not important *)
       end
     | Psub _ -> 
       hierror "%a sub-array expression not allowed here" (Printer.pp_expr ~debug:true) e
@@ -627,14 +617,13 @@ let alloc_lval pmap rmap (r:lval) =
   | Lvar x  -> 
     begin match get_var_kind pmap x with
     | None -> (rmap, r) 
-    | Some pk -> 
-      let ws = ws_of_ty (L.unloc x).v_ty in 
-(*      if not (ty = sword ws) then hierror "invalid type for assignment"; *)
-      let p, ofs = mk_addr x pk in
-      let mps = mps_pk pk in
-      let r = Lmem(ws, p, icnst ofs) in
-      let rmap = Region.set_word rmap x mps ws in
-      (rmap, r) 
+    | Some (Pregptr _) -> assert false (* pointer to word *)
+    | Some (Pmem mp as pk) ->
+      let ws = ws_of_ty (L.unloc x).v_ty in
+      let rmap = Region.set_word rmap x mp ws        
+in
+      let r = Lmem(ws, mk_addr x pk, icnst 0) in (* not well typed, but ... *)
+      (rmap, r)
     end
 
   | Laset (aa,ws,x,e1) -> 
@@ -644,8 +633,7 @@ let alloc_lval pmap rmap (r:lval) =
     | Some pk ->
       let ofs = get_ofs aa ws e1 in
       let rmap = Region.set_arr_word rmap x ofs ws in
-      let p, _ofs = mk_addr x pk in
-      let r = Lmem (ws, p, (* ofs + *) e1) in
+      let r = Lmem (ws, mk_addr x pk, e1) in
       (rmap, r)
     end
   | Lasub _ -> 
@@ -660,33 +648,38 @@ let alloc_lvals pmap rmap rs = List.map_fold (alloc_lval pmap) rmap rs
 let nop = Copn([], AT_none, Expr.Onop, [])
 
 let lea_ptr x ptr _ofs = 
-  Copn([x], AT_none, Expr.Ox86 (LEA U64), [ptr])
+  Copn([x], AT_none, Expr.Ox86 (LEA U64), [Pvar (gkvar ptr)])
 
 let mov_ptr x ptr =
   Copn([x], AT_none, Expr.Ox86 (MOV U64), [ptr])
 
-type mov_kind = 
-  | MK_LEA 
-  | MK_MOV
 
-let mov_ofs x mk y ofs = 
-  if mk = MK_LEA then lea_ptr x y ofs 
-  else 
-    if ofs = 0 then mov_ptr x y else lea_ptr x y ofs
-
-let is_nop is_spilling rmap x mpy =
-  if is_spilling then
-    match Region.get_mp_opt rmap x with 
-    | Some mpx -> mps_equal mpx mpy
-    | None -> false
-  else false
-
-let get_addr is_spilling rmap x dx mpy mk y ofs = 
-  let ir = 
-    if is_nop is_spilling rmap x mpy then nop
-    else mov_ofs dx mk y ofs in
-  let rmap = Region.set_move rmap x mpy in
-  (rmap, ir)
+let get_addr is_spilling pmap rmap x dx y mpsy ofs = 
+  let yv = y.gv in
+  let i = 
+    match Region.get_mp_opt rmap x with
+    | Some mpsx when is_spilling && mps_equal mpsx mpsy && ofs = 0 -> nop
+    | _ ->
+      let py = 
+        match get_var_kind pmap yv with
+        | None -> hierror "register array remains %a, please report" pp_var x
+        | Some pk -> ptr_of_pk pk
+      in
+      let py = L.mk_loc (L.loc yv) py in
+      if is_gkvar y then
+        match (L.unloc yv).v_kind with
+        | Stack Direct  -> lea_ptr dx py ofs
+        | Stack (Pointer _) -> 
+          if ofs <> ofs then hierror "cannot take a subarray of a stack pointer";
+          mov_ptr dx (Pload(U64, py, icnst 0))
+        | Reg (Pointer _)  -> 
+          if ofs = 0 then mov_ptr dx (Pvar (gkvar py))
+          else lea_ptr dx py ofs
+        | _ -> assert false 
+      else lea_ptr dx py ofs in
+  let rmap = Region.set_move rmap x mpsy in 
+  (rmap, i)
+ 
 
 let get_ofs_sub aa ws e1 = 
   match get_ofs aa ws e1 with
@@ -701,49 +694,48 @@ let alloc_array_move pmap rmap r e =
       let ofs = get_ofs_sub aa ws e1 in
       x, Some(ofs, arr_size ws len) 
     | _ -> hierror "cannot reconnize lvalue of an array move" in
-  let y, mpy, mk, ey, ofs = 
-    let y, ofs, len = 
-      match e with
-      | Pvar y -> y, 0, size_of (ty_i y.gv)
-      | Psub(aa,ws,len,y,e1) ->
-        let ofs = get_ofs_sub aa ws e1 in
-        let len = arr_size ws len in
-        y, ofs, len 
-      | _ -> hierror "cannot reconnize expression of an array move" in
-    let pk = get_var_kind pmap y.gv in
-    let mpy = Region.check_valid rmap y.gv (Some ofs) len in
-    match pk with
-    | None -> hierror "reg array remains: please report"
-    | Some (Pmem mpy) ->
-      y, mpy, MK_LEA,  Pvar (gkvar (L.mk_loc (L.loc x) mpy.mps_mp.mp_p)), ofs
-    | Some (Pregptr p) ->
-      y, mpy, MK_MOV, Pvar (gkvar (L.mk_loc (L.loc x) p)), ofs
-    | Some Pstkptr ->
-      y, mpy, MK_MOV, Pload(U64, L.mk_loc (L.loc x) rsp, icnst 0), ofs
-  in
+  let y, mpsy, ofs = 
+    match e with
+    | Pvar y -> 
+      let (ws,n) = array_kind (L.unloc y.gv).v_ty in
+      let len = arr_size ws n in
+      y,  Region.check_valid rmap y.gv (Some 0) len, 0
+    | Psub(aa,ws,len,y,e1) -> 
+      let ofs = get_ofs_sub aa ws e1 in
+      let len = arr_size ws len in
+      let mps = Region.check_valid rmap y.gv (Some ofs) len in
+      y, mps, ofs 
+    | _ -> hierror "cannot reconnize expression of an array move" in
+
   match xsub with
   | None ->
     begin match get_var_kind pmap x with
     | None -> hierror "register array remains %a, please report" pp_var x
     | Some pk -> 
-      begin match pk with
-      | Pmem mpx ->
-        if not (is_gkvar y) then hierror "invalid move: global to stack";
-        assert (V.equal mpx.mps_mp.mp_p rsp);
-        if not (V.equal mpx.mps_mp.mp_s mpy.mps_mp.mp_s && mpx.mps_sub = mpy.mps_sub) then
+      match (L.unloc x).v_kind with
+      | Stack Direct ->
+        if not (is_gkvar y) then 
+          hierror "can not move global to stack";
+        let y = y.gv in
+        if not (V.equal (L.unloc x) mpsy.mps_mp.mp_s) then 
+          hierror "(check alias) invalid move, the variable %a points to the region of %a instead of %a"
+            pp_var y (Printer.pp_var ~debug:true) mpsy.mps_mp.mp_s pp_var x;
+        if not (
+            mpsy.mps_sub.smp_ofs = 0 && mpsy.mps_sub.smp_len = size_of (L.unloc x).v_ty &&
+              ofs = 0) then 
           hierror "invalid source";
-        let rmap = Region.set_move rmap x mpy in
+        let rmap = Region.set_move rmap x mpsy in
         (rmap, nop)
-      | Pregptr p ->
-        get_addr false rmap x (Lvar(L.mk_loc (L.loc x) p)) mpy mk ey ofs
-      | Pstkptr ->
-        get_addr true rmap x (Lmem(U64, L.mk_loc (L.loc x) rsp, icnst 0)) mpy mk ey ofs
-      end
+      | Stack (Pointer _)->
+        get_addr true pmap rmap x (Lmem(U64, mk_addr x pk, icnst 0)) y mpsy ofs
+      | Reg (Pointer _) ->
+        get_addr false pmap rmap x (Lvar (mk_addr x pk)) y mpsy ofs
+      | _ -> assert false 
     end
   | Some (ofs, len) ->
     begin match get_var_kind pmap x with
     | None -> hierror "register array remains %a, please report" pp_var x
-    | Some _ -> Region.set_arr_sub rmap x ofs len mpy, nop
+    | Some _ -> Region.set_arr_sub rmap x ofs len mpsy, nop
     end
  
 
@@ -762,18 +754,20 @@ let alloc_array_move_init pmap rmap r e =
         let ofs = get_ofs_sub aa ws e1 in
         x, ofs, arr_size ws len
       | _ -> hierror "cannot reconnize lvalue of an array move" in
-    let mps =
-      match get_var_kind pmap x with
-      | None -> hierror "register array remains %a, please report" pp_var x
-      | Some (Pmem mpx) ->
-        let sub = { smp_ofs = mpx.mps_sub.smp_ofs + ofs; smp_len = len } in
-        { mps_mp = mpx.mps_mp; mps_sub = sub }
+    let mps = 
+      match (L.unloc x).v_kind with
+      | Stack Direct ->
+        begin match get_var_kind pmap x with
+        | Some (Pmem mp) -> 
+          {mps_mp = mp; mps_sub = {smp_ofs = ofs; smp_len = len }}
+        | _              -> assert false 
+        end
       | _ -> 
         match Region.get_mp_opt rmap x with
-        | None -> hierror "no associated region to %a" pp_var x
-        | Some mps ->
-          let sub = { smp_ofs = mps.mps_sub.smp_ofs + ofs; smp_len = len } in
-          { mps_mp = mps.mps_mp; mps_sub = sub } in
+        | Some mps -> 
+          { mps with mps_sub = { smp_ofs = mps.mps_sub.smp_ofs + ofs; smp_len = len}}
+        | _ -> hierror "no region associated to %a" pp_var x in
+
     let rmap = Region.set_arr_init rmap (L.unloc x) mps in
     (rmap, nop)
   else alloc_array_move pmap rmap r e
@@ -817,7 +811,7 @@ let alloc_call_arg pmap rmap sao_param e =
       let mps = Region.check_valid rmap xv (Some 0) (size_of (L.unloc x.gv).v_ty) in
       Region.set_align xv mps pi.pi_align;
       if pi.pi_writable then Region.set_writable xv mps;
-      (Some (pi.pi_writable, mps), Pvar (gkvar (fst (mk_addr xv pk))))
+      (Some (pi.pi_writable, mps), Pvar (gkvar (mk_addr xv pk)))
     end
   | _ -> 
     hierror "the expression %a is not a variable" 
@@ -878,7 +872,7 @@ let alloc_lval_call mps pmap rmap r i =
           hierror "%a should be a reg ptr" pp_var x;
         let pk = get_pk pmap x in
         let rmap = Region.set_arr_call rmap x mps in
-        rmap, Lvar (fst (mk_addr x pk))
+        rmap, Lvar (mk_addr x pk)
       | _ -> hierror "%a should be a reg ptr" (Printer.pp_lval ~debug:false) r
 
 let alloc_call_res pmap rmap mps ret_pos rs = 
