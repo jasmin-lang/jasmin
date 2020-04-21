@@ -1,0 +1,38 @@
+inline
+fn create() -> stack u64[2] {
+
+stack u64[2] tab;
+
+tab[0] = 0;
+tab[1] = 1;
+
+return tab;
+}
+
+inline
+fn sum(reg u64 x, stack u64[4] v) -> reg u64 {
+reg u64 result;
+inline int i;
+
+result = x;
+for i = 0 to 4 {
+result += v[i];
+}
+
+return result;
+}
+
+export
+fn test(reg u64 x) -> reg u64 {
+
+reg u64 result;
+stack u64[4] big;
+
+big[0:2] = create();
+big[2:2] = create();
+
+result = sum(x, big);
+
+return result;
+
+}

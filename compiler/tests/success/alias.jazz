@@ -1,0 +1,32 @@
+export
+fn test(reg u64 x) -> reg u64 {
+reg u64 result;
+stack u64[10] bigA bigB;
+stack u64[5] leftA rightA;
+
+bigA[0] = x;
+
+leftA = bigA[0:5];
+rightA = bigA[5:5];
+
+if x > 0 {
+bigB[0] = x;
+} else {
+bigB[0:5] = leftA;
+}
+
+result = bigB[0];
+return result;
+}
+
+fn toto (reg ptr u64[1] p, reg u64 x) -> reg ptr u64[1] {
+
+stack ptr u64[1] a;
+
+a = p;
+p = a;
+
+p[0] = x;
+
+return p;
+}
