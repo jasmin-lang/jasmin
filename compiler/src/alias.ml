@@ -3,7 +3,7 @@ open Printer
 open Prog
 
 (* Interval within a variable; [lo; hi[ *)
-type slice = { in_var : var ; scope : E.v_scope  ; range : int * int }
+type slice = { in_var : var ; scope : E.v_scope ; range : int * int }
 
 type alias = slice Mv.t
 
@@ -181,7 +181,10 @@ and analyze_stmt cc a s =
   List.fold_left (analyze_instr cc) a s
 
 let analyze_fd cc fd =
-  let a = analyze_stmt cc Mv.empty fd.f_body |> normalize_map in
+  analyze_stmt cc Mv.empty fd.f_body |> normalize_map
+
+let analyze_fd_ignore cc fd =
+  let a = analyze_fd cc fd in
   Format.eprintf "Aliasing forest for function %s:@.%a@." fd.f_name.fn_name pp_alias a
 
 let analyze_prog fds =
@@ -193,6 +196,13 @@ let analyze_prog fds =
       | Export -> ()
       | Internal -> assert false
       end;
-      analyze_fd get_cc fd)
+      analyze_fd_ignore get_cc fd)
     fds
     ()
+
+(* --------------------------------------------------- *)
+let classes (a: alias) : Sv.t Mv.t =
+  Mv.fold (fun x s c ->
+      let y = s.in_var in
+      Mv.modify_def Sv.empty y (Sv.add x) c
+      ) a Mv.empty
