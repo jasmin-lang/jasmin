@@ -2,7 +2,7 @@ open Utils
 open Prog
 
 type graph = (int * int) Mv.t
-type color = int
+type color = var
 type coloring = color Mv.t
 
 type name = var
@@ -21,22 +21,22 @@ let compare_event (dx, x) (dy, y) =
     | Start a, Start b | End a, End b -> V.compare a b
   else c
 
-let pick fresh =
+let pick sz n =
   function
-  | [] -> fresh, fresh + 1, []
-  | c :: free -> c, fresh, free
+  | [] -> V.mk n.v_name (Stack Direct) (Arr(U8,sz)) n.v_dloc, []
+  | c :: free -> c, free
 
-let rec solve_rec (fresh, free, result) =
+let rec solve_rec sz (free, result) =
   function
   | _, Start n ->
-     let c, fresh, free = pick fresh free in
-     fresh, free, Mv.add n c result
+     let c, free = pick sz n free in
+     free, Mv.add n c result
   | _, End n ->
      let c = Mv.find n result in
-     fresh, c :: free, result
+     c :: free, result
 
-let solve_aux todo =
-  let _, _, result = List.fold_left solve_rec (0, [], Mv.empty) todo in
+let solve_aux sz todo =
+  let _, result = List.fold_left (solve_rec sz) ([], Mv.empty) todo in
   result
 
 let events_of_graph g =
@@ -47,5 +47,5 @@ let events_of_graph g =
     )
     g []
 
-let solve g =
-  g |> events_of_graph |> List.sort compare_event |> solve_aux
+let solve sz g =
+  g |> events_of_graph |> List.sort compare_event |> (solve_aux sz)

@@ -30,3 +30,35 @@ p[0] = x;
 
 return p;
 }
+
+u64[2] g = {0, 1};
+
+inline fn merge (stack u64[2] g1) -> stack u64[2] {
+  return g1;
+}
+
+fn titi() -> reg u64 {
+   stack u64[2] s;
+   reg u64 r;
+   s = merge(g);
+   s[1] = 1;
+   r = s[1];
+   return r;
+}  
+
+
+/*
+u64 g1 = 0;
+
+inline fn merge1 (stack u64 g2) -> stack u64 {
+  return g2;
+}
+
+fn titi1() -> reg u64 {
+   stack u64 s;
+   reg u64 r;
+   s = merge1(g1);
+   r = s;
+   return r;
+}  
+*/

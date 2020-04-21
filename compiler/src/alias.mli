@@ -11,3 +11,5 @@ val analyze_fd : (funname -> subroutine_info) -> (int, 'a) Prog.gfunc -> alias
 val analyze_prog : 'info func list -> unit
 
 val classes : alias -> Sv.t Mv.t
+
+val pp_alias  : Format.formatter -> alias -> unit

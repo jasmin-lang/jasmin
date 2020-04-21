@@ -1,7 +1,7 @@
 open Prog
 
 type graph = (int * int) Mv.t
-type color = int
+type color = var
 type coloring = color Mv.t
 
-val solve : graph -> coloring
+val solve : int -> graph -> coloring
