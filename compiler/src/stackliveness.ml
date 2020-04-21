@@ -15,6 +15,9 @@ module Live : sig
   val get   : var -> t -> live_elem 
   val set   : var -> live_elem -> t -> t
   val remove : var -> t -> t
+
+  val pp : Format.formatter -> t -> unit
+
 end = struct 
 
   (* Invariant : if [Array bs] in [m] then bs is not empty *)
@@ -64,12 +67,32 @@ end = struct
       else Mv.add x e t
 
   let remove x t = Mv.remove x t
+
+  let pp fmt t = 
+    let pp_elem fmt (x,e) = 
+      match e with
+      | NotArray -> Printer.pp_var ~debug:true fmt x
+      | Array bs -> 
+        Format.fprintf fmt "%a%a" 
+          (Printer.pp_var ~debug:true) x
+          ByteSet.pp bs in
+    Format.fprintf fmt "{@[%a@]}" 
+      (Printer.pp_list ",@ " pp_elem) (Mv.bindings t)
+      
 end  
 
 type live_info = {
     before : Live.t;
     after  : Live.t;
   }
+
+let pp_live_info fmt li = 
+ Format.fprintf fmt "@[<v>%a@ @]"
+    Live.pp li.before 
+(*
+  Format.fprintf fmt "@[<v> before = %a@ after = %a@ @]"
+    Live.pp li.before Live.pp li.after *)
+
 (* FIXME word_of_int *)
 let get_index e = 
   match e with
@@ -213,12 +236,12 @@ and live_c c s_o =
       let s_i, i = live_i i s_o in
       s_i, i::c) c (s_o, [])
 
-
 let live_fd fd =
   let s_o = 
     List.fold_left (fun s x -> set_live (L.unloc x) s) Live.empty fd.f_ret in
   let _, c = live_c fd.f_body s_o in
   { fd with f_body = c }
+
 
 
     

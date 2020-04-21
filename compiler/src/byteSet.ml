@@ -81,7 +81,11 @@ let rec union t1 t2 =
     else union t1' (add n1 t2)
     
         
-let pp_inter fmt t = 
-  List.iter (fun n -> Format.fprintf fmt "[%i..%i) " n.min n.max) t
+let pp fmt t = 
+  let pp_interval fmt n = 
+    Format.fprintf fmt "[%i..%i) " n.min n.max in
+  Format.fprintf fmt "@[%a@]"
+    (Printer.pp_list "@ " pp_interval) t
+
 
 

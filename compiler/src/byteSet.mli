@@ -13,3 +13,5 @@ val add    : interval -> t -> t
 val remove : interval -> t -> t
 val inter  : t -> t -> t 
 val union  : t -> t -> t
+
+val pp : Format.formatter -> t -> unit
