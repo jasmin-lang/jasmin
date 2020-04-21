@@ -1,7 +1,7 @@
+open Interval
 
-(* Represents the interval [min, max) *)
-type interval = { min : int; max:int }
-  
+(* An interval { min ; max } represents the interval [min, max) *)
+
 type t = interval list (* sorted in increasing order, no overlap *)
 
 let empty = []

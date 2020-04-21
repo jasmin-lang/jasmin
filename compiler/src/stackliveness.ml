@@ -100,7 +100,7 @@ let get_index e =
   | _        -> None
 
 let full_array x = 
-  ByteSet.full ByteSet.({min = 0; max = size_of x.v_ty})
+  ByteSet.full Interval.{ min = 0 ; max = size_of x.v_ty }
 
 let get_live_array x (s:Live.t) =
   try 
@@ -127,7 +127,7 @@ let set_live_index aa ws x e s =
   | Some i ->
     let i = get_ofs aa ws i in
     let bs = get_live_array x s in
-    let iv = ByteSet.{min = i; max = i + size_of_ws ws} in
+    let iv = Interval.{ min = i; max = i + size_of_ws ws } in
     let bs = ByteSet.add iv bs in
     set_live_array x bs s 
 
@@ -137,7 +137,7 @@ let set_live_sub aa ws x e len s =
   | Some i -> 
     let i = get_ofs aa ws i in
     let bs = get_live_array x s in
-    let iv = ByteSet.{min = i; max = i + len * size_of_ws ws} in
+    let iv = Interval.{ min = i; max = i + len * size_of_ws ws } in
     let bs = ByteSet.add iv bs in
     set_live_array x bs s
 
@@ -174,7 +174,7 @@ let dep_lv x s_o =
       match get_index e with
       | Some i -> 
         let i = get_ofs aa ws i in
-        let iv = ByteSet.{min = i; max = i + size_of_ws ws} in
+        let iv = Interval.{ min = i ; max = i + size_of_ws ws } in
         ByteSet.remove iv bs
       | None -> bs in
     let s = set_live_array x bs s_o in
@@ -187,7 +187,7 @@ let dep_lv x s_o =
       match get_index e with
       | Some i -> 
         let i = get_ofs aa ws i in
-        let iv = ByteSet.{min = i; max = i + len * size_of_ws ws} in
+        let iv = Interval.{ min = i ; max = i + len * size_of_ws ws } in
         ByteSet.remove iv bs 
       | None ->  hierror "unknow subindex %a" (Printer.pp_expr ~debug:true) e in
     let s = set_live_array x bs s_o in

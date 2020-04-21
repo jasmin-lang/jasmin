@@ -1,4 +1,4 @@
-type interval = { min : int; max : int }
+open Interval
 
 type t
 val empty  : t
@@ -11,7 +11,7 @@ val subset : t -> t -> bool
 val full   : interval -> t
 val add    : interval -> t -> t
 val remove : interval -> t -> t
-val inter  : t -> t -> t 
+val inter  : t -> t -> t
 val union  : t -> t -> t
 
 val pp : Format.formatter -> t -> unit
