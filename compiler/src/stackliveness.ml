@@ -46,7 +46,7 @@ end = struct
   let union il1 il2 = 
     let merge_elem _x oe1 oe2 = 
       match oe1, oe2 with
-      | None, _ | _, None -> None
+      | None, oe | oe, None -> oe
       | Some NotArray, Some NotArray -> oe1
       | Some (Array bs1), Some (Array bs2) -> 
         let bs = ByteSet.union bs1 bs2 in
