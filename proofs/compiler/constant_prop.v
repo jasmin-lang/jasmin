@@ -233,11 +233,11 @@ Definition smul_w sz e1 e2 :=
   | Some n, _ =>
     if n == 0%R then (@wconst sz 0, LT_remove)
     else if n == 1%R then (e2, LT_sub2)
-    else (Papp2 (Omul (Op_w sz)) (wconst n) e2, LT_sub2)
+    else (Papp2 (Omul (Op_w sz)) (wconst n) e2, LT_sub LT_remove LT_id)
   | _, Some n =>
     if n == 0%R then (@wconst sz 0, LT_remove)
     else if n == 1%R then (e1, LT_sub1)
-    else (Papp2 (Omul (Op_w sz)) e1 (wconst n), LT_sub1)
+    else (Papp2 (Omul (Op_w sz)) e1 (wconst n), LT_sub LT_id LT_remove)
   | _, _ => (Papp2 (Omul (Op_w sz)) e1 e2, LT_id)
   end.
 
@@ -786,7 +786,9 @@ Fixpoint sem_pexpr_e (s:estate) (e : pexpr) : exec (value * leak_e_tree) :=
     Let vl1 := sem_pexpr_e s e1 in
     Let vl2 := sem_pexpr_e s e2 in
     Let v := sem_sop2 o vl1.1 vl2.1 in
-    ok (v, LSub ([:: vl1.2] ++ [:: vl2.2]))
+    (* Before I used LSub ([vl1.2] ++ [vl1.2])
+       which is not correct for and/or case *)
+    ok (v, LDual vl1.2 vl2.2)
   | PappN op es =>
     Let vs := mapM (sem_pexpr_e s) es in
     Let v := sem_opN op (unzip1 vs) in
@@ -906,7 +908,7 @@ Let Q'' es : Prop := forall vs, sem_pexprs_e gd s es = ok vs ->
   + move=> op e1 H1 e2 H2 [v l]. t_xrbindP.
     move=> [yv yl] Hs [hv hl] Hs' v' Hop <- <- /=.
     move: (H1 (yv, yl) Hs) => -> /=. move: (H2 (hv, hl) Hs') => -> /=.
-    rewrite Hop /=. rewrite /lests_to_les /=. by rewrite cats0.
+    rewrite Hop /=. by rewrite /lests_to_les /=.
   + move=> op es H. t_xrbindP.
     move=> [hv hl] y Hm yv Hop He.
     move: (H y Hm) => -> /=.
@@ -972,9 +974,9 @@ Definition const_prop_e_esP_sem_pexprs_e gd s es v:=
     move=> v l' [yv yl] He1' [yv' yl'] He2' v' Ho Hv Hl /=.
     move: (He1 yv yl He1') => [] l1 [] Hs1 Hs1'. rewrite Hs1' /=.
     move: (He2 yv' yl' He2') => [] l2 [] Hs2 Hs2'. rewrite Hs2' /=.
-    exists (LSub [:: l1; l2]). split.
-    rewrite -Hl /=. rewrite Hs1 Hs2 /=. rewrite /lests_to_les /=.
-    by rewrite cats0. rewrite Ho /=. by rewrite Hv.
+    exists (LDual l1 l2). split.
+    rewrite -Hl /=. rewrite Hs1 Hs2 /=. by rewrite /lests_to_les /=.
+    rewrite Ho /=. by rewrite Hv.
   + move=> op es He /=. t_xrbindP.
     move=> h h0 y Hm h2 Ho Hv Hl /=.
     admit.
