@@ -84,27 +84,43 @@ let incl a1 a2 =
   with NotIncluded -> false
 
 (* Partial order on variables, by scope and size *)
-let compare_gvar x gx y gy =
+let compare_gvar params x gx y gy =
+  let check_size s1 s2 = 
+    if not (s1 <= s2) then hierror "merge size" in
+      
   if V.equal x y
   then (assert (gx = gy); 0)
   else
     let sx = size_of x.v_ty in
     let sy = size_of y.v_ty in
     match gx, gy with
-    | E.Sglob, E.Sglob -> assert false
-    | E.Sglob, E.Slocal -> assert(sy <= sx); 1
-    | E.Slocal, E.Sglob -> assert (sx <= sy); -1
+    | E.Sglob, E.Sglob -> 
+      hierror "merge global and global";
+    | E.Sglob, E.Slocal -> 
+      check_size sy sx; 
+      if (Sv.mem y params) then hierror "merge global and param";
+      1
+    | E.Slocal, E.Sglob -> 
+      check_size sx sy; 
+      if (Sv.mem y params) then hierror "merge global and param";
+      -1
     | E.Slocal, E.Slocal ->
-       let c = Stdlib.Int.compare sx sy in
-       if c = 0 then V.compare x y
-       else c
+      match Sv.mem x params, Sv.mem y params with
+      | true, true -> 
+        hierror "merge param and param";
+      | true, false -> check_size sy sx; 1
+      | false, true -> check_size sx sy; -1
+      | false, false ->
+        let c = Stdlib.Int.compare sx sy in
+        if c = 0 then V.compare x y
+        else c
 
 (* Precondition: s1 and s2 are normal forms (aka roots) in a *)
 (* x1[e1:n1] = x2[e2:n2] *)
-let merge_slices a s1 s2 =
+let merge_slices params a s1 s2 =
   (* Format.eprintf "Alias: merging slices at %a: %a and %a@." pp_iloc loc pp_slice s1 pp_slice s2; *)
   assert (size_of_range s1.range = size_of_range s2.range);
-  let c = compare_gvar s1.in_var s1.scope s2.in_var s2.scope in
+  let c = compare_gvar params s1.in_var s1.scope s2.in_var s2.scope in
   if c = 0 then (assert (s1 = s2); a)
   else
     let s1, s2 = if c < 0 then s1, s2 else s2, s1 in
@@ -113,11 +129,11 @@ let merge_slices a s1 s2 =
     Mv.add x { s2 with range = lo, lo + size_of x.v_ty } a
 
 (* Precondition: both maps are normalized *)
-let merge a1 a2 =
+let merge params a1 a2 =
   Mv.fold (fun x s a ->
       let s1 = normalize_slice a s in
       let s2 = normalize_slice a (slice_of_var x) in
-      merge_slices a s1 s2
+      merge_slices params a s1 s2
     ) a1 a2
 
 let range_of_asub aa ws len i =
@@ -142,57 +158,58 @@ let slice_of_lval a =
   | Lasub (aa, ws, len, gv, i) -> Some (normalize_asub a aa ws len { gv ; gs = E.Slocal } i)
   | (Lmem _ | Laset _ | Lnone _) -> None
 
-let assign_arr a x e =
+let assign_arr params a x e =
   match slice_of_lval a x, slice_of_pexpr a e with
   | None, _ | _, None -> a
-  | Some d, Some s -> merge_slices a d s
+  | Some d, Some s -> merge_slices params a d s
 
-let rec analyze_instr_r cc a =
+let rec analyze_instr_r params cc a =
   function
   | Cfor _ -> assert false
   | Ccall (_, xs, fn, es) ->
      List.fold_left2 (fun a x ->
          function
          | None -> a
-         | Some n -> assign_arr a x (List.nth es n)
+         | Some n -> assign_arr params a x (List.nth es n)
        )
-       a xs (cc fn).returned_params
-  | Cassgn (x, _, ty, e) -> if is_ty_arr ty then assign_arr a x e else a
+       a xs (cc fn)
+  | Cassgn (x, _, ty, e) -> if is_ty_arr ty then assign_arr params a x e else a
   | Copn _ -> a
   | Cif(_, s1, s2) ->
-     let a1 = analyze_stmt cc a s1 |> normalize_map in
-     let a2 = analyze_stmt cc a s2 |> normalize_map in
-     merge a1 a2
+     let a1 = analyze_stmt params cc a s1 |> normalize_map in
+     let a2 = analyze_stmt params cc a s2 |> normalize_map in
+     merge params a1 a2
   | Cwhile (_, s1, _, s2) ->
      (* Precondition: a is in normal form *)
      let rec loop a =
        let a' = a in
-       let a' = analyze_stmt cc a' s2 in
-       let a' = analyze_stmt cc a' s1 in
+       let a' = analyze_stmt params cc a' s2 in
+       let a' = analyze_stmt params cc a' s1 in
        let a' = normalize_map a' in
        if incl a' a
        then a'
-       else loop (merge a' a |> normalize_map)
-     in loop (analyze_stmt cc a s1 |> normalize_map)
-and analyze_instr cc a { i_loc ; i_desc } =
-  try analyze_instr_r cc a i_desc
+       else loop (merge params a' a |> normalize_map )
+     in loop (analyze_stmt params cc a s1 |> normalize_map)
+and analyze_instr params cc a { i_loc ; i_desc } =
+  try analyze_instr_r params cc a i_desc
   with HiError e -> hierror "At %a: %s" pp_iloc i_loc e
-and analyze_stmt cc a s =
-  List.fold_left (analyze_instr cc) a s
+and analyze_stmt params cc a s =
+  List.fold_left (analyze_instr params cc) a s
 
 let analyze_fd cc fd =
-  analyze_stmt cc Mv.empty fd.f_body |> normalize_map
+  let params = Sv.of_list fd.f_args in
+  analyze_stmt params cc Mv.empty fd.f_body |> normalize_map
 
 let analyze_fd_ignore cc fd =
   let a = analyze_fd cc fd in
   Format.eprintf "Aliasing forest for function %s:@.%a@." fd.f_name.fn_name pp_alias a
 
 let analyze_prog fds =
-  let cc : subroutine_info Hf.t = Hf.create 17 in
+  let cc : int option list Hf.t = Hf.create 17 in
   let get_cc = Hf.find cc in
   List.fold_right (fun fd () ->
       begin match fd.f_cc with
-      | Subroutine si -> Hf.add cc fd.f_name si
+      | Subroutine si -> Hf.add cc fd.f_name si.returned_params
       | Export -> ()
       | Internal -> assert false
       end;

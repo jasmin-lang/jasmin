@@ -6,7 +6,7 @@ type alias = slice Mv.t
 
 val normalize_var : alias -> var -> slice
 
-val analyze_fd : (funname -> subroutine_info) -> (int, 'a) Prog.gfunc -> alias
+val analyze_fd : (funname -> int option list) -> (int, 'a) Prog.gfunc -> alias
 
 val analyze_prog : 'info func list -> unit
 
