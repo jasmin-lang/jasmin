@@ -831,7 +831,7 @@ type reg_oracle_t = {
   }
 
 let alloc_prog translate_var (has_stack: call_conv -> 'a -> bool) (dfuncs: ('a * 'info func) list)
-    : ('a * reg_oracle_t * unit func) list * (var -> Sv.t) * (i_loc -> var option) =
+    : ('a * reg_oracle_t * unit func) list * (var -> Sv.t) * (i_loc -> var option) * (funname -> Sv.t)=
   let extra : 'a Hf.t = Hf.create 17 in
   let funcs, get_liveness, subst, reva, extra_free_registers =
     dfuncs
@@ -851,3 +851,4 @@ let alloc_prog translate_var (has_stack: call_conv -> 'a -> bool) (dfuncs: ('a *
     )
   , reva
   , extra_free_registers
+  , get_liveness

@@ -100,7 +100,7 @@ Inductive error_msg :=
   | Cerr_arr_exp_v: lval -> lval -> error_msg
   | Cerr_stk_alloc: string -> error_msg
   | Cerr_linear   : string -> error_msg
-  | Cerr_needspill  : seq var -> error_msg
+  | Cerr_needspill  : funname -> seq var -> error_msg
   | Cerr_assembler: asm_error -> error_msg
 
 with fun_error   :=

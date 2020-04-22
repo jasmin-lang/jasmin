@@ -265,7 +265,7 @@ Module WArray.
   Qed.
 
   Lemma uincl_refl len (a: array len) : uincl a a.
-  Proof. by split => //;apply Z.le_refl. Qed.
+  Proof. by split => //; reflexivity. Qed.
 
   Lemma uincl_trans {len1 len2 len3} 
     (a2: array len2) (a1: array len1) (a3: array len3) :

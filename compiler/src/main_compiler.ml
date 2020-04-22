@@ -25,6 +25,7 @@ let pp_clval tbl fmt lv =
 
 let saved_rev_alloc : (var -> Sv.t) option ref = ref None
 let saved_extra_free_registers : (i_loc -> var option) ref = ref (fun _ -> None)
+let saved_live_calls : (funname -> Sv.t) option ref = ref None
 
 let rec pp_comp_err tbl fmt =
   let open Printer in
@@ -88,13 +89,18 @@ let rec pp_comp_err tbl fmt =
   | Compiler_util.Cerr_linear s ->
     Format.fprintf fmt "linearisation error %a"
       pp_string0 s
-  | Compiler_util.Cerr_needspill xs ->
+  | Compiler_util.Cerr_needspill (fn, xs) ->
      let pp =
        match !saved_rev_alloc with
        | None -> pp_var ~debug:false
        | Some rev_alloc ->
+          let filter =
+            match !saved_live_calls with
+            | None -> fun s -> s
+            | Some live_calls -> Sv.inter (live_calls (Conv.fun_of_cfun tbl fn))
+          in
           fun fmt x ->
-          let s = rev_alloc x |> Sv.elements in
+          let s = rev_alloc x |> filter |> Sv.elements in
           Format.fprintf fmt "@[%a {@[ %a @]}@]" (pp_var ~debug: false) x (pp_list ";@ " (pp_var ~debug:true)) s
      in
      let xs = List.map (Conv.var_of_cvar tbl) xs in
@@ -337,7 +343,7 @@ let main () =
 
       (* register allocation *)
       let has_stack cc sao = cc = Export && sao.sao_has_stack in
-      let fds, _rev_alloc, _extra_free_registers = 
+      let fds, _rev_alloc, _extra_free_registers, _live_calls =
         Regalloc.alloc_prog translate_var has_stack fds in
       let atbl = Hf.create 117 in 
       let get_sao fn = try Hf.find atbl fn with Not_found -> assert false in
@@ -437,13 +443,14 @@ let main () =
              else hierror "Function %s has a stack alignment %s (expected: %s)" f_name.fn_name (string_of_ws actual) (string_of_ws expected)
           end
         ) fds;
-      let fds, rev_alloc, extra_free_registers =
+      let fds, rev_alloc, extra_free_registers, live_calls =
         Regalloc.alloc_prog translate_var (fun _cc extra ->
             match extra.Expr.sf_save_stack with
             | Expr.SavedStackReg _ | Expr.SavedStackStk _ -> true
             | Expr.SavedStackNone -> false) fds in
       saved_rev_alloc := Some rev_alloc;
       saved_extra_free_registers := extra_free_registers;
+      saved_live_calls := Some live_calls;
       let fds = List.map (fun (y,_,x) -> y, x) fds in
       let fds = List.map (Conv.csfdef_of_fdef tbl) fds in
       Expr.({
