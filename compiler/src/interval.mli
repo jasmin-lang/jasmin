@@ -1,4 +1,5 @@
 type interval = { min : int; max : int }
 type t = interval
 
-val pp_interval : ?closed:bool -> Format.formatter -> interval -> unit
+val size : t -> int 
+val pp_interval : ?closed:bool -> Format.formatter -> t -> unit

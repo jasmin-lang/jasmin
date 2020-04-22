@@ -314,7 +314,57 @@ let main () =
       let open Regalloc in
       if !debug then Format.eprintf "START memory analysis@.";
       let p = Conv.prog_of_cuprog tbl up in
-      let pmap, fds = StackAlloc.alloc_prog p in
+      let gao, sao = Varalloc.alloc_stack_prog p in
+      
+      (* build coq info *)
+      let crip = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip) in
+      let do_slots slots = 
+        List.map (fun (x,ws,ofs) -> ((Conv.cvar_of_var tbl x, ws), Conv.z_of_int ofs)) slots in                            
+      let cglobs = do_slots gao.gao_slots in
+
+      let get_fun fn = 
+        let fn = Conv.fun_of_cfun tbl fn in
+        let sao = Hf.find sao fn in
+        let align = sao.sao_align in
+        let size = sao.sao_size in
+        let conv_pi (pi:Varalloc.param_info) = 
+          Stack_alloc.({
+            pp_ptr = Conv.cvar_of_var tbl pi.pi_ptr;
+            pp_writable = pi.pi_writable;
+            pp_align    = pi.pi_align;
+          }) in
+        let conv_sub (i:Interval.t) = 
+          Stack_alloc.{ smp_ofs = Conv.z_of_int i.min; 
+                        smp_len = Conv.z_of_int (Interval.size i) } in
+        let conv_ptr_kind = function
+          | Varalloc.Stack(s, i) -> Stack_alloc.PIstack (Conv.cvar_of_var tbl s, conv_sub i)
+          | Glob (s, i)          -> Stack_alloc.PIglob (Conv.cvar_of_var tbl s, conv_sub i)
+          | RegPtr s             -> Stack_alloc.PIregptr(Conv.cvar_of_var tbl s)
+          | StackPtr s           -> Stack_alloc.PIstkptr(Conv.cvar_of_var tbl s) in
+
+        let conv_alloc (x,k) = Conv.cvar_of_var tbl x, conv_ptr_kind k in
+
+        let sao = Stack_alloc.{
+            sao_align  = align;
+            sao_size   = Conv.z_of_int size;
+            sao_params = List.map (omap conv_pi) sao.sao_params;
+            sao_return = List.map (omap Conv.nat_of_int) sao.sao_return;
+            sao_slots  = do_slots sao.sao_slots;
+            sao_alloc  = List.map conv_alloc (Hv.to_list sao.sao_alloc); 
+            sao_to_save = [];
+            sao_rsp     = SavedStackNone; 
+            sao_return_address = RAnone;
+            } in 
+        sao in
+      
+      
+      let sp' = 
+        match Stack_alloc.alloc_prog crip gao.gao_data cglobs get_fun up with
+        | Utils0.Ok sp -> sp 
+        | Utils0.Error e ->
+          Utils.hierror "compilation error %a@." (pp_comp_ferr tbl) e in
+      let fds, _ = Conv.prog_of_csprog tbl sp' in
+
       if !debug then
         Format.eprintf "After memory analysis@.%a@."
           (Printer.pp_prog ~debug:true) ([], (List.map snd fds));
@@ -327,8 +377,7 @@ let main () =
         let fd = 
           match Dead_code.dead_code_fd tokeep fn cfd with
           | Utils0.Ok cfd -> Conv.fdef_of_cufdef tbl (fn, cfd) 
-          | Utils0.Error _ -> (* ignore the error !! *) fd
-        in
+          | Utils0.Error _ -> assert false in 
         (extra,fd) in
       let fds = List.map deadcode fds in
       if !debug then
@@ -336,9 +385,10 @@ let main () =
           (Printer.pp_prog ~debug:true) ([], (List.map snd fds));
 
       (* register allocation *)
-      let has_stack cc sao = cc = Export && sao.sao_has_stack in
+      let has_stack f = f.f_cc = Export && (Hf.find sao f.f_name).sao_modify_rsp in
       let fds, _rev_alloc, _extra_free_registers = 
         Regalloc.alloc_prog translate_var has_stack fds in
+   
       let atbl = Hf.create 117 in 
       let get_sao fn = try Hf.find atbl fn with Not_found -> assert false in
       let mk_oas (sao, ro, fd) =
@@ -410,7 +460,7 @@ let main () =
           fun fn -> 
           try Hf.find atbl (Conv.fun_of_cfun tbl fn)
           with Not_found -> assert false
-      })
+      }) 
          
     in
 
@@ -505,8 +555,8 @@ let main () =
         p_extra = up.p_extra; }) in
  
     let share_stk_prog up = 
-      let prog = Conv.prog_of_cuprog tbl up in
-      let _ = Varalloc.alloc_stack_prog prog in
+    (*  let prog = Conv.prog_of_cuprog tbl up in
+      let _ = Varalloc.alloc_stack_prog prog in *)
       up in
 
     let removereturn sp = 

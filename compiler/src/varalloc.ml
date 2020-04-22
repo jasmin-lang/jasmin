@@ -15,10 +15,10 @@ type param_info = {
 }
 
 type ptr_kind = 
-  | Stack    of var * ByteSet.interval 
+  | Stack    of var * Interval.interval 
   | StackPtr of var 
   | RegPtr   of var  
-  | Glob     of var * ByteSet.interval
+  | Glob     of var * Interval.interval
 
 type stk_alloc_oracle_t =
   { sao_calls  : Sf.t
@@ -28,10 +28,12 @@ type stk_alloc_oracle_t =
   ; sao_align : wsize
   ; sao_size  : int               (* Not normalized with respect to sao_local_align *)
   ; sao_alloc : ptr_kind Hv.t
+  ; sao_modify_rsp : bool
   }
 
 type glob_alloc_oracle_t = 
-  { gao_slots  : (var * wsize * int) list 
+  { gao_data : Obj.t list 
+  ; gao_slots  : (var * wsize * int) list 
   ; gao_align : wsize
   ; gao_size  : int               (* Not normalized with respect to sao_local_align *)
   }
@@ -229,7 +231,7 @@ let init_slots stack_pointers alias coloring fv =
   let add_local x info = Hv.add lalloc x info in
 
   (* FIXME: move definition of interval in Alias *)
-  let r2i (min,max) = ByteSet.{min;max} in
+  let r2i (min,max) = Interval.{min;max} in
   let dovar v =
     match v.v_kind with
     | Stack Direct ->
@@ -395,7 +397,10 @@ let alloc_stack_fd get_info gtbl fd =
   let sao_align, sao_slots, sao_size = alloc_local_stack (Sv.elements slots) atbl in
     
   let sao_alloc = List.iter (Hv.remove lalloc) fd.f_args; lalloc in
- 
+
+  let sao_modify_rsp = 
+    sao_size <> 0 || fd.f_annot.retaddr_kind = Some OnStack ||
+      Sf.exists (fun fn -> (get_info fn).sao_modify_rsp) sao_calls in
   {
     sao_calls;
     sao_params;
@@ -404,7 +409,33 @@ let alloc_stack_fd get_info gtbl fd =
     sao_align;
     sao_size;
     sao_alloc; 
+    sao_modify_rsp;
   } 
+
+let alloc_mem gtbl globs =
+  let gao_align, gao_slots, gao_size = alloc_local_stack (List.map fst globs) gtbl in
+  let t = Array.make gao_size (Word0.wrepr U8 (Conv.z_of_int 0)) in
+  let get x = 
+    try List.assoc x globs with Not_found -> assert false in
+
+  let doslot (v, _, ofs) = 
+    match get v with
+    | Global.Gword(ws, w) ->
+      let w = Memory_model.LE.encode ws w in
+      List.iteri (fun i w -> t.(ofs + i) <- w) w 
+
+    | Global.Garr(p, gt) ->
+      let ip = Conv.int_of_pos p in
+      for i = 0 to ip - 1 do
+        let w = 
+          match Warray_.WArray.get p Warray_.AAdirect U8 gt (Conv.z_of_int i) with
+          | Ok w -> w
+          | _    -> assert false in
+        t.(ofs + i) <- w
+      done  in
+
+  List.iter doslot gao_slots;
+  { gao_data = Array.to_list t; gao_align; gao_slots; gao_size }
 
 let alloc_stack_prog (globs, fds) =
   let gtbl = Hv.create 107 in
@@ -415,9 +446,8 @@ let alloc_stack_prog (globs, fds) =
     let sao = alloc_stack_fd get_info gtbl fd in
     set_info fd.f_name sao in
   List.iter doit (List.rev fds);
-  let gao_align, gao_slots, gao_size = 
-    alloc_local_stack (List.map fst globs) gtbl in
-  { gao_align; gao_slots; gao_size }, ftbl 
+  let gao =  alloc_mem gtbl globs in
+  gao, ftbl 
 
 (*let extend_sao sao extra = *)
   

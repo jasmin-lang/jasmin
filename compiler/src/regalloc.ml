@@ -835,7 +835,7 @@ type reg_oracle_t = {
     ro_return_address: var option;
   }
 
-let alloc_prog translate_var (has_stack: call_conv -> 'a -> bool) (dfuncs: ('a * 'info func) list)
+let alloc_prog translate_var (has_stack: 'info func -> bool) (dfuncs: ('a * 'info func) list)
     : ('a * reg_oracle_t * unit func) list * (var -> Sv.t) * (i_loc -> var option) =
   let extra : 'a Hf.t = Hf.create 17 in
   let funcs, get_liveness, subst, reva, extra_free_registers =
@@ -848,7 +848,7 @@ let alloc_prog translate_var (has_stack: call_conv -> 'a -> bool) (dfuncs: ('a *
   funcs |> List.rev |>
   List.rev_map (fun f ->
       let e = Hf.find extra f.f_name in
-      let stack_needed = has_stack f.f_cc e in
+      let stack_needed = has_stack f in
       let to_save, ro_rsp, ro_return_address = post_process ~stack_needed ~killed ~extra_free_registers (Sv.map subst (get_liveness f.f_name)) f in
       let to_save = match ro_return_address with Some ra -> Sv.add ra to_save | None -> to_save in
       Hf.add killed_map f.f_name to_save;

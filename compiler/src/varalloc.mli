@@ -8,10 +8,10 @@ type param_info = {
 }
 
 type ptr_kind = 
-  | Stack    of var * ByteSet.interval 
+  | Stack    of var * Interval.interval 
   | StackPtr of var 
   | RegPtr   of var  
-  | Glob     of var * ByteSet.interval
+  | Glob     of var * Interval.interval
 
 type stk_alloc_oracle_t =
   { sao_calls  : Sf.t
@@ -21,10 +21,12 @@ type stk_alloc_oracle_t =
   ; sao_align : wsize
   ; sao_size  : int               (* Not normalized with respect to sao_local_align *)
   ; sao_alloc : ptr_kind Hv.t
+  ; sao_modify_rsp : bool
   }
 
 type glob_alloc_oracle_t = 
-  { gao_slots  : (var * wsize * int) list 
+  { gao_data : Obj.t list         (* word u8 *)
+  ; gao_slots  : (var * wsize * int) list 
   ; gao_align : wsize
   ; gao_size  : int               (* Not normalized with respect to sao_local_align *)
   }

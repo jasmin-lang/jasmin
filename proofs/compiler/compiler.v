@@ -79,7 +79,7 @@ Variant compiler_step :=
 Record stack_alloc_oracles : Type :=
   {
     ao_globals: seq u8; (* static global data: one array holding all data *)
-    ao_global_alloc: seq (var * (Z * wsize)); (* allocation of global variables in the previous array *)
+    ao_global_alloc: seq (var * wsize * Z); (* allocation of global variables in the previous array *)
     ao_stack_alloc: funname → stk_alloc_oracle_t;
   }.
 
