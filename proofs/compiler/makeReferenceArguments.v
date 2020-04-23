@@ -38,9 +38,11 @@ Section Section.
 
 Context (is_reg_ptr : var -> bool) (fresh_id : glob_decls -> var -> Ident.ident).
 Context {T} {pT:progT T}.
+Context (p : prog).
 
 Definition with_var xi x := 
-  {| v_var := x; v_info := xi.(v_info) |}.
+  let x' := {| vtype := vtype x; vname := fresh_id (p_globs p) x |} in
+  {| v_var := x'; v_info := xi.(v_info) |}.
 
 Definition is_reg_ptr_expr x e := 
   match e with
@@ -94,23 +96,26 @@ Section SIG.
 
 Context (get_sig : funname -> seq var * seq var) (X: Sv.t).
 
-Definition update_c (update_i : instr -> cmd) (c:cmd) := flatten (map update_i c).
+Definition update_c (update_i : instr -> cexec cmd) (c:cmd) := 
+  Let ls := mapM update_i c in
+  ok (flatten ls).
 
-Fixpoint update_i (i:instr) : cmd := 
+Fixpoint update_i (i:instr) : cexec cmd := 
   let (ii,ir) := i in
   match ir with
-  | Cassgn _ _ _ _ |  Copn _ _ _ _ => [::i]
+  | Cassgn _ _ _ _ |  Copn _ _ _ _ => 
+    ok [::i]
   | Cif b c1 c2 =>
-    let c1 := update_c update_i c1 in
-    let c2 := update_c update_i c2 in
-    [::MkI ii (Cif b c1 c2)]
+    Let c1 := update_c update_i c1 in
+    Let c2 := update_c update_i c2 in
+    ok [::MkI ii (Cif b c1 c2)]
   | Cfor x r c =>
-    let c := update_c update_i c in
-    [::MkI ii (Cfor x r c)]
+    Let c := update_c update_i c in
+    ok [::MkI ii (Cfor x r c)]
   | Cwhile a c e c' =>
-    let c  := update_c update_i c in
-    let c' := update_c update_i c' in
-    [::MkI ii (Cwhile a c e c')]
+    Let c  := update_c update_i c in
+    Let c' := update_c update_i c' in
+    ok [::MkI ii (Cwhile a c e c')]
   | Ccall ini xs fn es =>
     let: (params, returns) := get_sig fn in
     let: (prologue, es) := make_prologue ii params es in
