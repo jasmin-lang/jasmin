@@ -116,13 +116,13 @@ let incr_liverange r x d : liverange =
 
 let live_ranges_stmt (alias: Alias.alias) (ptr_classes: Sv.t) d c =
 
-let stack_pointers = Hashtbl.create 117 in
+let stack_pointers = Hv.create 117 in
 
 let get_stack_pointer x =
-  try Hashtbl.find stack_pointers x
+  try Hv.find stack_pointers x
   with Not_found ->
     let r = V.mk x.v_name (Stack Direct) u64 x.v_dloc in
-    Hashtbl.add stack_pointers x r;
+    Hv.add stack_pointers x r;
     r
 in
 
@@ -254,7 +254,7 @@ let get_slot coloring x =
   with Not_found -> assert false 
 
 let get_stack_pointer stack_pointers x =
-  try Hashtbl.find stack_pointers x
+  try Hv.find stack_pointers x
   with Not_found -> assert false 
 
 let init_slots stack_pointers alias coloring fv =
