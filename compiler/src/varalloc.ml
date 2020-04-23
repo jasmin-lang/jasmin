@@ -126,31 +126,31 @@ let get_stack_pointer x =
     r
 in
 
-let preprocess_liveset (s: Sv.t) : Sv.t * Sv.t =
-  Sv.fold (fun x (s, all) ->
+let preprocess_liveset (s: Sv.t) : Sv.t =
+  Sv.fold (fun x s ->
       if is_ty_arr x.v_ty
       then
-        let s, all =
+        let s =
           let r = Alias.((normalize_var alias x).in_var) in
           if Sv.mem r ptr_classes
-          then s, all
-          else Sv.add r s, Sv.add x all
+          then s
+          else Sv.add r s
         in
         if is_stk_ptr_kind x.v_kind
-        then Sv.add (get_stack_pointer x) s, Sv.add x all
-        else s, all
+        then Sv.add (get_stack_pointer x) s
+        else s
       else
         if is_stack_kind x.v_kind
-        then Sv.add x s, Sv.add x all
-        else s, all
-    ) s (Sv.empty, Sv.empty)
+        then Sv.add x s
+        else s
+    ) s Sv.empty
 in
 
 let process_live_info d acc (i: Sv.t) =
   let process_live_var x acc =
     incr_liverange acc x d
   in
-  let i, _all = preprocess_liveset i in
+  let i = preprocess_liveset i in
   Sv.fold process_live_var i acc
 in
 
