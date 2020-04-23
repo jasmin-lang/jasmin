@@ -146,13 +146,12 @@ let preprocess_liveset (s: Sv.t) : Sv.t * Sv.t =
     ) s (Sv.empty, Sv.empty)
 in
 
-let process_live_info d (acc, stack) (i: Sv.t) =
+let process_live_info d acc (i: Sv.t) =
   let process_live_var x acc =
     incr_liverange acc x d
   in
-  let i, all = preprocess_liveset i in
-  let acc = Sv.fold process_live_var i acc in
-  (acc, Sv.union stack all)
+  let i, _all = preprocess_liveset i in
+  Sv.fold process_live_var i acc
 in
 
 let rec live_ranges_instr_r d_acc =
@@ -400,15 +399,14 @@ let alloc_stack_fd get_info gtbl fd =
   Mv.iter (check_class ptr_classes ptr_args) classes;
 
   let fd = Live.live_fd false fd in
-  let (_, (ranges, all_stack_vars)), stack_pointers = 
-    live_ranges_stmt alias ptr_classes (0, (Mint.empty, Sv.empty)) fd.f_body in
+  let (_, ranges), stack_pointers =
+    live_ranges_stmt alias ptr_classes (0, Mint.empty) fd.f_body in
 
   let coloring = Mint.mapi G.solve ranges in
 
   Format.eprintf "Ranges: %a@." (pp_list "@ " pp_ranges) (Mint.bindings ranges);
   Format.eprintf "Colors: %a@." (pp_list "@ " pp_coloring) (Mint.bindings coloring);
-  Format.eprintf "All stack vars: %a@." (pp_list "@ " pp_var) (Sv.elements all_stack_vars);
-  Format.eprintf "alias: %a@." Alias.pp_alias alias; 
+  Format.eprintf "alias: %a@." Alias.pp_alias alias;
 
   
   let slots, lalloc = init_slots stack_pointers alias coloring (vars_fc fd) in
