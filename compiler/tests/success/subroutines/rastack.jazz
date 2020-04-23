@@ -48,7 +48,7 @@ result = copy32_32(arg);
 return result;
 }
 
-#[returnaddress="stack", stacksize="28", stackalign="u128"]
+#[returnaddress="stack", stacksize="32", stackalign="u128"]
 fn copy128(reg u128 x) -> reg u128 {
 reg u128 r w;
 stack u128 t;

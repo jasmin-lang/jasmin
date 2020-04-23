@@ -322,8 +322,7 @@ let main () =
         List.map (fun (x,ws,ofs) -> ((Conv.cvar_of_var tbl x, ws), Conv.z_of_int ofs)) slots in                            
       let cglobs = do_slots gao.gao_slots in
 
-      let get_fun fn = 
-        let fn = Conv.fun_of_cfun tbl fn in
+      let mk_csao fn = 
         let sao = Hf.find sao fn in
         let align = sao.sao_align in
         let size = sao.sao_size in
@@ -356,10 +355,19 @@ let main () =
             sao_return_address = RAnone;
             } in 
         sao in
+
+      let atbl = Hf.create 117 in 
+      let get_sao fn = 
+        try Hf.find atbl fn 
+        with Not_found -> 
+          let csao = mk_csao fn in
+          Hf.add atbl fn csao;
+          csao in
       
+      let cget_sao fn = get_sao (Conv.fun_of_cfun tbl fn) in
       
       let sp' = 
-        match Stack_alloc.alloc_prog crip gao.gao_data cglobs get_fun up with
+        match Stack_alloc.alloc_prog crip gao.gao_data cglobs cget_sao up with
         | Utils0.Ok sp -> sp 
         | Utils0.Error e ->
           Utils.hierror "compilation error %a@." (pp_comp_ferr tbl) e in
@@ -387,13 +395,14 @@ let main () =
       (* register allocation *)
       let has_stack f = f.f_cc = Export && (Hf.find sao f.f_name).sao_modify_rsp in
       let fds, _rev_alloc, _extra_free_registers = 
-        Regalloc.alloc_prog translate_var has_stack fds in
+        Regalloc.alloc_prog translate_var (fun fd _ -> has_stack fd) fds in
    
-      let atbl = Hf.create 117 in 
-      let get_sao fn = try Hf.find atbl fn with Not_found -> assert false in
-      let mk_oas (sao, ro, fd) =
+      let fix_csao (_, ro, fd) =
+        let fn = fd.f_name in
+        let sao = Hf.find sao fn in
+        let csao = get_sao fn in 
         let to_save = if fd.f_cc = Export then ro.ro_to_save else [] in
-        let has_stack = has_stack fd.f_cc sao || to_save <> [] in
+        let has_stack = has_stack fd || to_save <> [] in
         let rastack = odfl OnReg fd.f_annot.retaddr_kind = OnStack in
         let rsp = V.clone rsp in
         let ra = V.mk "RA" (Stack Direct) u64 L._dummy in
@@ -402,13 +411,11 @@ let main () =
           let extra = if rastack then ra :: extra else extra in
           if has_stack && ro.ro_rsp = None then rsp :: extra
           else extra in
-        let alloc, size, align, extrapos = 
-          StackAlloc.alloc_stack sao.sao_alloc extra in
+        let size, align, extrapos = Varalloc.extend_sao sao extra in
         let align = 
           Sf.fold (fun fn align ->
-              let fn_algin = (get_sao fn).Stack_alloc.sao_align in
-              if wsize_lt align fn_algin then fn_algin else align) sao.sao_calls align in
-
+            let fn_algin = (get_sao fn).Stack_alloc.sao_align in
+            if wsize_lt align fn_algin then fn_algin else align) sao.sao_calls align in
         let saved_stack = 
           if has_stack then
             match ro.ro_rsp with
@@ -416,30 +423,15 @@ let main () =
             | None   -> Expr.SavedStackStk (Conv.z_of_int (List.assoc rsp extrapos))
           else Expr.SavedStackNone in
 
-        let conv_pi pi = 
-          Stack_alloc.({
-            pp_ptr = Conv.cvar_of_var tbl pi.pi_ptr;
-            pp_writable = pi.pi_writable;
-            pp_align    = pi.pi_align;
-          }) in
-        let conv_ptr_kind = function
-          | Pstack(i, ws) -> Stack_alloc.Pstack (Conv.z_of_int i, ws)
-          | Pregptr p     -> Stack_alloc.Pregptr(Conv.cvar_of_var tbl p);
-          | Pstkptr i     -> Stack_alloc.Pstkptr(Conv.z_of_int i) in
-        let conv_alloc (x,k) = Conv.cvar_of_var tbl x, conv_ptr_kind k in
-
         let conv_to_save x =
           Conv.cvar_of_var tbl x,
           (try List.assoc x extrapos with Not_found -> -1) |> Conv.z_of_int
         in
 
-        let sao = 
-          Stack_alloc.({
-            sao_align  = align;
-            sao_size   = Conv.z_of_int size;
-            sao_params = List.map (omap conv_pi) sao.sao_params;
-            sao_return = List.map (omap Conv.nat_of_int) sao.sao_return;
-            sao_alloc  = List.map conv_alloc alloc; 
+        let csao = 
+          Stack_alloc.{ csao with
+            sao_align = align;
+            sao_size = Conv.z_of_int size;
             sao_to_save = List.map conv_to_save ro.ro_to_save;
             sao_rsp  = saved_stack;
             sao_return_address =
@@ -448,14 +440,14 @@ let main () =
               else match ro.ro_return_address with
                    | None -> RAnone
                    | Some ra -> RAreg (Conv.cvar_of_var tbl ra)
-          }) in
-        Hf.add atbl fd.f_name sao in
-      List.iter mk_oas (List.rev fds);
-      let data, alloc = StackAlloc.alloc_mem pmap (fst p) in
-      let tog (x,(i,ws)) = (Conv.cvar_of_var tbl x, (Conv.z_of_int i, ws)) in
+          } in
+        Hf.replace atbl fn csao in
+      List.iter fix_csao (List.rev fds);
+
+
       Compiler.({
-        ao_globals      = data;
-        ao_global_alloc = List.map tog alloc;
+        ao_globals      = gao.gao_data;
+        ao_global_alloc = cglobs;
         ao_stack_alloc  = 
           fun fn -> 
           try Hf.find atbl (Conv.fun_of_cfun tbl fn)
@@ -488,7 +480,7 @@ let main () =
           end
         ) fds;
       let fds, rev_alloc, extra_free_registers =
-        Regalloc.alloc_prog translate_var (fun _cc extra ->
+        Regalloc.alloc_prog translate_var (fun _fd extra ->
             match extra.Expr.sf_save_stack with
             | Expr.SavedStackReg _ | Expr.SavedStackStk _ -> true
             | Expr.SavedStackNone -> false) fds in
@@ -555,7 +547,8 @@ let main () =
         p_extra = up.p_extra; }) in
  
     let share_stk_prog up = 
-    (*  let prog = Conv.prog_of_cuprog tbl up in
+      (*let prog = Conv.prog_of_cuprog tbl up in
+      
       let _ = Varalloc.alloc_stack_prog prog in *)
       up in
 

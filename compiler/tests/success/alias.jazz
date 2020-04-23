@@ -31,6 +31,8 @@ p[0] = x;
 return p;
 }
 
+/* TODO this should be move in Fail 
+
 u64[2] g = {0, 1};
 
 inline fn merge (stack u64[2] g1) -> stack u64[2] {
@@ -46,6 +48,7 @@ fn titi() -> reg u64 {
    return r;
 }  
 
+*/
 
 /*
 u64 g1 = 0;

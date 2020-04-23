@@ -292,7 +292,8 @@ Definition check_valid (rmap:regions) (x:var) ofs len :=
   Let _   := assert (Sv.mem x ss.(xs)) (Cerr_stk_alloc "invalid variable 1") in
   let sub_ofs  := sub_ofs mps.(mps_sub) ofs len in
   let isub_ofs := interval_of_sub sub_ofs in 
-  Let _   := assert (ByteSet.mem isub_ofs ss.(bytes)) (Cerr_stk_alloc "check_valid: the region partial region") in
+  Let _   := assert (ByteSet.mem isub_ofs ss.(bytes)) 
+                    (Cerr_stk_alloc "check_valid: the region is partial") in
   ok {| mps_mp := mps.(mps_mp); mps_sub := sub_ofs |}.
 
 Definition set_word rmap x mps ws :=
@@ -365,9 +366,14 @@ Definition set_arr_sub rmap x ofs len mps_from :=
    
 Definition set_move rmap x mps :=
   let sub_map := get_sub_map mps.(mps_mp) rmap in
+  let i := interval_of_sub mps.(mps_sub) in
   let ss := 
     match Msmp.get sub_map mps.(mps_sub) with
-    | Some ss => ss 
+    | Some ss => 
+      if ByteSet.mem i ss.(bytes) then ss
+      else  
+        {| xs    := Sv.empty; 
+           bytes := ByteSet.full (interval_of_sub mps.(mps_sub)) |}
     | None => 
       {| xs    := Sv.empty; 
          bytes := ByteSet.full (interval_of_sub mps.(mps_sub)) |}
@@ -1020,7 +1026,7 @@ Definition init_local_map vrip vrsp fn globals sao :=
                       ((sub.(smp_ofs) + sub.(smp_len))%Z <= size_of x.(vtype))%CMP] then 
                  let mps := mps_stack x' vrsp ws' sub in
                  ok (sv, Pstack x' ofs' ws' sub, Region.set_arr_init rmap x mps)
-               else cferror fn "invalid ptr kind, please report"
+               else cferror fn "invalid stack slot, please report"
              end
           | PIglob x' sub => 
             match Mvar.get globals x' with
@@ -1029,19 +1035,19 @@ Definition init_local_map vrip vrsp fn globals sao :=
               if [&& (0%Z <= sub.(smp_ofs))%CMP & 
                       ((sub.(smp_ofs) + sub.(smp_len))%Z <= size_of x.(vtype))%CMP] then 
                 ok (sv, Pglob x' ofs' ws' sub, rmap)
-              else cferror fn "invalid ptr kind, please report"
+              else cferror fn "invalid global slot, please report"
              end
           | PIstkptr x' =>
             match Mvar.get stack x' with
             | None => cferror fn "unknown stack region, please report"
             | Some (ws', ofs') =>
-              if [&& (Uptr == ws') & x'.(vtype) == sword Uptr] then 
+              if [&& (Uptr <= ws')%CMP & (wsize_size Uptr <= size_of x'.(vtype))%CMP] then 
               ok (sv, Pstkptr x' ofs', rmap)
               else cferror fn "invalid ptr kind, please report"
             end
           | PIregptr p => 
             if Sv.mem p sv then cferror fn "invalid reg pointer already exists, please report"
-            else if vtype x != sword Uptr then cferror fn "invalid pointer type, please report"
+            else if vtype p != sword Uptr then cferror fn "invalid pointer type, please report"
             else ok (Sv.add p sv, Pregptr p, rmap) 
           end in
         let '(sv,pk, rmap) := svrmap in

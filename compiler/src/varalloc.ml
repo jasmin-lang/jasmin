@@ -38,7 +38,7 @@ type glob_alloc_oracle_t =
   ; gao_size  : int               (* Not normalized with respect to sao_local_align *)
   }
 
-
+ 
 (* --------------------------------------------------- *)
 
 let pp_var = Printer.pp_var ~debug: true
@@ -67,7 +67,40 @@ let pp_stk fmt (x, stkk) =
   | StackPtr y -> Format.fprintf fmt "%a |s-> %a" pp_var x pp_var y 
   | RegPtr   y -> Format.fprintf fmt "%a |r-> %a" pp_var x pp_var y 
 
-  
+let pp_var_ty fmt x = 
+  Format.fprintf fmt "%a %a" Printer.pp_ty x.v_ty pp_var x
+
+let pp_param_info fmt pi = 
+  match pi with
+  | None -> Format.fprintf fmt "_"
+  | Some pi ->
+    Format.fprintf fmt "(%s %a align %s)" 
+      (if pi.pi_writable then "mut" else "const") 
+      pp_var_ty pi.pi_ptr
+      (string_of_ws pi.pi_align) 
+ 
+let pp_slot fmt (x,ws,pos) = 
+  Format.fprintf fmt "%i: %a align %s" 
+    pos pp_var_ty x (string_of_ws ws) 
+
+let pp_ptr_kind fmt (x,stkk) = 
+  match stkk with
+  | Glob  (y, r) -> Format.fprintf fmt "%a -> %%G%a" pp_var x pp_range (y,(r.min,r.max))
+  | Stack (y, r) -> Format.fprintf fmt "%a -> %a" pp_var x pp_range (y,(r.min,r.max))
+  | StackPtr y -> Format.fprintf fmt "%a |s-> %a" pp_var x pp_var y 
+  | RegPtr   y -> Format.fprintf fmt "%a |r-> %a" pp_var x pp_var_ty y 
+
+let pp_sao fmt sao = 
+  Format.fprintf fmt "calls = %a@." 
+    (Printer.pp_list ",@ " (fun fmt f -> Format.fprintf fmt "%s" f.fn_name)) 
+    (Sf.elements sao.sao_calls);
+  Format.fprintf fmt "params = %a@."
+    (Printer.pp_list ",@ " pp_param_info) sao.sao_params;
+  Format.fprintf fmt "slots =@.  @[<v>%a@]@."
+    (Printer.pp_list "@ " pp_slot) sao.sao_slots;
+  Format.fprintf fmt "alloc =@. @[<v>%a@]@."
+    (Printer.pp_list "@ " pp_ptr_kind) (Hv.to_list sao.sao_alloc)
+
 
 (* --------------------------------------------------- *)
 let incr_liverange r x d : liverange =
@@ -306,7 +339,7 @@ let all_alignment ctbl alias params lalloc =
 
 
 (* --------------------------------------------------- *)
-let alloc_local_stack slots atbl = 
+let alloc_local_stack size slots atbl = 
   let do1 x = 
     let ws = 
       try Hv.find atbl x 
@@ -333,7 +366,7 @@ let alloc_local_stack slots atbl =
     | [] -> U8
     | (_,ws) :: _ -> ws in
 
-  let size = ref 0 in
+  let size = ref size in
   
   let init_slot (x,ws) = 
     let s = size_of_ws ws in
@@ -350,7 +383,7 @@ let alloc_local_stack slots atbl =
 
 (* --------------------------------------------------- *)
 let alloc_stack_fd get_info gtbl fd =
-  if !Glob_options.debug then Format.eprintf "alloc_stack %s@." fd.f_name.fn_name;
+  if !Glob_options.debug then Format.eprintf "ALLOC STACK %s@." fd.f_name.fn_name;
   let alias =
     let get_cc fn = (get_info fn).sao_return in
     Alias.analyze_fd get_cc fd in
@@ -375,18 +408,18 @@ let alloc_stack_fd get_info gtbl fd =
   Format.eprintf "Ranges: %a@." (pp_list "@ " pp_ranges) (Mint.bindings ranges);
   Format.eprintf "Colors: %a@." (pp_list "@ " pp_coloring) (Mint.bindings coloring);
   Format.eprintf "All stack vars: %a@." (pp_list "@ " pp_var) (Sv.elements all_stack_vars);
-  Format.eprintf "alias: %a@." Alias.pp_alias alias;
+  Format.eprintf "alias: %a@." Alias.pp_alias alias; 
 
   
   let slots, lalloc = init_slots stack_pointers alias coloring (vars_fc fd) in
 
-  Format.eprintf "slots = %a@." (pp_list "@ " pp_var) (Sv.elements slots);
+(*  Format.eprintf "slots = %a@." (pp_list "@ " pp_var) (Sv.elements slots);
   Format.eprintf "lalloc : @[<v>%a@]@." (pp_list "@ " pp_stk) 
-    (Hv.to_list lalloc);
+    (Hv.to_list lalloc); *)
 
   let getfun fn = (get_info fn).sao_params in
   let ctbl, sao_calls = classes_alignment getfun gtbl alias fd.f_body in
-  Format.eprintf "%a@ %a@." pp_tbl ("globals", gtbl) pp_tbl ("classes", ctbl);
+(*  Format.eprintf "%a@ %a@." pp_tbl ("globals", gtbl) pp_tbl ("classes", ctbl); *)
   let sao_params, atbl = all_alignment ctbl alias fd.f_args lalloc in
   let sao_return = 
     match fd.f_cc with
@@ -394,14 +427,14 @@ let alloc_stack_fd get_info gtbl fd =
     | Subroutine {returned_params} -> returned_params
     | Internal -> assert false in
 
-  let sao_align, sao_slots, sao_size = alloc_local_stack (Sv.elements slots) atbl in
+  let sao_align, sao_slots, sao_size = alloc_local_stack 0 (Sv.elements slots) atbl in
     
   let sao_alloc = List.iter (Hv.remove lalloc) fd.f_args; lalloc in
 
   let sao_modify_rsp = 
     sao_size <> 0 || fd.f_annot.retaddr_kind = Some OnStack ||
       Sf.exists (fun fn -> (get_info fn).sao_modify_rsp) sao_calls in
-  {
+  let sao = {
     sao_calls;
     sao_params;
     sao_return;
@@ -410,10 +443,12 @@ let alloc_stack_fd get_info gtbl fd =
     sao_size;
     sao_alloc; 
     sao_modify_rsp;
-  } 
+  } in
+  Format.eprintf "%a\n\n@." pp_sao sao;
+  sao
 
 let alloc_mem gtbl globs =
-  let gao_align, gao_slots, gao_size = alloc_local_stack (List.map fst globs) gtbl in
+  let gao_align, gao_slots, gao_size = alloc_local_stack 0 (List.map fst globs) gtbl in
   let t = Array.make gao_size (Word0.wrepr U8 (Conv.z_of_int 0)) in
   let get x = 
     try List.assoc x globs with Not_found -> assert false in
@@ -449,6 +484,19 @@ let alloc_stack_prog (globs, fds) =
   let gao =  alloc_mem gtbl globs in
   gao, ftbl 
 
-(*let extend_sao sao extra = *)
+let extend_sao sao extra =
+  let tbl = Hv.create 11 in
+  let doit x = 
+    match x.v_ty with
+    | Bty (U ws) -> Hv.add tbl x ws 
+    | _          -> assert false in
+  List.iter doit extra;
+    
+  let align, slots, size = alloc_local_stack sao.sao_size extra tbl in
+  let align = if wsize_lt align sao.sao_align then sao.sao_align else align in
+  let slots = List.map (fun (x,_,pos) -> (x,pos)) slots in
+  size, align, slots
+
+
   
 
