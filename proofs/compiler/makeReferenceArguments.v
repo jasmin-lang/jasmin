@@ -44,9 +44,9 @@ Definition with_var xi x :=
   let x' := {| vtype := vtype x; vname := fresh_id (p_globs p) x |} in
   {| v_var := x'; v_info := xi.(v_info) |}.
 
-Definition is_reg_ptr_expr x e := 
+Definition is_reg_ptr_expr x e :=
   match e with
-  | Pvar x' => 
+  | Pvar x' =>
     if is_reg_ptr x && (is_glob x' || ~~is_reg_ptr x'.(gv)) then 
       Some (with_var x'.(gv) x) 
     else None
@@ -73,8 +73,9 @@ Definition fmap2 {aT bT cT} (f : aT -> bT -> cT -> aT * cT) :
     end.
 
 Definition do_prologue ii acc x e :=
+  let x := x.(v_var) in
   match is_reg_ptr_expr x e with
-  | Some x => 
+  | Some x =>
     (MkI ii (Cassgn (Lvar x) AT_rename (vtype x) e) :: acc, Plvar x)
   | None => (acc, e)
   end.
@@ -82,7 +83,14 @@ Definition do_prologue ii acc x e :=
 Definition make_prologue ii xs es := 
   fmap2 (do_prologue ii) [::] xs es.
 
+Definition fresh_vars_in_prologue_rec acc c :=
+  if c is MkI ii (Cassgn (Lvar x) _ _ _) then x.(v_var) :: acc else acc.
+
+Definition fresh_vars_in_prologue c :=
+  List.fold_left fresh_vars_in_prologue_rec c [::].
+
 Definition do_epilogue ii acc x r :=
+  let x := x.(v_var) in
   match is_reg_ptr_lval x r with
   | Some x => 
     (MkI ii (Cassgn r AT_rename (vtype x) (Plvar x)) :: acc, Lvar x)
@@ -92,15 +100,27 @@ Definition do_epilogue ii acc x r :=
 Definition make_epilogue ii xs rs := 
   fmap2 (do_epilogue ii) [::] xs rs.
 
+Definition fresh_vars_in_epilogue_rec acc c :=
+  if c is MkI ii (Cassgn _ _ _ (Pvar (Gvar x _))) then x.(v_var) :: acc else acc.
+
+Definition fresh_vars_in_epilogue c :=
+  List.fold_left fresh_vars_in_epilogue_rec c [::].
+
 Section SIG.
 
-Context (get_sig : funname -> seq var * seq var) (X: Sv.t).
+Context (get_sig : funname -> seq var_i * seq var_i).
 
-Definition update_c (update_i : instr -> cexec cmd) (c:cmd) := 
+Definition update_c (update_i : instr -> ciexec cmd) (c:cmd) :=
   Let ls := mapM update_i c in
   ok (flatten ls).
 
-Fixpoint update_i (i:instr) : cexec cmd := 
+Section Update_i.
+
+Context (X: Sv.t).
+
+Let is_fresh x := negb (Sv.mem x X).
+
+Fixpoint update_i (i:instr) : ciexec cmd :=
   let (ii,ir) := i in
   match ir with
   | Cassgn _ _ _ _ |  Copn _ _ _ _ => 
@@ -120,42 +140,33 @@ Fixpoint update_i (i:instr) : cexec cmd :=
     let: (params, returns) := get_sig fn in
     let: (prologue, es) := make_prologue ii params es in
     let: (epilogue, xs) := make_epilogue ii returns xs in
-    prologue ++ MkI ii (Ccall ini xs fn es) :: epilogue
+    let pv := fresh_vars_in_prologue prologue in
+    let ev := fresh_vars_in_epilogue epilogue in
+    Let _ := assert [&& uniq pv, uniq ev, all is_fresh pv & all is_fresh ev]
+                    (ii, Cerr_stk_alloc "makeReferenceArguments: bad fresh id") in
+    ok (prologue ++ MkI ii (Ccall ini xs fn es) :: epilogue)
   end.
 
-Definition update_fd (ffd: fun_decl) := 
-  let (f,fd)  := ffd in
+End Update_i.
+
+Definition update_fd (fd: fundef) :=
   let body    := fd.(f_body) in
   let write   := write_c body in
   let read    := read_c  body in
   let returns := read_es (map Plvar fd.(f_res)) in
-  Let _ := 
-    assert (Sv.is_empty (Sv.inter (Sv.union returns (Sv.union write read)) X))
-           (Ferr_fun f (Cerr_stk_alloc "makeRerenceArguments (not disjoint) : please report")) in
-  let body := update_c update_i body in
-  ok (f, with_body fd body).
+  let X := Sv.union returns (Sv.union write read) in
+  Let body := update_c (update_i X) body in
+  ok (with_body fd body).
 
 End SIG.
 
-Definition Sv_of_list := foldl (fun s x => Sv.add x s) Sv.empty.
-
-Definition error_msg := (Ferr_msg (Cerr_stk_alloc "makeRerenceArguments: please report")).
-
-Definition make_sig (gd:glob_decls) (ffd:fun_decl) (Xms: Sv.t * Mp.t (seq var * seq var)) := 
-  let (X,ms) := Xms in
-  let (f,fd) := ffd in
-  let dox (x:var_i) := {| vtype := vtype x; vname := fresh_id gd x |} in
-  let xs := map dox fd.(f_params) in
-  let rs := map dox fd.(f_res) in
-  Let _ := assert (uniq xs && uniq rs) error_msg in
-  let X := Sv.union (Sv_of_list xs) (Sv.union (Sv_of_list rs) X) in
-  ok (X, Mp.set ms f (xs,rs)).
-
-Definition makereference_prog (p:prog) : cfexec prog := 
-  Let Xms := foldrM (make_sig (p_globs p)) (Sv.empty, Mp.empty _) p.(p_funcs) in 
-  let: (X,ms) := Xms in 
-  let get_sig (f:funname) := odflt ([::], [::]) (Mp.get ms f) in
-  Let funcs := mapM (update_fd get_sig X) p.(p_funcs) in
+Definition makereference_prog : cfexec prog :=
+  let get_sig n :=
+      if get_fundef p.(p_funcs) n is Some fd then
+        (fd.(f_params), fd.(f_res))
+      else ([::], [::])
+  in
+  Let funcs := map_cfprog (update_fd get_sig) p.(p_funcs) in
   ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
 
 End Section.
