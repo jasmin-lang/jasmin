@@ -440,7 +440,26 @@ Module Mmake (K':CmpType) <: MAP.
   Lemma allP {T} (f: K.t -> T -> bool) (m: t T) :
     all f m <-> (forall k t, get m k = Some t -> f k t).
   Proof.
-  Admitted.
+    rewrite /all/get/Map.find; case: m => /=.
+    elim => //= L hL k v R hR s ok; inversion ok; clear ok; subst; split.
+    - case/andP => /andP[] fkv {}/hL hL {}/hR hR k' v'.
+      case: Ordered.compare => k'k; cycle 2.
+      + exact: hR.
+      + exact: hL.
+      case => <-.
+      by move/(@cmp_eq _ _ _ _ _): k'k => ->.
+    move => h.
+    apply/andP; split; first (apply/andP; split).
+    - have := h k v.
+      have [? ->] := Map.Raw.Proofs.MX.elim_compare_eq (Map.E.eq_refl k).
+      by move => /(_ erefl) -> /=.
+    - rewrite (hL _) // => k' v' k'v'; apply: h.
+      have := Map.Raw.Proofs.MX.elim_compare_lt (H6 k' (Map.Raw.Proofs.find_in _)).
+      by rewrite k'v' => - [] // ? ->.
+    rewrite (hR _) // => k' v' k'v'; apply: h.
+    have := Map.Raw.Proofs.MX.elim_compare_gt (H7 k' (Map.Raw.Proofs.find_in _)).
+    by rewrite k'v' => - [] // ? ->.
+  Qed.
 
   Lemma hasP : forall {T} (f: K.t -> T -> bool) (m: t T),
     has f m <-> (exists k t, get m k = Some t /\ f k t).
