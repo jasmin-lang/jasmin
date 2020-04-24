@@ -27,33 +27,37 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import utils.
-Require Import ZArith.
-Require Import Program.
+Import Utf8 ZArith Psatz.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Local Open Scope seq_scope.
-Local Open Scope cmp_scope.
+Local Open Scope Z_scope.
 
 (* Represents the interval [imin, imax) *)
 Record interval := { imin : Z; imax : Z }.
 
 Module I.
 
-Definition memi i (inter:interval) := (inter.(imin) <= i) && (i < inter.(imax)).
+Definition memi i (inter:interval) := (inter.(imin) <=? i) && (i <? inter.(imax)).
 
-Definition is_empty (inter:interval) := inter.(imax) <= inter.(imin).
+Definition is_empty (inter:interval) := inter.(imax) <=? inter.(imin).
 
-Definition subset n1 n2 := (n2.(imin) <= n1.(imin)) && (n1.(imax) <= n2.(imax)).
+Definition subset n1 n2 := (n2.(imin) <=? n1.(imin)) && (n1.(imax) <=? n2.(imax)).
 
-Definition inter n1 n2 := 
-  {| imin := max n1.(imin) n2.(imin); imax := min n1.(imax) n2.(imax) |}.
+Definition inter n1 n2 :=
+  {| imin := Z.max n1.(imin) n2.(imin); imax := Z.min n1.(imax) n2.(imax) |}.
 
-Definition convex_hull n1 n2 := 
-  {| imin := min n1.(imin) n2.(imin); imax := max n1.(imax) n2.(imax) |}.
+Definition convex_hull n1 n2 :=
+  {| imin := Z.min n1.(imin) n2.(imin); imax := Z.max n1.(imax) n2.(imax) |}.
 
 Definition wf n := ~~is_empty n.
+
+Lemma convex_hull_wf n1 n2 :
+  wf n1 || wf n2 → wf (convex_hull n1 n2).
+Proof. rewrite /wf /convex_hull/is_empty /= !zify; lia. Qed.
 
 End I.
 
@@ -64,8 +68,8 @@ Module Type ByteSetType.
   Parameter empty  : t.
   Parameter is_empty : t -> bool.
 
-  Parameter memi   : Z -> t -> bool.
-  Parameter mem    : interval -> t -> bool.
+  Parameter memi   : t -> Z -> bool.
+  Parameter mem    : t -> interval -> bool.
   Parameter subset : t -> t -> bool.
 
   Parameter full   : interval -> t.
@@ -80,74 +84,136 @@ Module ByteSet : ByteSetType.
 (* sorted in increasing order, no overlap *)
 Definition bytes := seq interval.
 
-Fixpoint wf_aux i (t:bytes) := 
+Fixpoint wf_aux i (t:bytes) :=
   match t with
   | [::] => true
-  | n::t => [&& (i <= n.(imin))%CMP, I.wf n & wf_aux n.(imax) t]
+  | n::t => [&& i <=? n.(imin), I.wf n & wf_aux n.(imax) t]
   end.
 
-Definition wf (t:bytes) := 
+Definition wf (t:bytes) :=
    match t with
   | [::] => true
   | n::t => [&& I.wf n & wf_aux n.(imax) t]
   end.
 
-Record Bytes := mkBytes { tobytes :> bytes; _ : wf tobytes; }.
+Remark wf_aux_wf n t :
+  wf_aux n t → wf t.
+Proof. by case: t => //= n' t /and3P[] _ ->. Qed.
+
+Record Bytes := mkBytes { tobytes :> bytes; _wf : wf tobytes; }.
 Definition t := Bytes.
 Canonical Bytes_subType := Eval hnf in [subType for tobytes].
 
 Definition empty : t := @mkBytes [::] erefl.
 
-Definition is_empty (t:t) := if val t is [::] then true else false.
+Definition is_empty (t: t) := if val t is [::] then true else false.
 
-Definition _full n := 
-  if I.wf n then [::n] else [::].
+Definition _full n :=
+  if I.wf n then [:: n ] else [::].
 
 Lemma wf_full n : wf (_full n).
-Proof. by rewrite /= /_full /wf; case: ifP => //= ->. Qed.
+Proof. by rewrite /_full /wf; case: ifP => // ->. Qed.
 
 Definition full n : t := mkBytes (wf_full n).
 
-Fixpoint _memi (t:bytes) i := 
+Definition least d t :=
+  if t is n :: _ then n.(imin) else d.
+
+Lemma least_m d d' t :
+  d < d' →
+  least d t <= least d' t.
+Proof. by case: t => //= *; lia. Qed.
+
+Arguments least_m {d d'} t _.
+
+Lemma wf_auxE n t :
+  wf_aux n t →
+  (n <=? least n t) && wf t.
+Proof. by case: t => //; rewrite Z.leb_refl. Qed.
+
+Fixpoint _memi (t: bytes) i :=
   match t with
   | [::] => false
-  | n::t => I.memi i n || (n.(imax) <= i) && _memi t i
+  | n::t => I.memi i n || (n.(imax) <=? i) && _memi t i
   end.
 
-Definition memi (t:t) i := _memi t i.
-           
-Fixpoint _mem (t:bytes) n := 
+Definition memi (t: t) i := _memi t i.
+
+Fixpoint _mem (t: bytes) n :=
   match t with
   | [::] => false
-  | n':: t => I.subset n n' || (n'.(imax) <= n.(imin)) && _mem t n
+  | n':: t => I.subset n n' || (n'.(imax) <=? n.(imin)) && _mem t n
   end.
 
-Definition mem (t:t) n := 
+Definition mem (t: t) n :=
   if I.is_empty n then true else _mem t n.
 
-Fixpoint _add n (t:bytes) := 
+Fixpoint _add n (t: bytes) :=
   match t with
   | [::] => [:: n]
   | n'::t' =>
-    if n.(imax) < n'.(imin) then n :: t
-    else if n'.(imax) < n.(imin) then n' :: _add n t'
-    else 
-      _add (I.convex_hull n n') t'
+    if n.(imax) <? n'.(imin) then n :: t
+    else if n'.(imax) <? n.(imin) then n' :: _add n t'
+    else _add (I.convex_hull n n') t'
    end.
 
-Lemma wf_add 
-Definition push n (t:t) := if is_empty_inter n then t else n :: t.
+Lemma wf_cons n t :
+  I.wf n →
+  wf t →
+  n.(imax) <=? least n.(imax) t →
+  wf (n :: t).
+Proof. by case: t => /= [ | n' t ] -> // -> ->. Qed.
 
-Fixpoint remove excl t := 
+Lemma wf_add n t :
+  I.wf n →
+  wf t →
+  wf (_add n t).
+Proof.
+  move => ok_n ok_t.
+  assert (K: (∀ d, least d (_add n t) = Z.min (imin n) (least (imin n) t)) ∧ wf (_add n t)); last by case: K.
+  elim: t ok_t n ok_n; first by move => _ n /= ->; rewrite Z.min_id.
+  move => n' t ih ok_t n /dup[] ok_n; rewrite /I.wf /I.is_empty => /ZleP hle_n /=; case: ZltP => hlt.
+  - split; first by move => _ /=; lia.
+    apply: wf_cons => //=; rewrite zify; lia.
+  case/andP: ok_t => /dup[] ok_n'; rewrite /I.wf /I.is_empty => /ZleP hle_n' /wf_auxE/andP[] /ZleP h ok_t.
+  case: ZltP => hlt'.
+  - split; first by move => _ /=; lia.
+    have {ih}[ih1 ih2] := ih ok_t _ ok_n.
+    apply: wf_cons => //.
+    rewrite /= zify ih1{ih1}.
+    have := least_m t hlt'.
+    lia.
+  have := @I.convex_hull_wf n n'.
+  rewrite ok_n => /(_ erefl) ok_k.
+  have {ih}[ih1 ih2] := ih ok_t _ ok_k.
+  split; last by [].
+  move => d; rewrite ih1.
+  rewrite /I.convex_hull /=.
+  rewrite Z.min_l_iff.
+  case: (t) h => //=. lia.
+  move => a _. lia.
+Qed.
+
+Definition add n (t: t) :=
+  match @idP (I.wf n) with
+  | ReflectT ok_n => mkBytes (wf_add ok_n (_wf t))
+  | ReflectF _ => t
+  end.
+
+Definition _push n (t: bytes) := if I.is_empty n then t else n :: t.
+
+Fixpoint _remove excl t :=
   match t with
   | [::] => t
   | n' :: t' =>
     let n1   := {| imin := n'.(imin);                 imax := min n'.(imax) excl.(imin) |} in
     let n2   := {| imin := max n'.(imin) excl.(imax); imax := n'.(imax) |} in
     let excl := {| imin := max n'.(imax) excl.(imin); imax := excl.(imax) |} in
-    let t'   := if is_empty_inter excl then t' else remove excl t' in
-    push n1 (push n2 t')
+    let t'   := if I.is_empty excl then t' else _remove excl t' in
+    _push n1 (_push n2 t')
   end.
+
+(*
 
 (*
 Program Fixpoint subset t1 t2 {measure (size t1 + size t2)} := 
@@ -269,6 +335,8 @@ Fixpoint inter (t1 t2 : t) :=
         else inter_aux2 inter t1' (inter_aux inter t1') t2' (Z.to_nat (n2'.(imax) - n2'.(imin))) n1' n2' in
       n :: t'
   end.
+
+*)
 
 End ByteSet.
       
