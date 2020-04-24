@@ -705,6 +705,12 @@ Section CMP.
   Lemma cmp_nle_le x y : ~~ (cmp_le x y) -> cmp_le y x.
   Proof. by rewrite cmp_nle_lt; apply: cmp_lt_le. Qed.
 
+  Definition min (t1 t2: T) := 
+    if cmp_le t1 t2 then t1 else t2.
+
+  Definition max (t1 t2: T) := 
+    if cmp_le t1 t2 then t2 else t1.
+
 End CMP.
 
 Notation "m < n" := (cmp_lt m n) : cmp_scope.

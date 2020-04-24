@@ -38,15 +38,24 @@ Local Open Scope cmp_scope.
 
 (* Represents the interval [imin, imax) *)
 Record interval := { imin : Z; imax : Z }.
-Definition memi_inter i (inter:interval) := (inter.(imin) <= i) && (i < inter.(imax)).
-Definition is_empty_inter (inter:interval) := inter.(imax) <= inter.(imin).
-Definition subset_inter n1 n2 := (n2.(imin) <= n1.(imin)) && (n1.(imax) <= n2.(imax)).
 
-Definition min {T:Type} {cmp:T -> T -> comparison} {cmpO : Cmp cmp} (t1 t2: T) := 
-  if t1 <= t2 then t1 else t2.
+Module I.
 
-Definition max {T:Type} {cmp:T -> T -> comparison} {cmpO : Cmp cmp} (t1 t2: T) := 
-  if t1 <= t2 then t2 else t1.
+Definition memi i (inter:interval) := (inter.(imin) <= i) && (i < inter.(imax)).
+
+Definition is_empty (inter:interval) := inter.(imax) <= inter.(imin).
+
+Definition subset n1 n2 := (n2.(imin) <= n1.(imin)) && (n1.(imax) <= n2.(imax)).
+
+Definition inter n1 n2 := 
+  {| imin := max n1.(imin) n2.(imin); imax := min n1.(imax) n2.(imax) |}.
+
+Definition convex_hull n1 n2 := 
+  {| imin := min n1.(imin) n2.(imin); imax := max n1.(imax) n2.(imax) |}.
+
+Definition wf n := ~~is_empty n.
+
+End I.
 
 Module Type ByteSetType.
 
@@ -69,38 +78,64 @@ End ByteSetType.
 Module ByteSet : ByteSetType.
 
 (* sorted in increasing order, no overlap *)
-Definition t := seq interval.
+Definition bytes := seq interval.
 
-Definition empty : t := [::].
-
-Definition is_empty (t:t) := if t is [::] then true else false.
-
-Definition full n : t := [::n].
-
-Fixpoint memi i (t:t) := 
+Fixpoint wf_aux i (t:bytes) := 
   match t with
-  | [::] => false
-  | n::t => memi_inter i n || (n.(imax) <= i) && memi i t
-  end.
-          
-Fixpoint mem n (t:t) := 
-  match t with
-  | [::] => false
-  | n':: t => subset_inter n n' || (n'.(imax) <= n.(imin)) && mem n t
+  | [::] => true
+  | n::t => [&& (i <= n.(imin))%CMP, I.wf n & wf_aux n.(imax) t]
   end.
 
-Fixpoint add n (t:t) := 
+Definition wf (t:bytes) := 
+   match t with
+  | [::] => true
+  | n::t => [&& I.wf n & wf_aux n.(imax) t]
+  end.
+
+Record Bytes := mkBytes { tobytes :> bytes; _ : wf tobytes; }.
+Definition t := Bytes.
+Canonical Bytes_subType := Eval hnf in [subType for tobytes].
+
+Definition empty : t := @mkBytes [::] erefl.
+
+Definition is_empty (t:t) := if val t is [::] then true else false.
+
+Definition _full n := 
+  if I.wf n then [::n] else [::].
+
+Lemma wf_full n : wf (_full n).
+Proof. by rewrite /= /_full /wf; case: ifP => //= ->. Qed.
+
+Definition full n : t := mkBytes (wf_full n).
+
+Fixpoint _memi (t:bytes) i := 
   match t with
-  | [::] => [::n]
+  | [::] => false
+  | n::t => I.memi i n || (n.(imax) <= i) && _memi t i
+  end.
+
+Definition memi (t:t) i := _memi t i.
+           
+Fixpoint _mem (t:bytes) n := 
+  match t with
+  | [::] => false
+  | n':: t => I.subset n n' || (n'.(imax) <= n.(imin)) && _mem t n
+  end.
+
+Definition mem (t:t) n := 
+  if I.is_empty n then true else _mem t n.
+
+Fixpoint _add n (t:bytes) := 
+  match t with
+  | [::] => [:: n]
   | n'::t' =>
     if n.(imax) < n'.(imin) then n :: t
-    else if n'.(imax) < n.(imin) then n' :: add n t'
+    else if n'.(imax) < n.(imin) then n' :: _add n t'
     else 
-      let n := {| imin := min n.(imin) n'.(imin); 
-                  imax := max n.(imax) n'.(imax) |} in
-      add n t'
+      _add (I.convex_hull n n') t'
    end.
 
+Lemma wf_add 
 Definition push n (t:t) := if is_empty_inter n then t else n :: t.
 
 Fixpoint remove excl t := 

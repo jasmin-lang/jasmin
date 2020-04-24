@@ -21,7 +21,7 @@ let oP =
 stdenv.mkDerivation {
   name = "jasmin-0";
   src = ./.;
-  buildInputs = [ coqPackages.coq coqword ]
+  buildInputs = [ coqPackages.coq coqword coqPackages.equations]
     ++ (with python3Packages; [ python pyyaml ])
     ++ (with oP; [ ocaml findlib ocamlbuild
         (batteries.overrideAttrs (o: { doCheck = false; }))
