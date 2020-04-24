@@ -1,0 +1,11 @@
+fn foo (reg u64 x) -> reg u64 {
+   stack u64[1] t;
+   ArrayInit(t);
+   ArrayInit(t);
+   ArrayInit(t);
+   t[0] = x;
+   x = t[0];
+   return x;
+}
+
+

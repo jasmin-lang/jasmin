@@ -1031,8 +1031,8 @@ Definition init_local_map vrip vrsp fn globals sao :=
              match Mvar.get stack x' with
              | None => cferror fn "unknown stack region, please report"
              | Some (ws', ofs') =>
-               if [&& (0%Z <= sub.(smp_ofs))%CMP & 
-                      ((sub.(smp_ofs) + sub.(smp_len))%Z <= size_of x.(vtype))%CMP] then 
+               if [&& (size_of x.(vtype) <= sub.(smp_len))%CMP, (0%Z <= sub.(smp_ofs))%CMP &
+                      ((sub.(smp_ofs) + sub.(smp_len))%Z <= size_of x'.(vtype))%CMP] then 
                  let mps := mps_stack x' vrsp ws' sub in
                  ok (sv, Pstack x' ofs' ws' sub, Region.set_arr_init rmap x mps)
                else cferror fn "invalid stack slot, please report"
@@ -1041,8 +1041,8 @@ Definition init_local_map vrip vrsp fn globals sao :=
             match Mvar.get globals x' with
             | None => cferror fn "unknown stack region, please report"
             | Some (ofs', ws') =>
-              if [&& (0%Z <= sub.(smp_ofs))%CMP & 
-                      ((sub.(smp_ofs) + sub.(smp_len))%Z <= size_of x.(vtype))%CMP] then 
+              if [&&  (size_of x.(vtype) <= sub.(smp_len))%CMP, (0%Z <= sub.(smp_ofs))%CMP & 
+                      ((sub.(smp_ofs) + sub.(smp_len))%Z <= size_of x'.(vtype))%CMP] then 
                 ok (sv, Pglob x' ofs' ws' sub, rmap)
               else cferror fn "invalid global slot, please report"
              end
@@ -1052,7 +1052,7 @@ Definition init_local_map vrip vrsp fn globals sao :=
             | Some (ws', ofs') =>
               if [&& (Uptr <= ws')%CMP,
                      (0%Z <= sub.(smp_ofs))%CMP & 
-                     ((sub.(smp_ofs) + sub.(smp_len))%Z <= size_of x.(vtype))%CMP] then
+                     ((sub.(smp_ofs) + sub.(smp_len))%Z <= size_of x'.(vtype))%CMP] then
               ok (sv, Pstkptr x' ofs' ws' sub, rmap)
               else cferror fn "invalid ptr kind, please report"
             end

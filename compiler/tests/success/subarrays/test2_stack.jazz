@@ -1,0 +1,39 @@
+param int n = 1;
+param int m = 3;
+
+inline fn init (stack u64[n] t) -> stack u64[n] {
+  inline int i;
+  for i = 0 to n {
+    t[i] = 0;
+  }    
+  return t;
+}
+
+inline fn test2 () -> stack u64[m * n] {
+  inline int i;
+  reg u64 r;
+  stack u64[m * n] s;
+  stack u64[n] s0;
+  stack u64[n] s1;
+  stack u64[n] s2;
+  stack u64[n] aux;
+  s0 = s[u64 0*n:n];
+  s1 = s[u64 1*n:n];
+  s2 = s[u64 2*n:n];
+  aux = s0; aux = init(aux); s0 = aux;
+  aux = s1; aux = init(aux); s1 = aux;
+  aux = s2; aux = init(aux); s2 = aux;
+  s[u64 0*n:n] = s0;
+  s[u64 1*n:n] = s1;
+  s[u64 2*n:n] = s2;
+  return s;
+}
+
+export fn test () -> reg u64 {
+  stack u64[m * n] s;
+  reg u64 r;
+  s = test2();
+  r = s[m * n - 1];
+  return r;
+}
+   
