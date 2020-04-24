@@ -126,9 +126,17 @@ Proof. by case: t => //= *; lia. Qed.
 
 Arguments least_m {d d'} t _.
 
+Lemma least_m' d d' t :
+  d <= d' →
+  least d t <= least d' t.
+Proof.
+  move => ?; have []: (d < d') ∨ d = d' by lia.
+  - exact: least_m.
+  move => ->; lia.
+Qed.
+
 Lemma wf_auxE n t :
-  wf_aux n t →
-  (n <=? least n t) && wf t.
+  wf_aux n t = (n <=? least n t) && wf t.
 Proof. by case: t => //; rewrite Z.leb_refl. Qed.
 
 Fixpoint _memi (t: bytes) i :=
@@ -172,10 +180,10 @@ Proof.
   move => ok_n ok_t.
   assert (K: (∀ d, least d (_add n t) = Z.min (imin n) (least (imin n) t)) ∧ wf (_add n t)); last by case: K.
   elim: t ok_t n ok_n; first by move => _ n /= ->; rewrite Z.min_id.
-  move => n' t ih ok_t n /dup[] ok_n; rewrite /I.wf /I.is_empty => /ZleP hle_n /=; case: ZltP => hlt.
+  move => n' t ih ok_t n /dup[] ok_n /ZleP hle_n /=; case: ZltP => hlt.
   - split; first by move => _ /=; lia.
     apply: wf_cons => //=; rewrite zify; lia.
-  case/andP: ok_t => /dup[] ok_n'; rewrite /I.wf /I.is_empty => /ZleP hle_n' /wf_auxE/andP[] /ZleP h ok_t.
+  case/andP: ok_t => /dup[] ok_n' /ZleP hle_n'; rewrite wf_auxE => /andP[] /ZleP h ok_t.
   case: ZltP => hlt'.
   - split; first by move => _ /=; lia.
     have {ih}[ih1 ih2] := ih ok_t _ ok_n.
@@ -190,6 +198,7 @@ Proof.
   move => d; rewrite ih1.
   rewrite /I.convex_hull /=.
   rewrite Z.min_l_iff.
+  have := least_m t.
   case: (t) h => //=. lia.
   move => a _. lia.
 Qed.
@@ -202,15 +211,50 @@ Definition add n (t: t) :=
 
 Definition _push n (t: bytes) := if I.is_empty n then t else n :: t.
 
+Lemma wf_push n t :
+  wf t →
+  imax n <= least (imax n) t →
+  wf (_push n t).
+Proof. by rewrite /_push; case: ifPn => //; rewrite -/(I.wf n) /= wf_auxE => -> -> => /ZleP ->. Qed.
+
 Fixpoint _remove excl t :=
   match t with
   | [::] => t
   | n' :: t' =>
-    let n1   := {| imin := n'.(imin);                 imax := min n'.(imax) excl.(imin) |} in
-    let n2   := {| imin := max n'.(imin) excl.(imax); imax := n'.(imax) |} in
-    let excl := {| imin := max n'.(imax) excl.(imin); imax := excl.(imax) |} in
+    let n1   := {| imin := n'.(imin);                 imax := Z.min n'.(imax) excl.(imin) |} in
+    let n2   := {| imin := Z.max n'.(imin) excl.(imax); imax := n'.(imax) |} in
+    let excl := {| imin := Z.max n'.(imax) excl.(imin); imax := excl.(imax) |} in
     let t'   := if I.is_empty excl then t' else _remove excl t' in
     _push n1 (_push n2 t')
+  end.
+
+Lemma wf_remove e t :
+  I.wf e →
+  wf t →
+  wf (_remove e t).
+Proof.
+  move => ok_e ok_t.
+  suff: (forall d, least d t <= least d (_remove e t)) ∧ wf (_remove e t) by case.
+  elim: t e ok_e ok_t => /= [ | n t ih] e /ZleP ok_e; first by auto with zarith.
+  rewrite wf_auxE => /andP [] /ZleP hle_e /andP[] /ZleP h ok_t.
+  set t' := (X in _push _ (_push _ X)).
+  have [le_t' ok_t'] : (forall d, least d t <= least d t') ∧ wf t'.
+  - rewrite /t'; case: ifPn; first by auto with zarith.
+    by move => /ih /(_ ok_t).
+  split; last first.
+  rewrite /_push.
+  do 2 case: ifPn => //.
+  - move => /ZleP /= ? /ZleP /= ?. apply: wf_cons => //.
+    apply/ZleP => /=. lia.
+    apply/ZleP => /=.
+    etransitivity; last exact: le_t'.
+    lia.
+Admitted.
+
+Definition remove (e: interval) (t: t) :=
+  match @idP (I.wf e) with
+  | ReflectT ok_e => mkBytes (wf_remove ok_e (_wf t))
+  | ReflectF _ => t
   end.
 
 (*
