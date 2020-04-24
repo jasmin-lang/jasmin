@@ -124,6 +124,8 @@ Module Type MAP.
 
   Parameter empty : forall T, t T.
 
+  Parameter is_empty : forall T, t T -> bool.
+
   Parameter get : forall {T}, t T -> K.t -> option T.
 
   Parameter set : forall {T}, t T -> K.t -> T -> t T.
@@ -137,6 +139,13 @@ Module Type MAP.
   Parameter map2 : forall {T1 T2 T3},
     (K.t -> option T1 -> option T2 -> option T3) ->
     t T1 -> t T2 -> t T3.
+
+  Parameter filter_map : forall {T1 T2}, (K.t -> T1 -> option T2) -> t T1 -> t T2.
+
+  Parameter incl_def : forall {T1 T2},
+     (K.t -> T1 -> bool) ->
+     (K.t -> T1 -> T2 -> bool) ->
+     t T1 -> t T2 -> bool.
 
   Parameter incl : forall {T1 T2},
      (K.t -> T1 -> T2 -> bool) ->
@@ -152,6 +161,7 @@ Module Type MAP.
       t T -> bool.
 
   Parameter elements : forall {T}, t T -> seq (K.t * T).
+
   Parameter fold : forall {T A}, (K.t -> T -> A -> A) -> t T -> A -> A.
 
   Parameter in_codom : forall {T:eqType}, T -> t T -> bool.
@@ -160,6 +170,9 @@ Module Type MAP.
   Notation "x .[ k <- v ]" := (@set _ x k v).
 
   Parameter get0 : forall {T} x, (empty T).[x] = None.
+
+  Parameter is_emptyP : forall {T} (m: t T), 
+    reflect (forall x, m.[x] = None) (is_empty m).
 
   Parameter setP : forall {T} (m: t T) x y (v:T),
     m.[x <- v].[y] = if x == y then Some v else m.[y].
@@ -188,6 +201,9 @@ Module Type MAP.
     f x None None = None ->
     (map2 f m1 m2).[x] = f x m1.[x] m2.[x].
 
+  Parameter filter_mapP : forall {T1 T2} (f:K.t -> T1 -> option T2) (m:t T1) (x:K.t),
+    (filter_map f m).[x] = obind (f x) m.[x].
+
   Parameter elementsP : forall {T:eqType} (kv:K.t * T) m,
     reflect (m.[kv.1] = Some kv.2) (kv \in elements m).
 
@@ -198,6 +214,15 @@ Module Type MAP.
 
   Parameter foldP : forall {T A} (f:K.t -> T -> A -> A) m a,
     fold f m a = foldl (fun a (kv:K.t * T) => f kv.1 kv.2 a) a (elements m).
+
+  Parameter incl_defP : forall {T1 T2} (f1:K.t -> T1 -> bool) (f:K.t -> T1 -> T2 -> bool) (m1: t T1) (m2: t T2),
+     incl_def f1 f m1 m2 ->
+     forall k, 
+       match get m1 k, get m2 k with
+       | None, _          => true
+       | Some t1, None     => f1 k t1 
+       | Some t1, Some t2 => f k t1 t2
+       end.
 
   Parameter inclP : forall {T1 T2} (f:K.t -> T1 -> T2 -> bool) (m1: t T1) (m2: t T2),
      incl f m1 m2 ->
@@ -232,6 +257,8 @@ Module Mmake (K':CmpType) <: MAP.
   Definition t (T:Type) := Map.t T.
 
   Definition empty T : t T := Map.empty T.
+  
+  Definition is_empty  {T} (m:t T) := Map.is_empty m.
 
   Definition get {T} (m:t T) (k:K.t) := Map.find k m.
 
@@ -274,7 +301,7 @@ Module Mmake (K':CmpType) <: MAP.
       | Map.Raw.Node t11 k x1 t12 _ =>
         let '(Map.Raw.mktriple t21 ox2 t22) := Map.Raw.split k t2 in
         match ox2 with
-        | None => false
+        | None => f k x1
         | Some x2 => 
           f2 k x1 x2 && incl_t t11 t21 && incl_t t12 t22
         end
@@ -282,10 +309,13 @@ Module Mmake (K':CmpType) <: MAP.
 
     Definition all (m: t T1) := all_t (Map.this m).
     Definition has (m: t T1) := has_t (Map.this m).
-
-    Definition incl (m1: t T1) (m2: t T2) := incl_t (Map.this m1) (Map.this m2).
     
    End QUANT.
+
+  Definition incl_def (T1:Type) (T2:Type) (f: K.t -> T1 -> bool) (f2: K.t -> T1 -> T2 -> bool) m1 m2:= 
+    incl_t f f2 (Map.this m1) (Map.this m2).
+
+  Definition incl T1 T2 := @incl_def T1 T2 (fun _ _ => false).
 
   Definition in_codom {T:eqType} v (m:t T) :=
     has (fun _ v' => v == v') m.
@@ -308,11 +338,36 @@ Module Mmake (K':CmpType) <: MAP.
    (@Map.Bst _ (raw_map2 f m1.(Map.this) m2.(Map.this))
        (raw_map2_bst f m1 m2)).
 
+  Lemma map_option_bst {T1 T2} (f:K.t -> T1 -> option T2) (m:t T1) : 
+    Map.Raw.bst (Map.Raw.map_option f (Map.this m)).
+  Proof.
+    apply: Map.Raw.Proofs.map_option_bst.
+    + by move=> ??? h; rewrite (cmp_eq h).
+    by apply Map.is_bst.
+  Qed.
+
+  Definition filter_map {T1 T2} (f:K.t -> T1 -> option T2) (m:t T1) : t T2 := 
+    @Map.Bst _ (Map.Raw.map_option f (Map.this m))
+              (map_option_bst f m).
+
   Notation "m .[ s ]" := (get m s).
   Notation "x .[ k <- v ]" := (@set _ x k v).
 
   Lemma get0 T x : (empty T).[x] = None.
   Proof. by rewrite /empty /get Facts.empty_o. Qed.
+
+  Lemma is_emptyP T (m: t T): reflect (forall x, m.[x] = None) (is_empty m).
+  Proof.
+    rewrite /is_empty /get /Map.find /Map.Empty /Map.is_empty; case heq: Map.Raw.is_empty; constructor.
+    + move=> x; have h := Map.Raw.Proofs.is_empty_2 heq.
+      case heq1:  Map.Raw.find => [ e | //].
+      by have /h := Map.Raw.Proofs.find_2 heq1.
+    move=> h.
+    rewrite Map.Raw.Proofs.is_empty_1 in heq => //.
+    rewrite /Map.Raw.Proofs.Empty => k e hm.
+    have := Map.Raw.Proofs.find_1 (Map.is_bst m) hm.
+    by rewrite h.
+  Qed.
 
   Lemma setP {T} (m: t T) x y (v:T) :
     m.[x <- v].[y] = if x == y then Some v else m.[y].
@@ -352,6 +407,15 @@ Module Mmake (K':CmpType) <: MAP.
     (mapi f m).[x] = omap (f x) m.[x].
   Proof.
     by rewrite /mapi /get Facts.mapi_o // => ??? /(@cmp_eq _ _ _ _ _) ->.
+  Qed.
+
+  Lemma filter_mapP {T1 T2} (f:K.t -> T1 -> option T2) (m:t T1) (x:K.t):
+    (filter_map f m).[x] = obind (f x) m.[x].
+  Proof.
+    rewrite /filter_map /= /get /Map.find Map.Raw.Proofs.map_option_find.
+    + by case Map.Raw.find.
+    + by move=> ??? h; rewrite (cmp_eq h).
+    by  apply Map.is_bst.
   Qed.
 
   Lemma map2P {T1 T2 T3} (f:K.t -> option T1 -> option T2 -> option T3)
@@ -444,6 +508,17 @@ Module Mmake (K':CmpType) <: MAP.
 
   Lemma hasP : forall {T} (f: K.t -> T -> bool) (m: t T),
     has f m <-> (exists k t, get m k = Some t /\ f k t).
+  Proof.
+  Admitted.
+
+  Lemma incl_defP : forall {T1 T2} (f:K.t -> T1 -> bool) (f2:K.t -> T1 -> T2 -> bool) (m1: t T1) (m2: t T2),
+     incl_def f f2 m1 m2 ->
+     forall k, 
+       match get m1 k, get m2 k with
+       | None, _          => true
+       | Some t1, None     => f k t1
+       | Some t1, Some t2 => f2 k t1 t2
+       end.
   Proof.
   Admitted.
 

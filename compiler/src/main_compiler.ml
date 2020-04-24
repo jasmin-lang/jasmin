@@ -339,7 +339,9 @@ let main () =
           | Varalloc.Stack(s, i) -> Stack_alloc.PIstack (Conv.cvar_of_var tbl s, conv_sub i)
           | Glob (s, i)          -> Stack_alloc.PIglob (Conv.cvar_of_var tbl s, conv_sub i)
           | RegPtr s             -> Stack_alloc.PIregptr(Conv.cvar_of_var tbl s)
-          | StackPtr s           -> Stack_alloc.PIstkptr(Conv.cvar_of_var tbl s) in
+          | StackPtr s           -> 
+            Stack_alloc.PIstkptr(Conv.cvar_of_var tbl s, 
+                                 conv_sub Interval.{min = 0; max = size_of_ws U64}) in
 
         let conv_alloc (x,k) = Conv.cvar_of_var tbl x, conv_ptr_kind k in
 
