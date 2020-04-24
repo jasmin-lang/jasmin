@@ -310,7 +310,6 @@ let main () =
     let translate_var = Conv.var_of_cvar tbl in
     
     let memory_analysis up : Compiler.stack_alloc_oracles =
-      let open StackAlloc in
       let open Regalloc in
       if !debug then Format.eprintf "START memory analysis@.";
       let p = Conv.prog_of_cuprog tbl up in
