@@ -404,9 +404,9 @@ let alloc_stack_fd get_info gtbl fd =
 
   let coloring = Mint.mapi G.solve ranges in
 
-  Format.eprintf "Ranges: %a@." (pp_list "@ " pp_ranges) (Mint.bindings ranges);
+(*  Format.eprintf "Ranges: %a@." (pp_list "@ " pp_ranges) (Mint.bindings ranges);
   Format.eprintf "Colors: %a@." (pp_list "@ " pp_coloring) (Mint.bindings coloring);
-  Format.eprintf "alias: %a@." Alias.pp_alias alias;
+  Format.eprintf "alias: %a@." Alias.pp_alias alias; *)
 
   
   let slots, lalloc = init_slots stack_pointers alias coloring (vars_fc fd) in
@@ -442,7 +442,7 @@ let alloc_stack_fd get_info gtbl fd =
     sao_alloc; 
     sao_modify_rsp;
   } in
-  Format.eprintf "%a\n\n@." pp_sao sao;
+(*  Format.eprintf "%a\n\n@." pp_sao sao; *)
   sao
 
 let alloc_mem gtbl globs =
