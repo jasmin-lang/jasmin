@@ -705,46 +705,11 @@ Section CMP.
   Lemma cmp_nle_le x y : ~~ (cmp_le x y) -> cmp_le y x.
   Proof. by rewrite cmp_nle_lt; apply: cmp_lt_le. Qed.
 
-  Lemma cmp_le_antisym x y :
-    cmp_le x y →
-    cmp_le y x →
-    x = y.
-  Proof.
-    rewrite /cmp_le cmp_sym.
-    by move => a b; apply: cmp_eq; move: a b; rewrite /gcmp; case: cmp.
-  Qed.
-
-  Definition min (t1 t2: T) :=
+  Definition min (t1 t2: T) := 
     if cmp_le t1 t2 then t1 else t2.
 
-  Definition max (t1 t2: T) :=
+  Definition max (t1 t2: T) := 
     if cmp_le t1 t2 then t2 else t1.
-
-  Lemma minC x y : min x y = min y x.
-  Proof.
-    rewrite /min; case: ifP.
-    - by move => /cmp_le_antisym; case: ifP => // _ /(_ erefl).
-    by move => /negbT /cmp_nle_le ->.
-  Qed.
-
-  Lemma min_le2 x y : cmp_le (min x y) y.
-  Proof. by rewrite /min; case: ifP => // _; exact: cmp_le_refl. Qed.
-
-  Lemma min_le1 x y : cmp_le (min x y) x.
-  Proof. by rewrite minC; exact: min_le2. Qed.
-
-  Lemma maxC x y : max x y = max y x.
-  Proof.
-    rewrite /max; case: ifP.
-    - by move => /cmp_le_antisym; case: ifP => // _ /(_ erefl).
-    by move => /negbT /cmp_nle_le ->.
-  Qed.
-
-  Lemma max_ge1 x y : cmp_le x (max x y).
-  Proof. by rewrite /max; case: ifP => // _; exact: cmp_le_refl. Qed.
-
-  Lemma max_ge2 x y : cmp_le y (max x y).
-  Proof. by rewrite maxC; exact: max_ge1. Qed.
 
 End CMP.
 
@@ -766,6 +731,12 @@ Section EqCMP.
     + by rewrite (cmp_eq heq) eqxx.
     case: eqP => // ?;subst.
     by rewrite cmp_refl in heq.
+  Qed.
+
+  Lemma cmp_le_antisym x y :
+    cmp_le x y → cmp_le y x → x = y.
+  Proof.
+    by rewrite -cmp_nlt_le (cmp_le_eq_lt y) => /negbTE -> /eqP.
   Qed.
 
 End EqCMP.
