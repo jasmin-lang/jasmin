@@ -26,7 +26,10 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
+From Equations Require Import Equations.
+
 Require Import utils.
+
 Import Utf8 ZArith Psatz.
 
 Set Implicit Arguments.
@@ -221,6 +224,9 @@ Proof.
   apply/ZleP; lia.
 Qed.
 
+Definition push n (t:Bytes) (h1:wf t) (h2:(imin n <= imax n → imax n <= least (imax n) (tobytes t))) := 
+  mkBytes (wf_push h1 h2).
+
 Fixpoint _remove excl t :=
   match t with
   | [::] => t
@@ -273,20 +279,62 @@ Definition remove (e: interval) (t: t) :=
   | ReflectF _ => t
   end.
 
-(*
+Equations _subset (t1 t2:bytes) : bool by wf (size t1 + size t2)%nat lt := 
+  _subset [::] _ := true;
+  _subset (_::_) [::] := false;
+  _subset (n1::t1') (n2::t2') :=
+    if I.subset n1 n2 then _subset t1' (n2::t2')
+    else if n2.(imax) <=? n1.(imin) then _subset (n1::t1') t2'
+    else false.
+Next Obligation of  _subset_obligations.
+Proof. rewrite /= -!addSnnS !addSn; auto. Qed.
+
+Definition subset (t1 t2:t) := _subset t1 t2.
 
 (*
-Program Fixpoint subset t1 t2 {measure (size t1 + size t2)} := 
-  match t1, t2 with
-  | [::], _    => true
-  | _::_, [::] => false
-  | n1::t1', n2::t2' =>
-    if subset_inter n1 n2 then subset t1' t2
-    else if n2.(imax) <= n1.(imin) then subset t1 t2'
-    else false
+Equations inter (t1 t2:t) : t by wf (size (tobytes t1) + size (tobytes t2))%nat lt := 
+  inter t1 t2 := 
+    match tobytes t1, tobytes t2 with
+    | _, [::] | [::], _ => empty
+    | n1::t1', n2 :: t2' =>
+      if n1.(imax) <=? n2.(imin) then inter (@mkBytes t1' _) t2
+      else if n2.(imax) <=? n1.(imin) then inter t1 (@mkBytes t2' _)
+      else 
+        let n   := {| imin := max n1.(imin) n2.(imin); imax := min n1.(imax) n2.(imax); |} in
+        let n1' := {| imin := max n2.(imax) n1.(imin); imax := n1.(imax) |} in
+        let n2' := {| imin := max n1.(imax) n2.(imin); imax := n2.(imax) |} in
+        @mkBytes (n :: tobytes (inter (@mkBytes (_push n1' t1') _) (@mkBytes (_push n2' t2') _))) _
+     end.
+*)
+
+Fixpoint nb_elems (t:bytes) : Z := 
+  match t with
+  | [::] => 0
+  | n::t => n.(imax) - n.(imin) + nb_elems t
   end.
-Next Obligation of subset_func.
-Proof. rewrite /= -!addSnnS !addSn; auto. Qed.
+
+(* FIXME: wf *)
+Equations inter (t1 t2:t) : t by wf (size (tobytes t1) + size (tobytes t2))%nat lt := 
+  inter t1 t2 := 
+    match tobytes t1, tobytes t2 with
+    | _, [::] | [::], _ => empty
+    | n1::t1', n2 :: t2' =>
+      match @idP (n1.(imax) <=? n2.(imin)) with
+      | ReflectT h3 => inter (@mkBytes t1' _) t2
+      | ReflectF h3 =>
+        match @idP (n2.(imax) <=? n1.(imin)) with
+        | ReflectT h4 => inter t1 (@mkBytes t2' _)
+        | ReflectF h4 => 
+          let n   := {| imin := max n1.(imin) n2.(imin); imax := min n1.(imax) n2.(imax); |} in
+          let n1' := {| imin := max n2.(imax) n1.(imin); imax := n1.(imax) |} in
+          let n2' := {| imin := max n1.(imax) n2.(imin); imax := n2.(imax) |} in
+          @mkBytes (n :: tobytes (inter (@mkBytes (_push n1' t1') _) (@mkBytes (_push n2' t2') _))) _
+        end
+      end
+    end.
+
+*)
+(*  
 
 Fixpoint nb_elems (t:t) := 
   match t with
@@ -309,7 +357,7 @@ Program Fixpoint inter (t1 t2:t) {measure (nb_elems t1 + nb_elems t2)} :=
 Next Obligation of inter_func.
 *)
 
-
+(*
 Section Section.
   Context (subset : t -> t -> bool) (n1:interval) (t1':t).
 
