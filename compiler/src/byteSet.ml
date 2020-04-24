@@ -67,8 +67,8 @@ let rec inter t1 t2 =
     else 
       let n = { min = max n1.min n2.min;
                 max = min n1.max n2.max; } in
-      let n1' = { min = max n2.max n1.min; max = n1.max } in
-      let n2' = { min = max n1.max n2.min; max = n2.max } in
+      let n1' = { min = n2.max; max = n1.max } in
+      let n2' = { min = n1.max; max = n2.max } in
       n :: inter (push n1' t1') (push n2' t2') 
 
 let rec union t1 t2 = 
