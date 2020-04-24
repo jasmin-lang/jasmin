@@ -213,20 +213,30 @@ Definition _push n (t: bytes) := if I.is_empty n then t else n :: t.
 
 Lemma wf_push n t :
   wf t →
-  imax n <= least (imax n) t →
+  (imin n <= imax n → imax n <= least (imax n) t) →
   wf (_push n t).
-Proof. by rewrite /_push; case: ifPn => //; rewrite -/(I.wf n) /= wf_auxE => -> -> => /ZleP ->. Qed.
+Proof. 
+  rewrite /_push; case: ifPn => // /dup [] /ZleP hle.
+  rewrite -/(I.wf n) /= wf_auxE => -> -> ?; rewrite /= andbT.
+  apply/ZleP; lia.
+Qed.
 
 Fixpoint _remove excl t :=
   match t with
   | [::] => t
   | n' :: t' =>
-    let n1   := {| imin := n'.(imin);                 imax := Z.min n'.(imax) excl.(imin) |} in
+    let n1   := {| imin := n'.(imin); imax := Z.min n'.(imax) excl.(imin) |} in
     let n2   := {| imin := Z.max n'.(imin) excl.(imax); imax := n'.(imax) |} in
     let excl := {| imin := Z.max n'.(imax) excl.(imin); imax := excl.(imax) |} in
     let t'   := if I.is_empty excl then t' else _remove excl t' in
     _push n1 (_push n2 t')
   end.
+
+Lemma least_least d t : least (least d t) t = least d t.
+Proof. by case: t. Qed.
+
+Lemma least_aux n1 n2 t : n2 <= least n1 t -> n2 <= least n2 t.
+Proof. case: t => //=;lia. Qed.
 
 Lemma wf_remove e t :
   I.wf e →
@@ -234,22 +244,28 @@ Lemma wf_remove e t :
   wf (_remove e t).
 Proof.
   move => ok_e ok_t.
-  suff: (forall d, least d t <= least d (_remove e t)) ∧ wf (_remove e t) by case.
+  suff: (forall d, least d t <= least (least d t) (_remove e t)) ∧ wf (_remove e t) by case.
   elim: t e ok_e ok_t => /= [ | n t ih] e /ZleP ok_e; first by auto with zarith.
   rewrite wf_auxE => /andP [] /ZleP hle_e /andP[] /ZleP h ok_t.
   set t' := (X in _push _ (_push _ X)).
-  have [le_t' ok_t'] : (forall d, least d t <= least d t') ∧ wf t'.
-  - rewrite /t'; case: ifPn; first by auto with zarith.
-    by move => /ih /(_ ok_t).
-  split; last first.
-  rewrite /_push.
-  do 2 case: ifPn => //.
-  - move => /ZleP /= ? /ZleP /= ?. apply: wf_cons => //.
-    apply/ZleP => /=. lia.
-    apply/ZleP => /=.
-    etransitivity; last exact: le_t'.
-    lia.
-Admitted.
+  have [le_t' ok_t'] : (forall d, least d t <= least (least d t) t') ∧ wf t'.
+  + rewrite /t'; case: ifPn => [ ? | /ih /(_ ok_t) [] //]. 
+    by split => // ?;rewrite least_least; lia.
+  set t1 := _push _ t'.
+  set t2 := _push _ t1; split; last first.
+  + apply wf_push => /=.
+    + apply wf_push => //=.
+      move=> ?; set m := imax n; apply (@least_aux (least m t)).
+      by apply: Z.le_trans (le_t' m).
+    rewrite /t1 /_push; case: ifPn => /ZleP => /= ??; last lia.
+    set m := imax n; apply (@least_aux (least m t)).
+    apply: Z.le_trans (le_t' m); rewrite /m; lia.
+  move=> _.
+  rewrite /t2 /_push;case: ifPn => /ZleP /= ?; last by lia.
+  rewrite /t1 /_push;case: ifPn => /ZleP /= ?; last by lia.
+  set m := imax n; apply (@least_aux (least m t)).
+  apply: Z.le_trans (le_t' m); rewrite /m; lia.
+Qed.
 
 Definition remove (e: interval) (t: t) :=
   match @idP (I.wf e) with
