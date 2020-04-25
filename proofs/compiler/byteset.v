@@ -107,45 +107,61 @@ Proof. by case: t => //= n' t /and3P[] _ ->. Qed.
 Remark wf_tail n t : wf (n :: t) -> wf t.
 Proof. by move=> /andP [] _ /wf_aux_wf. Qed.
 
+
+Definition least d t :=
+  if t is n :: _ then n.(imin) else d.
+
+Lemma least_M t d d' :
+  d <= d' →
+  least d t <= least d' t.
+Proof. by case: t => //= *; lia. Qed.
+Arguments least_M t {d d'} _.
+
+Lemma least_ltM t d d':
+  d < d' →
+  least d t <= least d' t.
+Proof. move=> ?; apply: least_M; lia. Qed.
+Arguments least_ltM t {d d'} _.
+
+Lemma least_least d t : least (least d t) t = least d t.
+Proof. by case: t. Qed.
+
+Lemma least_aux n1 n2 t : n2 <= least n1 t -> n2 <= least n2 t.
+Proof. case: t => //=;lia. Qed.
+
+Lemma wf_cons n t :
+  I.wf n →
+  wf t →
+  n.(imax) <=? least n.(imax) t →
+  wf (n :: t).
+Proof. by case: t => /= [ | n' t ] -> // -> ->. Qed.
+
+Lemma wf_auxE n t :
+  wf_aux n t = (n <=? least n t) && wf t.
+Proof. by case: t => //; rewrite Z.leb_refl. Qed.
+
+(* ----------------------------------------- *)
+
 Record Bytes := mkBytes { tobytes :> bytes; _wf : wf tobytes; }.
 Definition t := Bytes.
+
 Canonical Bytes_subType := Eval hnf in [subType for tobytes].
+
+(* ----------------------------------------- *)
 
 Definition empty : t := @mkBytes [::] erefl.
 
 Definition is_empty (t: t) := if val t is [::] then true else false.
 
-Definition _full n :=
-  if I.wf n then [:: n ] else [::].
+(* ----------------------------------------- *)
+Definition _full n := if I.wf n then [:: n ] else [::].
 
 Lemma wf_full n : wf (_full n).
 Proof. by rewrite /_full /wf; case: ifP => // ->. Qed.
 
 Definition full n : t := mkBytes (wf_full n).
 
-Definition least d t :=
-  if t is n :: _ then n.(imin) else d.
-
-Lemma least_m d d' t :
-  d < d' →
-  least d t <= least d' t.
-Proof. by case: t => //= *; lia. Qed.
-
-Arguments least_m {d d'} t _.
-
-Lemma least_m' d d' t :
-  d <= d' →
-  least d t <= least d' t.
-Proof.
-  move => ?; have []: (d < d') ∨ d = d' by lia.
-  - exact: least_m.
-  move => ->; lia.
-Qed.
-
-Lemma wf_auxE n t :
-  wf_aux n t = (n <=? least n t) && wf t.
-Proof. by case: t => //; rewrite Z.leb_refl. Qed.
-
+(* ----------------------------------------- *)
 Fixpoint _memi (t: bytes) i :=
   match t with
   | [::] => false
@@ -153,6 +169,8 @@ Fixpoint _memi (t: bytes) i :=
   end.
 
 Definition memi (t: t) i := _memi t i.
+
+(* ----------------------------------------- *)
 
 Fixpoint _mem (t: bytes) n :=
   match t with
@@ -163,6 +181,7 @@ Fixpoint _mem (t: bytes) n :=
 Definition mem (t: t) n :=
   if I.is_empty n then true else _mem t n.
 
+(* ----------------------------------------- *)
 Fixpoint _add n (t: bytes) :=
   match t with
   | [::] => [:: n]
@@ -171,13 +190,6 @@ Fixpoint _add n (t: bytes) :=
     else if n'.(imax) <? n.(imin) then n' :: _add n t'
     else _add (I.convex_hull n n') t'
    end.
-
-Lemma wf_cons n t :
-  I.wf n →
-  wf t →
-  n.(imax) <=? least n.(imax) t →
-  wf (n :: t).
-Proof. by case: t => /= [ | n' t ] -> // -> ->. Qed.
 
 Lemma wf_add n t :
   I.wf n →
@@ -189,25 +201,18 @@ Proof.
   elim: t ok_t n ok_n; first by move => _ n /= ->; rewrite Z.min_id.
   move => n' t ih ok_t n /dup[] ok_n /ZleP hle_n /=; case: ZltP => hlt.
   - split; first by move => _ /=; lia.
-    apply: wf_cons => //=; rewrite zify; lia.
+    by apply: wf_cons => //=; rewrite zify; lia.
   case/andP: ok_t => /dup[] ok_n' /ZleP hle_n'; rewrite wf_auxE => /andP[] /ZleP h ok_t.
   case: ZltP => hlt'.
   - split; first by move => _ /=; lia.
     have {ih}[ih1 ih2] := ih ok_t _ ok_n.
-    apply: wf_cons => //.
-    rewrite /= zify ih1{ih1}.
-    have := least_m t hlt'.
-    lia.
+    by apply: wf_cons => //; rewrite /= zify ih1{ih1}; have := least_ltM t hlt'; lia.
   have := @I.convex_hull_wf n n'.
   rewrite ok_n => /(_ erefl) ok_k.
   have {ih}[ih1 ih2] := ih ok_t _ ok_k.
   split; last by [].
-  move => d; rewrite ih1.
-  rewrite /I.convex_hull /=.
-  rewrite Z.min_l_iff.
-  have := least_m t.
-  case: (t) h => //=. lia.
-  move => a _. lia.
+  move => d; rewrite ih1 /I.convex_hull /= Z.min_l_iff.
+  have := least_ltM t; case: (t) h => //= *; lia.
 Qed.
 
 Definition add n (t: t) :=
@@ -215,6 +220,8 @@ Definition add n (t: t) :=
   | ReflectT ok_n => mkBytes (wf_add ok_n (_wf t))
   | ReflectF _ => t
   end.
+
+(* ----------------------------------------- *)
 
 Definition _push n (t: bytes) := if I.is_empty n then t else n :: t.
 
@@ -228,8 +235,7 @@ Proof.
   apply/ZleP; lia.
 Qed.
 
-Definition push n (t:Bytes) (h1:wf t) (h2:(imin n <= imax n → imax n <= least (imax n) (tobytes t))) := 
-  mkBytes (wf_push h1 h2).
+(* ----------------------------------------- *)
 
 Fixpoint _remove excl t :=
   match t with
@@ -241,12 +247,6 @@ Fixpoint _remove excl t :=
     let t'   := if I.is_empty excl then t' else _remove excl t' in
     _push n1 (_push n2 t')
   end.
-
-Lemma least_least d t : least (least d t) t = least d t.
-Proof. by case: t. Qed.
-
-Lemma least_aux n1 n2 t : n2 <= least n1 t -> n2 <= least n2 t.
-Proof. case: t => //=;lia. Qed.
 
 Lemma wf_remove e t :
   I.wf e →
@@ -283,21 +283,7 @@ Definition remove (e: interval) (t: t) :=
   | ReflectF _ => t
   end.
 
-(*
-Equations _subset (t1 t2:bytes) : bool by wf (size t1 + size t2)%nat lt := 
-  _subset [::] _ := true;
-  _subset (_::_) [::] := false;
-  _subset (n1::t1') (n2::t2') :=
-    if I.subset n1 n2 then _subset t1' (n2::t2')
-    else if n2.(imax) <=? n1.(imin) then _subset (n1::t1') t2'
-    else false.
-Next Obligation of  _subset_obligations.
-Proof. rewrite /= -!addSnnS !addSn; auto. Qed.
-
-
-Definition subset (t1 t2:t) := _subset t1 t2.
-*)
-
+(* ----------------------------------------- *)
 
 Definition _subset : forall (t1 t2:bytes), Acc lt (size t1 + size t2)%nat -> bool.
 fix _subset 3.
@@ -313,25 +299,6 @@ refine (if I.subset n1 n2 then @_subset t1' (n2::t2') (hacc _ _)
 abstract (by rewrite /= -!addSnnS !addSn; auto).
 Defined.
 
-(*
-
-Program Fixpoint _subset (t1 t2:bytes) (h:Acc lt (size t1 + size t2)%nat) {struct h} := 
-  match t1, t2 with
-  | [::], _ => true
-  | _, [::] => false
-  | n1::t1', n2::t2' => 
-    if I.subset n1 n2 then @_subset t1' (n2::t2') _
-    else if n2.(imax) <=? n1.(imin) then @_subset (n1::t1') t2' _
-    else false
-  end.
-Next Obligation.
-case: h => h; apply h; rewrite /= -!addSnnS !addSn; auto.
-Defined. 
-Next Obligation.
-case: h => h; apply h; rewrite /= -!addSnnS !addSn; auto.
-Defined.
-Print _subset.
-*)
 Inductive _subset_ind : bytes -> bytes -> bool -> Prop := 
   | I_subset_1 : forall t2, _subset_ind [::] t2 true
   | I_subset_2 : forall t1, _subset_ind t1 [::] false
@@ -357,311 +324,123 @@ by apply: I_subset_5.
 Qed.
 
 Definition subset (t1 t2:t) := @_subset t1 t2 (Nat.lt_wf_0 _).
-(*
-Program Fixpoint _subset (t1 t2:bytes) {measure (size t1 + size t2)%nat} : bool := 
-  match t1, t2 with
-  | [::], _ => true
-  | _, [::] => false
-  | n1::t1', n2::t2' => 
-    if I.subset n1 n2 then _subset t1' (n2::t2')
-    else if n2.(imax) <=? n1.(imin) then _subset (n1::t1') t2'
-    else false
-  end.
-Next Obligation of  _subset_func.
-Proof. rewrite /= -!addSnnS !addSn; auto. Qed.
 
-Definition subset (t1 t2:t) := _subset t1 t2.
-*)
+
+(* ----------------------------------------- *)
 
 Fixpoint nb_elems (t:bytes) : Z := 
   match t with
   | [::] => 0
-  | n::t => n.(imax) - n.(imin) + nb_elems t
+  | n::t => Z.abs (n.(imax) - n.(imin)) + nb_elems t + 1
   end.
 
-Lemma ge0_nb_elems t : wf t -> (0 <= nb_elems t)%Z.
-Proof. elim: t => //= i t ih /andP [] /ZleP ? /wf_aux_wf /ih; lia. Qed.
+Lemma ge0_nb_elems t : (0 <= nb_elems t)%Z.
+Proof. elim: t => //= i t ih; lia. Qed.
 
-Definition _inter : forall (t1 t2:bytes), 
-  Acc (λ n m : Z, 0 <= n < m)%Z  (nb_elems t1 + nb_elems t2) -> wf t1 -> wf t2 -> bytes.
+Definition zlt n m := (0 <= n < m)%Z.
+
+(* ----------------------------------------- *)
+
+Definition _inter : forall (t1 t2:bytes), Acc zlt (nb_elems t1 + nb_elems t2)%Z -> bytes.
 fix _inter 3.
 move=> t1 t2 h; case h => {h}.
 case t1 => [ | n1 t1'].
-+ exact (fun _ _ _ => [::]).
-case t2 => [ | n2 t2'] hacc h1 h2.
++ exact (fun _ => [::]).
+case t2 => [ | n2 t2'] hacc.
 + exact [::].
 refine 
   (match @idP (n1.(imax) <=? n2.(imin)) with
-   | ReflectT h3 => @_inter t1' (n2::t2') (hacc _ _) (wf_tail h1) h2
+   | ReflectT h3 => @_inter t1' (n2::t2') (hacc _ _)
    | ReflectF h3 =>
      match @idP (n2.(imax) <=? n1.(imin)) with
-     | ReflectT h4 => @_inter (n1::t1') t2' (hacc _ _) h1 (wf_tail h2) 
+     | ReflectT h4 => @_inter (n1::t1') t2' (hacc _ _) 
      | ReflectF h4 => 
        let n   := I.inter n1 n2 in
        let n1' := {| imin := n2.(imax); imax := n1.(imax) |} in
        let n2' := {| imin := n1.(imax); imax := n2.(imax) |} in
-       n :: @_inter (_push n1' t1') (_push n2' t2') (hacc _ _) _ _
+       n :: @_inter (_push n1' t1') (_push n2' t2') (hacc _ _)
      end
    end).
-+ abstract (
-  move: h1 h2; rewrite /= !wf_auxE => /and3P [] /ZleP hle1 /ZleP hl1 ok1 /and3P [] /ZleP hle2 /ZleP hl2 ok2;
-  have ?:= ge0_nb_elems ok1; have ?:= ge0_nb_elems ok2; move/ZleP: h3 => h3; lia).
-+ abstract (
-  move: h1 h2; rewrite /= !wf_auxE => /and3P [] /ZleP hle1 /ZleP hl1 ok1 /and3P [] /ZleP hle2 /ZleP hl2 ok2;
-  have ?:= ge0_nb_elems ok1; have ?:= ge0_nb_elems ok2;
-  move/negP: h3 => /ZleP h3; move/ZleP: h4 => h4; lia).
-+ abstract (
-  move: h1 h2; rewrite /= !wf_auxE => /and3P [] /ZleP hle1 /ZleP hl1 ok1 /and3P [] /ZleP hle2 /ZleP hl2 ok2;
-  have ?:= ge0_nb_elems ok1; have ?:= ge0_nb_elems ok2;
-  move/negP: h3 => /ZleP h3; move/negP: h4 => /ZleP h4;
-  (have wf1 : wf (_push {| imin := imax n2; imax := imax n1 |} t1') by apply: wf_push);
-  (have wf2 : wf (_push {| imin := imax n1; imax := imax n2 |} t2') by apply: wf_push);
-  have g1 := ge0_nb_elems wf1; have g2 := ge0_nb_elems wf2;
-  rewrite /_push; do 2 case:ifP => /ZleP /=; lia). 
-+ abstract (by move: h1; rewrite /= wf_auxE => /and3P [] /ZleP hle1 /ZleP hl1 ok1; apply wf_push).
-abstract (by move: h2; rewrite /= wf_auxE => /and3P [] /ZleP hle1 /ZleP hl1 ok1; apply wf_push).
++ abstract (rewrite /zlt /=; have g1 := @ge0_nb_elems t1'; have g2 := @ge0_nb_elems t2'; lia).
++ abstract (rewrite /zlt /=; have g1 := @ge0_nb_elems t1'; have g2 := @ge0_nb_elems t2'; lia).
+abstract (
+  move: h3 h4; rewrite !zify /= /zlt /_push /I.is_empty => h3 h4;
+  have g1 := @ge0_nb_elems t1'; have g2 := @ge0_nb_elems t2';
+  do 2 case: ZleP => /=; move=> h1 h2; lia).
 Defined.
 
-Inductive _inter_ind : forall (t1 t2:bytes), wf t1 -> wf t2 -> bytes -> Prop := 
-| I_inter_1 : forall t2 (wf1 : wf [::]) (wf2 : wf t2), _inter_ind wf1 wf2 [::]
-| I_inter_2 : forall t1 (wf1 : wf t1) (wf2 : wf [::]), _inter_ind wf1 wf2 [::]
-| I_inter_3 : forall n1 t1' n2 t2' (wf1: wf (n1::t1')) (wf2: wf (n2::t2')) t,
-  n1.(imax) <= n2.(imin) -> _inter_ind (wf_tail wf1) wf2 t -> _inter_ind wf1 wf2 t
-| I_inter_4 : forall n1 t1' n2 t2' (wf1: wf (n1::t1')) (wf2: wf (n2::t2')) t,
-  ~n1.(imax) <= n2.(imin) -> n2.(imax) <= n1.(imin) -> _inter_ind wf1 (wf_tail wf2) t -> _inter_ind wf1 wf2 t
-| I_inter_5 : forall n1 t1' n2 t2' (wf1: wf (n1::t1')) (wf2: wf (n2::t2')) t,
+Inductive _inter_ind : bytes -> bytes -> bytes -> Prop := 
+| I_inter_1 : forall t2, _inter_ind [::] t2 [::]
+| I_inter_2 : forall t1, _inter_ind t1 [::] [::]
+| I_inter_3 : forall n1 t1' n2 t2' t,
+  n1.(imax) <= n2.(imin) -> _inter_ind t1' (n2::t2') t -> _inter_ind (n1::t1') (n2::t2') t
+| I_inter_4 : forall n1 t1' n2 t2' t, 
+  n2.(imax) <= n1.(imin) -> _inter_ind (n1::t1') t2' t -> _inter_ind (n1::t1') (n2::t2') t
+| I_inter_5 : forall n1 t1' n2 t2' t,
   ~n1.(imax) <= n2.(imin) -> ~n2.(imax) <= n1.(imin) ->
   let n   := I.inter n1 n2 in
   let n1' := {| imin := n2.(imax); imax := n1.(imax) |} in
   let n2' := {| imin := n1.(imax); imax := n2.(imax) |} in
-  _inter_ind (_inter_subproof2 n2 wf1) (_inter_subproof3 n1 wf2) t -> _inter_ind wf1 wf2 (n::t).
+  _inter_ind (_push n1' t1') (_push n2' t2') t ->
+  _inter_ind (n1::t1') (n2::t2') (n::t).
 
 Lemma _inter_eq : 
-  forall (t1 t2:bytes) (h: Acc (λ n m : Z, 0 <= n < m)%Z  (nb_elems t1 + nb_elems t2))
-         (h1: wf t1) (h2: wf t2), 
-         _inter_ind h1 h2 (_inter h h1 h2).
+  forall (t1 t2:bytes) (h: Acc zlt (nb_elems t1 + nb_elems t2)), _inter_ind t1 t2 (@_inter t1 t2 h).
 Proof.
 fix _inter_eq 3.
 move=> t1 t2 [] /=. 
 case: t1 => [ | n1 t1'].
-+ by move=> _ h1 h2; apply I_inter_1.
-case: t2 => [ | n2 t2'] hacc h1 h2.
++ by move=> _ ; apply I_inter_1.
+case: t2 => [ | n2 t2'] hacc.
 + by apply I_inter_2.
 case (@idP (n1.(imax) <=? n2.(imin))) => h3. 
 + apply: I_inter_3; last by apply _inter_eq.
   by apply /ZleP.
 case (@idP (n2.(imax) <=? n1.(imin))) => h4.
 + apply: I_inter_4; last by apply _inter_eq.
-  + by apply/ZleP/negP.
   by apply/ZleP.
 apply: I_inter_5; last by apply _inter_eq.
 + by apply/ZleP/negP.
 by apply/ZleP/negP.
 Qed.
 
-Lemma wf_inter (t1 t2:bytes) (h: Acc (λ n m : Z, 0 <= n < m)%Z  (nb_elems t1 + nb_elems t2))
-   (h1: wf t1) (h2: wf t2):
-  wf (_inter h h1 h2).
+Lemma wf_inter (t1 t2:bytes) (h: Acc zlt (nb_elems t1 + nb_elems t2)):
+   wf t1 -> wf t2 -> wf (@_inter t1 t2 h).
 Proof.
-suff :  wf (_inter h h1 h2) /\ 
-        (forall d, let m := Z.max (least d t1) (least d t2) in m <= least m (_inter h h1 h2)) by case.
-elim: (_inter_eq h h1 h2) => {t1 t2 h h1 h2}.
+move=> h1 h2.
+suff :  wf (@_inter t1 t2 h) /\ 
+        (forall d, let m := Z.max (least d t1) (least d t2) in m <= least m (@_inter t1 t2 h)) by case.
+elim: (_inter_eq h) h1 h2 => {t1 t2 h}.
 + by move=> t2 ??;split => // d; apply Z.le_refl.
 + by move=> t1 ??;split => // d; apply Z.le_refl.
-+ move=> n1 t1' n2 t2' /= wf1 wf2 t ? _ /= [h1 h2]; split => // d.
-  move: wf1 => /=; rewrite wf_auxE => /and3P [] /ZleP ? /ZleP ??.
-  apply: least_aux; apply: Z.le_trans; last apply (h2 (imax n1)).
++ move=> n1 t1' n2 t2' t hle1 _ ih wf1 wf2.
+  have [/= h1 h2]:= ih (wf_tail wf1) wf2; split => //.
+  move: wf1; rewrite /= wf_auxE => /and3P [] /ZleP ? /ZleP ?? _.
+  apply: least_aux; apply: Z.le_trans; last by apply (h2 (imax n1)).
   lia.
-+ move=> n1 t1' n2 t2' /= wf1 wf2 t h3 h4 _ /= [h1 h2]; split => // d.
-  move: wf1 => /=; rewrite wf_auxE => /and3P [] /ZleP ? /ZleP ??.
-  apply: least_aux; apply: Z.le_trans; last apply (h2 (imax n1)).
-  lia.  
-(*
-
-rewrite /_inter.
-Print _inter.
-Print Subterm.FixWf.
-Search WellFounded nat.
-Print WellFounded.
-Print well_founded.
-
-Lemma wf_inter t1 t2 (wf1: wf t1) (wf2:wf t2) : wf (_inter wf1 wf2).
-Proof.
-suff :  wf (_inter wf1 wf2) /\ 
-        (forall d, let m := Z.max (least d t1) (least d t2) in m <= least m (_inter wf1 wf2)) by case.
-Print _inter_graph.
-Search _inter.
-Search _inter_unfold.
-Print _inter.
-Search _inter_functional.
-Search _ _inter_graph.
-
-
-Next Obligation of inter_obligations.
-
-
-Equations inter (t1 t2:t) : t by wf (Z.to_nat (nb_elems (tobytes t1) + nb_elems (tobytes t2))) lt := 
-  inter _ (@mkBytes [::] _) := empty;
-  inter (@mkBytes [::] _) _ := empty;
-  inter (@mkBytes (n1::t1') h1) (@mkBytes (n2::t2') h2) := 
-    match @idP (n1.(imax) <=? n2.(imin)) with
-    | ReflectT h3 => inter (@mkBytes t1' (wf_tail h1)) (mkBytes h2)
-    | ReflectF h3 =>
-      match @idP (n2.(imax) <=? n1.(imin)) with
-      | ReflectT h4 => inter (mkBytes h1) (@mkBytes t2' (wf_tail h2))
-      | ReflectF h4 => 
-        let n   := {| imin := max n1.(imin) n2.(imin); imax := min n1.(imax) n2.(imax); |} in
-        let n1' := {| imin := n2.(imax); imax := n1.(imax) |} in
-        let n2' := {| imin := n1.(imax); imax := n2.(imax) |} in
-        @mkBytes (n :: tobytes (inter (@mkBytes (_push n1' t1') _) (@mkBytes (_push n2' t2') _))) _
-      end
-    end.
-Next Obligation of inter_obligations.
-Proof. 
-  move: h1 h2; rewrite !wf_auxE => /and3P [] /ZleP hle1 /ZleP hl1 ok1 /and3P [] /ZleP hle2 /ZleP hl2 ok2.
-  have ?:= ge0_nb_elems ok1; have ?:= ge0_nb_elems ok2; move/ZleP: h3 => h3.
-  rewrite -Z2Nat.inj_lt; lia. 
++ move=> n1 t1' n2 t2' t hle1 _ ih wf1 wf2.
+  have [/= h1 h2]:= ih wf1 (wf_tail wf2); split => //.
+  move: wf2; rewrite /= wf_auxE => /and3P [] /ZleP ? /ZleP ?? _.
+  apply: least_aux; apply: Z.le_trans; last by apply (h2 (imax n2)).
+  lia.
+move=> n1 t1' n2 t2' t hle1 hle2 /= _ ih.
+rewrite !wf_auxE => /and3P [] /ZleP ? /ZleP ?? /and3P [] /ZleP ? /ZleP ??.
+have [] := ih.
++ by apply wf_push.
++ by apply wf_push.
+move=> h3 h4; split; last by auto with zarith.
+apply/and3P; split => //.
++ by apply /ZleP; rewrite /I.inter /=; lia.
+apply/ZleP.
+set m := Z.min (imax n1) (imax n2).
+apply: least_aux.
+apply: Z.le_trans; last apply (h4 (Z.max (imax n1) (imax n2))).
+have /(least_M t1') ?: (imax n1) <= Z.max (imax n1) (imax n2) by lia.
+have /(least_M t2') ?: (imax n2) <= Z.max (imax n1) (imax n2) by lia.
+rewrite /_push /m /I.is_empty /=; do 2 case: ZleP; move=> h1 h2; lia.
 Qed.
-Next Obligation of inter_obligations.
-  move: h1 h2; rewrite !wf_auxE => /and3P [] /ZleP hle1 /ZleP hl1 ok1 /and3P [] /ZleP hle2 /ZleP hl2 ok2.
-  have ?:= ge0_nb_elems ok1; have ?:= ge0_nb_elems ok2.
-  move/negP: h3 => /ZleP h3; move/ZleP: h4 => h4.
-  rewrite -Z2Nat.inj_lt; lia. 
-Qed.
-Next Obligation of inter_obligations.
-  by move: h1; rewrite !wf_auxE => /and3P [] /ZleP hle1 /ZleP hl1 ok1; apply wf_push.
-Qed.
-Next Obligation of inter_obligations.
-  by move: h2; rewrite !wf_auxE => /and3P [] /ZleP hle1 /ZleP hl1 ok1; apply wf_push.
-Qed.
-Next Obligation of inter_obligations.
-  move: h1 h2; rewrite !wf_auxE => /and3P [] /ZleP hle1 /ZleP hl1 ok1 /and3P [] /ZleP hle2 /ZleP hl2 ok2.
-  have ?:= ge0_nb_elems ok1; have ?:= ge0_nb_elems ok2.
-  move/negP: h3 => /ZleP h3; move/negP: h4 => /ZleP h4.
-  have wf1 : wf (_push {| imin := imax n2; imax := imax n1 |} t1') by apply: wf_push.
-  have wf2 : wf (_push {| imin := imax n1; imax := imax n2 |} t2') by apply: wf_push.
-  have g1 := ge0_nb_elems wf1; have g2 := ge0_nb_elems wf2.
-  rewrite -Z2Nat.inj_lt; [ | lia | lia].
-  rewrite /_push; do 2 case:ifP => /ZleP /=; lia. 
-Qed.
-Next Obligation of inter_obligations.
 
- admit.
-lia.
-
-*)
-(*  
-
-Fixpoint nb_elems (t:t) := 
-  match t with
-  | [::] => 0
-  | n::t => Z.to_nat (n.(imax) - n.(imin)) + nb_elems t
-  end.
-
-Program Fixpoint inter (t1 t2:t) {measure (nb_elems t1 + nb_elems t2)} := 
-  match t1, t2 with
-  | _, [::] | [::], _ => [::]
-  | n1::t1', n2 :: t2' =>
-    if n1.(imax) <= n2.(imin) then inter t1' t2
-    else if n2.(imax) <= n1.(imin) then inter t1 t2'
-    else 
-      let n   := {| imin := max n1.(imin) n2.(imin); imax := min n1.(imax) n2.(imax); |} in
-      let n1' := {| imin := max n2.(imax) n1.(imin); imax := n1.(imax) |} in
-      let n2' := {| imin := max n1.(imax) n2.(imin); imax := n2.(imax) |} in
-      n :: inter (push n1' t1') (push n2' t2') 
-  end.
-Next Obligation of inter_func.
-*)
-
-(*
-Section Section.
-  Context (subset : t -> t -> bool) (n1:interval) (t1':t).
-
-  Fixpoint subset_aux (t2:t) : bool :=
-    match t2 with
-    | [::] => false
-    | n2 :: t2' =>
-      if subset_inter n1 n2 then subset t1' t2
-      else 
-        if n2.(imax) <= n1.(imin) then subset_aux t2'
-        else false
-    end.
-
-End Section.
-
-Fixpoint subset t1 t2 {struct t1} := 
-  match t1, t2 with
-  | [::], _    => true
-  | _::_, [::] => false
-  | n1::t1', n2::t2' =>
-    if subset_inter n1 n2 then subset t1' t2
-    else 
-      if n2.(imax) <= n1.(imin) then subset_aux subset n1 t1' t2'
-      else false
-  end.
-
-Section Section.
-  Context (inter: t -> t -> t) (t1':t).
-
-  Section Section.
-  Context (inter_aux: interval -> t -> t) (t2':t).
-
-  Fixpoint inter_aux2 (k:nat) (n1 n2:interval) := 
-    match k with
-    | 0 => inter_aux n1 t2'
-    | S k => 
-      if n1.(imax) <= n2.(imin) then inter t1' (n2::t2')
-      else if n2.(imax) <= n1.(imin) then inter_aux n1 t2'
-      else 
-      let n   := {| imin := max n1.(imin) n2.(imin); imax := min n1.(imax) n2.(imax); |} in
-      let n1' := {| imin := max n2.(imax) n1.(imin); imax := n1.(imax) |} in
-      let n2' := {| imin := max n1.(imax) n2.(imin); imax := n2.(imax) |} in
-      let t'  := 
-        if is_empty_inter n1' then inter t1' (push n2' t2') 
-        else if is_empty_inter n2' then inter_aux n1' t2'
-        else inter_aux2 k n1' n2' in
-      n :: t'
-    end. 
-  
-  End Section.
-
-  Fixpoint inter_aux (n1:interval) (t2:t) := 
-    match t2 with
-    | [::] => [::]
-    | n2:: t2' =>
-      if n1.(imax) <= n2.(imin) then inter t1' t2
-      else if n2.(imax) <= n1.(imin) then inter_aux n1 t2'
-      else 
-        let n   := {| imin := max n1.(imin) n2.(imin); imax := min n1.(imax) n2.(imax); |} in
-        let n1' := {| imin := max n2.(imax) n1.(imin); imax := n1.(imax) |} in
-        let n2' := {| imin := max n1.(imax) n2.(imin); imax := n2.(imax) |} in
-        let t'  := 
-          if is_empty_inter n1' then inter t1' (push n2' t2') 
-          else if is_empty_inter n2' then inter_aux n1' t2'
-          else inter_aux2 inter_aux t2' (Z.to_nat (n2'.(imax) - n2'.(imin))) n1' n2' in
-        n :: t'
-    end.
-End Section.
-
-Fixpoint inter (t1 t2 : t) := 
-  match t1, t2 with
-  | _, [::] | [::], _ => [::]
-  | n1::t1', n2::t2' =>
-    if n1.(imax) <= n2.(imin) then inter t1' t2
-    else if n2.(imax) <= n1.(imin) then inter_aux inter t1' n1 t2'
-    else 
-      let n   := {| imin := max n1.(imin) n2.(imin); imax := min n1.(imax) n2.(imax); |} in
-      let n1' := {| imin := max n2.(imax) n1.(imin); imax := n1.(imax) |} in
-      let n2' := {| imin := max n1.(imax) n2.(imin); imax := n2.(imax) |} in
-      let t'  := 
-        if is_empty_inter n1' then inter t1' (push n2' t2') 
-        else if is_empty_inter n2' then inter_aux inter t1' n1' t2'
-        else inter_aux2 inter t1' (inter_aux inter t1') t2' (Z.to_nat (n2'.(imax) - n2'.(imin))) n1' n2' in
-      n :: t'
-  end.
-
-*)
-
+Definition inter (t1 t2:t) := mkBytes (@wf_inter t1 t2 (Z.lt_wf 0 _) (_wf t1) (_wf t2)).
 End ByteSet.
       
 
