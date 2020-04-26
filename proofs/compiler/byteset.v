@@ -101,6 +101,21 @@ Module Type ByteSetType.
   Parameter remove : t -> interval -> t.
   Parameter inter  : t -> t -> t.
 
+  Parameter is_emptyP : forall t, reflect (t = empty) (is_empty t).
+  Parameter emptyE : forall i, memi empty i = false.
+
+  Parameter fullE : forall n i, memi (full n) i = I.memi n i.
+
+  Parameter memP : forall t n, reflect (forall i, I.memi n i -> memi t i) (mem t n).
+
+  Parameter addE : forall t n i, memi (add n t) i = I.memi n i || memi t i.
+
+  Parameter removeE : forall e t i, memi (remove t e) i = memi t i && ~~I.memi e i.
+
+  Parameter subsetP : forall t1 t2, reflect (forall i, memi t1 i -> memi t2 i) (subset t1 t2).
+
+  Parameter interE : forall (t1 t2: t) i, memi (inter t1 t2) i = memi t1 i && memi t2 i.
+
 End ByteSetType.
 
 Module ByteSet : ByteSetType.
@@ -463,7 +478,7 @@ elim : (_subset_eq h) (_wf t1) (_wf t2) => {t1 t2 h}.
   by move=> /(_ (imin n1)); rewrite I.memi_imin //= => -/(_ erefl).
 + move=> n1 t1' n2 t2' b /I.subsetP hs _ ih wf1 wf2.
   move: wf1; rewrite /= wf_auxE => /and3P [] /ZleP h1 /ZltP h2 wf1.
-  move: (wf2); rewrite /= wf_auxE => /and3P [] /ZleP h1' /ZltP h2' wf2' .
+  move: (wf2); rewrite /= wf_auxE => /and3P [] /ZleP h1' /ZltP h2' wf2'.
   apply: (equivP (ih wf1 wf2)) => /=; split => hh i; have := hh i; rewrite !zify. 
   + by move=> h3 [ | [] //]; lia. 
   move=> h3 h4; apply h3.
@@ -599,9 +614,45 @@ Qed.
 
 Definition inter (t1 t2:t) := mkBytes (@wf_inter t1 t2 (Z.lt_wf 0 _) (_wf t1) (_wf t2)).
 
+Lemma bool_eq_iff (b1 b2: bool) : b1 = b2 <-> (b1 <-> b2).
+Proof. case: b1 b2 => -[]; intuition. Qed.
+
 Lemma interE (t1 t2: t) i : memi (inter t1 t2) i = memi t1 i && memi t2 i.
 Proof.
-Admitted.
+rewrite /inter /memi /=.
+elim: (_inter_eq (Z.lt_wf 0 (nb_elems t1 + nb_elems t2))) (_wf t1) (_wf t2) => {t1 t2} //.
++ by move=> t1 _ _ /=; rewrite andbF.
++ move=> n1 t1' n2 t2' t hle _ ih wf1 wf2.
+  move: wf1; rewrite /= wf_auxE => /and3P [] /ZleP h1 /ZltP h2 wf1.
+  move: (wf2); rewrite /= wf_auxE => /and3P [] /ZleP h1' /ZltP h2' wf2'.
+  rewrite (ih wf1 wf2) /=.
+  have  /(_ (imax n1 + 1) i) := _memi_least wf1.
+  case: (_memi t1') => /=; rewrite !(andbT, andbF, orbT, orbF).
+  + by move=> /(_ erefl) ?; case: _memi => /=; rewrite !(andbT, andbF, orbT, orbF);
+     rewrite bool_eq_iff; split; rewrite !zify; lia.  
+  symmetry;apply /negP; rewrite !zify; lia. 
++ move=> n1 t1' n2 t2' t hle _ ih wf1 wf2.
+  move: (wf1); rewrite /= wf_auxE => /and3P [] /ZleP h1 /ZltP h2 wf1'.
+  move: wf2; rewrite /= wf_auxE => /and3P [] /ZleP h1' /ZltP h2' wf2.
+  rewrite (ih wf1 wf2) /=.
+  have  /(_ (imax n2 + 1) i) := _memi_least wf2.
+  case: (_memi t2') => /=; rewrite !(andbT, andbF, orbT, orbF).
+  + move=> /(_ erefl) ?; case: _memi => /=; rewrite !(andbT, andbF, orbT, orbF);
+    rewrite bool_eq_iff; split; rewrite !zify; lia.  
+  symmetry;apply /negP; rewrite !zify; lia.  
+move=> n1 t1' n2 t2' t hle1 hle2 /= _ ih.
+rewrite !wf_auxE => /and3P [] /ZleP h1 /ZltP h2 wf1 /and3P [] /ZleP h1' /ZltP h2' wf2.
+rewrite ih; first last.
++ by apply wf_push. + by apply wf_push.
+rewrite !_pushE /= /I.wf /I.is_empty /=.
+have  /(_ (imax n1 + 1) i) := _memi_least wf1.
+have  /(_ (imax n2 + 1) i) := _memi_least wf2.
+case: (_memi t1'); case: (_memi t2'); rewrite !(andbT, andbF, orbT, orbF).
++ by move=> /(_ erefl) ? /(_ erefl) ?; rewrite bool_eq_iff; split; rewrite !zify /=; lia. 
++ by move=> _ /(_ erefl) ?; rewrite bool_eq_iff; split; rewrite !zify /=; lia. 
++ by move=> /(_ erefl) ? _; rewrite bool_eq_iff; split; rewrite !zify /=; lia. 
+move=> _ _; rewrite bool_eq_iff; split; rewrite !zify /=; lia. 
+Qed.
 
 End ByteSet.
       
