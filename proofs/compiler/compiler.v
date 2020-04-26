@@ -62,8 +62,6 @@ Variant compiler_step :=
   | Splitting                   : compiler_step
   | AllocInlineAssgn            : compiler_step
   | DeadCode_AllocInlineAssgn   : compiler_step
-  | ShareStackVariable          : compiler_step
-  | DeadCode_ShareStackVariable : compiler_step
   | RegArrayExpansion           : compiler_step
   | RemoveArrInit               : compiler_step
   | RemoveGlobal                : compiler_step
@@ -87,7 +85,6 @@ Record compiler_params := {
   rename_fd        : instr_info -> funname -> _ufundef -> _ufundef;
   expand_fd        : funname -> _ufundef -> _ufundef;
   var_alloc_prog   : _uprog -> _uprog;
-  share_stk_prog   : _uprog -> _uprog;
   lowering_vars    : fresh_vars;
   inline_var       : var -> bool;
   is_var_in_memory : var_i → bool;
@@ -135,13 +132,7 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
   Let pv := dead_code_prog pv in
   let pv := cparams.(print_uprog) DeadCode_AllocInlineAssgn pv in
 
-  let ps := share_stk_prog cparams pv in
-  let ps := cparams.(print_uprog) ShareStackVariable ps in
-  Let _ := CheckAllocRegU.check_prog pv.(p_extra) pv.(p_funcs) ps.(p_extra) ps.(p_funcs) in
-  Let ps := dead_code_prog ps in
-  let ps := cparams.(print_uprog) DeadCode_ShareStackVariable ps in
-
-  let pr := remove_init_prog cparams.(is_reg_array) ps in
+  let pr := remove_init_prog cparams.(is_reg_array) pv in
   let pr := cparams.(print_uprog) RemoveArrInit pr in
 
   let pe := expand_prog pr in

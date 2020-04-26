@@ -547,12 +547,6 @@ let main () =
         p_globs = up.p_globs;
         p_extra = up.p_extra; }) in
  
-    let share_stk_prog up = 
-      (*let prog = Conv.prog_of_cuprog tbl up in
-      
-      let _ = Varalloc.alloc_stack_prog prog in *)
-      up in
-
     let removereturn sp = 
       let (fds,_data) = Conv.prog_of_csprog tbl sp in
       let tokeep = RemoveUnusedResults.analyse  fds in 
@@ -580,7 +574,6 @@ let main () =
       Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = apply "arr exp" Array_expand.arrexp_func;
       Compiler.var_alloc_prog = (*apply "var alloc" *) var_alloc_prog;
-      Compiler.share_stk_prog = (*apply "share stk" *) share_stk_prog;
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
       Compiler.stackalloc    = memory_analysis;
       Compiler.removereturn  = removereturn;

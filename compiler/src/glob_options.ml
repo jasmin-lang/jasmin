@@ -30,8 +30,6 @@ let poptions = [
   ; Compiler.Splitting
   ; Compiler.AllocInlineAssgn
   ; Compiler.DeadCode_AllocInlineAssgn
-  ; Compiler.ShareStackVariable
-  ; Compiler.DeadCode_ShareStackVariable
   ; Compiler.RegArrayExpansion
   ; Compiler.RemoveArrInit 
   ; Compiler.RemoveGlobal
@@ -73,8 +71,6 @@ let print_strings = function
   | Compiler.Splitting                   -> "splitting", "liverange splitting"
   | Compiler.AllocInlineAssgn            -> "valloc"   , "inlined variables allocation"
   | Compiler.DeadCode_AllocInlineAssgn   -> "vallocd"  , "dead code after inlined variables allocation"
-  | Compiler.ShareStackVariable          -> "vshare"   , "sharing of stack variables"
-  | Compiler.DeadCode_ShareStackVariable -> "vshared"  , "dead code after sharing of stack variables"
   | Compiler.RemoveArrInit               -> "rmarrinit" , "remove array initialisation"
   | Compiler.RemoveGlobal                -> "rmglobals" , "remove globals variables"
   | Compiler.RegArrayExpansion           -> "arrexp"   , "expansion of register arrays"
