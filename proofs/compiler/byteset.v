@@ -170,20 +170,6 @@ Definition t := Bytes.
 Canonical Bytes_subType := Eval hnf in [subType for tobytes].
 
 (* ----------------------------------------- *)
-
-Definition empty : t := @mkBytes [::] erefl.
-
-Definition is_empty (t: t) := if val t is [::] then true else false.
-
-(* ----------------------------------------- *)
-Definition _full n := if I.wf n then [:: n ] else [::].
-
-Lemma wf_full n : wf (_full n).
-Proof. by rewrite /_full /wf; case: ifP => // ->. Qed.
-
-Definition full n : t := mkBytes (wf_full n).
-
-(* ----------------------------------------- *)
 Fixpoint _memi (t: bytes) i :=
   match t with
   | [::] => false
@@ -196,6 +182,38 @@ Lemma _memi_least d i t: wf t -> _memi t i -> least d t <= i.
 Proof.
   case: t => //= n t;rewrite wf_auxE /I.memi => /and3P [] /ZleP ? /ZltP ?.
   rewrite !zify; lia.
+Qed.
+
+(* ----------------------------------------- *)
+
+Definition empty : t := @mkBytes [::] erefl.
+
+Definition is_empty (t: t) := if val t is [::] then true else false.
+
+Lemma is_emptyP t : reflect (t = empty) (is_empty t).
+Proof.
+  rewrite /is_empty /empty.
+  case: t => - [ | n t] /= wf; constructor.
+  + by rewrite (Eqdep_dec.UIP_dec Bool.bool_dec wf erefl).
+  by move=> [].
+Qed.
+
+Lemma emptyE i : memi empty i = false.
+Proof. done. Qed.
+
+(* ----------------------------------------- *)
+Definition _full n := if I.wf n then [:: n ] else [::].
+
+Lemma wf_full n : wf (_full n).
+Proof. by rewrite /_full /wf; case: ifP => // ->. Qed.
+
+Definition full n : t := mkBytes (wf_full n).
+
+Lemma fullE n i : memi (full n) i = I.memi n i.
+Proof. 
+  rewrite /full /memi /= /_full; case: ifPn => //=.
+  + by rewrite andbF orbF.
+  by move=> /negPn /I.is_emptyP /(_ i) /negbTE ->.
 Qed.
 
 (* ----------------------------------------- *)
@@ -406,8 +424,8 @@ case t2 => [ | n2 t2'] hacc.
 refine (if I.subset n1 n2 then @_subset t1' (n2::t2') (hacc _ _)
         else if n2.(imax) <? n1.(imin) then @_subset (n1::t1') t2' (hacc _ _)
         else false).
-+ abstract (by rewrite /= -!addSnnS !addSn; auto).
-abstract (by rewrite /= -!addSnnS !addSn; auto).
++ abstract by rewrite /= -addSnnS -addSnnS !addSn; auto.
+abstract by rewrite /= -addSnnS !addSn; auto.
 Defined.
 
 Inductive _subset_ind : bytes -> bytes -> bool -> Type := 
