@@ -278,12 +278,12 @@ Definition check_valid (rmap:regions) (x:var) ofs len :=
   let bytes := get_bytes x bm in 
   let sub_ofs  := sub_ofs mps.(mps_sub) ofs len in
   let isub_ofs := interval_of_sub sub_ofs in 
-  Let _   := assert (ByteSet.mem isub_ofs bytes) 
+  Let _   := assert (ByteSet.mem bytes isub_ofs) 
                     (Cerr_stk_alloc "check_valid: the region is partial") in
   ok {| mps_mp := mps.(mps_mp); mps_sub := sub_ofs |}.
 
 Definition clear_bytes i (x:var) bytes := 
-  let bytes := ByteSet.remove i bytes in
+  let bytes := ByteSet.remove bytes i in
   if ByteSet.is_empty bytes then None else Some bytes.
 
 Definition clear_bytes_map sub i sub' bm := 
@@ -316,7 +316,7 @@ Definition check_stack_ptr rmap x rsp align ofs :=
   let sm := get_sub_map mp rmap in
   let bm := get_bytes_map sub sm in
   let bytes := get_bytes x bm in 
-  Let _   := assert (ByteSet.mem i bytes) 
+  Let _   := assert (ByteSet.mem bytes i) 
                     (Cerr_stk_alloc "check_stack_ptr: the region is partial") in
   ok tt.
 
