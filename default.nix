@@ -18,6 +18,10 @@ let oP =
   else ocamlPackages
 ; in
 
+if !lib.versionAtLeast oP.ocaml.version "4.08"
+then throw "Jasmin requires OCaml ≥ 4.08"
+else
+
 stdenv.mkDerivation {
   name = "jasmin-0";
   src = ./.;
