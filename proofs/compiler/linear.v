@@ -225,7 +225,7 @@ Section CHECK.
         let W := writefun_ra writefun fn in
         let D1 := read_rvs_rec (Sv.diff D (vrvs xs)) xs in (* Remark read_rvs xs is empty since all variables *)
         let inter := Sv.inter D1 W in
-        Let _ := assert (Sv.is_empty inter) (ii, Cerr_needspill (Sv.elements inter)) in
+        Let _ := assert (Sv.is_empty inter) (ii, Cerr_needspill fn (Sv.elements inter)) in
         let D2 := read_es_rec D1 es in
         Let _ := assert (if extra_free_registers ii is Some r then negb (Sv.mem r D2) else true)
                         (ii, Cerr_linear "extra register for rastack is not free") in
