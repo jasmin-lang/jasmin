@@ -26,6 +26,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect.
 Require Import utils Wellfounded.
+Import Lexicographic_Product Relation_Operators.
 
 Import Utf8 ZArith Psatz.
 
@@ -667,9 +668,6 @@ case: (_memi t1'); case: (_memi t2'); rewrite !(andbT, andbF, orbT, orbF).
 + by move=> /(_ erefl) ? _; rewrite bool_eq_iff; split; rewrite !zify /=; lia. 
 move=> _ _; rewrite bool_eq_iff; split; rewrite !zify /=; lia. 
 Qed.
-
-Require Import Wellfounded.Lexicographic_Product.
-Import Relation_Operators.
 
 Inductive subterm : bytes -> bytes -> Prop := 
 | subtermI : forall n t, subterm t (n::t).
