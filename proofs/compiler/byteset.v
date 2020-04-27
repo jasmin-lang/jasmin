@@ -24,12 +24,8 @@
  * ----------------------------------------------------------------------- *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
-Require Program.
-From Equations Require Import Equations. 
-
-Require Import utils.
+From mathcomp Require Import all_ssreflect.
+Require Import utils Wellfounded.
 
 Import Utf8 ZArith Psatz.
 
@@ -100,6 +96,7 @@ Module Type ByteSetType.
   Parameter add    : interval -> t -> t.
   Parameter remove : t -> interval -> t.
   Parameter inter  : t -> t -> t.
+  Parameter union  : t -> t -> t.
 
   Parameter is_emptyP : forall t, reflect (t = empty) (is_empty t).
   Parameter emptyE : forall i, memi empty i = false.
@@ -114,7 +111,9 @@ Module Type ByteSetType.
 
   Parameter subsetP : forall t1 t2, reflect (forall i, memi t1 i -> memi t2 i) (subset t1 t2).
 
-  Parameter interE : forall (t1 t2: t) i, memi (inter t1 t2) i = memi t1 i && memi t2 i.
+  Parameter interE : forall t1 t2 i, memi (inter t1 t2) i = memi t1 i && memi t2 i.
+
+  Parameter unionE : forall t1 t2 i, memi (union t1 t2) i = memi t1 i || memi t2 i.
 
 End ByteSetType.
 
@@ -275,13 +274,12 @@ Fixpoint _add n (t: bytes) :=
     else _add (I.convex_hull n n') t'
    end.
 
-Lemma wf_add n t :
+Lemma wf_add_aux n t :
   I.wf n →
   wf t →
-  wf (_add n t).
+  (∀ d, least d (_add n t) = Z.min (imin n) (least (imin n) t)) ∧ wf (_add n t).
 Proof.
   move => ok_n ok_t.
-  assert (K: (∀ d, least d (_add n t) = Z.min (imin n) (least (imin n) t)) ∧ wf (_add n t)); last by case: K.
   elim: t ok_t n ok_n; first by move => _ n /= ->; rewrite Z.min_id.
   move => n' t ih ok_t n /dup[] ok_n /ZleP hle_n /=; case: ZltP => hlt.
   - split; first by move => _ /=; lia.
@@ -301,18 +299,27 @@ Proof.
   have := least_M t; case: (t) h => //= *; lia.
 Qed.
 
+Lemma wf_add n t :
+  I.wf n →
+  wf t →
+  wf (_add n t).
+Proof. by move=> h1 h2; case (wf_add_aux h1 h2). Qed.
+
+Lemma least__add d n t :
+  I.wf n →
+  wf t →
+  least d (_add n t) = Z.min (imin n) (least (imin n) t).
+Proof. by move=> h1 h2; case (wf_add_aux h1 h2). Qed.
+
 Definition add n (t: t) :=
   match @idP (I.wf n) with
   | ReflectT ok_n => mkBytes (wf_add ok_n (_wf t))
   | ReflectF _ => t
   end.
 
-Lemma addE t n i : memi (add n t) i = I.memi n i || memi t i.
+Lemma _addE t n i: wf t → _memi (_add n t) i = I.memi n i || _memi t i.
 Proof.
-  rewrite /add /memi; case (@idP (I.wf n)) => /=; last first.
-  + by move=> /negP /negbNE /I.is_emptyP /(_ i) /negbTE ->.
-  move=> _.
-  elim: (tobytes t) (_wf t) n => [_ n | n' t' ih]/=.  
+  move=> h; elim: t h n => [_ n | n' t' ih]/=.  
   + by rewrite andbF.
   rewrite wf_auxE => /and3P [] /ZleP ? /ZltP ? hwf n.
   case: ZltP => hlt /=.
@@ -328,6 +335,13 @@ Proof.
   move=> /= ???; case: ZltP => //=.
   have := @_memi_least (imax n' + 1) i _ hwf.
   case: _memi => // /(_ erefl); lia.
+Qed.
+
+Lemma addE t n i : memi (add n t) i = I.memi n i || memi t i.
+Proof.
+  rewrite /add /memi; case (@idP (I.wf n)) => /=; last first.
+  + by move=> /negP /negbNE /I.is_emptyP /(_ i) /negbTE ->.
+  by move=> _; rewrite _addE //;apply _wf.
 Qed.
 
 (* ----------------------------------------- *)
@@ -615,7 +629,7 @@ Qed.
 Definition inter (t1 t2:t) := mkBytes (@wf_inter t1 t2 (Z.lt_wf 0 _) (_wf t1) (_wf t2)).
 
 Lemma bool_eq_iff (b1 b2: bool) : b1 = b2 <-> (b1 <-> b2).
-Proof. case: b1 b2 => -[]; intuition. Qed.
+Proof. by rewrite -Bool.eq_iff_eq_true. Qed.
 
 Lemma interE (t1 t2: t) i : memi (inter t1 t2) i = memi t1 i && memi t2 i.
 Proof.
@@ -654,7 +668,142 @@ case: (_memi t1'); case: (_memi t2'); rewrite !(andbT, andbF, orbT, orbF).
 move=> _ _; rewrite bool_eq_iff; split; rewrite !zify /=; lia. 
 Qed.
 
+Require Import Wellfounded.Lexicographic_Product.
+Import Relation_Operators.
+
+Inductive subterm : bytes -> bytes -> Prop := 
+| subtermI : forall n t, subterm t (n::t).
+
+Lemma wf_subterm : well_founded subterm.
+Proof.
+  by elim => [ | n t ih]; constructor => t' h; inversion_clear h.
+Qed.
+
+Definition union_o := lexprod bytes (fun _ => bytes) subterm (fun _ => subterm).
+
+Definition dpair (t1 t2:bytes) :  {_ : bytes & bytes} := existT _ t1 t2.
+
+Lemma wf_union_o : well_founded union_o.
+Proof. 
+  apply: wf_lexprod => [ | _]; apply wf_subterm.
+Qed.
+
+Definition _union : forall (t1 t2:bytes), Acc union_o (dpair t1 t2) -> bytes.
+fix _union 3. 
+move=> t1 t2 [].
+case:t1 => [ _ | n1 t1'].
++ exact t2.
+case:t2 => [ _ | n2 t2' hacc].
++ exact (n1::t1').
+refine (
+  match @idP (n1.(imax) <? n2.(imin)) with
+  | ReflectT h1 => n1 :: @_union t1' (n2::t2') (hacc _ _)
+  | ReflectF h1 => 
+    match @idP (n2.(imax) <? n1.(imin)) with 
+    | ReflectT h2 => n2 :: @_union (n1::t1') t2' (hacc _ _)
+    | ReflectF h2 => @_union t1' (_add (I.convex_hull n1 n2) t2') (hacc _ _)
+    end
+  end).
++ abstract (by apply left_lex; constructor).
++ abstract (by apply right_lex; constructor).
+abstract (by apply left_lex; constructor).
+Defined.
+
+Inductive _union_ind : bytes -> bytes -> bytes -> Type := 
+| I_union_1 : forall t2, _union_ind [::] t2 t2
+| I_union_2 : forall t1, _union_ind t1 [::] t1
+| I_union_3 : forall n1 t1 n2 t2 t,
+  n1.(imax) < n2.(imin) -> _union_ind t1 (n2::t2) t -> _union_ind (n1::t1) (n2::t2) (n1::t)
+| I_union_4 : forall n1 t1 n2 t2 t,
+  n2.(imax) < n1.(imin) -> _union_ind (n1::t1) t2 t -> _union_ind (n1::t1) (n2::t2) (n2::t)
+| I_union_5 : forall n1 t1 n2 t2 t,
+    n2.(imin) <= n1.(imax) -> n1.(imin) <= n2.(imax) ->
+    _union_ind t1 (_add (I.convex_hull n1 n2) t2) t -> _union_ind (n1::t1) (n2::t2) t.
+
+Lemma _union_eq : 
+  forall (t1 t2:bytes) (h: Acc union_o (dpair t1 t2)), _union_ind t1 t2 (@_union t1 t2 h).
+Proof.
+  fix _union_eq 3. 
+  move=> t1 t2 [].
+  case: t1 => /= [ _ | n1 t1'].
+  + by apply I_union_1.
+  case:t2 => [ _ | n2 t2' hacc].
+  + by apply I_union_2.
+  case (@idP (n1.(imax) <? n2.(imin))).
+  + by move=> /ZltP h1; apply I_union_3; last apply _union_eq.
+  move=> /negP/ZltP h1.
+  case (@idP (n2.(imax) <? n1.(imin))).
+  + by move=> /ZltP h2; apply I_union_4; last apply _union_eq.
+  by move=> /negP/ZltP h2; apply I_union_5; last apply _union_eq; lia.
+Qed.
+
+Lemma wf_union t1 t2 (h: Acc union_o (dpair t1 t2)) : wf t1 -> wf t2 -> wf (_union h). 
+Proof.
+  move=> wf1 wf2.
+  suff : wf (_union h) /\ 
+        (forall d, let m := Z.min (least d t1) (least d t2) in m <= least m (_union h)) by case.
+  elim: (_union_eq h) wf1 wf2 => // {t1 t2 h}.
+  + by move=> t2 _ wf2;split => //= d; apply: (@le_least (least d t2)); rewrite least_least; lia.
+  + by move=> t1 wf1 _;split => //= d; apply: (@le_least (least d t1)); rewrite least_least; lia.
+  + move=> n1 t1 n2 t2 t h1 _ ih wf1 wf2 /=.
+    move: wf1; rewrite /= !wf_auxE => /and3P[] /dup [] /ZleP ? -> /ZltP ? wf1.
+    have [-> /= h]:= ih wf1 wf2; rewrite andbT; split. 
+    + by apply/ZltP; apply: lt_least; apply: Z.lt_le_trans; last apply (h (imax n1 + 1)); lia.
+    by move=> _; move: wf2; rewrite /= wf_auxE => /and3P [] /ZleP ???; lia.
+  + move=> n1 t1 n2 t2 t h1 _ ih wf1 wf2 /=.
+    move: wf2; rewrite /= !wf_auxE => /and3P[] /dup [] /ZleP ? -> /ZltP ? wf2.
+    have [-> /= h]:= ih wf1 wf2; rewrite andbT; split. 
+    + by apply/ZltP; apply: lt_least; apply: Z.lt_le_trans; last apply (h (imax n2 + 1)); lia.
+    by move=> _; move: wf1; rewrite /= wf_auxE => /and3P [] /ZleP ???; lia.
+  move=> n1 t1 n2 t2 t h1 h2 _ ih; rewrite /= !wf_auxE => /and3P[] /ZleP h /ZltP hh1 wf1 /and3P[] /ZleP ? /ZltP hh2 wf2.
+  case: (ih wf1).
+  + by apply: wf_add => //; apply I.convex_hull_wf; rewrite !zify; left => /h.
+  move=> /= h3 h4; split => // z.
+  apply: le_least; apply: Z.le_trans; last apply (h4 (Z.min (imin n1) (imin n2))).
+  apply Z.min_glb.
+  + by apply: le_least; apply: Z.le_trans; last (by apply Z.lt_le_incl; apply hh1); lia.
+  rewrite least__add //.
+  + rewrite /I.convex_hull /=; apply Z.min_glb; first by apply Z.le_refl.
+    by apply: le_least; apply: Z.le_trans; last (by apply Z.lt_le_incl; apply hh2); lia.
+  by apply I.convex_hull_wf; rewrite !zify; lia.
+Qed.
+
+Definition union (t1 t2: t) := mkBytes (wf_union (wf_union_o (dpair t1 t2)) (_wf t1) (_wf t2)).
+
+Lemma unionE t1 t2 i : memi (union t1 t2) i = memi t1 i || memi t2 i.
+Proof.
+  rewrite /memi /union /=; elim: _union_eq (_wf t1) (_wf t2) => {t1 t2} //.
+  + by move=> *; rewrite orbF.
+  + move=> n1 t1 n2 t2 t hlt _ ih wf1 wf2 /=.
+    move: wf1 (wf2); rewrite /= !wf_auxE => /and3P[] /ZleP ? /ZltP ? wf1 /and3P[] /ZleP ? /ZltP ? wf2'.
+    rewrite (ih wf1 wf2) /=.
+    have:= @_memi_least (imax n1 + 1) i _ wf1.
+    (case: (_memi t1) => /=; rewrite !(andbT, andbF, orbT, orbF)) => [/(_ erefl) ? | _ ].
+    + by apply bool_eq_iff;split;rewrite !zify; lia.
+    have:= @_memi_least (imax n2 + 1) i _ wf2'.
+    by (case: (_memi t2) => /=; rewrite !(andbT, andbF, orbT, orbF)) => [/(_ erefl) ? | _ ];
+      apply bool_eq_iff;split;rewrite !zify; lia.
+  + move=> n1 t1 n2 t2 t hlt _ ih wf1 wf2 /=.
+    move: (wf1) wf2; rewrite /= !wf_auxE => /and3P[] /ZleP ? /ZltP ? wf1' /and3P[] /ZleP ? /ZltP ? wf2.
+    rewrite (ih wf1 wf2) /=.
+    have:= @_memi_least (imax n2 + 1) i _ wf2.
+    (case: (_memi t2) => /=; rewrite !(andbT, andbF, orbT, orbF)) => [/(_ erefl) ? | _ ].
+    + by apply bool_eq_iff;split;rewrite !zify; lia.
+    have:= @_memi_least (imax n1 + 1) i _ wf1'.
+    by (case: (_memi t1) => /=; rewrite !(andbT, andbF, orbT, orbF)) => [/(_ erefl) ? | _ ];
+      apply bool_eq_iff;split;rewrite !zify; lia.
+  + move=> n1 t1 n2 t2 t hle1 hle2 _ ih wf1 wf2 /=.
+    move: wf1 wf2; rewrite /= !wf_auxE => /and3P[] /ZleP h /ZltP ? wf1 /and3P[] /ZleP ? /ZltP ? wf2.
+    rewrite (ih wf1) /=; last first.
+    + by apply wf_add => //; apply I.convex_hull_wf; rewrite !zify; left => /h.
+    have:= @_memi_least (imax n1 + 1) i _ wf1.
+    (case: (_memi t1) => /=; rewrite !(andbT, andbF, orbT, orbF)) => [/(_ erefl) ? | _ ].
+    + by symmetry; apply/idP; rewrite !zify; lia.
+    have:= @_memi_least (imax n2 + 1) i _ wf2.
+    rewrite _addE //.
+    (case: (_memi t2) => /=; rewrite !(andbT, andbF, orbT, orbF)) => [/(_ erefl) ? | _ ].
+    + by symmetry; apply/idP; rewrite !zify; lia.
+    rewrite /I.convex_hull /=; apply bool_eq_iff;split;rewrite !zify /=; lia.
+  Qed.
+
 End ByteSet.
-      
-
-
