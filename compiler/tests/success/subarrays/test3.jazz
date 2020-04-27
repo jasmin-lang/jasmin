@@ -1,0 +1,69 @@
+/*
+inline fn f1 (stack u64[1] x) -> stack u64[1] {
+   x[0] = 0;
+   return x;
+}
+
+inline fn f2 (stack u64[1] x) -> stack u64[1] {
+   return x;
+}
+
+export fn good() -> reg u64 {
+  reg u64 r;
+  stack u64[1] x;
+  stack u64[1] t;
+  t[0] = 1;
+  x = f2(t);
+  r = t[0];
+  r += x[0];
+  return r;
+}
+
+export fn bad() -> reg u64 {
+  reg u64 r;
+  stack u64[1] x;
+  stack u64[1] t;
+  t[0] = 1;
+  x = f1(t);
+  r = t[0];
+  r += x[0];
+  return r;
+} 
+
+*/
+
+inline fn f1 (reg u64 x) -> reg u64 {
+   x += 1;
+   return x;
+}
+
+inline fn f2 (reg u64 x) -> reg u64 {
+   return x;
+}
+
+
+export fn good() -> reg u64 {
+  reg u64 r;
+  reg u64 x;
+  reg u64 t;
+  t = 1;
+  x = f2(t);
+  r = t;
+  r += x;
+  return r;
+}
+
+/*
+export fn bad() -> reg u64 {
+  reg u64 r;
+  reg u64 x;
+  reg u64 t;
+  t = 1;
+  x = f1(t);
+  r = t;
+  r += x;
+  return r;
+} 
+
+*/
+  
