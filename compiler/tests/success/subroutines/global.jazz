@@ -1,0 +1,15 @@
+u64[2] glob = { 1, 2};
+
+inline
+fn load(stack u64[2] p) -> reg u64 {
+reg u64 r;
+r = p[0];
+return r;
+}
+
+export
+fn test() -> reg u64 {
+reg u64 x;
+x = load(glob);
+return x;
+}
