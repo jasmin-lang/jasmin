@@ -106,7 +106,7 @@ Section REMOVE.
   Section GD.
     Context (gd:glob_decls).
 
-    Definition get_var ii (env:venv) (xi:gvar) := 
+    Definition get_var_ ii (env:venv) (xi:gvar) := 
       if is_lvar xi then
         let vi := xi.(gv) in 
         let x := vi.(v_var) in
@@ -123,17 +123,17 @@ Section REMOVE.
       | Pconst _ | Pbool _ => ok e
       | Parr_init _ => ok e
       | Pvar xi =>
-        Let xi := get_var ii env xi in
+        Let xi := get_var_ ii env xi in
         ok (Pvar xi)
 
       | Pget aa ws xi e =>
         Let e  := remove_glob_e ii env e in
-        Let xi := get_var ii env xi in
+        Let xi := get_var_ ii env xi in
         ok (Pget aa ws xi e)
 
       | Psub aa ws len xi e =>
         Let e  := remove_glob_e ii env e in
-        Let xi := get_var ii env xi in
+        Let xi := get_var_ ii env xi in
         ok (Psub aa ws len xi e)
 
       | Pload ws xi e =>
