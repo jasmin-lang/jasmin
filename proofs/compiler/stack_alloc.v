@@ -444,12 +444,6 @@ Definition merge (r1 r2:regions) :=
 End Region.
 
 Import Region.
-  
-Definition cast_w ws := Papp1 (Oword_of_int ws).
-
-Definition cast_ptr := cast_w Uptr.
-
-Definition cast_const z := cast_ptr (Pconst z).
 
 Definition mul := Papp2 (Omul (Op_w Uptr)).
 Definition add := Papp2 (Oadd (Op_w Uptr)).

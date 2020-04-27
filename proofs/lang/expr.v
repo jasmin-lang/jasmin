@@ -657,6 +657,12 @@ Section PEXPRS_IND.
 
 End PEXPRS_IND.
 
+Definition cast_w ws := Papp1 (Oword_of_int ws).
+
+Definition cast_ptr := cast_w Uptr.
+
+Definition cast_const z := cast_ptr (Pconst z).
+
 (* ** Left values
  * -------------------------------------------------------------------- *)
 

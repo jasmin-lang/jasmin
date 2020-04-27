@@ -313,9 +313,6 @@ Definition round_ws (ws:wsize) (sz: Z) : Z :=
    let (q,r) := Z.div_eucl sz d in
    if r == 0 then sz else (q + 1) * d)%Z.
 
-(*TODO: use cast_const *)
-Let cast_const sz := Papp1 (Oword_of_int Uptr) (Pconst sz).
-
 Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : lcmd :=
   if sz == 0%Z then [::]
   else
