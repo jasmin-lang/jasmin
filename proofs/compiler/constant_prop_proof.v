@@ -662,6 +662,11 @@ Section CONST_PROP_EP.
       t_xrbindP => z w /(He _) [v'] [->] /value_uincl_int h/h{h} [??];subst.
       move => a ha ?; subst; rewrite /= ha.
       by eexists; (split; first reflexivity) => /=.
+    - move => aa sz len x e He v.
+      apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
+      t_xrbindP => z w /(He _) [v'] [->] /value_uincl_int h/h{h} [??];subst.
+      move => a ha ?; subst; rewrite /= ha.
+      by eexists; (split; first reflexivity) => /=.
     - move => sz x e He v.
       t_xrbindP => ? ? -> /= -> ? ? /He [v'] [->] /value_uincl_word h/h{h} /=.
       rewrite /to_pointer => -> /= ? -> <- /=.
@@ -713,7 +718,7 @@ Lemma add_cpmP s1 s1' m x e tag ty v1 v v' :
   valid_cpm (evm s1') m ->
   valid_cpm (evm s1') (add_cpm m x tag ty e).
 Proof.
-  rewrite /add_cpm;case: x => [xi | x | x | x] //= He.
+  rewrite /add_cpm;case: x => //= x He.
   case: tag => //.
   case: e He => // [ n | [] // sz [] //= q ] [<-].
   + case: v => //= ?;last first.
@@ -753,13 +758,20 @@ Lemma const_prop_rvP s1 s2 m x v:
   valid_cpm (evm s2) (const_prop_rv m x).1 /\
   write_lval gd (const_prop_rv m x).2 v s1 = ok s2.
 Proof.
-  case:x => [ii t | x | sz x p | aa sz x p] /= Hv.
+  case:x => [ii t | x | sz x p | aa sz x p | aa sz len x p] /= Hv.
   + by move=> H; have [??]:= write_noneP H; subst s2.
   + by move=> H;split=>//;apply: remove_cpm1P H Hv.
   + apply: rbindP => z Hz;rewrite Hz /=.
     apply: rbindP => z'.
     apply: rbindP => z'' /(@const_prop_eP p _ _ Hv) [] z3 [] -> /= /value_uincl_word h/h{h} ->.
     by apply: rbindP => w -> /=;apply: rbindP => m' -> [<-].
+  + apply: on_arr_varP;rewrite /on_arr_var => n t Htx -> /=.
+    apply: rbindP => z;apply: rbindP => z'' /(@const_prop_eP p _ _ Hv) [] z3 [] ->.
+    move => /value_uincl_int h/h{h} [] ??; subst.
+    apply: rbindP => w -> /=;apply: rbindP => t' -> /=.
+    apply: rbindP => vm Hvm [<-];rewrite Hvm;split=>//=.
+    have H : write_var x (Varr t') s1 = ok (with_vm s1 vm) by rewrite /write_var Hvm.
+    by apply: remove_cpm1P H Hv.
   apply: on_arr_varP;rewrite /on_arr_var => n t Htx -> /=.
   apply: rbindP => z;apply: rbindP => z'' /(@const_prop_eP p _ _ Hv) [] z3 [] ->.
   move => /value_uincl_int h/h{h} [] ??; subst.
@@ -836,6 +848,7 @@ Proof.
   elim: e => //=.
   + by move=> ?;rewrite Hm.
   + by move=> ???? ->.
+  + by move=> ????? ->.
   + by move=> ??? ->.
   + by move=> ?? ->.
   + by move=> ?? -> ? ->.
@@ -850,7 +863,7 @@ Instance const_prop_rv_m :
   Proper (@Mvar_eq const_v ==> eq ==> RelationPairs.RelProd (@Mvar_eq const_v) eq) const_prop_rv.
 Proof.
   move=> m1 m2 Hm rv rv' <- {rv'}.
-  by case: rv => [ v | v | sz v p | aa sz v p] //=;rewrite Hm.
+  by case: rv => [ v | v | sz v p | aa sz v p | aa sz len v p] //=;rewrite Hm.
 Qed.
 
 Instance const_prop_rvs_m :
