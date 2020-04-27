@@ -30,6 +30,7 @@ Require ExtrOcamlString.
 
 Extraction Inline ssrbool.is_left.
 Extraction Inline ssrbool.predT ssrbool.pred_of_argType.
+Extraction Inline ssrbool.idP.
 
 Extraction Inline utils.assert.
 Extraction Inline utils.Result.bind.

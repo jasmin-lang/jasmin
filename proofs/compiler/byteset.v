@@ -751,7 +751,7 @@ Proof.
   + move=> n1 t1 n2 t2 t h1 _ ih wf1 wf2 /=.
     move: wf2; rewrite /= !wf_auxE => /and3P[] /dup [] /ZleP ? -> /ZltP ? wf2.
     have [-> /= h]:= ih wf1 wf2; rewrite andbT; split. 
-    + by apply/ZltP; apply: lt_least; apply: Z.lt_le_trans; last apply (h (imax n2 + 1)); lia.
+    + by apply/ZltP; apply: lt_least; apply: Z.lt_le_trans; last apply: (h (imax n2 + 1)); lia.
     by move=> _; move: wf1; rewrite /= wf_auxE => /and3P [] /ZleP ???; lia.
   move=> n1 t1 n2 t2 t h1 h2 _ ih; rewrite /= !wf_auxE => /and3P[] /ZleP h /ZltP hh1 wf1 /and3P[] /ZleP ? /ZltP hh2 wf2.
   case: (ih wf1).
