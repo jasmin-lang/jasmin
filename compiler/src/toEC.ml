@@ -518,6 +518,8 @@ let pp_print_i fmt z =
   if B.le B.zero z then B.pp_print fmt z 
   else Format.fprintf fmt "(%a)" B.pp_print z 
 
+let pp_access aa = if aa = Warray_.AAdirect then "_direct" else ""
+
 let rec pp_expr env fmt (e:expr) = 
   match e with
   | Pconst z -> Format.fprintf fmt "%a" pp_print_i z
@@ -531,17 +533,18 @@ let rec pp_expr env fmt (e:expr) =
     pp_ovar env fmt (L.unloc x.gv)
 
   | Pget(aa, ws, x, e) -> 
-    assert (aa = Warray_.AAscale); (* Not implemented *)
     assert (check_array env x.gv);
     let pp fmt (x,e) = 
       let x = x.gv in
       let x = L.unloc x in
       let (xws,n) = array_kind x.v_ty in
-      if ws = xws then
+      if ws = xws && aa = Warray_.AAscale then
         Format.fprintf fmt "@[%a.[%a]@]" (pp_var env) x (pp_expr env) e
       else
-        Format.fprintf fmt "@[(get%i@ %a@ %a)@]" 
-          (int_of_ws ws) (pp_initi env) (x, n, xws) (pp_expr env) e in
+        Format.fprintf fmt "@[(get%i%s@ %a@ %a)@]" 
+          (int_of_ws ws) 
+          (pp_access aa)
+          (pp_initi env) (x, n, xws) (pp_expr env) e in
     let option = 
       for_safety env &&  snd (Mv.find (L.unloc x.gv) env.vars) in
     pp_oget option pp fmt (x,e)
@@ -638,19 +641,19 @@ let pp_lval1 env pp_e fmt (lv, (ety, e)) =
   | Lvar x  -> 
     Format.fprintf fmt "@[%a <-@ %a;@]" (pp_var env) (L.unloc x) pp_e e
   | Laset (aa, ws, x,e1) -> 
-    assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
     assert (check_array env x);
     let x = L.unloc x in
     let (xws,n) = array_kind x.v_ty in
-    if ws = xws then
+    if ws = xws && aa = Warray_.AAscale then
       Format.fprintf fmt "@[%a.[%a] <-@ %a;@]"
         (pp_var env) x (pp_expr env) e1 pp_e e
     else
       let nws = n * int_of_ws xws in
       let nws8 = nws / 8 in
       Format.fprintf fmt 
-        "@[%a =@ @[Array%i.init@ (WArray%i.get%i (WArray%i.set%i %a %a %a));@]@]"
+        "@[%a =@ @[Array%i.init@ (WArray%i.get%i (WArray%i.set%i%s %a %a %a));@]@]"
         (pp_var env) x n nws8 (int_of_ws xws) nws8 (int_of_ws ws)
+        (pp_access aa)
         (pp_initi env) (x, n, xws) (pp_expr env) e1 pp_e e
   | Lasub _ -> assert false (* NOT IMPLEMENTED *)
 
