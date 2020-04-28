@@ -58,8 +58,10 @@ Inductive leak_e_tree :=
 | LDual : leak_e_tree -> leak_e_tree -> leak_e_tree
 | LSub: (seq leak_e_tree) -> leak_e_tree.
 
+
 Fixpoint leak_F (lt : leak_tr) (l : leak_e_tree) : leak_e_tree := 
   match lt, l with
+  (*| _, LSub xs => LSub (map (leak_F lt) xs)*)
   | LT_id, _ => l
   | LT_remove, _ => LEmpty
   | LT_sub1, LDual l1 l2 => l1
@@ -770,14 +772,14 @@ Fixpoint sem_pexpr_e (s:estate) (e : pexpr) : exec (value * leak_e_tree) :=
       Let vl := sem_pexpr_e s e in 
       Let i := to_int vl.1 in 
       Let w := WArray.get ws t i in
-      ok ((Vword w), LSub [:: vl.2; (LIdx i)])
+      ok ((Vword w), LSub [ :: vl.2 ; (LIdx i)])
   | Pload sz x e =>
     Let w1 := get_var s.(evm) x >>= to_pointer in
     Let vl2 := sem_pexpr_e s e in 
     Let w2 := to_pointer vl2.1 in
     let adr := (w1 + w2)%R in 
     Let w  := read_mem s.(emem) adr sz in
-    ok (@to_val (sword sz) w, LSub [:: vl2.2; (LAdr adr)])
+    ok (@to_val (sword sz) w, LSub [ :: vl2.2;  (LAdr adr)])
   | Papp1 o e1 =>
     Let vl := sem_pexpr_e s e1 in
     Let v := sem_sop1 o vl.1 in 
@@ -818,7 +820,7 @@ Definition write_lval_e (l:lval) (v:value) (s:estate) : exec (estate * leak_e_tr
     let p := (vx + ve)%R in
     Let w := to_word sz v in
     Let m :=  write_mem s.(emem) p sz w in
-    ok ({| emem := m;  evm := s.(evm) |}, LSub [:: vl.2; (LAdr p)])
+    ok ({| emem := m;  evm := s.(evm) |}, LDual vl.2 (LAdr p))
   | Laset ws x i =>
     Let (n,t) := s.[x] in
     Let vl := sem_pexpr_e s i in 
@@ -826,7 +828,7 @@ Definition write_lval_e (l:lval) (v:value) (s:estate) : exec (estate * leak_e_tr
     Let v := to_word ws v in
     Let t := WArray.set t i v in
     Let vm := set_var s.(evm) x (@to_val (sarr n) t) in
-    ok ({| emem := s.(emem); evm := vm |}, LSub [:: vl.2; (LIdx i)])
+    ok ({| emem := s.(emem); evm := vm |}, LDual vl.2 (LIdx i))
   end.
 
 Definition write_lvals_e (s:estate) xs vs :=
@@ -954,14 +956,14 @@ Definition const_prop_e_esP_sem_pexprs_e gd s es v:=
     t_xrbindP. move=> [yv yl] He' z Hi w Ha Hv Hl /=.
     move: (He yv yl He') => [] l [] Hs Hs'. rewrite Hs' /=.
     rewrite Hg /=. rewrite Hi /=. rewrite Ha /=. 
-    exists (LSub [:: l; LIdx z]). split. rewrite -Hl /=.
+    exists (LSub [:: l; (LIdx z)]). split. rewrite -Hl /=.
     rewrite Hs /=. rewrite /lests_to_les /=. by rewrite cats1.
     by rewrite -Hv.
   + move=> sz x e He /=. t_xrbindP.
     move=> v l y v1 Hg Hp [yv yl] He' h6 Hp' h8 Hr Hv Hl /=.
     move: (He yv yl He') => [] l' [] Hs Hs'. rewrite Hg /=.
     rewrite Hp /=. rewrite Hs' /=. rewrite Hp' /=. rewrite Hr /=.
-    exists (LSub [:: l'; LAdr (y + h6)]). split. rewrite -Hl /=.
+    exists (LSub [:: l' ; (LAdr (y + h6))]). split. rewrite -Hl /=.
     rewrite /lests_to_les /=. rewrite -Hs /=. by rewrite cats1.
     by rewrite -Hv.
   + move=> op e He /=. t_xrbindP.

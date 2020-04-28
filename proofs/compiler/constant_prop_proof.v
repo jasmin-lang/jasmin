@@ -315,7 +315,8 @@ case: e=> //= ;try auto.
   rewrite Hhv in Hh; rewrite -Hh. by case: Hb1 => ->.
 + move=> s0 e. t_xrbindP.
   move=> h [yv yl] He vo So Hev h4 H Hv Hl. rewrite -Hev in H.
-  rewrite /= in H. admit.
+  rewrite /= in H.
+  admit.
 + move=> s0 e e0. t_xrbindP.
   move=> y [yv yl] He [yv' yl'] He0 v0 Hs2 Hev v1 Hs1 Hev' Hl'.
   rewrite He /=. rewrite He0 /=. move=> h10 h11 [] <- h13 [] <-.
@@ -2506,24 +2507,28 @@ case h2: is_wconst => [ n2 | ] //.
 case:eqP => // neq.
  - t_xrbindP. move=> [yv yl] He1 [yv' yl'] He2.
    rewrite /= /sem_sop2 /= /mk_sem_divmod.
-   t_xrbindP. 
+   t_xrbindP. move=> h y /of_val_word [sz1] [w1] [hle1 Hyv Hy] w2'.
+   move=> /of_val_word [sz2] [w2] [hle2 Hyv' Hy'] h5. subst.
+   have := is_wconstP gd s h1. move: (const_prop_e_esP_sem_pexpr_e He1) => Hc1.
+   rewrite Hc1 /= /truncate_word hle1. move=> [] ->. subst.
+   have := is_wconstP gd s h2. move: (const_prop_e_esP_sem_pexpr_e He2) => Hc2.
+   rewrite Hc2 /= /truncate_word hle2. move=> he. case: he => he1. subst.
+   case: ifP => // he'. move=> [] <- <- <- _. rewrite He1 /=.
+   rewrite He2 /=. move=> h10 [] <- h12 [] <- h14 h15 hv h19 hv' h0 h0e <- <- _.
+   admit.
+Admitted.
+
+Lemma sdivPl s sz e1 e2 v l:
+let e' := (sdiv sz e1 e2).1 in
+let t := (sdiv sz e1 e2).2 in
+sem_pexpr_e gd s (Papp2 (Odiv sz) e1 e2)  = ok (v, l) ->
+exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
+trans_sem t (v, l) = (v', l').
+Proof.
+Admitted.
 
 
-
-
-   move: (const_prop_e_esP_sem_pexpr_e He1) => Hc1.
-   have := is_wconstP gd s h1. rewrite Hc1 /=. move=> -> /= h y [] <-.
-   move: (const_prop_e_esP_sem_pexpr_e He2) => Hc2.
-   have := is_wconstP gd s h2. rewrite Hc2 /=. move=> -> /= h3 [] <- h5 h'.
-   move=> <- <- _. rewrite He1 /=. move=> h10 [] <-. rewrite He2 /=.
-   move=> h12 [] <-. move=> h14 h15 Hyv h17 Hyv' h19 h'' <- <- _.
-   t_xrbindP.   move: (const_prop_e_esP_sem_pexpr_e He1) => Hc1.
-   move=> h y Hyv h3 Hyv' h5.
- 
-
-
-
-Lemma sdivP k e1 e2 : Papp2 (Odiv k) e1 e2 =E sdiv k e1 e2.
+(*Lemma sdivP k e1 e2 : Papp2 (Odiv k) e1 e2 =E sdiv k e1 e2.
 Proof.
   case: k => [ | u sz] /=.
   + rewrite /soint.
@@ -2541,9 +2546,58 @@ Proof.
   case: ifP => // _ [?] ?; subst.
   eexists; split; first reflexivity.
   by rewrite /sem_sop1 /= wrepr_unsigned;case: u.
-Qed.
+Qed.*)
 
-Lemma smodP k e1 e2 : Papp2 (Omod k) e1 e2 =E smod k e1 e2.
+Lemma smodP s k e1 e2 v v' l l': 
+sem_pexpr_e gd s (Papp2 (Omod k) e1 e2) = ok (v, l) ->
+sem_pexpr_e gd s (smod k e1 e2).1 = ok (v', l') ->
+v = v'.
+Proof.
+ case: k => [ | u sz] /=.
+ + rewrite /soint.
+   case: (is_constP e1) => [n1| {e1} e1];
+   case: (is_constP e2) => [n2| {e2} e2] /=;eauto.
+   - by move=> [] <- _ [] <- _.
+   - t_xrbindP. move=> [yv yl] He. rewrite /sem_sop2 /=.
+     t_xrbindP. move=> h y Hyv <- <- _ h4. rewrite He /=.
+     move=> [] <- /=. rewrite Hyv /=. by move=> h6 h7 [] <- <- <- _.
+   - t_xrbindP. move=> [yv yl] He. rewrite /sem_sop2 /=.
+     t_xrbindP. move=> h y Hyv <- <- _ h4. rewrite He /=.
+     move=> [] <- /=. rewrite Hyv /=. by move=> h6 h7 [] <- <- <- _.
+   - t_xrbindP. move=> [yv yl] He1 [yv' yl'] He2.
+     rewrite /sem_sop2 /=. t_xrbindP. move=> h y Hyv h1 Hyv' <- <- _.
+     rewrite He1 /=. rewrite He2 /=. move=> h6 [] <- h8 [] <-.
+     rewrite Hyv /=. rewrite Hyv' /=. move=> h10 h11 [] <-.
+     by move=> h13 [] <- <- <- _.
+  + rewrite /sbituw.
+    case h1: is_wconst => [ n1 | ] //.
+    case h2: is_wconst => [ n2 | ] //.
+    - case: eqP.
+      * move=> hn2. t_xrbindP. move=> [yv yl] He1 [yv' yl'] He2.
+        rewrite /sem_sop2 /= /mk_sem_divmod. t_xrbindP.
+        move=> h y /of_val_word [sz1] [w1] [hle1 Hw1 Hw2] h3 /of_val_word
+        [sz2] [w2] [hle2 Hw3 Hw4] h5. subst.
+        have := is_wconstP gd s h1. move: (const_prop_e_esP_sem_pexpr_e He1) => Hc1.
+        t_xrbindP. rewrite Hc1 /=. move=> y [] <- /=. rewrite /truncate_word hle1.
+        move=> [] -> /=.
+        have := is_wconstP gd s h2. move: (const_prop_e_esP_sem_pexpr_e He2) => Hc2.
+        t_xrbindP. rewrite Hc2 /=. move=> y0 [] <- /=. rewrite /truncate_word hle2.
+        move=> -[?]; subst.
+        case: ifP => /=. move=> hx hx' <- <- _. rewrite He1 He2 /=.
+        move=> h9 [] <- h11 [] <-. rewrite /sem_sop2 /= /mk_sem_divmod. t_xrbindP.
+        move=> h0 y1. rewrite /truncate_word hle1. move=> [] <- /=.
+Admitted.
+
+Lemma smodPl s sz e1 e2 v l:
+let e' := (smod sz e1 e2).1 in
+let t := (smod sz e1 e2).2 in
+sem_pexpr_e gd s (Papp2 (Omod sz) e1 e2)  = ok (v, l) ->
+exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
+trans_sem t (v, l) = (v', l').
+Proof.
+Admitted.
+
+(*Lemma smodP k e1 e2 : Papp2 (Omod k) e1 e2 =E smod k e1 e2.
 Proof.
   case: k => [ | u sz] /=.
   + rewrite /soint.
@@ -2561,63 +2615,231 @@ Proof.
   case: ifP => // _ [?] ?; subst.
   eexists; split; first reflexivity.
   by rewrite /sem_sop1 /= wrepr_unsigned;case: u.
+Qed.*)
+
+Lemma svaddP s ve ws e1 e2 v v' l l': 
+sem_pexpr_e gd s (Papp2 (Ovadd ve ws) e1 e2) = ok (v, l) ->
+sem_pexpr_e gd s (svadd ve ws e1 e2).1 = ok (v', l') ->
+v = v'.
+Proof.
+apply: sbitwP => sz1 w1 sz2 w2 v1.
+apply: rbindP => v2 /truncate_wordP [_ ->].
+apply: rbindP => v3 /truncate_wordP [_ ->].
+by case.
 Qed.
 
-Lemma svaddP ve ws e1 e2 : Papp2 (Ovadd ve ws) e1 e2 =E svadd ve ws e1 e2.
+Lemma svaddPl s ve ws e1 e2 v l:
+let e' := (svadd ve ws e1 e2).1 in
+let t := (svadd ve ws e1 e2).2 in
+sem_pexpr_e gd s (Papp2 (Ovadd ve ws) e1 e2)  = ok (v, l) ->
+exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
+trans_sem t (v, l) = (v', l').
+Proof.
+apply: sbitwPl => sz1 w1 sz2 w2 v1.
+apply: rbindP => v2 /truncate_wordP [_ ->].
+apply: rbindP => v3 /truncate_wordP [_ ->].
+by case.
+Qed.
+
+(*Lemma svaddP ve ws e1 e2 : Papp2 (Ovadd ve ws) e1 e2 =E svadd ve ws e1 e2.
 Proof.
   apply: sbitwP => sz1 w1 sz2 w2 v.
   apply: rbindP => v1 /truncate_wordP [_ ->].
   apply: rbindP => v2 /truncate_wordP [_ ->].
   by case.
+Qed.*)
+
+Lemma svsubP s ve ws e1 e2 v v' l l': 
+sem_pexpr_e gd s (Papp2 (Ovsub ve ws) e1 e2) = ok (v, l) ->
+sem_pexpr_e gd s (svsub ve ws e1 e2).1 = ok (v', l') ->
+v = v'.
+Proof.
+apply: sbitwP => sz1 w1 sz2 w2 v1.
+apply: rbindP => v2 /truncate_wordP [_ ->].
+apply: rbindP => v3 /truncate_wordP [_ ->].
+by case.
 Qed.
 
-Lemma svsubP ve ws e1 e2 : Papp2 (Ovsub ve ws) e1 e2 =E svsub ve ws e1 e2.
+Lemma svsubPl s ve ws e1 e2 v l:
+let e' := (svsub ve ws e1 e2).1 in
+let t := (svsub ve ws e1 e2).2 in
+sem_pexpr_e gd s (Papp2 (Ovsub ve ws) e1 e2)  = ok (v, l) ->
+exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
+trans_sem t (v, l) = (v', l').
+Proof.
+apply: sbitwPl => sz1 w1 sz2 w2 v1.
+apply: rbindP => v2 /truncate_wordP [_ ->].
+apply: rbindP => v3 /truncate_wordP [_ ->].
+by case.
+Qed.
+
+(*Lemma svsubP ve ws e1 e2 : Papp2 (Ovsub ve ws) e1 e2 =E svsub ve ws e1 e2.
 Proof.
   apply: sbitwP => sz1 w1 sz2 w2 v.
   apply: rbindP => v1 /truncate_wordP [_ ->].
   apply: rbindP => v2 /truncate_wordP [_ ->].
   by case.
+Qed.*)
+
+Lemma svmulP s ve ws e1 e2 v v' l l': 
+sem_pexpr_e gd s (Papp2 (Ovmul ve ws) e1 e2) = ok (v, l) ->
+sem_pexpr_e gd s (svmul ve ws e1 e2).1 = ok (v', l') ->
+v = v'.
+Proof.
+apply: sbitwP => sz1 w1 sz2 w2 v1.
+apply: rbindP => v2 /truncate_wordP [_ ->].
+apply: rbindP => v3 /truncate_wordP [_ ->].
+by case.
 Qed.
 
-Lemma svmulP ve ws e1 e2 : Papp2 (Ovmul ve ws) e1 e2 =E svmul ve ws e1 e2.
+Lemma svmulPl s ve ws e1 e2 v l:
+let e' := (svmul ve ws e1 e2).1 in
+let t := (svmul ve ws e1 e2).2 in
+sem_pexpr_e gd s (Papp2 (Ovmul ve ws) e1 e2)  = ok (v, l) ->
+exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
+trans_sem t (v, l) = (v', l').
+Proof.
+apply: sbitwPl => sz1 w1 sz2 w2 v1.
+apply: rbindP => v2 /truncate_wordP [_ ->].
+apply: rbindP => v3 /truncate_wordP [_ ->].
+by case.
+Qed.
+
+(*Lemma svmulP ve ws e1 e2 : Papp2 (Ovmul ve ws) e1 e2 =E svmul ve ws e1 e2.
 Proof.
   apply: sbitwP => sz1 w1 sz2 w2 v.
   apply: rbindP => v1 /truncate_wordP [_ ->].
   apply: rbindP => v2 /truncate_wordP [_ ->].
   by case.
+Qed.*)
+
+Lemma svshlP s ve ws e1 e2 v v' l l': 
+sem_pexpr_e gd s (Papp2 (Ovlsl ve ws) e1 e2) = ok (v, l) ->
+sem_pexpr_e gd s (svshl ve ws e1 e2).1 = ok (v', l') ->
+v = v'.
+Proof.
+apply: @sbitw8P => sz1 w1 sz2 w2 v1.
+apply: rbindP => v2 /truncate_wordP [_ ->].
+apply: rbindP => v3 /truncate_wordP [_ ->].
+by case.
 Qed.
 
-Lemma svshlP ve ws e1 e2 : Papp2 (Ovlsl ve ws) e1 e2 =E svshl ve ws e1 e2.
+Lemma svshlPl s ve ws e1 e2 v l:
+let e' := (svshl ve ws e1 e2).1 in
+let t := (svshl ve ws e1 e2).2 in
+sem_pexpr_e gd s (Papp2 (Ovlsl ve ws) e1 e2)  = ok (v, l) ->
+exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
+trans_sem t (v, l) = (v', l').
+Proof.
+apply: @sbitw8Pl => sz1 w1 sz2 w2 v1.
+apply: rbindP => v2 /truncate_wordP [_ ->].
+apply: rbindP => v3 /truncate_wordP [_ ->].
+by case.
+Qed.
+
+(*Lemma svshlP ve ws e1 e2 : Papp2 (Ovlsl ve ws) e1 e2 =E svshl ve ws e1 e2.
 Proof.
   apply: @sbitw8P => sz1 w1 sz2 w2 v.
   apply: rbindP => v1 /truncate_wordP [_ ->].
   apply: rbindP => v2 /truncate_wordP [_ ->].
   by case.
+Qed.*)
+
+Lemma svshrP s ve ws e1 e2 v v' l l': 
+sem_pexpr_e gd s (Papp2 (Ovlsr ve ws) e1 e2) = ok (v, l) ->
+sem_pexpr_e gd s (svshr ve ws e1 e2).1 = ok (v', l') ->
+v = v'.
+Proof.
+apply: @sbitw8P => sz1 w1 sz2 w2 v1.
+apply: rbindP => v2 /truncate_wordP [_ ->].
+apply: rbindP => v3 /truncate_wordP [_ ->].
+by case.
 Qed.
 
-Lemma svshrP ve ws e1 e2 : Papp2 (Ovlsr ve ws) e1 e2 =E svshr ve ws e1 e2.
+Lemma svshrPl s ve ws e1 e2 v l:
+let e' := (svshr ve ws e1 e2).1 in
+let t := (svshr ve ws e1 e2).2 in
+sem_pexpr_e gd s (Papp2 (Ovlsr ve ws) e1 e2)  = ok (v, l) ->
+exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
+trans_sem t (v, l) = (v', l').
+Proof.
+apply: @sbitw8Pl => sz1 w1 sz2 w2 v1.
+apply: rbindP => v2 /truncate_wordP [_ ->].
+apply: rbindP => v3 /truncate_wordP [_ ->].
+by case.
+Qed.
+
+(*Lemma svshrP ve ws e1 e2 : Papp2 (Ovlsr ve ws) e1 e2 =E svshr ve ws e1 e2.
 Proof.
   apply: @sbitw8P => sz1 w1 sz2 w2 v.
   apply: rbindP => v1 /truncate_wordP [_ ->].
   apply: rbindP => v2 /truncate_wordP [_ ->].
   by case.
+Qed.*)
+
+Lemma svsarP s ve ws e1 e2 v v' l l': 
+sem_pexpr_e gd s (Papp2 (Ovasr ve ws) e1 e2) = ok (v, l) ->
+sem_pexpr_e gd s (svsar ve ws e1 e2).1 = ok (v', l') ->
+v = v'.
+Proof.
+apply: @sbitw8P => sz1 w1 sz2 w2 v1.
+apply: rbindP => v2 /truncate_wordP [_ ->].
+apply: rbindP => v3 /truncate_wordP [_ ->].
+by case.
 Qed.
 
-Lemma svsarP ve ws e1 e2 : Papp2 (Ovasr ve ws) e1 e2 =E svsar ve ws e1 e2.
+Lemma svsarPl s ve ws e1 e2 v l:
+let e' := (svsar ve ws e1 e2).1 in
+let t := (svsar ve ws e1 e2).2 in
+sem_pexpr_e gd s (Papp2 (Ovasr ve ws) e1 e2)  = ok (v, l) ->
+exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
+trans_sem t (v, l) = (v', l').
+Proof.
+apply: @sbitw8Pl => sz1 w1 sz2 w2 v1.
+apply: rbindP => v2 /truncate_wordP [_ ->].
+apply: rbindP => v3 /truncate_wordP [_ ->].
+by case.
+Qed.
+
+(*Lemma svsarP ve ws e1 e2 : Papp2 (Ovasr ve ws) e1 e2 =E svsar ve ws e1 e2.
 Proof.
   apply: @sbitw8P => sz1 w1 sz2 w2 v.
   apply: rbindP => v1 /truncate_wordP [_ ->].
   apply: rbindP => v2 /truncate_wordP [_ ->].
   by case.
-Qed.
+Qed.*)
 
-Lemma s_op2P o e1 e2 : Papp2 o e1 e2 =E s_op2 o e1 e2.
+Lemma s_op2P s o e1 e2 v v' l l': 
+sem_pexpr_e gd s (Papp2 o e1 e2) = ok (v, l) ->
+sem_pexpr_e gd s (s_op2 o e1 e2).1 = ok (v', l') ->
+v = v'.
 Proof.
   case: o;eauto using sandP, sorP, saddP, smulP, ssubP, sdivP, smodP,
                       s_eqP, sneqP, sltP, sleP, sgtP, sgeP,
                       slandP, slorP, slxorP, slslP, slsrP, sasrP,
                       svaddP, svsubP, svmulP, svshlP, svshrP, svsarP.
 Qed.
+
+Lemma s_op2Pl s o e1 e2 v l:
+let e' := (s_op2 o e1 e2).1 in
+let t := (s_op2 o e1 e2).2 in
+sem_pexpr_e gd s (Papp2 o e1 e2)  = ok (v, l) ->
+exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
+trans_sem t (v, l) = (v', l').
+Proof.
+  case: o;eauto using sandPl, sorPl, saddPl, smulPl, ssubPl, sdivPl, smodPl,
+                      s_eqPl, sneqPl, sltPl, slePl, sgtPl, sgePl,
+                      slandPl, slorPl, slxorPl, slslPl, slsrPl, sasrPl,
+                      svaddPl, svsubPl, svmulPl, svshlPl, svshrPl, svsarPl.
+Qed.
+
+(*Lemma s_op2P o e1 e2 : Papp2 o e1 e2 =E s_op2 o e1 e2.
+Proof.
+  case: o;eauto using sandP, sorP, saddP, smulP, ssubP, sdivP, smodP,
+                      s_eqP, sneqP, sltP, sleP, sgtP, sgeP,
+                      slandP, slorP, slxorP, slslP, slsrP, sasrP,
+                      svaddP, svsubP, svmulP, svshlP, svshrP, svsarP.
+Qed.*)
 
 (* vuincl_sopn
 Lemma app_sopn_uincl_a T ts op vs vs' (vres: T) :
@@ -2647,21 +2869,54 @@ Proof.
 Qed.
 *)
 
-Lemma s_opNP op s es :
-  sem_pexpr gd s (s_opN op es) = sem_pexpr gd s (PappN op es).
+Lemma s_opNP op s es v v' l l':
+ sem_pexpr_e gd s (PappN op es) = ok (v, l) ->
+ sem_pexpr_e gd s (s_opN op es).1 = ok (v', l') ->
+v = v'.
 Proof.
-  rewrite /s_opN.
-  case hi: (mapM _ _) => [ i | ] //=.
-  case heq: (sem_opN _ _) => [ v | ] //.
-  case: v heq => // sz w'.
-  case: op => sz' pe /=.
-  rewrite /sem_opN /=; apply: rbindP => w h /ok_word_inj [] ?; subst => /= <-{w'}.
-  rewrite /sem_sop1 /= wrepr_unsigned -/(sem_pexprs _ _).
-  have -> /= : sem_pexprs gd s es = ok i.
-  + elim: es i hi {h} => // - [] // z es ih /=; t_xrbindP => _ vs ok_vs <-.
-    by rewrite (ih _ ok_vs).
-  by rewrite h.
-Qed.
+rewrite /s_opN.
+case hi: (mapM _ _) => [ i | ] //=.
+case heq: (sem_opN _ _) => [ v1 | ] //.
+case: v1 heq => // sz w'.
+case: (op) => sz' pe /=.
++ rewrite /sem_opN /=. t_xrbindP.
+  move=> y Hm y' h Ha <- <- _. rewrite Hm.
+  move=> h6 [] <-. rewrite Ha /=.
+  by move=> h8 h9 [] <- <- <- _.
++ rewrite /sem_opN /=. t_xrbindP.
+  move=> y -> /= h0 h1 Ha <- <- _ h6 [] <-.
+  rewrite /sem_opN /=. t_xrbindP.
+  move=> h y0 Ha' <- <- _. rewrite Ha in Ha'.
+  by case: Ha' => ->.
++ rewrite /sem_opN /=. t_xrbindP.
+  move=> y Ha Hv h1 -> h3 h4 Ha' <- <- _ h9 [] <-.
+  rewrite /sem_opN /=. t_xrbindP. rewrite Ha' /=.
+  by move=> h y0 [] <- <- <- _.
++ rewrite /sem_opN /=; t_xrbindP.
+  move=> y Ha Hv. move=> h1 Hm. rewrite wrepr_unsigned.
+  move=> h3 h4 Ha'. move=> <- <- _ <- _.
+  admit.
++ rewrite /sem_opN /=. t_xrbindP.
+  move=> y -> h0 h1 Ha <- <- _ h6 [] <-.
+  rewrite /sem_opN /=. t_xrbindP.
+  rewrite Ha /=. by move=> h y0 [] <- <- <- _.
++ rewrite /sem_opN /=. t_xrbindP.
+  move=> y -> /= h0 h1 Ha <- <- _ h6 [] <-.
+  rewrite /sem_opN /=. t_xrbindP.
+  rewrite Ha /=. by move=> h y0 [] <- <- <- _.
++ t_xrbindP. move=> y -> /=. rewrite /sem_opN /=.
+  t_xrbindP. move=> h y0 Ha <- <- _ h4 <-.
+  rewrite Ha /=. by move=> h6 h7 [] <- <- <- _.
+Admitted.
+
+Lemma s_opNPl s op es v l:
+let e' := (s_opN op es).1 in
+let t := (s_opN op es).2 in
+sem_pexpr_e gd s (PappN op es)  = ok (v, l) ->
+exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
+trans_sem t (v, l) = (v', l').
+Proof.
+Admitted.
 
 Definition vconst c :=
   match c with
@@ -2672,8 +2927,51 @@ Definition vconst c :=
 Definition valid_cpm (vm: vmap)  (m:cpm) :=
   forall x n, Mvar.get m x = Some n -> get_var vm x = ok (vconst n).
 
+Section CONST_PROP.
+Context s m (Hvalid: valid_cpm (evm s) m).
+Lemma compile_lp e:
+ let e' := (const_prop_e m e).1 in
+ let t := (const_prop_e m e).2 in
+ (forall v l, sem_pexpr_e gd s e = ok (v, l) ->
+ exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
+ trans_sem t (v, l) = (v', l')).
+Proof.
+elim: e => //=; rewrite /trans_sem.
++ move=> z v l [] <- <- /=. exists z. exists LEmpty.
+  by split.
++ move=> b v l [] <- <- /=. exists b. exists LEmpty.
+  by split.
++ move=> n v l [] <- <- /=. exists (Varr (WArray.empty n)).
+  exists LEmpty. by split.
++ t_xrbindP. move=> h h0 hl y /=.
+  case: (Mvar.get m h). 
+  -move=> a /=. exists y. exists LEmpty.
+   split. admit. admit.
+  - admit.
++ t_xrbindP. rewrite /=. move=> h h0 hl y -> <- <- /=.
+  exists y. exists LEmpty. by split.
++ move=> sz x e He. move=> v l. 
+  apply: on_arr_varP => n t Hsub; rewrite /on_arr_var => Hg.
+  t_xrbindP. move=> [yv yl] He' /=. move: (He yv yl He').
+  move=> [] xv [] xl [] He'' /= Hv. move=> h0 Hyv h2 Hw <- <-.
+  rewrite Hg /=. rewrite He'' /=. case: Hv => Hv1 Hv2.
+  rewrite -Hv1 /=. rewrite Hyv /=. rewrite Hw /=.
+  exists (Vword h2). exists (LSub [ :: xl ; (LIdx h0)]).
+  split. auto. admit.
++ move=> sz x e He. move=> v l.
+  t_xrbindP. move=> y h Hg Hp [yv yl] He' h4 Hp' h6 Hr <- <-.
+  move: (He yv yl He'). move=> [] xv [] xl [] He'' /= Hl.
+  case: Hl => Hl1 Hl2. exists (Vword h6). exists (LSub [:: xl; LAdr (y + h4)]).
+  rewrite Hg /=. rewrite Hp /=. rewrite He'' /=. rewrite -Hl1 /=. rewrite Hp' /=.
+  rewrite Hr /=. split. auto. admit.
++ move=> op e He. move=> v l. t_xrbindP. move=> [yv yl] He' h0 Hop.
+  
+  
+
+
 Definition eqoks e1 e2 st :=
-  ∀ vs, sem_pexprs gd st e1 = ok vs → exists2 vs', sem_pexprs gd st e2 = ok vs' & List.Forall2 value_uincl vs vs'.
+  ∀ vs, sem_pexprs gd st e1 = ok vs →
+        exists2 vs', sem_pexprs gd st e2 = ok vs' & List.Forall2 value_uincl (unzip1 vs) (unzip1 vs').
 
 Section CONST_PROP_EP.
   Context s m (Hvalid: valid_cpm (evm s) m).
