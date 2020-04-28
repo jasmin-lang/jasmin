@@ -215,7 +215,7 @@ have hlsem := compile_progP hlp hfn hsem Hex.
 case: hlsem.
 - move => fd hfd.
   move: hxp; rewrite /assemble_prog; t_xrbindP => _ _; case: x86_variables.reg_of_string => // sp; t_xrbindP => fs hfs ?; subst xp.
-  have [xfd [hxfd]] := get_map_cfprog hfs hfd.
+  have [xfd hxfd] := get_map_cfprog hfs hfd.
   by move => /hsafe; rewrite (assemble_fd_stk_size hxfd).
 move/ok_sig: hfn.
 case: hsem => {m1 m2 hsafe fn va vr Hex} m1 m2 fn fd va va' st1 vm2 vr vr1 ok_fd ok_va _ _ _ _ hsig m2' [vr'] [ok_vr'] [hm2' hlsem].

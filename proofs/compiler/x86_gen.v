@@ -152,7 +152,7 @@ Lemma ok_get_fundef fn fd :
   exists2 fd', get_fundef (xp_funcs p') fn = Some fd' & assemble_fd RSP (mk_rip p.(lp_rip)) fd = ok fd'.
 Proof.
   have [_ _ x y ] := assemble_progP ok_p'.
-  have [fd' [??]] := get_map_cfprog x y.
+  have [fd' ??] := get_map_cfprog x y.
   by exists fd'.
 Qed.
 

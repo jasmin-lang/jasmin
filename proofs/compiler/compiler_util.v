@@ -181,13 +181,13 @@ Definition map_cfprog_name {T1 T2} (F: funname -> T1 -> ciexec T2) :=
   mapM (fun (f:funname * T1) => Let x := add_finfo f.1 f.1 (F f.1 f.2) in cfok (f.1, x)).
 
 Definition map_cfprog {T1 T2} (F: T1 -> ciexec T2) :=
-  mapM (fun (f:funname * T1) => Let x := add_finfo f.1 f.1 (F f.2) in cfok (f.1, x)).
+  map_cfprog_name (fun _ t1 => F t1).
 
 (* Note: this lemma cannot be extended to mapM because it needs the names to be conserved *)
-Lemma map_cfprog_get {T1 T2} F p p' fn (f: T1) (f': T2):
-  map_cfprog F p = ok p' ->
+Lemma map_cfprog_name_get {T1 T2} F p p' fn (f: T1) (f': T2):
+  map_cfprog_name F p = ok p' ->
   get_fundef p fn = Some f ->
-  F f = ok f' ->
+  F fn f = ok f' ->
   get_fundef p' fn = Some f'.
 Proof.
   elim: p p'=> // -[fn1 fd1] pl IH p'.
@@ -206,35 +206,46 @@ Proof.
     exact: IH.
 Qed.
 
-Lemma get_map_cfprog {T1 T2} (F: T1 -> ciexec T2) p p' fn f:
-  map_cfprog F p = ok p' ->
+Lemma get_map_cfprog_name {T1 T2} (F: funname -> T1 -> ciexec T2) p p' fn f:
+  map_cfprog_name F p = ok p' ->
   get_fundef p fn = Some f ->
-  exists f', F f = ok f' /\ get_fundef p' fn = Some f'.
+  exists2 f', F fn f = ok f' & get_fundef p' fn = Some f'.
 Proof.
   move=> Hmap H.
   have Hp := (get_fundef_in' H).
   move: (mapM_In Hmap Hp)=> [[fn' fd'] /= [Hfd Hok]].
   apply: rbindP Hok=> f' Hf' [] Hfn' Hfd'.
   subst fn'; subst fd'.
-  have Hf: F f = ok f'.
+  have Hf: F fn f = ok f'.
     rewrite /add_finfo in Hf'.
-    by case: (F f) Hf'=> // a []<-.
-  exists f'; split=> //.
-  exact: (map_cfprog_get Hmap H).
+    by case: (F fn f) Hf'=> // a []<-.
+  exists f' => //; exact: (map_cfprog_name_get Hmap H).
+Qed.
+
+Lemma get_map_cfprog {T1 T2} (F: T1 -> ciexec T2) p p' fn f:
+  map_cfprog F p = ok p' ->
+  get_fundef p fn = Some f ->
+  exists2 f', F f = ok f' & get_fundef p' fn = Some f'.
+Proof. apply get_map_cfprog_name. Qed.
+
+Lemma get_map_cfprog_name' {T1 T2} (F: funname -> T1 -> ciexec T2) p p' fn f':
+  map_cfprog_name F p = ok p' ->
+  get_fundef p' fn = Some f' ->
+  exists2 f, F fn f = ok f' & get_fundef p fn = Some f.
+Proof.
+  elim: p p' f'.
+  + by move => _ f' [<-].
+  case => n d p ih p'' f' /=; t_xrbindP => - [x y] d'; apply: add_finfoP => ok_d' [??]; subst x y => p' rec <- {p''} /=.
+  case: ifP.
+  + by move => /eqP -> [<-]; eauto.
+  by move => _ /(ih _ _ rec).
 Qed.
 
 Lemma get_map_cfprog' {T1 T2} (F: T1 -> ciexec T2) p p' fn f':
   map_cfprog F p = ok p' ->
   get_fundef p' fn = Some f' ->
   exists2 f, F f = ok f' & get_fundef p fn = Some f.
-Proof.
-  elim: p p' f'.
-  + by move => _ f' [<-].
-  case => n d p ih p'' f' /=; t_xrbindP => - [x y] d'; apply: add_finfoP => ok_d' [??]; subst x y => p' rec <- {p''} /=.
-  case: ifP.
-  + by move => _ [<-]; eauto.
-  by move => _ /(ih _ _ rec).
-Qed.
+Proof. apply get_map_cfprog_name'. Qed.
 
 Module Type LoopCounter.
   Parameter nb  : nat.

@@ -845,7 +845,7 @@ Section PROOF.
     move=> m1 m2 fn sf vargs vargs' s0 s1 s2 vres vres' Hsf Hargs Hi Hw Hbody Hres Htyo Hfi.
     move: linear_ok; rewrite /linear_prog; t_xrbindP => _ /assertP _ funcs H0' hp'. 
     rewrite -hp'. 
-    have [f' [Hf'1 Hf'2]] := (get_map_cfprog H0' Hsf).
+    have [f' Hf'1 Hf'2] := (get_map_cfprog H0' Hsf).
     have Hf'3 := Hf'1.
     apply: rbindP Hf'3=> [l Hc] [] Hf'3.
     rewrite /add_finfo in Hc.
