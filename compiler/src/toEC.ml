@@ -1146,11 +1146,21 @@ let pp_warray_decl i =
   Format.fprintf fmt "clone export WArray as WArray%i  with op size <- %i.@]@." i i;
   close_out out
 
+let add_glob_arrsz env (x,d) = 
+  match d with 
+  | Global.Gword _ -> env
+  | Global.Garr(p,t) ->
+    let ws, t = Conv.to_array x.v_ty p t in
+    let n = Array.length t in
+    { env with arrsz = Sint.add n env.arrsz;
+               warrsz = Sint.add (arr_size ws n) env.warrsz; }
+
 let pp_prog fmt model globs funcs = 
 
   let env = empty_env model funcs in
+  
   let env = 
-    List.fold_left (fun env (x, _) -> add_glob env x)
+    List.fold_left (fun env (x, d) -> let env = add_glob_arrsz env (x,d) in add_glob env x)
       env globs in
   let env = List.fold_left add_arrsz env funcs in
 

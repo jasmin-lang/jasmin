@@ -857,6 +857,10 @@ op (`<<<`) (x : t) (i : int) =
   init (fun j => x.[j - i])
 axiomatized by wlslE.
 
+op sar (x:t) (i:int) =
+  init (fun j => x.[min (size- 1) (j + i)])
+axiomatized by sarE.
+
 lemma shlwE w k i : (w `<<<` k).[i] = (0 <= i < size && w.[i - k]).
 proof. by rewrite wlslE initE. qed.
 
@@ -1654,12 +1658,11 @@ theory W8.
     by rewrite !(modz_small _ 256) 1,2:/# !modz_small 1,2:/# rol_xor 1:/#.
   qed.
 
+  op (`|>>`) (w1 w2 : W8.t) = sar w1 (to_uint w2 %% size).
+
   theory SHIFT.
 
   op shift_mask i = to_uint i %% 32.
-
-  op sar (x:t) (i:int) =
-    init (fun j => x.[min (size- 1) (j + i)]).
   
   op ROR_XX (v: t) (i: W8.t) =
     let i = shift_mask i in
@@ -1777,6 +1780,7 @@ abstract theory WT.
   op (+) : t -> t -> t.
 
   op (`>>`) : t -> W8.t -> t.
+  op (`|>>`) : t -> W8.t -> t.
   op (`<<`) : t -> W8.t -> t.
   op rol : t -> int -> t.
   op of_int : int -> t.
@@ -2161,6 +2165,7 @@ abstract theory BitWordSH.
  (* FIXME *)
   op (`>>`) (w1 : t) (w2 : W8.t) = w1 `>>>` (to_uint w2 %% size).
   op (`<<`) (w1 : t) (w2 : W8.t) = w1 `<<<` (to_uint w2 %% size).
+  op (`|>>`) (w1 : t) (w2 : W8.t) = sar w1 (to_uint w2 %% size).
 
   lemma shr_div w1 w2 : to_uint (w1 `>>` w2) = to_uint w1 %/ 2^ (to_uint w2 %% size).
   proof.
@@ -2207,9 +2212,6 @@ abstract theory BitWordSH.
   qed.
 
   theory SHIFT.
-
-  op sar (x:t) (i:int) =
-    init (fun j => x.[min (size- 1) (j + i)]).
   
   op ROR_XX (v: t) (i: W8.t) =
     let i = shift_mask i in
