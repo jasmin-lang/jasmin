@@ -86,7 +86,7 @@ Definition check_nop_opn (xs:lvals) (o: sopn) (es:pexprs) :=
   | _, _, _ => false
   end.
 
-Fixpoint keep_only {T:Type} (l:seq T) (tokeep : seq bool) := 
+Fixpoint keep_only {T:Type} (l:seq T) (tokeep : seq bool) {struct tokeep}:= 
   match tokeep, l with
   | [::], _ => l 
   | b::tokeep, [::] => [::]
@@ -107,8 +107,7 @@ Definition fn_keep_only {T:Type} (fn:funname) (l:seq T) :=
 
 Fixpoint check_keep_only ii (xs:lvals) (tokeep: seq bool) s := 
   match tokeep, xs with
-  | [::], _ => ok (read_rvs_rec (Sv.diff s (vrvs xs)) xs, xs)
-  | b::tokeep, [::] => ok (s, [::])
+  | [::], [::] => ok (s, [::])
   | b::tokeep, x::xs =>
     Let sxs := check_keep_only ii xs tokeep s in
     let '(s,xs) := sxs in
@@ -118,6 +117,7 @@ Fixpoint check_keep_only ii (xs:lvals) (tokeep: seq bool) s :=
       let w := vrv x in
       if disjoint s w && negb (write_mem x) then ok (s, xs)
       else cierror ii (Cerr_linear "dead code: check_keep_only")
+  | _, _ => cierror ii (Cerr_linear "dead code: check_keep_only invalid size")
   end.
 
 Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
@@ -165,14 +165,13 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
     ciok (s, [:: MkI ii (Cwhile a c e c') ])
 
   | Ccall ini xs fn es =>
-    match onfun fn with
-    | None =>
-      ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: MkI ii (Ccall ini xs fn es)])
-    | Some bs =>
-      Let sxs := check_keep_only ii xs bs s in
-      let '(si,xs) := sxs in
-      ciok (read_es_rec si es, [:: MkI ii (Ccall ini xs fn es)])
-    end
+    Let sxs := 
+      match onfun fn with
+      | None => ciok (read_rvs_rec (Sv.diff s (vrvs xs)) xs, xs) 
+      | Some bs => check_keep_only ii xs bs s 
+      end in
+    let '(si,xs) := sxs in
+    ciok (read_es_rec si es, [:: MkI ii (Ccall ini xs fn es)])
   end.
 
 Section Section.
