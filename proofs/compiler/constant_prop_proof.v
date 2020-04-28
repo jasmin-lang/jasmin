@@ -550,7 +550,7 @@ apply: eeq_weaken; rewrite /sneg_w; case heq: is_wconst => [ w | ] // s v /=.
 by rewrite /= -bindA (is_wconstP gd s heq) /= => -[<-]; rewrite /sem_sop1 /= wrepr_unsigned.
 Qed.*)
 
-Lemma s_op1 s o e v v' l l': 
+Lemma s_op1P s o e v v' l l': 
 sem_pexpr_e gd s (Papp1 o e) = ok (v, l) ->
 sem_pexpr_e gd s (s_op1 o e).1 = ok (v', l') ->
 v = v'.
@@ -564,13 +564,17 @@ case: He' => <- He2. rewrite Hi /= => // h7 [] <- <-.
 rewrite Hh. by move=> <- _.
 Qed.
 
-(*Lemma s_op1l s o e v l:
+Lemma s_op1Pl s o e v l:
 let e' := (s_op1 o e).1 in
 let t := (s_op1 o e).2 in
 sem_pexpr_e gd s (Papp1 o e) = ok (v, l) ->
 exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
 trans_sem t (v, l) = (v', l').
-Proof.*)
+Proof.
+case: o => [w|w|w w0|w w0||w|[|o]];
+eauto using sint_of_wordPl, ssign_extendPl, szero_extendPl,
+snot_boolPl, snot_wPl, sneg_intPl, sneg_wPl.
+Qed.
 
 (*Lemma s_op1P o e : Papp1 o e =E s_op1 o e.
 Proof.
@@ -2965,7 +2969,9 @@ elim: e => //=; rewrite /trans_sem.
   rewrite Hg /=. rewrite Hp /=. rewrite He'' /=. rewrite -Hl1 /=. rewrite Hp' /=.
   rewrite Hr /=. split. auto. admit.
 + move=> op e He. move=> v l. t_xrbindP. move=> [yv yl] He' h0 Hop.
-  
+  move=> <- <-. move: (He yv yl He'). move=> [] xv [] xl [] He'' Hl /=.
+  case: Hl => Hl1 Hl2. exists h0. rewrite Hl2 /=.
+  exists xl. split. rewrite /=. apply /s_op1P.
   
 
 
