@@ -55,8 +55,16 @@ Canonical  arr_access_eqType      := Eval hnf in EqType arr_access arr_access_eq
 
 Local Open Scope Z_scope.
 
-Definition arr_size (ws:wsize) (s:positive)  := 
-   (wsize_size ws * s).
+Definition arr_size (ws:wsize) (len:positive)  := 
+   (wsize_size ws * len).
+
+Lemma arr_sizeE ws len : arr_size ws len = (wsize_size ws * len).
+Proof. done. Qed.
+
+Lemma ge0_arr_size ws len : 0 <= arr_size ws len.
+Proof. rewrite arr_sizeE; have := wsize_size_pos ws; nia. Qed.
+
+Opaque arr_size.
 
 Definition mk_scale (aa:arr_access) ws := 
   if aa is AAscale then wsize_size ws else 1.
@@ -176,27 +184,37 @@ Module WArray.
   Definition set {len ws} (a:array len) aa p (v:word ws) : exec (array len) :=   
     CoreMem.write a (p * mk_scale aa ws)%Z v.
 
+  Definition get_sub_data (aa:arr_access) ws len (a:Mz.t u8) p := 
+     let size := arr_size ws len in 
+     let start := (p * mk_scale aa ws)%Z in
+     foldr (fun i data => 
+       match Mz.get a (start + i) with
+       | None => Mz.remove data i
+       | Some w => Mz.set data i w
+       end) (Mz.empty _) (ziota 0 size).
+
+
   Definition get_sub lena (aa:arr_access) ws len (a:array lena) p  : exec (array (Z.to_pos (arr_size ws len))) := 
      let size := arr_size ws len in 
      let start := (p * mk_scale aa ws)%Z in
-     if (0 <= start)%CMP && (start + size <= lena)%CMP then
-       ok (Build_array (Z.to_pos size) 
-             (Mz.fold (fun i w t => if (start <= i)%CMP && (i < start + size)%CMP then Mz.set t (i - start) w else t)
-             a.(arr_data) (Mz.empty _)))
+     if (0 <=? start) && (start + size <=? lena) then
+       ok (Build_array (Z.to_pos size) (get_sub_data aa ws len (arr_data a) p))
      else Error ErrOob.
+
+  Definition set_sub_data (aa:arr_access) ws len (a:Mz.t u8) p (b:Mz.t u8) := 
+    let size := arr_size ws len in 
+    let start := (p * mk_scale aa ws)%Z in
+    foldr (fun i data => 
+      match Mz.get b i with
+      | None => Mz.remove data (start + i)
+      | Some w => Mz.set data (start + i) w
+      end) a (ziota 0 size).
 
   Definition set_sub lena (aa:arr_access) ws len (a:array lena) p (b:array (Z.to_pos (arr_size ws len))) : exec (array lena) := 
     let size := arr_size ws len in 
     let start := (p * mk_scale aa ws)%Z in
-    if (0 <= start)%CMP && (start + size <= lena)%CMP then
-      let data := 
-        foldl (fun data i => 
-          let i := Z.of_nat i in 
-          match Mz.get b.(arr_data) i with
-          | None => Mz.remove data i
-          | Some w => Mz.set data i w
-          end) a.(arr_data) (iota 0 (Z.to_nat size)) in
-      ok (Build_array lena data)
+    if (0 <=? start) && (start + size <=? lena) then
+      ok (Build_array lena (set_sub_data aa ws len (arr_data a) p (arr_data b)))
     else Error ErrOob.
 
   Definition cast len len' (a:array len) : result error (array len') :=
@@ -444,21 +462,98 @@ Module WArray.
     case: andP => //; rewrite !zify; lia.
   Qed.
 
+  Lemma set_sub_data_zget8 aa ws a len p t k: 
+    Mz.get (@set_sub_data aa ws len a p t) k = 
+      let i := (k - p * mk_scale aa ws)%Z in
+      if (0 <=? i) && (i <? arr_size ws len) then Mz.get t i 
+      else Mz.get a k.
+  Proof.
+    rewrite /set_sub_data. 
+    elim /natlike_ind: (arr_size ws len) a; last by apply ge0_arr_size.
+    + move=> data; rewrite ziota0 /=; case: andP => // -[]; rewrite !zify; lia.
+    move=> sz hsz ih data; rewrite ziotaS_cat // foldr_cat Z.add_0_l /= ih.
+    case: ifPn; rewrite !zify => h3; case: ifPn; rewrite !zify => h4 //.
+    + nia. 
+    + case heq: (Mz.get t) => [w|].
+      + rewrite Mz.setP; case: eqP => [<- | ?]; last nia.
+        rewrite -heq; f_equal; ring. 
+      rewrite Mz.removeP; case eqP => [<- | ?]; last nia.
+      rewrite -heq; f_equal; ring.
+    case heq: (Mz.get t) => [w|].
+    + rewrite Mz.setP; case: eqP => [? | //]; lia.
+    rewrite Mz.removeP; case eqP => [? | //]; lia.
+  Qed.
+
+  Lemma set_sub_zget8 aa ws lena a len p t a' k: 
+    @set_sub lena aa ws len a p t = ok a' -> 
+    Mz.get (WArray.arr_data a') k = 
+      let i := (k - p * mk_scale aa ws)%Z in
+      if (0 <=? i) && (i <? arr_size ws len) then Mz.get (arr_data t) i 
+      else Mz.get (arr_data a) k.
+  Proof.
+    rewrite /set_sub; case: andP => // -[h1 h2] [<-] /=.
+    by rewrite set_sub_data_zget8.
+  Qed.
+
+  Lemma get_sub_data_zget8 aa ws a len p k: 
+    Mz.get (get_sub_data aa ws len a p) k = 
+      let start := (p * mk_scale aa ws)%Z in
+      if (0 <=? k) && (k <? arr_size ws len) then Mz.get a (start + k) 
+      else None.
+  Proof.
+    rewrite /get_sub_data -(Mz.get0 u8 k).
+    elim /natlike_ind: (arr_size ws len) (Mz.empty u8); last by apply ge0_arr_size.
+    + move => b; rewrite ziota0 /=; case: andP => //; rewrite !zify; lia.
+    move=> sz hsz ih b; rewrite ziotaS_cat // foldr_cat Z.add_0_l /= ih.
+    case: ifPn; rewrite !zify => h3; case: ifPn; rewrite !zify => h4 //.
+    + nia. 
+    + case heq: (Mz.get a) => [w|].
+      + by rewrite Mz.setP; case: eqP => [<- | ]; [rewrite heq | nia].
+      by rewrite Mz.removeP; case: eqP => [<- | ]; [rewrite heq | nia].
+    case heq: (Mz.get a) => [w|].
+    + by rewrite Mz.setP; case: eqP => //; nia.
+    by rewrite Mz.removeP; case: eqP => //; nia.
+  Qed.
+
+  Lemma get_sub_zget8 aa ws lena a len p a' k: 
+    @get_sub lena aa ws len a p = ok a' -> 
+    Mz.get (WArray.arr_data a') k = 
+      let start := (p * mk_scale aa ws)%Z in
+      if (0 <=? k) && (k <? arr_size ws len) then Mz.get (WArray.arr_data a) (start + k) 
+      else None.
+  Proof.
+    rewrite /get_sub; case: andP => // -[h1 h2] [<-] /=.
+    by rewrite get_sub_data_zget8.
+  Qed.
+
   Lemma uincl_get_sub {len1 len2} (a1 : array len1) (a2 : array len2) 
       aa ws len i t1 :
     uincl a1 a2 ->
     get_sub aa ws len a1 i = ok t1 ->
     exists2 t2, get_sub aa ws len a2 i = ok t2 & uincl t1 t2.
   Proof. 
-  Admitted.
+    move=> [hlen hget]; rewrite /get_sub; case: ifP => //.
+    rewrite !zify => hlen1 [<-] {t1}.
+    case:ifPn; rewrite !zify => hlen2; last by lia.
+    eexists; first reflexivity; split; first lia.
+    move=> k w /= hk.
+    rewrite !get_sub_data_zget8 /=; case:ifP => //; rewrite !zify => ?.
+    apply hget; lia.
+  Qed.
 
   Lemma uincl_set_sub {ws len1 len2 len} (a1 a1': array len1) (a2: array len2) aa i 
         (t1 t2:array (Z.to_pos (arr_size ws len))) :
     uincl a1 a2 -> uincl t1 t2 ->
     set_sub aa a1 i t1 = ok a1' ->
-    exists a2', set_sub aa a2 i t2 = ok a2' /\ uincl a1' a2'.
+    exists2 a2', set_sub aa a2 i t2 = ok a2' & uincl a1' a2'.
   Proof.
-  Admitted.
+    move=> [hlen1 hget1] [hlen2 hget2].    
+    rewrite /set_sub; case: ifP => //; rewrite !zify => h [<-].
+    case: ifPn => //; rewrite !zify => h'; last by lia.
+    eexists; first reflexivity; split; first lia.
+    by move=> k w /= hk; rewrite !set_sub_data_zget8 /=; case:ifPn; rewrite !zify => ?; auto.
+  Qed.
+
 
 End WArray.
 

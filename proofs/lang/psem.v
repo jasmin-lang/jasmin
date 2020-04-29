@@ -2036,7 +2036,7 @@ Proof.
   t_xrbindP => i vp /(sem_pexpr_uincl Hvm1) [vp' -> Hvp] /=.
   move=>  /(value_uincl_int Hvp) [] _ -> /= t.
   move=> /(value_uincl_arr Hv) [t' ->] htt' t1 /(WArray.uincl_set_sub hu htt').
-  move=> [t2 [/= -> hu2]] vm'.
+  move=> [t2 /= -> hu2] vm'.
   have ht : value_uincl (Varr t1) (Varr t2) by apply hu2.
   by move=> /(set_var_uincl Hvm1 ht) /= [vm2' -> ?] <- /=;exists vm2'.
 Qed.
