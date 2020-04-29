@@ -49,6 +49,7 @@ Inductive leak_tr :=
 | LT_sub1 : leak_tr
 | LT_sub2 : leak_tr
 | LT_sub : leak_tr -> leak_tr -> leak_tr
+| LT_seq : seq leak_tr -> leak_tr
 | LT_compose: leak_tr -> leak_tr -> leak_tr.
 
 Inductive leak_e_tree :=
@@ -61,7 +62,7 @@ Inductive leak_e_tree :=
 
 Fixpoint leak_F (lt : leak_tr) (l : leak_e_tree) : leak_e_tree := 
   match lt, l with
-  (*| _, LSub xs => LSub (map (leak_F lt) xs)*)
+  | LT_seq lts, LSub xs => LSub (map2 leak_F lts xs)
   | LT_id, _ => l
   | LT_remove, _ => LEmpty
   | LT_sub1, LDual l1 l2 => l1
@@ -478,9 +479,9 @@ Fixpoint const_prop_e (m:cpm) e : (pexpr * leak_tr) :=
   | Pvar  x       => if Mvar.get m x is Some n then (const n, LT_remove) else (e, LT_id)
   | Pglobal _     => (e, LT_id)
   | Pget  sz x e0  => let lte := (const_prop_e m e0) 
-                      in (Pget sz x lte.1, LT_compose LT_id lte.2)
+                      in (Pget sz x lte.1, LT_seq [ :: lte.2; LT_id])
   | Pload sz x e0  => let lte := (const_prop_e m e0) in 
-                      (Pload sz x lte.1, LT_compose LT_id lte.2)
+                      (Pload sz x lte.1, LT_seq [:: lte.2; LT_id])
   | Papp1 o e0     => let lte := (const_prop_e m e0) in 
                       let ltop := (s_op1 o lte.1) in 
                       (ltop.1, LT_compose lte.2 ltop.2)
