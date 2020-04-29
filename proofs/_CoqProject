@@ -12,6 +12,7 @@ ssrmisc/oseq.v
 compiler/allocation.v
 compiler/array_expansion.v
 compiler/array_init.v
+compiler/array_init_proof.v
 compiler/asmgen.v
 compiler/byteset.v
 compiler/compiler_util.v
