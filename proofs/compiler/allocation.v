@@ -1563,7 +1563,7 @@ Module CBAreg.
     apply: rbindP => w /(value_uincl_arr Hv) [w'] -> huw /=.
     apply: rbindP => t1' Ht1'.
     apply: rbindP => vm2 Hvm2 [<-] /=.    
-    have [t2' [-> Ht2' /=]]:= WArray.uincl_set_sub Ht huw Ht1'.
+    have [t2' -> Ht2' /=]:= WArray.uincl_set_sub Ht huw Ht1'.
     have Hu: value_uincl (Varr t1') (Varr t2') := Ht2'.
     have [vm2' [-> ?] /=]:= check_varcP Hr1' Hcva Hvm2 Hu.
     by exists vm2'.

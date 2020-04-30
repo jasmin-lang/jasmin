@@ -918,7 +918,7 @@ Module CBEA.
     apply: rbindP => z;apply: rbindP => ve. 
     case: s1 Hea=> sm1 svm1 Hea /(check_ebP Hea Hce) [v3 ->] /value_uincl_int H /H [_ ->].
     apply: rbindP => w /(value_uincl_arr Hvu) [w' -> huw] /=.
-    apply: rbindP => t'' /(WArray.uincl_set_sub Ht huw) [t2 [-> ht'']].
+    apply: rbindP => t'' /(WArray.uincl_set_sub Ht huw) [t2 -> ht''].
     have /(check_rvarP Hca Hea) : value_uincl (Varr t'') (Varr t2) by done.
     by rewrite /write_var /=;case: set_var => //= vm' H1 /H1.
   Qed.
