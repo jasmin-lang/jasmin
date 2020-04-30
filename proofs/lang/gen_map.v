@@ -300,11 +300,11 @@ Module Mmake (K':CmpType) <: MAP.
       | Map.Raw.Leaf => true
       | Map.Raw.Node t11 k x1 t12 _ =>
         let '(Map.Raw.mktriple t21 ox2 t22) := Map.Raw.split k t2 in
-        match ox2 with
-        | None => f k x1
-        | Some x2 => 
-          f2 k x1 x2 && incl_t t11 t21 && incl_t t12 t22
-        end
+        [&& match ox2 with
+            | None => f k x1
+            | Some x2 => f2 k x1 x2 
+            end,
+            incl_t t11 t21 & incl_t t12 t22]
       end.
 
     Definition all (m: t T1) := all_t (Map.this m).
@@ -547,7 +547,7 @@ Module Mmake (K':CmpType) <: MAP.
     by rewrite (cmp_eq k'k) => -[<-] ->.
   Qed.
 
-  Lemma incl_defP : forall {T1 T2} (f:K.t -> T1 -> bool) (f2:K.t -> T1 -> T2 -> bool) (m1: t T1) (m2: t T2),
+  Lemma incl_defP {T1 T2} (f:K.t -> T1 -> bool) (f2:K.t -> T1 -> T2 -> bool) (m1: t T1) (m2: t T2) :
      incl_def f f2 m1 m2 ->
      forall k, 
        match get m1 k, get m2 k with
@@ -556,9 +556,18 @@ Module Mmake (K':CmpType) <: MAP.
        | Some t1, Some t2 => f2 k t1 t2
        end.
   Proof.
-  Admitted.
+    move=> h k; move: h.
+    rewrite /incl_def/get/Map.find; case: m2 => /=; case: m1 => /=.
+    elim => [// | t1l ihl k1 e1 t1r ihr h1] /= hbst; sinversion hbst.
+    move=> t2 hbst2.
+    rewrite (Map.Raw.Proofs.split_find k1 k hbst2).
+    have := Map.Raw.Proofs.split_bst k1 hbst2.
+    case: Map.Raw.split => t2l oe2 t2r /= [] hbst2l hbst2r /and3P[] ho hi1 hi2.
+    case: Ordered.compare => hc; [by apply ihl | | by apply ihr].
+    by rewrite (cmp_eq hc).
+  Qed.
 
-  Lemma inclP : forall {T1 T2} (f:K.t -> T1 -> T2 -> bool) (m1: t T1) (m2: t T2),
+  Lemma inclP {T1 T2} (f:K.t -> T1 -> T2 -> bool) (m1: t T1) (m2: t T2) :
      incl f m1 m2 ->
      forall k, 
        match get m1 k, get m2 k with
@@ -566,8 +575,7 @@ Module Mmake (K':CmpType) <: MAP.
        | Some _, None     => false
        | Some t1, Some t2 => f k t1 t2
        end.
-  Proof.
-  Admitted.
+  Proof. by apply incl_defP. Qed.
 
   Lemma in_codomP : forall {T:eqType} (m:t T) v,
     in_codom v m <-> exists k, m.[k] = Some v.
