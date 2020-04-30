@@ -510,8 +510,7 @@ Module Mmake (K':CmpType) <: MAP.
       case: Ordered.compare => k'k; cycle 2.
       + exact: hR.
       + exact: hL.
-      case => <-.
-      by move/(@cmp_eq _ _ _ _ _): k'k => ->.
+      by case => <-; rewrite (cmp_eq k'k).
     move => h.
     apply/andP; split; first (apply/andP; split).
     - have := h k v.
@@ -525,10 +524,28 @@ Module Mmake (K':CmpType) <: MAP.
     by rewrite k'v' => - [] // ? ->.
   Qed.
 
-  Lemma hasP : forall {T} (f: K.t -> T -> bool) (m: t T),
+  Lemma hasP {T} (f: K.t -> T -> bool) (m: t T) :
     has f m <-> (exists k t, get m k = Some t /\ f k t).
   Proof.
-  Admitted.
+    rewrite /has/get/Map.find; case: m => /=.
+    elim => /=.
+    + by move=> _; split => // -[] ? [] ? [].
+    move=> L hL k v R hR s ok; inversion ok; clear ok; subst; split.
+    + move=> /orP [/orP [] | ].
+      + move=> ?; exists k, v.
+        by have [? ->] := Map.Raw.Proofs.MX.elim_compare_eq (Map.E.eq_refl k).
+      + move=> /hL [] // k' [t] [] h1 h2; exists k', t.
+        have := Map.Raw.Proofs.MX.elim_compare_lt (H6 k' (Map.Raw.Proofs.find_in _)).
+        by rewrite h1 => -[] // ? ->.
+      move=> /hR [] // k' [t] [] h1 h2; exists k', t.
+      have := Map.Raw.Proofs.MX.elim_compare_gt (H7 k' (Map.Raw.Proofs.find_in _)).
+      by rewrite h1 => -[] // ? ->.
+    move => [k'] [t] [].
+    case: Ordered.compare => k'k; cycle 2. 
+    + by move=> hs hf; apply/orP; right; rewrite hR; eauto.
+    + by move=> hs hf; apply/orP; left; apply/orP; right; rewrite hL; eauto.
+    by rewrite (cmp_eq k'k) => -[<-] ->.
+  Qed.
 
   Lemma incl_defP : forall {T1 T2} (f:K.t -> T1 -> bool) (f2:K.t -> T1 -> T2 -> bool) (m1: t T1) (m2: t T2),
      incl_def f f2 m1 m2 ->
