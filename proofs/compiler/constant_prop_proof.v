@@ -638,7 +638,7 @@ case: is_boolP => [b2 /=| {e2} e2].
 + rewrite /=. t_xrbindP. move=> [yv1 yl1] He1 [yv2 yl2] He2.
   rewrite /sem_sop2 /=. t_xrbindP. move=> h y Hb1 h1 Hb2 <- <- <-.
   rewrite He1 He2 /=. rewrite Hb1 Hb2 /=. exists (y && h1).
-  exists (LDual yl1 yl2). split. auto. auto.
+  exists (LSub [:: yl1; yl2]). split. auto. auto.
 Qed.
 
 (*Lemma sandP e1 e2 : Papp2 Oand e1 e2 =E sand e1 e2.
@@ -703,7 +703,7 @@ case: is_boolP => [b2 /=| {e2} e2].
 + rewrite /=. t_xrbindP. move=> [yv1 yl1] He1 [yv2 yl2] He2.
   rewrite /sem_sop2 /=. t_xrbindP. move=> h y Hb1 h1 Hb2 <- <- <-.
   rewrite He1 He2 /=. rewrite Hb1 Hb2 /=. exists (y || h1).
-  exists (LDual yl1 yl2). split. auto. auto.
+  exists (LSub [:: yl1; yl2]). split. auto. auto.
 Qed.
 
 (*Lemma sorP e1 e2 : Papp2 Oor e1 e2 =E sor e1 e2.
@@ -766,19 +766,19 @@ case: (is_constP e1) => [n1| {e1} e1];
   t_xrbindP. move=> h z2 /of_val_int /= H <- <- <- /=.
   subst v2. case: eqP => [-> // | /= _]. exists z2.
   exists l2. split. auto. by rewrite /=.
-+ exists (n1 + z2)%Z. exists (LDual LEmpty l2).
++ exists (n1 + z2)%Z. exists (LSub [::LEmpty; l2]).
   rewrite /sem_sop2 /=. rewrite Hv2 /=. by split.
 + t_xrbindP. move=> [yv yl] He. rewrite /sem_sop2 /=.
   t_xrbindP. move=> h z /of_val_int /= H <- <- <-. rewrite H in He.
   case: eqP => [-> // | /= _]. exists z. exists yl.
   split. auto. rewrite /=. by rewrite Z.add_0_r.
-+ exists (z + n2)%Z. exists (LDual yl LEmpty). 
++ exists (z + n2)%Z. exists (LSub [:: yl; LEmpty]).
   rewrite /sem_sop2 /=. rewrite He /=. by split.
 + t_xrbindP. move=> [yv yl] He1. rewrite /sem_sop2 /=.
   t_xrbindP. move=> [yv' yl'] He2.
   move=> h1 y /of_val_int Hi h3 /of_val_int /= Hi' /=.
   rewrite Hi in He1. rewrite Hi' in He2. move=> <- <- <-.
-  rewrite He1 He2 /=. exists (y + h3)%Z. exists (LDual yl yl').
+  rewrite He1 He2 /=. exists (y + h3)%Z. exists (LSub [:: yl; yl']).
   by split.
 Qed.
 
@@ -890,7 +890,7 @@ case h2: (is_wconst sz e2) => [ n2 | ] // /=.
     by rewrite andTb.
   - t_xrbindP. move=> [yv yl] He1 [yv' yl'] He2.
     rewrite /sem_sop2 /=. t_xrbindP. move=> h y Hw h3 Hw' <- <- <-.
-    rewrite He1 /=. exists (Vword (y + h3)). exists (LDual yl yl').
+    rewrite He1 /=. exists (Vword (y + h3)). exists (LSub [::yl; yl']).
     rewrite He2 /=. rewrite /sem_sop2 /=.
     rewrite Hw /=. rewrite Hw' /=. by split.
 + case: eqP => // hz /=. 
@@ -906,11 +906,11 @@ case h2: (is_wconst sz e2) => [ n2 | ] // /=.
     rewrite /sem_sop2 /=. t_xrbindP. move=> h y Hw h3 Hw' <- <- <-.
     rewrite He1 /=. rewrite He2 /=.
     rewrite Hw /=. rewrite Hw' /=. exists (Vword (y+h3)).
-    exists (LDual yl yl'). by split.
+    exists (LSub [::yl; yl']). by split.
 + t_xrbindP. move=> [yv yl] He1 [yv' yl'] He2. rewrite /sem_sop2 /=. t_xrbindP.
   move=> h y Hw h3 Hw' <- <- <-. rewrite He1 /=.
   rewrite He2 /=. rewrite Hw Hw' /=. exists (Vword (y + h3)).
-  exists (LDual yl yl'). by split.
+  exists (LSub [::yl; yl']). by split.
 Qed.
 
 
@@ -1002,20 +1002,20 @@ case: (is_constP e2) => [n2 | {e2} e2] // /=.
   by case: H1 => -> _.
 + t_xrbindP. move=> [yv yl] He. rewrite /sem_sop2 /=.
   t_xrbindP. move=> h y /of_val_int Hy <- <- <-. rewrite Hy in He.
-  rewrite He /=. exists (n1 - y)%Z. exists (LDual LEmpty yl).
+  rewrite He /=. exists (n1 - y)%Z. exists (LSub [:: LEmpty; yl]).
   by split.
 + t_xrbindP. move=> [yv yl] He. rewrite /sem_sop2 /=.
   t_xrbindP. move=> h y /of_val_int /= Hy <- <- <-.
   case: eqP.
   - move=> Hn2. rewrite He. exists yv. exists yl.
-    split. auto. rewrite /=. rewrite Hn2. rewrite Hy. by rewrite Z.sub_0_r.  
+    split. auto. rewrite /=. rewrite Hn2. rewrite Hy. by rewrite Z.sub_0_r.
   move=> Hn2 /=. t_xrbindP. rewrite He /=. rewrite /sem_sop2 /=.
-  rewrite Hy /=. exists (y - n2)%Z. exists (LDual yl LEmpty). by split.
+  rewrite Hy /=. exists (y - n2)%Z. exists (LSub [:: yl; LEmpty]). by split.
 + t_xrbindP. move=> [yv yl] He [yv' yl'] He'.
   rewrite /sem_sop2 /=. t_xrbindP.
   move=> h y /of_val_int Hy h1 /of_val_int Hy' <- <- <-.
   rewrite He He' /=. rewrite Hy Hy' /=.
-  exists (y - h1)%Z. exists (LDual yl yl'). by split.
+  exists (y - h1)%Z. exists (LSub [::yl; yl']). by split.
 Qed.
 
 (*Lemma ssub_intP e1 e2 : Papp2 (Osub Op_int) e1 e2 =E ssub_int e1 e2.
@@ -1096,7 +1096,7 @@ case h2: (is_wconst sz e2) => [ n2 | ] // /=.
 + t_xrbindP. move=> [yv yl] He [yv' yl'] He'. rewrite /sem_sop2 /=.
   t_xrbindP. move => h y Hyv h3 Hyv' <- <- <-. rewrite He /=.
   rewrite He' /=. rewrite Hyv Hyv' /=. exists (Vword (y - h3)).
-  exists (LDual yl yl'). by split.
+  exists (LSub [:: yl; yl']). by split.
 + case: eqP => // hz /=. 
   - t_xrbindP. move=> [yv yl] He [yv' yl'] He'.
     rewrite /sem_sop2 /=. t_xrbindP. have:= is_wconstP gd s h2.
@@ -1111,10 +1111,10 @@ case h2: (is_wconst sz e2) => [ n2 | ] // /=.
     rewrite He1 /=. rewrite He2 /=.
     rewrite /sem_sop2 /=. t_xrbindP.
     rewrite Hw /=. rewrite Hw' /=. exists (Vword (y - h3)).
-    exists (LDual yl yl'). by split.
+    exists (LSub [::yl; yl']). by split.
 + t_xrbindP. move=> [yv yl] He1 [yv' yl'] He2. rewrite /sem_sop2 /=. t_xrbindP.
   move=> h y Hw h3 Hw' <- <- <-. rewrite He1 /=.
-  rewrite He2 /=. rewrite Hw Hw' /=. exists (Vword (y - h3)). exists (LDual yl yl').
+  rewrite He2 /=. rewrite Hw Hw' /=. exists (Vword (y - h3)). exists (LSub [:: yl; yl']).
   by split.
 Qed.
 
@@ -1215,7 +1215,7 @@ case: (is_constP e2) => [n2| {e2} e2] /=.
     split. auto. by rewrite Z.mul_1_l /=.
   t_xrbindP. rewrite He2 /=.
   rewrite /sem_sop2 /=. t_xrbindP. rewrite Hyv /=.
-  exists (n1 * y)%Z. exists (LDual LEmpty yl).
+  exists (n1 * y)%Z. exists (LSub [::LEmpty; yl]).
   by split.
 + t_xrbindP. move=> [yv yl] He1. rewrite /sem_sop2 /=.
   t_xrbindP. move=> h y /of_val_int Hyv <- <- <-.
@@ -1227,11 +1227,11 @@ case: (is_constP e2) => [n2| {e2} e2] /=.
     by rewrite Z.mul_1_r /=.
   t_xrbindP. rewrite He1 /=.
   rewrite /sem_sop2 /=. t_xrbindP. rewrite Hyv /=.
-  exists (y * n2)%Z. exists (LDual yl LEmpty). by split.
+  exists (y * n2)%Z. exists (LSub [::yl; LEmpty]). by split.
 + t_xrbindP. move=> [yv yl] He1 [yv' yl'] He2.
   rewrite /sem_sop2 /=. t_xrbindP.
   move=> h y Hyv h1 Hyv' <- <- <-. rewrite He1 He2 /=.
-  rewrite Hyv Hyv' /=. exists (y*h1)%Z. exists (LDual yl yl').
+  rewrite Hyv Hyv' /=. exists (y*h1)%Z. exists (LSub [::yl; yl']).
   by split.
 Qed.
 
@@ -1359,7 +1359,7 @@ case h2: (is_wconst sz e2) => [ n2 | ] // /=.
     have:= is_wconstP gd s h1. t_xrbindP.
     move=> [yv1 yl1] He1'. move: (const_prop_e_esP_sem_pexpr_e He1) => Hc.
     rewrite He1' in Hc. case: Hc => -> Hc2. rewrite Hyv /=.
-    move=> [] -> /=. exists (Vword (n1 * h3)). exists (LDual LEmpty yl').
+    move=> [] -> /=. exists (Vword (n1 * h3)). exists (LSub [::LEmpty; yl']).
     by split.
 + case: eqP => hn1.
   - t_xrbindP. move=> [yv yl] He1 [yv' yl'] He2. rewrite /sem_sop2 /=.
@@ -1385,11 +1385,11 @@ case h2: (is_wconst sz e2) => [ n2 | ] // /=.
     rewrite wrepr_unsigned truncate_word_u.
     rewrite Hyv. have:= is_wconstP gd s h2.
     move: (const_prop_e_esP_sem_pexpr_e He2) => Hc. rewrite Hc /=. rewrite Hyv' /=.
-    move=> [] ->. exists (Vword (y * n2)). exists (LDual yl LEmpty). by split.
+    move=> [] ->. exists (Vword (y * n2)). exists (LSub [::yl; LEmpty]). by split.
 + t_xrbindP. move=> [yv yl] He [yv' yl'] He'. rewrite /sem_sop2 /=.
   t_xrbindP. move=> h y Hyv h3 Hyv' <- <- <-.
   rewrite He He' /=. rewrite Hyv Hyv' /=.
-  exists (Vword (y * h3)). exists (LDual yl yl'). by split.
+  exists (Vword (y * h3)). exists (LSub [::yl; yl']). by split.
 Qed.
 
 (*Lemma smul_wP sz e1 e2 : Papp2 (Omul (Op_w sz)) e1 e2 =E smul_w sz e1 e2.
@@ -1521,15 +1521,15 @@ case: ty.
    - t_xrbindP. move=> [yv yl] He.
      rewrite /sem_sop2 /=. t_xrbindP.
      move=> h y Hyv <- <- <-. rewrite He /=.
-     rewrite Hyv /=. exists (n1 =? y)%Z. by exists (LDual LEmpty yl).
+     rewrite Hyv /=. exists (n1 =? y)%Z. by exists (LSub [::LEmpty; yl]).
    - t_xrbindP. move=> [yv yl] He1.
      rewrite /sem_sop2 /=. t_xrbindP.
      move=> h y Hyv <- <- <-. rewrite He1 /=.
-     rewrite Hyv /=. exists (y =? n2)%Z. by exists (LDual yl LEmpty). 
+     rewrite Hyv /=. exists (y =? n2)%Z. by exists (LSub [:: yl; LEmpty]).
    - t_xrbindP. move=> [yv yl] He [yv' yl'] He'.
      rewrite /sem_sop2 /=. t_xrbindP.
      move=> h y Hyv h1 Hyv' <- <- <-. rewrite He He' /=.
-     rewrite Hyv Hyv' /=. exists (y =? h1)%Z. by exists (LDual yl yl').
+     rewrite Hyv Hyv' /=. exists (y =? h1)%Z. by exists (LSub [::yl; yl']).
 + move => sz. case h1: is_wconst => [ n1 | ] //.
   case h2: is_wconst => [ n2 | ] //.
   - t_xrbindP. move=> [yv yl] He1 [yv' yl'] He2.
@@ -1546,13 +1546,13 @@ case: ty.
     move=> h y Hyv h3 Hyv' <- <- <-. rewrite He1 He2 /=.
     rewrite /sem_sop2 /=.
     t_xrbindP. rewrite Hyv Hyv' /=.
-    exists (y == h3)%Z. by exists (LDual yl yl').
+    exists (y == h3)%Z. by exists (LSub [:: yl; yl']).
   - t_xrbindP. move=> [yv yl] He1 [yv' yl'] He2.
     rewrite /sem_sop2 /=. t_xrbindP.
     move=> h y Hyv h2 Hyv' <- <- <-. rewrite He1 He2 /=.
     rewrite /sem_sop2 /=.
     t_xrbindP. rewrite Hyv Hyv' /=.
-    exists (y==h2)%Z. by exists (LDual yl yl').
+    exists (y==h2)%Z. by exists (LSub [:: yl; yl']).
 Qed.
 
 (*Lemma s_eqP ty e1 e2 : Papp2 (Oeq ty) e1 e2 =E s_eq ty e1 e2.
@@ -1665,15 +1665,15 @@ case: ty.
    - t_xrbindP. move=> [yv yl] He.
      rewrite /sem_sop2 /=. t_xrbindP.
      move=> h y Hyv <- <- <-. rewrite He /=.
-     rewrite Hyv /=. exists (~~(n1 =? y))%Z. by exists (LDual LEmpty yl).
+     rewrite Hyv /=. exists (~~(n1 =? y))%Z. by exists (LSub [:: LEmpty; yl]).
    - t_xrbindP. move=> [yv yl] He1.
      rewrite /sem_sop2 /=. t_xrbindP.
      move=> h y Hyv <- <- <-. rewrite He1 /=.
-     rewrite Hyv /=. exists (~~(y =? n2))%Z. by exists (LDual yl LEmpty). 
+     rewrite Hyv /=. exists (~~(y =? n2))%Z. by exists (LSub [::yl; LEmpty]).
    - t_xrbindP. move=> [yv yl] He [yv' yl'] He'.
      rewrite /sem_sop2 /=. t_xrbindP.
      move=> h y Hyv h1 Hyv' <- <- <-. rewrite He He' /=.
-     rewrite Hyv Hyv' /=. exists (~~(y =? h1))%Z. by exists (LDual yl yl').
+     rewrite Hyv Hyv' /=. exists (~~(y =? h1))%Z. by exists (LSub [::yl; yl']).
 + move => sz. case h1: is_wconst => [ n1 | ] //.
   case h2: is_wconst => [ n2 | ] //.
   - t_xrbindP. move=> [yv yl] He1 [yv' yl'] He2.
@@ -1690,13 +1690,13 @@ case: ty.
     move=> h y Hyv h3 Hyv' <- <- <-. rewrite He1 He2 /=.
     rewrite /sem_sop2 /=.
     t_xrbindP. rewrite Hyv Hyv' /=.
-    exists (~~(y == h3))%Z. by exists (LDual yl yl').
+    exists (~~(y == h3))%Z. by exists (LSub [::yl; yl']).
   - t_xrbindP. move=> [yv yl] He1 [yv' yl'] He2.
     rewrite /sem_sop2 /=. t_xrbindP.
     move=> h y Hyv h2 Hyv' <- <- <-. rewrite He1 He2 /=.
     rewrite /sem_sop2 /=.
     t_xrbindP. rewrite Hyv Hyv' /=.
-    exists (~~(y==h2))%Z. by exists (LDual yl yl').
+    exists (~~(y==h2))%Z. by exists (LSub [:: yl; yl']).
 Qed.
 
 (*Lemma sneqP ty e1 e2 : Papp2 (Oneq ty) e1 e2 =E sneq ty e1 e2.
@@ -1825,9 +1825,9 @@ rewrite /trans_sem. rewrite /slt;case:ifP => [ /eq_exprP Hs /=| _ ].
     move=> h y0 [] <- h2 [] <- <- <- _. exists (wunsigned w1 <? wunsigned w2)%Z.
       exists LEmpty. by rewrite ssrZ.ltzE.
   - move=> h /=. t_xrbindP. move=> y -> h1 -> /= h3 Hs.
-    move=> <- <-. rewrite Hs /=. exists h3. by exists (LDual y.2 h1.2).
+    move=> <- <-. rewrite Hs /=. exists h3. by exists (LSub [:: y.2; h1.2]).
   - move=> h /=. t_xrbindP. move=> y -> h1 -> /= h3 Hs.
-    move=> <- <-. rewrite Hs /=. exists h3. by exists (LDual y.2 h1.2).
+    move=> <- <-. rewrite Hs /=. exists h3. by exists (LSub [:: y.2; h1.2]).
 Qed.
 
 (*Lemma sltP ty e1 e2 : Papp2 (Olt ty) e1 e2 =E slt ty e1 e2.
@@ -1920,9 +1920,9 @@ rewrite /trans_sem. rewrite /sle;case:ifP => [ /eq_exprP Hs /=| _ ].
     move=> h y0 [] <- h2 [] <- <- <- _. exists (wunsigned w1 <=? wunsigned w2)%Z.
       exists LEmpty. by rewrite ssrZ.lezE.
   - move=> h /=. t_xrbindP. move=> y -> h1 -> /= h3 Hs.
-    move=> <- <-. rewrite Hs /=. exists h3. by exists (LDual y.2 h1.2).
+    move=> <- <-. rewrite Hs /=. exists h3. by exists (LSub [::y.2; h1.2]).
   - move=> h /=. t_xrbindP. move=> y -> h1 -> /= h3 Hs.
-    move=> <- <-. rewrite Hs /=. exists h3. by exists (LDual y.2 h1.2).
+    move=> <- <-. rewrite Hs /=. exists h3. by exists (LSub [::y.2; h1.2]).
 Qed.
 
 (*Lemma sleP ty e1 e2 : Papp2 (Ole ty) e1 e2 =E sle ty e1 e2.
@@ -2015,9 +2015,9 @@ rewrite /trans_sem. rewrite /sgt;case:ifP => [ /eq_exprP Hs /=| _ ].
     move=> h y0 [] <- h2 [] <- <- <- _. exists (wunsigned w1 >? wunsigned w2)%Z.
       exists LEmpty. by rewrite Z.gtb_ltb ssrZ.ltzE.
   - move=> h /=. t_xrbindP. move=> y -> h1 -> /= h3 Hs.
-    move=> <- <-. rewrite Hs /=. exists h3. by exists (LDual y.2 h1.2).
+    move=> <- <-. rewrite Hs /=. exists h3. by exists (LSub [:: y.2; h1.2]).
   - move=> h /=. t_xrbindP. move=> y -> h1 -> /= h3 Hs.
-    move=> <- <-. rewrite Hs /=. exists h3. by exists (LDual y.2 h1.2).
+    move=> <- <-. rewrite Hs /=. exists h3. by exists (LSub [:: y.2; h1.2]).
 Qed.
 
 (*Lemma sgtP ty e1 e2 : Papp2 (Ogt ty) e1 e2 =E sgt ty e1 e2.
@@ -2110,9 +2110,9 @@ rewrite /trans_sem. rewrite /sge;case:ifP => [ /eq_exprP Hs /=| _ ].
     move=> h y0 [] <- h2 [] <- <- <- _. exists (wunsigned w1 >=? wunsigned w2)%Z.
       exists LEmpty. by rewrite Z.geb_leb ssrZ.lezE.
   - move=> h /=. t_xrbindP. move=> y -> h1 -> /= h3 Hs.
-    move=> <- <-. rewrite Hs /=. exists h3. by exists (LDual y.2 h1.2).
+    move=> <- <-. rewrite Hs /=. exists h3. by exists (LSub [:: y.2; h1.2]).
   - move=> h /=. t_xrbindP. move=> y -> h1 -> /= h3 Hs.
-    move=> <- <-. rewrite Hs /=. exists h3. by exists (LDual y.2 h1.2).
+    move=> <- <-. rewrite Hs /=. exists h3. by exists (LSub [:: y.2; h1.2]).
 Qed.
 
 (*Lemma sgeP ty e1 e2 : Papp2 (Oge ty) e1 e2 =E sge ty e1 e2.
@@ -2197,10 +2197,10 @@ case h2: is_wconst => [ n2 | ] // /=.
   have := is_wconstP gd s h1. t_xrbindP.
   move=> [yv1 yl1] He1'. move: (const_prop_e_esP_sem_pexpr_e He1) => Hc1.
   rewrite He1' in Hc1. case: Hc1 => -> _. move=> Hyv h4 Hs' <- <-.
-  rewrite He1 He2 /=. rewrite Hs' /=. exists h4. exists (LDual yl yl').
+  rewrite He1 He2 /=. rewrite Hs' /=. exists h4. exists (LSub [:: yl; yl']).
   by split.
 rewrite /=. t_xrbindP. move=> y -> /= h2 -> /= h4 Hs <- <-.
-rewrite Hs /=. exists h4. exists (LDual y.2 h2.2). by split.
+rewrite Hs /=. exists h4. exists (LSub [:: y.2;  h2.2]). by split.
 Qed.
 
 (*Lemma sbitwP i (z: ∀ sz, word sz → word sz → word sz) sz e1 e2 :
@@ -2378,10 +2378,10 @@ case h2: is_wconst => [ n2 | ] // /=.
   have := is_wconstP gd s h1. t_xrbindP.
   move=> [yv1 yl1] He1'. move: (const_prop_e_esP_sem_pexpr_e He1) => Hc1.
   rewrite He1' in Hc1. case: Hc1 => -> _. move=> Hyv h4 Hs' <- <-.
-  rewrite He1 He2 /=. rewrite Hs' /=. exists h4. exists (LDual yl yl').
+  rewrite He1 He2 /=. rewrite Hs' /=. exists h4. exists (LSub [:: yl; yl']).
   by split.
 rewrite /=. t_xrbindP. move=> y -> /= h2 -> /= h4 Hs <- <-.
-rewrite Hs /=. exists h4. exists (LDual y.2 h2.2). by split.
+rewrite Hs /=. exists h4. exists (LSub [::y.2; h2.2]). by split.
 Qed.
 
 (*Lemma sbitw8P i (z: ∀ sz, word sz → word U8 → word sz) sz e1 e2 :
@@ -2932,6 +2932,65 @@ value_uincl (trans_sem t (v, l)).1 v' /\ (trans_sem t (v, l)).2 = l'.
 Proof.
 Admitted.
 
+Lemma s_ifP s t e e1 e2 v v' l l':
+sem_pexpr_e gd s (Pif t e e1 e2) = ok (v, l) ->
+sem_pexpr_e gd s (s_if t e e1 e2).1 = ok (v', l') ->
+value_uincl v v'.
+Proof.
+rewrite /s_if /=. t_xrbindP.
+move=> [yv yl] He h0 Hb. case: is_boolP He.
+move=> a. case: a.
+- move=> He [yv1 yl1] He1 [yv2 yl2] He2.
+  move=> h6 Ht h8 Ht' <- Hl. rewrite He1 /=.
+  move=> [] <- Hl1. rewrite /sem_pexpr_e in He.
+  case: He => He1' He2'. rewrite -He1' in Hb.
+  rewrite /= in Hb. case: Hb => <-.
+  by move : (value_uincl_truncate_val Ht).
+- move=> He [yv1 yl1] He1 [yv2 yl2] He2.
+  move=> h6 Ht h8 Ht' <- Hl. rewrite He2 /=.
+  move=> [] <- Hl1. rewrite /sem_pexpr_e in He.
+  case: He => He1' He2'. rewrite -He1' in Hb.
+  rewrite /= in Hb. case: Hb => <-.
+  by move : (value_uincl_truncate_val Ht').
+- move=> e0 He0 [yv1 yl1] He1 [yv2 yl2] He2 h6 Ht h8 Ht' <- Hl /=.
+  rewrite He0 /=. rewrite Hb /=. rewrite He1 /=.
+  rewrite He2 /=. rewrite Ht /=. rewrite Ht' /=.
+  by move=> [] -> _.
+Qed.
+
+Lemma s_ifPl s ty e e1 e2 v l:
+let e' := (s_if ty e e1 e2).1 in
+let t := (s_if ty e e1 e2).2 in
+sem_pexpr_e gd s (Pif ty e e1 e2)  = ok (v, l) ->
+exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
+value_uincl (trans_sem t (v, l)).1 v' /\ (trans_sem t (v, l)).2 = l'.
+Proof.
+rewrite /s_if /=. rewrite /trans_sem. t_xrbindP.
+move=> [yv yl] He h0 Hb. case: is_boolP He.
+move=> a. case: a.
+- move=> He [yv1 yl1] He1 [yv2 yl2] He2.
+  move=> h6 Ht h8 Ht' <- <- /=.
+  exists yv1. exists yl1. split. auto. split.
+  rewrite /sem_pexpr_e in He.
+  case: He => He1' He2'. rewrite -He1' in Hb.
+  rewrite /= in Hb. case: Hb => <-.
+  by move : (value_uincl_truncate_val Ht). auto.
+- move=> He [yv1 yl1] He1 [yv2 yl2] He2.
+  move=> h6 Ht h8 Ht' <- Hl. rewrite He2 /=.
+  rewrite /= in Hl.
+  exists yv2. exists yl2. split. auto. split.
+  rewrite /sem_pexpr_e in He.
+  case: He => He1' He2'. rewrite -He1' in Hb.
+  rewrite /= in Hb. case: Hb => <-.
+  by move : (value_uincl_truncate_val Ht').
+  by rewrite -Hl /=.
+- move=> e0 He0 [yv1 yl1] He1 [yv2 yl2] He2 h6 Ht h8 Ht' <- <- /=.
+  rewrite He0 /=. rewrite Hb /=. rewrite He1 /=.
+  rewrite He2 /=. rewrite Ht /=. rewrite Ht' /=.
+  exists (if h0 then h6 else h8). exists (LSub [:: yl; yl1; yl2]).
+  by split.
+Qed.
+
 Definition vconst c :=
   match c with
   | Cint z => Vint z
@@ -2957,7 +3016,12 @@ elim: e v l => //=; rewrite /trans_sem.
   by split.
 + move=> n v l [] <- <- /=. exists (Varr (WArray.empty n)).
   exists LEmpty. by split.
-+ (* Pvar case *) admit.
++ move=> x v l. move: Hvalid => /(_ x).
+  case: Mvar.get => [n /(_ _ erefl) | _ /= -> ]; last by eauto.
+  move=> -> /= [] <- Hl.
+  case: n => [ n | sz w ] /=. exists n. exists LEmpty.
+  by split. exists (Vword (wrepr sz (wunsigned w))). exists LEmpty. split.
+  auto. split. by rewrite wrepr_unsigned. auto.
 + t_xrbindP. rewrite /=. move=> h h0 hl y -> <- <- /=.
   exists y. exists LEmpty. by split.
 + move=> sz x e He. move=> v l.
@@ -2977,19 +3041,45 @@ elim: e v l => //=; rewrite /trans_sem.
   rewrite Hg /=. rewrite Hp /=. rewrite He'' /=.
   move: (value_uincl_word Hl1 Hp'). move=> -> /=.
   rewrite Hr /=. by split.
-+ move=> op e He. move=> v l. t_xrbindP. move=> [yv yl] He' h0 Hop.
-  move=> <- <-. move: (He yv yl He'). move=> [] xv [] xl [] He'' Hl /=.
-  admit.
-+ admit.
-+ admit.
-+ move=> t e He e1 He1 e2 He2. t_xrbindP.
-  move=> h h0 [yv yl] He' h2 Hb [yv1 yl1] He1' [yv2 yl2] He2'.
-  move=> h8 Ht1 h10 Ht2 /= <- <-. move: (He yv yl He').
-  move=> [] yv' [] yl' [] He'' [] Hyv Hyl. move: (He1 yv1 yl1 He1').
-  move=> [] yv1' [] yl1' [] He1'' [] Hyv' Hyl'. move: (He2 yv2 yl2 He2').
-  move=> [] yv2' [] yl2' [] He2'' [] Hyv'' Hyl''. rewrite /s_if /=.
-  
-
++ move=> op e He. move=> v l. t_xrbindP.
+  move=> [yv yl] /He [] x [] x0 [] He' [] Hyv Hl h0 Hop <- <-.
+  apply /s_op1Pl. rewrite /=. rewrite He' /=.
+  move: (vuincl_sem_sop1 Hyv Hop). move=> -> /=. by rewrite -Hl.
++ move=> op e1 He1 e2 He2 v l. t_xrbindP.
+  move=> [yv yl] /He1 [] x [] x0 [] He1' [] Hyv Hl.
+  move=> [yv1 yl'] /He2 [] x1 [] x2 [] He2' [] Hyv' Hl'.
+  move=> h2 Ho <- <-.
+  apply /s_op2Pl. rewrite /=. rewrite He1' /=.
+  rewrite He2' /=. move: (vuincl_sem_sop2 Hyv Hyv' Ho).
+  move=> -> /=. by rewrite Hl Hl' /=.
++ move=> op es ih v l. t_xrbindP.
+  move=> vs Hm h0 Ho <- <- /=. apply s_opNPl.
+  rewrite /=. rewrite Hm /=. by rewrite Ho /=.
++ move=> t e He e1 He1 e2 He2 v l. t_xrbindP.
+  move=> [yv yl] /He/= [] x [] x0 [] He' [] Hyv Hl h0 
+  /(value_uincl_bool Hyv) [] Hx Hxl; subst.
+  move=> [yv1 yl1] /He1/= [] x1 [] x2 [] He1' [] Hyv1 Hl1.
+  move=> [yv2 yl2] /He2/= [] x3 [] x4 [] He2' [] Hyv2 Hl2.
+  move=> h6 /(truncate_value_uincl Hyv1) [] x Ht Hv h8
+  /(truncate_value_uincl Hyv2) [] x0 Ht' Hv'.
+  move=> <- <-. 
+  rewrite /s_if. case: is_boolP He'.
+  - move=> a. case: (a).
+    * move=> /= Htr. case: Htr => <- Hlt. exists x1. exists x2.
+      rewrite He1' /=. split. auto. move : (value_uincl_truncate_val Ht).
+      move=> Ht1. split. by move : (value_uincl_trans Hv Ht1). 
+      rewrite -Hl1 /=. auto.
+    move=> /= Htr. case: Htr => <- Hlt. exists x3. exists x4.
+    split. auto. split. move : (value_uincl_truncate_val Ht').
+    move=> Ht1. by move : (value_uincl_trans Hv' Ht1).
+    rewrite -Hl2 /=. auto.
+  rewrite /=. move=> h -> /=. rewrite He1' /=.
+  rewrite He2' /=. rewrite Ht Ht' /=.
+  exists (if h0 then x else x0).
+  exists (LSub [:: leak_F (const_prop_e m e).2 yl; x2; x4]). split.
+  auto. split. by case: (h0).
+  by rewrite -Hl1 -Hl2 /=.
+Qed.
 
 Definition eqoks e1 e2 st :=
   ∀ vs, sem_pexprs gd st e1 = ok vs →
