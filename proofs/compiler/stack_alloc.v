@@ -192,13 +192,13 @@ Variant ptr_kind_init :=
 | PIstack  of var & sub_mp
 | PIglob   of var & sub_mp
 | PIregptr of var
-| PIstkptr of var & sub_mp.
+| PIstkptr of var & sub_mp & var.
 
 Variant ptr_kind :=
 | Pstack  of var & Z & wsize & sub_mp
 | Pglob   of var & Z & wsize & sub_mp
 | Pregptr of var
-| Pstkptr of var & Z & wsize & sub_mp.
+| Pstkptr of var & Z & wsize & sub_mp & var.
 
 Record param_info := { 
   pp_ptr      : var;
@@ -296,7 +296,7 @@ Definition clear_sub_map sub sm :=
   let i := interval_of_sub sub in
   Msmp.filter_map (clear_bytes_map sub i) sm.
 
-Definition set_stack_ptr rmap x rsp align ofs := 
+Definition set_stack_ptr rmap x rsp align ofs x' := 
   let mp := {| mp_s := x; mp_p := rsp; mp_align := align; mp_writable := true |} in
   let sub := {| smp_ofs := ofs; smp_len := wsize_size Uptr |} in
   let i := interval_of_sub sub in
@@ -304,18 +304,18 @@ Definition set_stack_ptr rmap x rsp align ofs :=
   (* clear all bytes correspondint to sub *) 
   let sm := clear_sub_map sub sm in
   let bm := get_bytes_map sub sm in
-  let bm := Mvar.set bm x (ByteSet.full i) in
+  let bm := Mvar.set bm x' (ByteSet.full i) in
   let sm := Msmp.set sm sub bm in
   {| var_region := rmap.(var_region);
      region_var := Mmp.set rmap.(region_var) mp sm |}.
 
-Definition check_stack_ptr rmap x rsp align ofs := 
+Definition check_stack_ptr rmap x rsp align ofs x' := 
   let mp := {| mp_s := x; mp_p := rsp; mp_align := align; mp_writable := true |} in
   let sub := {| smp_ofs := ofs; smp_len := wsize_size Uptr |} in
   let i := interval_of_sub sub in
   let sm := get_sub_map mp rmap in
   let bm := get_bytes_map sub sm in
-  let bytes := get_bytes x bm in 
+  let bytes := get_bytes x' bm in 
   Let _   := assert (ByteSet.mem bytes i) 
                     (Cerr_stk_alloc "check_stack_ptr: the region is partial") in
   ok tt.
@@ -505,7 +505,7 @@ Definition mk_addr_ptr x aa ws (pk:ptr_kind) (e1:pexpr) :=
   | Pstack _ z _ sub => ok (with_var x pmap.(vrsp), mk_ofs aa ws e1 (z + sub.(smp_ofs)))
   | Pglob  _ z _ sub => ok (with_var x pmap.(vrip), mk_ofs aa ws e1 (z + sub.(smp_ofs)))
   | Pregptr p        => ok (with_var x p,    mk_ofs aa ws e1 0)
-  | Pstkptr _ _ _ _  => cerror "stack pointer in expression"
+  | Pstkptr _ _ _ _ _ => cerror "stack pointer in expression"
   end.
 
 Definition mk_addr x aa ws (pk:vptr_kind) (e1:pexpr) := 
@@ -729,8 +729,8 @@ Definition alloc_array_move rmap r e :=
           ok (MK_LEA, Plvar (with_var vy pmap.(vrip)), (ofsy + sub.(smp_ofs) + ofs)%Z)
         | Pregptr p           => 
           ok (MK_MOV, Plvar (with_var vy p), ofs)
-        | Pstkptr slot ofsy ws sub => 
-          Let _ := Region.check_stack_ptr rmap slot pmap.(vrsp) ws sub.(smp_ofs) in
+        | Pstkptr slot ofsy ws sub x' => 
+          Let _ := Region.check_stack_ptr rmap slot pmap.(vrsp) ws sub.(smp_ofs) x' in
           ok (MK_MOV, Pload Uptr (with_var vy pmap.(vrsp)) (cast_const ofsy), ofs)
         end in
       let '(mk, l, ofs) := mklofs in
@@ -758,10 +758,10 @@ Definition alloc_array_move rmap r e :=
         ok (rmap, nop)
       | Pregptr p =>
         ok (get_addr false rmap x (Lvar (with_var x p)) mpy mk ey ofs)
-      | Pstkptr slot z ws sub =>
+      | Pstkptr slot z ws sub x' =>
         let: (rmap, ir) :=
           get_addr true rmap x (Lmem Uptr (with_var x pmap.(vrsp)) (cast_ptr z)) mpy mk ey ofs in
-        ok (Region.set_stack_ptr rmap slot pmap.(vrsp) ws sub.(smp_ofs), ir)
+        ok (Region.set_stack_ptr rmap slot pmap.(vrsp) ws sub.(smp_ofs) x', ir)
       end
     end
   | Some (ofs, len) =>
@@ -1033,21 +1033,23 @@ Definition init_local_map vrip vrsp fn globals sao :=
              end
           | PIglob x' sub => 
             match Mvar.get globals x' with
-            | None => cferror fn "unknown stack region, please report"
+            | None => cferror fn "unknown global region, please report"
             | Some (ofs', ws') =>
               if [&&  (size_of x.(vtype) <= sub.(smp_len))%CMP, (0%Z <= sub.(smp_ofs))%CMP & 
                       ((sub.(smp_ofs) + sub.(smp_len))%Z <= size_of x'.(vtype))%CMP] then 
                 ok (sv, Pglob x' ofs' ws' sub, rmap)
               else cferror fn "invalid global slot, please report"
              end
-          | PIstkptr x' sub =>
+          | PIstkptr x' sub xp =>
             match Mvar.get stack x' with
             | None => cferror fn "unknown stack region, please report"
             | Some (ws', ofs') =>
-              if [&& (Uptr <= ws')%CMP,
-                     (0%Z <= sub.(smp_ofs))%CMP & 
-                     ((sub.(smp_ofs) + sub.(smp_len))%Z <= size_of x'.(vtype))%CMP] then
-              ok (sv, Pstkptr x' ofs' ws' sub, rmap)
+              if Sv.mem xp sv then cferror fn "invalid stk ptr (not uniq), please report"
+              else                
+                if [&& (Uptr <= ws')%CMP,
+                    (0%Z <= sub.(smp_ofs))%CMP & 
+                    ((sub.(smp_ofs) + sub.(smp_len))%Z <= size_of x'.(vtype))%CMP] then
+                  ok (Sv.add xp sv, Pstkptr x' ofs' ws' sub xp, rmap)
               else cferror fn "invalid ptr kind, please report"
             end
           | PIregptr p => 
