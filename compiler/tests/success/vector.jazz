@@ -75,7 +75,7 @@ r = (u256)[p + 0];
 s = (u256)[p + 32];
 t = (u256)[p + 64];
 r = #VPSHUFD_256(r, 0x33);
-u = #VPBLENDD_256(s, t, 0xa4);
+u = #VPBLEND_8u32(s, t, 0xa4);
 v = r ^ u;
 (u256)[p + 32] = v;
 }
