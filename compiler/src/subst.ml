@@ -153,7 +153,9 @@ let int_of_op2 o i1 i2 =
   | Expr.Oadd Op_int -> B.add i1 i2
   | Expr.Omul Op_int -> B.mul i1 i2
   | Expr.Osub Op_int -> B.sub i1 i2
-  | _     -> assert false
+  | Expr.Odiv Cmp_int -> B.div i1 i2
+  | Expr.Omod Cmp_int -> B.erem i1 i2
+  | _     -> Utils.hierror "operator %s not allowed in array size" (Printer.string_of_op2 o)
 
 let rec int_of_expr e =
   match e with
