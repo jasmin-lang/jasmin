@@ -46,8 +46,15 @@ Section Section.
 
   Hypothesis Hp : makereference_prog is_reg_ptr fresh_id p = ok p'.
 
+  (*Should be shown by assuming other hypotheses or admitted?*)
   Lemma eq_globs : p_globs p = p_globs p'.
-  Admitted.
+  Proof.
+   case : p Hp => /= p_funcs p_globs extra.
+   rewrite /makereference_prog.
+   (*But Let x in ...*)
+   t_xrbindP => /=.
+   by move => y _ <-.
+  Qed.
 
   Definition get_sig n :=
    if get_fundef p.(p_funcs) n is Some fd then
@@ -61,7 +68,7 @@ Section Section.
      exists vm2, [/\ evm s2 =[X] vm2 &
         sem p' ev (with_vm s1 vm1) c' (with_vm s2 vm2)].
 
-  Let Pi_r s1 (i:instr_r) s2 := 
+  Let Pi_r s1 (i:instr_r) s2 :=
     forall ii, Pi s1 (MkI ii i) s2.
 
   Let Pc s1 (c:cmd) s2:=
@@ -71,4 +78,11 @@ Section Section.
      exists vm2, [/\ evm s2 =[X] vm2 &
         sem p' ev (with_vm s1 vm1) c' (with_vm s2 vm2)].
 
-
+  (*I should have something more specific than s1 and s2*)
+  (*
+  Lemma mkrefargs_c_incl s1 c s2 : Pc s1 c s2.
+  Proof.
+    move => X c' up vm1 eq.
+    
+  Qed.
+  *)
