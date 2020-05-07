@@ -112,8 +112,8 @@ Variant asm_op : Type :=
 | VPADD    `(velem) `(wsize)
 | VPSUB    `(velem) `(wsize)
 | VPMULL   `(velem) `(wsize)
-| VPMULH  `(velem) `(wsize)   (* signed multiplication of 16-bits*)
-| VPMULHU `(velem) `(wsize)
+| VPMULH   `(velem) `(wsize)   (* signed multiplication of 16-bits*)
+| VPMULHU  `(velem) `(wsize)
 | VPMULU   `(wsize)
 | VPEXTR   `(wsize)
 | VPINSR   `(velem)
@@ -128,7 +128,7 @@ Variant asm_op : Type :=
 | VPSHUFD  `(wsize)
 | VPSHUFHW `(wsize)
 | VPSHUFLW `(wsize)
-| VPBLENDD `(wsize)
+| VPBLEND  `(velem) `(wsize)
 | VPBROADCAST of velem & wsize
 | VBROADCASTI128
 | VPUNPCKH `(velem) `(wsize)
@@ -654,9 +654,19 @@ Definition x86_VPUNPCKH ve sz := x86_u128_binop (@wpunpckh sz ve).
 Definition x86_VPUNPCKL ve sz := x86_u128_binop (@wpunpckl sz ve).
 
 (* ---------------------------------------------------------------- *)
-Definition x86_VPBLENDD sz (v1 v2: word sz) (m: u8) : ex_tpl (w_ty sz) :=
+
+Definition wpblendw (m : u8) (w1 w2 : word U128) :=
+  let v1 := split_vec U16 w1 in
+  let v2 := split_vec U16 w2 in
+  let b := split_vec 1 m in
+  let r := map3 (λ (b0 : word.word_ringType 0) (v3 v4 : CoqWord.word.word U16), if b0 == 1%R then v4 else v3) b v1 v2 in
+  make_vec U128 r.
+
+Definition x86_VPBLEND ve sz (v1 v2: word sz) (m: u8) : ex_tpl (w_ty sz) :=
+  Let _ := check_size_16_32 ve in
   Let _ := check_size_128_256 sz in
-  ok (wpblendd v1 v2 m).
+  if ve == U32 then ok (wpblendd v1 v2 m)
+  else ok (lift2_vec U128 (wpblendw m) sz v1 v2).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_VPBROADCAST ve sz (v: word ve) : ex_tpl (w_ty sz) :=
@@ -815,8 +825,8 @@ Notation mk_instr_ww8_b5w_0c0 name semi check max_imm prc pp_asm := ((fun sz =>
 Notation mk_instr_w2w8_b5w_01c0 name semi check max_imm prc pp_asm := ((fun sz =>
   mk_instr (pp_sz name sz) (w2w8_ty sz) (b5w_ty sz) [:: E 0; E 1; ADExplicit 2 (Some RCX)] (implicit_flags ++ [:: E 0]) MSB_CLEAR (semi sz) (check sz) 3 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
-Notation mk_instr_w2w8_w_1230 name semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w2w8_ty sz) (w_ty sz) [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR (semi sz) (check sz) 4 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+Notation mk_instr_w2w8_w_1230 name semi check max_imm prc pp_asm := ((fun (ve:velem) sz =>
+  mk_instr (pp_ve_sz name ve sz) (w2w8_ty sz) (w_ty sz) [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR (semi ve sz) (check sz) 4 sz (max_imm sz) [::] (pp_asm ve sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w_w128_10 name semi check max_imm prc pp_asm := ((fun sz =>
   mk_instr (pp_sz name sz) (w_ty sz) (w128_ty) [:: E 1] [:: E 0] MSB_MERGE (semi sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
@@ -1189,8 +1199,8 @@ Definition Ox86_VPUNPCKL_instr :=
   mk_ve_instr_w2_w_120 "VPUNPCKL" x86_VPUNPCKL check_xmm_xmm_xmmm no_imm (PrimV VPUNPCKL) (pp_viname_long "vpunpckl").
 
 Definition check_xmm_xmm_xmmm_imm8 (_:wsize) := [:: [:: xmm; xmm; xmmm true; i U8]].
-Definition Ox86_VPBLENDD_instr :=
-  mk_instr_w2w8_w_1230 "VPBLENDD" x86_VPBLENDD check_xmm_xmm_xmmm_imm8 imm8 (PrimP U128 VPBLENDD) (pp_name "vpblendd").
+Definition Ox86_VPBLEND_instr :=
+  mk_instr_w2w8_w_1230 "VPBLEND" (@x86_VPBLEND) check_xmm_xmm_xmmm_imm8 imm8 (PrimV VPBLEND) (pp_viname "vpblend").
 
 Definition pp_vpbroadcast ve sz args :=
   {| pp_aop_name := "vpbroadcast";
@@ -1298,7 +1308,7 @@ Definition instr_desc o : instr_desc_t :=
   | VPSHUFD sz         => Ox86_VPSHUFD_instr.1 sz
   | VPUNPCKH sz sz'    => Ox86_VPUNPCKH_instr.1 sz sz'
   | VPUNPCKL sz sz'    => Ox86_VPUNPCKL_instr.1 sz sz'
-  | VPBLENDD sz        => Ox86_VPBLENDD_instr.1 sz
+  | VPBLEND ve sz      => Ox86_VPBLEND_instr.1 ve sz
   | VPBROADCAST sz sz' => Ox86_VPBROADCAST_instr.1 sz sz'
   | VBROADCASTI128     => Ox86_VBROADCASTI128_instr.1
   | VPERM2I128         => Ox86_VPERM2I128_instr.1
@@ -1380,7 +1390,7 @@ Definition prim_string :=
    Ox86_VPSHUFD_instr.2;
    Ox86_VPUNPCKH_instr.2;
    Ox86_VPUNPCKL_instr.2;
-   Ox86_VPBLENDD_instr.2;
+   Ox86_VPBLEND_instr.2;
    Ox86_VPBROADCAST_instr.2;
    Ox86_VBROADCASTI128_instr.2;
    Ox86_VPERM2I128_instr.2;
