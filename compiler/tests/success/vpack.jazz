@@ -1,0 +1,44 @@
+export fn test (reg u64 in) { 
+  reg u128 x y z;
+  reg u256 xx yy zz;
+  x = (u128)[in];
+  y = x;
+  z = #VPACKUS_8u16(x,y);
+  (u128)[in] = z;
+
+  x = (u128)[in];
+  y = x;
+  z = #VPACKUS_4u32(x,y);
+  (u128)[in] = z;
+
+  x = (u128)[in];
+  y = x;
+  z = #VPACKSS_8u16(x,y);
+  (u128)[in] = z;
+
+  x = (u128)[in];
+  y = x;
+  z = #VPACKSS_4u32(x,y);
+  (u128)[in] = z;
+
+  xx = (u256)[in];
+  yy = xx;
+  zz = #VPACKUS_16u16(xx,yy);
+  (u256)[in] = zz;
+
+  xx = (u256)[in];
+  yy = xx;
+  zz = #VPACKUS_8u32(xx,yy);
+  (u256)[in] = zz;
+
+  xx = (u256)[in];
+  yy = xx;
+  zz = #VPACKSS_16u16(xx,yy);
+  (u256)[in] = zz;
+
+  xx = (u256)[in];
+  yy = xx;
+  zz = #VPACKSS_8u32(xx,yy);
+  (u256)[in] = zz;
+
+}
