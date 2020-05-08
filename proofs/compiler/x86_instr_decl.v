@@ -129,6 +129,8 @@ Variant asm_op : Type :=
 | VPSHUFHW `(wsize)
 | VPSHUFLW `(wsize)
 | VPBLEND  `(velem) `(wsize)
+| VPACKUS  `(velem) `(wsize)
+| VPACKSS  `(velem) `(wsize)
 | VPBROADCAST of velem & wsize
 | VBROADCASTI128
 | VPUNPCKH `(velem) `(wsize)
@@ -669,6 +671,41 @@ Definition x86_VPBLEND ve sz (v1 v2: word sz) (m: u8) : ex_tpl (w_ty sz) :=
   else ok (lift2_vec U128 (wpblendw m) sz v1 v2).
 
 (* ---------------------------------------------------------------- *)
+
+Definition SaturatedSignedToUnsigned (sz1 sz2:wsize) (w:word sz1) : word sz2 := 
+  let i1 := wsigned w in
+  let i2 := max 0%Z (min i1 (wmax_unsigned sz2)) in
+  wrepr sz2 i2.
+
+Definition SaturatedSignedToSigned (sz1 sz2:wsize) (w:word sz1) : word sz2 := 
+  let i1 := wsigned w in
+  let i2 := max (wmin_signed sz2) (min i1 (wmax_signed sz2)) in
+  wrepr sz2 i2.
+
+Definition vpack2 (sz1 sz2 sz:wsize) (op:word sz1 -> word sz2) (w1 w2:word sz) : word sz := 
+  make_vec sz (map op (split_vec sz1 w1) ++ map op (split_vec sz1 w2)).
+
+Definition x86_VPACKUS ve sz (v1 v2:word sz) : ex_tpl (w_ty sz) := 
+  Let _ := check_size_16_32 ve in
+  Let _ := check_size_128_256 sz in
+  let doit sz (v1 v2:word sz) := 
+      if ve == U32 then vpack2 (@SaturatedSignedToUnsigned U32 U16) v1 v2
+      else vpack2 (@SaturatedSignedToUnsigned U16 U8) v1 v2 in
+  ok (
+      if sz == U128 then doit sz v1 v2
+      else lift2_vec U128 (doit U128) sz v1 v2).
+
+Definition x86_VPACKSS ve sz (v1 v2:word sz) : ex_tpl (w_ty sz) := 
+  Let _ := check_size_16_32 ve in
+  Let _ := check_size_128_256 sz in
+  let doit sz (v1 v2:word sz) := 
+      if ve == U32 then vpack2 (@SaturatedSignedToSigned U32 U16) v1 v2
+      else vpack2 (@SaturatedSignedToSigned U16 U8) v1 v2 in
+  ok (
+      if sz == U128 then doit sz v1 v2
+      else lift2_vec U128 (doit U128) sz v1 v2).
+      
+(* ---------------------------------------------------------------- *)
 Definition x86_VPBROADCAST ve sz (v: word ve) : ex_tpl (w_ty sz) :=
   Let _ := check_size_128_256 sz in
   ok (wpbroadcast sz v).
@@ -1202,6 +1239,14 @@ Definition check_xmm_xmm_xmmm_imm8 (_:wsize) := [:: [:: xmm; xmm; xmmm true; i U
 Definition Ox86_VPBLEND_instr :=
   mk_instr_w2w8_w_1230 "VPBLEND" (@x86_VPBLEND) check_xmm_xmm_xmmm_imm8 imm8 (PrimV VPBLEND) (pp_viname "vpblend").
 
+Definition Ox86_VPACKUS_instr :=
+ mk_ve_instr_w2_w_120 "VPACKUS" x86_VPACKUS check_xmm_xmm_xmmm no_imm (PrimV VPACKUS)
+   (fun (ve:velem) => pp_name (if U16 == ve then "vpackuswb"%string else "vpackusdw"%string)).
+
+Definition Ox86_VPACKSS_instr :=
+ mk_ve_instr_w2_w_120 "VPACKSS" x86_VPACKSS check_xmm_xmm_xmmm no_imm (PrimV VPACKSS)
+   (fun (ve:velem) => pp_name (if U16 == ve then "vpacksswb"%string else "vpackssdw"%string)).
+
 Definition pp_vpbroadcast ve sz args :=
   {| pp_aop_name := "vpbroadcast";
      pp_aop_ext  := PP_viname ve false;
@@ -1309,6 +1354,8 @@ Definition instr_desc o : instr_desc_t :=
   | VPUNPCKH sz sz'    => Ox86_VPUNPCKH_instr.1 sz sz'
   | VPUNPCKL sz sz'    => Ox86_VPUNPCKL_instr.1 sz sz'
   | VPBLEND ve sz      => Ox86_VPBLEND_instr.1 ve sz
+  | VPACKUS ve sz      => Ox86_VPACKUS_instr.1 ve sz
+  | VPACKSS ve sz      => Ox86_VPACKSS_instr.1 ve sz
   | VPBROADCAST sz sz' => Ox86_VPBROADCAST_instr.1 sz sz'
   | VBROADCASTI128     => Ox86_VBROADCASTI128_instr.1
   | VPERM2I128         => Ox86_VPERM2I128_instr.1
@@ -1391,6 +1438,8 @@ Definition prim_string :=
    Ox86_VPUNPCKH_instr.2;
    Ox86_VPUNPCKL_instr.2;
    Ox86_VPBLEND_instr.2;
+   Ox86_VPACKUS_instr.2;
+   Ox86_VPACKSS_instr.2;
    Ox86_VPBROADCAST_instr.2;
    Ox86_VBROADCASTI128_instr.2;
    Ox86_VPERM2I128_instr.2;
