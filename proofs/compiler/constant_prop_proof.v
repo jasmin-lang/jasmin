@@ -316,7 +316,7 @@ case: e=> //= ;try auto.
   rewrite Hhv in Hh; rewrite -Hh. case: Hb1 => ->. by rewrite Hb2.
 + move=> s0 e. t_xrbindP.
   move=> h [yv yl] He /= h1 Ho <-. rewrite /sem_sop1 /=.
-  t_xrbindP. move=> h0 y Hb <- <- _ Ho'. rewrite /sem_sop1 in Ho. rewrite /= in Ho.
+  t_xrbindP. move=> h0 y Hb <- <- _.
   admit.
 + move=> s0 e e0. t_xrbindP.
   move=> y [yv yl] He [yv' yl'] He0 v0 Hs2 Hev v1 Hs1 Hev' Hl'.
@@ -446,7 +446,7 @@ case: e => //.
   rewrite Hhv in Hh; rewrite -Hh. case: Hb1 => ->. by rewrite Hb2.
 + move=> s0 e. rewrite /sneg_int /=. t_xrbindP.
   move=> h [yv yl] He /= h1 Ho. rewrite /sem_sop1 /=.
-  t_xrbindP. move=> <- h2 y /of_val_int Hy <- <- Hl.
+  t_xrbindP. move=> <- h2 y /of_val_int Hy <- <- Hl H /=.
   admit.
 + move=> s0 e e0 /=. t_xrbindP.
   move=> y [yv yl] He [yv' yl'] He0 v0 Hs2 Hev v1 Hs1 Hev' Hl'.
@@ -2906,9 +2906,9 @@ case: (op) => sz' pe /=.
   move=> y Ha Hv h1 -> h3 h4 Ha' <- <- _ h9 [] <-.
   rewrite /sem_opN /=. t_xrbindP. rewrite Ha' /=.
   by move=> h y0 [] <- <- <- _.
-+ rewrite /sem_opN /=; t_xrbindP.
++ rewrite /sem_opN /=; t_xrbindP. rewrite /=.
   move=> y Ha Hv. move=> h1 Hm. rewrite wrepr_unsigned.
-  move=> h3 h4 Ha'. move=> <- <- _ <- _ /=.
+  move=> h3 h4 /= Ha' /=. move=> <- <- _ <- _ /=. rewrite -Hv /=.
   admit.
 + rewrite /sem_opN /=. t_xrbindP.
   move=> y -> h0 h1 Ha <- <- _ h6 [] <-.
@@ -2931,6 +2931,22 @@ exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
 value_uincl (trans_sem t (v, l)).1 v' /\ (trans_sem t (v, l)).2 = l'.
 Proof.
 Admitted.
+
+(*Lemma s_opNP op s es :
+  sem_pexpr gd s (s_opN op es) = sem_pexpr gd s (PappN op es).
+Proof.
+  rewrite /s_opN.
+  case hi: (mapM _ _) => [ i | ] //=.
+  case heq: (sem_opN _ _) => [ v | ] //.
+  case: v heq => // sz w'.
+  case: op => sz' pe /=.
+  rewrite /sem_opN /=; apply: rbindP => w h /ok_word_inj [] ?; subst => /= <-{w'}.
+  rewrite /sem_sop1 /= wrepr_unsigned -/(sem_pexprs _ _).
+  have -> /= : sem_pexprs gd s es = ok i.
+  + elim: es i hi {h} => // - [] // z es ih /=; t_xrbindP => _ vs ok_vs <-.
+    by rewrite (ih _ ok_vs).
+  by rewrite h.
+Qed.*)
 
 Lemma s_ifP s t e e1 e2 v v' l l':
 sem_pexpr_e gd s (Pif t e e1 e2) = ok (v, l) ->
@@ -3080,6 +3096,10 @@ elim: e v l => //=; rewrite /trans_sem.
   auto. split. by case: (h0).
   by rewrite -Hl1 -Hl2 /=.
 Qed.
+
+Definition eqoks e1 e2 st := 
+  forall vs, mapM (sem_pexpr_e gd st) e1 = ok vs ->
+             exists vs', map (sem_expr_e gd st) e2 = ok vs'
 
 Definition eqoks e1 e2 st :=
   ∀ vs, sem_pexprs gd st e1 = ok vs →

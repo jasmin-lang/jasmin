@@ -789,8 +789,6 @@ Fixpoint sem_pexpr_e (s:estate) (e : pexpr) : exec (value * leak_e_tree) :=
     Let vl1 := sem_pexpr_e s e1 in
     Let vl2 := sem_pexpr_e s e2 in
     Let v := sem_sop2 o vl1.1 vl2.1 in
-    (* Before I used LSub ([vl1.2] ++ [vl1.2])
-       which is not correct for and/or case *)
     ok (v, LSub [:: vl1.2; vl2.2])
   | PappN op es =>
     Let vs := mapM (sem_pexpr_e s) es in
@@ -867,22 +865,35 @@ Definition flatten_execs (p : exec (seq (value * leak_e_tree))) :=
 Let v := p in 
 ok (vlest_to_vles v).
 
-Fixpoint pair_v_l (v : seq value) (l : seq leakages_e) : seq (value * leakages_e) := 
-match v,l with 
-| [::], [::] => [::]
-| x :: xl, y:: yl => (x,y) :: pair_v_l xl yl
-| _, _ => [::]
-end.
-
 
 Let P e : Prop := forall v, sem_pexpr_e gd s e = ok v -> 
             sem_pexpr gd s e = ok (v.1, lest_to_les v.2).
 
 Let Q es : Prop := forall vs, mapM (sem_pexpr_e gd s) es = ok vs ->
-           mapM (sem_pexpr gd s) es = ok (pair_v_l (unzip1 vs) (map lest_to_les (unzip2 vs))).
+           mapM (sem_pexpr gd s) es = ok (zip (unzip1 vs) (map (lest_to_les) (unzip2 vs))).
 
 Let Q'' es : Prop := forall vs, sem_pexprs_e gd s es = ok vs ->
            sem_pexprs gd s es = ok (vs.1, lest_to_les vs.2).
+
+Definition x es := mapM (sem_pexpr_e gd s) es.
+
+Definition y es := mapM (sem_pexpr gd s) es.
+
+Check y.
+
+Check x.
+
+Lemma size_comp : forall (ys: (seq (value* leak_e_tree))), (size (unzip1 ys) <= size (map (lest_to_les) (unzip2 ys)))%N.
+Proof.
+move=> ys.
+elim: ys => //= x s.
+Qed.
+
+Lemma size_comp' : forall (ys: (seq (value* leak_e_tree))), (size (map (lest_to_les) (unzip2 ys)) <= size (unzip1 ys))%N.
+Proof.
+move=> ys.
+elim: ys => //= x s.
+Qed.
 
   Lemma const_prop_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
   Proof.
@@ -912,26 +923,38 @@ Let Q'' es : Prop := forall vs, sem_pexprs_e gd s es = ok vs ->
     move=> [yv yl] Hs [hv hl] Hs' v' Hop <- <- /=.
     move: (H1 (yv, yl) Hs) => -> /=. move: (H2 (hv, hl) Hs') => -> /=.
     rewrite Hop /=. rewrite /lests_to_les /=. by rewrite cats0.
-  + move=> op es H. t_xrbindP.
-    move=> [hv hl] y Hm yv Hop He.
-    move: (H y Hm) => -> /=.
-    admit.
-  + move=> t e H e1 H1 e2 H2 [v l]. t_xrbindP.
-    move=> [yv yl] Hs b Hb [hv hl] He1 [hv' hl'] He2 he1 Hhe1 he2 Hhe2 He <- /=.
-    move: (H (yv, yl) Hs) => -> /=.
-    move: (H1 (hv, hl) He1) => -> /=.
-    move: (H2 (hv', hl') He2) => -> /=.
-    rewrite Hb /=. rewrite Hhe1 /=. rewrite Hhe2 /=. rewrite He /=.
-    rewrite /lests_to_les /=. by rewrite cats0.
-  Admitted.
+  + move=> op es Hes. t_xrbindP. move=> [yv yl] ys Hm. move=> h1 Ho.
+    move=> [] Hh Hl. move: (Hes ys Hm) => Hm'. rewrite Hm' /=.
+    assert ((unzip1
+        (zip (unzip1 ys) [seq lest_to_les i | i <- unzip2 ys])) = unzip1 ys).
+    apply unzip1_zip. apply size_comp. rewrite H /=. rewrite Ho /=.
+    assert ((unzip2
+       (zip (unzip1 ys)
+          [seq lest_to_les i | i <- unzip2 ys])) = [seq lest_to_les i | i <- unzip2 ys]).
+    apply unzip2_zip. apply size_comp'. rewrite H0 Hh -Hl /=. by rewrite /lests_to_les /=. 
+  move=> t e H e1 H1 e2 H2 [v l]. t_xrbindP.
+  move=> [yv yl] Hs b Hb [hv hl] He1 [hv' hl'] He2 he1 Hhe1 he2 Hhe2 He <- /=.
+  move: (H (yv, yl) Hs) => -> /=.
+  move: (H1 (hv, hl) He1) => -> /=.
+  move: (H2 (hv', hl') He2) => -> /=.
+  rewrite Hb /=. rewrite Hhe1 /=. rewrite Hhe2 /=. rewrite He /=.
+  rewrite /lests_to_les /=. by rewrite cats0.
+  Qed.
 
   Lemma sem_pexpr_s_sim' : (∀ e, P e) ∧ (∀ es, Q'' es).
   Proof.
   rewrite /Q''. rewrite /sem_pexprs. rewrite /sem_pexprs_e.
   move: const_prop_e_esP => [] H1 H2. rewrite /Q in H2.
-  split; auto. move=> es vs. t_xrbindP => y Hm <-. move: (H2 es y) => H1'.
-  rewrite H1' /=. rewrite /lests_to_les. admit. auto.
-  Admitted.
+  split; auto. move=> es vs. t_xrbindP => y Hm <-. move: (H2 es y) => H1'. 
+  move: (H1' Hm) => H. rewrite H /=.
+  assert ((unzip1
+     (zip (unzip1 y) [seq lest_to_les i | i <- unzip2 y])) = unzip1 y).
+  apply unzip1_zip. apply size_comp. rewrite H0 /=.
+  assert ((unzip2
+       (zip (unzip1 y)
+          [seq lest_to_les i | i <- unzip2 y])) = [seq lest_to_les i | i <- unzip2 y]).
+    apply unzip2_zip. apply size_comp'. by rewrite H3 /lests_to_les /=.
+  Qed.
 
 End Sem_e_Leakages_proof.
 
@@ -980,8 +1003,9 @@ Definition const_prop_e_esP_sem_pexprs_e gd s es v:=
     exists (LSub [:: l1; l2]). split.
     rewrite -Hl /=. rewrite Hs1 Hs2 /=. rewrite /lests_to_les /=. by rewrite cats0.
     rewrite Ho /=. by rewrite Hv.
-  + move=> op es He /=. t_xrbindP.
-    move=> h h0 y Hm h2 Ho Hv Hl /=.
+  + move=> op es He /=. t_xrbindP. move: (const_prop_e_esP_sem_pexprs_e) => H h1 h0 y0 Hm.
+    move: (H gd s es) => H1. move=> h2 Ho <- /= <- /=.
+    move: (const_prop_e_esP_sem_pexpr_e)=> H2. 
     admit.
   + move=> t e He e1 He1 e2 He2 /=. t_xrbindP.
     move=> h h0 [yv yl] He' b Hb [yv' yl'] He1' [yv'' yl''] He2' h8 Ht h9 Ht' Hv Hl.
@@ -1022,10 +1046,10 @@ Definition const_prop_e_esP_sem_pexprs_e gd s es v:=
   write_lvals_e gd s1 xs vs = ok (s2, l) ->
   write_lvals gd s1 xs vs = ok (s2, lest_to_les l).
   Proof.
-  rewrite /write_lvals. rewrite /write_lvals_e. elim: xs vs s1 [::] l.
-  - case => // s1 l0 l /= h. by case: h => <- <- /=.
-  - move=> a l ih [] // v vs s1 l0' l' h.
-    admit.
+  rewrite /write_lvals. rewrite /write_lvals_e.
+  elim: xs vs s1 [::] l s2 => [|x xs Hrec] [|v vs] s1 lw0 lw s2 //=.
+  + by move=> [] <- <- /=.
+  t_xrbindP => ? [s lw1] /write_lval_cp -> <- /=. move=> H.
   Admitted.
 
 (*Inductive leakage_i_tree : Type :=
