@@ -6,6 +6,11 @@ export fn test (reg u64 in) {
   z = #VPBLEND_8u16(x,y,237);
   (u128)[in] = z;
 
+  x = (u128)[in];
+  y = x;
+  z = #VPBLEND_4u32(x,y,237);
+  (u128)[in] = z;
+
   xx = (u256)[in];
   yy = xx;
   zz = #VPBLEND_16u16(xx,yy,237);
