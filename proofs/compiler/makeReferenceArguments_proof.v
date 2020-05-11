@@ -63,7 +63,7 @@ Section Section.
 
   Let Pi s1 (i:instr) s2:=
     forall (X:Sv.t) c', update_i is_reg_ptr fresh_id p get_sig X i = ok c' ->
-       (* subset (read U write i) X  -> *)
+     Sv.Subset (Sv.union (read_I i) (write_I i)) X ->
      forall vm1, evm s1 =[X] vm1 ->
      exists vm2, [/\ evm s2 =[X] vm2 &
         sem p' ev (with_vm s1 vm1) c' (with_vm s2 vm2)].
@@ -73,10 +73,107 @@ Section Section.
 
   Let Pc s1 (c:cmd) s2:=
     forall (X:Sv.t) c', update_c (update_i is_reg_ptr fresh_id p get_sig X) c = ok c' ->
-       (* subset (read U write i) X  -> *)
+     Sv.Subset (Sv.union (read_c c) (write_c c)) X ->
      forall vm1, evm s1 =[X] vm1 ->
      exists vm2, [/\ evm s2 =[X] vm2 &
         sem p' ev (with_vm s1 vm1) c' (with_vm s2 vm2)].
+
+  Let Pfor (i:var_i) vs s1 c s2 :=
+    forall X c',
+    update_c (update_i is_reg_ptr fresh_id p get_sig X) c = ok c' ->
+    Sv.Subset (Sv.add i (Sv.union (read_c c) (write_c c))) X ->
+    forall vm1,  evm s1 =[X] vm1 ->
+    exists vm2, [/\ evm s2 =[X] vm2  & 
+      sem_for p' ev i vs (with_vm s1 vm1) c' (with_vm s2 vm2)].
+
+  Let Pfun m fn vargs m' vres :=
+    sem_call p' ev m fn vargs m' vres.
+
+  Local Lemma Hskip : sem_Ind_nil Pc.
+  Proof. 
+    by move=> s X _ [<-] hs vm1 hvm1; exists vm1; split => //; constructor.
+  Qed.
+
+  Local Lemma Hcons : sem_Ind_cons p ev Pc Pi.
+  Proof.
+    move=> s1 s2 s3 i c _ hi _ hc X c'.
+    rewrite /update_c /=; t_xrbindP => lc ci {}/hi hi cc hcc <- <-.
+    rewrite read_c_cons write_c_cons => hsub vm1 hvm1.
+    have [|vm2 [hvm2 hs2]]:= hi _ vm1 hvm1; first by SvD.fsetdec.
+    have /hc : update_c (update_i is_reg_ptr fresh_id p get_sig X) c = ok (flatten cc).
+    + by rewrite /update_c hcc.
+    move=> /(_ _ vm2 hvm2) [|vm3 [hvm3 hs3]]; first by SvD.fsetdec.
+    exists vm3; split => //=.
+    apply: sem_app hs2 hs3.
+  Qed.
+
+  Local Lemma HmkI : sem_Ind_mkI p ev Pi_r Pi.
+  Proof. by move=> ii i s1 s2 _ Hi X c' /Hi. Qed.
+
+  Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
+  Proof.
+    move=> s1 s2 x t ty e v v' he htr hw ii X c' [<-].
+    rewrite read_Ii /write_I /= vrv_recE read_i_assgn => hsub vm1 hvm1.
+    move: he.
+    rewrite (read_e_eq_on _ (s:=Sv.empty) (vm' := vm1)); last first.
+    + by apply: eq_onI hvm1; rewrite read_eE; SvD.fsetdec.
+    rewrite eq_globs => he.
+    write_lval_eq_on
+
+  Admitted.
+
+  Local Lemma Hopn : sem_Ind_opn p Pi_r.
+  Proof.
+  Admitted.
+
+  Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
+  Proof.
+  Admitted.
+
+  Local Lemma Hif_false : sem_Ind_if_false p ev Pc Pi_r.
+  Proof.
+  Admitted.
+
+  Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
+  Proof.
+  Admitted.
+
+  Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
+  Proof.
+  Admitted.
+
+  Local Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
+  Proof.
+  Admitted.
+
+  Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
+  Proof.
+  Admitted.
+
+  Local Lemma Hfor_cons : sem_Ind_for_cons p ev Pc Pfor.
+  Proof.
+  Admitted.
+
+  Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
+  Proof.
+  Admitted.
+
+  Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
+  Proof.
+  Admitted.
+
+  Lemma makeReferenceArguments_callP f mem mem' va vr:
+    sem_call p ev mem f va mem' vr ->
+    sem_call p' ev mem f va mem' vr.
+  Proof.
+    move=> Hsem.
+    apply (@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+               Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc
+               mem f va mem' vr Hsem).
+  Qed.
+
+End Section.
+Prin
 
   (*I should have something more specific than s1 and s2*)
   (*
