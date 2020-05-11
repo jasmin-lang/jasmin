@@ -86,6 +86,9 @@ let rec pp_comp_err tbl fmt =
   | Compiler_util.Cerr_stk_alloc s ->
     Format.fprintf fmt "stack_alloc error %a"
       pp_string0 s
+  | Compiler_util.Cerr_one_varmap s ->
+     Format.fprintf fmt "error in “one-varmap” checker: %a"
+       pp_string0 s
   | Compiler_util.Cerr_linear s ->
     Format.fprintf fmt "linearisation error %a"
       pp_string0 s

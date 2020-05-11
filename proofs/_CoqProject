@@ -32,6 +32,7 @@ compiler/linear_proof.v
 compiler/lowering.v
 compiler/lowering_proof.v
 compiler/makeReferenceArguments.v
+compiler/merge_varmaps.v
 compiler/remove_globals.v
 compiler/remove_globals_proof.v
 compiler/stack_alloc.v
@@ -56,6 +57,7 @@ lang/memory_model.v
 lang/psem_of_sem_proof.v
 lang/psem.v
 lang/sem.v
+lang/sem_one_varmap.v
 lang/sem_type.v
 lang/strings.v
 lang/type.v
