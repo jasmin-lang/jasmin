@@ -552,208 +552,6 @@ Definition add_cpm (m:cpm) (rv:lval) tag ty e :=
     else m
   else m.
 
-(*Section CMD.
-
-Inductive leaktrans_i : Type:=
-  | LETremove : leaktrans_i
-  | LETkeep : leaktrans_i
-  | LETleake : leaktrans_e -> leaktrans_i
-  | LETsub0 : leaktrans_i -> leaktrans_i -> leaktrans_i
-  | LETsub : leaktrans_i -> seq leaktrans_i -> leaktrans_i
-  | LETsub1 : seq leaktrans_i -> leaktrans_i
-  | LETsub2 : seq leaktrans_i -> seq leaktrans_i -> leaktrans_i
-  | LETsub3 : leaktrans_i -> seq leaktrans_i -> seq leaktrans_i -> leaktrans_i.
-
-Notation leaktrans_c := (seq leaktrans_i).
-
-  Variable const_prop_i : cpm -> instr -> cpm * cmd * leaktrans_i.
-
-  Fixpoint const_prop (m:cpm) (c:cmd) : cpm * cmd * leaktrans_c :=
-    match c with
-    | [::] => (m, [::], [::])
-    | i::c =>
-      let: (m,ic,lti) := const_prop_i m i in
-      let: (m, c, ltc) := const_prop m c in
-      (m, ic ++ c, ([:: lti] ++ ltc))
-    end.
-
-End CMD.
-
-Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leaktrans_i :=
-  match ir with
-  | Cassgn x tag ty e =>
-    let: (v, l1) := const_prop_e m e in
-    let: (m,x, l2) := const_prop_rv m x in
-    let m := add_cpm m x tag ty v in
-    (m, [:: MkI ii (Cassgn x tag ty e)], (LETleake (LET_sub ([:: l1; l2]))))
-
-  | Copn xs t o es =>
-    (* TODO: Improve this *)
-    let es := map (const_prop_e m) es in
-    let: (m,xs, ls) := const_prop_rvs m xs in
-    (m, [:: MkI ii (Copn xs t o (unzip1 es))], (LETleake (LET_sub [::LET_sub (unzip2 es); ls])))
-
-  | Cif b c1 c2 =>
-    let: (b, l) := const_prop_e m b in
-    match is_bool b with
-    | Some b =>
-      let c := if b then c1 else c2 in
-      let: (v1, cm1, lc1) := const_prop const_prop_i m c1 in
-      let: (v2, cm2, lc2) := const_prop const_prop_i m c2 in 
-      (if b then v1 else v2, if b then cm1 else cm2, LETsub3 LETremove lc1 lc2)
-    | None =>
-      let: (m1,c1, lc1) := const_prop const_prop_i m c1 in
-      let: (m2,c2, lc2) := const_prop const_prop_i m c2 in
-      (merge_cpm m1 m2, [:: MkI ii (Cif b c1 c2) ], (LETsub3 (LETleake l) lc1 lc2))
-    end
-
-  | Cfor x (dir, e1, e2) c =>
-    let: (e1, l1) := const_prop_e m e1 in
-    let: (e2, l2) := const_prop_e m e2 in
-    let m := remove_cpm m (write_i ir) in
-    let: (_,c, lc) := const_prop const_prop_i m c in
-    (m, [:: MkI ii (Cfor x (dir, e1, e2) c) ], (LETsub (LETleake (LET_sub ([:: l1] ++ [:: l2]))) lc))
-
-  | Cwhile a c e c' =>
-    let m := remove_cpm m (write_i ir) in
-    let: (m',c, lc) := const_prop const_prop_i m c in
-    let: (e, l) := const_prop_e m' e in
-    let: (_,c', lc') := const_prop const_prop_i m' c' in
-    let: (cw, cwl) :=
-      match is_bool e with
-      | Some false => (c, (LETsub (LETleake LET_remove) lc))
-      | _          => ([:: MkI ii (Cwhile a c e c')], (LETsub3 (LETleake l) lc lc'))
-      end in
-    (m', cw, cwl)
-  | Ccall fi xs f es =>
-    let es := map (const_prop_e m) es in
-    let: (m,xs, ls) := const_prop_rvs m xs in
-    (m, [:: MkI ii (Ccall fi xs f (unzip1 es)) ], LETsub0 (LETleake (LET_sub (unzip2 es))) (LETleake ls))
-  end
-
-with const_prop_i (m:cpm) (i:instr) : cpm * cmd * leaktrans_i :=
-  let (ii,ir) := i in
-  const_prop_ir m ii ir.
-
-Definition const_prop_fun (f:fundef) :=
-  let (ii,tin,p,c,tout,r) := f in
-  let: (_, c, lc) := const_prop const_prop_i empty_cpm c in
-  (MkFun ii tin p c tout r, lc).
-
-Definition leaktrans_fs := seq (funname * (seq leaktrans_i)).
-
-Print prog.
-
-Check const_prop_fun.
-
-Check fun_decls.
-
-Print fun_decls.
-
-Fixpoint get_funnames (fdls : seq fun_decl) : seq funname :=
-match fdls with 
-| [::] => [::]
-| fd :: fds => fst fd :: get_funnames fds
-end.
-
-Fixpoint get_fundefs (fdls : seq fun_decl) : seq fundef :=
-match fdls with 
-| [::] => [::]
-| fd :: fds => (snd fd) :: get_fundefs fds
-end.
-
-Fixpoint seq_fn_leaktrans_c (s1 : seq funname) (s2 : seq (fundef * seq leaktrans_i)) : seq (funname * (seq leaktrans_i)) :=
-match s1, s2 with 
-| x :: xl, y :: yl => (x, y.2) :: seq_fn_leaktrans_c xl yl 
-| _, _ => [::]
-end.
-
-Fixpoint seq_fn_fd (s1 : seq funname) (s2 : seq (fundef * seq leaktrans_i)) : seq (funname * fundef) :=
-match s1, s2 with 
-| x :: xl, y :: yl => (x, y.1) :: seq_fn_fd xl yl 
-| _, _ => [::]
-end.
-
-Definition get_fn_leaktrans_fs p := 
-let fns := get_funnames (p_funcs p) in 
-seq_fn_leaktrans_c fns (map const_prop_fun (get_fundefs (p_funcs p))).
-
-Definition get_fds p := 
-let fns := get_funnames (p_funcs p) in 
-seq_fn_fd fns (map const_prop_fun (get_fundefs (p_funcs p))).
-
-Definition const_prop_prog (p : prog) : (prog * leaktrans_fs) := 
-({| p_globs := p_globs p; p_funcs := get_fds p |},
-  (get_fn_leaktrans_fs p)).
-
-
-(*Definition const_prop_prog (p:prog) := 
-  map_prog const_prop_fun p. *)
-
-(****** NEED TO REDO THIS ********)
-(*Section LEAK_TRANS.
-
-Variable (Ffs : seq (funname * seq leaktrans_i)).
-
-Section LEAK_TRANS_LOOP.
-
-  Variable (lrm_i : leaktrans_i -> leakage_i -> leakage_c).
-
-  Definition lrm_c (lt: seq leaktrans_i) (lc:leakage_c) : leakage_c := 
-    flatten (map2b lrm_i lt lc).
-
-  Definition lrm_w_false (lt : leaktrans_e) (lt1 : seq leaktrans_i) (li: leakage_i) : leakage_i := 
-    match li with
-    | Lwhile_false lc1 le => 
-      Lwhile_false (lrm_c lt1 lc1) (lest_to_les (trans_leakage lt (les_to_lest le)))
-    | _ => (* absurd *)
-      li
-    end.
-
-  Fixpoint lrm_w_true (lt : leaktrans_e) (lt1 lt2: seq leaktrans_i) (li: leakage_i) : leakage_i := 
-    match li with
-    | Lwhile_true lc1 le lc2 li => 
-      Lwhile_true (lrm_c lt1 lc1) (lest_to_les (trans_leakage lt (les_to_lest le))) (lrm_c lt2 lc2) (lrm_w_true lt lt1 lt2 li)
-    | _ => (* absurd *)
-      li
-    end.
-
-Definition lrm_for (lt:seq leaktrans_i) (lfor:leakage_for) :=
-    map (lrm_c lt) lfor.
-
-  Definition lrm_fun (lf: leakage_fun) := 
-    let fn := lf.1 in
-    let lt := odflt [::] (get_fundef Ffs fn) in
-    (fn, lrm_c lt lf.2).
-
-End LEAK_TRANS_LOOP.
-
-Fixpoint leaktrm_i (lt : leaktrans_i) (li : leakage_i) {struct li} : leakage_c :=
-match lt, li with 
-  | LETremove, _ => [::]
-  | LETsub0 (LETleake lt1) (LETleake lt2), Lcall la lf le =>
-    [:: Lcall (lest_to_les (trans_leakage lt1 (les_to_lest la))) 
-              (lrm_fun leaktrm_i lf) 
-              (lest_to_les (trans_leakage lt1 (les_to_lest le)))]
-  | LETkeep, _ => [:: li]
-    (* This is the case when b is evaluated to boolean then we make a choice *)
-  | LETsub3 LETremove lt1 lt2, Lcond le b lc => [:: Lcond le b (lrm_c leaktrm_i (if b then lt1 else lt2) lc)]
-  | LETsub3 (LETleake lt) lt1 lt2, Lcond le b lc =>
-    (* This is the case when b is not evaluated to boolean *)
-    [:: Lcond (lest_to_les (trans_leakage lt (les_to_lest le))) b (lrm_c leaktrm_i (if b then lt1 else lt2) lc)]
-  | LETsub (LETleake lt1) lt2, Lfor le lfor => 
-    [:: Lfor (lest_to_les (trans_leakage lt1 (les_to_lest le))) (lrm_for leaktrm_i lt2 lfor)]
-  | LETsub (LETleake lt) lt1, (Lwhile_false _ _) =>
-    [:: lrm_w_false leaktrm_i lt lt1 li]
-  | LETsub3 (LETleake lt) lt1 lt2, (Lwhile_true _ _ _ _) =>
-    [ :: lrm_w_true leaktrm_i lt lt1 lt2 li]
-  | LETleake le, Lassgn le' => [:: Lassgn (lest_to_les (trans_leakage le (les_to_lest le')))]
-  | LETleake le, Lopn le' => [:: Lopn (lest_to_les (trans_leakage le (les_to_lest le')))]
-  | _, _ => [:: li]
-end.
-
-End LEAK_TRANS.*)
-*)
 
 Section SEM_PEXPR_E.
 
@@ -875,26 +673,6 @@ Let Q es : Prop := forall vs, mapM (sem_pexpr_e gd s) es = ok vs ->
 Let Q'' es : Prop := forall vs, sem_pexprs_e gd s es = ok vs ->
            sem_pexprs gd s es = ok (vs.1, lest_to_les vs.2).
 
-Definition x es := mapM (sem_pexpr_e gd s) es.
-
-Definition y es := mapM (sem_pexpr gd s) es.
-
-Check y.
-
-Check x.
-
-Lemma size_comp : forall (ys: (seq (value* leak_e_tree))), (size (unzip1 ys) <= size (map (lest_to_les) (unzip2 ys)))%N.
-Proof.
-move=> ys.
-elim: ys => //= x s.
-Qed.
-
-Lemma size_comp' : forall (ys: (seq (value* leak_e_tree))), (size (map (lest_to_les) (unzip2 ys)) <= size (unzip1 ys))%N.
-Proof.
-move=> ys.
-elim: ys => //= x s.
-Qed.
-
   Lemma const_prop_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
   Proof.
   apply: pexprs_ind_pair ; split ; subst P Q => //=.
@@ -927,11 +705,11 @@ Qed.
     move=> [] Hh Hl. move: (Hes ys Hm) => Hm'. rewrite Hm' /=.
     assert ((unzip1
         (zip (unzip1 ys) [seq lest_to_les i | i <- unzip2 ys])) = unzip1 ys).
-    apply unzip1_zip. apply size_comp. rewrite H /=. rewrite Ho /=.
+    apply unzip1_zip. elim: (ys) => //= x s. rewrite H /=. rewrite Ho /=.
     assert ((unzip2
        (zip (unzip1 ys)
           [seq lest_to_les i | i <- unzip2 ys])) = [seq lest_to_les i | i <- unzip2 ys]).
-    apply unzip2_zip. apply size_comp'. rewrite H0 Hh -Hl /=. by rewrite /lests_to_les /=. 
+    apply unzip2_zip. elim: (ys) => //= x s. rewrite H0 Hh -Hl /=. by rewrite /lests_to_les /=. 
   move=> t e H e1 H1 e2 H2 [v l]. t_xrbindP.
   move=> [yv yl] Hs b Hb [hv hl] He1 [hv' hl'] He2 he1 Hhe1 he2 Hhe2 He <- /=.
   move: (H (yv, yl) Hs) => -> /=.
@@ -949,11 +727,11 @@ Qed.
   move: (H1' Hm) => H. rewrite H /=.
   assert ((unzip1
      (zip (unzip1 y) [seq lest_to_les i | i <- unzip2 y])) = unzip1 y).
-  apply unzip1_zip. apply size_comp. rewrite H0 /=.
+  apply unzip1_zip. elim: (y) => //= x s. rewrite H0 /=.
   assert ((unzip2
        (zip (unzip1 y)
           [seq lest_to_les i | i <- unzip2 y])) = [seq lest_to_les i | i <- unzip2 y]).
-    apply unzip2_zip. apply size_comp'. by rewrite H3 /lests_to_les /=.
+    apply unzip2_zip. elim: (y) => //= x s. by rewrite H3 /lests_to_les /=.
   Qed.
 
 End Sem_e_Leakages_proof.
@@ -1052,24 +830,90 @@ Definition const_prop_e_esP_sem_pexprs_e gd s es v:=
   t_xrbindP => ? [s lw1] /write_lval_cp -> <- /=. move=> H.
   Admitted.
 
-(*Inductive leakage_i_tree : Type :=
-  | Lassgn_tree : leak_e_tree -> leakage_i_tree
-  | Lopn_tree  : leak_e_tree ->leakage_i_tree
-  | Lcond_tree  : leak_e_tree -> bool -> seq leakage_i_tree -> leakage_i_tree
-  | Lwhile_true_tree : seq leakage_i_tree -> leak_e_tree -> seq leakage_i_tree -> leakage_i_tree -> leakage_i_tree
-  | Lwhile_false_tree : seq leakage_i_tree -> leak_e_tree -> leakage_i_tree
-  | Lfor_tree : leak_e_tree -> seq (seq leakage_i_tree) -> leakage_i_tree
-  | Lcall_tree : leak_e_tree -> (funname * seq leakage_i_tree) -> leak_e_tree -> leakage_i_tree.
+Section CMD.
 
-Notation leakage_c_tree := (seq leakage_i_tree).
+Inductive leak_i_tree :=
+| LTempty : leak_i_tree
+| LTassgn : leak_e_tree -> leak_i_tree
+| LTopn : leak_e_tree -> leak_i_tree
+| LTcond : leak_e_tree -> bool -> leak_i_tree -> leak_i_tree
+| LTwhile_true : leak_i_tree -> leak_e_tree -> leak_i_tree -> leak_i_tree -> leak_i_tree
+| LTwhile_false : leak_i_tree -> leak_e_tree -> leak_i_tree
+| LTfor : leak_e_tree -> leak_i_tree -> leak_i_tree
+| LTcall : leak_e_tree -> (funname * leak_i_tree) -> leak_e_tree -> leak_i_tree
+| LTSub : seq leak_i_tree -> leak_i_tree.
 
-Notation leakage_for_tree := (seq leakage_c_tree) (only parsing).
+Inductive leak_i_tr :=
+| LT_ikeep : leak_i_tr
+| LT_iremove : leak_i_tr
+| LT_iseq : seq leak_i_tr -> leak_i_tr
+| LT_ile : leak_tr -> leak_i_tr
+| LT_ileli : leak_tr -> leak_i_tr -> leak_i_tr
+| LT_iwhile : leak_i_tr -> leak_tr -> leak_i_tr -> leak_i_tr -> leak_i_tr
+| LT_icall : leak_tr -> leak_i_tr -> leak_tr -> leak_i_tr
+| LT_icompose : leak_i_tr -> leak_i_tr -> leak_i_tr.
 
-Notation leakage_fun_tree := (funname * leakage_c_tree)%type.*)
+Fixpoint leak_I (lt : leak_i_tr) (l : leak_i_tree) : leak_i_tree :=
+ match lt, l with
+ | LT_ikeep, _ => l
+ | LT_iremove, _ => LTempty
+ | LT_iseq lts, LTSub ls => LTSub (map2 leak_I lts ls)
+ | LT_ile lte, LTassgn le => LTassgn (leak_F lte le)
+ | LT_ile lte, LTopn le => LTopn (leak_F lte le)
+ | LT_ileli lte lts, LTcond le b ls => LTcond (leak_F lte le) b (leak_I lts ls)
+ | LT_iwhile lts lte lts' lt, LTwhile_true ls le ls' li => LTwhile_true (leak_I lts ls) (leak_F lte le) (leak_I lts' ls') (leak_I lt li)
+ | LT_ileli lte lts, LTwhile_false li le => LTwhile_false (leak_I lts li) (leak_F lte le)
+ | LT_ileli lte lts, LTfor le ls => LTfor (leak_F lte le) (leak_I lts ls)
+ | LT_icall lte lts lte', LTcall le (f, li) le' => LTcall (leak_F lte le) (f, leak_I lts li) (leak_F lte' le')
+ | _, _ => LTempty
+ end.
+
+Section LIT_TO_LI.
+
+Variable (lit_to_li : leak_i_tree -> seq leakage_i).
+
+Definition lits_to_lis (l : seq leak_i_tree) : seq leakage_i := 
+    flatten (map lit_to_li l).
+
+End LIT_TO_LI.
+
+Variable l0 : leakage_i.
+
+Fixpoint lit_to_li (lis : leak_i_tree) : seq leakage_i :=
+ match lis with 
+ | LTempty => [::]
+ | LTassgn le => [:: (Lassgn (lest_to_les le))]
+ | LTopn le => [:: (Lopn (lest_to_les le))]
+ | LTcond le b li => [:: (Lcond (lest_to_les le) b (lit_to_li li))]
+ | LTwhile_true li le li' li'' => [:: (Lwhile_true (lit_to_li li)
+                                                   (lest_to_les le)
+                                                   (lit_to_li li')
+                                                   (head l0 (lit_to_li li'')))]
+ | LTwhile_false li le => [:: (Lwhile_false (lit_to_li li)
+                                             (lest_to_les le))]
+ | LTfor le li => [:: (Lfor (lest_to_les le)
+                            [:: (lit_to_li li)])]
+ | LTcall le (f, li) le' => [:: (Lcall (lest_to_les le)
+                                        (f, (lit_to_li li))
+                                        (lest_to_les le'))]
+ | LTSub lis => lits_to_lis lit_to_li lis
+ end.
 
 
-(*Section SEM_E.
+  Variable const_prop_i : cpm -> instr -> cpm * cmd * leak_i_tr.
 
+  Fixpoint const_prop (m:cpm) (c:cmd) : cpm * cmd * leak_i_tr :=
+    match c with
+    | [::] => (m, [::], LT_iremove)
+    | i::c =>
+      let: (m,ic, lti) := const_prop_i m i in
+      let: (m, c, ltc) := const_prop m c in
+      (m, ic ++ c, LT_iseq [:: lti; ltc])
+    end.
+
+End CMD.
+
+Section SEM_E.
 Variable P:prog.
 Notation gd := (p_globs P).
 
@@ -1079,82 +923,82 @@ Definition sem_range_e (s : estate) (r : range) :=
   Let i1 := to_int vl1.1 in 
   Let vl2 := sem_pexpr_e gd s pe2 in 
   Let i2 := to_int vl2.1 in
-  ok (wrange d i1 i2, LESub ([:: vl1.2] ++ [:: vl2.2])).
+  ok (wrange d i1 i2, LSub [:: vl1.2 ; vl2.2]).
 
 Definition sem_sopn_e gd o m lvs args := 
   Let vas := sem_pexprs_e gd m args in
   Let vs := exec_sopn o vas.1 in 
   Let ml := write_lvals_e gd m lvs vs in
-  ok (ml.1, LESub ([:: vas.2] ++ [::ml.2])).
+  ok (ml.1, LSub [ :: vas.2 ; ml.2]).
 
 
-Inductive sem_e : estate -> cmd -> leakage_c_tree -> estate -> Prop :=
+Inductive sem_e : estate -> cmd -> leak_i_tree -> estate -> Prop :=
 | Eskip_e s :
-    sem_e s [::] [::] s
+    sem_e s [::] (LTSub [::]) s
 
 | Eseq_e s1 s2 s3 i c li lc :
-    sem_I_e s1 i li s2 -> sem_e s2 c lc s3 -> sem_e s1 (i::c) (li :: lc) s3
+    sem_I_e s1 i li s2 -> sem_e s2 c lc s3 -> sem_e s1 (i::c) (LTSub [:: li ; lc]) s3
 
-with sem_I_e : estate -> instr -> leakage_i_tree -> estate -> Prop :=
+with sem_I_e : estate -> instr -> leak_i_tree -> estate -> Prop :=
 | EmkI_e ii i s1 s2 li:
     sem_i_e s1 i li s2 ->
     sem_I_e s1 (MkI ii i) li s2
 
-with sem_i_e : estate -> instr_r -> leakage_i_tree -> estate -> Prop :=
+with sem_i_e : estate -> instr_r -> leak_i_tree -> estate -> Prop :=
 | Eassgn_e s1 s2 (x:lval) tag ty e v v' l1 l2:
-    sem_pexpr_e gd s1 e = ok (v,l1) ->
+    sem_pexpr_e gd s1 e = ok (v,l1)  ->
     truncate_val ty v = ok v' →
     write_lval_e gd x v' s1 = ok (s2, l2) ->
-    sem_i_e s1 (Cassgn x tag ty e) (Lassgn_tree (LESub [::l1 ;l2])) s2
+    sem_i_e s1 (Cassgn x tag ty e) (LTassgn (LSub [:: l1 ; l2])) s2
 
 | Eopn_e s1 s2 t o xs es lo:
     sem_sopn_e gd o s1 xs es = ok (s2, lo) ->
-    sem_i_e s1 (Copn xs t o es) (Lopn_tree lo) s2
+    sem_i_e s1 (Copn xs t o es) (LTopn lo) s2
 
 | Eif_true_e s1 s2 e c1 c2 le lc:
     sem_pexpr_e gd s1 e = ok (Vbool true, le) ->
     sem_e s1 c1 lc s2 ->
-    sem_i_e s1 (Cif e c1 c2) (Lcond_tree le true lc) s2
+    sem_i_e s1 (Cif e c1 c2) (LTcond le true lc) s2
 
 | Eif_false_e s1 s2 e c1 c2 le lc:
     sem_pexpr_e gd s1 e = ok (Vbool false, le) ->
     sem_e s1 c2 lc s2 ->
-    sem_i_e s1 (Cif e c1 c2) (Lcond_tree le false lc) s2
+    sem_i_e s1 (Cif e c1 c2) (LTcond le false lc) s2
 
 | Ewhile_true_e s1 s2 s3 s4 a c e c' lc le lc' lw:
     sem_e s1 c lc s2 ->
     sem_pexpr_e gd s2 e = ok (Vbool true, le) ->
     sem_e s2 c' lc' s3 ->
     sem_i_e s3 (Cwhile a c e c') lw s4 ->
-    sem_i_e s1 (Cwhile a c e c') (Lwhile_true_tree lc le lc' lw) s4
+    sem_i_e s1 (Cwhile a c e c') (LTwhile_true lc le lc' lw) s4
 
 | Ewhile_false_e s1 s2 a c e c' lc le:
     sem_e s1 c lc s2 ->
     sem_pexpr_e gd s2 e = ok (Vbool false, le) ->
-    sem_i_e s1 (Cwhile a c e c') (Lwhile_false_tree lc le) s2
+    sem_i_e s1 (Cwhile a c e c') (LTwhile_false lc le) s2
 
 | Efor_e s1 s2 (i:var_i) r c wr lr lf:
     sem_range_e s1 r = ok (wr, lr) ->
     sem_for_e i wr s1 c lf s2 ->
-    sem_i_e s1 (Cfor i r c) (Lfor_tree lr lf) s2
+    sem_i_e s1 (Cfor i r c) (LTfor lr lf) s2
 
 | Ecall_e s1 m2 s2 ii xs f args vargs vs l1 lf l2:
     sem_pexprs_e gd s1 args = ok (vargs, l1) ->
     sem_call_e s1.(emem) f vargs lf m2 vs ->
     write_lvals_e gd {|emem:= m2; evm := s1.(evm) |} xs vs = ok (s2, l2) ->
-    sem_i_e s1 (Ccall ii xs f args) (Lcall_tree l1 lf l2) s2
+    sem_i_e s1 (Ccall ii xs f args) (LTcall l1 lf l2) s2
 
-with sem_for_e : var_i -> seq Z -> estate -> cmd -> leakage_for_tree -> estate -> Prop :=
+with sem_for_e : var_i -> seq Z -> estate -> cmd -> leak_i_tree -> estate -> Prop :=
 | EForDone_e s i c :
-    sem_for_e i [::] s c [::] s
+    sem_for_e i [::] s c (LTSub [::]) s
 
 | EForOne_e s1 s1' s2 s3 i w ws c lc lw :
     write_var i (Vint w) s1 = ok s1' ->
     sem_e s1' c lc s2 ->
     sem_for_e i ws s2 c lw s3 ->
-    sem_for_e i (w :: ws) s1 c (lc :: lw) s3
+    sem_for_e i (w :: ws) s1 c (LTSub [::lc ; lw]) s3
 
-with sem_call_e : Memory.mem -> funname -> seq value -> leakage_fun_tree -> Memory.mem -> seq value -> Prop :=
+with sem_call_e : Memory.mem -> funname -> seq value -> (funname * leak_i_tree) -> Memory.mem -> seq value -> Prop :=
 | EcallRun_e m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc :
     get_fundef (p_funcs P) fn = Some f ->
     mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
@@ -1164,18 +1008,89 @@ with sem_call_e : Memory.mem -> funname -> seq value -> leakage_fun_tree -> Memo
     mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
     sem_call_e m1 fn vargs' (fn, lc) m2 vres'.
 
-End SEM_E. *)
+End SEM_E.
+
+Section Sem_E_Leakages_proof.
+
+Context (gd: glob_decls).
+
+Context (s:estate).
+
+(* Here we need to write the theorem sem -> sem_e and sem_e -> sem *)
+
+End Sem_E_Leakages_proof.
+
+(*Inductive leak_i_tr :=
+| LT_ikeep : leak_i_tr
+| LT_iremove : leak_i_tr
+| LT_iseq : seq leak_i_tr -> leak_i_tr
+| LT_ile : leak_tr -> leak_i_tr
+| LT_ileli : leak_tr -> leak_i_tr -> leak_i_tr
+| LT_iwhile : leak_i_tr -> leak_tr -> leak_i_tr -> leak_i_tr -> leak_i_tr
+| LT_icall : leak_tr -> leak_i_tr -> leak_tr -> leak_i_tr
+| LT_icompose : leak_i_tr -> leak_i_tr -> leak_i_tr.*)
 
 
-(** NEED TO HAVE A THEOREM ABOUT SEM AND SEM_E **)
+Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
+  match ir with
+  | Cassgn x tag ty e =>
+    let (e, lt) := const_prop_e m e in
+    let: (m,x, ltx) := const_prop_rv m x in
+    let m := add_cpm m x tag ty e in
+    (m, [:: MkI ii (Cassgn x tag ty e)], LT_iseq [:: LT_ile lt; LT_ile ltx])
 
+  | Copn xs t o es =>
+    (* TODO: Improve this *)
+    let es := map (const_prop_e m) es in
+    let: (m,xs, lts) := const_prop_rvs m xs in
+    (m, [:: MkI ii (Copn xs t o (unzip1 es)) ], 
+         LT_iseq [ :: LT_ile (LT_seq (unzip2 es)) ; LT_ile lts])
 
-(*if b[1] then a[1] else a[2]   [ LeakId 1; LeakId 1; LeakId 2]
-                           LEsub [ LEId 1; LEId 1; LEId 2]
+  | Cif b c1 c2 =>
+    let (b, ltb) := const_prop_e m b in
+    match is_bool b with
+    | Some b =>
+      if b then let: (v1, cm1, ltc1) := const_prop const_prop_i m c1 in 
+                     (v1, cm1, LT_ileli ltb ltc1) 
+           else let: (v2, cm2, ltc2) := const_prop const_prop_i m c1 in 
+                     (v2, cm2, LT_ileli ltb ltc2) 
+    | None =>
+      let: (m1,c1,lt1) := const_prop const_prop_i m c1 in
+      let: (m2,c2,lt2) := const_prop const_prop_i m c2 in
+      (merge_cpm m1 m2, [:: MkI ii (Cif b c1 c2) ], LT_ileli ltb (LT_iseq [:: lt1; lt2]))
+    end
 
-(b[1] + a[1]) + a[2]         [ LeakId 1; LeakId 1; LeakId 2]
-                        LEsub [LEsub [ LEId 1; LEId 1]; LEid 2]*)
+  | Cfor x (dir, e1, e2) c =>
+    let (e1, lte1) := const_prop_e m e1 in
+    let (e2, lte2) := const_prop_e m e2 in
+    let m := remove_cpm m (write_i ir) in
+    let: (_,c, ltc) := const_prop const_prop_i m c in
+    (m, [:: MkI ii (Cfor x (dir, e1, e2) c) ], LT_ileli (LT_seq [:: lte1; lte2]) ltc)
 
+  | Cwhile a c e c' =>
+    let m := remove_cpm m (write_i ir) in
+    let: (m',c, ltc) := const_prop const_prop_i m c in
+    let (e, lte) := const_prop_e m' e in
+    let: (_,c', ltc') := const_prop const_prop_i m' c' in
+    let cw :=
+      match is_bool e with
+      | Some false => c
+      | _          => [:: MkI ii (Cwhile a c e c')]
+      end in
+    (m', cw, LT_ikeep)
+  | Ccall fi xs f es =>
+    let es := map (const_prop_e m) es in
+    let: (m,xs,lt) := const_prop_rvs m xs in
+    (m, [:: MkI ii (Ccall fi xs f (unzip1 es)) ], LT_ikeep)
+  end
 
+with const_prop_i (m:cpm) (i:instr) : cpm * cmd * leak_i_tr :=
+  let (ii,ir) := i in
+  const_prop_ir m ii ir.
 
+Definition const_prop_fun (f:fundef) :=
+  let (ii,tin,p,c,tout,r) := f in
+  let: (_, c, lt) := const_prop const_prop_i empty_cpm c in
+  MkFun ii tin p c tout r.
 
+Definition const_prop_prog (p:prog) : prog := map_prog const_prop_fun p.
