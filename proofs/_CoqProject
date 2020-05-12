@@ -33,6 +33,7 @@ compiler/lowering.v
 compiler/lowering_proof.v
 compiler/makeReferenceArguments.v
 compiler/merge_varmaps.v
+compiler/merge_varmaps_proof.v
 compiler/remove_globals.v
 compiler/remove_globals_proof.v
 compiler/stack_alloc.v
