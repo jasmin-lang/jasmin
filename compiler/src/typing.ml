@@ -1020,7 +1020,7 @@ let extract_size str : string * size_annotation =
           (fun c0 i c1 j -> 
             if not ((c0 = 'u' || c0 = 's') && (c1 = 'u' || c1 = 's')) then raise Not_found;
             SAx(wsize_of_int i, wsize_of_int j))
-      with Not_found | Scanf.Scan_failure _ -> SA
+      with Not_found | End_of_file | Scanf.Scan_failure _ -> SA
   in
   match List.rev (String.split_on_char '_' str) with
   | [] -> str, SA
