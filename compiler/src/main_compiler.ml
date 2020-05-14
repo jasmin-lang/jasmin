@@ -208,7 +208,7 @@ let main () =
       if !debug then Format.eprintf "Pretty printed to LATEX@."
     end;
 
-    let env, pprog  = Typing.tt_program Typing.Env.empty ast in
+    let env, pprog  = Pretyping.tt_program Pretyping.Env.empty ast in
     eprint Compiler.Typing Printer.pp_pprog pprog;
 
     let prog = Subst.remove_params pprog in
@@ -271,7 +271,7 @@ let main () =
 
     if !debug then Printf.eprintf "translated to coq \n%!";
 
-    let to_exec = Typing.Env.Exec.get env in
+    let to_exec = Pretyping.Env.Exec.get env in
     if to_exec <> [] then begin
         let exec (f, m) =
           try
@@ -502,10 +502,10 @@ let main () =
         (Location.tostring loc) msg;
       exit 1
 
-  | Typing.TyError (loc, code) ->
+  | Pretyping.TyError (loc, code) ->
       Format.eprintf "%s: typing error: %a\n%!"
         (Location.tostring loc)
-        Typing.pp_tyerror code;
+        Pretyping.pp_tyerror code;
       exit 1
 
 (* -------------------------------------------------------------------- *)
