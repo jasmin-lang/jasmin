@@ -214,6 +214,8 @@ let main () =
     let prog = Subst.remove_params pprog in
     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
+    Typing.check_prog prog;
+
     if !check_safety then begin
       let () =
         List.iter (fun f_decl ->
@@ -507,6 +509,9 @@ let main () =
         (Location.tostring loc)
         Pretyping.pp_tyerror code;
       exit 1
+  | Typing.TyError(loc, code) ->
+    Format.eprintf "%a: typing error : %s\n%!"
+      Printer.pp_iloc loc code
 
 (* -------------------------------------------------------------------- *)
 let () = main ()
