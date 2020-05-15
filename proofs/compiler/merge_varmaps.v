@@ -82,6 +82,11 @@ Section WRITE1.
     move => i xs fn es s; rewrite /write_i /=; SvD.fsetdec.
   Qed.
 
+  Lemma write_I_recE ii i s :
+    Sv.Equal (write_I_rec s (MkI ii i))
+             (Sv.union (write_i_rec s i) (if extra_free_registers ii is Some r then Sv.singleton r else Sv.empty)).
+  Proof. rewrite /=; case: extra_free_registers => *; SvD.fsetdec. Qed.
+
 End WRITE1.
 
 Definition get_wmap (wmap: Mp.t Sv.t) (fn: funname) : Sv.t :=
@@ -128,6 +133,11 @@ Section CHECK.
 
   Fixpoint check_i (i: instr) (D: Sv.t) :=
     let: MkI ii ir := i in
+    Let D2 := check_ir ii ir D in
+    Let _ := assert (if extra_free_registers ii is Some r then negb (Sv.mem r D2) else true)
+                        (ii, Cerr_one_varmap "extra register (for rastack) is not free") in
+    ok D2
+  with check_ir ii ir D :=
     match ir with
     | Cassgn x tag ty e =>
       ok (read_rv_rec (read_e_rec (Sv.diff D (vrv x)) e) x)
@@ -158,20 +168,19 @@ Section CHECK.
         let D1 := read_rvs_rec (Sv.diff D (vrvs xs)) xs in (* Remark read_rvs xs is empty since all variables *)
         let inter := Sv.inter D1 W in
         Let _ := assert (Sv.is_empty inter) (ii, Cerr_needspill fn (Sv.elements inter)) in
-        let D2 := read_es_rec D1 es in
-        Let _ := assert (if extra_free_registers ii is Some r then negb (Sv.mem r D2) else true)
-                        (ii, Cerr_one_varmap "extra register for rastack is not free") in
-        ok D2
+        ok (read_es_rec D1 es)
       else cierror ii (Cerr_one_varmap "call to unknown function")
     end.
 
   End CHECK_i.
 
+  Notation check_cmd := (check_c check_i).
+
   Definition check_fd (ffd: sfun_decl) :=
     let: (fn, fd) := ffd in
     let saved_rsp := match fd.(f_extra).(sf_save_stack) with SavedStackNone | SavedStackStk _ => Sv.empty | SavedStackReg r => Sv.singleton r end in
     let O := read_es_rec saved_rsp (map Plvar fd.(f_res)) in
-    Let I := add_finfo fn fn (check_c check_i fd.(f_body) O) in
+    Let I := add_finfo fn fn (check_cmd fd.(f_body) O) in
     let e := fd.(f_extra) in
     match e.(sf_return_address) with
     | RAreg ra =>
