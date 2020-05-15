@@ -1,0 +1,7 @@
+param int x = 3;
+
+fn test(reg u64 y) -> reg u64 {
+   x = 4;
+   y += x;
+   return y;
+}
