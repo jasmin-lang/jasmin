@@ -315,6 +315,7 @@ let tt_sto dfl_writable (sto : S.pstorage) : P.v_kind =
 type tt_mode = [
   | `AllVar
   | `OnlyParam
+  | `NoParam
   ]
 
 (* -------------------------------------------------------------------- *)
@@ -323,9 +324,15 @@ let tt_var (mode:tt_mode) (env : Env.env) { L.pl_desc = x; L.pl_loc = lc; } =
     match Env.Vars.find x env with
     | Some v -> v
     | None -> rs_tyerror ~loc:lc (UnknownVar x) in
-  if mode = `OnlyParam && 
-       match v.P.v_kind with P.Const -> false | _ -> true then
-    rs_tyerror ~loc:lc (UnknownVar x);
+  begin match mode with
+  | `OnlyParam ->
+    if v.P.v_kind <> P.Const then
+      rs_tyerror ~loc:lc (StringError "only param variable are allowed here")
+  | `NoParam -> 
+    if v.P.v_kind = P.Const then
+      rs_tyerror ~loc:lc (StringError "param variable not allowed here")
+  | `AllVar -> ()
+  end;
   v
 
 let tt_var_global (mode:tt_mode) (env : Env.env) v = 
@@ -856,7 +863,7 @@ and tt_expr_cast64 ?(mode=`AllVar) (env : Env.env) pe =
 
 and tt_mem_access ?(mode=`AllVar) (env : Env.env) 
            (ct, ({ L.pl_loc = xlc } as x), e) = 
-  let x = tt_var mode env x in
+  let x = tt_var `NoParam env x in
   check_ty_u64 ~loc:xlc x.P.v_ty;
   let e = 
     match e with
@@ -928,11 +935,11 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     loc, (fun ty -> P.Lnone(loc,ty)) , None
 
   | S.PLVar x ->
-    let x = tt_var `AllVar env x in
+    let x = tt_var `NoParam env x in
     loc, (fun _ -> P.Lvar (L.mk_loc loc x)), Some x.P.v_ty
 
   | S.PLArray (aa, ws, ({ pl_loc = xlc } as x), pi, olen) ->
-    let x  = tt_var `AllVar env x in
+    let x  = tt_var `NoParam env x in
     let ty = tt_as_array (xlc, x.P.v_ty) in
     let ws = omap_dfl tt_ws (P.ws_of_ty ty) ws in 
     let ty = P.tu ws in
