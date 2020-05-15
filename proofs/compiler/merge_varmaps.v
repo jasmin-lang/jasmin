@@ -82,10 +82,13 @@ Section WRITE1.
     move => i xs fn es s; rewrite /write_i /=; SvD.fsetdec.
   Qed.
 
+  Definition extra_free_registers_at ii : Sv.t :=
+    if extra_free_registers ii is Some r then Sv.singleton r else Sv.empty.
+
   Lemma write_I_recE ii i s :
     Sv.Equal (write_I_rec s (MkI ii i))
-             (Sv.union (write_i_rec s i) (if extra_free_registers ii is Some r then Sv.singleton r else Sv.empty)).
-  Proof. rewrite /=; case: extra_free_registers => *; SvD.fsetdec. Qed.
+             (Sv.union (write_i_rec s i) (extra_free_registers_at ii)).
+  Proof. rewrite /extra_free_registers_at /=; case: extra_free_registers => *; SvD.fsetdec. Qed.
 
 End WRITE1.
 

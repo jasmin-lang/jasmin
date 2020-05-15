@@ -959,6 +959,12 @@ Proof. by move=> s1 s2 H vm1 ? <- vm2 ? <-;apply: vmap_eq_exceptI. Qed.
 Global Instance vmap_eq_except_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) vmap_eq_except.
 Proof. by move=> s1 s2 Heq vm1 ? <- vm2 ? <-;split;apply: vmap_eq_exceptI;rewrite Heq. Qed.
 
+Lemma vmap_eq_except_eq_on x y z e o :
+  x = y [\e] →
+  z =[o] y →
+  x =[Sv.diff o e] z.
+Proof. move => he ho j hj; rewrite he ?ho; SvD.fsetdec. Qed.
+
 Lemma vrvP_var (x:var_i) v s1 s2 :
   write_var x v s1 = ok s2 ->
   s1.(evm) = s2.(evm) [\ Sv.add x Sv.empty].
@@ -1146,6 +1152,12 @@ Definition read_e_eq_on gd s vm' s1 e :=
 
 Definition read_es_eq_on gd es s s1 vm' :=
   (read_e_es_eq_on gd s1 vm').2 es s.
+
+Corollary eq_on_sem_pexpr s' gd s e :
+  emem s = emem s' →
+  evm s =[read_e e] evm s' →
+  sem_pexpr gd s e = sem_pexpr gd s' e.
+Proof. by move => eq_mem /read_e_eq_on -/(_ gd) ->; case: s' eq_mem => m vm /= <-. Qed.
 
 Lemma set_var_eq_on s x v vm1 vm2 vm1':
   set_var vm1 x v = ok vm2 ->
