@@ -1,3 +1,4 @@
+open Utils
 open Prog
 module L = Location
 
@@ -71,13 +72,33 @@ let subst_func f fc =
      (fun v -> if is_gkvar v then f v.gv else Pvar v) fc
 
 (* ---------------------------------------------------------------- *)
+let int_of_op2 o i1 i2 =
+  match o with
+  | Expr.Oadd Op_int -> B.add i1 i2
+  | Expr.Omul Op_int -> B.mul i1 i2
+  | Expr.Osub Op_int -> B.sub i1 i2
+  | Expr.Odiv Cmp_int -> B.div i1 i2
+  | Expr.Omod Cmp_int -> B.erem i1 i2
+  | _     -> Utils.hierror "operator %s not allowed in array size" (Printer.string_of_op2 o)
+
+let rec int_of_expr e =
+  match e with
+  | Pconst i -> i
+  | Papp2 (o, e1, e2) ->
+      int_of_op2 o (int_of_expr e1) (int_of_expr e2)
+  | Pbool _ | Parr_init _ | Pvar _ 
+  | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _ -> assert false
+
+
+let isubst_len e = B.to_int (int_of_expr e)
+
+(* ---------------------------------------------------------------- *)
 
 type psubst = pexpr Mv.t
 
 let rec psubst_e (f: pexpr ggvar -> pexpr) e = 
   gsubst_e (psubst_e f) f e
   
-
 let psubst_ty f (ty:pty) : pty = 
   match ty with
   | Bty ty -> Bty ty
@@ -113,60 +134,132 @@ let psubst_ge f = function
   | GEword e -> GEword (psubst_e f e)
   | GEarray es -> GEarray (List.map (psubst_e f) es)
 
+type 'info env = {
+    mutable names : Ss.t;
+            funds : ('info pfunc * (B.zint list, funname) Hashtbl.t)  Hf.t;
+    mutable funcs : 'info pfunc list;
+    mutable globs : (pvar * pexpr ggexpr) list;
+    mutable subst : pexpr Mpv.t;
+  }
+
+let empty_env () = {
+    names = Ss.empty;
+    funds = Hf.create 107;
+    funcs = [];
+    globs = [];
+    subst = Mpv.empty;
+  }
+
+let add_fd env fd = 
+  let name = fd.f_name.fn_name in
+  assert (not (Ss.mem name env.names));
+  env.funcs <- fd :: env.funcs;
+  env.names <- Ss.add name env.names 
+
+let mk_funname env fn args = 
+  let sa = List.map B.to_string args in
+  let name = String.concat "_" (fn.fn_name::sa) in
+  let rec aux name = 
+    if Ss.mem name env.names then aux (name ^ "_") 
+    else name in
+  let name = aux name in
+  F.mk name 
+
+let rec split_params xs es = 
+  match xs, es with
+  | [], [] -> [], []
+  | x::xs, e::es ->
+    let params, args = split_params xs es in
+    if x.v_kind = Const then (x,e)::params, args
+    else params, (x,e)::args
+  | _, _ -> assert false
+
+let rec psubst_i env flen f i = 
+  let i_desc =
+    match i.i_desc with
+    | Cassgn(x, tg, ty, e) -> Cassgn(gsubst_lval flen f x, tg, gsubst_ty flen ty, gsubst_e flen f e)
+    | Copn(x,t,o,e)   -> Copn(gsubst_lvals flen f x, t, o, gsubst_es flen f e)
+    | Cif(e,c1,c2)  -> Cif(gsubst_e flen f e, psubst_c env flen f c1, psubst_c env flen f c2)
+    | Cfor(x,(d,e1,e2),c) ->
+        Cfor(gsubst_vdest f x, (d, gsubst_e flen f e1, gsubst_e flen f e2), psubst_c env flen f c)
+    | Cwhile(a, c, e, c') -> 
+      Cwhile(a, psubst_c env flen f c, gsubst_e flen f e, psubst_c env flen f c')
+    | Ccall(ii,x,fn,e) -> 
+      let x = gsubst_lvals flen f x in 
+      let es = gsubst_es flen f e in
+      let fd,tbl = 
+        try Hf.find env.funds fn with Not_found -> assert false in
+      let params, args = split_params fd.f_args es in
+      let fn', es' = psubst_func env fd tbl params args in
+      Ccall(ii,x,fn', es')
+  in
+  { i with i_desc }
+
+and psubst_c env flen f c = List.map (psubst_i env flen f) c
+
+and psubst_func env fd tbl params args = 
+  let args, es' = List.split args in
+  let params = List.map (fun (x,e) -> x, int_of_expr e) params in
+  let pes = List.map snd params in
+  let fn' = 
+    match Hashtbl.find tbl pes with
+    | fn' -> fn'
+    | exception Not_found -> 
+      let subst = List.fold_left (fun s (x,i) -> Mpv.add x (Pconst i) s) env.subst params in
+      add_func env tbl pes subst fd args
+      
+  in
+  fn', es'
+  
+and add_func env tbl pes subst fd args =
+  let fn' = mk_funname env fd.f_name pes in
+  let subst_v = psubst_v subst in
+  let subst_ty = psubst_ty subst_v in
+  let dov v =
+    L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
+  let args = List.map dov args in
+  let fd = {
+      fd with
+      f_name = fn';
+      f_tyin = List.map (fun v -> v.v_ty) args; 
+      f_args = args; 
+      f_body = psubst_c env (psubst_e subst_v) subst_v fd.f_body;
+      f_tyout = List.map subst_ty fd.f_tyout;
+      f_ret  = List.map (gsubst_vdest subst_v) fd.f_ret
+    } in
+  add_fd env fd;
+  Hashtbl.add tbl pes fd.f_name;
+  fn'
+  
 let psubst_prog (prog:'info pprog) =
-  let subst = ref (Mpv.empty : pexpr Mpv.t) in
+  let env = empty_env () in
   let rec aux = function
-    | [] -> [], []
+    | [] -> ()
+
     | MIparam(v,e) :: items ->
-        let g, p = aux items in
-        let f = psubst_v !subst in 
-        subst := Mpv.add v (psubst_e f e) !subst;
-        g, p
+      aux items;
+      let f = psubst_v env.subst in 
+      env.subst <- Mpv.add v (psubst_e f e) env.subst;
+
     | MIglobal (v, e) :: items ->
-      let g, p = aux items in
-      let f = psubst_v !subst in
+      aux items;
+      let f = psubst_v env.subst in
       let e = psubst_ge f e in
-      subst := Mpv.add v (Pvar (gkglob (L.mk_loc L._dummy v))) !subst;
-      (v, e) :: g, p
+      env.subst <- Mpv.add v (Pvar (gkglob (L.mk_loc L._dummy v))) env.subst;
+      env.globs <- (v,e) :: env.globs
+
     | MIfun fc :: items ->
-        let g, p = aux items in
-        let subst_v = psubst_v !subst in
-        let subst_ty = psubst_ty subst_v in
-        let dov v =
-          L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
-        let fc = {
-            fc with
-            f_tyin = List.map subst_ty fc.f_tyin;
-            f_args = List.map dov fc.f_args;
-            f_body = gsubst_c (psubst_e subst_v) subst_v fc.f_body;
-            f_tyout = List.map subst_ty fc.f_tyout;
-            f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret
-          } in
-        g, fc::p in
-    aux prog
+      aux items;
+      let tbl = Hashtbl.create 17 in
+      Hf.add env.funds fc.f_name (fc, tbl); 
+      if List.for_all (fun x -> x.v_kind <> Const) fc.f_args then
+        ignore (add_func env tbl [] env.subst fc fc.f_args);
+  in 
+  aux prog;
+  env.globs, env.funcs
 
 (* ---------------------------------------------------------------- *)
 (* Simplify type                                                    *)
-
-let int_of_op2 o i1 i2 =
-  match o with
-  | Expr.Oadd Op_int -> B.add i1 i2
-  | Expr.Omul Op_int -> B.mul i1 i2
-  | Expr.Osub Op_int -> B.sub i1 i2
-  | Expr.Odiv Cmp_int -> B.div i1 i2
-  | Expr.Omod Cmp_int -> B.erem i1 i2
-  | _     -> Utils.hierror "operator %s not allowed in array size" (Printer.string_of_op2 o)
-
-let rec int_of_expr e =
-  match e with
-  | Pconst i -> i
-  | Papp2 (o, e1, e2) ->
-      int_of_op2 o (int_of_expr e1) (int_of_expr e2)
-  | Pbool _ | Parr_init _ | Pvar _ 
-  | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _ -> assert false
-
-
-let isubst_len e = B.to_int (int_of_expr e)
 
 let isubst_ty = function
   | Bty ty -> Bty ty

@@ -209,7 +209,8 @@ let pp_storage fmt s =
      | `Reg ptr -> "reg" ^ (pp_pointer ptr)
      | `Stack ptr -> "stack" ^ (pp_pointer ptr)
      | `Inline -> "inline"
-     | `Global -> "global")
+     | `Global -> "global"
+     | `Param  -> "param")
 
 let pp_sto_ty fmt (sto, ty) =
   F.fprintf fmt "%a %a" pp_storage sto pp_type ty

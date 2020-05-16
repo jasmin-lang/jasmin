@@ -25,6 +25,7 @@ let loc_of_tuples base locs =
 type typattern = TPBool | TPInt | TPWord | TPArray
 
 type sop = [ `Op2 of S.peop2 | `Op1 of S.peop1]
+
 type tyerror =
   | UnknownVar          of S.symbol
   | UnknownFun          of S.symbol
@@ -311,6 +312,7 @@ let tt_sto dfl_writable (sto : S.pstorage) : P.v_kind =
   | `Reg   p -> P.Reg (tt_pointer dfl_writable p)
   | `Stack p -> P.Stack (tt_pointer dfl_writable p)
   | `Global  -> P.Global
+  | `Param   -> P.Const
 
 type tt_mode = [
   | `AllVar
@@ -898,23 +900,23 @@ let tt_expr_bool env pe = tt_expr_ty env pe P.tbool
 let tt_expr_int  env pe = tt_expr_ty env pe P.tint
 
 (* -------------------------------------------------------------------- *)
-let tt_vardecl dfl_writable (env : Env.env) ((sto, xty), x) =
+let tt_vardecl param dfl_writable (env : Env.env) ((sto, xty), x) =
   let { L.pl_desc = x; L.pl_loc = xlc; } = x in
   let (sto, xty) = (tt_sto (dfl_writable x) sto, tt_type env xty) in
+  if not param && sto = P.Const then
+    rs_tyerror ~loc:xlc (StringError "param not allowed here");
   if P.is_ptr sto && not (P.is_ty_arr xty) then
     rs_tyerror ~loc:xlc PtrOnlyForArray;
+
   L.mk_loc xlc (P.PV.mk x sto xty xlc)
 
 (* -------------------------------------------------------------------- *)
-let tt_vardecls_push dfl_writable (env : Env.env) pxs =
-  let xs  = List.map (tt_vardecl dfl_writable env) pxs in
-  let env = 
-    List.fold_left (fun env x -> Env.Vars.push (L.unloc x) env) env xs in
-  (env, xs)
+let tt_vardecl_push ~param_allowed dfl_writable (env:Env.env) px = 
+  let x = tt_vardecl param_allowed dfl_writable env px in
+  Env.Vars.push (L.unloc x) env, x
 
-(* -------------------------------------------------------------------- *)
-let tt_vardecl_push dfl_writable (env : Env.env) px =
-  snd_map as_seq1 (tt_vardecls_push dfl_writable env [px])
+let tt_vardecls_push ~param_allowed dfl_writable (env : Env.env) pxs =
+  List.map_fold (tt_vardecl_push ~param_allowed dfl_writable) env pxs
 
 (* -------------------------------------------------------------------- *)
 let tt_param (env : Env.env) _loc (pp : S.pparam) : Env.env * (P.pvar * P.pexpr) =
@@ -962,7 +964,7 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
 (* -------------------------------------------------------------------- *)
 
 let f_sig f =
-  List.map P.ty_i f.P.f_ret, List.map (fun v -> v.P.v_ty) f.P.f_args
+  List.map P.ty_i f.P.f_ret, List.map (fun v -> v.P.v_kind = P.Const, v.P.v_ty) f.P.f_args
 
 let b_5      = [P.tbool; P.tbool; P.tbool; P.tbool; P.tbool]
 let b_5u64   = [P.tbool; P.tbool; P.tbool; P.tbool; P.tbool; P.u64]
@@ -1173,6 +1175,17 @@ let tt_exprs_cast env les tys =
     let e, ety = tt_expr ~mode:`AllVar env le in
     cast (L.loc le) e ety ty) les tys
 
+let tt_exprs_cast_fun env les tys =
+  let loc () = loc_of_tuples None (List.map L.loc les) in
+  let n1 = List.length les in
+  let n2 = List.length tys in
+  if n1 <> n2 then 
+    rs_tyerror ~loc:(loc ()) (InvalidArgCount (n1, n2));
+  List.map2 (fun le (onlyparam, ty) ->
+      let mode = if onlyparam then `OnlyParam else `AllVar in
+      let e, ety = tt_expr ~mode env le in
+      cast (L.loc le) e ety ty) les tys
+
 let arr_init xi = 
   let x = L.unloc xi in 
   match x.P.v_ty with
@@ -1229,7 +1242,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       let (f,tlvs) = tt_fun env f in
       let _tlvs, tes = f_sig f in
       let lvs = tt_lvalues env ls tlvs in
-      let es  = tt_exprs_cast env args tes in
+      let es  = tt_exprs_cast_fun env args tes in
       let is_inline = 
         match f.P.f_cc with 
         | P.Internal -> P.DoInline 
@@ -1319,7 +1332,7 @@ and tt_block (env : Env.env) (pb : S.pblock) =
 (* -------------------------------------------------------------------- *)
 let tt_funbody (env : Env.env) (pb : S.pfunbody) =
   let vars = List.(pb.pdb_vars |> map (fun (ty, vs) -> map (fun v -> (ty, v)) vs) |> flatten) in
-  let env = fst (tt_vardecls_push (fun _ -> true) env vars) in
+  let env = fst (tt_vardecls_push ~param_allowed:false (fun _ -> true) env vars) in
   let ret =
     let for1 x = L.mk_loc (L.loc x) (tt_var `AllVar env x) in
     List.map for1 (odfl [] pb.pdb_ret) in
@@ -1426,8 +1439,8 @@ let process_f_annot loc annot =
 let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
   let inret = odfl [] (omap (List.map L.unloc) pf.pdf_body.pdb_ret) in
   let dfl_mut x = List.mem x inret in
-  let envb, args = tt_vardecls_push dfl_mut env pf.pdf_args in
-  let rty  = odfl [] (omap (List.map (tt_type env |- snd)) pf.pdf_rty) in
+  let envb, args = tt_vardecls_push ~param_allowed:true dfl_mut env pf.pdf_args in
+  let rty  = odfl [] (omap (List.map (tt_type envb |- snd)) pf.pdf_rty) in
   let body, xret = tt_funbody envb pf.pdf_body in
   let f_cc = tt_call_conv loc args xret pf.pdf_cc in
   let args = List.map L.unloc args in

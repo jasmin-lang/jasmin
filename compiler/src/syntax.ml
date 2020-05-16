@@ -177,7 +177,7 @@ and ptype   = ptype_r L.located
 (* -------------------------------------------------------------------- *)
 type writable = [`Constant | `Writable]
 type ptr      = [`Pointer of writable option | `Direct ]
-type pstorage = [ `Reg of ptr | `Stack of ptr | `Inline | `Global]
+type pstorage = [ `Reg of ptr | `Stack of ptr | `Inline | `Global | `Param]
 
 (* -------------------------------------------------------------------- *)
 type pstotype = pstorage * ptype

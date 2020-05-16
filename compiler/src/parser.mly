@@ -351,6 +351,7 @@ storage:
 | STACK  ptr=ptr { `Stack ptr }
 | INLINE         { `Inline }
 | GLOBAL         { `Global }
+| PARAM          { `Param  }
 
 %inline pvardecl(S):
 | ty=stor_type vs=separated_nonempty_list(S, var) { (ty, vs) }
@@ -382,7 +383,8 @@ pfundef:
       pdf_cc   = cc;
       pdf_name = name;
       pdf_args = 
-        List.flatten (List.map (fun (str, ids) -> List.map (fun id -> (str, id)) ids) args);
+        List.flatten 
+          (List.map (fun (str, ids) -> List.map (fun id -> str, id) ids) args);
       pdf_rty  = rty ;
       pdf_body = body; } }
 
@@ -460,6 +462,10 @@ module_:
 
 %inline parens_tuple(X):
 | s=parens(rtuple(X)) { s }
+
+%inline angles_tuple(X):
+| _s1=LT ps=separated_nonempty_list(COMMA,X) _s2=GT { ps }
+| empty { [] }
 
 %inline brackets_tuple(X):
 | s=brackets(rtuple(X)) { s }
