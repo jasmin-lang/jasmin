@@ -72,6 +72,12 @@ fn _fp2_addm_low(reg ptr u64[12] c a b) -> reg ptr u64[12]
   return c;
 }
 
+fn _fp2_addm_low_bis(reg ptr u64[12] c a b) -> reg ptr u64[12]
+{
+  c = __fpX_addm_low(2, c, a, b);
+  return c;
+}
+
 fn _fp6_addm_low(reg ptr u64[36] c a b) -> reg ptr u64[36]
 {
   c = __fpX_addm_low(6, c, a, b);

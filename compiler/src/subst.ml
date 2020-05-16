@@ -158,11 +158,8 @@ let add_fd env fd =
 
 let mk_funname env fn args = 
   let sa = List.map B.to_string args in
-  let name = String.concat "_" (fn.fn_name::sa) in
-  let rec aux name = 
-    if Ss.mem name env.names then aux (name ^ "_") 
-    else name in
-  let name = aux name in
+  let name = String.concat "#" (fn.fn_name::sa) in
+  assert (not (Ss.mem name env.names));
   F.mk name 
 
 let rec split_params xs es = 
@@ -206,13 +203,13 @@ and psubst_func env fd tbl params args =
     | fn' -> fn'
     | exception Not_found -> 
       let subst = List.fold_left (fun s (x,i) -> Mpv.add x (Pconst i) s) env.subst params in
-      add_func env tbl pes subst fd args
+      let fn' = mk_funname env fd.f_name pes in
+      add_func env tbl pes subst fd fn' args
       
   in
   fn', es'
   
-and add_func env tbl pes subst fd args =
-  let fn' = mk_funname env fd.f_name pes in
+and add_func env tbl pes subst fd fn' args =
   let subst_v = psubst_v subst in
   let subst_ty = psubst_ty subst_v in
   let dov v =
@@ -253,7 +250,7 @@ let psubst_prog (prog:'info pprog) =
       let tbl = Hashtbl.create 17 in
       Hf.add env.funds fc.f_name (fc, tbl); 
       if List.for_all (fun x -> x.v_kind <> Const) fc.f_args then
-        ignore (add_func env tbl [] env.subst fc fc.f_args);
+        ignore (add_func env tbl [] env.subst fc fc.f_name fc.f_args);
   in 
   aux prog;
   env.globs, env.funcs

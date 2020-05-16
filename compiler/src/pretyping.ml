@@ -364,16 +364,11 @@ let check_ty (ety : typattern) (loc, ty) =
   | _ -> rs_tyerror ~loc (InvalidType (ty, ety))
 
 (* -------------------------------------------------------------------- *)
-let warn_arr loc from to_ = 
-  warning Always "At %a, can not ensure that the type %a is compatible with %a"
-    L.pp_loc loc 
-    Printer.pp_ptype from Printer.pp_ptype to_
 
 let check_ty_eq ~loc ~(from : P.pty) ~(to_ : P.pty) =
   if not (P.pty_equal from to_) then
     match from, to_ with
-    | P.Arr _, P.Arr _ ->
-      warn_arr loc from to_
+    | P.Arr _, P.Arr _ -> ()
     | _, _ -> rs_tyerror ~loc (TypeMismatch (from, to_))
 
 let check_ty_u64 ~loc ty =
@@ -679,8 +674,7 @@ let cast loc e ety ty =
   | P.Bty (P.U w), P.Bty P.Int -> P.Papp1 (E.Oint_of_word w, e)
   | P.Bty (P.U w1), P.Bty (P.U w2) when W.wsize_cmp w1 w2 <> Datatypes.Lt -> e
   | _, _ when P.pty_equal ety ty -> e
-  | P.Arr _, P.Arr _ ->
-    warn_arr loc ety ty; e
+  | P.Arr _, P.Arr _ -> e
   | _  ->  rs_tyerror ~loc (InvalidCast(ety,ty))
 
 let cast_word loc ws e ety =
@@ -1343,8 +1337,19 @@ let tt_funbody (env : Env.env) (pb : S.pfunbody) =
 (* -------------------------------------------------------------------- *)
       
 let tt_call_conv loc params returns cc =
+  let check_not_const x = 
+    if (L.unloc x).P.v_kind = P.Const then
+      rs_tyerror ~loc:(L.loc x) (StringError "param variable not allowed here") in
+  let check_int_const x = 
+    let loc = L.loc x in
+    let x = L.unloc x in
+    if x.P.v_kind = P.Const && x.P.v_ty <> P.tint then rs_tyerror ~loc (StringError "param should have type int") in
+
+  List.iter check_not_const returns;
+
   match cc with
   | Some `Inline -> 
+    List.iter check_int_const params;
     P.Internal
 
   | Some `Export ->
@@ -1362,9 +1367,10 @@ let tt_call_conv loc params returns cc =
 
   | None         -> 
     let check s x =
-      if not (P.is_reg_kind (L.unloc x).P.v_kind) then 
+      check_int_const x;
+      if not (P.is_reg_kind (L.unloc x).P.v_kind || (L.unloc x).P.v_kind = P.Const) then 
         rs_tyerror ~loc:(L.loc x) 
-          (string_error "%a has kind %a, only reg or reg ptr are allowed in %s of non inlined function"
+          (string_error "%a has kind %a, only param or reg or reg ptr are allowed in %s of non inlined function"
             Printer.pp_pvar (L.unloc x)
             Printer.pp_kind (L.unloc x).P.v_kind s) in
     List.iter (check "parameter") params;
