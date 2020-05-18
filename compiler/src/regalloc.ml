@@ -793,12 +793,14 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
   (* Live variables at the end of each function, in addition to returned local variables *)
   let get_liveness =
     let live : Sv.t Hf.t = Hf.create 17 in
-    let collect_call_sites _fn f =
-      Liveness.iter_call_sites (fun _loc fn xs (_, s) ->
-          let s = Liveness.dep_lvs s xs in
-          Hf.modify_def Sv.empty fn (Sv.union s) live) f
-    in
-    Hf.iter collect_call_sites liveness_table;
+    List.iter (fun f ->
+        let f_with_liveness = Hf.find liveness_table f.f_name in
+        let live_when_calling_f = Hf.find_default live f.f_name Sv.empty in
+        Liveness.iter_call_sites (fun _loc fn xs (_, s) ->
+            let s = Sv.union live_when_calling_f s in
+            let s = Liveness.dep_lvs s xs in
+            Hf.modify_def Sv.empty fn (Sv.union s) live) f_with_liveness
+      ) funcs;
     fun fn -> Hf.find_default live fn Sv.empty
   in
   let excluded = Sv.of_list [Prog.rip; X64.rsp] in

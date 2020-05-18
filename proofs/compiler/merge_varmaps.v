@@ -1,9 +1,9 @@
 (*
 *)
-Require Import sem_one_varmap.
+Require Import psem.
 Import Utf8.
 Import all_ssreflect.
-Import psem compiler_util.
+Import compiler_util.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -46,7 +46,7 @@ Section WRITE1.
     | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
     | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
-    | Ccall _ _ fn _  => writefun_ra fn
+    | Ccall _ _ fn _  => Sv.union s (writefun_ra fn)
     end
   with write_I_rec s i :=
     match i with
@@ -57,9 +57,30 @@ Section WRITE1.
       else result
     end.
 
-  Definition write_c := foldl write_I_rec (Sv.empty).
+  Definition write_I := write_I_rec Sv.empty.
+  Definition write_i := write_i_rec Sv.empty.
+
+  Definition write_c_rec := foldl write_I_rec.
+  Definition write_c := write_c_rec Sv.empty.
 
   Definition write_fd (fd: sfundef) := write_c fd.(f_body).
+
+  Lemma write_c_recE c : ∀ s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
+  Proof.
+    apply: (@cmd_rect
+              (λ i, ∀ s, Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)))
+              (λ i, ∀ s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)))
+              (λ c, ∀ s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)))).
+    - move => i ii ih s; rewrite /write_I /=; case: extra_free_registers => [ r | ]; rewrite ih; SvD.fsetdec.
+    - SvD.fsetdec.
+    - move => i c' hi hc' s. rewrite /write_c /= !hc' -/write_I hi; SvD.fsetdec.
+    - by move => x tg ty e s; rewrite /write_i /= -vrv_recE.
+    - by move => xs tg op es s; rewrite /write_i /= -vrvs_recE.
+    - move => e c1 c2 h1 h2 s; rewrite /write_i /= -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
+    - move => v d lo hi body h s; rewrite /write_i /= -!/write_c_rec !h; SvD.fsetdec.
+    - move => a c1 e c2  h1 h2 s; rewrite /write_i /= -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
+    move => i xs fn es s; rewrite /write_i /=; SvD.fsetdec.
+  Qed.
 
 End WRITE1.
 

@@ -30,6 +30,7 @@ Require Import allocation inline_proof dead_calls_proof
                array_expansion remove_globals_proof stack_alloc_proof
                lowering_proof
                linear_proof
+               merge_varmaps_proof
                psem_of_sem_proof.
 Import Utf8.
 Import x86_sem x86_gen.
