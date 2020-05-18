@@ -761,6 +761,8 @@ module Normal = struct
         (pp_cmd env) c1 (pp_expr env) e (pp_cmd env) (c2@c1)
       
     | Cfor(i, (d,e1,e2), c) ->
+      (* decreasing for loops have bounds swaped *)
+      let e1, e2 = if d = UpTo then e1, e2 else e2, e1 in 
       let pp_init, pp_e2 = 
         match e2 with
         (* Can be generalized to the case where e2 is not modified by c and i *)
