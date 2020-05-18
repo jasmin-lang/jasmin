@@ -90,15 +90,31 @@ Section Section.
     sem_call p' ev m fn vargs m' vres.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
-  Proof. 
-    by move=> s X _ [<-] hs vm1 hvm1; exists vm1; split => //; constructor.
+  Proof.
+    move => s X.
+    move => _ [<-].
+    move => Hs vm1 Hvm1.
+    exists vm1.
+    split => //.
+    by constructor.
+    (*by move=> s X _ [<-] hs vm1 hvm1; exists vm1; split => //; constructor.*)
   Qed.
 
   Local Lemma Hcons : sem_Ind_cons p ev Pc Pi.
   Proof.
     move=> s1 s2 s3 i c _ hi _ hc X c'.
-    rewrite /update_c /=; t_xrbindP => lc ci {}/hi hi cc hcc <- <-.
-    rewrite read_c_cons write_c_cons => hsub vm1 hvm1.
+    rewrite /update_c /=.
+    t_xrbindP.
+    move => lc ci {}/hi hi cc hcc.
+    (*Difference between <- and [<-]?*)
+    (*move =>h ; rewrite - h ; clear h.*)
+    (*[] is just case*)
+    (*What is {}/hi again?*)
+    (*{}h makes a clear of h*)
+    move => <- <-.
+    rewrite read_c_cons.
+    rewrite write_c_cons.
+    move => hsub vm1 hvm1.
     have [|vm2 [hvm2 hs2]]:= hi _ vm1 hvm1; first by SvD.fsetdec.
     have /hc : update_c (update_i is_reg_ptr fresh_id p get_sig X) c = ok (flatten cc).
     + by rewrite /update_c hcc.
@@ -118,16 +134,36 @@ Section Section.
     rewrite (read_e_eq_on _ (s:=Sv.empty) (vm' := vm1)); last first.
     + by apply: eq_onI hvm1; rewrite read_eE; SvD.fsetdec.
     rewrite eq_globs => he.
-    write_lval_eq_on
-
+    
+    (*I am supposed to use this, but can't figure out how: how can I get anything of type glob_decls?*)
+    have ? := write_lval_eq_on.
+    Print glob_decls.
+    Print progT.
+    Print with_vm.
   Admitted.
 
   Local Lemma Hopn : sem_Ind_opn p Pi_r.
   Proof.
+    move => s1 s2 t o xs es He ii X c'.
+    rewrite /update_i.
+    move => [<-].
+    rewrite read_Ii read_i_opn.
+    rewrite /write_I /= vrvs_recE => hsub vm1 hvm1.
+    Print update_c.
+    (*hsub should be simplifiable*)
+    (*have /hc : update_c (update_i is_reg_ptr fresh_id p get_sig X) c = ok (c').*)
+
+    exists vm1.
+    split.
   Admitted.
 
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
   Proof.
+    move => s1 s2 e c1 c2 He Hs Hc ii X c'.
+    (*Seems like this does not lead to any simplification*)
+    rewrite /update_i /update_c /=.
+    t_xrbindP.
+    rewrite /=.
   Admitted.
 
   Local Lemma Hif_false : sem_Ind_if_false p ev Pc Pi_r.
@@ -173,7 +209,6 @@ Section Section.
   Qed.
 
 End Section.
-Prin
 
   (*I should have something more specific than s1 and s2*)
   (*
