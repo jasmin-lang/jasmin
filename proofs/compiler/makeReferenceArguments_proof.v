@@ -39,6 +39,15 @@ Local Open Scope seq_scope.
 Section Section.
 
   Context (is_reg_ptr : var -> bool) (fresh_id : glob_decls -> var -> Ident.ident).
+
+  Lemma make_referenceprog_globs (p p' : uprog) :
+    makereference_prog is_reg_ptr fresh_id p = ok p' ->
+      p.(p_globs) = p'.(p_globs).
+  Proof.
+    case: p p' => [???] [???]; t_xrbindP.
+    by rewrite /makereference_prog; t_xrbindP.
+  Qed.
+
   Context (p p' : uprog).
   Context (ev : unit).
 
@@ -157,14 +166,22 @@ Section Section.
     split.
   Admitted.
 
+  Lemma write_Ii ii i : write_I (MkI ii i) = write_i i.
+  Proof. by []. Qed.
+
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
   Proof.
-    move => s1 s2 e c1 c2 He Hs Hc ii X c'.
-    (*Seems like this does not lead to any simplification*)
-    rewrite /update_i /update_c /=.
-    t_xrbindP.
-    rewrite /=.
-  Admitted.
+    move=> s1 s2 e c1 c2 He Hs Hc ii X c' /=.
+    t_xrbindP => i_then i_thenE i_else i_elseE {c'}<-.
+    rewrite !(read_Ii, write_Ii) !(read_i_if, write_i_if) => le_X.
+    move=> vm1 eq_s1_vm1; case: (Hc X _ i_thenE _ vm1 eq_s1_vm1).
+    + by SvD.fsetdec.
+    move=> vm2 [eq_s2_vm2 sem_i_then]; exists vm2; split=> //.
+    apply/sem_seq1/EmkI; apply: Eif_true => //.
+    rewrite -(make_referenceprog_globs Hp) -He.
+    rewrite -(@read_e_eq_on _ Sv.empty) // -/(read_e _).
+    by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
+  Qed.
 
   Local Lemma Hif_false : sem_Ind_if_false p ev Pc Pi_r.
   Proof.
