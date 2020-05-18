@@ -1159,6 +1159,12 @@ Corollary eq_on_sem_pexpr s' gd s e :
   sem_pexpr gd s e = sem_pexpr gd s' e.
 Proof. by move => eq_mem /read_e_eq_on -/(_ gd) ->; case: s' eq_mem => m vm /= <-. Qed.
 
+Corollary eq_on_sem_pexprs s' gd s es :
+  emem s = emem s' →
+  evm s =[read_es es] evm s' →
+  sem_pexprs gd s es = sem_pexprs gd s' es.
+Proof. by move => eq_mem /read_es_eq_on -/(_ gd) ->; case: s' eq_mem => m vm /= <-. Qed.
+
 Lemma set_var_eq_on s x v vm1 vm2 vm1':
   set_var vm1 x v = ok vm2 ->
   vm1 =[s]  vm1' ->

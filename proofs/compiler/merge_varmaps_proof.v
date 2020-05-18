@@ -31,11 +31,13 @@ Notation wrf := (get_wmap wmap).
 Let vgd : var := vid p.(p_extra).(sp_rip).
 Let vrsp : var := vid (string_of_register RSP).
 
+(*
 Record merged_vmap_invariant m (vm: vmap) : Prop :=
   MVI {
       mvi_top_stack : vm.[ vrsp ] = ok (pword_of_word (top_stack m));
       mvi_global_data : vm.[ vgd ] = ok (pword_of_word global_data);
     }.
+*)
 
 Section LEMMA.
 
@@ -47,8 +49,28 @@ Section LEMMA.
     Sv.Equal (write_c (i :: c)) (Sv.union (write_I i) (write_c c)).
   Proof. by rewrite /write_c /= merge_varmaps.write_c_recE. Qed.
 
+  Lemma write_i_if e c1 c2 :
+    Sv.Equal (write_i (Cif e c1 c2)) (Sv.union (write_c c1) (write_c c2)).
+  Proof.
+    rewrite /merge_varmaps.write_i /merge_varmaps.write_i_rec /=
+            -/(merge_varmaps.write_c_rec _ _ _ _ c1) -/(merge_varmaps.write_c_rec _ _ _ _ c2)
+            !merge_varmaps.write_c_recE.
+    SvD.fsetdec.
+  Qed.
+
   Notation check_instr := (check_i p extra_free_registers wrf).
+  Notation check_instr_r := (check_ir p extra_free_registers wrf).
   Notation check_cmd := (check_c check_instr).
+
+  Lemma check_instrP ii i D D' :
+    check_instr (MkI ii i) D = ok D' →
+    check_instr_r ii i D = ok D' ∧ Sv.Empty (Sv.inter (extra_free_registers_at extra_free_registers ii) D').
+  Proof.
+    rewrite /check_instr.
+    t_xrbindP => D2; rewrite -/(check_instr_r) => -> _ /assertP h <-; split => //.
+    rewrite /extra_free_registers_at.
+    by case: extra_free_registers h => [ r /Sv_memP | _ ]; SvD.fsetdec.
+  Qed.
 
   Notation sem_I := (sem_one_varmap.sem_I p extra_free_registers).
   Notation sem_i := (sem_one_varmap.sem_i p extra_free_registers).
@@ -58,11 +80,21 @@ Section LEMMA.
     MVM {
       mvm_mem : emem s = emem t;
       mvm_vmap : evm s =[live] evm t;
-      mvm_inv : merged_vmap_invariant s.(emem) t.(evm);
+      (*mvm_inv : merged_vmap_invariant s.(emem) t.(evm);*)
     }.
 
   Instance match_estate_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) match_estate.
-  Proof. by move => x y x_eq_y s _ <- t _ <-; split => - [] ?; rewrite ?x_eq_y => ??; constructor => //; rewrite x_eq_y. Qed.
+  Proof. by move => x y x_eq_y s _ <- t _ <-; split => - [] ?; rewrite ?x_eq_y => ?; constructor => //; rewrite x_eq_y. Qed.
+
+  Lemma match_estateI X X' s t :
+    Sv.Subset X' X →
+    match_estate X s t →
+    match_estate X' s t.
+  Proof.
+    move => le sim; split; first exact: (mvm_mem sim).
+    apply: eq_onI; first exact: le.
+    exact: mvm_vmap.
+  Qed.
 
   Let Pc (s1: estate) (c: cmd) (s2: estate) : Prop :=
     ∀ I O t1,
@@ -94,23 +126,10 @@ Section LEMMA.
 
   Let Pi_r (s1: estate) (i: instr_r) (s2: estate) : Prop :=
     ∀ ii I O t1,
-      check_instr (MkI ii i) O = ok I →
+      check_instr_r ii i O = ok I →
       match_estate I s1 t1 →
       ∃ t2,
-        [/\ sem_I t1 (MkI ii i) t2, t1.(evm) = t2.(evm) [\ write_i i] & match_estate O s2 t2 ].
-
-  Lemma HmkI : sem_Ind_mkI p global_data Pi_r Pi.
-  Proof.
-    move => ii i s1 s2 exec_i h I O t1 ok_i sim.
-    case: (h ii I O t1 ok_i sim) => t2 [] texec_i preserved sim'.
-    exists t2; split => //.
-    rewrite /write_I merge_varmaps.write_I_recE -/write_i.
-    apply: (vmap_eq_exceptI _ preserved); SvD.fsetdec.
-  Qed.
-
-  Lemma emem_kill_extra_register ii e :
-    emem (kill_extra_register extra_free_registers ii e) = emem e.
-  Proof. by []. Qed.
+        [/\ sem_i ii t1 i t2, t1.(evm) = t2.(evm) [\ write_i i] & match_estate O s2 t2 ].
 
   Lemma kill_extra_register_vmap_eq_except ii vm :
     kill_extra_register_vmap extra_free_registers ii vm = vm [\extra_free_registers_at extra_free_registers ii].
@@ -119,15 +138,28 @@ Section LEMMA.
     exact: Fv.setP_neq.
   Qed.
 
-  Lemma evm_kill_extra_register ii e :
-    evm (kill_extra_register extra_free_registers ii e) = evm e [\extra_free_registers_at extra_free_registers ii].
-  Proof. exact: kill_extra_register_vmap_eq_except. Qed.
-
-  Lemma check_efrP ii D :
-    (if extra_free_registers ii is Some r then negb (Sv.mem r D) else true) →
-    Sv.Empty (Sv.inter (extra_free_registers_at extra_free_registers ii) D).
+  Lemma HmkI : sem_Ind_mkI p global_data Pi_r Pi.
   Proof.
-     by rewrite /extra_free_registers_at; case: extra_free_registers => [ r /Sv_memP | _ ]; SvD.fsetdec.
+    red.
+    move => ii i s1 s2 exec_i h I O t1 /check_instrP[] ok_i ok_efr sim.
+    set t1' := kill_extra_register extra_free_registers ii t1.
+    have := h ii I O t1' ok_i.
+    case.
+    - split.
+      + by rewrite (mvm_mem sim).
+      rewrite (mvm_vmap sim).
+      apply: (@eq_onI _ (Sv.diff I _)); last first.
+      + symmetry.
+        apply: (vmap_eq_except_eq_on); last reflexivity.
+        exact: kill_extra_register_vmap_eq_except.
+      SvD.fsetdec.
+    move => t2 [] texec_i preserved sim'.
+    exists t2; split => //.
+    rewrite /write_I merge_varmaps.write_I_recE -/write_i.
+    transitivity (evm t1').
+    - symmetry; apply: vmap_eq_exceptI; last exact: kill_extra_register_vmap_eq_except.
+      SvD.fsetdec.
+    apply: (vmap_eq_exceptI _ preserved); SvD.fsetdec.
   Qed.
 
   Lemma with_vm_m x y :
@@ -137,59 +169,106 @@ Section LEMMA.
 
   Lemma Hasgn: sem_Ind_assgn p Pi_r.
   Proof.
-    move => s1 s2 x tg ty e v v' ok_v ok_v' ok_s2 ii live_in live t1; rewrite /check_instr;
-      t_xrbindP => _ <- _ /assertP /check_efrP ok_fr <- {live_in}.
-    move: ok_fr; rewrite read_rvE read_eE => ok_fr sim.
-    have ok_tv : sem_pexpr (p_globs p) (kill_extra_register extra_free_registers ii t1) e = ok v.
+    move => s1 s2 x tg ty e v v' ok_v ok_v' ok_s2 ii live_in live t1 [<-{live_in}].
+    rewrite read_rvE read_eE => sim.
+    have ok_tv : sem_pexpr (p_globs p) t1 e = ok v.
     { rewrite (@eq_on_sem_pexpr s1) //.
-      - by rewrite emem_kill_extra_register (mvm_mem sim).
-      apply: eq_onI; last apply: vmap_eq_except_eq_on; last first.
-      - exact: (mvm_vmap sim).
-      - exact: evm_kill_extra_register.
+      - by rewrite (mvm_mem sim).
+      apply: eq_onI; last (symmetry; exact: (mvm_vmap sim)).
       SvD.fsetdec.
     }
-    have X : evm s1 =[Sv.diff (Sv.union (Sv.union (read_e e) (Sv.diff live (vrv x))) (read_rv x)) (extra_free_registers_at extra_free_registers ii)] kill_extra_register_vmap extra_free_registers ii t1.(evm).
-    admit. (*
-    { apply: vmap_eq_except_eq_on.
-      - apply: vmap_eq_exceptS. apply: evm_kill_extra_register.
-    } *)
-    have := write_lval_eq_on _ ok_s2 X.
+    have := write_lval_eq_on _ ok_s2 (mvm_vmap sim).
     case; first SvD.fsetdec.
     move => tvm2 [] sim2.
-    rewrite (with_vm_m (mvm_mem sim)) -/(kill_extra_register extra_free_registers ii t1) => ok_tvm2.
-    eexists; split.
-    - do 2 econstructor.
+    rewrite (with_vm_m (mvm_mem sim)) with_vm_same => ok_tvm2.
+    exists (with_vm s2 tvm2); split.
+    - econstructor.
       + exact: ok_tv.
       + exact: ok_v'.
       exact: ok_tvm2.
-    - apply: vrvP.
-    - transitivity (evm s2).
-      + have := eq_onI (mvm.
-    - apply: (eq_onT ). rewrite /write_i /merge_varmaps.write_i_rec /=.
-      apply: 
+    - apply: vrvP; exact: ok_tvm2.
+    split => //=.
+    apply: eq_onI; last exact: sim2.
+    SvD.fsetdec.
   Qed.
 
-    (Hopn: sem_Ind_opn)
-    (Hif_true: sem_Ind_if_true)
-    (Hif_false: sem_Ind_if_false)
-    (Hwhile_true: sem_Ind_while_true)
-    (Hwhile_false: sem_Ind_while_false)
-  .
-    (Hfor: sem_Ind_for)
-    (Hfor_nil: sem_Ind_for_nil)
-    (Hfor_cons: sem_Ind_for_cons)
-  .
-  Hypotheses
-    (Hcall: sem_Ind_call)
-    (Hproc: sem_Ind_proc)
+  Lemma Hopn: sem_Ind_opn p Pi_r.
+  Proof.
+    move => s1 s2 tg op xs es eval_op ii _ live t1 [<-].
+    rewrite read_esE read_rvsE => sim.
+    move: eval_op; rewrite /sem_sopn; t_xrbindP => rs vs ok_vs ok_rs ok_s2.
+    have := write_lvals_eq_on _ ok_s2 (mvm_vmap sim).
+    case; first SvD.fsetdec.
+    move => tvm2 [] sim2.
+    rewrite (with_vm_m (mvm_mem sim)) with_vm_same => ok_tvm2.
+    have ok_tvs : sem_pexprs (p_globs p) t1 es = ok vs.
+    { rewrite (@eq_on_sem_pexprs s1) //.
+      - by rewrite (mvm_mem sim).
+      apply: eq_onI; last (symmetry; exact: (mvm_vmap sim)).
+      SvD.fsetdec.
+    }
+    exists (with_vm s2 tvm2); split.
+    - constructor.
+      by rewrite /sem_sopn ok_tvs /= ok_rs /= ok_tvm2.
+    - apply: vrvsP; exact: ok_tvm2.
+    split => //=.
+    apply: eq_onI; last exact: sim2.
+    SvD.fsetdec.
+  Qed.
+
+  Lemma Hif_true: sem_Ind_if_true p global_data Pc Pi_r.
+  Proof.
+    move => s1 s2 e c1 c2 eval_e exec_c1 ih ii live' live t1.
+    rewrite /check_instr_r -/check_instr; t_xrbindP => D1 ok_D1 D2 ok_D2 <-{live'}.
+    rewrite read_eE => sim.
+    have sim1 : match_estate D1 s1 t1.
+    { apply: match_estateI sim; SvD.fsetdec. }
+    case: (ih _ _ _ ok_D1 sim1) => t2 [] texec_c1 tvm2 sim2.
+    exists t2; split; last exact: sim2.
+    - constructor; last exact: texec_c1.
+      rewrite (@eq_on_sem_pexpr s1) ?(mvm_mem sim) //.
+      apply: eq_onI; last (symmetry; exact: (mvm_vmap sim)).
+      SvD.fsetdec.
+    rewrite write_i_if.
+    apply: vmap_eq_exceptI tvm2.
+    SvD.fsetdec.
+  Qed.
+
+  Lemma Hif_false: sem_Ind_if_false p global_data Pc Pi_r.
+  Proof. Admitted.
+
+  Lemma Hwhile_true: sem_Ind_while_true p global_data Pc Pi_r.
+  Proof. Abort.
+
+  Lemma Hwhile_false: sem_Ind_while_false p global_data Pc Pi_r.
+  Proof. Abort.
+
+  Let Pfor (_: var_i) (_: seq Z) (_: estate) (_: cmd) (_: estate) : Prop :=
+    True.
+
+  Lemma Hfor: sem_Ind_for p global_data Pi_r Pfor.
+  Proof. by []. Qed.
+
+  Lemma Hfor_nil: sem_Ind_for_nil Pfor.
+  Proof. by []. Qed.
+
+  Lemma Hfor_cons: sem_Ind_for_cons p global_data Pc Pfor.
+  Proof. by []. Qed.
+
+  Let Pfun (m: mem) (fn: funname) (args: seq value) (m': mem) (res: seq value) : Prop :=
+    True.
+
+  Lemma Hcall: sem_Ind_call p global_data Pi_r Pfun.
+  Proof. Abort.
+
+  Lemma Hproc: sem_Ind_proc p global_data Pc Pfun.
+  Proof. Abort.
 
 End LEMMA.
 
+(*
 (* A call context is a sequence of call-sites (instr_info) and saved local variables (vmap) *)
 Definition call_context : Type := seq (instr_info * vmap).
-
-(* Relation between *)
-Definition
 
 Definition initial_vmap : vmap :=
   (vmap0.[ vgd <- ok (pword_of_word global_data) ])%vmap.
@@ -199,5 +278,6 @@ Theorem merge_varmaps_callP m fn args m' res :
   sem_one_varmap.sem_call p extra_free_registers ii.
 Proof.
 Abort.
+*)
 
 End PROG.
