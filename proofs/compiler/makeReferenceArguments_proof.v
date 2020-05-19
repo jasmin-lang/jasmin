@@ -142,6 +142,9 @@ Section Section.
     Print with_vm.
   Admitted.
 
+(*@: all arguments event implicits*)
+(*Check: gives the type of something*)
+
   Local Lemma Hopn : sem_Ind_opn p Pi_r.
   Proof.
     move => s1 s2 t o xs es He ii X c'.
