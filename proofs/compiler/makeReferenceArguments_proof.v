@@ -47,6 +47,22 @@ Derive Inversion_clear sem_nilI
 Derive Inversion_clear sem_consI
   with (forall s1 i c s2,  @sem T pT cs p ev s1 (i :: c) s2)
   Sort Prop.
+
+Section SemInversionSeq1.
+  Context (s1 : estate) (i : instr) (s2 : estate).
+  Context
+    (P : ∀ (T : eqType) (pT : progT T),
+           semCallParams → prog -> extra_val_t -> estate -> instr -> estate -> Prop).
+
+  Hypothesis Hi :
+    (sem_I p ev s1 i s2 -> @P T pT cs p ev s1 i s2).
+
+
+  Lemma sem_seq1I : sem p ev s1 [:: i] s2 → @P T pT cs p ev s1 i s2.
+  Proof.
+  by elim/sem_consI=> s hs h_nil; elim/sem_nilI: h_nil hs => /Hi.
+  Qed.
+End SemInversionSeq1.
 End SemInversion.
 
 Section Section.
@@ -233,8 +249,7 @@ Section Section.
     + rewrite -(make_referenceprog_globs Hp) -sem_s2_e.
       rewrite -(@read_e_eq_on _ Sv.empty) // -/(read_e _).
       by apply: (eq_onI _ eq_s2_vm2); SvD.fsetdec.
-    elim/sem_consI: sem_vm3_vm4 => s4' sem_vm3_vm4 h.
-    by elim/sem_nilI: h sem_vm3_vm4 => {s4'} /sem_IE.
+    by elim/sem_seq1I: sem_vm3_vm4 => /sem_IE.
   Qed.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
