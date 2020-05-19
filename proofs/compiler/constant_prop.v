@@ -798,8 +798,35 @@ Definition const_prop_e_esP_sem_pexprs_e' gd s es v:=
     rewrite /lests_to_les /=. by rewrite cats0. auto.
   Admitted.
 
+  Lemma sem_pexprs_to_sem_pexprs_e s gd es vs:
+    mapM (sem_pexpr gd s) es = ok vs ->
+    exists vs', vs =  (zip (unzip1 vs') (map (lest_to_les) (unzip2 vs'))) /\
+                mapM (sem_pexpr_e gd s) es = ok vs'.
+  Proof.
+    elim: es vs.
+    - move=> vs Hm. exists [::]. rewrite /=. case: Hm.
+      move=> ->. by split.
+    - move=> a l vs Hm Hms.
+  Admitted.
 
-  Lemma write_lval_cp gd s1 x v s2 l:
+    Lemma sem_pexprs_to_sem_pexprs_e' s gd es vs:
+    sem_pexprs gd s es = ok vs ->
+    exists vs', vs.1 = vs'.1 /\ vs.2 = (lest_to_les vs'.2) /\
+                sem_pexprs_e gd s es = ok vs'.
+  Proof.
+    rewrite /sem_pexprs. rewrite /sem_pexprs_e.
+    t_xrbindP. move=> y Hm Hv. move: (sem_pexprs_to_sem_pexprs_e).
+    move=> H. move: (H s gd es y Hm) => [] x [] Hv' Hl'. rewrite Hl' /=.
+    exists  (unzip1 x, LSub (unzip2 x)). rewrite /=. rewrite -Hv /=. split.
+    rewrite Hv' /=. apply unzip1_zip. elim: (x) => //= x s. split.
+    rewrite /lests_to_les /=. rewrite Hv' /=.
+    assert ((unzip2
+       (zip (unzip1 x)
+          [seq lest_to_les i | i <- unzip2 x])) = [seq lest_to_les i | i <- unzip2 x]).
+    apply unzip2_zip. elim: (x) => //= x s. by rewrite H0 /=. auto.
+  Qed.
+                                                          
+ Lemma write_lval_cp gd s1 x v s2 l:
   write_lval_e gd x v s1 = ok (s2, l) ->
   write_lval gd x v s1 = ok (s2, lest_to_les l).
   Proof.
@@ -833,6 +860,40 @@ Definition const_prop_e_esP_sem_pexprs_e' gd s es v:=
   t_xrbindP => ? [s lw1] /write_lval_cp -> <- /=. move=> H.
   Admitted.
 
+  Lemma write_lval_e_cp gd s1 x v s2 l:
+  write_lval gd x v s1 = ok (s2, l) ->
+  exists l', l = (lest_to_les l') /\ write_lval_e gd x v s1 = ok (s2, l').
+  Proof.
+    case : x => /=.
+  - move=> _ ty. rewrite /write_none. t_xrbindP.
+    move=> y H <- <- /=. rewrite H /=. exists LEmpty.
+    rewrite /=. by split.
+  - move=> x. rewrite /write_var. t_xrbindP.
+    move=> y h Hs Hy He <- /=. rewrite Hs /=. rewrite -Hy in He.
+    rewrite -He /=. exists LEmpty. rewrite /=. by split.
+  - move=> sz x e. t_xrbindP.
+    move=> y h -> /= -> /= [v' l'] He h4 Hw h8 Hw' m Hm <- <- /=.
+    move: (sem_pexpr_e_to_sem_pexpr). move=> H.
+    move: (H gd s1 e v' l' He) => [] x0 [] Hl He'. exists (LSub [:: x0; (LAdr (y+h4))]).
+    rewrite Hl /=. rewrite /lests_to_les /=. split. by rewrite cats1. 
+    rewrite He' /=. rewrite Hw /=.
+    rewrite Hw' /=. by rewrite Hm /=.
+  - move=> sz x e /=. apply: on_arr_varP => n t Hsub; rewrite /on_arr_var => Hg.
+    t_xrbindP. move=> [yv yl] Hs z Hi w Hw a Ha h6 Hs' <- <- /=.
+    rewrite Hg /=. move: (sem_pexpr_e_to_sem_pexpr). move=> H.
+    move: (H gd s1 e yv yl Hs) => [] x0 [] Hl He'. exists (LSub [:: x0; (LIdx z)]).
+    rewrite Hl /=. rewrite /lests_to_les /=. split. by rewrite cats1.
+    rewrite He' /=. rewrite Hi /=. rewrite Hw /=. rewrite Ha /=. by rewrite Hs' /=.
+  Qed.
+
+  Lemma write_lval_es_cp gd s1 xs vs s2 l:
+  write_lvals gd s1 xs vs = ok (s2, l) ->
+  exists l', l = (lest_to_les l') /\ write_lvals_e gd s1 xs vs = ok (s2, l').
+  Proof.
+  rewrite /write_lvals. rewrite /write_lvals_e.
+  elim: xs vs s1 [::] l s2 => [|x xs Hrec] [|v vs] s1 lw0 lw s2 //=.
+  Admitted.
+  
 Section CMD.
 
 Inductive leak_i_tree :=
@@ -1230,7 +1291,22 @@ Lemma sem_sopn_cp gd o s1 xs es s2 l:
     move=> -> /=. rewrite /lests_to_les /=. by rewrite cats0.
   Qed.
 
-  Lemma sem_range_cp gd s r s2 l:
+Lemma sem_sopn_e_cp gd o s1 xs es s2 l:
+  sem_sopn gd o s1 xs es = ok (s2, l) ->
+  exists l', l = (lest_to_les l') /\ sem_sopn_e gd o s1 xs es = ok (s2, l').
+  Proof.
+    rewrite /sem_sopn. t_xrbindP.
+    move=> [yv yl] He h0 Hex [yv' yl'] Hw <- <-.
+    rewrite /sem_sopn_e. t_xrbindP.
+    move: sem_pexprs_to_sem_pexprs_e'. move=> H.
+    move: (H s1 gd es (yv, yl) He). move=> [] vs' [] Hv [] /= Hl -> /=.
+    rewrite -Hv /=. rewrite /= in Hex. rewrite Hex /=.
+    move: (write_lval_es_cp). move=> Hw'. move: (Hw' gd s1 xs h0 yv' yl' Hw).
+    move=> [] l' [] Hl' [] Hws. rewrite Hws /=. exists (LSub [:: vs'.2; l']).
+    rewrite /=. rewrite /lests_to_les /=. rewrite -Hl' Hl. rewrite cats0. by split.
+  Qed.
+
+ Lemma sem_range_cp gd s r s2 l:
   sem_range_e gd s r = ok (s2, l) ->
   sem_range gd s r = ok (s2, lest_to_les l).
   Proof.
@@ -1241,6 +1317,21 @@ Lemma sem_sopn_cp gd o s1 xs es s2 l:
     move: const_prop_e_esP_sem_pexpr_e. move=> H'.
     move: (H' (p_globs gd) s e2 (yv', yl') He'). move=> -> /=. rewrite Hi' /=.
     rewrite -Hs -Hl /=. rewrite /lests_to_les /=. by rewrite cats0.
+  Qed.
+
+  Lemma sem_range_e_cp gd s r s2 l:
+  sem_range gd s r = ok (s2, l) ->
+  exists l', l = (lest_to_les l') /\ sem_range_e gd s r = ok (s2, l').
+  Proof.
+    rewrite /sem_range /=. elim: r. move=> [d e1] e2. t_xrbindP.
+    move=> [yv yl] He h0 Hi [yv' yl'] He' h4 Hi' <- Hl.
+    rewrite /sem_range_e. move: sem_pexpr_e_to_sem_pexpr. move=> H.
+    move: (H (p_globs gd) s e1 yv yl He). move=> [] l0 [] Hl' Hee.
+    move: sem_pexpr_e_to_sem_pexpr. move=> H'.
+    move: (H' (p_globs gd) s e2 yv' yl' He'). move=> [] l1 [] Hl1 He2 /=.
+    rewrite Hee /=. rewrite He2 /=. rewrite Hi /=. rewrite Hi' /=.
+    exists ( LSub [:: l0; l1]). rewrite -Hl /=. rewrite Hl' Hl1 /=.
+    rewrite /lests_to_les /=. rewrite cats0. by split. 
   Qed.
   
   
@@ -1381,7 +1472,7 @@ Proof.
   split. by apply EForDone. auto.
 Qed.
 
-Local Lemma Hfor_cons : sem_Ind_for_cons_i P Pci Pfor_i.
+Local Lemma Hfor_cons_i : sem_Ind_for_cons_i P Pci Pfor_i.
 Proof.
   rewrite /sem_Ind_for_cons_i. move=> s1 s1' s2 s3 i w ws c lc lf Hw Hc Hpi.
   move=> Hf Hpi'. rewrite /Pci in Hpi. rewrite /Pfor_i in Hpi'. rewrite /Pfor_i.
@@ -1466,7 +1557,134 @@ Local Lemma HmkI : sem_Ind_mkI P Pi_r Pi.
 Proof.
   rewrite /sem_Ind_mkI. move=> ii i s1 s2 li Hs H.
   rewrite /Pi_r in H. move: (H Hs). move=> [] li' [] Hl Hi.
-  rewrite /Pi. move=> H'. 
+  rewrite /Pi. move=> H'. exists li'. split. rewrite -Hl /=. auto.
+  constructor. auto.
+Qed.
+
+Local Lemma Hasgn : sem_Ind_assgn P Pi_r.
+Proof.
+  rewrite /sem_Ind_assgn. move=> s1 s2 x tag ty e v v' le lw He Ht Hw.
+  rewrite /Pi_r /=. move=> H.
+  move:sem_pexpr_e_to_sem_pexpr. move=> Hc.
+  move: (Hc (p_globs P) s1 e v le He). move=> [] x0 [] Hl He'. 
+  move: (write_lval_e_cp). move=> Hw'. move: (Hw' (p_globs P) s1 x v' s2 lw Hw).
+  move=> [] l' [] Hl' Hww. exists (LTassgn (LSub [:: x0 ; l'])). rewrite /=.
+  rewrite /lests_to_les /=. split. rewrite Hl Hl'. by rewrite cats0.
+  apply Eassgn_i with v v'. auto. auto. auto.
+Qed.
+
+Local Lemma Hopn : sem_Ind_opn P Pi_r.
+Proof.
+  rewrite /sem_Ind_opn. move=> s1 s2 t o xs es lo Ho.
+  rewrite /Pi_r. move=> He.
+  move: (sem_sopn_e_cp). move=> Ho'.
+  move: (Ho' gd o s1 xs es s2 lo Ho). move=> [] l' [] Hl Hs.
+  exists (LTopn l'). rewrite /=. rewrite -Hl. split. auto.
+  apply Eopn_i. auto.
+Qed.
+
+Local Lemma Hif_true : sem_Ind_if_true P Pc Pi_r.
+Proof.
+  rewrite /sem_Ind_if_true. move=> s1 s2 e c1 c2 le lc He Hc Hp Hpi.
+  rewrite /Pc in Hp. move: (Hp Hc). move=> [] lc' [] Hi Hl /=.
+  move:sem_pexpr_e_to_sem_pexpr. move=> Hc'. move: (Hc' gd s1 e (Vbool true) le He).
+  move=> [] l [] Hle Hee. exists (LTcond l true lc'). split. rewrite /=.
+  by rewrite -Hi -Hle. apply Eif_true_i. auto. auto.
+Qed.
+
+Local Lemma Hif_false : sem_Ind_if_false P Pc Pi_r.
+Proof.
+  rewrite /sem_Ind_if_false. move=> s1 s2 e c1 c2 le lc He Hc Hp Hpi.
+  rewrite /Pc in Hp. move: (Hp Hc). move=> [] lc' [] Hi Hl /=.
+  move:sem_pexpr_e_to_sem_pexpr. move=> Hc'. move: (Hc' gd s1 e (Vbool false) le He).
+  move=> [] l [] Hle Hee. exists (LTcond l false lc'). split. rewrite /=.
+  by rewrite -Hi -Hle. apply Eif_false_i. auto. auto.
+Qed.
+
+Local Lemma Hwhile_true : sem_Ind_while_true P Pc Pi_r.
+Proof.
+  rewrite /sem_Ind_while_true.
+  move=> s1 s2 s3 s4 a c e c' lc le lc' li Hc Hci He Hc' Hci' Hi Hii.
+  rewrite /Pc in Hci'. rewrite /Pi_r in Hii. rewrite /Pi_r.
+  move=> H. move: (Hci' Hc'). move=> [] lc'0 [] Hs Hsl /=.
+  move: (Hii Hi). move=> [] li' [] Hsi Hsli /=.
+  move: (sem_pexpr_e_to_sem_pexpr). move=> Hp.
+  move: (Hp gd s2 e (Vbool true) le He). move=> [] l [] Hl Hee.
+  rewrite /Pc in Hci. move: (Hci Hc). move=> [] lc'1 [] Hp' Hpl /=.
+  exists (LTwhile_true lc'1 l lc'0 li'). rewrite /=. split.
+  by rewrite -Hs -Hp' -Hl -Hsi /=. apply Ewhile_true_i with s2 s3.
+  auto. auto. auto. auto.
+Qed.
+
+Local Lemma Hwhile_false : sem_Ind_while_false P Pc Pi_r.
+Proof.
+  rewrite /sem_Ind_while_false.
+  move=> s1 s2 a c e c' lc le Hci Hpi He. rewrite /Pi_r.
+  move=> H. rewrite /Pc in Hpi. move: (Hpi Hci).
+  move=> [] lc' [] Hs Hsl /=.
+  move: sem_pexpr_e_to_sem_pexpr. move=> Hhe.
+  move: (Hhe gd s2 e (Vbool false) le He).
+  move=> [] l [] Hl Hee /=. exists (LTwhile_false lc' l).
+  rewrite /=. split. by rewrite -Hl -Hs /=.
+  apply Ewhile_false_i. auto. auto.
+Qed.
+
+Local Lemma Hfor : sem_Ind_for P Pi_r Pfor.
+Proof.
+  rewrite /sem_Ind_for. move=> s1 s2 i r wr c lr lf.
+  move=> /sem_range_e_cp Hr Hf. rewrite /Pfor /=.
+  move=> H. move: (H Hf). move=> []  lc' [] Hf' Hl.
+  rewrite /Pi_r /=. move=> Hi. move: Hr. move=> [] l' [] Hlr Hr'.
+  exists (LTfor l' lc'). rewrite /=. split. by rewrite -Hf' -Hlr.
+  apply Efor_i with wr. auto. auto.
+Qed.
+
+Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
+Proof.
+  rewrite /sem_Ind_for_nil. move=> s i c.
+  rewrite /Pfor. move=> Hf /=. exists [::].
+  split. by rewrite /=. apply EForDone_i.
+Qed.
+
+Local Lemma Hfor_cons : sem_Ind_for_cons P Pc Pfor.
+Proof.
+  rewrite /sem_Ind_for_cons. move=> s1 s1' s2 s3 i w ws c lc lf Hw Hc Hpi.
+  move=> Hf Hpi'. rewrite /Pfor. move=> Hfo. rewrite /Pc in Hpi.
+  rewrite /Pfor in Hpi'. move: (Hpi Hc). move=> [] lc' [] Hlc Hcc.
+  move: (Hpi' Hf). move=> [] lc'0 [] Hlf Hsc.
+  exists ([::lc'] :: lc'0). rewrite /=. split.
+  rewrite /lits_to_lis /=. rewrite Hlc Hlf. by rewrite cats0.
+  apply EForOne_i with s1' s2. auto. auto. auto.
+Qed.
+
+Local Lemma Hcall : sem_Ind_call P Pi_r Pfun.
+Proof.
+  rewrite /sem_Ind_call. move=> s1 m2 s2 ii xs fn args vargs vs l1 lf lw.
+  move=> Hes Hc Hpi Hws. rewrite /Pi_r. rewrite /Pfun in Hpi. move=> H.
+  move: (Hpi Hc). move=> [] lf' [] Hc' Hl /=.
+  move: (sem_pexprs_to_sem_pexprs_e'). move=> Hs.
+  move: (Hs s1 gd args (vargs, l1) Hes). move=> [] vs' [] Hv [] Hl' Hes'.
+  move: (write_lval_es_cp). move=> Hws'.
+  move: (Hws' gd {| emem := m2; evm := evm s1 |} xs vs s2 lw Hws).
+  move=> [] li' [] Hlw Hws''. exists (LTcall vs'.2 lf' li'). split.
+  admit. apply Ecall_i with m2 vargs vs. auto. auto. rewrite /= in Hv.
+  rewrite Hv. 
+
+Local Lemma Hproc_i : sem_Ind_proc_i P Pci Pfun_i.
+Proof.
+  rewrite /sem_Ind_proc_i. move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hg Hm.
+  move=> Hws Hci Hpi Hm' Hm''. rewrite /Pfun_i. move=> H.
+  rewrite /Pci in Hpi. move: (Hpi Hci). move=> [] lc' [] Hpi' Hl.
+  rewrite /=. rewrite -Hl /=. exists (fn, lc'). rewrite /=.
+  split. apply EcallRun with f vargs s1 vm2 vres. auto.
+  auto. auto. auto. auto. auto. auto.
+Qed.
+
+
+
+
+
+
 
 
 
