@@ -1668,45 +1668,26 @@ Proof.
   move: (Hws' gd {| emem := m2; evm := evm s1 |} xs vs s2 lw Hws).
   move=> [] li' [] Hlw Hws''. exists (LTcall vs'.2 lf' li'). split.
   admit. apply Ecall_i with m2 vargs vs. auto. auto. rewrite /= in Hv.
-  rewrite Hv. 
+  rewrite Hv /=.
+Admitted.
 
-Local Lemma Hproc_i : sem_Ind_proc_i P Pci Pfun_i.
+Local Lemma Hproc : sem_Ind_proc P Pc Pfun.
 Proof.
-  rewrite /sem_Ind_proc_i. move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hg Hm.
-  move=> Hws Hci Hpi Hm' Hm''. rewrite /Pfun_i. move=> H.
-  rewrite /Pci in Hpi. move: (Hpi Hci). move=> [] lc' [] Hpi' Hl.
-  rewrite /=. rewrite -Hl /=. exists (fn, lc'). rewrite /=.
-  split. apply EcallRun with f vargs s1 vm2 vres. auto.
-  auto. auto. auto. auto. auto. auto.
+  rewrite /sem_Ind_proc. move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hg Hm.
+  move=> Hws Hci Hpi Hm' Hm''. rewrite /Pfun. move=> H.
+  rewrite /Pc in Hpi. move: (Hpi Hci). move=> [] lc' [] Hpi' Hl.
+  rewrite /=. exists (fn, lc'). split. rewrite /=. by rewrite Hpi'.
+  apply EcallRun_i with f vargs s1 vm2 vres. auto.
+  auto. auto. auto. auto. auto.
 Qed.
 
-
-
-
-
-
-
-
-
 End Sem_I_Sem_Leakages_proof.
-
-
-
-
-
-  
-
-
-               
-(* Here we need to write the theorem sem -> sem_e and sem_e -> sem *)
-
-End Sem_I_Leakages_proof.
 
 
 Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
   match ir with
   | Cassgn x tag ty e =>
-.    let (e, lt) := const_prop_e m e in
+    let (e, lt) := const_prop_e m e in
     let: (m,x, ltx) := const_prop_rv m x in
     let m := add_cpm m x tag ty e in
     (m, [:: MkI ii (Cassgn x tag ty e)], LT_iseq [:: LT_ile lt; LT_ile ltx])
@@ -1715,7 +1696,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
     (* TODO: Improve this *)
     let es := map (const_prop_e m) es in
     let: (m,xs, lts) := const_prop_rvs m xs in
-)    (m, [:: MkI ii (Copn xs t o (unzip1 es)) ], 
+    (m, [:: MkI ii (Copn xs t o (unzip1 es)) ], 
          LT_iseq [ :: LT_ile (LT_seq (unzip2 es)) ; LT_ile lts])
 
   | Cif b c1 c2 =>
