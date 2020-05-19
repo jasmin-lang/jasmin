@@ -92,7 +92,7 @@ Section Section.
     update_c (update_i is_reg_ptr fresh_id p get_sig X) c = ok c' ->
     Sv.Subset (Sv.add i (Sv.union (read_c c) (write_c c))) X ->
     forall vm1,  evm s1 =[X] vm1 ->
-    exists vm2, [/\ evm s2 =[X] vm2  & 
+    exists vm2, [/\ evm s2 =[X] vm2  &
       sem_for p' ev i vs (with_vm s1 vm1) c' (with_vm s2 vm2)].
 
   Let Pfun m fn vargs m' vres :=
@@ -143,7 +143,7 @@ Section Section.
     rewrite (read_e_eq_on _ (s:=Sv.empty) (vm' := vm1)); last first.
     + by apply: eq_onI hvm1; rewrite read_eE; SvD.fsetdec.
     rewrite eq_globs => he.
-    
+
     (*I am supposed to use this, but can't figure out how: how can I get anything of type glob_decls?*)
     have ? := write_lval_eq_on.
     Print glob_decls.
@@ -188,7 +188,17 @@ Section Section.
 
   Local Lemma Hif_false : sem_Ind_if_false p ev Pc Pi_r.
   Proof.
-  Admitted.
+    move=> s1 s2 e c1 c2 He Hs Hc ii X c' /=.
+    t_xrbindP => i_then i_thenE i_else i_elseE {c'}<-.
+    rewrite !(read_Ii, write_Ii) !(read_i_if, write_i_if) => le_X.
+    move=> vm1 eq_s1_vm1; case: (Hc X _ i_elseE _ vm1 eq_s1_vm1).
+    + by SvD.fsetdec.
+    move=> vm2 [eq_s2_vm2 sem_i_else]; exists vm2; split=> //.
+    apply/sem_seq1/EmkI; apply: Eif_false => //.
+    rewrite -(make_referenceprog_globs Hp) -He.
+    rewrite -(@read_e_eq_on _ Sv.empty) // -/(read_e _).
+    by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
+  Qed.
 
   Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
   Proof.
@@ -196,18 +206,49 @@ Section Section.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
   Proof.
-  Admitted.
-
-  Local Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
-  Proof.
-  Admitted.
+   move=> s1 s2 a c e c' He Hc eq_s_e ii X c'' /=.
+   t_xrbindP => while_false while_falseE c''' eq_c' <-.
+   (*Need to have the set in a different order*)
+   rewrite !(read_Ii, write_Ii) !(read_i_while, write_i_while).
+   (*What are those !() ? rewrite as much as possible*)
+   move => le_X vm1 eq_s1_vm1.
+   case: (Hc X _ while_falseE _ vm1 eq_s1_vm1).
+   + by SvD.fsetdec.
+   move => vm2 [eq_s2_vm2 sem_while_false].
+   exists vm2 ; split => //.
+   apply/sem_seq1/EmkI.
+   Print sem_i.
+   apply Ewhile_false => //.
+   rewrite -(make_referenceprog_globs Hp) - eq_s_e.
+   rewrite -(@read_e_eq_on _ Sv.empty) // -/(read_e _).
+   by apply: (eq_onI _ eq_s2_vm2) ; SvD.fsetdec.
+  Qed.
 
   Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
   Proof.
-  Admitted.
+    move => s1 x c X c' Hc le_X vm1 eq_s1_vm1.
+    exists vm1 ; split => //.
+    by constructor.
+  Qed.
 
   Local Lemma Hfor_cons : sem_Ind_for_cons p ev Pc Pfor.
   Proof.
+    move => s1 s2 s3 s4 x w ws c eq_s2 sem_s2_s3 H_s2_s3 H_s3_s4 Pfor_s3_s4 X c'.
+    move => eq_c' le_X vm1 eq_s1_vm1.
+    case : (write_var_eq_on eq_s2 eq_s1_vm1) => vm2 [eq_s2_vm2 eq_write].
+    case : (H_s2_s3 X _ eq_c' _ vm2).
+    + by SvD.fsetdec.
+    + by apply: (eq_onI _ eq_s2_vm2) ; SvD.fsetdec.
+    move => vm3 [eq_s3_vm3 sem_vm2_vm3].
+    case : (Pfor_s3_s4 X _ eq_c' _ vm3 eq_s3_vm3) => //.
+    move => vm4 [eq_s4_vm4 sem_vm3_vm4].
+    exists vm4 ; split => //.
+    by apply (EForOne eq_write sem_vm2_vm3 sem_vm3_vm4).
+  Qed.
+
+  Local Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
+  Proof.
+    Print sem_Ind_for.
   Admitted.
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
