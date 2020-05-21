@@ -3497,7 +3497,7 @@ Lemma valid_cpm_rm rho1 rho2 xs m:
   valid_cpm rho2 (remove_cpm m xs).
 Proof.
   move=> Hrho Hval x nx /get_remove_cpm [] Hm Hin.
-  rewrite /get_var -Hrho //;apply (Hval _ _ Hm).
+  rewrite /get_var -Hrho //;apply (Hval _ _ Hm).  
 Qed.
 
 Lemma vrvP_e (x:lval) v s1 s2 lw:
@@ -3530,36 +3530,38 @@ Instance const_prop_e_m :
 Proof.
   move=> m1 m2 Hm e e' <- {e'}.
   elim: e => //=.
-  + by move=> ?;rewrite Hm.
+  + by move=> x; rewrite Hm.
   + by move=> ??? ->.
   + by move=> ??? ->.
   + by move=> ?? ->.
   + by move=> ?? -> ? ->.
-  + move => op es h; f_equal.
-    elim: es h => // e es ih rec /=; f_equal.
-    - by apply: rec; rewrite in_cons eqxx.
-    by apply: ih => e' he'; apply: rec; rewrite in_cons he' orbT.
-  by move=> ?? -> ? -> ? ->.
+  + move=> t e He e1 He1 e2 He2.
+    by rewrite He He1 He2.
 Qed.
 
+Check const_prop_rv.
+
 Instance const_prop_rv_m :
-  Proper (@Mvar_eq const_v ==> eq ==> RelationPairs.RelProd (@Mvar_eq const_v) eq) const_prop_rv.
+  Proper (@Mvar_eq const_v ==> eq ==> RelationPairs.RelProd
+                   (RelationPairs.RelProd (@Mvar_eq const_v) eq) eq) const_prop_rv.
 Proof.
   move=> m1 m2 Hm rv rv' <- {rv'}.
   by case: rv => [ v | v | sz v p | sz v p] //=;rewrite Hm.
 Qed.
 
 Instance const_prop_rvs_m :
-  Proper (@Mvar_eq const_v ==> eq ==> RelationPairs.RelProd (@Mvar_eq const_v) eq) const_prop_rvs.
+  Proper (@Mvar_eq const_v ==> eq ==> RelationPairs.RelProd
+          (RelationPairs.RelProd (@Mvar_eq const_v) eq) eq) const_prop_rvs.
 Proof.
   move=> m1 m2 Hm rv rv' <- {rv'}.
   elim: rv m1 m2 Hm => //= rv rvs Hrec m1 m2 Hm.
   have [/=]:= const_prop_rv_m Hm (refl_equal rv).
-  case: const_prop_rv => ??;case: const_prop_rv => ??.
-  rewrite /RelationPairs.RelCompFun /= => /Hrec H ->.
-  case: const_prop_rvs H => ??;case: const_prop_rvs => ?? [].
-  by rewrite /RelationPairs.RelCompFun /= => -> ->.
-Qed.
+  case: const_prop_rv=> a b; case: const_prop_rv => a0 b0.
+  rewrite /RelationPairs.RelCompFun. move: (Hrec m1 m2 Hm).
+  move=> Hrec' /= H Hv /=.
+  (*case: const_prop_rvs => ??;case: const_prop_rvs => ?? [].
+  by rewrite /RelationPairs.RelCompFun /= => -> ->.*)
+Admitted.
 
 Instance add_cpm_m :
   Proper (@Mvar_eq const_v ==> eq ==> eq ==> eq ==> eq ==> @Mvar_eq const_v) add_cpm.
@@ -3593,17 +3595,27 @@ Qed.
 
 Definition Mvarc_eq T := RelationPairs.RelProd (@Mvar_eq T) (@eq cmd).
 
+Definition Mvarcl_eq T := RelationPairs.RelProd (RelationPairs.RelProd (@Mvar_eq T) (@eq cmd)) (@eq leak_i_tr).
+
 Section PROPER.
 
-  Let Pr (i:instr_r) :=
-    forall ii m1 m2, Mvar_eq m1 m2 -> Mvarc_eq (const_prop_ir m1 ii i) (const_prop_ir m2 ii i).
+  (*Let Pr (i:instr_r) :=
+    forall ii m1 m2, Mvar_eq m1 m2 -> Mvarc_eq (const_prop_ir m1 ii i) (const_prop_ir m2 ii i).*)
+  Let Pr (i:instr_r) := forall ii m1 m2, Mvar_eq m1 m2 -> Mvarcl_eq (const_prop_ir m1 ii i) (const_prop_ir m2 ii i).
+                                                                          
+  (*Let Pi (i:instr) :=
+    forall m1 m2, Mvar_eq m1 m2 -> Mvarc_eq (const_prop_i m1 i) (const_prop_i m2 i).*)
 
   Let Pi (i:instr) :=
-    forall m1 m2, Mvar_eq m1 m2 -> Mvarc_eq (const_prop_i m1 i) (const_prop_i m2 i).
+    forall m1 m2, Mvar_eq m1 m2 -> Mvarcl_eq (const_prop_i m1 i) (const_prop_i m2 i).
+
+  (*Let Pc (c:cmd) :=
+    forall m1 m2, Mvar_eq m1 m2 ->
+    Mvarc_eq (const_prop const_prop_i m1 c) (const_prop const_prop_i m2 c).*)
 
   Let Pc (c:cmd) :=
     forall m1 m2, Mvar_eq m1 m2 ->
-    Mvarc_eq (const_prop const_prop_i m1 c) (const_prop const_prop_i m2 c).
+    Mvarcl_eq (const_prop const_prop_i m1 c) (const_prop const_prop_i m2 c).
 
   Local Lemma Wmk i ii: Pr i -> Pi (MkI ii i).
   Proof. by move=> Hi m1 m2;apply Hi. Qed.

@@ -897,28 +897,23 @@ Definition const_prop_e_esP_sem_pexprs_e' gd s es v:=
 Section CMD.
 
 Inductive leak_i_tree :=
-| LTempty : leak_i_tree  
 | LTassgn : leak_e_tree -> leak_i_tree
 | LTopn : leak_e_tree -> leak_i_tree
-| LTcond : leak_e_tree -> bool -> leak_i_tree -> leak_i_tree
-| LTwhile_true : leak_i_tree -> leak_e_tree -> leak_i_tree -> leak_i_tree -> leak_i_tree
-| LTwhile_false : leak_i_tree -> leak_e_tree -> leak_i_tree
+| LTcond : leak_e_tree -> bool -> seq leak_i_tree -> leak_i_tree
+| LTwhile_true : seq leak_i_tree -> leak_e_tree -> seq leak_i_tree -> leak_i_tree -> leak_i_tree
+| LTwhile_false : seq leak_i_tree -> leak_e_tree -> leak_i_tree
 | LTfor : leak_e_tree -> seq (seq leak_i_tree) -> leak_i_tree
-| LTcall : leak_e_tree -> (funname * leak_i_tree) -> leak_e_tree -> leak_i_tree
-| LTSub : seq leak_i_tree -> leak_i_tree.
-
+| LTcall : leak_e_tree -> (funname * seq leak_i_tree) -> leak_e_tree -> leak_i_tree.
 
 Inductive leak_i_tr :=
-| LT_iremove : leak_i_tr
 | LT_ikeep : leak_i_tr
 | LT_ile : leak_tr -> leak_i_tr
-| LT_ileli : leak_tr -> leak_i_tr -> leak_i_tr
-| LT_iwhile : leak_i_tr -> leak_tr -> leak_i_tr -> leak_i_tr
+| LT_ileli : leak_tr -> seq leak_i_tr -> leak_i_tr
+| LT_iwhile : seq leak_i_tr -> leak_tr -> seq leak_i_tr -> leak_i_tr
 | LT_ifor : leak_tr -> seq (seq leak_i_tr) -> leak_i_tr
-| LT_icall : leak_tr -> leak_i_tr -> leak_tr -> leak_i_tr
-| LT_iseq : seq leak_i_tr -> leak_i_tr.
+| LT_icall : leak_tr -> seq leak_i_tr -> leak_tr -> leak_i_tr.
 
-Section LEAK_I.
+Section Leak_I.
   
   Variable leak_I : leak_i_tr -> leak_i_tree -> leak_i_tree.
 
@@ -928,28 +923,70 @@ Section LEAK_I.
   Definition leak_Iss (ltss : seq (seq leak_i_tr)) (ls : seq (seq leak_i_tree)) : seq (seq leak_i_tree) :=
     (map2b leak_Is ltss ls).
 
-End LEAK_I.
+End Leak_I.
 
 Fixpoint leak_I (lt : leak_i_tr) (l : leak_i_tree) : leak_i_tree :=
   match lt, l with
-  | LT_iremove, _ => LTempty
   | LT_ikeep, _ => l
-  | LT_iseq lts, LTSub ls => LTSub (map2b leak_I lts ls)
   | LT_ile lte, LTassgn le => LTassgn (leak_F lte le)
   | LT_ile lte, LTopn le => LTopn (leak_F lte le)
-  | LT_ileli lte lti, LTcond le b li => LTcond (leak_F lte le) b (leak_I lti li)
-  | LT_iwhile lti lte lti', LTwhile_true li le li' lw => LTwhile_true (leak_I lti li)
-                                                                      (leak_F lte le)
-                                                                      (leak_I lti' li')
-                                                                      (leak_I lt lw)
-  | LT_iwhile lti lte lti', LTwhile_false li le => LTwhile_false (leak_I lti li)
-                                                                 (leak_F lte le)
-  | LT_ifor lte lti, LTfor le li => LTfor (leak_F lte le)
-                                          (leak_Iss leak_I lti li)
-  | LT_icall lte lti lte', LTcall le (f, li) le' => LTcall (leak_F lte le)
-                                                             (f, (leak_I lti li))
+  | LT_ileli lte ltis, LTcond le b lti => LTcond (leak_F lte le) b (map2b leak_I ltis lti)
+  | LT_iwhile ltis lte ltis', LTwhile_true lts le lts' lw => LTwhile_true (map2b leak_I ltis lts)
+                                                                          (leak_F lte le)
+                                                                          (map2b leak_I ltis' lts')
+                                                                          (leak_I lt lw)
+  | LT_iwhile ltis lte ltis', LTwhile_false lts le => LTwhile_false (map2b leak_I ltis lts)
+                                                                    (leak_F lte le)
+  | LT_ifor lte ltiss, LTfor le ltss => LTfor (leak_F lte le)
+                                                (leak_Iss leak_I ltiss ltss)
+  | LT_icall lte ltis lte', LTcall le (f, lts) le' => LTcall (leak_F lte le)
+                                                             (f, (map2b leak_I ltis lts))
                                                              (leak_F lte' le')
-  | _, _ => LTempty
+  | _, _ => l
+  end.
+
+Section LIT_TO_LI.
+
+Variable (lit_to_li : leak_i_tree -> leakage_i).
+
+Definition lits_to_lis (l : seq leak_i_tree) : seq leakage_i := 
+  flatten (map lit_to_li l).
+
+Definition litss_to_liss (ls : seq (seq leak_i_tree)) : seq (seq leakage_i) :=
+  map lits_to_lis ls.
+
+End LIT_TO_LI.
+
+Fixpoint lit_to_li (li : leak_i_tree) : leakage_i :=
+  match li with
+  | LTassgn le => Lassgn (lest_to_les le)
+  | LTopn le => Lopn (lest_to_les le)
+  | LTcond le b lis => LTcond (lest_to_les le) b (map lit_to_li lis)
+  | LTwhile_true lis le lis' lw => LTwhile_true (map lit_to_li lis)
+                                                (lest_to_les le)
+                                                (map lit_to_li lis')
+                                                (lit_to_li lw)
+  | LTwhile_false lis le => LTwhile_false (map lit_to_li lis)
+                                          (lest_to_les le)
+  | LTfor le liss => 
+
+Fixpoint lit_to_li (lis : leak_i_tree) : seq leakage_i :=
+ match lis with 
+ | LTassgn le => (Lassgn (lest_to_les le))
+ | LTopn le => [:: (Lopn (lest_to_les le))]
+ | LTcond le b li => [:: (Lcond (lest_to_les le) b (lit_to_li li))]
+ | LTwhile_true li le li' li'' => [:: (Lwhile_true (lit_to_li li)
+                                                   (lest_to_les le)
+                                                   (lit_to_li li')
+                                                   (head l0 (lit_to_li li'')))]
+ | LTwhile_false li le => [:: (Lwhile_false (lit_to_li li)
+                                             (lest_to_les le))]
+ | LTfor le li => [:: (Lfor (lest_to_les le)
+                            (litss_to_liss lit_to_li li))]
+ | LTcall le (f, li) le' => [:: (Lcall (lest_to_les le)
+                                        (f, (lit_to_li li))
+                                        (lest_to_les le'))]
+ | LTSub lis => lits_to_lis lit_to_li lis
  end.
 
 
@@ -1020,12 +1057,12 @@ Definition sem_sopn_e gd o m lvs args :=
   ok (ml.1, LSub [ :: vas.2 ; ml.2]).
 
 
-Inductive sem_c_i : estate -> cmd -> leak_i_tree -> estate -> Prop :=
+Inductive sem_c_i : estate -> cmd -> seq leak_i_tree -> estate -> Prop :=
 | Eskip_i s :
     sem_c_i s [::] LTempty s
 
 | Eseq_i s1 s2 s3 i c li lc :
-    sem_I_i s1 i li s2 -> sem_c_i s2 c lc s3 -> sem_c_i s1 (i::c) (LTSub [:: li ; lc]) s3
+    sem_I_i s1 i li s2 -> sem_c_i s2 c lc s3 -> sem_c_i s1 (i::c) [:: li ; lc] s3
 
 with sem_I_i : estate -> instr -> leak_i_tree -> estate -> Prop :=
 | EmkI_i ii i s1 s2 li:
@@ -1302,7 +1339,7 @@ Lemma sem_sopn_e_cp gd o s1 xs es s2 l:
     move: (H s1 gd es (yv, yl) He). move=> [] vs' [] Hv [] /= Hl -> /=.
     rewrite -Hv /=. rewrite /= in Hex. rewrite Hex /=.
     move: (write_lval_es_cp). move=> Hw'. move: (Hw' gd s1 xs h0 yv' yl' Hw).
-    move=> [] l' [] Hl' [] Hws. rewrite Hws /=. exists (LSub [:: vs'.2; l']).
+    move=> [] l' [] Hl' Hws. rewrite Hws /=. exists (LSub [:: vs'.2; l']).
     rewrite /=. rewrite /lests_to_les /=. rewrite -Hl' Hl. rewrite cats0. by split.
   Qed.
 
@@ -1372,7 +1409,7 @@ Proof.
   move=> s1 s2 s3 i c li lc Hi HPi Hc HPc.
   rewrite /Pi_i in HPi. rewrite /Pci in HPc.
   move: (HPi Hi). move=> [] x [] Hx Hlx. move: (HPc Hc).
-  move=> [] x' [] Hx' [] Hlx'. rewrite /Pci.
+  move=> [] x' [] Hx' Hlx'. rewrite /Pci.
   move=> H. exists (lit_to_li l0 (LTSub [:: li; lc])). split.
   rewrite /=. rewrite /lits_to_lis /=. rewrite -Hlx'. rewrite cats0.
   admit. auto.
@@ -1384,6 +1421,7 @@ Local Lemma HmkI_i : sem_Ind_mkI_i P Pi_ri Pi_i.
 Proof.
   rewrite /sem_Ind_mkI_i /=.
   move=> ii i s1 s2 li Hi Hpi.
+  rewrite /Pi_i.
   rewrite /Pi_ri in Hpi. move: (Hpi Hi).
   move=> [] li' [] Hii Hl. rewrite /Pi_i.
   move=> H /=. exists li'. split.
@@ -1477,7 +1515,7 @@ Proof.
   rewrite /sem_Ind_for_cons_i. move=> s1 s1' s2 s3 i w ws c lc lf Hw Hc Hpi.
   move=> Hf Hpi'. rewrite /Pci in Hpi. rewrite /Pfor_i in Hpi'. rewrite /Pfor_i.
   move=> H. move: (Hpi Hc). move=> [] lc' [] Hs Hl. move: (Hpi' Hf).
-  move=> [] lc'0 [] Hs' [] Hl' /=.
+  move=> [] lc'0 [] Hs' Hl' /=.
   exists (lits_to_lis (lit_to_li l0) [:: lc] :: litss_to_liss (lit_to_li l0) lf).
   split. rewrite -Hl' /=. rewrite /lits_to_lis /=. rewrite cats0. rewrite -Hl /=.
   apply EForOne with s1' s2. auto. auto. auto. auto.
