@@ -950,7 +950,7 @@ Section LIT_TO_LI.
 Variable (lit_to_li : leak_i_tree -> leakage_i).
 
 Definition lits_to_lis (l : seq leak_i_tree) : seq leakage_i := 
-  flatten (map lit_to_li l).
+  map lit_to_li l.
 
 Definition litss_to_liss (ls : seq (seq leak_i_tree)) : seq (seq leakage_i) :=
   map lits_to_lis ls.
@@ -961,79 +961,29 @@ Fixpoint lit_to_li (li : leak_i_tree) : leakage_i :=
   match li with
   | LTassgn le => Lassgn (lest_to_les le)
   | LTopn le => Lopn (lest_to_les le)
-  | LTcond le b lis => LTcond (lest_to_les le) b (map lit_to_li lis)
-  | LTwhile_true lis le lis' lw => LTwhile_true (map lit_to_li lis)
+  | LTcond le b lis => Lcond (lest_to_les le) b (map lit_to_li lis)
+  | LTwhile_true lis le lis' lw => Lwhile_true (map lit_to_li lis)
                                                 (lest_to_les le)
                                                 (map lit_to_li lis')
                                                 (lit_to_li lw)
-  | LTwhile_false lis le => LTwhile_false (map lit_to_li lis)
+  | LTwhile_false lis le => Lwhile_false (map lit_to_li lis)
                                           (lest_to_les le)
-  | LTfor le liss => 
-
-Fixpoint lit_to_li (lis : leak_i_tree) : seq leakage_i :=
- match lis with 
- | LTassgn le => (Lassgn (lest_to_les le))
- | LTopn le => [:: (Lopn (lest_to_les le))]
- | LTcond le b li => [:: (Lcond (lest_to_les le) b (lit_to_li li))]
- | LTwhile_true li le li' li'' => [:: (Lwhile_true (lit_to_li li)
-                                                   (lest_to_les le)
-                                                   (lit_to_li li')
-                                                   (head l0 (lit_to_li li'')))]
- | LTwhile_false li le => [:: (Lwhile_false (lit_to_li li)
-                                             (lest_to_les le))]
- | LTfor le li => [:: (Lfor (lest_to_les le)
-                            (litss_to_liss lit_to_li li))]
- | LTcall le (f, li) le' => [:: (Lcall (lest_to_les le)
-                                        (f, (lit_to_li li))
-                                        (lest_to_les le'))]
- | LTSub lis => lits_to_lis lit_to_li lis
- end.
-
-
-Section LIT_TO_LI.
-
-Variable (lit_to_li : leak_i_tree -> seq leakage_i).
-
-Definition lits_to_lis (l : seq leak_i_tree) : seq leakage_i := 
-  flatten (map lit_to_li l).
-
-Definition litss_to_liss (ls : seq (seq leak_i_tree)) : seq (seq leakage_i) :=
-  map lits_to_lis ls.
-
-End LIT_TO_LI.
-
-Variable l0 : leakage_i.
-
-Fixpoint lit_to_li (lis : leak_i_tree) : seq leakage_i :=
- match lis with 
- | LTempty => [::]
- | LTassgn le => [:: (Lassgn (lest_to_les le))]
- | LTopn le => [:: (Lopn (lest_to_les le))]
- | LTcond le b li => [:: (Lcond (lest_to_les le) b (lit_to_li li))]
- | LTwhile_true li le li' li'' => [:: (Lwhile_true (lit_to_li li)
-                                                   (lest_to_les le)
-                                                   (lit_to_li li')
-                                                   (head l0 (lit_to_li li'')))]
- | LTwhile_false li le => [:: (Lwhile_false (lit_to_li li)
-                                             (lest_to_les le))]
- | LTfor le li => [:: (Lfor (lest_to_les le)
-                            (litss_to_liss lit_to_li li))]
- | LTcall le (f, li) le' => [:: (Lcall (lest_to_les le)
-                                        (f, (lit_to_li li))
-                                        (lest_to_les le'))]
- | LTSub lis => lits_to_lis lit_to_li lis
- end.
-
+  | LTfor le liss => Lfor (lest_to_les le)
+                          (litss_to_liss lit_to_li liss)
+  | LTcall le (f, lis) le' => Lcall (lest_to_les le)
+                                     (f, map lit_to_li lis)
+                                     (lest_to_les le')
+  end.
 
   Variable const_prop_i : cpm -> instr -> cpm * cmd * leak_i_tr.
 
-  Fixpoint const_prop (m:cpm) (c:cmd) : cpm * cmd * leak_i_tr :=
+  Fixpoint const_prop (m:cpm) (c:cmd) : cpm * cmd * seq leak_i_tr :=
     match c with
-    | [::] => (m, [::], LT_iremove)
+    | [::] => (m, [::], [::])
     | i::c =>
       let: (m,ic, lti) := const_prop_i m i in
       let: (m, c, ltc) := const_prop m c in
-      (m, ic ++ c, LT_iseq [:: lti; ltc])
+      (m, ic ++ c, (lti :: ltc))
     end.
 
 End CMD.
@@ -1059,10 +1009,10 @@ Definition sem_sopn_e gd o m lvs args :=
 
 Inductive sem_c_i : estate -> cmd -> seq leak_i_tree -> estate -> Prop :=
 | Eskip_i s :
-    sem_c_i s [::] LTempty s
+    sem_c_i s [::] [::] s
 
 | Eseq_i s1 s2 s3 i c li lc :
-    sem_I_i s1 i li s2 -> sem_c_i s2 c lc s3 -> sem_c_i s1 (i::c) [:: li ; lc] s3
+    sem_I_i s1 i li s2 -> sem_c_i s2 c lc s3 -> sem_c_i s1 (i::c) (li :: lc) s3
 
 with sem_I_i : estate -> instr -> leak_i_tree -> estate -> Prop :=
 | EmkI_i ii i s1 s2 li:
@@ -1121,9 +1071,9 @@ with sem_for_i : var_i -> seq Z -> estate -> cmd -> seq (seq leak_i_tree) -> est
     write_var i (Vint w) s1 = ok s1' ->
     sem_c_i s1' c lc s2 ->
     sem_for_i i ws s2 c lw s3 ->
-    sem_for_i i (w :: ws) s1 c ([::lc] :: lw) s3
+    sem_for_i i (w :: ws) s1 c (lc :: lw) s3
 
-with sem_call_i : Memory.mem -> funname -> seq value -> (funname * leak_i_tree) -> Memory.mem -> seq value -> Prop :=
+with sem_call_i : Memory.mem -> funname -> seq value -> (funname * seq leak_i_tree) -> Memory.mem -> seq value -> Prop :=
 | EcallRun_i m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc :
     get_fundef (p_funcs P) fn = Some f ->
     mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
@@ -1141,19 +1091,19 @@ Section SEM_IND_I.
   Notation gd := (p_globs P).
 
   Variables
-    (Pci  : estate -> cmd -> leak_i_tree -> estate -> Prop)
+    (Pci  : estate -> cmd -> seq leak_i_tree -> estate -> Prop)
     (Pi_ri : estate -> instr_r -> leak_i_tree -> estate -> Prop)
     (Pi_i : estate -> instr -> leak_i_tree -> estate -> Prop)
     (Pfor_i : var_i -> seq Z -> estate -> cmd -> seq (seq leak_i_tree) -> estate -> Prop)
-    (Pfun_i : Memory.mem -> funname -> seq value -> funname * leak_i_tree -> Memory.mem -> seq value -> Prop).
+    (Pfun_i : Memory.mem -> funname -> seq value -> funname * seq leak_i_tree -> Memory.mem -> seq value -> Prop).
 
   Definition sem_Ind_nil_i : Prop :=
-    forall s : estate, Pci s [::] LTempty s.
+    forall s : estate, Pci s [::] [::] s.
 
   Definition sem_Ind_cons_i : Prop :=
-    forall (s1 s2 s3 : estate) (i : instr) (c : cmd) (li : leak_i_tree) (lc : leak_i_tree),
+    forall (s1 s2 s3 : estate) (i : instr) (c : cmd) (li : leak_i_tree) (lc : seq leak_i_tree),
       sem_I_i P s1 i li s2 -> Pi_i s1 i li s2 -> sem_c_i P s2 c lc s3 ->
-      Pci s2 c lc s3 -> Pci s1 (i :: c) (LTSub [:: li; lc]) s3.
+      Pci s2 c lc s3 -> Pci s1 (i :: c) (li :: lc) s3.
 
   Hypotheses
     (Hnil_i: sem_Ind_nil_i)
@@ -1178,18 +1128,18 @@ Section SEM_IND_I.
       Pi_ri s1 (Copn xs t o es) (LTopn lo) s2.
 
   Definition sem_Ind_if_true_i : Prop :=
-    forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd) (le : leak_e_tree) (lc : leak_i_tree),
+    forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd) (le : leak_e_tree) (lc : seq leak_i_tree),
       sem_pexpr_e gd s1 e = ok (Vbool true, le) ->
       sem_c_i P s1 c1 lc s2 -> Pci s1 c1 lc s2 -> Pi_ri s1 (Cif e c1 c2) (LTcond le true lc) s2.
 
   Definition sem_Ind_if_false_i : Prop :=
-    forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd) (le : leak_e_tree) (lc : leak_i_tree),
+    forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd) (le : leak_e_tree) (lc : seq leak_i_tree),
       sem_pexpr_e gd s1 e = ok (Vbool false, le) ->
       sem_c_i P s1 c2 lc s2 -> Pci s1 c2 lc s2 -> Pi_ri s1 (Cif e c1 c2) (LTcond le false lc) s2.
 
   Definition sem_Ind_while_true_i : Prop :=
-    forall (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (c' : cmd) (lc : leak_i_tree) 
-           (le : leak_e_tree) (lc' : leak_i_tree) (li : leak_i_tree),
+    forall (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (c' : cmd) (lc : seq leak_i_tree) 
+           (le : leak_e_tree) (lc' : seq leak_i_tree) (li : leak_i_tree),
       sem_c_i P s1 c lc s2 -> Pci s1 c lc s2 ->
       sem_pexpr_e gd s2 e = ok (Vbool true, le) ->
       sem_c_i P s2 c' lc' s3 -> Pci s2 c' lc' s3 ->
@@ -1198,7 +1148,7 @@ Section SEM_IND_I.
       Pi_ri s1 (Cwhile a c e c') (LTwhile_true lc le lc' li) s4.
 
   Definition sem_Ind_while_false_i : Prop :=
-    forall (s1 s2 : estate) a (c : cmd) (e : pexpr) (c' : cmd) (lc : leak_i_tree) (le : leak_e_tree),
+    forall (s1 s2 : estate) a (c : cmd) (e : pexpr) (c' : cmd) (lc : seq leak_i_tree) (le : leak_e_tree),
       sem_c_i P s1 c lc s2 -> Pci s1 c lc s2 ->
       sem_pexpr_e gd s2 e = ok (Vbool false, le) ->
       Pi_ri s1 (Cwhile a c e c') (LTwhile_false lc le) s2.
@@ -1222,11 +1172,11 @@ Section SEM_IND_I.
       Pfor_i i [::] s c [::] s.
 
   Definition sem_Ind_for_cons_i : Prop :=
-    forall (s1 s1' s2 s3 : estate) (i : var_i) (w : Z) (ws : seq Z) (c : cmd) (lc : leak_i_tree)
+    forall (s1 s1' s2 s3 : estate) (i : var_i) (w : Z) (ws : seq Z) (c : cmd) (lc : seq leak_i_tree)
            (lf : seq (seq leak_i_tree)),
       write_var i w s1 = Ok error s1' ->
       sem_c_i P s1' c lc s2 -> Pci s1' c lc s2 ->
-      sem_for_i P i ws s2 c lf s3 -> Pfor_i i ws s2 c lf s3 -> Pfor_i i (w :: ws) s1 c ([:: lc] :: lf) s3.
+      sem_for_i P i ws s2 c lf s3 -> Pfor_i i ws s2 c lf s3 -> Pfor_i i (w :: ws) s1 c (lc :: lf) s3.
 
   Hypotheses
     (Hfor_i: sem_Ind_for_i)
@@ -1237,7 +1187,7 @@ Section SEM_IND_I.
     forall (s1 : estate) (m2 : Memory.mem) (s2 : estate)
            (ii : inline_info) (xs : lvals)
            (fn : funname) (args : pexprs) (vargs vs : seq value) (l1 : leak_e_tree)
-           (lf : funname * leak_i_tree) (lw : leak_e_tree),
+           (lf : funname * seq leak_i_tree) (lw : leak_e_tree),
       sem_pexprs_e gd s1 args = Ok error (vargs, l1) ->
       sem_call_i P (emem s1) fn vargs lf m2 vs -> Pfun_i (emem s1) fn vargs lf m2 vs ->
       write_lvals_e gd {| emem := m2; evm := evm s1 |} xs vs = Ok error (s2, lw) ->
@@ -1245,7 +1195,7 @@ Section SEM_IND_I.
 
   Definition sem_Ind_proc_i : Prop :=
     forall (m1 m2 : Memory.mem) (fn:funname) (f : fundef) (vargs vargs': seq value)
-           (s1 : estate) (vm2 : vmap) (vres vres': seq value) (lc : leak_i_tree),
+           (s1 : estate) (vm2 : vmap) (vres vres': seq value) (lc : seq leak_i_tree),
       get_fundef (p_funcs P) fn = Some f ->
       mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
       write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
@@ -1259,7 +1209,7 @@ Section SEM_IND_I.
     (Hcall_i: sem_Ind_call_i)
     (Hproc_i: sem_Ind_proc_i).
 
-  Fixpoint sem_Ind_i (e : estate) (l : cmd) (le : leak_i_tree) (e0 : estate) (s : sem_c_i P e l le e0) {struct s} :
+  Fixpoint sem_Ind_i (e : estate) (l : cmd) (le : seq leak_i_tree) (e0 : estate) (s : sem_c_i P e l le e0) {struct s} :
     Pci e l le e0 :=
     match s in (sem_c_i _ e1 l0 l1 e2) return (Pci e1 l0 l1 e2) with
     | Eskip_i s0 => Hnil_i s0
@@ -1305,7 +1255,7 @@ Section SEM_IND_I.
     end
 
   with sem_call_Ind_i (m : Memory.mem) (f13 : funname) (l : seq value) (m0 : Memory.mem)
-                    (l0 : seq value) (lf : funname * leak_i_tree) (s : sem_call_i P m f13 l lf m0 l0) {struct s} :
+                    (l0 : seq value) (lf : funname * seq leak_i_tree) (s : sem_call_i P m f13 l lf m0 l0) {struct s} :
                     Pfun_i m f13 l lf m0 l0 :=
     match s with
     | @EcallRun_i _ m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hget Hctin Hw Hsem Hvres Hctout =>
@@ -1378,28 +1328,22 @@ Variable P:prog.
   
 Notation gd := (p_globs P).
 
-Variable l0 : leakage_i.
+Let Pci s1 c lc s2 := exists lc', sem P s1 c lc' s2 /\ lc' = map lit_to_li lc.
 
-Let Pci s1 c lc s2 := sem_c_i P s1 c lc s2 ->
-                      exists lc', sem P s1 c lc' s2 /\ lc' = lit_to_li l0 lc.
+Let Pi_ri s1 i li s2 := exists li', sem_i P s1 i li' s2 /\ li' = lit_to_li li.
 
-Let Pi_ri s1 i li s2 := sem_i_i P s1 i li s2 ->
-                        exists li', sem_i P s1 i li' s2 /\ li' = (head l0 (lit_to_li l0 li)).
+Let Pi_i s1 i li s2 := exists li', sem_I P s1 i li' s2 /\ li' =  lit_to_li li.
 
-Let Pi_i s1 i li s2 := sem_I_i P s1 i li s2 ->
-                       exists li', sem_I P s1 i li' s2 /\ li' =  (head l0 (lit_to_li l0 li)).
+Let Pfor_i i zs s1 c lc s2 := exists lc', sem_for P i zs s1 c lc' s2
+                                          /\ lc' = litss_to_liss lit_to_li lc.
 
-Let Pfor_i i zs s1 c lc s2 := sem_for_i P i zs s1 c lc s2 ->
-                              exists lc', sem_for P i zs s1 c lc' s2
-                                          /\ lc' = litss_to_liss (lit_to_li l0) lc.
-
-Let Pfun_i m1 fd vargs lf m2 vres := sem_call_i P m1 fd vargs lf m2 vres ->
-                                     exists lf', sem_call P m1 fd vargs lf' m2 vres /\ lf'.2 = lit_to_li l0 (lf.2).
+Let Pfun_i m1 fd vargs lf m2 vres := exists lf', sem_call P m1 fd vargs (lf.1, lf') m2 vres
+                                                 /\ lf' =  map lit_to_li lf.2.
 
 Local Lemma Hnil_i : sem_Ind_nil_i Pci.
 Proof.
   rewrite /sem_Ind_nil_i. move=> s. rewrite /Pci.
-  move=> /= H. exists [::]. split. constructor.
+  exists [::]. split. constructor.
   rewrite /lits_to_lis /=. auto.
 Qed.
 
@@ -1408,23 +1352,20 @@ Proof.
   rewrite /sem_Ind_cons_i.
   move=> s1 s2 s3 i c li lc Hi HPi Hc HPc.
   rewrite /Pi_i in HPi. rewrite /Pci in HPc.
-  move: (HPi Hi). move=> [] x [] Hx Hlx. move: (HPc Hc).
+  move: (HPi). move=> [] x [] Hx Hlx. move: (HPc).
   move=> [] x' [] Hx' Hlx'. rewrite /Pci.
-  move=> H. exists (lit_to_li l0 (LTSub [:: li; lc])). split.
-  rewrite /=. rewrite /lits_to_lis /=. rewrite -Hlx'. rewrite cats0.
-  admit. auto.
-  (*apply Eseq with s2. auto. auto.
-  rewrite Hlx Hlx'. admit.*)
-Admitted.
+  exists (x :: x'). split. apply Eseq with s2. auto.
+  auto. rewrite Hlx Hlx' /=. auto.
+Qed.
 
 Local Lemma HmkI_i : sem_Ind_mkI_i P Pi_ri Pi_i.
 Proof.
   rewrite /sem_Ind_mkI_i /=.
   move=> ii i s1 s2 li Hi Hpi.
   rewrite /Pi_i.
-  rewrite /Pi_ri in Hpi. move: (Hpi Hi).
+  rewrite /Pi_ri in Hpi. move: (Hpi).
   move=> [] li' [] Hii Hl. rewrite /Pi_i.
-  move=> H /=. exists li'. split.
+  exists li'. split.
   apply EmkI. auto. auto.
 Qed.
 
@@ -1432,7 +1373,7 @@ Local Lemma Hasgn_i : sem_Ind_assgn_i P Pi_ri.
 Proof.
   rewrite /sem_Ind_assgn_i.
   move=> s1 s2 x tag ty e v v' le lw He Ht Hw.
-  rewrite /Pi_ri /=. move=> H. exists (Lassgn (lests_to_les lest_to_les [:: le; lw])).
+  rewrite /Pi_ri /=. exists (Lassgn (lests_to_les lest_to_les [:: le; lw])).
   rewrite /lests_to_les /=. rewrite cats0. split. apply Eassgn with v v'.
   move: const_prop_e_esP_sem_pexpr_e. move=> Hc.
   move: (Hc (p_globs P) s1 e (v, le) He). move=> /= He'. auto. auto.
@@ -1443,16 +1384,16 @@ Qed.
 Local Lemma Hopn_i : sem_Ind_opn_i P Pi_ri.
 Proof.
   rewrite /sem_Ind_opn_i. move=> s1 s2 t o xs es lo Ho.
-  rewrite /Pi_ri. move=> He. exists (head l0 (lit_to_li l0 (LTopn lo))).
+  rewrite /Pi_ri. exists (lit_to_li (LTopn lo)).
   split. apply Eopn. move: sem_sopn_cp. move=> Ho'.
   move: (Ho' gd o s1 xs es s2 lo Ho). by move=> -> /=. auto.
 Qed.
 
 Local Lemma Hif_true_i : sem_Ind_if_true_i P Pci Pi_ri.
 Proof.
-  rewrite /sem_Ind_if_true_i. move=> s1 s2 e c1 c2 le lc He Hc Hp Hpi.
-  rewrite /Pci in Hp. move: (Hp Hc). move=> [] lc' [] Hi Hl /=. rewrite -Hl /=.
-  exists (Lcond (lest_to_les le) true lc').
+  rewrite /sem_Ind_if_true_i. move=> s1 s2 e c1 c2 le lc He Hc Hp.
+  rewrite /Pci in Hp. move: (Hp). move=> [] lc' [] Hi Hl /=. rewrite /Pi_ri /=.
+  rewrite -Hl /=. exists (Lcond (lest_to_les le) true lc').
   split. apply Eif_true. move: const_prop_e_esP_sem_pexpr_e.
   move=> He'. move: (He' gd s1 e (Vbool true, le) He). by move=> -> /=.
   auto. auto.
@@ -1460,9 +1401,9 @@ Qed.
 
 Local Lemma Hif_false_i : sem_Ind_if_false_i P Pci Pi_ri.
 Proof.
-  rewrite /sem_Ind_if_true_i. move=> s1 s2 e c1 c2 le lc He Hc Hp Hpi.
-  rewrite /Pci in Hp. move: (Hp Hc). move=> [] lc' [] Hi Hl /=. rewrite -Hl /=.
-  exists (Lcond (lest_to_les le) false lc').
+  rewrite /sem_Ind_if_true_i. move=> s1 s2 e c1 c2 le lc He Hc Hp.
+  rewrite /Pci in Hp. move: (Hp). move=> [] lc' [] Hi Hl /=. rewrite /Pi_ri /=.
+  rewrite -Hl. exists (Lcond (lest_to_les le) false lc').
   split. apply Eif_false. move: const_prop_e_esP_sem_pexpr_e.
   move=> He'. move: (He' gd s1 e (Vbool false, le) He). by move=> -> /=.
   auto. auto.
@@ -1473,11 +1414,11 @@ Proof.
   rewrite /sem_Ind_while_true_i.
   move=> s1 s2 s3 s4 a c e c' lc le lc' li Hc Hci He Hc' Hci' Hi Hii.
   rewrite /Pci in Hci'. rewrite /Pi_ri in Hii. rewrite /Pi_ri.
-  move=> H. move: (Hci' Hc'). move=> [] lc'0 [] Hs Hsl /=.
-  move: (Hii Hi). move=> [] li' [] Hsi Hsli /=. rewrite -Hsli -Hsl /=.
-  exists (Lwhile_true (lit_to_li l0 lc) (lest_to_les le) lc'0 li').
+  move: (Hci'). move=> [] lc'0 [] Hs Hsl /=.
+  move: (Hii). move=> [] li' [] Hsi Hsli /=. rewrite -Hsli -Hsl /=.
+  exists (Lwhile_true [seq lit_to_li i | i <- lc] (lest_to_les le) lc'0 li').
   split. apply Ewhile_true with s2 s3. rewrite /Pci in Hci.
-  move: (Hci Hc). move=> [] lc'1 [] Hp <- /=. auto.
+  move: (Hci). move=> [] lc'1 [] Hp <- /=. auto.
   move: const_prop_e_esP_sem_pexpr_e. move=> Hhe.
   move: (Hhe gd s2 e (Vbool true, le) He). by move=> -> /=.
   auto. auto. auto.
@@ -1487,7 +1428,7 @@ Local Lemma Hwhile_false_i : sem_Ind_while_false_i P Pci Pi_ri.
 Proof.
   rewrite /sem_Ind_while_false_i.
   move=> s1 s2 a c e c' lc le Hci Hpi He. rewrite /Pi_ri.
-  move=> H. rewrite /Pci in Hpi. move: (Hpi Hci).
+  rewrite /Pci in Hpi. move: (Hpi).
   move=> [] lc' [] Hs Hsl /=. rewrite -Hsl /=.
   exists (Lwhile_false lc' (lest_to_les le)). split.
   apply Ewhile_false. auto. move: const_prop_e_esP_sem_pexpr_e. move=> Hhe.
@@ -1498,15 +1439,15 @@ Local Lemma Hfor_i : sem_Ind_for_i P Pi_ri Pfor_i.
 Proof.
   rewrite /sem_Ind_for_i. move=> s1 s2 i r wr c lr lf.
   move=> /sem_range_cp Hr Hf. rewrite /Pfor_i /=.
-  move=> H. move: (H Hf). move=> []  lc' [] Hf' Hl.
-  rewrite /Pi_ri /=. move=> Hi. rewrite -Hl /=.
+  move=> H. move: (H). move=> []  lc' [] Hf' Hl.
+  rewrite /Pi_ri /=. rewrite -Hl /=.
   exists (Lfor (lest_to_les lr) lc').  split. by apply Efor with wr. auto.
 Qed.
 
 Local Lemma Hfor_nil_i : sem_Ind_for_nil_i Pfor_i.
 Proof.
   rewrite /sem_Ind_for_nil_i. move=> s i c.
-  rewrite /Pfor_i. move=> Hf /=. exists [::].
+  rewrite /Pfor_i. exists [::].
   split. by apply EForDone. auto.
 Qed.
 
@@ -1514,31 +1455,33 @@ Local Lemma Hfor_cons_i : sem_Ind_for_cons_i P Pci Pfor_i.
 Proof.
   rewrite /sem_Ind_for_cons_i. move=> s1 s1' s2 s3 i w ws c lc lf Hw Hc Hpi.
   move=> Hf Hpi'. rewrite /Pci in Hpi. rewrite /Pfor_i in Hpi'. rewrite /Pfor_i.
-  move=> H. move: (Hpi Hc). move=> [] lc' [] Hs Hl. move: (Hpi' Hf).
+  move: (Hpi). move=> [] lc' [] Hs Hl. move: (Hpi').
   move=> [] lc'0 [] Hs' Hl' /=.
-  exists (lits_to_lis (lit_to_li l0) [:: lc] :: litss_to_liss (lit_to_li l0) lf).
-  split. rewrite -Hl' /=. rewrite /lits_to_lis /=. rewrite cats0. rewrite -Hl /=.
+  exists (lits_to_lis (lit_to_li) lc :: litss_to_liss (lit_to_li) lf).
+  split. rewrite -Hl' /=. rewrite /lits_to_lis /=. rewrite -Hl /=.
   apply EForOne with s1' s2. auto. auto. auto. auto.
 Qed.
   
 Local Lemma Hcall_i : sem_Ind_call_i P Pi_ri Pfun_i.
 Proof.
   rewrite /sem_Ind_call_i. move=> s1 m2 s2 ii xs fn args vargs vs l1 lf lw.
-  move=> Hes Hc Hpi Hws. rewrite /Pi_ri. rewrite /Pfun_i in Hpi. move=> H.
-  move: (Hpi Hc). move=> [] lf' [] Hc' Hl /=. exists (head l0
-        (let (f, li) := lf in
-         [:: Lcall (lest_to_les l1)
-               (f, lit_to_li l0 li)
-               (lest_to_les lw)])). subst.
-  split. subst. admit.
+  move=> Hes Hc Hpi Hws. rewrite /Pi_ri. rewrite /Pfun_i in Hpi.
+  move: (Hpi). move=> [] lf' [] Hc' Hl /=. rewrite /=.
+  move: (const_prop_e_esP_sem_pexprs_e'). move=> Hes'.
+  move: (Hes' gd s1 args (vargs, l1) Hes). move=> Hes''.
+  move: (write_lvals_cp). move=> Hws'.
+  move: (Hws' gd {| emem := m2; evm := evm s1 |} xs vs s2 lw Hws). move=> Hws''.
+  exists (Lcall (lest_to_les l1) (lf.1, lf') (lest_to_les lw)). split. apply Ecall with m2 vargs vs.
+  auto. auto. auto. rewrite Hl /=. subst. auto.
 Admitted.
 
 Local Lemma Hproc_i : sem_Ind_proc_i P Pci Pfun_i.
 Proof.
-  rewrite /sem_Ind_proc_i. move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hg Hm.
-  move=> Hws Hci Hpi Hm' Hm''. rewrite /Pfun_i. move=> H.
-  rewrite /Pci in Hpi. move: (Hpi Hci). move=> [] lc' [] Hpi' Hl.
-  rewrite /=. rewrite -Hl /=. exists (fn, lc'). rewrite /=.
+  rewrite /sem_Ind_proc_i.
+  move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hg Hm.
+  move=> Hws Hci Hpi Hm' Hm''. rewrite /Pfun_i.
+  rewrite /Pci in Hpi. move: (Hpi). move=> [] lc' [] Hpi' Hl.
+  rewrite /=. rewrite -Hl /=. exists lc'. rewrite /=.
   split. apply EcallRun with f vargs s1 vm2 vres. auto.
   auto. auto. auto. auto. auto. auto.
 Qed.
@@ -1552,29 +1495,22 @@ Variable P:prog.
   
 Notation gd := (p_globs P).
 
-Variable l0 : leakage_i.
+Let Pc s1 c lc s2 := exists lc',  lc = lits_to_lis lit_to_li lc' /\ sem_c_i P s1 c lc' s2.
 
-Let Pc s1 c lc s2 := sem P s1 c lc s2 ->
-                       exists lc',  lc = (lit_to_li l0 lc') /\ sem_c_i P s1 c lc' s2.
+Let Pi_r s1 i li s2 := exists li', li = lit_to_li li' /\ sem_i_i P s1 i li' s2.
 
-Let Pi_r s1 i li s2 := sem_i P s1 i li s2 ->
-                        exists li', li = (head l0 (lit_to_li l0 li')) /\  sem_i_i P s1 i li' s2.
+Let Pi s1 i li s2 := exists li', li =  lit_to_li li' /\ sem_I_i P s1 i li' s2.
 
-Let Pi s1 i li s2 := sem_I P s1 i li s2 ->
-                       exists li', li =  (head l0 (lit_to_li l0 li')) /\  sem_I_i P s1 i li' s2.
-
-Let Pfor i zs s1 c lc s2 := sem_for P i zs s1 c lc s2 ->
-                              exists lc',  lc = litss_to_liss (lit_to_li l0) lc' /\
+Let Pfor i zs s1 c lc s2 := exists lc',  lc = litss_to_liss lit_to_li lc' /\
                                            sem_for_i P i zs s1 c lc' s2.
                                           
-Let Pfun m1 fd vargs lf m2 vres := sem_call P m1 fd vargs lf m2 vres ->
-                                     exists lf', lf.2 = lit_to_li l0 (lf'.2) /\
-                                                 sem_call_i P m1 fd vargs lf' m2 vres.
+Let Pfun m1 fd vargs lf m2 vres := exists lf', lf.2 = lits_to_lis lit_to_li (lf') /\
+                                                 sem_call_i P m1 fd vargs (lf.1, lf') m2 vres.
 
 Local Lemma Hnil : sem_Ind_nil Pc.
 Proof.
   rewrite /sem_Ind_nil. move=> s. rewrite /Pc.
-  move=> /= H. exists LTempty. split. auto. constructor.
+  exists [::]. split. auto. constructor.
 Qed.
 
 
@@ -1583,9 +1519,11 @@ Proof.
   rewrite /sem_Ind_cons.
   move=> s1 s2 s3 i c li lc Hi HPi Hc HPc.
   rewrite /Pi in HPi. rewrite /Pc in HPc.
-  move: (HPi Hi). move=> [] x [] Hx Hlx. move: (HPc Hc).
+  move: (HPi). move=> [] x [] Hx Hlx. move: (HPc).
   move=> [] x' [] Hx' [] Hlx'. rewrite /Pc.
-  move=> H.
+  exists (x :: x'). split. rewrite /lits_to_lis /=.
+  rewrite /lits_to_lis in Hx'. by rewrite -Hx Hx' /=.
+  apply Eseq_i with s2. auto.
   admit. 
   (*apply Eseq with s2. auto. auto.
   rewrite Hlx Hlx'. admit.*)
@@ -1594,15 +1532,15 @@ Admitted.
 Local Lemma HmkI : sem_Ind_mkI P Pi_r Pi.
 Proof.
   rewrite /sem_Ind_mkI. move=> ii i s1 s2 li Hs H.
-  rewrite /Pi_r in H. move: (H Hs). move=> [] li' [] Hl Hi.
-  rewrite /Pi. move=> H'. exists li'. split. rewrite -Hl /=. auto.
+  rewrite /Pi_r in H. move: (H). move=> [] li' [] Hl Hi.
+  rewrite /Pi. exists li'. split. rewrite -Hl /=. auto.
   constructor. auto.
 Qed.
 
 Local Lemma Hasgn : sem_Ind_assgn P Pi_r.
 Proof.
   rewrite /sem_Ind_assgn. move=> s1 s2 x tag ty e v v' le lw He Ht Hw.
-  rewrite /Pi_r /=. move=> H.
+  rewrite /Pi_r /=.
   move:sem_pexpr_e_to_sem_pexpr. move=> Hc.
   move: (Hc (p_globs P) s1 e v le He). move=> [] x0 [] Hl He'. 
   move: (write_lval_e_cp). move=> Hw'. move: (Hw' (p_globs P) s1 x v' s2 lw Hw).
@@ -1614,7 +1552,7 @@ Qed.
 Local Lemma Hopn : sem_Ind_opn P Pi_r.
 Proof.
   rewrite /sem_Ind_opn. move=> s1 s2 t o xs es lo Ho.
-  rewrite /Pi_r. move=> He.
+  rewrite /Pi_r.
   move: (sem_sopn_e_cp). move=> Ho'.
   move: (Ho' gd o s1 xs es s2 lo Ho). move=> [] l' [] Hl Hs.
   exists (LTopn l'). rewrite /=. rewrite -Hl. split. auto.
@@ -1623,20 +1561,21 @@ Qed.
 
 Local Lemma Hif_true : sem_Ind_if_true P Pc Pi_r.
 Proof.
-  rewrite /sem_Ind_if_true. move=> s1 s2 e c1 c2 le lc He Hc Hp Hpi.
-  rewrite /Pc in Hp. move: (Hp Hc). move=> [] lc' [] Hi Hl /=.
+  rewrite /sem_Ind_if_true. move=> s1 s2 e c1 c2 le lc He Hc Hp.
+  rewrite /Pc in Hp. move: (Hp). move=> [] lc' [] Hi Hl /=.
   move:sem_pexpr_e_to_sem_pexpr. move=> Hc'. move: (Hc' gd s1 e (Vbool true) le He).
   move=> [] l [] Hle Hee. exists (LTcond l true lc'). split. rewrite /=.
-  by rewrite -Hi -Hle. apply Eif_true_i. auto. auto.
+  rewrite -Hle. rewrite /lits_to_lis in Hi. by rewrite -Hi.
+  apply Eif_true_i. auto. auto.
 Qed.
 
 Local Lemma Hif_false : sem_Ind_if_false P Pc Pi_r.
 Proof.
-  rewrite /sem_Ind_if_false. move=> s1 s2 e c1 c2 le lc He Hc Hp Hpi.
-  rewrite /Pc in Hp. move: (Hp Hc). move=> [] lc' [] Hi Hl /=.
+  rewrite /sem_Ind_if_false. move=> s1 s2 e c1 c2 le lc He Hc Hp.
+  rewrite /Pc in Hp. move: (Hp). move=> [] lc' [] Hi Hl /=.
   move:sem_pexpr_e_to_sem_pexpr. move=> Hc'. move: (Hc' gd s1 e (Vbool false) le He).
   move=> [] l [] Hle Hee. exists (LTcond l false lc'). split. rewrite /=.
-  by rewrite -Hi -Hle. apply Eif_false_i. auto. auto.
+  rewrite -Hle. rewrite /lits_to_lis in Hi. by rewrite -Hi. apply Eif_false_i. auto. auto.
 Qed.
 
 Local Lemma Hwhile_true : sem_Ind_while_true P Pc Pi_r.
@@ -1644,12 +1583,13 @@ Proof.
   rewrite /sem_Ind_while_true.
   move=> s1 s2 s3 s4 a c e c' lc le lc' li Hc Hci He Hc' Hci' Hi Hii.
   rewrite /Pc in Hci'. rewrite /Pi_r in Hii. rewrite /Pi_r.
-  move=> H. move: (Hci' Hc'). move=> [] lc'0 [] Hs Hsl /=.
-  move: (Hii Hi). move=> [] li' [] Hsi Hsli /=.
+  move: (Hci'). move=> [] lc'0 [] Hs Hsl /=.
+  move: (Hii). move=> [] li' [] Hsi Hsli /=.
   move: (sem_pexpr_e_to_sem_pexpr). move=> Hp.
   move: (Hp gd s2 e (Vbool true) le He). move=> [] l [] Hl Hee.
-  rewrite /Pc in Hci. move: (Hci Hc). move=> [] lc'1 [] Hp' Hpl /=.
+  rewrite /Pc in Hci. move: (Hci). move=> [] lc'1 [] Hp' Hpl /=.
   exists (LTwhile_true lc'1 l lc'0 li'). rewrite /=. split.
+  rewrite /lits_to_lis in Hp'. rewrite /lits_to_lis in Hs.
   by rewrite -Hs -Hp' -Hl -Hsi /=. apply Ewhile_true_i with s2 s3.
   auto. auto. auto. auto.
 Qed.
@@ -1658,12 +1598,12 @@ Local Lemma Hwhile_false : sem_Ind_while_false P Pc Pi_r.
 Proof.
   rewrite /sem_Ind_while_false.
   move=> s1 s2 a c e c' lc le Hci Hpi He. rewrite /Pi_r.
-  move=> H. rewrite /Pc in Hpi. move: (Hpi Hci).
+  rewrite /Pc in Hpi. move: (Hpi).
   move=> [] lc' [] Hs Hsl /=.
   move: sem_pexpr_e_to_sem_pexpr. move=> Hhe.
   move: (Hhe gd s2 e (Vbool false) le He).
   move=> [] l [] Hl Hee /=. exists (LTwhile_false lc' l).
-  rewrite /=. split. by rewrite -Hl -Hs /=.
+  rewrite /=. split. rewrite /lits_to_lis in Hs. by rewrite -Hl -Hs /=.
   apply Ewhile_false_i. auto. auto.
 Qed.
 
@@ -1671,8 +1611,8 @@ Local Lemma Hfor : sem_Ind_for P Pi_r Pfor.
 Proof.
   rewrite /sem_Ind_for. move=> s1 s2 i r wr c lr lf.
   move=> /sem_range_e_cp Hr Hf. rewrite /Pfor /=.
-  move=> H. move: (H Hf). move=> []  lc' [] Hf' Hl.
-  rewrite /Pi_r /=. move=> Hi. move: Hr. move=> [] l' [] Hlr Hr'.
+  move=> H. move: (H). move=> []  lc' [] Hf' Hl.
+  rewrite /Pi_r /=. move: Hr. move=> [] l' [] Hlr Hr'.
   exists (LTfor l' lc'). rewrite /=. split. by rewrite -Hf' -Hlr.
   apply Efor_i with wr. auto. auto.
 Qed.
@@ -1680,41 +1620,46 @@ Qed.
 Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
 Proof.
   rewrite /sem_Ind_for_nil. move=> s i c.
-  rewrite /Pfor. move=> Hf /=. exists [::].
+  rewrite /Pfor. exists [::].
   split. by rewrite /=. apply EForDone_i.
 Qed.
 
 Local Lemma Hfor_cons : sem_Ind_for_cons P Pc Pfor.
 Proof.
   rewrite /sem_Ind_for_cons. move=> s1 s1' s2 s3 i w ws c lc lf Hw Hc Hpi.
-  move=> Hf Hpi'. rewrite /Pfor. move=> Hfo. rewrite /Pc in Hpi.
-  rewrite /Pfor in Hpi'. move: (Hpi Hc). move=> [] lc' [] Hlc Hcc.
-  move: (Hpi' Hf). move=> [] lc'0 [] Hlf Hsc.
-  exists ([::lc'] :: lc'0). rewrite /=. split.
-  rewrite /lits_to_lis /=. rewrite Hlc Hlf. by rewrite cats0.
+  move=> Hf Hpi'. rewrite /Pfor. rewrite /Pc in Hpi.
+  rewrite /Pfor in Hpi'. move: (Hpi). move=> [] lc' [] Hlc Hcc.
+  move: (Hpi'). move=> [] lc'0 [] Hlf Hsc.
+  exists (lc':: lc'0). rewrite /=. split.
+  rewrite /lits_to_lis /=. rewrite Hlc Hlf.
+  by rewrite /lits_to_lis.
   apply EForOne_i with s1' s2. auto. auto. auto.
 Qed.
 
 Local Lemma Hcall : sem_Ind_call P Pi_r Pfun.
 Proof.
   rewrite /sem_Ind_call. move=> s1 m2 s2 ii xs fn args vargs vs l1 lf lw.
-  move=> Hes Hc Hpi Hws. rewrite /Pi_r. rewrite /Pfun in Hpi. move=> H.
-  move: (Hpi Hc). move=> [] lf' [] Hc' Hl /=.
+  move=> Hes Hc Hpi Hws. rewrite /Pi_r. rewrite /Pfun in Hpi.
+  move: (Hpi). move=> [] lf' [] Hc' Hl /=.
   move: (sem_pexprs_to_sem_pexprs_e'). move=> Hs.
   move: (Hs s1 gd args (vargs, l1) Hes). move=> [] vs' [] Hv [] Hl' Hes'.
   move: (write_lval_es_cp). move=> Hws'.
   move: (Hws' gd {| emem := m2; evm := evm s1 |} xs vs s2 lw Hws).
-  move=> [] li' [] Hlw Hws''. exists (LTcall vs'.2 lf' li'). split.
-  admit. apply Ecall_i with m2 vargs vs. auto. auto. rewrite /= in Hv.
-  rewrite Hv /=.
-Admitted.
+  move=> [] li' [] Hlw Hws''. exists (LTcall vs'.2 (lf.1, lf') li'). split.
+  rewrite /=. rewrite /lits_to_lis in Hc'. rewrite -Hc' -Hlw /=.
+  rewrite /= in Hl'. rewrite -Hl'.
+  case lf. rewrite /=. auto. 
+  apply Ecall_i with m2 vargs vs. auto. auto. rewrite /= in Hv.
+  rewrite Hv /=. assert (vs' = (vs'.1, vs'.2)). destruct vs'. rewrite /=. auto.
+  rewrite -H. auto. auto. auto.
+Qed.
 
 Local Lemma Hproc : sem_Ind_proc P Pc Pfun.
 Proof.
   rewrite /sem_Ind_proc. move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hg Hm.
-  move=> Hws Hci Hpi Hm' Hm''. rewrite /Pfun. move=> H.
-  rewrite /Pc in Hpi. move: (Hpi Hci). move=> [] lc' [] Hpi' Hl.
-  rewrite /=. exists (fn, lc'). split. rewrite /=. by rewrite Hpi'.
+  move=> Hws Hci Hpi Hm' Hm''. rewrite /Pfun.
+  rewrite /Pc in Hpi. move: (Hpi). move=> [] lc' [] Hpi' Hl.
+  rewrite /=. rewrite Hpi'. exists lc'. split. auto.
   apply EcallRun_i with f vargs s1 vm2 vres. auto.
   auto. auto. auto. auto. auto.
 Qed.
