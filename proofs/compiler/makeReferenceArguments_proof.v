@@ -57,7 +57,6 @@ Section SemInversionSeq1.
   Hypothesis Hi :
     (sem_I p ev s1 i s2 -> @P T pT cs p ev s1 i s2).
 
-
   Lemma sem_seq1I : sem p ev s1 [:: i] s2 → @P T pT cs p ev s1 i s2.
   Proof.
   by elim/sem_consI=> s hs h_nil; elim/sem_nilI: h_nil hs => /Hi.
@@ -76,6 +75,59 @@ Section Section.
     by rewrite /makereference_prog; t_xrbindP.
   Qed.
 
+  Lemma do_prologue_None (p : uprog) ii st x pe :
+       is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = None
+    -> do_prologue is_reg_ptr fresh_id p ii st x pe = (st, pe).
+  Proof. by rewrite /do_prologue => ->. Qed.
+
+  Lemma do_prologue_Some (p : uprog) ii st x pe y :
+       is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = Some y
+    -> do_prologue is_reg_ptr fresh_id p ii st x pe
+       = (MkI ii (Cassgn y AT_rename (vtype y) pe) :: st, Plvar y).
+  Proof. by rewrite /do_prologue => ->. Qed.
+
+  Lemma make_prologue_tc (p : uprog) ii st xs pes :
+      fmap2 (do_prologue is_reg_ptr fresh_id p ii) st xs pes
+    = ((make_prologue is_reg_ptr fresh_id p ii xs pes).1 ++ st,
+       (make_prologue is_reg_ptr fresh_id p ii xs pes).2).
+  Proof.
+  rewrite /make_prologue; set F := do_prologue is_reg_ptr fresh_id p ii.
+  rewrite -{1}[st](cat0s); move: [::] => st'.
+  elim: xs pes st st' => [|x xs ih] // [|pe pes] // st st'.
+  case E: (is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe) => [y|].
+  + by rewrite /F /= !(do_prologue_Some ii _ E) /= -cat_cons !ih.
+  + by rewrite /F /= !(do_prologue_None ii _ E) /= !ih.
+  Qed.  
+
+  Lemma make_prologue0 (p : uprog) ii args :
+    make_prologue is_reg_ptr fresh_id p ii [::] args = ([::], args).
+  Proof. by []. Qed.
+
+  Lemma make_prologue0r (p : uprog) ii xs :
+    make_prologue is_reg_ptr fresh_id p ii xs [::] = ([::], [::]).
+  Proof. by case: xs. Qed.
+
+  Lemma make_prologueS_None (p : uprog) ii x xs pe pes :
+       is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = None
+    -> make_prologue is_reg_ptr fresh_id p ii (x :: xs) (pe :: pes)
+       = ((make_prologue is_reg_ptr fresh_id p ii xs pes).1,
+          pe :: (make_prologue is_reg_ptr fresh_id p ii xs pes).2).
+  Proof.
+  move=> h; rewrite {1}/make_prologue /= (do_prologue_None _ _ h) /=.
+  by rewrite !make_prologue_tc /= cats0.
+  Qed.
+
+  Lemma make_prologueS_Some (p : uprog) ii x xs pe pes y :
+       is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = Some y
+    -> make_prologue is_reg_ptr fresh_id p ii (x :: xs) (pe :: pes)
+       = (rcons (make_prologue is_reg_ptr fresh_id p ii xs pes).1
+                (MkI ii (Cassgn y AT_rename (vtype y) pe)),
+          Plvar y :: (make_prologue is_reg_ptr fresh_id p ii xs pes).2).
+  Proof.
+  move=> h; rewrite {1}/make_prologue /= (do_prologue_Some _ _ h).
+  by rewrite !make_prologue_tc /= cats1.
+  Qed.
+ 
   Context (p p' : uprog).
   Context (ev : unit).
 
@@ -311,8 +363,121 @@ Section Section.
       by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
   Qed.
 
+  Lemma mapM_size {eT aT bT : Type} (f : aT -> result eT bT) xs ys :
+    mapM f xs = ok ys -> size xs = size ys.
+  Proof.
+  elim: xs ys => /= [|x xs ih] ys; first by case: ys.
+  by t_xrbindP=> v _ vs /ih -> <-.
+  Qed.
+
+  Definition fresh_vars_in_prologue_i (i : instr) : option var :=
+    if i is MkI _ (Cassgn (Lvar x) _ _ _) then Some (v_var x) else None.
+
+  Lemma fresh_vars_in_prologueE c :
+    fresh_vars_in_prologue c = pmap fresh_vars_in_prologue_i c.
+  Proof. Admitted.
+
+  Lemma read_es_eq_on_sym
+     (gd : glob_decls) (es : pexprs) (X : Sv.t) (s : estate) (vm vm' : vmap)
+  :
+     vm =[read_es_rec X es]  vm' ->
+       sem_pexprs gd (with_vm s vm) es = sem_pexprs gd (with_vm s vm') es.
+  Proof.
+  by apply: @read_es_eq_on gd es X (with_vm s vm) vm'.
+  Qed.
+
+  Lemma read_e_eq_on_sym
+     (gd : glob_decls) (e : pexpr) (X : Sv.t) (s : estate) (vm vm' : vmap)
+  :
+     vm =[read_e_rec X e]  vm' ->
+       sem_pexpr gd (with_vm s vm) e = sem_pexpr gd (with_vm s vm') e.
+  Proof.
+  by apply: @read_e_eq_on gd X vm' (with_vm s vm) e.
+  Qed.
+
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
+    (* f(x1 : v1, ..., xn : vn) : unit
+     *
+     * f(e1, ..., en)
+     *
+     *
+     * y1 <- e1; ...; yn <- en; assert (forall i, [|yi|] = [|ei|]); body(f)
+     *)
+
+
+    move=> s1 m s2 ii lv fn args vargs aout eval_args h1 h2 h3.
+    move=> ii' X c' hupd; rewrite !(read_Ii, write_Ii).
+    rewrite !(read_i_call, write_i_call) => le_X vm1 eq_s1_vm1.
+    move: hupd => /=; case sigE: (get_sig _) => [xargs xaout].
+    case plE: (make_prologue _ _ _ _ _ _) => [pl eargs].
+    case epE: (make_epilogue _ _ _ _ _ _) => [ep lvaout].
+    t_xrbindP=> _ /assertP /and4P[uq_pl uq_ep /allP fs_pl /allP fs_ep] <-.
+    have: exists vm, [
+      /\ sem_pexprs (p_globs p') (with_vm s1 vm) eargs = ok vargs
+       , evm s1 =[Sv.union X (read_es args)] vm
+       & sem p' ev (with_vm s1 vm1) pl (with_vm s1 vm)
+    ].
+    + rewrite -(make_referenceprog_globs Hp).
+      move: vm1 eq_s1_vm1 pl eargs uq_pl fs_pl plE eval_args.
+      elim: xargs args vargs le_X {sigE h1 h2 h3 uq_ep fs_ep epE}.
+      * move=> args vargs le_X vm1 eq_s1_vm1 pl eargs _ _.
+        rewrite make_prologue0 => -[<- <-] eval_args.
+        exists vm1; split=> //; last by constructor.
+        - rewrite -(@read_es_eq_on _ _ X) // read_esE.
+          by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
+        - by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
+      move=> x xargs ih /= [|arg args] vargs le_X vm1 eq_s1_vm1 pl eargs huniq hfresh.
+        - rewrite make_prologue0r => -[<- <-] eval_args.
+          exists vm1; split=> //=; last by constructor.
+          by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
+      case E: (is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) arg) => [y|].
+      * rewrite (make_prologueS_Some _ _ _ E).
+        set M := make_prologue _ _ _ _ _ _ => ME.
+        case: ME huniq hfresh => [<- <-] Huniq Hfresh /=.
+        t_xrbindP=> v sem_v vs sem_vs {vargs} <-.
+        case: (ih args vs _ vm1 eq_s1_vm1 M.1 M.2) => //.
+        - by move: le_X; rewrite read_es_cons; SvD.fsetdec.
+        - move: Huniq; rewrite fresh_vars_in_prologueE.
+          rewrite -cats1 pmap_cat /= -fresh_vars_in_prologueE.
+          by rewrite uniq_catC /= => /andP[].
+        - move=> x' x'_in_M1; apply: Hfresh.
+          rewrite fresh_vars_in_prologueE -cats1 pmap_cat.
+          by rewrite mem_cat -fresh_vars_in_prologueE x'_in_M1.
+        - by rewrite [LHS]surjective_pairing.
+        move=> vm [h1 h2 h3].
+        have [vm' [h4 get_y h5]]: exists vm', [/\
+            vm =[Sv.union (Sv.union X (read_es (arg :: args))) (read_es M.2)] vm'
+          , get_var vm' y = ok v & set_var vm y v = ok vm'].
+        - admit.
+        exists vm'; split=> //.
+        - rewrite /get_gvar /= get_y /= -(@read_es_eq_on_sym _ _ X _ vm); first last.
+          + by apply: (eq_onI _ h4); rewrite !read_es_cons read_esE; SvD.fsetdec.
+          by rewrite h1.
+        - transitivity vm.
+          + by apply: (eq_onI _ h2); move: le_X; rewrite read_es_cons; SvD.fsetdec.
+          + by apply: (eq_onI _ h4); move: le_X; rewrite read_es_cons; SvD.fsetdec.
+        - rewrite -cats1; apply: (sem_app h3).
+          apply/sem_seq1/EmkI; apply Eassgn with v v.
+          + rewrite -(@read_e_eq_on _ X).
+            * by rewrite -(make_referenceprog_globs Hp).
+            apply: (eq_onI _ h2); move: le_X.
+            by rewrite read_eE read_es_cons; SvD.fsetdec.
+          + admit.
+          + by rewrite /= /write_var h5.
+      * rewrite (make_prologueS_None _ _ _ E); set M := make_prologue _ _ _ _ _ _.
+        move=> ME; case: ME huniq hfresh => [<- <-] Huniq Hfresh /=.
+        t_xrbindP=> v sem_v; case: vargs => // _ _ vargs sem_vs [<- <-].
+        case: (ih args vargs _ vm1 eq_s1_vm1 M.1 M.2) => //.
+        - by move: le_X; rewrite read_es_cons; SvD.fsetdec.
+        - by rewrite [LHS]surjective_pairing.
+        move=> vm [h1 h2 h3]; exists vm; split=> //.
+        - rewrite -(@read_e_eq_on _ X); last first.
+          + rewrite read_eE; apply: (eq_onI _ h2).
+            by move: le_X; rewrite read_es_cons; SvD.fsetdec.
+          by rewrite sem_v /= h1.
+        - by apply: (eq_onI _ h2); move: le_X; rewrite read_es_cons; SvD.fsetdec.
+    case=> vm [h1_vm h2_vm h3_vm].
   Admitted.
 
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
