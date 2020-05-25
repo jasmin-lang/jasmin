@@ -975,6 +975,8 @@ Fixpoint lit_to_li (li : leak_i_tree) : leakage_i :=
                                      (lest_to_les le')
   end.
 
+Section CMD.
+  
   Variable const_prop_i : cpm -> instr -> cpm * cmd * leak_i_tr.
 
   Fixpoint const_prop (m:cpm) (c:cmd) : cpm * cmd * seq leak_i_tr :=
@@ -1673,15 +1675,15 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
     let (e, lt) := const_prop_e m e in
     let: (m,x, ltx) := const_prop_rv m x in
     let m := add_cpm m x tag ty e in
-    (m, [:: MkI ii (Cassgn x tag ty e)], LT_iseq [:: LT_ile lt; LT_ile ltx])
+    (m, [:: MkI ii (Cassgn x tag ty e)], LT_ile (LT_seq (lt :: [:: ltx])))
 
   | Copn xs t o es =>
     (* TODO: Improve this *)
     let es := map (const_prop_e m) es in
     let: (m,xs, lts) := const_prop_rvs m xs in
     (m, [:: MkI ii (Copn xs t o (unzip1 es)) ], 
-         LT_iseq [ :: LT_ile (LT_seq (unzip2 es)) ; LT_ile lts])
-
+     LT_ile (LT_seq ((unzip2 es) ++ [::lts])))
+            
   | Cif b c1 c2 =>
     let (b, ltb) := const_prop_e m b in
     match is_bool b with
@@ -1693,7 +1695,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
     | None =>
       let: (m1,c1,lt1) := const_prop const_prop_i m c1 in
       let: (m2,c2,lt2) := const_prop const_prop_i m c2 in
-      (merge_cpm m1 m2, [:: MkI ii (Cif b c1 c2) ], LT_ileli ltb (LT_iseq [:: lt1; lt2]))
+      (merge_cpm m1 m2, [:: MkI ii (Cif b c1 c2) ], LT_ileli ltb (lt1 ++ lt2))
     end
 
   | Cfor x (dir, e1, e2) c =>
@@ -1729,4 +1731,4 @@ Definition const_prop_fun (f:fundef) :=
   let: (_, c, lt) := const_prop const_prop_i empty_cpm c in
   MkFun ii tin p c tout r.
 
-Definition const_prop_prog (p:prog) : prog := map_prog const_prop_fun p.
+Definition const_prop_prog (p:prog) : prog := map_prog const_prop_fun p. 
