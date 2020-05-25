@@ -4,6 +4,7 @@ Require Import psem.
 Import Utf8.
 Import all_ssreflect.
 Import compiler_util.
+Import x86_variables.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -162,7 +163,7 @@ Section CHECK.
         Let _ := assert (if sf_return_address (f_extra fd) is RAstack _ then extra_free_registers ii != None else true)
           (ii, Cerr_one_varmap "no extra free register to compute the return address") in
         Let _ := assert
-          (all2 (λ e a, if e is Pvar (Gvar v _) then v_var v == v_var a else false) es (f_params fd))
+          (all2 (λ e a, if e is Pvar (Gvar v Slocal) then v_var v == v_var a else false) es (f_params fd))
           (ii, Cerr_one_varmap "bad call args") in
         Let _ := assert
           (all2 (λ x r, if x is Lvar v then v_var v == v_var r else false) xs (f_res fd))
@@ -179,11 +180,21 @@ Section CHECK.
 
   Notation check_cmd := (check_c check_i).
 
+  Definition set_of_var_i_seq : Sv.t → seq var_i → Sv.t :=
+    foldl (λ acc x, Sv.add (v_var x) acc).
+
+  Definition live_after_fd (fd: sfundef) : Sv.t :=
+    set_of_var_i_seq Sv.empty fd.(f_res).
+
+  Let magic_variables : Sv.t :=
+    Sv.add (vid p.(p_extra).(sp_rip)) (Sv.add (vid (string_of_register RSP)) Sv.empty).
+
   Definition check_fd (ffd: sfun_decl) :=
     let: (fn, fd) := ffd in
-    let saved_rsp := match fd.(f_extra).(sf_save_stack) with SavedStackNone | SavedStackStk _ => Sv.empty | SavedStackReg r => Sv.singleton r end in
-    let O := read_es_rec saved_rsp (map Plvar fd.(f_res)) in
+    let O := live_after_fd fd in
     Let I := add_finfo fn fn (check_cmd fd.(f_body) O) in
+    Let _ := assert (Sv.subset I (set_of_var_i_seq magic_variables fd.(f_params)))
+                    (Ferr_fun fn (Cerr_one_varmap_free fn (Sv.elements I))) in
     let e := fd.(f_extra) in
     match e.(sf_return_address) with
     | RAreg ra =>

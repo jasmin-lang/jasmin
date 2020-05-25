@@ -29,11 +29,11 @@ The semantics also ensures some properties:
  - The sp_rip local variable is assumed to hold the pointer to the static global data
  *)
 
-Definition get_pvar (e: pexpr) : exec var_i :=
-  if e is Pvar {| gv := x ; gs := Slocal |} then ok x else type_error.
+Definition get_pvar (e: pexpr) : exec var :=
+  if e is Pvar {| gv := x ; gs := Slocal |} then ok (v_var x) else type_error.
 
-Definition get_lvar (x: lval) : exec var_i :=
-  if x is Lvar x then ok x else type_error.
+Definition get_lvar (x: lval) : exec var :=
+  if x is Lvar x then ok (v_var x) else type_error.
 
 Section SEM.
 
@@ -103,15 +103,16 @@ with sem_i : instr_info → estate → instr_r → estate → Prop :=
     sem_call ii s1 f xargs s2 xres →
     sem_i ii s1 (Ccall ini res f args) s2
 
-with sem_call : instr_info → estate → funname → seq var_i → estate → seq var_i → Prop :=
+with sem_call : instr_info → estate → funname → seq var → estate → seq var → Prop :=
 | EcallRun ii s1 s2 fn f xargs xres m1 s2' :
     get_fundef (p_funcs p) fn = Some f →
-    f.(f_params) = xargs →
-    (if f.(f_extra).(sf_return_address) is RAstack _ then extra_free_registers ii ≠ None else True) →
+    map v_var f.(f_params) = xargs →
+    (if f.(f_extra).(sf_return_address) is RAstack _ then extra_free_registers ii != None else true) →
     alloc_stack s1.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) = ok m1 →
     sem {| emem := m1 ; evm := set_RSP m1 (if f.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} f.(f_body) s2' →
     let m2 := free_stack s2'.(emem) f.(f_extra).(sf_stk_sz) in
     s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →
+    map v_var f.(f_res) = xres →
     sem_call ii s1 fn xargs s2 xres.
 
 End SEM.

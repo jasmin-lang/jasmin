@@ -89,6 +89,13 @@ let rec pp_comp_err tbl fmt =
   | Compiler_util.Cerr_one_varmap s ->
      Format.fprintf fmt "error in “one-varmap” checker: %a"
        pp_string0 s
+  | Compiler_util.Cerr_one_varmap_free (n, s) ->
+     let pp_var fmt x =
+       Format.fprintf fmt "%a" (pp_var ~debug: false) (Conv.var_of_cvar tbl x)
+     in
+     Format.fprintf fmt "error in “one-varmap” checker: function %s has free variables among %a"
+       (Conv.fun_of_cfun tbl n).fn_name
+       (pp_list ";@ " pp_var) s
   | Compiler_util.Cerr_linear s ->
     Format.fprintf fmt "linearisation error %a"
       pp_string0 s
