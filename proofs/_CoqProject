@@ -17,6 +17,7 @@ compiler/compiler_util.v
 compiler/compiler.v
 compiler/compiler_proof.v
 compiler/constant_prop.v
+compiler/constant_prop_util.v
 compiler/constant_prop_proof.v
 compiler/dead_calls.v
 compiler/dead_calls_proof.v
