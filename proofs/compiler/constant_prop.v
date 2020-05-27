@@ -706,6 +706,19 @@ with const_prop_i (m:cpm) (i:instr) : cpm * cmd * leak_i_tr :=
 Definition const_prop_fun (f:fundef) :=
   let (ii,tin,p,c,tout,r) := f in
   let: (_, c, lt) := const_prop const_prop_i empty_cpm c in
-  MkFun ii tin p c tout r.
+  (MkFun ii tin p c tout r, lt).
 
-Definition const_prop_prog (p:prog) : prog := map_prog const_prop_fun p. 
+Definition leak_i_trf := seq (funname * seq leak_i_tr).
+
+Definition const_prop_prog (p: prog) : (prog * leak_i_trf) :=
+  let fundefs := map snd (p_funcs p) in (* seq of fundefs *)
+  let funnames := map fst (p_funcs p) in
+  let r := map const_prop_fun fundefs in (* output of applying const_prop_fun to the fundefs from p *)
+  let rfds := map fst r in
+  let rlts := map snd r in 
+  let Fs := zip funnames rlts in
+  let funcs := zip funnames rfds in 
+  ({| p_globs := p_globs p; p_funcs := funcs|}, Fs).
+
+        
+(*Definition const_prop_prog (p:prog) : prog := map_prog const_prop_fun p. *)
