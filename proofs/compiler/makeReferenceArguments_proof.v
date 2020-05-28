@@ -97,7 +97,7 @@ Section Section.
   case E: (is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe) => [y|].
   + by rewrite /F /= !(do_prologue_Some ii _ E) /= -cat_cons !ih.
   + by rewrite /F /= !(do_prologue_None ii _ E) /= !ih.
-  Qed.  
+  Qed.
 
   Lemma make_prologue0 (p : uprog) ii args :
     make_prologue is_reg_ptr fresh_id p ii [::] args = ([::], args).
@@ -127,7 +127,7 @@ Section Section.
   move=> h; rewrite {1}/make_prologue /= (do_prologue_Some _ _ h).
   by rewrite !make_prologue_tc /= cats1.
   Qed.
- 
+
   Context (p p' : uprog).
   Context (ev : unit).
 
@@ -180,13 +180,7 @@ Section Section.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof.
-    move => s X.
-    move => _ [<-].
-    move => Hs vm1 Hvm1.
-    exists vm1.
-    split => //.
-    by constructor.
-    (*by move=> s X _ [<-] hs vm1 hvm1; exists vm1; split => //; constructor.*)
+    by move=> s X _ [<-] hs vm1 hvm1; exists vm1; split => //; constructor.
   Qed.
 
   Local Lemma Hcons : sem_Ind_cons p ev Pc Pi.
@@ -209,7 +203,7 @@ Section Section.
     + by rewrite /update_c hcc.
     move=> /(_ _ vm2 hvm2) [|vm3 [hvm3 hs3]]; first by SvD.fsetdec.
     exists vm3; split => //=.
-    apply: sem_app hs2 hs3.
+    by apply: sem_app hs2 hs3.
   Qed.
 
   Local Lemma HmkI : sem_Ind_mkI p ev Pi_r Pi.
@@ -223,30 +217,36 @@ Section Section.
     rewrite (read_e_eq_on _ (s:=Sv.empty) (vm' := vm1)); last first.
     + by apply: eq_onI hvm1; rewrite read_eE; SvD.fsetdec.
     rewrite eq_globs => he.
-
-    (*I am supposed to use this, but can't figure out how: how can I get anything of type glob_decls?*)
-    have ? := write_lval_eq_on.
-    Print glob_decls.
-    Print progT.
-    Print with_vm.
-  Admitted.
-
-(*@: all arguments event implicits*)
-(*Check: gives the type of something*)
+    case : (write_lval_eq_on _ hw hvm1).
+    + by SvD.fsetdec.
+    move => vm2 [eq_s2_vm2 H_write_lval].
+    exists vm2.
+    split.
+    (*Weird, can't apply directly*)
+    + have H := (eq_onI _ eq_s2_vm2).
+      apply H.
+      by SvD.fsetdec.
+    apply sem_seq1.
+    apply EmkI.
+    apply (Eassgn _ _ he htr).
+    by rewrite - eq_globs.
+  Qed.
 
   Local Lemma Hopn : sem_Ind_opn p Pi_r.
   Proof.
-    move => s1 s2 t o xs es He ii X c'.
-    rewrite /update_i.
-    move => [<-].
-    rewrite read_Ii read_i_opn.
-    rewrite /write_I /= vrvs_recE => hsub vm1 hvm1.
-    Print update_c.
-    (*hsub should be simplifiable*)
-    (*have /hc : update_c (update_i is_reg_ptr fresh_id p get_sig X) c = ok (c').*)
-
-    exists vm1.
-    split.
+    move => s1 s2 t o xs es He ii X c' [<-].
+    rewrite read_Ii read_i_opn /write_I /= vrvs_recE => hsub vm1 hvm1.
+    About rbindP.
+    About Eopn.
+    About sem_I_ind.
+(*
+move=> s1 s2 t o xs es H vm1 Hvm1; apply: rbindP H => rs;apply: rbindP => vs.
+  move=> /(sem_pexprs_uincl Hvm1) [] vs' H1 H2.
+  move=> /(vuincl_exec_opn H2) [] rs' [] H3 H4.
+  move=> /(writes_uincl Hvm1 H4) [] vm2 ??.
+  exists vm2;split => //;constructor.
+  by rewrite /sem_sopn H1 /= H3.
+*)
   Admitted.
 
   Lemma write_Ii ii i : write_I (MkI ii i) = write_i i.
@@ -261,7 +261,7 @@ Section Section.
     + by SvD.fsetdec.
     move=> vm2 [eq_s2_vm2 sem_i_then]; exists vm2; split=> //.
     apply/sem_seq1/EmkI; apply: Eif_true => //.
-    rewrite -(make_referenceprog_globs Hp) -He.
+    rewrite - eq_globs -He.
     rewrite -(@read_e_eq_on _ Sv.empty) // -/(read_e _).
     by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
   Qed.
@@ -275,11 +275,10 @@ Section Section.
     + by SvD.fsetdec.
     move=> vm2 [eq_s2_vm2 sem_i_else]; exists vm2; split=> //.
     apply/sem_seq1/EmkI; apply: Eif_false => //.
-    rewrite -(make_referenceprog_globs Hp) -He.
+    rewrite - eq_globs -He.
     rewrite -(@read_e_eq_on _ Sv.empty) // -/(read_e _).
     by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
   Qed.
-
 
   Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
   Proof.
@@ -358,7 +357,7 @@ Section Section.
     + rewrite -(make_referenceprog_globs Hp) -cpl_lo.
       rewrite -(@read_e_eq_on _ Sv.empty) // -/(read_e _).
       by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
-    + rewrite -(make_referenceprog_globs Hp) -cpl_hi.
+    + rewrite - eq_globs -cpl_hi.
       rewrite -(@read_e_eq_on _ Sv.empty) // -/(read_e _).
       by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
   Qed.
@@ -480,9 +479,55 @@ Section Section.
     case=> vm [h1_vm h2_vm h3_vm].
   Admitted.
 
+
+(*
+
+makereference_prog = 
+λ (is_reg_ptr : var → bool) (fresh_id : glob_decls → var → Ident.ident) (T : eqType) (pT : progT T) (p : prog),
+  let get_sig :=
+    λ n : funname,
+      match get_fundef (p_funcs p) n with
+      | Some fd => (f_params fd, f_res fd)
+      | None => ([::], [::])
+      end in
+  Let funcs := map_cfprog (update_fd is_reg_ptr fresh_id p get_sig) (p_funcs p)
+  in ok {| p_funcs := funcs; p_globs := p_globs p; p_extra := p_extra p |}
+     : (var → bool) → (glob_decls → var → Ident.ident) → ∀ (T : eqType) (pT : progT T), prog → cfexec prog
+
+*)
+
+  Lemma eq_extra : p_extra p = p_extra p'.
+    move : Hp.
+    rewrite /makereference_prog.
+    by t_xrbindP => y Hmap <-.
+  Qed.
+
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
-  Admitted.
+    move => m1 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hf Hvargs Hs0 Hs1 Hsem_s2 Hs2 Hvres Hvres' Hm2.
+    have H := (all_progP _ Hf).
+    rewrite eq_extra in Hs0.
+    rewrite /Pfun.
+    move : Hp.
+    rewrite /makereference_prog.
+    t_xrbindP => y Hmap ?.
+    subst p'.
+    case : (get_map_cfprog Hmap Hf) => x Hupdate Hy.
+    move : Hupdate.
+    rewrite /update_fd.
+    t_xrbindP => z Hupdate_c Hwith_body.
+    subst x => /=.
+    have [] := (Hs2 _ _ Hupdate_c _ (evm s1)) => //.
+    + by SvD.fsetdec.
+    move => x [Hevms2 Hsem].
+    rewrite with_vm_same in Hsem.
+    eapply EcallRun ; try by eassumption.
+    rewrite - Hvres -! (@sem_pexprs_get_var (p_globs p)).
+    symmetry.
+    move : Hevms2.
+    rewrite - read_esE.
+    by apply : read_es_eq_on.
+  Qed.
 
   Lemma makeReferenceArguments_callP f mem mem' va vr:
     sem_call p ev mem f va mem' vr ->
@@ -495,12 +540,3 @@ Section Section.
   Qed.
 
 End Section.
-
-  (*I should have something more specific than s1 and s2*)
-  (*
-  Lemma mkrefargs_c_incl s1 c s2 : Pc s1 c s2.
-  Proof.
-    move => X c' up vm1 eq.
-    
-  Qed.
-  *)
