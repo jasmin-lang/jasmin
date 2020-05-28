@@ -12,6 +12,10 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope vmap_scope.
 
+Lemma vrvs_rec_set_of_var_i_seq acc xs :
+  vrvs_rec acc [seq Lvar x | x <- xs] = set_of_var_i_seq acc xs.
+Proof. by elim: xs acc => // x xs ih acc; rewrite /= ih. Qed.
+
 (* TODO: move *)
 Lemma write_var_get_var x v s s' :
   write_var x v s = ok s' →
@@ -23,6 +27,29 @@ Proof.
   case: x => /= - [ty x] _ /= ->.
   case: ty => //= - [<-] [<-].
   by rewrite /= Fv.setP_eq.
+Qed.
+
+Lemma init_stk_stateI fex pex gd s s' :
+  pex.(sp_rip) != string_of_register RSP →
+  init_stk_state fex pex gd s = ok s' →
+  (evm s').[vid pex.(sp_rip)] = ok (pword_of_word gd) ∧
+  exists2 m,
+    alloc_stack s.(emem) fex.(sf_align) fex.(sf_stk_sz) = ok m &
+    (evm s').[vid (string_of_register RSP)] = ok (pword_of_word (top_stack m)).
+Proof.
+  move => checked_sp_rip.
+  apply: rbindP => m ok_m [<-]; split; last exists m => //.
+  2: rewrite Fv.setP_neq //.
+  1-2: rewrite Fv.setP_eq /pword_of_word; repeat f_equal; exact: (Eqdep_dec.UIP_dec Bool.bool_dec).
+Qed.
+
+(* TODO: move *)
+Lemma write_vars_eq_except xs vs s s' :
+  write_vars xs vs s = ok s' →
+  evm s = evm s' [\ set_of_var_i_seq Sv.empty xs].
+Proof.
+  rewrite (write_vars_lvals [::]) => /vrvsP.
+  by rewrite /vrvs vrvs_rec_set_of_var_i_seq.
 Qed.
 
 (* TODO: move *)
@@ -45,20 +72,14 @@ Proof.
   exact: word_uincl_zero_ext.
 Qed.
 
-Lemma In_set_of_var_i_seq x acc xs :
-  Sv.In x (set_of_var_i_seq acc xs) ↔ Sv.In x acc ∨ ∃ xi, VarI x xi \in xs.
+Lemma mem_set_of_var_i_seq x acc xs :
+  Sv.mem x (set_of_var_i_seq acc xs) = Sv.mem x acc || (x \in map v_var xs).
 Proof.
   elim: xs acc.
-  - move => acc /=; split; first by left.
-    by case => // - [] ? /InP.
-  move => y xs ih acc; rewrite /= ih{ih}; split; case.
-  - move => /SvD.F.add_iff []; last by left.
-    by move => <-; right; case: y => y xi; exists xi; rewrite /= inE eqxx.
-  - by case => xi h; right; exists xi; rewrite inE h orbT.
-  - by move => h; left; SvD.fsetdec.
-  case => xi; rewrite inE => /orP[].
-  - by move/eqP <- => /=; left; SvD.fsetdec.
-  by move => h; right; exists xi.
+  - by move => acc; rewrite orbF.
+  move => y xs ih acc; rewrite /= ih{ih} inE eq_sym; case: eqP.
+  - by move => ->; rewrite SvP.add_mem_1 orbT.
+  by move => ?; rewrite SvP.add_mem_2.
 Qed.
 
 Section PROG.
@@ -82,7 +103,7 @@ Lemma checkP u (fn: funname) (fd: sfundef) :
   get_fundef (p_funcs p) fn = Some fd →
   valid_writefun wrf (fn, fd) ∧ check_fd p extra_free_registers wrf (fn, fd) = ok tt.
 Proof.
-  rewrite /check; t_xrbindP => _ /assertP ok_wmap ? ok_prog _{u} ok_fd; split.
+  rewrite /check; t_xrbindP => _ /assertP ok_wmap _ _ ? ok_prog _{u} ok_fd; split.
   - exact: check_wmapP ok_fd ok_wmap.
   by move: ok_fd => /(@get_fundef_in' sfundef) /(mapM_In ok_prog) [] [] [].
 Qed.
@@ -91,6 +112,9 @@ Hypothesis ok_p : check p extra_free_registers = ok tt.
 
 Let vgd : var := vid p.(p_extra).(sp_rip).
 Let vrsp : var := vid (string_of_register RSP).
+
+Lemma vgd_neq_vrsp : vgd != vrsp.
+Proof. by move: ok_p; rewrite /check; t_xrbindP => _ _ __/assertP. Qed.
 
 (*
 Record merged_vmap_invariant m (vm: vmap) : Prop :=
@@ -229,7 +253,7 @@ Section LEMMA.
     with_vm x =1 with_vm y.
   Proof. by case: x y => m vm [] m' vm' /= ->. Qed.
 
-  Lemma Hasgn: sem_Ind_assgn p Pi_r.
+  Lemma Hassgn: sem_Ind_assgn p Pi_r.
   Proof.
     move => s1 s2 x tg ty e v v' ok_v ok_v' ok_s2 ii _ live t1 [<-].
     rewrite read_rvE read_eE => sim.
@@ -302,10 +326,10 @@ Section LEMMA.
   Proof. Admitted.
 
   Lemma Hwhile_true: sem_Ind_while_true p global_data Pc Pi_r.
-  Proof. Abort.
+  Proof. Admitted.
 
   Lemma Hwhile_false: sem_Ind_while_false p global_data Pc Pi_r.
-  Proof. Abort.
+  Proof. Admitted.
 
   Let Pfor (_: var_i) (_: seq Z) (_: estate) (_: cmd) (_: estate) : Prop :=
     True.
@@ -339,9 +363,9 @@ Section LEMMA.
     by case: x X Y => // x _; rewrite /= /write_var; t_xrbindP => ?? <-.
   Qed.
 
-  Lemma orX (P Q: Prop):
-    P ∨ Q →
-    (P ∧ ¬ Q) ∨ (
+  Lemma orbX (P Q: bool):
+    P || Q = (P && ~~ Q) || Q.
+  Proof. by case: Q; rewrite !(orbT, orbF, andbT). Qed.
 
   Lemma Hcall: sem_Ind_call p global_data Pi_r Pfun.
   Proof.
@@ -372,15 +396,20 @@ Section LEMMA.
     have sim' : match_estate live' {| emem := emem s1 ; evm := evm s3 |} t1.
     - split; first exact: mvm_mem sim.
       apply: vmap_uincl_onI; first exact: small_live'.
-      move => x /In_set_of_var_i_seq /=. [].
-      + rewrite !Sv.add_spec SvD.F.empty_iff.
-        case => [ -> | [ -> | [] ] ] {x}.
+      move => x; rewrite -Sv.mem_spec mem_set_of_var_i_seq orbX => /orP[].
+      + case/andP. rewrite {1}/is_true Sv.mem_spec !Sv.add_spec SvD.F.empty_iff.
+        have [vgd_v vrsp_v] := init_stk_stateI vgd_neq_vrsp ok_s2.
+        case => [ -> | [ -> | [] ] ] {x} /negP not_param /=.
         * (* vrip *)
+          rewrite -(write_vars_eq_except ok_s3); last by rewrite -Sv.mem_spec mem_set_of_var_i_seq.
+          rewrite vgd_v /=.
           admit.
         (* vrsp *)
+        rewrite -(write_vars_eq_except ok_s3); last by rewrite -Sv.mem_spec mem_set_of_var_i_seq.
+        move: ok_s2.
+        rewrite /init_state /=.
         admit.
-      case => xi x_param.
-      move: (map_f v_var x_param) => /= {x_param xi} x_param.
+      case => x_param.
       apply: (eval_uincl_trans); last first.
       + apply: sim.(mvm_vmap).
         apply: SvD.F.union_2.
@@ -412,7 +441,7 @@ Section LEMMA.
       rewrite /write_i /merge_varmaps.write_i_rec /writefun_ra ok_fd; SvD.fsetdec.
     split.
     - by rewrite -(mvm_mem sim2) /= (write_lvars_emem checked_xs ok_s5).
-  Abort.
+  Admitted.
 
   Lemma Hproc: sem_Ind_proc p global_data Pc Pfun.
   Proof.
