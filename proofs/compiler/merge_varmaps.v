@@ -215,6 +215,7 @@ End CHECK.
 Definition check :=
   let wmap := mk_wmap in
   Let _ := assert (check_wmap wmap) (Ferr_msg (Cerr_one_varmap "invalid wmap")) in
+  Let _ := assert (p.(p_extra).(sp_rip) != string_of_register RSP) (Ferr_msg (Cerr_one_varmap "rip and rsp clash, please report")) in
   Let _ := check_prog (get_wmap wmap) in
   ok tt.
 
