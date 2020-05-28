@@ -1749,9 +1749,13 @@ Proof. by move => ?; SvD.fsetdec. Qed.
 Hint Resolve vmap_uincl_on_empty.
 
 Lemma vmap_uincl_on_union dom dom' vm1 vm2 :
-  vmap_uincl_on (Sv.union dom dom') vm1 vm2 →
+  vmap_uincl_on (Sv.union dom dom') vm1 vm2 ↔
   vmap_uincl_on dom vm1 vm2 ∧ vmap_uincl_on dom' vm1 vm2.
-Proof. by move => h; split => x hx; apply: h; SvD.fsetdec. Qed.
+Proof.
+  split.
+  + by move => h; split => x hx; apply: h; SvD.fsetdec.
+  by case => h h' x /Sv.union_spec[]; [ exact: h | exact: h' ].
+Qed.
 
 Lemma vmap_uincl_on_vm_uincl vm1 vm2 vm1' vm2' d :
   vm_uincl vm1 vm2 →
@@ -2194,7 +2198,35 @@ Proof.
   exact: vrvP ok_vm2.
 Qed.
 
-Lemma writes_uincl gd s1 s2 vm1 r v1 v2:
+Lemma writes_uincl_on gd s1 s2 vm1 r v1 v2:
+  vmap_uincl_on (read_rvs r) s1.(evm) vm1 ->
+  List.Forall2 value_uincl v1 v2 ->
+  write_lvals gd s1 r v1 = ok s2 ->
+  exists2 vm2,
+    write_lvals gd (with_vm s1 vm1) r v2 = ok (with_vm s2 vm2) &
+    vmap_uincl_on (vrvs r) s2.(evm) vm2.
+Proof.
+  elim: r v1 v2 s1 s2 vm1 => [ | r rs Hrec] ?? s1 s2 vm1 Hvm1 /= [] //=.
+  + by case => <-; exists vm1.
+  move: Hvm1; rewrite read_rvs_cons => /vmap_uincl_on_union[] hr hrs.
+  move=> v1 v2 vs1 vs2 Hv Hforall.
+  apply: rbindP => z ok_z ok_s2.
+  have [ vm2 ok_vm2 Hvm2 ] := write_uincl_on hr Hv ok_z.
+  have h : vmap_uincl_on (read_rvs rs) (evm z) vm2.
+  + move => x hx.
+    case: (Sv_memP x (vrv r)); first exact: Hvm2.
+    move => hxr; rewrite -(vrvP ok_z hxr) -(vrvP ok_vm2 hxr).
+    exact: hrs.
+  have [ vm3 ok_vm3 h3 ] := Hrec _ _ _ _ vm2 h Hforall ok_s2.
+  exists vm3; first by rewrite ok_vm2.
+  rewrite vrvs_cons vmap_uincl_on_union; split; last exact: h3.
+  move => x hx.
+  case: (Sv_memP x (vrvs rs)); first exact: h3.
+  move => hxrs; rewrite -(vrvsP ok_vm3 hxrs) -(vrvsP ok_s2 hxrs).
+  exact: Hvm2.
+Qed.
+
+Corollary writes_uincl gd s1 s2 vm1 r v1 v2:
   vm_uincl s1.(evm) vm1 ->
   List.Forall2 value_uincl v1 v2 ->
   write_lvals gd s1 r v1 = ok s2 ->
@@ -2202,11 +2234,12 @@ Lemma writes_uincl gd s1 s2 vm1 r v1 v2:
     write_lvals gd (with_vm s1 vm1) r v2 = ok (with_vm s2 vm2) &
     vm_uincl s2.(evm) vm2.
 Proof.
-  elim: r v1 v2 s1 s2 vm1 => [ | r rs Hrec] ?? s1 s2 vm1 Hvm1 /= [] //=.
-  + by move=> [] <-;eauto.
-  move=> v1 v2 vs1 vs2 Hv Hforall.
-  apply: rbindP => z /(write_uincl Hvm1 Hv) [] vm2 -> Hvm2.
-  by move=> /(Hrec _ _ _ _ _ Hvm2 Hforall).
+  move => hvm hv ok_s2.
+  case: (writes_uincl_on (vm_uincl_vmap_uincl_on hvm) hv ok_s2) => vm2 ok_vm2 hvm2.
+  exists vm2; first exact: ok_vm2.
+  apply: (vmap_uincl_on_vm_uincl hvm hvm2).
+  - exact: vrvsP ok_s2.
+  exact: vrvsP ok_vm2.
 Qed.
 
 Lemma write_vars_lvals gd xs vs s1:
