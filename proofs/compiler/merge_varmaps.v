@@ -186,7 +186,7 @@ Section CHECK.
   Definition live_after_fd (fd: sfundef) : Sv.t :=
     set_of_var_i_seq Sv.empty fd.(f_res).
 
-  Let magic_variables : Sv.t :=
+  Definition magic_variables : Sv.t :=
     Sv.add (vid p.(p_extra).(sp_rip)) (Sv.add (vid (string_of_register RSP)) Sv.empty).
 
   Definition check_fd (ffd: sfun_decl) :=
