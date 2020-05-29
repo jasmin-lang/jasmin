@@ -195,7 +195,8 @@ Section CHECK.
     Let I := add_finfo fn fn (check_cmd fd.(f_body) O) in
     Let _ := assert (Sv.subset I (set_of_var_i_seq magic_variables fd.(f_params)))
                     (Ferr_fun fn (Cerr_one_varmap_free fn (Sv.elements I))) in
-    Let _ := assert (Sv.is_empty (Sv.inter magic_variables (writefun_ra writefun fn))) (Ferr_fun fn (Cerr_one_varmap "the function writes to RSP or global-data")) in
+    Let _ := assert (var.disjoint (writefun_ra writefun fn) magic_variables)
+                    (Ferr_fun fn (Cerr_one_varmap "the function writes to RSP or global-data")) in
     let e := fd.(f_extra) in
     Let _ := match e.(sf_save_stack) with SavedStackReg r => assert (~~Sv.mem r (writefun fn))
                                                                     (Ferr_fun fn (Cerr_one_varmap "the function writes the saved RSP"))
