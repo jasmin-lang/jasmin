@@ -135,12 +135,10 @@ Section Section.
 
   Hypothesis Hp : makereference_prog is_reg_ptr fresh_id p = ok p'.
 
-  (*Should be shown by assuming other hypotheses or admitted?*)
   Lemma eq_globs : p_globs p = p_globs p'.
   Proof.
    case : p Hp => /= p_funcs p_globs extra.
    rewrite /makereference_prog.
-   (*But Let x in ...*)
    t_xrbindP => /=.
    by move => y _ <-.
   Qed.
@@ -189,11 +187,6 @@ Section Section.
     rewrite /update_c /=.
     t_xrbindP.
     move => lc ci {}/hi hi cc hcc.
-    (*Difference between <- and [<-]?*)
-    (*move =>h ; rewrite - h ; clear h.*)
-    (*[] is just case*)
-    (*What is {}/hi again?*)
-    (*{}h makes a clear of h*)
     move => <- <-.
     rewrite read_c_cons.
     rewrite write_c_cons.
@@ -222,9 +215,7 @@ Section Section.
     move => vm2 [eq_s2_vm2 H_write_lval].
     exists vm2.
     split.
-    (*Weird, can't apply directly*)
-    + have H := (eq_onI _ eq_s2_vm2).
-      apply H.
+    + apply : (eq_onI _ eq_s2_vm2).
       by SvD.fsetdec.
     apply sem_seq1.
     apply EmkI.
@@ -236,18 +227,24 @@ Section Section.
   Proof.
     move => s1 s2 t o xs es He ii X c' [<-].
     rewrite read_Ii read_i_opn /write_I /= vrvs_recE => hsub vm1 hvm1.
-    About rbindP.
-    About Eopn.
-    About sem_I_ind.
-(*
-move=> s1 s2 t o xs es H vm1 Hvm1; apply: rbindP H => rs;apply: rbindP => vs.
-  move=> /(sem_pexprs_uincl Hvm1) [] vs' H1 H2.
-  move=> /(vuincl_exec_opn H2) [] rs' [] H3 H4.
-  move=> /(writes_uincl Hvm1 H4) [] vm2 ??.
-  exists vm2;split => //;constructor.
-  by rewrite /sem_sopn H1 /= H3.
-*)
-  Admitted.
+    move : He.
+    rewrite eq_globs /sem_sopn Let_Let.
+    t_xrbindP => vs Hsem_pexprs res Hexec_sopn hw.
+    case : (write_lvals_eq_on _ hw hvm1).
+    + by SvD.fsetdec.
+    move => vm2 [eq_s2_vm2 H_write_lvals].
+    exists vm2 ; split => //.
+    + apply : (eq_onI _ eq_s2_vm2).
+      by SvD.fsetdec.
+    apply sem_seq1.
+    apply EmkI.
+    constructor.
+    rewrite /sem_sopn Let_Let - (@read_es_eq_on _ _ X) ; last first.
+    + rewrite read_esE.
+      apply : (eq_onI _ hvm1).
+      by SvD.fsetdec.
+    by rewrite Hsem_pexprs /= Hexec_sopn.
+  Qed.
 
   Lemma write_Ii ii i : write_I (MkI ii i) = write_i i.
   Proof. by []. Qed.
@@ -316,7 +313,6 @@ move=> s1 s2 t o xs es H vm1 Hvm1; apply: rbindP H => rs;apply: rbindP => vs.
    move => vm2 [eq_s2_vm2 sem_while_false].
    exists vm2 ; split => //.
    apply/sem_seq1/EmkI.
-   Print sem_i.
    apply Ewhile_false => //.
    rewrite -(make_referenceprog_globs Hp) - eq_s_e.
    rewrite -(@read_e_eq_on _ Sv.empty) // -/(read_e _).
@@ -374,7 +370,16 @@ move=> s1 s2 t o xs es H vm1 Hvm1; apply: rbindP H => rs;apply: rbindP => vs.
 
   Lemma fresh_vars_in_prologueE c :
     fresh_vars_in_prologue c = pmap fresh_vars_in_prologue_i c.
-  Proof. Admitted.
+  Proof.
+    elim : c => [//|i c IHc /=].
+    Print fresh_vars_in_prologue.
+    rewrite /oapp - IHc /=.
+    destruct a.
+    destruct i0 => //=.
+    destruct l => //=.
+    rewrite /fresh_vars_in_prologue /=.
+    (*This seems obvious but is not*)
+  Admitted.
 
   Lemma read_es_eq_on_sym
      (gd : glob_decls) (es : pexprs) (X : Sv.t) (s : estate) (vm vm' : vmap)
@@ -477,6 +482,9 @@ move=> s1 s2 t o xs es H vm1 Hvm1; apply: rbindP H => rs;apply: rbindP => vs.
           by rewrite sem_v /= h1.
         - by apply: (eq_onI _ h2); move: le_X; rewrite read_es_cons; SvD.fsetdec.
     case=> vm [h1_vm h2_vm h3_vm].
+    (**)
+    move : h2.
+    rewrite /Pfun.
   Admitted.
 
 
