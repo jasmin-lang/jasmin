@@ -401,7 +401,8 @@ Section LEMMA.
       get_fundef (p_funcs p) fn = Some fd →
       (if fd.(f_extra).(sf_return_address) is RAstack _ then extra_free_registers ii != None else true) →
       check_cmd (f_body fd) (live_after_fd fd) = ok I →
-      (evm t1).[ vgd ] = ok (pword_of_word global_data) →
+      disjoint (writefun_ra p wrf fn) (magic_variables p) →
+      merged_vmap_precondition (write_c (f_body fd)) (evm t1) →
       let s1 := {| emem := m ; evm := vm1 |} in
       match_estate I s1 t1 →
       ∃ (t2 : estate) vm2,
@@ -415,8 +416,14 @@ Section LEMMA.
     rewrite read_esE read_rvsE => sim.
     case: (checkP ok_p ok_fd) => ok_wrf.
     rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic [] preserved_RSP checked_ra.
-    move: ih => /(_ _ _ _ _ _ ok_fd ra_is_free checked_body).
-    move => /(_ (evm s3) t1 (mvp_global_data pre)) /=.
+    move: ih => /(_ _ _ _ _ _ ok_fd ra_is_free checked_body preserved_magic).
+    have pre' : merged_vmap_precondition (write_c (f_body fd)) (evm t1).
+    { split; last exact: mvp_global_data pre.
+      apply: disjoint_w (mvp_not_written pre).
+      move: ok_wrf. rewrite /valid_writefun /write_fd /= /is_true Sv.subset_spec.
+      rewrite /write_i /merge_varmaps.write_i_rec /writefun_ra ok_fd.
+      SvD.fsetdec. }
+    move => /(_ (evm s3) t1 pre') /=.
     have checked_eargs : mapM get_pvar eargs = ok (map v_var (f_params fd)).
     { elim: (eargs) (f_params _) ok_params; clear; first by case.
       move => a eargs ih [] // x xs /= /andP[] ok_a /ih{ih}->.
@@ -445,10 +452,10 @@ Section LEMMA.
           by rewrite (mvp_global_data pre) vgd_v.
         (* vrsp *)
         rewrite -(write_vars_eq_except ok_s3); last by rewrite -Sv.mem_spec mem_set_of_var_i_seq.
-        move: ok_s2.
-        rewrite /init_state /=.
+        case: vrsp_v => m ok_m vrsp_v.
+        rewrite vrsp_v.
         admit.
-      case => x_param.
+      move => x_param.
       apply: (eval_uincl_trans); last first.
       + apply: sim.(mvm_vmap).
         apply: SvD.F.union_2.
@@ -485,14 +492,22 @@ Section LEMMA.
   Lemma Hproc: sem_Ind_proc p global_data Pc Pfun.
   Proof.
     move => m _ fn fd vargs vargs' s1 s2 s3 vres vres' ok_fd ok_vargs ok_s1 ok_s2 exec_body ih ok_vres ok_vres' -> ii fd' live vm1 t1.
-    rewrite ok_fd => /Some_inj <-{fd'} ok_ra ok_body /= vgd_v sim.
+    rewrite ok_fd => /Some_inj <-{fd'} ok_ra ok_body /= preserved_magic pre sim.
     move: ok_s1; apply: rbindP => m' /= ok_m' [?]; subst s1.
     set t2 := {| emem := m' ; evm := set_RSP m' (if fd.(f_extra).(sf_return_address) is RAreg x then t1.(evm).[x <- undef_error] else t1.(evm)) |}.
-    have pre : merged_vmap_precondition (write_c fd.(f_body)) (evm t2).
-    - admit.
+    have pre2 : merged_vmap_precondition (write_c fd.(f_body)) (evm t2).
+    - split; first exact: (mvp_not_written pre).
+      rewrite -(mvp_global_data pre).
+      rewrite /t2{t2} /= /set_RSP Fv.setP_neq; last by rewrite eq_sym vgd_neq_vrsp.
+      move: preserved_magic. rewrite /writefun_ra ok_fd.
+      case: (sf_return_address _) => // ra preserved.
+      rewrite Fv.setP_neq //.
+      apply/eqP.
+      have := not_written_vgd preserved.
+      SvD.fsetdec.
     have sim2 : match_estate live s2 t2.
     - admit.
-    have {ih} [t3 [texec preserved sim3]] := ih _ _ _ ok_body pre sim2.
+    have {ih} [t3 [texec preserved sim3]] := ih _ _ _ ok_body pre2 sim2.
     eexists _, _; split.
     - econstructor.
       1, 3: eassumption.
